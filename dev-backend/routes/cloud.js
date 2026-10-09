@@ -298,7 +298,9 @@ router.post('/webhook/gdrive', async (req, res) => {
     //   역방향 동기화 v2 는 이 경로가 **행을 만드는 유입구**가 되므로 그 전에 조인다.
     const crypto = require('crypto');
     const expected = crypto.createHmac('sha256', process.env.JWT_SECRET).update(`biz:${token.business_id}`).digest('hex').slice(0, 32);
-    if (tokenHeader !== expected) {
+    // 타이밍 안전 비교(2026-10-09 보안점검) — `!==` 는 앞자리부터 맞는 길이가 응답 시간에 드러난다.
+    const hb = Buffer.from(String(tokenHeader || '')); const eb = Buffer.from(expected);
+    if (hb.length !== eb.length || !crypto.timingSafeEqual(hb, eb)) {
       // 조용히 죽지 않게 남긴다 — 옛 채널이 있어 정상 동기화가 막히는 경우를 구별할 수 있어야 한다.
       console.warn('[gdrive webhook] 토큰 불일치로 거부', {
         channelId, business_id: token.business_id, hasHeader: !!tokenHeader,

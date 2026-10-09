@@ -1,5 +1,10 @@
 const express = require('express');
 const router = express.Router();
+// 공개 링크 — 워크스페이스가 지워졌으면 이 라우터의 모든 :token 주소(하위 PDF·다운로드 포함)가 닫힌다(services/shareOpenable).
+router.param('token', (req, res, next, token) => {
+  const M = require('../models');
+  return require('../services/shareOpenable').workspaceAliveParam([[M.File, 'share_token']])(req, res, next, token);
+});
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
@@ -191,6 +196,9 @@ router.get('/public/by-token/:token', async (req, res, next) => {
       //   화면이 mime 만 보고 판단하면, 바이트가 닿지 않는 경우(Drive 토큰 죽음 등)에
       //   빈 iframe/엑박이 뜨고 사용자는 무엇이 잘못됐는지 모른다.
       //   술어를 양쪽에 두면 갈라진다(memory feedback_predicate_must_match_both_sides) — 서버가 말하고 화면은 따른다.
+      // 비밀번호 공유면 받기·미리보기 주소에 붙일 서명 — `<img>`·`<a>` 는 비밀번호 헤더를 못 싣는다
+      //   (9-27 규칙 ③ · 2026-10-09: 주소의 `?p=` 평문 비밀번호를 폐지하면서 이 서명으로 바꿨다).
+      download_qs: require('../services/share_helper').shareSubQuery(file, req.params.token, 'download'),
       preview_kind: (() => {
         const { isSafeInline } = require('../services/fileServing');
         if (!isSafeInline(file.mime_type, file.file_name)) return null;
@@ -227,10 +235,12 @@ router.get('/public/by-token/:token/download', async (req, res, next) => {
     // N+44 — 410 통일
     const file = await File.findOne({ where: { share_token: req.params.token, deleted_at: null } });
     if (!file) return errorResponse(res, 'not_found', 404);
-    const { verifySharePassword, checkShareExpiry } = require('../services/share_helper');
+    const { verifyShareSub, checkShareExpiry } = require('../services/share_helper');
     if (checkShareExpiry(file, res)) return;
-    const v = await verifySharePassword(file, req);
-    if (!v.ok) return res.status(v.status).json({ success: false, message: v.error, requires_password: v.requires_password });
+    // 서명(`?dl=`, 메타 응답이 준다) 또는 비밀번호 헤더 — 옛 `/public/:token/download` 와 같은 문.
+    if (!(await verifyShareSub(file, req, req.params.token, 'download'))) {
+      return res.status(401).json({ success: false, message: 'password_required', requires_password: true });
+    }
     if (await _s3Redirect(file, res)) return;
     // ★ Drive 파일을 external_url 로 **리다이렉트하지 않는다** (운영 신고 2026-09-03).
     //   PlanQ 는 Drive 에 올린 파일에 권한을 부여한 적이 없어서(gdrive 서비스 전체에 permissions.create 0건)

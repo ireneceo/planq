@@ -372,7 +372,7 @@ router.post('/:token/messages', guestLimiter('guest-send', { windowMs: 60 * 1000
 
     // 실시간 반영 — 멤버 Q Talk 이 즉시 본다 (CLAUDE.md 운영 안정성 §16).
     const full = await Message.findByPk(msg.id, {
-      include: [{ model: User, as: 'sender', attributes: ['id', 'name', 'email', 'name_localized', 'is_guest'] }],
+      include: [{ model: User, as: 'sender', attributes: ['id', 'name', 'name_localized', 'is_guest'] }],
     });
     const io = req.app.get('io');
     if (io && full) {

@@ -208,7 +208,7 @@ const linkLimiter = require('express-rate-limit')({
   keyGenerator: (req) => `${req.body?.entity_id || ''}:${require('express-rate-limit').ipKeyGenerator(req.ip)}`,
   message: { success: false, message: 'rate_limit_link' },
 });
-router.post('/sign/request-link', linkLimiter, async (req, res, next) => {
+router.post('/sign/request-link', linkLimiter, async (req, res, next) => { // audit-exempt: 감사(signature.link_requested)는 응답 뒤 sendLinkAgain 이 남긴다 — 응답 시간으로 명단이 드러나지 않게 뒤로 뺐다
   try {
     const entityType = req.body?.entity_type === 'document' ? 'document' : 'post';
     const entityId = Number(req.body?.entity_id || 0);
@@ -216,7 +216,7 @@ router.post('/sign/request-link', linkLimiter, async (req, res, next) => {
     if (!entityId || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       return errorResponse(res, 'invalid_request', 400);
     }
-    const { SignatureRequest, User, Business } = require('../models');
+    const { SignatureRequest } = require('../models');
     const { Op } = require('sequelize');
     const sr = await SignatureRequest.findOne({
       where: {
@@ -226,29 +226,36 @@ router.post('/sign/request-link', linkLimiter, async (req, res, next) => {
       },
       order: [['id', 'DESC']],
     });
+    // ★ 보내기는 응답 뒤에 한다 — 명단에 있을 때만 메일 발송을 기다리면 **응답 시간**으로 명단 여부가
+    //   드러난다(2026-10-09 보안점검). 응답 본문만 같게 해서는 열거가 안 막힌다.
     if (sr && !isExpiredNow(sr)) {
-      const entity = await loadEntity(sr.entity_type, sr.entity_id);
-      const business = await Business.findByPk(sr.business_id, { attributes: ['name'] });
-      const sender = await User.findByPk(sr.requester_user_id, { attributes: ['name'] });
-      await require('../services/emailService').sendSignatureRequestEmail({
-        to: sr.signer_email,
-        docTitle: sr.title_snapshot || entity?.title || '문서',
-        senderName: sender?.name || '',
-        workspaceName: business?.name || '',
-        signerName: sr.signer_name,
-        message: sr.note,
-        signUrl: `${process.env.APP_URL || 'https://dev.planq.kr'}/sign/${sr.token}`,
-        expiresAt: sr.expires_at,
-      }).catch((e) => console.warn('[sign] 링크 재발송 실패', e.message));
-      await sr.update({ reminder_count: sr.reminder_count + 1, last_reminder_at: new Date() });
-      createAuditLog({
-        userId: sr.requester_user_id, businessId: sr.business_id, action: 'signature.link_requested',
-        targetType: 'SignatureRequest', targetId: sr.id, metadata: { signer: sr.signer_email },
-      });
+      setImmediate(() => sendLinkAgain(sr).catch((e) => console.warn('[sign] 링크 재발송 실패', e.message)));
     }
     // 명단에 없어도 같은 응답 — 열거 차단
     return successResponse(res, { sent: true });
   } catch (err) { next(err); }
 });
+
+async function sendLinkAgain(sr) {
+  const { User, Business } = require('../models');
+  const entity = await loadEntity(sr.entity_type, sr.entity_id);
+  const business = await Business.findByPk(sr.business_id, { attributes: ['name'] });
+  const sender = await User.findByPk(sr.requester_user_id, { attributes: ['name'] });
+  await require('../services/emailService').sendSignatureRequestEmail({
+    to: sr.signer_email,
+    docTitle: sr.title_snapshot || entity?.title || '문서',
+    senderName: sender?.name || '',
+    workspaceName: business?.name || '',
+    signerName: sr.signer_name,
+    message: sr.note,
+    signUrl: `${process.env.APP_URL || 'https://dev.planq.kr'}/sign/${sr.token}`,
+    expiresAt: sr.expires_at,
+  });
+  await sr.update({ reminder_count: sr.reminder_count + 1, last_reminder_at: new Date() });
+  createAuditLog({
+    userId: sr.requester_user_id, businessId: sr.business_id, action: 'signature.link_requested',
+    targetType: 'SignatureRequest', targetId: sr.id, metadata: { signer: sr.signer_email },
+  });
+}
 
 module.exports = router;

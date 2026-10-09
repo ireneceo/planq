@@ -788,7 +788,7 @@ router.post('/:businessId/:id/messages', authenticateToken, attachWorkspaceScope
     // Socket.IO broadcast — 채팅 페이지 실시간 반영 + 우측 상단 in-app 토스터 트리거.
     // (projects.js 의 메시지 라우트와 동일 패턴. NotificationToaster 의 'message:new' 핸들러가 받음.)
     const fullMsg = await Message.findByPk(msg.id, {
-      include: [{ model: User, as: 'sender', attributes: ['id', 'name', 'email', 'name_localized'] }],
+      include: [{ model: User, as: 'sender', attributes: ['id', 'name', 'name_localized'] }],
     });
     let emitMsg = null;
     if (fullMsg) {
@@ -927,7 +927,7 @@ router.put('/:businessId/:id/messages/:msgId', authenticateToken, attachWorkspac
     await msg.update({ content, is_edited: true, edited_at: new Date() });
 
     const fullMsg = await Message.findByPk(msg.id, {
-      include: [{ model: User, as: 'sender', attributes: ['id', 'name', 'email', 'name_localized'] }],
+      include: [{ model: User, as: 'sender', attributes: ['id', 'name', 'name_localized'] }],
     });
     const payload = fullMsg.toJSON();
     await applyMemberDisplayNameOne(payload, Number(businessId), ['sender']);
@@ -1047,7 +1047,7 @@ router.get('/:businessId/:id/pinned', authenticateToken, attachWorkspaceScope(),
       include: [
         // is_guest — 없으면 applyGuestDisplayName 이 **조용히 아무것도 안 한다**(no-op).
         //   오류 없이 "게스트" 로 떨어지고 뱃지 근거도 사라진다 (Fable 실측 2026-09-02).
-        { model: User, as: 'sender', attributes: ['id', 'name', 'email', 'name_localized', 'is_guest'] },
+        { model: User, as: 'sender', attributes: ['id', 'name', 'name_localized', 'is_guest'] },
         // file_path·storage_provider·external_id 는 미리보기 토큰 계산에 필요하다 —
         //   serializeMessageAttachments 가 응답에서 다시 제거한다(저장 경로를 내보내지 않는다).
         { model: MessageAttachment, as: 'attachments', attributes: ['id', 'file_name', 'file_size', 'mime_type', 'file_id', 'file_path', 'storage_provider', 'external_id'], required: false },

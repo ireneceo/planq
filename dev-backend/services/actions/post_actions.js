@@ -22,7 +22,7 @@ function signalPost(post, event) {
   if (!io || !post) return;
   const data = { id: post.id, business_id: post.business_id, project_id: post.project_id || null };
   if (post.business_id) io.to(`business:${post.business_id}`).emit(event, data);
-  if (post.project_id) io.to(`project:${post.project_id}`).emit(event, data);
+  if (post.project_id) require('../projectRoom').emitProject(io, post.project_id, event, data);
 }
 
 function audit(actor, action, post, extra) {
@@ -181,7 +181,7 @@ async function movePostToProject(actor, params = {}) {
   if (post.status !== 'draft') {
     signalPost(post, 'post:updated');
     // 떠난 프로젝트 방에도 알린다 — 그 목록에서 빠져야 한다
-    if (oldProjectId && oldProjectId !== projectId) { const io = getIO(); if (io) io.to(`project:${oldProjectId}`).emit('post:updated', { id: post.id, business_id: post.business_id, project_id: projectId }); }
+    if (oldProjectId && oldProjectId !== projectId) { const io = getIO(); if (io) require('../projectRoom').emitProject(io, oldProjectId, 'post:updated', { id: post.id, business_id: post.business_id, project_id: projectId }); }
   }
   return done({ post, old_project_id: oldProjectId });
 }

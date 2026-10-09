@@ -32,10 +32,14 @@ const backfill = require('../services/calendarWorkspaceBackfill');   // 재연�
 //   1) 즉시 postMessage (부모가 상태 갱신)
 //   2) 800ms 뒤 자동 window.close() 시도
 //   3) 1.5s 후에도 살아있으면 안내 화면 ("이 창을 닫으셔도 됩니다") 로 교체
+// 콜백 화면에 끼우는 바깥 값(구글이 돌려준 error·메일 주소·오류 문구)은 반드시 이스케이프한다 —
+//   `?error=<b>…` 로 우리 도메인에 남의 HTML 을 그리게 할 수 있었다(2026-10-09 보안점검).
+const escHtml = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
 function buildCallbackHtml({ provider, ok, title, body }) {
   // provider: 'gdrive' | 'gcal' (postMessage type 분기)
   const messageType = provider === 'gcal' ? 'gcal:connected' : 'gdrive:connected';
-  return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${title}</title>
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${escHtml(title)}</title>
 <style>
   body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;background:#F8FAFC;color:#0F172A;}
   .box{background:#fff;border:1px solid #E2E8F0;border-radius:12px;padding:28px 32px;max-width:420px;text-align:center;box-shadow:0 4px 12px rgba(15,23,42,0.06);}
@@ -107,7 +111,7 @@ router.get('/callback/gdrive', async (req, res) => {
 
   if (oauthError) {
     logOauthFailure('gdrive callback', 'oauth_denied', { error: oauthError });
-    return res.status(400).send(ok('연동 실패', `<h2>연동 실패</h2><p>Google 에서 거부됨: ${oauthError}</p>`));
+    return res.status(400).send(ok('연동 실패', `<h2>연동 실패</h2><p>Google 에서 거부됨: ${escHtml(oauthError)}</p>`));
   }
   if (!code || !state) {
     logOauthFailure('gdrive callback', 'missing_code_or_state');
@@ -208,13 +212,13 @@ router.get('/callback/gdrive', async (req, res) => {
 
     return res.send(buildCallbackHtml({
       provider: 'gdrive', ok: true, title: '연동 완료',
-      body: `<h2>Google Drive 연동 완료</h2><p>계정: <strong>${accountEmail || '(확인 불가)'}</strong><br/>루트 폴더 생성됨.</p>`,
+      body: `<h2>Google Drive 연동 완료</h2><p>계정: <strong>${escHtml(accountEmail || '(확인 불가)')}</strong><br/>루트 폴더 생성됨.</p>`,
     }));
   } catch (e) {
     console.error('[gdrive callback]', e);
     return res.status(500).send(buildCallbackHtml({
       provider: 'gdrive', ok: false, title: '연동 실패',
-      body: `<h2>연동 실패</h2><p>${e.message || '서버 오류'}</p>`,
+      body: `<h2>연동 실패</h2><p>${escHtml(e.message || '서버 오류')}</p>`,
     }));
   }
 });
@@ -225,7 +229,7 @@ router.get('/callback/gcal', async (req, res) => {
 
   if (oauthError) {
     logOauthFailure('gcal callback', 'oauth_denied', { error: oauthError });
-    return res.status(400).send(ok('연동 실패', `<h2>연동 실패</h2><p>Google 에서 거부됨: ${oauthError}</p>`));
+    return res.status(400).send(ok('연동 실패', `<h2>연동 실패</h2><p>Google 에서 거부됨: ${escHtml(oauthError)}</p>`));
   }
   if (!code || !state) {
     logOauthFailure('gcal callback', 'missing_code_or_state');
@@ -296,13 +300,13 @@ router.get('/callback/gcal', async (req, res) => {
 
     return res.send(buildCallbackHtml({
       provider: 'gcal', ok: true, title: '연동 완료',
-      body: `<h2>Google Calendar 연동 완료</h2><p>계정: <strong>${accountEmail || '(확인 불가)'}</strong><br/>화상회의 시 Google Meet 링크가 자동으로 만들어집니다.<br/>연결이 끊겼던 동안의 일정을 팀 캘린더로 올리는 중입니다.</p>`,
+      body: `<h2>Google Calendar 연동 완료</h2><p>계정: <strong>${escHtml(accountEmail || '(확인 불가)')}</strong><br/>화상회의 시 Google Meet 링크가 자동으로 만들어집니다.<br/>연결이 끊겼던 동안의 일정을 팀 캘린더로 올리는 중입니다.</p>`,
     }));
   } catch (e) {
     console.error('[gcal callback]', e);
     return res.status(500).send(buildCallbackHtml({
       provider: 'gcal', ok: false, title: '연동 실패',
-      body: `<h2>연동 실패</h2><p>${e.message || '서버 오류'}</p>`,
+      body: `<h2>연동 실패</h2><p>${escHtml(e.message || '서버 오류')}</p>`,
     }));
   }
 });

@@ -69,7 +69,7 @@ async function createProjectNote(actor, params = {}) {
   // 내부 메모는 프로젝트 room 에만 (personal 은 본인만 볼 수 있으므로 방송 안 함)
   if (vis === 'internal') {
     const io = getIO();
-    if (io) io.to(`project:${project.id}`).emit('note:new', full.toJSON());
+    if (io) require('../projectRoom').emitProject(io, project.id, 'note:new', full.toJSON());
   }
   return { ok: true, data: { note: full, project } };
 }

@@ -203,7 +203,7 @@ async function createOccurrence(parent, nextDateStr, io = null, notifyBucket = n
           // actor_user_id null — cron 발생이라 본인 액션 토스터 차단 대상 없음
           const payload = { ...full.toJSON(), actor_user_id: null, _source: 'recurring_cron' };
           if (parent.business_id) io.to(`business:${parent.business_id}`).emit('task:new', payload);
-          if (parent.project_id) io.to(`project:${parent.project_id}`).emit('task:new', payload);
+          if (parent.project_id) require('./projectRoom').emitProject(io, parent.project_id, 'task:new', payload);
         }
       } catch (e) {
         console.warn('[recurringTask] broadcast failed', inst.id, e.message);
@@ -392,7 +392,7 @@ async function skipMissedOccurrences(parent, today = new Date(), io = null, tzCa
         try {
           const payload = { id, status: 'canceled', business_id: parent.business_id, project_id: parent.project_id || null };
           if (parent.business_id) io.to(`business:${parent.business_id}`).emit('task:updated', payload);
-          if (parent.project_id) io.to(`project:${parent.project_id}`).emit('task:updated', payload);
+          if (parent.project_id) require('./projectRoom').emitProject(io, parent.project_id, 'task:updated', payload);
         } catch (e) { console.warn('[recurringTask] skip broadcast', id, e.message); }
       }
     }

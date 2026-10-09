@@ -21,7 +21,7 @@ function signalKb(doc, event) {
   if (!io || !doc) return;
   const data = { id: doc.id, business_id: doc.business_id, project_id: doc.project_id || null };
   if (doc.business_id) io.to(`business:${doc.business_id}`).emit(event, data);
-  if (doc.project_id) io.to(`project:${doc.project_id}`).emit(event, data);
+  if (doc.project_id) require('../projectRoom').emitProject(io, doc.project_id, event, data);
 }
 
 const TEXT_EXT = ['.txt', '.md', '.markdown', '.html', '.htm', '.json', '.csv', '.log'];

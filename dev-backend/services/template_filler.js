@@ -51,15 +51,20 @@ async function loadContext({ businessId, projectId, clientId, userId }) {
     });
     if (biz) ctx.business = biz.toJSON();
   }
-  if (projectId) {
-    const proj = await Project.findByPk(projectId, {
+  // ★ 프로젝트·고객은 **그 워크스페이스 안에서만** 찾는다 (2026-10-09 보안점검 실측:
+  //   findByPk 로 찾아 남의 워크스페이스 프로젝트 이름·설명이 200 으로 나갔다). businessId 가 없으면 찾지 않는다.
+  if (projectId && businessId) {
+    const proj = await Project.findOne({
+      where: { id: projectId, business_id: businessId },
       attributes: ['id', 'name', 'description'],
     });
     if (proj) ctx.project = proj.toJSON();
   }
-  if (clientId) {
-    const cli = await Client.findByPk(clientId, {
-      attributes: ['id', 'display_name', 'biz_name', 'company_name', 'country', 'address'],
+  if (clientId && businessId) {
+    // address 칸은 clients 에 없다(biz_address) — 그대로 두면 고객을 고르는 순간 500 이었다.
+    const cli = await Client.findOne({
+      where: { id: clientId, business_id: businessId },
+      attributes: ['id', 'display_name', 'biz_name', 'company_name', 'country', ['biz_address', 'address']],
     });
     if (cli) ctx.client = cli.toJSON();
   }

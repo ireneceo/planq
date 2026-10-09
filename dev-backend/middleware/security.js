@@ -331,6 +331,12 @@ const setupSecurity = (app) => {
     'member2@test.planq.kr',
     'client@test.planq.kr',
   ]);
+  // ★ 운영에서는 예외가 없다 — 이 주소들이 운영에 생기는 순간 무제한 대입 대상이 된다(2026-10-09 보안점검).
+  const isDevTestLogin = (req) => {
+    if (process.env.NODE_ENV === 'production') return false;
+    const email = req.body?.email;
+    return typeof email === 'string' && DEV_TEST_EMAILS.has(email.toLowerCase());
+  };
   const loginLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15분
     max: 8,
@@ -339,12 +345,23 @@ const setupSecurity = (app) => {
     // 성공한 로그인은 카운트 제외 — 정상 로그인/다기기 재로그인으로 잠기지 않게. 실패(브루트포스)만 집계.
     skipSuccessfulRequests: true,
     message: { success: false, message: 'Too many login attempts, please try again later' },
-    skip: (req) => {
-      const email = req.body?.email;
-      return typeof email === 'string' && DEV_TEST_EMAILS.has(email.toLowerCase());
-    },
+    skip: isDevTestLogin,
+  });
+  // ★ 계정 단위 한도 (2026-10-09 보안점검) — IP 한도만 있으면 여러 IP 로 한 계정을 두드리는 것(크리덴셜
+  //   스터핑·분산 대입)을 못 막는다. 실패만 센다. 상한을 넉넉히(시간당 30) 두는 이유: 남이 일부러 틀려서
+  //   계정 주인을 잠그는 일(잠금 DoS)을 줄이려고 — 대입을 시간당 30회로 묶는 것으로 충분하다.
+  const loginAccountLimiter = rateLimit({
+    windowMs: 60 * 60 * 1000,
+    max: 30,
+    standardHeaders: true,
+    legacyHeaders: false,
+    skipSuccessfulRequests: true,
+    keyGenerator: (req) => 'login-acct-' + String(req.body?.email || '').trim().toLowerCase().slice(0, 254),
+    message: { success: false, message: 'Too many login attempts, please try again later' },
+    skip: (req) => isDevTestLogin(req) || !req.body?.email,
   });
   app.use('/api/auth/login', loginLimiter);
+  app.use('/api/auth/login', loginAccountLimiter);
   // 탈퇴 복구도 비밀번호 브루트포스 대상 — login 과 동일 limiter 적용 (Fable 🟠2).
   app.use('/api/auth/deletion-recover', loginLimiter);
 

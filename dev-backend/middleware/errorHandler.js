@@ -107,7 +107,8 @@ const errorHandler = (err, req, res, next) => {
   }
 
   // 운영에서 5xx 의 본문 메시지는 노출 X (정보 유출 방지). request_id 만 응답
-  if (process.env.NODE_ENV === 'production' && statusCode === 500) {
+  //   (2026-10-09) 500 만이 아니라 5xx 전부 — 502·503 으로 던진 오류도 SQL·내부 경로가 실려 나갈 수 있다.
+  if (process.env.NODE_ENV === 'production' && statusCode >= 500) {
     message = 'Internal server error';
   }
 

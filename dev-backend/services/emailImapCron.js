@@ -993,11 +993,13 @@ async function ingestMessage(ctx, { r, uid, box, role = 'inbox', isBackfill }) {
 
   // socket emit
   if (io) {
-    io.to(`business:${account.business_id}`).emit('mail:new', {
+    // 신호만(보낸 사람·제목 없이) · 개인 메일함은 주인에게만 — 워크스페이스 방에는 남의 개인 메일을
+    //   볼 수 없는 멤버도 있다(2026-10-09 보안점검: 개인 메일 발신자·제목이 멤버 전원 소켓에 갔다).
+    const room = account.owner_user_id ? `user:${account.owner_user_id}` : `business:${account.business_id}`;
+    io.to(room).emit('mail:new', {
       thread_id: thread.id,
       message_id: message.id,
-      from_email: fromEmail,
-      subject: parsed.subject,
+      business_id: account.business_id,
       is_new_thread: isNew,
     });
   }

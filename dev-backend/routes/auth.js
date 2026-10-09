@@ -1028,6 +1028,15 @@ router.post('/reset-password', async (req, res, next) => {
       password_reset_token: null,
       password_reset_expires: null,
     });
+    // ★ 살아 있는 로그인을 전부 끊는다 — 비밀번호를 바꾸는 가장 흔한 이유가 «누가 내 계정을 쓰는 것 같다» 다.
+    //   여태 새로 정해도 훔쳐 간 refresh 쿠키(웹 30일·앱 365일)는 그대로 살았다(2026-10-09 보안점검).
+    //   grace·수령치유 두 경로 모두 «후속 row 가 살아 있을 것» 을 요구하므로 전부 revoke 하면 둘 다 닫힌다.
+    //   ENUM 확장 없이 기존 값 'admin'(사람이 명시적으로 끊음)을 쓴다.
+    await RefreshToken.update(
+      { revoked_at: new Date(), revoked_reason: 'admin' },
+      { where: { user_id: user.id, revoked_at: null } },
+    );
+    require('../services/socketRevoke').disconnectUser(req.app.get('io'), user.id);
     // 감사 — 비밀번호 재설정은 계정 탈취의 마지막 단계와 모양이 같다. 누구 계정이 언제 어디서 바뀌었나(비밀번호·토큰은 싣지 않는다).
     require('../services/auditService').logAudit(req, { action: 'auth.password_reset', targetType: 'User', targetId: user.id, userId: user.id, businessId: null });
     return successResponse(res, { reset: true }, 'password_reset_success');

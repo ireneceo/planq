@@ -30,7 +30,12 @@ async def lifespan(app: FastAPI):
   logger.info('Q Note shutting down')
 
 
-app = FastAPI(title='Q Note', version='0.2.0', lifespan=lifespan)
+# API 문서(/docs·/redoc·/openapi.json)는 **켤 때만** 낸다 — 내부 주소까지 담긴 지도다(2026-10-09 보안점검).
+#   «운영이면 끈다» 로 두면 운영 .env 에 그 표시가 없을 때 조용히 열린다(Fable 지적) → 기본 꺼짐, QNOTE_DOCS=1 일 때만.
+_DOCS_OFF = os.getenv('QNOTE_DOCS') != '1'
+app = FastAPI(title='Q Note', version='0.2.0', lifespan=lifespan,
+              docs_url=None if _DOCS_OFF else '/docs', redoc_url=None if _DOCS_OFF else '/redoc',
+              openapi_url=None if _DOCS_OFF else '/openapi.json')
 
 ALLOWED_ORIGINS = os.getenv(
   'ALLOWED_ORIGINS',
@@ -44,6 +49,31 @@ app.add_middleware(
   allow_methods=['*'],
   allow_headers=['*'],
 )
+
+# ★ 내부 전용 주소(/…/internal/…) 관문 — 한 곳 (2026-10-09 보안점검).
+#   nginx 의 /qnote/ 가 이 서비스 전체를 바깥에 열어 두므로 internal 주소도 인터넷에서 닿았고, 키 하나만 지켰다.
+#   ★ «같은 서버에서 왔나» 를 request.client.host 로만 보면 **거짓**이다 — nginx 도 127.0.0.1 에서 프록시한다.
+#     그래서 nginx 가 반드시 붙이는 X-Real-IP / X-Forwarded-For 가 있으면 바깥 요청으로 본다(Node 의 직접 호출엔 없다).
+#   키는 hmac.compare_digest 로 비교한다(Node utils/internalAuth.js 와 같은 두 겹).
+import hmac as _hmac
+from fastapi.responses import JSONResponse as _JSONResponse
+_LOOPBACK = {'127.0.0.1', '::1', '::ffff:127.0.0.1'}
+
+def internal_request_ok(request) -> bool:
+  host = request.client.host if request.client else ''
+  if host not in _LOOPBACK:
+    return False
+  if request.headers.get('x-real-ip') or request.headers.get('x-forwarded-for'):
+    return False
+  expected = os.environ.get('INTERNAL_API_KEY') or ''
+  provided = request.headers.get('x-internal-api-key') or ''
+  return bool(expected) and _hmac.compare_digest(provided.encode(), expected.encode())
+
+@app.middleware('http')
+async def _internal_gate(request, call_next):
+  if '/internal/' in request.url.path and not internal_request_ok(request):
+    return _JSONResponse(status_code=404, content={'detail': 'not found'})
+  return await call_next(request)
 
 # 느린 요청 기록 — 메인 백엔드 middleware/requestTiming.js 와 같은 계약(경로의 숫자 id 는 :id, 쿼리·본문 없음).
 #   «모든 기능 속도 체크» 를 실사용으로 한다(2026-10-04). WebSocket(/ws/live)은 http 가 아니라 여기 안 걸린다.

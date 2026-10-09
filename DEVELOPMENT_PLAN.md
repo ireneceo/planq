@@ -1,6 +1,7 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-10-09 밤 ([Opus]+[Fable] Opus 5.5, 방 c3d0da3b) — 가입 때 혼자·팀 고르기(고른 플랜으로 14일 체험) · 체험 중 결제 없이 플랜 바꾸기 · 체험 비용 캡. Fable 설계 1회 + 완료 PASS. 링크→앱 열기(방 33a23fc2) 같이 커밋. 운영 미배포.
+> **최종 업데이트:** 2026-10-09 밤 ([Opus]+[Fable] Opus 5.5, 방 166c2f84) — **보안 점검 2차**: 고객·외부인 누수 · 팀/개인 분리 · 해킹 대응 30여 건 수리(치명 1: 남의 워크스페이스 프로젝트·고객 읽기). Fable 1차 FAIL → 2차 PASS. 규칙 4건(D2·D3·D4·D10) Irene 답 대기. 운영 미배포.
+> ── 이전(2026-10-09 밤, 방 c3d0da3b) ── 가입 때 혼자·팀 고르기(고른 플랜으로 14일 체험) · 체험 중 결제 없이 플랜 바꾸기 · 체험 비용 캡. Fable 설계 1회 + 완료 PASS. 링크→앱 열기(방 33a23fc2) 같이 커밋. 운영 미배포.
 > ── 이전(2026-10-09 밤, 방 58947e65) ── 새 팀 첫 길 점검: 가입→초대→합류→업무 요청→대화 12건 수리 (운영 미배포). 가입 제한 예외만 Fable 1차 FAIL→2차 PASS, 나머지 자체 검증.
 > ── 이전(2026-10-09 저녁) ──
 > 2026-10-09 저녁 ([Opus] Opus 5.5, 방 cdf8db0c) — 팀 적응 5단계: 대시보드 «팀 적응 단계» 카드 · 도움말 글 · 랜딩 /start (운영 미배포). Fable 설계 PASS-WITH-CHANGES 반영, 완성 검증은 자체.
@@ -35,6 +36,33 @@
 > 오전([Opus] Opus 5.5, 1M): **운영 배포 6회(v1.61.0 ~ v1.63.5).**
 > 게스트 진입(P0·A·B) · 이미지 보안 2a·2b(0~2단계) · 감사 1~3순위(328→98) · PDF 이미지 · **남의 워크스페이스에 쓰던 권한 결함 3건**.
 > ★ v1.63.3 의 PDF 수정이 이미지 많은 문서를 500 으로 만든 회귀를 **배포 후 운영 실측**으로 잡아 v1.63.4 로 되돌렸다.
+
+---
+
+## ✅ 완료: 2026-10-09 밤 [Opus]+[Fable] — 보안 점검 2차 (방 166c2f84)
+
+> Irene: *"완벽한 서비스 운영을 위해 보안점검 다시 해줘. 고객정보 새거나 외부인이 함부로 보게 되는 거 없는지 보안설정은 하나 하나 제대로 적용되는지 팀 개인 잘 분리된건지 해킹에 탄탄하게 대응했는지 …"*
+> 정본·전체 표: `docs/SECURITY_SWEEP_2026-10-09.md` · Fable 판정 `docs/FABLE_GATE_QUEUE.md` 맨 위.
+
+### 완료된 작업
+
+| 작업 | 설명 | 상태 |
+|------|------|:----:|
+| 워크스페이스 간 누수 | 문서 서식 자동채움·AI 초안·문서 생성이 남의 워크스페이스 프로젝트·고객·템플릿을 id 로 읽던 것(치명) | ✅ 완료 |
+| 고객 쪽 누수 | 한 프로젝트 다른 고객사 채널 읽기·쓰기 · 계약금액·전략·멤버 이메일 · 거래·청구 초안·히스토리·단계 API · 업무 공수·태그 | ✅ 완료 |
+| 실시간 방송 누수 | 프로젝트 방 직원/고객 분리(`projectRoom.emitProject` + 가드) · Cue 초안·내부 메시지 · 개인 메일·메모 · 청구서 → 신호만 · 내보낸 멤버·정지 계정 회수 | ✅ 완료 |
+| 응답 비밀값 | 공유 비밀번호 해시·일회용 토큰·`_encrypted`·평문 결제 비밀값을 전역 toJSON 에서 · 초대 토큰 · 메시지 보낸 사람 이메일 | ✅ 완료 |
+| 권한 | Q Bill 권한 none 의 청구서 조회 · 하위 문서 L1 제목 · Cue 고객 답변 L1/L2 자료 · 보고서 L1/기밀 제목 · 내보낸 창업자 owner 잔존 · 옛 댓글 수정 | ✅ 완료 |
+| 해킹 대응 | 구글 콜백 HTML 주입 · 비밀번호 재설정 시 세션 회수 · 계정당 로그인 한도 · 공유 비밀번호 대입 한도·`?p=` 폐지(→ `?dl=` 서명) · 지운 워크스페이스 공유 링크 · 서명 OTP·링크 재요청 · Q Note 내부 주소 관문·API 문서 · URL 가져오기 rebinding · health·5xx 문구 | ✅ 완료 |
+| nginx 두 겹 | 운영 conf + `scripts/apply-nginx-internal-deny.sh` | ⏳ Irene root 적용 |
+| 규칙 결정 D2·D3·D4·D10 | 관리자 열람 범위(나만 보기 Q info·일정 · 그룹 대화 · 남의 개인 메일 · 개인 회고) | ⏸ Irene 답 대기 |
+| 다음 사이클 D5·D1·D7·D6·D8 | 구글 연결 state 묶기 · 메뉴 권한 서버 적용 · Stripe 웹훅 대조 · 보고서 링크 만료 · 의존성 | 🕓 다음 |
+
+### 수정된 파일
+- 백엔드 52 + 신규 `services/projectRoom.js` · `services/socketRevoke.js` · `utils/botUa.js` (routes/projects·posts·files·tasks·kb·calendar·docs·invoices·reports·auth·businesses·signature* · services/template_filler·document_actions·task_actions·share_helper·shareOpenable·projectAccess·mailBroadcast · models/index · middleware/security·menu_permission·errorHandler · server.js 외)
+- q-note `main.py` · `routers/sessions.py` · `routers/voice.py` · `services/url_fetcher.py`
+- 프론트 `pages/Public/PublicFilePage.tsx` · `pages/QBill/InvoiceDetailDrawer.tsx`
+- `scripts/guard-invariants.js`(checkProjectRoom) · `scripts/nginx-planq.kr.conf` · `scripts/apply-nginx-internal-deny.sh`
 
 ---
 

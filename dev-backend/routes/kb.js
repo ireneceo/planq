@@ -3,6 +3,11 @@
 
 const express = require('express');
 const router = express.Router();
+// 공개 링크 — 워크스페이스가 지워졌으면 이 라우터의 모든 :token 주소(하위 PDF·다운로드 포함)가 닫힌다(services/shareOpenable).
+router.param('token', (req, res, next, token) => {
+  const M = require('../models');
+  return require('../services/shareOpenable').workspaceAliveParam([[M.KbDocument, 'share_token'], [M.KbShareBundle, 'token']])(req, res, next, token);
+});
 
 // 원본 자료 읽기 권한 — Q info 가 파일·문서를 **첨부하거나 본문을 복사해 올 때**, 그리고 첨부를 **보여 줄 때**
 //   같은 술어를 쓴다(2026-09-27 점검: 남의 «나만 보기» 파일·문서 본문을 Q info 로 복사해 팀에 공개할 수 있었고,
@@ -25,7 +30,7 @@ function broadcastKb(req, doc, event = 'kb:updated') {
   //   받는 화면(KnowledgePage)은 id 도 안 보고 다시 읽는다.
   const data = { id: doc.id, business_id: doc.business_id, project_id: doc.project_id || null };
   if (doc.business_id) io.to(`business:${doc.business_id}`).emit(event, data);
-  if (doc.project_id) io.to(`project:${doc.project_id}`).emit(event, data);
+  if (doc.project_id) require('../services/projectRoom').emitProject(io, doc.project_id, event, data);
 }
 const { decodeOriginalName } = require('../services/filename');
 const { createAuditLog } = require('../middleware/audit');

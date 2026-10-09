@@ -74,6 +74,9 @@ function requireMenu(menuKey, requiredLevel = 'read', opts = {}) {
         attributes: ['role'],
       });
       if (!member) {
+        // 고객처럼 멤버가 아닌 사람도 쓰는 라우트(자기 청구서 보기 등)는 opts.allowNonMember 로 통과시킨다 —
+        //   메뉴 권한은 **멤버의** 축이고, 비멤버는 그 라우트의 자기 술어(attachWorkspaceScope·invoiceListWhere)가 좁힌다.
+        if (opts.allowNonMember) return next();
         return res.status(403).json({ success: false, code: 'not_a_member' });
       }
 

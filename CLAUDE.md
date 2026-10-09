@@ -397,6 +397,18 @@ router.get('/', authenticateToken, async (req, res, next) => {
 - **실시간 방송은 신호만**(`{id, business_id, project_id}`) — 행 전체를 방에 뿌리면 L1 본문·공유 토큰이 멤버 전원·프로젝트 고객에게 간다. 받는 화면은 id 로 다시 읽는다.
 - **목록 범위 조건은 `Op.and` 안에** — 호출부가 `where.project_id = ?` 로 필터를 덧붙이면 최상위 키는 덮어써진다(고객 문서 목록이 그랬다).
 
+### 보안 점검 2차가 더한 세 규칙 (2026-10-09 박제 — 정본 `docs/SECURITY_SWEEP_2026-10-09.md`)
+6. **프로젝트 방은 둘이다** — 멤버 `project:<id>` / 고객 `project:<id>:client`. 방송은 **`services/projectRoom.emitProject` 한 문**
+   (고객 방에는 `CLIENT_VIEW` 에 등록된 사건만 고객용으로 — 업무는 `taskClientView`, 나머지는 신호. 모르는 사건은 고객에게 안 간다).
+   `io.to(\`project:…\`)` 직접 쓰기는 가드 `--category=broadcast`(checkProjectRoom)가 막는다. 대화방은 `isVisibleToClient` 로 `conv:<id>` / `:staff` 를 고른다.
+7. **권한이 줄면 실시간도 회수한다** — 멤버 내보내기 → `socketRevoke.leaveBusinessRooms` · 정지/탈퇴/비밀번호 재설정 → `disconnectUser`
+   (소켓 인증이 계정 상태를 본다). 비밀번호 재설정은 refresh 토큰 전부 revoke.
+8. **응답 비밀값은 전역 toJSON 한 곳이 내린다**(`models/index.js`) — `_enc`·`_encrypted`·비밀번호/공유 비밀번호 해시·일회용 토큰·평문 결제 비밀값.
+   보유 여부가 필요하면 **원본 행(인스턴스)에서** 읽는다(toJSON 뒤 객체에는 없다).
+- **공개 링크 하위 주소는 비밀번호를 주소에 싣지 않는다** — 메타 응답이 주는 서명(`download_qs` → `?dl=`)을 쓴다. 공유 비밀번호는 링크당 15분 10회.
+- **지운 워크스페이스의 공개 링크는 닫힌다** — 공개 라우터마다 `router.param('token', workspaceAliveParam(...))`(하위 PDF·다운로드까지). 새 공개 라우터도 같은 줄을 붙인다.
+- **「같은 서버에서 왔나」를 접속 IP 로만 보지 않는다** — nginx 도 127.0.0.1 에서 프록시한다. q-note 는 `X-Real-IP`/`X-Forwarded-For` 가 있으면 바깥으로 본다(`main.py _internal_gate`), Node 는 `trust proxy` 로 본 `req.ip`(`utils/internalAuth`).
+
 ### 외부 발송은 **확인을 받는다** (2026-09-13, Irene 지시 "확인을 받아")
 
 고객·외부에 **메일이 나가는 버튼**은 누르는 즉시 보내지 않는다. `ConfirmDialog` 로 묻고,

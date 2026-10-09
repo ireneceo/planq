@@ -1371,7 +1371,9 @@ async function buildCueContext({ businessId, conversationId, emailThreadId = nul
   //     그래서 외부 질문자에게는 일반(general) 자료만 쓴다(2026-09-27 점검).
   const kbDocWhere = internalAsker
     ? require('../middleware/access_scope').kbDocumentsListWhereByLevel(scope)
-    : { business_id: businessId, security_level: 'general' };
+    : { business_id: businessId, security_level: 'general', vlevel: { [require('sequelize').Op.in]: ['L3', 'L4'] } };
+  //   ★ (2026-10-09) 공개 범위도 본다 — «나만 보기»(L1)·«지정 멤버만»(L2) 자료는 같은 팀원에게도 안 보이는 것이다.
+  //     고객에게 인용하면 그 범위가 무의미해진다. KB 번들 공개(열 때 L1·L2 제외)와 같은 선.
   const kbP = query
     ? kbService.hybridSearch(businessId, query, {
         limit: 5, project_id: projectId, client_id: clientId, docWhere: kbDocWhere,

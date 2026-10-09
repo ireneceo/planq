@@ -493,8 +493,13 @@ router.post('/sign/:token/otp', otpSendLimiter, async (req, res, next) => {
     const code = genOtp();
     const codeHash = sha256(code);
     const ttl = new Date(Date.now() + OTP_TTL_MIN * 60_000);
+    // ★ 다시 보내기로 틀린 횟수를 지우지 않는다 — «재발송 → 4번 시도» 를 반복하면 잠금에 영영 닿지 않았다
+    //   (2026-10-09 보안점검). 틀린 횟수는 잠금이 **끝난 뒤** 처음 보낼 때만 0 으로 돌린다.
+    const lockOver = !!(sr.otp_locked_until && sr.otp_locked_until <= new Date());
     await sr.update({
-      otp_code_hash: codeHash, otp_sent_at: new Date(), otp_expires_at: ttl, otp_attempts: 0,
+      otp_code_hash: codeHash, otp_sent_at: new Date(), otp_expires_at: ttl,
+      otp_attempts: lockOver ? 0 : (sr.otp_attempts || 0),
+      ...(lockOver ? { otp_locked_until: null } : {}),
     });
     const post = await Post.findByPk(sr.entity_id);
     // 발송 실패를 삼키고 sent:true 반환하면 사용자는 오지 않는 코드를 무한정 기다린다(거짓 전송).

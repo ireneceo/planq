@@ -2,6 +2,11 @@
 // project_id NULL = 워크스페이스 전역 문서, NOT NULL = 프로젝트 소속
 const express = require('express');
 const router = express.Router();
+// 공개 링크 — 워크스페이스가 지워졌으면 이 라우터의 모든 :token 주소(하위 PDF·다운로드 포함)가 닫힌다(services/shareOpenable).
+router.param('token', (req, res, next, token) => {
+  const M = require('../models');
+  return require('../services/shareOpenable').workspaceAliveParam([[M.Post, 'share_token']])(req, res, next, token);
+});
 const { blockIfSigned } = require('../services/signatureCore');
 const multer = require('multer');
 const path = require('path');
@@ -36,7 +41,7 @@ function broadcastPost(req, post, event = 'post:updated') {
   //   id 만 보고 자기 권한으로 다시 읽는다(PostsPage·DocsTab·QCalendar·Todo·Dashboard 확인).
   const data = { id: post.id, business_id: post.business_id, project_id: post.project_id || null };
   if (post.business_id) io.to(`business:${post.business_id}`).emit(event, data);
-  if (post.project_id) io.to(`project:${post.project_id}`).emit(event, data);
+  if (post.project_id) require('../services/projectRoom').emitProject(io, post.project_id, event, data);
 }
 
 // 에디터 인라인 이미지 저장 경로
@@ -738,12 +743,15 @@ router.get('/:id/children', authenticateToken, async (req, res, next) => {
     if (!(await assertMember(req.user.id, parent.business_id, req.user.platform_role === 'platform_admin'))) {
       return errorResponse(res, 'forbidden', 403);
     }
-    const children = await Post.findAll({
+    const all = await Post.findAll({
       where: { parent_post_id: parent.id },
-      attributes: ['id', 'title', 'category', 'author_id', 'created_at'],
       include: [{ model: User, as: 'author', attributes: ['id', 'name', 'name_localized'] }],
       order: [['created_at', 'DESC']],
     });
+    // 하위 문서도 **한 장씩 읽기 권한**으로 거른다 — 멤버라는 이유로 남의 «나만 보기» 문서 제목·작성자가
+    //   보였다(2026-10-09 보안점검). 본문 조회와 같은 술어(canReadPost).
+    const children = [];
+    for (const c of all) if (await canReadPost(req.user, c)) children.push(c);
     const items = children.map(c => ({
       id: c.id, title: c.title, category: c.category, created_at: c.created_at,
       author: c.author ? { id: c.author.id, name: c.author.name } : null,
@@ -772,6 +780,12 @@ router.post('/brief', authenticateToken, async (req, res, next) => {
     if (project_id) {
       const p = await Project.findOne({ where: { id: project_id, business_id } });
       if (!p) return errorResponse(res, 'invalid project_id', 400);
+    }
+    // 대화방도 같은 워크스페이스 것만 — 문서 생성(post_actions)과 같은 검사(2026-10-09 보안점검).
+    if (conversation_id) {
+      const { Conversation } = require('../models');
+      const c = await Conversation.findOne({ where: { id: conversation_id, business_id }, attributes: ['id'] });
+      if (!c) return errorResponse(res, 'invalid conversation_id', 400);
     }
     const blocks = Array.isArray(text_blocks) ? text_blocks.filter(t => typeof t === 'string') : [];
     const fileIds = Array.isArray(attached_file_ids)

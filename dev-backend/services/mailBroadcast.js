@@ -7,9 +7,24 @@
 //
 //   전이 라우트가 7개라 라우트마다 두 번 쏘게 하면 반드시 하나가 빠진다.
 //   → 여기 한 곳에서 처리한다. payload 에 reply_needed 가 실려 있으면 뱃지 갱신도 같이 쏜다.
-function broadcastMail(req, businessId, event, payload) {
+// ★ 2026-10-09 보안점검 — **신호만** 보낸다. 워크스페이스 방에는 그 메일을 볼 수 없는 멤버
+//   (개인 메일함 주인 외 · Q mail 권한 none)도 있다. 그래서 AI 요약 본문·제목이 실리면 안 된다.
+//   받는 화면(MailPage·SaleDetail·ClientPanel·SaleInbox)은 전부 신호를 받고 자기 권한으로 다시 읽는다.
+const SIGNAL_KEYS = new Set([
+  'id', 'thread_id', 'message_id', 'business_id', 'bulk', 'handled', 'unread', 'reply_needed', 'status',
+  'rule_applied', 'rule_deleted', 'follow_up_days', 'assignee_user_id', 'issue_added', 'note_added', 'is_new_thread',
+]);
+function mailSignal(payload) {
+  if (!payload || typeof payload !== 'object') return payload;
+  const out = {};
+  for (const k of Object.keys(payload)) if (SIGNAL_KEYS.has(k)) out[k] = payload[k];
+  return out;
+}
+
+function broadcastMail(req, businessId, event, rawPayload) {
   const io = req.app.get('io');
   if (!io) return;
+  const payload = mailSignal(rawPayload);
   const room = `business:${businessId}`;
   io.to(room).emit(event, payload);
   if (payload && Object.prototype.hasOwnProperty.call(payload, 'reply_needed')) {
@@ -17,4 +32,4 @@ function broadcastMail(req, businessId, event, payload) {
   }
 }
 
-module.exports = { broadcastMail };
+module.exports = { broadcastMail, mailSignal };

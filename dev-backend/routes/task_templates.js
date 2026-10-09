@@ -184,7 +184,7 @@ router.post('/:id/apply', authenticateToken, async (req, res, next) => {
     if (io && result.created.length > 0) {
       for (const t of result.created) {
         const payload = { ...t.toJSON(), actor_user_id: req.user.id };
-        if (project_id) io.to(`project:${project_id}`).emit('task:new', payload);
+        if (project_id) require('../services/projectRoom').emitProject(io, project_id, 'task:new', payload);
         io.to(`business:${business_id}`).emit('task:new', payload);
       }
     }

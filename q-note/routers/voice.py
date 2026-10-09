@@ -17,6 +17,7 @@ Endpoints:
   등록 폼에 consent_version 이 현재 버전과 같아야 한다(아니면 400 consent_required — 행 0).
   원본 음성은 메모리에서 임베딩만 만들고 버린다(_decode_audio_to_pcm16 → embed_pcm16).
 """
+import hmac as _hmac
 import io
 import logging
 from typing import Optional
@@ -301,7 +302,7 @@ async def internal_voice_meta(
   if not request.client or request.client.host not in ('127.0.0.1', '::1'):
     raise HTTPException(status_code=404, detail='not found')
   expected = os.environ.get('INTERNAL_API_KEY')
-  if not expected or x_internal_api_key != expected:
+  if not expected or not _hmac.compare_digest((x_internal_api_key or '').encode(), expected.encode()):
     raise HTTPException(status_code=401, detail='invalid internal key')
   async with db_connect() as db:
     db.row_factory = aiosqlite.Row

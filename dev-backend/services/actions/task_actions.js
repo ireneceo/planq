@@ -397,8 +397,8 @@ function signalLeftProject(task, oldProjectId) {
   if (!io) return;
   // 신호만 — 받는 화면은 id 로 다시 읽는다. 떠난 프로젝트 목록에서 빠져야 한다
   const payload = { id: task.id, business_id: task.business_id, project_id: task.project_id || null };
-  io.to(`project:${oldProjectId}`).emit('task:updated', payload);
-  io.to(`project:${oldProjectId}`).emit('inbox:refresh', { reason: 'task_moved', task_id: task.id });
+  require('../projectRoom').emitProject(io, oldProjectId, 'task:updated', payload);
+  require('../projectRoom').emitProject(io, oldProjectId, 'inbox:refresh', { reason: 'task_moved', task_id: task.id });
 }
 
 /** 미리보기 — 실행과 같은 판정 + 고객 가시성 변화. */
@@ -708,6 +708,26 @@ async function createTask(actor, params = {}, opts = {}) {
     nextOccurrenceAt = next ? next.toISOString().slice(0, 10) : null;
   }
 
+  // ── 출처 연결(대화방·메시지·메일 스레드)은 이 워크스페이스 것만 — 남의 id 를 붙여 두면 표시 경로가
+  //   바뀌는 순간 새는 연결이 된다(2026-10-09 보안점검). 실패시키지 않고 연결만 버린다: Cue·추출 흐름이
+  //   엉뚱한 id 하나 때문에 업무 생성 전체를 잃지 않게.
+  if (params.conversationId || params.sourceMessageId || params.emailThreadId) {
+    const M = require('../../models');
+    if (params.conversationId) {
+      const ok = await M.Conversation.findOne({ where: { id: params.conversationId, business_id: businessId }, attributes: ['id'] });
+      if (!ok) { params = { ...params, conversationId: null, sourceMessageId: null }; }
+    }
+    if (params.sourceMessageId) {
+      const msg = await M.Message.findByPk(params.sourceMessageId, { attributes: ['id', 'conversation_id'] });
+      const conv = msg ? await M.Conversation.findOne({ where: { id: msg.conversation_id, business_id: businessId }, attributes: ['id'] }) : null;
+      if (!conv) params = { ...params, sourceMessageId: null };
+    }
+    if (params.emailThreadId && M.EmailThread) {
+      const th = await M.EmailThread.findOne({ where: { id: params.emailThreadId, business_id: businessId }, attributes: ['id'] });
+      if (!th) params = { ...params, emailThreadId: null, sourceEmailMessageId: null };
+    }
+  }
+
   // ── 쓰기 (외부 트랜잭션이 있으면 합류, 없으면 자체 개설) ──
   const external = !!opts.transaction;
   const t = opts.transaction || await sequelize.transaction();
@@ -827,10 +847,10 @@ async function afterCreate({ task, businessId, projectId, subjectId, actor, isIn
   // socket — project room + business room 양쪽 (Q Task 페이지는 business room 을 듣는다)
   if (io) {
     const payload = { ...fullJson, actor_user_id: actor.userId };
-    if (projectId) io.to(`project:${projectId}`).emit('task:new', payload);
+    if (projectId) require('../projectRoom').emitProject(io, projectId, 'task:new', payload);
     io.to(`business:${businessId}`).emit('task:new', payload);
     io.to(`business:${businessId}`).emit('inbox:refresh', { reason: 'task_new', task_id: task.id });
-    if (projectId) io.to(`project:${projectId}`).emit('inbox:refresh', { reason: 'task_new', task_id: task.id });
+    if (projectId) require('../projectRoom').emitProject(io, projectId, 'inbox:refresh', { reason: 'task_new', task_id: task.id });
   }
 
   // 알림 — 담당자 ≠ 생성자 일 때만 (본인이 본인에게 만든 업무는 noise)
@@ -916,7 +936,7 @@ async function aiEstimateInBackground(taskId, businessId, projectId, actorUserId
     actor_user_id: actorUserId,
     ai_estimate: true,
   };
-  if (projectId) io.to(`project:${projectId}`).emit('task:updated', payload);
+  if (projectId) require('../projectRoom').emitProject(io, projectId, 'task:updated', payload);
   io.to(`business:${businessId}`).emit('task:updated', payload);
   io.to(`business:${businessId}`).emit('inbox:refresh', { reason: 'task_ai_estimate', task_id: taskId });
 }

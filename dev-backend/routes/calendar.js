@@ -1,6 +1,11 @@
 const express = require('express');
 const { Op } = require('sequelize');
 const router = express.Router();
+// 공개 링크 — 워크스페이스가 지워졌으면 이 라우터의 모든 :token 주소(하위 PDF·다운로드 포함)가 닫힌다(services/shareOpenable).
+router.param('token', (req, res, next, token) => {
+  const M = require('../models');
+  return require('../services/shareOpenable').workspaceAliveParam([[M.CalendarEvent, 'share_token']])(req, res, next, token);
+});
 const { sequelize } = require('../config/database');
 const {
   CalendarEvent, CalendarEventAttendee, CalendarEventAttachment, CalendarEventGcalLink,

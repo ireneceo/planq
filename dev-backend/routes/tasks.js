@@ -2,6 +2,11 @@ const express = require('express');
 const { writeAudit, logAudit, auditDiff } = require('../services/auditService');
 const { Op, fn, col, literal } = require('sequelize');
 const router = express.Router();
+// 공개 링크 — 워크스페이스가 지워졌으면 이 라우터의 모든 :token 주소(하위 PDF·다운로드 포함)가 닫힌다(services/shareOpenable).
+router.param('token', (req, res, next, token) => {
+  const M = require('../models');
+  return require('../services/shareOpenable').workspaceAliveParam([[M.Task, 'share_token']])(req, res, next, token);
+});
 const { Task, User, Project, BusinessMember, Business, TaskComment, TaskDailyProgress, TaskStatusHistory, TaskReviewer, TaskLink, Client, ProjectClient, AuditLog } = require('../models');
 const taskSnapshot = require('../services/task_snapshot');
 const { authenticateToken, checkBusinessAccess } = require('../middleware/auth');
@@ -51,7 +56,7 @@ function broadcastInboxRefresh(io, businessId, projectId, reason, taskId) {
   if (!io || !businessId) return;
   const payload = { reason, task_id: taskId };
   io.to(`business:${businessId}`).emit('inbox:refresh', payload);
-  if (projectId) io.to(`project:${projectId}`).emit('inbox:refresh', payload);
+  if (projectId) require('../services/projectRoom').emitProject(io, projectId, 'inbox:refresh', payload);
 }
 
 // ─── 멤버 가용시간 — services/memberCapacity 단일 원천 (#288) ───
@@ -267,7 +272,7 @@ router.patch('/:id/time', authenticateToken, async (req, res, next) => {
       const { serializeTaskForBroadcast } = require('../services/taskBroadcast');
       const base = await serializeTaskForBroadcast(task.id, task.business_id);
       const payload = { ...(base || task.toJSON()), actor_user_id: req.user.id };
-      if (task.project_id) io.to(`project:${task.project_id}`).emit('task:updated', payload);
+      if (task.project_id) require('../services/projectRoom').emitProject(io, task.project_id, 'task:updated', payload);
       io.to(`business:${task.business_id}`).emit('task:updated', payload);
       broadcastInboxRefresh(io, task.business_id, task.project_id, 'task_time_updated', task.id);
     }
@@ -635,7 +640,7 @@ router.post('/ai-create/confirm', authenticateToken, async (req, res, next) => {
           if (io) {
             const payload = { id: Number(project_id), business_id: Number(business_id), actor_user_id: req.user.id };
             io.to(`business:${business_id}`).emit('project:updated', payload);
-            io.to(`project:${project_id}`).emit('project:updated', payload);
+            require('../services/projectRoom').emitProject(io, project_id, 'project:updated', payload);
             io.to(`business:${business_id}`).emit('inbox:refresh', { reason: 'workstream_new', project_id: Number(project_id) });
           }
         } catch (e) { console.warn('[ai-routine] canvas broadcast', e.message); }
@@ -1430,7 +1435,7 @@ router.put('/by-business/:businessId/:id', authenticateToken, async (req, res, n
         });
         payload.reviewer_user_ids = reviewers.map(r => r.user_id);
       } catch { /* 실패해도 broadcast 자체는 진행 */ }
-      if (task.project_id) io.to(`project:${task.project_id}`).emit('task:updated', payload);
+      if (task.project_id) require('../services/projectRoom').emitProject(io, task.project_id, 'task:updated', payload);
       io.to(`business:${task.business_id}`).emit('task:updated', payload);
       broadcastInboxRefresh(io, task.business_id, task.project_id, 'task_updated', task.id);
     }
@@ -1606,7 +1611,7 @@ router.delete('/by-business/:businessId/:id', authenticateToken, async (req, res
     // Socket.IO
     const io = req.app.get('io');
     if (io) {
-      if (meta.project_id) io.to(`project:${meta.project_id}`).emit('task:deleted', meta);
+      if (meta.project_id) require('../services/projectRoom').emitProject(io, meta.project_id, 'task:deleted', meta);
       io.to(`business:${meta.business_id}`).emit('task:deleted', meta);
       broadcastInboxRefresh(io, meta.business_id, meta.project_id, 'task_deleted', meta.id);
     }
@@ -1680,7 +1685,7 @@ router.post('/:id/copy', authenticateToken, async (req, res, next) => {
       const { serializeLoadedTasks } = require('../services/taskBroadcast');
       const [baseJson] = await serializeLoadedTasks([full], src.business_id);
       const payload = { ...(baseJson || full.toJSON()), actor_user_id: req.user.id };
-      if (src.project_id) io.to(`project:${src.project_id}`).emit('task:new', payload);
+      if (src.project_id) require('../services/projectRoom').emitProject(io, src.project_id, 'task:new', payload);
       io.to(`business:${src.business_id}`).emit('task:new', payload);
       broadcastInboxRefresh(io, src.business_id, src.project_id, 'task_copy', full.id);
     }
@@ -1941,6 +1946,9 @@ router.put('/:id/comments/:commentId', authenticateToken, async (req, res, next)
     if (comment.user_id !== req.user.id) {
       return errorResponse(res, 'only_author_can_edit', 403);
     }
+    // 쓴 사람이어도 **지금 그 업무를 볼 수 있어야** 한다 — 내보낸 멤버·연결이 끊긴 고객이 옛 댓글을
+    //   고치거나 지우던 구멍(2026-10-09 보안점검).
+    if (!(await canAccessTask(req.user.id, task))) return errorResponse(res, 'task_not_found', 404);
     const { content } = req.body || {};
     if (!content || !String(content).trim()) return errorResponse(res, 'content_required', 400);
     const prevContent = comment.content;
@@ -1972,6 +1980,9 @@ router.delete('/:id/comments/:commentId', authenticateToken, async (req, res, ne
     if (comment.user_id !== req.user.id) {
       return errorResponse(res, 'only_author_can_delete', 403);
     }
+    // 쓴 사람이어도 **지금 그 업무를 볼 수 있어야** 한다 — 내보낸 멤버·연결이 끊긴 고객이 옛 댓글을
+    //   고치거나 지우던 구멍(2026-10-09 보안점검).
+    if (!(await canAccessTask(req.user.id, task))) return errorResponse(res, 'task_not_found', 404);
     await comment.destroy();
     logAudit(req, { action: 'task_comment.delete', targetType: 'task_comment', targetId: comment.id, businessId: task.business_id, oldValue: { task_id: task.id, visibility: comment.visibility } });
     const io = req.app.get('io');

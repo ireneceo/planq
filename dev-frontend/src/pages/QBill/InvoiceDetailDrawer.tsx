@@ -152,9 +152,12 @@ export default function InvoiceDetailDrawer({ invoice: initialInvoice, onClose, 
   //   ★ 이 청구서 것만 반영한다. 남의 청구서 이벤트로 화면을 다시 그리면
   //     보고 있던 자리가 흔들린다(memory feedback_background_refresh_must_not_repaint).
   useEffect(() => {
-    const off = onSocket<{ id?: number; meta?: unknown }>('invoice:updated', (data) => {
+    // 방송은 신호(id)만 온다(2026-10-09 보안점검 — 금액·고객을 워크스페이스 방에 싣지 않는다) → 내 권한으로 다시 읽는다.
+    const off = onSocket<{ id?: number; business_id?: number }>('invoice:updated', (data) => {
       if (!data || !invoice || Number(data.id) !== Number(invoice.id)) return;
-      setInvoice((prev) => (prev ? { ...prev, ...(data as Partial<ApiInvoice>) } : prev));
+      getInvoice(invoice.business_id, invoice.id)
+        .then((fresh) => setInvoice((prev) => (prev && prev.id === fresh.id ? { ...prev, ...fresh } : prev)))
+        .catch(() => { /* 보던 내용 유지 */ });
     });
     return off;
     // invoice.id 만 의존한다 — invoice 전체를 넣으면 setInvoice 마다 구독이 재생성된다

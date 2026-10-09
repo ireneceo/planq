@@ -16,7 +16,7 @@ function broadcastFile(req, file, event = 'file:updated') {
   //   id 만 보고 자기 권한으로 다시 읽는다(PostsPage·DocsTab·QCalendar·Todo·Dashboard 확인).
   const data = { id: file.id, business_id: file.business_id, project_id: file.project_id || null };
   if (file.business_id) io.to(`business:${file.business_id}`).emit(event, data);
-  if (file.project_id) io.to(`project:${file.project_id}`).emit(event, data);
+  if (file.project_id) require('./projectRoom').emitProject(io, file.project_id, event, data);
 }
 
 module.exports = { broadcastFile };

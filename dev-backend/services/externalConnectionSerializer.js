@@ -37,9 +37,10 @@ function sanitize(row) {
   const j = row.toJSON ? row.toJSON() : row;
   // ★ 보유 여부는 **지우기 전에** 캡처한다 — delete 뒤에 `!!j.access_token_encrypted` 를 읽으면
   //   언제나 false 라, 이 계약(보유 여부만 boolean 으로)이 3필드 모두 거짓말을 하고 있었다(2026-07-31 수정).
-  const hasAccessToken = !!j.access_token_encrypted;
-  const hasRefreshToken = !!j.refresh_token_encrypted;
-  const hasPassword = !!j.password_encrypted;
+  //   (2026-10-09) 암호화 칸은 전역 toJSON 이 이미 내린다 — 원본 행에서 읽는다.
+  const hasAccessToken = !!(row.access_token_encrypted ?? j.access_token_encrypted);
+  const hasRefreshToken = !!(row.refresh_token_encrypted ?? j.refresh_token_encrypted);
+  const hasPassword = !!(row.password_encrypted ?? j.password_encrypted);
   delete j.access_token_encrypted;
   delete j.refresh_token_encrypted;
   delete j.password_encrypted;

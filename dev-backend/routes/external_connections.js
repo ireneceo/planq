@@ -53,8 +53,12 @@ function nativeReturnRedirect(res, { ok, provider, error }) {
   });
 }
 
+// 콜백 화면에 끼우는 바깥 값(구글이 돌려준 error·메일 주소·오류 문구)은 반드시 이스케이프한다 —
+//   `?error=<b>…` 로 우리 도메인에 남의 HTML 을 그리게 할 수 있었다(2026-10-09 보안점검).
+const escHtml = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
 function personalCallbackHtml({ ok, provider, title, body }) {
-  return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${title}</title>
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${escHtml(title)}</title>
 <style>
   body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;background:#F8FAFC;color:#0F172A;}
   .box{background:#fff;border:1px solid #E2E8F0;border-radius:12px;padding:28px 32px;max-width:420px;text-align:center;box-shadow:0 4px 12px rgba(15,23,42,0.06);}
@@ -273,7 +277,7 @@ router.get('/me/oauth/google/callback', async (req, res) => {
     if (isNativeFlow) return nativeReturnRedirect(res, { ok: false, provider: null, error: msg });
     return res.status(400).send(personalCallbackHtml({
       ok: false, provider: null, title: '연동 실패',
-      body: `<h2>연동 실패</h2><p>${msg}</p>`,
+      body: `<h2>연동 실패</h2><p>${escHtml(msg)}</p>`,
     }));
   };
 
@@ -359,7 +363,7 @@ router.get('/me/oauth/google/callback', async (req, res) => {
       }
       return res.send(personalCallbackHtml({
         ok: true, provider: 'gmail', title: '연동 완료',
-        body: `<h2>Gmail 연동 완료</h2><p>계정: <strong>${email}</strong><br/>5분 내 새 메일이 인박스에 들어옵니다.</p>`,
+        body: `<h2>Gmail 연동 완료</h2><p>계정: <strong>${escHtml(email)}</strong><br/>5분 내 새 메일이 인박스에 들어옵니다.</p>`,
       }));
     }
 
@@ -399,7 +403,7 @@ router.get('/me/oauth/google/callback', async (req, res) => {
     if (isNativeFlow) return nativeReturnRedirect(res, { ok: true, provider: parsed.provider });
     return res.send(personalCallbackHtml({
       ok: true, provider: parsed.provider, title: '연동 완료',
-      body: `<h2>${labelMap[parsed.provider]} 연동 완료</h2><p>계정: <strong>${email}</strong></p>`,
+      body: `<h2>${labelMap[parsed.provider]} 연동 완료</h2><p>계정: <strong>${escHtml(email)}</strong></p>`,
     }));
   } catch (e) {
     console.error('[me/oauth callback]', e);
@@ -407,7 +411,7 @@ router.get('/me/oauth/google/callback', async (req, res) => {
     if (isNativeFlow) return nativeReturnRedirect(res, { ok: false, provider: parsed.provider, error: 'connect_failed' });
     return res.status(500).send(personalCallbackHtml({
       ok: false, provider: parsed.provider, title: '연동 실패',
-      body: `<h2>연동 실패</h2><p>${e.message || '서버 오류'}</p>`,
+      body: `<h2>연동 실패</h2><p>${escHtml(e.message || '서버 오류')}</p>`,
     }));
   }
 });

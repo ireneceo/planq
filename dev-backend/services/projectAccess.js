@@ -30,4 +30,36 @@ async function loadProjectOrForbidden(projectId, userId) {
   return { error: { code: 403, message: 'not_project_member' } };
 }
 
-module.exports = { loadProjectOrForbidden, requireBusinessMember };
+// 고객에게 보내는 프로젝트 — 내부 운영 칸(계약 금액·청구 설정·전략·성과지표·드라이브 폴더)과
+//   다른 사람의 연락처를 뺀다(2026-10-09 보안점검: 상세·목록이 행을 통째로 보냈다. 캔버스 라우트는 이미
+//   member_only 였는데 같은 값이 여기로 나가고 있었다). 화이트리스트가 아니라 블랙리스트인 이유:
+//   고객 화면이 쓰는 칸(이름·기간·상태·색·종류·탭 이름…)이 많고 계속 는다 — 대신 **새 내부 칸은 여기에 같이 적는다.**
+const PROJECT_CLIENT_HIDDEN = [
+  'contract_amount', 'billing_type', 'monthly_fee', 'auto_invoice_enabled', 'auto_invoice_mode',
+  'invoice_billing_day', 'last_auto_invoice_at', 'gdrive_folder_id',
+  'strategy_context', 'strategy_key_question', 'strategy_goal', 'strategy_governing_thought',
+  'strategy_approach', 'success_metrics', 'strategy_sources',
+];
+function projectForClient(json, viewerUserId) {
+  if (!json || typeof json !== 'object') return json;
+  const out = { ...json };
+  for (const k of PROJECT_CLIENT_HIDDEN) delete out[k];
+  if (Array.isArray(out.projectMembers)) {
+    out.projectMembers = out.projectMembers.map((m) => {
+      const mm = { ...m };
+      if (mm.User) { mm.User = { ...mm.User }; delete mm.User.email; }
+      return mm;
+    });
+  }
+  if (Array.isArray(out.projectClients)) {
+    out.projectClients = out.projectClients.map((pc) => {
+      if (Number(pc.contact_user_id) === Number(viewerUserId)) return pc;
+      const c = { ...pc };
+      delete c.contact_email; delete c.contact_phone;
+      return c;
+    });
+  }
+  return out;
+}
+
+module.exports = { loadProjectOrForbidden, requireBusinessMember, projectForClient, PROJECT_CLIENT_HIDDEN };

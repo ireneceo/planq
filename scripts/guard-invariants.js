@@ -518,6 +518,27 @@ function checkBroadcastPayload() {
     rt.fails.length === 0, rt.fails.length ? rt.fails : rt.sampleLines);
 }
 
+// 6-a'. projectroom — 프로젝트 방은 직원/고객 둘이다. 방송은 반드시 services/projectRoom.emitProject 로 (2026-10-09 보안점검)
+//   `io.to(\`project:…\`)` 를 직접 쓰면 고객 방(`:client`)을 건너뛰거나, 반대로 고객이 다시 직원 방에 들어오게
+//   고치는 순간 행 전체(공수·내부 메모·이슈)가 고객 소켓에 간다. 하드 게이트(베이스라인 없음).
+function checkProjectRoom() {
+  const files = [
+    ...walk(`${ROOT}/dev-backend/routes`, ['.js']),
+    ...walk(`${ROOT}/dev-backend/services`, ['.js']),
+    `${ROOT}/dev-backend/server.js`,
+  ];
+  const bad = [];
+  for (const f of files) {
+    if (rel(f).endsWith('services/projectRoom.js')) continue;
+    read(f).split('\n').forEach((l, i) => {
+      const t = l.trim();
+      if (t.startsWith('//') || t.startsWith('*')) return;
+      if (/\.(to|in)\(\s*[`'"]project:/.test(l)) bad.push(`${rel(f)}:${i + 1}: ${t.slice(0, 100)}`);
+    });
+  }
+  report('broadcast', `프로젝트 방 직접 송신 0 — emitProject 한 문 (${bad.length}건)`, bad.length === 0, bad);
+}
+
 // ═══════════════════════════════════════════════
 // 6-b. broadcastactor — task broadcast payload 에 actor_user_id 잠금 (운영 #278·#282)
 //
@@ -3488,7 +3509,7 @@ const CATEGORIES = {
   tenant: checkTenant,
   pagination: checkPagination,
   notify: checkNotify,
-  broadcast: () => { checkBroadcast(); checkBroadcastPayload(); },
+  broadcast: () => { checkBroadcast(); checkBroadcastPayload(); checkProjectRoom(); },
   broadcastactor: checkBroadcastActor,
   finance: checkFinance,
   cuefinance: checkCueFinance,

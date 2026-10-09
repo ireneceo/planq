@@ -13,7 +13,7 @@ const { successResponse, errorResponse, parsePagination, paginatedResponse } = r
 
 function broadcastMail(req, businessId, event, payload) {
   const io = req.app.get('io') || global.__planqIo;
-  if (io) io.to(`business:${businessId}`).emit(event, payload);
+  if (io) io.to(`business:${businessId}`).emit(event, require('../services/mailBroadcast').mailSignal(payload));
 }
 
 // ─────────────────────────────────────────────

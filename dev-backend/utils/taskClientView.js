@@ -37,6 +37,9 @@ const BLOCKED_FIELDS = [
   // #353 ⑤ — 중요도도 **내부 운영 라벨**이다. 고객에게 "당신 일은 낮음" 으로 보이면 안 된다.
   //   태그와 같은 취급 (라우트 차단과 이중 방어).
   'priority_level',
+  // 2026-10-09 보안점검 — 공유 링크 열쇠·상태는 멤버가 관리하는 것이다. 업무 행을 통째로 내보내는
+  //   곳(목록·방송)에서 고객에게 살아 있는 공유 토큰이 갔다.
+  'share_token', 'share_password_set', 'share_password_hash', 'shared_at', 'share_expires_at', 'share_created_at',
 ];
 
 // 단일 task plain object 를 고객용으로 정제 (in-place 아님 — 얕은 복사 후 반환).

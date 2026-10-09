@@ -41,8 +41,10 @@ const displayName = (u, uid) => u?.name_localized?.ko || u?.name || `user ${uid}
 // 산출물 (발행 post + document)
 async function fetchDeliverables(projectId) {
   const [posts, docs] = await Promise.all([
-    Post.findAll({ where: { project_id: projectId, status: 'published' }, attributes: ['id', 'title', 'category', 'created_at'], order: [['created_at', 'DESC']], limit: 12 }),
-    Document.findAll({ where: { project_id: projectId }, attributes: ['id', 'title', 'kind', 'created_at'], order: [['created_at', 'DESC']], limit: 12 }),
+    // ★ 보고서는 여러 사람이 본다(공유 링크면 바깥 사람도) — «나만 보기»(L1) 문서와 보안등급(내부·기밀) 자료의
+    //   제목은 싣지 않는다(2026-10-09 보안점검: 남의 개인 문서 제목이 통합보고서 공개 링크에 실렸다).
+    Post.findAll({ where: { project_id: projectId, status: 'published', [Op.and]: [{ [Op.or]: [{ vlevel: { [Op.ne]: 'L1' } }, { vlevel: null }] }], security_level: 'general' }, attributes: ['id', 'title', 'category', 'created_at'], order: [['created_at', 'DESC']], limit: 12 }),
+    Document.findAll({ where: { project_id: projectId, security_level: 'general' }, attributes: ['id', 'title', 'kind', 'created_at'], order: [['created_at', 'DESC']], limit: 12 }),
   ]);
   return [
     ...posts.map((p) => ({ kind: 'post', id: p.id, title: p.title, link: `/projects/p/${projectId}?tab=docs&post=${p.id}` })),

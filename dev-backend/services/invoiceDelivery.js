@@ -38,7 +38,7 @@ async function broadcast(io, invoiceId) {
         { model: Post, as: 'sourcePost', attributes: ['id', 'category', 'title', 'status'], required: false },
       ],
     });
-    if (fresh?.business_id) io.to(`business:${fresh.business_id}`).emit('invoice:updated', fresh.toJSON());
+    if (fresh?.business_id) io.to(`business:${fresh.business_id}`).emit('invoice:updated', { id: fresh.id, business_id: fresh.business_id, status: fresh.status ?? null });
   } catch (e) { console.warn('[invoiceDelivery broadcast]', e.message); }
 }
 
@@ -96,7 +96,7 @@ async function deliverChat({ invoice, actorUserId, message, shareUrl, io }) {
   await conv.update({ last_message_at: new Date() });
 
   try {
-    const full = await Message.findByPk(msg.id, { include: [{ model: User, as: 'sender', attributes: ['id', 'name', 'email', 'name_localized'] }] });
+    const full = await Message.findByPk(msg.id, { include: [{ model: User, as: 'sender', attributes: ['id', 'name', 'name_localized'] }] });
     const fullJson = full.toJSON();
     try { const { applyMemberDisplayNameOne } = require('./displayName'); await applyMemberDisplayNameOne(fullJson, conv.business_id, ['sender']); } catch { /* best-effort */ }
     if (io) {

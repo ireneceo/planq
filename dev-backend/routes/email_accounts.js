@@ -108,8 +108,9 @@ function serializeAccount(acc) {
     auth_type: j.auth_type,
     ...accountHealth(j),   // 재인증 필요 판정 = 서버 단일 원천 (services/emailAccountHealth.js)
     // 비밀번호는 응답 X — 보유 여부만 boolean
-    has_imap_password: !!j.imap_password_encrypted,
-    has_smtp_password: !!j.smtp_password_encrypted,
+    // 암호화 칸은 전역 toJSON 이 내린다 — 보유 여부는 원본 행에서 읽는다(models/index.js).
+    has_imap_password: !!(acc.imap_password_encrypted ?? j.imap_password_encrypted),
+    has_smtp_password: !!(acc.smtp_password_encrypted ?? j.smtp_password_encrypted),
     created_at: j.created_at,
     updated_at: j.updated_at,
   };

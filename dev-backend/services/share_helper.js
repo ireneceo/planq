@@ -48,18 +48,41 @@ async function applyShareUpdate(entity, body = {}) {
 }
 
 // GET /public/by-token/:token 핸들러에서 사용 — 비번 보호 검증.
-// 비번 미설정이면 ok=true. 설정돼 있으면 X-Share-Password header 또는 ?p=... query 검증.
+// 비번 미설정이면 ok=true. 설정돼 있으면 X-Share-Password 헤더로만 검증(주소 ?p= 는 받지 않는다).
 //
 // 호출 예:
 //   const v = await verifySharePassword(task, req);
 //   if (!v.ok) return res.status(v.status).json({ success: false, message: v.error, requires_password: v.requires_password });
+// ★ (2026-10-09 보안점검) 두 가지를 막는다.
+//   ① 비밀번호를 주소(?p=)로 받지 않는다 — 웹 서버 접속 기록에 평문으로 남는다. 화면은 헤더로만 보낸다.
+//   ② 링크 하나에 틀린 비밀번호를 15분 10번까지만 — 전역 분당 600 회 한도로는 하루 수십만 번 대입할 수 있었고
+//      매번 bcrypt 비교라 CPU 도 같이 탔다. IP 가 아니라 **링크(토큰)** 로 센다(IP 를 바꿔도 같은 링크다).
+//      잠긴 동안에는 비교 자체를 하지 않는다. 프로세스 메모리 — 재시작하면 풀린다(그래도 대입 속도는 묶인다).
+const PW_WINDOW_MS = 15 * 60 * 1000;
+const PW_MAX_WRONG = 10;
+const pwWrong = new Map();   // token → { n, until }
+function pwLocked(key) {
+  const e = pwWrong.get(key);
+  if (!e) return false;
+  if (Date.now() > e.until) { pwWrong.delete(key); return false; }
+  return e.n >= PW_MAX_WRONG;
+}
+function pwFail(key) {
+  const now = Date.now();
+  const e = pwWrong.get(key);
+  if (!e || now > e.until) pwWrong.set(key, { n: 1, until: now + PW_WINDOW_MS });
+  else e.n += 1;
+  if (pwWrong.size > 10000) for (const [k, v] of pwWrong) if (now > v.until) pwWrong.delete(k);
+}
 async function verifySharePassword(entity, req) {
   if (!entity.share_password_hash) return { ok: true };
-  const pw = req.headers['x-share-password']
-    || (req.query && req.query.p ? String(req.query.p) : '');
+  const pw = req.headers['x-share-password'] || '';
   if (!pw) return { ok: false, status: 401, error: 'password_required', requires_password: true };
-  const ok = await bcrypt.compare(pw, entity.share_password_hash);
-  if (!ok) return { ok: false, status: 401, error: 'password_wrong', requires_password: true };
+  const key = String(entity.share_token || entity.token || entity.id);
+  if (pwLocked(key)) return { ok: false, status: 429, error: 'password_attempts_exceeded', requires_password: true };
+  const ok = await bcrypt.compare(String(pw), entity.share_password_hash);
+  if (!ok) { pwFail(key); return { ok: false, status: 401, error: 'password_wrong', requires_password: true }; }
+  pwWrong.delete(key);
   return { ok: true };
 }
 

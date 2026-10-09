@@ -791,6 +791,8 @@ router.patch('/:id/status', authenticateToken, requireRole('platform_admin'), as
 
     const prevStatus = user.status;
     await user.update({ status });
+    // 정지하면 열린 실시간 연결도 끊는다(소켓 인증이 계정 상태를 보므로 다시 붙지 못한다).
+    if (status === 'suspended') require('../services/socketRevoke').disconnectUser(req.app.get('io'), user.id);
     // 사이클 N+51 — audit. platform admin 의 계정 상태 변경 (suspend/activate)
     require('../services/auditService').logAudit(req, {
       action: 'user.status_change',

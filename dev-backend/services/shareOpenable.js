@@ -65,4 +65,33 @@ function isPublicFile(f) {
   return f.vlevel === 'L4' || (!f.vlevel && f.visibility === 'L4');
 }
 
-module.exports = { OPEN_RULES, shareOpenReason, isPublicFile };
+/**
+ * 공개 링크의 **워크스페이스가 살아 있는가** — router.param('token') 에 거는 문 (2026-10-09 보안점검).
+ *
+ *   왜: 워크스페이스가 지워져도(계정 탈퇴 → 혼자 쓰던 워크스페이스 삭제) 그 안의 공유 링크가 계속 열렸다.
+ *   로그인 경로는 middleware/auth 의 workspaceAliveCheck 가 막지만 공개 경로는 인증을 안 탄다.
+ *   토큰을 지우지 않고 **열 때 보는** 이유: 탈퇴는 30일 안에 되돌릴 수 있다 — 되돌리면 링크도 돌아와야 한다.
+ *   router.param 이라 그 라우터의 :token 하위 주소(PDF·다운로드·첨부·결제)가 전부 같은 문을 지난다.
+ *
+ * @param {Array<[Model, string]>} sources  [모델, 토큰 칼럼] — 먼저 찾은 행의 business_id 로 판정
+ */
+function workspaceAliveParam(sources) {
+  return async (req, res, next, token) => {
+    try {
+      const t = String(token || '').trim();
+      if (!t) return next();
+      for (const [Model, col] of sources) {
+        const row = await Model.findOne({ where: { [col]: t }, attributes: ['business_id'] });
+        if (!row) continue;
+        if (!row.business_id) return next();
+        const { Business } = require('../models');
+        const alive = await Business.findOne({ where: { id: row.business_id, deleted_at: null }, attributes: ['id'] });
+        if (!alive) return res.status(404).json({ success: false, message: 'not_found' });
+        return next();
+      }
+      return next();   // 못 찾으면 라우트가 원래대로 404 를 낸다
+    } catch (e) { return next(e); }
+  };
+}
+
+module.exports = { OPEN_RULES, shareOpenReason, isPublicFile, workspaceAliveParam };

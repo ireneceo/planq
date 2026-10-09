@@ -34,7 +34,7 @@ async function broadcastChanged(req, tasks) {
   for (const t of tasks) {
     const raw = typeof t.toJSON === 'function' ? t.toJSON() : { ...t };
     const payload = { ...(byId.get(raw.id) || raw), actor_user_id: req.user.id };
-    if (payload.project_id) io.to(`project:${payload.project_id}`).emit('task:updated', payload);
+    if (payload.project_id) require('../services/projectRoom').emitProject(io, payload.project_id, 'task:updated', payload);
     io.to(`business:${payload.business_id}`).emit('task:updated', payload);
   }
 }

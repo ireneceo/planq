@@ -36,6 +36,11 @@ function renderTemplate(text, values) {
 
 // createDocument 시 사용할 컨텍스트 빌드 — business + client + project + 기본 날짜.
 //   projectId 가 주어지면 ctx.project 추가, project 의 primary client 가 있고 clientId 비어있으면 자동 fallback.
+/** 템플릿을 이 워크스페이스가 쓸 수 있는가 — 시스템 템플릿이거나 같은 워크스페이스 것. */
+function templateUsableBy(tpl, businessId) {
+  return !!tpl && (!!tpl.is_system || Number(tpl.business_id) === Number(businessId));
+}
+
 async function buildTemplateContext(businessId, clientId, title, projectId) {
   const ctx = {
     title: title || '',
@@ -58,7 +63,7 @@ async function buildTemplateContext(businessId, clientId, title, projectId) {
     const proj = await Project.findByPk(projectId, {
       attributes: ['id', 'business_id', 'name', 'description', 'client_company', 'start_date', 'end_date', 'status'],
     });
-    if (proj && proj.business_id === businessId) {
+    if (proj && Number(proj.business_id) === Number(businessId)) {
       ctx.project = proj.toJSON();
       if (!resolvedClientId) {
         const pc = await ProjectClient.findOne({ where: { project_id: projectId }, order: [['id', 'ASC']] });
@@ -68,7 +73,8 @@ async function buildTemplateContext(businessId, clientId, title, projectId) {
     // 워크스페이스 불일치는 무시
   }
   if (resolvedClientId) {
-    const cli = await Client.findByPk(resolvedClientId, { attributes: ['id', 'display_name', 'company_name', 'invite_email', 'biz_name', 'biz_tax_id', 'biz_ceo', 'biz_address', 'tax_invoice_email', 'billing_contact_email'] });
+    // ★ 이 워크스페이스 고객만 — findByPk 였을 때 남의 고객 사업자번호·대표·주소가 AI 초안에 실려 나갔다(2026-10-09 점검).
+    const cli = await Client.findOne({ where: { id: resolvedClientId, business_id: businessId }, attributes: ['id', 'display_name', 'company_name', 'invite_email', 'biz_name', 'biz_tax_id', 'biz_ceo', 'biz_address', 'tax_invoice_email', 'billing_contact_email'] });
     if (cli) {
       const j = cli.toJSON();
       ctx.client = {
@@ -124,6 +130,8 @@ async function createDocument(actor, params = {}) {
   let initialBodyHtml = null;
   if (templateId) {
     const tpl = await DocumentTemplate.findByPk(templateId);
+    // 시스템 템플릿 또는 이 워크스페이스 템플릿만 — 남의 워크스페이스 계약서 본문을 내 문서로 복사하던 구멍.
+    if (tpl && !templateUsableBy(tpl, businessId)) return fail('invalid_template', 400);
     if (tpl?.body_template) {
       const ctx = await buildTemplateContext(businessId, params.clientId, title, params.projectId);
       initialBodyHtml = renderTemplate(tpl.body_template, ctx);
@@ -161,4 +169,5 @@ async function createDocument(actor, params = {}) {
   return done({ document: doc });
 }
 
-module.exports = { createDocument, KIND_VALUES, renderTemplate, buildTemplateContext };
+module.exports = {
+  templateUsableBy, createDocument, KIND_VALUES, renderTemplate, buildTemplateContext };

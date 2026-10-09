@@ -31,7 +31,7 @@ async function postCardMessage({ conv, senderId, content, meta, io }) {
   try {
     if (io) {
       const full = await Message.findByPk(msg.id, {
-        include: [{ model: User, as: 'sender', attributes: ['id', 'name', 'email', 'name_localized', 'is_guest'] }],
+        include: [{ model: User, as: 'sender', attributes: ['id', 'name', 'name_localized', 'is_guest'] }],
       });
       const fullJson = full.toJSON();
       try {

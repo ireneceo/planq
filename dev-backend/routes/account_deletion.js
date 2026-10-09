@@ -162,6 +162,7 @@ router.post('/me/deletion-request', authenticateToken, async (req, res, next) =>
       newValue: { scheduled_at: scheduled, solo_workspaces: ev.soloToDelete.map((w) => w.id) },
     });
 
+    require('../services/socketRevoke').disconnectUser(req.app.get('io'), userId);
     return successResponse(res, { status: 'deleted', grace_until: scheduled, recoverable: true });
   } catch (err) { next(err); }
 });

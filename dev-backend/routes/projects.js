@@ -32,7 +32,7 @@ function cueReadOf(f) {
 }
 const { serializeMessageAttachments, isRenderableImage } = require('../services/filePreview');
 const { maskDeletedMessages } = require('../utils/deletedMessage');
-const { CLIENT_VISIBLE_MESSAGE_WHERE } = require('../utils/messageVisibility');
+const { CLIENT_VISIBLE_MESSAGE_WHERE, isVisibleToClient } = require('../utils/messageVisibility');
 const { authenticateToken } = require('../middleware/auth');
 const { createAuditLog } = require('../middleware/audit');
 const { logAudit, auditDiff } = require('../services/auditService');
@@ -51,7 +51,10 @@ const { fetchProjectStats } = require('../services/weeklyReviewSnapshot');
 // 접근 판정은 services/projectAccess.js **한 곳**이다 — 여기 지역 선언으로 두었더니
 //   새 라우트가 export 를 못 써서 손으로 다시 쓸 수밖에 없는 상태였다(2026-09-10).
 //   호출부 64곳은 그대로 이 이름을 쓴다.
-const { loadProjectOrForbidden, requireBusinessMember } = require('../services/projectAccess');
+const { loadProjectOrForbidden, requireBusinessMember, projectForClient } = require('../services/projectAccess');
+const { serializeTasksForClient } = require('../utils/taskClientView');
+// 고객용 업무 목록 — 내부 칸·공유 열쇠는 taskClientView 한 곳이 뺀다.
+const clientTasks = (rows) => serializeTasksForClient(rows);
 
 // 독립 대화(project_id null) scope 체크 — 워크스페이스 멤버여야 접근 가능.
 // 반환: { conversation, role } 또는 { error }. role 은 'owner'|'member'.
@@ -380,7 +383,8 @@ router.get('/', authenticateToken, async (req, res, next) => {
       return json;
     });
 
-    return successResponse(res, result);
+    // 고객은 내부 운영 칸·남의 연락처를 받지 않는다(상세와 같은 함수).
+    return successResponse(res, bm ? result : result.map((j) => projectForClient(j, req.user.id)));
   } catch (err) { next(err); }
 });
 
@@ -392,8 +396,10 @@ router.get('/', authenticateToken, async (req, res, next) => {
 //   ★ `occurred_at` 은 **사람이 정한다** — 지난주 일을 오늘 적을 수 있어야 히스토리가 사실과 맞는다.
 router.get('/:id/history-entries', authenticateToken, async (req, res, next) => {
   try {
-    const { project, error } = await loadProjectOrForbidden(Number(req.params.id), req.user.id);
+    const { project, role, error } = await loadProjectOrForbidden(Number(req.params.id), req.user.id);
     if (error) return errorResponse(res, error.message, error.code);
+    // 고객 화면에는 이 탭이 없다(CLIENT_HIDDEN_TABS) — 서버도 막는다(2026-10-09 보안점검: 화면만 숨기고 API 는 열려 있었다).
+    if (role === 'client') return errorResponse(res, 'member_only', 403, 'member_only');
     const { ProjectHistoryEntry, User } = require('../models');
     const rows = await ProjectHistoryEntry.findAll({
       where: { business_id: project.business_id, project_id: project.id, deleted_at: null },
@@ -410,8 +416,10 @@ router.get('/:id/history-entries', authenticateToken, async (req, res, next) => 
 
 router.post('/:id/history-entries', authenticateToken, async (req, res, next) => {
   try {
-    const { project, error } = await loadProjectOrForbidden(Number(req.params.id), req.user.id);
+    const { project, role, error } = await loadProjectOrForbidden(Number(req.params.id), req.user.id);
     if (error) return errorResponse(res, error.message, error.code);
+    // 고객 화면에는 이 탭이 없다(CLIENT_HIDDEN_TABS) — 서버도 막는다(2026-10-09 보안점검: 화면만 숨기고 API 는 열려 있었다).
+    if (role === 'client') return errorResponse(res, 'member_only', 403, 'member_only');
     const title = String(req.body?.title || '').trim();
     if (!title) return errorResponse(res, 'title_required', 400);
     // 날짜를 안 주면 지금으로 — 다만 **미래는 막는다**(히스토리는 있었던 일이다)
@@ -439,8 +447,10 @@ router.post('/:id/history-entries', authenticateToken, async (req, res, next) =>
 
 router.delete('/:id/history-entries/:entryId', authenticateToken, async (req, res, next) => {
   try {
-    const { project, error } = await loadProjectOrForbidden(Number(req.params.id), req.user.id);
+    const { project, role, error } = await loadProjectOrForbidden(Number(req.params.id), req.user.id);
     if (error) return errorResponse(res, error.message, error.code);
+    // 고객 화면에는 이 탭이 없다(CLIENT_HIDDEN_TABS) — 서버도 막는다(2026-10-09 보안점검: 화면만 숨기고 API 는 열려 있었다).
+    if (role === 'client') return errorResponse(res, 'member_only', 403, 'member_only');
     const { ProjectHistoryEntry } = require('../models');
     const row = await ProjectHistoryEntry.findOne({
       where: { id: Number(req.params.entryId), business_id: project.business_id, project_id: project.id, deleted_at: null },
@@ -448,7 +458,8 @@ router.delete('/:id/history-entries/:entryId', authenticateToken, async (req, re
     if (!row) return errorResponse(res, 'not_found', 404);
     // 적은 사람이거나 워크스페이스 관리자만 — 남의 기록을 조용히 지우지 않는다
     const isOwner = row.created_by === req.user.id;
-    const isManager = req.businessRole === 'owner' || req.businessRole === 'admin'
+    // req.businessRole 은 이 라우트에서 채워지지 않는다(checkBusinessAccess 가 없다) — 그래서 관리자도 못 지웠다.
+    const isManager = role === 'owner' || role === 'admin'
       || req.user.platform_role === 'platform_admin';
     if (!isOwner && !isManager) return errorResponse(res, 'forbidden', 403);
     await row.update({ deleted_at: new Date() });
@@ -484,7 +495,7 @@ router.get('/:id', authenticateToken, async (req, res, next) => {
       resolvedName = bm?.name || u?.name || null;   // 워크스페이스 표시명 우선
     }
     return successResponse(res, {
-      ...detail,
+      ...(role === 'client' ? projectForClient(detail, req.user.id) : detail),
       my_role_in_project: role,
       resolved_default_assignee: {
         user_id: resolvedUserId,
@@ -583,8 +594,10 @@ router.delete('/:id/pinned-docs/:postId', authenticateToken, async (req, res, ne
 //      같이 실어 화면이 "얼마나 기록됐는지" 를 함께 말하게 한다.
 router.get('/:id/billing-draft', authenticateToken, async (req, res, next) => {
   try {
-    const { project, error } = await loadProjectOrForbidden(Number(req.params.id), req.user.id);
+    const { project, role, error } = await loadProjectOrForbidden(Number(req.params.id), req.user.id);
     if (error) return errorResponse(res, error.message, error.code);
+    // 고객 화면에는 이 탭이 없다(CLIENT_HIDDEN_TABS) — 서버도 막는다(2026-10-09 보안점검: 화면만 숨기고 API 는 열려 있었다).
+    if (role === 'client') return errorResponse(res, 'member_only', 403, 'member_only');
     const { Invoice, InvoiceItem, Task } = require('../models');
 
     // 직전 청구서의 항목 — 같은 프로젝트, 가장 최근 것
@@ -861,7 +874,7 @@ router.put('/:id', authenticateToken, async (req, res, next) => {
       if (io) {
         const payload = { id: project.id, name: project.name, business_id: project.business_id };
         io.to(`business:${project.business_id}`).emit('project:updated', payload);
-        io.to(`project:${project.id}`).emit('project:updated', payload);
+        require('../services/projectRoom').emitProject(io, project.id, 'project:updated', payload);
         io.to(`business:${project.business_id}`).emit('inbox:refresh', { reason: 'project_updated', project_id: project.id });
         // 대화방 제목이 프로젝트명에서 파생되므로 rename 은 채팅 목록도 갱신해야 한다 (#150)
         if (patch.name && patch.name !== prevName) {
@@ -1155,7 +1168,7 @@ router.get('/:id/conversations', authenticateToken, async (req, res, next) => {
     if (error) return errorResponse(res, error.message, error.code);
     const where = { project_id: project.id, archived_at: null };
     if (role === 'client') where.channel_type = 'customer';
-    const convs = await Conversation.findAll({
+    let convs = await Conversation.findAll({
       where,
       // ★ #259 — Client 를 같이 싣는다. 없으면 프론트가 `activeConv.client` 를 못 봐
       //   **프로젝트에 속한 고객 대화방에서 게스트 링크 버튼이 아예 안 뜬다**(Fable 실측).
@@ -1164,6 +1177,13 @@ router.get('/:id/conversations', authenticateToken, async (req, res, next) => {
       include: [{ model: Client, attributes: ['id', 'display_name', 'company_name'], required: false }],
       order: [['channel_type', 'DESC'], ['id', 'ASC']], // customer 먼저
     });
+    // ★ 한 프로젝트에 고객사가 둘이면 고객 채널도 회사마다 따로다(project_channel.js) — 고객에게는 **자기 회사 채널만**.
+    //   channel_type 만 보면 다른 회사의 채널 이름·대화가 보였다(2026-10-09 보안점검). 판정은 대화방 술어 한 벌.
+    if (role === 'client') {
+      const { canAccessConversation } = require('../middleware/access_scope');
+      const ok = await Promise.all(convs.map((c) => canAccessConversation(req.user.id, c)));
+      convs = convs.filter((_, i) => ok[i]);
+    }
     return successResponse(res, convs.map((c) => c.toJSON()));
   } catch (err) { next(err); }
 });
@@ -1271,6 +1291,10 @@ router.post('/conversations/:id/messages', authenticateToken, async (req, res, n
       if (role === 'client' && conv.channel_type !== 'customer') {
         return errorResponse(res, 'forbidden_channel', 403);
       }
+      // 고객 채널이어도 **자기 회사 채널**이어야 한다 — 목록과 같은 술어(canAccessConversation).
+      if (role === 'client' && !(await require('../middleware/access_scope').canAccessConversation(req.user.id, conv))) {
+        return errorResponse(res, 'forbidden_channel', 403);
+      }
     } else {
       // ★ 프로젝트 없는 대화방 — 목록과 **같은 술어**(canAccessConversation: 멤버 이상 · 그 방 참여자·연결 고객).
       //   여태 else 가 없어 로그인한 누구나 남의 워크스페이스 대화방에 메시지를 넣을 수 있었다(Fable 2026-09-24 실측, 운영에도 있었다).
@@ -1323,7 +1347,7 @@ router.post('/conversations/:id/messages', authenticateToken, async (req, res, n
 
     // 응답에 sender 포함
     const full = await Message.findByPk(msg.id, {
-      include: [{ model: User, as: 'sender', attributes: ['id', 'name', 'email', 'name_localized', 'is_guest'] }],
+      include: [{ model: User, as: 'sender', attributes: ['id', 'name', 'name_localized', 'is_guest'] }],
     });
     const fullJson = full.toJSON();
     serializeMessageAttachments(fullJson);
@@ -1432,7 +1456,7 @@ router.post('/conversations/:id/messages', authenticateToken, async (req, res, n
               io.to(`conv:${conv.id}`).emit('message:translated', payload);
               // fallback: 전체 메시지 객체로 message:updated 도 emit (기존 핸들러 활용)
               const updated = await Message.findByPk(msg.id, {
-                include: [{ model: User, as: 'sender', attributes: ['id', 'name', 'email', 'name_localized', 'is_guest'] }],
+                include: [{ model: User, as: 'sender', attributes: ['id', 'name', 'name_localized', 'is_guest'] }],
               });
               if (updated) io.to(`conv:${conv.id}`).emit('message:updated', updated.toJSON());
               console.log(`[translation] emitted message:translated + message:updated to conv:${conv.id}`);
@@ -1469,7 +1493,7 @@ router.post('/conversations/:id/messages', authenticateToken, async (req, res, n
           if (!cueResult.skipped && cueResult.message) {
             // Cue 응답 메시지에 sender 포함하여 브로드캐스트
             const cueMsg = await Message.findByPk(cueResult.message.id, {
-              include: [{ model: User, as: 'sender', attributes: ['id', 'name', 'email', 'name_localized', 'is_guest'] }],
+              include: [{ model: User, as: 'sender', attributes: ['id', 'name', 'name_localized', 'is_guest'] }],
             });
             if (io && cueMsg) {
               const payload = cueMsg.toJSON();
@@ -1541,7 +1565,7 @@ router.post('/messages/:id/approve-draft', authenticateToken, async (req, res, n
     logAudit(req, { action: 'cue.draft_approve', targetType: 'message', targetId: msg.id, businessId: conv?.business_id ?? null, newValue: { conversation_id: msg.conversation_id, edited: !!updates.content } }); // 본문은 싣지 않는다
 
     const full = await Message.findByPk(msg.id, {
-      include: [{ model: User, as: 'sender', attributes: ['id', 'name', 'email', 'name_localized', 'is_guest'] }],
+      include: [{ model: User, as: 'sender', attributes: ['id', 'name', 'name_localized', 'is_guest'] }],
     });
     const fullJson = full.toJSON();
     await applyMemberDisplayNameOne(fullJson, conv?.business_id, ['sender']);
@@ -1589,7 +1613,11 @@ router.post('/messages/:id/cue-rating', authenticateToken, async (req, res, next
     // Socket.IO broadcast — 같은 conv 의 다른 사용자도 즉시 갱신
     const io = req.app.get('io');
     if (io) {
-      io.to(`conv:${conv.id}`).emit('message:updated', (await msg.reload()).toJSON());
+      // ★ `conv:<id>` 에는 고객이 같이 있다 — 승인 전 초안·내부 메모·지운 메시지를 평가하면 그 본문이
+      //   고객 소켓으로 갔다(2026-10-09 보안점검). conversations.js 와 같은 규칙으로 방을 고른다.
+      const json = (await msg.reload()).toJSON();
+      maskDeletedMessages([json]);
+      io.to(isVisibleToClient(json) ? `conv:${conv.id}` : `conv:${conv.id}:staff`).emit('message:updated', json);
     }
     return successResponse(res, { id: msg.id, cue_rating: msg.cue_rating });
   } catch (err) { next(err); }
@@ -1623,7 +1651,9 @@ router.post('/messages/:id/reject-draft', authenticateToken, async (req, res, ne
 
     const io = req.app.get('io');
     if (io) {
-      io.to(`conv:${msg.conversation_id}`).emit('message:updated', msg.toJSON());
+      // 거절한 초안은 고객이 볼 것이 아니다 — 직원 방으로만(위 cue-rating 과 같은 규칙).
+      const json = msg.toJSON();
+      io.to(isVisibleToClient(json) ? `conv:${msg.conversation_id}` : `conv:${msg.conversation_id}:staff`).emit('message:updated', json);
     }
 
     return successResponse(res, msg.toJSON());
@@ -1642,6 +1672,10 @@ router.get('/conversations/:id/messages', authenticateToken, async (req, res, ne
       const { error, role } = await loadProjectOrForbidden(conv.project_id, req.user.id);
       if (error) return errorResponse(res, error.message, error.code);
       if (role === 'client' && conv.channel_type !== 'customer') {
+        return errorResponse(res, 'forbidden_channel', 403);
+      }
+      // 고객 채널이어도 **자기 회사 채널**이어야 한다 — 목록과 같은 술어(canAccessConversation).
+      if (role === 'client' && !(await require('../middleware/access_scope').canAccessConversation(req.user.id, conv))) {
         return errorResponse(res, 'forbidden_channel', 403);
       }
     } else {
@@ -1673,7 +1707,7 @@ router.get('/conversations/:id/messages', authenticateToken, async (req, res, ne
       Message.findAll({
         where: msgWhere,
         include: [
-          { model: User, as: 'sender', attributes: ['id', 'name', 'email', 'name_localized', 'is_guest'] },
+          { model: User, as: 'sender', attributes: ['id', 'name', 'name_localized', 'is_guest'] },
           // 첨부 — 페이지 새로고침/재진입 시 채팅 이미지·파일이 사라지지 않도록 필수.
           // association alias 'attachments' (models/index.js:119)
           // file_path·storage_provider·external_id 는 미리보기 토큰 계산용 —
@@ -1738,8 +1772,10 @@ router.get('/conversations/:id/messages', authenticateToken, async (req, res, ne
 // ============================================
 router.get('/:id/stages', authenticateToken, async (req, res, next) => {
   try {
-    const { project, error } = await loadProjectOrForbidden(Number(req.params.id), req.user.id);
+    const { project, role, error } = await loadProjectOrForbidden(Number(req.params.id), req.user.id);
     if (error) return errorResponse(res, error.message, error.code);
+    // 고객 화면에는 이 탭이 없다(CLIENT_HIDDEN_TABS) — 서버도 막는다(2026-10-09 보안점검: 화면만 숨기고 API 는 열려 있었다).
+    if (role === 'client') return errorResponse(res, 'member_only', 403, 'member_only');
     const { ProjectStage } = require('../models');
     const { progressProject } = require('../services/projectStageEngine');
     await progressProject(project.id).catch(() => null);
@@ -1901,7 +1937,7 @@ function broadcastCanvas(req, project, reason) {
   if (!io) return;
   const payload = { id: project.id, business_id: project.business_id, actor_user_id: req.user.id };
   io.to(`business:${project.business_id}`).emit('project:updated', payload);
-  io.to(`project:${project.id}`).emit('project:updated', payload);
+  require('../services/projectRoom').emitProject(io, project.id, 'project:updated', payload);
   io.to(`business:${project.business_id}`).emit('inbox:refresh', { reason, project_id: project.id });
 }
 
@@ -2278,7 +2314,7 @@ router.delete('/:id/workstreams/:wsId', authenticateToken, async (req, res, next
     if (io) {
       for (const tk of affected) {
         const payload = { id: tk.id, project_id: project.id, workstream_id: null, actor_user_id: req.user.id };
-        io.to(`project:${project.id}`).emit('task:updated', payload);
+        require('../services/projectRoom').emitProject(io, project.id, 'task:updated', payload);
         io.to(`business:${project.business_id}`).emit('task:updated', payload);
       }
     }
@@ -2538,8 +2574,10 @@ router.delete('/:id/links/:targetId', authenticateToken, async (req, res, next) 
 
 router.get('/:id/transactions', authenticateToken, async (req, res, next) => {
   try {
-    const { project, error } = await loadProjectOrForbidden(Number(req.params.id), req.user.id);
+    const { project, role, error } = await loadProjectOrForbidden(Number(req.params.id), req.user.id);
     if (error) return errorResponse(res, error.message, error.code);
+    // 고객 화면에는 이 탭이 없다(CLIENT_HIDDEN_TABS) — 서버도 막는다(2026-10-09 보안점검: 화면만 숨기고 API 는 열려 있었다).
+    if (role === 'client') return errorResponse(res, 'member_only', 403, 'member_only');
 
     const { Post, Invoice, InvoiceInstallment, SignatureRequest, Client, ProjectStage } = require('../models');
     const { progressProject, computeNextAction, seedStages } = require('../services/projectStageEngine');
@@ -2723,7 +2761,7 @@ router.get('/:id/transactions', authenticateToken, async (req, res, next) => {
 
 router.get('/:id/tasks', authenticateToken, async (req, res, next) => {
   try {
-    const { project, error } = await loadProjectOrForbidden(Number(req.params.id), req.user.id);
+    const { project, role, error } = await loadProjectOrForbidden(Number(req.params.id), req.user.id);
     if (error) return errorResponse(res, error.message, error.code);
     const { literal } = require('sequelize');
     const tasks = await Task.findAll({
@@ -2744,7 +2782,8 @@ router.get('/:id/tasks', authenticateToken, async (req, res, next) => {
     // 워크스페이스 표시명(BusinessMember.name) 적용 — 타임라인 등에서 User.name(예: 한수정) 대신 표시명(예: 루아) 노출
     const json = tasks.map((t) => t.toJSON());
     await applyMemberDisplayName(json, project.business_id, ['assignee', 'requester']);
-    return successResponse(res, json);
+    // 고객에게는 내부 공수·예측 출처·공유 열쇠를 싣지 않는다 — 업무 상세와 같은 직렬화(2026-10-09 보안점검).
+    return successResponse(res, role === 'client' ? clientTasks(json) : json);
   } catch (err) { next(err); }
 });
 
@@ -2800,8 +2839,10 @@ router.post('/conversations/:convId/notes', authenticateToken, async (req, res, 
     await applyMemberDisplayNameOne(noteJson, conversation.business_id, ['author']);  // #87 표시명
     // N+38 — business room broadcast (CLAUDE.md 16번 박제)
     const io = req.app.get('io');
+    // ★ 개인 메모(personal)는 쓴 사람만 본다(GET 과 같은 규칙) — 본문을 워크스페이스 방에 뿌리지 않고
+    //   쓴 사람의 기기(user 방)로만 보낸다(2026-10-09 보안점검). Q talk 화면이 이 행을 그대로 그린다.
     if (io && conversation.business_id) {
-      io.to(`business:${conversation.business_id}`).emit('note:new', noteJson);
+      io.to(vis === 'personal' ? `user:${req.user.id}` : `business:${conversation.business_id}`).emit('note:new', noteJson);
     }
     return successResponse(res, noteJson);
   } catch (err) { next(err); }
@@ -2933,8 +2974,10 @@ router.get('/:id/notes', authenticateToken, async (req, res, next) => {
 // ============================================
 router.get('/:id/issues', authenticateToken, async (req, res, next) => {
   try {
-    const { project, error } = await loadProjectOrForbidden(Number(req.params.id), req.user.id);
+    const { project, role, error } = await loadProjectOrForbidden(Number(req.params.id), req.user.id);
     if (error) return errorResponse(res, error.message, error.code);
+    // 이슈는 내부 기록이다(게스트 보기 설계) — 고객에게는 빈 목록(화면이 오류 없이 비게).
+    if (role === 'client') return successResponse(res, []);
     const issues = await ProjectIssue.findAll({
       where: { project_id: project.id },
       include: [{ model: User, as: 'author', attributes: ['id', 'name', 'name_localized'] }],
@@ -3005,7 +3048,7 @@ router.post('/conversations/:convId/task-candidates/extract', authenticateToken,
           candidates: result.candidates,
         };
         if (conv.project_id) {
-          io.to(`project:${conv.project_id}`).emit('candidates:created', payload);
+          require('../services/projectRoom').emitProject(io, conv.project_id, 'candidates:created', payload);
         } else {
           io.to(`conv:${conversationId}`).emit('candidates:created', payload);
         }
@@ -3193,7 +3236,8 @@ router.get('/workspace/:businessId/all-tasks', authenticateToken, async (req, re
     //   ★ include 가 아니라 task_id IN (...) 배치 2차 쿼리 — 위 findAndCountAll 은 limit + distinct
     //     조합이라 M:N include 를 끼우면 count 가 조인 행 수로 오염된다.
     if (bm && bm.role !== 'ai') await require('./task_tags').attachTagsTo(rowsJson, businessId);
-    return paginatedResponse(res, rowsJson, count, { limit, page, offset });
+    // 고객(멤버 아님)이면 고객용 직렬화 — 위 주석의 «선행 사안» 을 닫는다(2026-10-09 보안점검).
+    return paginatedResponse(res, bm ? rowsJson : clientTasks(rowsJson), count, { limit, page, offset });
   } catch (err) { next(err); }
 });
 
@@ -3318,7 +3362,10 @@ router.post('/:id/clients', authenticateToken, async (req, res, next) => {
       } catch (e) { console.warn('invite email send failed:', e.message); }
     }
 
-    return successResponse(res, row);
+    // 초대 토큰은 계정을 «그 고객으로» 붙이는 열쇠다 — 응답에 싣지 않는다(clients.js stripClientSecrets 와 같은 이유,
+    //   2026-10-09 보안점검). 메일로만 간다.
+    const out = row.toJSON(); delete out.invite_token;
+    return successResponse(res, out);
   } catch (err) { next(err); }
 });
 
@@ -3415,7 +3462,7 @@ router.post('/:id/issues', authenticateToken, async (req, res, next) => {
     // Socket.IO: 이슈 생성 알림
     const io = req.app.get('io');
     if (io) {
-      io.to(`project:${project.id}`).emit('issue:new', full.toJSON());
+      require('../services/projectRoom').emitProject(io, project.id, 'issue:new', full.toJSON());
     }
 
     return successResponse(res, full.toJSON());

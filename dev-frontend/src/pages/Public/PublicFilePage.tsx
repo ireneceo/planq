@@ -24,6 +24,9 @@ interface FilePreview {
   created_at: string | null;
   /** 서버가 정한 미리보기 가능 여부 — 화면은 mime 로 다시 판단하지 않는다 (2026-09-03) */
   preview_kind?: 'image' | 'pdf' | null;
+  /** 비밀번호 공유면 받기·미리보기 주소에 붙일 서명(`?dl=…`, 2시간). 비밀번호 없는 공유는 빈 문자열.
+   *  ★ 비밀번호 자체를 주소(`?p=`)에 싣지 않는다 — 서버 접속 기록에 평문으로 남는다(2026-10-09 보안점검). */
+  download_qs?: string;
 }
 
 const formatSize = (bytes: number): string => {
@@ -45,7 +48,9 @@ const PublicFilePage = () => {
   const [needPw, setNeedPw] = useState(false);
   const [pwError, setPwError] = useState<string | null>(null);
   const [pwBusy, setPwBusy] = useState(false);
-  const [verifiedPw, setVerifiedPw] = useState<string | null>(null);
+  // 받기 서명은 한 번 받으면 1시간 그대로 쓴다 — 60초마다 다시 읽을 때마다 바꾸면 미리보기 주소가 바뀌어
+  //   이미지를 매분 다시 받는다(서명은 2시간 유효).
+  const [dlQs, setDlQs] = useState<{ qs: string; at: number } | null>(null);
   const [expired, setExpired] = useState<{ at: string | null } | null>(null);
 
   const pwRef = useRef<string | undefined>(undefined);
@@ -60,7 +65,7 @@ const PublicFilePage = () => {
       if (j.success) { pwRef.current = pw;
         setFile(j.data);
         setNeedPw(false);
-        if (pw) setVerifiedPw(pw);
+        setDlQs((prev) => (prev && Date.now() - prev.at < 60 * 60 * 1000 ? prev : { qs: j.data?.download_qs || '', at: Date.now() }));
       } else if (r.status === 410 && j.code === 'share_expired') {
         setExpired({ at: j.expired_at || null });
       } else if (r.status === 401 && j.requires_password) {
@@ -84,7 +89,8 @@ const PublicFilePage = () => {
   // ★ 훅은 **early return 위**에 둔다 — 아래에 두면 로딩→본문 전환에서 훅 개수가 달라져
   //   React #310(Rendered more hooks than during the previous render)으로 화면이 통째로 죽는다.
   //   타입검사·빌드는 통과하고 **실브라우저에서만** 드러난다(memory feedback_hooks_after_early_return).
-  const inlineUrlEarly = `/api/files/public/by-token/${token}/download?inline=1${verifiedPw ? `&p=${encodeURIComponent(verifiedPw)}` : ''}`;
+  const qs = dlQs?.qs || '';
+  const inlineUrlEarly = `/api/files/public/by-token/${token}/download${qs ? `${qs}&inline=1` : '?inline=1'}`;
   // ★ 미리보기를 blob 으로 받아 둔다 — 실패를 알 수 있는 유일한 방법이다(iframe 은 onerror 가 없다).
   //   서버가 준 preview_kind 가 없으면 시도하지 않는다(술어는 서버 한 곳).
   const [previewState, setPreviewState] = useState<'idle' | 'loading' | 'ready' | 'failed'>('idle');
@@ -123,7 +129,7 @@ const PublicFilePage = () => {
   );
 
   const isAuthed = !!getAccessToken();
-  const downloadUrl = `/api/files/public/by-token/${token}/download${verifiedPw ? `?p=${encodeURIComponent(verifiedPw)}` : ''}`;
+  const downloadUrl = `/api/files/public/by-token/${token}/download${qs}`;
 
 
 

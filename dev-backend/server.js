@@ -53,10 +53,17 @@ io.use((socket, next) => {
     // ★ 용도가 박힌 토큰(kind)은 소켓 인증에도 못 쓴다 — middleware/auth.js 와 같은 규칙.
     if (decoded && decoded.kind) return next(new Error('Invalid token'));
     socket.userId = decoded.userId || decoded.id;
-    next();
   } catch (err) {
     return next(new Error('Invalid token'));
   }
+  // ★ HTTP(middleware/auth.js)와 같이 계정 상태도 본다 — 정지·삭제 계정이 토큰 만료 전까지
+  //   실시간 방송을 계속 받던 구멍(2026-10-09 보안점검).
+  require('./models').User.findByPk(socket.userId, { attributes: ['id', 'status'] })
+    .then((u) => {
+      if (!u || (u.status && u.status !== 'active')) return next(new Error('Invalid token'));
+      next();
+    })
+    .catch(() => next(new Error('Invalid token')));
 });
 
 // 조회 의존성 lazy-load (models/ 에서 Associations 설정 후 접근 보장)
@@ -80,20 +87,22 @@ async function canJoinConversation(userId, conversationId) {
   return !!part;
 }
 
-async function canJoinProject(userId, projectId) {
+// 프로젝트 방은 둘이다 — 멤버 `project:<id>` · 고객 `project:<id>:client` (services/projectRoom.js).
+//   반환: 'staff' | 'client' | null
+async function projectRoomRole(userId, projectId) {
   const { Project, ProjectClient, BusinessMember } = getModels();
   const proj = await Project.findByPk(projectId, { attributes: ['id', 'business_id'] });
-  if (!proj) return false;
+  if (!proj) return null;
   const bm = await BusinessMember.findOne({
-    where: { business_id: proj.business_id, user_id: userId },
+    where: { business_id: proj.business_id, user_id: userId, removed_at: null },
     attributes: ['id'],
   });
-  if (bm) return true;
+  if (bm) return 'staff';
   const pc = await ProjectClient.findOne({
     where: { project_id: projectId, contact_user_id: userId },
     attributes: ['id'],
   });
-  return !!pc;
+  return pc ? 'client' : null;
 }
 
 async function canJoinBusiness(userId, businessId) {
@@ -276,9 +285,9 @@ io.on('connection', (socket) => {
     const projectId = roomId(raw);
     if (!projectId) return;
     try {
-      if (await canJoinProject(socket.userId, projectId)) {
-        socket.join(`project:${projectId}`);
-      }
+      const role = await projectRoomRole(socket.userId, projectId);
+      if (role === 'staff') socket.join(`project:${projectId}`);
+      else if (role === 'client') socket.join(`project:${projectId}:client`);
     } catch (e) {
       console.warn('[socket] join:project check failed', e.message);
     }
@@ -286,7 +295,7 @@ io.on('connection', (socket) => {
 
   socket.on('leave:project', (raw) => {
     const projectId = roomId(raw);
-    if (projectId) socket.leave(`project:${projectId}`);
+    if (projectId) { socket.leave(`project:${projectId}`); socket.leave(`project:${projectId}:client`); }
   });
 
   socket.on('join:business', async (raw) => {
@@ -311,10 +320,17 @@ io.on('connection', (socket) => {
   //   글자가 합쳐지지는 않는다(그건 CRDT 가 필요한 별도 과제) — 대신 서로를 보게 해서
   //   "모르고 덮어쓰는" 사고를 없앤다.
   //   상태는 메모리에만 둔다: 프로세스가 죽으면 자연히 비고, 그게 맞는 동작이다.
-  socket.on('post:editing:join', async ({ postId, businessId, name } = {}) => {
+  socket.on('post:editing:join', async ({ postId: rawPostId, businessId: rawBizId, name } = {}) => {
+    // 룸 이름에 쓰는 값은 정수로 못 박는다(roomId) · 문서가 그 워크스페이스 것인지도 본다 —
+    //   아니면 아무 문서 id 로 «누가 편집 중인지» 를 엿볼 수 있었다(2026-10-09 보안점검).
+    const postId = roomId(rawPostId);
+    const businessId = roomId(rawBizId);
     if (!postId || !businessId) return;
     try {
       if (!(await canJoinBusiness(socket.userId, businessId))) return;   // 남의 워크스페이스 문서 감시 차단
+      const { Post } = getModels();
+      const owned = await Post.findOne({ where: { id: postId, business_id: businessId }, attributes: ['id'] });
+      if (!owned) return;
       socket.join(`post:${postId}`);
       const room = editingPresence.get(postId) || new Map();
       room.set(socket.userId, { userId: socket.userId, name: String(name || '').slice(0, 40) });
@@ -326,7 +342,8 @@ io.on('connection', (socket) => {
       console.warn('[socket] post:editing:join', e.message);
     }
   });
-  socket.on('post:editing:leave', ({ postId } = {}) => {
+  socket.on('post:editing:leave', ({ postId: rawPostId } = {}) => {
+    const postId = roomId(rawPostId);
     if (!postId) return;
     leaveEditing(socket, postId);
   });
@@ -413,6 +430,8 @@ app.get('/api/build-version', (req, res) => {
 // Health check — DB pool / q-note / Deepgram 키 만료 잔여일 같이 노출 (운영 모니터링 endpoint)
 app.get('/api/health', async (req, res) => {
   const out = { status: 'ok', service: 'planq', timestamp: new Date().toISOString() };
+  // 바깥(nginx 경유)에는 살아 있다는 것만 — 환경·연동 설정·AI 사용량은 같은 서버의 점검 스크립트에만(2026-10-09 보안점검).
+  if (!require('./utils/internalAuth').isLoopback(req)) return res.json(out);
   // DB pool 사용률 (best-effort)
   try {
     const { sequelize } = require('./config/database');

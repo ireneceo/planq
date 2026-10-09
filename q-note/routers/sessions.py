@@ -1,4 +1,5 @@
 import asyncio
+import hmac as _hmac
 import csv
 import io
 import json
@@ -50,7 +51,7 @@ async def internal_sessions_by_entity(
     남의 개인 회의록이 히스토리에 뜨면 안 된다. 연결은 했지만 범위는 여전히 본인 것이다.
   """
   expected = os.environ.get('INTERNAL_API_KEY')
-  if not expected or x_internal_api_key != expected:
+  if not expected or not _hmac.compare_digest((x_internal_api_key or '').encode(), expected.encode()):
     raise HTTPException(status_code=401, detail='invalid internal key')
   if not project_id and not client_id:
     raise HTTPException(status_code=400, detail='project_id or client_id required')
@@ -126,7 +127,7 @@ async def internal_search_my_sessions(
     생성자가 연 범위만 열리고 L1(개인)은 그대로 본인 것만이다.
   """
   expected = os.environ.get('INTERNAL_API_KEY')
-  if not expected or x_internal_api_key != expected:
+  if not expected or not _hmac.compare_digest((x_internal_api_key or '').encode(), expected.encode()):
     raise HTTPException(status_code=401, detail='invalid internal key')
 
   # 낱말 추출 — 2자 미만은 버린다(한 글자 LIKE 는 전부 걸린다). 상한 6.
@@ -224,7 +225,7 @@ async def internal_export_sessions(
     x_internal_api_key: Optional[str] = Header(None),
 ):
   expected = os.environ.get('INTERNAL_API_KEY')
-  if not expected or x_internal_api_key != expected:
+  if not expected or not _hmac.compare_digest((x_internal_api_key or '').encode(), expected.encode()):
     raise HTTPException(status_code=401, detail='invalid internal key')
   async with db_connect() as db:
     db.row_factory = aiosqlite.Row
@@ -278,7 +279,7 @@ async def internal_session_owns(
     x_internal_api_key: Optional[str] = Header(None),
 ):
   expected = os.environ.get('INTERNAL_API_KEY')
-  if not expected or x_internal_api_key != expected:
+  if not expected or not _hmac.compare_digest((x_internal_api_key or '').encode(), expected.encode()):
     raise HTTPException(status_code=401, detail='invalid internal key')
   async with db_connect() as db:
     db.row_factory = aiosqlite.Row
@@ -311,7 +312,7 @@ async def internal_count_my_recordings(
     x_internal_api_key: Optional[str] = Header(None),
 ):
   expected = os.environ.get('INTERNAL_API_KEY')
-  if not expected or x_internal_api_key != expected:
+  if not expected or not _hmac.compare_digest((x_internal_api_key or '').encode(), expected.encode()):
     raise HTTPException(status_code=401, detail='invalid internal key')
   async with db_connect() as db:
     cur = await db.execute(
@@ -340,7 +341,7 @@ async def internal_read_session(
     x_internal_api_key: Optional[str] = Header(None),
 ):
   expected = os.environ.get('INTERNAL_API_KEY')
-  if not expected or x_internal_api_key != expected:
+  if not expected or not _hmac.compare_digest((x_internal_api_key or '').encode(), expected.encode()):
     raise HTTPException(status_code=401, detail='invalid internal key')
   async with db_connect() as db:
     db.row_factory = aiosqlite.Row
@@ -410,7 +411,7 @@ async def internal_create_memo(
     x_internal_api_key: Optional[str] = Header(None),
 ):
   expected = os.environ.get('INTERNAL_API_KEY')
-  if not expected or x_internal_api_key != expected:
+  if not expected or not _hmac.compare_digest((x_internal_api_key or '').encode(), expected.encode()):
     raise HTTPException(status_code=401, detail='invalid internal key')
   _validate_body(body.body)
   # 멤버 확인 — 확인 못 하면(None) 거절한다(내부 문은 fail-closed. 화면 생성은 fail-open 이지만 여기는 사람이 없다)
@@ -451,7 +452,7 @@ async def internal_purge_user(
     x_internal_api_key: Optional[str] = Header(None),
 ):
   expected = os.environ.get('INTERNAL_API_KEY')
-  if not expected or x_internal_api_key != expected:
+  if not expected or not _hmac.compare_digest((x_internal_api_key or '').encode(), expected.encode()):
     raise HTTPException(status_code=401, detail='invalid internal key')
   user_id = payload.get('user_id')
   if not user_id:

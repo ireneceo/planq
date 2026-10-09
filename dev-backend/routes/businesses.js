@@ -1385,6 +1385,7 @@ router.patch('/:id/members/:memberId/role', authenticateToken, async (req, res, 
 
     const prevRole = member.role;
     await member.update({ role: nextRole }, { transaction: t });
+    if (prevRole === 'owner' && nextRole !== 'owner') await moveOwnerIdOff(businessId, member.user_id, req.user.id, t);
     // ★ 소유권 이전 문이다 — 감사가 **0건**이었다(AUDIT_GAPS §C). 트랜잭션 안·writeAudit: 기록이 실패하면 이전도 안 된다.
     //   PUT /:businessId/members/:userId/role 과 같은 이름·같은 모양.
     await require('../services/auditService').writeAudit({
@@ -1396,6 +1397,25 @@ router.patch('/:id/members/:memberId/role', authenticateToken, async (req, res, 
     return successResponse(res, member.toJSON());
   } catch (err) { await t.rollback().catch(() => {}); next(err); }
 });
+
+// ★ businesses.owner_id 는 «BM 행이 owner 로 안 박힌» 옛 워크스페이스를 위해 owner 권한의 대체 근거로 쓰인다
+//   (access_scope.getUserScope). 그래서 그 사람을 강등·제거해도 owner_id 가 그대로면 **여전히 owner** 였다
+//   (2026-10-09 보안점검: 공동 대표가 창업자를 내보내도 창업자가 모든 owner 라우트를 통과).
+//   → owner_id 가 떠나는 사람을 가리키면 남는 owner 에게 옮긴다(행위자가 owner 면 행위자, 아니면 가장 먼저 합류한 owner).
+//   마지막 owner 보호가 앞에서 남는 owner 가 있음을 보장한다.
+async function moveOwnerIdOff(businessId, leavingUserId, actingUserId, t) {
+  const biz = await Business.findByPk(businessId, { attributes: ['id', 'owner_id'], transaction: t, lock: t.LOCK.UPDATE });
+  if (!biz || Number(biz.owner_id) !== Number(leavingUserId)) return null;
+  const { Op } = require('sequelize');
+  const owners = await BusinessMember.findAll({
+    where: { business_id: businessId, role: 'owner', removed_at: null, user_id: { [Op.ne]: leavingUserId } },
+    attributes: ['user_id', 'joined_at', 'id'], order: [['id', 'ASC']], transaction: t,
+  });
+  if (!owners.length) return null;
+  const next = owners.find((o) => Number(o.user_id) === Number(actingUserId)) || owners[0];
+  await biz.update({ owner_id: next.user_id }, { transaction: t });
+  return next.user_id;
+}
 
 // ─── DELETE /api/businesses/:id/members/:memberId — 멤버 제거 (soft) ───
 // 오너 또는 본인 자신이 나갈 때 허용. 마지막 오너 제거 금지.
@@ -1432,6 +1452,7 @@ router.delete('/:id/members/:memberId', authenticateToken, async (req, res, next
     }
 
     await member.update({ removed_at: new Date(), removed_by: req.user.id }, { transaction: t });
+    if (member.user_id) await moveOwnerIdOff(businessId, member.user_id, req.user.id, t);
     // Q sale — 떠난 사람이 담당으로 남으면 그 고객의 "확인 필요" 가 **아무에게도 안 뜬다**.
     //   담당을 비워 owner·admin 에게 귀속시킨다(services/saleCommon.saleOwnerWhere 와 한 쌍).
     if (member.user_id) {
@@ -1443,6 +1464,8 @@ router.delete('/:id/members/:memberId', authenticateToken, async (req, res, next
     // 멤버 수가 바뀌었다 — 사용량 캐시(30초)를 비운다. 안 비우면 내보낸 직후 «체험 플랜 내리기»(trial-plan)가
     //   옛 인원으로 409 over_limit 이고, 초대 한도 판정도 30초간 옛 숫자다(2026-10-09 Fable 비차단 ④).
     require('../services/plan').invalidateBusinessCache(businessId);
+    // 내보낸 사람의 소켓을 이 워크스페이스 룸에서 뺀다 — 안 빼면 연결이 끊길 때까지 방송을 계속 받는다.
+    if (member.user_id) require('../services/socketRevoke').leaveBusinessRooms(req.app.get('io'), member.user_id, businessId);
     // 사이클 N+21 — 인사 변경 audit log (가장 중요한 영역)
     require('../services/auditService').logAudit(req, {
       action: 'business_member.remove',

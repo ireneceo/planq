@@ -170,6 +170,12 @@ const ScheduleBatch = require('./ScheduleBatch');
 // ============================================
 const { Sequelize } = require('sequelize');
 const _origToJSON = Sequelize.Model.prototype.toJSON;
+// 응답에 절대 싣지 않는 칸 — 해시·일회용 토큰·평문으로 남은 결제 비밀값(2026-10-09 보안점검).
+const SECRET_HASH_KEYS = new Set([
+  'password_hash', 'share_password_hash', 'refresh_token_hash', 'prev_refresh_token_hash',
+  'password_reset_token', 'email_verify_token', 'reset_token',
+  'portone_api_secret', 'portone_webhook_secret', 'popbill_secret_key',
+]);
 Sequelize.Model.prototype.toJSON = function () {
   const obj = _origToJSON.call(this);
   if (obj.createdAt !== undefined && obj.created_at === undefined) {
@@ -187,6 +193,12 @@ Sequelize.Model.prototype.toJSON = function () {
   for (const k of Object.keys(obj)) {
     if (k.endsWith('_enc')) {
       obj[k.slice(0, -4) + '_set'] = !!obj[k];
+      delete obj[k];
+    } else if (SECRET_HASH_KEYS.has(k) || k.endsWith('_otp_hash') || k.endsWith('_encrypted')) {
+      // 비밀번호·OTP 해시도 같은 자리에서 내린다 — 업무·일정은 행을 통째로 내보내는 곳이 많아
+      //   공유 비밀번호 bcrypt 해시가 고객 화면·프로젝트 방송까지 갔다(2026-10-09 보안점검).
+      //   해시는 서버 안에서 인스턴스 속성으로만 읽는다(이 함수는 응답 직렬화 전용).
+      if (k === 'share_password_hash') obj.share_password_set = !!obj[k];
       delete obj[k];
     }
   }

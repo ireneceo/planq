@@ -284,7 +284,7 @@ router.put('/:id/tags', authenticateToken, async (req, res, next) => {
       const { serializeTaskForBroadcast } = require('../services/taskBroadcast');
       const base = await serializeTaskForBroadcast(task.id, task.business_id);
       const payload = { ...(base || task.toJSON()), tags: row.tags, actor_user_id: req.user.id };
-      if (task.project_id) io.to(`project:${task.project_id}`).emit('task:updated', payload);
+      if (task.project_id) require('../services/projectRoom').emitProject(io, task.project_id, 'task:updated', payload);
       io.to(`business:${task.business_id}`).emit('task:updated', payload);
     }
     return successResponse(res, { id: task.id, tags: row.tags });

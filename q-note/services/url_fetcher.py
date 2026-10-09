@@ -75,6 +75,30 @@ def _assert_public_host(hostname: Optional[str]) -> None:
       raise FetchError('내부 IP로 해석되는 URL은 차단됩니다')
 
 
+def _is_blocked_ip(ip) -> bool:
+  return (ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved
+          or ip.is_multicast or ip.is_unspecified)
+
+
+def _assert_connected_peer_public(resp) -> None:
+  """실제로 붙은 상대 IP 를 다시 본다 (2026-10-09 보안점검 — DNS rebinding 창 닫기).
+
+  _assert_public_host 는 **검사할 때** 해석한 IP 를 보고, httpx 는 **접속할 때** 다시 해석한다.
+  그 사이에 DNS 가 내부 IP 로 바뀌면 검사를 통과한 채 내부로 붙는다. 그래서 본문을 읽기 전에
+  접속된 소켓의 상대 주소를 확인한다. 알 수 없으면 막는다(fail-closed).
+  """
+  ns = resp.extensions.get('network_stream') if hasattr(resp, 'extensions') else None
+  addr = ns.get_extra_info('server_addr') if ns is not None else None
+  if not addr:
+    raise FetchError('접속한 서버 주소를 확인할 수 없습니다')
+  try:
+    ip = ipaddress.ip_address(addr[0])
+  except ValueError:
+    raise FetchError('접속한 서버 주소를 확인할 수 없습니다')
+  if _is_blocked_ip(ip):
+    raise FetchError('내부 IP로 해석되는 URL은 차단됩니다')
+
+
 def _assert_https(url: str) -> None:
   parsed = urlparse(url)
   if parsed.scheme != 'https':
@@ -108,6 +132,7 @@ async def fetch_url(url: str) -> FetchResult:
     for hop in range(MAX_REDIRECTS + 1):
       try:
         async with client.stream('GET', current) as resp:
+          _assert_connected_peer_public(resp)
           # 리다이렉트 처리
           if 300 <= resp.status_code < 400:
             location = resp.headers.get('location')

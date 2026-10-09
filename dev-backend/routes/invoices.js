@@ -1,5 +1,10 @@
 const express = require('express');
 const router = express.Router();
+// 공개 링크 — 워크스페이스가 지워졌으면 이 라우터의 모든 :token 주소(하위 PDF·다운로드 포함)가 닫힌다(services/shareOpenable).
+router.param('token', (req, res, next, token) => {
+  const M = require('../models');
+  return require('../services/shareOpenable').workspaceAliveParam([[M.Invoice, 'share_token']])(req, res, next, token);
+});
 const { Invoice, InvoiceItem, InvoiceInstallment, InvoicePayment, Client, User, Business, Post, Conversation, Message, ReceiptCorrection } = require('../models');
 const { resolveRecurringInfo } = require('../services/invoiceRecurring');
 // 청구서 PDF 빌더 — 라우트·정기청구 2엔진 공용 단일 착지점 (services/invoicePdf.js).
@@ -56,8 +61,12 @@ function isValidKrBizNo(taxId) {
 function broadcastInvoice(req, invoice, event = 'invoice:updated') {
   const io = req.app.get('io');
   if (!io) return;
-  const data = invoice.toJSON ? invoice.toJSON() : invoice;
-  if (invoice.business_id) io.to(`business:${invoice.business_id}`).emit(event, data);
+  // 신호만(id·소속·상태) — 행 전체를 뿌리면 금액·고객·공유 토큰이 Q Bill 권한 없는(none) 멤버에게도 간다
+  //   (2026-10-09 보안점검). 받는 화면은 전부 다시 읽는다(QBill 목록·개요·확인필요·상세 드로어).
+  if (invoice.business_id) io.to(`business:${invoice.business_id}`).emit(event, invoiceSignal(invoice));
+}
+function invoiceSignal(inv) {
+  return { id: inv.id, business_id: inv.business_id, status: inv.status ?? null };
 }
 
 // 사이클 N+5 — PERMISSION_MATRIX §5.10 재무 mutation 가드.
@@ -88,13 +97,7 @@ async function resolveReceiptFileId(fileId, businessId) {
 // 열람(viewed) 신뢰성 — 봇/이메일스캐너/프리페치가 공개 링크를 여는 걸 '고객 열람'으로 오인 방지.
 //   Gmail 이미지프록시·MS SafeLinks·기업 메일보안(Proofpoint/Mimecast 등)·크롤러·CLI 툴·헤드리스는 실 고객 아님.
 //   UA 없음/비정상도 제외 (실 브라우저는 항상 UA 를 보냄).
-const BOT_UA_RE = /bot|crawl|spider|slurp|preview|scan|fetch|monitor|validator|proxy|safelinks|proofpoint|mimecast|barracuda|symantec|forcepoint|headless|phantom|python-requests|curl|wget|go-http|okhttp|java\/|facebookexternalhit|whatsapp|telegram|slackbot|discord|twitterbot|linkedinbot|googleimageproxy|ggpht|feedfetcher|apache-httpclient|axios\//i;
-function isBotOrScanner(req) {
-  const ua = String(req.headers['user-agent'] || '').trim();
-  if (!ua || ua.length < 15) return true;           // UA 없음/비정상 = 실 브라우저 아님 (CLI·스캐너)
-  if (BOT_UA_RE.test(ua)) return true;              // 알려진 봇/스캐너/프리페치/메일보안
-  return false;
-}
+const { isBotOrScanner } = require('../utils/botUa');   // 공개 링크 «열람» 판정 한 벌 (docs.js 와 공유)
 
 // buildInvoicePdf 는 services/invoicePdf.js 로 이관 — 상단에서 import.
 //   라우트 안에만 있어 export 되지 않은 탓에 정기청구 2엔진이 없는 모듈을 require 하고
@@ -642,7 +645,7 @@ router.get('/public/:token/auth-check', authenticateToken, async (req, res, next
 });
 
 // List invoices — client 면 자기 client_id 의 invoice 만
-router.get('/:businessId', authenticateToken, attachWorkspaceScope(), async (req, res, next) => {
+router.get('/:businessId', authenticateToken, attachWorkspaceScope(), requireMenu('qbill', 'read', { allowNonMember: true }), async (req, res, next) => {
   try {
     const baseWhere = await invoiceListWhere(req.user.id, Number(req.params.businessId), req.scope);
     if (!baseWhere) return errorResponse(res, 'forbidden', 403);
@@ -1011,7 +1014,7 @@ router.post('/:businessId', authenticateToken, checkBusinessAccess, requireMenu(
 // ─── 출처 후보: 청구서 발행 모달용 (발행된 post 목록) ───
 // GET /:businessId/source-candidates?category=&client_id=
 // /:id 라우트보다 위에 정의해야 매칭됨 (Express 등록 순서)
-router.get('/:businessId/source-candidates', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+router.get('/:businessId/source-candidates', authenticateToken, checkBusinessAccess, requireMenu('qbill', 'read'), async (req, res, next) => {
   try {
     const where = { business_id: req.params.businessId, status: 'published' };
     if (req.query.category) where.category = req.query.category;
@@ -1027,7 +1030,7 @@ router.get('/:businessId/source-candidates', authenticateToken, checkBusinessAcc
 
 // ─── 채팅방 자동 검색 ───
 // GET /:businessId/find-conversation?client_id=X&project_id=Y
-router.get('/:businessId/find-conversation', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+router.get('/:businessId/find-conversation', authenticateToken, checkBusinessAccess, requireMenu('qbill', 'read'), async (req, res, next) => {
   try {
     const clientId = req.query.client_id ? Number(req.query.client_id) : null;
     const projectId = req.query.project_id ? Number(req.query.project_id) : null;
@@ -1043,7 +1046,7 @@ router.get('/:businessId/find-conversation', authenticateToken, checkBusinessAcc
 // ─── 증빙(세금계산서·현금영수증) 발행 의무 큐 — 단일 진실 원천 ───
 //   대시보드 인박스(dashboard.js collectTaxInvoices)와 동일 헬퍼(services/receiptsDue)를 거쳐 숫자 일치.
 //   /:businessId/:id 보다 먼저 정의 (literal 우선, memory feedback_express_route_order).
-router.get('/:businessId/receipts-due', authenticateToken, attachWorkspaceScope(), async (req, res, next) => {
+router.get('/:businessId/receipts-due', authenticateToken, attachWorkspaceScope(), requireMenu('qbill', 'read', { allowNonMember: true }), async (req, res, next) => {
   try {
     const baseWhere = await invoiceListWhere(req.user.id, Number(req.params.businessId), req.scope);
     if (!baseWhere) return errorResponse(res, 'forbidden', 403);
@@ -1056,7 +1059,7 @@ router.get('/:businessId/receipts-due', authenticateToken, attachWorkspaceScope(
 // ─── 매출 원장 (2026-10-08 0-G) — Q Bill 개요 KPI·추이 ───
 //   인사이트와 같은 services/stats.ledgerRevenueEvents. 가시성은 목록과 같은 invoiceListWhere.
 //   /:businessId/:id 보다 먼저(literal 우선).
-router.get('/:businessId/revenue-ledger', authenticateToken, attachWorkspaceScope(), async (req, res, next) => {
+router.get('/:businessId/revenue-ledger', authenticateToken, attachWorkspaceScope(), requireMenu('qbill', 'read', { allowNonMember: true }), async (req, res, next) => {
   try {
     const businessId = Number(req.params.businessId);
     const baseWhere = await invoiceListWhere(req.user.id, businessId, req.scope);
@@ -1070,7 +1073,7 @@ router.get('/:businessId/revenue-ledger', authenticateToken, attachWorkspaceScop
 });
 
 // #75 — 세금계산서 발행 내역 (공급자·공급받는자·품목·금액 분해). 발행자가 홈택스/팝빌에 그대로 옮겨적게.
-router.get('/:businessId/:id/tax-breakdown', authenticateToken, attachWorkspaceScope(), async (req, res, next) => {
+router.get('/:businessId/:id/tax-breakdown', authenticateToken, attachWorkspaceScope(), requireMenu('qbill', 'read', { allowNonMember: true }), async (req, res, next) => {
   try {
     const businessId = Number(req.params.businessId);
     const inv = await Invoice.findOne({
@@ -1128,7 +1131,7 @@ router.get('/:businessId/:id/tax-breakdown', authenticateToken, attachWorkspaceS
 });
 
 // ─── 상태 변경 이력 (기본 히스토리 — draft/sent/paid/void 전이 타임라인) ───
-router.get('/:businessId/:id/status-history', authenticateToken, attachWorkspaceScope(), async (req, res, next) => {
+router.get('/:businessId/:id/status-history', authenticateToken, attachWorkspaceScope(), requireMenu('qbill', 'read', { allowNonMember: true }), async (req, res, next) => {
   try {
     const businessId = Number(req.params.businessId);
     const inv = await Invoice.findOne({ where: { id: req.params.id, business_id: businessId }, attributes: ['id'] });
@@ -1159,7 +1162,7 @@ router.get('/:businessId/:id/status-history', authenticateToken, attachWorkspace
 
 // ─── Q Bill 이벤트 타임라인 (생애주기: 생성→발행→고객열람→(부분)결제→증빙→정정/취소) ───
 //   재무 가시성 자원 → 멤버 이상만(client 차단). status-history 와 별개(고객 행위·결제까지 포함).
-router.get('/:businessId/:id/timeline', authenticateToken, attachWorkspaceScope(), async (req, res, next) => {
+router.get('/:businessId/:id/timeline', authenticateToken, attachWorkspaceScope(), requireMenu('qbill', 'read', { allowNonMember: true }), async (req, res, next) => {
   try {
     const businessId = Number(req.params.businessId);
     const inv = await Invoice.findOne({ where: { id: req.params.id, business_id: businessId }, attributes: ['id'] });
@@ -1171,7 +1174,7 @@ router.get('/:businessId/:id/timeline', authenticateToken, attachWorkspaceScope(
 });
 
 // ─── PDF 다운로드 (멤버) ───
-router.get('/:businessId/:id/pdf', authenticateToken, attachWorkspaceScope(), async (req, res, next) => {
+router.get('/:businessId/:id/pdf', authenticateToken, attachWorkspaceScope(), requireMenu('qbill', 'read', { allowNonMember: true }), async (req, res, next) => {
   try {
     const inv = await Invoice.findOne({ where: { id: req.params.id, business_id: req.params.businessId } });
     if (!inv) return errorResponse(res, 'not_found', 404);
@@ -1185,7 +1188,7 @@ router.get('/:businessId/:id/pdf', authenticateToken, attachWorkspaceScope(), as
 });
 
 // Get invoice detail — client 도 자기 invoice 면 통과
-router.get('/:businessId/:id', authenticateToken, attachWorkspaceScope(), async (req, res, next) => {
+router.get('/:businessId/:id', authenticateToken, attachWorkspaceScope(), requireMenu('qbill', 'read', { allowNonMember: true }), async (req, res, next) => {
   try {
     const invoice = await Invoice.findOne({
       where: { id: req.params.id, business_id: req.params.businessId },
@@ -1571,7 +1574,7 @@ router.post('/:businessId/:id/send-reminder', authenticateToken, reminderLimiter
       newValue: { invoice_number: invoice.invoice_number, recipient, days_overdue: daysOverdue, reminder_count: meta.reminder_count },
     });
     const io = req.app.get('io');
-    if (io) io.to(`business:${businessId}`).emit('invoice:updated', invoice.toJSON());
+    if (io) io.to(`business:${businessId}`).emit('invoice:updated', invoiceSignal(invoice));
 
     return successResponse(res, { sent: true, last_reminder_at: meta.last_reminder_at, reminder_count: meta.reminder_count }, 'reminder_sent');
   } catch (error) { next(error); }
@@ -1603,7 +1606,7 @@ router.post('/:businessId/:id/overdue-notify', authenticateToken, checkBusinessA
       newValue: { invoice_number: invoice.invoice_number, enabled },
     });
     const io = req.app.get('io');
-    if (io) io.to(`business:${businessId}`).emit('invoice:updated', invoice.toJSON());
+    if (io) io.to(`business:${businessId}`).emit('invoice:updated', invoiceSignal(invoice));
 
     return successResponse(res, { enabled }, 'overdue_notify_updated');
   } catch (error) { next(error); }
@@ -1652,7 +1655,7 @@ router.post('/:businessId/:id/resend', authenticateToken, reminderLimiter, check
       newValue: { invoice_number: invoice.invoice_number, recipient, resend_count: meta.resend_count },
     });
     const io = req.app.get('io');
-    if (io) io.to(`business:${businessId}`).emit('invoice:updated', invoice.toJSON());
+    if (io) io.to(`business:${businessId}`).emit('invoice:updated', invoiceSignal(invoice));
     // sent:true 는 '보내기를 걸었다' 는 뜻이다 — 실제 도달 여부는 meta.email_delivery 가 말한다.
     return successResponse(res, { queued: true, to: recipient, resend_count: meta.resend_count }, 'resend_queued');
   } catch (error) { next(error); }
@@ -2153,7 +2156,7 @@ router.post('/:businessId/:id/installments/:installId/corrections', authenticate
   try { await recordCorrection(req, res, { installmentId: req.params.installId }); } catch (error) { next(error); }
 });
 // 정정 이력 조회 (read)
-router.get('/:businessId/:id/corrections', authenticateToken, attachWorkspaceScope(), async (req, res, next) => {
+router.get('/:businessId/:id/corrections', authenticateToken, attachWorkspaceScope(), requireMenu('qbill', 'read', { allowNonMember: true }), async (req, res, next) => {
   try {
     const invoice = await Invoice.findOne({ where: { id: req.params.id, business_id: req.params.businessId } });
     if (!invoice) return errorResponse(res, 'Invoice not found', 404);

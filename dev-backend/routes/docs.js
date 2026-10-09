@@ -10,6 +10,11 @@ const express = require('express');
 const crypto = require('crypto');
 const { Op } = require('sequelize');
 const router = express.Router();
+// 공개 링크 — 워크스페이스가 지워졌으면 이 라우터의 모든 :token 주소(하위 PDF·다운로드 포함)가 닫힌다(services/shareOpenable).
+router.param('token', (req, res, next, token) => {
+  const M = require('../models');
+  return require('../services/shareOpenable').workspaceAliveParam([[M.Document, 'share_token']])(req, res, next, token);
+});
 const {
   DocumentTemplate, Document, DocumentRevision, DocumentShare,
   Business, BusinessMember, Client, Project, User, Quote, Invoice,
@@ -39,7 +44,7 @@ function isOwnerOrAdmin(member) {
 
 // KIND_VALUES · renderTemplate · buildTemplateContext 는 행동 계층으로 이관 (단일 원천).
 //   문서 생성 규칙은 services/actions/document_actions.js — 사람도 Cue 도 같은 문.
-const { createDocument, KIND_VALUES, buildTemplateContext } = require('../services/actions/document_actions');
+const { createDocument, KIND_VALUES, buildTemplateContext, templateUsableBy } = require('../services/actions/document_actions');
 
 // ============================================
 // Templates
@@ -108,6 +113,10 @@ router.get('/templates/:id/context', authenticateToken, async (req, res, next) =
   try {
     const { getTemplateContext, renderTemplate } = require('../services/template_filler');
     const businessId = parseInt(req.query.business_id, 10) || null;
+    // 프로젝트·고객으로 채우려면 어느 워크스페이스인지 밝혀야 한다 — 없으면 검사가 통째로 빠진다.
+    if (!businessId && (req.query.project_id || req.query.client_id)) {
+      return errorResponse(res, 'business_id required', 400);
+    }
     if (businessId && !(await assertBusinessAccess(req.user.id, businessId, req.user.platform_role))) {
       return errorResponse(res, 'forbidden', 403);
     }
@@ -304,7 +313,9 @@ router.post('/ai-generate', authenticateToken, async (req, res, next) => { // au
     // 1) kind 별 시스템 템플릿 — 사용자가 template_id 주면 그것, 없으면 같은 kind 의 시스템 템플릿
     let referenceTpl = null;
     if (template_id) {
-      referenceTpl = await DocumentTemplate.findByPk(template_id, { attributes: ['body_template', 'ai_prompt_template', 'name'] });
+      referenceTpl = await DocumentTemplate.findByPk(template_id, { attributes: ['body_template', 'ai_prompt_template', 'name', 'is_system', 'business_id'] });
+      // 남의 워크스페이스 템플릿을 참고 구조로 끌어오지 않는다(2026-10-09 점검).
+      if (referenceTpl && !templateUsableBy(referenceTpl, business_id)) return errorResponse(res, 'invalid_template', 400);
     }
     if (!referenceTpl) {
       referenceTpl = await DocumentTemplate.findOne({
@@ -827,7 +838,8 @@ router.get('/public/:token', async (req, res, next) => {
         expired_at: doc.share_expires_at,
       });
     }
-    if (!doc.viewed_at) await doc.update({ viewed_at: new Date(), status: 'viewed' });
+    // 봇·메일 스캐너가 링크를 미리 열어도 «열람» 이 되지 않게 — 청구서와 같은 판정(2026-10-09 보안점검).
+    if (!doc.viewed_at && !require('../utils/botUa').isBotOrScanner(req)) await doc.update({ viewed_at: new Date(), status: 'viewed' });
     // ★ 가릴 때는 **지울 것을 열거하지 말고 남길 것만 남긴다**(화이트리스트).
     //   여태 `toJSON()` 에서 created_by·updated_by 둘만 지우고 나머지를 통째로 내보냈다.
     //   그래서 링크만 가진 익명 방문자에게 이런 것들이 같이 나갔다(2026-09-09 실측):
