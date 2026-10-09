@@ -101,7 +101,7 @@ async function deliverChat({ invoice, actorUserId, message, shareUrl, io }) {
     try { const { applyMemberDisplayNameOne } = require('./displayName'); await applyMemberDisplayNameOne(fullJson, conv.business_id, ['sender']); } catch { /* best-effort */ }
     if (io) {
       io.to(`conv:${conv.id}`).emit('message:new', fullJson);
-      io.to(`business:${conv.business_id}`).emit('message:new', fullJson);
+      require('./convBroadcast').emitConvWide(io, conv, 'message:new', fullJson).catch(() => {});
     }
   } catch (bErr) { console.warn('[invoiceDelivery chat broadcast]', bErr.message); }
 

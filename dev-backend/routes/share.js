@@ -8,6 +8,7 @@
 //   응답: { share_url, results: [{ to, sent }] }
 
 const express = require('express');
+const { Op } = require('sequelize');
 const router = express.Router();
 const { Task, File, KbDocument, CalendarEvent, Business, User, Conversation } = require('../models');
 const { authenticateToken } = require('../middleware/auth');
@@ -237,8 +238,11 @@ router.get('/conversations', authenticateToken, async (req, res, next) => {
     const scope = await getUserScope(req.user.id, businessId, req.user.platform_role);
     if (!isMemberOrAbove(scope)) return errorResponse(res, 'forbidden', 403);
 
+    // 고를 수 있는 방 = 볼 수 있는 방 — 대화방 목록과 같은 술어(사적 대화방은 참여자만, 2026-10-09 D3).
+    const listWhere = await require('../middleware/access_scope').conversationListWhere(req.user.id, businessId, scope);
+    if (!listWhere) return successResponse(res, []);
     const convs = await Conversation.findAll({
-      where: { business_id: businessId, archived_at: null },
+      where: { [Op.and]: [listWhere, { business_id: businessId, archived_at: null }] },
       attributes: ['id', 'title', 'last_message_at'],
       order: [['last_message_at', 'DESC']],
       limit: 50,

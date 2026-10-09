@@ -667,6 +667,8 @@ router.delete('/businesses/:businessId/kb/documents/:docId', authenticateToken, 
       where: { id: req.params.docId, business_id: req.params.businessId }
     });
     if (!doc) return errorResponse(res, 'Document not found', 404);
+    // 볼 수 없는 문서는 지울 수도 없다 — owner/admin 도 남의 «나만 보기»는 못 본다(2026-10-09 D2). 수정(PUT)과 같은 술어.
+    if (!(await canAccessKbDocumentByLevel(req.user.id, doc))) return errorResponse(res, 'Document not found', 404);
     // N+93 — owner/admin 은 항상, 일반 멤버는 본인이 올린 문서만 삭제 가능 (작성자 정정용).
     if (!isAdmin(req) && doc.uploaded_by !== req.user.id) {
       return errorResponse(res, 'forbidden_delete — owner/admin 또는 작성자만 삭제할 수 있습니다.', 403);
@@ -708,6 +710,7 @@ router.post('/businesses/:businessId/kb/documents/:docId/reindex', authenticateT
       where: { id: req.params.docId, business_id: req.params.businessId }
     });
     if (!doc) return errorResponse(res, 'Document not found', 404);
+    if (!(await canAccessKbDocumentByLevel(req.user.id, doc))) return errorResponse(res, 'Document not found', 404);
 
     kbService.indexDocument(doc.id).catch(err => {
       console.error('[kb] reindex failed', err.message);

@@ -1753,14 +1753,14 @@ router.get('/:id/detail', authenticateToken, async (req, res, next) => {
 
     // ─── 사이클 P8.1 — Cue 결과 메타 (출처 resolve + 최근 실행 이벤트) ───
     if (task.cue_kind) {
-      json.cue_meta = await buildCueMeta(task);
+      json.cue_meta = await buildCueMeta(task, req.user.id);
     }
 
     // ─── #90 — 자동추출 업무의 원본(출처) 링크 resolve (대화/메일) ───
     // 채팅·메일에서 자동추출된 업무가 어디서 왔는지 돌아갈 수 있게 라벨+라우트 제공.
     // 고객에게는 내부 라우트 노출 안 함 (serializeTaskForClient 이전이지만 isClient 가드).
     if (!scope.isClient) {
-      json.source_ref = await buildSourceRef(task);
+      json.source_ref = await buildSourceRef(task, req.user.id);
     }
 
     // #250 ③청크 — 업무 태그. **드로어의 유일한 데이터 소스가 이 라우트다.**
@@ -1808,16 +1808,18 @@ router.get('/:id/detail', authenticateToken, async (req, res, next) => {
 // ─── 헬퍼: Cue task 메타 빌드 (cue_kind 없으면 호출하지 않음) ───
 //  - sources: cue_context_ref 안의 ID 들을 라벨/링크로 resolve
 //  - last_event: AuditLog 최근 cue.task_* 이벤트
-async function buildCueMeta(task) {
+async function buildCueMeta(task, viewerId) {
   const { Conversation, Post, KbDocument, AuditLog } = require('../models');
   const ref = task.cue_context_ref || {};
   const sources = [];
 
   if (ref.conversation_id) {
     const conv = await Conversation.findByPk(ref.conversation_id, {
-      attributes: ['id', 'title', 'business_id'],
+      attributes: ['id', 'title', 'business_id', 'project_id', 'client_id', 'channel_type'],
     }).catch(() => null);
-    if (conv && conv.business_id === task.business_id) {
+    // 보는 사람이 그 방을 볼 수 있을 때만 출처로 싣는다 — 사적 대화방 제목이 업무로 새지 않게(2026-10-09 D3).
+    if (conv && conv.business_id === task.business_id
+        && (!viewerId || await require('../middleware/access_scope').canAccessConversation(viewerId, conv))) {
       sources.push({ type: 'conversation', id: conv.id, label: conv.title || `chat ${conv.id}` });
     }
   }
@@ -1865,7 +1867,7 @@ async function buildCueMeta(task) {
 // ─── 헬퍼: #90 원본 출처 링크 빌드 (대화/메일/노트) ───
 //  자동추출 업무가 어느 대화·메일에서 왔는지 라벨+상대경로 라우트로 반환.
 //  business 격리 — 다른 워크스페이스 자원이면 null.
-async function buildSourceRef(task) {
+async function buildSourceRef(task, viewerId) {
   try {
     const { Conversation, EmailThread } = require('../models');
     if (task.email_thread_id) {
@@ -1875,8 +1877,9 @@ async function buildSourceRef(task) {
       }
     }
     if (task.conversation_id) {
-      const conv = await Conversation.findByPk(task.conversation_id, { attributes: ['id', 'title', 'business_id'] }).catch(() => null);
-      if (conv && conv.business_id === task.business_id) {
+      const conv = await Conversation.findByPk(task.conversation_id, { attributes: ['id', 'title', 'business_id', 'project_id', 'client_id', 'channel_type'] }).catch(() => null);
+      if (conv && conv.business_id === task.business_id
+          && (!viewerId || await require('../middleware/access_scope').canAccessConversation(viewerId, conv))) {
         return { type: 'conversation', id: conv.id, label: conv.title || `chat ${conv.id}`, route: `/talk/${conv.id}` };
       }
     }
@@ -1910,7 +1913,7 @@ router.post('/:id/cue/rerun', authenticateToken, async (req, res, next) => { // 
     }
     const refreshed = await Task.findByPk(task.id);
     const json = refreshed.toJSON();
-    json.cue_meta = await buildCueMeta(refreshed);
+    json.cue_meta = await buildCueMeta(refreshed, req.user.id);
     return successResponse(res, json);
   } catch (err) { next(err); }
 });
@@ -2030,8 +2033,9 @@ router.get('/context', authenticateToken, async (req, res, next) => {
       scopeKind = 'project';
     } else if (conversationId) {
       const { Conversation } = require('../models');
-      const conv = await Conversation.findOne({ where: { id: conversationId, business_id: businessId }, attributes: ['id', 'project_id'] });
-      if (!conv) return errorResponse(res, 'conversation_not_found', 404);
+      const conv = await Conversation.findOne({ where: { id: conversationId, business_id: businessId }, attributes: ['id', 'business_id', 'project_id', 'client_id', 'channel_type'] });
+      // 볼 수 없는 방(사적 대화방 비참여자)의 관련 업무는 묻지 않는다 — 목록·상세와 같은 술어(D3).
+      if (!conv || !(await require('../middleware/access_scope').canAccessConversation(req.user.id, conv))) return errorResponse(res, 'conversation_not_found', 404);
       // 대화가 프로젝트에 속하면 그 프로젝트 업무까지 (채팅 = 프로젝트의 창구)
       scopeWhere = conv.project_id
         ? { [Op.or]: [{ conversation_id: conversationId }, { project_id: conv.project_id }] }

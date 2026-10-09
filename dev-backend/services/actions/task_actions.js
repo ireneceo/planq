@@ -714,13 +714,14 @@ async function createTask(actor, params = {}, opts = {}) {
   if (params.conversationId || params.sourceMessageId || params.emailThreadId) {
     const M = require('../../models');
     if (params.conversationId) {
-      const ok = await M.Conversation.findOne({ where: { id: params.conversationId, business_id: businessId }, attributes: ['id'] });
-      if (!ok) { params = { ...params, conversationId: null, sourceMessageId: null }; }
+      const ok = await M.Conversation.findOne({ where: { id: params.conversationId, business_id: businessId }, attributes: ['id', 'business_id', 'project_id', 'client_id', 'channel_type'] });
+      // 볼 수 있는 방만 출처로 — 사적 대화방은 참여자만(2026-10-09 D3).
+      if (!ok || !(await require('../../middleware/access_scope').canAccessConversation(subjectId, ok))) { params = { ...params, conversationId: null, sourceMessageId: null }; }
     }
     if (params.sourceMessageId) {
       const msg = await M.Message.findByPk(params.sourceMessageId, { attributes: ['id', 'conversation_id'] });
-      const conv = msg ? await M.Conversation.findOne({ where: { id: msg.conversation_id, business_id: businessId }, attributes: ['id'] }) : null;
-      if (!conv) params = { ...params, sourceMessageId: null };
+      const conv = msg ? await M.Conversation.findOne({ where: { id: msg.conversation_id, business_id: businessId }, attributes: ['id', 'business_id', 'project_id', 'client_id', 'channel_type'] }) : null;
+      if (!conv || !(await require('../../middleware/access_scope').canAccessConversation(subjectId, conv))) params = { ...params, sourceMessageId: null };
     }
     if (params.emailThreadId && M.EmailThread) {
       const th = await M.EmailThread.findOne({ where: { id: params.emailThreadId, business_id: businessId }, attributes: ['id'] });

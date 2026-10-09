@@ -241,7 +241,7 @@ router.post('/posts/:id/signatures', authenticateToken, async (req, res, next) =
     const convId = Number(req.body?.conversation_id || 0);
     if (sendChat && convId) {
       const conv = await Conversation.findOne({ where: { id: convId, business_id: post.business_id } });
-      if (conv) {
+      if (conv && await require('../middleware/access_scope').canAccessConversation(req.user.id, conv)) {   // 볼 수 있는 방에만 — 사적 대화방은 참여자만(D3)
         // ★ 2026-09-22 — 카드에 **토큰 URL 을 싣지 않는다.** 방에 있는 누구나 그 사람 대신
         //   서명 화면에 들어갈 수 있었다(링크 자체가 열쇠다). 카드는 제목·서명자·진행만 보여주고,
         //   [서명하기] 는 본인 이메일을 받아 그 주소로 링크를 보낸다(POST /api/sign/request-link).

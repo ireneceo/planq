@@ -92,14 +92,14 @@ async function ensureWelcomeConversation(client, { io, transaction } = {}) {
   // 온라인 참여자에게 신호 (best-effort — transaction 커밋 후 호출 권장)
   if (io) {
     try {
-      io.to(`business:${businessId}`).emit('message:new', {
+      require('./convBroadcast').emitConvWide(io, conversation, 'message:new', {
         id: welcome.id,
         conversation_id: conversation.id,
         sender_id: senderId,
         content,
         message_type: welcome.message_type,
         created_at: welcome.created_at,
-      });
+      }).catch(() => {});
     } catch { /* ignore */ }
   }
 

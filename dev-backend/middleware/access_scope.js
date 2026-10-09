@@ -162,10 +162,36 @@ async function assertMemberOrAbove(userId, businessId, platformRole) {
 // ─────────────────────────────────────────────
 // Conversation
 // ─────────────────────────────────────────────
+// ★ 사적 대화방 — 사람을 골라 만든 팀 대화(프로젝트·고객이 붙지 않은 internal/group).
+//   **참여자만** 본다 — owner/admin 도(«나만 보기» 문서·일정과 같은 선). platform_admin 은 종전대로.
+//   (2026-10-09 보안 점검 2차 D3, Irene «권고대로» · 설계 docs/PRIVATE_CHAT_DESIGN.md · Fable 설계 PASS)
+//   정의는 이 함수 하나 — `client_id IS NULL` 이 빠지면 고객이 붙은 internal 방이 «팀은 못 보고 고객만 보는» 거꾸로 닫힘이 된다.
+const PRIVATE_CHANNELS = ['internal', 'group'];
+async function isPrivateConversation(conv) {
+  if (!conv) return false;
+  let c = conv;
+  // 칸이 덜 실린 객체(attributes 좁힌 조회)면 다시 읽는다 — 모르면 사적으로 본다(fail-closed).
+  if (c.project_id === undefined || c.client_id === undefined || c.channel_type === undefined) {
+    c = await Conversation.findByPk(conv.id, { attributes: ['id', 'project_id', 'client_id', 'channel_type'] });
+    if (!c) return true;
+  }
+  return !c.project_id && !c.client_id && PRIVATE_CHANNELS.includes(c.channel_type || 'internal');
+}
+async function isConversationParticipant(userId, convId) {
+  const p = await ConversationParticipant.findOne({
+    where: { conversation_id: convId, user_id: userId }, attributes: ['id'],
+  });
+  return !!p;
+}
+
 async function canAccessConversation(userId, conversation, scope) {
   if (!conversation) return false;
   if (!scope) scope = await getUserScope(userId, conversation.business_id);
-  if (isMemberOrAbove(scope)) return true;
+  if (isMemberOrAbove(scope)) {
+    if (scope.isPlatformAdmin) return true;
+    if (!(await isPrivateConversation(conversation))) return true;
+    return isConversationParticipant(userId, conversation.id);
+  }
   if (!scope.isClient) return false;
   // Client: participant 또는 client_id 매칭
   const participant = await ConversationParticipant.findOne({
@@ -179,7 +205,24 @@ async function canAccessConversation(userId, conversation, scope) {
 
 async function conversationListWhere(userId, businessId, scope) {
   if (!scope) scope = await getUserScope(userId, businessId);
-  if (isMemberOrAbove(scope)) return { business_id: businessId };
+  if (isMemberOrAbove(scope)) {
+    if (scope.isPlatformAdmin) return { business_id: businessId };
+    // 사적 대화방(isPrivateConversation 의 SQL 판)은 내가 참여한 것만 — 그 밖은 종전대로 전부.
+    const mine = (await ConversationParticipant.findAll({
+      where: { user_id: userId }, attributes: ['conversation_id'],
+    })).map((r) => r.conversation_id);
+    return {
+      business_id: businessId,
+      [Op.and]: [{
+        [Op.or]: [
+          { project_id: { [Op.ne]: null } },
+          { client_id: { [Op.ne]: null } },
+          { channel_type: { [Op.notIn]: PRIVATE_CHANNELS } },
+          ...(mine.length ? [{ id: { [Op.in]: mine } }] : []),
+        ],
+      }],
+    };
+  }
   if (!scope.isClient) return null;
 
   const partRows = await ConversationParticipant.findAll({
@@ -407,8 +450,25 @@ async function calendarListWhere(userId, businessId, scope) {
     return { business_id: businessId, id: { [Op.in]: ids }, visibility: 'business' };
   }
 
-  const isAdmin = scope?.isOwner || scope?.isAdmin || scope?.isPlatformAdmin;
-  if (isAdmin) return { business_id: businessId };
+  // ★ owner/admin 도 남의 «나만 보기»(L1·옛 personal) 일정은 못 본다 — 문서·파일 L1 과 같은 규칙
+  //   (2026-10-09 보안 점검 2차 D2, Irene «권고대로»). 그 밖(팀·프로젝트·지정 멤버 L2·L3·L4)은 종전대로 전부 본다.
+  //   초대받은 일정은 공개 범위와 무관하게 보인다(아래 멤버 규칙과 같다).
+  if (scope?.isPlatformAdmin) return { business_id: businessId };
+  const isAdmin = scope?.isOwner || scope?.isAdmin;
+  if (isAdmin) {
+    const attendedA = await attendedEventIds(uid, businessId);
+    return {
+      business_id: businessId,
+      [Op.and]: [{
+        [Op.or]: [
+          { created_by: uid },
+          ...(attendedA.length ? [{ id: { [Op.in]: attendedA } }] : []),
+          { vlevel: { [Op.in]: ['L2', 'L3', 'L4'] } },
+          { vlevel: null, visibility: { [Op.ne]: 'personal' } },
+        ],
+      }],
+    };
+  }
 
   if (!scope || !isMemberOrAbove(scope)) {
     // 스코프를 모르면 개인·팀 일정은 절대 흘리지 않는다 (fail-closed)
@@ -691,7 +751,9 @@ async function canAccessKbDocumentByLevel(userId, doc, scope) {
   if (scope.isClient && !scope.isMember && !scope.isOwner && !scope.isAdmin) {
     return doc.scope === 'client' && (scope.clientIds || []).includes(doc.client_id);
   }
-  if (scope.isOwner || scope.isAdmin) return true;
+  // ★ owner/admin 도 남의 «나만 보기»(L1·옛 private)는 못 본다 — 문서·파일 L1 과 같은 규칙(2026-10-09 D2).
+  //   그 밖은 종전대로 전부 본다.
+  if (scope.isOwner || scope.isAdmin) return !isPrivateKb(doc);
   if (!scope.isMember) return false;
   const myProjects = scope.projectMemberIds || [];
   const v = doc.vlevel;
@@ -709,9 +771,24 @@ async function canAccessKbDocumentByLevel(userId, doc, scope) {
   return false;   // private
 }
 
+// 남의 것이면 owner/admin 에게도 닫히는 Q info — «나만 보기»(L1) · 옛 개인 자료(vlevel 없음 + scope private).
+function isPrivateKb(doc) {
+  return doc.vlevel === 'L1' || (doc.vlevel == null && doc.scope === 'private');
+}
+
 function kbDocumentsListWhereByLevel(scope) {
   if (scope.isPlatformAdmin) return { business_id: scope.businessId };
-  if (scope.isOwner || scope.isAdmin) return { business_id: scope.businessId };
+  if (scope.isOwner || scope.isAdmin) {
+    // 위 isPrivateKb 의 SQL 판 — 본인 것 + 그 밖 전부(남의 L1·옛 private 제외).
+    return {
+      business_id: scope.businessId,
+      [Op.or]: [
+        { uploaded_by: Number(scope.userId) },
+        { vlevel: { [Op.in]: ['L2', 'L3', 'L4'] } },
+        { vlevel: null, scope: { [Op.ne]: 'private' } },
+      ],
+    };
+  }
   const uid = Number(scope.userId);
   const conds = [{ uploaded_by: uid }];
   if (scope.isMember) {
@@ -825,6 +902,8 @@ module.exports = {
   isMemberOrAbove,
   attachWorkspaceScope,
   canAccessConversation,
+  isPrivateConversation,
+  isConversationParticipant,
   canDownloadFile,
   conversationListWhere,
   canAccessTask,

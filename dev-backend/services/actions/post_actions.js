@@ -58,8 +58,9 @@ async function createPost(actor, params = {}) {
   }
   if (params.conversationId) {
     const { Conversation } = require('../../models');
-    const conv = await Conversation.findOne({ where: { id: params.conversationId, business_id: businessId }, attributes: ['id'] });
-    if (!conv) return fail('invalid conversation_id', 400);
+    const conv = await Conversation.findOne({ where: { id: params.conversationId, business_id: businessId }, attributes: ['id', 'business_id', 'project_id', 'client_id', 'channel_type'] });
+    // 볼 수 있는 방에만 붙인다 — 사적 대화방은 참여자만(2026-10-09 D3).
+    if (!conv || !(await require('../../middleware/access_scope').canAccessConversation(userId, conv))) return fail('invalid conversation_id', 400);
   }
   if (params.parentPostId) {
     const parent = await Post.findOne({ where: { id: params.parentPostId, business_id: businessId }, attributes: ['id'] });

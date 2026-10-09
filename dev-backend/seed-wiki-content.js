@@ -327,6 +327,9 @@ const ARTICLES = [
       s('메시지를 입력하면 실시간으로 전달됩니다. 파일도 함께 보낼 수 있습니다.', 'Type a message to send in real time — you can attach files too.'),
       note('메시지는 수정(수정됨 표시)·삭제(삭제된 메시지로 마스킹)가 가능합니다.',
         'Messages can be edited (marked “edited”) or deleted (masked as “deleted message”).'),
+      // 2026-10-09 — 사적 팀 대화(보안 점검 2차 D3)
+      note('프로젝트·고객과 연결하지 않은 팀 대화는 **참여자만** 볼 수 있습니다. 대표·관리자도 참여자가 아니면 보지 못합니다. 프로젝트 대화방과 고객 대화방은 팀 모두가 봅니다.',
+        'Team chats not linked to a project or client are visible to **participants only** — owners and admins included. Project and client chats are visible to the whole team.'),
     ] },
   { cat: 'qtalk', slug: 'auto-task-extract', visibility: 'public', linked_route: '/talk', est: 3,
     title: t('대화에서 업무 자동 추출', 'Auto-extract tasks from chat'),
@@ -920,6 +923,8 @@ const ARTICLES = [
       s('일정 상세에서 공개 범위를 선택합니다.', 'Pick the visibility level in the event detail.'),
       s('워크스페이스·외부 일정은 "공유" 버튼으로 공개 링크를 만들 수 있습니다.', 'For workspace or external events you can create a public share link with the "Share" button.'),
       note('나만보기·팀 비공개 일정은 공개 링크를 만들 수 없어요 — 개인·팀 정보가 외부로 새지 않도록 막혀 있습니다.', 'Private and team-only events cannot be shared via a public link — this prevents personal or team info from leaking externally.'),
+      // 2026-10-09 — 보안 점검 2차 D2
+      note('«나만보기» 일정은 대표·관리자에게도 보이지 않습니다. 초대한 사람에게는 보입니다.', '«Only me» events are hidden from owners and admins too. People you invite can still see them.'),
     ] },
   { cat: 'qcalendar', slug: 'google-calendar-meet', visibility: 'public', linked_route: '/settings/integrations', est: 2,
     title: t('구글 캘린더·Meet 연동', 'Google Calendar & Meet sync'),

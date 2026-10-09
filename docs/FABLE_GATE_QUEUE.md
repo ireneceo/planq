@@ -11,6 +11,14 @@
 > 이 파일에는 계속 **Fable 판정 결과**(PASS/FAIL·비차단 지적)를 맨 위에 적는다. 아래 옛 절의 판정식
 > `R=1 OR (S=1 AND F=0)` 은 공용 기준으로 대체됐다(뜻은 같다).
 
+## 2026-10-09 · 보안 점검 2차 후속 — 관리자 열람 규칙 D2·D3·D4 (방 006a5c5d) — D3 설계 OK-WITH-CHANGES→PASS · 완료 **VERDICT: PASS**
+- Irene: 규칙 4가지 «권고대로» → *"대표가 개인회고는 원래봐야 하는 거 아니야? 보고내용에 포함인 부분 아니야??"* → D10 그대로.
+- D2 owner/admin 도 남의 «나만 보기» Q info·일정 닫힘 · D4 관리자는 남의 개인 메일 끄기만 · D3 프로젝트·고객 없는 팀 대화 참여자만(설계 `docs/PRIVATE_CHAT_DESIGN.md`).
+- 설계 검토 8가지 반영(정의에 client_id IS NULL · 자동 백필 안 함 · 관리 행위는 id 로 남음 · user: 방 방송 한 문+가드 · 멘션 · 후보 · 검증 항목).
+- 완료 검증: fable_probe 107/114 + 9/10(실패 8 = 검증관 단언 오류, 제품 결함 0) — owner·admin 양쪽, 목록 SQL판 vs 단건판 KB 8·일정 9 불일치 0 · guard 68/69 · health 84/84 · clientlink 0.
+- 비차단: Cue 참여자 추가 효과 없음(해 없음) · 보관된 사적 방은 목록에서 아무도 못 봄 · 메일 주석 정정(반영) · dashboard.collectCandidates 는 안 쓰이는 함수 · group→internal 저장.
+- PASS 뒤 바뀐 것: 주석 2곳(conversations.js Cue · email_accounts.js) — 동작 무변경 · 도움말 글 2곳 문장 추가(seed-wiki-content.js — 대화 시작하기·일정 공개 범위).
+
 ## 2026-10-09 · 보안 점검 2차 — 고객·외부인 누수 · 팀/개인 분리 · 해킹 대응 (방 166c2f84) — 1차 **FAIL** → 수리 → 2차 **VERDICT: PASS**
 - Irene: *"완벽한 서비스 운영을 위해 보안점검 다시 해줘 … 고객정보 새거나 외부인이 함부로 보게 되는 거 없는지 … 팀 개인 잘 분리된건지 해킹에 탄탄하게 대응했는지"*
 - 목록·근거 정본: `docs/SECURITY_SWEEP_2026-10-09.md` (수리 30여 건 T1~X1 · 판단 필요 D1~D10).

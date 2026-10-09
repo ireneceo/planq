@@ -48,7 +48,7 @@ async function postCardMessage({ conv, senderId, content, meta, io }) {
       const bizJson = hasSecret
         ? { ...fullJson, meta: Object.fromEntries(Object.entries(meta0).filter(([k]) => !SECRET_META.includes(k))), meta_partial: true }
         : fullJson;
-      io.to(`business:${conv.business_id}`).emit('message:new', bizJson);
+      require('./convBroadcast').emitConvWide(io, conv, 'message:new', bizJson).catch(() => {});   // 사적 방은 참여자에게만(D3)
     }
   } catch (e) { console.warn('[chatPost broadcast]', e.message); }
 

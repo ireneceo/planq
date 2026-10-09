@@ -381,7 +381,7 @@ router.post('/:token/messages', guestLimiter('guest-send', { windowMs: 60 * 1000
       require('../services/displayName').applyGuestDisplayName(payload);
       payload.via_guest_link = true;   // (옛 필드 — 뱃지 근거는 sender.is_guest 다)
       io.to(`conv:${conversation.id}`).emit('message:new', payload);
-      io.to(`business:${conversation.business_id}`).emit('message:new', payload);
+      require('../services/convBroadcast').emitConvWide(io, conversation, 'message:new', payload).catch(() => {});
     }
 
     // 멤버에게 알림 — 게스트가 글을 썼는데 아무도 모르면 이 기능은 무용지물이다.

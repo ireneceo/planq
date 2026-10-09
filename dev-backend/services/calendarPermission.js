@@ -18,8 +18,12 @@ function canEditEvent(event, bm, userId) {
   if (!event || !bm) return false;
   const role = bm.role;
   if (role === 'client' || role === 'ai') return false;
-  if (role === 'owner' || role === 'admin') return true;
-  return event.created_by === userId;
+  // ★ owner/admin 도 남의 «나만 보기»(L1·옛 personal) 일정은 고치거나 지우지 못한다 — 볼 수도 없다
+  //   (2026-10-09 보안 점검 2차 D2, 목록·상세와 같은 선).
+  const privateOfOther = (event.vlevel === 'L1' || (!event.vlevel && event.visibility === 'personal'))
+    && Number(event.created_by) !== Number(userId);
+  if (role === 'owner' || role === 'admin') return !privateOfOther;
+  return Number(event.created_by) === Number(userId);
 }
 
 /** 거절 사유 코드 — 라우트가 그대로 응답 메시지로 쓴다(문구 두 벌 금지). */

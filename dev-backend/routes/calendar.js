@@ -332,6 +332,14 @@ router.get('/by-business/:businessId/:id', authenticateToken, attachWorkspaceSco
     //    아무 멤버나 단일 GET 으로 조회 가능하던 라이브 누출. Fable #104 인접 발견.)
     //   member: L1(본인) / L2(참여 프로젝트 OR target_member_ids) / L3·L4(멤버) / legacy(visibility)
     const isEventAdmin = req.businessRole === 'owner' || req.businessRole === 'admin' || req.user?.platform_role === 'platform_admin';
+    // ★ owner/admin 도 남의 «나만 보기»(L1·옛 personal) 일정은 못 연다 — 목록(calendarListWhere)과 같은 규칙
+    //   (2026-10-09 보안 점검 2차 D2). 본인 것·초대받은 것은 연다. platform_admin 은 종전대로.
+    if (isEventAdmin && req.user?.platform_role !== 'platform_admin'
+        && (event.vlevel === 'L1' || (!event.vlevel && event.visibility === 'personal'))
+        && event.created_by !== parseInt(req.user.id, 10)
+        && !(await attendedEventIds(req.user.id, businessId)).includes(Number(event.id))) {
+      return errorResponse(res, 'forbidden', 403);
+    }
     if (!isEventAdmin && !req.scope?.isClient) {
       const uid = parseInt(req.user.id, 10);
       let allowed = false;

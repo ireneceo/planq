@@ -251,6 +251,9 @@ router.post('/:businessId/:id/pin', authenticateToken, checkBusinessAccess, asyn
     const convId = Number(req.params.id);
     const conv = await Conversation.findOne({ where: { id: convId, business_id: businessId } });
     if (!conv) return errorResponse(res, 'conversation_not_found', 404);
+    // ★ 핀은 참여자 행을 **만든다**(findOrCreate) — 검사가 없으면 비참여자가 사적 대화방을 id 로 핀해
+    //   참여자가 되어 규칙을 우회한다(2026-10-09 D3). 읽음 처리(/read)와 같은 술어를 먼저 본다.
+    if (!(await canAccessConversation(req.user.id, conv))) return errorResponse(res, 'conversation_not_found', 404);
     const [part] = await ConversationParticipant.findOrCreate({
       where: { conversation_id: convId, user_id: req.user.id },
       defaults: { conversation_id: convId, user_id: req.user.id, role: 'member' },
@@ -506,6 +509,9 @@ router.post('/:businessId/:id/participants', authenticateToken, checkBusinessAcc
     const businessId = Number(req.params.businessId);
     const conv = await Conversation.findOne({ where: { id: req.params.id, business_id: businessId } });
     if (!conv) return errorResponse(res, 'Conversation not found', 404);
+    // ★ 부르는 사람이 이 방을 볼 수 있어야 사람을 넣을 수 있다 — 사적 대화방은 참여자만 보므로,
+    //   이 검사가 없으면 비참여 멤버(owner 포함)가 **자기를 넣어** 규칙을 우회한다(2026-10-09 D3, Fable 설계).
+    if (!(await canAccessConversation(req.user.id, conv))) return errorResponse(res, 'Conversation not found', 404);
     // 추가 대상 user 가 같은 워크스페이스 멤버 또는 프로젝트 고객이어야 함 (타 워크스페이스 유저 유입 차단)
     const isWorkspaceMember = await BusinessMember.findOne({ where: { user_id, business_id: businessId } });
     let allowed = !!isWorkspaceMember;
@@ -544,6 +550,11 @@ router.delete('/:businessId/:id/participants/:userId', authenticateToken, checkB
       return errorResponse(res, 'self_or_admin_only', 403);
     }
     const removed = await ConversationParticipant.destroy({ where: { conversation_id: conv.id, user_id: targetUserId } });
+    // 사적 대화방에서 빠진 사람은 열어 둔 소켓도 그 방에서 뺀다 — 안 빼면 연결이 끊길 때까지 새 메시지를 받는다(D3).
+    if (removed && await require('../middleware/access_scope').isPrivateConversation(conv)) {
+      const io = req.app.get('io');
+      if (io) io.in(`user:${targetUserId}`).socketsLeave([`conv:${conv.id}`, `conv:${conv.id}:staff`]);
+    }
     if (removed) require('../services/auditService').logAudit(req, {
       action: 'conversation.participant_remove', targetType: 'conversation', targetId: conv.id, businessId: conv.business_id,
       oldValue: { user_id: targetUserId }, newValue: { self_leave: isSelfLeave },
@@ -637,8 +648,10 @@ router.get('/:businessId/archived', authenticateToken, checkBusinessAccess, asyn
     }
     // 사이클 N+50 — pagination. archived 누적 가능 (수년 운영) — 보수적 100 / max 500
     const { limit, page, offset } = parsePagination(req, { defaultLimit: 100, maxLimit: 500 });
+    // 보관함도 같은 방들이다 — 사적 대화방은 참여자 것만(2026-10-09 D3, 목록 술어 그대로).
+    const listWhere = await conversationListWhere(req.user.id, businessId);
     const { rows, count } = await Conversation.findAndCountAll({
-      where: { business_id: businessId, archived_at: { [Op.ne]: null } },
+      where: { [Op.and]: [listWhere || { id: -1 }, { business_id: businessId, archived_at: { [Op.ne]: null } }] },
       include: [
         { model: Project, attributes: ['id', 'name'], required: false },
         { model: User, as: 'archivedBy', attributes: ['id', 'name', 'email'], required: false },
@@ -810,7 +823,8 @@ router.post('/:businessId/:id/messages', authenticateToken, attachWorkspaceScope
       //   `conv:<id>:staff` 도 멤버일 때만 들어간다(server.js:242) — Cue 초안이 이미 쓰는 패턴.
       const visible = isVisibleToClient(emitMsg);
       io.to(visible ? `conv:${conversation.id}` : `conv:${conversation.id}:staff`).emit('message:new', emitMsg);
-      io.to(`business:${conversation.business_id}`).emit('message:new', emitMsg);
+      // 워크스페이스 전체 알림 — 사적 대화방은 참여자에게만(services/convBroadcast, 2026-10-09 D3)
+      require('../services/convBroadcast').emitConvWide(io, conversation, 'message:new', emitMsg).catch(() => {});
     }
 
     await createAuditLog({
@@ -839,7 +853,11 @@ router.post('/:businessId/:id/messages', authenticateToken, attachWorkspaceScope
       const senderName = senderDisp.name || 'PlanQ';
       const convTitle = conversation.title || '대화';
 
-      const mentioned = await resolveMentions(content, req.params.businessId, req.user.id);
+      const mentionedRaw = await resolveMentions(content, req.params.businessId, req.user.id);
+      // 멘션도 그 방을 볼 수 있는 사람에게만 — 사적 대화방에서 비참여자를 부르면 제목·발췌가 알림으로 나간다(2026-10-09 D3).
+      const { canAccessConversation: _canConv } = require('../middleware/access_scope');
+      const mentioned = [];
+      for (const uid of mentionedRaw) if (await _canConv(uid, conversation)) mentioned.push(uid);
 
       // 참여자 수집 — sender 제외, internal 이면 client 제외
       const participants = await ConversationParticipant.findAll({
@@ -1072,6 +1090,8 @@ router.post('/:businessId/:id/cue/pause', authenticateToken, checkBusinessAccess
       where: { id: req.params.id, business_id: req.params.businessId }
     });
     if (!conversation) return errorResponse(res, 'Conversation not found', 404);
+    // 볼 수 있는 방에서만 — 사적 대화방은 참여자만(2026-10-09 D3).
+    if (!(await canAccessConversation(req.user.id, conversation))) return errorResponse(res, 'Conversation not found', 404);
     await conversation.update({ cue_enabled: false });
     await createAuditLog({
       userId: req.user.id,
@@ -1090,6 +1110,20 @@ router.post('/:businessId/:id/cue/resume', authenticateToken, checkBusinessAcces
       where: { id: req.params.id, business_id: req.params.businessId }
     });
     if (!conversation) return errorResponse(res, 'Conversation not found', 404);
+    // 볼 수 있는 방에서만 — 사적 대화방은 참여자만(2026-10-09 D3).
+    if (!(await canAccessConversation(req.user.id, conversation))) return errorResponse(res, 'Conversation not found', 404);
+    // Cue 를 켜면 Cue 사용자를 참여자로 넣는다 — 켠 방의 참여자 목록에 Cue 가 보이게(설계 검토 5).
+    //   ★ 접근 판정은 바꾸지 않는다: Cue(ai 역할)는 canAccessConversation 의 멤버가 아니고, 자동응답은
+    //     고객 채널·고객 발화 전용이라 사적 방에서 답하는 경로는 원래 없다(Fable 완료 검증 2026-10-09 비차단 1).
+    try {
+      const biz = await Business.findByPk(conversation.business_id, { attributes: ['cue_user_id'] });
+      if (biz?.cue_user_id) {
+        await ConversationParticipant.findOrCreate({
+          where: { conversation_id: conversation.id, user_id: biz.cue_user_id },
+          defaults: { conversation_id: conversation.id, user_id: biz.cue_user_id, role: 'member' },
+        });
+      }
+    } catch (e) { console.warn('[cue/resume] add cue participant', e.message); }
     await conversation.update({ cue_enabled: true });
     await createAuditLog({
       userId: req.user.id,

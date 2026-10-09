@@ -39,11 +39,15 @@ function canManageAccount(req, acc) {
 //   실사례: 회사 대표 메일(help@)이 한 멤버의 개인 메일로 등록돼 회사 메일이 그 사람에게만 보였다.
 //   프론트엔 admin 전용 "개인 ↔ 회사 공용 전환" 버튼이 있었지만, accessibleWhere 가 남의 개인 계정을
 //   조회 단계에서 걸러 404 → 그 기능은 한 번도 동작한 적이 없다 (죽은 기능).
-//   열어주는 범위는 최소 — 공용 전환(scope='team') 과 비활성화(is_active=false) 뿐:
+//   열어주는 범위는 최소 — **비활성화(is_active=false) 하나뿐**:
+//   ★ 2026-10-09 보안 점검 2차 D4(Irene «권고대로»): 공용 전환(scope='team')을 뺐다. 관리자가 남의 개인 계정을
+//     공용으로 바꾸면 **그 사람의 메일함 전체 이력**이 팀 전원에게 열린다 — 동의 없이 사적 메일을 여는 문이었다.
+//     잘못 등록된 회사 메일(help@ 사례)은 관리자가 끄고 공용으로 새로 연결한다(주인이 직접 공용으로 바꾸는 것은
+//     주인이 관리자일 때만 — 일반 멤버의 scope:'team' 은 종전대로 admin_required).
 //     · 자격증명(비밀번호·호스트·사용자명) 편집 불가 — 관리자가 남의 사서함을 가로챌 수 없다
 //     · 남의 개인 계정을 자기 개인(scope='personal')으로 가져오는 것도 불가
 //     · GET 목록은 그대로 — 누가 어떤 개인 메일을 연결했는지 노출하지 않는다
-const ADMIN_REMEDIATION_FIELDS = ['scope', 'is_active'];
+const ADMIN_REMEDIATION_FIELDS = ['is_active'];
 
 function isAdminRemediation(req, acc) {
   if (!acc || acc.owner_user_id == null) return false;   // 공용 계정은 기존 경로
@@ -52,7 +56,6 @@ function isAdminRemediation(req, acc) {
   const keys = Object.keys(req.body || {});
   if (keys.length === 0) return false;
   if (!keys.every((k) => ADMIN_REMEDIATION_FIELDS.includes(k))) return false;
-  if (req.body.scope !== undefined && req.body.scope !== 'team') return false;
   if (req.body.is_active !== undefined && req.body.is_active !== false) return false;
   return true;
 }

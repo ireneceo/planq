@@ -70,21 +70,12 @@ io.use((socket, next) => {
 const getModels = () => require('./models');
 
 async function canJoinConversation(userId, conversationId) {
-  const { Conversation, ConversationParticipant, BusinessMember } = getModels();
-  const conv = await Conversation.findByPk(conversationId, { attributes: ['id', 'business_id'] });
+  // 목록·상세와 **같은 술어**(access_scope.canAccessConversation) — 사적 대화방은 참여자만(2026-10-09 D3).
+  //   여기 따로 «워크스페이스 멤버면 통과» 를 두면 사적 방 메시지가 소켓으로 샌다.
+  const { Conversation } = getModels();
+  const conv = await Conversation.findByPk(conversationId, { attributes: ['id', 'business_id', 'project_id', 'client_id', 'channel_type'] });
   if (!conv) return false;
-  // 1) 해당 워크스페이스 멤버
-  const bm = await BusinessMember.findOne({
-    where: { business_id: conv.business_id, user_id: userId },
-    attributes: ['id'],
-  });
-  if (bm) return true;
-  // 2) 그 대화방 참여자 (client 참여 케이스)
-  const part = await ConversationParticipant.findOne({
-    where: { conversation_id: conversationId, user_id: userId },
-    attributes: ['id'],
-  });
-  return !!part;
+  return require('./middleware/access_scope').canAccessConversation(userId, conv);
 }
 
 // 프로젝트 방은 둘이다 — 멤버 `project:<id>` · 고객 `project:<id>:client` (services/projectRoom.js).

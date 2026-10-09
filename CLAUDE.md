@@ -407,6 +407,12 @@ router.get('/', authenticateToken, async (req, res, next) => {
    보유 여부가 필요하면 **원본 행(인스턴스)에서** 읽는다(toJSON 뒤 객체에는 없다).
 - **공개 링크 하위 주소는 비밀번호를 주소에 싣지 않는다** — 메타 응답이 주는 서명(`download_qs` → `?dl=`)을 쓴다. 공유 비밀번호는 링크당 15분 10회.
 - **지운 워크스페이스의 공개 링크는 닫힌다** — 공개 라우터마다 `router.param('token', workspaceAliveParam(...))`(하위 PDF·다운로드까지). 새 공개 라우터도 같은 줄을 붙인다.
+- **«나만 보기» 는 owner/admin 에게도 닫힌다** (2026-10-09 D2, Irene «권고대로») — 문서·파일·**Q info·일정** 모두 같은 선(관리 행위 중 볼 수 없는 것은 수정·삭제도 못 한다).
+  예외: 개인 주간회고는 **대표가 본다**(보고 내용 — Irene).
+- **프로젝트·고객 없는 팀 대화는 참여자만** (2026-10-09 D3) — 정의 `access_scope.isPrivateConversation` 하나, 판정 `canAccessConversation`/`conversationListWhere`.
+  워크스페이스 전체로 알리는 대화 사건(새 메시지·반응·업무 후보)은 **`services/convBroadcast.emitConvWide` 한 문**(사적 방은 참여자 `user:` 방) — 가드 checkConvBroadcast.
+  참여자 행을 **만드는** 문(핀·읽음·참여자 추가)은 반드시 술어를 먼저 본다(findOrCreate 가 곧 끼어들기다). 설계 `docs/PRIVATE_CHAT_DESIGN.md`.
+- **관리자는 남의 개인 메일 계정을 끄기만 한다**(공용 전환은 주인만, 2026-10-09 D4).
 - **「같은 서버에서 왔나」를 접속 IP 로만 보지 않는다** — nginx 도 127.0.0.1 에서 프록시한다. q-note 는 `X-Real-IP`/`X-Forwarded-For` 가 있으면 바깥으로 본다(`main.py _internal_gate`), Node 는 `trust proxy` 로 본 `req.ip`(`utils/internalAuth`).
 
 ### 외부 발송은 **확인을 받는다** (2026-09-13, Irene 지시 "확인을 받아")

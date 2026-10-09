@@ -63,6 +63,10 @@ async function loadStandaloneConvOrForbidden(convId, userId) {
   if (!conv) return { error: { code: 404, message: 'conversation_not_found' } };
   const bm = await requireBusinessMember(userId, conv.business_id);
   if (!bm) return { error: { code: 403, message: 'not_workspace_member' } };
+  // 사적 대화방(사람을 골라 만든 팀 대화)은 참여자만 — 메모·이슈·업무 후보·추출·대화방 수정이 이 문을 지난다(2026-10-09 D3).
+  if (!(await require('../middleware/access_scope').canAccessConversation(userId, conv))) {
+    return { error: { code: 404, message: 'conversation_not_found' } };
+  }
   return { conversation: conv, role: bm.role };
 }
 
@@ -1359,7 +1363,7 @@ router.post('/conversations/:id/messages', authenticateToken, async (req, res, n
     const io = req.app.get('io');
     if (io) {
       io.to(`conv:${conv.id}`).emit('message:new', fullJson);
-      io.to(`business:${conv.business_id}`).emit('message:new', fullJson);
+      require('../services/convBroadcast').emitConvWide(io, conv, 'message:new', fullJson).catch(() => {});   // 사적 방은 참여자에게만(D3)
     }
 
     // ──────────────────────────────────────────────────────────────
@@ -1385,7 +1389,11 @@ router.post('/conversations/:id/messages', authenticateToken, async (req, res, n
       const senderName = senderDisp.name || 'PlanQ';
       const convTitle = conv.title || conv.display_name || '대화';
 
-      const mentioned = cleaned ? await resolveMentions(cleaned, conv.business_id, req.user.id) : [];
+      const mentionedRaw = cleaned ? await resolveMentions(cleaned, conv.business_id, req.user.id) : [];
+      // 멘션도 그 방을 볼 수 있는 사람에게만 — 사적 대화방에서 비참여자를 부르면 제목·발췌가 알림으로 나간다(2026-10-09 D3).
+      const { canAccessConversation: _canConv } = require('../middleware/access_scope');
+      const mentioned = [];
+      for (const uid of mentionedRaw) if (await _canConv(uid, conv)) mentioned.push(uid);
 
       // 참여자: sender 제외. client 는 채널이 customer 일 때만 (internal 채널은 client 비참여)
       const participants = await ConversationParticipant.findAll({
@@ -1551,6 +1559,8 @@ router.post('/messages/:id/approve-draft', authenticateToken, async (req, res, n
       //   승인(내용 교체 포함)·거절할 수 있었다(감사 3순위 중 발견). conversations.js 형제 라우트와 같은 기준.
       const { getUserScope, isMemberOrAbove } = require('../middleware/access_scope');
       if (!isMemberOrAbove(await getUserScope(req.user.id, conv.business_id, req.user.platform_role))) return errorResponse(res, 'forbidden', 403);
+      // 사적 대화방은 참여자만(2026-10-09 D3) — 목록·상세와 같은 술어.
+      if (!(await require('../middleware/access_scope').canAccessConversation(req.user.id, conv))) return errorResponse(res, 'forbidden', 403);
     }
 
     // 수정된 내용이 있으면 반영
@@ -1596,13 +1606,8 @@ router.post('/messages/:id/cue-rating', authenticateToken, async (req, res, next
     if (!msg.is_ai) return errorResponse(res, 'not_ai_message', 400);
     const conv = await Conversation.findByPk(msg.conversation_id);
     if (!conv) return errorResponse(res, 'conversation_not_found', 404);
-    // 워크스페이스 멤버 (owner/admin/member) 또는 conversation participant 만 평가 가능
-    const { BusinessMember, ConversationParticipant } = require('../models');
-    const member = await BusinessMember.findOne({ where: { user_id: req.user.id, business_id: conv.business_id } });
-    if (!member) {
-      const participant = await ConversationParticipant.findOne({ where: { user_id: req.user.id, conversation_id: conv.id } });
-      if (!participant) return errorResponse(res, 'forbidden', 403);
-    }
+    // 그 대화방을 볼 수 있는 사람만 평가 — 목록·상세와 같은 술어(멤버는 사적 방이면 참여자만, 고객은 참여자/자기 고객 방).
+    if (!(await require('../middleware/access_scope').canAccessConversation(req.user.id, conv))) return errorResponse(res, 'forbidden', 403);
     const { rating } = req.body || {};
     if (![1, -1, 0].includes(rating)) return errorResponse(res, 'invalid_rating', 400);
     await msg.update({
@@ -1644,6 +1649,8 @@ router.post('/messages/:id/reject-draft', authenticateToken, async (req, res, ne
       //   승인(내용 교체 포함)·거절할 수 있었다(감사 3순위 중 발견). conversations.js 형제 라우트와 같은 기준.
       const { getUserScope, isMemberOrAbove } = require('../middleware/access_scope');
       if (!isMemberOrAbove(await getUserScope(req.user.id, conv.business_id, req.user.platform_role))) return errorResponse(res, 'forbidden', 403);
+      // 사적 대화방은 참여자만(2026-10-09 D3) — 목록·상세와 같은 술어.
+      if (!(await require('../middleware/access_scope').canAccessConversation(req.user.id, conv))) return errorResponse(res, 'forbidden', 403);
     }
 
     await msg.update({ ai_draft_approved: false, ai_draft_approved_by: req.user.id, ai_draft_approved_at: new Date() });

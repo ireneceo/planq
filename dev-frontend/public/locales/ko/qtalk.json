@@ -186,7 +186,8 @@
     "guestRoomHint": "켜면 이 방에서 링크를 만들 수 있습니다. 고객은 로그인 없이 링크만으로 들어와 답할 수 있습니다.",
     "clientFallback": "고객 #{{id}}",
     "newProject": "+ 새 프로젝트 만들기",
-    "newProjectPh": "새 프로젝트 이름"
+    "newProjectPh": "새 프로젝트 이름",
+    "privateNote": "프로젝트·고객과 연결하지 않은 대화는 참여자만 볼 수 있습니다. 대표·관리자도 참여자가 아니면 보지 못합니다."
   },
   "common": {
     "close": "닫기",

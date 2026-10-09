@@ -487,13 +487,17 @@ async function collectCandidates(businessId, currentUserId, userRole) {
   if (!businessId) return [];
   // task_candidates 는 business_id 컬럼이 없음 → conversation 또는 project 경유.
   // archive 된 conversation 의 candidate 는 인박스에서 제외 (사이클 N+9).
+  // ★ 후보는 대화 발췌를 들고 있다 — 그 대화방을 볼 수 있는 사람에게만(사적 대화방은 참여자만, 2026-10-09 D3).
+  //   대화방 목록과 **같은 술어**(conversationListWhere).
+  const convWhere = await require('../middleware/access_scope').conversationListWhere(currentUserId, businessId);
+  if (!convWhere) return [];
   const cands = await TaskCandidate.findAll({
     where: { status: 'pending' },
     include: [
       {
         model: Conversation,
         attributes: ['id', 'title', 'display_name', 'business_id', 'archived_at'],
-        where: { business_id: businessId, archived_at: null },
+        where: { [Op.and]: [convWhere, { business_id: businessId, archived_at: null }] },
         required: true,
       },
       // 추정 담당자 정보 — 담당자 미지정 시 "담당자 지정 필요" 표시용

@@ -539,6 +539,27 @@ function checkProjectRoom() {
   report('broadcast', `프로젝트 방 직접 송신 0 — emitProject 한 문 (${bad.length}건)`, bad.length === 0, bad);
 }
 
+// 6-a''. convbroadcast — 대화방 사건(새 메시지·반응·업무 후보)을 워크스페이스 방으로 직접 보내지 않는다 (2026-10-09 D3)
+//   사적 대화방은 참여자만 보므로 `business:` 방으로 보내면 목록을 막아도 본문이 전원 소켓에 간다.
+//   services/convBroadcast.emitConvWide 한 문 — 사적 방은 참여자 user 방으로, 그 밖은 종전대로. 하드 게이트.
+function checkConvBroadcast() {
+  const files = [
+    ...walk(`${ROOT}/dev-backend/routes`, ['.js']),
+    ...walk(`${ROOT}/dev-backend/services`, ['.js']),
+  ];
+  const bad = [];
+  const re = /\.to\(\s*`business:[^`]*`\s*\)\.emit\(\s*'(message:new|message:reaction|candidates:created)'/;
+  for (const f of files) {
+    if (rel(f).endsWith('services/convBroadcast.js')) continue;
+    read(f).split('\n').forEach((l, i) => {
+      const t = l.trim();
+      if (t.startsWith('//') || t.startsWith('*')) return;
+      if (re.test(l)) bad.push(`${rel(f)}:${i + 1}: ${t.slice(0, 100)}`);
+    });
+  }
+  report('broadcast', `대화방 사건 워크스페이스 방 직접 송신 0 — emitConvWide 한 문 (${bad.length}건)`, bad.length === 0, bad);
+}
+
 // ═══════════════════════════════════════════════
 // 6-b. broadcastactor — task broadcast payload 에 actor_user_id 잠금 (운영 #278·#282)
 //
@@ -3509,7 +3530,7 @@ const CATEGORIES = {
   tenant: checkTenant,
   pagination: checkPagination,
   notify: checkNotify,
-  broadcast: () => { checkBroadcast(); checkBroadcastPayload(); checkProjectRoom(); },
+  broadcast: () => { checkBroadcast(); checkBroadcastPayload(); checkProjectRoom(); checkConvBroadcast(); },
   broadcastactor: checkBroadcastActor,
   finance: checkFinance,
   cuefinance: checkCueFinance,

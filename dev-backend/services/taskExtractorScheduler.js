@@ -104,11 +104,12 @@ async function runExtract(conversationId) {
   if (result?.candidates?.length > 0) {
     // 인박스 새로고침 신호 — workspace room broadcast
     if (ioRef) {
-      ioRef.to(`business:${conv.business_id}`).emit('candidates:created', {
+      // 업무 후보는 대화 발췌를 들고 있다 — 사적 방이면 참여자에게만(D3).
+      require('./convBroadcast').emitConvWide(ioRef, conv, 'candidates:created', {
         conversation_id: conv.id,
         project_id: conv.project_id || null,
         candidates: result.candidates,
-      });
+      }).catch(() => {});
       // 인박스 silent refresh 트리거
       ioRef.to(`business:${conv.business_id}`).emit('inbox:refresh');
     }

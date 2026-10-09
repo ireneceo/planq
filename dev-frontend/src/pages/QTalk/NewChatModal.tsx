@@ -289,6 +289,10 @@ const NewChatModal: React.FC<Props> = ({ businessId, open, preselectedProjectId,
           <Field>
             <Label>{t('newChat.members', '참여자')}</Label>
             <Hint>{t('newChat.membersHint', '워크스페이스 팀원 중 이 대화에 참여할 사람을 추가하세요.')}</Hint>
+            {/* 프로젝트·고객 없는 팀 대화는 참여자만 본다(2026-10-09 보안 점검 2차 D3) — 동작이 바뀌었으니 화면이 말한다 */}
+            {projectId === null && clientId === null && (
+              <Hint>{t('newChat.privateNote', '프로젝트·고객과 연결하지 않은 대화는 참여자만 볼 수 있습니다. 대표·관리자도 참여자가 아니면 보지 못합니다.')}</Hint>
+            )}
             <Chips>
               <MeChip>
                 <LetterAvatar name={user?.name || t('newChat.me', '나')} size={20} />

@@ -1,7 +1,8 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-10-10 새벽 ([Opus] Opus 5.5, 방 58947e65) — 체험 중 결제 «해지하고 환불 요청»(Fable 설계·완료 PASS, 운영 미배포).
+> **최종 업데이트:** 2026-10-10 새벽 ([Opus]+[Fable] Opus 5.5, 방 006a5c5d) — 보안 점검 2차 후속: 관리자 열람 규칙 D2·D3·D4(«나만 보기» Q info·일정 owner/admin 도 닫힘 · 프로젝트·고객 없는 팀 대화 참여자만 · 남의 개인 메일 공용 전환 금지). D10(개인 주간회고)은 대표가 본다 — 그대로. Fable D3 설계 PASS + 완료 PASS. 운영 미배포.
 > ── 이전 ──
+> 2026-10-10 새벽 ([Opus] Opus 5.5, 방 58947e65) — 체험 중 결제 «해지하고 환불 요청»(Fable 설계·완료 PASS, 운영 미배포).
 > 2026-10-09 밤 ([Opus]+[Fable] Opus 5.5, 방 166c2f84) — **보안 점검 2차**: 고객·외부인 누수 · 팀/개인 분리 · 해킹 대응 30여 건 수리(치명 1: 남의 워크스페이스 프로젝트·고객 읽기). Fable 1차 FAIL → 2차 PASS. 규칙 4건(D2·D3·D4·D10) Irene 답 대기. 운영 미배포.
 > ── 이전(2026-10-09 밤, 방 c3d0da3b) ── 가입 때 혼자·팀 고르기(고른 플랜으로 14일 체험) · 체험 중 결제 없이 플랜 바꾸기 · 체험 비용 캡. Fable 설계 1회 + 완료 PASS. 링크→앱 열기(방 33a23fc2) 같이 커밋. 운영 미배포.
 > ── 이전(2026-10-09 밤, 방 58947e65) ── 새 팀 첫 길 점검: 가입→초대→합류→업무 요청→대화 12건 수리 (운영 미배포). 가입 제한 예외만 Fable 1차 FAIL→2차 PASS, 나머지 자체 검증.
@@ -38,6 +39,24 @@
 > 오전([Opus] Opus 5.5, 1M): **운영 배포 6회(v1.61.0 ~ v1.63.5).**
 > 게스트 진입(P0·A·B) · 이미지 보안 2a·2b(0~2단계) · 감사 1~3순위(328→98) · PDF 이미지 · **남의 워크스페이스에 쓰던 권한 결함 3건**.
 > ★ v1.63.3 의 PDF 수정이 이미지 많은 문서를 500 으로 만든 회귀를 **배포 후 운영 실측**으로 잡아 v1.63.4 로 되돌렸다.
+
+---
+
+## ✅ 완료: 2026-10-10 새벽 [Opus]+[Fable] — 관리자 열람 규칙 D2·D3·D4 (방 006a5c5d)
+
+> Irene(상황판): 보안 점검 2차 규칙 4가지 «권고대로» · *"대표가 개인회고는 원래봐야 하는 거 아니야? 보고내용에 포함인 부분 아니야??"* → D10 그대로.
+
+| 작업 | 설명 | 상태 |
+|------|------|:----:|
+| D2 «나만 보기» | owner/admin 도 남의 «나만 보기» Q info·일정을 못 본다 — 목록·상세·수정·삭제·재색인(문서·파일과 같은 선) · 초대받은 일정은 연다 | ✅ |
+| D3 사적 팀 대화 | 프로젝트·고객 없는 팀 대화는 참여자만(owner/admin 포함) — 정의 `isPrivateConversation` 한 곳 · 방송 한 문 `convBroadcast.emitConvWide` + 가드 · 핀·참여자 추가로 끼어드는 길 닫음 · 멘션·푸시 배지·검색·공유 고르기·업무 출처·보관함 · 새 대화 창 안내 | ✅ |
+| D4 개인 메일 | 관리자는 남의 개인 메일 계정을 끄기만(공용 전환 제거) | ✅ |
+| D10 개인 회고 | 대표가 본다(보고 내용) — 바꾸지 않음 | — |
+
+### 수정된 파일
+- `middleware/access_scope.js` · `routes/{conversations,projects,calendar,kb,email_accounts,dashboard,share,signatures,posts,tasks,notifications,guest,message_reactions}.js` · `server.js`
+- `services/{convBroadcast(신규),calendarPermission,chatPost,clientOnboarding,invoiceDelivery,searchScope,taskExtractorScheduler}.js` · `services/actions/{post_actions,task_actions}.js`
+- `dev-frontend/src/pages/QTalk/NewChatModal.tsx` + locales qtalk ko/en · `scripts/guard-invariants.js`(checkConvBroadcast) · `docs/PRIVATE_CHAT_DESIGN.md`
 
 ---
 

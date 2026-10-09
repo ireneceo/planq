@@ -784,8 +784,8 @@ router.post('/brief', authenticateToken, async (req, res, next) => {
     // 대화방도 같은 워크스페이스 것만 — 문서 생성(post_actions)과 같은 검사(2026-10-09 보안점검).
     if (conversation_id) {
       const { Conversation } = require('../models');
-      const c = await Conversation.findOne({ where: { id: conversation_id, business_id }, attributes: ['id'] });
-      if (!c) return errorResponse(res, 'invalid conversation_id', 400);
+      const c = await Conversation.findOne({ where: { id: conversation_id, business_id }, attributes: ['id', 'business_id', 'project_id', 'client_id', 'channel_type'] });
+      if (!c || !(await require('../middleware/access_scope').canAccessConversation(req.user.id, c))) return errorResponse(res, 'invalid conversation_id', 400);
     }
     const blocks = Array.isArray(text_blocks) ? text_blocks.filter(t => typeof t === 'string') : [];
     const fileIds = Array.isArray(attached_file_ids)
@@ -973,7 +973,8 @@ router.put('/:id', authenticateToken, async (req, res, next) => {
         patch.conversation_id = null;
       } else {
         const conv = await Conversation.findOne({ where: { id: Number(cid), business_id: post.business_id } });
-        if (!conv) return errorResponse(res, 'invalid conversation_id', 400);
+        // 볼 수 있는 방에만 붙인다 — 사적 대화방은 참여자만(2026-10-09 D3).
+        if (!conv || !(await require('../middleware/access_scope').canAccessConversation(req.user.id, conv))) return errorResponse(res, 'invalid conversation_id', 400);
         patch.conversation_id = conv.id;
       }
     }

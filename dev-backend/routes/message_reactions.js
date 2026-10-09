@@ -57,7 +57,7 @@ function broadcast(req, message, reactions) {
   if (!io) return;
   const payload = { message_id: message.id, conversation_id: message.conversation_id, reactions };
   io.to(`conv:${message.conversation_id}`).emit('message:reaction', payload);
-  io.to(`business:${message.business_id || Number(req.params.businessId)}`).emit('message:reaction', payload);
+  require('../services/convBroadcast').emitConvWide(io, { id: message.conversation_id, business_id: message.business_id || Number(req.params.businessId) }, 'message:reaction', payload).catch(() => {});   // 사적 방은 참여자에게만(D3)
 }
 
 // POST /api/messages/:businessId/:messageId/reactions  { emoji } — 토글

@@ -312,7 +312,10 @@ async function notify({ userId, businessId, eventKind, title, titleSpec, body, l
               INNER JOIN conversations c ON c.id = m.conversation_id AND c.business_id = :bid
               WHERE m.sender_id != :uid
                 AND (m.is_deleted IS NULL OR m.is_deleted = 0)
-                AND (cp.last_read_at IS NULL OR m.created_at > cp.last_read_at)`,
+                AND (cp.last_read_at IS NULL OR m.created_at > cp.last_read_at)
+                -- 사적 대화방(프로젝트·고객 없는 팀 대화)은 참여자 것만 센다 — 목록 술어와 같은 선(2026-10-09 D3)
+                AND (c.project_id IS NOT NULL OR c.client_id IS NOT NULL
+                     OR c.channel_type NOT IN ('internal','group') OR cp.id IS NOT NULL)`,
             { replacements: { uid: userId, bid: businessId } }
           );
           const chatUnread = Number(chatRows[0]?.cnt || 0);

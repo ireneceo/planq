@@ -317,7 +317,8 @@ async function searchFiles(ctx, M, { limit, filters } = {}) {
 
 async function searchConversations(ctx, M, { limit } = {}) {
   const conversations = await Conversation.findAll({
-    where: { ...ctx.convWhere, [Op.and]: [{ [Op.or]: [...M.likeAny('title'), ...M.likeAny('display_name')] }] },
+    // ★ 권한 조건도 Op.and 를 쓴다(사적 대화방 — 2026-10-09 D3) — 펼친 뒤 [Op.and] 를 새로 주면 **덮어써서** 권한이 사라진다. 합친다.
+    where: { ...ctx.convWhere, [Op.and]: [...(ctx.convWhere[Op.and] || []), { [Op.or]: [...M.likeAny('title'), ...M.likeAny('display_name')] }] },
     attributes: ['id', 'title', 'display_name', 'project_id'],
     limit, order: [M.relevance('title'), ['last_message_at', 'DESC']],
   }).catch(() => []);
