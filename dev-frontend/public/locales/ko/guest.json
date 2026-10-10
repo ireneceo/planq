@@ -59,7 +59,21 @@
     "recentDocs": "최근 문서",
     "allDocs": "문서 탭 전체 보기",
     "askWs": "{{name}}에 문의하기",
-    "ask": "담당자에게 문의하기"
+    "ask": "담당자에게 문의하기",
+    "info": "기본 정보",
+    "infoStatus": "상태",
+    "infoPeriod": "기간",
+    "infoTasks": "업무",
+    "infoTaskVal": "{{total}}건 (완료 {{done}})",
+    "infoDocs": "문서",
+    "infoCount": "{{count}}건",
+    "infoFiles": "파일",
+    "infoDesc": "설명",
+    "stats": "업무 통계",
+    "statsCapped": "최근 200건 기준",
+    "issues": "주요 이슈",
+    "allHistory": "히스토리 탭 전체 보기",
+    "issuesEmpty": "공개된 주요 이슈가 없어요."
   },
   "notify": {
     "cta": "답글 오면 알려드릴까요?",
@@ -98,7 +112,8 @@
     "tasks": "업무",
     "chat": "대화",
     "docs": "문서",
-    "files": "파일"
+    "files": "파일",
+    "history": "히스토리"
   },
   "task": {
     "notStarted": "시작 전",
@@ -107,7 +122,10 @@
     "reviewing": "확인 중",
     "revision": "수정 요청",
     "completed": "완료",
-    "canceled": "취소됨"
+    "canceled": "취소됨",
+    "doneFeedback": "마무리 대기",
+    "onHold": "보류",
+    "externalReview": "외부 확인 중"
   },
   "tasks": {
     "failed": "업무를 불러오지 못했습니다."
@@ -134,7 +152,8 @@
     "hiddenCount_other": "공개할 수 없는 파일 {{count}}건은 표시하지 않았어요.",
     "hiddenCount": "공개할 수 없는 파일 {{count}}건은 표시하지 않았어요.",
     "lockedTag": "잠김",
-    "loginDownload": "로그인 후 받기"
+    "loginDownload": "로그인 후 받기",
+    "view": "보기"
   },
   "filter": {
     "category": "분류",
@@ -259,5 +278,32 @@
     "loadFail": "홈 정보를 불러오지 못했어요.",
     "tabsAria": "홈 탭",
     "bills": "청구"
+  },
+  "stats": {
+    "bWaiting": "대기",
+    "bActive": "진행 중",
+    "bReview": "확인 중",
+    "bDone": "완료",
+    "bCanceled": "취소",
+    "bOther": "기타",
+    "overdue": "지연",
+    "thisWeek": "이번 주 마감",
+    "overdueList": "마감이 지난 업무",
+    "thisWeekList": "이번 주 마감",
+    "recentDone": "최근 완료",
+    "weekly": "주별 완료 (최근 8주)"
+  },
+  "history": {
+    "failed": "히스토리를 불러오지 못했습니다.",
+    "empty": "아직 기록된 히스토리가 없어요.",
+    "kIssue": "주요 이슈",
+    "kMilestone": "마일스톤 완료",
+    "kDone": "업무 완료"
+  },
+  "pdf": {
+    "prev": "이전",
+    "next": "다음",
+    "failed": "이 파일은 미리 볼 수 없어요.",
+    "capped": "미리보기는 앞 20쪽까지예요."
   }
 }

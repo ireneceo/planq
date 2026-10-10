@@ -13,9 +13,15 @@
 //   문서·파일 카드, 업무·문서·파일 필터(화면 안에서만), 개요 보강(마일스톤·다음 마감·최근 문서·문의),
 //   **«고객으로 등록» 문**(로그인·계정 요청 시트 한 벌). 서버 개요 라우트는 늘리지 않았다 —
 //   개요는 이미 여는 /tasks·/posts 를 탭을 열 때 한 번 더 읽는다.
+//
+//   2026-10-10 (docs/GUEST_PROJECT_VIEW_DECISIONS.md §I — Irene: «기본 정보·주요 이슈·통계·업무 진행 통계·히스토리가
+//   제대로 제공이 안 돼») — 개요에 **기본 정보 표(항상)·업무 통계(guestTaskStats 한 곳)·주요 이슈 3**, 6번째 탭 **히스토리**
+//   (사람이 «고객에게 보이기» 를 켠 주요 이슈 + 업무 완료·마일스톤). 서버 개요 라우트는 여전히 늘리지 않는다 —
+//   새로 읽는 것은 /files(건수)와 /history(항목마다 켠 것만) 둘이다.
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { formatPublicDate } from '../../utils/dateFormat';
+import { computeTaskStats, STATUS_BUCKETS, localYmd, type StatusBucket } from './guestTaskStats';
 import { useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import styled from 'styled-components';
@@ -50,6 +56,10 @@ type GuestTask = {
   is_milestone: boolean; category: string | null; assignee_name: string | null;
 };
 type GuestDoc = { id: number; title: string; category: string | null; updated_at: string | null; locked: boolean; author_name: string | null };
+/** 공개된 주요 이슈 — 서버 `/history` 가 주는 네 키뿐(§I-2). */
+type GuestIssue = { id: number; occurred_at: string; title: string; body: string | null };
+/** 히스토리 탭 한 줄 — 주요 이슈(★)·업무 완료(✓)·마일스톤 완료(◆)를 한 시간축에 합친다. */
+type TimelineItem = { key: string; at: string; kind: 'issue' | 'done' | 'milestone'; title: string; body?: string | null };
 
 type Props = {
   token: string;
@@ -61,8 +71,8 @@ type Props = {
   onGone: () => void;
 };
 
-type TabKey = 'overview' | 'tasks' | 'docs' | 'files' | 'chat';
-const TABS: TabKey[] = ['overview', 'tasks', 'docs', 'files', 'chat'];
+type TabKey = 'overview' | 'tasks' | 'history' | 'docs' | 'files' | 'chat';
+const TABS: TabKey[] = ['overview', 'tasks', 'history', 'docs', 'files', 'chat'];
 const CLOSED = new Set(['completed', 'canceled']);
 
 export default function GuestProjectPage({ token, project, workspace, canWrite, accountRequested, onGone }: Props) {
@@ -103,6 +113,10 @@ export default function GuestProjectPage({ token, project, workspace, canWrite, 
   const [tasks, setTasks] = useState<GuestTask[] | null>(null);
   const [tasksErr, setTasksErr] = useState(false);
   const [docs, setDocs] = useState<GuestDoc[] | null>(null);
+  // 개요의 «파일 N» — 파일 탭과 같은 응답에서 센다(보이는 행 + 이름도 못 보이는 건수).
+  const [fileCount, setFileCount] = useState<number | null>(null);
+  const [issues, setIssues] = useState<GuestIssue[] | null>(null);
+  const [issuesErr, setIssuesErr] = useState(false);
 
   // 탭 데이터는 **그 탭이 처음 열릴 때** 1회. 안 보는 탭까지 미리 받지 않는다.
   //   개요는 업무·문서를 같이 쓴다(마일스톤·다음 마감·최근 문서) — 새 서버 필드를 만들지 않는다(§E).
@@ -127,8 +141,31 @@ export default function GuestProjectPage({ token, project, workspace, canWrite, 
       setDocs(j?.success ? (j.data?.items || []) : []);
     } catch { setDocs([]); }
   }, [token, onGone]);
-  useEffect(() => { if ((tab === 'tasks' || tab === 'overview') && tasks === null) void loadTasks(); }, [tab, tasks, loadTasks]);
+  const loadFileCount = useCallback(async () => {
+    if (!token) return;
+    try {
+      const r = await fetch(`/api/guest/${token}/files`);
+      if (r.status === 404) { onGone(); return; }
+      if (!r.ok) return;
+      const j = await r.json();
+      if (j?.success) setFileCount((j.data?.items || []).length + (Number(j.data?.locked_count) || 0));
+    } catch { /* 모르면 «—» */ }
+  }, [token, onGone]);
+  const loadIssues = useCallback(async () => {
+    if (!token) return;
+    setIssuesErr(false);
+    try {
+      const r = await fetch(`/api/guest/${token}/history`);
+      if (r.status === 404) { onGone(); return; }
+      if (!r.ok) { setIssuesErr(true); return; }
+      const j = await r.json();
+      if (j?.success) setIssues(j.data?.items || []); else setIssuesErr(true);
+    } catch { setIssuesErr(true); }
+  }, [token, onGone]);
+  useEffect(() => { if ((tab === 'tasks' || tab === 'overview' || tab === 'history') && tasks === null) void loadTasks(); }, [tab, tasks, loadTasks]);
   useEffect(() => { if (tab === 'overview' && docs === null) void loadDocs(); }, [tab, docs, loadDocs]);
+  useEffect(() => { if (tab === 'overview' && fileCount === null) void loadFileCount(); }, [tab, fileCount, loadFileCount]);
+  useEffect(() => { if ((tab === 'overview' || tab === 'history') && issues === null && !issuesErr) void loadIssues(); }, [tab, issues, issuesErr, loadIssues]);
 
   // 날짜는 **보는 사람 로케일**로.
   const period = (a: string | null, b: string | null) => {
@@ -147,6 +184,9 @@ export default function GuestProjectPage({ token, project, workspace, canWrite, 
     return s;
   };
 
+  // 시각(DATETIME) → 보는 사람 로컬 날짜. formatPublicDate 는 문자열 앞 10자리를 쓰므로 UTC 날짜가 된다.
+  const dayOf = (v: string | null | undefined) => (v ? formatPublicDate(localYmd(new Date(v))) : '');
+
   // ★ 모르는 상태값을 기본값으로 떨어뜨리지 않는다 (CLAUDE.md 상태값 규약).
   const taskStatusLabel = (s: string) => {
     const known: Record<string, string> = {
@@ -157,6 +197,10 @@ export default function GuestProjectPage({ token, project, workspace, canWrite, 
       revision_requested: t('task.revision', { defaultValue: '수정 요청' }) as string,
       completed: t('task.completed', { defaultValue: '완료' }) as string,
       canceled: t('task.canceled', { defaultValue: '취소됨' }) as string,
+      // 2026-10-10 — 이 셋을 몰라 운영 고객 링크에 `done_feedback` 같은 원문 값이 그대로 나갔다.
+      done_feedback: t('task.doneFeedback', { defaultValue: '마무리 대기' }) as string,
+      on_hold: t('task.onHold', { defaultValue: '보류' }) as string,
+      external_review: t('task.externalReview', { defaultValue: '외부 확인 중' }) as string,
     };
     return known[s] || s;
   };
@@ -170,6 +214,26 @@ export default function GuestProjectPage({ token, project, workspace, canWrite, 
     .filter((k) => !CLOSED.has(k.status) && k.due_date)
     .sort((a, b) => String(a.due_date).localeCompare(String(b.due_date)))[0] || null, [tasks]);
   const recentDocs = useMemo(() => (docs || []).slice(0, 3), [docs]);
+  // 업무 통계(§I-1) — 순수 함수 한 곳. 진행률은 여기서 내지 않는다(서버 task_summary 하나).
+  const stats = useMemo(() => (tasks ? computeTaskStats(tasks, { serverTotal: total }) : null), [tasks, total]);
+  const bucketLabel = (b: StatusBucket) => ({
+    waiting: t('stats.bWaiting', { defaultValue: '대기' }),
+    active: t('stats.bActive', { defaultValue: '진행 중' }),
+    review: t('stats.bReview', { defaultValue: '확인 중' }),
+    done: t('stats.bDone', { defaultValue: '완료' }),
+    canceled: t('stats.bCanceled', { defaultValue: '취소' }),
+    other: t('stats.bOther', { defaultValue: '기타' }),
+  }[b]) as string;
+  const weekMax = stats ? Math.max(1, ...stats.weekly.map((w) => w.count)) : 1;
+  // 히스토리 — 주요 이슈 + 업무 완료(마일스톤은 ◆) 를 최근 순으로 한 줄에. 둘 다 이미 받은 응답에서 만든다.
+  const timeline = useMemo<TimelineItem[]>(() => {
+    const out: TimelineItem[] = [];
+    for (const it of issues || []) out.push({ key: `i${it.id}`, at: it.occurred_at, kind: 'issue', title: it.title, body: it.body });
+    for (const k of tasks || []) {
+      if (k.status === 'completed' && k.completed_at) out.push({ key: `t${k.id}`, at: k.completed_at, kind: k.is_milestone ? 'milestone' : 'done', title: k.title });
+    }
+    return out.sort((a, b) => String(b.at).localeCompare(String(a.at)));
+  }, [issues, tasks]);
 
   // ── 업무 필터(§F) — 화면 안에서만.
   const [taskState, setTaskState] = useState<'all' | 'open' | 'done'>('all');
@@ -227,6 +291,10 @@ export default function GuestProjectPage({ token, project, workspace, canWrite, 
           {t('tabs.tasks', { defaultValue: '업무' })}
           {total > 0 && <Count>{total}</Count>}
         </Tab>
+        <Tab type="button" role="tab" aria-selected={tab === 'history'} $on={tab === 'history'}
+          data-testid="guest-tab-history" onClick={() => setTab('history')}>
+          {t('tabs.history', { defaultValue: '히스토리' })}
+        </Tab>
         <Tab type="button" role="tab" aria-selected={tab === 'docs'} $on={tab === 'docs'}
           data-testid="guest-tab-docs" onClick={() => setTab('docs')}>
           {t('tabs.docs', { defaultValue: '문서' })}
@@ -243,7 +311,22 @@ export default function GuestProjectPage({ token, project, workspace, canWrite, 
 
       {tab === 'overview' && (
         <GuestTabPane data-testid="guest-tab-body-overview">
-          {project.description && <OvDesc>{project.description}</OvDesc>}
+          {/* 기본 정보 — **항상** 그린다. 비어 있으면 숨기지 않고 «—» (빈 줄이 왜 없는지 아무도 모르게 되지 않게, §I-1). */}
+          <OvSection data-testid="guest-ov-info">
+            <OvLabel>{t('ov.info', { defaultValue: '기본 정보' })}</OvLabel>
+            <InfoGrid>
+              <InfoRow label={t('ov.infoStatus', { defaultValue: '상태' }) as string} value={projectStatusLabel(project.status)} testId="status" />
+              <InfoRow label={t('ov.infoPeriod', { defaultValue: '기간' }) as string}
+                value={project.start_date || project.end_date ? period(project.start_date, project.end_date) : ''} testId="period" />
+              <InfoRow label={t('ov.infoTasks', { defaultValue: '업무' }) as string}
+                value={t('ov.infoTaskVal', { defaultValue: '{{total}}건 (완료 {{done}})', total, done }) as string} testId="tasks" />
+              <InfoRow label={t('ov.infoDocs', { defaultValue: '문서' }) as string}
+                value={docs === null ? '' : t('ov.infoCount', { defaultValue: '{{count}}건', count: docs.length }) as string} testId="docs" />
+              <InfoRow label={t('ov.infoFiles', { defaultValue: '파일' }) as string}
+                value={fileCount === null ? '' : t('ov.infoCount', { defaultValue: '{{count}}건', count: fileCount }) as string} testId="files" />
+              <InfoRow label={t('ov.infoDesc', { defaultValue: '설명' }) as string} value={project.description || ''} testId="desc" pre />
+            </InfoGrid>
+          </OvSection>
           <OvSection>
             <OvLabel>{t('ov.stages', { defaultValue: '진행 단계' })}</OvLabel>
             {project.stages?.length ? (
@@ -260,6 +343,89 @@ export default function GuestProjectPage({ token, project, workspace, canWrite, 
                 <Bar aria-hidden><BarFill style={{ width: `${Math.round((done / Math.max(1, total)) * 100)}%` }} /></Bar>
               </>
             ) : <OvEmpty>{t('ov.tasksEmpty', { defaultValue: '아직 등록된 업무가 없어요.' })}</OvEmpty>}
+          </OvSection>
+          {stats && stats.total > 0 && (
+            <OvSection data-testid="guest-ov-stats">
+              <OvLabel>
+                {t('ov.stats', { defaultValue: '업무 통계' })}
+                {stats.capped && <CapNote> · {t('ov.statsCapped', { defaultValue: '최근 200건 기준' })}</CapNote>}
+              </OvLabel>
+              <StatGrid>
+                {STATUS_BUCKETS.filter((b) => b !== 'other' || stats.buckets.other > 0).map((b) => (
+                  <StatCell key={b} data-testid={`guest-ov-bucket-${b}`}>
+                    <StatNum>{stats.buckets[b]}</StatNum>
+                    <StatName>{bucketLabel(b)}</StatName>
+                  </StatCell>
+                ))}
+                <StatCell $warn={stats.overdueCount > 0} data-testid="guest-ov-overdue-count">
+                  <StatNum>{stats.overdueCount}</StatNum>
+                  <StatName>{t('stats.overdue', { defaultValue: '지연' })}</StatName>
+                </StatCell>
+                <StatCell data-testid="guest-ov-week-count">
+                  <StatNum>{stats.dueThisWeekCount}</StatNum>
+                  <StatName>{t('stats.thisWeek', { defaultValue: '이번 주 마감' })}</StatName>
+                </StatCell>
+              </StatGrid>
+            </OvSection>
+          )}
+          {stats && stats.overdue.length > 0 && (
+            <OvSection data-testid="guest-ov-overdue">
+              <OvLabel>{t('stats.overdueList', { defaultValue: '마감이 지난 업무' })}</OvLabel>
+              <TaskList>{stats.overdue.map((k) => <MiniTask key={k.id} title={k.title} status={taskStatusLabel(k.status)} date={formatPublicDate(k.due_date)} who={k.assignee_name} warn />)}</TaskList>
+            </OvSection>
+          )}
+          {stats && stats.dueThisWeek.length > 0 && (
+            <OvSection data-testid="guest-ov-week">
+              <OvLabel>{t('stats.thisWeekList', { defaultValue: '이번 주 마감' })}</OvLabel>
+              <TaskList>{stats.dueThisWeek.map((k) => <MiniTask key={k.id} title={k.title} status={taskStatusLabel(k.status)} date={formatPublicDate(k.due_date)} who={k.assignee_name} />)}</TaskList>
+            </OvSection>
+          )}
+          {stats && stats.recentDone.length > 0 && (
+            <OvSection data-testid="guest-ov-recent-done">
+              <OvLabel>{t('stats.recentDone', { defaultValue: '최근 완료' })}</OvLabel>
+              <TaskList>{stats.recentDone.map((k) => <MiniTask key={k.id} title={k.title} status={taskStatusLabel(k.status)} date={dayOf(k.completed_at)} who={k.assignee_name} done />)}</TaskList>
+            </OvSection>
+          )}
+          {stats && stats.doneWithDate > 0 && (
+            <OvSection data-testid="guest-ov-weekly">
+              <OvLabel>{t('stats.weekly', { defaultValue: '주별 완료 (최근 8주)' })}</OvLabel>
+              <WeekBars role="img" aria-label={stats.weekly.map((w) => `${formatPublicDate(w.weekStart)} ${w.count}`).join(', ')}>
+                {stats.weekly.map((w) => (
+                  <WeekCol key={w.weekStart} data-testid="guest-ov-week-bar" data-count={w.count}>
+                    <WeekNum>{w.count || ''}</WeekNum>
+                    <WeekTrack><WeekFill style={{ height: `${Math.round((w.count / weekMax) * 100)}%` }} /></WeekTrack>
+                    <WeekLabel>{w.weekStart.slice(5).replace('-', '/')}</WeekLabel>
+                  </WeekCol>
+                ))}
+              </WeekBars>
+            </OvSection>
+          )}
+          {/* 주요 이슈 — 사람이 «고객에게 보이기» 를 켠 것만(§I-2). 없으면 숨기지 않고 말한다. */}
+          <OvSection data-testid="guest-ov-issues">
+            <OvHeadRow>
+              <OvLabel>{t('ov.issues', { defaultValue: '주요 이슈' })}</OvLabel>
+              {(issues?.length || 0) > 0 && (
+                <LinkBtn type="button" onClick={() => setTab('history')}>{t('ov.allHistory', { defaultValue: '히스토리 탭 전체 보기' })}</LinkBtn>
+              )}
+            </OvHeadRow>
+            {issuesErr ? (
+              <OvEmpty>{t('history.failed', { defaultValue: '히스토리를 불러오지 못했습니다.' })}{' '}
+                <RetryInline type="button" onClick={() => void loadIssues()}>{t('retry', { defaultValue: '다시 시도' })}</RetryInline></OvEmpty>
+            ) : issues === null ? (
+              <OvEmpty>{t('loading', { defaultValue: '불러오는 중…' })}</OvEmpty>
+            ) : issues.length === 0 ? (
+              <OvEmpty>{t('ov.issuesEmpty', { defaultValue: '공개된 주요 이슈가 없어요.' })}</OvEmpty>
+            ) : (
+              <IssueList>
+                {issues.slice(0, 3).map((it) => (
+                  <IssueRow key={it.id} data-testid={`guest-ov-issue-${it.id}`}>
+                    <IssueDate>{dayOf(it.occurred_at)}</IssueDate>
+                    <IssueTitle>{it.title}</IssueTitle>
+                    {it.body && <IssueBody>{it.body}</IssueBody>}
+                  </IssueRow>
+                ))}
+              </IssueList>
+            )}
           </OvSection>
           {nextDue && (
             <OvSection data-testid="guest-ov-nextdue">
@@ -380,6 +546,51 @@ export default function GuestProjectPage({ token, project, workspace, canWrite, 
         </GuestTabPane>
       )}
 
+      {tab === 'history' && (
+        <GuestTabPane data-testid="guest-tab-body-history">
+          {issuesErr || tasksErr ? (
+            <OvEmpty>
+              {t('history.failed', { defaultValue: '히스토리를 불러오지 못했습니다.' })}{' '}
+              <RetryInline type="button" onClick={() => { void loadIssues(); void loadTasks(); }}>{t('retry', { defaultValue: '다시 시도' })}</RetryInline>
+            </OvEmpty>
+          ) : issues === null || tasks === null ? (
+            <OvEmpty>{t('loading', { defaultValue: '불러오는 중…' })}</OvEmpty>
+          ) : timeline.length === 0 ? (
+            <Empty data-testid="guest-history-empty">{t('history.empty', { defaultValue: '아직 기록된 히스토리가 없어요.' })}</Empty>
+          ) : (
+            <>
+              {issues.length === 0 && <OvEmpty>{t('ov.issuesEmpty', { defaultValue: '공개된 주요 이슈가 없어요.' })}</OvEmpty>}
+              <Timeline data-testid="guest-history-list">
+                {timeline.map((it, i) => {
+                  const month = localYmd(new Date(it.at)).slice(0, 7);
+                  const prevMonth = i > 0 ? localYmd(new Date(timeline[i - 1].at)).slice(0, 7) : '';
+                  return (
+                    <li key={it.key}>
+                      {month !== prevMonth && <MonthSep>{month.replace('-', '.')}</MonthSep>}
+                      <TlRow data-testid={`guest-history-${it.key}`} data-kind={it.kind}>
+                        <TlMark $kind={it.kind} aria-hidden>{it.kind === 'issue' ? '★' : it.kind === 'milestone' ? '◆' : '✓'}</TlMark>
+                        <TlMain>
+                          <TlTitle>{it.title}</TlTitle>
+                          <TlMeta>
+                            {it.kind === 'issue'
+                              ? t('history.kIssue', { defaultValue: '주요 이슈' })
+                              : it.kind === 'milestone'
+                                ? t('history.kMilestone', { defaultValue: '마일스톤 완료' })
+                                : t('history.kDone', { defaultValue: '업무 완료' })}
+                            {' · '}{dayOf(it.at)}
+                          </TlMeta>
+                          {it.body && <IssueBody>{it.body}</IssueBody>}
+                        </TlMain>
+                      </TlRow>
+                    </li>
+                  );
+                })}
+              </Timeline>
+            </>
+          )}
+        </GuestTabPane>
+      )}
+
       {/* 문서·파일은 **그 탭을 열 때 마운트**한다 — 안 보는 탭의 목록을 미리 받지 않는다.
           (대화 탭만 예외: 쓰던 글을 지키려고 계속 붙여 둔다.) */}
       {tab === 'docs' && <GuestDocsTab token={token} onGone={onGone} onNeedLogin={needLogin} />}
@@ -408,9 +619,73 @@ export default function GuestProjectPage({ token, project, workspace, canWrite, 
   );
 }
 
+/** 기본 정보 한 줄 — 값이 비면 «—» 로 그린다(숨기지 않는다, §I-1). */
+function InfoRow({ label, value, testId, pre }: { label: string; value: string; testId: string; pre?: boolean }) {
+  return (
+    <>
+      <InfoKey>{label}</InfoKey>
+      <InfoVal data-testid={`guest-ov-info-${testId}`} $pre={!!pre} $empty={!value}>{value || '—'}</InfoVal>
+    </>
+  );
+}
+/** 개요의 업무 한 줄 — 업무 탭 행과 같은 부품(TaskRow·TaskTitle·TaskMeta)을 쓴다. */
+function MiniTask({ title, status, date, who, warn, done }: { title: string; status: string; date: string; who?: string | null; warn?: boolean; done?: boolean }) {
+  return (
+    <TaskRow>
+      <TaskMain>
+        <TaskTitle>{title}</TaskTitle>
+        <TaskMeta>
+          {who && <span>{who}</span>}
+          <TaskStatus $done={!!done}>{status}</TaskStatus>
+          {date && <DateSpan $warn={!!warn}>{date}</DateSpan>}
+        </TaskMeta>
+      </TaskMain>
+    </TaskRow>
+  );
+}
+
+const InfoGrid = styled.dl`
+  display:grid;grid-template-columns:max-content minmax(0,1fr);gap:6px 14px;margin:0;
+  background:#fff;border:1px solid #E2E8F0;border-radius:12px;padding:12px 14px;
+`;
+const InfoKey = styled.dt`font-size:0.75rem;color:#94A3B8;font-weight:600;`;
+const InfoVal = styled.dd<{ $pre: boolean; $empty: boolean }>`
+  margin:0;font-size:0.8125rem;color:${p => (p.$empty ? '#CBD5E1' : '#334155')};min-width:0;word-break:break-word;
+  white-space:${p => (p.$pre ? 'pre-wrap' : 'normal')};line-height:1.5;
+`;
+const CapNote = styled.span`font-weight:500;color:#94A3B8;`;
+const StatGrid = styled.div`display:grid;grid-template-columns:repeat(auto-fill,minmax(88px,1fr));gap:8px;`;
+const StatCell = styled.div<{ $warn?: boolean }>`
+  background:#fff;border:1px solid ${p => (p.$warn ? '#FECDD3' : '#E2E8F0')};border-radius:10px;padding:10px 12px;
+  display:flex;flex-direction:column;gap:2px;
+`;
+const StatNum = styled.div`font-size:1.125rem;font-weight:700;color:#0F172A;font-variant-numeric:tabular-nums;`;
+const StatName = styled.div`font-size:0.6875rem;color:#64748B;`;
+const DateSpan = styled.span<{ $warn: boolean }>`color:${p => (p.$warn ? '#E11D48' : 'inherit')};`;
+const WeekBars = styled.div`display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:6px;align-items:end;
+  background:#fff;border:1px solid #E2E8F0;border-radius:12px;padding:12px;`;
+const WeekCol = styled.div`display:flex;flex-direction:column;align-items:center;gap:4px;min-width:0;`;
+const WeekNum = styled.div`font-size:0.6875rem;font-weight:700;color:#475569;min-height:14px;`;
+const WeekTrack = styled.div`width:100%;max-width:28px;height:64px;background:#F1F5F9;border-radius:6px;display:flex;align-items:flex-end;overflow:hidden;`;
+const WeekFill = styled.div`width:100%;background:#14B8A6;border-radius:6px;`;
+const WeekLabel = styled.div`font-size:0.625rem;color:#94A3B8;white-space:nowrap;`;
+const IssueList = styled.div`display:flex;flex-direction:column;gap:0;background:#fff;border:1px solid #E2E8F0;border-radius:12px;overflow:hidden;`;
+const IssueRow = styled.div`padding:11px 14px;border-bottom:1px solid #F1F5F9;&:last-child{border-bottom:none;}`;
+const IssueDate = styled.div`font-size:0.6875rem;color:#94A3B8;`;
+const IssueTitle = styled.div`font-size:0.875rem;color:#0F172A;font-weight:600;line-height:1.4;word-break:break-word;`;
+const IssueBody = styled.div`margin-top:4px;font-size:0.8125rem;color:#475569;line-height:1.55;white-space:pre-wrap;word-break:break-word;`;
+const Timeline = styled.ol`list-style:none;margin-top:0;margin-bottom:0;padding:0;display:flex;flex-direction:column;`;
+const MonthSep = styled.div`font-size:0.75rem;font-weight:700;color:#64748B;padding:14px 0 6px;`;
+const TlRow = styled.div`display:flex;gap:10px;padding:10px 14px;background:#fff;border:1px solid #E2E8F0;border-radius:10px;margin-bottom:6px;`;
+const TlMark = styled.span<{ $kind: string }>`
+  flex-shrink:0;width:20px;text-align:center;font-size:0.8125rem;
+  color:${p => (p.$kind === 'issue' ? '#F43F5E' : '#14B8A6')};
+`;
+const TlMain = styled.div`flex:1 1 0;min-width:0;`;
+const TlTitle = styled.div`font-size:0.875rem;color:#0F172A;line-height:1.4;word-break:break-word;`;
+const TlMeta = styled.div`margin-top:2px;font-size:0.6875rem;color:#94A3B8;`;
 // 필터 줄 안의 알약 — 한 줄 안 컨트롤은 **36** 이다(필터줄 계약). 머리줄용 32 를 그대로 쓰면 줄이 들쭉날쭉하다(Fable F4).
 const FilterPills = styled(SegmentedToggle)`height:36px;`;
-const OvDesc = styled.p`margin-top:0;margin-bottom:0;font-size:0.8125rem;color:#475569;line-height:1.55;white-space:pre-wrap;`;
 const OvSection = styled.div`display:flex;flex-direction:column;gap:6px;`;
 const OvHeadRow = styled.div`display:flex;align-items:center;justify-content:space-between;gap:8px;`;
 const OvLabel = styled.div`font-size:0.6875rem;font-weight:600;color:#94a3b8;letter-spacing:-0.1px;`;

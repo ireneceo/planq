@@ -250,3 +250,52 @@ F=1 — `auth-check` 무토큰 401 / 무관 계정 `false` / 프로젝트 고객
 | 썸네일 무인증 경로 | `routes/files.js:245-312` · `services/filePreview.js:79` |
 | auth-check | `routes/guest_auth.js` · 로그인 되돌아오기 `pages/Login/LoginPage.tsx:480-488` (`?redirect=`) |
 | 운영 실측 | guest_links `#1 #3 #5`(프로젝트 3) · `teams` 0행 · `GUEST_LINK_SECRET` 62자(운영·dev) |
+
+---
+
+# §I. 고객 프로젝트 링크 — 개요·주요 이슈·히스토리·파일 미리보기 (2026-10-10 Fable 판정)
+
+> Irene: *"고객 프로젝트 안내에 뭔가 프로젝트 개요의 기본 정보들 주요이슈들 통계들, 그리고 업무진행에 대한 통계들, 히스토리들 등등 제대로 제공이 안되고 있어. 파일에서 미리보기도 안되고 좀 더 살펴보고 검증해줘."*
+> 결정이다. §D·§E 중 뒤집는 것은 아래에 명시, 나머지 §A~§H 유지.
+
+## I-0. 사실
+- 운영 파일 전부 `downloadable:false` 는 구조적 — File.vlevel 기본 L3, 프로젝트 파일은 공유 토큰이 보통 없다. §D 규칙은 사실상 «영원히 0건».
+- `project_history_entries` = «주요 이슈» 원천. 고객 노출 축 없음.
+- 로그인 고객은 앱에서 개요·히스토리를 못 보고(CLIENT_HIDDEN_TABS), 파일도 `fileListWhereByLevel` 에 고객 분기가 없어 **자기 업로드만** 본다(별건 I-6).
+- F1 의 위험은 픽셀이 아니라 stored name 이 영구 열쇠라는 점 — 게스트 토큰 아래 파일 id 로 여는 라우트로 제거된다.
+
+## I-1. 개요 — 서버 필드 추가 없음, /tasks·/posts·/files 파생
+1. 서버 컨텍스트 그대로. 개요는 /tasks·/posts·/files 를 탭 열 때 1회.
+2. «기본 정보» 블록 항상: 상태·기간·설명·업무 N(완료 M)·문서 N·파일 N. 빈 값 `—`. client_company·금액·멤버 없음.
+3. 멤버 링크 모달: 설명·기간이 비면 «링크 개요가 빈약해요 — 상세정보 탭에서 채우세요».
+4. 통계 = 순수 함수 `pages/Guest/guestTaskStats.ts`: 상태 버킷(대기{not_started,waiting,on_hold}·진행 중{in_progress,external_review}·확인 중{reviewing,revision_requested,done_feedback}·완료·취소·기타) 합 == 길이 · 지연(due<오늘 ∧ 미완료, 최대 5) · 이번 주 마감(오늘≤due<+7) · 최근 완료 5 · 주별 완료 8주(CSS 막대, 0이면 숨김).
+5. 진행률은 종전 task_summary 하나. progress_percent 평균 금지.
+6. /tasks limit 200 이고 total>200 이면 «최근 200건 기준».
+7. 담당자별 건수 만들지 않는다.
+
+## I-2. 주요 이슈·히스토리 — 항목별 «고객에게 보이기», 기본 꺼짐
+1. 원천 `project_history_entries` 하나. 업무 완료·마일스톤은 /tasks 에서 화면 파생.
+2. 컬럼 `client_visible BOOLEAN NOT NULL DEFAULT 0`.
+3. body 도 나간다 — 이 토글이 그 축.
+4. 멤버: POST 에 `client_visible?`, 신설 `PATCH /api/projects/:id/history-entries/:entryId {client_visible}`(client 403, 감사 `project.history_entry.client_visible`), GET·event_stream manual 에 client_visible. 게스트: `GET /api/guest/:token/history`(60s/30, conversation 404, client_visible:true, occurred_at DESC, 100) 응답 `{id, occurred_at, title, body}` 만. 술어 `services/guestHistory.clientVisibleHistoryWhere`.
+5. HistoryTab: 추가 폼 체크(기본 꺼짐) · manual 행 «고객 공개» 토글(AutoSaveField → PATCH).
+6. 게스트 6번째 탭 «히스토리»(주요 이슈 ★ + 업무 완료 ✓·마일스톤 ◆ 병합, 월 구분). 개요 «주요 이슈» 상위 3 + 전체 보기. 0건이면 «공개된 주요 이슈가 없어요».
+7. 링크>로그인 고객 비대칭은 의도적으로 남긴다(I-6).
+하지 말 것: issues/notes/status_history 내보내기 · 작성자 · 프로젝트 단위 전체 공개 스위치.
+
+## I-3. 파일 미리보기 — §D 를 뒤집는다: «보기» 는 문서와 같은 술어, «받기» 는 그대로
+1. 보기 = general ∧ vlevel∈GUEST_VLEVELS ∧ 래스터 이미지·PDF. 받기 = guestDownloadable 불변.
+2. 신설 `GET /api/guest/:token/files/:fileId/preview?w=&page=` — 링크 토큰 아래(회수가 곧 닫힘). 원본 금지: w 는 ALLOWED_WIDTHS 로 강제(없으면 기본 폭), `inline; filename="preview"`·nosniff·`private, max-age=3600`. 60s/120. 판정 → `guestPreviewable`(목록과 같은 함수), 실패 404. SVG 제외. PDF: `services/pdfPagePreview.js`(pdftoppm, 15초, 동시 2, 디스크 캐시, `X-Pq-Pages`, 최대 20쪽, 50MB 초과·암호·손상 404).
+3. 목록: preview_url → `/api/guest/<token>/files/<id>/preview?w=400`(public-image 주소 게스트 응답에서 소멸) + `preview_kind`·`viewable`.
+4. 화면: 썸네일 · 꼬리표 받기/보기/잠김/로그인 후 받기 · 이미지 → ImageLightbox, PDF → GuestPdfViewer(모달, 쪽 넘김, 하단 [받기]).
+5. 링크 모달 안내 «파일은 이미지·PDF 보기만 · 받기는 외부 공개(L4) 파일만».
+하지 말 것: 원본 스트리밍 · 원 파일명·file_path·stored name 노출 · imageCtx 로 파일 열기 · docx 등 변환 · 영상.
+
+## I-4. 운영 스키마 — `scripts/migrate-history-entry-client-visible.js`(멱등, 배포 슬롯, 코드보다 먼저).
+
+## I-5. 완료 검증 — Fable 원문 18항목(파일 1~11 · 히스토리 12~15 · 개요 16~18) + 공통 가드·빌드·운영 K-DINE `/history` 빈 배열.
+양성 대조군: guestPreviewable 을 옛 조건으로 → 썸네일 0 뒤집힘 · 음성: public-image 주소 심기 → secrets 뒤집힘.
+
+## I-6. 하지 않은 것(완료 아님)
+- 로그인 고객 앱의 프로젝트 개요·히스토리 탭(같은 함수 재사용).
+- 로그인 고객 파일 가시성(`fileListWhereByLevel` 고객 분기) — 별도 Fable design.

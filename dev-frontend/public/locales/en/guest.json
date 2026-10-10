@@ -59,7 +59,21 @@
     "recentDocs": "Recent documents",
     "allDocs": "See all documents",
     "askWs": "Ask {{name}}",
-    "ask": "Ask the team"
+    "ask": "Ask the team",
+    "info": "Overview",
+    "infoStatus": "Status",
+    "infoPeriod": "Period",
+    "infoTasks": "Tasks",
+    "infoTaskVal": "{{total}} ({{done}} done)",
+    "infoDocs": "Documents",
+    "infoCount": "{{count}}",
+    "infoFiles": "Files",
+    "infoDesc": "Description",
+    "stats": "Task stats",
+    "statsCapped": "based on the latest 200",
+    "issues": "Key updates",
+    "allHistory": "See all in History",
+    "issuesEmpty": "No key updates have been shared yet."
   },
   "notify": {
     "cta": "Get notified when they reply?",
@@ -98,7 +112,8 @@
     "tasks": "Tasks",
     "chat": "Chat",
     "docs": "Documents",
-    "files": "Files"
+    "files": "Files",
+    "history": "History"
   },
   "task": {
     "notStarted": "Not started",
@@ -107,7 +122,10 @@
     "reviewing": "In review",
     "revision": "Changes requested",
     "completed": "Done",
-    "canceled": "Canceled"
+    "canceled": "Canceled",
+    "doneFeedback": "Wrapping up",
+    "onHold": "On hold",
+    "externalReview": "Awaiting external review"
   },
   "tasks": {
     "failed": "Could not load tasks."
@@ -134,7 +152,8 @@
     "hiddenCount_other": "{{count}} files are not shown because they cannot be shared.",
     "hiddenCount": "{{count}} file(s) that cannot be shared are not listed.",
     "lockedTag": "Locked",
-    "loginDownload": "Sign in to download"
+    "loginDownload": "Sign in to download",
+    "view": "View"
   },
   "filter": {
     "category": "Category",
@@ -259,5 +278,32 @@
     "loadFail": "Couldn't load your home.",
     "tabsAria": "Home tabs",
     "bills": "Bills"
+  },
+  "stats": {
+    "bWaiting": "Waiting",
+    "bActive": "In progress",
+    "bReview": "In review",
+    "bDone": "Done",
+    "bCanceled": "Canceled",
+    "bOther": "Other",
+    "overdue": "Overdue",
+    "thisWeek": "Due this week",
+    "overdueList": "Past due",
+    "thisWeekList": "Due this week",
+    "recentDone": "Recently completed",
+    "weekly": "Completed per week (last 8 weeks)"
+  },
+  "history": {
+    "failed": "Could not load the history.",
+    "empty": "No history yet.",
+    "kIssue": "Key update",
+    "kMilestone": "Milestone completed",
+    "kDone": "Task completed"
+  },
+  "pdf": {
+    "prev": "Previous",
+    "next": "Next",
+    "failed": "This file cannot be previewed.",
+    "capped": "Preview shows the first 20 pages."
   }
 }

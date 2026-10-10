@@ -40,11 +40,13 @@ function plan(req, mimeType, cacheId) {
   return { width, cacheDir, cachePath: path.join(cacheDir, `${hash}.webp`) };
 }
 
-function sendCached(res, cachePath) {
+// opts.cacheControl·opts.disposition — 게스트 미리보기(routes/guest_project.js)처럼 **링크 회수가 곧 닫힘**인 곳은
+//   브라우저 캐시를 짧게, 파일명은 싣지 않는다(GUEST_PROJECT_VIEW_DECISIONS §I-3). 안 주면 종전 값 그대로.
+function sendCached(res, cachePath, opts = {}) {
   res.setHeader('Content-Type', 'image/webp');
   res.setHeader('X-Content-Type-Options', 'nosniff');
-  res.setHeader('Content-Disposition', 'inline');
-  res.setHeader('Cache-Control', 'private, max-age=604800');
+  res.setHeader('Content-Disposition', opts.disposition || 'inline');
+  res.setHeader('Cache-Control', opts.cacheControl || 'private, max-age=604800');
   fs.createReadStream(cachePath).pipe(res);
 }
 
@@ -55,12 +57,12 @@ function sendCached(res, cachePath) {
  *   자체가 0.8~1.0초다(운영 실측). 캐시가 있는데도 Drive 를 한 번 다녀오면 그 시간이 그대로
  *   사용자 대기가 된다. **바이트를 가지러 가기 전에** 캐시를 먼저 본다.
  */
-function serveCachedIfPresent(req, res, mimeType, cacheId) {
+function serveCachedIfPresent(req, res, mimeType, cacheId, opts = {}) {
   const p = plan(req, mimeType, cacheId);
   if (!p) return false;
   try {
     if (!fs.existsSync(p.cachePath)) return false;
-    sendCached(res, p.cachePath);
+    sendCached(res, p.cachePath, opts);
     return true;
   } catch { return false; }
 }
@@ -74,11 +76,11 @@ function serveCachedIfPresent(req, res, mimeType, cacheId) {
  *   운영 워크스페이스의 이미지 371장 중 **154장이 Drive** 였다 — 목록 한 번에 수백 MB 다.
  *   HTTP/1.1(연결 6개)에서 그만한 바이트가 줄을 서면 "늦게 뜨고 어떤 건 안 뜬다" 가 된다.
  */
-async function resizeStreamAndServe(req, res, stream, mimeType, cacheId) {
+async function resizeStreamAndServe(req, res, stream, mimeType, cacheId, opts = {}) {
   const p = plan(req, mimeType, cacheId);
   if (!p) return false;
   try {
-    if (fs.existsSync(p.cachePath)) { stream.destroy(); sendCached(res, p.cachePath); return true; }
+    if (fs.existsSync(p.cachePath)) { stream.destroy(); sendCached(res, p.cachePath, opts); return true; }
     // 원본을 통째로 메모리에 들지 않는다 — 큰 파일이 오면 서버가 문다(이 서버 RAM 7.7GB).
     const chunks = [];
     let bytes = 0;
@@ -101,7 +103,7 @@ async function resizeStreamAndServe(req, res, stream, mimeType, cacheId) {
         fs.renameSync(tmp, p.cachePath);
       }
     } finally { releaseEncode(); }
-    sendCached(res, p.cachePath);
+    sendCached(res, p.cachePath, opts);
     return true;
   } catch (e) {
     // ★ 스트림을 이미 먹었을 수 있다 — 호출부가 원본으로 되돌릴 수 없으므로 여기서 끝낸다.
@@ -114,7 +116,7 @@ async function resizeStreamAndServe(req, res, stream, mimeType, cacheId) {
 /**
  * ?w= 요청이면 리사이즈본(webp)을 스트림하고 true 반환. 아니면 false (호출부가 원본 서빙).
  */
-async function maybeServeResized(req, res, absPath, mimeType) {
+async function maybeServeResized(req, res, absPath, mimeType, opts = {}) {
   const p0 = plan(req, mimeType, absPath);
   if (!p0) return false;
   const { width, cacheDir, cachePath } = p0;
@@ -133,7 +135,7 @@ async function maybeServeResized(req, res, absPath, mimeType) {
         }
       } finally { releaseEncode(); }
     }
-    sendCached(res, cachePath);
+    sendCached(res, cachePath, opts);
     return true;
   } catch (e) {
     console.warn('[imageResize] fallback to original:', e.message);
@@ -169,4 +171,4 @@ async function resizedBuffer(absPath, mimeType, width) {
   }
 }
 
-module.exports = { maybeServeResized, serveCachedIfPresent, resizeStreamAndServe, resizedBuffer, ALLOWED_WIDTHS };
+module.exports = { maybeServeResized, serveCachedIfPresent, resizeStreamAndServe, resizedBuffer, ALLOWED_WIDTHS, CACHE_ROOT };

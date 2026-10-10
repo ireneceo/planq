@@ -16,7 +16,7 @@ const { blocksExternalShare } = require('../services/securityLevel');
 const { guestLimiter, attachGuest } = require('./guest_common');
 // 누구로 보이는가(담당자·작성자·올린 사람) — services/guestParty.js **한 술어**(§A). 여기서 다시 쓰지 않는다.
 const { guestPartyLabels } = require('../services/guestParty');
-const { previewUrlForFile } = require('../services/filePreview');
+const { isRenderableImage, effectiveMimeType } = require('../services/filePreview');
 const { GUEST_VLEVELS, guestProjectOf, findGuestPost } = require('../services/guestPost');
 
 const APP_URL = process.env.APP_URL || 'https://dev.planq.kr';
@@ -105,6 +105,27 @@ function guestDownloadable(r) {
   if (r.share_password_hash) return false;
   if (r.share_expires_at && new Date(r.share_expires_at).getTime() <= Date.now()) return false;
   return true;
+}
+
+/**
+ * 게스트가 이 파일을 **볼 수 있는가**(미리보기) — 목록(preview_url·viewable)과 `/preview` 가 **이 한 술어**를 쓴다.
+ *   docs/GUEST_PROJECT_VIEW_DECISIONS.md §I-3 — §D(«받을 수 있는 이미지에만») 를 뒤집었다:
+ *   general L2 문서 본문은 이미 읽히는데 general L2 png 는 이름만 보이던 모순. «보기» 는 문서와 같은 두 축
+ *   (security_level=general ∧ vlevel ∈ GUEST_VLEVELS) + 그릴 수 있는 종류(래스터 이미지·PDF). «받기» 는 guestDownloadable 그대로.
+ * ★ 원본은 어느 경우에도 나가지 않는다 — 미리보기는 서버가 줄여 그린 그림뿐이다.
+ * ★ SVG 는 뺀다(스크립트 가능한 형식). gif·bmp 등은 리사이즈기가 다루지 않아 뺀다.
+ */
+const PREVIEW_IMAGE_MIME = /^image\/(jpeg|png|webp|avif)$/i;
+function guestPreviewKind(r) {
+  if ((r.security_level || 'general') !== 'general') return null;
+  if (!GUEST_VLEVELS.includes(r.vlevel)) return null;
+  const provider = r.storage_provider || 'planq';
+  if (provider === 'planq' ? !r.file_path : provider === 'gdrive' ? !r.external_id : true) return null;
+  const mime = String(effectiveMimeType(r.mime_type, r.file_name) || '').toLowerCase();
+  // PDF 는 서버에 그릴 도구(poppler)가 있을 때만 «보기» — 없으면 눌러도 안 열리는 꼬리표가 된다(2026-10-10 Fable).
+  if (mime === 'application/pdf') return require('../services/pdfPagePreview').pdfToolsAvailable() ? 'pdf' : null;
+  if (isRenderableImage(r.mime_type, r.file_name) && PREVIEW_IMAGE_MIME.test(mime)) return 'image';
+  return null;
 }
 
 /** 외부에 내보낼 수 있는 노출 범위인가 — L2·L3·L4 만. L1(개인)은 프로젝트에 묶여 있어도 남의 것이다. */
@@ -212,6 +233,7 @@ router.get('/:token/files', guestLimiter('guest-files', { windowMs: 60 * 1000, m
       attributes: ['id', 'file_name', 'file_size', 'mime_type', 'security_level', 'vlevel',
         'uploader_id', 'share_token', 'share_password_hash', 'share_expires_at',
         'updatedAt', 'file_path', 'external_id', 'storage_provider'],
+      // ★ file_path·external_id·storage_provider 는 **미리보기 가능 판정에만** 읽는다 — 응답에는 싣지 않는다.
       order: [['updated_at', 'DESC']],
       limit: 200,
     });
@@ -229,6 +251,7 @@ router.get('/:token/files', guestLimiter('guest-files', { windowMs: 60 * 1000, m
       //   (GUEST_LINK §1). 문서는 읽는 것이고 파일은 반출이라 비대칭은 의도다.
       //   토큰은 응답에 싣지 않는다 — 열 때 서버가 302 로 보낸다.
       const downloadable = !locked && guestDownloadable(r);
+      const previewKind = locked ? null : guestPreviewKind(r);
       return {
         id: r.id,
         file_name: r.file_name,
@@ -238,11 +261,15 @@ router.get('/:token/files', guestLimiter('guest-files', { windowMs: 60 * 1000, m
         locked,
         downloadable,
         uploader_name: locked ? null : (nameMap.get(r.uploader_id) || null),
-        // 썸네일 — **받을 수 있는 이미지에만**(docs/GUEST_PROJECT_VIEW_DECISIONS.md §D).
-        //   public-image 는 stored name 을 아는 사람에게 무인증으로 준다. L2/L3 는 «자리는 보이되
-        //   받을 수 없음» 이 계약이라, 여기에 썸네일을 주면 320px 사본을 받게 한 것이다.
-        //   L4 general 은 이미 원본을 받을 수 있으니 새 노출이 아니다. 조건 밖이면 키 자체를 싣지 않는다.
-        ...(downloadable && previewUrlForFile(r) ? { preview_url: `${previewUrlForFile(r)}?w=320` } : {}),
+        // 썸네일·보기 — 2026-10-10 §I-3 (옛 §D «받을 수 있는 이미지에만» 을 뒤집었다).
+        //   ★ 썸네일·보기는 **이 링크 토큰 아래** 주소 하나다(public-image 의 stored name 은
+        //     회수·만료가 없는 영구 열쇠라 게스트 응답에서 뺐다). 링크를 닫으면 미리보기도 닫힌다.
+        //     조건 밖이면 키 자체를 싣지 않는다.
+        viewable: !locked && !!previewKind,
+        ...(!locked && previewKind ? {
+          preview_kind: previewKind,
+          preview_url: `/api/guest/${encodeURIComponent(req.params.token)}/files/${r.id}/preview?w=400`,
+        } : {}),
       };
     });
     return successResponse(res, { items: list, locked_count: lockedCount });
@@ -273,6 +300,99 @@ router.get('/:token/files/:fileId/open',
     await link.update({ last_used_at: new Date() }).catch(() => null);
     // 헤더만 보낸다 — Express 기본 302 본문에 토큰이 한 번 더 실린다.
     return res.status(302).set('Location', `${APP_URL}/public/files/${file.share_token}`).end();
+  } catch (err) { next(err); }
+});
+
+// GET /api/guest/:token/files/:fileId/preview?w=&page= — 파일 **보기**(줄여 그린 그림). 실패는 전부 404.
+//   docs/GUEST_PROJECT_VIEW_DECISIONS.md §I-3.
+//   ★ 이 주소는 **링크 토큰 아래**에 있다 — 링크를 회수·만료하면 미리보기도 닫힌다(stored name 영구 열쇠 없음).
+//   ★ 원본 바이트는 나가지 않는다: 폭은 허용값으로 강제(없거나 틀리면 400 폭), 이미지는 webp 로 다시 그린 것,
+//     PDF 는 한 쪽을 png 로 그린 것. 리사이즈가 실패하면 원본으로 떨어지지 않고 404 다.
+//   ★ 판정이 캐시보다 **먼저** 선다 — 캐시본이 있어도 링크·파일 판정을 통과해야 내보낸다.
+const PREVIEW_CACHE_OPTS = { cacheControl: 'private, max-age=3600', disposition: 'inline; filename="preview"' };
+function snapPreviewWidth(raw) {
+  const { ALLOWED_WIDTHS } = require('../services/imageResize');
+  const n = parseInt(raw, 10);
+  if (!n || n <= 0) return 400;
+  return ALLOWED_WIDTHS.reduce((best, a) => (Math.abs(a - n) < Math.abs(best - n) ? a : best), ALLOWED_WIDTHS[0]);
+}
+router.get('/:token/files/:fileId/preview',
+  // 카드 수십 장이 한 번에 뜬다 — 30 이면 그리드가 깨진다(Fable §I-3).
+  guestLimiter('guest-file-preview', { windowMs: 60 * 1000, max: 120 }), attachGuest, async (req, res, next) => {
+  try {
+    const project = await requireProjectScope(req, res);
+    if (!project) return;
+    const { link } = req.guest;
+    const { File } = require('../models');
+    const file = await File.findOne({
+      where: {
+        id: Number(req.params.fileId) || 0,
+        project_id: project.id, business_id: link.business_id,
+        deleted_at: null, vlevel: GUEST_VLEVELS,
+      },
+      attributes: ['id', 'business_id', 'file_name', 'file_size', 'mime_type', 'security_level', 'vlevel',
+        'file_path', 'external_id', 'storage_provider', 'content_hash'],
+    });
+    // 목록과 **같은 술어** — 목록에 preview_url 이 없으면 여기서도 없는 것이다.
+    const kind = file ? guestPreviewKind(file) : null;
+    if (!kind) return errorResponse(res, 'not_found', 404);
+    const width = snapPreviewWidth(req.query.w);
+
+    if (kind === 'pdf') {
+      const pageRaw = req.query.page === undefined ? '1' : String(req.query.page);
+      if (!/^\d{1,3}$/.test(pageRaw)) return errorResponse(res, 'not_found', 404);
+      const { renderPdfPage } = require('../services/pdfPagePreview');
+      const out = await renderPdfPage(file, Number(pageRaw), width);
+      if (!out.ok) return errorResponse(res, 'not_found', 404);
+      res.setHeader('Content-Type', 'image/png');
+      res.setHeader('X-Content-Type-Options', 'nosniff');
+      res.setHeader('Content-Disposition', PREVIEW_CACHE_OPTS.disposition);
+      res.setHeader('Cache-Control', PREVIEW_CACHE_OPTS.cacheControl);
+      res.setHeader('X-Pq-Pages', String(out.pages));
+      res.setHeader('Access-Control-Expose-Headers', 'X-Pq-Pages');
+      return res.sendFile(out.path);
+    }
+
+    // 이미지 — 리사이즈기(services/imageResize)가 요구하는 `req.query.w` 를 스냅한 값으로 덮어 원본 분기를 없앤다.
+    const imageResize = require('../services/imageResize');
+    const mime = effectiveMimeType(file.mime_type, file.file_name);
+    const rq = { query: { w: String(width) } };
+    const cacheId = `guest-preview:${file.storage_provider || 'planq'}:${file.external_id || file.file_path}`;
+    if (imageResize.serveCachedIfPresent(rq, res, mime, cacheId, PREVIEW_CACHE_OPTS)) return;
+    const { readAttachmentBody } = require('../services/attachmentStorage');
+    const body = await readAttachmentBody(file);
+    if (!body || body.ok === false || body.redirect) return errorResponse(res, 'not_found', 404);
+    if (body.abs) {
+      // ★ 실패하면 false 를 돌려주고 **원본으로 떨어진다** 는 것이 그 함수의 계약이다 — 여기서는 404 로 끝낸다.
+      const served = await imageResize.maybeServeResized(rq, res, body.abs, mime, PREVIEW_CACHE_OPTS);
+      if (!served && !res.headersSent) return errorResponse(res, 'not_found', 404);
+      return;
+    }
+    if (!body.stream) return errorResponse(res, 'not_found', 404);
+    const served = await imageResize.resizeStreamAndServe(rq, res, body.stream, mime, cacheId, PREVIEW_CACHE_OPTS);
+    if (!served && !res.headersSent) return errorResponse(res, 'not_found', 404);
+  } catch (err) { next(err); }
+});
+
+// GET /api/guest/:token/history — 공개된 «주요 이슈»(사람이 적고, 항목마다 «고객에게 보이기» 를 켠 것만).
+//   docs/GUEST_PROJECT_VIEW_DECISIONS.md §I-2. 술어는 services/guestHistory 한 곳.
+//   응답 키는 {id, occurred_at, title, body} 뿐 — 누가 적었는지는 고객 정보가 아니다.
+router.get('/:token/history', guestLimiter('guest-history', { windowMs: 60 * 1000, max: 30 }), attachGuest, async (req, res, next) => {
+  try {
+    const project = await requireProjectScope(req, res);
+    if (!project) return;
+    const { link } = req.guest;
+    const { ProjectHistoryEntry } = require('../models');
+    const { clientVisibleHistoryWhere, CLIENT_HISTORY_ATTRS } = require('../services/guestHistory');
+    const rows = await ProjectHistoryEntry.findAll({
+      // business_id 를 한 번 더 링크에서 박는다(술어 안에도 있다 — 테넌트 이중 검증).
+      where: { ...clientVisibleHistoryWhere(project), business_id: link.business_id },
+      attributes: CLIENT_HISTORY_ATTRS,
+      order: [['occurred_at', 'DESC'], ['id', 'DESC']],
+      limit: 100,
+    });
+    const items = rows.map((r) => ({ id: r.id, occurred_at: r.occurred_at, title: r.title, body: r.body || null }));
+    return successResponse(res, { items });
   } catch (err) { next(err); }
 });
 

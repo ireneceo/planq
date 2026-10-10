@@ -7,8 +7,9 @@
 //
 // ★ 토큰은 화면에 오지 않는다. "받기" 는 서버 라우트를 열고 서버가 302 로 보낸다 —
 //   공유 토큰을 프론트에 실으면 그 자체가 유출 지점이 된다.
-// ★ 2026-09-24 카드형(§D) — 썸네일은 서버가 **받을 수 있는 이미지에만** preview_url 을 준다.
-//   받을 수 없는 파일을 누르면 로그인·계정 요청 시트(페이지 한 벌)가 뜬다.
+// ★ 2026-10-10 §I-3 — «보기» 와 «받기» 를 갈랐다(옛 §D «받을 수 있는 이미지에만 썸네일» 을 뒤집음).
+//   general 이미지·PDF 는 서버가 줄여 그린 그림으로 **본다**(이미지 → ImageLightbox, PDF → GuestPdfViewer).
+//   받기는 종전대로 L4 공유 파일만 — 아니면 로그인·계정 요청 시트(페이지 한 벌)가 뜬다.
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import PlanQSelect from '../../components/Common/PlanQSelect';
@@ -18,11 +19,16 @@ import { GuestTabPane, Empty, RetryInline, HiddenNote, Lock } from './guestShell
 import { CardGrid, Card, Thumb, ThumbImg, CardName, CardMeta, CardTag, MetaFixed } from './guestCards';
 import { formatPublicDate } from '../../utils/dateFormat';
 import type { LoginSheetReason } from './LoginRequiredSheet';
+import ImageLightbox from '../../components/Common/ImageLightbox';
+import GuestPdfViewer from './GuestPdfViewer';
 
 type FileRow = {
   id: number; file_name: string; file_size: number; mime_type: string | null;
   updated_at: string | null; locked: boolean; downloadable: boolean; uploader_name: string | null;
-  /** 받을 수 있는 이미지에만 서버가 싣는다(§D). 없으면 종류 글자로 그린다. */
+  /** 볼 수 있는가(§I-3) — general 이미지·PDF. 받기(downloadable)와 다른 술어다. */
+  viewable?: boolean;
+  preview_kind?: 'image' | 'pdf';
+  /** 볼 수 있을 때만 서버가 싣는다 — 링크 토큰 아래 주소(`…/files/:id/preview?w=400`). 없으면 종류 글자로 그린다. */
   preview_url?: string;
 };
 
@@ -71,13 +77,28 @@ export default function GuestFilesTab({ token, onGone, onNeedLogin }: Props) {
 
   useEffect(() => { void load(); }, [load]);
 
-  const openFile = (row: FileRow) => {
+  // 보기 — 위에 뜬 창. 닫으면 보던 탭 그대로(Esc 는 창만 닫는다 — useEscapeStack).
+  const [viewing, setViewing] = useState<FileRow | null>(null);
+  const previewBase = (row: FileRow) => (row.preview_url || '').split('?')[0];
+
+  const download = (row: FileRow) => {
     if (row.locked) { onNeedLogin('locked-file'); return; }
     if (!row.downloadable) { onNeedLogin('download'); return; }
     // 서버가 302 로 공개 파일 주소로 보낸다. 새 탭으로 열어 이 화면(그리고 쓰던 글)을 지킨다.
     //   ★ noopener 를 주면 반환값이 null 이다 — 반환값으로 성공을 판정하지 않는다
     //     (memory feedback_window_open_noopener_null).
     window.open(`/api/guest/${token}/files/${row.id}/open`, '_blank', 'noopener,noreferrer');
+  };
+  const openFile = (row: FileRow) => {
+    if (row.viewable && row.preview_url) { setViewing(row); return; }
+    download(row);
+  };
+  // 보기 창의 [받기] — 받을 수 없으면 창을 먼저 닫고 시트를 띄운다(팝업 위 팝업 금지).
+  const downloadFromViewer = () => {
+    const row = viewing;
+    if (!row) return;
+    if (!row.downloadable) setViewing(null);
+    download(row);
   };
 
   const kindOptions = useMemo(() => [
@@ -125,18 +146,20 @@ export default function GuestFilesTab({ token, onGone, onNeedLogin }: Props) {
             <CardGrid>
               {shown.map((f) => (
                 <Card key={f.id} type="button" onClick={() => openFile(f)}
-                  $dim={f.locked || !f.downloadable} data-testid={`guest-file-${f.id}`}>
+                  $dim={f.locked || (!f.downloadable && !f.viewable)} data-testid={`guest-file-${f.id}`}>
                   <Thumb>
                     {f.preview_url
                       ? <ThumbImg src={f.preview_url} alt="" loading="lazy" data-testid={`guest-file-thumb-${f.id}`} />
                       : <span aria-hidden>{f.locked ? <Lock size={20} /> : (extOf(f.file_name) || 'FILE')}</span>}
-                    {/* 받을 수 있는지 **카드에서** 말한다 — 눌러 봐야 아는 것은 안내가 아니다. */}
-                    <CardTag $on={f.downloadable} data-testid={`guest-file-tag-${f.id}`}>
+                    {/* 볼 수 있는지·받을 수 있는지 **카드에서** 말한다 — 눌러 봐야 아는 것은 안내가 아니다. */}
+                    <CardTag $on={f.downloadable || !!f.viewable} data-testid={`guest-file-tag-${f.id}`}>
                       {f.downloadable
                         ? t('files.download', { defaultValue: '받기' })
                         : f.locked
                           ? t('files.lockedTag', { defaultValue: '잠김' })
-                          : t('files.loginDownload', { defaultValue: '로그인 후 받기' })}
+                          : f.viewable
+                            ? t('files.view', { defaultValue: '보기' })
+                            : t('files.loginDownload', { defaultValue: '로그인 후 받기' })}
                     </CardTag>
                   </Thumb>
                   <CardName>
@@ -161,6 +184,13 @@ export default function GuestFilesTab({ token, onGone, onNeedLogin }: Props) {
           )}
         </>
       )}
+      {viewing?.preview_kind === 'image' && (
+        <ImageLightbox src={`${previewBase(viewing)}?w=1600`} alt={viewing.file_name}
+          onClose={() => setViewing(null)} onDownload={downloadFromViewer} />
+      )}
+      <GuestPdfViewer open={viewing?.preview_kind === 'pdf'} onClose={() => setViewing(null)}
+        baseUrl={viewing?.preview_kind === 'pdf' ? previewBase(viewing) : ''}
+        title={viewing?.file_name || ''} onDownload={downloadFromViewer} />
     </GuestTabPane>
   );
 }

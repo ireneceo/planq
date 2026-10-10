@@ -723,6 +723,7 @@ const QProjectDetailPage: React.FC = () => {
               projectName={project?.name || ''}
               businessId={Number(project.business_id)}
               clients={(project.projectClients || []).filter((c) => c.client_id).map((c) => ({ id: Number(c.client_id), name: c.contact_name }))}
+              overviewThin={!(project.description || '').trim() && !project.start_date && !project.end_date}
             />
           )}
         </HeaderActions>

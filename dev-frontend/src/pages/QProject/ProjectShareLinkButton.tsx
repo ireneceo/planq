@@ -17,8 +17,10 @@ import GuestLinkButton from '../../components/QTalk/GuestLinkButton';
 import { HeaderBtn } from './QProjectDetailPage.styles';
 import { Modal } from '../../components/UI/Modal';
 
-export default function ProjectShareLinkButton({ projectId, projectName, businessId, clients = [] }: {
+export default function ProjectShareLinkButton({ projectId, projectName, businessId, clients = [], overviewThin = false }: {
   projectId: number; projectName: string; businessId: number;
+  /** 설명·기간이 비어 있다 — 링크 개요가 빈약해 보인다는 것을 **채울 사람 화면에서** 말한다(§I-1). */
+  overviewThin?: boolean;
   /** 이 프로젝트에 연결된 고객 — 둘 이상이면 «누구에게 줄 링크인가» 를 먼저 고른다(2026-10-07).
    *  고객 채널은 프로젝트 × 고객이라 링크도 고객마다 따로다. 고르지 않고 첫 방에 걸면 다른 고객이 남의 방을 본다. */
   clients?: Array<{ id: number; name: string }>;
@@ -59,6 +61,11 @@ export default function ProjectShareLinkButton({ projectId, projectName, busines
           defaultValue: '로그인 없이 {{name}} 의 진행 상황·업무를 보고 문의할 수 있는 링크입니다. 카톡·메일로 보내세요.',
           name: projectName,
         }) as string}
+        notes={[
+          ...(overviewThin ? [t('share.overviewThin', { defaultValue: '설명·기간이 비어 있어 링크 개요가 빈약해요 — 상세정보 탭에서 채우세요.' }) as string] : []),
+          t('share.filesNote', { defaultValue: '링크에서 파일은 이미지·PDF 보기만 돼요 · 받기는 외부 공개(L4) 파일만.' }) as string,
+          t('share.historyNote', { defaultValue: '히스토리 탭에서 «고객 공개» 를 켠 주요 이슈만 링크에 보여요.' }) as string,
+        ]}
         endpoints={{
           list: `/api/projects/${projectId}/guest-links${q}`,
           issue: `/api/projects/${projectId}/guest-links${q}`,

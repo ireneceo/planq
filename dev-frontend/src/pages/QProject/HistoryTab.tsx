@@ -17,6 +17,8 @@ import ActionButton from '../../components/Common/ActionButton';
 import { joinRoom, leaveRoom, onSocket } from '../../services/socket';
 import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
 import { formatDay, formatDayTime } from '../../utils/dateFormat';
+import AutoSaveField from '../../components/Common/AutoSaveField';
+import { Switch, SwitchKnob } from '../../components/Common/switchShell';
 
 interface HistoryEvent {
   id: string;
@@ -39,6 +41,8 @@ interface HistoryEvent {
   note?: string | null;
   /** 업무 추가처럼 낱개로는 의미가 옅어 접어야 하는 사건 */
   groupable?: boolean;
+  /** 사람이 적은 주요 이슈(manual)만 — 고객 프로젝트 링크에 보이는가(GUEST_PROJECT_VIEW_DECISIONS §I-2) */
+  client_visible?: boolean;
 }
 
 /** 화면 한 줄 — 낱개 사건이거나, 접힌 업무 추가 묶음 */
@@ -76,8 +80,13 @@ export default function HistoryTab({ projectId }: Props) {
   const bodyDraft = useDraftText(useDraftKey('project-history-entry', projectId, null));
   const addBody = bodyDraft.text;
   const [addBusy, setAddBusy] = useState(false);
+  // 고객 링크에 보이기 — 기본 꺼짐(§I-2). 사람이 켠 항목만 고객 프로젝트 링크의 «주요 이슈» 에 나간다.
+  const [addClientVisible, setAddClientVisible] = useState(false);
   const [addErr, setAddErr] = useState<string | null>(null);
   const reloadTimer = useRef<number | null>(null);
+  // «고객 공개» 토글의 최신 값 — 훅이라 early return 위에 둔다.
+  const eventsRef = useRef<HistoryEvent[]>([]);
+  eventsRef.current = events;
   // 접힌 업무 묶음 중 펼쳐 둔 것
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const toggleBundle = useCallback((k: string) => {
@@ -210,6 +219,25 @@ export default function HistoryTab({ projectId }: Props) {
     if (g) g.items.push(en); else groups.push({ key, label: gl, items: [en] });
   }
 
+  // «고객 공개» 토글 — flip=화면만, persist=래퍼(AutoSaveField)가 부르는 저장. 최신 값은 ref 로 읽는다
+  //   (클릭으로 이미 뒤집힌 값을 저장해야 하는데 클로저는 뒤집기 전 값을 본다 — CLAUDE.md 자동저장 절).
+  const setVisible = (id: string, v: boolean) =>
+    setEvents((prev) => prev.map((x) => (x.id === id ? { ...x, client_visible: v } : x)));
+  const persistVisible = async (ev: HistoryEvent) => {
+    const cur = eventsRef.current.find((x) => x.id === ev.id);
+    if (!cur || !cur.entity_id) return;
+    const want = !!cur.client_visible;
+    const r = await apiFetch(`/api/projects/${projectId}/history-entries/${cur.entity_id}`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ client_visible: want }),
+    });
+    const j = await r.json().catch(() => null);
+    if (!r.ok || !j?.success) {
+      setVisible(cur.id, !want);                          // 화면이 서버와 다른 값을 보이면 안 된다
+      throw new Error(j?.message || 'save_failed');       // 던져야 ! 뱃지가 뜬다
+    }
+  };
+
   const submitEntry = async () => {
     if (addBusy || !addTitle.trim()) return;       // 중복 제출 가드 (UI_DESIGN_GUIDE §1.8)
     setAddBusy(true); setAddErr(null);
@@ -218,7 +246,7 @@ export default function HistoryTab({ projectId }: Props) {
       const occurredAt = new Date(`${addDate}T12:00:00`).toISOString();
       const r = await apiFetch(`/api/projects/${projectId}/history-entries`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title: addTitle.trim(), body: addBody.trim() || null, occurred_at: occurredAt }),
+        body: JSON.stringify({ title: addTitle.trim(), body: addBody.trim() || null, occurred_at: occurredAt, client_visible: addClientVisible }),
       });
       const j = await r.json().catch(() => null);
       if (!r.ok || !j?.success) {
@@ -228,7 +256,7 @@ export default function HistoryTab({ projectId }: Props) {
           : (t('history.add.failed', '추가하지 못했습니다.') as string));
         return;
       }
-      setAddTitle(''); bodyDraft.clear(); setAddOpen(false);   // 성공에만 비운다
+      setAddTitle(''); bodyDraft.clear(); setAddOpen(false); setAddClientVisible(false);   // 성공에만 비운다
       await load();                                  // 목록을 다시 읽어 방금 것이 보이게
     } catch {
       setAddErr(t('history.add.failed', '추가하지 못했습니다.') as string);
@@ -257,6 +285,12 @@ export default function HistoryTab({ projectId }: Props) {
             <AddArea rows={3} data-testid="history-add-body" data-draft-kind="project-history-entry"
               placeholder={t('history.add.bodyPlaceholder', '내용 (선택)') as string}
               {...bodyDraft.bind} />
+            <AddCheck>
+              {/* autosave-exempt: 생성 폼의 제출값 — [추가] 를 누를 때 같이 보낸다 */}
+              <input type="checkbox" checked={addClientVisible} data-testid="history-add-client-visible"
+                onChange={(e) => setAddClientVisible(e.target.checked)} />
+              <span>{t('history.clientVisible.add', '고객 프로젝트 링크에 보이기') as string}</span>
+            </AddCheck>
             {bodyDraft.restored && <AddHint>{t('history.add.draftRestored', '쓰던 내용을 되살렸습니다.') as string}</AddHint>}
             {addErr && <AddErr role="alert">{addErr}</AddErr>}
             <AddActions>
@@ -321,6 +355,18 @@ export default function HistoryTab({ projectId }: Props) {
                   <Row2>
                     <span>{formatDayTime(e.at, { year: 'always' })}</span>
                     {e.actor_name && <><Sep>·</Sep><span>{e.actor_name}{e.actor_is_ai ? ' (AI)' : ''}</span></>}
+                    {e.source === 'manual' && e.entity_id && (
+                      <VisibleSlot data-testid={`history-client-visible-${e.entity_id}`}>
+                        <VisibleLabel>{t('history.clientVisible.label', '고객 공개') as string}</VisibleLabel>
+                        <AutoSaveField key={`${projectId}:${e.id}`} type="toggle" onSave={() => persistVisible(e)}>
+                          <Switch type="button" role="switch" aria-checked={!!e.client_visible} $on={!!e.client_visible}
+                            aria-label={t('history.clientVisible.aria', '고객 프로젝트 링크에 보이기') as string}
+                            onClick={() => setVisible(e.id, !e.client_visible)}>
+                            <SwitchKnob $on={!!e.client_visible} />
+                          </Switch>
+                        </AutoSaveField>
+                      </VisibleSlot>
+                    )}
                   </Row2>
                 </Body>
               </>
@@ -426,3 +472,11 @@ const AddArea = styled.textarea`
 const AddActions = styled.div`display: flex; justify-content: flex-end; gap: 8px;`;
 const AddErr = styled.div`font-size: 0.75rem; color: #B91C1C;`;
 const AddHint = styled.div`font-size: 0.6875rem; color: #94A3B8;`;
+const AddCheck = styled.label`
+  display: inline-flex; align-items: center; gap: 6px; font-size: 0.75rem; color: #475569; cursor: pointer;
+  align-self: flex-start;
+  input { width: 16px; height: 16px; accent-color: #14B8A6; cursor: pointer; }
+`;
+/* 주요 이슈 행의 «고객 공개» — 줄 오른쪽 끝(margin-left:auto) */
+const VisibleSlot = styled.span`margin-left: auto; display: inline-flex; align-items: center; gap: 6px;`;
+const VisibleLabel = styled.span`font-size: 0.6875rem; color: #64748B;`;

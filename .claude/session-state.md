@@ -1,9 +1,24 @@
 ## 현재 작업 상태
-**마지막 업데이트:** 2026-10-10 새벽
+**마지막 업데이트:** 2026-10-10 오전
 **작업 상태:** 완료 (방 006a5c5d — 관리자 열람 규칙 D2·D3·D4, Fable PASS · 방 58947e65 — 체험 중 결제 환불, Fable 설계·완료 PASS) · **운영 미배포 커밋 다수**(646974b5 v1.70.1 이후)
 
 ### 진행 중인 작업
-- 없음
+- 없음 (방 e205bfa8 은 아래 «답 기다림»)
+
+### 답 기다림: 운영 서버에 PDF 그림 도구(poppler-utils) 설치 — Irene 서버 창 (2026-10-10 · 방 e205bfa8)
+- 무엇: 고객 링크 파일 «보기» 의 PDF 미리보기가 `pdftoppm`·`pdfinfo` 를 쓴다. dev 엔 있고 **운영엔 없다**(Fable 실측). 설치는 sudo 라 Irene 몫.
+- 왜: Fable 완료 검증 FAIL 의 유일한 남은 차단 항목. 코드 쪽 두 지적(포이즌 캐시 · 배포 사전검사)은 고쳤다 — 도구가 없으면 PDF 에 «보기» 를 안 붙이고, 배포 스크립트가 멈춘다.
+- 답이 오면: 운영 `pdftoppm -v` 확인 → `/fable-검증` 재판정(설치·preflight·캐시 수정 확인) → PASS 마커 → 배포는 Irene `/배포` 지시 때. 배포 뒤 K-DINE 링크 PDF 1건 X-Pq-Pages 200 실측.
+
+### 완료(Fable 1차 FAIL → 코드 지적 수정, 운영 설치 대기): 고객 프로젝트 링크 — 개요 통계·주요 이슈·히스토리 탭·파일 «보기» (2026-10-10 · 방 e205bfa8 · [Fable] 설계 §I · [Opus] 구현)
+- 원문: *"고객 프로젝트 안내에 … 기본 정보들 주요이슈들 통계들, 업무진행 통계들, 히스토리들 … 제대로 제공이 안되고 있어. 파일에서 미리보기도 안되고"*
+- 운영 실측(해당 링크): 파일 수십 건 전부 downloadable:false → 미리보기 0(옛 §D 규칙상 «영원히 0»). 개요는 단계·완료수뿐. 업무 상태 done_feedback 등 원문 노출.
+- 설계 docs/GUEST_PROJECT_VIEW_DECISIONS.md §I. 개요 기본 정보(빈 칸 «—»)·업무 통계(guestTaskStats.ts)·주요 이슈 3 · 6번째 탭 «히스토리» · 히스토리 항목별 «고객 공개» 토글(기본 꺼짐, PATCH /api/projects/:id/history-entries/:entryId) · GET /api/guest/:token/history · 파일 보기 GET /api/guest/:token/files/:id/preview(이미지 webp·PDF 한 쪽 png, 원본 금지, 링크 토큰 아래) · 받기는 종전(L4) · 멤버 링크 창 안내 3줄.
+- **운영 배포 때**: `scripts/migrate-history-entry-client-visible.js` 가 코드보다 먼저(배포 슬롯 등록함). 기존 행 전부 꺼짐 → K-DINE 링크 «주요 이슈» 는 멤버가 켜야 보인다.
+- 검증: guestproject 100 ✅ · tenant·projecttabs 포함 129 ✅ · 대조군 2개 뒤집힘 · health 84/84 · guard 68/69 · vite build 0 · 범위 tsc 0. Drive 저장분 미리보기 ⬜ 미측정.
+- Fable 완료 검증 1차 **FAIL**(dev 코드는 설계와 일치 · 27검사 독립 재현 · 전체 tsc -b heap 5120 으로 2분 31초 EXIT 0): 운영에 poppler 없음 + 도구 실패를 «못 읽는 PDF» 로 영구 캐시. → `pdfToolsAvailable()`(없으면 PDF «보기» 꺼짐) · 도구 실패는 캐시 안 함 · `deploy-planq.sh preflight_check` 에 poppler 검사(없으면 배포 중단). 재측정 5/5 + 도구없음 판정 + 카나리 100 · guard 68/69 · health 84/84.
+- Fable 팁: 전체 `tsc -b` 는 `NODE_OPTIONS=--max-old-space-size=5120` 이면 dev 에서 끝난다(«77초 사망» 의 실체가 heap OOM 일 수 있다).
+- 남김(I-6): 로그인 고객 앱의 개요·히스토리 탭 · 로그인 고객 파일 가시성(fileListWhereByLevel 고객 분기 없음 — 자기 업로드만 보임) — 별도 Fable 설계.
 
 ### 완료: 옛 방식 고객 링크 — «복사할 수 있는 새 주소 받기» (옛 링크는 열린 채) (2026-10-10 · 방 59f070bf · [Opus] · Fable 안 씀 — 같은 자리·같은 범위 링크 하나 추가, 새 공개 라우트·범위 확장 없음)
 - 신고: 프로젝트 외부 열람 링크가 «이전 방식 링크라 주소를 다시 볼 수 없어요» 로 복사 불가. 운영 실측: 살아 있는 공유 링크 4개 중 #1·#2·#5 가 9/24 파생 토큰 이전 난수 링크(원문 없음 — 되살릴 수 없음). 신고 건은 #5(워프로랩 프로젝트 3, 9/27 고객 열람).

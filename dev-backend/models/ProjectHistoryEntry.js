@@ -24,6 +24,8 @@ ProjectHistoryEntry.init({
   occurred_at: { type: DataTypes.DATE, allowNull: false },
   title: { type: DataTypes.STRING(200), allowNull: false },
   body: { type: DataTypes.TEXT, allowNull: true },
+  /** 고객 프로젝트 링크(/g/:token)에 보이는가 — 항목마다 사람이 켠다. 기본 꺼짐(GUEST_PROJECT_VIEW_DECISIONS §I-2) */
+  client_visible: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
   created_by: { type: DataTypes.INTEGER, allowNull: false },
   /** 지운 것은 목록에서 빠지되 원장에는 남는다(감사 로그와 짝) */
   deleted_at: { type: DataTypes.DATE, allowNull: true },

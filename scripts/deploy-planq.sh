@@ -129,6 +129,16 @@ preflight_check() {
     [ "$PROD_OK" = "ok" ] || { error "운영서버 디렉터리 누락 — mkdir -p $PROD_BE $PROD_FE_BUILD $PROD_QNOTE $PROD_LOGS"; exit 1; }
     success "운영서버 디렉터리 구조 OK"
 
+    # 시스템 의존성 — 고객 링크 PDF 미리보기(services/pdfPagePreview.js)가 poppler 를 부른다.
+    #   ★ 2026-10-10 Fable FAIL — dev 에만 있고 운영에 없었다. 없으면 배포를 멈춘다(코드는 없을 때 PDF «보기» 를 끄지만,
+    #     그러면 Irene 신고 «파일 미리보기가 안 된다» 가 PDF 에서 그대로 남는다). 설치: sudo apt-get install -y poppler-utils
+    if ssh $SSH_OPTS "$PROD_HOST" "command -v pdftoppm >/dev/null && command -v pdfinfo >/dev/null"; then
+      success "운영서버 poppler(pdftoppm·pdfinfo) OK"
+    else
+      error "운영서버에 poppler 없음 — Irene 서버 창: sudo apt-get install -y poppler-utils"
+      exit 1
+    fi
+
     # .env 는 첫 배포 시점에 없을 수 있음 — dry-run 후 운영서버 Claude 가 채움. 경고만 출력
     if ! ssh $SSH_OPTS "$PROD_HOST" "[ -f $PROD_BE/.env ]"; then
       warn "$PROD_BE/.env 아직 없음 — 첫 dry-run 후 운영서버에서 입력 필요 (.env.production.example 템플릿 사용)"
@@ -342,6 +352,9 @@ sync_database() {
   # 2026-10-09 체험 중 결제 환불 요청(docs/TRIAL_REFUND_DESIGN.md) — payments 컬럼 6개 + 인덱스. 멱등.
   #   ★ 순서: PM2 reload 보다 먼저 — Payment 모델이 이 칸을 SELECT 하므로 없으면 결제 조회 전부 500.
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-trial-refund.js 2>&1 | tail -10"
+  # 2026-10-10 고객 프로젝트 링크 «주요 이슈» 공개 축(docs/GUEST_PROJECT_VIEW_DECISIONS.md §I-4) — project_history_entries.client_visible. 멱등.
+  #   ★ 순서: PM2 reload 보다 먼저 — 모델이 이 칸을 SELECT 하므로 없으면 프로젝트 히스토리 전체가 500.
+  prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-history-entry-client-visible.js 2>&1 | tail -6"
   # 2026-10-08 0-A/0-B 돈 묶음 (docs/FIX_0AB_MONEY_DESIGN.md) — 둘 다 멱등. ★ 코드보다 먼저 돈다:
   #   money: 금액 DECIMAL(14,2) · invoice_number_counters 시드 · UNIQUE(business_id, invoice_number) — 없으면 채번 함수가 없는 표를 UPDATE 해 500.
   #   billing-0a: businesses.scheduled_plan 보장 · payments.line_items — 모델이 선언하므로 없으면 결제 조회 500.

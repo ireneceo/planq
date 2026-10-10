@@ -471,7 +471,7 @@ async function getProjectStream(project, viewerUserId, opts = {}) {
     jobs.push(
       ProjectHistoryEntry.findAll({
         where: { project_id: projectId, deleted_at: null, [Op.and]: [timeWhereAt('manual')] },
-        attributes: ['id', 'title', 'body', 'created_by', 'occurred_at'],
+        attributes: ['id', 'title', 'body', 'created_by', 'occurred_at', 'client_visible'],
         order: [['occurred_at', 'DESC'], ['id', 'DESC']], limit: perSource, raw: true,
       }).then((rows) => rows.map((r) => ({
         id: `manual:${r.id}`, source: 'manual', kind: 'manual.logged',
@@ -480,6 +480,8 @@ async function getProjectStream(project, viewerUserId, opts = {}) {
         from_status: null, to_status: null,
         title: r.title || null,
         preview: r.body ? String(r.body).replace(/\s+/g, ' ').trim().slice(0, 120) : null,
+        // 고객 프로젝트 링크에 보이는가 — 히스토리 탭의 «고객 공개» 토글이 읽는다(GUEST_PROJECT_VIEW_DECISIONS §I-2).
+        client_visible: !!r.client_visible,
       }))).catch(() => [])
     );
   }

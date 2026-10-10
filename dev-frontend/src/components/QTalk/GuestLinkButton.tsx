@@ -20,7 +20,7 @@ import ActionButton from '../Common/ActionButton';
 import { isLiveGuestLink, type GuestLink as Link } from './guestLink';
 
 
-export default function GuestLinkButton({ businessId, conversationId, clientName, autoOpen, onClosed, endpoints, lead, title, scope = 'conversation' }: {
+export default function GuestLinkButton({ businessId, conversationId, clientName, autoOpen, onClosed, endpoints, lead, notes, title, scope = 'conversation' }: {
   businessId: number; conversationId: number; clientName: string;
   /** 프로젝트 헤더처럼 **다른 화면이 트리거를 그릴 때** 곧바로 열 때 (ProjectShareLinkButton). */
   autoOpen?: boolean;
@@ -34,6 +34,8 @@ export default function GuestLinkButton({ businessId, conversationId, clientName
   endpoints?: { list: string; issue: string; revoke: (linkId: number) => string };
   /** 모달 안내 문구·제목 — 링크가 여는 것이 다르면 문구도 달라야 한다(문구가 거짓말이 되지 않게). */
   lead?: string;
+  /** 안내 아래 작은 줄들 — 이 링크로 무엇이 보이고 무엇이 비었는지(프로젝트 링크, GUEST_PROJECT_VIEW_DECISIONS §I-1·I-3). */
+  notes?: string[];
   title?: string;
   /** 이 모달이 **만드는** 링크의 종류. 발급이 이 종류로 멱등이다 — 다른 종류 링크는 목록에만 보인다. */
   scope?: 'conversation' | 'project';
@@ -200,6 +202,9 @@ export default function GuestLinkButton({ businessId, conversationId, clientName
             defaultValue: '{{name}} 님이 로그인 없이 이 대화를 보고 답할 수 있는 링크입니다. 카톡·메일로 보내세요.',
             name: clientName,
           }) as string)}</Lead>
+          {!!notes?.length && (
+            <NoteList data-testid="guest-link-notes">{notes.map((n) => <li key={n}>{n}</li>)}</NoteList>
+          )}
 
           {err && <ErrNote role="alert">{err}</ErrNote>}
           {own ? (
@@ -368,6 +373,7 @@ const WriteLabel = styled.label`
 `;
 const WriteNote = styled.div`font-size:0.75rem;color:#94A3B8;padding-left:23px;`;
 const Lead = styled.p`font-size:0.875rem;color:#475569;line-height:1.6;margin:0 0 16px;`;
+const NoteList = styled.ul`margin:-8px 0 16px;padding-left:18px;font-size:0.75rem;color:#64748B;line-height:1.6;`;
 const FreshBox = styled.div`border:1px solid #99F6E4;background:#F0FDFA;border-radius:8px;padding:14px;`;
 const FreshLabel = styled.div`font-size:0.8125rem;font-weight:700;color:#0F766E;margin-bottom:8px;`;
 const UrlRow = styled.div`display:flex;gap:6px;margin-bottom:10px;`;

@@ -413,6 +413,7 @@ router.get('/:id/history-entries', authenticateToken, async (req, res, next) => 
     });
     return successResponse(res, rows.map((r) => ({
       id: r.id, occurred_at: r.occurred_at, title: r.title, body: r.body,
+      client_visible: !!r.client_visible,
       created_by: r.created_by, author_name: r.author?.name || null, created_at: r.created_at,
     })));
   } catch (err) { next(err); }
@@ -435,17 +436,48 @@ router.post('/:id/history-entries', authenticateToken, async (req, res, next) =>
       business_id: project.business_id, project_id: project.id,
       occurred_at: at, title: title.slice(0, 200),
       body: req.body?.body ? String(req.body.body).slice(0, 5000) : null,
+      // 고객 프로젝트 링크에 보일지 — 명시한 true 만 켠다(기본 꺼짐, GUEST_PROJECT_VIEW_DECISIONS §I-2)
+      client_visible: req.body?.client_visible === true,
       created_by: req.user.id,
     });
     createAuditLog({
       userId: req.user.id, businessId: project.business_id,
       action: 'project.history_entry.create', targetType: 'project', targetId: project.id,
-      newValue: { id: row.id, title: row.title, occurred_at: row.occurred_at },
+      newValue: { id: row.id, title: row.title, occurred_at: row.occurred_at, client_visible: row.client_visible },
     });
     // 히스토리 탭을 열어 둔 다른 사람에게도 바로 보인다 (CLAUDE.md 운영 안정성 16 (b))
     const io = req.app.get('io');
     if (io) io.to(`business:${project.business_id}`).emit('project:updated', { id: project.id });
     return successResponse(res, { id: row.id }, null, 201);
+  } catch (err) { next(err); }
+});
+
+// PATCH — 항목의 «고객 링크에 보이기» 만 바꾼다(GUEST_PROJECT_VIEW_DECISIONS §I-2).
+//   권한은 POST 와 같다(멤버 이상, 고객 403). 제목·본문 수정 문은 아니다 — 범위를 넓히지 않는다.
+router.patch('/:id/history-entries/:entryId', authenticateToken, async (req, res, next) => {
+  try {
+    const { project, role, error } = await loadProjectOrForbidden(Number(req.params.id), req.user.id);
+    if (error) return errorResponse(res, error.message, error.code);
+    if (role === 'client') return errorResponse(res, 'member_only', 403, 'member_only');
+    if (typeof req.body?.client_visible !== 'boolean') return errorResponse(res, 'client_visible_required', 400);
+    const { ProjectHistoryEntry } = require('../models');
+    const row = await ProjectHistoryEntry.findOne({
+      where: { id: Number(req.params.entryId), business_id: project.business_id, project_id: project.id, deleted_at: null },
+    });
+    if (!row) return errorResponse(res, 'not_found', 404);
+    const before = !!row.client_visible;
+    const want = req.body.client_visible;
+    if (before !== want) {
+      await row.update({ client_visible: want });
+      createAuditLog({
+        userId: req.user.id, businessId: project.business_id,
+        action: 'project.history_entry.client_visible', targetType: 'project', targetId: project.id,
+        oldValue: { id: row.id, client_visible: before }, newValue: { id: row.id, client_visible: want },
+      });
+      const io = req.app.get('io');
+      if (io) io.to(`business:${project.business_id}`).emit('project:updated', { id: project.id });
+    }
+    return successResponse(res, { id: row.id, client_visible: want });
   } catch (err) { next(err); }
 });
 
