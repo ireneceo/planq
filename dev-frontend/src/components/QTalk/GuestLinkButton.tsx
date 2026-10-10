@@ -129,6 +129,14 @@ export default function GuestLinkButton({ businessId, conversationId, clientName
     if (!url) return;
     try { await navigator.clipboard.writeText(url); setCopied(true); setTimeout(() => setCopied(false), 2000); } catch { /* noop */ }
   };
+  // 목록의 다른 링크(대화방 모달에서 본 프로젝트 링크 등)도 주소가 있으면 복사할 수 있어야 한다.
+  //   2026-10-10 — 서버는 `url` 을 실어 보내는데 목록 줄에 복사 문이 없어서, 이 대화방의 옛 링크가
+  //   «주소를 다시 볼 수 없음» 이면 화면 어디에서도 복사할 길이 없었다(Irene: "다시 복사가 안돼").
+  const [copiedId, setCopiedId] = useState<number | null>(null);
+  const copyRow = async (l: Link) => {
+    if (!l.url) return;
+    try { await navigator.clipboard.writeText(l.url); setCopiedId(l.id); setTimeout(() => setCopiedId((c) => (c === l.id ? null : c)), 2000); } catch { /* noop */ }
+  };
 
   // ★ 카톡 도달의 실질 — 폰에서 공유 시트를 열면 카톡이 목록에 뜬다.
   //   알림톡 연동(채널 개설·템플릿 심사·대행사 계약) 없이 v1 에서 되는 유일한 길이다.
@@ -253,6 +261,12 @@ export default function GuestLinkButton({ businessId, conversationId, clientName
                     <Hint>/g/{l.token_hint}… <ScopeChip>{scopeChip(l)}</ScopeChip></Hint>
                     <Meta>{linkMeta(l)}</Meta>
                   </RowMain>
+                  {l.url && (
+                    <ActionButton tone="secondary" size="sm" onClick={() => { void copyRow(l); }}
+                      data-testid={`guest-link-copy-${l.id}`}>
+                      {copiedId === l.id ? t('guestLink.copied', { defaultValue: '복사됨' }) : t('guestLink.copy', { defaultValue: '복사' })}
+                    </ActionButton>
+                  )}
                   <RevokeBtn type="button" onClick={() => setConfirmId({ id: l.id, kind: 'link' })} disabled={busy}>
                     {t('guestLink.close', { defaultValue: '링크 닫기' })}
                   </RevokeBtn>
