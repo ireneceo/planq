@@ -5,6 +5,12 @@
 ### 진행 중인 작업
 - 없음
 
+### 아침 점검 10/10 (방 58f2d114 · [Opus]) — 배포 가능 상태 확인
+- 개발완료 건너뜀: 마지막 개발완료(f4377490) 뒤 문서 2커밋뿐·푸시됨. 게이트 health 84/84 · guard 68/69 통과 · e2e tenant 0.
+- 밤 검사 10-09 실패 10스위트 재실행 → 9개 통과(이미 고쳐짐), qnotecue 는 검사기 기대값(401→404, 보안 2차의 존재 숨김) 수정. 순찰 10-09 는 하니스 죽음(Connection closed) — 오늘 밤 결과를 볼 것.
+- next.json 을 미배포 전체(dab6c857 이후 ~100커밋)로 갱신.
+- 운영 피드백 읽기(ssh)는 이 방에서 권한 거부 — 확인 못 함.
+
 ### 완료: 관리자 열람 규칙 D2·D3·D4 (2026-10-10 새벽 · [Opus]+[Fable] D3 설계 PASS·완료 PASS · 방 006a5c5d = 옛 166c2f84) — 운영 미배포
 - D2 owner/admin 도 남의 «나만 보기» Q info·일정 닫힘 · D3 프로젝트·고객 없는 팀 대화 참여자만(docs/PRIVATE_CHAT_DESIGN.md) · D4 관리자는 남의 개인 메일 끄기만 · D10 그대로(대표가 개인 회고를 본다 — Irene).
 - 검증: D2/D4 12/12(원본 대조 8 뒤집힘) · D3 26/26 실HTTP+실소켓(원본 대조 16) · Fable 107+9 실측 누수 0 · health 84/84 · guard 68/69 · build 0 · e2e tenant·clientlink·clienthome·inboxcount·chatattach 0.
