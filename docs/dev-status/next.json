@@ -1,8 +1,6 @@
 {
   "working_on": [],
-  "in_progress": [
-    "#460 설문(표 문서) — 다른 작업방에서 진행 중, 이번 배포에 포함하지 않음(미커밋)"
-  ],
+  "in_progress": [],
   "completed": [
     {
       "title": "고객 채널 = 프로젝트 × 고객 — 고객사가 둘인 프로젝트에서 서로의 방·청구서 카드가 보이던 것(e55e24e5·f5964b67)",
@@ -47,6 +45,78 @@
     {
       "title": "안드로이드 다른 앱 «공유» → PlanQ(76da612a, #434·#456 — 앱 빌드 필요)",
       "verified": "fable_pass"
+    },
+    {
+      "title": "설문 — 표 문서를 «설문으로 받기»: 링크로 누구나 응답 · 응답 = 표 한 줄 · 칸별 통계(725ec330·78c5b3e8, #460)",
+      "verified": "fable_pass"
+    },
+    {
+      "title": "종일 일정 = 날짜 — 다른 기기·시간대에서 하루 밀리던 것(c79778d1·ea44f5f5)",
+      "verified": "fable_pass"
+    },
+    {
+      "title": "돈 정합 0-A 구독·0-B 청구 — 고아 결제·예약 다운그레이드·애드온 합산·체험 잔여일·통화 반올림·청구서 번호(93c558a2·2dfd8320)",
+      "verified": "fable_pass"
+    },
+    {
+      "title": "정합 일괄 0-C~0-J — 격리·가시성 · 휴지통 보관 하한 · 관리자/메뉴 권한 한 함수 · 초대 경로 · 숫자 한 벌 · 알림 계약 · i18n 610키 · 작은 결함(ccd7b793~43e48a10)",
+      "verified": "fable_pass"
+    },
+    {
+      "title": "서명 — 빨간 칸이 다음 행동을 말하고, 누르면 그 자리에서 서명 창 · 앱 탭 모드 빈 탭 수정(2905f5c4·4e0cdaec·c4fa04f8·fe20f95b)",
+      "verified": "opus_only"
+    },
+    {
+      "title": "구독 결제 이력 [영수증] 빈 화면 수정(f8585dce, #464)",
+      "verified": "opus_only"
+    },
+    {
+      "title": "관리자 «확인 필요» 메뉴·배지·알림 — 입금 통보가 종·푸시·사이드바에 뜨고 그 구독 행으로 이동(cd372c3a·6431fc29)",
+      "verified": "opus_only"
+    },
+    {
+      "title": "Q docs AI로 수정(전후 보기·고른 곳만 반영) · 편집기 찾기·바꾸기(53b28bfe·668ad98e)",
+      "verified": "opus_only"
+    },
+    {
+      "title": "근태·Insights 공휴일·가동률 수정(1a632eec)",
+      "verified": "fable_pass"
+    },
+    {
+      "title": "AI 앱 업무 프로젝트 옮기기 move_task_to_project(a176687c, #463)",
+      "verified": "fable_pass"
+    },
+    {
+      "title": "관리자 화면에서 워크스페이스 전환 경합(493ee902)",
+      "verified": "opus_only"
+    },
+    {
+      "title": "새 팀 첫 길 점검 12건 — 가입→초대→합류→업무 요청→대화(c3338502)",
+      "verified": "opus_only"
+    },
+    {
+      "title": "팀 적응 5단계 카드·도움말·랜딩 /start(98abbd28)",
+      "verified": "opus_only"
+    },
+    {
+      "title": "가입 때 혼자·팀 고르기(플랜별 14일 체험) · 체험 중 플랜 바꾸기 · 체험 비용 캡(53d498a4)",
+      "verified": "fable_pass"
+    },
+    {
+      "title": "링크 → 앱 열기 경로 넓힘 · 다른 서버 링크는 브라우저(53d498a4 — 도메인 분리는 새 앱 빌드)",
+      "verified": "opus_only"
+    },
+    {
+      "title": "체험 결제 유도 카드 · 체험 중 결제 «해지하고 환불 요청»(6ce9afae·58961679)",
+      "verified": "fable_pass"
+    },
+    {
+      "title": "보안 점검 2차 — 고객·외부인 누수 · 팀/개인 분리 · 해킹 대응 30여 건(fb014582)",
+      "verified": "fable_pass"
+    },
+    {
+      "title": "관리자 열람 규칙 D2·D3·D4 — «나만 보기» owner/admin 도 닫힘 · 팀 대화 참여자만 · 남의 개인 메일 끄기만(f4377490)",
+      "verified": "fable_pass"
     }
   ],
   "behavior_changes": [
@@ -55,25 +125,41 @@
     "일정 등록·변경 때 참석자 알림을 고를 수 있다 · 계정 있는 고객 참석자도 앱 알림을 받는다(메일 아님)",
     "메일 «보낸메일» 에 Gmail·네이버에서 직접 보낸 메일도 보이고, 업체 스팸함 메일이 «스팸» 탭에 보인다(30일 뒤 자동 삭제)",
     "워크스페이스 설정 > Cue 에 «질문 주제 분석»(기본 켬)·«원문 30일 보관»(기본 끔) 스위치",
-    "구글 캘린더 연결 아래 «PlanQ 일정을 올릴 캘린더» 선택(다시 연결 후)"
+    "구글 캘린더 연결 아래 «PlanQ 일정을 올릴 캘린더» 선택(다시 연결 후)",
+    "종일 일정은 어느 시간대에서 봐도 같은 날짜",
+    "가입·새 워크스페이스 때 혼자(Starter)·팀(Basic)·큰 팀(Pro) 체험을 고른다 · 체험 중 AI 월 50회·녹음 60분",
+    "체험 중 결제한 대표는 체험이 끝나기 전 «해지하고 환불 요청» 가능(관리자 처리)",
+    "«나만 보기» Q info·일정은 owner/admin 도 못 본다 · 프로젝트·고객 없는 팀 대화는 참여자만",
+    "휴지통 보관은 모든 플랜 최소 30일"
   ],
   "issues": [],
   "blocked_on_human": [
     "운영 privacy_version 올리기(재동의) + 방침 시행일",
     "Google Cloud 콘솔 OAuth 데이터 액세스에 calendar.calendarlist.readonly 추가 후 심사 제출",
-    "ChatGPT·Claude 앱 다시 연결(projects:write)"
+    "ChatGPT·Claude 앱 다시 연결(projects:write)",
+    "nginx 내부 주소 두 겹 차단 운영 적용 — sudo /opt/planq/scripts/apply-nginx-internal-deny.sh prod",
+    "배포 후 운영 node seed-wiki-content.js(도움말 글)"
   ],
   "migrations": [
     "migrate-mail-folders.js",
     "migrate-cue-question-analysis.js",
-    "migrate-customer-channel-per-client.js --apply(→ migrate-project-client-user.js)"
+    "migrate-customer-channel-per-client.js --apply(→ migrate-project-client-user.js)",
+    "migrate-survey.js",
+    "migrate-allday-utc-date.js",
+    "migrate-invoice-money.js",
+    "migrate-billing-0a.js",
+    "migrate-trial-refund.js"
   ],
   "check_areas": [
     "고객 둘 이상 프로젝트의 고객 채팅방·청구서 발행·외부 열람 링크",
     "일정 등록(참석자 알림 체크)·상세에서 시간/장소 변경",
     "Q mail 보낸메일·스팸 탭 · 메일 계정 설정의 «업체 메일함 가져오기»",
     "워크스페이스 설정 > Cue · 플랫폼 관리자 > Cue 질문",
-    "AI 앱 프로젝트 만들기(재연결 후)"
+    "AI 앱 프로젝트 만들기(재연결 후)",
+    "설문(표 문서 → 응답 받기) 공개 응답·통계",
+    "요금제 화면 체험 플랜 바꾸기·선결제·환불 요청 · 관리자 결제 이력 체험 환불 처리",
+    "서명 화면(빨간 칸 → 서명 창)",
+    "Q docs AI로 수정·찾기/바꾸기"
   ],
   "backlog": [
     "네이버 Message-ID 보존 실측",
@@ -83,7 +169,5 @@
   "tooling_health": [
     "Fable 4라운드(1차 FAIL→외부 링크 고객축 · 2차 FAIL→메일 a·b · 3차 FAIL→게스트 넘겨받기 · 4차 PASS)"
   ],
-  "undeployed": [
-    "#460 설문(미커밋, 다른 작업방)"
-  ]
+  "undeployed": []
 }
