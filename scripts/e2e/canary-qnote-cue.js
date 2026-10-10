@@ -124,8 +124,9 @@ async function run() {
     const asOther = await fetch(url(otherId), { headers: { 'x-internal-api-key': process.env.INTERNAL_API_KEY } });
     const okJson = okKey.ok ? await okKey.json() : null;
     const otherJson = asOther.ok ? await asOther.json() : null;
-    push('⑥ 내부 엔드포인트 — 키 틀리면 401 · user_id 가 다르면 0건',
-      badKey.status === 401 && (okJson?.data || []).length >= 1 && (otherJson?.data || []).length === 0,
+    // 키가 틀리면 앞단 _internal_gate 가 404(주소 존재를 숨김 — 보안 점검 2차 2026-10-09)로 막는다.
+    push('⑥ 내부 엔드포인트 — 키 틀리면 404(존재 숨김) · user_id 가 다르면 0건',
+      badKey.status === 404 && (okJson?.data || []).length >= 1 && (otherJson?.data || []).length === 0,
       `badKey=${badKey.status} · mine=${(okJson?.data || []).length} · other=${(otherJson?.data || []).length}`);
 
     // ⑦ 커버리지 문구가 거짓말하지 않는다
