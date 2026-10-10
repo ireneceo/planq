@@ -73,7 +73,8 @@ export default function GuestLinkButton({ businessId, conversationId, clientName
   // 교체할 때의 «문의 허용» — 기존 링크 값에서 시작한다(재사용은 기존 값을 바꾸지 않는다, §B-5).
   useEffect(() => { if (own) setCanWrite(!!own.can_write); }, [own?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const issue = async (replace: boolean) => {
+  // mode: 'new' 처음 만들기 · 'replace' 교체(옛것 닫음) · 'upgrade' 옛 난수 링크는 두고 복사할 수 있는 새 주소만
+  const issue = async (mode: 'new' | 'replace' | 'upgrade') => {
     if (busy) return;
     setBusy(true);
     setErr(null);
@@ -83,7 +84,11 @@ export default function GuestLinkButton({ businessId, conversationId, clientName
         //   요청 body 의 client_id 를 서버가 믿으면 테넌트 우회 통로가 된다.
         //   보내는 것은 이 링크로 **문의까지 되게 할지**와, 기존 링크를 **교체**할지뿐이다.
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ can_write: canWrite, ...(replace ? { replace: true } : {}) }),
+        body: JSON.stringify({
+          can_write: canWrite,
+          ...(mode === 'replace' ? { replace: true } : {}),
+          ...(mode === 'upgrade' ? { upgrade_legacy: true } : {}),
+        }),
       });
       const j = await r.json().catch(() => ({} as { message?: string }));
       if (!r.ok) {
@@ -222,10 +227,20 @@ export default function GuestLinkButton({ businessId, conversationId, clientName
                 </>
               ) : (
                 // 옛 방식(난수) 링크 — 서버도 원문을 모른다. 숨기지 않고 말하고, 교체 문을 준다.
-                <Note data-testid="guest-link-legacy">
-                  <Hint>/g/{own.token_hint}…</Hint>
-                  {t('guestLink.legacyNote', { defaultValue: '이전 방식 링크라 주소를 다시 볼 수 없어요. 주소가 필요하면 새 링크로 교체하세요.' })}
-                </Note>
+                //   2026-10-10 — 교체만 있으면 이미 받은 고객이 끊긴다. 옛 링크는 그대로 두고 **복사할 수 있는
+                //   새 주소**를 받는 문을 먼저 준다(옛 링크는 아래 «지금 열려 있는 링크» 로 내려가 따로 닫는다).
+                <>
+                  <Note data-testid="guest-link-legacy">
+                    <Hint>/g/{own.token_hint}…</Hint>
+                    {t('guestLink.legacyNote2', { defaultValue: '이전 방식 링크라 주소를 다시 볼 수 없어요. 새 주소를 받아도 이 링크는 그대로 열려 있어요.' })}
+                  </Note>
+                  <BtnRow>
+                    <ActionButton tone="primary" size="sm" onClick={() => { void issue('upgrade'); }} loading={busy}
+                      data-testid="guest-link-upgrade">
+                      {t('guestLink.upgrade', { defaultValue: '복사할 수 있는 새 주소 받기' })}
+                    </ActionButton>
+                  </BtnRow>
+                </>
               )}
               <Meta>{linkMeta(own)}</Meta>
               <ReplaceBox>
@@ -244,7 +259,7 @@ export default function GuestLinkButton({ businessId, conversationId, clientName
           ) : (
             <>
               {writeRow}
-              <ActionButton tone="primary" size="md" onClick={() => issue(false)} loading={busy} data-testid="guest-link-issue">
+              <ActionButton tone="primary" size="md" onClick={() => { void issue('new'); }} loading={busy} data-testid="guest-link-issue">
                 {t('guestLink.issue', { defaultValue: '링크 만들기' })}
               </ActionButton>
             </>
@@ -325,7 +340,7 @@ export default function GuestLinkButton({ businessId, conversationId, clientName
         isOpen={confirmReplace}
         variant="danger"
         onClose={() => setConfirmReplace(false)}
-        onConfirm={() => { void issue(true); }}
+        onConfirm={() => { void issue('replace'); }}
         title={t('guestLink.replaceTitle', { defaultValue: '새 링크로 교체할까요?' }) as string}
         message={t('guestLink.replaceBody', { defaultValue: '지금 링크는 닫히고 새 주소가 만들어집니다. 이전 주소로 들어오던 사람·답글 알림 신청자가 끊깁니다. 주고받은 대화와 파일은 그대로 남습니다.' }) as string}
         confirmText={t('guestLink.replace', { defaultValue: '새 링크로 교체' }) as string}

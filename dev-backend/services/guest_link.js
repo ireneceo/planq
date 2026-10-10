@@ -356,9 +356,10 @@ async function findLiveSharedLink({ businessId, scope, projectId = null, convers
  * ★ 동시에 두 번 눌러도 하나다 — 자리의 주인 행(프로젝트 또는 대화방)을 `FOR UPDATE` 로 잡고 찾는다.
  * ★ `can_write`·`guest_name` 은 **새로 만들 때만** 쓴다(§B-5). 재사용은 기존 값을 그대로 돌려준다.
  * ★ 재사용 때 `expires_at` 을 밀지 않는다(§B-6) — 발급자가 열어 본 것은 사용이 아니다.
- * @returns {{ link, url: string|null, reused: boolean, replacedId: number|null }}
+ * ★ `upgradeLegacy` 면 살아 있는 링크가 **옛 난수 링크일 때만** 그것을 닫지 않고 새 파생 링크를 하나 더 만든다(keptId).
+ * @returns {{ link, url: string|null, reused: boolean, replacedId: number|null, keptId: number|null }}
  */
-async function issueOrReuseSharedLink({ businessId, scope, conversationId, projectId = null, client = null, createdBy, canWrite = true, guestName = null, replace = false }) {
+async function issueOrReuseSharedLink({ businessId, scope, conversationId, projectId = null, client = null, createdBy, canWrite = true, guestName = null, replace = false, upgradeLegacy = false }) {
   if (!sharedSecret()) { const e = new Error('guest_link_secret_missing'); e.code = 'guest_link_secret_missing'; throw e; }
   const { sequelize } = require('../config/database');
   const { Project } = require('../models');
@@ -375,7 +376,20 @@ async function issueOrReuseSharedLink({ businessId, scope, conversationId, proje
     else await Conversation.findByPk(conversationId, { transaction: t, lock: t.LOCK.UPDATE });
     const live = await findLiveSharedLink({ businessId, scope: sc, projectId, conversationId, transaction: t });
     let replacedId = null;
-    if (live && !replace) {
+    let keptId = null;
+    // ★ 옛 난수 링크는 주소를 되살릴 수 없다(urlForSharedLink = null). `replace` 는 그것을 닫아
+    //   이미 받은 고객이 끊긴다 — 그래서 «옛것은 그대로 두고 복사할 수 있는 새 주소만» 내는 문(upgradeLegacy).
+    //   **옛 링크일 때만** 새로 만든다. 파생 링크면 종전대로 재사용(자리당 링크가 늘지 않는다).
+    //   새 링크는 옛 링크의 문의 허용·메모 이름을 물려받는다 — 보이는 범위(자리·scope)는 같다.
+    //   (2026-10-10 Irene: "프로젝트 외부열람링크도 … 다시 복사를 못해")
+    if (live && upgradeLegacy && !replace && !urlForSharedLink(live)) {
+      const { link, token } = await issueGuestLink({
+        businessId, conversationId, projectId, client, createdBy,
+        canWrite: !!live.can_write, guestName: live.guest_name || null, scope: sc, transaction: t,
+      });
+      keptId = live.id;
+      out = { link, url: `${APP_URL}/g/${token}`, reused: false, replacedId: null, keptId };
+    } else if (live && !replace) {
       out = { link: live, url: urlForSharedLink(live), reused: true, replacedId: null };
     } else {
       if (live && replace) {
@@ -385,7 +399,7 @@ async function issueOrReuseSharedLink({ businessId, scope, conversationId, proje
       const { link, token } = await issueGuestLink({
         businessId, conversationId, projectId, client, createdBy, canWrite, guestName, scope: sc, transaction: t,
       });
-      out = { link, url: `${APP_URL}/g/${token}`, reused: false, replacedId };
+      out = { link, url: `${APP_URL}/g/${token}`, reused: false, replacedId, keptId: null };
     }
     await t.commit();
   } catch (e) { await t.rollback(); throw e; }

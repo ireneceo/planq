@@ -1103,6 +1103,8 @@ router.post('/:id/guest-links', authenticateToken, async (req, res, next) => {
     //   새로 만드는 문은 `replace` 하나. 본체는 대화방 발급과 **같은 함수**다.
     const { issueOrReuseSharedLink } = require('../services/guest_link');
     const replace = req.body?.replace === true;
+    // 옛 난수 링크를 닫지 않고 복사할 수 있는 새 주소만 받는 문 — 서비스가 «옛 링크일 때만» 만든다.
+    const upgradeLegacy = req.body?.upgrade_legacy === true;
     let r;
     try {
       r = await issueOrReuseSharedLink({
@@ -1115,6 +1117,7 @@ router.post('/:id/guest-links', authenticateToken, async (req, res, next) => {
         canWrite: req.body?.can_write !== false,
         guestName: req.body?.guest_name || null,
         replace,
+        upgradeLegacy,
       });
     } catch (e) {
       if (e.code === 'guest_link_secret_missing') return errorResponse(res, 'guest_link_secret_missing', 500);
@@ -1126,7 +1129,7 @@ router.post('/:id/guest-links', authenticateToken, async (req, res, next) => {
       createAuditLog({
         userId: req.user.id, businessId: project.business_id,
         action: r.replacedId ? 'guest_link.replace' : 'guest_link.create', targetType: 'GuestLink', targetId: link.id,
-        oldValue: r.replacedId ? { link_id: r.replacedId } : undefined,
+        oldValue: r.replacedId ? { link_id: r.replacedId } : (r.keptId ? { kept_legacy_link_id: r.keptId } : undefined),
         newValue: { scope: 'project', project_id: project.id, conversation_id: conv.id, can_write: link.can_write },
       });
     }
