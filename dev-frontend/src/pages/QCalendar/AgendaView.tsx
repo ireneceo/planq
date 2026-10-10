@@ -9,11 +9,14 @@ import type { CalendarEvent, CalendarItem, PersonalCalendarEvent } from './types
 import { toDateKey, isSameDay, isSameMonth, startOfMonth, startOfDay, addMonths } from './dateUtils';
 import { getEventColors } from './categoryColors';
 import { bookingAttr, bookingCss, BookingTag } from './bookingLook';
+import { pastAttr, pastCss } from './pastLook';
 import { isTaskEvent } from './taskToEvent';
 
 interface Props {
   anchor: Date;
   today: Date;
+  /** 워크스페이스 벽시계 지금 — 끝난 일정 흐리게(pastLook) */
+  now: Date;
   events: CalendarItem[];
   onSelectEvent: (id: number | string, instanceDate?: string) => void;
   onSelectDate: (date: Date) => void;
@@ -56,7 +59,7 @@ const fmtTime = (iso: string): string => {
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 };
 
-const AgendaView: React.FC<Props> = ({ anchor, today, events, onSelectEvent, onSelectDate, onCreateAt, loading }) => {
+const AgendaView: React.FC<Props> = ({ anchor, today, now, events, onSelectEvent, onSelectDate, onCreateAt, loading }) => {
   const { t, i18n } = useTranslation('qcalendar');
   const locale = i18n.language === 'en' ? 'en-US' : 'ko-KR';
   const eventMap = useMemo(() => indexByDayKey(events), [events]);
@@ -146,6 +149,7 @@ const AgendaView: React.FC<Props> = ({ anchor, today, events, onSelectEvent, onS
                 $border={c.border}
                 data-testid={task ? 'calendar-task' : 'calendar-event'}
                 data-booking={bookingAttr(e as CalendarEvent)}
+                data-past={pastAttr(e, now)}
                 onClick={() => onSelectEvent(e.id, e.start_at?.slice(0, 10))}
               >
                 <CardTime>{timeLabel}</CardTime>
@@ -225,6 +229,7 @@ const AddBtn = styled.button`
 const NoItems = styled.div`font-size: 0.75rem; color: #CBD5E1; padding: 8px 12px 10px;`;
 const Card = styled.div<{ $border: string }>`
   ${bookingCss}
+  ${pastCss}
   position: relative; display: flex; align-items: flex-start; gap: 12px;
   min-height: 44px; padding: 10px 12px; margin: 4px 0;
   background: #fff; border: 1px solid #E2E8F0; border-radius: 10px; cursor: pointer;

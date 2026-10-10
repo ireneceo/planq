@@ -40,6 +40,7 @@ import { mapApiError } from '../../utils/apiError';
 import { readUrl } from './calendarUrl';
 import CalendarProjectFilter, { byProject } from './ProjectFilter';
 import CalendarFrame, { useCalendarOptions } from './CalendarFrame';
+import { useWallNow } from './pastLook';
 
 interface ProjectOption { id: number; name: string; color?: string | null }
 
@@ -132,6 +133,7 @@ const QCalendarPage: React.FC<{ scope?: { type: 'project'; businessId: number; p
   // ★ 캘린더 시간 기준 = 워크스페이스 시간대 설정(calTz.ts 머리말) — 화면엔 벽시계로 넘긴다
   const wsTz = user?.workspace_timezone || detectBrowserTz();
   const today = useMemo(() => toWall(new Date(), wsTz), [wsTz]);
+  const wallNow = useWallNow(wsTz);
 
   // 업무 상세 드로어 (Q Task 페이지로 이동하지 않고 캘린더 위에 오버레이)
   const [selectedTaskId, setSelectedTaskId] = useState<number | null>(() => {
@@ -582,6 +584,7 @@ const QCalendarPage: React.FC<{ scope?: { type: 'project'; businessId: number; p
           <AgendaView
             anchor={anchor}
             today={today}
+            now={wallNow}
             events={viewEvents}
             onSelectEvent={selectFromView}
             onSelectDate={handleSelectDate}
@@ -594,6 +597,7 @@ const QCalendarPage: React.FC<{ scope?: { type: 'project'; businessId: number; p
             anchor={anchor}
             weekStart={weekStart}
             today={today}
+            now={wallNow}
             events={viewEvents}
             holidays={holidays}
             onSelectEvent={selectFromView}
@@ -605,6 +609,7 @@ const QCalendarPage: React.FC<{ scope?: { type: 'project'; businessId: number; p
           <TimeGridView
             anchor={anchor}
             today={today}
+            now={wallNow}
             days={days}
             events={viewEvents}
             holidays={holidays}

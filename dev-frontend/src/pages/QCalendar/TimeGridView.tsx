@@ -9,6 +9,7 @@ import type { HolidayMark } from '../../hooks/useWorkspaceHolidays';
 import { HolidayName, holidayLabel } from './holidayLook';
 import { getEventColors } from './categoryColors';
 import { bookingAttr, bookingCss, BookingTag } from './bookingLook';
+import { pastAttr, pastCss } from './pastLook';
 import { isTaskEvent } from './taskToEvent';
 import { layoutLanes } from './overlapLayout';
 
@@ -17,6 +18,8 @@ interface Props {
   holidays?: Record<string, HolidayMark>;
   anchor: Date; // 주 뷰면 주의 시작일, 일 뷰면 그 날짜
   today: Date;
+  /** 워크스페이스 벽시계 지금 — 끝난 일정 흐리게·현재 시각 선(pastLook) */
+  now: Date;
   days: Date[]; // 1 (day) or 7 (week)
   events: CalendarItem[];
   onSelectEvent: (id: number | string, instanceDate?: string) => void;
@@ -28,7 +31,7 @@ const HOUR_HEIGHT = 48; // 1 hour = 48px
 const TIME_COL_WIDTH = 56;
 const HOURS = Array.from({ length: 24 }, (_, i) => i);
 
-const TimeGridView: React.FC<Props> = ({ today, days, events, onSelectEvent, onSelectDate, onCreateAt, holidays }) => {
+const TimeGridView: React.FC<Props> = ({ today, now, days, events, onSelectEvent, onSelectDate, onCreateAt, holidays }) => {
   const { t, i18n } = useTranslation('qcalendar');
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -61,7 +64,7 @@ const TimeGridView: React.FC<Props> = ({ today, days, events, onSelectEvent, onS
   const maxAllDayRows = Math.max(1, ...dayBuckets.map((b) => b.allDay.length));
 
   // 현재 시각 라인 (오늘 컬럼에만)
-  const nowMinutes = today.getHours() * 60 + today.getMinutes();
+  const nowMinutes = now.getHours() * 60 + now.getMinutes();
   const nowTop = (nowMinutes / 60) * HOUR_HEIGHT;
 
   return (
@@ -110,6 +113,7 @@ const TimeGridView: React.FC<Props> = ({ today, days, events, onSelectEvent, onS
                     $border={c.border}
                     data-testid={isTask ? 'calendar-task' : 'calendar-event'}
                     data-booking={bookingAttr(e as CalendarEvent)}
+                    data-past={pastAttr(e, now)}
                     title={[e.title, linkLine(e, t)].filter(Boolean).join(' — ')}
                     onClick={() => onSelectEvent(e.id, e.start_at?.slice(0, 10))}
                   >
@@ -196,6 +200,7 @@ const TimeGridView: React.FC<Props> = ({ today, days, events, onSelectEvent, onS
                         $border={c.border}
                         data-testid={isTask ? 'calendar-task' : 'calendar-event'}
                         data-booking={bookingAttr(e as CalendarEvent)}
+                    data-past={pastAttr(e, now)}
                         title={[e.title, linkLine(e, t)].filter(Boolean).join(' — ')}
                         onClick={(ev) => { ev.stopPropagation(); onSelectEvent(e.id, e.start_at?.slice(0, 10)); }}
                       >
@@ -279,6 +284,7 @@ const AllDayCell = styled.div`
 `;
 const AllDayChip = styled.div<{ $bg: string; $fg: string; $border: string }>`
   ${bookingCss}
+  ${pastCss}
   padding: 3px 8px; border-radius: 4px; font-size: 0.71875rem; font-weight: 500;
   background: ${({ $bg }) => $bg}; color: ${({ $fg }) => $fg};
   border-left: 3px solid ${({ $border }) => $border};
@@ -330,6 +336,7 @@ const NowDot = styled.div`
 `;
 const TimeEvent = styled.div<{ $bg: string; $fg: string; $border: string }>`
   ${bookingCss}
+  ${pastCss}
   position: absolute; left: 2px; right: 2px;
   padding: 4px 7px; border-radius: 6px;
   background: ${({ $bg }) => $bg}; color: ${({ $fg }) => $fg};
