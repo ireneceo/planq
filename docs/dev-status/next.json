@@ -3,6 +3,30 @@
   "in_progress": [],
   "completed": [
     {
+      "title": "Cue «기존 일정 옮기기» — 여러 건을 확인 카드 한 장으로(reschedule_events, 50fdf4af)",
+      "verified": "opus_only"
+    },
+    {
+      "title": "Q docs 표 글자 서식(색·배경·크기·굵게) + 행/열 사이 끼워넣기 — 문서 안 표·표 문서(05643cb7)",
+      "verified": "opus_only"
+    },
+    {
+      "title": "고객 프로젝트 링크 PC 가로 배치·반응형 정돈(42066f02·d54a4784)",
+      "verified": "opus_only"
+    },
+    {
+      "title": "Q docs «AI 수정» 버튼을 편집 옆으로(54d365a3)",
+      "verified": "opus_only"
+    },
+    {
+      "title": "시작 가이드 — 랜딩 상단 메뉴 · 확인 필요 맨 위 팀 적응 카드(7e21cbfb)",
+      "verified": "opus_only"
+    },
+    {
+      "title": "캘린더 — 지난 업무 마감도 흐리게 · 지난 날짜 칸 연회색(f569527e)",
+      "verified": "opus_only"
+    },
+    {
       "title": "메일 분류 대점검 — 발송대행 헤더(SendGrid 등)=자동 발송(광고 아님) · HTML 전용 메일 본문 판정 · «꼭 확인»(결제 실패·연체·계정 보류·유출·예약 문의·빌드 실패) · 가입 완료 안내 · 새 로그인 알림 → 확인 권장 (be5db0ff)",
       "verified": "fable_pass"
     },
