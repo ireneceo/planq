@@ -1,6 +1,6 @@
 ## 현재 작업 상태
 
-### 답 기다림: 운영 메일 재분류 적용 여부 (방 534adfe0 · 2026-10-11 · [Opus])
+### 답 기다림 (이전): 운영 메일 재분류 적용 여부 (방 534adfe0 · 2026-10-11 · [Opus]) — Irene «권고대로» → 운영 `--promote-only --apply` 179건 적용, 재실행 0(멱등) · 4355 GFM 등 7건 확인권장 확인 · 운영 critical_notice 54
 - 무엇을: 운영 `cd /opt/planq/backend && node scripts/retriage-mail.js --promote-only --apply` — 이미 받은 메일 179건을 자동·마케팅 → 확인 권장으로(승격만)
 - 왜: 배포로 새 메일부터는 새 기준이 적용됐다. 이미 묻힌 옛 메일(GFM 4355 · Claude API 1170 · 시프티 결제 실패 · Time 연체 · 넷플릭스 보류 · Tally 유출 등)은 재분류해야 확인 권장에 보인다. 미리보기 ~/.claude/jobs/534adfe0/tmp/prod-preview2.txt
 - 답이 오면: 위 명령 실행 → 운영 확인 권장 폴더에 4355 확인 → 보고
