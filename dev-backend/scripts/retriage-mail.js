@@ -11,13 +11,17 @@ require('dotenv').config();
 const { Op } = require('sequelize');
 const { sequelize } = require('../config/database');
 const { EmailThread, EmailMessage, EmailAccount, EmailThreadParticipant } = require('../models');
-const { retriageStored, headersFromMessage, buildOwnEmailSet, buildOwnAddressMatcher } = require('../services/emailTriage');
+const { retriageStored, triageBodyOf, headersFromMessage, buildOwnEmailSet, buildOwnAddressMatcher } = require('../services/emailTriage');
 const { applyRules } = require('../services/mailSenderRules');
 const { isKnownContact } = require('../services/emailImapCron');
 
 const APPLY = process.argv.includes('--apply');
 // --list: 바뀌는 스레드를 전부 출력(기본은 예시 8건) — 반영 전에 오승격이 없는지 한 줄씩 보려고 (2026-09-22)
 const SAMPLE_MAX = process.argv.includes('--list') ? Infinity : 8;
+// --promote-only (2026-10-11, Fable): 자동·마케팅 폴더 → 확인 권장으로 **올라가는 행만** 쓴다.
+//   규칙 변경과 무관한 옛 드리프트(강등·답변 필요 해제)가 같이 적용되지 않게. 답변 필요는 건드리지 않는다.
+const PROMOTE_ONLY = process.argv.includes('--promote-only');
+const { folderOf } = require('../services/mailFolders');
 
 (async () => {
   const accounts = await EmailAccount.findAll({ where: { is_active: true }, attributes: ['id', 'business_id', 'email'] });
@@ -92,7 +96,7 @@ const SAMPLE_MAX = process.argv.includes('--list') ? Infinity : 8;
     const base = retriageStored({
       triage: th.triage,
       subject: msg.subject || th.subject,
-      bodyText: msg.body_text || '',
+      bodyText: triageBodyOf(msg.body_text, msg.body_html),
       fromEmail,
       headers,
       headersComplete: complete,
@@ -113,12 +117,21 @@ const SAMPLE_MAX = process.argv.includes('--list') ? Infinity : 8;
     const nextTriage = (tr.triage === 'marketing' && th.triage !== 'marketing') ? 'marketing' : th.triage;
     // 바뀐 게 없으면 건드리지 않는다 (멱등)
     if (nextReply === !!th.reply_needed && nextStatus === th.status && nextTriage === th.triage) { kept++; continue; }
+    if (PROMOTE_ONLY) {
+      const before = folderOf(th);
+      const after = folderOf({ status: nextStatus, triage: nextTriage, reply_needed: !!th.reply_needed, last_message_direction: th.last_message_direction });
+      if (!(before === 'marketing' && after === 'uncertain')) { kept++; continue; }
+    }
     changed++;
     if (samples.length < SAMPLE_MAX) {
       const to = nextReply ? '답변 필요' : (nextStatus === 'uncertain' ? '확인 권장' : nextStatus);
       samples.push(`${th.id} | ${(th.subject || '').slice(0, 60)} | ${fromEmail} → ${to}`);
     }
     if (APPLY) {
+      if (PROMOTE_ONLY) {
+        await th.update({ status: nextStatus, triage: nextTriage, uncertain_reason: tr.uncertain_reason || null });
+        continue;
+      }
       await th.update({
         reply_needed: nextReply,
         reply_needed_reason: nextReply ? (th.reply_needed_reason || 'inbound') : 'retriage',

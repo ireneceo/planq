@@ -208,7 +208,9 @@
     "quote": "견적계약",
     "review": "확인권장",
     "automated_relevant": "자동업무",
-    "unclear_intent": "확인필요"
+    "unclear_intent": "확인필요",
+    "critical_notice": "꼭 확인",
+    "security_code": "보안 알림"
   },
   "replyNeededBadge": "답변 필요",
   "actions": {

@@ -208,7 +208,9 @@
     "quote": "Quote",
     "review": "Review",
     "automated_relevant": "Auto task",
-    "unclear_intent": "Unclear"
+    "unclear_intent": "Unclear",
+    "critical_notice": "Must check",
+    "security_code": "Security notice"
   },
   "replyNeededBadge": "Reply needed",
   "actions": {

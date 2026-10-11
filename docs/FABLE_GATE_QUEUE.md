@@ -11,6 +11,12 @@
 > 이 파일에는 계속 **Fable 판정 결과**(PASS/FAIL·비차단 지적)를 맨 위에 적는다. 아래 옛 절의 판정식
 > `R=1 OR (S=1 AND F=0)` 은 공용 기준으로 대체됐다(뜻은 같다).
 
+## 2026-10-11 메일 분류 대점검 — 설계 판정 + 완료 검증 **PASS** (방 534adfe0)
+- 설계: A(ESP 헤더→automated, V4) · B(triageBodyOf) · A'(가입 완료) · C(CRITICAL_NOTICE 제목만) 채택 · 운영 재판정은 `--promote-only`. 정본 docs/MAIL_TRIAGE_AUDIT_2026-10-11.md.
+- 완료 검증: mail 23/23 · guard 68/69 · health 84/84 · 실HTTP folder=uncertain 에 338·1985·2788·5218 / marketing 0 · promote-only 재실행 멱등(0) · 빌드 로케일 .gz 포함. 차단 0.
+- 비차단: ①adaptispay 일일 SOA 164 + Grab 주간 리포트 37 이 확인 권장을 채움(발신자 규칙 없음, 새 인입은 푸시도) ②388≠357 은 옛 승격 드리프트 동반 ③4329 Grab 프로모 security_code ④ESP 헤더 달린 아는 고객 사람 메일 → automated(기존과 같은 폴더) ⑤전부 인용인 HTML 전달 → reply_needed ⑥승격 행 triage 저장값 marketing 유지(화면 무영향) ⑦mailBrief 가 x-sg-eid 를 뉴스레터 단서로 씀.
+- 운영: 코드 배포 → `--promote-only --list` 미리보기 → (adaptispay·Grab 규칙 결정 후) `--apply`. 플래그 없는 `--apply` 금지(74건 드리프트).
+
 ## 2026-10-09 · 보안 점검 2차 후속 — 관리자 열람 규칙 D2·D3·D4 (방 006a5c5d) — D3 설계 OK-WITH-CHANGES→PASS · 완료 **VERDICT: PASS**
 - Irene: 규칙 4가지 «권고대로» → *"대표가 개인회고는 원래봐야 하는 거 아니야? 보고내용에 포함인 부분 아니야??"* → D10 그대로.
 - D2 owner/admin 도 남의 «나만 보기» Q info·일정 닫힘 · D4 관리자는 남의 개인 메일 끄기만 · D3 프로젝트·고객 없는 팀 대화 참여자만(설계 `docs/PRIVATE_CHAT_DESIGN.md`).

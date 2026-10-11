@@ -30,7 +30,7 @@ async function releaseProviderSpam(thread) {
   const triaged = T.retriageStored({
     triage: 'human',
     subject: msg.subject || thread.subject,
-    bodyText: msg.body_text || '',
+    bodyText: T.triageBodyOf(msg.body_text, msg.body_html),
     fromEmail,
     headers,
     headersComplete: complete,

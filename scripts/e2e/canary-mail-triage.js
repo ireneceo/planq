@@ -139,6 +139,54 @@ async function run() {
   ok('평범한 알림은 여전히 아님 (과잉 승격 아님)',
     t.hasBusinessRelevance('새 기능이 추가되었습니다', '이번 업데이트에서는 화면이 개선되었습니다.') === false);
 
+  // ═══ 2026-10-11 메일 분류 대점검 (docs/MAIL_TRIAGE_AUDIT_2026-10-11.md · Fable 설계) ═══
+  const tri = async (lines, html, extra = {}) => {
+    const raw = [...lines, 'Message-ID: <canary-x@qa.local>', 'MIME-Version: 1.0',
+      'Content-Type: text/html; charset=utf-8', '', html].join('\r\n');
+    const p = await simpleParser(raw);
+    const hdr = t.normalizeHeaders({ headers: p.headers, toEmails: p.to });
+    // extra.htmlOnly — 저장본처럼 text 가 없는 HTML 전용 메일(dev 실측 28%)의 경로를 잰다.
+    return t.triageInbound({ subject: p.subject, bodyText: t.triageBodyOf(extra.htmlOnly ? null : p.text, p.html), fromEmail: extra.from,
+      headers: hdr, ownEmails: new Set(OWN), ownMatcher: { emails: OWN, domains: [] }, isKnownContact: !!extra.known });
+  };
+  // ① 이번 신고 — SendGrid 헤더만 · HTML 전용 · 가입 완료 요청 → 확인 권장
+  const gfm = await tri(['From: GFM B2B Support <gfmsupport@rgtech.example.my>', 'To: help@irenewp.com',
+    'Subject: GFM B2B PORTAL - Online Sign Up', 'X-SG-EID: abc'],
+    '<p>Partner Code : G4049</p><p>To complete the Sign Up process, please fill up online form.</p><p>Please do not reply.</p>',
+    { from: 'gfmsupport@rgtech.example.my', htmlOnly: true });
+  ok('ESP 헤더 + 가입 완료 안내(HTML 전용) → 확인 권장', gfm.status === 'uncertain' && gfm.triage === 'automated' && !gfm.reply_needed,
+    JSON.stringify(gfm));
+  // ② 수신거부 헤더가 붙은 결제 실패 → 꼭 확인(critical_notice)
+  const fail = await tri(['From: Netflix <info@account.netflix.example>', 'To: help@irenewp.com',
+    'Subject: Your payment failed', 'List-Unsubscribe: <https://x.example/u>'], '<p>Update your card.</p>',
+    { from: 'info@account.netflix.example' });
+  ok('List-Unsubscribe + 결제 실패 제목 → 확인 권장(critical_notice)', fail.status === 'uncertain' && fail.uncertain_reason === 'critical_notice',
+    JSON.stringify(fail));
+  // ③ 음성 — (광고) 표기 + action required → 광고 그대로
+  const ad = await tri(['From: Promo <promo@shop.example.org>', 'To: help@irenewp.com',
+    'Subject: (광고) Action required: 30% 할인 마감', 'List-Unsubscribe: <https://x.example/u>'], '<p>sale</p>',
+    { from: 'promo@shop.example.org' });
+  ok('(광고) + action required → 자동·마케팅 그대로', ad.triage === 'marketing' && ad.status === 'open', JSON.stringify(ad));
+  // ④ 음성 — 순수 뉴스레터
+  const nl = await tri(['From: Weekly <hello@brand.example.org>', 'To: help@irenewp.com',
+    'Subject: This week in design', 'List-Unsubscribe: <https://x.example/u>'], '<p>Top stories</p><a href="https://x">unsubscribe</a>',
+    { from: 'hello@brand.example.org' });
+  ok('순수 뉴스레터 → 자동·마케팅 그대로', nl.triage === 'marketing' && nl.status === 'open', JSON.stringify(nl));
+  // ⑤ 아는 상대의 HTML 답장(본문에 unsubscribe 문구) → 답변 필요 유지 (과잉 차단 아님)
+  const known = await tri(['From: 고객 <ceo@client.example.org>', 'To: help@irenewp.com', 'Subject: Re: 견적',
+    'In-Reply-To: <q-1@irenewp.com>'],
+    '<p>견적서 확인했습니다. 다음 주 미팅 가능할까요?</p><blockquote>... unsubscribe https://x.example/u</blockquote>',
+    { from: 'ceo@client.example.org', known: true, htmlOnly: true });
+  ok('아는 상대 HTML 전용 답장(인용에 수신거부) → 답변 필요 유지', known.reply_needed === true, JSON.stringify(known));
+  // ⑥ 헤더 없는 재판정 경로에서도 같은 규칙
+  const legacyC = t.retriageStored({ triage: 'marketing', subject: 'Payment Overdue', bodyText: '', fromEmail: 'noreply@isp.example',
+    headers: {}, headersComplete: false, ownEmails: OWN });
+  ok('헤더 없는 재판정 — 연체 제목 → 확인 권장(critical_notice)', legacyC.status === 'uncertain' && legacyC.uncertain_reason === 'critical_notice',
+    JSON.stringify(legacyC));
+  const legacyS = t.retriageStored({ triage: 'marketing', subject: 'New login alert', bodyText: '', fromEmail: 'noreply@air.example',
+    headers: {}, headersComplete: false, ownEmails: OWN });
+  ok('헤더 없는 재판정 — 새 로그인 → 확인 권장(security_code)', legacyS.uncertain_reason === 'security_code', JSON.stringify(legacyS));
+
   return out;
 }
 

@@ -956,7 +956,8 @@ async function ingestMessage(ctx, { r, uid, box, role = 'inbox', isBackfill }) {
       inReplyTo: parsed.inReplyTo,
       references: parsed.references,
     });
-    const base = triageInbound({ subject: parsed.subject, bodyText: parsed.text, fromEmail, headers: trHeaders, ownEmails, ownMatcher, isKnownContact: known });
+    // 본문은 text 가 없으면 HTML 을 글자로 — 재판정과 같은 함수(triageBodyOf). HTML 전용 메일이 제목만으로 판정됐다.
+    const base = triageInbound({ subject: parsed.subject, bodyText: require('./emailTriage').triageBodyOf(parsed.text, parsed.html), fromEmail, headers: trHeaders, ownEmails, ownMatcher, isKnownContact: known });
     // 학습된 발신자 규칙이 휴리스틱보다 우선한다 (사용자가 직접 알려준 정답).
     //   규칙은 분류만 바꾼다 — 원본 메일은 그대로라 규칙 삭제 시 즉시 원상복구.
     // #344 — 문구 규칙(제목·본문·키워드)을 보려면 규칙 엔진에 그 내용을 같이 줘야 한다.
