@@ -11,6 +11,11 @@
 > 이 파일에는 계속 **Fable 판정 결과**(PASS/FAIL·비차단 지적)를 맨 위에 적는다. 아래 옛 절의 판정식
 > `R=1 OR (S=1 AND F=0)` 은 공용 기준으로 대체됐다(뜻은 같다).
 
+## 2026-10-12 — Cue 범위 확장(에이전트 카탈로그 어댑터) 완료 검증 · **PASS** (6b1c5adf)
+- 근거: guard 68/69(DOCFRESH 경고만) · health 84/84 · build EXIT 0 · tenant 0 · test-cue-verify 16항목 재현 · 외부 provider 는 humanConfirmed 여도 CONFIRMATION_REQUIRED · 두 번 실행 replayed·계량 +1 · reschedule_events 길이·종일 유지·남의 일정 실패 보고 · 예약 409 · 메뉴 none 403 · 남의 L1 404 · 위임 라우트 2개 HTTP 동작 · 실 LLM 카드.
+- 비차단 4: ①execute-action `constructor` 500 → **고침**(isAlias) ②`FIELD_RULES.estimated_hours`(owner/admin) ≠ PATCH 인라인(담당자·owner) — **남김**(권한 술어 통일은 다음 사이클 설계) ③제목 지목 업무 찾기 변동 → **고침**(assignee:'anyone' 프롬프트) ④i18n `qhelper.field.project` → **고침**. 고친 3건은 자체 검증(400 ×3 · verify 15✅0❌ · build 0 · guard 68/69 · health 84/84).
+- 미측정: 실 Google Meet 생성(dev 미연동).
+
 ## 2026-10-11 메일 분류 대점검 — 설계 판정 + 완료 검증 **PASS** (방 534adfe0)
 - 설계: A(ESP 헤더→automated, V4) · B(triageBodyOf) · A'(가입 완료) · C(CRITICAL_NOTICE 제목만) 채택 · 운영 재판정은 `--promote-only`. 정본 docs/MAIL_TRIAGE_AUDIT_2026-10-11.md.
 - 완료 검증: mail 23/23 · guard 68/69 · health 84/84 · 실HTTP folder=uncertain 에 338·1985·2788·5218 / marketing 0 · promote-only 재실행 멱등(0) · 빌드 로케일 .gz 포함. 차단 0.
