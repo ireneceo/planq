@@ -15,7 +15,7 @@
 - 운영 피드백(읽기): 열린 9건, 10/08 이후 새 신고 0. #463·#464 는 dev 에서 고침·배포 대기(답글 초안 docs/feedback-replies-2026-10-08.json).
 
 ### 진행 중인 작업
-- 없음 (방 e205bfa8 은 아래 «답 기다림»)
+- 없음
 
 ### 답 기다림 (이전): 운영 서버에 PDF 그림 도구(poppler-utils) 설치 — 2026-10-11 Irene 설치함(poppler-utils 24.02.0) → Fable 재판정 PASS
 - 무엇: 고객 링크 파일 «보기» 의 PDF 미리보기가 `pdftoppm`·`pdfinfo` 를 쓴다. dev 엔 있고 **운영엔 없다**(Fable 실측). 설치는 sudo 라 Irene 몫.
