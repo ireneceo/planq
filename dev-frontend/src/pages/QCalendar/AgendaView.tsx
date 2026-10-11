@@ -9,7 +9,7 @@ import type { CalendarEvent, CalendarItem, PersonalCalendarEvent } from './types
 import { toDateKey, isSameDay, isSameMonth, startOfMonth, startOfDay, addMonths } from './dateUtils';
 import { getEventColors } from './categoryColors';
 import { bookingAttr, bookingCss, BookingTag } from './bookingLook';
-import { pastAttr, pastCss } from './pastLook';
+import { pastAttr, pastCss, pastDayAttr, PAST_DAY_TEXT } from './pastLook';
 import { isTaskEvent } from './taskToEvent';
 
 interface Props {
@@ -114,7 +114,7 @@ const AgendaView: React.FC<Props> = ({ anchor, today, now, events, onSelectEvent
     <Wrap>
       {groups.map((g) => (
         <Group key={g.key} ref={g.isToday ? todayRef : undefined}>
-          <DayHeader onClick={() => onSelectDate(g.date)}>
+          <DayHeader data-pastday={pastDayAttr(g.date, today)} onClick={() => onSelectDate(g.date)}>
             <DateBadge $today={g.isToday} $isSaturday={g.date.getDay() === 6} $isSunday={g.date.getDay() === 0}>
               {g.date.getDate()}
             </DateBadge>
@@ -203,6 +203,7 @@ const DayHeader = styled.div`
   display: flex; align-items: center; gap: 8px;
   padding: 12px 8px 6px; cursor: pointer;
   border-bottom: 1px solid #F1F5F9;
+  &[data-pastday='1'] > * { color: ${PAST_DAY_TEXT}; }
 `;
 const DateBadge = styled.div<{ $today: boolean; $isSaturday: boolean; $isSunday: boolean }>`
   display: inline-flex; align-items: center; justify-content: center;

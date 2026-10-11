@@ -6,7 +6,7 @@ import type { CalendarEvent, CalendarItem } from './types';
 import { getMonthGridDays, isSameMonth, isSameDay, toDateKey } from './dateUtils';
 import { getEventColors } from './categoryColors';
 import { bookingAttr, bookingCss, BookingTag } from './bookingLook';
-import { pastAttr, pastCss } from './pastLook';
+import { pastAttr, pastCss, pastDayAttr, PAST_DAY_BG, PAST_DAY_BG_HOVER, PAST_DAY_TEXT } from './pastLook';
 import { isTaskEvent } from './taskToEvent';
 import { formatDay } from '../../utils/dateFormat';
 import type { HolidayMark } from '../../hooks/useWorkspaceHolidays';
@@ -88,6 +88,7 @@ const MonthView: React.FC<Props> = ({ anchor, today, now, events, onSelectEvent,
               data-date={key}
               $outMonth={!inMonth}
               $today={isToday}
+              data-pastday={pastDayAttr(day, today)}
               onClick={() => onSelectDate(day)}
             >
               <CellHead>
@@ -256,6 +257,8 @@ const Cell = styled.div<{ $outMonth: boolean; $today: boolean }>`
   display: flex; flex-direction: column;
   &:nth-child(7n) { border-right: none; }
   &:hover { background: ${({ $today }) => $today ? '#ECFDF5' : '#F8FAFC'}; }
+  &[data-pastday='1'] { background: ${PAST_DAY_BG}; }
+  &[data-pastday='1']:hover { background: ${PAST_DAY_BG_HOVER}; }
 `;
 const CellHead = styled.div`
   display: flex; align-items: center; gap: 4px;
@@ -279,6 +282,7 @@ const DateBadge = styled.div<{ $today: boolean; $isSaturday: boolean; $isSunday:
   background: ${({ $today }) => $today ? '#14B8A6' : 'transparent'};
   color: ${({ $today, $isSunday, $isSaturday }) =>
     $today ? '#fff' : $isSunday ? '#BE123C' : $isSaturday ? '#1D4ED8' : '#0F172A'};
+  [data-pastday='1'] & { color: ${PAST_DAY_TEXT}; }
 `;
 const EventList = styled.div`
   display: flex; flex-direction: column; gap: 2px;

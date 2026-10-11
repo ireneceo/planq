@@ -9,7 +9,7 @@ import type { HolidayMark } from '../../hooks/useWorkspaceHolidays';
 import { HolidayName, holidayLabel } from './holidayLook';
 import { getEventColors } from './categoryColors';
 import { bookingAttr, bookingCss, BookingTag } from './bookingLook';
-import { pastAttr, pastCss } from './pastLook';
+import { pastAttr, pastCss, pastDayAttr, PAST_DAY_BG, PAST_DAY_TEXT } from './pastLook';
 import { isTaskEvent } from './taskToEvent';
 import { layoutLanes } from './overlapLayout';
 
@@ -82,6 +82,7 @@ const TimeGridView: React.FC<Props> = ({ today, now, days, events, onSelectEvent
                 $today={isToday}
                 $isSaturday={d.getDay() === 6}
                 $isSunday={d.getDay() === 0}
+                data-pastday={pastDayAttr(d, today)}
                 onClick={() => onSelectDate(d)}
               >
                 <DayLabel $today={isToday}>{t(`weekday.${wd}`)}</DayLabel>
@@ -97,7 +98,7 @@ const TimeGridView: React.FC<Props> = ({ today, now, days, events, onSelectEvent
         <AllDayLabel>{t('allDay')}</AllDayLabel>
         <AllDayCells $cols={days.length}>
           {dayBuckets.map(({ day, allDay }) => (
-            <AllDayCell key={day.toISOString()}>
+            <AllDayCell key={day.toISOString()} data-pastday={pastDayAttr(day, today)}>
               {(() => {
                 const hol = holidays?.[toDateKey(day)];
                 return hol ? <HolidayName $block data-testid="calendar-holiday" title={holidayLabel(hol, i18n.language)}>{holidayLabel(hol, i18n.language)}</HolidayName> : null;
@@ -146,6 +147,7 @@ const TimeGridView: React.FC<Props> = ({ today, now, days, events, onSelectEvent
               const isToday = isSameDay(day, today);
               return (
                 <DayColumn key={day.toISOString()}
+                  data-pastday={pastDayAttr(day, today)}
                   onClick={onCreateAt ? (e) => {
                     // #102 — 빈 칸 클릭 위치의 y 오프셋 → 시각(30분 스냅) 계산 후 생성 prefill.
                     const rect = e.currentTarget.getBoundingClientRect();
@@ -249,6 +251,7 @@ const DayHeaderCell = styled.div<{ $today: boolean; $isSaturday: boolean; $isSun
   border-right: 1px solid #E2E8F0;
   &:last-child { border-right: none; }
   &:hover { background: #F8FAFC; }
+  &[data-pastday='1'] > * { color: ${PAST_DAY_TEXT}; }
 `;
 const DayLabel = styled.div<{ $today: boolean }>`
   font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.4px; text-transform: uppercase;
@@ -281,6 +284,7 @@ const AllDayCell = styled.div`
   padding: 4px 4px; display: flex; flex-direction: column; gap: 2px;
   border-right: 1px solid #E2E8F0; min-height: 30px;
   &:last-child { border-right: none; }
+  &[data-pastday='1'] { background: ${PAST_DAY_BG}; }
 `;
 const AllDayChip = styled.div<{ $bg: string; $fg: string; $border: string }>`
   ${bookingCss}
@@ -317,6 +321,7 @@ const DayColumns = styled.div<{ $cols: number }>`
 const DayColumn = styled.div`
   position: relative; border-right: 1px solid #E2E8F0;
   &:last-child { border-right: none; }
+  &[data-pastday='1'] { background: ${PAST_DAY_BG}; }
 `;
 const HourLine = styled.div<{ $hour: number }>`
   position: absolute; left: 0; right: 0;
