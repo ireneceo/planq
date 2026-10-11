@@ -3,6 +3,14 @@
   "in_progress": [],
   "completed": [
     {
+      "title": "메일 분류 대점검 — 발송대행 헤더(SendGrid 등)=자동 발송(광고 아님) · HTML 전용 메일 본문 판정 · «꼭 확인»(결제 실패·연체·계정 보류·유출·예약 문의·빌드 실패) · 가입 완료 안내 · 새 로그인 알림 → 확인 권장 (be5db0ff)",
+      "verified": "fable_pass"
+    },
+    {
+      "title": "공유 받기 — 카톡·왓츠앱 대화 내보내기 파일을 «대화 기록으로 보관» (c9011e96)",
+      "verified": "opus_only"
+    },
+    {
       "title": "고객 채널 = 프로젝트 × 고객 — 고객사가 둘인 프로젝트에서 서로의 방·청구서 카드가 보이던 것(e55e24e5·f5964b67)",
       "verified": "fable_pass"
     },
@@ -154,6 +162,7 @@
     "배포 후 운영 node seed-wiki-content.js(도움말 글)"
   ],
   "migrations": [
+    "메일 분류: 스키마 변경 없음. 배포 뒤 운영 `node scripts/retriage-mail.js --promote-only --list` 미리보기 → Irene 확인 후 `--apply`(자동·마케팅 → 확인 권장만). 플래그 없는 --apply 금지. 발신자 규칙 2건(제목 «(NPROD) Statement of Account»·«Your report for» → 자동·마케팅)은 운영 DB 에 따로 등록",
     "migrate-mail-folders.js",
     "migrate-cue-question-analysis.js",
     "migrate-customer-channel-per-client.js --apply(→ migrate-project-client-user.js)",
