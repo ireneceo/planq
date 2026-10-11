@@ -191,6 +191,7 @@
   "translate": {
     "langLabel": "Translation language",
     "translate": "Translate",
+    "resultLabel": "Translation · {{lang}}",
     "closeTranslation": "Hide translation",
     "cancel": "Cancel translation",
     "loading": "Translating…",

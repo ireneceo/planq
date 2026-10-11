@@ -527,6 +527,11 @@ export const TransBtn = styled.button`
   &:hover:not(:disabled) { background: rgba(20, 184, 166, 0.16); }
   &:disabled { opacity: 0.6; cursor: default; }
 `;
+// 번역문 머리 — 무엇으로 번역했는지 + 닫기(번역문이 본문 위로 옮겨와 버튼과 떨어졌으므로 그 자리에서 닫는다)
+export const TransHead = styled.div`
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  margin: -2px 0 6px; color: #0F766E; font-size: 0.75rem; font-weight: 600; white-space: normal;
+`;
 export const TransErr = styled.span`
   color: #DC2626; font-size: 0.75rem;
 `;
@@ -535,7 +540,7 @@ export const TransLoading = styled.span`
   color: #0F766E; font-size: 0.75rem;
 `;
 export const TransBody = styled.div`
-  margin-top: 8px; padding: 10px 12px; border-radius: 8px;
+  margin: 4px 0 10px; padding: 10px 12px; border-radius: 8px; scroll-margin-top: 12px;
   background: #F8FAFC; border: 1px solid #E2E8F0;
   color: #1E293B; font-size: 0.8125rem; line-height: 1.6; white-space: pre-wrap; word-break: break-word;
 `;
@@ -805,6 +810,10 @@ export const MsgIconBtn = styled.button<{ $tone?: 'ok' | 'err' }>`
      누른 사람에게는 결과 색이 안 보인다(실측: 복사 직후 색이 hover 값으로 나왔다). */
   &:hover { background: #F1F5F9; color: ${p => (p.$tone === 'ok' ? '#0F766E' : p.$tone === 'err' ? '#DC2626' : '#0F172A')}; }
   &:focus-visible { outline: 2px solid #14B8A6; outline-offset: -2px; }
+`;
+// 머리줄 높이를 키우지 않게 위아래를 음수 여백으로 먹는다(메시지 머리의 36px 아이콘 버튼을 그대로 쓴다)
+export const TransCloseBtn = styled(MsgIconBtn)`
+  margin: -10px -10px -10px 0;
 `;
 export const MessageFrom = styled.div`
   font-size: 0.8125rem; font-weight: 600; color: #0F172A;

@@ -31,7 +31,7 @@ import { openMailWindow } from './openMailWindow';
 import {
   MessageCard, MessageHeader, MessageFrom, MessageTo, MsgHeaderRight, MsgCollapsedPreview, MsgChevron,
   MessageTime, MsgIconBtn, DeliveryChip, MessageBodyText,
-  TransBar, TransSelect, TransBtn, TransLoading, TransErr, TransBody,
+  TransBar, TransSelect, TransBtn, TransLoading, TransErr, TransBody, TransHead, TransCloseBtn,
 } from './MailPage.styles';
 import { isEnterAction } from '../../utils/imeKey';
 
@@ -86,6 +86,26 @@ export default function ThreadMessages(p: Props) {
   // 운영 #260 — 좁은 패널에서 읽기 답답한 메일을 화면 전체로 펼쳐 읽는다.
   const [fullMsgId, setFullMsgId] = React.useState<number | null>(null);
   const fullMsg = messages.find((x) => x.id === fullMsgId) || null;
+  // 번역문이 **새로 펼쳐지는 순간**(없음/닫힘 → 보임) 그 머리로 데려간다. 이미 떠 있던 것은 건드리지 않는다
+  //   — 다른 메시지 번역·재렌더마다 화면이 튀면 읽던 자리를 잃는다.
+  const transBoxRefs = React.useRef<Map<number, HTMLElement>>(new Map());
+  const transShownRef = React.useRef<Set<number>>(new Set());
+  React.useEffect(() => {
+    const now = new Set<number>();
+    for (const [k, v] of Object.entries(msgTrans || {})) if (v?.showing && v?.text) now.add(Number(k));
+    const fresh = [...now].filter((id) => !transShownRef.current.has(id));
+    transShownRef.current = now;
+    if (fresh.length !== 1) return;   // 스레드 전환 등으로 한꺼번에 생긴 것은 사람이 누른 게 아니다
+    const el = transBoxRefs.current.get(fresh[0]);
+    if (el) requestAnimationFrame(() => el.scrollIntoView({ block: 'start', behavior: 'smooth' }));
+  }, [msgTrans]);
+  React.useEffect(() => {
+    // 스레드를 바꾸면 «이미 보이던 것» 기준을 새로 잡는다(돌아왔을 때 남아 있는 번역으로 튀지 않게).
+    const s2 = new Set<number>();
+    for (const [k, v] of Object.entries(msgTrans || {})) if (v?.showing && v?.text) s2.add(Number(k));
+    transShownRef.current = s2;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [threadId]);
   // ⌘A 를 커서가 있는 메일 본문 안으로 한정한다 (본문 밖에서는 손대지 않는다).
   useMailBodySelectionScope();
   // 복사 결과는 **버튼 글자로만** 알린다 — 성공 토스트는 금지(CLAUDE.md).
@@ -309,6 +329,30 @@ export default function ThreadMessages(p: Props) {
             </MsgCollapsedPreview>
           )}
           {open && <>
+          {/* ★ 2026-10-12 (Irene: *"번역하면 번역한게 올라와서 바로 보이게 해야 하는데 버튼 아래로 생겨서
+              생긴걸 모르는 ui야"*) — 번역 버튼은 본문·첨부 **아래**에 있어서, 번역문을 그 밑에 붙이면
+              긴 메일에서는 화면 밖에 생겨 «아무 일도 안 일어남» 으로 읽혔다. 번역문은 **본문 위**(읽기 시작하는
+              자리)에 두고, 새로 펼쳐지는 순간 그 머리로 스크롤한다(transScrollRef). 원문은 그대로 아래에 남는다. */}
+          {msgTrans[m.id]?.showing && msgTrans[m.id]?.text && (
+            <TransBody data-testid="mail-trans-body"
+              ref={(el) => { if (el) transBoxRefs.current.set(m.id, el); else transBoxRefs.current.delete(m.id); }}>
+              <TransHead>
+                <span>{t('translate.resultLabel', {
+                  defaultValue: '번역 · {{lang}}',
+                  lang: t(`translate.lang.${msgTrans[m.id]!.lang}`, { defaultValue: msgTrans[m.id]!.lang }) as string,
+                }) as string}</span>
+                <TransCloseBtn type="button" data-testid="mail-trans-close"
+                  onClick={() => setMsgTrans(prev => ({ ...prev, [m.id]: { ...(prev[m.id] || { loading: false }), showing: false } }))}
+                  aria-label={t('translate.closeTranslation', { defaultValue: '번역 닫기' }) as string}
+                  title={t('translate.closeTranslation', { defaultValue: '번역 닫기' }) as string}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+                    <path d="M18 6 6 18" /><path d="m6 6 12 12" />
+                  </svg>
+                </TransCloseBtn>
+              </TransHead>
+              {msgTrans[m.id]!.text}
+            </TransBody>
+          )}
           {/* 메일 본문은 원본 문서 그대로 보여준다 — 우리 CSS 를 덮어씌우면 가운데 정렬이 풀리고
               배경이 사라지고 여백이 잘린다(메일 템플릿은 <style> + table + body bgcolor 로 짜여 있다).
               sanitizeMailHtml 이 문서를 통째로 정화(script·on* 제거)하고, sandbox iframe
@@ -400,9 +444,6 @@ export default function ThreadMessages(p: Props) {
             </TransBtn>
             {briefError && <TransErr>{t('brief.failed', { defaultValue: '지금은 확인할 수 없어요' }) as string}</TransErr>}
           </TransBar>
-          {msgTrans[m.id]?.showing && msgTrans[m.id]?.text && (
-            <TransBody>{msgTrans[m.id]!.text}</TransBody>
-          )}
           {briefOpenFor === m.id && brief && <MailBriefPanel brief={brief} />}
           </>}
         </MessageCard>

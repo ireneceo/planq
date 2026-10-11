@@ -159,7 +159,7 @@ async function translateWithRetry(text, languages, businessId = null) {
 // 그걸 쓰면 출력 토큰이 2배로 들고 2000토큰 상한에서 JSON 이 중간에 잘려(Unterminated string)
 // 재시도까지 겹쳐 사용자가 2분 대기 후 실패를 봤다. 여기서는 대상 언어 하나만 만든다.
 // 반환: { detected_language, translated, fallback?, reason? }
-async function translateOne(text, targetLang, businessId = null) {
+async function translateOne(text, targetLang, businessId = null, { insist = false } = {}) {
   if (!isEnabled()) return { detected_language: null, translated: null, fallback: true, reason: 'llm_disabled' };
   const target = String(targetLang || '');
   if (!SUPPORTED_LANGS.includes(target)) {
@@ -190,13 +190,17 @@ JSON RULES:
 - Respond as VALID JSON only.
 - Inside string values use \\n for newline, \\" for quote, \\\\ for backslash.
 - Schema: {"detected_language": "ko|en|ja|zh|es", "translated": "..."}`;
+  // 원문을 그대로 돌려준 직후의 재시도 — 같은 지시로 다시 물으면 같은 답이 온다. 이번엔 못 박는다.
+  const insistNote = insist
+    ? `\n\nIMPORTANT: A previous attempt returned the source text unchanged. The source is NOT ${LANG_NAMES[target]}. Translate every sentence into ${LANG_NAMES[target]}; keep only URLs, file paths, product names and code as-is.`
+    : '';
 
   try {
     // 단방향이라 출력량은 대략 입력 문자수에 비례. 잘림이 곧 실패이므로 넉넉히 잡되 상한은 purpose 가 캡한다.
     const { content: raw, fallback: failed, finish_reason, input_tokens, output_tokens, model } = await callLLM({
       purpose: 'translation_long',
       messages: [
-        { role: 'system', content: systemPrompt },
+        { role: 'system', content: systemPrompt + insistNote },
         { role: 'user', content: input },
       ],
       json: true,
@@ -224,6 +228,13 @@ JSON RULES:
     if (!translated || !translated.trim()) {
       return { detected_language: detected, translated: null, fallback: true, reason: 'empty_translation' };
     }
+    // ★ 2026-10-12 — 원문을 그대로 돌려준 «번역» 차단. URL 이 많은 긴 영문 메일(Plesk 보안 알림)에서
+    //   모델이 대상 언어가 아닌데도 원문을 그대로 내놨고, 화면은 그것을 «번역 · 한국어» 로 보여 줬다.
+    //   원문 언어가 대상과 다른데 결과가 원문과 같으면 번역이 아니다(재시도 1회, 그래도 같으면 실패).
+    const norm = (x) => String(x).replace(/\s+/g, ' ').trim();
+    if (detected && detected !== target && norm(translated) === norm(input)) {
+      return { detected_language: detected, translated: null, fallback: true, reason: 'untranslated_echo' };
+    }
     // ★ 잘린 번역 통과 차단 — 토큰 상한에 걸려 앞부분만 온 응답이 "성공" 으로 새면 사용자는
     //   조용히 반쪽 번역을 읽게 된다. 길이가 원문의 25% 미만이거나 length 로 끊겼으면 실패 처리.
     if (finish_reason === 'length' || translated.length < input.length * 0.25) {
@@ -248,14 +259,14 @@ async function translateOneWithRetry(text, targetLang, businessId = null) {
   let r = await translateOne(text, targetLang, businessId);
   // ★ 재시도는 "일시적 실패" 에만. 출력 토큰 상한에서 잘린 것(truncated)이나 그 결과로 깨진 JSON 은
   //   같은 입력·같은 상한이면 **결정적으로 또 실패**한다. 재시도하면 사용자 대기만 2배가 된다(#197).
-  const RETRYABLE = ['empty_translation', 'malformed_response'];
+  const RETRYABLE = ['empty_translation', 'malformed_response', 'untranslated_echo'];
   if (r.fallback && r.reason === 'json_parse_failed' && text.length > 4000) {
     console.log('[translation] json_parse_failed on long input — 재시도 skip (토큰 상한 결정적 실패)');
     return r;
   }
   if (r.fallback && (RETRYABLE.includes(r.reason) || r.reason === 'json_parse_failed')) {
     console.log(`[translation] one-way retry — first reason=${r.reason}`);
-    r = await translateOne(text, targetLang, businessId);
+    r = await translateOne(text, targetLang, businessId, { insist: r.reason === 'untranslated_echo' });
   }
   return r;
 }
