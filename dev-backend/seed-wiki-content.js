@@ -1539,6 +1539,7 @@ const ARTICLES = [
       s('회의가 끝났을 때 — Q note 의 요약과 결정 사항을 바탕으로 후속 업무를 만듭니다.', 'A meeting just ended — create follow-up tasks from the Q note summary and decisions.'),
       s('같은 질문이 반복될 때 — Q info 에 정리해 둔 답을 근거로 고객 답장 초안을 씁니다.', 'The same question keeps coming — Cue drafts client replies grounded in the answers kept in Q info.'),
       s('며칠 자리를 비웠을 때 — "지난주 이 프로젝트에서 무슨 일이 있었어?" 로 흐름을 따라잡습니다.', 'You were away for a few days — ask "what happened on this project last week?" to catch up.'),
+      s('일정이 밀렸을 때 — "목요일 일정 중 ○○ 빼고 다음 주 월요일로 옮겨줘" 라고 하면 옮길 일정과 바뀔 시간이 확인 카드에 뜨고, 누르면 한 번에 옮겨집니다. 반복 일정·상담 예약은 캘린더에서 직접 바꿉니다.', 'Plans slipped — say "move Thursday\'s events except X to next Monday" and a confirm card lists the events and their new times; one click moves them all. Change recurring events and bookings in Calendar.'),
       h('사람이 확인하는 이유', 'Why a person stays in the loop'),
       p('고객에게 나가는 답장, 새로 만들어지는 업무·일정처럼 <strong>밖으로 나가거나 기록이 남는 일</strong>은 Cue 가 초안이나 확인 카드를 만들고, 실제 실행은 사람이 누릅니다. 빠르게 쓰되 책임은 사람에게 남기는 방식입니다.',
         'For anything that <strong>leaves the workspace or creates a record</strong> — a reply to a client, a new task or event — Cue prepares a draft or a confirm card and a person presses the button. You move faster while responsibility stays with people.'),

@@ -51,11 +51,19 @@ export default function CueTurnList({
               tn.actionStatus === 'done' && tn.actionResult ? (
                 <>
                   <ActionDone>
-                    <span>✓ {t('qhelper.action.done', '추가됐어요')}</span>
+                    <span>✓ {tn.actionResult.moved_ids
+                      ? t('qhelper.action.movedDone', { count: tn.actionResult.moved_ids.length, defaultValue: `일정 ${tn.actionResult.moved_ids.length}건을 옮겼어요` })
+                      : t('qhelper.action.done', '추가됐어요')}</span>
                     <ActionOpen type="button" onClick={() => onOpenResult(tn.actionResult!)}>
                       {t('qhelper.action.open', '열기')} ↗
                     </ActionOpen>
                   </ActionDone>
+                  {/* 일정 옮기기 — 일부를 못 옮겼으면 조용히 넘기지 않는다 */}
+                  {!!tn.actionResult.failed?.length && (
+                    <ActionNote>
+                      {t('qhelper.action.movedSomeFailed', { count: tn.actionResult.failed.length, defaultValue: `${tn.actionResult.failed.length}건은 옮기지 못했어요 — 권한이 없거나 반복·상담 예약 일정이에요. 캘린더에서 확인해 주세요.` })}
+                    </ActionNote>
+                  )}
                   {/* #237 — 업무는 만들었지만 '완료' 까지는 못 간 경우. 조용히 넘기면 완료된 줄 안다. */}
                   {tn.actionResult.completed_skipped && (
                     <ActionNote>

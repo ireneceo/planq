@@ -9,14 +9,14 @@ import { listMembers, type WorkspaceMember } from '../../services/workspace';
 import ActionButton from './ActionButton';
 import SingleDateField from './SingleDateField';
 import PlanQSelect, { type PlanQSelectOption } from './PlanQSelect';
-import { formatDayTime, formatClock } from '../../utils/dateFormat';
+import { formatDayTime, formatClock, formatDay } from '../../utils/dateFormat';
 import { useTimezones } from '../../hooks/useTimezones';
 import { wallStringsToIso, toWall } from '../../pages/QCalendar/calTz';
 
 const DOC_KIND_KEYS = ['quote', 'contract', 'nda', 'proposal', 'sow', 'meeting_note', 'sop', 'custom'] as const;
 
 export type CueToolName =
-  | 'create_task' | 'create_event' | 'create_document_draft'
+  | 'create_task' | 'create_event' | 'reschedule_events' | 'create_document_draft'
   | 'submit_review' | 'complete_task' | 'add_task_comment';
 
 export interface CueProposal {
@@ -29,6 +29,22 @@ export interface CueActionResult {
   entity_id: number;
   /** #237 — "완료로 추가" 를 요청했지만 완료까지는 못 간 사유 (업무 자체는 생성됨) */
   completed_skipped?: string;
+  /** 일정 옮기기 — 옮긴 일정 id 들과 못 옮긴 것(사유 코드) */
+  moved_ids?: number[];
+  failed?: { event_id: number; code: string }[];
+}
+
+/** 일정 옮기기 카드의 한 줄 — 서버 미리보기(previewMoves)가 채운다 */
+interface MoveItem {
+  event_id: number;
+  title: string;
+  all_day: boolean;
+  date: string;
+  start_time?: string;
+  from_start: string; from_end: string;
+  to_start: string; to_end: string;
+  attendees_others?: number;
+  blocked?: string;
 }
 
 interface Props {
@@ -78,6 +94,11 @@ const CueActionCard: React.FC<Props> = ({ proposal, businessId, onExecuted, onDi
     if (c === 'invalid_task') return t('qhelper.action.errTask', '대상 업무를 찾을 수 없어요.');
     if (c === 'content_required') return t('qhelper.action.errContent', '댓글 내용이 필요해요.');
     if (c === 'task_closed') return t('qhelper.action.errClosed', '이미 종료된 업무예요.');
+    if (c === 'only_creator_or_owner') return t('qhelper.action.errEventOwner', '만든 사람(또는 관리자)만 옮길 수 있는 일정이에요.');
+    if (c === 'recurring_use_calendar') return t('qhelper.action.errRecurring', '반복 일정은 캘린더에서 직접 옮겨 주세요.');
+    if (c === 'booking_use_actions') return t('qhelper.action.errBooking', '상담 예약은 «다른 시간 제안» 으로 바꿔 주세요.');
+    if (c === 'event_not_found') return t('qhelper.action.errEvent', '그 일정을 찾을 수 없어요.');
+    if (c === 'no_events_to_move') return t('qhelper.action.errNoMoves', '옮길 일정이 없어요.');
     return tErr(c, { defaultValue: t('qhelper.action.errGeneric', '실행하지 못했어요. 잠시 후 다시 시도해주세요.') }) as string;
   };
 
@@ -88,7 +109,7 @@ const CueActionCard: React.FC<Props> = ({ proposal, businessId, onExecuted, onDi
       const res = await apiFetch('/api/cue/execute-action', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tool: proposal.tool, params }),
+        body: JSON.stringify({ tool: proposal.tool, params: proposal.tool === 'reschedule_events' ? { moves: movableMoves } : params }),
       });
       const j = await res.json();
       if (!res.ok || !j.success) {
@@ -98,12 +119,42 @@ const CueActionCard: React.FC<Props> = ({ proposal, businessId, onExecuted, onDi
       onExecuted({
         tool: j.data.tool, entity_type: j.data.entity_type, entity_id: j.data.entity_id,
         completed_skipped: j.data.completed_skipped,
+        moved_ids: j.data.moved_ids, failed: j.data.failed,
       });
     } catch {
       setError(t('qhelper.action.errGeneric', '실행하지 못했어요. 잠시 후 다시 시도해주세요.'));
     } finally {
       setSubmitting(false);
     }
+  };
+
+  // 일정 옮기기 — 줄(items)이 곧 실행 대상. 막힌 줄은 보여 주되 보내지 않는다(서버도 다시 판정한다).
+  const moveItems: MoveItem[] = proposal.tool === 'reschedule_events' && Array.isArray(params.items) ? (params.items as MoveItem[]) : [];
+  const movable = moveItems.filter((x) => !x.blocked);
+  const movableMoves = movable.map((x) => ({ event_id: x.event_id, date: x.date, ...(x.start_time ? { start_time: x.start_time } : {}) }));
+  const sharedDate = moveItems.length && moveItems.every((x) => x.date === moveItems[0].date) ? moveItems[0].date : null;
+  const setMoveDate = (date: string) => {
+    setParams((p) => ({
+      ...p,
+      items: ((p.items as MoveItem[]) || []).map((x) => {
+        if (x.all_day) {
+          const delta = Date.parse(`${date}T00:00:00Z`) - Date.parse(`${x.to_start.slice(0, 10)}T00:00:00Z`);
+          return { ...x, date, to_start: new Date(Date.parse(x.to_start) + delta).toISOString(), to_end: new Date(Date.parse(x.to_end) + delta).toISOString() };
+        }
+        const w = isoToWall(x.to_start, workspaceTz);
+        if (!w) return x;
+        const ns = wallStringsToIso(date, w.time, workspaceTz);
+        const dur = Date.parse(x.to_end) - Date.parse(x.to_start);
+        return { ...x, date, to_start: ns, to_end: new Date(Date.parse(ns) + dur).toISOString() };
+      }),
+    }));
+  };
+  const removeMove = (id: number) => setParams((p) => ({ ...p, items: ((p.items as MoveItem[]) || []).filter((x) => x.event_id !== id) }));
+  const whenOf = (x: MoveItem, which: 'from' | 'to') => {
+    const s0 = which === 'from' ? x.from_start : x.to_start;
+    return x.all_day
+      ? formatDay(s0.slice(0, 10), { weekday: true })
+      : formatDayTime(s0, { tz: workspaceTz, weekday: true });
   };
 
   const isCreate = proposal.tool === 'create_task' || proposal.tool === 'create_event' || proposal.tool === 'create_document_draft';
@@ -115,6 +166,7 @@ const CueActionCard: React.FC<Props> = ({ proposal, businessId, onExecuted, onDi
   const HDR: Record<CueToolName, string> = {
     create_task: t('qhelper.action.hdrTask', '업무 추가'),
     create_event: t('qhelper.action.hdrEvent', '일정 추가'),
+    reschedule_events: t('qhelper.action.hdrMove', '일정 옮기기'),
     create_document_draft: t('qhelper.action.hdrDoc', '문서 초안'),
     submit_review: t('qhelper.action.hdrSubmit', '검토 요청'),
     complete_task: t('qhelper.action.hdrComplete', '업무 완료'),
@@ -123,6 +175,7 @@ const CueActionCard: React.FC<Props> = ({ proposal, businessId, onExecuted, onDi
   const ADD: Record<CueToolName, string> = {
     create_task: t('qhelper.action.addTask', '＋ 업무 추가'),
     create_event: t('qhelper.action.addEvent', '＋ 일정 추가'),
+    reschedule_events: t('qhelper.action.doMove', { count: movable.length, defaultValue: `일정 ${movable.length}건 옮기기` }),
     create_document_draft: t('qhelper.action.addDoc', '＋ 초안 만들기'),
     submit_review: t('qhelper.action.doSubmit', '검토 요청 보내기'),
     complete_task: t('qhelper.action.doComplete', '완료 처리'),
@@ -134,7 +187,8 @@ const CueActionCard: React.FC<Props> = ({ proposal, businessId, onExecuted, onDi
     ? t('qhelper.action.addTaskCompleted', '＋ 완료로 추가')
     : ADD[proposal.tool];
   // [추가] 활성 조건: 생성=제목 필요, 댓글=내용 필요, 전이(submit/complete)=항상 가능
-  const canSubmit = isCreate ? !!title.trim() : isComment ? !!content.trim() : true;
+  const isMove = proposal.tool === 'reschedule_events';
+  const canSubmit = isMove ? movable.length > 0 : isCreate ? !!title.trim() : isComment ? !!content.trim() : true;
 
   return (
     <Card role="group" aria-label={header}>
@@ -147,7 +201,7 @@ const CueActionCard: React.FC<Props> = ({ proposal, businessId, onExecuted, onDi
         </Field>
       )}
 
-      {!isCreate && (
+      {!isCreate && !isMove && (
         <Field as="div">
           <Lbl>{t('qhelper.action.targetTask', '대상 업무')}</Lbl>
           <ReadVal>{taskTitle}</ReadVal>
@@ -274,6 +328,35 @@ const CueActionCard: React.FC<Props> = ({ proposal, businessId, onExecuted, onDi
         </>
       )}
 
+      {isMove && (
+        <>
+          {sharedDate && (
+            <Field as="div">
+              <Lbl>{t('qhelper.action.moveTo', '옮길 날짜')}</Lbl>
+              <SingleDateField value={sharedDate} onChange={(d) => { if (d) setMoveDate(d); }} size="sm" />
+            </Field>
+          )}
+          <MoveList>
+            {moveItems.map((x) => (
+              <MoveRow key={x.event_id} $blocked={!!x.blocked} data-testid="cue-move-row">
+                <MoveMain>
+                  <MoveTitle>{x.title}</MoveTitle>
+                  <MoveWhen>
+                    {whenOf(x, 'from')} <span aria-hidden="true">→</span> <strong>{whenOf(x, 'to')}</strong>
+                  </MoveWhen>
+                  {x.blocked && <MoveWhy>{mapError(x.blocked)}</MoveWhy>}
+                </MoveMain>
+                <RemoveBtn type="button" onClick={() => removeMove(x.event_id)}
+                  aria-label={t('qhelper.action.moveRemove', '이 일정 빼기')} title={t('qhelper.action.moveRemove', '이 일정 빼기')}>×</RemoveBtn>
+              </MoveRow>
+            ))}
+          </MoveList>
+          {movable.some((x) => (x.attendees_others || 0) > 0) && (
+            <Hint>{t('qhelper.action.moveNoNotify', '참석자가 있는 일정이 있어요 — 시간이 바뀌었다는 알림은 보내지 않아요. 알려야 하면 캘린더에서 고쳐 «알림 보내기» 를 골라 주세요.')}</Hint>
+          )}
+        </>
+      )}
+
       {proposal.tool === 'create_document_draft' && (
         <Field as="div">
           <Lbl>{t('qhelper.action.docKind', '종류')}</Lbl>
@@ -365,6 +448,21 @@ const CheckRow = styled.label`
 const ToggleRow = styled.button`
   border: none; background: none; text-align: left; cursor: pointer; padding: 2px 0;
   font-size: 0.75rem; color: #64748b; font-weight: 600;
+`;
+const MoveList = styled.div`display: flex; flex-direction: column; gap: 6px;`;
+const MoveRow = styled.div<{ $blocked: boolean }>`
+  display: flex; align-items: flex-start; gap: 6px; background: #fff;
+  border: 1px solid #e2e8f0; border-radius: 8px; padding: 7px 4px 7px 9px;
+  opacity: ${(p) => (p.$blocked ? 0.6 : 1)};
+`;
+const MoveMain = styled.div`flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px;`;
+const MoveTitle = styled.div`font-size: 0.8125rem; font-weight: 600; color: #1e293b; overflow-wrap: anywhere;`;
+const MoveWhen = styled.div`font-size: 0.75rem; color: #475569; strong { color: #0f766e; font-weight: 600; white-space: nowrap; }`;
+const MoveWhy = styled.div`font-size: 0.6875rem; color: #b45309;`;
+const RemoveBtn = styled.button`
+  flex-shrink: 0; width: 36px; height: 36px; border: none; background: none; cursor: pointer;
+  color: #94a3b8; font-size: 1.125rem; line-height: 1; border-radius: 6px;
+  &:hover { color: #475569; background: #f1f5f9; }
 `;
 const ErrLine = styled.div`font-size: 0.75rem; color: #dc2626; font-weight: 600;`;
 const Actions = styled.div`display: flex; justify-content: flex-end; gap: 8px; margin-top: 2px;`;

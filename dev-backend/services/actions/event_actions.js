@@ -317,4 +317,71 @@ async function createEvent(actor, params = {}) {
   return done({ event, full, meetWarning });
 }
 
-module.exports = { createEvent };
+/** 이미 있는 일정의 **시간만** 옮긴다 — Cue «목요일 일정 월요일로 옮겨줘» (2026-10-11).
+ *
+ *   화면의 수정(PUT /api/calendar/by-business/:biz/:id)과 **같은 판정**을 지난다:
+ *     멤버(고객·AI 불가) · qcalendar 쓰기 · services/calendarPermission.canEditEvent(작성자 또는 owner/admin,
+ *     남의 «나만 보기» 불가) · 상담 예약은 409 booking_use_actions · 종일은 날짜 부호화 · 알림 발송 기록 리셋 ·
+ *     감사 event.updated · 구글 반영(calendarSync.reconcile) · 신호만 방송.
+ *   ★ 반복 일정 원본은 옮기지 않는다(recurring_use_calendar) — 회차 하나/이후 전부/전체 중 무엇인지는
+ *     화면의 범위 물음(handleRecurrenceScopeUpdate)이 정한다. 여기서 원본을 옮기면 모든 회차가 같이 움직인다.
+ *   ★ 참석자 변경 알림은 보내지 않는다 — 화면에서 «보내기» 를 고르지 않은 수정과 같다(#462 기본값).
+ *   제목·장소·참석자·공개 범위는 바꾸지 않는다(이 문은 시간만).
+ *
+ * @param params { businessId, eventId, startAt, endAt }
+ */
+async function rescheduleEvent(actor, params = {}) {
+  const subj = await resolveSubject(actor);
+  if (!subj.ok) return subj;
+  const subjectId = subj.subjectId;
+  const businessId = Number(params.businessId);
+  if (!businessId) return fail('business_id required');
+
+  const bm = await BusinessMember.findOne({ where: { user_id: subjectId, business_id: businessId } });
+  if (!bm || bm.role === 'ai' || bm.role === 'client') return fail('forbidden', 403);
+  const menu = await assertMenuWrite(subjectId, businessId, 'qcalendar', subj.platformRole);
+  if (!menu.ok) return menu;
+
+  const event = await CalendarEvent.findOne({ where: { id: Number(params.eventId) || 0, business_id: businessId } });
+  if (!event) return fail('event_not_found', 404);
+  const calendarPermission = require('../calendarPermission');
+  if (!calendarPermission.canEditEvent(event, bm, subjectId)) {
+    return fail(calendarPermission.editDenyReason(event, bm, subjectId), 403);
+  }
+  if (event.booking_status) return fail('booking_use_actions', 409);
+  if (event.rrule && !event.recurrence_parent_id) return fail('recurring_use_calendar', 409);
+
+  let sd = parseDate(params.startAt);
+  let ed = parseDate(params.endAt);
+  if (!sd || !ed) return fail('invalid_dates');
+  if (ed < sd) return fail('end_at must be after start_at');
+  if (event.all_day) {
+    const norm = require('../../utils/allDayDate').normalizeAllDay(params.startAt, params.endAt);
+    if (!norm) return fail('invalid_dates');
+    sd = norm.start_at; ed = norm.end_at;
+  }
+
+  const oldValue = { start_at: event.start_at, end_at: event.end_at };
+  await event.update({ start_at: sd, end_at: ed, reminder_sent_at: null });
+
+  await createAuditLog({
+    user_id: subjectId,
+    business_id: businessId,
+    action: 'event.updated',
+    target_type: 'calendar_event',
+    target_id: event.id,
+    old_value: oldValue,
+    new_value: { start_at: sd, end_at: ed, via: params.via || (actor.kind === 'cue' ? 'cue' : 'user') },
+    ip_address: actor.req?.ip || null,
+  });
+  try {
+    const r = await calendarSync.reconcile(event, { businessId, userId: subjectId });
+    if (r.errors.length) console.warn('[calendarSync reschedule]', JSON.stringify(r.errors).slice(0, 300));
+  } catch (e) { console.warn('[calendarSync reschedule] reconcile 실패:', e.message); }
+
+  const io = getIO();
+  if (io) io.to(`business:${businessId}`).emit('event:updated', { id: event.id, business_id: event.business_id, project_id: event.project_id || null });
+  return done({ event, old: oldValue });
+}
+
+module.exports = { createEvent, rescheduleEvent };

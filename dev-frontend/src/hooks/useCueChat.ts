@@ -28,7 +28,7 @@ export interface CueTurn {
 
 /** 확인 카드로 띄울 수 있는 툴 — 서버 화이트리스트와 **같은 목록**이어야 한다. */
 const PROPOSABLE_TOOLS = [
-  'create_task', 'create_event', 'create_document_draft',
+  'create_task', 'create_event', 'reschedule_events', 'create_document_draft',
   'submit_review', 'complete_task', 'add_task_comment',
 ];
 

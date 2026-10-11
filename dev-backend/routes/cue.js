@@ -316,6 +316,8 @@ router.post('/help', authenticateToken, ...helpLimiter, async (req, res, next) =
           if (CUE_TOOLS_ENABLED) {
             try { ctxBlock += `\n\n${await cueTools.buildToolSystemContext(businessId)}`; }
             catch (e) { console.warn('[cue/help tools ctx]', e.message); }
+            // 옮길 수 있는 일정 목록(#id·요일·시각, 일정 얘기일 때만) — 없으면 «목요일 일정 옮겨줘» 를 못 알아듣는다
+            try { const ev = await cueTools.buildEventEditContext(businessId, req.user.id, req.user.platform_role, retrievalQuery); if (ev) ctxBlock += `\n\n${ev}`; } catch (e) { console.warn('[cue/help event ctx]', e.message); }
             // 현재 보고 있는 업무(?task=N) 주입 → "이 업무 검토 요청/완료/댓글" 이 대상을 안다
             try {
               const taskMatch = (String(page_context?.path || '') + String(page_context?.search || '')).match(/[?&]task=(\d+)/);
@@ -398,7 +400,7 @@ router.post('/help', authenticateToken, ...helpLimiter, async (req, res, next) =
     // 툴 제안 → 확인 카드용 proposed_action (첫 유효 쓰기 툴 1건). 절대 실행 안 함.
     let proposedAction = null;
     if (useTools && Array.isArray(tool_calls) && tool_calls.length) {
-      try { proposedAction = await cueTools.buildProposedAction(workspaceBizId, tool_calls); }
+      try { proposedAction = await cueTools.buildProposedAction(workspaceBizId, tool_calls, req.user.id, req.user.platform_role); }
       catch (e) { console.warn('[cue/help buildProposedAction]', e.message); }
     }
     // ★ 2026-10-08 0-G — «제안» 은 무과금. 답이 실행 카드(proposed_action)면 여기서 기록하지 않는다 —
@@ -465,13 +467,13 @@ router.post('/execute-action', authenticateToken, ...helpLimiter, async (req, re
     recordUsage(businessId, 'tool_call', 'gpt-4o-mini', 0, 0).catch((e) => console.warn('[cue tool_call usage]', e.message));
     require('../services/auditService').logAudit(req, {
       action: 'cue.tool_execute', targetType: r.data.entity_type, targetId: r.data.entity_id,
-      businessId, newValue: { tool, entity_type: r.data.entity_type, entity_id: r.data.entity_id },
+      businessId, newValue: { tool, entity_type: r.data.entity_type, entity_id: r.data.entity_id, ...(r.data.moved_ids ? { moved_ids: r.data.moved_ids } : {}) },
     });
 
-    return successResponse(res, {
-      tool, entity_type: r.data.entity_type, entity_id: r.data.entity_id, entity: r.data.entity,
-      // #237 — "완료로 추가" 를 요청했지만 완료까지는 못 간 경우의 사유(업무는 생성됨). 카드가 안내한다.
+    return successResponse(res, { tool, entity_type: r.data.entity_type, entity_id: r.data.entity_id, entity: r.data.entity,
+      // #237 «완료로 추가» 가 완료까지 못 간 사유(업무는 생성됨) · 일정 옮기기 결과(옮긴 것·못 옮긴 것). 카드가 안내한다.
       ...(r.data.completed_skipped ? { completed_skipped: r.data.completed_skipped } : {}),
+      ...(r.data.moved_ids ? { moved_ids: r.data.moved_ids, failed: r.data.failed || [] } : {}),
     }, 'executed', 201);
   } catch (e) { next(e); }
 });
