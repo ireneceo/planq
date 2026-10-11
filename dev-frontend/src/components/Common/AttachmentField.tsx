@@ -53,6 +53,9 @@ interface Props {
    *  개인 자리(개인 보관함)에서만 'personal'. 공용 첨부에 개인 Drive 를 붙이면
    *  멤버 사적 파일이 워크스페이스로 샌다 (memory `project_gdrive_policy` 옵션 B). */
   driveScope?: 'workspace' | 'personal';
+  /** 접기 — 쓰는 자리가 좁은 곳(메일 답장)에서 드롭존·검색·Drive 를 «📎 파일 첨부 (N)» 한 줄로 접는다.
+   *  기본은 접힘. 접혀 있어도 그 줄에 파일을 떨어뜨리면 붙는다(펼치지 않아도 된다). */
+  collapsible?: boolean;
 }
 
 const AttachmentField: React.FC<Props> = ({
@@ -64,6 +67,7 @@ const AttachmentField: React.FC<Props> = ({
   hideExistingSearch = false,
   projectId = null,
   driveScope = 'workspace',
+  collapsible = false,
 }) => {
   // searchPostsPlaceholder is deprecated — 통합 검색에서는 searchPlaceholder 만 사용
   const { t, i18n } = useTranslation('common');
@@ -71,6 +75,10 @@ const AttachmentField: React.FC<Props> = ({
   const [internalFiles, setInternalFiles] = useState<ProjectFile[]>([]);
   const [posts, setPosts] = useState<PostRow[]>([]);
   const [dragOver, setDragOver] = useState(false);
+  // 접기 — 2026-10-11 Irene: *"메일 답변쓰기 할 때 … 파일첨부영역이 너무 넓어서 작성이 불편하네.
+  // 파일첨부 열고 닫기 되게 하고 접어두자."* 드롭존(약 110px)+검색+Drive 가 본문 쓰는 자리를 먹었다.
+  const [open, setOpen] = useState(!collapsible);
+  const attachedCount = uploads.length + existingFileIds.length + (includePosts ? existingPostIds.length : 0);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const wsFiles = providedFiles ?? internalFiles;
@@ -116,12 +124,12 @@ const AttachmentField: React.FC<Props> = ({
     onUploadsChange([...uploads, ...arr]);
   }, [uploads, onUploadsChange]);
 
-  const onDrop = (e: DragEvent<HTMLDivElement>) => {
+  const onDrop = (e: DragEvent<HTMLElement>) => {
     e.preventDefault(); setDragOver(false);
     if (disabled) return;
     if (e.dataTransfer.files) addUploads(e.dataTransfer.files);
   };
-  const onDragOver = (e: DragEvent<HTMLDivElement>) => {
+  const onDragOver = (e: DragEvent<HTMLElement>) => {
     e.preventDefault(); if (!disabled) setDragOver(true);
   };
   const onDragLeave = () => setDragOver(false);
@@ -132,8 +140,46 @@ const AttachmentField: React.FC<Props> = ({
   const removeUpload = (idx: number) =>
     onUploadsChange(uploads.filter((_, i) => i !== idx));
 
+  if (collapsible && !open) {
+    return (
+      <Wrap>
+        <CollapseHead
+          type="button"
+          data-testid="attach-toggle"
+          aria-expanded={false}
+          $dragOver={dragOver}
+          onClick={() => setOpen(true)}
+          onDrop={(e) => { onDrop(e); if (!disabled) setOpen(true); }}
+          onDragOver={onDragOver}
+          onDragLeave={onDragLeave}
+        >
+          <CollapseClip viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
+          </CollapseClip>
+          <span>{t('attach.toggle', '파일 첨부') as string}</span>
+          {attachedCount > 0 && <CollapseCount>{attachedCount}</CollapseCount>}
+          <CollapseChevron $open={false} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+            <path d="M6 9l6 6 6-6" />
+          </CollapseChevron>
+        </CollapseHead>
+      </Wrap>
+    );
+  }
+
   return (
     <Wrap>
+      {collapsible && (
+        <CollapseHead type="button" data-testid="attach-toggle" aria-expanded onClick={() => setOpen(false)} $open>
+          <CollapseClip viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
+          </CollapseClip>
+          <span>{t('attach.toggle', '파일 첨부') as string}</span>
+          {attachedCount > 0 && <CollapseCount>{attachedCount}</CollapseCount>}
+          <CollapseChevron $open viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+            <path d="M6 9l6 6 6-6" />
+          </CollapseChevron>
+        </CollapseHead>
+      )}
       <UploadDrop
         $dragOver={dragOver}
         onClick={() => !disabled && inputRef.current?.click()}
@@ -317,3 +363,26 @@ const ChipX = styled.button`
   &:disabled { opacity: 0.5; cursor: not-allowed; }
 `;
 const FieldGap = styled.div`height: 12px;`;
+// 접기 머리줄 — 메일 «전달할 원문» 접기 머리(FwdPreviewHead)와 같은 톤. 폰은 터치 40px.
+const CollapseHead = styled.button<{ $dragOver?: boolean; $open?: boolean }>`
+  all: unset; box-sizing: border-box; cursor: pointer;
+  display: flex; align-items: center; gap: 6px; flex-shrink: 0;
+  width: 100%; min-height: 36px; padding: 0 12px;
+  border: 1px ${p => p.$dragOver ? 'dashed #14B8A6' : 'solid #E2E8F0'}; border-radius: 8px;
+  background: ${p => p.$dragOver ? '#F0FDFA' : '#F8FAFC'};
+  font-size: 0.75rem; font-weight: 600; color: #334155;
+  margin-bottom: ${p => p.$open ? '8px' : '0'};
+  &:hover { background: #F1F5F9; }
+  &:focus-visible { outline: 2px solid #14B8A6; outline-offset: 1px; }
+  @media (max-width: 640px) { min-height: 40px; }
+`;
+const CollapseClip = styled.svg`width: 14px; aspect-ratio: 1; color: #64748B; flex-shrink: 0;`;
+const CollapseCount = styled.span`
+  min-width: 18px; padding: 2px 6px; line-height: 1.3; box-sizing: border-box;
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 9px; background: #CCFBF1; color: #0F766E; font-size: 0.6875rem; font-weight: 700;
+`;
+const CollapseChevron = styled.svg<{ $open: boolean }>`
+  width: 16px; aspect-ratio: 1; margin-left: auto; color: #94A3B8; flex-shrink: 0;
+  transition: transform 0.15s; transform: rotate(${p => (p.$open ? 180 : 0)}deg);
+`;

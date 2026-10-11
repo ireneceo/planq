@@ -552,6 +552,7 @@
     }
   },
   "attach": {
+    "toggle": "파일 첨부",
     "uploadHint": "파일을 드래그하거나 클릭",
     "uploadAccept": "여러 파일 한번에 가능 · 워크스페이스에 자동 저장",
     "searchPlaceholder": "기존 파일 검색해서 추가...",

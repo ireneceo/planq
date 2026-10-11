@@ -552,6 +552,7 @@
     }
   },
   "attach": {
+    "toggle": "Attach files",
     "uploadHint": "Drag files here or click to browse",
     "uploadAccept": "Multiple files supported · saved to workspace",
     "searchPlaceholder": "Search existing files...",

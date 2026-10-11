@@ -2829,7 +2829,7 @@ const MailPage: React.FC = () => {
                   enabled={cSignature}
                   onToggle={setCSignature}
                 />
-                <AttachmentField businessId={businessId} uploads={cUploads} onUploadsChange={(u) => { markComposeTouched(); setCUploads(u); }} existingFileIds={cFileIds} onExistingFileIdsChange={(ids) => { markComposeTouched(); setCFileIds(ids); }} />
+                <AttachmentField collapsible businessId={businessId} uploads={cUploads} onUploadsChange={(u) => { markComposeTouched(); setCUploads(u); }} existingFileIds={cFileIds} onExistingFileIdsChange={(ids) => { markComposeTouched(); setCFileIds(ids); }} />
                 {cError && <ComposerError>{cError}</ComposerError>}
               </ComposeBody>
               <ComposeFoot>
@@ -3228,6 +3228,7 @@ const MailPage: React.FC = () => {
                       privateInline={inlineIsPrivate(detail?.account?.id ?? null, detail?.account?.owner_user_id ?? undefined)}
                     />
                     <AttachmentField
+                      collapsible
                       businessId={businessId}
                       uploads={replyUploads}
                       onUploadsChange={setReplyUploads}
