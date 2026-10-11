@@ -6,7 +6,7 @@
 - 답이 오면: ①이면 대화 내보내기 파서(카톡 txt/csv · 왓츠앱 txt/zip) + Q talk 대화방 가져오기 설계 요약 → 구현. ②③이면 Fable design 부터
 
 **마지막 업데이트:** 2026-10-11 아침 (방 c7f09277 — 아침 점검 10/11)
-**작업 상태:** 완료 · 배포 가능(고객 링크 §I Fable 재판정 PASS — 2026-10-11) · 운영 미배포 커밋 다수(dab6c857 이후)
+**작업 상태:** 완료 · 운영 배포 2026-10-11 e1c5f56a(방 e205bfa8 — 고객 링크 §I 포함, 운영 K-DINE 링크 PDF 7쪽·이미지 미리보기 200 실측)
 
 ### 아침 점검 10/11 (방 c7f09277 · [Opus])
 - 개발완료: 게이트 health 84/84 · guard 68/69 · e2e tenant 0 → 10/10 낮 4건(9888764a·d08b5274·bdc8c657·9c08b7a7) DEVELOPMENT_PLAN·next.json 기록 · 도움말 글 project-external-view-link 갱신(«세 탭·주소 한 번만» 으로 낡아 있었다 → 6탭·[복사]·새 주소 받기·고객 공개·파일 보기, dev seed 반영 · wiki-coverage 통과).
@@ -22,7 +22,7 @@
 - 왜: Fable 완료 검증 FAIL 의 유일한 남은 차단 항목. 코드 쪽 두 지적(포이즌 캐시 · 배포 사전검사)은 고쳤다 — 도구가 없으면 PDF 에 «보기» 를 안 붙이고, 배포 스크립트가 멈춘다.
 - 답이 오면: 운영 `pdftoppm -v` 확인 → `/fable-검증` 재판정(설치·preflight·캐시 수정 확인) → PASS 마커 → 배포는 Irene `/배포` 지시 때. 배포 뒤 K-DINE 링크 PDF 1건 X-Pq-Pages 200 실측.
 
-### 완료(Fable 1차 FAIL → 수정·운영 설치 → 재판정 PASS 2026-10-11): 고객 프로젝트 링크 — 개요 통계·주요 이슈·히스토리 탭·파일 «보기» (2026-10-10 · 방 e205bfa8 · [Fable] 설계 §I · [Opus] 구현)
+### 완료·운영 배포됨(2026-10-11 e1c5f56a, Fable 재판정 PASS): 고객 프로젝트 링크 — 개요 통계·주요 이슈·히스토리 탭·파일 «보기» (2026-10-10 · 방 e205bfa8 · [Fable] 설계 §I · [Opus] 구현)
 - 원문: *"고객 프로젝트 안내에 … 기본 정보들 주요이슈들 통계들, 업무진행 통계들, 히스토리들 … 제대로 제공이 안되고 있어. 파일에서 미리보기도 안되고"*
 - 운영 실측(해당 링크): 파일 수십 건 전부 downloadable:false → 미리보기 0(옛 §D 규칙상 «영원히 0»). 개요는 단계·완료수뿐. 업무 상태 done_feedback 등 원문 노출.
 - 설계 docs/GUEST_PROJECT_VIEW_DECISIONS.md §I. 개요 기본 정보(빈 칸 «—»)·업무 통계(guestTaskStats.ts)·주요 이슈 3 · 6번째 탭 «히스토리» · 히스토리 항목별 «고객 공개» 토글(기본 꺼짐, PATCH /api/projects/:id/history-entries/:entryId) · GET /api/guest/:token/history · 파일 보기 GET /api/guest/:token/files/:id/preview(이미지 webp·PDF 한 쪽 png, 원본 금지, 링크 토큰 아래) · 받기는 종전(L4) · 멤버 링크 창 안내 3줄.
