@@ -157,13 +157,15 @@ async function getEmailThreadSnapshot(threadId, businessId, { userId = null, sco
     if (!th) return null;
     const msgs = await EmailMessage.findAll({
       where: { thread_id: threadId },
-      attributes: ['id', 'direction', 'from_name', 'from_email', 'body_text', 'sent_at'],
+      attributes: ['id', 'direction', 'from_name', 'from_email', 'body_text', 'body_html', 'sent_at'],
       order: [['sent_at', 'DESC']], limit: THREAD_MSG_LIMIT,
     });
     // 답장 언어 — Q mail [AI 답변 초안] 과 같은 판정(마지막 받은 메일 본문 + 제목)
     const lastIn = msgs.find((m) => m.direction === 'inbound');
-    const { detectLang } = require('./emailBodyClean');
-    const language = lastIn ? detectLang(String(lastIn.body_text || ''), 'ko', th.subject) : null;
+    const { detectLang, preferHtmlBody, htmlToText } = require('./emailBodyClean');
+    // 평문이 «HTML 메일입니다» 같은 대체 문구뿐이면 HTML 을 읽는다(업무 추출과 같은 판정).
+    const bodyOf = (m) => String((preferHtmlBody(m.body_text, m.body_html) ? htmlToText(m.body_html) : m.body_text) || '');
+    const language = lastIn ? detectLang(bodyOf(lastIn), 'ko', th.subject) : null;
     // 이 메일로 이미 만든 업무 — 다음 할 일을 물을 때 같은 업무를 또 제안하지 않게.
     //   보이는지는 업무 읽기와 같은 술어(canAccessTask)로 거른다. 질문자를 모르면 싣지 않는다(fail-closed).
     let tasks = [];
@@ -188,7 +190,7 @@ async function getEmailThreadSnapshot(threadId, businessId, { userId = null, sco
         direction: m.direction,
         who: m.from_name || m.from_email || '(발신자 미상)',
         at: m.sent_at,
-        text: snip(String(m.body_text || '').replace(/\s+/g, ' ').trim(), m === lastIn ? THREAD_LAST_IN_CHARS : THREAD_MSG_CHARS),
+        text: snip(bodyOf(m).replace(/\s+/g, ' ').trim(), m === lastIn ? THREAD_LAST_IN_CHARS : THREAD_MSG_CHARS),
       })).filter((m) => m.text),
     };
   } catch (e) { console.warn('[cue_context] thread snapshot', e.message); return null; }

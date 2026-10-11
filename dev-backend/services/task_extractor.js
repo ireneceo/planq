@@ -550,15 +550,18 @@ async function extractEmailTaskCandidates({ emailThreadId, userId, businessId })
     where: { thread_id: emailThreadId, business_id: businessId },
     order: [['sent_at', 'ASC'], ['id', 'ASC']],
     limit: MAX_MESSAGES,
-    attributes: ['id', 'from_name', 'from_email', 'direction', 'subject', 'body_text'],
+    attributes: ['id', 'from_name', 'from_email', 'direction', 'subject', 'body_text', 'body_html'],
   });
   if (msgs.length === 0) return { candidates: [], message_count: 0, skipped: true, reason: 'no_messages' };
+  const { preferHtmlBody, htmlToText } = require('./emailBodyClean');
 
   // 메일 본문 텍스트 — inbound=고객 요청 / outbound=우리 팀 약속
   const messagesText = msgs.map((m) => {
     const name = m.from_name || m.from_email || `msg_${m.id}`;
     const who = m.direction === 'outbound' ? '우리 팀' : '고객';
-    const body = (m.body_text || m.subject || '').replace(/\s+/g, ' ').trim().slice(0, 1500);
+    // 평문이 «HTML 메일입니다» 같은 대체 문구뿐이면 HTML 을 읽는다 — 안 그러면 내용 없이 추출해 0건이다.
+    const src = preferHtmlBody(m.body_text, m.body_html) ? htmlToText(m.body_html) : m.body_text;
+    const body = (src || m.subject || '').replace(/\s+/g, ' ').trim().slice(0, 1500);
     return `[msg_id:${m.id}] ${name} (${who}): ${body}`;
   }).join('\n');
 
@@ -571,7 +574,14 @@ async function extractEmailTaskCandidates({ emailThreadId, userId, businessId })
     const bms = await BusinessMember.findAll({ where: { business_id: businessId, removed_at: null }, include: [{ model: User, as: 'user', attributes: ['id', 'name'] }] });
     memberNames = bms.map((m) => `- ${m.user?.name || 'unknown'} (role: ${m.role})`).join('\n');
   }
-  const participantNote = `Email thread (subject: ${thread.subject || ''}). Inbound = customer's request, outbound = our team. When the customer requests a deliverable, the assignee is one of OUR team members above (never the customer). When our team promises something, that sender is the assignee.`;
+  const participantNote = `Email thread (subject: ${thread.subject || ''}). Inbound = customer's request, outbound = our team. When the customer requests a deliverable, the assignee is one of OUR team members above (never the customer). When our team promises something, that sender is the assignee.
+
+AUTOMATED NOTICES (email only): a system/automated mail that tells US a specific item still needs an action
+(e.g. "세금계산서 발행이 필요한 건이 2건 있습니다" with rows "가나상사 ₩1,100,000", "결제 기한 지남", "갱신 필요",
+"서명 대기") IS a task — this overrides "be conservative". Extract ONE task per listed item, title = item name + action
+(e.g. "가나상사 세금계산서 발행"), description = the item's amount/deadline/link verbatim.
+The same notice repeated on several days is ONE task per item — cite every repeat's msg_id, and use the LATEST message's list.
+NOT tasks: notices that something is already done (발행 완료·결제 완료·receipt), newsletters, ads, security/login alerts.`;
 
   // 제목도 함께 본다 — 한글 제목 + 영문 템플릿 본문에서 업무 제목이 영어로 나오던 것을 막는다.
   const language = detectLang(messagesText, 'ko', thread.subject);

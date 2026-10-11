@@ -31,13 +31,27 @@ function htmlToText(html) {
     .replace(/<[^>]+>/g, ' ')
     .replace(/&nbsp;/g, ' ')
     .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
-    .replace(/&#39;/g, "'").replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'").replace(/&quot;/g, '"').replace(/&middot;/g, '·')
     .replace(/[ \t]+/g, ' ');
+}
+
+// 평문 대신 HTML 을 읽어야 하는가 — 평문이 «HTML 메일입니다» 같은 대체 문구뿐일 때.
+//   자동발송 메일은 평문 칸에 한 줄 안내만 넣고 내용은 HTML 에만 싣는 경우가 많다.
+//   그 한 줄을 본문으로 읽으면 업무 추출·미리보기·언어 판정이 내용을 하나도 못 본다
+//   (2026-10-12 실측: «세금계산서 발행 필요 1건» 메일 — 평문 31자 / HTML 글자 600자+, 업무 0건).
+//   평문 **원문**(인용 포함) 길이로 잰다 — 인용이 붙은 짧은 답장은 원문이 길어 여기 걸리지 않는다.
+const STUB_TEXT_MAX = 80;
+function preferHtmlBody(text, html) {
+  const t = String(text || '').replace(/\s+/g, ' ').trim();
+  if (!t) return true;
+  if (t.length > STUB_TEXT_MAX || !html) return false;
+  const h = htmlToText(html).replace(/\s+/g, ' ').trim();
+  return h.length > Math.max(STUB_TEXT_MAX, t.length * 3);
 }
 
 // "새로 쓴 본문"만 남긴다 — 인용/전달/헤더/선두 서명 제거.
 function cleanVisibleBody(text, html) {
-  let body = (text && String(text).trim()) ? String(text) : htmlToText(html);
+  let body = preferHtmlBody(text, html) ? htmlToText(html) : String(text || '');
   if (!body) return '';
   // 1) 인용/전달 마커에서 자른다 (가장 이른 지점)
   let cutAt = body.length;
@@ -96,4 +110,4 @@ function buildPreview(text, html, maxLen = 500) {
   return cleanVisibleBody(text, html).replace(/\s+/g, ' ').trim().slice(0, maxLen);
 }
 
-module.exports = { cleanVisibleBody, detectLang, buildPreview, htmlToText };
+module.exports = { cleanVisibleBody, detectLang, buildPreview, htmlToText, preferHtmlBody };
