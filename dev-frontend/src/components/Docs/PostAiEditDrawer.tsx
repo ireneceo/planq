@@ -17,7 +17,8 @@ interface Props {
   open: boolean;
   onClose: () => void;
   postId: number;
-  onApplied: (r: { applied: number; beforeRevisionId: number | null }) => void;
+  // 되돌리기는 같은 문을 전/후를 뒤집어 부른다 — 그래서 적용한 칸과 새 기준 시각을 넘긴다(표 칸은 버전 기록이 없다)
+  onApplied: (r: { applied: number; baseUpdatedAt: string | null; changes: { id: number; before: string; after: string }[] }) => void;
 }
 
 const PLACEHOLDER = '￼';
@@ -38,11 +39,11 @@ const PostAiEditDrawer: React.FC<Props> = ({ open, onClose, postId, onApplied })
   const errText = (code: string) => {
     const known: Record<string, string> = {
       doc_too_long: t('aiEdit.err.tooLong', '문서가 길어 한 번에 고칠 수 없어요. 문서를 나눠서 시도해 주세요.') as string,
-      doc_not_structured: t('aiEdit.err.notStructured', '이 문서는 옛 형식이라 AI 수정을 쓸 수 없어요. 편집에서 한 번 저장한 뒤 다시 시도해 주세요.') as string,
-      doc_empty: t('aiEdit.err.empty', '고칠 글이 없는 문서예요.') as string,
+      doc_not_structured: t('aiEdit.err.notStructured', '이 문서는 저장 형식이 달라 AI 수정을 쓸 수 없어요. [편집]을 눌러 한 번 저장하면 쓸 수 있어요.') as string,
+      doc_empty: t('aiEdit.err.empty', 'AI 가 고칠 내용이 없어요. 문서에 글이나 표 내용을 먼저 넣어 주세요.') as string,
       post_locked_by_signature: t('aiEdit.err.signed', '서명 요청이 진행 중이거나 완료된 문서라 고칠 수 없어요.') as string,
       post_edit_forbidden: t('aiEdit.err.forbidden', '이 문서를 고칠 권한이 없어요.') as string,
-      stale_edit: t('aiEdit.err.stale', '그 사이 문서가 바뀌었어요. 다시 제안을 받아 주세요.') as string,
+      stale_edit: t('aiEdit.err.stale', '수정안을 만든 뒤 문서가 바뀌었어요. 수정안을 다시 만들어 주세요.') as string,
       llm_unavailable: t('aiEdit.err.llm', 'AI 가 지금 응답하지 않아요. 잠시 후 다시 시도해 주세요.') as string,
       ai_output_truncated: t('aiEdit.err.truncated', '바꿀 곳이 너무 많아 한 번에 받지 못했어요. 지시를 나눠서 요청해 주세요.') as string,
       ai_output_invalid: t('aiEdit.err.invalid', 'AI 응답을 읽지 못했어요. 다시 시도해 주세요.') as string,
@@ -71,7 +72,7 @@ const PostAiEditDrawer: React.FC<Props> = ({ open, onClose, postId, onApplied })
     try {
       const chosen = proposal.changes.filter((c) => picked.has(c.id)).map((c) => ({ id: c.id, before: c.before, after: c.after }));
       const r = await applyPostAiEdit(postId, { base_updated_at: proposal.base_updated_at, changes: chosen, instruction: instruction.trim() });
-      onApplied({ applied: r.applied, beforeRevisionId: r.before_revision_id });
+      onApplied({ applied: r.applied, baseUpdatedAt: r.base_updated_at, changes: chosen });
       setProposal(null); setPicked(new Set()); draft.clear();
       onClose();
     } catch (e) {
@@ -92,6 +93,11 @@ const PostAiEditDrawer: React.FC<Props> = ({ open, onClose, postId, onApplied })
   });
 
   const locText = (loc: AiEditLoc) => {
+    if (loc.kind === 'record') {
+      // 표 문서의 데이터 칸 — «표 2행 · 가격 (소고기 국밥)»
+      const base = t('aiEdit.loc.record', '표 {{row}}행 · {{col}}', { row: loc.row, col: loc.col_head || '' }) as string;
+      return loc.row_head ? `${base} (${loc.row_head})` : base;
+    }
     if (loc.kind === 'table') {
       const base = t('aiEdit.loc.table', '표 {{table}} · {{row}}행 {{col}}열', { table: loc.table, row: loc.row, col: loc.col }) as string;
       const heads = [loc.row_head, loc.col_head].filter(Boolean).join(' · ');
@@ -102,13 +108,13 @@ const PostAiEditDrawer: React.FC<Props> = ({ open, onClose, postId, onApplied })
   };
 
   return (
-    <DetailDrawer open={open} onClose={() => { if (!busy) onClose(); }} ariaLabel={t('aiEdit.title', 'AI로 수정') as string}>
+    <DetailDrawer open={open} onClose={() => { if (!busy) onClose(); }} ariaLabel={t('aiEdit.title', 'AI 수정') as string}>
       <DetailDrawer.Header onClose={() => { if (!busy) onClose(); }}>
-        <HeadTitle>{t('aiEdit.title', 'AI로 수정')}</HeadTitle>
+        <HeadTitle>{t('aiEdit.title', 'AI 수정')}</HeadTitle>
       </DetailDrawer.Header>
       <DetailDrawer.Body>
         <Field>
-          <Label htmlFor="pq-ai-edit-ins">{t('aiEdit.label', '어떻게 고칠까요?')}</Label>
+          <Label htmlFor="pq-ai-edit-ins">{t('aiEdit.label', '무엇을 어떻게 고칠까요?')}</Label>
           <Textarea
             id="pq-ai-edit-ins"
             data-testid="post-ai-edit-input"
@@ -122,11 +128,11 @@ const PostAiEditDrawer: React.FC<Props> = ({ open, onClose, postId, onApplied })
               if (e.key === 'Enter' && (e.metaKey || e.ctrlKey) && !e.nativeEvent.isComposing) { e.preventDefault(); void propose(); }
             }}
           />
-          <Hint>{t('aiEdit.hint', '바꿀 곳을 먼저 보여 드려요. 고른 곳만 반영되고, 변경 기록에서 언제든 되돌릴 수 있어요. 글 바꾸기만 할 수 있어요(행·문단 추가·삭제는 편집에서).')}</Hint>
+          <Hint>{t('aiEdit.hint', 'AI 가 수정안을 만들면 고칠 곳마다 수정 전·후를 보여 드려요. 체크한 곳만 문서에 적용되고, 적용한 뒤에도 되돌릴 수 있어요. 글과 표 칸의 내용만 바꿀 수 있어요(행·문단 추가나 삭제는 [편집]에서).')}</Hint>
           <Row>
             <ActionButton tone={proposal ? 'secondary' : 'primary'} size="md" data-testid="post-ai-edit-propose"
               loading={busy === 'propose'} disabled={!instruction.trim() || busy !== null} onClick={() => { void propose(); }}>
-              {busy === 'propose' ? t('aiEdit.proposing', '찾는 중…') : proposal ? t('aiEdit.repropose', '다시 제안 받기') : t('aiEdit.propose', '바꿀 곳 찾기')}
+              {busy === 'propose' ? t('aiEdit.proposing', '수정안 만드는 중…') : proposal ? t('aiEdit.repropose', '수정안 다시 만들기') : t('aiEdit.propose', '수정안 만들기')}
             </ActionButton>
           </Row>
         </Field>
@@ -137,10 +143,10 @@ const PostAiEditDrawer: React.FC<Props> = ({ open, onClose, postId, onApplied })
           <Result data-testid="post-ai-edit-result">
             {proposal.summary && <Summary>{proposal.summary}</Summary>}
             {proposal.changes.length === 0 ? (
-              <Empty>{t('aiEdit.none', '바꿀 곳을 찾지 못했어요. 지시를 더 구체적으로 적어 보세요.')}</Empty>
+              <Empty>{t('aiEdit.none', '지시에 맞는 곳이 없어 수정안을 만들지 못했어요. 무엇을 어떻게 바꿀지 더 구체적으로 적어 주세요.')}</Empty>
             ) : (
               <CountRow>
-                <Count>{t('aiEdit.count', '바뀌는 곳 {{n}}곳', { n: proposal.changes.length })}</Count>
+                <Count>{t('aiEdit.count', '수정안 {{n}}곳', { n: proposal.changes.length })}</Count>
                 {proposal.changes.length > 1 && (
                   <LinkBtn type="button" data-testid="post-ai-edit-toggle-all" onClick={toggleAll}>
                     {allPicked ? t('aiEdit.unselectAll', '모두 해제') : t('aiEdit.selectAll', '모두 선택')}
@@ -152,25 +158,28 @@ const PostAiEditDrawer: React.FC<Props> = ({ open, onClose, postId, onApplied })
               <ChangeCard key={c.id} $off={!picked.has(c.id)} data-testid="post-ai-edit-change">
                 <CardTop>
                   <Check type="checkbox" checked={picked.has(c.id)} onChange={() => toggle(c.id)}
-                    aria-label={t('aiEdit.pick', '이 변경 반영') as string} />
+                    aria-label={t('aiEdit.pick', '이 수정안 적용') as string} />
                   <Where>{locText(c.loc)}</Where>
                 </CardTop>
-                <DiffLine aria-label={t('aiEdit.before', '전') as string}>
-                  <Side>{t('aiEdit.before', '전')}</Side>
+                <DiffLine aria-label={t('aiEdit.before', '수정 전') as string}>
+                  <Side>{t('aiEdit.before', '수정 전')}</Side>
                   <DiffText>{renderSide(c, 'before')}</DiffText>
                 </DiffLine>
-                <DiffLine aria-label={t('aiEdit.after', '후') as string}>
-                  <Side $after>{t('aiEdit.after', '후')}</Side>
+                <DiffLine aria-label={t('aiEdit.after', '수정 후') as string}>
+                  <Side $after>{t('aiEdit.after', '수정 후')}</Side>
                   <DiffText>{renderSide(c, 'after')}</DiffText>
                 </DiffLine>
                 {c.reason && <Reason>{c.reason}</Reason>}
               </ChangeCard>
             ))}
+            {proposal.dropped > 0 && (
+              <NotDoneItem>{t('aiEdit.dropped', 'AI 수정안 중 {{n}}곳은 칸 형식(숫자·선택 보기)에 맞지 않아 뺐어요.', { n: proposal.dropped })}</NotDoneItem>
+            )}
             {(proposal.not_done.length > 0 || proposal.emptied > 0) && (
               <NotDone>
-                <NotDoneHead>{t('aiEdit.notDone', '이건 못 했어요')}</NotDoneHead>
+                <NotDoneHead>{t('aiEdit.notDone', '수정안에 넣지 못한 것')}</NotDoneHead>
                 {proposal.not_done.map((x, i) => <NotDoneItem key={i}>{x}</NotDoneItem>)}
-                {proposal.emptied > 0 && <NotDoneItem>{t('aiEdit.emptied', '칸을 통째로 지우는 것은 아직 못 해요({{n}}곳) — 편집에서 지워 주세요.', { n: proposal.emptied })}</NotDoneItem>}
+                {proposal.emptied > 0 && <NotDoneItem>{t('aiEdit.emptied', '칸을 통째로 비우는 것은 아직 못 해요({{n}}곳) — [편집]에서 지워 주세요.', { n: proposal.emptied })}</NotDoneItem>}
               </NotDone>
             )}
           </Result>
@@ -181,7 +190,7 @@ const PostAiEditDrawer: React.FC<Props> = ({ open, onClose, postId, onApplied })
           <ActionButton tone="secondary" size="md" disabled={busy !== null} onClick={onClose}>{t('cancel', '취소')}</ActionButton>
           <ActionButton tone="primary" size="md" data-testid="post-ai-edit-apply"
             loading={busy === 'apply'} disabled={picked.size === 0 || busy !== null} onClick={() => { void apply(); }}>
-            {t('aiEdit.apply', '선택한 {{n}}곳 반영', { n: picked.size })}
+            {t('aiEdit.apply', '선택한 {{n}}곳 문서에 적용', { n: picked.size })}
           </ActionButton>
         </DetailDrawer.Footer>
       )}
@@ -242,7 +251,7 @@ const Check = styled.input`
 const Where = styled.span`font-size: 0.75rem; color: #64748B; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;`;
 const DiffLine = styled.div`display: flex; gap: 8px; align-items: flex-start;`;
 const Side = styled.span<{ $after?: boolean }>`
-  flex-shrink: 0; width: 22px; font-size: 0.6875rem; font-weight: 700; line-height: 1.6;
+  flex-shrink: 0; width: 44px; font-size: 0.6875rem; font-weight: 700; line-height: 1.6;
   color: ${(p) => (p.$after ? '#0F766E' : '#94A3B8')};
 `;
 const DiffText = styled.span`font-size: 0.8125rem; color: #334155; line-height: 1.6; word-break: break-word; white-space: pre-wrap;`;

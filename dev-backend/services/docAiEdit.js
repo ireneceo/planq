@@ -14,7 +14,8 @@ const PLACEHOLDER = '￼';
 const TEXTBLOCK = new Set(['paragraph', 'heading', 'codeBlock']);
 
 function parseDoc(contentJson) {
-  if (!contentJson) return null;
+  // 본문이 없는 문서(표 문서의 빈 설명 · 아직 아무것도 안 쓴 문서)는 «빈 문서» 다 — 형식 문제가 아니다.
+  if (!contentJson) return { type: 'doc', content: [] };
   try {
     const obj = typeof contentJson === 'string' ? JSON.parse(contentJson) : contentJson;
     // 옛 문서 일부는 content_json 에 HTML 문자열이 JSON 문자열로 들어 있다 — 노드 구조가 없어 칸으로 못 뽑는다.
@@ -101,6 +102,10 @@ function locLabel(loc) {
     parts.push(`표${loc.table} ${loc.row}행 ${loc.col}열`);
     if (loc.row_head) parts.push(`행머리="${loc.row_head}"`);
     if (loc.col_head) parts.push(`열머리="${loc.col_head}"`);
+  } else if (loc.kind === 'record') {
+    parts.push(`표 데이터 ${loc.row}행`);
+    if (loc.row_head) parts.push(`행머리="${loc.row_head}"`);
+    if (loc.col_head) parts.push(`칸="${loc.col_head}"`);
   } else if (loc.kind === 'heading') parts.push(`제목(h${loc.level})`);
   else if (loc.kind === 'list') parts.push('목록 항목');
   else parts.push('문단');
@@ -216,6 +221,59 @@ function applyText(content, after) {
 
 function countChar(s, ch) { let n = 0; for (const c of s) if (c === ch) n++; return n; }
 
+// ── 표 문서(kind='table')의 칸 ─────────────────────────────────────────────────
+// 표 문서의 값은 본문이 아니라 q_record_rows.values 에 있다 — «소고기 가격표» 는 대개 이쪽이다.
+// 글로 바꿀 수 있는 칸만 다룬다. 비밀(secret)·첨부(attach)·계산(row_sum/avg)·여러 선택은 건드리지 않는다
+// — 비밀 값은 모델에 보내지도 않는다.
+const RECORD_EDITABLE = new Set(['text', 'longtext', 'url', 'number', 'select']);
+
+function cellText(v) {
+  if (v == null) return '';
+  if (typeof v === 'number') return String(v);
+  if (typeof v === 'string') return v;
+  return '';
+}
+
+/**
+ * 표 칸 목록 — id 는 본문 칸 다음 번호부터(startId). 같은 표·같은 행 순서면 언제나 같은 id 다.
+ * 행머리 = 그 행의 첫 글 칸 값, 열머리 = 칸 이름.
+ */
+function extractRecordBlocks(record, rows, startId) {
+  const cols = (Array.isArray(record && record.columns) ? record.columns : [])
+    .slice().sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+  const headCol = cols.find((c) => c.type === 'text' || c.type === 'longtext');
+  const out = [];
+  let id = startId;
+  rows.forEach((row, ri) => {
+    const values = row.values || {};
+    const rowHead = headCol ? cellText(values[headCol.id]).slice(0, 60) : '';
+    for (const c of cols) {
+      if (!RECORD_EDITABLE.has(c.type)) continue;
+      const text = cellText(values[c.id]);
+      if (!text.trim()) continue;
+      out.push({
+        id: id++, src: 'record', rowId: row.id, colId: c.id, colType: c.type,
+        options: Array.isArray(c.options) ? c.options.map(String) : null,
+        text,
+        loc: { kind: 'record', row: ri + 1, col_head: String(c.name || '').slice(0, 60), ...(rowHead && c !== headCol ? { row_head: rowHead } : {}) },
+      });
+    }
+  });
+  return out;
+}
+
+/** 칸 종류에 맞는 값인가 — 숫자 칸은 숫자로, 선택 칸은 있는 보기로. 맞으면 저장할 값, 아니면 undefined. */
+function cellValueOf(b, after) {
+  if (b.colType === 'number') {
+    const t = String(after).replace(/[,\s]/g, '');
+    if (!/^-?\d+(\.\d+)?$/.test(t)) return undefined;
+    const n = Number(t);
+    return Number.isFinite(n) ? n : undefined;
+  }
+  if (b.colType === 'select') return b.options && b.options.includes(after) ? after : undefined;
+  return after;
+}
+
 /**
  * 모델 제안을 걸러낸다 — 모르는 칸 · 바뀐 것 없음 · 자리표시 개수 변화 · 줄바꿈 추가는 버린다.
  * 빈 글(= 칸 지우기)은 v1 범위 밖이라 반쯤 들이지 않고 «못 한 것» 으로 돌린다(빈 문단이 남는 반기능 금지).
@@ -234,12 +292,38 @@ function vetEdits(blocks, edits) {
     if (!b || after == null || seen.has(id)) { dropped++; continue; }
     if (after === b.text) continue;
     if (!after.replace(PLACEHOLDER, '').trim()) { emptied.push(id); continue; }
+    if (b.src === 'record' && cellValueOf(b, after) === undefined) { dropped++; continue; }
     if (countChar(after, PLACEHOLDER) !== countChar(b.text, PLACEHOLDER) || /\n/.test(after)
         || after.length > b.text.length * 4 + 2000) { dropped++; continue; }
     seen.add(id);
     ok.push({ id, before: b.text, after, reason: String((e && e.reason) || '').slice(0, 200) });
   }
   return { ok, dropped, emptied };
+}
+
+/**
+ * 표 칸 변경 → 행별 새 values. 칸 글이 지금 값과 다르면(그 사이 누가 고쳤다) throw('stale_block').
+ * @returns {{ rowValues: Map<number, object>, applied: number }}
+ */
+function applyRecordChanges(recordBlocks, rows, changes) {
+  const byId = new Map(recordBlocks.map((b) => [b.id, b]));
+  const rowById = new Map(rows.map((r) => [r.id, r]));
+  const rowValues = new Map();
+  let applied = 0;
+  for (const c of changes) {
+    const b = byId.get(Number(c.id));
+    if (!b) throw new Error('stale_block');
+    if (typeof c.before !== 'string' || c.before !== b.text) throw new Error('stale_block');
+    if (typeof c.after !== 'string' || c.after === b.text) continue;
+    if (!c.after.trim() || /\n/.test(c.after)) throw new Error('invalid_change');
+    const v = cellValueOf(b, c.after);
+    if (v === undefined) throw new Error('invalid_change');
+    const base = rowValues.get(b.rowId) || { ...(rowById.get(b.rowId).values || {}) };
+    base[b.colId] = v;
+    rowValues.set(b.rowId, base);
+    applied++;
+  }
+  return { rowValues, applied };
 }
 
 /**
@@ -267,4 +351,4 @@ function applyChanges(doc, changes) {
   return { doc: next, applied };
 }
 
-module.exports = { PLACEHOLDER, parseDoc, extractBlocks, locLabel, diffSegments, applyText, vetEdits, applyChanges };
+module.exports = { PLACEHOLDER, parseDoc, extractBlocks, extractRecordBlocks, locLabel, diffSegments, applyText, vetEdits, applyChanges, applyRecordChanges };

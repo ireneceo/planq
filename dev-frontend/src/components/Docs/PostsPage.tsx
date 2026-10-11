@@ -38,7 +38,7 @@ import PostTableGrid from './PostTableGrid';
 import { mapApiError } from '../../utils/apiError';
 import { useFileDownload } from '../../hooks/useFileDownload';
 import {
-  fetchPosts, fetchPost, fetchPostResult, restorePostRevision, createPost, updatePost, deletePost, StaleEditError,
+  fetchPosts, fetchPost, fetchPostResult, applyPostAiEdit, createPost, updatePost, deletePost, StaleEditError,
   attachToPost, detachFromPost, fetchPostsMeta,
   createCategory, renameCategory, deleteCategory,
   updatePostVisibility, updatePostSecurityLevel, downloadPostPdf,
@@ -281,7 +281,10 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId }) => {
   const [historyOpen, setHistoryOpen] = useState(false);
   // 문서 AI 수정(docs/DOC_AI_EDIT_DESIGN.md) — 반영 뒤 «N곳 반영 · 되돌리기» 줄. 되돌리기 = 반영 직전 버전 복원.
   const [aiEditOpen, setAiEditOpen] = useState(false);
-  const [aiEditDone, setAiEditDone] = useState<{ postId: number; applied: number; revId: number | null; undoing?: boolean; undone?: boolean } | null>(null);
+  // 되돌리기 = 같은 «적용» 문을 전/후를 뒤집어 부른다(표 칸은 버전 기록이 없어 복원 라우트로는 못 돌린다)
+  const [aiEditDone, setAiEditDone] = useState<{ postId: number; applied: number; base: string | null; changes: { id: number; before: string; after: string }[]; undoing?: boolean; undone?: boolean } | null>(null);
+  // 표 문서는 값이 표(q_records)에 있다 — AI 수정 적용·되돌리기 뒤 표를 다시 읽게 키를 올린다
+  const [tableReloadKey, setTableReloadKey] = useState(0);
   // leaveEditSession 이 최신 값을 보게 하는 ref (useCallback 클로저에 갇히지 않게).
   const detailRef = useRef<PostDetail | null>(null);
   //   ★ 이 ref 는 선언만 돼 있고 **한 번도 대입되지 않았다** — 아래 leaveEditSession 의
@@ -2352,7 +2355,7 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId }) => {
                 <AiActionButton size="filter" testId="post-ai-edit"
                   onClick={() => setAiEditOpen(true)}
                   label={t('aiEdit.btn', 'AI 수정') as string}
-                  title={t('aiEdit.btnHint', 'AI 에게 고칠 것을 말하면 바뀌는 곳을 전후로 먼저 보여 줘요') as string} />
+                  title={t('aiEdit.btnHint', 'AI 에게 고칠 것을 말하면 수정안을 만들어 수정 전·후를 먼저 보여 줘요') as string} />
                 <EditBtn type="button" data-testid="post-edit" onClick={startEdit}
                   title={t('edit', '편집') as string} aria-label={t('edit', '편집') as string}>
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 4 }}><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
@@ -2393,18 +2396,29 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId }) => {
               {aiEditDone && aiEditDone.postId === detail.id && (
                 <AiEditDoneBar role="status" data-testid="post-ai-edit-done">
                   <span>{aiEditDone.undone
-                    ? t('aiEdit.undone', 'AI 수정을 되돌렸어요.')
-                    : t('aiEdit.done', 'AI 수정 {{n}}곳을 반영했어요.', { n: aiEditDone.applied })}</span>
-                  {!aiEditDone.undone && aiEditDone.revId && (
+                    ? t('aiEdit.undone', '적용을 되돌렸어요.')
+                    : t('aiEdit.done', 'AI 수정안 {{n}}곳을 문서에 적용했어요.', { n: aiEditDone.applied })}</span>
+                  {!aiEditDone.undone && aiEditDone.base && (
                     <AiEditUndoBtn type="button" data-testid="post-ai-edit-undo" disabled={!!aiEditDone.undoing}
                       onClick={() => {
                         const cur = aiEditDone;
-                        if (!cur.revId || cur.undoing) return;
+                        if (!cur.base || cur.undoing) return;
                         setAiEditDone({ ...cur, undoing: true });
                         void (async () => {
-                          const ok = await restorePostRevision(cur.postId, cur.revId!);
-                          if (!ok) { setAiEditDone({ ...cur, undoing: false }); setError(t('history.restoreFailed', '되돌리지 못했습니다') as string); return; }
+                          try {
+                            await applyPostAiEdit(cur.postId, {
+                              base_updated_at: cur.base!, undo: true,
+                              changes: cur.changes.map((c) => ({ id: c.id, before: c.after, after: c.before })),
+                            });
+                          } catch (e) {
+                            setAiEditDone({ ...cur, undoing: false });
+                            setError((e as Error).message === 'stale_edit'
+                              ? t('aiEdit.undoStale', '적용한 뒤 문서가 또 바뀌어 되돌리지 못했어요. [⋯ > 변경 기록]에서 되돌려 주세요.') as string
+                              : t('history.restoreFailed', '되돌리지 못했습니다') as string);
+                            return;
+                          }
                           const fresh = await fetchPost(cur.postId); if (fresh) setDetail(fresh);
+                          setTableReloadKey((k) => k + 1);
                           setAiEditDone({ ...cur, undoing: false, undone: true });
                           await load();
                         })();
@@ -2431,7 +2445,7 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId }) => {
                     )}
                     {/* N+72-7 — 본문↔표 사이 간격 (사용자 호소 "들러붙어 보기 안좋아") */}
                     {docHasContent(detail.content_json) && <SectionGap />}
-                    <PostTableGrid recordId={detail.q_record_id} businessId={scope.businessId} readOnly />
+                    <PostTableGrid key={`tbl-${tableReloadKey}`} recordId={detail.q_record_id} businessId={scope.businessId} readOnly />
                   </>
                 ) : signedDoc?.has_signatures && signedDoc.html ? (
                   // 서명본 — 고정본 + 서명. 조립은 서버 한 곳이라 PDF·공유 링크와 같은 그림이다.
@@ -2671,9 +2685,10 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId }) => {
           open={aiEditOpen}
           postId={detail.id}
           onClose={() => setAiEditOpen(false)}
-          onApplied={({ applied, beforeRevisionId }) => {
+          onApplied={({ applied, baseUpdatedAt, changes }) => {
             const pid = detail.id;
-            setAiEditDone({ postId: pid, applied, revId: beforeRevisionId });
+            setAiEditDone({ postId: pid, applied, base: baseUpdatedAt, changes });
+            setTableReloadKey((k) => k + 1);
             void (async () => { const fresh = await fetchPost(pid); if (fresh) setDetail(fresh); await load(); })();
           }}
         />

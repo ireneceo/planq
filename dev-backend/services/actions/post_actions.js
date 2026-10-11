@@ -231,10 +231,33 @@ async function attachFiles(actor, params = {}) {
 }
 
 /**
+ * AI 수정의 대상 — 본문 칸 + (표 문서면) 표 칸. 제안과 반영이 **이 함수 하나**로 칸을 뽑는다(id 가 어긋나지 않게).
+ * 표는 문서와 같은 워크스페이스의 것만 — 다른 곳 표를 가리키는 옛 행은 대상에서 뺀다.
+ * @returns {{ doc, docBlocks, record, rows, recordBlocks, blocks } | null}  doc 이 형식 밖(HTML 문자열)이면 null
+ */
+async function aiEditTarget(post) {
+  const ai = require('../docAiEdit');
+  const doc = ai.parseDoc(post.content_json);
+  if (!doc) return null;
+  const docBlocks = ai.extractBlocks(doc).map((b) => ({ ...b, src: 'doc' }));
+  let record = null; let rows = []; let recordBlocks = [];
+  if (post.kind === 'table' && post.q_record_id) {
+    const { QRecord, QRecordRow } = require('../../models');
+    record = await QRecord.findOne({ where: { id: post.q_record_id, business_id: post.business_id } });
+    if (record) {
+      rows = await QRecordRow.findAll({ where: { q_record_id: record.id }, order: [['position', 'ASC'], ['id', 'ASC']] });
+      recordBlocks = ai.extractRecordBlocks(record, rows, docBlocks.length + 1);
+    }
+  }
+  return { doc, docBlocks, record, rows, recordBlocks, blocks: [...docBlocks, ...recordBlocks] };
+}
+
+/**
  * AI 수정 반영 — 사용자가 고른 칸만 바꾼다(설계 docs/DOC_AI_EDIT_DESIGN.md).
- *   ① 제안 뒤 누가 고쳤으면(updated_at) 409 — 낡은 제안으로 남의 글을 덮지 않는다
- *   ② «반영 전» 을 버전으로 확정하고 ③ 반영본은 합치지 않는 새 버전 → 기록에서 한 번에 되돌린다.
- * @param params { businessId, postId, baseUpdatedAt, changes:[{id,before,after}], instruction }
+ *   ① 제안 뒤 누가 고쳤으면 409 — 본문은 updated_at, 표 칸은 칸 글 대조로 본다
+ *   ② 본문이 바뀌면 «반영 전» 을 버전으로 확정하고 반영본은 합치지 않는 새 버전
+ *   ③ 되돌리기는 화면이 같은 문을 전/후를 뒤집어 부른다(표 칸은 버전 기록이 없으므로 그 길 하나로 맞춘다)
+ * @param params { businessId, postId, baseUpdatedAt, changes:[{id,before,after}], instruction, undo? }
  */
 async function applyAiEdit(actor, params = {}) {
   const subj = await resolveSubject(actor);
@@ -245,27 +268,56 @@ async function applyAiEdit(actor, params = {}) {
   const cur = new Date(post.updated_at || post.updatedAt).getTime();
   if (!Number.isFinite(base) || base !== cur) return fail('stale_edit', 409);
   const ai = require('../docAiEdit');
-  const doc = ai.parseDoc(post.content_json);
-  if (!doc) return fail('doc_not_structured', 409);
-  let result;
-  try { result = ai.applyChanges(doc, params.changes || []); }
-  catch (e) { return fail(e.message === 'stale_block' ? 'stale_edit' : 'invalid_change', 409); }
-  if (!result.applied) return fail('no_changes', 400);
+  const target = await aiEditTarget(post);
+  if (!target) return fail('doc_not_structured', 409);
+  const docIds = new Set(target.docBlocks.map((b) => b.id));
+  const recIds = new Set(target.recordBlocks.map((b) => b.id));
+  const changes = params.changes || [];
+  if (changes.some((c) => !docIds.has(Number(c.id)) && !recIds.has(Number(c.id)))) return fail('stale_edit', 409);
+  let docResult = { applied: 0 }; let recResult = { applied: 0, rowValues: new Map() };
+  try {
+    const docChanges = changes.filter((c) => docIds.has(Number(c.id)));
+    if (docChanges.length) docResult = ai.applyChanges(target.doc, docChanges);
+    const recChanges = changes.filter((c) => recIds.has(Number(c.id)));
+    if (recChanges.length) recResult = ai.applyRecordChanges(target.recordBlocks, target.rows, recChanges);
+  } catch (e) { return fail(e.message === 'stale_block' ? 'stale_edit' : 'invalid_change', 409); }
+  const applied = docResult.applied + recResult.applied;
+  if (!applied) return fail('no_changes', 400);
+
   const revs = require('../postRevisions');
-  const { PostRevision } = require('../../models');
-  // ② 반영 전 상태 — 마지막 버전이 이미 같은 내용이면 새로 안 만든다(skipped). 그 버전이 «전» 이다.
-  await revs.recordRevision({ post, editorUserId: subj.subjectId, source: 'manual' });
-  const beforeRev = await PostRevision.findOne({
-    where: { post_id: post.id, business_id: post.business_id },
-    order: [['revision_number', 'DESC']], attributes: ['id', 'revision_number'],
-  });
+  const { PostRevision, QRecordAudit } = require('../../models');
+  const { sequelize } = require('../../config/database');
+  let beforeRev = null;
+  if (docResult.applied) {
+    // 반영 전 상태 — 마지막 버전이 이미 같은 내용이면 새로 안 만든다(skipped). 그 버전이 «전» 이다.
+    await revs.recordRevision({ post, editorUserId: subj.subjectId, source: 'manual' });
+    beforeRev = await PostRevision.findOne({
+      where: { post_id: post.id, business_id: post.business_id },
+      order: [['revision_number', 'DESC']], attributes: ['id', 'revision_number'],
+    });
+  }
   const { extractText } = postsRoute();
-  await post.update({ content_json: JSON.stringify(result.doc), content_text: extractText(result.doc), editor_id: subj.subjectId });
-  try { await revs.recordRevision({ post, editorUserId: subj.subjectId, source: 'manual', noCoalesce: true }); }
-  catch (e) { console.warn('[postRevisions]', e.message); }
-  audit(actor, 'post.ai_edit', post, { instruction: String(params.instruction || '').slice(0, 300), changed_blocks: result.applied });
+  await sequelize.transaction(async (transaction) => {
+    for (const [rowId, values] of recResult.rowValues) {
+      const row = target.rows.find((r) => r.id === rowId);
+      await row.update({ values, updated_by: subj.subjectId }, { transaction });
+      await QRecordAudit.create({ q_record_id: target.record.id, q_record_row_id: row.id, user_id: subj.subjectId, action: 'row.update' }, { transaction });
+    }
+    // 본문을 안 고쳐도 updated_at 은 올린다 — 표 칸만 바뀐 반영도 «그 사이 바뀜» 판정(409)에 걸려야 낡은 제안이 덮지 못한다.
+    const patch = { editor_id: subj.subjectId };
+    if (docResult.applied) { patch.content_json = JSON.stringify(docResult.doc); patch.content_text = extractText(docResult.doc); }
+    post.changed('updated_at', true);
+    await post.update(patch, { transaction });
+  });
+  if (docResult.applied) {
+    try { await revs.recordRevision({ post, editorUserId: subj.subjectId, source: 'manual', noCoalesce: true }); }
+    catch (e) { console.warn('[postRevisions]', e.message); }
+  }
+  audit(actor, params.undo ? 'post.ai_edit_undo' : 'post.ai_edit', post, {
+    instruction: String(params.instruction || '').slice(0, 300), changed_blocks: docResult.applied, changed_cells: recResult.applied,
+  });
   if (post.status !== 'draft') signalPost(post, 'post:updated');
-  return done({ post, applied: result.applied, beforeRevisionId: beforeRev ? beforeRev.id : null });
+  return done({ post, applied, beforeRevisionId: beforeRev ? beforeRev.id : null });
 }
 
-module.exports = { applyAiEdit, createPost, updatePostContent, setPostLinks, movePostToProject, checkEditable, attachFiles };
+module.exports = { applyAiEdit, aiEditTarget, createPost, updatePostContent, setPostLinks, movePostToProject, checkEditable, attachFiles };

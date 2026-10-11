@@ -32,6 +32,7 @@ const SYSTEM_PROMPT = `당신은 문서 편집 도우미입니다. 사용자의 
 - 숫자를 바꿀 때 원래 표기 형식(통화 기호·단위·자리 구분)을 지시가 따로 말하지 않는 한 유지합니다.
 - 칸을 통째로 지우기, 새 문단·새 행 추가처럼 **칸 글 바꾸기로 할 수 없는 것**은 하지 말고 not_done 에 한 문장으로 적습니다.
 - 줄바꿈 문자를 넣지 않습니다.
+- «표 데이터» 칸은 표의 한 칸입니다. «숫자 칸» 에는 숫자만(단위·통화 글자 없이) 씁니다. «보기=[…]» 가 붙은 칸은 그 보기 중 하나만 씁니다.
 
 [출력 — JSON 하나만]
 {"edits":[{"id":번호,"new_text":"고친 칸 전체 글","reason":"무엇을 왜 바꿨는지 짧게"}],
@@ -41,7 +42,10 @@ const SYSTEM_PROMPT = `당신은 문서 편집 도우미입니다. 사용자의 
 - 바꿀 칸이 없으면 edits 를 빈 배열로 두고 summary 에 이유를 씁니다.`;
 
 function blockLines(blocks) {
-  return blocks.map((b) => `[${b.id}] (${ai.locLabel(b.loc)})\n${b.text}`).join('\n\n');
+  return blocks.map((b) => {
+    const hint = b.colType === 'number' ? ' · 숫자 칸' : (b.options ? ` · 보기=[${b.options.join(', ')}]` : '');
+    return `[${b.id}] (${ai.locLabel(b.loc)}${hint})\n${b.text}`;
+  }).join('\n\n');
 }
 
 /** 제안. 응답의 changes 는 화면이 그대로 그린다(전후 조각 segments 포함). */
@@ -57,9 +61,10 @@ router.post('/:id/ai-edit/propose', authenticateToken, proposeLimiter, async (re
     const chk = await require('../services/actions/post_actions').checkEditable(actor, { businessId: head.business_id, postId: head.id });
     if (!chk.ok) return errorResponse(res, chk.code, chk.http);
     const post = chk.data.post;
-    const doc = ai.parseDoc(post.content_json);
-    if (!doc) return errorResponse(res, 'doc_not_structured', 409);
-    const blocks = ai.extractBlocks(doc);
+    // 본문 칸 + 표 문서면 표 칸 — 반영(applyAiEdit)과 같은 함수로 뽑는다(id 가 어긋나지 않게).
+    const target = await require('../services/actions/post_actions').aiEditTarget(post);
+    if (!target) return errorResponse(res, 'doc_not_structured', 409);
+    const blocks = target.blocks;
     if (!blocks.length) return errorResponse(res, 'doc_empty', 400);
     const totalChars = blocks.reduce((n, b) => n + b.text.length, 0);
     if (totalChars > DOC_TEXT_CAP) return errorResponse(res, 'doc_too_long', 400);
@@ -124,6 +129,7 @@ router.post('/:id/ai-edit/apply', authenticateToken, async (req, res, next) => {
       baseUpdatedAt: req.body.base_updated_at,
       changes: changes.map((c) => ({ id: Number(c && c.id), before: c && c.before, after: c && c.after })),
       instruction: capText(String(req.body.instruction || ''), 1000),
+      undo: req.body.undo === true,
     });
     if (!r.ok) return errorResponse(res, r.code, r.http);
     const fresh = await Post.findByPk(head.id);
@@ -131,6 +137,8 @@ router.post('/:id/ai-edit/apply', authenticateToken, async (req, res, next) => {
       post: fresh ? fresh.toJSON() : { id: head.id },
       applied: r.data.applied,
       before_revision_id: r.data.beforeRevisionId,
+      // 되돌리기는 같은 문을 전/후를 뒤집어 부른다 — 그때 쓸 새 기준 시각
+      base_updated_at: fresh ? (fresh.updated_at || fresh.updatedAt) : null,
     });
   } catch (e) { next(e); }
 });

@@ -661,7 +661,7 @@ export async function purgeContent(businessId: number, kind: 'post' | 'kb', id: 
 //   제안은 무상태 — 반영 때 고른 칸의 {id, before, after} 를 그대로 다시 보낸다(서버가 칸 글을 대조한다).
 //   실패는 서버 code 를 message 로 던진다(화면이 문구를 고른다). ★ apiFetch 는 throw 하지 않는다 — status 를 본다.
 export interface AiEditLoc {
-  kind: 'table' | 'heading' | 'list' | 'paragraph';
+  kind: 'table' | 'heading' | 'list' | 'paragraph' | 'record';
   section?: string;
   level?: number;
   table?: number; row?: number; col?: number;
@@ -699,13 +699,8 @@ export function proposePostAiEdit(postId: number, instruction: string): Promise<
 
 export function applyPostAiEdit(
   postId: number,
-  body: { base_updated_at: string; changes: { id: number; before: string; after: string }[]; instruction: string },
-): Promise<{ applied: number; before_revision_id: number | null }> {
+  body: { base_updated_at: string; changes: { id: number; before: string; after: string }[]; instruction?: string; undo?: boolean },
+): Promise<{ applied: number; before_revision_id: number | null; base_updated_at: string | null }> {
   return aiEditCall(`/api/posts/${postId}/ai-edit/apply`, body);
 }
 
-/** AI 수정 되돌리기 — 기존 변경 기록 복원 라우트(반영 직전 버전으로). 복원도 새 버전으로 쌓인다. */
-export async function restorePostRevision(postId: number, revisionId: number): Promise<boolean> {
-  const r = await apiFetch(`/api/posts/${postId}/revisions/${revisionId}/restore`, { method: 'POST' });
-  return r.ok;
-}
