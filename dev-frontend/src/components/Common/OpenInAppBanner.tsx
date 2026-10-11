@@ -1,6 +1,6 @@
 // OpenInAppBanner — N+69 Smart Routing App-First 1차
 //
-// 외부 공유 링크 (/public/*, /invite/*, /sign/*) 진입 시:
+// 외부 공유 링크 (/public/*, /invite/* — 서명 /sign/* 은 2026-10-12 제외) 진입 시:
 //   - 이미 PWA 안 (isStandalone): 그대로 (banner 숨김)
 //   - 같은 origin PWA 설치돼 있음 (isRelatedInstalled) — 사용자가 미리 설치:
 //       → "PlanQ 앱으로 열기" 강조 CTA — 클릭 시 same URL 재로드 (브라우저가 PWA scope 매칭 시 자동 진입)
@@ -35,7 +35,9 @@ const OpenInAppBanner: React.FC = () => {
   useEffect(() => { setDismissed(isDismissed()); }, []);
 
   // public route 만 노출 (App-First 의 핵심 진입점)
-  const isPublicRoute = /^\/(public|invite|sign)\//.test(location.pathname);
+  // ★ 서명 화면(/sign/*)은 뺀다 (2026-10-12) — 맨 위에 [거절][확인했습니다 · 서명하기] 줄이 붙어 위에 띄우면 그 버튼을,
+  //   아래로 내리면 완료 화면의 [서명한 문서 보기] 를 덮어 누름을 먹었다(둘 다 실측). 서명 중인 사람에게 앱 안내는 곁가지다.
+  const isPublicRoute = /^\/(public|invite)\//.test(location.pathname);
   if (!isPublicRoute) return null;
 
   // PWA 안 — 이미 앱

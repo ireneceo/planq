@@ -23,12 +23,13 @@ import { sanitizeRichText } from '../../utils/sanitizeHtml';
 import { formatPublicDateTime } from '../../utils/dateFormat';
 import { withImageCtxJson, withImageCtxHtml } from '../../utils/imageCtx';
 import {
-  ActionRow, Brand, ConfirmActions, ConfirmTextArea,
+  Brand, ConfirmActions, ConfirmTextArea,
   ConfirmedComment, ConsentBox, ConsentHint, ConsentLabel, ConsentTitle, Content, DocBody, ErrorBox,
   ErrorCenter, ErrorHint, ErrorIcon, ErrorTitle, InlineSpinner, LoadingCenter, NoteBox, OtpActions, OtpInput,
   OtpRow, Page, PrimaryBtn, ProgressBar, ProjectChip, RejectActions, RejectBackdrop, RejectBtn, RejectDialog,
   ResendBtn, ResultCard, ResultHint, ResultIcon, ResultMeta, ResultTitle, SecondaryBtn, Section, SectionDesc,
   SectionTitle, SignatureSnap, SignedHtml, Spinner, Step, Textarea, TopMeta, Topbar,
+  StickyHead, ActionBar, ActionBarInner, ActionBarText, ActionBarTitle, ActionBarDesc, ActionBarButtons, ActionBarNote, BarPrimaryBtn, BarRejectBtn,
   AttachBox, AttachTitle, AttachRow, AttachIcon, AttachName, AttachSize, DoneActions, SlotLine, SlotLink,
 } from './PublicSignPage.styles';
 import SignLinkedDocs from './SignLinkedDocs';
@@ -414,10 +415,49 @@ const PublicSignPage: React.FC = () => {
 
   return (
     <Page ref={pageRef}>
-      <Topbar>
-        <Brand src="/planQ-slogan_color.svg" alt="PlanQ" />
-        <TopMeta>{doc.signer_email}</TopMeta>
-      </Topbar>
+      {/* 머리줄 + 할 일 줄을 **한 묶음**으로 붙인다 (2026-10-12 Irene: "서명하기 눌러서 페이지 나오면 상단에 서명하는 곳으로
+          보내는 안내 있어야 … 문서를 다 읽는게 먼저가 아니거나 이미 페이퍼로 읽은 상태일 수 있잖아").
+          [거절] [확인했습니다 · 서명하기] 가 맨 아래에만 있어 열자마자 «어쩌라는지» 몰랐다. 이제 스크롤과 무관하게 늘 위에 있다.
+          묶음에만 sticky — 할 일 줄에 top 숫자를 주면 머리줄 높이가 바뀌는 폭에서 겹친다. */}
+      <StickyHead>
+        <Topbar>
+          <Brand src="/planQ-slogan_color.svg" alt="PlanQ" />
+          <TopMeta>{doc.signer_email}</TopMeta>
+        </Topbar>
+        {!signedAlready && !rejectedAlready && (phase === 'review' || phase === 'otp' || phase === 'sign') && (
+          <ActionBar ref={actionRef as React.Ref<HTMLDivElement>} data-testid="sign-action">
+            <ActionBarInner>
+              <ActionBarText>
+                <ActionBarTitle>{(phase === 'review'
+                  ? t('publicSign.reviewTitle', { defaultValue: '문서를 확인하셨나요?' })
+                  : t('publicSign.resumeTitle', { defaultValue: '서명이 아직 끝나지 않았어요' })) as string}</ActionBarTitle>
+                <ActionBarDesc>{(phase === 'review'
+                  ? t('publicSign.reviewDesc', { defaultValue: '이미 확인하셨다면 바로 서명을 시작하세요. 아래에서 문서와 별첨을 끝까지 읽어도 됩니다.' })
+                  : phase === 'otp'
+                    ? t('publicSign.resumeOtp', { defaultValue: '본인 확인부터 이어서 하면 됩니다.' })
+                    : t('publicSign.resumeSign', { defaultValue: '본인 확인은 끝났어요. 서명만 하면 됩니다.' })) as string}</ActionBarDesc>
+              </ActionBarText>
+              <ActionBarButtons>
+                <BarRejectBtn type="button" onClick={() => setShowReject(true)} disabled={signing}>{t('publicSign.reject', '거절')}</BarRejectBtn>
+                {phase !== 'review' ? (
+                  <BarPrimaryBtn type="button" data-testid="sign-resume" onClick={() => setSignOpen(true)}>
+                    {t('publicSign.resume', { defaultValue: '서명 계속하기' }) as string}
+                  </BarPrimaryBtn>
+                ) : needLogin && user ? null : needLogin ? (
+                  <BarPrimaryBtn type="button" data-testid="sign-login" onClick={goLogin}>
+                    {t('publicSign.loginToSign', { defaultValue: '로그인하고 서명하기' }) as string}
+                  </BarPrimaryBtn>
+                ) : (
+                  <BarPrimaryBtn type="button" data-testid="sign-start" onClick={startSigning}>
+                    {t('publicSign.startSign', { defaultValue: '확인했습니다 · 서명하기' }) as string}
+                  </BarPrimaryBtn>
+                )}
+              </ActionBarButtons>
+            </ActionBarInner>
+            {phase === 'review' && loginNeededNote && <ActionBarNote>{loginNeededNote}</ActionBarNote>}
+          </ActionBar>
+        )}
+      </StickyHead>
 
       {/* #239 — 확인 요청은 '본인 확인 → 서명' 단계가 없다. 3단계 표시는 거짓말이 된다. */}
       {!signedAlready && !rejectedAlready && phase !== 'confirm' && phase !== 'confirmed_done' && (
@@ -499,7 +539,7 @@ const PublicSignPage: React.FC = () => {
                 <NoteBox data-testid="sign-my-slot">
                   {/* 검토 단계에서만 «다음 행동» 을 말한다 — 버튼을 누른 뒤에는 아래 단계 칸(SlotLine)이 안내한다 */}
                   {(phase === 'review'
-                    ? t('publicSign.mySlot', { defaultValue: '아래 문서에서 {{n}}번 칸(빨간 테두리)이 회원님의 서명 자리입니다. 문서를 끝까지 확인한 뒤 그 칸이나 맨 아래 «{{btn}}» 를 누르면, 화면을 옮기지 않고 서명 창이 열립니다.', n: doc.slot, btn: reviewBtnLabel })
+                    ? t('publicSign.mySlot', { defaultValue: '아래 문서에서 {{n}}번 칸(빨간 테두리)이 회원님의 서명 자리입니다. 문서를 확인한 뒤 그 칸이나 맨 위 «{{btn}}» 를 누르면, 화면을 옮기지 않고 서명 창이 열립니다.', n: doc.slot, btn: reviewBtnLabel })
                     : t('publicSign.mySlotPlain', { defaultValue: '아래 문서에서 {{n}}번 칸(빨간 테두리)이 회원님의 서명 자리입니다.', n: doc.slot })) as string}
                 </NoteBox>
               )}
@@ -580,43 +620,7 @@ const PublicSignPage: React.FC = () => {
               </Section>
             )}
 
-            {/* ① 문서 확인 — 서명창을 먼저 내밀지 않는다(2026-10-07 Irene). 다 읽고 빨간 칸이나 이 버튼을 누르면
-                **서명 창**이 뜨고 ② 본인 확인(로그인한 우리 쪽 서명자는 생략) ③ 서명까지 그 창 안에서 끝낸다(2026-10-08).
-                페이지는 움직이지 않는다 — 전에는 칸·버튼·칸·서명 칸 사이를 위아래로 네 번 오갔다. */}
-            {phase === 'review' && (
-              <Section ref={actionRef as React.Ref<HTMLElement>} data-testid="sign-action">
-                <SectionTitle>{t('publicSign.reviewTitle', { defaultValue: '문서를 확인하셨나요?' }) as string}</SectionTitle>
-                <SectionDesc>{t('publicSign.reviewDesc', { defaultValue: '위 문서와 별첨을 모두 확인한 뒤 서명을 시작해 주세요. 서명 창에서 본인 확인과 서명을 이어서 합니다.' }) as string}</SectionDesc>
-                <ActionRow>
-                  <RejectBtn type="button" onClick={() => setShowReject(true)} disabled={signing}>{t('publicSign.reject', '거절')}</RejectBtn>
-                  {needLogin && user ? null : needLogin ? (
-                    <PrimaryBtn type="button" data-testid="sign-login" onClick={goLogin}>
-                      {t('publicSign.loginToSign', { defaultValue: '로그인하고 서명하기' }) as string}
-                    </PrimaryBtn>
-                  ) : (
-                    <PrimaryBtn type="button" data-testid="sign-start" onClick={startSigning}>
-                      {t('publicSign.startSign', { defaultValue: '확인했습니다 · 서명하기' }) as string}
-                    </PrimaryBtn>
-                  )}
-                </ActionRow>
-                {loginNeededNote}
-              </Section>
-            )}
-            {/* 창을 닫고 나온 경우 — 하던 단계로 다시 들어가는 문 */}
-            {(phase === 'otp' || phase === 'sign') && (
-              <Section ref={actionRef as React.Ref<HTMLElement>} data-testid="sign-action">
-                <SectionTitle>{t('publicSign.resumeTitle', { defaultValue: '서명이 아직 끝나지 않았어요' }) as string}</SectionTitle>
-                <SectionDesc>{(phase === 'otp'
-                  ? t('publicSign.resumeOtp', { defaultValue: '본인 확인부터 이어서 하면 됩니다.' })
-                  : t('publicSign.resumeSign', { defaultValue: '본인 확인은 끝났어요. 서명만 하면 됩니다.' })) as string}</SectionDesc>
-                <ActionRow>
-                  <RejectBtn type="button" onClick={() => setShowReject(true)} disabled={signing}>{t('publicSign.reject', '거절')}</RejectBtn>
-                  <PrimaryBtn type="button" data-testid="sign-resume" onClick={() => setSignOpen(true)}>
-                    {t('publicSign.resume', { defaultValue: '서명 계속하기' }) as string}
-                  </PrimaryBtn>
-                </ActionRow>
-              </Section>
-            )}
+            {/* 검토·이어하기 버튼은 맨 위 할 일 줄(StickyHead)에 있다 — 2026-10-12 맨 아래에서 옮겼다. */}
           </>
         )}
       </Content>

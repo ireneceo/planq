@@ -355,3 +355,49 @@ export const SlotLink = styled.button`
   text-decoration: underline;
   &:focus-visible { outline: 2px solid #F43F5E; outline-offset: 2px; border-radius: 4px; }
 `;
+
+/* ─── 맨 위 할 일 줄 (2026-10-12) ───
+   머리줄과 한 묶음으로 붙는다(StickyHead 에만 sticky). 할 일 줄에 top 숫자를 주지 않는다 —
+   머리줄 높이가 폭마다 달라 숫자는 어느 폭에서 반드시 겹친다(CLAUDE.md «두 밴드는 함께 붙인다»). */
+export const StickyHead = styled.div`
+  position: sticky; top: 0; z-index: 10;
+  background: #fff;
+  & > header { position: static; }
+`;
+export const ActionBar = styled.div`
+  background: #F0FDFA;
+  border-bottom: 1px solid #99F6E4;
+`;
+export const ActionBarInner = styled.div`
+  max-width: 760px; margin: 0 auto;
+  padding: 10px 20px;
+  display: flex; align-items: center; gap: 12px;
+  @media (max-width: 640px) { padding: 8px 12px; flex-wrap: wrap; gap: 8px; }
+`;
+export const ActionBarText = styled.div`
+  flex: 1 1 auto; min-width: 0;
+  @media (max-width: 640px) { flex-basis: 100%; }
+`;
+export const ActionBarTitle = styled.div`
+  font-size: 0.875rem; font-weight: 700; color: #0F172A; line-height: 1.4;
+`;
+export const ActionBarDesc = styled.div`
+  font-size: 0.75rem; color: #475569; line-height: 1.45; margin-top: 2px;
+  @media (max-width: 640px) { display: none; }
+`;
+export const ActionBarButtons = styled.div`
+  display: flex; gap: 8px; flex-shrink: 0;
+  @media (max-width: 640px) { width: 100%; }
+`;
+export const ActionBarNote = styled.div`
+  max-width: 760px; margin: 0 auto; padding: 0 20px 8px;
+  & > p { margin: 0; }
+  @media (max-width: 640px) { padding: 0 12px 8px; }
+`;
+export const BarPrimaryBtn = styled(PrimaryBtn)`
+  height: 40px; white-space: nowrap;
+  @media (max-width: 640px) { flex: 1; }
+`;
+export const BarRejectBtn = styled(RejectBtn)`
+  height: 40px; white-space: nowrap;
+`;
