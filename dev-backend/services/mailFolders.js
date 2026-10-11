@@ -141,6 +141,28 @@ function sentOrder() {
   ), 'DESC']];
 }
 
+// 받은 메일 폴더(보낸메일함 밖 전부)의 정렬·표시 시각 = **마지막으로 받은 시각** (2026-10-12).
+//
+//   Irene: *"내가 임시답변으로 답변했는데 전체탭에 다시 올라와서 다시 메일을 받은 것 같아.
+//     내가 보낸메일의 경우 전체메일에 새로 올라오는게 맞아?"*
+//   옛 정렬은 `last_message_at`(보낸 것까지 포함한 마지막 시각)이었다. 답장을 보내면 그 시각이
+//   «지금» 이 되어 스레드가 맨 위로 올라가는데, 행에는 상대 이름·상대 글(#438)·방금 시각이 함께
+//   그려져 **방금 다시 받은 메일**로 읽혔다. 내가 한 일은 보낸메일함(sentOrder)이 보여 준다 —
+//   받은 메일 목록의 순서는 상대가 보낸 것만 움직인다. 받은 것이 하나도 없는 스레드(내가 먼저
+//   보낸 것)는 마지막 시각으로 둔다.
+//   ★ 정렬 키와 행의 시각은 **같은 식**이다(`receivedAtAttribute` 를 serializeThreadRow 가 읽는다).
+//     정렬은 받은 시각인데 시각은 보낸 시각을 그리면 목록 시각이 뒤죽박죽이 된다.
+//   파생 컬럼을 두지 않는 이유는 sentOrder 와 같다(쓰기 경로가 여럿 — 조용히 어긋난다).
+const RECEIVED_AT_SQL = `COALESCE((SELECT MAX(em_rcv.sent_at) FROM email_messages em_rcv
+    WHERE em_rcv.thread_id = \`EmailThread\`.\`id\` AND em_rcv.direction = 'inbound'),
+  \`EmailThread\`.\`last_message_at\`)`;
+function receivedOrder() {
+  return [[sequelize.literal(RECEIVED_AT_SQL), 'DESC'], ['id', 'DESC']];
+}
+function receivedAtAttribute() {
+  return [sequelize.literal(RECEIVED_AT_SQL), 'last_received_at'];
+}
+
 /**
  * 검색할 때의 폴더 범위 — **검색은 폴더를 넘는다** (2026-09-15).
  *
@@ -181,6 +203,6 @@ function folderOf(row) {
 }
 
 module.exports = {
-  folderWhere, searchFolderWhere, folderOf, sentOrder,
+  folderWhere, searchFolderWhere, folderOf, sentOrder, receivedOrder, receivedAtAttribute,
   BULK_FOLDERS: new Set(['reply_needed', 'uncertain', 'all']),
 };

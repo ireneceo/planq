@@ -84,7 +84,9 @@ function serializeThreadRow(t, { folder, senderByThread, lastOutByThread, attach
     //   "보낸 사람"이 뜨고 미리보기·시각도 상대가 답장한 것이 나왔다.
     const out = lastOutByThread.get(obj.id) || null;
     let preview = obj.last_message_preview;
-    let stamp = obj.last_message_at;
+    // 받은 메일 폴더의 시각 = 정렬 키(마지막으로 받은 시각, services/mailFolders receivedOrder).
+    //   목록 라우트가 last_received_at 을 싣지 않은 호출부(검색 등)는 종전대로 마지막 시각.
+    let stamp = (folder !== 'sent' && obj.last_received_at) ? obj.last_received_at : obj.last_message_at;
     if (folder === 'sent' && out) {
       const to = Array.isArray(out.to_emails) ? out.to_emails : [];
       const first = to[0] || null;

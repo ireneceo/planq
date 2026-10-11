@@ -26,7 +26,7 @@ const { sendMail, deliveryFromSendResult } = require('../services/emailSend');
 const { inlineMailTableStyles } = require('../services/emailHtmlInline');
 const { buildQuote, buildForwardHeader, isolateForwardedHtml } = require('../services/emailQuote');
 // 폴더 정의·정렬은 services/mailFolders 가 단일 원천 (리스트 라우트 + 벌크 처리 공용)
-const { folderWhere, searchFolderWhere, folderOf, sentOrder, BULK_FOLDERS } = require('../services/mailFolders');
+const { folderWhere, searchFolderWhere, folderOf, sentOrder, receivedOrder, receivedAtAttribute, BULK_FOLDERS } = require('../services/mailFolders');
 // accessibleAccountIds 도 여기서 온다 — 프라이버시 격리 정의를 두 벌 두지 않는다
 const { outgoingIdentityFor, accessibleAccountIds, receivedAddressesOf } = require('../services/mailIdentity');
 const { serializeThreadRow, resolveRecipientNames } = require('../services/mailSerialize');
@@ -209,9 +209,11 @@ router.get('/:businessId/email-threads',
         //   파생 컬럼(last_outbound_at)을 두지 않고 상관 서브쿼리로 푼다: outbound 쓰기 경로가
         //   reply·compose·forward 3곳 + 향후 IMAP Sent 동기화까지 있어 컬럼은 조용히 어긋난다
         //   (memory feedback_dual_column_authority_write_side). 인덱스 email_messages_thread_time 이 받쳐 준다.
+        //   받은 메일 폴더는 **받은 시각** 순이다 — 내가 답장해도 자리가 움직이지 않는다(services/mailFolders receivedOrder).
+        ...(folder === 'sent' ? {} : { attributes: { include: [receivedAtAttribute()] } }),
         order: relevanceOrder
-          ? [relevanceOrder, ...(folder === 'sent' ? sentOrder() : [['last_message_at', 'DESC']])]
-          : (folder === 'sent' ? sentOrder() : [['last_message_at', 'DESC']]),
+          ? [relevanceOrder, ...(folder === 'sent' ? sentOrder() : receivedOrder())]
+          : (folder === 'sent' ? sentOrder() : receivedOrder()),
         limit, offset,
         distinct: true,
       });
