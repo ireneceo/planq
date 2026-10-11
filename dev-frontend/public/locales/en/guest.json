@@ -305,5 +305,12 @@
     "next": "Next",
     "failed": "This file cannot be previewed.",
     "capped": "Preview shows the first 20 pages."
+  },
+  "col": {
+    "task": "Task",
+    "assignee": "Owner",
+    "status": "Status",
+    "period": "Period",
+    "progress": "Progress"
   }
 }

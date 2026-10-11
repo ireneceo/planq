@@ -324,9 +324,11 @@ export default function GuestProjectPage({ token, project, workspace, canWrite, 
                 value={docs === null ? '' : t('ov.infoCount', { defaultValue: '{{count}}건', count: docs.length }) as string} testId="docs" />
               <InfoRow label={t('ov.infoFiles', { defaultValue: '파일' }) as string}
                 value={fileCount === null ? '' : t('ov.infoCount', { defaultValue: '{{count}}건', count: fileCount }) as string} testId="files" />
-              <InfoRow label={t('ov.infoDesc', { defaultValue: '설명' }) as string} value={project.description || ''} testId="desc" pre />
+              <InfoRow label={t('ov.infoDesc', { defaultValue: '설명' }) as string} value={project.description || ''} testId="desc" pre wide />
             </InfoGrid>
           </OvSection>
+          {/* PC 는 두 칸씩 나란히(2026-10-11 «아래로 하지 말고 가로로») — 폰은 한 줄씩. 하나만 있으면 한 줄을 다 쓴다. */}
+          <Pair>
           <OvSection>
             <OvLabel>{t('ov.stages', { defaultValue: '진행 단계' })}</OvLabel>
             {project.stages?.length ? (
@@ -344,6 +346,7 @@ export default function GuestProjectPage({ token, project, workspace, canWrite, 
               </>
             ) : <OvEmpty>{t('ov.tasksEmpty', { defaultValue: '아직 등록된 업무가 없어요.' })}</OvEmpty>}
           </OvSection>
+          </Pair>
           {stats && stats.total > 0 && (
             <OvSection data-testid="guest-ov-stats">
               <OvLabel>
@@ -368,25 +371,31 @@ export default function GuestProjectPage({ token, project, workspace, canWrite, 
               </StatGrid>
             </OvSection>
           )}
-          {stats && stats.overdue.length > 0 && (
+          {stats && (stats.overdue.length > 0 || stats.dueThisWeek.length > 0) && (
+          <Pair>
+          {stats.overdue.length > 0 && (
             <OvSection data-testid="guest-ov-overdue">
               <OvLabel>{t('stats.overdueList', { defaultValue: '마감이 지난 업무' })}</OvLabel>
               <TaskList>{stats.overdue.map((k) => <MiniTask key={k.id} title={k.title} status={taskStatusLabel(k.status)} date={formatPublicDate(k.due_date)} who={k.assignee_name} warn />)}</TaskList>
             </OvSection>
           )}
-          {stats && stats.dueThisWeek.length > 0 && (
+          {stats.dueThisWeek.length > 0 && (
             <OvSection data-testid="guest-ov-week">
               <OvLabel>{t('stats.thisWeekList', { defaultValue: '이번 주 마감' })}</OvLabel>
               <TaskList>{stats.dueThisWeek.map((k) => <MiniTask key={k.id} title={k.title} status={taskStatusLabel(k.status)} date={formatPublicDate(k.due_date)} who={k.assignee_name} />)}</TaskList>
             </OvSection>
           )}
-          {stats && stats.recentDone.length > 0 && (
+          </Pair>
+          )}
+          {stats && (stats.recentDone.length > 0 || stats.doneWithDate > 0) && (
+          <Pair>
+          {stats.recentDone.length > 0 && (
             <OvSection data-testid="guest-ov-recent-done">
               <OvLabel>{t('stats.recentDone', { defaultValue: '최근 완료' })}</OvLabel>
               <TaskList>{stats.recentDone.map((k) => <MiniTask key={k.id} title={k.title} status={taskStatusLabel(k.status)} date={dayOf(k.completed_at)} who={k.assignee_name} done />)}</TaskList>
             </OvSection>
           )}
-          {stats && stats.doneWithDate > 0 && (
+          {stats.doneWithDate > 0 && (
             <OvSection data-testid="guest-ov-weekly">
               <OvLabel>{t('stats.weekly', { defaultValue: '주별 완료 (최근 8주)' })}</OvLabel>
               <WeekBars role="img" aria-label={stats.weekly.map((w) => `${formatPublicDate(w.weekStart)} ${w.count}`).join(', ')}>
@@ -399,6 +408,8 @@ export default function GuestProjectPage({ token, project, workspace, canWrite, 
                 ))}
               </WeekBars>
             </OvSection>
+          )}
+          </Pair>
           )}
           {/* 주요 이슈 — 사람이 «고객에게 보이기» 를 켠 것만(§I-2). 없으면 숨기지 않고 말한다. */}
           <OvSection data-testid="guest-ov-issues">
@@ -523,20 +534,35 @@ export default function GuestProjectPage({ token, project, workspace, canWrite, 
                 <Empty data-testid="guest-tasks-nomatch">{t('filter.noMatch', { defaultValue: '조건에 맞는 항목이 없어요.' })}</Empty>
               ) : (
                 <TaskList>
+                  {/* PC(≥769) 는 칸으로 맞춘다 — 제목 · 담당 · 상태 · 기간 · 진행률(2026-10-11 «왼쪽에 쏠리고 쓸데없는 공백»).
+                      폰은 제목 아래 한 줄 메타(종전). 같은 값을 두 자리에 그리고 폭으로 하나만 보인다. */}
+                  <TaskHead aria-hidden>
+                    <span>{t('col.task', { defaultValue: '업무' })}</span>
+                    <span>{t('col.assignee', { defaultValue: '담당' })}</span>
+                    <span>{t('col.status', { defaultValue: '상태' })}</span>
+                    <span>{t('col.period', { defaultValue: '기간' })}</span>
+                    <span>{t('col.progress', { defaultValue: '진행률' })}</span>
+                  </TaskHead>
                   {shownTasks.map((k) => (
-                    <TaskRow key={k.id} data-testid={`guest-task-${k.id}`}>
+                    <TaskRow key={k.id} $grid data-testid={`guest-task-${k.id}`}>
                       <TaskMain>
                         <TaskTitle>
                           {k.is_milestone && <Milestone aria-hidden>◆</Milestone>}
                           {k.title}
                         </TaskTitle>
-                        <TaskMeta>
+                        <TaskMeta data-meta="">
                           {k.assignee_name && <span>{k.assignee_name}</span>}
                           <TaskStatus $done={k.status === 'completed'}>{taskStatusLabel(k.status)}</TaskStatus>
                           {(k.start_date || k.due_date) && <span>{period(k.start_date, k.due_date)}</span>}
                         </TaskMeta>
                       </TaskMain>
-                      <TaskPct>{k.progress_percent ?? 0}%</TaskPct>
+                      <ColCell data-col="assignee">{k.assignee_name || '—'}</ColCell>
+                      <ColCell data-col="status"><TaskStatus $done={k.status === 'completed'}>{taskStatusLabel(k.status)}</TaskStatus></ColCell>
+                      <ColCell data-col="period">{(k.start_date || k.due_date) ? period(k.start_date, k.due_date) : '—'}</ColCell>
+                      <TaskPct data-col="progress">
+                        <PctBar aria-hidden><PctFill style={{ width: `${Math.max(0, Math.min(100, k.progress_percent ?? 0))}%` }} /></PctBar>
+                        <span>{k.progress_percent ?? 0}%</span>
+                      </TaskPct>
                     </TaskRow>
                   ))}
                 </TaskList>
@@ -620,12 +646,14 @@ export default function GuestProjectPage({ token, project, workspace, canWrite, 
 }
 
 /** 기본 정보 한 줄 — 값이 비면 «—» 로 그린다(숨기지 않는다, §I-1). */
-function InfoRow({ label, value, testId, pre }: { label: string; value: string; testId: string; pre?: boolean }) {
+//   2026-10-11 (Irene: *"이거 아래로 하지 말고 가로로 좀 맞추면 안돼? 정돈 좀 PC용하고 반응형 맞춰줘."*)
+//   — 항목 하나 = 칸 하나(이름 위 · 값 아래). PC 는 다섯 칸 한 줄 + 설명 한 줄, 폰은 두 칸씩(기간은 두 칸 차지).
+function InfoRow({ label, value, testId, pre, wide }: { label: string; value: string; testId: string; pre?: boolean; wide?: boolean }) {
   return (
-    <>
+    <InfoCell $wide={!!wide} $key={testId} data-testid={`guest-ov-cell-${testId}`}>
       <InfoKey>{label}</InfoKey>
       <InfoVal data-testid={`guest-ov-info-${testId}`} $pre={!!pre} $empty={!value}>{value || '—'}</InfoVal>
-    </>
+    </InfoCell>
   );
 }
 /** 개요의 업무 한 줄 — 업무 탭 행과 같은 부품(TaskRow·TaskTitle·TaskMeta)을 쓴다. */
@@ -644,17 +672,43 @@ function MiniTask({ title, status, date, who, warn, done }: { title: string; sta
   );
 }
 
-const InfoGrid = styled.dl`
-  display:grid;grid-template-columns:max-content minmax(0,1fr);gap:6px 14px;margin:0;
-  background:#fff;border:1px solid #E2E8F0;border-radius:12px;padding:12px 14px;
+// PC: 상태 · 기간(넓게) · 업무 · 문서 · 파일 한 줄, 설명은 아래 한 줄 전체. 칸 사이는 세로 구분선.
+// 폰(≤640): 두 칸씩 — 기간·설명은 두 칸을 다 쓴다(날짜 두 개가 한 칸에 안 들어간다).
+/** 두 덩어리를 나란히 — 칸이 320px 아래로 줄면 한 줄씩. 하나뿐이면 한 줄을 다 쓴다(auto-fit). */
+const Pair = styled.div`
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:14px 16px;align-items:start;
+  @media (max-width:640px){ grid-template-columns:minmax(0,1fr); }
 `;
-const InfoKey = styled.dt`font-size:0.75rem;color:#94A3B8;font-weight:600;`;
+const InfoGrid = styled.dl`
+  display:grid;margin:0;
+  grid-template-columns:minmax(0,1fr) minmax(0,2fr) minmax(0,1.3fr) minmax(0,1fr) minmax(0,1fr);
+  background:#fff;border:1px solid #E2E8F0;border-radius:12px;overflow:hidden;
+  @media (max-width:640px){ grid-template-columns:repeat(2,minmax(0,1fr)); }
+`;
+const InfoCell = styled.div<{ $wide: boolean; $key: string }>`
+  display:flex;flex-direction:column;gap:4px;min-width:0;padding:12px 14px;
+  border-left:1px solid #F1F5F9;
+  &:first-child{border-left:none;}
+  ${p => (p.$wide ? 'grid-column:1 / -1;border-left:none;border-top:1px solid #F1F5F9;' : '')}
+  @media (max-width:640px){
+    border-left:none;border-top:1px solid #F1F5F9;
+    &:first-child{border-top:none;}
+    /* 짧은 넷(상태·업무 / 문서·파일)을 두 칸씩, 긴 둘(기간·설명)은 한 줄 전체 — 반쪽만 남는 칸이 없다 */
+    order:${p => ({ status: 1, tasks: 2, docs: 3, files: 4, period: 5, desc: 6 } as Record<string, number>)[p.$key] ?? 9};
+    ${p => (p.$key === 'period' ? 'grid-column:1 / -1;' : '')}
+    ${p => (p.$key === 'tasks' || p.$key === 'files' ? 'border-left:1px solid #F1F5F9;' : '')}
+    ${p => (p.$key === 'status' ? 'border-top:none;' : '')}
+    ${p => (p.$key === 'tasks' ? 'border-top:none;' : '')}
+  }
+`;
+const InfoKey = styled.dt`font-size:0.6875rem;color:#94A3B8;font-weight:600;`;
 const InfoVal = styled.dd<{ $pre: boolean; $empty: boolean }>`
   margin:0;font-size:0.8125rem;color:${p => (p.$empty ? '#CBD5E1' : '#334155')};min-width:0;word-break:break-word;
   white-space:${p => (p.$pre ? 'pre-wrap' : 'normal')};line-height:1.5;
 `;
 const CapNote = styled.span`font-weight:500;color:#94A3B8;`;
-const StatGrid = styled.div`display:grid;grid-template-columns:repeat(auto-fill,minmax(88px,1fr));gap:8px;`;
+// auto-fit — 칸이 줄을 꽉 채운다(auto-fill 은 빈 칸 자리를 남겨 오른쪽이 비었다, 2026-10-11)
+const StatGrid = styled.div`display:grid;grid-template-columns:repeat(auto-fit,minmax(88px,1fr));gap:8px;`;
 const StatCell = styled.div<{ $warn?: boolean }>`
   background:#fff;border:1px solid ${p => (p.$warn ? '#FECDD3' : '#E2E8F0')};border-radius:10px;padding:10px 12px;
   display:flex;flex-direction:column;gap:2px;
@@ -681,7 +735,15 @@ const TlMark = styled.span<{ $kind: string }>`
   flex-shrink:0;width:20px;text-align:center;font-size:0.8125rem;
   color:${p => (p.$kind === 'issue' ? '#F43F5E' : '#14B8A6')};
 `;
-const TlMain = styled.div`flex:1 1 0;min-width:0;`;
+// PC 는 제목 왼쪽 · 종류와 날짜 오른쪽 한 줄, 본문은 아래 전체 폭(2026-10-11 «왼쪽 쏠림»). 폰은 세로(종전).
+const TlMain = styled.div`
+  flex:1 1 0;min-width:0;
+  @media (min-width:769px){
+    display:grid;grid-template-columns:minmax(0,1fr) auto;column-gap:16px;align-items:baseline;
+    > :nth-child(2){margin-top:0;text-align:right;white-space:nowrap;}
+    > :nth-child(n+3){grid-column:1 / -1;}
+  }
+`;
 const TlTitle = styled.div`font-size:0.875rem;color:#0F172A;line-height:1.4;word-break:break-word;`;
 const TlMeta = styled.div`margin-top:2px;font-size:0.6875rem;color:#94A3B8;`;
 // 필터 줄 안의 알약 — 한 줄 안 컨트롤은 **36** 이다(필터줄 계약). 머리줄용 32 를 그대로 쓰면 줄이 들쭉날쭉하다(Fable F4).
@@ -715,11 +777,37 @@ const AskBtn = styled.button`
   &:focus-visible{outline:2px solid #0D9488;outline-offset:2px;}
 `;
 const TaskList = styled.div`display:flex;flex-direction:column;gap:0;background:#fff;border:1px solid #E2E8F0;border-radius:12px;overflow:hidden;`;
-const TaskRow = styled.div`
+// 업무 탭 칸 — PC 에서만 칸으로(≥769). 열 폭은 머리줄(TaskHead)과 **같은 한 값**을 쓴다.
+const TASK_COLS = 'minmax(0,1fr) 110px 96px 200px 112px';
+const TaskHead = styled.div`
+  display:none;
+  @media (min-width:769px){
+    display:grid;grid-template-columns:${TASK_COLS};gap:12px;align-items:center;
+    padding:9px 14px;border-bottom:1px solid #F1F5F9;background:#F8FAFC;
+    font-size:0.6875rem;font-weight:600;color:#94A3B8;
+    > span:last-child{text-align:right;}
+  }
+`;
+const ColCell = styled.div`
+  display:none;
+  @media (min-width:769px){ display:block;min-width:0;font-size:0.75rem;color:#64748B;overflow:hidden;text-overflow:ellipsis;white-space:nowrap; }
+`;
+const PctBar = styled.span`
+  display:none;
+  @media (min-width:769px){ display:inline-block;width:56px;height:5px;border-radius:999px;background:#F1F5F9;overflow:hidden;vertical-align:middle; }
+`;
+const PctFill = styled.span`display:block;height:100%;background:#14B8A6;border-radius:999px;`;
+const TaskRow = styled.div<{ $grid?: boolean }>`
   display:flex;align-items:center;gap:10px;padding:11px 14px;border-bottom:1px solid #F1F5F9;
   &:last-child{border-bottom:none;}
+  ${p => (p.$grid ? `@media (min-width:769px){
+    display:grid;grid-template-columns:${TASK_COLS};gap:12px;
+    [data-meta]{display:none;}
+    [data-col="progress"]{display:flex;align-items:center;justify-content:flex-end;gap:8px;}
+  }` : '')}
 `;
 const TaskMain = styled.div`flex:1 1 0;min-width:0;`;
+/* 업무 탭 줄 — PC 는 칸 그리드. 개요의 MiniTask 는 반쪽 칸에 서므로 그대로 한 줄 메타(아래 $grid 없음). */
 const TaskTitle = styled.div`font-size:0.875rem;color:#0F172A;line-height:1.4;word-break:break-word;`;
 const Milestone = styled.span`color:#14B8A6;margin-right:5px;`;
 const TaskMeta = styled.div`display:flex;gap:8px;flex-wrap:wrap;margin-top:3px;font-size:0.6875rem;color:#94A3B8;`;

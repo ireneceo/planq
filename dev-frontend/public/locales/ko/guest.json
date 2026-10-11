@@ -305,5 +305,12 @@
     "next": "다음",
     "failed": "이 파일은 미리 볼 수 없어요.",
     "capped": "미리보기는 앞 20쪽까지예요."
+  },
+  "col": {
+    "task": "업무",
+    "assignee": "담당",
+    "status": "상태",
+    "period": "기간",
+    "progress": "진행률"
   }
 }
