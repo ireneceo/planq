@@ -993,6 +993,8 @@
       "quota": "You've used this month's Cue allowance. You can raise it in your plan.",
       "rate": "Too many requests. Try again in a minute.",
       "generic": "Something went wrong. Please try again shortly."
-    }
+    },
+    "btn": "AI edit",
+    "btnHint": "Tell AI what to change — you see every change before it is applied"
   }
 }

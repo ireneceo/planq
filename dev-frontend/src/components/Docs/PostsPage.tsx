@@ -2212,12 +2212,6 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId }) => {
                 data-testid="post-more"
                 items={[
                   {
-                    key: 'ai-edit', testId: 'post-ai-edit',
-                    label: t('aiEdit.menu', 'AI로 수정') as string,
-                    icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/></svg>,
-                    onClick: () => setAiEditOpen(true),
-                  },
-                  {
                     key: 'history', testId: 'post-history',
                     label: t('history.title', '변경 기록') as string,
                     icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 3v5h5" /><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8" /><path d="M12 7v5l4 2" /></svg>,
@@ -2345,6 +2339,13 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId }) => {
                   별도 액션 밴드(DetailActionBar)가 사라지고 상세는 **두 밴드**로 끝난다.
                   실측(1440px): ⋯ 만 헤더에 남기면 제목 몫이 304px → 872px 이 된다. */}
                 <MetaActions>
+                {/* AI 수정 — «AI 작성» 과 같은 ★ 버튼(AiActionButton)을 같은 줄 맨 앞에 (Irene 2026-10-11:
+                    "별표 넣고 똑같이 헤더에 버튼이 있어야 하는 거 아니야? AI로 작성할 때처럼 수정도.")
+                    ⋯ 메뉴 안에 두니 찾을 수 없었다. 같은 일을 하는 문을 두 곳에 두지 않는다 — 메뉴에서는 뺐다. */}
+                <AiActionButton size="filter" testId="post-ai-edit"
+                  onClick={() => setAiEditOpen(true)}
+                  label={t('aiEdit.btn', 'AI 수정') as string}
+                  title={t('aiEdit.btnHint', 'AI 에게 고칠 것을 말하면 바뀌는 곳을 전후로 먼저 보여 줘요') as string} />
                 <EditBtn type="button" data-testid="post-edit" onClick={startEdit}
                   title={t('edit', '편집') as string} aria-label={t('edit', '편집') as string}>
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 4 }}><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
