@@ -87,7 +87,7 @@ function writeCollapsed(v: boolean): void {
 interface Props {
   businessId: number | null;
   /** 놓이는 자리 — 모양·동작은 같다(두 모양이 되면 갈라진다). 검사·계측용 표식으로만 쓴다. */
-  variant?: 'dashboard' | 'settings';
+  variant?: 'dashboard' | 'settings' | 'inbox';
 }
 
 const OnboardingChecklist: React.FC<Props> = ({ businessId, variant = 'dashboard' }) => {

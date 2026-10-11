@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import styled from 'styled-components';
 import PageShell from '../../components/Layout/PageShell';
+import OnboardingChecklist from '../../components/Onboarding/OnboardingChecklist';
 import AttendanceWidget from '../../components/Attendance/AttendanceWidget';
 import HelpDot from '../../components/Common/HelpDot';
 import InsightCards from '../../components/Common/InsightCards';
@@ -358,6 +359,9 @@ const TodoPage: React.FC = () => {
       {/* #208 — 모바일에서는 사이드바가 접히므로 출퇴근을 첫 화면 최상단에 둔다.
           앱 열기 → 1탭으로 출근이 목표라 데스크탑에서는 감춘다(사이드바 위젯과 중복). */}
       <MobileAttendance><AttendanceWidget variant="card" /></MobileAttendance>
+      {/* 팀 적응 단계 (2026-10-09) — 로그인하면 이 화면(확인 필요)으로 온다. 대시보드에만 두면 처음 온 사람이 못 본다
+          (Irene 2026-10-11: "처음시작하는 사람의 워크스페이스에 제대로 나와?"). 같은 컴포넌트 · 다 하면·닫으면 사라진다. */}
+      <OnboardingChecklist businessId={bizId} variant="inbox" />
       {/* 오늘의 업무 리뷰 (Context Center) — Irene 2026-08-24.
           아래 목록이 "행동" 이라면 이건 "맥락" 이다. 접힌 채로 시작하고, 접혀 있어도 요약 숫자는 보인다. */}
       <TodayReview businessId={bizId} refreshKey={reviewTick} />

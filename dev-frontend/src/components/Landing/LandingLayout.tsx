@@ -25,18 +25,22 @@ interface CompanyInfo {
 // ★ `newTab: true` — 도움말은 **읽으면서 하던 일을 이어가는** 참고 자료다 (Irene 2026-09-07:
 //   "따로 헬프데스크처럼 쓰는 거야? 그럼 새창으로 열어야지"). 보던 페이지를 덮지 않는다.
 //   앱 안의 진입점도 같은 계약이다(CLAUDE.md "하던 일 위에 얹히는 진입점은 새 탭").
-const NAV_ITEMS: { to: string; key: string; newTab?: boolean }[] = [
+// wideOnly — 1024~1279px 데스크탑 GNB 에서는 숨긴다(9개가 한 줄에 안 들어간다 — 1024px 실측 필요 1164px).
+//   푸터와 좁은 폭 메뉴 시트에는 그대로 있다. 앱 다운로드는 폰·태블릿에서 찾는 것이라 시트에 남으면 된다.
+const NAV_ITEMS: { to: string; key: string; newTab?: boolean; wideOnly?: boolean }[] = [
   { to: '/features', key: 'nav.features' },
+  // 처음 시작하는 팀의 5단계 — 2026-10-11 Irene: 시작 가이드가 상단 어디에서도 안 보인다
+  { to: '/start', key: 'nav.start' },
   { to: '/pricing', key: 'nav.pricing' },
   { to: '/service', key: 'nav.service' },   // 업무체계 설계·구축 서비스 (2026-08-24)
   { to: '/insights', key: 'nav.blog' },
-  { to: '/about', key: 'nav.about' },
+  { to: '/about', key: 'nav.about', wideOnly: true },
   { to: '/contact', key: 'nav.contact' },
   { to: '/guide', key: 'nav.help', newTab: true },   // F7 — 도움말 공개 진입
   // ★ 앱 다운로드는 **푸터에만** 있었다 (Irene 2026-09-05, 안드로이드 태블릿:
   //   "앱다운로드를 어디서 해? 도저히 모르겠어"). 폰·태블릿에서 랜딩에 온 사람이
   //   가장 먼저 찾는 것이라 상단 내비(+모바일 시트)에 둔다.
-  { to: '/app', key: 'nav.app' },
+  { to: '/app', key: 'nav.app', wideOnly: true },
 ];
 
 const LandingLayout: React.FC<Props> = ({ children, transparentTop = true }) => {
@@ -100,7 +104,7 @@ const LandingLayout: React.FC<Props> = ({ children, transparentTop = true }) => 
 
           <DesktopNav>
             {navItems.map(item => (
-              <NavItem key={item.to} to={item.to} $light={isTransparent}
+              <NavItem key={item.to} to={item.to} $light={isTransparent} $wideOnly={!!item.wideOnly}
                 {...(item.newTab ? { target: '_blank', rel: 'noopener noreferrer' } : {})}>{t(item.key)}</NavItem>
             ))}
           </DesktopNav>
@@ -289,18 +293,21 @@ const BrandLogo = styled.img`
   height: 26px; width: auto; display: block;
   transition: opacity 0.2s;
 `;
+// ★ 메뉴가 9개라(2026-10-11 «시작 가이드» 추가) 좁은 데스크탑에서 가로로 넘쳤다 — 실측 901px 187px · 1024px 64px.
+//   1023px 이하는 메뉴 버튼(시트)로 접고, 1024~1279px 는 간격만 줄인다. 세 곳(메뉴·CTA·메뉴 버튼)이 같은 경계를 쓴다.
 const DesktopNav = styled.nav`
   display: flex; gap: 4px;
-  @media (max-width: 900px) { display: none; }
+  @media (max-width: 1023px) { display: none; }
 `;
-const NavItem = styled(NavLink)<{ $light: boolean }>`
+const NavItem = styled(NavLink)<{ $light: boolean; $wideOnly?: boolean }>`
   height: 36px; padding: 0 14px;
   display: inline-flex; align-items: center;
   text-decoration: none;
   color: ${p => p.$light ? 'rgba(255,255,255,0.85)' : '#475569'};
-  font-size: 0.875rem; font-weight: 500;
+  font-size: 0.875rem; font-weight: 500; white-space: nowrap;
   border-radius: 8px;
   transition: background 0.15s, color 0.15s;
+  @media (max-width: 1279px) { padding: 0 9px; ${p => p.$wideOnly ? 'display: none;' : ''} }
   &:hover {
     background: ${p => p.$light ? 'rgba(255,255,255,0.08)' : '#F1F5F9'};
     color: ${p => p.$light ? '#FFFFFF' : '#0F172A'};
@@ -311,7 +318,7 @@ const NavItem = styled(NavLink)<{ $light: boolean }>`
 `;
 const DesktopCta = styled.div`
   display: flex; gap: 8px; align-items: center;
-  @media (max-width: 900px) { display: none; }
+  @media (max-width: 1023px) { display: none; }
 `;
 // #196 — KO·EN 토글 (LegalPage 와 같은 형태). GNB 가 hero 위에서 transparent(다크 배경) 일 때는
 //   글자를 밝게 뒤집어야 읽힌다 — $light 가 그 분기.
@@ -365,7 +372,7 @@ const Hamburger = styled.button<{ $light: boolean }>`
   color: ${p => p.$light ? '#FFFFFF' : '#0F172A'};
   border-radius: 8px;
   &:hover { background: ${p => p.$light ? 'rgba(255,255,255,0.08)' : '#F1F5F9'}; }
-  @media (max-width: 900px) { display: inline-flex; }
+  @media (max-width: 1023px) { display: inline-flex; }
 `;
 const MobileSheet = styled.div`
   display: flex; flex-direction: column; gap: 4px;
