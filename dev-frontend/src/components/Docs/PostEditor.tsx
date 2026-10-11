@@ -28,6 +28,8 @@ import { codeBlockNodeView } from '../Common/CodeBlockNodeView';
 import { checklistExtensions, checklistEditorCss } from './editorChecklist';   // 할 일 목록(동그라미 체크 + 가운데 줄)
 import { FindReplace, findReplaceEditorCss } from './editorFindReplace';   // 찾기·바꾸기(2026-10-08)
 import FindReplaceBar from './FindReplaceBar';
+import TextStyleButton from './TextStyleButton';   // 글자색·배경·크기(2026-10-11 — 문서 안 표 포함)
+import { textStyleExtensions, currentTextStyleKeys, applyTextStyle, stripForeignTextStyle } from './editorTextStyle';
 import { distributeTableColumnsEvenly } from './editorTableFit';   // 표 열 폭 맞춤(운영 #311)
 
 // 사이클 N+16 — 노션 스타일 코드 블록. lowlight + common 언어팩 (30개+: js/ts/python/go/rust/sql/bash 등).
@@ -120,7 +122,7 @@ const PostEditor: React.FC<Props> = ({ value, onChange, onReady, placeholder, ed
       Table.configure({ resizable: true, HTMLAttributes: { class: 'editor-table' } }),
       TableRow,
       TableHeader, TableCell, ...checklistExtensions,
-      FindReplace,
+      FindReplace, ...textStyleExtensions,
     ],
     content: value as any,
     editable,
@@ -130,6 +132,7 @@ const PostEditor: React.FC<Props> = ({ value, onChange, onReady, placeholder, ed
     onCreate: ({ editor }) => onReadyRef.current?.(editor.getJSON()),
     onUpdate: ({ editor }) => onChange(editor.getJSON()),
     editorProps: {
+      transformPastedHTML: stripForeignTextStyle,   // 바깥 글의 색·크기는 걷는다(우리 문서끼리 복사는 유지)
       handlePaste: (view, event) => {
         // ★ #337 — 엑셀·구글시트·웹 표를 복사하면 클립보드에 **표(text/html)와 그림(image/png)이 같이** 담긴다.
         //   아래 이미지 분기가 무조건 먼저 돌아서, 표를 붙여넣으면 그림으로 박혀 편집이 불가능해졌다
@@ -315,6 +318,7 @@ const PostEditor: React.FC<Props> = ({ value, onChange, onReady, placeholder, ed
           <Group>
             <ToolBtn type="button" $active={isActive('bold')} onClick={() => editor.chain().focus().toggleBold().run()} title={t('editor.bold', { defaultValue: '굵게' })}>B</ToolBtn>
             <ToolBtn type="button" $active={isActive('italic')} onClick={() => editor.chain().focus().toggleItalic().run()} title={t('editor.italic', { defaultValue: '기울임' })} style={{ fontStyle: 'italic' }}>I</ToolBtn>
+            <TextStyleButton testid="editor-style" current={currentTextStyleKeys(editor)} onPick={(kind, item) => applyTextStyle(editor, kind, item)} />
             <ToolBtn type="button" data-testid="editor-underline" $active={isActive('underline')} onClick={() => editor.chain().focus().toggleUnderline().run()} title={t('editor.underline', { defaultValue: '밑줄 (⌘U)' })} aria-label={t('editor.underlineAria', { defaultValue: '밑줄' })} style={{ textDecoration: 'underline' }}>U</ToolBtn>
             <ToolBtn type="button" $active={isActive('strike')} onClick={() => editor.chain().focus().toggleStrike().run()} title={t('editor.strike', { defaultValue: '취소선' })} style={{ textDecoration: 'line-through' }}>S</ToolBtn>
             <ToolBtn type="button" $active={isActive('code')} onClick={() => editor.chain().focus().toggleCode().run()} title={t('editor.inlineCode', { defaultValue: '인라인 코드' })} style={{ fontFamily: 'monospace' }}>code</ToolBtn>

@@ -7,6 +7,7 @@ const express = require('express');
 const router = express.Router();
 const crypto = require('crypto');
 const { Op } = require('sequelize');
+const { insertRow } = require('../services/recordRows');
 const { QRecord, QRecordRow, QRecordAudit, User, Project, BusinessMember } = require('../models');
 const { authenticateToken } = require('../middleware/auth');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
@@ -320,13 +321,10 @@ router.post('/:id/rows', authenticateToken, async (req, res, next) => { // audit
     //   개인(L1) 문서의 표를 남이 읽고 쓴다(2026-09-03 실측 유출).
     if (!(await canViewRecord(req.user.id, r, isAdmin)).ok) return errorResponse(res, 'forbidden', 403);
 
-    const last = await QRecordRow.max('position', { where: { q_record_id: r.id } });
-    const row = await QRecordRow.create({
-      q_record_id: r.id,
-      values: req.body.values || {},
-      position: (last || 0) + 1,
-      created_by: req.user.id,
-    });
+    // 2026-10-11 — 행 사이에 끼워 넣기(before/after_row_id). 없으면 맨 끝 — services/recordRows.insertRow 한 곳
+    const row = await insertRow(r.id, req.body.values || {}, req.user.id,
+      { beforeRowId: req.body.before_row_id, afterRowId: req.body.after_row_id });
+    if (!row) return errorResponse(res, 'row not_found', 404);
     await QRecordAudit.create({ q_record_id: r.id, q_record_row_id: row.id, user_id: req.user.id, action: 'row.create' });
     // 응답에서 secret 마스킹
     const masked = maskRowsForSecrets([row], r.columns)[0];

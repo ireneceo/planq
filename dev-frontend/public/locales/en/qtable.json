@@ -62,7 +62,9 @@
     "deleteConfirm": "All cell data in this column will be removed.",
     "deleteYes": "Delete",
     "aggregateLabel": "Column summary (bottom row)",
-    "aggregateHint": "Auto-compute sum/avg/min/max of this column's values at the bottom row of the table."
+    "aggregateHint": "Auto-compute sum/avg/min/max of this column's values at the bottom row of the table.",
+    "insertLeft": "← Insert column left",
+    "insertRight": "Insert column right →"
   },
   "agg": {
     "none": "None",
@@ -75,7 +77,10 @@
     "filled": "Filled %"
   },
   "row": {
-    "deleteHint": "Delete row"
+    "deleteHint": "Delete row",
+    "menu": "Row menu",
+    "insertAbove": "Insert row above",
+    "insertBelow": "Insert row below"
   },
   "cell": {
     "reveal": "Show",

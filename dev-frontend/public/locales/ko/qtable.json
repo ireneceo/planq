@@ -62,7 +62,9 @@
     "deleteConfirm": "이 컬럼의 모든 셀 데이터가 사라집니다.",
     "deleteYes": "삭제",
     "aggregateLabel": "열 자동 계산 (표 하단)",
-    "aggregateHint": "이 열의 값들을 표 맨 아래 줄에 합계·평균·최소·최대 등으로 자동 계산해 보여줍니다."
+    "aggregateHint": "이 열의 값들을 표 맨 아래 줄에 합계·평균·최소·최대 등으로 자동 계산해 보여줍니다.",
+    "insertLeft": "← 왼쪽에 열 추가",
+    "insertRight": "오른쪽에 열 추가 →"
   },
   "agg": {
     "none": "없음",
@@ -75,7 +77,10 @@
     "filled": "채워진 비율"
   },
   "row": {
-    "deleteHint": "행 삭제"
+    "deleteHint": "행 삭제",
+    "menu": "행 메뉴",
+    "insertAbove": "위에 행 추가",
+    "insertBelow": "아래에 행 추가"
   },
   "cell": {
     "reveal": "보기",

@@ -711,6 +711,37 @@
       "replaceAllN": "모두 바꾸기 ({{n}})",
       "replaceAllHint": "모두 바꾸기 — 실행 취소(⌘Z) 한 번으로 되돌릴 수 있어요",
       "replaced": "{{n}}곳 바꿨어요 · 실행 취소(⌘Z)로 되돌릴 수 있어요"
+    },
+    "style": {
+      "open": "글자 색·크기",
+      "colorLabel": "글자색",
+      "bgLabel": "배경색",
+      "sizeLabel": "크기",
+      "color": {
+        "default": "기본",
+        "gray": "회색",
+        "red": "빨강",
+        "orange": "주황",
+        "green": "초록",
+        "blue": "파랑",
+        "purple": "보라"
+      },
+      "bg": {
+        "none": "없음",
+        "yellow": "노랑",
+        "green": "연두",
+        "blue": "하늘",
+        "pink": "분홍",
+        "gray": "회색"
+      },
+      "size": {
+        "small": "작게",
+        "normal": "보통",
+        "large": "크게",
+        "xlarge": "아주 크게"
+      },
+      "tablePick": "칸을 누르고 서식을 고르세요",
+      "tablePicked": "고른 칸에 적용됩니다"
     }
   },
   "tab": {

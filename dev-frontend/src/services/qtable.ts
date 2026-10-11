@@ -123,11 +123,13 @@ export async function deleteRecord(id: number): Promise<boolean> {
   return !!j.success;
 }
 
-export async function createRow(recordId: number, values: Record<string, unknown>): Promise<QRecordRow> {
+/** place 가 있으면 그 행 위/아래에 끼워 넣는다(없으면 맨 끝) */
+export async function createRow(recordId: number, values: Record<string, unknown>,
+  place?: { before_row_id?: number; after_row_id?: number }): Promise<QRecordRow> {
   const r = await apiFetch(`/api/records/${recordId}/rows`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ values }),
+    body: JSON.stringify({ values, ...(place || {}) }),
   });
   const j = await r.json();
   if (!j.success) throw new Error(j.message || 'row create failed');

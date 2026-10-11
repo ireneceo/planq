@@ -21,6 +21,7 @@ import { TableRow } from '@tiptap/extension-table-row';
 import { TableCell } from '@tiptap/extension-table-cell';
 import { TableHeader } from '@tiptap/extension-table-header';
 import { SignatureField } from '../components/Docs/SignatureField';
+import { textStyleExtensions } from '../components/Docs/editorTextStyle';
 import { sanitizeRichText } from './sanitizeHtml';
 
 /** 편집기와 **같은 확장 목록**. 여기서만 늘린다. */
@@ -30,7 +31,9 @@ import { sanitizeRichText } from './sanitizeHtml';
 //     이 파일은 서버로 보낼 HTML 을 만드는 곳이라, 갈라지면 저장본이 화면과 달라진다.
 const EXTENSIONS = [StarterKit.configure({ link: false }), Link, Image, Table, TableRow, TableHeader, TableCell,
   // 서명란(2026-09-22) — 빠지면 읽기·공유 화면에서 서명 자리가 통째로 사라진다(변환기가 모르는 노드는 버린다)
-  SignatureField];
+  SignatureField,
+  // 글자색·배경·크기(2026-10-11) — 빠지면 그 mark 에서 throw 해 문서 통째로 빈 문자열이 된다
+  ...textStyleExtensions];
 
 /**
  * 변환만 한다(정화 없음). 서버로 보낼 HTML 은 이 함수를 쓴다.

@@ -105,6 +105,8 @@ const SUITES = {
   tablefit: () => require('./canary-table-fit'),
   // 문서 편집기 찾기·바꾸기(⌘F·⌘⇧H) + 밑줄·구분선 — 3폭 · 서식 보존 · 실행 취소 한 번
   docfind: () => require('./canary-doc-find'),
+  // 표 글자 서식(색·크기·굵게) + 행/열 끼워넣기 — 문서 안 표(편집기) 2폭 · 표 문서(그리드) 3폭
+  tablestyle: () => require('./canary-table-style'),
   // 저장된 문서 **보기** 화면의 표 — 테두리가 중간에 끊기지 않는가.
   //   tablefit(편집기)과 **일부러 가른 스위트**다. 한 런에 넣으면 편집 초안 때문에
   //   페이지 이탈이 끝나지 않아 검사가 멈춘다(2026-09-13 실측 17분 행).

@@ -711,6 +711,37 @@
       "replaceAllN": "Replace all ({{n}})",
       "replaceAllHint": "Replace all — one undo (⌘Z) brings it all back",
       "replaced": "Replaced {{n}} · undo (⌘Z) to revert"
+    },
+    "style": {
+      "open": "Text color & size",
+      "colorLabel": "Text color",
+      "bgLabel": "Highlight",
+      "sizeLabel": "Size",
+      "color": {
+        "default": "Default",
+        "gray": "Gray",
+        "red": "Red",
+        "orange": "Orange",
+        "green": "Green",
+        "blue": "Blue",
+        "purple": "Purple"
+      },
+      "bg": {
+        "none": "None",
+        "yellow": "Yellow",
+        "green": "Green",
+        "blue": "Blue",
+        "pink": "Pink",
+        "gray": "Gray"
+      },
+      "size": {
+        "small": "Small",
+        "normal": "Normal",
+        "large": "Large",
+        "xlarge": "Extra large"
+      },
+      "tablePick": "Click a cell, then pick a style",
+      "tablePicked": "Applies to the selected cell"
     }
   },
   "tab": {

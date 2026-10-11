@@ -26,7 +26,9 @@ function runXml(text, marks = {}) {
     marks.underline || marks.link ? '<w:u w:val="single"/>' : '',
     marks.strike ? '<w:strike/>' : '',
     marks.code ? '<w:rFonts w:ascii="Consolas" w:hAnsi="Consolas"/>' : '',
-    marks.link ? '<w:color w:val="0563C1"/>' : '',
+    marks.link ? '<w:color w:val="0563C1"/>' : (marks.color ? `<w:color w:val="${marks.color}"/>` : ''),
+    marks.highlight ? `<w:shd w:val="clear" w:color="auto" w:fill="${marks.highlight}"/>` : '',
+    marks.halfPts ? `<w:sz w:val="${marks.halfPts}"/>` : '',
   ].join('');
   // xml:space="preserve" 가 없으면 앞뒤 공백이 사라져 단어가 붙는다.
   return `<w:r>${props ? `<w:rPr>${props}</w:rPr>` : ''}<w:t xml:space="preserve">${esc(text)}</w:t></w:r>`;
@@ -54,6 +56,15 @@ function inlineRuns(node) {
       else if (m.type === 'strike') marks.strike = true;
       else if (m.type === 'code') marks.code = true;
       else if (m.type === 'link') marks.link = true;
+      else if (m.type === 'textStyle') {
+        // 글자색·배경·크기(2026-10-11) — #hex 와 em 만 받는다(본문 11pt 기준 반 포인트 단위)
+        const at = m.attrs || {};
+        const hex = (v) => (/^#[0-9a-fA-F]{6}$/.test(String(v || '')) ? String(v).slice(1).toUpperCase() : null);
+        marks.color = hex(at.color) || marks.color;
+        marks.highlight = hex(at.backgroundColor) || marks.highlight;
+        const em = /^(\d*\.?\d+)em$/.exec(String(at.fontSize || ''));
+        if (em && Number(em[1]) > 0 && Number(em[1]) <= 3) marks.halfPts = Math.round(22 * Number(em[1]));
+      }
     }
     return runXml(node.text, marks);
   }

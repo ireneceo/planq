@@ -280,6 +280,17 @@ function browserAssetHtml(html) {
   return String(html).split(`${base}/api/`).join('/api/');
 }
 
+const HEX_RE = /^#[0-9a-fA-F]{3,8}$/;
+const EM_RE = /^(0?\.\d+|[1-3](\.\d+)?)em$/;
+function textStyleCss(attrs) {
+  const a = attrs || {};
+  const out = [];
+  if (HEX_RE.test(String(a.color || ''))) out.push(`color:${a.color}`);
+  if (HEX_RE.test(String(a.backgroundColor || ''))) out.push(`background-color:${a.backgroundColor}`);
+  if (EM_RE.test(String(a.fontSize || ''))) out.push(`font-size:${a.fontSize}`);
+  return out.join(';');
+}
+
 function nodeToHtml(n) {
   if (!n || typeof n !== 'object') return '';
   if (n.type === 'text') {
@@ -291,6 +302,8 @@ function nodeToHtml(n) {
       else if (m.type === 'strike') txt = `<s>${txt}</s>`;
       else if (m.type === 'code') txt = `<code>${txt}</code>`;
       else if (m.type === 'link') txt = `<a href="${escapeHtml(safeHref((m.attrs || {}).href))}">${txt}</a>`;
+      // 글자색·배경·크기(2026-10-11) — 모양이 맞는 값만(#hex · N.Nem). 그 외는 서식 없이 글자만
+      else if (m.type === 'textStyle') { const css = textStyleCss(m.attrs); if (css) txt = `<span style="${css}">${txt}</span>`; }
     });
     return txt;
   }

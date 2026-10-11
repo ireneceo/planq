@@ -28,6 +28,8 @@ import SurveyStats from './SurveyStats';
 import { SegmentedToggle, SegmentedBtn } from '../Common/segmentedToggle';
 import { fetchSurvey, type SurveyView } from '../../services/qtable';
 import { onSocket } from '../../services/socket';
+// 칸 서식·행 끼워넣기(2026-10-11) — 서식 값은 행 값의 예약 키 _fmt, 팔레트는 문서 편집기와 한 벌
+import { TableFormatBar, RowMenuButton, CELL_FMT_KEY, rowFmtOf, cellFmtStyle, nextRowFmt, type CellFmt } from './TableCellTools';
 
 const TYPES: { value: QRecordColumnType; tk: string; ko: string }[] = [
   { value: 'text',         tk: 'colType.text',        ko: '텍스트' },
@@ -172,6 +174,7 @@ const PostTableGrid: React.FC<Props> = ({ recordId, businessId, readOnly = false
   const [settingsForId, setSettingsForId] = useState<string | null>(null);
   const [revealed, setRevealed] = useState<Record<string, string>>({});
   const [attachContext, setAttachContext] = useState<{ rowId: number; colId: string } | null>(null);
+  const [selCell, setSelCell] = useState<{ rowId: number; colId: string } | null>(null);   // 서식을 걸 칸
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -240,6 +243,41 @@ const PostTableGrid: React.FC<Props> = ({ recordId, businessId, readOnly = false
     setRec({ ...rec, rows: [...rec.rows, row] });
   };
 
+  // 행 사이에 끼워 넣기 — 서버가 자리(position)를 잡고, 화면도 같은 자리에 넣는다
+  const insertRowAt = async (anchorId: number, side: 'above' | 'below') => {
+    const row = await createRow(rec.id, {}, side === 'above' ? { before_row_id: anchorId } : { after_row_id: anchorId });
+    setRec((prev) => {
+      if (!prev) return prev;
+      const i = prev.rows.findIndex((r) => r.id === anchorId);
+      const rows = [...prev.rows];
+      rows.splice(i < 0 ? rows.length : (side === 'above' ? i : i + 1), 0, row);
+      return { ...prev, rows };
+    });
+  };
+
+  // 열 사이에 끼워 넣기 — 열 목록에 끼우고 순서(order)를 다시 매긴다
+  const insertColumnAt = async (colId: string, side: 'left' | 'right') => {
+    const i = rec.columns.findIndex((c) => c.id === colId);
+    if (i < 0) return;
+    const at = side === 'left' ? i : i + 1;
+    const newCol: QRecordColumn = {
+      id: newColId(), type: 'text', order: at,
+      name: t('column.defaultName', { defaultValue: '컬럼 {{n}}', n: rec.columns.length + 1 }) as string,
+    };
+    const cols = [...rec.columns];
+    cols.splice(at, 0, newCol);
+    await saveColumns(cols.map((c, k) => ({ ...c, order: k })));
+    setSettingsForId(null);
+  };
+
+  // 고른 칸 서식 바꾸기 — 행 값의 _fmt 만 고친다(다른 칸 값은 그대로)
+  const selRow = selCell ? rec.rows.find((r) => r.id === selCell.rowId) : null;
+  const selFmt: CellFmt | null = selCell && selRow ? (rowFmtOf(selRow.values)[selCell.colId] || {}) : null;
+  const changeSelFmt = (patch: Partial<CellFmt>) => {
+    if (!selCell || !selRow) return;
+    handleCellChange(selCell.rowId, CELL_FMT_KEY, nextRowFmt(rowFmtOf(selRow.values), selCell.colId, patch));
+  };
+
   const handleCellChange = async (rowId: number, colId: string, value: unknown) => {
     const row = rec.rows.find(r => r.id === rowId);
     if (!row) return;
@@ -289,6 +327,7 @@ const PostTableGrid: React.FC<Props> = ({ recordId, businessId, readOnly = false
   return (
     <GridWrap>
       <SurveyBar>
+        {!readOnly && view === 'grid' && <TableFormatBar fmt={selFmt} onChange={changeSelFmt} />}
         <SegmentedToggle role="tablist" aria-label={t('stats.viewLabel', '보기') as string}>
           <SegmentedBtn type="button" role="tab" aria-selected={view === 'grid'} $active={view === 'grid'} onClick={() => setView('grid')}>{t('stats.tabGrid', '표')}</SegmentedBtn>
           <SegmentedBtn type="button" role="tab" aria-selected={view === 'stats'} $active={view === 'stats'} onClick={() => setView('stats')} data-testid="table-stats-tab">{t('stats.tabStats', '통계')}</SegmentedBtn>
@@ -350,9 +389,18 @@ const PostTableGrid: React.FC<Props> = ({ recordId, businessId, readOnly = false
           <tbody>
             {rec.rows.map((row, idx) => (
               <tr key={row.id}>
-                <RowNumCell>{idx + 1}</RowNumCell>
+                <RowNumCell>
+                  {readOnly ? idx + 1 : (
+                    <RowMenuButton index={idx + 1} onInsert={(side) => insertRowAt(row.id, side)} onDelete={() => handleDeleteRow(row.id)} />
+                  )}
+                </RowNumCell>
                 {rec.columns.map(c => (
-                  <Cell key={c.id}>
+                  <Cell key={c.id}
+                    style={cellFmtStyle(rowFmtOf(row.values)[c.id])}
+                    $sel={!readOnly && selCell?.rowId === row.id && selCell?.colId === c.id}
+                    data-testid={`table-cell-${idx}-${c.id}`}
+                    onMouseDownCapture={readOnly ? undefined : () => setSelCell({ rowId: row.id, colId: c.id })}
+                    onFocusCapture={readOnly ? undefined : () => setSelCell({ rowId: row.id, colId: c.id })}>
                     <CellEditor
                       column={c}
                       value={(row.values || {})[c.id]}
@@ -410,6 +458,7 @@ const PostTableGrid: React.FC<Props> = ({ recordId, businessId, readOnly = false
           onClose={() => setSettingsForId(null)}
           onCommit={(patch) => updateColumn(settingsCol.id, patch)}
           onDelete={() => deleteColumn(settingsCol.id)}
+          onInsert={(side) => insertColumnAt(settingsCol.id, side)}
         />
       )}
 
@@ -595,7 +644,8 @@ const ColumnSettingsPopover: React.FC<{
   //   동시 저장돼 race(마지막만 반영). "타입을 첨부로 바꿔도 적용 안 됨, 다시 설정하면 됨" 회귀의 근본.
   onCommit: (patch: Partial<QRecordColumn>) => void;
   onDelete: () => void;
-}> = ({ column, onClose, onCommit, onDelete }) => {
+  onInsert: (side: 'left' | 'right') => void;   // 열 사이에 끼워 넣기(2026-10-11)
+}> = ({ column, onClose, onCommit, onDelete, onInsert }) => {
   const { t } = useTranslation('qtable');
   const [name, setName] = useState(column.name);
   const [type, setType] = useState<QRecordColumnType>(column.type);
@@ -649,6 +699,10 @@ const ColumnSettingsPopover: React.FC<{
           </PopoverClose>
         </PopoverHeader>
         <PopoverBody>
+          <InsertRow>
+            <SecondaryBtn type="button" data-testid="table-col-insert-left" onClick={() => onInsert('left')}>{t('column.insertLeft', { defaultValue: '← 왼쪽에 열 추가' })}</SecondaryBtn>
+            <SecondaryBtn type="button" data-testid="table-col-insert-right" onClick={() => onInsert('right')}>{t('column.insertRight', { defaultValue: '오른쪽에 열 추가 →' })}</SecondaryBtn>
+          </InsertRow>
           <Field>
             <FieldLabel>{t('column.nameLabel', '컬럼 이름')}</FieldLabel>
             <FieldInput type="text" value={name} onChange={e => setName(e.target.value)} autoFocus
@@ -966,8 +1020,10 @@ const GridTable = styled.table`
   tbody tr:hover td { background: #F8FAFC; }
   tr:last-child td { border-bottom: none; }
 `;
-const RowNumHeader = styled.th`width: 40px; min-width: 40px;`;
-const RowNumCell = styled.td`width: 40px; text-align: center; color: #94A3B8; font-size: 0.6875rem; padding: 8px 0; background: #F8FAFC;`;
+// ★ 데스크탑(>900)은 문서 화면 왼쪽 변에 «리스트 접기» 손잡이가 떠 있고 그 잡는 자리가 본문 쪽으로 22px 들어온다.
+//   표는 좌우 끝까지(full-bleed)라 행 번호 칸이 그 밑에 깔려 행 메뉴가 안 눌렸다(2026-10-11 실측) — 데스크탑만 칸을 넓히고 왼쪽을 비운다.
+const RowNumHeader = styled.th`width: 40px; min-width: 40px; @media (min-width: 901px) { width: 64px; min-width: 64px; }`;
+const RowNumCell = styled.td`width: 40px; text-align: center; color: #94A3B8; font-size: 0.6875rem; padding: 2px; background: #F8FAFC; @media (min-width: 901px) { width: 64px; padding-left: 26px; }`;
 const ColHead = styled.th`min-width: 140px; cursor: default;`;
 const ColHeadInner = styled.div`display: flex; flex-direction: column; gap: 2px;`;
 const ColNameLabel = styled.div<{ $readOnly?: boolean }>`
@@ -987,7 +1043,12 @@ const AddColHead = styled.th`
   &:hover { background: #F0FDFA; color: #0F766E; }
 `;
 const ActionsHead = styled.th`width: 32px;`;
-const Cell = styled.td`min-width: 140px; padding: 0;`;
+// 글자색·크기·굵기는 칸 서식(_fmt)이 td 에 걸고 안쪽 입력·읽기 칸이 물려받는다(inherit)
+const Cell = styled.td<{ $sel?: boolean }>`
+  min-width: 140px; padding: 0; color: #0F172A; font-size: 0.8125rem;
+  ${(p) => (p.$sel ? 'box-shadow: inset 0 0 0 2px #14B8A6;' : '')}
+`;
+const InsertRow = styled.div`display: flex; gap: 8px; flex-wrap: wrap;`;
 const ActionsCell = styled.td`width: 32px; text-align: center; padding: 0; background: #F8FAFC;`;
 const DeleteRowBtn = styled.button`
   width: 22px; height: 22px; border: none; background: transparent; cursor: pointer;
@@ -1001,11 +1062,11 @@ const AddRowBtn = styled.button`
 `;
 const CellInput = styled.input`
   width: 100%; height: 100%; padding: 8px 10px; border: none; background: transparent;
-  font-size: 0.8125rem; color: #0F172A; box-sizing: border-box;
+  font: inherit; color: inherit; box-sizing: border-box;
   &:focus { outline: 2px solid #14B8A6; outline-offset: -2px; }
 `;
 const ReadCell = styled.div`
-  padding: 8px 10px; font-size: 0.8125rem; color: #0F172A; line-height: 1.5;
+  padding: 8px 10px; font-size: inherit; color: inherit; line-height: 1.5;
   min-height: 36px; word-break: break-word;
 `;
 const Dim = styled.span`color: #CBD5E1;`;
@@ -1019,7 +1080,7 @@ const ComputedValue = styled.div`
 `;
 const CellTextarea = styled.textarea`
   width: 100%; padding: 8px 10px; border: none; background: transparent;
-  font-size: 0.8125rem; color: #0F172A; font-family: inherit; resize: vertical; box-sizing: border-box; line-height: 1.5;
+  font: inherit; color: inherit; resize: vertical; box-sizing: border-box; line-height: 1.5;
   &:focus { outline: 2px solid #14B8A6; outline-offset: -2px; }
 `;
 const CheckboxLabel = styled.label`display: flex; align-items: center; justify-content: center; padding: 8px;`;
