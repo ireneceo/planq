@@ -1,6 +1,11 @@
 ## 현재 작업 상태
 
-### 답 기다림: 메일 분류 — 반복 거래 알림 처리 + 운영 배포 (방 534adfe0 · 2026-10-11 · [Opus])
+### 답 기다림: 운영 메일 재분류 적용 여부 (방 534adfe0 · 2026-10-11 · [Opus])
+- 무엇을: 운영 `cd /opt/planq/backend && node scripts/retriage-mail.js --promote-only --apply` — 이미 받은 메일 179건을 자동·마케팅 → 확인 권장으로(승격만)
+- 왜: 배포로 새 메일부터는 새 기준이 적용됐다. 이미 묻힌 옛 메일(GFM 4355 · Claude API 1170 · 시프티 결제 실패 · Time 연체 · 넷플릭스 보류 · Tally 유출 등)은 재분류해야 확인 권장에 보인다. 미리보기 ~/.claude/jobs/534adfe0/tmp/prod-preview2.txt
+- 답이 오면: 위 명령 실행 → 운영 확인 권장 폴더에 4355 확인 → 보고
+
+### 답 기다림 (이전): 메일 분류 — 반복 거래 알림 처리 + 운영 배포 — Irene «해» → 규칙 등록(dev 3·5, 운영 1: 규칙 id 7·8) + 운영 배포 2e9f6df4 완료
 - 무엇을: adaptispay «(NPROD) Statement of Account and Tax Invoice»(매일, dev 164건)·Grab «Your report … is ready»(매주, 37건)를 확인 권장에 둘지, 발신자 규칙으로 자동·마케팅에 보낼지 · 그리고 배포·운영 재분류 지시
 - 왜: 새 분류 기준(Fable PASS)으로 이 둘이 확인 권장 승격분의 70% 를 차지하고, 새로 들어오면 푸시 알림도 간다. 발신자 규칙은 Irene 메일함 설정이라 임의로 안 만든다.
 - 답이 오면: 규칙이면 Q mail 발신자 규칙 2건 등록(dev 확인) → `/배포` 지시 때 운영 코드 배포 → 운영 `node scripts/retriage-mail.js --promote-only --list` 미리보기 보고 → Irene 확인 후 `--apply`.
