@@ -79,7 +79,10 @@ function tableXml(node) {
     const cells = (row.content || []).filter((c) => c.type === 'tableCell' || c.type === 'tableHeader');
     const tcs = cells.map((c) => {
       const inner = (c.content || []).map((p) => paraXml(inlineRuns(p))).join('') || paraXml('');
-      const shade = c.type === 'tableHeader' ? '<w:shd w:val="clear" w:fill="F1F5F9"/>' : '';
+      // 칸 채우기 색(2026-10-12) — 칠한 칸은 그 색, 아니면 머리칸만 옅은 회색
+      const fill = /^#[0-9a-fA-F]{6}$/.test(String(c.attrs?.backgroundColor || '')) ? String(c.attrs.backgroundColor).slice(1).toUpperCase()
+        : (c.type === 'tableHeader' ? 'F1F5F9' : '');
+      const shade = fill ? `<w:shd w:val="clear" w:fill="${fill}"/>` : '';
       return `<w:tc><w:tcPr><w:tcBorders>${border()}</w:tcBorders>${shade}</w:tcPr>${inner}</w:tc>`;
     }).join('');
     return `<w:tr>${tcs}</w:tr>`;

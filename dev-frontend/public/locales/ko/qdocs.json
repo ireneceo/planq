@@ -656,7 +656,13 @@
       "delTable": "표 삭제",
       "table": "표",
       "evenCols": "폭 맞춤",
-      "evenColsHint": "표를 본문 폭에 맞추고 열을 같은 너비로 나눕니다 (드래그로 다시 조절 가능)"
+      "evenColsHint": "표를 본문 폭에 맞추고 열을 같은 너비로 나눕니다 (드래그로 다시 조절 가능)",
+      "fill": "칸 색",
+      "fillScope": "칠할 범위",
+      "fillScope_cell": "고른 칸",
+      "fillScope_col": "열 전체",
+      "fillScope_row": "행 전체",
+      "fillColor": "색"
     },
     "origin": "출처",
     "alignLeft": "왼쪽 정렬",
@@ -741,7 +747,17 @@
         "xlarge": "아주 크게"
       },
       "tablePick": "칸을 누르고 서식을 고르세요",
-      "tablePicked": "고른 칸에 적용됩니다"
+      "tablePicked": "고른 칸에 적용됩니다",
+      "fill": {
+        "none": "없음",
+        "gray": "회색",
+        "yellow": "노랑",
+        "orange": "주황",
+        "green": "연두",
+        "blue": "하늘",
+        "purple": "보라",
+        "pink": "분홍"
+      }
     }
   },
   "tab": {

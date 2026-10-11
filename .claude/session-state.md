@@ -1,5 +1,13 @@
 ## 현재 작업 상태
 
+### 완료: Q docs 표 — 칸·열·행 채우기 색 + 표 문서 «열 색» (방 0a07252e · 2026-10-12 · [Opus]) — 운영 미배포
+- 원문: *"문서 표에서 열에 색상넣게 기능 넣어줄 수 있어? 글자굵게하고 색상도, 지금 문서 전체 글자 색상, 글자 배경색상 넣기도 없는데 필요해. 검토하고 기본 기능들 넣어줘."*
+- 검토: 글자색·글자 배경·크기·굵게는 05643cb7(10/11, 운영 미배포)에 이미 있다 — 편집기 툴바 [A] · 표 문서 서식 줄. 빠진 것은 **칸 자체를 칠하는 색**이었다.
+- 문서 안 표: 표 버블 [칸 색] → 범위(고른 칸·열 전체·행 전체, 기본 열 전체) + 견본 8. 칸 속성 `backgroundColor`(`editorTableCellFill` PqTableCell/PqTableHeader — 보기 변환도 같은 확장) · PDF/워드 변환 반영(#rrggbb 만).
+- 표 문서: 열 설정에 «열 색» — 열 정의 `bg`(팔레트 key, 서버 `colBgOf` 가 key 모양만 저장) · 머리칸·그 열 칸 바탕, 칸 서식 배경이 있으면 그것이 위. 견본(FillSwatches)은 두 표가 같은 것.
+- 곁 결함: 게스트 문서 보기·서명본 등 `sanitizeRichText` 화면이 style 을 통째로 지워 글자색·정렬이 사라졌다 → style 은 색·배경·크기·정렬만 모양 검사 후 남김(이 호출 동안만 훅). 반증: url()·expression·position·javascript: 6건 제거 · 메일 정화기 무변화. `forceKeepAttr` 가 고친 값이 아니라 원문을 남기는 것을 반증으로 잡아 노드에 직접 쓴다.
+- 검증(Fable 안 씀 — 화면 서식 + 정화기 허용을 «모양 검사» 로 좁힌 것, 기계로 반증): `--suite tablefill` 39검사 2회 실패 0(3폭 · 팝오버 elementFromPoint · 열/칸/행 · 보기 화면 · PDF·워드 · 서버 거름 음성 대조군) · 양성 대조군(서버 bg 저장 제거 → 6건 실패) · tablestyle 0 · 빌드 EXIT 0 · 가드 68/69 · health 84/84.
+
 ### 완료: 확인필요 — 임시답변 보낸 메일은 «임시답변함 · 답장 대기» 로 (방 cc06f611 · 2026-10-12 · [Opus]) — 운영 미배포
 - 원문: *"할일필요에서 임시답변했으면 임시답변 했다고 알려주면 어때?"*
 - 고침: `routes/dashboard.js collectMails` 가 `reply_needed_reason==='holding'` 이면 verb `reply_holding`(ko «임시답변함 · 답장 대기» / en «Holding reply sent · reply due»). 세는 방식·배지 수 그대로(같은 type 'email').

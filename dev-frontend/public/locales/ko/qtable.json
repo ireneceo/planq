@@ -64,7 +64,8 @@
     "aggregateLabel": "열 자동 계산 (표 하단)",
     "aggregateHint": "이 열의 값들을 표 맨 아래 줄에 합계·평균·최소·최대 등으로 자동 계산해 보여줍니다.",
     "insertLeft": "← 왼쪽에 열 추가",
-    "insertRight": "오른쪽에 열 추가 →"
+    "insertRight": "오른쪽에 열 추가 →",
+    "colorLabel": "열 색"
   },
   "agg": {
     "none": "없음",

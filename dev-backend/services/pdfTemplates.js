@@ -291,6 +291,11 @@ function textStyleCss(attrs) {
   return out.join(';');
 }
 
+function cellFillAttr(a) {
+  const v = String((a || {}).backgroundColor || '');
+  return /^#[0-9a-fA-F]{6}$/.test(v) ? ` style="background-color:${v}"` : '';
+}
+
 function nodeToHtml(n) {
   if (!n || typeof n !== 'object') return '';
   if (n.type === 'text') {
@@ -333,8 +338,9 @@ function nodeToHtml(n) {
     case 'hardBreak': return `<br/>`;
     case 'table': return `<table>${inner}</table>`;
     case 'tableRow': return `<tr>${inner}</tr>`;
-    case 'tableCell': return `<td${span}>${inner}</td>`;
-    case 'tableHeader': return `<th${span}>${inner}</th>`;
+    // 칸 채우기 색(2026-10-12) — #rrggbb 모양만(편집기 PqTableCell 과 같은 규칙)
+    case 'tableCell': return `<td${span}${cellFillAttr(a)}>${inner}</td>`;
+    case 'tableHeader': return `<th${span}${cellFillAttr(a)}>${inner}</th>`;
     case 'image': {
       const w = a.width ? ` width="${escapeHtml(String(a.width).replace(/[^0-9a-z%.]/gi, ''))}"` : '';
       return `<img src="${escapeHtml(absolutizeSrc(a.src))}"${w} alt="${escapeHtml(a.alt || '')}"/>`;

@@ -29,6 +29,8 @@ import { SegmentedToggle, SegmentedBtn } from '../Common/segmentedToggle';
 import { fetchSurvey, type SurveyView } from '../../services/qtable';
 import { onSocket } from '../../services/socket';
 // 칸 서식·행 끼워넣기(2026-10-11) — 서식 값은 행 값의 예약 키 _fmt, 팔레트는 문서 편집기와 한 벌
+import { FillSwatches } from './CellFillButton';   // 열 색(2026-10-12) — 문서 안 표 채우기와 같은 견본
+import { fillOf } from './textStylePalette';
 import { TableFormatBar, RowMenuButton, CELL_FMT_KEY, rowFmtOf, cellFmtStyle, nextRowFmt, type CellFmt } from './TableCellTools';
 
 const TYPES: { value: QRecordColumnType; tk: string; ko: string }[] = [
@@ -348,7 +350,7 @@ const PostTableGrid: React.FC<Props> = ({ recordId, businessId, readOnly = false
             <tr>
               <RowNumHeader />
               {rec.columns.map(c => (
-                <ColHead key={c.id}>
+                <ColHead key={c.id} data-testid={`table-colhead-${c.id}`} style={fillOf(c.bg) ? { background: fillOf(c.bg)! } : undefined}>
                   <ColHeadInner>
                     {!readOnly && headerEditId === c.id ? (
                       <HeaderEditInput
@@ -396,7 +398,7 @@ const PostTableGrid: React.FC<Props> = ({ recordId, businessId, readOnly = false
                 </RowNumCell>
                 {rec.columns.map(c => (
                   <Cell key={c.id}
-                    style={cellFmtStyle(rowFmtOf(row.values)[c.id])}
+                    style={withColumnFill(cellFmtStyle(rowFmtOf(row.values)[c.id]), c.bg)}
                     $sel={!readOnly && selCell?.rowId === row.id && selCell?.colId === c.id}
                     data-testid={`table-cell-${idx}-${c.id}`}
                     onMouseDownCapture={readOnly ? undefined : () => setSelCell({ rowId: row.id, colId: c.id })}
@@ -637,6 +639,13 @@ const CellEditor: React.FC<{
 };
 
 // ─── 컬럼 설정 popover ───
+/** 열 색은 칸의 바탕 — 칸 서식의 배경(_fmt.bg)이 있으면 그것이 위에 온다 */
+function withColumnFill(st: React.CSSProperties | undefined, bgKey?: string): React.CSSProperties | undefined {
+  const fill = fillOf(bgKey);
+  if (!fill || st?.backgroundColor) return st;
+  return { ...(st || {}), backgroundColor: fill };
+}
+
 const ColumnSettingsPopover: React.FC<{
   column: QRecordColumn;
   onClose: () => void;
@@ -651,6 +660,7 @@ const ColumnSettingsPopover: React.FC<{
   const [type, setType] = useState<QRecordColumnType>(column.type);
   const [optionsText, setOptionsText] = useState((column.options || []).join('\n'));
   const [aggregate, setAggregate] = useState<QRecordAggregate>(column.aggregate || 'none');
+  const [bg, setBg] = useState<string>(column.bg || 'none');
   const [confirmDelete, setConfirmDelete] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -659,7 +669,8 @@ const ColumnSettingsPopover: React.FC<{
     setType(column.type);
     setOptionsText((column.options || []).join('\n'));
     setAggregate(column.aggregate || 'none');
-  }, [column.id, column.name, column.type, column.options, column.aggregate]);
+    setBg(column.bg || 'none');
+  }, [column.id, column.name, column.type, column.options, column.aggregate, column.bg]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
@@ -678,6 +689,7 @@ const ColumnSettingsPopover: React.FC<{
       if (JSON.stringify(next) !== JSON.stringify(prev)) patch.options = next;
     }
     if (aggregate !== (column.aggregate || 'none')) patch.aggregate = aggregate;
+    if (bg !== (column.bg || 'none')) patch.bg = bg === 'none' ? undefined : bg;
     if (Object.keys(patch).length > 0) onCommit(patch);
     onClose();
   };
@@ -728,6 +740,10 @@ const ColumnSettingsPopover: React.FC<{
               />
             </Field>
           )}
+          <Field>
+            <FieldLabel>{t('column.colorLabel', { defaultValue: '열 색' })}</FieldLabel>
+            <FillSwatches current={bg} testid="table-col-fill" onPick={(item) => setBg(item.key)} />
+          </Field>
           <Field>
             <FieldLabel>{t('column.aggregateLabel', { defaultValue: '열 자동 계산 (표 하단)' }) as string}</FieldLabel>
             <PlanQSelect size="sm"

@@ -19,6 +19,7 @@ export interface QRecordColumn {
   options?: string[];
   order: number;
   aggregate?: QRecordAggregate;  // 컬럼 footer 집계 — none 또는 미설정 시 표시 X
+  bg?: string;                   // 열 색 — 팔레트 CELL_FILLS key (2026-10-12)
 }
 
 export interface QRecordSummary {

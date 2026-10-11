@@ -35,3 +35,18 @@ const byKey = (list: PaletteItem[], key?: string | null) => list.find((p) => p.k
 export const colorOf = (key?: string | null) => byKey(TEXT_COLORS, key)?.value ?? null;
 export const highlightOf = (key?: string | null) => byKey(HIGHLIGHTS, key)?.value ?? null;
 export const sizeOf = (key?: string | null) => byKey(FONT_SIZES, key)?.value ?? null;
+
+// 칸·열 채우기 색 (2026-10-12) — 문서 안 표의 칸/열/행 채우기와 표 문서의 «열 색» 이 같은 값을 쓴다.
+//   Irene: "문서 표에서 열에 색상넣게 기능 넣어줄 수 있어?"
+//   글자 배경(HIGHLIGHTS)보다 옅다 — 칸 전체를 칠하므로 진하면 글자가 묻힌다. 이름은 editor.style.fill.*
+export const CELL_FILLS: PaletteItem[] = [
+  { key: 'none',   value: null,      tk: 'editor.style.fill.none' },
+  { key: 'gray',   value: '#F1F5F9', tk: 'editor.style.fill.gray' },
+  { key: 'yellow', value: '#FEF9C3', tk: 'editor.style.fill.yellow' },
+  { key: 'orange', value: '#FFEDD5', tk: 'editor.style.fill.orange' },
+  { key: 'green',  value: '#DCFCE7', tk: 'editor.style.fill.green' },
+  { key: 'blue',   value: '#DBEAFE', tk: 'editor.style.fill.blue' },
+  { key: 'purple', value: '#F3E8FF', tk: 'editor.style.fill.purple' },
+  { key: 'pink',   value: '#FCE7F3', tk: 'editor.style.fill.pink' },
+];
+export const fillOf = (key?: string | null) => byKey(CELL_FILLS, key)?.value ?? null;

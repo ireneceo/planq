@@ -656,7 +656,13 @@
       "delTable": "Delete table",
       "table": "Table",
       "evenCols": "Fit width",
-      "evenColsHint": "Fits the table to the content width and divides columns evenly (drag to adjust again)"
+      "evenColsHint": "Fits the table to the content width and divides columns evenly (drag to adjust again)",
+      "fill": "Cell color",
+      "fillScope": "Apply to",
+      "fillScope_cell": "Selected cells",
+      "fillScope_col": "Whole column",
+      "fillScope_row": "Whole row",
+      "fillColor": "Color"
     },
     "origin": "Origin",
     "alignLeft": "Align left",
@@ -741,7 +747,17 @@
         "xlarge": "Extra large"
       },
       "tablePick": "Click a cell, then pick a style",
-      "tablePicked": "Applies to the selected cell"
+      "tablePicked": "Applies to the selected cell",
+      "fill": {
+        "none": "None",
+        "gray": "Gray",
+        "yellow": "Yellow",
+        "orange": "Orange",
+        "green": "Green",
+        "blue": "Blue",
+        "purple": "Purple",
+        "pink": "Pink"
+      }
     }
   },
   "tab": {

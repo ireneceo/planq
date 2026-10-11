@@ -17,7 +17,36 @@ const ALLOWED_TAGS = [
 const ALLOWED_ATTR = ['href', 'target', 'rel', 'src', 'alt', 'title', 'class', 'colspan', 'rowspan',
   // 서명란 — 어느 칸(slot)·어느 쪽(party)인지. 실행되지 않는 표시값이고, 지워지면 읽기 화면에서
   //   서명란이 통째로 사라진다(정화기를 태우면 taskList 의 data-type 이 날아가던 것과 같은 계열).
-  'data-signature-field', 'data-slot', 'data-party', 'data-label', 'data-item'];
+  'data-signature-field', 'data-slot', 'data-party', 'data-label', 'data-item',
+  // 글자색·배경·크기·정렬 · 표 칸 채우기(2026-10-12) — style 은 아래 safeStyle 이 «아는 속성 + 모양이 맞는 값» 만 남긴다
+  'style', 'data-fill'];
+
+// ★ style 은 통째로 허용하지 않는다 — 편집기가 만드는 서식만(색·배경·크기·정렬) 그 모양 그대로 남긴다.
+//   url()·expression·position 같은 것은 어떤 속성에도 실릴 수 없다(값 모양이 #hex · rgb() · em/px · 정렬 낱말뿐).
+//   ★ 이 값은 위 RICH_URI_RE 를 못 지난다(`color:` 가 스킴처럼 보인다) — 걸러 낸 값은 우리가 만든 것이라 forceKeepAttr.
+const STYLE_VALUE: Record<string, RegExp> = {
+  'color': /^(#[0-9a-f]{3,8}|rgba?\(\s*\d{1,3}\s*,\s*\d{1,3}\s*,\s*\d{1,3}\s*(,\s*(0|1|0?\.\d+)\s*)?\))$/i,
+  'background-color': /^(#[0-9a-f]{3,8}|rgba?\(\s*\d{1,3}\s*,\s*\d{1,3}\s*,\s*\d{1,3}\s*(,\s*(0|1|0?\.\d+)\s*)?\))$/i,
+  'font-size': /^(0?\.\d+|[1-3](\.\d+)?)em$|^\d{1,2}px$/i,
+  'text-align': /^(left|center|right|justify)$/i,
+};
+export function safeStyle(css: string): string {
+  return String(css || '').split(';').map((d) => {
+    const i = d.indexOf(':');
+    if (i < 0) return '';
+    const prop = d.slice(0, i).trim().toLowerCase();
+    const val = d.slice(i + 1).trim();
+    return STYLE_VALUE[prop]?.test(val) ? `${prop}:${val}` : '';
+  }).filter(Boolean).join(';');
+}
+type AttrHookData = { attrName: string; attrValue: string; keepAttr: boolean; forceKeepAttr?: boolean };
+//   ★ forceKeepAttr 는 «원래 속성을 그대로 둔다» 는 뜻이다(고친 attrValue 를 다시 쓰지 않는다) — 그래서 걸러 낸 값을
+//     노드에 직접 쓴다. attrValue 만 바꾸면 `background:url(…)` 이 원문 그대로 남는다(2026-10-12 반증으로 확인).
+const styleHook = (node: Element, data: AttrHookData) => {
+  if (data.attrName !== 'style') return;
+  const kept = safeStyle(data.attrValue);
+  if (kept) { node.setAttribute('style', kept); data.attrValue = kept; data.forceKeepAttr = true; } else data.keepAttr = false;
+};
 
 // ★ #226 — DOMPurify 는 **URI 속성만이 아니라 모든 속성 값**을 이 정규식으로 검사한다.
 //   그래서 스킴 목록만 나열한 옛 정규식은 `align="center"`·`width="600"`·`colspan="2"` 처럼
@@ -49,12 +78,18 @@ export function plainTextToHtml(value: string | null | undefined): string {
 export function sanitizeRichText(value: string | null | undefined): string {
   if (!value) return '';
   const html = plainTextToHtml(value);
-  return DOMPurify.sanitize(html, {
-    ALLOWED_TAGS,
-    ALLOWED_ATTR,
-    // javascript:, data: 등 위험 스킴 차단 (이미지 data: 는 인라인 붙여넣기에 쓰이므로 허용)
-    ALLOWED_URI_REGEXP: RICH_URI_RE,
-  });
+  // 훅은 이 호출 동안만 건다 — 메일 정화기(sanitizeMailHtml)는 style 을 다르게 다룬다
+  DOMPurify.addHook('uponSanitizeAttribute', styleHook as never);
+  try {
+    return DOMPurify.sanitize(html, {
+      ALLOWED_TAGS,
+      ALLOWED_ATTR,
+      // javascript:, data: 등 위험 스킴 차단 (이미지 data: 는 인라인 붙여넣기에 쓰이므로 허용)
+      ALLOWED_URI_REGEXP: RICH_URI_RE,
+    });
+  } finally {
+    DOMPurify.removeHook('uponSanitizeAttribute', styleHook as never);
+  }
 }
 
 // 받은 메일 본문 정화 — 뉴스레터·거래 메일은 우리가 쓰는 리치텍스트와 완전히 다른 물건이다.

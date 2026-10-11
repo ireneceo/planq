@@ -74,6 +74,11 @@ function maskSecret(value) {
 
 // 응답에서 secret 컬럼 마스킹 — 모든 행 처리.
 // reveal 별도 endpoint 로만 평문 반환 (감사 로그 기록).
+// 열 색 = 화면 팔레트(CELL_FILLS)의 key. 색 값을 그대로 받지 않는다 — 모양만 보고 그 외는 버린다
+function colBgOf(v) {
+  return typeof v === 'string' && /^[a-z]{2,12}$/.test(v) && v !== 'none' ? v : undefined;
+}
+
 function maskRowsForSecrets(rows, columns) {
   const secretIds = (columns || []).filter(c => c.type === 'secret').map(c => c.id);
   if (secretIds.length === 0) return rows;
@@ -169,7 +174,7 @@ router.post('/', authenticateToken, async (req, res, next) => {
     // 기본 컬럼 — 비어있으면 단순 1 컬럼 (이름)
     const defaultCols = [{ id: newColId(), name: '제목', type: 'text', order: 0 }];
     const cols = Array.isArray(columns) && columns.length > 0
-      ? columns.map((c, i) => ({ id: c.id || newColId(), name: String(c.name || `컬럼 ${i+1}`), type: c.type || 'text', options: c.options, order: i }))
+      ? columns.map((c, i) => ({ id: c.id || newColId(), name: String(c.name || `컬럼 ${i+1}`), type: c.type || 'text', options: c.options, bg: colBgOf(c.bg), order: i }))
       : defaultCols;
 
     const r = await QRecord.create({
@@ -266,6 +271,7 @@ router.put('/:id', authenticateToken, async (req, res, next) => {
         type: c.type || 'text',
         options: c.options,
         aggregate: c.aggregate || undefined,  // footer 집계 (sum/avg/count 등) — 누락 시 보존 안 됨 회귀 fix
+        bg: colBgOf(c.bg),                    // 열 색(2026-10-12) — 팔레트 key 만. 누락하면 저장 때마다 지워진다
         order: i,
       }));
     }

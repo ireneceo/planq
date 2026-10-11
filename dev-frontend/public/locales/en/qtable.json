@@ -64,7 +64,8 @@
     "aggregateLabel": "Column summary (bottom row)",
     "aggregateHint": "Auto-compute sum/avg/min/max of this column's values at the bottom row of the table.",
     "insertLeft": "← Insert column left",
-    "insertRight": "Insert column right →"
+    "insertRight": "Insert column right →",
+    "colorLabel": "Column color"
   },
   "agg": {
     "none": "None",

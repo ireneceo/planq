@@ -16,8 +16,8 @@ import { ResizableImage } from './ResizableImage';
 import { resizableImageCss } from './resizableImageStyles';
 import { Table } from '@tiptap/extension-table';
 import { TableRow } from '@tiptap/extension-table-row';
-import { TableCell } from '@tiptap/extension-table-cell';
-import { TableHeader } from '@tiptap/extension-table-header';
+import { PqTableCell, PqTableHeader, currentCellFillKey, setCellFill } from './editorTableCellFill';   // 칸·열·행 채우기 색(2026-10-12)
+import { CellFillButton } from './CellFillButton';
 import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight';
 import TextAlign from '@tiptap/extension-text-align';
 import { handleMarkdownPaste } from '../../utils/markdownPaste';
@@ -121,7 +121,7 @@ const PostEditor: React.FC<Props> = ({ value, onChange, onReady, placeholder, ed
       TextAlign.configure({ types: ['heading', 'paragraph'], defaultAlignment: null }),
       Table.configure({ resizable: true, HTMLAttributes: { class: 'editor-table' } }),
       TableRow,
-      TableHeader, TableCell, ...checklistExtensions,
+      PqTableHeader, PqTableCell, ...checklistExtensions,
       FindReplace, ...textStyleExtensions,
     ],
     content: value as any,
@@ -483,6 +483,10 @@ const PostEditor: React.FC<Props> = ({ value, onChange, onReady, placeholder, ed
               <TableBubbleBtn type="button" data-testid="editor-table-even-cols"
                 title={t('editor.table.evenColsHint', '표를 본문 폭에 맞추고 열을 같은 너비로 나눕니다 (드래그로 다시 조절 가능)') as string}
                 onMouseDown={(e) => { e.preventDefault(); distributeTableColumnsEvenly(editor); }}>⇹{t('editor.table.evenCols', '폭 맞춤')}</TableBubbleBtn>
+            </TableBubbleGroup>
+            <TableBubbleSep />
+            <TableBubbleGroup>
+              <CellFillButton current={currentCellFillKey(editor)} onPick={(scope, item) => { setCellFill(editor, scope, item.value); }} />
             </TableBubbleGroup>
             <TableBubbleSep />
             <TableBubbleGroup>
