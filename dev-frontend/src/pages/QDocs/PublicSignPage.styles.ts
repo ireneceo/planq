@@ -34,6 +34,7 @@ export const Step = styled.div<{ $active: boolean; $done: boolean }>`
   color: ${p => p.$active ? '#0F766E' : p.$done ? '#14B8A6' : '#94A3B8'};
   border-bottom: 2px solid ${p => p.$active ? '#14B8A6' : 'transparent'};
   position: relative;
+  @media (max-width: 640px) { min-width: 0; padding: 9px 6px; }
   &:not(:last-child)::after {
     content: '›'; position: absolute; right: 0; top: 50%; transform: translateY(-50%);
     color: #CBD5E1; font-weight: 400;

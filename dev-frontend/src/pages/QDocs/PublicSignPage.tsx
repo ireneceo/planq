@@ -424,6 +424,15 @@ const PublicSignPage: React.FC = () => {
           <Brand src="/planQ-slogan_color.svg" alt="PlanQ" />
           <TopMeta>{doc.signer_email}</TopMeta>
         </Topbar>
+        {/* 단계 표시도 머리줄 묶음 안 — 서명하는 동안 지금 몇 단계인지 계속 보이게(2026-10-12).
+            #239 — 확인 요청은 '본인 확인 → 서명' 단계가 없다. 3단계 표시는 거짓말이 된다. */}
+        {!signedAlready && !rejectedAlready && phase !== 'confirm' && phase !== 'confirmed_done' && (
+          <ProgressBar data-testid="sign-steps">
+            <Step $active={phase === 'review'} $done={phase !== 'review'}>1. {t('publicSign.step1', '문서 검토')}</Step>
+            <Step $active={phase === 'otp'} $done={phase === 'sign' || phase === 'done'}>2. {t('publicSign.step2', '본인 확인')}</Step>
+            <Step $active={phase === 'sign'} $done={phase === 'done'}>3. {t('publicSign.step3', '서명')}</Step>
+          </ProgressBar>
+        )}
         {!signedAlready && !rejectedAlready && (phase === 'review' || phase === 'otp' || phase === 'sign') && (
           <ActionBar ref={actionRef as React.Ref<HTMLDivElement>} data-testid="sign-action">
             <ActionBarInner>
@@ -458,15 +467,6 @@ const PublicSignPage: React.FC = () => {
           </ActionBar>
         )}
       </StickyHead>
-
-      {/* #239 — 확인 요청은 '본인 확인 → 서명' 단계가 없다. 3단계 표시는 거짓말이 된다. */}
-      {!signedAlready && !rejectedAlready && phase !== 'confirm' && phase !== 'confirmed_done' && (
-        <ProgressBar>
-          <Step $active={phase === 'review'} $done={phase !== 'review'}>1. {t('publicSign.step1', '문서 검토')}</Step>
-          <Step $active={phase === 'otp'} $done={phase === 'sign' || phase === 'done'}>2. {t('publicSign.step2', '본인 확인')}</Step>
-          <Step $active={phase === 'sign'} $done={phase === 'done'}>3. {t('publicSign.step3', '서명')}</Step>
-        </ProgressBar>
-      )}
 
       <Content>
         {/* 이미 서명 완료 / 거절 */}
