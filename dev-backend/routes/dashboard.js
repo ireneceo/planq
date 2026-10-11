@@ -1035,7 +1035,8 @@ async function collectMails(businessId, userId) {
       id: `mail-${th.id}`,
       type: 'email',
       priority,
-      verb: 'reply',
+      // 임시 답변을 보내 둔 스레드는 아직 답변 필요지만 «아무것도 안 했다» 와 다르다 — 동사를 갈라 화면이 말하게 한다.
+      verb: th.reply_needed_reason === 'holding' ? 'reply_holding' : 'reply',
       subject: th.subject || '(제목 없음)',
       context: accMap[th.account_id] || null,
       dueAt: null,

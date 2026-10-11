@@ -113,6 +113,7 @@
       "issue_tax": "Issue tax invoice",
       "issue": "Issue",
       "reply": "Reply due",
+      "reply_holding": "Holding reply sent · reply due",
       "doc_confirm": "Confirmation requested",
       "doc_commented": "Comment on document",
       "awaiting_confirm": "Confirmation in progress",

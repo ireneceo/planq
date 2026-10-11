@@ -1,5 +1,10 @@
 ## 현재 작업 상태
 
+### 완료: 확인필요 — 임시답변 보낸 메일은 «임시답변함 · 답장 대기» 로 (방 cc06f611 · 2026-10-12 · [Opus]) — 운영 미배포
+- 원문: *"할일필요에서 임시답변했으면 임시답변 했다고 알려주면 어때?"*
+- 고침: `routes/dashboard.js collectMails` 가 `reply_needed_reason==='holding'` 이면 verb `reply_holding`(ko «임시답변함 · 답장 대기» / en «Holding reply sent · reply due»). 세는 방식·배지 수 그대로(같은 type 'email').
+- 검증(Fable 안 씀 — 라벨): dev biz 5 스레드 3122 실호출 reply → holding 으로 바꾸면 reply_holding → 원복 reply/inbound 확인 · 빌드 EXIT 0(.gz 반영) · 가드 68/69.
+
 ### 완료: 서명 화면 — 단계 표시(1 문서 검토 · 2 본인 확인 · 3 서명)도 머리줄과 함께 고정 (방 674413d9 · 2026-10-12 · [Opus]) — 운영 미배포
 - 원문: *"서명에서 서명할 때 이 탭 나오면 스티키가 되어야 하는 거 아니야? 헤더랑 같이?"*
 - 고침: 단계 줄을 머리줄 묶음(StickyHead) 안, 머리줄 바로 아래로 옮김(할 일 줄 위). 폰은 단계 칸 여백만 줄임(36px). top 숫자 없음.
