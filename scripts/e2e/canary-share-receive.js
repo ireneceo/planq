@@ -5,10 +5,12 @@
 //   공유는 서비스워커가 받은 것을 캐시(planq-share-v1)에 넣고 /share-receive?shared=1 로 보낸다.
 //   여기서는 **그 캐시를 직접 채워** 같은 입구로 들어간다(네이티브 공유 시트는 헤드리스로 못 띄운다).
 //
-// 재는 것 (폰 390 · 데스크탑 1440)
+// 재는 것 (폰 390 · 태블릿 820 · 데스크탑 1440)
 //   ① 파일 → 프로젝트 → 새 폴더 만들기 → [여기에 저장] → DB 에 그 프로젝트·그 폴더로 들어갔다(L2)
 //   ② 채팅 → 대화방 고르기 → /talk/:id 로 가고 입력칸에 글이 담겨 있다(보내지는 않는다)
 //   ③ 문서 → 새 문서 편집이 열리고 제목에 첫 줄이 담겨 있다
+//   ④ 카톡 «대화 내보내기» 파일 → «대화 기록으로 보관» 카드 → 회사 파일에 «카카오톡 대화 - 상대 - 날짜.txt» 로 저장(2026-10-11)
+//      음성 대조군: ① 의 보통 txt 에는 카드가 안 뜬다
 //   정리: 만든 파일·자동 KB 문서·폴더를 지운다(남기면 다음 실행의 목록을 더럽힌다)
 require('/opt/planq/dev-backend/node_modules/dotenv').config({ path: '/opt/planq/dev-backend/.env' });
 const { sequelize } = require('/opt/planq/dev-backend/config/database');
@@ -18,19 +20,21 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const BIZ = 5;
 const VPS = [
   { key: '폰 390', vp: { width: 390, height: 844, isMobile: true, hasTouch: true, deviceScaleFactor: 2 }, mobile: true },
+  { key: '태블릿 820', vp: { width: 820, height: 1180, isMobile: true, hasTouch: true } },
   { key: '데스크탑 1440', vp: { width: 1440, height: 900 } },
 ];
 
-async function seedShare(page, { text, withFile }) {
-  await page.evaluate(async (t, wf) => {
+async function seedShare(page, { text, withFile, fileName = 'zz-share-canary.txt', fileBody = null }) {
+  await page.evaluate(async (t, wf, fn, fb) => {
     const cache = await caches.open('planq-share-v1');
     await cache.put('/_share_payload', new Response(JSON.stringify({ title: '', text: t, url: '', fileCount: wf ? 1 : 0, ts: Date.now() }), { headers: { 'Content-Type': 'application/json' } }));
     if (wf) {
-      const blob = new Blob([`share canary ${Date.now()} ${Math.random()}`], { type: 'text/plain' });
-      await cache.put('/_share_file_0', new Response(blob, { headers: { 'Content-Type': 'text/plain', 'X-Filename': encodeURIComponent('zz-share-canary.txt') } }));
+      const blob = new Blob([fb || `share canary ${Date.now()} ${Math.random()}`], { type: 'text/plain' });
+      await cache.put('/_share_file_0', new Response(blob, { headers: { 'Content-Type': 'text/plain', 'X-Filename': encodeURIComponent(fn) } }));
     }
-  }, text, withFile);
+  }, text, withFile, fileName, fileBody);
 }
+const KAKAO_ROOM = 'zz카나리 상대';
 
 async function run() {
   const results = [];
@@ -54,6 +58,8 @@ async function run() {
         await seedShare(page, { text: 'zz 공유 파일', withFile: true });
         await b.goto(page, '/share-receive?shared=1');
         await b.dismissBlockers(page);
+        const noCard = await page.$('[data-testid="share-chat-export"]');
+        push(`${v.key} · ④ 음성 대조 — 보통 txt 에는 대화 기록 카드가 없다`, !noCard, noCard ? '카드가 떴다' : '없음');
         await page.click('[data-testid="share-dest-file"]').catch(() => null);
         await sleep(1200);
         const chip = await page.evaluateHandle((name) => Array.from(document.querySelectorAll('[data-testid="share-place-picker"] button')).find((x) => x.innerText.trim() === name) || null, proj.name);
@@ -78,6 +84,35 @@ async function run() {
             !!row && !!fold && Number(row.project_id) === Number(proj.id) && Number(row.folder_id) === Number(fold.id) && row.vlevel === 'L2' && at.includes(`/projects/p/${proj.id}`),
             `${JSON.stringify(row || null)} · 이동 ${at}`);
         }
+      }
+
+      // ④ 카톡 대화 내보내기 → 대화 기록으로 보관(회사 파일 맨 위)
+      await seedShare(page, { text: '', withFile: true, fileName: 'KakaoTalkChats.txt',
+        fileBody: `\uFEFF${KAKAO_ROOM} 님과 카카오톡 대화\n저장한 날짜 : 2026-10-11 14:22:10\n\n2026년 10월 1일 오후 2:01, ${KAKAO_ROOM} : 견적 부탁드려요 ${Date.now()}` });
+      await b.goto(page, '/share-receive?shared=1');
+      await b.dismissBlockers(page);
+      await sleep(600);
+      const card = await page.evaluate(() => {
+        const c = document.querySelector('[data-testid="share-chat-export"]');
+        if (!c) return null;
+        const r = c.getBoundingClientRect();
+        const btn = c.querySelector('[data-testid="share-chat-export-save"]');
+        const br = btn && btn.getBoundingClientRect();
+        const hit = br && document.elementFromPoint(br.left + br.width / 2, br.top + br.height / 2);
+        return { text: c.innerText, h: r.height, btnHit: !!(hit && btn.contains(hit)), chip: Array.from(document.querySelectorAll('[title]')).map((x) => x.getAttribute('title')).find((x) => /카카오톡 대화/.test(x || '')) || null };
+      });
+      push(`${v.key} · ④ 카톡 파일이면 카드가 뜨고 상대 이름·바뀐 파일 이름이 보인다`,
+        !!card && card.text.includes(KAKAO_ROOM) && card.btnHit && !!card.chip && card.chip.startsWith(`카카오톡 대화 - ${KAKAO_ROOM} - `),
+        JSON.stringify(card));
+      if (card) {
+        await page.click('[data-testid="share-chat-export-save"]').catch(() => null);
+        await sleep(1200);
+        await page.click('[data-testid="share-place-save"]').catch(() => null);
+        await sleep(3000);
+        const [kf] = await sequelize.query(`SELECT id, file_name, project_id, folder_id FROM files WHERE business_id=? AND file_name LIKE ? AND created_at >= ? ORDER BY id DESC LIMIT 1`,
+          { replacements: [BIZ, `카카오톡 대화 - ${KAKAO_ROOM} - %`, since], type: 'SELECT' });
+        const at = await page.evaluate(() => location.pathname);
+        push(`${v.key} · ④ [대화 기록으로 보관] → [여기에 저장] → 회사 파일에 바뀐 이름으로 저장`, !!kf && !kf.project_id && /\.txt$/.test(kf.file_name) && at.startsWith('/files'), `${JSON.stringify(kf || null)} · 이동 ${at}`);
       }
 
       // ② 채팅 → 대화방
@@ -125,7 +160,7 @@ async function run() {
   } finally {
     await browser.close().catch(() => null);
     // 정리 — 파일 → 자동 KB → 폴더 순
-    const rows = await sequelize.query(`SELECT id FROM files WHERE business_id=? AND file_name='zz-share-canary.txt' AND created_at >= ?`, { replacements: [BIZ, since], type: 'SELECT' });
+    const rows = await sequelize.query(`SELECT id FROM files WHERE business_id=? AND (file_name='zz-share-canary.txt' OR file_name LIKE ?) AND created_at >= ?`, { replacements: [BIZ, `카카오톡 대화 - ${KAKAO_ROOM} - %`, since], type: 'SELECT' });
     const ids = rows.map((r) => r.id);
     if (ids.length) {
       const kb = await sequelize.query('SELECT id FROM kb_documents WHERE source_file_id IN (?)', { replacements: [ids], type: 'SELECT' });
@@ -143,4 +178,4 @@ async function run() {
   return results;
 }
 
-module.exports = { name: '공유 받기 — 파일→프로젝트 폴더 · 채팅→대화방 · 문서 (#434 ①)', run };
+module.exports = { name: '공유 받기 — 파일→프로젝트 폴더 · 채팅→대화방 · 문서 (#434 ①) · 카톡 대화 기록', run };

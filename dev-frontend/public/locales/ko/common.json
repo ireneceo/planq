@@ -647,6 +647,23 @@
       "save": "여기에 저장",
       "createFailed": "폴더를 만들지 못했습니다",
       "projectNote": "프로젝트에 저장한 파일은 그 프로젝트 멤버가 봅니다."
+    },
+    "chatExport": {
+      "label": {
+        "kakao": "카카오톡 대화",
+        "whatsapp": "WhatsApp 대화"
+      },
+      "title": {
+        "kakao": "카카오톡 대화를 받았어요",
+        "whatsapp": "WhatsApp 대화를 받았어요"
+      },
+      "titleRoom": {
+        "kakao": "카카오톡 «{{room}}» 대화를 받았어요",
+        "whatsapp": "WhatsApp «{{room}}» 대화를 받았어요"
+      },
+      "desc": "대화 내용을 파일 그대로 보관합니다. 고객의 프로젝트 폴더에 두면 팀이 같이 봅니다.",
+      "save": "대화 기록으로 보관",
+      "waMedia": "사진·음성이 많은 대화는 왓츠앱에서 «미디어 없이» 내보내면 가볍고 빠릅니다."
     }
   },
   "pwa": {

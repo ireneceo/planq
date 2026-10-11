@@ -22,6 +22,7 @@ import { ChatIcon, CheckIcon, EditIcon, FileIcon } from '../../components/Common
 import { useAuth, apiFetch } from '../../contexts/AuthContext';
 import { listBusinessConversations, listProjects, type ApiConversation, type ApiProject } from '../../services/qtalk';
 import { fetchFolders, fetchWorkspaceFolders, createFolder, createWorkspaceFolder, type FileFolder } from '../../services/files';
+import { detectChatExport, chatExportFileName, type ChatExportInfo } from '../../utils/chatExport';
 
 interface SharePayload {
   title: string;
@@ -94,6 +95,8 @@ const ShareReceivePage: React.FC = () => {
   const [placeFolder, setPlaceFolder] = useState<number | null>(null);      // null = 맨 위
   const [newFolderName, setNewFolderName] = useState('');
   const [err, setErr] = useState<string | null>(null);
+  // 카카오톡·왓츠앱 «대화 내보내기» 파일이면 알아보고 이름을 읽을 수 있게 바꾼다 — 보관을 먼저 권한다(utils/chatExport)
+  const [chatExport, setChatExport] = useState<ChatExportInfo | null>(null);
 
   // POST 공유 — SW 가 파일 + 텍스트 Cache 에 저장 후 ?shared=1 로 redirect.
   // 사이클 N+53: cache.delete 는 sendTo 완료 후 (새로고침 안전망).
@@ -104,12 +107,23 @@ const ShareReceivePage: React.FC = () => {
       if (cancelled) return;
       if (s) setStale(true);
       if (!payload) { setLoading(false); return; }
-      setTitle(payload.title || '');
-      setText(payload.text || '');
-      setUrl(payload.url || '');
-      setFiles(f);
       setFileCount(payload.fileCount || 0);
-      setLoading(false);
+      return detectChatExport(f, payload.title || '').then((ce) => {
+        if (cancelled) return;
+        if (ce) {
+          // 이름만 바꾼다(내용은 그대로). 함께 온 제목·안내문(«대화가 첨부되었습니다» 류)은 파일과 같은 말이라 버린다
+          const label = t(`shareReceive.chatExport.label.${ce.app}`, ce.app === 'kakao' ? '카카오톡 대화' : 'WhatsApp 대화') as string;
+          const src = f[ce.index];
+          f = f.map((x, i) => (i === ce.index ? new File([src], chatExportFileName(src.name, label, ce.room), { type: src.type || 'text/plain' }) : x));
+          setChatExport(ce);
+        } else {
+          setTitle(payload.title || '');
+          setText(payload.text || '');
+        }
+        setUrl(ce ? '' : (payload.url || ''));
+        setFiles(f);
+        setLoading(false);
+      });
     }).catch(() => setLoading(false));
     return () => { cancelled = true; };
   }, [params]);
@@ -268,6 +282,23 @@ const ShareReceivePage: React.FC = () => {
           <PreviewBox>{t('shareReceive.empty', '(빈 내용)')}</PreviewBox>
         )}
 
+        {step === 'dest' && chatExport && (
+          <ExportCard data-testid="share-chat-export">
+            <ExportTitle>
+              {chatExport.room
+                ? t(`shareReceive.chatExport.titleRoom.${chatExport.app}`, { room: chatExport.room, defaultValue: chatExport.app === 'kakao' ? '카카오톡 «{{room}}» 대화를 받았어요' : 'WhatsApp «{{room}}» 대화를 받았어요' })
+                : t(`shareReceive.chatExport.title.${chatExport.app}`, chatExport.app === 'kakao' ? '카카오톡 대화를 받았어요' : 'WhatsApp 대화를 받았어요')}
+            </ExportTitle>
+            <ExportDesc>{t('shareReceive.chatExport.desc', '대화 내용을 파일 그대로 보관합니다. 고객의 프로젝트 폴더에 두면 팀이 같이 봅니다.')}</ExportDesc>
+            <SaveBtn type="button" data-testid="share-chat-export-save" onClick={() => void openPlacePicker()} disabled={busy !== null}>
+              {t('shareReceive.chatExport.save', '대화 기록으로 보관')}
+            </SaveBtn>
+            {chatExport.app === 'whatsapp' && (
+              <Hint>{t('shareReceive.chatExport.waMedia', '사진·음성이 많은 대화는 왓츠앱에서 «미디어 없이» 내보내면 가볍고 빠릅니다.')}</Hint>
+            )}
+          </ExportCard>
+        )}
+
         {step === 'dest' && (<>
         <ChooseLabel>{t('shareReceive.chooseDest', '어디로 보낼까요?')}</ChooseLabel>
         <DestGrid>
@@ -405,6 +436,12 @@ const StaleNote = styled.div`
   background: #FEF3C7; border: 1px solid #F59E0B; border-radius: 10px;
   padding: 12px 14px; font-size: 0.8125rem; color: #92400E; line-height: 1.5;
 `;
+const ExportCard = styled.div`
+  display: flex; flex-direction: column; gap: 6px;
+  background: #F0FDFA; border: 1px solid #14B8A6; border-radius: 12px; padding: 16px;
+`;
+const ExportTitle = styled.div`font-size: 0.9375rem; font-weight: 700; color: #0F172A; word-break: break-word;`;
+const ExportDesc = styled.div`font-size: 0.8125rem; color: #475569; line-height: 1.5;`;
 const PickBox = styled.div`display: flex; flex-direction: column; gap: 8px;`;
 const PickHead = styled.div`display: flex; flex-direction: column; gap: 6px; margin-bottom: 4px;`;
 const BackLink = styled.button`

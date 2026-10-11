@@ -647,6 +647,23 @@
       "save": "Save here",
       "createFailed": "Could not create the folder",
       "projectNote": "Files saved to a project are visible to its members."
+    },
+    "chatExport": {
+      "label": {
+        "kakao": "KakaoTalk chat",
+        "whatsapp": "WhatsApp chat"
+      },
+      "title": {
+        "kakao": "You shared a KakaoTalk chat",
+        "whatsapp": "You shared a WhatsApp chat"
+      },
+      "titleRoom": {
+        "kakao": "KakaoTalk chat with “{{room}}”",
+        "whatsapp": "WhatsApp chat with “{{room}}”"
+      },
+      "desc": "The chat is kept as a file, unchanged. Save it in the client's project folder so your team can see it.",
+      "save": "Keep as chat record",
+      "waMedia": "For chats with many photos or voice notes, export “Without media” in WhatsApp — it's lighter and faster."
     }
   },
   "pwa": {
