@@ -1,6 +1,8 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-10-10 새벽 ([Opus]+[Fable] Opus 5.5, 방 006a5c5d) — 보안 점검 2차 후속: 관리자 열람 규칙 D2·D3·D4(«나만 보기» Q info·일정 owner/admin 도 닫힘 · 프로젝트·고객 없는 팀 대화 참여자만 · 남의 개인 메일 공용 전환 금지). D10(개인 주간회고)은 대표가 본다 — 그대로. Fable D3 설계 PASS + 완료 PASS. 운영 미배포.
+> **최종 업데이트:** 2026-10-11 아침 ([Opus] Opus 5.5, 방 c7f09277) — 아침 점검 개발완료: 10/10 낮 작업 4건(캘린더 끝난 일정 흐리게 · 고객 링크 [복사] · 옛 링크 «새 주소 받기» · 고객 프로젝트 링크 개요·히스토리·파일 보기) 기록 + 도움말 글 «고객에게 프로젝트를 링크로 보여주기» 갱신. 운영 미배포 — 고객 링크 PDF 보기가 운영 poppler 설치·Fable 재판정 대기.
+> ── 이전 ──
+> 2026-10-10 새벽 ([Opus]+[Fable] Opus 5.5, 방 006a5c5d) — 보안 점검 2차 후속: 관리자 열람 규칙 D2·D3·D4(«나만 보기» Q info·일정 owner/admin 도 닫힘 · 프로젝트·고객 없는 팀 대화 참여자만 · 남의 개인 메일 공용 전환 금지). D10(개인 주간회고)은 대표가 본다 — 그대로. Fable D3 설계 PASS + 완료 PASS. 운영 미배포.
 > ── 이전 ──
 > 2026-10-10 새벽 ([Opus] Opus 5.5, 방 58947e65) — 체험 중 결제 «해지하고 환불 요청»(Fable 설계·완료 PASS, 운영 미배포).
 > 2026-10-09 밤 ([Opus]+[Fable] Opus 5.5, 방 166c2f84) — **보안 점검 2차**: 고객·외부인 누수 · 팀/개인 분리 · 해킹 대응 30여 건 수리(치명 1: 남의 워크스페이스 프로젝트·고객 읽기). Fable 1차 FAIL → 2차 PASS. 규칙 4건(D2·D3·D4·D10) Irene 답 대기. 운영 미배포.
@@ -39,6 +41,28 @@
 > 오전([Opus] Opus 5.5, 1M): **운영 배포 6회(v1.61.0 ~ v1.63.5).**
 > 게스트 진입(P0·A·B) · 이미지 보안 2a·2b(0~2단계) · 감사 1~3순위(328→98) · PDF 이미지 · **남의 워크스페이스에 쓰던 권한 결함 3건**.
 > ★ v1.63.3 의 PDF 수정이 이미지 많은 문서를 500 으로 만든 회귀를 **배포 후 운영 실측**으로 잡아 v1.63.4 로 되돌렸다.
+
+---
+
+## ✅ 완료: 2026-10-10 낮 [Opus](+[Fable] 고객 링크 설계·1차 FAIL) — 고객 링크 개선 · 캘린더 끝난 일정 (방 e205bfa8 · 59f070bf · a06909e5 · fae6dd42 · 기록 c7f09277)
+
+### 완료된 작업
+
+| 작업 | 설명 | 상태 |
+|------|------|:----:|
+| 고객 프로젝트 링크 개요·히스토리·파일 보기 | 기본 정보·업무 통계·주요 이슈(항목별 «고객 공개», 기본 꺼짐)·6번째 탭 히스토리·이미지/PDF 화면 보기(원본 금지). 설계 docs/GUEST_PROJECT_VIEW_DECISIONS.md §I | ✅ dev · Fable 1차 FAIL(운영 poppler 없음) → 코드 지적 수정, 운영 설치 후 재판정 |
+| 옛 난수 링크 «복사할 수 있는 새 주소 받기» | 옛 링크는 닫지 않고 파생 링크 하나 추가(`issueOrReuseSharedLink({upgradeLegacy})`) | ✅ 자체 검증 |
+| 열려 있는 링크 줄 [복사] | GuestLinkButton 목록 줄, url 있을 때만 | ✅ 자체 검증 |
+| 캘린더 끝난 일정 흐리게 | `pages/QCalendar/pastLook.ts` 한 벌 · 업무 마감 제외 · 현재 시각 선 1분 갱신 | ✅ 자체 검증 |
+| 도움말 글 갱신 | project-external-view-link — 6탭·[복사]·새 주소 받기·고객 공개·파일 보기(옛 글은 «세 탭·주소 한 번만» 으로 낡아 있었다) | ✅ dev 반영 · wiki-coverage 통과 |
+
+### 운영 배포 때
+- `migrate-history-entry-client-visible.js` 코드보다 먼저(배포 슬롯 등록됨) · 운영 `poppler-utils` 없으면 배포 사전검사가 멈춘다(Irene sudo) · 배포 후 `node seed-wiki-content.js`.
+
+### 수정된 파일
+- `dev-backend/{routes/guest_project.js,routes/guest_admin.js,routes/projects.js,services/guestHistory.js,services/pdfPagePreview.js,services/guest_link.js,services/imageResize.js,services/event_stream.js,models/ProjectHistoryEntry.js,scripts/migrate-history-entry-client-visible.js,seed-wiki-content.js}`
+- `dev-frontend/src/pages/Guest/*` · `pages/QProject/{HistoryTab,ProjectShareLinkButton,QProjectDetailPage}.tsx` · `components/QTalk/GuestLinkButton.tsx` · `pages/QCalendar/*` · locales guest/qproject/qtalk
+- `scripts/deploy-planq.sh`(poppler 사전검사) · `scripts/e2e/canary-guest-project.js` · `docs/dev-status/next.json`
 
 ---
 

@@ -117,6 +117,18 @@
     {
       "title": "관리자 열람 규칙 D2·D3·D4 — «나만 보기» owner/admin 도 닫힘 · 팀 대화 참여자만 · 남의 개인 메일 끄기만(f4377490)",
       "verified": "fable_pass"
+    },
+    {
+      "title": "캘린더 끝난 일정 흐리게 · 현재 시각 선 1분 갱신(9888764a)",
+      "verified": "opus_only"
+    },
+    {
+      "title": "고객 링크 — 열려 있는 링크 줄 [복사] · 옛 난수 링크는 닫지 않고 «복사할 수 있는 새 주소 받기»(d08b5274·bdc8c657)",
+      "verified": "opus_only"
+    },
+    {
+      "title": "고객 프로젝트 링크 — 개요 기본정보·업무 통계·주요 이슈·히스토리 탭·파일 «보기»(이미지·PDF)(9c08b7a7) — Fable 1차 FAIL(운영 poppler 없음), 코드 지적 수정 · 운영 설치 후 재판정",
+      "verified": "opus_only"
     }
   ],
   "behavior_changes": [
@@ -134,6 +146,7 @@
   ],
   "issues": [],
   "blocked_on_human": [
+    "운영 서버 poppler-utils 설치(sudo apt-get install -y poppler-utils) — 없으면 배포 사전검사가 멈춘다 · 설치 후 Fable 재판정",
     "운영 privacy_version 올리기(재동의) + 방침 시행일",
     "Google Cloud 콘솔 OAuth 데이터 액세스에 calendar.calendarlist.readonly 추가 후 심사 제출",
     "ChatGPT·Claude 앱 다시 연결(projects:write)",
@@ -148,7 +161,8 @@
     "migrate-allday-utc-date.js",
     "migrate-invoice-money.js",
     "migrate-billing-0a.js",
-    "migrate-trial-refund.js"
+    "migrate-trial-refund.js",
+    "migrate-history-entry-client-visible.js"
   ],
   "check_areas": [
     "고객 둘 이상 프로젝트의 고객 채팅방·청구서 발행·외부 열람 링크",

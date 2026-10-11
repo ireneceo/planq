@@ -76,16 +76,24 @@ async function run() {
     if (!biz) { add('leave:측정', 1, '🔴 활성 워크스페이스를 못 읽었다 — 미측정'); return { results }; }
 
     // ── 픽스처: 휴가 신청 1건 (dev 에 0건이라 만들어야 한다. 빈 목록으로는 «0건=정상» 이 되어 버린다) ──
-    const d = new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10);
-    const made = await page.evaluate(async (tok, b, day) => {
-      const r = await fetch('/api/leave/requests', {
-        method: 'POST', credentials: 'include',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${tok}` },
-        body: JSON.stringify({ business_id: b, leave_type: 'paid', unit: 'full_day', start_date: day, end_date: day, reason: '딥링크 검사' }),
-      });
-      const j = await r.json().catch(() => null);
-      return { status: r.status, id: j?.data?.id || null, body: JSON.stringify(j).slice(0, 160) };
-    }, token, biz, d);
+    //   날짜는 «오늘+14일» 부터 **근무일**을 찾는다 — 주말·공휴일이면 서버가 400 no_workdays_in_range 로
+    //   거절한다(밤 검사가 토요일에 돌아 10/24 토요일을 골라 실패했다, 2026-10-11). 기능 결함이 아니라 픽스처 날짜.
+    let made = { status: 0, id: null, body: '' };
+    for (let k = 14; k < 28 && !made.id; k++) {
+      const dt = new Date(Date.now() + k * 86400000);
+      if (dt.getUTCDay() === 0 || dt.getUTCDay() === 6) continue;
+      const d = dt.toISOString().slice(0, 10);
+      made = await page.evaluate(async (tok, b, day) => {
+        const r = await fetch('/api/leave/requests', {
+          method: 'POST', credentials: 'include',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${tok}` },
+          body: JSON.stringify({ business_id: b, leave_type: 'paid', unit: 'full_day', start_date: day, end_date: day, reason: '딥링크 검사' }),
+        });
+        const j = await r.json().catch(() => null);
+        return { status: r.status, id: j?.data?.id || null, body: JSON.stringify(j).slice(0, 160), code: j?.code || null };
+      }, token, biz, d);
+      if (!made.id && made.code !== 'no_workdays_in_range') break;   // 날짜 아닌 이유로 거절 → 그대로 실패 보고
+    }
     add('leave:픽스처 생성', !made.id, `HTTP ${made.status} id=${made.id} ${made.id ? '' : made.body}`);
     if (!made.id) return { results };
     leaveId = made.id;

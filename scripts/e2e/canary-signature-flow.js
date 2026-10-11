@@ -410,8 +410,11 @@ async function run() {
       P('⑫ 거절은 «서명 전» 이 아니라 «거절» 로 보인다 (사유는 문서에 안 싣는다)', false, '🔴 픽스처를 못 만들어 미측정');
     }
     // ── ⑬ 채팅 카드 [서명하기] — 방에 링크를 안 올리고 본인 메일로 보낸다 ──
+    //   «가장 최근 방» 이 아니라 **내가 참여한 방** — 프로젝트·고객 없는 팀 대화는 참여자만 연다(D3, 2026-10-09).
+    //   다른 검사가 남긴 비참여 사적 방이 최신이면 카드가 안 그려져 «창이 안 뜬다» 로 거짓 실패했다(밤 검사 10-10).
     const conv = (await db().query(
-      `SELECT id FROM conversations WHERE business_id=${bizId} ORDER BY id DESC LIMIT 1`))[0][0];
+      `SELECT c.id FROM conversations c JOIN conversation_participants p ON p.conversation_id=c.id AND p.user_id=${meId}
+        WHERE c.business_id=${bizId} AND c.status='active' ORDER BY c.id DESC LIMIT 1`))[0][0];
     if (conv) {
       const cp = await api('/posts', {
         method: 'POST', headers: H2,
