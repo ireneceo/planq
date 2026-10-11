@@ -55,6 +55,11 @@ const CODE_MAX_ATTEMPTS = 5;
 
 const enabled = () => String(process.env.AGENT_ENABLED || '0') === '1';
 const writeEnabled = () => String(process.env.AGENT_WRITE_ENABLED || '0') === '1';
+// 표면별 스위치 한 곳(docs/CUE_REGISTRY_FOLD_DESIGN.md A) — 외부 AI 앱은 AGENT_*, 앱 안 Cue 는 CUE_TOOLS_ENABLED.
+//   외부를 꺼도 Cue 는 살아야 하고, 그 반대도 같다.
+const cueEnabled = () => String(process.env.CUE_TOOLS_ENABLED || '1') !== '0';
+const enabledFor = (p) => (p && p.provider === 'cue' ? cueEnabled() : enabled());
+const writeEnabledFor = (p) => (p && p.provider === 'cue' ? cueEnabled() : writeEnabled());
 
 function tokenSecret() {
   const s = process.env.AGENT_TOKEN_SECRET;
@@ -67,5 +72,5 @@ module.exports = {
   APP_URL, ISSUER, RESOURCE, CONSENT_URL,
   READ_SCOPES, WRITE_SCOPES, OPT_IN_SCOPES, BUNDLE_SCOPES, ALL_SCOPES, PROVIDERS, providerForRedirect,
   ACCESS_TTL_SEC, REFRESH_TTL_MS, AUTHREQ_TTL_MS, CODE_TTL_MS, CODE_MAX_ATTEMPTS,
-  enabled, writeEnabled, tokenSecret,
+  enabled, writeEnabled, enabledFor, writeEnabledFor, cueEnabled, tokenSecret,
 };

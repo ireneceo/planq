@@ -9,6 +9,8 @@ const { err, fromActionFailure } = require('../errors');
 const { taskItem, noteItem } = require('../serialize');
 
 const dateOnly = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'YYYY-MM-DD');
+// 만든 경로 표시(provenance) — 앱 안 Cue 는 'cue', 외부 AI 앱은 'agent'(화면 배지가 이 값을 읽는다)
+const viaOf = (p) => (p.provider === 'cue' ? 'cue' : 'agent');
 const OPEN = ['not_started', 'waiting', 'in_progress', 'reviewing', 'revision_requested', 'done_feedback'];
 
 function validDate(s) {
@@ -237,7 +239,7 @@ async function createTask(p, a, actor) {
     projectId,
     clientId,
     priorityLevel: a.priority || null,
-    createdVia: 'agent',
+    createdVia: viaOf(p),
     ...(src && src.kind === 'mail' ? { emailThreadId: src.thread.id, sourceEmailMessageId: src.messageId } : {}),
     ...(src && src.kind === 'chat' ? { conversationId: src.conversation.id } : {}),
   }, { autoAiEstimate: false });
@@ -247,6 +249,14 @@ async function createTask(p, a, actor) {
   const [item] = await shapeTasks([t], p.businessId);
   const extras = await taskExtras(p, t, scope);
   const out = { task: { ...item, source: extras.source, tags: a.tag_names && a.tag_names.length ? await tagNamesOf(p, t.id) : undefined }, created: true };
+  // «완료로 추가»(#237) — 이미 끝난 일의 기록. 행동 계층 complete() 로 닫는다(status 직접 쓰기 금지).
+  //   실패는 생성을 되돌리지 않는다 — 업무는 남기고 사유를 돌려준다(담당자가 남 · 컨펌자가 있음).
+  if (a.completed) {
+    const taskActions2 = require('../../actions/task_actions');
+    const cr = await taskActions2.complete(t, actor);
+    if (!cr.ok) out.completed_skipped = cr.code || 'complete_failed';
+    else out.task.status = 'completed';
+  }
   if (a.estimated_hours !== undefined) {
     out.task.estimated_hours = t.estimated_hours != null ? Number(t.estimated_hours) : null;
     if (t.estimated_hours == null) out.note = 'estimated_hours was not saved: the task is assigned to someone else, and only the assignee sets the estimate.';
@@ -412,11 +422,65 @@ async function updateTask(p, a, actor) {
   await assertMenu(p, 'qtask', 'write');
   const t = await loadTask(p, a.task_id, await scopeOf(p));
   const taskActions = require('../../actions/task_actions');
-  const r = await taskActions.updateFields(t, actor, { title: a.title, description: a.description, priority_level: a.priority });
+  const fields = { title: a.title, description: a.description, priority_level: a.priority, category: a.category, estimated_hours: a.estimated_hours };
+  const hasFields = Object.values(fields).some((v) => v !== undefined);
+  if (!hasFields && a.tag_names === undefined) throw err('VALIDATION_ERROR', 'no_fields');
+  // 태그 — 있는 것만(만들지 않는다). 칸 수정과 태그 수정은 각자의 행동 계층 함수(화면도 두 요청이다).
+  const tagIds = a.tag_names !== undefined ? await resolveTagNames(p, a.tag_names) : undefined;
+  if (hasFields) {
+    const r = await taskActions.updateFields(t, actor, fields);
+    if (!r.ok) throw fromActionFailure(r);
+  }
+  if (tagIds !== undefined) {
+    const r2 = await taskActions.setTags(t, actor, { tagIds });
+    if (!r2.ok) throw fromActionFailure(r2);
+  }
+  const fresh = await loadTask(p, t.id, await scopeOf(p));
+  const [item] = await shapeTasks([fresh], p.businessId);
+  return { task: { ...item, description: fresh.description || null, category: fresh.category || null,
+    estimated_hours: fresh.estimated_hours != null ? Number(fresh.estimated_hours) : null, tags: await tagNamesOf(p, t.id) } };
+}
+
+/** update_task 미리보기 — 실행과 같은 권한 판정(FIELD_RULES)을 먼저 본다. 거절될 칸이면 카드 대신 이유. */
+async function previewUpdateTask(p, a) {
+  await assertMenu(p, 'qtask', 'read');
+  const t = await loadTask(p, a.task_id, await scopeOf(p));
+  const taskActions = require('../../actions/task_actions');
+  const keys = [['title', a.title], ['description', a.description], ['priority_level', a.priority], ['category', a.category], ['estimated_hours', a.estimated_hours]]
+    .filter(([, v]) => v !== undefined).map(([k]) => k);
+  const ctx = await taskActions.fieldContext(t, p.userId, p.platformRole);
+  const denied = taskActions.deniedFields(keys, ctx);
+  if (denied.length) throw err('PERMISSION_DENIED', `forbidden_fields:${denied.join(',')}`);
+  if (a.tag_names !== undefined) {
+    if (!(ctx.isCreator || ctx.isAssignee || ctx.isOwnerOrAdmin)) throw err('PERMISSION_DENIED', 'forbidden_field_tags');
+    await resolveTagNames(p, a.tag_names);
+  }
+  const before = { title: t.title, description: t.description || null, priority: t.priority_level || null, category: t.category || null,
+    estimated_hours: t.estimated_hours != null ? Number(t.estimated_hours) : null, tag_names: await tagNamesOf(p, t.id) };
+  const asked = ['title', 'description', 'priority', 'category', 'estimated_hours', 'tag_names'].filter((k) => a[k] !== undefined);
+  return { task: { task_id: t.id, title: t.title },
+    before: Object.fromEntries(asked.map((k) => [k, before[k]])), after: Object.fromEntries(asked.map((k) => [k, a[k]])) };
+}
+
+// ── submit_review (MEDIUM — Cue 의 «검토 요청 보내줘», 2026-10-12) — 행동 계층 submitReview(담당자만·컨펌자 필요) ──
+async function previewSubmitReview(p, a) {
+  await assertMenu(p, 'qtask', 'read');
+  const t = await loadTask(p, a.task_id, await scopeOf(p));
+  if (t.assignee_id !== p.userId) throw err('PERMISSION_DENIED', 'only_assignee');
+  if (['completed', 'canceled'].includes(t.status)) throw err('CONFLICT', 'task_closed');
+  const { TaskReviewer } = require('../../../models');
+  if (!(await TaskReviewer.count({ where: { task_id: t.id } }))) throw err('CONFLICT', 'no_reviewers_add_first');
+  return { task: { task_id: t.id, title: t.title }, before: { status: t.status }, after: { status: 'reviewing' } };
+}
+async function submitReviewTool(p, a, actor) {
+  await assertMenu(p, 'qtask', 'write');
+  const t = await loadTask(p, a.task_id, await scopeOf(p));
+  const taskActions = require('../../actions/task_actions');
+  const r = await taskActions.submitReview(t, actor, { note: a.note || null });
   if (!r.ok) throw fromActionFailure(r);
   const fresh = await loadTask(p, t.id, await scopeOf(p));
   const [item] = await shapeTasks([fresh], p.businessId);
-  return { task: { ...item, description: fresh.description || null } };
+  return { task: item };
 }
 
 // ── move_task_to_project (MEDIUM — #463, Fable 설계 2026-10-08) ──
@@ -520,6 +584,6 @@ module.exports = {
   loadTaskForSource,
   dateOnly, getContext, searchTasks, getTask, createTask, getTaskNotes, addTaskNote, validDate,
   previewReschedule, rescheduleTask, previewComplete, completeTask,
-  previewAssign, assignTask, updateTask, memberName, previewMoveTask, moveTask,
+  previewAssign, assignTask, updateTask, previewUpdateTask, previewSubmitReview, submitReviewTool, memberName, previewMoveTask, moveTask,
   previewAddReviewers, addReviewers,
 };

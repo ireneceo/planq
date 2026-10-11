@@ -26,17 +26,22 @@ export interface CueTurn {
   actionResult?: CueActionResult;                     // 실행 결과 (딥링크용)
 }
 
-/** 확인 카드로 띄울 수 있는 툴 — 서버 화이트리스트와 **같은 목록**이어야 한다. */
-const PROPOSABLE_TOOLS = [
-  'create_task', 'create_event', 'reschedule_events', 'create_document_draft',
-  'submit_review', 'complete_task', 'add_task_comment',
-];
-
-/** 실행 결과 → 그 엔티티를 여는 경로. 표면이 새 탭으로 열지 같은 탭으로 갈지 정한다. */
+/** 실행 결과 → 그 엔티티를 여는 경로. 서버가 준 주소(open_url)가 있으면 그것을 쓴다(카탈로그 결과의 url). */
 export function cueActionDeepLink(r: CueActionResult): string {
-  return r.entity_type === 'task' ? `/tasks?task=${r.entity_id}`
-    : r.entity_type === 'event' ? `/calendar?event=${r.entity_id}`
-      : `/info?doc=${r.entity_id}`;
+  if (r.open_url) {
+    try { const u = new URL(r.open_url, window.location.origin); return `${u.pathname}${u.search}`; } catch { /* 아래 표로 */ }
+  }
+  const id = r.entity_id;
+  switch (r.entity_type) {
+    case 'task': return `/tasks?task=${id}`;
+    case 'event': return `/calendar?event=${id}`;
+    case 'project': return `/projects/p/${id}`;
+    case 'document': return `/docs?post=${id}`;
+    case 'memo': return `/notes`;
+    case 'knowledge': return `/info`;
+    case 'mail_draft': return `/mail?thread=${id}&reply=1`;
+    default: return '/dashboard';
+  }
 }
 
 interface Options {
@@ -126,7 +131,8 @@ export function useCueChat(opts: Options) {
       }
       const srcs = Array.isArray(j.data?.sources) ? j.data.sources : [];
       const pa = j.data?.proposed_action;
-      const proposed = pa && PROPOSABLE_TOOLS.includes(pa.tool) ? (pa as CueProposal) : undefined;
+      // 서버가 카탈로그로 검증·미리보기를 마친 제안만 온다(card 가 그 표시) — 화면이 도구 목록을 따로 들지 않는다
+      const proposed = pa && pa.tool && pa.card ? (pa as CueProposal) : undefined;
       setTurns((prev) => prev.map((tn, i) => i === prev.length - 1
         ? {
             ...tn, a: j.data.answer || '', loading: false, sources: srcs, logId: j.data.log_id ?? null,

@@ -1,50 +1,54 @@
-// #81 Cue 대화형 실행 — 확인 카드 (인라인, 팝업 아님).
-//   Cue 가 제안한 tool call 을 사람이 확인/수정 후 [추가] 를 눌러야 실행된다.
-//   실행은 POST /api/cue/execute-action → 행동 계층(메뉴 권한·assertAssignable·감사·broadcast).
-import React, { useEffect, useState } from 'react';
+// Cue 확인 카드 — **공통 한 장** (2026-10-12, 설계 docs/CUE_REGISTRY_FOLD_DESIGN.md B).
+//   서버가 카탈로그 preview 로 만든 card 데이터({fields, targets, changes, notes, items})를 그린다 — 도구별 손그림 없음.
+//   사람이 값을 고친 뒤 [실행] 을 누르면 POST /api/cue/execute-action → 카탈로그 runTool(행동 계층·감사·계량 각 1회).
+//   필드 라벨·도구 이름·안내는 i18n 키(qhelper.field.* / qhelper.tool.* / qhelper.note.*) — 서버는 키만 보낸다.
+import React, { useEffect, useMemo, useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { apiFetch } from '../../contexts/AuthContext';
-import { listMembers, type WorkspaceMember } from '../../services/workspace';
 import ActionButton from './ActionButton';
 import SingleDateField from './SingleDateField';
 import PlanQSelect, { type PlanQSelectOption } from './PlanQSelect';
-import { formatDayTime, formatClock, formatDay } from '../../utils/dateFormat';
+import { formatDayTime, formatDay } from '../../utils/dateFormat';
 import { useTimezones } from '../../hooks/useTimezones';
 import { wallStringsToIso, toWall } from '../../pages/QCalendar/calTz';
 
-const DOC_KIND_KEYS = ['quote', 'contract', 'nda', 'proposal', 'sow', 'meeting_note', 'sop', 'custom'] as const;
+export type CueToolName = string;
 
-export type CueToolName =
-  | 'create_task' | 'create_event' | 'reschedule_events' | 'create_document_draft'
-  | 'submit_review' | 'complete_task' | 'add_task_comment';
-
+interface CardOption { value: number | string; label: string }
+interface CardField {
+  key: string; label_key: string; type: string; value: unknown; editable: boolean;
+  options?: Array<CardOption | string>; display?: string | null;
+}
+interface CardTarget { type: string; id: number; title: string | null }
+interface CardChange { key: string; label_key: string; before: unknown; after: unknown }
+interface CardNote { key: string; count?: number; names?: string }
+interface MoveItem {
+  event_id: number; title: string; all_day: boolean; date: string; start_time?: string;
+  from_start: string; from_end: string; to_start: string; to_end: string; blocked?: string;
+}
+export interface CueCard {
+  summary_key: string; fields: CardField[]; targets: CardTarget[]; changes: CardChange[]; notes: CardNote[];
+  items?: MoveItem[]; timezone?: string;
+}
 export interface CueProposal {
   tool: CueToolName;
   params: Record<string, unknown>;
+  card?: CueCard;
 }
 export interface CueActionResult {
   tool: string;
-  entity_type: string;
-  entity_id: number;
+  entity_type: string | null;
+  entity_id: number | null;
+  open_url?: string | null;
+  replayed?: boolean;
   /** #237 — "완료로 추가" 를 요청했지만 완료까지는 못 간 사유 (업무 자체는 생성됨) */
   completed_skipped?: string;
+  meet_warning?: string;
+  notified?: number;
   /** 일정 옮기기 — 옮긴 일정 id 들과 못 옮긴 것(사유 코드) */
   moved_ids?: number[];
   failed?: { event_id: number; code: string }[];
-}
-
-/** 일정 옮기기 카드의 한 줄 — 서버 미리보기(previewMoves)가 채운다 */
-interface MoveItem {
-  event_id: number;
-  title: string;
-  all_day: boolean;
-  date: string;
-  start_time?: string;
-  from_start: string; from_end: string;
-  to_start: string; to_end: string;
-  attendees_others?: number;
-  blocked?: string;
 }
 
 interface Props {
@@ -54,73 +58,63 @@ interface Props {
   onDismiss: () => void;                       // 취소 → 카드 제거(요약 없음)
 }
 
-const memberLabel = (m: WorkspaceMember): string =>
-  m.user?.display_name || m.user?.name || (m.user_id ? `#${m.user_id}` : '');
-
-const CueActionCard: React.FC<Props> = ({ proposal, businessId, onExecuted, onDismiss }) => {
+const CueActionCard: React.FC<Props> = ({ proposal, onExecuted, onDismiss }) => {
   const { t } = useTranslation('common');
   const { t: tErr } = useTranslation('errors');
+  const { workspaceTz } = useTimezones();
+  const card: CueCard = proposal.card || { summary_key: `qhelper.tool.${proposal.tool}`, fields: [], targets: [], changes: [], notes: [] };
   const [params, setParams] = useState<Record<string, unknown>>({ ...proposal.params });
-  const [members, setMembers] = useState<WorkspaceMember[]>([]);
+  const [items, setItems] = useState<MoveItem[]>(card.items || []);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [descOpen, setDescOpen] = useState(false);
-  // 일정 시각은 캘린더와 같은 기준(워크스페이스 시간대)으로 보인다 — 브라우저 시간대로 그리면
-  //   카드는 07:00, 만들어진 일정은 16:00 처럼 갈라진다(2026-10-07 실측, 기기 시간대 ≠ 워크스페이스).
-  const { workspaceTz } = useTimezones();
+  useEffect(() => { setParams({ ...proposal.params }); setItems(card.items || []); }, [proposal]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const set = (k: string, v: unknown) => setParams((p) => ({ ...p, [k]: v }));
+  const set = (k: string, v: unknown) => setParams((p) => {
+    const n = { ...p };
+    if (v === undefined || v === '' || (Array.isArray(v) && !v.length && !(k in proposal.params))) delete n[k]; else n[k] = v;
+    return n;
+  });
 
-  // 담당자 피커용 멤버 (create_task) — 비-AI 만
-  useEffect(() => {
-    if (proposal.tool !== 'create_task' || !businessId) return;
-    let alive = true;
-    listMembers(businessId)
-      .then((rows) => { if (alive) setMembers(rows.filter((m) => m.role !== 'ai' && m.user_id)); })
-      .catch(() => { /* 피커 없이도 본인 기본 실행 가능 */ });
-    return () => { alive = false; };
-  }, [proposal.tool, businessId]);
-
-  const mapError = (code?: string, message?: string): string => {
-    const c = code || message || '';
-    if (/^menu_forbidden/.test(c)) return t('qhelper.action.errMenu', '이 작업에 필요한 메뉴 권한이 없어요.');
+  const mapError = (code?: string): string => {
+    const c = String(code || '');
+    const known: Record<string, string> = {
+      only_creator_or_owner: t('qhelper.action.errEventOwner', '만든 사람(또는 관리자)만 바꿀 수 있는 일정이에요.'),
+      recurring_use_calendar: t('qhelper.action.errRecurring', '반복 일정은 캘린더에서 직접 옮겨 주세요.'),
+      booking_use_actions: t('qhelper.action.errBooking', '상담 예약은 «다른 시간 제안» 으로 바꿔 주세요.'),
+      event_not_found: t('qhelper.action.errEvent', '그 일정을 찾을 수 없어요.'),
+      only_assignee: t('qhelper.action.errOnlyAssignee', '이 업무의 담당자만 할 수 있어요.'),
+      no_reviewers_add_first: t('qhelper.action.errNoReviewers', '먼저 컨펌자를 지정해야 검토 요청을 보낼 수 있어요.'),
+      not_ready_for_complete: t('qhelper.action.errNeedsConfirm', '컨펌자 승인을 거쳐야 완료할 수 있어요.'),
+      task_closed: t('qhelper.action.errClosed', '이미 종료된 업무예요.'),
+      unknown_tags: t('qhelper.action.errTags', '워크스페이스에 없는 태그예요. 태그는 Q task 에서 먼저 만들어 주세요.'),
+      gcal_not_connected: t('qhelper.action.errGcal', '구글 캘린더가 연결되어 있지 않아요. 설정 > 파일·외부 연동에서 연결해 주세요.'),
+      gcal_scope_missing: t('qhelper.action.errGcal', '구글 캘린더가 연결되어 있지 않아요. 설정 > 파일·외부 연동에서 연결해 주세요.'),
+      cannot_create_meeting_for_private_event: t('qhelper.action.errMeetPrivate', '나만 보기 일정에는 화상회의를 만들 수 없어요. 팀 공개로 바꿔 주세요.'),
+      invalid_input: t('qhelper.action.errInput', '입력값을 확인해 주세요.'),
+    };
+    if (known[c]) return known[c];
+    if (/^menu_forbidden|^forbidden/.test(c)) return t('qhelper.action.errMenu', '이 작업에 필요한 권한이 없어요.');
     if (/^cannot_assign/.test(c)) return t('qhelper.action.errAssign', '그 담당자에게는 배정할 수 없어요.');
-    if (c === 'invalid_kind') return t('qhelper.action.errKind', '지원하지 않는 문서 종류예요.');
-    if (c === 'title_required' || c === 'invalid_payload') return t('qhelper.action.errTitle', '제목이 필요해요.');
-    if (c === 'invalid_dates') return t('qhelper.action.errDates', '일정 시각이 올바르지 않아요.');
-    if (c === 'only_assignee') return t('qhelper.action.errOnlyAssignee', '이 업무의 담당자만 할 수 있어요.');
-    if (c === 'no_reviewers_add_first') return t('qhelper.action.errNoReviewers', '먼저 컨펌자를 지정해야 검토 요청을 보낼 수 있어요.');
-    if (c === 'not_ready_for_complete') return t('qhelper.action.errNeedsConfirm', '컨펌자 승인을 거쳐야 완료할 수 있어요.');
-    if (c === 'invalid_task') return t('qhelper.action.errTask', '대상 업무를 찾을 수 없어요.');
-    if (c === 'content_required') return t('qhelper.action.errContent', '댓글 내용이 필요해요.');
-    if (c === 'task_closed') return t('qhelper.action.errClosed', '이미 종료된 업무예요.');
-    if (c === 'only_creator_or_owner') return t('qhelper.action.errEventOwner', '만든 사람(또는 관리자)만 옮길 수 있는 일정이에요.');
-    if (c === 'recurring_use_calendar') return t('qhelper.action.errRecurring', '반복 일정은 캘린더에서 직접 옮겨 주세요.');
-    if (c === 'booking_use_actions') return t('qhelper.action.errBooking', '상담 예약은 «다른 시간 제안» 으로 바꿔 주세요.');
-    if (c === 'event_not_found') return t('qhelper.action.errEvent', '그 일정을 찾을 수 없어요.');
-    if (c === 'no_events_to_move') return t('qhelper.action.errNoMoves', '옮길 일정이 없어요.');
     return tErr(c, { defaultValue: t('qhelper.action.errGeneric', '실행하지 못했어요. 잠시 후 다시 시도해주세요.') }) as string;
   };
 
+  const movable = items.filter((x) => !x.blocked);
+  const isMove = proposal.tool === 'reschedule_events';
+
   const execute = async () => {
-    if (submitting) return;               // 중복 제출 가드
+    if (submitting) return;               // 중복 제출 가드(서버도 같은 인자 10분 안 재실행을 막는다)
     setSubmitting(true); setError(null);
     try {
-      const res = await apiFetch('/api/cue/execute-action', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tool: proposal.tool, params: proposal.tool === 'reschedule_events' ? { moves: movableMoves } : params }),
-      });
+      const body = isMove
+        ? { tool: proposal.tool, params: { moves: movable.map((x) => ({ event_id: x.event_id, date: x.date, ...(x.start_time ? { start_time: x.start_time } : {}) })) } }
+        : { tool: proposal.tool, params };
+      const res = await apiFetch('/api/cue/execute-action', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       const j = await res.json();
       if (!res.ok || !j.success) {
         if (res.status === 422) { setError(t('qhelper.action.errQuota', 'Cue 사용 한도를 초과했어요.')); return; }
-        setError(mapError(j.code, j.message)); return;
+        setError(mapError(j.code || j.message)); return;
       }
-      onExecuted({
-        tool: j.data.tool, entity_type: j.data.entity_type, entity_id: j.data.entity_id,
-        completed_skipped: j.data.completed_skipped,
-        moved_ids: j.data.moved_ids, failed: j.data.failed,
-      });
+      onExecuted(j.data as CueActionResult);
     } catch {
       setError(t('qhelper.action.errGeneric', '실행하지 못했어요. 잠시 후 다시 시도해주세요.'));
     } finally {
@@ -128,204 +122,208 @@ const CueActionCard: React.FC<Props> = ({ proposal, businessId, onExecuted, onDi
     }
   };
 
-  // 일정 옮기기 — 줄(items)이 곧 실행 대상. 막힌 줄은 보여 주되 보내지 않는다(서버도 다시 판정한다).
-  const moveItems: MoveItem[] = proposal.tool === 'reschedule_events' && Array.isArray(params.items) ? (params.items as MoveItem[]) : [];
-  const movable = moveItems.filter((x) => !x.blocked);
-  const movableMoves = movable.map((x) => ({ event_id: x.event_id, date: x.date, ...(x.start_time ? { start_time: x.start_time } : {}) }));
-  const sharedDate = moveItems.length && moveItems.every((x) => x.date === moveItems[0].date) ? moveItems[0].date : null;
-  const setMoveDate = (date: string) => {
-    setParams((p) => ({
-      ...p,
-      items: ((p.items as MoveItem[]) || []).map((x) => {
-        if (x.all_day) {
-          const delta = Date.parse(`${date}T00:00:00Z`) - Date.parse(`${x.to_start.slice(0, 10)}T00:00:00Z`);
-          return { ...x, date, to_start: new Date(Date.parse(x.to_start) + delta).toISOString(), to_end: new Date(Date.parse(x.to_end) + delta).toISOString() };
-        }
-        const w = isoToWall(x.to_start, workspaceTz);
-        if (!w) return x;
-        const ns = wallStringsToIso(date, w.time, workspaceTz);
-        const dur = Date.parse(x.to_end) - Date.parse(x.to_start);
-        return { ...x, date, to_start: ns, to_end: new Date(Date.parse(ns) + dur).toISOString() };
-      }),
-    }));
+  const toolLabel = t(`qhelper.tool.${proposal.tool}`, { defaultValue: proposal.tool }) as string;
+  const doLabel = isMove
+    ? t('qhelper.action.doMove', { count: movable.length, defaultValue: `일정 ${movable.length}건 옮기기` })
+    : t(`qhelper.toolDo.${proposal.tool}`, { defaultValue: t('qhelper.action.doGeneric', '실행') as string });
+  const titleField = card.fields.find((f) => f.key === 'title' || f.key === 'name');
+  const canSubmit = isMove ? movable.length > 0 : !(titleField && titleField.editable && !String(params[titleField.key] ?? '').trim());
+
+  // ── 값 모양 ────────────────────────────────
+  const fmtValue = (key: string, v: unknown): string => {
+    if (v === null || v === undefined || v === '') return '—';
+    if (Array.isArray(v)) return v.length ? v.join(', ') : '—';
+    const s = String(v);
+    if (/_at$/.test(key) && !/^\d{4}-\d{2}-\d{2}$/.test(s)) return formatDayTime(s, { tz: workspaceTz, weekday: true });
+    if (/(^|_)date$/.test(key) || /^\d{4}-\d{2}-\d{2}$/.test(s)) return formatDay(s.slice(0, 10), { weekday: true });
+    if (typeof v === 'boolean') return v ? t('qhelper.action.yes', '예') as string : t('qhelper.action.no', '아니요') as string;
+    return t(`qhelper.opt.${s}`, { defaultValue: s }) as string;
   };
-  const removeMove = (id: number) => setParams((p) => ({ ...p, items: ((p.items as MoveItem[]) || []).filter((x) => x.event_id !== id) }));
+  const optLabel = (o: CardOption | string): PlanQSelectOption => (typeof o === 'string'
+    ? { value: o, label: t(`qhelper.opt.${o}`, { defaultValue: o }) as string }
+    : { value: o.value, label: o.label });
+
+  const renderField = (f: CardField, noLabel = false) => {
+    const label = noLabel ? '' : t(f.label_key, { defaultValue: f.key }) as string;
+    const v = params[f.key];
+    if (!f.editable || f.type === 'readonly') {
+      return (
+        <Field as="div" key={f.key}>
+          {label && <Lbl>{label}</Lbl>}
+          <ReadVal>{f.display || fmtValue(f.key, v)}</ReadVal>
+        </Field>
+      );
+    }
+    switch (f.type) {
+      case 'textarea':
+        return (
+          <Field key={f.key}>
+            {label && <Lbl>{label}</Lbl>}
+            <Textarea value={String(v ?? '')} onChange={(e) => set(f.key, e.target.value)} rows={3} maxLength={20000} />
+          </Field>
+        );
+      case 'date':
+        return (
+          <Field as="div" key={f.key}>
+            {label && <Lbl>{label}</Lbl>}
+            <SingleDateField value={String(v || '')} onChange={(d) => set(f.key, d || undefined)} size="sm" />
+          </Field>
+        );
+      case 'datetime': {
+        // 종일 일정이면 날짜만 — 서버는 날짜 문자열을 그 날로 읽는다
+        if (params.all_day === true || /^\d{4}-\d{2}-\d{2}$/.test(String(v || ''))) {
+          return (
+            <Field as="div" key={f.key}>
+              {label && <Lbl>{label}</Lbl>}
+              <SingleDateField value={String(v || '').slice(0, 10)} onChange={(d) => set(f.key, d || undefined)} size="sm" />
+            </Field>
+          );
+        }
+        const w = isoToWall(String(v || ''), workspaceTz);
+        if (!w) return <Field as="div" key={f.key}>{label && <Lbl>{label}</Lbl>}<ReadVal>{fmtValue(f.key, v)}</ReadVal></Field>;
+        const opts = timeOptions([w.time]);
+        return (
+          <Field as="div" key={f.key}>
+            {label && <Lbl>{label}</Lbl>}
+            <DateTimeRow>
+              <SingleDateField value={w.date} onChange={(d) => { if (d) set(f.key, wallStringsToIso(d, w.time, workspaceTz)); }} size="sm" />
+              <PlanQSelect size="sm" options={opts} value={{ value: w.time, label: w.time }}
+                onChange={(o) => { if (o) set(f.key, wallStringsToIso(w.date, String((o as PlanQSelectOption).value), workspaceTz)); }} />
+            </DateTimeRow>
+          </Field>
+        );
+      }
+      case 'number':
+        return (
+          <Field key={f.key}>
+            {label && <Lbl>{label}</Lbl>}
+            <Input type="number" min={0} value={v === undefined || v === null ? '' : String(v)}
+              onChange={(e) => set(f.key, e.target.value === '' ? undefined : Number(e.target.value))} />
+          </Field>
+        );
+      case 'bool':
+        return (
+          <CheckRow key={f.key}>
+            <input type="checkbox" checked={!!v} onChange={(e) => set(f.key, e.target.checked)} />
+            <span>{label}</span>
+          </CheckRow>
+        );
+      case 'select': {
+        const opts = (f.options || []).map(optLabel);
+        const cur = opts.find((o) => String(o.value) === String(v ?? '')) || null;
+        return (
+          <Field as="div" key={f.key}>
+            {label && <Lbl>{label}</Lbl>}
+            <PlanQSelect size="sm" options={opts} value={cur} onChange={(o) => set(f.key, (o as PlanQSelectOption | null)?.value ?? undefined)} />
+          </Field>
+        );
+      }
+      case 'member': {
+        const opts: PlanQSelectOption[] = [{ value: '', label: t('qhelper.action.assigneeDefault', '기본(비워두기)') as string }, ...(f.options || []).map(optLabel)];
+        const cur = opts.find((o) => String(o.value) === String(v ?? '')) || opts[0];
+        return (
+          <Field as="div" key={f.key}>
+            {label && <Lbl>{label}</Lbl>}
+            <PlanQSelect size="sm" options={opts} value={cur} onChange={(o) => { const x = (o as PlanQSelectOption | null)?.value; set(f.key, x ? Number(x) : undefined); }} />
+          </Field>
+        );
+      }
+      case 'members':
+      case 'clients': {
+        const all = (f.options || []).map(optLabel);
+        const chosen = (Array.isArray(v) ? v : []).map(Number);
+        const labelOf = (id: number) => all.find((o) => Number(o.value) === id)?.label || `#${id}`;
+        const addable = f.type === 'members' ? all.filter((o) => !chosen.includes(Number(o.value))) : [];
+        return (
+          <Field as="div" key={f.key}>
+            {label && <Lbl>{label}</Lbl>}
+            <Chips>
+              {chosen.map((id) => (
+                <Chip key={id}>
+                  {labelOf(id)}
+                  <ChipX type="button" aria-label={t('qhelper.action.remove', '빼기') as string} onClick={() => set(f.key, chosen.filter((x) => x !== id))}>×</ChipX>
+                </Chip>
+              ))}
+              {!chosen.length && <ReadVal>—</ReadVal>}
+            </Chips>
+            {addable.length > 0 && (
+              <PlanQSelect size="sm" options={addable} value={null} placeholder={t('qhelper.action.addPerson', '＋ 사람 추가') as string}
+                onChange={(o) => { const x = (o as PlanQSelectOption | null)?.value; if (x) set(f.key, [...chosen, Number(x)]); }} />
+            )}
+          </Field>
+        );
+      }
+      case 'chips': {
+        const arr = Array.isArray(v) ? v.map(String) : [];
+        return (
+          <Field key={f.key}>
+            {label && <Lbl>{label}</Lbl>}
+            <Input value={arr.join(', ')} onChange={(e) => set(f.key, e.target.value.split(',').map((x) => x.trim()).filter(Boolean))}
+              placeholder={t('qhelper.action.commaHint', '쉼표로 구분') as string} />
+          </Field>
+        );
+      }
+      default:
+        return (
+          <Field key={f.key}>
+            {label && <Lbl>{label}</Lbl>}
+            <Input value={String(v ?? '')} onChange={(e) => set(f.key, e.target.value)} maxLength={300} />
+          </Field>
+        );
+    }
+  };
+
+  // ── 일정 옮기기 줄 ──────────────────────────
+  const sharedDate = items.length && items.every((x) => x.date === items[0].date) ? items[0].date : null;
+  const setMoveDate = (date: string) => setItems((list) => list.map((x) => {
+    if (x.all_day) {
+      const delta = Date.parse(`${date}T00:00:00Z`) - Date.parse(`${x.to_start.slice(0, 10)}T00:00:00Z`);
+      return { ...x, date, to_start: new Date(Date.parse(x.to_start) + delta).toISOString(), to_end: new Date(Date.parse(x.to_end) + delta).toISOString() };
+    }
+    const w = isoToWall(x.to_start, workspaceTz);
+    if (!w) return x;
+    const ns = wallStringsToIso(date, w.time, workspaceTz);
+    const dur = Date.parse(x.to_end) - Date.parse(x.to_start);
+    return { ...x, date, to_start: ns, to_end: new Date(Date.parse(ns) + dur).toISOString() };
+  }));
   const whenOf = (x: MoveItem, which: 'from' | 'to') => {
     const s0 = which === 'from' ? x.from_start : x.to_start;
-    return x.all_day
-      ? formatDay(s0.slice(0, 10), { weekday: true })
-      : formatDayTime(s0, { tz: workspaceTz, weekday: true });
+    return x.all_day ? formatDay(s0.slice(0, 10), { weekday: true }) : formatDayTime(s0, { tz: workspaceTz, weekday: true });
   };
 
-  const isCreate = proposal.tool === 'create_task' || proposal.tool === 'create_event' || proposal.tool === 'create_document_draft';
-  const isComment = proposal.tool === 'add_task_comment';
-  const title = String(params.title || '');
-  const taskTitle = String(params.task_title || `#${params.task_id ?? ''}`);
-  const content = String(params.content || '');
-
-  const HDR: Record<CueToolName, string> = {
-    create_task: t('qhelper.action.hdrTask', '업무 추가'),
-    create_event: t('qhelper.action.hdrEvent', '일정 추가'),
-    reschedule_events: t('qhelper.action.hdrMove', '일정 옮기기'),
-    create_document_draft: t('qhelper.action.hdrDoc', '문서 초안'),
-    submit_review: t('qhelper.action.hdrSubmit', '검토 요청'),
-    complete_task: t('qhelper.action.hdrComplete', '업무 완료'),
-    add_task_comment: t('qhelper.action.hdrComment', '업무 댓글'),
-  };
-  const ADD: Record<CueToolName, string> = {
-    create_task: t('qhelper.action.addTask', '＋ 업무 추가'),
-    create_event: t('qhelper.action.addEvent', '＋ 일정 추가'),
-    reschedule_events: t('qhelper.action.doMove', { count: movable.length, defaultValue: `일정 ${movable.length}건 옮기기` }),
-    create_document_draft: t('qhelper.action.addDoc', '＋ 초안 만들기'),
-    submit_review: t('qhelper.action.doSubmit', '검토 요청 보내기'),
-    complete_task: t('qhelper.action.doComplete', '완료 처리'),
-    add_task_comment: t('qhelper.action.doComment', '댓글 남기기'),
-  };
-  const header = HDR[proposal.tool];
-  // #237 — 완료로 추가일 때는 버튼이 "무엇이 일어나는지" 를 그대로 말해야 한다 (＋ 업무 추가 ≠ 완료 기록)
-  const addLabel = proposal.tool === 'create_task' && params.completed
-    ? t('qhelper.action.addTaskCompleted', '＋ 완료로 추가')
-    : ADD[proposal.tool];
-  // [추가] 활성 조건: 생성=제목 필요, 댓글=내용 필요, 전이(submit/complete)=항상 가능
-  const isMove = proposal.tool === 'reschedule_events';
-  const canSubmit = isMove ? movable.length > 0 : isCreate ? !!title.trim() : isComment ? !!content.trim() : true;
+  const notes = useMemo(() => card.notes.map((n) => t(`qhelper.note.${n.key}`, { count: n.count ?? 0, names: n.names || '', defaultValue: '' }) as string).filter(Boolean), [card.notes, t]);
 
   return (
-    <Card role="group" aria-label={header}>
-      <Hdr>✦ {t('qhelper.action.proposeBy', 'Cue 제안')} · {header}</Hdr>
+    <Card role="group" aria-label={toolLabel} data-testid="cue-action-card">
+      <Hdr>✦ {t('qhelper.action.proposeBy', 'Cue 제안')} · {toolLabel}</Hdr>
 
-      {isCreate && (
-        <Field>
-          <Lbl>{t('qhelper.action.title', '제목')}</Lbl>
-          <Input value={title} onChange={(e) => set('title', e.target.value)} maxLength={300} />
+      {card.targets.map((tg) => (
+        <Field as="div" key={`${tg.type}-${tg.id}`}>
+          <Lbl>{t(`qhelper.target.${tg.type}`, { defaultValue: tg.type })}</Lbl>
+          <ReadVal>{tg.title || `#${tg.id}`}</ReadVal>
         </Field>
-      )}
+      ))}
 
-      {!isCreate && !isMove && (
-        <Field as="div">
-          <Lbl>{t('qhelper.action.targetTask', '대상 업무')}</Lbl>
-          <ReadVal>{taskTitle}</ReadVal>
-        </Field>
-      )}
-
-      {isComment && (
-        <Field>
-          <Lbl>{t('qhelper.action.commentBody', '댓글 내용')}</Lbl>
-          <Textarea value={content} onChange={(e) => set('content', e.target.value)} rows={3} maxLength={5000} />
-        </Field>
-      )}
-
-      {proposal.tool === 'create_task' && (
-        <>
-          <Field as="div">
-            <Lbl>{t('qhelper.action.assignee', '담당자')}</Lbl>
-            {(() => {
-              const opts: PlanQSelectOption[] = [
-                // 프로젝트가 붙은 제안이면 서버가 프로젝트 기본담당자/PM 에게 배정한다 —
-                //   "본인" 이라고 쓰면 틀린 약속이 된다.
-                {
-                  value: '',
-                  label: params.project_id
-                    ? t('qhelper.action.assigneeProjectDefault', '프로젝트 기본 담당자')
-                    : t('qhelper.action.assigneeSelf', '본인'),
-                },
-                ...members.map((m) => ({ value: m.user_id as number, label: memberLabel(m) })),
-              ];
-              // 멤버 목록이 오기 전에도 서버가 해석한 담당자를 보여 준다 — 없으면 잠깐 «본인» 으로 보여
-              //   실제로는 다른 사람에게 배정되는 것을 사용자가 오해한다(2026-10-07 실측).
-              if (params.assignee_id && !opts.some((o) => String(o.value) === String(params.assignee_id))) {
-                opts.push({ value: Number(params.assignee_id), label: String(params.assignee_resolved_name || params.assignee_name || `#${params.assignee_id}`) });
-              }
-              const cur = opts.find((o) => String(o.value) === String(params.assignee_id ?? '')) || opts[0];
-              return (
-                <PlanQSelect
-                  size="sm"
-                  options={opts}
-                  value={cur}
-                  onChange={(opt) => {
-                    const v = (opt as PlanQSelectOption | null)?.value;
-                    set('assignee_id', v ? Number(v) : undefined);
-                  }}
-                />
-              );
-            })()}
-          </Field>
-          {!params.assignee_id && params.assignee_name ? (
-            <Warn>{params.project_id
-              ? t('qhelper.action.assigneeUnresolvedProject', { name: String(params.assignee_name), defaultValue: `"${String(params.assignee_name)}" 을(를) 못 찾았어요 — 그대로 두면 프로젝트 기본 담당자에게 배정됩니다` })
-              : t('qhelper.action.assigneeUnresolved', { name: String(params.assignee_name), defaultValue: `"${String(params.assignee_name)}" 을(를) 못 찾아 본인으로 지정했어요` })}</Warn>
-          ) : null}
-          <Field>
-            <Lbl>{t('qhelper.action.due', '마감')}</Lbl>
-            <SingleDateField value={String(params.due_date || '')} onChange={(d) => set('due_date', d || undefined)} size="sm" />
-          </Field>
-          {/* #237 "완료로 추가" — 이미 끝난 일의 기록. Cue 가 오해했을 때 사람이 여기서 정정한다. */}
-          <CheckRow>
-            <input
-              type="checkbox"
-              checked={!!params.completed}
-              onChange={(e) => set('completed', e.target.checked)}
-            />
-            <span>{t('qhelper.action.completedAdd', '완료로 추가 — 이미 끝낸 일로 기록해요')}</span>
-          </CheckRow>
-          {!!params.completed && !params.due_date && (
-            <Hint>{t('qhelper.action.completedToday', '마감을 비워두면 오늘 날짜로 기록됩니다')}</Hint>
-          )}
-          <ToggleRow onClick={() => setDescOpen((v) => !v)} type="button">
-            {descOpen ? '▾' : '▸'} {t('qhelper.action.description', '설명')}
-          </ToggleRow>
-          {descOpen && (
-            <Textarea value={String(params.description || '')} onChange={(e) => set('description', e.target.value)} rows={3} maxLength={5000} />
-          )}
-        </>
-      )}
-
-      {proposal.tool === 'create_event' && (
-        <>
-          {/* #458 — 일정은 날짜·시간을 여기서 고친다(말로 넣은 시각이 틀리면 고칠 데가 없었다). 기준 = 워크스페이스 시간대(캘린더와 같다) */}
-          {(() => {
-            const sw = isoToWall(String(params.start_at || ''), workspaceTz);
-            const ew = isoToWall(String(params.end_at || ''), workspaceTz);
-            if (!sw) return (
-              <Field>
-                <Lbl>{t('qhelper.action.when', '일시')}</Lbl>
-                <ReadVal>{fmtRange(String(params.start_at || ''), String(params.end_at || ''), workspaceTz)}</ReadVal>
-              </Field>
-            );
-            const endTime = ew && ew.date === sw.date ? ew.time : sw.time;
-            const apply = (date: string, st: string, et: string) => {
-              const toMin = (x: string) => { const [h, m] = x.split(':').map(Number); return h * 60 + m; };
-              const e = toMin(et) > toMin(st) ? et : (() => { const n = Math.min(toMin(st) + 60, 23 * 60 + 59); return `${String(Math.floor(n / 60)).padStart(2, '0')}:${String(n % 60).padStart(2, '0')}`; })();
-              setParams((p) => ({ ...p, start_at: wallStringsToIso(date, st, workspaceTz), end_at: wallStringsToIso(date, e, workspaceTz) }));
-            };
-            const opts = timeOptions([sw.time, endTime]);
+      {card.changes.length > 0 && (
+        <ChangeList>
+          {card.changes.map((c) => {
+            // 바뀌는 칸은 «지금 값 →» 옆에 고칠 수 있는 칸을 바로 둔다(같은 칸이 두 번 보이지 않게)
+            const f = card.fields.find((x) => x.key === c.key && x.editable && x.type !== 'readonly');
             return (
-              <Field as="div">
-                <Lbl>{t('qhelper.action.when', '일시')}</Lbl>
-                <SingleDateField value={sw.date} onChange={(d) => { if (d) apply(d, sw.time, endTime); }} size="sm" />
-                <TimeRow>
-                  <PlanQSelect size="sm" options={opts} value={{ value: sw.time, label: sw.time }}
-                    onChange={(o) => {
-                      if (!o) return;
-                      const v = String((o as PlanQSelectOption).value);
-                      // 시작을 옮기면 끝도 같은 길이만큼 따라간다(새 일정 창과 같은 규칙)
-                      const toMin = (x: string) => { const [h, m] = x.split(':').map(Number); return h * 60 + m; };
-                      const dur = Math.max(toMin(endTime) - toMin(sw.time), 30);
-                      const n = Math.min(toMin(v) + dur, 23 * 60 + 59);
-                      apply(sw.date, v, `${String(Math.floor(n / 60)).padStart(2, '0')}:${String(n % 60).padStart(2, '0')}`);
-                    }} />
-                  <span aria-hidden="true">–</span>
-                  <PlanQSelect size="sm" options={opts} value={{ value: endTime, label: endTime }}
-                    onChange={(o) => { if (o) apply(sw.date, sw.time, String((o as PlanQSelectOption).value)); }} />
-                </TimeRow>
-              </Field>
+              <ChangeRow key={c.key}>
+                <Lbl>{t(c.label_key, { defaultValue: c.key })}</Lbl>
+                {f ? (
+                  <>
+                    <Before>{t('qhelper.action.now', '지금')}: {fmtValue(c.key, c.before)}</Before>
+                    {renderField(f, true)}
+                  </>
+                ) : (
+                  <span>{fmtValue(c.key, c.before)} <span aria-hidden="true">→</span> <strong>{fmtValue(c.key, params[c.key] !== undefined ? params[c.key] : c.after)}</strong></span>
+                )}
+              </ChangeRow>
             );
-          })()}
-          <Field>
-            <Lbl>{t('qhelper.action.location', '장소')}</Lbl>
-            <Input value={String(params.location || '')} onChange={(e) => set('location', e.target.value)} maxLength={300} />
-          </Field>
-        </>
+          })}
+        </ChangeList>
       )}
 
       {isMove && (
@@ -337,52 +335,32 @@ const CueActionCard: React.FC<Props> = ({ proposal, businessId, onExecuted, onDi
             </Field>
           )}
           <MoveList>
-            {moveItems.map((x) => (
+            {items.map((x) => (
               <MoveRow key={x.event_id} $blocked={!!x.blocked} data-testid="cue-move-row">
                 <MoveMain>
                   <MoveTitle>{x.title}</MoveTitle>
-                  <MoveWhen>
-                    {whenOf(x, 'from')} <span aria-hidden="true">→</span> <strong>{whenOf(x, 'to')}</strong>
-                  </MoveWhen>
+                  <MoveWhen>{whenOf(x, 'from')} <span aria-hidden="true">→</span> <strong>{whenOf(x, 'to')}</strong></MoveWhen>
                   {x.blocked && <MoveWhy>{mapError(x.blocked)}</MoveWhy>}
                 </MoveMain>
-                <RemoveBtn type="button" onClick={() => removeMove(x.event_id)}
-                  aria-label={t('qhelper.action.moveRemove', '이 일정 빼기')} title={t('qhelper.action.moveRemove', '이 일정 빼기')}>×</RemoveBtn>
+                <RemoveBtn type="button" onClick={() => setItems((l) => l.filter((y) => y.event_id !== x.event_id))}
+                  aria-label={t('qhelper.action.moveRemove', '이 일정 빼기') as string} title={t('qhelper.action.moveRemove', '이 일정 빼기') as string}>×</RemoveBtn>
               </MoveRow>
             ))}
           </MoveList>
-          {movable.some((x) => (x.attendees_others || 0) > 0) && (
-            <Hint>{t('qhelper.action.moveNoNotify', '참석자가 있는 일정이 있어요 — 시간이 바뀌었다는 알림은 보내지 않아요. 알려야 하면 캘린더에서 고쳐 «알림 보내기» 를 골라 주세요.')}</Hint>
-          )}
         </>
       )}
 
-      {proposal.tool === 'create_document_draft' && (
-        <Field as="div">
-          <Lbl>{t('qhelper.action.docKind', '종류')}</Lbl>
-          {(() => {
-            const opts: PlanQSelectOption[] = DOC_KIND_KEYS.map((k) => ({ value: k, label: t(`qhelper.action.docKind_${k}`, k) }));
-            const cur = opts.find((o) => o.value === (params.kind || 'custom')) || null;
-            return (
-              <PlanQSelect
-                size="sm"
-                options={opts}
-                value={cur}
-                onChange={(opt) => set('kind', (opt as PlanQSelectOption | null)?.value || 'custom')}
-              />
-            );
-          })()}
-        </Field>
-      )}
+      {card.fields.filter((f) => !card.changes.some((c) => c.key === f.key)).map((f) => renderField(f))}
 
+      {notes.map((n) => <Hint key={n}>{n}</Hint>)}
       {error && <ErrLine>! {error}</ErrLine>}
 
       <Actions>
         <ActionButton tone="secondary" size="sm" onClick={onDismiss} disabled={submitting}>
           {t('qhelper.action.cancel', '취소')}
         </ActionButton>
-        <ActionButton tone="primary" size="sm" onClick={execute} loading={submitting} disabled={!canSubmit}>
-          {addLabel}
+        <ActionButton tone="primary" size="sm" onClick={execute} loading={submitting} disabled={!canSubmit} data-testid="cue-action-execute">
+          {doLabel}
         </ActionButton>
       </Actions>
     </Card>
@@ -392,34 +370,18 @@ const CueActionCard: React.FC<Props> = ({ proposal, businessId, onExecuted, onDi
 // 시각 문자열(ISO) → 그 시간대의 벽시계 날짜·시각 ('YYYY-MM-DD', 'HH:mm')
 function isoToWall(iso: string, tz: string): { date: string; time: string } | null {
   if (!iso || isNaN(new Date(iso).getTime())) return null;
-  const w = toWall(iso, tz);   // 캘린더와 같은 변환(calTz) — 로컬 필드 = 그 시간대의 벽시계
+  const w = toWall(iso, tz);   // 캘린더와 같은 변환(calTz)
   const p2 = (n: number) => String(n).padStart(2, '0');
   return { date: `${w.getFullYear()}-${p2(w.getMonth() + 1)}-${p2(w.getDate())}`, time: `${p2(w.getHours())}:${p2(w.getMinutes())}` };
 }
 
 // 30분 단위 + 지금 값(말로 넣은 16:15 같은 값도 그대로 고를 수 있게)
 function timeOptions(extra: string[]): PlanQSelectOption[] {
-  const set = new Set<string>();
-  for (let h = 0; h < 24; h += 1) for (const m of ['00', '30']) set.add(`${String(h).padStart(2, '0')}:${m}`);
-  extra.forEach((x) => x && set.add(x));
-  return [...set].sort().map((v) => ({ value: v, label: v }));
+  const s = new Set<string>();
+  for (let h = 0; h < 24; h += 1) for (const m of ['00', '30']) s.add(`${String(h).padStart(2, '0')}:${m}`);
+  extra.forEach((x) => x && s.add(x));
+  return [...s].sort().map((v) => ({ value: v, label: v }));
 }
-
-function fmtRange(startIso: string, endIso: string, tz?: string): string {
-  try {
-    const s = new Date(startIso), e = new Date(endIso);
-    if (isNaN(s.getTime())) return startIso;
-    const d = formatDayTime(s, { year: 'always', tz });
-    const et = isNaN(e.getTime()) ? '' : formatClock(e, { tz });
-    return et ? `${d} – ${et}` : d;
-  } catch { return startIso; }
-}
-
-const TimeRow = styled.div`
-  display: flex; align-items: center; gap: 6px; margin-top: 6px;
-  & > div { flex: 1; min-width: 0; }
-  & > span { color: #94a3b8; }
-`;
 
 const Card = styled.div`
   margin-top: 8px; border: 1px solid #e2e8f0; border-radius: 12px;
@@ -427,27 +389,41 @@ const Card = styled.div`
   display: flex; flex-direction: column; gap: 8px;
 `;
 const Hdr = styled.div`font-size: 0.75rem; font-weight: 700; color: #0f766e; letter-spacing: -0.2px;`;
-const Field = styled.label`display: flex; flex-direction: column; gap: 3px;`;
+const Field = styled.label`display: flex; flex-direction: column; gap: 3px; min-width: 0;`;
 const Lbl = styled.span`font-size: 0.6875rem; color: #64748b; font-weight: 600;`;
 const Input = styled.input`
-  border: 1px solid #cbd5e1; border-radius: 8px; padding: 7px 9px; font-size: 0.8125rem;
+  border: 1px solid #cbd5e1; border-radius: 8px; padding: 7px 9px; font-size: 0.8125rem; min-height: 36px;
   background: #fff; width: 100%; &:focus { outline: none; border-color: #0f766e; }
 `;
 const Textarea = styled.textarea`
   border: 1px solid #cbd5e1; border-radius: 8px; padding: 7px 9px; font-size: 0.8125rem;
   background: #fff; width: 100%; resize: vertical; &:focus { outline: none; border-color: #0f766e; }
 `;
-const ReadVal = styled.div`font-size: 0.8125rem; color: #1e293b; padding: 6px 2px;`;
-const Warn = styled.div`font-size: 0.6875rem; color: #b45309; background: #fffbeb; border-radius: 6px; padding: 5px 8px;`;
-const Hint = styled.div`font-size: 0.6875rem; color: #64748b; padding: 0 2px;`;
+const ReadVal = styled.div`font-size: 0.8125rem; color: #1e293b; padding: 4px 2px; overflow-wrap: anywhere;`;
+const Hint = styled.div`font-size: 0.6875rem; color: #b45309; background: #fffbeb; border-radius: 6px; padding: 5px 8px;`;
 const CheckRow = styled.label`
-  display: flex; align-items: center; gap: 7px; cursor: pointer;
+  display: flex; align-items: center; gap: 7px; cursor: pointer; min-height: 32px;
   font-size: 0.75rem; color: #334155; padding: 2px 0;
   input { width: 15px; height: 15px; accent-color: #0f766e; cursor: pointer; margin: 0; }
 `;
-const ToggleRow = styled.button`
-  border: none; background: none; text-align: left; cursor: pointer; padding: 2px 0;
-  font-size: 0.75rem; color: #64748b; font-weight: 600;
+const DateTimeRow = styled.div`
+  display: flex; align-items: center; gap: 6px;
+  & > * { flex: 1; min-width: 0; }
+`;
+const ChangeList = styled.div`display: flex; flex-direction: column; gap: 4px; background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 7px 9px;`;
+const ChangeRow = styled.div`
+  display: flex; flex-direction: column; gap: 1px; font-size: 0.75rem; color: #475569;
+  strong { color: #0f766e; font-weight: 600; }
+`;
+const Before = styled.span`font-size: 0.75rem; color: #64748b;`;
+const Chips = styled.div`display: flex; flex-wrap: wrap; gap: 4px;`;
+const Chip = styled.span`
+  display: inline-flex; align-items: center; gap: 2px; background: #fff; border: 1px solid #cbd5e1;
+  border-radius: 999px; padding: 2px 2px 2px 9px; font-size: 0.75rem; color: #1e293b;
+`;
+const ChipX = styled.button`
+  border: none; background: none; cursor: pointer; color: #94a3b8; width: 32px; height: 32px; border-radius: 999px;
+  font-size: 1rem; line-height: 1; &:hover { color: #475569; background: #f1f5f9; }
 `;
 const MoveList = styled.div`display: flex; flex-direction: column; gap: 6px;`;
 const MoveRow = styled.div<{ $blocked: boolean }>`

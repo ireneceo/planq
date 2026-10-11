@@ -372,16 +372,19 @@ router.post('/help', authenticateToken, ...helpLimiter, async (req, res, next) =
       { role: 'user', content: q },
     ];
 
-    // #81 — workspace 모드 + 킬스위치 on 이면 쓰기 툴을 제안하게 한다 (실행 X, 제안만).
+    // #81 — workspace 모드 + 킬스위치 on 이면 도구를 쓴다. 2026-10-12: 에이전트 카탈로그 위로 접었다(docs/CUE_REGISTRY_FOLD_DESIGN.md) —
+    //   읽기는 루프가 실행(상한 라운드 4·읽기 6·12초), 쓰기는 **제안만**(카드). 실행은 execute-action 하나.
     const useTools = CUE_TOOLS_ENABLED && finalMode === 'workspace' && !!workspaceBizId;
-    const { content, fallback, tool_calls, model: usedModel, input_tokens, output_tokens } = await callLLM({
-      purpose: 'kb_answer',
-      messages,
-      // ★ 위와 같은 이유로 maxTokens 를 덮지 않는다 (services/llm.js kb_answer 가 단일 원천).
-      temperature: 0.3,
-      fallback: '',
-      ...(useTools ? { tools: cueTools.TOOL_SCHEMAS } : {}),
-    });
+    const llmOpts = { purpose: 'kb_answer', temperature: 0.3, fallback: '' };   // maxTokens 는 덮지 않는다(services/llm.js kb_answer 단일 원천)
+    let content; let fallback; let usedModel; let input_tokens; let output_tokens; let proposedAction = null;
+    if (useTools) {
+      const conv = await cueTools.converse({ p: await cueTools.principalOf(req.user.id, workspaceBizId, req.user.platform_role), messages, callLLM, llmOpts });
+      ({ content = '', fallback = false } = conv); proposedAction = conv.proposal || null;
+      ({ model: usedModel, input_tokens, output_tokens } = conv.usage || {});
+      if (conv.reads?.length) require('../services/auditService').logAudit(req, { action: 'cue.help_reads', targetType: 'business', targetId: workspaceBizId, businessId: workspaceBizId, newValue: { reads: conv.reads } });
+    } else {
+      ({ content, fallback, model: usedModel, input_tokens, output_tokens } = await callLLM({ ...llmOpts, messages }));
+    }
     if (fallback) return errorResponse(res, 'llm_error', 502);
     const cls = cueQA.parseClassification(content); const answer = cls.answer;
 
@@ -397,12 +400,6 @@ router.post('/help', authenticateToken, ...helpLimiter, async (req, res, next) =
     //     쿼터도 따라간다(별도 코드 없음 — 빼려면 오히려 코드를 더 짜야 한다).
     //   qhelper(제품 사용법)와 /help-public(게스트)은 게이트도 안 부르므로 무과금 유지 —
     //     "게이트를 부르는 모드 = 기록하는 모드" 로 대칭을 맞춘다.
-    // 툴 제안 → 확인 카드용 proposed_action (첫 유효 쓰기 툴 1건). 절대 실행 안 함.
-    let proposedAction = null;
-    if (useTools && Array.isArray(tool_calls) && tool_calls.length) {
-      try { proposedAction = await cueTools.buildProposedAction(workspaceBizId, tool_calls, req.user.id, req.user.platform_role); }
-      catch (e) { console.warn('[cue/help buildProposedAction]', e.message); }
-    }
     // ★ 2026-10-08 0-G — «제안» 은 무과금. 답이 실행 카드(proposed_action)면 여기서 기록하지 않는다 —
     //   사용자가 [추가] 를 누르면 execute-action 이 1회 기록한다(옛: 제안 1 + 실행 1 = 2회 차감).
     //   제안만 받고 실행하지 않은 것은 사용자가 아직 아무것도 얻지 못한 단계다. 그냥 답(카드 없음)은 위 판정대로 기록.
@@ -445,7 +442,7 @@ router.post('/execute-action', authenticateToken, ...helpLimiter, async (req, re
   try {
     if (!CUE_TOOLS_ENABLED) return errorResponse(res, 'tools_disabled', 403);
     const { tool, params } = req.body || {};
-    if (!tool || !cueTools.WRITE_TOOLS.has(tool)) return errorResponse(res, 'unknown_tool', 400);
+    if (!tool || !(cueTools.WRITE_TOOLS.has(tool) || cueTools.isAlias(tool))) return errorResponse(res, 'unknown_tool', 400);
 
     // businessId 는 인증 컨텍스트에서 서버가 도출 (클라 business_id 불신). 행동 계층이 멤버십 재검증.
     //   ★ 여태 active 가 안 실려 **첫 멤버십 워크스페이스에 생성·과금**되고 있었다 — 전환해도 그대로.
@@ -462,19 +459,9 @@ router.post('/execute-action', authenticateToken, ...helpLimiter, async (req, re
     const r = await cueTools.executeTool(actor, businessId, tool, params || {});
     if (!r.ok) return errorResponse(res, r.code, r.http || 400);
 
-    // 계량(관측) + 프로비넌스 감사 — actor=사용자라 행동 계층 create 감사와 별개로 "Cue 대화로 실행됨" 을 남긴다
-    const { recordUsage } = require('../services/cue_orchestrator');
-    recordUsage(businessId, 'tool_call', 'gpt-4o-mini', 0, 0).catch((e) => console.warn('[cue tool_call usage]', e.message));
-    require('../services/auditService').logAudit(req, {
-      action: 'cue.tool_execute', targetType: r.data.entity_type, targetId: r.data.entity_id,
-      businessId, newValue: { tool, entity_type: r.data.entity_type, entity_id: r.data.entity_id, ...(r.data.moved_ids ? { moved_ids: r.data.moved_ids } : {}) },
-    });
-
-    return successResponse(res, { tool, entity_type: r.data.entity_type, entity_id: r.data.entity_id, entity: r.data.entity,
-      // #237 «완료로 추가» 가 완료까지 못 간 사유(업무는 생성됨) · 일정 옮기기 결과(옮긴 것·못 옮긴 것). 카드가 안내한다.
-      ...(r.data.completed_skipped ? { completed_skipped: r.data.completed_skipped } : {}),
-      ...(r.data.moved_ids ? { moved_ids: r.data.moved_ids, failed: r.data.failed || [] } : {}),
-    }, 'executed', 201);
+    // 계량·감사(agent.<tool>, provider cue)는 runTool 이 각 1행 남긴다 — 여기서 또 쓰면 두 번이 된다(설계 A).
+    //   결과: entity_type·entity_id·open_url + 완료 못 간 사유·옮기기 결과·Meet 경고·replayed(두 번 누름). 카드가 안내한다.
+    return successResponse(res, r.data, 'executed', 201);
   } catch (e) { next(e); }
 });
 

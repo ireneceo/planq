@@ -269,12 +269,19 @@ async function updateFields(task, actor, fields = {}) {
     if (fields.priority_level !== null && !['low', 'normal', 'high', 'urgent'].includes(fields.priority_level)) return fail('invalid_priority');
     patch.priority_level = fields.priority_level;
   }
+  // 2026-10-12 Cue 범위 확장 — 분류·예상 시간(FIELD_RULES 가 누가 바꿀 수 있는지 정한다: 예상 시간은 담당자·관리자)
+  if (fields.category !== undefined) patch.category = fields.category === null ? null : String(fields.category).trim().slice(0, 100) || null;
+  if (fields.estimated_hours !== undefined) {
+    const h = fields.estimated_hours === null ? null : Number(fields.estimated_hours);
+    if (h !== null && (!Number.isFinite(h) || h < 0 || h > 1000)) return fail('invalid_hours');
+    patch.estimated_hours = h;
+  }
   const keys = Object.keys(patch);
   if (!keys.length) return fail('no_fields');
   const ctx = await fieldContext(task, subj.subjectId, subj.platformRole);
   const denied = deniedFields(keys, ctx);
   if (denied.length) return fail(`forbidden_fields:${denied.join(',')}`, 403);
-  const before = { title: task.title, priority_level: task.priority_level };
+  const before = { title: task.title, priority_level: task.priority_level, category: task.category, estimated_hours: task.estimated_hours };
   const t = await sequelize.transaction();
   try {
     await task.update(patch, { transaction: t });
@@ -290,6 +297,62 @@ async function updateFields(task, actor, fields = {}) {
     oldValue: before, newValue: { fields: keys },
   });
   return done({ task, changed: true });
+}
+
+// ─────────────────────────────────────────────
+// 태그 바꾸기 — 화면(PUT /api/tasks/:id/tags)과 Cue·외부 AI 가 같은 함수(2026-10-12 라우트 인라인을 옮겼다).
+//   권한: 작성자·담당자·owner/admin·platform_admin(라우트와 같은 집합). 같은 워크스페이스 태그만.
+//   반복 업무면 seriesTargetIds 로 범위를 정하고, 회차마다 «이번에 뺀 것만 빼고 넣은 것만 넣는다».
+// ─────────────────────────────────────────────
+const MAX_TAGS_PER_TASK = 10;
+async function setTags(task, actor, { tagIds = [], seriesScope } = {}) {
+  const subj = await resolveSubject(actor);
+  if (!subj.ok) return subj;
+  const { assertMemberOrAbove } = require('../../middleware/access_scope');
+  if (!(await assertMemberOrAbove(subj.subjectId, task.business_id, subj.platformRole))) return fail('forbidden', 403);
+  const ctx = await fieldContext(task, subj.subjectId, subj.platformRole);
+  if (!(ctx.isCreator || ctx.isAssignee || ctx.isOwnerOrAdmin)) return fail('forbidden_field_tags', 403);
+  const { TaskTag, TaskTagLink } = require('../../models');
+  const wanted = [...new Set((Array.isArray(tagIds) ? tagIds : []).map(Number).filter((n) => Number.isFinite(n) && n > 0))];
+  if (wanted.length > MAX_TAGS_PER_TASK) return fail('too_many_tags');
+  const valid = wanted.length
+    ? await TaskTag.findAll({ where: { id: { [Op.in]: wanted }, business_id: task.business_id }, attributes: ['id'] })
+    : [];
+  if (valid.length !== wanted.length) return fail('unknown_tags');
+  const { attachTagsTo } = require('../../routes/task_tags');
+  const existing = await TaskTagLink.findAll({ where: { task_id: task.id } });
+  const before = existing.map((l) => l.tag_id).sort((a, b) => a - b);
+  const after = valid.map((x) => x.id).sort((a, b) => a - b);
+  if (JSON.stringify(before) === JSON.stringify(after)) {
+    const [row] = await attachTagsTo([{ id: task.id }], task.business_id);
+    return done({ task, tags: row.tags, changed: false });
+  }
+  const { seriesTargetIds } = require('../taskSeriesScope');
+  const { ids: targetIds, scope: appliedScope } = await seriesTargetIds(task, seriesScope);
+  const toAdd = after.filter((id) => !before.includes(id));
+  const toRemove = before.filter((id) => !after.includes(id));
+  for (const tid of targetIds) {
+    if (toRemove.length) await TaskTagLink.destroy({ where: { task_id: tid, tag_id: { [Op.in]: toRemove } } });
+    if (toAdd.length) {
+      const have = (await TaskTagLink.findAll({ where: { task_id: tid, tag_id: { [Op.in]: toAdd } }, attributes: ['tag_id'] })).map((l) => l.tag_id);
+      const missing = toAdd.filter((id) => !have.includes(id));
+      if (missing.length) await TaskTagLink.bulkCreate(missing.map((tag_id) => ({ task_id: tid, tag_id })));
+    }
+  }
+  const [row] = await attachTagsTo([{ id: task.id }], task.business_id);
+  audit(actor, {
+    action: 'task.tags_update', targetType: 'task', targetId: task.id, businessId: task.business_id,
+    oldValue: { tag_ids: before }, newValue: { tag_ids: after, series_scope: appliedScope, applied_to: targetIds.length },
+  });
+  const io = getIO();
+  if (io) {
+    const { serializeTaskForBroadcast } = require('../taskBroadcast');
+    const base = await serializeTaskForBroadcast(task.id, task.business_id);
+    const payload = { ...(base || task.toJSON()), tags: row.tags, actor_user_id: subj.subjectId };
+    if (task.project_id) require('../projectRoom').emitProject(io, task.project_id, 'task:updated', payload);
+    io.to(`business:${task.business_id}`).emit('task:updated', payload);
+  }
+  return done({ task, tags: row.tags, changed: true });
 }
 
 // ─────────────────────────────────────────────
@@ -1948,7 +2011,7 @@ module.exports = {
   // 행동 — 일정(시작·마감) 수정. 일괄 수정이 지나는 문. 이력·알림은 화면 편집(PUT)도 같은 함수를 부른다.
   updateSchedule, logScheduleChange, notifyScheduleChange,
   // 행동 — 담당자·필드 수정(#439 M2-b). 필드 권한 표·담당자 이력·후속 처리는 PUT /tasks/:id 도 같은 함수를 쓴다.
-  reassign, updateFields, FIELD_RULES, fieldContext, deniedFields, assigneeChangeEvent, afterAssigneeChange,
+  reassign, updateFields, setTags, FIELD_RULES, fieldContext, deniedFields, assigneeChangeEvent, afterAssigneeChange,
   // 행동 — 프로젝트 옮기기(#463). PUT /tasks/:id 의 project_id 분기도 prepareMove·afterMove 를 쓴다.
   prepareMove, previewMove, moveToProject, afterMove, signalLeftProject,
   // 미리보기(에이전트 MEDIUM 확인 1단계)가 실행과 같은 판정을 먼저 보도록

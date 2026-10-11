@@ -214,80 +214,25 @@ router.delete('/tags/:tagId', authenticateToken, async (req, res, next) => {
 // body: { tag_ids: number[] }
 //   권한은 **title/category 축**(작성자/담당자/owner/admin) — tasks.js FIELD_RULES.category 와 동일 분기.
 //   태그는 "이 업무가 무엇에 관한 것인가" 라 의뢰자와 수행자 둘 다 손댈 수 있어야 한다.
+// audit-exempt: 감사는 행동 계층이 남긴다(이 라우트는 위임만 한다)
 router.put('/:id/tags', authenticateToken, async (req, res, next) => {
   try {
     const task = await Task.findByPk(Number(req.params.id));
     if (!task) return errorResponse(res, 'task_not_found', 404);
-    if (!(await assertMemberOrAbove(req.user.id, task.business_id, req.user.platform_role))) {
-      return errorResponse(res, 'forbidden', 403);
-    }
-    const scope = await getUserScope(req.user.id, task.business_id, req.user.platform_role);
-    const isPlatformAdmin = req.user.platform_role === 'platform_admin';
-    const isCreator = task.created_by === req.user.id;
-    const isAssignee = task.assignee_id === req.user.id;
-    const canEdit = isCreator || isAssignee || isPlatformAdmin || scope.isOwner || scope.isAdmin;
-    if (!canEdit) return errorResponse(res, 'forbidden_field_tags', 403);
-
     const raw = Array.isArray(req.body.tag_ids) ? req.body.tag_ids : [];
-    const wanted = [...new Set(raw.map(Number).filter(n => Number.isFinite(n) && n > 0))];
-    if (wanted.length > MAX_TAGS_PER_TASK) {
+    if (new Set(raw.map(Number).filter((n) => Number.isFinite(n) && n > 0)).size > MAX_TAGS_PER_TASK) {
       return errorResponse(res, `업무당 태그는 최대 ${MAX_TAGS_PER_TASK}개입니다`, 400);
     }
-    // ★ 멀티테넌트 — 같은 워크스페이스 태그만. 남의 워크스페이스 tag_id 를 보내도 걸러진다.
-    const valid = wanted.length
-      ? await TaskTag.findAll({ where: { id: { [Op.in]: wanted }, business_id: task.business_id }, attributes: ['id'] })
-      : [];
-    const validIds = valid.map(t => t.id);
-    if (validIds.length !== wanted.length) {
-      return errorResponse(res, '이 워크스페이스에 없는 태그가 포함됐습니다', 400);
+    // 권한·워크스페이스 태그 확인·반복 범위·감사·실시간은 행동 계층 한 곳(task_actions.setTags) —
+    //   Cue·외부 AI 의 «태그 바꾸기» 와 같은 함수다(2026-10-12 이 라우트 인라인을 옮겼다).
+    const { setTags } = require('../services/actions/task_actions');
+    const r = await setTags(task, { kind: 'user', userId: req.user.id, platformRole: req.user.platform_role, req },
+      { tagIds: raw, seriesScope: req.body.series_scope });
+    if (!r.ok) {
+      if (r.code === 'unknown_tags') return errorResponse(res, '이 워크스페이스에 없는 태그가 포함됐습니다', 400);
+      return errorResponse(res, r.code, r.http || 400);
     }
-
-    const existing = await TaskTagLink.findAll({ where: { task_id: task.id } });
-    const before = existing.map(l => l.tag_id).sort((a, b) => a - b);
-    const after = [...validIds].sort((a, b) => a - b);
-    if (JSON.stringify(before) === JSON.stringify(after)) {
-      // 멱등 no-op — 감사도 broadcast 도 하지 않는다.
-      const [row] = await attachTagsTo([{ id: task.id }], task.business_id);
-      return successResponse(res, { id: task.id, tags: row.tags });
-    }
-
-    // ★ 2026-09-08 — 태그도 "내용" 이다. 여태 이 라우트에는 범위 개념이 없어서, 제목은 시리즈
-    //   전체에 반영되는데 태그만 이 회차에 남았다(Irene: "업무가 반복된다는 건 내용도
-    //   반복관리가 되어야 하잖아"). 대상 산출은 PUT 과 **같은 함수**를 부른다.
-    const { seriesTargetIds } = require('../services/taskSeriesScope');
-    const { ids: targetIds, scope: appliedScope } = await seriesTargetIds(task, req.body.series_scope);
-
-    const toAdd = after.filter(id => !before.includes(id));
-    const toRemove = before.filter(id => !after.includes(id));
-    for (const tid of targetIds) {
-      // 회차마다 기존 태그가 다를 수 있다 — **이번에 뺀 것만 빼고 넣은 것만 넣는다.**
-      //   통째로 덮으면 어떤 회차에만 달아 둔 태그가 조용히 사라진다.
-      if (toRemove.length) await TaskTagLink.destroy({ where: { task_id: tid, tag_id: { [Op.in]: toRemove } } });
-      if (toAdd.length) {
-        const have = (await TaskTagLink.findAll({ where: { task_id: tid, tag_id: { [Op.in]: toAdd } }, attributes: ['tag_id'] }))
-          .map((l) => l.tag_id);
-        const missing = toAdd.filter((id) => !have.includes(id));
-        if (missing.length) await TaskTagLink.bulkCreate(missing.map(tag_id => ({ task_id: tid, tag_id })));
-      }
-    }
-
-    const [row] = await attachTagsTo([{ id: task.id }], task.business_id);
-    logAudit(req, {
-      action: 'task.tags_update', targetType: 'task', targetId: task.id,
-      businessId: task.business_id,
-      oldValue: { tag_ids: before }, newValue: { tag_ids: after, series_scope: appliedScope, applied_to: targetIds.length },
-    });
-    // 실시간 (CLAUDE.md §16 b) — 리스트·팝아웃이 태그 칩을 즉시 갱신한다.
-    const io = req.app.get('io');
-    if (io) {
-      // #277 — 표시명 포함 직렬화 단일 지점. tags 는 이 경로 고유 부가 필드라 caller 가 얹는다.
-      const { serializeTaskForBroadcast } = require('../services/taskBroadcast');
-      const base = await serializeTaskForBroadcast(task.id, task.business_id);
-      const payload = { ...(base || task.toJSON()), tags: row.tags, actor_user_id: req.user.id };
-      if (task.project_id) require('../services/projectRoom').emitProject(io, task.project_id, 'task:updated', payload);
-      io.to(`business:${task.business_id}`).emit('task:updated', payload);
-    }
-    return successResponse(res, { id: task.id, tags: row.tags });
+    return successResponse(res, { id: task.id, tags: r.data.tags });
   } catch (err) { next(err); }
 });
 

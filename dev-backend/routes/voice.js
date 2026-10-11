@@ -27,7 +27,7 @@ const cueTools = require('../services/cue_tools');
 // Cue 와 같은 킬스위치 — 꺼져 있으면 실행 문(execute-action)도 403 이므로 옛 분류(의도 → 폼 착지)로 떨어진다.
 const CUE_TOOLS_ENABLED = process.env.CUE_TOOLS_ENABLED !== '0';
 // 말로는 '만들기' 만 제안한다 — 기존 업무 전이(검토 요청·완료·댓글)는 대상 업무가 화면 맥락에서 와야 해서 뺀다.
-const VOICE_TOOLS = new Set(['create_task', 'create_event', 'create_document_draft']);
+const VOICE_TOOLS = new Set(['create_task', 'create_event', 'create_document']);
 // Q note 와 같은 인식 엔진 — nova-3 + keyterm(이름 힌트). 여태 nova-2 · 힌트 없음이라 이름을 자주 틀렸다.
 const VOICE_STT_MODEL = process.env.DEEPGRAM_VOICE_MODEL || 'nova-3';
 
@@ -115,10 +115,10 @@ async function voiceKeyterms(businessId) {
 
 // ── Cue 와 같은 제안 — 만들 것이면 Cue 툴 하나를 고르게 하고, 아니면(메모·메일 답장) JSON 으로 종류만.
 //   한 번의 LLM 호출로 끝낸다(memory feedback_ai_minimal_usage). 모델도 Cue 와 같은 kb_answer.
-async function proposeLikeCue(text, businessId) {
+async function proposeLikeCue(text, businessId, userId = null, platformRole = null) {
   const ctx = await cueTools.buildToolSystemContext(businessId);
   const system = `너는 PlanQ 의 Cue 다. 사용자가 말로 한 요청을 받아쓴 문장을 읽고 무엇을 만들지 제안한다. 실행은 사람이 확인한 뒤에 한다.
-- 할 일·요청이면 create_task, 시각이 있는 약속·회의면 create_event, 회의록·제안서 같은 문서면 create_document_draft 툴을 **하나만** 호출한다.
+- 할 일·요청이면 create_task, 시각이 있는 약속·회의면 create_event, 회의록·제안서 같은 문서면 create_document 툴을(content 는 빈 문자열) **하나만** 호출한다.
 - 받아쓴 문장이라 이름이 조금 틀렸을 수 있다 — [멤버] 목록에서 발음이 가장 가까운 이름으로 맞춘다. 확신이 없으면 assignee_name 을 비운다.
 - "누구에게 ~해 달라고 요청해줘 / 시켜줘 / 부탁해줘" 는 **업무**다(create_task, 그 사람이 담당). 메일이 아니다.
   그 이름이 [멤버] 목록에 없어도 **업무다** — assignee_name 만 비우고 create_task 를 호출한다(메모로 바꾸지 않는다).
@@ -142,7 +142,7 @@ ${ctx}`;
   if (r.fallback) return { failed: true, ...tokens };
   const calls = (Array.isArray(r.tool_calls) ? r.tool_calls : []).filter((tc) => VOICE_TOOLS.has(tc?.function?.name));
   if (calls.length) {
-    const proposed = await cueTools.buildProposedAction(businessId, calls);
+    const proposed = await cueTools.buildProposedAction(businessId, calls, userId, platformRole);
     if (proposed) return { proposed_action: proposed, ...tokens };
   }
   // 툴 없음 → 메모/메일. JSON 이 깨졌으면 메모(가장 안전)로.
@@ -310,7 +310,7 @@ router.post('/capture',
 
       // #458 — Cue 와 같은 제안. 제안이 실패하면(LLM 오류) 아래 옛 분류로 떨어진다 — 받아쓴 말을 버리지 않는다.
       if (CUE_TOOLS_ENABLED) {
-        const p = await proposeLikeCue(stt.text, businessId);
+        const p = await proposeLikeCue(stt.text, businessId, req.user.id, req.user.platform_role);
         if (!p.failed) {
           try { await recordVoiceUsage(businessId, p.input_tokens, p.output_tokens); } catch (e) { console.warn('[voice] usage', e.message); }
           return successResponse(res, {

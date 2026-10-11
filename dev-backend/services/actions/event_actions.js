@@ -317,20 +317,21 @@ async function createEvent(actor, params = {}) {
   return done({ event, full, meetWarning });
 }
 
-/** 이미 있는 일정의 **시간만** 옮긴다 — Cue «목요일 일정 월요일로 옮겨줘» (2026-10-11).
+/** 이미 있는 일정을 고친다 — Cue·외부 AI 의 «일정 수정» (2026-10-12, docs/CUE_REGISTRY_FOLD_DESIGN.md C).
  *
  *   화면의 수정(PUT /api/calendar/by-business/:biz/:id)과 **같은 판정**을 지난다:
  *     멤버(고객·AI 불가) · qcalendar 쓰기 · services/calendarPermission.canEditEvent(작성자 또는 owner/admin,
- *     남의 «나만 보기» 불가) · 상담 예약은 409 booking_use_actions · 종일은 날짜 부호화 · 알림 발송 기록 리셋 ·
- *     감사 event.updated · 구글 반영(calendarSync.reconcile) · 신호만 방송.
- *   ★ 반복 일정 원본은 옮기지 않는다(recurring_use_calendar) — 회차 하나/이후 전부/전체 중 무엇인지는
- *     화면의 범위 물음(handleRecurrenceScopeUpdate)이 정한다. 여기서 원본을 옮기면 모든 회차가 같이 움직인다.
- *   ★ 참석자 변경 알림은 보내지 않는다 — 화면에서 «보내기» 를 고르지 않은 수정과 같다(#462 기본값).
- *   제목·장소·참석자·공개 범위는 바꾸지 않는다(이 문은 시간만).
+ *     남의 «나만 보기» 불가) · 종일은 날짜 부호화 · 시간이 바뀌면 알림 발송 기록 리셋 · 감사 event.updated ·
+ *     구글 반영(calendarSync.reconcile) · 신호만 방송.
+ *   ★ 상담 예약은 시간을 여기서 바꾸지 않는다(409 booking_use_actions) — 제목·메모 같은 우리 쪽 정리는 된다(PUT 과 같다).
+ *   ★ 반복 일정 원본은 고치지 않는다(409 recurring_use_calendar) — 회차 하나/이후/전체 범위는 화면의 물음이 정한다.
+ *   ★ 시간·장소가 실제로 바뀌면 기존 참석자에게 변경 알림을 보낸다(services/eventNotify — 화면에서 «보내기» 를 고른 수정과 같다).
+ *     사람이 카드에서 확인했으므로 기본은 보낸다. params.notify === false 면 보내지 않는다.
+ *   참석자·공개 범위·반복은 이 문으로 바꾸지 않는다(2차 — 일정 PUT 전체를 행동 계층으로 옮길 때).
  *
- * @param params { businessId, eventId, startAt, endAt }
+ * @param params { businessId, eventId, title?, description?, location?, category?, reminderMinutes?, startAt?, endAt?, meetingUrl?, notify?, via? }
  */
-async function rescheduleEvent(actor, params = {}) {
+async function updateEvent(actor, params = {}) {
   const subj = await resolveSubject(actor);
   if (!subj.ok) return subj;
   const subjectId = subj.subjectId;
@@ -348,21 +349,52 @@ async function rescheduleEvent(actor, params = {}) {
   if (!calendarPermission.canEditEvent(event, bm, subjectId)) {
     return fail(calendarPermission.editDenyReason(event, bm, subjectId), 403);
   }
-  if (event.booking_status) return fail('booking_use_actions', 409);
   if (event.rrule && !event.recurrence_parent_id) return fail('recurring_use_calendar', 409);
+  const timeChange = params.startAt !== undefined || params.endAt !== undefined;
+  if (event.booking_status && timeChange) return fail('booking_use_actions', 409);
 
-  let sd = parseDate(params.startAt);
-  let ed = parseDate(params.endAt);
-  if (!sd || !ed) return fail('invalid_dates');
-  if (ed < sd) return fail('end_at must be after start_at');
-  if (event.all_day) {
-    const norm = require('../../utils/allDayDate').normalizeAllDay(params.startAt, params.endAt);
-    if (!norm) return fail('invalid_dates');
-    sd = norm.start_at; ed = norm.end_at;
+  const updates = {};
+  if (params.title !== undefined) {
+    const title = String(params.title || '').trim();
+    if (!title) return fail('title is required');
+    updates.title = title.slice(0, 300);
   }
+  if (params.description !== undefined) updates.description = params.description ? String(params.description).trim() || null : null;
+  if (params.location !== undefined) updates.location = params.location ? String(params.location).trim() || null : null;
+  if (params.category !== undefined) {
+    if (!CATEGORY_SET.has(params.category)) return fail('invalid category');
+    updates.category = params.category;
+  }
+  if (params.meetingUrl !== undefined) {
+    updates.meeting_url = params.meetingUrl ? String(params.meetingUrl).trim() : null;
+    updates.meeting_provider = updates.meeting_url ? 'manual' : null;
+  }
+  if (params.reminderMinutes !== undefined) {
+    const v = Number(params.reminderMinutes);
+    updates.reminder_minutes = Number.isFinite(v) && v > 0 ? Math.min(10080, v) : null;
+    updates.reminder_sent_at = null;
+  }
+  if (timeChange) {
+    let sd = params.startAt !== undefined ? parseDate(params.startAt) : event.start_at;
+    let ed = params.endAt !== undefined ? parseDate(params.endAt) : event.end_at;
+    if (!sd || !ed) return fail('invalid_dates');
+    if (ed < sd) return fail('end_at must be after start_at');
+    if (event.all_day) {
+      const norm = require('../../utils/allDayDate').normalizeAllDay(
+        params.startAt !== undefined ? params.startAt : event.start_at,
+        params.endAt !== undefined ? params.endAt : event.end_at);
+      if (!norm) return fail('invalid_dates');
+      sd = norm.start_at; ed = norm.end_at;
+    }
+    updates.start_at = sd; updates.end_at = ed; updates.reminder_sent_at = null;
+  }
+  if (!Object.keys(updates).length) return fail('no_fields');
 
-  const oldValue = { start_at: event.start_at, end_at: event.end_at };
-  await event.update({ start_at: sd, end_at: ed, reminder_sent_at: null });
+  const eventNotify = require('../eventNotify');
+  const beforeSnap = { start_at: event.start_at, end_at: event.end_at, all_day: event.all_day, location: event.location };
+  const priorIds = await eventNotify.recipientIdSet(event, subjectId);
+  const oldValue = { title: event.title, start_at: event.start_at, end_at: event.end_at, location: event.location };
+  await event.update(updates);
 
   await createAuditLog({
     user_id: subjectId,
@@ -371,17 +403,100 @@ async function rescheduleEvent(actor, params = {}) {
     target_type: 'calendar_event',
     target_id: event.id,
     old_value: oldValue,
-    new_value: { start_at: sd, end_at: ed, via: params.via || (actor.kind === 'cue' ? 'cue' : 'user') },
+    new_value: { ...updates, via: params.via || (actor.kind === 'cue' ? 'cue' : actor?.channel?.kind || 'user') },
     ip_address: actor.req?.ip || null,
   });
   try {
     const r = await calendarSync.reconcile(event, { businessId, userId: subjectId });
-    if (r.errors.length) console.warn('[calendarSync reschedule]', JSON.stringify(r.errors).slice(0, 300));
-  } catch (e) { console.warn('[calendarSync reschedule] reconcile 실패:', e.message); }
+    if (r.errors.length) console.warn('[calendarSync updateEvent]', JSON.stringify(r.errors).slice(0, 300));
+  } catch (e) { console.warn('[calendarSync updateEvent] reconcile 실패:', e.message); }
+
+  const full = await CalendarEvent.findByPk(event.id, { include: INCLUDE_DETAIL });
+  let notified = 0;
+  if (params.notify !== false && eventNotify.scheduleChanged(beforeSnap, full)) {
+    try {
+      notified = await eventNotify.sendChange({ event: full, before: beforeSnap, businessId, actorUserId: subjectId, message: null, priorIds, ioApp: actor.req?.app || null });
+      if (notified) createAuditLog({ user_id: subjectId, business_id: businessId, action: 'event.change_notified', target_type: 'calendar_event', target_id: event.id, new_value: { recipients: notified }, ip_address: actor.req?.ip || null });
+    } catch (e) { console.warn('[notify event update]', e.message); }
+  }
 
   const io = getIO();
   if (io) io.to(`business:${businessId}`).emit('event:updated', { id: event.id, business_id: event.business_id, project_id: event.project_id || null });
-  return done({ event, old: oldValue });
+  return done({ event, full, old: oldValue, notified });
 }
 
-module.exports = { createEvent, rescheduleEvent };
+/** 시간만 옮긴다 — updateEvent 의 시간 부분(Cue «일정 옮기기» 여러 건). 판정·알림·감사는 updateEvent 와 같다. */
+async function rescheduleEvent(actor, params = {}) {
+  return updateEvent(actor, { businessId: params.businessId, eventId: params.eventId, startAt: params.startAt, endAt: params.endAt, via: params.via, notify: params.notify });
+}
+
+/** 이미 있는 일정에 Google Meet 을 만든다(또는 다시 만든다) — 화면 [Meet 만들기](POST /:id/meeting)와 Cue·외부 AI 가 같은 함수.
+ *   소스는 일정 작성자의 개인 연동 우선 → 워크스페이스 폴백(calendarSync.resolveMeetSource, 목적지 축과 같다).
+ *   ★ 개인(L1·L2) 일정을 워크스페이스(=오너 캘린더) 소스로 만들지 않는다 — 새 일정 만들기와 같은 #126 규칙.
+ */
+async function addMeeting(actor, params = {}) {
+  const subj = await resolveSubject(actor);
+  if (!subj.ok) return subj;
+  const subjectId = subj.subjectId;
+  const businessId = Number(params.businessId);
+  const bm = await BusinessMember.findOne({ where: { user_id: subjectId, business_id: businessId } });
+  if (!bm || bm.role === 'ai' || bm.role === 'client') return fail('forbidden', 403);
+  const event = await CalendarEvent.findOne({ where: { id: Number(params.eventId) || 0, business_id: businessId } });
+  if (!event) return fail('event_not_found', 404);
+  const calendarPermission = require('../calendarPermission');
+  if (!calendarPermission.canEditEvent(event, bm, subjectId)) {
+    return fail(calendarPermission.editDenyReason(event, bm, subjectId), 403);
+  }
+  const meetSource = await calendarSync.resolveMeetSource({ businessId, userId: event.created_by || subjectId });
+  if (!meetSource.kind) return fail(meetSource.reason, 400);
+  if (meetSource.kind === 'workspace' && gcal.isPrivateForGcal({ visibility: event.visibility, vlevel: event.vlevel })) {
+    return fail('cannot_create_meeting_for_private_event', 400);
+  }
+  if (params.previewOnly) return done({ event, meetSource: meetSource.kind });
+
+  let meeting;
+  try {
+    meeting = await calendarSync.createMeeting(meetSource, {
+      title: event.title, summary: event.title, description: event.description, location: event.location,
+      startAt: event.start_at, endAt: event.end_at, rrule: event.rrule || undefined,
+    });
+  } catch (e) {
+    console.error('[addMeeting]', e.message);
+    await calendarSync.recordMeetError(meetSource, e);
+    return fail('gcal_meeting_create_failed', 502);
+  }
+  if (!meeting?.meetUrl) return fail('meet_url_not_returned', 502);
+
+  // 옛 회의 정리 — 소스 불문 기존 Meet 링크 + 링크가 관리하지 않는 옛 단일 컬럼만(팀 동기화 사본은 건드리지 않는다).
+  let cleared = [];
+  try { cleared = await calendarSync.clearMeetings(event.id, businessId); } catch (e) { console.warn('[clearMeetings]', e.message); }
+  const { CalendarEventGcalLink } = require('../../models');
+  const managedWs = await CalendarEventGcalLink.findOne({ where: { event_id: event.id, target: 'workspace' } });
+  const legacyOrphan = event.gcal_event_id
+    && event.gcal_event_id !== meeting.id
+    && !cleared.some((c) => c.gcal_event_id === event.gcal_event_id)
+    && !(managedWs && managedWs.gcal_event_id === event.gcal_event_id);
+  if (legacyOrphan) {
+    try {
+      const oldToken = await gcal.getTokenForBusiness(businessId);
+      if (oldToken && gcal.hasWriteScope(oldToken.scope)) await gcal.deleteEvent(await gcal.getCalendarClient(oldToken), event.gcal_event_id);
+    } catch (e) { console.warn('[gcal cleanup old event]', e.message); }
+  }
+  await event.update({
+    meeting_url: meeting.meetUrl,
+    meeting_provider: 'google_meet',
+    gcal_event_id: meetSource.kind === 'workspace' ? (meeting.id || null) : (managedWs ? managedWs.gcal_event_id : null),
+  });
+  try { await calendarSync.linkMeeting(event.id, meetSource, meeting.id, businessId); } catch (e) { console.warn('[linkMeeting addMeeting]', e.message); }
+  await createAuditLog({
+    user_id: subjectId, business_id: businessId, action: 'event.meeting_created',
+    target_type: 'calendar_event', target_id: event.id,
+    new_value: { meeting_url: meeting.meetUrl, meeting_provider: 'google_meet' }, ip_address: actor.req?.ip || null,
+  });
+  const full = await CalendarEvent.findByPk(event.id, { include: INCLUDE_DETAIL });
+  const io = getIO();
+  if (io) io.to(`business:${businessId}`).emit('event:updated', { id: event.id, business_id: event.business_id, project_id: event.project_id || null });
+  return done({ event, full, meetSource: meetSource.kind });
+}
+
+module.exports = { createEvent, updateEvent, rescheduleEvent, addMeeting };

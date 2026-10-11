@@ -71,6 +71,7 @@ const TOOLS = [
       estimated_hours: z.number().min(0).max(1000).optional()
         .describe('Estimated hours. Only when the task is assigned to the user themselves (the assignee sets the estimate).'),
       source: z.union([mailSource, chatSource]).optional().describe(SOURCE_DESC),
+      completed: z.boolean().optional().describe('true only when recording work that is ALREADY finished ("add it as done"). Completion only applies when the user is the assignee and no reviewer sign-off is needed; otherwise the task is just created.'),
       idempotency_key: idem,
     },
     handler: (p, a, actor) => t.createTask(p, a, actor),
@@ -182,7 +183,7 @@ const TOOLS = [
   },
   {
     name: 'create_event', risk: 'LOW', write: true, scopes: ['schedule:write'],
-    description: 'Create one calendar event without attendees. Only adds — never edits or deletes. Private to the user unless visibility is "team". You can set its type, reminder, a linked task and an existing meeting link.',
+    description: 'Create one calendar event. Only adds — never edits or deletes. Private to the user unless visibility is "team". You can set its type, reminder, a linked task, an existing meeting link, attendees (workspace members / clients — they are notified) and create_meeting (PlanQ creates a Google Meet link, like the app\'s Meet button; only for team-visible events). With attendees or create_meeting it requires confirmation: the first call only returns a preview naming who is notified and where the meeting is created.',
     input: {
       title: z.string().trim().min(1).max(300),
       start_at: z.string().max(40).describe('ISO datetime. For all_day events pass the date YYYY-MM-DD (time and offset are ignored).'),
@@ -191,16 +192,62 @@ const TOOLS = [
       description: z.string().max(5000).optional(),
       location: z.string().max(300).optional(),
       project_id: z.number().int().positive().optional(),
-      visibility: z.enum(['private', 'team']).optional(),
+      visibility: z.enum(['private', 'team']).optional().describe('Default private. "team" only when the user asked to share it with the team (or create_meeting is needed).'),
       // 2026-10-07 (Fable B 판정 3 — LOW, 알림 없는 칸만): 화면 «새 일정» 과 같은 칸을 연다
       category: z.enum(['meeting', 'work', 'deadline', 'personal', 'other']).optional().describe('Event type (default work)'),
       reminder_minutes: z.number().int().min(0).max(10080).optional().describe('Remind this many minutes before start (0 = no reminder). Default: 1 day before, same as the app.'),
       task_id: z.number().int().positive().optional().describe('Link an existing task the user can open (find it with search_tasks)'),
       meeting_url: z.string().url().max(500).refine((u) => u.startsWith('https://'), 'https only').optional().describe('An existing video meeting link (https) to attach. This tool does not create meetings.'),
       source: z.union([mailSource, taskSource]).optional().describe(`${SOURCE_DESC} A link to the source is added at the end of the description; the project is inherited when you give none.`),
-      idempotency_key: idem,
+      attendee_user_ids: z.array(z.number().int().positive()).max(30).optional().describe('Workspace members to invite (user_id from search_members). They are notified.'),
+      attendee_client_ids: z.array(z.number().int().positive()).max(30).optional().describe('Clients to invite (client_id from search_clients). Clients with a PlanQ account are notified in the app; no email invitation is sent.'),
+      create_meeting: z.boolean().optional().describe('true = create a Google Meet link for this event (needs visibility "team").'),
+      confirmation_token: confirm, idempotency_key: idem,
     },
+    // 참석자·Meet 이 있으면 알림이 나가고 구글 캘린더에 회의가 생긴다 → 그때만 확인 2단계(2026-10-12)
+    riskOf: (a) => ((a.attendee_user_ids || []).length || (a.attendee_client_ids || []).length || a.create_meeting ? 'MEDIUM' : 'LOW'),
+    preview: (p, a) => cal.previewCreateEvent(p, a),
     handler: (p, a, actor) => cal.createEvent(p, a, actor),
+  },
+  // ── 2026-10-12 Cue 범위 확장(docs/CUE_REGISTRY_FOLD_DESIGN.md C) — 일정 수정·Meet 추가·여러 건 옮기기 ──
+  {
+    name: 'update_event', risk: 'MEDIUM', write: true, scopes: ['schedule:write'],
+    description: 'Edit an existing calendar event (find event_id with list_events): title, description, location, type, reminder, time, or an existing meeting link. Only the fields you pass change. If the time or place changes, its attendees are notified. Recurring events and client bookings cannot be changed here (use the PlanQ calendar). Requires confirmation: the first call only returns a preview.',
+    input: {
+      event_id: z.number().int().positive(),
+      title: z.string().trim().min(1).max(300).optional(),
+      description: z.string().max(5000).optional(),
+      location: z.string().max(300).optional(),
+      category: z.enum(['meeting', 'work', 'deadline', 'personal', 'other']).optional(),
+      reminder_minutes: z.number().int().min(0).max(10080).optional(),
+      start_at: z.string().max(40).optional().describe('ISO datetime (for all-day events: YYYY-MM-DD)'),
+      end_at: z.string().max(40).optional().describe('ISO datetime (for all-day events: the LAST day YYYY-MM-DD)'),
+      meeting_url: z.string().url().max(500).refine((u) => u.startsWith('https://'), 'https only').optional(),
+      confirmation_token: confirm, idempotency_key: idem,
+    },
+    preview: (p, a) => cal.previewUpdateEvent(p, a),
+    handler: (p, a, actor) => cal.updateEventTool(p, a, actor),
+  },
+  {
+    name: 'add_meeting_to_event', risk: 'MEDIUM', write: true, scopes: ['schedule:write'],
+    description: 'Create a Google Meet link for an existing event (same as the Meet button in the PlanQ calendar). Uses the event creator\'s connected Google Calendar, or the workspace calendar. Replaces an existing Meet link. Requires confirmation: the first call only returns a preview.',
+    input: { event_id: z.number().int().positive(), confirmation_token: confirm, idempotency_key: idem },
+    preview: (p, a) => cal.previewAddMeeting(p, a),
+    handler: (p, a, actor) => cal.addMeetingTool(p, a, actor),
+  },
+  {
+    name: 'reschedule_events', risk: 'MEDIUM', write: true, scopes: ['schedule:write'],
+    description: 'Move one or more existing events (up to 20; find event_id with list_events) to another date, keeping each event\'s length — e.g. "move Thursday\'s events except X to next Monday". Leave start_time empty to keep the original time. Attendees are notified. Recurring events and client bookings are not moved. Requires confirmation: the first call only returns a preview of old and new times.',
+    input: {
+      moves: z.array(z.object({
+        event_id: z.number().int().positive(),
+        date: dateOnly.describe('New date YYYY-MM-DD in the workspace time zone'),
+        start_time: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'HH:MM').optional().describe('New start time HH:MM, only if the user said one'),
+      }).strict()).min(1).max(20),
+      confirmation_token: confirm, idempotency_key: idem,
+    },
+    preview: (p, a) => cal.previewRescheduleEvents(p, a),
+    handler: (p, a, actor) => cal.rescheduleEventsTool(p, a, actor),
   },
   // ── M3-a — 기록 확대(설계 docs/AI_AGENT_M3_DESIGN.md §4.3) ─────────────────
   {
@@ -470,10 +517,10 @@ const TOOLS = [
   },
   {
     name: 'create_memo', risk: 'LOW', write: true, scopes: ['notes:write'],
-    description: 'Save a private text memo in PlanQ Q note (title + body in Markdown), optionally linked to a project or client. Only the user can see it until they share it in PlanQ. Only adds.',
+    description: 'Save a private text memo in PlanQ Q note (title + body in Markdown), optionally linked to a project or client. Only the user can see it until they share it in PlanQ. Only adds. Write what the user said — do not add follow-ups, advice or items they did not mention.',
     input: {
       title: z.string().trim().min(1).max(200),
-      body: z.string().max(100000).describe('Memo body in Markdown'),
+      body: z.string().max(100000).describe('Memo body in Markdown — only the facts the user stated, one line each. Never add conclusions, next steps or implications.'),
       project_id: z.number().int().positive().optional(),
       client_id: z.number().int().positive().optional(),
       idempotency_key: idem,
@@ -514,6 +561,13 @@ const TOOLS = [
     preview: (p, a) => t.previewComplete(p, a),
     handler: (p, a, actor) => t.completeTask(p, a, actor),
   },
+  {
+    name: 'submit_review', risk: 'MEDIUM', write: true, scopes: ['tasks:write'],
+    description: 'Submit a task for review — sends it to its reviewers for sign-off (only the assignee, and only when reviewers are set). Requires confirmation: the first call only returns a preview.',
+    input: { task_id: z.number().int().positive(), note: z.string().max(2000).optional().describe('Message to the reviewers (optional)'), confirmation_token: confirm, idempotency_key: idem },
+    preview: (p, a) => t.previewSubmitReview(p, a),
+    handler: (p, a, actor) => t.submitReviewTool(p, a, actor),
+  },
   // ── M2-b — 담당자 변경(MEDIUM) · 제목/설명/중요도 수정(LOW). 규칙은 PUT /tasks/:id 와 같은 행동 계층 함수 ──
   {
     name: 'assign_task', risk: 'MEDIUM', write: true, scopes: ['tasks:write'],
@@ -532,14 +586,18 @@ const TOOLS = [
   },
   {
     name: 'update_task', risk: 'LOW', write: true, scopes: ['tasks:write'],
-    description: 'Edit a task\'s title, description or priority. Only the fields you pass change. Never deletes. The description (the request) can only be edited by the person who created the task.',
+    description: 'Edit a task\'s title, description, priority, category, estimated hours or tags. Only the fields you pass change. Never deletes. The description (the request) can only be edited by the person who created the task; estimated hours only by the assignee. Tags must already exist in the workspace (the list replaces the task\'s tags). For dates use reschedule_task.',
     input: {
       task_id: z.number().int().positive(),
       title: z.string().trim().min(1).max(300).optional(),
       description: z.string().max(5000).optional(),
       priority: z.enum(['low', 'normal', 'high', 'urgent']).optional(),
+      category: z.string().trim().max(100).optional(),
+      estimated_hours: z.number().min(0).max(1000).optional(),
+      tag_names: z.array(z.string().trim().min(1).max(30)).max(10).optional().describe('The full new tag list (existing tag names only)'),
       idempotency_key: idem,
     },
+    preview: (p, a) => t.previewUpdateTask(p, a),
     handler: (p, a, actor) => t.updateTask(p, a, actor),
   },
 ];
@@ -553,7 +611,7 @@ for (const tool of TOOLS) {
   if (HIGH_PATTERNS.some((re) => re.test(tool.name))) throw new Error(`agent registry: HIGH 위험 도구는 등록할 수 없다 — ${tool.name}`);
   if (!['LOW', 'MEDIUM'].includes(tool.risk)) throw new Error(`agent registry: risk 선언 필수 — ${tool.name}`);
   if (tool.write && !tool.scopes.some((s) => s.endsWith(':write'))) throw new Error(`agent registry: 쓰기 도구는 쓰기 scope 필수 — ${tool.name}`);
-  if (tool.risk === 'MEDIUM' && (typeof tool.preview !== 'function' || !tool.input.confirmation_token)) throw new Error(`agent registry: MEDIUM 도구는 preview + confirmation_token 필수 — ${tool.name}`);
+  if ((tool.risk === 'MEDIUM' || tool.riskOf) && (typeof tool.preview !== 'function' || !tool.input.confirmation_token)) throw new Error(`agent registry: MEDIUM 도구는 preview + confirmation_token 필수 — ${tool.name}`);
 }
 
 const byName = new Map(TOOLS.map((x) => [x.name, x]));

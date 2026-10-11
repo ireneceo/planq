@@ -126,13 +126,211 @@ async function createEvent(p, a, actor) {
     ...(a.reminder_minutes !== undefined ? { reminderMinutes: a.reminder_minutes > 0 ? a.reminder_minutes : null } : {}),
     ...(a.task_id ? { taskId: a.task_id } : {}),
     ...(a.meeting_url ? { meetingUrl: a.meeting_url, meetingProvider: 'manual' } : {}),
-    createdVia: 'agent',
+    // 2026-10-12 — 참석자(이 워크스페이스 멤버·고객만 — 행동 계층이 다시 거른다) · Google Meet 자동 생성(화면 버튼과 같은 길)
+    attendees: [
+      ...(a.attendee_user_ids || []).map((user_id) => ({ user_id })),
+      ...(a.attendee_client_ids || []).map((client_id) => ({ client_id })),
+    ],
+    autoCreateMeeting: !!a.create_meeting,
+    createdVia: p.provider === 'cue' ? 'cue' : 'agent',
   });
   if (!r.ok) throw fromActionFailure(r);
   const ev = r.data?.event || r.data;
   const { CalendarEvent, Project } = require('../../../models');
   const full = await CalendarEvent.findOne({ where: { id: ev.id, business_id: p.businessId }, include: [{ model: Project, attributes: ['id', 'name'], required: false }] });
-  return { event: eventItem(full), created: true };
+  // Meet 이 실패해도 일정은 만들어졌다 — 이유를 돌려준다(카드·모델이 «링크는 못 만들었다» 를 말한다)
+  return { event: eventItem(full), created: true, ...(r.data?.meetWarning ? { meet_warning: r.data.meetWarning } : {}) };
 }
 
-module.exports = { listEvents, createEvent };
+// ─────────────────────────────────────────────
+// 2026-10-12 Cue 범위 확장(docs/CUE_REGISTRY_FOLD_DESIGN.md C) — 참석자·Meet·일정 수정·Meet 추가·여러 건 옮기기.
+//   쓰기는 전부 행동 계층(event_actions)으로. 이 파일은 읽기·미리보기만 한다(가드 agentsurface).
+// ─────────────────────────────────────────────
+async function workspaceTz(p) {
+  const { Business } = require('../../../models');
+  const biz = await Business.findByPk(p.businessId, { attributes: ['timezone'] });
+  return biz?.timezone || 'Asia/Seoul';
+}
+
+/** 이 사람에게 **보이는** 일정 한 건 — 캘린더 목록과 같은 술어. 안 보이면 NOT_FOUND(있는지도 말하지 않는다). */
+async function loadVisibleEvent(p, eventId) {
+  const rows = await loadVisibleEvents(p, [eventId]);
+  if (!rows.length) throw err('NOT_FOUND', 'event_not_found');
+  return rows[0];
+}
+async function loadVisibleEvents(p, ids) {
+  const { CalendarEvent } = require('../../../models');
+  const { getUserScope, calendarListWhere } = require('../../../middleware/access_scope');
+  const scope = await getUserScope(p.userId, p.businessId, p.platformRole);
+  const base = await calendarListWhere(p.userId, p.businessId, scope);
+  if (!base) return [];
+  return CalendarEvent.findAll({ where: { [Op.and]: [base, { business_id: p.businessId }, { id: { [Op.in]: ids } }] } });
+}
+
+/** 옮기거나 고칠 수 없는 이유 — 실행(event_actions.updateEvent)과 같은 순서. null = 가능 */
+async function editBlockReason(p, e, { timeChange = true } = {}) {
+  const { BusinessMember } = require('../../../models');
+  const bm = await BusinessMember.findOne({ where: { user_id: p.userId, business_id: p.businessId } });
+  const { canEditEvent } = require('../../calendarPermission');
+  if (!bm || !canEditEvent(e, bm, p.userId)) return 'only_creator_or_owner';
+  if (e.rrule && !e.recurrence_parent_id) return 'recurring_use_calendar';
+  if (timeChange && e.booking_status) return 'booking_use_actions';
+  return null;
+}
+
+/** 참석자 이름 — 이 워크스페이스 멤버·고객만. 모르는 id 는 거절한다(행동 계층은 조용히 버리므로 미리보기가 말한다). */
+async function attendeeNames(p, userIds = [], clientIds = []) {
+  const { BusinessMember, Client, User } = require('../../../models');
+  const { getMemberNameMap } = require('../../displayName');
+  // 계정이 살아 있는 멤버만(참석자 행은 users 를 참조한다 — 고아 멤버십 행을 그대로 넘기면 저장이 깨진다)
+  const members = userIds.length ? await BusinessMember.findAll({ where: { business_id: p.businessId, user_id: userIds, removed_at: null }, attributes: ['user_id', 'role'],
+    include: [{ model: User, as: 'user', attributes: ['id', 'name'], required: true }] }) : [];
+  const okUsers = members.filter((m) => m.role !== 'ai' && m.role !== 'client').map((m) => m.user_id);
+  const clients = clientIds.length ? await Client.findAll({ where: { business_id: p.businessId, id: clientIds }, attributes: ['id', 'display_name', 'company_name', 'user_id'] }) : [];
+  const unknown = [...userIds.filter((id) => !okUsers.includes(id)).map((id) => `user:${id}`), ...clientIds.filter((id) => !clients.some((c) => c.id === id)).map((id) => `client:${id}`)];
+  if (unknown.length) throw err('VALIDATION_ERROR', 'unknown_attendees', { unknown, hint: 'Use search_members / search_clients for ids in this workspace.' });
+  const nm = await getMemberNameMap(p.businessId, okUsers);
+  return {
+    members: okUsers.map((id) => ({ user_id: id, name: nm.get(id)?.name || nm.get(id)?.name_localized || members.find((m) => m.user_id === id)?.user?.name || `#${id}` })),
+    clients: clients.map((c) => ({ client_id: c.id, name: c.display_name || c.company_name || `#${c.id}`, has_account: !!c.user_id })),
+  };
+}
+
+async function meetSourceOf(p, userId) {
+  const calendarSync = require('../../calendarSync');
+  const src = await calendarSync.resolveMeetSource({ businessId: p.businessId, userId });
+  return src.kind ? { source: src.kind } : { source: null, reason: src.reason };
+}
+
+/** create_event 미리보기 — 참석자·Meet 이 있으면 MEDIUM(알림이 나가고 구글 캘린더에 회의가 생긴다). */
+async function previewCreateEvent(p, a) {
+  await assertMenu(p, 'qcalendar', 'write');
+  const who = await attendeeNames(p, a.attendee_user_ids || [], a.attendee_client_ids || []);
+  const team = a.visibility === 'team';
+  const warnings = [];
+  let meet = null;
+  if (a.create_meeting) {
+    if (!team) throw err('VALIDATION_ERROR', 'meet_requires_team_visibility', { hint: 'Google Meet can only be created for team-visible events. Pass visibility "team" (show the user) or drop create_meeting.' });
+    meet = await meetSourceOf(p, p.userId);
+    if (!meet.source) warnings.push(`meet_unavailable:${meet.reason}`);
+    else if (meet.source === 'workspace') warnings.push('meet_on_workspace_calendar');
+  }
+  const notifyMembers = who.members.filter((m) => m.user_id !== p.userId);
+  return {
+    event: { title: a.title, start_at: a.start_at, end_at: a.end_at, all_day: !!a.all_day, visibility: team ? 'team' : 'private', location: a.location || null },
+    attendees: [...who.members.map((m) => m.name), ...who.clients.map((c) => c.name)],
+    notified_count: notifyMembers.length + who.clients.filter((c) => c.has_account).length,
+    meeting: meet ? { create: true, source: meet.source } : null,
+    warnings,
+  };
+}
+
+// ── update_event (MEDIUM) ──────────────────────────────────
+function eventPatch(a) {
+  return {
+    ...(a.title !== undefined ? { title: a.title } : {}),
+    ...(a.description !== undefined ? { description: a.description } : {}),
+    ...(a.location !== undefined ? { location: a.location } : {}),
+    ...(a.category !== undefined ? { category: a.category } : {}),
+    ...(a.reminder_minutes !== undefined ? { reminderMinutes: a.reminder_minutes } : {}),
+    ...(a.start_at !== undefined ? { startAt: a.start_at } : {}),
+    ...(a.end_at !== undefined ? { endAt: a.end_at } : {}),
+    ...(a.meeting_url !== undefined ? { meetingUrl: a.meeting_url } : {}),
+  };
+}
+async function previewUpdateEvent(p, a) {
+  await assertMenu(p, 'qcalendar', 'write');
+  const e = await loadVisibleEvent(p, a.event_id);
+  const patch = eventPatch(a);
+  if (!Object.keys(patch).length) throw err('VALIDATION_ERROR', 'no_fields');
+  const timeChange = a.start_at !== undefined || a.end_at !== undefined;
+  const why = await editBlockReason(p, e, { timeChange });
+  if (why) throw err(why === 'only_creator_or_owner' ? 'PERMISSION_DENIED' : 'CONFLICT', why);
+  const eventNotify = require('../../eventNotify');
+  const ids = await eventNotify.recipientIdSet(e, p.userId);
+  const cur = { title: e.title, description: e.description || null, location: e.location || null, category: e.category || null,
+    reminder_minutes: e.reminder_minutes ?? null, start_at: iso(e.start_at), end_at: iso(e.end_at), meeting_url: e.meeting_url || null };
+  const keys = Object.keys(a).filter((k) => k in cur);
+  const timeOrPlace = keys.some((k) => ['start_at', 'end_at', 'location'].includes(k));
+  return {
+    event: eventItem(e),
+    before: Object.fromEntries(keys.map((k) => [k, cur[k]])),
+    after: Object.fromEntries(keys.map((k) => [k, a[k]])),
+    ...(timeOrPlace ? { notified_count: ids.size } : {}),
+  };
+}
+async function updateEventTool(p, a, actor) {
+  await assertMenu(p, 'qcalendar', 'write');
+  const e = await loadVisibleEvent(p, a.event_id);
+  const eventActions = require('../../actions/event_actions');
+  const r = await eventActions.updateEvent(actor, { businessId: p.businessId, eventId: e.id, ...eventPatch(a), via: p.provider === 'cue' ? 'cue' : 'agent' });
+  if (!r.ok) throw fromActionFailure(r);
+  return { event: eventItem(r.data.full || r.data.event), updated: true, attendees_notified: r.data.notified || 0 };
+}
+
+// ── add_meeting_to_event (MEDIUM) ──────────────────────────
+async function previewAddMeeting(p, a) {
+  await assertMenu(p, 'qcalendar', 'write');
+  const e = await loadVisibleEvent(p, a.event_id);
+  const eventActions = require('../../actions/event_actions');
+  const r = await eventActions.addMeeting({ kind: 'user', userId: p.userId, platformRole: p.platformRole }, { businessId: p.businessId, eventId: e.id, previewOnly: true });
+  if (!r.ok) throw fromActionFailure(r);
+  return { event: eventItem(e), meeting: { source: r.data.meetSource, replaces_existing: !!e.meeting_url } };
+}
+async function addMeetingTool(p, a, actor) {
+  await assertMenu(p, 'qcalendar', 'write');
+  const e = await loadVisibleEvent(p, a.event_id);
+  const eventActions = require('../../actions/event_actions');
+  const r = await eventActions.addMeeting(actor, { businessId: p.businessId, eventId: e.id });
+  if (!r.ok) throw fromActionFailure(r);
+  return { event: eventItem(r.data.full), meeting_url: r.data.full.meeting_url };
+}
+
+// ── reschedule_events (MEDIUM, 여러 건) ─────────────────────
+async function previewRescheduleEvents(p, a) {
+  await assertMenu(p, 'qcalendar', 'write');
+  const tz = await workspaceTz(p);
+  const { computeMove } = require('../../../utils/wallTime');
+  const rows = await loadVisibleEvents(p, a.moves.map((m) => m.event_id));
+  const byId = new Map(rows.map((e) => [e.id, e]));
+  const eventNotify = require('../../eventNotify');
+  const items = [];
+  for (const m of a.moves) {
+    const e = byId.get(m.event_id);
+    if (!e) continue;   // 안 보이는 일정은 제목도 말하지 않는다
+    const next = computeMove(e, m, tz);
+    const why = await editBlockReason(p, e);
+    items.push({
+      event_id: e.id, title: e.title, all_day: !!e.all_day, date: m.date, ...(m.start_time ? { start_time: m.start_time } : {}),
+      from_start: new Date(e.start_at).toISOString(), from_end: new Date(e.end_at).toISOString(),
+      to_start: next.start_at.toISOString(), to_end: next.end_at.toISOString(),
+      attendees_notified: (await eventNotify.recipientIdSet(e, p.userId)).size,
+      ...(why ? { blocked: why } : {}),
+    });
+  }
+  if (!items.length) throw err('NOT_FOUND', 'event_not_found');
+  return { timezone: tz, items };
+}
+async function rescheduleEventsTool(p, a, actor) {
+  await assertMenu(p, 'qcalendar', 'write');
+  const tz = await workspaceTz(p);
+  const { computeMove } = require('../../../utils/wallTime');
+  const eventActions = require('../../actions/event_actions');
+  const rows = await loadVisibleEvents(p, a.moves.map((m) => m.event_id));
+  const byId = new Map(rows.map((e) => [e.id, e]));
+  const moved = []; const failed = [];
+  for (const m of a.moves) {
+    const e = byId.get(m.event_id);
+    if (!e) { failed.push({ event_id: m.event_id, code: 'event_not_found' }); continue; }
+    const next = computeMove(e, m, tz);   // 새 시각은 서버가 다시 계산한다(카드가 보낸 값을 믿지 않는다)
+    const r = await eventActions.rescheduleEvent(actor, { businessId: p.businessId, eventId: e.id, startAt: next.start_at.toISOString(), endAt: next.end_at.toISOString(), via: p.provider === 'cue' ? 'cue' : 'agent' });
+    if (r.ok) moved.push(e.id); else failed.push({ event_id: e.id, code: r.code });
+  }
+  if (!moved.length) throw fromActionFailure({ code: failed[0]?.code || 'event_not_found', http: failed[0]?.code === 'event_not_found' ? 404 : 409 });
+  return { moved_event_ids: moved, failed, event: { event_id: moved[0] } };
+}
+
+module.exports = {
+  listEvents, createEvent, previewCreateEvent, previewUpdateEvent, updateEventTool, previewAddMeeting, addMeetingTool,
+  previewRescheduleEvents, rescheduleEventsTool,
+};

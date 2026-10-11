@@ -51,13 +51,22 @@ export default function CueTurnList({
               tn.actionStatus === 'done' && tn.actionResult ? (
                 <>
                   <ActionDone>
-                    <span>✓ {tn.actionResult.moved_ids
-                      ? t('qhelper.action.movedDone', { count: tn.actionResult.moved_ids.length, defaultValue: `일정 ${tn.actionResult.moved_ids.length}건을 옮겼어요` })
-                      : t('qhelper.action.done', '추가됐어요')}</span>
+                    <span>✓ {tn.actionResult.replayed
+                      ? t('qhelper.action.replayed', '이미 처리된 요청이에요')
+                      : tn.actionResult.moved_ids
+                        ? t('qhelper.action.movedDone', { count: tn.actionResult.moved_ids.length, defaultValue: `일정 ${tn.actionResult.moved_ids.length}건을 옮겼어요` })
+                        : t(`qhelper.toolDone.${tn.actionResult.tool}`, { defaultValue: t('qhelper.action.doneGeneric', '처리했어요') as string })}</span>
                     <ActionOpen type="button" onClick={() => onOpenResult(tn.actionResult!)}>
                       {t('qhelper.action.open', '열기')} ↗
                     </ActionOpen>
                   </ActionDone>
+                  {/* 화상회의를 만들지 못했으면(일정은 저장됨) · 참석자에게 알렸으면 말한다 */}
+                  {tn.actionResult.meet_warning && (
+                    <ActionNote>{t('qhelper.action.meetWarn', '일정은 저장했지만 화상회의 링크는 만들지 못했어요 — 구글 캘린더 연결을 확인해 주세요.')}</ActionNote>
+                  )}
+                  {!!tn.actionResult.notified && (
+                    <ActionNote>{t('qhelper.action.notifiedN', { count: tn.actionResult.notified, defaultValue: `참석자 ${tn.actionResult.notified}명에게 알렸어요` })}</ActionNote>
+                  )}
                   {/* 일정 옮기기 — 일부를 못 옮겼으면 조용히 넘기지 않는다 */}
                   {!!tn.actionResult.failed?.length && (
                     <ActionNote>

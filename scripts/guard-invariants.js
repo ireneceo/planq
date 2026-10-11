@@ -643,6 +643,7 @@ const CUE_FILES = [
   'dev-backend/services/cueKnowledge.js',
   'dev-backend/routes/cue.js',
   'dev-backend/routes/cue_knowledge.js',
+  'dev-backend/services/cue_tools.js',
 ];
 const FIN_MODELS = ['Invoice', 'InvoiceItem', 'InvoiceInstallment', 'InvoicePayment', 'Payment', 'ClientSubscription', 'BillEvent'];
 const FIN_SERVICES = /require\([^)]*(invoicePayments|billing|clientSubscriptionBilling|recurring_invoice|overdue_handler|stripe)[^)]*\)/i;
@@ -907,35 +908,42 @@ const CUE_TOOLS = 'dev-backend/services/cue_tools.js';
 const CUE_ROUTE = 'dev-backend/routes/cue.js';
 
 function checkCueTools() {
+  // 2026-10-12 — Cue 는 에이전트 카탈로그 어댑터다(docs/CUE_REGISTRY_FOLD_DESIGN.md · Fable DESIGN-OK).
+  //   ① 카탈로그 한 벌: cue_tools 는 registry 를 쓰고, 검증·dispatch 복사본(validateNormalize·행동 계층 require)이 없다
+  //   ② /help 는 쓰기를 실행하지 않는다: 쓰기 runTool 은 executeTool(humanConfirmed) 하나, 읽기 루프는 READ_TOOLS 만 부른다
+  //   ③ humanConfirmed 면제는 provider 'cue' 에만(execute.js)
+  //   ④ 재무 봉쇄: 재무 툴 이름·문서 kind 가 들어오지 않는다
   const bad = [];
-  // 존재 이유(스키마·실행·검증·담당자 해석) + 재무 모델 참조 0 (blockFinancial)
-  checkLayerFeatures(bad, CUE_TOOLS, [
-    ['TOOL_SCHEMAS', /TOOL_SCHEMAS/],
-    ['executeTool', /async function executeTool/],
-    ['입력 검증', /function validateNormalize/],
-    ['담당자 해석', /resolveAssignees/],
-  ]);
   const toolsFull = path.join(ROOT, CUE_TOOLS);
-  if (fs.existsSync(toolsFull)) {
-    const src = read(toolsFull);
-    // 재무 계열이 툴 카탈로그·문서 kind 에 인용부호로 들어오면 실패 (주석의 설명 텍스트는 인용부호가 없어 안 걸림)
-    if (/'(invoice|tax_invoice)'/.test(src)) {
-      bad.push(`${CUE_TOOLS}: 재무 문서 kind('invoice'/'tax_invoice') 발견 — Cue 카탈로그 재무 봉쇄 위반`);
-    }
-    if (/name:\s*'(create_invoice|create_payment|mark_paid|issue_receipt)'/i.test(src)) {
-      bad.push(`${CUE_TOOLS}: 재무 툴 이름 발견 — Cue 카탈로그 재무 봉쇄 위반`);
-    }
+  if (!fs.existsSync(toolsFull)) bad.push(`${CUE_TOOLS} 없음`);
+  else {
+    const src = stripComments(read(toolsFull));
+    if (!/require\('\.\/agent\/registry'\)/.test(src)) bad.push(`${CUE_TOOLS}: 레지스트리를 쓰지 않음 — 카탈로그가 두 벌이 된다`);
+    if (/function validateNormalize|require\(['"]\.\/actions\//.test(src)) bad.push(`${CUE_TOOLS}: 자체 검증·행동 계층 직접 호출 — 레지스트리 runTool 로만`);
+    const writeRuns = [...src.matchAll(/runTool\([^;]*?\{\s*humanConfirmed:\s*true\s*\}\)/g)];
+    if (writeRuns.length !== 1) bad.push(`${CUE_TOOLS}: humanConfirmed 실행 지점이 ${writeRuns.length}곳 — executeTool 하나여야 한다`);
+    const execFn = src.slice(src.indexOf('async function executeTool'), src.indexOf('module.exports'));
+    if (!/humanConfirmed:\s*true/.test(execFn)) bad.push(`${CUE_TOOLS}: executeTool 이 runTool(humanConfirmed) 로 실행하지 않음`);
+    const conv = src.slice(src.indexOf('async function converse'), src.indexOf('async function executeTool'));
+    if (!/READ_TOOLS\.has\(/.test(conv)) bad.push(`${CUE_TOOLS}: 읽기 루프가 READ_TOOLS 로 거르지 않음 — /help 에서 쓰기가 실행될 수 있다`);
+    if (/humanConfirmed/.test(conv)) bad.push(`${CUE_TOOLS}: 읽기 루프에 humanConfirmed — /help 는 쓰기를 실행하지 않는다`);
+    if (/'(invoice|tax_invoice)'/.test(src)) bad.push(`${CUE_TOOLS}: 재무 문서 kind 발견 — Cue 재무 봉쇄 위반`);
+    if (/'(create_invoice|create_payment|mark_paid|issue_receipt|send_[a-z_]+|delete_[a-z_]+)'/i.test(src)) bad.push(`${CUE_TOOLS}: 재무·발송·삭제 툴 이름 발견`);
   }
-  // 라우트는 행동 계층을 직접 require 하지 않는다 — 쓰기는 cue_tools 를 지나야 confirm 게이트가 산다
+  const execFull = path.join(ROOT, 'dev-backend/services/agent/execute.js');
+  if (fs.existsSync(execFull)) {
+    const es = stripComments(read(execFull));
+    if (!/humanConfirmed\s*=\s*!!opts\.humanConfirmed\s*&&\s*p\s*&&\s*p\.provider\s*===\s*'cue'/.test(es)) bad.push('services/agent/execute.js: humanConfirmed 면제가 provider cue 로 묶이지 않음 — 외부 AI 앱이 확인을 건너뛸 수 있다');
+  }
+  // 라우트는 행동 계층을 직접 require 하지 않는다 — 쓰기는 cue_tools.executeTool 을 지나야 한다
   const routeFull = path.join(ROOT, CUE_ROUTE);
   if (fs.existsSync(routeFull)) {
     const src = read(routeFull);
-    if (/require\(['"]\.\.\/services\/actions\//.test(src)) {
-      bad.push(`${CUE_ROUTE}: 행동 계층 직접 require — 쓰기는 cue_tools 경유 (confirm 게이트 우회 차단)`);
-    }
+    if (/require\(['"]\.\.\/services\/actions\//.test(src)) bad.push(`${CUE_ROUTE}: 행동 계층 직접 require — 쓰기는 cue_tools 경유`);
+    if (/runTool\(/.test(stripComments(src))) bad.push(`${CUE_ROUTE}: 라우트가 runTool 을 직접 부름 — cue_tools 경유`);
     if (!/execute-action/.test(src)) bad.push(`${CUE_ROUTE}: execute-action 라우트 소실`);
   }
-  report('cuetools', 'Cue 대화형 실행 — 쓰기 confirm 게이트 + 재무 봉쇄', bad.length === 0, bad);
+  report('cuetools', 'Cue 대화형 실행 — 카탈로그 어댑터 · /help 쓰기 0 · 확인 면제 cue 한정 · 재무 봉쇄', bad.length === 0, bad);
 }
 
 // ═══════════════════════════════════════════════
