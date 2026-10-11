@@ -10,6 +10,7 @@ import { joinRoom, leaveRoom, onSocket } from '../../services/socket';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { postContentToHtml } from '../../utils/postContentHtml';
+import { docHasContent } from '../../utils/docHasContent';
 import { sanitizeRichText } from '../../utils/sanitizeHtml';
 import HelpDot from '../Common/HelpDot';
 import AiActionButton from '../Common/AiActionButton';
@@ -789,8 +790,7 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId }) => {
       linkBaseRef.current = [...startLinks];
     }
     // 표 본문 설명 — 기존 내용이 있으면 자동 펼침, 없으면 접어두기
-    const hasContent = !!(detail.content_json && JSON.stringify(detail.content_json).length > 30);
-    setTableDescOpen(hasContent);
+    setTableDescOpen(docHasContent(detail.content_json));   // 빈 설명이면 접어 둔다(옛 «길이 > 30» 은 빈 문서도 참이었다)
     setError(null);
   };
 
@@ -2108,7 +2108,13 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId }) => {
               {dl.error && <ErrorBar>{dl.error}</ErrorBar>}
               {detail?.kind === 'table' && detail.q_record_id ? (
                 <>
-                  {/* 표 설명 — 열기/닫기 하나의 full-width 헤더 바로 통일(닫힘=헤더만, 열림=헤더+에디터). (Irene) */}
+                  {/* 표 설명 — **원할 때만**(2026-10-11 Irene: "표 설명을 원할 때만 나와야 하는 거 아니야?").
+                      닫혀 있으면 작은 «+ 표 설명 추가» 한 줄만, 열면 헤더+편집기. 설명이 이미 있으면 처음부터 열림. */}
+                  {!tableDescOpen ? (
+                    <DescAddBtn type="button" data-testid="table-desc-add" onClick={() => setTableDescOpen(true)}>
+                      + {t('tableDescAdd', { defaultValue: '표 설명 추가' }) as string}
+                    </DescAddBtn>
+                  ) : (
                   <div className="pq-fullbleed" style={{ marginTop: -16 }}>
                     <DescToggleHeader type="button" onClick={() => setTableDescOpen(v => !v)} aria-expanded={tableDescOpen}>
                       <DescBoxLabel>{t('tableDescTitle', { defaultValue: '표 설명' }) as string}</DescBoxLabel>
@@ -2128,6 +2134,7 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId }) => {
                       />
                     )}
                   </div>
+                  )}
                   {/* N+72-7 — 본문↔표 간격 (편집 모드) */}
                   <SectionGap />
                   <div className="pq-fullbleed"><PostTableGrid recordId={detail.q_record_id} businessId={scope.businessId} /></div>
@@ -2418,11 +2425,12 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId }) => {
                 {detail.kind === 'table' && detail.q_record_id ? (
                   // 표 kind — 본문 설명(있으면) + 표 그리드 (보기 모드: read-only)
                   <>
-                    {detail.content_json && (
+                    {/* 설명은 보이는 내용이 있을 때만 — 빈 설명이 빈 칸·간격으로 남지 않게 */}
+                    {docHasContent(detail.content_json) && (
                       <PostEditor value={detail.content_json} onChange={() => {}} editable={false} borderless />
                     )}
                     {/* N+72-7 — 본문↔표 사이 간격 (사용자 호소 "들러붙어 보기 안좋아") */}
-                    {detail.content_json && <SectionGap />}
+                    {docHasContent(detail.content_json) && <SectionGap />}
                     <PostTableGrid recordId={detail.q_record_id} businessId={scope.businessId} readOnly />
                   </>
                 ) : signedDoc?.has_signatures && signedDoc.html ? (
@@ -3382,6 +3390,13 @@ const CatIconBtn = styled.button<{ $danger?: boolean }>`
 
 const ErrorBar = styled.div`font-size: 0.75rem; color: #DC2626; background: #FEF2F2; padding: 8px 12px; border-radius: 6px;`;
 // 표 설명 — 열기/닫기 통합 full-width 헤더 바(라운드·이질감 제거, flat 통일). (Irene)
+const DescAddBtn = styled.button`
+  align-self: flex-start; height: 32px; padding: 0 10px; margin: -8px 0 0;
+  background: transparent; border: none; border-radius: 6px; cursor: pointer;
+  font-size: 0.8125rem; font-weight: 600; color: #64748B;
+  &:hover { background: #F1F5F9; color: #0F766E; }
+  &:focus-visible { outline: 2px solid #14B8A6; outline-offset: 2px; }
+`;
 const DescToggleHeader = styled.button`
   display: flex; align-items: center; justify-content: space-between; width: 100%;
   padding: 10px 24px; text-align: left;

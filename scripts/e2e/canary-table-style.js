@@ -162,8 +162,17 @@ async function partGrid(width, postId) {
     const viewMenus = (await page.$$('[data-testid="table-row-menu"]')).length;
     const viewBar = !!(await page.$('[data-testid="table-format-bar"]'));
     push(`${tag} ⓪ 보기 화면엔 편집 메뉴·서식 줄 없음`, viewMenus === 0 && !viewBar, `메뉴 ${viewMenus} · 서식 줄 ${viewBar}`);
+    // ⑧ 빈 표 설명(빈 문단 JSON)은 보기 화면에 빈 편집 칸으로 남지 않는다
+    const viewPM = await page.evaluate(() => [...document.querySelectorAll('.ProseMirror')].filter((e) => { const r = e.getBoundingClientRect(); return (e.checkVisibility ? e.checkVisibility() : true) && r.width > 0 && r.height > 0; }).length);
+    push(`${tag} ⑧ 보기 화면: 빈 표 설명 칸 없음`, viewPM === 0, `보이는 편집 영역 ${viewPM}`);
     await clickVisible(page, '[data-testid="post-edit"]');
     await sleep(2200);
+    // ⑧ 편집 화면: 설명이 비어 있으면 편집기 대신 «+ 표 설명 추가» 만 — 누르면 그때 편집기
+    const editPM0 = await page.evaluate(() => [...document.querySelectorAll('.ProseMirror')].filter((e) => { const r = e.getBoundingClientRect(); return (e.checkVisibility ? e.checkVisibility() : true) && r.width > 0 && r.height > 0; }).length);
+    const addBtn = !!(await page.$('[data-testid="table-desc-add"]'));
+    let editPM1 = -1;
+    if (addBtn) { await clickVisible(page, '[data-testid="table-desc-add"]'); await sleep(600); editPM1 = await page.evaluate(() => [...document.querySelectorAll('.ProseMirror')].filter((e) => { const r = e.getBoundingClientRect(); return (e.checkVisibility ? e.checkVisibility() : true) && r.width > 0 && r.height > 0; }).length); }
+    push(`${tag} ⑧ 편집 화면: 설명은 원할 때만(버튼 → 편집기)`, editPM0 === 0 && addBtn && editPM1 === 1, `처음 편집 영역 ${editPM0} · 추가 버튼 ${addBtn} · 누른 뒤 ${editPM1}`);
     const rows = () => page.evaluate(() => [...document.querySelectorAll('[data-testid^="table-cell-"]')].filter((e) => e.offsetParent !== null)
       .reduce((m, td) => { const i = td.getAttribute('data-testid').split('-')[2]; m[i] = (m[i] || 0) + 1; return m; }, {}));
     const firstColTexts = () => page.evaluate(() => [...document.querySelectorAll('tbody tr')].filter((e) => e.offsetParent !== null)
@@ -240,6 +249,8 @@ async function run() {
     const docId = d.data && d.data.id; const gridId = g.data && g.data.id;
     if (docId) made.push(docId); if (gridId) made.push(gridId);
     const recId = g.data && g.data.q_record_id;
+    // 빈 설명 = 빈 문단 하나(편집기가 저장하는 모양) — 옛 판정이 «내용 있음» 으로 읽던 바로 그 값
+    if (gridId) await api(`/api/posts/${gridId}`, { method: 'PUT', body: JSON.stringify({ content_json: { type: 'doc', content: [{ type: 'paragraph' }] } }) }, tok);
     if (!docId || !gridId || !recId) { push('픽스처 만들기', false, JSON.stringify({ d: !!docId, g: !!gridId, recId })); return results; }
     const rec = await api(`/api/records/${recId}`, {}, tok);
     const cols = rec.data.columns.map((c, i) => (i === 0 ? { ...c, name: 'zqColA' } : i === 1 ? { ...c, name: 'zqColB' } : c));

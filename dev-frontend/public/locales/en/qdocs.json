@@ -1027,5 +1027,6 @@
     },
     "btn": "AI edit",
     "btnHint": "Tell AI what to change — you see every change before it is applied"
-  }
+  },
+  "tableDescAdd": "Add table description"
 }
