@@ -127,8 +127,8 @@
       "verified": "opus_only"
     },
     {
-      "title": "고객 프로젝트 링크 — 개요 기본정보·업무 통계·주요 이슈·히스토리 탭·파일 «보기»(이미지·PDF)(9c08b7a7) — Fable 1차 FAIL(운영 poppler 없음), 코드 지적 수정 · 운영 설치 후 재판정",
-      "verified": "opus_only"
+      "title": "고객 프로젝트 링크 — 개요 기본정보·업무 통계·주요 이슈·히스토리 탭·파일 «보기»(이미지·PDF)(9c08b7a7) — Fable 1차 FAIL(운영 poppler 없음) → 코드 수정 · Irene 운영 poppler-utils 설치 → 재판정 PASS",
+      "verified": "fable_pass"
     }
   ],
   "behavior_changes": [
