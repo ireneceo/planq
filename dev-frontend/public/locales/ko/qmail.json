@@ -293,7 +293,9 @@
     "aliasHelpUnregistered": "이 고객은 {{addr}} 주소로 메일을 보냈습니다. 이 주소를 별칭으로 등록하면 답장도 그 주소에서 발송됩니다.",
     "aiFailed": "AI 제안 생성 실패",
     "aiNoInbound": "답장할 받은 메일이 없어요.",
-    "aiUnavailable": "AI 서비스를 잠시 사용할 수 없어요."
+    "aiUnavailable": "AI 서비스를 잠시 사용할 수 없어요.",
+    "cueAdvice": "Cue 의견 듣기",
+    "cueAdviceHint": "Cue 가 이 메일을 보고 다음에 할 일을 정리해 줘요"
   },
   "errors": {
     "loadList": "인박스 로딩 실패"
@@ -353,7 +355,8 @@
     "cueTitle": "Cue 에게 묻기",
     "cueEmpty": "이 메일 내용을 그대로 물어보세요. 업무·일정 추가도 여기서 됩니다.",
     "refreshSummary": "새 메일 반영",
-    "summaryUpToDate": "최신 상태"
+    "summaryUpToDate": "최신 상태",
+    "cueAdviceAsk": "이 메일을 받고 내가 다음에 무엇을 하면 좋을지 의견을 줘. 답장 말고도 챙길 일(업무·일정·고객 기록·확인할 것)을 우선순위대로 3~5줄로 짧게 정리해 줘. 이 메일로 이미 만든 업무가 있으면 먼저 짚고, 바로 만들 만한 것이 있으면 카드로 제안해 줘."
   },
   "accounts": {
     "all": "메일 전체",

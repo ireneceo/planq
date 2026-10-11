@@ -143,7 +143,10 @@ async function getConversationHistory(conversationId, limit = HISTORY_TURN_LIMIT
 //     이 함수는 "허용된 id" 만 받는다는 계약이다.
 const THREAD_MSG_LIMIT = 10;
 const THREAD_MSG_CHARS = 300;
-async function getEmailThreadSnapshot(threadId, businessId) {
+// 마지막으로 받은 메일은 더 길게 — «다음에 무엇을 해야 하나» 는 대개 그 메일의 요청 문장에 있다.
+//   300자로 자르면 인사말만 남고 정작 요청이 잘린다.
+const THREAD_LAST_IN_CHARS = 1500;
+async function getEmailThreadSnapshot(threadId, businessId, { userId = null, scope = null } = {}) {
   if (!threadId) return null;
   try {
     const { EmailThread, EmailMessage } = require('../models');
@@ -161,13 +164,31 @@ async function getEmailThreadSnapshot(threadId, businessId) {
     const lastIn = msgs.find((m) => m.direction === 'inbound');
     const { detectLang } = require('./emailBodyClean');
     const language = lastIn ? detectLang(String(lastIn.body_text || ''), 'ko', th.subject) : null;
+    // 이 메일로 이미 만든 업무 — 다음 할 일을 물을 때 같은 업무를 또 제안하지 않게.
+    //   보이는지는 업무 읽기와 같은 술어(canAccessTask)로 거른다. 질문자를 모르면 싣지 않는다(fail-closed).
+    let tasks = [];
+    if (userId && scope) {
+      try {
+        const { Task } = require('../models');
+        const { canAccessTask } = require('../middleware/access_scope');
+        const rows = await Task.findAll({
+          where: { business_id: businessId, email_thread_id: threadId },
+          attributes: ['id', 'title', 'status', 'due_date', 'assignee_id', 'created_by', 'request_by_user_id',
+            'business_id', 'project_id', 'conversation_id', 'client_id'],
+          order: [['id', 'DESC']], limit: 8,
+        });
+        for (const r of rows) {
+          if (await canAccessTask(userId, r, scope)) tasks.push({ id: r.id, title: r.title, status: r.status, due_date: r.due_date });
+        }
+      } catch (e) { console.warn('[cue_context] thread tasks', e.message); }
+    }
     return {
-      id: th.id, subject: th.subject, status: th.status, reply_needed: th.reply_needed, language,
+      id: th.id, subject: th.subject, status: th.status, reply_needed: th.reply_needed, language, tasks,
       messages: msgs.reverse().map((m) => ({
         direction: m.direction,
         who: m.from_name || m.from_email || '(발신자 미상)',
         at: m.sent_at,
-        text: snip(String(m.body_text || '').replace(/\s+/g, ' ').trim(), THREAD_MSG_CHARS),
+        text: snip(String(m.body_text || '').replace(/\s+/g, ' ').trim(), m === lastIn ? THREAD_LAST_IN_CHARS : THREAD_MSG_CHARS),
       })).filter((m) => m.text),
     };
   } catch (e) { console.warn('[cue_context] thread snapshot', e.message); return null; }
@@ -1083,7 +1104,7 @@ function composeMarkdown({ history, project, client, kb, userSnap, matches, over
       // ── 업무 마감일 (화면의 세 번째 겹) ──
       if (sched?.dueTasks?.length) {
         parts.push(`- 마감 임박 업무 (7일 내, ${sched.dueTasks.length}건):`);
-        sched.dueTasks.forEach((t) => parts.push(`  · ${t.title} — 마감 ${String(t.due_date).slice(0, 10)} (${label('task', t.status)})`));
+        sched.dueTasks.forEach((t) => parts.push(`  · ${t.title} — 마감 ${require('../utils/dateOnly').dateOnlyOf(t.due_date)} (${label('task', t.status)})`));
       } else if (sched) {
         parts.push('- 마감 임박 업무 (7일 내): 없음 (조회됨)');
       }
@@ -1330,6 +1351,10 @@ function composeMarkdown({ history, project, client, kb, userSnap, matches, over
       parts.push(m.text);
     });
     parts.push('<<<메일 끝>>>');
+    if (thread.tasks?.length) {
+      parts.push(`[이 메일로 이미 만든 업무 ${thread.tasks.length}건 — 다음 할 일을 제안할 때 같은 업무를 또 만들자고 하지 말 것]`);
+      thread.tasks.forEach((t) => parts.push(`- #${t.id} ${t.title} (${label('task', t.status)}${t.due_date ? `, 마감 ${require('../utils/dateOnly').dateOnlyOf(t.due_date)}` : ''})`));
+    }
     parts.push('');
   }
 
@@ -1355,7 +1380,7 @@ async function buildCueContext({ businessId, conversationId, emailThreadId = nul
   const historyP = getConversationHistory(conversationId).catch(() => []);
   // 1-b. 메일 스레드 스냅샷 (#227) — 내부 화면에서만. 외부 유입 텍스트라 audience 를 가린다.
   const threadP = (emailThreadId && audience === 'internal')
-    ? getEmailThreadSnapshot(emailThreadId, businessId).catch(() => null)
+    ? getEmailThreadSnapshot(emailThreadId, businessId, { userId, scope }).catch(() => null)
     : Promise.resolve(null);
   // 2. 프로젝트 스냅샷 — 질문자 권한 scope 관통 (없으면 fail-closed)
   const projectP = projectId ? getProjectSnapshot(projectId, businessId, scope).catch(() => null) : Promise.resolve(null);

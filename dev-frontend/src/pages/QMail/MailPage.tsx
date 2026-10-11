@@ -35,7 +35,7 @@ import AttachmentField from '../../components/Common/AttachmentField';
 import ActionButton from '../../components/Common/ActionButton';
 import PlanQSelect from '../../components/Common/PlanQSelect';
 import { uploadMyFile } from '../../services/files';
-import MailContextPanel, { requestExtractTasks } from './MailContextPanel';
+import MailContextPanel, { requestExtractTasks, requestCueAdvice } from './MailContextPanel';
 import RecipientInput from './RecipientInput';
 import { useInlineCidImages } from './useInlineCidImages';
 import { displayName, type NameLocalizable } from '../../utils/displayName';
@@ -3155,6 +3155,25 @@ const MailPage: React.FC = () => {
                           : (t('reply.aiDraft', { defaultValue: 'AI 답변 초안' }) as string)}
                         title={t('reply.aiHint', { defaultValue: 'AI 가 이 메일의 답장 초안을 써줍니다' }) as string}
                       />
+                    )}
+                    {/* Cue 의견 듣기 — 답장 말고 «이 메일 받고 다음에 뭘 하지» 를 바로 묻는다(Irene 2026-10-12).
+                        새로 만들지 않는다: 맥락 패널의 [Cue 에게 묻기] 칸을 펴고 정해진 질문을 보낸다.
+                        제안된 업무·일정은 그 칸의 확인 카드로 나온다(누르기 전엔 아무것도 만들지 않는다).
+                        고객·게스트는 이 화면에 오지 않는다(메일은 멤버 이상). */}
+                    {ctxAvailable && (
+                      <ActionButton
+                        tone="secondary"
+                        size="md"
+                        data-testid="mail-cue-advice"
+                        onClick={() => {
+                          if (ctxNarrow) setCtxOverlayOpen(true);
+                          else if (rightCollapsed) toggleRightCollapsed();
+                          requestCueAdvice(detail.id);
+                        }}
+                        title={t('reply.cueAdviceHint', { defaultValue: 'Cue 가 이 메일을 보고 다음에 할 일을 정리해 줘요' }) as string}
+                      >
+                        {t('reply.cueAdvice', { defaultValue: 'Cue 의견 듣기' }) as string}
+                      </ActionButton>
                     )}
                   </ReplyBar>
                 ) : (

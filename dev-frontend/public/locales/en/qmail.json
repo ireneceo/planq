@@ -293,7 +293,9 @@
     "aliasHelpUnregistered": "This customer wrote to {{addr}}. Register it as an alias and your reply will be sent from that address too.",
     "aiFailed": "Couldn't generate an AI suggestion",
     "aiNoInbound": "There's no received email to reply to.",
-    "aiUnavailable": "The AI service is temporarily unavailable."
+    "aiUnavailable": "The AI service is temporarily unavailable.",
+    "cueAdvice": "Ask Cue what's next",
+    "cueAdviceHint": "Cue reads this email and suggests what to do next"
   },
   "errors": {
     "loadList": "Failed to load inbox"
@@ -353,7 +355,8 @@
     "cueTitle": "Ask Cue",
     "cueEmpty": "Ask about this email. You can add tasks and events here too.",
     "refreshSummary": "Update with new mail",
-    "summaryUpToDate": "Up to date"
+    "summaryUpToDate": "Up to date",
+    "cueAdviceAsk": "I just got this email. What should I do next? Beyond replying, list what to take care of (tasks, schedule, client notes, things to check) in priority order, in 3–5 short lines. If tasks were already made from this email, mention them first, and propose anything worth creating right away as a card."
   },
   "accounts": {
     "all": "All mailboxes",

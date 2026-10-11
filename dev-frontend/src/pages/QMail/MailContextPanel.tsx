@@ -74,6 +74,14 @@ export function requestExtractTasks(threadId: number) {
   window.dispatchEvent(new CustomEvent('qmail:extract-tasks', { detail: { threadId } }));
 }
 
+// [Cue 의견 듣기] — 업무 추출과 같은 이유(#377)로 요청을 모듈 스코프에 남긴다. 접혀 있던 패널이 늦게 떠도 받는다.
+let pendingCueAdvice: { threadId: number; at: number } | null = null;
+let cueAdviceSeq = 0;
+export function requestCueAdvice(threadId: number) {
+  pendingCueAdvice = { threadId, at: Date.now() };
+  window.dispatchEvent(new CustomEvent('qmail:cue-advice', { detail: { threadId } }));
+}
+
 const MailContextPanel: React.FC<Props> = ({ businessId, thread, members, myUserId, onLinked }) => {
   const { t } = useTranslation('qmail');
   const { formatTimeAgo } = useTimeFormat();
@@ -240,6 +248,24 @@ const MailContextPanel: React.FC<Props> = ({ businessId, thread, members, myUser
     extract();
   }, [thread.id, extract]);
 
+  // [Cue 의견 듣기] — 칸을 펴고 정해진 질문을 한 번 보낸다(보내는 것은 CuePanelSection).
+  const [cueOpen, setCueOpen] = useState(false);
+  const [cueAsk, setCueAsk] = useState<{ key: number; text: string; threadId: number } | null>(null);
+  const consumePendingCueAdvice = useCallback(() => {
+    if (!pendingCueAdvice || pendingCueAdvice.threadId !== thread.id) return;
+    if (Date.now() - pendingCueAdvice.at > PENDING_EXTRACT_TTL_MS) { pendingCueAdvice = null; return; }
+    pendingCueAdvice = null;
+    cueAdviceSeq += 1;
+    setCueOpen(true);
+    setCueAsk({ key: cueAdviceSeq, threadId: thread.id, text: t('context.cueAdviceAsk', { defaultValue: '이 메일을 받고 내가 다음에 무엇을 하면 좋을지 의견을 줘. 답장 말고도 챙길 일(업무·일정·고객 기록·확인할 것)을 우선순위대로 3~5줄로 짧게 정리해 줘. 이 메일로 이미 만든 업무가 있으면 먼저 짚고, 바로 만들 만한 것이 있으면 카드로 제안해 줘.' }) as string });
+  }, [thread.id, t]);
+  useEffect(() => { consumePendingCueAdvice(); }, [consumePendingCueAdvice]);
+  useEffect(() => {
+    const on = () => consumePendingCueAdvice();
+    window.addEventListener('qmail:cue-advice', on);
+    return () => window.removeEventListener('qmail:cue-advice', on);
+  }, [consumePendingCueAdvice]);
+
   // ① 늦게 마운트된 경우 — 접혀 있던 패널이 이제서야 뜬 경로 (#377 의 실제 회귀)
   useEffect(() => { consumePendingExtract(); }, [consumePendingExtract]);
   // ② 이미 떠 있던 경우 — window 이벤트로 즉시 깨운다 (같은 탭 안 안전망, CLAUDE.md 16-e)
@@ -393,8 +419,10 @@ const MailContextPanel: React.FC<Props> = ({ businessId, thread, members, myUser
       {/* #227 — Cue 에게 묻기. 스레드를 보면서 그대로 물을 수 있다(서버가 `?thread=` 로 읽는다).
           ★ 이 패널은 접으면 **언마운트된다** — 대화 보존은 CuePanelSection 의 캐시가 맡는다.
             (같은 파일 #377 주석이 이미 이 함정을 박제하고 있다.) */}
-      <WorkbenchSection title={t('context.cueTitle', { defaultValue: 'Cue 에게 묻기' }) as string} defaultOpen={false}>
+      <WorkbenchSection title={t('context.cueTitle', { defaultValue: 'Cue 에게 묻기' }) as string} open={cueOpen} onToggle={() => setCueOpen((v) => !v)}>
         <CuePanelSection
+          // 그 메일에 건넨 질문만 — 다른 메일로 옮기면 옛 질문이 새 메일로 가지 않는다.
+          autoAsk={cueAsk && cueAsk.threadId === thread.id ? cueAsk : null}
           surface="qmail"
           subjectId={thread.id}
           location={{ pathname: chromeLoc.pathname, search: chromeLoc.search }}

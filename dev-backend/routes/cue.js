@@ -275,18 +275,22 @@ router.post('/help', authenticateToken, ...helpLimiter, async (req, res, next) =
             } catch (e) { console.warn('[cue] conv 접근검사', e.message); }
           }
           let allowedThreadId = null;
+          let threadLink = null;   // 볼 수 있는 메일이 연결된 고객·프로젝트 — 다음 할 일 판단의 근거
           if (threadMatch) {
             try {
               const { EmailThread } = require('../models');
               const { accessibleAccountIds } = require('../services/mailIdentity');
               const th = await EmailThread.findOne({
                 where: { id: Number(threadMatch[1]), business_id: businessId },
-                attributes: ['id', 'account_id'],
+                attributes: ['id', 'account_id', 'client_id', 'project_id'],
               });
               if (th) {
                 const acctIds = await accessibleAccountIds(businessId, req.user.id);
                 // 남의 **개인** 메일함(owner_user_id 가 타인)은 구조적으로 제외된다.
-                if (acctIds.includes(th.account_id)) allowedThreadId = th.id;
+                if (acctIds.includes(th.account_id)) {
+                  allowedThreadId = th.id;
+                  threadLink = { clientId: th.client_id || null, projectId: th.project_id || null };
+                }
               }
             } catch (e) { console.warn('[cue] thread 접근검사', e.message); }
           }
@@ -295,8 +299,10 @@ router.post('/help', authenticateToken, ...helpLimiter, async (req, res, next) =
             businessId,
             conversationId: allowedConvId,
             emailThreadId: allowedThreadId,
-            projectId: projMatch ? Number(projMatch[1]) : null,
-            clientId: clientMatch ? Number(clientMatch[1]) : null,
+            // 메일을 보며 묻는데 화면 주소에 프로젝트·고객이 없으면 그 메일에 연결된 것을 쓴다(맥락 패널이 보여 주는 것과 같다).
+            //   스냅샷은 각자 질문자 scope 로 다시 거른다(프로젝트 fail-closed · 고객 재무는 권한자만).
+            projectId: projMatch ? Number(projMatch[1]) : (threadLink?.projectId || null),
+            clientId: clientMatch ? Number(clientMatch[1]) : (threadLink?.clientId || null),
             userId: req.user.id,
             query: retrievalQuery,
             businessTimezone: biz?.timezone || null,

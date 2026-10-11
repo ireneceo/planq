@@ -895,7 +895,7 @@ export const DetailFooter = styled.div`
   --pq-sticky-top: -14px;
 `;
 export const ReplyBar = styled.div`
-  display: flex; align-items: center; justify-content: flex-start; gap: 8px;
+  display: flex; align-items: center; justify-content: flex-start; gap: 8px; flex-wrap: wrap;
   padding: 0; border: none; background: transparent;
 `;
 export const Composer = styled.div`

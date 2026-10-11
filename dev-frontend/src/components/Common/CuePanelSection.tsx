@@ -69,9 +69,14 @@ interface Props {
   /** 빈 상태 안내 문구 */
   placeholder?: string;
   testId?: string;
+  /**
+   * 바깥 버튼이 «이걸 물어봐» 를 건넬 때(메일 [Cue 의견 듣기]). key 가 바뀔 때마다 한 번 보낸다.
+   *   대화 복원(restored)이 끝난 뒤에 보낸다 — 먼저 보내면 복원이 그 대화를 덮는다.
+   */
+  autoAsk?: { key: number; text: string } | null;
 }
 
-export default function CuePanelSection({ surface, subjectId, location, contextParam, placeholder, testId }: Props) {
+export default function CuePanelSection({ surface, subjectId, location, contextParam, placeholder, testId, autoAsk = null }: Props) {
   const { t } = useTranslation('common');
   const { t: tErr } = useTranslation('errors');
   const { user } = useAuth();
@@ -118,6 +123,18 @@ export default function CuePanelSection({ surface, subjectId, location, contextP
     setRestored(true);
   }, [cacheKey, setTurns]);
 
+  // 바깥에서 건넨 질문 — key 당 한 번만. 보낸 뒤 입력줄이 보이게 이 칸을 화면 안으로 데려온다.
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const askedKeyRef = useRef<number | null>(null);
+  const { submit, submitting } = chat;
+  useEffect(() => {
+    if (!autoAsk || !restored || submitting) return;
+    if (askedKeyRef.current === autoAsk.key) return;
+    askedKeyRef.current = autoAsk.key;
+    void submit(autoAsk.text);
+    wrapRef.current?.scrollIntoView({ block: 'nearest' });
+  }, [autoAsk, restored, submitting, submit]);
+
   const onKey = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     // ★ 채팅 입력은 Enter 전송 · Shift+Enter 줄바꿈 (Irene 2026-09-03: "채팅솔루션들 모두 엔터가
     //   보내기야 … 이거 모든 입력란에 통일하자"). Q talk · Cue 드로어 · Q note 질문줄 ·
@@ -133,7 +150,7 @@ export default function CuePanelSection({ surface, subjectId, location, contextP
   }, [chat]);
 
   return (
-    <Wrap data-testid={testId}>
+    <Wrap ref={wrapRef} data-testid={testId}>
       {restored && chat.turns.length === 0 && (
         <Empty>{placeholder || (t('cuePanel.empty', '보고 있는 내용을 그대로 물어보세요. 업무·일정 추가도 여기서 됩니다.') as string)}</Empty>
       )}
