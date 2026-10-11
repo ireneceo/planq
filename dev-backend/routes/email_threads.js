@@ -1687,9 +1687,17 @@ router.post('/:businessId/email-threads/:id/ai-suggest', // audit-exempt: 답장
       // 빈 초안 — 조용히 성공으로 내보내면 화면이 아무 말도 못 한다(2026-09-16).
       if (out.error === 'ai_empty') return errorResponse(res, 'ai_empty', 422);
 
+      // 맺음 이름 — 이 답장이 실제로 나갈 신원(화면이 고른 보내는 주소)에서, 메일 언어로. 서명이 붙으면 이름은 서명이 싣는다.
+      const mailClosing = require('../services/mailClosing');
+      const fromAliasId = Number((req.body || {}).from_alias_id) || null;
+      const closing = await mailClosing.closingFor({
+        businessId, userId: req.user.id, threadId, fromAliasId, draftText: out.content, language,
+      });
+      const body = mailClosing.applyClosing(out.content, closing, language);
+
       // 텍스트 → 안전한 HTML (문단/줄바꿈)
       const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-      const html = (out.content || '').trim().split(/\n{2,}/).map(p => `<p>${esc(p).replace(/\n/g, '<br>')}</p>`).join('');
+      const html = body.trim().split(/\n{2,}/).map(p => `<p>${esc(p).replace(/\n/g, '<br>')}</p>`).join('');
 
       return successResponse(res, { suggestion: html, usage: out.usage, faq_used: faqSources.length > 0, faq_sources: faqSources });
     } catch (err) { next(err); }
@@ -1735,8 +1743,17 @@ router.post('/:businessId/email-threads/ai-compose', // audit-exempt: 새 메일
       if (out.error === 'usage_limit_exceeded') return errorResponse(res, 'cue_usage_limit_exceeded', 429);
       if (out.error === 'llm_unavailable') return errorResponse(res, 'ai_unavailable', 503);
 
+      // 맺음 이름 — 새 메일이 나갈 계정·보내는 주소에서(답장과 같은 함수). 계정을 안 주면 첫 접근 계정.
+      const mailClosing = require('../services/mailClosing');
+      const closing = await mailClosing.closingFor({
+        businessId, userId: req.user.id,
+        accountId: Number((req.body || {}).account_id) || null,
+        fromAliasId: Number((req.body || {}).from_alias_id) || null,
+        draftText: out.content, language,
+      });
+      const body = mailClosing.applyClosing(out.content, closing, language);
       const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-      const html = (out.content || '').trim().split(/\n{2,}/).map(p => `<p>${esc(p).replace(/\n/g, '<br>')}</p>`).join('');
+      const html = body.trim().split(/\n{2,}/).map(p => `<p>${esc(p).replace(/\n/g, '<br>')}</p>`).join('');
       return successResponse(res, { suggestion: html, usage: out.usage });
     } catch (err) { next(err); }
   }

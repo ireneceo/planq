@@ -26,9 +26,12 @@ interface Props {
    *  시스템이 채운 값이라 자동저장이 사용자 초안을 덮어쓴다 (feedback_system_filled_not_user_input) */
   onBody: (html: string) => void;
   onError: (msg: string | null) => void;
+  /** 보낼 계정·주소 — 맺음 이름을 이 메일이 실제로 나갈 신원에 맞춘다(서버 services/mailClosing) */
+  accountId?: number | null;
+  fromAliasId?: number | null;
 }
 
-export default function ComposeAiRow({ businessId, to, subject, body, isEmptyBody, sending, onBody, onError }: Props) {
+export default function ComposeAiRow({ businessId, to, subject, body, isEmptyBody, sending, onBody, onError, accountId, fromAliasId }: Props) {
   const { t } = useTranslation('qmail');
   const [busy, setBusy] = useState(false);
   const [instruction, setInstruction] = useState('');
@@ -47,6 +50,8 @@ export default function ComposeAiRow({ businessId, to, subject, body, isEmptyBod
           to: to || undefined,
           subject: subject || undefined,
           current_draft: isEmptyBody ? undefined : body,
+          account_id: accountId || undefined,
+          from_alias_id: fromAliasId || undefined,
         }),
       });
       const j = await r.json();
@@ -66,7 +71,7 @@ export default function ComposeAiRow({ businessId, to, subject, body, isEmptyBod
     } finally {
       setBusy(false);
     }
-  }, [businessId, busy, instruction, to, subject, body, isEmptyBody, onBody, onError, t]);
+  }, [businessId, busy, instruction, to, subject, body, isEmptyBody, onBody, onError, t, accountId, fromAliasId]);
 
   return (
     <AiInstructionRow>

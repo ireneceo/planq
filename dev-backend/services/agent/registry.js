@@ -423,7 +423,7 @@ const TOOLS = [
     description: 'Save a reply draft (plain text, optionally with PlanQ files attached) for a mail thread in PlanQ. Nothing is sent: the user opens the returned url, checks the recipients PlanQ fills in from the thread, and sends it themselves. You cannot set recipients, sender or subject. If a draft already exists for the thread it is never overwritten (CONFLICT draft_exists).',
     input: {
       thread_id: z.number().int().positive(),
-      body_text: z.string().trim().min(1).max(5000).describe('Reply body as plain text (no HTML)'),
+      body_text: z.string().trim().min(1).max(5000).describe('Reply body as plain text (no HTML), in the language of the thread. End with a closing phrase such as "Best regards," and write no name or signature after it — PlanQ adds the sender\'s name or signature for the address the reply goes out from.'),
       file_ids: z.array(z.number().int().positive()).max(10).optional().describe('PlanQ files (file_id from list_files or upload_file) to attach to the draft. Still not sent — the user sends it.'),
       idempotency_key: idem,
     },

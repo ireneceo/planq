@@ -147,7 +147,11 @@ export default function CuePanelSection({ surface, subjectId, location, contextP
             onActionExecuted={chat.onActionExecuted}
             onActionDismiss={chat.onActionDismiss}
             // ★ 새 탭 — 보던 채팅·메일을 덮지 않는다.
-            onOpenResult={(r) => tabStore.openInNewTab(cueActionDeepLink(r))}
+            // 단, 메일 화면 옆 패널에서 만든 답장 초안은 **보던 그 메일**의 답장창으로 연다 — 새 탭으로 보내면
+            //   보던 메일은 그대로라 «어디에 들어갔는지 모르겠다» 가 된다(2026-10-12).
+            onOpenResult={(r) => (r.entity_type === 'mail_draft' && location.pathname.startsWith('/mail')
+              ? tabStore.navigateActive(cueActionDeepLink(r))
+              : tabStore.openInNewTab(cueActionDeepLink(r)))}
           />
         </Scroll>
       )}

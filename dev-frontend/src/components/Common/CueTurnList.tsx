@@ -88,7 +88,13 @@ export default function CueTurnList({
                 <CueActionCard
                   proposal={tn.proposedAction}
                   businessId={businessId}
-                  onExecuted={(r) => onActionExecuted(i, r)}
+                  onExecuted={(r) => {
+                    onActionExecuted(i, r);
+                    // ★ 메일 답장 초안은 만든 곳으로 바로 데려간다 (2026-10-12, Irene: *"쓴 후에 보이는 곳이 자동으로
+                    //   작성한 곳이어야 하는데 그냥 있던 곳에 머물러서 어디에 들어갔는지 모르겠어"*).
+                    //   초안은 보내기 전에 사람이 받는 사람·본문을 봐야 끝나는 일이라, 거기까지 가야 일이 이어진다.
+                    if (r.entity_type === 'mail_draft' && !r.replayed) onOpenResult(r);
+                  }}
                   onDismiss={() => onActionDismiss(i)}
                 />
               )

@@ -460,7 +460,10 @@ async function generateEmailReplyDraft(businessId, { businessName, subject, late
     + `e.g. the first name from their sign-off such as "Regards, Haniff Ramli" → "Dear Haniff,"); in Korean "<이름>님," `
     + `(직함을 서명에 썼으면 "<이름> <직함>님,"). Take the name from their sign-off in the incoming email first, then from the sender name given below. `
     + `If no name is known at all, use a neutral greeting ("Hello," / "안녕하세요,") — never a placeholder like [Name] and never a guessed name. `
-    + `Output ONLY the reply body text — no subject line, no signature.`;
+    + `Output ONLY the reply body text — no subject line, no signature. `
+    // ★ 2026-10-12 — 맺음 이름은 모델이 쓰지 않는다(services/mailClosing). 옛 프롬프트는 이름을 안 주고 «no signature» 만
+    //   있어 모델이 워크스페이스 이름 등을 지어 붙였다 — 영문 메일에 «워프로랩 드림». 이름은 서버가 나갈 신원에서 붙인다.
+    + require('./mailClosing').closingPromptFor(language);
   if (recipientName) systemPrompt += `\n\nSender of the incoming email (display name from the mail header): ${String(recipientName).slice(0, 120)}`;
   // 대화 흐름(누가 무엇을 말했는지)을 준다 — 마지막 받은 메일 한 통만으로는 우리가 무엇을 물었는지 모른다.
   if (threadContext) {
@@ -526,7 +529,8 @@ async function generateEmailComposeDraft(businessId, { businessName, instruction
     + `Write a concise, professional email body in ${lang}. `
     + `Base it ONLY on the user's instruction — do NOT invent facts, prices, dates, commitments, or a prior conversation `
     + `that was not described. If a detail is needed but unknown, leave a clearly marked blank like "( )" rather than making it up. `
-    + `Output ONLY the email body text — no subject line, no signature block.`;
+    + `Output ONLY the email body text — no subject line, no signature block. `
+    + require('./mailClosing').closingPromptFor(language);   // 맺음 이름은 서버가 붙인다(위 답장과 같은 규칙)
   if (currentDraft) {
     systemPrompt += `\n\nThe user already has a draft. Revise it according to the instruction, keeping what still applies.`;
   }

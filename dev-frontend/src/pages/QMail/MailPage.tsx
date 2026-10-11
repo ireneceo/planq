@@ -1411,6 +1411,22 @@ const MailPage: React.FC = () => {
 
   // ── 답장 컴포저 ──
   const [replyOpen, setReplyOpen] = useState(false);
+  // 답장창 안에서 초안이 들어간 자리(에디터 머리)로 스크롤하라는 신호 — AI 초안·Cue 초안을 채운 뒤 올린다.
+  const [replyScrollTick, setReplyScrollTick] = useState(0);
+  const replyComposerRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!replyScrollTick) return;
+    const id = requestAnimationFrame(() => {
+      const c = replyComposerRef.current;
+      const ed = c?.querySelector('.pq-rich-editor');
+      const footer = c?.closest('[data-pq-writing]') as HTMLElement | null;
+      if (!ed || !footer) return;
+      footer.scrollTop += ed.getBoundingClientRect().top - footer.getBoundingClientRect().top - 8;
+    });
+    return () => cancelAnimationFrame(id);
+  }, [replyScrollTick]);
+  // 보내는 주소의 최신값 — aiSuggest 가 선언보다 앞에 있어 상태를 직접 못 읽는다(아래 fromAliasId 선언 뒤에서 맞춘다).
+  const fromAliasRef = useRef<number | null>(null);
   const [replyHtml, setReplyHtml] = useState('');
   const [replyUploads, setReplyUploads] = useState<File[]>([]);
   const [replyFileIds, setReplyFileIds] = useState<number[]>([]);
@@ -1454,9 +1470,11 @@ const MailPage: React.FC = () => {
     try {
       const r = await apiFetch(`/api/businesses/${businessId}/email-threads/${detail.id}/ai-suggest`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(instruction
-          ? { instruction, current_draft: replyHtml || undefined }
-          : {}),
+        // 보내는 주소 — 맺음 이름을 이 답장이 실제로 나갈 신원에 맞춘다(서버 services/mailClosing)
+        body: JSON.stringify({
+          ...(instruction ? { instruction, current_draft: replyHtml || undefined } : {}),
+          ...(fromAliasRef.current ? { from_alias_id: fromAliasRef.current } : {}),
+        }),
       });
       const j = await r.json();
       if (!j.success) {
@@ -1482,7 +1500,9 @@ const MailPage: React.FC = () => {
         return;
       }
       // ★ 빈 초안이 와도 **말한다.** 예전엔 여기서 조용히 지나가 "아무 반응 없음" 이 됐다.
-      if (j.data?.suggestion) { setReplyHtml(j.data.suggestion); setAiNeedsInstruction(false); }
+      // ★ 채운 자리로 데려간다 — [AI 초안 다시 생성] 은 답장창 맨 아래라, 그 자리에 머물면 새 초안이 위쪽 화면 밖에서
+      //   바뀌어 «어디에 들어갔는지 모르겠다» 가 된다(2026-10-12 Irene).
+      if (j.data?.suggestion) { setReplyHtml(j.data.suggestion); setAiNeedsInstruction(false); setReplyScrollTick((n) => n + 1); }
       else {
         setReplyError(t('reply.aiEmpty', {
           defaultValue: 'AI 가 이번엔 초안을 만들지 못했어요. 다시 시도하거나 아래에 요청을 적어 주세요.',
@@ -1508,13 +1528,22 @@ const MailPage: React.FC = () => {
   //   한 번 열면 주소에서 뺀다 — 남겨 두면 새로고침·뒤로가기마다 폼이 다시 열린다.
   //   ★ 여는 것과 주소에서 빼는 것을 **다른 커밋**에서 한다 — 같은 커밋에 위 «폴더 맞추기» effect 가 주소를 바꾸면
   //     여기 setSp 가 그 전 주소를 기준으로 덮어써 폴더 동기화가 사라진다(setSearchParams 는 렌더 시점 주소를 본다).
+  //   ★ 2026-10-12 — 주소에 ?reply=1 이 **올 때마다** 연다(같은 메일·이미 열린 답장창이어도). Cue 패널에서 보던 메일에
+  //     초안을 만들면 주소만 바뀌는데, 옛 코드는 «이 메일에서 한 번 열었다» 로 건너뛰어 답장창이 그대로였고
+  //     초안도 다시 안 읽어 «어디에 들어갔는지 모르겠다» 가 됐다. 그래서 초안 다시 읽기 신호(replyDraftReload)도 같이 준다.
   const replyParam = sp.get('reply') === '1';
-  const replyConsumedFor = useRef<number | null>(null);
+  const replyParamHandled = useRef(false);
+  const [replyDraftReload, setReplyDraftReload] = useState(0);
   useEffect(() => {
-    if (!replyParam || !activeId || detail?.id !== activeId) return;
-    if (replyConsumedFor.current !== activeId) { replyConsumedFor.current = activeId; setReplyOpen(true); return; }
+    if (!replyParam) { replyParamHandled.current = false; return; }
+    if (!activeId || detail?.id !== activeId) return;
+    if (!replyParamHandled.current) {
+      replyParamHandled.current = true;
+      setReplyOpen(true); setReplyDraftReload((n) => n + 1); setReplyScrollTick((n) => n + 1);
+      return;
+    }
     setSp((prev) => { const n = new URLSearchParams(prev); n.delete('reply'); return n; }, { replace: true });
-  }, [replyParam, activeId, detail?.id, replyOpen, setSp]);
+  }, [replyParam, activeId, detail?.id, replyOpen, replyDraftReload, setSp]);
 
   // ★ 2026-09-09 — 초안 자동저장의 **결과**를 화면이 말한다
   //   (Irene: "저장된 거 바로 바로 알게 ... 다 통일해줘").
@@ -1544,7 +1573,7 @@ const MailPage: React.FC = () => {
         if (Array.isArray(d.attachment_file_ids) && d.attachment_file_ids.length) setReplyFileIds(d.attachment_file_ids);
       }
     }).catch(() => {}).finally(() => { replyDraftReady.current = true; });
-  }, [replyOpen, businessId, activeId]);
+  }, [replyOpen, businessId, activeId, replyDraftReload]);
   // ★ 나갈 때 확정 저장 (docs/DRAFT_PERSISTENCE_DESIGN.md D-C3) — 스레드 전환·취소·로그아웃·창 닫기 때
   //   1.5초 debounce 에 걸린 초안이 **타이머와 함께 사라졌다**(서버엔 안 갔고 폼은 비워졌다).
   //   걸려 있는 PUT 을 스냅샷으로 들고 있다가 떠날 때 보낸다. 성공하면·발송을 시작하면 비운다.
@@ -1605,6 +1634,7 @@ const MailPage: React.FC = () => {
   //     서버는 그걸 "사용자가 계정 주소를 골랐다" 로 존중해 받은 주소 자동 선택을 건너뛰었다.
   //     그래서 별칭을 등록해 두고도 답장이 계정 주소로 나갔다(운영 실사례).
   const [fromAliasId, setFromAliasId] = useState<number | null>(null);
+  fromAliasRef.current = fromAliasId;
   // 사용자가 셀렉트를 직접 건드렸는가 — 건드렸으면 자동 계산이 덮지 않는다.
   const fromAliasTouched = useRef(false);
   // 서버가 실제로 쓸 발신 주소 — SignatureBadge 가 이미 조회하는 값을 받아 표시에 쓴다(중복 조회 없음).
@@ -2783,6 +2813,8 @@ const MailPage: React.FC = () => {
                   sending={cSending}
                   onBody={setCBody}
                   onError={setCError}
+                  accountId={cAccountId}
+                  fromAliasId={cFromAliasId}
                 />
                 <RichEditor value={cBody} onChange={(v: string) => { markComposeTouched(); setCBody(v); }} toolbar placeholder={t('compose.bodyPh', { defaultValue: '메일 내용을 입력하세요…' }) as string} uploadUrl={businessId ? `/api/files/${businessId}` : undefined}
                   privateInline={inlineIsPrivate(cAccountId)} />
@@ -3126,7 +3158,7 @@ const MailPage: React.FC = () => {
                     )}
                   </ReplyBar>
                 ) : (
-                  <Composer onKeyDown={onComposerKeyDown}>
+                  <Composer ref={replyComposerRef} onKeyDown={onComposerKeyDown} data-testid="mail-reply-composer">
                     {(
                       <ComposerFrom>
                         <FromLbl>{t('reply.from', { defaultValue: '보내는 사람' }) as string}</FromLbl>

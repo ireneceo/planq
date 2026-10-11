@@ -330,7 +330,13 @@ async function createMailReplyDraft(p, a) {
   });
   const { replySubjectOf } = require('../../mailIdentity');
   const subject = replySubjectOf(t.subject || (lastIn && lastIn.subject) || '');
-  const bodyHtml = plainToHtml(a.body_text);
+  // 맺음 이름 — AI 가 지어 붙인 이름(영문 메일의 한글 이름 등)을 걷고, 이 스레드가 나갈 신원에서 메일 언어로 붙인다.
+  //   화면의 [AI 답변 초안] 과 같은 함수(services/mailClosing). 서명이 붙는 신원이면 이름을 붙이지 않는다.
+  const mailClosing = require('../../mailClosing');
+  const { detectLang } = require('../../emailBodyClean');
+  const lang = detectLang(a.body_text, 'ko', subject);
+  const closing = await mailClosing.closingFor({ businessId: p.businessId, userId: p.userId, threadId: t.id, draftText: a.body_text, language: lang });
+  const bodyHtml = plainToHtml(mailClosing.applyClosing(a.body_text, closing, lang));
   if (isBlankHtml(bodyHtml)) throw err('VALIDATION_ERROR', 'body_required');
   // 첨부(2026-10-05) — 이 사용자가 **볼 수 있는** 이 워크스페이스 파일만. 못 보는 id 는 없는 것과 같다(NOT_FOUND).
   //   초안일 뿐 보내지 않는다 — 사람이 PlanQ 에서 받는 사람·첨부를 보고 직접 보낸다.
