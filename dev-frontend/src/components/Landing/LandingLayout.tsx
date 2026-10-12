@@ -24,9 +24,11 @@ interface CompanyInfo {
 
 // ★ 2026-10-12 GNB 정리 (Irene: "GNB가 너무 많은데 … 전체 다 판단 좀 해줘. fable이" → Fable 판정).
 //   평면 메뉴 9개 → **5개**: 기능 · 요금제 · 컨설팅 · 리소스▾ · 소개. 1024~1279px 에서도 숨기는 항목이 없다.
-//   - «시작 가이드·도움말·인사이트·앱 다운로드» 는 «갈 곳» 이 아니라 «읽을 것/받을 것» 이라 **리소스** 한 묶음.
-//     과거 신고 두 건(앱 다운로드를 못 찾음 2026-09-05 · 시작 가이드가 상단에 없음 2026-10-11)은
-//     묶음 안에 있으므로 상단에서 여전히 닿는다. 시작 가이드는 홈 히어로 아래 한 줄로도 연다.
+//   - «시작 가이드·도움말·인사이트» 는 «갈 곳» 이 아니라 «읽을 것» 이라 **리소스** 한 묶음.
+//     시작 가이드는 홈 히어로 아래 한 줄로도 연다.
+//   - ★ «앱 다운로드» 는 묶음에 넣지 않는다 — 데스크탑은 우측 묶음 맨 앞 글자 버튼, 폰·태블릿 시트는 가입 버튼 바로 아래.
+//     처음엔 리소스 안에 넣었다가 Irene «앱 다운로드 메뉴는 어디로 보낸 거야? 중요한건데 아예 없애면 어떻게 해? 상단에서»
+//     (2026-10-12). 드롭다운 안 = 안 보이는 것이다(2026-09-05 안드로이드 태블릿 «앱다운로드를 어디서 해?» 와 같은 모양).
 //   - «문의» 는 메뉴가 아니라 우측 흰(outline) 버튼 — B2B 사이트의 Contact 자리.
 //   - /service 는 PlanQ 제품이 아니라 업무체계 컨설팅(워프로랩 스튜디오)이라 라벨을 «컨설팅» 으로.
 //     요금제와 합치지 않는다(2026-06-23 «끼워팔기 금지·합치지 말고 잇기») — 요금제 하단 밴드로 잇는다.
@@ -40,8 +42,8 @@ const RESOURCE_ITEMS: { to: string; key: string }[] = [
   { to: '/start', key: 'nav.start' },      // 처음 시작하는 팀의 5단계
   { to: '/guide', key: 'nav.help' },       // 도움말
   { to: '/insights', key: 'nav.blog' },
-  { to: '/app', key: 'nav.app' },          // 폰·태블릿에서 가장 먼저 찾는 것 — 시트에서도 한 번에 닿는다
 ];
+const APP_ITEM = { to: '/app', key: 'nav.app' };   // 리소스 밖 — 위 주석
 const ABOUT_ITEM = { to: '/about', key: 'nav.about' };
 
 const isUnder = (pathname: string, to: string) => pathname === to || pathname.startsWith(to + '/');
@@ -162,6 +164,12 @@ const LandingLayout: React.FC<Props> = ({ children, transparentTop = true }) => 
           </DesktopNav>
 
           <DesktopCta>
+            <TextBtn to={APP_ITEM.to} $light={isTransparent} data-testid="landing-gnb-app">
+              <AppIcon width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <rect x="6" y="2" width="12" height="20" rx="2.5" /><line x1="11" y1="18" x2="13" y2="18" />
+              </AppIcon>
+              {t(APP_ITEM.key)}
+            </TextBtn>
             {langSwitch(isTransparent)}
             <SecondaryBtn to="/contact" $light={isTransparent} data-testid="landing-gnb-contact">{t('nav.contact')}</SecondaryBtn>
             {user ? (
@@ -201,6 +209,7 @@ const LandingLayout: React.FC<Props> = ({ children, transparentTop = true }) => 
                 </>
               )}
             </MobileCtaRow>
+            <MobileNavItem to={APP_ITEM.to} data-testid="landing-mobile-app">{t(APP_ITEM.key)}</MobileNavItem>
             {[...NAV_ITEMS, ABOUT_ITEM].map(item => (
               <MobileNavItem key={item.to} to={item.to}>{t(item.key)}</MobileNavItem>
             ))}
@@ -438,6 +447,7 @@ const TextBtn = styled(Link)<{ $light: boolean }>`
   border-radius: 8px;
   &:hover { color: ${p => p.$light ? '#FFFFFF' : '#0F172A'}; }
 `;
+const AppIcon = styled.svg`margin-right: 6px; flex-shrink: 0;`;
 const ResWrap = styled.div`position: relative; display: inline-flex;`;
 const ResTrigger = styled.button<{ $light: boolean; $active: boolean }>`
   height: 36px; padding: 0 14px;
