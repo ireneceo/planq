@@ -1,5 +1,11 @@
 ## 현재 작업 상태
 
+### 완료: Q mail 묶음 3건 — 탭별 마지막 메일 기억 · 목록 60건에서 멈춤 · 자가진단 확인 (방 46e39ba1 · 2026-10-12 · [Opus]) — 운영 미배포
+- ① 원문 *"메일 탭을 이동할 때 이전 탭에 열고 있던 메일이 그대로 열리게"* → `MailPage.tsx` 폴더 탭마다 마지막 연 메일을 메모리(ref)에 기억(키 = 워크스페이스|계정필터|폴더), 탭 복귀 시 `?thread=` 로 다시 연다. 재클릭 닫기·처리완료(clearSelection)·404/403·지금 탭 재클릭은 기억을 지운다. 좁은 화면의 [‹](목록 보기)는 지우지 않는다(폰·태블릿은 그 길로만 탭을 바꾼다). 폴더 탭에 `data-testid="mail-folder-<키>"`.
+- ② 원문 *"확인권장이 529개인데 리스트에서는 다 볼 수가 없어 … 날짜로 끊기는"* → 실측 원인 둘: (a) **무한 스크롤이 늘 60행(2쪽)에서 멈췄다** — `loadMore` 가 «새로 붙은 수» 를 setThreads 업데이터 안에서 세서 React 18 에선 setHasMore 때 0 → hasMore=false. ref 로 미리 센다. (b) 조용한 새로고침이 30×쪽수를 한 번에 요청해 서버 상한 200 에서 잘리고 사이 구간이 빠짐 → 200 이하 offset 조각으로 이어 받음. 정찰 계획은 (b) 만 봤다.
+- ③ 자가진단 한 글자 — 이미 92bccd5c 로 고쳐져 운영 반영(운영·dev landing.json 12문항 49~16자 실측). 코드 무변경.
+- 검증(Fable 안 씀 — 목록 페이징·UI 선택 상태): 임시 측정 14/14(3폭 탭 복귀 A/B · 재클릭 닫힘 유지 · 330행→조용한 새로고침 뒤 330 · 450행 API 순서 일치) · 대조: 고치기 전 빌드 스크롤 60행 정지 실측, 서버 330 요청 → 200 · 빌드 EXIT 0 · 가드 68/69 · maillabel·mailsentvia 실패 0.
+
 ### 완료: 상황판 «정찰 방» 읽기 전용 장치 — 정찰 장치 켜짐 (방 02ca045f · 2026-10-12 · [Opus] · 검증 Fable) — 운영 무관(개발 서버 훅)
 - 요청: 서버 방 · Fable 설계 판정 D 의 PlanQ 몫(Irene «플랜큐만 일이 쌓였는데 하나씩 처리하는게 너무 더딘데? 서버부하에 맞추면 되지»).
 - 넣은 것: `.claude/hooks/scout-detect.sh`(판정 한 곳 — 첫 사용자 메시지 첫 줄 == «[상황판 정찰 방 — 읽기 전용]», 방별 캐시 /tmp/planq-scout-cache) · `scout-guard.sh`+`scout-guard.js`(PreToolUse, settings.json 매처 Bash|Edit|Write|MultiEdit|NotebookEdit|mcp__.*) — 정찰 방이면 plans 밖 파일 도구·빌드(tsc --noEmit 포함)·pm2 바꾸기·git 쓰기·rm/mv/sed -i·소스 리다이렉트·DB 쓰기·배포·ssh/scp·API 쓰기·MCP 쓰기 deny, 일반 방은 출력 없음 · `fable-gate-stop.sh`·`idle-autosave-stop.sh` 정찰이면 바로 끝 · `.gitignore` `.claude/plans/` · CLAUDE.md «상황판이 주는 일» 두 줄. 지문 경로에 plans 없음 확인.

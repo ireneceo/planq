@@ -438,6 +438,8 @@ const MailPage: React.FC = () => {
   }, [folder, accountFilter]);
 
   const [threads, setThreads] = useState<Thread[]>([]);
+  const threadsRef = useRef<Thread[]>([]);
+  threadsRef.current = threads;
   const [listLoading, setListLoading] = useState(false);
   // 무한스크롤 — 현재 페이지 + 더 있음 + 추가로딩
   const pageRef = useRef(1);
@@ -600,10 +602,30 @@ const MailPage: React.FC = () => {
     setSp(nsp, { replace: true });
   };
 
+  // ★ 2026-10-12 (Irene: *"메일 탭을 이동할 때 이전 탭에 열고 있던 메일이 그대로 열리게 … 다시 리셋되는 거 불편해"*)
+  //   폴더 탭마다 «마지막에 연 메일» 을 기억해 두었다가 그 탭으로 돌아오면 다시 연다.
+  //   키에 워크스페이스·계정 필터를 넣는다 — 목록이 다르면 섞지 않는다. 메모리만(keep-alive 탭이라 메뉴를 오가도 남는다).
+  //   선택을 **사람이 푼 경우**(재클릭·처리완료·닫기)와 열 수 없게 된 메일(404/403)은 기록을 지운다.
+  const lastThreadByFolder = useRef<Map<string, number>>(new Map());
+  const folderMemoKey = (f: string) => `${businessId ?? 0}|${accountFilter ?? 0}|${f}`;
+  useEffect(() => {
+    if (activeId) lastThreadByFolder.current.set(folderMemoKey(folder), activeId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeId, folder, accountFilter, businessId]);
+  const forgetFolderThread = () => { lastThreadByFolder.current.delete(folderMemoKey(folder)); };
+  // 그 메일을 가리키는 기록을 모두 지운다(처리완료·열 수 없음) — ref 만 읽으므로 useCallback 안에서도 안전하다.
+  const dropRememberedThread = (id: number) => {
+    lastThreadByFolder.current.forEach((v, k) => { if (v === id) lastThreadByFolder.current.delete(k); });
+  };
+  const dropRememberedRef = useRef(dropRememberedThread);
+
   const setFolder = (f: Folder) => {
     const nsp = new URLSearchParams(sp);
     nsp.set('folder', f);
-    nsp.delete('thread');
+    if (f === folder) forgetFolderThread();   // 지금 탭을 다시 누름 = 열린 메일 닫기(종전 동작) — 기록도 지운다
+    const remembered = f === folder ? null : lastThreadByFolder.current.get(folderMemoKey(f));
+    if (remembered) nsp.set('thread', String(remembered));
+    else nsp.delete('thread');
     setSp(nsp, { replace: true });
   };
 
@@ -675,6 +697,9 @@ const MailPage: React.FC = () => {
   const navigateToThread = (id: number | null) => {
     const nsp = new URLSearchParams(sp);
     const deselect = id === null || activeId === id;   // 재클릭 토글 해제 (공통 UX 규칙)
+    // 재클릭으로 닫았다 — 이 탭으로 돌아와도 다시 열지 않는다. 좁은 화면의 [‹ 목록](id=null)은 «목록 보기» 라 기억을 둔다
+    //   (폰·태블릿은 탭이 목록 안에 있어 그 길로만 탭을 바꿀 수 있다 — 여기서 지우면 이 기능이 폰에선 없는 것이 된다).
+    if (id !== null && activeId === id) forgetFolderThread();
     if (deselect) nsp.delete('thread');
     else nsp.set('thread', String(id));
     setSp(nsp, { replace: true });
@@ -724,7 +749,11 @@ const MailPage: React.FC = () => {
   };
   // 선택 해제 — 현재 URL 기준(함수형 업데이트라 stale 안전). 상세 패널 닫힘(activeId 파생).
   const clearSelection = useCallback(() => {
-    setSp((prev) => { const n = new URLSearchParams(prev); n.delete('thread'); return n; }, { replace: true });
+    setSp((prev) => {
+      const tid = Number(prev.get('thread'));
+      if (tid) dropRememberedRef.current(tid);   // 처리완료·닫기 — 그 탭으로 돌아와도 다시 열지 않는다
+      const n = new URLSearchParams(prev); n.delete('thread'); return n;
+    }, { replace: true });
     // #204 — 좁은 화면에서 선택을 풀면(처리 완료·상세 닫기) 빈 상세가 아니라 목록으로 돌아와야 한다.
     if (viewportNarrow) setSidebarCollapsed(false);
   }, [setSp, viewportNarrow]);
@@ -741,6 +770,8 @@ const MailPage: React.FC = () => {
 
   // 폴더 list fetch (계정·라벨·프로젝트 필터 반영) — page 1 (replace). 무한스크롤은 loadMore 가 append.
   const PAGE_SIZE = 30;
+  // 한 번에 받는 최대 개수 — 서버 email-threads 의 maxLimit(200)과 같은 값. 넘기면 서버가 조용히 자른다.
+  const LIST_MAX_CHUNK = 200;
   const filterQuery = useCallback(() => {
     let s2 = '';
     if (labelFilter) s2 += `&label=${encodeURIComponent(labelFilter)}`;
@@ -848,14 +879,28 @@ const MailPage: React.FC = () => {
       // #261 — 주소 모드: 그 사람과 오간 메일을 **보관까지 포함해** 모아 본다.
       //   폴더 목록으로는 못 찾는다 — '전체' 도 보관을 빼기 때문이다. 신고된 "안 들어온 메일" 이
       //   실제로는 보관함에 있었던 건이라, 이 경로가 없으면 같은 일이 반복된다.
-      const r = addressMode
-        ? await apiFetch(`/api/businesses/${businessId}/email-addresses/${encodeURIComponent(addressMode)}/threads?limit=${PAGE_SIZE * pages}&page=1`)
-        : await apiFetch(`/api/businesses/${businessId}/email-threads?folder=${folder}&limit=${PAGE_SIZE * pages}&page=1${acctQ}${qP}${fP}`);
-      const j = await r.json();
-      if (seq !== listSeqRef.current) return;   // 더 최신 요청이 떠 있다 — 이 응답은 버린다
-      if (!j.success) { setErrorMsg(j.message || (t('errors.loadList', { defaultValue: '인박스 로딩 실패' }) as string)); return; }
-      const fresh: Thread[] = j.data || [];
-      setHasMore(!!j.pagination?.has_more);
+      // ★ 2026-10-12 (Irene: *"확인권장이 529개로 나오는데 리스트에서는 다 볼 수가 없어 … 날짜로 끊기는 것 같아"*)
+      //   다시 받는 양(30 × 읽은 페이지)을 한 번에 달라고 하면 서버 상한(email-threads maxLimit 200,
+      //   routes/email_threads.js)에서 **조용히 잘린다.** 목록이 200개로 줄었는데 pageRef 는 그대로라
+      //   다음 스크롤이 그 뒤 페이지를 받아 **사이 구간이 영영 빠졌다**(«어느 날짜에서 끊긴다»).
+      //   → 상한 이하 조각(offset)으로 끝까지 이어 받는다. 주소 모드(상한 500)도 같은 조각이면 안전하다.
+      const target = PAGE_SIZE * pages;
+      const fresh: Thread[] = [];
+      let more = false;
+      while (fresh.length < target) {
+        const lim = Math.min(LIST_MAX_CHUNK, target - fresh.length);
+        const r = addressMode
+          ? await apiFetch(`/api/businesses/${businessId}/email-addresses/${encodeURIComponent(addressMode)}/threads?limit=${lim}&offset=${fresh.length}`)
+          : await apiFetch(`/api/businesses/${businessId}/email-threads?folder=${folder}&limit=${lim}&offset=${fresh.length}${acctQ}${qP}${fP}`);
+        const j = await r.json();
+        if (seq !== listSeqRef.current) return;   // 더 최신 요청이 떠 있다 — 이 응답은 버린다
+        if (!j.success) { setErrorMsg(j.message || (t('errors.loadList', { defaultValue: '인박스 로딩 실패' }) as string)); return; }
+        const chunk: Thread[] = j.data || [];
+        fresh.push(...chunk);
+        more = !!j.pagination?.has_more;
+        if (!more || chunk.length === 0) break;
+      }
+      setHasMore(more);
       if (!silent) {
         setThreads(fresh);
         pageRef.current = 1;
@@ -898,12 +943,16 @@ const MailPage: React.FC = () => {
       const j = await r.json();
       if (j.success) {
         const fresh: Thread[] = j.data || [];
-        let added = 0;
+        // ★ 2026-10-12 — «새로 붙은 수» 를 setThreads 업데이터 **안에서** 세면 안 된다. React 18 은 업데이터를
+        //   렌더 때 실행하므로 아래 setHasMore 시점엔 아직 0 이었다 → 2쪽(60건)에서 무한 스크롤이 영영 멈췄다
+        //   (Irene: *"확인권장이 529개인데 리스트에서는 다 볼 수가 없어 … 날짜로 끊기는 것 같아"* — 실측 늘 60행).
+        //   지금 화면 목록(ref)으로 미리 센다.
+        const seen = new Set(threadsRef.current.map(t => t.id));
+        const add = fresh.filter(t => !seen.has(t.id));
+        const added = add.length;
         setThreads(prev => {
-          const seen = new Set(prev.map(t => t.id));
-          const add = fresh.filter(t => !seen.has(t.id));
-          added = add.length;
-          return [...prev, ...add];
+          const seenNow = new Set(prev.map(t => t.id));
+          return [...prev, ...add.filter(t => !seenNow.has(t.id))];
         });
         pageRef.current = next;
         // ★ 새로 붙은 행이 0 이면 **여기서 멈춘다.** 서버가 has_more 를 참으로 주더라도
@@ -1242,9 +1291,10 @@ const MailPage: React.FC = () => {
         setDetail(null);
         setThreadOtherBiz(other);
         setDetailStatus(other ? 'other_workspace' : 'not_found');
+        dropRememberedRef.current(id);   // 열 수 없는 메일은 탭을 오갈 때 다시 열지 않는다
         return;
       }
-      if (r.status === 403) { setDetailStatus('forbidden'); setDetail(null); return; }
+      if (r.status === 403) { dropRememberedRef.current(id); setDetailStatus('forbidden'); setDetail(null); return; }
       if (!r.ok) { setDetailStatus('error'); setDetail(null); return; }
       const j = await r.json().catch(() => null);
       if (stale()) return;
@@ -2260,6 +2310,7 @@ const MailPage: React.FC = () => {
               key={key}
               type="button"
               $active={folder === key}
+              data-testid={`mail-folder-${key}`}
               onClick={() => setFolder(key)}
               // 탭 전체에 붙인다 — 배지에만 붙이면 좁은 화면에서 손가락이 닿는 대상과 설명이 어긋난다.
               title={tabBadge(key) > 0 ? tabBadgeLabel(key, tabBadge(key)) : undefined}
