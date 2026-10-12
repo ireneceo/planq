@@ -197,7 +197,7 @@ const GlobalSearchModal: React.FC<Props> = ({ open, onClose, businessId, onNavig
     (r.posts || []).forEach(x => h.push({ id: x.id, title: x.title, sub: join([x.category ? `#${x.category}` : '', postSubline(x, formatDate, i18n.language)]), to: `/docs?post=${x.id}`, type: 'posts', match: x.match }));
     (r.files || []).forEach(x => h.push({ id: x.id, title: x.file_name, sub: join([nm(x.uploader), x.created_at ? formatDate(x.created_at) : '', x.project?.name]) || x.mime_type || undefined, to: `/files?file=${x.id}`, type: 'files', match: x.match }));
     (r.conversations || []).forEach(x => h.push({ id: x.id, title: x.display_name || x.title || `#${x.id}`, to: `/talk?conv=${x.id}`, type: 'conversations', match: x.match }));
-    (r.knowledge || []).forEach(x => h.push({ id: x.id, title: x.title, sub: x.category || undefined, to: `/knowledge?doc=${x.id}`, type: 'knowledge', match: x.match }));
+    (r.knowledge || []).forEach(x => h.push({ id: x.id, title: x.title, sub: x.category || undefined, to: `/info?doc=${x.id}`, type: 'knowledge', match: x.match }));
     (r.clients || []).forEach(x => {
       // 보조줄 = **맞은 이메일**(검색어가 이메일에서 맞았을 때) · 아니면 초대 주소 · 청구 담당 주소
       const matchedEmail = x.match?.field === 'email' ? x.match.snippet : null;

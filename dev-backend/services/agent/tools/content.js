@@ -258,7 +258,7 @@ async function getMeetingNote(p, a) {
 }
 
 // ── Q info ────────────────────────────────────────────────
-const kbUrl = (id) => `${cfg.APP_URL}/knowledge?doc=${id}`;
+const kbUrl = (id) => `${cfg.APP_URL}/info?doc=${id}`;
 const KB_CANDIDATES = 500;
 
 async function searchKnowledge(p, a) {

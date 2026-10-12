@@ -49,7 +49,7 @@ const urlOf = {
   event: (id) => `${cfg.APP_URL}/calendar?event=${id}`,
   mail: (id) => `${cfg.APP_URL}/mail?thread=${id}`,
   meeting_note: (id) => `${cfg.APP_URL}/notes/${id}`,
-  knowledge: (id) => `${cfg.APP_URL}/knowledge?doc=${id}`,
+  knowledge: (id) => `${cfg.APP_URL}/info?doc=${id}`,
 };
 
 /** 그룹 하나 — 행(사람 응답 모양) → 공통 항목 모양 { kind, id, title, snippet, date, client, project, url, restricted? } */

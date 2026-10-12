@@ -47,7 +47,7 @@ async function createKnowledgeItem(p, a, actor) {
     knowledge_item: {
       kb_id: d.id, title: d.title, category: a.category, scope,
       project_id: d.project_id || null, client_id: d.client_id || null,
-      fields: columns.map((c) => c.name), url: `${cfg.APP_URL}/knowledge?doc=${d.id}`,
+      fields: columns.map((c) => c.name), url: `${cfg.APP_URL}/info?doc=${d.id}`,
     },
     note: scope === 'client' ? 'The selected client can see this item.' : (scope === 'private' ? 'Only you can see this item.' : undefined),
     created: true,

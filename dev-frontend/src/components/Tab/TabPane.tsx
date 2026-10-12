@@ -3,7 +3,7 @@
 // alive 탭 전부 동시 렌더, 비활성은 display:none + inert(언마운트 안 함 = 상태·스크롤·열어둔 패널 보존).
 // 각 pane = 형제 MemoryRouter(§3) — 페이지 내부 useNavigate/useParams 무수정 각 탭 바인딩, URL 격리.
 import { Suspense, lazy, useLayoutEffect, useRef } from 'react';
-import { MemoryRouter, Routes, Route } from 'react-router-dom';
+import { MemoryRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import styled from 'styled-components';
 import { TabActiveProvider, TabIdProvider } from '../../contexts/TabActiveContext';
 import { APP_ROUTES } from '../../routes/appRoutes';
@@ -19,6 +19,14 @@ import type { Tab } from '../../stores/tabStore';
 //   appRoutes 에 넣지 않는 이유: 그 표는 App.tsx 의 MainLayout(로그인 필요) 라우트와 1:1 이어야 한다(guard-app-routes) —
 //   서명 화면은 로그인 없는 외부 고객도 쓰는 공개 화면이라 App.tsx 에서는 MainLayout 밖에 그대로 둔다.
 const PublicSignPage = lazy(() => import('../../pages/QDocs/PublicSignPage'));
+
+// 옛 주소 /knowledge → /info (2026-10-12). 미러 모드 라우터(App.tsx)에만 있어서 탭 모드(데스크탑·아이패드)에서는
+//   Cue·ChatGPT·전역검색이 준 `/knowledge?doc=N` 이 빈 탭이었다. 이미 대화에 남은 옛 링크를 위해 둔다.
+//   ★ pane 은 MemoryRouter 라 window.location 이 아니라 **이 pane 의 location** 에서 쿼리를 읽는다.
+function KnowledgeRedirect() {
+  const loc = useLocation();
+  return <Navigate to={{ pathname: '/info', search: loc.search }} replace />;
+}
 
 export default function TabPane({ tab, active }: { tab: Tab; active: boolean }) {
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -50,6 +58,7 @@ export default function TabPane({ tab, active }: { tab: Tab; active: boolean }) 
                     element={<RouteRoleGate roles={r.roles}>{r.element}</RouteRoleGate>} />
                 ))}
                 <Route path="/sign/:token" element={<PublicSignPage />} />
+                <Route path="/knowledge" element={<KnowledgeRedirect />} />
                 <Route path="*" element={<Fallback />} />
               </Routes>
             </Suspense>

@@ -447,6 +447,7 @@ function entityOf(res) {
     ['project', res.project, (o) => o.project_id], ['memo', res.memo, (o) => o.memo_id], ['knowledge', res.knowledge_item, (o) => o.kb_id],
     ['mail_draft', res.draft, (o) => o.thread_id || o.draft_id], ['interaction', res.interaction, (o) => o.client_id || o.interaction_id],
     ['project_note', res.project_note, (o) => o.project_id || o.note_id], ['note', typeof res.note === 'object' ? res.note : null, (o) => o.task_id || o.note_id],
+    ['file', res.file, (o) => o.file_id],
   ];
   for (const [type, o, id] of pick) {
     if (o && typeof o === 'object') return { entity_type: type, entity_id: id(o) || null, open_url: o.url || res.client?.url || res.project?.url || null };

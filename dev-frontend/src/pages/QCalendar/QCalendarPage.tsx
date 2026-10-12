@@ -41,6 +41,7 @@ import { readUrl } from './calendarUrl';
 import CalendarProjectFilter, { byProject } from './ProjectFilter';
 import CalendarFrame, { useCalendarOptions } from './CalendarFrame';
 import { useWallNow } from './pastLook';
+import { useUrlDetailParams } from './useUrlDetailParams';
 
 interface ProjectOption { id: number; name: string; color?: string | null }
 
@@ -140,6 +141,7 @@ const QCalendarPage: React.FC<{ scope?: { type: 'project'; businessId: number; p
     const q = embedded ? null : new URLSearchParams(location.search).get('task');
     return q ? Number(q) : null;
   });
+  useUrlDetailParams(location.search, embedded, setSelectedEventId, setSelectedTaskId);   // 열린 화면에서 바뀐 ?event=/?task=
   const [members, setMembers] = useState<Array<{ user_id: number; name: string }>>([]);
   const [clientsList, setClientsList] = useState<Array<{ id: number; display_name?: string | null; company_name?: string | null }>>([]);
   useEffect(() => {

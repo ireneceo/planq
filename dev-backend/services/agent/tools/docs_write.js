@@ -231,7 +231,7 @@ async function uploadFile(p, a, actor) {
     attached = { kind: 'project', project_id: projectId };
   }
   return {
-    file: { file_id: file.id, name: file.file_name, size_bytes: file.file_size, mime_type: file.mime_type, visibility, url: `${cfg.APP_URL}/files` },
+    file: { file_id: file.id, name: file.file_name, size_bytes: file.file_size, mime_type: file.mime_type, visibility, url: `${cfg.APP_URL}/files?file=${file.id}` },
     attached_to: attached, created: true,
   };
 }

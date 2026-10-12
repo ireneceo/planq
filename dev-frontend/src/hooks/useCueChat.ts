@@ -42,7 +42,7 @@ export function cueActionDeepLink(r: CueActionResult): string {
     case 'project': return `/projects/p/${id}`;
     case 'document': return `/docs?post=${id}`;
     case 'memo': return `/notes`;
-    case 'knowledge': return `/info`;
+    case 'knowledge': return `/info?doc=${id}`;
     case 'mail_draft': return `/mail?thread=${id}&reply=1`;
     default: return '/dashboard';
   }
