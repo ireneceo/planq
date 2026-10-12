@@ -427,7 +427,10 @@ const QCalendarPage: React.FC<{ scope?: { type: 'project'; businessId: number; p
       // #242 — 일정 저장은 성공(모달 닫힘)이지만 Meet 링크만 실패한 경우. 조용히 넘기면
       //   사용자는 링크 없는 일정을 성공으로 오해한다 → 명시적으로 알린다.
       if (created?.meet_warning) setMeetWarnMsg(t('meetLinkFailed') as string);
-      return created;   // 미팅자료 알림(#411)이 이어 쓴다. #124 — 상세 드로어 자동 오픈 안 함(사용자 요청).
+      // 화상미팅을 건 등록만 상세를 열어 링크를 바로 복사하게(2026-10-12). 실패면 상세의 [재발급]으로. 체크 순간 생성은 안 함(외부 일정이 남는다).
+      //   보통 일정은 #124(자동 오픈 안 함, 사용자 요청) 그대로.
+      if (created?.id && (created.meeting_url || created.meet_warning)) setSelectedEventId(created.id);
+      return created;   // 미팅자료 알림(#411)이 이어 쓴다.
     } catch (e) {
       setErrorMsg(mapApiError(e, tErr));
     }
