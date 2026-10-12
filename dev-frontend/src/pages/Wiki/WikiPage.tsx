@@ -4,13 +4,15 @@ import { useTranslation } from 'react-i18next';
 import styled from 'styled-components';
 import WikiFrame from './WikiFrame';
 import HighlightText from '../../components/Common/HighlightText';
-import { fetchWikiCategories, fetchWikiArticles, type WikiCategory, type WikiArticleSummary } from '../../services/wiki';
+import { fetchWikiCategories, fetchWikiArticles, wikiLang, type WikiCategory, type WikiArticleSummary } from '../../services/wiki';
 import { mediaPhone } from '../../theme/breakpoints';
 
 const OVERVIEW_SEEN_KEY = 'planq_wiki_overview_seen';
 
 export default function WikiPage() {
-  const { t } = useTranslation('wiki');
+  const { t, i18n } = useTranslation('wiki');
+  // 랜딩 GNB 의 KO/EN 을 누르면 목록·카테고리를 그 언어로 다시 읽는다(콘텐츠는 언어별로 저장돼 있다)
+  const lang = wikiLang(i18n.language);
   const navigate = useNavigate();
   const [sp, setSp] = useSearchParams();
 
@@ -34,7 +36,7 @@ export default function WikiPage() {
     let alive = true;
     fetchWikiCategories().then((c) => { if (alive) setCategories(c); }).catch(() => {});
     return () => { alive = false; };
-  }, []);
+  }, [lang]);
 
   useEffect(() => {
     let alive = true;
@@ -44,7 +46,7 @@ export default function WikiPage() {
       .catch(() => { if (alive) setError(true); })
       .finally(() => { if (alive) setLoading(false); });
     return () => { alive = false; };
-  }, [activeCategory, query]);
+  }, [activeCategory, query, lang]);
 
   // 검색 입력 디바운스 → URL 싱크
   useEffect(() => {

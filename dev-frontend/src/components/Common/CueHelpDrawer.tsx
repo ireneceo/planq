@@ -20,7 +20,7 @@ import { formatDate } from '../../utils/dateFormat';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import { useBackToClose } from '../../hooks/useBackToClose';
 import { mapApiError } from '../../utils/apiError';
-import { fetchWikiContext, fetchWikiCategories, fetchWikiArticles, type WikiArticleSummary, type WikiCategory } from '../../services/wiki';
+import { fetchWikiContext, fetchWikiCategories, fetchWikiArticles, wikiLang, type WikiArticleSummary, type WikiCategory } from '../../services/wiki';
 import CueTurnList from './CueTurnList';
 import { useCueChat, cueActionDeepLink } from '../../hooks/useCueChat';
 import { startQhelperHeartbeat, CUE_ASK_EVENT, type CueAskMsg } from '../../utils/cueAsk';
@@ -72,7 +72,9 @@ const CueHelpDrawer: React.FC<{
 }> = ({ standalone = false, publicSurface = false, routerNavigate, pinSlot }) => {
   const { t } = useTranslation('common');
   const { t: tErr } = useTranslation('errors');
-  const { t: tw } = useTranslation('wiki');
+  const { t: tw, i18n: wikiI18n } = useTranslation('wiki');
+  // 도움말 목록은 언어별 콘텐츠 — 랜딩 KO/EN 을 바꾸면 다시 읽는다
+  const wLang = wikiLang(wikiI18n.language);
   const chromeLocation = useChromeLocation();
   const navigate = useChromeNav();
   const { user, isLoading } = useAuth();
@@ -245,12 +247,17 @@ const CueHelpDrawer: React.FC<{
   }, [mode, isGuest]);
 
   // Q위키 탭 — 카테고리(공개) 1회 로드
+  const wikiCatsLangRef = useRef<string | null>(null);
   useEffect(() => {
-    if (mode !== 'qhelper' || wikiCats.length) return;
+    if (mode !== 'qhelper' || wikiCatsLangRef.current === wLang) return;
     let cancelled = false;
-    fetchWikiCategories().then((c) => { if (!cancelled) setWikiCats(Array.isArray(c) ? c : []); }).catch(() => {});
+    fetchWikiCategories().then((c) => {
+      if (cancelled) return;
+      wikiCatsLangRef.current = wLang;
+      setWikiCats(Array.isArray(c) ? c : []);
+    }).catch(() => {});
     return () => { cancelled = true; };
-  }, [mode, wikiCats.length]);
+  }, [mode, wLang]);
 
   // #146 — 도움말 검색: 입력 300ms 디바운스 → fetchWikiArticles({ q }). 빈 검색어면 결과 비움.
   useEffect(() => {
@@ -265,7 +272,7 @@ const CueHelpDrawer: React.FC<{
         .finally(() => { if (!cancelled) setWikiSearching(false); });
     }, 300);
     return () => { cancelled = true; window.clearTimeout(id); };
-  }, [wikiSearch]);
+  }, [wikiSearch, wLang]);
 
   // Q위키 탭 — 현재 화면 맥락 article (로그인 사용자만, path 바뀌면 갱신)
   useEffect(() => {
@@ -275,7 +282,7 @@ const CueHelpDrawer: React.FC<{
       .then((arts) => { if (!cancelled) setWikiContext(arts); })
       .catch(() => { if (!cancelled) setWikiContext([]); });
     return () => { cancelled = true; };
-  }, [mode, guestView, open, location.pathname]);
+  }, [mode, guestView, open, location.pathname, wLang]);
 
   useBodyScrollLock(open);
   // 뒤로 가기 = Q helper 닫기 (#437 "헬프도"). 분리 창(standalone)은 창 자체라 제외.

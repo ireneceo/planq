@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next';
 import styled from 'styled-components';
 import WikiFrame from './WikiFrame';
 import { useImageLightbox } from '../../components/Common/ImageLightbox';
-import { fetchWikiArticle, type WikiArticleDetail, type WikiBlock } from '../../services/wiki';
+import { fetchWikiArticle, wikiLang, type WikiArticleDetail, type WikiBlock } from '../../services/wiki';
 import { mediaPhone } from '../../theme/breakpoints';
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -18,6 +18,8 @@ export default function WikiArticlePage() {
   // 비회원에겐 아예 숨긴다 (로그인 벽 문구를 띄우지 않는다 — Irene 결정).
   const { user, isLoading: authLoading } = useAuth();
 
+  // 본문은 서버가 요청 언어로 골라 준다 — 언어가 바뀌면 다시 읽어야 제목·본문이 바뀐다
+  const lang = wikiLang(i18n.language);
   const [article, setArticle] = useState<WikiArticleDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [status, setStatus] = useState<number | null>(null);
@@ -29,15 +31,14 @@ export default function WikiArticlePage() {
     if (authLoading) return;
     let alive = true;
     setLoading(true); setStatus(null);
-    window.scrollTo(0, 0);
     fetchWikiArticle(slug)
       .then((a) => { if (alive) setArticle(a); })
       .catch((e: Error & { status?: number }) => { if (alive) setStatus(e.status || 500); })
       .finally(() => { if (alive) setLoading(false); });
     return () => { alive = false; };
-  }, [slug, authLoading, user?.id]);
-
-  const lang = (i18n.language || 'ko').slice(0, 2) === 'en' ? 'en' : 'ko';
+  }, [slug, authLoading, user?.id, lang]);
+  // 맨 위로는 다른 글을 열 때만 — 언어만 바꿨으면 읽던 자리를 둔다
+  useEffect(() => { window.scrollTo(0, 0); }, [slug]);
   // 릴리즈노트 발행 스크립트가 2026-09-26 전까지 언어 없는 `text` 로 썼다(#432 — 열면 빈 글).
   //   서버(seoArtifacts·wikiSearch)는 이미 `text_${lang} || text` 로 읽는다 — 화면도 같은 규칙.
   const blockText = (b: WikiBlock) => (lang === 'en' ? b.text_en : b.text_ko) || b.text_ko || b.text_en || b.text || '';

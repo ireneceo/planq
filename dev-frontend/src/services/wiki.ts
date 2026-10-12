@@ -1,6 +1,7 @@
 // Q위키 (Q Wiki) — 제품 도움말 API 클라이언트.
 // 공개+로그인 read. 게스트는 public article 만 (apiFetch 가 토큰 없으면 게스트로 호출).
 import { apiFetch } from '../contexts/AuthContext';
+import i18n from '../i18n';
 
 export interface WikiBlock {
   type: 'heading' | 'text' | 'step' | 'callout' | 'image';
@@ -62,10 +63,10 @@ async function getJson<T>(url: string): Promise<T> {
   return j.data as T;
 }
 
-const langParam = () => {
-  const lng = (localStorage.getItem('i18nextLng') || 'ko').slice(0, 2);
-  return lng === 'en' ? 'en' : 'ko';
-};
+// 화면이 지금 쓰는 언어 = i18n 하나. 랜딩 GNB 의 KO/EN 은 changeLanguage 만 부르므로
+//   부르는 화면은 이 값(wikiLang)을 의존성으로 걸어 언어가 바뀌면 다시 불러야 한다.
+export const wikiLang = (lng?: string): 'ko' | 'en' => ((lng || i18n.language || 'ko').slice(0, 2) === 'en' ? 'en' : 'ko');
+const langParam = () => wikiLang();
 
 export async function fetchWikiCategories(): Promise<WikiCategory[]> {
   return getJson<WikiCategory[]>(`/api/wiki/categories?lang=${langParam()}`);
