@@ -1,5 +1,11 @@
 ## 현재 작업 상태
 
+### 나중에 — Fable 대기: 워크스페이스 초대 인앱 알림 (방 3a26aed0 · 2026-10-12 · [Opus]) — 코드 변경 없음
+- 무엇: 기존 계정 이메일을 멤버로 초대하면 초대 순간 `business_members.user_id` 가 채워져 **수락 전부터 멤버 권한·전환기 노출**(getUserScope·getUserWithBusiness 가 joined_at 미확인). 인앱 알림 «수락하세요» 가 참이 되려면 이것부터. 고객·프로젝트 고객 초대는 수락 전 접근 없음(status active 필요) 확인.
+- 설계 초안·사실: `docs/INVITE_INAPP_NOTIFY_DESIGN.md` — 권고 (가) 초대 때 user_id prefill 중단 + 백필(`joined_at NULL ∧ invite_token NOT NULL ∧ removed_at NULL ∧ role∉owner,ai` · dev 1행, invite_token NULL 실멤버 8행 제외) + 다섯 초대 경로 공용 헬퍼로 인앱 알림(business_id NULL · skipChannels email · 링크 /invite/<token>).
+- 언제: Fable 한도가 풀리면(상황판 fid fwmv5bhduy, 10-13 00:58 KL 께 깨움).
+- 그때 할 일: Fable design 1회(D1·D2·D3) → 운영 미수락 초대·«수락했는데 joined_at 없는» 행 읽기 전용 확인(운영 읽기 스크립트는 이 방에서 권한 거부됨) → 판정대로 구현(businesses.js 초대 · migrate 스크립트 배포 슬롯 · services/inviteNotify) → 문서 3절 검증 → Fable gate → fable-wait done.
+
 ### 나중에 — Fable 대기: 미출근인데 업무 «자리 비움 감지·재개» (방 a9337893 · 2026-10-12 · [Opus]) — 코드 변경 없음
 - 원인 확정(운영 읽기 전용): 업무 542 세션 236(ws 1, user 1) — 03:20:52 업무 시작·자동 출근 → **03:21:03 자동 출근 [취소]** → 근태는 미출근(하루 행 삭제)인데 업무 측정은 계속 2h40m → 06:00 무활동 자동 멈춤 → «자리 비움 감지 · 재개». 같은 워크스페이스·같은 날 → 정찰 원인 1·2 무관, **3번(undoAutoClockIn 이 포커스를 안 건드림) 확정**.
 - 언제: Fable 한도가 풀리면(상황판이 10-13 00:54 KL 께 깨움, fid fwmv5bcyux).
