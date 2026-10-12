@@ -4,12 +4,13 @@
 //   묻는 순간 «확인되지 않은 앱» 경고와 신규 사용자 100명 한도에 걸린다). 그래서 **누른 사람에게만** 묻는다.
 //   쓰는 곳 두 군데 — 내 외부 연동 › 구글 캘린더(올릴 캘린더 고르기) · Q calendar 의 Google 칩(보기/가리기).
 //   두 곳이 각자 연결 흐름을 짜면 한쪽만 고쳐진다 — 이 버튼 하나를 같이 쓴다.
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import styled from 'styled-components';
 import { apiFetch } from '../../contexts/AuthContext';
 import { startAuthPopup } from '../../services/oauth';
 import { isNativeApp } from '../../services/native';
+import { useOauthPopupDone } from '../../hooks/useOauthPopupDone';
 
 export default function GoogleCalendarListConsent({ businessId, onDone, 'data-testid': testId }: {
   businessId: number | null | undefined; onDone?: () => void; 'data-testid'?: string;
@@ -20,27 +21,17 @@ export default function GoogleCalendarListConsent({ businessId, onDone, 'data-te
   const doneRef = useRef(onDone);
   doneRef.current = onDone;
 
-  // 완료 — 웹은 팝업 postMessage, 네이티브는 앱 복귀 이벤트(ProfileIntegrationsPage 와 같은 신호)
-  useEffect(() => {
-    if (!busy) return undefined;
-    const onMsg = (e: MessageEvent) => {
-      if (e.data && e.data.type === 'personal:connected') {
-        setBusy(false);
-        if (e.data.ok) doneRef.current?.();
-        else setErr(t('integrations.connectFailed2', { defaultValue: '연결에 실패했어요. 다시 시도해 주세요.' }) as string);
-      }
-    };
-    const onNativeDone = () => { setBusy(false); doneRef.current?.(); };
-    const onDismiss = () => setBusy(false);
-    window.addEventListener('message', onMsg);
-    window.addEventListener('planq:oauth-connected', onNativeDone);
-    window.addEventListener('planq:oauth-dismissed', onDismiss);
-    return () => {
-      window.removeEventListener('message', onMsg);
-      window.removeEventListener('planq:oauth-connected', onNativeDone);
-      window.removeEventListener('planq:oauth-dismissed', onDismiss);
-    };
-  }, [busy, t]);
+  // 완료 — 웹 팝업 신호 세 길 + 네이티브 앱 복귀(hooks/useOauthPopupDone, 내 외부 연동 화면과 같은 훅). 누른 동안만 듣는다.
+  useOauthPopupDone({
+    enabled: busy,
+    types: ['personal:connected'],
+    onDone: (p) => {
+      setBusy(false);
+      if (p.ok) doneRef.current?.();
+      else setErr(t('integrations.connectFailed2', { defaultValue: '연결에 실패했어요. 다시 시도해 주세요.' }) as string);
+    },
+    onDismiss: () => setBusy(false),
+  });
 
   const start = async () => {
     if (!businessId || busy) return;

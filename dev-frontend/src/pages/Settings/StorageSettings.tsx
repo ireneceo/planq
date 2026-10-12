@@ -6,6 +6,7 @@ import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { apiFetch, useAuth } from '../../contexts/AuthContext';
 import DriveLocationPanel from '../../components/Settings/DriveLocationPanel';
+import { useOauthPopupDone } from '../../hooks/useOauthPopupDone';
 import { fetchStorageStatus, formatBytes, type StorageStatus } from '../../services/files';
 
 interface ProviderState {
@@ -127,45 +128,21 @@ const StorageSettings: React.FC<Props> = ({ businessId }) => {
 
   useEffect(() => { load(); }, [load]);
 
-  // OAuth 팝업 수신 (회사 공용 gdrive/gcal) — 웹 postMessage + 네이티브 planq:oauth-connected
-  // #224 — accounts.google.com 의 COOP 가 팝업의 opener 를 끊어버려 postMessage 가 도착하지 않는
-  //   환경이 있다(그 창은 자기 close() 도 거부된다). opener 없이도 통하는 동일 출처 채널
-  //   (BroadcastChannel · storage 이벤트) 을 같이 듣고, **팝업 핸들을 쥔 이쪽에서 닫는다.**
-  useEffect(() => {
-    const isDone = (d: any) => (d?.type === 'gdrive:connected' || d?.type === 'gcal:connected') && d.ok;
-    const finish = () => {
-      const p = popupRef.current;
+  // OAuth 팝업 수신 (회사 공용 gdrive/gcal) — 신호 세 길 + 네이티브 앱 복귀(hooks/useOauthPopupDone 한 벌).
+  // #224 — accounts.google.com 의 COOP 가 팝업의 opener 를 끊는 환경이 있다(그 창은 자기 close() 도 거부된다).
+  //   **팝업 핸들을 쥔 이쪽에서 닫는다.**
+  useOauthPopupDone({
+    types: ['gdrive:connected', 'gcal:connected'],
+    onDone: (p) => {
+      if (!p.ok && !p.native) { setConnecting(null); load(); return; }
+      const w = popupRef.current;
       popupRef.current = null;
-      if (p && !p.closed) { try { p.close(); } catch { /* 이미 닫힌 창 */ } }
+      if (w && !w.closed) { try { w.close(); } catch { /* 이미 닫힌 창 */ } }
       setConnecting(null);
       load();
-    };
-    const onMsg = (e: MessageEvent) => { if (isDone(e.data)) finish(); };
-    let bc: BroadcastChannel | null = null;
-    try {
-      bc = new BroadcastChannel('planq:oauth');
-      bc.onmessage = (e) => { if (isDone(e.data)) finish(); };
-    } catch { bc = null; }
-    const onStorage = (e: StorageEvent) => {
-      if (e.key !== 'planq:oauth:done' || !e.newValue) return;
-      try { if (isDone(JSON.parse(e.newValue))) finish(); } catch { /* 손상된 값 무시 */ }
-    };
-    window.addEventListener('storage', onStorage);
-    // 네이티브: 시스템 브라우저 OAuth 완료 후 앱 복귀(App.tsx appUrlOpen) 시 발행.
-    const onNativeDone = () => { setConnecting(null); load(); };
-    // 시스템 브라우저가 닫힘(성공/취소 공통) — 연결 중 스피너 해제 (L-4).
-    const onDismiss = () => setConnecting(null);
-    window.addEventListener('message', onMsg);
-    window.addEventListener('planq:oauth-connected', onNativeDone);
-    window.addEventListener('planq:oauth-dismissed', onDismiss);
-    return () => {
-      window.removeEventListener('planq:oauth-connected', onNativeDone);
-      window.removeEventListener('planq:oauth-dismissed', onDismiss);
-      window.removeEventListener('message', onMsg);
-      window.removeEventListener('storage', onStorage);
-      try { bc?.close(); } catch { /* 이미 닫힘 */ }
-    };
-  }, [load]);
+    },
+    onDismiss: () => setConnecting(null),
+  });
 
   const handleConnect = async (provider: 'gdrive' | 'gcal') => {
     setConnecting(provider);

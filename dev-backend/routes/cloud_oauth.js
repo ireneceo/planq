@@ -25,82 +25,12 @@ const cloudTokenCrypto = require('../services/cloudTokenCrypto');
 const { logOauthFailure } = require('../utils/oauthLog');
 const backfill = require('../services/calendarWorkspaceBackfill');   // 재연결 직후 밀린 일정 올리기 (#242)
 
-// 사이클 N+16-B — OAuth 콜백 팝업 자동 닫기 + COOP 차단 시 사용자 친화 안내.
-// 옛 버전: 300ms 후 postMessage + 사용자가 직접 "닫기" 클릭 → 일부 브라우저(Chrome/Safari)가
-// Cross-Origin-Opener-Policy 로 window.close() 차단 → 닫기 안 됨.
-// 새 버전:
-//   1) 즉시 postMessage (부모가 상태 갱신)
-//   2) 800ms 뒤 자동 window.close() 시도
-//   3) 1.5s 후에도 살아있으면 안내 화면 ("이 창을 닫으셔도 됩니다") 로 교체
-// 콜백 화면에 끼우는 바깥 값(구글이 돌려준 error·메일 주소·오류 문구)은 반드시 이스케이프한다 —
-//   `?error=<b>…` 로 우리 도메인에 남의 HTML 을 그리게 할 수 있었다(2026-10-09 보안점검).
-const escHtml = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-
+// 콜백 화면은 utils/oauthPopupPage 한 벌(개인 연동 external_connections 와 같다) — 인라인 스크립트가
+//   CSP 에 막혀 닫기·완료 신호가 한 번도 안 돌던 것을 고친 곳(2026-10-12). 바깥 값은 escHtml 로.
+const { oauthPopupHtml, escHtml } = require('../utils/oauthPopupPage');
 function buildCallbackHtml({ provider, ok, title, body }) {
-  // provider: 'gdrive' | 'gcal' (postMessage type 분기)
-  const messageType = provider === 'gcal' ? 'gcal:connected' : 'gdrive:connected';
-  return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${escHtml(title)}</title>
-<style>
-  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;background:#F8FAFC;color:#0F172A;}
-  .box{background:#fff;border:1px solid #E2E8F0;border-radius:12px;padding:28px 32px;max-width:420px;text-align:center;box-shadow:0 4px 12px rgba(15,23,42,0.06);}
-  h2{margin:0 0 10px;font-size:18px;color:${ok ? '#0F766E' : '#DC2626'};}
-  p{margin:0 0 16px;font-size:13px;color:#475569;line-height:1.55;}
-  button{height:36px;padding:0 18px;background:#14B8A6;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;}
-  button:hover{background:#0D9488;}
-  .hint{font-size:11.5px;color:#94A3B8;margin-top:6px;}
-  #fallback{display:none;}
-</style></head>
-<body>
-  <div class="box" id="primary">
-    ${body}
-    <button type="button" id="closeBtn">닫기</button>
-    <div class="hint">잠시 후 자동으로 닫힙니다…</div>
-  </div>
-  <div class="box" id="fallback">
-    <h2 style="color:#0F766E;">✓ 연동이 끝났습니다</h2>
-    <p><strong>이 창을 닫아 주세요.</strong> (탭 닫기 또는 ⌘W / Ctrl+W)<br/>
-    구글 로그인을 거친 창은 브라우저 보안 정책상 <b>자동으로 닫을 수 없습니다.</b><br/>
-    원래 화면에는 이미 연동이 반영돼 있습니다.</p>
-  </div>
-  <script>
-    (function(){
-      var TYPE = ${JSON.stringify(messageType)};
-      var OK = ${ok ? 'true' : 'false'};
-      // #224 — 팝업이 accounts.google.com 을 경유하면서 COOP 로 **opener 가 끊긴다.**
-      //   그 결과 (a) postMessage 가 조용히 실패하고 (b) 자기 window.close() 도 거부돼
-      //   "완료 화면에서 창이 영영 안 닫히는" 회귀가 났다(사용자 보고).
-      //   opener 에 의존하지 않는 동일 출처 채널(BroadcastChannel + localStorage)로 완료를 알리고,
-      //   **팝업 핸들을 쥐고 있는 부모가 대신 닫게** 한다. 자기 close 는 되면 좋은 보조 경로로만 둔다.
-      var payload = { type: TYPE, ok: OK, ts: Date.now() };
-      try { var bc = new BroadcastChannel('planq:oauth'); bc.postMessage(payload); bc.close(); } catch(e){}
-      try { localStorage.setItem('planq:oauth:done', JSON.stringify(payload)); } catch(e){}
-      try { window.opener && window.opener.postMessage(payload, '*'); } catch(e){}
-
-      var showFallback = function(){
-        var p = document.getElementById('primary');
-        var f = document.getElementById('fallback');
-        if (p && f && f.style.display !== 'block') { p.style.display = 'none'; f.style.display = 'block'; }
-      };
-      var tryClose = function(){ try { window.close(); } catch(e){} };
-      // ★ 2026-08-24 (Irene: "이거 닫기 안돼. 버튼 닫기 되게 해")
-      //   Google 을 경유한 팝업은 COOP 로 브라우징 컨텍스트가 분리돼 **자기 close 도, 부모의 close 도**
-      //   브라우저가 거부한다. 즉 자동으로 닫는 건 우리가 할 수 있는 일이 아니다.
-      //   그렇다면 버튼이 최소한 **무언가는 해야 한다** — 눌러도 아무 반응이 없으면 고장으로 읽힌다.
-      //   닫기를 누르면 닫기를 시도하고, 닫히지 않으면 곧바로 "직접 닫으셔도 된다" 화면으로 바꾼다.
-      document.getElementById('closeBtn').addEventListener('click', function(){
-        tryClose();
-        setTimeout(showFallback, 200);
-      });
-      setTimeout(tryClose, 600);
-      // 그래도 살아있으면(=COOP 로 close 거부) 안내 화면으로 교체. 부모의 close 가 이 사이에 먼저 성공하면 이 코드는 실행되지 않는다.
-      setTimeout(function(){
-        var p = document.getElementById('primary');
-        var f = document.getElementById('fallback');
-        if (p && f) { p.style.display = 'none'; f.style.display = 'block'; }
-      }, 1500);
-    })();
-  </script>
-</body></html>`;
+  // provider: 'gdrive' | 'gcal' (완료 신호 type 분기)
+  return oauthPopupHtml({ type: provider === 'gcal' ? 'gcal:connected' : 'gdrive:connected', ok, provider, title, body });
 }
 
 // ─── OAuth 콜백 ───

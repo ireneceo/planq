@@ -19,6 +19,7 @@ import { Section, SectionTitle, SectionSub, Empty, ConnList, ConnRow, ConnIcon, 
 import ConnectedAiAppsSection from './ConnectedAiAppsSection';
 import { useAuth, apiFetch } from '../../contexts/AuthContext';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
+import { useOauthPopupDone } from '../../hooks/useOauthPopupDone';
 
 interface ExternalConnection {
   id: number | string;
@@ -244,28 +245,17 @@ const ProfileIntegrationsPage: React.FC = () => {
     }
   }, [businessId, connProvider, t]);
 
-  // popup 콜백 완료 → postMessage(웹) 또는 planq:oauth-connected(네이티브 딥링크 복귀) 수신 시 목록 갱신
-  useEffect(() => {
-    const onMsg = (e: MessageEvent) => {
-      if (e.data && e.data.type === 'personal:connected') {
-        setConnProvider(null);
-        if (e.data.ok) load();
-        else setErrorMsg(t('integrations.connectFailed2', { defaultValue: '연결에 실패했어요. 다시 시도해 주세요.' }) as string);
-      }
-    };
-    // 네이티브: 시스템 브라우저 OAuth 완료 후 앱 복귀(App.tsx appUrlOpen) 시 발행되는 이벤트.
-    const onNativeDone = () => { setConnProvider(null); load(); };
-    // 시스템 브라우저가 닫힘(성공/취소 공통) — 연결 중 스피너 해제 (L-4).
-    const onDismiss = () => setConnProvider(null);
-    window.addEventListener('message', onMsg);
-    window.addEventListener('planq:oauth-connected', onNativeDone);
-    window.addEventListener('planq:oauth-dismissed', onDismiss);
-    return () => {
-      window.removeEventListener('message', onMsg);
-      window.removeEventListener('planq:oauth-connected', onNativeDone);
-      window.removeEventListener('planq:oauth-dismissed', onDismiss);
-    };
-  }, [load, t]);
+  // popup 콜백 완료 → 신호 세 길(postMessage·BroadcastChannel·storage) + 네이티브 앱 복귀를 한 훅으로(hooks/useOauthPopupDone).
+  //   예전엔 postMessage 만 들어 구글 경유로 opener 가 끊기면 영영 못 받았다(«고른 뒤 화면이 안 바뀐다», 2026-10-12).
+  useOauthPopupDone({
+    types: ['personal:connected'],
+    onDone: (p) => {
+      setConnProvider(null);
+      if (p.ok) load();
+      else setErrorMsg(t('integrations.connectFailed2', { defaultValue: '연결에 실패했어요. 다시 시도해 주세요.' }) as string);
+    },
+    onDismiss: () => setConnProvider(null),
+  });
 
   // 개인 캘린더 쓰기 동기화 on/off — 연결(is_active)은 유지, 밀어넣기만 멈춘다.
   // ★ 2026-09-09 — 자동저장 ✓ 를 붙인다. 래퍼가 onSave 를 부르므로 컨트롤이 저장까지 하면

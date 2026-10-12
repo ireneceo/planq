@@ -107,6 +107,8 @@ function sendNativeReturn(res, params = {}, opts = {}) {
   const hint = opts.message ? `${opts.message} ${platformHint}` : platformHint;
   res.set('Content-Type', 'text/html; charset=utf-8');
   res.set('Cache-Control', 'no-store');
+  // 스킴 자동 시도 스크립트는 같은 출처 파일(routes/oauth_popup.js native-return.js) — 인라인은 helmet CSP 가 막아
+  //   한 번도 돌지 않았다(2026-10-12 발견). 주소는 data-return-url 로 넘긴다.
   return res.status(200).send(`<!doctype html><html lang="ko"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>PlanQ</title>
@@ -130,7 +132,7 @@ function sendNativeReturn(res, params = {}, opts = {}) {
   .codebox{border:1px solid #CBD5E1;border-radius:12px;background:#fff;padding:14px 12px;margin:6px 0 10px;text-align:center}
   .code{font-size:30px;font-weight:800;letter-spacing:6px;color:#0F172A;font-variant-numeric:tabular-nums}
   .hint{font-size:12px;color:#94A3B8;margin:6px 0 0;line-height:1.6;text-align:center}
-</style></head><body><div class="c">
+</style></head><body data-return-url="${esc(url)}"><div class="c">
 <h1>${title}</h1>
 <p>${esc(hint)}</p>
 <a class="btn" id="go" href="${primary}">${primaryLabel}</a>
@@ -143,15 +145,7 @@ ${pairCode ? `<p class="step">① 이 창을 닫으세요(‘완료’ 또는 �
 ${web ? `<p class="step">${pairCode ? '②' : ''} 앱 없이 쓰려면 이 브라우저에서 계속할 수 있습니다.</p>
 <a class="s" id="web" href="${web}">이 브라우저에서 계속</a>` : ''}
 </details>` : ''}
-</div><script>
-  // 스킴 자동 시도 — **실패해도 이 페이지는 남는다**(핸들러가 없으면 이동 자체가 취소된다).
-  //   Android Custom Tab 은 여기서 앱이 열린다. iOS 의 SFSafariViewController 는 JS 가 시작한
-  //   커스텀 스킴 이동을 무시하므로 **사람이 위 버튼을 눌러야** 한다(그 탭은 연다).
-  //   ★ https 로 자동 이동하는 코드는 두지 않는다 — 같은 도메인이라 어느 플랫폼에서도 앱을 열지
-  //     못하고, 이 팝오버 안에 웹 세션만 심는다(2026-09-10 실측). 코드가 있는 화면은 떠나지 않는다(F-1).
-  try { location.replace(${JSON.stringify(url)}); } catch (e) {}
-  setTimeout(function(){ try { location.href = ${JSON.stringify(url)}; } catch (e) {} }, 400);
-</script></body></html>`);
+</div><script src="/api/oauth/native-return.js"></script></body></html>`);
 }
 
 module.exports = { NATIVE_SCHEME, ANDROID_PACKAGE, nativeReturnUrl, androidIntentUrl, sendNativeReturn };

@@ -53,52 +53,11 @@ function nativeReturnRedirect(res, { ok, provider, error }) {
   });
 }
 
-// 콜백 화면에 끼우는 바깥 값(구글이 돌려준 error·메일 주소·오류 문구)은 반드시 이스케이프한다 —
+// 콜백 화면은 utils/oauthPopupPage 한 벌(회사 공용 연동 cloud_oauth 와 같다). 바깥 값은 escHtml 로 —
 //   `?error=<b>…` 로 우리 도메인에 남의 HTML 을 그리게 할 수 있었다(2026-10-09 보안점검).
-const escHtml = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-
-function personalCallbackHtml({ ok, provider, title, body }) {
-  return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${escHtml(title)}</title>
-<style>
-  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;background:#F8FAFC;color:#0F172A;}
-  .box{background:#fff;border:1px solid #E2E8F0;border-radius:12px;padding:28px 32px;max-width:420px;text-align:center;box-shadow:0 4px 12px rgba(15,23,42,0.06);}
-  h2{margin:0 0 10px;font-size:18px;color:${ok ? '#0F766E' : '#DC2626'};}
-  p{margin:0 0 16px;font-size:13px;color:#475569;line-height:1.55;}
-  button{height:36px;padding:0 18px;background:#14B8A6;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;}
-  button:hover{background:#0D9488;}
-  .hint{font-size:11.5px;color:#94A3B8;margin-top:6px;}
-  #fallback{display:none;}
-</style></head>
-<body>
-  <div class="box" id="primary">
-    ${body}
-    <button type="button" id="closeBtn">닫기</button>
-    <div class="hint">잠시 후 자동으로 닫힙니다…</div>
-  </div>
-  <div class="box" id="fallback"><h2 style="color:#0F766E;">✓ 연동이 끝났습니다</h2>
-    <p><strong>이 창을 닫아 주세요.</strong> (탭 닫기 또는 ⌘W / Ctrl+W)<br/>
-    구글 로그인을 거친 창은 브라우저 보안 정책상 <b>자동으로 닫을 수 없습니다.</b><br/>
-    원래 화면에는 이미 연동이 반영돼 있습니다.</p></div>
-  <script>
-    (function(){
-      var payload = { type: 'personal:connected', provider: ${JSON.stringify(provider || null)}, ok: ${ok ? 'true' : 'false'}, ts: Date.now() };
-      // opener 는 COOP 로 끊겨 있을 수 있다 — 동일 출처 채널도 같이 쏜다 (cloud_oauth 와 같은 계약).
-      try { var bc = new BroadcastChannel('planq:oauth'); bc.postMessage(payload); bc.close(); } catch(e){}
-      try { localStorage.setItem('planq:oauth:done', JSON.stringify(payload)); } catch(e){}
-      try { window.opener && window.opener.postMessage(payload, '*'); } catch(e){}
-      var showFallback = function(){
-        var p=document.getElementById('primary'), f=document.getElementById('fallback');
-        if (p && f && f.style.display !== 'block') { p.style.display='none'; f.style.display='block'; }
-      };
-      var tryClose = function(){ try { window.close(); } catch(e){} };
-      // 닫기를 눌러도 아무 반응이 없으면 고장으로 읽힌다 — 닫히지 않으면 곧바로 안내로 바꾼다.
-      document.getElementById('closeBtn').addEventListener('click', function(){ tryClose(); setTimeout(showFallback, 200); });
-      setTimeout(tryClose, 800);
-      setTimeout(showFallback, 1500);
-    })();
-  </script>
-</body></html>`;
-}
+const { oauthPopupHtml, escHtml } = require('../utils/oauthPopupPage');
+const personalCallbackHtml = ({ ok, provider, title, body }) =>
+  oauthPopupHtml({ type: 'personal:connected', ok, provider, title, body });
 
 function isAdminRole(req) {
   return req.businessRole === 'owner'

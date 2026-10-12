@@ -21,6 +21,7 @@ import ActionButton from '../Common/ActionButton';
 import { apiFetch } from '../../contexts/AuthContext';
 import { startAuthPopup } from '../../services/oauth';
 import { isNativeApp } from '../../services/native';
+import { useOauthPopupDone } from '../../hooks/useOauthPopupDone';
 import {
   syncCalendarNow, listGcalOrphans, cleanupGcalOrphans, type GcalOrphan,
 } from '../../services/calendar';
@@ -83,33 +84,25 @@ const CalendarSyncNotice: React.FC<Props> = ({ businessId, status, onChanged, on
     } catch { /* 보조 기능 — 실패해도 배너 본문은 유지 */ }
   }, [businessId, status?.can_reconnect_workspace]);
 
-  // 재연결 성공 신호 — COOP 로 opener 가 끊기는 환경이 있어 BroadcastChannel 도 같이 듣는다.
+  // 재연결 성공 신호 — 팝업 신호 세 길 + 네이티브 앱 복귀(hooks/useOauthPopupDone 한 벌).
   //   성공하면 ①연동 상태 재조회 ②고아 사본 스캔을 잇는다.
   //   밀린 일정 백필은 **서버 콜백**이 담당한다(아래 socket 수신으로 결과만 받는다) —
   //   재연결 경로가 캘린더 배너 하나가 아니라서(설정 화면도 있다) 서버에 두는 것이 유일한 정합점이다.
-  useEffect(() => {
-    if (!businessId) return undefined;
-    const isDone = (d: unknown) => {
-      const x = d as { type?: string; ok?: boolean } | null;
-      return !!x && x.type === 'gcal:connected' && !!x.ok;
-    };
-    // ★ 백필을 여기서 부르지 않는다 — **서버 콜백이 모든 재연결 경로에서 이미 돌린다**
-    //   (캘린더 배너로 하든 설정 화면으로 하든). 여기서도 부르면 같은 워크스페이스를 두 실행이
-    //   동시에 집어 구글에 사본이 두 벌 생길 수 있다. 결과는 socket `calendar:sync-changed` 로 온다.
-    const finish = async () => {
+  //   ★ 백필을 여기서 부르지 않는다 — 서버 콜백이 모든 재연결 경로에서 이미 돌린다. 여기서도 부르면
+  //   같은 워크스페이스를 두 실행이 동시에 집어 구글에 사본이 두 벌 생길 수 있다.
+  useOauthPopupDone({
+    enabled: !!businessId,
+    types: ['gcal:connected'],
+    onDone: (p) => {
+      if (!p.ok) return;
       setBusy(null);
       onStatusReload?.();
       void scanOrphans();
-    };
-    const onMsg = (e: MessageEvent) => { if (isDone(e.data)) void finish(); };
-    let bc: BroadcastChannel | null = null;
-    try {
-      bc = new BroadcastChannel('planq:oauth');
-      bc.onmessage = (e) => { if (isDone(e.data)) void finish(); };
-    } catch { bc = null; }
-    const onNativeDone = () => { void finish(); };
-    window.addEventListener('message', onMsg);
-    window.addEventListener('planq:oauth-connected', onNativeDone);
+    },
+  });
+
+  useEffect(() => {
+    if (!businessId) return undefined;
     // 서버가 재연결 직후 백필을 끝내면 알려온다 — 오너 본인 화면뿐 아니라
     //   그 워크스페이스의 **모든 열린 화면**이 이 신호로 배너를 최신화한다.
     const offSock = onSocket<{ backfilled?: number }>('calendar:sync-changed', (d) => {
@@ -120,10 +113,7 @@ const CalendarSyncNotice: React.FC<Props> = ({ businessId, status, onChanged, on
       }
     });
     return () => {
-      window.removeEventListener('message', onMsg);
-      window.removeEventListener('planq:oauth-connected', onNativeDone);
       offSock();
-      try { bc?.close(); } catch { /* 이미 닫힘 */ }
     };
   }, [businessId, onChanged, onStatusReload, scanOrphans, t]);
 

@@ -504,6 +504,7 @@ app.use('/api/businesses', require('./routes/qnote_bridge'));
 // OAuth 로그인 (Google / Microsoft)
 app.use('/api/auth', require('./routes/auth_oauth'));
 // 외부 연동 Phase 1 — 통합 (workspace + user scope)
+app.use('/api', require('./routes/oauth_popup'));            // OAuth 마지막 화면 스크립트(같은 출처 — CSP 가 인라인을 막는다)
 app.use('/api', require('./routes/external_connections'));
 app.use('/api', require('./routes/personal_calendar'));  // 개인 Google 캘린더 overlay·수정 (분리)
 app.use('/api/notifications', require('./routes/notifications'));

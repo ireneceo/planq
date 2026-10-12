@@ -10,6 +10,7 @@ import { apiFetch } from '../../contexts/AuthContext';
 import AutoSaveField from '../../components/Common/AutoSaveField';
 import PlanQSelect from '../../components/Common/PlanQSelect';
 import GoogleCalendarListConsent from '../../components/Calendar/GoogleCalendarListConsent';
+import CalendarViewPicker from './CalendarViewPicker';
 
 type Cal = { id: string; summary: string; primary: boolean };
 
@@ -20,6 +21,8 @@ export default function CalendarPicker({ connectionId, businessId }: {
   const [state, setState] = useState<{ canList: boolean; selected: string; calendars: Cal[] } | null>(null);
   const [failed, setFailed] = useState(false);
   const pending = useRef<string | null>(null);
+  // 올릴 캘린더가 저장되면 보기 목록을 다시 읽는다(올리는 캘린더는 늘 보이는 칸이라 체크가 옮겨 간다)
+  const [savedWrite, setSavedWrite] = useState(0);
 
   const load = useCallback(async () => {
     try {
@@ -39,6 +42,7 @@ export default function CalendarPicker({ connectionId, businessId }: {
       body: JSON.stringify({ connection_id: connectionId, calendar_id: want }),
     });
     if (!r.ok) throw new Error('calendar_select_failed');   // 던져야 ! 뱃지가 뜬다
+    setSavedWrite((n) => n + 1);
   }, [connectionId]);
 
   if (failed) return <Hint data-testid="calendar-picker-failed">{t('integrations.calendarPickFailed') as string}</Hint>;
@@ -71,6 +75,7 @@ export default function CalendarPicker({ connectionId, businessId }: {
           options={options} />
       </AutoSaveField>
       <Hint>{t('integrations.calendarPickHint') as string}</Hint>
+      <CalendarViewPicker key={savedWrite} connectionId={connectionId} />
     </Wrap>
   );
 }
