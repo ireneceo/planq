@@ -24,7 +24,7 @@ import { fetchWikiContext, fetchWikiCategories, fetchWikiArticles, wikiLang, typ
 import CueTurnList from './CueTurnList';
 import { useCueChat, cueActionDeepLink } from '../../hooks/useCueChat';
 import { startQhelperHeartbeat, CUE_ASK_EVENT, type CueAskMsg } from '../../utils/cueAsk';
-import { POPOUT_CHANNEL } from './PopoutBridge';
+import { POPOUT_CHANNEL, requestMainNavigate } from './PopoutBridge';
 import { isEnterAction } from '../../utils/imeKey';
 
 // 사이클 P7d — 채팅 모드 분리: qhelper(PlanQ 매뉴얼) / workspace(Cue, 워크스페이스 데이터)
@@ -224,6 +224,18 @@ const CueHelpDrawer: React.FC<{
 
   // N+93 — standalone(/help-popout): 닫기는 창 닫기
   const closeDrawer = () => { if (standalone) window.close(); else setOpen(false); };
+  // Cue 가 만든 결과 [열기]. 분리 창(/help-popout)은 **메인 창에 부탁**하고 자기는 남는다 —
+  // 예전엔 자기 창 안에서 이동한 뒤 closeDrawer()=window.close() 라 «눌렀더니 창만 닫힘» 이었다(2026-10-12 Irene 신고).
+  // 메인 창이 없어 부탁을 못 보내면 새 탭(openWikiPath 와 같은 방식).
+  const openActionResult = (r: Parameters<typeof cueActionDeepLink>[0]) => {
+    const path = cueActionDeepLink(r);
+    if (standalone) {
+      if (!requestMainNavigate(path)) window.open(path, '_blank', 'noopener');
+      return;
+    }
+    navigate(path);
+    closeDrawer();
+  };
 
   // 로그인 사용자가 inquiry 모드 진입 시 이름·이메일 자동 prefill (한 번만)
   useEffect(() => {
@@ -756,7 +768,7 @@ const CueHelpDrawer: React.FC<{
                 onFeedback={sendAnswerFeedback}
                 onActionExecuted={onActionExecuted}
                 onActionDismiss={onActionDismiss}
-                onOpenResult={(r) => { navigate(cueActionDeepLink(r)); closeDrawer(); }}
+                onOpenResult={openActionResult}
                 onOpenSource={(slug) => openWikiPath(`/guide/a/${slug}`)}
               />
             )
