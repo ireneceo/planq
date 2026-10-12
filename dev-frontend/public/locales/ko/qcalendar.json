@@ -259,7 +259,8 @@
     "delete": "삭제",
     "cancel": "취소",
     "deleteConfirm": "이 일정을 Google 캘린더에서 삭제합니다.",
-    "deleteConfirmRecurring": "이 회차만 Google 캘린더에서 삭제합니다."
+    "deleteConfirmRecurring": "이 회차만 Google 캘린더에서 삭제합니다.",
+    "calendar": "캘린더"
   },
   "meetLinkFailed": "일정은 저장됐지만 Google Meet 링크를 만들지 못했습니다. 설정 > 파일·외부 연동에서 Google 캘린더를 다시 연결해 주세요.",
   "booking": {
@@ -378,7 +379,14 @@
     "taskHint": "Q task 업무의 마감일",
     "googleDefault": "기본 캘린더",
     "googleNamed": "Google · {{name}}",
-    "googleHint": "내 구글 캘린더 일정 — 지금은 이 캘린더 하나만 보입니다",
-    "help": "누른 분류의 일정만 보입니다. 여러 개를 함께 켤 수 있어요.\n· 개인 — 나만 보기로 만든 일정\n· 팀 — 팀·프로젝트와 함께 보는 일정\n· 업무 — Q task 업무의 마감일\n· Google — 연결한 내 구글 캘린더(지금은 고른 캘린더 하나만 보입니다. 바꾸기: 내 외부 연동 › 구글 캘린더)"
+    "googleHint": "내 구글 캘린더 일정 — 끄면 구글 캘린더 전부를 가립니다",
+    "help": "누른 분류의 일정만 보입니다. 여러 개를 함께 켤 수 있어요.\n· 개인 — 나만 보기로 만든 일정\n· 팀 — 팀·프로젝트와 함께 보는 일정\n· 업무 — Q task 업무의 마감일\n· Google — 연결한 내 구글 캘린더. 캘린더마다 따로 켜고 끌 수 있어요(연필 표시는 PlanQ 일정을 올리는 캘린더라 늘 보입니다)",
+    "google": "Google",
+    "googleWriteHint": "PlanQ 일정을 올리는 캘린더 — 늘 보입니다",
+    "googleCalFailed": "이 캘린더를 불러오지 못했습니다",
+    "googleMore": "다른 구글 캘린더",
+    "googleOther": "다른 캘린더",
+    "googleListFailed": "구글 캘린더 목록을 불러오지 못했습니다. 잠시 뒤 다시 열어 주세요.",
+    "googleNeedList": "지금은 일정을 올리는 캘린더 하나만 보입니다. 다른 캘린더(보조·공유·공휴일)도 보려면 구글에서 «캘린더 목록 보기» 를 한 번 더 허용해 주세요."
   }
 }

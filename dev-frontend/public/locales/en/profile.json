@@ -314,7 +314,8 @@
     "disconnectConfirmTitle": "Disconnect?",
     "disconnectConfirmLogin": "You'll no longer be able to sign in with \"{{label}}\".",
     "disconnectConfirmPersonal": "\"{{label}}\" will be disconnected. Connect it again to use it.",
-    "cancel": "Cancel"
+    "cancel": "Cancel",
+    "calendarListLoad": "Load my Google calendars"
   },
   "accountDeletion": {
     "title": "Delete account",

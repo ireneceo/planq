@@ -259,7 +259,8 @@
     "delete": "Delete",
     "cancel": "Cancel",
     "deleteConfirm": "This deletes the event from your Google Calendar.",
-    "deleteConfirmRecurring": "This deletes only this occurrence from your Google Calendar."
+    "deleteConfirmRecurring": "This deletes only this occurrence from your Google Calendar.",
+    "calendar": "Calendar"
   },
   "meetLinkFailed": "Event saved, but the Google Meet link could not be created. Please reconnect Google Calendar in Settings > Files & Integrations.",
   "booking": {
@@ -378,7 +379,14 @@
     "taskHint": "Due dates of Q task tasks",
     "googleDefault": "Default calendar",
     "googleNamed": "Google · {{name}}",
-    "googleHint": "Your Google Calendar events — only this one calendar is shown for now",
-    "help": "Only the categories you turn on are shown. You can turn on several.\n· Personal — events only you can see\n· Team — events shared with your team or projects\n· Tasks — due dates of Q task tasks\n· Google — your connected Google Calendar (only the chosen calendar for now. Change it in My integrations › Google Calendar)"
+    "googleHint": "Events from my Google Calendar — turning this off hides all Google calendars",
+    "help": "Only the kinds you turn on are shown. You can turn on several at once.\n· Personal — events only you can see\n· Team — events shared with your team or projects\n· Tasks — Q task due dates\n· Google — your connected Google Calendar. Turn each calendar on or off (the pencil marks the calendar PlanQ adds events to; it is always shown)",
+    "google": "Google",
+    "googleWriteHint": "The calendar PlanQ adds events to — always shown",
+    "googleCalFailed": "Couldn't load this calendar",
+    "googleMore": "More Google calendars",
+    "googleOther": "Other calendars",
+    "googleListFailed": "Couldn't load your Google calendar list. Please try again shortly.",
+    "googleNeedList": "Only the calendar PlanQ adds events to is shown right now. To also see your other calendars (secondary, shared, holidays), allow \"See your calendar list\" in Google once more."
   }
 }

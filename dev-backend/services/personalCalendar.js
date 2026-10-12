@@ -1,7 +1,7 @@
 // services/personalCalendar.js — 개인 Google Calendar 일정 조회 (읽기 전용 overlay)
 //
-// external_connections (owner_scope='user', provider='google_calendar') 의 골라 둔 캘린더(기본 primary)
-// 일정을 가져와 Q Calendar 에 violet overlay 로 표시. 쓰기 없음 (calendar.readonly scope).
+// external_connections (owner_scope='user', provider='google_calendar') 의 보이기로 한 캘린더들(기본: 구글에서 체크해 둔 것,
+// 목록 권한이 없으면 골라 둔 쓰기 캘린더 하나) 일정을 가져와 Q Calendar 에 overlay 로 표시.
 const { google } = require('googleapis');
 const personalOauth = require('./personalOauth');
 const gcalDates = require('./google_calendar');   // 종일 날짜 변환 단일 원천
@@ -15,12 +15,21 @@ function exclusiveEndToInclusive(dateStr) {
 }
 
 // Google 일정 → PlanQ 정규화 shape
-function normalize(ev, conn) {
+//   cal — 이 일정을 읽어 온 캘린더({ id, summary, color, access_role }). 없으면 쓰기 캘린더(옛 호출부 호환).
+//   ★ id 에 캘린더를 넣는다(2026-10-12, Fable 2단계 판정 5) — 초대 사본처럼 같은 eventId 가 두 캘린더에 뜨는 것이 정상이다.
+//     화면은 id 를 파싱하지 않는다 — 캘린더는 calendar_id 로 따로 내린다.
+function normalize(ev, conn, cal = null) {
   const start = ev.start || {};
   const end = ev.end || {};
   const allDay = !!start.date && !start.dateTime;
+  const c = cal || { id: calendarIdOf(conn), summary: metaOf(conn).calendar_summary || null, color: null, access_role: 'owner' };
   return {
-    id: `gcal-${conn.id}-${ev.id}`,
+    id: `gcal-${conn.id}-${encodeURIComponent(c.id)}-${ev.id}`,
+    calendar_id: c.id,
+    calendar_name: c.summary || null,
+    calendar_color: c.color || null,
+    access_role: c.access_role || null,
+    ical_uid: ev.iCalUID || null,
     source: 'personal_google',
     connection_id: conn.id,
     account_email: conn.account_email,
@@ -44,9 +53,12 @@ function normalize(ev, conn) {
     is_organizer: ev.organizer ? !!(ev.organizer.self || ev.organizer.email === conn.account_email) : true,
     // ★ 여태 무조건 true 였다. 그래서 쓰기 권한(calendar.events)에 동의한 사용자도 화면에서
     //   "읽기 전용" 을 보고 있었다 — 권한이 아니라 문구가 옛 동작을 서술하고 있던 것.
-    read_only: !hasCalendarWrite(conn),
+    //   캘린더 권한도 본다 — 공휴일·구독·읽기 공유 캘린더는 구글이 수정을 거부한다.
+    read_only: !hasCalendarWrite(conn) || !isWritableRole(c.access_role),
   };
 }
+// 구글 캘린더 접근 권한(ACL) — 워크스페이스 역할과 무관하다.
+function isWritableRole(accessRole) { return accessRole === 'owner' || accessRole === 'writer'; }
 
 // PlanQ 가 구글에 밀어 넣은 일정인가 — 되돌아온 자기 일정을 오버레이에 다시 그리면 중복이 된다.
 //   신규 일정은 extendedProperties.private.planq='1' 로 표시된다(google_calendar.js).
@@ -56,25 +68,50 @@ function isPlanqOrigin(ev) {
   return priv.planq === '1';
 }
 
-// conn 의 primary calendar 일정 (timeMin~timeMax ISO). 외부 호출 — 10s timeout.
-//   excludeIds: PlanQ 가 만든 google event id 집합 (라우트가 CalendarEvent.gcal_event_id 로 채워 넘긴다)
-async function listEvents(conn, { timeMin, timeMax, maxResults = 250, excludeIds = null }) {
-  const auth = await personalOauth.getAuthedClient(conn);
-  const cal = google.calendar({ version: 'v3', auth });
-  const resp = await cal.events.list({
-    calendarId: calendarIdOf(conn),
-    timeMin, timeMax,
-    singleEvents: true,      // 정기일정 인스턴스 펼침
-    orderBy: 'startTime',
-    maxResults,
-    showDeleted: false,
-  }, { timeout: 10000 });
-  const items = resp.data.items || [];
-  return items
-    .filter(ev => ev.status !== 'cancelled' && (ev.start && (ev.start.dateTime || ev.start.date)))
-    .filter(ev => !isPlanqOrigin(ev))                                   // PlanQ 가 만든 일정 (신규 표식)
+// 일정 조회 캐시 — 월·주를 왔다 갔다 하면 같은 범위를 여러 번 묻는다(2026-10-12, Fable 2단계 판정 4 · 60초).
+//   키 = 연결 × 캘린더 × 범위. 담는 것은 구글 원본(취소·PlanQ 표식 거른 뒤) — excludeIds 는 꺼낼 때 건다.
+//   이 연결의 일정을 PlanQ 에서 고치거나 지우면 invalidateEvents(conn.id) 로 비운다(고친 직후 옛 값이 다시 그려지지 않게).
+const EVENTS_TTL_MS = 60 * 1000;
+const EVENTS_CACHE_MAX = 500;
+const eventsCache = new Map();
+function invalidateEvents(connId) {
+  const prefix = `${connId}|`;
+  for (const k of eventsCache.keys()) if (k.startsWith(prefix)) eventsCache.delete(k);
+}
+
+// conn 의 한 캘린더 일정 (timeMin~timeMax ISO). 외부 호출 — 10s timeout.
+//   cal: 읽을 캘린더({ id, summary, color, access_role }) — 없으면 쓰기 캘린더(옛 호출부: Cue 맥락).
+//   excludeIds: PlanQ 가 만든 google event id 집합 (라우트가 CalendarEvent·링크 표로 채워 넘긴다)
+async function listEvents(conn, { timeMin, timeMax, maxResults = 250, excludeIds = null, cal = null, useCache = false }) {
+  const calendarId = (cal && cal.id) || calendarIdOf(conn);
+  const key = `${conn.id}|${calendarId}|${timeMin}|${timeMax}|${maxResults}`;
+  let raw = null;
+  if (useCache) {
+    const hit = eventsCache.get(key);
+    if (hit && Date.now() - hit.at < EVENTS_TTL_MS) raw = hit.items;
+  }
+  if (!raw) {
+    const auth = await personalOauth.getAuthedClient(conn);
+    const api = google.calendar({ version: 'v3', auth });
+    const resp = await api.events.list({
+      calendarId,
+      timeMin, timeMax,
+      singleEvents: true,      // 정기일정 인스턴스 펼침
+      orderBy: 'startTime',
+      maxResults,
+      showDeleted: false,
+    }, { timeout: 10000 });
+    raw = (resp.data.items || [])
+      .filter(ev => ev.status !== 'cancelled' && (ev.start && (ev.start.dateTime || ev.start.date)))
+      .filter(ev => !isPlanqOrigin(ev));                                // PlanQ 가 만든 일정 (신규 표식)
+    if (useCache) {
+      if (eventsCache.size >= EVENTS_CACHE_MAX) eventsCache.delete(eventsCache.keys().next().value);
+      eventsCache.set(key, { at: Date.now(), items: raw });
+    }
+  }
+  return raw
     .filter(ev => !(excludeIds && excludeIds.has(String(ev.id))))       // PlanQ 가 만든 일정 (옛 데이터)
-    .map(ev => normalize(ev, conn));
+    .map(ev => normalize(ev, conn, cal));
 }
 
 // ── 쓰기 (2026-07-27 신설) ────────────────────────────────────────────────
@@ -118,20 +155,96 @@ function calendarIdOf(conn) {
 function hasCalendarList(conn) {
   return String((conn && conn.scope) || '').split(/[\s,]+/).includes(CALENDAR_LIST_SCOPE);
 }
-/** 일정을 쓸 수 있는(writer·owner) 캘린더 목록 — 고르는 화면이 쓴다. */
-async function listCalendars(conn) {
+/**
+ * 캘린더 목록.
+ *   minAccessRole 'writer' = 일정을 올릴 캘린더 고르기(종전) · 'reader' = 보기/가리기 목록(공휴일·구독·읽기 공유 포함).
+ *   ★ freeBusyReader 는 빼다 — events.list 가 제목 없는 «바쁨» 만 줘서 PlanQ 에서 뜻 없는 블록이 된다(Fable 2단계 판정 2).
+ *   구글에서 숨긴(hidden) 캘린더는 목록에 두되 기본 꺼짐 — visibleCalendarsOf 가 정한다.
+ */
+async function listCalendars(conn, { minAccessRole = 'writer' } = {}) {
   const auth = await personalOauth.getAuthedClient(conn);
   const cal = google.calendar({ version: 'v3', auth });
   const out = [];
   let pageToken;
   do {
-    const resp = await cal.calendarList.list({ minAccessRole: 'writer', maxResults: 250, pageToken }, { timeout: 10000 });
+    const resp = await cal.calendarList.list({ minAccessRole, maxResults: 250, pageToken }, { timeout: 10000 });
     for (const c of (resp.data.items || [])) {
-      out.push({ id: c.id, summary: c.summaryOverride || c.summary || c.id, primary: !!c.primary, access_role: c.accessRole, color: c.backgroundColor || null });
+      if (c.deleted || c.accessRole === 'freeBusyReader') continue;
+      out.push({
+        id: c.id, summary: c.summaryOverride || c.summary || c.id, primary: !!c.primary, access_role: c.accessRole,
+        color: c.backgroundColor || null, selected: !!c.selected, hidden: !!c.hidden,
+      });
     }
     pageToken = resp.data.nextPageToken;
   } while (pageToken && out.length < 500);
   return out;
+}
+
+// ── 보기/가리기 (2026-10-12, Fable 2단계 판정 2·3) ─────────────────────────────────────────
+//   Irene: *"다른 캘린더 앱은 구글캘린더 종류 다 가져와서 보기/가리기 다되는데"*
+//   «올릴 캘린더»(calendar_id) 와 «볼 캘린더들»(visible_calendar_ids) 은 **다른 값**이다. 쓰기 캘린더는 늘 보인다(끌 수 없다) —
+//   PlanQ 가 올린 일정이 사라져 보이는 혼선을 막는다.
+const VISIBLE_MAX = 15;                       // 연결당 동시에 볼 수 있는 캘린더 수(조회 비용 상한)
+const LIST_CACHE_TTL_MS = 24 * 3600 * 1000;   // 목록은 하루 한 번만 구글에 묻는다(토글할 때마다 묻지 않는다)
+
+/** 읽을 수 있는 캘린더 목록(캐시). 목록 권한이 없는 옛 연결이면 null. 기본(primary) 캘린더의 id 는 'primary' 로 맞춘다. */
+async function readableCalendars(conn, { force = false } = {}) {
+  if (!hasCalendarList(conn)) return null;
+  const meta = metaOf(conn);
+  const cache = meta.calendar_list_cache;
+  if (!force && cache && Array.isArray(cache.items) && Date.now() - Number(cache.at || 0) < LIST_CACHE_TTL_MS) return cache.items;
+  const items = (await listCalendars(conn, { minAccessRole: 'reader' }))
+    .map((c) => (c.primary ? { ...c, id: 'primary' } : c));
+  try { await conn.update({ metadata: { ...meta, calendar_list_cache: { at: Date.now(), items } } }); }
+  catch (e) { console.warn('[personalCalendar] list cache save failed conn=' + conn.id, e.message); }
+  return items;
+}
+
+/**
+ * 이 연결이 보여 줄 캘린더 — [{ id, summary, color, primary, access_role, visible, is_write }].
+ *   items 가 null(목록 권한 없음)이면 **종전대로 쓰기 캘린더 하나**만 — 조용히 넓히지 않는다.
+ *   저장된 visible_calendar_ids 가 없으면 구글에서 체크해 둔(selected·숨기지 않은) 캘린더 = 구글 화면과 같은 집합.
+ */
+function visibleCalendarsOf(conn, items) {
+  const meta = metaOf(conn);
+  const writeId = calendarIdOf(conn);
+  if (!items) {
+    return [{ id: writeId, summary: meta.calendar_summary || null, color: null, primary: writeId === 'primary',
+      access_role: 'owner', visible: true, is_write: true }];
+  }
+  const stored = Array.isArray(meta.visible_calendar_ids) ? meta.visible_calendar_ids.map(String) : null;
+  const want = new Set(stored || items.filter((c) => c.selected && !c.hidden).map((c) => c.id));
+  want.add(writeId);
+  const list = items.slice();
+  if (!list.some((c) => c.id === writeId)) {
+    list.unshift({ id: writeId, summary: meta.calendar_summary || null, color: null, primary: writeId === 'primary', access_role: 'owner' });
+  }
+  // 쓰기 캘린더를 맨 앞에 — 상한을 넘으면 뒤에서 자른다
+  list.sort((a, b) => (b.id === writeId) - (a.id === writeId));
+  let n = 0;
+  return list.map((c) => {
+    const on = want.has(c.id) && n < VISIBLE_MAX;
+    if (on) n += 1;
+    return { id: c.id, summary: c.summary || null, color: c.color || null, primary: !!c.primary,
+      access_role: c.access_role || null, visible: on, is_write: c.id === writeId };
+  });
+}
+
+/**
+ * 일정을 고치거나 지울 캘린더가 허용되는가 — 화면이 보낸 calendar_id 를 그대로 믿지 않는다(Fable 2단계 판정 6).
+ *   ① 쓰기 캘린더면 통과 ② 아니면 보이는 캘린더이고 그 캘린더 권한이 owner·writer 여야 한다.
+ *   목록 캐시에 없으면 구글에 한 번 다시 묻는다. 그래도 없으면 거절(fail-closed).
+ */
+async function assertEditableCalendar(conn, calendarId) {
+  const id = String(calendarId || '');
+  if (!id) return { ok: false, error: 'calendar_id_required', status: 400 };
+  if (id === calendarIdOf(conn)) return { ok: true, calendarId: id };
+  let items = await readableCalendars(conn);
+  if (!items) return { ok: false, error: 'calendar_not_allowed', status: 403 };
+  if (!items.some((c) => c.id === id)) items = await readableCalendars(conn, { force: true });
+  const hit = visibleCalendarsOf(conn, items).find((c) => c.id === id);
+  if (!hit || !hit.visible || !isWritableRole(hit.access_role)) return { ok: false, error: 'calendar_not_allowed', status: 403 };
+  return { ok: true, calendarId: id };
 }
 
 // PlanQ 원본 표식 — 되돌아온 자기 일정을 overlay 에 중복으로 그리지 않기 위해 반드시 붙인다.
@@ -263,9 +376,9 @@ function nextDay(dateStr) {
   return new Date(Date.UTC(y, m - 1, d + 1)).toISOString().slice(0, 10);
 }
 
-// ★ 구글 원본 개인 일정은 **지금 고른 캘린더**(calendarIdOf)에서 고친다 — 화면 오버레이가 그 캘린더에서 읽기 때문이다.
-//   캘린더를 바꾸기 전에 받아 둔 화면에서 옛 캘린더의 일정을 고치면 404 가 난다(Fable 2026-10-07 관찰 — 1차에서 감수).
-async function patchPersonalOriginEvent(conn, gcalEventId, patch, { etag = null } = {}) {
+// ★ 구글 원본 개인 일정은 **그 일정을 읽어 온 캘린더**(calendarId — 라우트가 assertEditableCalendar 로 확인)에서 고친다.
+//   2026-10-12 부터 여러 캘린더를 함께 보므로 쓰기 캘린더로 고정하면 다른 캘린더 일정이 404 가 난다.
+async function patchPersonalOriginEvent(conn, gcalEventId, patch, { etag = null, calendarId = null } = {}) {
   const auth = await personalOauth.getAuthedClient(conn);
   const cal = google.calendar({ version: 'v3', auth });
   const tz = patch.timezone || 'Asia/Seoul';
@@ -294,7 +407,7 @@ async function patchPersonalOriginEvent(conn, gcalEventId, patch, { etag = null 
     }
   }
 
-  const params = { calendarId: calendarIdOf(conn), eventId: gcalEventId, requestBody: body };
+  const params = { calendarId: calendarId || calendarIdOf(conn), eventId: gcalEventId, requestBody: body };
   // 참석자가 있는 회의의 시간이 바뀌었는데 참석자가 모르면 그게 사고다 (구글 UI 기본 동작과 동일).
   params.sendUpdates = 'all';
   const opts = { timeout: 10000 };
@@ -306,10 +419,10 @@ async function patchPersonalOriginEvent(conn, gcalEventId, patch, { etag = null 
 }
 
 // 충돌(412) 시 최신본을 다시 읽어 화면에 돌려주기 위한 단건 조회.
-async function getEvent(conn, gcalEventId) {
+async function getEvent(conn, gcalEventId, { calendarId = null } = {}) {
   const auth = await personalOauth.getAuthedClient(conn);
   const cal = google.calendar({ version: 'v3', auth });
-  const resp = await cal.events.get({ calendarId: calendarIdOf(conn), eventId: gcalEventId }, { timeout: 10000 });
+  const resp = await cal.events.get({ calendarId: calendarId || calendarIdOf(conn), eventId: gcalEventId }, { timeout: 10000 });
   return resp.data;
 }
 
@@ -332,4 +445,5 @@ module.exports = {
   patchPersonalOriginEvent, getEvent, normalize,
   createMeetingEvent, recordConnError,
   calendarIdOf, hasCalendarList, listCalendars, CALENDAR_LIST_SCOPE,
+  readableCalendars, visibleCalendarsOf, assertEditableCalendar, invalidateEvents, isWritableRole, VISIBLE_MAX,
 };

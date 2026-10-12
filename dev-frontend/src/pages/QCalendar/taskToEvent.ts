@@ -9,7 +9,7 @@ export const TASK_EVENT_ID_OFFSET = 1_000_000_000;
 export const isPersonalEvent = (e: CalendarItem): e is PersonalCalendarEvent =>
   (e as PersonalCalendarEvent)._source === 'personal_google';
 
-// /api/me/calendar/events 응답 raw → PersonalCalendarEvent (violet 색 고정)
+// /api/me/calendar/events 응답 raw → PersonalCalendarEvent (색 = 그 구글 캘린더 색)
 interface PersonalRaw {
   id: string;
   title: string;
@@ -26,6 +26,9 @@ interface PersonalRaw {
   etag?: string | null;
   recurring_event_id?: string | null;
   is_organizer?: boolean;
+  calendar_id?: string;
+  calendar_name?: string | null;
+  calendar_color?: string | null;
 }
 export const personalToEvent = (raw: PersonalRaw, untitledLabel = '(제목 없음)'): PersonalCalendarEvent => ({
   id: raw.id,
@@ -36,7 +39,8 @@ export const personalToEvent = (raw: PersonalRaw, untitledLabel = '(제목 없�
   start_at: raw.start_at,
   end_at: raw.end_at || raw.start_at,
   all_day: !!raw.all_day,
-  color: '#14B8A6',
+  // 구글 캘린더마다 색이 다르다 — «어느 캘린더 일정인지» 를 색으로 가른다(2026-10-12). 색이 없으면 종전 teal.
+  color: (raw.calendar_color && /^#[0-9a-fA-F]{6}$/.test(raw.calendar_color)) ? raw.calendar_color : '#14B8A6',
   html_link: raw.html_link ?? null,
   account_email: raw.account_email ?? null,
   // 어댑터가 서버 판정을 버리면 화면이 다시 "무조건 읽기 전용" 으로 돌아간다.
@@ -47,6 +51,9 @@ export const personalToEvent = (raw: PersonalRaw, untitledLabel = '(제목 없�
   etag: raw.etag ?? null,
   recurring_event_id: raw.recurring_event_id ?? null,
   is_organizer: raw.is_organizer ?? true,
+  calendar_id: raw.calendar_id ?? 'primary',
+  calendar_name: raw.calendar_name ?? null,
+  calendar_color: raw.calendar_color ?? null,
 });
 
 // Q Task API 응답 형태 (/api/tasks/by-business/:bizId)

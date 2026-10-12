@@ -90,7 +90,7 @@ export default function PersonalEventDrawer({ event, businessId, onClose, onChan
     const r = await apiFetch(base, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ business_id: businessId, etag, ...body }),
+      body: JSON.stringify({ business_id: businessId, etag, calendar_id: event.calendar_id, ...body }),
     });
     const j = await r.json().catch(() => ({}));
     if (r.status === 409) {
@@ -103,7 +103,7 @@ export default function PersonalEventDrawer({ event, businessId, onClose, onChan
     if (!r.ok || !j.success) throw new Error(j?.message || 'save_failed');
     setConflict(false);
     if (j.data?.event) applyFresh(j.data.event);
-  }, [base, businessId, etag, applyFresh]);
+  }, [base, businessId, etag, applyFresh, event.calendar_id]);
 
   const saveSchedule = useCallback(async (sd: string, ed: string, st: string, et: string) => {
     if (event.all_day) {
@@ -116,7 +116,7 @@ export default function PersonalEventDrawer({ event, businessId, onClose, onChan
   const remove = useCallback(async () => {
     setDeleting(true);
     try {
-      const r = await apiFetch(`${base}?business_id=${businessId}`, { method: 'DELETE' });
+      const r = await apiFetch(`${base}?business_id=${businessId}&calendar_id=${encodeURIComponent(event.calendar_id)}`, { method: 'DELETE' });
       if (!r.ok) return;
       onChanged(null);
       onClose();
@@ -237,6 +237,15 @@ export default function PersonalEventDrawer({ event, businessId, onClose, onChan
             ) : <Value>{event.location}</Value>}
           </Row>
         )}
+
+        {/* 어느 구글 캘린더의 일정인가 — 여러 캘린더를 함께 보므로 색만으로는 모자란다 */}
+        <Row data-testid="personal-event-calendar">
+          <Label>{t('personal.calendar', { defaultValue: '캘린더' }) as string}</Label>
+          <Value>
+            <CalDot style={{ background: event.color }} aria-hidden="true" />
+            {event.calendar_name || (t('layer.googleDefault', { defaultValue: '기본 캘린더' }) as string)}
+          </Value>
+        </Row>
 
         {event.account_email && (
           <Row>
@@ -364,3 +373,7 @@ const DeleteConfirm = styled.div`
 `;
 const ConfirmText = styled.div`font-size: 0.75rem; color: #991B1B; font-weight: 600;`;
 const ConfirmActions = styled.div`display: flex; gap: 8px; justify-content: flex-end;`;
+
+const CalDot = styled.span`
+  display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; vertical-align: middle;
+`;

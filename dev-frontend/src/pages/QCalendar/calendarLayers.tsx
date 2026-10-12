@@ -6,12 +6,20 @@
 // 옛 셀렉트(전체/나/업무/일정)는 **서로 다른 두 축**을 한 칸에 섞었다 — «나» 는 누구 것, «업무/일정» 은 종류.
 // 이제 한 축(무엇의 일정인가)만 둔다. 한 일정 = 한 분류(layerOf 하나가 정한다 — 목록·칩이 같은 함수).
 //   개인 = 나만 보기(L1) 일정 · 팀 = 팀과 나눈 일정(L2~L4) · 업무 = Q task 마감 · Google = 내 구글 캘린더(연결했을 때만).
+// 2단계(2026-10-12, Fable 판정): Google 을 켜면 **구글 캘린더마다** 칩이 하나씩 붙는다(구글 색 점 + 이름) — 눌러서 보기/가리기.
+//   Irene: *"다른 캘린더 앱은 구글캘린더 종류 다 가져와서 보기/가리기 다되는데"*
+//   저장은 서버 한 곳(PUT /api/me/calendar/visible-calendars) — 기기가 바뀌어도 같다. «Google» 칩은 모(母) 토글(끄면 전부 가림, 자식 선택은 그대로).
+//   목록 권한이 없는 옛 연결은 «다른 캘린더» 칩에서 권한을 한 번 더 묻는다(내 외부 연동과 같은 버튼).
 // 옛 주소 ?scope= 도 읽는다(mine → 전부, tasks → 업무, events → 업무 뺀 전부).
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { FilterChip } from '../../components/Common/filterChip';
 import HelpDot from '../../components/Common/HelpDot';
+import ChipPopover from '../../components/Common/ChipPopover';
+import AutoSaveField from '../../components/Common/AutoSaveField';
+import GoogleCalendarListConsent from '../../components/Calendar/GoogleCalendarListConsent';
+import { apiFetch } from '../../contexts/AuthContext';
 import { isTaskEvent, isPersonalEvent } from './taskToEvent';
 import type { CalendarItem, CalendarEvent } from './types';
 
@@ -71,6 +79,19 @@ export function useCalendarLayers(search: string, embedded: boolean) {
   return { layers, toggle };
 }
 
+/** 구글 캘린더 하나 — 서버 visibleCalendarsOf 와 같은 모양. */
+export interface GoogleCal {
+  id: string;
+  summary: string | null;
+  color: string | null;
+  primary: boolean;
+  access_role: string | null;
+  visible: boolean;
+  is_write: boolean;
+  ok?: boolean;
+  error?: string;
+}
+
 /** 이 연결이 화면에 보여 주는 구글 캘린더 — GET /api/me/calendar/events 의 connections. */
 export interface PersonalCalSource {
   id: number;
@@ -78,6 +99,71 @@ export interface PersonalCalSource {
   ok: boolean;
   calendar_primary?: boolean;
   calendar_summary?: string | null;
+  can_list?: boolean;
+  list_error?: string | null;
+  visible_max?: number;
+  calendars?: GoogleCal[];
+}
+
+const TEAL = '#14B8A6';
+export const calColor = (c?: string | null) => (c && /^#[0-9a-fA-F]{6}$/.test(c) ? c : TEAL);
+
+/**
+ * 구글 캘린더별 보기/가리기 — 화면 상태와 저장을 한곳에.
+ *   toggle 은 화면만 바꾸고(누르는 순간 일정이 사라지고 나타난다), persist 는 AutoSaveField 가 부른다(저장 PUT 한 번).
+ *   최신값은 ref 로 읽는다 — 클로저는 누르기 전 값을 본다.
+ */
+export function useGoogleCalendarVisibility(sources: PersonalCalSource[], onSaved: () => void) {
+  const [vis, setVis] = useState<Record<number, string[]>>({});
+  const visRef = useRef(vis);
+  visRef.current = vis;
+  const savedRef = useRef<Record<number, string[]>>({});
+  const dirtyRef = useRef(false);
+
+  useEffect(() => {
+    if (dirtyRef.current) return;   // 저장 전 바꾼 것을 다시 읽은 목록으로 덮지 않는다
+    const next: Record<number, string[]> = {};
+    for (const s of sources) if (s.calendars) next[s.id] = s.calendars.filter((c) => c.visible).map((c) => c.id);
+    savedRef.current = next;
+    setVis(next);
+  }, [sources]);
+
+  const toggle = useCallback((src: PersonalCalSource, cal: GoogleCal) => {
+    if (cal.is_write || !src.can_list) return;   // 올리는 캘린더는 늘 보인다
+    const cur = visRef.current[src.id] || [];
+    const on = cur.includes(cal.id);
+    if (!on && cur.length >= (src.visible_max || 15)) return;
+    dirtyRef.current = true;
+    const nextList = on ? cur.filter((x) => x !== cal.id) : [...cur, cal.id];
+    const next = { ...visRef.current, [src.id]: nextList };
+    visRef.current = next;
+    setVis(next);
+  }, []);
+
+  const persist = useCallback(async () => {
+    const cur = visRef.current;
+    const same = (a: string[] = [], b: string[] = []) => a.length === b.length && a.every((x) => b.includes(x));
+    const changed = Object.keys(cur).map(Number).filter((id) => !same(cur[id], savedRef.current[id]));
+    if (!changed.length) { dirtyRef.current = false; return; }
+    for (const id of changed) {
+      const r = await apiFetch('/api/me/calendar/visible-calendars', {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ connection_id: id, calendar_ids: cur[id] }),
+      });
+      if (!r.ok) { dirtyRef.current = false; throw new Error('visible_calendars_failed'); }   // 던져야 ! 뱃지가 뜬다
+      savedRef.current = { ...savedRef.current, [id]: cur[id] };
+    }
+    dirtyRef.current = false;
+    onSaved();   // 새로 켠 캘린더 일정을 읽어 온다
+  }, [onSaved]);
+
+  /** 이 개인 일정이 지금 보이는 캘린더의 것인가 — 누르는 순간 화면에서 가린다(저장·재조회 전에도). */
+  const isVisible = useCallback((connectionId: number, calendarId: string) => {
+    const list = vis[connectionId];
+    return !list || list.includes(calendarId);
+  }, [vis]);
+
+  return { vis, toggle, persist, isVisible };
 }
 
 interface ChipsProps {
@@ -86,14 +172,23 @@ interface ChipsProps {
   /** 개인 구글 캘린더가 연결돼 있을 때만 Google 칩을 보인다 */
   googleConnected: boolean;
   googleSources: PersonalCalSource[];
+  businessId?: number | null;
+  /** 캘린더별 보기/가리기 (useGoogleCalendarVisibility) */
+  googleVis?: ReturnType<typeof useGoogleCalendarVisibility>;
+  /** 목록 권한을 받은 뒤 다시 읽기 */
+  onGoogleReload?: () => void;
 }
 
-export const CalendarLayerChips: React.FC<ChipsProps> = ({ layers, onToggle, googleConnected, googleSources }) => {
+const MAX_INLINE = 5;
+
+export const CalendarLayerChips: React.FC<ChipsProps> = ({ layers, onToggle, googleConnected, googleSources, businessId, googleVis, onGoogleReload }) => {
   const { t } = useTranslation('qcalendar');
   const calName = (s?: PersonalCalSource) =>
     (s && !s.calendar_primary && s.calendar_summary) ? s.calendar_summary : t('layer.googleDefault', '기본 캘린더');
   const first = googleSources[0];
-  const googleLabel = t('layer.googleNamed', 'Google · {{name}}', { name: calName(first) });
+  const anyList = googleSources.some((s) => s.can_list);
+  // 캘린더별 칩이 이름을 보여 주면 모 칩은 «Google» 만. 목록 권한이 없으면 종전처럼 지금 보는 캘린더 이름을 붙인다.
+  const googleLabel = anyList ? t('layer.google', 'Google') : t('layer.googleNamed', 'Google · {{name}}', { name: calName(first) });
   // 어떤 계정의 어느 캘린더인지 — 연결이 여럿이면 줄마다
   const googleWhich = googleSources.length
     ? googleSources.map((s) => `${s.account_email || ''} — ${calName(s)}`).join('\n')
@@ -103,7 +198,7 @@ export const CalendarLayerChips: React.FC<ChipsProps> = ({ layers, onToggle, goo
     { key: 'team', label: t('layer.team', '팀'), hint: t('layer.teamHint', '팀·프로젝트와 함께 보는 일정') },
     { key: 'task', label: t('layer.task', '업무'), hint: t('layer.taskHint', 'Q task 업무의 마감일') },
   ];
-  if (googleConnected) items.push({ key: 'google', label: googleLabel, hint: `${t('layer.googleHint', '내 구글 캘린더 일정 — 지금은 이 캘린더 하나만 보입니다')}${googleWhich ? `\n${googleWhich}` : ''}` });
+  if (googleConnected) items.push({ key: 'google', label: googleLabel, hint: `${t('layer.googleHint', '내 구글 캘린더 일정 — 끄면 구글 캘린더 전부를 가립니다')}${googleWhich ? `\n${googleWhich}` : ''}` });
   return (
     <Row data-testid="calendar-layers" role="group" aria-label={t('layer.group', '보기 분류') as string}>
       {items.map((it) => (
@@ -113,8 +208,11 @@ export const CalendarLayerChips: React.FC<ChipsProps> = ({ layers, onToggle, goo
           {it.label}
         </Chip>
       ))}
+      {googleConnected && layers.has('google') && googleVis && (
+        <GoogleCalendarChips sources={googleSources} vis={googleVis} businessId={businessId} onReload={onGoogleReload} />
+      )}
       <HelpDot topic="calendar-layers" placement="auto">
-        {t('layer.help', '누른 분류의 일정만 보입니다. 여러 개를 함께 켤 수 있어요.\n· 개인 — 나만 보기로 만든 일정\n· 팀 — 팀·프로젝트와 함께 보는 일정\n· 업무 — Q task 업무의 마감일\n· Google — 연결한 내 구글 캘린더(지금은 고른 캘린더 하나만 보입니다. 바꾸기: 내 외부 연동 › 구글 캘린더)')}
+        {t('layer.help', '누른 분류의 일정만 보입니다. 여러 개를 함께 켤 수 있어요.\n· 개인 — 나만 보기로 만든 일정\n· 팀 — 팀·프로젝트와 함께 보는 일정\n· 업무 — Q task 업무의 마감일\n· Google — 연결한 내 구글 캘린더. 캘린더마다 따로 켜고 끌 수 있어요(연필 표시는 PlanQ 일정을 올리는 캘린더라 늘 보입니다)')}
         {googleWhich ? `\n\n${googleWhich}` : ''}
       </HelpDot>
     </Row>
@@ -135,4 +233,118 @@ const Chip = styled(FilterChip)`
 `;
 const GDot = styled.span`
   width: 8px; height: 8px; border-radius: 50%; background: #14B8A6; flex-shrink: 0;
+`;
+
+/** 구글 캘린더별 칩 — 앞 5개는 칩, 나머지는 «+N» 팝오버. 목록 권한이 없으면 «다른 캘린더» 에서 권한을 묻는다. */
+const GoogleCalendarChips: React.FC<{
+  sources: PersonalCalSource[];
+  vis: ReturnType<typeof useGoogleCalendarVisibility>;
+  businessId?: number | null;
+  onReload?: () => void;
+}> = ({ sources, vis, businessId, onReload }) => {
+  const { t } = useTranslation('qcalendar');
+  const multiAccount = sources.length > 1;
+  const all = sources.flatMap((src) => (src.calendars || []).map((cal) => ({ src, cal })));
+  const nameOf = (cal: GoogleCal) => (cal.primary ? t('layer.googleDefault', '기본 캘린더') : (cal.summary || t('layer.googleDefault', '기본 캘린더')));
+  const isOn = (src: PersonalCalSource, cal: GoogleCal) => cal.is_write || (vis.vis[src.id] || []).includes(cal.id);
+  const titleOf = (src: PersonalCalSource, cal: GoogleCal) => [
+    multiAccount && src.account_email ? src.account_email : null,
+    cal.is_write ? t('layer.googleWriteHint', 'PlanQ 일정을 올리는 캘린더 — 늘 보입니다') : null,
+    cal.ok === false ? t('layer.googleCalFailed', '이 캘린더를 불러오지 못했습니다') : null,
+  ].filter(Boolean).join('\n') || undefined;
+  const inline = all.slice(0, MAX_INLINE);
+  const rest = all.slice(MAX_INLINE);
+  const needConsent = sources.filter((s) => !s.can_list);
+  const listFailed = sources.some((s) => s.can_list && s.list_error);
+  return (
+    <AutoSaveField type="toggle" onSave={vis.persist}>
+      <SubRow data-testid="calendar-google-cals">
+        {inline.map(({ src, cal }) => {
+          const on = isOn(src, cal);
+          return (
+            <Chip key={`${src.id}|${cal.id}`} type="button" $on={on} aria-pressed={on}
+              aria-disabled={cal.is_write || !src.can_list || undefined}
+              onClick={() => vis.toggle(src, cal)} title={titleOf(src, cal)}
+              data-testid="calendar-google-cal" data-cal-id={cal.id}>
+              <Dot style={{ background: calColor(cal.color) }} $off={!on} aria-hidden="true" />
+              {cal.is_write && (
+                <Pen aria-hidden="true">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
+                </Pen>
+              )}
+              <CalName>{nameOf(cal)}</CalName>
+              {cal.ok === false && <Warn aria-hidden="true">!</Warn>}
+            </Chip>
+          );
+        })}
+        {rest.length > 0 && (
+          <MorePopover label={`+${rest.length}`} ariaLabel={t('layer.googleMore', '다른 구글 캘린더') as string}
+            data-testid="calendar-google-more" width={260}>
+            {() => (
+              <PopList>
+                {rest.map(({ src, cal }) => {
+                  const on = isOn(src, cal);
+                  return (
+                    <PopItem key={`${src.id}|${cal.id}`} type="button" aria-pressed={on}
+                      onClick={() => vis.toggle(src, cal)} title={titleOf(src, cal)} data-testid="calendar-google-cal" data-cal-id={cal.id}>
+                      <Check $on={on} aria-hidden="true">
+                        {on && <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>}
+                      </Check>
+                      <Dot style={{ background: calColor(cal.color) }} $off={!on} aria-hidden="true" />
+                      <CalName>{nameOf(cal)}</CalName>
+                    </PopItem>
+                  );
+                })}
+              </PopList>
+            )}
+          </MorePopover>
+        )}
+        {(needConsent.length > 0 || listFailed) && (
+          <MorePopover label={t('layer.googleOther', '다른 캘린더') as string} data-testid="calendar-google-consent" width={280}>
+            {() => (
+              <PopNote>
+                <span>{listFailed && !needConsent.length
+                  ? t('layer.googleListFailed', '구글 캘린더 목록을 불러오지 못했습니다. 잠시 뒤 다시 열어 주세요.')
+                  : t('layer.googleNeedList', '지금은 일정을 올리는 캘린더 하나만 보입니다. 다른 캘린더(보조·공유·공휴일)도 보려면 구글에서 «캘린더 목록 보기» 를 한 번 더 허용해 주세요.')}</span>
+                {needConsent.length > 0 && (
+                  <GoogleCalendarListConsent businessId={businessId} onDone={onReload} data-testid="calendar-google-allow" />
+                )}
+              </PopNote>
+            )}
+          </MorePopover>
+        )}
+      </SubRow>
+    </AutoSaveField>
+  );
+};
+
+const SubRow = styled.div`
+  display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+  @media (max-width: 640px) { flex-wrap: nowrap; }
+`;
+const Dot = styled.span<{ $off?: boolean }>`
+  width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; opacity: ${(p) => (p.$off ? 0.35 : 1)};
+`;
+const Pen = styled.span`display: inline-flex; color: #64748B;`;
+const CalName = styled.span`max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;`;
+const Warn = styled.span`font-weight: 700; color: #DC2626;`;
+// 팝오버 칩도 같은 줄 높이(32)
+const MorePopover = styled(ChipPopover)`
+  & > button { height: 32px; border-radius: 999px; }
+`;
+const PopList = styled.div`display: flex; flex-direction: column; max-height: 320px; overflow-y: auto; padding: 4px 0;`;
+const PopItem = styled.button`
+  all: unset; box-sizing: border-box; display: flex; align-items: center; gap: 8px; width: 100%;
+  min-height: 36px; padding: 6px 12px; cursor: pointer; font-size: 0.8125rem; color: #334155;
+  &:hover { background: #F8FAFC; }
+  &:focus-visible { outline: 2px solid #14B8A6; outline-offset: -2px; }
+`;
+const Check = styled.span<{ $on: boolean }>`
+  width: 16px; height: 16px; border-radius: 4px; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center;
+  font-size: 0.6875rem; font-weight: 700; color: #fff;
+  border: 1px solid ${(p) => (p.$on ? '#0D9488' : '#CBD5E1')}; background: ${(p) => (p.$on ? '#0D9488' : '#fff')};
+`;
+const PopNote = styled.div`
+  display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; font-size: 0.75rem; color: #475569; line-height: 1.5;
+  white-space: normal;
 `;

@@ -98,7 +98,7 @@ export interface PersonalCalendarEvent {
   start_at: string;
   end_at: string;
   all_day: boolean;
-  color: string;         // violet #14B8A6 (회사 일정과 색 분리)
+  color: string;         // 구글 캘린더 색(없으면 teal #14B8A6)
   html_link: string | null;
   account_email: string | null;
   // ★ 여태 리터럴 true 였다 — 쓰기 권한이 있어도 화면은 읽기 전용이라고 말하고 있었다.
@@ -108,6 +108,10 @@ export interface PersonalCalendarEvent {
   etag: string | null;                  // 동시 수정 충돌 감지
   recurring_event_id: string | null;    // 있으면 반복 일정의 한 회차
   is_organizer: boolean;                // 주최자가 아니면 구글이 수정을 거부한다
+  // 어느 구글 캘린더의 일정인가 (2026-10-12 — 여러 캘린더를 함께 본다). 고치고 지울 때 서버에 그대로 보낸다.
+  calendar_id: string;
+  calendar_name: string | null;
+  calendar_color: string | null;        // 구글 캘린더 색 — 칩 점·일정 블록 색
 }
 
 export type CalendarItem = CalendarEvent | TaskAsEvent | PersonalCalendarEvent;

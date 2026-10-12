@@ -214,8 +214,8 @@ const ProfileIntegrationsPage: React.FC = () => {
 
   // ── 개인 외부 자원 연결 (캘린더 등) — popup OAuth (owner_scope='user') ──
   const [connProvider, setConnProvider] = useState<string | null>(null);
-  // extra — 그 기능을 고른 사람에게만 더 묻는 권한(지금은 «캘린더 고르기» = 'calendar_list' 하나)
-  const connectPersonal = useCallback(async (provider: string, extra?: 'calendar_list') => {
+  // «캘린더 목록 보기» 추가 권한은 components/Calendar/GoogleCalendarListConsent 가 묻는다(Q calendar 와 한 벌).
+  const connectPersonal = useCallback(async (provider: string) => {
     if (!businessId || connProvider) return;
     setConnProvider(provider);
     setErrorMsg(null);
@@ -224,7 +224,7 @@ const ProfileIntegrationsPage: React.FC = () => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         // #125a — 네이티브면 콜백이 HTML(창 멈춤) 대신 앱 딥링크로 복귀하도록 서버에 알린다
-        body: JSON.stringify({ provider, business_id: businessId, client: isNativeApp() ? 'native' : 'web', ...(extra ? { extra } : {}) }),
+        body: JSON.stringify({ provider, business_id: businessId, client: isNativeApp() ? 'native' : 'web' }),
       });
       const j = await r.json();
       if (!j.success || !j.data?.auth_url) {
@@ -434,8 +434,7 @@ const ProfileIntegrationsPage: React.FC = () => {
                   )}
                   {/* 어느 구글 캘린더에 올릴지(2026-10-07 Fable B 판정 8) — 쓰기 권한이 있는 연결만 */}
                   {c.provider === 'google_calendar' && (!c.permission_status || c.permission_status === 'ok') && (
-                    <CalendarPicker connectionId={c.id} onReconnect={() => connectPersonal('google_calendar', 'calendar_list')}
-                      busy={connProvider === 'google_calendar'} />
+                    <CalendarPicker connectionId={c.id} businessId={businessId} />
                   )}
                 </ConnInfo>
                 {c.permission_status && <PermissionBadge status={c.permission_status} />}

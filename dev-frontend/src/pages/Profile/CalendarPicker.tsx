@@ -2,18 +2,19 @@
 //
 //   목록은 서버(GET /api/me/calendar/calendars)가 «일정을 쓸 수 있는» 캘린더만 준다. 고르면 바로 저장(자동저장).
 //   새로 올리는 일정부터 그 캘린더로 가고, 이미 올린 일정은 원래 캘린더에서 계속 고쳐진다 — 화면이 그 사실을 짧게 말한다.
-//   목록 권한은 이 버튼을 누른 사람에게만 묻는다(점진적 동의 — 평소 [캘린더 연결]은 그 권한을 안 묻는다).
+//   목록 권한은 이 버튼을 누른 사람에게만 묻는다(점진적 동의 — 평소 [캘린더 연결]은 그 권한을 안 묻는다). 버튼은 components/Calendar/GoogleCalendarListConsent 한 벌.
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import styled from 'styled-components';
 import { apiFetch } from '../../contexts/AuthContext';
 import AutoSaveField from '../../components/Common/AutoSaveField';
 import PlanQSelect from '../../components/Common/PlanQSelect';
+import GoogleCalendarListConsent from '../../components/Calendar/GoogleCalendarListConsent';
 
 type Cal = { id: string; summary: string; primary: boolean };
 
-export default function CalendarPicker({ connectionId, onReconnect, busy }: {
-  connectionId: number | string; onReconnect: () => void; busy?: boolean;
+export default function CalendarPicker({ connectionId, businessId }: {
+  connectionId: number | string; businessId: number | null | undefined;
 }) {
   const { t } = useTranslation('profile');
   const [state, setState] = useState<{ canList: boolean; selected: string; calendars: Cal[] } | null>(null);
@@ -46,7 +47,8 @@ export default function CalendarPicker({ connectionId, onReconnect, busy }: {
     return (
       <Row data-testid="calendar-picker-reconnect">
         <Hint>{t('integrations.calendarPickReconnect') as string}</Hint>
-        <LinkBtn type="button" onClick={onReconnect} disabled={busy}>{t('integrations.calendarPickAllow') as string}</LinkBtn>
+        {/* 권한 묻기는 Q calendar 의 Google 칩과 같은 버튼 한 벌 */}
+        <GoogleCalendarListConsent businessId={businessId} onDone={() => { void load(); }} data-testid="calendar-picker-allow" />
       </Row>
     );
   }
@@ -77,8 +79,3 @@ const Wrap = styled.div`display:flex;flex-direction:column;gap:6px;margin-top:10
 const Row = styled.div`display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:8px;`;
 const Label = styled.span`font-size:0.75rem;font-weight:600;color:#475569;`;
 const Hint = styled.span`font-size:0.75rem;color:#64748B;line-height:1.5;`;
-const LinkBtn = styled.button`
-  all:unset;cursor:pointer;font-size:0.75rem;font-weight:600;color:#0F766E;
-  &:hover{text-decoration:underline;} &:disabled{opacity:0.5;cursor:default;}
-  &:focus-visible{outline:2px solid #14B8A6;outline-offset:2px;border-radius:4px;}
-`;

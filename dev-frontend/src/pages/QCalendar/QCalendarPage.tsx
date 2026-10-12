@@ -42,7 +42,7 @@ import CalendarProjectFilter, { byProject } from './ProjectFilter';
 import CalendarFrame, { useCalendarOptions } from './CalendarFrame';
 import { useWallNow } from './pastLook';
 import { useUrlDetailParams } from './useUrlDetailParams';
-import { useCalendarLayers, layerOf, layersParam, CalendarLayerChips, type PersonalCalSource } from './calendarLayers';
+import { useCalendarLayers, layerOf, layersParam, CalendarLayerChips, useGoogleCalendarVisibility, type PersonalCalSource } from './calendarLayers';
 
 interface ProjectOption { id: number; name: string; color?: string | null }
 
@@ -208,6 +208,10 @@ const QCalendarPage: React.FC<{ scope?: { type: 'project'; businessId: number; p
     }
   }, [bizId, view, anchor, personalConnected, showPersonal, weekStart, wsTz]);
 
+  // 구글 캘린더별 보기/가리기 (2026-10-12) — 누르면 바로 가리고, 저장 뒤 다시 읽어 새로 켠 캘린더 일정을 가져온다.
+  const reloadPersonal = useCallback(() => { void fetchRange(); }, [fetchRange]);
+  const googleVis = useGoogleCalendarVisibility(personalSources, reloadPersonal);
+
   // 구글에서 당겨온 변경이 있으면 화면을 다시 그린다.
   const pullFromGoogle = useCallback(async () => {
     if (await pullSync()) await fetchRange();
@@ -288,9 +292,10 @@ const QCalendarPage: React.FC<{ scope?: { type: 'project'; businessId: number; p
 
   // 분류 적용 — events + task-as-events + 개인 Google 일정. 한 일정 = 한 분류(layerOf).
   const filteredEvents = useMemo<CalendarItem[]>(() => {
-    const personal: CalendarItem[] = (personalConnected && showPersonal) ? personalEvents : [];
+    const personal: CalendarItem[] = (personalConnected && showPersonal)
+      ? personalEvents.filter((e) => googleVis.isVisible(e.connection_id, e.calendar_id)) : [];
     return byProject([...events, ...taskEvents, ...personal], projectId).filter((e) => layers.has(layerOf(e)));
-  }, [events, taskEvents, personalEvents, personalConnected, showPersonal, layers, projectId]);
+  }, [events, taskEvents, personalEvents, personalConnected, showPersonal, layers, projectId, googleVis.isVisible]);
 
   const listedEvent = useMemo(
     () => (selectedEventId != null ? events.find((e) => e.id === selectedEventId) || null : null),
@@ -547,7 +552,8 @@ const QCalendarPage: React.FC<{ scope?: { type: 'project'; businessId: number; p
           </NavIconBtn>
         </ToolbarLeft>
         <CalendarLayerChips layers={layers} onToggle={toggleLayer}
-          googleConnected={personalConnected} googleSources={personalSources} />
+          googleConnected={personalConnected} googleSources={personalSources}
+          businessId={bizId} googleVis={googleVis} onGoogleReload={reloadPersonal} />
       </Toolbar>
 
       <ViewWrap $agenda={view === 'agenda'}>
