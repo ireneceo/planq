@@ -48,6 +48,9 @@ export interface CueActionResult {
   /** 만든·붙인 화상회의 링크 (create_event·add_meeting_to_event·update_event) */
   meeting_url?: string | null;
   notified?: number;
+  /** create_task 컨펌자 — 넣은 수 · 못 넣은 수(업무는 만들어졌다) */
+  reviewers_added?: number;
+  reviewers_failed?: number;
   /** 일정 옮기기 — 옮긴 일정 id 들과 못 옮긴 것(사유 코드) */
   moved_ids?: number[];
   failed?: { event_id: number; code: string }[];

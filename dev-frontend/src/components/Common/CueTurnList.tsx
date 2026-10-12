@@ -16,8 +16,8 @@ interface Props {
   mode: string;
   businessId: number | null;
   onFeedback: (turnIdx: number, feedback: 'helpful' | 'not_helpful') => void;
-  onActionExecuted: (turnIdx: number, r: CueActionResult) => void;
-  onActionDismiss: (turnIdx: number) => void;
+  onActionExecuted: (turnIdx: number, cardIdx: number, r: CueActionResult) => void;
+  onActionDismiss: (turnIdx: number, cardIdx: number) => void;
   /** 만든 것을 여는 방법 — 드로어는 이동+닫기, 패널은 새 탭. 표면이 정한다. */
   onOpenResult: (r: CueActionResult) => void;
   /** Q위키 근거 링크 클릭 — 표면마다 여는 방식이 다르다 */
@@ -48,40 +48,48 @@ export default function CueTurnList({
                 ? <ErrorText>{tn.error}</ErrorText>
                 : <Answer>{tn.a}</Answer>}
             {/* #81 — Cue 실행 제안 확인 카드 (workspace 모드) */}
-            {mode === 'workspace' && !tn.loading && !tn.error && tn.proposedAction && tn.actionStatus !== 'dismissed' && (
-              tn.actionStatus === 'done' && tn.actionResult ? (
+            {/* 한 답에 카드 여러 장(최대 3, 서로 독립) — 카드마다 따로 실행·취소한다(Fable 2026-10-12 D2) */}
+            {mode === 'workspace' && !tn.loading && !tn.error && (tn.actions || []).map((act, k) => act.status === 'dismissed' ? null : (
+              <ActionSlot key={k} data-testid="cue-action-slot">
+              {act.status === 'done' && act.result ? (
                 <>
                   <ActionDone>
-                    <span>✓ {tn.actionResult.replayed
+                    <span>✓ {act.result.replayed
                       ? t('qhelper.action.replayed', '이미 처리된 요청이에요')
-                      : tn.actionResult.moved_ids
-                        ? t('qhelper.action.movedDone', { count: tn.actionResult.moved_ids.length, defaultValue: `일정 ${tn.actionResult.moved_ids.length}건을 옮겼어요` })
-                        : t(`qhelper.toolDone.${tn.actionResult.tool}`, { defaultValue: t('qhelper.action.doneGeneric', '처리했어요') as string })}</span>
-                    <ActionOpen type="button" onClick={() => onOpenResult(tn.actionResult!)}>
+                      : act.result.moved_ids
+                        ? t('qhelper.action.movedDone', { count: act.result.moved_ids.length, defaultValue: `일정 ${act.result.moved_ids.length}건을 옮겼어요` })
+                        : t(`qhelper.toolDone.${act.result.tool}`, { defaultValue: t('qhelper.action.doneGeneric', '처리했어요') as string })}</span>
+                    <ActionOpen type="button" onClick={() => onOpenResult(act.result!)}>
                       {t('qhelper.action.open', '열기')} ↗
                     </ActionOpen>
                   </ActionDone>
                   {/* 만든 화상회의 링크 — 글 답은 실행 전에 쓰여 링크를 말할 수 없다 */}
-                  {tn.actionResult.meeting_url && <CueMeetingLink url={tn.actionResult.meeting_url} />}
+                  {act.result.meeting_url && <CueMeetingLink url={act.result.meeting_url} />}
                   {/* 화상회의를 만들지 못했으면(일정은 저장됨) · 참석자에게 알렸으면 말한다 */}
-                  {tn.actionResult.meet_warning && (
+                  {act.result.meet_warning && (
                     <ActionNote>{t('qhelper.action.meetWarn', '일정은 저장했지만 화상회의 링크는 만들지 못했어요 — 구글 캘린더 연결을 확인해 주세요.')}</ActionNote>
                   )}
-                  {!!tn.actionResult.notified && (
-                    <ActionNote>{t('qhelper.action.notifiedN', { count: tn.actionResult.notified, defaultValue: `참석자 ${tn.actionResult.notified}명에게 알렸어요` })}</ActionNote>
+                  {!!act.result.notified && (
+                    <ActionNote>{t('qhelper.action.notifiedN', { count: act.result.notified, defaultValue: `참석자 ${act.result.notified}명에게 알렸어요` })}</ActionNote>
                   )}
                   {/* 일정 옮기기 — 일부를 못 옮겼으면 조용히 넘기지 않는다 */}
-                  {!!tn.actionResult.failed?.length && (
+                  {!!act.result.failed?.length && (
                     <ActionNote>
-                      {t('qhelper.action.movedSomeFailed', { count: tn.actionResult.failed.length, defaultValue: `${tn.actionResult.failed.length}건은 옮기지 못했어요 — 권한이 없거나 반복·상담 예약 일정이에요. 캘린더에서 확인해 주세요.` })}
+                      {t('qhelper.action.movedSomeFailed', { count: act.result.failed.length, defaultValue: `${act.result.failed.length}건은 옮기지 못했어요 — 권한이 없거나 반복·상담 예약 일정이에요. 캘린더에서 확인해 주세요.` })}
+                    </ActionNote>
+                  )}
+                  {/* 만들면서 넣은 컨펌자 중 못 넣은 사람 — 업무는 만들어졌다(Fable D1) */}
+                  {!!act.result.reviewers_failed && (
+                    <ActionNote>
+                      {t('qhelper.action.reviewersFailed', { count: act.result.reviewers_failed, defaultValue: `컨펌자 ${act.result.reviewers_failed}명은 넣지 못했어요 — 업무 상세에서 추가해 주세요.` })}
                     </ActionNote>
                   )}
                   {/* #237 — 업무는 만들었지만 '완료' 까지는 못 간 경우. 조용히 넘기면 완료된 줄 안다. */}
-                  {tn.actionResult.completed_skipped && (
+                  {act.result.completed_skipped && (
                     <ActionNote>
-                      {tn.actionResult.completed_skipped === 'only_assignee'
+                      {act.result.completed_skipped === 'only_assignee'
                         ? t('qhelper.action.completedSkipAssignee', '담당자가 다른 분이라 완료 처리는 하지 않았어요 — 업무만 추가했습니다')
-                        : tn.actionResult.completed_skipped === 'not_ready_for_complete'
+                        : act.result.completed_skipped === 'not_ready_for_complete'
                           ? t('qhelper.action.completedSkipReview', '컨펌자가 있는 업무라 완료 처리는 하지 않았어요 — 업무만 추가했습니다')
                           : t('qhelper.action.completedSkipGeneric', '완료 처리는 하지 못했어요 — 업무만 추가했습니다')}
                     </ActionNote>
@@ -89,19 +97,20 @@ export default function CueTurnList({
                 </>
               ) : (
                 <CueActionCard
-                  proposal={tn.proposedAction}
+                  proposal={act.proposal}
                   businessId={businessId}
                   onExecuted={(r) => {
-                    onActionExecuted(i, r);
+                    onActionExecuted(i, k, r);
                     // ★ 메일 답장 초안은 만든 곳으로 바로 데려간다 (2026-10-12, Irene: *"쓴 후에 보이는 곳이 자동으로
                     //   작성한 곳이어야 하는데 그냥 있던 곳에 머물러서 어디에 들어갔는지 모르겠어"*).
                     //   초안은 보내기 전에 사람이 받는 사람·본문을 봐야 끝나는 일이라, 거기까지 가야 일이 이어진다.
                     if (r.entity_type === 'mail_draft' && !r.replayed) onOpenResult(r);
                   }}
-                  onDismiss={() => onActionDismiss(i)}
+                  onDismiss={() => onActionDismiss(i, k)}
                 />
-              )
-            )}
+              )}
+              </ActionSlot>
+            ))}
             {mode === 'qhelper' && !tn.loading && !tn.error && tn.sources && tn.sources.length > 0 && onOpenSource && (
               <Sources>
                 <SourcesLabel>{tw('drawer.sources')}</SourcesLabel>
@@ -178,6 +187,9 @@ const Loading = styled.span`
 `;
 const ErrorText = styled.span`
   font-size: 0.8125rem; color: #DC2626;
+`;
+const ActionSlot = styled.div`
+  display: flex; flex-direction: column;
 `;
 const ActionDone = styled.div`
   margin-top: 8px; display: flex; align-items: center; gap: 10px;

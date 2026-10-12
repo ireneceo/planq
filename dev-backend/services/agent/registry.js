@@ -71,9 +71,14 @@ const TOOLS = [
       estimated_hours: z.number().min(0).max(1000).optional()
         .describe('Estimated hours. Only when the task is assigned to the user themselves (the assignee sets the estimate).'),
       source: z.union([mailSource, chatSource]).optional().describe(SOURCE_DESC),
-      completed: z.boolean().optional().describe('true only when recording work that is ALREADY finished ("add it as done"). Completion only applies when the user is the assignee and no reviewer sign-off is needed; otherwise the task is just created.'),
-      idempotency_key: idem,
+      completed: z.boolean().optional().describe('true only when recording work that is ALREADY finished ("add it as done"). Completion only applies when the user is the assignee and no reviewer sign-off is needed; otherwise the task is just created. Cannot be combined with reviewer_user_ids.'),
+      // 2026-10-12 (Fable 설계 D1) — 만들면서 컨펌자까지. 있으면 알림이 나가므로 MEDIUM(확인 2단계)
+      reviewer_user_ids: z.array(z.number().int().positive()).max(10).optional()
+        .describe('Reviewers who must sign off (user_id from search_members). Each is notified. Not the assignee. When the task is assigned to someone else, the user is already a reviewer automatically. Adding reviewers requires confirmation: the first call only returns a preview naming them.'),
+      confirmation_token: confirm, idempotency_key: idem,
     },
+    riskOf: (a) => ((a.reviewer_user_ids || []).length ? 'MEDIUM' : 'LOW'),
+    preview: (p, a) => t.previewCreateTask(p, a),
     handler: (p, a, actor) => t.createTask(p, a, actor),
   },
   {
@@ -223,6 +228,8 @@ const TOOLS = [
       start_at: z.string().max(40).optional().describe('ISO datetime (for all-day events: YYYY-MM-DD)'),
       end_at: z.string().max(40).optional().describe('ISO datetime (for all-day events: the LAST day YYYY-MM-DD)'),
       meeting_url: z.string().url().max(500).refine((u) => u.startsWith('https://'), 'https only').optional(),
+      // 2026-10-12 (Fable 설계 D3) — 같은 답에서 만든 업무를 다음 턴에 일정에 잇는다. 화면 일정 수정과 같은 판정(eventTaskLink)
+      task_id: z.number().int().positive().optional().describe('Link an existing task the user can open (find it with search_tasks, or the #id of a task created earlier in this conversation)'),
       confirmation_token: confirm, idempotency_key: idem,
     },
     preview: (p, a) => cal.previewUpdateEvent(p, a),

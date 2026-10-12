@@ -205,6 +205,40 @@ async function getTask(p, a) {
 }
 
 // ── create_task ─────────────────────────────────────────────
+// 컨펌자(reviewer_user_ids, 2026-10-12 Fable 설계 D1) — 만들면서 컨펌자까지 한 번에. 실행이 거절할 것을 **만들기 전에** 먼저 거절한다
+//   (만든 뒤에 막히면 업무만 남는다). 요청자 본인은 «남에게 요청하는 업무» 면 행동 계층이 자동 컨펌자로 넣으므로 조용히 뺀다.
+//   담당자를 비워 프로젝트 기본 담당자가 고르는 경우의 충돌은 미리 알 수 없다 → 실행 뒤 reviewers_failed 로 말한다.
+async function checkNewTaskReviewers(p, a) {
+  const want = [...new Set((a.reviewer_user_ids || []).map(Number))];
+  if (!want.length) return { reviewers: [], skipped: [] };
+  if (a.completed) throw err('VALIDATION_ERROR', 'completed_with_reviewers', { hint: 'A task with reviewers cannot be added as already completed. Drop completed or the reviewers.' });
+  const { assertAssignable } = require('../../../middleware/access_scope');
+  const assignee = a.assignee_user_id ? Number(a.assignee_user_id) : p.userId;
+  const reviewers = []; const skipped = [];
+  for (const uid of want) {
+    if (uid === p.userId && assignee !== p.userId) { skipped.push({ user_id: uid, reason: 'requester_auto_reviewer' }); continue; }
+    if (uid === assignee) throw err('VALIDATION_ERROR', 'assignee_cannot_be_reviewer', { user_id: uid });
+    const chk = await assertAssignable(uid, p.businessId, a.project_id || null);
+    if (!chk.ok) throw err('PERMISSION_DENIED', `cannot_assign:${chk.reason}`, { user_id: uid });
+    reviewers.push({ user_id: uid, name: await memberName(p, uid), is_client: chk.kind === 'client' });
+  }
+  return { reviewers, skipped };
+}
+
+/** create_task 미리보기 — 컨펌자가 있을 때만 MEDIUM(riskOf). 없는 태그는 카드 전에 거절한다(실행에서야 막히면 카드가 거짓말이 된다). */
+async function previewCreateTask(p, a) {
+  if ((a.tag_names || []).length) await resolveTagNames(p, a.tag_names);
+  if (!(a.reviewer_user_ids || []).length) return null;
+  await assertMenu(p, 'qtask', 'write');
+  const { reviewers, skipped } = await checkNewTaskReviewers(p, a);
+  return {
+    task: { title: a.title },
+    add_reviewers: reviewers,
+    ...(skipped.length ? { reviewers_skipped: skipped } : {}),
+    note: 'Each reviewer is notified and the task waits for their sign-off before it can be completed.',
+  };
+}
+
 async function createTask(p, a, actor) {
   if (!validDate(a.due_date) || !validDate(a.start_date)) throw err('VALIDATION_ERROR', 'invalid_date', { fields: { due_date: a.due_date, start_date: a.start_date } });
   if (a.start_date && a.due_date && a.start_date > a.due_date) throw err('VALIDATION_ERROR', 'start_after_due');
@@ -226,6 +260,7 @@ async function createTask(p, a, actor) {
   }
   // 태그 — 워크스페이스에 **이미 있는** 태그 이름만. 없는 이름은 만들지 않고 있는 목록을 알려 준다(Fable B 판정 3 ③).
   const tagIds = await resolveTagNames(p, a.tag_names);
+  const rv = await checkNewTaskReviewers(p, a);   // 만들기 전에 — 실행이 거절할 컨펌자면 업무도 만들지 않는다
   const taskActions = require('../../actions/task_actions');
   const r = await taskActions.createTask(actor, {
     businessId: p.businessId,
@@ -249,6 +284,22 @@ async function createTask(p, a, actor) {
   const [item] = await shapeTasks([t], p.businessId);
   const extras = await taskExtras(p, t, scope);
   const out = { task: { ...item, source: extras.source, tags: a.tag_names && a.tag_names.length ? await tagNamesOf(p, t.id) : undefined }, created: true };
+  // 컨펌자 — 업무가 생긴 뒤 화면·add_task_reviewers 와 같은 addReviewer 로 한 명씩(자기 트랜잭션·알림·broadcast 를 가진다 —
+  //   묶어 롤백해도 알림은 이미 나가므로 묶지 않는다). 실패는 업무를 되돌리지 않고 reviewers_failed 로 말한다.
+  if (rv.reviewers.length || rv.skipped.length) {
+    const added = []; const failed = [];
+    const skipped = rv.skipped.map((x) => ({ user_id: x.user_id, reason: x.reason }));
+    for (const { user_id: uid } of rv.reviewers) {
+      const fresh = await loadTask(p, t.id, scope);
+      const ar = await taskActions.addReviewer(fresh, actor, { userId: uid });
+      if (ar.ok) added.push({ user_id: uid, name: await memberName(p, uid) });
+      else if (ar.code === 'already_reviewer') skipped.push({ user_id: uid, reason: 'already_reviewer' });
+      else failed.push({ user_id: uid, reason: ar.code || 'add_failed' });
+    }
+    out.reviewers_added = added;
+    if (skipped.length) out.reviewers_skipped = skipped;
+    if (failed.length) out.reviewers_failed = failed;
+  }
   // «완료로 추가»(#237) — 이미 끝난 일의 기록. 행동 계층 complete() 로 닫는다(status 직접 쓰기 금지).
   //   실패는 생성을 되돌리지 않는다 — 업무는 남기고 사유를 돌려준다(담당자가 남 · 컨펌자가 있음).
   if (a.completed) {
@@ -585,5 +636,5 @@ module.exports = {
   dateOnly, getContext, searchTasks, getTask, createTask, getTaskNotes, addTaskNote, validDate,
   previewReschedule, rescheduleTask, previewComplete, completeTask,
   previewAssign, assignTask, updateTask, previewUpdateTask, previewSubmitReview, submitReviewTool, memberName, previewMoveTask, moveTask,
-  previewAddReviewers, addReviewers,
+  previewAddReviewers, addReviewers, previewCreateTask,
 };

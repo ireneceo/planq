@@ -168,9 +168,31 @@ ${planSummaryForPrompt()}
 function normalizeHistory(raw) {
   if (!Array.isArray(raw)) return [];
   return raw
-    .filter((h) => h && typeof h.q === 'string' && typeof h.a === 'string' && h.q.trim() && h.a.trim())
+    .map((h) => (h && typeof h.q === 'string' && typeof h.a === 'string' ? { ...h, actions: normalizeActions(h.actions) } : null))
+    .filter((h) => h && h.q.trim() && (h.a.trim() || h.actions.length))
     .slice(-4)
-    .map((h) => ({ q: h.q.trim().slice(0, 500), a: h.a.trim().slice(0, 1500) }));
+    .map((h) => ({ q: h.q.trim().slice(0, 500), a: h.a.trim().slice(0, 1500), actions: h.actions }));
 }
 
-module.exports = { SYSTEM_PROMPT_QHELPER, SYSTEM_PROMPT_WORKSPACE, SYSTEM_PROMPT_GUEST, normalizeHistory };
+// 2026-10-12 (Fable 설계 D3) — 앞 턴에서 **사람이 실행한** 카드의 결과(무엇을 만들었고 id 가 무엇인지). 모델이 다음 턴에
+//   «그 업무에 연결해» 를 실제 id 로 알아듣게 하는 맥락일 뿐이다 — 권한은 다음 카드의 미리보기·실행이 다시 본다.
+function normalizeActions(raw) {
+  if (!Array.isArray(raw)) return [];
+  return raw.slice(0, 3).map((x) => {
+    if (!x || typeof x !== 'object') return null;
+    const tool = typeof x.tool === 'string' && /^[a-z_]{1,40}$/.test(x.tool) ? x.tool : null;
+    const type = typeof x.entity_type === 'string' && /^[a-z_]{1,20}$/.test(x.entity_type) ? x.entity_type : null;
+    const id = Number.isInteger(x.entity_id) && x.entity_id > 0 ? x.entity_id : null;
+    if (!tool || !type) return null;
+    const title = typeof x.title === 'string' ? x.title.replace(/[\r\n«»]/g, ' ').trim().slice(0, 100) : '';
+    return { tool, entity_type: type, entity_id: id, title };
+  }).filter(Boolean);
+}
+
+/** 앞 턴의 답 + 실행 결과 줄 — assistant 메시지 하나로. */
+function historyAnswer(h) {
+  const lines = (h.actions || []).map((x) => `[실행됨] ${x.tool} → ${x.entity_type}${x.entity_id ? ` #${x.entity_id}` : ''}${x.title ? ` «${x.title}»` : ''}`);
+  return [h.a, ...lines].filter(Boolean).join('\n');
+}
+
+module.exports = { SYSTEM_PROMPT_QHELPER, SYSTEM_PROMPT_WORKSPACE, SYSTEM_PROMPT_GUEST, normalizeHistory, historyAnswer };

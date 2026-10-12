@@ -252,7 +252,8 @@
       "meetLinkCopied": "Copied",
       "meetWarn": "The event was saved, but the meeting link could not be created — check your Google Calendar connection.",
       "notifiedN": "Notified {{count}} attendees",
-      "now": "Now"
+      "now": "Now",
+      "reviewersFailed": "Couldn't add {{count}} reviewer(s) — add them in the task details."
     },
     "backToGuide": "Back to guide",
     "cueEmptyHint": "Answers based on the current workspace's clients, tasks, schedule, and meetings. Other workspaces' data is not used.",
@@ -525,7 +526,9 @@
       "attendees": "Attendees: {{names}}",
       "clients_gain": "These clients will see the task: {{names}}",
       "clients_see": "These clients will see the project right away: {{names}}",
-      "meet_replaces": "Replaces the current meeting link"
+      "meet_replaces": "Replaces the current meeting link",
+      "reviewer_requester_auto": "You (the requester) become a reviewer automatically",
+      "reviewers_notified": "{{count}} reviewer(s) will be notified"
     }
   },
   "cue": {

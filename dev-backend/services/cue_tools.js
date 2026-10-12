@@ -8,7 +8,7 @@
 // 이 파일이 하는 일(그 외는 하지 않는다 — 검증·권한·실행은 레지스트리·행동 계층의 몫):
 //   - TOOL_SCHEMAS     레지스트리 도구 중 Cue 허용목록을 OpenAI function schema 로(zod → JSON Schema)
 //   - principalOf      로그인 세션 → 카탈로그 principal(provider 'cue'). scopes 는 «표면» — 권한은 행동 계층이 본다
-//   - converse         /help 의 읽기 루프(라운드 4 · 읽기 6 · 12초). 쓰기 도구가 나오면 멈추고 **제안만** 만든다
+//   - converse         /help 의 읽기 루프(라운드 4 · 읽기 6 · 12초). 쓰기 도구가 나오면 멈추고 **제안만** 만든다(한 답 최대 3장, 서로 독립)
 //   - buildProposedAction / proposeOne   쓰기 제안 = strict 파싱 + preview(실행 X) + 카드 데이터
 //   - executeTool      카드 [실행] → runTool(humanConfirmed) — 실행 문은 이것 하나
 //
@@ -150,7 +150,11 @@ async function buildToolSystemContext(businessId, todayIso) {
   }).join('\n');
   return `[오늘] ${dateStr} · [시간대] ${tz}\n[멤버] 담당자·참석자로 지정 가능한 워크스페이스 멤버:\n${roster || '- (없음)'}\n`
     + `[도구 사용] 무엇을 고치거나 연결하려면 먼저 찾기 도구(search_*, list_events, get_*)로 대상의 id 를 확인한다. 제목으로 지목한 업무는 담당자와 무관하게 search_tasks 에 assignee:'anyone' 으로 찾는다. `
-    + `쓰기 도구는 한 번에 하나만 부른다 — 실행은 사람이 확인 카드를 누른 뒤에 된다. 지우기·보내기·청구는 할 수 없다.\n`
+    + `쓰기 도구는 요청에 쓰기가 여럿이면 각각 부른다(한 답 최대 ${MAX_WRITES}개, 카드마다 사람이 따로 확인해 실행한다) — 카드끼리 같은 것을 두 번 만들지 않는다. `
+    + `카드는 서로 독립이어야 한다: 새로 만드는 것에 딸린 설정은 그 도구의 칸으로 한 번에 넣는다(업무의 컨펌자 = create_task reviewer_user_ids · 일정의 참석자·화상회의 = create_event attendee_user_ids·create_meeting · 이미 있는 업무 연결 = create_event task_id). `
+    + `이번 답에서 새로 만드는 업무에 일정을 연결해야 하면 업무 카드와 일정 카드(task_id 없이)를 **둘 다** 내고, 답에 «업무 카드를 실행한 뒤 '그 업무에 일정 연결해' 라고 말해 주시면 연결할게요» 를 쓴다 — 다음 턴에 앞 대화의 [실행됨] 줄(#번호)로 update_event task_id 카드를 낸다. `
+    + `카드를 낼 때도 답을 비우지 않는다 — 한두 문장으로 카드 몇 장에 무엇이 들어 있고 각각 확인해 실행하면 된다는 것을 말한다. `
+    + `지우기·보내기·청구는 할 수 없다.\n`
     + `[쓰기 원칙] 사용자가 말한 것만 넣는다 — 말하지 않은 고객·담당자·참석자·태그를 붙이지 말고, 본문·메모에 조언·후속 조치·추측을 덧붙이지 않는다. `
     + `꼭 골라야 하는 값은 가장 중립적인 쪽으로(프로젝트 종류는 고객을 말했을 때만 client, 아니면 internal) — 사람이 카드에서 고친다. `
     + `화상회의·구글 미팅 링크를 원하면 create_event 에 create_meeting:true + visibility:'team'(Meet 은 팀 공개 일정만 — 카드에 보인다) 또는 기존 일정이면 add_meeting_to_event. `
@@ -214,7 +218,7 @@ async function clientLabels(businessId, ids) {
 }
 const LONG_TEXT = new Set(['description', 'content', 'note', 'body']);
 const EXTRA_EDITABLE = {
-  create_task: ['due_date', 'assignee_user_id', 'description'],
+  create_task: ['due_date', 'assignee_user_id', 'reviewer_user_ids', 'description'],
   create_event: ['location', 'description'],
 };
 
@@ -268,6 +272,8 @@ function notesOf(preview) {
     out.push({ key: 'clients_gain', names: preview.clients_who_will_see_it.map((c) => c.name || c.contact_name || c).slice(0, 10).join(', ') });
   }
   if (preview.meeting?.replaces_existing) out.push({ key: 'meet_replaces' });
+  if ((preview.reviewers_skipped || []).some((x) => x.reason === 'requester_auto_reviewer')) out.push({ key: 'reviewer_requester_auto' });
+  if (Array.isArray(preview.add_reviewers) && preview.add_reviewers.length) out.push({ key: 'reviewers_notified', count: preview.add_reviewers.length });
   if (Array.isArray(preview.clients)) {
     const see = preview.clients.filter((c) => c.has_planq_account).map((c) => c.name);
     if (see.length) out.push({ key: 'clients_see', names: see.slice(0, 10).join(', ') });
@@ -283,10 +289,13 @@ async function buildCard(p, tool, args, preview) {
   const extra = EXTRA_EDITABLE[tool] || [];
   for (const [key, zd] of Object.entries(def.input)) {
     if (HIDDEN_INPUTS.has(key) || key === 'moves' || key === 'link_document_ids') continue;
+    // 일정 수정의 업무 연결은 «바뀌는 값» 이다 — 아래 changes(전 → 후, 제목)로 보인다. 대상 칸에 두면 무엇을 고치는지 헷갈린다
+    if (tool === 'update_event' && key === 'task_id') continue;
     if (TARGET_KEYS[key] && !(tool.startsWith('create_') && key === 'project_id')) {
       if (args[key] === undefined) continue;
-      const fromPreview = preview?.task?.title || preview?.event?.title || null;
-      targets.push({ type: TARGET_KEYS[key], id: args[key], title: (TARGET_KEYS[key] === 'task' || TARGET_KEYS[key] === 'event') && fromPreview ? fromPreview : await targetTitle(p, TARGET_KEYS[key], args[key]) });
+      // 미리보기가 준 제목은 **그 종류의** 대상에만 — 일정 수정 카드의 업무 연결에 일정 제목이 붙던 것을 막는다
+      const fromPreview = TARGET_KEYS[key] === 'task' ? preview?.task?.title : TARGET_KEYS[key] === 'event' ? preview?.event?.title : null;
+      targets.push({ type: TARGET_KEYS[key], id: args[key], title: fromPreview || await targetTitle(p, TARGET_KEYS[key], args[key]) });
       continue;
     }
     if (args[key] === undefined && !extra.includes(key)) continue;
@@ -345,17 +354,30 @@ async function buildProposedAction(businessId, toolCalls, userId = null, platfor
 
 // ─────────────────────────────────────────────
 // 읽기 루프 — 모델이 찾기 도구를 부르면 결과를 돌려주고 다시 묻는다. 상한: 라운드 4 · 읽기 호출 6 · 12초.
-//   쓰기 도구가 나오면 그 자리에서 멈추고 첫 쓰기를 **제안**으로 만든다(실행 X). 제안이 거절되면 이유를 모델에 돌려준다.
+//   쓰기 도구가 나오면 그 자리에서 멈추고 그 라운드의 쓰기를 **제안**으로 만든다(실행 X, 최대 3장). 거절분은 이유를 모델에 돌려준다.
 // ─────────────────────────────────────────────
 const MAX_ROUNDS = 4; const MAX_READS = 6; const MAX_MS = 12000;
 const RESULT_CHARS = 6000;
+// 한 답의 쓰기 카드 상한 — 서로 독립인 카드만(Fable 2026-10-12 D2). 넘친 호출은 모델에 too_many_writes 로 돌려준다.
+const MAX_WRITES = 3;
+
+/** 카드 중복 판정 지문 — 도구 + 정규화된 인자(키 정렬). 재시도 라운드가 받아 둔 카드를 다시 내도 한 장만 남긴다. */
+function proposalKey(pr) {
+  const sort = (v) => (Array.isArray(v) ? v.map(sort) : v && typeof v === 'object'
+    ? Object.fromEntries(Object.keys(v).sort().map((k) => [k, sort(v[k])])) : v);
+  return `${pr.tool}|${JSON.stringify(sort(pr.params || {}))}`;
+}
 
 async function converse({ p, messages, callLLM, llmOpts = {} }) {
   const started = Date.now();
   const msgs = [...messages];
   const reads = [];
+  const accepted = [];            // 이 답에 낼 카드(제안) — 라운드를 건너 모인다
+  const seen = new Set();
   let usage = { input_tokens: 0, output_tokens: 0, model: null };
   let last = null;
+  const done = (content) => ({ content: content || '', usage, reads,
+    ...(accepted.length ? { proposal: accepted[0], proposals: accepted.slice() } : {}) });
   for (let round = 1; round <= MAX_ROUNDS; round += 1) {
     const overBudget = reads.length >= MAX_READS || Date.now() - started > MAX_MS || round === MAX_ROUNDS;
     // 예산이 끝나면 쓰기 도구만 남긴다 — 더 찾지 말고 지금 아는 것으로 답하거나 제안하게
@@ -363,19 +385,37 @@ async function converse({ p, messages, callLLM, llmOpts = {} }) {
     const r = await callLLM({ ...llmOpts, messages: msgs, tools });
     last = r;
     usage = { input_tokens: usage.input_tokens + (r.input_tokens || 0), output_tokens: usage.output_tokens + (r.output_tokens || 0), model: r.model || usage.model };
-    if (r.fallback) return { fallback: true, usage, reads };
+    if (r.fallback) return accepted.length ? done(r.content) : { fallback: true, usage, reads };
     const calls = Array.isArray(r.tool_calls) ? r.tool_calls : [];
-    if (!calls.length) return { content: r.content || '', usage, reads };
+    if (!calls.length) return done(r.content);
 
-    const write = calls.find((c) => WRITE_TOOLS.has(c?.function?.name) || isAlias(c?.function?.name));
-    if (write) {
-      let args = {};
-      try { args = JSON.parse(write.function.arguments || '{}'); } catch { args = {}; }
-      const pr = await proposeOne(p, write.function.name, args);
-      if (pr.proposal) return { content: r.content || '', proposal: pr.proposal, usage, reads };
-      // 거절(권한·없는 태그·잘못된 날짜…) — 모델에게 이유를 주고 한 번 더(설명하거나 고쳐서 다시 제안)
-      msgs.push({ role: 'assistant', content: r.content || null, tool_calls: [write] });
-      msgs.push({ role: 'tool', tool_call_id: write.id, content: JSON.stringify({ ok: false, error: pr.error }).slice(0, RESULT_CHARS) });
+    // 쓰기 호출이 있으면 그 라운드의 쓰기를 **전부** 제안으로(실행 X). 같은 라운드의 읽기는 버린다.
+    const writes = calls.filter((c) => WRITE_TOOLS.has(c?.function?.name) || isAlias(c?.function?.name));
+    if (writes.length) {
+      const replies = [];
+      let rejected = 0;
+      for (const [i, w] of writes.entries()) {
+        if (accepted.length >= MAX_WRITES || i >= MAX_WRITES) {
+          rejected += 1;
+          replies.push({ id: w.id, out: { ok: false, error: { code: 'VALIDATION_ERROR', message: 'too_many_writes', hint: `At most ${MAX_WRITES} write cards per answer. Tell the user to ask for the rest after running these.` } } });
+          continue;
+        }
+        let args = {};
+        try { args = JSON.parse(w.function.arguments || '{}'); } catch { args = {}; }
+        const pr = await proposeOne(p, w.function.name, args);
+        if (pr.proposal) {
+          const key = proposalKey(pr.proposal);
+          if (!seen.has(key)) { seen.add(key); accepted.push(pr.proposal); }
+          replies.push({ id: w.id, out: { ok: true, proposed: true, note: 'Shown to the user as a confirmation card (not executed yet). Do not call it again.' } });
+        } else {
+          rejected += 1;
+          replies.push({ id: w.id, out: { ok: false, error: pr.error } });
+        }
+      }
+      // 모두 받아들였으면 끝 — 거절이 있으면 이유를 주고 한 번 더(설명하거나 고쳐서 다시 제안). 받아 둔 카드는 남는다.
+      if (!rejected) return done(r.content);
+      msgs.push({ role: 'assistant', content: r.content || null, tool_calls: writes });
+      for (const x of replies) msgs.push({ role: 'tool', tool_call_id: x.id, content: JSON.stringify(x.out).slice(0, RESULT_CHARS) });
       continue;
     }
     msgs.push({ role: 'assistant', content: r.content || null, tool_calls: calls });
@@ -392,7 +432,7 @@ async function converse({ p, messages, callLLM, llmOpts = {} }) {
       msgs.push({ role: 'tool', tool_call_id: c.id, content: JSON.stringify(out).slice(0, RESULT_CHARS) });
     }
   }
-  return { content: last?.content || '', usage, reads };
+  return done(last?.content);
 }
 
 // ─────────────────────────────────────────────
@@ -433,6 +473,9 @@ async function executeTool(actor, businessId, name, rawParams) {
       ...((r.meeting_url || r.event?.meeting_url) ? { meeting_url: r.meeting_url || r.event.meeting_url } : {}),
       ...(r.moved_event_ids ? { moved_ids: r.moved_event_ids, failed: r.failed || [] } : {}),
       ...(r.attendees_notified !== undefined ? { notified: r.attendees_notified } : {}),
+      // 만들면서 넣은 컨펌자 — 못 넣은 사람이 있으면 결과 줄이 말한다(업무는 이미 만들어졌다 — Fable D1)
+      ...(r.reviewers_added ? { reviewers_added: r.reviewers_added.length } : {}),
+      ...(r.reviewers_failed ? { reviewers_failed: r.reviewers_failed.length } : {}),
     },
   };
 }

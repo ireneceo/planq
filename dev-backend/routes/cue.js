@@ -20,7 +20,7 @@ const CUE_TOOLS_ENABLED = process.env.CUE_TOOLS_ENABLED !== '0';
 // 사이클 P7 — Q helper / Cue 모드 분리 (데이터 격리).
 //   mode='qhelper' : PlanQ 매뉴얼 전담. 워크스페이스 컨텍스트 X.
 //   mode='workspace' : 현재 활성 워크스페이스 컨텍스트 주입 (Cue 페르소나).
-const { SYSTEM_PROMPT_QHELPER, SYSTEM_PROMPT_WORKSPACE, SYSTEM_PROMPT_GUEST, normalizeHistory } = require('../services/cuePrompts');
+const { SYSTEM_PROMPT_QHELPER, SYSTEM_PROMPT_WORKSPACE, SYSTEM_PROMPT_GUEST, normalizeHistory, historyAnswer } = require('../services/cuePrompts');
 // 질문 기록·주제 분석(Fable 판정 B5) — 답변 끝줄 분류 태그(추가 LLM 호출 0)·스위치·가명처리는 services/cueQuestionAnalysis.js 한 곳.
 const cueQA = require('../services/cueQuestionAnalysis');
 const { logHelpQuestion } = cueQA;
@@ -374,7 +374,7 @@ router.post('/help', authenticateToken, ...helpLimiter, async (req, res, next) =
 
     const messages = [
       { role: 'system', content: systemPrompt + (ctxBlock ? `\n\n[컨텍스트]\n${ctxBlock}` : '') + cueQA.CLASSIFY_INSTRUCTION },
-      ...history.flatMap((h) => [{ role: 'user', content: h.q }, { role: 'assistant', content: h.a }]),
+      ...history.flatMap((h) => [{ role: 'user', content: h.q }, { role: 'assistant', content: historyAnswer(h) }]),
       { role: 'user', content: q },
     ];
 
@@ -382,10 +382,10 @@ router.post('/help', authenticateToken, ...helpLimiter, async (req, res, next) =
     //   읽기는 루프가 실행(상한 라운드 4·읽기 6·12초), 쓰기는 **제안만**(카드). 실행은 execute-action 하나.
     const useTools = CUE_TOOLS_ENABLED && finalMode === 'workspace' && !!workspaceBizId;
     const llmOpts = { purpose: 'kb_answer', temperature: 0.3, fallback: '' };   // maxTokens 는 덮지 않는다(services/llm.js kb_answer 단일 원천)
-    let content; let fallback; let usedModel; let input_tokens; let output_tokens; let proposedAction = null;
+    let content; let fallback; let usedModel; let input_tokens; let output_tokens; let proposedAction = null; let proposedActions = [];
     if (useTools) {
       const conv = await cueTools.converse({ p: await cueTools.principalOf(req.user.id, workspaceBizId, req.user.platform_role), messages, callLLM, llmOpts });
-      ({ content = '', fallback = false } = conv); proposedAction = conv.proposal || null;
+      ({ content = '', fallback = false } = conv); proposedAction = conv.proposal || null; proposedActions = conv.proposals || (proposedAction ? [proposedAction] : []);
       ({ model: usedModel, input_tokens, output_tokens } = conv.usage || {});
       if (conv.reads?.length) require('../services/auditService').logAudit(req, { action: 'cue.help_reads', targetType: 'business', targetId: workspaceBizId, businessId: workspaceBizId, newValue: { reads: conv.reads } });
     } else {
@@ -433,7 +433,8 @@ router.post('/help', authenticateToken, ...helpLimiter, async (req, res, next) =
       question: q, cls, lang: String(req.body.lang || 'ko').slice(0, 5), answered: !!answer || !!proposedAction });
     return successResponse(res, {
       answer, mode: finalMode, sources: wikiSources, log_id: logId,
-      ...(proposedAction ? { proposed_action: proposedAction } : {}),
+      // proposed_action = 첫 카드(옛 번들 호환) · proposed_actions = 한 답의 카드 전부(최대 3, 서로 독립 — Fable D2)
+      ...(proposedAction ? { proposed_action: proposedAction, proposed_actions: proposedActions } : {}),
     });
   } catch (e) { next(e); }
 });

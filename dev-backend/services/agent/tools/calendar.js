@@ -236,6 +236,7 @@ function eventPatch(a) {
     ...(a.start_at !== undefined ? { startAt: a.start_at } : {}),
     ...(a.end_at !== undefined ? { endAt: a.end_at } : {}),
     ...(a.meeting_url !== undefined ? { meetingUrl: a.meeting_url } : {}),
+    ...(a.task_id !== undefined ? { taskId: a.task_id } : {}),
   };
 }
 async function previewUpdateEvent(p, a) {
@@ -252,10 +253,21 @@ async function previewUpdateEvent(p, a) {
     reminder_minutes: e.reminder_minutes ?? null, start_at: iso(e.start_at), end_at: iso(e.end_at), meeting_url: e.meeting_url || null };
   const keys = Object.keys(a).filter((k) => k in cur);
   const timeOrPlace = keys.some((k) => ['start_at', 'end_at', 'location'].includes(k));
+  // 업무 연결 — 실행과 같은 판정(같은 워크스페이스 + 내가 열 수 있는 업무)을 카드 전에. 카드에는 번호 대신 제목.
+  const link = {};
+  if (a.task_id !== undefined) {
+    const { resolveTaskLink } = require('../../eventTaskLink');
+    const r = await resolveTaskLink(p.userId, p.businessId, a.task_id);
+    if (!r.ok) throw err('VALIDATION_ERROR', r.code || 'invalid_task');
+    const { Task } = require('../../../models');
+    const titleOf = async (id) => (id ? { title: (await Task.findOne({ where: { id, business_id: p.businessId }, attributes: ['title'] }))?.title || `#${id}` } : null);
+    link.before = { task_id: await titleOf(e.task_id) };
+    link.after = { task_id: await titleOf(r.taskId) };
+  }
   return {
     event: eventItem(e),
-    before: Object.fromEntries(keys.map((k) => [k, cur[k]])),
-    after: Object.fromEntries(keys.map((k) => [k, a[k]])),
+    before: { ...Object.fromEntries(keys.map((k) => [k, cur[k]])), ...(link.before || {}) },
+    after: { ...Object.fromEntries(keys.map((k) => [k, a[k]])), ...(link.after || {}) },
     ...(timeOrPlace ? { notified_count: ids.size } : {}),
   };
 }

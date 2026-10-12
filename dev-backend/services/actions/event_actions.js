@@ -388,6 +388,12 @@ async function updateEvent(actor, params = {}) {
     }
     updates.start_at = sd; updates.end_at = ed; updates.reminder_sent_at = null;
   }
+  // 업무 연결 — 화면 수정 라우트(PUT /calendar)·만들기와 같은 판정 한 곳(services/eventTaskLink)
+  if (params.taskId !== undefined) {
+    const link = await require('../eventTaskLink').resolveTaskLink(subjectId, businessId, params.taskId);
+    if (!link.ok) return fail(link.code || 'invalid_task');
+    if (!link.skip) updates.task_id = link.taskId;
+  }
   if (!Object.keys(updates).length) return fail('no_fields');
 
   const eventNotify = require('../eventNotify');

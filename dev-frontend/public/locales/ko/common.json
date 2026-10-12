@@ -252,7 +252,8 @@
       "meetLinkCopied": "복사됨",
       "meetWarn": "일정은 저장했지만 화상회의 링크는 만들지 못했어요 — 구글 캘린더 연결을 확인해 주세요.",
       "notifiedN": "참석자 {{count}}명에게 알렸어요",
-      "now": "지금"
+      "now": "지금",
+      "reviewersFailed": "컨펌자 {{count}}명은 넣지 못했어요 — 업무 상세에서 추가해 주세요."
     },
     "backToGuide": "안내로 돌아가기",
     "cueEmptyHint": "현재 워크스페이스의 고객·업무·일정·회의를 기반으로 답변합니다. 다른 워크스페이스 데이터는 보지 않습니다.",
@@ -525,7 +526,9 @@
       "attendees": "참석자: {{names}}",
       "clients_gain": "이 고객이 업무를 보게 돼요: {{names}}",
       "clients_see": "이 고객은 바로 프로젝트를 보게 돼요: {{names}}",
-      "meet_replaces": "지금 있는 화상회의 링크를 새것으로 바꿔요"
+      "meet_replaces": "지금 있는 화상회의 링크를 새것으로 바꿔요",
+      "reviewer_requester_auto": "요청한 분(나)은 자동으로 컨펌자가 돼요",
+      "reviewers_notified": "컨펌자 {{count}}명에게 알림이 가요"
     }
   },
   "cue": {

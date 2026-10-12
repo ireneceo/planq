@@ -21,9 +21,13 @@ export interface CueTurn {
   sources?: Array<{ slug: string; title: string }>;  // Q위키 RAG 근거 article
   logId?: number | null;                              // KNOWLEDGE_LOOP 축2 — 피드백 대상 로그
   feedback?: 'helpful' | 'not_helpful';               // 제출된 피드백 (재클릭 차단)
-  proposedAction?: CueProposal;                       // #81 — Cue 실행 제안 (확인 카드)
-  actionStatus?: 'pending' | 'done' | 'dismissed';    // 카드 상태
-  actionResult?: CueActionResult;                     // 실행 결과 (딥링크용)
+  /** #81 — Cue 실행 제안(확인 카드). 한 답에 최대 3장, 서로 독립 — 카드마다 상태·결과를 따로 든다(2026-10-12 Fable D2). */
+  actions?: CueTurnAction[];
+}
+export interface CueTurnAction {
+  proposal: CueProposal;
+  status: 'pending' | 'done' | 'dismissed';
+  result?: CueActionResult;                           // 실행 결과 (딥링크용)
 }
 
 /** 실행 결과 → 그 엔티티를 여는 경로. 서버가 준 주소(open_url)가 있으면 그것을 쓴다(카탈로그 결과의 url). */
@@ -100,10 +104,18 @@ export function useCueChat(opts: Options) {
     setSubmitting(true);
     // ★ 앞선 대화(답이 온 턴만)를 같이 보낸다. 여태 질문 한 줄만 보내 Cue 가 매번 처음 듣는 사람처럼
     //   굴었다 — 자기가 단 "2) …" 를 사용자가 "2번" 이라 해도 못 알아들었다(2026-10-06 신고).
+    // ★ 실행한 카드의 결과(무엇을 만들었고 #번호)도 싣는다 — «그 업무에 연결해» 를 다음 턴에 실제 id 로 알아듣게(Fable D3).
     const history = turnsRef.current
-      .filter((tn) => !tn.loading && !tn.error && tn.a)
-      .slice(-4)
-      .map((tn) => ({ q: tn.q, a: tn.a }));
+      .filter((tn) => !tn.loading && !tn.error)
+      .map((tn) => ({
+        q: tn.q, a: tn.a,
+        actions: (tn.actions || []).filter((x) => x.status === 'done' && x.result && !x.result.replayed).map((x) => ({
+          tool: x.result!.tool, entity_type: x.result!.entity_type, entity_id: x.result!.entity_id,
+          title: String(x.proposal.params?.title ?? x.proposal.params?.name ?? ''),
+        })),
+      }))
+      .filter((h) => h.a || h.actions.length)
+      .slice(-4);
     setTurns((prev) => [...prev.slice(-4), { q, a: '', loading: true }]);   // 최근 5턴 유지
     setInput('');
     onAfterSend?.();
@@ -130,13 +142,16 @@ export function useCueChat(opts: Options) {
         throw new Error((translateError?.(j.message) || j.message || 'Q helper error') as string);
       }
       const srcs = Array.isArray(j.data?.sources) ? j.data.sources : [];
-      const pa = j.data?.proposed_action;
       // 서버가 카탈로그로 검증·미리보기를 마친 제안만 온다(card 가 그 표시) — 화면이 도구 목록을 따로 들지 않는다
-      const proposed = pa && pa.tool && pa.card ? (pa as CueProposal) : undefined;
+      //   proposed_actions(여러 장)가 정본, 없으면 옛 서버의 proposed_action 한 장.
+      const raw: unknown[] = Array.isArray(j.data?.proposed_actions) ? j.data.proposed_actions : (j.data?.proposed_action ? [j.data.proposed_action] : []);
+      const actions: CueTurnAction[] = raw
+        .filter((pa): pa is CueProposal => !!pa && typeof pa === 'object' && !!(pa as CueProposal).tool && !!(pa as CueProposal).card)
+        .map((proposal) => ({ proposal, status: 'pending' as const }));
       setTurns((prev) => prev.map((tn, i) => i === prev.length - 1
         ? {
             ...tn, a: j.data.answer || '', loading: false, sources: srcs, logId: j.data.log_id ?? null,
-            proposedAction: proposed, actionStatus: proposed ? 'pending' as const : undefined,
+            actions: actions.length ? actions : undefined,
           }
         : tn));
     } catch (e) {
@@ -167,13 +182,18 @@ export function useCueChat(opts: Options) {
     } catch { /* 피드백 실패는 조용히 무시 */ }
   }, [isGuest, setTurns]);
 
-  const onActionExecuted = useCallback((turnIdx: number, r: CueActionResult) => {
-    setTurns((prev) => prev.map((tn, i) => i === turnIdx ? { ...tn, actionStatus: 'done' as const, actionResult: r } : tn));
+  const setAction = useCallback((turnIdx: number, cardIdx: number, patch: Partial<CueTurnAction>) => {
+    setTurns((prev) => prev.map((tn, i) => i === turnIdx
+      ? { ...tn, actions: (tn.actions || []).map((x, k) => k === cardIdx ? { ...x, ...patch } : x) }
+      : tn));
   }, [setTurns]);
+  const onActionExecuted = useCallback((turnIdx: number, cardIdx: number, r: CueActionResult) => {
+    setAction(turnIdx, cardIdx, { status: 'done', result: r });
+  }, [setAction]);
 
-  const onActionDismiss = useCallback((turnIdx: number) => {
-    setTurns((prev) => prev.map((tn, i) => i === turnIdx ? { ...tn, actionStatus: 'dismissed' as const } : tn));
-  }, [setTurns]);
+  const onActionDismiss = useCallback((turnIdx: number, cardIdx: number) => {
+    setAction(turnIdx, cardIdx, { status: 'dismissed' });
+  }, [setAction]);
 
   return {
     input, setInput, turns, setTurns, submitting,

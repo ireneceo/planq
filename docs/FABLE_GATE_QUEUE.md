@@ -11,6 +11,13 @@
 > 이 파일에는 계속 **Fable 판정 결과**(PASS/FAIL·비차단 지적)를 맨 위에 적는다. 아래 옛 절의 판정식
 > `R=1 OR (S=1 AND F=0)` 은 공용 기준으로 대체됐다(뜻은 같다).
 
+## 2026-10-12 — Cue 복합 요청 2단계(한 답 카드 여러 장 · create_task 컨펌자 · 실행 결과 이어받기) · 설계 DESIGN-OK → 완료 **PASS** (방 e006be41)
+- 설계 판정: D1 create_task `reviewer_user_ids` = riskOf MEDIUM + preview + confirmation_token · 요청자 자동 컨펌자는 조용히 뺌 · 부분 실패는 던지지 않고 `reviewers_failed`(트랜잭션 묶기 금지 — addReviewer 가 알림을 가진다) · completed∧reviewers 거절 / D2 멈춘 라운드의 쓰기 전부(상한 3)·서로 독립·«모두 실행» 없음·쓰기 호출 전원 tool 회신·지문 중복 제거 / D3 참조($card1) 없음 — 앞 턴 **실행 결과**를 history 에 싣고 다음 턴에 실제 id 로 / D4 음성 단일 · D5 쿼터 불변.
+- 설계 밖 1건: D3 가 전제한 `update_event.task_id` 가 없어 추가 — 판정은 화면 PUT 과 같은 `eventTaskLink.resolveTaskLink`.
+- 근거: test-cue-multi 17/17 · 중복 제거 대조군(끄면 2장 → 켜면 1장) · update_event 연결 3검사(남의 업무 거절·값 불변) · 실 LLM 카드 2장/D3 task_id 실제 id · 화면 3폭 카드 2장 겹침 0·각자 실행 · 빌드 EXIT 0 · 가드 68/69 · health 84/84 · Fable 직접 실행(diff 전수·스크립트·실 LLM 2회·산출물 .gz 키 확인).
+- 비차단: 도구를 부를 때 모델 답 글이 빈 문자열(기존 현상) — D3 «업무 카드 실행 뒤 연결해 달라» 안내가 안 보인다 → 다음 사이클: 카드가 있고 글이 비면 고정 문구(LLM 호출 0) · too_many_writes 는 재시도 라운드 1회 추가(상한 안).
+- 마커: 쓰지 않았다 — 마지막 마커 이후 다른 방의 소스 커밋 18건까지 «Fable 검증됨» 으로 덮이기 때문(02ca045f 와 같은 이유).
+
 ## 2026-10-12 — 상황판 «정찰 방» 읽기 전용 장치(scout-guard) · **FAIL → 수정 후 PASS** (방 02ca045f)
 - 1차 FAIL: B1 히어독 본문을 명령으로 읽어 계획 파일 쓰기(`cat > plans/q.md <<EOF`, 본문에 «npm run build»·«a > 0»)가 막힘 — 이미 켜진 실제 정찰 방 7개 중 4개가 맞았다(사유 문구도 거짓) · B2 curl 플래그 정규식 `/i` 로 `-sf`·`-D` 가 «본문 전송». 고침: 히어독 본문 잘라낸 뒤 구조 분석(본문을 실행하는 mysql/node 는 원문, bash 표준입력은 deny) · 대소문자 구분 · cd 추적 · 판정부 예외 → deny(fail-closed) 외.
 - 근거(2차): 실방 7개 호출 72건 재생 → deny 2(scp·ssh 운영, 의도) · 계획 쓰기 4/4 통과 · run.sh 121/121 · edge.sh 44/44 · edge2.sh 98/110(어긋남은 아래 비차단) · 일반 방 캐시 21ms·출력 없음 · Stop 훅 정찰이면 활동 시각·nag·자동저장 불변.
