@@ -23,7 +23,9 @@ interface CompanyInfo {
 }
 
 // ★ 2026-10-12 GNB 정리 (Irene: "GNB가 너무 많은데 … 전체 다 판단 좀 해줘. fable이" → Fable 판정).
-//   평면 메뉴 9개 → **5개**: 기능 · 요금제 · 컨설팅 · 리소스▾ · 소개. 1024~1279px 에서도 숨기는 항목이 없다.
+//   평면 메뉴 9개 → **5개**: 기능 · 요금제 · 컨설팅 · 리소스▾ · 브랜드스토리. 1024~1279px 에서도 숨기는 항목이 없다.
+//   - /about 라벨은 «브랜드스토리» — Fable 판정 때 «소개» 로 바꿨다가 Irene «브랜드스토리랑 앱다운로드가 얼마나 중요한데»
+//     (2026-10-12) 로 되돌렸다. 이름이 바뀌면 «상단에서 빠졌다» 로 읽힌다.
 //   - «시작 가이드·도움말·인사이트» 는 «갈 곳» 이 아니라 «읽을 것» 이라 **리소스** 한 묶음.
 //     시작 가이드는 홈 히어로 아래 한 줄로도 연다.
 //   - ★ «앱 다운로드» 는 묶음에 넣지 않는다 — 데스크탑은 우측 묶음 맨 앞 글자 버튼, 폰·태블릿 시트는 가입 버튼 바로 아래.
@@ -356,6 +358,8 @@ const GnbInner = styled.div`
   height: 64px; padding: 0 24px;
   display: flex; align-items: center; justify-content: space-between;
   gap: 24px;
+  /* 1024~1279 — «브랜드스토리» 라벨(«소개» 보다 길다)까지 한 줄에 들도록 간격만 줄인다. 항목은 숨기지 않는다 */
+  @media (max-width: 1279px) { gap: 12px; padding: 0 20px; }
   @media (max-width: 640px) { padding: 0 16px; height: 56px; }
 `;
 const Brand = styled(Link)`
@@ -380,7 +384,7 @@ const NavItem = styled(NavLink)<{ $light: boolean }>`
   font-size: 0.875rem; font-weight: 500; white-space: nowrap;
   border-radius: 8px;
   transition: background 0.15s, color 0.15s;
-  @media (max-width: 1279px) { padding: 0 10px; }
+  @media (max-width: 1279px) { padding: 0 8px; }
   &:hover {
     background: ${p => p.$light ? 'rgba(255,255,255,0.08)' : '#F1F5F9'};
     color: ${p => p.$light ? '#FFFFFF' : '#0F172A'};
@@ -415,6 +419,7 @@ const LangDiv = styled.span<{ $light: boolean }>`
 const PrimaryBtn = styled(Link)`
   height: 36px; padding: 0 18px;
   display: inline-flex; align-items: center;
+  @media (max-width: 1279px) { padding: 0 14px; }
   background: #14B8A6; color: #FFFFFF;
   border: none; border-radius: 999px;
   font-size: 0.8125rem; font-weight: 500;
@@ -426,6 +431,7 @@ const PrimaryBtn = styled(Link)`
 const SecondaryBtn = styled(Link)<{ $light: boolean }>`
   height: 36px; padding: 0 16px;
   display: inline-flex; align-items: center;
+  @media (max-width: 1279px) { padding: 0 12px; }
   background: transparent;
   color: ${p => p.$light ? 'rgba(255,255,255,0.85)' : '#0F172A'};
   border: 1px solid ${p => p.$light ? 'rgba(255,255,255,0.18)' : '#E2E8F0'};
@@ -457,7 +463,7 @@ const ResTrigger = styled.button<{ $light: boolean; $active: boolean }>`
   font-size: 0.875rem; font-weight: 500; white-space: nowrap;
   border-radius: 8px;
   transition: background 0.15s, color 0.15s;
-  @media (max-width: 1279px) { padding: 0 10px; }
+  @media (max-width: 1279px) { padding: 0 8px; }
   &:hover {
     background: ${p => p.$light ? 'rgba(255,255,255,0.08)' : '#F1F5F9'};
     color: ${p => p.$light ? '#FFFFFF' : '#0F172A'};

@@ -1,7 +1,7 @@
 // canary-landing-gnb — 랜딩 상단 메뉴 정리 (2026-10-12 Fable 판정)
 //
 //   Irene: "랜딩페이지 GNB가 너무 많은데 … 전체 다 판단 좀 해줘. fable이"
-//   계약: 데스크탑 메뉴는 기능·요금제·컨설팅·리소스▾·소개 / 리소스 = 시작 가이드·도움말·인사이트 /
+//   계약: 데스크탑 메뉴는 기능·요금제·컨설팅·리소스▾·브랜드스토리 / 리소스 = 시작 가이드·도움말·인사이트 /
 //         우측 [앱 다운로드](글자) KO·EN [문의](outline) [로그인] [무료로 시작]. 폰·태블릿 시트는 가입 버튼 바로 아래 앱 다운로드
 //         (스크롤 없이 첫 화면 — 2026-10-12 Irene «앱 다운로드 … 아예 없애면 어떻게 해? 상단에서»).
 //         홈 히어로 아래 «시작 가이드» 한 줄 · 요금제 하단 → 컨설팅 · 컨설팅 → 요금제 · 소개는 PlanQ 가 먼저, 창업자 이야기가 뒤.
@@ -58,7 +58,7 @@ async function run() {
               overflow: document.documentElement.scrollWidth - innerWidth };
           }, VIS_FN);
           const hrefs = g.links.map((x) => x.href).join(',');
-          push(`${w}px · ① 메뉴 = 기능·요금제·컨설팅·소개 + 리소스 · 우측 앱 다운로드·문의·로그인·무료로 시작 · 한 줄 · 넘침 0`,
+          push(`${w}px · ① 메뉴 = 기능·요금제·컨설팅·브랜드스토리 + 리소스 · 우측 앱 다운로드·문의·로그인·무료로 시작 · 한 줄 · 넘침 0`,
             hrefs === '/features,/pricing,/service,/about' && g.links.every((x) => x.v) && g.res && g.right.every(Boolean) && g.oneLine && g.tall === 0 && g.overflow <= 0, JSON.stringify(g));
           // ② 리소스 — 마우스를 올리면 열리고, 네 항목이 보이고, 누르면 같은 창으로 간다
           await page.hover('[data-testid="landing-gnb-resources"]');
@@ -101,7 +101,7 @@ async function run() {
             for (const h of want) { const a = sheet.querySelector(`a[href="${h}"]`); if (a) { a.scrollIntoView({ block: 'center' }); await new Promise((ok) => setTimeout(ok, 60)); } seen[h] = V(a); }
             return { sheet: true, order, seen, overflow: document.documentElement.scrollWidth - innerWidth };
           }, VIS_FN, want);
-          push(`${w}px · ① 메뉴 시트 — 무료로 시작·로그인 → 앱 다운로드 → 기능·요금제·컨설팅·소개 → 리소스 3 → 문의 · 모두 닿음 · 넘침 0`,
+          push(`${w}px · ① 메뉴 시트 — 무료로 시작·로그인 → 앱 다운로드 → 기능·요금제·컨설팅·브랜드스토리 → 리소스 3 → 문의 · 모두 닿음 · 넘침 0`,
             s.sheet && s.order.join(',') === want.join(',') && Object.values(s.seen).every(Boolean) && s.overflow <= 0, JSON.stringify(s));
         }
       } catch (e) { push(`${w}px · ① 오류`, false, e.message.slice(0, 200)); }
