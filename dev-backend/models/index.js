@@ -50,6 +50,7 @@ const LeaveRequest = require('./LeaveRequest');
 const WorkspaceHoliday = require('./WorkspaceHoliday');
 const TaskAttachment = require('./TaskAttachment');
 const TaskLink = require('./TaskLink');
+const TaskActionItem = require('./TaskActionItem');
 const TaskUserOrder = require('./TaskUserOrder');
 const TaskTag = require('./TaskTag');
 const TaskTagLink = require('./TaskTagLink');
@@ -542,6 +543,10 @@ TaskLink.belongsTo(Task, { as: 'taskA', foreignKey: 'task_a_id', onDelete: 'CASC
 TaskLink.belongsTo(Task, { as: 'taskB', foreignKey: 'task_b_id', onDelete: 'CASCADE' });
 TaskLink.belongsTo(User, { as: 'creator', foreignKey: 'created_by' });
 
+// TaskActionItem (업무 «결과물 액션» — docs/TASK_ACTIONS_DESIGN.md)
+TaskActionItem.belongsTo(Task, { foreignKey: 'task_id', onDelete: 'CASCADE' });
+Task.hasMany(TaskActionItem, { as: 'actionItems', foreignKey: 'task_id' });
+
 // TaskTag / TaskTagLink (#250 ③청크 — 업무 태그 M:N)
 //   ★ belongsToMany 를 **선언하지 않는다**. 선언해 두면 다음 사람이 all-tasks(pagination 라우트)에
 //     include 로 끼워 넣어 findAndCountAll 의 count 를 조인 행 수로 오염시킨다.
@@ -624,6 +629,7 @@ module.exports = {
   TaskStatusHistory,
   TaskAttachment,
   TaskLink,
+  TaskActionItem,
   TaskUserOrder,
   TaskTag,
   TaskTagLink,

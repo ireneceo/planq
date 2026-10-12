@@ -450,6 +450,8 @@ router.get('/:id', authenticateToken, async (req, res, next) => {
     // 편집 화면의 시작 목록(= 저장 때 linked_base_ids) — 이 사람이 볼 수 있는 연결만. 못 보는 id 가
     //   «#123» 칩으로 새어 나오지 않고, 저장 때 그 연결을 건드리지도 않는다.
     result.linked_post_ids = result.linked_posts.map(lp => lp.id);
+    // 이 문서를 결과물·액션으로 건 업무 — 보는 사람 기준(services/taskActionItems.linkedTasksOf 한 곳)
+    result.linked_tasks = await require('../services/taskActionItems').linkedTasksOf('post', post.id, { id: req.user.id, platform_role: req.user.platform_role }, post.business_id);
     await applyMemberDisplayNameOne(result, post.business_id, ['author', 'editor']);
     successResponse(res, result);
   } catch (err) { next(err); }
@@ -538,6 +540,7 @@ router.post('/', authenticateToken, async (req, res, next) => { // audit-exempt:
     const r = await require('../services/actions/post_actions').createPost(actor, {
       businessId: Number(business_id), projectId: project_id, conversationId: conversation_id, parentPostId: parent_post_id,
       title, contentJson: content_json, category, status, isPinned: is_pinned, kind, vlevel: req.body.vlevel, qRecordId,
+      fromActionId: req.body.from_action_id || null,
     });
     if (!r.ok) return errorResponse(res, r.code, r.http || 400);
     const post = r.data.post;
@@ -549,7 +552,9 @@ router.post('/', authenticateToken, async (req, res, next) => { // audit-exempt:
         { model: PostAttachment, as: 'attachments', include: [{ model: File, as: 'file' }] },
       ],
     });
-    successResponse(res, serialize(full, true), 'Post created', 201);
+    const out = serialize(full, true);
+    if (r.data.warnings?.length) out.warnings = r.data.warnings;
+    successResponse(res, out, 'Post created', 201);
   } catch (err) { next(err); }
 });
 
@@ -1096,7 +1101,12 @@ router.put('/:id', authenticateToken, async (req, res, next) => {
     // draft 는 작성자만 볼 수 있으므로 broadcast 하지 않는다(받는 쪽은 어차피 목록에서 못 본다).
     //   draft → published 승격 PUT 은 status 가 바뀌었으므로 아래 조건을 통과해 정상 발화한다.
     if (full?.status !== 'draft') broadcastPost(req, full, 'post:updated');
-    successResponse(res, serialize(full, true), 'Post updated');
+    // 업무 «결과물 액션» — 임시저장 문서가 발행되는 순간 «작성 중» 액션을 완료로(services/taskActionItems)
+    if (isPromotion) await require('../services/taskActionItems').onPostPublished(full, req.user.id);
+    const outPut = serialize(full, true);
+    // 보기 화면이 저장 응답을 그대로 쓰므로 «업무:» 칩도 같이 싣는다(조회와 같은 함수 — 보는 사람 기준)
+    outPut.linked_tasks = await require('../services/taskActionItems').linkedTasksOf('post', full.id, { id: req.user.id, platform_role: req.user.platform_role }, full.business_id);
+    successResponse(res, outPut, 'Post updated');
   } catch (err) { next(err); }
 });
 

@@ -292,25 +292,9 @@ router.post('/:taskId/attachments/link', authenticateToken, async (req, res, nex
       //   남의 «나만 보기» 문서 제목이 그렇게 샜다(2026-09-27 점검). 파일과 같이 통째로 거절한다.
       const { canReadPost } = require('../services/postAccess');
       for (const p of posts) if (!(await canReadPost(req.user, p))) return errorResponse(res, 'post_not_found', 404);
-      for (const p of posts) {
-        // 같은 문서를 같은 자리에 두 번 붙이지 않는다
-        const dup = await TaskAttachment.findOne({
-          where: { task_id: req._task.id, post_id: p.id, context, ...(commentId ? { comment_id: commentId } : {}) },
-        });
-        if (dup) continue;
-        const att = await TaskAttachment.create({
-          business_id: req._task.business_id,
-          task_id: req._task.id,
-          comment_id: commentId,
-          context,
-          post_id: p.id,
-          original_name: String(p.title || '(제목 없음)').slice(0, 500),
-          stored_name: '',
-          file_path: '',
-          file_size: 0,
-          mime_type: POST_MIME,
-          uploaded_by: req.user.id,
-        });
+      // 붙이기(중복 건너뜀 포함)는 services/taskAttachmentLink 한 곳 — 업무 «결과물 액션» 이 같은 함수를 쓴다
+      const linkedPosts = await require('../services/taskAttachmentLink').linkPostsToTask(req._task, posts, req.user.id, { context, commentId });
+      for (const { att, post: p } of linkedPosts) {
         created.push({ id: att.id, post_id: p.id, original_name: att.original_name, mime_type: POST_MIME });
       }
     }
@@ -466,6 +450,8 @@ router.delete('/attachments/:id', authenticateToken, async (req, res, next) => {
       }
     }
     await att.destroy();
+    // 그 첨부를 가리키던 «결과물 액션» 은 pending 으로 — «완료인데 결과물에 없는» 상태를 남기지 않는다
+    await require('../services/taskActionItems').onAttachmentDeleted(att, req.user.id);
     require('../services/auditService').logAudit(req, { action: 'task_attachment.delete', targetType: 'task_attachment', targetId: att.id, businessId: task.business_id, oldValue: { task_id: task.id, name: att.original_name, storage: att.storage_provider } }); // 감사 — Drive 바이트까지 지운다
     return successResponse(res, { id: Number(req.params.id), deleted: true });
   } catch (err) { next(err); }

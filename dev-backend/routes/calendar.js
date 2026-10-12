@@ -303,6 +303,7 @@ router.post('/by-business/:businessId', authenticateToken, checkBusinessAccess, 
         reminderMinutes: b.reminder_minutes,
         notify: require('../services/eventNotify').readNotifyChoice(b.notify),   // #462 — 없으면 종전대로 보낸다
         vlevel: b.vlevel, gcalSyncWorkspace: b.gcal_sync_workspace, gcalSyncPersonal: b.gcal_sync_personal, targetMemberIds: b.target_member_ids, targetClientIds: b.target_client_ids,
+        fromActionId: b.from_action_id || null,   // 업무 «결과물 액션» 에서 왔으면 행동 계층이 건다
       }
     );
     if (!r.ok) return errorResponse(res, r.code, r.http || 400);
@@ -310,6 +311,7 @@ router.post('/by-business/:businessId', authenticateToken, checkBusinessAccess, 
     //   meet_warning 코드로 실어 보내 프론트가 "일정은 저장됐지만 링크 실패" 를 알린다.
     const created = await withTask(r.data.full.toJSON(), req);
     if (r.data.meetWarning) created.meet_warning = r.data.meetWarning;
+    if (r.data.warnings?.length) created.warnings = r.data.warnings;
     return successResponse(res, created, 'created', 201);
   } catch (err) { next(err); }
 });

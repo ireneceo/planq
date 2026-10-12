@@ -38,6 +38,8 @@ import { mapApiError } from '../../utils/apiError';
 
 // ─── URL 싱크 ─── (calendarUrl.ts)
 import { readUrl } from './calendarUrl';
+import { useFromActionHandoff, type FromActionHandoff } from '../../hooks/useFromActionHandoff';
+import FromTaskBanner from '../../components/Common/FromTaskBanner';
 import CalendarProjectFilter, { byProject } from './ProjectFilter';
 import CalendarFrame, { useCalendarOptions } from './CalendarFrame';
 import { useWallNow } from './pastLook';
@@ -51,6 +53,7 @@ const QCalendarPage: React.FC<{ scope?: { type: 'project'; businessId: number; p
   const embedded = !!pageScope;
   const { t, i18n } = useTranslation('qcalendar');
   const { t: tErr } = useTranslation('errors');
+  const { t: tc } = useTranslation('common');
   const location = useLocation();
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -73,6 +76,21 @@ const QCalendarPage: React.FC<{ scope?: { type: 'project'; businessId: number; p
   const [calSp, setCalSp] = useSearchParams();
   // 음성 캡처가 넘긴 제목·설명 (navigate state). 모달 mount 시 초기값으로만 소비된다.
   const [voiceSeed, setVoiceSeed] = useState<{ title: string; description: string; allDay: boolean } | null>(null);
+  // 업무 «결과물 액션» 에서 넘어온 새 일정(?new=1&from_action=) — docs/TASK_ACTIONS_DESIGN.md §4.2.
+  //   제목 = 액션 이름 · 업무 미리 연결 · 시작 = 업무 마감일 10:00(없으면 다음 정시). 주소는 훅이 즉시 지운다.
+  const [fromAction, setFromAction] = useState<FromActionHandoff | null>(null);
+  const [fromActionFailed, setFromActionFailed] = useState(false);
+  useFromActionHandoff(!embedded, (h) => {
+    const now = toWall(new Date(), wsTz);
+    let d = new Date(now); d.setHours(now.getHours() + 1, 0, 0, 0);
+    const due = h.task.due_date ? String(h.task.due_date).slice(0, 10) : '';
+    if (/^\d{4}-\d{2}-\d{2}$/.test(due)) { const [y, m, dd] = due.split('-').map(Number); d = new Date(y, m - 1, dd, 10, 0, 0, 0); }
+    setNewModalInitial(d);
+    setVoiceSeed({ title: h.action.label, description: h.action.note || '', allDay: false });
+    setFromActionFailed(false);
+    setFromAction(h);
+    setShowNewModal(true);
+  }, ['new']);
   // #80 — 퀵메뉴 '+일정' 진입 시 새 일정 모달 자동 오픈
   //
   // 음성 캡처('말로 추가')도 같은 트리거로 들어온다. 내용은 URL 이 아니라 navigate state 로 온다.
@@ -416,6 +434,12 @@ const QCalendarPage: React.FC<{ scope?: { type: 'project'; businessId: number; p
     try {
       const created = await createEvent(bizId, payload as Parameters<typeof createEvent>[1]);
       setEvents((prev) => [...prev, created]);
+      // 업무 «결과물 액션» 연결이 실패했으면(만든 사람이 담당자가 아님 등) 조용히 넘기지 않는다
+      if ((created as { warnings?: string[] })?.warnings?.includes('action_link_failed')) {
+        setFromActionFailed(true);
+        setErrorMsg(tc('fromTask.linkFailed') as string);
+      }
+      setFromAction(null);
       setShowNewModal(false);
       // #242 — 일정 저장은 성공(모달 닫힘)이지만 Meet 링크만 실패한 경우. 조용히 넘기면
       //   사용자는 링크 없는 일정을 성공으로 오해한다 → 명시적으로 알린다.
@@ -429,7 +453,7 @@ const QCalendarPage: React.FC<{ scope?: { type: 'project'; businessId: number; p
     }
     // t/tErr 를 deps 에 넣는다 — 빠뜨리면 최초 렌더 시점 언어로 박제돼, 언어를 바꾼 뒤에도
     //   토스트만 옛 언어로 뜬다(Fable 게이트 관찰).
-  }, [bizId, t, tErr]);
+  }, [bizId, t, tErr, tc]);
 
   const handleUpdate = useCallback(async (
     patch: Partial<CalendarEvent>,
@@ -649,9 +673,14 @@ const QCalendarPage: React.FC<{ scope?: { type: 'project'; businessId: number; p
           initialDescription={voiceSeed?.description}
           initialAllDay={voiceSeed?.allDay}
           projects={projects}
-          initialProjectId={projectId}
+          initialProjectId={fromAction?.task.project_id ?? projectId}
           businessId={bizId}
-          onClose={() => { setShowNewModal(false); setVoiceSeed(null); }}
+          fromTask={fromAction ? {
+            linkedTask: { id: fromAction.task.id, title: fromAction.task.title },
+            actionId: fromAction.can_perform ? fromAction.action.id : null,
+            notice: <FromTaskBanner handoff={fromAction} linkFailed={fromActionFailed} />,
+          } : null}
+          onClose={() => { setShowNewModal(false); setVoiceSeed(null); setFromAction(null); }}
           onCreate={handleCreate}
         />
       )}

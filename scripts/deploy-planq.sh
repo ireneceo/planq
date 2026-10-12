@@ -492,6 +492,9 @@ sync_database() {
   # 2026-10-12 업무 «내부 업무» 보안등급(docs/TASK_SECURITY_LEVEL_DESIGN.md) — tasks.security_level ENUM NOT NULL DEFAULT 'general'. 멱등.
   #   ★ 순서: PM2 reload 보다 먼저 — Task 모델이 이 칸을 SELECT 하므로 없으면 업무 전체가 500.
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-task-security-level.js 2>&1 | tail -6"
+  # 2026-10-12 업무 «결과물 액션»(docs/TASK_ACTIONS_DESIGN.md) — task_action_items 표 신설. 멱등.
+  #   ★ 순서: PM2 reload 보다 먼저 — 업무 상세·문서 상세가 이 표를 읽으므로 없으면 500.
+  prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-task-action-items.js 2>&1 | tail -4"
   # 2026-10-10 고객 프로젝트 링크 «주요 이슈» 공개 축(docs/GUEST_PROJECT_VIEW_DECISIONS.md §I-4) — project_history_entries.client_visible. 멱등.
   #   ★ 순서: PM2 reload 보다 먼저 — 모델이 이 칸을 SELECT 하므로 없으면 프로젝트 히스토리 전체가 500.
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-history-entry-client-visible.js 2>&1 | tail -6"

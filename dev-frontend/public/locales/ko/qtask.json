@@ -1533,5 +1533,59 @@
   "visibility": {
     "label": "공개 범위",
     "saveFailed": "공개 범위를 바꾸지 못했어요"
+  },
+  "resultActions": {
+    "title": "결과물 액션",
+    "add": "액션 추가",
+    "addSubmit": "추가",
+    "kindLabel": "종류",
+    "kind": {
+      "doc": "문서",
+      "event": "일정",
+      "mail": "메일",
+      "project": "프로젝트"
+    },
+    "labelPlaceholder": "무엇을 만들까요 (예: 견적서 초안) · Ctrl/⌘+Enter 로 추가",
+    "go": {
+      "doc": "문서 만들기",
+      "event": "일정 추가",
+      "mail": "메일 쓰기",
+      "project": "프로젝트 만들기"
+    },
+    "linkExisting": "기존 것 연결",
+    "unlink": "연결 해제",
+    "skip": "건너뛰기",
+    "unskip": "다시 할 일로",
+    "rename": "이름 바꾸기",
+    "delete": "액션 삭제",
+    "more": "액션 메뉴",
+    "status": {
+      "pending": "아직 안 만듦",
+      "active": "작성 중(임시저장)",
+      "completed": "완료",
+      "skipped": "이번엔 안 함"
+    },
+    "assigneeOnly": "담당자가 만듭니다",
+    "noAssignee": "담당자를 정하면 만들 수 있어요",
+    "hidden": "볼 수 없는 항목",
+    "deleted": "지워진 항목",
+    "empty": "결과물을 위해 만들 문서·일정을 적어 두세요. 담당자가 여기서 바로 만들러 갑니다.",
+    "recurringHint": "반복 업무: 새 회차마다 이 목록이 미완료 상태로 복사됩니다",
+    "deleteConfirm": "«{{label}}» 액션을 삭제할까요? 연결된 결과물은 그대로 남습니다.",
+    "pickDocPlaceholder": "연결할 문서 제목 검색",
+    "pickEventPlaceholder": "연결할 일정 제목 검색",
+    "pickEmpty": "고를 수 있는 항목이 없습니다",
+    "searching": "찾는 중…",
+    "error": {
+      "failed": "처리하지 못했습니다. 잠시 후 다시 시도해 주세요.",
+      "only_assignee": "담당자만 연결할 수 있어요",
+      "forbidden": "이 업무의 작성자·담당자·관리자만 고칠 수 있어요",
+      "too_many_actions": "액션은 업무당 30개까지입니다",
+      "action_linked_unlink_first": "연결된 액션입니다 — 먼저 연결을 해제해 주세요",
+      "action_already_linked": "이미 다른 결과물이 연결돼 있어요",
+      "entity_not_found": "그 항목을 찾을 수 없거나 볼 권한이 없어요",
+      "kind_mismatch": "액션 종류와 다른 항목입니다",
+      "label_required": "무엇을 만들지 적어 주세요"
+    }
   }
 }

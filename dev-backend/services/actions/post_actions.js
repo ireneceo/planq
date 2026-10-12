@@ -92,7 +92,17 @@ async function createPost(actor, params = {}) {
     audit(actor, 'post.create', post, { category: post.category, status: post.status });
     signalPost(post, 'post:new');
   }
-  return done({ post });
+  // 업무 «결과물 액션» 에서 왔으면 그 액션에 건다 — 판정(담당자·같은 워크스페이스)은 taskActionItems.fulfill 한 곳.
+  //   실패해도 문서는 이미 만들어졌다 — 조용히 삼키지 않고 warnings 로 화면에 알린다.
+  const warnings = [];
+  if (params.fromActionId) {
+    const r = await require('../taskActionItems').fulfill(
+      { userId, platformRole: subj.platformRole, req: actor.req },
+      { actionId: params.fromActionId, businessId, entityType: 'post', entityId: post.id, source: 'create' },
+    ).catch((e) => { console.warn('[post_actions.fromAction]', e.message); return { ok: false, code: 'error' }; });
+    if (!r.ok) warnings.push('action_link_failed');
+  }
+  return done({ post, warnings });
 }
 
 /** 고칠 수 있는 문서를 읽는다 — 워크스페이스 안 · 편집 권한 · 서명 잠금. 실패 code 는 화면 라우트와 같은 말. */

@@ -40,6 +40,7 @@ interface Props {
   onClose: () => void;
   /** 만든 일정을 돌려주면 미팅자료 알림(고른 경우)을 이어서 보낸다(#411). */
   onCreate: (payload: Partial<CalendarEvent>) => Promise<CalendarEvent | void> | void;
+  fromTask?: { linkedTask: { id: number; title: string }; actionId: number | null; notice: React.ReactNode } | null; // 업무 «결과물 액션» 에서 열림(TASK_ACTIONS_DESIGN §4.2) — 업무 미리 연결 · 액션 id(담당자만) · 안내 띠
 }
 
 // 30분 스텝 시간 옵션 (00:00 ~ 23:30)
@@ -55,7 +56,7 @@ const TIME_OPTIONS = (() => {
   return arr;
 })();
 
-const NewEventModal: React.FC<Props> = ({ initialStart, initialTitle, initialDescription, initialAllDay, projects, initialProjectId, businessId, onClose, onCreate }) => {
+const NewEventModal: React.FC<Props> = ({ initialStart, initialTitle, initialDescription, initialAllDay, projects, initialProjectId, businessId, onClose, onCreate, fromTask }) => {
   const { t, i18n } = useTranslation('qcalendar');
   const { t: tc } = useTranslation('common');   // 연결 문구 정본
   const { user } = useAuth();
@@ -108,7 +109,7 @@ const NewEventModal: React.FC<Props> = ({ initialStart, initialTitle, initialDes
   const [notifyMaterials, setNotifyMaterials] = useState(false);
   const [notify, setNotify] = useState({ send: true, message: '' });   // #462 — 기본 보냄(AttendeeNotifyField)
   const hasMaterials = matFileIds.length + matPostIds.length + matUploads.length > 0;
-  const [linkedTask, setLinkedTask] = useState<{ id: number; title: string } | null>(null);   // 업무 연결
+  const [linkedTask, setLinkedTask] = useState<{ id: number; title: string } | null>(fromTask?.linkedTask || null);   // 업무 연결
   const [matOpen, setMatOpen] = useState(false);
 
   // 종일이면 분 단위가 의미 없다 — 옵션 세트를 바꾼다(크론이 종일은 시작일 09:00 을 기준으로 잡는다).
@@ -327,7 +328,7 @@ const NewEventModal: React.FC<Props> = ({ initialStart, initialTitle, initialDes
       reminder_minutes: reminderMinutes === REMINDER_NONE ? null : reminderMinutes,
       visibility,  // backend hook 가 vlevel 우선 처리하므로 backward-compat
       project_id: finalProjectId,
-      task_id: linkedTask ? linkedTask.id : null,
+      task_id: linkedTask ? linkedTask.id : null, ...(fromTask?.actionId ? { from_action_id: fromTask.actionId } as Partial<CalendarEvent> : {}),
       meeting_url: meetingUrl.trim() || null,
       // 비공개 전환은 체크 후에도 일어날 수 있다 — 체크박스를 숨기는 것만으로는 부족하고,
       // 전송 시점에도 걸러야 백엔드 400(일정 생성 전체 실패)을 막는다.
@@ -368,9 +369,9 @@ const NewEventModal: React.FC<Props> = ({ initialStart, initialTitle, initialDes
       onSubmit={handleSubmit}
       submitting={submitting}
       submitLabel={t('button.create')}
-      submitDisabled={!title.trim()}
+      submitDisabled={!title.trim()} submitTestId="calendar-new-submit"
     >
-          <Field>
+          {fromTask?.notice}<Field>
             <TitleInput
               ref={titleRef}
               value={title}

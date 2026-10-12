@@ -225,6 +225,9 @@ const SUITES = {
   // 결과물을 **댓글이 아니라 회차로** 남길 수 있는가. 여태 버전이 생기는 문이
   //   "확인 요청" 하나뿐이라 중간 결과가 댓글로 갔다. 버튼 가시성 + 실제 박제 + 입력란 비움까지 잰다.
   delivver: () => require('./canary-deliverable-version'),
+  // 업무 «결과물 액션»(2026-10-12, docs/TASK_ACTIONS_DESIGN.md) — 3폭: 담당자 버튼 보임·비담당 비활성 · 문서 화면 띠·제목 ·
+  //   데스크탑 새 탭(업무 화면 유지) · 첫 자동저장 = 작성 중(DB) · 업무 칸 소켓 갱신 · 발행 = 완료 · 문서 «업무:» 칩 · 대조군 2.
+  taskactions: () => require('./canary-task-actions'),
   reviewtoast: () => require('./canary-review-toast-repeat'),   // 2026-10-06 컨펌 대기 업무 수정만으로 «검토 요청» 토스트 재발 — 양성 대조군 확인
   clientlink: () => require('./canary-client-project-link'),   // 2026-10-06 고객 초대 수락 후 연결 프로젝트·채팅방이 고객 화면에 보이는가 — 대조군 FAIL 확인
   chatattach: () => require('./canary-chat-attach-download'),

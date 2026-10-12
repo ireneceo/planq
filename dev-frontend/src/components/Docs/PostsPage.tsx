@@ -24,6 +24,9 @@ import SearchBox from '../Common/SearchBox';
 import HighlightText from '../Common/HighlightText';
 import MatchReason from '../Common/MatchReason';
 import PanelHeader, { PanelTitle, PanelSubTitle, DetailMetaBar, DetailMetaLeft, DetailMetaRight } from '../Layout/PanelHeader';
+import { useFromActionHandoff, type FromActionHandoff } from '../../hooks/useFromActionHandoff';
+import FromTaskBanner from '../Common/FromTaskBanner';
+import LinkedTaskChips from '../Common/LinkedTaskChips';
 import OverflowMenu from '../Common/OverflowMenu';
 import AttachmentField from '../Common/AttachmentField';
 import CategoryCombobox from '../Common/CategoryCombobox';
@@ -362,6 +365,24 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId }) => {
   const [knowledgeMsg, setKnowledgeMsg] = useState<string | null>(null);
   const [signReloadKey, setSignReloadKey] = useState(0);
   const [projectDraft, setProjectDraft] = useState<number | null>(null);
+  // 업무 «결과물 액션» 에서 넘어온 새 문서(?from_action=) — docs/TASK_ACTIONS_DESIGN.md §4.2.
+  //   첫 저장(임시저장 생성)에만 from_action_id 를 싣는다 — 서버가 그 문서를 액션에 건다(담당자만).
+  const [fromAction, setFromAction] = useState<FromActionHandoff | null>(null);
+  const [fromActionFailed, setFromActionFailed] = useState(false);
+  const fromActionSentRef = useRef(false);
+  // 자동저장 콜백(useCallback)이 옛 값을 보지 않게 ref 로 읽는다
+  const fromActionRef = useRef<FromActionHandoff | null>(null);
+  fromActionRef.current = fromAction;
+  const fromActionPayload = (): { from_action_id?: number } => {
+    const fa = fromActionRef.current;
+    if (!fa || !fa.can_perform || fromActionSentRef.current) return {};
+    fromActionSentRef.current = true;
+    return { from_action_id: fa.action.id };
+  };
+  // 발행·취소로 편집을 떠나면 띠를 걷는다 — 그 뒤에는 밴드2 의 «업무:» 칩이 연결을 말한다
+  useEffect(() => {
+    if (mode === 'view' && fromAction) { setFromAction(null); setFromActionFailed(false); }
+  }, [mode, fromAction]);
   // #336 — 방금 만든 표는 바로 편집 화면으로 열려야 한다.
   //   여태 URL 의 ?new_table=1 만 보고 판정했는데, setActiveId 와 setSearchParams 가
   //   **다른 커밋에 떨어지면** activeId effect 가 옛 searchParams 를 읽어 보기 모드로 연다.
@@ -638,6 +659,18 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId }) => {
     })();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
+
+  // 업무 «결과물 액션» → 새 문서. 제목 = 액션 이름, 프로젝트 = 업무의 프로젝트. 주소는 훅이 즉시 지운다.
+  useFromActionHandoff(scope.type === 'workspace', (h) => {
+    void (async () => {
+      await startNew();
+      setTitleDraft(h.action.label.slice(0, 200));
+      if (h.task.project_id) setProjectDraft(h.task.project_id);
+      fromActionSentRef.current = false;
+      setFromActionFailed(false);
+      setFromAction(h);
+    })();
+  });
 
   // 편집 폼 옵션용: 워크스페이스 프로젝트 목록 (편집/신규 진입 시점에만 fetch)
   useEffect(() => {
@@ -1014,6 +1047,7 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId }) => {
           content_json: contentDraft as never,
           category: categoryVal,
           status: 'draft',
+          ...fromActionPayload(),
           // ★ 개인 보관함에서 만든 것은 **나만 보기(L1)** 다 (Irene 2026-08-31:
           //   "개인보관함에 올리는 건 당연히 나만보기로 만들어줘야 하는 거 아니야? 올리는 것들 다?")
           //   여기서 안 보내면 서버 기본값이 project_id 없을 때 **L3(워크스페이스 전체)** 다
@@ -1022,6 +1056,7 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId }) => {
           //   파일 업로드는 이미 서버가 L1 로 저장한다 — 문서만 규칙이 갈라져 있었다.
           ...(scope.type === 'personal' ? { vlevel: 'L1' as const } : {}),
         });
+        if (created.warnings?.includes('action_link_failed')) setFromActionFailed(true);
         autoDraftIdRef.current = created.id;
         baseUpdatedAtRef.current = created.updated_at ?? null;
         setDetail(created);
@@ -1426,8 +1461,10 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId }) => {
             title: titleDraft.trim(),
             content_json: contentDraft as any,
             category: categoryVal,
+            ...fromActionPayload(),
             ...(scope.type === 'personal' ? { vlevel: 'L1' as const } : {}),
           });
+        if (created.warnings?.includes('action_link_failed')) setFromActionFailed(true);
         // 예약된 첨부 처리 — 편집 모드와 **같은 경로**를 쓴다 (#365)
         //   첨부의 공개 범위도 문서를 따라간다 — 문서는 나만 보기인데 첨부만 전체면 그게 유출이다.
         const attachRes = await persistAttachments(created.id, {
@@ -2158,6 +2195,7 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId }) => {
             </MetaRow>
             </StickyBands>
             <Body>
+              {fromAction && <FromTaskBanner handoff={fromAction} linkFailed={fromActionFailed} />}
               {error && <ErrorBar>{error}</ErrorBar>}
               {/* 다운로드 실패는 조용히 넘기지 않는다 — 이전엔 링크가 401 이어도 화면에 아무 말이 없었다 */}
               {dl.error && <ErrorBar>{dl.error}</ErrorBar>}
@@ -2404,6 +2442,8 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId }) => {
               )}
               {/* D4 #62 — 보안등급 배지 (일반은 노이즈 0, 자동 숨김) */}
               <SecurityLevelBadge level={detail.security_level} />
+              {/* 이 문서를 결과물·액션으로 건 업무(보는 사람 기준) — docs/TASK_ACTIONS_DESIGN.md §4.2 */}
+              <LinkedTaskChips tasks={detail.linked_tasks} />
               </MetaLeft>
               <MetaRight>
               {/* ★ 액션을 **메타 줄 오른쪽**으로 (Irene 2026-09-05: "점점점 메뉴만 위로 올리면 어때?

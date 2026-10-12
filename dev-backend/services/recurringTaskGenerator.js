@@ -189,6 +189,13 @@ async function createOccurrence(parent, nextDateStr, io = null, notifyBucket = n
       console.warn('[recurringTask] tag copy failed', inst.id, e.message);
     }
 
+    // 업무 «결과물 액션» — 부모 목록을 내용만 복사(연결·완료는 두고 온다). docs/TASK_ACTIONS_DESIGN.md §5
+    try {
+      await require('./taskActionItems').copyToOccurrence(parent, inst);
+    } catch (e) {
+      console.warn('[recurringTask] action items copy failed', inst.id, e.message);
+    }
+
     // 실시간 동기화 — 새 인스턴스가 다른 사용자/디바이스에 즉시 보이도록.
     // CLAUDE.md "운영 안정성 16번" — 모든 task 생성 라우트는 broadcast 강제.
     if (io) {

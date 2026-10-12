@@ -1739,5 +1739,15 @@
   },
   "singleDate": {
     "placeholder": "날짜 선택"
+  },
+  "fromTask": {
+    "banner": "업무 ‹{{task}}› 의 결과물 액션 ‹{{label}}› 을 만들고 있어요 — 저장하면 업무에 연결됩니다",
+    "cannotLink": "담당자만 연결할 수 있어요 — 만들어도 업무에 연결되지 않습니다",
+    "openTask": "업무 열기",
+    "linkFailed": "만들어졌지만 업무에 연결되지 않았습니다 — 업무에서 [기존 것 연결] 을 눌러 주세요"
+  },
+  "linkedTasks": {
+    "chip": "업무: {{title}}",
+    "more": "+{{n}}"
   }
 }

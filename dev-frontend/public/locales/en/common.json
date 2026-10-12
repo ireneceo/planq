@@ -1739,5 +1739,15 @@
   },
   "singleDate": {
     "placeholder": "Pick a date"
+  },
+  "fromTask": {
+    "banner": "Making “{{label}}” for task “{{task}}” — it links to the task when saved",
+    "cannotLink": "Only the assignee can link — this won’t attach to the task",
+    "openTask": "Open task",
+    "linkFailed": "Created, but not linked to the task — use “Link existing” on the task"
+  },
+  "linkedTasks": {
+    "chip": "Task: {{title}}",
+    "more": "+{{n}}"
   }
 }

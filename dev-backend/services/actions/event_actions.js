@@ -313,8 +313,18 @@ async function createEvent(actor, params = {}) {
   }
 
   // 표시명 적용은 라우트가 응답 직전에 하지 않는다 — 옛 라우트도 안 했다(생성 응답은 raw). 무변경.
+  // 업무 «결과물 액션» 에서 왔으면 그 액션에 건다 — 판정은 taskActionItems.fulfill 한 곳(담당자·같은 워크스페이스·볼 수 있는 일정).
+  //   실패해도 일정은 이미 만들어졌다 — warnings 로 화면에 알린다.
+  const warnings = [];
+  if (params.fromActionId) {
+    const r = await require('../taskActionItems').fulfill(
+      { userId: subjectId, platformRole: subj.platformRole, req: actor.req },
+      { actionId: params.fromActionId, businessId, entityType: 'calendar_event', entityId: event.id, source: 'create' },
+    ).catch((e) => { console.warn('[event_actions.fromAction]', e.message); return { ok: false, code: 'error' }; });
+    if (!r.ok) warnings.push('action_link_failed');
+  }
   // meetWarning — Meet 링크만 실패한 경우. 일정 생성은 성공(201)이고, 프론트가 이 코드로 경고를 띄운다.
-  return done({ event, full, meetWarning });
+  return done({ event, full, meetWarning, warnings });
 }
 
 /** 이미 있는 일정을 고친다 — Cue·외부 AI 의 «일정 수정» (2026-10-12, docs/CUE_REGISTRY_FOLD_DESIGN.md C).

@@ -72,6 +72,10 @@ export interface PostDetail extends PostRow {
   // 다른 post (문서/표) 연결
   linked_post_ids?: number[];
   linked_posts?: Array<{ id: number; title: string; kind: 'doc' | 'table' | 'brief' | 'template' | 'survey' }>;
+  // 이 문서를 결과물·액션으로 건 업무 — 서버가 보는 사람 기준으로 준다(services/taskActionItems.linkedTasksOf)
+  linked_tasks?: Array<{ id: number; title: string; status: string; project_id: number | null; via?: string }>;
+  // 만들기 응답의 부수 경고(예: 업무 «결과물 액션» 연결 실패 'action_link_failed')
+  warnings?: string[];
 }
 
 export interface PostListFilter {
@@ -208,6 +212,8 @@ export async function createPost(payload: {
   // #252 — 자동저장이 만드는 임시저장 글. 서버가 vlevel 을 L1 으로 강제하고
   //   broadcast·감사·거래 stage 를 발화시키지 않는다(타이핑 중이므로).
   status?: 'draft' | 'published';
+  // 업무 «결과물 액션» 에서 왔을 때 — 서버가 만든 문서를 그 액션에 건다(담당자만, 아니면 warnings)
+  from_action_id?: number;
 }): Promise<PostDetail> {
   const r = await apiFetch('/api/posts', {
     method: 'POST',

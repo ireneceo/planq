@@ -52,6 +52,7 @@ import DeliverableHistory from './DeliverableHistory';
 import TaskAttachments from './TaskAttachments';
 import PostPreviewModal from '../Docs/PostPreviewModal';
 import RelatedTasksSection from './RelatedTasksSection';
+import TaskActionItemsSection from './TaskActionItemsSection';
 import DescriptionAttachments from './DescriptionAttachments';
 import { STATUS_COLOR, displayStatus, getStatusLabel, statusOptionsFor, type StatusCode } from '../../utils/taskLabel';
 import { getRoles, primaryPerspective } from '../../utils/taskRoles';
@@ -2651,6 +2652,14 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
               </Section>
             )}
 
+            {/* 결과물 액션 — 결과물을 위해 만들 것(문서·일정)을 적어 두고 담당자가 그 화면에서 만든다.
+                설계 docs/TASK_ACTIONS_DESIGN.md §4.1. 고객에게는 내지 않는다(내부 작업 계획 — 서버도 403). */}
+            {myWsRole !== 'client' && (
+              <Section data-testid="task-actions-section">
+                <TaskActionItemsSection taskId={detailTask.id} businessId={bizId || null} />
+              </Section>
+            )}
+
             <Section>
               <SectionTitle>
                 {t('detail.body', '결과물')}
@@ -3081,7 +3090,8 @@ const PillSpinner = styled.span`
 const Scroll = styled.div`flex:1;overflow-y:auto;overflow-x:hidden;min-width:0;&>*{min-width:0;max-width:100%;}&::-webkit-scrollbar{width:6px;}&::-webkit-scrollbar-thumb{background:#E2E8F0;border-radius:3px;}`;
 // #290 — 팝아웃(440px)에서만 여백을 조인다. 터치 타겟(MetaValueRow 28px)·헤더 60px 는 안 건드린다.
 const Section = styled.div`border-bottom:1px solid #F1F5F9;padding:12px 14px;
-  body[data-popout='1'] &{padding:10px 12px;}`;
+  body[data-popout='1'] &{padding:10px 12px;}
+  &:empty{display:none;}`;
 const SectionTitle = styled.h4`font-size:0.75rem;font-weight:700;color:#0F172A;margin:0 0 8px;display:flex;align-items:center;gap:8px;
   body[data-popout='1'] &{margin-bottom:6px;}`;
 const ReadOnlyHint = styled.span`font-size:0.6875rem;font-weight:500;color:#94A3B8;background:#F1F5F9;border-radius:10px;padding:2px 8px;`;

@@ -552,6 +552,9 @@ app.use('/api/invites', require('./routes/invites'));
 app.use('/api/conversations', require('./routes/conversations'));
 app.use('/api/message-attachments', require('./routes/message_attachments'));
 app.use('/api/messages', require('./routes/message_reactions'));   // #138 이모지 리액션
+// 업무 «결과물 액션»(docs/TASK_ACTIONS_DESIGN.md) — /:id/actions 는 tasks.js **앞**(마운트 순서가 계약)
+app.use('/api/tasks', require('./routes/task_action_items'));
+app.use('/api/task-actions', require('./routes/task_action_items').handoffRouter);
 app.use('/api/tasks', require('./routes/tasks'));
 app.use('/api/tasks', require('./routes/task_workflow'));
 app.use('/api/tasks', require('./routes/task_attachments'));

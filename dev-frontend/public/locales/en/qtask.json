@@ -1533,5 +1533,59 @@
   "visibility": {
     "label": "Visibility",
     "saveFailed": "Couldn't change visibility"
+  },
+  "resultActions": {
+    "title": "Deliverable actions",
+    "add": "Add action",
+    "addSubmit": "Add",
+    "kindLabel": "Type",
+    "kind": {
+      "doc": "Document",
+      "event": "Event",
+      "mail": "Mail",
+      "project": "Project"
+    },
+    "labelPlaceholder": "What will you make? (e.g. Quote draft) · Ctrl/⌘+Enter to add",
+    "go": {
+      "doc": "Create document",
+      "event": "Add event",
+      "mail": "Write mail",
+      "project": "Create project"
+    },
+    "linkExisting": "Link existing",
+    "unlink": "Unlink",
+    "skip": "Skip",
+    "unskip": "Back to to-do",
+    "rename": "Rename",
+    "delete": "Delete action",
+    "more": "Action menu",
+    "status": {
+      "pending": "Not made yet",
+      "active": "In progress (draft)",
+      "completed": "Done",
+      "skipped": "Skipped this time"
+    },
+    "assigneeOnly": "Only the assignee makes this",
+    "noAssignee": "Set an assignee to start",
+    "hidden": "Not visible to you",
+    "deleted": "Deleted",
+    "empty": "List the documents and events this deliverable needs. The assignee can go make them from here.",
+    "recurringHint": "Recurring: each new occurrence gets this list, unchecked",
+    "deleteConfirm": "Delete “{{label}}”? Linked items stay.",
+    "pickDocPlaceholder": "Search documents to link",
+    "pickEventPlaceholder": "Search events to link",
+    "pickEmpty": "Nothing to choose",
+    "searching": "Searching…",
+    "error": {
+      "failed": "Couldn't do that. Please try again shortly.",
+      "only_assignee": "Only the assignee can link",
+      "forbidden": "Only the task's creator, assignee or admins can edit this",
+      "too_many_actions": "Up to 30 actions per task",
+      "action_linked_unlink_first": "This action is linked — unlink it first",
+      "action_already_linked": "Something else is already linked",
+      "entity_not_found": "Item not found or not visible to you",
+      "kind_mismatch": "That item doesn't match the action type",
+      "label_required": "Write what to make"
+    }
   }
 }
