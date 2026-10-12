@@ -1,12 +1,13 @@
 // 구독 플랜 페이지 — 현재 플랜 카드 + 사용량 바 + 비교표 + Enterprise 문의 + 이력
 import TrialRefundRequest from '../../components/Settings/TrialRefundRequest';
+import PaymentHistory from '../../components/Settings/PaymentHistory';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router-dom';
 import {
   fetchCatalog, fetchStatus, changePlan, cancelScheduledChange, startTrial, switchTrialPlan,
-  formatPrice, formatLimit, formatBytes, formatMinutes, usageColor, receiptPdfUrl,
+  formatPrice, formatLimit, formatBytes, formatMinutes, usageColor,
   type PlanDef, type PlanStatus, type PlanCode, type BillingCycle, type Currency,
 } from '../../services/plan';
 import { submitInquiry } from '../../services/inquiries';
@@ -16,7 +17,6 @@ import CheckoutModal from './CheckoutModal';
 import AddonSection from './AddonSection';
 import { CheckIcon } from '../../components/Common/Icons';
 import { canPurchaseInApp } from '../../utils/purchase';
-import { downloadFromApi } from '../../utils/download';
 
 interface Props { businessId: number; }
 
@@ -24,6 +24,7 @@ const PlanSettings: React.FC<Props> = ({ businessId }) => {
   const { t } = useTranslation('plan');
   const { formatDate } = useTimeFormat();
   const { user } = useAuth();
+  const isOwnerRole = user?.business_role === 'owner' || user?.platform_role === 'platform_admin';
 
   const [catalog, setCatalog] = useState<PlanDef[]>([]);
   const [status, setStatus] = useState<PlanStatus | null>(null);
@@ -33,17 +34,6 @@ const PlanSettings: React.FC<Props> = ({ businessId }) => {
   const [actionPlan, setActionPlan] = useState<PlanCode | null>(null);  // 업그레이드/다운그레이드 모달 대상
   const [paymentOpen, setPaymentOpen] = useState(false);
   const [cancelScheduleOpen, setCancelScheduleOpen] = useState(false);
-  // 영수증 — 링크(<a href>)로 열면 Authorization 헤더가 안 실려 401 빈 화면이었다(운영 #464).
-  //   인증 API 다운로드 한 곳(downloadFromApi)으로 받는다. 받는 중엔 버튼을 막고, 실패는 행 옆에 말한다.
-  const [receiptBusy, setReceiptBusy] = useState<number | null>(null);
-  const [receiptErr, setReceiptErr] = useState<number | null>(null);
-  const openReceipt = async (paymentId: number) => {
-    if (receiptBusy) return;
-    setReceiptBusy(paymentId); setReceiptErr(null);
-    try { await downloadFromApi(receiptPdfUrl(businessId, paymentId), `receipt-${paymentId}.pdf`); }
-    catch { setReceiptErr(paymentId); }
-    finally { setReceiptBusy(null); }
-  };
   // P-2: bank info — PlanQ SaaS 결제 계좌 (워크스페이스 계좌 아님!)
   // 워크스페이스 owner 가 PlanQ 구독료를 송금할 PlanQ 자체 계좌 정보
   const [bankInfo, setBankInfo] = useState<{ name?: string; account?: string; holder?: string; name_en?: string | null; holder_en?: string | null; swift?: string | null } | null>(null);
@@ -81,13 +71,16 @@ const PlanSettings: React.FC<Props> = ({ businessId }) => {
   const [inqPhone, setInqPhone] = useState('');
   const [inqMessage, setInqMessage] = useState('');
 
-  const openInquiry = useCallback(() => {
+  // 문의 창 = Enterprise 문의 / 환불 요청(components/Settings/RefundHelp 머리말) 두 뜻
+  const [inqMode, setInqMode] = useState<'enterprise' | 'refund'>('enterprise');
+  const openInquiry = useCallback((mode: 'enterprise' | 'refund' = 'enterprise', prefill = '') => {
     // 로그인 사용자 정보 prefill
+    setInqMode(mode);
     setInqName(user?.name || '');
     setInqEmail(user?.email || '');
     setInqCompany(user?.business_name || '');
     setInqPhone('');
-    setInqMessage('');
+    setInqMessage(prefill);
     setInquiryErr(false);
     setInquirySuccess(null);
     setInquiryOpen(true);
@@ -98,8 +91,8 @@ const PlanSettings: React.FC<Props> = ({ businessId }) => {
     setInquirySubmitting(true);
     setInquiryErr(false);
     const r = await submitInquiry({
-      kind: 'enterprise',
-      source: 'plan_page',
+      kind: inqMode === 'refund' ? 'general' : 'enterprise',
+      source: inqMode === 'refund' ? 'plan_refund' : 'plan_page',
       business_id: businessId || null,
       from_name: inqName,
       from_email: inqEmail,
@@ -110,7 +103,7 @@ const PlanSettings: React.FC<Props> = ({ businessId }) => {
     setInquirySubmitting(false);
     if (r) setInquirySuccess({ email: inqEmail });
     else setInquiryErr(true);
-  }, [inqName, inqEmail, inqCompany, inqPhone, inqMessage, businessId]);
+  }, [inqName, inqEmail, inqCompany, inqPhone, inqMessage, businessId, inqMode]);
 
   // 표에 표시할 플랜 — Enterprise 는 별도 섹션으로 이동 (Irene 요청)
   const comparisonPlans = useMemo(() => catalog.filter(p => p.code !== 'enterprise'), [catalog]);
@@ -171,7 +164,7 @@ const PlanSettings: React.FC<Props> = ({ businessId }) => {
     if (target === 'enterprise') {
       // Enterprise 는 표에서 제외되었으므로 이 분기는 실행되지 않지만,
       // 혹시 남은 호출이 있어도 문의 모달로 안전하게 유도.
-      openInquiry();
+      openInquiry('enterprise');
       return;
     }
     if (isUpgrade(target)) {
@@ -379,7 +372,7 @@ const PlanSettings: React.FC<Props> = ({ businessId }) => {
                   })}
               </PrepayHint>
               <PrepayNote>
-                {t('prepay.refundNote', '이미 결제한 1개월 요금은 해지해도 환불되지 않습니다.')}
+                {t('prepay.refundNote', '체험이 끝나기 전에 해지하면 전액 환불됩니다. 체험이 끝난 뒤의 환불은 약관 제4조(환불 정책)를 따릅니다.')}
               </PrepayNote>
             </PrepayInfo>
             <PrepayBtn type="button" data-testid="plan-prepay-bonus" onClick={openPrepay}>
@@ -586,7 +579,7 @@ const PlanSettings: React.FC<Props> = ({ businessId }) => {
           </EntBullets>
         </EntContent>
         <EntCta>
-          <BtnPrimary type="button" onClick={openInquiry}>{t('enterprise.contactBtn')}</BtnPrimary>
+          <BtnPrimary type="button" onClick={() => openInquiry('enterprise')}>{t('enterprise.contactBtn')}</BtnPrimary>
         </EntCta>
       </EnterpriseCard>
 
@@ -602,43 +595,9 @@ const PlanSettings: React.FC<Props> = ({ businessId }) => {
       {/* P-2 결제 이력 — 영수증 PDF */}
       <Section>
         <SectionTitle>{t('billing.history.title', '결제 이력')}</SectionTitle>
-        {(!status.recent_payments || status.recent_payments.length === 0) ? (
-          <Dim>{t('billing.history.empty', '결제 내역이 없습니다')}</Dim>
-        ) : (
-          <PaymentList>
-            {status.recent_payments.map(p => (
-              <PaymentRow key={p.id}>
-                <PaymentDate>{p.paid_at ? formatDate(p.paid_at) : '—'}</PaymentDate>
-                <PaymentAmount>
-                  {p.currency === 'KRW' ? t('amountKrw', { amount: Number(p.amount).toLocaleString() }) : `${p.currency} ${Number(p.amount).toLocaleString()}`}
-                  {/* 금액이 플랜표와 다르면 사용자는 오류로 읽는다 — 내역(플랜 + 애드온)을 같이 적는다(FIX_0AB A-④) */}
-                  {p.line_items && p.line_items.length > 1 && (() => {
-                    const planL = p.line_items.find(l => l.kind === 'plan');
-                    const planAmt = planL ? Number(planL.amount) : 0;
-                    const planStr = p.currency === 'KRW' ? t('amountKrw', { amount: planAmt.toLocaleString() }) : `${p.currency} ${planAmt.toLocaleString()}`;
-                    return (
-                      <PaymentLines>
-                        {t('billing.history.lines', { plan: planStr, count: p.line_items.filter(l => l.kind === 'addon').length, defaultValue: '플랜 {{plan}} + 애드온 {{count}}건' })}
-                      </PaymentLines>
-                    );
-                  })()}
-                </PaymentAmount>
-                <PaymentMeta>
-                  {t(`billing.cycle.${p.cycle}`, p.cycle)}
-                  {p.period_start && p.period_end && ` · ${formatDate(p.period_start)} ~ ${formatDate(p.period_end)}`}
-                </PaymentMeta>
-                <PaymentStatus $status={p.status}>{t(`billing.payment.status.${p.status}`, p.status)}</PaymentStatus>
-                {p.status === 'paid' && (
-                  <>
-                    <ReceiptLink type="button" onClick={() => openReceipt(p.id)} disabled={receiptBusy === p.id} data-testid="plan-receipt">
-                      {t('billing.history.receipt', '영수증')}
-                    </ReceiptLink>
-                    {receiptErr === p.id && <ReceiptError role="alert">{t('billing.history.receiptFailed', '영수증을 받지 못했습니다. 다시 시도해 주세요.')}</ReceiptError>}
-                  </>
-                )}
-              </PaymentRow>
-            ))}
-          </PaymentList>
+        {businessId && (
+          <PaymentHistory businessId={businessId} payments={status.recent_payments} isOwner={isOwnerRole}
+            trialRefund={status.trial_refund} onRefundRequest={(pre) => openInquiry('refund', pre)} />
         )}
       </Section>
 
@@ -746,12 +705,12 @@ const PlanSettings: React.FC<Props> = ({ businessId }) => {
       {inquiryOpen && (
         <Modal onMouseDown={e => { if (e.target === e.currentTarget && !inquirySubmitting) setInquiryOpen(false); }}>
           <Dialog>
-            <DTitle>{t('inquiry.title')}</DTitle>
+            <DTitle>{inqMode === 'refund' ? t('refundHelp.title', '환불 요청') : t('inquiry.title')}</DTitle>
             {inquirySuccess ? (
               <>
                 <DBody>
                   <SuccessBox>
-                    <SuccessTitle>{t('inquiry.successTitle')}</SuccessTitle>
+                    <SuccessTitle>{inqMode === 'refund' ? t('refundHelp.successTitle', '환불 요청이 접수되었습니다') : t('inquiry.successTitle')}</SuccessTitle>
                     <SuccessDesc>{t('inquiry.successDesc', { email: inquirySuccess.email })}</SuccessDesc>
                   </SuccessBox>
                 </DBody>
@@ -762,7 +721,7 @@ const PlanSettings: React.FC<Props> = ({ businessId }) => {
             ) : (
               <>
                 <DBody>
-                  <InqSub>{t('inquiry.subtitle')}</InqSub>
+                  <InqSub>{inqMode === 'refund' ? t('refundHelp.subtitle') : t('inquiry.subtitle')}</InqSub>
                   <InqGrid>
                     <InqField>
                       <InqLabel>{t('inquiry.name')}<Req>*</Req></InqLabel>
@@ -782,7 +741,7 @@ const PlanSettings: React.FC<Props> = ({ businessId }) => {
                     </InqField>
                     <InqField $span2>
                       <InqLabel>{t('inquiry.message')}<Req>*</Req></InqLabel>
-                      <InqTextarea rows={5} value={inqMessage} onChange={e => setInqMessage(e.target.value)} placeholder={t('inquiry.messagePh') as string} maxLength={5000} />
+                      <InqTextarea rows={5} value={inqMessage} onChange={e => setInqMessage(e.target.value)} placeholder={(inqMode === 'refund' ? t('refundHelp.messagePh', '환불을 원하는 결제와 사유를 적어 주세요.') : t('inquiry.messagePh')) as string} maxLength={5000} />
                     </InqField>
                   </InqGrid>
                   {inquiryErr && <InqError>{t('inquiry.error')}</InqError>}
@@ -790,7 +749,7 @@ const PlanSettings: React.FC<Props> = ({ businessId }) => {
                 <DFooter>
                   <BtnGhost type="button" disabled={inquirySubmitting} onClick={() => setInquiryOpen(false)}>{t('inquiry.cancel')}</BtnGhost>
                   <BtnPrimary type="button" disabled={inquirySubmitting || !inqName.trim() || !inqEmail.trim() || !inqMessage.trim()} onClick={submitInquiryForm}>
-                    {inquirySubmitting ? t('inquiry.submitting') : t('inquiry.submit')}
+                    {inquirySubmitting ? t('inquiry.submitting') : (inqMode === 'refund' ? t('refundHelp.submit', '환불 요청 보내기') : t('inquiry.submit'))}
                   </BtnPrimary>
                 </DFooter>
               </>
@@ -1148,50 +1107,6 @@ function planBadge(code: PlanCode): string {
     case 'enterprise': return 'background:#FEF3C7;color:#92400E;';
   }
 }
-
-// ─── P-2 결제 이력 styled ───
-const PaymentList = styled.div`display: flex; flex-direction: column;`;
-const PaymentRow = styled.div`
-  display: grid;
-  grid-template-columns: 100px 110px 1fr auto auto;
-  gap: 12px;
-  align-items: center;
-  padding: 10px 0;
-  border-bottom: 1px solid #F1F5F9;
-  &:last-child { border-bottom: none; }
-  font-size: 0.75rem;
-  @media (max-width: 768px) {
-    grid-template-columns: 1fr 1fr;
-    grid-template-rows: auto auto;
-  }
-`;
-const PaymentDate = styled.div`color: #64748B; font-variant-numeric: tabular-nums;`;
-const PaymentAmount = styled.div`font-weight: 700; color: #0F172A;`;
-const PaymentLines = styled.span`display: block; margin-top: 2px; font-size: 0.6875rem; font-weight: 500; color: #64748B;`;
-const PaymentMeta = styled.div`color: #64748B;`;
-const PaymentStatus = styled.span<{ $status: string }>`
-  padding: 2px 8px; border-radius: 999px; font-size: 0.625rem; font-weight: 600;
-  background: ${p =>
-    p.$status === 'paid' ? '#DCFCE7' :
-    p.$status === 'refunded' ? '#FEF3C7' :
-    p.$status === 'failed' ? '#FEE2E2' :
-    '#F1F5F9'};
-  color: ${p =>
-    p.$status === 'paid' ? '#15803D' :
-    p.$status === 'refunded' ? '#92400E' :
-    p.$status === 'failed' ? '#B91C1C' :
-    '#64748B'};
-`;
-const ReceiptLink = styled.button`
-  font-size: 0.6875rem; color: #0D9488; font-weight: 600; font-family: inherit;
-  text-decoration: none; padding: 4px 10px; background: transparent; cursor: pointer;
-  border: 1px solid #5EEAD4; border-radius: 6px;
-  &:hover { background: #F0FDFA; }
-  &:disabled { opacity: 0.6; cursor: wait; }
-`;
-const ReceiptError = styled.span`
-  font-size: 0.6875rem; color: #DC2626;
-`;
 
 // 사이클 N+20 — Cue 사용량 기능별 breakdown
 const CueBreakdown = styled.div`

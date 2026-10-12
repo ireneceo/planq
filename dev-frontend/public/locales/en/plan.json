@@ -310,7 +310,7 @@
     "label": "Trial option",
     "title": "Pay now and get {{months}} extra month",
     "desc": "Use PlanQ for {{total}} months at the price of one. Your next charge is in {{total}} months — cancel before then and nothing further is billed.",
-    "refundNote": "Cancel before your trial ends for a full refund. After the trial ends, the amount already paid is not refunded.",
+    "refundNote": "Cancel before the trial ends for a full refund. After the trial ends, refunds follow Article 4 of the Terms (Refund policy).",
     "cta": "Pay now",
     "descTrial": "Keep your trial to the end, then use {{total}} months starting the day it ends (for one month's price). The next charge comes after that; cancel before then and nothing more is charged."
   },
@@ -347,5 +347,16 @@
       "already_refunded": "This payment has already been refunded.",
       "not_requested": "There is no refund request."
     }
+  },
+  "refundHelp": {
+    "title": "Request a refund",
+    "subtitle": "Refunds follow Article 4 of the Terms. We will reply by email within 1–2 business days. If you paid by bank transfer, please include the account to refund to.",
+    "messagePh": "Tell us which payment you want refunded and why.",
+    "successTitle": "Your refund request has been received",
+    "policy": "Refund policy (Terms, Article 4): payments made during the trial — full refund if you cancel before the trial ends · monthly — full refund within 7 days of payment · annual — full refund within 14 days, then a pro-rated refund for the remaining period.",
+    "request": "Request a refund",
+    "ownerOnly": "Only the workspace owner can request a refund.",
+    "prefill": "Refund request — paid on {{date}} · {{amount}}\nReason: ",
+    "submit": "Send refund request"
   }
 }
