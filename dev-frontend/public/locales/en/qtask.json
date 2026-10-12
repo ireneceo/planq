@@ -202,6 +202,8 @@
   },
   "add": {
     "placeholder": "Task name (Ctrl+Enter to save)",
+    "titleHint": "Name it so it's clear when it's done — e.g. \"Send quote to Acme\"",
+    "titleHintWhy": "A name like \"Quote work\" means a different finish line to each person.\nName the action that ends it, like \"Send quote\", and the assignee, requester and reviewer all see the same \"done\" — due dates, progress and reviews line up with it.",
     "btn": "Add task",
     "reqBtn": "Add request",
     "assignee": "Assignee",

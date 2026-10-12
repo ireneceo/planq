@@ -28,6 +28,7 @@ import RichEditor from '../Common/RichEditor';
 import AttachmentField from '../Common/AttachmentField';
 import PartnerKindBadge from '../Common/PartnerKindBadge';
 import RecurrencePicker from '../Common/RecurrencePicker';
+import HelpDot from '../Common/HelpDot';
 import TagPicker from './TagPicker';
 import { useTaskTagDict } from './useTaskTagDict';
 import type { TaskTagLite } from './TagChips';
@@ -360,6 +361,19 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({
           if (isEnterAction(e) && (e.ctrlKey || e.metaKey)) { e.preventDefault(); void submit(); }
           if (e.key === 'Escape') onClose();
         }} />
+      {/* 업무명 안내 — «끝나는 순간이 보이는 이름» (2026-10-12 Irene «업무관리 개념을 소소하게 적용»).
+          정적 안내다(입력값으로 판정하지 않는다). 이유는 ⓘ 에 올리면 보인다. 모든 직접 등록 폼이 이 한 벌을 쓴다. */}
+      <TitleHint data-testid="task-create-title-hint">
+        <TitleHintMark viewBox="0 0 24 24" aria-hidden="true">
+          <circle cx="12" cy="12" r="10" fill="currentColor" />
+          <rect x="11" y="6.5" width="2" height="7.5" rx="1" fill="#FFF" />
+          <circle cx="12" cy="17" r="1.25" fill="#FFF" />
+        </TitleHintMark>
+        <span>{t('add.titleHint', '끝나는 순간이 보이게 적어 주세요 — 예: «A사 견적서 보내기»')}</span>
+        <HelpDot topic="task-title" placement="auto">
+          {t('add.titleHintWhy', '')}
+        </HelpDot>
+      </TitleHint>
       <AddOptRow>
         {!fixedProjectId && (
         <AddOptField data-field="project">
@@ -529,6 +543,8 @@ const InlineAddBox = styled.div`display:flex;flex-direction:column;gap:8px;margi
 // ★ 여백은 드로어 본문(DetailDrawer.Body)이 준다 — 여기서 20px 을 또 주면 폰에서 좌우가 38px 이 되어
 //   다른 화면(14px)보다 눈에 띄게 넓었다(운영 #446). 자기 여백을 두지 않는다.
 const PanelAddForm = styled.div`display:flex;flex-direction:column;gap:10px;padding:0;background:transparent;border:none;`;
+const TitleHint = styled.div`display:flex;align-items:center;gap:6px;margin-top:-2px;font-size:0.75rem;line-height:1.4;color:#64748B;`;
+const TitleHintMark = styled.svg`width:14px;height:14px;flex-shrink:0;color:#F43F5E;`;
 const AddOptRow = styled.div`display:flex;gap:8px;flex-wrap:wrap;align-items:flex-start;`;
 const DescEditorWrap = styled.div`background:#FFF;border:1px solid #E2E8F0;border-radius:8px;padding:0;overflow:hidden;&:focus-within{border-color:#14B8A6;}`;
 const AttachToggleRow = styled.div`display:flex;`;
