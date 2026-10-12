@@ -44,6 +44,8 @@ export default function CueTaskBar({ businessId, members, projectId = null, cont
   const [prompt, setPrompt] = useState('');
   const [candidates, setCandidates] = useState<AiCandidate[]>([]);
   const [reasoning, setReasoning] = useState('');
+  // 나열한 N개 중 M개만 정리됐을 때(서버 재요구 뒤에도) — 조용히 줄이지 않고 말한다
+  const [shortfall, setShortfall] = useState<{ expected: number; got: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [justAdded, setJustAdded] = useState(false);
@@ -100,6 +102,7 @@ export default function CueTaskBar({ businessId, members, projectId = null, cont
       }
       setCandidates(list);
       setReasoning(j.data?.reasoning || '');
+      setShortfall(j.data?.enumerated_shortfall || null);
       setStage('preview');
     } catch (e) {
       setError(mapApiError(e, tErr));
@@ -118,6 +121,7 @@ export default function CueTaskBar({ businessId, members, projectId = null, cont
     setPrompt('');
     setCandidates([]);
     setReasoning('');
+    setShortfall(null);
     setError(null);
   };
 
@@ -216,6 +220,11 @@ export default function CueTaskBar({ businessId, members, projectId = null, cont
             <Sparkle aria-hidden><svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 16.8 5.8 21.3l2.4-7.4L2 9.4h7.6L12 2z" /></svg></Sparkle>
             {reasoning || t('ai.bar.organized', 'Cue가 이렇게 정리했어요')}
           </CueLine>
+          {shortfall && (
+            <NoticeMsg role="status" data-testid="cue-enumerated-shortfall">
+              {t('ai.bar.shortfall', { expected: shortfall.expected, got: shortfall.got, defaultValue: '적어 주신 {{expected}}개 중 {{got}}개만 정리됐어요 — 빠진 항목은 다시 보내 주세요' })}
+            </NoticeMsg>
+          )}
           <CardList>
             {candidates.map(c => (
               <AiCandidateCard

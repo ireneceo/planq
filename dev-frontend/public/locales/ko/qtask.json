@@ -1177,6 +1177,7 @@
       "organized": "Cue가 이렇게 정리했어요",
       "close": "닫기",
       "hintEnter": "Enter 로 Cue에게 보내기 · Shift+Enter 줄바꿈",
+      "shortfall": "적어 주신 {{expected}}개 중 {{got}}개만 정리됐어요 — 빠진 항목은 다시 보내 주세요",
       "examples": [
         "내일까지 메인 시안 완성",
         "이번 주 안에 경쟁사 비교표 작성",

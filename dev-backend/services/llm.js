@@ -41,6 +41,9 @@ const PURPOSES = {
   //   생성이 아니라 추출이라 temperature 0, 출력이 짧다(필드 6개 + 한 줄 요약). 입력 캡은 긴 메일 본문 기준.
   sale_extract:   { model: 'gpt-4o-mini', temperature: 0, maxTokens: 500, timeoutMs: 30_000, maxInputChars: 12_000 },
   task_plan:      { model: 'gpt-4o-mini', temperature: 0.2, maxTokens: 2000, timeoutMs: 45_000, maxInputChars: 16_000 },
+  // 2026-10-12 — Cue 바에 업무를 8개 넘게 나열하면 2,000토큰에서 JSON 이 잘려 전량 유실됐다(422).
+  //   같은 분해에 출력 상한만 넓힌다(상한은 천장 — 짧은 답의 비용은 그대로). aiTaskPlanner 가 나열 수로 고른다.
+  task_plan_list: { model: 'gpt-4o-mini', temperature: 0.2, maxTokens: 8000, timeoutMs: 90_000, maxInputChars: 16_000 },
   // #354 루틴 설계 모드 — 같은 분해라도 **출력 부피가 다른 일**이라 task_plan 과 나눠 둔다.
   //   업무 16건 × 지침 500~1,500자면 task_plan 의 2,000토큰에서 JSON 이 중간에 잘리고,
   //   잘린 JSON 은 parse 실패로 **전량 유실**된다(부분 복구 경로가 없다). 12,000 은

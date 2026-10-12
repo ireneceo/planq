@@ -121,17 +121,29 @@ ${routineCtx.existingRecurring.slice(0, 40).map((t) => `  - ${t.title} [${t.recu
 Additional output key for this mode:
   "areas": [ { "title": "<area name>", "description": "<1-2 sentences>", "existing": <bool> } ]
 ` : '';
-  // quick 모드 — "Cue에게 말하기" 바의 캐주얼 한마디. 분해 최소화(보통 1개), 사용자가 명시적으로
-  // 여러 산출물을 나열했을 때만 다중. 일반 모달은 mode 없음(기존 분해 정책 유지).
+  // quick 모드 — "Cue에게 말하기" 바의 캐주얼 한마디. 분해 최소화(보통 1개), 사용자가 여러 항목을
+  // 나열했으면 **나열한 그대로** 항목당 1건. 일반 모달은 mode 없음(기존 분해 정책 유지).
+  // ★ 2026-10-12 — 줄바꿈·번호·글머리 목록이 «명시적 나열» 예시에 없어 모델이 묶거나 몇 개만 남겼다
+  //   (Irene: "여러 개 업무 추가하면 Q task에 그대로 추가해야 하는데 마음대로 줄이거나").
+  //   서버 안전망(countEnumeratedItems + 1회 재요구)이 같이 막는다.
   const quickBlock = mode === 'quick' ? `
 
 ═══ QUICK CAPTURE MODE (override decomposition) ═══
 
-This input came from a casual one-line "talk to me" bar. The user expects ONE task unless they clearly listed multiple distinct deliverables.
-- Default to exactly 1 task. Do NOT auto-expand a single deliverable into phases.
-- Only output multiple tasks if the user explicitly enumerated separate deliverables (예: "A 하고 B 하고 C") or asked to break it down.
-- Still apply the naming policy (outcome-named title) and respect any stated deadline.
-- This QUICK rule OVERRIDES the "minimum 3 tasks" / domain-expansion rules below.
+This input came from a casual "talk to me" bar. The user expects ONE task unless they listed several items.
+- Default to exactly 1 task for a single request. Do NOT auto-expand a single deliverable into phases.
+- LISTED ITEMS — if the user listed several items in ANY form: separate lines, numbers ("1." "1)" "①"),
+  bullets ("-" "•" "*"), or a run joined by commas / "그리고" / "하고" / "and" (예: "A 하고 B 하고 C", "A, B, C 업무 추가"):
+    * output EXACTLY one task per listed item — same count, same order.
+    * Do NOT merge items, do NOT drop items, do NOT split one item into several, do NOT add extra items.
+    * Title = the user's own wording for that item, unchanged. Only if the item is a bare noun with no action
+      (예: "월간 리포트") append ONE completion noun ("작성"). If it already ends with an action word
+      (수정·정리·검토·발행·전달·발송·잡기·만들기·작성·제작 …) keep it EXACTLY as written — never write "수정 작성" or "발송 문서 작성".
+    * A leading line that only introduces the list (예: "다음 업무 추가해줘:") is NOT an item.
+    * Keep each description to ONE short sentence when there are many items.
+- Only expand into phases if the user explicitly asked to break a single goal down.
+- Still respect any stated deadline / assignee per item.
+- This QUICK rule OVERRIDES the "minimum tasks", domain-expansion, DECOMPOSITION and NAMING rules below.
 ` : '';
 
   // #353 ② — 업무그룹(워크스트림) 배치. 이름을 알려주지 않으면 LLM 이 힌트를 지어내고,
@@ -359,6 +371,23 @@ const { sanitizeRRule } = require('./rruleFromRecurrence');
 const MAX_INSTRUCTION_LEN = 8000;
 
 // 잘린 응답이라도 tasks 가 온전히 들어왔으면 쓸 수 있다 — 무조건 버리지 않는다.
+// 2026-10-12 — Cue 바(quick)에서 사용자가 **눈에 보이게 나열한** 항목 수. 프롬프트만으로는 모델이
+//   목록을 묶거나 몇 개만 남겼다 — 서버가 개수를 세서 모자라면 1회 재요구하고, 그래도 모자라면 화면이 말한다.
+//   ★ 보수적으로 센다: 번호·글머리 줄(2줄 이상) 또는 한 줄 안의 «1. … 2. …» 연번만. 표식 없는 여러 줄·쉼표 나열은
+//     세지 않는다(«보고서 작성\n내일까지» 같은 한 건을 둘로 쪼개라고 시키면 더 나쁘다) — 그쪽은 프롬프트 규칙이 맡는다.
+const LIST_LINE = /^\s*(?:\(?\d{1,2}\s*[.)]|[\u2460-\u2473]|[-•*·▪◦])\s*\S/;
+function countEnumeratedItems(prompt) {
+  const text = String(prompt || '');
+  const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  const marked = lines.filter((l) => LIST_LINE.test(l)).length;
+  if (marked >= 2) return marked;
+  // 한 줄 안 연번 — 1 부터 빠짐없이 이어질 때만(«3시 2. 회의» 같은 우연을 막는다)
+  const nums = (text.match(/(?:^|\s)(\d{1,2})[.)]\s+\S/g) || []).map((m) => parseInt(m.trim(), 10));
+  let run = 0;
+  for (const n of nums) { if (n === run + 1) run = n; }
+  return run >= 2 ? run : 0;
+}
+
 function rawTasksUsable(parsed) {
   return !!parsed && Array.isArray(parsed.tasks) && parsed.tasks.length > 0;
 }
@@ -415,7 +444,11 @@ async function planTasksFromPrompt({ prompt, businessId, projectContext, members
       ? '\n\n[Current areas — revise THIS list. area_ref indexes refer to it]\n'
       : '\n\n[현재 영역 목록 — 이 목록을 **고쳐서** 낸다. area_ref 는 이 목록을 가리킨다]\n') + abrief;
   }
-  const result = await callOpenAi(systemPrompt, userPrompt, isRoutine ? 'routine_plan' : 'task_plan');
+  // 2026-10-12 — 나열 항목이 많으면 task_plan 의 출력 2,000토큰에서 JSON 이 잘린다(= 전량 유실·422).
+  //   상한만 넓힌 task_plan_list 로 부른다(상한은 천장이라 짧은 답의 비용은 그대로).
+  const enumerated = mode === 'quick' ? countEnumeratedItems(prompt) : 0;
+  const planPurpose = isRoutine ? 'routine_plan' : (enumerated >= 8 ? 'task_plan_list' : 'task_plan');
+  const result = await callOpenAi(systemPrompt, userPrompt, planPurpose);
 
   let parsed;
   let parseFailed = false;
@@ -683,7 +716,7 @@ async function planTasksFromPrompt({ prompt, businessId, projectContext, members
       ? `\n\n[Constraint] Each "instruction" must be under ${MAX_INSTRUCTION_LEN} characters. Rewrite them shorter, keeping every step.`
       : `\n\n[제약] 각 "instruction" 은 ${MAX_INSTRUCTION_LEN}자 미만이어야 한다. 단계를 빠뜨리지 말고 더 짧게 다시 써라.`;
     try {
-      const retry = await callOpenAi(systemPrompt, userPrompt + retryNote, isRoutine ? 'routine_plan' : 'task_plan');
+      const retry = await callOpenAi(systemPrompt, userPrompt + retryNote, planPurpose);
       const reparsed = JSON.parse(retry.content);
       const retried = buildCandidates(Array.isArray(reparsed.tasks) ? reparsed.tasks : []);
       if (retried.length) candidates = retried;
@@ -698,6 +731,33 @@ async function planTasksFromPrompt({ prompt, businessId, projectContext, members
         c.instruction = c.instruction.slice(0, MAX_INSTRUCTION_LEN);
         c.instruction_truncated = true;
       }
+    }
+  }
+
+  // 2026-10-12 — 나열 개수 안전망(quick). 사용자가 N개를 나열했는데 후보가 N개가 아니면 **1회 재요구**하고,
+  //   더 가까운 쪽을 쓴다. 그래도 모자라면 enumerated_shortfall 로 화면이 «N개 중 M개» 를 말한다(조용한 손실 금지).
+  //   재생성 지시가 있으면 걸지 않는다 — «둘을 합쳐줘» 같은 지시가 개수를 바꾸는 것은 의도다.
+  let enumeratedShortfall = null;
+  if (enumerated >= 2 && !insList.length && !(Array.isArray(baseCandidates) && baseCandidates.length) && !result.fallback) {
+    if (candidates.length !== enumerated) {
+      const got = candidates.length;
+      const note = language === 'en'
+        ? `\n\n[Constraint] The user listed ${enumerated} items. Output EXACTLY ${enumerated} tasks — one per listed item, in the same order. Do not merge, drop, split or add. Your previous answer had ${got}.`
+        : `\n\n[제약] 사용자가 ${enumerated}개 항목을 나열했다. 정확히 ${enumerated}개 업무를 항목 순서대로, 항목당 1개씩 낸다. 합치거나 빼거나 쪼개거나 더하지 마라. 직전 답은 ${got}개였다.`;
+      try {
+        const retry = await callOpenAi(systemPrompt, userPrompt + note, planPurpose);
+        const rp = JSON.parse(retry.content);
+        const retried = buildCandidates(Array.isArray(rp.tasks) ? rp.tasks : []);
+        if (retried.length && Math.abs(retried.length - enumerated) < Math.abs(got - enumerated)) candidates = retried;
+        result.input_tokens += retry.input_tokens || 0;
+        result.output_tokens += retry.output_tokens || 0;
+      } catch (e) {
+        console.warn('[aiTaskPlanner] enumerated retry failed', e.message);
+      }
+    }
+    if (candidates.length < enumerated) {
+      console.warn(`[aiTaskPlanner] 나열 ${enumerated}개 → 후보 ${candidates.length}개`);
+      enumeratedShortfall = { expected: enumerated, got: candidates.length };
     }
   }
 
@@ -752,6 +812,7 @@ async function planTasksFromPrompt({ prompt, businessId, projectContext, members
     areas,
     // #354 — 계약을 못 채운 항목. 화면이 "지침이 짧습니다" 를 말할 수 있어야 한다(조용한 손실 금지).
     routine_shortfall: routineShortfall,
+    enumerated_shortfall: enumeratedShortfall,
     // 운영 #263 — "이런 긴 멘트가 필요해? 언제 읽어?"
     //   프롬프트는 "30자 이내 · 메타설명 금지" 를 요구하는데 여기 캡은 120자였다. 계약이 4배 어긋나
     //   장황한 첫 문장이 그대로 통과했다(Irene 실측: "사용자의 요청에 따라 … 단일 작업을 정의했습니다.").
@@ -772,4 +833,5 @@ async function planTasksFromPrompt({ prompt, businessId, projectContext, members
   };
 }
 
-module.exports = { planTasksFromPrompt, detectVague, matchMemberByHint, matchMemberByName };
+module.exports = {
+  countEnumeratedItems, planTasksFromPrompt, detectVague, matchMemberByHint, matchMemberByName };

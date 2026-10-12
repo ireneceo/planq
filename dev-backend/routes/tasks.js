@@ -483,6 +483,8 @@ router.post('/ai-create', authenticateToken, aiCreateModeLimiter, async (req, re
       candidates: result.candidates,
       areas: result.areas || [],                       // #354 — 루틴 모드에서만 채워진다
       routine_shortfall: result.routine_shortfall || null,
+      // 2026-10-12 — 나열한 N개 중 M개만 나왔을 때(재요구 뒤에도). 화면이 «N개 중 M개» 를 말한다.
+      enumerated_shortfall: result.enumerated_shortfall || null,
       existing_recurring: existingRecurring,           // 부하 요약의 "이미 돌고 있는 것"
       reasoning: result.reasoning,
       fallback: result.fallback,
