@@ -52,11 +52,14 @@
 - 커밋 827b9df8. POST /api/auth/dev-login(개발 .env DEV_LOGIN_SECRET + NODE_ENV=development 일 때만 마운트, 그 밖 404) · /dev-login 화면 · 배포 가드(운영 .env 에 비밀 있으면 멈춤) · CLAUDE.md «시험 역할» 표 · [확인용] 7일 정리 scripts/cleanup-check-data.js(/개발완료 7단계).
 - 시험 계정 4개(owner·member1·member2·client) 약관 버전을 개발 DB 에서 현재 버전으로 맞춤(착지 화면이 재동의 창에 덮였다).
 - 상황판 쪽 «planq devLogin 켜기» 는 서버 대기열에 넣음 — 켜진 뒤 실제 버튼 클릭 1번 확인 남음.
-#### 답 기다림: Fable 완료 검증이 허락 창에서 멈춤 (2026-10-12)
+#### (이전) 답 기다림: Fable 완료 검증이 허락 창에서 멈춤 (2026-10-12)
 - 무엇을: Fable 이 개발서버에서 검증용 시험 스크립트(dev-backend/fable-devlogin-test.js — 개발 3003 에 dev-login 호출만, 운영 무관)를 돌리려다 허락 창에서 3분 넘게 멈춤 → 창이 닫혀 실행 안 됨. 남은 스크립트는 지움.
 - 왜: dev-login 은 로그인·권한 영역이라 완료 검증 Fable 1회가 규칙(아직 판정 없음 · 마커 없음).
 - 답이 오면: «다시 돌려» → 이 방이 /fable-검증 을 다시 부른다(같은 사실 묶음) → PASS 면 마커 + 서버 대기열에 «planq devLogin 켜기(커밋 827b9df8)» 넣기 · FAIL 이면 지적 고치고 재검증.
   «Fable 없이» → 자체 검증 숫자로 보고(«Fable 미검증(자체 검증)») + 상황판 Fable 대기 + 서버 대기열 넣기. 운영 배포는 Fable 통과 뒤로.
+
+### 나중에 — Fable 대기: dev-login 완료 검증 · Fable 한도가 풀리면(상황판이 깨움) · 그때 /fable-검증 다시(같은 사실 묶음 — 커밋 827b9df8), PASS 면 마커 by:fable + 상황판 fable-wait done. 운영 배포는 Fable 통과 뒤로.
+- 2026-10-12 재시도 → Fable 한도(429)로 중단. 마커 by:unavailable. 상황판 서버 대기열에 «planq devLogin 켜기» 넣음(개발 상황판 버튼만 — 운영 무관).
 
 #### 덤으로 발견 — 관리자 «사칭» 새 탭이 사칭이 아니다 (고치지 않음, 기록만)
 - 실브라우저 실측(admin@test → /admin/users → member1 [사칭]): 새 탭 `/dashboard?_impersonate=1` 이 **관리자 본인**으로 열림 · sessionStorage 비어 있음(noopener 라 안 넘어감) · 사칭 배너 없음.
@@ -331,13 +334,12 @@
 - 4ded853f: 실 LLM 범위 시험(일정+Meet·프로젝트·메모·Q info·문서 2·목요일 3건 옮기기) — 문서 초안을 채팅 글로 답해서 프롬프트에 «할 수 있는 일» 동사→도구 지도 추가 후 전부 카드. Fable 완료 검증 PASS(차단 0). 비차단 수리: execute-action `constructor` 500 → 400(isAlias) · 제목으로 지목한 업무는 assignee:'anyone' 로 찾기 · i18n qhelper.field.project. 
 - 남은 것(비차단): `FIELD_RULES.estimated_hours` 는 owner/admin 허용인데 PATCH /tasks/:id 인라인 검사는 담당자·owner 만 — admin 이 AI 로만 남의 예상시간을 바꿀 수 있다(M2-b 기존 규칙). 한 술어로 맞추는 것은 권한 변경이라 다음 사이클 Fable 설계로. 실제 구글 Meet 생성은 dev 미연동이라 미측정.
 
-### 나중에 — 휴대폰 «공유하기»에 PlanQ 띄우기 (방 10e2e2be · 2026-10-11 · Irene «권고대로»)
+### 나중에 — 휴대폰 «공유하기»에 PlanQ 띄우기 (방 10e2e2be · 2026-10-12 재확인 · Irene «권고대로»)
 - 원문: *"파일이나 사진을 모바일에서 공유하기 해도 우리 앱이 안나오는데 아직 개발이 안된거야? 이거 언제 가능해?"*
-- 안드로이드: 코드 완료(76da612a, GitHub·운영 웹 반영). **Irene 이 Codemagic «PlanQ Android — Play» 빌드 → Play 업로드**하면 끝(이 서버에 Codemagic 접근 수단 없음). 올라간 뒤 실기기에서 갤러리 → 공유 → PlanQ 확인.
-- 아이폰: **Irene 이 Apple 설정 4가지**(App Group group.app.planq · 번들 ID app.planq.ShareExtension · 두 번들 App Group 켜기 · 확장 프로비저닝 프로필) 끝냈다고 하면 → iOS Share Extension 구현(설계 docs/NATIVE_SHARE_RECEIVE.md iOS 절 — 공유 컨테이너 → nativeShare 와 같은 캐시 형식 → /share-receive) → Codemagic 서명 설정에 확장 프로필 추가 안내 → TestFlight 확인 → 심사.
-- 곁: guard-native-release 실패 1건(nativeShare.ts 의 @capacitor/core static import — 실해 없음, 빌드 안 막음). iOS 작업 때 같이 정리.
-
-**마지막 업데이트:** 2026-10-12 새벽 (정기 점검 · 방 69426d00)
+- 10/12 재확인: Apple 설정 흔적 없음(저장소에 App Group·확장 0건, 앱스토어 공개 버전 1.0 그대로) · Play 새 빌드 여부는 이 서버에서 확인 불가 → 둘 다 Irene 몫이라 상황판 «Irene 할 일» 2건으로 올림(«했어요» 누르면 이어서 할 일이 이 방/새 방으로 온다).
+- 안드로이드: 코드 완료(76da612a, GitHub·운영 웹 반영) — Irene 이 Codemagic «PlanQ Android — Play» 빌드 → Play 업로드하면 끝.
+- 아이폰: Apple 설정 4가지 끝나면 iOS Share Extension 구현(설계 docs/NATIVE_SHARE_RECEIVE.md iOS 절) → Codemagic 서명 → TestFlight → 심사.
+- 곁: guard-native-release 실패 1건(nativeShare.ts 의 @capacitor/core static import — 실해 없음). iOS 작업 때 같이 정리.
 
 ### 정기 점검 10/12 (방 69426d00 · [Opus])
 - 개발완료: health 84/84 · guard 68/69 · e2e tenant 0 · 위키 커버리지 통과 → 10/11 작업 6건 DEVELOPMENT_PLAN·next.json 기록.
