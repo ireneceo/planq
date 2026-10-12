@@ -511,9 +511,7 @@ async function confirmCueBatch(req, res, { business_id, candidates, base_date })
   if (process.env.CUE_TOOLS_ENABLED === '0') return errorResponse(res, 'tools_disabled', 403);
   const bm = await BusinessMember.findOne({ where: { user_id: req.user.id, business_id, removed_at: null } });
   if (!bm || ['client', 'ai'].includes(bm.role)) return errorResponse(res, 'forbidden — members only', 403);
-  const planEngine = require('../services/plan');
-  const can = await planEngine.can(business_id, 'use_cue', { actions: 1 });
-  if (!can.ok) return res.status(422).json(planEngine.buildQuotaError(can, business_id));
+  // 한도 게이트 없음 — 묶음을 낸 /help 턴이 1회 셌다(실행 0 · 2026-10-12 턴 과금)
   const cueTools = require('../services/cue_tools');
   const base = /^\d{4}-\d{2}-\d{2}$/.test(String(base_date || '')) ? base_date : todayInTz(await getWorkspaceTz(business_id));
   const actor = { kind: 'user', userId: req.user.id, platformRole: req.user.platform_role, req };

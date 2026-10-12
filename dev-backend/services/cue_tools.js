@@ -134,7 +134,7 @@ async function normalizeCall(businessId, name, raw = {}) {
 // ─────────────────────────────────────────────
 // /help 프롬프트 — 오늘/요일/시간대/멤버 로스터(user_id 포함). 날짜 계산·담당자 해석의 바탕.
 // ─────────────────────────────────────────────
-async function buildToolSystemContext(businessId, todayIso) {
+async function buildToolSystemContext(businessId, todayIso, askerId = null) {
   const biz = await Business.findByPk(businessId, { attributes: ['timezone'] });
   const tz = biz?.timezone || 'Asia/Seoul';
   const now = todayIso ? new Date(todayIso) : new Date();
@@ -150,7 +150,12 @@ async function buildToolSystemContext(businessId, todayIso) {
     const dn = nameMap.get(m.user_id);
     return `- ${dn?.name || dn?.name_localized || m.user?.name || `#${m.user_id}`} (user_id ${m.user_id}${m.role ? `, ${m.role}` : ''})`;
   }).join('\n');
-  return `[오늘] ${dateStr} · [시간대] ${tz}\n[멤버] 담당자·참석자로 지정 가능한 워크스페이스 멤버:\n${roster || '- (없음)'}\n`
+  // 질문자 — 없으면 «담당자는 나» 를 로스터의 다른 사람으로 골랐다(2026-10-12 실측: 김오너가 물었는데 김미정 배정).
+  const askerDn = askerId ? nameMap.get(askerId) : null;
+  const askerBm = askerId ? bms.find((m) => m.user_id === askerId) : null;   // 로스터와 같은 이름 해석(표시명 → 계정명)
+  const askerLine = askerId && ids.includes(askerId)
+    ? `[질문자] ${askerDn?.name || askerDn?.name_localized || askerBm?.user?.name || `#${askerId}`} (user_id ${askerId}) — «나·내·저» 는 이 사람이다.\n` : '';
+  return `[오늘] ${dateStr} · [시간대] ${tz}\n${askerLine}[멤버] 담당자·참석자로 지정 가능한 워크스페이스 멤버:\n${roster || '- (없음)'}\n`
     + `[도구 사용] 무엇을 고치거나 연결하려면 먼저 찾기 도구(search_*, list_events, get_*)로 대상의 id 를 확인한다. 제목으로 지목한 업무는 담당자와 무관하게 search_tasks 에 assignee:'anyone' 으로 찾는다. `
     + `쓰기 도구는 요청에 쓰기가 여럿이면 각각 부른다(한 답 최대 ${MAX_WRITES}개, 카드마다 사람이 따로 확인해 실행한다) — 카드끼리 같은 것을 두 번 만들지 않는다. `
     + `업무를 여러 개 만들어 달라고 하면 사용자가 말한 항목마다 create_task 를 **하나씩 전부** 부른다(최대 ${MAX_CONFIRM_CANDIDATES}개 — 이 개수는 위 상한에 세지 않는다). 항목을 합치거나 빼거나 쪼개지 말고 순서·문구를 지킨다 — 화면이 한 목록으로 묶어 사람이 고친 뒤 한 번에 추가한다. `
@@ -539,11 +544,12 @@ function entityOf(res) {
   return { entity_type: null, entity_id: null, open_url: null };
 }
 
-// opts.batch — Cue 업무 묶음의 한 행(/api/tasks/ai-create/confirm mode cue_batch). 묶음은 /help 턴이 1회 계량했으므로
-//   행 실행은 계량하지 않는다(Fable 2026-10-12 (다) 5 — Cue 바의 확정과 같다). 실행 문·검증·감사는 카드와 같은 이 한 곳.
+// opts — 옛 호출부 호환(batch). 2026-10-12 턴 과금부터 Cue 카드·업무 묶음 실행은 **언제나** 계량하지 않는다(카드를 낸 /help 턴이 1회 셌다).
+//   실행 문·검증·감사는 카드와 묶음이 같은 이 한 곳.
 async function executeTool(actor, businessId, name, rawParams, opts = {}) {
   const p = await principalOf(actor.userId, businessId, actor.platformRole);
-  if (opts.batch) p.meter = false;
+  // Cue 카드·업무 묶음 실행은 계량하지 않는다 — 카드를 낸 /help 턴이 1회 셌다(2026-10-12 턴 과금, Irene «권고대로»).
+  p.meter = false;
   const { tool, args } = await normalizeCall(businessId, name, rawParams);
   if (!WRITE_TOOLS.has(tool)) return { ok: false, code: 'unknown_tool', http: 400 };
   const r = await runTool(p, tool, args, { humanConfirmed: true });

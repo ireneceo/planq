@@ -116,7 +116,7 @@ async function voiceKeyterms(businessId) {
 // ── Cue 와 같은 제안 — 만들 것이면 Cue 툴 하나를 고르게 하고, 아니면(메모·메일 답장) JSON 으로 종류만.
 //   한 번의 LLM 호출로 끝낸다(memory feedback_ai_minimal_usage). 모델도 Cue 와 같은 kb_answer.
 async function proposeLikeCue(text, businessId, userId = null, platformRole = null) {
-  const ctx = await cueTools.buildToolSystemContext(businessId);
+  const ctx = await cueTools.buildToolSystemContext(businessId, undefined, userId);
   const system = `너는 PlanQ 의 Cue 다. 사용자가 말로 한 요청을 받아쓴 문장을 읽고 무엇을 만들지 제안한다. 실행은 사람이 확인한 뒤에 한다.
 - 할 일·요청이면 create_task, 시각이 있는 약속·회의면 create_event, 회의록·제안서 같은 문서면 create_document 툴을(content 는 빈 문자열) **하나만** 호출한다.
   단 할 일을 **여러 개** 말했으면 말한 항목마다 create_task 를 하나씩 전부 부른다(합치거나 빼지 않는다 — 화면이 한 목록으로 묶는다).

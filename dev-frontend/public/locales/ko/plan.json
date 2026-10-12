@@ -52,7 +52,7 @@
       "ai_task_create": "AI 업무 추가",
       "ai_routine_plan": "루틴 설계",
       "answer": "Cue 답변 (고객 대화)",
-      "help": "Cue 답변 (검색·도움말)",
+      "help": "Cue 질문 (답변·실행 제안)",
       "task_extraction": "업무 추출",
       "task_execute": "업무 실행",
       "tool_call": "실행 승인",

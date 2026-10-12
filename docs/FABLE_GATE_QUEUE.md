@@ -12,6 +12,11 @@
 > `R=1 OR (S=1 AND F=0)` 은 공용 기준으로 대체됐다(뜻은 같다).
 
 
+### 2026-10-12 Cue 턴 과금(질문 1회 · 실행 0) + 질문자 줄 — 완료 **PASS** (방 004312ae · Irene «권고대로»)
+- 변경: /help workspace 턴은 카드 유무와 무관 `help` 1회 · execute-action·묶음 확정은 계량·한도 게이트 없음(executeTool meter:false, runTool 은 provider cue∧meter false 만 게이트 생략) · 외부 MCP 는 그대로 1회·게이트 · 프롬프트에 `[질문자] 이름 (user_id)` — «담당자는 나» 가 다른 멤버로 잡히던 결함.
+- 실측: 카드 턴 +1 · 실행 +0 · replayed · 묶음 2건 +0 · 한도 끝(30/30) 질문 422 / 카드 실행 201 · MCP 30/30 QUOTA_EXCEEDED · Cue 담당 자동실행은 cue_task_executor 한도가 막음 · 질문자 15→15, 17→17, 고객·비멤버·null 줄 없음.
+- 비차단: ①질문자 줄 이름 폴백(고침 — 로스터와 같은 해석) ②묶음 확정은 cue-help 분당 한도 밖(쓰기만, 수용) ③다른 방 test-*.js 3개 dev-backend 에 남음 ④설계 문서 «제안 무과금» 문구(고침) ⑤[확인용] 업무 ws7 3766·3770, ws6 3765·3767~3769·3771.
+
 ### 2026-10-12 Cue 원가 — 프롬프트 캐시 + 카드 턴 실비 원장 — 완료 **PASS** (방 004312ae · calc)
 - 변경: system 두 메시지 분리(고정 지시문 / 컨텍스트) · prompt_cache_key + 24h 보존(gpt-5.1) · 마지막 라운드 allowed_tools(목록 유지) · recordUsage {count, cachedTokens}(캐시 단가 반영) · 카드 턴 → `help_card` 행 횟수 0 · 횟수 0 행은 기능별 횟수 표에서 제외.
 - 검산: 직접 호출 8사례(클램프·음수·소수·옛 호출부·모르는 모델) + 실호출 2턴 손계산 일치 · 한도 판정 3곳 SUM(action_count) → 0 행 구조적으로 밖 · providerCredit 정상 · guard 68/69 · health 84/84.

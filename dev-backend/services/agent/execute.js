@@ -107,9 +107,12 @@ async function runTool(p, name, rawArgs, opts = {}) {
 
     if (tool.write) {
       if (!cfg.writeEnabledFor(p)) throw err('PERMISSION_DENIED', 'agent_write_disabled');
-      const plan = require('../plan');
-      const can = await plan.can(p.businessId, 'use_cue', { actions: 1 });
-      if (!can.ok) throw err('QUOTA_EXCEEDED', can.reason || 'quota', { limit: can.limit ?? null, current: can.current ?? null });
+      // 앱 안 Cue 의 카드 실행(meter:false)은 한도를 안 본다 — 카드를 낸 턴이 이미 셌고, 한도 끝 턴의 카드가 422 로 막히면 낸 값을 못 쓴다.
+      if (!(p.provider === 'cue' && p.meter === false)) {
+        const plan = require('../plan');
+        const can = await plan.can(p.businessId, 'use_cue', { actions: 1 });
+        if (!can.ok) throw err('QUOTA_EXCEEDED', can.reason || 'quota', { limit: can.limit ?? null, current: can.current ?? null });
+      }
 
       const { idempotency_key: k, confirmation_token: ct, ...rest } = args;
       const fp = crypto.createHash('sha256').update(`${p.grantId}|${name}|${stableStringify(rest)}`).digest('hex');
@@ -168,7 +171,7 @@ async function runTool(p, name, rawArgs, opts = {}) {
 
     if (tool.write) {
       await store.update('agent_idem', idemKey, { status: 'done', result: data, ...target }).catch(() => {});
-      // Cue 업무 묶음의 행(p.meter === false, provider cue 한정)은 계량하지 않는다 — 묶음을 낸 /help 턴이 1회 계량했다.
+      // Cue 카드·업무 묶음 실행(p.meter === false, provider cue 한정)은 계량하지 않는다 — 카드를 낸 /help 턴이 1회 계량했다.
       if (!(p.provider === 'cue' && p.meter === false)) {
         const { recordUsage } = require('../cue_orchestrator');
         recordUsage(p.businessId, 'agent_tool', 'gpt-4.1-nano', 0, 0).catch((e) => console.warn('[agent usage]', e.message));

@@ -320,7 +320,7 @@ router.post('/help', authenticateToken, ...helpLimiter, async (req, res, next) =
           workspaceBizId = businessId;
           // #81 — 툴 활성 시 오늘/시간대/멤버 로스터 주입 (담당자 이름 정확 해석의 핵심)
           if (CUE_TOOLS_ENABLED) {
-            try { ctxBlock += `\n\n${await cueTools.buildToolSystemContext(businessId)}`; }
+            try { ctxBlock += `\n\n${await cueTools.buildToolSystemContext(businessId, undefined, req.user.id)}`; }
             catch (e) { console.warn('[cue/help tools ctx]', e.message); }
             // 옮길 수 있는 일정 목록(#id·요일·시각, 일정 얘기일 때만) — 없으면 «목요일 일정 옮겨줘» 를 못 알아듣는다
             try { const ev = await cueTools.buildEventEditContext(businessId, req.user.id, req.user.platform_role, retrievalQuery); if (ev) ctxBlock += `\n\n${ev}`; } catch (e) { console.warn('[cue/help event ctx]', e.message); }
@@ -409,17 +409,12 @@ router.post('/help', authenticateToken, ...helpLimiter, async (req, res, next) =
     //     쿼터도 따라간다(별도 코드 없음 — 빼려면 오히려 코드를 더 짜야 한다).
     //   qhelper(제품 사용법)와 /help-public(게스트)은 게이트도 안 부르므로 무과금 유지 —
     //     "게이트를 부르는 모드 = 기록하는 모드" 로 대칭을 맞춘다.
-    // ★ 2026-10-08 0-G — «제안» 은 무과금. 답이 실행 카드(proposed_action)면 여기서 기록하지 않는다 —
-    //   사용자가 [추가] 를 누르면 execute-action 이 1회 기록한다(옛: 제안 1 + 실행 1 = 2회 차감).
-    //   제안만 받고 실행하지 않은 것은 사용자가 아직 아무것도 얻지 못한 단계다. 그냥 답(카드 없음)은 위 판정대로 기록.
-    // 업무 묶음(task_batch)은 예외 — 확정(/ai-create/confirm cue_batch)이 행마다 계량하지 않으므로 이 턴이 1회 계량한다
-    //   (Fable 2026-10-12 (다) 5: Cue 바와 같이 «정리 1회 · 추가 0»).
-    const hasBatch = proposedActions.some((x) => x && x.tool === 'task_batch');
-    // ★ 2026-10-12 카드 턴도 실비는 남긴다(여태 원장에서 통째로 빠졌다) — 'help_card' 행 · 횟수 0(«제안 무과금» 그대로).
+    // ★ 2026-10-12 Irene «권고대로»(Fable) — 횟수는 **질문 한 번(턴)** 에 1회, 카드 실행은 0. 0-G «제안 무과금» 을 뒤집었다:
+    //   원가(LLM)는 턴에서 나는데 횟수는 실행에 붙어, 카드만 받고 안 누른 턴이 한도 밖이었다(사용자당 월 ≈$45). 실행은 LLM 0.
+    //   보통 흐름(질문→카드→실행)은 1회 그대로 · 카드 여러 장·업무 묶음도 1회. 캐시 적중분은 단가 1/10 로 적는다.
     if (finalMode === 'workspace' && workspaceBizId) {
       const { recordUsage } = require('../services/cue_orchestrator');
-      const metered = !proposedAction || hasBatch;
-      recordUsage(workspaceBizId, metered ? 'help' : 'help_card', usedModel, input_tokens || 0, output_tokens || 0, { count: metered ? 1 : 0, cachedTokens: cached_tokens || 0 }).catch((e) => console.warn('[cue/help usage]', e.message));
+      recordUsage(workspaceBizId, 'help', usedModel, input_tokens || 0, output_tokens || 0, { cachedTokens: cached_tokens || 0 }).catch((e) => console.warn('[cue/help usage]', e.message));
     }
     // KNOWLEDGE_LOOP 축2 — qhelper 질문 로그 (workspace 모드는 위키 개선 대상 아님)
     let logId = null;
@@ -463,16 +458,13 @@ router.post('/execute-action', authenticateToken, ...helpLimiter, async (req, re
     if (stale) return staleResponse(res, stale);
     if (!businessId) return errorResponse(res, 'no_workspace', 400);
 
-    // 플랜 쿼터 — 실행이 유일한 계량점(제안 /help 는 무과금)
-    const planEngine = require('../services/plan');
-    const planCan = await planEngine.can(businessId, 'use_cue', { actions: 1 });
-    if (!planCan.ok) return res.status(422).json(planEngine.buildQuotaError(planCan, businessId));
+    // 한도는 이 카드를 낸 /help 턴이 이미 1회 셌다(2026-10-12 턴 과금) — 실행은 계량·한도 게이트 없음(executeTool 이 meter:false).
 
     const actor = { kind: 'user', userId: req.user.id, platformRole: req.user.platform_role, req };
     const r = await cueTools.executeTool(actor, businessId, tool, params || {});
     if (!r.ok) return errorResponse(res, r.code, r.http || 400);
 
-    // 계량·감사(agent.<tool>, provider cue)는 runTool 이 각 1행 남긴다 — 여기서 또 쓰면 두 번이 된다(설계 A).
+    // 감사(agent.<tool>, provider cue)는 runTool 이 1행 남긴다 — 여기서 또 쓰면 두 번이 된다(설계 A).
     //   결과: entity_type·entity_id·open_url + 완료 못 간 사유·옮기기 결과·Meet 경고·replayed(두 번 누름). 카드가 안내한다.
     return successResponse(res, r.data, 'executed', 201);
   } catch (e) { next(e); }

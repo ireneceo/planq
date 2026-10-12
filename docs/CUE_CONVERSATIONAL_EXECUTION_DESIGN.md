@@ -90,7 +90,7 @@ create_document_draft  { kind*(enum), title*, client_id?, project_id? }
 | 프로비넌스 소실(actor=user) | `cue.tool_execute` 감사 추가 |
 | 운영 오작동 차단 | `CUE_TOOLS_ENABLED` 킬스위치 |
 
-**받아들이는 트레이드오프:** ①서버 멱등 nonce 없음 — UI submitting 가드로 충분(비파괴 생성, nonce는 과잉) ②제안 무과금·실행 1회 과금(이중과금 없음) ③읽기 툴 미구현(기존 컨텍스트 주입이 처리).
+**받아들이는 트레이드오프:** ①서버 멱등 nonce 없음 — UI submitting 가드로 충분(비파괴 생성, nonce는 과잉) ②~~제안 무과금·실행 1회 과금~~ → **2026-10-12 부터 질문 한 번(턴) 1회 · 실행 0**(Irene «권고대로», Fable — 원가는 턴에서 난다. `routes/cue.js` /help · `services/cue_tools.executeTool` meter:false) ③읽기 툴 미구현(기존 컨텍스트 주입이 처리).
 
 ---
 
