@@ -172,7 +172,7 @@
   },
   "subs": {
     "title": "Subscriptions",
-    "searchPh": "Search workspace",
+    "searchPh": "Search workspace or email",
     "loadFailed": "Failed to load",
     "empty": "No subscriptions for this filter",
     "emptyDesc": "Try a different filter or search.",
@@ -195,7 +195,8 @@
       "pending": "Pending",
       "past_due": "Past due",
       "grace": "Grace",
-      "demoted": "Demoted"
+      "demoted": "Demoted",
+      "trialing": "Trial"
     },
     "status": {
       "pending": "Pending",
@@ -204,14 +205,19 @@
       "grace": "Grace",
       "demoted": "Demoted",
       "canceled": "Canceled",
-      "replaced": "Replaced"
+      "replaced": "Replaced",
+      "trialing": "Trialing",
+      "no_subscription": "No subscription record"
     },
     "notified": "Paid (notified)",
     "notifiedAt": "Notified",
     "payer": "Payer",
     "exempt": "Exempt",
     "pastRecord": "past record",
-    "exemptNotice": "{{n}} billing-exempt workspace(s) are excluded from the overdue / grace / downgraded counts. Change exemptions in Workspace management."
+    "exemptNotice": "{{n}} billing-exempt workspace(s) are excluded from the overdue / grace / downgraded counts. Change exemptions in Workspace management.",
+    "trialEnd": "Trial ends",
+    "joinedAt": "Joined",
+    "noOwner": "No owner info"
   },
   "platform": {
     "title": "Platform settings",

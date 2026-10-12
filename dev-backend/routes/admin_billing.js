@@ -8,7 +8,8 @@
 const express = require('express');
 const router = express.Router();
 const { Op } = require('sequelize');
-const { Business, Subscription, Payment } = require('../models');
+const { Business, Subscription, Payment, User } = require('../models');
+const { createdAtOf, OWNER_ATTRS, ownerOf, businessSearchOr, workspacesWithoutSubscription, workspaceRow } = require('../services/adminSubscriptionView');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
 const { isExemptNow, exemptBusinessIds, liveBusinessIds } = require('../services/billingExemptView');
 
@@ -17,8 +18,9 @@ const { isExemptNow, exemptBusinessIds, liveBusinessIds } = require('../services
 // ============================================
 
 // GET /api/admin/subscriptions — 구독 목록 (status 필터 + 검색)
-//   query: ?status=active|past_due|grace|demoted|pending|canceled|all (default 'all')
-//          ?q= 워크스페이스명 검색
+//   query: ?status=active|past_due|grace|demoted|pending|canceled|trialing|all (default 'all')
+//          trialing = 구독 행 없이 체험 중인 워크스페이스(결제 전) · all 에는 구독 행 없는 워크스페이스가 함께 섞인다
+//          ?q= 워크스페이스명·주인 이름·이메일 검색
 //          ?limit=50 ?offset=0
 router.get('/subscriptions', async (req, res, next) => {
   try {
@@ -26,6 +28,12 @@ router.get('/subscriptions', async (req, res, next) => {
     const q = String(req.query.q || '').trim();
     const limit = Math.min(200, Math.max(1, parseInt(req.query.limit, 10) || 50));
     const offset = Math.max(0, parseInt(req.query.offset, 10) || 0);
+
+    if (status === 'trialing') {
+      const list = await workspacesWithoutSubscription({ q, onlyTrialing: true });
+      res.set('X-Total-Count', String(list.length));
+      return successResponse(res, list.slice(offset, offset + limit).map(workspaceRow));
+    }
 
     const where = {};
     if (status !== 'all') where.status = status;
@@ -42,18 +50,25 @@ router.get('/subscriptions', async (req, res, next) => {
         'billing_exempt', 'billing_exempt_kind', 'billing_exempt_until'],
       where: {
         deleted_at: null,
-        ...(q ? { [Op.or]: [
-          { name: { [Op.like]: `%${q}%` } },
-          { brand_name: { [Op.like]: `%${q}%` } },
-          { slug: { [Op.like]: `%${q}%` } },
-        ] } : {}),
+        ...(q ? { [Op.or]: await businessSearchOr(q) } : {}),
       },
+      include: [{ model: User, as: 'owner', attributes: OWNER_ATTRS, required: false }],
     }];
 
-    const { rows, count } = await Subscription.findAndCountAll({
+    // 전체 = 구독 행 + 구독 행 없는 워크스페이스. 두 원천을 만든 날 순으로 섞어 자르려면
+    // 구독 행은 0 부터 offset+limit 개를 받아 합친 뒤 자른다(관리자 화면 규모 — 수백 건).
+    const mixed = status === 'all';
+    const { rows: subRows, count } = await Subscription.findAndCountAll({
       where, include, order: [['created_at', 'DESC']],
-      limit, offset, distinct: true,
+      limit: mixed ? offset + limit : limit, offset: mixed ? 0 : offset, distinct: true,
     });
+    const extra = mixed ? await workspacesWithoutSubscription({ q }) : [];
+    const merged = mixed
+      ? [...subRows.map((s) => ({ t: new Date(createdAtOf(s)).getTime() || 0, s })),
+        ...extra.map((b) => ({ t: new Date(createdAtOf(b)).getTime() || 0, b }))]
+        .sort((a, b) => b.t - a.t).slice(offset, offset + limit)
+      : subRows.map((s) => ({ s }));
+    const rows = merged.filter((m) => m.s).map((m) => m.s);
 
     // 각 subscription 의 latest pending Payment (mark-paid 액션 대상)
     const subIds = rows.map((s) => s.id);
@@ -69,9 +84,10 @@ router.get('/subscriptions', async (req, res, next) => {
       if (!pendingMap.has(p.subscription_id)) pendingMap.set(p.subscription_id, p);
     }
 
-    res.set('X-Total-Count', String(count));
-    return successResponse(res, rows.map((s) => ({
+    res.set('X-Total-Count', String(count + extra.length));
+    const subRow = (s) => ({
       id: s.id,
+      kind: 'subscription',
       business: s.Business ? {
         id: s.Business.id,
         name: s.Business.brand_name || s.Business.name,
@@ -81,6 +97,7 @@ router.get('/subscriptions', async (req, res, next) => {
         // 프론트는 이 값만 보고 "면제" 뱃지를 띄우고 상태 라벨을 과거형으로 바꾼다.
         billing_exempt: isExemptNow(s.Business),
         billing_exempt_kind: s.Business.billing_exempt_kind,
+        owner: ownerOf(s.Business),
       } : null,
       plan_code: s.plan_code,
       cycle: s.cycle,
@@ -96,7 +113,7 @@ router.get('/subscriptions', async (req, res, next) => {
       demoted_at: s.demoted_at,
       canceled_at: s.canceled_at,
       cancel_reason: s.cancel_reason,
-      created_at: s.created_at,
+      created_at: createdAtOf(s),
       pending_payment: pendingMap.has(s.id) ? {
         id: pendingMap.get(s.id).id,
         amount: Number(pendingMap.get(s.id).amount),
@@ -108,7 +125,8 @@ router.get('/subscriptions', async (req, res, next) => {
         notify_paid_at: pendingMap.get(s.id).notify_paid_at,
         notify_payer_name: pendingMap.get(s.id).notify_payer_name || pendingMap.get(s.id).payer_name || null,
       } : null,
-    })));
+    });
+    return successResponse(res, merged.map((m) => (m.s ? subRow(m.s) : workspaceRow(m.b))));
   } catch (err) { next(err); }
 });
 
@@ -136,7 +154,7 @@ router.get('/subscriptions/summary', async (req, res, next) => {
       group: ['status'],
       raw: true,
     });
-    const out = { active: 0, pending: 0, past_due: 0, grace: 0, demoted: 0, canceled: 0, total: 0, exempt: 0 };
+    const out = { active: 0, pending: 0, past_due: 0, grace: 0, demoted: 0, canceled: 0, total: 0, exempt: 0, trialing: 0, no_subscription: 0 };
     for (const c of counts) {
       out[c.status] = Number(c.count);
       out.total += Number(c.count);
@@ -151,6 +169,11 @@ router.get('/subscriptions/summary', async (req, res, next) => {
       }));
       out.total += out.exempt;
     }
+    // 구독 행 없는 워크스페이스 — 목록과 같은 함수로 센다(숫자와 목록이 갈라지지 않게).
+    const noSub = await workspacesWithoutSubscription();
+    out.trialing = noSub.filter((b) => b.subscription_status === 'trialing').length;
+    out.no_subscription = noSub.length - out.trialing;
+    out.total += noSub.length;
     return successResponse(res, out);
   } catch (err) { next(err); }
 });

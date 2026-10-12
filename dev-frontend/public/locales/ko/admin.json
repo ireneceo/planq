@@ -172,7 +172,7 @@
   },
   "subs": {
     "title": "구독 관리",
-    "searchPh": "워크스페이스명 검색",
+    "searchPh": "워크스페이스·이메일 검색",
     "loadFailed": "목록을 불러오지 못했습니다",
     "empty": "해당 상태의 구독이 없습니다",
     "emptyDesc": "필터를 바꿔서 확인하거나 검색해 보세요.",
@@ -195,7 +195,8 @@
       "pending": "결제대기",
       "past_due": "연체",
       "grace": "유예",
-      "demoted": "강등"
+      "demoted": "강등",
+      "trialing": "체험"
     },
     "status": {
       "pending": "결제대기",
@@ -204,14 +205,19 @@
       "grace": "유예중",
       "demoted": "강등됨",
       "canceled": "취소",
-      "replaced": "교체됨"
+      "replaced": "교체됨",
+      "trialing": "체험 중",
+      "no_subscription": "구독 기록 없음"
     },
     "notified": "입금 통보",
     "notifiedAt": "입금 통보",
     "payer": "입금자",
     "exempt": "면제",
     "pastRecord": "지난 기록",
-    "exemptNotice": "결제 면제 워크스페이스 {{n}}건은 연체·유예·강등 집계에서 제외했습니다. 면제 설정은 워크스페이스 관리에서 변경합니다."
+    "exemptNotice": "결제 면제 워크스페이스 {{n}}건은 연체·유예·강등 집계에서 제외했습니다. 면제 설정은 워크스페이스 관리에서 변경합니다.",
+    "trialEnd": "체험 종료",
+    "joinedAt": "가입",
+    "noOwner": "주인 정보 없음"
   },
   "platform": {
     "title": "플랫폼 설정",

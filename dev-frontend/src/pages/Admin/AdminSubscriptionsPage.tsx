@@ -17,7 +17,7 @@ import { formatDay } from '../../utils/dateFormat';
 import { useSearchParams } from 'react-router-dom';
 import { refreshAdminTodo } from '../../hooks/useAdminInboxCounts';
 
-type SubStatus = 'all' | 'active' | 'pending' | 'past_due' | 'grace' | 'demoted' | 'canceled';
+type SubStatus = 'all' | 'trialing' | 'active' | 'pending' | 'past_due' | 'grace' | 'demoted' | 'canceled';
 
 interface PendingPayment {
   id: number;
@@ -32,18 +32,22 @@ interface PendingPayment {
 }
 
 interface SubscriptionRow {
-  id: number;
+  // 구독 행이면 숫자 id, 구독 행 없는 워크스페이스(가입만 하고 결제 전·면제)면 'biz-<id>' — 서버 kind 로 가른다
+  id: number | string;
+  kind: 'subscription' | 'workspace';
   business: {
     id: number; name: string; slug: string; plan: string; subscription_status: string | null;
     // 결제 면제 (운영 #275) — 면제 워크스페이스의 옛 강등/연체 행이 현재 상태처럼 보이면 안 된다.
     billing_exempt?: boolean;
     billing_exempt_kind?: 'internal' | 'tester' | 'partner' | null;
+    owner?: { id: number; name: string | null; email: string } | null;
   } | null;
   plan_code: string;
-  cycle: 'monthly' | 'yearly';
-  status: 'pending' | 'active' | 'past_due' | 'grace' | 'demoted' | 'canceled' | 'replaced';
-  price: number;
-  currency: string;
+  cycle: 'monthly' | 'yearly' | null;
+  status: 'pending' | 'active' | 'past_due' | 'grace' | 'demoted' | 'canceled' | 'replaced' | 'trialing' | 'no_subscription';
+  price: number | null;
+  currency: string | null;
+  trial_ends_at?: string | null;
   started_at: string | null;
   current_period_end: string | null;
   next_billing_at: string | null;
@@ -59,9 +63,12 @@ interface Summary {
   active: number; pending: number; past_due: number; grace: number; demoted: number; canceled: number; total: number;
   // 면제 워크스페이스의 구독 — 연체/유예/강등 집계에서 빠지고 여기로 모인다.
   exempt?: number;
+  // 구독 행 없는 워크스페이스 — 체험 중(결제 전) / 그 밖(면제·옛 이관)
+  trialing?: number;
+  no_subscription?: number;
 }
 
-const STATUS_TABS: SubStatus[] = ['all', 'active', 'pending', 'past_due', 'grace', 'demoted'];
+const STATUS_TABS: SubStatus[] = ['all', 'trialing', 'active', 'pending', 'past_due', 'grace', 'demoted'];
 
 const AdminSubscriptionsPage = () => {
   const { t, i18n } = useTranslation('admin');
@@ -70,7 +77,7 @@ const AdminSubscriptionsPage = () => {
   const [loading, setLoading] = useState(true);
   const [activeStatus, setActiveStatus] = useState<SubStatus>('all');
   const [search, setSearch] = useState('');
-  const [busyId, setBusyId] = useState<number | null>(null);
+  const [busyId, setBusyId] = useState<number | string | null>(null);
   const [confirm, setConfirm] = useState<{ kind: 'pay' | 'demote'; sub: SubscriptionRow } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -116,7 +123,7 @@ const AdminSubscriptionsPage = () => {
   const statusLabel = (s: SubscriptionRow['status']) => {
     const fallback: Record<SubscriptionRow['status'], string> = {
       pending: '결제대기', active: '활성', past_due: '연체', grace: '유예중', demoted: '강등됨',
-      canceled: '취소', replaced: '교체됨',
+      canceled: '취소', replaced: '교체됨', trialing: '체험 중', no_subscription: '구독 기록 없음',
     };
     return t(`subs.status.${s}`, fallback[s]) as string;
   };
@@ -128,6 +135,7 @@ const AdminSubscriptionsPage = () => {
       case 'past_due': return { bg: '#FEE2E2', fg: '#B91C1C' };
       case 'grace': return { bg: '#FEF3C7', fg: '#92400E' };
       case 'demoted': return { bg: '#FECACA', fg: '#7F1D1D' };
+      case 'trialing': return { bg: '#FEF3C7', fg: '#92400E' };
       default: return { bg: '#F1F5F9', fg: '#64748B' };
     }
   };
@@ -172,7 +180,7 @@ const AdminSubscriptionsPage = () => {
     <PageShell
       title={t('subs.title', '구독 관리')}
       count={items.length}
-      actions={<SearchBox value={search} onChange={setSearch} placeholder={t('subs.searchPh', '워크스페이스명 검색') as string} />}
+      actions={<SearchBox value={search} onChange={setSearch} placeholder={t('subs.searchPh', '워크스페이스·이메일 검색') as string} />}
     >
       <Wrap>
         {/* 면제 워크스페이스 안내 — 탭 카운트에서 빠진 이유를 화면에서 알 수 있어야 한다.
@@ -186,7 +194,7 @@ const AdminSubscriptionsPage = () => {
         <TabBar role="tablist">
           {STATUS_TABS.map((s) => {
             const tabLabels: Record<SubStatus, string> = {
-              all: '전체', active: '활성', pending: '결제대기', past_due: '연체', grace: '유예', demoted: '강등', canceled: '취소',
+              all: '전체', trialing: '체험', active: '활성', pending: '결제대기', past_due: '연체', grace: '유예', demoted: '강등', canceled: '취소',
             };
             return (
               <TabBtn key={s} role="tab" type="button" $active={activeStatus === s}
@@ -215,17 +223,29 @@ const AdminSubscriptionsPage = () => {
               const notified = !!s.pending_payment?.notify_paid_at;
               const exempt = !!s.business?.billing_exempt;
               // 서버 검색은 워크스페이스 name·brand_name·slug — slug 는 행에 없다
+              const owner = s.business?.owner;
               const hit = pickMatch([
                 { field: 'name', text: s.business?.name, shown: true },
+                { field: 'email', text: owner?.email, shown: true },
+                { field: 'name', text: owner?.name, shown: true },
                 { field: 'url', text: s.business?.slug },
               ], search);
               return (
                 <Row key={s.id} data-sub-id={s.id} $focus={focusId === s.id} $notified={notified}>
                   <RowLeft>
                     <BizName>{s.business?.name ? <HighlightText text={s.business.name} query={search} /> : `(workspace ${s.business?.id})`}</BizName>
+                    {/* 주인(가입자) — 누구의 워크스페이스인지 알아야 연락·확인을 한다 */}
+                    <OwnerLine data-testid={`admin-sub-owner-${s.id}`}>
+                      {owner ? (
+                        <>
+                          {owner.name && <><HighlightText text={owner.name} query={search} /> · </>}
+                          <HighlightText text={owner.email} query={search} />
+                        </>
+                      ) : t('subs.noOwner', '주인 정보 없음')}
+                    </OwnerLine>
                     {hit && !hit.shown && <MatchReason field={hit.field} snippet={hit.snippet} query={search} />}
                     <RowMeta>
-                      <PlanBadge>{s.plan_code} · {s.cycle === 'monthly' ? t('subs.monthly', '월간') : t('subs.yearly', '연간')}</PlanBadge>
+                      <PlanBadge>{s.plan_code}{s.cycle ? ` · ${s.cycle === 'monthly' ? t('subs.monthly', '월간') : t('subs.yearly', '연간')}` : ''}</PlanBadge>
                       {/* 면제 워크스페이스는 옛 상태 라벨(강등/연체)이 **현재 사실이 아니다**.
                           라벨은 이력이라 지우지 않고 흐리게 두되, 면제 뱃지를 앞에 세워
                           "지금은 면제 중" 이 먼저 읽히게 한다 (운영 신고: "왜 이거 강등으로 나와?"). */}
@@ -237,7 +257,7 @@ const AdminSubscriptionsPage = () => {
                       <StatusBadge $bg={c.bg} $fg={c.fg} $muted={exempt}>
                         {statusLabel(s.status)}{exempt ? ` (${t('subs.pastRecord', '지난 기록')})` : ''}
                       </StatusBadge>
-                      <Price>{s.currency} {fmtKRW(s.price)}</Price>
+                      {s.price != null && <Price>{s.currency} {fmtKRW(s.price)}</Price>}
                       {notified && <NotifyBadge>{t('subs.notified', '입금 통보')}</NotifyBadge>}
                     </RowMeta>
                     <RowDates>
@@ -247,6 +267,8 @@ const AdminSubscriptionsPage = () => {
                           {s.pending_payment!.notify_payer_name ? ` · ${t('subs.payer', '입금자')} ${s.pending_payment!.notify_payer_name}` : ''}
                         </NotifyLine>
                       )}
+                      {s.kind === 'workspace' && <span>{t('subs.joinedAt', '가입')}: {fmtDate(s.created_at)}</span>}
+                      {s.trial_ends_at && <span>{t('subs.trialEnd', '체험 종료')}: {fmtDate(s.trial_ends_at)}</span>}
                       {s.current_period_end && <span>{t('subs.periodEnd', '기간 종료')}: {fmtDate(s.current_period_end)}</span>}
                       {s.grace_ends_at && <span>{t('subs.graceEnd', '유예 종료')}: {fmtDate(s.grace_ends_at)}</span>}
                       {s.demoted_at && <span>{t('subs.demotedAt', '강등')}: {fmtDate(s.demoted_at)}</span>}
@@ -261,7 +283,7 @@ const AdminSubscriptionsPage = () => {
                     )}
                     {/* 면제 중에는 강등 버튼을 숨긴다 — 누르면 면제와 모순되는 상태가 된다.
                         해제하려면 워크스페이스 관리에서 면제를 먼저 끄는 것이 정합이다. */}
-                    {!exempt && (s.status === 'active' || s.status === 'past_due' || s.status === 'grace') && (
+                    {!exempt && s.kind === 'subscription' && (s.status === 'active' || s.status === 'past_due' || s.status === 'grace') && (
                       <DangerBtn type="button" disabled={busyId === s.id}
                         onClick={() => setConfirm({ kind: 'demote', sub: s })}>
                         {t('subs.demote', '강등')}
@@ -341,6 +363,7 @@ const NotifyLine = styled.span`
 `;
 const RowLeft = styled.div`flex: 1; display: flex; flex-direction: column; gap: 6px; min-width: 0;`;
 const BizName = styled.div`font-size: 0.875rem; font-weight: 700; color: #0F172A;`;
+const OwnerLine = styled.div`font-size: 0.75rem; color: #475569; overflow-wrap: anywhere;`;
 const RowMeta = styled.div`display: flex; gap: 6px; flex-wrap: wrap; align-items: center;`;
 const PlanBadge = styled.span`
   padding: 2px 8px; font-size: 0.6875rem; font-weight: 600;
