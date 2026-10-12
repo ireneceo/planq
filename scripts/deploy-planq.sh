@@ -7,8 +7,9 @@
 # 사용법:
 #   ./deploy-planq.sh              # 대화형 (확인 프롬프트 1회)
 #   ./deploy-planq.sh --auto       # 자동 모드 (CI/CD 또는 검증된 재배포)
+#   ./deploy-planq.sh --routine    # 정기 점검 배포 = --auto + 릴리즈노트(초안·발행) 안 함 (2026-10-12)
 #   ./deploy-planq.sh --dry-run    # 미리보기 (rsync -n + 실제 명령 출력만)
-#   ./deploy-planq.sh --skip-build # 백엔드만 (긴급 hotfix)
+#   ./deploy-planq.sh --skip-build # 백엔드만 (긴급 hotfix) — 프론트는 빌드도 rsync 도 안 한다
 #   ./deploy-planq.sh --skip-qnote # Q Note 제외
 #   ./deploy-planq.sh --skip-gates # 게이트 건너뜀 (장애 대응 hotfix 전용 — 평소 쓰지 말 것)
 #
@@ -20,13 +21,29 @@
 #   5) PM2 ecosystem 등록 (첫 deploy 후 자동)
 #   6) DNS: planq.kr → 87.106.78.146 (등록됨, 24h propagation 대기)
 
+#
+# ★ 2026-10-12 — **마지막 커밋의 깨끗한 사본에서 배포한다.**
+#   Irene 2026-10-11: «배포를 하면 모든 작업 일시정지하고 점검 후 배포해야지. 진행중인 거 있으면 그건 빼고.»
+#   여태 이 스크립트는 작업 폴더(/opt/planq)를 그대로 빌드·rsync 했다 — 다른 방이 고치던 미커밋 파일이
+#   운영에 같이 나갔다. 이제 시작할 때 `scripts/make-deploy-snapshot.sh` 로 커밋 하나(DEPLOY_COMMIT)의
+#   사본을 임시 폴더에 만들고, 가드·사본 검사·빌드·rsync·릴리즈노트·장부·기록을 **모두 그 사본/그 커밋**으로 한다.
+#   작업 폴더는 **읽기만** 한다 — stash·checkout·커밋하지 않는다. 미커밋 = 다른 방의 진행 중 일, 이번 배포에서 빠진다.
+#   작업 폴더 기준으로 남은 것: health-check 는 살아 있는 dev 서버(= 작업 폴더 코드)를 때린다 — 사본 백엔드는
+#   운영 재시작 전까지 실행되지 않으므로 대신 `scripts/check-deploy-snapshot.js`(문법·커밋에 없는 require)가 막는다.
+#   배포 방이 쓰는 기록(docs/dev-status/next.json · docs/release-notes · scripts/feedback-close-backlog.txt)도
+#   **커밋된 것**을 읽는다 — 배포 전에 `git commit -- <그 경로>` 로 그 파일만 커밋한다(`git add -A` 금지).
+#   dev 화면의 빌드(/opt/planq/dev-frontend-build)는 이제 배포가 건드리지 않는다 — 운영 번들은 사본 안에서 만든다.
 set -euo pipefail
 
 # ─── 설정 ───
-DEV_BE="/opt/planq/dev-backend"
-DEV_FE="/opt/planq/dev-frontend"
-DEV_FE_BUILD="/opt/planq/dev-frontend-build"
-DEV_QNOTE="/opt/planq/q-note"
+REPO="/opt/planq"
+# 아래 DEV_* 는 make_snapshot 이 사본 경로로 바꾼다 — 그 전에는 쓰지 않는다.
+DEV_BE="$REPO/dev-backend"
+DEV_FE="$REPO/dev-frontend"
+DEV_FE_BUILD="$REPO/dev-frontend-build"
+DEV_QNOTE="$REPO/q-note"
+SNAP=""            # 사본 루트 (임시 폴더, 끝나면 지운다)
+DEPLOY_COMMIT=""   # 이번에 운영으로 나가는 커밋 (40자)
 
 PROD_HOST="irene@87.106.78.146"
 PROD_BE="/opt/planq/backend"
@@ -53,10 +70,12 @@ DRY_RUN=false
 SKIP_BUILD=false
 SKIP_QNOTE=false
 SKIP_GATES=false
+ROUTINE=false   # 상황판 정기 점검 배포 — 버전·릴리즈노트·공지·메일 없음 (Irene 2026-10-11 «배포는 아침점검에서 자동으로»)
 
 for arg in "$@"; do
   case "$arg" in
     --auto)       AUTO_MODE=true ;;
+    --routine)    AUTO_MODE=true; ROUTINE=true ;;
     --dry-run)    DRY_RUN=true ;;
     --skip-build) SKIP_BUILD=true ;;
     --skip-qnote) SKIP_QNOTE=true ;;
@@ -95,6 +114,80 @@ prod_run() {
   else
     ssh $SSH_OPTS "$PROD_HOST" "$1"
   fi
+}
+
+# ──────────────────────────────────────────
+# 깨끗한 사본 (마지막 커밋) — 배포의 모든 입력은 여기서 나온다
+# ──────────────────────────────────────────
+cleanup_snapshot() {
+  if [ -n "$SNAP" ] && [ -d "$SNAP" ]; then
+    rm -rf "$SNAP"
+  fi
+}
+
+make_snapshot() {
+  log "마지막 커밋의 깨끗한 사본 만드는 중..."
+  cd "$REPO"
+  SNAP=$(mktemp -d /tmp/planq-deploy-src.XXXXXX)   # 700 — 사본에 dev .env 복사본이 들어간다
+  trap cleanup_snapshot EXIT
+  local OUT
+  if ! OUT=$("$REPO/scripts/make-deploy-snapshot.sh" "$SNAP" HEAD 2>&1); then
+    error "사본 만들기 실패 — 배포 중단"
+    printf '%s\n' "$OUT" | tail -5
+    exit 1
+  fi
+  DEPLOY_COMMIT=$(printf '%s\n' "$OUT" | awk '/^COMMIT /{print $2}' | tail -1)
+  [ -n "$DEPLOY_COMMIT" ] || { error "사본 커밋을 읽지 못함 — 배포 중단"; exit 1; }
+  DEV_BE="$SNAP/dev-backend"
+  DEV_FE="$SNAP/dev-frontend"
+  DEV_FE_BUILD="$SNAP/dev-frontend-build"
+  DEV_QNOTE="$SNAP/q-note"
+  success "사본 준비 — 커밋 ${DEPLOY_COMMIT:0:8} ($(git log -1 --format='%s' "$DEPLOY_COMMIT" | head -c 70))"
+
+  # 미커밋 = 다른 방의 진행 중 일 — **커밋하지 않고 빼고** 배포한다. 무엇이 빠지는지 보여만 준다.
+  local DIRTY
+  DIRTY=$(git status --porcelain 2>/dev/null | wc -l)
+  if [ "$DIRTY" -gt 0 ]; then
+    warn "작업 폴더 미커밋 ${DIRTY}개 — 진행 중인 일로 보고 이번 배포에서 뺀다 (작업 폴더는 건드리지 않음)"
+    (git status --porcelain 2>/dev/null | head -10 | sed 's/^/    /') || true
+  fi
+
+  # 배포 방의 기록 파일이 커밋 안 됐으면 커밋된(옛) 내용이 나간다 — 알려 준다(막지는 않는다).
+  local f
+  for f in docs/dev-status/next.json scripts/feedback-close-backlog.txt docs/release-notes; do
+    if [ -n "$(git status --porcelain -- "$f" 2>/dev/null)" ]; then
+      warn "배포 기록 '$f' 이 커밋 안 됨 — 커밋된 내용으로 나간다. 반영하려면: git commit -- $f"
+    fi
+  done
+
+  # 자동 저장이 작업 브랜치에 커밋하면 진행 중 일이 «커밋된 것» 이 되어 사본에 섞인다.
+  #   PlanQ 자동 저장(scripts/claude-autosave.sh)은 2026-08-10 부터 refs/autosave/* 에만 쌓아 지금은 생기지 않지만,
+  #   옛 방식이 되살아나면 여기서 멈춘다(PurpleHere 같은 전환의 Fable 게이트 C1 과 같은 방어).
+  if git log -1 --format=%s "$DEPLOY_COMMIT" | grep -qiE '^wip: ?auto-?save'; then
+    if [ "$AUTO_MODE" = true ]; then
+      error "배포할 커밋이 자동 저장 커밋 — 진행 중 일이 섞여 있어 뺄 수 없음. 끝난 일을 /개발완료 로 커밋한 뒤 다시"
+      exit 1
+    fi
+    warn "배포할 커밋이 자동 저장(wip) 커밋 — 진행 중 일이 섞였을 수 있음"
+  fi
+}
+
+# rsync 보호 목록 — 운영 쪽에만 있어야 하는(또는 운영이 만든) 파일을 --delete 가 지우지 않게.
+#   예전엔 작업 폴더를 통째로 보냈으므로 dev 의 무시 파일(secrets/·backups/ …)이 운영에 같이 가 있었다.
+#   사본에는 그것들이 없어 그대로 --delete 하면 **운영 secrets/fcm-service-account.json(앱 푸시 키)** 이 지워진다
+#   (2026-10-12 rsync -n 실측: secrets/·backups/·.claude/·.last-deployed-commit 삭제 예정).
+#   → 고정 목록 + **작업 폴더에서 git 이 무시하는 경로 전부**(새 무시 파일이 생겨도 따라온다)를 뺀다.
+#   제외된 경로는 운영 쪽에서 지워지지도, 덮이지도 않는다(--delete-excluded 를 쓰지 않는다).
+build_protect_list() {   # $1 = 저장소 안 하위 폴더(dev-backend|q-note) · 출력 = 제외 파일 경로
+  local SUB="$1" OUTF
+  OUTF=$(mktemp /tmp/planq-deploy-protect.XXXXXX)
+  {
+    printf '%s\n' '.env' '.env.*' 'node_modules' 'uploads' '*.log' '.server.pid' '/.last-deployed-commit' \
+      '/secrets/' '/backups/' '/.claude/' 'test-*.js' 'venv' 'data' '*.db' '__pycache__' '*.pyc'
+    (cd "$REPO" && git ls-files --others --ignored --exclude-standard --directory -- "$SUB" 2>/dev/null \
+      | sed "s#^$SUB/#/#") || true
+  } > "$OUTF"
+  printf '%s' "$OUTF"
 }
 
 # ──────────────────────────────────────────
@@ -145,15 +238,8 @@ preflight_check() {
     fi
   fi
 
-  # 5) uncommitted 변경 경고 (재현성)
-  cd /opt/planq
-  if [ -n "$(git status --porcelain 2>/dev/null)" ]; then
-    warn "uncommitted 변경사항 있음 — 운영 배포 전 커밋 권장"
-    if [ "$AUTO_MODE" = false ] && [ "$DRY_RUN" = false ]; then
-      read -p "그래도 진행? (yes/no): " ANS
-      [ "$ANS" = "yes" ] || { error "취소"; exit 1; }
-    fi
-  fi
+  # 5) 미커밋 변경 — make_snapshot 이 이미 «커밋하지 않고 빼고 배포» 로 처리했다(2026-10-12).
+  #    예전엔 여기서 «커밋 권장 · 그래도 진행?» 을 물었고, yes 면 미커밋이 운영에 같이 나갔다.
 
   # 6) 코드 게이트 — **여기서 막지 않으면 아무 데서도 안 막는다** (2026-09-09 신설)
   #
@@ -171,21 +257,34 @@ preflight_check() {
   if [ "$SKIP_GATES" = true ]; then
     warn "코드 게이트 건너뜀 (--skip-gates) — 장애 대응이 아니라면 쓰지 말 것"
   else
-    log "코드 게이트 실행 중 (health-check · 불변식 가드)..."
-    if node /opt/planq/scripts/health-check.js > /tmp/deploy-gate-health.log 2>&1; then
+    log "코드 게이트 실행 중 (health-check · 불변식 가드 · 사본 검사)..."
+    # health-check 는 살아 있는 dev 서버(작업 폴더 코드)를 때린다 — 사본 코드는 가드·사본 검사가 본다.
+    if node "$REPO/scripts/health-check.js" > /tmp/deploy-gate-health.log 2>&1; then
       success "health-check 통과"
     else
       error "health-check 실패 — 배포 중단. 자세히: tail -40 /tmp/deploy-gate-health.log"
       tail -15 /tmp/deploy-gate-health.log
       exit 1
     fi
-    if node /opt/planq/scripts/guard-invariants.js > /tmp/deploy-gate-guard.log 2>&1; then
-      success "불변식 가드 통과"
+    # 불변식 가드는 **사본**을 검사한다(PLANQ_GUARD_ROOT) — 운영에 나가는 파일 그대로.
+    #   (문서 신선도 경고는 사본 mtime 이 커밋 시각이라 조용해진다 — 경고 전용이라 판정에 영향 없음.)
+    if PLANQ_GUARD_ROOT="$SNAP" node "$SNAP/scripts/guard-invariants.js" > /tmp/deploy-gate-guard.log 2>&1; then
+      success "불변식 가드 통과 (사본)"
     else
       error "불변식 가드 실패 — 배포 중단. 자세히: tail -40 /tmp/deploy-gate-guard.log"
       tail -15 /tmp/deploy-gate-guard.log
       exit 1
     fi
+  fi
+
+  # 사본 검사는 --skip-gates 여도 돈다 — 1초 미만이고, 빠지면 커밋에서 빠진 모듈이 운영을 죽인다.
+  #   사본 백엔드는 운영 pm2 재시작 전까지 한 번도 실행되지 않는다(health-check 는 작업 폴더 코드를 때린다).
+  if node "$SNAP/scripts/check-deploy-snapshot.js" "$SNAP" > /tmp/deploy-gate-snapshot.log 2>&1; then
+    success "사본 검사 통과 — $(head -1 /tmp/deploy-gate-snapshot.log | sed 's/^\[snapshot-check\] //')"
+  else
+    error "사본 검사 실패(문법 오류·커밋에 없는 파일 require) — 배포 중단"
+    tail -20 /tmp/deploy-gate-snapshot.log
+    exit 1
   fi
 }
 
@@ -195,18 +294,18 @@ preflight_check() {
 show_changes() {
   log "Changes since last deployment..."
 
-  cd /opt/planq
-  CURRENT=$(git rev-parse HEAD)
-  echo "  Current HEAD: ${CURRENT:0:7} ($(git log -1 --format='%s' | head -c 80))"
+  cd "$REPO"
+  CURRENT="$DEPLOY_COMMIT"
+  echo "  배포할 커밋: ${CURRENT:0:7} ($(git log -1 --format='%s' "$CURRENT" | head -c 80))"
 
   LAST_REMOTE=$(ssh $SSH_OPTS "$PROD_HOST" "cat $PROD_BE/.last-deployed-commit 2>/dev/null" || echo "")
   if [ -n "$LAST_REMOTE" ]; then
     echo "  Last deployed: ${LAST_REMOTE:0:7}"
-    CHANGED=$(git diff --name-only "$LAST_REMOTE" HEAD 2>/dev/null | wc -l || echo "?")
+    CHANGED=$(git diff --name-only "$LAST_REMOTE" "$DEPLOY_COMMIT" 2>/dev/null | wc -l || echo "?")
     echo "  Changed files: $CHANGED"
     # head -10 이 파이프를 조기에 닫아 git diff/grep 이 SIGPIPE(141) → set -euo pipefail 이 배포 전체를
     # 중단시키던 버그(변경파일 >10 인 모든 증분 배포). || true 로 흡수.
-    (git diff --name-only "$LAST_REMOTE" HEAD 2>/dev/null | grep -E '^(dev-(backend|frontend)|q-note)' | head -10 | sed 's/^/    /') || true
+    (git diff --name-only "$LAST_REMOTE" "$DEPLOY_COMMIT" 2>/dev/null | grep -E '^(dev-(backend|frontend)|q-note)' | head -10 | sed 's/^/    /') || true
   else
     echo "  Last deployed: (first deploy)"
   fi
@@ -249,15 +348,20 @@ create_backup() {
 sync_backend() {
   log "Syncing backend (rsync over SSH)..."
 
-  RSYNC_FLAGS="-az --delete --exclude=.env --exclude=.env.* --exclude=node_modules --exclude=uploads --exclude='*.log' --exclude=.server.pid"
+  local PROTECT
+  PROTECT=$(build_protect_list dev-backend)
+  RSYNC_FLAGS="-az --delete --exclude-from=$PROTECT"
 
   if [ "$DRY_RUN" = true ]; then
     dim "  [dry] rsync $RSYNC_FLAGS $DEV_BE/ $PROD_HOST:$PROD_BE/"
-    rsync -azn --delete --exclude=.env --exclude=.env.* --exclude=node_modules --exclude=uploads --exclude='*.log' --exclude=.server.pid -e "$RSYNC_SSH" "$DEV_BE/" "$PROD_HOST:$PROD_BE/" | head -20
+    # 운영에서 지워질 것을 먼저 보인다 — 보호 목록이 빠지면 여기에 secrets/ 가 뜬다.
+    (rsync -azn --delete --itemize-changes --exclude-from="$PROTECT" -e "$RSYNC_SSH" "$DEV_BE/" "$PROD_HOST:$PROD_BE/" \
+      | grep '^\*deleting' | head -20 | sed 's/^/    /') || true
   else
     rsync $RSYNC_FLAGS -e "$RSYNC_SSH" "$DEV_BE/" "$PROD_HOST:$PROD_BE/"
-    success "백엔드 sync 완료"
+    success "백엔드 sync 완료 (커밋 ${DEPLOY_COMMIT:0:8})"
   fi
+  rm -f "$PROTECT"
 }
 
 # ──────────────────────────────────────────
@@ -291,7 +395,7 @@ sync_database() {
   # ★ 이번 배포에 스키마가 바뀌었는지를 **기계가 판정**해 개발 현황에 남긴다.
   #   사람이 "마이그레이션 있음" 을 적게 두면 반드시 어긋난다. 모델/마이그레이션 파일이
   #   직전 배포 이후 손댔는지로 본다(LAST_REMOTE 가 없으면 판단 불가 → false).
-  if [ -n "${LAST_REMOTE:-}" ] && ! git -C /opt/planq diff --quiet "${LAST_REMOTE}" HEAD -- dev-backend/models dev-backend/scripts/migrate- 2>/dev/null; then
+  if [ -n "${LAST_REMOTE:-}" ] && ! git -C "$REPO" diff --quiet "${LAST_REMOTE}" "$DEPLOY_COMMIT" -- dev-backend/models dev-backend/scripts/migrate- 2>/dev/null; then
     DEPLOY_SCHEMA_CHANGED=true
   fi
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node sync-database.js 2>&1 | tail -20"
@@ -593,7 +697,9 @@ build_frontend() {
     dim "▶ build 스킵 (--skip-build)"
     return 0
   fi
-  log "Building frontend on dev..."
+  log "Building frontend in snapshot (커밋 ${DEPLOY_COMMIT:0:8})..."
+  #   빌드는 사본 안에서 돈다 — 산출물은 $SNAP/dev-frontend-build(vite outDir '../dev-frontend-build').
+  #   dev 화면이 쓰는 /opt/planq/dev-frontend-build 는 건드리지 않는다.
 
   if [ "$DRY_RUN" = true ]; then
     dim "  [dry] cd $DEV_FE && npm run build"
@@ -636,6 +742,12 @@ build_frontend() {
 # Deploy frontend (rsync 빌드 산출물)
 # ──────────────────────────────────────────
 deploy_frontend() {
+  # --skip-build = 백엔드만. 예전엔 작업 폴더의 기존 빌드(미커밋 변경이 섞였을 수 있는)를 그대로 올렸다.
+  #   사본에는 빌드가 없으니 프론트는 이번에 보내지 않는다 — 운영 프론트는 직전 배포 그대로.
+  if [ "$SKIP_BUILD" = true ]; then
+    dim "▶ 프론트 rsync 스킵 (--skip-build — 운영 프론트는 직전 배포 그대로)"
+    return 0
+  fi
   log "Deploying frontend (rsync)..."
 
   # ★ 2026-08-24 사고 — `--delete` 로 옛 청크를 즉시 지웠다가 운영 화면이 깨졌다.
@@ -682,13 +794,18 @@ sync_qnote() {
   [ -d "$DEV_QNOTE" ] || { dim "▶ Q Note 디렉터리 없음 — 스킵"; return 0; }
 
   log "Syncing Q Note (rsync)..."
-  RSYNC_FLAGS="-az --delete --exclude=venv --exclude=data --exclude=uploads --exclude=.env --exclude='*.db' --exclude=__pycache__ --exclude='*.pyc'"
+  local PROTECT
+  PROTECT=$(build_protect_list q-note)
+  RSYNC_FLAGS="-az --delete --exclude-from=$PROTECT"
 
   if [ "$DRY_RUN" = true ]; then
     dim "  [dry] rsync $RSYNC_FLAGS $DEV_QNOTE/ $PROD_HOST:$PROD_QNOTE/"
-    rsync -azn --delete --exclude=venv --exclude=data --exclude=uploads --exclude=.env --exclude='*.db' --exclude=__pycache__ --exclude='*.pyc' -e "$RSYNC_SSH" "$DEV_QNOTE/" "$PROD_HOST:$PROD_QNOTE/" | head -10
+    (rsync -azn --delete --itemize-changes --exclude-from="$PROTECT" -e "$RSYNC_SSH" "$DEV_QNOTE/" "$PROD_HOST:$PROD_QNOTE/" \
+      | grep '^\*deleting' | head -10 | sed 's/^/    /') || true
+    rm -f "$PROTECT"
   else
     rsync $RSYNC_FLAGS -e "$RSYNC_SSH" "$DEV_QNOTE/" "$PROD_HOST:$PROD_QNOTE/"
+    rm -f "$PROTECT"
 
     # venv 생성(첫 배포) + requirements 변경 시 재설치
     #
@@ -782,7 +899,7 @@ post_restart_backfills() {
 #   ★ 적용 자체는 root 가 필요하고 운영 계정은 sudo 비번을 묻는다 — 자동화 불가.
 #     그래서 verify 단계가 **라이브 헤더를 실제로 재서** 안 맞으면 크게 알린다.
 sync_nginx_headers() {
-  local SRC=/opt/planq/scripts/apply-nginx-security-headers.sh
+  local SRC="$SNAP/scripts/apply-nginx-security-headers.sh"
   [ -f "$SRC" ] || return 0
   if [ "$DRY_RUN" = true ]; then
     dim "  [dry] scp apply-nginx-security-headers.sh → $PROD_HOST:/opt/planq/scripts/"
@@ -854,7 +971,7 @@ verify_deployment() {
   #    ★ 한 지시문(script-src)만 보지 않는다 — **헤더 전체**를 비교한다.
   #      Fable 게이트 지적(2026-09-10): 지금 운영은 `frame-src` 도 낡아 Picker iframe 이 막히는데
   #      script-src 만 보면 그건 안 잡힌다. 나중에 frame-src 만 바뀌면 이 검사는 초록이 된다.
-  EXPECT_CSP=$(grep -o 'add_header Content-Security-Policy "[^"]*"' /opt/planq/scripts/apply-nginx-security-headers.sh \
+  EXPECT_CSP=$(grep -o 'add_header Content-Security-Policy "[^"]*"' "$SNAP/scripts/apply-nginx-security-headers.sh" \
     | head -1 | sed 's/^add_header Content-Security-Policy "//; s/"$//')
   LIVE_CSP=$(curl -sI --max-time 8 "https://$PROD_DOMAIN/" 2>/dev/null \
     | grep -i '^content-security-policy:' | head -1 | sed 's/^[^:]*: *//; s/\r$//')
@@ -976,11 +1093,15 @@ verify_deployment() {
 #   - `publish-release-note.js` 는 slug `update-<버전>` 으로 **upsert** 라 재배포해도 글이 하나다(멱등).
 #   - 이 단계는 verify 뒤에 둔다 — 서버가 실제로 살아난 뒤에 고지해야 사용자가 눌렀을 때 열린다.
 publish_release_note() {
+  if [ "$ROUTINE" = true ]; then
+    dim "▶ 릴리즈 노트 건너뜀 (--routine — 정기 점검 배포는 새 소식·초안을 만들지 않는다)"
+    return 0
+  fi
   log "Publishing release note..."
   local VER NOTE
-  VER=$(node -p "require('/opt/planq/dev-backend/package.json').version" 2>/dev/null || echo "")
+  VER=$(node -p "require('$SNAP/dev-backend/package.json').version" 2>/dev/null || echo "")
   if [ -z "$VER" ]; then warn "  버전을 읽지 못함 — 릴리즈 노트 건너뜀"; return 0; fi
-  NOTE="/opt/planq/docs/release-notes/v${VER}.json"
+  NOTE="$SNAP/docs/release-notes/v${VER}.json"
   if [ ! -f "$NOTE" ]; then
     # ★ 2026-09-07 — 여태 여기서 그냥 돌아갔다. 버전은 며칠씩 안 오르는데 배포는 하루 여러 번이라,
     #   대부분의 배포가 **아무것도 남기지 않았다** — "새 소식" 이 8건에 멈춘 이유다
@@ -988,7 +1109,7 @@ publish_release_note() {
     #   → 커밋 범위에서 **미발행 초안**을 만들어 올린다. 발행은 사람이 문구를 다듬은 뒤에 한다
     #     (커밋 제목은 개발자 언어다 — 그대로 사용자에게 내보내지 않는다).
     local DRAFT="/tmp/rn-draft-v${VER}.json"
-    if node /opt/planq/dev-backend/scripts/make-release-note-draft.js "${LAST_REMOTE:-}" HEAD "$VER" --out "$DRAFT" 2>&1 | sed 's/^/    /'; then
+    if node "$SNAP/dev-backend/scripts/make-release-note-draft.js" "${LAST_REMOTE:-}" "$DEPLOY_COMMIT" "$VER" --out "$DRAFT" 2>&1 | sed 's/^/    /'; then
       if [ "$DRY_RUN" = true ]; then dim "  [dry] 초안 업로드 (미발행)"; return 0; fi
       if scp $SSH_OPTS -q "$DRAFT" "$PROD_HOST:/tmp/rn-draft.json"          && prod_run "cd $PROD_BE && node scripts/publish-release-note.js /tmp/rn-draft.json"; then
         success "릴리즈 노트 **초안** 생성 (미발행) — /admin 에서 다듬어 발행하세요"
@@ -1016,7 +1137,7 @@ publish_release_note() {
 
 close_feedback() {
   log "Closing deployed feedback in ledger..."
-  cd /opt/planq
+  cd "$REPO"
 
   if [ -z "${LAST_REMOTE:-}" ]; then
     dim "  (first deploy — 범위가 없어 건너뜀)"
@@ -1031,14 +1152,14 @@ close_feedback() {
   #   인용은 자유롭게 하되, 닫으려면 그 줄을 의도적으로 적어야 한다.
   #   grep 무매치는 exit 1 이라 || true 필수 — set -euo pipefail 아래서 배포 전체가 중단된다.
   local RANGE_IDS BACKLOG_IDS IDS
-  RANGE_IDS=$( { git log --format=%B "${LAST_REMOTE}..HEAD" 2>/dev/null || true; } \
+  RANGE_IDS=$( { git log --format=%B "${LAST_REMOTE}..${DEPLOY_COMMIT}" 2>/dev/null || true; } \
                | grep -iE '^[[:space:]]*Feedback-Closes:' \
                | grep -oE '[0-9]{2,5}' || true )
 
   # 이미 배포가 끝난 옛 커밋의 번호는 위 범위에 **영영 안 들어온다** — 그런 잔여분을 담는 자리.
   #   (2026-08-21 실측: #213 #220 #222 #232 #257 #260 #287 이 6b3f4590·41158147 에서 나가
   #    운영에 도달했는데 장부는 pending 이었다.) 닫힌 뒤 다시 실려도 스크립트가 건너뛴다(멱등).
-  BACKLOG_IDS=$( { grep -oE '^[[:space:]]*[0-9]{3,4}\b' /opt/planq/scripts/feedback-close-backlog.txt 2>/dev/null || true; } \
+  BACKLOG_IDS=$( { grep -oE '^[[:space:]]*[0-9]{3,4}\b' "$SNAP/scripts/feedback-close-backlog.txt" 2>/dev/null || true; } \
                  | tr -d ' \t' || true )
 
   # ★ 철회 트레일러 — 앞선 커밋의 `Feedback-Closes:` 를 **나중 커밋이 취소**한다.
@@ -1047,7 +1168,7 @@ close_feedback() {
   #   부분 해결을 닫으면 나머지가 묻히고, 사용자는 무시당했다고 느낀다.
   #   사용법:  Feedback-Keeps-Open: 378
   local KEEP_IDS
-  KEEP_IDS=$( { git log --format=%B "${LAST_REMOTE}..HEAD" 2>/dev/null || true; } \
+  KEEP_IDS=$( { git log --format=%B "${LAST_REMOTE}..${DEPLOY_COMMIT}" 2>/dev/null || true; } \
               | grep -iE '^[[:space:]]*Feedback-Keeps-Open:' \
               | grep -oE '[0-9]{2,5}' || true )
   IDS=$( printf '%s\n%s\n' "$RANGE_IDS" "$BACKLOG_IDS" | grep -E '^[0-9]+$' | sort -un \
@@ -1072,7 +1193,7 @@ close_feedback() {
   fi
 
   # 운영에는 git 저장소도 scripts/ 도 없다(rsync 는 dev-backend 만 보낸다) → 실행 직전에 실어 보낸다.
-  if ! scp $SSH_OPTS /opt/planq/scripts/close-deployed-feedback.js "$PROD_HOST:/tmp/cdf.js" > /dev/null 2>&1; then
+  if ! scp $SSH_OPTS "$SNAP/scripts/close-deployed-feedback.js" "$PROD_HOST:/tmp/cdf.js" > /dev/null 2>&1; then
     warn "장부 스크립트 전송 실패 — 장부는 수동으로 닫아야 합니다 (배포 자체는 정상)"
     return 0
   fi
@@ -1107,18 +1228,19 @@ close_feedback() {
 #     json 에는 서술(무엇을 했고 무엇이 열려 있는지)만 적는다.
 publish_dev_status() {
   log "Publishing dev status..."
-  cd /opt/planq
+  cd "$REPO"
   local HEAD_FULL NOTE META SHORT MY_VER
-  HEAD_FULL=$(git rev-parse HEAD)
-  SHORT=$(git rev-parse --short HEAD)
+  HEAD_FULL="$DEPLOY_COMMIT"
+  SHORT=$(git rev-parse --short "$DEPLOY_COMMIT")
   # ★ publish_release_note 의 $VER 은 그 함수의 local 이라 여기까지 안 온다 —
   #   첫 실전(6ffbc710)에서 version 이 null 로 들어갔다. 여기서 직접 읽는다.
-  MY_VER=$(node -p "require('/opt/planq/dev-backend/package.json').version" 2>/dev/null || echo "")
+  MY_VER=$(node -p "require('$SNAP/dev-backend/package.json').version" 2>/dev/null || echo "")
   # ★ 커밋 해시는 커밋하기 전에는 알 수 없다. 그래서 작성 중인 현황은 next.json 에 쓰고,
   #   배포 시점에 이 스크립트가 실제 HEAD 로 도장을 찍는다(파일은 그대로 두고 DB 키만 커밋).
   #   특정 배포를 다시 쓸 일이 있으면 {짧은해시}.json 을 만들어 두면 그쪽이 우선한다.
-  NOTE="/opt/planq/docs/dev-status/${SHORT}.json"
-  [ -f "$NOTE" ] || NOTE="/opt/planq/docs/dev-status/next.json"
+  # 커밋된 기록을 읽는다(사본) — 배포 방은 배포 전에 `git commit -- docs/dev-status/next.json`.
+  NOTE="$SNAP/docs/dev-status/${SHORT}.json"
+  [ -f "$NOTE" ] || NOTE="$SNAP/docs/dev-status/next.json"
   if [ ! -f "$NOTE" ]; then
     warn "  개발 현황 없음 (docs/dev-status/${SHORT}.json 또는 next.json) — 이번 배포가 장부에 안 남습니다"
     return 0
@@ -1150,9 +1272,8 @@ EOF
 
 update_record() {
   if [ "$DRY_RUN" = true ]; then return 0; fi
-  cd /opt/planq
-  COMMIT=$(git rev-parse HEAD)
-  ssh $SSH_OPTS "$PROD_HOST" "echo $COMMIT > $PROD_BE/.last-deployed-commit"
+  # HEAD 가 아니라 **실제로 보낸 커밋** — 배포 중 다른 방이 커밋해도 기록이 어긋나지 않는다.
+  ssh $SSH_OPTS "$PROD_HOST" "echo $DEPLOY_COMMIT > $PROD_BE/.last-deployed-commit"
 }
 
 # ──────────────────────────────────────────
@@ -1163,9 +1284,9 @@ show_summary() {
   echo -e "${BLUE}=========================================${NC}"
   echo -e "${BLUE}  PlanQ Deployment Summary${NC}"
   echo -e "${BLUE}=========================================${NC}"
-  cd /opt/planq
+  cd "$REPO"
   echo ""
-  echo "  Commit:    $(git rev-parse --short HEAD) — $(git log -1 --format='%s' | head -c 70)"
+  echo "  Commit:    ${DEPLOY_COMMIT:0:8} — $(git log -1 --format='%s' "$DEPLOY_COMMIT" | head -c 70)  (깨끗한 사본)"
   echo "  Timestamp: $TIMESTAMP"
   echo "  Backup:    $BACKUP_DIR (on prod)"
   echo ""
@@ -1211,6 +1332,7 @@ main() {
 
   START=$(date +%s)
 
+  make_snapshot
   preflight_check
   show_changes
 

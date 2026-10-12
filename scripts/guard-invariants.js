@@ -39,7 +39,8 @@ const fs = require('fs');
 const path = require('path');
 
 const cp = require('child_process');
-const ROOT = '/opt/planq';
+// 배포는 «마지막 커밋의 사본» 을 검사한다(scripts/make-deploy-snapshot.sh) — 그때만 PLANQ_GUARD_ROOT 로 사본을 가리킨다.
+const ROOT = process.env.PLANQ_GUARD_ROOT || '/opt/planq';
 const BASELINE_PATH = path.join(ROOT, 'scripts/guards-baseline.json');
 
 // ── CLI ──────────────────────────────────────────
