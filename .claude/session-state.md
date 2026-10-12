@@ -1,5 +1,16 @@
 ## 현재 작업 상태
 
+### 나중에 — Fable 대기: 팀 Google 캘린더 «올릴 캘린더 고르기» 1·2단계 완료 검증 (방 39dd5af6 · 2026-10-12 · [Opus]) — 구현·자체 검증 끝, 커밋 eb8336da, 운영 미배포
+- 설계 docs/TEAM_CALENDAR_PICK_DESIGN.md(Fable 설계 · Irene «권고대로» D1 A · D2 A) · 구현 메모 §6.
+- 1단계: business_cloud_tokens.gcal_calendar_id·summary · 새 일정·Meet·보내기 = 고른 캘린더, 수정·삭제 = 링크의 캘린더 · 바꾸면 역방향 커서 리셋 · 고아 정리 = 고른 ∪ 링크들 ∪ primary ·
+  GET/PUT /api/cloud/gcal/:biz/calendars|calendar-id(대표만 · 목록 안 id만 · 감사·신호) · 설정 카드 «팀 일정을 올릴 Google 캘린더»(목록 권한 없으면 [캘린더 고르기] = 권한 포함 재연결).
+- 2단계: 구글 일정 칩 앞 점(sourceLook) · Google 층 칩 «… · irene@…» · 대체색 #64748B · 팀 일정 상세 «팀 일정 → Google 「이름」» · 캘린더 배너 «올라가는 곳».
+- 운영: scripts/migrate-gcal-team-calendar.js 배포 슬롯 등록(migrate-task-action-items 뒤, 코드보다 먼저).
+- 자체 검증: 서비스·라우트 26/26(가짜 구글 · 대조군 2 뒤집힘) · 실서버 HTTP 7/7 · 화면 3폭 42/42 · build EXIT 0 · health 85/85 · guard 68/69(posts.js godfile 기존) · uispec 597→599(장식 점 2).
+- 확인 못 함: 실제 구글 호출(dev 에 팀 연결 없음) · 목록 권한은 구글 OAuth 심사 전(동의 화면 «확인되지 않은 앱» 경고).
+- 언제: Fable 한도가 풀리면(상황판 fid fwmv5hassg, 10-13 03:40 KL 께 깨움). 그때 할 일: /fable-검증(범위 04fdd1ef..eb8336da) → PASS 면 마커·상황판 done · FAIL 이면 지적 수정. **운영 배포는 Fable 통과 뒤.**
+- 확인용: 일정 1260 «[확인용] 팀 일정 (PlanQ)»(ws 6).
+
 ### 나중에 — Fable 대기: 업무 «결과물 액션» 1단계 완료 검증 (방 c43d9583 · 2026-10-12 · [Opus]) — 구현·자체 검증 끝, 커밋 5c180d58, 운영 미배포
 - 설계 docs/TASK_ACTIONS_DESIGN.md(Fable 설계 · Irene «권고대로»). 표 task_action_items + services/taskActionItems(fulfill·unlink·발행 완료·첨부 삭제 pending·linkedTasksOf·handoff·회차 복사) + routes/task_action_items + 문서·일정 ?from_action= 넘겨받기(hooks/useFromActionHandoff·FromTaskBanner) + 업무 상세 «결과물 액션» 칸 + 문서 밴드2 «업무:» 칩.
 - 운영: scripts/migrate-task-action-items.js 배포 슬롯 등록(migrate-task-security-level 뒤, 코드보다 먼저).
