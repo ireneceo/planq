@@ -12,6 +12,11 @@
 > `R=1 OR (S=1 AND F=0)` 은 공용 기준으로 대체됐다(뜻은 같다).
 
 
+## 2026-10-12 — Cue 업무 여러 개(task_batch) · 설계 DESIGN-OK (다) → 완료 **PASS** (b6695797 + ebbef4bb, 방 4bde0632)
+- 설계: 한 답에 create_task ≥2 → 후보 목록 한 덩이(상한 40 = MAX_CONFIRM_CANDIDATES) · AiCandidateCard + [N개 추가] → confirm cue_batch → 행마다 executeTool(create_task) · 계량 턴 1회/행 0 · 부분 실패 created[]/failed[] · 음성 같은 덩이(D4) · 팝아웃 CueTaskBar · D2·대량=HIGH 불변.
+- 완료 검증 실측: 가짜 LLM 주입 5+1→task_batch(5)+event · 41→40 · 일정4→3(D2) · 음성 3→batch / 실HTTP 10행 → 성공 5·replayed 1·실패 4(남 ws 프로젝트·모르는 칸·남 ws 메일·비멤버 담당) · 계량 묶음 0 / 카드 대조 1 · 41행 400 · 비멤버 403.
+- 비차단: ①replayed 중복 집계 → ebbef4bb 로 수정(count 1 실측) ②cue_batch 는 X-Workspace-Id 불일치(409)를 안 봄 — 형제 confirm 모드와 같은 계약, 멤버십 403 유효 ③음성: 첫 쓰기가 일정이면 업무 묶음 대신 일정 카드(D4 범위).
+
 ## 2026-10-12 팝아웃 «내 순서»(사람별 업무 순서) — 설계 VERDICT OK · 완료 검증 **PASS** (f7ba4c93, 방 56931759)
 - 설계 docs/TASK_USER_ORDER_DESIGN.md. 설계에서 바꾼 1곳: 응답 positions = visible 전부(임시값 섞임으로 Alt+↓ 가 튀던 것) — Fable 회귀 확인.
 - 비차단: ① move() visible_ids 500 미절단 ② 운영 FK 이름은 sync 가 먼저 만들어 `_ibfk_N`(기능 차이 없음) ③ task_forbidden 경로는 도달 불가 방어선.
