@@ -1,20 +1,17 @@
 ## 현재 작업 상태
 
+### 나중에 — Fable 대기: 업무 «결과물 액션» 1단계 완료 검증 (방 c43d9583 · 2026-10-12 · [Opus]) — 구현·자체 검증 끝, 커밋 5c180d58, 운영 미배포
+- 설계 docs/TASK_ACTIONS_DESIGN.md(Fable 설계 · Irene «권고대로»). 표 task_action_items + services/taskActionItems(fulfill·unlink·발행 완료·첨부 삭제 pending·linkedTasksOf·handoff·회차 복사) + routes/task_action_items + 문서·일정 ?from_action= 넘겨받기(hooks/useFromActionHandoff·FromTaskBanner) + 업무 상세 «결과물 액션» 칸 + 문서 밴드2 «업무:» 칩.
+- 운영: scripts/migrate-task-action-items.js 배포 슬롯 등록(migrate-task-security-level 뒤, 코드보다 먼저).
+- 자체 검증: 실HTTP 42/42 · --suite taskactions 42/42(3폭, 넘겨받기 버그 수정 전 9건 실패) · health 85/85 · tenant 0 · guard 68/69(posts.js godfile 기존) · delivver 12/12 · docsheader 13/13.
+- 언제: Fable 한도가 풀리면(상황판 Fable 대기). 그때 할 일: /fable-검증(범위 1331db50..5c180d58) → PASS 면 마커·상황판 done · FAIL 이면 지적 수정. **운영 배포는 Fable 통과 뒤.** 그 뒤 2단계(메일·프로젝트)는 별도 승인 없이.
+- 확인용: 업무 3803(ws 6, 담당 member2 · 액션 3) · 문서 2768.
+
 ### 완료: 정기 점검 10/13 00:15 (방 76727e26 · 2026-10-12 · [Claude Code]) — 파일 변경 없음(이 기록만)
 - 개발완료: 안 함 — 같은 폴더에 일하는 방 3개(f08b6db5 구글 캘린더 · a9337893 미출근 재개 · c43d9583 업무 액션 1단계). 미커밋 21파일은 c43d9583 의 업무 액션 1단계.
 - 배포: 막힘 — 상황판 PlanQ Fable 대기 4건(dev-login · 초대 인앱 알림 · 미출근 재개 · 설문 v2 Phase 1). 운영 마지막 배포 62734c6d 뒤 커밋 17개(설문 v2·업무 공개 범위 2차·초대 링크 수리 등) 대기. Fable 대기가 풀리면 다음 정기 점검/수동 배포.
 - 운영 피드백(읽기만): 열린 9건. 새 신고 #463(AI 로 프로젝트 옮기기·삭제) · #464(영수증 빈 화면) 은 a176687c · f8585dce 로 이미 고쳐져 운영에 나가 있음 — **답글만 없음**(다음 /개발완료 답글 단계). 삭제는 HIGH 라 AI 도구로 두지 않는 정책 — 답글에 그 이유를 적을 것.
 - 밤 검사: 10-11 순찰은 2.5시간 무출력으로 시간초과(exit 124, 보고서 없음 — 10-10 은 실패 3) · 10-12 순찰은 지금 도는 중. 전체 검사 10-11: 132 중 실패 4(signflow ⑦b · detailopen 21 · chatreaction 폰 · leavesave ⑤⑦) + 하니스 죽음 projecttabs + 시간초과 bodygutter. 판정(실결함/검사기) 아직 안 함 — 고치는 방 몫.
-
-
-### 나중에 — 일시정지로 멈춤: 업무 «결과물 액션» 1단계 (방 c43d9583 · 2026-10-12 · [Opus]) — 미커밋, 운영 미배포
-- 무엇: 설계 docs/TASK_ACTIONS_DESIGN.md 1단계(문서·일정) 구현 **완료 · 미커밋**. 파일 상태 정상(프론트 build EXIT 0 · 백엔드 재시작 OK · dev 표 생성됨).
-  - 서버: 표 task_action_items(models/TaskActionItem · scripts/migrate-task-action-items.js 배포 슬롯 등록) · services/taskActionItems(fulfill·unlink·onPostPublished·onAttachmentDeleted·linkedTasksOf·handoff·copyToOccurrence) ·
-    routes/task_action_items(/api/tasks/:id/actions… · /api/task-actions/:aid/handoff, tasks.js 앞 마운트) · taskAttachmentLink.linkPostsToTask(라우트에서 뗌) · post_actions.createPost·event_actions.createEvent 의 fromActionId · 발행 PUT onPostPublished · 문서 상세/PUT linked_tasks · 첨부 삭제 훅 · 반복 회차 복사.
-  - 화면: TaskActionItemsSection(업무 상세 결과물 위) · hooks/useFromActionHandoff · FromTaskBanner · LinkedTaskChips(문서 밴드2) · PostsPage/QCalendarPage/NewEventModal(fromTask) · ko/en 키 · 카나리 --suite taskactions.
-- 검증(자체): 실HTTP 42/42(권한 403·테넌트 404·L1 hidden·멱등·종류 불일치·회차 박제 첨부 포함·해제·첨부 삭제→pending·반복 복사) · --suite taskactions 42/42 3폭(고치기 전 9건 실패 = 판정 뒤집힘 확인) · health 85/85 · tenant 0 · guard 68/69(남은 1 = posts.js godfile, HEAD 부터 초과).
-- 확인용: 업무 3803(ws 6, 담당 member2 · 액션 3: 견적서 초안 완료→문서 2768 · 킥오프 미팅·제안서 대기).
-- 다시 시작하면: ① `--suite delivver`·`--suite docsheader` 회귀(멈출 때 돌던 중, 결과 모름) + guard 재실행 ② 커밋(feat 업무 결과물 액션 1단계) ③ `/fable-검증` gate 1회(권한·격리) — 한도면 상황판 Fable 대기 ④ 2단계(메일·프로젝트, 별도 승인 없이)는 그 뒤.
 
 
 ### 완료: 업무 상세 필드 정돈 + 셀렉트 X 공간 (방 91f9e22d · 2026-10-12 · [Opus]) — 운영 미배포
