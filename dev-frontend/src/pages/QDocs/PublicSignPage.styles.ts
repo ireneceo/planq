@@ -12,14 +12,7 @@ export const Page = styled.div`
   /* 앱 탭 안(TabPane 본문)에서 열리면 그 칸만 채운다 — 100vh 는 탭바·머리줄을 모른 채 넘친다 */
   [data-pq-content] & { min-height: 100%; }
 `;
-export const Topbar = styled.header`
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 14px 20px;
-  background: #fff; border-bottom: 1px solid #E2E8F0;
-  position: sticky; top: 0; z-index: 10;
-`;
-export const Brand = styled.img`display:block;width:120px;height:auto;user-select:none;`;
-export const TopMeta = styled.span`font-size:0.75rem;color:#64748B;`;
+// 머리줄(로고·받는 사람)은 공용 PublicToolbar(components/Layout/PublicPageShell) — 웹으로 보기와 한 벌.
 
 export const ProgressBar = styled.nav`
   display: flex; gap: 0; padding: 0; background: #fff;
@@ -363,7 +356,6 @@ export const SlotLink = styled.button`
 export const StickyHead = styled.div`
   position: sticky; top: 0; z-index: 10;
   background: #fff;
-  & > header { position: static; }
 `;
 export const ActionBar = styled.div`
   background: #F0FDFA;

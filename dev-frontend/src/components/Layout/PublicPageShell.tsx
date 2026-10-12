@@ -70,19 +70,8 @@ const PublicPageShell: React.FC<Props> = ({
   return (
     <Page $layout={layout} $fill={fill} $print={print} $center={center}>
       {showHeader && (
-        <Toolbar $print={print} $app={layout === 'app'}>
-          {showBrand && <Brand src="/planQ-slogan_color.svg" alt="PlanQ" />}
-          {workspace?.name && <PublicWorkspaceMark workspace={workspace} />}
-          {(title || subtitle || workspace?.name) && (
-            <TitleBox>
-              <ShellTitle>{title}</ShellTitle>
-              <PublicSubline workspace={workspace} sub={subtitle} />
-            </TitleBox>
-          )}
-          <Spacer />
-          {headerMeta && <HeaderMeta>{headerMeta}</HeaderMeta>}
-          {actions}
-        </Toolbar>
+        <PublicToolbar app={layout === 'app'} print={print} brand={showBrand}
+          workspace={workspace} title={title} subtitle={subtitle} headerMeta={headerMeta} actions={actions} />
       )}
       {promo && (
         <PromoBar className="no-print">
@@ -105,6 +94,30 @@ const PublicPageShell: React.FC<Props> = ({
 };
 
 export default PublicPageShell;
+
+/** 공개 화면 머리줄 — 로고 · (발신 워크스페이스·제목) · 오른쪽 메타·버튼.
+ *  껍데기 안에서도 쓰고, **껍데기를 못 쓰는 화면**(서명 화면 — 머리줄 아래에 단계·할 일 줄을 한 묶음으로 붙여야 한다)도
+ *  이것을 그대로 쓴다. 베끼면 로고 크기·여백·높이가 갈라진다(2026-10-12 Irene: «서명하기 페이지는 웹으로 보기처럼»).
+ *  sticky=false — 부르는 쪽이 머리줄을 다른 줄과 함께 감싸 묶음째 붙일 때. */
+export const PublicToolbar: React.FC<{
+  app?: boolean; print?: boolean; brand?: boolean; sticky?: boolean;
+  workspace?: PublicWorkspace | null; title?: React.ReactNode; subtitle?: React.ReactNode;
+  headerMeta?: React.ReactNode; actions?: React.ReactNode;
+}> = ({ app = false, print = true, brand = true, sticky = true, workspace, title, subtitle, headerMeta, actions }) => (
+  <Toolbar $print={print} $app={app} $sticky={sticky} data-testid="public-toolbar">
+    {brand && <Brand src="/planQ-slogan_color.svg" alt="PlanQ" />}
+    {workspace?.name && <PublicWorkspaceMark workspace={workspace} />}
+    {(title || subtitle || workspace?.name) && (
+      <TitleBox>
+        <ShellTitle>{title}</ShellTitle>
+        <PublicSubline workspace={workspace} sub={subtitle} />
+      </TitleBox>
+    )}
+    <Spacer />
+    {headerMeta && <HeaderMeta>{headerMeta}</HeaderMeta>}
+    {actions}
+  </Toolbar>
+);
 
 export type PublicWorkspace = { name: string | null; logo_url: string | null };
 
@@ -182,15 +195,15 @@ const Page = styled.div<{ $layout: string; $fill: boolean; $print: boolean; $cen
   `}
   ${({ $print }) => $print && css`@media print { background: #FFF; padding: 0; }`}
 `;
-const Toolbar = styled.div<{ $print: boolean; $app: boolean }>`
+const Toolbar = styled.div<{ $print: boolean; $app: boolean; $sticky: boolean }>`
   display: flex; align-items: center; gap: 8px;
   background: #FFF; border-bottom: 1px solid #E2E8F0;
   flex-shrink: 0;
   /* 앱형은 제목이 들어가므로 PageShell 과 같은 규격(60px · 14px 20px)을 따른다.
      문서형은 로고+버튼이라 12px 24px — 두 값이 갈라진 게 아니라 성격이 다르다. */
-  ${({ $app }) => ($app
+  ${({ $app, $sticky }) => ($app
     ? css`min-height: 60px; padding: 14px 20px;`
-    : css`padding: 12px 24px; position: sticky; top: 0; z-index: 10;`)}
+    : css`padding: 12px 24px; ${$sticky ? 'position: sticky; top: 0; z-index: 10;' : ''}`)}
   ${({ $print }) => $print && css`@media print { display: none !important; }`}
   @media (max-width: 640px) { padding-left: 16px; padding-right: 16px; }
 `;
@@ -207,7 +220,11 @@ const ShellSub = styled.div`
 const WsName = styled.span`font-weight: 600; color: #334155;`;
 const MarkSlot = styled.div`flex-shrink: 0; display: flex;`;
 const Spacer = styled.div`flex: 1;`;
-const HeaderMeta = styled.div`font-size: 0.75rem; color: #64748B; flex-shrink: 0;`;
+/* 긴 이메일(서명 화면의 받는 사람)이 폰에서 로고를 밀어내지 않게 줄어들고 말줄임한다. */
+const HeaderMeta = styled.div`
+  font-size: 0.75rem; color: #64748B; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+`;
 const PromoBar = styled.div`
   display: flex; align-items: center; gap: 14px; flex-shrink: 0;
   padding: 9px 24px; background: #F0FDFA; border-bottom: 1px solid #99F6E4;

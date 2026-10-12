@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState, useCallback } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { useParams, useNavigate } from 'react-router-dom';
+import { PublicToolbar, PublicBtn } from '../../components/Layout/PublicPageShell';
 import ExpiredShareLink from '../../components/Common/ExpiredShareLink';
 import RecurringBillingNote from '../../components/QBill/RecurringBillingNote';
 import type { InvoiceRecurring } from '../../services/invoices';
@@ -388,11 +389,10 @@ const PublicInvoicePage: React.FC = () => {
 
   return (
     <Page>
-      <Toolbar>
-        <Brand src="/planQ-slogan_color.svg" alt="PlanQ" />
-        <ToolbarSpacer />
-        <PrintBtn type="button" onClick={() => window.open(`/api/invoices/public/${token}/pdf`, '_blank')}>{t('public.downloadPdf', 'PDF 다운로드')}</PrintBtn>
-      </Toolbar>
+      {/* 머리줄은 공개 화면 공용(PublicToolbar) — 웹으로 보기·서명 화면과 한 벌 */}
+      <PublicToolbar actions={(
+        <PublicBtn type="button" onClick={() => window.open(`/api/invoices/public/${token}/pdf`, '_blank')}>{t('public.downloadPdf', 'PDF 다운로드')}</PublicBtn>
+      )} />
 
       <Frame>
         {/* 헤더 */}
@@ -902,20 +902,6 @@ export default PublicInvoicePage;
 const Page = styled.div`
   min-height: 100vh; background: #F8FAFC; padding: 0 0 40px 0;
   @media print { background: #FFF; padding: 0; }
-`;
-const Toolbar = styled.div`
-  display: flex; align-items: center; gap: 8px; padding: 12px 24px;
-  background: #FFF; border-bottom: 1px solid #E2E8F0;
-  position: sticky; top: 0; z-index: 10;
-  @media print { display: none !important; }
-`;
-const Brand = styled.img`display:block;width:120px;height:auto;user-select:none;`;
-const ToolbarSpacer = styled.div`flex:1;`;
-const PrintBtn = styled.button`
-  display: inline-flex; align-items: center; min-height: 44px;
-  padding: 8px 16px; font-size: 0.8125rem; font-weight: 600; color: #334155;
-  border: 1px solid #E2E8F0; border-radius: 8px; background: #FFF; cursor: pointer;
-  &:hover { border-color: #14B8A6; color: #0F766E; }
 `;
 const Frame = styled.div`
   max-width: 720px; margin: 32px auto; display: flex; flex-direction: column; gap: 16px;

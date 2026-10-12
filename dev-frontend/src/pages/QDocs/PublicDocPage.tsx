@@ -8,6 +8,7 @@ import { sanitizeRichText } from '../../utils/sanitizeHtml';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { useParams } from 'react-router-dom';
+import { PublicToolbar, PublicBtn } from '../../components/Layout/PublicPageShell';
 import ExpiredShareLink from '../../components/Common/ExpiredShareLink';
 // 링크를 열어 둔 채 원본이 바뀌면 보이는 것도 바뀐다(공개 페이지 공통 계약)
 import { usePublicRevalidate } from '../../hooks/usePublicRevalidate';
@@ -66,11 +67,10 @@ const PublicDocPage: React.FC = () => {
 
   return (
     <Page>
-      <Toolbar className="no-print">
-        <Brand src="/planQ-slogan_color.svg" alt="PlanQ" />
-        <ToolbarSpacer />
-        <PrintBtn type="button" onClick={() => window.print()}>{t('public.print', '인쇄 / PDF 저장')}</PrintBtn>
-      </Toolbar>
+      {/* 머리줄은 공개 화면 공용(PublicToolbar) — 웹으로 보기·서명 화면과 한 벌 */}
+      <PublicToolbar actions={(
+        <PublicBtn type="button" onClick={() => window.print()}>{t('public.print', '인쇄 / PDF 저장')}</PublicBtn>
+      )} />
 
       <DocFrame>
         <DocTitle>{doc.title}</DocTitle>
@@ -104,20 +104,6 @@ export default PublicDocPage;
 const Page = styled.div`
   min-height: 100vh; background: #F8FAFC; padding: 0 0 40px 0;
   @media print { background: #FFF; padding: 0; }
-`;
-const Toolbar = styled.div`
-  display: flex; align-items: center; gap: 8px; padding: 12px 24px;
-  background: #FFF; border-bottom: 1px solid #E2E8F0;
-  position: sticky; top: 0; z-index: 10;
-  @media print { display: none !important; }
-`;
-const Brand = styled.img`display:block;width:120px;height:auto;user-select:none;`;
-const ToolbarSpacer = styled.div`flex:1;`;
-const PrintBtn = styled.button`
-  display: inline-flex; align-items: center; min-height: 44px;
-  padding: 8px 16px; font-size: 0.8125rem; font-weight: 600; color: #334155;
-  border: 1px solid #E2E8F0; border-radius: 8px; background: #FFF; cursor: pointer;
-  &:hover { border-color: #14B8A6; color: #0F766E; }
 `;
 const DocFrame = styled.article`
   max-width: 820px; margin: 32px auto; background: #FFF; border: 1px solid #E2E8F0;

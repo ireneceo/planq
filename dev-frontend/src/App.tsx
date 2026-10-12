@@ -6,7 +6,7 @@ import { PwaInstallProvider } from './contexts/PwaInstallContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import ErrorBoundary from './components/Common/ErrorBoundary';
 import { isPopoutWindow } from './utils/popout';
-import { isPublicSurfacePath } from './utils/publicSurface';
+import { isPublicSurfacePath, isPublicViewPath } from './utils/publicSurface';
 import TabMirror from './components/Tab/TabMirror';
 import TabAppShell from './components/Tab/TabAppShell';
 import { isTabsSpike } from './utils/tabsBeta';
@@ -234,7 +234,7 @@ function ShellApp() {
   const _loc = useLocation();
   const isPopout = /\/(talk-popout|task-popout|note-popout|help-popout)(\/|$)/.test(_loc.pathname)
     || _loc.pathname.startsWith('/memo/')
-    || _loc.pathname.startsWith('/public/')
+    || isPublicViewPath(_loc.pathname)   // 공유 링크 + 서명 화면 — utils/publicSurface 한 곳
     || isPopoutWindow(); // #84 — 팝아웃 창 안에서 /guide 등으로 이동해도 chrome 숨김 유지
   // #71 — 공개 표면(랜딩/마케팅 + Q위키). 비로그인 외부 트래픽 영역이라
   // 로그인 상태로 방문해도 인앱 chrome(토스터·공지배너·Dock)을 안 띄운다.

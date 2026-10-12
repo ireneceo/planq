@@ -23,17 +23,18 @@ import { sanitizeRichText } from '../../utils/sanitizeHtml';
 import { formatPublicDateTime } from '../../utils/dateFormat';
 import { withImageCtxJson, withImageCtxHtml } from '../../utils/imageCtx';
 import {
-  Brand, ConfirmActions, ConfirmTextArea,
+  ConfirmActions, ConfirmTextArea,
   ConfirmedComment, ConsentBox, ConsentHint, ConsentLabel, ConsentTitle, Content, DocBody, ErrorBox,
   ErrorCenter, ErrorHint, ErrorIcon, ErrorTitle, InlineSpinner, LoadingCenter, OtpActions, OtpInput,
   OtpRow, Page, PrimaryBtn, ProgressBar, ProjectChip, RejectActions, RejectBackdrop, RejectBtn, RejectDialog,
   ResendBtn, ResultCard, ResultHint, ResultIcon, ResultMeta, ResultTitle, SecondaryBtn, Section, SectionDesc,
-  SectionTitle, SignatureSnap, SignedHtml, Spinner, Step, Textarea, TopMeta, Topbar,
+  SectionTitle, SignatureSnap, SignedHtml, Spinner, Step, Textarea,
   StickyHead, ActionBar, ActionBarInner, ActionBarText, ActionBarTitle, ActionBarDesc, ActionBarButtons, ActionBarNote, BarPrimaryBtn, BarRejectBtn,
   AttachBox, AttachTitle, AttachRow, AttachIcon, AttachName, AttachSize, DoneActions, SlotLine, SlotLink,
   NoticeBox, NoticeRow, NoticeText, NoticeSlot, NoticeActionBtn, NoticeMemo, NoticeMemoLabel,
 } from './PublicSignPage.styles';
 import SignLinkedDocs from './SignLinkedDocs';
+import { PublicToolbar, PublicBtn } from '../../components/Layout/PublicPageShell';
 import StandardModal from '../../components/Common/StandardModal';
 import { useTabId } from '../../contexts/TabActiveContext';
 import { useTabTitle } from '../../hooks/useTabTitle';
@@ -431,10 +432,14 @@ const PublicSignPage: React.FC = () => {
           [거절] [확인했습니다 · 서명하기] 가 맨 아래에만 있어 열자마자 «어쩌라는지» 몰랐다. 이제 스크롤과 무관하게 늘 위에 있다.
           묶음에만 sticky — 할 일 줄에 top 숫자를 주면 머리줄 높이가 바뀌는 폭에서 겹친다. */}
       <StickyHead>
-        <Topbar>
-          <Brand src="/planQ-slogan_color.svg" alt="PlanQ" />
-          <TopMeta>{doc.signer_email}</TopMeta>
-        </Topbar>
+        {/* 머리줄은 «웹으로 보기»(공개 문서)와 **같은 컴포넌트** — 로고·여백·높이·오른쪽 메타가 한 벌이다(2026-10-12 Irene:
+            «서명하기 페이지는 웹으로 보기 페이지처럼»). 묶음째 붙이므로 머리줄 자체는 sticky 를 끈다. */}
+        <PublicToolbar sticky={false} headerMeta={doc.signer_email}
+          actions={signedAlready ? (
+            <PublicBtn as="a" href={`/api/sign/${token}/pdf`} data-testid="sign-toolbar-pdf">
+              {t('publicSign.downloadPdf', 'PDF 다운로드')}
+            </PublicBtn>
+          ) : undefined} />
         {/* 단계 표시도 머리줄 묶음 안 — 서명하는 동안 지금 몇 단계인지 계속 보이게(2026-10-12).
             #239 — 확인 요청은 '본인 확인 → 서명' 단계가 없다. 3단계 표시는 거짓말이 된다. */}
         {!signedAlready && !rejectedAlready && phase !== 'confirm' && phase !== 'confirmed_done' && (

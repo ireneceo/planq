@@ -38,3 +38,14 @@ export function isPublicSurfacePath(pathname: string): boolean {
   if (p === '/wiki') return true;   // 옛 주소 — 위 주석
   return PREFIX.some((p) => pathname.startsWith(p));
 }
+
+/**
+ * 링크로 여는 «웹 보기» 화면 — 공유 링크(`/public/…`)와 서명 화면(`/sign/…`).
+ * 받은 사람이 링크 하나로 보는 단독 화면이라 **앱 크롬을 하나도 띄우지 않는다**(도크·메모·토스터·공지·Q helper 버튼까지).
+ * 로그인 여부와 무관하다 — 로그인한 우리 쪽 서명자가 열어도 같은 화면이어야 한다.
+ * ★ `/sign/` 이 이 판정에 빠져 있어 서명 화면에만 우측 하단 Q helper(채팅 모양) 버튼이 떴고, 로그인 상태면
+ *   도크·메모 단추까지 붙었다(2026-10-12 Irene: «서명하기 페이지는 웹으로 보기처럼 … 우측하단 채팅버튼 없고»).
+ */
+export function isPublicViewPath(pathname: string): boolean {
+  return pathname.startsWith('/public/') || pathname.startsWith('/sign/');
+}
