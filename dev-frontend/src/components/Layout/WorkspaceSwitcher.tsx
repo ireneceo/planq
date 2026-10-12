@@ -156,7 +156,8 @@ const WorkspaceSwitcher: React.FC<Props> = ({ collapsed }) => {
       const j = await r.json();
       if (!r.ok || j?.success === false) throw new Error(j?.message || 'create_failed');
       const newId = j.data?.id;
-      if (newId) { await switchWorkspace(newId); window.location.href = '/talk'; }
+      // 새로 만든 직후는 대시보드 — 시작 안내(팀원 초대부터)가 있는 곳. 회원가입과 같은 착지
+      if (newId) { await switchWorkspace(newId); window.location.href = '/dashboard'; }
     } catch (e) {
       setCreateErr((e as Error).message || (t('switcher.createError', '생성 실패') as string));
       setCreating(false);
