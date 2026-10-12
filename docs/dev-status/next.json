@@ -1,220 +1,129 @@
 {
   "working_on": [],
-  "in_progress": [],
+  "in_progress": [
+    "업무 공개 범위·대상 멤버(vlevel·target_member_ids) — 다른 방에서 진행 중, 이번 배포에서 뺐다(미커밋)"
+  ],
   "completed": [
     {
-      "title": "Cue «기존 일정 옮기기» — 여러 건을 확인 카드 한 장으로(reschedule_events, 50fdf4af)",
+      "title": "업무 «내부 업무» — 고객·게스트·공개 링크에서 숨김(ff10d3f6)",
+      "verified": "fable_pass"
+    },
+    {
+      "title": "Cue 프롬프트 캐시로 질문 원가 절반 · 카드 턴 실비 원장(be965698)",
+      "verified": "fable_pass"
+    },
+    {
+      "title": "Cue 업무 여러 개 — 업무 묶음 목록 한 덩이 · 팝아웃에도 Cue 바 · 중복 행 계수 수정(b6695797·ebbef4bb·3e18ef9d)",
+      "verified": "fable_pass"
+    },
+    {
+      "title": "Cue 복합 요청 — 한 답에 카드 여러 장 · 컨펌자 · 앞 턴 결과 이어받기(c17375ad)",
       "verified": "opus_only"
     },
     {
-      "title": "Q docs 표 글자 서식(색·배경·크기·굵게) + 행/열 사이 끼워넣기 — 문서 안 표·표 문서(05643cb7)",
+      "title": "Cue 화상회의 요청 끝까지 — 팀 공개 기본 + Meet 링크·복사(60b0031a)",
       "verified": "opus_only"
     },
     {
-      "title": "고객 프로젝트 링크 PC 가로 배치·반응형 정돈(42066f02·d54a4784)",
+      "title": "Cue 팝아웃 결과 [열기] 가 팝아웃을 닫던 것 · Cue 링크 ?event= 상세 안 열림 · Q info 옛 주소 빈 탭(093c8c1c·3c192c26)",
       "verified": "opus_only"
     },
     {
-      "title": "Q docs «AI 수정» 버튼을 편집 옆으로(54d365a3)",
+      "title": "팝아웃 «촘촘히» 보기 + 끌어서 옮기는 «내 순서»(사람별, task_user_orders)(f7ba4c93)",
+      "verified": "fable_pass"
+    },
+    {
+      "title": "Q task 추가 후 그 자리로 스크롤·강조 · 기본 정렬(마감 오래된 순·완료 맨 아래)(f27f0047·46579ccd)",
       "verified": "opus_only"
     },
     {
-      "title": "시작 가이드 — 랜딩 상단 메뉴 · 확인 필요 맨 위 팀 적응 카드(7e21cbfb)",
+      "title": "업무 추가 업무명 안내 «끝나는 순간이 보이게»(79249f7a)",
       "verified": "opus_only"
     },
     {
-      "title": "캘린더 — 지난 업무 마감도 흐리게 · 지난 날짜 칸 연회색(f569527e)",
+      "title": "근태 — 업무 시작·재개·보류 해제가 근태와 같이 움직이게(0117c462)",
       "verified": "opus_only"
     },
     {
-      "title": "메일 분류 대점검 — 발송대행 헤더(SendGrid 등)=자동 발송(광고 아님) · HTML 전용 메일 본문 판정 · «꼭 확인»(결제 실패·연체·계정 보류·유출·예약 문의·빌드 실패) · 가입 완료 안내 · 새 로그인 알림 → 확인 권장 (be5db0ff)",
-      "verified": "fable_pass"
-    },
-    {
-      "title": "공유 받기 — 카톡·왓츠앱 대화 내보내기 파일을 «대화 기록으로 보관» (c9011e96)",
+      "title": "캘린더 — 분류 버튼(개인·팀·업무·Google) · 구글 캘린더별 보기/가리기 · 월 보기 날짜 호버 · connection_id 404/502(a96c5253·23e9adf0·42940c6a·6be0aa4f)",
       "verified": "opus_only"
     },
     {
-      "title": "고객 채널 = 프로젝트 × 고객 — 고객사가 둘인 프로젝트에서 서로의 방·청구서 카드가 보이던 것(e55e24e5·f5964b67)",
-      "verified": "fable_pass"
-    },
-    {
-      "title": "프로젝트 복사본도 계정 있는 고객에게 바로 보임(e55e24e5)",
-      "verified": "fable_pass"
-    },
-    {
-      "title": "외부 열람 링크를 고객마다 — 고객 둘 이상이면 «어느 고객에게 줄 링크인가요?»(4b27bd7e)",
-      "verified": "fable_pass"
-    },
-    {
-      "title": "AI 앱 쓰기 보강 — 프로젝트 만들기·컨펌자 지정(확인 2단계)·Q note 메모·Q info 항목·업무 태그/예상시간(293104c6)",
-      "verified": "fable_pass"
-    },
-    {
-      "title": "일정 참석자 알림 선택 — 등록 «참석자에게 알림 보내기»+한 줄 메시지 · 시간·장소 변경 «변경 알림을 보낼까요?»(a5e91e45, #462)",
-      "verified": "fable_pass"
-    },
-    {
-      "title": "개인 구글 캘린더에서 PlanQ 일정을 올릴 캘린더 고르기 · 방침 문구(48e0164d·0eeb0b4b)",
-      "verified": "fable_pass"
-    },
-    {
-      "title": "Q mail 업체 보낸편지함·스팸함 읽기 전용 가져오기 · 플랫폼 발송 계정 보낸편지함 제외 · 내부 전달은 «답이 없다» 아님(b507d670·82b4bc0e)",
-      "verified": "fable_pass"
-    },
-    {
-      "title": "Cue 질문 주제 분석(누가·어디서 없이) · 가명 원문 30일 opt-in · 질문 기록 90일 보관(774d6aab)",
-      "verified": "fable_pass"
-    },
-    {
-      "title": "말하기 = Cue 와 같은 결과 · Cue 카드 일정 날짜·시간 편집(59b04893·a16fa23b·3cfbbb8b, #458)",
+      "title": "일정 — 화상미팅 링크를 건 등록은 상세를 열어 둔다(92143588)",
       "verified": "opus_only"
     },
     {
-      "title": "피드백 회신 알림을 받는 사람 언어로(c11cf194, #457)",
-      "verified": "fable_pass"
-    },
-    {
-      "title": "안드로이드 다른 앱 «공유» → PlanQ(76da612a, #434·#456 — 앱 빌드 필요)",
-      "verified": "fable_pass"
-    },
-    {
-      "title": "설문 — 표 문서를 «설문으로 받기»: 링크로 누구나 응답 · 응답 = 표 한 줄 · 칸별 통계(725ec330·78c5b3e8, #460)",
-      "verified": "fable_pass"
-    },
-    {
-      "title": "종일 일정 = 날짜 — 다른 기기·시간대에서 하루 밀리던 것(c79778d1·ea44f5f5)",
-      "verified": "fable_pass"
-    },
-    {
-      "title": "돈 정합 0-A 구독·0-B 청구 — 고아 결제·예약 다운그레이드·애드온 합산·체험 잔여일·통화 반올림·청구서 번호(93c558a2·2dfd8320)",
-      "verified": "fable_pass"
-    },
-    {
-      "title": "정합 일괄 0-C~0-J — 격리·가시성 · 휴지통 보관 하한 · 관리자/메뉴 권한 한 함수 · 초대 경로 · 숫자 한 벌 · 알림 계약 · i18n 610키 · 작은 결함(ccd7b793~43e48a10)",
-      "verified": "fable_pass"
-    },
-    {
-      "title": "서명 — 빨간 칸이 다음 행동을 말하고, 누르면 그 자리에서 서명 창 · 앱 탭 모드 빈 탭 수정(2905f5c4·4e0cdaec·c4fa04f8·fe20f95b)",
+      "title": "Q mail — AI 요청 바 · 보낸메일함 PlanQ/다른 곳 필터 · 폴더별 마지막 메일 기억 · 무한 스크롤 60건 정지·새로고침 200 잘림(ed4cafe4·f23442fb·ed936de1)",
       "verified": "opus_only"
     },
     {
-      "title": "구독 결제 이력 [영수증] 빈 화면 수정(f8585dce, #464)",
+      "title": "요금제 — 결제 이력에 환불 기준 안내 + [환불 요청] 입구(4c5a8520)",
       "verified": "opus_only"
     },
     {
-      "title": "관리자 «확인 필요» 메뉴·배지·알림 — 입금 통보가 종·푸시·사이드바에 뜨고 그 구독 행으로 이동(cd372c3a·6431fc29)",
+      "title": "구독 관리 — 결제 전 체험 워크스페이스 표시 · 주인 이름·이메일 · 만든 날 정렬(de9f5626)",
       "verified": "opus_only"
     },
     {
-      "title": "Q docs AI로 수정(전후 보기·고른 곳만 반영) · 편집기 찾기·바꾸기(53b28bfe·668ad98e)",
+      "title": "워크스페이스 새로 만든 뒤 대시보드로(3456664d)",
       "verified": "opus_only"
     },
     {
-      "title": "근태·Insights 공휴일·가동률 수정(1a632eec)",
+      "title": "서명 화면 — 안내 한 상자 · 웹 보기와 같은 틀(69f5635c·dac43aa4)",
+      "verified": "opus_only"
+    },
+    {
+      "title": "연동 팝업 닫기·완료 신호가 안 돌던 것 — 같은 출처 파일 + 받는 쪽 한 훅(0f0ec6b0)",
+      "verified": "opus_only"
+    },
+    {
+      "title": "Q sales 자동 유입 꺼짐 안내에 [설정에서 바꾸기](499e80cd)",
+      "verified": "opus_only"
+    },
+    {
+      "title": "내 외부 연동 «회사 설정으로» 링크 목적지 수정(a6d240ce)",
+      "verified": "opus_only"
+    },
+    {
+      "title": "랜딩 — 인사이트·앱 다운로드 상단 별도 메뉴 · «브랜드스토리» 이름 복원 · 앱 다운로드 QR(/app)(32c18aac·2e8edd94·faaf97c0·965bf938)",
+      "verified": "opus_only"
+    },
+    {
+      "title": "정찰 방 읽기 전용 훅 — 도구 전용(74edfe6c)",
       "verified": "fable_pass"
     },
     {
-      "title": "AI 앱 업무 프로젝트 옮기기 move_task_to_project(a176687c, #463)",
-      "verified": "fable_pass"
-    },
-    {
-      "title": "관리자 화면에서 워크스페이스 전환 경합(493ee902)",
+      "title": "dev-login «시험 계정으로 열기» — 개발서버 전용(827b9df8)",
       "verified": "opus_only"
-    },
-    {
-      "title": "새 팀 첫 길 점검 12건 — 가입→초대→합류→업무 요청→대화(c3338502)",
-      "verified": "opus_only"
-    },
-    {
-      "title": "팀 적응 5단계 카드·도움말·랜딩 /start(98abbd28)",
-      "verified": "opus_only"
-    },
-    {
-      "title": "가입 때 혼자·팀 고르기(플랜별 14일 체험) · 체험 중 플랜 바꾸기 · 체험 비용 캡(53d498a4)",
-      "verified": "fable_pass"
-    },
-    {
-      "title": "링크 → 앱 열기 경로 넓힘 · 다른 서버 링크는 브라우저(53d498a4 — 도메인 분리는 새 앱 빌드)",
-      "verified": "opus_only"
-    },
-    {
-      "title": "체험 결제 유도 카드 · 체험 중 결제 «해지하고 환불 요청»(6ce9afae·58961679)",
-      "verified": "fable_pass"
-    },
-    {
-      "title": "보안 점검 2차 — 고객·외부인 누수 · 팀/개인 분리 · 해킹 대응 30여 건(fb014582)",
-      "verified": "fable_pass"
-    },
-    {
-      "title": "관리자 열람 규칙 D2·D3·D4 — «나만 보기» owner/admin 도 닫힘 · 팀 대화 참여자만 · 남의 개인 메일 끄기만(f4377490)",
-      "verified": "fable_pass"
-    },
-    {
-      "title": "캘린더 끝난 일정 흐리게 · 현재 시각 선 1분 갱신(9888764a)",
-      "verified": "opus_only"
-    },
-    {
-      "title": "고객 링크 — 열려 있는 링크 줄 [복사] · 옛 난수 링크는 닫지 않고 «복사할 수 있는 새 주소 받기»(d08b5274·bdc8c657)",
-      "verified": "opus_only"
-    },
-    {
-      "title": "고객 프로젝트 링크 — 개요 기본정보·업무 통계·주요 이슈·히스토리 탭·파일 «보기»(이미지·PDF)(9c08b7a7) — Fable 1차 FAIL(운영 poppler 없음) → 코드 수정 · Irene 운영 poppler-utils 설치 → 재판정 PASS",
-      "verified": "fable_pass"
     }
   ],
   "behavior_changes": [
-    "고객사가 둘 이상인 프로젝트는 고객마다 대화방이 따로 생긴다(배포 때 K-DINE Aidan 은 자기 방으로 옮겨짐)",
-    "청구서 카드는 그 청구 고객의 방으로만 간다(없으면 보내지 않음)",
-    "일정 등록·변경 때 참석자 알림을 고를 수 있다 · 계정 있는 고객 참석자도 앱 알림을 받는다(메일 아님)",
-    "메일 «보낸메일» 에 Gmail·네이버에서 직접 보낸 메일도 보이고, 업체 스팸함 메일이 «스팸» 탭에 보인다(30일 뒤 자동 삭제)",
-    "워크스페이스 설정 > Cue 에 «질문 주제 분석»(기본 켬)·«원문 30일 보관»(기본 끔) 스위치",
-    "구글 캘린더 연결 아래 «PlanQ 일정을 올릴 캘린더» 선택(다시 연결 후)",
-    "종일 일정은 어느 시간대에서 봐도 같은 날짜",
-    "가입·새 워크스페이스 때 혼자(Starter)·팀(Basic)·큰 팀(Pro) 체험을 고른다 · 체험 중 AI 월 50회·녹음 60분",
-    "체험 중 결제한 대표는 체험이 끝나기 전 «해지하고 환불 요청» 가능(관리자 처리)",
-    "«나만 보기» Q info·일정은 owner/admin 도 못 본다 · 프로젝트·고객 없는 팀 대화는 참여자만",
-    "휴지통 보관은 모든 플랜 최소 30일"
+    "업무에 «내부 업무» 표시가 생겼다 — 켜면 프로젝트 고객·게스트 링크·공개 링크에서 그 업무가 안 보인다(멤버는 그대로). 기존 업무는 전부 일반",
+    "팝아웃에서 우선순위 번호 버튼이 내려가고, 끌어서 옮기는 «내 순서»(사람마다 따로)로 바뀌었다",
+    "Q task 기본 정렬 — # 칸 없는 탭은 마감 오래된 순, 완료는 모든 탭에서 맨 아래",
+    "새 워크스페이스를 만들면 대시보드(시작 안내)로 간다",
+    "랜딩 상단에 인사이트·앱 다운로드가 별도 메뉴로"
   ],
   "issues": [],
-  "blocked_on_human": [
-    "운영 서버 poppler-utils 설치(sudo apt-get install -y poppler-utils) — 없으면 배포 사전검사가 멈춘다 · 설치 후 Fable 재판정",
-    "운영 privacy_version 올리기(재동의) + 방침 시행일",
-    "Google Cloud 콘솔 OAuth 데이터 액세스에 calendar.calendarlist.readonly 추가 후 심사 제출",
-    "ChatGPT·Claude 앱 다시 연결(projects:write)",
-    "nginx 내부 주소 두 겹 차단 운영 적용 — sudo /opt/planq/scripts/apply-nginx-internal-deny.sh prod",
-    "배포 후 운영 node seed-wiki-content.js(도움말 글)"
-  ],
+  "blocked_on_human": [],
   "migrations": [
-    "메일 분류: 스키마 변경 없음. 배포 뒤 운영 `node scripts/retriage-mail.js --promote-only --list` 미리보기 → Irene 확인 후 `--apply`(자동·마케팅 → 확인 권장만). 플래그 없는 --apply 금지. 발신자 규칙 2건(제목 «(NPROD) Statement of Account»·«Your report for» → 자동·마케팅)은 운영 DB 에 따로 등록",
-    "migrate-mail-folders.js",
-    "migrate-cue-question-analysis.js",
-    "migrate-customer-channel-per-client.js --apply(→ migrate-project-client-user.js)",
-    "migrate-survey.js",
-    "migrate-allday-utc-date.js",
-    "migrate-invoice-money.js",
-    "migrate-billing-0a.js",
-    "migrate-trial-refund.js",
-    "migrate-history-entry-client-visible.js"
+    "migrate-task-security-level.js — tasks.security_level ENUM('general','internal') 추가(멱등, 배포 슬롯 등록). 롤백은 코드만, 컬럼은 남긴다",
+    "migrate-task-user-order.js — task_user_orders 표 추가(멱등, 배포 슬롯 등록)"
   ],
   "check_areas": [
-    "고객 둘 이상 프로젝트의 고객 채팅방·청구서 발행·외부 열람 링크",
-    "일정 등록(참석자 알림 체크)·상세에서 시간/장소 변경",
-    "Q mail 보낸메일·스팸 탭 · 메일 계정 설정의 «업체 메일함 가져오기»",
-    "워크스페이스 설정 > Cue · 플랫폼 관리자 > Cue 질문",
-    "AI 앱 프로젝트 만들기(재연결 후)",
-    "설문(표 문서 → 응답 받기) 공개 응답·통계",
-    "요금제 화면 체험 플랜 바꾸기·선결제·환불 요청 · 관리자 결제 이력 체험 환불 처리",
-    "서명 화면(빨간 칸 → 서명 창)",
-    "Q docs AI로 수정·찾기/바꾸기"
+    "업무 상세 «내부 업무» 켜기 → 고객 화면·게스트 링크·공개 링크에서 사라지는지",
+    "Cue 바에 업무 여러 개 나열 → 묶음 카드 한 장으로 만들어지는지",
+    "팝아웃 촘촘히 보기·끌어서 순서 바꾸기",
+    "캘린더 분류 버튼·구글 캘린더별 칩",
+    "Q mail 보낸메일함 필터·무한 스크롤"
   ],
   "backlog": [
-    "네이버 Message-ID 보존 실측",
-    "하루 해시 비밀을 전용 키로 분리",
-    "대시보드·확인필요의 일정 시각도 워크스페이스 시간대로"
+    "설계 승인 대기 2건 — 설문 v2 · 업무 «액션»(Fable 설계, Irene 승인 전)"
   ],
   "tooling_health": [
-    "Fable 4라운드(1차 FAIL→외부 링크 고객축 · 2차 FAIL→메일 a·b · 3차 FAIL→게스트 넘겨받기 · 4차 PASS)"
+    "배포는 마지막 커밋의 깨끗한 사본에서 — 미커밋 46개(다른 방 진행 중)는 빼고 배포"
   ],
-  "undeployed": []
+  "undeployed": [
+    "업무 공개 범위·대상 멤버 작업(미커밋 — 다른 방 진행 중)"
+  ]
 }
