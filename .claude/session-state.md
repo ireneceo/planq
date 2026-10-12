@@ -1,5 +1,13 @@
 ## 현재 작업 상태
 
+### 완료: 서명 화면을 «웹으로 보기» 틀로 (방 29329809 · 2026-10-12 · [Opus]) — 운영 미배포
+- 원문 *"서명하기 할 때 나오는 페이지는 웹으로 보기 페이지처럼 … 우측하단 채팅버튼 없고. 내가 로그인해서 이렇게 나오는 거야? 웹용으로 열리는 건 다 통일된 상단"*
+- dac43aa4. 원인: `/sign/` 만 공개 화면 판정에서 빠져 Q helper(채팅 모양) 버튼이 로그인·비로그인 모두 떴고, 로그인이면 도크·메모 단추까지 → `utils/publicSurface.isPublicViewPath`(/public/·/sign/).
+  머리줄은 `PublicPageShell` 의 `PublicToolbar` 한 벌 — 서명 화면·옛 공개 문서·공개 청구서가 같이 씀(서명 화면은 단계·할 일 줄과 묶음째 sticky). 서명 후 머리줄 PDF.
+- 검증: 3폭 × 비로그인/로그인 6/6(고정 버튼 0 · 머리줄 전폭 · 스크롤 뒤 할 일 줄 위 · 가로 넘침 0) · 수정 전 같은 측정에서 버튼 1개(대조) · build 0 · guard 68/69 · --suite signature 0 실패 · Fable 안 씀(UI 틀).
+- 확인 못 함: 공개 청구서·옛 공개 문서(/public/docs) 실화면 — 개발 DB 에 열린 공유 링크 없음(빌드만).
+- 웹 보기의 홍보 띠(«플랜큐 바로가기»)는 서명 화면에 안 넣음 — 같은 자리에 민트색 할 일 줄이 있어 두 띠가 겹친다.
+
 ### 답 기다림: 묶음 3건 — 설계 3개 승인 (방 f3217c67 · 2026-10-12 · [Opus]+[Fable 설계 3회]) — 연동 팝업 수리는 완료, 운영 미배포
 - ✅ 연동 팝업(0f0ec6b0): OAuth 마지막 화면 인라인 스크립트가 helmet CSP 에 막혀 닫기·완료 신호가 한 번도 안 돌던 것 → 같은 출처 파일 /api/oauth/popup-done.js·native-return.js + 화면 한 벌 utils/oauthPopupPage + 받는 쪽 hooks/useOauthPopupDone(4곳).
   내 외부 연동 › 구글 캘린더에 «Q calendar 에 보일 캘린더 (여러 개)»(visible-calendars 재사용). 검증: 팝업 7/7(대조군 뒤집힘) · 화면 3폭 · PUT 1건 · build 0 · guard 68/69 · health 84/84 · Fable 미검증(자체 검증 — 값 없는 정적 스크립트, CSP 안 넓힘).
