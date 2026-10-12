@@ -106,6 +106,16 @@ BusinessCloudToken.init({
     type: DataTypes.DATE,
     allowNull: true
   },
+  // 팀 일정을 **새로 올릴** 구글 캘린더 (docs/TEAM_CALENDAR_PICK_DESIGN.md). NULL = primary(옛 행 그대로).
+  //   이미 올린 일정의 수정·삭제는 이 값이 아니라 링크의 gcal_calendar_id 로 한다.
+  gcal_calendar_id: {
+    type: DataTypes.STRING(255),
+    allowNull: true,
+  },
+  gcal_calendar_summary: {
+    type: DataTypes.STRING(255),
+    allowNull: true,
+  },
   gcal_sync_token: {
     type: DataTypes.TEXT,
     allowNull: true,

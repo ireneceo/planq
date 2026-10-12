@@ -5,6 +5,9 @@ import { allDayIsoRange } from '../../utils/allDayDate';
 //   '나만보기' 일정 클릭 시 같은 숫자 id 의 task 가 잘못 열리던 버그 차단. 실제 이동/조회는 _task_id 사용.
 export const TASK_EVENT_ID_OFFSET = 1_000_000_000;
 
+/** 구글 캘린더 색이 없을 때 — 분류 팔레트(categoryColors)에 없는 회청. */
+export const GOOGLE_FALLBACK_COLOR = '#64748B';
+
 // 개인 Google 캘린더 일정 (read-only overlay) 식별
 export const isPersonalEvent = (e: CalendarItem): e is PersonalCalendarEvent =>
   (e as PersonalCalendarEvent)._source === 'personal_google';
@@ -39,8 +42,10 @@ export const personalToEvent = (raw: PersonalRaw, untitledLabel = '(제목 없�
   start_at: raw.start_at,
   end_at: raw.end_at || raw.start_at,
   all_day: !!raw.all_day,
-  // 구글 캘린더마다 색이 다르다 — «어느 캘린더 일정인지» 를 색으로 가른다(2026-10-12). 색이 없으면 종전 teal.
-  color: (raw.calendar_color && /^#[0-9a-fA-F]{6}$/.test(raw.calendar_color)) ? raw.calendar_color : '#14B8A6',
+  // 구글 캘린더마다 색이 다르다 — «어느 캘린더 일정인지» 를 색으로 가른다(2026-10-12).
+  //   색이 없을 때의 대체색은 회청 #64748B — 종전 틸(#14B8A6)은 PlanQ «개인» 분류색과 같은 계열이라 섞였다
+  //   (docs/TEAM_CALENDAR_PICK_DESIGN.md §3-4). 분류 팔레트에 없는 색이다.
+  color: (raw.calendar_color && /^#[0-9a-fA-F]{6}$/.test(raw.calendar_color)) ? raw.calendar_color : GOOGLE_FALLBACK_COLOR,
   html_link: raw.html_link ?? null,
   account_email: raw.account_email ?? null,
   // 어댑터가 서버 판정을 버리면 화면이 다시 "무조건 읽기 전용" 으로 돌아간다.

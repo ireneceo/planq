@@ -46,7 +46,8 @@
     "cleanSelected_other": "선택한 {{count}}건 지우기",
     "cleaned_one": "구글에서 옛 사본 {{count}}건을 지웠습니다.",
     "cleaned_other": "구글에서 옛 사본 {{count}}건을 지웠습니다.",
-    "cleanFailed": "정리하지 못했습니다. 잠시 후 다시 시도해 주세요."
+    "cleanFailed": "정리하지 못했습니다. 잠시 후 다시 시도해 주세요.",
+    "workspaceTarget": "(올라가는 곳: {{email}} · {{name}})"
   },
   "filter": {
     "all": "전체",
@@ -207,7 +208,9 @@
     "share": "공유",
     "gcalMeetingKept": "회의가 걸린 캘린더 사본은 동기화를 꺼도 유지됩니다 (참석자에게 배포된 링크 보호). 비공개로 바꾸면 팀 사본은 회수됩니다.",
     "me": "나",
-    "meetingNote": "미팅 정리"
+    "meetingNote": "미팅 정리",
+    "gcalTeamWhere": "팀 일정 → Google 「{{name}}」",
+    "gcalTeamPrevious": "전에 고른 캘린더"
   },
   "empty": {
     "month": "이번 달엔 예정된 일정이 없습니다",
@@ -387,6 +390,8 @@
     "googleMore": "다른 구글 캘린더",
     "googleOther": "다른 캘린더",
     "googleListFailed": "구글 캘린더 목록을 불러오지 못했습니다. 잠시 뒤 다시 열어 주세요.",
-    "googleNeedList": "지금은 일정을 올리는 캘린더 하나만 보입니다. 다른 캘린더(보조·공유·공휴일)도 보려면 구글에서 «캘린더 목록 보기» 를 한 번 더 허용해 주세요."
+    "googleNeedList": "지금은 일정을 올리는 캘린더 하나만 보입니다. 다른 캘린더(보조·공유·공휴일)도 보려면 구글에서 «캘린더 목록 보기» 를 한 번 더 허용해 주세요.",
+    "sourceGoogle": "Google · {{name}}",
+    "googleAccounts": "{{count}}계정"
   }
 }

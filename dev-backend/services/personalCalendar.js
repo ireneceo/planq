@@ -140,7 +140,7 @@ function hasCalendarWrite(conn) {
 //   골라 둔 캘린더 id 는 `external_connections.metadata.calendar_id`. 없으면 'primary'(기존 동작 그대로).
 //   ★ 이미 밀어 넣은 일정은 **그 일정을 넣은 캘린더**(`calendar_event_gcal_links.gcal_calendar_id`)에서 고치고 지운다 —
 //     캘린더를 바꾼 뒤 옛 일정을 새 캘린더 id 로 부르면 404 가 나고 구글에 고아가 남는다.
-const CALENDAR_LIST_SCOPE = 'https://www.googleapis.com/auth/calendar.calendarlist.readonly';
+const CALENDAR_LIST_SCOPE = googleScopes.CALENDAR_LIST_SCOPE;   // 정본은 googleScopes(팀 연결과 같은 상수)
 function metaOf(conn) {
   const m = conn && conn.metadata;
   if (!m) return {};
@@ -153,7 +153,7 @@ function calendarIdOf(conn) {
 }
 /** 캘린더 목록을 읽을 권한이 있는가 — 옛 연결은 «다시 연결하면 고를 수 있다» 로 안내한다. */
 function hasCalendarList(conn) {
-  return String((conn && conn.scope) || '').split(/[\s,]+/).includes(CALENDAR_LIST_SCOPE);
+  return googleScopes.hasCalendarList(conn && conn.scope);
 }
 /**
  * 캘린더 목록.

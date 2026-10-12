@@ -179,6 +179,22 @@ const EventDrawer: React.FC<Props> = ({
     try { await onCreateMeetingRoom(); } finally { setReissuingMeeting(false); }
   };
 
+  // 팀 일정이 **어느 구글 캘린더에** 올라가 있나 — 상세 한 줄(docs/TEAM_CALENDAR_PICK_DESIGN.md §3-3).
+  //   목록 응답엔 링크가 없어 상세 GET 이 주는 gcal_team_calendar 를 한 번 읽는다(팀 연결이 쓰기 가능할 때만).
+  const [teamCal, setTeamCal] = useState<{ is_default: boolean; summary: string | null; is_previous: boolean } | null>(null);
+  const evId = event?.id ?? null;
+  const evBiz = event?.business_id ?? null;
+  useEffect(() => {
+    setTeamCal(null);
+    if (!evId || !evBiz || !workspaceCanWrite) return;
+    let alive = true;
+    apiFetch(`/api/calendar/by-business/${evBiz}/${evId}`)
+      .then((r) => r.json().catch(() => null))
+      .then((j) => { if (alive && j?.success) setTeamCal(j.data?.gcal_team_calendar || null); })
+      .catch(() => { /* 표시용 보조 정보 */ });
+    return () => { alive = false; };
+  }, [evId, evBiz, workspaceCanWrite]);
+
   // #126 — "구글 캘린더로 보내기" (backfill). push 기능 이전에 만든 일정(gcal_event_id NULL)을 명시적 push.
   const [pushingGcal, setPushingGcal] = useState(false);
   const [gcalPushErr, setGcalPushErr] = useState<string | null>(null);
@@ -1004,12 +1020,26 @@ const EventDrawer: React.FC<Props> = ({
               // 연결된 목적지만 계산에 넣는다 — 안 연결된 쪽은 켜져 있어도 실제로 나가는 데가 없다.
               const wsOn = !!workspaceCanWrite && ev.gcal_sync_workspace !== false && !priv;
               const peOn = !!personalCalWritable && ev.gcal_sync_personal !== false;
+              // 팀 사본이 실제로 있는 캘린더 — 링크 기준(옛 일정은 옛 캘린더에 남는다)
+              const teamWhere = wsOn && teamCal ? (
+                <TeamCalWhere data-testid="event-team-calendar">
+                  {t('drawer.gcalTeamWhere', {
+                    name: teamCal.summary
+                      || (teamCal.is_previous ? t('drawer.gcalTeamPrevious', '전에 고른 캘린더') : t('layer.googleDefault', '기본 캘린더')),
+                    defaultValue: '팀 일정 → Google 「{{name}}」',
+                  }) as string}
+                </TeamCalWhere>
+              ) : null;
               if (!canEdit) {
-                return <Plain>{[wsOn ? t('drawer.gcalTeam') : null, peOn ? t('drawer.gcalPersonal') : null]
-                  .filter(Boolean).join(' · ') || t('drawer.gcalNone')}</Plain>;
+                return <>
+                  <Plain>{[wsOn ? t('drawer.gcalTeam') : null, peOn ? t('drawer.gcalPersonal') : null]
+                    .filter(Boolean).join(' · ') || t('drawer.gcalNone')}</Plain>
+                  {teamWhere}
+                </>;
               }
               return (
                 <>
+                  {teamWhere}
                   {workspaceCanWrite && (
                     <GcalSyncRow $disabled={priv} title={priv ? (t('drawer.gcalTeamBlocked') as string) : undefined}>
                       <input type="checkbox" checked={wsOn} disabled={priv}
@@ -1244,6 +1274,7 @@ const MutedSmall = styled.div`
 `;
 // 운영 #41 — 타임존 안내 (기준 tz / 개인 tz 보조)
 const Plain = styled.div` font-size: 0.8125rem; color: #334155; `;
+const TeamCalWhere = styled.div`font-size:0.75rem;color:#64748B;line-height:1.5;padding:2px 0;word-break:break-all;`;
 const GcalSyncRow = styled.label<{ $disabled?: boolean }>`display:flex;align-items:center;gap:8px;padding:3px 0;font-size:0.8125rem;color:#334155;cursor:${p=>p.$disabled?'not-allowed':'pointer'};opacity:${p=>p.$disabled?0.55:1};`;
 const Muted = styled.span` font-size: 0.75rem; color: #94A3B8; font-style: italic; `;
 const Description = styled.div`

@@ -6,6 +6,7 @@ import type { CalendarEvent, CalendarItem } from './types';
 import { getMonthGridDays, isSameMonth, isSameDay, toDateKey } from './dateUtils';
 import { getEventColors } from './categoryColors';
 import { bookingAttr, bookingCss, BookingTag } from './bookingLook';
+import { SourceDot } from './sourceLook';
 import { pastAttr, pastCss, pastDayAttr, PAST_DAY_BG, PAST_DAY_BG_HOVER, PAST_DAY_TEXT } from './pastLook';
 import { isTaskEvent } from './taskToEvent';
 import { formatDay } from '../../utils/dateFormat';
@@ -134,14 +135,15 @@ const MonthView: React.FC<Props> = ({ anchor, today, now, events, onSelectEvent,
                       onClick={(ev) => { ev.stopPropagation(); hc.close(); onSelectEvent(e.id, e.start_at?.slice(0, 10)); }}
                       title={[e.title, linkLine(e, t)].filter(Boolean).join(' — ')}
                     >
-                      <BookingTag e={e as CalendarEvent} />
+                      <SourceDot e={e} /><BookingTag e={e as CalendarEvent} />
                       {isTask && (
                         <TaskIcon viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                           <polyline points="9 11 12 14 22 4" />
                           <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
                         </TaskIcon>
                       )}
-                      {!isTask && !e.all_day && isStart && <Dot $color={c.fg} />}
+                      {/* 구글 일정은 앞의 출처 점(SourceDot)이 그 자리를 맡는다 — 점 두 개를 겹쳐 그리지 않는다 */}
+                      {!isTask && !e.all_day && isStart && (e as { _source?: string })._source !== 'personal_google' && <Dot $color={c.fg} />}
                       <ChipTitle>
                         {!isTask && !e.all_day && isStart && (
                           <ChipTime>{formatChipTime(e.start_at, t)}</ChipTime>

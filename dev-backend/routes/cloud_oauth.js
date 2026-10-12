@@ -208,6 +208,13 @@ router.get('/callback/gcal', async (req, res) => {
     //   반드시 존재한다(현재는 사실상 죽은 폴백이지만, 옛 값을 남기는 코드를 옆에 두면
     //   다음 사람이 그것을 정상 패턴으로 읽는다).
     record.scope = tokens.scope;
+    // 다른 구글 계정으로 다시 연결했으면 골라 둔 «올릴 캘린더» 는 그 계정 것이 아니다 — 기본(primary)으로 되돌리고
+    //   역방향 커서도 비운다(새 계정 캘린더를 처음부터 읽는다). 같은 계정이면 그대로 둔다.
+    if (accountEmail && record.account_email && accountEmail !== record.account_email) {
+      record.gcal_calendar_id = null;
+      record.gcal_calendar_summary = null;
+      record.gcal_sync_token = null;
+    }
     record.account_email = accountEmail || record.account_email;
     record.connected_by = parsed.userId;
     record.connected_at = new Date();

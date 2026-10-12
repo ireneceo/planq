@@ -98,7 +98,7 @@ export interface PersonalCalendarEvent {
   start_at: string;
   end_at: string;
   all_day: boolean;
-  color: string;         // 구글 캘린더 색(없으면 teal #14B8A6)
+  color: string;         // 구글 캘린더 색(없으면 회청 #64748B — taskToEvent.GOOGLE_FALLBACK_COLOR)
   html_link: string | null;
   account_email: string | null;
   // ★ 여태 리터럴 true 였다 — 쓰기 권한이 있어도 화면은 읽기 전용이라고 말하고 있었다.

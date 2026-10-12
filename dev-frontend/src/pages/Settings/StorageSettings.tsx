@@ -6,6 +6,8 @@ import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { apiFetch, useAuth } from '../../contexts/AuthContext';
 import DriveLocationPanel from '../../components/Settings/DriveLocationPanel';
+import TeamCalendarPick from '../../components/Settings/TeamCalendarPick';
+import { joinRoom, leaveRoom, onSocket } from '../../services/socket';
 import { useOauthPopupDone } from '../../hooks/useOauthPopupDone';
 import { fetchStorageStatus, formatBytes, type StorageStatus } from '../../services/files';
 
@@ -26,6 +28,8 @@ interface ProviderState {
   needs_reconnect?: boolean;
   scope_ok?: boolean;      // gcal — 동의 화면에서 캘린더 쓰기 권한을 실제로 받았는지
   sync_enabled?: boolean;  // 연결 유지 + 동기화만 끔
+  workspace_calendar_summary?: string | null;  // gcal — 팀 일정을 올리는 캘린더 이름(null = 기본)
+  can_list_calendars?: boolean;                // gcal — 캘린더 목록 권한을 받았는가(고르기)
   // #379 v2 — Drive → PlanQ 역방향 인제스트 상태. 서버가 저장된 권한에서 **파생**해 내려준다.
   //   active=false 라도 고장이 아니라 '권한 대기' 일 수 있어 reason 을 같이 본다.
   ingest?: { active: boolean; reason: 'ok' | 'scope_missing' | 'no_root_folder'; recent_30d: number } | null;
@@ -67,8 +71,9 @@ const StorageSettings: React.FC<Props> = ({ businessId }) => {
   const [s3busy, setS3busy] = useState(false);
   const [s3msg, setS3msg] = useState<{ tone: 'ok' | 'err'; text: string } | null>(null);
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  // silent — 저장·실시간 신호 뒤 다시 읽을 때는 화면을 뼈대로 갈아끼우지 않는다(자동저장 ✓ 뱃지가 사라진다).
+  const load = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const [pv, st, usage, stg] = await Promise.all([
         apiFetch('/api/cloud/providers').then(r => r.json()).catch(() => null),
@@ -128,6 +133,20 @@ const StorageSettings: React.FC<Props> = ({ businessId }) => {
 
   useEffect(() => { load(); }, [load]);
 
+  // 다른 화면·다른 대표 창에서 «올릴 캘린더» 를 바꾸면 신호(cloud:updated)만 온다 — 다시 읽는다.
+  useEffect(() => {
+    if (!businessId) return;
+    const room = `business:${businessId}`;
+    joinRoom(room);
+    let timer: number | null = null;
+    const off = onSocket<{ business_id?: number }>('cloud:updated', (d) => {
+      if (d && d.business_id && Number(d.business_id) !== Number(businessId)) return;
+      if (timer) window.clearTimeout(timer);
+      timer = window.setTimeout(() => { void load(true); }, 250);
+    });
+    return () => { if (timer) window.clearTimeout(timer); off(); leaveRoom(room); };
+  }, [businessId, load]);
+
   // OAuth 팝업 수신 (회사 공용 gdrive/gcal) — 신호 세 길 + 네이티브 앱 복귀(hooks/useOauthPopupDone 한 벌).
   // #224 — accounts.google.com 의 COOP 가 팝업의 opener 를 끊는 환경이 있다(그 창은 자기 close() 도 거부된다).
   //   **팝업 핸들을 쥔 이쪽에서 닫는다.**
@@ -144,10 +163,14 @@ const StorageSettings: React.FC<Props> = ({ businessId }) => {
     onDismiss: () => setConnecting(null),
   });
 
-  const handleConnect = async (provider: 'gdrive' | 'gcal') => {
+  // withCalendarList — 팀 «올릴 캘린더 고르기» 에서만 캘린더 목록 권한을 더 묻는다(점진적 동의).
+  const handleConnect = async (provider: 'gdrive' | 'gcal', opts?: { withCalendarList?: boolean }) => {
     setConnecting(provider);
     try {
-      const r = await apiFetch(`/api/cloud/connect/${provider}/${businessId}`, { method: 'POST' });
+      const r = await apiFetch(`/api/cloud/connect/${provider}/${businessId}`, {
+        method: 'POST',
+        ...(opts?.withCalendarList ? { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ with_calendar_list: true }) } : {}),
+      });
       const j = await r.json();
       if (!j.success || !j.data?.auth_url) {
         setConnecting(null);
@@ -501,6 +524,17 @@ const StorageSettings: React.FC<Props> = ({ businessId }) => {
           )}
           {!isOwner && providers.gcal.configured && <InlineHint>{tr('storage.ownerOnlyGcal')}</InlineHint>}
         </CardActions>
+        {providers.gcal.connected && !gcalBroken && (
+          <TeamCalendarPick
+            businessId={businessId}
+            isOwner={isOwner}
+            canList={!!providers.gcal.can_list_calendars}
+            summary={providers.gcal.workspace_calendar_summary ?? null}
+            connecting={connecting === 'gcal'}
+            onAllow={() => handleConnect('gcal', { withCalendarList: true })}
+            onSaved={() => { void load(true); }}
+          />
+        )}
       </ProviderCard>
 
       {/* 연결 해제 확인 모달 */}

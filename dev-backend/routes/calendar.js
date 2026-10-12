@@ -372,6 +372,24 @@ router.get('/by-business/:businessId/:id', authenticateToken, attachWorkspaceSco
 
     const [evJson] = await stripClientMaterials([event.toJSON()], req.user.id, req.scope);
     await require('../services/eventTaskLink').attachTaskLinks([evJson], req.user.id, businessId, req.scope);
+    // 팀 일정이 **어느 구글 캘린더에** 올라가 있나 — 상세 한 줄용(docs/TEAM_CALENDAR_PICK_DESIGN.md §3-3).
+    //   링크의 캘린더 기준이다(대표가 «올릴 캘린더» 를 바꿔도 옛 일정은 옛 캘린더에 있다). 고객에게는 싣지 않는다.
+    if (!req.scope?.isClient) {
+      try {
+        const wsLink = await CalendarEventGcalLink.findOne({ where: { event_id: event.id, target: 'workspace' }, attributes: ['gcal_calendar_id'] });
+        if (wsLink) {
+          const tk = await gcal.getTokenForBusiness(businessId);
+          const linkCal = wsLink.gcal_calendar_id || 'primary';
+          const current = tk ? gcal.calendarIdOf(tk) : null;
+          evJson.gcal_team_calendar = {
+            is_default: linkCal === 'primary',
+            // 지금 고른 캘린더와 같으면 그 이름, 기본이면 null, 그 밖(전에 고른 곳)은 is_previous
+            summary: linkCal !== 'primary' && linkCal === current ? (tk.gcal_calendar_summary || null) : null,
+            is_previous: linkCal !== 'primary' && linkCal !== current,
+          };
+        }
+      } catch { /* 표시용 보조 정보 — 실패해도 상세는 연다 */ }
+    }
     return successResponse(res, evJson);
   } catch (err) { next(err); }
 });
@@ -928,6 +946,10 @@ router.delete('/by-business/:businessId/:id', authenticateToken, checkBusinessAc
     // ★ 구글 정리를 destroy 보다 **먼저** 한다.
     //   calendar_event_gcal_links 는 FK ON DELETE CASCADE 라 destroy 후엔 어느 이벤트를 지울지
     //   알 방법이 사라진다 — 그러면 구글에 고아 일정이 영구히 남는다.
+    // 링크가 관리하던 사본 id — 링크는 자기 캘린더(gcal_calendar_id)에서 지운다. 아래 옛 단일 컬럼 경로가 같은 id 를
+    //   primary 에서 또 지우려 들지 않게 미리 적어 둔다(팀이 «올릴 캘린더» 를 바꾼 뒤의 일정은 primary 에 없다).
+    const linkedGcalIds = new Set((await CalendarEventGcalLink.findAll({ where: { event_id: event.id }, attributes: ['gcal_event_id'] }))
+      .map((l) => l.gcal_event_id));
     try {
       await calendarSync.removeEverywhere(event.id, businessId);
     } catch (e) { console.warn('[calendarSync DELETE]', e.message); }
@@ -942,13 +964,13 @@ router.delete('/by-business/:businessId/:id', authenticateToken, checkBusinessAc
     }
     await event.destroy();
 
-    // 옛 단일 컬럼 경로 — 링크 테이블이 생기기 전에 올라간 일정은 링크 row 가 없다.
-    if (savedGcalEventId) {
+    // 옛 단일 컬럼 경로 — 링크 테이블이 생기기 전에 올라간 일정은 링크 row 가 없다(그때는 늘 primary 였다).
+    if (savedGcalEventId && !linkedGcalIds.has(savedGcalEventId)) {
       try {
         const gcalToken = await gcal.getTokenForBusiness(businessId);
         if (gcalToken && gcal.hasWriteScope(gcalToken.scope)) {
           const cal = await gcal.getCalendarClient(gcalToken);
-          await gcal.deleteEvent(cal, savedGcalEventId);
+          await gcal.deleteEvent(cal, savedGcalEventId, { calendarId: 'primary' });
         }
       } catch (e) { console.warn('[gcal sync DELETE]', e.message); }
     }
@@ -1065,6 +1087,7 @@ router.get('/video/status', authenticateToken, videoStatusAccess, async (req, re
     //   ★ 새 라우트를 만들지 않는다. 프론트가 이미 이 라우트를 쓰고 있는데 sync-status 를 신설하면
     //     /cloud/status · /video/status · /sync-status 세 벌 판정이 된다(Fable 설계 게이트 치명-1).
     let workspaceNeedsReconnect = false;
+    let workspaceCalendarSummary = null;   // 팀 일정을 올리는 구글 캘린더 이름(NULL = 기본 캘린더)
     let workspaceLastErrorAt = null;
     let lastCheckedAt = null;
     let lastReverseSyncAt = null;
@@ -1073,6 +1096,7 @@ router.get('/video/status', authenticateToken, videoStatusAccess, async (req, re
       if (tk) {
         workspaceConnected = true;
         workspaceEmail = tk.account_email;
+        workspaceCalendarSummary = tk.gcal_calendar_id ? (tk.gcal_calendar_summary || tk.gcal_calendar_id) : null;
         workspaceCanWrite = gcal.hasWriteScope(tk.scope);
         workspaceNeedsReconnect = gcal.needsReconnect(tk);   // 판정 단일 원천(설정 화면과 같은 함수)
         workspaceLastErrorAt = tk.last_error_at || null;
@@ -1121,6 +1145,7 @@ router.get('/video/status', authenticateToken, videoStatusAccess, async (req, re
       workspace_connected: workspaceConnected,
       workspace_can_write: workspaceCanWrite,
       workspace_account_email: workspaceEmail,
+      workspace_calendar_summary: workspaceCalendarSummary,
       // ── 개인 축 — 배너가 "누구의 연동을 고쳐야 하는지" 를 가리키려면 두 축이 나뉘어야 한다.
       //   합산된 gcal_connected 만으로는 직원에게 owner 전용 워크스페이스 설정을 안내하게 된다.
       personal_connected: personalConnected,
@@ -1310,6 +1335,7 @@ router.post('/by-business/:businessId/:id/push-to-gcal', authenticateToken, chec
       pushed = await gcal.insertEvent(cal, {
         summary: event.title, description: event.description, location: event.location,
         startAt: event.start_at, endAt: event.end_at, allDay: event.all_day, rrule: event.rrule,
+        calendarId: gcal.calendarIdOf(gcalToken),   // 대표가 고른 «올릴 캘린더» (없으면 primary)
       });
       await gcal.clearPushError(gcalToken);
     } catch (e) {
@@ -1326,10 +1352,11 @@ router.post('/by-business/:businessId/:id/push-to-gcal', authenticateToken, chec
       const link = await CalendarEventGcalLink.findOne({
         where: { event_id: event.id, target: 'workspace', connection_id: null },
       });
-      if (link) await link.update({ gcal_event_id: pushed.id });
+      const calendarId = pushed.calendarId || 'primary';
+      if (link) await link.update({ gcal_event_id: pushed.id, gcal_calendar_id: calendarId });
       else await CalendarEventGcalLink.create({
         event_id: event.id, target: 'workspace', connection_id: null,
-        user_id: null, gcal_event_id: pushed.id, holds_meeting: false,
+        user_id: null, gcal_event_id: pushed.id, holds_meeting: false, gcal_calendar_id: calendarId,
       });
     } catch (e) { console.warn('[push-to-gcal link]', e.message); }
 

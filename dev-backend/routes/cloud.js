@@ -96,6 +96,11 @@ router.get('/status/:businessId', authenticateToken, checkBusinessAccess, async 
         connected_by: t.connector ? t.connector.name : null,
         last_error: t.last_error || null,
         last_error_at: t.last_error_at || null,
+        // 팀 일정을 올리는 구글 캘린더 이름 — NULL = 기본 캘린더(설정 카드·캘린더 화면 배너가 같은 값을 읽는다)
+        ...(t.provider === 'gcal' ? {
+          workspace_calendar_summary: t.gcal_calendar_id ? (t.gcal_calendar_summary || t.gcal_calendar_id) : null,
+          can_list_calendars: gcal.canListCalendars(t),
+        } : {}),
         // gcal 은 쓰기 권한(calendar.events)이 있어야 일정을 구글로 보낼 수 있다.
         // 동의 화면에서 캘린더 항목 미체크로 연결된 옛 토큰은 여기서 false 로 드러난다.
         sync_enabled: t.sync_enabled !== false,   // 연결 유지 + 동기화만 끔
@@ -139,6 +144,9 @@ router.use(require('./cloud_root_folder'));
 
 router.use(require('./cloud_oauth'));
 
+// 팀 «올릴 캘린더» 고르기(목록·저장) — docs/TEAM_CALENDAR_PICK_DESIGN.md. 경로는 /gcal/:businessId/…
+router.use(require('./cloud_gcal_calendar'));
+
 // ─── Google Calendar OAuth 시작 (Google Meet 자동 생성용) ───
 // 사이클 N+13: Daily.co 완전 교체. 워크스페이스 owner 가 Google 계정 1개 OAuth →
 //   그 calendar 의 events.insert 시 conferenceData.createRequest 로 Meet 링크 자동 발급.
@@ -146,7 +154,8 @@ router.use(require('./cloud_oauth'));
 router.post('/connect/gcal/:businessId', authenticateToken, checkBusinessAccess, requireOwnerForCloud, async (req, res, next) => {
   try {
     if (!gcal.isConfigured()) return errorResponse(res, 'Google Calendar not configured on server', 500);
-    const url = gcal.buildAuthUrl(Number(req.params.businessId), req.user.id);
+    // with_calendar_list — [올릴 캘린더 고르기] 에서 왔을 때만 캘린더 목록 권한을 더 묻는다(점진적 동의).
+    const url = gcal.buildAuthUrl(Number(req.params.businessId), req.user.id, { withCalendarList: !!req.body?.with_calendar_list });
     successResponse(res, { auth_url: url });
   } catch (error) { next(error); }
 });

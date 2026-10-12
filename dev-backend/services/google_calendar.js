@@ -132,7 +132,9 @@ function _hmacState(payloadB64) {
   return crypto.createHmac('sha256', secret).update(payloadB64).digest('base64url');
 }
 
-function buildAuthUrl(businessId, userId) {
+// withCalendarList — 대표가 [올릴 캘린더 고르기] 를 눌렀을 때만 목록 권한을 더 묻는다(점진적 동의 —
+//   평소 [연결] 은 그대로. 개인 쪽 personalOauth EXTRA_SCOPES 와 같은 이유).
+function buildAuthUrl(businessId, userId, { withCalendarList = false } = {}) {
   const client = newOAuth2Client();
   const payload = Buffer.from(JSON.stringify({ b: businessId, u: userId, t: Date.now() })).toString('base64url');
   const sig = _hmacState(payload);
@@ -140,7 +142,7 @@ function buildAuthUrl(businessId, userId) {
   return client.generateAuthUrl({
     access_type: 'offline',
     prompt: 'consent',
-    scope: SCOPES,
+    scope: withCalendarList ? [...SCOPES, googleScopes.CALENDAR_LIST_SCOPE] : SCOPES,
     state,
     include_granted_scopes: true,
   });
@@ -214,6 +216,44 @@ async function getCalendarClient(token) {
   return google.calendar({ version: 'v3', auth: client });
 }
 
+/**
+ * 팀 일정을 **새로 올릴** 캘린더 — 대표가 고른 것, 없으면 primary (docs/TEAM_CALENDAR_PICK_DESIGN.md §2).
+ * ★ 이미 올린 일정의 수정·삭제는 이 값이 아니라 **링크의 gcal_calendar_id** 를 쓴다 — 캘린더를 바꿔도
+ *   옛 일정은 옛 캘린더에 남아 있다(옮기지 않는다: 참석자 초대·Meet 링크가 흔들린다).
+ */
+function calendarIdOf(token) {
+  const id = token && token.gcal_calendar_id;
+  return (typeof id === 'string' && id.trim()) ? id.trim() : 'primary';
+}
+
+/** 이 팀 토큰으로 캘린더 목록을 읽을 수 있는가(목록 권한을 받고 다시 연결했는가). */
+function canListCalendars(token) {
+  return googleScopes.hasCalendarList(token && token.scope);
+}
+
+/**
+ * 팀 일정을 올릴 수 있는 캘린더 목록 — **writer/owner 권한만**(freeBusyReader·reader 제외 — 개인 listCalendars 와 같은 필터).
+ * 기본 캘린더는 id 를 'primary' 로 맞춘다(저장값 NULL 과 같은 뜻).
+ */
+async function listWritableCalendars(token) {
+  const cal = await getCalendarClient(token);
+  const out = [];
+  let pageToken;
+  do {
+    const resp = await cal.calendarList.list({ minAccessRole: 'writer', maxResults: 250, pageToken }, { timeout: 10000 });
+    for (const c of (resp.data.items || [])) {
+      if (c.deleted || (c.accessRole !== 'owner' && c.accessRole !== 'writer')) continue;
+      out.push({
+        id: c.primary ? 'primary' : c.id,
+        summary: c.summaryOverride || c.summary || c.id,
+        primary: !!c.primary, access_role: c.accessRole, color: c.backgroundColor || null,
+      });
+    }
+    pageToken = resp.data.nextPageToken;
+  } while (pageToken && out.length < 500);
+  return out;
+}
+
 async function getTokenForBusiness(businessId) {
   return await BusinessCloudToken.findOne({
     where: { business_id: businessId, provider: 'gcal' },
@@ -235,7 +275,7 @@ async function getTokenForBusiness(businessId) {
  *   → Google 이 정기 이벤트로 인식 → 모든 회차에 동일 Meet 링크 영구 유효.
  *   미전달 시 (단일) 첫 회차만 유효, 다음 회차에서 "회의 존재 안 함" 에러 발생하던 회귀 fix.
  */
-async function createMeetingEvent(cal, { summary, description, startAt, endAt, attendeeEmails, timezone, rrule }) {
+async function createMeetingEvent(cal, { summary, description, startAt, endAt, attendeeEmails, timezone, rrule, calendarId }) {
   const requestId = `planq-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
   const tz = timezone || 'Asia/Seoul';
   // rrule 정규화 — Google API 는 ["RRULE:..."] 또는 ["RRULE:...", "EXDATE:..."] 배열을 받음.
@@ -245,7 +285,7 @@ async function createMeetingEvent(cal, { summary, description, startAt, endAt, a
     recurrence = [normalized];
   }
   const res = await cal.events.insert({
-    calendarId: 'primary',
+    calendarId: calendarId || 'primary',
     conferenceDataVersion: 1,  // ← 필수. 안 보내면 conferenceData 가 무시됨.
     sendUpdates: 'none',       // 초대장 메일 발송 안 함 (PlanQ 가 자체 알림 발송)
     requestBody: {
@@ -276,6 +316,7 @@ async function createMeetingEvent(cal, { summary, description, startAt, endAt, a
     hangoutLink: ev.hangoutLink || null,
     meetUrl: meetEntry?.uri || ev.hangoutLink || null,
     conferenceId: ev.conferenceData?.conferenceId || null,
+    calendarId: calendarId || 'primary',
   };
 }
 
@@ -285,7 +326,7 @@ async function createMeetingEvent(cal, { summary, description, startAt, endAt, a
  *   allDay 지원(date vs dateTime). planq='1' 표식으로 개인 오버레이 되돌이 중복 차단.
  * @returns {object} { id, htmlLink }
  */
-async function insertEvent(cal, { summary, description, location, startAt, endAt, allDay, timezone, rrule, attendeeEmails }) {
+async function insertEvent(cal, { summary, description, location, startAt, endAt, allDay, timezone, rrule, attendeeEmails, calendarId }) {
   const tz = timezone || 'Asia/Seoul';
   let recurrence;
   if (rrule && typeof rrule === 'string' && rrule.trim()) {
@@ -298,7 +339,7 @@ async function insertEvent(cal, { summary, description, location, startAt, endAt
     ? { date: allDayEndDateStr(endAt) }   // 구글 종일 end 는 배타적 — 마지막 날 +1
     : { dateTime: new Date(endAt).toISOString(), timeZone: tz };
   const res = await cal.events.insert({
-    calendarId: 'primary',
+    calendarId: calendarId || 'primary',
     sendUpdates: 'none',
     requestBody: {
       summary: summary || 'PlanQ 일정',
@@ -314,13 +355,14 @@ async function insertEvent(cal, { summary, description, location, startAt, endAt
   });
   // etag — 역방향 동기화가 "이 변경은 내가 민 것" 을 알아보는 1차 필터. insert 부터 저장해야
   //   첫 폴링에서 자기 insert 를 남의 변경으로 오인하지 않는다.
-  return { id: res.data.id, htmlLink: res.data.htmlLink || null, etag: res.data.etag || null };
+  return { id: res.data.id, htmlLink: res.data.htmlLink || null, etag: res.data.etag || null, calendarId: calendarId || 'primary' };
 }
 
 /**
  * 이벤트 업데이트 (PlanQ event 가 수정될 때 동기화)
+ * calendarId = 그 일정이 들어 있는 캘린더(링크의 gcal_calendar_id). 없으면 primary(옛 호출 호환).
  */
-async function updateEvent(cal, gcalEventId, { summary, description, location, startAt, endAt, allDay, timezone }) {
+async function updateEvent(cal, gcalEventId, { summary, description, location, startAt, endAt, allDay, timezone }, { calendarId } = {}) {
   const tz = timezone || DEFAULT_TZ;
   const patch = {};
   if (summary !== undefined) patch.summary = summary;
@@ -341,7 +383,7 @@ async function updateEvent(cal, gcalEventId, { summary, description, location, s
       : { dateTime: new Date(endAt).toISOString(), timeZone: tz };
   }
   const res = await cal.events.patch({
-    calendarId: 'primary',
+    calendarId: calendarId || 'primary',
     eventId: gcalEventId,
     sendUpdates: 'none',
     requestBody: patch,
@@ -349,9 +391,9 @@ async function updateEvent(cal, gcalEventId, { summary, description, location, s
   return res.data;
 }
 
-async function deleteEvent(cal, gcalEventId) {
+async function deleteEvent(cal, gcalEventId, { calendarId } = {}) {
   try {
-    await cal.events.delete({ calendarId: 'primary', eventId: gcalEventId, sendUpdates: 'none' });
+    await cal.events.delete({ calendarId: calendarId || 'primary', eventId: gcalEventId, sendUpdates: 'none' });
     return true;
   } catch (e) {
     // 410 Gone / 404 Not Found — 이미 사라진 이벤트
@@ -402,6 +444,9 @@ module.exports = {
   exchangeCodeForTokens,
   getCalendarClient,
   getTokenForBusiness,
+  canListCalendars,
+  listWritableCalendars,
+  calendarIdOf,           // 팀 일정을 새로 올릴 캘린더(대표가 고른 것 · 기본 primary)
   createMeetingEvent,
   insertEvent,
   updateEvent,

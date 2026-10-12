@@ -9,6 +9,7 @@ import type { HolidayMark } from '../../hooks/useWorkspaceHolidays';
 import { HolidayName, holidayLabel } from './holidayLook';
 import { getEventColors } from './categoryColors';
 import { bookingAttr, bookingCss, BookingTag } from './bookingLook';
+import { SourceDot } from './sourceLook';
 import { pastAttr, pastCss, pastDayAttr, PAST_DAY_BG, PAST_DAY_TEXT } from './pastLook';
 import { isTaskEvent } from './taskToEvent';
 import { layoutLanes } from './overlapLayout';
@@ -118,7 +119,7 @@ const TimeGridView: React.FC<Props> = ({ today, now, days, events, onSelectEvent
                     title={[e.title, linkLine(e, t)].filter(Boolean).join(' — ')}
                     onClick={() => onSelectEvent(e.id, e.start_at?.slice(0, 10))}
                   >
-                    <BookingTag e={e as CalendarEvent} />
+                    <SourceDot e={e} /><BookingTag e={e as CalendarEvent} />
                     {isTask && <CheckIcon size={11} style={{ marginRight: 3, verticalAlign: '-2px' }} />}{e.title}
                     {(e as { _is_exception?: boolean })._is_exception && <ExceptionMark title={t('exceptionMark', { defaultValue: '변경된 회차' })}>✎</ExceptionMark>}
                   </AllDayChip>
@@ -208,7 +209,7 @@ const TimeGridView: React.FC<Props> = ({ today, now, days, events, onSelectEvent
                       >
                         <EventHeader>
                           <EventTitle>
-                            <BookingTag e={e as CalendarEvent} />
+                            <SourceDot e={e} /><BookingTag e={e as CalendarEvent} />
                             {e.title}
                             {(e as { _is_exception?: boolean })._is_exception && <ExceptionMark title={t('exceptionMark', { defaultValue: '변경된 회차' })}>✎</ExceptionMark>}
                           </EventTitle>

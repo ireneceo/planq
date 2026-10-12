@@ -20,7 +20,7 @@ import ChipPopover from '../../components/Common/ChipPopover';
 import AutoSaveField from '../../components/Common/AutoSaveField';
 import GoogleCalendarListConsent from '../../components/Calendar/GoogleCalendarListConsent';
 import { apiFetch } from '../../contexts/AuthContext';
-import { isTaskEvent, isPersonalEvent } from './taskToEvent';
+import { isTaskEvent, isPersonalEvent, GOOGLE_FALLBACK_COLOR } from './taskToEvent';
 import type { CalendarItem, CalendarEvent } from './types';
 
 export type CalLayer = 'personal' | 'team' | 'task' | 'google';
@@ -105,8 +105,8 @@ export interface PersonalCalSource {
   calendars?: GoogleCal[];
 }
 
-const TEAL = '#14B8A6';
-export const calColor = (c?: string | null) => (c && /^#[0-9a-fA-F]{6}$/.test(c) ? c : TEAL);
+// 색 없는 구글 캘린더 — 일정 칩(taskToEvent.personalToEvent)과 같은 대체색. 두 곳이 다르면 칩 점과 일정 색이 어긋난다.
+export const calColor = (c?: string | null) => (c && /^#[0-9a-fA-F]{6}$/.test(c) ? c : GOOGLE_FALLBACK_COLOR);
 
 /**
  * 구글 캘린더별 보기/가리기 — 화면 상태와 저장을 한곳에.
@@ -198,7 +198,14 @@ export const CalendarLayerChips: React.FC<ChipsProps> = ({ layers, onToggle, goo
     { key: 'team', label: t('layer.team', '팀'), hint: t('layer.teamHint', '팀·프로젝트와 함께 보는 일정') },
     { key: 'task', label: t('layer.task', '업무'), hint: t('layer.taskHint', 'Q task 업무의 마감일') },
   ];
-  if (googleConnected) items.push({ key: 'google', label: googleLabel, hint: `${t('layer.googleHint', '내 구글 캘린더 일정 — 끄면 구글 캘린더 전부를 가립니다')}${googleWhich ? `\n${googleWhich}` : ''}` });
+  // 어느 계정인지 **보이는 글자**로 — 폰에서는 title 힌트가 안 뜬다(docs/TEAM_CALENDAR_PICK_DESIGN.md §3-2).
+  //   한 계정이면 «Google · irene@…», 둘 이상이면 «Google · 2계정». 전체 주소는 힌트에.
+  const accounts = Array.from(new Set(googleSources.map((s) => s.account_email).filter(Boolean))) as string[];
+  const accountTag = accounts.length > 1
+    ? t('layer.googleAccounts', { count: accounts.length, defaultValue: '{{count}}계정' }) as string
+    : accounts.length === 1 ? `${accounts[0].split('@')[0]}@…` : '';
+  const googleChipLabel = accountTag ? `${googleLabel} · ${accountTag}` : googleLabel;
+  if (googleConnected) items.push({ key: 'google', label: googleChipLabel, hint: `${t('layer.googleHint', '내 구글 캘린더 일정 — 끄면 구글 캘린더 전부를 가립니다')}${googleWhich ? `\n${googleWhich}` : ''}` });
   return (
     <Row data-testid="calendar-layers" role="group" aria-label={t('layer.group', '보기 분류') as string}>
       {items.map((it) => (
@@ -231,8 +238,9 @@ const Row = styled.div`
 const Chip = styled(FilterChip)`
   height: 32px; gap: 6px;
 `;
+// 층 칩 줄이 곧 범례다 — 일정 칩 앞의 출처 점(sourceLook.SourceDot)과 같은 모양(10px · 흰 테두리).
 const GDot = styled.span`
-  width: 8px; height: 8px; border-radius: 50%; background: #14B8A6; flex-shrink: 0;
+  width: 10px; height: 10px; border-radius: 50%; background: ${GOOGLE_FALLBACK_COLOR}; box-shadow: 0 0 0 1.5px #fff; flex-shrink: 0;
 `;
 
 /** 구글 캘린더별 칩 — 앞 5개는 칩, 나머지는 «+N» 팝오버. 목록 권한이 없으면 «다른 캘린더» 에서 권한을 묻는다. */

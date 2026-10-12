@@ -268,6 +268,18 @@
       "title": "Google Calendar",
       "desc": "Creates PlanQ events in your company Google Calendar and keeps edits and deletions in sync, and automatically issues a Google Meet link for video meetings."
     },
+    "gcalPick": {
+      "label": "Google calendar for team events",
+      "primary": "Default calendar",
+      "primaryTag": "default",
+      "choose": "Choose calendar",
+      "needList": "To choose, reconnect with permission to see your calendar list. Until then, team events go to the default calendar.",
+      "memberView": "Each teammate picks the Google calendars they see in My profile › Integrations.",
+      "sharedWarn": "Everyone who can see this calendar will see PlanQ team events. Private and team-only events are never sent.",
+      "moveHint": "New team events go to this calendar. Events already sent stay in their original calendar and keep being updated there, but edits made to them in Google no longer come back to PlanQ.",
+      "ownerOnly": "Only the workspace owner can change this.",
+      "failed": "Couldn't load the calendar list. Please reopen this page in a moment."
+    },
     "syncEnabled": "Auto-sync events",
     "ownerOnly": "Only the workspace owner can connect or disconnect",
     "ownerOnlyGcal": "Only the workspace owner can connect or disconnect. To use Meet from your own account, connect Google Calendar in My profile → Integrations",

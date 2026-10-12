@@ -495,7 +495,7 @@ async function addMeeting(actor, params = {}) {
   if (legacyOrphan) {
     try {
       const oldToken = await gcal.getTokenForBusiness(businessId);
-      if (oldToken && gcal.hasWriteScope(oldToken.scope)) await gcal.deleteEvent(await gcal.getCalendarClient(oldToken), event.gcal_event_id);
+      if (oldToken && gcal.hasWriteScope(oldToken.scope)) await gcal.deleteEvent(await gcal.getCalendarClient(oldToken), event.gcal_event_id, { calendarId: 'primary' });   // 링크 없는 옛 사본 = 늘 primary
     } catch (e) { console.warn('[gcal cleanup old event]', e.message); }
   }
   await event.update({

@@ -152,8 +152,9 @@ async function pushTo(t, event, tz) {
   const input = toInput(event, tz);
   if (t.target === 'workspace') {
     const cal = await gcal.getCalendarClient(t.token);
-    const r = await gcal.insertEvent(cal, { ...input, summary: event.title });
-    return r && { id: r.id, etag: r.etag || null };
+    // 팀 일정은 대표가 고른 캘린더(없으면 primary)에 올리고, 그 id 를 링크에 적는다 — 이후 수정·삭제는 링크의 id 로.
+    const r = await gcal.insertEvent(cal, { ...input, summary: event.title, calendarId: gcal.calendarIdOf(t.token) });
+    return r && { id: r.id, etag: r.etag || null, calendarId: r.calendarId || 'primary' };
   }
   const r = await personalCalendar.insertEvent(t.token, input);
   return r && { id: r.id, etag: r.etag || null, calendarId: r.calendarId || 'primary' };
@@ -163,7 +164,8 @@ async function updateAt(t, event, gcalEventId, tz, calendarId = null) {
   const input = toInput(event, tz);
   if (t.target === 'workspace') {
     const cal = await gcal.getCalendarClient(t.token);
-    const r = await gcal.updateEvent(cal, gcalEventId, { ...input, summary: event.title });
+    // 팀도 개인과 같은 계약 — 그 일정을 넣은 캘린더(링크의 gcal_calendar_id)에서 고친다.
+    const r = await gcal.updateEvent(cal, gcalEventId, { ...input, summary: event.title }, { calendarId });
     return { etag: (r && r.etag) || null };
   }
   // 개인 — 그 일정을 넣은 캘린더(링크의 gcal_calendar_id)에서 고친다. 사람이 캘린더를 바꿨어도 옛 일정은 옛 곳에 있다.
@@ -187,7 +189,7 @@ async function updateAtLink(link, event, businessId, tz) {
       : null;
     if (!token || !gcal.hasWriteScope(token.scope)) return false;
     const cal = await gcal.getCalendarClient(token);
-    const r = await gcal.updateEvent(cal, link.gcal_event_id, { ...input, summary: event.title });
+    const r = await gcal.updateEvent(cal, link.gcal_event_id, { ...input, summary: event.title }, { calendarId: link.gcal_calendar_id || 'primary' });
     etag = (r && r.etag) || null;
   } else {
     const conn = await ExternalConnection.findByPk(link.connection_id);
@@ -209,7 +211,7 @@ async function removeAt(link, businessId) {
       : null;
     if (!token || !gcal.hasWriteScope(token.scope)) return;
     const cal = await gcal.getCalendarClient(token);
-    await gcal.deleteEvent(cal, link.gcal_event_id);
+    await gcal.deleteEvent(cal, link.gcal_event_id, { calendarId: link.gcal_calendar_id || 'primary' });
     return;
   }
   const conn = await ExternalConnection.findByPk(link.connection_id);
@@ -362,7 +364,7 @@ async function resolveMeetSource({ businessId, userId }) {
 async function createMeeting(source, input) {
   if (source.kind === 'personal') return await personalCalendar.createMeetingEvent(source.conn, input);
   const cal = await gcal.getCalendarClient(source.token);
-  return await gcal.createMeetingEvent(cal, input);
+  return await gcal.createMeetingEvent(cal, { ...input, calendarId: gcal.calendarIdOf(source.token) });
 }
 
 /** Meet 소스의 실패를 연동 레코드에 남긴다 (설정 화면의 "재연결 필요" 근거). */
@@ -387,8 +389,8 @@ async function linkMeeting(eventId, source, gcalEventId, businessId) {
   const target = source.kind === 'personal' ? 'personal' : 'workspace';
   const connectionId = source.kind === 'personal' ? source.conn.id : null;
   const userId = source.kind === 'personal' ? source.conn.user_id : null;
-  // 회의 이벤트는 방금 그 연결의 골라 둔 캘린더에 만들어졌다(personalCalendar.createMeetingEvent).
-  const calendarId = source.kind === 'personal' ? personalCalendar.calendarIdOf(source.conn) : 'primary';
+  // 회의 이벤트는 방금 그 연결의 골라 둔 캘린더에 만들어졌다(personalCalendar.createMeetingEvent · 팀은 gcal.calendarIdOf).
+  const calendarId = source.kind === 'personal' ? personalCalendar.calendarIdOf(source.conn) : gcal.calendarIdOf(source.token);
   const existing = await CalendarEventGcalLink.findOne({
     where: { event_id: eventId, target, connection_id: connectionId },
   });

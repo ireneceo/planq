@@ -9,6 +9,7 @@ import type { CalendarEvent, CalendarItem, PersonalCalendarEvent } from './types
 import { toDateKey, isSameDay, isSameMonth, startOfMonth, startOfDay, addMonths } from './dateUtils';
 import { getEventColors } from './categoryColors';
 import { bookingAttr, bookingCss, BookingTag } from './bookingLook';
+import { SourceDot } from './sourceLook';
 import { pastAttr, pastCss, pastDayAttr, PAST_DAY_TEXT } from './pastLook';
 import { isTaskEvent } from './taskToEvent';
 
@@ -161,7 +162,7 @@ const AgendaView: React.FC<Props> = ({ anchor, today, now, events, onSelectEvent
                     {(e as CalendarEvent).visibility === 'personal' && (
                       <LockIcon viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="5" y="11" width="14" height="10" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" /></LockIcon>
                     )}
-                    <BookingTag e={e as CalendarEvent} />
+                    <SourceDot e={e} /><BookingTag e={e as CalendarEvent} />
                     <TitleText>{e.title}</TitleText>
                     {(e as { _is_exception?: boolean })._is_exception && (
                       <ExceptionMark title={t('exceptionMark', { defaultValue: '변경된 회차' }) as string}>✎</ExceptionMark>

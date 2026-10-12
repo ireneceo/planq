@@ -7,6 +7,7 @@ import { useTranslation } from 'react-i18next';
 import type { CalendarEvent, CalendarItem } from './types';
 import { getEventColors } from './categoryColors';
 import { bookingAttr, bookingCss, BookingTag } from './bookingLook';
+import { SourceDot } from './sourceLook';
 import { pastAttr, pastCss } from './pastLook';
 import { isTaskEvent } from './taskToEvent';
 import { linkLine } from './linkLine';
@@ -71,7 +72,7 @@ export const DayEventsBody: React.FC<Props> = ({ title, events, now, onSelectEve
             >
               <ItemTime>{e.all_day ? t('allDay') : formatChipTime(e.start_at, t)}</ItemTime>
               <ItemTitle>
-                <BookingTag e={e as CalendarEvent} />
+                <SourceDot e={e} /><BookingTag e={e as CalendarEvent} />
                 {isTask && (
                   <TaskIcon viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                     <polyline points="9 11 12 14 22 4" />

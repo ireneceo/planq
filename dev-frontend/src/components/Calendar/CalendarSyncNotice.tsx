@@ -33,6 +33,7 @@ export interface CalendarSyncStatus {
   workspace_can_write: boolean;
   workspace_needs_reconnect: boolean;
   workspace_account_email: string | null;
+  workspace_calendar_summary?: string | null;   // 팀 일정을 올리는 구글 캘린더 이름(null = 기본) — 설정 카드와 같은 값
   personal_connected: boolean;
   personal_can_write: boolean;
   can_reconnect_workspace: boolean;
@@ -207,6 +208,14 @@ const CalendarSyncNotice: React.FC<Props> = ({ businessId, status, onChanged, on
               <NoticeLine>
                 <LineLabel>{t('syncNotice.workspaceLabel', { defaultValue: '워크스페이스 연동' }) as string}</LineLabel>
                 {t('syncNotice.workspaceBody')}
+                {' '}
+                <span data-testid="sync-notice-team-calendar">
+                  {t('syncNotice.workspaceTarget', {
+                    email: status?.workspace_account_email || '',
+                    name: status?.workspace_calendar_summary || t('layer.googleDefault', { defaultValue: '기본 캘린더' }),
+                    defaultValue: '(올라가는 곳: {{email}} · {{name}})',
+                  }) as string}
+                </span>
               </NoticeLine>
             )}
             {personalConnected && (

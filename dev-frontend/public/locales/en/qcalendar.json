@@ -46,7 +46,8 @@
     "cleanSelected_other": "Delete {{count}} selected",
     "cleaned_one": "Deleted {{count}} leftover copy from Google.",
     "cleaned_other": "Deleted {{count}} leftover copies from Google.",
-    "cleanFailed": "Could not clean up. Please try again shortly."
+    "cleanFailed": "Could not clean up. Please try again shortly.",
+    "workspaceTarget": "(goes to: {{email}} · {{name}})"
   },
   "filter": {
     "all": "All",
@@ -207,7 +208,9 @@
     "share": "Share",
     "gcalMeetingKept": "Calendar copies that hold the meeting are kept even when sync is off (protecting the link already shared with attendees). Switching to private still revokes the team copy.",
     "me": "Me",
-    "meetingNote": "Meeting note"
+    "meetingNote": "Meeting note",
+    "gcalTeamWhere": "Team event → Google “{{name}}”",
+    "gcalTeamPrevious": "previously chosen calendar"
   },
   "empty": {
     "month": "No events this month",
@@ -387,6 +390,8 @@
     "googleMore": "More Google calendars",
     "googleOther": "Other calendars",
     "googleListFailed": "Couldn't load your Google calendar list. Please try again shortly.",
-    "googleNeedList": "Only the calendar PlanQ adds events to is shown right now. To also see your other calendars (secondary, shared, holidays), allow \"See your calendar list\" in Google once more."
+    "googleNeedList": "Only the calendar PlanQ adds events to is shown right now. To also see your other calendars (secondary, shared, holidays), allow \"See your calendar list\" in Google once more.",
+    "sourceGoogle": "Google · {{name}}",
+    "googleAccounts": "{{count}} accounts"
   }
 }

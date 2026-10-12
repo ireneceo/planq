@@ -1,6 +1,6 @@
 # 팀 Google 캘린더 «고르기» · 캘린더 화면 개인/팀 구분 설계
 
-- 설계: [Fable] 2026-10-12 · 상태: **설계 — Irene 승인 전 구현 안 함**
+- 설계: [Fable] 2026-10-12 · 상태: **Irene 승인(2026-10-12 «권고대로» — D1 A · D2 A) · 1·2단계 구현됨 [Opus] — §6**
 - Irene 원문: *"개인설정에서 캘린더 설정>캘린더 고르기 … 하나만 선택하게 되어 있어? 왜?? 멀티선택이 되어야지. 팀캘린더도 마찬가지고. 그리고 캘린더 화면에서는 개인과 팀이 잘 알게 해야 하고."*
 - 개인 쪽은 끝났다(23e9adf0 — «보일 캘린더 여러 개» + «올릴 캘린더 하나»). 이 문서는 **팀(회사 공용) 연결**과 **캘린더 화면 구분**만 다룬다.
 
@@ -67,3 +67,19 @@
 **D2. 팀 «올릴 캘린더» 를 바꿀 수 있는 사람은 누구로 할까요?**
 - A) **대표만** — 연결·해제와 같은 선(`requireOwnerForCloud`) → **권고** (토큰 주인의 계정 안 캘린더를 고르는 일이다)
 - B) 대표 + 관리자(admin)
+
+## 6. 구현 메모 (2026-10-12 · [Opus])
+- 1단계: `business_cloud_tokens.gcal_calendar_id·summary`(멱등 `scripts/migrate-gcal-team-calendar.js`, 배포 슬롯 `migrate-task-action-items` 뒤) ·
+  `google_calendar.calendarIdOf/canListCalendars/listWritableCalendars` · insert·Meet·push-to-gcal = 고른 캘린더, 수정·삭제 = 링크의 캘린더 ·
+  역방향 = 고른 캘린더 · 고아 정리 = 고른 캘린더 ∪ 팀 링크 캘린더들 ∪ **primary**(이 기능 전 기본값 — 링크가 다 사라진 옛 기본 캘린더의 고아도 잡으려고 늘 넣는다) ·
+  엔드포인트 2개는 `routes/cloud_gcal_calendar.js`(cloud.js 가 use — 500줄 기준) · `CALENDAR_LIST_SCOPE` 정본을 `googleScopes` 로 옮김(개인도 그것을 읽는다).
+- 설계에 없던 것 하나: **다른 구글 계정으로 다시 연결하면** 고른 캘린더·역방향 커서를 비운다(그 캘린더는 새 계정 것이 아니다). 같은 계정이면 그대로.
+- 옛 단일 컬럼 삭제(`routes/calendar.js` DELETE · `event_actions` 회의 재발급)는 링크가 관리하던 id 면 건너뛰고, 링크 없는 옛 사본만 primary 에서 지운다.
+- 화면: 셀렉트는 `ChipPopover` 대신 **개인 «올릴 캘린더»(pages/Profile/CalendarPicker)와 같은 모양**(라벨 + PlanQSelect + AutoSaveField) — 같은 기능이 자리마다 다르지 않게.
+  공유 캘린더를 고르면 경고 줄 · «옛 일정은 원래 캘린더에 남고 구글 쪽 수정은 돌아오지 않음» · «팀원은 각자 개인 연동에서» 안내. 대표 아니면 값만.
+- 2단계: `pages/QCalendar/sourceLook.SourceDot`(10px·흰 테두리, 다섯 보기 공용) · 월간 시간 점은 구글 일정에서 빼 겹치지 않게 · Google 층 칩 = «… · irene@…» / «N계정» ·
+  대체색 `taskToEvent.GOOGLE_FALLBACK_COLOR` #64748B(칩 점 `calColor` 도 같은 값) · 팀 일정 상세 «팀 일정 → Google 「이름」»(상세 GET `gcal_team_calendar`, 링크 기준 · 고객 제외) ·
+  캘린더 배너 «올라가는 곳: 계정 · 캘린더».
+- 자체 검증: 서비스·라우트 26/26(구글은 가짜 클라이언트, 대조군 2개 뒤집힘) · 실서버 HTTP 7/7 · 화면 3폭 42/42 · build EXIT 0 · health 85/85 · guard 68/69(posts.js godfile 기존) ·
+  uispec 래칫 597→599 (장식용 10px 점 2개 — 검사기의 알려진 한계, 컨트롤 높이 아님).
+- 확인 못 함: 실제 구글 호출(개발서버에 팀 구글 연결 없음) · 캘린더 목록 권한은 구글 OAuth 심사 전이라 동의 화면에 «확인되지 않은 앱» 경고가 붙는다(개인 쪽과 같다).

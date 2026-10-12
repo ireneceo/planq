@@ -39,6 +39,10 @@ const REQUIRED_SCOPES = {
 
 const CALENDAR_READONLY_SCOPE = 'https://www.googleapis.com/auth/calendar.readonly';
 
+// 캘린더 **목록** 권한 — «일정을 올릴 캘린더 고르기» 에만 쓴다(개인·팀 같은 상수).
+//   필수 권한이 아니다(없어도 primary 로 동작) — 고르기를 누른 사람에게만 더 묻는다(점진적 동의).
+const CALENDAR_LIST_SCOPE = 'https://www.googleapis.com/auth/calendar.calendarlist.readonly';
+
 // Drive **전체** 권한 (Restricted). `drive.file`(앱이 만든 것만)과 **다른 원소**다.
 //   ★ REQUIRED_SCOPES.gdrive 에 이걸 넣으면 안 된다 — 넣는 순간 기존 drive.file 연동 전부가
 //     "권한 부족" 으로 오판된다(hasRequired 는 OR 이지만, 반대로 이 술어를 필수로 승격하면 그렇게 된다).
@@ -94,6 +98,11 @@ function hasCalendarReadOnly(scopeStr) {
   return parseGranted(scopeStr).includes(CALENDAR_READONLY_SCOPE);
 }
 
+/** 캘린더 목록을 읽을 수 있는가(고르기 화면). 저장된 scope 에서 읽기 시점 파생. */
+function hasCalendarList(scopeStr) {
+  return String(scopeStr || '').split(/[\s,]+/).includes(CALENDAR_LIST_SCOPE);
+}
+
 /**
  * Drive 전체 권한이 승인됐는가 — 사용자가 Drive 에 **직접 올린 파일**까지 볼 수 있는가.
  *   이것이 false 면 인제스트는 **정상 대기** 상태다(고장이 아니다).
@@ -121,12 +130,14 @@ function providerLabel(provider, lang = 'ko') {
 module.exports = {
   REQUIRED_SCOPES,
   CALENDAR_READONLY_SCOPE,
+  CALENDAR_LIST_SCOPE,
   DRIVE_FULL_SCOPE,
   OAUTH_CONSENT_DISABLED,
   isConsentDisabled,
   parseGranted,
   hasRequired,
   hasCalendarReadOnly,
+  hasCalendarList,
   hasDriveFull,
   permissionStatus,
   providerLabel,
