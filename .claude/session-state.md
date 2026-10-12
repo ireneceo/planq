@@ -1,5 +1,30 @@
 ## 현재 작업 상태
 
+### 답 기다림: 묶음 3건 — 설계 3개 승인 (방 f3217c67 · 2026-10-12 · [Opus]+[Fable 설계 3회]) — 연동 팝업 수리는 완료, 운영 미배포
+- ✅ 연동 팝업(0f0ec6b0): OAuth 마지막 화면 인라인 스크립트가 helmet CSP 에 막혀 닫기·완료 신호가 한 번도 안 돌던 것 → 같은 출처 파일 /api/oauth/popup-done.js·native-return.js + 화면 한 벌 utils/oauthPopupPage + 받는 쪽 hooks/useOauthPopupDone(4곳).
+  내 외부 연동 › 구글 캘린더에 «Q calendar 에 보일 캘린더 (여러 개)»(visible-calendars 재사용). 검증: 팝업 7/7(대조군 뒤집힘) · 화면 3폭 · PUT 1건 · build 0 · guard 68/69 · health 84/84 · Fable 미검증(자체 검증 — 값 없는 정적 스크립트, CSP 안 넓힘).
+- 설계 3개(커밋 5a99dbf7·47729c14·0f0ec6b0 안 문서): docs/SURVEY_V2_DESIGN.md · docs/TASK_ACTIONS_DESIGN.md · docs/TEAM_CALENDAR_PICK_DESIGN.md.
+- 무엇을: 세 설계의 Irene 결정 8개 — 전부 Fable 권고 있음.
+  설문 ①자동 발행 메일 = 확인 후 발송(대표가 규칙별 자동 전환) ②일반 표에서 «표|통계»·«설문으로 받기» 뺌 ③월 발송 한도 starter20/basic100/pro500/business2000/enterprise무제한, 자동 규칙 basic↑
+  업무 액션 ④적기=작성자·담당자·owner·admin, 만들러 가기·연결=담당자만 ⑤액션으로 만든 문서는 결과물 첨부에 자동 ⑥1단계 문서·일정 → 2단계 메일·프로젝트 이어서
+  팀 캘린더 ⑦팀원에게 회사 계정 캘린더 읽기는 안 열고 «팀 일정을 올릴 캘린더 하나 고르기»만 ⑧바꿀 사람 = 대표만
+- 답이 오면: «권고대로» → 설문 Phase 1 · 업무 액션 1단계 · 팀 캘린더 1단계 를 각각 따로 방(대기열)으로 구현 → 각 Fable 완료 검증 1회. 바꾼 항목이 있으면 그 설계 문서에 반영 후 같은 순서.
+
+### 완료: dev-login — 상황판 «시험 계정으로 열기» (방 1a0f9989 · 2026-10-12 · [Opus]) — 운영 미배포
+- 커밋 827b9df8. POST /api/auth/dev-login(개발 .env DEV_LOGIN_SECRET + NODE_ENV=development 일 때만 마운트, 그 밖 404) · /dev-login 화면 · 배포 가드(운영 .env 에 비밀 있으면 멈춤) · CLAUDE.md «시험 역할» 표 · [확인용] 7일 정리 scripts/cleanup-check-data.js(/개발완료 7단계).
+- 시험 계정 4개(owner·member1·member2·client) 약관 버전을 개발 DB 에서 현재 버전으로 맞춤(착지 화면이 재동의 창에 덮였다).
+- 상황판 쪽 «planq devLogin 켜기» 는 서버 대기열에 넣음 — 켜진 뒤 실제 버튼 클릭 1번 확인 남음.
+#### 답 기다림: Fable 완료 검증이 허락 창에서 멈춤 (2026-10-12)
+- 무엇을: Fable 이 개발서버에서 검증용 시험 스크립트(dev-backend/fable-devlogin-test.js — 개발 3003 에 dev-login 호출만, 운영 무관)를 돌리려다 허락 창에서 3분 넘게 멈춤 → 창이 닫혀 실행 안 됨. 남은 스크립트는 지움.
+- 왜: dev-login 은 로그인·권한 영역이라 완료 검증 Fable 1회가 규칙(아직 판정 없음 · 마커 없음).
+- 답이 오면: «다시 돌려» → 이 방이 /fable-검증 을 다시 부른다(같은 사실 묶음) → PASS 면 마커 + 서버 대기열에 «planq devLogin 켜기(커밋 827b9df8)» 넣기 · FAIL 이면 지적 고치고 재검증.
+  «Fable 없이» → 자체 검증 숫자로 보고(«Fable 미검증(자체 검증)») + 상황판 Fable 대기 + 서버 대기열 넣기. 운영 배포는 Fable 통과 뒤로.
+
+#### 덤으로 발견 — 관리자 «사칭» 새 탭이 사칭이 아니다 (고치지 않음, 기록만)
+- 실브라우저 실측(admin@test → /admin/users → member1 [사칭]): 새 탭 `/dashboard?_impersonate=1` 이 **관리자 본인**으로 열림 · sessionStorage 비어 있음(noopener 라 안 넘어감) · 사칭 배너 없음.
+- 게다가 사칭 토큰을 새 탭에 싣는 코드가 아예 없다(_impersonate 를 읽는 곳 0) · 관리자 탭에는 `impersonate_pending` 이 남아 isImpersonatingNow()=true → **관리자 탭의 초안 저장이 꺼진다**.
+- 권한 영역(사칭)이라 설계부터 — 상황판 대기열에 넣음.
+
 ### 완료: 묶음 3건 — 메일 AI 요청 바 · 구독 환불 입구 · 업무시작↔근태 동기화 (방 877fb88f · 2026-10-12 · [Opus]) — 운영 미배포
 - ① 메일 AI(ed4cafe4): 답장창 본문 위 늘 보이는 AI 요청 바(cueBarShell 별표·빨간 라인) — 처음부터 요청 / 비우고 Enter=알아서 / 초안 있으면 다듬기. 하단 [AI 초안 다시 생성] 삭제. 새 메일도 같은 바. 서버 프롬프트 «초안 없이 요청» 분기. 첨부 접기는 a00f2785 에 이미 있음.
   실호출: 빈 요청 200 · 요청만(«다음 주 화요일 2시 통화») → 초안에 반영 · 다듬기 200. 화면 390/820/1440: 바가 본문 위·가려짐 없음·다시생성 버튼 0.
