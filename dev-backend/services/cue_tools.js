@@ -121,6 +121,10 @@ async function normalizeCall(businessId, name, raw = {}) {
       if (r.userId) args.assignee_user_id = r.userId;
     }
   }
+  // 2026-10-12 — 화상회의(Meet)를 말했다 = 팀 공개가 필요조건(구글 일정에 회의가 생긴다).
+  //   공개 범위를 안 정하면 미리보기가 meet_requires_team_visibility 로 거절하고 모델이 «직접 하세요» 로 답했다.
+  //   인자에 넣어 카드에 «공개 범위» 로 보이게 한다 — 실행은 사람이 카드를 확인한 뒤다. 사람이 private 을 말했으면 그대로 둔다.
+  if (tool === 'create_event' && args.create_meeting && !args.visibility) args.visibility = 'team';
   for (const k of Object.keys(args)) if (args[k] === null || args[k] === '') { if (!(tool === 'create_document' && k === 'content')) delete args[k]; }
   return { tool, args };
 }
@@ -149,7 +153,8 @@ async function buildToolSystemContext(businessId, todayIso) {
     + `쓰기 도구는 한 번에 하나만 부른다 — 실행은 사람이 확인 카드를 누른 뒤에 된다. 지우기·보내기·청구는 할 수 없다.\n`
     + `[쓰기 원칙] 사용자가 말한 것만 넣는다 — 말하지 않은 고객·담당자·참석자·태그를 붙이지 말고, 본문·메모에 조언·후속 조치·추측을 덧붙이지 않는다. `
     + `꼭 골라야 하는 값은 가장 중립적인 쪽으로(프로젝트 종류는 고객을 말했을 때만 client, 아니면 internal) — 사람이 카드에서 고친다. `
-    + `화상회의·구글 미팅 링크를 원하면 create_event 에 create_meeting:true(팀 공개 일정만) 또는 기존 일정이면 add_meeting_to_event.\n`
+    + `화상회의·구글 미팅 링크를 원하면 create_event 에 create_meeting:true + visibility:'team'(Meet 은 팀 공개 일정만 — 카드에 보인다) 또는 기존 일정이면 add_meeting_to_event. `
+    + `«화상회의는 못 붙인다/화면에서 직접 켜라» 고 답하지 않는다 — 카드를 실행하면 만든 링크가 결과 줄에 나온다.\n`
     // 2026-10-12 실측: «회의록 문서 초안 만들어줘» 에 도구 대신 채팅에 마크다운을 써 주고 «복붙해서 새 문서로» 라고 했다.
     //   할 수 있는 일을 «못 한다/직접 하라» 로 답하지 않게 — 요청 동사 → 도구 지도를 준다.
     + `[할 수 있는 일] «만들어/남겨/등록해/추가해/바꿔/옮겨/연결해» 요청은 글로 대신 써 주거나 «직접 하세요» 라고 하지 말고 맞는 쓰기 도구로 카드를 낸다(내용이 필요하면 도구 인자에 넣는다):\n`
@@ -424,6 +429,8 @@ async function executeTool(actor, businessId, name, rawParams) {
       replayed: !!r.replayed,
       ...(r.completed_skipped ? { completed_skipped: r.completed_skipped } : {}),
       ...(r.meet_warning ? { meet_warning: r.meet_warning } : {}),
+      // 만든·붙인 화상회의 링크 — Cue 의 글 답은 카드를 누르기 전에 쓰여 링크를 말할 수 없다. 실행 결과 줄이 보여 준다.
+      ...((r.meeting_url || r.event?.meeting_url) ? { meeting_url: r.meeting_url || r.event.meeting_url } : {}),
       ...(r.moved_event_ids ? { moved_ids: r.moved_event_ids, failed: r.failed || [] } : {}),
       ...(r.attendees_notified !== undefined ? { notified: r.attendees_notified } : {}),
     },

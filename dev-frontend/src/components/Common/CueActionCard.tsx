@@ -45,6 +45,8 @@ export interface CueActionResult {
   /** #237 — "완료로 추가" 를 요청했지만 완료까지는 못 간 사유 (업무 자체는 생성됨) */
   completed_skipped?: string;
   meet_warning?: string;
+  /** 만든·붙인 화상회의 링크 (create_event·add_meeting_to_event·update_event) */
+  meeting_url?: string | null;
   notified?: number;
   /** 일정 옮기기 — 옮긴 일정 id 들과 못 옮긴 것(사유 코드) */
   moved_ids?: number[];

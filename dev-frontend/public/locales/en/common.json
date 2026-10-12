@@ -247,6 +247,9 @@
       "doGeneric": "Run",
       "replayed": "This was already done",
       "doneGeneric": "Done",
+      "meetLink": "Meeting link",
+      "meetLinkCopy": "Copy",
+      "meetLinkCopied": "Copied",
       "meetWarn": "The event was saved, but the meeting link could not be created — check your Google Calendar connection.",
       "notifiedN": "Notified {{count}} attendees",
       "now": "Now"

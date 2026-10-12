@@ -6,6 +6,7 @@
 // 동작(상태·API)은 hooks/useCueChat.ts 가 갖는다. 여기는 그리기만 한다.
 import { useTranslation } from 'react-i18next';
 import CueActionCard from './CueActionCard';
+import CueMeetingLink from './CueMeetingLink';
 import type { CueTurn } from '../../hooks/useCueChat';
 import type { CueActionResult } from './CueActionCard';
 
@@ -60,6 +61,8 @@ export default function CueTurnList({
                       {t('qhelper.action.open', '열기')} ↗
                     </ActionOpen>
                   </ActionDone>
+                  {/* 만든 화상회의 링크 — 글 답은 실행 전에 쓰여 링크를 말할 수 없다 */}
+                  {tn.actionResult.meeting_url && <CueMeetingLink url={tn.actionResult.meeting_url} />}
                   {/* 화상회의를 만들지 못했으면(일정은 저장됨) · 참석자에게 알렸으면 말한다 */}
                   {tn.actionResult.meet_warning && (
                     <ActionNote>{t('qhelper.action.meetWarn', '일정은 저장했지만 화상회의 링크는 만들지 못했어요 — 구글 캘린더 연결을 확인해 주세요.')}</ActionNote>

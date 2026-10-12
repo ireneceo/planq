@@ -15,6 +15,7 @@ import { parseVoiceWhen, stashVoiceHandoff, type VoiceHandoff, type VoiceKind } 
 import { formatDay, formatDayTime } from '../../utils/dateFormat';
 // #458 — 만들 것(업무·일정·문서)은 Cue 와 **같은 확인 카드**로 고치고 바로 추가한다(담당자·날짜·제목 수정).
 import CueActionCard, { type CueProposal, type CueActionResult } from './CueActionCard';
+import CueMeetingLink from './CueMeetingLink';
 import { cueActionDeepLink } from '../../hooks/useCueChat';
 
 const MAX_SECONDS = 30;
@@ -285,6 +286,7 @@ export default function VoiceCaptureSheet({ onClose }: Props) {
         {stage === 'done' && result && (
           <Body>
             <RecText>✓ {t('qhelper.action.done', { defaultValue: '추가됐어요' }) as string}</RecText>
+            {result.meeting_url && <CueMeetingLink url={result.meeting_url} />}
             {result.completed_skipped && (
               <FootHint>{t('qhelper.action.completedSkipGeneric', { defaultValue: '완료 처리는 하지 못했어요 — 업무만 추가했습니다' }) as string}</FootHint>
             )}

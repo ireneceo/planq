@@ -247,6 +247,9 @@
       "doGeneric": "실행",
       "replayed": "이미 처리된 요청이에요",
       "doneGeneric": "처리했어요",
+      "meetLink": "화상회의 링크",
+      "meetLinkCopy": "복사",
+      "meetLinkCopied": "복사됨",
       "meetWarn": "일정은 저장했지만 화상회의 링크는 만들지 못했어요 — 구글 캘린더 연결을 확인해 주세요.",
       "notifiedN": "참석자 {{count}}명에게 알렸어요",
       "now": "지금"
