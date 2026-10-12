@@ -504,6 +504,9 @@ sync_database() {
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-user-date-prefs.js 2>&1 | tail -5"
   # 2026-10-01 가입 출처 — users.signup_source VARCHAR(80) NULL. 모델이 선언하므로 PM2 reload 전(없으면 users 조회 500).
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-user-signup-source.js 2>&1 | tail -5"
+  # 2026-10-12 내 순서(사람별 업무 순서) — task_user_orders 표(CREATE IF NOT EXISTS · 재조회 검증).
+  #   ★ 순서: PM2 reload 전 — 신 코드의 /my-week 가 이 표를 SELECT 한다(없으면 팝아웃·주간 목록 500).
+  prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-task-user-order.js 2>&1 | tail -3"
   # 2026-10-02 #424 근무일·휴일 — businesses.holiday_country + workspace_holidays 표(멱등, 백필 없음).
   #   모델이 선언하므로 PM2 reload 전(없으면 워크스페이스 조회·my-week 가 500).
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-workspace-holidays.js 2>&1 | tail -5"

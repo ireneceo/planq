@@ -172,6 +172,11 @@ router.get('/my-week', authenticateToken, async (req, res, next) => {
     //   내부 운영 라벨이 고객 화면에 그대로 나간다(Fable 실증 F2). all-tasks 와 같은 게이트.
     const tagScope = await getUserScope(uid, businessId, req.user.platform_role);
     if (!tagScope.isClient) await require('./task_tags').attachTagsTo(tasksJson, businessId);
+    // 내 순서(사람별 업무 순서) — my_pos. 2차 쿼리 1회. 정본 services/taskUserOrder.js (docs/TASK_USER_ORDER_DESIGN.md)
+    if (!tagScope.isClient) {
+      const posMap = await require('../services/taskUserOrder').readPositions(uid, businessId, tasksJson.map((t) => t.id));
+      tasksJson.forEach((t) => { t.my_pos = posMap.has(t.id) ? posMap.get(t.id) : null; });
+    }
     return successResponse(res, {
       week: monday,
       // ★ 2026-08-24 (Irene: "모든 시간은 워크스페이스 시간이야. 절대 미스 없게") —

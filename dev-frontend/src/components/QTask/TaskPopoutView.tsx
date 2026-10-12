@@ -30,9 +30,6 @@ import {
   MetaDue,
   FocusSlot,
   FocusTime,
-  PrioBtn,
-  PrioChip,
-  PrioSlot,
   RetryBtn,
   Row,
   RowErr,
@@ -48,9 +45,12 @@ import {
   TagSlot,
   DoneFilterLabel,
   PrioGapHint,
+  DragSlot, DragHandle, DragGrip,
   Wrap,
   PopoutTagManageBtn,
+  CompactList, StatusDot, CompactProject, DensityBtn, DensityIcon,
 } from './TaskPopoutView.styles';
+import { usePopoutDensity, COMPACT_TEXT_CODES } from './usePopoutDensity';
 
 import { inTodaySet } from '../../utils/todayTaskSet';
 import { detectBrowserTz, dateStrInTz } from '../../utils/timezones';
@@ -60,7 +60,8 @@ import { useFocusControl } from '../../hooks/useFocusControl';
 import PopoutFocusButton from './PopoutFocusButton';
 import PopoutQuickAction from './PopoutQuickAction';
 import { joinRoom, leaveRoom, onSocket, getSocket } from '../../services/socket';
-import { buildPriorityMap, hiddenPriorityNumbers } from './popoutPriority';
+import { useVerticalReorder } from '../Common/useVerticalReorder';
+import { usePopoutMyOrder } from './usePopoutMyOrder';
 import TaskDetailDrawer, { type DrawerMemberOption } from './TaskDetailDrawer';
 import { STATUS_COLOR, displayStatus, getStatusLabel, type StatusCode } from '../../utils/taskLabel';
 import { getRoles, primaryPerspective } from '../../utils/taskRoles';
@@ -76,7 +77,7 @@ import { usePopoutQuickAdd } from './usePopoutQuickAdd';
 import { createTaskTag } from './createTaskTag';
 // ★ bySortRule 은 이제 여기서 직접 안 쓴다 — bySelectedSort 가 마지막 tie-break 으로 그것을 부른다
 //   (정본 사슬은 그대로 살아 있고, 이 화면은 '고른 정렬 → 사슬' 순서로만 본다).
-import { buildQuickChoicesFromDict, bySelectedSort, type PopoutSortKey, cmpNullLast } from './popoutSort';
+import { buildQuickChoicesFromDict, bySelectedSort, byMyOrder, type PopoutSortKey, cmpNullLast } from './popoutSort';
 import PopoutSortSelect, { usePopoutSort } from './PopoutSortSelect';
 import { requestMainNavigate } from '../Common/PopoutBridge';
 import ImportanceChip from './ImportanceChip';
@@ -100,6 +101,8 @@ interface PopoutTask {
   reviewer_count?: number | string | null;
   // 우선순위. DB 는 글로벌 단일 컬럼이라 갭(1,2,9)·중복(1,1,2)이 실재한다 — 표시는 항상 재인덱스한다.
   priority_order?: number | null;
+  /** 내 순서(사람별) — /my-week 가 싣는다. docs/TASK_USER_ORDER_DESIGN.md */
+  my_pos?: number | null;
   /** #353 ⑤ 중요도 — 주간 랭킹 priority_order 와 다른 것. */
   priority_level?: 'low' | 'normal' | 'high' | 'urgent' | null;
   // my-week 가 실어 보낸다. getRoles 가 reviewer 관점을 메인과 같은 근거로 판정하게 하는 용도.
@@ -183,14 +186,17 @@ const TaskPopoutView: React.FC<TaskPopoutViewProps> = ({ pinSlot }) => {
   const readView = (tab: 'today' | 'week'): PopoutView => {
     try {
       const v = localStorage.getItem(VIEW_KEY(tab));
-      if (v === 'tag' || v === 'project' || v === 'due') return v;
+      if (v === 'mine' || v === 'tag' || v === 'project' || v === 'due') return v;
     } catch { /* ignore */ }
-    return tab === 'today' ? 'tag' : 'due';
+    // 처음 여는 사람의 기본 = 내 순서(2026-10-12 «권고대로»). 이미 고른 보기는 그대로 존중한다.
+    return 'mine';
   };
   const [viewMode, setViewMode] = useState<PopoutView>(() => readView(popTab));
   // 정렬 — 탭별로 기억된다. 상태·저장은 PopoutSortSelect 로 절출(god-file 래칫).
   //   그룹(태그별·프로젝트별)은 그대로 두고 **그 안쪽 순서**를 이 값이 정한다.
   const { sortKey, setSortKey } = usePopoutSort(popTab);
+  const { compact, toggleCompact } = usePopoutDensity();   // 카드 / 촘촘히(한 줄) — 두 탭 공통
+  const ListEl = compact ? CompactList : List;
   // 탭이 바뀌면 그 탭이 기억한 보기로 갈아탄다(없으면 그 탭의 디폴트).
   useEffect(() => { setViewMode(readView(popTab)); }, [popTab]);   // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { try { localStorage.setItem(VIEW_KEY(popTab), viewMode); } catch { /* ignore */ } }, [popTab, viewMode]);
@@ -243,8 +249,12 @@ const TaskPopoutView: React.FC<TaskPopoutViewProps> = ({ pinSlot }) => {
   //   보기 기준이 바뀌면 고르는 대상도 바뀐다(태그별↔태그 / 프로젝트별↔프로젝트).
   //   기준이 바뀌면 이전 선택은 의미가 없으므로 아래 effect 에서 비운다.
   // 퀵애드 상태·생성은 usePopoutQuickAdd 로 뽑았다 (god-file 래칫 — 800줄).
+  // 내 순서 — 서버 반영·끌기 저장·실시간(usePopoutMyOrder). 방금 만든 업무는 맨 위로 붙인다.
+  const myOrder = usePopoutMyOrder<PopoutTask>({ bizId, setTasks, silentLoad });
+  const openInMyOrder = () => tasks.filter((tk) => !CLOSED.includes(tk.status)).sort(byMyOrder).map((tk) => tk.id);
   const { quickPick, setQuickPick, quickDue, setQuickDue, quickStart, setQuickStart, quickAdd, projectDict } = usePopoutQuickAdd({
     bizId, myId, popTab, todayStr, weekStart, viewMode, silentLoad,
+    onCreated: (newId) => myOrder.placeOnTop(newId, openInMyOrder()),
   });
 
   // ── 퀵액션 (체크박스 완료처리) ─────────────────────────────
@@ -302,30 +312,8 @@ const TaskPopoutView: React.FC<TaskPopoutViewProps> = ({ pinSlot }) => {
   // 리스트 재클릭 토글 (CLAUDE.md UI 규칙)
   const handleRow = (id: number) => setSelectedId((prev) => (prev === id ? null : id));
 
-  // #250 — 팝아웃에서도 우선순위 관리. 재인덱스는 **백엔드가 정본 집합 기준으로 단독 수행**한다
-  //   (services/taskPriority.js). 팝아웃은 이번 주 집합이라 from/to 를 보내지 않는다 —
-  //   서버가 워크스페이스 tz 기준 이번 주 월~일로 계산한다(`/my-week` 과 같은 계산).
-  const [prioBusy, setPrioBusy] = useState(false);
-  const togglePrio = async (taskId: number) => {
-    if (prioBusy) return;   // 더블클릭 = 부여 후 즉시 해제 사고 차단 (UI_DESIGN_GUIDE §1.8)
-    setPrioBusy(true);
-    try {
-      const r = await apiFetch('/api/tasks/priority/toggle', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ business_id: bizId, task_id: taskId }),
-      });
-      if (!r.ok) return;   // apiFetch 는 throw 안 함 — 실패 시 낙관적 적용 금지
-      const j = await r.json();
-      const map = new Map<number, number | null>(
-        ((j?.data?.priorities || []) as Array<{ id: number; priority_order: number | null }>)
-          .map((p) => [p.id, p.priority_order]));
-      setTasks((prev) => prev.map((tk) => (map.has(tk.id) ? { ...tk, priority_order: map.get(tk.id) ?? null } : tk)));
-    } catch { /* 네트워크 실패 — 상태 그대로 (socket/visibility 복귀가 회복) */ }
-    finally { setPrioBusy(false); }
-  };
+  // 우선순위 번호 버튼은 팝아웃에서 내렸다(2026-10-12 — 끌어 옮기는 «내 순서» 로 대체, priority_order 데이터·메인 번호는 그대로).
 
-  // 번호 규칙의 정본은 popoutPriority.ts 에 있다(god-file 분리 + 규칙 한곳 모음).
-  const prioMap = useMemo(() => buildPriorityMap(tasks, CLOSED), [tasks]);
 
   // #250 — "태그기준대로 나열". 다대다라 정렬 키가 모호하므로 **대표 태그(사전순 최소)** 1키로 확정한다.
   //   백엔드 attachTagsTo() 가 이름순 정렬해 보내므로 tags[0] 이 대표다.
@@ -339,6 +327,7 @@ const TaskPopoutView: React.FC<TaskPopoutViewProps> = ({ pinSlot }) => {
     recent: t('popout.sortRecent', '최신등록순') as string,
     name: t('popout.sortName', '이름순') as string,
     stage: t('popout.sortStage', '업무단계순') as string,
+    mine: t('popout.sortMine', '내 순서') as string,
   };
 
   const repTag = (tk: PopoutTask) => (tk.tags && tk.tags.length > 0 ? tk.tags[0].name : null);
@@ -390,7 +379,7 @@ const TaskPopoutView: React.FC<TaskPopoutViewProps> = ({ pinSlot }) => {
   // 기준이 바뀌면 이전 선택은 뜻이 달라진다(태그 id 를 프로젝트로 쓸 수 없다) → 비운다.
   useEffect(() => { setQuickPick(''); }, [effView]);
 
-  const sortRule = effView === 'tag' ? byTagRule
+  const sortRule = effView === 'mine' ? byMyOrder : effView === 'tag' ? byTagRule
     : effView === 'project' ? byProjectRule
       : byDueRule;
   // 오늘 탭 = 이번 주 응답(/my-week) 위에 utils/todayTaskSet 술어를 얹은 것. 메인 화면과 **같은 함수**다.
@@ -406,8 +395,12 @@ const TaskPopoutView: React.FC<TaskPopoutViewProps> = ({ pinSlot }) => {
   const mineCount = useMemo(() => visible.filter((tk) => tk.assignee_id === myId).length, [visible, myId]);
   const reqCount = visible.length - mineCount;
 
-  // 운영 #280 — 번호가 건너뛰어 보이는 이유(완료로 접힘·다른 탭)를 목록 아래에서 설명한다.
-  const hiddenPrioNums = useMemo(() => hiddenPriorityNumbers(prioMap, visible.map((tk) => tk.id)), [visible, prioMap]);
+  // 끌어 옮기기 — 칩 «내 순서» 이거나 셀렉트 «내 순서» 일 때만(다른 정렬에서 끌면 되돌아와 헷갈린다). 열린 업무만.
+  const canReorder = effView === 'mine' || sortKey === 'mine';
+  const reorderGroup = (tk: PopoutTask) => (effView === 'tag' ? repTag(tk) || '' : effView === 'project' ? repProject(tk) || ''
+    : effView === 'due' ? (tk.due_date || '').slice(0, 10) : 'all');
+  const bodyRef = useRef<HTMLDivElement>(null);
+  const reorder = useVerticalReorder({ enabled: canReorder, containerRef: bodyRef, onMove: myOrder.move });
 
   const fmtDue = (due?: string | null) => (due ? due.slice(5, 10).replace('-', '/') : '');
   const isOverdue = (tk: PopoutTask) =>
@@ -465,6 +458,9 @@ const TaskPopoutView: React.FC<TaskPopoutViewProps> = ({ pinSlot }) => {
           data-testid="task-popout-tab-week" onClick={() => setPopTab('week')}>
           {t('popout.tabWeek', '이번 주')}
         </TabBtn>
+        <DensityBtn type="button" $active={compact} aria-pressed={compact} data-testid="task-popout-density"
+          aria-label={t('popout.densityCompact', '촘촘히 보기 (한 줄)') as string} title={t('popout.densityCompact', '촘촘히 보기 (한 줄)') as string}
+          onClick={toggleCompact}><DensityIcon compact={compact} /></DensityBtn>
       </TabRow>
 
       {/* #258 — 퀵애드. 로딩·에러 중에는 내지 않는다(기본값의 원천인 weekStart 가 아직 없다). */}
@@ -533,13 +529,14 @@ const TaskPopoutView: React.FC<TaskPopoutViewProps> = ({ pinSlot }) => {
             </>
           ) : null}
           labels={{
+            mine: t('popout.viewMine', '내 순서'),
             tag: t('popout.viewTag', '태그별'),
             project: t('popout.viewProject', '프로젝트별'),
             due: t('popout.viewDue', '마감일별'),   // 동작도 같이 되돌렸다 — byDueRule 주석 참조
           }}
           /* 정렬 — 이 저장소의 셀렉트 표준은 PlanQSelect 다(raw <select> 는 health-check 가 막는다).
              같은 팝아웃 안 퀵애드도 이것을 쓰므로 별도 창에서도 메뉴가 정상 동작한다. */
-          leading={(
+          leading={effView === 'mine' ? undefined : (
             <PopoutSortSelect
               value={sortKey}
               onChange={setSortKey}
@@ -556,7 +553,7 @@ const TaskPopoutView: React.FC<TaskPopoutViewProps> = ({ pinSlot }) => {
         dict={tagDict}
         onChanged={() => { void reloadTagDict(); void silentLoad(); }}
       />
-      <Body>
+      <Body ref={bodyRef}>
         {loading && <Center>{t('popout.loading', '불러오는 중…')}</Center>}
 
         {!loading && error && (
@@ -580,7 +577,7 @@ const TaskPopoutView: React.FC<TaskPopoutViewProps> = ({ pinSlot }) => {
         )}
 
         {!loading && !error && visible.length > 0 && (
-          <List role="list" data-testid="task-popout-list">
+          <ListEl role="list" data-testid="task-popout-list" data-density={compact ? 'compact' : 'card'}>
             {visible.map((tk, vi) => {
               // #237·#258 "태그(업무방식)별로 시각적으로 제대로 보여야" — 그룹 보기에서만 헤더를 낸다.
               //   그룹 키가 바뀌는 지점에 한 줄. 키 없는 묶음은 맨 뒤라 "태그 없음"/"프로젝트 없음" 으로 닫힌다.
@@ -613,55 +610,36 @@ const TaskPopoutView: React.FC<TaskPopoutViewProps> = ({ pinSlot }) => {
                   data-testid="task-popout-row"
                   $active={selectedId === tk.id}
                   $dim={CLOSED.includes(tk.status)}
+                  {...(canReorder && !CLOSED.includes(tk.status)
+                    ? { 'data-reorder-id': tk.id, 'data-reorder-group': reorderGroup(tk) } : {})}
+                  data-dragging={reorder.dragId === tk.id ? '1' : undefined}
+                  data-drop={reorder.drop?.overId === tk.id && reorder.dragId !== tk.id ? reorder.drop.place : undefined}
                 >
                   <RowInner>
                     <RowLead>
                       <PopoutQuickAction taskId={tk.id} qa={qa} busy={busy} onAction={(id, action) => runAction(id, `/${action}`)} onOpenDetail={handleRow} />
                     </RowLead>
-                    {/* 우선순위 슬롯 — #250 "우선순위 관리도 여기서도 해야 해".
-                        ★ RowMain(button) **밖 형제**여야 한다. 안에 넣으면 button-in-button 이라
-                          HTML 상 무효이고 브라우저가 클릭 타깃을 임의로 접는다(위 397 주석과 같은 이유).
-                        옛 주석은 "팝아웃 집합은 메인의 부분집합이라 여기서 토글하면 번호가 오염된다" 였다 —
-                          이제 재인덱스를 백엔드가 정본 집합(services/weekTaskSet.myWeekWhere) 기준으로
-                          단독 수행하므로 그 전제가 해소됐다.
-                        완료/취소 행: 번호가 있으면 읽기 전용 칩, 없으면 빈 칸(부여 버튼을 내지 않는다 —
-                          완료 업무에 우선순위를 새로 매기는 것은 무의미하고 메인에도 그 경로가 없다).
-                        ★ #258 Fable 결정(G-a): **이번 주 탭에서만** 낸다. priority_order 의 의미의 고향이
-                          주간 랭킹이고, 오늘 탭 디폴트인 태그 그룹 보기에서는 칩 번호와 행 순서가 항상
-                          어긋난다. 오늘 ⊆ 이번 주라 관리는 탭 1회 전환으로 충분하다. */}
-                    {popTab === 'week' && (CLOSED.includes(tk.status) ? (
-                      <PrioSlot>
-                        {prioMap.has(tk.id) && (
-                          <PrioChip
-                            $dim
-                            aria-label={t('popout.priorityN', '우선순위 {{n}}', { n: prioMap.get(tk.id) }) as string}
-                            title={t('popout.priorityN', '우선순위 {{n}}', { n: prioMap.get(tk.id) }) as string}
-                          >{prioMap.get(tk.id)}</PrioChip>
+                    {/* 내 순서 손잡이 — 우선순위 번호가 비운 자리. ★ RowMain(button) **밖 형제**(button-in-button 금지).
+                        끌 수 있는 보기에서는 모든 행에 칸을 남긴다(완료 행은 빈 칸) — 제목 좌측선이 안 흔들리게. */}
+                    {canReorder && (
+                      <DragSlot>
+                        {!CLOSED.includes(tk.status) && (
+                          <DragHandle type="button" data-testid="task-popout-drag" {...reorder.handleProps(tk.id)}
+                            aria-label={t('popout.dragHandle', '끌어서 순서 바꾸기 (Alt+↑/↓)') as string}
+                            title={t('popout.dragHandle', '끌어서 순서 바꾸기 (Alt+↑/↓)') as string}><DragGrip /></DragHandle>
                         )}
-                      </PrioSlot>
-                    ) : (
-                      <PrioBtn
-                        type="button"
-                        $on={prioMap.has(tk.id)}
-                        disabled={prioBusy}
-                        data-testid="task-popout-priority"
-                        aria-pressed={prioMap.has(tk.id)}
-                        aria-label={(prioMap.has(tk.id)
-                          ? t('popout.priorityClear', '우선순위 {{n}} — 해제', { n: prioMap.get(tk.id) })
-                          : t('popout.prioritySet', '우선순위 지정')) as string}
-                        title={(prioMap.has(tk.id)
-                          ? t('popout.priorityClear', '우선순위 {{n}} — 해제', { n: prioMap.get(tk.id) })
-                          : t('popout.prioritySet', '우선순위 지정')) as string}
-                        onClick={() => togglePrio(tk.id)}
-                      ><span>{prioMap.get(tk.id) ?? ''}</span></PrioBtn>
-                    ))}
+                      </DragSlot>
+                    )}
                     <RowMain
                       type="button"
                       data-testid="task-popout-row-open"
                       onClick={() => handleRow(tk.id)}
                     >
                       <RowTop>
-                        <Badge $bg={color.bg} $fg={color.fg}>{getStatusLabel(tk, role, todayStr, t as never)}</Badge>
+                        {compact && !COMPACT_TEXT_CODES.has(code)
+                          ? <StatusDot $bg={color.bg} $fg={color.fg} role="img" data-testid="task-popout-status-dot"
+                            aria-label={getStatusLabel(tk, role, todayStr, t as never)} title={getStatusLabel(tk, role, todayStr, t as never)} />
+                          : <Badge $bg={color.bg} $fg={color.fg}>{getStatusLabel(tk, role, todayStr, t as never)}</Badge>}
                         <RowTitle>{tk.title}</RowTitle>
                         {/* #353 ⑤ 중요도 — 목록·프로젝트 목록과 **같은 칩**을 쓴다(베끼면 갈라진다). */}
                         <ImportanceChip level={tk.priority_level} />
@@ -673,13 +651,15 @@ const TaskPopoutView: React.FC<TaskPopoutViewProps> = ({ pinSlot }) => {
                             같은 걸 행마다 또 그리면 노이즈다(헤더=tags[0], 칩=tags[0] 으로 100% 중복이었다).
                             대표만 빼고 나머지는 남긴다 — 전부 숨기면 다중 태그 정보가 사라진다. */}
                         <TagChips tags={effView === 'tag' ? (tk.tags || []).slice(1) : tk.tags} max={1} />
-                        {tk.Project?.name && <MetaChip>{tk.Project.name}</MetaChip>}
+                        {tk.Project?.name && (compact
+                          ? (effView !== 'project' && <CompactProject title={tk.Project.name}>{tk.Project.name}</CompactProject>)
+                          : <MetaChip>{tk.Project.name}</MetaChip>)}
                         {tk.due_date && (
                           <MetaDue $overdue={isOverdue(tk)}>
                             {t('popout.due', '마감 {{date}}', { date: fmtDue(tk.due_date) })}
                           </MetaDue>
                         )}
-                        {typeof tk.progress_percent === 'number' && tk.progress_percent > 0 && (
+                        {!compact && typeof tk.progress_percent === 'number' && tk.progress_percent > 0 && (
                           <MetaChip>{tk.progress_percent}%</MetaChip>
                         )}
                         {/* 이 업무에 쌓인 시간 — 컨트롤 옆이 아니라 **메타 줄**이다.
@@ -729,15 +709,12 @@ const TaskPopoutView: React.FC<TaskPopoutViewProps> = ({ pinSlot }) => {
                 </React.Fragment>
               );
             })}
-          </List>
+          </ListEl>
         )}
 
-        {!loading && !error && visible.length > 0 && hiddenPrioNums.length > 0 && (
-          <PrioGapHint>
-            {t('popout.prioGap', {
-              nums: hiddenPrioNums.join('·'),
-              defaultValue: '우선순위 {{nums}} 번은 지금 목록에 없어요 — 완료했거나 다른 탭의 업무입니다. 번호는 전체 기준이라 그대로 둡니다.',
-            })}
+        {myOrder.orderErr && (
+          <PrioGapHint role="alert" data-testid="task-popout-reorder-error">
+            {t('popout.reorderFailed', '순서를 저장하지 못했어요 — 원래 순서로 되돌렸어요. 다시 끌어 주세요.')}
           </PrioGapHint>
         )}
 

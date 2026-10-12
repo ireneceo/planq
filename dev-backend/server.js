@@ -528,6 +528,7 @@ app.use('/api/leave', require('./routes/leave'));               // #208 휴가
 // ★ /api/tasks 체인 최상단 — 리터럴 `/priority/*` 가 뒤쪽 라우터의 파라미터 패턴에 먹히지 않게.
 //   (현재는 세그먼트 수가 달라 충돌 없지만, 미래 라우트 추가에 대한 방어선을 위치로 못박는다)
 app.use('/api/tasks', require('./routes/task_priority'));
+app.use('/api/tasks', require('./routes/task_order'));   // 내 순서 — 리터럴 /my-order 가 /:id 보다 먼저
 app.use('/api/tasks', require('./routes/task_tags'));
 app.use('/api/tasks', require('./routes/task_estimations'));
 app.use('/api/task-templates', require('./routes/task_templates'));

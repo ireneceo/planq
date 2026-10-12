@@ -1376,7 +1376,12 @@
     "sortName": "이름순",
     "sortStage": "업무단계순",
     "viewAll": "전체",
-    "quickAddDueAria": "추가할 업무의 마감일"
+    "quickAddDueAria": "추가할 업무의 마감일",
+    "densityCompact": "촘촘히 보기 (한 줄)",
+    "viewMine": "내 순서",
+    "sortMine": "내 순서",
+    "dragHandle": "끌어서 순서 바꾸기 (Alt+↑/↓)",
+    "reorderFailed": "순서를 저장하지 못했어요 — 원래 순서로 되돌렸어요. 다시 끌어 주세요."
   },
   "tags": {
     "new": "새 태그",

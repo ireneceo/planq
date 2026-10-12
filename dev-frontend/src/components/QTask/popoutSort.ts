@@ -10,6 +10,8 @@ export interface SortableTask {
   priority_order?: number | null;
   status?: string;
   created_at?: string | null;
+  /** 내 순서(사람별) — /my-week 가 싣는다. null = 아직 안 옮김 */
+  my_pos?: number | null;
 }
 // 완료·취소는 읽을 순서의 끝이다. 정본(services/taskPriority.js CLOSED)과 같은 집합.
 const CLOSED_STATUSES = ['completed', 'canceled'];
@@ -96,8 +98,8 @@ export function buildQuickChoicesFromDict(
 //
 // 그래서 이 비교자는 **그룹 안에서** 쓰인다 — 그룹 키 비교가 먼저고, 같은 그룹이면 이 순서다.
 // 우선순위 사슬(bySortRule)은 그대로 남는다: 완전 동률일 때의 마지막 tie-break 으로만 쓴다.
-export type PopoutSortKey = 'recent' | 'name' | 'stage';
-export const POPOUT_SORT_KEYS: PopoutSortKey[] = ['recent', 'name', 'stage'];
+export type PopoutSortKey = 'mine' | 'recent' | 'name' | 'stage';
+export const POPOUT_SORT_KEYS: PopoutSortKey[] = ['mine', 'recent', 'name', 'stage'];
 
 /** 업무 단계 순서 — 화면에서 읽는 진행 순서 그대로.
  *  ★ 목록에 없는 새 status 는 **맨 끝이 아니라 중간(99)** 에 두지 않는다. 끝(999)에 두고,
@@ -115,6 +117,7 @@ function stageRank(t: SortableTask): number {
 }
 
 export function bySelectedSort(key: PopoutSortKey) {
+  if (key === 'mine') return byMyOrder;
   return (a: SortableTask, b: SortableTask): number => {
     if (key === 'name') {
       const c = (a.title || '').localeCompare(b.title || '');
@@ -136,4 +139,17 @@ export function bySelectedSort(key: PopoutSortKey) {
     // 고른 기준이 같으면 기존 사슬로 — 두 화면의 순서가 갈리지 않게 한다.
     return bySortRule(a, b);
   };
+}
+
+// ── 내 순서 (2026-10-12, docs/TASK_USER_ORDER_DESIGN.md §8 · Fable) ─────────────────
+// Irene: "태그별로 보든 마감일별로 보든 소팅을 자유롭게 … 리스트 재배치가 자유자재였으면".
+//   끌어 옮긴 업무(my_pos 있음)가 먼저 pos 오름차순, 아직 안 옮긴 업무는 그 뒤에 최신등록순 사슬.
+//   ★ 서버의 물질화(services/taskUserOrder ②)가 "보이는 순서대로 끝에" 붙이므로, 화면이 이 순서를 그대로
+//     visible_ids 로 보내면 끌기 전후 다른 행의 상대 순서가 바뀌지 않는다.
+export function byMyOrder(a: SortableTask, b: SortableTask): number {
+  const pa = a.my_pos ?? null; const pb = b.my_pos ?? null;
+  if (pa !== null && pb !== null) { if (pa !== pb) return pa - pb; }
+  else if (pa !== null) return -1;
+  else if (pb !== null) return 1;
+  return bySelectedSort('recent')(a, b);
 }

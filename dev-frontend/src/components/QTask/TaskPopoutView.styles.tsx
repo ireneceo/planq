@@ -78,6 +78,10 @@ export const Row = styled.div<{ $active: boolean; $dim: boolean }>`
   opacity: ${({ $dim }) => ($dim ? 0.6 : 1)};
   transition: border-color 0.12s, box-shadow 0.12s;
   &:hover { box-shadow: 0 2px 10px rgba(15,23,42,0.08); }
+  /* 끌어 옮기기 — 끄는 행은 흐리게, 놓을 자리는 위·아래 Teal 선(카드·촘촘히 같은 표식) */
+  &[data-dragging='1'] { opacity: 0.45; }
+  &[data-drop='before'] { box-shadow: 0 -2px 0 0 #14B8A6; }
+  &[data-drop='after'] { box-shadow: 0 2px 0 0 #14B8A6; }
 `;
 export const RowInner = styled.div`
   display: flex; align-items: center; gap: 6px;
@@ -342,3 +346,92 @@ export const RetryBtn = styled.button`
   &:focus-visible { outline: 2px solid rgba(15,118,110,0.5); outline-offset: 2px; }
 `;
 
+
+/* ── 촘촘히 보기 (2026-10-12) ─────────────────────────────────────────
+   Irene: "더 많은 할일이 보이게 … 글자가 더 작아지지 않아도 가능하면 칸 간격 없게 하고
+   한줄로 해서 극단적으로 최소화". 글자 크기는 그대로 두고 **카드·간격·두 번째 줄**만 걷어낸다.
+   카드 행 ≈ 74px → 한 줄 행 32px. 행 구조(형제 버튼들)는 그대로 — 규격만 덮는다.
+   ★ 같은 styled 를 상속해 덮는다. 행을 두 벌 그리면 열·권한·버튼이 갈라진다. */
+export const CompactList = styled(List)`
+  gap: 0;
+  background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 10px; overflow: hidden;
+  ${Row} {
+    gap: 0; padding: 0 6px 0 2px; border: 0; border-radius: 0;
+    border-bottom: 1px solid #F1F5F9;
+    &:hover:not([data-drop]) { box-shadow: none; }
+    &:hover { background: #F8FAFC; }
+    &[data-drop='before'] { box-shadow: inset 0 2px 0 0 #14B8A6; }
+    &[data-drop='after'] { box-shadow: inset 0 -2px 0 0 #14B8A6; }
+  }
+  ${Row}:last-child { border-bottom: 0; }
+  ${RowInner} { gap: 4px; min-height: 32px; }
+  /* 리드 칸은 div 안 inline-flex 버튼이라 줄 상자(글자 아래 여백)만큼 4px 더 커졌다 → flex 로 */
+  ${RowLead} { display: flex; align-items: center; }
+  ${Slot}, ${CheckBtn}, ${SubmitBtn}, ${FocusBtn}, ${FocusSlot}, ${PrioBtn}, ${PrioSlot} { height: 32px; }
+  ${Slot}, ${CheckBtn}, ${SubmitBtn}, ${FocusBtn}, ${FocusSlot} { width: 30px; }
+  ${FocusBtn}::before { inset: 3px 2px; }
+  ${RowMain} { flex-direction: row; align-items: center; gap: 8px; min-height: 32px; }
+  ${RowTop} { flex: 1; min-width: 0; align-items: center; gap: 6px; }
+  ${RowTitle} {
+    line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    word-break: normal; min-width: 0;
+  }
+  ${RowMeta} { flex-wrap: nowrap; flex-shrink: 0; gap: 6px; white-space: nowrap; }
+  ${RowErr} { margin: 0 0 6px 34px; }
+  /* 태그 + 는 행마다 점선 상자라 한 줄 목록에선 세로 기둥처럼 보인다 — 평소엔 테두리를 감추고 행에 올리면 보인다 */
+  ${TagSlot} button { border-color: transparent; }
+  ${Row}:hover ${TagSlot} button, ${TagSlot} button:focus-visible, ${TagSlot} button[aria-expanded='true'] { border-color: #CBD5E1; }
+`;
+/* 촘촘히 보기의 상태 표시 — 글자 알약 대신 색 점(이름은 마우스를 올리면). 처리할 차례인 상태는
+   글자를 남긴다(TaskPopoutView 의 COMPACT_TEXT_CODES) — 점만으로는 "내가 할 일" 을 놓친다. */
+export const StatusDot = styled.span<{ $bg: string; $fg: string }>`
+  flex-shrink: 0; width: 8px; height: 8px; border-radius: 50%;
+  background: ${({ $fg }) => $fg}; box-shadow: 0 0 0 2px ${({ $bg }) => $bg};
+  margin: 0 2px;
+`;
+export const CompactProject = styled(MetaChip)`
+  max-width: 96px; overflow: hidden; text-overflow: ellipsis;
+`;
+/* 보기 밀도 토글 — 오늘/이번 주 탭 줄 오른쪽 끝(두 탭 공통). 탭 버튼과 같은 높이·테두리 언어. */
+export const DensityBtn = styled.button<{ $active: boolean }>`
+  /* 높이는 같은 줄의 탭 버튼을 따른다(stretch) — 숫자를 다시 적으면 규격 래칫이 오르고 둘이 갈라진다 */
+  flex-shrink: 0; width: 30px; align-self: stretch; padding: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  color: ${p => (p.$active ? '#0F766E' : '#64748B')};
+  background: ${p => (p.$active ? '#F0FDFA' : 'transparent')};
+  border: 1px solid ${p => (p.$active ? '#99F6E4' : '#E2E8F0')};
+  border-radius: 8px; cursor: pointer;
+  &:hover { background: ${p => (p.$active ? '#CCFBF1' : '#F8FAFC')}; }
+  &:focus-visible { outline: 2px solid rgba(15,118,110,0.5); outline-offset: 2px; }
+`;
+export const DensityIcon: React.FC<{ compact: boolean }> = ({ compact }) => (
+  <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+    {compact
+      ? <path d="M2 3h10M2 5.7h10M2 8.3h10M2 11h10" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+      : <><rect x="1.8" y="2" width="10.4" height="4" rx="1.2" stroke="currentColor" strokeWidth="1.3" />
+        <rect x="1.8" y="8" width="10.4" height="4" rx="1.2" stroke="currentColor" strokeWidth="1.3" /></>}
+  </svg>
+);
+
+/* ── 내 순서: 끌어 옮기기 (2026-10-12, docs/TASK_USER_ORDER_DESIGN.md) ──────────────
+   손잡이는 우선순위 번호가 비운 자리(행 왼쪽)에 선다. 끌 수 없는 행(완료·다른 정렬)에는 빈 칸을 남겨 열을 맞춘다.
+   놓을 자리는 행의 data-drop 으로 그린다(위·아래 선) — 행을 따로 그리지 않는다. */
+export const DragSlot = styled.span`
+  width: 20px; align-self: stretch; flex-shrink: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+`;
+export const DragHandle = styled.button`
+  width: 20px; height: 100%; padding: 0; border: 0; background: transparent;
+  display: inline-flex; align-items: center; justify-content: center;
+  color: #CBD5E1; cursor: grab; touch-action: none; border-radius: 4px;
+  &:hover { color: #64748B; background: #F1F5F9; }
+  &:active { cursor: grabbing; }
+  &:focus-visible { outline: 2px solid rgba(15,118,110,0.5); outline-offset: 0; color: #0F766E; }
+`;
+export const DragGrip: React.FC = () => (
+  <svg width="10" height="14" viewBox="0 0 10 14" fill="currentColor" aria-hidden="true">
+    <circle cx="3" cy="3" r="1.2" /><circle cx="7" cy="3" r="1.2" />
+    <circle cx="3" cy="7" r="1.2" /><circle cx="7" cy="7" r="1.2" />
+    <circle cx="3" cy="11" r="1.2" /><circle cx="7" cy="11" r="1.2" />
+  </svg>
+);

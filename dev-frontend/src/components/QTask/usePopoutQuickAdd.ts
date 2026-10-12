@@ -17,10 +17,12 @@ export interface UsePopoutQuickAddArgs {
   weekStart: string | null;
   viewMode: string;
   silentLoad: () => Promise<void> | void;
+  /** 만든 직후(목록 갱신 전) — 내 순서 맨 위로 붙인다(설계 docs/TASK_USER_ORDER_DESIGN.md §8). */
+  onCreated?: (newId: number) => Promise<void> | void;
 }
 
 export function usePopoutQuickAdd({
-  bizId, myId, popTab, todayStr, weekStart, viewMode, silentLoad,
+  bizId, myId, popTab, todayStr, weekStart, viewMode, silentLoad, onCreated,
 }: UsePopoutQuickAddArgs) {
   const [quickPick, setQuickPick] = useState('');
   // ★ 마감일별 보기의 날짜 칸. **quickAdd 보다 위에** 둔다 — 아래에 두면 useCallback 의
@@ -90,11 +92,12 @@ export function usePopoutQuickAdd({
           if (!tagRes.ok) console.warn('[popout quickadd tags] HTTP', tagRes.status);
         } catch (err) { console.warn('[popout quickadd tags]', err); }
       }
+      if (newId && onCreated) await onCreated(Number(newId));
       await silentLoad();     // 서버 fresh 로 덮어쓴다(부분 merge 금지)
       return true;
     } catch {
       return false;
     }
-  }, [bizId, myId, popTab, todayStr, weekStart, silentLoad, viewMode, quickPick, quickDue, quickStart]);
+  }, [bizId, myId, popTab, todayStr, weekStart, silentLoad, onCreated, viewMode, quickPick, quickDue, quickStart]);
   return { quickPick, setQuickPick, quickDue, setQuickDue, quickStart, setQuickStart, quickAdd, projectDict };
 }

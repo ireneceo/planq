@@ -50,6 +50,7 @@ const LeaveRequest = require('./LeaveRequest');
 const WorkspaceHoliday = require('./WorkspaceHoliday');
 const TaskAttachment = require('./TaskAttachment');
 const TaskLink = require('./TaskLink');
+const TaskUserOrder = require('./TaskUserOrder');
 const TaskTag = require('./TaskTag');
 const TaskTagLink = require('./TaskTagLink');
 const ProjectStatusOption = require('./ProjectStatusOption');
@@ -619,6 +620,7 @@ module.exports = {
   TaskStatusHistory,
   TaskAttachment,
   TaskLink,
+  TaskUserOrder,
   TaskTag,
   TaskTagLink,
   ProjectStatusOption,
