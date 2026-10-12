@@ -767,5 +767,17 @@
   },
   "account": {
     "personal": "Personal"
+  },
+  "sentVia": {
+    "label": "Sent from",
+    "all": "All",
+    "planq": "From PlanQ",
+    "other": "From elsewhere",
+    "tag": "Sent via PlanQ",
+    "hint": {
+      "all": "Mail sent from PlanQ and from Gmail, other apps or AI tools",
+      "planq": "Only mail sent from PlanQ",
+      "other": "Only mail sent outside PlanQ — Gmail, Naver web, other apps, AI tools"
+    }
   }
 }

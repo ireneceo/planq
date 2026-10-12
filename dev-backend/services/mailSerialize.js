@@ -102,12 +102,15 @@ function serializeThreadRow(t, { folder, senderByThread, lastOutByThread, attach
       if (out.preview) preview = out.preview;
       if (out.sent_at) stamp = out.sent_at;
     }
+    // 보낸메일함 행의 «어디서 보냈나» — 마지막 보낸 메일(필터가 있으면 그 쪽의 마지막) 기준. 받은 메일 폴더에는 싣지 않는다.
+    const sentVia = folder === 'sent' && out ? (out.via || null) : null;
     return {
       id: obj.id,
       subject: obj.subject,
       last_message_preview: preview,
       last_message_at: stamp,
       last_message_direction: obj.last_message_direction,
+      sent_via: sentVia,
       received_at_email: obj.received_at_email || null,   // 별칭별 보기 — 이 대화가 들어온 우리 주소
       // 읽음 추적 대신 쓰는 결정론적 신호 — services/mailFollowUp 참조
       follow_up: followUpState(obj, lastOutByThread.get(obj.id) || null),

@@ -26,7 +26,7 @@ const { sendMail, deliveryFromSendResult } = require('../services/emailSend');
 const { inlineMailTableStyles } = require('../services/emailHtmlInline');
 const { buildQuote, buildForwardHeader, isolateForwardedHtml } = require('../services/emailQuote');
 // 폴더 정의·정렬은 services/mailFolders 가 단일 원천 (리스트 라우트 + 벌크 처리 공용)
-const { folderWhere, searchFolderWhere, folderOf, sentOrder, receivedOrder, receivedAtAttribute, BULK_FOLDERS } = require('../services/mailFolders');
+const { folderWhere, searchFolderWhere, folderOf, sentOrder, sentViaWhere, normalizeSentVia, SENT_VIA_SQL, receivedOrder, receivedAtAttribute, BULK_FOLDERS } = require('../services/mailFolders');
 // accessibleAccountIds 도 여기서 온다 — 프라이버시 격리 정의를 두 벌 두지 않는다
 const { outgoingIdentityFor, accessibleAccountIds, receivedAddressesOf } = require('../services/mailIdentity');
 const { serializeThreadRow, resolveRecipientNames } = require('../services/mailSerialize');
@@ -180,6 +180,10 @@ router.get('/:businessId/email-threads',
         if (!ids.length) return res.json({ success: true, data: [], pagination: { total: 0, limit, page, offset, has_more: false }, meta: { inquiry_unavailable: inquiryUnavailable } });
         where[Op.and] = [...(where[Op.and] || []), { id: { [Op.in]: ids } }];
       }
+      // 보낸메일함 «어디서 보냈나» — planq(PlanQ 에서 보냄) / other(Gmail·다른 앱·AI 등에서 보냄). 술어는 services/mailFolders 한 곳.
+      //   ★ id 조건은 Op.and 안에 — sent 폴더 자체의 where.id(보낸 것이 있는 스레드)를 덮어쓰지 않게.
+      const sentVia = folder === 'sent' ? normalizeSentVia(req.query.sent_via) : null;
+      if (sentVia) where[Op.and] = [...(where[Op.and] || []), sentViaWhere(sentVia, businessId)];
       // 풀텍스트 — subject + last_message_preview + 메시지(본문·제목·보낸사람)
       // #212 — 공백은 토큰 구분자. "wordpress org" 는 두 토큰이 각각 어딘가에 있으면 매칭(AND).
       //        옛 동작(공백 포함 단일 LIKE)은 "wordpress.org" 같은 실제 문자열을 못 찾았다.
@@ -212,8 +216,8 @@ router.get('/:businessId/email-threads',
         //   받은 메일 폴더는 **받은 시각** 순이다 — 내가 답장해도 자리가 움직이지 않는다(services/mailFolders receivedOrder).
         ...(folder === 'sent' ? {} : { attributes: { include: [receivedAtAttribute()] } }),
         order: relevanceOrder
-          ? [relevanceOrder, ...(folder === 'sent' ? sentOrder() : receivedOrder())]
-          : (folder === 'sent' ? sentOrder() : receivedOrder()),
+          ? [relevanceOrder, ...(folder === 'sent' ? sentOrder(sentVia) : receivedOrder())]
+          : (folder === 'sent' ? sentOrder(sentVia) : receivedOrder()),
         limit, offset,
         distinct: true,
       });
@@ -245,11 +249,12 @@ router.get('/:businessId/email-threads',
         //   새 쿼리를 만들지 않고 컬럼만 넓힌다 (N+1 금지).
         const lastOut = await sequelize.query(
           `SELECT em.thread_id, em.delivery_status, em.to_emails, em.sent_at, em.internal_only,
+                  (em.sent_by_user_id IS NOT NULL) AS via_planq,
                   LEFT(COALESCE(em.body_text, ''), 200) AS preview
              FROM email_messages em
              JOIN (SELECT thread_id, MAX(id) AS mid
                      FROM email_messages
-                    WHERE thread_id IN (:ids) AND direction = 'outbound'
+                    WHERE thread_id IN (:ids) AND direction = 'outbound'${sentVia ? ` AND ${SENT_VIA_SQL[sentVia]}` : ''}
                  GROUP BY thread_id) last ON last.mid = em.id`,
           { replacements: { ids: threadIds }, type: sequelize.QueryTypes.SELECT }
         );
@@ -257,6 +262,7 @@ router.get('/:businessId/email-threads',
           lastOutByThread.set(m.thread_id, {
             delivery_status: m.delivery_status,
             internal_only: !!m.internal_only,
+            via: Number(m.via_planq) ? 'planq' : 'other',
             to_emails: m.to_emails,
             sent_at: m.sent_at,
             preview: m.preview,

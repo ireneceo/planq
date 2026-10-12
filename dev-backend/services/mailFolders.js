@@ -130,14 +130,40 @@ function folderWhere(folder, userId, businessId) {
       return { status: { [Op.notIn]: ['spam', 'archived'] } };
   }
 }
+// 보낸메일함 «어디서 보냈나» 필터 (2026-10-12 — Irene: *"다른 ai 나 플랫폼에서 보낸 이메일도 보낸메일에서 봐야 해 …
+//   우리가 보낸 메일은 제대로 체크해주고 필터링으로 각각 볼 수 있게"*).
+//   기준은 **발송 원장 한 칸** `email_messages.sent_by_user_id` 다 — PlanQ 의 답장·새 메일·전달 3경로가 전부 사람 id 를
+//   남기고, 업체 보낸편지함에서 가져온 사본(source_folder='sent')과 받은편지함에 섞여 온 내 사본은 NULL 이다.
+//   source_folder 로 가르지 않는 이유: PlanQ 발송분은 inbox 로 기록되고, 다른 앱 발송분도 옛 경로(isOwnSentCopy)로 inbox 에 있다.
+//   한 스레드에 둘 다 있으면 두 필터 모두에 나온다(그 스레드에 그런 메일이 실제로 있다).
+//   SENT_VIA_SQL 은 목록 필터와 행 표시(마지막 보낸 메일 고르기)가 **같은 조각**을 쓴다.
+const SENT_VIA_SQL = { planq: 'sent_by_user_id IS NOT NULL', other: 'sent_by_user_id IS NULL' };
+function normalizeSentVia(v) { return Object.prototype.hasOwnProperty.call(SENT_VIA_SQL, v) ? v : null; }
+function sentViaWhere(via, businessId) {
+  const key = normalizeSentVia(via);
+  const bid = Number(businessId);
+  if (!key || !Number.isInteger(bid) || bid <= 0) return null;
+  return {
+    id: {
+      [Op.in]: sequelize.literal(
+        `(SELECT DISTINCT em_via.thread_id FROM email_messages em_via
+            WHERE em_via.business_id = ${bid} AND em_via.direction = 'outbound' AND em_via.${SENT_VIA_SQL[key]})`
+      ),
+    },
+  };
+}
+
 // 보낸메일함 정렬 — 내가 보낸 시각 기준 (#262). 상관 서브쿼리로 푼다(파생 컬럼 X):
 //   outbound 쓰기 경로가 reply·compose·forward 3곳 + 향후 IMAP Sent 동기화까지 있어 컬럼은
 //   조용히 어긋난다 (memory feedback_dual_column_authority_write_side).
 //   인덱스 email_messages_thread_time(thread_id, sent_at) 이 받쳐 준다.
-function sentOrder() {
+// via('planq'|'other') 를 주면 그 쪽에서 보낸 것의 시각으로 줄 세운다 — 행이 보여 주는 시각(마지막 그 쪽 발송)과 같게.
+function sentOrder(via) {
+  const key = normalizeSentVia(via);
+  const viaCond = key ? ` AND em_ord.${SENT_VIA_SQL[key]}` : '';
   return [[sequelize.literal(
     `(SELECT MAX(em_ord.sent_at) FROM email_messages em_ord
-        WHERE em_ord.thread_id = \`EmailThread\`.\`id\` AND em_ord.direction = 'outbound')`
+        WHERE em_ord.thread_id = \`EmailThread\`.\`id\` AND em_ord.direction = 'outbound'${viaCond})`
   ), 'DESC']];
 }
 
@@ -203,6 +229,6 @@ function folderOf(row) {
 }
 
 module.exports = {
-  folderWhere, searchFolderWhere, folderOf, sentOrder, receivedOrder, receivedAtAttribute,
+  folderWhere, searchFolderWhere, folderOf, sentOrder, sentViaWhere, normalizeSentVia, SENT_VIA_SQL, receivedOrder, receivedAtAttribute,
   BULK_FOLDERS: new Set(['reply_needed', 'uncertain', 'all']),
 };

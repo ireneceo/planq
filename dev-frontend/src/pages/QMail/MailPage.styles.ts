@@ -483,6 +483,15 @@ export const InquiryFilterBar = styled.div`
   background: #EEF2FF; color: #3730A3; font-size: 0.75rem; font-weight: 600;
   border-bottom: 1px solid #E0E7FF;
 `;
+// 보낸메일함 «어디서 보냈나» 줄 (2026-10-12) — 알약 탭 + 지금 보는 범위를 한 줄로 말한다.
+export const SentViaBar = styled.div`
+  display: flex; align-items: center; gap: 10px; padding: 8px 14px;
+  border-bottom: 1px solid #E2E8F0; background: #FFFFFF;
+  overflow-x: auto;
+`;
+export const SentViaHint = styled.span`
+  font-size: 0.75rem; color: #64748B; white-space: nowrap;
+`;
 export const InquiryFilterClear = styled.button`
   border: none; background: none; padding: 4px 6px; margin-left: auto;
   color: #4338CA; font-size: 0.75rem; font-weight: 600; cursor: pointer; border-radius: 6px;

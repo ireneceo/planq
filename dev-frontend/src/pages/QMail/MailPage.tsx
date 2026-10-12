@@ -12,6 +12,7 @@
 // read-only: 답장/전송 X (M3 후속), 라벨/스타/할당 X (M3 후속)
 // 가능: 폴더 전환, 스레드 조회, 읽음 처리 (open 시 자동), 스팸 마킹
 
+import { SegmentedToggle, SegmentedBtn } from '../../components/Common/segmentedToggle';
 import React, { useState, useEffect, useLayoutEffect, useCallback, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useTabTitle } from '../../hooks/useTabTitle';
@@ -182,7 +183,7 @@ import {
   FwdPreview, FwdPreviewHead, FwdChevron, FwdPreviewBody, FwdPreviewMeta,
   KeptDraftNote,
   DraftStatusLine,
-  PromoteErrTag, InquiryFilterBar, InquiryFilterClear,
+  PromoteErrTag, InquiryFilterBar, InquiryFilterClear, SentViaBar, SentViaHint,
 } from './MailPage.styles';
 
 type Folder = 'reply_needed' | 'uncertain' | 'all' | 'sent' | 'marketing' | 'following' | 'spam' | 'archived';
@@ -208,6 +209,7 @@ interface Thread {
   subject: string | null;
   last_message_preview: string | null;
   last_message_at: string;
+  sent_via?: 'planq' | 'other' | null;   // 보낸메일함 행만 — 마지막 보낸 메일이 PlanQ 에서 나갔나(서버 sent_by_user_id)
   last_message_direction?: 'inbound' | 'outbound' | null;  // #186 — 마지막 메시지 방향(받은/보낸 구분)
   // 읽음 추적 대신 쓰는 결정론적 신호 — 보낸 뒤 답이 없거나, 애초에 발송이 안 됐거나.
   //   서버 판정(services/mailFollowUp) 단일 원천. 프론트에서 날짜를 다시 계산하지 말 것.
@@ -409,6 +411,16 @@ const MailPage: React.FC = () => {
   const threadIdParam = sp.get('thread');
   // #449 — 「문의 후보만」(Q sales 안내 줄에서 넘어온다). URL 이 정본 — keep-alive 탭에서도 매번 다시 읽는다.
   const inquiryOnly = sp.get('inquiry') === '1';
+  // 보낸메일함 «어디서 보냈나» (2026-10-12) — '' 전체 / planq PlanQ 에서 보냄 / other 다른 곳(Gmail·다른 앱·AI)에서 보냄.
+  //   URL 이 정본(keep-alive 탭에서도 매번 다시 읽는다). 서버 술어는 services/mailFolders sentViaWhere 한 곳.
+  const viaParam = sp.get('via');
+  const sentVia: '' | 'planq' | 'other' = folder === 'sent' && (viaParam === 'planq' || viaParam === 'other') ? viaParam : '';
+  const setSentVia = (v: '' | 'planq' | 'other') => {
+    const nsp = new URLSearchParams(sp);
+    if (v) nsp.set('via', v); else nsp.delete('via');
+    nsp.delete('thread');
+    setSp(nsp, { replace: true });
+  };
   const activeId = threadIdParam ? Number(threadIdParam) : null;
   const navigate = useNavigate();
   // 계정(회사/개인) 필터 — null = 전체
@@ -734,8 +746,9 @@ const MailPage: React.FC = () => {
     if (labelFilter) s2 += `&label=${encodeURIComponent(labelFilter)}`;
     if (projectFilter) s2 += `&project_id=${projectFilter}`;
     if (inquiryOnly) s2 += '&inquiry=1';
+    if (sentVia) s2 += `&sent_via=${sentVia}`;
     return s2;
-  }, [labelFilter, projectFilter, inquiryOnly]);
+  }, [labelFilter, projectFilter, inquiryOnly, sentVia]);
   // 목록 갱신 — **읽고 있던 자리를 지킨다**.
   //   여태 무조건 1페이지(30건)만 다시 받아 threads 를 통째로 교체했다. 그래서 무한스크롤로 90건을
   //   내려본 상태에서 "확인 완료" 를 누르면(→ socket mail:updated → silentReload) 목록이 30건으로
@@ -2415,6 +2428,20 @@ const MailPage: React.FC = () => {
             </FaqSuggestBox>
           )}
           {errorMsg && <ErrorBar>{errorMsg}</ErrorBar>}
+          {folder === 'sent' && !addressMode && (
+            <SentViaBar data-testid="mail-sent-via">
+              <SegmentedToggle role="tablist" aria-label={t('sentVia.label', { defaultValue: '보낸 곳' }) as string}>
+                {(['', 'planq', 'other'] as const).map((v) => (
+                  <SegmentedBtn key={v || 'all'} type="button" role="tab" aria-selected={sentVia === v}
+                    data-testid={`mail-sent-via-${v || 'all'}`} $active={sentVia === v}
+                    onClick={() => setSentVia(v)}>
+                    {t(`sentVia.${v || 'all'}`, { defaultValue: v === 'planq' ? 'PlanQ에서' : v === 'other' ? '다른 곳에서' : '전체' }) as string}
+                  </SegmentedBtn>
+                ))}
+              </SegmentedToggle>
+              <SentViaHint>{t(`sentVia.hint.${sentVia || 'all'}`) as string}</SentViaHint>
+            </SentViaBar>
+          )}
           {inquiryOnly && (
             <InquiryFilterBar data-testid="mail-inquiry-filter" role="status">
               <span>{t('filter.inquiryOnly', { defaultValue: '문의 후보만' }) as string}</span>
@@ -2510,6 +2537,10 @@ const MailPage: React.FC = () => {
                         (태그와 미리보기가 서로 다른 메일을 가리키게 된다). */}
                     {folder !== 'sent' && mt.last_message_direction === 'outbound' && !mt.reply_preview && (
                       <SentTag>{t('thread.sent', { defaultValue: '보낸' }) as string}</SentTag>
+                    )}
+                    {/* 보낸메일함 — PlanQ 에서 보낸 메일은 표시를 단다(Gmail·다른 앱·AI 에서 보낸 것과 가른다). 기준은 서버 sent_via. */}
+                    {folder === 'sent' && mt.sent_via === 'planq' && (
+                      <SentTag data-testid="mail-sent-via-planq-tag">{t('sentVia.tag', { defaultValue: 'PlanQ 발송' }) as string}</SentTag>
                     )}
                     {/* 보냈다는 것은 **행에 조용히** 남긴다 — 성공 토스트는 쓰지 않는다(운영 규칙). */}
                     {promoteDone === mt.id && (
