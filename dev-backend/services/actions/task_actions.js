@@ -684,12 +684,10 @@ async function createTask(actor, params = {}, opts = {}) {
   //   ★ 배정 불가(탈퇴·타 워크스페이스)면 403 이 아니라 다음 후보로 폴백한다 — 기본값 때문에
   //     업무 생성 자체가 막히면 안 된다.
   //   ★ 선정 규칙은 pickProjectAssignee 단일 원천이다 — 화면 미리보기가 같은 함수를 쓴다.
-  let assigneeFromChain = false;
   if (!finalAssignee && projectId && !opts.allowUnassigned) {
     const picked = await pickProjectAssignee(projectId, businessId, subjectId);
     if (picked.userId) {
       finalAssignee = picked.userId;
-      assigneeFromChain = picked.fromChain;
     }
   }
   if (!finalAssignee) finalAssignee = opts.allowUnassigned ? null : subjectId;
@@ -732,22 +730,18 @@ async function createTask(actor, params = {}, opts = {}) {
   const isInternalRequest = !!finalAssignee && Number(finalAssignee) !== Number(subjectId);
   const assigneeIsCue = cueUserId && Number(finalAssignee) === Number(cueUserId);
 
-  // PERMISSION_MATRIX §5.7 — 남에게 요청하는 업무의 예측시간·반복설정은 요청자가 정하지 않는다
+  // PERMISSION_MATRIX §5.7 — 남에게 요청하는 업무의 예측시간은 요청자가 정하지 않는다
   //   (담당자가 ack 후 본인 캐파에 맞춰 정한다). 단 담당=Cue 면 예외 — AI 에겐 캐파 협상이 없다.
   const keepEstimate = !isInternalRequest || (opts.keepEstimateForCue && assigneeIsCue);
   const effectiveEstimatedHours = keepEstimate ? (params.estimatedHours || null) : null;
 
-  // ★ 반복설정은 **체인이 배정한 담당자** 앞에서는 살린다.
-  //   §5.7 의 취지는 "남에게 *요청*하면서 그 사람 캐파(예측시간·반복주기)를 요청자가 정하지 말라"다.
-  //   그런데 프로젝트 기본담당자/PM 은 사용자가 그 업무에 대해 고른 사람이 아니라 **프로젝트 설정**이다.
-  //   여기서까지 반복을 NULL 로 만들면, 사용자가 정기업무로 만든 루틴이 저장 시 조용히 일회성이 된다
-  //   (Irene: "업무반복 기능도 적용이 안되네?"). 담당자를 **명시적으로 남으로 고른** 경우엔 종전대로 sanitize.
-  const recurrenceAllowed = !isInternalRequest || assigneeFromChain;
+  // ★ 반복설정은 담당자와 무관하게 살린다 (2026-10-12 Irene: *"왜 내가 담당자가 아니면 반복하기 기능을
+  //   못 써? 쓸 수 있어야 해."*). 반복 주기는 «언제 또 해야 하는 일인가» — 의뢰 명세(발주자 영역)다
+  //   (FIELD_RULES.recurrence_rule 도 작성자 ∨ owner/admin). 예측시간과 달리 담당자 캐파가 아니다.
+  //   옛 §5.7 sanitize 는 요청자가 고른 주기를 조용히 버려 정기 요청이 일회성이 됐고, 담당자는 FIELD_RULES 상
+  //   주기를 고칠 수도 없어 «아무도 못 정하는» 상태였다.
   // sanitizeRRule 이 정규화한 값으로 아래에서 덮어쓴다(대문자·RRULE: 접두 제거) → let.
-  let effectiveRecurrenceRule = recurrenceAllowed ? (params.recurrenceRule || null) : null;
-  if (isInternalRequest && !recurrenceAllowed && params.recurrenceRule) {
-    console.warn(`[createTask] requester=${subjectId} assignee=${finalAssignee} — 반복설정 sanitize (책임선 분리)`);
-  }
+  let effectiveRecurrenceRule = params.recurrenceRule || null;
   if (isInternalRequest && params.estimatedHours && !keepEstimate) {
     console.warn(`[createTask] requester=${subjectId} assignee=${finalAssignee} — 예측시간 sanitize (책임선 분리)`);
   }

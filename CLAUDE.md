@@ -527,7 +527,8 @@ router.get('/', authenticateToken, async (req, res, next) => {
 > - **AuditLog 누락 5 영역 채움** — business_members invite/remove · cloud.disconnect · file.delete · clients.* (이미 호출 중)
 > - **사용량 시각화** — `/api/plan/:id/status.cue_actions_by_type` JSON breakdown. PlanSettings #usage 에 기능별 누적 막대 (brief/docs_generate/kb_embed 등). UsageWarningCard 초과 시 Primary CTA "지금 업그레이드" (Danger red). PostAiModal cue 잔여 hint + 임박 시 확인 모달.
 > - **Q Note 토큰 예상 endpoint** — `POST /api/plan/:id/qnote/estimate { file_size_bytes }` → `{ estimated_minutes, current_minutes, limit_minutes, will_exceed }`. 향후 음성 업로드 STT 기능에 즉시 적용.
-> - **요청 탭 책임선 분리** — `tab='requested'` 시 예측시간/AI/반복 UI 숨김 + 백엔드 POST 라우트 sanitize (담당자 ≠ 작성자면 NULL 강제). PERMISSION_MATRIX §5.7 일관.
+> - **요청 탭 책임선 분리** — `tab='requested'` 시 예측시간/AI UI 숨김 + 백엔드 POST 라우트 sanitize (담당자 ≠ 작성자면 NULL 강제). PERMISSION_MATRIX §5.7 일관.
+>   ★ **반복은 예외다(2026-10-12)** — Irene *"왜 내가 담당자가 아니면 반복하기 기능을 못 써? 쓸 수 있어야 해"*. 반복 주기는 의뢰 명세(작성자 영역, FIELD_RULES 와 같은 축)라 남에게 요청하는 업무에도 추가 폼에 칸을 내고 서버도 살린다(`task_actions.createTask`). 옛 sanitize 는 담당자도 FIELD_RULES 상 못 고쳐 «아무도 못 정하는» 상태였다.
 > - **디자인 시스템** — `components/Common/ActionButton.tsx` (3톤 × sm 36/md 40/lg 44 + Spinner + focus ring) + `DrawerFooter.tsx` (sticky bottom + safe-area + 좌/우 슬롯). TaskDetailDrawer Action* alias 마이그레이션 (사용처 17곳 무변경).
 > - **개인 보관함 정책 재정의** — Drive 연동과 무관, 항상 자체 스토리지. 워크스페이스 공용 quota 안 합산. 개인별 quota 분리 X. 설정 페이지 "파일 저장소" → **"파일·외부 연동"** (캘린더 포함 의도).
 > - **GDrive reconnect 옛 폴더 재사용** — drive.file scope 안에서 같은 이름 폴더 search → 가장 오래된 createdTime 재사용. 중복 폴더 자동 차단.

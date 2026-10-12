@@ -310,6 +310,7 @@ async function canFinancialAction(user, businessId, projectId) {
 - **reviewers add/remove** — 담당자/요청자(작성자 포함)/owner (`task_workflow.js:573,650`). 워크플로우의 `isOwner` 헬퍼는 `role === 'owner'` 만 인정 — admin·platform_admin 미포함 (`task_workflow.js:65-68`).
 - **"요청자" 열 판정 기준** — PUT 라우트 FIELD_RULES 는 `created_by`(작성자)만 검사하며 요청 생성 흐름에서 요청자=작성자라 실질 동일. `request_by_user_id` 만 별도로 가진 사용자는 워크플로우 라우트의 `isRequester`(`request_by_user_id OR created_by`, `task_workflow.js:62-64`)에서만 인정.
 - **estimated/actual/progress** — 담당자 또는 owner/admin (`routes/tasks.js:1142-1144`). PATCH `/:id/time` 경로는 담당자·owner 외 403 `only_assignee_can_edit_hours` (`routes/tasks.js:334-340`).
+- **recurrence_rule(반복)** — 작성자 또는 owner/admin(FIELD_RULES). **생성 때도 담당자와 무관하게 저장한다**(2026-10-12 Irene «담당자가 아니면 반복 못 써? 쓸 수 있어야 해») — 남에게 요청하는 업무의 생성 sanitize 는 예측시간만이다. 반복 주기는 의뢰 명세(작성자 영역)이지 담당자 캐파가 아니다.
 
 > **이유:** 담당자 결과물을 owner 가 임의 수정하면 책임선 무너지고 동기부여 저하. 의뢰 명세를 담당자가 수정하면 발주자 권한 침해. 본문이 두 갈래로 나뉘어 있으니 권한도 두 갈래.
 

@@ -1515,7 +1515,7 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
           const afterSaveVersionNo = nextVersionNo + 1;
           // 완료된 업무를 이어서 고치는 유일한 문 = 새 회차 시작(actStart). 취소된 업무는 열지 않는다.
           const reviseAvailable = canEditBody && detailTask.status === 'completed';
-          const canEditRecurrence = iAmCreator || iAmWsOwner;  // 백엔드 FIELD_RULES와 일치
+          const canEditRecurrence = iAmCreator || iAmWsOwner || myWsRole === 'admin';  // 백엔드 FIELD_RULES(작성자 ∨ owner/admin)와 일치 — admin 이 빠져 «읽기 전용» 이었다
           // 공개 범위·보안등급 — 서버 FIELD_RULES.vlevel·security_level(작성자 ∨ owner/admin)과 같은 집합.
           //   고객에게는 칸 자체를 그리지 않는다(고객 응답엔 값이 없다).
           const canEditSecurity = iAmCreator || iAmWsOwner || myWsRole === 'admin';
@@ -3024,8 +3024,10 @@ const Backdrop = styled.div`
 `;
 // 모바일 키보드 대응(#79): 높이를 --vvh 바운드 → 키보드 up 시 드로어가 줄고 하단 액션바/댓글
 //   입력이 항상 키보드 위. (bottom:0 은 레이아웃 뷰포트라 키보드 뒤로 감.)
+// ★ --vv-top: 키보드가 보이는 영역을 아래로 민 양(main.tsx). DetailDrawer.Panel 과 같은 계약 — 안 더하면 패널이
+//   위로 밀리고 --vvh 로 줄인 바닥이 키보드 위에 떠 빈 띠가 된다(2026-10-12 아이패드 수정요청 입력 신고). 평소 0.
 const Drawer = styled.aside<{ $w: number }>`
-  position:fixed;top:var(--chrome-top, 0px);right:0;
+  position:fixed;top:calc(var(--chrome-top, 0px) + var(--vv-top, 0px));right:0;
   height:calc(var(--vvh, 100dvh) - var(--chrome-top, 0px));
   width:min(${p => p.$w}px, calc(100vw - 56px));
   background:#FFF;border-left:1px solid #E2E8F0;
@@ -3036,14 +3038,14 @@ const Drawer = styled.aside<{ $w: number }>`
   /* RightDock FAB(120) 위로 z-index 130. 모바일 고정 헤더(99) 밑에서 시작 + safe-area 보정 → 닫기 버튼 안 가림(#171/172). */
   /* 헤더와 같은 단일 원천(--pq-mobile-chrome). 따로 계산하면 노치 높이만큼 어긋난다(index.css 주석). */
   /* ★ 2026-10-05 — --pq-panel-top: 폰은 앱 헤더를 덮는 전면 상세(상태바 아래), 태블릿 미러 모드는 종전처럼 모바일 헤더 아래. */
-  @media (max-width: 1024px){ top:var(--pq-panel-top, 56px); height:calc(var(--vvh, 100dvh) - var(--pq-panel-top, 56px)); }
+  @media (max-width: 1024px){ top:calc(var(--pq-panel-top, 56px) + var(--vv-top, 0px)); height:calc(var(--vvh, 100dvh) - var(--pq-panel-top, 56px)); }
   /* ≤640 폰 — 풀스크린(여태 min(w,100vw-56)이라 56px 조각으로 뒤 화면이 비쳤다). 좌측 border·그림자 제거. */
   @media (max-width: 640px){ width:100vw; border-left:none; box-shadow:none; }
   /* #290 — 팝아웃 창(440px)엔 메인 모바일 고정 헤더(56px)가 없다. 위 ≤1024 분기가 그 헤더 자리를
      비워두는 바람에 팝아웃에선 **아무것도 없는 56px 띠** 아래로 뒤 리스트가 비쳤다.
      폭으로 분기하면 진짜 폰과 구별되지 않으므로 body[data-popout] 로만 되돌린다(미디어쿼리 뒤 = 우선). */
   body[data-popout='1'] &{
-    top:var(--pq-safe-top, 0px);
+    top:calc(var(--pq-safe-top, 0px) + var(--vv-top, 0px));
     height:calc(var(--vvh, 100dvh) - var(--pq-safe-top, 0px));
   }
 `;

@@ -124,7 +124,17 @@ if (isNativeApp()) {
 // 100dvh 지연 회귀 + body(정적 layout viewport) 와 자식(동적 vvh) 불일치 차단.
 if (typeof window !== 'undefined' && window.visualViewport) {
   const vv = window.visualViewport;
-  const mq = window.matchMedia('(max-width: 768px)');
+  // ★ 2026-10-12 — 폰만이 아니라 **터치 태블릿**(아이패드·안드로이드 태블릿)도 화면 키보드 기기다.
+  //   (Irene: "아이패드에서 수정/컨펌요청 입력하는데 키보드가 올라오고 이상한 공간이 키보드 위에 또 생겨서
+  //    입력할 수가 없어 … 태블릿 피씨 아이패드, 안드로이드 다")
+  //   여태 키보드 보정(유령 스크롤 되돌리기·가려진 입력 올리기·캐럿 추적)과 index.css 의 앱 셸 고정이
+  //   전부 (max-width:768px) 게이트라 태블릿(폭 810~1366)은 하나도 받지 못했다. 그래서 키보드가 뜨면
+  //   iOS·안드로이드 크롬이 보이는 영역을 아래로 민 만큼(offsetTop) 화면이 위로 올라가고, --vvh 로 줄어든
+  //   패널·셸의 바닥이 키보드 위에서 그만큼 떠서 **빈 띠**가 됐다. 폰은 이 보정을 받아 멀쩡했다.
+  //   판정은 «손가락이 주 포인터인가»(pointer: coarse) — 폭이 아니다. 데스크탑 마우스(fine)는 종전 그대로.
+  //   index.css 의 같은 쿼리와 **같은 문자열**이어야 한다(한쪽만 넓히면 셸은 안 고정되고 보정만 돈다).
+  const mq = window.matchMedia('(max-width: 768px), (pointer: coarse)');
+  const coarse = window.matchMedia('(pointer: coarse)');
   // 키보드 판정 안정 기준 높이. iOS PWA standalone 은 키보드 up 시 innerHeight 자체가
   // 줄어드는 경우가 있어 (실측 VVDIAG: iH 793→417) live innerHeight 로 isUp 판정하면
   // 오판. orientation/툴바 복귀로만 갱신되는 최대값을 기준으로 사용.
@@ -162,7 +172,9 @@ if (typeof window !== 'undefined' && window.visualViewport) {
   }, true);
   const update = () => {
     if (window.innerHeight > fullH) fullH = window.innerHeight;
-    const isUp = vv.height < fullH * 0.70;
+    // 비율만 보면 큰 태블릿(아이패드 프로 세로 1366)은 키보드가 떠도 70% 를 안 넘는다 — 터치 기기는
+    //   줄어든 높이(150px 넘게)로도 판정한다. 하드웨어 키보드의 단축키 줄(약 55~70px)은 키보드가 아니다.
+    const isUp = vv.height < fullH * 0.70 || (coarse.matches && fullH - vv.height > 150);
     if (isUp) document.body.setAttribute('data-keyboard-up', '1');
     else document.body.removeAttribute('data-keyboard-up');
     // ★ iOS 는 키보드가 올라올 때 visual viewport 를 아래로 민다(offsetTop). position:fixed 요소는
@@ -261,8 +273,11 @@ if (typeof window !== 'undefined' && window.visualViewport) {
         //   ①모달의 스크롤 상자 경계 밖(아래 버튼 줄 뒤)이거나 ②sticky 하단 줄([취소][추가])에 덮여 있었다.
         //   옛 판정은 vv.height 만 봐서 "보인다" 고 끝냈다. 그래서 아래 끝을 셋 중 가장 위로 잡는다:
         //   키보드 위 · 스크롤 상자의 아래 경계 · 입력을 덮고 있는 떠 있는 줄(sticky/fixed)의 위 끝.
-        let visibleBottom = vv.height;                 // offsetTop 0 강제라 상단=0, 하단=vv.height
-        let visibleTop = 0;
+        // 보이는 영역 = [offsetTop, offsetTop + vv.height] (rect 는 레이아웃 뷰포트 좌표). 앱 셸에선 유령 스크롤
+        //   보정이 offsetTop 을 0 으로 되돌리지만, 되돌리기 전(손가락이 닿아 있는 동안·조합 중)에도 맞게 잰다.
+        const vvTop = Math.max(0, vv.offsetTop);
+        let visibleBottom = vvTop + vv.height;
+        let visibleTop = vvTop;
         if (scroller) {
           const sr = scroller.getBoundingClientRect();
           visibleBottom = Math.min(visibleBottom, sr.bottom);
@@ -272,7 +287,7 @@ if (typeof window !== 'undefined' && window.visualViewport) {
           // 입력 자리를 찍어 본다 — 입력(또는 그 안/바깥 조상)이 아닌 것이 잡히면 덮인 것이다
           const x = rect.left + Math.min(rect.width / 2, 40);
           for (const y of [rect.bottom - 3, rect.top + 2, rect.top + Math.min(rect.height, 20) / 2]) {
-            if (y <= 0 || y >= vv.height) continue;
+            if (y <= vvTop || y >= vvTop + vv.height) continue;
             const hit = document.elementFromPoint(x, y) as HTMLElement | null;
             if (!hit || hit === el || el.contains(hit) || hit.contains(el)) continue;
             for (let q: HTMLElement | null = hit; q && q !== document.body; q = q.parentElement) {
