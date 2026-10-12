@@ -230,7 +230,9 @@ router.patch('/me/calendar/events/:connId/:gcalEventId',
       const { conn, bizId, error, status } = await loadOwnCalendarConn(req);
       if (error) return errorResponse(res, error, status, error);
       // 어느 캘린더의 일정인가 — 화면이 보낸 값을 그대로 믿지 않는다(보이는 캘린더 + owner·writer 만).
-      const allowed = await personalCalendar.assertEditableCalendar(conn, req.body?.calendar_id);
+      let allowed;
+      try { allowed = await personalCalendar.assertEditableCalendar(conn, req.body?.calendar_id); }
+      catch (e) { console.warn('[personal cal patch] list failed conn=' + conn.id, e.code || e.status || ''); return errorResponse(res, 'gcal_list_failed', 502, 'gcal_list_failed'); }
       if (!allowed.ok) return errorResponse(res, allowed.error, allowed.status, allowed.error);
       const calendarId = allowed.calendarId;
 
@@ -294,7 +296,9 @@ router.delete('/me/calendar/events/:connId/:gcalEventId',
     try {
       const { conn, bizId, error, status } = await loadOwnCalendarConn(req);
       if (error) return errorResponse(res, error, status, error);
-      const allowed = await personalCalendar.assertEditableCalendar(conn, req.query?.calendar_id || req.body?.calendar_id);
+      let allowed;
+      try { allowed = await personalCalendar.assertEditableCalendar(conn, req.query?.calendar_id || req.body?.calendar_id); }
+      catch (e) { console.warn('[personal cal delete] list failed conn=' + conn.id, e.code || e.status || ''); return errorResponse(res, 'gcal_list_failed', 502, 'gcal_list_failed'); }
       if (!allowed.ok) return errorResponse(res, allowed.error, allowed.status, allowed.error);
       try {
         // 반복 일정의 인스턴스 id 를 지우면 그 회차만 취소된다 (시리즈 전체는 Google 에서).
@@ -323,6 +327,8 @@ router.delete('/me/calendar/events/:connId/:gcalEventId',
 //   골라 둔 캘린더 id 는 external_connections.metadata.calendar_id(기본 primary). 본인 연결만.
 //   목록은 «일정을 쓸 수 있는» 캘린더뿐(writer·owner) — 읽기만 되는 구독 캘린더에 올리면 구글이 거절한다.
 async function ownCalendarConn(req, connId) {
+  // 숫자가 아니면 찾지 않는다 — NaN 이 쿼리로 가면 500 이 났다(Fable 2026-10-12 비차단 1)
+  if (!Number.isInteger(connId) || connId <= 0) return null;
   const conn = await ExternalConnection.findOne({
     where: { id: connId, user_id: req.user.id, owner_scope: 'user', provider: 'google_calendar' },
   });
