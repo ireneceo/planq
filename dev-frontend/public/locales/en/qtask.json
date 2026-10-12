@@ -1527,5 +1527,11 @@
     "hiddenByView": "The task you just added isn't shown in this view (tab, filter or search)",
     "open": "Open",
     "dismiss": "Close"
+  },
+  "security": {
+    "label": "Visibility",
+    "general": "Standard",
+    "internal": "Internal (team only)",
+    "internalHint": "Hidden from clients and links"
   }
 }

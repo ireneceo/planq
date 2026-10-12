@@ -12,6 +12,10 @@
 > `R=1 OR (S=1 AND F=0)` 은 공용 기준으로 대체됐다(뜻은 같다).
 
 
+### 2026-10-12 업무 «내부 업무» 보안등급 — 설계 1 + 완료 검증 PASS (방 99ab9b7d)
+- 설계: security_level(general/internal) 한 축 · 공개 범위(vlevel) 없음 · 09-27 «첨부에서 파생» 판정 일부 뒤집음(OR) — docs/TASK_SECURITY_LEVEL_DESIGN.md
+- 검증 PASS: 실HTTP 39검사·게스트 링크·소켓·마이그레이션 멱등. 비차단 1 고객 작성자 등급 변경 → FIELD_RULES 에 !isClient (고침, 403 실측) · 비차단 2 잔여물 정리.
+
 ## 2026-10-12 — Cue 업무 여러 개(task_batch) · 설계 DESIGN-OK (다) → 완료 **PASS** (b6695797 + ebbef4bb, 방 4bde0632)
 - 설계: 한 답에 create_task ≥2 → 후보 목록 한 덩이(상한 40 = MAX_CONFIRM_CANDIDATES) · AiCandidateCard + [N개 추가] → confirm cue_batch → 행마다 executeTool(create_task) · 계량 턴 1회/행 0 · 부분 실패 created[]/failed[] · 음성 같은 덩이(D4) · 팝아웃 CueTaskBar · D2·대량=HIGH 불변.
 - 완료 검증 실측: 가짜 LLM 주입 5+1→task_batch(5)+event · 41→40 · 일정4→3(D2) · 음성 3→batch / 실HTTP 10행 → 성공 5·replayed 1·실패 4(남 ws 프로젝트·모르는 칸·남 ws 메일·비멤버 담당) · 계량 묶음 0 / 카드 대조 1 · 41행 400 · 비멤버 403.

@@ -150,6 +150,9 @@ const FIELD_RULES = {
   start_date: (c) => c.isAssignee || c.isCreator || c.isOwnerOrAdmin,
   planned_week_start: (c) => c.isCreator || c.isAssignee || c.isOwnerOrAdmin,
   recurrence_rule: (c) => c.isCreator || c.isOwnerOrAdmin,
+  // «내부 업무»(2026-10-12) — 누구에게 보이나는 의뢰 명세 축(발주자) + 관리자. 담당자·고객은 못 바꾼다.
+  //   ★ 고객은 작성자여도 못 바꾼다 — createTask 가 고객 생성분을 늘 general 로 두는 것과 같은 선(Fable 완료 검증 비차단 1).
+  security_level: (c) => !c.isClient && (c.isCreator || c.isOwnerOrAdmin),
   // #349 — 반복 규칙과 **같은 축**이다. 빠뜨리면 담당자가 아닌 멤버는 물론 client 까지
   //   (assertBusinessAccess 는 client 도 통과시킨다) 남의 시리즈를 auto_skip 으로 바꿔
   //   cron 이 타인의 회차를 자동 취소하게 만들 수 있다(Fable 실측 200). 규칙을 나란히 둔다.
@@ -174,6 +177,7 @@ async function fieldContext(task, userId, platformRole = null) {
     isCreator: task.created_by === userId,
     isAssignee: task.assignee_id === userId,
     isOwnerOrAdmin: platformRole === 'platform_admin' || !!scope.isOwner || !!scope.isAdmin,
+    isClient: !!scope.isClient,
     scope,
   };
 }
@@ -835,6 +839,9 @@ async function createTask(actor, params = {}, opts = {}) {
       recurrence_rule: effectiveRecurrenceRule,
       recurrence_parent_id: null,
       next_occurrence_at: nextOccurrenceAt,
+      // «내부 업무»(2026-10-12) — 멤버가 만들 때만 고를 수 있다(고객이 만든 것은 늘 일반). 모르는 값은 일반.
+      //   AI 에이전트 도구는 이 값을 넘기지 않는다(AI 가 노출을 바꾸지 않는다 — 설계 §2).
+      security_level: (!isClient && params.securityLevel === 'internal') ? 'internal' : 'general',
     }, { transaction: t });
 
     // 요청 업무 — 요청자를 컨펌자로 자동 등록. 담당자가 곧장 '완료' 하지 못하고 요청자 승인을 거친다.

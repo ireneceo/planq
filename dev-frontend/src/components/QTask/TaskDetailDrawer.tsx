@@ -141,6 +141,8 @@ interface TaskDetail {
   tags?: TaskTagLite[] | null;
   /** #353 ⑤ 중요도. 주간 랭킹 priority_order 와 **다른 것** — 이름을 갈라 뒀다. */
   priority_level?: 'low' | 'normal' | 'high' | 'urgent' | null;
+  // «내부 업무»(2026-10-12) — internal 이면 프로젝트 고객·게스트·공개 링크에 안 보인다. 고객 응답에는 키가 없다.
+  security_level?: 'general' | 'internal';
   start_date: string | null; due_date: string | null;
   estimated_hours: number | null; actual_hours: number; progress_percent: number;
   // 시스템 자동 vs 사용자 입력 시그널 — 'ai'/'auto' 면 회색 italic, 'user' 면 검정 (사이클 N+6)
@@ -1504,6 +1506,10 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
           // 완료된 업무를 이어서 고치는 유일한 문 = 새 회차 시작(actStart). 취소된 업무는 열지 않는다.
           const reviseAvailable = canEditBody && detailTask.status === 'completed';
           const canEditRecurrence = iAmCreator || iAmWsOwner;  // 백엔드 FIELD_RULES와 일치
+          // «내부 업무» — 서버 FIELD_RULES.security_level(작성자 ∨ owner/admin)과 같은 집합.
+          //   고객에게는 칸 자체를 그리지 않는다(고객 응답엔 값이 없다 — 일반 업무만 받거나 관계자로 받는다).
+          const canEditSecurity = iAmCreator || iAmWsOwner || myWsRole === 'admin';
+          const showSecurity = isPlatformAdmin || myWsRole === 'owner' || myWsRole === 'admin' || myWsRole === 'member';
           // 운영 #279 — 기간(착수·마감). 여태 이 플래그가 **아예 없어서** 담당자에게 편집 가능한
           //   UI 를 열어두고 저장 시점에 403 "저장 실패" 만 띄웠다. 백엔드 FIELD_RULES.due_date/
           //   start_date(담당자/작성자/owner/admin)와 정확히 같은 집합이어야 한다.
@@ -1877,6 +1883,32 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                     }}
                     options={['urgent', 'high', 'normal', 'low'].map((k) => ({ value: k, label: t(`importance.${k}`) as string }))} />
                 </MetaCell>
+                {/* «내부 업무»(2026-10-12, docs/TASK_SECURITY_LEVEL_DESIGN.md) — 팀(멤버)은 그대로 보고,
+                    프로젝트 고객·게스트 링크·공개 공유 링크에서만 빠진다. 올리면 서버가 나가 있던 공유 링크를 끊는다. */}
+                {showSecurity && (
+                  <MetaCell data-testid="task-security-level">
+                    <MetaLabel>{t('security.label', '공개')}
+                      {!canEditSecurity && <ReadOnlyHint>{t('detail.readOnly', '읽기 전용')}</ReadOnlyHint>}
+                    </MetaLabel>
+                    <PlanQSelect size="sm"
+                      isDisabled={!canEditSecurity}
+                      value={{
+                        value: detailTask.security_level || 'general',
+                        label: t(`security.${detailTask.security_level || 'general'}`) as string,
+                      }}
+                      onChange={(v) => {
+                        if (!canEditSecurity) return;
+                        const val = (v as { value?: string })?.value === 'internal' ? 'internal' : 'general';
+                        if (val === (detailTask.security_level || 'general')) return;
+                        setDetailTask(prev => (prev ? { ...prev, security_level: val } as TaskDetail : prev));
+                        saveField('security_level', val);
+                      }}
+                      options={['general', 'internal'].map((k) => ({ value: k, label: t(`security.${k}`) as string }))} />
+                    {(detailTask.security_level || 'general') === 'internal' && (
+                      <SecurityHint>{t('security.internalHint', '고객·외부 링크에 안 보여요')}</SecurityHint>
+                    )}
+                  </MetaCell>
+                )}
                 <MetaCell>
                   <MetaLabel>{t('detail.meta.assignee', '담당자')}</MetaLabel>
                   <PlanQSelect size="sm" isClearable
@@ -2994,6 +3026,9 @@ const Section = styled.div`border-bottom:1px solid #F1F5F9;padding:12px 14px;
   body[data-popout='1'] &{padding:10px 12px;}`;
 const SectionTitle = styled.h4`font-size:0.75rem;font-weight:700;color:#0F172A;margin:0 0 8px;display:flex;align-items:center;gap:8px;
   body[data-popout='1'] &{margin-bottom:6px;}`;
+const SecurityHint = styled.div`
+  margin-top: 4px; font-size: 0.75rem; line-height: 1.4; color: #92400E;
+`;
 const ReadOnlyHint = styled.span`font-size:0.6875rem;font-weight:500;color:#94A3B8;background:#F1F5F9;border-radius:10px;padding:2px 8px;`;
 // 결과물 회차 칩 — 제목 옆에 지금까지 남긴 회차를 붙인다(이력을 펼치지 않아도 보이게).
 const BodyVerChip = styled.span`

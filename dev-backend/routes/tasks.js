@@ -292,7 +292,7 @@ router.post('/', authenticateToken, async (req, res, next) => { // audit-exempt:
   try {
     const { business_id, project_id, title, description, assignee_id, due_date,
       estimated_hours, category, source_message_id, conversation_id, planned_week_start, start_date,
-      cue_kind, cue_context_ref, recurrence_rule, workstream_id, client_id } = req.body;
+      cue_kind, cue_context_ref, recurrence_rule, workstream_id, client_id, security_level } = req.body;
 
     // 생성은 행동 계층 단일 착지점을 지난다 (services/actions/task_actions.js).
     //   권한·요청자 자동 컨펌자·Cue 실행·socket·알림·감사가 전부 그 안에서 일어난다 — Cue 도 같은 문.
@@ -305,6 +305,7 @@ router.post('/', authenticateToken, async (req, res, next) => { // audit-exempt:
       recurrenceRule: recurrence_rule, workstreamId: workstream_id,
       // 고객 축 — 행동 계층이 같은 워크스페이스 고객인지 확인한 뒤에만 붙인다(task_actions 의 격리 검사)
       clientId: client_id,
+      securityLevel: security_level,
     }, { autoAiEstimate: true });
     if (!result.ok) return errorResponse(res, result.code, result.http || 400);
 
@@ -1063,7 +1064,7 @@ router.put('/by-business/:businessId/:id', authenticateToken, async (req, res, n
     const task = await Task.findOne({ where: { id: req.params.id, business_id: businessId } });
     if (!task) return errorResponse(res, 'task_not_found', 404);
 
-    const { title, description, body, assignee_id, status, due_date, start_date, estimated_hours, actual_hours, progress_percent, category, planned_week_start, project_id, recurrence_rule, workstream_id, is_milestone, hold_reason, miss_policy, priority_level } = req.body;
+    const { title, description, body, assignee_id, status, due_date, start_date, estimated_hours, actual_hours, progress_percent, category, planned_week_start, project_id, recurrence_rule, workstream_id, is_milestone, hold_reason, miss_policy, priority_level, security_level } = req.body;
     const updates = {};
     if (is_milestone !== undefined) updates.is_milestone = !!is_milestone;
     if (title !== undefined) updates.title = title;
@@ -1117,6 +1118,15 @@ router.put('/by-business/:businessId/:id', authenticateToken, async (req, res, n
     // #353 ⑤ 중요도 — ENUM 밖 값은 **400 으로 돌려준다.** 조용히 떨구면 사용자는 저장된 줄 안다.
     //   (miss_policy 는 조용히 무시하는 옛 방식인데, 그건 내부 정책 값이고 이건 사용자가 고르는 값이다.)
     //   null·'' 은 "미지정으로 되돌리기" 다.
+    // «내부 업무» 보안등급(2026-10-12, docs/TASK_SECURITY_LEVEL_DESIGN.md) — 값 둘만. 바꾸는 사람은 FIELD_RULES.
+    if (security_level !== undefined) {
+      if (!['general', 'internal'].includes(security_level)) return errorResponse(res, 'invalid_security_level', 400);
+      if (security_level !== task.security_level) {
+        updates.security_level = security_level;
+        // 올리면 이미 나간 링크를 끊는다(공유 규칙 2 — 문서·파일과 같은 share_helper.shareOffPatch).
+        if (security_level === 'internal') Object.assign(updates, require('../services/share_helper').shareOffPatch(task));
+      }
+    }
     if (priority_level !== undefined) {
       if (priority_level === null || priority_level === '') {
         updates.priority_level = null;
@@ -1288,7 +1298,7 @@ router.put('/by-business/:businessId/:id', authenticateToken, async (req, res, n
     const isOwnerOrAdmin = isPlatformAdmin || myScope.isOwner || isWsAdmin;
 
     // 필드별 권한 표는 행동 계층(task_actions.FIELD_RULES)에 있다 — 외부 AI 에이전트(#439)도 같은 표를 쓴다(2026-10-02 이동).
-    const denied = taskActions.deniedFields(Object.keys(updates), { isCreator, isAssignee, isOwnerOrAdmin });
+    const denied = taskActions.deniedFields(Object.keys(updates), { isCreator, isAssignee, isOwnerOrAdmin, isClient: !!myScope.isClient });
     if (denied.length > 0) {
       return errorResponse(res, `forbidden_fields:${denied.join(',')}`, 403);
     }
@@ -1371,6 +1381,10 @@ router.put('/by-business/:businessId/:id', authenticateToken, async (req, res, n
       //   시리즈의 성질이다(제목·담당자와 같은 축).
       const propagate = {};
       for (const f of seriesScopeSvc.SERIES_CONTENT_FIELDS) if (updates[f] !== undefined) propagate[f] = updates[f];
+      // 다른 회차를 내부로 올리면 그 회차들의 공유 링크도 끊는다(이 회차와 같은 규칙).
+      if (propagate.security_level === 'internal') {
+        Object.assign(propagate, { share_token: null, shared_at: null, share_expires_at: null, share_password_hash: null });
+      }
       if (Object.keys(propagate).length > 0) {
         const { ids } = await seriesScopeSvc.seriesTargetIds(task, seriesScope);
         const others = ids.filter((id) => id !== task.id);
@@ -1713,6 +1727,8 @@ router.post('/:id/copy', authenticateToken, async (req, res, next) => {
       estimated_hours: src.estimated_hours,
       category: src.category,
       conversation_id: src.conversation_id,
+      // 보안등급은 승계한다(넓히지 않는다 — 문서 복사 계약). 공유 토큰은 따라가지 않는다.
+      security_level: src.security_level,
       planned_week_start: null,
       created_by: req.user.id,
       source: 'manual',
@@ -2441,7 +2457,7 @@ router.post('/:id/share', authenticateToken, async (req, res, next) => {
       return errorResponse(res, 'forbidden', 403);
     }
 
-    // 공유를 막는 기준 — 업무에는 보안등급 칸이 없어 **실릴 파일**에서 파생한다(services/taskPublicShare 머리말).
+    // 공유를 막는 기준 — 업무 자체 «내부 업무» 또는 실릴 파일의 등급(services/taskPublicShare 머리말).
     //   문서 공유와 같은 코드를 쓴다 — 화면은 이미 이 코드를 안다.
     {
       const blocker = await require('../services/taskPublicShare').shareBlockedBy(task);
@@ -2491,7 +2507,7 @@ router.get('/public/by-token/:token', async (req, res, next) => {
   try {
     // N+44 — share_expires_at WHERE 조건 제거. 만료된 token 도 일단 가져와서 410 + share_expired 응답 통일.
     const task = await Task.findOne({
-      where: { share_token: req.params.token },
+      where: { share_token: req.params.token, security_level: 'general' },   // 내부 업무는 링크로 안 열린다(토큰이 남아 있어도)
       include: [
         { model: User, as: 'assignee', attributes: ['id', 'name'], required: false },
         { model: User, as: 'creator', attributes: ['id', 'name'], required: false },
@@ -2558,7 +2574,7 @@ router.get('/public/by-token/:token/auth-check', authenticateToken, async (req, 
 router.get('/public/by-token/:token/attachments/:attId/download', async (req, res, next) => {
   try {
     const task = await Task.findOne({
-      where: { share_token: req.params.token },
+      where: { share_token: req.params.token, security_level: 'general' },   // 내부 업무는 링크로 안 열린다(토큰이 남아 있어도)
       attributes: ['id', 'business_id', 'share_token', 'share_expires_at', 'share_password_hash'],
     });
     if (!task) return errorResponse(res, 'not_found', 404);

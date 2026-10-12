@@ -2806,8 +2806,11 @@ router.get('/:id/tasks', authenticateToken, async (req, res, next) => {
     const { project, role, error } = await loadProjectOrForbidden(Number(req.params.id), req.user.id);
     if (error) return errorResponse(res, error.message, error.code);
     const { literal } = require('sequelize');
+    // 고객에게는 내부 업무를 싣지 않는다(이름이 박힌 관계자 업무는 예외) — canAccessTask 와 같은 술어.
+    const taskWhere = { project_id: project.id };
+    if (role === 'client') taskWhere[Op.and] = [await require('../middleware/access_scope').clientTaskInternalWhere(req.user.id)];
     const tasks = await Task.findAll({
-      where: { project_id: project.id },
+      where: taskWhere,
       attributes: {
         include: [
           // 최신 estimation source — AI 자동 예측 task 시각 분기 (회색 + ✨)
@@ -3246,7 +3249,8 @@ router.get('/workspace/:businessId/all-tasks', authenticateToken, async (req, re
       });
       const projectIds = pcs.map((pc) => pc.project_id).filter(Boolean);
       const orConds = [{ assignee_id: req.user.id }, { request_by_user_id: req.user.id }];
-      if (projectIds.length > 0) orConds.push({ project_id: projectIds });
+      // 프로젝트 고객 축은 일반 업무만(내부 업무는 관계자 축으로만) — taskListWhere 와 같은 술어.
+      if (projectIds.length > 0) orConds.push({ project_id: projectIds, security_level: 'general' });
       where = { business_id: businessId, [Op.or]: orConds };
     }
 

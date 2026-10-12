@@ -111,6 +111,12 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({
   const [assigneeId, setAssigneeId] = useState<number | null>(initial?.assigneeId ?? (isRequest ? null : myId));
   const [projectId, setProjectId] = useState<number | null>(fixedProjectId ?? initial?.projectId ?? null);
   const [workstreamId, setWorkstreamId] = useState<number | null>(null);
+  // «내부 업무»(2026-10-12) — 만들 때부터 고객·외부에 안 보이게. 멤버에게만 보인다(서버도 고객 값은 무시한다).
+  const [securityLevel, setSecurityLevel] = useState<'general' | 'internal'>('general');
+  const myWsRoleForForm = (user?.workspaces || []).find((w) => w.business_id === Number(bizId))?.role
+    || (user?.business_id === Number(bizId) ? user?.business_role : null);
+  const canPickSecurity = user?.platform_role === 'platform_admin'
+    || myWsRoleForForm === 'owner' || myWsRoleForForm === 'admin' || myWsRoleForForm === 'member';
   const [startDate, setStartDate] = useState<string>(initial?.startDate ?? '');
   const [dueDate, setDueDate] = useState<string>(initial?.dueDate ?? '');
   const [estHours, setEstHours] = useState<string>('');
@@ -292,6 +298,7 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({
           workstream_id: workstreamId,
           // 고객 맥락에서 연 폼이면 그 고객의 업무가 된다 — 서버가 워크스페이스 소속을 확인한다
           client_id: fixedClientId,
+          security_level: canPickSecurity ? securityLevel : undefined,
         }),
       })).json();
       if (!r?.success) return;
@@ -457,6 +464,15 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({
             onChange={setTagIds}
             onDictAdd={addTagToDict} />
         </AddOptField>
+        {canPickSecurity && (
+          <AddOptField data-field="security" style={{ flex: '0 1 200px' }}>
+            <AddOptLabel>{t('security.label', '공개')}</AddOptLabel>
+            <PlanQSelect size="sm"
+              value={{ value: securityLevel, label: t(`security.${securityLevel}`) as string }}
+              onChange={(v) => setSecurityLevel((v as { value?: string })?.value === 'internal' ? 'internal' : 'general')}
+              options={['general', 'internal'].map((k) => ({ value: k, label: t(`security.${k}`) as string }))} />
+          </AddOptField>
+        )}
       </AddOptRow>
       {/* 반복 — 공용 RecurrencePicker(Q Calendar 와 같은 것). 마감일이 anchor 다.
           남에게 명시적으로 지정한 업무에서는 서버가 버리므로(§5.7) 칸 자체를 내지 않는다. */}

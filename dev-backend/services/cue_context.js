@@ -176,7 +176,7 @@ async function getEmailThreadSnapshot(threadId, businessId, { userId = null, sco
         const rows = await Task.findAll({
           where: { business_id: businessId, email_thread_id: threadId },
           attributes: ['id', 'title', 'status', 'due_date', 'assignee_id', 'created_by', 'request_by_user_id',
-            'business_id', 'project_id', 'conversation_id', 'client_id'],
+            'business_id', 'project_id', 'conversation_id', 'client_id', 'security_level'],
           order: [['id', 'DESC']], limit: 8,
         });
         for (const r of rows) {

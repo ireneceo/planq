@@ -32,9 +32,20 @@ const CLIENT_VIEW = {
   'file:new': signal, 'file:updated': signal, 'file:deleted': signal,
 };
 
+// «내부 업무»(2026-10-12) — 고객 방에는 행을 싣지 않는다. 바뀐 업무가 내부면 삭제 신호만 보내
+//   고객 화면에서 사라지게 한다. 이름이 박힌 관계자 고객은 다시 읽으면 REST 가 돌려준다.
+//   ★ 판정은 «값이 internal» 이다 — 행 전체 방송(serializeTaskForBroadcast)은 이 칸을 늘 싣는다.
+//     값을 안 실은 부분 방송(워크스트림 삭제의 {id, workstream_id})은 제목이 없어 종전대로 보낸다
+//     (그걸 삭제 신호로 바꾸면 일반 업무가 고객 화면에서 사라진다). 새 부분 방송에 제목을 실으면 칸도 같이 싣는다.
+const TASK_ROW_EVENTS = new Set(['task:new', 'task:updated']);
+
 function emitProject(io, projectId, event, payload) {
   if (!io || !projectId) return;
   io.to(`project:${projectId}`).emit(event, payload);
+  if (TASK_ROW_EVENTS.has(event) && payload && payload.security_level === 'internal') {
+    io.to(`project:${projectId}:client`).emit('task:deleted', signal(payload));
+    return;
+  }
   const toClient = CLIENT_VIEW[event];
   if (toClient) io.to(`project:${projectId}:client`).emit(event, toClient(payload));
 }

@@ -283,6 +283,16 @@ Task.init({
   shared_at: { type: DataTypes.DATE, allowNull: true },
   share_password_hash: { type: DataTypes.STRING(255), allowNull: true },
   share_expires_at: { type: DataTypes.DATE, allowNull: true },
+  // 보안등급 (2026-10-12, docs/TASK_SECURITY_LEVEL_DESIGN.md · Fable 설계) — «내부 업무».
+  //   internal = 프로젝트 고객·대화 참여 고객·게스트 프로젝트 링크·공개 공유 링크에 **행 자체가 없다.**
+  //   멤버(owner/admin/member)와 직접 관계자 고객(담당·작성·요청·컨펌자)은 그대로 본다.
+  //   공개 범위(vlevel)는 두지 않는다 — 멤버끼리는 열린 문화(PERMISSION_MATRIX §1).
+  //   운영 스키마: scripts/migrate-task-security-level.js (배포 슬롯, 코드보다 먼저).
+  security_level: {
+    type: DataTypes.ENUM('general', 'internal'),
+    allowNull: false,
+    defaultValue: 'general',
+  },
 }, {
   sequelize,
   tableName: 'tasks',

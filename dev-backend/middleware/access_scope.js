@@ -248,6 +248,24 @@ async function conversationListWhere(userId, businessId, scope) {
 // ─────────────────────────────────────────────
 // Task
 // ─────────────────────────────────────────────
+// 내부 업무(2026-10-12) — 프로젝트 고객·대화 참여 고객·게스트·공개 링크에 안 보인다. 판정 한 곳.
+//   값을 안 실은 행(attributes 로 좁혀 읽은 것)은 **내부로 본다**(fail-closed) — 고객 분기에서만 쓰인다.
+function isInternalTask(task) {
+  return !task || task.security_level !== 'general';
+}
+
+// 고객이 «관계로» 받는 업무 목록(프로젝트 업무·대화 업무)에 붙이는 조건 — 일반 업무 ∨ 이름이 박힌 관계자.
+//   canAccessTask 와 같은 술어를 목록 쿼리 모양으로. 호출부는 Op.and 안에 넣는다(최상위 키 덮어쓰기 금지).
+async function clientTaskInternalWhere(userId) {
+  const reviewerRows = await TaskReviewer.findAll({ where: { user_id: userId }, attributes: ['task_id'] });
+  const or = [
+    { security_level: 'general' },
+    { assignee_id: userId }, { created_by: userId }, { request_by_user_id: userId },
+  ];
+  if (reviewerRows.length) or.push({ id: { [Op.in]: reviewerRows.map((r) => r.task_id) } });
+  return { [Op.or]: or };
+}
+
 async function canAccessTask(userId, task, scope) {
   if (!task) return false;
   if (!scope) scope = await getUserScope(userId, task.business_id);
@@ -259,6 +277,9 @@ async function canAccessTask(userId, task, scope) {
   if (task.request_by_user_id === userId) return true;
   const reviewer = await TaskReviewer.findOne({ where: { task_id: task.id, user_id: userId }, attributes: ['id'] });
   if (reviewer) return true;
+  // ★ 여기부터는 «관계로 닿는» 고객이다(대화 참여·프로젝트 고객) — 내부 업무는 이 문으로 안 열린다.
+  //   이름이 박힌 관계자(위)는 명시적 지정이라 그대로 본다. docs/TASK_SECURITY_LEVEL_DESIGN.md
+  if (isInternalTask(task)) return false;
   if (task.conversation_id) {
     const part = await ConversationParticipant.findOne({
       where: { conversation_id: task.conversation_id, user_id: userId },
@@ -286,9 +307,10 @@ async function taskListWhere(userId, businessId, scope) {
     { request_by_user_id: userId },
   ];
   if (reviewerTaskIds.length > 0) orConds.push({ id: { [Op.in]: reviewerTaskIds } });
-  if (convIds.length > 0) orConds.push({ conversation_id: { [Op.in]: convIds } });
+  // 관계로 닿는 축(대화 참여·프로젝트 고객)은 일반 업무만 — canAccessTask 와 같은 술어.
+  if (convIds.length > 0) orConds.push({ conversation_id: { [Op.in]: convIds }, security_level: 'general' });
   if (scope.projectClientProjectIds.length > 0) {
-    orConds.push({ project_id: { [Op.in]: scope.projectClientProjectIds } });
+    orConds.push({ project_id: { [Op.in]: scope.projectClientProjectIds }, security_level: 'general' });
   }
   return { business_id: businessId, [Op.or]: orConds };
 }
@@ -907,6 +929,8 @@ module.exports = {
   canDownloadFile,
   conversationListWhere,
   canAccessTask,
+  isInternalTask,
+  clientTaskInternalWhere,
   taskListWhere,
   assertAssignable,
   canAccessProject,

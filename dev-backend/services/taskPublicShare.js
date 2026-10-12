@@ -14,8 +14,9 @@
 //     업무 공유가 문서 토큰을 새로 만들지 않는다(그러면 가시성 확대 통로가 된다).
 //   · 댓글·제출 메모·수정요청·컨펌자·상태 이력은 싣지 않는다.
 //
-// 공유를 막는 기준 — 업무에는 보안등급 칸이 없다. 그래서 **실릴 파일**에서 파생한다:
-//   실릴 파일 중 하나라도 `blocksExternalShare`(internal·confidential)면 발급 403. (컬럼을 새로 만들지 않았다 — Fable 판단)
+// 공유를 막는 기준 — ①업무 자체가 «내부 업무»(tasks.security_level='internal', 2026-10-12 Fable 설계) **또는**
+//   ②실릴 파일 중 하나라도 `blocksExternalShare`(internal·confidential)면 발급 403.
+//   (09-27 엔 업무 칸 없이 ②만 뒀다 — 첨부 없는 업무 제목이 고객·게스트에 가는 것은 ②로 표현할 수 없어 ①을 더했다.)
 const { Op } = require('sequelize');
 const { TaskAttachment, TaskDeliverableVersion, Post } = require('../models');
 const { shareOpenReason, isPublicFile } = require('./shareOpenable');
@@ -84,6 +85,9 @@ async function publicAttachmentList(task, token) {
 
 /** 발급을 막아야 하는가 — 실릴 파일 중 외부 공유 금지 등급이 있으면. */
 async function shareBlockedBy(task) {
+  // 업무 자체가 «내부 업무»면 첨부와 무관하게 막는다(2026-10-12 — 첨부 파생은 그대로 두고 OR).
+  //   값을 안 실은 행은 막는 쪽(isInternalTask fail-closed).
+  if (require('../middleware/access_scope').isInternalTask(task)) return task;
   for (const { file } of await shippableAttachments(task)) {
     if (file && blocksExternalShare(file)) return file;
   }

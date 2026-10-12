@@ -1527,5 +1527,11 @@
     "hiddenByView": "방금 추가한 업무는 지금 보기(탭·필터·검색)에는 안 보여요",
     "open": "열기",
     "dismiss": "닫기"
+  },
+  "security": {
+    "label": "공개",
+    "general": "일반",
+    "internal": "내부 업무 (팀만)",
+    "internalHint": "고객·외부 링크에 안 보여요"
   }
 }

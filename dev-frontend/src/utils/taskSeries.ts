@@ -17,6 +17,8 @@ export const TASK_SERIES_FIELDS = [
   //   "백엔드에만 넣고 여기 빠뜨리면 도달할 수 없다" 는 #353 과 같은 계열이다.
   //   두 목록이 어긋나지 않는지는 `--suite seriesscope` 가 대조한다.
   'workstream_id', 'is_milestone',
+  // «내부 업무»(2026-10-12) — 서버 SERIES_CONTENT_FIELDS 와 같이 늘렸다.
+  'security_level',
 ];
 
 /** 업무 본문 필드가 아니라 **별도 엔드포인트**로 저장되는 시리즈 공유 내용.

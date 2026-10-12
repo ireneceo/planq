@@ -133,6 +133,8 @@ async function createOccurrence(parent, nextDateStr, io = null, notifyBucket = n
       // #353 ⑤ — 중요도도 회차에 물려준다. 안 물려주면 부모는 "긴급" 인데 실제 회차는
       //   전부 미지정으로 태어난다 — workstream_id 가 그랬던 것과 같은 누락 계열(#348 ①).
       priority_level: parent.priority_level,
+      // «내부 업무» 도 회차에 물려준다 — 안 물려주면 내부로 정한 시리즈의 새 회차가 고객에게 보인다.
+      security_level: parent.security_level,
       // #348 ③ — parent 가 start~due 기간을 가지면 그 일수를 유지해 새 due 기준으로 재계산
       start_date: inheritedStartDate(parent, nextDateStr),
       due_date: nextDateStr,

@@ -155,8 +155,9 @@ router.get('/:token', guestLimiter('guest-ctx', { windowMs: 60 * 1000, max: 60 }
 
           // 업무 — 개요에는 **숫자만**.
           const [taskTotal, taskDone] = await Promise.all([
-            Task.count({ where: { project_id: p.id, business_id: link.business_id } }),
-            Task.count({ where: { project_id: p.id, business_id: link.business_id, status: 'completed' } }),
+            // 내부 업무는 세지 않는다 — 업무 탭(guest_project)과 같은 집합이어야 숫자가 목록과 맞는다.
+            Task.count({ where: { project_id: p.id, business_id: link.business_id, security_level: 'general' } }),
+            Task.count({ where: { project_id: p.id, business_id: link.business_id, security_level: 'general', status: 'completed' } }),
           ]);
           project.task_summary = { total: taskTotal, completed: taskDone };
         }
