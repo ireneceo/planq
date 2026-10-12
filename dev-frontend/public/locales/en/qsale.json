@@ -378,7 +378,8 @@
       "personal": "Came in automatically because it was sent from a personal address",
       "webform": "Came in through a web form (a send-only address). The contact details are in the message"
     },
-    "switchedManual": "Auto intake is off. {{n}} emails matching the auto rule are tagged \"Possible lead\" in Q mail.",
+    "switchedManual": "Auto intake is off. {{n}} emails matching the auto rule are tagged \"Possible lead\" in Q mail. To turn it on, go to Settings › Permissions › Sales intake.",
+    "openIntakeSettings": "Change in settings",
     "openInMail": "Open in Q mail",
     "dismissNote": "Dismiss",
     "removeFromSales": "Remove from Sales",

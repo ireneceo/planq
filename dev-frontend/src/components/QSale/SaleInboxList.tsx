@@ -302,7 +302,7 @@ const SaleInboxList: React.FC<Props> = ({
       {/* ★ 기준은 화면이 **짧게** 알려준다 — 왜 여기 없는지 모르면 사용자는 고장으로 읽는다
           (memory feedback_rules_must_be_explained_briefly). */}
       <Hint>{t('inbox.hint') as string}</Hint>
-      <IntakeNoteLine businessId={businessId} counts={counts} onOpenMail={() => navigate('/mail?folder=all&inquiry=1')} />
+      <IntakeNoteLine businessId={businessId} counts={counts} onOpenMail={() => navigate('/mail?folder=all&inquiry=1')} onOpenSettings={() => navigate('/business/settings/permissions?focus=sales-intake')} />
 
       {actionError && <ErrorBar role="alert">{actionError}</ErrorBar>}
 

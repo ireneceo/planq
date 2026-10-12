@@ -7,7 +7,8 @@
 // ★ 바꿔도 메일·원장은 그대로다 — 상담 목록은 원본에서 파생되므로 되돌리면 그대로 돌아온다.
 // ★ 고치는 사람은 고객 창구 카드와 같은 판정(owner) — 서버 assertEntryAdmin 과 같은 값.
 import React, { useEffect, useRef, useState } from 'react';
-import styled from 'styled-components';
+import styled, { css } from 'styled-components';
+import { useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { apiFetch } from '../../contexts/AuthContext';
 import AutoSaveField from '../Common/AutoSaveField';
@@ -24,6 +25,12 @@ const SalesIntakeSection: React.FC<Props> = ({ businessId, isOwner }) => {
   const modeRef = useRef<Mode | null>(null);
   modeRef.current = mode;
   const savedRef = useRef<Mode | null>(null);
+  // Q sales 안내 줄의 [설정에서 바꾸기] 가 `?focus=sales-intake` 로 보낸다 — 카드가 비동기로 그려지므로
+  // 카드 **자신이** 그려진 뒤 스크롤한다. 쿼리는 deps 로 읽는다(keep-alive 탭에서 초기값 1회만 읽으면 두 번째부터 안 걸린다).
+  const [params] = useSearchParams();
+  const focus = params.get('focus');
+  const cardRef = useRef<HTMLDivElement>(null);
+  const [flash, setFlash] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -37,6 +44,14 @@ const SalesIntakeSection: React.FC<Props> = ({ businessId, isOwner }) => {
     })();
     return () => { alive = false; };
   }, [businessId]);
+
+  useEffect(() => {
+    if (focus !== 'sales-intake' || !mode || !cardRef.current) return;
+    cardRef.current.scrollIntoView({ block: 'center' });
+    setFlash(true);
+    const id = window.setTimeout(() => setFlash(false), 1600);
+    return () => window.clearTimeout(id);
+  }, [focus, mode]);
 
   const persist = async () => {
     const m = modeRef.current;
@@ -52,7 +67,7 @@ const SalesIntakeSection: React.FC<Props> = ({ businessId, isOwner }) => {
 
   if (!mode) return null;
   return (
-    <Card data-testid="sales-intake-card">
+    <Card ref={cardRef} $flash={flash} data-testid="sales-intake-card">
       <Head>
         <Title>{t('salesIntake.title') as string}</Title>
         <Desc>{t('salesIntake.mail.label') as string}</Desc>
@@ -78,9 +93,11 @@ const SalesIntakeSection: React.FC<Props> = ({ businessId, isOwner }) => {
 
 export default SalesIntakeSection;
 
-const Card = styled.div`
+const Card = styled.div<{ $flash?: boolean }>`
   background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:18px 20px;
   display:flex;flex-direction:column;gap:10px;align-items:flex-start;
+  transition:border-color .3s, box-shadow .3s;
+  ${(p) => p.$flash && css`border-color:#14B8A6;box-shadow:0 0 0 3px rgba(20,184,166,0.18);`}
 `;
 const Head = styled.div`display:flex;flex-direction:column;gap:4px;`;
 const Title = styled.div`font-size:0.9375rem;font-weight:700;color:#0f172a;`;

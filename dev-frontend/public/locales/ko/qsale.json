@@ -378,7 +378,8 @@
       "personal": "개인 주소에서 온 메일이라 자동으로 들어왔습니다",
       "webform": "웹폼(발송 전용 주소)으로 들어온 문의입니다. 연락처는 본문에 있습니다"
     },
-    "switchedManual": "자동 유입이 꺼져 있습니다. 자동 기준에 드는 메일 {{n}}건은 Q mail 에서 「문의 후보」로 볼 수 있습니다.",
+    "switchedManual": "자동 유입이 꺼져 있습니다. 자동 기준에 드는 메일 {{n}}건은 Q mail 에서 「문의 후보」로 볼 수 있습니다. 자동으로 바꾸려면 설정 › 권한 › 상담 유입에서 바꿉니다.",
+    "openIntakeSettings": "설정에서 바꾸기",
     "openInMail": "Q mail 에서 보기",
     "dismissNote": "안내 닫기",
     "removeFromSales": "상담에서 빼기",

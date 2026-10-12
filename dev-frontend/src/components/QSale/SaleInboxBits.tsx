@@ -53,7 +53,7 @@ export const InboxWhyTag: React.FC<{ it: SaleInboxItem }> = ({ it }) => {
 
 /** 수동 모드인데 자동 기준에 드는 메일이 있으면 «어디서 보는지» 를 한 줄로(닫으면 이 기기에서 안 띄운다).
  *  이 줄이 없으면 모드가 바뀐 순간 목록이 줄어든 것이 «사라졌다» 로 읽힌다. 브라우저 저장은 편의일 뿐이다. */
-export const IntakeNoteLine: React.FC<{ businessId: number; counts: SaleInboxCounts; onOpenMail: () => void }> = ({ businessId, counts, onOpenMail }) => {
+export const IntakeNoteLine: React.FC<{ businessId: number; counts: SaleInboxCounts; onOpenMail: () => void; onOpenSettings: () => void }> = ({ businessId, counts, onOpenMail, onOpenSettings }) => {
   const { t } = useTranslation('qsale');
   const key = `pq:sale-intake-note:${businessId}`;
   const [hidden, setHidden] = useState<boolean>(() => {
@@ -68,6 +68,7 @@ export const IntakeNoteLine: React.FC<{ businessId: number; counts: SaleInboxCou
     <IntakeNote data-testid="sale-inbox-intake-note" role="status">
       <span>{t('inbox.switchedManual', { n: counts.auto_candidates }) as string}</span>
       <IntakeNoteLink type="button" onClick={onOpenMail}>{t('inbox.openInMail') as string}</IntakeNoteLink>
+      <IntakeNoteLink type="button" data-testid="sale-inbox-intake-settings" onClick={onOpenSettings}>{t('inbox.openIntakeSettings') as string}</IntakeNoteLink>
       <IntakeNoteX type="button" aria-label={t('inbox.dismissNote') as string} title={t('inbox.dismissNote') as string} onClick={hide}>
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>
       </IntakeNoteX>
