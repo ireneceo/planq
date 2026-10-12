@@ -1,5 +1,10 @@
 ## 현재 작업 상태
 
+### 완료: Q task 팝아웃 상단 정리 (방 b8c6f058 · 2026-10-12 · [Opus]) — 운영 미배포
+- 원문 *"상단에 덜 중요한 영역이 너무 길어 … 오늘/이번주를 제목에서 … 보기 아이콘도 헤더로 … 업무추가·필터는 접어두면 … 태그관리가 나와서 완료가리기가 두 줄·정렬이 우측 밖"*
+- ceda7971: 제목 «오늘 내 업무 ▾» 가 범위 고르기(PopoutScopeTitle) · 밀도 아이콘 헤더 · «직접 추가 · 보기 설정» 접기(PopoutToolsFold, 기본 접힘·요약 표시) · 태그 관리 = «태그별» 뒤 톱니 · 칩 줄 wrap.
+- 검증: build 0 · guard 68/69 · health frontend 4/4 · --suite rowtags 0 · 실브라우저 420/520/760: 가로 넘침 0, 완료 가리기 한 줄, 정렬 창 안(420 은 둘째 줄 오른쪽), 톱니→태그 관리 모달, 범위 메뉴→제목 바뀜, 접기 상태 새로고침 유지. 목록 시작 y ≈300 → 159(접힘). Fable 안 씀(UI 배치).
+
 ### 나중에 — Fable 대기: 워크스페이스 초대 인앱 알림 (방 3a26aed0 · 2026-10-12 · [Opus]) — 코드 변경 없음
 - 무엇: 기존 계정 이메일을 멤버로 초대하면 초대 순간 `business_members.user_id` 가 채워져 **수락 전부터 멤버 권한·전환기 노출**(getUserScope·getUserWithBusiness 가 joined_at 미확인). 인앱 알림 «수락하세요» 가 참이 되려면 이것부터. 고객·프로젝트 고객 초대는 수락 전 접근 없음(status active 필요) 확인.
 - 설계 초안·사실: `docs/INVITE_INAPP_NOTIFY_DESIGN.md` — 권고 (가) 초대 때 user_id prefill 중단 + 백필(`joined_at NULL ∧ invite_token NOT NULL ∧ removed_at NULL ∧ role∉owner,ai` · dev 1행, invite_token NULL 실멤버 8행 제외) + 다섯 초대 경로 공용 헬퍼로 인앱 알림(business_id NULL · skipChannels email · 링크 /invite/<token>).
@@ -355,6 +360,7 @@
 - 안드로이드: 코드 완료(76da612a, GitHub·운영 웹 반영) — Irene 이 Codemagic «PlanQ Android — Play» 빌드 → Play 업로드하면 끝.
 - 아이폰: Apple 설정 4가지 끝나면 iOS Share Extension 구현(설계 docs/NATIVE_SHARE_RECEIVE.md iOS 절) → Codemagic 서명 → TestFlight → 심사.
 - 곁: guard-native-release 실패 1건(nativeShare.ts 의 @capacitor/core static import — 실해 없음). iOS 작업 때 같이 정리.
+- 10/12 Codemagic 안드로이드 빌드 1시간 멈춤 신고 → 같은 커밋(origin/main 3c4231e8)을 서버에서 CI 단계 그대로 재현: npm ci 18초 · cap:beta:android 통과 · bundleRelease 3분22초 · AAB 검사 통과 · google-play 번호 조회는 1초 만에 실패(정상 경로). 코드 원인 아님 → Codemagic 쪽(대기열·한 단계 멈춤). «Irene 할 일: 멈춘 빌드 취소·재시도 + 멈춘 단계 이름 메모» 올림.
 
 ### 정기 점검 10/12 (방 69426d00 · [Opus])
 - 개발완료: health 84/84 · guard 68/69 · e2e tenant 0 · 위키 커버리지 통과 → 10/11 작업 6건 DEVELOPMENT_PLAN·next.json 기록.
