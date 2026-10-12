@@ -43,3 +43,6 @@ secrets/
 
 # 밤 전체 검사 결과(scripts/e2e/full-sweep.sh) — 로그일 뿐 저장소에 싣지 않는다
 logs/sweep/
+
+# 상황판 정찰 방의 계획 파일(.claude/plans/q<번호>.md) — 조사 메모일 뿐 커밋하지 않는다(2026-10-12)
+.claude/plans/

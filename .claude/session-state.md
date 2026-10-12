@@ -1,5 +1,11 @@
 ## 현재 작업 상태
 
+### 완료: 상황판 «정찰 방» 읽기 전용 장치 — 정찰 장치 켜짐 (방 02ca045f · 2026-10-12 · [Opus] · 검증 Fable) — 운영 무관(개발 서버 훅)
+- 요청: 서버 방 · Fable 설계 판정 D 의 PlanQ 몫(Irene «플랜큐만 일이 쌓였는데 하나씩 처리하는게 너무 더딘데? 서버부하에 맞추면 되지»).
+- 넣은 것: `.claude/hooks/scout-detect.sh`(판정 한 곳 — 첫 사용자 메시지 첫 줄 == «[상황판 정찰 방 — 읽기 전용]», 방별 캐시 /tmp/planq-scout-cache) · `scout-guard.sh`+`scout-guard.js`(PreToolUse, settings.json 매처 Bash|Edit|Write|MultiEdit|NotebookEdit|mcp__.*) — 정찰 방이면 plans 밖 파일 도구·빌드(tsc --noEmit 포함)·pm2 바꾸기·git 쓰기·rm/mv/sed -i·소스 리다이렉트·DB 쓰기·배포·ssh/scp·API 쓰기·MCP 쓰기 deny, 일반 방은 출력 없음 · `fable-gate-stop.sh`·`idle-autosave-stop.sh` 정찰이면 바로 끝 · `.gitignore` `.claude/plans/` · CLAUDE.md «상황판이 주는 일» 두 줄. 지문 경로에 plans 없음 확인.
+- 검증: 시험 121/121 · 대조군(판정 끔 57건·git 검사 끔 11건 뒤집힘) · Fable 1차 FAIL(히어독·curl -sf) → 고침 → **PASS**(실방 72건 재생 deny 2 = 운영 접속). 기록 docs/FABLE_GATE_QUEUE.md 맨 위. 마커는 안 씀(다른 방 커밋 4건을 덮지 않게).
+- 남은 것: Fable 비차단 지적(curl 붙여 쓴 플래그·wget 기본 저장 등) — 휴리스틱 범위.
+
 ### 완료: Q mail 보낸메일함 — PlanQ에서 / 다른 곳에서 필터 + «PlanQ 발송» 표시 (방 0bb57a17 · 2026-10-12 · [Opus]) — 운영 미배포
 - 원문: *"내 이메일주소에서 다른 ai 나 플랫폼에서 보낸 이메일도 보낸메일에서 봐야 해. 그냥 나오게 하고 우리가 보낸 메일은 여기서 보낸 메일은 제대로 체크해주고 필터링으로 각각 볼 수 있게 하거나 하면 어때? 지금 우리가 보낸 것만 나오면 문제가 되서. 이걸 하려면 심사를 다시 해야 해?"*
 - 이미 있던 것: 업체 보낸편지함 가져오기(b507d670·82b4bc0e, 10/07 — IMAP 읽기 전용, 첫 30일). dev Irene Gmail 계정(#32)은 보낸편지함 18통이 들어와 보낸메일함에 보인다.
