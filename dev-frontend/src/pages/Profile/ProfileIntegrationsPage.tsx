@@ -523,9 +523,11 @@ const ProfileIntegrationsPage: React.FC = () => {
       </Section>
 
       <DividerBox>
-        <DividerText>{t('integrations.workspaceLink', '회사 공용 외부 연동 (Google Drive · 회사 메일 등) 은 회사 설정에서 관리해요') as string}</DividerText>
-        <DividerBtn type="button" onClick={() => navigate('/business/settings/mail-accounts')}>
-          {t('integrations.gotoWorkspace', '회사 설정으로') as string} →
+        {/* 회사 외부 연동 = 설정 › 파일·외부 연동(/business/settings/storage). 예전엔 회사 메일함으로 보내
+            "외부 연동인데 메일 설정으로 간다" 로 읽혔다(2026-10-12 Irene). 버튼 글자도 착지 화면 이름과 맞춘다. */}
+        <DividerText>{t('integrations.workspaceLink', '회사 공용 외부 연동 (Google Drive · Google Calendar 등) 은 회사 설정에서 관리해요') as string}</DividerText>
+        <DividerBtn type="button" onClick={() => navigate('/business/settings/storage')}>
+          {t('integrations.gotoWorkspace', '회사 외부 연동으로') as string} →
         </DividerBtn>
       </DividerBox>
 
