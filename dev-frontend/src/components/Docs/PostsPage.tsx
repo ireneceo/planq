@@ -2697,6 +2697,7 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId }) => {
         <PostHistoryPanel
           postId={detail.id}
           open={historyOpen}
+          isTable={detail.kind === 'table'}
           onClose={() => setHistoryOpen(false)}
           onRestored={() => { void (async () => { const fresh = await fetchPost(detail.id); if (fresh) setDetail(fresh); await load(); })(); }}
         />

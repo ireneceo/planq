@@ -130,6 +130,10 @@ async function updatePostContent(actor, params = {}) {
     patch.content_text = extractText(doc);
   }
   const old = { title: post.title };
+  if (post.status !== 'draft') {
+    try { await require('../postRevisions').ensureBaselineRevision(post); }
+    catch (e) { console.warn('[postRevisions] baseline', e.message); }
+  }
   await post.update(patch);
   try {
     await require('../postRevisions').recordRevision({ post, editorUserId: subj.subjectId, source: 'manual' });

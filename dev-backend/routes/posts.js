@@ -984,6 +984,11 @@ router.put('/:id', authenticateToken, async (req, res, next) => {
     //   post.create 를 억제했으므로(타이핑 중이었다), 여기서 create 로 기록해야 감사 기록에
     //   구멍이 안 생긴다 — "모든 CUD 는 AuditLog" 운영 정책.
     const isPromotion = post.status === 'draft' && patch.status === 'published';
+    // 처음 버전 — 기록이 없는 문서는 고치기 직전 내용을 먼저 남긴다(첫 수정도 되돌릴 수 있게).
+    if (post.status !== 'draft' && (patch.title !== undefined || patch.content_json !== undefined || patch.category !== undefined)) {
+      try { await require('../services/postRevisions').ensureBaselineRevision(post); }
+      catch (e) { console.warn('[postRevisions] baseline', e.message); }
+    }
     await post.update(patch);
     // 상대 문서에도 연결을 맞춘다 — 걸면 같이 걸리고 끊으면 같이 끊긴다. 열어 둔 화면이 다시 읽게 신호만.
     if (linkChange) {

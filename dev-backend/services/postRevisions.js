@@ -44,7 +44,9 @@ async function recordRevision({ post, editorUserId, source = 'autosave', noCoale
   //   ★ 복원(restore)은 절대 합치지 않는다. "되돌린 시점" 은 그 자체로 남아야 한다.
   //   ★ noCoalesce — AI 수정 반영본(services/actions/post_actions.applyAiEdit). 합치면 «AI 전» 버전이
   //     반영본으로 덮여 되돌릴 곳이 사라진다.
-  if (last && sameEditor && withinWindow && !noCoalesce && source !== 'restore' && last.source !== 'restore') {
+  //   ★ 1번(처음 버전)에는 합치지 않는다 — 첫 편집이 처음 내용을 덮으면 «원래대로» 가 사라진다.
+  if (last && sameEditor && withinWindow && !noCoalesce && source !== 'restore' && last.source !== 'restore'
+      && last.revision_number !== 1) {
     await last.update({
       title: post.title, content_json: contentStr, category: post.category ?? null,
       attachment_file_ids: attachIds,
@@ -70,14 +72,51 @@ async function recordRevision({ post, editorUserId, source = 'autosave', noCoale
   return { action: 'created', revisionNumber: nextNo };
 }
 
+/**
+ * 처음 버전 — 문서에 기록이 하나도 없으면 **고치기 직전** 내용을 1번으로 남긴다(2026-10-12).
+ *
+ * 왜: 기록은 저장 «뒤» 내용을 남긴다. 그래서 첫 편집이 곧 1번이 되고 만든 때의 내용(또는 이 기능이
+ *   생기기 전부터 있던 문서의 원래 내용)은 어디에도 없었다 — dev 실측 문서 138건 중 기록 있는 것 13건.
+ *   첫 수정을 되돌릴 곳이 없으면 «되돌리기» 가 정작 처음 실수에는 안 된다.
+ * 반드시 post.update **전에** 부른다. 시각·사람은 그 내용이 마지막으로 저장된 때·사람이다.
+ */
+async function ensureBaselineRevision(post) {
+  if (!post || !post.id) return false;
+  const exists = await PostRevision.count({ where: { post_id: post.id, business_id: post.business_id } });
+  if (exists) return false;
+  const contentStr = post.content_json == null ? null : String(post.content_json);
+  let attachIds = [];
+  try {
+    const atts = await PostAttachment.findAll({ where: { post_id: post.id }, attributes: ['file_id'] });
+    attachIds = atts.map((a) => a.file_id).sort((a, b) => a - b);
+  } catch { attachIds = []; }
+  const at = post.updated_at || post.updatedAt || post.created_at || post.createdAt || new Date();
+  await PostRevision.create({
+    post_id: post.id,
+    business_id: post.business_id,
+    revision_number: 1,
+    title: post.title,
+    content_json: contentStr,
+    category: post.category ?? null,
+    attachment_file_ids: attachIds,
+    editor_user_id: post.editor_id || post.author_id || null,
+    source: 'manual',
+    byte_size: contentStr ? Buffer.byteLength(contentStr) : 0,
+    createdAt: at,
+    updatedAt: at,
+  }, { silent: true });
+  return true;
+}
+
 /** 상한 초과분 제거 — 오래된 것부터. */
 async function pruneOld(postId, businessId) {
   const total = await PostRevision.count({ where: { post_id: postId, business_id: businessId } });
   if (total <= MAX_PER_POST) return 0;
   const excess = total - MAX_PER_POST;
+  // ★ 1번(처음 버전)은 남긴다 — 오래된 것부터 지우면 가장 먼저 사라지는 것이 «원래 내용» 이다.
   const victims = await PostRevision.findAll({
-    where: { post_id: postId, business_id: businessId },
     order: [['revision_number', 'ASC']],
+    where: { post_id: postId, business_id: businessId, revision_number: { [Op.gt]: 1 } },
     limit: excess,
     attributes: ['id'],
   });
@@ -86,4 +125,4 @@ async function pruneOld(postId, businessId) {
   return victims.length;
 }
 
-module.exports = { recordRevision, pruneOld, COALESCE_WINDOW_MS, MAX_PER_POST };
+module.exports = { recordRevision, ensureBaselineRevision, pruneOld, COALESCE_WINDOW_MS, MAX_PER_POST };

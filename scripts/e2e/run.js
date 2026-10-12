@@ -109,6 +109,7 @@ const SUITES = {
   tablestyle: () => require('./canary-table-style'),
   tablefill: () => require('./canary-table-fill'),
   tablemenu: () => require('./canary-table-menu'),
+  posthistory: () => require('./canary-post-history'),
   // 저장된 문서 **보기** 화면의 표 — 테두리가 중간에 끊기지 않는가.
   //   tablefit(편집기)과 **일부러 가른 스위트**다. 한 런에 넣으면 편집 초안 때문에
   //   페이지 이탈이 끝나지 않아 검사가 멈춘다(2026-09-13 실측 17분 행).
