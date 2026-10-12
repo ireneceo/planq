@@ -25,13 +25,15 @@ interface Props {
 
 // 저장 키 — 정렬은 보기 기준과 **다른 축**이라 따로 기억한다
 //   (태그별로 보면서 이름순 같은 조합이 성립한다). 탭(오늘/이번 주)마다 따로.
-const SORT_KEY = (tab: string) => `planq.popout.sort.${tab}`;
+// ★ v2 — 옛 키(planq.popout.sort.*)는 화면이 열릴 때마다 'recent' 를 써 넣어 왔다. 같은 키를 쓰면 기본값
+//   «직접 정렬»(2026-10-12)이 기존 사용자 누구에게도 먹지 않는다. 새 키로 한 번 초기화한다.
+const SORT_KEY = (tab: string) => `planq.popout.sort2.${tab}`;
 function readSort(tab: string): PopoutSortKey {
   try {
     const v = localStorage.getItem(SORT_KEY(tab));
     if (v === 'mine' || v === 'name' || v === 'stage' || v === 'recent') return v;
   } catch { /* ignore */ }
-  // 기본 = 내 순서 (2026-10-12 Irene «권고대로» — 끌어 옮기기). 고른 값이 저장돼 있으면 그대로 존중한다.
+  // 기본 = 직접 정렬 (2026-10-12 — 끌어 옮기기). 고른 값이 저장돼 있으면 그대로 존중한다.
   return 'mine';
 }
 

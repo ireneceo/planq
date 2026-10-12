@@ -435,3 +435,10 @@ export const DragGrip: React.FC = () => (
     <circle cx="3" cy="11" r="1.2" /><circle cx="7" cy="11" r="1.2" />
   </svg>
 );
+
+/* Cue 에게 말하기 칸 — CueTaskBar compact 는 자기 여백이 0 이라(목록 안에 얹을 때용) 팝아웃에선 탭 줄·퀵애드와
+   **같은 축**(좌우 12px)과 위 간격을 여기서 준다. Irene 2026-10-12: "위에 여백없고, 좌우 레이아웃 여백없어서 이상해". */
+export const PopoutCueSlot = styled.div`
+  padding: 10px 12px 0;
+  flex-shrink: 0;
+`;

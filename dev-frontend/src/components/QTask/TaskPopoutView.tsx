@@ -45,7 +45,7 @@ import {
   TagSlot,
   DoneFilterLabel,
   PrioGapHint,
-  DragSlot, DragHandle, DragGrip,
+  DragSlot, DragHandle, DragGrip, PopoutCueSlot,
   Wrap,
   PopoutTagManageBtn,
   CompactList, StatusDot, CompactProject, DensityBtn, DensityIcon,
@@ -78,7 +78,7 @@ import { usePopoutQuickAdd } from './usePopoutQuickAdd';
 import { createTaskTag } from './createTaskTag';
 // ★ bySortRule 은 이제 여기서 직접 안 쓴다 — bySelectedSort 가 마지막 tie-break 으로 그것을 부른다
 //   (정본 사슬은 그대로 살아 있고, 이 화면은 '고른 정렬 → 사슬' 순서로만 본다).
-import { buildQuickChoicesFromDict, bySelectedSort, byMyOrder, type PopoutSortKey, cmpNullLast } from './popoutSort';
+import { buildQuickChoicesFromDict, bySelectedSort, byMyOrder, type PopoutSortKey, type OrderView, cmpNullLast } from './popoutSort';
 import PopoutSortSelect, { usePopoutSort } from './PopoutSortSelect';
 import { requestMainNavigate } from '../Common/PopoutBridge';
 import ImportanceChip from './ImportanceChip';
@@ -102,8 +102,8 @@ interface PopoutTask {
   reviewer_count?: number | string | null;
   // 우선순위. DB 는 글로벌 단일 컬럼이라 갭(1,2,9)·중복(1,1,2)이 실재한다 — 표시는 항상 재인덱스한다.
   priority_order?: number | null;
-  /** 내 순서(사람별) — /my-week 가 싣는다. docs/TASK_USER_ORDER_DESIGN.md */
-  my_pos?: number | null;
+  /** 직접 정렬(사람별·보기별) — /my-week 가 싣는다. docs/TASK_USER_ORDER_DESIGN.md */
+  my_order?: Partial<Record<OrderView, number>> | null;
   /** #353 ⑤ 중요도 — 주간 랭킹 priority_order 와 다른 것. */
   priority_level?: 'low' | 'normal' | 'high' | 'urgent' | null;
   // my-week 가 실어 보낸다. getRoles 가 reviewer 관점을 메인과 같은 근거로 판정하게 하는 용도.
@@ -187,10 +187,10 @@ const TaskPopoutView: React.FC<TaskPopoutViewProps> = ({ pinSlot }) => {
   const readView = (tab: 'today' | 'week'): PopoutView => {
     try {
       const v = localStorage.getItem(VIEW_KEY(tab));
-      if (v === 'mine' || v === 'tag' || v === 'project' || v === 'due') return v;
+      if (v === 'tag' || v === 'project' || v === 'due') return v;
     } catch { /* ignore */ }
-    // 처음 여는 사람의 기본 = 내 순서(2026-10-12 «권고대로»). 이미 고른 보기는 그대로 존중한다.
-    return 'mine';
+    // 잠깐 있던 «내 순서» 보기(2026-10-12)는 없앴다 — 저장값 'mine' 은 여기서 탭 기본값으로 돌아간다.
+    return tab === 'today' ? 'tag' : 'due';
   };
   const [viewMode, setViewMode] = useState<PopoutView>(() => readView(popTab));
   // 정렬 — 탭별로 기억된다. 상태·저장은 PopoutSortSelect 로 절출(god-file 래칫).
@@ -250,12 +250,13 @@ const TaskPopoutView: React.FC<TaskPopoutViewProps> = ({ pinSlot }) => {
   //   보기 기준이 바뀌면 고르는 대상도 바뀐다(태그별↔태그 / 프로젝트별↔프로젝트).
   //   기준이 바뀌면 이전 선택은 의미가 없으므로 아래 effect 에서 비운다.
   // 퀵애드 상태·생성은 usePopoutQuickAdd 로 뽑았다 (god-file 래칫 — 800줄).
-  // 내 순서 — 서버 반영·끌기 저장·실시간(usePopoutMyOrder). 방금 만든 업무는 맨 위로 붙인다.
+  // 직접 정렬 — 서버 반영·끌기 저장·실시간(usePopoutMyOrder). 방금 만든 업무는 지금 보기의 맨 위로 붙인다.
   const myOrder = usePopoutMyOrder<PopoutTask>({ bizId, setTasks, silentLoad });
-  const openInMyOrder = () => tasks.filter((tk) => !CLOSED.includes(tk.status)).sort(byMyOrder).map((tk) => tk.id);
+  const openInMyOrder = (view: OrderView) => tasks.filter((tk) => !CLOSED.includes(tk.status)).sort(byMyOrder(view)).map((tk) => tk.id);
+  const orderViewRef = useRef<OrderView>('due');   // 퀵애드 콜백이 지금 보기를 읽는다(effView 는 아래에서 정해진다)
   const { quickPick, setQuickPick, quickDue, setQuickDue, quickStart, setQuickStart, quickAdd, projectDict } = usePopoutQuickAdd({
     bizId, myId, popTab, todayStr, weekStart, viewMode, silentLoad,
-    onCreated: (newId) => myOrder.placeOnTop(newId, openInMyOrder()),
+    onCreated: (newId) => myOrder.placeOnTop(orderViewRef.current, newId, openInMyOrder(orderViewRef.current)),
   });
 
   // ── 퀵액션 (체크박스 완료처리) ─────────────────────────────
@@ -322,20 +323,21 @@ const TaskPopoutView: React.FC<TaskPopoutViewProps> = ({ pinSlot }) => {
   //     번호의 정본은 서버 재인덱스 집합이고, 보기 옵션이 번호에 닿으면 안 된다
   //     (QTaskPage 의 weekSet/filtered 분리와 같은 원칙. 이 저장소가 한 번 당한 사고다).
   //     따라서 태그순에서는 칩 번호가 행 순서와 어긋나 보일 수 있는데, 그게 정상이다.
-  // 그룹 안쪽(또는 그룹이 없을 때 전체)의 순서 — 사용자가 고른 값 하나가 정한다.
-  const innerSort = useMemo(() => bySelectedSort(sortKey), [sortKey]);
+  // 그룹 안쪽의 순서 — 사용자가 고른 값 하나가 정한다. «직접 정렬» 은 **보기마다 다른 순서**를 읽는다
+  //   (Irene 2026-10-12: "태그별로 그룹핑된 상태에서 순서 달라야") — 그래서 보기가 인자다.
+  const innerSort = (view: OrderView) => bySelectedSort(sortKey, view);
   const SORT_LABELS: Record<PopoutSortKey, string> = {
     recent: t('popout.sortRecent', '최신등록순') as string,
     name: t('popout.sortName', '이름순') as string,
     stage: t('popout.sortStage', '업무단계순') as string,
-    mine: t('popout.sortMine', '내 순서') as string,
+    mine: t('popout.sortMine', '직접 정렬') as string,
   };
 
   const repTag = (tk: PopoutTask) => (tk.tags && tk.tags.length > 0 ? tk.tags[0].name : null);
   const repProject = (tk: PopoutTask) => (tk.Project?.name || null);
 
   // 그룹 보기 공통 — 그룹 키(null last) → 같은 그룹 안에서는 기존 사슬 그대로.
-  const byGroup = (key: (tk: PopoutTask) => string | null) => (a: PopoutTask, b: PopoutTask): number => {
+  const byGroup = (key: (tk: PopoutTask) => string | null, view: OrderView) => (a: PopoutTask, b: PopoutTask): number => {
     const ka = key(a); const kb = key(b);
     if (ka && !kb) return -1;          // 그룹 없는 업무는 맨 뒤 (null last)
     if (!ka && kb) return 1;
@@ -343,15 +345,15 @@ const TaskPopoutView: React.FC<TaskPopoutViewProps> = ({ pinSlot }) => {
       const c = ka.localeCompare(kb);
       if (c !== 0) return c;
     }
-    return innerSort(a, b);
+    return innerSort(view)(a, b);
   };
-  const byTagRule = byGroup(repTag);
-  const byProjectRule = byGroup(repProject);
+  const byTagRule = byGroup(repTag, 'tag');
+  const byProjectRule = byGroup(repProject, 'project');
   // 2026-09-08 — 잠깐 '전체'(그룹 없음)로 바꿨던 것을 '마감일별' 로 되돌린다.
   //   라벨과 동작을 **같이** 되돌려야 문구가 거짓말을 하지 않는다: 마감일이 먼저,
   //   같은 날짜 안쪽만 고른 정렬이 정한다(칩=나열 기준 / 셀렉트=그 안쪽 순서).
   const byDueRule = (a: PopoutTask, b: PopoutTask): number =>
-    cmpNullLast(a.due_date, b.due_date) || innerSort(a, b) || (a.id - b.id);
+    cmpNullLast(a.due_date, b.due_date) || innerSort('due')(a, b) || (a.id - b.id);
 
   // '태그별' 노출 기준 = **워크스페이스 태그 사전**. 목록 기준으로 재면 태그 붙은 업무가 완료되는
   //   순간 칩이 사라져 "기능이 없어졌다" 로 읽힌다(Irene 2026-08-23). 행에서 바로 붙일 수 있는 지금은
@@ -380,7 +382,8 @@ const TaskPopoutView: React.FC<TaskPopoutViewProps> = ({ pinSlot }) => {
   // 기준이 바뀌면 이전 선택은 뜻이 달라진다(태그 id 를 프로젝트로 쓸 수 없다) → 비운다.
   useEffect(() => { setQuickPick(''); }, [effView]);
 
-  const sortRule = effView === 'mine' ? byMyOrder : effView === 'tag' ? byTagRule
+  orderViewRef.current = effView;
+  const sortRule = effView === 'tag' ? byTagRule
     : effView === 'project' ? byProjectRule
       : byDueRule;
   // 오늘 탭 = 이번 주 응답(/my-week) 위에 utils/todayTaskSet 술어를 얹은 것. 메인 화면과 **같은 함수**다.
@@ -396,12 +399,12 @@ const TaskPopoutView: React.FC<TaskPopoutViewProps> = ({ pinSlot }) => {
   const mineCount = useMemo(() => visible.filter((tk) => tk.assignee_id === myId).length, [visible, myId]);
   const reqCount = visible.length - mineCount;
 
-  // 끌어 옮기기 — 칩 «내 순서» 이거나 셀렉트 «내 순서» 일 때만(다른 정렬에서 끌면 되돌아와 헷갈린다). 열린 업무만.
-  const canReorder = effView === 'mine' || sortKey === 'mine';
+  // 끌어 옮기기 — 정렬이 «직접 정렬» 일 때만(이름순 등에서 끌면 되돌아와 헷갈린다). 열린 업무만, 같은 그룹 안에서만.
+  const canReorder = sortKey === 'mine';
   const reorderGroup = (tk: PopoutTask) => (effView === 'tag' ? repTag(tk) || '' : effView === 'project' ? repProject(tk) || ''
-    : effView === 'due' ? (tk.due_date || '').slice(0, 10) : 'all');
+    : (tk.due_date || '').slice(0, 10));
   const bodyRef = useRef<HTMLDivElement>(null);
-  const reorder = useVerticalReorder({ enabled: canReorder, containerRef: bodyRef, onMove: myOrder.move });
+  const reorder = useVerticalReorder({ enabled: canReorder, containerRef: bodyRef, onMove: (id, ids) => myOrder.move(effView, id, ids) });
 
   const fmtDue = (due?: string | null) => (due ? due.slice(5, 10).replace('-', '/') : '');
   const isOverdue = (tk: PopoutTask) =>
@@ -467,8 +470,10 @@ const TaskPopoutView: React.FC<TaskPopoutViewProps> = ({ pinSlot }) => {
       {/* Cue 에게 말하기 — Q task 목록과 **같은 컴포넌트**(2026-10-12 Fable (다) 7). 여러 개를 나열하면 항목마다 한 건.
           기본값은 Q task «오늘/이번 주» 탭과 같은 규칙(오늘 마감 + 이번 주 버킷) — 만든 업무가 이 목록에 남는다. */}
       {!loading && !error && bizId && (
-        <CueTaskBar businessId={bizId} projectId={null} compact members={members}
-          defaults={{ due_date: todayStr, planned_week_start: weekStart }} />
+        <PopoutCueSlot>
+          <CueTaskBar businessId={bizId} projectId={null} compact members={members}
+            defaults={{ due_date: todayStr, planned_week_start: weekStart }} />
+        </PopoutCueSlot>
       )}
       {/* #258 — 퀵애드. 로딩·에러 중에는 내지 않는다(기본값의 원천인 weekStart 가 아직 없다). */}
       {!loading && !error && (
@@ -536,14 +541,13 @@ const TaskPopoutView: React.FC<TaskPopoutViewProps> = ({ pinSlot }) => {
             </>
           ) : null}
           labels={{
-            mine: t('popout.viewMine', '내 순서'),
             tag: t('popout.viewTag', '태그별'),
             project: t('popout.viewProject', '프로젝트별'),
             due: t('popout.viewDue', '마감일별'),   // 동작도 같이 되돌렸다 — byDueRule 주석 참조
           }}
           /* 정렬 — 이 저장소의 셀렉트 표준은 PlanQSelect 다(raw <select> 는 health-check 가 막는다).
              같은 팝아웃 안 퀵애드도 이것을 쓰므로 별도 창에서도 메뉴가 정상 동작한다. */
-          leading={effView === 'mine' ? undefined : (
+          leading={(
             <PopoutSortSelect
               value={sortKey}
               onChange={setSortKey}
@@ -632,8 +636,8 @@ const TaskPopoutView: React.FC<TaskPopoutViewProps> = ({ pinSlot }) => {
                       <DragSlot>
                         {!CLOSED.includes(tk.status) && (
                           <DragHandle type="button" data-testid="task-popout-drag" {...reorder.handleProps(tk.id)}
-                            aria-label={t('popout.dragHandle', '끌어서 순서 바꾸기 (Alt+↑/↓)') as string}
-                            title={t('popout.dragHandle', '끌어서 순서 바꾸기 (Alt+↑/↓)') as string}><DragGrip /></DragHandle>
+                            aria-label={t('popout.dragHandle', '끌어서 순서 바꾸기 (Alt+↑/↓) — 이 보기에서만 바뀌어요') as string}
+                            title={t('popout.dragHandle', '끌어서 순서 바꾸기 (Alt+↑/↓) — 이 보기에서만 바뀌어요') as string}><DragGrip /></DragHandle>
                         )}
                       </DragSlot>
                     )}

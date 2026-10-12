@@ -9,7 +9,7 @@
 import React from 'react';
 import styled from 'styled-components';
 
-export type PopoutView = 'mine' | 'tag' | 'project' | 'due';
+export type PopoutView = 'tag' | 'project' | 'due';
 
 const Row = styled.div`
   /* ★ 아래 여백 8px — 이 줄은 목록 스크롤 밖에 고정돼 있다(sticky 처럼). 여백이 0 이면
@@ -57,9 +57,7 @@ export interface PopoutViewChipsProps {
 const PopoutViewChips: React.FC<PopoutViewChipsProps> = ({
   value, onChange, hasAnyTag, hasAnyProject, labels, groupLabel, trailing, leading,
 }) => {
-  // 'mine'(내 순서) = 그룹 없이 끌어 옮긴 순서 그대로 — 언제나 고를 수 있다(2026-10-12).
   const opts: PopoutView[] = [
-    'mine',
     ...(hasAnyTag ? ['tag' as const] : []),
     ...(hasAnyProject ? ['project' as const] : []),
     'due',

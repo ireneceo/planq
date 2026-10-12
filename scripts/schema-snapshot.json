@@ -2477,6 +2477,7 @@
       "business_id",
       "user_id",
       "task_id",
+      "view_key",
       "pos",
       "created_at",
       "updated_at"

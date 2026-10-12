@@ -28,3 +28,14 @@
 12. 운영: `scripts/migrate-task-user-order.js`(멱등, 표·FK3·키2 재확인) — 배포 슬롯에 **코드보다 먼저**. 롤백은 코드만.
 13. 드래그: 라이브러리 없이 공용 `components/Common/useVerticalReorder.ts`(Pointer Events·4px 문턱·가장자리 자동 스크롤·Alt+↑/↓).
 14. i18n popout.viewMine · sortMine · dragHandle · reorderFailed (ko/en).
+
+## 2026-10-12 수정 — 순서는 **보기마다 따로** (Irene 피드백)
+> *"내 순서라는 기능이 아니라.... 태그별, 프로젝트별, 마감일별로 보면서도 순서를 바꿀 수 있어야 한다는 거야. 태그별로 그룹핑된 상태에서 순서 달라야 하는데"*
+
+- 표에 `view_key`(tag·project·due — 정본 `services/taskUserOrder.VIEWS`) 를 더했다. UNIQUE(user, task, view) · KEY(biz, user, view, pos).
+  운영에는 이 표가 아직 없어 CREATE 만 탄다. dev 옛 행은 `due` 로 이관.
+- API body 에 `view` 필수(모르는 값 400 `view invalid`) · 응답·실시간에 `view` · my-week 는 `my_order: {tag?, project?, due?}`.
+- 화면: «내 순서» 보기 칩을 없앴다(결정 8 의 칩 부분 폐기). 정렬 셀렉트 «직접 정렬»(기본) = 지금 보기의 순서, 그때만 손잡이.
+  태그별에서 옮긴 것은 프로젝트별·마감일별을 흔들지 않는다. 그룹 밖 드롭은 그대로 원위치(결정 9 유지).
+  셀렉트 저장 키를 `planq.popout.sort2.*` 로 바꿨다 — 옛 키에는 화면이 'recent' 를 늘 써 넣어 기본 «직접 정렬» 이 아무에게도 안 먹었다.
+- 퀵애드는 **지금 보기**의 맨 위로. 결정 1~7·9~13 은 그대로.

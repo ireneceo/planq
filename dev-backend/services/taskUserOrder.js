@@ -1,5 +1,6 @@
-// 내 순서(사람별 업무 순서) — **쓰는 문 하나** (docs/TASK_USER_ORDER_DESIGN.md · Fable 설계 2026-10-12)
+// 직접 정렬(사람별·보기별 업무 순서) — **쓰는 문 하나** (docs/TASK_USER_ORDER_DESIGN.md · Fable 설계 2026-10-12)
 //
+//   ⓪ 순서는 보기(태그별·프로젝트별·마감일별)마다 따로다 — 모든 질의가 view_key 로 묶인다.
 //   ① 화면이 드롭 **뒤** 목록의 표시 순서(visible_ids)를 준다 — 서버는 화면 정렬(localStorage)을 모르므로 추측하지 않는다.
 //   ② 그중 순위 행이 없는 업무(옮기는 것 제외)를 표시 순서대로 끝에 먼저 물질화한다 — 매 요청 같은 규칙(분기 없음).
 //   ③ 옮기는 업무는 이웃(before/after) 사이값. 간격이 닳으면 (user,biz) 전체를 GAP 간격으로 재배치.
@@ -11,6 +12,8 @@ const { getUserScope, canAccessTask } = require('../middleware/access_scope');
 
 const GAP = 65536;
 const MAX_VISIBLE = 500;
+/** 보기 정본 — 팝아웃 보기 칩(PopoutViewChips)과 같은 집합. 모르는 보기는 400. */
+const VIEWS = ['tag', 'project', 'due'];
 
 class OrderError extends Error {
   constructor(status, code) { super(code); this.status = status; this.code = code; }
@@ -24,14 +27,20 @@ function parseIds(raw) {
   return ids;
 }
 
-/** 이 사용자·워크스페이스의 순위를 task id 목록에 대해 읽는다 — my-week 가 my_pos 로 싣는다. */
+/** 이 사용자·워크스페이스의 보기별 순위를 task id 목록에 대해 읽는다 — my-week 가 my_order({tag,project,due}) 로 싣는다. */
 async function readPositions(userId, businessId, taskIds) {
   if (!taskIds.length) return new Map();
   const rows = await TaskUserOrder.findAll({
     where: { user_id: userId, business_id: businessId, task_id: { [Op.in]: taskIds } },
-    attributes: ['task_id', 'pos'], raw: true,
+    attributes: ['task_id', 'view_key', 'pos'], raw: true,
   });
-  return new Map(rows.map((r) => [Number(r.task_id), Number(r.pos)]));
+  const m = new Map();
+  for (const r of rows) {
+    const id = Number(r.task_id);
+    if (!m.has(id)) m.set(id, {});
+    m.get(id)[r.view_key] = Number(r.pos);
+  }
+  return m;
 }
 
 /**
@@ -39,6 +48,8 @@ async function readPositions(userId, businessId, taskIds) {
  * @throws OrderError
  */
 async function moveTask(userId, businessId, platformRole, body) {
+  const view = String(body.view || '');
+  if (!VIEWS.includes(view)) throw new OrderError(400, 'view invalid');
   const taskId = Number(body.task_id);
   if (!Number.isInteger(taskId) || taskId <= 0) throw new OrderError(400, 'task_id required');
   const visible = parseIds(body.visible_ids);
@@ -67,7 +78,7 @@ async function moveTask(userId, businessId, platformRole, body) {
     const changed = new Map();
     let rebalanced = false;
     const loadMine = async () => TaskUserOrder.findAll({
-      where: { user_id: userId, business_id: businessId }, order: [['pos', 'ASC'], ['id', 'ASC']],
+      where: { user_id: userId, business_id: businessId, view_key: view }, order: [['pos', 'ASC'], ['id', 'ASC']],
       transaction: tx, lock: tx.LOCK.UPDATE,
     });
     let mine = await loadMine();
@@ -78,7 +89,7 @@ async function moveTask(userId, businessId, platformRole, body) {
     for (const id of visible) {
       if (id === taskId || byTask.has(id)) continue;
       maxPos += GAP;
-      const row = await TaskUserOrder.create({ business_id: businessId, user_id: userId, task_id: id, pos: maxPos }, { transaction: tx });
+      const row = await TaskUserOrder.create({ business_id: businessId, user_id: userId, task_id: id, view_key: view, pos: maxPos }, { transaction: tx });
       byTask.set(id, row); changed.set(id, maxPos);
     }
 
@@ -110,7 +121,7 @@ async function moveTask(userId, businessId, platformRole, body) {
     if (own) {
       if (Number(own.pos) !== next) await own.update({ pos: next }, { transaction: tx });
     } else {
-      const row = await TaskUserOrder.create({ business_id: businessId, user_id: userId, task_id: taskId, pos: next }, { transaction: tx });
+      const row = await TaskUserOrder.create({ business_id: businessId, user_id: userId, task_id: taskId, view_key: view, pos: next }, { transaction: tx });
       byTask.set(taskId, row);
     }
     changed.set(taskId, next);
@@ -118,8 +129,8 @@ async function moveTask(userId, businessId, platformRole, body) {
     //   바뀐 행만 돌려주면 임시값과 서버값이 섞여 옮긴 행이 엉뚱한 자리로 튄다(2026-10-12 실측: Alt+↓ 가 한 칸이 아니었다).
     for (const id of visible) changed.set(id, Number(byTask.get(id).pos));
     changed.set(taskId, next);
-    return { positions: [...changed].map(([task_id, pos]) => ({ task_id, pos })), rebalanced };
+    return { view, positions: [...changed].map(([task_id, pos]) => ({ task_id, pos })), rebalanced };
   });
 }
 
-module.exports = { moveTask, readPositions, OrderError, GAP };
+module.exports = { moveTask, readPositions, OrderError, GAP, VIEWS };

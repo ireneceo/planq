@@ -1386,9 +1386,8 @@
     "viewAll": "All",
     "quickAddDueAria": "Due date for the new task",
     "densityCompact": "Compact view (one line)",
-    "viewMine": "My order",
-    "sortMine": "My order",
-    "dragHandle": "Drag to reorder (Alt+↑/↓)",
+    "sortMine": "Custom order",
+    "dragHandle": "Drag to reorder (Alt+↑/↓) — only in this view",
     "reorderFailed": "Couldn’t save the order — it’s back to how it was. Please drag again."
   },
   "tags": {

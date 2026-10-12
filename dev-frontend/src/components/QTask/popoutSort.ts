@@ -10,8 +10,8 @@ export interface SortableTask {
   priority_order?: number | null;
   status?: string;
   created_at?: string | null;
-  /** 내 순서(사람별) — /my-week 가 싣는다. null = 아직 안 옮김 */
-  my_pos?: number | null;
+  /** 직접 정렬(사람별·보기별) — /my-week 가 싣는다. 그 보기 키가 없으면 아직 안 옮긴 업무 */
+  my_order?: Partial<Record<OrderView, number>> | null;
 }
 // 완료·취소는 읽을 순서의 끝이다. 정본(services/taskPriority.js CLOSED)과 같은 집합.
 const CLOSED_STATUSES = ['completed', 'canceled'];
@@ -116,8 +116,8 @@ function stageRank(t: SortableTask): number {
   return v === undefined ? 999 : v;
 }
 
-export function bySelectedSort(key: PopoutSortKey) {
-  if (key === 'mine') return byMyOrder;
+export function bySelectedSort(key: PopoutSortKey, view: OrderView = 'due') {
+  if (key === 'mine') return byMyOrder(view);
   return (a: SortableTask, b: SortableTask): number => {
     if (key === 'name') {
       const c = (a.title || '').localeCompare(b.title || '');
@@ -141,15 +141,19 @@ export function bySelectedSort(key: PopoutSortKey) {
   };
 }
 
-// ── 내 순서 (2026-10-12, docs/TASK_USER_ORDER_DESIGN.md §8 · Fable) ─────────────────
-// Irene: "태그별로 보든 마감일별로 보든 소팅을 자유롭게 … 리스트 재배치가 자유자재였으면".
-//   끌어 옮긴 업무(my_pos 있음)가 먼저 pos 오름차순, 아직 안 옮긴 업무는 그 뒤에 최신등록순 사슬.
+// ── 직접 정렬 (2026-10-12, docs/TASK_USER_ORDER_DESIGN.md · Fable) ─────────────────
+// Irene: "태그별, 프로젝트별, 마감일별로 보면서도 순서를 바꿀 수 있어야 … 태그별로 그룹핑된 상태에서 순서 달라야".
+//   순서는 **보기마다 따로** 저장된다(my_order.tag / .project / .due). 그 보기에서 끌어 옮긴 업무가 먼저 pos 오름차순,
+//   아직 안 옮긴 업무는 그 뒤에 최신등록순 사슬.
 //   ★ 서버의 물질화(services/taskUserOrder ②)가 "보이는 순서대로 끝에" 붙이므로, 화면이 이 순서를 그대로
 //     visible_ids 로 보내면 끌기 전후 다른 행의 상대 순서가 바뀌지 않는다.
-export function byMyOrder(a: SortableTask, b: SortableTask): number {
-  const pa = a.my_pos ?? null; const pb = b.my_pos ?? null;
-  if (pa !== null && pb !== null) { if (pa !== pb) return pa - pb; }
-  else if (pa !== null) return -1;
-  else if (pb !== null) return 1;
-  return bySelectedSort('recent')(a, b);
+export type OrderView = 'tag' | 'project' | 'due';
+export function byMyOrder(view: OrderView) {
+  return (a: SortableTask, b: SortableTask): number => {
+    const pa = a.my_order?.[view] ?? null; const pb = b.my_order?.[view] ?? null;
+    if (pa !== null && pb !== null) { if (pa !== pb) return pa - pb; }
+    else if (pa !== null) return -1;
+    else if (pb !== null) return 1;
+    return bySelectedSort('recent')(a, b);
+  };
 }
