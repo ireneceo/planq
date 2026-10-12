@@ -207,6 +207,7 @@ router.patch('/:id/time', authenticateToken, async (req, res, next) => {
     // 권한: 담당자 또는 업무 생성자 또는 워크스페이스 owner
     const bm = await BusinessMember.findOne({ where: { user_id: req.user.id, business_id: task.business_id } });
     if (!bm) return errorResponse(res, 'forbidden', 403);
+    if (!(await canAccessTask(req.user.id, task))) return errorResponse(res, 'task_not_found', 404);   // 볼 수 없으면 못 고친다
     if (bm.role !== 'owner' && task.assignee_id !== req.user.id && task.created_by !== req.user.id) {
       return errorResponse(res, 'forbidden', 403);
     }
@@ -277,8 +278,7 @@ router.patch('/:id/time', authenticateToken, async (req, res, next) => {
       const { serializeTaskForBroadcast } = require('../services/taskBroadcast');
       const base = await serializeTaskForBroadcast(task.id, task.business_id);
       const payload = { ...(base || task.toJSON()), actor_user_id: req.user.id };
-      if (task.project_id) require('../services/projectRoom').emitProject(io, task.project_id, 'task:updated', payload);
-      io.to(`business:${task.business_id}`).emit('task:updated', payload);
+      require('../services/taskRoom').emitTask(io, 'task:updated', payload, { businessId: task.business_id, projectId: task.project_id }).catch((e) => console.warn('[emitTask]', e.message));   // 공개 범위 반영
       broadcastInboxRefresh(io, task.business_id, task.project_id, 'task_time_updated', task.id);
     }
     return successResponse(res, task.toJSON());
@@ -292,7 +292,7 @@ router.post('/', authenticateToken, async (req, res, next) => { // audit-exempt:
   try {
     const { business_id, project_id, title, description, assignee_id, due_date,
       estimated_hours, category, source_message_id, conversation_id, planned_week_start, start_date,
-      cue_kind, cue_context_ref, recurrence_rule, workstream_id, client_id, security_level } = req.body;
+      cue_kind, cue_context_ref, recurrence_rule, workstream_id, client_id, security_level, vlevel, target_member_ids } = req.body;
 
     // 생성은 행동 계층 단일 착지점을 지난다 (services/actions/task_actions.js).
     //   권한·요청자 자동 컨펌자·Cue 실행·socket·알림·감사가 전부 그 안에서 일어난다 — Cue 도 같은 문.
@@ -305,7 +305,7 @@ router.post('/', authenticateToken, async (req, res, next) => { // audit-exempt:
       recurrenceRule: recurrence_rule, workstreamId: workstream_id,
       // 고객 축 — 행동 계층이 같은 워크스페이스 고객인지 확인한 뒤에만 붙인다(task_actions 의 격리 검사)
       clientId: client_id,
-      securityLevel: security_level,
+      securityLevel: security_level, vlevel, targetMemberIds: target_member_ids,
     }, { autoAiEstimate: true });
     if (!result.ok) return errorResponse(res, result.code, result.http || 400);
 
@@ -425,12 +425,15 @@ router.post('/ai-create', authenticateToken, aiCreateModeLimiter, async (req, re
     //   반복 parent 만 — 생성된 회차(recurrence_parent_id 있는 행)까지 세면 같은 루틴을 여러 번 센다.
     let existingRecurring = [];
     if (effectiveMode === 'routine' && project_id) {
+      // 볼 수 있는 업무만 AI 에 넘긴다(공개 범위 — 남의 «나만 보기» 제목이 계획 프롬프트로 새지 않게)
+      const visWhere = (await taskListWhere(req.user.id, Number(business_id))) || { id: -1 };
       const rows = await Task.findAll({
         where: {
           business_id, project_id,
           recurrence_rule: { [Op.ne]: null },
           recurrence_parent_id: null,
           status: { [Op.notIn]: ['completed', 'canceled'] },
+          [Op.and]: [visWhere],
         },
         attributes: ['id', 'title', 'recurrence_rule', 'workstream_id'],
         order: [['id', 'ASC']], limit: 60,
@@ -1063,8 +1066,10 @@ router.put('/by-business/:businessId/:id', authenticateToken, async (req, res, n
     }
     const task = await Task.findOne({ where: { id: req.params.id, business_id: businessId } });
     if (!task) return errorResponse(res, 'task_not_found', 404);
+    // 볼 수 없는 업무는 고칠 수도 없다(2026-10-12 — 남의 «나만 보기»·지정 멤버 업무. 문서 D2 와 같은 선). 존재도 숨긴다.
+    if (!(await canAccessTask(req.user.id, task))) return errorResponse(res, 'task_not_found', 404);
 
-    const { title, description, body, assignee_id, status, due_date, start_date, estimated_hours, actual_hours, progress_percent, category, planned_week_start, project_id, recurrence_rule, workstream_id, is_milestone, hold_reason, miss_policy, priority_level, security_level } = req.body;
+    const { title, description, body, assignee_id, status, due_date, start_date, estimated_hours, actual_hours, progress_percent, category, planned_week_start, project_id, recurrence_rule, workstream_id, is_milestone, hold_reason, miss_policy, priority_level, security_level, vlevel, target_member_ids } = req.body;
     const updates = {};
     if (is_milestone !== undefined) updates.is_milestone = !!is_milestone;
     if (title !== undefined) updates.title = title;
@@ -1118,14 +1123,17 @@ router.put('/by-business/:businessId/:id', authenticateToken, async (req, res, n
     // #353 ⑤ 중요도 — ENUM 밖 값은 **400 으로 돌려준다.** 조용히 떨구면 사용자는 저장된 줄 안다.
     //   (miss_policy 는 조용히 무시하는 옛 방식인데, 그건 내부 정책 값이고 이건 사용자가 고르는 값이다.)
     //   null·'' 은 "미지정으로 되돌리기" 다.
-    // «내부 업무» 보안등급(2026-10-12, docs/TASK_SECURITY_LEVEL_DESIGN.md) — 값 둘만. 바꾸는 사람은 FIELD_RULES.
-    if (security_level !== undefined) {
-      if (!['general', 'internal'].includes(security_level)) return errorResponse(res, 'invalid_security_level', 400);
-      if (security_level !== task.security_level) {
-        updates.security_level = security_level;
-        // 올리면 이미 나간 링크를 끊는다(공유 규칙 2 — 문서·파일과 같은 share_helper.shareOffPatch).
-        if (security_level === 'internal') Object.assign(updates, require('../services/share_helper').shareOffPatch(task));
-      }
+    // 공개 범위·보안등급(2026-10-12, docs/TASK_SECURITY_LEVEL_DESIGN.md) — 문서(posts.js /visibility·/security-level)와 같은 규칙.
+    //   바꾸는 사람은 FIELD_RULES(작성자 ∨ owner/admin, 고객 제외). 정규화는 services/taskVisibility 한 곳.
+    // 프로젝트를 바꿔도 같은 함수를 지난다 — «특정 프로젝트»(L2) 업무에서 프로젝트를 떼면 대상 없는 L2 가 남는다(Fable 비차단).
+    if (vlevel !== undefined || target_member_ids !== undefined || security_level !== undefined
+        || (project_id !== undefined && task.vlevel === 'L2')) {
+      const vis = await require('../services/taskVisibility').normalizeVisibilityPatch(task, {
+        vlevel, target_member_ids, security_level,
+        project_id: project_id !== undefined ? project_id : task.project_id,
+      });
+      if (!vis.ok) return errorResponse(res, vis.code, vis.http || 400, vis.code);
+      Object.assign(updates, vis.patch);
     }
     if (priority_level !== undefined) {
       if (priority_level === null || priority_level === '') {
@@ -1381,8 +1389,8 @@ router.put('/by-business/:businessId/:id', authenticateToken, async (req, res, n
       //   시리즈의 성질이다(제목·담당자와 같은 축).
       const propagate = {};
       for (const f of seriesScopeSvc.SERIES_CONTENT_FIELDS) if (updates[f] !== undefined) propagate[f] = updates[f];
-      // 다른 회차를 내부로 올리면 그 회차들의 공유 링크도 끊는다(이 회차와 같은 규칙).
-      if (propagate.security_level === 'internal') {
+      // 다른 회차의 범위를 좁히거나 등급을 올리면 그 회차들의 공유 링크도 끊는다(이 회차와 같은 규칙).
+      if (require('../services/taskVisibility').patchRevokesShare(propagate)) {
         Object.assign(propagate, { share_token: null, shared_at: null, share_expires_at: null, share_password_hash: null });
       }
       if (Object.keys(propagate).length > 0) {
@@ -1503,8 +1511,7 @@ router.put('/by-business/:businessId/:id', authenticateToken, async (req, res, n
         });
         payload.reviewer_user_ids = reviewers.map(r => r.user_id);
       } catch { /* 실패해도 broadcast 자체는 진행 */ }
-      if (task.project_id) require('../services/projectRoom').emitProject(io, task.project_id, 'task:updated', payload);
-      io.to(`business:${task.business_id}`).emit('task:updated', payload);
+      require('../services/taskRoom').emitTask(io, 'task:updated', payload, { businessId: task.business_id, projectId: task.project_id }).catch((e) => console.warn('[emitTask]', e.message));   // 공개 범위 반영
       broadcastInboxRefresh(io, task.business_id, task.project_id, 'task_updated', task.id);
     }
     // 떠난 프로젝트 방에도 신호 — 그 목록에서 빠져야 한다(#463)
@@ -1611,6 +1618,8 @@ router.delete('/by-business/:businessId/:id', authenticateToken, async (req, res
     const userId = req.user.id;
     const task = await Task.findOne({ where: { id: req.params.id, business_id: businessId } });
     if (!task) return errorResponse(res, 'task_not_found', 404);
+    // 볼 수 없는 업무는 지울 수도 없다(owner/admin 도 남의 «나만 보기» — 문서 D2 와 같은 선).
+    if (!(await canAccessTask(userId, task))) return errorResponse(res, 'task_not_found', 404);
 
     // 사이클 N+5 — PERMISSION_MATRIX §5.7 정책 강화:
     //   admin / owner = 항상 삭제 가능
@@ -1727,8 +1736,8 @@ router.post('/:id/copy', authenticateToken, async (req, res, next) => {
       estimated_hours: src.estimated_hours,
       category: src.category,
       conversation_id: src.conversation_id,
-      // 보안등급은 승계한다(넓히지 않는다 — 문서 복사 계약). 공유 토큰은 따라가지 않는다.
-      security_level: src.security_level,
+      // 공개 범위·보안등급은 승계한다(넓히지 않는다 — 문서 복사 계약). 공유 토큰은 따라가지 않는다.
+      vlevel: src.vlevel, target_member_ids: src.target_member_ids, security_level: src.security_level,
       planned_week_start: null,
       created_by: req.user.id,
       source: 'manual',
@@ -1755,8 +1764,7 @@ router.post('/:id/copy', authenticateToken, async (req, res, next) => {
       const { serializeLoadedTasks } = require('../services/taskBroadcast');
       const [baseJson] = await serializeLoadedTasks([full], src.business_id);
       const payload = { ...(baseJson || full.toJSON()), actor_user_id: req.user.id };
-      if (src.project_id) require('../services/projectRoom').emitProject(io, src.project_id, 'task:new', payload);
-      io.to(`business:${src.business_id}`).emit('task:new', payload);
+      require('../services/taskRoom').emitTask(io, 'task:new', payload, { businessId: src.business_id, projectId: src.project_id }).catch((e) => console.warn('[emitTask]', e.message));   // 공개 범위 반영
       broadcastInboxRefresh(io, src.business_id, src.project_id, 'task_copy', full.id);
     }
 
@@ -1802,7 +1810,7 @@ router.get('/:id/detail', authenticateToken, async (req, res, next) => {
     if (!task) return errorResponse(res, 'task_not_found', 404);
     const scope = await getUserScope(req.user.id, task.business_id, req.user.platform_role);
     if (!(await canAccessTask(req.user.id, task, scope))) {
-      return errorResponse(res, 'forbidden', 403);
+      return errorResponse(res, 'task_not_found', 404);   // 볼 수 없으면 없는 것과 같다(존재를 말하지 않는다 — 2026-10-12 공개 범위)
     }
     // Client 는 internal/personal 댓글 제외
     let json = task.toJSON();
@@ -2125,11 +2133,14 @@ router.get('/context', authenticateToken, async (req, res, next) => {
       return errorResponse(res, 'scope required (project_id | conversation_id | email_thread_id)', 400);
     }
 
+    // 공개 범위 — 읽기 판정 한 곳(taskListWhere). 남의 «나만 보기»·지정 멤버 업무는 작업대에도 안 뜬다.
+    const visWhere = await taskListWhere(req.user.id, businessId);
+    if (!visWhere) return errorResponse(res, 'forbidden', 403);
     const baseWhere = {
       business_id: businessId,
       ...scopeWhere,
       // 끝난 업무는 최근 7일만 (작업대는 지금 할 일을 보는 곳)
-      [Op.and]: [{
+      [Op.and]: [visWhere, {
         [Op.or]: [
           { status: { [Op.notIn]: ['completed', 'canceled'] } },
           { updated_at: { [Op.gte]: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) } },
@@ -2507,7 +2518,7 @@ router.get('/public/by-token/:token', async (req, res, next) => {
   try {
     // N+44 — share_expires_at WHERE 조건 제거. 만료된 token 도 일단 가져와서 410 + share_expired 응답 통일.
     const task = await Task.findOne({
-      where: { share_token: req.params.token, security_level: 'general' },   // 내부 업무는 링크로 안 열린다(토큰이 남아 있어도)
+      where: { share_token: req.params.token, security_level: 'general' },   // 보안등급이 일반이 아니면 링크로 안 열린다(토큰이 남아 있어도 — 문서 공개 첨부와 같은 선)
       include: [
         { model: User, as: 'assignee', attributes: ['id', 'name'], required: false },
         { model: User, as: 'creator', attributes: ['id', 'name'], required: false },
@@ -2574,7 +2585,7 @@ router.get('/public/by-token/:token/auth-check', authenticateToken, async (req, 
 router.get('/public/by-token/:token/attachments/:attId/download', async (req, res, next) => {
   try {
     const task = await Task.findOne({
-      where: { share_token: req.params.token, security_level: 'general' },   // 내부 업무는 링크로 안 열린다(토큰이 남아 있어도)
+      where: { share_token: req.params.token, security_level: 'general' },   // 보안등급이 일반이 아니면 링크로 안 열린다(토큰이 남아 있어도 — 문서 공개 첨부와 같은 선)
       attributes: ['id', 'business_id', 'share_token', 'share_expires_at', 'share_password_hash'],
     });
     if (!task) return errorResponse(res, 'not_found', 404);
@@ -2628,12 +2639,20 @@ router.get('/:id/links', authenticateToken, async (req, res, next) => {
     const links = await TaskLink.findAll({
       where: { [Op.or]: [{ task_a_id: taskId }, { task_b_id: taskId }] },
       include: [
-        { model: Task, as: 'taskA', attributes: ['id', 'title', 'status', 'project_id', 'due_date', 'assignee_id'] },
-        { model: Task, as: 'taskB', attributes: ['id', 'title', 'status', 'project_id', 'due_date', 'assignee_id'] },
+        // 판정 칸(TASK_VIS_ATTRS)도 같이 읽는다 — 안 읽으면 판정이 «나만 보기» 로 떨어진다(fail-closed)
+        { model: Task, as: 'taskA', attributes: [...new Set(['id', 'title', 'status', 'project_id', 'due_date', 'assignee_id', ...require('../middleware/access_scope').TASK_VIS_ATTRS])] },
+        { model: Task, as: 'taskB', attributes: [...new Set(['id', 'title', 'status', 'project_id', 'due_date', 'assignee_id', ...require('../middleware/access_scope').TASK_VIS_ATTRS])] },
       ],
       order: [['created_at', 'DESC']],
     });
 
+    // 상대 업무도 읽기 판정을 지난다 — 볼 수 없는 업무(남의 «나만 보기» 등)의 제목은 싣지 않는다(2026-10-12).
+    const linkScope = await getUserScope(req.user.id, links[0]?.taskA?.business_id || links[0]?.taskB?.business_id || 0, req.user.platform_role);
+    const visibleOther = new Set();
+    for (const l of links) {
+      const other = l.task_a_id === taskId ? l.taskB : l.taskA;
+      if (other && await canAccessTask(req.user.id, other, linkScope)) visibleOther.add(other.id);
+    }
     // 응답: 항상 "상대 task" 관점으로 normalize (taskA / taskB 중 내가 아닌 쪽)
     const normalized = links.map((l) => {
       const other = l.task_a_id === taskId ? l.taskB : l.taskA;
@@ -2641,7 +2660,7 @@ router.get('/:id/links', authenticateToken, async (req, res, next) => {
         link_id: l.id,
         link_type: l.link_type,
         created_at: l.created_at,
-        task: other ? other.toJSON() : null,
+        task: other && visibleOther.has(other.id) ? other.toJSON() : null,
       };
     }).filter((x) => x.task);
 

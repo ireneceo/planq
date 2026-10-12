@@ -1,5 +1,16 @@
 ## 현재 작업 상태
 
+### 완료: 업무 공개 범위·보안등급 2차 — 문서·일정과 같은 구조 (방 99ab9b7d · 2026-10-12 · [Opus]+[Fable 설계 1·검증 4]) — 운영 미배포
+- Irene *"문서랑 일정처럼 워크스페이스 특정 멤버 나만보기 등 같은 기능 … 보안등급도 있잖아. 기존 기능 그대로"* → 1차 «내부 업무»(ff10d3f6)를 갈아엎음.
+  `tasks.vlevel`(L1 나만·L2 프로젝트/특정 멤버·L3·L4, 기본 L3)·`target_member_ids`·`security_level`(일반·내부·기밀). 설계 docs/TASK_SECURITY_LEVEL_DESIGN.md.
+- 이름 박힌 사람(작성·담당·요청·컨펌)은 범위 무관 · owner/admin 도 남의 L1 못 보고 못 고침(D2) · 고객은 관계로 닿되 L1·지정 멤버 제외 · 등급은 외부 공유만 막음.
+- 판정 한 곳 access_scope.canAccessTask/taskListWhere · 값 정규화 services/taskVisibility · 실시간 services/taskRoom.emitTask(L1·L2 행은 볼 사람 개인 방만) ·
+  행동 계층 fieldContext·canChangeStatus·canManageReviewers·revertStatus 의 관리자 권한 ∧ canAccessTask · 워크플로 loadTaskOrFail 404 · 멘션 알림 거름 · 업무 제목 노출 경로 약 35곳.
+- 화면: 업무 상세·추가에 문서와 같은 VisibilityChip+VisibilityChangeModal(추가 폼은 외부 숨김 — modal 에 hide prop) + 보안등급 선택.
+- Fable: 2차 FAIL(행동 계층·projects PATCH·멘션) → 3차 FAIL(태그·AI 추정) → 4차 PASS(델타). 자체: 실HTTP 51/51 + 대조군(13건·3건 뒤집힘) · guard 68/69 · health 84/84 · e2e tenant·realtime·seriesscope·respline·taskaddparity·clientlink 0 · build 0 · 화면 3폭.
+- 남은 비차단: comments·share·attachments 가 못 보는 업무에 403(존재만 노출) · cue/rerun 400 · 업무 목록 행 공개 범위 표시 없음.
+- 운영: migrate-task-security-level.js 배포 슬롯 등록(코드보다 먼저). 확인용 3734~3739.
+
 ### 답 기다림: Cue 횟수를 «질문 한 번(턴)» 에 매길지 (방 004312ae · 2026-10-12 · [Opus]+[Fable 검증 1]) — 원가 절감은 완료, 운영 미배포
 - 한 일(커밋 아래): Cue 질문 실비 $0.021 → 약 $0.010(도구 47개 그대로, 공급자 프롬프트 캐시 — 고정 지시문/컨텍스트 두 메시지 분리 · 24h 보존 · 마지막 라운드 allowed_tools). 원장: 캐시 할인 반영 · 카드 턴 실비 `help_card` 행(횟수 0). Fable PASS.
 - 무엇을: 지금 «카드만 받고 실행 안 한 턴» 은 원가(≈$0.010)가 드는데 한도에 안 든다(사용자당 10/분·150/일만 막음 → 이론상 월 ≈$45 한도 밖). 실행은 원가 0 인데 1회.

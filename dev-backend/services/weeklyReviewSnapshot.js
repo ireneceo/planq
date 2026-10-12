@@ -36,6 +36,11 @@ function addDaysStr(dateStr, n) {
   d.setUTCDate(d.getUTCDate() + n);
   return d.toISOString().slice(0, 10);
 }
+// 업무 공개 범위(2026-10-12) — 워크스페이스 보고서(저장·공유된다, 보는 사람을 모른다)에는 워크스페이스 공개(L3·L4)
+//   업무만 제목으로 싣는다. 개인 보고(userIdFilter = 담당자 본인)는 본인 업무라 그대로.
+const WS_PUBLIC = { vlevel: { [Op.in]: ['L3', 'L4'] } };
+const pubUnless = (userIdFilter) => (userIdFilter ? {} : WS_PUBLIC);
+
 function fridayOf(mondayStr) { return addDaysStr(mondayStr, 4); }
 function sundayOf(mondayStr) { return addDaysStr(mondayStr, 6); }
 function prevMonday(mondayStr) { return addDaysStr(mondayStr, -7); }
@@ -251,6 +256,7 @@ async function buildWorkspaceSnapshot(businessId, weekStart) {
   // highlights — 이번 주 완료 task 중 estimated_hours top 5
   const completedTasks = await Task.findAll({
     where: {
+      ...WS_PUBLIC,
       business_id: businessId, status: 'completed',
       completed_at: { [Op.between]: [`${monday} 00:00:00`, `${friday} 23:59:59`] },
     },
@@ -411,6 +417,7 @@ async function fetchRisks(businessId, monday, sunday, userIdFilter) {
   const inThreeDays = addDaysStr(today, 3);
 
   const baseWhere = {
+    ...pubUnless(userIdFilter),
     business_id: businessId,
     status: { [Op.notIn]: ['completed', 'canceled'] },
   };
@@ -502,6 +509,7 @@ async function fetchRisks(businessId, monday, sunday, userIdFilter) {
 // blockers — waiting / revision_requested / on_hold(#206 보류는 막힌 일이다)
 async function fetchBlockers(businessId, userIdFilter) {
   const where = {
+    ...pubUnless(userIdFilter),
     business_id: businessId,
     status: { [Op.in]: ['waiting', 'revision_requested', 'on_hold'] },
   };
@@ -550,6 +558,7 @@ async function fetchBlockers(businessId, userIdFilter) {
 async function fetchNextWeekFocus(businessId, nextMonday, userIdFilter) {
   const nextFriday = fridayOf(nextMonday);
   const where = {
+    ...pubUnless(userIdFilter),
     business_id: businessId,
     due_date: { [Op.between]: [nextMonday, nextFriday] },
     status: { [Op.notIn]: ['completed', 'canceled'] },
@@ -637,6 +646,7 @@ async function fetchTeamHighlights(businessId, monday, friday, members) {
   for (const m of members) {
     const topTask = await Task.findOne({
       where: {
+        ...WS_PUBLIC,
         business_id: businessId,
         assignee_id: m.user_id,
         status: 'completed',
@@ -669,6 +679,7 @@ async function fetchDecisionsRequired(businessId, monday) {
   // 1) revision_requested 7일+ 막힘
   const revisionStuck = await Task.findAll({
     where: {
+      ...WS_PUBLIC,
       business_id: businessId, status: 'revision_requested',
       updated_at: { [Op.lt]: addDaysStr(today, -7) + ' 00:00:00' },
     },
@@ -689,6 +700,7 @@ async function fetchDecisionsRequired(businessId, monday) {
   // 2) 마감 임박 + 담당자 미지정
   const unassignedDue = await Task.findAll({
     where: {
+      ...WS_PUBLIC,
       business_id: businessId,
       due_date: { [Op.between]: [today, addDaysStr(today, 7)] },
       assignee_id: null,

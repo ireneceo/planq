@@ -2524,6 +2524,8 @@
       "shared_at",
       "share_password_hash",
       "share_expires_at",
+      "vlevel",
+      "target_member_ids",
       "security_level",
       "actual_source",
       "email_thread_id",

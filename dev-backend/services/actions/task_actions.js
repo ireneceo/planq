@@ -53,7 +53,9 @@ async function isOwner(task, userId) {
 }
 // 컨펌자 관리(추가·제거·정책)를 할 수 있는 사람 — 담당자 / 요청자 / 오너
 async function canManageReviewers(task, userId) {
-  return (await isAssignee(task, userId)) || (await isRequester(task, userId)) || (await isOwner(task, userId));
+  if ((await isAssignee(task, userId)) || (await isRequester(task, userId))) return true;
+  // 관리자 권한은 «볼 수 있는 업무» 에서만 — 남의 «나만 보기» 업무에 자기를 컨펌자로 넣어 스스로 여는 길을 막는다(2026-10-12 Fable, D2).
+  return (await isOwner(task, userId)) && (await require('../../middleware/access_scope').canAccessTask(userId, task));
 }
 
 // ─────────────────────────────────────────────
@@ -150,9 +152,11 @@ const FIELD_RULES = {
   start_date: (c) => c.isAssignee || c.isCreator || c.isOwnerOrAdmin,
   planned_week_start: (c) => c.isCreator || c.isAssignee || c.isOwnerOrAdmin,
   recurrence_rule: (c) => c.isCreator || c.isOwnerOrAdmin,
-  // «내부 업무»(2026-10-12) — 누구에게 보이나는 의뢰 명세 축(발주자) + 관리자. 담당자·고객은 못 바꾼다.
-  //   ★ 고객은 작성자여도 못 바꾼다 — createTask 가 고객 생성분을 늘 general 로 두는 것과 같은 선(Fable 완료 검증 비차단 1).
+  // 공개 범위·보안등급(2026-10-12) — 문서와 같은 집합(작성자 ∨ owner/admin). 담당자·고객은 못 바꾼다.
+  //   ★ 고객은 작성자여도 못 바꾼다 — createTask 가 고객 생성분을 늘 기본값(L3·general)으로 두는 것과 같은 선.
   security_level: (c) => !c.isClient && (c.isCreator || c.isOwnerOrAdmin),
+  vlevel: (c) => !c.isClient && (c.isCreator || c.isOwnerOrAdmin),
+  target_member_ids: (c) => !c.isClient && (c.isCreator || c.isOwnerOrAdmin),
   // #349 — 반복 규칙과 **같은 축**이다. 빠뜨리면 담당자가 아닌 멤버는 물론 client 까지
   //   (assertBusinessAccess 는 client 도 통과시킨다) 남의 시리즈를 auto_skip 으로 바꿔
   //   cron 이 타인의 회차를 자동 취소하게 만들 수 있다(Fable 실측 200). 규칙을 나란히 둔다.
@@ -176,7 +180,11 @@ async function fieldContext(task, userId, platformRole = null) {
   return {
     isCreator: task.created_by === userId,
     isAssignee: task.assignee_id === userId,
-    isOwnerOrAdmin: platformRole === 'platform_admin' || !!scope.isOwner || !!scope.isAdmin,
+    // 관리자 권한은 «볼 수 있는 업무» 에서만 — FIELD_RULES 를 쓰는 모든 행동(태그·필드·담당자·이관)이 이 값을 본다.
+    //   (2026-10-12 Fable 3차: 태그 바꾸기가 역할만 봐서 owner 가 남의 «나만 보기» 업무를 고쳤다. 한 곳씩 막지 않고 입력을 고친다.)
+    isOwnerOrAdmin: (platformRole === 'platform_admin' || !!scope.isOwner || !!scope.isAdmin)
+      // 판정 칸 없이 좁혀 읽은 행이면 다시 읽는다 — 안 그러면 «나만 보기» 로 떨어져 관리자 권한이 말없이 꺼진다(Fable 4차 비차단)
+      && await canAccessTask(userId, task.vlevel === undefined ? (await Task.findByPk(task.id)) : task, scope),
     isClient: !!scope.isClient,
     scope,
   };
@@ -353,8 +361,7 @@ async function setTags(task, actor, { tagIds = [], seriesScope } = {}) {
     const { serializeTaskForBroadcast } = require('../taskBroadcast');
     const base = await serializeTaskForBroadcast(task.id, task.business_id);
     const payload = { ...(base || task.toJSON()), tags: row.tags, actor_user_id: subj.subjectId };
-    if (task.project_id) require('../projectRoom').emitProject(io, task.project_id, 'task:updated', payload);
-    io.to(`business:${task.business_id}`).emit('task:updated', payload);
+    require('../taskRoom').emitTask(io, 'task:updated', payload, { businessId: task.business_id, projectId: task.project_id }).catch((e) => console.warn('[emitTask]', e.message));   // 공개 범위 반영
   }
   return done({ task, tags: row.tags, changed: true });
 }
@@ -796,6 +803,19 @@ async function createTask(actor, params = {}, opts = {}) {
     }
   }
 
+  // 공개 범위·보안등급(2026-10-12) — 멤버만 고를 수 있다(고객이 만든 것은 늘 기본값 L3·general).
+  //   검증은 수정(PUT)과 같은 함수(services/taskVisibility). AI 에이전트 도구는 이 값을 넘기지 않는다.
+  let visFields = { vlevel: 'L3', target_member_ids: null, security_level: 'general' };
+  if (!isClient && (params.vlevel !== undefined || params.targetMemberIds !== undefined || params.securityLevel !== undefined)) {
+    const base = { business_id: businessId, vlevel: 'L3', target_member_ids: null, security_level: 'general' };
+    const vis = await require('../taskVisibility').normalizeVisibilityPatch(base, {
+      vlevel: params.vlevel, target_member_ids: params.targetMemberIds, security_level: params.securityLevel, project_id: projectId,
+    });
+    if (!vis.ok) return fail(vis.code, vis.http || 400);
+    visFields = { ...visFields, ...vis.patch };
+    delete visFields.share_token; delete visFields.shared_at; delete visFields.share_expires_at; delete visFields.share_password_hash;
+  }
+
   // ── 쓰기 (외부 트랜잭션이 있으면 합류, 없으면 자체 개설) ──
   const external = !!opts.transaction;
   const t = opts.transaction || await sequelize.transaction();
@@ -839,9 +859,7 @@ async function createTask(actor, params = {}, opts = {}) {
       recurrence_rule: effectiveRecurrenceRule,
       recurrence_parent_id: null,
       next_occurrence_at: nextOccurrenceAt,
-      // «내부 업무»(2026-10-12) — 멤버가 만들 때만 고를 수 있다(고객이 만든 것은 늘 일반). 모르는 값은 일반.
-      //   AI 에이전트 도구는 이 값을 넘기지 않는다(AI 가 노출을 바꾸지 않는다 — 설계 §2).
-      security_level: (!isClient && params.securityLevel === 'internal') ? 'internal' : 'general',
+      ...visFields,   // 공개 범위·보안등급 — 위에서 검증(고객은 기본값)
     }, { transaction: t });
 
     // 요청 업무 — 요청자를 컨펌자로 자동 등록. 담당자가 곧장 '완료' 하지 못하고 요청자 승인을 거친다.
@@ -918,8 +936,7 @@ async function afterCreate({ task, businessId, projectId, subjectId, actor, isIn
   // socket — project room + business room 양쪽 (Q Task 페이지는 business room 을 듣는다)
   if (io) {
     const payload = { ...fullJson, actor_user_id: actor.userId };
-    if (projectId) require('../projectRoom').emitProject(io, projectId, 'task:new', payload);
-    io.to(`business:${businessId}`).emit('task:new', payload);
+    require('../taskRoom').emitTask(io, 'task:new', payload, { businessId, projectId }).catch((e) => console.warn('[emitTask]', e.message));   // 공개 범위 반영
     io.to(`business:${businessId}`).emit('inbox:refresh', { reason: 'task_new', task_id: task.id });
     if (projectId) require('../projectRoom').emitProject(io, projectId, 'inbox:refresh', { reason: 'task_new', task_id: task.id });
   }
@@ -1007,8 +1024,7 @@ async function aiEstimateInBackground(taskId, businessId, projectId, actorUserId
     actor_user_id: actorUserId,
     ai_estimate: true,
   };
-  if (projectId) require('../projectRoom').emitProject(io, projectId, 'task:updated', payload);
-  io.to(`business:${businessId}`).emit('task:updated', payload);
+  require('../taskRoom').emitTask(io, 'task:updated', payload, { businessId, projectId }).catch((e) => console.warn('[emitTask]', e.message));   // 공개 범위 반영
   io.to(`business:${businessId}`).emit('inbox:refresh', { reason: 'task_ai_estimate', task_id: taskId });
 }
 
@@ -1062,7 +1078,11 @@ async function createComment(actor, task, { content, visibility } = {}) {
 async function notifyComment({ task, comment, subjectId, actor, io }) {
   const { resolveMentions } = require('../mention_parser');
   const { notifyMany } = require('../../routes/notifications');
-  const mentioned = await resolveMentions(comment.content, task.business_id, subjectId);
+  // 멘션 받는 사람은 «그 업무를 볼 수 있는 사람» 만 — 못 보는 사람에게 알림 제목·미리보기로 업무가 새면 안 된다
+  //   (2026-10-12 Fable: 남의 «나만 보기» 업무 댓글에 @대표 → 대표 알림에 업무 제목). 읽기 판정 한 곳(canAccessTask).
+  const mentionedAll = await resolveMentions(comment.content, task.business_id, subjectId);
+  const mentioned = [];
+  for (const uid of mentionedAll) if (await canAccessTask(uid, task)) mentioned.push(uid);
   const mentionedSet = new Set(mentioned);
 
   const biz = await Business.findByPk(task.business_id, { attributes: ['name', 'brand_name'] });
@@ -1566,8 +1586,10 @@ async function revertStatus(task, actor) {
   const userId = actor.userId;
   const assignee = await isAssignee(task, userId);
   const bm = await BusinessMember.findOne({ where: { business_id: task.business_id, user_id: userId } });
-  const adminOrOwner = bm?.role === 'owner' || bm?.role === 'admin'
-    || actor.platformRole === 'platform_admin';
+  const adminOrOwner = (bm?.role === 'owner' || bm?.role === 'admin'
+    || actor.platformRole === 'platform_admin')
+    // 볼 수 없는 업무(남의 «나만 보기» 등)는 관리자도 못 바꾼다(2026-10-12, D2)
+    && await require('../../middleware/access_scope').canAccessTask(userId, task);
   if (!assignee && !adminOrOwner) return fail('forbidden_revert — 담당자 또는 관리자만 되돌릴 수 있습니다.', 403);
 
   const last = await TaskStatusHistory.findOne({
@@ -1633,7 +1655,9 @@ async function canChangeStatus(task, actor) {
   const bm = await BusinessMember.findOne({
     where: { business_id: task.business_id, user_id: userId },
   });
-  return bm?.role === 'owner' || bm?.role === 'admin';
+  // 관리자 권한은 «볼 수 있는 업무» 에서만(2026-10-12 Fable, D2 — 문서·일정과 같은 선)
+  return (bm?.role === 'owner' || bm?.role === 'admin')
+    && require('../../middleware/access_scope').canAccessTask(userId, task);
 }
 
 // 보류/해제의 관심 당사자 = 담당자 + 의뢰자. 둘이 같은 사람이면 1통만 (중복 알림 차단).

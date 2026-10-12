@@ -21,9 +21,11 @@ interface Props {
   onConfirm: (next: { level: 'L1' | 'L2' | 'L3' | 'L4'; projectId?: number; targetMemberIds?: number[]; targetClientIds?: number[] }) => Promise<void> | void;
   onClose: () => void;
   onOpenShare?: () => void;  // L4 → ShareModal 안내 (제공 시 L4 라디오 hide)
+  /** 고를 수 없는 선택지 숨기기 — 예: 아직 만들지 않은 업무는 외부 공유(L4)를 고를 수 없다(링크는 만든 뒤 공유 창에서). */
+  hide?: Partial<Record<VVariant, boolean>>;
 }
 
-const VisibilityChangeModal: React.FC<Props> = ({ open, current, canChooseL2 = true, projects = [], members = [], clients = [], onConfirm, onClose, onOpenShare }) => {
+const VisibilityChangeModal: React.FC<Props> = ({ open, current, canChooseL2 = true, projects = [], members = [], clients = [], onConfirm, onClose, onOpenShare, hide: hideProp }) => {
   const { t } = useTranslation('common');
   const cur = (current || 'L3') as string;
   const initial: VisibilityValue = {
@@ -65,7 +67,7 @@ const VisibilityChangeModal: React.FC<Props> = ({ open, current, canChooseL2 = t
   };
 
   // L4 는 onOpenShare 있을 때 hide — 외부 공유는 별도 ShareModal 흐름 사용
-  const hide = onOpenShare ? { L4: true } as const : {};
+  const hide = { ...(onOpenShare ? { L4: true } : {}), ...(hideProp || {}) };
 
   return (
     <Backdrop role="dialog" aria-modal="true" onClick={onClose}>

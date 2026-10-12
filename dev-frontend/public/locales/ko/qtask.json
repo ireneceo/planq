@@ -1527,10 +1527,8 @@
     "open": "열기",
     "dismiss": "닫기"
   },
-  "security": {
-    "label": "공개",
-    "general": "일반",
-    "internal": "내부 업무 (팀만)",
-    "internalHint": "고객·외부 링크에 안 보여요"
+  "visibility": {
+    "label": "공개 범위",
+    "saveFailed": "공개 범위를 바꾸지 못했어요"
   }
 }

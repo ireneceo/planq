@@ -34,8 +34,7 @@ async function broadcastChanged(req, tasks) {
   for (const t of tasks) {
     const raw = typeof t.toJSON === 'function' ? t.toJSON() : { ...t };
     const payload = { ...(byId.get(raw.id) || raw), actor_user_id: req.user.id };
-    if (payload.project_id) require('../services/projectRoom').emitProject(io, payload.project_id, 'task:updated', payload);
-    io.to(`business:${payload.business_id}`).emit('task:updated', payload);
+    require('../services/taskRoom').emitTask(io, 'task:updated', payload).catch((e) => console.warn('[emitTask]', e.message));   // 공개 범위 반영(services/taskRoom)
   }
 }
 

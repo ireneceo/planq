@@ -248,41 +248,74 @@ async function conversationListWhere(userId, businessId, scope) {
 // ─────────────────────────────────────────────
 // Task
 // ─────────────────────────────────────────────
-// 내부 업무(2026-10-12) — 프로젝트 고객·대화 참여 고객·게스트·공개 링크에 안 보인다. 판정 한 곳.
-//   값을 안 실은 행(attributes 로 좁혀 읽은 것)은 **내부로 본다**(fail-closed) — 고객 분기에서만 쓰인다.
-function isInternalTask(task) {
-  return !task || task.security_level !== 'general';
+// 업무 읽기 — **한 곳** (2026-10-12, 문서·일정과 같은 공개 범위·보안등급. docs/TASK_SECURITY_LEVEL_DESIGN.md)
+//   Irene: *"문서랑 일정처럼 워크스페이스 특정 멤버 나만보기 등 같은 기능 … 기존 기능 그대로 반영해야지."*
+//
+//   ① 이름이 박힌 사람 — 작성·담당·요청·컨펌자는 **범위와 무관하게** 본다(일정의 «초대받은 참석자» 와 같은 규칙).
+//   ② 멤버 — L3·L4 전부 · L2 는 «특정 멤버»면 지정된 멤버, 아니면 이 업무 프로젝트의 멤버 · L1 은 ①만.
+//      owner/admin 은 L2 전부를 보되 남의 L1 은 못 본다(2026-10-09 D2 — 문서·일정·Q info 와 같다).
+//   ③ 고객 — 종전 관계(대화 참여·프로젝트 고객)로 닿되, 남의 «나만 보기»(L1)·«특정 멤버»(L2 지정)는 안 보인다
+//      (문서 canAccessPost 가 고객에게 L1 을 빼는 것과 같은 선 · 지정 멤버는 «선택한 멤버만» 이 약속이다).
+//   보안등급(security_level)은 읽기 축이 아니다 — 외부 공유(공개 링크·게스트 링크)만 막는다(문서와 같다).
+//   ★ vlevel 을 안 실은 행(attributes 로 좁혀 읽은 것)은 «나만 보기» 로 본다(fail-closed) — 판정에 넘길 땐 칸을 같이 읽는다.
+const TASK_VIS_ATTRS = ['id', 'business_id', 'project_id', 'conversation_id', 'created_by', 'assignee_id',
+  'request_by_user_id', 'vlevel', 'target_member_ids', 'security_level'];
+
+function taskTargets(task) {
+  const raw = task && task.target_member_ids;
+  let arr = raw;
+  if (typeof raw === 'string') { try { arr = JSON.parse(raw); } catch (_) { arr = []; } }
+  return Array.isArray(arr) ? arr.map(Number).filter(Boolean) : [];
+}
+function taskVlevel(task) { return (task && task.vlevel) || 'L1'; }
+
+/** 고객·게스트가 «관계로» 닿아도 되는 범위인가 — L3·L4·프로젝트 L2(지정 멤버 아님). */
+function taskOpenToRelation(task) {
+  const v = taskVlevel(task);
+  if (v === 'L3' || v === 'L4') return true;
+  return v === 'L2' && taskTargets(task).length === 0;
 }
 
-// 고객이 «관계로» 받는 업무 목록(프로젝트 업무·대화 업무)에 붙이는 조건 — 일반 업무 ∨ 이름이 박힌 관계자.
-//   canAccessTask 와 같은 술어를 목록 쿼리 모양으로. 호출부는 Op.and 안에 넣는다(최상위 키 덮어쓰기 금지).
-async function clientTaskInternalWhere(userId) {
-  const reviewerRows = await TaskReviewer.findAll({ where: { user_id: userId }, attributes: ['task_id'] });
-  const or = [
-    { security_level: 'general' },
-    { assignee_id: userId }, { created_by: userId }, { request_by_user_id: userId },
-  ];
-  if (reviewerRows.length) or.push({ id: { [Op.in]: reviewerRows.map((r) => r.task_id) } });
-  return { [Op.or]: or };
+// 목록 쿼리 모양의 같은 술어 조각 — literal 은 표 이름을 붙인다(include 가 늘면 ambiguous 500 — CLAUDE.md 캘린더 교훈).
+const TARGETS_EMPTY_SQL = '(`Task`.`target_member_ids` IS NULL OR JSON_LENGTH(`Task`.`target_member_ids`) = 0)';
+function taskRelationOpenWhere() {
+  return {
+    [Op.or]: [
+      { vlevel: { [Op.in]: ['L3', 'L4'] } },
+      { [Op.and]: [{ vlevel: 'L2' }, sequelize.literal(TARGETS_EMPTY_SQL)] },
+    ],
+  };
 }
 
 async function canAccessTask(userId, task, scope) {
   if (!task) return false;
   if (!scope) scope = await getUserScope(userId, task.business_id);
-  if (isMemberOrAbove(scope)) return true;
-  if (!scope.isClient) return false;
+  if (scope.isPlatformAdmin) return true;
+  const uid = Number(userId);
+  const memberish = isMemberOrAbove(scope);
+  if (!memberish && !scope.isClient) return false;
 
-  if (task.assignee_id === userId) return true;
-  if (task.created_by === userId) return true;
-  if (task.request_by_user_id === userId) return true;
-  const reviewer = await TaskReviewer.findOne({ where: { task_id: task.id, user_id: userId }, attributes: ['id'] });
+  // ① 이름이 박힌 사람
+  if (task.assignee_id === uid || task.created_by === uid || task.request_by_user_id === uid) return true;
+  const reviewer = await TaskReviewer.findOne({ where: { task_id: task.id, user_id: uid }, attributes: ['id'] });
   if (reviewer) return true;
-  // ★ 여기부터는 «관계로 닿는» 고객이다(대화 참여·프로젝트 고객) — 내부 업무는 이 문으로 안 열린다.
-  //   이름이 박힌 관계자(위)는 명시적 지정이라 그대로 본다. docs/TASK_SECURITY_LEVEL_DESIGN.md
-  if (isInternalTask(task)) return false;
+
+  const v = taskVlevel(task);
+  if (memberish) {
+    // ② 멤버
+    if (v === 'L3' || v === 'L4') return true;
+    if (v !== 'L2') return false;                       // L1 — 이름이 박힌 사람만(owner/admin 도)
+    if (scope.isOwner || scope.isAdmin) return true;
+    const targets = taskTargets(task);
+    if (targets.length) return targets.includes(uid);
+    return !!task.project_id && (scope.projectMemberIds || []).includes(task.project_id);
+  }
+
+  // ③ 고객 — 관계로 닿는 축
+  if (!taskOpenToRelation(task)) return false;
   if (task.conversation_id) {
     const part = await ConversationParticipant.findOne({
-      where: { conversation_id: task.conversation_id, user_id: userId },
+      where: { conversation_id: task.conversation_id, user_id: uid },
       attributes: ['id'],
     });
     if (part) return true;
@@ -291,28 +324,52 @@ async function canAccessTask(userId, task, scope) {
   return false;
 }
 
+/** 이름이 박힌 사람 조건(목록용). */
+async function taskParticipantOr(userId) {
+  const uid = Number(userId);
+  const reviewerRows = await TaskReviewer.findAll({ where: { user_id: uid }, attributes: ['task_id'] });
+  const or = [{ assignee_id: uid }, { created_by: uid }, { request_by_user_id: uid }];
+  if (reviewerRows.length) or.push({ id: { [Op.in]: reviewerRows.map((r) => r.task_id) } });
+  return or;
+}
+
+// 반환: where 조각(business_id 포함) · null = 볼 수 있는 것 없음. 조건은 전부 Op.and 안 — 호출부가 최상위 키를 덧붙여도 안 덮인다.
 async function taskListWhere(userId, businessId, scope) {
   if (!scope) scope = await getUserScope(userId, businessId);
-  if (isMemberOrAbove(scope)) return { business_id: businessId };
-  if (!scope.isClient) return null;
+  if (scope.isPlatformAdmin) return { business_id: businessId };
+  const uid = Number(userId);
+  const memberish = isMemberOrAbove(scope);
+  if (!memberish && !scope.isClient) return null;
 
-  const reviewerRows = await TaskReviewer.findAll({ where: { user_id: userId }, attributes: ['task_id'] });
-  const reviewerTaskIds = reviewerRows.map((r) => r.task_id);
-  const partRows = await ConversationParticipant.findAll({ where: { user_id: userId }, attributes: ['conversation_id'] });
-  const convIds = partRows.map((r) => r.conversation_id);
-
-  const orConds = [
-    { assignee_id: userId },
-    { created_by: userId },
-    { request_by_user_id: userId },
-  ];
-  if (reviewerTaskIds.length > 0) orConds.push({ id: { [Op.in]: reviewerTaskIds } });
-  // 관계로 닿는 축(대화 참여·프로젝트 고객)은 일반 업무만 — canAccessTask 와 같은 술어.
-  if (convIds.length > 0) orConds.push({ conversation_id: { [Op.in]: convIds }, security_level: 'general' });
-  if (scope.projectClientProjectIds.length > 0) {
-    orConds.push({ project_id: { [Op.in]: scope.projectClientProjectIds }, security_level: 'general' });
+  const or = await taskParticipantOr(uid);
+  if (memberish) {
+    or.push({ vlevel: { [Op.in]: ['L3', 'L4'] } });
+    if (scope.isOwner || scope.isAdmin) {
+      or.push({ vlevel: 'L2' });
+    } else {
+      // «특정 멤버» — 표 이름을 붙인다(위 TARGETS_EMPTY_SQL 와 같은 이유). uid 는 정수로 강제했다.
+      or.push(sequelize.literal(`(\`Task\`.\`vlevel\` = 'L2' AND JSON_CONTAINS(\`Task\`.\`target_member_ids\`, '${uid}'))`));
+      const pids = scope.projectMemberIds || [];
+      if (pids.length) or.push({ [Op.and]: [{ vlevel: 'L2', project_id: { [Op.in]: pids } }, sequelize.literal(TARGETS_EMPTY_SQL)] });
+    }
+    return { business_id: businessId, [Op.and]: [{ [Op.or]: or }] };
   }
-  return { business_id: businessId, [Op.or]: orConds };
+
+  // 고객 — 관계로 닿는 축은 taskRelationOpenWhere 를 같이 건다
+  const partRows = await ConversationParticipant.findAll({ where: { user_id: uid }, attributes: ['conversation_id'] });
+  const convIds = partRows.map((r) => r.conversation_id);
+  const rel = [];
+  if (convIds.length > 0) rel.push({ conversation_id: { [Op.in]: convIds } });
+  if (scope.projectClientProjectIds.length > 0) rel.push({ project_id: { [Op.in]: scope.projectClientProjectIds } });
+  if (rel.length) or.push({ [Op.and]: [{ [Op.or]: rel }, taskRelationOpenWhere()] });
+  return { business_id: businessId, [Op.and]: [{ [Op.or]: or }] };
+}
+
+/** 고객이 «프로젝트 업무 목록» 처럼 이미 프로젝트로 좁힌 목록에 붙이는 조건 — 이름이 박힌 사람 ∨ 관계 공개 범위. */
+async function clientTaskVisibleWhere(userId) {
+  const or = await taskParticipantOr(userId);
+  or.push(taskRelationOpenWhere());
+  return { [Op.or]: or };
 }
 
 // ─────────────────────────────────────────────
@@ -929,8 +986,10 @@ module.exports = {
   canDownloadFile,
   conversationListWhere,
   canAccessTask,
-  isInternalTask,
-  clientTaskInternalWhere,
+  clientTaskVisibleWhere,
+  taskOpenToRelation,
+  taskRelationOpenWhere,
+  TASK_VIS_ATTRS,
   taskListWhere,
   assertAssignable,
   canAccessProject,

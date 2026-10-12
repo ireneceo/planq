@@ -133,8 +133,8 @@ async function createOccurrence(parent, nextDateStr, io = null, notifyBucket = n
       // #353 ⑤ — 중요도도 회차에 물려준다. 안 물려주면 부모는 "긴급" 인데 실제 회차는
       //   전부 미지정으로 태어난다 — workstream_id 가 그랬던 것과 같은 누락 계열(#348 ①).
       priority_level: parent.priority_level,
-      // «내부 업무» 도 회차에 물려준다 — 안 물려주면 내부로 정한 시리즈의 새 회차가 고객에게 보인다.
-      security_level: parent.security_level,
+      // 공개 범위·보안등급도 회차에 물려준다 — 안 물려주면 «나만 보기» 시리즈의 새 회차가 전원에게 보인다.
+      vlevel: parent.vlevel, target_member_ids: parent.target_member_ids, security_level: parent.security_level,
       // #348 ③ — parent 가 start~due 기간을 가지면 그 일수를 유지해 새 due 기준으로 재계산
       start_date: inheritedStartDate(parent, nextDateStr),
       due_date: nextDateStr,
@@ -204,8 +204,8 @@ async function createOccurrence(parent, nextDateStr, io = null, notifyBucket = n
         if (full) {
           // actor_user_id null — cron 발생이라 본인 액션 토스터 차단 대상 없음
           const payload = { ...full.toJSON(), actor_user_id: null, _source: 'recurring_cron' };
-          if (parent.business_id) io.to(`business:${parent.business_id}`).emit('task:new', payload);
-          if (parent.project_id) require('./projectRoom').emitProject(io, parent.project_id, 'task:new', payload);
+          // 업무 방송은 한 문(services/taskRoom) — 회차가 물려받은 공개 범위대로 간다.
+          await require('./taskRoom').emitTask(io, 'task:new', payload, { businessId: parent.business_id, projectId: parent.project_id });
         }
       } catch (e) {
         console.warn('[recurringTask] broadcast failed', inst.id, e.message);

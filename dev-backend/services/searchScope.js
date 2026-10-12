@@ -135,7 +135,8 @@ async function searchTasks(ctx, M, { limit, filters } = {}) {
     extra.push(...dateRange('updated_at', filters));
   }
   const tasks = await Task.findAll({
-    where: { ...ctx.taskWhere, [Op.and]: [{ [Op.or]: [...M.likeAny('title'), { description: M.like }] }, ...extra] },
+    // ★ 범위 조건을 펼치지 않는다 — taskListWhere 는 공개 범위를 Op.and 안에 담는다. 펼친 뒤 Op.and 를 새로 쓰면 덮인다.
+    where: { [Op.and]: [ctx.taskWhere, { [Op.or]: [...M.likeAny('title'), { description: M.like }] }, ...extra] },
     // description 은 **스니펫 계산에만** 쓰고 응답 전에 뺀다(아래 match 후처리).
     attributes: ['id', 'title', 'status', 'project_id', 'description'],
     limit, order: [M.relevance('title'), ...TASK_ORDER],

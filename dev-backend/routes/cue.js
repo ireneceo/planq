@@ -328,9 +328,9 @@ router.post('/help', authenticateToken, ...helpLimiter, async (req, res, next) =
             try {
               const taskMatch = (String(page_context?.path || '') + String(page_context?.search || '')).match(/[?&]task=(\d+)/);
               if (taskMatch) {
-                const { Task } = require('../models');
-                const cur = await Task.findOne({ where: { id: Number(taskMatch[1]), business_id: businessId }, attributes: ['id', 'title', 'status'] });
-                if (cur) ctxBlock += `\n[현재 업무] #${cur.id} "${cur.title}" (상태: ${require('../services/cueLabels').label('task', cur.status)}) — "이 업무" 는 이걸 가리킨다. submit_review·complete_task·add_task_comment 의 task_id 로 사용.`;
+                const { Task } = require('../models'), AS = require('../middleware/access_scope');   // 볼 수 있는 업무만(공개 범위 — 남의 «나만 보기» 번호로 제목이 안 샌다)
+                const cur = await Task.findOne({ where: { id: Number(taskMatch[1]), business_id: businessId }, attributes: [...new Set(['id', 'title', 'status', ...AS.TASK_VIS_ATTRS])] });
+                if (cur && await AS.canAccessTask(req.user.id, cur)) ctxBlock += `\n[현재 업무] #${cur.id} "${cur.title}" (상태: ${require('../services/cueLabels').label('task', cur.status)}) — "이 업무" 는 이걸 가리킨다. submit_review·complete_task·add_task_comment 의 task_id 로 사용.`;
               }
             } catch (e) { console.warn('[cue/help task ctx]', e.message); }
           }

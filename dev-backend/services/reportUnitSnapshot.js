@@ -22,6 +22,10 @@ const ymd = (d) => {
 };
 
 // 기간 경계 — 주간(월~일) / 월간(1일~말일)
+// 업무 공개 범위(2026-10-12) — 단위 보고서는 저장·공유되고(통합 공유 링크까지) 보는 사람을 모른다.
+//   워크스페이스 공개(L3·L4) 업무만 제목으로 싣는다(«나만 보기»·지정 멤버·프로젝트 한정 업무는 빠진다).
+const WS_PUBLIC = { vlevel: { [Op.in]: ['L3', 'L4'] } };
+
 function periodBounds(periodType, periodStart) {
   const start = ymd(periodStart);
   if (periodType === 'monthly') {
@@ -65,7 +69,7 @@ async function buildProjectSnapshot(businessId, projectId, periodType, periodSta
   };
 
   const tasks = await Task.findAll({
-    where: { project_id: project.id },
+    where: { project_id: project.id, ...WS_PUBLIC },
     attributes: ['id', 'title', 'status', 'due_date', 'planned_week_start', 'progress_percent', 'assignee_id', 'workstream_id', 'completed_at'],
     include: [{ model: User, as: 'assignee', attributes: ['id', 'name', 'name_localized'], required: false }],
   });
@@ -209,7 +213,7 @@ async function buildMemberSnapshot(businessId, userId, periodType, periodStart) 
   const today = todayInTz('Asia/Seoul');
 
   const tasks = await Task.findAll({
-    where: { business_id: businessId, assignee_id: userId, status: { [Op.ne]: 'canceled' } },
+    where: { business_id: businessId, assignee_id: userId, status: { [Op.ne]: 'canceled' }, ...WS_PUBLIC },
     attributes: ['id', 'title', 'status', 'due_date', 'planned_week_start', 'progress_percent', 'workstream_id', 'completed_at', 'project_id'],
     include: [{ model: Project, attributes: ['id', 'name'], required: false }],
   });
@@ -275,7 +279,7 @@ async function buildDepartmentSnapshot(businessId, departmentId, periodType, per
   let tp = [];
   if (memberIds.length) {
     const tasks = await Task.findAll({
-      where: { business_id: businessId, assignee_id: { [Op.in]: memberIds }, status: { [Op.ne]: 'canceled' } },
+      where: { business_id: businessId, assignee_id: { [Op.in]: memberIds }, status: { [Op.ne]: 'canceled' }, ...WS_PUBLIC },
       attributes: ['id', 'title', 'status', 'due_date', 'progress_percent', 'assignee_id', 'workstream_id', 'completed_at'],
       include: [{ model: User, as: 'assignee', attributes: ['id', 'name', 'name_localized'], required: false }],
     });

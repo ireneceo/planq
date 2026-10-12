@@ -30,6 +30,9 @@ import PartnerKindBadge from '../Common/PartnerKindBadge';
 import { ProvenanceBadge } from '../Common/SourceHint';
 import RichEditor from '../Common/RichEditor';
 import ShareModal from '../Common/ShareModal';
+import VisibilityChip from '../Common/VisibilityChip';
+import VisibilityChangeModal from '../Common/VisibilityChangeModal';
+import { useSecurityLevelLabel } from '../Common/SecurityLevelBadge';
 import ConfirmDialog from '../Common/ConfirmDialog';
 import ActionButton from '../Common/ActionButton';
 import AutoSaveField from '../Common/AutoSaveField';
@@ -141,8 +144,10 @@ interface TaskDetail {
   tags?: TaskTagLite[] | null;
   /** #353 ⑤ 중요도. 주간 랭킹 priority_order 와 **다른 것** — 이름을 갈라 뒀다. */
   priority_level?: 'low' | 'normal' | 'high' | 'urgent' | null;
-  // «내부 업무»(2026-10-12) — internal 이면 프로젝트 고객·게스트·공개 링크에 안 보인다. 고객 응답에는 키가 없다.
-  security_level?: 'general' | 'internal';
+  // 공개 범위·보안등급(2026-10-12) — 문서와 같은 두 축. 고객 응답에는 키가 없다.
+  vlevel?: 'L1' | 'L2' | 'L3' | 'L4';
+  target_member_ids?: number[] | null;
+  security_level?: 'general' | 'internal' | 'confidential';
   start_date: string | null; due_date: string | null;
   estimated_hours: number | null; actual_hours: number; progress_percent: number;
   // 시스템 자동 vs 사용자 입력 시그널 — 'ai'/'auto' 면 회색 italic, 'user' 면 검정 (사이클 N+6)
@@ -355,6 +360,9 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
   const [commentSending, setCommentSending] = useState(false);
   // 공유 모달 — 통합 ShareModal
   const [shareOpen, setShareOpen] = useState(false);
+  // 공개 범위 변경 창 — 문서와 같은 VisibilityChangeModal (2026-10-12)
+  const [visOpen, setVisOpen] = useState(false);
+  const secLabel = useSecurityLevelLabel();
   // N+63 — 복사: POST /api/tasks/:id/copy → 응답으로 새 task → parent 가 ?task=newId 로 전환
   const [duplicating, setDuplicating] = useState(false);
   const handleDuplicate = useCallback(async () => {
@@ -1506,8 +1514,8 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
           // 완료된 업무를 이어서 고치는 유일한 문 = 새 회차 시작(actStart). 취소된 업무는 열지 않는다.
           const reviseAvailable = canEditBody && detailTask.status === 'completed';
           const canEditRecurrence = iAmCreator || iAmWsOwner;  // 백엔드 FIELD_RULES와 일치
-          // «내부 업무» — 서버 FIELD_RULES.security_level(작성자 ∨ owner/admin)과 같은 집합.
-          //   고객에게는 칸 자체를 그리지 않는다(고객 응답엔 값이 없다 — 일반 업무만 받거나 관계자로 받는다).
+          // 공개 범위·보안등급 — 서버 FIELD_RULES.vlevel·security_level(작성자 ∨ owner/admin)과 같은 집합.
+          //   고객에게는 칸 자체를 그리지 않는다(고객 응답엔 값이 없다).
           const canEditSecurity = iAmCreator || iAmWsOwner || myWsRole === 'admin';
           const showSecurity = isPlatformAdmin || myWsRole === 'owner' || myWsRole === 'admin' || myWsRole === 'member';
           // 운영 #279 — 기간(착수·마감). 여태 이 플래그가 **아예 없어서** 담당자에게 편집 가능한
@@ -1883,30 +1891,38 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                     }}
                     options={['urgent', 'high', 'normal', 'low'].map((k) => ({ value: k, label: t(`importance.${k}`) as string }))} />
                 </MetaCell>
-                {/* «내부 업무»(2026-10-12, docs/TASK_SECURITY_LEVEL_DESIGN.md) — 팀(멤버)은 그대로 보고,
-                    프로젝트 고객·게스트 링크·공개 공유 링크에서만 빠진다. 올리면 서버가 나가 있던 공유 링크를 끊는다. */}
+                {/* 공개 범위·보안등급(2026-10-12, docs/TASK_SECURITY_LEVEL_DESIGN.md) — 문서(Q docs)와 **같은 컴포넌트**.
+                    공개: VisibilityChip → VisibilityChangeModal(나만·특정 프로젝트·특정 멤버·워크스페이스, 외부는 공유 창으로) ·
+                    보안: 일반·내부·기밀(일반 밖이면 외부 공유가 막히고 나가 있던 링크가 끊긴다). 바꾸는 사람은 작성자·대표·관리자. */}
+                {showSecurity && (
+                  <MetaCell data-testid="task-visibility">
+                    <MetaLabel>{t('visibility.label', '공개 범위')}
+                      {!canEditSecurity && <ReadOnlyHint>{t('detail.readOnly', '읽기 전용')}</ReadOnlyHint>}
+                    </MetaLabel>
+                    <VisibilityChip data-testid="task-visibility-chip"
+                      level={(detailTask.vlevel || 'L3') as 'L1' | 'L2' | 'L3' | 'L4'}
+                      onClick={canEditSecurity ? () => setVisOpen(true) : undefined} />
+                  </MetaCell>
+                )}
                 {showSecurity && (
                   <MetaCell data-testid="task-security-level">
-                    <MetaLabel>{t('security.label', '공개')}
+                    <MetaLabel>{t('securityLevel.label', { ns: 'common', defaultValue: '보안등급' }) as string}
                       {!canEditSecurity && <ReadOnlyHint>{t('detail.readOnly', '읽기 전용')}</ReadOnlyHint>}
                     </MetaLabel>
                     <PlanQSelect size="sm"
                       isDisabled={!canEditSecurity}
-                      value={{
-                        value: detailTask.security_level || 'general',
-                        label: t(`security.${detailTask.security_level || 'general'}`) as string,
-                      }}
-                      onChange={(v) => {
+                      value={{ value: detailTask.security_level || 'general', label: secLabel(detailTask.security_level || 'general') }}
+                      onChange={async (v) => {
                         if (!canEditSecurity) return;
-                        const val = (v as { value?: string })?.value === 'internal' ? 'internal' : 'general';
+                        const val = ((v as { value?: string })?.value || 'general') as 'general' | 'internal' | 'confidential';
                         if (val === (detailTask.security_level || 'general')) return;
-                        setDetailTask(prev => (prev ? { ...prev, security_level: val } as TaskDetail : prev));
-                        saveField('security_level', val);
+                        const before = { security_level: detailTask.security_level, vlevel: detailTask.vlevel };
+                        // 일반 밖으로 올리면 외부(L4)였던 범위는 워크스페이스로 내려간다(서버와 같은 규칙 — services/taskVisibility)
+                        setDetailTask(prev => (prev ? { ...prev, security_level: val, ...(val !== 'general' && prev.vlevel === 'L4' ? { vlevel: 'L3' } : {}) } as TaskDetail : prev));
+                        const res = await saveField('security_level', val);
+                        if (res && !res.ok) setDetailTask(prev => (prev ? { ...prev, ...before } as TaskDetail : prev));
                       }}
-                      options={['general', 'internal'].map((k) => ({ value: k, label: t(`security.${k}`) as string }))} />
-                    {(detailTask.security_level || 'general') === 'internal' && (
-                      <SecurityHint>{t('security.internalHint', '고객·외부 링크에 안 보여요')}</SecurityHint>
-                    )}
+                      options={(['general', 'internal', 'confidential'] as const).map((lv) => ({ value: lv, label: secLabel(lv) }))} />
                   </MetaCell>
                 )}
                 <MetaCell>
@@ -2890,6 +2906,24 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
       }}
     />
     {detailTask && (
+      <VisibilityChangeModal
+        open={visOpen}
+        current={(detailTask.vlevel || 'L3') as 'L1' | 'L2' | 'L3' | 'L4'}
+        canChooseL2
+        // «특정 프로젝트» 는 이 업무의 프로젝트다(업무를 다른 프로젝트로 옮기는 것은 프로젝트 칸이 한다)
+        projects={detailTask.project_id ? [{ id: detailTask.project_id, name: detailTask.Project?.name || '-' }] : []}
+        members={members.map((m) => ({ user_id: m.user_id, name: m.name, role: 'member' }))}
+        clients={[]}
+        onOpenShare={() => setShareOpen(true)}
+        onConfirm={async ({ level, targetMemberIds }) => {
+          const patch: Record<string, unknown> = { vlevel: level, target_member_ids: level === 'L2' ? (targetMemberIds || []) : [] };
+          const res = await saveFields(patch);
+          if (res && !res.ok) { setActionError(t('visibility.saveFailed', '공개 범위를 바꾸지 못했어요') as string); throw new Error(res.code); }
+        }}
+        onClose={() => setVisOpen(false)}
+      />
+    )}
+    {detailTask && (
       <ShareModal
         open={shareOpen}
         entityType="task"
@@ -3026,9 +3060,6 @@ const Section = styled.div`border-bottom:1px solid #F1F5F9;padding:12px 14px;
   body[data-popout='1'] &{padding:10px 12px;}`;
 const SectionTitle = styled.h4`font-size:0.75rem;font-weight:700;color:#0F172A;margin:0 0 8px;display:flex;align-items:center;gap:8px;
   body[data-popout='1'] &{margin-bottom:6px;}`;
-const SecurityHint = styled.div`
-  margin-top: 4px; font-size: 0.75rem; line-height: 1.4; color: #92400E;
-`;
 const ReadOnlyHint = styled.span`font-size:0.6875rem;font-weight:500;color:#94A3B8;background:#F1F5F9;border-radius:10px;padding:2px 8px;`;
 // 결과물 회차 칩 — 제목 옆에 지금까지 남긴 회차를 붙인다(이력을 펼치지 않아도 보이게).
 const BodyVerChip = styled.span`

@@ -228,6 +228,8 @@ async function collectLinks({ businessId, thread }) {
       where: {
         business_id: businessId, project_id: thread.project_id,
         status: { [Op.in]: ['not_started', 'waiting', 'in_progress', 'reviewing', 'revision_requested'] },
+        // 브리핑은 보는 사람을 모르고 메일 접근자 모두가 같은 결과를 본다 — 워크스페이스 공개(L3·L4) 업무만 싣는다(2026-10-12 공개 범위).
+        vlevel: { [Op.in]: ['L3', 'L4'] },
       },
       attributes: ['id', 'title', 'status', 'due_date'],
       order: [['due_date', 'ASC']], limit: 5,

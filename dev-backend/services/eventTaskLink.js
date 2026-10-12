@@ -20,7 +20,7 @@ async function attachTaskLinks(events, userId, businessId, scope) {
   const list = (events || []).filter((e) => e && e.task_id);
   if (!list.length) return events;
   const ids = [...new Set(list.map((e) => Number(e.task_id)))];
-  const tasks = await Task.findAll({ where: { id: ids, business_id: Number(businessId) }, attributes: ['id', 'business_id', 'title', 'status', 'project_id', 'assignee_id', 'created_by', 'request_by_user_id', 'conversation_id', 'security_level'] });
+  const tasks = await Task.findAll({ where: { id: ids, business_id: Number(businessId) }, attributes: ['id', 'business_id', 'title', 'status', 'project_id', 'assignee_id', 'created_by', 'request_by_user_id', 'conversation_id', 'security_level', 'vlevel', 'target_member_ids'] });
   const sc = scope || await getUserScope(userId, Number(businessId));
   const visible = new Map();
   for (const t of tasks) if (await canAccessTask(userId, t, sc)) visible.set(t.id, t);

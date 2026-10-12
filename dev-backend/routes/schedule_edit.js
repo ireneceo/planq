@@ -41,9 +41,11 @@ const limit = (name, max) => (perUserLimiter
 const MAX_TASKS = 500;   // 한 번에 다루는 상한 — 그 이상은 프로젝트를 쪼개야 한다
 
 /** 이 프로젝트에서 일정 수정 대상이 되는 업무들. 완료·취소는 기본 제외. */
-async function loadTargets(project, { includeClosed = false } = {}) {
+async function loadTargets(project, { includeClosed = false, userId } = {}) {
+  // 볼 수 있는 업무만 대상이다(공개 범위 — 남의 «나만 보기»·지정 멤버 업무는 제목도 안 보이고 날짜도 안 옮긴다).
+  const vis = (await require('../middleware/access_scope').taskListWhere(userId, project.business_id)) || { id: -1 };
   const rows = await Task.findAll({
-    where: { project_id: project.id, business_id: project.business_id },
+    where: { project_id: project.id, business_id: project.business_id, [Op.and]: [vis] },
     attributes: ['id', 'title', 'status', 'start_date', 'due_date', 'workstream_id'],
     // tasks 에는 프로젝트 내 순서 컬럼이 없다 — 시작일(없으면 마감일)로 세운다.
     order: [['start_date', 'ASC'], ['due_date', 'ASC'], ['id', 'ASC']],
@@ -134,7 +136,7 @@ router.post('/:id/schedule/preview', authenticateToken,
         op = intent.op; params = intent.params;
       }
 
-      const ctx = await loadTargets(project, { includeClosed: !!includeClosed });
+      const ctx = await loadTargets(project, { includeClosed: !!includeClosed, userId: req.user.id });
       const plan = buildPlan(op, ctx.targets, params);
       if (plan.error) return errorResponse(res, plan.error, 400);
 

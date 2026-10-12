@@ -68,6 +68,8 @@ async function collectTabs(businessId, period) {
     where: {
       business_id: businessId,
       created_at: { [Op.between]: [period.from + ' 00:00:00', period.to + ' 23:59:59'] },
+      // 저장·공유되는 보고서라 보는 사람을 모른다 — 워크스페이스 공개(L3·L4) 업무만 제목으로 싣는다(2026-10-12 공개 범위).
+      vlevel: { [Op.in]: ['L3', 'L4'] },
     },
     include: [{ model: User, as: 'assignee', attributes: ['id', 'name'], required: false }],
     order: [['created_at', 'DESC']],

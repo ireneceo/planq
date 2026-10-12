@@ -434,7 +434,11 @@ router.get('/', authenticateToken, async (req, res, next) => {
    보유 여부가 필요하면 **원본 행(인스턴스)에서** 읽는다(toJSON 뒤 객체에는 없다).
 - **공개 링크 하위 주소는 비밀번호를 주소에 싣지 않는다** — 메타 응답이 주는 서명(`download_qs` → `?dl=`)을 쓴다. 공유 비밀번호는 링크당 15분 10회.
 - **지운 워크스페이스의 공개 링크는 닫힌다** — 공개 라우터마다 `router.param('token', workspaceAliveParam(...))`(하위 PDF·다운로드까지). 새 공개 라우터도 같은 줄을 붙인다.
-- **«나만 보기» 는 owner/admin 에게도 닫힌다** (2026-10-09 D2, Irene «권고대로») — 문서·파일·**Q info·일정** 모두 같은 선(관리 행위 중 볼 수 없는 것은 수정·삭제도 못 한다).
+- **«나만 보기» 는 owner/admin 에게도 닫힌다** (2026-10-09 D2, Irene «권고대로») — 문서·파일·**Q info·일정·업무** 모두 같은 선(관리 행위 중 볼 수 없는 것은 수정·삭제도 못 한다).
+- **업무도 문서와 같은 공개 범위·보안등급이다** (2026-10-12, Irene *"문서랑 일정처럼 … 기존 기능 그대로 반영해야지"*) — `tasks.vlevel`·`target_member_ids`·`security_level`.
+  업무에 이름이 박힌 사람(작성·담당·요청·컨펌)은 범위와 무관하게 본다(일정 참석자 규칙). 판정 `access_scope.canAccessTask`/`taskListWhere` 한 곳,
+  값 정규화 `services/taskVisibility`, 실시간은 **`services/taskRoom.emitTask` 한 문**(L1·L2 행은 볼 수 있는 사람 개인 방에만).
+  업무 제목을 내보내는 새 화면·보고서·AI 문맥은 `taskListWhere` 를 건다(보는 사람을 모르면 L3·L4 만). 설계 `docs/TASK_SECURITY_LEVEL_DESIGN.md`.
   예외: 개인 주간회고는 **대표가 본다**(보고 내용 — Irene).
 - **프로젝트·고객 없는 팀 대화는 참여자만** (2026-10-09 D3) — 정의 `access_scope.isPrivateConversation` 하나, 판정 `canAccessConversation`/`conversationListWhere`.
   워크스페이스 전체로 알리는 대화 사건(새 메시지·반응·업무 후보)은 **`services/convBroadcast.emitConvWide` 한 문**(사적 방은 참여자 `user:` 방) — 가드 checkConvBroadcast.

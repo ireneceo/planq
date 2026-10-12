@@ -66,7 +66,7 @@ async function moveTask(userId, businessId, platformRole, body) {
   // 모든 id 가 이 워크스페이스 업무이고, 이 사람이 읽을 수 있어야 한다(읽기와 같은 술어).
   const tasks = await Task.findAll({
     where: { id: { [Op.in]: visible }, business_id: businessId },
-    attributes: ['id', 'business_id', 'project_id', 'assignee_id', 'created_by', 'request_by_user_id', 'conversation_id'],
+    attributes: ['id', 'business_id', 'project_id', 'assignee_id', 'created_by', 'request_by_user_id', 'conversation_id', 'vlevel', 'target_member_ids'],   // 판정 칸 — 빠지면 «나만 보기» 로 떨어진다
   });
   if (tasks.length !== visible.length) throw new OrderError(404, 'task_not_found');
   const scope = await getUserScope(userId, businessId, platformRole);

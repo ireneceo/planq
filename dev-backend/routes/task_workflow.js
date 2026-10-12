@@ -26,9 +26,11 @@ async function isClientUser(task, userId) {
   return !bm;
 }
 
-async function loadTaskOrFail(taskId, res) {
+async function loadTaskOrFail(taskId, res, req) {
   const task = await Task.findByPk(taskId);
-  if (!task) {
+  // 볼 수 없는 업무는 없는 것과 같다 — 모든 워크플로 행동의 문(2026-10-12 Fable: 관리자가 남의 «나만 보기» 업무를
+  //   보류·정책·컨펌자 지정으로 바꾸고 응답으로 내용을 받았다). 읽기 판정 한 곳(access_scope.canAccessTask).
+  if (!task || (req && !(await require('../middleware/access_scope').canAccessTask(req.user.id, task)))) {
     errorResponse(res, 'task_not_found', 404);
     return null;
   }
@@ -55,6 +57,9 @@ function sendResult(res, result, onOk) {
 
 // 읽기 전용 접근 판단 (GET /workflow) — 같은 워크스페이스 멤버이거나 담당자/요청자/컨펌자
 async function canAccessTask(task, userId) {
+  // 공개 범위(2026-10-12) — 읽기 판정 한 곳(access_scope.canAccessTask)을 먼저 지난다. 남의 «나만 보기»·지정 멤버
+  //   업무의 결과물 버전·워크플로가 멤버라는 이유만으로 열리던 사본이었다. 아래 종전 조건(고객은 관계자만)은 그대로 둔다.
+  if (!(await require('../middleware/access_scope').canAccessTask(userId, task))) return false;
   if (task.assignee_id === userId) return true;
   if (task.created_by === userId) return true;
   if (task.request_by_user_id === userId) return true;
@@ -69,7 +74,7 @@ async function canAccessTask(task, userId) {
 // ─────────────────────────────────────────────
 router.post('/:id/ack', authenticateToken, async (req, res, next) => { // audit-exempt: 상태 전이는 task_status_history 가 원장이다(행동 계층 logHistory)
   try {
-    const task = await loadTaskOrFail(req.params.id, res);
+    const task = await loadTaskOrFail(req.params.id, res, req);
     if (!task) return;
     const result = await actions.ack(task, actorFrom(req));
     return sendResult(res, result, (t) => successResponse(res, t.toJSON()));
@@ -84,7 +89,7 @@ router.post('/:id/ack', authenticateToken, async (req, res, next) => { // audit-
 // ─────────────────────────────────────────────
 router.post('/:id/submit-review', authenticateToken, async (req, res, next) => { // audit-exempt: 상태 전이는 task_status_history 가 원장이다(행동 계층 logHistory)
   try {
-    const task = await loadTaskOrFail(req.params.id, res);
+    const task = await loadTaskOrFail(req.params.id, res, req);
     if (!task) return;
     const result = await actions.submitReview(task, actorFrom(req), {
       note: req.body?.note || null,
@@ -100,7 +105,7 @@ router.post('/:id/submit-review', authenticateToken, async (req, res, next) => {
 // ─────────────────────────────────────────────
 router.post('/:id/cancel-review', authenticateToken, async (req, res, next) => { // audit-exempt: 상태 전이는 task_status_history 가 원장이다(행동 계층 logHistory)
   try {
-    const task = await loadTaskOrFail(req.params.id, res);
+    const task = await loadTaskOrFail(req.params.id, res, req);
     if (!task) return;
     const result = await actions.cancelReview(task, actorFrom(req));
     return sendResult(res, result, (t) => successResponse(res, t.toJSON()));
@@ -113,7 +118,7 @@ router.post('/:id/cancel-review', authenticateToken, async (req, res, next) => {
 // ─────────────────────────────────────────────
 router.post('/:id/reviewers/me/approve', authenticateToken, async (req, res, next) => { // audit-exempt: 상태 전이는 task_status_history 가 원장이다(행동 계층 logHistory)
   try {
-    const task = await loadTaskOrFail(req.params.id, res);
+    const task = await loadTaskOrFail(req.params.id, res, req);
     if (!task) return;
     const result = await actions.approve(task, actorFrom(req), { note: req.body?.note || null });
     return sendResult(res, result, ({ task: t, newStatus }) =>
@@ -127,7 +132,7 @@ router.post('/:id/reviewers/me/approve', authenticateToken, async (req, res, nex
 // ─────────────────────────────────────────────
 router.post('/:id/reviewers/me/revision', authenticateToken, async (req, res, next) => { // audit-exempt: 상태 전이는 task_status_history 가 원장이다(행동 계층 logHistory)
   try {
-    const task = await loadTaskOrFail(req.params.id, res);
+    const task = await loadTaskOrFail(req.params.id, res, req);
     if (!task) return;
     const result = await actions.requestRevision(task, actorFrom(req), { note: req.body?.note });
     // #112 — 프론트가 이 comment_id 로 참고 파일을 첨부한다 (context='comment')
@@ -141,7 +146,7 @@ router.post('/:id/reviewers/me/revision', authenticateToken, async (req, res, ne
 // ─────────────────────────────────────────────
 router.post('/:id/reviewers/me/revert', authenticateToken, async (req, res, next) => { // audit-exempt: 상태 전이는 task_status_history 가 원장이다(행동 계층 logHistory)
   try {
-    const task = await loadTaskOrFail(req.params.id, res);
+    const task = await loadTaskOrFail(req.params.id, res, req);
     if (!task) return;
     const result = await actions.revertReviewerState(task, actorFrom(req));
     return sendResult(res, result, (t) => successResponse(res, t.toJSON()));
@@ -154,7 +159,7 @@ router.post('/:id/reviewers/me/revert', authenticateToken, async (req, res, next
 // ─────────────────────────────────────────────
 router.post('/:id/revert-status', authenticateToken, async (req, res, next) => { // audit-exempt: 상태 전이는 task_status_history 가 원장이다(행동 계층 logHistory)
   try {
-    const task = await loadTaskOrFail(req.params.id, res);
+    const task = await loadTaskOrFail(req.params.id, res, req);
     if (!task) return;
     const result = await actions.revertStatus(task, actorFrom(req));
     return sendResult(res, result, (t) => successResponse(res, t.toJSON()));
@@ -167,7 +172,7 @@ router.post('/:id/revert-status', authenticateToken, async (req, res, next) => {
 // ─────────────────────────────────────────────
 router.post('/:id/hold', authenticateToken, async (req, res, next) => { // audit-exempt: 상태 전이는 task_status_history 가 원장이다(행동 계층 logHistory)
   try {
-    const task = await loadTaskOrFail(req.params.id, res);
+    const task = await loadTaskOrFail(req.params.id, res, req);
     if (!task) return;
     const result = await actions.hold(task, actorFrom(req), { reason: req.body?.reason });
     return sendResult(res, result, (t) => successResponse(res, t.toJSON()));
@@ -180,7 +185,7 @@ router.post('/:id/hold', authenticateToken, async (req, res, next) => { // audit
 // ─────────────────────────────────────────────
 router.post('/:id/resume', authenticateToken, async (req, res, next) => { // audit-exempt: 상태 전이는 task_status_history 가 원장이다(행동 계층 logHistory)
   try {
-    const task = await loadTaskOrFail(req.params.id, res);
+    const task = await loadTaskOrFail(req.params.id, res, req);
     if (!task) return;
     const result = await actions.resume(task, actorFrom(req));
     return sendResult(res, result, (t) => successResponse(res, t.toJSON()));
@@ -192,7 +197,7 @@ router.post('/:id/resume', authenticateToken, async (req, res, next) => { // aud
 // ─────────────────────────────────────────────
 router.post('/:id/complete', authenticateToken, async (req, res, next) => { // audit-exempt: 상태 전이는 task_status_history 가 원장이다(행동 계층 logHistory)
   try {
-    const task = await loadTaskOrFail(req.params.id, res);
+    const task = await loadTaskOrFail(req.params.id, res, req);
     if (!task) return;
     const result = await actions.complete(task, actorFrom(req));
     return sendResult(res, result, (t) => successResponse(res, t.toJSON()));
@@ -219,7 +224,7 @@ router.post('/:id/complete', authenticateToken, async (req, res, next) => { // a
 // ─────────────────────────────────────────────
 router.post('/:id/deliverable-versions', authenticateToken, async (req, res, next) => { // audit-exempt: 감사는 행동 계층(services/actions/task_actions.js audit())이 남긴다 — 라우트에서 또 쓰면 한 사건이 두 행
   try {
-    const task = await loadTaskOrFail(req.params.id, res);
+    const task = await loadTaskOrFail(req.params.id, res, req);
     if (!task) return;
     if (!(await canAccessTask(task, req.user.id))) return errorResponse(res, 'forbidden', 403);
     // 라우트는 파싱·응답만 — 권한·트랜잭션·박제·감사·broadcast 는 행동 계층이 한다.
@@ -237,7 +242,7 @@ router.post('/:id/deliverable-versions', authenticateToken, async (req, res, nex
 // ─────────────────────────────────────────────
 router.get('/:id/deliverable-versions', authenticateToken, async (req, res, next) => {
   try {
-    const task = await loadTaskOrFail(req.params.id, res);
+    const task = await loadTaskOrFail(req.params.id, res, req);
     if (!task) return;
     // ★ 2026-08-25 격리 결함 수정 — 옛 주석은 "loadTaskOrFail 이 격리를 끝냈다" 고 했으나 **사실이 아니었다.**
     //   그 함수는 `Task.findByPk` 만 한다(이 파일 상단). 다른 라우트는 행동 계층(actions.*)이 내부에서
@@ -315,7 +320,7 @@ router.get('/:id/deliverable-versions', authenticateToken, async (req, res, next
 // ─────────────────────────────────────────────
 router.get('/:id/deliverable-versions/:vid', authenticateToken, async (req, res, next) => {
   try {
-    const task = await loadTaskOrFail(req.params.id, res);
+    const task = await loadTaskOrFail(req.params.id, res, req);
     if (!task) return;
     if (!(await canAccessTask(task, req.user.id))) return errorResponse(res, 'forbidden', 403);
     const { TaskDeliverableVersion } = require('../models');
@@ -339,7 +344,7 @@ router.get('/:id/deliverable-versions/:vid', authenticateToken, async (req, res,
 // ─────────────────────────────────────────────
 router.post('/:id/deliverable-versions/:vid/restore', authenticateToken, async (req, res, next) => {
   try {
-    const task = await loadTaskOrFail(req.params.id, res);
+    const task = await loadTaskOrFail(req.params.id, res, req);
     if (!task) return;
     if (!(await canAccessTask(task, req.user.id))) return errorResponse(res, 'forbidden', 403);
     // 되돌리기 규칙(권한·비파괴 박제·트랜잭션)은 행동 계층 단일 착지점에 있다.
@@ -395,7 +400,7 @@ async function applyToSeries(req, task, run) {
 
 router.post('/:id/reviewers', authenticateToken, async (req, res, next) => { // audit-exempt: 감사는 행동 계층(services/actions/task_actions.js audit())이 남긴다 — 라우트에서 또 쓰면 한 사건이 두 행
   try {
-    const task = await loadTaskOrFail(req.params.id, res);
+    const task = await loadTaskOrFail(req.params.id, res, req);
     if (!task) return;
     const result = await actions.addReviewer(task, actorFrom(req), { userId: req.body?.user_id });
     if (!result.ok) return errorResponse(res, result.code, result.http || 400);
@@ -412,7 +417,7 @@ router.post('/:id/reviewers', authenticateToken, async (req, res, next) => { // 
 // ─────────────────────────────────────────────
 router.delete('/:id/reviewers/:userId', authenticateToken, async (req, res, next) => { // audit-exempt: 감사는 행동 계층(services/actions/task_actions.js audit())이 남긴다 — 라우트에서 또 쓰면 한 사건이 두 행
   try {
-    const task = await loadTaskOrFail(req.params.id, res);
+    const task = await loadTaskOrFail(req.params.id, res, req);
     if (!task) return;
     const result = await actions.removeReviewer(task, actorFrom(req), { userId: req.params.userId });
     if (result.ok !== false) {
@@ -431,7 +436,7 @@ router.delete('/:id/reviewers/:userId', authenticateToken, async (req, res, next
 // ─────────────────────────────────────────────
 router.patch('/:id/policy', authenticateToken, async (req, res, next) => { // audit-exempt: 감사는 행동 계층(services/actions/task_actions.js audit())이 남긴다 — 라우트에서 또 쓰면 한 사건이 두 행
   try {
-    const task = await loadTaskOrFail(req.params.id, res);
+    const task = await loadTaskOrFail(req.params.id, res, req);
     if (!task) return;
     const result = await actions.setPolicy(task, actorFrom(req), { policy: req.body?.review_policy });
     if (!result.ok) return errorResponse(res, result.code, result.http || 400);
@@ -448,7 +453,7 @@ router.patch('/:id/policy', authenticateToken, async (req, res, next) => { // au
 // ─────────────────────────────────────────────
 router.get('/:id/workflow', authenticateToken, async (req, res, next) => {
   try {
-    const task = await loadTaskOrFail(req.params.id, res);
+    const task = await loadTaskOrFail(req.params.id, res, req);
     if (!task) return;
     if (!(await canAccessTask(task, req.user.id))) return errorResponse(res, 'forbidden', 403);
 

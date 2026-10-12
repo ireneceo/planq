@@ -45,8 +45,8 @@ async function broadcastTask(task, event = 'task:updated', actorUserId = null) {
     }
     if (!data) data = typeof task.toJSON === 'function' ? task.toJSON() : { ...task };
     if (actorUserId != null) data = { ...data, actor_user_id: actorUserId };
-    if (task.project_id) require('./projectRoom').emitProject(io, task.project_id, event, data);
-    io.to(`business:${task.business_id}`).emit(event, data);
+    // 업무 행 방송은 한 문(services/taskRoom) — 나만 보기·특정 멤버 업무는 볼 수 있는 사람에게만 행이 간다.
+    await require('./taskRoom').emitTask(io, event, data, { businessId: task.business_id, projectId: task.project_id });
     io.to(`business:${task.business_id}`).emit('inbox:refresh', {
       reason: 'task_transition', task_id: task.id, event,
     });

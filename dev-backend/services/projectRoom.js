@@ -32,17 +32,17 @@ const CLIENT_VIEW = {
   'file:new': signal, 'file:updated': signal, 'file:deleted': signal,
 };
 
-// «내부 업무»(2026-10-12) — 고객 방에는 행을 싣지 않는다. 바뀐 업무가 내부면 삭제 신호만 보내
-//   고객 화면에서 사라지게 한다. 이름이 박힌 관계자 고객은 다시 읽으면 REST 가 돌려준다.
-//   ★ 판정은 «값이 internal» 이다 — 행 전체 방송(serializeTaskForBroadcast)은 이 칸을 늘 싣는다.
-//     값을 안 실은 부분 방송(워크스트림 삭제의 {id, workstream_id})은 제목이 없어 종전대로 보낸다
-//     (그걸 삭제 신호로 바꾸면 일반 업무가 고객 화면에서 사라진다). 새 부분 방송에 제목을 실으면 칸도 같이 싣는다.
+// 업무 공개 범위(2026-10-12) — 고객 방에는 «관계로 닿아도 되는» 업무(L3·L4·프로젝트 L2)만 행을 싣는다.
+//   나만 보기·특정 멤버 업무는 삭제 신호만 보내 고객 화면에서 사라지게 한다(이름이 박힌 관계자 고객은 services/taskRoom 이 개인 방으로 보낸다).
+//   ★ 판정은 «값이 있을 때» 만 — 행 전체 방송(serializeTaskForBroadcast)은 vlevel 을 늘 싣는다. 값이 없는 부분 방송
+//     (워크스트림 삭제 {id, workstream_id} · 회차 취소 {id, status})은 제목이 없어 종전대로 보낸다.
 const TASK_ROW_EVENTS = new Set(['task:new', 'task:updated']);
 
 function emitProject(io, projectId, event, payload) {
   if (!io || !projectId) return;
   io.to(`project:${projectId}`).emit(event, payload);
-  if (TASK_ROW_EVENTS.has(event) && payload && payload.security_level === 'internal') {
+  if (TASK_ROW_EVENTS.has(event) && payload && payload.vlevel
+      && !require('../middleware/access_scope').taskOpenToRelation(payload)) {
     io.to(`project:${projectId}:client`).emit('task:deleted', signal(payload));
     return;
   }
@@ -50,4 +50,11 @@ function emitProject(io, projectId, event, payload) {
   if (toClient) io.to(`project:${projectId}:client`).emit(event, toClient(payload));
 }
 
-module.exports = { emitProject, CLIENT_VIEW };
+/** 볼 수 없는 사람에게 «업무가 사라졌다» 신호만 — 직원·고객 방 모두, 볼 수 있는 사람의 개인 방(rooms)은 뺀다(services/taskRoom). */
+function emitProjectTaskHidden(io, projectId, sig, exceptRooms) {
+  if (!io || !projectId) return;
+  io.to(`project:${projectId}`).except(exceptRooms).emit('task:deleted', sig);
+  io.to(`project:${projectId}:client`).except(exceptRooms).emit('task:deleted', sig);
+}
+
+module.exports = { emitProject, emitProjectTaskHidden, CLIENT_VIEW, signal };

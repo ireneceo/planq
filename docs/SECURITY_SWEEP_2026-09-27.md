@@ -71,7 +71,7 @@
 ## 판단 보류 / 범위 밖
 - 게스트 문서 L2·L3 공개(guestPost 의도 명시) — 그대로
 - 이미지 게이트 L2/L3 단계(계측) — 그대로
-- 업무 자체 보안등급 축 신설 — 하지 않음(Fable 2026-09-27: 첨부에서 파생) → **2026-10-12 일부 뒤집음**: `tasks.security_level`(general/internal) 추가, 첨부 파생과 OR. 공개 범위(vlevel)는 여전히 없음. `docs/TASK_SECURITY_LEVEL_DESIGN.md`
+- 업무 자체 보안등급 축 신설 — 하지 않음(Fable 2026-09-27: 첨부에서 파생) → **2026-10-12 뒤집음**(Irene «문서랑 일정처럼»): 업무에 문서와 같은 `vlevel`·`target_member_ids`·`security_level` 추가, 첨부 파생은 OR 로 유지. `docs/TASK_SECURITY_LEVEL_DESIGN.md`
 
 ## 검증 (자체, 2026-09-27)
 - 실HTTP 44항목 PASS(1차 31 · 2차 13), 잔여 0 — 발급 403 5종 · KB 목록/상세/PUT/검색/번들 · 비밀번호 PDF 401·서명 200·위조 401 ·

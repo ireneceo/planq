@@ -226,6 +226,8 @@ async function getProjectStream(project, viewerUserId, opts = {}) {
   //   `<=` 단독이면 매번 같은 행을 다시 가져와 커서가 전진하지 못한다(둘 다 실측했다).
   //   같은 시각에서는 소스 접두어 → 원장 id 순으로 잘라 낸다.
   const cur = beforeId ? parseEventId(beforeId) : null;
+  // 업무 사건은 볼 수 있는 업무만 — 읽기 판정 한 곳(taskListWhere). 남의 «나만 보기» 업무 제목이 히스토리로 새지 않게(2026-10-12).
+  const taskVis = (await require('../middleware/access_scope').taskListWhere(viewer, bizId)) || { id: -1 };
 
   // ★ 커서 절단은 **한 곳에서만** 한다 — 병합 후 (at, 소스, 원장 id) 전순서 필터.
   //   SQL 로 정교하게 자르려던 첫 시도는 두 번 깨졌다:
@@ -312,7 +314,7 @@ async function getProjectStream(project, viewerUserId, opts = {}) {
     //   그렇다고 지우면 "언제 업무가 늘었나"를 잃는다 → groupable 로 표시해 화면이 한 줄로 접는다.
     jobs.push(
       Task.findAll({
-        where: { project_id: projectId, business_id: bizId, ...timeWhereFor('task-created') },
+        where: { project_id: projectId, business_id: bizId, ...timeWhereFor('task-created'), [Op.and]: [taskVis] },
         attributes: ['id', 'title', 'created_by', 'created_at'],
         order: [['created_at', 'DESC'], ['id', 'ASC']], limit: perSource, raw: true,
       }).then((rows) => rows.map((r) => ({
@@ -361,7 +363,7 @@ async function getProjectStream(project, viewerUserId, opts = {}) {
         //   모델 속성명 'createdAt' 을 쓴다.
         attributes: ['id', 'task_id', 'event_type', 'from_status', 'to_status',
           'actor_user_id', 'target_user_id', 'round', 'note', 'createdAt'],
-        include: [{ model: Task, attributes: ['id', 'title'], where: { project_id: projectId, business_id: bizId }, required: true }],
+        include: [{ model: Task, attributes: ['id', 'title'], where: { project_id: projectId, business_id: bizId, [Op.and]: [taskVis] }, required: true }],
         order: [['created_at', 'DESC'], ['id', 'ASC']], limit: perSource,
       }).then((rows) => rows.map((r) => ({
         id: `task-status:${r.id}`, source: 'task',

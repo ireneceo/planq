@@ -184,8 +184,8 @@ router.post('/:id/apply', authenticateToken, async (req, res, next) => {
     if (io && result.created.length > 0) {
       for (const t of result.created) {
         const payload = { ...t.toJSON(), actor_user_id: req.user.id };
-        if (project_id) require('../services/projectRoom').emitProject(io, project_id, 'task:new', payload);
-        io.to(`business:${business_id}`).emit('task:new', payload);
+        // 업무 방송은 한 문(services/taskRoom) — 공개 범위에 따라 볼 수 있는 사람에게만 행이 간다.
+        require('../services/taskRoom').emitTask(io, 'task:new', payload, { businessId: business_id, projectId: project_id }).catch((e) => console.warn('[emitTask]', e.message));
       }
     }
 
@@ -364,8 +364,10 @@ router.post('/from-project/:projectId', authenticateToken, async (req, res, next
       return errorResponse(res, 'forbidden', 403);
     }
 
+    // 볼 수 있는 업무만 템플릿으로 옮긴다(공개 범위 — 남의 «나만 보기» 제목이 워크스페이스 템플릿으로 새지 않게)
+    const vis = (await require('../middleware/access_scope').taskListWhere(req.user.id, project.business_id)) || { id: -1 };
     const tasks = await Task.findAll({
-      where: { project_id: projectId, business_id: project.business_id },
+      where: { project_id: projectId, business_id: project.business_id, [Op.and]: [vis] },
       order: [['start_date', 'ASC'], ['created_at', 'ASC']],
     });
     const datedTasks = tasks.filter(t => t.start_date && t.due_date);

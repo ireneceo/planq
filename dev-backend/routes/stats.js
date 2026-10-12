@@ -111,9 +111,12 @@ router.get('/:businessId/tasks', authenticateToken, checkBusinessAccess, require
     //   여태 `created_at` 만 봐서 "기간 전에 만들어져 이 기간에 끝난 업무" 가 통계에 아예 안 들어왔다
     //   (완료 수 0, 리드타임 표본 0). 어느 KPI 가 어느 집합을 쓰는지는 buildTasksTab 이 가른다.
     const between = { [Op.between]: [period.from + ' 00:00:00', period.to + ' 23:59:59'] };
+    // 볼 수 있는 업무만(공개 범위 — 읽기 판정 한 곳). 업무 탭은 제목을 싣는다 — 남의 «나만 보기» 가 통계표로 새지 않게(2026-10-12).
+    const vis = (await require('../middleware/access_scope').taskListWhere(req.user.id, businessId)) || { id: -1 };
     const where = {
       business_id: businessId,
       [Op.or]: [{ created_at: between }, { completed_at: between }],
+      [Op.and]: [vis],
     };
     if (req.query.assignee_id) where.assignee_id = Number(req.query.assignee_id);
     if (req.query.category) where.category = String(req.query.category);

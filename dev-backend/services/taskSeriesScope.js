@@ -24,8 +24,8 @@ const SCOPES = ['single', 'future', 'all'];
 const SERIES_CONTENT_FIELDS = [
   'title', 'description', 'category', 'assignee_id', 'estimated_hours',
   'priority_level', 'workstream_id', 'is_milestone',
-  // «내부 업무» — 시리즈의 성질(누구에게 보이나). 전파 시 링크 끊기는 routes/tasks.js PUT 이 같이 한다.
-  'security_level',
+  // 공개 범위·보안등급 — 시리즈의 성질(누구에게 보이나). 전파 시 링크 끊기는 routes/tasks.js PUT 이 같이 한다.
+  'vlevel', 'target_member_ids', 'security_level',
 ];
 
 /** 이 업무가 반복 시리즈에 속하는가 (부모이거나 회차이거나). */

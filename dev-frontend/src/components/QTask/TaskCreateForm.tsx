@@ -33,6 +33,9 @@ import TagPicker from './TagPicker';
 import { useTaskTagDict } from './useTaskTagDict';
 import type { TaskTagLite } from './TagChips';
 import { isEnterAction } from '../../utils/imeKey';
+import VisibilityChip from '../Common/VisibilityChip';
+import VisibilityChangeModal from '../Common/VisibilityChangeModal';
+import { useSecurityLevelLabel } from '../Common/SecurityLevelBadge';
 import { useDraftKey, useDraftText } from '../../hooks/useDraftText';
 import type { DraftKind } from '../../hooks/draftKinds';
 
@@ -111,8 +114,12 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({
   const [assigneeId, setAssigneeId] = useState<number | null>(initial?.assigneeId ?? (isRequest ? null : myId));
   const [projectId, setProjectId] = useState<number | null>(fixedProjectId ?? initial?.projectId ?? null);
   const [workstreamId, setWorkstreamId] = useState<number | null>(null);
-  // «내부 업무»(2026-10-12) — 만들 때부터 고객·외부에 안 보이게. 멤버에게만 보인다(서버도 고객 값은 무시한다).
-  const [securityLevel, setSecurityLevel] = useState<'general' | 'internal'>('general');
+  // 공개 범위·보안등급(2026-10-12) — 문서와 같은 컴포넌트(VisibilityChip·VisibilityChangeModal·보안 선택).
+  //   만들 때부터 정해 두면 처음부터 그 범위로만 보인다. 멤버에게만 보인다(서버도 고객 값은 무시한다).
+  const [vis, setVis] = useState<{ vlevel: 'L1' | 'L2' | 'L3' | 'L4'; target_member_ids: number[] }>({ vlevel: 'L3', target_member_ids: [] });
+  const [visOpen, setVisOpen] = useState(false);
+  const [securityLevel, setSecurityLevel] = useState<'general' | 'internal' | 'confidential'>('general');
+  const secLabel = useSecurityLevelLabel();
   const myWsRoleForForm = (user?.workspaces || []).find((w) => w.business_id === Number(bizId))?.role
     || (user?.business_id === Number(bizId) ? user?.business_role : null);
   const canPickSecurity = user?.platform_role === 'platform_admin'
@@ -298,7 +305,7 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({
           workstream_id: workstreamId,
           // 고객 맥락에서 연 폼이면 그 고객의 업무가 된다 — 서버가 워크스페이스 소속을 확인한다
           client_id: fixedClientId,
-          security_level: canPickSecurity ? securityLevel : undefined,
+          ...(canPickSecurity ? { vlevel: vis.vlevel, target_member_ids: vis.target_member_ids, security_level: securityLevel } : {}),
         }),
       })).json();
       if (!r?.success) return;
@@ -465,12 +472,22 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({
             onDictAdd={addTagToDict} />
         </AddOptField>
         {canPickSecurity && (
-          <AddOptField data-field="security" style={{ flex: '0 1 200px' }}>
-            <AddOptLabel>{t('security.label', '공개')}</AddOptLabel>
+          <AddOptField data-field="visibility" style={{ flex: '0 1 160px' }}>
+            <AddOptLabel>{t('visibility.label', '공개 범위')}</AddOptLabel>
+            <VisibilityChip data-testid="task-add-visibility" level={vis.vlevel} onClick={() => setVisOpen(true)} />
+          </AddOptField>
+        )}
+        {canPickSecurity && (
+          <AddOptField data-field="security" style={{ flex: '0 1 160px' }}>
+            <AddOptLabel>{t('securityLevel.label', { ns: 'common', defaultValue: '보안등급' }) as string}</AddOptLabel>
             <PlanQSelect size="sm"
-              value={{ value: securityLevel, label: t(`security.${securityLevel}`) as string }}
-              onChange={(v) => setSecurityLevel((v as { value?: string })?.value === 'internal' ? 'internal' : 'general')}
-              options={['general', 'internal'].map((k) => ({ value: k, label: t(`security.${k}`) as string }))} />
+              value={{ value: securityLevel, label: secLabel(securityLevel) }}
+              onChange={(v) => {
+                const lv = (((v as { value?: string })?.value) || 'general') as 'general' | 'internal' | 'confidential';
+                setSecurityLevel(lv);
+                if (lv !== 'general' && vis.vlevel === 'L4') setVis((p) => ({ ...p, vlevel: 'L3' }));   // 외부 공유는 일반만(서버와 같은 규칙)
+              }}
+              options={(['general', 'internal', 'confidential'] as const).map((lv) => ({ value: lv, label: secLabel(lv) }))} />
           </AddOptField>
         )}
       </AddOptRow>
@@ -512,6 +529,23 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({
             onExistingPostIdsChange={setExistingPostIds}
           />
         </AttachInlineBox>
+      )}
+      {canPickSecurity && (
+        <VisibilityChangeModal
+          open={visOpen}
+          current={vis.vlevel}
+          canChooseL2
+          // «특정 프로젝트» 는 이 업무가 들어갈 프로젝트다 — 프로젝트를 고른 뒤에만 고를 수 있다
+          projects={projectId ? [{ id: projectId, name: (projects || []).find((p) => p.id === projectId)?.name || '-' }] : []}
+          members={(members || []).map((m) => ({ user_id: m.user_id, name: m.name, role: 'member' }))}
+          clients={[]}
+          // 외부 공유(L4)는 업무를 만든 뒤 상세의 공유 창에서 — 만들기 전에는 링크가 없다
+          hide={{ L4: true }}
+          onConfirm={({ level, targetMemberIds }) => {
+            setVis({ vlevel: level, target_member_ids: level === 'L2' ? (targetMemberIds || []) : [] });
+          }}
+          onClose={() => setVisOpen(false)}
+        />
       )}
     </>
   );

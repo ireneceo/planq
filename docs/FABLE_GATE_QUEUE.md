@@ -19,7 +19,12 @@
 - 비차단: ①10월 help 행은 정가·할인 혼합 ②cache_key 전 워크스페이스 한 값(정상) ③longCache 정규식이 gpt-5.1-chat-latest 에도 걸림(모델 바꿀 때 재확인) ④gpt-5.2 캐시 단가 미확인 ⑤카드만 낸 턴 answer 빈 문자열(범위 밖) ⑥dev ws5 원장에 검증 호출 1쌍 남음.
 - 권고(B): 가격·Basic 한도 유지 · Pro 7,500 조건부 유지(어느 Pro 든 원가 50% 넘는 달이면 4,000) · **횟수를 «질문 한 번(턴)» 에 매기고 실행은 0** 으로(0-G «제안 무과금» 뒤집음 → Irene 결정).
 
-### 2026-10-12 업무 «내부 업무» 보안등급 — 설계 1 + 완료 검증 PASS (방 99ab9b7d)
+### 2026-10-12 업무 공개 범위·보안등급 2차(문서·일정과 같은 구조) — 검증 FAIL·FAIL·PASS (방 99ab9b7d)
+- 2차 FAIL: 행동 계층이 역할만 봄(hold·policy·reviewers 자기추가로 남의 L1 열림) · PATCH /projects/tasks · 멘션 알림 제목 → 고침
+- 3차 FAIL: 태그(setTags) · estimate/ai 설명 재서술 → fieldContext 관리자 권한 ∧ canAccessTask(입력에서 고침) · estimate canAccessTask
+- 4차 PASS(델타). 비차단: fieldContext 가 vlevel 없는 행에 민감 → 다시 읽게 함 · comments/share/attachments 403(존재만) · cue/rerun 400.
+
+### 2026-10-12 업무 «내부 업무» 보안등급 — 설계 1 + 완료 검증 PASS (방 99ab9b7d) — 2차에서 대체됨
 - 설계: security_level(general/internal) 한 축 · 공개 범위(vlevel) 없음 · 09-27 «첨부에서 파생» 판정 일부 뒤집음(OR) — docs/TASK_SECURITY_LEVEL_DESIGN.md
 - 검증 PASS: 실HTTP 39검사·게스트 링크·소켓·마이그레이션 멱등. 비차단 1 고객 작성자 등급 변경 → FIELD_RULES 에 !isClient (고침, 403 실측) · 비차단 2 잔여물 정리.
 

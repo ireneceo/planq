@@ -9,6 +9,7 @@
 //     ③ 못 찾겠으면 전부 404. 403 을 주면 "그 토큰은 있는데 권한이 없다" 가 새어 나간다.
 //
 // 설계: docs/GUEST_LINK_DESIGN.md
+const { Op } = require('sequelize');
 const express = require('express');
 const router = express.Router();
 const { Message, User, Conversation, Project } = require('../models');
@@ -155,9 +156,9 @@ router.get('/:token', guestLimiter('guest-ctx', { windowMs: 60 * 1000, max: 60 }
 
           // 업무 — 개요에는 **숫자만**.
           const [taskTotal, taskDone] = await Promise.all([
-            // 내부 업무는 세지 않는다 — 업무 탭(guest_project)과 같은 집합이어야 숫자가 목록과 맞는다.
-            Task.count({ where: { project_id: p.id, business_id: link.business_id, security_level: 'general' } }),
-            Task.count({ where: { project_id: p.id, business_id: link.business_id, security_level: 'general', status: 'completed' } }),
+            // 업무 탭(guest_project)과 같은 집합이어야 숫자가 목록과 맞는다 — 공개 범위·보안등급 같은 조건.
+            Task.count({ where: { project_id: p.id, business_id: link.business_id, security_level: 'general', [Op.and]: [require('../middleware/access_scope').taskRelationOpenWhere()] } }),
+            Task.count({ where: { project_id: p.id, business_id: link.business_id, security_level: 'general', status: 'completed', [Op.and]: [require('../middleware/access_scope').taskRelationOpenWhere()] } }),
           ]);
           project.task_summary = { total: taskTotal, completed: taskDone };
         }

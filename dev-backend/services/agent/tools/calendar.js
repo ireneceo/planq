@@ -260,7 +260,13 @@ async function previewUpdateEvent(p, a) {
     const r = await resolveTaskLink(p.userId, p.businessId, a.task_id);
     if (!r.ok) throw err('VALIDATION_ERROR', r.code || 'invalid_task');
     const { Task } = require('../../../models');
-    const titleOf = async (id) => (id ? { title: (await Task.findOne({ where: { id, business_id: p.businessId }, attributes: ['title'] }))?.title || `#${id}` } : null);
+    // 볼 수 없는 업무(남의 «나만 보기» 등)는 제목 대신 번호만 — 읽기 판정 한 곳(canAccessTask)
+    const AS = require('../../../middleware/access_scope');
+    const titleOf = async (id) => {
+      if (!id) return null;
+      const t = await Task.findOne({ where: { id, business_id: p.businessId }, attributes: [...new Set(['title', ...AS.TASK_VIS_ATTRS])] });
+      return { title: t && await AS.canAccessTask(p.userId, t) ? t.title : `#${id}` };
+    };
     link.before = { task_id: await titleOf(e.task_id) };
     link.after = { task_id: await titleOf(r.taskId) };
   }

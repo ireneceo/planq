@@ -1527,10 +1527,8 @@
     "open": "Open",
     "dismiss": "Close"
   },
-  "security": {
+  "visibility": {
     "label": "Visibility",
-    "general": "Standard",
-    "internal": "Internal (team only)",
-    "internalHint": "Hidden from clients and links"
+    "saveFailed": "Couldn't change visibility"
   }
 }

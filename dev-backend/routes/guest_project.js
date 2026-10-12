@@ -9,6 +9,7 @@
 //     `vlevel`         = **필터**. L1(개인)은 **행 자체가 없다.** 로그인해도 고객은 못 보므로
 //                        "로그인하면 볼 수 있어요" 라고 말하면 그 문장이 거짓이 된다.
 //     `security_level` = **잠금**. general 열림 / internal 자리는 보이고 잠김 / confidential 건수만.
+const { Op } = require('sequelize');
 const express = require('express');
 const router = express.Router();
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
@@ -42,8 +43,9 @@ router.get('/:token/tasks', guestLimiter('guest-tasks', { windowMs: 60 * 1000, m
     const rows = await Task.findAll({
       // ★ Task 에는 `deleted_at` 컬럼이 **없다**(모델 실측) — 넣으면 500 이 난다.
       //   앱의 프로젝트 업무 목록도 project_id 로만 거른다(projects.js:1603).
-      // 내부 업무(security_level='internal')는 행 자체가 없다 — docs/TASK_SECURITY_LEVEL_DESIGN.md
-      where: { project_id: project.id, business_id: link.business_id, security_level: 'general' },
+      // 공개 범위·보안등급 — 게스트 문서(services/guestPost: L2·L3·L4 + 일반)와 같은 선. 나만 보기·특정 멤버·내부/기밀은 행이 없다.
+      where: { project_id: project.id, business_id: link.business_id, security_level: 'general',
+        [Op.and]: [require('../middleware/access_scope').taskRelationOpenWhere()] },
       // ★ attributes 를 나열한다 — 모델 전체를 읽고 delete 로 지우는 방식은 컬럼이 늘 때 샌다
       //   (CLAUDE.md: 가릴 땐 화이트리스트).
       attributes: ['id', 'title', 'status', 'progress_percent', 'start_date', 'due_date',

@@ -112,10 +112,12 @@ router.post('/:taskId/estimate/ai', authenticateToken, ...aiEstimateLimiter, asy
   try {
     const taskId = parseInt(req.params.taskId, 10);
     if (!taskId) return errorResponse(res, 'invalid_task', 400);
-    const task = await Task.findByPk(taskId, { attributes: ['id', 'title', 'description', 'business_id'] });
+    const task = await Task.findByPk(taskId);
     if (!task) return errorResponse(res, 'not_found', 404);
     // 비용폭탄 C2 — 임의 task id 로 남의 업무 AI 추정 트리거(비용+제목/설명 유출) 차단. 소속 멤버만.
     if (!(await assertMembership(req.user.id, task.business_id))) return errorResponse(res, 'forbidden', 403);
+    // 볼 수 있는 업무만 — 추정 사유(reason)가 설명을 다시 말한다(2026-10-12 Fable 3차: 남의 «나만 보기» 설명이 샜다)
+    if (!(await require('../middleware/access_scope').canAccessTask(req.user.id, task))) return errorResponse(res, 'not_found', 404);
 
     // 캐시: 같은 task 의 ai 추천이 1시간 이내 있으면 재사용 (LLM 비용 절감)
     const recent = await TaskEstimation.findOne({

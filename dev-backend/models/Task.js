@@ -283,13 +283,22 @@ Task.init({
   shared_at: { type: DataTypes.DATE, allowNull: true },
   share_password_hash: { type: DataTypes.STRING(255), allowNull: true },
   share_expires_at: { type: DataTypes.DATE, allowNull: true },
-  // 보안등급 (2026-10-12, docs/TASK_SECURITY_LEVEL_DESIGN.md · Fable 설계) — «내부 업무».
-  //   internal = 프로젝트 고객·대화 참여 고객·게스트 프로젝트 링크·공개 공유 링크에 **행 자체가 없다.**
-  //   멤버(owner/admin/member)와 직접 관계자 고객(담당·작성·요청·컨펌자)은 그대로 본다.
-  //   공개 범위(vlevel)는 두지 않는다 — 멤버끼리는 열린 문화(PERMISSION_MATRIX §1).
+  // ─── 공개 범위·보안등급 (2026-10-12) — 문서(Post)·일정과 **같은 두 축**. docs/TASK_SECURITY_LEVEL_DESIGN.md ───
+  //   Irene: *"문서랑 일정처럼 워크스페이스 특정 멤버 나만보기 등 같은 기능 … 보안등급도 있잖아. 기존 기능 그대로."*
+  //   vlevel: L1 나만 보기 · L2 프로젝트(이 업무의 프로젝트) 또는 특정 멤버(target_member_ids) · L3 워크스페이스 · L4 외부.
+  //     ★ 업무에 이름이 박힌 사람(담당·요청·컨펌자)은 범위와 무관하게 본다 — 일정의 «초대받은 참석자» 와 같은 규칙.
+  //     ★ owner/admin 도 남의 L1 은 못 본다(2026-10-09 D2 — 문서·일정과 같다).
+  //   security_level: general / internal / confidential — 일반 외에는 외부 공유(공개 링크·게스트 링크) 차단.
+  //   판정 한 곳: middleware/access_scope canAccessTask · taskListWhere. 기존 행 = L3·general(지금 그대로).
   //   운영 스키마: scripts/migrate-task-security-level.js (배포 슬롯, 코드보다 먼저).
+  vlevel: {
+    type: DataTypes.ENUM('L1', 'L2', 'L3', 'L4'),
+    allowNull: false,
+    defaultValue: 'L3',
+  },
+  target_member_ids: { type: DataTypes.JSON, allowNull: true, defaultValue: null },
   security_level: {
-    type: DataTypes.ENUM('general', 'internal'),
+    type: DataTypes.ENUM('general', 'internal', 'confidential'),
     allowNull: false,
     defaultValue: 'general',
   },

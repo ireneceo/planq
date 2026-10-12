@@ -70,6 +70,13 @@ async function loadStandaloneConvOrForbidden(convId, userId) {
   return { conversation: conv, role: bm.role };
 }
 
+// 업무 공개 범위 조각 — 읽기 판정 한 곳(access_scope.taskListWhere)을 where 의 Op.and 에 넣는다(2026-10-12).
+//   프로젝트 화면(캔버스·보고서·타임라인·파일 탭·AI 초안)이 업무 제목을 보여 주므로 남의 «나만 보기»·지정 멤버 업무를 뺀다.
+async function taskVisAnd(userId, businessId) {
+  const w = await require('../middleware/access_scope').taskListWhere(userId, businessId);
+  return w || { id: -1 };
+}
+
 // 관리자 전용 액션(프로젝트 멤버 관리·삭제·종료·이관) 가드.
 // owner 또는 platform_admin 만 통과.
 async function requireProjectAdmin(projectId, user) {
@@ -1995,7 +2002,7 @@ router.get('/:id/canvas', authenticateToken, async (req, res, next) => {
     const [workstreams, allTasks] = await Promise.all([
       ProjectWorkstream.findAll({ where: { project_id: project.id }, order: [['order_index', 'ASC'], ['id', 'ASC']] }),
       Task.findAll({
-        where: { project_id: project.id },
+        where: { project_id: project.id, [Op.and]: [await taskVisAnd(req.user.id, bizId)] },
         attributes: ['id', 'title', 'status', 'due_date', 'progress_percent', 'assignee_id', 'workstream_id', 'planned_week_start'],
         include: [{ model: User, as: 'assignee', attributes: ['id', 'name', 'name_localized'], required: false }],
       }),
@@ -2201,7 +2208,7 @@ router.put('/:id/success-metrics', authenticateToken, async (req, res, next) => 
         const pc = await ProjectClient.findOne({ where: { project_id: project.id }, include: [{ model: Client, attributes: ['display_name', 'company_name'], required: false }] });
         clientName = pc?.Client?.display_name || pc?.Client?.company_name || null;
       } catch { /* optional */ }
-      const relTasks = await Task.findAll({ where: { project_id: project.id }, attributes: ['title'], limit: 20, order: [['created_at', 'DESC']] });
+      const relTasks = await Task.findAll({ where: { project_id: project.id, [Op.and]: [await taskVisAnd(req.user.id, project.business_id)] }, attributes: ['title'], limit: 20, order: [['created_at', 'DESC']] });
       const taskTitles = relTasks.map((t) => t.title).filter(Boolean);
 
       const { generateCanvasDraft } = require('../services/canvasDraft');
@@ -2405,7 +2412,7 @@ router.get('/:id/report', authenticateToken, async (req, res, next) => {
 
     // 프로젝트 전체 task (rollup·하이라이트·리스크·금주/차주·팀 파생)
     const allTasks = await Task.findAll({
-      where: { project_id: project.id },
+      where: { project_id: project.id, [Op.and]: [await taskVisAnd(req.user.id, bizId)] },
       attributes: ['id', 'title', 'status', 'due_date', 'progress_percent', 'assignee_id', 'workstream_id', 'planned_week_start', 'completed_at'],
       include: [{ model: User, as: 'assignee', attributes: ['id', 'name', 'name_localized'], required: false }],
     });
@@ -2489,7 +2496,7 @@ router.get('/:id/timeline', authenticateToken, async (req, res, next) => {
 
     const [tasks, workstreams] = await Promise.all([
       Task.findAll({
-        where: { project_id: project.id, status: { [Op.ne]: 'canceled' } },
+        where: { project_id: project.id, status: { [Op.ne]: 'canceled' }, [Op.and]: [await taskVisAnd(req.user.id, project.business_id)] },
         attributes: ['id', 'title', 'status', 'start_date', 'due_date', 'progress_percent', 'workstream_id', 'is_milestone', 'assignee_id'],
         include: [{ model: User, as: 'assignee', attributes: ['id', 'name', 'name_localized'], required: false }],
         order: [['due_date', 'ASC'], ['start_date', 'ASC']],
@@ -2806,9 +2813,10 @@ router.get('/:id/tasks', authenticateToken, async (req, res, next) => {
     const { project, role, error } = await loadProjectOrForbidden(Number(req.params.id), req.user.id);
     if (error) return errorResponse(res, error.message, error.code);
     const { literal } = require('sequelize');
-    // 고객에게는 내부 업무를 싣지 않는다(이름이 박힌 관계자 업무는 예외) — canAccessTask 와 같은 술어.
-    const taskWhere = { project_id: project.id };
-    if (role === 'client') taskWhere[Op.and] = [await require('../middleware/access_scope').clientTaskInternalWhere(req.user.id)];
+    // 공개 범위 — 읽기 판정 한 곳(taskListWhere)을 그대로 건다(멤버도 남의 «나만 보기»·지정 멤버 업무는 빠진다).
+    const visWhere = await require('../middleware/access_scope').taskListWhere(req.user.id, project.business_id);
+    if (!visWhere) return successResponse(res, []);
+    const taskWhere = { project_id: project.id, [Op.and]: [visWhere] };
     const tasks = await Task.findAll({
       where: taskWhere,
       attributes: {
@@ -2966,7 +2974,7 @@ router.get('/conversations/:convId/tasks', authenticateToken, async (req, res, n
     const { conversation, error } = await loadStandaloneConvOrForbidden(convId, req.user.id);
     if (error) return errorResponse(res, error.message, error.code);
     const tasks = await Task.findAll({
-      where: { conversation_id: conversation.id, project_id: null },
+      where: { conversation_id: conversation.id, project_id: null, [Op.and]: [await taskVisAnd(req.user.id, conversation.business_id)] },
       include: [
         { model: User, as: 'assignee', attributes: ['id', 'name', 'name_localized'], required: false },
       ],
@@ -3237,22 +3245,11 @@ router.get('/workspace/:businessId/all-tasks', authenticateToken, async (req, re
     }
     const bm = await requireBusinessMember(req.user.id, businessId);
 
-    let where;
-    if (bm && bm.role !== 'ai') {
-      // 멤버: 워크스페이스 전체 업무 (프로젝트 미지정 task 도 포함)
-      where = { business_id: businessId };
-    } else {
-      // 고객: 자기가 project_clients 에 등록된 프로젝트의 업무 OR 본인에게 배정된 업무
-      const pcs = await ProjectClient.findAll({
-        where: { contact_user_id: req.user.id },
-        include: [{ model: Project, where: { business_id: businessId }, attributes: ['id'] }],
-      });
-      const projectIds = pcs.map((pc) => pc.project_id).filter(Boolean);
-      const orConds = [{ assignee_id: req.user.id }, { request_by_user_id: req.user.id }];
-      // 프로젝트 고객 축은 일반 업무만(내부 업무는 관계자 축으로만) — taskListWhere 와 같은 술어.
-      if (projectIds.length > 0) orConds.push({ project_id: projectIds, security_level: 'general' });
-      where = { business_id: businessId, [Op.or]: orConds };
-    }
+    // 업무 읽기 판정은 한 곳(access_scope.taskListWhere) — 공개 범위(나만 보기·특정 멤버·프로젝트)를 멤버·고객 모두에 적용한다
+    //   (2026-10-12). 여태 멤버는 워크스페이스 전체, 고객은 이 파일의 별도 사본이었다.
+    void bm;
+    const where = await require('../middleware/access_scope').taskListWhere(req.user.id, businessId);
+    if (!where) return paginatedResponse(res, [], 0, { limit: 0, page: 1, offset: 0 });
 
     if (req.query.status) where.status = req.query.status;
     if (req.query.project_id) where.project_id = Number(req.query.project_id);
@@ -3593,6 +3590,8 @@ router.patch('/tasks/:id', authenticateToken, async (req, res, next) => {
     const { role, error } = await loadProjectOrForbidden(task.project_id, req.user.id);
     if (error) return errorResponse(res, error.message, error.code);
     if (role === 'client') return errorResponse(res, 'forbidden', 403);
+    // 볼 수 없는 업무는 없는 것과 같다(2026-10-12 Fable — 프로젝트 접근만 보고 남의 «나만 보기» 업무를 바꾸고 행을 돌려줬다)
+    if (!(await require('../middleware/access_scope').canAccessTask(req.user.id, task))) return errorResponse(res, 'task_not_found', 404);
     const { status } = req.body || {};
     const allowed = ['task_requested', 'task_re_requested', 'waiting', 'not_started', 'in_progress', 'review_requested', 're_review_requested', 'customer_confirm', 'completed', 'canceled'];
     if (!status || !allowed.includes(status)) return errorResponse(res, 'invalid status', 400);
@@ -3884,7 +3883,7 @@ router.get('/workspace/:bizId/all-files', authenticateToken, async (req, res, ne
 
     // 3) task 첨부 — 내가 속한 프로젝트만 (위 myProjIds 주석 참조)
     const tasks = await Task.findAll({
-      where: { business_id: bizId, project_id: { [Op.in]: myProjIds } },
+      where: { business_id: bizId, project_id: { [Op.in]: myProjIds }, [Op.and]: [await taskVisAnd(req.user.id, bizId)] },
       attributes: ['id', 'title', 'project_id']
     });
     const taskMap = new Map(tasks.map(t => [t.id, t]));
@@ -4099,7 +4098,7 @@ router.get('/:id/files', authenticateToken, async (req, res, next) => {
 
     // 3) task 첨부 — 프로젝트의 업무에 첨부된 파일 (비멤버 제외 — 위와 동일 이유)
     const tasks = isProjectMember ? await Task.findAll({
-      where: { business_id: bizId, project_id: projId },
+      where: { business_id: bizId, project_id: projId, [Op.and]: [await taskVisAnd(req.user.id, bizId)] },
       attributes: ['id', 'title']
     }) : [];
     const taskMap = new Map(tasks.map(t => [t.id, t]));

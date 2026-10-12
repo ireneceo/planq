@@ -104,7 +104,9 @@ async function getClientTimeline(businessId, clientId, { userId, limit = 40, bef
 
   // 3) 업무 — tasks.client_id = X
   if (want.includes('task')) {
-    const where = { business_id: businessId, client_id: clientId };
+    // 볼 수 있는 업무만(공개 범위 — 읽기 판정 한 곳 taskListWhere). 보는 사람을 모르면 싣지 않는다.
+    const vis = userId ? await require('../middleware/access_scope').taskListWhere(userId, businessId) : null;
+    const where = { business_id: businessId, client_id: clientId, [Op.and]: [vis || { id: -1 }] };
     if (beforeDate) where.createdAt = { [Op.lt]: beforeDate };
     const tasks = await Task.findAll({
       where, order: [['createdAt', 'DESC']], limit: perSource,
@@ -187,8 +189,12 @@ async function getClientTimeline(businessId, clientId, { userId, limit = 40, bef
         attributes: ['project_id'],
         include: [{ model: Project, attributes: ['id'], where: { business_id: businessId }, required: true }],
       }).then((r) => r.map((x) => x.project_id)),
-      Task.findAll({ where: { business_id: businessId, client_id: clientId }, attributes: ['id'] })
-        .then((r) => r.map((x) => x.id)),
+      // 업무 메모도 볼 수 있는 업무의 것만(위 업무 칸과 같은 판정)
+      (async () => {
+        const vis = userId ? await require('../middleware/access_scope').taskListWhere(userId, businessId) : null;
+        const r = await Task.findAll({ where: { business_id: businessId, client_id: clientId, [Op.and]: [vis || { id: -1 }] }, attributes: ['id'] });
+        return r.map((x) => x.id);
+      })(),
     ]);
 
     const noteOr = [];
