@@ -90,7 +90,7 @@ export interface TaskAsEvent extends CalendarEvent {
 // 개인 Google 캘린더 일정 overlay — GET /api/me/calendar/events
 //   쓰기 권한(calendar.events)에 동의한 연결이면 PlanQ 안에서 바로 수정·삭제할 수 있다.
 export interface PersonalCalendarEvent {
-  id: string;            // 'gcal-{connId}-{캘린더 id 인코딩}-{eventId}' — 파싱하지 않는다(캘린더는 calendar_id)
+  id: string;            // 모양 gcal-{connId}-{캘린더 id 인코딩}-{eventId} — 파싱하지 않는다(캘린더는 calendar_id)
   _source: 'personal_google';
   title: string;
   description?: string | null;
