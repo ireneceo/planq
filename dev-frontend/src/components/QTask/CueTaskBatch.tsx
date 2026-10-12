@@ -75,7 +75,8 @@ export default function CueTaskBatch({ proposal, businessId, onDone, onDismiss }
       const created = (j.data?.created || []) as Array<{ idx: number; id: number }>;
       const failed = (j.data?.failed || []) as Array<{ index: number; reason: string }>;
       const doneIdx = new Set(created.map((c) => c.idx));
-      const allIds = [...createdIds, ...created.map((c) => c.id)];
+      // 같은 행을 두 번 보내면 서버가 같은 업무를 replayed 로 돌려준다 — 같은 id 는 한 번만 센다
+      const allIds = [...new Set([...createdIds, ...created.map((c) => c.id)])];
       setCreatedIds(allIds);
       const left = rows.filter((x) => !doneIdx.has(x.idx));
       setRows(left);

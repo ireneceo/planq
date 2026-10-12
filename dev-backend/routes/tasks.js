@@ -539,7 +539,8 @@ async function confirmCueBatch(req, res, { business_id, candidates, base_date })
       ...(r.data.completed_skipped ? { completed_skipped: r.data.completed_skipped } : {}),
     });
   }
-  return successResponse(res, { created, failed, count: created.length });
+  // replayed(같은 행을 두 번 — 이미 만든 것을 돌려줌)는 새로 만든 수에 세지 않는다(Fable 2026-10-12 비차단 1)
+  return successResponse(res, { created, failed, count: created.filter((c) => !c.replayed).length });
 }
 
 router.post('/ai-create/confirm', authenticateToken, async (req, res, next) => {
