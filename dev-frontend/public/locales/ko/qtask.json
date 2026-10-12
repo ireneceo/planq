@@ -1388,7 +1388,9 @@
     "densityCompact": "촘촘히 보기 (한 줄)",
     "sortMine": "직접 정렬",
     "dragHandle": "끌어서 순서 바꾸기 (Alt+↑/↓) — 이 보기에서만 바뀌어요",
-    "reorderFailed": "순서를 저장하지 못했어요 — 원래 순서로 되돌렸어요. 다시 끌어 주세요."
+    "reorderFailed": "순서를 저장하지 못했어요 — 원래 순서로 되돌렸어요. 다시 끌어 주세요.",
+    "toolsToggle": "직접 추가 · 보기 설정",
+    "doneHiddenShort": "완료 가림"
   },
   "tags": {
     "new": "새 태그",

@@ -1388,7 +1388,9 @@
     "densityCompact": "Compact view (one line)",
     "sortMine": "Custom order",
     "dragHandle": "Drag to reorder (Alt+↑/↓) — only in this view",
-    "reorderFailed": "Couldn’t save the order — it’s back to how it was. Please drag again."
+    "reorderFailed": "Couldn’t save the order — it’s back to how it was. Please drag again.",
+    "toolsToggle": "Add & view options",
+    "doneHiddenShort": "done hidden"
   },
   "tags": {
     "new": "New tag",

@@ -24,7 +24,7 @@ import {
   Head,
   HeadMeta,
   HeadRight,
-  HeadTitle,
+  HeadIconBtn,
   List,
   MetaChip,
   MetaDue,
@@ -39,16 +39,13 @@ import {
   RowMeta,
   RowTitle,
   RowTop,
-  TabBtn,
-  TabRow,
   TagGroupHead,
   TagSlot,
   DoneFilterLabel,
   PrioGapHint,
   DragSlot, DragHandle, DragGrip, PopoutCueSlot,
   Wrap,
-  PopoutTagManageBtn,
-  CompactList, StatusDot, CompactProject, DensityBtn, DensityIcon,
+  CompactList, StatusDot, CompactProject, DensityIcon,
 } from './TaskPopoutView.styles';
 import { usePopoutDensity, COMPACT_TEXT_CODES } from './usePopoutDensity';
 
@@ -72,6 +69,8 @@ import { useQuickAction } from './useQuickAction';   // 행 퀵액션 실행(낙
 import { useTaskTagDict } from './useTaskTagDict';
 import TagManageModal from './TagManageModal';
 import PopoutViewChips, { type PopoutView } from './PopoutViewChips';
+import PopoutScopeTitle from './PopoutScopeTitle';
+import PopoutToolsFold from './PopoutToolsFold';
 import PopoutQuickAdd from './PopoutQuickAdd';
 import CueTaskBar from './CueTaskBar';
 import { usePopoutQuickAdd } from './usePopoutQuickAdd';
@@ -418,54 +417,30 @@ const TaskPopoutView: React.FC<TaskPopoutViewProps> = ({ pinSlot }) => {
   return (
     <Wrap>
       <Head>
-        {/* ★ 제목은 탭을 따라간다 — 고정 '이번 주 내 업무' 는 오늘 탭에서 거짓말이 된다
-            (memory feedback_new_behavior_makes_copy_lie). */}
-        <HeadTitle>{popTab === 'today'
-          ? t('popout.titleToday', '오늘 내 업무')
-          : t('popout.title', '이번 주 내 업무')}</HeadTitle>
+        {/* 제목 = 범위 고르기(오늘 / 이번 주) — 탭 줄을 따로 두지 않는다(Irene 2026-10-12, PopoutScopeTitle 머리말).
+            ★ 제목은 고른 범위를 그대로 말한다 — 고정 '이번 주 내 업무' 는 오늘에서 거짓말이 된다. */}
+        <PopoutScopeTitle value={popTab} onChange={setPopTab}
+          labels={{ today: t('popout.titleToday', '오늘 내 업무'), week: t('popout.title', '이번 주 내 업무') }}
+          ariaLabel={t('popout.tabsLabel', '업무 범위') as string}
+          hint={t('popout.countSummary', { n: mineCount, r: reqCount, defaultValue: '업무 {{n}}건, 요청 {{r}}건' }) as string} />
         <HeadRight>
-          {/* ★ 2026-08-24 (Irene) — 요약이 먼저, 'Q Task 열기' 는 뒤로 보내 핀 아이콘 옆에 붙인다.
-              버튼이 요약 앞에 있으면 요약 폭에 따라 핀과의 간격이 매번 달라져 눈에 걸린다. */}
-          {/* ★ 2026-08-24 (Irene) — 두 탭 모두 "업무 N건, 요청 M건".
-              옛 표시는 "N건 진행 · 남은 Nh" 였는데, 왼쪽은 탭 필터를 타고 오른쪽(total_remaining)은
-              **주간 전체** 값이라 오늘 탭에서 한 줄 안에 오늘 숫자와 주간 숫자가 섞여 있었다.
-              업무 = 담당자가 나 / 요청 = 내가 컨펌해야 하는 남의 업무(todayTaskSet ⑦).
-              합이 화면에 보이는 행 수와 같아 메인 리스트와 어긋나지 않는다. */}
+          {/* 업무 = 담당자가 나 / 요청 = 내가 컨펌해야 하는 남의 업무(todayTaskSet ⑦). 합 = 보이는 행 수.
+              (옛 "N건 진행 · 남은 Nh" 는 오늘 숫자와 주간 숫자가 한 줄에 섞였다 — 2026-08-24) */}
           <HeadMeta data-testid="task-popout-count">
             {t('popout.countSummary', { n: mineCount, r: reqCount, defaultValue: '업무 {{n}}건, 요청 {{r}}건' })}
           </HeadMeta>
-          {/* #258 "Q task로 가는 버튼이 상단에 있어야 하지 않아? 다른 업무리스트 종류들 보고 싶으면 가서 봐야지."
-              ★ 메인 탭에 부탁한다 — 이 창에서 /tasks 를 열면 팝아웃이 본체가 돼 버린다.
-              ★ 메인 탭이 없으면 새 창으로 연다. `noopener` 는 쓰지 않는다 — 성공해도 핸들이 null 이라
-                실패로 오판하게 된다(memory feedback_window_open_noopener_null). 대신 opener 를 끊는다. */}
-          <GoMainBtn
-            type="button"
-            data-testid="task-popout-go-qtask"
-            onClick={() => {
-              requestMainNavigate('/tasks');
-              // 메인 탭이 응답했는지 알 방법이 없다(단방향 방송) — 이 창은 아무것도 더 하지 않는다.
-              //   메인 탭이 아예 없는 경우를 위해 사용자가 한 번 더 누르면 새 창을 여는 폴백은
-              //   두지 않는다(두 번 눌러 두 탭이 뜨는 혼란 > 이득). 도크에서 다시 열면 된다.
-            }}
-          >{t('popout.goQTask', 'Q Task 열기')}</GoMainBtn>
+          {/* 보기 밀도(카드 / 한 줄) — 탭 줄이 빠지며 헤더로 올라왔다(Irene 2026-10-12). */}
+          <HeadIconBtn type="button" $active={compact} aria-pressed={compact} data-testid="task-popout-density"
+            aria-label={t('popout.densityCompact', '촘촘히 보기 (한 줄)') as string} title={t('popout.densityCompact', '촘촘히 보기 (한 줄)') as string}
+            onClick={toggleCompact}><DensityIcon compact={compact} /></HeadIconBtn>
+          {/* #258 Q Task 로 가는 문 — 메인 탭에 부탁한다(이 창에서 /tasks 를 열면 팝아웃이 본체가 된다).
+              메인 탭이 응답했는지 알 길이 없어(단방향 방송) 새 창 폴백은 두지 않는다 — 두 번 눌러 두 탭이 뜨는 혼란이 더 크다. */}
+          <GoMainBtn type="button" data-testid="task-popout-go-qtask" onClick={() => requestMainNavigate('/tasks')}>
+            {t('popout.goQTask', 'Q Task 열기')}
+          </GoMainBtn>
           {pinSlot}
         </HeadRight>
       </Head>
-
-      {/* #237·#258 — 오늘 / 이번 주 2탭. 데이터는 한 벌(/my-week)이고 탭은 클라이언트 필터다. */}
-      <TabRow role="tablist" aria-label={t('popout.tabsLabel', '업무 범위') as string}>
-        <TabBtn type="button" role="tab" aria-selected={popTab === 'today'} $active={popTab === 'today'}
-          data-testid="task-popout-tab-today" onClick={() => setPopTab('today')}>
-          {t('popout.tabToday', '오늘')}
-        </TabBtn>
-        <TabBtn type="button" role="tab" aria-selected={popTab === 'week'} $active={popTab === 'week'}
-          data-testid="task-popout-tab-week" onClick={() => setPopTab('week')}>
-          {t('popout.tabWeek', '이번 주')}
-        </TabBtn>
-        <DensityBtn type="button" $active={compact} aria-pressed={compact} data-testid="task-popout-density"
-          aria-label={t('popout.densityCompact', '촘촘히 보기 (한 줄)') as string} title={t('popout.densityCompact', '촘촘히 보기 (한 줄)') as string}
-          onClick={toggleCompact}><DensityIcon compact={compact} /></DensityBtn>
-      </TabRow>
 
       {/* Cue 에게 말하기 — Q task 목록과 **같은 컴포넌트**(2026-10-12 Fable (다) 7). 여러 개를 나열하면 항목마다 한 건.
           기본값은 Q task «오늘/이번 주» 탭과 같은 규칙(오늘 마감 + 이번 주 버킷) — 만든 업무가 이 목록에 남는다. */}
@@ -475,6 +450,15 @@ const TaskPopoutView: React.FC<TaskPopoutViewProps> = ({ pinSlot }) => {
             defaults={{ due_date: todayStr, planned_week_start: weekStart }} />
         </PopoutCueSlot>
       )}
+      {/* 직접 추가 · 보기 설정 — 기본 접힘(Irene 2026-10-12: Cue 에게 말하기가 위에 있고, 보기 설정은 늘 쓰던 대로 둔다).
+          접혀 있어도 요약 줄이 지금 설정을 말한다 — 안 보이는 «완료 가리기» 가 행을 거르면 «없어졌다» 로 읽힌다. */}
+      {!loading && !error && (
+        <PopoutToolsFold label={t('popout.toolsToggle', '직접 추가 · 보기 설정') as string}
+          summary={[
+            ({ tag: t('popout.viewTag', '태그별'), project: t('popout.viewProject', '프로젝트별'), due: t('popout.viewDue', '마감일별') } as Record<PopoutView, string>)[effView],
+            SORT_LABELS[sortKey],
+            hideDone ? (t('popout.doneHiddenShort', '완료 가림') as string) : '',
+          ].filter(Boolean).join(' · ')}>
       {/* #258 — 퀵애드. 로딩·에러 중에는 내지 않는다(기본값의 원천인 weekStart 가 아직 없다). */}
       {!loading && !error && (
         <PopoutQuickAdd
@@ -525,21 +509,16 @@ const TaskPopoutView: React.FC<TaskPopoutViewProps> = ({ pinSlot }) => {
           groupLabel={t('popout.viewLabel', '보기 기준') as string}
           /* 완료 가리기 — 태그별·마감일별 칩과 **같은 줄** 오른쪽 끝 (Irene 2026-08-24) */
           trailing={(openTasks.length > 0 || doneTasks.length > 0) ? (
-            <>
-            {/* 2026-09-08 — 만드는 문(퀵애드)만 있고 **지우는 문이 없었다**. 리스트와 같은 모달을 쓴다. */}
-            {effView === 'tag' && tagDict.length > 0 && (
-              <PopoutTagManageBtn type="button" onClick={() => setTagManageOpen(true)}
-                title={t('tags.manageHint', '태그 이름 변경·삭제') as string}>
-                {t('tags.manage', '태그 관리') as string}
-              </PopoutTagManageBtn>
-            )}
             <DoneFilterLabel>
               <input type="checkbox" checked={hideDone} data-testid="task-popout-hide-done"
                 onChange={(e) => setHideDone(e.target.checked)} />
               {t('popout.hideDoneFilter', { count: doneTasks.length, defaultValue: '완료 가리기 ({{count}})' })}
             </DoneFilterLabel>
-            </>
           ) : null}
+          /* 태그 관리 — «태그별» 칩 뒤 톱니(2026-10-12). 글자 버튼이던 때는 줄을 밀어 완료 가리기가 두 줄이 됐다.
+             만드는 문(퀵애드)만 있고 지우는 문이 없던 것(2026-09-08)은 그대로 막혀 있다 — 리스트와 같은 모달. */
+          onManageTags={tagDict.length > 0 ? () => setTagManageOpen(true) : undefined}
+          manageTagsLabel={t('tags.manageHint', '태그 이름 변경·삭제') as string}
           labels={{
             tag: t('popout.viewTag', '태그별'),
             project: t('popout.viewProject', '프로젝트별'),
@@ -556,6 +535,8 @@ const TaskPopoutView: React.FC<TaskPopoutViewProps> = ({ pinSlot }) => {
             />
           )}
         />
+      )}
+        </PopoutToolsFold>
       )}
       <TagManageModal
         bizId={bizId}

@@ -24,8 +24,20 @@ const Row = styled.div`
   align-items: center;
   flex-shrink: 0;
   border-bottom: 1px solid #F1F5F9;
+  /* ★ 좁은 창(420px)에서는 정렬 셀렉트가 다음 줄 오른쪽으로 내려간다 — 한 줄에 우겨 넣으면
+     창 오른쪽 밖으로 나갔다(Irene 2026-10-12 "정렬 셀렉트박스도 우측레이아웃을 나가버려"). */
+  flex-wrap: wrap; row-gap: 6px;
 `;
 const Trailing = styled.span`margin-left:auto; display:inline-flex; align-items:center;`;
+// 태그 관리 — «태그별» 칩 바로 뒤에 붙는 톱니. 글자 버튼으로 줄에 세우면 완료 가리기가 두 줄로 접혔다.
+const ManageBtn = styled.button`
+  width: 28px; height: 28px; padding: 0; margin-left: -2px;
+  display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0;
+  border: 1px solid #E2E8F0; border-radius: 999px; background: transparent;
+  color: #64748B; cursor: pointer;
+  &:hover { background: #F8FAFC; color: #0F172A; border-color: #CBD5E1; }
+  &:focus-visible { outline: 2px solid rgba(15,118,110,0.5); outline-offset: 2px; }
+`;
 const Chip = styled.button<{ $active: boolean }>`
   height: 28px; padding: 0 10px;
   font-size: 0.75rem; font-weight: ${p => (p.$active ? 700 : 600)};
@@ -52,10 +64,13 @@ export interface PopoutViewChipsProps {
   /** 줄 왼쪽 맨 앞에 붙일 것(정렬 셀렉트). **칩이 하나뿐이어도** 이것만 있으면 줄을 그린다 —
    *  정렬은 보기 기준과 다른 축이라, 태그·프로젝트가 없는 워크스페이스에서도 필요하다. */
   leading?: React.ReactNode;
+  /** 있으면 «태그별» 칩 바로 뒤에 톱니(태그 관리)를 붙인다 */
+  onManageTags?: () => void;
+  manageTagsLabel?: string;
 }
 
 const PopoutViewChips: React.FC<PopoutViewChipsProps> = ({
-  value, onChange, hasAnyTag, hasAnyProject, labels, groupLabel, trailing, leading,
+  value, onChange, hasAnyTag, hasAnyProject, labels, groupLabel, trailing, leading, onManageTags, manageTagsLabel,
 }) => {
   const opts: PopoutView[] = [
     ...(hasAnyTag ? ['tag' as const] : []),
@@ -73,14 +88,25 @@ const PopoutViewChips: React.FC<PopoutViewChipsProps> = ({
     //   보기 기준 셋 + 완료 가리기를 **왼쪽에 모으고**, 정렬만 오른쪽 끝으로 민다.
     <Row role="group" aria-label={groupLabel}>
       {(opts.length >= 2 ? opts : []).map((o) => (
-        <Chip
-          key={o}
-          type="button"
-          $active={value === o}
-          aria-pressed={value === o}
-          data-testid={`task-popout-view-${o}`}
-          onClick={() => onChange(o)}
-        >{labels[o]}</Chip>
+        <React.Fragment key={o}>
+          <Chip
+            type="button"
+            $active={value === o}
+            aria-pressed={value === o}
+            data-testid={`task-popout-view-${o}`}
+            onClick={() => onChange(o)}
+          >{labels[o]}</Chip>
+          {o === 'tag' && onManageTags && (
+            <ManageBtn type="button" data-testid="task-popout-tag-manage" onClick={onManageTags}
+              aria-label={manageTagsLabel} title={manageTagsLabel}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+                strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <circle cx="12" cy="12" r="3" />
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+              </svg>
+            </ManageBtn>
+          )}
+        </React.Fragment>
       ))}
       {trailing}
       {leading && <Trailing>{leading}</Trailing>}

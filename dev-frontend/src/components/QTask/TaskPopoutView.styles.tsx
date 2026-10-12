@@ -18,9 +18,6 @@ export const Head = styled.div`
   background: #FFFFFF; border-bottom: 1px solid #E2E8F0;
   flex-shrink: 0;
 `;
-export const HeadTitle = styled.h1`
-  margin: 0; font-size: 1.125rem; font-weight: 700; letter-spacing: -0.2px; color: #0F172A;
-`;
 // #258 — 헤더의 "Q Task 열기". 보조 액션이라 3톤 중 Secondary 톤(테두리+무채색)으로 둔다.
 export const GoMainBtn = styled.button`
   flex-shrink: 0; height: 28px; padding: 0 10px;
@@ -33,10 +30,23 @@ export const GoMainBtn = styled.button`
 `;
 export const HeadRight = styled.div`
   margin-left: auto;
-  display: flex; align-items: center; gap: 10px;
+  display: flex; align-items: center; gap: 8px; flex-shrink: 0;
 `;
 export const HeadMeta = styled.span`
   font-size: 0.75rem; color: #64748B; white-space: nowrap;
+  /* 좁은 창에선 제목 칸을 지킨다 — 숫자는 제목에 마우스를 올리면 보인다(PopoutScopeTitle hint). */
+  @media (max-width: 459px) { display: none; }
+`;
+// 헤더의 보기 밀도 아이콘 — 핀(32px)과 같은 크기로 나란히 선다.
+export const HeadIconBtn = styled.button<{ $active: boolean }>`
+  flex-shrink: 0; width: 32px; height: 32px; padding: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  color: ${p => (p.$active ? '#0F766E' : '#64748B')};
+  background: ${p => (p.$active ? '#F0FDFA' : 'transparent')};
+  border: 1px solid ${p => (p.$active ? '#99F6E4' : '#E2E8F0')};
+  border-radius: 8px; cursor: pointer;
+  &:hover { background: ${p => (p.$active ? '#CCFBF1' : '#F8FAFC')}; }
+  &:focus-visible { outline: 2px solid rgba(15,118,110,0.5); outline-offset: 2px; }
 `;
 // 태그 그룹 헤더 — 태그순 모드에서 대표 태그가 바뀌는 지점 (#237 "태그별로 시각적으로")
 export const TagGroupHead = styled.div<{ $color: string }>`
@@ -44,22 +54,6 @@ export const TagGroupHead = styled.div<{ $color: string }>`
   margin: 8px 0 2px; padding: 2px 0 2px 8px;
   border-left: 3px solid ${p => p.$color};
   font-size: 0.6875rem; font-weight: 700; color: #64748B; letter-spacing: 0.2px;
-`;
-// 오늘/이번 주 세그먼트 — 팝아웃 폭(≈520px)에서 한 줄. 헤더 아래 고정.
-export const TabRow = styled.div`
-  /* ★ 좌우 12px — 아래 보기 칩(8px 12px 0)·목록(12px) 과 **같은 축**에 서야 한다.
-     10px 이면 탭만 2px 씩 밖으로 나가 "우측으로 너무 나가버린다"(운영 #280). */
-  display: flex; gap: 4px; padding: 6px 12px 0;
-  flex-shrink: 0;
-`;
-export const TabBtn = styled.button<{ $active: boolean }>`
-  flex: 1; height: 30px; padding: 0 10px;
-  font-size: 0.75rem; font-weight: ${p => (p.$active ? 700 : 600)};
-  color: ${p => (p.$active ? '#0F766E' : '#64748B')};
-  background: ${p => (p.$active ? '#F0FDFA' : 'transparent')};
-  border: 1px solid ${p => (p.$active ? '#99F6E4' : '#E2E8F0')};
-  border-radius: 8px; cursor: pointer; font-family: inherit;
-  &:hover { background: ${p => (p.$active ? '#CCFBF1' : '#F8FAFC')}; }
 `;
 export const Body = styled.div`
   flex: 1; min-height: 0; overflow-y: auto;
@@ -305,20 +299,8 @@ export const PrioGapHint = styled.div`
   background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px;
   font-size: 0.6875rem; line-height: 1.5; color: #64748B;
 `;
-// 완료 가리기 — Q Task 리스트의 HideCheck 와 같은 감각(작은 체크박스 + 라벨).
-//   보기 칩 줄 위에 놓아 "무엇을 보여줄지" 를 먼저 정하고 "어떻게 나열할지" 로 넘어가게 한다.
-// 태그 사전 관리 진입 — 칩 줄 오른쪽, 완료 가리기 옆. 칩과 같은 높이(28)로 줄을 안 흔든다.
-// 칩 줄에 서는 보조 버튼. 규격을 다시 적지 않고 같은 줄의 GoMainBtn 을 **상속**한다 —
-// 손으로 베끼면 갈라진다(2026-09-08: 높이만 따로 적었다가 규격 래칫에 걸렸다).
-// 칩 줄이라 모서리만 알약으로 바꾼다.
-export const PopoutTagManageBtn = styled(GoMainBtn)`
-  margin-right: 8px; padding: 0 8px;
-  border-radius: 999px;
-  font-size: 0.6875rem; color: #64748B;
-  &:hover { border-color:#CBD5E1; color:#0F172A; }
-`;
 export const DoneFilterLabel = styled.label`
-  display:inline-flex; align-items:center; gap:6px; cursor:pointer;
+  display:inline-flex; align-items:center; gap:6px; cursor:pointer; white-space:nowrap; flex-shrink:0;
   font-size:0.75rem; font-weight:600; color:#64748B; user-select:none;
   input { width:14px; height:14px; accent-color:#14B8A6; cursor:pointer; }
   &:hover { color:#0F172A; }
@@ -393,17 +375,6 @@ export const CompactProject = styled(MetaChip)`
   max-width: 96px; overflow: hidden; text-overflow: ellipsis;
 `;
 /* 보기 밀도 토글 — 오늘/이번 주 탭 줄 오른쪽 끝(두 탭 공통). 탭 버튼과 같은 높이·테두리 언어. */
-export const DensityBtn = styled.button<{ $active: boolean }>`
-  /* 높이는 같은 줄의 탭 버튼을 따른다(stretch) — 숫자를 다시 적으면 규격 래칫이 오르고 둘이 갈라진다 */
-  flex-shrink: 0; width: 30px; align-self: stretch; padding: 0;
-  display: inline-flex; align-items: center; justify-content: center;
-  color: ${p => (p.$active ? '#0F766E' : '#64748B')};
-  background: ${p => (p.$active ? '#F0FDFA' : 'transparent')};
-  border: 1px solid ${p => (p.$active ? '#99F6E4' : '#E2E8F0')};
-  border-radius: 8px; cursor: pointer;
-  &:hover { background: ${p => (p.$active ? '#CCFBF1' : '#F8FAFC')}; }
-  &:focus-visible { outline: 2px solid rgba(15,118,110,0.5); outline-offset: 2px; }
-`;
 export const DensityIcon: React.FC<{ compact: boolean }> = ({ compact }) => (
   <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
     {compact

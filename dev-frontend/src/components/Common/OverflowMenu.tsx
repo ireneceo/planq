@@ -131,13 +131,13 @@ const TriggerText = styled.span`
   padding:0 10px;font-size:0.75rem;font-weight:600;line-height:1;
   max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
 `;
-const Menu = styled.div`
+export const Menu = styled.div`
   position:fixed;min-width:200px;max-height:70vh;overflow-y:auto;
   background:#FFFFFF;border:1px solid #E2E8F0;border-radius:10px;
   box-shadow:0 8px 24px rgba(15,23,42,0.12);
   padding:6px;z-index:9000;display:flex;flex-direction:column;
 `;
-const MenuItem = styled.button<{ $danger?: boolean }>`
+export const MenuItem = styled.button<{ $danger?: boolean }>`
   display:inline-flex;align-items:center;gap:10px;
   padding:8px 12px;background:transparent;border:none;border-radius:6px;
   font-size:0.8125rem;font-weight:500;
@@ -155,6 +155,6 @@ const MenuGroupLabel = styled.div`
   letter-spacing:-0.1px;white-space:nowrap;
 `;
 // 체크는 항목 **오른쪽 끝**에 — 라벨 길이가 달라도 한 줄에 정렬된다.
-const MenuCheck = styled.span`
+export const MenuCheck = styled.span`
   margin-left:auto;padding-left:14px;display:inline-flex;align-items:center;color:#0F766E;
 `;
