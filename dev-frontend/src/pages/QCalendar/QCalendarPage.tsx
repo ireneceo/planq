@@ -15,7 +15,7 @@ import PersonalEventDrawerHost from './PersonalEventDrawerHost';
 import { responsiveDrawerWidth } from '../../utils/responsiveDrawer';
 import NewEventModal from './NewEventModal';
 import { parseVoiceWhen, takeVoiceHandoff, type VoiceHandoff } from '../../utils/voiceHandoff';
-import type { CalendarEvent, CalendarViewMode, CalendarScope, CalendarItem, PersonalCalendarEvent } from './types';
+import type { CalendarEvent, CalendarViewMode, CalendarItem, PersonalCalendarEvent } from './types';
 import {
   addDays, addMonths, getWeekDays, startOfDay, startOfMonth, startOfWeek, toDateKey,
 } from './dateUtils';
@@ -25,7 +25,7 @@ import {
   createMeetingRoom, listTasksForCalendar,
 } from '../../services/calendar';
 import { listProjects } from '../../services/qtalk';
-import { taskToEvent, isTaskEvent, isPersonalEvent, personalToEvent, TASK_EVENT_ID_OFFSET } from './taskToEvent';
+import { taskToEvent, isTaskEvent, personalToEvent, TASK_EVENT_ID_OFFSET } from './taskToEvent';
 import TaskDetailDrawer from '../../components/QTask/TaskDetailDrawer';
 import { apiFetch } from '../../contexts/AuthContext';
 import DetailFallbackDrawer from '../../components/Common/DetailFallbackDrawer';
@@ -42,6 +42,7 @@ import CalendarProjectFilter, { byProject } from './ProjectFilter';
 import CalendarFrame, { useCalendarOptions } from './CalendarFrame';
 import { useWallNow } from './pastLook';
 import { useUrlDetailParams } from './useUrlDetailParams';
+import { useCalendarLayers, layerOf, layersParam, CalendarLayerChips, type PersonalCalSource } from './calendarLayers';
 
 interface ProjectOption { id: number; name: string; color?: string | null }
 
@@ -62,7 +63,7 @@ const QCalendarPage: React.FC<{ scope?: { type: 'project'; businessId: number; p
   const [anchor, setAnchor] = useState<Date>(initial.date);
   const holidays = useWorkspaceHolidays(bizId, anchor);   // #424 — 휴일 표시(정본: 설정 › 근태 관리)
   const [view, setView] = useState<CalendarViewMode>(initial.view);
-  const [scope, setScope] = useState<CalendarScope>(initial.scope);
+  const { layers, toggle: toggleLayer } = useCalendarLayers(location.search, embedded);   // 개인·팀·업무·Google (calendarLayers)
   const [projectId, setProjectId] = useState<number | null>(pageScope ? pageScope.projectId : initial.projectId);
   const [selectedEventId, setSelectedEventId] = useState<number | null>(initial.eventId);
   // N+63 P2a 후속 — 사용자가 클릭한 instance 의 date (YYYY-MM-DD). EventDrawer modal single 선택 시 사용
@@ -106,7 +107,8 @@ const QCalendarPage: React.FC<{ scope?: { type: 'project'; businessId: number; p
   // 개인 Google 일정 상세 (읽기 전용 패널) — 재클릭 시 닫힘 (리스트 재클릭 토글 규칙)
   const [selectedPersonalId, setSelectedPersonalId] = useState<string | null>(null);
 
-  const [showPersonal, setShowPersonal] = useState(true);
+  const showPersonal = layers.has('google');
+  const [personalSources, setPersonalSources] = useState<PersonalCalSource[]>([]);   // 어느 계정의 어느 캘린더인지(칩 이름)
   const [projects, setProjects] = useState<ProjectOption[]>([]);
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -175,15 +177,13 @@ const QCalendarPage: React.FC<{ scope?: { type: 'project'; businessId: number; p
     setLoading(true); setErrorMsg(null);
     try {
       const { start: rangeStart, end: rangeEnd } = viewRange(view, anchor, weekStart);   // 벽시계 날짜 경계
-      // 서버 scope 는 all/mine 만 의미있음 — tasks/events 필터는 클라 전용
-      const serverScope: 'all' | 'mine' = scope === 'mine' ? 'mine' : 'all';
       // 범위 = 벽시계 날짜 경계 → 실제 시각으로(기기 시계로 보내면 먼 시간대에서 그날이 빠진다 — 실측)
       const startIso = wallDateToIso(rangeStart, wsTz);
       const endIso = wallDateToIso(rangeEnd, wsTz);
       const list = await listEvents(bizId, {
         start: startIso,
         end: endIso,
-        scope: serverScope,
+        scope: 'all',   // 분류(개인·팀·업무·Google)는 화면이 가른다
       });
       setEvents(list);
 
@@ -194,6 +194,7 @@ const QCalendarPage: React.FC<{ scope?: { type: 'project'; businessId: number; p
             `/api/me/calendar/events?business_id=${bizId}&start=${startIso}&end=${endIso}`
           );
           const j = await r.json();
+          if (j.success) setPersonalSources(j.data?.connections || []);
           if (j.success) setPersonalEvents((j.data?.events || []).map((raw: Parameters<typeof personalToEvent>[0]) => personalToEvent(raw, t('event.untitled', { defaultValue: '(제목 없음)' }))));
           else setPersonalEvents([]);
         } catch { setPersonalEvents([]); }
@@ -205,7 +206,7 @@ const QCalendarPage: React.FC<{ scope?: { type: 'project'; businessId: number; p
     } finally {
       setLoading(false);
     }
-  }, [bizId, view, anchor, scope, personalConnected, showPersonal, weekStart, wsTz]);
+  }, [bizId, view, anchor, personalConnected, showPersonal, weekStart, wsTz]);
 
   // 구글에서 당겨온 변경이 있으면 화면을 다시 그린다.
   const pullFromGoogle = useCallback(async () => {
@@ -277,34 +278,19 @@ const QCalendarPage: React.FC<{ scope?: { type: 'project'; businessId: number; p
     //   agenda 로 되돌아가던 문제. 디바이스 기본값은 무파라미터 최초 방문에만 적용(readUrl defaultView).
     p.set('view', view);
     p.set('date', toDateKey(anchor));
-    if (scope !== 'all') p.set('scope', scope);
+    const lp = layersParam(layers); if (lp) p.set('layers', lp);
     if (projectId) p.set('project', String(projectId));
     if (selectedEventId != null) p.set('event', String(selectedEventId));
     if (selectedTaskId != null) p.set('task', String(selectedTaskId));
     const qs = p.toString();
     navigate({ pathname: '/calendar', search: qs ? `?${qs}` : '' }, { replace: true });
-  }, [embedded, view, anchor, scope, projectId, selectedEventId, selectedTaskId, navigate]);
+  }, [embedded, view, anchor, layers, projectId, selectedEventId, selectedTaskId, navigate]);
 
-  // 4필터 적용 — events + task-as-events + 개인 Google 일정 통합
+  // 분류 적용 — events + task-as-events + 개인 Google 일정. 한 일정 = 한 분류(layerOf).
   const filteredEvents = useMemo<CalendarItem[]>(() => {
     const personal: CalendarItem[] = (personalConnected && showPersonal) ? personalEvents : [];
-    const merged: CalendarItem[] = byProject([...events, ...taskEvents, ...personal], projectId);
-    // 업무 탭은 업무만 (개인 일정 제외), 일정 탭은 일정(개인 포함)
-    if (scope === 'events') return merged.filter((e) => !isTaskEvent(e));
-    if (scope === 'tasks') return merged.filter(isTaskEvent);
-    if (scope === 'mine' && myUserId) {
-      return merged.filter((e) => {
-        if (isPersonalEvent(e)) return true; // 개인 캘린더 = 항상 본인 일정
-        if (isTaskEvent(e)) {
-          // 업무: 담당자 OR 생성자 (= 본인이 직접 관련된 업무)
-          const t = e as { assignee_id?: number | null; created_by?: number | null };
-          return t.assignee_id === myUserId || t.created_by === myUserId;
-        }
-        return e.created_by === myUserId || (e.attendees || []).some((a) => a.user_id === myUserId);
-      });
-    }
-    return merged;
-  }, [events, taskEvents, personalEvents, personalConnected, showPersonal, scope, myUserId, projectId]);
+    return byProject([...events, ...taskEvents, ...personal], projectId).filter((e) => layers.has(layerOf(e)));
+  }, [events, taskEvents, personalEvents, personalConnected, showPersonal, layers, projectId]);
 
   const listedEvent = useMemo(
     () => (selectedEventId != null ? events.find((e) => e.id === selectedEventId) || null : null),
@@ -503,20 +489,10 @@ const QCalendarPage: React.FC<{ scope?: { type: 'project'; businessId: number; p
 
   const days = view === 'week' ? getWeekDays(anchor, weekStart) : view === 'day' ? [anchor] : [];
 
-  const { viewOptions, scopeOptions } = useCalendarOptions();
+  const { viewOptions } = useCalendarOptions();
 
   const headerActions = (
     <ActionsRow>
-      <PlanQSelect size="sm"
-        value={scopeOptions.find(o => o.value === scope)}
-        onChange={(opt: unknown) => {
-          const v = (opt as { value?: CalendarScope } | null)?.value;
-          if (v) setScope(v);
-        }}
-        options={scopeOptions}
-        isSearchable={false}
-        menuPlacement="bottom"
-      />
       {!embedded && <CalendarProjectFilter projects={projects} value={projectId} onChange={setProjectId} />}
       <PlanQSelect size="sm"
         value={viewOptions.find(o => o.value === view)}
@@ -570,18 +546,8 @@ const QCalendarPage: React.FC<{ scope?: { type: 'project'; businessId: number; p
             </svg>
           </NavIconBtn>
         </ToolbarLeft>
-        {personalConnected && (
-          <PersonalToggle
-            type="button"
-            $on={showPersonal}
-            onClick={() => setShowPersonal((v) => !v)}
-            aria-pressed={showPersonal}
-            title={t('personalCalendarHint', { defaultValue: '내 Google 캘린더 일정 표시/숨김' }) as string}
-          >
-            <PersonalDot />
-            {t('personalCalendar', { defaultValue: '내 캘린더' }) as string}
-          </PersonalToggle>
-        )}
+        <CalendarLayerChips layers={layers} onToggle={toggleLayer}
+          googleConnected={personalConnected} googleSources={personalSources} />
       </Toolbar>
 
       <ViewWrap $agenda={view === 'agenda'}>
@@ -718,29 +684,10 @@ const NewEventText = styled.span`
 `;
 
 const Toolbar = styled.div`
-  display: flex; align-items: center; justify-content: space-between;
+  display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;
   padding: 6px 0 14px;
 `;
 const ToolbarLeft = styled.div` display: flex; align-items: center; gap: 6px; `;
-// 개인 Google 캘린더 overlay 토글 (violet) — 회사 일정(teal)과 색 분리
-const PersonalToggle = styled.button<{ $on: boolean }>`
-  display: inline-flex; align-items: center; gap: 6px;
-  height: 30px; padding: 0 12px;
-  border-radius: 999px;
-  font-size: 0.75rem; font-weight: 600;
-  cursor: pointer;
-  transition: background 0.12s, border-color 0.12s, opacity 0.12s;
-  border: 1px solid ${(p) => (p.$on ? '#5EEAD4' : '#E2E8F0')};
-  background: ${(p) => (p.$on ? '#F0FDFA' : '#FFFFFF')};
-  color: ${(p) => (p.$on ? '#0F766E' : '#94A3B8')};
-  opacity: ${(p) => (p.$on ? 1 : 0.7)};
-  &:hover { border-color: #5EEAD4; }
-  &:focus-visible { outline: 2px solid #14B8A6; outline-offset: 2px; }
-`;
-const PersonalDot = styled.span`
-  width: 8px; height: 8px; border-radius: 50%;
-  background: #14B8A6; flex-shrink: 0;
-`;
 const TodayBtn = styled.button`
   padding: 6px 12px; border: 1px solid #CBD5E1; border-radius: 6px;
   background: #fff; color: #0F172A; font-size: 0.78125rem; font-weight: 600; cursor: pointer;

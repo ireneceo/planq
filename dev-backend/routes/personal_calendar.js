@@ -22,6 +22,14 @@ async function assertBusinessMember(req, bizId) {
   return !!bm;
 }
 
+// 이 연결이 화면에 보여 주는 캘린더 — 지금은 «올릴 캘린더» 와 같은 하나다(personalCalendar.listEvents).
+//   이름은 고를 때 저장해 둔 것(없으면 기본 캘린더). 화면이 «어떤 캘린더가 보이는지» 를 적는 근거다.
+function calendarLabelOf(conn) {
+  const id = personalCalendar.calendarIdOf(conn);
+  const meta = (conn.metadata && typeof conn.metadata === 'object') ? conn.metadata : {};
+  return { calendar_id: id, calendar_primary: id === 'primary', calendar_summary: id === 'primary' ? null : (meta.calendar_summary || null) };
+}
+
 // ─── Phase 2 — 개인 Google Calendar overlay ──────────────
 // GET /api/me/calendar/events?business_id=&start=&end=
 // → 본인 연결된 개인 Google 캘린더 일정 (정규화). Q Calendar 가 violet overlay 로 표시.
@@ -68,12 +76,12 @@ router.get('/me/calendar/events', authenticateToken, async (req, res, next) => {
       try {
         const evs = await personalCalendar.listEvents(conn, { timeMin, timeMax, excludeIds });
         events.push(...evs);
-        connections.push({ id: conn.id, account_email: conn.account_email, ok: true });
+        connections.push({ id: conn.id, account_email: conn.account_email, ok: true, ...calendarLabelOf(conn) });
         if (conn.last_sync_error || conn.fail_count) await conn.update({ last_sync_error: null, fail_count: 0, last_sync_at: new Date() });
         else await conn.update({ last_sync_at: new Date() });
       } catch (e) {
         console.error('[me/calendar/events] fetch failed conn=' + conn.id, e.message);
-        connections.push({ id: conn.id, account_email: conn.account_email, ok: false, error: e.message });
+        connections.push({ id: conn.id, account_email: conn.account_email, ok: false, error: e.message, ...calendarLabelOf(conn) });
         await conn.update({ last_sync_error: e.message, fail_count: (conn.fail_count || 0) + 1 }).catch(() => {});
       }
     }
@@ -256,8 +264,10 @@ router.put('/me/calendar/calendar-id', authenticateToken, async (req, res, next)
     const prev = personalCalendar.calendarIdOf(conn);
     const meta = { ...(typeof conn.metadata === 'object' && conn.metadata ? conn.metadata : {}) };
     meta.calendar_id = hit.primary ? 'primary' : hit.id;
+    // 이름도 같이 둔다 — 캘린더 화면이 «지금 어느 캘린더를 보는지» 를 말하는 데 쓴다(목록 권한 없이도). 2026-10-12
+    meta.calendar_summary = hit.primary ? null : (hit.summary || null);
     const next = meta.calendar_id;
-    if (prev !== next) {
+    if (prev !== next || (conn.metadata?.calendar_summary ?? null) !== meta.calendar_summary) {
       await conn.update({ metadata: meta, gcal_sync_token: null });
       await writeAudit({ user_id: req.user.id, business_id: conn.business_id ?? null, action: 'external_connection.calendar_select',
         target_type: 'external_connection', target_id: conn.id, old_value: { calendar_id: prev }, new_value: { calendar_id: next } }).catch(() => null);

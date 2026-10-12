@@ -31,13 +31,7 @@ export function useCalendarOptions() {
     { value: 'week', label: t('view.week') },
     { value: 'day', label: t('view.day') },
   ], [t]);
-  const scopeOptions = useMemo(() => [
-    { value: 'all', label: t('filter.all') },
-    { value: 'mine', label: t('filter.mine') },
-    { value: 'tasks', label: t('filter.tasks') },
-    { value: 'events', label: t('filter.events') },
-  ], [t]);
-  return { viewOptions, scopeOptions };
+  return { viewOptions };
 }
 
 const Embedded = styled.div`

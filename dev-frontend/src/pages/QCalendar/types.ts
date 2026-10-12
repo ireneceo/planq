@@ -77,7 +77,6 @@ export interface CalendarEvent {
 }
 
 export type CalendarViewMode = 'agenda' | 'month' | 'week' | 'day';
-export type CalendarScope = 'all' | 'mine' | 'tasks' | 'events';
 
 // Q Task 업무를 캘린더 이벤트로 변환한 가상 이벤트 (클릭 시 Q Task 페이지로 이동)
 export interface TaskAsEvent extends CalendarEvent {

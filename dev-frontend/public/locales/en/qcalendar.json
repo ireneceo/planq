@@ -366,5 +366,18 @@
   "event": {
     "untitled": "(Untitled)"
   },
-  "exceptionMark": "Changed occurrence"
+  "exceptionMark": "Changed occurrence",
+  "layer": {
+    "group": "Show",
+    "personal": "Personal",
+    "personalHint": "Events only you can see",
+    "team": "Team",
+    "teamHint": "Events shared with your team or projects",
+    "task": "Tasks",
+    "taskHint": "Due dates of Q task tasks",
+    "googleDefault": "Default calendar",
+    "googleNamed": "Google · {{name}}",
+    "googleHint": "Your Google Calendar events — only this one calendar is shown for now",
+    "help": "Only the categories you turn on are shown. You can turn on several.\n· Personal — events only you can see\n· Team — events shared with your team or projects\n· Tasks — due dates of Q task tasks\n· Google — your connected Google Calendar (only the chosen calendar for now. Change it in My integrations › Google Calendar)"
+  }
 }
