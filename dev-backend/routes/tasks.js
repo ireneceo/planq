@@ -498,6 +498,50 @@ router.post('/ai-create', authenticateToken, aiCreateModeLimiter, async (req, re
 // body: { business_id, project_id?, candidates: [...] }
 // response: { created: [Task...], count }
 // ============================================
+// Cue 대화 업무 묶음 확정 — 2026-10-12 Fable 설계 (다).
+//   행의 cue_args = /help 가 proposeOne 으로 검증·미리보기한 create_task 인자. 사람이 카드에서 고친 칸만 덮고
+//   cue_tools.executeTool(create_task) 로 **한 건씩** 실행한다 — 담당자 배정 가능·태그·컨펌자(D1)·출처 연결·감사가
+//   Cue 카드 한 장과 똑같다. 클라이언트가 보낸 인자는 실행 문이 레지스트리 zod(.strict)로 다시 검증한다.
+//   부분 실패: 만든 것은 되돌리지 않고 created[]·failed[] 로 행별로 돌려준다. 계량은 묶음을 낸 /help 턴 1회(행 0).
+async function confirmCueBatch(req, res, { business_id, candidates, base_date }) {
+  if (process.env.CUE_TOOLS_ENABLED === '0') return errorResponse(res, 'tools_disabled', 403);
+  const bm = await BusinessMember.findOne({ where: { user_id: req.user.id, business_id, removed_at: null } });
+  if (!bm || ['client', 'ai'].includes(bm.role)) return errorResponse(res, 'forbidden — members only', 403);
+  const planEngine = require('../services/plan');
+  const can = await planEngine.can(business_id, 'use_cue', { actions: 1 });
+  if (!can.ok) return res.status(422).json(planEngine.buildQuotaError(can, business_id));
+  const cueTools = require('../services/cue_tools');
+  const base = /^\d{4}-\d{2}-\d{2}$/.test(String(base_date || '')) ? base_date : todayInTz(await getWorkspaceTz(business_id));
+  const actor = { kind: 'user', userId: req.user.id, platformRole: req.user.platform_role, req };
+  const created = []; const failed = [];
+  for (const [i, c] of candidates.entries()) {
+    const index = Number.isInteger(c?.idx) ? c.idx : i;
+    const src = c && c.cue_args && typeof c.cue_args === 'object' && !Array.isArray(c.cue_args) ? c.cue_args : {};
+    const args = { ...src };
+    delete args.confirmation_token; delete args.idempotency_key;
+    const title = String(c?.title || '').trim();
+    if (title) args.title = title.slice(0, 300);
+    if (Number(c?.assignee_user_id)) args.assignee_user_id = Number(c.assignee_user_id); else delete args.assignee_user_id;
+    if (Number.isInteger(c?.due_offset_days)) args.due_date = addDaysStr(base, c.due_offset_days); else delete args.due_date;
+    if (src.start_date && Number.isInteger(c?.start_offset_days)) args.start_date = addDaysStr(base, c.start_offset_days);
+    else delete args.start_date;
+    // 예상 시간은 담당자 본인만 정한다(§5.7) — 남에게 넘긴 행은 값을 빼고 만든다(행 전체를 실패시키지 않는다)
+    const est = Number(c?.estimated_hours);
+    if (Number.isFinite(est) && est > 0 && (!args.assignee_user_id || args.assignee_user_id === req.user.id)) args.estimated_hours = est;
+    else delete args.estimated_hours;
+    if (['low', 'normal', 'high', 'urgent'].includes(c?.priority)) args.priority = c.priority; else delete args.priority;
+    if (c?.completed === true) args.completed = true; else delete args.completed;
+    const r = await cueTools.executeTool(actor, business_id, 'create_task', args, { batch: true });
+    if (!r.ok) { failed.push({ index, reason: r.code }); continue; }
+    created.push({
+      idx: index, id: r.data.entity_id, title: args.title, replayed: r.data.replayed || false,
+      ...(r.data.reviewers_failed ? { reviewers_failed: r.data.reviewers_failed } : {}),
+      ...(r.data.completed_skipped ? { completed_skipped: r.data.completed_skipped } : {}),
+    });
+  }
+  return successResponse(res, { created, failed, count: created.length });
+}
+
 router.post('/ai-create/confirm', authenticateToken, async (req, res, next) => {
   try {
     const { business_id, project_id, candidates, base_date, context, mode: confirmMode, areas } = req.body;
@@ -513,10 +557,12 @@ router.post('/ai-create/confirm', authenticateToken, async (req, res, next) => {
     }
     // #354 — 후보 수 상한. 여태 상한이 **없어서** 조작된 요청 하나로 수백 건이 생성될 수 있었다.
     //   루틴이든 아니든 같은 캡을 건다.
-    const MAX_CONFIRM_CANDIDATES = 40;
+    const { MAX_CONFIRM_CANDIDATES } = require('../services/aiTaskPlanner');   // Cue 업무 묶음과 같은 값 하나
     if (candidates.length > MAX_CONFIRM_CANDIDATES) {
       return errorResponse(res, `too_many_candidates (max ${MAX_CONFIRM_CANDIDATES})`, 400);
     }
+    // 2026-10-12 — Cue 대화의 업무 묶음(task_batch). 행마다 Cue 카드와 같은 실행 문(create_task)을 지난다.
+    if (String(confirmMode || '') === 'cue_batch') return confirmCueBatch(req, res, { business_id, candidates, base_date });
     const isRoutineConfirm = String(confirmMode || '') === 'routine';
     if (isRoutineConfirm && !project_id) return errorResponse(res, 'project_id required for routine mode', 400);
 

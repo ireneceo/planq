@@ -1139,6 +1139,13 @@
     "projectLabel": "프로젝트",
     "projectNone": "선택 안 함 (워크스페이스 업무)",
     "confirmOne": "추가",
+    "noDue": "마감 없음",
+    "batch": {
+      "partial": "{{added}}개를 추가했어요. {{failed}}개는 추가하지 못했어요 — 고쳐서 다시 추가해 주세요.",
+      "rowFailed": "이 업무는 추가하지 못했어요 — 담당자·날짜를 확인해 주세요",
+      "addedSoFar": "{{n}}개는 이미 추가했어요",
+      "addWithReviewers": "{{n}}개 추가 · 컨펌자 {{m}}명에게 알림"
+    },
     "title": "AI 로 업무추가",
     "contextProject": "프로젝트 컨텍스트가 자동 주입돼요.",
     "contextWorkspace": "워크스페이스 멤버 정보가 자동 주입돼요.",

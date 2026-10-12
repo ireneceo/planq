@@ -168,8 +168,11 @@ async function runTool(p, name, rawArgs, opts = {}) {
 
     if (tool.write) {
       await store.update('agent_idem', idemKey, { status: 'done', result: data, ...target }).catch(() => {});
-      const { recordUsage } = require('../cue_orchestrator');
-      recordUsage(p.businessId, 'agent_tool', 'gpt-4.1-nano', 0, 0).catch((e) => console.warn('[agent usage]', e.message));
+      // Cue 업무 묶음의 행(p.meter === false, provider cue 한정)은 계량하지 않는다 — 묶음을 낸 /help 턴이 1회 계량했다.
+      if (!(p.provider === 'cue' && p.meter === false)) {
+        const { recordUsage } = require('../cue_orchestrator');
+        recordUsage(p.businessId, 'agent_tool', 'gpt-4.1-nano', 0, 0).catch((e) => console.warn('[agent usage]', e.message));
+      }
     }
     if (!quiet) audit(p, name, args, { ok: true, ...target });
     return { ok: true, ...data };

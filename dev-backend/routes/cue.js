@@ -409,7 +409,10 @@ router.post('/help', authenticateToken, ...helpLimiter, async (req, res, next) =
     // ★ 2026-10-08 0-G — «제안» 은 무과금. 답이 실행 카드(proposed_action)면 여기서 기록하지 않는다 —
     //   사용자가 [추가] 를 누르면 execute-action 이 1회 기록한다(옛: 제안 1 + 실행 1 = 2회 차감).
     //   제안만 받고 실행하지 않은 것은 사용자가 아직 아무것도 얻지 못한 단계다. 그냥 답(카드 없음)은 위 판정대로 기록.
-    if (finalMode === 'workspace' && workspaceBizId && !proposedAction) {
+    // 업무 묶음(task_batch)은 예외 — 확정(/ai-create/confirm cue_batch)이 행마다 계량하지 않으므로 이 턴이 1회 계량한다
+    //   (Fable 2026-10-12 (다) 5: Cue 바와 같이 «정리 1회 · 추가 0»).
+    const hasBatch = proposedActions.some((x) => x && x.tool === 'task_batch');
+    if (finalMode === 'workspace' && workspaceBizId && (!proposedAction || hasBatch)) {
       const { recordUsage } = require('../services/cue_orchestrator');
       recordUsage(workspaceBizId, 'help', usedModel, input_tokens || 0, output_tokens || 0)
         .catch((e) => console.warn('[cue/help usage]', e.message));

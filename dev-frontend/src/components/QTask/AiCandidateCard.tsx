@@ -13,10 +13,12 @@ export interface AiCandidate {
   idx: number;
   title: string;
   description?: string;
-  estimated_hours: number;
+  /** null = 정하지 않음(Cue 대화 업무 묶음 — create_task 는 예상시간이 선택이다) */
+  estimated_hours: number | null;
   duration_days: number;
   start_offset_days: number;
-  due_offset_days: number;
+  /** null = 마감 없음(Cue 대화 업무 묶음 — 사용자가 마감을 말하지 않았으면 만들지 않는다) */
+  due_offset_days: number | null;
   priority: string;
   /** 정기 루틴 — 'none' | 'daily' | 'weekly' | 'monthly'. 마감일이 첫 발생일이 된다. */
   recurrence?: string;
@@ -86,12 +88,14 @@ interface Props {
    *  ★ 생성은 반드시 기존 라우트(POST /api/projects/:id/workstreams)를 통한다 —
    *    여기서 새 문을 내면 그 라우트의 소속·권한 검사를 우회하게 된다. */
   onCreateGroup?: (title: string) => Promise<AiCardWorkstream | null>;
+  /** 반복 선택을 숨긴다 — 그 확정 경로가 반복을 저장하지 않을 때(Cue 대화 업무 묶음). 저장 안 될 값을 약속하지 않는다. */
+  hideRecurrence?: boolean;
 }
 
 // 셀렉트에서 '새로 만들기' 를 나타내는 자리표 — 실제 id 와 섞이지 않게 숫자가 아닌 값을 쓴다.
 const NEW_GROUP = '__new__';
 
-export default function AiCandidateCard({ candidate: c, members, baseDate, onChange, hasProject = false, workstreams = [], onCreateGroup }: Props) {
+export default function AiCandidateCard({ candidate: c, members, baseDate, onChange, hasProject = false, workstreams = [], onCreateGroup, hideRecurrence = false }: Props) {
   const { t } = useTranslation('qtask');
   // 정기 루틴 선택지 — raw <select> 금지 규칙에 따라 PlanQSelect 로 그린다 (health-check 항목).
   // 운영 #263 — 담당자 이름 해석의 단일 규칙.
@@ -134,9 +138,11 @@ export default function AiCandidateCard({ candidate: c, members, baseDate, onCha
     { value: 'weekly', label: t('ai.recurWeekly', '매주') as string },
     { value: 'monthly', label: t('ai.recurMonthly', '매월') as string },
   ]), [t]);
-  const dur = Math.max(1, c.due_offset_days - c.start_offset_days);
+  const hasDue = c.due_offset_days != null;
+  const dueOff = c.due_offset_days ?? 0;
+  const dur = Math.max(1, dueOff - c.start_offset_days);
   const startDateStr = addDaysISO(baseDate, c.start_offset_days);
-  const dueDateStr = addDaysISO(baseDate, c.due_offset_days);
+  const dueDateStr = addDaysISO(baseDate, dueOff);
 
   return (
     <Card $disabled={!c.selected}>
@@ -187,6 +193,7 @@ export default function AiCandidateCard({ candidate: c, members, baseDate, onCha
       <CardMetaRow>
         <MetaItem>
           <MetaIcon><CalendarIcon size={13} /></MetaIcon>
+          {hasDue ? (<>
           <DateRange>{fmtMd(startDateStr)} → {fmtMd(dueDateStr)}</DateRange>
           <DurEdit>(
             <DurInput type="number" min={1} max={90} value={dur}
@@ -196,11 +203,12 @@ export default function AiCandidateCard({ candidate: c, members, baseDate, onCha
               }} />
             {t('ai.itemDays', '일')})
           </DurEdit>
+          </>) : <DateRange>{t('ai.noDue', '마감 없음')}</DateRange>}
         </MetaItem>
         <MetaItem>
           <MetaIcon><ClockIcon size={13} /></MetaIcon>
-          <DurInput type="number" min={1} max={80} value={c.estimated_hours}
-            onChange={e => onChange({ estimated_hours: Number(e.target.value) || 1 })} />
+          <DurInput type="number" min={1} max={80} value={c.estimated_hours ?? ''}
+            onChange={e => onChange({ estimated_hours: e.target.value === '' ? null : (Number(e.target.value) || 1) })} />
           <Unit>h</Unit>
         </MetaItem>
         {/* #353 ⑤ 중요도 — AI 가 판단한 값을 **확정 전에 사람이 정정**하는 자리.
@@ -218,7 +226,7 @@ export default function AiCandidateCard({ candidate: c, members, baseDate, onCha
             여태 후보에 반복 개념이 없어서 "매일 …" 이라고 써도 일회성으로만 생성됐다.
             ★ 완료로 추가일 때는 감춘다 — 완료된 일에 다음 회차는 없고(서버가 null 로 끊는다),
               보이는 채로 두면 화면이 저장되지 않을 값을 약속하게 된다. */}
-        {!c.completed && (c.recurrence_rule ? (
+        {!c.completed && !hideRecurrence && (c.recurrence_rule ? (
           /* #353 ① — 프리셋이 표현하지 못하는 규칙(평일만·매월 마지막 평일·분기·종료조건).
              select 로 위장하면 화면이 약속한 값과 저장되는 값이 어긋난다 → 규칙 라벨을 그대로 보여주고,
              바꾸고 싶으면 해제해서 프리셋으로 내려가게 한다. 라벨은 단일 원천(formatRRuleLabel). */

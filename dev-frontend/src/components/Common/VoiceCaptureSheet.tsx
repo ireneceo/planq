@@ -16,6 +16,7 @@ import { formatDay, formatDayTime } from '../../utils/dateFormat';
 // #458 — 만들 것(업무·일정·문서)은 Cue 와 **같은 확인 카드**로 고치고 바로 추가한다(담당자·날짜·제목 수정).
 import CueActionCard, { type CueProposal, type CueActionResult } from './CueActionCard';
 import CueMeetingLink from './CueMeetingLink';
+import CueTaskBatch, { isTaskBatch } from '../QTask/CueTaskBatch';
 import { cueActionDeepLink } from '../../hooks/useCueChat';
 
 const MAX_SECONDS = 30;
@@ -270,12 +271,22 @@ export default function VoiceCaptureSheet({ onClose }: Props) {
         {stage === 'preview' && proposal && (
           <Body $left>
             <Said>“{text}”</Said>
-            <CueActionCard
-              proposal={proposal}
-              businessId={businessId}
-              onExecuted={(r) => { setResult(r); setStage('done'); }}
-              onDismiss={onClose}
-            />
+            {isTaskBatch(proposal) ? (
+              /* 업무를 여럿 말했으면 그 한 장이 업무 목록이다(D4 «카드 한 장» 유지 — Fable 2026-10-12 (다)) */
+              <CueTaskBatch
+                proposal={proposal}
+                businessId={businessId}
+                onDone={(r) => { setResult(r); setStage('done'); }}
+                onDismiss={onClose}
+              />
+            ) : (
+              <CueActionCard
+                proposal={proposal}
+                businessId={businessId}
+                onExecuted={(r) => { setResult(r); setStage('done'); }}
+                onDismiss={onClose}
+              />
+            )}
             <Row>
               <ActionButton tone="secondary" size="md" onClick={start}>
                 {t('voice.retry', { defaultValue: '다시 말하기' }) as string}

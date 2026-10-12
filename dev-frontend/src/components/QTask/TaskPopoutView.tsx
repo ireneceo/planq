@@ -73,6 +73,7 @@ import { useTaskTagDict } from './useTaskTagDict';
 import TagManageModal from './TagManageModal';
 import PopoutViewChips, { type PopoutView } from './PopoutViewChips';
 import PopoutQuickAdd from './PopoutQuickAdd';
+import CueTaskBar from './CueTaskBar';
 import { usePopoutQuickAdd } from './usePopoutQuickAdd';
 import { createTaskTag } from './createTaskTag';
 // ★ bySortRule 은 이제 여기서 직접 안 쓴다 — bySelectedSort 가 마지막 tie-break 으로 그것을 부른다
@@ -463,6 +464,12 @@ const TaskPopoutView: React.FC<TaskPopoutViewProps> = ({ pinSlot }) => {
           onClick={toggleCompact}><DensityIcon compact={compact} /></DensityBtn>
       </TabRow>
 
+      {/* Cue 에게 말하기 — Q task 목록과 **같은 컴포넌트**(2026-10-12 Fable (다) 7). 여러 개를 나열하면 항목마다 한 건.
+          기본값은 Q task «오늘/이번 주» 탭과 같은 규칙(오늘 마감 + 이번 주 버킷) — 만든 업무가 이 목록에 남는다. */}
+      {!loading && !error && bizId && (
+        <CueTaskBar businessId={bizId} projectId={null} compact members={members}
+          defaults={{ due_date: todayStr, planned_week_start: weekStart }} />
+      )}
       {/* #258 — 퀵애드. 로딩·에러 중에는 내지 않는다(기본값의 원천인 weekStart 가 아직 없다). */}
       {!loading && !error && (
         <PopoutQuickAdd

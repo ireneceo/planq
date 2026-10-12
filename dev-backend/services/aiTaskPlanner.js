@@ -833,5 +833,8 @@ async function planTasksFromPrompt({ prompt, businessId, projectContext, members
   };
 }
 
+// AI 업무 확정 한 번에 만들 수 있는 업무 수 — 확정 라우트·Cue 업무 묶음이 같은 값을 쓴다(단일 원천)
+const MAX_CONFIRM_CANDIDATES = 40;
+
 module.exports = {
-  countEnumeratedItems, planTasksFromPrompt, detectVague, matchMemberByHint, matchMemberByName };
+  MAX_CONFIRM_CANDIDATES, countEnumeratedItems, planTasksFromPrompt, detectVague, matchMemberByHint, matchMemberByName };

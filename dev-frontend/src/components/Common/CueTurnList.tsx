@@ -6,6 +6,7 @@
 // 동작(상태·API)은 hooks/useCueChat.ts 가 갖는다. 여기는 그리기만 한다.
 import { useTranslation } from 'react-i18next';
 import CueActionCard from './CueActionCard';
+import CueTaskBatch, { isTaskBatch } from '../QTask/CueTaskBatch';
 import CueMeetingLink from './CueMeetingLink';
 import type { CueTurn } from '../../hooks/useCueChat';
 import type { CueActionResult } from './CueActionCard';
@@ -48,13 +49,15 @@ export default function CueTurnList({
                 ? <ErrorText>{tn.error}</ErrorText>
                 : <Answer>{tn.a}</Answer>}
             {/* #81 — Cue 실행 제안 확인 카드 (workspace 모드) */}
-            {/* 한 답에 카드 여러 장(최대 3, 서로 독립) — 카드마다 따로 실행·취소한다(Fable 2026-10-12 D2) */}
+            {/* 한 답에 카드 여러 장(최대 3, 서로 독립) — 카드마다 따로 실행·취소한다(Fable 2026-10-12 D2). 업무 2개 이상은 목록 한 덩이 */}
             {mode === 'workspace' && !tn.loading && !tn.error && (tn.actions || []).map((act, k) => act.status === 'dismissed' ? null : (
               <ActionSlot key={k} data-testid="cue-action-slot">
               {act.status === 'done' && act.result ? (
                 <>
                   <ActionDone>
-                    <span>✓ {act.result.replayed
+                    <span>✓ {act.result.tool === 'task_batch'
+                      ? t('qhelper.toolDone.task_batch', { n: act.result.count || 0, defaultValue: `업무 ${act.result.count || 0}개를 추가했어요` })
+                      : act.result.replayed
                       ? t('qhelper.action.replayed', '이미 처리된 요청이에요')
                       : act.result.moved_ids
                         ? t('qhelper.action.movedDone', { count: act.result.moved_ids.length, defaultValue: `일정 ${act.result.moved_ids.length}건을 옮겼어요` })
@@ -95,6 +98,14 @@ export default function CueTurnList({
                     </ActionNote>
                   )}
                 </>
+              ) : isTaskBatch(act.proposal) ? (
+                /* 업무 2개 이상 = 후보 목록 한 덩이(Cue 바와 같은 카드) — Fable 2026-10-12 (다) */
+                <CueTaskBatch
+                  proposal={act.proposal}
+                  businessId={businessId}
+                  onDone={(r) => onActionExecuted(i, k, r)}
+                  onDismiss={() => onActionDismiss(i, k)}
+                />
               ) : (
                 <CueActionCard
                   proposal={act.proposal}

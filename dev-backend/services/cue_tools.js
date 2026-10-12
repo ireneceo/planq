@@ -24,6 +24,8 @@ const { TOOLS, byName } = require('./agent/registry');
 const { runTool, proposeTool } = require('./agent/execute');
 const cfg = require('./agent_oauth/config');
 const { wallOf } = require('../utils/wallTime');
+// 업무 묶음 상한 — 확정 라우트(/api/tasks/ai-create/confirm)와 같은 값 하나(Fable 2026-10-12 (다))
+const { MAX_CONFIRM_CANDIDATES } = require('./aiTaskPlanner');
 
 // ── Cue 가 쓸 수 있는 도구(허용목록) ─────────────────────────
 //   쓰기: 업무·일정·문서·프로젝트·메모·상담·Q info·메일 답장 초안. 파일 올리기(upload_file)는 외부 URL 을 받는 문이라 빼둔다.
@@ -151,6 +153,7 @@ async function buildToolSystemContext(businessId, todayIso) {
   return `[오늘] ${dateStr} · [시간대] ${tz}\n[멤버] 담당자·참석자로 지정 가능한 워크스페이스 멤버:\n${roster || '- (없음)'}\n`
     + `[도구 사용] 무엇을 고치거나 연결하려면 먼저 찾기 도구(search_*, list_events, get_*)로 대상의 id 를 확인한다. 제목으로 지목한 업무는 담당자와 무관하게 search_tasks 에 assignee:'anyone' 으로 찾는다. `
     + `쓰기 도구는 요청에 쓰기가 여럿이면 각각 부른다(한 답 최대 ${MAX_WRITES}개, 카드마다 사람이 따로 확인해 실행한다) — 카드끼리 같은 것을 두 번 만들지 않는다. `
+    + `업무를 여러 개 만들어 달라고 하면 사용자가 말한 항목마다 create_task 를 **하나씩 전부** 부른다(최대 ${MAX_CONFIRM_CANDIDATES}개 — 이 개수는 위 상한에 세지 않는다). 항목을 합치거나 빼거나 쪼개지 말고 순서·문구를 지킨다 — 화면이 한 목록으로 묶어 사람이 고친 뒤 한 번에 추가한다. `
     + `카드는 서로 독립이어야 한다: 새로 만드는 것에 딸린 설정은 그 도구의 칸으로 한 번에 넣는다(업무의 컨펌자 = create_task reviewer_user_ids · 일정의 참석자·화상회의 = create_event attendee_user_ids·create_meeting · 이미 있는 업무 연결 = create_event task_id). `
     + `이번 답에서 새로 만드는 업무에 일정을 연결해야 하면 업무 카드와 일정 카드(task_id 없이)를 **둘 다** 내고, 답에 «업무 카드를 실행한 뒤 '그 업무에 일정 연결해' 라고 말해 주시면 연결할게요» 를 쓴다 — 다음 턴에 앞 대화의 [실행됨] 줄(#번호)로 update_event task_id 카드를 낸다. `
     + `카드를 낼 때도 답을 비우지 않는다 — 한두 문장으로 카드 몇 장에 무엇이 들어 있고 각각 확인해 실행하면 된다는 것을 말한다. `
@@ -337,19 +340,85 @@ async function proposeOne(p, name, rawArgs) {
   return { proposal: { tool, params: r.args, card } };
 }
 
+// ─────────────────────────────────────────────
+// 업무 묶음(task_batch) — 2026-10-12 Fable 설계 (다). Irene: «여러 개 업무 추가하면 Q task에 그대로 추가해야 하는데
+//   마음대로 줄이거나 팝아웃에서는 하나만 되고». 한 답에 create_task 가 **2개 이상**이면 카드를 N장 세우지 않고
+//   Cue 바와 같은 **후보 목록 한 덩이**로 돌려준다(화면 = 기존 AiCandidateCard + [N개 추가] → /api/tasks/ai-create/confirm).
+//   - create_task 는 MAX_WRITES(3, D2)에 세지 않는다 — 다른 쓰기는 D2 그대로.
+//   - 레지스트리 도구가 아니라 **표현**이다. 행마다 proposeOne(검증·미리보기)을 지난 인자(cue_args)를 싣고,
+//     실행은 사람이 고친 행을 executeTool 로 한 건씩(외부 AI 앱의 «대량 = HIGH» 계약 불변).
+//   - 상한은 확정 라우트와 같은 값 하나(MAX_CONFIRM_CANDIDATES).
+// ─────────────────────────────────────────────
+
+/** create_task 제안 N개 → 후보 목록 한 덩이. 날짜는 워크스페이스 오늘 기준 오프셋(후보 카드가 오프셋으로 그린다). */
+async function buildTaskBatch(p, taskProposals) {
+  const biz = await Business.findByPk(p.businessId, { attributes: ['timezone'] });
+  const { todayInTz } = require('../utils/datetime');
+  const base = todayInTz(biz?.timezone || 'Asia/Seoul');
+  const dayDiff = (d) => Math.round((Date.parse(`${d}T00:00:00Z`) - Date.parse(`${base}T00:00:00Z`)) / 86400000);
+  const roster = await memberOptions(p.businessId);
+  const nameOf = new Map(roster.map((o) => [o.value, o.label]));
+  const candidates = taskProposals.map((pr, idx) => {
+    const a = pr.params || {};
+    const due = a.due_date ? dayDiff(a.due_date) : null;
+    const start = a.start_date ? dayDiff(a.start_date) : (due != null ? Math.min(0, due) : 0);
+    return {
+      idx,
+      title: a.title,
+      description: a.description || '',
+      estimated_hours: a.estimated_hours ?? null,
+      start_offset_days: start,
+      due_offset_days: due,
+      duration_days: due != null ? Math.max(1, due - start) : 1,
+      priority: a.priority || '',
+      assignee_hint: null,
+      assignee_user_id: a.assignee_user_id || null,
+      assignee_display_name: a.assignee_user_id ? (nameOf.get(a.assignee_user_id) || null) : null,
+      depends_on_index: null,
+      vague: false,
+      selected: true,
+      completed: !!a.completed,
+      reviewer_count: (a.reviewer_user_ids || []).length,
+      // 실행 때 그대로 쓰는 검증된 인자 — 사람이 카드에서 고친 칸(제목·담당·날짜·예상시간·중요도·완료)만 덮어쓴다
+      cue_args: a,
+    };
+  });
+  return {
+    tool: 'task_batch',
+    card: { summary_key: 'qhelper.tool.task_batch', count: candidates.length },
+    base_date: base,
+    members: roster.map((o) => ({ user_id: o.value, name: o.label })),
+    candidates,
+  };
+}
+
+/** 받아 둔 제안 목록 → 화면에 낼 제안. create_task 가 2개 이상이면 한 덩이(맨 앞), 1개면 보통 카드. */
+async function finalizeProposals(p, accepted) {
+  const tasks = accepted.filter((x) => x.tool === 'create_task');
+  if (tasks.length < 2) return accepted;
+  const rest = accepted.filter((x) => x.tool !== 'create_task');
+  return [await buildTaskBatch(p, tasks), ...rest];
+}
+
 /** /help·음성 — tool_calls 중 첫 쓰기 하나를 제안으로. (음성은 읽기 루프 없이 이것만 쓴다) */
 async function buildProposedAction(businessId, toolCalls, userId = null, platformRole = null) {
   if (!Array.isArray(toolCalls) || !toolCalls.length || !userId) return null;
   const p = await principalOf(userId, businessId, platformRole);
+  // 음성도 카드 한 장(D4) — 다만 업무를 여럿 말했으면 그 한 장이 업무 묶음이다(Fable 2026-10-12 (다))
+  const tasks = []; let first = null;
   for (const tc of toolCalls) {
     const name = tc?.function?.name;
     if (!WRITE_TOOLS.has(name) && !isAlias(name)) continue;
     let args = {};
     try { args = JSON.parse(tc.function.arguments || '{}'); } catch { args = {}; }
     const r = await proposeOne(p, name, args);
-    if (r.proposal) return r.proposal;
+    if (!r.proposal) continue;
+    if (r.proposal.tool === 'create_task') { if (tasks.length < MAX_CONFIRM_CANDIDATES) tasks.push(r.proposal); }
+    else if (!first) first = r.proposal;
+    if (first && !tasks.length) return first;
   }
-  return null;
+  if (tasks.length >= 2) return buildTaskBatch(p, tasks);
+  return tasks[0] || first || null;
 }
 
 // ─────────────────────────────────────────────
@@ -376,8 +445,10 @@ async function converse({ p, messages, callLLM, llmOpts = {} }) {
   const seen = new Set();
   let usage = { input_tokens: 0, output_tokens: 0, model: null };
   let last = null;
-  const done = (content) => ({ content: content || '', usage, reads,
-    ...(accepted.length ? { proposal: accepted[0], proposals: accepted.slice() } : {}) });
+  const done = async (content) => {
+    const out = accepted.length ? await finalizeProposals(p, accepted) : [];
+    return { content: content || '', usage, reads, ...(out.length ? { proposal: out[0], proposals: out } : {}) };
+  };
   for (let round = 1; round <= MAX_ROUNDS; round += 1) {
     const overBudget = reads.length >= MAX_READS || Date.now() - started > MAX_MS || round === MAX_ROUNDS;
     // 예산이 끝나면 쓰기 도구만 남긴다 — 더 찾지 말고 지금 아는 것으로 답하거나 제안하게
@@ -385,21 +456,30 @@ async function converse({ p, messages, callLLM, llmOpts = {} }) {
     const r = await callLLM({ ...llmOpts, messages: msgs, tools });
     last = r;
     usage = { input_tokens: usage.input_tokens + (r.input_tokens || 0), output_tokens: usage.output_tokens + (r.output_tokens || 0), model: r.model || usage.model };
-    if (r.fallback) return accepted.length ? done(r.content) : { fallback: true, usage, reads };
+    if (r.fallback) return accepted.length ? await done(r.content) : { fallback: true, usage, reads };
     const calls = Array.isArray(r.tool_calls) ? r.tool_calls : [];
-    if (!calls.length) return done(r.content);
+    if (!calls.length) return await done(r.content);
 
     // 쓰기 호출이 있으면 그 라운드의 쓰기를 **전부** 제안으로(실행 X). 같은 라운드의 읽기는 버린다.
     const writes = calls.filter((c) => WRITE_TOOLS.has(c?.function?.name) || isAlias(c?.function?.name));
     if (writes.length) {
       const replies = [];
       let rejected = 0;
-      for (const [i, w] of writes.entries()) {
-        if (accepted.length >= MAX_WRITES || i >= MAX_WRITES) {
+      // create_task 는 D2 상한(3)에 세지 않는다 — 2개 이상이면 업무 묶음 한 덩이가 된다(상한 = 확정 라우트와 같은 40)
+      const isTask = (w) => w?.function?.name === 'create_task';
+      let otherSeen = 0;
+      for (const w of writes) {
+        const task = isTask(w);
+        const nTask = accepted.filter((x) => x.tool === 'create_task').length;
+        const nOther = accepted.length - nTask;
+        if (task ? nTask >= MAX_CONFIRM_CANDIDATES : (nOther >= MAX_WRITES || otherSeen >= MAX_WRITES)) {
           rejected += 1;
-          replies.push({ id: w.id, out: { ok: false, error: { code: 'VALIDATION_ERROR', message: 'too_many_writes', hint: `At most ${MAX_WRITES} write cards per answer. Tell the user to ask for the rest after running these.` } } });
+          replies.push({ id: w.id, out: { ok: false, error: task
+            ? { code: 'VALIDATION_ERROR', message: 'too_many_tasks', hint: `At most ${MAX_CONFIRM_CANDIDATES} tasks per answer. Tell the user these ${MAX_CONFIRM_CANDIDATES} are ready and to ask for the rest after adding them.` }
+            : { code: 'VALIDATION_ERROR', message: 'too_many_writes', hint: `At most ${MAX_WRITES} write cards per answer. Tell the user to ask for the rest after running these.` } } });
           continue;
         }
+        if (!task) otherSeen += 1;
         let args = {};
         try { args = JSON.parse(w.function.arguments || '{}'); } catch { args = {}; }
         const pr = await proposeOne(p, w.function.name, args);
@@ -413,7 +493,7 @@ async function converse({ p, messages, callLLM, llmOpts = {} }) {
         }
       }
       // 모두 받아들였으면 끝 — 거절이 있으면 이유를 주고 한 번 더(설명하거나 고쳐서 다시 제안). 받아 둔 카드는 남는다.
-      if (!rejected) return done(r.content);
+      if (!rejected) return await done(r.content);
       msgs.push({ role: 'assistant', content: r.content || null, tool_calls: writes });
       for (const x of replies) msgs.push({ role: 'tool', tool_call_id: x.id, content: JSON.stringify(x.out).slice(0, RESULT_CHARS) });
       continue;
@@ -432,7 +512,7 @@ async function converse({ p, messages, callLLM, llmOpts = {} }) {
       msgs.push({ role: 'tool', tool_call_id: c.id, content: JSON.stringify(out).slice(0, RESULT_CHARS) });
     }
   }
-  return done(last?.content);
+  return await done(last?.content);
 }
 
 // ─────────────────────────────────────────────
@@ -456,8 +536,11 @@ function entityOf(res) {
   return { entity_type: null, entity_id: null, open_url: null };
 }
 
-async function executeTool(actor, businessId, name, rawParams) {
+// opts.batch — Cue 업무 묶음의 한 행(/api/tasks/ai-create/confirm mode cue_batch). 묶음은 /help 턴이 1회 계량했으므로
+//   행 실행은 계량하지 않는다(Fable 2026-10-12 (다) 5 — Cue 바의 확정과 같다). 실행 문·검증·감사는 카드와 같은 이 한 곳.
+async function executeTool(actor, businessId, name, rawParams, opts = {}) {
   const p = await principalOf(actor.userId, businessId, actor.platformRole);
+  if (opts.batch) p.meter = false;
   const { tool, args } = await normalizeCall(businessId, name, rawParams);
   if (!WRITE_TOOLS.has(tool)) return { ok: false, code: 'unknown_tool', http: 400 };
   const r = await runTool(p, tool, args, { humanConfirmed: true });

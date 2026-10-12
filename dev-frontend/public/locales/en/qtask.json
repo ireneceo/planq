@@ -1139,6 +1139,13 @@
     "projectLabel": "Project",
     "projectNone": "None (workspace task)",
     "confirmOne": "Add",
+    "noDue": "No due date",
+    "batch": {
+      "partial": "Added {{added}}. {{failed}} could not be added — fix them and add again.",
+      "rowFailed": "This task could not be added — check the assignee and dates",
+      "addedSoFar": "{{n}} already added",
+      "addWithReviewers": "Add {{n}} · notify {{m}} reviewers"
+    },
     "title": "Add tasks with AI",
     "contextProject": "Project context is auto-injected.",
     "contextWorkspace": "Workspace members are auto-injected.",

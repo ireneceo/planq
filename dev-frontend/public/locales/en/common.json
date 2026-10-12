@@ -348,6 +348,7 @@
     "inqThanksMember": "Your question was received. See the reply under Personal > Support & feedback.",
     "inqMessagePhMember": "What would you like to ask? You can see the reply under Personal > Support & feedback.",
     "tool": {
+      "task_batch": "Add several tasks",
       "create_task": "Add task",
       "update_task": "Edit task",
       "reschedule_task": "Change task dates",
@@ -400,6 +401,7 @@
       "create_mail_reply_draft": "Create draft"
     },
     "toolDone": {
+      "task_batch": "Added {{n}} tasks",
       "create_task": "Task added",
       "update_task": "Task updated",
       "reschedule_task": "Task dates changed",
