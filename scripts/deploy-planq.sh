@@ -128,6 +128,28 @@ cleanup_snapshot() {
 make_snapshot() {
   log "마지막 커밋의 깨끗한 사본 만드는 중..."
   cd "$REPO"
+
+  # 배포 스크립트 자체는 작업 폴더 것이 돈다 — 그런데 마이그 슬롯이 부르는 파일은 사본(커밋)에서 간다.
+  #   «슬롯 줄 추가 + 마이그 파일 미커밋» 상태(방이 일하다 멈춘 정기 점검의 흔한 모양)로 돌면 운영에서
+  #   없는 파일을 불러 rsync·npm ci 뒤 재시작 전에 멈춘다(반쪽 배포). 절차와 사본이 같은 커밋이어야 한다.
+  #   (2026-10-12 Fable 게이트 C1)
+  local SELF_DIRTY
+  SELF_DIRTY=$(git status --porcelain -- scripts/deploy-planq.sh scripts/make-deploy-snapshot.sh scripts/check-deploy-snapshot.js 2>/dev/null || true)
+  if [ -n "$SELF_DIRTY" ]; then
+    if [ "$AUTO_MODE" = true ]; then
+      error "배포 스크립트가 미커밋 — 작업 폴더 절차와 사본(커밋)이 달라 배포하지 않음:"
+      printf '%s\n' "$SELF_DIRTY" | sed 's/^/    /'
+      exit 1
+    fi
+    warn "배포 스크립트가 미커밋 — 작업 폴더 절차와 사본(커밋)이 다를 수 있음:"
+    printf '%s\n' "$SELF_DIRTY" | sed 's/^/    /'
+    if [ "$DRY_RUN" = false ]; then
+      confirm "그래도 진행?" || { error "취소"; exit 1; }
+    fi
+  fi
+
+  # 지난 배포가 강제 종료(SIGKILL)로 끝나 trap 이 못 지운 사본(.env 복사본 포함)을 치운다 — 배포 방은 한 번에 하나다.
+  rm -rf /tmp/planq-deploy-src.* /tmp/planq-deploy-protect.* 2>/dev/null || true
   SNAP=$(mktemp -d /tmp/planq-deploy-src.XXXXXX)   # 700 — 사본에 dev .env 복사본이 들어간다
   trap cleanup_snapshot EXIT
   local OUT
