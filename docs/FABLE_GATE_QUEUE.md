@@ -11,6 +11,11 @@
 > 이 파일에는 계속 **Fable 판정 결과**(PASS/FAIL·비차단 지적)를 맨 위에 적는다. 아래 옛 절의 판정식
 > `R=1 OR (S=1 AND F=0)` 은 공용 기준으로 대체됐다(뜻은 같다).
 
+
+## 2026-10-12 팝아웃 «내 순서»(사람별 업무 순서) — 설계 VERDICT OK · 완료 검증 **PASS** (f7ba4c93, 방 56931759)
+- 설계 docs/TASK_USER_ORDER_DESIGN.md. 설계에서 바꾼 1곳: 응답 positions = visible 전부(임시값 섞임으로 Alt+↓ 가 튀던 것) — Fable 회귀 확인.
+- 비차단: ① move() visible_ids 500 미절단 ② 운영 FK 이름은 sync 가 먼저 만들어 `_ibfk_N`(기능 차이 없음) ③ task_forbidden 경로는 도달 불가 방어선.
+
 ## 2026-10-12 — Cue 복합 요청 2단계(한 답 카드 여러 장 · create_task 컨펌자 · 실행 결과 이어받기) · 설계 DESIGN-OK → 완료 **PASS** (방 e006be41)
 - 설계 판정: D1 create_task `reviewer_user_ids` = riskOf MEDIUM + preview + confirmation_token · 요청자 자동 컨펌자는 조용히 뺌 · 부분 실패는 던지지 않고 `reviewers_failed`(트랜잭션 묶기 금지 — addReviewer 가 알림을 가진다) · completed∧reviewers 거절 / D2 멈춘 라운드의 쓰기 전부(상한 3)·서로 독립·«모두 실행» 없음·쓰기 호출 전원 tool 회신·지문 중복 제거 / D3 참조($card1) 없음 — 앞 턴 **실행 결과**를 history 에 싣고 다음 턴에 실제 id 로 / D4 음성 단일 · D5 쿼터 불변.
 - 설계 밖 1건: D3 가 전제한 `update_event.task_id` 가 없어 추가 — 판정은 화면 PUT 과 같은 `eventTaskLink.resolveTaskLink`.
