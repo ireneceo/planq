@@ -1509,5 +1509,10 @@
       "nextLabel": "Next auto finalize",
       "toSettings": "Change settings"
     }
+  },
+  "added": {
+    "hiddenByView": "The task you just added isn't shown in this view (tab, filter or search)",
+    "open": "Open",
+    "dismiss": "Close"
   }
 }

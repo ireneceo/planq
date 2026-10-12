@@ -66,6 +66,7 @@ import { belowTabs } from '../../theme/layout';
 import { inReviewStage } from '../../utils/reviewStage';
 import { SegmentedToggle, SegmentedBtn } from '../../components/Common/segmentedToggle';
 import { HeaderCta } from '../../components/Common/headerCta';
+import { useRevealRow } from '../../hooks/useRevealRow';
 
 // #249 — 우측 패널을 인라인으로 붙여둘 최소 뷰포트 폭.
 //   이보다 좁으면 overlay(기본 닫힘 + 떠 있는 토글 + ⌘/·Ctrl+\)로 전환해 리스트가 전폭을 쓴다.
@@ -905,7 +906,8 @@ const QTaskPage:React.FC=()=>{
     autoFocus: !isPhone,
     onClose: closeAddForm,
     // Socket task:new 가 먼저 도착했을 가능성 — 중복 방지
-    onCreated: (task: TaskCreatedTask) => setAllTasks(prev=>prev.some(x=>x.id===task.id)?prev:[task as never,...prev]),
+    // 추가한 업무가 우선순위·마감 순서 어디에 끼었는지 — 그 행으로 스크롤 + 잠깐 강조(정렬은 그대로)
+    onCreated: (task: TaskCreatedTask) => { setAllTasks(prev=>prev.some(x=>x.id===task.id)?prev:[task as never,...prev]); revealRow([task.id]); },
   };
 
   // 우선순위 토글 — #250 ②청크. **재인덱스는 백엔드가 단독 수행**한다.
@@ -939,6 +941,7 @@ const QTaskPage:React.FC=()=>{
 
   // ── 상세 드로어 오픈/닫기 (URL 싱크) — 로딩/워크플로우는 TaskDetailDrawer 내부 처리 ──
   // 같은 taskId 재호출 시 토글 — 통일된 UX 원칙 (CLAUDE.md)
+  const { reveal: revealRow, notice: revealNotice } = useRevealRow((id) => openDetail(id));
   const openDetail=(taskId:number)=>{
     if(detailTaskId===taskId){closeDetail();return;}
     setDetailTaskId(taskId);
@@ -1829,7 +1832,7 @@ const QTaskPage:React.FC=()=>{
             /* 일반 추가 폼(위 defaultDue)과 **같은 규칙**. 여기가 비어 있어서 Cue 로 만든 업무가
                방금 만든 그 목록에서 바로 사라졌다(Irene). 기본값의 정의는 한 곳에서만 바뀌게 둔다. */
             defaults={tabCreateDefaults}
-            onCreated={()=>{ /* socket task:new 가 리스트 자동 반영 */ }}
+            onCreated={(created)=>revealRow(created.map(c=>c.id)) /* 목록 반영은 socket task:new — 반영되면 그 행을 보여 준다 */}
           />
         )}
 
@@ -3143,6 +3146,7 @@ const QTaskPage:React.FC=()=>{
         dict={tagDict}
         onChanged={()=>{loadTagDict();load();}}
       />
+      {revealNotice}
       {bizId && (
         <AiTaskCreateModal
           open={aiOpen}
@@ -3151,7 +3155,7 @@ const QTaskPage:React.FC=()=>{
           projectId={null}
           projects={projects}
           members={members.map(m=>({user_id:m.user_id,name:m.name}))}
-          onCreated={()=>{ /* socket task:new 가 자동 반영 */ }}
+          onCreated={(created)=>revealRow(created.map(c=>c.id))}
           onUseTemplate={(id)=>{ setAiOpen(false); setTplSelInitialId(id); setTplSelOpen(true); }}
         />
       )}
