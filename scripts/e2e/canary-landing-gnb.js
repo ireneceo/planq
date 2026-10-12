@@ -1,8 +1,9 @@
 // canary-landing-gnb — 랜딩 상단 메뉴 정리 (2026-10-12 Fable 판정)
 //
 //   Irene: "랜딩페이지 GNB가 너무 많은데 … 전체 다 판단 좀 해줘. fable이"
-//   계약: 데스크탑 메뉴는 기능·요금제·컨설팅·리소스▾·브랜드스토리 / 리소스 = 시작 가이드·도움말·인사이트 /
-//         우측 [앱 다운로드](글자) KO·EN [문의](outline) [로그인] [무료로 시작]. 폰·태블릿 시트는 가입 버튼 바로 아래 앱 다운로드
+//   계약: 데스크탑 메뉴는 기능·요금제·컨설팅·인사이트·앱 다운로드·리소스▾·브랜드스토리 / 리소스 = 시작 가이드·도움말 /
+//         우측 KO·EN [문의](outline) [로그인] [무료로 시작]. 인사이트·앱 다운로드는 메뉴 줄에 따로
+//         (2026-10-12 Irene «인사이트랑 앱다운로드는 별도 메뉴로 빼줘. 중요해»). 폰·태블릿 시트는 가입 버튼 바로 아래 앱 다운로드
 //         (스크롤 없이 첫 화면 — 2026-10-12 Irene «앱 다운로드 … 아예 없애면 어떻게 해? 상단에서»).
 //         홈 히어로 아래 «시작 가이드» 한 줄 · 요금제 하단 → 컨설팅 · 컨설팅 → 요금제 · 소개는 PlanQ 가 먼저, 창업자 이야기가 뒤.
 //   재는 것: 보이는가(elementFromPoint) · 한 줄 · 가로 넘침 · 눌러서 같은 창 이동.
@@ -10,9 +11,9 @@
 const b = require('./lib/browser');
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const CONTROL = process.env.LGNB_CONTROL === '1';
-const CONTROL_CSS = '[data-testid="landing-gnb-contact"]{visibility:hidden!important} [data-testid="landing-gnb-resources-panel"]{display:none!important} [data-testid="landing-mobile-sheet"] a[href="/app"]{display:none!important} [data-testid="landing-gnb-app"]{visibility:hidden!important}';
+const CONTROL_CSS = '[data-testid="landing-gnb-contact"]{visibility:hidden!important} [data-testid="landing-gnb-resources-panel"]{display:none!important} [data-testid="landing-mobile-sheet"] a[href="/app"]{display:none!important} [data-testid="landing-gnb-app"]{visibility:hidden!important} header nav > a[href="/insights"]{visibility:hidden!important}';
 const WIDTHS = [390, 820, 1024, 1440];
-const RES = ['/start', '/guide', '/insights'];
+const RES = ['/start', '/guide'];
 
 // 요소가 실제로 그려져 손가락/마우스가 닿는가 — 페이지에 함수로 심는다(CSP 가 문자열 eval 을 막는 페이지가 있다)
 const VIS_FN = 'window.__pqVis';
@@ -51,23 +52,24 @@ async function run() {
             const nav = document.querySelector('header nav');
             const links = [...nav.querySelectorAll(':scope > a')].map((a) => ({ href: a.getAttribute('href'), v: V(a) }));
             const res = document.querySelector('[data-testid="landing-gnb-resources"]');
-            const right = ['[data-testid="landing-gnb-app"]', '[data-testid="landing-gnb-contact"]', 'header a[href="/login"]', 'header a[href="/register"]'].map((s) => V(document.querySelector(s)));
-            const all = [...nav.querySelectorAll(':scope > a'), res, ...['[data-testid="landing-gnb-app"]', '[data-testid="landing-gnb-contact"]', 'header a[href="/login"]', 'header a[href="/register"]'].map((s) => document.querySelector(s))].filter(Boolean);
+            const right = ['[data-testid="landing-gnb-contact"]', 'header a[href="/login"]', 'header a[href="/register"]'].map((s) => V(document.querySelector(s)));
+            const all = [...nav.querySelectorAll(':scope > a'), res, ...['[data-testid="landing-gnb-contact"]', 'header a[href="/login"]', 'header a[href="/register"]'].map((s) => document.querySelector(s))].filter(Boolean);
             const mids = all.map((x) => { const q = x.getBoundingClientRect(); return Math.round(q.top + q.height / 2); });
             return { links, res: V(res), right, oneLine: Math.max(...mids) - Math.min(...mids) <= 2, tall: all.filter((x) => x.getBoundingClientRect().height > 37).length,
               overflow: document.documentElement.scrollWidth - innerWidth };
           }, VIS_FN);
           const hrefs = g.links.map((x) => x.href).join(',');
-          push(`${w}px · ① 메뉴 = 기능·요금제·컨설팅·브랜드스토리 + 리소스 · 우측 앱 다운로드·문의·로그인·무료로 시작 · 한 줄 · 넘침 0`,
-            hrefs === '/features,/pricing,/service,/about' && g.links.every((x) => x.v) && g.res && g.right.every(Boolean) && g.oneLine && g.tall === 0 && g.overflow <= 0, JSON.stringify(g));
+          push(`${w}px · ① 메뉴 = 기능·요금제·컨설팅·인사이트·앱 다운로드·브랜드스토리 + 리소스 · 우측 문의·로그인·무료로 시작 · 한 줄 · 넘침 0`,
+            hrefs === '/features,/pricing,/service,/insights,/app,/about' && g.links.every((x) => x.v) && g.res && g.right.every(Boolean) && g.oneLine && g.tall === 0 && g.overflow <= 0, JSON.stringify(g));
           // ② 리소스 — 마우스를 올리면 열리고, 네 항목이 보이고, 누르면 같은 창으로 간다
           await page.hover('[data-testid="landing-gnb-resources"]');
           await sleep(300);
           const r = await page.evaluate((vis, RES) => { const V = window.__pqVis; const p = document.querySelector('[data-testid="landing-gnb-resources-panel"]');
             return { open: !!p, items: RES.map((h) => V(p && p.querySelector(`a[href="${h}"]`))) }; }, VIS_FN, RES);
           const appInPanel = await page.evaluate(() => !!document.querySelector('[data-testid="landing-gnb-resources-panel"] a[href="/app"]'));
-          push(`${w}px · ② 리소스 열림 · 시작 가이드·도움말·인사이트 보임 · 앱 다운로드는 묶음 밖`,
-            r.open && r.items.every(Boolean) && !appInPanel, JSON.stringify({ ...r, appInPanel }));
+          const insInPanel = await page.evaluate(() => !!document.querySelector('[data-testid="landing-gnb-resources-panel"] a[href="/insights"]'));
+          push(`${w}px · ② 리소스 열림 · 시작 가이드·도움말 보임 · 인사이트·앱 다운로드는 묶음 밖`,
+            r.open && r.items.every(Boolean) && !appInPanel && !insInPanel, JSON.stringify({ ...r, appInPanel, insInPanel }));
           // ②b 앱 다운로드 — 패널을 열지 않아도 상단에 보이고, 누르면 같은 창 /app
           await page.keyboard.press('Escape'); await page.mouse.move(5, 500); await sleep(300);
           const appVis = await page.evaluate(() => window.__pqVis(document.querySelector('[data-testid="landing-gnb-app"]')));
@@ -93,7 +95,7 @@ async function run() {
           await page.click('header button[aria-label]'); await sleep(400);
           const appFirst = await page.evaluate(() => window.__pqVis(document.querySelector('[data-testid="landing-mobile-sheet"] a[href="/app"]')));
           push(`${w}px · ①a 메뉴 시트를 연 첫 화면에 앱 다운로드 보임(스크롤 없이)`, appFirst, JSON.stringify({ appFirst }));
-          const want = ['/register', '/login', '/app', '/features', '/pricing', '/service', '/about', ...RES, '/contact'];
+          const want = ['/register', '/login', '/app', '/features', '/pricing', '/service', '/insights', '/about', ...RES, '/contact'];
           const s = await page.evaluate(async (vis, want) => { const V = window.__pqVis;
             const sheet = document.querySelector('[data-testid="landing-mobile-sheet"]'); if (!sheet) return { sheet: false };
             const order = [...sheet.querySelectorAll('a')].map((a) => a.getAttribute('href'));
@@ -101,7 +103,7 @@ async function run() {
             for (const h of want) { const a = sheet.querySelector(`a[href="${h}"]`); if (a) { a.scrollIntoView({ block: 'center' }); await new Promise((ok) => setTimeout(ok, 60)); } seen[h] = V(a); }
             return { sheet: true, order, seen, overflow: document.documentElement.scrollWidth - innerWidth };
           }, VIS_FN, want);
-          push(`${w}px · ① 메뉴 시트 — 무료로 시작·로그인 → 앱 다운로드 → 기능·요금제·컨설팅·브랜드스토리 → 리소스 3 → 문의 · 모두 닿음 · 넘침 0`,
+          push(`${w}px · ① 메뉴 시트 — 무료로 시작·로그인 → 앱 다운로드 → 기능·요금제·컨설팅·인사이트·브랜드스토리 → 리소스 2 → 문의 · 모두 닿음 · 넘침 0`,
             s.sheet && s.order.join(',') === want.join(',') && Object.values(s.seen).every(Boolean) && s.overflow <= 0, JSON.stringify(s));
         }
       } catch (e) { push(`${w}px · ① 오류`, false, e.message.slice(0, 200)); }
@@ -160,4 +162,4 @@ async function run() {
   return results;
 }
 
-module.exports = { name: '랜딩 상단 메뉴 정리 — 메뉴 5·리소스 묶음·문의 버튼·시트·홈 시작 가이드·요금제↔컨설팅·소개 (4폭)', run };
+module.exports = { name: '랜딩 상단 메뉴 정리 — 메뉴 7·리소스 묶음·문의 버튼·시트·홈 시작 가이드·요금제↔컨설팅·소개 (4폭)', run };

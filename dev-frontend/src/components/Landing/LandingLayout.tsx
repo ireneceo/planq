@@ -23,12 +23,15 @@ interface CompanyInfo {
 }
 
 // ★ 2026-10-12 GNB 정리 (Irene: "GNB가 너무 많은데 … 전체 다 판단 좀 해줘. fable이" → Fable 판정).
-//   평면 메뉴 9개 → **5개**: 기능 · 요금제 · 컨설팅 · 리소스▾ · 브랜드스토리. 1024~1279px 에서도 숨기는 항목이 없다.
+//   평면 메뉴 9개 → 5개(기능 · 요금제 · 컨설팅 · 리소스▾ · 브랜드스토리) → 다시 **7개**(아래 «인사이트·앱 다운로드»).
+//   1024~1279px 에서도 숨기는 항목이 없다.
+//   - ★ «인사이트»·«앱 다운로드» 는 **상단 메뉴에 따로** 둔다 — Irene «인사이트랑 앱다운로드는 별도 메뉴로 빼줘. 중요해»
+//     (2026-10-12). 인사이트는 리소스 묶음에서, 앱 다운로드는 우측 버튼 묶음에서 메뉴 줄로 옮겼다. 리소스 = 시작 가이드·도움말.
 //   - /about 라벨은 «브랜드스토리» — Fable 판정 때 «소개» 로 바꿨다가 Irene «브랜드스토리랑 앱다운로드가 얼마나 중요한데»
 //     (2026-10-12) 로 되돌렸다. 이름이 바뀌면 «상단에서 빠졌다» 로 읽힌다.
-//   - «시작 가이드·도움말·인사이트» 는 «갈 곳» 이 아니라 «읽을 것» 이라 **리소스** 한 묶음.
+//   - «시작 가이드·도움말» 은 «갈 곳» 이 아니라 «읽을 것» 이라 **리소스** 한 묶음.
 //     시작 가이드는 홈 히어로 아래 한 줄로도 연다.
-//   - ★ «앱 다운로드» 는 묶음에 넣지 않는다 — 데스크탑은 우측 묶음 맨 앞 글자 버튼, 폰·태블릿 시트는 가입 버튼 바로 아래.
+//   - ★ «앱 다운로드» 는 묶음에 넣지 않는다 — 데스크탑은 메뉴 줄(폰 아이콘), 폰·태블릿 시트는 가입 버튼 바로 아래.
 //     처음엔 리소스 안에 넣었다가 Irene «앱 다운로드 메뉴는 어디로 보낸 거야? 중요한건데 아예 없애면 어떻게 해? 상단에서»
 //     (2026-10-12). 드롭다운 안 = 안 보이는 것이다(2026-09-05 안드로이드 태블릿 «앱다운로드를 어디서 해?» 와 같은 모양).
 //   - «문의» 는 메뉴가 아니라 우측 흰(outline) 버튼 — B2B 사이트의 Contact 자리.
@@ -39,13 +42,13 @@ const NAV_ITEMS: { to: string; key: string }[] = [
   { to: '/features', key: 'nav.features' },
   { to: '/pricing', key: 'nav.pricing' },
   { to: '/service', key: 'nav.service' },   // 업무체계 설계·구축 컨설팅 (2026-08-24)
+  { to: '/insights', key: 'nav.blog' },     // 별도 메뉴 — 위 주석
 ];
 const RESOURCE_ITEMS: { to: string; key: string }[] = [
   { to: '/start', key: 'nav.start' },      // 처음 시작하는 팀의 5단계
   { to: '/guide', key: 'nav.help' },       // 도움말
-  { to: '/insights', key: 'nav.blog' },
 ];
-const APP_ITEM = { to: '/app', key: 'nav.app' };   // 리소스 밖 — 위 주석
+const APP_ITEM = { to: '/app', key: 'nav.app' };   // 별도 메뉴(폰 아이콘) — 위 주석
 const ABOUT_ITEM = { to: '/about', key: 'nav.about' };
 
 const isUnder = (pathname: string, to: string) => pathname === to || pathname.startsWith(to + '/');
@@ -161,17 +164,17 @@ const LandingLayout: React.FC<Props> = ({ children, transparentTop = true }) => 
             {NAV_ITEMS.map(item => (
               <NavItem key={item.to} to={item.to} $light={isTransparent}>{t(item.key)}</NavItem>
             ))}
+            <NavItem to={APP_ITEM.to} $light={isTransparent} data-testid="landing-gnb-app">
+              <AppIcon width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <rect x="6" y="2" width="12" height="20" rx="2.5" /><line x1="11" y1="18" x2="13" y2="18" />
+              </AppIcon>
+              {t(APP_ITEM.key)}
+            </NavItem>
             <ResourceMenu light={isTransparent} />
             <NavItem to={ABOUT_ITEM.to} $light={isTransparent}>{t(ABOUT_ITEM.key)}</NavItem>
           </DesktopNav>
 
           <DesktopCta>
-            <TextBtn to={APP_ITEM.to} $light={isTransparent} data-testid="landing-gnb-app">
-              <AppIcon width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                <rect x="6" y="2" width="12" height="20" rx="2.5" /><line x1="11" y1="18" x2="13" y2="18" />
-              </AppIcon>
-              {t(APP_ITEM.key)}
-            </TextBtn>
             {langSwitch(isTransparent)}
             <SecondaryBtn to="/contact" $light={isTransparent} data-testid="landing-gnb-contact">{t('nav.contact')}</SecondaryBtn>
             {user ? (
@@ -374,6 +377,8 @@ const BrandLogo = styled.img`
 //   1023px 이하는 메뉴 버튼(시트)로 접고, 1024~1279px 는 간격만 줄인다. 세 곳(메뉴·CTA·메뉴 버튼)이 같은 경계를 쓴다.
 const DesktopNav = styled.nav`
   display: flex; gap: 4px;
+  /* 1024~1279 — 메뉴 7칸(인사이트·앱 다운로드 별도, 2026-10-12)이 영어에서도 한 줄에 들도록 간격만 줄인다 */
+  @media (max-width: 1279px) { gap: 0; }
   @media (max-width: 1023px) { display: none; }
 `;
 const NavItem = styled(NavLink)<{ $light: boolean }>`
@@ -384,7 +389,7 @@ const NavItem = styled(NavLink)<{ $light: boolean }>`
   font-size: 0.875rem; font-weight: 500; white-space: nowrap;
   border-radius: 8px;
   transition: background 0.15s, color 0.15s;
-  @media (max-width: 1279px) { padding: 0 8px; }
+  @media (max-width: 1279px) { padding: 0 6px; }
   &:hover {
     background: ${p => p.$light ? 'rgba(255,255,255,0.08)' : '#F1F5F9'};
     color: ${p => p.$light ? '#FFFFFF' : '#0F172A'};
@@ -463,7 +468,7 @@ const ResTrigger = styled.button<{ $light: boolean; $active: boolean }>`
   font-size: 0.875rem; font-weight: 500; white-space: nowrap;
   border-radius: 8px;
   transition: background 0.15s, color 0.15s;
-  @media (max-width: 1279px) { padding: 0 8px; }
+  @media (max-width: 1279px) { padding: 0 6px; }
   &:hover {
     background: ${p => p.$light ? 'rgba(255,255,255,0.08)' : '#F1F5F9'};
     color: ${p => p.$light ? '#FFFFFF' : '#0F172A'};
