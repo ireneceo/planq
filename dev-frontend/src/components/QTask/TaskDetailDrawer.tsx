@@ -1584,8 +1584,6 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
           })();
 
           return (<>
-            {/* 업무 흐름 sticky 바 — N+32 옵션 B (단순화). 담당자 본인 + status='in_progress' 일 때만 일시정지/재개. */}
-            <TaskFocusBar taskId={detailTask.id} businessId={bizId} assigneeId={detailTask.assignee_id} status={detailTask.status} />
             {/* WORK_FLOW §6-B — 이월 연속성 배너: 지난 주부터 넘어온 활성 업무임을 알리고 과거 이력이 살아있음을 인지시킴. */}
             {(() => {
               const active = ['in_progress','reviewing','revision_requested','waiting','external_review'].includes(detailTask.status);
@@ -1670,6 +1668,10 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                   </TitleEditIcon>}
                 </Title>
               )}
+              {/* 업무 흐름 sticky 바 — N+32 옵션 B (단순화). 담당자 본인 + status='in_progress' 일 때만 일시정지/재개.
+                  ★ 제목 **아래**에 둔다(2026-10-12 Irene «모바일에서 제목이 안 보여»). 제목 위에 두면 sticky top:0 이라
+                    본문을 조금만 올려도 이 바가 Scroll 맨 위에 붙어 제목을 덮는다(폰 390 실측 — 바가 제목 자리를 가렸다). */}
+              <TaskFocusBar taskId={detailTask.id} businessId={bizId} assigneeId={detailTask.assignee_id} status={detailTask.status} />
               <Meta>
                 <StatusBadgeWrap>
                   {/* 단계 badge — owner/admin 만 직접 변경(드롭다운), 그 외는 읽기전용. 전이는 하단 워크플로 버튼으로. */}

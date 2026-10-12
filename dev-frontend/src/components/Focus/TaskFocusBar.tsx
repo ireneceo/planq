@@ -253,7 +253,8 @@ const Bar = styled.div<{ $tone: Tone }>`
   background: ${p => TONE[p.$tone].bg};
   border: 1px solid ${p => TONE[p.$tone].border};
   border-radius: 10px;
-  margin: 12px 14px 14px;
+  /* 2026-10-12 — 업무 상세 제목 아래(Section 안, 이미 좌우 패딩 14)로 옮겨 좌우 여백 0. */
+  margin: 4px 0 12px;
   position: sticky;
   top: 0;
   z-index: 5;
