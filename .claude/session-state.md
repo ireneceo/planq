@@ -1,5 +1,20 @@
 ## 현재 작업 상태
 
+### 완료: 캘린더 2단계 — 구글 캘린더마다 칩으로 보기/가리기 (방 f08b6db5 · 2026-10-12 · [Opus]+[Fable]) — 운영 미배포
+- 원문 *"구글캘린더 종류는 연동이 안되는 거야? … 다른 캘린더 앱은 구글캘린더 종류 다 가져와서 보기/가리기 다되는데"*
+- Fable 설계 1회 → 구현 → Fable 완료 검증 **PASS**(마커 by:fable, 23e9adf0). 23e9adf0 · 6be0aa4f(비차단 1·4·5).
+- Google 칩을 켜면 캘린더별 칩(구글 색 점+이름, 5개 넘으면 +N 팝오버) → 누르면 바로 가리고 서버 저장 `PUT /api/me/calendar/visible-calendars`
+  (`external_connections.metadata.visible_calendar_ids`, 상한 15, 올리는 캘린더는 늘 포함). 미저장 기본 = 구글 selected.
+  목록 권한 없는 옛 연결 = 종전(하나) + «다른 캘린더» 팝오버에서 권한 요청(버튼 한 벌 `components/Calendar/GoogleCalendarListConsent`).
+- 일정 색 = 캘린더 색 · 상세 «캘린더» 줄 · PATCH/DELETE 에 calendar_id 필수(쓰기 캘린더 또는 보이는 owner·writer 만, 아니면 403).
+- 조회 연결당 15·동시 4·25초·일정 60초/목록 24시간 캐시(metadata.calendar_list_cache)·실패는 캘린더 단위.
+- 방침 문구 ko/en(구독 캘린더 목록 쓰임 확장) + `bump-privacy-version.js` TARGET **1.4** → 다음 배포 때 전 사용자 재동의 창. PrivacyPolicy effectiveDate 2026-10-12(배포일과 다르면 그날로).
+- 검증: 서버 36/36(가짜 구글 API·양성 대조군 2건) · 화면 48/48(1440·768·390+옛 연결) · build EXIT 0 · guard · secrets 9/9 · tenant 0 실패.
+- 미측정: 진짜 구글 왕복(dev 개인 연결 0건). 운영 영향 연결 2건(목록 권한 ○ 1 · ✕ 1) — 배포 뒤 목록 권한 있는 계정으로 칩 확인.
+- 다음 사이클(Fable 비차단 2·3): Cue 맥락(`cue_context.js:279`)도 보이는 캘린더들로 · 목록 캐시를 metadata 밖으로(동시 쓰기 덮임 가능성).
+#### Irene 할 일
+- Google Cloud 콘솔 «데이터 액세스» 의 calendarlist.readonly 사용 이유를 새 문안으로 교체(심사 제출 때) — `docs/GOOGLE_OAUTH_CALENDARLIST_GUIDE.md` ④ · 상황판에 올림
+
 ### 완료: 묶음 3건 — Cue 링크 점검 · 캘린더 분류 버튼 · 날짜 호버 카드 (방 d92a9665 · 2026-10-12 · [Opus]) — 운영 미배포
 - ① 원문 *"Cue가 일정을 추가한 후 등록했다고 해서 링크 따라가면 안열려. Cue가 제공하는 모든 서비스 연결 링크들 문제 없게 종합 점검해"* →
   캘린더가 `?event=`/`?task=` 를 마운트 때 한 번만 읽었다(캘린더를 보며 Cue [열기] = 같은 화면이라 안 열림) → `useUrlDetailParams`.
