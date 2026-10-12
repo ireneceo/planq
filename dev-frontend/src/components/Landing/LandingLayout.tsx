@@ -22,9 +22,12 @@ interface CompanyInfo {
   support_email: string | null;
 }
 
-// ★ `newTab: true` — 도움말은 **읽으면서 하던 일을 이어가는** 참고 자료다 (Irene 2026-09-07:
-//   "따로 헬프데스크처럼 쓰는 거야? 그럼 새창으로 열어야지"). 보던 페이지를 덮지 않는다.
-//   앱 안의 진입점도 같은 계약이다(CLAUDE.md "하던 일 위에 얹히는 진입점은 새 탭").
+// ★ 도움말(/guide)은 랜딩 안에서는 **같은 창**으로 연다 (2026-10-12 Irene: "헤더가 그냥 있을거면
+//   새창 안해도 되고 레이아웃도 기존 랜딩페이지랑 맞추면 되는 거 아니야?"). 도움말도 같은 GNB·푸터를
+//   단 랜딩 페이지라 새 창은 같은 사이트 사본을 하나 더 띄울 뿐이다(2026-09-07 의 새 창 결정을 되돌림).
+//   앱(워크스페이스) 안에서 여는 문 — 도움말 패널·AI 앱 연결 안내 — 은 종전대로 새 탭이다:
+//   거기서는 하던 일 위에 얹히는 참고 자료다(CLAUDE.md "하던 일 위에 얹히는 진입점은 새 탭").
+//   newTab 은 앞으로 그런 항목이 생길 때를 위해 남긴다.
 // wideOnly — 1024~1279px 데스크탑 GNB 에서는 숨긴다(9개가 한 줄에 안 들어간다 — 1024px 실측 필요 1164px).
 //   푸터와 좁은 폭 메뉴 시트에는 그대로 있다. 앱 다운로드는 폰·태블릿에서 찾는 것이라 시트에 남으면 된다.
 const NAV_ITEMS: { to: string; key: string; newTab?: boolean; wideOnly?: boolean }[] = [
@@ -36,7 +39,7 @@ const NAV_ITEMS: { to: string; key: string; newTab?: boolean; wideOnly?: boolean
   { to: '/insights', key: 'nav.blog' },
   { to: '/about', key: 'nav.about', wideOnly: true },
   { to: '/contact', key: 'nav.contact' },
-  { to: '/guide', key: 'nav.help', newTab: true },   // F7 — 도움말 공개 진입
+  { to: '/guide', key: 'nav.help' },   // F7 — 도움말 공개 진입
   // ★ 앱 다운로드는 **푸터에만** 있었다 (Irene 2026-09-05, 안드로이드 태블릿:
   //   "앱다운로드를 어디서 해? 도저히 모르겠어"). 폰·태블릿에서 랜딩에 온 사람이
   //   가장 먼저 찾는 것이라 상단 내비(+모바일 시트)에 둔다.
@@ -172,7 +175,7 @@ const LandingLayout: React.FC<Props> = ({ children, transparentTop = true }) => 
               <FooterLink to="/pricing">{t('nav.pricing')}</FooterLink>
               <FooterLink to="/service">{t('nav.service')}</FooterLink>
               <FooterLink to="/insights">{t('nav.blog')}</FooterLink>
-              <FooterLink to="/guide" target="_blank" rel="noopener noreferrer">{t('nav.help')}</FooterLink>{/* F7 — 도움말 (새 탭) */}
+              <FooterLink to="/guide">{t('nav.help')}</FooterLink>{/* F7 — 도움말 (같은 창 — 위 NAV_ITEMS 주석) */}
               {/* 앱 다운로드 — `/app` 라우트는 있었지만 **앱 어디에서도 링크가 없어**
                   주소를 아는 사람만 닿을 수 있었다(2026-09-04 Irene 신고: "아이폰 다운로드가 안 나와").
                   만들어 놓고 진입점을 안 붙이면 없는 기능과 같다. */}

@@ -1,5 +1,11 @@
 ## 현재 작업 상태
 
+### 완료: 도움말(/guide) — 랜딩 폭으로 맞추고 같은 창으로 (방 d0845548 · 2026-10-12 · [Opus]) — 운영 미배포
+- 원문: *"도움말에 랜딩헤더가 그냥 그대로 나오는데 콘텐츠는 레이아웃이 지정된 사이즈인데 도움말은 풀레이아웃이야 … 헤더가 그냥 있을거면 새창 안해도 되고 레이아웃도 기존 랜딩페이지랑 맞추면 되는 거 아니야? 어디에 따로 팝업뜨거나 도움말링크로 열리는 곳 있으면 거기는 적합하게"*
+- 원인: /guide 는 랜딩 GNB·푸터(1200px)로 감싸면서 본문은 앱용 PageShell(전체 폭 머리줄 + 회색 바탕)이었다.
+- 고침: 새 `pages/Wiki/WikiFrame.tsx` — 랜딩 셸이면 인사이트와 같은 서브 히어로(HELP CENTER · 도움말 · 설명 · 검색) + 가운데 1080px(문서 상세는 760px 읽기 폭), 팝아웃 창(isPopoutWindow — WikiShell 과 같은 판정)이면 종전 PageShell. 랜딩 GNB·푸터의 «도움말» 새 창(target=_blank) 제거 → 같은 창. 앱 안 문(도움말 패널·AI 앱 연결 안내)은 새 탭 그대로. 곁 결함: 문서 단계 번호가 블록 순번이라 «4» 부터 나오던 것 → 이어지는 단계 묶음마다 1부터.
+- 검증(Fable 안 씀 — 레이아웃·링크 대상): 임시 측정 3폭(390/820/1440) × 목록·카테고리·문서 76검사 실패 0 — PageShell 없음 · 컨테이너 1080/808 가운데 · 가로넘침 0 · 제목 보임(elementFromPoint) · 푸터 · /guide 링크 2개 target 없음 · GNB 클릭 같은 창 · 팝아웃은 PageShell·GNB/푸터 없음. 음성 대조군: 옛 빌드에서 컨테이너 없음·단계 «4부터» 실패. 빌드 EXIT 0 · 가드 68/69.
+
 ### 완료: 운영 배포를 «마지막 커밋의 깨끗한 사본» 에서 — 다른 방의 미커밋은 빼고 나간다 (방 533798e8 · 2026-10-12 · [Opus]) — 운영 미배포(배포 절차 자체 변경)
 - 원문: Irene 2026-10-11 *"배포를 하면 모든 작업 일시정지하고 점검 후 배포해야지. 진행중인 거 있으면 그건 빼고"* · *"배포는 아침점검에서 자동으로"* (FABLE.md §7 조건 2)
 - 고침: `scripts/make-deploy-snapshot.sh`(git archive HEAD 사본 + 프론트 .env·node_modules 링크·tsbuildinfo 복사 + 백엔드 검사용 .env) · `deploy-planq.sh` 가 가드(PLANQ_GUARD_ROOT)·빌드(사본 안, dev 빌드 안 건드림)·rsync·마이그 판정·릴리즈노트·장부·개발현황·.last-deployed-commit 을 모두 사본/DEPLOY_COMMIT 으로 · 작업 폴더는 읽기만(stash·커밋 없음) · rsync 보호 목록(secrets/·backups/·.claude/·.last-deployed-commit + git 무시 경로 전부 — 없으면 운영 앱 푸시 키 삭제, rsync -n 실측 10건→0건) · `scripts/check-deploy-snapshot.js`(사본 문법·커밋에 없는 require, --skip-gates 여도) · `--routine`(정기 점검 = --auto + 릴리즈노트 없음) · `--skip-build` 는 프론트 안 보냄 · 배포 스크립트 미커밋이면 --auto/--routine 중단(Fable C1) · wip: auto-save 커밋이면 중단.

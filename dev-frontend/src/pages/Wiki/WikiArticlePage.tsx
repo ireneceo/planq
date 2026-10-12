@@ -3,7 +3,7 @@ import { renderInlineBold } from '../../utils/inlineBold';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import styled from 'styled-components';
-import PageShell from '../../components/Layout/PageShell';
+import WikiFrame from './WikiFrame';
 import { useImageLightbox } from '../../components/Common/ImageLightbox';
 import { fetchWikiArticle, type WikiArticleDetail, type WikiBlock } from '../../services/wiki';
 import { mediaPhone } from '../../theme/breakpoints';
@@ -44,7 +44,7 @@ export default function WikiArticlePage() {
   const blockCaption = (b: WikiBlock) => (lang === 'en' ? b.caption_en : b.caption_ko) || b.caption_ko || b.caption_en || '';
 
   return (
-    <PageShell title={t('page.title')}>
+    <WikiFrame title={t('page.title')} narrow>
       <Back onClick={() => navigate('/guide')}>← {t('article.back')}</Back>
 
       {loading ? (
@@ -69,10 +69,14 @@ export default function WikiArticlePage() {
               // 이미지 블록 클릭 시 확대 라이트박스 (전체 이미지 갤러리로 묶음)
               const imgs = (article.body || []).filter(b => b.type === 'image' && b.file_id)
                 .map(b => ({ src: `/api/wiki/image/${b.file_id}`, alt: blockCaption(b) }));
+              // 단계 번호는 **이어지는 단계 묶음 안에서** 1부터 센다 — 블록 순번(i+1)을 쓰면
+              //   앞에 문단·제목이 있을 때 첫 단계가 «4» 로 시작했다.
+              let stepNo = 0;
               return (article.body || []).map((b, i) => {
+                stepNo = b.type === 'step' ? stepNo + 1 : 0;
                 if (b.type === 'heading') return <H3 key={i}>{renderInlineBold(blockText(b))}</H3>;
                 if (b.type === 'callout') return <Callout key={i}>{renderInlineBold(blockText(b))}</Callout>;
-                if (b.type === 'step') return <Step key={i}><span>{i + 1}</span><p>{renderInlineBold(blockText(b))}</p></Step>;
+                if (b.type === 'step') return <Step key={i}><span>{stepNo}</span><p>{renderInlineBold(blockText(b))}</p></Step>;
                 if (b.type === 'image') {
                   const cap = blockCaption(b);
                   const src = `/api/wiki/image/${b.file_id}`;
@@ -107,7 +111,7 @@ export default function WikiArticlePage() {
           )}
         </Wrap>
       )}
-    </PageShell>
+    </WikiFrame>
   );
 }
 

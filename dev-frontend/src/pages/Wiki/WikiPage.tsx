@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import styled from 'styled-components';
-import PageShell from '../../components/Layout/PageShell';
+import WikiFrame from './WikiFrame';
 import HighlightText from '../../components/Common/HighlightText';
 import { fetchWikiCategories, fetchWikiArticles, type WikiCategory, type WikiArticleSummary } from '../../services/wiki';
 import { mediaPhone } from '../../theme/breakpoints';
@@ -92,7 +92,7 @@ export default function WikiPage() {
   );
 
   return (
-    <PageShell title={t('page.title')} actions={SearchBox}>
+    <WikiFrame title={t('page.title')} eyebrow={t('page.eyebrow')} subtitle={t('page.subtitle')} actions={SearchBox}>
       {showOverview ? (
         <Overview>
           <OverviewHead>
@@ -139,7 +139,7 @@ export default function WikiPage() {
           )}
         </>
       )}
-    </PageShell>
+    </WikiFrame>
   );
 }
 

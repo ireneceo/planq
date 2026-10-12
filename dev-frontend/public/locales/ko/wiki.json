@@ -1,6 +1,7 @@
 {
   "page": {
     "title": "도움말",
+    "eyebrow": "HELP CENTER",
     "subtitle": "PlanQ 사용법을 검색하고 둘러보세요",
     "searchPlaceholder": "무엇을 찾고 계신가요? (예: 청구서 발행)",
     "overviewTitle": "어디서부터 시작할까요?",
