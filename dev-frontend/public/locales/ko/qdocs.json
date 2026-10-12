@@ -662,7 +662,10 @@
       "fillScope_cell": "고른 칸",
       "fillScope_col": "열 전체",
       "fillScope_row": "행 전체",
-      "fillColor": "색"
+      "fillColor": "색",
+      "menuOpen": "표 편집 (행·열 추가·삭제, 칸 색)",
+      "menuShort": "표",
+      "menuClose": "메뉴 접기"
     },
     "origin": "출처",
     "alignLeft": "왼쪽 정렬",

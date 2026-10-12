@@ -662,7 +662,10 @@
       "fillScope_cell": "Selected cells",
       "fillScope_col": "Whole column",
       "fillScope_row": "Whole row",
-      "fillColor": "Color"
+      "fillColor": "Color",
+      "menuOpen": "Edit table (rows, columns, cell color)",
+      "menuShort": "Table",
+      "menuClose": "Collapse menu"
     },
     "origin": "Origin",
     "alignLeft": "Align left",

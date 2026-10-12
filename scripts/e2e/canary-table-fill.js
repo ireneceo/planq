@@ -82,6 +82,9 @@ async function partDocTable(width, docId) {
     await sleep(1800);
     if (!(await caretIn(page, 'zqA1'))) { push(`${tag} 표 칸 커서`, false, '칸 못 찾음'); return; }
     await sleep(700);
+    // 2026-10-12 — 표 메뉴는 손잡이를 눌러야 펼쳐진다(canary-table-menu).
+    await clickVisible(page, '[data-testid="editor-table-menu-open"]');
+    await sleep(400);
     await clickVisible(page, '[data-testid="editor-table-fill-open"]');
     await sleep(400);
     const pop = await page.evaluate(() => {

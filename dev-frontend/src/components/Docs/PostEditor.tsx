@@ -16,8 +16,8 @@ import { ResizableImage } from './ResizableImage';
 import { resizableImageCss } from './resizableImageStyles';
 import { Table } from '@tiptap/extension-table';
 import { TableRow } from '@tiptap/extension-table-row';
-import { PqTableCell, PqTableHeader, currentCellFillKey, setCellFill } from './editorTableCellFill';   // 칸·열·행 채우기 색(2026-10-12)
-import { CellFillButton } from './CellFillButton';
+import { PqTableCell, PqTableHeader } from './editorTableCellFill';   // 칸·열·행 채우기 색(2026-10-12)
+import TableBubbleMenu from './TableBubbleMenu';   // 표 손잡이 → 행·열·칸 색 메뉴(2026-10-12)
 import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight';
 import TextAlign from '@tiptap/extension-text-align';
 import { handleMarkdownPaste } from '../../utils/markdownPaste';
@@ -30,7 +30,6 @@ import { FindReplace, findReplaceEditorCss } from './editorFindReplace';   // �
 import FindReplaceBar from './FindReplaceBar';
 import TextStyleButton from './TextStyleButton';   // 글자색·배경·크기(2026-10-11 — 문서 안 표 포함)
 import { textStyleExtensions, currentTextStyleKeys, applyTextStyle, stripForeignTextStyle } from './editorTextStyle';
-import { distributeTableColumnsEvenly } from './editorTableFit';   // 표 열 폭 맞춤(운영 #311)
 
 // 사이클 N+16 — 노션 스타일 코드 블록. lowlight + common 언어팩 (30개+: js/ts/python/go/rust/sql/bash 등).
 const lowlight = createLowlight(common);
@@ -276,6 +275,7 @@ const PostEditor: React.FC<Props> = ({ value, onChange, onReady, placeholder, ed
     editor?.commands.focus();
   }, [editor]);
 
+
   if (!editor) return null;
 
   const isActive = (name: string, attrs?: Record<string, unknown>) => editor.isActive(name, attrs);
@@ -311,9 +311,9 @@ const PostEditor: React.FC<Props> = ({ value, onChange, onReady, placeholder, ed
   };
 
   return (
-    <Wrap $borderless={borderless} $compact={compact} onClick={handleWrapperClick} onKeyDown={handleKeyDown}>
+    <Wrap data-pq-editor-wrap="" $borderless={borderless} $compact={compact} onClick={handleWrapperClick} onKeyDown={handleKeyDown}>
       {editable && (
-        <Head>
+        <Head data-pq-editor-head="">
         <Toolbar $compact={compact}>
           <Group>
             <ToolBtn type="button" $active={isActive('bold')} onClick={() => editor.chain().focus().toggleBold().run()} title={t('editor.bold', { defaultValue: '굵게' })}>B</ToolBtn>
@@ -461,45 +461,8 @@ const PostEditor: React.FC<Props> = ({ value, onChange, onReady, placeholder, ed
           </ImgSizeBubble>
         </BubbleMenu>
       )}
-      {/* 표 안에 커서가 있을 때 떠오르는 행/열 컨트롤 — 툴바 끝 버튼은 발견이 어려워 추가 (Notion 패턴) */}
-      {editable && (
-        <BubbleMenu className="pq-editor-bubble" editor={editor} shouldShow={({ editor: ed }) => ed.isActive('table')}>
-          <TableBubble>
-            <TableBubbleGroup>
-              <TableBubbleBtn type="button" title={t('editor.table.addColLeft', '왼쪽에 열 추가') as string}
-                onMouseDown={(e) => { e.preventDefault(); editor.chain().focus().addColumnBefore().run(); }}>＋{t('editor.table.colLeft', '열←')}</TableBubbleBtn>
-              <TableBubbleBtn type="button" title={t('editor.table.addColRight', '오른쪽에 열 추가') as string}
-                onMouseDown={(e) => { e.preventDefault(); editor.chain().focus().addColumnAfter().run(); }}>＋{t('editor.table.colRight', '열→')}</TableBubbleBtn>
-              <TableBubbleBtn type="button" title={t('editor.table.addRowAbove', '위에 행 추가') as string}
-                onMouseDown={(e) => { e.preventDefault(); editor.chain().focus().addRowBefore().run(); }}>＋{t('editor.table.rowAbove', '행↑')}</TableBubbleBtn>
-              <TableBubbleBtn type="button" title={t('editor.table.addRowBelow', '아래에 행 추가') as string}
-                onMouseDown={(e) => { e.preventDefault(); editor.chain().focus().addRowAfter().run(); }}>＋{t('editor.table.rowBelow', '행↓')}</TableBubbleBtn>
-            </TableBubbleGroup>
-            <TableBubbleSep />
-            <TableBubbleGroup>
-              {/* 운영 #311 — 열 폭 고정(균등). 자유 조절은 그대로 — 끌면 다시 달라진다.
-                  ★ 2026-09-13 — 문구도 같이 바꿨다. 동작이 "160px 고정" 에서 "본문 폭에 맞춰 나눔" 으로
-                    바뀌었는데 문구가 그대로면 거짓말이 된다(memory feedback_new_behavior_makes_copy_lie). */}
-              <TableBubbleBtn type="button" data-testid="editor-table-even-cols"
-                title={t('editor.table.evenColsHint', '표를 본문 폭에 맞추고 열을 같은 너비로 나눕니다 (드래그로 다시 조절 가능)') as string}
-                onMouseDown={(e) => { e.preventDefault(); distributeTableColumnsEvenly(editor); }}>⇹{t('editor.table.evenCols', '폭 맞춤')}</TableBubbleBtn>
-            </TableBubbleGroup>
-            <TableBubbleSep />
-            <TableBubbleGroup>
-              <CellFillButton current={currentCellFillKey(editor)} onPick={(scope, item) => { setCellFill(editor, scope, item.value); }} />
-            </TableBubbleGroup>
-            <TableBubbleSep />
-            <TableBubbleGroup>
-              <TableBubbleBtn type="button" title={t('editor.table.delCol', '열 삭제') as string}
-                onMouseDown={(e) => { e.preventDefault(); editor.chain().focus().deleteColumn().run(); }}>−{t('editor.table.col', '열')}</TableBubbleBtn>
-              <TableBubbleBtn type="button" title={t('editor.table.delRow', '행 삭제') as string}
-                onMouseDown={(e) => { e.preventDefault(); editor.chain().focus().deleteRow().run(); }}>−{t('editor.table.row', '행')}</TableBubbleBtn>
-              <TableBubbleBtn type="button" $danger title={t('editor.table.delTable', '표 삭제') as string}
-                onMouseDown={(e) => { e.preventDefault(); editor.chain().focus().deleteTable().run(); }}>✕{t('editor.table.table', '표')}</TableBubbleBtn>
-            </TableBubbleGroup>
-          </TableBubble>
-        </BubbleMenu>
-      )}
+      {/* 표 안에 커서가 있을 때 — 표 위 모서리 손잡이 → 누르면 행·열·칸 색 메뉴 (TableBubbleMenu) */}
+      {editable && <TableBubbleMenu editor={editor} />}
       <Body $editable={editable} $borderless={borderless} $compact={compact}>
         <LightboxWrapper>
           <EditorContent editor={editor} />
@@ -590,22 +553,6 @@ const ImgSizeBtn = styled.button<{ $active?: boolean }>`
   font-size: 0.6875rem; font-weight: 700; cursor: pointer; min-width: 28px;
   &:hover { background: #334155; color: #FFF; }
 `;
-// 표 행/열 플로팅 컨트롤 (표 안 커서일 때 노출)
-const TableBubble = styled.div`
-  display: inline-flex; align-items: center; gap: 4px; padding: 4px;
-  background: #0F172A; border-radius: 8px;
-  box-shadow: 0 4px 12px rgba(15,23,42,0.25);
-`;
-const TableBubbleGroup = styled.div`display: inline-flex; align-items: center; gap: 2px;`;
-const TableBubbleSep = styled.div`width: 1px; height: 18px; background: #334155; margin: 0 2px;`;
-const TableBubbleBtn = styled.button<{ $danger?: boolean }>`
-  border: none; background: transparent;
-  color: ${p => p.$danger ? '#FCA5A5' : '#E2E8F0'};
-  padding: 4px 8px; border-radius: 5px;
-  font-size: 0.6875rem; font-weight: 700; cursor: pointer; white-space: nowrap;
-  &:hover { background: ${p => p.$danger ? '#7F1D1D' : '#334155'}; color: #FFF; }
-`;
-
 const Body = styled.div<{ $editable?: boolean; $borderless?: boolean; $compact?: boolean }>`
   /* borderless: 글자(본문)만 좌우 24px 안쪽. 툴바는 Wrap 풀폭(컨테이너 좌우 여백 0)이라 좌우 끝까지 붙는다.
      → sticky 툴바·구분선 풀폭, 글자만 안쪽 여백(Irene). compact(팝업)는 좁으니 자체 최소 여백. */
