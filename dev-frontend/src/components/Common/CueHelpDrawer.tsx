@@ -150,6 +150,9 @@ const CueHelpDrawer: React.FC<{
   // Q위키 탭 — 현재 화면 맥락 article + 카테고리 칩
   const [wikiContext, setWikiContext] = useState<WikiArticleSummary[]>([]);
   const [wikiCats, setWikiCats] = useState<WikiCategory[]>([]);
+  // 카테고리 18개를 한 번에 칩으로 깔면 첫 안내 문구가 화면 밖으로 밀린다(Irene 2026-10-12).
+  //   먼저 묶음(시작하기·기능·요금·설정) 4개만 보이고, 묶음을 누르면 그 안의 카테고리가 펼쳐진다.
+  const [wikiGroup, setWikiGroup] = useState<WikiGroupKey | null>(null);
   // #146 — Q helper 도움말 검색 (help_articles FULLTEXT 한글검색 재사용).
   const [wikiSearch, setWikiSearch] = useState('');
   const [wikiSearchResults, setWikiSearchResults] = useState<WikiArticleSummary[]>([]);
@@ -656,15 +659,40 @@ const CueHelpDrawer: React.FC<{
                     ))}
                   </WikiSection>
                 )}
-                {wikiCats.length > 0 && (
-                  <QuickChips>
-                    {wikiCats.map((c) => (
-                      <QuickChip key={c.id} type="button" onClick={() => openWikiPath(`/guide?category=${c.slug}`)}>
-                        {c.title}
-                      </QuickChip>
-                    ))}
-                  </QuickChips>
-                )}
+                {wikiCats.length > 0 && (() => {
+                  const groups = groupWikiCats(wikiCats);
+                  const openGroup = groups.find((g) => g.key === wikiGroup) || null;
+                  return (
+                    <WikiSection data-testid="qhelper-wiki-groups">
+                      <QuickChipsInline>
+                        {groups.map((g) => (
+                          <QuickChip
+                            key={g.key}
+                            type="button"
+                            $active={wikiGroup === g.key}
+                            aria-expanded={g.direct ? undefined : wikiGroup === g.key}
+                            data-testid={`qhelper-wiki-group-${g.key}`}
+                            onClick={() => {
+                              if (g.direct) { openWikiPath(g.direct); return; }
+                              setWikiGroup((cur) => (cur === g.key ? null : g.key)); // 재클릭 = 접기
+                            }}
+                          >
+                            {tw(`drawer.group.${g.key}`)}
+                          </QuickChip>
+                        ))}
+                      </QuickChipsInline>
+                      {openGroup && openGroup.cats.length > 0 && (
+                        <SubChips data-testid="qhelper-wiki-subchips">
+                          {openGroup.cats.map((c) => (
+                            <QuickChip key={c.id} type="button" onClick={() => openWikiPath(`/guide?category=${c.slug}`)}>
+                              {c.title}
+                            </QuickChip>
+                          ))}
+                        </SubChips>
+                      )}
+                    </WikiSection>
+                  );
+                })()}
               </>
             )}
             <WikiFullLink type="button" onClick={() => openWikiPath('/guide')}>
@@ -1172,6 +1200,27 @@ const ModeHint = styled.div`
   font-size: 0.71875rem; font-weight: 500; color: #64748B;
   line-height: 1.3;
 `;
+// ─── 도움말 카테고리 묶음 ───
+//   서버 카테고리는 그대로 두고 화면에서만 묶는다. 모르는(새) 카테고리는 «기능» 으로 들어가므로
+//   카테고리가 늘어도 빠지는 칸이 없다. 하나뿐인 묶음은 펼치지 않고 바로 연다.
+type WikiGroupKey = 'start' | 'features' | 'pricing' | 'settings';
+const WIKI_GROUP_OF: Record<string, WikiGroupKey> = {
+  'getting-started': 'start',
+  playbook: 'start',
+  settings: 'settings',
+};
+function groupWikiCats(cats: WikiCategory[]): { key: WikiGroupKey; cats: WikiCategory[]; direct?: string }[] {
+  const by: Record<WikiGroupKey, WikiCategory[]> = { start: [], features: [], pricing: [], settings: [] };
+  for (const c of cats) by[WIKI_GROUP_OF[c.slug] || 'features'].push(c);
+  const out: { key: WikiGroupKey; cats: WikiCategory[]; direct?: string }[] = [];
+  for (const key of ['start', 'features', 'pricing', 'settings'] as WikiGroupKey[]) {
+    if (key === 'pricing') { out.push({ key, cats: [], direct: '/pricing' }); continue; }
+    const list = by[key];
+    if (list.length === 0) continue;
+    out.push(list.length === 1 ? { key, cats: list, direct: `/guide?category=${list[0].slug}` } : { key, cats: list });
+  }
+  return out;
+}
 const DOT_COLOR: Record<string, string> = { cue: '#F43F5E', wiki: '#14B8A6', inquiry: '#94A3B8' };
 const ModeDot = styled.span<{ $variant: 'cue' | 'wiki' | 'inquiry' }>`
   width: 6px; height: 6px; border-radius: 50%;
@@ -1185,13 +1234,26 @@ const QuickChips = styled.div`
   display: flex; flex-wrap: wrap; gap: 6px;
   border-bottom: 1px solid #F1F5F9;
 `;
-const QuickChip = styled.button`
+const QuickChip = styled.button<{ $active?: boolean }>`
   all: unset; cursor: pointer;
   padding: 4px 10px; border-radius: 999px;
-  background: #F8FAFC; border: 1px solid #E2E8F0;
-  font-size: 0.75rem; font-weight: 500; color: #475569;
+  background: ${p => (p.$active ? '#F0FDFA' : '#F8FAFC')};
+  border: 1px solid ${p => (p.$active ? '#14B8A6' : '#E2E8F0')};
+  font-size: 0.75rem; font-weight: ${p => (p.$active ? 600 : 500)};
+  color: ${p => (p.$active ? '#0F766E' : '#475569')};
   transition: all 0.15s;
   &:hover { background: #F0FDFA; border-color: #14B8A6; color: #0F766E; }
+  &:focus-visible { outline: 2px solid #14B8A6; outline-offset: 2px; }
+`;
+// 도움말 패널 안의 칩 줄 — 패널이 이미 여백·밑줄을 가지므로 칩 줄 자체는 여백 없이.
+const QuickChipsInline = styled.div`
+  display: flex; flex-wrap: wrap; gap: 6px;
+`;
+// 펼친 묶음 — 어느 묶음의 하위인지 왼쪽 선으로 묶어 보인다.
+const SubChips = styled.div`
+  display: flex; flex-wrap: wrap; gap: 6px;
+  padding: 8px 0 2px 10px;
+  border-left: 2px solid #CCFBF1;
 `;
 // ─── Q위키 탭 패널 (맥락 카드 + 카테고리 칩 + 전체 위키 링크) ───
 const WikiPanel = styled.div`

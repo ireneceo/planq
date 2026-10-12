@@ -37,6 +37,12 @@
     "searching": "Searching…",
     "searchNoResults": "No results found",
     "openFullWiki": "Open full guide",
-    "sources": "Referenced articles"
+    "sources": "Referenced articles",
+    "group": {
+      "start": "Getting started",
+      "features": "Features",
+      "pricing": "Pricing",
+      "settings": "Settings & roles"
+    }
   }
 }

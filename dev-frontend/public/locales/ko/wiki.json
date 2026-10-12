@@ -37,6 +37,12 @@
     "searching": "검색 중…",
     "searchNoResults": "검색 결과가 없어요",
     "openFullWiki": "전체 도움말 열기",
-    "sources": "참고한 도움말"
+    "sources": "참고한 도움말",
+    "group": {
+      "start": "시작하기",
+      "features": "기능 둘러보기",
+      "pricing": "요금",
+      "settings": "설정·권한"
+    }
   }
 }
