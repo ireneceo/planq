@@ -74,6 +74,10 @@ interface PlanQSelectProps<IsMulti extends boolean = false>
   hasError?: boolean;
   /** 옵션 간격 — 시간 리스트처럼 옵션 많을 때 'compact' 사용. 기본 'comfortable'. */
   density?: 'comfortable' | 'compact';
+  /** 'inline' — 속성 줄(라벨 왼쪽·값 오른쪽) 안에 쓰는 모양. 테두리·배경 없이 값만 보이고
+   *  마우스를 올리거나 포커스하면 테두리가 나온다(높이 32). 업무 상세 메타처럼 칸이 많은 곳에서
+   *  상자 11개가 쌓여 «난장판» 으로 보이던 것을 줄인다(2026-10-12 Irene). 기본 'box'. */
+  variant?: 'box' | 'inline';
 }
 
 // ─────────────────────────────────────────────────────────
@@ -127,8 +131,10 @@ function buildStyles(
   size: 'sm' | 'md' | 'lg',
   hasError: boolean,
   density: 'comfortable' | 'compact' = 'comfortable',
+  variant: 'box' | 'inline' = 'box',
 ): StylesConfig<PlanQSelectOption, boolean, GroupBase<PlanQSelectOption>> {
-  const minHeight = SIZE_HEIGHT[size];
+  const inline = variant === 'inline';
+  const minHeight = inline ? 32 : SIZE_HEIGHT[size];
   const fontSizePx = SIZE_FONT[size];
   const fontSize = rem(fontSizePx);
   /* ★ 폰에서는 1rem(16px) 아래로 내려가지 않는다 — iOS 가 16px 미만 입력칸에 포커스하면
@@ -150,12 +156,12 @@ function buildStyles(
     control: (base, state) => ({
       ...base,
       minHeight,
-      backgroundColor: state.isDisabled ? '#F8FAFC' : C.white,
+      backgroundColor: inline ? 'transparent' : state.isDisabled ? '#F8FAFC' : C.white,
       borderColor: hasError
         ? C.errorBorder
         : state.isFocused
         ? C.primary500
-        : C.neutral200,
+        : inline ? 'transparent' : C.neutral200,
       borderWidth: 1,
       borderRadius: 8,
       boxShadow: state.isFocused
@@ -164,13 +170,17 @@ function buildStyles(
       transition: 'border-color 120ms, box-shadow 120ms',
       cursor: state.isDisabled ? 'not-allowed' : 'pointer',
       '&:hover': {
-        borderColor: hasError ? C.errorBorder : state.isFocused ? C.primary500 : C.neutral300,
+        borderColor: hasError ? C.errorBorder : state.isFocused ? C.primary500 : (inline && state.isDisabled) ? 'transparent' : C.neutral300,
       },
+      /* ★ X(지우기)는 마우스를 올렸거나 포커스됐을 때만 (2026-10-12 Irene «화살표랑 X 가 공간을 차지해서
+           실제 내용이 안 보인다»). 상시로 두면 sm 셀렉트에서 화살표+X 가 64px — 업무 상세 145px 칸에서
+           글자 칸이 55px 만 남았다. 터치는 누르면 포커스되므로 그때 X 가 나타난다(메뉴가 열린 채 X 를 누르면 지워진다). */
+      '&:hover [data-pq-clear]': { display: 'flex' },
     }),
     valueContainer: (base) => ({
       ...base,
       ...phoneFloor,
-      padding: size === 'sm' ? '2px 12px' : size === 'lg' ? '8px 16px' : '4px 14px',
+      padding: inline ? '0 6px' : size === 'sm' ? '2px 12px' : size === 'lg' ? '8px 16px' : '4px 14px',
       fontSize,
     }),
     // ★ 문구는 **감기지 않는다** — 좁으면 말줄임 (2026-09-06).
@@ -207,16 +217,19 @@ function buildStyles(
     indicatorSeparator: () => ({ display: 'none' }),
     dropdownIndicator: (base, state) => ({
       ...base,
-      color: state.isFocused ? C.primary600 : C.neutral400,
-      padding: size === 'sm' ? 6 : 8,
+      // inline 읽기 전용은 화살표도 걷는다 — 고를 수 없는 값에 화살표가 있으면 눌러도 안 열리는 버튼이다.
+      ...(inline && state.isDisabled ? { display: 'none' } : {}),
+      color: state.isFocused ? C.primary600 : inline ? C.neutral300 : C.neutral400,
+      padding: inline ? 2 : size === 'sm' ? 4 : 8,
       transition: 'color 120ms, transform 120ms',
       transform: state.selectProps.menuIsOpen ? 'rotate(180deg)' : 'rotate(0deg)',
       '&:hover': { color: C.primary600 },
     }),
-    clearIndicator: (base) => ({
+    clearIndicator: (base, state) => ({
       ...base,
+      display: state.isFocused ? 'flex' : 'none',
       color: C.neutral400,
-      padding: 6,
+      padding: size === 'sm' || inline ? 4 : 6,
       '&:hover': { color: C.errorBorder },
     }),
     menu: (base) => ({
@@ -328,21 +341,26 @@ const SingleValue = (props: any) => {
   );
 };
 
+// X 를 control 의 :hover 선택자로 찾을 수 있게 표식을 단다(emotion 클래스 이름은 매번 달라진다).
+const ClearIndicator = (props: any) => (
+  <components.ClearIndicator {...props} innerProps={{ ...props.innerProps, 'data-pq-clear': '' }} />
+);
+
 // ─────────────────────────────────────────────────────────
 // 메인 컴포넌트
 // ─────────────────────────────────────────────────────────
 function PlanQSelect<IsMulti extends boolean = false>(
   props: PlanQSelectProps<IsMulti>
 ) {
-  const { size = 'md', hasError = false, density = 'comfortable', creatable = false, ...rest } = props;
+  const { size = 'md', hasError = false, density = 'comfortable', creatable = false, variant = 'box', ...rest } = props;
   const { t } = useTranslation('common');
   const Cmp = (creatable ? CreatableSelect : Select) as typeof Select;
 
   return (
     <Cmp
       {...rest}
-      styles={buildStyles(size, hasError, density) as any}
-      components={{ Option, SingleValue, ...(rest.components || {}) }}
+      styles={buildStyles(size, hasError, density, variant) as any}
+      components={{ Option, SingleValue, ClearIndicator, ...(rest.components || {}) }}
       noOptionsMessage={({ inputValue }) =>
         inputValue
           ? t('select.noResultFor', { defaultValue: "'{{query}}'에 대한 결과 없음", query: inputValue })

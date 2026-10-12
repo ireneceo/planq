@@ -531,6 +531,7 @@
       "actAuto": "자동 누적",
       "inProgressDot": "진행 중",
       "timeHint": "진행 시작·완료 시 실제 시간이 자동 누적됩니다 (값을 바꿔 입력하면 확정)",
+      "timeHintToggle": "실제 시간 안내",
       "reviewReminder": "진행 100% 도달 — 컨펌자({{count}}명)에게 \"확인 요청 보내기\" 버튼을 눌러 완료 흐름을 시작하세요",
       "createdOn": "작성",
       "requestedOn": "요청",

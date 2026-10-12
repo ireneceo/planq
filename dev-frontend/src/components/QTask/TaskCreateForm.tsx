@@ -471,6 +471,19 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({
             onChange={setTagIds}
             onDictAdd={addTagToDict} />
         </AddOptField>
+      </AddOptRow>
+      {/* 반복 — 공용 RecurrencePicker(Q Calendar 와 같은 것). 마감일이 anchor 다.
+          남에게 명시적으로 지정한 업무에서는 서버가 버리므로(§5.7) 칸 자체를 내지 않는다. */}
+      {capacityMine && (
+        <RecurRow data-field="recur">
+          <RecurrencePicker value={recurrence} onChange={setRecurrence}
+            anchorDate={dueDate || createDefaults?.due_date || null} />
+        </RecurRow>
+      )}
+      {/* 공개 범위·보안등급 — 업무 상세와 같은 자리(반복 아래 «설정» 줄, 2026-10-12). 매일 고르는 칸들 사이에 두면
+          폼이 길고 어수선해진다(Irene «공개범위랑 보안등급이 위에 붙어야 할까? 하단에 있는 게 맞지 않을까»). */}
+      {canPickSecurity && (
+      <AddOptRow data-field="settings">
         {canPickSecurity && (
           <AddOptField data-field="visibility" style={{ flex: '0 1 160px' }}>
             <AddOptLabel>{t('visibility.label', '공개 범위')}</AddOptLabel>
@@ -491,13 +504,6 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({
           </AddOptField>
         )}
       </AddOptRow>
-      {/* 반복 — 공용 RecurrencePicker(Q Calendar 와 같은 것). 마감일이 anchor 다.
-          남에게 명시적으로 지정한 업무에서는 서버가 버리므로(§5.7) 칸 자체를 내지 않는다. */}
-      {capacityMine && (
-        <RecurRow data-field="recur">
-          <RecurrencePicker value={recurrence} onChange={setRecurrence}
-            anchorDate={dueDate || createDefaults?.due_date || null} />
-        </RecurRow>
       )}
       <DescEditorWrap data-field="desc">
         <RichEditor

@@ -32,7 +32,7 @@ import RichEditor from '../Common/RichEditor';
 import ShareModal from '../Common/ShareModal';
 import VisibilityChip from '../Common/VisibilityChip';
 import VisibilityChangeModal from '../Common/VisibilityChangeModal';
-import { useSecurityLevelLabel } from '../Common/SecurityLevelBadge';
+import SecurityLevelBadge, { useSecurityLevelLabel } from '../Common/SecurityLevelBadge';
 import ConfirmDialog from '../Common/ConfirmDialog';
 import ActionButton from '../Common/ActionButton';
 import AutoSaveField from '../Common/AutoSaveField';
@@ -287,6 +287,7 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState('');
   const [aiEstLoading, setAiEstLoading] = useState(false);
+  const [timeHintOpen, setTimeHintOpen] = useState(false);
   // Recurrence (정기업무) — 추가 폼과 동일 옵션
   const [recurEnabled, setRecurEnabled] = useState(false);
   const [recurPreset, setRecurPreset] = useState<RecurPreset>('weekly');
@@ -1719,6 +1720,13 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                   )}
                 </StatusBadgeWrap>
                 {detailTask.Project?.name && <ProjTag>{detailTask.Project.name}</ProjTag>}
+                {/* 공개 범위·보안등급은 아래 «설정» 묶음으로 내렸다 — 기본값이 아닐 때만 여기서도 알린다
+                    (위에서 안 보여 모르고 지나치지 않게. 일반·워크스페이스 공개는 노이즈라 그리지 않는다). */}
+                {showSecurity && (detailTask.vlevel === 'L1' || detailTask.vlevel === 'L2') && (
+                  <VisibilityChip level={detailTask.vlevel as 'L1' | 'L2'}
+                    onClick={canEditSecurity ? () => setVisOpen(true) : undefined} />
+                )}
+                {showSecurity && <SecurityLevelBadge level={detailTask.security_level || 'general'} />}
                 {(() => {
                   const isReq = detailTask.source === 'internal_request' || detailTask.source === 'qtalk_extract';
                   const reqUserId = detailTask.request_by_user_id ?? detailTask.created_by;
@@ -1818,118 +1826,13 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                 </MetaToggle>
               )}
               <MetaGrid $hidden={isPopout && !metaOpen}>
-                <MetaCell>
-                  <MetaLabel>{t('detail.meta.project', '프로젝트')}
-                    {!canEditProject && <ReadOnlyHint>{t('detail.readOnly', '읽기 전용')}</ReadOnlyHint>}
-                  </MetaLabel>
-                  <PlanQSelect size="sm" isClearable
-                    isDisabled={!canEditProject}
-                    placeholder={tc(CONNECT_PROMPT.projectNone) as string}
-                    value={detailTask.project_id == null ? null : {
-                      value: String(detailTask.project_id),
-                      label: projects.find(p => p.id === detailTask.project_id)?.name
-                        || detailTask.Project?.name
-                        || '-',
-                    }}
-                    onChange={async (v) => {
-                      if (!canEditProject) return;
-                      const pid = (v as { value?: string })?.value ? Number((v as { value: string }).value) : null;
-                      const before = { project_id: detailTask.project_id, Project: detailTask.Project };
-                      setDetailTask(prev => {
-                        if (!prev) return prev;
-                        const p = projects.find(pp => pp.id === pid);
-                        return {
-                          ...prev,
-                          project_id: pid,
-                          Project: pid != null ? { id: pid, name: p?.name || prev.Project?.name || '-' } : null,
-                        } as TaskDetail;
-                      });
-                      // 서버가 거절하면 화면을 되돌리고 이유를 말한다(#463 — 외부 파트너 담당자·컨펌자는 새 프로젝트 참여자여야 한다)
-                      const res = await saveField('project_id', pid);
-                      if (res && !res.ok) {
-                        setDetailTask(prev => (prev ? { ...prev, ...before } as TaskDetail : prev));
-                        const reason = res.code === 'external_assignee_not_in_project' || res.code === 'external_reviewer_not_in_project' || res.code === 'project_closed'
-                          ? res.code : 'other';
-                        setActionError(t(`detail.moveProjectFailed.${reason}`) as string);
-                      }
-                    }}
-                    options={projects.map(p => ({ value: String(p.id), label: p.name }))} />
-                </MetaCell>
-                {/* #250 업무 태그 — 사전에서 고른다(자유 입력 아님). 오타로 태그가 갈라지지 않게.
-                    ★ 프로젝트와 **같은 행 2열**로 둔다 (Irene: "이 2가지 항목이 쓸데없이 길어").
-                      옛 전폭 배치는 태그 칩이 줄바꿈되는 것을 피하려던 것인데(#290), 그 대가로
-                      두 줄을 먹어 상세가 세로로 길어졌다. 칩이 많으면 셀 안에서 줄바꿈되게 두고,
-                      "새 태그" 별도 줄이 사라져(입력창 안 만들기) 실제 높이는 오히려 줄었다. */}
-                <MetaCell>
-                  <MetaLabel>{t('detail.meta.tags', '태그')}
-                    {!canEditTags && <ReadOnlyHint>{t('detail.readOnly', '읽기 전용')}</ReadOnlyHint>}
-                  </MetaLabel>
-                  <TagPicker
-                    bizId={bizId}
-                    dict={tagDict}
-                    value={detailTask.tags || []}
-                    disabled={!canEditTags || tagSaving}
-                    onChange={(ids) => { if (canEditTags) saveTags(ids); }}
-                    onDictAdd={(tag) => setTagDict(prev => (prev.some(p => p.id === tag.id) ? prev : [...prev, tag]))} />
-                </MetaCell>
-                {/* #353 ⑤ 중요도 — AI 가 판단하거나 사람이 고른다.
-                    ★ 왼쪽의 "우선순위 N"(주간 랭킹, priority_order)과 **다른 것**이라
-                      이름을 "중요도" 로 갈라 둔다. 값도 다른 컬럼(priority_level)이다.
-                    권한은 제목·분류와 같은 축 — 의뢰자·수행자 둘 다 말할 수 있는 성격. */}
-                <MetaCell>
-                  <MetaLabel>{t('importance.label', '중요도')}
-                    {!canEditTitle && <ReadOnlyHint>{t('detail.readOnly', '읽기 전용')}</ReadOnlyHint>}
-                  </MetaLabel>
-                  <PlanQSelect size="sm" isClearable
-                    isDisabled={!canEditTitle}
-                    placeholder={t('importance.unset', '미지정') as string}
-                    value={detailTask.priority_level
-                      ? { value: detailTask.priority_level, label: t(`importance.${detailTask.priority_level}`) as string }
-                      : null}
-                    onChange={(v) => {
-                      if (!canEditTitle) return;
-                      const val = (v as { value?: string })?.value || null;
-                      saveField('priority_level', val);
-                    }}
-                    options={['urgent', 'high', 'normal', 'low'].map((k) => ({ value: k, label: t(`importance.${k}`) as string }))} />
-                </MetaCell>
-                {/* 공개 범위·보안등급(2026-10-12, docs/TASK_SECURITY_LEVEL_DESIGN.md) — 문서(Q docs)와 **같은 컴포넌트**.
-                    공개: VisibilityChip → VisibilityChangeModal(나만·특정 프로젝트·특정 멤버·워크스페이스, 외부는 공유 창으로) ·
-                    보안: 일반·내부·기밀(일반 밖이면 외부 공유가 막히고 나가 있던 링크가 끊긴다). 바꾸는 사람은 작성자·대표·관리자. */}
-                {showSecurity && (
-                  <MetaCell data-testid="task-visibility">
-                    <MetaLabel>{t('visibility.label', '공개 범위')}
-                      {!canEditSecurity && <ReadOnlyHint>{t('detail.readOnly', '읽기 전용')}</ReadOnlyHint>}
-                    </MetaLabel>
-                    <VisibilityChip data-testid="task-visibility-chip"
-                      level={(detailTask.vlevel || 'L3') as 'L1' | 'L2' | 'L3' | 'L4'}
-                      onClick={canEditSecurity ? () => setVisOpen(true) : undefined} />
-                  </MetaCell>
-                )}
-                {showSecurity && (
-                  <MetaCell data-testid="task-security-level">
-                    <MetaLabel>{t('securityLevel.label', { ns: 'common', defaultValue: '보안등급' }) as string}
-                      {!canEditSecurity && <ReadOnlyHint>{t('detail.readOnly', '읽기 전용')}</ReadOnlyHint>}
-                    </MetaLabel>
-                    <PlanQSelect size="sm"
-                      isDisabled={!canEditSecurity}
-                      value={{ value: detailTask.security_level || 'general', label: secLabel(detailTask.security_level || 'general') }}
-                      onChange={async (v) => {
-                        if (!canEditSecurity) return;
-                        const val = ((v as { value?: string })?.value || 'general') as 'general' | 'internal' | 'confidential';
-                        if (val === (detailTask.security_level || 'general')) return;
-                        const before = { security_level: detailTask.security_level, vlevel: detailTask.vlevel };
-                        // 일반 밖으로 올리면 외부(L4)였던 범위는 워크스페이스로 내려간다(서버와 같은 규칙 — services/taskVisibility)
-                        setDetailTask(prev => (prev ? { ...prev, security_level: val, ...(val !== 'general' && prev.vlevel === 'L4' ? { vlevel: 'L3' } : {}) } as TaskDetail : prev));
-                        const res = await saveField('security_level', val);
-                        if (res && !res.ok) setDetailTask(prev => (prev ? { ...prev, ...before } as TaskDetail : prev));
-                      }}
-                      options={(['general', 'internal', 'confidential'] as const).map((lv) => ({ value: lv, label: secLabel(lv) }))} />
-                  </MetaCell>
-                )}
+                {/* 2026-10-12 Irene «공개범위·보안등급 추가하고 더 난장판» — 매일 보는 것(담당자·기간)을 맨 위로,
+                    라벨은 왼쪽·값은 오른쪽(속성 줄), 셀렉트는 테두리 없는 inline 모양. 공개 범위·보안등급은
+                    한 번 정하고 잘 안 바꾸는 것이라 아래 «설정» 묶음(반복하기와 함께)으로 내렸다.
+                    기본값이 아니면(나만·특정·내부·기밀) 제목 아래 배지 줄에도 보인다. */}
                 <MetaCell>
                   <MetaLabel>{t('detail.meta.assignee', '담당자')}</MetaLabel>
-                  <PlanQSelect size="sm" isClearable
+                  <PlanQSelect size="sm" variant="inline" isClearable
                     placeholder={t('detail.meta.assigneePh', '담당자 선택') as string}
                     value={selectedAssigneeOption}
                     onChange={(v) => {
@@ -1964,30 +1867,89 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                   })()}
                 </MetaCell>
                 <MetaCell>
-                  <MetaLabel>{t('detail.meta.period', '기간')}</MetaLabel>
+                  <MetaLabel>{t('detail.meta.period', '기간')}
+                    {!canEditDates && <MetaLock title={t('detail.readOnly', '읽기 전용') as string} aria-label={t('detail.readOnly', '읽기 전용') as string} />}
+                  </MetaLabel>
                   <DateRangeCell start={detailTask.start_date} due={detailTask.due_date}
                     readOnly={!canEditDates}
                     readOnlyHint={t('detail.meta.datesReadOnly', '기간은 요청자·담당자·관리자만 변경할 수 있어요') as string}
                     onSave={(s, d) => { saveFields({ start_date: s, due_date: d }); }} />
-                  {!canEditDates && <ReadOnlyHint>{t('detail.readOnly', '읽기 전용')}</ReadOnlyHint>}
                 </MetaCell>
-                {detailTask.project_id != null && (
-                  <MetaCell>
-                    <MetaLabel>{t('detail.meta.milestone', '주요 업무')}</MetaLabel>
-                    <MilestoneToggle type="button" role="switch" aria-checked={!!detailTask.is_milestone}
-                      $on={!!detailTask.is_milestone} disabled={!canMilestone}
-                      title={t('detail.meta.milestoneHint', '일정 타임라인에 마일스톤(◆)으로 강조됩니다') as string}
-                      onClick={() => {
-                        if (!canMilestone) return;
-                        const next = !detailTask.is_milestone;
-                        setDetailTask(prev => prev ? { ...prev, is_milestone: next } as TaskDetail : prev);
-                        saveField('is_milestone', next);  // saveField 내부에서 onPatch 호출
-                      }}>
-                      <MsDiamond $on={!!detailTask.is_milestone} />
-                      <MsToggleLbl $on={!!detailTask.is_milestone}>{detailTask.is_milestone ? t('detail.meta.milestone', '주요 업무') : '—'}</MsToggleLbl>
-                    </MilestoneToggle>
-                  </MetaCell>
-                )}
+                <MetaCell>
+                  <MetaLabel>{t('detail.meta.project', '프로젝트')}
+                    {!canEditProject && <MetaLock title={t('detail.readOnly', '읽기 전용') as string} aria-label={t('detail.readOnly', '읽기 전용') as string} />}
+                  </MetaLabel>
+                  <PlanQSelect size="sm" variant="inline" isClearable
+                    isDisabled={!canEditProject}
+                    placeholder={tc(CONNECT_PROMPT.projectNone) as string}
+                    value={detailTask.project_id == null ? null : {
+                      value: String(detailTask.project_id),
+                      label: projects.find(p => p.id === detailTask.project_id)?.name
+                        || detailTask.Project?.name
+                        || '-',
+                    }}
+                    onChange={async (v) => {
+                      if (!canEditProject) return;
+                      const pid = (v as { value?: string })?.value ? Number((v as { value: string }).value) : null;
+                      const before = { project_id: detailTask.project_id, Project: detailTask.Project };
+                      setDetailTask(prev => {
+                        if (!prev) return prev;
+                        const p = projects.find(pp => pp.id === pid);
+                        return {
+                          ...prev,
+                          project_id: pid,
+                          Project: pid != null ? { id: pid, name: p?.name || prev.Project?.name || '-' } : null,
+                        } as TaskDetail;
+                      });
+                      // 서버가 거절하면 화면을 되돌리고 이유를 말한다(#463 — 외부 파트너 담당자·컨펌자는 새 프로젝트 참여자여야 한다)
+                      const res = await saveField('project_id', pid);
+                      if (res && !res.ok) {
+                        setDetailTask(prev => (prev ? { ...prev, ...before } as TaskDetail : prev));
+                        const reason = res.code === 'external_assignee_not_in_project' || res.code === 'external_reviewer_not_in_project' || res.code === 'project_closed'
+                          ? res.code : 'other';
+                        setActionError(t(`detail.moveProjectFailed.${reason}`) as string);
+                      }
+                    }}
+                    options={projects.map(p => ({ value: String(p.id), label: p.name }))} />
+                </MetaCell>
+                {/* #353 ⑤ 중요도 — AI 가 판단하거나 사람이 고른다.
+                    ★ 왼쪽의 "우선순위 N"(주간 랭킹, priority_order)과 **다른 것**이라
+                      이름을 "중요도" 로 갈라 둔다. 값도 다른 컬럼(priority_level)이다.
+                    권한은 제목·분류와 같은 축 — 의뢰자·수행자 둘 다 말할 수 있는 성격. */}
+                <MetaCell>
+                  <MetaLabel>{t('importance.label', '중요도')}
+                    {!canEditTitle && <MetaLock title={t('detail.readOnly', '읽기 전용') as string} aria-label={t('detail.readOnly', '읽기 전용') as string} />}
+                  </MetaLabel>
+                  <PlanQSelect size="sm" variant="inline" isClearable
+                    isDisabled={!canEditTitle}
+                    placeholder={t('importance.unset', '미지정') as string}
+                    value={detailTask.priority_level
+                      ? { value: detailTask.priority_level, label: t(`importance.${detailTask.priority_level}`) as string }
+                      : null}
+                    onChange={(v) => {
+                      if (!canEditTitle) return;
+                      const val = (v as { value?: string })?.value || null;
+                      saveField('priority_level', val);
+                    }}
+                    options={['urgent', 'high', 'normal', 'low'].map((k) => ({ value: k, label: t(`importance.${k}`) as string }))} />
+                </MetaCell>
+                {/* #250 업무 태그 — 사전에서 고른다(자유 입력 아님). 오타로 태그가 갈라지지 않게.
+                    ★ 프로젝트와 **같은 행 2열**로 둔다 (Irene: "이 2가지 항목이 쓸데없이 길어").
+                      옛 전폭 배치는 태그 칩이 줄바꿈되는 것을 피하려던 것인데(#290), 그 대가로
+                      두 줄을 먹어 상세가 세로로 길어졌다. 칩이 많으면 셀 안에서 줄바꿈되게 두고,
+                      "새 태그" 별도 줄이 사라져(입력창 안 만들기) 실제 높이는 오히려 줄었다. */}
+                <MetaCell $full>
+                  <MetaLabel>{t('detail.meta.tags', '태그')}
+                    {!canEditTags && <MetaLock title={t('detail.readOnly', '읽기 전용') as string} aria-label={t('detail.readOnly', '읽기 전용') as string} />}
+                  </MetaLabel>
+                  <TagPicker variant="inline"
+                    bizId={bizId}
+                    dict={tagDict}
+                    value={detailTask.tags || []}
+                    disabled={!canEditTags || tagSaving}
+                    onChange={(ids) => { if (canEditTags) saveTags(ids); }}
+                    onDictAdd={(tag) => setTagDict(prev => (prev.some(p => p.id === tag.id) ? prev : [...prev, tag]))} />
+                </MetaCell>
                 {(() => {
                   const isAssignee = detailTask.assignee_id === myId;
                   const eHours = Number(detailTask.estimated_hours) || 0;
@@ -2035,15 +1997,13 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                       </MetaValueRow>
                     </MetaCell>
                     <MetaCell>
-                      <MetaLabelRow>
-                        <MetaLabel>{t('detail.meta.act', '실제')}</MetaLabel>
-                        {detailTask.status === 'in_progress' && (
-                          <InProgressDot title={t('detail.meta.inProgressDot', { defaultValue: '진행 중' }) as string}
-                            aria-label={t('detail.meta.inProgressDot', { defaultValue: '진행 중' }) as string}>
-                            <span /> {t('detail.meta.inProgressDot', { defaultValue: '진행 중' })}
-                          </InProgressDot>
-                        )}
-                      </MetaLabelRow>
+                      <MetaLabel>{t('detail.meta.act', '실제')}
+                        {/* 자동 누적 안내 — 상시 상자 대신 ⓘ 를 누르면 아래에 펼친다(터치에서도 열린다). */}
+                        <MetaInfoBtn type="button" aria-expanded={timeHintOpen}
+                          aria-label={t('detail.meta.timeHintToggle', { defaultValue: '실제 시간 안내' }) as string}
+                          title={t('detail.meta.timeHint', { defaultValue: '진행 시작·완료 시 실제 시간이 자동 누적됩니다 (값을 바꿔 입력하면 확정)' }) as string}
+                          onClick={() => setTimeHintOpen(v => !v)}>i</MetaInfoBtn>
+                      </MetaLabel>
                       <MetaValueRow>
                         <MetaNumInput key={`a-${detailTask.id}-${detailTask.actual_hours}-${detailTask.actual_source||'auto'}`}
                           type="number" step="0.5" min="0"
@@ -2057,6 +2017,12 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                           }
                           onBlur={e => { const v = e.target.value === '' ? null : Number(e.target.value); if ((v === null || !isNaN(v)) && isAssignee && !sameHours(e.target.value, e.target.defaultValue)) saveField('actual_hours', v); }} />
                         <MetaUnit>h</MetaUnit>
+                        {detailTask.status === 'in_progress' && (
+                          <InProgressDot title={t('detail.meta.inProgressDot', { defaultValue: '진행 중' }) as string}
+                            aria-label={t('detail.meta.inProgressDot', { defaultValue: '진행 중' }) as string}>
+                            <span /> {t('detail.meta.inProgressDot', { defaultValue: '진행 중' })}
+                          </InProgressDot>
+                        )}
                       </MetaValueRow>
                     </MetaCell>
                     <MetaCell>
@@ -2074,14 +2040,32 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                     </MetaCell>
                   </>);
                 })()}
+                {detailTask.project_id != null && (
+                  <MetaCell>
+                    <MetaLabel>{t('detail.meta.milestone', '주요 업무')}</MetaLabel>
+                    <MilestoneToggle type="button" role="switch" aria-checked={!!detailTask.is_milestone}
+                      $on={!!detailTask.is_milestone} disabled={!canMilestone}
+                      title={t('detail.meta.milestoneHint', '일정 타임라인에 마일스톤(◆)으로 강조됩니다') as string}
+                      onClick={() => {
+                        if (!canMilestone) return;
+                        const next = !detailTask.is_milestone;
+                        setDetailTask(prev => prev ? { ...prev, is_milestone: next } as TaskDetail : prev);
+                        saveField('is_milestone', next);  // saveField 내부에서 onPatch 호출
+                      }}>
+                      <MsDiamond $on={!!detailTask.is_milestone} />
+                      <MsToggleLbl $on={!!detailTask.is_milestone}>{detailTask.is_milestone ? t('detail.meta.milestone', '주요 업무') : '—'}</MsToggleLbl>
+                    </MilestoneToggle>
+                  </MetaCell>
+                )}
               </MetaGrid>
-              {/* 시간 자동 누적 안내 — tooltip 만으론 모바일/터치 환경에서 발견 불가. 상시 inline 노출. */}
-              <TimeAutoHint>
+              {/* 시간 자동 누적 안내 — tooltip 만으론 모바일/터치 환경에서 발견 불가 → «실제» 옆 ⓘ 를 누르면 펼친다
+                  (2026-10-12 — 상시 상자가 메타 영역 한 줄을 늘 먹었다). */}
+              {timeHintOpen && !(isPopout && !metaOpen) && <TimeAutoHint>
                 <TimeAutoHintIcon viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
                   <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
                 </TimeAutoHintIcon>
                 {t('detail.meta.timeHint', { defaultValue: '진행 시작·완료 시 실제 시간이 자동 누적됩니다 (값을 바꿔 입력하면 확정)' })}
-              </TimeAutoHint>
+              </TimeAutoHint>}
               {/* 100% 도달 + reviewer 있는 task — 자동 completed 안 됨. "확인 요청 보내기" 명시 클릭 안내. */}
               {(detailTask.progress_percent || 0) === 100
                 && reviewers.length > 0
@@ -2098,6 +2082,44 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                 </ReviewReminderHint>
               )}
 
+              {showSecurity && (
+              <MetaGrid $settings $hidden={isPopout && !metaOpen}>
+                {/* 공개 범위·보안등급(2026-10-12, docs/TASK_SECURITY_LEVEL_DESIGN.md) — 문서(Q docs)와 **같은 컴포넌트**.
+                    공개: VisibilityChip → VisibilityChangeModal(나만·특정 프로젝트·특정 멤버·워크스페이스, 외부는 공유 창으로) ·
+                    보안: 일반·내부·기밀(일반 밖이면 외부 공유가 막히고 나가 있던 링크가 끊긴다). 바꾸는 사람은 작성자·대표·관리자. */}
+                {showSecurity && (
+                  <MetaCell data-testid="task-visibility">
+                    <MetaLabel>{t('visibility.label', '공개 범위')}
+                      {!canEditSecurity && <MetaLock title={t('detail.readOnly', '읽기 전용') as string} aria-label={t('detail.readOnly', '읽기 전용') as string} />}
+                    </MetaLabel>
+                    <MetaVisChip data-testid="task-visibility-chip"
+                      level={(detailTask.vlevel || 'L3') as 'L1' | 'L2' | 'L3' | 'L4'}
+                      onClick={canEditSecurity ? () => setVisOpen(true) : undefined} />
+                  </MetaCell>
+                )}
+                {showSecurity && (
+                  <MetaCell data-testid="task-security-level">
+                    <MetaLabel>{t('securityLevel.label', { ns: 'common', defaultValue: '보안등급' }) as string}
+                      {!canEditSecurity && <MetaLock title={t('detail.readOnly', '읽기 전용') as string} aria-label={t('detail.readOnly', '읽기 전용') as string} />}
+                    </MetaLabel>
+                    <PlanQSelect size="sm" variant="inline"
+                      isDisabled={!canEditSecurity}
+                      value={{ value: detailTask.security_level || 'general', label: secLabel(detailTask.security_level || 'general') }}
+                      onChange={async (v) => {
+                        if (!canEditSecurity) return;
+                        const val = ((v as { value?: string })?.value || 'general') as 'general' | 'internal' | 'confidential';
+                        if (val === (detailTask.security_level || 'general')) return;
+                        const before = { security_level: detailTask.security_level, vlevel: detailTask.vlevel };
+                        // 일반 밖으로 올리면 외부(L4)였던 범위는 워크스페이스로 내려간다(서버와 같은 규칙 — services/taskVisibility)
+                        setDetailTask(prev => (prev ? { ...prev, security_level: val, ...(val !== 'general' && prev.vlevel === 'L4' ? { vlevel: 'L3' } : {}) } as TaskDetail : prev));
+                        const res = await saveField('security_level', val);
+                        if (res && !res.ok) setDetailTask(prev => (prev ? { ...prev, ...before } as TaskDetail : prev));
+                      }}
+                      options={(['general', 'internal', 'confidential'] as const).map((lv) => ({ value: lv, label: secLabel(lv) }))} />
+                  </MetaCell>
+                )}
+              </MetaGrid>
+              )}
               {/* 정기업무 인스턴스 표시 — cron 자동 생성된 자식 task.
                   ★ 여기서 **편집 UI 를 숨기지 않는다.** 숨겨 두었더니 사용자는 반복을 아예 바꿀 수 없었다
                     (Irene: "처음 업무에서만 수정되는 것 같은데"). 회차에서 바꾼 규칙은 시리즈 부모에
@@ -3173,24 +3195,54 @@ const MetaToggle = styled.button`
   cursor:pointer;text-align:left;font-family:inherit;
   &:hover{color:#0F172A;}
 `;
-const MetaGrid = styled.div<{ $hidden?: boolean }>`
-  display: flex; flex-wrap: wrap; align-items: flex-start;
-  gap: 8px;
-  margin-top: 12px; padding-top: 12px;
+const MetaGrid = styled.div<{ $hidden?: boolean; $settings?: boolean }>`
+  /* 속성 줄 격자 (2026-10-12) — 칸마다 «위 라벨 + 36px 상자» 이던 것을 «왼쪽 라벨 · 오른쪽 값» 줄로.
+     넓으면 2열(서랍 480 → 칸 ≈218px), 좁으면(폰·팝아웃 좁은 창) 1열. */
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 190px), 1fr));
+  gap: 2px 16px;
+  margin-top: 12px; padding-top: 10px;
   border-top: 1px solid #F1F5F9;
-  /* ★ display:flex 뒤에 와야 이긴다 — 앞에 두면 아래 flex 가 덮어써 접힘이 안 먹는다. */
+  ${p => p.$settings ? 'margin-top:8px;padding-top:8px;border-top-style:dashed;' : ''}
+  /* ★ display 뒤에 와야 이긴다 — 앞에 두면 위 display 가 덮어써 접힘이 안 먹는다. */
   ${p => p.$hidden ? 'display:none;' : ''}
   /* #290 — 좁은 창에서 항목 간격이 헐렁하게 보인다. 팝아웃에서만 조인다. */
-  body[data-popout='1'] &{ gap:6px; margin-top:8px; padding-top:8px; }
+  body[data-popout='1'] &{ margin-top:8px; padding-top:8px; }
 `;
 const MetaCell = styled.div<{ $full?: boolean }>`
-  flex: ${p => p.$full ? '1 1 100%' : '1 1 140px'}; min-width: 0;
-  display: flex; flex-direction: column; gap: 3px;
+  ${p => p.$full ? 'grid-column: 1 / -1;' : ''}
+  min-width: 0; min-height: 32px;
+  display: grid; grid-template-columns: 64px minmax(0, 1fr); column-gap: 8px; align-items: start;
+  /* 첫 자식(라벨) 뒤의 것은 모두 값 칸 — 담당자 소속 줄처럼 값 아래 덧붙는 것도 같은 칸에 쌓인다. */
+  > :not(:first-child) { grid-column: 2; }
 `;
-const MetaLabel = styled.label`font-size: 0.6875rem; color: #64748B; font-weight: 600;`;
+const MetaLabel = styled.label`
+  display: flex; align-items: center; gap: 4px; min-width: 0;
+  min-height: 32px; font-size: 0.75rem; color: #64748B; font-weight: 500;
+  white-space: nowrap; overflow: hidden;
+`;
+// 읽기 전용 표시 — 라벨 칸(64px)에 «읽기 전용» 알약이 들어가지 않아 자물쇠 하나로. 값 셀렉트는 화살표가 사라진다.
+const MetaLock = styled.span`
+  flex-shrink: 0; width: 10px; height: 10px;
+  background: currentColor; color: #CBD5E1;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M6 10V7a6 6 0 1 1 12 0v3h1a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V11a1 1 0 0 1 1-1h1zm2 0h8V7a4 4 0 1 0-8 0v3z'/%3E%3C/svg%3E") center/contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M6 10V7a6 6 0 1 1 12 0v3h1a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V11a1 1 0 0 1 1-1h1zm2 0h8V7a4 4 0 1 0-8 0v3z'/%3E%3C/svg%3E") center/contain no-repeat;
+`;
+// 공개 범위 칩 — 값 칸을 꽉 채우지 않고 글자만큼(옆 셀렉트 값과 같은 줄 가운데).
+const MetaVisChip = styled(VisibilityChip)`justify-self: start; align-self: center;`;
+const MetaInfoBtn = styled.button`
+  flex-shrink: 0; width: 16px; height: 16px; padding: 0; border-radius: 50%;
+  border: 1px solid #CBD5E1; background: #FFF; color: #94A3B8;
+  font-size: 0.625rem; font-weight: 700; font-style: italic; line-height: 1; font-family: Georgia, serif;
+  display: inline-flex; align-items: center; justify-content: center; cursor: pointer;
+  &:hover, &[aria-expanded='true'] { border-color: #14B8A6; color: #0F766E; }
+  /* 손가락으로 누를 자리 — 보이는 원은 16px 그대로, 누르는 영역만 넓힌다 */
+  position: relative;
+  &::after { content: ''; position: absolute; inset: -12px; }
+`;
 // 마일스톤(주요 업무) 토글 — 다이아몬드 + 라벨. 일정 타임라인 ◆ 와 시각 연동.
 const MilestoneToggle = styled.button<{ $on: boolean }>`
-  display: inline-flex; align-items: center; gap: 7px; min-height: 28px; align-self: flex-start;
+  display: inline-flex; align-items: center; gap: 7px; min-height: 28px; align-self: center; justify-self: start;
   padding: 4px 11px 4px 9px; border-radius: 999px; cursor: pointer; font-family: inherit;
   border: 1px solid ${(p) => (p.$on ? '#F59E0B' : '#E2E8F0')};
   background: ${(p) => (p.$on ? '#FFFBEB' : '#fff')};
@@ -3203,9 +3255,8 @@ const MsDiamond = styled.span<{ $on: boolean }>`
   background: ${(p) => (p.$on ? '#F59E0B' : 'transparent')};
 `;
 const MsToggleLbl = styled.span<{ $on?: boolean }>`font-size: 0.75rem; font-weight: 700; color: ${(p) => (p.$on ? '#92400E' : '#94A3B8')};`;
-const MetaLabelRow = styled.div`display: flex; align-items: center; gap: 6px; min-height: 14px;`;
 // 모든 셀 값 영역 height 통일 (28px) — progress range(8px) 와 hour input(28px) 시각 정렬 일치
-const MetaValueRow = styled.div`display: flex; align-items: center; gap: 6px; min-width: 0; min-height: 28px;`;
+const MetaValueRow = styled.div`display: flex; align-items: center; gap: 6px; min-width: 0; min-height: 32px;`;
 // 시간 자동 누적 상시 안내 — MetaGrid 아래. caption 톤, 1줄.
 const TimeAutoHint = styled.div`
   display: flex; align-items: center; gap: 6px;
@@ -3223,12 +3274,10 @@ const ReviewReminderHint = styled.div`
 `;
 const ReviewReminderIcon = styled.svg`width: 14px; height: 14px; flex-shrink: 0; color: #14B8A6; margin-top: 1px;`;
 const MetaRecurRow = styled.div<{ $disabled?: boolean }>`
+  /* 2026-10-12 — 테두리 상자를 걷고 «설정» 묶음(공개 범위·보안등급) 아래 한 줄로. */
   display: flex; flex-direction: column; gap: 6px;
-  padding: 8px 10px;
-  background: ${p => p.$disabled ? '#F8FAFC' : '#FFFFFF'};
-  border: 1px solid ${p => p.$disabled ? '#F1F5F9' : '#E2E8F0'};
-  border-radius: 6px;
-  margin-top: 10px;
+  padding: 4px 0;
+  margin-top: 2px;
   opacity: ${p => p.$disabled ? 0.7 : 1};
 `;
 const MetaRecurToggle = styled.label`
@@ -3309,16 +3358,16 @@ const MetaRangeInput = styled.input`
 //   옅은 «-» 하나만 떠서 입력란으로 안 보였다. 값은 PlanQSelect sm 과 같다: 높이 36 · 테두리 #E2E8F0 · 둥글기 8 ·
 //   글자 13px(0.8125rem) · 좌우 12 · 빈 값은 neutral400 안내 문구 · hover #CBD5E1 · 포커스 민트.
 const DateTrigger = styled.button<{ $empty?: boolean }>`
-  width:100%;min-height:36px;padding:0 12px;
+  width:100%;min-height:32px;padding:0 6px;
   font-size:0.8125rem;font-weight:400;font-family:inherit;text-align:left;white-space:nowrap;
   overflow:hidden;text-overflow:ellipsis;
-  background:#FFFFFF;border:1px solid #E2E8F0;border-radius:8px;cursor:pointer;
+  background:transparent;border:1px solid transparent;border-radius:8px;cursor:pointer;
   color:${p => p.$empty ? '#94A3B8' : '#0F172A'};
   transition:border-color 0.15s;
   &:hover:not(:disabled){border-color:#CBD5E1;}
   &:focus-visible{outline:none;border-color:#14B8A6;box-shadow:0 0 0 3px #CCFBF1;}
-  &:disabled{background:#F8FAFC;cursor:default;}
-  @media (max-width: 640px){ font-size:max(1rem, 0.8125rem); }
+  &:disabled{cursor:default;}
+  /* 폰 16px 바닥값은 걷는다 — 이건 입력칸이 아니라 버튼이라 iOS 확대가 없고, 옆 셀렉트 값(13px)과 크기가 달라 튀었다(#406 과 같은 이유). */
 `;
 // 이중 박스 제거 — RichEditor(EditorShell)가 자체 border/radius 를 가지므로 wrap 은 박스를 두지 않는다.
 // 결과물(body) 에디터와 동일하게 단일 박스로 보이게. (Irene — 업무설명 라운드박스 2개 회귀 fix)

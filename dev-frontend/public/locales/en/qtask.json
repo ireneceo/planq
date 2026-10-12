@@ -531,6 +531,7 @@
       "actAuto": "Auto-tracked",
       "inProgressDot": "In progress",
       "timeHint": "Actual hours are auto-accumulated when you start/finish (enter a different value to confirm)",
+      "timeHintToggle": "About actual hours",
       "reviewReminder": "Progress reached 100% — click \"Submit for review\" to ask {{count}} reviewer(s) to start the completion flow",
       "createdOn": "Created",
       "requestedOn": "Requested",

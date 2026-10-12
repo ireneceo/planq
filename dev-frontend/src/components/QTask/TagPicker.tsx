@@ -29,9 +29,11 @@ interface Props {
   onChange: (tagIds: number[]) => void;
   /** 사전이 늘어났을 때(새 태그 생성) 호출측 사전 갱신 */
   onDictAdd: (tag: TaskTagLite) => void;
+  /** 업무 상세의 속성 줄에서는 테두리 없는 inline 모양 (PlanQSelect variant) */
+  variant?: 'box' | 'inline';
 }
 
-const TagPicker: React.FC<Props> = ({ bizId, dict, value, disabled, onChange, onDictAdd }) => {
+const TagPicker: React.FC<Props> = ({ bizId, dict, value, disabled, onChange, onDictAdd, variant }) => {
   const { t } = useTranslation('qtask');
   const [draft, setDraft] = useState('');
   const [busy, setBusy] = useState(false);
@@ -59,7 +61,7 @@ const TagPicker: React.FC<Props> = ({ bizId, dict, value, disabled, onChange, on
 
   return (
     <>
-      <PlanQSelect size="sm" isMulti isClearable isSearchable
+      <PlanQSelect size="sm" variant={variant} isMulti isClearable isSearchable
         creatable
         isDisabled={disabled || busy}
         isLoading={busy}
