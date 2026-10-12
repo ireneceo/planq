@@ -1159,7 +1159,7 @@
     },
     "questions": {
       "S1": {
-        "q": "리",
+        "q": "Could everyone on the team describe your core revenue-generating work the same way?",
         "o": [
           "Everyone says something different",
           "Leaders know, but it isn't written down",
@@ -1167,7 +1167,7 @@
         ]
       },
       "S2": {
-        "q": "이",
+        "q": "Do you know where work usually gets stuck?",
         "o": [
           "We find out when it happens",
           "We have a rough sense",
@@ -1175,7 +1175,7 @@
         ]
       },
       "W1": {
-        "q": "객",
+        "q": "Where do customer requests come in?",
         "o": [
           "Everywhere — chat apps, calls, email",
           "A couple of channels, sorted by hand",
@@ -1183,7 +1183,7 @@
         ]
       },
       "W2": {
-        "q": "을",
+        "q": "How do handoffs and approvals happen?",
         "o": [
           "Ad hoc, by word or chat",
           "Set people, but records are scattered",
@@ -1191,7 +1191,7 @@
         ]
       },
       "I1": {
-        "q": "난",
+        "q": "How long does it take to find past project files or customer conversations?",
         "o": [
           "We have to ask someone",
           "Findable, across several places",
@@ -1199,7 +1199,7 @@
         ]
       },
       "I2": {
-        "q": "당",
+        "q": "If someone is away, can others pick up the customer's history?",
         "o": [
           "Only that person knows",
           "Partly",
@@ -1207,7 +1207,7 @@
         ]
       },
       "D1": {
-        "q": "표",
+        "q": "Is it clear what team members can decide without the owner?",
         "o": [
           "Almost everything goes to the owner",
           "Implicitly",
@@ -1215,7 +1215,7 @@
         ]
       },
       "D2": {
-        "q": "정",
+        "q": "Are decisions and their reasons recorded?",
         "o": [
           "No",
           "Scattered in chats",
@@ -1223,7 +1223,7 @@
         ]
       },
       "A1": {
-        "q": "주",
+        "q": "How do you handle weekly repeat work (reports, invoices, notices)?",
         "o": [
           "Manually every time",
           "Templates, but manual",
@@ -1231,7 +1231,7 @@
         ]
       },
       "A2": {
-        "q": "I",
+        "q": "How do you use AI at work?",
         "o": [
           "Hardly",
           "Each person on their own",
@@ -1239,7 +1239,7 @@
         ]
       },
       "P1": {
-        "q": "무",
+        "q": "How many tools does your team use for work?",
         "o": [
           "5+, not connected",
           "2–4, partly connected",
@@ -1247,7 +1247,7 @@
         ]
       },
       "P2": {
-        "q": "객",
+        "q": "Can customers see progress, files and invoices themselves?",
         "o": [
           "We send it each time",
           "Some of it",
