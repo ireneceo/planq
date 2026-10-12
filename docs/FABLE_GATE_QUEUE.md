@@ -11,6 +11,11 @@
 > 이 파일에는 계속 **Fable 판정 결과**(PASS/FAIL·비차단 지적)를 맨 위에 적는다. 아래 옛 절의 판정식
 > `R=1 OR (S=1 AND F=0)` 은 공용 기준으로 대체됐다(뜻은 같다).
 
+## 2026-10-12 — 운영 배포 «마지막 커밋의 깨끗한 사본» 전환 · **FAIL → 수정 후 PASS** (e042c46e · 46412c84)
+- 1차 FAIL C1: 배포 스크립트 자체는 작업 폴더 것이 도는데 마이그 파일은 사본(커밋)에서 감 → «슬롯 줄 + 마이그 미커밋» 이면 운영 반쪽 배포. 고침: 배포 스크립트 3종 미커밋이면 --auto/--routine 중단(수동 경고+확인). 재확인 양성 대조군 EXIT 1 / 깨끗 EXIT 0.
+- 근거: 사본 누출 0(.env 2개만) · 가드 사본 69/69 + 대조군 EXIT 1 · 사본 검사 777/0/0 + 대조군 EXIT 1 · 운영 rsync -n 보호 후 삭제 0(옛 방식 10건 — secrets/fcm 키 포함) · --dry-run --routine EXIT 0, 미커밋 시험 파일 «뺀다».
+- 비차단: N1 git archive mtime 이라 매 배포 시각만 rsync · N2 블록 주석 속 require 는 누락으로 봄(fail-closed) · N3 상황판 cleanDeploy 플래그는 서버 방 · N4 운영에만 있는 미추적은 고정 목록만 보호 · N6 첫 실배포는 수동 /배포 1회 뒤 정기 점검 자동 배포.
+
 ## 2026-10-12 — Cue 범위 확장(에이전트 카탈로그 어댑터) 완료 검증 · **PASS** (6b1c5adf)
 - 근거: guard 68/69(DOCFRESH 경고만) · health 84/84 · build EXIT 0 · tenant 0 · test-cue-verify 16항목 재현 · 외부 provider 는 humanConfirmed 여도 CONFIRMATION_REQUIRED · 두 번 실행 replayed·계량 +1 · reschedule_events 길이·종일 유지·남의 일정 실패 보고 · 예약 409 · 메뉴 none 403 · 남의 L1 404 · 위임 라우트 2개 HTTP 동작 · 실 LLM 카드.
 - 비차단 4: ①execute-action `constructor` 500 → **고침**(isAlias) ②`FIELD_RULES.estimated_hours`(owner/admin) ≠ PATCH 인라인(담당자·owner) — **남김**(권한 술어 통일은 다음 사이클 설계) ③제목 지목 업무 찾기 변동 → **고침**(assignee:'anyone' 프롬프트) ④i18n `qhelper.field.project` → **고침**. 고친 3건은 자체 검증(400 ×3 · verify 15✅0❌ · build 0 · guard 68/69 · health 84/84).

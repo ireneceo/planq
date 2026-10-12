@@ -1,5 +1,12 @@
 ## 현재 작업 상태
 
+### 완료: 운영 배포를 «마지막 커밋의 깨끗한 사본» 에서 — 다른 방의 미커밋은 빼고 나간다 (방 533798e8 · 2026-10-12 · [Opus]) — 운영 미배포(배포 절차 자체 변경)
+- 원문: Irene 2026-10-11 *"배포를 하면 모든 작업 일시정지하고 점검 후 배포해야지. 진행중인 거 있으면 그건 빼고"* · *"배포는 아침점검에서 자동으로"* (FABLE.md §7 조건 2)
+- 고침: `scripts/make-deploy-snapshot.sh`(git archive HEAD 사본 + 프론트 .env·node_modules 링크·tsbuildinfo 복사 + 백엔드 검사용 .env) · `deploy-planq.sh` 가 가드(PLANQ_GUARD_ROOT)·빌드(사본 안, dev 빌드 안 건드림)·rsync·마이그 판정·릴리즈노트·장부·개발현황·.last-deployed-commit 을 모두 사본/DEPLOY_COMMIT 으로 · 작업 폴더는 읽기만(stash·커밋 없음) · rsync 보호 목록(secrets/·backups/·.claude/·.last-deployed-commit + git 무시 경로 전부 — 없으면 운영 앱 푸시 키 삭제, rsync -n 실측 10건→0건) · `scripts/check-deploy-snapshot.js`(사본 문법·커밋에 없는 require, --skip-gates 여도) · `--routine`(정기 점검 = --auto + 릴리즈노트 없음) · `--skip-build` 는 프론트 안 보냄 · 배포 스크립트 미커밋이면 --auto/--routine 중단(Fable C1) · wip: auto-save 커밋이면 중단.
+- 배포.md: 미커밋 = 다른 방의 진행 중 일 — 커밋하지 않고 빼고 배포 · 배포 방 산출물만 `git commit -- <경로>` · «정기 점검 배포» 절(Irene 상시 지시 = /배포와 같게, 버전·릴리즈노트·공지·메일 없음).
+- 검증: 사본 빌드 EXIT 0(3분10초·5.3GB, 파일 목록 동일) · 가드 사본 69/69 + 양성 대조군 EXIT 1 · 사본 검사 777파일 0 + 대조군 EXIT 1 · 전체 --dry-run EXIT 0(미커밋 시험 파일 «뺀다» 표시, /tmp 정리) · Fable 게이트 1차 FAIL(C1 배포 스크립트 미커밋) → 고침 46412c84 → 미커밋 시 EXIT 1 / 커밋 후 EXIT 0 → **Fable PASS**(판정 docs/FABLE_GATE_QUEUE.md 맨 위).
+- 남은 것: 첫 실배포는 수동 /배포 1회로 끝까지 본 뒤 정기 점검 자동 배포(Fable N6) · 상황판 projects.json PlanQ «cleanDeploy: true» + FABLE.md §7 PlanQ 줄 갱신은 서버 방(대기열에 올림).
+
 ### 완료: 랜딩 «PlanQ 안내» 팝업 — 도움말 칩을 묶음으로 (방 9d5d7e86 · 2026-10-12 · [Opus]) — 운영 미배포
 - 원문: *"태그가 너무 길게 나와 안내멘트 자체가 안보여 … 시작하기, 기능, 요금 등 첫 안내 누른 후 나머지 또 나오게"*
 - 고침: `CueHelpDrawer` 도움말 패널 — 카테고리 18개 → 묶음 4개(시작하기·기능 둘러보기·요금·설정·권한). 묶음을 누르면 그 안의 카테고리가 펼쳐지고 다시 누르면 접힌다. 요금 = /pricing 바로 이동, 하나뿐인 묶음(설정·권한)은 바로 연다. 묶음은 화면에서만(모르는 새 카테고리는 «기능»). 커밋 0dcfd8b5.
