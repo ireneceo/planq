@@ -138,7 +138,7 @@
   «Fable 없이» → 자체 검증 숫자로 보고(«Fable 미검증(자체 검증)») + 상황판 Fable 대기 + 서버 대기열 넣기. 운영 배포는 Fable 통과 뒤로.
 
 ### 나중에 — Fable 대기: dev-login 완료 검증 · Fable 한도가 풀리면(상황판이 깨움) · 그때 /fable-검증 다시(같은 사실 묶음 — 커밋 827b9df8), PASS 면 마커 by:fable + 상황판 fable-wait done. 운영 배포는 Fable 통과 뒤로.
-- 2026-10-12 재시도 → Fable 한도(429)로 중단. 마커 by:unavailable. 상황판 서버 대기열에 «planq devLogin 켜기» 넣음(개발 상황판 버튼만 — 운영 무관).
+- 2026-10-12 재시도 2회 → 둘 다 Fable 한도(429)로 중단(fid fwmv5atte1 다시 올림). 마커 by:unavailable. 상황판 서버 대기열에 «planq devLogin 켜기» 넣음(개발 상황판 버튼만 — 운영 무관).
 
 #### 덤으로 발견 — 관리자 «사칭» 새 탭이 사칭이 아니다 (고치지 않음, 기록만)
 - 실브라우저 실측(admin@test → /admin/users → member1 [사칭]): 새 탭 `/dashboard?_impersonate=1` 이 **관리자 본인**으로 열림 · sessionStorage 비어 있음(noopener 라 안 넘어감) · 사칭 배너 없음.
