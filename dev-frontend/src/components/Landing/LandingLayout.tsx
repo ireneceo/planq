@@ -1,6 +1,6 @@
 // 랜딩페이지 공용 레이아웃 — Hero 가 다크일 때는 transparent GNB,
 // scroll 후엔 white sticky GNB 로 자연스럽게 전환.
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link, NavLink, useLocation } from 'react-router-dom';
 import { useSeoHead } from '../../hooks/useSeoHead';
 import { useLandingBeacon } from '../../hooks/useLandingBeacon';
@@ -22,29 +22,78 @@ interface CompanyInfo {
   support_email: string | null;
 }
 
-// ★ 도움말(/guide)은 랜딩 안에서는 **같은 창**으로 연다 (2026-10-12 Irene: "헤더가 그냥 있을거면
-//   새창 안해도 되고 레이아웃도 기존 랜딩페이지랑 맞추면 되는 거 아니야?"). 도움말도 같은 GNB·푸터를
-//   단 랜딩 페이지라 새 창은 같은 사이트 사본을 하나 더 띄울 뿐이다(2026-09-07 의 새 창 결정을 되돌림).
-//   앱(워크스페이스) 안에서 여는 문 — 도움말 패널·AI 앱 연결 안내 — 은 종전대로 새 탭이다:
-//   거기서는 하던 일 위에 얹히는 참고 자료다(CLAUDE.md "하던 일 위에 얹히는 진입점은 새 탭").
-//   newTab 은 앞으로 그런 항목이 생길 때를 위해 남긴다.
-// wideOnly — 1024~1279px 데스크탑 GNB 에서는 숨긴다(9개가 한 줄에 안 들어간다 — 1024px 실측 필요 1164px).
-//   푸터와 좁은 폭 메뉴 시트에는 그대로 있다. 앱 다운로드는 폰·태블릿에서 찾는 것이라 시트에 남으면 된다.
-const NAV_ITEMS: { to: string; key: string; newTab?: boolean; wideOnly?: boolean }[] = [
+// ★ 2026-10-12 GNB 정리 (Irene: "GNB가 너무 많은데 … 전체 다 판단 좀 해줘. fable이" → Fable 판정).
+//   평면 메뉴 9개 → **5개**: 기능 · 요금제 · 컨설팅 · 리소스▾ · 소개. 1024~1279px 에서도 숨기는 항목이 없다.
+//   - «시작 가이드·도움말·인사이트·앱 다운로드» 는 «갈 곳» 이 아니라 «읽을 것/받을 것» 이라 **리소스** 한 묶음.
+//     과거 신고 두 건(앱 다운로드를 못 찾음 2026-09-05 · 시작 가이드가 상단에 없음 2026-10-11)은
+//     묶음 안에 있으므로 상단에서 여전히 닿는다. 시작 가이드는 홈 히어로 아래 한 줄로도 연다.
+//   - «문의» 는 메뉴가 아니라 우측 흰(outline) 버튼 — B2B 사이트의 Contact 자리.
+//   - /service 는 PlanQ 제품이 아니라 업무체계 컨설팅(워프로랩 스튜디오)이라 라벨을 «컨설팅» 으로.
+//     요금제와 합치지 않는다(2026-06-23 «끼워팔기 금지·합치지 말고 잇기») — 요금제 하단 밴드로 잇는다.
+//   도움말(/guide)은 같은 창(2026-10-12) — 랜딩과 같은 GNB·푸터를 단 페이지다. 앱 안의 문은 새 탭 그대로.
+const NAV_ITEMS: { to: string; key: string }[] = [
   { to: '/features', key: 'nav.features' },
-  // 처음 시작하는 팀의 5단계 — 2026-10-11 Irene: 시작 가이드가 상단 어디에서도 안 보인다
-  { to: '/start', key: 'nav.start' },
   { to: '/pricing', key: 'nav.pricing' },
-  { to: '/service', key: 'nav.service' },   // 업무체계 설계·구축 서비스 (2026-08-24)
-  { to: '/insights', key: 'nav.blog' },
-  { to: '/about', key: 'nav.about', wideOnly: true },
-  { to: '/contact', key: 'nav.contact' },
-  { to: '/guide', key: 'nav.help' },   // F7 — 도움말 공개 진입
-  // ★ 앱 다운로드는 **푸터에만** 있었다 (Irene 2026-09-05, 안드로이드 태블릿:
-  //   "앱다운로드를 어디서 해? 도저히 모르겠어"). 폰·태블릿에서 랜딩에 온 사람이
-  //   가장 먼저 찾는 것이라 상단 내비(+모바일 시트)에 둔다.
-  { to: '/app', key: 'nav.app', wideOnly: true },
+  { to: '/service', key: 'nav.service' },   // 업무체계 설계·구축 컨설팅 (2026-08-24)
 ];
+const RESOURCE_ITEMS: { to: string; key: string }[] = [
+  { to: '/start', key: 'nav.start' },      // 처음 시작하는 팀의 5단계
+  { to: '/guide', key: 'nav.help' },       // 도움말
+  { to: '/insights', key: 'nav.blog' },
+  { to: '/app', key: 'nav.app' },          // 폰·태블릿에서 가장 먼저 찾는 것 — 시트에서도 한 번에 닿는다
+];
+const ABOUT_ITEM = { to: '/about', key: 'nav.about' };
+
+const isUnder = (pathname: string, to: string) => pathname === to || pathname.startsWith(to + '/');
+
+// 리소스 묶음 — 이 GNB 의 유일한 드롭다운. 마우스를 올리면 열리고, 눌러도(터치·키보드) 열린다.
+//   투명 히어로 위에서도 패널은 흰색. 바깥 클릭·Esc·주소 이동으로 닫힌다.
+const ResourceMenu: React.FC<{ light: boolean }> = ({ light }) => {
+  const { t } = useTranslation('landing');
+  const location = useLocation();
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const closeTimer = useRef<number | null>(null);
+  // 마우스를 올려 열린 직후의 클릭은 «닫기» 가 아니다 — 올리고 누르는 사람에게 메뉴가 깜빡 닫혀 버렸다(실측)
+  const openedByHover = useRef(false);
+  useEffect(() => { setOpen(false); }, [location.pathname]);
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => { document.removeEventListener('mousedown', onDown); document.removeEventListener('keydown', onKey); };
+  }, [open]);
+  useEffect(() => () => { if (closeTimer.current) window.clearTimeout(closeTimer.current); }, []);
+  const active = RESOURCE_ITEMS.some(i => isUnder(location.pathname, i.to));
+  const enter = () => {
+    if (closeTimer.current) window.clearTimeout(closeTimer.current);
+    if (!open) openedByHover.current = true;
+    setOpen(true);
+  };
+  const leave = () => { closeTimer.current = window.setTimeout(() => { openedByHover.current = false; setOpen(false); }, 150); };
+  const toggle = () => {
+    if (openedByHover.current) { openedByHover.current = false; setOpen(true); return; }
+    setOpen(v => !v);
+  };
+  return (
+    <ResWrap ref={ref} onMouseEnter={enter} onMouseLeave={leave}>
+      <ResTrigger type="button" $light={light} $active={active} aria-haspopup="true" aria-expanded={open}
+        data-testid="landing-gnb-resources" onClick={toggle}>
+        {t('nav.resources', '리소스')}
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9" /></svg>
+      </ResTrigger>
+      {open && (
+        <ResPanel data-testid="landing-gnb-resources-panel">
+          {RESOURCE_ITEMS.map(item => (
+            <ResItem key={item.to} to={item.to}>{t(item.key)}</ResItem>
+          ))}
+        </ResPanel>
+      )}
+    </ResWrap>
+  );
+};
 
 const LandingLayout: React.FC<Props> = ({ children, transparentTop = true }) => {
   const { t, i18n } = useTranslation('landing');
@@ -83,7 +132,6 @@ const LandingLayout: React.FC<Props> = ({ children, transparentTop = true }) => 
   // ★ 2026-09-07 — "앱"(/beta) 메뉴를 없앴다. "앱 다운로드"(/app) 와 **같은 페이지**였다
   //   (같은 platform_settings 값 하나를 읽어 같은 스토어로 보낸다). 메뉴가 둘이면
   //   사용자는 뭐가 다른지 찾다가 둘 다 눌러 본다. /beta 주소는 /app 으로 보낸다(App.tsx).
-  const navItems = NAV_ITEMS;
 
   // #196 — 게스트가 언어를 바꿀 수단이 랜딩에 없었다. i18n detection 은 localStorage → navigator 라
   //   브라우저가 한국어면 영어 사용자가 영어 랜딩에 닿을 방법이 아예 없다. LegalPage 의 KO·EN
@@ -106,19 +154,21 @@ const LandingLayout: React.FC<Props> = ({ children, transparentTop = true }) => 
           </Brand>
 
           <DesktopNav>
-            {navItems.map(item => (
-              <NavItem key={item.to} to={item.to} $light={isTransparent} $wideOnly={!!item.wideOnly}
-                {...(item.newTab ? { target: '_blank', rel: 'noopener noreferrer' } : {})}>{t(item.key)}</NavItem>
+            {NAV_ITEMS.map(item => (
+              <NavItem key={item.to} to={item.to} $light={isTransparent}>{t(item.key)}</NavItem>
             ))}
+            <ResourceMenu light={isTransparent} />
+            <NavItem to={ABOUT_ITEM.to} $light={isTransparent}>{t(ABOUT_ITEM.key)}</NavItem>
           </DesktopNav>
 
           <DesktopCta>
             {langSwitch(isTransparent)}
+            <SecondaryBtn to="/contact" $light={isTransparent} data-testid="landing-gnb-contact">{t('nav.contact')}</SecondaryBtn>
             {user ? (
               <PrimaryBtn to="/inbox">{t('nav.toApp', '내 워크스페이스')}</PrimaryBtn>
             ) : (
               <>
-                <SecondaryBtn to="/login" $light={isTransparent}>{t('nav.login')}</SecondaryBtn>
+                <TextBtn to="/login" $light={isTransparent}>{t('nav.login')}</TextBtn>
                 <PrimaryBtn to="/register">{t('nav.signup')}</PrimaryBtn>
               </>
             )}
@@ -140,21 +190,29 @@ const LandingLayout: React.FC<Props> = ({ children, transparentTop = true }) => 
         </GnbInner>
 
         {mobileOpen && (
-          <MobileSheet>
-            {navItems.map(item => (
-              <MobileNavItem key={item.to} to={item.to}
-                {...(item.newTab ? { target: '_blank', rel: 'noopener noreferrer' } : {})}>{t(item.key)}</MobileNavItem>
+          <MobileSheet data-testid="landing-mobile-sheet">
+            <MobileCtaRow>
+              {user ? (
+                <PrimaryBtn to="/inbox">{t('nav.toApp', '내 워크스페이스')}</PrimaryBtn>
+              ) : (
+                <>
+                  <PrimaryBtn to="/register">{t('nav.signup')}</PrimaryBtn>
+                  <SecondaryBtn to="/login" $light={false}>{t('nav.login')}</SecondaryBtn>
+                </>
+              )}
+            </MobileCtaRow>
+            {[...NAV_ITEMS, ABOUT_ITEM].map(item => (
+              <MobileNavItem key={item.to} to={item.to}>{t(item.key)}</MobileNavItem>
+            ))}
+            <MobileGroupLabel>{t('nav.resources', '리소스')}</MobileGroupLabel>
+            {RESOURCE_ITEMS.map(item => (
+              <MobileNavItem key={item.to} to={item.to}>{t(item.key)}</MobileNavItem>
             ))}
             <MobileDivider />
-            {langSwitch(false)}
-            {user ? (
-              <PrimaryBtn to="/inbox">{t('nav.toApp', '내 워크스페이스')}</PrimaryBtn>
-            ) : (
-              <>
-                <SecondaryBtn to="/login" $light={false}>{t('nav.login')}</SecondaryBtn>
-                <PrimaryBtn to="/register">{t('nav.signup')}</PrimaryBtn>
-              </>
-            )}
+            <MobileCtaRow>
+              <SecondaryBtn to="/contact" $light={false}>{t('nav.contact')}</SecondaryBtn>
+              {langSwitch(false)}
+            </MobileCtaRow>
           </MobileSheet>
         )}
       </Gnb>
@@ -305,7 +363,7 @@ const DesktopNav = styled.nav`
   display: flex; gap: 4px;
   @media (max-width: 1023px) { display: none; }
 `;
-const NavItem = styled(NavLink)<{ $light: boolean; $wideOnly?: boolean }>`
+const NavItem = styled(NavLink)<{ $light: boolean }>`
   height: 36px; padding: 0 14px;
   display: inline-flex; align-items: center;
   text-decoration: none;
@@ -313,7 +371,7 @@ const NavItem = styled(NavLink)<{ $light: boolean; $wideOnly?: boolean }>`
   font-size: 0.875rem; font-weight: 500; white-space: nowrap;
   border-radius: 8px;
   transition: background 0.15s, color 0.15s;
-  @media (max-width: 1279px) { padding: 0 9px; ${p => p.$wideOnly ? 'display: none;' : ''} }
+  @media (max-width: 1279px) { padding: 0 10px; }
   &:hover {
     background: ${p => p.$light ? 'rgba(255,255,255,0.08)' : '#F1F5F9'};
     color: ${p => p.$light ? '#FFFFFF' : '#0F172A'};
@@ -371,6 +429,48 @@ const SecondaryBtn = styled(Link)<{ $light: boolean }>`
     border-color: ${p => p.$light ? 'rgba(255,255,255,0.32)' : '#CBD5E1'};
   }
 `;
+// 로그인 — 우측 묶음에서 [문의](outline)·[무료로 시작](teal) 사이의 글자 버튼 (버튼 셋이 같은 무게면 시선이 갈린다)
+const TextBtn = styled(Link)<{ $light: boolean }>`
+  height: 36px; padding: 0 10px;
+  display: inline-flex; align-items: center;
+  color: ${p => p.$light ? 'rgba(255,255,255,0.85)' : '#475569'};
+  font-size: 0.8125rem; font-weight: 500; text-decoration: none; white-space: nowrap;
+  border-radius: 8px;
+  &:hover { color: ${p => p.$light ? '#FFFFFF' : '#0F172A'}; }
+`;
+const ResWrap = styled.div`position: relative; display: inline-flex;`;
+const ResTrigger = styled.button<{ $light: boolean; $active: boolean }>`
+  height: 36px; padding: 0 14px;
+  display: inline-flex; align-items: center; gap: 4px;
+  background: transparent; border: none; cursor: pointer; font-family: inherit;
+  color: ${p => p.$active ? (p.$light ? '#5EEAD4' : '#0D9488') : (p.$light ? 'rgba(255,255,255,0.85)' : '#475569')};
+  font-size: 0.875rem; font-weight: 500; white-space: nowrap;
+  border-radius: 8px;
+  transition: background 0.15s, color 0.15s;
+  @media (max-width: 1279px) { padding: 0 10px; }
+  &:hover {
+    background: ${p => p.$light ? 'rgba(255,255,255,0.08)' : '#F1F5F9'};
+    color: ${p => p.$light ? '#FFFFFF' : '#0F172A'};
+  }
+`;
+const ResPanel = styled.div`
+  position: absolute; top: 100%; left: 0;
+  /* 트리거와 패널 사이 틈에서 마우스가 빠져 닫히지 않게 — 패딩으로 다리를 놓는다 */
+  padding-top: 6px;
+  min-width: 180px;
+  display: flex; flex-direction: column;
+  & > * { background: #FFFFFF; }
+  & > *:first-child { border-radius: 10px 10px 0 0; padding-top: 12px; }
+  & > *:last-child { border-radius: 0 0 10px 10px; padding-bottom: 12px; }
+  filter: drop-shadow(0 8px 20px rgba(15,23,42,0.12)) drop-shadow(0 0 1px rgba(15,23,42,0.25));
+  z-index: 110;
+`;
+const ResItem = styled(NavLink)`
+  display: block; padding: 8px 16px;
+  color: #334155; font-size: 0.875rem; font-weight: 500; text-decoration: none; white-space: nowrap;
+  &:hover { color: #0F172A; background: #F8FAFC; }
+  &.active { color: #0D9488; }
+`;
 const Hamburger = styled.button<{ $light: boolean }>`
   display: none; width: 36px; height: 36px;
   align-items: center; justify-content: center;
@@ -394,6 +494,13 @@ const MobileNavItem = styled(NavLink)`
   border-radius: 8px;
   &:hover { background: #F1F5F9; }
   &.active { color: #0D9488; background: #F0FDFA; }
+`;
+const MobileCtaRow = styled.div`
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 4px 0;
+`;
+const MobileGroupLabel = styled.div`
+  padding: 12px 14px 4px;
+  font-size: 0.75rem; font-weight: 600; color: #94A3B8; letter-spacing: 0.5px;
 `;
 const MobileDivider = styled.div`
   height: 1px; background: #E2E8F0; margin: 8px 0;

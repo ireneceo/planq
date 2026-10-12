@@ -86,6 +86,12 @@ const PricingPage: React.FC = () => {
               ))}
             </FaqList>
           </Reveal>
+          {/* 2026-10-12 Fable 판정 — 컨설팅(워프로랩 스튜디오)은 요금표에 넣지 않는다(끼워팔기 금지, 2026-06-23).
+              요금제와는 이 한 줄로만 잇는다. 가격·열·상품을 여기에 더하지 말 것. */}
+          <ConsultBand data-testid="pricing-consulting-band">
+            <ConsultText>{t('pricingPage.consulting.text', '직접 세팅하기 어렵다면 — 업무체계 설계부터 구축까지 전문가가 함께합니다 (워프로랩 스튜디오)')}</ConsultText>
+            <ConsultLink to="/service">{t('pricingPage.consulting.link', '컨설팅 보기 →')}</ConsultLink>
+          </ConsultBand>
         </Container>
       </FaqSection>
 
@@ -243,6 +249,17 @@ const FaqItem = styled.div`
 `;
 const FaqQ = styled.div`font-size: 0.9375rem; font-weight: 700; color: #0F172A; margin-bottom: 8px;`;
 const FaqA = styled.div`font-size: 0.875rem; line-height: 1.7; color: #475569; word-break: keep-all;`;
+
+const ConsultBand = styled.div`
+  margin-top: 40px; padding: 20px 24px;
+  display: flex; align-items: center; justify-content: space-between; gap: 12px 24px; flex-wrap: wrap;
+  border: 1px dashed #CBD5E1; border-radius: 12px;
+`;
+const ConsultText = styled.div`font-size: 0.875rem; color: #475569; line-height: 1.6; word-break: keep-all;`;
+const ConsultLink = styled(Link)`
+  font-size: 0.875rem; font-weight: 600; color: #0F766E; text-decoration: none; white-space: nowrap;
+  &:hover { color: #115E59; text-decoration: underline; }
+`;
 
 const CtaBand = styled.section`
   padding: 96px 0;

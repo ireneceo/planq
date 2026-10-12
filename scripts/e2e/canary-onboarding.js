@@ -451,53 +451,51 @@ async function run() {
           }
           return { rows: out, overflow: document.documentElement.scrollWidth - window.innerWidth, h1: (document.querySelector('h1') || {}).textContent };
         });
-        // 상단 메뉴에 «시작 가이드» — 데스크탑은 한 줄 GNB(줄바꿈·잘림 없이 보임), 폰·태블릿은 메뉴 시트 안
-        const nav = await page.evaluate(async () => {
-          const links = [...document.querySelectorAll('header a[href="/start"], nav a[href="/start"]')];
-          const vis = links.filter((a) => { const r = a.getBoundingClientRect(); if (!r.width || !r.height) return false;
-            const h = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2); return !!h && a.contains(h); });
-          const navEl = vis[0] && vis[0].parentElement;
-          const tops = navEl ? [...navEl.querySelectorAll('a')].filter((a) => a.getBoundingClientRect().width > 0).map((a) => Math.round(a.getBoundingClientRect().top)) : [];
-          return { count: links.length, visible: vis.length, oneLine: new Set(tops).size <= 1, overflow: navEl ? navEl.scrollWidth - navEl.clientWidth : null };
+        // 상단에서 «시작 가이드» 에 닿는다 (2026-10-12 GNB 정리 — 데스크탑은 «리소스» 묶음 안, 폰·태블릿은 메뉴 시트 안)
+        const visibleStart = () => page.evaluate(() => {
+          const a = [...document.querySelectorAll('header a[href="/start"]')].find((x) => { const r = x.getBoundingClientRect(); return r.width > 0 && r.height > 0; });
+          if (!a) return false; const r = a.getBoundingClientRect(); const h = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2); return !!h && a.contains(h);
         });
-        let sheet = null;
-        if (!nav.visible) {   // 좁은 폭 — 메뉴 버튼을 눌러 시트 안에서 찾는다
+        let how = null; let ok = false;
+        const res = await page.$('[data-testid="landing-gnb-resources"]');
+        const resVisible = res ? await res.evaluate((x) => x.getBoundingClientRect().width > 0) : false;
+        if (resVisible) { await res.click(); await sleep(300); how = 'resources'; ok = await visibleStart(); }
+        else {
           const btn = await page.$('header button[aria-label]');
-          if (btn) { await btn.click(); await sleep(400);
-            sheet = await page.evaluate(() => { const a = [...document.querySelectorAll('a[href="/start"]')].find((x) => { const r = x.getBoundingClientRect(); return r.width > 0 && r.height > 0; });
-              if (!a) return false; const r = a.getBoundingClientRect(); const h = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2); return !!h && a.contains(h); }); }
+          if (btn) { await btn.click(); await sleep(400); how = 'sheet'; ok = await visibleStart(); }
         }
-        push(`${v.key} · ⑩ 랜딩 상단 메뉴에 «시작 가이드» 보임${nav.visible ? '(한 줄 GNB)' : '(메뉴 시트)'}`,
-          nav.visible ? (nav.oneLine && (nav.overflow || 0) <= 0) : sheet === true, JSON.stringify({ nav, sheet }));
+        push(`${v.key} · ⑩ 랜딩 상단에서 «시작 가이드» 에 닿음(${how})`, ok, JSON.stringify({ how, ok }));
         push(`${v.key} · ⑩ 랜딩 /start 다섯 단계 보임 · 가로 넘침 없음`,
           r.rows.every((x) => x.found && x.vis && x.text > 40) && r.overflow <= 0 && !!r.h1, JSON.stringify(r));
       } catch (e) {
         push(`${v.key} · ⑩ 랜딩 오류`, false, e.message.slice(0, 200));
       } finally { await page.close().catch(() => {}); await ctx.close().catch(() => {}); }
     }
-    // ⑪ 데스크탑 GNB 경계 폭 — 메뉴가 9개라 좁은 데스크탑(901~1280)에서 줄바꿈·넘침이 생기기 쉽다
+    // ⑪ 데스크탑 GNB 경계 폭 — 메뉴 5개 + 리소스 묶음 + 우측 [문의][로그인][무료로 시작]이 한 줄, 숨는 항목 없음
     for (const w of [1024, 1100, 1280]) {   // 1023 이하는 메뉴 시트(⑩ 태블릿이 잰다)
       const ctx = await browser.createBrowserContext();
       const page = await ctx.newPage();
       try {
         await page.setViewport({ width: w, height: 800 });
         await page.goto(b.BASE + '/features', { waitUntil: 'domcontentloaded' });
-        for (let i = 0; i < 20; i++) { await sleep(400); if (await page.$('a[href="/start"]')) break; }
+        for (let i = 0; i < 20; i++) { await sleep(400); if (await page.$('[data-testid="landing-gnb-resources"]')) break; }
         await sleep(400);
         const g = await page.evaluate(() => {
-          const a = [...document.querySelectorAll('header a[href="/start"], nav a[href="/start"]')].find((x) => x.getBoundingClientRect().width > 0);
-          if (!a) return { found: false };
-          const navEl = a.parentElement;
-          const items = [...navEl.querySelectorAll('a')].filter((x) => x.getBoundingClientRect().width > 0);
-          const tops = items.map((x) => Math.round(x.getBoundingClientRect().top));
-          const r = a.getBoundingClientRect(); const h = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
-          const header = navEl.closest('header') || document.body;
+          const navEl = document.querySelector('header nav');
+          if (!navEl) return { found: false };
+          const header = navEl.closest('header');
+          const items = [...header.querySelectorAll('nav a, nav button, [data-testid="landing-gnb-contact"], a[href="/login"], a[href="/register"]')].filter((x) => x.getBoundingClientRect().width > 0);
+          const hrefs = [...navEl.querySelectorAll('a')].filter((x) => x.getBoundingClientRect().width > 0).map((x) => x.getAttribute('href'));
           const hr = header.getBoundingClientRect();
+          const mids = items.map((x) => { const q = x.getBoundingClientRect(); return Math.round(q.top + q.height / 2); });
           const clipped = items.filter((x) => { const q = x.getBoundingClientRect(); return q.right > hr.right + 1 || q.left < hr.left - 1; }).length;
-          return { found: true, vis: !!h && a.contains(h), oneLine: new Set(tops).size === 1, clipped, docOverflow: document.documentElement.scrollWidth - window.innerWidth,
-            nowrap: items.every((x) => x.getBoundingClientRect().height <= 37) };   // 메뉴 높이 36 — 글자가 두 줄이면 커진다
+          const hidden = items.filter((x) => { const q = x.getBoundingClientRect(); const h = document.elementFromPoint(q.left + q.width / 2, q.top + q.height / 2); return !h || !x.contains(h); }).length;
+          return { found: true, hrefs, n: items.length, oneLine: Math.max(...mids) - Math.min(...mids) <= 2, clipped, hidden, docOverflow: document.documentElement.scrollWidth - window.innerWidth,
+            nowrap: items.every((x) => x.getBoundingClientRect().height <= 37) };
         });
-        push(`${w}px · ⑪ GNB 한 줄 · «시작 가이드» 보임 · 잘림·가로 넘침 없음`, g.found && g.vis && g.oneLine && g.clipped === 0 && g.docOverflow <= 0 && g.nowrap, JSON.stringify(g));
+        const want = ['/features', '/pricing', '/service', '/about'];
+        push(`${w}px · ⑪ GNB 한 줄 · 메뉴 4+리소스 · 문의 버튼 · 잘림·가림·가로 넘침 없음`,
+          g.found && want.every((h) => g.hrefs.includes(h)) && g.n >= 8 && g.oneLine && g.clipped === 0 && g.hidden === 0 && g.docOverflow <= 0 && g.nowrap, JSON.stringify(g));
       } catch (e) {
         push(`${w}px · ⑪ 오류`, false, e.message.slice(0, 200));
       } finally { await page.close().catch(() => {}); await ctx.close().catch(() => {}); }

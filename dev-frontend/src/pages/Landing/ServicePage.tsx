@@ -9,6 +9,7 @@
 // 견적 문의는 새 폼을 만들지 않는다 — 기존 /contact 를 `?type=quote` 로 재사용한다
 //   (문의 접수 경로가 둘로 갈라지면 admin 장부도 둘로 갈라진다).
 import styled from 'styled-components';
+import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import LandingLayout from '../../components/Landing/LandingLayout';
 import { Container, Eyebrow, PrimaryCta, SecondaryCta } from '../../components/Landing/landingShell';
@@ -50,6 +51,8 @@ const ServicePage: React.FC = () => {
           {/* #426 — 유료 진단 앞의 무료 자가진단. 왜 업무체계부터인지 5분 안에 스스로 확인하게 한다. */}
           <DiagnosisLink to="/service/diagnosis" data-testid="service-diagnosis-link">{t('diagnosisPage.entryLink')}</DiagnosisLink>
           <ByLine>{S('by')}</ByLine>
+          {/* 2026-10-12 — 컨설팅과 PlanQ 제품 요금은 다른 것이다. 요금제로 가는 역링크 한 줄. */}
+          <PricingBackLink to="/pricing" data-testid="service-pricing-link">{S('pricingLink', 'PlanQ 제품 요금은 → 요금제')}</PricingBackLink>
         </Container>
       </SubHero>
 
@@ -233,6 +236,11 @@ const DiagnosisLink = styled(PrimaryCta).attrs({})`
   min-height: 0; padding: 0; margin-top: 18px; background: none; color: #0F766E;
   font-size: 0.875rem; text-decoration: underline; text-underline-offset: 3px;
   &:hover { background: none; color: #115E59; transform: none; }
+`;
+const PricingBackLink = styled(Link)`
+  display: inline-block; margin-top: 8px; font-size: 0.8125rem; color: #64748B;
+  text-decoration: underline; text-underline-offset: 3px;
+  &:hover { color: #0F172A; }
 `;
 const Narrow = styled.div`max-width: 760px; margin: 0 auto;`;
 

@@ -3,16 +3,17 @@
     "features": "Features",
     "pricing": "Pricing",
     "blog": "Insights",
-    "about": "Brand Story",
+    "about": "About",
     "contact": "Contact",
     "help": "Help",
     "login": "Sign in",
     "signup": "Start free",
     "toApp": "My workspace",
     "menu": "Menu",
-    "service": "Services",
+    "service": "Consulting",
     "app": "Get the app",
-    "start": "Getting started"
+    "start": "Getting started",
+    "resources": "Resources"
   },
   "hero": {
     "slogan": "WORK, JUST WORK",
@@ -24,7 +25,8 @@
     "sub2": "every workflow runs in one place.",
     "cta": "Start free",
     "purpose1": "PlanQ is a business management and collaboration platform that helps teams manage work, projects, schedules, and business operations in one place.",
-    "purpose2": "Users can connect Google Calendar to synchronize their schedules between PlanQ and Google Calendar."
+    "purpose2": "Users can connect Google Calendar to synchronize their schedules between PlanQ and Google Calendar.",
+    "startGuide": "New here? Read the getting-started guide →"
   },
   "problem": {
     "tag": "Problem",
@@ -711,6 +713,10 @@
       "title": "Start your 14-day free trial",
       "sub": "No credit card to sign up. Pay only when you decide.",
       "btn": "Start free"
+    },
+    "consulting": {
+      "text": "Need help setting it up? Experts can design and build your operating system with you (WOR-PRO Lab Studio)",
+      "link": "See consulting →"
     }
   },
   "aboutPage": {
@@ -823,6 +829,12 @@
         }
       ],
       "closing": "My work to keep work from becoming a burden isn't finished, and PlanQ sits on that road. PlanQ is a work management platform that connects tasks and projects, people and time, clients and billing. The way I kept searching for on the floor — we are building it into a tool."
+    },
+    "introEyebrow": "ABOUT PLANQ",
+    "what": {
+      "eyebrow": "WHAT PLANQ DOES",
+      "title": "What you do with PlanQ",
+      "more": "See all features →"
     }
   },
   "contactPage": {
@@ -1083,7 +1095,8 @@
       "title": "Does your company have\nan operating system that can carry growth?",
       "sub": "Start with the work system audit. We organise how your company runs today, as data.",
       "cta": "Request a work system audit"
-    }
+    },
+    "pricingLink": "Looking for PlanQ pricing? → Pricing"
   },
   "betaPage": {
     "eyebrow": "APP",

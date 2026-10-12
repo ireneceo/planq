@@ -271,16 +271,16 @@
       "changefreq": "yearly",
       "priority": "0.5",
       "title": {
-        "ko": "브랜드 스토리 | PlanQ",
-        "en": "Brand story | PlanQ"
+        "ko": "소개 | PlanQ",
+        "en": "About | PlanQ"
       },
       "description": {
-        "ko": "PlanQ는 이론이 아니라 현장에서 태어났습니다. 일을 일답게 하기 위한 PlanQ의 이야기.",
-        "en": "PlanQ was born in the field, not in theory. The story behind PlanQ."
+        "ko": "비즈니스 업무관리 및 협업 플랫폼 PlanQ — 하는 일, 미션과 가치, 걸어온 길, 브랜드 스토리.",
+        "en": "PlanQ, the business management and collaboration platform — what it does, mission and values, timeline and brand story."
       },
       "h1": {
-        "ko": "PlanQ 브랜드 스토리",
-        "en": "PlanQ brand story"
+        "ko": "PlanQ 소개",
+        "en": "About PlanQ"
       },
       "intro": {
         "ko": [
@@ -290,7 +290,7 @@
           "PlanQ was born in the field, not in theory."
         ]
       },
-      "label": "브랜드 스토리",
+      "label": "소개",
       "sections": [
         "aboutPage"
       ]

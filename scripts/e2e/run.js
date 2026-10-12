@@ -175,6 +175,7 @@ const SUITES = {
   mobilesweep: () => require('./canary-mobile-sweep'),
   teampresence: () => require('./canary-team-presence'),   // #429 동료 오늘 상태 — 고객 403·3폭·실시간
   landingfirst: () => require('./canary-landing-firstvisit'),   // 공개 페이지 캐시 없는 첫 방문 크래시(returnObjects 레이스)
+  landinggnb: () => require('./canary-landing-gnb'),   // 랜딩 상단 메뉴 정리(2026-10-12 Fable) — 메뉴 5·리소스·문의 버튼·시트·소개 순서 4폭 (LGNB_CONTROL=1 대조군)
   diagnosis: () => require('./canary-diagnosis'),   // #426 무료 자가진단 — 3폭 진입·12문항·결과·서버 합계
   // M3-d 시작 안내 체크리스트 — 묶음·자격·단계 양성/음성·사람별 닫기(실 HTTP) · 대시보드/설정 최상단 3폭
   onboarding: () => require('./canary-onboarding'),

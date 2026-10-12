@@ -1,4 +1,8 @@
-// 회사 소개 — Our Story (15년 원격 협업 경험) + 미션 + 가치.
+// 소개 — PlanQ 가 무엇인지 → 하는 일 → 미션·가치 → 걸어온 길 → 창업자 이야기 → 컨설팅으로 잇는 한 줄.
+// ★ 2026-10-12 «브랜드스토리» 를 «소개» 로 (Irene: "브랜드스토리가 [소개]로 바뀐 다음 플랜큐 소개페이지로 필요한 내용 보완" → Fable 판정).
+//   첫 방문자가 창업자 에세이부터 읽고 제품을 못 읽던 순서를 바꿨다. **새 문장은 쓰지 않는다** —
+//   정의·슬로건(hero.*)·기능 한 줄(features.q.*)·미션·가치·타임라인·에세이는 기존 문구 그대로 옮겼고,
+//   새로 생긴 것은 섹션 소제목(라벨)뿐이다. 포지셔닝 문장은 Irene 만 정한다(memory feedback_positioning_needs_explicit_decision).
 import { Link } from 'react-router-dom';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
@@ -11,6 +15,8 @@ type StoryBlock = { text: string; pull?: boolean };
 
 const VALUES = ['simplicity', 'execution', 'evidence'] as const;
 const MILESTONES = [0, 1, 2, 3] as const;
+// 홈 «Features» 섹션과 같은 한 줄 설명(features.q.*)을 그대로 쓴다 — 소개가 기능 설명을 따로 갖지 않는다.
+const MODULES = ['talk', 'task', 'note', 'mail', 'docs', 'calendar', 'file', 'project', 'bill', 'sale'] as const;
 
 const Reveal: React.FC<{ children: React.ReactNode; as?: React.ElementType }> = ({ children, as = 'div' }) => {
   const ref = useReveal<HTMLElement>();
@@ -25,37 +31,29 @@ const AboutPage: React.FC = () => {
     <LandingLayout transparentTop={false}>
       <SubHero>
         <Container>
-          <Eyebrow>{t('aboutPage.eyebrow')}</Eyebrow>
-          <Title>{t('aboutPage.title1')}</Title>
-          <Sub>{t('aboutPage.sub')}</Sub>
+          <Eyebrow>{t('aboutPage.introEyebrow', 'ABOUT PLANQ')}</Eyebrow>
+          <Title>{t('hero.slogan', '일이 일이 되지 않게')}</Title>
+          <Sub>{t('hero.purpose1')}</Sub>
         </Container>
       </SubHero>
 
-      {/* ★ 2026-09-07 — 여기는 **실제 브랜드 스토리**다 (운영 Q docs "PlanQ 브랜드 스토리").
-          여태 "15년 넘게 글로벌 클라이언트와 원격으로…" 같은 지어낸 문장이 실존 인물의
-          말인 것처럼 인용문으로 걸려 있었다. 사람 이야기를 지어내지 않는다 —
-          정본은 문서 한 곳이고, 화면은 그것을 옮긴다.
-          본문은 i18n JSON 의 배열(aboutPage.story.paras)로 두어 문단이 늘어도 코드가 안 바뀐다.
-          pull 은 문단 사이에 끼우는 강조 문장(원문의 작은따옴표 대사). */}
-      <StorySection>
+      <ModulesSection>
         <Container>
-          <StoryBody>
-            {i18nArray<StoryBlock>(t('aboutPage.story.blocks', { returnObjects: true })).map((blk, i) => (
-              <Reveal key={i}>
-                {blk.pull
-                  ? <StoryPull>{blk.text}</StoryPull>
-                  : <StoryPara>{blk.text}</StoryPara>}
+          <Reveal as="div"><Eyebrow>{t('aboutPage.what.eyebrow', 'WHAT PLANQ DOES')}</Eyebrow></Reveal>
+          <Reveal as="h2"><ValuesTitle>{t('aboutPage.what.title', 'PlanQ 로 하는 일')}</ValuesTitle></Reveal>
+          <ModulesGrid>
+            {MODULES.map(k => (
+              <Reveal key={k}>
+                <ModuleCard>
+                  <ModuleName>{t(`features.q.${k}.name`)}</ModuleName>
+                  <ModuleDesc>{t(`features.q.${k}.desc`)}</ModuleDesc>
+                </ModuleCard>
               </Reveal>
             ))}
-            <Reveal>
-              <StoryQuote>
-                <QuoteText>{t('aboutPage.story.closing')}</QuoteText>
-                <QuoteCite>— {t('aboutPage.cite')}</QuoteCite>
-              </StoryQuote>
-            </Reveal>
-          </StoryBody>
+          </ModulesGrid>
+          <ModulesMore to="/features" data-testid="about-features-link">{t('aboutPage.what.more', '기능 자세히 보기 →')}</ModulesMore>
         </Container>
-      </StorySection>
+      </ModulesSection>
 
       <MissionSection>
         <Container>
@@ -103,6 +101,45 @@ const AboutPage: React.FC = () => {
           </TimelineList>
         </Container>
       </TimelineSection>
+
+      {/* ★ 2026-09-07 — 여기는 **실제 브랜드 스토리**다 (운영 Q docs "PlanQ 브랜드 스토리").
+          여태 "15년 넘게 글로벌 클라이언트와 원격으로…" 같은 지어낸 문장이 실존 인물의
+          말인 것처럼 인용문으로 걸려 있었다. 사람 이야기를 지어내지 않는다 —
+          정본은 문서 한 곳이고, 화면은 그것을 옮긴다.
+          본문은 i18n JSON 의 배열(aboutPage.story.paras)로 두어 문단이 늘어도 코드가 안 바뀐다.
+          pull 은 문단 사이에 끼우는 강조 문장(원문의 작은따옴표 대사). */}
+      <StorySection data-testid="about-founder-story">
+        <Container>
+          <StoryBody>
+            <Reveal as="div"><Eyebrow>{t('aboutPage.eyebrow', 'BRAND STORY')}</Eyebrow></Reveal>
+            <Reveal as="h2"><StoryTitle>{t('aboutPage.title1')}</StoryTitle></Reveal>
+            <Reveal as="p"><StorySub>{t('aboutPage.sub')}</StorySub></Reveal>
+            {i18nArray<StoryBlock>(t('aboutPage.story.blocks', { returnObjects: true })).map((blk, i) => (
+              <Reveal key={i}>
+                {blk.pull
+                  ? <StoryPull>{blk.text}</StoryPull>
+                  : <StoryPara>{blk.text}</StoryPara>}
+              </Reveal>
+            ))}
+            <Reveal>
+              <StoryQuote>
+                <QuoteText>{t('aboutPage.story.closing')}</QuoteText>
+                <QuoteCite>— {t('aboutPage.cite')}</QuoteCite>
+              </StoryQuote>
+            </Reveal>
+          </StoryBody>
+        </Container>
+      </StorySection>
+
+      {/* 컨설팅(워프로랩 스튜디오)과는 한 줄로만 잇는다 — 요금제 하단과 같은 문구(끼워팔기 금지, 2026-06-23). */}
+      <ConsultRow>
+        <Container>
+          <ConsultInner>
+            <ConsultText>{t('pricingPage.consulting.text')}</ConsultText>
+            <ConsultLink to="/service">{t('pricingPage.consulting.link')}</ConsultLink>
+          </ConsultInner>
+        </Container>
+      </ConsultRow>
 
       <CtaBand>
         <Container>
@@ -180,6 +217,52 @@ const QuoteCite = styled.cite`
   display: block; margin-top: 24px;
   font-size: 0.875rem; color: #64748B;
   font-style: normal; font-weight: 500;
+`;
+
+const StoryTitle = styled.h2`
+  font-size: 2rem; font-weight: 700; color: #0F172A; margin: 0 0 12px; letter-spacing: -0.5px; word-break: keep-all;
+  @media (max-width: 768px) { font-size: 1.5rem; }
+`;
+const StorySub = styled.p`
+  font-size: 1rem; font-weight: 300; color: #64748B; line-height: 1.7; margin: 0 0 40px;
+`;
+
+const ModulesSection = styled.section`
+  padding: 72px 0 96px; background: #FFFFFF;
+  .reveal { opacity: 0; transform: translateY(24px); transition: opacity 0.7s ease-out, transform 0.7s ease-out; }
+  .reveal.in { opacity: 1; transform: none; }
+`;
+const ModulesGrid = styled.div`
+  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px;
+  @media (max-width: 768px) { grid-template-columns: 1fr; }
+`;
+const ModuleCard = styled.div`
+  height: 100%; box-sizing: border-box;
+  padding: 24px 28px; background: #FAFBFC;
+  border: 1px solid #E2E8F0; border-radius: 12px;
+  @media (max-width: 640px) { padding: 20px; }
+`;
+const ModuleName = styled.div`
+  font-family: 'Outfit', sans-serif;
+  font-size: 1.125rem; font-weight: 600; color: #0D9488; margin-bottom: 8px;
+`;
+const ModuleDesc = styled.p`font-size: 0.875rem; color: #475569; line-height: 1.7; margin: 0; word-break: keep-all;`;
+const ModulesMore = styled(Link)`
+  display: inline-block; margin-top: 28px;
+  font-size: 0.9375rem; font-weight: 600; color: #0F766E; text-decoration: none;
+  &:hover { color: #115E59; text-decoration: underline; }
+`;
+
+const ConsultRow = styled.section`padding: 0 0 72px; background: #FFFFFF;`;
+const ConsultInner = styled.div`
+  max-width: 720px; margin: 0 auto; padding: 20px 24px;
+  display: flex; align-items: center; justify-content: space-between; gap: 12px 24px; flex-wrap: wrap;
+  border: 1px dashed #CBD5E1; border-radius: 12px;
+`;
+const ConsultText = styled.div`font-size: 0.875rem; color: #475569; line-height: 1.6; word-break: keep-all;`;
+const ConsultLink = styled(Link)`
+  font-size: 0.875rem; font-weight: 600; color: #0F766E; text-decoration: none; white-space: nowrap;
+  &:hover { color: #115E59; text-decoration: underline; }
 `;
 
 const MissionSection = styled.section`

@@ -41,6 +41,8 @@ const HomePage: React.FC = () => {
             {t('hero.headline2', '수익성 엔진')}
           </HeroHeadline>
           <HeroCta to="/register">{t('hero.cta', '무료로 시작하기')}</HeroCta>
+          {/* 2026-10-12 — 시작 가이드는 GNB 의 «리소스» 묶음으로 옮겼다. 처음 온 사람이 스크롤 없이 보도록 CTA 아래 한 줄. */}
+          <HeroStartLink to="/start" data-testid="home-start-guide-link">{t('hero.startGuide', '처음이신가요? 시작 가이드 보기 →')}</HeroStartLink>
         </HeroInner>
       </Hero>
 
@@ -358,6 +360,13 @@ const HeroCta = styled(Link)`
   transition: all 0.3s;
   box-shadow: 0 0 40px rgba(20,184,166,0.3);
   &:hover { background: #0D9488; transform: translateY(-2px); box-shadow: 0 0 60px rgba(20,184,166,0.4); }
+`;
+
+const HeroStartLink = styled(Link)`
+  display: block; width: fit-content; margin: 18px auto 0;
+  color: rgba(255,255,255,0.75); font-size: 0.875rem;
+  text-decoration: underline; text-underline-offset: 3px;
+  &:hover { color: #FFFFFF; }
 `;
 
 // 서비스명 + 목적 한 문장. 히어로 시각 위계를 건드리지 않도록 CTA 아래 작은 보조 문단으로 둔다.
