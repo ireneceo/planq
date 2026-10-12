@@ -230,9 +230,9 @@
       "tel": "Phone",
       "email": "Email",
       "verify": "Verify business",
-      "cardBiller": "Card payments collected by",
       "regNoIntl": "Company reg. no.",
-      "cardBillerCountry": "Malaysia"
+      "krEntity": "Korea entity",
+      "myEntity": "Malaysia entity"
     }
   },
   "featuresPage": {

@@ -199,6 +199,7 @@ const LandingLayout: React.FC<Props> = ({ children, transparentTop = true }) => 
               {company && (company.legal_entity || company.biz_registration_no) && (
                 <>
                 <FooterBizRow>
+                  <FooterBizEntity>{t('footer.biz.krEntity', '한국 법인')}</FooterBizEntity>
                   {company.legal_entity && <span>{t('footer.biz.company', '상호')}: {company.legal_entity}</span>}
                   {company.representative_name && <span>{t('footer.biz.ceo', '대표')}: {company.representative_name}</span>}
                   {company.biz_registration_no && <span>{t('footer.biz.regNo', '사업자등록번호')}: {company.biz_registration_no}</span>}
@@ -228,11 +229,13 @@ const LandingLayout: React.FC<Props> = ({ children, transparentTop = true }) => 
                 </>
               )}
                 {/* ★ 청구 주체가 둘이다 (2026-09-14). 위는 **서비스 제공자**(한국, platform_settings),
-                    아래는 **카드 결제 수취 법인**(말레이시아). 카드 명세서에 찍히는 이름이 위와
-                    다르므로 여기에 적어야 한다 — 값은 `config/legalEntities.ts` 한 곳에서 온다.
-                    계좌이체는 위 법인이 직접 받는다(그래서 "카드 결제" 라고 한정한다). */}
+                    아래는 카드 결제를 받는 **말레이시아 법인** — 값은 `config/legalEntities.ts` 한 곳에서 온다.
+                    2026-10-12 Irene: *"굳이 카드결제수취라고 나가야 해? 말레이시아 법인 한국법인 이렇게"* —
+                    푸터는 두 법인을 **나란히 표기**만 한다. «어느 결제를 누가 받나» 는 푸터가 아니라
+                    약관 제3조·결제 직전 문구(plan.json hint)가 말한다. 그 둘을 빼면 이 표기도 다시 봐야 한다. */}
               <FooterBizRow data-testid="footer-card-biller">
-                <span>{t('footer.biz.cardBiller', '카드 결제 수취')}: {BILLING_ENTITY.name} ({t('footer.biz.cardBillerCountry', '말레이시아')})</span>
+                <FooterBizEntity>{t('footer.biz.myEntity', '말레이시아 법인')}</FooterBizEntity>
+                <span>{t('footer.biz.company', '상호')}: {BILLING_ENTITY.name}</span>
                 <span>{t('footer.biz.regNoIntl', '법인등록번호')}: {BILLING_ENTITY.regNo}</span>
                 <span>{t('footer.biz.address', '주소')}: {BILLING_ENTITY.address}</span>
                 <span>{t('footer.biz.email', '이메일')}: {BILLING_ENTITY.email}</span>
@@ -458,6 +461,11 @@ const FooterBizRow = styled.div`
   color: #94A3B8;
   font-weight: 300;
   line-height: 1.6;
+`;
+/* 법인 구분 머리말 — 같은 줄 맨 앞, 값보다 한 단계만 진하게 */
+const FooterBizEntity = styled.span`
+  color: #CBD5E1;
+  font-weight: 500;
 `;
 const FooterBizLink = styled.a`
   color: #94A3B8;
