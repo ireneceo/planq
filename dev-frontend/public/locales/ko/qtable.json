@@ -178,8 +178,56 @@
         "invalid_url": "링크 주소를 확인해 주세요(https:// 로 시작).",
         "invalid_phone": "전화번호를 확인해 주세요.",
         "empty_response": "한 문항 이상 답해 주세요.",
-        "payload_too_large": "입력이 너무 깁니다."
-      }
+        "payload_too_large": "입력이 너무 깁니다.",
+        "invalid_rating": "별점을 1~5 중에서 골라 주세요.",
+        "invalid_scale": "0~10 중에서 골라 주세요.",
+        "already_responded": "이미 응답한 링크예요.",
+        "too_many": "잠시 후 다시 보내 주세요.",
+        "network": "연결이 불안정해요. 다시 시도해 주세요.",
+        "generic": "보내지 못했어요. 입력을 확인해 주세요."
+      },
+      "scaleLow": "전혀 아니다",
+      "scaleHigh": "매우 그렇다",
+      "no": "아니오",
+      "preview": "미리보기 — 제출되지 않아요",
+      "hello": "{{name}}님,",
+      "alreadyResponded": "이미 응답하셨어요. 감사합니다."
+    },
+    "answer": {
+      "starN": "{{n}}점"
+    },
+    "copySuffix": "(복사)",
+    "newQuestion": "질문 {{n}}",
+    "optionN": "선택지 {{n}}",
+    "descriptionLabel": "설명 (응답자에게 맨 위에 보여요)",
+    "noQuestions": "아직 문항이 없어요. 아래 «문항 추가» 로 시작하세요.",
+    "questionPh": "질문을 적어 주세요",
+    "questionMenu": "문항 메뉴",
+    "moveUp": "위로",
+    "moveDown": "아래로",
+    "duplicate": "복제",
+    "delete": "삭제",
+    "helpPh": "문항 설명(선택)",
+    "optionsLabel": "선택지 (한 줄에 하나)",
+    "otherColumns": "응답 화면에 나오지 않는 칸 {{n}}개(첨부·URL·체크 등)는 «응답» 탭 표에만 보여요.",
+    "addQuestion": "문항 추가",
+    "settingsTitle": "설정",
+    "anonymous": "익명 응답",
+    "anonymousHint": "누가 어떤 답을 했는지 연결하지 않아요. 받는 사람이 1명인 회차에는 의미가 없어요. 켜면 그 뒤로 들어오는 응답부터 적용돼요.",
+    "thanks": "제출 뒤 문구",
+    "thanksPh": "예: 소중한 의견 감사합니다. 더 나은 서비스로 보답할게요.",
+    "deleteQuestionTitle": "이 문항을 지울까요?",
+    "deleteQuestionMsg": "이미 받은 응답 {{n}}건에서 이 문항의 답도 함께 사라져요.",
+    "cancel": "취소",
+    "convertBanner": "이 표는 설문으로 응답을 받고 있어요.",
+    "convert": "설문으로 전환",
+    "sys": {
+      "receivedAt": "받은 날",
+      "round": "회차",
+      "respondent": "응답자",
+      "publicLink": "공개 링크",
+      "manual": "직접 입력",
+      "anonymous": "익명"
     }
   },
   "stats": {
@@ -195,6 +243,37 @@
     "avg": "평균",
     "min": "최소",
     "max": "최대",
-    "noText": "아직 적힌 답이 없어요."
+    "noText": "아직 적힌 답이 없어요.",
+    "scope": {
+      "all": "전체",
+      "round": "회차",
+      "period": "기간"
+    },
+    "people": "명",
+    "nps": "추천지수 (NPS)",
+    "detractors": "비추천 (0~6)",
+    "passives": "중립 (7~8)",
+    "promoters": "추천 (9~10)",
+    "yesShare": "예",
+    "multiHint": "여러 개를 고를 수 있어 합이 100% 를 넘을 수 있어요",
+    "summaryV2": "응답 {{total}}건"
+  },
+  "colType": {
+    "yesno": "예/아니오",
+    "rating": "별점 (1~5)",
+    "scale": "척도 (0~10)"
+  },
+  "qType": {
+    "text": "단답",
+    "longtext": "장문",
+    "select": "객관식 (하나)",
+    "multiSelect": "체크박스 (여럿)",
+    "yesno": "예/아니오",
+    "rating": "별점 (1~5)",
+    "scale": "척도 (0~10, 추천지수)",
+    "number": "숫자",
+    "date": "날짜",
+    "email": "이메일",
+    "phone": "전화"
   }
 }

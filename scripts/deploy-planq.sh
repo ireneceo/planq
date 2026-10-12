@@ -483,6 +483,9 @@ sync_database() {
   #   q_record_audits.user_id NULL + action ENUM · notifications/notification_prefs event_kind 'survey'. 멱등.
   #   ★ 순서: PM2 reload 보다 먼저 — 모델이 survey_token 을 SELECT 하므로 없으면 표 문서 전체가 500.
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-survey.js 2>&1 | tail -10"
+  # 2026-10-12 설문 v2(docs/SURVEY_V2_DESIGN.md) — posts.kind +'survey' · q_record_rows 회차·받는 사람 칸 · survey_issues/recipients/rules 표 ·
+  #   clients.survey_opt_out_at. 멱등. ★ 순서: migrate-survey.js 뒤, PM2 reload 보다 먼저 — 모델이 이 칸을 SELECT 하므로 없으면 문서·표·고객 조회가 500.
+  prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-survey-v2.js 2>&1 | tail -12"
   # 2026-10-09 체험 중 결제 환불 요청(docs/TRIAL_REFUND_DESIGN.md) — payments 컬럼 6개 + 인덱스. 멱등.
   #   ★ 순서: PM2 reload 보다 먼저 — Payment 모델이 이 칸을 SELECT 하므로 없으면 결제 조회 전부 500.
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-trial-refund.js 2>&1 | tail -10"

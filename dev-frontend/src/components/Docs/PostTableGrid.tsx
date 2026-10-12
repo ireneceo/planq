@@ -23,17 +23,14 @@ import PostAiModal from './PostAiModal';
 import AiActionButton from '../Common/AiActionButton';
 import { isEnterAction } from '../../utils/imeKey';
 // #460 설문 — 표 문서의 «응답 받기» 문 + 칸별 통계 (docs/SURVEY_DESIGN.md)
-import SurveyDrawer from './SurveyDrawer';
-import SurveyStats from './SurveyStats';
-import { SegmentedToggle, SegmentedBtn } from '../Common/segmentedToggle';
-import { fetchSurvey, type SurveyView } from '../../services/qtable';
+import { RatingInput, YesNoInput, answerText } from './Survey/answerInputs';
 import { onSocket } from '../../services/socket';
 // 칸 서식·행 끼워넣기(2026-10-11) — 서식 값은 행 값의 예약 키 _fmt, 팔레트는 문서 편집기와 한 벌
 import { FillSwatches } from './CellFillButton';   // 열 색(2026-10-12) — 문서 안 표 채우기와 같은 견본
 import { fillOf } from './textStylePalette';
 import { TableFormatBar, RowMenuButton, CELL_FMT_KEY, rowFmtOf, cellFmtStyle, nextRowFmt, type CellFmt } from './TableCellTools';
 
-const TYPES: { value: QRecordColumnType; tk: string; ko: string }[] = [
+const TYPES: { value: QRecordColumnType; tk: string; ko?: string }[] = [
   { value: 'text',         tk: 'colType.text',        ko: '텍스트' },
   { value: 'longtext',     tk: 'colType.longtext',    ko: '긴 텍스트' },
   { value: 'number',       tk: 'colType.number',      ko: '숫자' },
@@ -45,6 +42,10 @@ const TYPES: { value: QRecordColumnType; tk: string; ko: string }[] = [
   { value: 'phone',        tk: 'colType.phone',       ko: '전화' },
   { value: 'select',       tk: 'colType.select',      ko: '단일 선택' },
   { value: 'multi_select', tk: 'colType.multiSelect', ko: '다중 선택' },
+  // 설문 v2 — 표에서도 쓴다(별점·척도·예/아니오, docs/SURVEY_V2_DESIGN.md §4). 글자는 locales qtable colType.* 에만
+  { value: 'yesno', tk: 'colType.yesno' },
+  { value: 'rating', tk: 'colType.rating' },
+  { value: 'scale', tk: 'colType.scale' },
   { value: 'secret',       tk: 'colType.secret',      ko: '시크릿' },
   { value: 'attach',       tk: 'colType.attach',      ko: '첨부' },
   { value: 'row_sum',      tk: 'colType.rowSum',      ko: '행 합계 (자동)' },
@@ -165,9 +166,13 @@ interface Props {
   businessId: number;
   // 보기 모드 — 모든 입력/추가/삭제 비활성. 편집 모드 (default) 만 수정 가능.
   readOnly?: boolean;
+  // 설문 v2 «응답» 탭 — 앞에 시스템 칸(받은 날·회차·응답자)을 두고, 칸(문항) 추가는 질문지 탭에서만 한다
+  surveyMode?: boolean;
+  // 옛 «표에서 켠 설문» — 격자 위 «설문으로 전환» 한 줄(설계 v2 §8.4). 없으면 안내만
+  onConvertToSurvey?: () => void;
 }
 
-const PostTableGrid: React.FC<Props> = ({ recordId, businessId, readOnly = false }) => {
+const PostTableGrid: React.FC<Props> = ({ recordId, businessId, readOnly = false, surveyMode = false, onConvertToSurvey }) => {
   const { t } = useTranslation('qtable');
   const [rec, setRec] = useState<QRecordDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -187,21 +192,11 @@ const PostTableGrid: React.FC<Props> = ({ recordId, businessId, readOnly = false
   }, [recordId]);
   useEffect(() => { load(); }, [load]);
 
-  // #460 — 표 / 통계 보기 · 설문 설정. 설정은 켤 수 있는 사람에게만 보인다(서버가 403 이면 null)
-  const [view, setView] = useState<'grid' | 'stats'>('grid');
-  const [surveyOpen, setSurveyOpen] = useState(false);
-  const [survey, setSurvey] = useState<SurveyView | null>(null);
-  useEffect(() => {
-    let alive = true;
-    fetchSurvey(recordId).then((v) => { if (alive) setSurvey(v); }).catch(() => { if (alive) setSurvey(null); });
-    return () => { alive = false; };
-  }, [recordId]);
-  // 설문 응답이 들어오면 줄을 다시 읽는다(신호만 온다). 화면을 스피너로 되돌리지 않는다.
+  // 응답이 들어오면 줄을 다시 읽는다(신호만 온다). 화면을 스피너로 되돌리지 않는다.
+  //   ★ 2026-10-12 설문 v2 — 표의 «표 | 통계» 토글·«설문으로 받기» 버튼은 뺐다(Irene «권고대로»). 설문은 «설문» 종류에만 있다.
   useEffect(() => onSocket<{ id: number }>('record:row', (p) => {
     if (p?.id !== recordId) return;
     fetchRecord(recordId).then((r) => { if (r) setRec(r); }).catch(() => { /* 다음 신호·재방문에 다시 읽는다 */ });
-    // 버튼의 «받는 중 · N건» 도 같이 — 안 그러면 줄은 늘었는데 숫자는 0 으로 남는다
-    fetchSurvey(recordId).then((v) => { if (v) setSurvey(v); }).catch(() => { /* 다음 신호에 */ });
   }), [recordId]);
 
   if (loading) return <Loading>{t('detail.loading', '불러오는 중...')}</Loading>;
@@ -328,27 +323,25 @@ const PostTableGrid: React.FC<Props> = ({ recordId, businessId, readOnly = false
 
   return (
     <GridWrap>
-      <SurveyBar>
-        {!readOnly && view === 'grid' && <TableFormatBar fmt={selFmt} onChange={changeSelFmt} />}
-        <SegmentedToggle role="tablist" aria-label={t('stats.viewLabel', '보기') as string}>
-          <SegmentedBtn type="button" role="tab" aria-selected={view === 'grid'} $active={view === 'grid'} onClick={() => setView('grid')}>{t('stats.tabGrid', '표')}</SegmentedBtn>
-          <SegmentedBtn type="button" role="tab" aria-selected={view === 'stats'} $active={view === 'stats'} onClick={() => setView('stats')} data-testid="table-stats-tab">{t('stats.tabStats', '통계')}</SegmentedBtn>
-        </SegmentedToggle>
-        {survey && (
-          <SurveyBtn type="button" $on={survey.enabled} onClick={() => setSurveyOpen(true)} data-testid="table-survey-open">
-            {survey.enabled ? t('survey.btnOn', { defaultValue: '설문 받는 중 · {{n}}건', n: survey.response_count }) as string : t('survey.title', '설문으로 받기')}
-          </SurveyBtn>
-        )}
-      </SurveyBar>
-      {survey && (
-        <SurveyDrawer open={surveyOpen} onClose={() => setSurveyOpen(false)} recordId={rec.id} columns={rec.columns} onChanged={setSurvey} />
+      {!surveyMode && rec.survey_on && (
+        <ConvertBanner data-testid="table-survey-convert">
+          <span>{t('survey.convertBanner', '이 표는 설문으로 응답을 받고 있어요.')}</span>
+          {onConvertToSurvey && (
+            <ConvertBtn type="button" onClick={onConvertToSurvey}>{t('survey.convert', '설문으로 전환')}</ConvertBtn>
+          )}
+        </ConvertBanner>
       )}
-      {view === 'stats' ? <StatsPad><SurveyStats recordId={rec.id} /></StatsPad> : (<>
+      {!readOnly && <ToolBar><TableFormatBar fmt={selFmt} onChange={changeSelFmt} /></ToolBar>}
       <GridScroll>
         <GridTable>
           <thead>
             <tr>
               <RowNumHeader />
+              {surveyMode && (<>
+                <SysHead>{t('survey.sys.receivedAt', '받은 날')}</SysHead>
+                <SysHead>{t('survey.sys.round', '회차')}</SysHead>
+                <SysHead>{t('survey.sys.respondent', '응답자')}</SysHead>
+              </>)}
               {rec.columns.map(c => (
                 <ColHead key={c.id} data-testid={`table-colhead-${c.id}`} style={fillOf(c.bg) ? { background: fillOf(c.bg)! } : undefined}>
                   <ColHeadInner>
@@ -376,7 +369,7 @@ const PostTableGrid: React.FC<Props> = ({ recordId, businessId, readOnly = false
                   </ColHeadInner>
                 </ColHead>
               ))}
-              {!readOnly && (
+              {!readOnly && !surveyMode && (
                 <AddColHead
                   onClick={() => {
                     const next = rec.columns.length + 1;
@@ -396,6 +389,11 @@ const PostTableGrid: React.FC<Props> = ({ recordId, businessId, readOnly = false
                     <RowMenuButton index={idx + 1} onInsert={(side) => insertRowAt(row.id, side)} onDelete={() => handleDeleteRow(row.id)} />
                   )}
                 </RowNumCell>
+                {surveyMode && (<>
+                  <SysCell>{row.created_at ? String(row.created_at).slice(0, 10) : ''}</SysCell>
+                  <SysCell>{row.survey_issue_id ? `#${row.survey_issue_id}` : (row.created_by == null ? t('survey.sys.publicLink', '공개 링크') : t('survey.sys.manual', '직접 입력'))}</SysCell>
+                  <SysCell title={row.respondent?.email || ''}>{row.respondent ? (row.respondent.name || row.respondent.email) : (row.created_by == null ? t('survey.sys.anonymous', '익명') : '')}</SysCell>
+                </>)}
                 {rec.columns.map(c => (
                   <Cell key={c.id}
                     style={withColumnFill(cellFmtStyle(rowFmtOf(row.values)[c.id]), c.bg)}
@@ -416,7 +414,7 @@ const PostTableGrid: React.FC<Props> = ({ recordId, businessId, readOnly = false
                     />
                   </Cell>
                 ))}
-                {!readOnly && <Cell />}
+                {!readOnly && !surveyMode && <Cell />}
                 <ActionsCell>
                   {!readOnly && (
                     <DeleteRowBtn type="button" onClick={() => handleDeleteRow(row.id)} title={t('row.deleteHint', '행 삭제') as string} aria-label={t('row.deleteHint', '행 삭제') as string}>×</DeleteRowBtn>
@@ -426,7 +424,7 @@ const PostTableGrid: React.FC<Props> = ({ recordId, businessId, readOnly = false
             ))}
             {!readOnly && (
               <tr>
-                <td colSpan={rec.columns.length + 3}>
+                <td colSpan={rec.columns.length + 3 + (surveyMode ? 3 : 0)}>
                   <AddRowBtn type="button" onClick={handleAddRow}>
                     + {t('actions.addRow', '행 추가')}
                   </AddRowBtn>
@@ -438,6 +436,7 @@ const PostTableGrid: React.FC<Props> = ({ recordId, businessId, readOnly = false
             <tfoot>
               <tr>
                 <FooterLabelCell>Σ</FooterLabelCell>
+                {surveyMode && (<><FooterCell /><FooterCell /><FooterCell /></>)}
                 {rec.columns.map(c => (
                   <FooterCell key={c.id}>
                     {c.aggregate && c.aggregate !== 'none'
@@ -452,7 +451,6 @@ const PostTableGrid: React.FC<Props> = ({ recordId, businessId, readOnly = false
           )}
         </GridTable>
       </GridScroll>
-      </>)}
 
       {settingsCol && (
         <ColumnSettingsPopover
@@ -505,6 +503,22 @@ const CellEditor: React.FC<{
   if (ROW_AGG_TYPES.includes(column.type)) {
     const computed = computeRowAggregate(column.type, rowValues || {}, allColumns || []);
     return <ReadCell><ComputedValue>{computed === '—' ? <Dim>—</Dim> : computed}</ComputedValue></ReadCell>;
+  }
+
+  // 설문 v2 — 별점·척도·예/아니오(공개 화면과 같은 입력 컴포넌트, 작은 크기)
+  if (column.type === 'rating' || column.type === 'scale' || column.type === 'yesno') {
+    if (readOnly) {
+      const txt = answerText(column.type, value, t('survey.public.yes', '예') as string, t('survey.public.no', '아니오') as string);
+      return <ReadCell>{txt ? (column.type === 'rating' ? <RatingText>{txt}</RatingText> : txt) : <Dim>—</Dim>}</ReadCell>;
+    }
+    if (column.type === 'rating') return <InlineInput><RatingInput size="sm" value={value == null || value === '' ? null : Number(value)} onChange={(v) => onChange(v)} label={column.name} /></InlineInput>;
+    if (column.type === 'yesno') return <InlineInput><YesNoInput size="sm" value={value === true || value === 'true' ? true : (value === false || value === 'false' ? false : null)} onChange={(v) => onChange(v)} label={column.name} /></InlineInput>;
+    const scaleOpts: PlanQSelectOption[] = Array.from({ length: 11 }, (_, n) => ({ value: String(n), label: String(n) }));
+    return (
+      <PlanQSelect size="sm" isClearable isSearchable={false} options={scaleOpts}
+        value={value == null || value === '' ? null : { value: String(value), label: String(value) }}
+        onChange={(opt) => onChange(opt ? Number((opt as PlanQSelectOption).value) : null)} />
+    );
   }
 
   if (column.type === 'checkbox') {
@@ -1009,22 +1023,30 @@ const Loading = styled.div`padding: 40px; text-align: center; color: #94A3B8; fo
 const GridWrap = styled.div`width: 100%;`;
 // #460 — 표 위 한 줄: [표 | 통계] + 설문 버튼. 한 줄 안 컨트롤은 같은 높이(32 — 알약 높이)
 // 표 본문은 좌우 끝까지(full-bleed)지만 이 줄은 문서 메타 줄과 같은 안쪽 여백(20 / 폰 16)에 맞춘다
-const SurveyBar = styled.div`
+const ToolBar = styled.div`
   display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 0 20px 10px;
   @media (max-width: 640px) { padding: 0 16px 10px; }
 `;
-const SurveyBtn = styled.button<{ $on: boolean }>`
-  margin-left: auto; height: 32px; padding: 0 12px; border-radius: 8px; cursor: pointer;
-  font-size: 0.8125rem; font-weight: 600; white-space: nowrap;
-  border: 1px solid ${(p) => (p.$on ? '#14B8A6' : '#E2E8F0')};
-  background: ${(p) => (p.$on ? '#F0FDFA' : '#FFF')}; color: ${(p) => (p.$on ? '#0F766E' : '#334155')};
-  &:hover { border-color: #14B8A6; color: #0F766E; }
+const ConvertBanner = styled.div`
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 0 20px 10px; padding: 8px 12px;
+  @media (max-width: 640px) { margin: 0 16px 10px; }
+  background: #F0FDFA; border: 1px solid #CCFBF1; border-radius: 8px; font-size: 0.8125rem; color: #0F766E;
+`;
+const ConvertBtn = styled.button`
+  height: 32px; padding: 0 12px; border-radius: 999px; border: 1px solid #14B8A6; background: #FFF; color: #0F766E;
+  font-size: 0.75rem; font-weight: 700; cursor: pointer;
   @media (max-width: 640px) { height: 40px; }
 `;
-const StatsPad = styled.div`
-  padding: 4px 20px 12px;
-  @media (max-width: 640px) { padding: 4px 16px 12px; }
+const SysHead = styled.th`
+  min-width: 96px; padding: 6px 8px; text-align: left; font-size: 0.6875rem; font-weight: 700; color: #64748B;
+  background: #F8FAFC; border-bottom: 1px solid #E2E8F0; border-right: 1px solid #F1F5F9; white-space: nowrap;
 `;
+const SysCell = styled.td`
+  padding: 6px 8px; font-size: 0.75rem; color: #64748B; background: #FCFCFD; border-bottom: 1px solid #F1F5F9; border-right: 1px solid #F1F5F9;
+  white-space: nowrap; max-width: 180px; overflow: hidden; text-overflow: ellipsis;
+`;
+const InlineInput = styled.div`display: flex; align-items: center; min-height: 32px; padding: 0 4px;`;
+const RatingText = styled.span`color: #B45309; letter-spacing: 1px;`;
 // 라운드 제거 — 문서 flat 풀레이아웃과 통일(상하 flat 라인만, 좌우는 full-bleed 로 패널 끝까지). (Irene)
 const GridScroll = styled.div`overflow-x: auto; border-top: 1px solid #E2E8F0; border-bottom: 1px solid #E2E8F0; background: #fff;`;
 const GridTable = styled.table`

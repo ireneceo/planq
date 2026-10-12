@@ -15,10 +15,14 @@ QRecordRow.init({
   // NULL = 설문(#460)으로 들어온 외부 응답 — 사람 계정이 없다. 화면은 «설문 응답» 으로 보인다(docs/SURVEY_DESIGN.md)
   created_by: { type: DataTypes.INTEGER, allowNull: true, references: { model: 'users', key: 'id' } },
   updated_by: { type: DataTypes.INTEGER, allowNull: true, references: { model: 'users', key: 'id' } },
+  // 설문 v2 — 어느 회차·누구의 응답인가. NULL = 손으로 넣은 줄 / 공개 링크 응답 / 익명 응답(받는 사람만 NULL)
+  survey_issue_id: { type: DataTypes.INTEGER, allowNull: true },
+  survey_recipient_id: { type: DataTypes.INTEGER, allowNull: true },
 }, {
   sequelize, tableName: 'q_record_rows', timestamps: true, underscored: true,
   indexes: [
     { fields: ['q_record_id', 'position'] },
+    { fields: ['survey_issue_id'] },
   ],
 });
 

@@ -39,7 +39,7 @@ interface Props {
   // 진입 의도 — 'manual'(빈 문서/표) 또는 'ai'(AI 작성/자료정리). default 'manual'
   intent?: 'manual' | 'ai';
   // 진입 시 default tab 강제 (예: + 드롭다운 "표" 선택 → defaultMode='table')
-  defaultMode?: 'blank' | 'new' | 'brief' | 'table';
+  defaultMode?: 'blank' | 'new' | 'brief' | 'table' | 'survey';
   // N+42 — Q Note 정리하기 → 정식 문서 승격 진입 시 brief 모드 prefill
   initialBriefTitle?: string;
   initialBriefText?: string;
@@ -49,7 +49,9 @@ interface Props {
 
 const KIND_OPTION_VALUES: DocKind[] = ['proposal', 'quote', 'invoice', 'contract', 'sow', 'nda', 'meeting_note', 'custom'];
 
-type Mode = 'blank' | 'new' | 'brief' | 'table';
+type Mode = 'blank' | 'new' | 'brief' | 'table' | 'survey';
+// 설문 v2 — 시작 질문 세트(문항은 서버 services/surveySeeds 가 만든다 — 화면은 고르기만)
+type QuestionSet = 'blank' | 'project_review' | 'new_client' | 'periodic';
 
 const PostAiModal: React.FC<Props> = ({ open, onClose, businessId, projectId: pageProjectId, clientId: pageClientId, onGenerate, onBlank, intent = 'manual', defaultMode: defaultModeProp, initialBriefTitle, initialBriefText, onTableCreated }) => {
   const { t } = useTranslation('qdocs');
@@ -60,12 +62,13 @@ const PostAiModal: React.FC<Props> = ({ open, onClose, businessId, projectId: pa
   );
   const navigate = useNavigate();
   // intent 별 사용 가능 탭 — manual: 빈문서+표 / ai: AI 작성+자료정리
-  const visibleModes: Mode[] = intent === 'ai' ? ['new', 'brief'] : ['blank', 'table'];
+  const visibleModes: Mode[] = intent === 'ai' ? ['new', 'brief'] : ['blank', 'table', 'survey'];
   const defaultMode: Mode = defaultModeProp ?? (intent === 'ai' ? 'new' : 'blank');
   const [mode, setMode] = useState<Mode>(defaultMode);
   // intent 가 바뀔 때마다 default 모드로 초기화
   useEffect(() => { if (open) setMode(defaultMode); }, [intent, open]);  // eslint-disable-line react-hooks/exhaustive-deps
   const [kind, setKind] = useState<DocKind | null>(null);
+  const [questionSet, setQuestionSet] = useState<QuestionSet>('project_review');
   const [title, setTitle] = useState('');
   const [userInput, setUserInput] = useState('');
   const [briefTitle, setBriefTitle] = useState(initialBriefTitle || '');
@@ -258,6 +261,37 @@ const PostAiModal: React.FC<Props> = ({ open, onClose, businessId, projectId: pa
     }
   };
 
+  // 설문(survey v2) — 시작 질문 세트로 문항을 시드한 질문지 + 문서 → 편집 화면으로(표와 같은 진입).
+  const submitSurvey = async () => {
+    if (busy) return;
+    setBusy(true); setError(null);
+    try {
+      const autoTitle = title.trim() || `${t('ai.surveyDefaultPrefix', '설문')} — ${formatDay(new Date(), { year: 'always' })}`;
+      const { apiFetch } = await import('../../contexts/AuthContext');
+      const r = await apiFetch('/api/posts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          business_id: businessId,
+          project_id: pageProjectId ?? pickedProjectId ?? null,
+          client_id: pageClientId ?? pickedClientId ?? null,
+          title: autoTitle,
+          kind: 'survey',
+          question_set: questionSet,
+        }),
+      });
+      const j = await r.json();
+      if (!j.success) throw new Error(j.message || 'failed');
+      onClose();
+      if (onTableCreated) onTableCreated(j.data.id);
+      else navigate(`/docs?post=${j.data.id}&new_table=1`);
+    } catch (e: unknown) {
+      setError((e as Error).message || (t('ai.failed', '생성 실패') as string));
+    } finally {
+      setBusy(false);
+    }
+  };
+
   // 빈 에디터 진입 — 부모 startNew 호출
   const submitBlank = () => { if (onBlank) { onBlank(); onClose(); } };
 
@@ -276,11 +310,12 @@ const PostAiModal: React.FC<Props> = ({ open, onClose, businessId, projectId: pa
   const submit = () => {
     if (mode === 'blank') return submitBlank();
     if (mode === 'table') return submitTable();
+    if (mode === 'survey') return submitSurvey();
     if (mode === 'brief') return submitWithCueGuard(submitBrief);
     return submitWithCueGuard(submitNewDoc);
   };
   const canSubmit = mode === 'blank' ? true
-    : mode === 'table' ? true   // 자동 제목으로 즉시 생성, 셀렉터만 채우면 됨
+    : mode === 'table' || mode === 'survey' ? true   // 자동 제목으로 즉시 생성, 셀렉터만 채우면 됨
     : mode === 'brief' ? (!!briefText.trim() || briefStagedUploads.length > 0 || briefExistingIds.length > 0 || briefPostIds.length > 0)
     : !!title.trim();
 
@@ -317,6 +352,13 @@ const PostAiModal: React.FC<Props> = ({ open, onClose, businessId, projectId: pa
               <TabHint>{t('ai.modeTableHint', '계정·자산 등 행/열 데이터')}</TabHint>
             </Tab>
           )}
+          {visibleModes.includes('survey') && (
+            <Tab type="button" role="tab" data-testid="ai-mode-survey" aria-selected={mode === 'survey'} $active={mode === 'survey'}
+              onClick={() => { if (!busy) { setMode('survey'); setError(null); } }} disabled={busy}>
+              <TabTitle>{t('ai.modeSurvey', '설문')}</TabTitle>
+              <TabHint>{t('ai.modeSurveyHint', '질문을 만들고 고객에게 보내기')}</TabHint>
+            </Tab>
+          )}
           {visibleModes.includes('new') && (
             <Tab type="button" role="tab" aria-selected={mode === 'new'} $active={mode === 'new'}
               onClick={() => { if (!busy) { setMode('new'); setError(null); } }} disabled={busy}>
@@ -349,6 +391,29 @@ const PostAiModal: React.FC<Props> = ({ open, onClose, businessId, projectId: pa
               <BriefIntro>
                 {t('ai.tableDesc2', '빈 표가 생성됩니다. 제목·컬럼·행은 표 화면에서 직접 편집할 수 있어요.')}
               </BriefIntro>
+              {error && <ErrorBox>{error}</ErrorBox>}
+            </>
+          ) : mode === 'survey' ? (
+            <>
+              <BriefIntro>
+                {t('ai.surveyDesc', '시작 질문 세트를 고르면 문항이 채워진 설문이 만들어져요. 질문·설명은 다음 화면에서 고칠 수 있어요.')}
+              </BriefIntro>
+              <Field>
+                <Label>{t('ai.surveyTitle', '설문 제목')}</Label>
+                {/* autosave-exempt · draft-exempt: 만들기 전 한 줄 제목 — [설문 만들기] 를 누를 때 한 번 쓴다(표 제목과 같은 자리) */}
+                <SurveyTitleInput value={title} maxLength={200} onChange={(e) => setTitle(e.target.value)} placeholder={t('ai.surveyTitlePh', '예: 2026 4분기 고객 만족도') as string} />
+              </Field>
+              <Field>
+                <Label>{t('ai.surveySet', '시작 질문 세트')}</Label>
+                <SetList role="radiogroup" aria-label={t('ai.surveySet', '시작 질문 세트') as string}>
+                  {(['project_review', 'new_client', 'periodic', 'blank'] as QuestionSet[]).map((k) => (
+                    <SetItem key={k} type="button" role="radio" aria-checked={questionSet === k} $active={questionSet === k} data-testid={`survey-set-${k}`} onClick={() => setQuestionSet(k)}>
+                      <b>{t(`ai.surveySets.${k}.title`, { defaultValue: ({ project_review: '프로젝트 완료 리뷰', new_client: '신규 고객 첫인상', periodic: '정기 만족도', blank: '빈 설문' } as Record<QuestionSet, string>)[k] })}</b>
+                      <span>{t(`ai.surveySets.${k}.desc`, { defaultValue: ({ project_review: '만족도 별점 · 추천 의향 · 좋았던 점 · 아쉬운 점 · 재계약 의향', new_client: '시작 과정 · 기대와 다른 점 · 먼저 풀 일 · 추천 의향', periodic: '서비스·소통·품질 별점 · 추천 의향 · 하고 싶은 말', blank: '문항 없이 시작' } as Record<QuestionSet, string>)[k] })}</span>
+                    </SetItem>
+                  ))}
+                </SetList>
+              </Field>
               {error && <ErrorBox>{error}</ErrorBox>}
             </>
           ) : mode === 'new' ? (
@@ -494,7 +559,7 @@ const PostAiModal: React.FC<Props> = ({ open, onClose, businessId, projectId: pa
             {busy ? (
               <><Spinner />{mode === 'brief'
                 ? t('brief.generating', '작성 중...')
-                : mode === 'table'
+                : mode === 'table' || mode === 'survey'
                   ? t('ai.tableCreating', '작성 중...')
                   : t('ai.generating', '작성 중…')}</>
             ) : (
@@ -508,6 +573,8 @@ const PostAiModal: React.FC<Props> = ({ open, onClose, businessId, projectId: pa
                   ? t('brief.generate', '자료 기반 작성')
                   : mode === 'table'
                     ? t('ai.tableCreate', '표 작성')
+                  : mode === 'survey'
+                    ? t('ai.surveyCreate', '설문 만들기')
                     : t('ai.generate', 'AI 신규작성')}
               </>
             )}
@@ -719,3 +786,14 @@ const ConfirmActions = styled.div`
 const FieldHint = styled.div`
   font-size: 0.6875rem; color: #94A3B8; margin-top: 4px; line-height: 1.5;
 `;
+
+const SurveyTitleInput = styled.input`
+  width: 100%; height: 36px; padding: 0 10px; border: 1px solid #E2E8F0; border-radius: 8px; font-size: 0.875rem;
+  &:focus { outline: none; border-color: #14B8A6; }
+  @media (max-width: 640px) { height: 40px; font-size: 1rem; }
+`;
+const SetList = styled.div`display: flex; flex-direction: column; gap: 6px;`;
+const SetItem = styled.button<{ $active: boolean }>`
+  display: flex; flex-direction: column; align-items: flex-start; gap: 2px; text-align: left; padding: 10px 12px; border-radius: 10px; cursor: pointer;
+  border: 1px solid ${(p) => (p.$active ? '#14B8A6' : '#E2E8F0')}; background: ${(p) => (p.$active ? '#F0FDFA' : '#FFF')}; &:hover { border-color: #14B8A6; }
+  b { font-size: 0.875rem; color: #0F172A; } span { font-size: 0.75rem; color: #64748B; }`;

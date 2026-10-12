@@ -1265,6 +1265,42 @@ function defineSecretTests() {
     }
   });
 
+  // ★ 2026-10-12 설문 v2(docs/SURVEY_V2_DESIGN.md §7) — 받는 사람의 개인 열쇠(survey_recipients.token)는 «고객으로 응답하는» 자격증명이다.
+  //   회차 목록·응답 줄(표 상세) 어디에도 실리면 안 된다(담당자가 쥐면 «고객인 척 응답» 이 된다). SurveyRecipient.toJSON + serializeIssue 가 내린다.
+  test('secrets', '설문 회차 목록·응답 줄에 개인 열쇠가 실리지 않는다', async () => {
+    await setup();
+    const H = { Authorization: `Bearer ${ctx.token}` };
+    const cp = await http('POST', `${BACKEND}/api/posts`, { headers: H, body: { business_id: ctx.businessId, title: '[health] survey v2 secret', kind: 'survey', question_set: 'new_client' }, expectStatus: 201 });
+    const postId = cp.data && cp.data.id; const rid = cp.data && cp.data.q_record_id;
+    if (!rid) throw new Error('설문을 만들지 못했다 — 검사 준비 실패');
+    const q = (sql) => require('child_process').execFileSync('node', ['-e', "require('dotenv').config();const {sequelize}=require('./config/database');(async()=>{const [r]=await sequelize.query(process.argv[1]);console.log('OUT='+JSON.stringify(r));process.exit(0)})();", sql], { cwd: '/opt/planq/dev-backend', encoding: 'utf8', timeout: 30000 });
+    try {
+      const send = await http('POST', `${BACKEND}/api/surveys/${rid}/issues`, { headers: H, body: { emails: ['health-survey@example.org'] }, expectStatus: 201 });
+      const issueId = send.data && send.data.issue && send.data.issue.id;
+      if (!issueId) throw new Error(`회차를 만들지 못했다(${JSON.stringify(send).slice(0, 160)}) — 열쇠가 없으면 "안 샌다" 를 증명할 수 없다`);
+      const out = q(`SELECT token FROM survey_recipients WHERE issue_id=${Number(issueId)}`);
+      const tok = (JSON.parse((out.match(/OUT=(.*)/) || [])[1] || '[]')[0] || {}).token;
+      if (!tok) throw new Error('개인 열쇠를 DB 에서 못 읽었다 — 검사 준비 실패');
+      // 응답 1건(응답 줄이 생겨야 «줄에 실리는가» 를 잴 수 있다)
+      const cols = ((await http('GET', `${BACKEND}/api/records/${rid}`, { headers: H })).data || {}).columns || [];
+      const answers = {}; for (const c of cols) { if (c.type === 'rating') answers[c.id] = 4; else if (c.type === 'scale') answers[c.id] = 9; else answers[c.id] = 'ok'; }
+      await http('POST', `${BACKEND}/api/survey/${tok}/responses`, { body: { answers }, expectStatus: 201 });
+      const list = await http('GET', `${BACKEND}/api/surveys/${rid}/issues`, { headers: H });
+      const det = await http('GET', `${BACKEND}/api/records/${rid}`, { headers: H });
+      const raw = JSON.stringify(list) + JSON.stringify(send) + JSON.stringify(det);
+      if (raw.includes(tok)) throw new Error('회차 목록·보내기 응답·표 상세에 개인 열쇠 원문이 있다');
+      if (/"token"\s*:/.test(JSON.stringify(list))) throw new Error('회차 목록에 token 키가 있다');
+      // 양성 대조군 — 쓸 필드는 그대로 와야 한다(응답이 통째로 비어 거짓 통과하는 것을 막는다)
+      const iss = (list.data && list.data.issues || [])[0];
+      const row = (det.data && det.data.rows || []).find((r) => r.survey_recipient_id);
+      if (!iss || !iss.recipients || !iss.recipients[0] || iss.recipients[0].has_responded !== true) throw new Error('회차 목록에 has_responded 가 없다 — 응답이 비었을 가능성(거짓 통과)');
+      if (!row || !row.respondent || !row.respondent.email) throw new Error('응답 줄에 응답자 표시가 없다 — 응답이 비었을 가능성(거짓 통과)');
+      return '회차 목록·보내기 응답·응답 줄 — 열쇠 0 · has_responded·응답자 유지';
+    } finally {
+      require('child_process').execSync(`node -e "require('dotenv').config();const {sequelize}=require('./config/database');(async()=>{const iss='SELECT id FROM survey_issues WHERE q_record_id=${Number(rid)}';await sequelize.query('DELETE FROM email_logs WHERE related_entity_type=\\'survey_recipient\\' AND related_entity_id IN (SELECT id FROM survey_recipients WHERE issue_id IN ('+iss+'))');await sequelize.query('DELETE FROM survey_recipients WHERE issue_id IN ('+iss+')');await sequelize.query('DELETE FROM survey_issues WHERE q_record_id=${Number(rid)}');await sequelize.query('DELETE FROM q_record_audits WHERE q_record_id=${Number(rid)}');await sequelize.query('DELETE FROM q_record_rows WHERE q_record_id=${Number(rid)}');await sequelize.query('DELETE FROM posts WHERE id=${Number(postId)}');await sequelize.query('DELETE FROM q_records WHERE id=${Number(rid)}');process.exit(0)})();"`, { cwd: '/opt/planq/dev-backend', encoding: 'utf8', timeout: 30000 });
+    }
+  });
+
   // ★ 2026-10-09 체험 중 결제 환불 요청(docs/TRIAL_REFUND_DESIGN.md §5) — 돌려받을 계좌는 payments.refund_account_enc 암호문이다.
   //   전역 toJSON 이 *_enc 를 내리므로 결제 목록·/status 응답에 계좌번호가 실리면 안 된다. 읽는 문은 관리자 refund-account 하나.
   test('secrets', '결제 응답에 환불 계좌(계좌번호)가 실리지 않는다', async () => {

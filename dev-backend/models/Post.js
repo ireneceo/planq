@@ -42,8 +42,8 @@ Post.init({
   //   table    = 표 (q_record_id 연결, QRecord 그리드를 본문으로 표시)
   //   brief    = AI 자료정리 (brief_meta 사용)
   //   template = 템플릿 (워크스페이스 공유용)
-  kind: { type: DataTypes.ENUM('doc', 'table', 'brief', 'template'), allowNull: false, defaultValue: 'doc' },
-  // kind='table' 일 때 연결된 QRecord. 그 외 null.
+  kind: { type: DataTypes.ENUM('doc', 'table', 'brief', 'template', 'survey'), allowNull: false, defaultValue: 'doc' },
+  // kind='table'·'survey' 일 때 연결된 QRecord(설문 = 문항 칸 + 응답 줄, docs/SURVEY_V2_DESIGN.md). 그 외 null.
   q_record_id: { type: DataTypes.INTEGER, allowNull: true, references: { model: 'q_records', key: 'id' } },
   // 다른 post (문서/표) 연결 — 본문 하단 "관련 문서" 영역. 단방향 (양방향 표시는 향후).
   // [postId, postId, ...] 형식. 표시 시 join 으로 title/kind 같이 fetch.

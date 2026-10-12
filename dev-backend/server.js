@@ -560,6 +560,7 @@ app.use('/api/tasks', require('./routes/task_attachments_public'));   // 공개 
 //   (인증 라우트 사이에 흩어지면 다음 사람이 이게 공개인 줄 모른다).
 app.use('/api/guest', require('./routes/guest'));
 app.use('/api/survey', require('./routes/survey_public'));   // #460 설문 무인증 표면 — 질문지 읽기·응답 쓰기만(응답 읽기 경로 없음)
+app.use('/api/surveys', require('./routes/survey_manage'));   // 설문 v2 «발행» 관리(인증) — 회차·보내기·다시 보내기·회수·미리보기. 무인증 /api/survey 와 다른 접두어
 // 게스트 링크 **관리** (멤버용, 인증 필수) — 공개 표면과 파일을 나눠 둔다.
 app.use('/api/conversations', require('./routes/guest_admin'));
 // ★ 동기화 조치 라우트를 **먼저** 마운트한다 — calendar.js 에 `/:id/share` 같은 와일드카드 형태가

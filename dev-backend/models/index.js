@@ -106,6 +106,10 @@ const GuestLink = require('./GuestLink');   // #259 무로그인 게스트 링�
 //     ⚠️ Q info(kb_documents)와 다른 물건. models/QRecord.js 주석 참조.
 const QRecord = require('./QRecord');
 const QRecordRow = require('./QRecordRow');
+// 설문 v2 — 회차·받는 사람·자동 규칙(docs/SURVEY_V2_DESIGN.md)
+const SurveyIssue = require('./SurveyIssue');
+const SurveyRecipient = require('./SurveyRecipient');
+const SurveyRule = require('./SurveyRule');
 const QRecordAudit = require('./QRecordAudit');
 // ─── 주간 보고 (Weekly Review) ───
 const WeeklyReview = require('./WeeklyReview');
@@ -694,6 +698,9 @@ module.exports = {
   // Q record
   QRecord,
   QRecordRow,
+  SurveyIssue,
+  SurveyRecipient,
+  SurveyRule,
   QRecordAudit,
   // P6 — 사용자 피드백
   FeedbackItem,
@@ -724,6 +731,10 @@ QRecord.belongsTo(Business, { foreignKey: 'business_id' });
 QRecord.belongsTo(Project, { foreignKey: 'project_id' });
 QRecord.belongsTo(User, { as: 'creator', foreignKey: 'created_by' });
 QRecord.hasMany(QRecordRow, { as: 'rows', foreignKey: 'q_record_id', onDelete: 'CASCADE' });
+SurveyIssue.belongsTo(QRecord, { foreignKey: 'q_record_id' });
+SurveyIssue.hasMany(SurveyRecipient, { as: 'recipients', foreignKey: 'issue_id' });
+SurveyRecipient.belongsTo(SurveyIssue, { as: 'issue', foreignKey: 'issue_id' });
+SurveyRule.belongsTo(QRecord, { foreignKey: 'q_record_id' });
 // Post (kind='table') ↔ QRecord 1:1
 Post.belongsTo(QRecord, { as: 'qrecord', foreignKey: 'q_record_id' });
 QRecord.hasOne(Post, { as: 'post', foreignKey: 'q_record_id' });

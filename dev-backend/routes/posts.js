@@ -254,7 +254,7 @@ router.get('/', authenticateToken, async (req, res, next) => {
     // #360 — 종류 필터. 표(kind='table')는 문서 안에 있어서 **찾아갈 진입로가 없었다**
     //   (Irene: "행 누적은 되는데 목록 진입로가 없고 문서 안에 종속된다").
     //   화이트리스트로만 받는다 — 임의 문자열은 무시하고 전체를 준다(빈 목록보다 낫다).
-    if (['doc', 'table', 'brief', 'template'].includes(String(req.query.kind))) {
+    if (['doc', 'table', 'brief', 'template', 'survey'].includes(String(req.query.kind))) {
       where.kind = String(req.query.kind);
     }
 
@@ -355,8 +355,10 @@ router.get('/meta', authenticateToken, async (req, res, next) => {
     const projMap = new Map();
     let myCount = 0;
     let tableCount = 0;      // #360 — 표 진입로의 건수 배지
+    let surveyCount = 0;     // 설문 v2 — 좌측 «설문» 필터 배지
     for (const p of all) {
       if (p.kind === 'table') tableCount++;
+      if (p.kind === 'survey') surveyCount++;
       if (p.category) catMap.set(p.category, (catMap.get(p.category) || 0) + 1);
       if (p.project_id && p.Project) {
         const cur = projMap.get(p.project_id);
@@ -394,6 +396,7 @@ router.get('/meta', authenticateToken, async (req, res, next) => {
       total: all.length,
       myCount,
       tableCount,
+      surveyCount,
       categories: Array.from(catMap.entries())
         .map(([name, count]) => ({ id: catIdByName.get(name) ?? null, name, count }))
         .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name)),
@@ -423,8 +426,8 @@ router.get('/:id', authenticateToken, async (req, res, next) => {
     //   (b) 목록 정렬이 ['updated_at','DESC'] 라 남이 열어보기만 해도 순서가 뒤바뀐다
     await post.increment('view_count', { silent: true });
     const result = serialize(post, true);
-    // kind='table' 이면 연결된 QRecord 정보도 같이 (그리드 임베드용)
-    if (post.kind === 'table' && post.q_record_id) {
+    // kind='table'·'survey' 이면 연결된 QRecord 정보도 같이 (그리드·질문지 임베드용)
+    if ((post.kind === 'table' || post.kind === 'survey') && post.q_record_id) {
       const { QRecord } = require('../models');
       const qrec = await QRecord.findByPk(post.q_record_id);
       if (qrec) {
@@ -490,6 +493,23 @@ router.post('/', authenticateToken, async (req, res, next) => { // audit-exempt:
     // kind='table' 이면 q_record 자동 생성 — #96: 빈 표가 아니라 기본 컬럼 3개 + 빈 행 1개 시드
     //   (옛: columns 0·rows 0 → 처음부터 설정해야 했음. Irene 결정: 즉시 쓸 수 있는 기본 테이블).
     let qRecordId = null;
+    if (kind === 'survey') {
+      // 설문 v2 — 문항(칸)을 시드한 q_record. 시작 질문 세트는 services/surveySeeds 한 곳(설계 §8.1)
+      const { QRecord } = require('../models');
+      const { seedQuestions } = require('../services/surveySeeds');
+      const seed = seedQuestions(req.body.question_set, req.user.language === 'en' ? 'en' : 'ko');
+      const qrec = await QRecord.create({
+        business_id,
+        project_id: project_id || null,
+        name: String(title).slice(0, 200),
+        category,
+        columns: seed.columns,
+        read_policy: 'all',
+        created_by: req.user.id,
+        survey_settings: { required: seed.required, hidden: [], help: seed.help, owner_id: req.user.id, anonymous: false, thanks: '' },
+      });
+      qRecordId = qrec.id;
+    }
     if (kind === 'table') {
       const { QRecord, QRecordRow } = require('../models');
       const lang = req.user.language === 'en' ? 'en' : 'ko';
@@ -573,13 +593,39 @@ router.post('/:id/duplicate', authenticateToken, async (req, res, next) => {
       status: 'published',
       is_pinned: false,
       parent_post_id: src.parent_post_id || null,
-      kind: src.kind === 'table' ? 'doc' : src.kind,   // 표는 본문만 (위 주석)
+      kind: src.kind === 'table' ? 'doc' : src.kind,   // 표는 본문만 (위 주석) · 설문은 아래에서 질문지를 새로 만들어 붙인다
       q_record_id: null,
       vlevel: src.vlevel || 'L3',
       // 지정 멤버(L2 + 명단)도 같이 — 빠지면 «청중 없는 L2» 가 되어 워크스페이스 전체가 본다(2026-09-27 점검).
       target_member_ids: Array.isArray(src.target_member_ids) ? src.target_member_ids : null,
       security_level: src.security_level || null,
     });
+
+    // 설문 v2 — 설문 복사 = 문항(칸)·설명·설정만. 응답 줄·회차·받는 사람·열쇠·규칙은 안 따라간다(«내용만, 이력은 두고 온다»).
+    if (src.kind === 'survey' && src.q_record_id) {
+      const { QRecord } = require('../models');
+      const srcRec = await QRecord.findByPk(src.q_record_id);
+      if (srcRec) {
+        const st = srcRec.survey_settings && typeof srcRec.survey_settings === 'object' ? srcRec.survey_settings : {};
+        const rec = await QRecord.create({
+          business_id: src.business_id,
+          project_id: src.project_id || null,
+          name: title,
+          category: srcRec.category,
+          columns: Array.isArray(srcRec.columns) ? srcRec.columns : [],
+          read_policy: 'all',
+          created_by: req.user.id,
+          survey_token: null,
+          survey_settings: {
+            required: st.required || [], hidden: st.hidden || [], help: st.help || {},
+            anonymous: !!st.anonymous, thanks: st.thanks || '', owner_id: req.user.id,
+          },
+        });
+        await copy.update({ q_record_id: rec.id });
+      } else {
+        await copy.update({ kind: 'doc' });
+      }
+    }
 
     // 첨부는 **같은 파일을 가리키게** 한다(바이트를 두 번 쓰지 않는다 — dedup 과 같은 생각).
     let attached = 0;
@@ -910,9 +956,18 @@ router.put('/:id', authenticateToken, async (req, res, next) => {
     // N+72-7 — 표 ↔ 문서 kind 전환 (사용자 호소)
     // 표 → 문서: q_record 가 비어있으면 자유, 컬럼/행 있으면 force_kind_change=true 필요
     // 문서 → 표: 자유 — 빈 q_record 자동 생성
-    if (req.body.kind !== undefined && ['doc', 'table'].includes(req.body.kind) && req.body.kind !== post.kind) {
+    // 설문 v2 — 표 ↔ 설문은 같은 q_record 라 종류만 바꾼다(데이터 이동 없음 — 옛 «표에서 켠 설문» 의 «설문으로 전환»).
+    //   설문 → 문서는 표 → 문서와 같은 확인. 단 보낸 회차가 있으면 막는다(회차·받는 사람 기록이 질문지를 가리킨다).
+    if (req.body.kind !== undefined && ['doc', 'table', 'survey'].includes(req.body.kind) && req.body.kind !== post.kind) {
       const { QRecord } = require('../models');
-      if (req.body.kind === 'doc' && post.kind === 'table' && post.q_record_id) {
+      const pair = `${post.kind}>${req.body.kind}`;
+      if ((pair === 'table>survey' || pair === 'survey>table') && post.q_record_id) {
+        patch.kind = req.body.kind;
+      } else if (req.body.kind === 'doc' && (post.kind === 'table' || post.kind === 'survey') && post.q_record_id) {
+        if (post.kind === 'survey') {
+          const { SurveyIssue } = require('../models');
+          if (await SurveyIssue.count({ where: { q_record_id: post.q_record_id } })) return errorResponse(res, 'survey_has_rounds', 409);
+        }
         const qrec = await QRecord.findByPk(post.q_record_id);
         const hasContent = qrec && Array.isArray(qrec.columns) && qrec.columns.length > 0;
         if (hasContent && !req.body.force_kind_change) {
@@ -922,6 +977,19 @@ router.put('/:id', authenticateToken, async (req, res, next) => {
         if (qrec) await qrec.destroy().catch(() => null);
         patch.kind = 'doc';
         patch.q_record_id = null;
+      } else if (req.body.kind === 'survey' && post.kind === 'doc') {
+        const qrec = await QRecord.create({
+          business_id: post.business_id,
+          project_id: post.project_id,
+          name: String(req.body.title || post.title).slice(0, 200),
+          category: req.body.category || post.category,
+          columns: [],
+          read_policy: 'all',
+          created_by: req.user.id,
+          survey_settings: { required: [], hidden: [], help: {}, owner_id: req.user.id, anonymous: false, thanks: '' },
+        });
+        patch.kind = 'survey';
+        patch.q_record_id = qrec.id;
       } else if (req.body.kind === 'table' && post.kind === 'doc') {
         const qrec = await QRecord.create({
           business_id: post.business_id,
@@ -1511,10 +1579,12 @@ router.put('/:id/security-level', authenticateToken, async (req, res, next) => {
     // #460 — 표 문서의 설문 링크도 밖으로 나가는 문이다. 일반이 아니게 되면 같이 닫는다(공유 링크와 같은 술어).
     //   공개 라우트도 매 요청 등급을 보지만(services/survey.resolveSurveyToken), 열쇠를 남겨 두면 등급을 되돌리는 순간 옛 링크가 살아난다.
     let revokedSurvey = false;
-    if (level !== 'general' && post.kind === 'table' && post.q_record_id) {
+    if (level !== 'general' && (post.kind === 'table' || post.kind === 'survey') && post.q_record_id) {
       const { QRecord } = require('../models');
       const [n] = await QRecord.update({ survey_token: null }, { where: { id: post.q_record_id, survey_token: { [require('sequelize').Op.ne]: null } } });
-      revokedSurvey = n > 0;
+      // 설문 v2 — 열린 회차의 개인 열쇠도 같이 회수(받는 사람 줄은 남는다)
+      const m = await require('../services/surveyIssue').revokeOpenTokensForRecord(post.q_record_id);
+      revokedSurvey = n > 0 || m > 0;
     }
     broadcastPost(req, post, 'post:updated');
     require('../services/auditService').logAudit(req, {

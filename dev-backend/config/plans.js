@@ -27,6 +27,8 @@ const PLANS = {
       file_size_max_bytes: 25 * MB,
       cue_actions_monthly: 30,
       qnote_minutes_monthly: 60,
+      // 설문 발송 월 한도(받는 사람 1명 = 1건, 수동·자동 공통 — 2026-10-12 Irene «권고대로», docs/SURVEY_V2_DESIGN.md §7.4)
+      survey_sends_monthly: 20,
       trash_retention_days: 30,   // 0-D: 휴지통 하한 30일(services/retentionPolicy TRASH_MIN_DAYS 래칫과 두 겹)
       audit_log_retention_days: 30,
     },
@@ -60,6 +62,8 @@ const PLANS = {
       file_size_max_bytes: 100 * MB,
       cue_actions_monthly: 50,
       qnote_minutes_monthly: 60,
+      // 설문 발송 월 한도(받는 사람 1명 = 1건, 수동·자동 공통 — 2026-10-12 Irene «권고대로», docs/SURVEY_V2_DESIGN.md §7.4)
+      survey_sends_monthly: 20,
       trash_retention_days: 30,   // 0-D: 하한 30일
       audit_log_retention_days: 90,
     },
@@ -96,6 +100,8 @@ const PLANS = {
       file_size_max_bytes: 250 * MB,
       cue_actions_monthly: 1_500,
       qnote_minutes_monthly: 15 * 60,
+      // 설문 발송 월 한도(받는 사람 1명 = 1건, 수동·자동 공통 — 2026-10-12 Irene «권고대로», docs/SURVEY_V2_DESIGN.md §7.4)
+      survey_sends_monthly: 100,
       trash_retention_days: 30,
       audit_log_retention_days: 365,
     },
@@ -128,6 +134,8 @@ const PLANS = {
       file_size_max_bytes: 500 * MB,
       cue_actions_monthly: 7_500,
       qnote_minutes_monthly: 60 * 60,     // 60h Soft Cap (Fair Use)
+      // 설문 발송 월 한도(받는 사람 1명 = 1건, 수동·자동 공통 — 2026-10-12 Irene «권고대로», docs/SURVEY_V2_DESIGN.md §7.4)
+      survey_sends_monthly: 500,
       trash_retention_days: 90,
       audit_log_retention_days: 3 * 365,
     },
@@ -160,6 +168,8 @@ const PLANS = {
       file_size_max_bytes: 1 * GB,
       cue_actions_monthly: Infinity,     // 맞춤
       qnote_minutes_monthly: Infinity,
+      // 설문 발송 월 한도(받는 사람 1명 = 1건, 수동·자동 공통 — 2026-10-12 Irene «권고대로», docs/SURVEY_V2_DESIGN.md §7.4)
+      survey_sends_monthly: Infinity,
       trash_retention_days: 365,
       audit_log_retention_days: 7 * 365,
     },

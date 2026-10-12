@@ -67,7 +67,7 @@ async function createPost(actor, params = {}) {
     if (!parent) return fail('invalid parent_post_id', 400);
   }
   const status = params.status === 'draft' ? 'draft' : (params.status || 'published');
-  const kind = ['doc', 'table', 'brief', 'template'].includes(params.kind) ? params.kind : 'doc';
+  const kind = ['doc', 'table', 'brief', 'template', 'survey'].includes(params.kind) ? params.kind : 'doc';
   const { extractText } = postsRoute();
   const post = await Post.create({
     business_id: businessId,

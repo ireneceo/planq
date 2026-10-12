@@ -247,6 +247,13 @@ async function getUsage(businessId) {
   return result;
 }
 
+async function getSurveySendsThisMonth(businessId) {
+  const { SurveyRecipient } = require('../models');
+  const now = new Date();
+  const start = new Date(now.getFullYear(), now.getMonth(), 1);
+  return SurveyRecipient.count({ where: { business_id: businessId, sent_at: { [Op.gte]: start } } });
+}
+
 async function getCueActionsThisMonth(businessId) {
   // CueUsage: (business_id, year_month 'YYYY-MM', action_type, action_count) 월 집계 구조
   const now = new Date();
@@ -414,6 +421,17 @@ async function canInner(businessId, action, ctx = {}) {
       }
       return { ok: true };
     }
+    case 'send_survey': {
+      // 설문 발송 월 한도 — 받는 사람 1명 = 1건(수동·자동 공통, docs/SURVEY_V2_DESIGN.md §7.4).
+      //   이번 달 sent_at 이 찍힌 받는 사람을 센다(실패도 한 번 보낸 시도로 센다 — 재시도로 한도를 우회하지 않게).
+      const needed = Math.max(1, Number(ctx.count || 1));
+      const max = limits.survey_sends_monthly === undefined ? Infinity : limits.survey_sends_monthly;
+      const cur = await getSurveySendsThisMonth(businessId);
+      if (cur + needed > max) {
+        return { ok: false, reason: 'survey_quota_exceeded', limit: max, current: cur };
+      }
+      return { ok: true, limit: max, current: cur };
+    }
     case 'use_qnote': {
       // ctx.seconds 우선(정밀). 없으면 ctx.minutes(기본 1) → 초 환산. 한도는 분 단위라 *60 비교.
       const neededSeconds = ctx.seconds != null ? Number(ctx.seconds) : Number(ctx.minutes || 1) * 60;
@@ -546,6 +564,7 @@ module.exports = {
   getLimit,
   getEffectiveLimits,
   getUsage,
+  getSurveySendsThisMonth,
   can,
   requireFeature,
   changePlan,

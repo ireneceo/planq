@@ -803,6 +803,38 @@ async function sendGuestBookingEmail(p) {
 }
 
 // ═══════════════════════════════════════════════════════════════
+// 설문 요청 (survey v2 — docs/SURVEY_V2_DESIGN.md §5.1) — 받는 사람마다 개인 링크(응답 1회)
+// ═══════════════════════════════════════════════════════════════
+function surveyInviteEmailHtml({ surveyTitle, workspaceName, recipientName, message, respondUrl, closesAt }) {
+  const closesStr = closesAt ? new Date(closesAt).toISOString().slice(0, 10) : '';
+  const body = `
+    <div style="font-size:14px;color:#64748B;margin-bottom:6px;">
+      ${recipientName ? `<b>${escapeHtml(recipientName)}</b>님, ` : ''}${workspaceName ? `${escapeHtml(workspaceName)}에서 ` : ''}설문 응답을 부탁드립니다.
+    </div>
+    <div style="font-size:18px;font-weight:700;color:#0F172A;line-height:1.4;margin-top:8px;">${escapeHtml(surveyTitle)}</div>
+    ${closesStr ? `<div style="font-size:12px;color:#92400E;margin-top:6px;font-weight:500;">응답 마감 ${closesStr}</div>` : ''}
+    ${quoteBlock(message)}
+    <div style="margin-top:20px;text-align:center;">
+      ${ctaButton(respondUrl, '설문 응답하기')}
+    </div>
+    <div style="margin-top:12px;font-size:12px;color:#64748B;line-height:1.6;text-align:center;">로그인 없이 한 번 응답할 수 있습니다. 이 링크는 받으신 분 전용입니다.</div>
+    ${fallbackLink(respondUrl)}`;
+  return emailWrap({ title: `설문 — ${surveyTitle}`, body, preheader: `${workspaceName || ''} 설문 — "${surveyTitle}"${closesStr ? ` (마감 ${closesStr})` : ''}`, footerOptions: { workspaceName } });
+}
+
+async function sendSurveyInviteEmail({ to, subject: subjectOverride, surveyTitle, workspaceName, recipientName, message, respondUrl, closesAt, fromName, replyTo, businessId, recipientId, initiatedBy }) {
+  if (!to) return false;
+  const subject = subjectOverride || `${subjectPrefix(workspaceName)} 설문 — ${surveyTitle}`;
+  return sendEmail({
+    to, subject,
+    html: surveyInviteEmailHtml({ surveyTitle, workspaceName, recipientName, message, respondUrl, closesAt }),
+    fromName, replyTo,
+    template: 'survey_invite', relatedEntityType: 'survey_recipient', relatedEntityId: recipientId || null,
+    businessId, initiatedBy,
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════
 // 5. 청구서 발송 (외부 client)
 // ═══════════════════════════════════════════════════════════════
 function invoiceEmailHtml({ invoiceNumber, title, total, currency, dueDate, senderName, workspaceName, workspaceContact, message, shareUrl, payerCode, willIssueTax }) {
@@ -1371,6 +1403,7 @@ module.exports = {
   MAIL_FONT_STACK,
   sendEmail,
   sendInviteEmail, sendPostShareEmail, sendEntityShareEmail, sendSignatureRequestEmail, sendSignatureOtpEmail,
+  sendSurveyInviteEmail,
   sendInvoiceEmail, sendPaymentReminderEmail, sendReceiptIssuedEmail, sendReceiptCorrectionEmail, sendVerificationCodeEmail,
   sendUnreadNotificationEmail,
   sendGuestVerifyCodeEmail, sendGuestReplyNotifyEmail, sendGuestBookingEmail,

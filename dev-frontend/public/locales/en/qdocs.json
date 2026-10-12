@@ -516,7 +516,33 @@
     "kindPh": "Select a document type",
     "kindRequired": "Please select a document type",
     "regenFailed": "Regeneration failed. Please try again shortly.",
-    "tableDefaultPrefix": "Table"
+    "tableDefaultPrefix": "Table",
+    "surveyDefaultPrefix": "Survey",
+    "modeSurvey": "Survey",
+    "modeSurveyHint": "Build questions and send to clients",
+    "surveyDesc": "Pick a starter set and the survey is created with questions filled in. You can edit questions and the description next.",
+    "surveyTitle": "Survey title",
+    "surveyTitlePh": "e.g. Q4 2026 client satisfaction",
+    "surveySet": "Starter question set",
+    "surveyCreate": "Create survey",
+    "surveySets": {
+      "project_review": {
+        "title": "Project completion review",
+        "desc": "Satisfaction rating · likelihood to recommend · what went well · what could be better · work again"
+      },
+      "new_client": {
+        "title": "New client first impression",
+        "desc": "Onboarding · surprises · what to fix first · likelihood to recommend"
+      },
+      "periodic": {
+        "title": "Periodic satisfaction",
+        "desc": "Service, responsiveness, quality ratings · likelihood to recommend · anything else"
+      },
+      "blank": {
+        "title": "Blank survey",
+        "desc": "Start with no questions"
+      }
+    }
   },
   "vis": {
     "L1": "Only me",
@@ -533,7 +559,8 @@
     "changeErr": "Change failed: {{msg}}",
     "changeToDocTitle": "Change to Document",
     "changeToDocMsg": "All columns and data in the table will be lost. Continue?",
-    "changeToDocConfirmBtn": "Change to Document"
+    "changeToDocConfirmBtn": "Change to Document",
+    "survey": "Survey"
   },
   "visibility": {
     "openLabel": "Visibility",
@@ -777,7 +804,9 @@
     "tableLabel": "Table",
     "tableDesc": "Rows & columns (accounts, assets, etc.)",
     "templateLabel": "Start from a template",
-    "templateDesc": "Quote, NDA, contract, SOW, meeting notes"
+    "templateDesc": "Quote, NDA, contract, SOW, meeting notes",
+    "surveyLabel": "Survey",
+    "surveyDesc": "Build questions, send to clients, collect answers"
   },
   "new": "New",
   "edit": "Edit",
@@ -841,7 +870,8 @@
     "filterBy": "Filter by this category",
     "addCategory": "Add category",
     "newCategoryPlaceholder": "Name (Enter)",
-    "tables": "Tables"
+    "tables": "Tables",
+    "surveys": "Surveys"
   },
   "revision": {
     "title": "Change history",
@@ -1065,5 +1095,91 @@
     "dropped": "{{n}} drafted edits didn't fit the cell type (number or choice) and were left out.",
     "undoStale": "The document changed again after applying, so this can't be undone here. Use ⋯ > Change history."
   },
-  "tableDescAdd": "Add table description"
+  "tableDescAdd": "Add table description",
+  "survey": {
+    "invalidEmail": "Not an email address: {{v}}",
+    "quotaExceeded": "This exceeds the monthly survey send limit ({{limit}}). {{current}} sent this month.",
+    "err": {
+      "client_no_email": "Some selected clients have no email.",
+      "security": "Documents above the «General» security level can't be sent outside.",
+      "not_published": "Save the survey before sending it.",
+      "too_many": "You can send to up to 500 people at once.",
+      "generic": "Something went wrong. Please try again shortly."
+    },
+    "cancel": "Cancel",
+    "sendN": "Send to {{n}}",
+    "back": "Back",
+    "sendTitle": "Send survey",
+    "sendConfirmTitle": "Send this survey to these addresses?",
+    "sendConfirmMsg": "Each recipient can answer once without signing in. Every recipient gets their own link.",
+    "confirmSubject": "Subject: {{v}}",
+    "confirmCloses": "Closes: {{v}}",
+    "candidatesFailed": "Couldn't load clients.",
+    "quotaLeft": "{{left}} sends left this month (limit {{limit}})",
+    "recipients": "Recipients",
+    "searchClient": "Search by name, company or email",
+    "pickProject": "Fill with a project's clients",
+    "noClients": "No clients. You can type emails below.",
+    "noEmail": "No email — can't send",
+    "addEmail": "Add email",
+    "add": "Add",
+    "remove": "Remove",
+    "mailSubject": "Email subject",
+    "mailMessage": "Short message (optional)",
+    "mailMessagePh": "e.g. How was this project? It takes 3 minutes.",
+    "closesAt": "Responses close",
+    "loadFailed": "Couldn't load sending info.",
+    "publishDenied": "You don't have permission to send this survey or manage its links.",
+    "rstatus": {
+      "revoked": "Revoked",
+      "responded": "Answered",
+      "failed": "Failed",
+      "opened": "Opened",
+      "sent": "Sent",
+      "queued": "Sending"
+    },
+    "publicLink": "Public link",
+    "publicLinkHint": "Anyone can answer, more than once, without signing in. Respondents aren't recorded.",
+    "copied": "Copied",
+    "copy": "Copy link",
+    "openLink": "Open response page",
+    "closeLink": "Close link",
+    "openPublicLink": "Create public link",
+    "preview": "Preview response page",
+    "rounds": "Rounds",
+    "send": "Send",
+    "roundsHint": "Emailing clients gives each recipient a link they can use once. See who opened and answered here.",
+    "noRounds": "No rounds sent yet.",
+    "round": {
+      "rule": "Auto rule",
+      "manual": "Manual",
+      "sent": "Sent {{n}}",
+      "opened": "Opened {{n}}",
+      "rate": "{{n}} responses ({{pct}}%)",
+      "failed": "Failed {{n}}",
+      "closed": "Closed",
+      "closes": "Closes {{d}}"
+    },
+    "peopleN": "{{n}} people",
+    "resendMissing": "Resend to {{n}} unanswered",
+    "resend": "Resend",
+    "revoke": "Revoke",
+    "closeLinkTitle": "Close the public link?",
+    "closeLinkMsg": "This link will stop accepting responses. Creating it again makes a new link. Personal links sent by email and received responses stay.",
+    "resendTitle": "Resend to these addresses?",
+    "resendN": "Resend to {{n}}",
+    "revokeTitle": "Revoke this person's link?",
+    "revokeMsg": "The link sent to {{who}} will no longer accept responses.",
+    "tab": {
+      "questions": "Questions",
+      "responses": "Responses",
+      "stats": "Stats",
+      "publish": "Publish"
+    },
+    "tabsLabel": "Survey",
+    "previewFailed": "Couldn't load the preview.",
+    "hasRounds": "A survey that has already been sent can't become a document. Duplicate it to start a new document.",
+    "descriptionPh": "One or two lines on why you're asking",
+    "sendHint": "Email it to clients to collect answers"
+  }
 }

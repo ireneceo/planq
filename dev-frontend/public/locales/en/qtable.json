@@ -178,8 +178,56 @@
         "invalid_url": "Please check the link (starts with https://).",
         "invalid_phone": "Please check the phone number.",
         "empty_response": "Please answer at least one question.",
-        "payload_too_large": "Your input is too long."
-      }
+        "payload_too_large": "Your input is too long.",
+        "invalid_rating": "Pick a rating from 1 to 5.",
+        "invalid_scale": "Pick a number from 0 to 10.",
+        "already_responded": "This link has already been used to answer.",
+        "too_many": "Please try again in a moment.",
+        "network": "Connection is unstable. Please try again.",
+        "generic": "Couldn't send. Please check your answers."
+      },
+      "scaleLow": "Not at all",
+      "scaleHigh": "Very much",
+      "no": "No",
+      "preview": "Preview — nothing is submitted",
+      "hello": "Hi {{name}},",
+      "alreadyResponded": "You've already answered. Thank you."
+    },
+    "answer": {
+      "starN": "{{n}} stars"
+    },
+    "copySuffix": "(copy)",
+    "newQuestion": "Question {{n}}",
+    "optionN": "Option {{n}}",
+    "descriptionLabel": "Description (shown to respondents first)",
+    "noQuestions": "No questions yet. Start with «Add question» below.",
+    "questionPh": "Type your question",
+    "questionMenu": "Question menu",
+    "moveUp": "Move up",
+    "moveDown": "Move down",
+    "duplicate": "Duplicate",
+    "delete": "Delete",
+    "helpPh": "Help text (optional)",
+    "optionsLabel": "Options (one per line)",
+    "otherColumns": "{{n}} column(s) not shown to respondents (attachments, URL, checkbox…) appear only in the Responses table.",
+    "addQuestion": "Add question",
+    "settingsTitle": "Settings",
+    "anonymous": "Anonymous responses",
+    "anonymousHint": "Answers aren't linked to who sent them. Pointless when a round has one recipient. Applies to responses received after you turn it on.",
+    "thanks": "Thank-you message",
+    "thanksPh": "e.g. Thanks for your feedback — we'll use it to serve you better.",
+    "deleteQuestionTitle": "Delete this question?",
+    "deleteQuestionMsg": "Answers to this question will also be removed from the {{n}} responses already received.",
+    "cancel": "Cancel",
+    "convertBanner": "This table is collecting survey responses.",
+    "convert": "Convert to survey",
+    "sys": {
+      "receivedAt": "Received",
+      "round": "Round",
+      "respondent": "Respondent",
+      "publicLink": "Public link",
+      "manual": "Manual",
+      "anonymous": "Anonymous"
     }
   },
   "stats": {
@@ -195,6 +243,37 @@
     "avg": "Avg",
     "min": "Min",
     "max": "Max",
-    "noText": "No written answers yet."
+    "noText": "No written answers yet.",
+    "scope": {
+      "all": "All",
+      "round": "Round",
+      "period": "Period"
+    },
+    "people": " people",
+    "nps": "NPS",
+    "detractors": "Detractors (0–6)",
+    "passives": "Passives (7–8)",
+    "promoters": "Promoters (9–10)",
+    "yesShare": "yes",
+    "multiHint": "Multiple picks allowed — totals can exceed 100%",
+    "summaryV2": "{{total}} responses"
+  },
+  "colType": {
+    "yesno": "Yes / No",
+    "rating": "Rating (1–5)",
+    "scale": "Scale (0–10)"
+  },
+  "qType": {
+    "text": "Short answer",
+    "longtext": "Paragraph",
+    "select": "Multiple choice",
+    "multiSelect": "Checkboxes",
+    "yesno": "Yes / No",
+    "rating": "Rating (1–5)",
+    "scale": "Scale (0–10, NPS)",
+    "number": "Number",
+    "date": "Date",
+    "email": "Email",
+    "phone": "Phone"
   }
 }

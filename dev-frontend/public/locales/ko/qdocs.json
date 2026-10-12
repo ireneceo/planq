@@ -516,7 +516,33 @@
     "kindPh": "문서 종류 선택",
     "kindRequired": "문서 종류를 선택하세요",
     "regenFailed": "재생성 실패. 잠시 후 다시 시도해 주세요.",
-    "tableDefaultPrefix": "표"
+    "tableDefaultPrefix": "표",
+    "surveyDefaultPrefix": "설문",
+    "modeSurvey": "설문",
+    "modeSurveyHint": "질문을 만들고 고객에게 보내기",
+    "surveyDesc": "시작 질문 세트를 고르면 문항이 채워진 설문이 만들어져요. 질문·설명은 다음 화면에서 고칠 수 있어요.",
+    "surveyTitle": "설문 제목",
+    "surveyTitlePh": "예: 2026 4분기 고객 만족도",
+    "surveySet": "시작 질문 세트",
+    "surveyCreate": "설문 만들기",
+    "surveySets": {
+      "project_review": {
+        "title": "프로젝트 완료 리뷰",
+        "desc": "만족도 별점 · 추천 의향 · 좋았던 점 · 아쉬운 점 · 재계약 의향"
+      },
+      "new_client": {
+        "title": "신규 고객 첫인상",
+        "desc": "시작 과정 · 기대와 다른 점 · 먼저 풀 일 · 추천 의향"
+      },
+      "periodic": {
+        "title": "정기 만족도",
+        "desc": "서비스·소통·품질 별점 · 추천 의향 · 하고 싶은 말"
+      },
+      "blank": {
+        "title": "빈 설문",
+        "desc": "문항 없이 시작"
+      }
+    }
   },
   "vis": {
     "L1": "나만",
@@ -533,7 +559,8 @@
     "changeErr": "변경 실패: {{msg}}",
     "changeToDocTitle": "문서로 변경",
     "changeToDocMsg": "표의 컬럼·데이터가 모두 사라집니다. 계속하시겠습니까?",
-    "changeToDocConfirmBtn": "문서로 변경"
+    "changeToDocConfirmBtn": "문서로 변경",
+    "survey": "설문"
   },
   "visibility": {
     "openLabel": "공개",
@@ -777,7 +804,9 @@
     "tableLabel": "표",
     "tableDesc": "계정·자산 등 행/열 데이터",
     "templateLabel": "템플릿에서 시작",
-    "templateDesc": "견적·NDA·계약·SOW·회의록 양식"
+    "templateDesc": "견적·NDA·계약·SOW·회의록 양식",
+    "surveyLabel": "설문",
+    "surveyDesc": "질문을 만들고 고객에게 보내 응답을 모아요"
   },
   "new": "새 문서",
   "edit": "편집",
@@ -841,7 +870,8 @@
     "filterBy": "이 카테고리로 필터",
     "addCategory": "카테고리 추가",
     "newCategoryPlaceholder": "카테고리 이름 (Enter)",
-    "tables": "표"
+    "tables": "표",
+    "surveys": "설문"
   },
   "revision": {
     "title": "변경 이력",
@@ -1065,5 +1095,91 @@
     "dropped": "AI 수정안 중 {{n}}곳은 칸 형식(숫자·선택 보기)에 맞지 않아 뺐어요.",
     "undoStale": "적용한 뒤 문서가 또 바뀌어 되돌리지 못했어요. [⋯ > 변경 기록]에서 되돌려 주세요."
   },
-  "tableDescAdd": "표 설명 추가"
+  "tableDescAdd": "표 설명 추가",
+  "survey": {
+    "invalidEmail": "이메일 형식이 아니에요: {{v}}",
+    "quotaExceeded": "이달 설문 발송 한도({{limit}}건)를 넘어요. 이번 달 {{current}}건을 보냈어요.",
+    "err": {
+      "client_no_email": "이메일이 없는 고객이 섞여 있어요.",
+      "security": "보안등급이 «일반» 이 아닌 문서는 밖으로 보낼 수 없어요.",
+      "not_published": "임시저장 상태의 설문은 보낼 수 없어요. 먼저 저장하세요.",
+      "too_many": "한 번에 500명까지 보낼 수 있어요.",
+      "generic": "처리하지 못했어요. 잠시 후 다시 시도해 주세요."
+    },
+    "cancel": "취소",
+    "sendN": "보내기 · {{n}}명",
+    "back": "뒤로",
+    "sendTitle": "설문 보내기",
+    "sendConfirmTitle": "다음 주소로 설문을 보낼까요?",
+    "sendConfirmMsg": "받는 사람은 로그인 없이 이 설문에 한 번 응답할 수 있어요. 링크는 받는 사람마다 따로 만들어져요.",
+    "confirmSubject": "메일 제목: {{v}}",
+    "confirmCloses": "응답 마감: {{v}}",
+    "candidatesFailed": "고객 목록을 불러오지 못했어요.",
+    "quotaLeft": "이달 남은 발송 {{left}}건 (한도 {{limit}}건)",
+    "recipients": "받는 사람",
+    "searchClient": "고객 이름·회사·이메일로 찾기",
+    "pickProject": "프로젝트 고객으로 채우기",
+    "noClients": "고객이 없어요. 아래에 이메일을 직접 적을 수 있어요.",
+    "noEmail": "이메일 없음 — 보낼 수 없어요",
+    "addEmail": "이메일 직접 추가",
+    "add": "추가",
+    "remove": "빼기",
+    "mailSubject": "메일 제목",
+    "mailMessage": "짧은 메시지 (선택)",
+    "mailMessagePh": "예: 이번 프로젝트는 어떠셨나요? 3분만 들려주세요.",
+    "closesAt": "응답 마감",
+    "loadFailed": "발행 정보를 불러오지 못했어요.",
+    "publishDenied": "이 설문을 보내거나 링크를 관리할 권한이 없어요.",
+    "rstatus": {
+      "revoked": "회수됨",
+      "responded": "응답함",
+      "failed": "보내기 실패",
+      "opened": "열어 봄",
+      "sent": "보냄",
+      "queued": "보내는 중"
+    },
+    "publicLink": "공개 링크",
+    "publicLinkHint": "누구나 로그인 없이, 여러 번 응답할 수 있어요. 누가 답했는지는 남지 않아요.",
+    "copied": "복사됨",
+    "copy": "링크 복사",
+    "openLink": "응답 화면 열기",
+    "closeLink": "링크 닫기",
+    "openPublicLink": "공개 링크 만들기",
+    "preview": "응답 화면 미리보기",
+    "rounds": "회차",
+    "send": "보내기",
+    "roundsHint": "고객에게 메일로 보내면 받는 사람마다 한 번만 응답할 수 있는 링크가 가요. 누가 열고 답했는지 여기서 봐요.",
+    "noRounds": "아직 보낸 회차가 없어요.",
+    "round": {
+      "rule": "자동 규칙",
+      "manual": "수동",
+      "sent": "보냄 {{n}}",
+      "opened": "열람 {{n}}",
+      "rate": "응답 {{n}} ({{pct}}%)",
+      "failed": "실패 {{n}}",
+      "closed": "마감됨",
+      "closes": "마감 {{d}}"
+    },
+    "peopleN": "{{n}}명",
+    "resendMissing": "다시 보내기 (미응답 {{n}})",
+    "resend": "다시 보내기",
+    "revoke": "회수",
+    "closeLinkTitle": "공개 링크를 닫을까요?",
+    "closeLinkMsg": "지금 링크로는 더 이상 응답을 받지 않아요. 다시 만들면 새 링크가 생겨요. 메일로 보낸 개인 링크와 받은 응답은 그대로예요.",
+    "resendTitle": "다음 주소로 다시 보낼까요?",
+    "resendN": "다시 보내기 · {{n}}명",
+    "revokeTitle": "이 사람의 링크를 회수할까요?",
+    "revokeMsg": "{{who}} 에게 보낸 링크로는 더 이상 응답할 수 없어요.",
+    "tab": {
+      "questions": "질문지",
+      "responses": "응답",
+      "stats": "통계",
+      "publish": "발행"
+    },
+    "tabsLabel": "설문",
+    "previewFailed": "미리보기를 불러오지 못했어요.",
+    "hasRounds": "이미 보낸 회차가 있는 설문은 문서로 바꿀 수 없어요. 복사해서 새 문서로 시작하세요.",
+    "descriptionPh": "왜 이 설문을 보내는지 한두 문장",
+    "sendHint": "고객에게 메일로 보내 응답을 받아요"
+  }
 }

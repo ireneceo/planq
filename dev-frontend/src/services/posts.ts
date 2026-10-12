@@ -32,7 +32,7 @@ export interface PostRow {
   // brief_meta 는 category='brief' 인 post 만. 일반 post 는 null
   brief_meta: unknown;
   // 문서 종류 — doc(기본) | table(표) | brief(자료정리) | template
-  kind?: 'doc' | 'table' | 'brief' | 'template';
+  kind?: 'doc' | 'table' | 'brief' | 'template' | 'survey';
   // kind='table' 일 때 연결된 q_record id
   q_record_id?: number | null;
   created_at: string;
@@ -71,7 +71,7 @@ export interface PostDetail extends PostRow {
   };
   // 다른 post (문서/표) 연결
   linked_post_ids?: number[];
-  linked_posts?: Array<{ id: number; title: string; kind: 'doc' | 'table' | 'brief' | 'template' }>;
+  linked_posts?: Array<{ id: number; title: string; kind: 'doc' | 'table' | 'brief' | 'template' | 'survey' }>;
 }
 
 export interface PostListFilter {
@@ -80,7 +80,7 @@ export interface PostListFilter {
   category?: string;
   mine?: boolean;
   /** #360 — 종류 필터. 'table' 이면 표만. 표는 문서 안에 있어 목록 진입로가 없었다. */
-  docKind?: 'doc' | 'table' | 'brief' | 'template';
+  docKind?: 'doc' | 'table' | 'brief' | 'template' | 'survey';
 }
 // 사이클 N+55 — auto-paginate. N+50 백엔드 cap (posts default 200 / max 500,
 // personal-vault default 200 / max 500) 적용 시 1 page 부족할 수 있음. 5 page 자동 누적.
@@ -129,6 +129,7 @@ export interface PostsMeta {
   myCount: number;
   /** #360 — 표(kind='table') 건수. 표 진입로 배지에 쓴다. */
   tableCount?: number;
+  surveyCount?: number;   // 설문 v2 — 좌측 «설문» 필터 배지
   /** id 는 마스터에 등록된 분류에만 있다 — 문서에만 남은 옛 값은 null(수정·삭제 대상 아님) */
   categories: Array<{ id: number | null; name: string; count: number }>;
   projects: Array<{ id: number; name: string; color: string | null; count: number }>;

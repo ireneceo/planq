@@ -97,6 +97,8 @@ Client.init({
   lost_note: { type: DataTypes.STRING(500), allowNull: true },
   // 상담 전화. billing_contact_phone(세금계산서 담당)과 다르다
   phone: { type: DataTypes.STRING(40), allowNull: true },
+  // 설문 «더 받지 않기»(Phase 2 — docs/SURVEY_V2_DESIGN.md). NULL = 받음
+  survey_opt_out_at: { type: DataTypes.DATE, allowNull: true },
   // 예상 규모 — 재무 아님. 표시·집계 전용이고 AI·Cue 가 채우거나 읽지 않는다
   expected_amount: { type: DataTypes.DECIMAL(14, 2), allowNull: true },
   expected_currency: { type: DataTypes.STRING(3), allowNull: true },

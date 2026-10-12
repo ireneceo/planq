@@ -35,6 +35,9 @@ import TrashButton from '../Trash/TrashButton';
 import PostEditor from './PostEditor';
 import DocToc from './DocToc';
 import PostTableGrid from './PostTableGrid';
+import SurveyPanel, { type SurveyTab } from './Survey/SurveyPanel';
+import SurveySendModal from './Survey/SurveySendModal';
+import SurveyPreviewModal from './Survey/SurveyPreviewModal';
 import { mapApiError } from '../../utils/apiError';
 import { useFileDownload } from '../../hooks/useFileDownload';
 import {
@@ -80,7 +83,9 @@ type FilterSel =
   | { kind: 'project'; projectId: number }
   | { kind: 'category'; name: string }
   /** #360 — 표만 모아 보는 진입로. 표는 문서 안에 있어 여태 찾아갈 길이 없었다. */
-  | { kind: 'tables' };
+  | { kind: 'tables' }
+  /** 설문 v2 — 설문만 모아 보기 */
+  | { kind: 'surveys' };
 
 export type PostsScope =
   | { type: 'workspace'; businessId: number }
@@ -346,7 +351,7 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId }) => {
   const [aiIntent, setAiIntent] = useState<'manual' | 'ai'>('manual');
   // 사이클 N+22 — + 버튼 드롭다운 (빈 문서 즉시 / 표는 모달 default table) + 모달 default tab
   const [newDropdownOpen, setNewDropdownOpen] = useState(false);
-  const [aiDefaultMode, setAiDefaultMode] = useState<'blank' | 'new' | 'brief' | 'table' | undefined>(undefined);
+  const [aiDefaultMode, setAiDefaultMode] = useState<'blank' | 'new' | 'brief' | 'table' | 'survey' | undefined>(undefined);
   // N+42 — Q Note 정리하기 → 정식 문서 승격 진입 prefill
   const [aiInitialBriefTitle, setAiInitialBriefTitle] = useState<string | undefined>(undefined);
   const [aiInitialBriefText, setAiInitialBriefText] = useState<string | undefined>(undefined);
@@ -466,13 +471,14 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId }) => {
         return;
       }
       // 필터를 API 파라미터로 변환
-      const apiFilter: { projectId?: number | null; query?: string; category?: string; mine?: boolean; docKind?: 'doc' | 'table' | 'brief' | 'template' } = {
+      const apiFilter: { projectId?: number | null; query?: string; category?: string; mine?: boolean; docKind?: 'doc' | 'table' | 'brief' | 'template' | 'survey' } = {
         query: query || undefined,
       };
       if (scope.type === 'project') apiFilter.projectId = scope.projectId;
       if (filter.kind === 'project') apiFilter.projectId = filter.projectId;
       else if (filter.kind === 'category') apiFilter.category = filter.name;
       else if (filter.kind === 'tables') apiFilter.docKind = 'table';
+      else if (filter.kind === 'surveys') apiFilter.docKind = 'survey';
 
       const list = await fetchPosts(scope.businessId, apiFilter);
       setRows(list);
@@ -563,7 +569,7 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId }) => {
         setDetail(d);
         // #96 — 방금 만든 표(?new_table=1)는 바로 편집 화면으로. 그 외는 view.
         const flaggedNewTable = pendingNewTableRef.current === activeId;
-        const isNewTable = (flaggedNewTable || searchParams.get('new_table') === '1') && d?.kind === 'table';
+        const isNewTable = (flaggedNewTable || searchParams.get('new_table') === '1') && (d?.kind === 'table' || d?.kind === 'survey');
         if (flaggedNewTable) pendingNewTableRef.current = null;   // 1회성 신호
         // #252 — 이것도 편집 진입이다. beginEditSession() 이 없으면 직전 편집의 스냅샷·
         //   draft ref 가 그대로 남아(mode 가 이미 'edit' 이면 effect 자체가 재발화하지 않는다)
@@ -803,9 +809,16 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId }) => {
   //   문서→표: 자유 (빈 q_record 자동 생성)
   // 문서 본문을 AI 추출 모달로 넘길 때의 페이로드 (#284)
   const [aiIngest, setAiIngest] = useState<{ text: string; postId: number; title: string } | null>(null);
-  const [pendingKindChange, setPendingKindChange] = useState<'doc' | 'table' | null>(null);
+  const [pendingKindChange, setPendingKindChange] = useState<'doc' | 'table' | 'survey' | null>(null);
+  // 설문 v2 — 네 탭·보내기·미리보기(docs/SURVEY_V2_DESIGN.md §8.2). 응답·통계·발행은 멤버 이상(서버도 같은 술어)
+  const [surveyTab, setSurveyTab] = useState<SurveyTab>('questions');
+  const [surveySendOpen, setSurveySendOpen] = useState(false);
+  const [surveyPreviewOpen, setSurveyPreviewOpen] = useState(false);
+  const [surveyPublishKey, setSurveyPublishKey] = useState(0);
+  const surveyMemberUp = ['owner', 'admin', 'member'].includes(String(user?.business_role || ''));
+  useEffect(() => { setSurveyTab('questions'); }, [detail?.id]);
 
-  const doKindChange = async (newKind: 'doc' | 'table', force = false) => {
+  const doKindChange = async (newKind: 'doc' | 'table' | 'survey', force = false) => {
     if (!detail || !businessId) return;
     try {
       const r = await apiFetch(`/api/posts/${detail.id}`, {
@@ -817,8 +830,12 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId }) => {
       if (j.success && j.data) {
         // 저장 응답에는 `linked_posts`·표시명이 없다(GET 에는 있다) — 덧입힌다
         setDetail((prev) => (prev ? { ...prev, ...j.data } : j.data));
-        setKnowledgeMsg(t('kind.changed', '{{kind}} 으로 변경됐습니다', { kind: newKind === 'table' ? '표' : '문서' }) as string);
+        setKnowledgeMsg(t('kind.changed', '{{kind}} 으로 변경됐습니다', { kind: newKind === 'table' ? t('kind.table', '표') : newKind === 'survey' ? t('kind.survey', '설문') : t('kind.doc', '문서') }) as string);
         setTimeout(() => setKnowledgeMsg(null), 3000);
+      } else if (j.message === 'survey_has_rounds') {
+        // 보낸 회차가 있는 설문은 문서로 바꿀 수 없다 — 회차·받는 사람 기록이 이 질문지를 가리킨다
+        setKnowledgeMsg(t('survey.hasRounds', '이미 보낸 회차가 있는 설문은 문서로 바꿀 수 없어요. 복사해서 새 문서로 시작하세요.') as string);
+        setTimeout(() => setKnowledgeMsg(null), 8000);
       } else {
         setKnowledgeMsg(t('kind.changeErr', '변경 실패: {{msg}}', { msg: j.message || 'error' }) as string);
         setTimeout(() => setKnowledgeMsg(null), 8000);
@@ -829,10 +846,10 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId }) => {
     }
   };
 
-  const changeKind = async (newKind: 'doc' | 'table') => {
+  const changeKind = async (newKind: 'doc' | 'table' | 'survey') => {
     if (!detail || detail.kind === newKind) return;
-    // 표→문서: q_record 가 비어있어도 backend 409 안 나옴 → 일단 force=false 로 시도, 409 면 confirm
-    if (newKind === 'doc' && detail.kind === 'table' && detail.q_record_id) {
+    // 표·설문→문서: q_record 가 비어있어도 backend 409 안 나옴 → 일단 force=false 로 시도, 409 면 confirm
+    if (newKind === 'doc' && (detail.kind === 'table' || detail.kind === 'survey') && detail.q_record_id) {
       // 우선 force=false 로 호출, 409 (table_has_data) 일 때만 confirm
       const r = await apiFetch(`/api/posts/${detail.id}`, {
         method: 'PUT',
@@ -840,6 +857,12 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId }) => {
         body: JSON.stringify({ kind: 'doc', force_kind_change: false }),
       });
       if (r.status === 409) {
+        const jj = await r.json().catch(() => ({}));
+        if (jj.message === 'survey_has_rounds') {
+          setKnowledgeMsg(t('survey.hasRounds', '이미 보낸 회차가 있는 설문은 문서로 바꿀 수 없어요. 복사해서 새 문서로 시작하세요.') as string);
+          setTimeout(() => setKnowledgeMsg(null), 8000);
+          return;
+        }
         setPendingKindChange('doc');  // ConfirmDialog 띄움
         return;
       }
@@ -1581,6 +1604,10 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId }) => {
                     <NewItemTitle>{t('newDropdown.tableLabel', { defaultValue: '표' }) as string}</NewItemTitle>
                     <NewItemDesc>{t('newDropdown.tableDesc', { defaultValue: '계정·자산 등 행/열 데이터' }) as string}</NewItemDesc>
                   </NewItem>
+                  <NewItem type="button" data-testid="docs-new-survey" onClick={() => { setNewDropdownOpen(false); setAiIntent('manual'); setAiDefaultMode('survey'); setAiOpen(true); }}>
+                    <NewItemTitle>{t('newDropdown.surveyLabel', { defaultValue: '설문' }) as string}</NewItemTitle>
+                    <NewItemDesc>{t('newDropdown.surveyDesc', { defaultValue: '질문을 만들고 고객에게 보내 응답을 모아요' }) as string}</NewItemDesc>
+                  </NewItem>
                   <NewItem type="button" data-testid="docs-new-template" onClick={() => { setNewDropdownOpen(false); openTemplateModal(); }}>
                     <NewItemTitle>{t('newDropdown.templateLabel', { defaultValue: '템플릿에서 시작' }) as string}</NewItemTitle>
                     <NewItemDesc>{t('newDropdown.templateDesc', { defaultValue: '견적·NDA·계약·SOW·회의록 양식' }) as string}</NewItemDesc>
@@ -1605,6 +1632,14 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId }) => {
                   <span />
                   <AtName>{t('filter.tables', '표') as string}</AtName>
                   <AtCount>{meta.tableCount ?? ''}</AtCount>
+                  <span />
+                </AtRow>
+                {/* 설문 v2 — 설문 진입로 */}
+                <AtRow $selected={filter.kind === 'surveys'} data-testid="docs-filter-surveys"
+                  onClick={() => setFilter(filter.kind === 'surveys' ? { kind: 'all' } : { kind: 'surveys' })}>
+                  <span />
+                  <AtName>{t('filter.surveys', '설문') as string}</AtName>
+                  <AtCount>{meta.surveyCount ?? ''}</AtCount>
                   <span />
                 </AtRow>
                 {meta.categories.map(c => (
@@ -1759,6 +1794,10 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId }) => {
                     <NewItemTitle>{t('newDropdown.tableLabel', { defaultValue: '표' }) as string}</NewItemTitle>
                     <NewItemDesc>{t('newDropdown.tableDesc', { defaultValue: '계정·자산 등 행/열 데이터' }) as string}</NewItemDesc>
                   </NewItem>
+                  <NewItem type="button" data-testid="docs-new-survey" onClick={() => { setNewDropdownOpen(false); setAiIntent('manual'); setAiDefaultMode('survey'); setAiOpen(true); }}>
+                    <NewItemTitle>{t('newDropdown.surveyLabel', { defaultValue: '설문' }) as string}</NewItemTitle>
+                    <NewItemDesc>{t('newDropdown.surveyDesc', { defaultValue: '질문을 만들고 고객에게 보내 응답을 모아요' }) as string}</NewItemDesc>
+                  </NewItem>
                   <NewItem type="button" data-testid="docs-new-template" onClick={() => { setNewDropdownOpen(false); openTemplateModal(); }}>
                     <NewItemTitle>{t('newDropdown.templateLabel', { defaultValue: '템플릿에서 시작' }) as string}</NewItemTitle>
                     <NewItemDesc>{t('newDropdown.templateDesc', { defaultValue: '견적·NDA·계약·SOW·회의록 양식' }) as string}</NewItemDesc>
@@ -1784,6 +1823,14 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId }) => {
             {t('filter.all', '전체') as string}
             <Count>{meta.total}</Count>
           </Chip>
+          {/* 설문 v2 — 설문만 모아 보기(설문이 하나라도 있으면) */}
+          {(meta.surveyCount ?? 0) > 0 && (
+            <Chip type="button" data-testid="docs-filter-surveys" $active={filter.kind === 'surveys'}
+              onClick={() => setFilter(filter.kind === 'surveys' ? { kind: 'all' } : { kind: 'surveys' })}>
+              {t('filter.surveys', '설문') as string}
+              <Count>{meta.surveyCount}</Count>
+            </Chip>
+          )}
           {meta.categories.map(c => (
             <Chip
               key={c.name}
@@ -2071,13 +2118,18 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId }) => {
               {/* N+72-7 — 문서 ↔ 표 타입 toggle (편집 모드에서 변경 가능). 표→문서: 데이터 있으면 confirm 모달 */}
               {mode === 'edit' && detail && (
                 <KindToggle role="tablist" aria-label={t('kind.label', '문서 형태') as string}>
-                  <KindBtn type="button" role="tab" aria-selected={detail.kind !== 'table'} $active={detail.kind !== 'table'} onClick={() => changeKind('doc')}>
+                  <KindBtn type="button" role="tab" aria-selected={detail.kind !== 'table' && detail.kind !== 'survey'} $active={detail.kind !== 'table' && detail.kind !== 'survey'} onClick={() => changeKind('doc')}>
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
                     {t('kind.doc', '문서') as string}
                   </KindBtn>
                   <KindBtn type="button" role="tab" aria-selected={detail.kind === 'table'} $active={detail.kind === 'table'} onClick={() => changeKind('table')}>
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/></svg>
                     {t('kind.table', '표') as string}
+                  </KindBtn>
+                  {/* 설문 v2 — 표 ↔ 설문은 같은 질문지(데이터 이동 없음), 문서 → 설문은 빈 질문지 */}
+                  <KindBtn type="button" role="tab" data-testid="post-kind-survey" aria-selected={detail.kind === 'survey'} $active={detail.kind === 'survey'} onClick={() => changeKind('survey')}>
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 11l2 2 4-4"/><rect x="3" y="3" width="18" height="18" rx="2"/></svg>
+                    {t('kind.survey', '설문') as string}
                   </KindBtn>
                 </KindToggle>
               )}
@@ -2109,7 +2161,17 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId }) => {
               {error && <ErrorBar>{error}</ErrorBar>}
               {/* 다운로드 실패는 조용히 넘기지 않는다 — 이전엔 링크가 401 이어도 화면에 아무 말이 없었다 */}
               {dl.error && <ErrorBar>{dl.error}</ErrorBar>}
-              {detail?.kind === 'table' && detail.q_record_id ? (
+              {detail?.kind === 'survey' && detail.q_record_id ? (
+                <SurveyPanel
+                  recordId={detail.q_record_id} businessId={scope.businessId} editable
+                  canSeeResponses={surveyMemberUp} tab={surveyTab} onTab={setSurveyTab}
+                  onSend={() => setSurveySendOpen(true)} onPreview={() => setSurveyPreviewOpen(true)} publishReloadKey={surveyPublishKey}
+                  descriptionSlot={(
+                    <PostEditor value={contentDraft} onChange={handleContentChange} businessId={scope.businessId} projectId={scopeProjectId}
+                      placeholder={t('survey.descriptionPh', '왜 이 설문을 보내는지 한두 문장') as string} borderless />
+                  )}
+                />
+              ) : detail?.kind === 'table' && detail.q_record_id ? (
                 <>
                   {/* 표 설명 — **원할 때만**(2026-10-11 Irene: "표 설명을 원할 때만 나와야 하는 거 아니야?").
                       닫혀 있으면 작은 «+ 표 설명 추가» 한 줄만, 열면 헤더+편집기. 설명이 이미 있으면 처음부터 열림. */}
@@ -2140,7 +2202,7 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId }) => {
                   )}
                   {/* N+72-7 — 본문↔표 간격 (편집 모드) */}
                   <SectionGap />
-                  <div className="pq-fullbleed"><PostTableGrid recordId={detail.q_record_id} businessId={scope.businessId} /></div>
+                  <div className="pq-fullbleed"><PostTableGrid recordId={detail.q_record_id} businessId={scope.businessId} onConvertToSurvey={() => changeKind('survey')} /></div>
                 </>
               ) : (
                 <>
@@ -2352,10 +2414,21 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId }) => {
                 {/* AI 수정 — «AI 작성» 과 같은 ★ 버튼(AiActionButton)을 같은 줄 맨 앞에 (Irene 2026-10-11:
                     "별표 넣고 똑같이 헤더에 버튼이 있어야 하는 거 아니야? AI로 작성할 때처럼 수정도.")
                     ⋯ 메뉴 안에 두니 찾을 수 없었다. 같은 일을 하는 문을 두 곳에 두지 않는다 — 메뉴에서는 뺐다. */}
+                {detail.kind === 'survey' ? (
+                  // 설문 — AI 수정 자리에 [보내기](밴드2 액션 3개 계약). 보내기는 멤버 이상만
+                  surveyMemberUp && (
+                    <EditBtn type="button" data-testid="post-survey-send" onClick={() => setSurveySendOpen(true)}
+                      title={t('survey.sendHint', '고객에게 메일로 보내 응답을 받아요') as string} aria-label={t('survey.send', '보내기') as string}>
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 4 }}><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                      {t('survey.send', '보내기')}
+                    </EditBtn>
+                  )
+                ) : (
                 <AiActionButton size="filter" testId="post-ai-edit"
                   onClick={() => setAiEditOpen(true)}
                   label={t('aiEdit.btn', 'AI 수정') as string}
                   title={t('aiEdit.btnHint', 'AI 에게 고칠 것을 말하면 수정안을 만들어 수정 전·후를 먼저 보여 줘요') as string} />
+                )}
                 <EditBtn type="button" data-testid="post-edit" onClick={startEdit}
                   title={t('edit', '편집') as string} aria-label={t('edit', '편집') as string}>
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 4 }}><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
@@ -2436,7 +2509,15 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId }) => {
               <DocToc content={detail.content_json} containerRef={docBodyRef} />
               <div data-print-area className="pq-fullbleed" style={{ marginTop: -16 }} ref={docBodyRef}>
                 <PrintOnlyTitle>{detail.title}</PrintOnlyTitle>
-                {detail.kind === 'table' && detail.q_record_id ? (
+                {detail.kind === 'survey' && detail.q_record_id ? (
+                  // 설문 kind — 네 탭(질문지·응답·통계·발행). 보기 모드: 질문지·응답은 읽기만
+                  <SurveyPanel
+                    recordId={detail.q_record_id} businessId={scope.businessId} editable={false}
+                    canSeeResponses={surveyMemberUp} tab={surveyTab} onTab={setSurveyTab}
+                    onSend={() => setSurveySendOpen(true)} onPreview={() => setSurveyPreviewOpen(true)} publishReloadKey={surveyPublishKey}
+                    descriptionSlot={docHasContent(detail.content_json) ? <PostEditor value={detail.content_json} onChange={() => {}} editable={false} borderless /> : undefined}
+                  />
+                ) : detail.kind === 'table' && detail.q_record_id ? (
                   // 표 kind — 본문 설명(있으면) + 표 그리드 (보기 모드: read-only)
                   <>
                     {/* 설명은 보이는 내용이 있을 때만 — 빈 설명이 빈 칸·간격으로 남지 않게 */}
@@ -2445,7 +2526,7 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId }) => {
                     )}
                     {/* N+72-7 — 본문↔표 사이 간격 (사용자 호소 "들러붙어 보기 안좋아") */}
                     {docHasContent(detail.content_json) && <SectionGap />}
-                    <PostTableGrid key={`tbl-${tableReloadKey}`} recordId={detail.q_record_id} businessId={scope.businessId} readOnly />
+                    <PostTableGrid key={`tbl-${tableReloadKey}`} recordId={detail.q_record_id} businessId={scope.businessId} readOnly onConvertToSurvey={() => changeKind('survey')} />
                   </>
                 ) : signedDoc?.has_signatures && signedDoc.html ? (
                   // 서명본 — 고정본 + 서명. 조립은 서버 한 곳이라 PDF·공유 링크와 같은 그림이다.
@@ -2591,6 +2672,15 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId }) => {
         cancelText={t('cancel', '취소') as string}
         variant="danger"
       />
+
+      {/* 설문 v2 — 보내기(받는 사람 → 주소 확인 → 보내기) · 응답 화면 미리보기 */}
+      {detail?.kind === 'survey' && detail.q_record_id && (
+        <>
+          <SurveySendModal open={surveySendOpen} onClose={() => setSurveySendOpen(false)} recordId={detail.q_record_id} surveyTitle={detail.title}
+            onSent={() => { setSurveyTab('publish'); setSurveyPublishKey((k) => k + 1); }} />
+          <SurveyPreviewModal open={surveyPreviewOpen} onClose={() => setSurveyPreviewOpen(false)} recordId={detail.q_record_id} />
+        </>
+      )}
 
       {/* N+72-7 — 표→문서 변경 시 표 데이터 사라짐 확인 (force_kind_change=true) */}
       <ConfirmDialog
