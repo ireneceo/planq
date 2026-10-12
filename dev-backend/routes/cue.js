@@ -372,8 +372,10 @@ router.post('/help', authenticateToken, ...helpLimiter, async (req, res, next) =
       }
     }
 
+    // ★ 고정 지시문 / 매번 바뀌는 컨텍스트를 두 메시지로 — 캐시는 같은 앞부분만 적중하고 도구 목록(≈8.2천 토큰)은 첫 system 뒤에 붙는다(실측 1,408 → 9,728 적중).
     const messages = [
-      { role: 'system', content: systemPrompt + (ctxBlock ? `\n\n[컨텍스트]\n${ctxBlock}` : '') + cueQA.CLASSIFY_INSTRUCTION },
+      { role: 'system', content: systemPrompt + cueQA.CLASSIFY_INSTRUCTION },
+      ...(ctxBlock ? [{ role: 'system', content: `[컨텍스트]\n${ctxBlock}` }] : []),
       ...history.flatMap((h) => [{ role: 'user', content: h.q }, { role: 'assistant', content: historyAnswer(h) }]),
       { role: 'user', content: q },
     ];
@@ -381,15 +383,16 @@ router.post('/help', authenticateToken, ...helpLimiter, async (req, res, next) =
     // #81 — workspace 모드 + 킬스위치 on 이면 도구를 쓴다. 2026-10-12: 에이전트 카탈로그 위로 접었다(docs/CUE_REGISTRY_FOLD_DESIGN.md) —
     //   읽기는 루프가 실행(상한 라운드 4·읽기 6·12초), 쓰기는 **제안만**(카드). 실행은 execute-action 하나.
     const useTools = CUE_TOOLS_ENABLED && finalMode === 'workspace' && !!workspaceBizId;
-    const llmOpts = { purpose: 'kb_answer', temperature: 0.3, fallback: '' };   // maxTokens 는 덮지 않는다(services/llm.js kb_answer 단일 원천)
-    let content; let fallback; let usedModel; let input_tokens; let output_tokens; let proposedAction = null; let proposedActions = [];
+    const llmOpts = { purpose: 'kb_answer', temperature: 0.3, fallback: '', cacheKey: `planq-cue-${finalMode}` };   // maxTokens 는 덮지 않는다(services/llm.js kb_answer 단일 원천)
+    let content; let fallback; let usedModel; let input_tokens; let output_tokens; let cached_tokens = 0; let proposedAction = null; let proposedActions = [];
     if (useTools) {
       const conv = await cueTools.converse({ p: await cueTools.principalOf(req.user.id, workspaceBizId, req.user.platform_role), messages, callLLM, llmOpts });
       ({ content = '', fallback = false } = conv); proposedAction = conv.proposal || null; proposedActions = conv.proposals || (proposedAction ? [proposedAction] : []);
-      ({ model: usedModel, input_tokens, output_tokens } = conv.usage || {});
+      ({ model: usedModel, input_tokens, output_tokens, cached_tokens = 0 } = conv.usage || {});
+      console.info(`[cue/help usage] rounds=${conv.usage?.rounds || 0} in=${input_tokens || 0} cached=${conv.usage?.cached_tokens || 0} out=${output_tokens || 0} reads=${conv.reads?.length || 0} cards=${proposedActions.length}`);
       if (conv.reads?.length) require('../services/auditService').logAudit(req, { action: 'cue.help_reads', targetType: 'business', targetId: workspaceBizId, businessId: workspaceBizId, newValue: { reads: conv.reads } });
     } else {
-      ({ content, fallback, model: usedModel, input_tokens, output_tokens } = await callLLM({ ...llmOpts, messages }));
+      ({ content, fallback, model: usedModel, input_tokens, output_tokens, cached_tokens = 0 } = await callLLM({ ...llmOpts, messages }));
     }
     if (fallback) return errorResponse(res, 'llm_error', 502);
     const cls = cueQA.parseClassification(content); const answer = cls.answer;
@@ -412,18 +415,18 @@ router.post('/help', authenticateToken, ...helpLimiter, async (req, res, next) =
     // 업무 묶음(task_batch)은 예외 — 확정(/ai-create/confirm cue_batch)이 행마다 계량하지 않으므로 이 턴이 1회 계량한다
     //   (Fable 2026-10-12 (다) 5: Cue 바와 같이 «정리 1회 · 추가 0»).
     const hasBatch = proposedActions.some((x) => x && x.tool === 'task_batch');
-    if (finalMode === 'workspace' && workspaceBizId && (!proposedAction || hasBatch)) {
+    // ★ 2026-10-12 카드 턴도 실비는 남긴다(여태 원장에서 통째로 빠졌다) — 'help_card' 행 · 횟수 0(«제안 무과금» 그대로).
+    if (finalMode === 'workspace' && workspaceBizId) {
       const { recordUsage } = require('../services/cue_orchestrator');
-      recordUsage(workspaceBizId, 'help', usedModel, input_tokens || 0, output_tokens || 0)
-        .catch((e) => console.warn('[cue/help usage]', e.message));
+      const metered = !proposedAction || hasBatch;
+      recordUsage(workspaceBizId, metered ? 'help' : 'help_card', usedModel, input_tokens || 0, output_tokens || 0, { count: metered ? 1 : 0, cachedTokens: cached_tokens || 0 }).catch((e) => console.warn('[cue/help usage]', e.message));
     }
     // KNOWLEDGE_LOOP 축2 — qhelper 질문 로그 (workspace 모드는 위키 개선 대상 아님)
     let logId = null;
     if (finalMode === 'qhelper') {
       logId = await logHelpQuestion({
         user_id: req.user.id,
-        // 질문 로그의 워크스페이스 — 창의 워크스페이스(추측 안 함). 로그용이라 stale 이면 비운다.
-        business_id: requestScope(req, undefined).businessId || null,
+        business_id: requestScope(req, undefined).businessId || null,   // 창의 워크스페이스(추측 안 함) — 로그용이라 stale 이면 비운다
         mode: 'qhelper',
         question: q,
         lang: String(req.body.lang || 'ko').slice(0, 5),

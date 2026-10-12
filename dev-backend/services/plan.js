@@ -274,6 +274,8 @@ async function getCueActionsByTypeThisMonth(businessId) {
     });
     const out = {};
     for (const r of rows) out[r.action_type] = (out[r.action_type] || 0) + (r.action_count || 0);
+    // 횟수 0 행(실비만 남긴 카드 턴 'help_card')은 «기능별 횟수» 표에 «0» 으로 뜨지 않게 뺀다
+    for (const k of Object.keys(out)) if (!out[k]) delete out[k];
     return out;
   } catch (e) {
     console.error('[plan] getCueActionsByTypeThisMonth failed:', e.message);

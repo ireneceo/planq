@@ -119,7 +119,9 @@ function modelCaps(model) {
   // 그 안에서도 temperature 를 받는 것과 기본값만 받는 것이 갈린다.
   //   받는 것: gpt-5.1 · gpt-5.2 (실측). 나머지(mini·nano·5.5·5.6·o 시리즈)는 기본값만.
   const acceptsTemp = /^gpt-5\.(1|2)(-|$|\d)/.test(m) && !/-(mini|nano)/.test(m);
-  return { maxTokensParam: 'max_completion_tokens', temperature: acceptsTemp };
+  // 공급자 프롬프트 캐시 24시간 보존 — gpt-5.1 실측으로 받는 것만(모르는 모델에 보내면 400 → 조용한 fallback).
+  const longCache = /^gpt-5\.1(-|$)/.test(m) && !/-(mini|nano)/.test(m);
+  return { maxTokensParam: 'max_completion_tokens', temperature: acceptsTemp, longCache };
 }
 
 // 재시도 — 429(레이트리밋)와 5xx(일시 장애)만. 4xx(잘못된 요청)는 다시 보내도 같은 답이다.
@@ -182,11 +184,12 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
  *                             ※ 게이트웨이는 **툴을 실행하지 않는다** — 무엇을 부를지 제안만 받는다.
  *                             실행은 행동 계층(services/taskTransition.js 계열)이 권한 검사를 거쳐서 한다.
  *                             "데이터가 바뀌는 것은 사람이 누른 뒤에만" (docs/AI_NATIVE_IMPLEMENTATION_PLAN.md D-2.5).
- * @param {string|object} [p.toolChoice]  'auto' | 'none' | { type:'function', function:{name} }
+ * @param {string|object} [p.toolChoice]  'auto' | 'none' | { type:'function', function:{name} } | { type:'allowed_tools', … }
+ * @param {string} [p.cacheKey]  공급자 프롬프트 캐시 키 — 앞부분이 같은 호출끼리 같은 값(응답의 cached_tokens 로 적중을 잰다)
  * @param {*} [p.fallback]     실패 시 content 로 돌려줄 값 (LLM 은 없으면 못 쓰는 게 아니라 덜 똑똑해질 뿐)
  * @returns {{content, tool_calls, input_tokens, output_tokens, fallback, model, ms, attempts, truncated}}
  */
-async function callLLM({ purpose = 'generic', messages, json = false, tools = null, toolChoice = undefined, fallback = '', ...opts }) {
+async function callLLM({ purpose = 'generic', messages, json = false, tools = null, toolChoice = undefined, cacheKey = null, fallback = '', ...opts }) {
   const cfg = resolve(purpose, opts);
   const started = Date.now();
   stats.calls++; bump(purpose, 'calls');
@@ -217,6 +220,8 @@ async function callLLM({ purpose = 'generic', messages, json = false, tools = nu
           [caps.maxTokensParam]: cfg.maxTokens,
           ...(json ? { response_format: { type: 'json_object' } } : {}),
           ...(tools && tools.length ? { tools, ...(toolChoice ? { tool_choice: toolChoice } : {}) } : {}),
+          // 프롬프트 캐시 — 같은 앞부분(고정 지시문 + 도구 목록)을 쓰는 호출을 한 키로 묶는다. 캐시 적중분은 입력 단가 1/10.
+          ...(cacheKey ? { prompt_cache_key: String(cacheKey).slice(0, 64), ...(caps.longCache ? { prompt_cache_retention: '24h' } : {}) } : {}),
         }),
         signal: AbortSignal.timeout(cfg.timeoutMs),
       });
@@ -264,6 +269,8 @@ async function callLLM({ purpose = 'generic', messages, json = false, tools = nu
         // 'length' 면 maxTokens 상한에서 잘린 응답 — 호출부가 "반쪽 결과 성공 처리" 를 막을 수 있다
         finish_reason: data.choices?.[0]?.finish_reason || null,
         input_tokens: inTok,
+        // 입력 중 공급자 프롬프트 캐시에서 읽은 몫(단가 1/10) — 원장이 실비를 셀 때 쓴다
+        cached_tokens: data.usage?.prompt_tokens_details?.cached_tokens || 0,
         output_tokens: outTok,
         fallback: false,
         model: cfg.model,

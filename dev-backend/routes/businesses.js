@@ -1237,7 +1237,7 @@ router.get('/:businessId/cue', authenticateToken, checkBusinessAccess, async (re
     const totalCount = rows.reduce((sum, r) => sum + (r.action_count || 0), 0);
     const totalCost = rows.reduce((sum, r) => sum + Number(r.cost_usd || 0), 0);
     const byType = {};
-    rows.forEach(r => { byType[r.action_type] = r.action_count; });
+    rows.forEach(r => { if (r.action_count) byType[r.action_type] = r.action_count; });   // 횟수 0 행(카드 턴 실비 'help_card')은 횟수 표에서 뺀다 — 비용 합계에는 든다
 
     // Infinity(맞춤 플랜) 는 JSON 에서 null = 무제한.
     const planSvc = require('../services/plan');

@@ -28,9 +28,11 @@ const PRICING = {
   'gpt-4o': { input: 2.50, output: 10.00 },
   // Cue 답변 계열 (2026-09-03 승격). 4o-mini 대비 입력 8.3배 · 출력 16.7배 —
   //   답 한 건(입력 ~6K · 출력 ~200 토큰) 기준 약 $0.001 → $0.0095.
-  'gpt-5.1': { input: 1.25, output: 10.00 },
-  'gpt-5.2': { input: 1.75, output: 14.00 },
+  'gpt-5.1': { input: 1.25, output: 10.00, cachedInput: 0.125 },
+  'gpt-5.2': { input: 1.75, output: 14.00, cachedInput: 0.175 },
 };
+// 캐시 적중 입력 단가 — 표에 없으면 정가로 센다(모르는 할인을 가정하지 않는다 — 원장이 실비보다 작아지면 안 된다).
+const cachedRate = (pr) => (pr.cachedInput != null ? pr.cachedInput : pr.input);
 
 // 플랜 한도 — services/plan.js + config/plans.js 경유로 통합 (이 상수는 DEPRECATED, 제거 예정)
 // 하위 호환을 위해 한 곳 남겨두되 실제 조회는 plan engine 사용
@@ -66,7 +68,12 @@ async function checkUsageLimit(businessId /*, plan */) {
 }
 
 // ─── 사용량 기록 (UPSERT) ───
-async function recordUsage(businessId, actionType, model, inputTokens, outputTokens) {
+// opts.count       — 횟수(한도)에 더할 값. 기본 1. **0 이면 실비만 남기고 한도는 건드리지 않는다**(Cue 카드 제안 턴 'help_card').
+//                    한도 합산(getCueActionsThisMonth)은 action_count 를 더하므로 0 행은 구조적으로 한도에 안 든다 — 제외 목록이 필요 없다.
+// opts.cachedTokens — inputTokens 중 공급자 프롬프트 캐시 적중분(단가 1/10). 안 주면 0(정가 — 실비보다 작게 적지 않는다).
+async function recordUsage(businessId, actionType, model, inputTokens, outputTokens, opts = {}) {
+  const count = Number.isInteger(opts.count) && opts.count >= 0 ? opts.count : 1;
+  const cachedTokens = Math.min(Math.max(0, Number(opts.cachedTokens) || 0), inputTokens || 0);
   const ym = currentYearMonth();
   // ★ 모르는 모델을 **가장 싼 단가로 조용히 기록하지 않는다.** 옛 코드는 PRICING[MODEL_NANO] 로
   //   떨어뜨려서, 모델을 올린 뒤에도 원장에는 nano 값이 찍혔다 — 숫자가 있는데 거짓인 쪽이
@@ -77,13 +84,13 @@ async function recordUsage(businessId, actionType, model, inputTokens, outputTok
     console.warn(`[cue] 단가 미등록 모델 '${model}' — cost_usd 0 으로 기록한다. services/cue_orchestrator.js PRICING 에 추가할 것`);
   }
   const cost = pricing
-    ? (inputTokens / 1e6) * pricing.input + (outputTokens / 1e6) * pricing.output
+    ? ((inputTokens - cachedTokens) / 1e6) * pricing.input + (cachedTokens / 1e6) * cachedRate(pricing) + (outputTokens / 1e6) * pricing.output
     : 0;
 
   const [row, created] = await CueUsage.findOrCreate({
     where: { business_id: businessId, year_month: ym, action_type: actionType },
     defaults: {
-      action_count: 1,
+      action_count: count,
       token_input: inputTokens,
       token_output: outputTokens,
       cost_usd: cost
@@ -97,7 +104,7 @@ async function recordUsage(businessId, actionType, model, inputTokens, outputTok
     //   (행 생성 경합은 UNIQUE(business_id, year_month, action_type) + findOrCreate 가 막는다.)
     await CueUsage.increment(
       {
-        action_count: 1,
+        action_count: count,
         token_input: inputTokens,
         token_output: outputTokens,
         cost_usd: cost,

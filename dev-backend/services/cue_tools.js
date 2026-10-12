@@ -426,6 +426,7 @@ async function buildProposedAction(businessId, toolCalls, userId = null, platfor
 //   쓰기 도구가 나오면 그 자리에서 멈추고 그 라운드의 쓰기를 **제안**으로 만든다(실행 X, 최대 3장). 거절분은 이유를 모델에 돌려준다.
 // ─────────────────────────────────────────────
 const MAX_ROUNDS = 4; const MAX_READS = 6; const MAX_MS = 12000;
+const WRITE_ONLY_CHOICE = { type: 'allowed_tools', allowed_tools: { mode: 'auto', tools: [...WRITE_TOOLS].map((name) => ({ type: 'function', function: { name } })) } };
 const RESULT_CHARS = 6000;
 // 한 답의 쓰기 카드 상한 — 서로 독립인 카드만(Fable 2026-10-12 D2). 넘친 호출은 모델에 too_many_writes 로 돌려준다.
 const MAX_WRITES = 3;
@@ -443,7 +444,7 @@ async function converse({ p, messages, callLLM, llmOpts = {} }) {
   const reads = [];
   const accepted = [];            // 이 답에 낼 카드(제안) — 라운드를 건너 모인다
   const seen = new Set();
-  let usage = { input_tokens: 0, output_tokens: 0, model: null };
+  let usage = { input_tokens: 0, cached_tokens: 0, output_tokens: 0, model: null, rounds: 0 };
   let last = null;
   const done = async (content) => {
     const out = accepted.length ? await finalizeProposals(p, accepted) : [];
@@ -451,11 +452,13 @@ async function converse({ p, messages, callLLM, llmOpts = {} }) {
   };
   for (let round = 1; round <= MAX_ROUNDS; round += 1) {
     const overBudget = reads.length >= MAX_READS || Date.now() - started > MAX_MS || round === MAX_ROUNDS;
-    // 예산이 끝나면 쓰기 도구만 남긴다 — 더 찾지 말고 지금 아는 것으로 답하거나 제안하게
-    const tools = overBudget ? TOOL_SCHEMAS.filter((s) => WRITE_TOOLS.has(s.function.name)) : TOOL_SCHEMAS;
-    const r = await callLLM({ ...llmOpts, messages: msgs, tools });
+    // 예산이 끝나면 쓰기 도구만 허용한다 — 더 찾지 말고 지금 아는 것으로 답하거나 제안하게.
+    //   ★ 도구 **목록**은 바꾸지 않고 tool_choice(allowed_tools)로 좁힌다 — 목록이 달라지면 그 라운드는 프롬프트 캐시를
+    //     전부 놓친다(도구 설명만 ≈8.2천 토큰, 2026-10-12 실측: 목록 유지 시 9,728 적중).
+    const r = await callLLM({ ...llmOpts, messages: msgs, tools: TOOL_SCHEMAS, ...(overBudget ? { toolChoice: WRITE_ONLY_CHOICE } : {}) });
     last = r;
-    usage = { input_tokens: usage.input_tokens + (r.input_tokens || 0), output_tokens: usage.output_tokens + (r.output_tokens || 0), model: r.model || usage.model };
+    usage = { input_tokens: usage.input_tokens + (r.input_tokens || 0), cached_tokens: usage.cached_tokens + (r.cached_tokens || 0),
+      output_tokens: usage.output_tokens + (r.output_tokens || 0), model: r.model || usage.model, rounds: usage.rounds + 1 };
     if (r.fallback) return accepted.length ? await done(r.content) : { fallback: true, usage, reads };
     const calls = Array.isArray(r.tool_calls) ? r.tool_calls : [];
     if (!calls.length) return await done(r.content);
