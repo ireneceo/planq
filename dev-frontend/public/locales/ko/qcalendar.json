@@ -234,7 +234,8 @@
     "noneToday": "일정 없음"
   },
   "month": {
-    "createOn": "이 날짜에 일정 추가"
+    "createOn": "이 날짜에 일정 추가",
+    "openDay": "이 날 보기로"
   },
   "personal": {
     "ariaLabel": "개인 일정 상세",

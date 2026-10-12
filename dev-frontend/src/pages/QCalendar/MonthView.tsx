@@ -11,6 +11,8 @@ import { isTaskEvent } from './taskToEvent';
 import { formatDay } from '../../utils/dateFormat';
 import type { HolidayMark } from '../../hooks/useWorkspaceHolidays';
 import { HolidayName, holidayLabel } from './holidayLook';
+import { CardShell, DayEventsBody, TaskIcon, formatChipTime } from './DayEventsCard';
+import { useDayHoverCard, DayHoverCard } from './DayHoverCard';
 
 // 날짜 키 별 인덱스 — 멀티데이 이벤트는 걸친 모든 날짜에 등장
 const indexByDayKey = (events: CalendarItem[]): Record<string, CalendarItem[]> => {
@@ -62,6 +64,11 @@ const MonthView: React.FC<Props> = ({ anchor, today, now, events, onSelectEvent,
   const popoverTitle = popoverDay
     ? formatDay(popoverDay, { locale: i18n.language === 'en' ? 'en-US' : 'ko-KR', month: 'long', weekday: true })
     : '';
+  const dayTitle = (d: Date) => formatDay(d, { locale: i18n.language === 'en' ? 'en-US' : 'ko-KR', month: 'long', weekday: true });
+  const createOn = (day: Date) => { if (!onCreateAt) return; const d = new Date(day); d.setHours(9, 0, 0, 0); onCreateAt(d); };
+  // 날짜 호버 카드 — 마우스로 일정 있는 날 위에 잠시 머물면 칸 옆에 그 날 목록(DayHoverCard). 더보기 창이 열려 있으면 안 연다.
+  const hc = useDayHoverCard(!!popoverDay);
+  const hoverEvents = hc.hover ? eventMap[hc.hover.key] || [] : [];
 
   return (
     <Wrap>
@@ -89,7 +96,9 @@ const MonthView: React.FC<Props> = ({ anchor, today, now, events, onSelectEvent,
               $outMonth={!inMonth}
               $today={isToday}
               data-pastday={pastDayAttr(day, today)}
-              onClick={() => onSelectDate(day)}
+              onClick={() => { hc.close(); onSelectDate(day); }}
+              onPointerEnter={list.length ? (ev) => hc.enterCell(ev, key, day) : undefined}
+              onPointerLeave={hc.leave}
             >
               <CellHead>
                 <DateBadge $today={isToday} $isSaturday={day.getDay() === 6} $isSunday={day.getDay() === 0 || !!hol}>
@@ -101,12 +110,7 @@ const MonthView: React.FC<Props> = ({ anchor, today, now, events, onSelectEvent,
                     type="button"
                     aria-label={t('month.createOn', { defaultValue: '이 날짜에 일정 추가' }) as string}
                     title={t('month.createOn', { defaultValue: '이 날짜에 일정 추가' }) as string}
-                    onClick={(ev) => {
-                      ev.stopPropagation();
-                      const d = new Date(day);
-                      d.setHours(9, 0, 0, 0);
-                      onCreateAt(d);
-                    }}
+                    onClick={(ev) => { ev.stopPropagation(); hc.close(); createOn(day); }}
                   >
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
                   </AddBtn>
@@ -127,7 +131,7 @@ const MonthView: React.FC<Props> = ({ anchor, today, now, events, onSelectEvent,
                       data-testid={isTask ? 'calendar-task' : 'calendar-event'}
                       data-booking={bookingAttr(e as CalendarEvent)}
                     data-past={pastAttr(e, now)}
-                      onClick={(ev) => { ev.stopPropagation(); onSelectEvent(e.id, e.start_at?.slice(0, 10)); }}
+                      onClick={(ev) => { ev.stopPropagation(); hc.close(); onSelectEvent(e.id, e.start_at?.slice(0, 10)); }}
                       title={[e.title, linkLine(e, t)].filter(Boolean).join(' — ')}
                     >
                       <BookingTag e={e as CalendarEvent} />
@@ -155,7 +159,7 @@ const MonthView: React.FC<Props> = ({ anchor, today, now, events, onSelectEvent,
               {hidden > 0 && (
                 <MoreLinkWrap>
                   <MoreLink
-                    onClick={(ev) => { ev.stopPropagation(); setPopoverDay(day); }}
+                    onClick={(ev) => { ev.stopPropagation(); hc.close(); setPopoverDay(day); }}
                   >
                     {t('more', { count: hidden })}
                   </MoreLink>
@@ -170,60 +174,21 @@ const MonthView: React.FC<Props> = ({ anchor, today, now, events, onSelectEvent,
         <>
           <PopoverBackdrop onClick={() => setPopoverDay(null)} />
           <PopoverCard role="dialog" aria-label={popoverTitle}>
-            <PopoverHeader>
-              <PopoverTitle>{popoverTitle}</PopoverTitle>
-              <PopoverClose onClick={() => setPopoverDay(null)} aria-label="close">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
-                </svg>
-              </PopoverClose>
-            </PopoverHeader>
-            <PopoverList>
-              {popoverEvents.map((e) => {
-                const c = getEventColors(e as CalendarEvent);
-                const isTask = isTaskEvent(e);
-                return (
-                  <PopoverItem
-                    key={`pop-${isTask ? 't' : 'e'}-${e.id}`}
-                    $bg={c.bg}
-                    $fg={c.fg}
-                    $border={c.border}
-                    data-testid={isTask ? 'calendar-task' : 'calendar-event'}
-                    data-booking={bookingAttr(e as CalendarEvent)}
-                    data-past={pastAttr(e, now)}
-                    onClick={() => { onSelectEvent(e.id, e.start_at?.slice(0, 10)); setPopoverDay(null); }}
-                  >
-                    <PopoverItemTime>
-                      {e.all_day ? t('allDay') : formatChipTime(e.start_at, t)}
-                    </PopoverItemTime>
-                    <PopoverItemTitle>
-                      <BookingTag e={e as CalendarEvent} />
-                      {isTask && (
-                        <TaskIcon viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                          <polyline points="9 11 12 14 22 4" />
-                          <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
-                        </TaskIcon>
-                      )}
-                      {e.title}
-                      {linkLine(e, t) && <PopoverLink>{linkLine(e, t)}</PopoverLink>}
-                    </PopoverItemTitle>
-                  </PopoverItem>
-                );
-              })}
-            </PopoverList>
+            <DayEventsBody title={popoverTitle} events={popoverEvents} now={now}
+              onSelectEvent={(e) => { onSelectEvent(e.id, e.start_at?.slice(0, 10)); setPopoverDay(null); }}
+              onClose={() => setPopoverDay(null)} />
           </PopoverCard>
         </>
       )}
+      {hc.hover && hoverEvents.length > 0 && (
+        <DayHoverCard rect={hc.hover.rect} title={dayTitle(hc.hover.day)} events={hoverEvents} now={now}
+          onSelectEvent={(e) => { hc.close(); onSelectEvent(e.id, e.start_at?.slice(0, 10)); }}
+          onOpenDay={() => { const d = hc.hover!.day; hc.close(); onSelectDate(d); }}
+          onCreate={onCreateAt ? () => { const d = hc.hover!.day; hc.close(); createOn(d); } : undefined}
+          onPointerEnter={hc.keep} onPointerLeave={hc.leave} />
+      )}
     </Wrap>
   );
-};
-
-const formatChipTime = (iso: string, t: (key: string, opts?: Record<string, unknown>) => string): string => {
-  const d = new Date(iso);
-  const h = d.getHours();
-  const m = d.getMinutes();
-  if (m === 0) return t('chipTimeHour', { defaultValue: '{{hour}}시', hour: h });
-  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
 };
 
 export default MonthView;
@@ -308,9 +273,6 @@ const Dot = styled.span<{ $color: string }>`
   width: 6px; height: 6px; border-radius: 50%;
   background: ${({ $color }) => $color}; flex-shrink: 0;
 `;
-const TaskIcon = styled.svg`
-  width: 11px; height: 11px; flex-shrink: 0;
-`;
 const ChipTitle = styled.span`
   overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
 `;
@@ -334,49 +296,7 @@ const MoreLink = styled.div`
 const PopoverBackdrop = styled.div`
   position: fixed; inset: 0; background: rgba(15, 23, 42, 0.08); z-index: 55;
 `;
-const PopoverCard = styled.div`
-  position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
-  width: 400px; max-width: calc(100vw - 32px); max-height: 70vh;
-  background: #fff; border: 1px solid #E2E8F0; border-radius: 12px;
-  box-shadow: 0 20px 48px rgba(15, 23, 42, 0.16);
-  display: flex; flex-direction: column; overflow: hidden;
-  z-index: 60;
+// 더보기 — 가운데 창(모양은 DayEventsCard 공용 껍데기)
+const PopoverCard = styled(CardShell)`
+  top: 50%; left: 50%; transform: translate(-50%, -50%);
 `;
-const PopoverHeader = styled.div`
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 12px 16px; border-bottom: 1px solid #E2E8F0;
-`;
-const PopoverTitle = styled.div`
-  font-size: 0.875rem; font-weight: 700; color: #0F172A;
-`;
-const PopoverClose = styled.button`
-  width: 28px; height: 28px; border: none; background: transparent; color: #64748B;
-  border-radius: 6px; cursor: pointer; display: flex; align-items: center; justify-content: center;
-  &:hover { background: #F1F5F9; color: #0F172A; }
-`;
-const PopoverList = styled.div`
-  flex: 1; overflow-y: auto; padding: 8px;
-  display: flex; flex-direction: column; gap: 4px;
-`;
-const PopoverItem = styled.div<{ $bg: string; $fg: string; $border: string }>`
-  ${bookingCss}
-  ${pastCss}
-  display: flex; align-items: center; gap: 10px;
-  padding: 8px 10px; border-radius: 6px;
-  background: ${({ $bg }) => $bg}; color: ${({ $fg }) => $fg};
-  border-left: 3px solid ${({ $border }) => $border};
-  cursor: pointer; font-size: 0.8125rem;
-  transition: filter 0.12s ease;
-  &:hover { filter: brightness(0.96); }
-`;
-const PopoverItemTime = styled.div`
-  flex-shrink: 0; font-size: 0.71875rem; font-weight: 600; opacity: 0.85;
-  font-variant-numeric: tabular-nums; min-width: 48px;
-`;
-const PopoverItemTitle = styled.div`
-  display: flex; align-items: center; gap: 6px;
-  font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-  flex: 1;
-`;
-
-const PopoverLink = styled.span`margin-left: 6px; font-size: 0.6875rem; font-weight: 400; color: #64748B;`;

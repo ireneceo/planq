@@ -234,7 +234,8 @@
     "noneToday": "No events"
   },
   "month": {
-    "createOn": "Add an event on this day"
+    "createOn": "Add an event on this day",
+    "openDay": "Open this day"
   },
   "personal": {
     "ariaLabel": "Personal event details",
