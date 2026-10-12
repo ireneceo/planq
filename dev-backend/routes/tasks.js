@@ -1374,7 +1374,7 @@ router.put('/by-business/:businessId/:id', authenticateToken, async (req, res, n
     //     ② 이 경로는 FocusSession 을 직접 만들고 `/api/focus/start` 라우트를 거치지 않는다 —
     //        그 라우트에만 훅을 걸어두면 화면에서 진행 시작을 눌러도 근태가 모른다
     //        (운영 지적: "업무를 시작하고 진행중이면 근무중 아니야?", "서로 동기화가 안되고 있네").
-    //   미출근일 때만 개입한다. 퇴근한 사람을 자동 재출근시키지는 않는다.
+    //   미출근·퇴근이면 근무중으로 찍는다(퇴근 뒤 다시 일을 시작해도 재출근 — attendanceTransition.autoClockInOnFocus 주석).
     if (updates.status === 'in_progress' && prev.status !== 'in_progress' && task.assignee_id === req.user.id) {
       await require('../services/attendanceTransition')
         .autoClockInOnFocus({ businessId: task.business_id, userId: req.user.id })

@@ -176,8 +176,7 @@ router.post('/start', authenticateToken, startStopLimiter, async (req, res, next
         new_value: { task_id: session.task_id, switched_from: existing?.id || null },
       }).catch(() => null);
 
-      // #208 연동 A — 업무를 시작하면 출근도 같이 찍는다(오늘 기록이 아예 없을 때만).
-      //   실패해도 무시한다: 근태 때문에 업무 시작이 막히면 부가 기능이 본 기능을 죽이는 꼴이다.
+      // #208 연동 A — 업무를 시작하면 출근도 찍는다(미출근·퇴근일 때). 실패는 무시 — 근태 때문에 업무 시작이 막히면 안 된다.
       await require('../services/attendanceTransition')
         .autoClockInOnFocus({ businessId: session.business_id, userId: req.user.id })
         .catch(() => null);
@@ -242,6 +241,7 @@ router.post('/resume', authenticateToken, startStopLimiter, async (req, res, nex
       entity_type: 'focus_session', entity_id: session.id,
       new_value: { paused_for_sec: pausedFor },
     }).catch(() => null);
+    await require('../services/attendanceTransition').autoClockInOnFocus({ businessId: session.business_id, userId: req.user.id }).catch(() => null); // 재개도 «업무 시작» — /start 와 같이 근태 근무중(빠져 있어 퇴근 뒤 재개해도 «퇴근» 그대로였다, 2026-10-12)
     const taskInfo = await loadTaskInfo(session.task_id);
     const taskAccum = await sumStoppedFocusSeconds(session.task_id, req.user.id, session.id);
     broadcastFocus(req, req.user.id, { state: session.state, task_id: session.task_id });

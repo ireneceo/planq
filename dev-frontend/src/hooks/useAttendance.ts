@@ -84,6 +84,28 @@ export function useAttendance(businessId: number | null) {
     return () => window.removeEventListener(ATTENDANCE_REFRESH_EVENT, h);
   }, [load]);
 
+  // 업무 시작·재개·상태 변경이 근태를 바꾼다(서버 autoClockInOnFocus — 미출근·퇴근이면 근무중).
+  //   그 결과를 business 방 `attendance:updated` 하나에만 기대면, 소켓이 끊겼다 붙은 사이(폰 PWA·배포 직후·
+  //   오래 연 탭)에 놓쳐 «업무는 진행 중인데 사이드바는 미출근/[근무 시작]» 으로 남았다(2026-10-12 Irene 신고).
+  //   → 같은 탭의 업무 신호(focus:refresh) · 내 다른 기기(focus:updated, user 방) · 재연결(socket:reconnected)에도
+  //     다시 읽는다. 연속 신호는 250ms 로 합친다.
+  useEffect(() => {
+    let timer: number | null = null;
+    const debounced = () => {
+      if (timer) window.clearTimeout(timer);
+      timer = window.setTimeout(() => { timer = null; void load(); }, 250);
+    };
+    window.addEventListener('focus:refresh', debounced);
+    window.addEventListener('socket:reconnected', debounced);
+    const offFocus = onSocket('focus:updated', debounced);
+    return () => {
+      if (timer) window.clearTimeout(timer);
+      window.removeEventListener('focus:refresh', debounced);
+      window.removeEventListener('socket:reconnected', debounced);
+      offFocus();
+    };
+  }, [load]);
+
   useVisibilityRefresh(load);
 
   // 근무·휴게 중일 때만 초를 센다 — 퇴근 후에는 흐르지 않아야 한다.

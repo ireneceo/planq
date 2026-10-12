@@ -1597,7 +1597,7 @@ async function revertStatus(task, actor) {
     await t.commit();
   } catch (e) { await t.rollback(); throw e; }
 
-  try { await syncFocusOnTaskStatus(task, fromStatus, target); }
+  try { await syncFocusOnTaskStatus(task, fromStatus, target, { actorUserId: userId }); }
   catch (e) { console.warn('[task_actions revert focusSync]', e.message); }
 
   await task.reload();
@@ -1738,7 +1738,7 @@ async function resume(task, actor) {
   } catch (e) { await t.rollback(); throw e; }
 
   // in_progress 재진입 → Focus 세션 재시작 (focus_enabled 시)
-  try { await syncFocusOnTaskStatus(task, fromStatus, target); }
+  try { await syncFocusOnTaskStatus(task, fromStatus, target, { actorUserId: actor.userId }); }
   catch (e) { console.warn('[task_actions resume focusSync]', e.message); }
 
   await task.reload();

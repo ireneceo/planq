@@ -307,7 +307,7 @@ async function cancelReview({ task, actorUserId, actorRole = 'assignee' }) {
   }
 
   // reviewing → in_progress: 담당자 Focus 세션 재시작 (focus_enabled 시)
-  try { await syncFocusOnTaskStatus(task, 'reviewing', 'in_progress'); }
+  try { await syncFocusOnTaskStatus(task, 'reviewing', 'in_progress', { actorUserId }); }
   catch (e) { console.warn('[taskTransition focusSync]', e.message); }
 
   await task.reload();

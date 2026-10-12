@@ -64,6 +64,15 @@ async function syncFocusOnTaskStatus(task, prevStatus, newStatus, options = {}) 
       return;
     }
 
+    // 2026-10-12 — 업무가 다시 진행 상태가 되면(보류 해제·컨펌 요청 취소 등) 근태도 같이 «근무중».
+    //   /api/focus/start · PUT /tasks 와 같은 규칙: **담당자 본인이 한 동작일 때만** 찍는다(남의 출근을 찍지 않는다).
+    //   focus_enabled 와 무관하다(근태는 포커스 기능과 별개 — tasks.js PUT 주석 ①). 트랜잭션 안이면 커밋 뒤가 아니므로 건너뛴다.
+    if (!options.transaction && options.actorUserId && Number(options.actorUserId) === Number(assigneeId)) {
+      await require('./attendanceTransition')
+        .autoClockInOnFocus({ businessId: task.business_id, userId: assigneeId })
+        .catch(() => null);
+    }
+
     // enteringProgress — focus_enabled 인 담당자만 새 세션 시작.
     const u = await User.findByPk(assigneeId, { attributes: ['focus_enabled'], ...tx });
     if (!u || !u.focus_enabled) return;
