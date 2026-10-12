@@ -37,7 +37,14 @@
       "project": "You are invited to this project",
       "workspaceClient": "You are invited to this workspace as a client",
       "workspaceMember": "You are invited to this workspace as a team member"
-    }
+    },
+    "expired": "This invitation has passed its 30-day limit. Please ask the person who invited you to send it again.",
+    "notFound": "We couldn't find this invitation. It may have been canceled or already used. Please ask the person who invited you to send it again.",
+    "alreadyMember": "The account you're signed in with ({{current}}) is already in this workspace. To accept with the invited email, sign in with that email instead.",
+    "switchAccount": "Sign in with another account",
+    "mismatch": "This invitation was sent to {{invited}}. You're currently signed in as {{current}}.",
+    "loginAsInvited": "Sign in as {{invited}}",
+    "acceptAsCurrent": "Accept with current account"
   },
   "time": {
     "justNow": "just now",

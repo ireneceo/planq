@@ -19,11 +19,14 @@ interface InviteInfo {
   role?: string;
 }
 
+// 이 화면이 직접 사람 말로 바꾸는 코드 — 공용 매퍼로 보내면 «처리 중 오류 (…)» 가 된다.
+const INVITE_CODES = ['already_accepted', 'already_member', 'email_mismatch', 'invalid_or_expired_invite', 'invite_expired', 'invite_not_found'];
+
 const InvitePage: React.FC = () => {
   const { token } = useParams<{ token: string }>();
   const { t } = useTranslation('common');
   const { t: tErr } = useTranslation('errors');
-  const { user, refreshUser } = useAuth();
+  const { user, refreshUser, logout } = useAuth();
   const navigate = useNavigate();
 
   const [info, setInfo] = useState<InviteInfo | null>(null);
@@ -37,7 +40,11 @@ const InvitePage: React.FC = () => {
       try {
         const r = await fetch(`/api/invites/${token}`);
         const body = await r.json();
-        if (!body.success) throw new Error(body.message || 'invalid_or_expired_invite');
+        if (!body.success) {
+          // 404(없는 초대 — 취소·이미 처리)와 410(30일 지남)을 가른다. 한 문장으로 뭉치면 «30일인데 만료라니» 가 된다.
+          if (body.message === 'invalid_or_expired_invite') { setError(r.status === 410 ? 'invite_expired' : 'invite_not_found'); return; }
+          throw new Error(body.message || 'invalid_or_expired_invite');
+        }
         setInfo(body.data);
       } catch (err: unknown) {
         setError(mapApiError(err, tErr));
@@ -55,18 +62,29 @@ const InvitePage: React.FC = () => {
       const body = await r.json();
       // 같은 사람의 재수락(가입 직후·경합)은 서버가 성공으로 돌려준다. already_accepted 는 **남이 이미 받은 초대**다 —
       //   예전처럼 성공으로 삼키면 그 사람을 자기 대시보드로 보내 «합류했다» 고 오해하게 된다. 그대로 알린다.
-      if (!body.success) throw new Error(body.message);
+      if (!body.success) {
+        if (body.message === 'invalid_or_expired_invite') throw new Error(r.status === 410 ? 'invite_expired' : 'invite_not_found');
+        throw new Error(body.message);
+      }
       // 수락으로 새로 연결된 워크스페이스(고객)를 user 에 반영 — 무워크스페이스 가입 직후 진입 보장
       try { await refreshUser(); } catch { /* noop */ }
       navigate(body.data?.redirect || (info?.type === 'workspace_member' ? '/dashboard' : '/talk'));
     } catch (err: unknown) {
       // 초대 고유 코드는 이 화면의 errorLabel 이 사람 말로 바꾼다 — 공용 매퍼로 보내면 «처리 중 오류 (already_accepted)» 가 된다.
       const code = err instanceof Error ? err.message : '';
-      setError(['already_accepted', 'email_mismatch', 'invalid_or_expired_invite'].includes(code) ? code : mapApiError(err, tErr));
+      setError(INVITE_CODES.includes(code) ? code : mapApiError(err, tErr));
     } finally {
       setAccepting(false);
     }
   };
+
+  // 초대받은 주소와 로그인한 계정의 주소가 다르면 자동 수락하지 않는다(2026-10-12 신고).
+  //   다른 계정으로 로그인한 채 링크를 열면 그 계정이 대신 합류하거나, 이미 멤버인 계정이면 초대가 지워졌다.
+  //   서버 규칙(토큰 = 자격)은 그대로 — 묻고, 사람이 고르면 지금 계정으로도 받을 수 있다.
+  const invitedEmail = (info?.contact_email || '').trim();
+  const emailMismatch = !!(user && info && !info.already_linked && invitedEmail
+    && invitedEmail.toLowerCase() !== String(user.email || '').trim().toLowerCase());
+  const loginAsInvited = () => { logout({ next: `/invite/${token}` }); };
 
   // 자동 수락 — 로그인 상태로 초대 링크 도착 시 (가입/로그인 후 redirect 포함) 버튼 클릭 없이 즉시 연결.
   //  링크 토큰 자체가 자격증명(token-is-proof) 이라 안전.
@@ -77,6 +95,7 @@ const InvitePage: React.FC = () => {
   useEffect(() => {
     if (autoAcceptedRef.current) return;
     if (!token || !user || !info || accepting || error) return;
+    if (emailMismatch) return;
     autoAcceptedRef.current = true;
     handleAccept();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -84,6 +103,9 @@ const InvitePage: React.FC = () => {
 
   const errorLabel = (code: string) => {
     if (code === 'invalid_or_expired_invite') return t('invite.invalid', '유효하지 않거나 만료된 초대 링크입니다.');
+    if (code === 'invite_expired') return t('invite.expired', '초대 기간(30일)이 지났습니다. 초대한 분께 다시 보내 달라고 요청해 주세요.');
+    if (code === 'invite_not_found') return t('invite.notFound', '이 초대를 찾을 수 없습니다. 취소됐거나 이미 처리된 초대일 수 있어요. 초대한 분께 다시 보내 달라고 요청해 주세요.');
+    if (code === 'already_member') return t('invite.alreadyMember', '지금 로그인한 계정({{current}})은 이미 이 워크스페이스에 들어와 있습니다. 초대받은 이메일로 받으려면 그 이메일로 다시 로그인해 주세요.', { current: user?.email || '' });
     if (code === 'email_mismatch') return t('invite.emailMismatch', '이 초대는 다른 이메일 주소로 발송되었습니다. 초대받은 이메일로 로그인해 주세요.');
     if (code === 'already_accepted') return t('invite.alreadyAcceptedError', '이미 수락된 초대입니다.');
     return code;
@@ -102,7 +124,14 @@ const InvitePage: React.FC = () => {
       <Inner>
         <Logo src="/planQ-slogan_color.svg" alt="PlanQ" />
         <ErrorText>{errorLabel(error)}</ErrorText>
-        <ActionBtn onClick={() => navigate('/login')}>{t('invite.goLogin', '로그인 페이지로')}</ActionBtn>
+        {error === 'already_member' && user ? (
+          <>
+            <ActionBtn onClick={loginAsInvited} data-testid="invite-switch-account">{t('invite.switchAccount', '다른 계정으로 로그인')}</ActionBtn>
+            <SecondaryBtn onClick={() => navigate('/dashboard')}>{t('invite.goToApp', 'PlanQ 로 이동')}</SecondaryBtn>
+          </>
+        ) : (
+          <ActionBtn onClick={() => navigate('/login')}>{t('invite.goLogin', '로그인 페이지로')}</ActionBtn>
+        )}
       </Inner>
     </PublicPageShell>
   );
@@ -139,7 +168,19 @@ const InvitePage: React.FC = () => {
         {info.company_name && <CompanyName>{info.company_name}</CompanyName>}
         {info.contact_name && <ContactInfo>{info.contact_name} {info.contact_email ? `(${info.contact_email})` : ''}</ContactInfo>}
 
-        {user ? (
+        {user && emailMismatch ? (
+          <>
+            <Message data-testid="invite-email-mismatch">
+              {t('invite.mismatch', '이 초대는 {{invited}} 로 보냈습니다. 지금은 {{current}} 계정으로 로그인되어 있어요.', { invited: invitedEmail, current: user.email })}
+            </Message>
+            <ActionBtn onClick={loginAsInvited} data-testid="invite-login-invited">
+              {t('invite.loginAsInvited', '{{invited}} 로 로그인', { invited: invitedEmail })}
+            </ActionBtn>
+            <SecondaryBtn onClick={handleAccept} disabled={accepting} data-testid="invite-accept-current">
+              {accepting ? t('invite.accepting', '수락 중...') : t('invite.acceptAsCurrent', '지금 계정으로 수락')}
+            </SecondaryBtn>
+          </>
+        ) : user ? (
           <ActionBtn onClick={handleAccept} disabled={accepting}>
             {accepting ? t('invite.accepting', '수락 중...') : t('invite.accept', '초대 수락')}
           </ActionBtn>

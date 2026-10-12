@@ -14,7 +14,12 @@ import { flushPendingSaves, LOGOUT_BLOCKED_EVENT } from '../services/pendingSave
 // ⑥ 멀티탭 P1 선행(Fable BLOCKER #1) — AuthProvider 는 라우터 조상 위에 놓이므로 react-router 훅을
 //   쓰면 안 된다(트리 스왑 후 첫 렌더 크래시). 세션 종료(로그아웃·토큰만료) 이동은 window.location 로.
 //   풀 이동이 오히려 메모리 상태를 깨끗이 비워 안전. 현재 단일탭에서도 동작 동일(무회귀).
-const goLogin = () => { if (window.location.pathname !== '/login') window.location.assign('/login'); };
+// next — 로그인 뒤 돌아올 곳(초대 화면의 «다른 계정으로 로그인»). 같은 출처 경로만 받는다.
+const goLogin = (next?: string) => {
+  const safeNext = next && next.startsWith('/') && !next.startsWith('//') ? next : '';
+  if (safeNext) { window.location.assign(`/login?redirect=${encodeURIComponent(safeNext)}`); return; }
+  if (window.location.pathname !== '/login') window.location.assign('/login');
+};
 
 export type UserRole = 'platform_admin' | 'business_owner' | 'business_member' | 'client';
 
@@ -105,7 +110,7 @@ interface AuthContextType {
   register: (name: string, email: string, password: string, businessName: string, opts?: { terms_accepted?: boolean; privacy_accepted?: boolean; invite_token?: string; plan_code?: string }) => Promise<boolean>;
   /** flush:false — 계정 삭제 뒤처럼 대기 중인 자동저장을 보내면 안 되는 경우(확인도 건너뛴다)
    *  discardUnsaved — 로그아웃 확인창에서 "버리고 로그아웃" 을 고른 경우 */
-  logout: (opts?: { flush?: boolean; discardUnsaved?: boolean }) => Promise<void>;
+  logout: (opts?: { flush?: boolean; discardUnsaved?: boolean; next?: string }) => Promise<void>;
   updateUser: (userData: Partial<User>) => void;
   refreshUser: () => Promise<void>;
   hasRole: (...roles: string[]) => boolean;
@@ -897,7 +902,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   // 로그아웃은 한 번만 돈다 — 이중 클릭·여러 경로가 겹쳐도 저장·POST·삭제가 두 번 나가지 않게 (D-C3 I2)
   const logoutInFlightRef = useRef<Promise<void> | null>(null);
-  const logout = (opts?: { flush?: boolean; discardUnsaved?: boolean }): Promise<void> => {
+  const logout = (opts?: { flush?: boolean; discardUnsaved?: boolean; next?: string }): Promise<void> => {
     if (logoutInFlightRef.current) return logoutInFlightRef.current;
     const run = (async () => {
       const leavingUserId = user?.id;
@@ -925,7 +930,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setUser(null);
       setAccessToken(null);
       if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
-      goLogin();
+      goLogin(opts?.next);
     })();
     logoutInFlightRef.current = run;
     return run.finally(() => { logoutInFlightRef.current = null; });

@@ -108,13 +108,23 @@ async function landOn(user, businessId) {
   catch (e) { console.warn('[invite land]', e.message); }
 }
 
+/** 수락 시점 «중복 흡수» 가 허용되는가 — 그 초대가 **이 사람 앞으로 온 것**일 때만.
+ *  다른 주소로 온 초대를 이미 멤버/고객인 계정이 열면(로그인 계정이 달랐다) 흡수가 곧 **남의 초대 삭제**다 —
+ *  2026-10-12 신고: 다른 이메일로 로그인한 채 초대 링크를 눌렀더니 초대가 지워지고 «만료되었거나 유효하지 않습니다» 만 남았다. */
+function isSameInvitee(user, inviteEmail, prefilledUserId) {
+  if (prefilledUserId && Number(prefilledUserId) === Number(user.id)) return true;
+  const a = String(inviteEmail || '').trim().toLowerCase();
+  const b = String(user.email || '').trim().toLowerCase();
+  return !!a && !!b && a === b;
+}
+
 /**
  * 세 타입 공통 수락.
  * @param {User|{id:number}} user  로그인(또는 방금 만든) 사용자
  * @param {ReturnType<resolveInviteToken>} resolved
  * @param {{ io?, actorReq? }} opts
  * @returns {{ type, business_id, redirect, already: boolean, project_id? }}
- * @throws InviteError(code: 'invalid_or_expired_invite'|'already_accepted'|'quota', status)
+ * @throws InviteError(code: 'invalid_or_expired_invite'|'already_accepted'|'already_member'|'quota', status)
  */
 async function acceptInvite(user, resolved, opts = {}) {
   const io = opts.io || null;
@@ -199,6 +209,11 @@ async function acceptInvite(user, resolved, opts = {}) {
         transaction: t, lock: t.LOCK.UPDATE,
       });
       if (dup) {
+        // 남의 초대면 지우지 않는다 — 이 계정은 이미 그 워크스페이스 고객이다(초대는 원래 받는 사람 몫으로 남긴다)
+        if (!isSameInvitee(user, cl.invite_email, cl.user_id)) {
+          await t.rollback();
+          throw new InviteError('already_member', 409);
+        }
         await cl.destroy({ transaction: t });
         await t.commit();
         await landOn(user, dup.business_id);
@@ -225,6 +240,11 @@ async function acceptInvite(user, resolved, opts = {}) {
         transaction: t, lock: t.LOCK.UPDATE,
       });
       if (dup) {
+        // 남의 초대면 지우지 않는다 — 이 계정은 이미 그 워크스페이스 멤버다(초대는 원래 받는 사람 몫으로 남긴다)
+        if (!isSameInvitee(user, bm.invite_email, bm.user_id)) {
+          await t.rollback();
+          throw new InviteError('already_member', 409);
+        }
         await bm.destroy({ transaction: t });
         await t.commit();
         await landOn(user, dup.business_id);
