@@ -11,7 +11,7 @@
 // 상태별 화면: 진행 / 이미 서명 / 거절됨 / 만료 / 취소
 
 import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
-import { useTranslation } from 'react-i18next';
+import { useTranslation, Trans } from 'react-i18next';
 import { useParams } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { signInternal } from '../../services/posts';
@@ -25,12 +25,13 @@ import { withImageCtxJson, withImageCtxHtml } from '../../utils/imageCtx';
 import {
   Brand, ConfirmActions, ConfirmTextArea,
   ConfirmedComment, ConsentBox, ConsentHint, ConsentLabel, ConsentTitle, Content, DocBody, ErrorBox,
-  ErrorCenter, ErrorHint, ErrorIcon, ErrorTitle, InlineSpinner, LoadingCenter, NoteBox, OtpActions, OtpInput,
+  ErrorCenter, ErrorHint, ErrorIcon, ErrorTitle, InlineSpinner, LoadingCenter, OtpActions, OtpInput,
   OtpRow, Page, PrimaryBtn, ProgressBar, ProjectChip, RejectActions, RejectBackdrop, RejectBtn, RejectDialog,
   ResendBtn, ResultCard, ResultHint, ResultIcon, ResultMeta, ResultTitle, SecondaryBtn, Section, SectionDesc,
   SectionTitle, SignatureSnap, SignedHtml, Spinner, Step, Textarea, TopMeta, Topbar,
   StickyHead, ActionBar, ActionBarInner, ActionBarText, ActionBarTitle, ActionBarDesc, ActionBarButtons, ActionBarNote, BarPrimaryBtn, BarRejectBtn,
   AttachBox, AttachTitle, AttachRow, AttachIcon, AttachName, AttachSize, DoneActions, SlotLine, SlotLink,
+  NoticeBox, NoticeRow, NoticeText, NoticeSlot, NoticeActionBtn, NoticeMemo, NoticeMemoLabel,
 } from './PublicSignPage.styles';
 import SignLinkedDocs from './SignLinkedDocs';
 import StandardModal from '../../components/Common/StandardModal';
@@ -404,6 +405,16 @@ const PublicSignPage: React.FC = () => {
     : t('publicSign.startSign', { defaultValue: '확인했습니다 · 서명하기' })) as string;
   const rejectedAlready = doc.status === 'rejected';
   const goLogin = () => { window.location.assign(`/login?next=${encodeURIComponent(window.location.pathname)}`); };
+  // 서명으로 가는 주 버튼 — 맨 위 할 일 줄과 안내 상자가 **같은 분기·같은 핸들러**를 쓴다(공식 두 벌 금지).
+  //   다른 계정으로 로그인한 우리 쪽 서명자는 버튼 없음(안내 문구만).
+  const primaryAction: { label: string; short: string; testid: string; onClick: () => void } | null =
+    phase === 'otp' || phase === 'sign'
+      ? { label: t('publicSign.resume', { defaultValue: '서명 계속하기' }) as string, short: t('publicSign.resume', { defaultValue: '서명 계속하기' }) as string, testid: 'sign-resume', onClick: () => setSignOpen(true) }
+      : phase !== 'review' || (needLogin && user) ? null
+      : needLogin
+        ? { label: reviewBtnLabel, short: reviewBtnLabel, testid: 'sign-login', onClick: goLogin }
+        : { label: reviewBtnLabel, short: t('publicSign.signNow', { defaultValue: '서명하기' }) as string, testid: 'sign-start', onClick: startSigning };
+  const attachCount = (doc.entity.attachments?.length || 0) + (doc.entity.linked_docs?.length || 0);
   // 우리 쪽 서명자인데 로그인이 필요하거나 다른 계정일 때의 안내 — 맨 아래 칸과 서명 창이 같은 문구를 쓴다
   const loginNeededNote = needLogin ? (
     <SectionDesc data-testid="sign-login-needed">
@@ -448,17 +459,9 @@ const PublicSignPage: React.FC = () => {
               </ActionBarText>
               <ActionBarButtons>
                 <BarRejectBtn type="button" onClick={() => setShowReject(true)} disabled={signing}>{t('publicSign.reject', '거절')}</BarRejectBtn>
-                {phase !== 'review' ? (
-                  <BarPrimaryBtn type="button" data-testid="sign-resume" onClick={() => setSignOpen(true)}>
-                    {t('publicSign.resume', { defaultValue: '서명 계속하기' }) as string}
-                  </BarPrimaryBtn>
-                ) : needLogin && user ? null : needLogin ? (
-                  <BarPrimaryBtn type="button" data-testid="sign-login" onClick={goLogin}>
-                    {t('publicSign.loginToSign', { defaultValue: '로그인하고 서명하기' }) as string}
-                  </BarPrimaryBtn>
-                ) : (
-                  <BarPrimaryBtn type="button" data-testid="sign-start" onClick={startSigning}>
-                    {t('publicSign.startSign', { defaultValue: '확인했습니다 · 서명하기' }) as string}
+                {primaryAction && (
+                  <BarPrimaryBtn type="button" data-testid={primaryAction.testid} onClick={primaryAction.onClick}>
+                    {primaryAction.label}
                   </BarPrimaryBtn>
                 )}
               </ActionBarButtons>
@@ -527,22 +530,35 @@ const PublicSignPage: React.FC = () => {
                   {t('publicSign.projectLabel', '프로젝트: {{name}}', { name: doc.entity.project.name })}
                 </ProjectChip>
               )}
-              {/* 서명 대상 범위 고지 — 무엇에 서명하는지 사용자 언어로 못 박는다(Fable C4). */}
-              <NoteBox>
-                {((doc.entity.attachments?.length || 0) + (doc.entity.linked_docs?.length || 0)) > 0
-                  ? t('publicSign.scopeNotice', { defaultValue: '서명 대상은 아래 본문과 별첨 {{n}}건입니다.', n: (doc.entity.attachments?.length || 0) + (doc.entity.linked_docs?.length || 0) }) as string
-                  : t('publicSign.scopeNoticeNoAttach', { defaultValue: '서명 대상은 아래 본문입니다.' }) as string}
-              </NoteBox>
-              {doc.note && <NoteBox>{doc.note}</NoteBox>}
-              {/* 내 칸이 문서 어디인지 먼저 말한다 — 모른 채 서명하게 두지 않는다(설계 §1) */}
-              {doc.slot != null && (
-                <NoteBox data-testid="sign-my-slot">
-                  {/* 검토 단계에서만 «다음 행동» 을 말한다 — 버튼을 누른 뒤에는 아래 단계 칸(SlotLine)이 안내한다 */}
-                  {(phase === 'review'
-                    ? t('publicSign.mySlot', { defaultValue: '아래 문서에서 {{n}}번 칸(빨간 테두리)이 회원님의 서명 자리입니다. 문서를 확인한 뒤 그 칸이나 맨 위 «{{btn}}» 를 누르면, 화면을 옮기지 않고 서명 창이 열립니다.', n: doc.slot, btn: reviewBtnLabel })
-                    : t('publicSign.mySlotPlain', { defaultValue: '아래 문서에서 {{n}}번 칸(빨간 테두리)이 회원님의 서명 자리입니다.', n: doc.slot })) as string}
-                </NoteBox>
-              )}
+              {/* 안내는 **한 상자**(2026-10-12 Irene «3개 위젯을 나눠서 표시하지 말고 한번에»):
+                  ① 내 칸이 어디인지(«서명 자리» 를 누르면 그 칸으로) + 작은 서명 버튼 — 다 읽기 전에 바로 서명할 수도 있다
+                  ② 서명 대상 범위 고지(Fable C4 — 뜻을 줄이지 않는다) ③ 보낸 분 메모(시스템 문구와 구분되게 라벨). */}
+              <NoticeBox data-testid="sign-notice">
+                <NoticeRow>
+                  <NoticeText>
+                    {doc.slot != null && (
+                      <NoticeSlot data-testid="sign-my-slot">
+                        <Trans t={t} i18nKey="publicSign.noticeSlot" values={{ n: doc.slot }}
+                          components={{ 1: <SlotLink type="button" data-testid="sign-goto-slot" onClick={showMySlot} /> }} />
+                      </NoticeSlot>
+                    )}
+                    <span>{(attachCount > 0
+                      ? t('publicSign.scopeNotice', { defaultValue: '서명 대상은 아래 본문과 별첨 {{n}}건입니다.', n: attachCount })
+                      : t('publicSign.scopeNoticeNoAttach', { defaultValue: '서명 대상은 아래 본문입니다.' })) as string}</span>
+                  </NoticeText>
+                  {primaryAction && (
+                    <NoticeActionBtn type="button" data-testid="sign-notice-action" onClick={primaryAction.onClick}>
+                      {primaryAction.short}
+                    </NoticeActionBtn>
+                  )}
+                </NoticeRow>
+                {doc.note && (
+                  <NoticeMemo data-testid="sign-notice-memo">
+                    <NoticeMemoLabel>{t('publicSign.noticeNoteLabel', { defaultValue: '보낸 분 메모' }) as string}</NoticeMemoLabel>
+                    {doc.note}
+                  </NoticeMemo>
+                )}
+              </NoticeBox>
               <DocBody ref={docBodyRef} $mySlot={doc.slot ?? null} $locate={locate}
                 $mySlotHint={(phase === 'review'
                   ? t('publicSign.mySlotHintReview', { defaultValue: '여기에 내 서명이 들어갑니다 · 문서를 다 확인했으면 여기를 눌러 서명하세요' })

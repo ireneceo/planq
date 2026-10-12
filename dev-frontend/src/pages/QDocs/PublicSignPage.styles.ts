@@ -402,3 +402,37 @@ export const BarPrimaryBtn = styled(PrimaryBtn)`
 export const BarRejectBtn = styled(RejectBtn)`
   height: 40px; white-space: nowrap;
 `;
+
+/* ─── 서명 안내 상자 (2026-10-12) — 내 칸 위치 + 작은 서명 버튼 + 범위 고지 + 보낸 분 메모를 한 상자에 ─── */
+export const NoticeBox = styled.div`
+  margin: 8px 0 16px; padding: 12px 14px;
+  font-size: 0.8125rem; color: #334155; line-height: 1.55;
+  background: #F8FAFC; border-left: 3px solid #14B8A6; border-radius: 0 8px 8px 0;
+  display: flex; flex-direction: column; gap: 10px;
+`;
+export const NoticeRow = styled.div`
+  display: flex; align-items: center; gap: 12px;
+  @media (max-width: 640px) { flex-direction: column; align-items: stretch; gap: 10px; }
+`;
+export const NoticeText = styled.div`
+  flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px;
+`;
+export const NoticeSlot = styled.span`
+  font-weight: 600; color: #0F172A;
+`;
+export const NoticeActionBtn = styled.button`
+  flex-shrink: 0; height: 32px; padding: 0 14px; white-space: nowrap;
+  border: none; border-radius: 8px; background: #14B8A6; color: #fff;
+  font-size: 0.8125rem; font-weight: 700; cursor: pointer;
+  &:hover { background: #0D9488; }
+  &:focus-visible { outline: 2px solid #0F766E; outline-offset: 2px; }
+  @media (max-width: 640px) { height: 40px; }
+`;
+export const NoticeMemo = styled.div`
+  padding-top: 10px; border-top: 1px solid #E2E8F0;
+  color: #475569; white-space: pre-wrap;
+`;
+export const NoticeMemoLabel = styled.span`
+  display: block; margin-bottom: 2px;
+  font-size: 0.6875rem; font-weight: 700; color: #94A3B8; letter-spacing: 0.02em;
+`;
