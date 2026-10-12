@@ -57,6 +57,13 @@ async function ensureUser(spec) {
   // 기존 유저도 비밀번호를 항상 알려진 값으로 재설정 (테스트 편의)
   u.password_hash = await bcrypt.hash(PASSWORD, 12);
   u.status = 'active';
+  // 약관 — 지금 버전으로 동의해 둔다. 옛 버전이면 dev-login(«시험 계정으로 열기»)으로 착지한 화면이
+  //   재동의 창에 덮여 «같은 화면» 을 못 보여 준다(2026-10-12 실측: admin 외 4계정이 1.0).
+  const [ps] = await sequelize.query('SELECT terms_version, privacy_version FROM platform_settings LIMIT 1');
+  if (ps[0]) {
+    if (u.terms_version !== ps[0].terms_version) { u.terms_version = ps[0].terms_version; u.terms_accepted_at = new Date(); }
+    if (u.privacy_version !== ps[0].privacy_version) { u.privacy_version = ps[0].privacy_version; u.privacy_accepted_at = new Date(); }
+  }
   await u.save();
   return u;
 }

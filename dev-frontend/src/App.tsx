@@ -51,6 +51,8 @@ const ResetPasswordPage = lazy(() => import('./pages/Login/ResetPasswordPage'));
 const VerifyEmailPage = lazy(() => import('./pages/Login/VerifyEmailPage'));
 const OAuthCallbackPage = lazy(() => import('./pages/Login/OAuthCallbackPage'));
 const NativeReturnPage = lazy(() => import('./pages/Login/NativeReturnPage'));
+// 상황판 «시험 계정으로 열기» 착지 — 개발 호스트에서만 동작(그 밖은 / 로). 서버 라우트도 운영엔 없다.
+const DevLoginPage = lazy(() => import('./pages/Login/DevLoginPage'));
 const DownloadAppPage = lazy(() => import('./pages/DownloadApp/DownloadAppPage'));
 const OauthConnectConfirmPage = lazy(() => import('./pages/Login/OauthConnectConfirmPage'));
 const QNotePage = lazy(() => import('./pages/QNote/QNotePage'));
@@ -258,6 +260,7 @@ function ShellApp() {
         <Route path="/app" element={<DownloadAppPage />} />
         <Route path="/en/app" element={<EnglishRoute><DownloadAppPage /></EnglishRoute>} />
         <Route path="/oauth/callback" element={<OAuthCallbackPage />} />
+        <Route path="/dev-login" element={<DevLoginPage />} />
         <Route path="/oauth/connect-confirm" element={<OauthConnectConfirmPage />} />
         <Route path="/register" element={<RegisterPage />} />
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />
@@ -784,7 +787,7 @@ function isAppInitialPath(): boolean {
   // 공개 표면(마케팅·위키)은 isPublicSurfacePath 단일 원천을 그대로 쓴다.
   // 여기에 목록을 한 벌 더 두면 갈라진다 — 실제로 /insights 가 이 목록에만 빠져 있어서
   // 로그인 데스크탑이 /insights 를 열면 인사이츠 마케팅 페이지 대신 워크스페이스 셸이 떴다.
-  const nonAppOther = /^\/(login|register|invite|forgot-password|reset-password|verify-email|oauth|connect|legal|privacy|terms|app|public|sign|memo|talk-popout|task-popout|note-popout|help-popout)(\/|$)/;
+  const nonAppOther = /^\/(login|dev-login|register|invite|forgot-password|reset-password|verify-email|oauth|connect|legal|privacy|terms|app|public|sign|memo|talk-popout|task-popout|note-popout|help-popout)(\/|$)/;
   return !(isPublicSurfacePath(p) || nonAppOther.test(p));
 }
 

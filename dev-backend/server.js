@@ -466,6 +466,11 @@ require('./models');
 
 // Routes
 app.use('/api/auth', require('./routes/auth'));
+// dev-login(상황판 «시험 계정으로 열기») — 개발서버에서만 마운트. 꺼지면 라우트가 없다(404). 계약 ~/dev-server/kit/DEV-LOGIN.md
+if (require('./services/devLogin/verify').devLoginEnabled()) {
+  app.use('/api/auth', require('./routes/auth_dev_login'));
+  console.log('[dev-login] route /api/auth/dev-login registered (development)');
+}
 app.use('/api/app-download', require('./routes/app_download')); // 공개 — 모바일 앱 다운로드 링크
 app.use('/api/platform', require('./routes/platform_public')); // 공개 — 랜딩 푸터 사업자 정보 (전자상거래법 표시의무)
 app.use('/api/projects', require('./routes/projects'));

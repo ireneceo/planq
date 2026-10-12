@@ -258,6 +258,14 @@ preflight_check() {
     if ! ssh $SSH_OPTS "$PROD_HOST" "[ -f $PROD_BE/.env ]"; then
       warn "$PROD_BE/.env 아직 없음 — 첫 dry-run 후 운영서버에서 입력 필요 (.env.production.example 템플릿 사용)"
     fi
+
+    # dev-login(상황판 «시험 계정으로 열기») 비밀은 개발 .env 전용 — 운영 .env 에 있으면 멈춘다(2026-10-12).
+    #   운영은 NODE_ENV=production 이라 라우트가 등록되지 않지만, 비밀이 운영에 있는 것 자체가 사고다(두 겹 중 한 겹이 사라진 상태).
+    if ssh $SSH_OPTS "$PROD_HOST" "[ -f $PROD_BE/.env ] && grep -Eq '^[[:space:]]*(export[[:space:]]+)?DEV_LOGIN_SECRET[[:space:]]*=' $PROD_BE/.env"; then
+      error "운영 .env 에 DEV_LOGIN_SECRET 있음 — 개발서버 전용 값이다. 운영 $PROD_BE/.env 에서 그 줄을 지우고 다시 배포"
+      exit 1
+    fi
+    success "운영 .env 에 DEV_LOGIN_SECRET 없음"
   fi
 
   # 5) 미커밋 변경 — make_snapshot 이 이미 «커밋하지 않고 빼고 배포» 로 처리했다(2026-10-12).

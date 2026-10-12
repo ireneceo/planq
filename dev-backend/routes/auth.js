@@ -496,6 +496,40 @@ router.post('/register', async (req, res, next) => {
 });
 
 // ============================================
+// 비밀번호 로그인과 같은 세션 발급 — access 토큰 + refresh 행·쿠키 + 세션 힌트 + 이미지 쿠키 + 감사.
+//   /login 과 dev-login 이 같이 쓴다(두 벌이면 쿠키 한쪽이 빠져 «dev 에서만 이미지가 안 뜨는» 식으로 갈라진다).
+// ============================================
+async function issueLoginSession(req, res, user, { method = 'password' } = {}) {
+  // remember=true (default): pwa=365일 / web=30일 persistent cookie — sliding renewal
+  // remember=false (공용 PC): session cookie — 브라우저 닫으면 자동 로그아웃
+  //   #244 — remember 를 발급 전에 읽어 persist claim 으로 실어 보낸다 (회전 시 영구쿠키 승격 차단).
+  const remember = req.body?.remember !== false;
+  const clientKind = resolveClientKind(req);
+  const accessToken = generateAccessToken(user);
+  const refreshToken = generateRefreshToken(user, clientKind, remember);
+
+  // 다중 디바이스 — 신규 row 추가 (기존 디바이스 row 들 영향 X)
+  await createRefreshTokenRow(user, refreshToken, req, null, { clientKind });
+  await user.update({ last_login_at: new Date() });
+
+  // Set refresh token as HttpOnly cookie
+  const secure = cookieSecure(res);   // 실제 연결이 HTTPS 인가 (services/authTokens)
+  const cookieOpts = { httpOnly: true, secure, sameSite: 'lax', path: '/api/auth' };
+  if (remember) cookieOpts.maxAge = TTL_MS_BY_KIND[clientKind];
+  res.cookie('refresh_token', refreshToken, cookieOpts);
+  setSessionHint(res, { maxAge: cookieOpts.maxAge, secure });
+  // 보안 Stage 1 — <img> 는 인증 헤더를 못 실으므로 이미지 서빙용 신원을 쿠키로 준다.
+  //   ★ 발급 지점을 하나라도 빼면 그 로그인 방식 사용자 전원이 (Stage 2 게이트 후) 이미지를 잃는다.
+  setImageCookie(res, user);
+
+  // Get user with business info
+  const userData = await getUserWithBusiness(user.id);
+
+  authAudit.signInOk(req, user, { method, clientKind, remember });
+  return { accessToken, userData };
+}
+
+// ============================================
 // POST /api/auth/login
 // ============================================
 router.post('/login', async (req, res, next) => {
@@ -550,33 +584,8 @@ router.post('/login', async (req, res, next) => {
       return errorResponse(res, 'Account suspended', 403, 'account_suspended');
     }
 
-    // Generate tokens
-    // remember=true (default): pwa=365일 / web=30일 persistent cookie — sliding renewal
-    // remember=false (공용 PC): session cookie — 브라우저 닫으면 자동 로그아웃
-    //   #244 — remember 를 발급 전에 읽어 persist claim 으로 실어 보낸다 (회전 시 영구쿠키 승격 차단).
-    const remember = req.body?.remember !== false;
-    const clientKind = resolveClientKind(req);
-    const accessToken = generateAccessToken(user);
-    const refreshToken = generateRefreshToken(user, clientKind, remember);
-
-    // 다중 디바이스 — 신규 row 추가 (기존 디바이스 row 들 영향 X)
-    await createRefreshTokenRow(user, refreshToken, req, null, { clientKind });
-    await user.update({ last_login_at: new Date() });
-
-    // Set refresh token as HttpOnly cookie
-    const secure = cookieSecure(res);   // 실제 연결이 HTTPS 인가 (services/authTokens)
-    const cookieOpts = { httpOnly: true, secure, sameSite: 'lax', path: '/api/auth' };
-    if (remember) cookieOpts.maxAge = TTL_MS_BY_KIND[clientKind];
-    res.cookie('refresh_token', refreshToken, cookieOpts);
-    setSessionHint(res, { maxAge: cookieOpts.maxAge, secure });
-    // 보안 Stage 1 — <img> 는 인증 헤더를 못 실으므로 이미지 서빙용 신원을 쿠키로 준다.
-    //   ★ 발급 지점을 하나라도 빼면 그 로그인 방식 사용자 전원이 (Stage 2 게이트 후) 이미지를 잃는다.
-    setImageCookie(res, user);
-
-    // Get user with business info
-    const userData = await getUserWithBusiness(user.id);
-
-    authAudit.signInOk(req, user, { method: 'password', clientKind, remember });
+    // 세션 발급은 issueLoginSession 한 곳 — dev-login(routes/auth_dev_login.js)도 같은 함수를 쓴다.
+    const { accessToken, userData } = await issueLoginSession(req, res, user, { method: 'password' });
     successResponse(res, {
       token: accessToken,
       user: userData
@@ -1148,6 +1157,9 @@ router.post('/deletion-recover', async (req, res, next) => {
 module.exports = router;
 // N+70 — auth_oauth.js 에서 재사용 (OAuth callback 도 같은 refresh_token cookie 패턴)
 module.exports.helpers = {
+  // dev-login(routes/auth_dev_login.js) — 로그인 응답의 user 를 같은 함수로 만든다.
+  getUserWithBusiness,
+  issueLoginSession,
   createRefreshTokenRow,
   generateAccessToken,
   generateRefreshToken,

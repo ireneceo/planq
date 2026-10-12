@@ -175,6 +175,29 @@ memory `feedback_unwired_guard_is_no_guard` 와 같은 계열이다.
 - 실호출: 실제 HTTP(포트 3003) login → CUD → 재조회 일치 · 권한별 403 · 운영 옛 데이터 1건
 - 배포 안전성: 마이그레이션 멱등 · 배포 슬롯 등록 · 청크 해시 · 롤백 경로
 
+## 시험 역할 — «확인할 곳» 을 그 역할로 열기 (dev-login, 2026-10-12)
+
+> Irene 2026-10-11: *"해당 역할 테스트로 로그인해서 보낼 수 없어? 정확히 같은 페이지·데이터도 넣어서 같은 내용"*
+> 계약 정본 `~/dev-server/kit/DEV-LOGIN.md`. 서버 `routes/auth_dev_login.js`(개발 .env `DEV_LOGIN_SECRET` + `NODE_ENV=development` 일 때만 마운트) · 화면 `/dev-login`.
+
+역할 화면을 보고할 때는 «확인할 곳» 줄 끝에 `[as=<역할키> ws=<워크스페이스 id>]` 를 붙인다 — 상황판이 «시험 계정으로 열기» 버튼을 붙인다.
+예: `- https://dev.planq.kr/tasks?task=12 — 할 일 3개 [as=owner ws=6]`
+
+| 역할키 | 시험 계정 | 보이는 것 | 범위 |
+|---|---|---|---|
+| `owner` | owner@test.planq.kr (김오너) | 워크스페이스 대표 — 전 메뉴·설정·청구 | `ws` = 6 (PlanQ 테스트 워크스페이스) · 7 (브랜드 파트너스) |
+| `member` | member1@test.planq.kr (이디자) | 멤버 — 업무·대화·문서(대표 전용 제외) | `ws` = 6 |
+| `member2` | member2@test.planq.kr (박개발) | 두 번째 멤버(담당자·컨펌자 주고받기) | `ws` = 6 |
+| `client` | client@test.planq.kr (최고객) | 고객 — 자기 프로젝트·대화·문서만 | `ws` = 6 |
+| `admin` | admin@test.planq.kr | 플랫폼 관리자(`/admin/*`) — 워크스페이스 없음 | 없음 (`ws` 를 주면 거절) |
+
+- **범위 생략 = ws 6.** 시험 계정은 시험 워크스페이스(slug `planq-test`·`brand-partners-test`)에만 들어간다 — dev 에서 member1·2 가
+  «워프로랩»(ws 3)에도 멤버라 멤버십만 보면 그 화면이 열린다. 다른 워크스페이스를 쓰려면 `routes/auth_dev_login.js` 의 두 목록을 같이 고친다.
+- **그 줄이 보여 주는 시험 데이터는 지우지 않는다** — 이름 앞에 `[확인용]`. 7일 지난 `[확인용]` 은 /개발완료 7단계
+  `node scripts/cleanup-check-data.js --apply` 가 치운다(새 cron 없음, 개발 DB 에서만 돈다). 실데이터·실고객 위에 만들지 않는다.
+- 토큰은 **보통 로그인과 같은 것**(`issueLoginSession` 한 벌) — 대리 로그인(impersonate) 토큰이 아니다(그건 워크스페이스 전환이 막힌다).
+- **운영 `.env` 에 `DEV_LOGIN_SECRET` 을 넣지 않는다** — 배포 스크립트 사전 점검이 있으면 멈춘다.
+
 ## 상황판이 주는 일 — 묶음 배정 · 정찰 방 (2026-10-12, 서버 방 요청 · Fable 설계 판정 D)
 - **묶음 배정** — 상황판이 작은 일 최대 3건을 한 방에 준다. 커밋은 **일별**, «확인할 곳» 도 일별로 쓴다. 하다가 커지는 일은 `front:true` 로 대기열 앞에 되돌린다(묶음 안에서 끌어안지 않는다).
 - **정찰 방 = 읽기 전용** — 첫 메시지 첫 줄이 «[상황판 정찰 방 — 읽기 전용]» 인 방은 조사만 하고 `.claude/plans/q<번호>.md` 만 쓴다(커밋 안 함, `.gitignore`). 막는 것은 훅 `.claude/hooks/scout-guard.sh`(판정 `scout-detect.sh` 한 곳 · 정찰 방이면 Fable 게이트·자동저장 Stop 훅도 바로 끝). **고치는 방은 계획 파일을 받으면 조사 때 HEAD 이후 바뀐 것부터 확인**한다(`git log <계획의 HEAD>..HEAD`) — 계획은 그 시점의 사실이다.

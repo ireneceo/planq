@@ -10,7 +10,9 @@ import { useChromeLocation } from '../../hooks/useChromeNav';
 import { apiFetch, useAuth } from '../../contexts/AuthContext';
 
 // 랜딩 페이지 경로 — 이 경로들에서는 약관 모달 표시 안 함
-const LANDING_PATHS = ['/', '/features', '/pricing', '/about', '/contact', '/insights', '/blog', '/legal'];
+// '/dev-login' — 상황판 «시험 계정으로 열기» 착지(잠깐 거치는 화면). 앞 사람 세션이 재동의 대상이면 이 창이 lazy 로 뜨며
+//   Suspense 가 화면을 갈아끼워 로그인 요청이 나가지 못했다(2026-10-12 실측). 시험 계정에 착지한 뒤의 화면에서는 그대로 뜬다.
+const LANDING_PATHS = ['/', '/features', '/pricing', '/about', '/contact', '/insights', '/blog', '/legal', '/dev-login'];
 
 const TermsReacceptModal: React.FC = () => {
   const { t } = useTranslation('auth');
