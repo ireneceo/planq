@@ -584,7 +584,11 @@
         "1": "이 브라우저는 PWA 설치를 지원하지 않거나 식별할 수 없습니다",
         "2": "Chrome / Edge / Samsung Internet 또는 iOS Safari 에서 다시 시도하세요"
       }
-    }
+    },
+    "phoneTitle": "휴대폰 앱",
+    "phoneDesc": "휴대폰 카메라로 QR 을 찍으면 앱 다운로드 화면이 바로 열려요. iPhone·Android 에 맞는 설치로 안내합니다.",
+    "phoneOpen": "앱 다운로드 페이지 열기 →",
+    "phoneQrAlt": "휴대폰으로 찍으면 PlanQ 앱 다운로드 화면이 열리는 QR 코드"
   },
   "matrix": {
     "title": "멤버별 메뉴 권한",

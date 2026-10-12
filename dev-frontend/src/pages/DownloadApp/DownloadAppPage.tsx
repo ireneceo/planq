@@ -8,6 +8,7 @@ import { useTranslation } from 'react-i18next';
 import { usePwaInstall } from '../../contexts/PwaInstallContext';
 import { isNativeApp } from '../../services/native';
 import LandingLayout from '../../components/Landing/LandingLayout';
+import AppQrCode, { appDownloadUrl } from '../../components/Common/AppQrCode';
 
 type Platform = 'ios' | 'android' | 'desktop';
 
@@ -60,6 +61,7 @@ export default function DownloadAppPage() {
   }
 
   const iosUrl = info?.ios_url || null;
+  const qrUrl = appDownloadUrl(typeof window !== 'undefined' && window.location.pathname.startsWith('/en/'));
   const androidUrl = info?.android_url || null;
 
   const StoreCard = ({ p, url }: { p: 'ios' | 'android'; url: string | null }) => (
@@ -107,8 +109,11 @@ export default function DownloadAppPage() {
               <StoreCard p="ios" url={iosUrl} />
               <StoreCard p="android" url={androidUrl} />
             </Grid>
+            {/* 폰 카메라로 찍어 바로 이 페이지로 — 폰에서 열면 위 분기가 폰 종류에 맞는 카드 하나만 보여 준다.
+                글자 주소도 손으로 적지 않는다(dev 에서 planq.kr 로 보이던 거짓 주소). */}
+            <QrWrap><AppQrCode url={qrUrl} alt={t('desktop.qrAlt')} /></QrWrap>
             <UrlHint>{t('desktop.hint')}</UrlHint>
-            <UrlBox>planq.kr/app</UrlBox>
+            <UrlBox>{qrUrl.replace(/^https?:\/\//, '')}</UrlBox>
           </>
         ) : (
           <SingleWrap>
@@ -224,6 +229,7 @@ const ViaHint = styled.div`
   margin-top: 8px; font-size: 0.75rem; line-height: 1.5; color: #94A3B8; text-align: center;
 `;
 const DesktopHint = styled.div` font-size: 0.8125rem; font-weight: 500; color: #64748B; margin-bottom: 12px; `;
+const QrWrap = styled.div` display: flex; justify-content: center; margin-top: 20px; `;
 const UrlHint = styled.div` font-size: 0.8125rem; color: #64748B; margin-top: 8px; `;
 const UrlBox = styled.div`
   margin-top: 8px; padding: 10px 16px; border-radius: 8px; background: #F1F5F9;

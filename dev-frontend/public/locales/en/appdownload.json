@@ -12,8 +12,9 @@
   },
   "comingSoon": "Coming soon",
   "desktop": {
-    "hint": "Open this address on your phone to install",
-    "or": "Choose your platform to install"
+    "hint": "Scan the QR code with your phone camera, or open the address below on your phone",
+    "or": "Choose your platform to install",
+    "qrAlt": "QR code that opens the PlanQ app download page on your phone"
   },
   "inApp": {
     "title": "You're already in the PlanQ app",
@@ -29,7 +30,7 @@
     "installed": "PlanQ is already installed on this device. Open it from the PlanQ icon on your home screen.",
     "done": "Installed. Launch PlanQ from your home screen.",
     "dismissed": "Installation was cancelled. You can tap it again anytime.",
-    "onPhone": "Open planq.kr/app on your Android phone to install it.",
+    "onPhone": "Scan the QR code below with your Android phone to install right away.",
     "storeSoon": "Our Play Store app is in review — once it is live you can get it right here."
   }
 }

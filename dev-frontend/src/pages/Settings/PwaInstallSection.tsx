@@ -10,6 +10,7 @@ import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import { usePwaInstall } from '../../contexts/PwaInstallContext';
 import { isNativeApp } from '../../services/native';
+import AppQrCode, { appDownloadUrl } from '../../components/Common/AppQrCode';
 
 // 브라우저별 메뉴 위치는 OS·버전마다 달라 일반화된 안내 사용.
 // 메뉴 명칭은 브라우저 한국어 UI 기준 (영어 환경에서는 i18n 분기로 영어 명칭 사용).
@@ -66,7 +67,7 @@ function getManualSteps(platform: string, t: TFunction): string[] {
 }
 
 const PwaInstallSection: React.FC = () => {
-  const { t } = useTranslation('settings');
+  const { t, i18n } = useTranslation('settings');
   // 네이티브 앱(TestFlight/App Store/Play 설치본) 안에서는 "홈 화면에 추가" 안내가 무의미하다 —
   //   이미 앱으로 실행 중이라 사용자에게는 고장 난 안내로 읽힌다(2026-08-25 Irene).
   //   ★ 훅 호출 뒤에 둔다 — early return 을 훅 위에 두면 React #310 으로 화면이 깨진다
@@ -160,6 +161,19 @@ const PwaInstallSection: React.FC = () => {
         </Body>
       )}
 
+      {/* 웹(데스크탑)에서 쓰다가 폰 앱을 받고 싶을 때 — 주소를 치지 않고 카메라로 찍어 /app 으로 (2026-10-12 Irene).
+          랜딩 /app 과 같은 조각·같은 주소. 폰·태블릿에서는 찍을 일이 없어 그리지 않는다. */}
+      {platform.startsWith('desktop') && (
+        <PhoneRow data-testid="settings-app-qr-row">
+          <AppQrCode url={appDownloadUrl((i18n.language || '').startsWith('en'))} size={120} alt={t('pwa.phoneQrAlt', '휴대폰으로 찍으면 PlanQ 앱 다운로드 화면이 열리는 QR 코드') as string} testId="settings-app-qr" />
+          <PhoneText>
+            <PhoneTitle>{t('pwa.phoneTitle', '휴대폰 앱')}</PhoneTitle>
+            <Note>{t('pwa.phoneDesc', '휴대폰 카메라로 QR 을 찍으면 앱 다운로드 화면이 바로 열려요. iPhone·Android 에 맞는 설치로 안내합니다.')}</Note>
+            <PhoneLink href={(i18n.language || '').startsWith('en') ? '/en/app' : '/app'} target="_blank" rel="noopener noreferrer">{t('pwa.phoneOpen', '앱 다운로드 페이지 열기 →')}</PhoneLink>
+          </PhoneText>
+        </PhoneRow>
+      )}
+
       {resultMsg && <ResultLine>{resultMsg}</ResultLine>}
     </Section>
   );
@@ -223,6 +237,16 @@ const PrimaryBtn = styled.button`
   transition: background 0.15s;
   &:hover:not(:disabled) { background: #0D9488; }
   &:disabled { opacity: 0.6; cursor: not-allowed; }
+`;
+const PhoneRow = styled.div`
+  display: flex; align-items: center; gap: 16px;
+  padding-top: 14px; border-top: 1px solid #E2E8F0;
+`;
+const PhoneText = styled.div` flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; `;
+const PhoneTitle = styled.div` font-size: 0.8125rem; font-weight: 700; color: #0F172A; `;
+const PhoneLink = styled.a`
+  font-size: 0.8125rem; font-weight: 600; color: #0D9488; text-decoration: none; align-self: flex-start;
+  &:hover { text-decoration: underline; }
 `;
 const ResultLine = styled.div`
   font-size: 0.75rem; color: #0D9488;

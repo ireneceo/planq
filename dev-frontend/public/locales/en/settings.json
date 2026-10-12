@@ -584,7 +584,11 @@
         "1": "This browser doesn't support PWA installation, or it can't be identified",
         "2": "Try again in Chrome / Edge / Samsung Internet, or iOS Safari"
       }
-    }
+    },
+    "phoneTitle": "Phone app",
+    "phoneDesc": "Scan the QR code with your phone camera to open the app download page. It guides you to the right install for iPhone or Android.",
+    "phoneOpen": "Open the app download page →",
+    "phoneQrAlt": "QR code that opens the PlanQ app download page on your phone"
   },
   "matrix": {
     "title": "Member menu permissions",
