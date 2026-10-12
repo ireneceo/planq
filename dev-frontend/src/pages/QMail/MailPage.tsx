@@ -49,6 +49,7 @@ import PanelResizeHandle, { usePanelWidth } from '../../components/Layout/PanelR
 import EmptyState from '../../components/Common/EmptyState';
 import AiActionButton from '../../components/Common/AiActionButton';
 import ComposeAiRow from './ComposeAiRow';
+import MailAiBar from './MailAiBar';
 import SignatureBadge from './SignatureBadge';
 import ThreadMessages from './ThreadMessages';
 import { makePendingMessage, nextTempId, insertPending, removePending, replacePending } from './optimisticOutbound';
@@ -76,9 +77,6 @@ import {
   PickerList,
   PickerItem,
   PickerHint,
-  AiInstructionRow,
-  AiInstructionInput,
-  AiInstructionHint,
   ClipIcon,
   CloseBtn,
   ComposeBody,
@@ -1504,8 +1502,6 @@ const MailPage: React.FC = () => {
   const [replyError, setReplyError] = useState<string | null>(null);
   // 60초가 넘으면 «오래 걸린다» 고 말한다. 침묵은 고장과 구별되지 않는다.
   const [aiSlow, setAiSlow] = useState(false);
-  // AI 가 «무엇을 쓸지 알려달라» 고 답한 직후 — 그 입력란을 열어 둬야 사용자가 다음 수를 둘 수 있다.
-  const [aiNeedsInstruction, setAiNeedsInstruction] = useState(false);
   const [aiBusy, setAiBusy] = useState(false);
   const [aiFaqSources, setAiFaqSources] = useState<string[]>([]); // M4 — AI 답변이 활용한 등록 FAQ
   const [aiInstruction, setAiInstruction] = useState(''); // #192 — 초안 수정 요청(추가 지시)
@@ -1521,7 +1517,7 @@ const MailPage: React.FC = () => {
     //   첫 생성(초안 없음)은 그대로 지시 없이 동작한다 — 마찰을 늘리지 않는다.
     if (!instruction && !isEmptyHtml(replyHtml)) {
       setReplyError(t('reply.aiInstructionRequired', {
-        defaultValue: '이미 초안이 있어요. 어떻게 고칠지 요청을 적어 주세요.',
+        defaultValue: '이미 초안이 있어요. 어떻게 고칠지 위 AI 요청란에 적어 주세요.',
       }) as string);
       aiInstructionRef.current?.focus();
       return;
@@ -1535,7 +1531,8 @@ const MailPage: React.FC = () => {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         // 보내는 주소 — 맺음 이름을 이 답장이 실제로 나갈 신원에 맞춘다(서버 services/mailClosing)
         body: JSON.stringify({
-          ...(instruction ? { instruction, current_draft: replyHtml || undefined } : {}),
+          // 초안 없이 요청만 = «이런 답장을 써 줘» (서버가 초안 유무로 문장을 가른다)
+          ...(instruction ? { instruction, current_draft: isEmptyHtml(replyHtml) ? undefined : replyHtml } : {}),
           ...(fromAliasRef.current ? { from_alias_id: fromAliasRef.current } : {}),
         }),
       });
@@ -1548,16 +1545,15 @@ const MailPage: React.FC = () => {
           // 받은 메일을 그대로 베낀 초안은 서버가 막는다. 무엇을 쓸지 알려주면 제대로 나온다.
           // 빈 초안 — 서버가 조용히 성공으로 내보내던 것을 422 로 바꿨다(2026-09-16)
           ai_empty: t('reply.aiEmpty', {
-            defaultValue: 'AI 가 이번엔 초안을 만들지 못했어요. 다시 시도하거나 아래에 요청을 적어 주세요.',
+            defaultValue: 'AI 가 이번엔 초안을 만들지 못했어요. 다시 시도하거나 위 AI 요청란에 요청을 적어 주세요.',
           }) as string,
           ai_echoed_inbound: t('reply.aiEchoed', {
-            defaultValue: '받은 메일을 되풀이하는 초안만 나왔어요. 어떤 답을 보내고 싶은지 아래에 적어 주세요.',
+            defaultValue: '받은 메일을 되풀이하는 초안만 나왔어요. 어떤 답을 보내고 싶은지 위 AI 요청란에 적어 주세요.',
           }) as string,
         };
         setReplyError(map[j.message] || (t('reply.aiFailed', { defaultValue: 'AI 제안 생성 실패' }) as string));
-        // 이 둘은 «요청을 적어 주세요» 로 끝난다 — 적을 칸을 열고 커서까지 옮긴다.
+        // 이 둘은 «요청을 적어 주세요» 로 끝난다 — 요청 바(본문 위, 늘 보인다)로 커서를 옮긴다.
         if (j.message === 'ai_echoed_inbound' || j.message === 'ai_empty') {
-          setAiNeedsInstruction(true);
           window.setTimeout(() => aiInstructionRef.current?.focus(), 0);
         }
         return;
@@ -1565,10 +1561,10 @@ const MailPage: React.FC = () => {
       // ★ 빈 초안이 와도 **말한다.** 예전엔 여기서 조용히 지나가 "아무 반응 없음" 이 됐다.
       // ★ 채운 자리로 데려간다 — [AI 초안 다시 생성] 은 답장창 맨 아래라, 그 자리에 머물면 새 초안이 위쪽 화면 밖에서
       //   바뀌어 «어디에 들어갔는지 모르겠다» 가 된다(2026-10-12 Irene).
-      if (j.data?.suggestion) { setReplyHtml(j.data.suggestion); setAiNeedsInstruction(false); setReplyScrollTick((n) => n + 1); }
+      if (j.data?.suggestion) { setReplyHtml(j.data.suggestion); setReplyScrollTick((n) => n + 1); }
       else {
         setReplyError(t('reply.aiEmpty', {
-          defaultValue: 'AI 가 이번엔 초안을 만들지 못했어요. 다시 시도하거나 아래에 요청을 적어 주세요.',
+          defaultValue: 'AI 가 이번엔 초안을 만들지 못했어요. 다시 시도하거나 위 AI 요청란에 요청을 적어 주세요.',
         }) as string);
         return;
       }
@@ -1690,7 +1686,7 @@ const MailPage: React.FC = () => {
 
   // 보내는 주소(Send-as) — 이 계정에 등록된 별칭. 주소가 하나뿐이면 셀렉트를 숨긴다
   //   (없는 선택지를 보여주지 않는다).
-  const aiInstructionRef = useRef<HTMLInputElement | null>(null);
+  const aiInstructionRef = useRef<HTMLTextAreaElement | null>(null);
   const [aliases, setAliases] = useState<Array<{ id: number; email: string; display_name: string | null; is_default: boolean }>>([]);
   // 3상태: null = 미지정(서버가 "받은 주소로" 자동 결정) / 0 = 계정 주소 **명시 선택** / N = 별칭 명시.
   //   ★ 여태 미지정과 명시선택이 둘 다 0 이었다. 별칭 목록이 아직 안 실렸거나 매칭이 빗나가면 0 이 나갔고,
@@ -3341,6 +3337,26 @@ const MailPage: React.FC = () => {
                           (DB 풀을 안 닫아 프로세스가 안 끝났고, 파이프 뒤 tail 이 출력을 안 내놨다).
                           실측은 gpt-5.1 **1.9초**다. 이 줄은 여전히 쓸모가 있지만(느린 날은 있다),
                           이 신고의 원인은 아니었다 — 원인은 `echoed_inbound` 막다른 길이다. */}
+                    {/* AI 요청 바 — 쓰는 자리 바로 위, 답장창이 열려 있으면 늘 보인다(2026-10-12 Irene: «처음부터 요청을
+                        남기는 방식도 필요» · «다시 생성할 때 입력 위치가 애매» · «엔터로 넘어가게»). 입력과 실행이 한 줄이다.
+                        규칙은 aiSuggest 그대로 — 초안 없음+빈 요청 = 알아서 작성 / 초안 있음+빈 요청 = 막음(#262) / 요청 = 반영. */}
+                    <MailAiBar
+                      testId="mail-reply-ai-bar"
+                      inputRef={aiInstructionRef}
+                      value={aiInstruction}
+                      onChange={setAiInstruction}
+                      onSubmit={() => { void aiSuggest(); }}
+                      busy={aiBusy}
+                      disabled={sending}
+                      allowEmpty={isEmptyHtml(replyHtml)}
+                      placeholder={(isEmptyHtml(replyHtml)
+                        ? t('reply.aiRequestPlaceholderEmpty', { defaultValue: 'AI 에게 어떤 답장을 쓸지 알려 주세요 · 비워 두고 Enter 면 알아서 작성' })
+                        : t('reply.aiInstructionPlaceholder', { defaultValue: 'AI 에게 수정 요청 (예: 더 정중하게 · 가격 강조 · 짧게) · Enter' })) as string}
+                      ariaLabel={t('reply.aiInstructionLabel', { defaultValue: 'AI 요청' }) as string}
+                      sendLabel={(isEmptyHtml(replyHtml)
+                        ? t('reply.aiDraft', { defaultValue: 'AI 답변 초안' })
+                        : t('reply.aiRefine', { defaultValue: 'AI 로 다듬기' })) as string}
+                    />
                     {aiBusy && (
                       <AiWorkingLine role="status" data-testid="mail-ai-working">
                         <AiDot aria-hidden />
@@ -3375,31 +3391,6 @@ const MailPage: React.FC = () => {
                         {aiFaqSources[0] ? ` · ${aiFaqSources[0]}` : ''}
                       </FaqUsedBadge>
                     )}
-                    {/* #192 — 초안이 있고 AI 가 허용된 메일이면 수정 요청 입력란 노출. 지시를 넣고
-                        AI 초안 다시 생성을 누르면 현재 초안을 그 지시대로 다듬는다. (원샷 생성만 되던 불편 해소) */}
-                    {/* ★ 2026-09-16 (Irene: *"이 이메일이 AI답변 초안을 눌러도 아무 반응이 없어."*)
-                        실측: 그 메일은 서버가 `echoed_inbound` 로 판정한다(초안 0자 + 422).
-                        화면은 "어떤 답을 보내고 싶은지 **아래에 적어 주세요**" 라고 말하는데,
-                        이 입력란이 `replyHtml.trim()` 일 때만 떠서 **적을 곳이 없었다** —
-                        초안이 안 생긴 바로 그 상황에서 사라지는 입력란이었다. 막다른 길이라
-                        사용자에게는 "아무 반응 없음" 과 구별되지 않는다.
-                        (memory feedback_dont_instruct_what_we_didnt_build — 화면이 시키는 절차는
-                         우리가 만들어 둔 것이어야 한다.)
-                        → 초안이 있거나, **AI 가 초안을 못 준 직후**면 연다. */}
-                    {(replyHtml.trim() || aiNeedsInstruction) && (
-                      <AiInstructionRow>
-                        <AiInstructionInput
-                          ref={aiInstructionRef}
-                          value={aiInstruction}
-                          disabled={aiBusy || sending}
-                          onChange={(e) => setAiInstruction(e.target.value)}
-                          onKeyDown={(e) => { if (isEnterAction(e)) { e.preventDefault(); if (aiInstruction.trim()) aiSuggest(); } }}
-                          placeholder={t('reply.aiInstructionPlaceholder', { defaultValue: 'AI 에게 수정 요청 (예: 더 정중하게 · 가격 강조 · 짧게)' }) as string}
-                          aria-label={t('reply.aiInstructionLabel', { defaultValue: 'AI 수정 요청' }) as string}
-                        />
-                        <AiInstructionHint>{t('reply.aiInstructionHint', { defaultValue: '입력 후 “다시 생성”' }) as string}</AiInstructionHint>
-                      </AiInstructionRow>
-                    )}
                     {/* #262 — 이 메일에 실제로 붙을 서명이 무엇인지 보내기 전에 보인다 */}
                     <SignatureBadge
                       businessId={businessId}
@@ -3410,7 +3401,7 @@ const MailPage: React.FC = () => {
                       onToggle={setReplySignature}
                       onIdentity={(id) => setOutgoingFrom(id?.from_email || '')}
                     />
-                    {/* 버튼 자리는 고정 — 좌측부터 [보내기] [AI] [취소]. 답장창을 열고 닫아도 좌우가 뒤바뀌지 않는다.
+                    {/* 버튼 자리는 고정 — 좌측부터 [보내기] [취소]. 답장창을 열고 닫아도 좌우가 뒤바뀌지 않는다.
                         (여태 AI 가 왼쪽, 보내기/취소가 오른쪽 끝이라 열 때마다 위치가 바뀌어 보였다) */}
                     {replyDraftStatus !== 'idle' && (
                       <DraftStatusLine $err={replyDraftStatus === 'error'} role="status">
@@ -3433,24 +3424,8 @@ const MailPage: React.FC = () => {
                       <ActionButton tone="primary" size="md" loading={sending} onClick={sendReply}>
                         {t('reply.send', { defaultValue: '보내기' }) as string}
                       </ActionButton>
-                      {/* ★ #221 — 여기에도 triage 게이트가 남아 있었다. 진입 버튼(위 ReplyBar)만 게이트를
-                          풀어놔서, 자동·마케팅으로 분류된 메일은 **첫 생성은 되는데 답장창 안에서 버튼이
-                          사라져 다시 생성할 수 없었다**. 분류는 우선순위 힌트이지 답장 가능 여부가 아니다.
-                          Irene: "모든 탭에 제대로 나와야 해. 답변을 어디서든 할 수는 있어야지." */}
-                      {(
-                        <AiActionButton
-                          size="md"
-                          loading={aiBusy}
-                          disabled={sending}
-                          onClick={aiSuggest}
-                          label={aiBusy
-                            ? t('reply.aiThinking', { defaultValue: 'AI 작성 중…' }) as string
-                            : (replyHtml.trim()
-                                ? t('reply.aiRegenerate', { defaultValue: 'AI 초안 다시 생성' }) as string
-                                : t('reply.aiSuggest', { defaultValue: 'AI 답변 초안' }) as string)}
-                          title={t('reply.aiHint', { defaultValue: 'AI 가 이 메일의 답장 초안을 써줍니다' }) as string}
-                        />
-                      )}
+                      {/* [AI 초안 다시 생성] 은 여기서 뺐다 — 실행은 본문 위 AI 요청 바(Enter·화살표) 한 곳이다.
+                          입력(위)과 실행(아래)이 떨어져 있어 «어디에 쓰고 무엇을 누르나» 가 애매했다(2026-10-12 Irene). */}
                       <ActionButton tone="secondary" size="md" onClick={() => { void sendPendingDraft(replyPendingRef); setReplyOpen(false); }} disabled={sending}>
                         {t('reply.cancel', { defaultValue: '취소' }) as string}
                       </ActionButton>

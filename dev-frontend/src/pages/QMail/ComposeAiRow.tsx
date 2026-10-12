@@ -10,9 +10,8 @@ import { useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 // apiFetch 정본은 AuthContext 다 (MailPage.tsx 와 동일 경로). `utils/api` 는 존재하지 않는다.
 import { apiFetch } from '../../contexts/AuthContext';
-import AiActionButton from '../../components/Common/AiActionButton';
-import { AiInstructionRow, AiInstructionInput } from './MailPage.styles';
-import { isEnterAction } from '../../utils/imeKey';
+// 모양·Enter 동작은 답장과 같은 AI 요청 바(별표·빨간 라인 — Q task Cue 바 껍데기)를 쓴다.
+import MailAiBar from './MailAiBar';
 
 interface Props {
   businessId: number | null;
@@ -74,27 +73,18 @@ export default function ComposeAiRow({ businessId, to, subject, body, isEmptyBod
   }, [businessId, busy, instruction, to, subject, body, isEmptyBody, onBody, onError, t, accountId, fromAliasId]);
 
   return (
-    <AiInstructionRow>
-      <AiInstructionInput
-        value={instruction}
-        disabled={busy || sending}
-        onChange={(e) => setInstruction(e.target.value)}
-        onKeyDown={(e) => { if (isEnterAction(e)) { e.preventDefault(); if (instruction.trim()) run(); } }}
-        placeholder={t('compose.aiInstructionPlaceholder', { defaultValue: 'AI 에게 요청 (예: 미팅 일정 제안 · 견적 안내 · 정중한 거절)' }) as string}
-        aria-label={t('compose.aiInstructionLabel', { defaultValue: 'AI 작성 요청' }) as string}
-      />
-      <AiActionButton
-        size="sm"
-        loading={busy}
-        disabled={sending || !instruction.trim()}
-        onClick={run}
-        label={busy
-          ? t('reply.aiThinking', { defaultValue: 'AI 작성 중…' }) as string
-          : (isEmptyBody
-              ? t('compose.aiWrite', { defaultValue: 'AI 로 작성' }) as string
-              : t('compose.aiRefine', { defaultValue: 'AI 로 다듬기' }) as string)}
-        title={t('compose.aiHint', { defaultValue: 'AI 가 요청하신 내용으로 메일 본문을 써줍니다' }) as string}
-      />
-    </AiInstructionRow>
+    <MailAiBar
+      testId="mail-compose-ai-bar"
+      value={instruction}
+      onChange={setInstruction}
+      onSubmit={() => { void run(); }}
+      busy={busy}
+      disabled={sending}
+      placeholder={t('compose.aiInstructionPlaceholder', { defaultValue: 'AI 에게 요청 (예: 미팅 일정 제안 · 견적 안내 · 정중한 거절) · Enter' }) as string}
+      ariaLabel={t('compose.aiInstructionLabel', { defaultValue: 'AI 작성 요청' }) as string}
+      sendLabel={(isEmptyBody
+        ? t('compose.aiWrite', { defaultValue: 'AI 로 작성' })
+        : t('compose.aiRefine', { defaultValue: 'AI 로 다듬기' })) as string}
+    />
   );
 }
