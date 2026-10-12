@@ -1,5 +1,22 @@
 ## 현재 작업 상태
 
+### 완료: 정기 점검 10/13 00:15 (방 76727e26 · 2026-10-12 · [Claude Code]) — 파일 변경 없음(이 기록만)
+- 개발완료: 안 함 — 같은 폴더에 일하는 방 3개(f08b6db5 구글 캘린더 · a9337893 미출근 재개 · c43d9583 업무 액션 1단계). 미커밋 21파일은 c43d9583 의 업무 액션 1단계.
+- 배포: 막힘 — 상황판 PlanQ Fable 대기 4건(dev-login · 초대 인앱 알림 · 미출근 재개 · 설문 v2 Phase 1). 운영 마지막 배포 62734c6d 뒤 커밋 17개(설문 v2·업무 공개 범위 2차·초대 링크 수리 등) 대기. Fable 대기가 풀리면 다음 정기 점검/수동 배포.
+- 운영 피드백(읽기만): 열린 9건. 새 신고 #463(AI 로 프로젝트 옮기기·삭제) · #464(영수증 빈 화면) 은 a176687c · f8585dce 로 이미 고쳐져 운영에 나가 있음 — **답글만 없음**(다음 /개발완료 답글 단계). 삭제는 HIGH 라 AI 도구로 두지 않는 정책 — 답글에 그 이유를 적을 것.
+- 밤 검사: 10-11 순찰은 2.5시간 무출력으로 시간초과(exit 124, 보고서 없음 — 10-10 은 실패 3) · 10-12 순찰은 지금 도는 중. 전체 검사 10-11: 132 중 실패 4(signflow ⑦b · detailopen 21 · chatreaction 폰 · leavesave ⑤⑦) + 하니스 죽음 projecttabs + 시간초과 bodygutter. 판정(실결함/검사기) 아직 안 함 — 고치는 방 몫.
+
+
+### 나중에 — 일시정지로 멈춤: 업무 «결과물 액션» 1단계 (방 c43d9583 · 2026-10-12 · [Opus]) — 미커밋, 운영 미배포
+- 무엇: 설계 docs/TASK_ACTIONS_DESIGN.md 1단계(문서·일정) 구현 **완료 · 미커밋**. 파일 상태 정상(프론트 build EXIT 0 · 백엔드 재시작 OK · dev 표 생성됨).
+  - 서버: 표 task_action_items(models/TaskActionItem · scripts/migrate-task-action-items.js 배포 슬롯 등록) · services/taskActionItems(fulfill·unlink·onPostPublished·onAttachmentDeleted·linkedTasksOf·handoff·copyToOccurrence) ·
+    routes/task_action_items(/api/tasks/:id/actions… · /api/task-actions/:aid/handoff, tasks.js 앞 마운트) · taskAttachmentLink.linkPostsToTask(라우트에서 뗌) · post_actions.createPost·event_actions.createEvent 의 fromActionId · 발행 PUT onPostPublished · 문서 상세/PUT linked_tasks · 첨부 삭제 훅 · 반복 회차 복사.
+  - 화면: TaskActionItemsSection(업무 상세 결과물 위) · hooks/useFromActionHandoff · FromTaskBanner · LinkedTaskChips(문서 밴드2) · PostsPage/QCalendarPage/NewEventModal(fromTask) · ko/en 키 · 카나리 --suite taskactions.
+- 검증(자체): 실HTTP 42/42(권한 403·테넌트 404·L1 hidden·멱등·종류 불일치·회차 박제 첨부 포함·해제·첨부 삭제→pending·반복 복사) · --suite taskactions 42/42 3폭(고치기 전 9건 실패 = 판정 뒤집힘 확인) · health 85/85 · tenant 0 · guard 68/69(남은 1 = posts.js godfile, HEAD 부터 초과).
+- 확인용: 업무 3803(ws 6, 담당 member2 · 액션 3: 견적서 초안 완료→문서 2768 · 킥오프 미팅·제안서 대기).
+- 다시 시작하면: ① `--suite delivver`·`--suite docsheader` 회귀(멈출 때 돌던 중, 결과 모름) + guard 재실행 ② 커밋(feat 업무 결과물 액션 1단계) ③ `/fable-검증` gate 1회(권한·격리) — 한도면 상황판 Fable 대기 ④ 2단계(메일·프로젝트, 별도 승인 없이)는 그 뒤.
+
+
 ### 완료: 업무 상세 필드 정돈 + 셀렉트 X 공간 (방 91f9e22d · 2026-10-12 · [Opus]) — 운영 미배포
 - 원문 *"셀렉트박스에서 X까지 … 공간차지를 심하게 해서 실제 내용이 안 보여 · 공개범위랑 보안등급이 위에 붙어야 할까? 하단 … 박스들도 크게 크게 필요한지"*
 - 공용 PlanQSelect: X(지우기)는 마우스를 올렸거나 포커스됐을 때만(터치는 누르면 나온다) · sm 화살표 여백 6→4 · `variant="inline"`(테두리 없는 속성 줄 모양, 높이 32) 추가. 셀렉트 쓰는 전 화면에 같이 적용.
