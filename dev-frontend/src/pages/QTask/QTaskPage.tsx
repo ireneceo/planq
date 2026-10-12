@@ -397,9 +397,15 @@ const QTaskPage:React.FC=()=>{
     document.body.style.userSelect='none';
     document.body.style.cursor='col-resize';
   };
-  // 기본 정렬: 우선순위 asc (priority_order 없는 항목은 맨 아래, tie-break 아래 sort 로직에서 due_date→title)
+  // 기본 정렬 — 탭에 보이는 칸이 정한다 (2026-10-12, Irene: "기본 소팅이 마감일 기준으로 오래된 것부터 … 제대로 잡아줘")
+  //   · 이번 주·오늘 탭: `#` 우선순위 번호(사람이 매긴 순서) → 마감 오래된 순 → 제목
+  //   · 그 밖의 탭(전체·요청·워크스페이스): `#` 칸이 없다 → 마감 오래된 순(마감 없음 맨 뒤) → 제목.
+  //     priority_order 는 업무의 전역 컬럼이라 지난 주 번호가 남은 업무가 마감과 상관없이 맨 위로 떴다.
+  //   · 모든 탭: 완료·취소 맨 아래
   const[sortKey,setSortKey]=useState<SortKey>('priority_order');
   const[sortDir,setSortDir]=useState<SortDir>('asc');
+  const hasPrioCol=tab==='week'||tab==='today';
+  const effSortKey:SortKey=(!hasPrioCol&&sortKey==='priority_order')?'due_date':sortKey;
 
   // Inline edit
   const[addingTask,setAddingTask]=useState(false);
@@ -1048,7 +1054,7 @@ const QTaskPage:React.FC=()=>{
   const completeBlocked=(status?:string)=>status==='on_hold'||status==='external_review';
 
   const handleSort=(key:SortKey)=>{
-    if(sortKey===key)setSortDir(d=>d==='asc'?'desc':'asc');
+    if(effSortKey===key)setSortDir(d=>d==='asc'?'desc':'asc');
     else{setSortKey(key);setSortDir('asc');}
   };
 
@@ -1152,14 +1158,16 @@ const QTaskPage:React.FC=()=>{
       //   ★ 2026-08-24 — 옛 조건은 week 탭만이라 **오늘 탭에서는 완료가 리스트 사이사이에 끼어** 있었다
       //     (Irene: "완료가 왜 리스트 사이사이에 나와. 맨 아래로 빠져야지").
       //     두 탭 모두 같은 규칙이다 — 완료는 읽을 순서의 끝이다.
-      if(scope==='mine'&&(tab==='week'||tab==='today')){
+      //   ★ 2026-10-12 — 모든 탭으로 넓혔다(전체 탭에서 «완료 가리기» 를 끄면 마감 오래된 옛 완료가 맨 위를 차지했다).
+      {
         const aDone=a.status==='completed'||a.status==='canceled';
         const bDone=b.status==='completed'||b.status==='canceled';
         if(aDone&&!bDone)return 1;
         if(!aDone&&bDone)return -1;
       }
       // 1) 주 정렬 (사용자 선택)
-      const va=a[sortKey];const vb=b[sortKey];
+      const sk=effSortKey;
+      const va=a[sk];const vb=b[sk];
       const aNull=va==null||va===''; const bNull=vb==null||vb==='';
       if(aNull&&!bNull)return 1;
       if(!aNull&&bNull)return -1;
@@ -1169,26 +1177,27 @@ const QTaskPage:React.FC=()=>{
           :(sortDir==='asc'?(Number(va)-Number(vb)):(Number(vb)-Number(va)));
         if(cmp!==0)return cmp;
       }
-      // 2) tie-break: priority_order asc (null last)
-      if(sortKey!=='priority_order'){
+      // 2) tie-break: priority_order asc (null last) — `#` 칸이 보이는 탭에서만
+      if(hasPrioCol&&sk!=='priority_order'){
         const pa=a.priority_order, pb=b.priority_order;
         if(pa!=null&&pb==null)return -1;
         if(pa==null&&pb!=null)return 1;
         if(pa!=null&&pb!=null&&pa!==pb)return pa-pb;
       }
       // 3) tie-break: due_date asc (null last)
-      if(sortKey!=='due_date'){
+      if(sk!=='due_date'){
         const da=a.due_date, db=b.due_date;
         if(da&&!db)return -1;
         if(!da&&db)return 1;
         if(da&&db&&da!==db)return da.localeCompare(db);
       }
       // 4) tie-break: title
-      if(sortKey!=='title')return a.title.localeCompare(b.title);
-      return 0;
+      if(sk!=='title'){const c=a.title.localeCompare(b.title);if(c!==0)return c;}
+      // 5) 끝 — id (제목까지 같으면 볼 때마다 순서가 바뀌지 않게)
+      return a.id-b.id;
     });
     return list;
-  },[allTasks,scope,tab,assigneeFilter,todayStr,myId,search,statusFilter,tagFilter,hideCompleted,sortKey,sortDir,hideCompletedInWeek,periodFrom,periodTo]);
+  },[allTasks,scope,tab,assigneeFilter,todayStr,myId,search,statusFilter,tagFilter,hideCompleted,effSortKey,hasPrioCol,sortDir,hideCompletedInWeek,periodFrom,periodTo]);
 
   // (grouped removed — flat list with project column)
 
@@ -1681,7 +1690,7 @@ const QTaskPage:React.FC=()=>{
   //   완료 시 레이아웃이 덜 튀고, 사용자가 "안 눌렸나" 로 읽지 않는다.
   if(loading)return<SkeletonList rows={8}/>;
 
-  const sortIcon=(key:SortKey)=>sortKey===key?(sortDir==='asc'?'↑':'↓'):'';
+  const sortIcon=(key:SortKey)=>effSortKey===key?(sortDir==='asc'?'↑':'↓'):'';
 
   return(
     <PanelLayout>
