@@ -1,129 +1,50 @@
 {
   "working_on": [],
   "in_progress": [
-    "업무 공개 범위·대상 멤버(vlevel·target_member_ids) — 다른 방에서 진행 중, 이번 배포에서 뺐다(미커밋)"
+    "캘린더 화면 수정(QCalendar 5파일·qcalendar 문구) — 다른 방에서 진행 중, 이번 배포에서 뺐다(미커밋)"
   ],
   "completed": [
-    {
-      "title": "업무 «내부 업무» — 고객·게스트·공개 링크에서 숨김(ff10d3f6)",
-      "verified": "fable_pass"
-    },
-    {
-      "title": "Cue 프롬프트 캐시로 질문 원가 절반 · 카드 턴 실비 원장(be965698)",
-      "verified": "fable_pass"
-    },
-    {
-      "title": "Cue 업무 여러 개 — 업무 묶음 목록 한 덩이 · 팝아웃에도 Cue 바 · 중복 행 계수 수정(b6695797·ebbef4bb·3e18ef9d)",
-      "verified": "fable_pass"
-    },
-    {
-      "title": "Cue 복합 요청 — 한 답에 카드 여러 장 · 컨펌자 · 앞 턴 결과 이어받기(c17375ad)",
-      "verified": "opus_only"
-    },
-    {
-      "title": "Cue 화상회의 요청 끝까지 — 팀 공개 기본 + Meet 링크·복사(60b0031a)",
-      "verified": "opus_only"
-    },
-    {
-      "title": "Cue 팝아웃 결과 [열기] 가 팝아웃을 닫던 것 · Cue 링크 ?event= 상세 안 열림 · Q info 옛 주소 빈 탭(093c8c1c·3c192c26)",
-      "verified": "opus_only"
-    },
-    {
-      "title": "팝아웃 «촘촘히» 보기 + 끌어서 옮기는 «내 순서»(사람별, task_user_orders)(f7ba4c93)",
-      "verified": "fable_pass"
-    },
-    {
-      "title": "Q task 추가 후 그 자리로 스크롤·강조 · 기본 정렬(마감 오래된 순·완료 맨 아래)(f27f0047·46579ccd)",
-      "verified": "opus_only"
-    },
-    {
-      "title": "업무 추가 업무명 안내 «끝나는 순간이 보이게»(79249f7a)",
-      "verified": "opus_only"
-    },
-    {
-      "title": "근태 — 업무 시작·재개·보류 해제가 근태와 같이 움직이게(0117c462)",
-      "verified": "opus_only"
-    },
-    {
-      "title": "캘린더 — 분류 버튼(개인·팀·업무·Google) · 구글 캘린더별 보기/가리기 · 월 보기 날짜 호버 · connection_id 404/502(a96c5253·23e9adf0·42940c6a·6be0aa4f)",
-      "verified": "opus_only"
-    },
-    {
-      "title": "일정 — 화상미팅 링크를 건 등록은 상세를 열어 둔다(92143588)",
-      "verified": "opus_only"
-    },
-    {
-      "title": "Q mail — AI 요청 바 · 보낸메일함 PlanQ/다른 곳 필터 · 폴더별 마지막 메일 기억 · 무한 스크롤 60건 정지·새로고침 200 잘림(ed4cafe4·f23442fb·ed936de1)",
-      "verified": "opus_only"
-    },
-    {
-      "title": "요금제 — 결제 이력에 환불 기준 안내 + [환불 요청] 입구(4c5a8520)",
-      "verified": "opus_only"
-    },
-    {
-      "title": "구독 관리 — 결제 전 체험 워크스페이스 표시 · 주인 이름·이메일 · 만든 날 정렬(de9f5626)",
-      "verified": "opus_only"
-    },
-    {
-      "title": "워크스페이스 새로 만든 뒤 대시보드로(3456664d)",
-      "verified": "opus_only"
-    },
-    {
-      "title": "서명 화면 — 안내 한 상자 · 웹 보기와 같은 틀(69f5635c·dac43aa4)",
-      "verified": "opus_only"
-    },
-    {
-      "title": "연동 팝업 닫기·완료 신호가 안 돌던 것 — 같은 출처 파일 + 받는 쪽 한 훅(0f0ec6b0)",
-      "verified": "opus_only"
-    },
-    {
-      "title": "Q sales 자동 유입 꺼짐 안내에 [설정에서 바꾸기](499e80cd)",
-      "verified": "opus_only"
-    },
-    {
-      "title": "내 외부 연동 «회사 설정으로» 링크 목적지 수정(a6d240ce)",
-      "verified": "opus_only"
-    },
-    {
-      "title": "랜딩 — 인사이트·앱 다운로드 상단 별도 메뉴 · «브랜드스토리» 이름 복원 · 앱 다운로드 QR(/app)(32c18aac·2e8edd94·faaf97c0·965bf938)",
-      "verified": "opus_only"
-    },
-    {
-      "title": "정찰 방 읽기 전용 훅 — 도구 전용(74edfe6c)",
-      "verified": "fable_pass"
-    },
-    {
-      "title": "dev-login «시험 계정으로 열기» — 개발서버 전용(827b9df8)",
-      "verified": "opus_only"
-    }
+    { "title": "업무 공개 범위·보안등급을 문서·일정과 같은 구조로(c7e48cba)", "verified": "fable_pass" },
+    { "title": "Cue 횟수는 질문 한 번 1회 · 카드 실행 0 · «담당자는 나» 질문자 줄(49ac2594)", "verified": "fable_pass" },
+    { "title": "설문 v2 Phase 1 — Q docs 세 번째 종류 · 네 탭 · 별점/척도/예아니오 · 고객에게 보내기(1dbe8940)", "verified": "opus_only" },
+    { "title": "업무 결과물 액션 1단계 — 업무에 만들 문서·일정을 적어 두고 담당자가 만들면 연결(5c180d58)", "verified": "opus_only" },
+    { "title": "팀 Google 캘린더 — 팀 일정을 올릴 캘린더 고르기(대표) + 캘린더 화면 구글 일정 구분(eb8336da)", "verified": "opus_only" },
+    { "title": "관리자(admin)도 남의 업무에 컨펌자 추가·제거(416a13dc)", "verified": "opus_only" },
+    { "title": "다른 워크스페이스 알림을 누르면 먼저 전환하고 그 화면을 연다(a6d95df2)", "verified": "opus_only" },
+    { "title": "담당자가 아니어도 반복하기 · 태블릿 키보드 위 빈 띠(45b2657d)", "verified": "opus_only" },
+    { "title": "업무 상세 — X 는 마우스 올릴 때만 · 속성 줄 · 공개 범위·보안등급 하단 설정 줄(e45f0776) · 폰 포커스 바가 제목을 덮던 것(e4a918c2)", "verified": "opus_only" },
+    { "title": "다른 계정으로 로그인한 채 초대 링크를 열면 초대가 지워지던 문제(f2ad9e4a)", "verified": "opus_only" },
+    { "title": "Q task 팝아웃 상단 정리 · 직접 정렬을 보기마다 따로(ceda7971·20f41d27)", "verified": "opus_only" },
+    { "title": "문서 서버 마크다운 변환 분리 — 동작 불변(088b0785)", "verified": "opus_only" }
   ],
   "behavior_changes": [
-    "업무에 «내부 업무» 표시가 생겼다 — 켜면 프로젝트 고객·게스트 링크·공개 링크에서 그 업무가 안 보인다(멤버는 그대로). 기존 업무는 전부 일반",
-    "팝아웃에서 우선순위 번호 버튼이 내려가고, 끌어서 옮기는 «내 순서»(사람마다 따로)로 바뀌었다",
-    "Q task 기본 정렬 — # 칸 없는 탭은 마감 오래된 순, 완료는 모든 탭에서 맨 아래",
-    "새 워크스페이스를 만들면 대시보드(시작 안내)로 간다",
-    "랜딩 상단에 인사이트·앱 다운로드가 별도 메뉴로"
+    "업무에도 문서·일정과 같은 공개 범위(나만·지정 멤버·팀·전체)와 보안등급이 생겼다 — 기존 업무는 종전과 같은 범위",
+    "Cue 사용 횟수는 질문 한 번에 1회로 센다(카드 실행은 세지 않는다)",
+    "Q docs 에 «설문» 종류가 생겼고 일반 표에서는 통계·설문 버튼이 빠졌다",
+    "관리자도 남의 업무에 컨펌자를 넣고 뺄 수 있다",
+    "담당자가 아니어도 업무 추가 때 반복을 정할 수 있다"
   ],
   "issues": [],
   "blocked_on_human": [],
   "migrations": [
-    "migrate-task-security-level.js — tasks.security_level ENUM('general','internal') 추가(멱등, 배포 슬롯 등록). 롤백은 코드만, 컬럼은 남긴다",
-    "migrate-task-user-order.js — task_user_orders 표 추가(멱등, 배포 슬롯 등록)"
+    "migrate-task-security-level.js — 업무 공개 범위 칸(vlevel·target_member_ids) 보강(멱등, 배포 슬롯)",
+    "migrate-survey-v2.js — 설문 표 3개 + clients.survey_opt_out_at(멱등, 배포 슬롯, 모델보다 먼저)",
+    "migrate-task-action-items.js — task_action_items 표(멱등, 배포 슬롯)",
+    "migrate-gcal-team-calendar.js — 팀 구글 캘린더 고르기 칸(멱등, 배포 슬롯)"
   ],
   "check_areas": [
-    "업무 상세 «내부 업무» 켜기 → 고객 화면·게스트 링크·공개 링크에서 사라지는지",
-    "Cue 바에 업무 여러 개 나열 → 묶음 카드 한 장으로 만들어지는지",
-    "팝아웃 촘촘히 보기·끌어서 순서 바꾸기",
-    "캘린더 분류 버튼·구글 캘린더별 칩",
-    "Q mail 보낸메일함 필터·무한 스크롤"
+    "업무 상세 하단 공개 범위·보안등급 — 나만 보기로 바꾸면 다른 멤버 목록에서 사라지는지",
+    "Q docs 설문 만들기 → 고객에게 보내기 → 응답",
+    "업무 결과물 액션 — 문서·일정 만들면 업무에 연결",
+    "설정 > 외부 연동 팀 구글 캘린더 고르기",
+    "다른 워크스페이스 알림 클릭 시 전환"
   ],
-  "backlog": [
-    "설계 승인 대기 2건 — 설문 v2 · 업무 «액션»(Fable 설계, Irene 승인 전)"
-  ],
+  "backlog": [],
   "tooling_health": [
-    "배포는 마지막 커밋의 깨끗한 사본에서 — 미커밋 46개(다른 방 진행 중)는 빼고 배포"
+    "배포는 마지막 커밋의 깨끗한 사본에서 — 미커밋(다른 방 진행 중 캘린더 작업)은 빼고 배포",
+    "Fable 한도로 완료 검증 대기 7건을 Irene /배포 지시로 포함해 배포"
   ],
   "undeployed": [
-    "업무 공개 범위·대상 멤버 작업(미커밋 — 다른 방 진행 중)"
+    "캘린더 화면 수정(미커밋 — 다른 방 진행 중)"
   ]
 }
