@@ -1565,7 +1565,7 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
           const assigneeHasAction = ackAvailable || startAvailable || submitAvailable || cancelReviewAvailable || completeSimple || completeFinal || (detailTask.status === 'reviewing' && reviewers.length > 0 && reviewPolicy === 'all');
           const reviewerCanAct = iAmReviewer && (detailTask.status === 'reviewing' || detailTask.status === 'revision_requested');
           const approvedCount = reviewers.filter(rv => rv.state === 'approved').length;
-          const canAddReviewer = iAmAssignee || iAmRequesterOrOwner;
+          const canAddReviewer = iAmAssignee || iAmRequesterOrOwner || myWsRole === 'owner' || myWsRole === 'admin';  // 서버 canManageReviewers(담당·요청·owner/admin)와 같은 술어 — owner·admin 이 빠져 남의 업무에 컨펌자 칸이 없었다
           const memberOptions = members.filter(m => m.user_id !== detailTask.assignee_id && !reviewers.some(rv => rv.user_id === m.user_id));
           // D2-b (#66) — 외부 파트너 후보 (멤버와 중복 제거). 담당자/컨펌자 picker 에 배지로 구분 노출.
           const externalCandidates = externals.filter(e => !members.some(m => m.user_id === e.user_id));

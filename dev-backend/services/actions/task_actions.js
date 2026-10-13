@@ -47,15 +47,17 @@ async function isAssignee(task, userId) { return task.assignee_id === userId; }
 async function isRequester(task, userId) {
   return task.request_by_user_id === userId || task.created_by === userId;
 }
-async function isOwner(task, userId) {
+async function isOwnerOrAdmin(task, userId) {
   const bm = await BusinessMember.findOne({ where: { business_id: task.business_id, user_id: userId } });
-  return bm?.role === 'owner';
+  return bm?.role === 'owner' || bm?.role === 'admin';
 }
-// 컨펌자 관리(추가·제거·정책)를 할 수 있는 사람 — 담당자 / 요청자 / 오너
+// 컨펌자 관리(추가·제거·정책)를 할 수 있는 사람 — 담당자 / 요청자 / 오너·관리자(admin)
+//   ★ 2026-10-13 Irene «관리자가 다른 사람 업무 컨펌자 추가를 못해» — owner 만 보고 admin 이 빠져 있었다.
+//     admin = owner_only 외 전권(PERMISSION_MATRIX) · 업무 FIELD_RULES 도 owner/admin 한 묶음.
 async function canManageReviewers(task, userId) {
   if ((await isAssignee(task, userId)) || (await isRequester(task, userId))) return true;
   // 관리자 권한은 «볼 수 있는 업무» 에서만 — 남의 «나만 보기» 업무에 자기를 컨펌자로 넣어 스스로 여는 길을 막는다(2026-10-12 Fable, D2).
-  return (await isOwner(task, userId)) && (await require('../../middleware/access_scope').canAccessTask(userId, task));
+  return (await isOwnerOrAdmin(task, userId)) && (await require('../../middleware/access_scope').canAccessTask(userId, task));
 }
 
 // ─────────────────────────────────────────────
@@ -2052,7 +2054,7 @@ module.exports = {
   // 전이 규칙 (다른 도메인이 상태를 재평가해야 할 때 — 단일 원천)
   recalcStatusFromReviewers,
   // 권한 술어 (읽기 라우트가 재사용)
-  isAssignee, isRequester, isOwner, canManageReviewers,
+  isAssignee, isRequester, isOwnerOrAdmin, canManageReviewers,
   // 기본 담당자 체인 — 화면(미리보기)과 생성이 같은 술어를 써야 한다.
   //   resolveProjectDefaultAssignee = 후보 나열 / pickProjectAssignee = **실제 배정자 선정**.
   //   화면은 반드시 후자를 쓴다(전자의 [0] 은 실제 배정과 다를 수 있다).
