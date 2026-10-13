@@ -1,6 +1,7 @@
 // 문서 (Posts) CRUD — 포스팅 기반 문서 (매뉴얼/가이드/공지 등)
 // project_id NULL = 워크스페이스 전역 문서, NOT NULL = 프로젝트 소속
 const express = require('express');
+const { markdownToTipTap } = require('../utils/markdownToTipTap');
 const router = express.Router();
 // 공개 링크 — 워크스페이스가 지워졌으면 이 라우터의 모든 :token 주소(하위 PDF·다운로드 포함)가 닫힌다(services/shareOpenable).
 router.param('token', (req, res, next, token) => {
@@ -743,46 +744,6 @@ const KIND_LABEL_KO = {
   contract: '계약서', nda: 'NDA', sop: '운영 가이드', custom: '문서',
 };
 
-// 마크다운 → TipTap JSON (단순 변환 — heading/paragraph/bulletList 만)
-function markdownToTipTap(md) {
-  const lines = String(md || '').split('\n');
-  const content = [];
-  let bullets = null;
-  const flushBullets = () => {
-    if (bullets && bullets.length) {
-      content.push({
-        type: 'bulletList',
-        content: bullets.map(b => ({
-          type: 'listItem',
-          content: [{ type: 'paragraph', content: [{ type: 'text', text: b }] }],
-        })),
-      });
-    }
-    bullets = null;
-  };
-  for (const raw of lines) {
-    const line = raw.trim();
-    if (!line) { flushBullets(); continue; }
-    const h2 = /^##\s+(.*)$/.exec(line);
-    const h3 = /^###\s+(.*)$/.exec(line);
-    const h1 = /^#\s+(.*)$/.exec(line);
-    const bullet = /^[-*]\s+(.*)$/.exec(line);
-    if (h1 || h2 || h3) {
-      flushBullets();
-      const txt = (h1 || h2 || h3)[1];
-      const lvl = h1 ? 1 : h2 ? 2 : 3;
-      content.push({ type: 'heading', attrs: { level: lvl }, content: [{ type: 'text', text: txt }] });
-    } else if (bullet) {
-      if (!bullets) bullets = [];
-      bullets.push(bullet[1]);
-    } else {
-      flushBullets();
-      content.push({ type: 'paragraph', content: [{ type: 'text', text: line }] });
-    }
-  }
-  flushBullets();
-  return { type: 'doc', content };
-}
 
 // ─── 자료정리에서 파생된 후속 문서 목록 ───
 // GET /api/posts/:id/children
