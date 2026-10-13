@@ -1405,15 +1405,67 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
     return t(`status.${status}.${role}`, t(`status.${status}.observer`, status)) as string;
   };
 
+  // 머리줄 제목 편집 권한 — 본문의 canEditTitle 과 같은 술어(작성자·담당자·owner·admin·platform_admin, 서버 FIELD_RULES.title).
+  const headerCanEditTitle = (() => {
+    if (!detailTask) return false;
+    const roles = getRoles({
+      assignee_id: detailTask.assignee_id, created_by: detailTask.created_by,
+      request_by_user_id: detailTask.request_by_user_id, reviewers: reviewers.map(rv => ({ user_id: rv.user_id })),
+    }, myId);
+    const wsRole = (user?.workspaces || []).find(w => w.business_id === bizId)?.role
+      || (user?.business_id === bizId ? user?.business_role : null);
+    return detailTask.created_by === myId || roles.includes('assignee')
+      || wsRole === 'owner' || wsRole === 'admin' || user?.platform_role === 'platform_admin';
+  })();
+
   return (<>
     <Backdrop onClick={onClose} />
     <Drawer ref={drawerRef} role="dialog" aria-modal="true" aria-label={detailTask?.title || 'task detail'} $w={localWidth} onMouseDown={(e) => e.stopPropagation()}>
       <ResizeHandle onMouseDown={startResize} />
-      <DrawerHeader>
-        <BackBtn onClick={onClose}>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="15 18 9 12 15 6"/></svg>
-          {t('detail.back', 'Back')}
+      <DrawerHeader data-testid="task-detail-header">
+        {/* 밴드1 = «< 제목 · 액션» — 다른 상세(문서·메일·노트)와 같은 모양. 뒤로는 아이콘 하나(폰은 ✕ 대신 이것만). */}
+        <BackBtn type="button" onClick={onClose} data-testid="task-detail-back"
+          aria-label={t('detail.back', '돌아가기') as string} title={t('detail.back', '돌아가기') as string}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
         </BackBtn>
+        <HeaderTitleSlot>
+          {detailTask && (editingTitle ? (
+            <TitleInput autoFocus value={titleDraft}
+              onChange={e => setTitleDraft(e.target.value)}
+              onBlur={() => {
+                if (titleDraft.trim() && titleDraft.trim() !== detailTask.title) {
+                  saveField('title', titleDraft.trim());
+                }
+                setEditingTitle(false);
+              }}
+              onKeyDown={e => {
+                if (isEnterAction(e)) { e.preventDefault(); (e.target as HTMLInputElement).blur(); }
+                if (e.key === 'Escape') { e.stopPropagation(); setTitleDraft(''); setEditingTitle(false); }
+              }} />
+          ) : (
+            <Title data-testid="task-detail-title"
+              role={headerCanEditTitle ? 'button' : undefined}
+              tabIndex={headerCanEditTitle ? 0 : undefined}
+              onMouseDown={(e) => e.stopPropagation()}
+              onClick={headerCanEditTitle
+                ? (e) => { e.stopPropagation(); setTitleDraft(detailTask.title); setEditingTitle(true); }
+                : undefined}
+              onKeyDown={headerCanEditTitle
+                ? (e) => { if (e.key === 'Enter') { e.preventDefault(); setTitleDraft(detailTask.title); setEditingTitle(true); } }
+                : undefined}
+              title={headerCanEditTitle
+                ? (t('detail.clickToEdit', '클릭하여 수정') as string)
+                : (t('detail.readOnlyHint', '편집 권한이 없습니다 (참고용)') as string)}>
+              <TitleText>{detailTask.title}</TitleText>
+              {headerCanEditTitle && <TitleEditIcon aria-hidden>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                  <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                </svg>
+              </TitleEditIcon>}
+            </Title>
+          ))}
+        </HeaderTitleSlot>
         <SaveStatusPill $status={saveStatus}>
           {saveStatus === 'saving' && <><PillSpinner/>{t('save.saving', '저장 중')}</>}
           {saveStatus === 'saved' && <><CheckIcon size={11} style={{ verticalAlign: '-1px' }} /> {t('save.saved', '저장됨')}</>}
@@ -1637,39 +1689,8 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
               </SourceRefLink>
             )}
             <Section>
-              {editingTitle ? (
-                <TitleInput autoFocus value={titleDraft}
-                  onChange={e => setTitleDraft(e.target.value)}
-                  onBlur={() => {
-                    if (titleDraft.trim() && titleDraft.trim() !== detailTask.title) {
-                      saveField('title', titleDraft.trim());
-                    }
-                    setEditingTitle(false);
-                  }}
-                  onKeyDown={e => {
-                    if (isEnterAction(e)) { e.preventDefault(); (e.target as HTMLInputElement).blur(); }
-                    if (e.key === 'Escape') { setTitleDraft(''); setEditingTitle(false); }
-                  }} />
-              ) : (
-                <Title
-                  role={canEditTitle ? 'button' : undefined}
-                  tabIndex={canEditTitle ? 0 : undefined}
-                  onMouseDown={(e) => e.stopPropagation()}
-                  onClick={canEditTitle
-                    ? (e) => { e.stopPropagation(); setTitleDraft(detailTask.title); setEditingTitle(true); }
-                    : undefined}
-                  title={canEditTitle
-                    ? (t('detail.clickToEdit', '클릭하여 수정') as string)
-                    : (t('detail.readOnlyHint', '편집 권한이 없습니다 (참고용)') as string)}>
-                  <TitleText>{detailTask.title}</TitleText>
-                  {canEditTitle && <TitleEditIcon aria-hidden>
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
-                      <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
-                    </svg>
-                  </TitleEditIcon>}
-                </Title>
-              )}
+              {/* 제목은 머리줄(DrawerHeader)로 옮겼다 — 2026-10-13 Irene «업무 상세에 헤더 업무제목이 안 나와».
+                  본문 맨 위에만 있으면 조금만 내려도 사라져 지금 무슨 업무인지 알 수 없었다(다른 상세는 밴드1 = «< 제목»). */}
               {/* 업무 흐름 sticky 바 — N+32 옵션 B (단순화). 담당자 본인 + status='in_progress' 일 때만 일시정지/재개.
                   ★ 제목 **아래**에 둔다(2026-10-12 Irene «모바일에서 제목이 안 보여»). 제목 위에 두면 sticky top:0 이라
                     본문을 조금만 올려도 이 바가 Scroll 맨 위에 붙어 제목을 덮는다(폰 390 실측 — 바가 제목 자리를 가렸다). */}
@@ -3056,7 +3077,13 @@ const ResizeHandle = styled.div`
 `;
 const ActionErrorBar = styled.div`display:flex;align-items:flex-start;gap:8px;padding:10px 20px;background:#FEF2F2;border-bottom:1px solid #FECACA;color:#991B1B;font-size:0.78125rem;line-height:1.5;flex-shrink:0;`;
 const ActionErrorClose = styled.button`margin-left:auto;background:transparent;border:none;color:#991B1B;font-size:1rem;line-height:1;cursor:pointer;padding:0 2px;&:hover{color:#7F1D1D;}`;
-const DrawerHeader = styled.div`height:60px;padding:14px 20px;border-bottom:1px solid #E2E8F0;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;position:sticky;top:0;background:#FFFFFF;z-index:1;`;
+// 밴드1 — 높이 하한 60(폰 56). 제목은 자르지 않으므로(CLAUDE.md 상세 두 밴드) 길면 줄이 늘고 밴드가 자란다.
+const DrawerHeader = styled.div`
+  min-height:60px;padding:8px 16px 8px 8px;border-bottom:1px solid #E2E8F0;display:flex;align-items:center;gap:6px;
+  flex-shrink:0;position:sticky;top:0;background:#FFFFFF;z-index:1;
+  @media (max-width: 640px){ min-height:56px; padding:6px 8px 6px 4px; gap:2px; }
+`;
+const HeaderTitleSlot = styled.div`flex:1;min-width:0;display:flex;align-items:center;`;
 // WORK_FLOW §6-B — 이월 연속성 배너 (차분한 slate, 비강조)
 const CarriedBanner = styled.div`display:flex;align-items:center;gap:8px;margin:12px 20px 0;padding:8px 12px;background:#F1F5F9;border:1px solid #E2E8F0;border-radius:10px;font-size:0.75rem;font-weight:600;color:#475569;line-height:1.4;`;
 const CarriedTag = styled.span`flex-shrink:0;padding:1px 8px;font-size:0.625rem;font-weight:700;color:#FFFFFF;background:#64748B;border-radius:10px;letter-spacing:-0.2px;`;
@@ -3070,16 +3097,22 @@ const SourceRefLink = styled.div<{ $clickable?: boolean }>`
   & > svg{flex-shrink:0;color:#94A3B8;}
   & > span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 `;
-const BackBtn = styled.button`display:flex;align-items:center;gap:4px;background:transparent;border:none;color:#0F766E;font-size:0.75rem;font-weight:600;cursor:pointer;padding:0;outline:none;&:hover{color:#134E4A;}&:focus{outline:none;}&:focus-visible{outline:2px solid #14B8A6;outline-offset:2px;border-radius:4px;}`;
+const BackBtn = styled.button`
+  width:36px;height:36px;flex-shrink:0;display:flex;align-items:center;justify-content:center;
+  background:transparent;border:none;border-radius:8px;color:#334155;cursor:pointer;padding:0;outline:none;
+  &:hover{background:#F1F5F9;color:#0F172A;}&:focus{outline:none;}&:focus-visible{outline:2px solid #14B8A6;outline-offset:-2px;}
+  @media (max-width: 640px){ width:40px;height:44px; }
+`;
 const CloseBtn = styled.button`
   /* touch-target-44: 폰 터치 타깃 (theme/tokens CONTROL.touchMin). 데스크탑 크기는 그대로. */
-  @media (max-width: 640px) { min-width: 44px; min-height: 44px; }
-width:28px;height:28px;display:flex;align-items:center;justify-content:center;background:transparent;border:none;border-radius:6px;color:#64748B;cursor:pointer;outline:none;&:hover{background:#F1F5F9;color:#0F172A;}&:focus{outline:none;}&:focus-visible{outline:2px solid #14B8A6;outline-offset:-2px;}`;
-const ShareIconBtn = styled.button`width:28px;height:28px;display:flex;align-items:center;justify-content:center;background:transparent;border:none;border-radius:6px;color:#0F766E;cursor:pointer;outline:none;transition:background 0.15s;&:hover{background:#F0FDFA;color:#134E4A;}&:focus-visible{outline:2px solid #14B8A6;outline-offset:-2px;}`;
-const DuplicateIconBtn = styled.button`width:28px;height:28px;display:flex;align-items:center;justify-content:center;background:transparent;border:none;border-radius:6px;color:#64748B;cursor:pointer;outline:none;transition:background 0.15s;&:hover:not(:disabled){background:#F1F5F9;color:#0F172A;}&:focus-visible{outline:2px solid #14B8A6;outline-offset:-2px;}&:disabled{opacity:0.5;cursor:not-allowed;}`;
+  /* 폰은 ✕ 를 그리지 않는다 — 왼쪽 뒤로(‹)가 같은 일을 하고, 제목 자리를 돌려준다(다른 폰 상세와 같은 모양). */
+  @media (max-width: 640px) { display: none !important; }
+width:28px;height:28px;flex-shrink:0;display:flex;align-items:center;justify-content:center;background:transparent;border:none;border-radius:6px;color:#64748B;cursor:pointer;outline:none;&:hover{background:#F1F5F9;color:#0F172A;}&:focus{outline:none;}&:focus-visible{outline:2px solid #14B8A6;outline-offset:-2px;}`;
+const ShareIconBtn = styled.button`width:28px;height:28px;flex-shrink:0;display:flex;align-items:center;justify-content:center;background:transparent;border:none;border-radius:6px;color:#0F766E;cursor:pointer;outline:none;transition:background 0.15s;&:hover{background:#F0FDFA;color:#134E4A;}&:focus-visible{outline:2px solid #14B8A6;outline-offset:-2px;}@media (max-width: 640px){width:40px;height:40px;}`;
+const DuplicateIconBtn = styled.button`width:28px;height:28px;flex-shrink:0;display:flex;align-items:center;justify-content:center;background:transparent;border:none;border-radius:6px;color:#64748B;cursor:pointer;outline:none;transition:background 0.15s;&:hover:not(:disabled){background:#F1F5F9;color:#0F172A;}&:focus-visible{outline:2px solid #14B8A6;outline-offset:-2px;}&:disabled{opacity:0.5;cursor:not-allowed;}@media (max-width: 640px){width:40px;height:40px;}`;
 const SaveStatusPill = styled.span<{ $status: 'idle'|'saving'|'saved'|'error' }>`
-  display:inline-flex;align-items:center;gap:4px;margin-left:auto;padding:3px 10px;border-radius:999px;font-size:0.6875rem;font-weight:600;
-  opacity:${p => p.$status === 'idle' ? 0 : 1};transition:opacity 0.2s;
+  display:${p => p.$status === 'idle' ? 'none' : 'inline-flex'};align-items:center;gap:4px;flex-shrink:0;white-space:nowrap;padding:3px 10px;border-radius:999px;font-size:0.6875rem;font-weight:600;
+  /* 쉬는 동안엔 자리를 차지하지 않는다 — 머리줄에 제목이 들어오면서 투명한 알약이 제목 폭을 먹었다. */
   ${p => p.$status === 'saving' ? 'background:#F0FDFA;color:#0F766E;' : ''}
   ${p => p.$status === 'saved' ? 'background:#D1FAE5;color:#065F46;' : ''}
   ${p => p.$status === 'error' ? 'background:#FEE2E2;color:#991B1B;' : ''}
@@ -3136,8 +3169,8 @@ const KbSaveBtn = styled.button`
   &:hover{background:#CCFBF1;}
   &:disabled{cursor:default;color:#94A3B8;background:#F8FAFC;border-color:#E2E8F0;}
 `;
-const Title = styled.h3`font-size:1.1875rem;font-weight:700;color:#0F172A;margin:0 0 8px;line-height:1.35;cursor:pointer;border-radius:6px;padding:4px 6px;margin-left:-6px;transition:background 0.12s;display:flex;align-items:center;gap:8px;&:hover{background:#F1F5F9;}&:hover > span:last-child{opacity:1;}&:focus{outline:none;}&:focus-visible{outline:2px solid #14B8A6;outline-offset:2px;}
-  body[data-popout='1'] &{font-size:1.0625rem;margin-bottom:6px;}`;
+const Title = styled.h3`flex:1;min-width:0;font-size:1rem;font-weight:700;color:#0F172A;margin:0;line-height:1.35;letter-spacing:-0.2px;cursor:pointer;border-radius:6px;padding:4px 6px;transition:background 0.12s;display:flex;align-items:center;gap:6px;word-break:keep-all;overflow-wrap:anywhere;&:hover{background:#F1F5F9;}&:hover > span:last-child{opacity:1;}&:focus{outline:none;}&:focus-visible{outline:2px solid #14B8A6;outline-offset:2px;}
+  body[data-popout='1'] &{font-size:0.9375rem;}`;
 const TitleText = styled.span`flex:1;min-width:0;`;
 const TitleEditIcon = styled.span`display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:6px;color:#94A3B8;opacity:0;transition:opacity 0.15s, background 0.12s;flex-shrink:0;`;
 const RecurBadge = styled.span`
@@ -3146,7 +3179,7 @@ const RecurBadge = styled.span`
   font-size:0.6875rem;font-weight:600;color:#0F766E;background:#CCFBF1;
   max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
 `;
-const TitleInput = styled.input`font-size:1.1875rem;font-weight:700;color:#0F172A;line-height:1.35;width:100%;padding:4px 8px;margin-left:-6px;margin-bottom:8px;border:1px solid #14B8A6;border-radius:6px;background:#FFF;font-family:inherit;&:focus{outline:none;box-shadow:0 0 0 2px rgba(20,184,166,0.15);}`;
+const TitleInput = styled.input`flex:1;min-width:0;font-size:1rem;font-weight:700;color:#0F172A;line-height:1.35;width:100%;padding:4px 8px;border:1px solid #14B8A6;border-radius:6px;background:#FFF;font-family:inherit;&:focus{outline:none;box-shadow:0 0 0 2px rgba(20,184,166,0.15);}`;
 const Meta = styled.div`display:flex;align-items:center;gap:6px;font-size:0.6875rem;color:#64748B;flex-wrap:wrap;`;
 const MetaDate = styled.span`font-size:0.6875rem;color:#94A3B8;white-space:nowrap;`;
 // #247 — 이 행도 Section 밖(Scroll 직속)이라 좌우 padding 0 이면 버튼이 드로어 **우측 테두리에

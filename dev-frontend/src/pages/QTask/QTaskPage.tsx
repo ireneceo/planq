@@ -2087,6 +2087,8 @@ const QTaskPage:React.FC=()=>{
                         <TaskTitle $done={task.status==='completed'}>
                           <HighlightText text={task.title} query={search} />
                         </TaskTitle>
+                        {/* 폰에서만 여기서 줄을 끊는다 — 첫 줄은 ⋮·체크·제목, 둘째 줄은 태그·지연 칩(제목 밑으로 들여쓴다). */}
+                        <RowBreak aria-hidden="true" data-row-break="" />
                         {/* #353 ⑤ 중요도 — 높음·긴급만 그린다. 보통까지 그리면 배경 소음이 된다. */}
                         <ImportanceChip level={task.priority_level} />
                         {/* #250 "리스트에도 태그들 볼 수 있게 하기로 하지 않았어?" — 메인은 3칩 + `+k`.
@@ -3201,7 +3203,10 @@ const CandMissingClose = styled.button`
 `;
 
 // ═══ Styled ═══
-const Header=styled.div`padding:14px 20px;height:60px;display:flex;align-items:center;gap:12px;border-bottom:1px solid #E2E8F0;flex-shrink:0;`;
+// ★ 폰(≤640) — 390 실측 머리줄 내용(제목·도움말·마무리·보기·범위·검색)이 ~420px 로 넘쳐 검색 버튼이 화면 밖으로 잘렸다(2026-10-13).
+//   여백·간격만 줄인다(폰 밴드1 56 — CLAUDE.md 모바일 입력 절). 넘치면 마지막 수단으로 옆으로 밀린다(잘려 안 보이지 않게).
+const Header=styled.div`padding:14px 20px;height:60px;display:flex;align-items:center;gap:12px;border-bottom:1px solid #E2E8F0;flex-shrink:0;
+  @media(max-width:640px){height:56px;padding:8px 12px;gap:6px;overflow-x:auto;}@media(max-width:380px){gap:4px;padding:8px 10px;}@media(max-width:640px){scrollbar-width:none;&::-webkit-scrollbar{display:none;}& > *{flex-shrink:0;}}`;
 const PageTitle=styled.h1`font-size:1.125rem;font-weight:700;color:#0F172A;margin:0;flex-shrink:0;letter-spacing:-0.2px;`;
 const HideCheck=styled.label`display:flex;align-items:center;gap:4px;font-size:0.75rem;color:#64748B;cursor:pointer;white-space:nowrap;& input{accent-color:#0D9488;}`;
 const ChipRow=styled.div`display:flex;gap:4px;margin-left:auto;`;
@@ -3269,7 +3274,10 @@ const TCell=styled.div<{$w?:string;$flex?:boolean;$center?:boolean;$hideBelow?:n
     //   실측 1440px: 체크박스 끝 399 → 제목 420 = **21px** (간격 6 + 안읽음점 자리 7 + 여백 2 + 간격 6).
     //   간격을 4 로 줄이고 점 자리에서 여백을 뺀다 → 14px. 점 자리는 없애지 않는다 —
     //   없애면 오늘 아침에 맞춘 제목 좌측선이 다시 행마다 어긋난다.
-    ? 'flex:1 1 0;min-width:240px;display:flex;align-items:center;gap:4px;overflow:hidden;'
+    // ★ 2026-10-13 (Irene «모바일에서 너무 다 생략하고 리스트들이») — 폰(≤640)에서는 한 줄에 제목·태그·지연·+ 가
+    //   다 들어가 제목이 «본인 task wit…» 열 글자 남짓으로 잘렸다(390 실측 제목 몫 ~100px).
+    //   폰은 줄을 바꾼다: 첫 줄 = 제목(최대 2줄), 둘째 줄 = 태그·지연·요청자 칩. 데스크탑·태블릿은 그대로 한 줄.
+    ? 'flex:1 1 0;min-width:240px;display:flex;align-items:center;gap:4px;overflow:hidden;@media (max-width: 640px){min-width:0;flex-wrap:wrap;row-gap:4px;}'
     : `flex:0 0 ${p.$w||'auto'};width:${p.$w||'auto'};overflow:hidden;`}
   ${p=>p.$center&&'display:flex;justify-content:center;align-items:center;'}
   ${p=>p.$hideBelow?`@media (max-width: ${p.$hideBelow}px){display:none;}`:''}
@@ -3337,13 +3345,16 @@ const QTaskInlineInput=styled.input`flex:1;min-width:0;padding:4px 8px;height:26
 //   상세버튼)가 전부 flex-shrink:0 이라, 셀이 좁아지면 그것들이 폭을 먼저 다 먹고 업무명에
 //   1~2글자만 남았다("노트북에서 1, 2글자만 보여"). 성장 + 최소폭 바닥을 줘서
 //   "업무명 > 장식 배지" 우선순위를 강제한다 — 셀의 overflow:hidden 이 뒤쪽 배지부터 잘라낸다.
-const TaskTitle=styled.span<{$done?:boolean}>`${listRowTitleCss}color:#0F172A;cursor:text;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1 1 auto;min-width:96px;${p=>p.$done&&'text-decoration:line-through;color:#94A3B8;'}&:hover{color:#0F766E;}`;
+const TaskTitle=styled.span<{$done?:boolean}>`${listRowTitleCss}color:#0F172A;cursor:text;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1 1 auto;min-width:96px;@media (max-width: 640px){flex:1 1 0;min-width:0;white-space:normal;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;word-break:keep-all;overflow-wrap:anywhere;}${p=>p.$done&&'text-decoration:line-through;color:#94A3B8;'}&:hover{color:#0F766E;}`;
 // WORK_FLOW §6 — 이월 배지 (차분·비강조, slate)
 const CarriedBadge=styled.span`flex-shrink:0;display:inline-flex;align-items:center;padding:1px 7px;font-size:0.625rem;font-weight:700;color:#475569;background:#F1F5F9;border-radius:10px;letter-spacing:-0.2px;cursor:help;`;
 // 안 읽은 업무 활동(댓글·변경) 점 (운영 #5)
 const UnreadDot=styled.span`flex-shrink:0;width:6px;height:6px;border-radius:50%;background:#F43F5E;align-self:center;`;
 // 안 읽음 점도 **자리는 항상 차지한다** — 체크박스 자리지기와 같은 이유다.
 //   점이 있는 행만 제목이 9px 밀리면 좌측선이 데이터에 따라 흔들린다.
+// 폰 목록 줄바꿈 — 너비 100% 빈 칸이 다음 칩들을 둘째 줄로 보낸다. 둘째 줄 첫 칩은 제목 시작선에 맞춘다
+//   (폰 ⋮ 36 + 체크 15 + 안읽음 점 6 + 간격 4×3 = 69 — TaskRowActionMenu 폰 규칙과 같은 숫자). 데스크탑·태블릿은 그리지 않는다.
+const RowBreak=styled.span`display:none;@media (max-width: 640px){display:block;flex:0 0 100%;height:0;& + *{margin-left:69px;}}`;
 const UnreadDotSpacer=styled.span`flex-shrink:0;width:6px;height:6px;display:inline-block;`;
 const StatusPill=styled.span<{$bg:string;$fg:string;$clickable?:boolean}>`
   padding:2px 8px;background:${p=>p.$bg};color:${p=>p.$fg};font-size:0.625rem;font-weight:700;
@@ -3474,10 +3485,10 @@ const RecurChip=styled.span<{$iconOnly?:boolean}>`display:inline-flex;align-item
 const RecurIcon=styled.svg`width:11px;height:11px;flex-shrink:0;`;
 // Custom recurrence modal
 const ViewToggle=styled.div`display:inline-flex;gap:2px;padding:2px;background:#F1F5F9;border-radius:8px;margin-left:auto;`;
-const ViewBtn=styled.button<{$active:boolean}>`padding:6px 10px;background:${p=>p.$active?'#FFFFFF':'transparent'};color:${p=>p.$active?'#0F766E':'#94A3B8'};border:none;border-radius:6px;cursor:pointer;display:inline-flex;align-items:center;box-shadow:${p=>p.$active?'0 1px 2px rgba(0,0,0,0.06)':'none'};transition:background 0.15s;&:hover{background:${p=>p.$active?'#FFFFFF':'#E2E8F0'};color:#0F766E;}`;
+const ViewBtn=styled.button<{$active:boolean}>`padding:6px 10px;background:${p=>p.$active?'#FFFFFF':'transparent'};color:${p=>p.$active?'#0F766E':'#94A3B8'};border:none;border-radius:6px;cursor:pointer;display:inline-flex;align-items:center;box-shadow:${p=>p.$active?'0 1px 2px rgba(0,0,0,0.06)':'none'};transition:background 0.15s;&:hover{background:${p=>p.$active?'#FFFFFF':'#E2E8F0'};color:#0F766E;}@media(max-width:380px){padding:6px 7px;}`;
 /* 연회색 알약 탭은 공용이다 — Q sale 도 같은 것을 쓴다(components/Common/segmentedToggle) */
 const ScopeToggle=styled(SegmentedToggle)`@media(max-width:640px){display:none;}`;
-const ScopeMobileWrap=styled.div`display:none;min-width:100px;@media(max-width:640px){display:block;}`;
+const ScopeMobileWrap=styled.div`display:none;min-width:100px;@media(max-width:640px){display:block;}@media(max-width:380px){min-width:92px;}`;
 
 // ── Kanban ──
 const KanbanBoard=styled.div`

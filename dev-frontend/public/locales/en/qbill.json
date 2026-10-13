@@ -867,7 +867,8 @@
     "willOverdueIn": "Due in {{days}}d",
     "today": "Today",
     "yesterday": "Yesterday",
-    "daysAgo": "{{days}}d ago"
+    "daysAgo": "{{days}}d ago",
+    "back": "Back"
   },
   "public": {
     "loading": "Loading invoice...",

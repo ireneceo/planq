@@ -30,7 +30,7 @@ import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import ClientSubscriptions from './ClientSubscriptions';
 import { useListKeyboardNav } from '../../hooks/useListKeyboardNav';
 import { isEnterAction } from '../../utils/imeKey';
-import { belowTabs } from '../../theme/layout';
+import { belowTabs, panelTop } from '../../theme/layout';
 import DetailFallback from '../../components/Common/DetailFallback';
 import type { DetailStatus } from '../../hooks/useDetailResource';
 import { findOtherWorkspaceOf } from '../../utils/workspaceMatch';
@@ -965,9 +965,12 @@ const DrawerBackdrop = styled.div`
 `;
 const Drawer = styled.aside`
   position:fixed;right:0;bottom:0;
-  /* 기준선은 theme/layout 의 조각 하나로 — 각자 쓰면 갈라진다(2026-09-06 전수조사). */
-  ${belowTabs}
+  /* 기준선은 theme/layout 의 조각 하나로 — 각자 쓰면 갈라진다(2026-09-06 전수조사).
+     ★ 2026-10-13 — belowTabs(미러 모드 0) + z 40 이라 폰에서 앱 머리줄(z 100)이 패널 머리(«‹ 목록»)를 덮었다.
+       뒤로 버튼이 안 보였다. 다른 상세와 같은 panelTop + 폰 전면(--pq-z-overlay). */
+  ${panelTop}
   width:min(520px, calc(100vw - 56px));
+  @media (max-width: 640px){ width:100vw; border-left:none; box-shadow:none; z-index:var(--pq-z-overlay, 130) !important; }
   background:#FFF;border-left:1px solid #E2E8F0;
   box-shadow:-16px 0 40px rgba(15,23,42,0.14);display:flex;flex-direction:column;overflow:hidden;z-index:40;
   animation:ds 0.28s cubic-bezier(0.22,1,0.36,1);@keyframes ds{from{transform:translateX(100%);}to{transform:translateX(0);}}
@@ -975,8 +978,8 @@ const Drawer = styled.aside`
   @media (prefers-reduced-motion: reduce){animation:none;}
 `;
 const DrawerHeader = styled.div`height:60px;padding:14px 20px;border-bottom:1px solid #E2E8F0;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;`;
-const DrawerBack = styled.button`display:flex;align-items:center;gap:4px;background:transparent;border:none;color:#0F766E;font-size:0.75rem;font-weight:600;cursor:pointer;padding:0;&:hover{color:#134E4A;}`;
-const DrawerClose = styled.button`width:28px;height:28px;display:flex;align-items:center;justify-content:center;background:transparent;border:none;border-radius:6px;color:#64748B;cursor:pointer;&:hover{background:#F1F5F9;color:#0F172A;}`;
+const DrawerBack = styled.button`display:flex;align-items:center;gap:4px;background:transparent;border:none;color:#0F766E;font-size:0.75rem;font-weight:600;cursor:pointer;padding:0;&:hover{color:#134E4A;}@media (max-width: 640px){min-height:44px;padding-right:8px;font-size:0.8125rem;}`;
+const DrawerClose = styled.button`width:28px;height:28px;@media (max-width: 640px){width:40px;height:40px;}display:flex;align-items:center;justify-content:center;background:transparent;border:none;border-radius:6px;color:#64748B;cursor:pointer;&:hover{background:#F1F5F9;color:#0F172A;}`;
 const DrawerScroll = styled.div`flex:1;overflow-y:auto;padding:20px;display:flex;flex-direction:column;gap:20px;`;
 const HeadRow = styled.div`display:flex;align-items:center;gap:14px;padding-bottom:16px;border-bottom:1px solid #F1F5F9;`;
 const HeadText = styled.div`flex:1;min-width:0;display:flex;flex-direction:column;gap:2px;`;

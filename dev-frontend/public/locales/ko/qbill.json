@@ -867,7 +867,8 @@
     "willOverdueIn": "{{days}}일 후 기한",
     "today": "오늘",
     "yesterday": "어제",
-    "daysAgo": "{{days}}일 전"
+    "daysAgo": "{{days}}일 전",
+    "back": "뒤로"
   },
   "public": {
     "loading": "청구서 로드 중...",

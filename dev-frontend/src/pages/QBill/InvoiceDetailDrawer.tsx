@@ -488,6 +488,11 @@ export default function InvoiceDetailDrawer({ invoice: initialInvoice, onClose, 
       {/* ─── 헤더 ─── */}
       <DrawerHeader>
         <HeaderTop>
+          {/* 폰·태블릿은 전면 패널이라 ✕ 보다 «뒤로» 로 읽힌다 — 공용 DetailDrawer.Header 와 같은 자리·모양(2026-10-13).
+              이 화면만 공용 머리를 안 써서 뒤로 버튼이 없었다. */}
+          <BackBtn type="button" onClick={onClose} aria-label={t('common.back', { defaultValue: '뒤로' }) as string} data-testid="invoice-detail-back">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6" /></svg>
+          </BackBtn>
           <NumWrap>
             <NumBadge>{invoice.invoice_number}</NumBadge>
             <StatusBadge $bg={sc.bg} $fg={sc.fg}>
@@ -1337,10 +1342,21 @@ const DrawerHeader = styled.div`
   flex-shrink: 0; padding: 18px 22px 14px; border-bottom: 1px solid #F1F5F9; background: #fff;
 `;
 const HeaderTop = styled.div`
-  display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 12px;
+  display: flex; align-items: center; gap: 8px; margin-bottom: 12px;
 `;
 const NumWrap = styled.div`
-  display: inline-flex; align-items: center; gap: 8px; min-width: 0;
+  display: inline-flex; align-items: center; gap: 8px; min-width: 0; flex: 1;
+`;
+const BackBtn = styled.button`
+  display: none;
+  @media (max-width: 1024px) {
+    display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0;
+    width: 40px; height: 40px; margin-left: -10px;
+    border: none; background: transparent; color: #475569; border-radius: 8px; cursor: pointer;
+    &:hover { background: #F1F5F9; color: #0F172A; }
+    &:focus-visible { outline: 2px solid #0D9488; outline-offset: 2px; }
+  }
+  @media (max-width: 640px) { width: 44px; height: 44px; }
 `;
 const NumBadge = styled.span`
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
