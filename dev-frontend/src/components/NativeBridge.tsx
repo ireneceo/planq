@@ -6,7 +6,9 @@
 //   window 'planq:oauth-connected'                     → 연동 페이지가 상태 refetch (§6.8 시스템 브라우저 복귀)
 //
 // 웹에서는 native 리스너를 달지 않으므로 회귀 0 (planq:navigate 리스너만, 웹에선 아무도 발행 안 함).
-import { useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
+import { useAuth } from '../contexts/AuthContext';
+import { foreignWorkspaceOf, enterWorkspaceLink, splitWorkspaceParam } from '../utils/workspaceLink';
 import { useChromeNav } from '../hooks/useChromeNav';
 import { isNativeApp, nativePlatform } from '../services/native';
 import { bindNativeShare } from '../services/nativeShare';
@@ -22,6 +24,12 @@ const DEEP_LINK_SPA_TRIES = 6;
 
 export default function NativeBridge() {
   const chromeNav = useChromeNav();
+  const { user, switchWorkspace } = useAuth();
+  // 리스너는 한 번 붙는다 — 판정은 늘 지금 값으로(ref)
+  const userRef = useRef(user);
+  userRef.current = user;
+  const switchRef = useRef(switchWorkspace);
+  switchRef.current = switchWorkspace;
 
   /**
    * 알림·딥링크 전용 이동 — **조용히 실패하지 않는다.**
@@ -36,7 +44,18 @@ export default function NativeBridge() {
    * 그래서 이동이 실제로 일어났는지 **다음 프레임에 주소로 확인**하고, 그대로면
    * 전체 로드로 착지시킨다. 느리지만 링크를 잃는 것보다 낫다.
    */
-  const deepLinkNav = useCallback((path: string) => {
+  const deepLinkNav = useCallback((rawPath: string) => {
+    // 워크스페이스가 실린 알림 링크(?ws=) — 다른 워크스페이스면 전환하고 그 주소로 한 번 다시 연다(utils/workspaceLink).
+    //   같은 워크스페이스·멤버 아님이면 ws 만 떼고 아래 SPA 이동을 그대로 한다(목적지 비교도 뗀 경로로).
+    const u = userRef.current;
+    if (foreignWorkspaceOf(rawPath, u)) {
+      markDeepLinkArrived(rawPath);                       // 보관값 소비 — 다시 로드된 창이 또 이동하지 않게
+      void enterWorkspaceLink(rawPath, u, switchRef.current).then((reloading) => {
+        if (!reloading) deepLinkNav(splitWorkspaceParam(rawPath).clean);
+      });
+      return;
+    }
+    const path = splitWorkspaceParam(rawPath).clean;
     const here = () => window.location.pathname + window.location.search;
     // 이미 그 자리 — 그래도 보관값은 지운다. 안 그러면 루트(/)가 나중에 지난 알림 자리로 끌려간다(Fable 2026-09-27 재현).
     if (path === here()) { markDeepLinkArrived(path); return; }

@@ -14,6 +14,7 @@ import { tabStore } from './stores/tabStore';
 import { isNativeApp } from './services/native';
 import { takeDeepLinkTarget } from './services/nativePush';
 import NativeBridge from './components/NativeBridge';
+import { splitWorkspaceParam, foreignWorkspaceOf, stripWorkspaceParamFromLocation, enterWorkspaceLink } from './utils/workspaceLink';
 import PairCodePrompt from './components/Auth/PairCodePrompt';
 import { installRoutePrefetch } from './lib/routePrefetch';
 import MainLayout from './components/Layout/MainLayout';
@@ -201,14 +202,26 @@ function WikiSlugRedirect() {
  * 로그인 상태면 워크스페이스(/inbox), 비로그인이면 /login 으로 보낸다.
  */
 function NativeMarketingRedirect() {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading, user, switchWorkspace } = useAuth();
+  const wsRef = useRef(false);
   // 알림을 눌러 켜졌으면 확인필요를 거치지 않고 그 자리로 바로 간다(#431 — 중간 화면이 차례로 보였다).
   //   보관값은 꺼내면서 지우므로 렌더마다 부르지 않고 **인증이 확정된 첫 렌더에 한 번** 꺼낸다.
   const targetRef = useRef<string | null | undefined>(undefined);
   if (isLoading) return null;
   if (!isAuthenticated) return <Navigate to="/login" replace />;
   if (targetRef.current === undefined) targetRef.current = takeDeepLinkTarget();
-  return <Navigate to={targetRef.current || '/inbox'} replace />;
+  const target = targetRef.current;
+  // 다른 워크스페이스 알림(?ws=)이면 전환하고 그 자리로 다시 연다 — 옛 워크스페이스 목록을 거치지 않는다(utils/workspaceLink)
+  if (target && (wsRef.current || foreignWorkspaceOf(target, user))) {
+    if (!wsRef.current) {
+      wsRef.current = true;
+      void enterWorkspaceLink(target, user, switchWorkspace).then((reloading) => {
+        if (!reloading) { targetRef.current = splitWorkspaceParam(target).clean; wsRef.current = false; window.dispatchEvent(new CustomEvent('planq:navigate', { detail: { path: targetRef.current } })); }
+      });
+    }
+    return <PageLoadingFallback />;
+  }
+  return <Navigate to={target ? splitWorkspaceParam(target).clean : '/inbox'} replace />;
 }
 
 /**
@@ -795,10 +808,29 @@ function isAppInitialPath(): boolean {
 //   tab: 로그인+데스크탑+spike 플래그+앱경로 → TabAppShell(keep-alive, router-less).
 //   pending/shell: BrowserRouter + ShellApp(기존 동작). flag off 는 항상 이 경로 = 무변화(회귀 0).
 function ModeGate() {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading, user, switchWorkspace } = useAuth();
   const [mode, setMode] = useState<'pending' | 'tab' | 'shell'>('pending');
+  // 워크스페이스가 실린 링크(?ws=) — 다른 워크스페이스면 **그리기 전에** 전환하고 그 주소로 다시 연다(utils/workspaceLink).
+  //   null = 아직 판정 전 · 'switching' = 전환 중(곧 다시 로드) · 'done' = 판정 끝(ws 는 주소에서 지웠다)
+  const [wsLink, setWsLink] = useState<null | 'switching' | 'done'>(null);
   useEffect(() => {
-    if (mode !== 'pending' || isLoading) return;
+    if (wsLink !== null || isLoading) return;
+    const here = window.location.pathname + window.location.search + window.location.hash;
+    if (!isAuthenticated || !splitWorkspaceParam(here).had) {
+      // 로그인 전이면 ws 를 남긴다 — 로그인 뒤 돌아올 주소(planq_boot_deeplink)에 실려 다시 판정된다
+      setWsLink('done');
+      return;
+    }
+    if (!foreignWorkspaceOf(here, user)) { stripWorkspaceParamFromLocation(); setWsLink('done'); return; }
+    setWsLink('switching');
+    void enterWorkspaceLink(here, user, switchWorkspace).then((reloading) => {
+      if (reloading) return;                       // 이 창은 곧 새 워크스페이스로 다시 뜬다
+      stripWorkspaceParamFromLocation();           // 전환 실패 — 지금 워크스페이스에서 그대로 연다
+      setWsLink('done');
+    });
+  }, [wsLink, isLoading, isAuthenticated, user, switchWorkspace]);
+  useEffect(() => {
+    if (mode !== 'pending' || isLoading || wsLink !== 'done') return;
     let ts = false;
     try { ts = isTabsSpike() && isAuthenticated && isAppInitialPath(); } catch { /* noop */ }
     if (ts) {
@@ -814,7 +846,12 @@ function ModeGate() {
       } catch { /* noop */ }
     }
     setMode(ts ? 'tab' : 'shell');
-  }, [isLoading, isAuthenticated, mode]);
+  }, [isLoading, isAuthenticated, mode, wsLink]);
+  // 전환 중에는 옛 워크스페이스 화면을 한 프레임도 그리지 않는다 — 목록이 잠깐 떴다 바뀌는 것이 «이상하게 보이는» 모양이었다
+  //   판정 effect 가 돌기 전 첫 렌더도 막는다(effect 는 그린 뒤에 돈다).
+  const needsSwitch = wsLink === null && !isLoading && isAuthenticated
+    && !!foreignWorkspaceOf(window.location.pathname + window.location.search, user);
+  if (wsLink === 'switching' || needsSwitch) return <PageLoadingFallback />;
   if (mode === 'tab') return <TabAppShell />;
   return <BrowserRouter><ShellApp /></BrowserRouter>;
 }

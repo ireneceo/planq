@@ -80,4 +80,26 @@ function normalizeLink(link) {
   return null;
 }
 
-module.exports = { buildLink, normalizeLink, ENTITY_LINK, EVENT_KIND_FALLBACK };
+// ── 밖으로 나가는 링크(푸시·메일)에 워크스페이스를 싣는다 (2026-10-13) ──
+//   Irene: *"알림을 누르면 다른 워크스페이스로 갈 경우 채팅방 제대로 안열리고 리스트로 열려 …
+//           모든 경로가 워크스페이스 다른 경우 처음만 딱 다르게 제대로 디렉션 해줘."*
+//   푸시·메일은 **모든 워크스페이스**의 알림이 한 기기·한 메일함에 온다(인앱 종은 현재 워크스페이스만).
+//   링크가 경로뿐이면 앱은 지금 워크스페이스 안에서 그 id 를 찾다가 목록으로 떨어진다.
+//   → `?ws=<business_id>` 를 붙이고, 화면 루트(App.tsx ModeGate · NativeBridge.deepLinkNav)가
+//     **처음 한 번** 그 워크스페이스로 전환한 뒤 ws 를 뗀 주소로 연다(utils/workspaceLink.ts).
+//   인앱 행(Notification.link)에는 싣지 않는다 — 그 목록은 이미 현재 워크스페이스 것뿐이다.
+//   ★ 신뢰하지 않는다 — 화면은 ws 가 «내가 멤버인 워크스페이스» 일 때만 전환하고, 아니면 떼고 그대로 연다.
+function withWorkspace(link, businessId) {
+  const bid = Number(businessId);
+  if (!link || typeof link !== 'string' || !Number.isInteger(bid) || bid <= 0) return link;
+  try {
+    const isPath = link.startsWith('/') && !link.startsWith('//');
+    const u = new URL(link, 'https://planq.kr');
+    if (!isPath && !SAME_DOMAINS.has(u.hostname)) return link;   // 남의 도메인 링크는 건드리지 않는다
+    if (u.pathname === '/' || u.pathname.startsWith('/admin') || u.pathname.startsWith('/api/')) return link;
+    u.searchParams.set('ws', String(bid));
+    return isPath ? (u.pathname + u.search + u.hash) : u.href;
+  } catch { return link; }
+}
+
+module.exports = { buildLink, normalizeLink, withWorkspace, ENTITY_LINK, EVENT_KIND_FALLBACK };

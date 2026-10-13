@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next';
 import { mapApiError } from '../../utils/apiError';
 import styled from 'styled-components';
 import { useAuth } from '../../contexts/AuthContext';
+import { foreignWorkspaceOf, enterWorkspaceLink, splitWorkspaceParam } from '../../utils/workspaceLink';
 
 const Container = styled.div`
   /* dvh (dynamic viewport height) — iOS Safari 의 가변 주소창 포함 정확한 화면 높이.
@@ -376,7 +377,8 @@ const LoginPage: React.FC = () => {
   // 돌아갈 곳(?redirect · 공개 페이지가 보내는 ?next) — 구글·애플 로그인과 «회원가입» 링크에도 실어 보낸다(0-F F-2).
   //   검증은 아래 착지 로직과 서버(safeRedirectPath)가 한다. 여기서는 나르기만 한다.
   const redirectParam = (() => { const q = new URLSearchParams(location.search); return q.get('redirect') || q.get('next') || null; })();
-  const { login, logout, user, isAuthenticated, isLoading: authLoading } = useAuth();
+  const { login, logout, user, isAuthenticated, isLoading: authLoading, switchWorkspace } = useAuth();
+  const wsSwitchingRef = React.useRef(false);   // 전환 뒤 다시 로드되기 전에 이 effect 가 또 이동하지 않게
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   // 로그인 상태 유지 — default ON (Slack/Google/GitHub 표준).
@@ -490,13 +492,24 @@ const LoginPage: React.FC = () => {
       const target = redirectQuery || fromPath;
       const isValidPath = target && target.startsWith('/') && !target.startsWith('//') && !target.includes('javascript:');
       if (isValidPath && !target.startsWith('/login') && !target.startsWith('/register')) {
-        navigate(target, { replace: true });
+        // 다른 워크스페이스 링크(?ws=)를 들고 로그인했으면 그 워크스페이스로 전환해 연다(utils/workspaceLink — ModeGate 와 같은 판정)
+        if (wsSwitchingRef.current) return;
+        if (foreignWorkspaceOf(target, user)) {
+          wsSwitchingRef.current = true;
+          void enterWorkspaceLink(target, user, switchWorkspace).then((reloading) => {
+            if (reloading) return;
+            wsSwitchingRef.current = false;
+            navigate(splitWorkspaceParam(target).clean, { replace: true });
+          });
+          return;
+        }
+        navigate(splitWorkspaceParam(target).clean, { replace: true });
       } else {
         // P3 — 고객의 착지는 홈(창구의 app 모드)이다. 멤버·오너는 종전대로 대시보드.
         navigate(user.business_role === 'client' ? '/home' : '/dashboard', { replace: true });
       }
     }
-  }, [authLoading, isAuthenticated, user, navigate, location]);
+  }, [authLoading, isAuthenticated, user, navigate, location, switchWorkspace]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

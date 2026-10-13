@@ -205,7 +205,7 @@ async function notify({ userId, businessId, eventKind, title, titleSpec, body, l
   // socket emit 'notification:new' → 좌측 사이드바 종 모양 즉시 +1.
   // N+73 — link 자동 생성 (호출자가 link 미전달 시 entity_type+entity_id 매핑)
   // N+74-D — 호출자가 절대 URL 전달 시 path 로 정규화 (옛 코드의 'https://planq.kr/...' 차단)
-  const { buildLink, normalizeLink } = require('../services/notification_link');
+  const { buildLink, normalizeLink, withWorkspace } = require('../services/notification_link');
   const normalizedFromCaller = normalizeLink(link);
   const resolvedLink = normalizedFromCaller || buildLink({ entity_type: entityType, entity_id: entityId, event_kind: eventKind });
 
@@ -271,7 +271,8 @@ async function notify({ userId, businessId, eventKind, title, titleSpec, body, l
         const { sendNotificationEmail } = require('../services/emailService');
         results.email = await sendNotificationEmail({
           to: user.email,
-          title, body: outsideBody, link, ctaLabel, workspaceName,
+          // 메일함에는 모든 워크스페이스 알림이 온다 — 링크에 워크스페이스를 싣는다(notification_link.withWorkspace)
+          title, body: outsideBody, link: require('../services/notification_link').withWorkspace(link, businessId), ctaLabel, workspaceName,
           businessId, eventKind, recipientUserId: userId,
         });
       }
@@ -344,7 +345,9 @@ async function notify({ userId, businessId, eventKind, title, titleSpec, body, l
       const r = await sendPushToUser(userId, {
         title: title || 'PlanQ',
         body: outsideBody || '',
-        link: resolvedLink,  // N+73 — inbox 채널과 같은 link (호출자 미전달 시 buildLink 적용됨)
+        // N+73 — inbox 채널과 같은 link (호출자 미전달 시 buildLink 적용됨)
+        //   + 워크스페이스(?ws=) — 한 기기에 모든 워크스페이스 알림이 온다. 누르면 그 워크스페이스로 먼저 전환(2026-10-13)
+        link: withWorkspace(resolvedLink, businessId),
         tag: tag || `${eventKind}:${userId}`,
         ...(badge !== undefined ? { badge } : {}),
       });
