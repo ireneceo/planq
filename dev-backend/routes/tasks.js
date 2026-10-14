@@ -2570,7 +2570,7 @@ router.get('/public/by-token/:token/auth-check', authenticateToken, async (req, 
     return successResponse(res, {
       canAccess: !!canAccess,
       // SPA 라우트는 복수형 `/tasks` — 단수 `/task` 는 라우트가 없어 대시보드로 튕겼다
-      appUrl: canAccess ? `/tasks?task=${task.id}` : null,
+      appUrl: canAccess ? require('../services/notification_link').withWorkspace(`/tasks?task=${task.id}`, task.business_id) : null,
     });
   } catch (err) { next(err); }
 });

@@ -113,15 +113,24 @@ async function deliverChat({ invoice, actorUserId, message, shareUrl, io }) {
     if (targetIds.length) {
       const { notifyMany } = require('../routes/notifications');
       const biz = await Business.findByPk(conv.business_id, { attributes: ['name', 'brand_name'] }).catch(() => null);
-      await notifyMany({
-        userIds: targetIds,
+      // 청구를 받은 고객 본인은 «받은 청구서» 로 보낸다 (2026-10-14 Irene: "청구를 받은 워크스페이스의 받은 청구서로
+      //   고객 입장이어야지"). 그 밖의 참여자(팀)는 카드가 놓인 대화방으로. 판정은 auth-check 의 고객 술어와 같다
+      //   (invoice.client_id 의 활성 Client.user_id). 푸시·메일에는 notify() 가 ?ws= 를 붙인다.
+      const payer = invoice.client_id
+        ? await Client.findOne({ where: { id: invoice.client_id, status: 'active' }, attributes: ['user_id'] }).catch(() => null)
+        : null;
+      const payerUserId = payer?.user_id ? Number(payer.user_id) : null;
+      const common = {
         businessId: conv.business_id,
         eventKind: 'message',
         titleSpec: { feature: 'bill', action: 'bill_invoice_sent', subject: invoice.invoice_number },
         body: `${invoice.title || ''} 청구서가 도착했습니다.`,
-        link: `/talk/${conv.id}`,
         workspaceName: biz?.brand_name || biz?.name || null,
-      });
+      };
+      const payerIds = targetIds.filter((uid) => Number(uid) === payerUserId);
+      const otherIds = targetIds.filter((uid) => Number(uid) !== payerUserId);
+      if (payerIds.length) await notifyMany({ ...common, userIds: payerIds, link: `/bills?tab=invoices&invoice=${invoice.id}`, entityType: 'invoice', entityId: invoice.id });
+      if (otherIds.length) await notifyMany({ ...common, userIds: otherIds, link: `/talk?conv=${conv.id}` });
     }
   } catch (nErr) { console.warn('[invoiceDelivery chat notify]', nErr.message); }
 

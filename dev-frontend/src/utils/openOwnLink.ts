@@ -12,6 +12,7 @@
 import { apiFetch, getAccessToken } from '../contexts/AuthContext';
 import { tabStore } from '../stores/tabStore';
 import { isStandalonePWA } from '../services/push';
+import { openAppLink } from './workspaceLink';
 
 // 공개 경로 종류 → «이 사람이 앱에서 직접 볼 수 있나» 를 묻는 서버 주소. 판정은 각 라우트의 auth-check 한 곳.
 const AUTH_CHECK: Record<string, (token: string) => string> = {
@@ -60,7 +61,7 @@ export function handleOwnLinkClick(e: { preventDefault: () => void }, href: stri
       const r = await apiFetch(check(own.token));
       const j = await r.json();
       if (j?.success && j.data?.canAccess && typeof j.data.appUrl === 'string' && j.data.appUrl.startsWith('/')) {
-        tabStore.openInNewTab(j.data.appUrl);
+        openAppLink(j.data.appUrl, (p) => tabStore.openInNewTab(p));   // 다른 워크스페이스 것이면 전환부터(utils/workspaceLink)
         return;
       }
     } catch { /* 판정 실패 — 공유 페이지로 */ }

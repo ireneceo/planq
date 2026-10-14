@@ -618,6 +618,9 @@ router.get('/public/:token/pdf', async (req, res, next) => {
 
 // N+47 — Smart Routing auth-check. 멤버 또는 invoice 의 client_id 본인이면 in-app 진입.
 // /:businessId 매칭보다 먼저 등록 — public/* 패턴 우선.
+// ★ appUrl 에 청구서의 워크스페이스(?ws=)를 싣는다 (2026-10-14 운영 신고) — 경로뿐이면 화면은 **지금** 워크스페이스에서
+//   그 id 를 찾는다. 고객 최정우님(자기 워크스페이스 기율법률 owner)이 워프로랩 청구서 링크를 열자 기율법률의 Q bill 로 가서
+//   «찾을 수 없음» 이었다. 화면(utils/workspaceLink.openAppLink)이 먼저 그 워크스페이스로 전환하고 연다. 다른 auth-check 도 같다.
 router.get('/public/:token/auth-check', authenticateToken, async (req, res, next) => {
   try {
     const invoice = await Invoice.findOne({ where: { share_token: req.params.token } });
@@ -639,7 +642,7 @@ router.get('/public/:token/auth-check', authenticateToken, async (req, res, next
     }
     return successResponse(res, {
       canAccess,
-      appUrl: canAccess ? `/bills?tab=invoices&invoice=${invoice.id}` : null,
+      appUrl: canAccess ? require('../services/notification_link').withWorkspace(`/bills?tab=invoices&invoice=${invoice.id}`, invoice.business_id) : null,
     });
   } catch (err) { next(err); }
 });

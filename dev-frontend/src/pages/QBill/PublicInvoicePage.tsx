@@ -10,6 +10,7 @@ import ExpiredShareLink from '../../components/Common/ExpiredShareLink';
 import RecurringBillingNote from '../../components/QBill/RecurringBillingNote';
 import type { InvoiceRecurring } from '../../services/invoices';
 import { apiFetch, getAccessToken } from '../../contexts/AuthContext';
+import { openAppLink } from '../../utils/workspaceLink';
 import { openExternalUrl } from '../../services/native';
 // 링크를 열어 둔 채 원본이 바뀌면 보이는 것도 바뀐다(공개 페이지 공통 계약)
 import { usePublicRevalidate } from '../../hooks/usePublicRevalidate';
@@ -198,7 +199,7 @@ const PublicInvoicePage: React.FC = () => {
       .then(r => r.json())
       .then(j => {
         if (j.success && j.data?.canAccess && j.data?.appUrl) {
-          setTimeout(() => navigate(j.data.appUrl), 300);
+          setTimeout(() => openAppLink(j.data.appUrl, (p) => navigate(p)), 300);
         }
       })
       .catch(() => { /* silent */ });

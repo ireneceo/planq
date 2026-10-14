@@ -225,7 +225,7 @@ router.get('/public/by-token/:token/auth-check', authenticateToken, async (req, 
     return successResponse(res, {
       canAccess,
       // SPA 라우트는 복수형 `/files` — 단수 `/file` 은 라우트가 없어 대시보드로 튕겼다
-      appUrl: canAccess ? `/files?file=${file.id}` : null,
+      appUrl: canAccess ? require('../services/notification_link').withWorkspace(`/files?file=${file.id}`, file.business_id) : null,
     });
   } catch (err) { next(err); }
 });

@@ -11,6 +11,7 @@ import PostEditor from '../../components/Docs/PostEditor';
 import ExpiredShareLink from '../../components/Common/ExpiredShareLink';
 import SharePasswordPrompt from '../Public/SharePasswordPrompt';
 import { apiFetch, getAccessToken } from '../../contexts/AuthContext';
+import { openAppLink } from '../../utils/workspaceLink';
 // 링크를 열어 둔 채 원본이 바뀌면 보이는 것도 바뀌어야 한다(공개 페이지 공통 계약)
 import { usePublicRevalidate } from '../../hooks/usePublicRevalidate';
 import { sanitizeRichText } from '../../utils/sanitizeHtml';
@@ -123,7 +124,7 @@ const PublicPostPage: React.FC = () => {
       actions={(
         <>
           {appUrl && (
-            <PublicBtn type="button" onClick={() => navigate(appUrl)} style={{ background: '#14B8A6', color: '#FFFFFF', border: 'none' }}>
+            <PublicBtn type="button" onClick={() => openAppLink(appUrl, (p) => navigate(p))} style={{ background: '#14B8A6', color: '#FFFFFF', border: 'none' }}>
               {t('public.openInApp', { defaultValue: 'PlanQ 앱에서 열기' }) as string}
             </PublicBtn>
           )}

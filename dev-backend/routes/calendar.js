@@ -1300,7 +1300,7 @@ router.get('/public/by-token/:token/auth-check', authenticateToken, async (req, 
     const canAccess = isMemberOrAbove(scope) || ev.created_by === req.user.id;
     return successResponse(res, {
       canAccess: !!canAccess,
-      appUrl: canAccess ? `/calendar?event=${ev.id}` : null,
+      appUrl: canAccess ? require('../services/notification_link').withWorkspace(`/calendar?event=${ev.id}`, ev.business_id) : null,
     });
   } catch (err) { next(err); }
 });

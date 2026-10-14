@@ -1624,7 +1624,7 @@ router.get('/kb-documents/public/by-token/:token/auth-check', authenticateToken,
     const canAccess = isMemberOrAbove(scope);
     return successResponse(res, {
       canAccess,
-      appUrl: canAccess ? `/talk?kb=${doc.id}` : null,
+      appUrl: canAccess ? require('../services/notification_link').withWorkspace(`/talk?kb=${doc.id}`, doc.business_id) : null,
     });
   } catch (err) { next(err); }
 });

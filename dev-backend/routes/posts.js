@@ -1920,7 +1920,7 @@ router.get('/public/:token/auth-check', authenticateToken, async (req, res, next
     const isMember = await assertMember(req.user.id, post.business_id, req.user.platform_role === 'platform_admin');
     return successResponse(res, {
       canAccess: !!isMember,
-      appUrl: isMember ? `/docs?post=${post.id}` : null,
+      appUrl: isMember ? require('../services/notification_link').withWorkspace(`/docs?post=${post.id}`, post.business_id) : null,
     });
   } catch (err) { next(err); }
 });

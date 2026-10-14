@@ -40,7 +40,7 @@ router.get('/:token/auth-check',
         const { assertWorkspaceAccess } = require('../middleware/access_scope');
         const ws = await assertWorkspaceAccess(req.user.id, link.business_id, req.user.platform_role);
         // `/projects` 는 고객 역할 메뉴에도 있는 실존 라우트다(config/navMenus.ts).
-        return successResponse(res, { canAccess: !!ws, appUrl: ws ? '/projects' : null });
+        return successResponse(res, { canAccess: !!ws, appUrl: ws ? require('../services/notification_link').withWorkspace('/projects', link.business_id) : null });
       }
 
       // 프로젝트 링크만 앱 안에 대응하는 화면이 있다. 대화 링크는 별도(#259 1차 범위 밖).
@@ -59,7 +59,7 @@ router.get('/:token/auth-check',
 
       return successResponse(res, {
         canAccess: !!canAccess,
-        appUrl: canAccess ? `/projects/p/${project.id}` : null,
+        appUrl: canAccess ? require('../services/notification_link').withWorkspace(`/projects/p/${project.id}`, project.business_id) : null,
       });
     } catch (err) { next(err); }
   });

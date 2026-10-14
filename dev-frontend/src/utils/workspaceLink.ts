@@ -13,6 +13,8 @@
 // ★ ws 를 믿지 않는다 — 전환 가능 여부는 서버(/api/auth/switch-workspace)가 다시 판정한다.
 // 부르는 곳: App.tsx ModeGate(문서 로드 — 웹 푸시·메일·주소 입력) · NativeBridge.deepLinkNav(앱 알림 탭 — SPA 이동).
 
+import { getRequestWorkspaceId } from '../contexts/AuthContext';
+
 export const WS_PARAM = 'ws';
 
 type UserLike = {
@@ -73,4 +75,21 @@ export async function enterWorkspaceLink(
     window.location.replace(clean);
   }
   return true;
+}
+
+/**
+ * 앱 안에서 서버가 준 앱 주소(auth-check 의 appUrl 등 — ?ws= 가 실릴 수 있다)로 갈 때 쓰는 문 하나 (2026-10-14).
+ *   ws 가 **이 창의 워크스페이스가 아니면** 문서를 새로 연다 — 부팅 판정(App.tsx ModeGate)이 전환하고 ws 를 뗀 주소로 다시 연다.
+ *   그 밖이면 ws 를 떼고 `go`(SPA 이동·새 탭)로 간다.
+ * 운영 신고: 고객 최정우님(자기 워크스페이스 기율법률)이 워프로랩 청구서 링크를 열자 공개 청구서 화면이 **지금 워크스페이스**의
+ *   Q bill 로 SPA 이동해 «찾을 수 없음» 이었다. SPA 이동은 ModeGate 를 지나지 않는다 — 그래서 여기서 가른다.
+ */
+export function openAppLink(appUrl: string, go: (path: string) => void): void {
+  const { ws, clean } = splitWorkspaceParam(appUrl);
+  const current = getRequestWorkspaceId();
+  if (ws && current && ws !== Number(current)) {
+    window.location.assign(appUrl);
+    return;
+  }
+  go(clean);
 }
