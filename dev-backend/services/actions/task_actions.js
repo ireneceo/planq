@@ -1611,10 +1611,15 @@ async function revertStatus(task, actor) {
   //   리스트 체크박스(PATCH /time)와 팝아웃 체크(POST /revert-status)가 **같은 결과**가 되게
   //   여기(단일 착지점)에서 처리한다 — 표면마다 다르게 구현하면 또 갈라진다.
   const progFields = (fromStatus === 'completed') ? { progress_percent: 0 } : {};
+  // 완료 시각도 상태와 같이 움직인다 — PUT 경로(routes/tasks.js)와 같은 규칙.
+  //   2026-10-14 운영 실측: 완료를 되돌린 업무가 not_started 인데 completed_at 이 남아 있었다(ws 17 #545·#551).
+  //   거꾸로 완료로 되돌릴 때는 지금 시각을 찍는다(«이번 주 완료» 판정이 completed_at 기준).
+  const doneFields = (target === 'completed') ? { completed_at: new Date() }
+    : (fromStatus === 'completed' && target !== 'canceled') ? { completed_at: null } : {};
 
   const t = await sequelize.transaction();
   try {
-    await task.update({ status: target, ...holdFields, ...progFields }, { transaction: t });
+    await task.update({ status: target, ...holdFields, ...progFields, ...doneFields }, { transaction: t });
     await logHistory({
       taskId: task.id, eventType: 'revert',
       fromStatus, toStatus: target, actorUserId: userId, transaction: t,
