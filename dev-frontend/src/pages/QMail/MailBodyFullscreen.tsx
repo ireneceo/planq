@@ -14,6 +14,8 @@ import { useTranslation } from 'react-i18next';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import { useEscapeStack } from '../../hooks/useEscapeStack';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
+import { useBackToClose } from '../../hooks/useBackToClose';
+import { PanelBackButton } from '../../components/Layout/PanelHeader';
 
 interface Props {
   open: boolean;
@@ -34,12 +36,16 @@ const MailBodyFullscreen: React.FC<Props> = ({ open, onClose, title, subtitle, s
   useBodyScrollLock(open);
   useEscapeStack(open, onClose);
   useFocusTrap(ref, open);
+  // 폰은 전체 화면 = 새 화면이다 — 뒤로 가기(스와이프·안드로이드 버튼)가 이 창을 닫아야 한다.
+  useBackToClose(open, onClose);
   if (!open) return null;
 
   return createPortal(
     <Backdrop onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <Panel ref={ref} role="dialog" aria-modal="true" aria-label={title || (t('detail.fullView', { defaultValue: '전체 화면으로 보기' }) as string)}>
         <Head>
+          {/* 폰·태블릿(≤1024)은 다른 상세와 같은 ‹ 뒤로 하나 — ✕ 는 숨긴다(업무 상세와 같은 규칙). */}
+          <PanelBackButton onClick={onClose} label={t('common.close', { defaultValue: '닫기' }) as string} />
           <HeadText>
             <HeadTitle>{title}</HeadTitle>
             {subtitle && <HeadSub>{subtitle}</HeadSub>}
@@ -113,6 +119,7 @@ const CloseBtn = styled.button`
   color: #64748B; cursor: pointer;
   &:hover { background: #F1F5F9; color: #0F172A; }
   &:focus-visible { outline: 2px solid rgba(15,118,110,0.5); outline-offset: 2px; }
+  @media (max-width: 1024px) { display: none; }
 `;
 // 본문이 패널 가장자리에 붙지 않게 **바깥 컨테이너**가 여백을 준다.
 //   iframe 안(srcDoc 의 guard)은 건드리지 않는다 — 거기 margin:0 은 뉴스레터 템플릿 디자인을

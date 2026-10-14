@@ -283,6 +283,10 @@ export default function ThreadMessages(p: Props) {
                 const sub = m.direction === 'outbound'
                   ? `${(m.sent_by_user_id && myUserId && m.sent_by_user_id !== myUserId && m.sent_by_name) ? m.sent_by_name : (t('me', { defaultValue: '나' }) as string)} <${accountEmail}>`
                   : `${m.from_name || ''} <${m.from_email || ''}>`;
+                // ★ 2026-10-14 (Irene: "모바일 메일 상세에서 뒤로 가기 화살표가 없어") — 폰·태블릿·앱에서
+                //   새 창은 앱 머리줄도 뒤로 버튼도 없는 빈 탭(앱은 사파리)으로 열려 돌아올 길이 없었다.
+                //   손가락이 주 포인터이거나 좁은 화면이면 앱 안 전체 화면(‹ 뒤로 있음)으로 연다.
+                if (window.matchMedia('(max-width: 1024px), (pointer: coarse)').matches) { setFullMsgId(m.id); return; }
                 const opened = openMailWindow({
                   title: subject || '',
                   subtitle: sub,
