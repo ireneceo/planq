@@ -406,6 +406,7 @@ const QTaskPage:React.FC=()=>{
   const[sortKey,setSortKey]=useState<SortKey>('priority_order');
   const[sortDir,setSortDir]=useState<SortDir>('asc');
   const hasPrioCol=tab==='week'||tab==='today';
+  const titleMinW=scope==='workspace'?TITLE_MIN_W_WS:TITLE_MIN_W;
   const effSortKey:SortKey=(!hasPrioCol&&sortKey==='priority_order')?'due_date':sortKey;
 
   // Inline edit
@@ -1972,8 +1973,11 @@ const QTaskPage:React.FC=()=>{
             {/* ★ 여덟 열 중 이 둘만 좌측이었다(실측: 나머지는 전부 center) — Irene: "프로젝트랑
                 업무도 열의 중앙정렬 해줘". 헤더 라벨만 가운데다. 업무명 자체는 좌측 그대로. */}
             <Col $w="64px" $center $hideBelow={640} onClick={()=>handleSort('title')}>{t('col.project','Project')}</Col>
-            <Col $flex $center onClick={()=>handleSort('title')}>{t('col.task','Task')} {sortIcon('title')}</Col>
-            {scope==='workspace' && <Col $w="90px" $hideBelow={768}>{t('col.assignee','담당자')}</Col>}
+            <Col $flex $center $minW={titleMinW} onClick={()=>handleSort('title')}>{t('col.task','Task')} {sortIcon('title')}</Col>
+            {/* ★ 2026-10-14 (Irene «전체업무가 위아래 벙벙하고 스타일이 달라») — 머리줄 90px · 행 140px 로 달라
+                뒤 칸이 전부 50px 씩 밀렸고(실측 1440: 상태 머리 594 / 행 696), 행의 상자형 셀렉트가 행을
+                40 → 51px 로 키웠다. 폭은 ASSIGNEE_COL_W 한 값, 셀렉트는 표 칸용(variant="cell", 24px). */}
+            {scope==='workspace' && <Col $w={ASSIGNEE_COL_W} $center $hideBelow={768}>{t('col.assignee','담당자')}</Col>}
             <Col $w="68px" $center $hideBelow={640} onClick={()=>handleSort('status')}>{t('col.status','Status')} {sortIcon('status')}</Col>
             <Col $w="62px" $center $hideBelow={900} onClick={()=>handleSort('estimated_hours')}>{t('col.est','Est(h)')} {sortIcon('estimated_hours')}</Col>
             <Col $w="62px" $center $hideBelow={900} onClick={()=>handleSort('actual_hours')}>{t('col.act','Act(h)')} {sortIcon('actual_hours')}</Col>
@@ -2022,7 +2026,7 @@ const QTaskPage:React.FC=()=>{
                     <TCell $w="64px" $hideBelow={640}>
                       <ProjLabel>{task.Project?.name ? <HighlightText text={task.Project.name} query={search} /> : '-'}</ProjLabel>
                     </TCell>
-                    <TCell $flex>
+                    <TCell $flex $minW={titleMinW}>
                       <TaskRowActionMenu
                         onAddBelow={() => { setNewBelowTitle(''); setAddingBelowId(task.id); }}
                         onCopy={async () => {
@@ -2199,10 +2203,10 @@ const QTaskPage:React.FC=()=>{
                         같은 일을 하는 세 번째 표적은 자리만 먹는다. 재클릭 토글(열린 행을 다시 눌러 닫기)은
                         행 onClick 이 이어받는다. */}
                     {scope==='workspace' && (
-                      <TCell $w="140px" $hideBelow={768} style={{overflow:'visible'}}>
+                      <TCell $w={ASSIGNEE_COL_W} $hideBelow={768} style={{overflow:'visible'}}>
                         {/* D1 후속 — 담당자 소속(부서·팀)은 hover tooltip 으로 (행 밀집 노이즈 0) */}
                         <div onClick={e=>e.stopPropagation()} title={(()=>{const am=members.find(m=>m.user_id===task.assignee_id);return am?identityText({type:'member',department:am.department,team:am.team},i18nClient.language)||undefined:undefined;})()}>
-                          <PlanQSelect size="sm" isClearable
+                          <PlanQSelect size="sm" variant="cell" isClearable
                             placeholder={t('list.assigneePh','담당자') as string}
                             value={task.assignee_id==null ? null : {
                               value: String(task.assignee_id),
@@ -3249,10 +3253,16 @@ const TagManageBtn=styled.button`
   white-space:nowrap;
   &:hover{border-color:#CBD5E1;color:#0F172A;}
 `;
-const Col=styled.span<{$w?:string;$flex?:boolean;$center?:boolean;$hideBelow?:number;$compactBelow?:number;$wCompact?:string}>`
+// 업무 칸 최소폭 — 머리줄(Col)과 행(TCell)이 **같은 값**을 쓴다. 머리 180 · 행 240 으로 달라
+// 목록이 좁아지면(1280 등) 머리 «업무» 뒤 칸이 행보다 60px 왼쪽에 섰다.
+const TITLE_MIN_W=240;
+// 전체 업무(담당자 칸이 하나 더 있음)는 1440 + 우측 패널에서도 가로 스크롤 없이 들어가게 조금 좁힌다.
+const TITLE_MIN_W_WS=180;
+const ASSIGNEE_COL_W='90px';
+const Col=styled.span<{$w?:string;$flex?:boolean;$minW?:number;$center?:boolean;$hideBelow?:number;$compactBelow?:number;$wCompact?:string}>`
   box-sizing:border-box;
   ${p=>p.$flex
-    ? 'flex:1 1 0;min-width:180px;'
+    ? `flex:1 1 0;min-width:${p.$minW??TITLE_MIN_W}px;@media (max-width: 640px){min-width:0;}`
     : `flex:0 0 ${p.$w||'auto'};width:${p.$w||'auto'};`}
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
   font-size:0.6875rem;font-weight:700;color:#94A3B8;cursor:pointer;user-select:none;
@@ -3264,7 +3274,7 @@ const Col=styled.span<{$w?:string;$flex?:boolean;$center?:boolean;$hideBelow?:nu
 
 
 const TRow=styled.div<{$done?:boolean;$delayed?:boolean;$selected?:boolean}>`display:flex;align-items:center;gap:6px;padding:7px 14px;border-bottom:1px solid #F8FAFC;min-width:520px;@media(max-width:640px){min-width:0;padding:8px 10px;}opacity:${p=>p.$done?0.45:1};${p=>p.$selected?'background:#F0FDFA;box-shadow:inset 3px 0 0 #14B8A6;':p.$delayed&&!p.$done?'box-shadow:inset 3px 0 0 #DC2626;':''}&:hover{background:${p=>p.$selected?'#CCFBF1':p.$delayed&&!p.$done?'#FEF2F2':'#FAFBFC'};}`;
-const TCell=styled.div<{$w?:string;$flex?:boolean;$center?:boolean;$hideBelow?:number;$compactBelow?:number;$wCompact?:string}>`
+const TCell=styled.div<{$w?:string;$flex?:boolean;$minW?:number;$center?:boolean;$hideBelow?:number;$compactBelow?:number;$wCompact?:string}>`
   box-sizing:border-box;
   ${p=>p.$flex
     // #249 — 업무명 셀 최소폭 상향(180→240). 배지들이 shrink 불가라 180px 에서는
@@ -3277,7 +3287,7 @@ const TCell=styled.div<{$w?:string;$flex?:boolean;$center?:boolean;$hideBelow?:n
     // ★ 2026-10-13 (Irene «모바일에서 너무 다 생략하고 리스트들이») — 폰(≤640)에서는 한 줄에 제목·태그·지연·+ 가
     //   다 들어가 제목이 «본인 task wit…» 열 글자 남짓으로 잘렸다(390 실측 제목 몫 ~100px).
     //   폰은 줄을 바꾼다: 첫 줄 = 제목(최대 2줄), 둘째 줄 = 태그·지연·요청자 칩. 데스크탑·태블릿은 그대로 한 줄.
-    ? 'flex:1 1 0;min-width:240px;display:flex;align-items:center;gap:4px;overflow:hidden;@media (max-width: 640px){min-width:0;flex-wrap:wrap;row-gap:4px;}'
+    ? `flex:1 1 0;min-width:${p.$minW??TITLE_MIN_W}px;display:flex;align-items:center;gap:4px;overflow:hidden;@media (max-width: 640px){min-width:0;flex-wrap:wrap;row-gap:4px;}`
     : `flex:0 0 ${p.$w||'auto'};width:${p.$w||'auto'};overflow:hidden;`}
   ${p=>p.$center&&'display:flex;justify-content:center;align-items:center;'}
   ${p=>p.$hideBelow?`@media (max-width: ${p.$hideBelow}px){display:none;}`:''}

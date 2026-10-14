@@ -76,8 +76,10 @@ interface PlanQSelectProps<IsMulti extends boolean = false>
   density?: 'comfortable' | 'compact';
   /** 'inline' — 속성 줄(라벨 왼쪽·값 오른쪽) 안에 쓰는 모양. 테두리·배경 없이 값만 보이고
    *  마우스를 올리거나 포커스하면 테두리가 나온다(높이 32). 업무 상세 메타처럼 칸이 많은 곳에서
-   *  상자 11개가 쌓여 «난장판» 으로 보이던 것을 줄인다(2026-10-12 Irene). 기본 'box'. */
-  variant?: 'box' | 'inline';
+   *  상자 11개가 쌓여 «난장판» 으로 보이던 것을 줄인다(2026-10-12 Irene). 기본 'box'.
+   *  'cell' — 목록 행의 칸 안에 쓰는 inline(높이 24·글자 12px). 32px 짜리 inline 을 행에 넣으면
+   *  그 행만 키가 커진다(2026-10-14 Q task 전체 업무: 다른 탭 40px 행이 51px). */
+  variant?: 'box' | 'inline' | 'cell';
 }
 
 // ─────────────────────────────────────────────────────────
@@ -131,11 +133,12 @@ function buildStyles(
   size: 'sm' | 'md' | 'lg',
   hasError: boolean,
   density: 'comfortable' | 'compact' = 'comfortable',
-  variant: 'box' | 'inline' = 'box',
+  variant: 'box' | 'inline' | 'cell' = 'box',
 ): StylesConfig<PlanQSelectOption, boolean, GroupBase<PlanQSelectOption>> {
-  const inline = variant === 'inline';
-  const minHeight = inline ? 32 : SIZE_HEIGHT[size];
-  const fontSizePx = SIZE_FONT[size];
+  const cell = variant === 'cell';
+  const inline = variant === 'inline' || cell;
+  const minHeight = cell ? 24 : inline ? 32 : SIZE_HEIGHT[size];
+  const fontSizePx = cell ? 12 : SIZE_FONT[size];
   const fontSize = rem(fontSizePx);
   /* ★ 폰에서는 1rem(16px) 아래로 내려가지 않는다 — iOS 가 16px 미만 입력칸에 포커스하면
      화면을 스스로 확대한다(viewport 의 maximum-scale 을 걷어냈으므로 크기로 막아야 한다).
@@ -180,7 +183,7 @@ function buildStyles(
     valueContainer: (base) => ({
       ...base,
       ...phoneFloor,
-      padding: inline ? '0 6px' : size === 'sm' ? '2px 12px' : size === 'lg' ? '8px 16px' : '4px 14px',
+      padding: cell ? '0 4px' : inline ? '0 6px' : size === 'sm' ? '2px 12px' : size === 'lg' ? '8px 16px' : '4px 14px',
       fontSize,
     }),
     // ★ 문구는 **감기지 않는다** — 좁으면 말줄임 (2026-09-06).
@@ -219,8 +222,11 @@ function buildStyles(
       ...base,
       // inline 읽기 전용은 화살표도 걷는다 — 고를 수 없는 값에 화살표가 있으면 눌러도 안 열리는 버튼이다.
       ...(inline && state.isDisabled ? { display: 'none' } : {}),
+      // 표 칸(cell)은 열렸거나 포커스됐을 때만 — 90px 칸에서 화살표가 이름 자리를 먹었다(«Health Ch»).
+      //   눌러도 되는 칸이라는 표시는 inline 의 hover 테두리가 한다.
+      ...(cell && !state.isFocused && !state.selectProps.menuIsOpen ? { display: 'none' } : {}),
       color: state.isFocused ? C.primary600 : inline ? C.neutral300 : C.neutral400,
-      padding: inline ? 2 : size === 'sm' ? 4 : 8,
+      padding: cell ? '0 2px' : inline ? 2 : size === 'sm' ? 4 : 8,
       transition: 'color 120ms, transform 120ms',
       transform: state.selectProps.menuIsOpen ? 'rotate(180deg)' : 'rotate(0deg)',
       '&:hover': { color: C.primary600 },
@@ -229,11 +235,13 @@ function buildStyles(
       ...base,
       display: state.isFocused ? 'flex' : 'none',
       color: C.neutral400,
-      padding: size === 'sm' || inline ? 4 : 6,
+      padding: cell ? '0 2px' : size === 'sm' || inline ? 4 : 6,
       '&:hover': { color: C.errorBorder },
     }),
     menu: (base) => ({
       ...base,
+      // 표 칸(90px)을 그대로 따르면 «Perm Member» 도 두 줄로 감긴다 — 목록은 칸보다 넓게 연다.
+      ...(cell ? { minWidth: 180 } : {}),
       marginTop: 6,
       borderRadius: 10,
       border: `1px solid ${C.neutral200}`,

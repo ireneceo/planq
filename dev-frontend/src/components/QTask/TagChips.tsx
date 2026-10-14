@@ -43,8 +43,10 @@ const TagChips: React.FC<Props> = ({ tags, max = 3, className }) => {
 
 export default TagChips;
 
+// ★ overflow:hidden — 줄어들 수 있는데(min-width 0) 칩은 안 줄어서(flex-shrink 0), 업무 칸이 좁으면 칩이
+//   옆의 지연 배지 **밑으로 겹쳐** 그려졌다(2026-10-14 Q task 실측 «[확인용]» 이 «93일 지연» 뒤에). 넘치면 잘린다.
 const Wrap = styled.span`
-  display: inline-flex; align-items: center; gap: 4px; min-width: 0;
+  display: inline-flex; align-items: center; gap: 4px; min-width: 0; overflow: hidden;
 `;
 // 색은 태그 색의 연한 배경 + 진한 글자. 상태 배지와 구분되도록 사각(라운드 4px).
 const Chip = styled.span<{ $color: string }>`
