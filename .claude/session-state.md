@@ -1,6 +1,16 @@
 ## 현재 작업 상태
 **마지막 업데이트:** 2026-10-15 (방 cd3690dc · 급여 P2~P4)
-**작업 상태:** 완료 — AI 앱 여러 워크스페이스(Fable PASS · 운영 미배포) · 이전: 급여 P2~P4(서버 Fable PASS · 화면 빌드·3폭 실측 72/72 · 운영 미배포)
+**작업 상태:** 완료 — 메일 사칭 검사(Fable PASS · 운영 미배포) · 이전: AI 앱 여러 워크스페이스(Fable PASS · 운영 미배포) · 이전: 급여 P2~P4(서버 Fable PASS · 화면 빌드·3폭 실측 72/72 · 운영 미배포)
+
+### 완료: 메일 사칭 검사 + 스팸 기준 안내·관리 (방 92bad145 · 2026-10-15 · [Opus] · Fable 설계 + 게이트 PASS) — 운영 미배포
+- 원문: 스팸을 어떻게 거르는지 안내돼 있나 · 기준·스팸관리 기능 · 유사 도메인 피싱(숨김 문자·다른 언어 문자·혼동 도메인) 검사 → 의심 경고·강하면 격리·복원 · 한글 도메인 보호 · 원 메일함 이동은 구분.
+- 설계 docs/MAIL_IMPERSONATION_DESIGN.md. 판정 services/mailImpersonation.assess 한 함수(혼동 문자 services/data/confusables-latin.json ← scripts/gen-confusables.js, Unicode 18.0.0).
+- 격리 = 스팸 폴더(spam_origin='impersonation' · criterion impersonation · 새 스레드 · 알림/고객연결/첨부/자동추출/규칙 제외 · 상세 링크 off · 30일 보존) / 약 신호·아는 상대·풀어 준 스레드 = «사칭 의심» 배지. [스팸 아님] = released_at(재격리 안 함). 업체 메일함에는 안 쓴다.
+- 화면: 목록 배지·스팸 행 이유 · 상세 안내 줄(신호별 이유 + 도움말 링크) · 설정 기준 «사칭 의심 격리»(끌 수 있음) · 규칙 목록 «스팸으로 차단 N» 거르기 · 도움말 «스팸·사칭 메일은 이렇게 거릅니다»(로그인 전용) · 메일 알림 제목에서 숨김/방향 문자 제거.
+- 검증: 카나리 --suite mailimpersonation 20/20 · 실수집+실HTTP 22/22 · 화면 3폭 24/24 · build EXIT 0 · guard 72/73 · secrets 11/11 · dev 소급 후보 0 · Fable 운영 읽기 시뮬 새 격리 후보 0.
+- 운영: 배포 슬롯 migrate-mail-impersonation.js(코드 전) · 배포 뒤 수동 `node seed-wiki-content.js`(도움말) · 옛 메일 배지 `node scripts/retriage-mail.js --impersonation`(dry-run → --apply).
+- 다음 사이클 후보: Fable 비차단 ② judgeThread 에 impersonation 싣기 · ③ «풀어도 같은 보낸이 새 메일은 다시 격리» 안내 한 줄.
+- 확인용(ws6): 메일함 «[확인용] 사칭 검사 메일함»(account 425, is_active=0 — 켜 두면 가짜 IMAP 동기화가 돈다) · 스레드 9037~9053 · 규칙 64 spam-check-confirm.example.
 
 ### 완료: AI 앱 연결 여러 워크스페이스 (방 35bb469f · 2026-10-15 · [Opus] · Fable 설계 + 게이트 PASS) — 운영 미배포
 - 원문(상황판): ChatGPT 연동에서 허용된 워크스페이스 목록 조회 + 모든 도구에 workspace_id 지정 · 서버가 매 요청 검증 · 결과에 실제 워크스페이스 이름/ID · 대체 금지 · 생략 = 지금처럼.

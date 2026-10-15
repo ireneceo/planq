@@ -1,5 +1,10 @@
 # Fable 게이트 대기열 → **판정 기록 보관소** (2026-10-08 부터)
 
+## 2026-10-15 · 메일 사칭 검사(숨은 글자·섞인 문자·아는 도메인 흉내) — 설계 → 완료 **PASS** (방 92bad145)
+- 설계(Fable): docs/MAIL_IMPERSONATION_DESIGN.md — 구조(문자)·관계(아는 도메인) 두 축 · 강 1개 = 스팸 폴더 격리(spam_origin='impersonation') · 약 = «사칭 의심» 배지 · 업체 메일함 쓰기 없음.
+- 완료 검증(48e60a80): 카나리 20/20 · 독립 실수집+실HTTP 22/22(링크 호스트 흉내·In-Reply-To 위조·소프트하이픈·약 신호 합산 없음·해제 뒤 후속 재격리) · dev 소급 후보 0(실데이터) · **운영 읽기 전용 시뮬 4,596스레드 — 새 격리 후보 0, 격리 등급 4 = 이미 업체 스팸 피싱** · secrets 11/11. 구현 차이 ①~⑥(반송 링크 제외·같은 브랜드 도메인·결합 문자 체계 보호·규칙 목록 거르기·격리 시 규칙 건너뜀+알림 제목 정리·도움말 authenticated) 타당.
+- 비차단: ① 도움말 씨앗은 배포 뒤 운영에서 `node seed-wiki-content.js` 수동(안 돌리면 «어떻게 거르나요?» 링크가 빈 글) ② mailRetriage.judgeThread 가 저장된 impersonation 을 안 실어 설정 끄기/켜기 미리보기·소급이 늘 0(켜기 소급은 retriage --impersonation 만) ③ [스팸 아님] 뒤 같은 보낸이의 다음 강신호 메일은 새 스레드로 다시 격리 — 안내 한 줄 후보 ④ U+00AD 2개 = 강(현재 데이터 0, 한 달 측정) ⑤ 오격리는 알림 없이 30일 뒤 PlanQ 에서 삭제 — 한 달 측정 때 [스팸 아님] 비율 ⑥ contextOf 와 isKnownContact 원천 차이(격리 축소 방향, 안전).
+
 ## 2026-10-15 · AI 앱 연결 여러 워크스페이스 — 설계 PASS-WITH-CHANGES(10) → 완료 **PASS** (방 35bb469f)
 - 설계(Fable): docs/AI_AGENT_MULTI_WORKSPACE_DESIGN.md — 기본 + `extra_business_ids` · runTool 입구 resolveWorkspace 한 번 · 옛 연결 안 넓힘 · 메일은 기본만 · 대체 금지 · 바꿀 점 10개 반영(§5).
 - 완료 검증: Fable 실OAuth+MCP 60/60(테넌트 격리 5도구·search_all·list_events·쓰기·교차 project/client/담당자·확인 토큰 교차 confirmation_invalid·멱등 키 교차·메일 기본 전용·동의 POST 우회·멤버십 상실 2종·감사·형제 정리·연결 목록·온보딩·batch principal·Cue 거절·배포 순서) · guard 72/73 · secrets 11/11 · agentconsent 실패 0.
