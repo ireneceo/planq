@@ -416,8 +416,8 @@ router.delete('/attachments/:id', authenticateToken, async (req, res, next) => {
     if (!(await canAccessTask(req.user.id, task, scope))) {
       return errorResponse(res, 'forbidden', 403);
     }
-    // 삭제는 업로더 본인 또는 owner — client 도 본인 업로드는 삭제 가능
-    if (att.uploaded_by !== req.user.id && !scope.isOwner && !scope.isPlatformAdmin) {
+    // 삭제는 업로더 본인 또는 owner — client 도 본인 업로드는 삭제 가능 (술어는 services/taskAttachmentLink 한 곳)
+    if (!require('../services/taskAttachmentLink').canRemoveTaskAttachment(att, req.user.id, scope)) {
       return errorResponse(res, 'forbidden', 403);
     }
 

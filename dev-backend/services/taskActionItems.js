@@ -265,17 +265,22 @@ async function serializeList(task, user, scope) {
 
 /**
  * 대상 쪽 «연결된 업무» — 직렬화 하나. 액션 연결 ∪ 종류별 기존 연결. 보는 사람이 못 보는 업무는 제목도 id 도 내지 않는다.
- * @returns [{ id, title, status, project_id, via: 'action'|'attachment'|'event' }]
+ * @returns [{ id, title, status, project_id, via: 'action'|'attachment'|'event', attachment_id?, can_unlink? }]
  */
 async function linkedTasksOf(entityType, entityId, user, businessId) {
   const bid = Number(businessId);
   const eid = Number(entityId);
   const via = new Map();   // task_id → via (action 우선)
+  const attOf = new Map(); // task_id → 그 연결의 첨부 행(문서 쪽에서 해제할 때 쓴다 — 결과물(task) 칸 우선)
   const acts = await TaskActionItem.findAll({ where: { business_id: bid, linked_entity_type: entityType, linked_entity_id: eid }, attributes: ['task_id'] });
   for (const a of acts) via.set(a.task_id, 'action');
   if (entityType === 'post') {
-    const atts = await TaskAttachment.findAll({ where: { business_id: bid, post_id: eid, context: { [Op.in]: ['task', 'description_attach'] } }, attributes: ['task_id'] });
-    for (const a of atts) if (!via.has(a.task_id)) via.set(a.task_id, 'attachment');
+    const atts = await TaskAttachment.findAll({ where: { business_id: bid, post_id: eid, context: { [Op.in]: ['task', 'description_attach'] } }, attributes: ['id', 'task_id', 'context', 'uploaded_by'], order: [['id', 'ASC']] });
+    for (const a of atts) {
+      if (!via.has(a.task_id)) via.set(a.task_id, 'attachment');
+      const prev = attOf.get(a.task_id);
+      if (!prev || (prev.context !== 'task' && a.context === 'task')) attOf.set(a.task_id, a);
+    }
   } else if (entityType === 'calendar_event') {
     const ev = await CalendarEvent.findOne({ where: { id: eid, business_id: bid }, attributes: ['task_id'] });
     if (ev?.task_id && !via.has(ev.task_id)) via.set(ev.task_id, 'event');
@@ -286,7 +291,14 @@ async function linkedTasksOf(entityType, entityId, user, businessId) {
   const out = [];
   for (const t of tasks) {
     if (!(await canAccessTask(user.id, t, scope))) continue;
-    out.push({ id: t.id, title: t.title, status: t.status, project_id: t.project_id, via: via.get(t.id) });
+    const row = { id: t.id, title: t.title, status: t.status, project_id: t.project_id, via: via.get(t.id) };
+    // 첨부로 걸린 것만 문서 쪽에서 뗄 수 있다(삭제 라우트와 같은 술어). 결과물 액션 연결은 업무 쪽 문으로만 푼다.
+    const att = row.via === 'attachment' ? attOf.get(t.id) : null;
+    if (att) {
+      row.attachment_id = att.id;
+      row.can_unlink = require('./taskAttachmentLink').canRemoveTaskAttachment(att, user.id, scope);
+    }
+    out.push(row);
   }
   return out;
 }

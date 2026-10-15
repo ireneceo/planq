@@ -1762,5 +1762,16 @@
     "terms": "Words it looks for ({{n}})",
     "locked": "Always on",
     "lockedHint": "Turning this off would leave mail with nowhere to go, so it is always on"
+  },
+  "taskLink": {
+    "label": "Linked tasks",
+    "placeholder": "Search a task to link",
+    "empty": "No matching tasks",
+    "hidden": "Task you can’t view",
+    "deleted": "Deleted task",
+    "remove": "Unlink “{{title}}”",
+    "viaAction": "Linked through the task’s deliverable request — unlink it from the task",
+    "linkFailed": "Couldn’t link to the task. Please try again.",
+    "addMore": "Link a task"
   }
 }

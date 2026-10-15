@@ -3,7 +3,7 @@ import { toWall, wallStringsToIso, tzFriendlyName, formatRangeIn } from './calTz
 import { allDayDates, allDayIsoRange, localDateOf } from '../../utils/allDayDate';
 import ChangeNotifyDialog, { type NotifyChoice } from './ChangeNotifyDialog';
 import TzLines from './TzLines';
-import TaskLinkPicker from './TaskLinkPicker';
+import TaskLinkPicker from '../../components/Common/TaskLinkPicker';
 // 연결 입력 문구는 한 곳에서 온다 (화면마다 적으면 갈라진다)
 import { CONNECT_PROMPT } from '../../components/Common/connectPrompts';
 // 「미팅 정리」 메뉴는 Q note·Q sale 과 **같은 한 벌**이다 — 여기서 다시 그리지 않는다

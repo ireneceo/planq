@@ -73,7 +73,7 @@ export interface PostDetail extends PostRow {
   linked_post_ids?: number[];
   linked_posts?: Array<{ id: number; title: string; kind: 'doc' | 'table' | 'brief' | 'template' | 'survey' }>;
   // 이 문서를 결과물·액션으로 건 업무 — 서버가 보는 사람 기준으로 준다(services/taskActionItems.linkedTasksOf)
-  linked_tasks?: Array<{ id: number; title: string; status: string; project_id: number | null; via?: string }>;
+  linked_tasks?: Array<{ id: number; title: string; status: string; project_id: number | null; via?: string; attachment_id?: number; can_unlink?: boolean }>;
   // 만들기 응답의 부수 경고(예: 업무 «결과물 액션» 연결 실패 'action_link_failed')
   warnings?: string[];
 }

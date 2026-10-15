@@ -27,7 +27,8 @@ import MatchReason from '../Common/MatchReason';
 import PanelHeader, { PanelTitle, PanelSubTitle, DetailMetaBar, DetailMetaLeft, DetailMetaRight } from '../Layout/PanelHeader';
 import { useFromActionHandoff, type FromActionHandoff } from '../../hooks/useFromActionHandoff';
 import FromTaskBanner from '../Common/FromTaskBanner';
-import LinkedTaskChips from '../Common/LinkedTaskChips';
+import LinkedTaskChips, { type LinkedTaskRef } from '../Common/LinkedTaskChips';
+import DocTaskLinkField, { linkTask } from './DocTaskLinkField';
 import OverflowMenu from '../Common/OverflowMenu';
 import AttachmentField from '../Common/AttachmentField';
 import CategoryCombobox from '../Common/CategoryCombobox';
@@ -343,6 +344,8 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId }) => {
   //   그 effect 를 재발화시켜 autoDraftIdRef·autoState 를 리셋한다 — 그러면 명시 저장이 승격 대신
   //   글을 하나 더 만들고, 취소는 draft 를 못 지운다(Fable 실측 BLOCKER). 진입 지점만 이 값을 올린다.
   const [editEpoch, setEditEpoch] = useState(0);
+  // 새 문서에서 고른 «업무 연결» 중 아직 못 건 것(DocTaskLinkField 가 알려 준다) — 저장 버튼 분기가 건다
+  const pendingTaskIdsRef = useRef<number[]>([]);
   const beginEditSession = useCallback(() => setEditEpoch((n) => n + 1), []);
   useEffect(() => { detailRef.current = detail; }, [detail]);
   const [shareOpen, setShareOpen] = useState(false);
@@ -1472,11 +1475,18 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId }) => {
           projectId,
           vlevel: scope.type === 'personal' ? 'L1' : (projectId ? 'L2' : 'L3'),
         });
-        const final = attachRes.changed ? ((await fetchPost(created.id)) || created) : created;
+        // 고른 업무 연결 — 저장하면 보기로 넘어가 칸이 사라지므로 여기서 건다(중복은 서버가 건너뛴다)
+        const taskIds = pendingTaskIdsRef.current.splice(0);
+        let taskLinkFailed = false;
+        for (const tid of taskIds) {
+          try { await linkTask(tid, created.id); } catch { taskLinkFailed = true; }
+        }
+        if (taskLinkFailed) setError(tc('taskLink.linkFailed') as string);
+        const final = (attachRes.changed || taskIds.length > 0) ? ((await fetchPost(created.id)) || created) : created;
         setDetail(final);
         setActiveId(final.id);
         // 업로드 실패가 있으면 편집 화면에 머문다 — 보기 모드로 넘어가면 안내가 사라진다.
-        setMode(attachRes.hasFailure ? 'edit' : 'view');
+        setMode(attachRes.hasFailure || taskLinkFailed ? 'edit' : 'view');
         await load(); await loadMeta();
       } else if (mode === 'edit' && detail) {
         // #252 BLOCKER-3b — 임시저장(draft) 을 다시 열어 편집한 뒤 저장하면 **정식 등록**이다.
@@ -2152,6 +2162,19 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId }) => {
                   isSearchable
                 />
                 </MetaField>
+              )}
+              {/* 업무 연결 (2026-10-15) — 업무 결과물 첨부로 건다(DocTaskLinkField 머리말). 개인 보관함은 늘 나만 보기라
+                  걸어도 업무 사람들에게 안 보인다 — 칸을 두지 않는다. 편집 세션마다 새로(editEpoch) — 새 문서에서 고른 업무가 다음 문서로 넘어가지 않게. */}
+              {scope.type !== 'personal' && (mode === 'new' || (mode === 'edit' && detail)) && (
+                <DocTaskLinkField
+                  key={`doctask-${editEpoch}`}
+                  postId={detail?.id ?? null}
+                  businessId={detail?.business_id ?? scope.businessId}
+                  tasks={(detail?.linked_tasks || []) as LinkedTaskRef[]}
+                  onTasksChange={(list) => setDetail((prev) => (prev ? { ...prev, linked_tasks: list } : prev))}
+                  fromTaskId={fromAction?.task.id ?? null}
+                  onPendingChange={(ids) => { pendingTaskIdsRef.current = ids; }}
+                />
               )}
               {/* N+72-7 — 문서 ↔ 표 타입 toggle (편집 모드에서 변경 가능). 표→문서: 데이터 있으면 confirm 모달 */}
               {mode === 'edit' && detail && (

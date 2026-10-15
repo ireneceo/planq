@@ -2,7 +2,7 @@ import { useEscapeStack } from '../../hooks/useEscapeStack';
 import { wallStringsToIso } from './calTz';
 import { allDayIsoRange } from '../../utils/allDayDate';
 import TzLines from './TzLines';
-import TaskLinkPicker from './TaskLinkPicker';
+import TaskLinkPicker from '../../components/Common/TaskLinkPicker';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 // 연결 입력 문구는 한 곳에서 온다 (화면마다 적으면 갈라진다)
 import { CONNECT_PROMPT } from '../../components/Common/connectPrompts';

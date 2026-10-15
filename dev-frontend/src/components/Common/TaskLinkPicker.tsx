@@ -1,10 +1,10 @@
-// 일정 «업무 연결» 고르기 (2026-10-07) — 등록 창 · 상세가 같은 부품을 쓴다.
+// «업무 연결» 고르기 (2026-10-07 일정 · 2026-10-15 문서) — 일정 등록 창·상세와 문서 작성·수정이 같은 부품을 쓴다.
 //   ★ 새 API 를 만들지 않는다 — 관련 업무·전체 업무 찾기가 쓰는 /api/tasks/by-business/:biz/search 가
 //     이미 권한 범위 안에서 찾는다. 저장할 때 서버가 같은 술어(canAccessTask)로 다시 본다.
 //   둘째 줄에 프로젝트를 보여 준다 — 같은 제목 업무를 가르기 위해서다.
 import React, { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import PlanQSelect, { type PlanQSelectOption } from '../../components/Common/PlanQSelect';
+import PlanQSelect, { type PlanQSelectOption } from './PlanQSelect';
 import { apiFetch } from '../../contexts/AuthContext';
 
 interface Hit { id: number; title: string; Project?: { id: number; name: string } | null }
@@ -13,10 +13,14 @@ interface Props {
   value: { id: number; title?: string | null; hidden?: boolean; deleted?: boolean } | null;
   onChange: (task: { id: number; title: string } | null) => void;
   disabled?: boolean;
+  /** 이미 걸린 업무 — 후보에서 뺀다(문서처럼 여러 개를 거는 곳) */
+  excludeIds?: number[];
+  /** 검사 손잡이 — 일정은 기본값 `event-task-link` 그대로 */
+  testId?: string;
 }
 
-const TaskLinkPicker: React.FC<Props> = ({ businessId, value, onChange, disabled }) => {
-  const { t } = useTranslation('qcalendar');
+const TaskLinkPicker: React.FC<Props> = ({ businessId, value, onChange, disabled, excludeIds, testId = 'event-task-link' }) => {
+  const { t } = useTranslation('common');
   const [opts, setOpts] = useState<PlanQSelectOption[]>([]);
   const [loading, setLoading] = useState(false);
   const seq = useRef(0);
@@ -38,9 +42,11 @@ const TaskLinkPicker: React.FC<Props> = ({ businessId, value, onChange, disabled
   };
   useEffect(() => { search(''); return () => { if (timer.current) window.clearTimeout(timer.current); }; }, [businessId]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const ex = new Set(excludeIds || []);
+  const shown = ex.size ? opts.filter((o) => !ex.has(Number(o.value))) : opts;
   const label = value ? (value.deleted ? (t('taskLink.deleted', { defaultValue: '삭제된 업무' }) as string) : value.hidden ? (t('taskLink.hidden', { defaultValue: '볼 수 없는 업무' }) as string) : (value.title || `#${value.id}`)) : '';
   return (
-    <div data-testid="event-task-link">
+    <div data-testid={testId}>
     <PlanQSelect
       size="sm"
       isClearable
@@ -48,7 +54,7 @@ const TaskLinkPicker: React.FC<Props> = ({ businessId, value, onChange, disabled
       isLoading={loading}
       placeholder={t('taskLink.placeholder', { defaultValue: '업무 검색해서 연결' }) as string}
       noOptionsMessage={() => t('taskLink.empty', { defaultValue: '찾는 업무가 없습니다' }) as string}
-      options={opts}
+      options={shown}
       filterOption={() => true}
       value={value ? { value: value.id, label } : null}
       onInputChange={(v, meta) => { if (meta.action === 'input-change') search(v); }}

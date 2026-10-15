@@ -64,4 +64,12 @@ async function linkPostsToTask(task, posts, userId, { context = 'task', commentI
   return created;
 }
 
-module.exports = { linkFilesToTask, linkPostsToTask, POST_MIME };
+// 업무 첨부를 떼어 낼 수 있는 사람 — 올린 사람 본인 · 워크스페이스 owner · 플랫폼 관리자 (client 도 본인 것은 된다).
+//   삭제 라우트(routes/task_attachments DELETE /attachments/:id)와 문서 쪽 «업무 연결» 해제 표시(taskActionItems.linkedTasksOf)가
+//   같은 함수를 쓴다(2026-10-15) — 화면이 × 를 보여 줬는데 서버가 403 이면 «눌러도 안 된다» 가 된다.
+//   호출자 책임: 업무 접근 판정(canAccessTask)은 따로 본다.
+function canRemoveTaskAttachment(att, userId, scope) {
+  return att.uploaded_by === userId || !!scope?.isOwner || !!scope?.isPlatformAdmin;
+}
+
+module.exports = { linkFilesToTask, linkPostsToTask, canRemoveTaskAttachment, POST_MIME };
