@@ -18,7 +18,7 @@ interface Props {
 
 // 사이클 N+16-C — 'message' (채팅 일반) + 'comment_mention' (업무 댓글 멘션) 신규 토글.
 // 옛 'mention' 은 채팅 @멘션 전용으로 의미 정정. 댓글 멘션은 별도 row.
-type EventKind = 'message' | 'mention' | 'comment_mention' | 'signature' | 'invoice' | 'tax_invoice' | 'task' | 'event' | 'invite' | 'mail' | 'sale' | 'share_expiry' | 'push_fallback' | 'leave' | 'survey' | 'doc_comment';
+type EventKind = 'message' | 'mention' | 'comment_mention' | 'signature' | 'invoice' | 'tax_invoice' | 'task' | 'event' | 'invite' | 'mail' | 'sale' | 'share_expiry' | 'push_fallback' | 'leave' | 'survey' | 'doc_comment' | 'payroll';
 // 4 채널 — 인박스(영구) / 인앱(우측 상단 토스트) / 디바이스(OS push) / 이메일
 type Channel = 'inbox' | 'chat' | 'push' | 'email';
 type Matrix = Record<EventKind, Record<Channel, boolean>>;
@@ -34,6 +34,7 @@ const EVENTS: EventKind[] = [
   // ★ 2026-10-08 0-H — 서버는 보내는데 끌 수 없던 두 종류(서버 목록이 모델 ENUM 과 갈라져 PUT 이 거절했다).
   'leave',                       // 휴가 신청·승인·반려
   'survey',                      // 설문 새 응답
+  'payroll',                     // 급여 명세서·확정 (2026-10-15 — 메일로는 보내지 않는다: 금액이 메일로 나가지 않게)
   // ★ 2026-09-14 (Irene: *"설정에 항목 빠지거나 관리 안되는 거 확인해서 다시 맞춰서"*)
   //   `share_expiry`(외부 공유 링크 만료 임박)는 서버는 보내는데 **이 목록에만 없어서 끌 방법이 없었다.**
   'share_expiry',

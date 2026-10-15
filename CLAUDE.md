@@ -608,6 +608,12 @@ dev 에만 있는 글이 운영에 샌다(그래서 배포 rsync 가 생성물�
 - 무인증 표면 `routes/survey_public.js`(`/api/survey/:token`) — 판정은 매 요청 `services/survey.resolveSurveyToken` **한 함수**(문서 생존·워크스페이스 생존·`blocksExternalShare`·게시·마감·정원·하드캡 5,000). 레이트리밋 주 키 = 토큰. 화면 `/public/survey/:token`.
 - 켜기 = 멤버 이상 ∧ `canEditPost`(L1 은 작성자만) · 보안등급 일반 아니면 켤 수 없고, 올리면 열쇠 회수. 운영 `migrate-survey.js`(배포 슬롯).
 
+**급여·계약 (8, 2026-10-15 · 기능 스위치 `businesses.modules.payroll` 기본 꺼짐):** payroll_people · employment_contracts · pay_items · contract_pay_lines · payroll_runs · payroll_entries · payroll_entry_lines · payroll_status_history. 설계 docs/PAYROLL_DESIGN.md(§13 구현 메모)
+- **PlanQ 는 급여를 «계산» 하지 않고 «정리·대조·확정» 한다** — 법정 공제는 세무사 대장 값이 정답(항목 calc `external`, 프리셋에 요율 숫자 없음). 금액 공식은 `services/payrollCalc` 한 벌(순수 함수, 검산 `node scripts/check-payroll-calc.js`).
+- 상태 전이는 `services/payrollTransition` 한 문(초안 → 대조 → 확정·잠금 → 지급완료, 정정은 정정 회차로만). 대장 읽기 `services/payrollStatement`(xlsx·csv 기계 · PDF 만 AI · 주민번호/계좌 모양 가림 `maskSensitive` 한 벌).
+- 보는 사람 = 대표 + 지정 급여 담당자(`services/payrollAccess` — admin 자동 아님 · platform_admin 백도어 없음) · 직원은 `/me/payslips` 자기 것만. 실시간은 `services/payrollSignal` 개인 방만(가드 broadcast) · AI·검색·Cue 에 급여 없음(가드 agentsurface·broadcast). 끄면 API 404(가드 modulegate).
+- 송금 할 일 = `task_actions.createTask`(나만 보기·대외비·계좌번호 없음·멱등) · 명세서 알림 `payroll`(메일 없음). 운영 `migrate-payroll.js`(배포 슬롯).
+
 **Q sale (2):** **client_stage_history**, **client_interactions** (2026-09-11 신규 — 영업은 **새 고객 테이블이 아니라 `clients` 의 축**이다. 설계 docs/Q_SALE_DESIGN.md)
 - `clients` 확장: `status` ENUM 끝에 **`prospect`**(문의 고객 = 계정 없음 + 초대 안 함) append · `sales_stage`(none→inquiry→consulting→proposal→negotiation→won/lost) · `sales_source` · `lost_reason/lost_note` · `phone` · `expected_amount/currency` · `last_touch_at`(파생) · 인덱스 2.
 - **직접 관리 고객 = `clients.status='managed'`** (2026-10-15, Irene *"고객이 가입을 안 해도 관리자가 정보를 넣고 직접 관리하는 고객도"*) — 계정·초대 없이 정보만 관리하는 **정식 고객**(한도 포함). `active` 는 «계정이 연결된 고객» 이다 — 계정 없는 행을 active 로 만들지 않는다.

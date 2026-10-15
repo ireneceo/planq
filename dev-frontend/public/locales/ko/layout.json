@@ -179,7 +179,8 @@
     "adminSecContent": "콘텐츠",
     "adminSecMonitor": "분석·모니터링",
     "adminSecSettings": "설정",
-    "payroll": "급여·계약"
+    "payroll": "급여·계약",
+    "myPayslips": "내 급여명세서"
   },
   "user": {
     "profile": "내 프로필",

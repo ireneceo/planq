@@ -1761,6 +1761,16 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
                       <NavLabel $isCollapsed={isCollapsed}>{t('nav.payroll', '급여·계약')}</NavLabel>
                     </NavItem>
                   )}
+                  {/* 내 급여명세서 — 기능이 켜져 있으면 누구나(자기 것만) */}
+                  {show('/me/payslips') && (
+                    <NavItem to="/me/payslips" $isCollapsed={isCollapsed} $active={isActive('/me/payslips')}
+                      data-testid="nav-payslips" title={isCollapsed ? t('nav.myPayslips', '내 급여명세서') : undefined}>
+                      <NavIcon $isCollapsed={isCollapsed}>
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="13" y2="17"/></svg>
+                      </NavIcon>
+                      <NavLabel $isCollapsed={isCollapsed}>{t('nav.myPayslips', '내 급여명세서')}</NavLabel>
+                    </NavItem>
+                  )}
                   {/* 2026-09-21 — 문의·피드백은 개인 섹션 맨 아래(근태·휴가 다음). 솔루션에 대한 것이라 나의 일 메뉴들 뒤에 둔다 */}
                   {show('/me/feedback') && (
                     <NavItem to="/me/feedback" $isCollapsed={isCollapsed} $active={isActive('/me/feedback')}

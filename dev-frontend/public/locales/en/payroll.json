@@ -2,7 +2,9 @@
   "title": "Payroll & Contracts",
   "responsibility": "Statutory deductions (social insurance, income tax) follow your tax accountant's payroll register. Amounts PlanQ pre-fills are estimates for comparison.",
   "tabs": {
-    "people": "People"
+    "people": "People",
+    "runs": "Payroll",
+    "items": "Items"
   },
   "people": {
     "add": "Add person",
@@ -110,7 +112,10 @@
     "dailyHours": "Hours/day",
     "note": "Note",
     "submit": "Save as draft",
-    "hint": "Save as a draft, then press Make active to use it for payroll and labor cost. Create the contract document from the Employment Contract template in Q docs and collect signatures there."
+    "hint": "Save as a draft, then press Make active to use it for payroll and labor cost. Create the contract document from the Employment Contract template in Q docs and collect signatures there.",
+    "extraLines": "Other amounts (meal, allowances — fixed items)",
+    "addLine": "Add line",
+    "removeLine": "Remove"
   },
   "error": {
     "overlapping_contract": "An active contract already starts on or after this date.",
@@ -121,7 +126,55 @@
     "person_exists": "This member is already on payroll.",
     "person_has_contracts": "This person has contracts. Set the status to Left instead.",
     "plan_required": "Available from the Pro plan.",
-    "generic": "Something went wrong. Please try again."
+    "generic": "Something went wrong. Please try again.",
+    "run_exists": "A run for this month already exists. Edit it or create an adjustment run.",
+    "run_locked": "A confirmed run can't be edited.",
+    "line_unresolved": "Blank cells remain — cannot confirm.",
+    "negative_net": "Someone has a negative net pay.",
+    "no_entries": "This run has nobody in it.",
+    "invalid_period": "Invalid period.",
+    "invalid_pay_date": "Invalid pay date.",
+    "rate_cycle": "Rate items can't use each other as their base.",
+    "item_locked": "This item is used by a confirmed run — earning/deduction, sign, totals and taxable can't change (the name can).",
+    "item_in_use": "Used items can't be deleted. Turn off «Active».",
+    "item_in_contracts": "This item is used in contract lines, so it must stay «Fixed».",
+    "base_item_locked": "Base pay is the basis for unpaid leave and can't be changed or deleted.",
+    "settlement_must_be_external": "Settlement items must be «External (register)».",
+    "unpaid_leave_must_be_deduction": "Unpaid leave must be a deduction.",
+    "invalid_rate": "Enter a rate between 0 and 100%.",
+    "invalid_rate_base": "Pick the base for the rate.",
+    "invalid_base_item": "Pick the base item.",
+    "name_required": "Enter a name.",
+    "header_not_found": "Couldn't find the header row (name, base pay, net pay…) in the register.",
+    "unreadable_file": "Couldn't read the file.",
+    "unsupported_file": "Only .xlsx · .csv · .pdf files.",
+    "pdf_no_text": "This PDF has no text (scanned files can't be read yet).",
+    "ai_unavailable": "AI is unavailable, so the PDF couldn't be read. Please upload Excel or CSV.",
+    "ai_bad_output": "Couldn't turn the PDF into a table. Please upload Excel or CSV.",
+    "no_rows": "No person rows found in the register.",
+    "file_too_large": "Files up to 10MB.",
+    "file_required": "Choose a file.",
+    "cue_quota_exceeded": "This month's AI quota is used up.",
+    "storage_quota_exceeded": "Not enough storage.",
+    "no_statement": "Upload a register first.",
+    "adjustment_open": "An unconfirmed adjustment run already exists. Finish it first.",
+    "not_confirmed": "Only for confirmed runs.",
+    "already_paid": "Already marked paid.",
+    "only_draft_deletable": "Only draft runs can be deleted.",
+    "invalid_amount": "Invalid amount.",
+    "invalid_unpaid_leave_days": "Enter unpaid days in 0.5 steps.",
+    "invalid_transfer_assignee": "Only payroll managers can handle transfers.",
+    "payslip_forbidden": "You can only see your own payslips.",
+    "payslip_not_found": "Payslip not found.",
+    "payroll_forbidden": "Only payroll managers (owner and designated managers) can see this.",
+    "module_off": "Payroll is turned off.",
+    "unknown_preset": "Unknown template.",
+    "nothing_to_update": "Nothing to change.",
+    "run_not_found": "Run not found.",
+    "line_not_found": "Cell not found.",
+    "entry_not_found": "Row not found.",
+    "column_not_found": "Column not found.",
+    "row_not_found": "Row not found."
   },
   "modules": {
     "sectionTitle": "Features",
@@ -143,5 +196,281 @@
   },
   "rates": {
     "fromContract": "From contract"
+  },
+  "runStatus": {
+    "draft": "Draft",
+    "reconciling": "Reconciling",
+    "confirmed": "Confirmed",
+    "paid": "Paid"
+  },
+  "runKind": {
+    "regular": "Regular",
+    "adjustment": "Adjustment"
+  },
+  "runs": {
+    "add": "This month",
+    "empty": "No payroll runs yet. Use [This month] to draft this month — everyone with an active contract is added.",
+    "loadFailed": "Couldn't load payroll runs.",
+    "retry": "Retry",
+    "period": "Period",
+    "payDate": "Pay date",
+    "headcount": "{{n}} people",
+    "gross": "Gross",
+    "deduction": "Deductions",
+    "net": "Net pay",
+    "adjustmentCount": "{{n}} adjustment(s)",
+    "unknown": "Not reconciled",
+    "create": {
+      "title": "New payroll run",
+      "period": "Period",
+      "payDate": "Pay date",
+      "payDateHint": "Leave empty to use the contracts' pay day (or month end).",
+      "mode": "Transfer to-dos",
+      "modePerPerson": "One per person",
+      "modeSingle": "One combined",
+      "submit": "Create draft",
+      "hint": "Fills a draft with everyone who has an active contract this month. Statutory deductions stay empty until you import your accountant's register."
+    },
+    "monthLabel": "{{y}}-{{m}}"
+  },
+  "run": {
+    "back": "Payroll",
+    "title": "{{period}} payroll",
+    "titleAdj": "{{period}} adjustment {{n}}",
+    "tabDraft": "Draft",
+    "tabReconcile": "Reconcile",
+    "more": "More",
+    "import": "Import register",
+    "confirm": "Confirm",
+    "paid": "Mark paid",
+    "rebuild": "Rebuild draft",
+    "adjust": "New adjustment run",
+    "delete": "Delete run",
+    "csv": "Export CSV",
+    "tasks": "Recreate transfer to-dos",
+    "adoptAll": "Adopt all register values",
+    "adoptDraft": "Adopt draft values",
+    "zeroBlank": "Set remaining blanks to 0",
+    "badge": {
+      "draft": "Est.",
+      "statement": "Register",
+      "manual": "Entered"
+    },
+    "person": "Person",
+    "gross": "Gross",
+    "deduction": "Deductions",
+    "net": "Net pay",
+    "payDate": "Pay date {{date}}",
+    "headcount": "{{n}} people",
+    "notInStatement": "Not in register",
+    "warnings": "Mismatch",
+    "noContract": "No contract",
+    "locked": "A confirmed run can't be edited. Create an adjustment run for changes (the original stays as is).",
+    "unresolved": "{{n}} blank cell(s) — adopt register values or enter them to confirm.",
+    "empty": "Nobody has an active contract this month. Activate a contract in People, then press [Rebuild draft].",
+    "loadFailed": "Couldn't load this run.",
+    "notFound": "Run not found.",
+    "history": "History",
+    "transfer": {
+      "open": "Transfer pending",
+      "done": "Transfer done",
+      "none": "No transfer to-do"
+    },
+    "tasksCreated": "Created {{n}} transfer to-do(s) (private · confidential · no account numbers).",
+    "tasksFailed": "Confirmed, but transfer to-dos couldn't be created. Use ⋯ › [Recreate transfer to-dos].",
+    "siblings": "Runs this month",
+    "adjOf": "Adjustment to {{period}} — enter differences only (negative allowed).",
+    "confirmDialog": {
+      "title": "Confirm payroll?",
+      "message": "{{n}} people · total net pay {{net}} · {{tasks}} transfer to-do(s) will be created. Employees with an account get an in-app payslip notice (no email). A confirmed run cannot be edited.",
+      "confirm": "Confirm"
+    },
+    "paidDialog": {
+      "title": "Mark as paid?",
+      "messageOpen": "{{n}} transfer to-do(s) are still open. Mark this run as paid anyway?",
+      "message": "Marks this run as paid.",
+      "confirm": "Mark paid"
+    },
+    "deleteDialog": {
+      "title": "Delete this draft?",
+      "message": "The {{period}} draft and everything entered in it will be deleted. This cannot be undone.",
+      "confirm": "Delete"
+    },
+    "adjustDialog": {
+      "title": "Create an adjustment run?",
+      "message": "Creates adjustment run {{n}} for {{period}}. The original stays unchanged; enter only the differences.",
+      "confirm": "Create"
+    },
+    "rebuildDialog": {
+      "title": "Rebuild the draft?",
+      "message": "Re-reads contracts and unpaid leave. Cells you edited and register values are kept.",
+      "confirm": "Rebuild"
+    }
+  },
+  "entry": {
+    "unpaidDays": "Unpaid leave days",
+    "unpaidFromLeave": "From leave records",
+    "unpaidManual": "Entered",
+    "resetUnpaid": "Use leave records",
+    "remove": "Exclude this month",
+    "removeTitle": "Exclude from this run?",
+    "removeMsg": "{{name}} will be removed from this run. [Rebuild draft] adds them back.",
+    "item": "Item",
+    "draft": "Draft",
+    "statement": "Register",
+    "final": "Final",
+    "useStatement": "Register",
+    "useDraft": "Draft",
+    "clear": "Clear",
+    "pdf": "Payslip PDF",
+    "bank": "Paid to",
+    "totals": "Totals",
+    "note": "Note",
+    "locked": "Confirmed run — view only.",
+    "warn": {
+      "gross_mismatch": "The register's gross ({{statement}}) differs from the recomputed sum ({{recomputed}}).",
+      "deduction_mismatch": "The register's total deductions ({{statement}}) differ from the recomputed sum ({{recomputed}}).",
+      "net_mismatch": "The register's net pay ({{statement}}) differs from the recomputed value ({{recomputed}})."
+    }
+  },
+  "statement": {
+    "title": "Accountant's payroll register",
+    "upload": "Upload register",
+    "replace": "Replace register",
+    "uploading": "Reading…",
+    "hint": ".xlsx and .csv are read as-is; only .pdf goes through AI (resident and account numbers are masked first). The file stays in Q file as private · confidential.",
+    "file": "{{name}} · {{at}}",
+    "droppedSecret": "{{n}} ID/account column(s) were not read or stored.",
+    "rows": "Match people",
+    "cols": "Match columns",
+    "allMatched": "Every person and column is matched.",
+    "match": {
+      "emp_no": "By employee no.",
+      "name": "By name",
+      "manual": "Picked",
+      "ambiguous": "Same name twice — please pick",
+      "skipped": "Skipped",
+      "none": "Not matched"
+    },
+    "pickPerson": "Pick person",
+    "createPerson": "Create person",
+    "skip": "Skip",
+    "pickItem": "Pick item",
+    "createEarning": "Create earning item",
+    "createDeduction": "Create deduction item",
+    "ignore": "Ignore",
+    "ignored": "Ignored"
+  },
+  "items": {
+    "add": "Item",
+    "preset": "Load template",
+    "suggest": "Suggest with AI",
+    "empty": "No items yet. Start with [Load template].",
+    "statutoryHint": "PlanQ doesn't calculate statutory items (social insurance, income tax) — your accountant's register is the reference. Entering a rate only shows an estimate for comparison.",
+    "used": "Used {{n}}",
+    "inactive": "Inactive",
+    "statutory": "Statutory",
+    "settlement": "Settlement",
+    "nontax": "Non-taxable",
+    "minus": "Reduces",
+    "side": {
+      "earning": "Earning",
+      "deduction": "Deduction"
+    },
+    "calc": {
+      "fixed": "Fixed (contract)",
+      "rate": "Rate",
+      "manual": "Entered",
+      "external": "External (register)",
+      "unpaid_leave": "Unpaid leave pro-rata"
+    },
+    "appliesTo": {
+      "all": "Everyone",
+      "employment": "Employees",
+      "business": "Freelancers",
+      "other": "Other income"
+    },
+    "rateBase": {
+      "taxable_total": "Taxable earnings",
+      "gross_total": "Gross earnings",
+      "item": "Another item"
+    },
+    "sign": {
+      "plus": "Adds",
+      "minus": "Subtracts (support)"
+    },
+    "rounding": {
+      "round": "Round",
+      "floor": "Truncate",
+      "ceil": "Round up"
+    },
+    "field": {
+      "name": "Name",
+      "nameEn": "English name",
+      "side": "Earning/Deduction",
+      "appliesTo": "Applies to",
+      "calc": "Calculation",
+      "taxable": "Taxable",
+      "rate": "Rate (%)",
+      "rateBase": "Base",
+      "baseItem": "Base item",
+      "sign": "In total",
+      "inTotal": "Include in totals",
+      "settlement": "Settlement (register only)",
+      "statutory": "Statutory — register value by default",
+      "rounding": "Rounding",
+      "roundingUnit": "Unit",
+      "aliases": "Register header aliases (comma-separated)",
+      "sortOrder": "Order",
+      "active": "Active"
+    },
+    "create": {
+      "title": "Add item",
+      "submit": "Add"
+    },
+    "delete": "Delete item",
+    "deleteTitle": "Delete this item?",
+    "deleteMsg": "Deletes \"{{name}}\". Only items never used can be deleted (turn off «Active» for used ones).",
+    "presetModal": {
+      "title": "Load template",
+      "pick": "Template",
+      "exists": "Already added",
+      "add": "Add {{n}}",
+      "none": "Nothing to add (all already exist).",
+      "hint": "Templates hold item names, types and calculation methods only — no rates."
+    },
+    "suggestModal": {
+      "title": "Suggest with AI",
+      "country": "Country",
+      "countryPh": "e.g. VN, SG, US",
+      "kind": "Type",
+      "run": "Get suggestions",
+      "running": "Getting suggestions…",
+      "hint": "Only the country and type are sent (no people or amounts). Rates are never suggested; statutory deductions are set to «External (register)». Only what you pick is added.",
+      "fallback": "AI is unavailable — showing the generic template.",
+      "add": "Add {{n}}",
+      "empty": "Press [Get suggestions]."
+    }
+  },
+  "payslips": {
+    "title": "My payslips",
+    "empty": "No payslips yet.",
+    "loadFailed": "Couldn't load payslips.",
+    "retry": "Retry",
+    "new": "New",
+    "pdf": "Download PDF",
+    "earnings": "Earnings",
+    "deductions": "Deductions",
+    "gross": "Gross pay",
+    "deduction": "Total deductions",
+    "net": "Net pay",
+    "account": "Paid to",
+    "nontax": "non-taxable",
+    "unpaid": "Unpaid leave {{n}} day(s)",
+    "adjustment": "Adjustment {{n}}",
+    "payDate": "Pay date {{date}}",
+    "period": "{{period}} payroll",
+    "notFound": "Payslip not found.",
+    "myContracts": "My contracts"
   }
 }

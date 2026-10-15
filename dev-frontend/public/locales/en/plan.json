@@ -65,7 +65,9 @@
       "canvas_draft": "Canvas draft",
       "extract": "Inquiry extraction",
       "agent_tool": "AI app connections (ChatGPT·Claude)",
-      "docs_edit": "Doc AI edit"
+      "docs_edit": "Doc AI edit",
+      "payroll_preset": "Payroll item suggestions",
+      "payroll_extract": "Payroll register (PDF)"
     },
     "prospects": "Prospects"
   },

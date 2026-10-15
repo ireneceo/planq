@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import styled from 'styled-components';
+import { tabStore } from '../../stores/tabStore';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useParams, useSearchParams } from 'react-router-dom';
 import { useAuth, apiFetch } from '../../contexts/AuthContext';
@@ -1528,6 +1529,13 @@ export default function WorkspaceSettingsPage() {
                               <DrawerInfoValue>{u.timezone}</DrawerInfoValue>
                             </>}
                           </DrawerInfoGrid>
+                          {/* 급여·계약 — 기능이 켜져 있고 급여 관리자일 때만(docs/PAYROLL_DESIGN.md §9). 새 화면 없이 대상자 탭으로 */}
+                          {user?.modules?.payroll && user?.can_manage_payroll && target.user_id && (
+                            <PayrollLink type="button" data-testid="member-payroll-link"
+                              onClick={() => tabStore.openInNewTab(`/payroll?tab=people&user=${target.user_id}`)}>
+                              {t('members.drawer.payrollContracts', '계약 이력 보기')}
+                            </PayrollLink>
+                          )}
                           {u?.bio && <DrawerBioBox>{u.bio}</DrawerBioBox>}
                         </DrawerSection>
 
@@ -2186,3 +2194,8 @@ function WorkspaceTimezoneSection({
     </>
   );
 }
+
+const PayrollLink = styled.button`
+  margin-top: 10px; background: none; border: none; padding: 4px 0; min-height: 32px;
+  color: #0F766E; font-size: 0.8125rem; font-weight: 600; cursor: pointer; font-family: inherit; text-align: left;
+`;

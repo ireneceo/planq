@@ -28,6 +28,8 @@ const QProjectDetailPage = lazy(() => import('../pages/QProject/QProjectDetailPa
 const QCalendarPage = lazy(() => import('../pages/QCalendar/QCalendarPage'));
 const AttendancePage = lazy(() => import('../pages/Attendance/AttendancePage'));
 const PayrollPage = lazy(() => import('../pages/Payroll/PayrollPage'));
+const PayrollRunPage = lazy(() => import('../pages/Payroll/PayrollRunPage'));
+const MyPayslipsPage = lazy(() => import('../pages/Payroll/MyPayslipsPage'));
 const WhatsNewPage = lazy(() => import('../pages/WhatsNew/WhatsNewPage'));
 const QNotePage = lazy(() => import('../pages/QNote/QNotePage'));
 const QFilePage = lazy(() => import('../pages/QFile/QFilePage'));
@@ -102,6 +104,8 @@ export const APP_ROUTES: AppRouteDef[] = [
   //   (운영 2026-08-22: 근태 메뉴를 눌러도 아무것도 안 나왔다 — 원인이 정확히 이것이었다).
   { path: '/attendance', roles: BIZ, element: <AttendancePage /> },
   { path: '/payroll', roles: BIZ, element: <ModuleGate module="payroll"><PayrollPage /></ModuleGate> },
+  { path: '/payroll/runs/:id', roles: BIZ, element: <ModuleGate module="payroll"><PayrollRunPage /></ModuleGate> },
+  { path: '/me/payslips', roles: BIZ, element: <ModuleGate module="payroll_self"><MyPayslipsPage /></ModuleGate> },
   { path: '/notes', element: <QNotePage /> },
   { path: '/notes/:sessionId', element: <QNotePage /> },
   { path: '/files', element: <QFilePage /> },

@@ -150,6 +150,8 @@ const ClientHomePage = lazy(() => import('./pages/ClientHome/ClientHomePage'));
 const TodoPage = lazy(() => import('./pages/Todo/TodoPage'));
 const AttendancePage = lazy(() => import('./pages/Attendance/AttendancePage'));
 const PayrollPage = lazy(() => import('./pages/Payroll/PayrollPage'));
+const PayrollRunPage = lazy(() => import('./pages/Payroll/PayrollRunPage'));
+const MyPayslipsPage = lazy(() => import('./pages/Payroll/MyPayslipsPage'));
 const NotificationsPage = lazy(() => import('./pages/Notifications/NotificationsPage'));
 const WhatsNewPage = lazy(() => import('./pages/WhatsNew/WhatsNewPage'));
 const QBillPage = lazy(() => import('./pages/QBill/QBillPage'));
@@ -422,6 +424,17 @@ function ShellApp() {
         <Route path="/payroll" element={
           <ProtectedRoute requiredRole={['business_owner', 'business_member']}>
             <MainLayout><ModuleGate module="payroll"><PayrollPage /></ModuleGate></MainLayout>
+          </ProtectedRoute>
+        } />
+        <Route path="/payroll/runs/:id" element={
+          <ProtectedRoute requiredRole={['business_owner', 'business_member']}>
+            <MainLayout><ModuleGate module="payroll"><PayrollRunPage /></ModuleGate></MainLayout>
+          </ProtectedRoute>
+        } />
+        {/* 내 급여명세서 — 기능이 켜져 있으면 직원 누구나(서버가 «자기 것» 만 준다) */}
+        <Route path="/me/payslips" element={
+          <ProtectedRoute requiredRole={['business_owner', 'business_member']}>
+            <MainLayout><ModuleGate module="payroll_self"><MyPayslipsPage /></ModuleGate></MainLayout>
           </ProtectedRoute>
         } />
 

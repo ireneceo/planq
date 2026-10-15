@@ -82,6 +82,7 @@ router.post('/:businessId/item-presets/:key/apply', ...writer, async (req, res, 
 });
 
 // AI 틀 제안 — 저장하지 않는다(사람이 고른 것만 POST /items 로 들어간다). Cue 1회 계량 · 사용자당 분 3·일 20.
+// audit-exempt: 저장하지 않는 제안(쓰기 없음) — 사람이 고른 항목은 POST /items 가 감사한다
 router.post('/:businessId/items/suggest', ...writer, ...perUserDaily('payroll-suggest', { perMin: 3, perDay: 20 }), async (req, res, next) => {
   try {
     const businessId = bizIdOf(req);

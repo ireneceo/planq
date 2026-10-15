@@ -1,7 +1,7 @@
 // 계약 이력 — 대상자 상세 안의 한 섹션(드로어 위에 또 드로어를 띄우지 않는다 — 팝업 위 팝업 금지).
 //   초안 → [유효로 전환](겹친 옛 계약은 서버가 시작 전날로 닫는다) → [종료]. 유효·종료된 계약의 금액·기간은 못 바꾼다(새 계약).
 //   계약서 문서는 Q docs «근로계약서» 템플릿으로 만들고 서명받는다 — 연결된 문서가 있으면 여기서 연다.
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import PlanQSelect from '../../components/Common/PlanQSelect';
@@ -9,7 +9,7 @@ import SingleDateField from '../../components/Common/SingleDateField';
 import ActionButton from '../../components/Common/ActionButton';
 import ConfirmDialog from '../../components/Common/ConfirmDialog';
 import { tabStore } from '../../stores/tabStore';
-import { payrollApi, PayrollError, formatMoney, type Contract, type ContractKind, type PersonDetail } from './payrollApi';
+import { payrollApi, PayrollError, formatMoney, type Contract, type ContractKind, type PayItem, type PersonDetail } from './payrollApi';
 
 interface Props {
   businessId: number;
@@ -35,6 +35,16 @@ export default function ContractSection({ businessId, person, onChanged, onError
   const defaultKind: ContractKind = person.income_kind === 'business' ? 'freelance' : 'regular';
   const [form, setForm] = useState({ kind: defaultKind as ContractKind, start_date: '', end_date: '', base_pay: '', pay_day: '25', weekly_work_days: '', daily_work_hours: '', note: '' });
 
+  // 추가 금액줄(식대·수당 등) — 고정(계약 금액) 항목만. 기본급은 위 칸이 맡는다.
+  const [fixedItems, setFixedItems] = useState<PayItem[]>([]);
+  const [extra, setExtra] = useState<{ pay_item_id: string; amount: string }[]>([]);
+  useEffect(() => {
+    if (!adding) return;
+    payrollApi.items(businessId).then((rows) => setFixedItems(rows.filter((x) => x.calc === 'fixed' && x.is_active))).catch(() => setFixedItems([]));
+  }, [adding, businessId]);
+  const baseItem = fixedItems.find((x) => x.code === 'base');
+  const extraOptions = fixedItems.filter((x) => x.code !== 'base').map((x) => ({ value: String(x.id), label: x.name }));
+
   const fail = (e: unknown) => onError(e instanceof PayrollError ? e.code : 'generic');
   const run = async (key: number | 'new', fn: () => Promise<unknown>) => {
     if (busy !== null) return;
@@ -44,9 +54,13 @@ export default function ContractSection({ businessId, person, onChanged, onError
 
   const invalid = !form.start_date || !form.base_pay.trim() || (form.kind === 'fixed_term' && !form.end_date);
   const submit = () => run('new', async () => {
+    const extras = extra.filter((x) => x.pay_item_id && x.amount.trim());
+    const pay = extras.length && baseItem
+      ? { lines: [{ pay_item_id: baseItem.id, amount: form.base_pay }, ...extras.map((x) => ({ pay_item_id: Number(x.pay_item_id), amount: x.amount }))] }
+      : { base_pay: form.base_pay };
     await payrollApi.createContract(businessId, person.id, {
       kind: form.kind, start_date: form.start_date, end_date: form.end_date || null,
-      base_pay: form.base_pay, pay_day: form.pay_day || null,
+      ...pay, pay_day: form.pay_day || null,
       ...(form.weekly_work_days ? { weekly_work_days: form.weekly_work_days } : {}),
       ...(form.daily_work_hours ? { daily_work_hours: form.daily_work_hours } : {}),
       note: form.note.trim() || null,
@@ -63,7 +77,7 @@ export default function ContractSection({ businessId, person, onChanged, onError
         <SectionTitle>{t('detail.contracts')}</SectionTitle>
         {!adding && (
           <ActionButton size="xs" data-testid="payroll-contract-new"
-            onClick={() => { setForm({ kind: defaultKind, start_date: '', end_date: '', base_pay: '', pay_day: '25', weekly_work_days: '', daily_work_hours: '', note: '' }); setAdding(true); }}>
+            onClick={() => { setForm({ kind: defaultKind, start_date: '', end_date: '', base_pay: '', pay_day: '25', weekly_work_days: '', daily_work_hours: '', note: '' }); setExtra([]); setAdding(true); }}>
             + {t('detail.addContract')}
           </ActionButton>
         )}
@@ -107,6 +121,22 @@ export default function ContractSection({ businessId, person, onChanged, onError
               </>
             )}
           </Grid>
+          {baseItem && extraOptions.length > 0 && (
+            <Field data-testid="payroll-contract-extra">
+              <Label>{t('contractCreate.extraLines')}</Label>
+              {extra.map((x, i) => (
+                <ExtraRow key={i}>
+                  <ExtraSelect>
+                    <PlanQSelect size="sm" options={extraOptions} value={extraOptions.find((o) => o.value === x.pay_item_id) || null}
+                      onChange={(v) => setExtra(extra.map((y, j) => (j === i ? { ...y, pay_item_id: (v as { value?: string })?.value || '' } : y)))} />
+                  </ExtraSelect>
+                  <Input inputMode="numeric" value={x.amount} placeholder="200,000" onChange={(e) => setExtra(extra.map((y, j) => (j === i ? { ...y, amount: e.target.value } : y)))} />
+                  <LinkBtn type="button" onClick={() => setExtra(extra.filter((_, j) => j !== i))}>{t('contractCreate.removeLine')}</LinkBtn>
+                </ExtraRow>
+              ))}
+              <LinkBtn type="button" onClick={() => setExtra([...extra, { pay_item_id: '', amount: '' }])}>+ {t('contractCreate.addLine')}</LinkBtn>
+            </Field>
+          )}
           <Field>
             <Label>{t('contractCreate.note')}</Label>
             {/* draft-exempt: 계약 초안 폼의 한 줄 메모(최대 500자) — 폼 전체를 [초안으로 저장] 으로 한 번에 보낸다 */}
@@ -131,6 +161,11 @@ export default function ContractSection({ businessId, person, onChanged, onError
               <KindText>{t(`kind.${c.kind}`)}</KindText>
               <Amount>{t('contract.monthly', { amount: formatMoney(c.monthly_total, c.currency, lang) })}</Amount>
             </CardTop>
+            {c.lines.length > 1 && (
+              <CardMeta data-testid="payroll-contract-lines">
+                {c.lines.map((l) => `${l.item?.name || ''} ${formatMoney(l.amount, c.currency, lang)}`).join(' · ')}
+              </CardMeta>
+            )}
             <CardMeta>
               {t('contract.period', { start: c.start_date, end: c.end_date || t('contract.openEnded') })}
               {c.kind !== 'freelance' && c.weekly_work_days != null && c.daily_work_hours != null
@@ -199,4 +234,6 @@ const Signed = styled.span`color: #0F766E; font-weight: 600;`;
 const Unsigned = styled.span`color: #B45309; font-weight: 600;`;
 const LinkBtn = styled.button`background: none; border: none; padding: 0; color: #0D9488; font-size: 0.75rem; font-weight: 600; cursor: pointer; font-family: inherit; text-decoration: underline;`;
 const NoteText = styled.span`color: #94A3B8;`;
+const ExtraRow = styled.div`display: flex; gap: 8px; align-items: center; & > input { width: 140px; flex: 0 0 auto; }`;
+const ExtraSelect = styled.div`flex: 1 1 auto; min-width: 0;`;
 const EndRow = styled.div`display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end;`;

@@ -31,7 +31,8 @@ export interface NavMenuEntry {
   permKey?: MenuKey;
   /** 워크스페이스 기능이 켜져 있어야 보이는 메뉴(2026-10-15 — 서버 services/modules 와 같은 값, /api/auth/me 의 modules).
    *  'payroll' 은 켜져 있고 **급여 관리자**(owner + 지정 담당자 — can_manage_payroll)일 때만 보인다. */
-  module?: 'payroll';
+  /** 'payroll_self' = 기능이 켜져 있으면 누구나(본인 급여명세서) — 관리자 술어 없음 */
+  module?: 'payroll' | 'payroll_self';
 }
 
 /** 섹션 헤더 i18n 키 (layout ns) */
@@ -100,6 +101,8 @@ export const WORKSPACE_MENUS: NavMenuEntry[] = [
   { key: 'ws-members', to: '/business/members', labelKey: 'nav.members', section: 'settings', roles: ['owner'] },
   // 급여·계약 — 역할은 넓게 두고 module 이 거른다(관리자 = owner + 지정 담당자, admin 자동 아님 — docs/PAYROLL_DESIGN.md §4)
   { key: 'payroll', to: '/payroll', labelKey: 'nav.payroll', section: 'personal', roles: ['owner', 'admin', 'member'], module: 'payroll' },
+  // 내 급여명세서 — 기능이 켜져 있으면 직원 누구나(자기 것만 — 서버 routes/payroll_me.js 가 대상자 user_id 로 판정)
+  { key: 'payslips', to: '/me/payslips', labelKey: 'nav.myPayslips', section: 'personal', roles: ['owner', 'admin', 'member'], module: 'payroll_self' },
   { key: 'ws-clients', to: '/business/clients', labelKey: 'nav.clients', section: 'settings', roles: ['owner', 'member'], permKey: 'clients' },
   { key: 'ws-cue', to: '/business/settings/cue', labelKey: 'nav.cue', section: 'settings', roles: ['owner'] },
   { key: 'ws-company-mail', to: '/business/settings/mail-accounts', labelKey: 'nav.companyMail', section: 'settings', roles: ['owner', 'member'] },
@@ -169,6 +172,7 @@ export function visibleNavMenus(opts: {
   const ws = WORKSPACE_MENUS.filter((m) => {
     if (m.permKey && opts.menuLevels && opts.menuLevels[m.permKey] === 'none') return false;
     if (m.module === 'payroll' && !(opts.modules?.payroll && opts.canManagePayroll)) return false;
+    if (m.module === 'payroll_self' && !opts.modules?.payroll) return false;
     if (m.roles === 'any') return true;
     if (!role) return false;
     const roles = m.roles as NavRole[];

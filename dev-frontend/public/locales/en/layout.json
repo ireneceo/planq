@@ -179,7 +179,8 @@
     "adminSecContent": "Content",
     "adminSecMonitor": "Insights & monitoring",
     "adminSecSettings": "Settings",
-    "payroll": "Payroll"
+    "payroll": "Payroll",
+    "myPayslips": "My payslips"
   },
   "user": {
     "profile": "My Profile",

@@ -201,6 +201,7 @@ router.post('/:businessId/runs/:id/adopt', ...writer, async (req, res, next) => 
 
 // ─── 세무사 대장 가져오기 ─────────────────────────────────────────
 // 엑셀·CSV 는 기계가, PDF 만 AI 가(Cue 1회 계량). 파일은 Q file 에 나만 보기(L1)·대외비로 남고 검색·AI 색인에 들어가지 않는다.
+// audit-exempt: 첫 처리기는 업로드 받기뿐 — 감사(payroll.statement_import)는 다음 처리기에서
 router.post('/:businessId/runs/:id/statement', ...writer, ...perUserDaily('payroll-statement', { perMin: 5, perDay: 60 }), (req, res, next) => {
   statementUpload.single('file')(req, res, (err) => {
     if (err) return errorResponse(res, err.code === 'LIMIT_FILE_SIZE' ? 'file_too_large' : (err.message || 'upload_failed'), 400);
@@ -283,6 +284,7 @@ async function updateStatementDecision(req, res, next, apply) {
 }
 
 // 열 결정 — { key, action:'map', item_id } (그 머리글을 항목 별칭으로 저장 = 다음 달 자동) | { key, action:'ignore' } | { key, action:'create', side }
+// audit-exempt: 감사(payroll.statement_decide)는 updateStatementDecision 안에서 한 번
 router.put('/:businessId/runs/:id/statement/columns', ...writer, (req, res, next) => updateStatementDecision(req, res, next, async (run, extract, t) => {
   const b = req.body || {};
   const col = extract.columns.find((c) => c.key === b.key && c.role === 'item');
@@ -308,6 +310,7 @@ router.put('/:businessId/runs/:id/statement/columns', ...writer, (req, res, next
 }));
 
 // 사람 결정 — { idx, action:'map', person_id } | { idx, action:'skip' } | { idx, action:'create' }(대장의 이름·사번·직위로 대상자 만들기)
+// audit-exempt: 감사(payroll.statement_decide)는 updateStatementDecision 안에서 한 번
 router.put('/:businessId/runs/:id/statement/rows', ...writer, (req, res, next) => updateStatementDecision(req, res, next, async (run, extract, t) => {
   const b = req.body || {};
   const row = extract.rows.find((r) => r.idx === Number(b.idx));
