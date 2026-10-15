@@ -83,7 +83,7 @@ const AttendanceWidget: React.FC<Props> = ({ variant = 'sidebar', isCollapsed, e
     <AutoModalBody>
       <div>{t('widget.autoClockedIn')}</div>
       {a.autoNotice?.can_undo && (
-        <AutoModalHint>{t('widget.autoUndoHint', { defaultValue: '잘못 기록됐다면 지금 되돌릴 수 있어요.' }) as string}</AutoModalHint>
+        <AutoModalHint>{t('widget.autoUndoHint', { defaultValue: '잘못 기록됐다면 지금 되돌릴 수 있어요. 되돌리면 업무 시간 측정도 함께 멈춥니다.' }) as string}</AutoModalHint>
       )}
     </AutoModalBody>
   </StandardModal>

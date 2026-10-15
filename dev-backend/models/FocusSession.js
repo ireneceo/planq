@@ -73,7 +73,7 @@ FocusSession.init({
   auto_paused: { type: DataTypes.BOOLEAN, defaultValue: false, comment: '유휴로 자동 paused 인지' },
   end_reason: {
     type: DataTypes.STRING(30), allowNull: true,
-    comment: 'manual / auto_idle / logout / browser_close / switch / stale',
+    comment: 'manual / auto_idle / logout / browser_close / switch / stale / clock_out / undo_clock_in / day_end',
   },
 }, {
   sequelize,

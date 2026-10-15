@@ -26,7 +26,7 @@
     "undoAuto": "Undo",
     "dismiss": "Dismiss",
     "autoClockedInTitle": "Clocked you in",
-    "autoUndoHint": "If this is wrong, you can undo it now.",
+    "autoUndoHint": "If this is wrong, you can undo it now. Undoing also stops the work timer.",
     "autoOk": "OK"
   },
   "state": {

@@ -17,8 +17,11 @@ const { Task } = require('../models');
 //     "누가 무슨 업무를 하는지" 가 권한 검사 없이 전파된다(근태가 수치를 안 싣는 것과 같은 이유).
 //     `user:{id}` 는 연결 시 서버가 자동 join 한다(server.js:223).
 function broadcastFocus(req, userId, payload) {
+  try { broadcastFocusIo(req.app.get('io'), userId, payload); } catch (e) { console.warn('[focus broadcast]', e.message); }
+}
+// 요청이 없는 경로(근태 전이·cron)용 — 같은 룸·같은 이벤트. 사본을 만들면 룸 이름이 갈라진다.
+function broadcastFocusIo(io, userId, payload) {
   try {
-    const io = req.app.get('io');
     if (io) io.to(`user:${userId}`).emit('focus:updated', payload || {});
   } catch (e) { console.warn('[focus broadcast]', e.message); }
 }
@@ -27,9 +30,13 @@ function broadcastFocus(req, userId, payload) {
 // focus 라우트는 세션만 응답하므로, '실제' 시간(task.actual_hours)이 Q Task 리스트·드로어에
 // 새로고침 없이 보이려면 §16 (b) broadcast 가 필요 (start/pause/stop recompute 직후 호출).
 async function broadcastTaskUpdate(req, taskId) {
+  let io = null;
+  try { io = req.app.get('io'); } catch { /* 요청 없음 */ }
+  return broadcastTaskUpdateIo(io, taskId);
+}
+async function broadcastTaskUpdateIo(io, taskId) {
   if (!taskId) return;
   try {
-    const io = req.app.get('io');
     if (!io) return;
     const t = await Task.findByPk(taskId);
     if (!t) return;
@@ -40,5 +47,5 @@ async function broadcastTaskUpdate(req, taskId) {
   } catch (e) { console.warn('[focus broadcastTaskUpdate]', e.message); }
 }
 
-module.exports = { broadcastFocus, broadcastTaskUpdate };
+module.exports = { broadcastFocus, broadcastTaskUpdate, broadcastFocusIo, broadcastTaskUpdateIo };
 

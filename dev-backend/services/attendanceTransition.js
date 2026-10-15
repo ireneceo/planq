@@ -305,8 +305,16 @@ async function applyAdminFix({ dayId, events, fixReason, actorUserId }) {
 }
 
 // ─── Focus 연동 (§2.1) ──────────────────────────────────────────
-async function stopActiveFocus(userId, reason) {
-  const s = await FocusSession.findOne({ where: { user_id: userId, state: { [Op.in]: ['active', 'paused'] } } });
+/**
+ * 살아 있는(active/paused) 포커스 세션을 닫는다.
+ * opts.businessId — 그 워크스페이스 세션만 닫는다(2026-10-15 Fable 판정). 범위 없는 stop 은 ws A 의 일로
+ *   ws B 에서 막 시작한 세션을 죽인다. 퇴근(clockOut)은 사람 단위라 범위 없이 부른다(종전 동작).
+ * opts.broadcast — 요청 없는 경로(되돌리기·cron)에서 본인 기기·업무 화면에 알린다.
+ */
+async function stopActiveFocus(userId, reason, opts = {}) {
+  const where = { user_id: userId, state: { [Op.in]: ['active', 'paused'] } };
+  if (opts.businessId) where.business_id = opts.businessId;
+  const s = await FocusSession.findOne({ where });
   if (!s) return null;
   let extraPause = 0;
   if (s.state === 'paused' && s.paused_at) {
@@ -320,6 +328,12 @@ async function stopActiveFocus(userId, reason) {
   if (s.task_id) {
     const { recomputeActualHours } = require('./taskActualHours');
     await recomputeActualHours(s.task_id).catch(() => null);
+  }
+  if (opts.broadcast) {
+    const fb = require('./focusBroadcast');
+    const io = getIO();
+    fb.broadcastFocusIo(io, userId, { state: 'stopped', task_id: s.task_id });
+    await fb.broadcastTaskUpdateIo(io, s.task_id);
   }
   return s;
 }
@@ -424,6 +438,14 @@ async function undoAutoClockIn({ businessId, userId }) {
     businessId,
     oldValue: snapshot,
     newValue: null,
+  });
+  // ★ 2026-10-15 (Fable 판정) — 출근을 무르면 그 워크스페이스의 업무 측정도 끝낸다.
+  //   «업무 진행 중 = 근무중» 의 역이다. 그대로 두면 미출근인데 타이머가 돌고(운영 세션 236 — 2h40m),
+  //   «재개» 가 말없이 출근을 다시 찍어 취소가 무효가 된다. 멈춤(paused)도 아니다 — 근태 행 없는 paused 는
+  //   날을 넘겨 남는 좀비가 된다. 업무 상태(in_progress)와 측정된 초는 그대로(퇴근과 같다).
+  //   «시간은 재고 출근은 안 찍기» 는 설정 auto_clock_in_on_focus 의 일이다.
+  await stopActiveFocus(userId, 'undo_clock_in', { businessId, broadcast: true }).catch((e) => {
+    console.warn('[attendance undo → focus stop]', e.message);
   });
   // 화면(다른 기기 포함)이 즉시 미출근으로 돌아가게.
   const io = getIO();
