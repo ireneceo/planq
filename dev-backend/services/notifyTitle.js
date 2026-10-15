@@ -71,6 +71,8 @@ const ACTIONS = {
   task_reviewer_added: { ko: '컨펌자 지정', en: 'Added as approver' },
   task_comment_mention: { ko: '댓글 멘션', en: 'Mentioned in a comment' },
   // Q docs / 공유
+  doc_comment: { ko: '새 댓글', en: 'New comment' },
+  doc_comment_mention: { ko: '댓글 멘션', en: 'Mentioned in a comment' },
   share_expiry_soon: { ko: '공유 링크 만료 임박', en: 'Share link expiring soon' },
   // Q Talk
   chat_message: { ko: '새 메시지', en: 'New message' },

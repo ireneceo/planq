@@ -1190,5 +1190,20 @@
     "hasRounds": "A survey that has already been sent can't become a document. Duplicate it to start a new document.",
     "descriptionPh": "One or two lines on why you're asking",
     "sendHint": "Email it to clients to collect answers"
+  },
+  "comments": {
+    "title": "Comments",
+    "empty": "No comments yet",
+    "placeholder": "Write a comment (Enter to send · Shift+Enter for new line)",
+    "vis": {
+      "internal": "Team only",
+      "shared": "Visible to client"
+    },
+    "chip": {
+      "shared": "Client-visible",
+      "client": "Client"
+    },
+    "loadFailed": "Couldn't load comments",
+    "retry": "Retry"
   }
 }

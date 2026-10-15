@@ -33,6 +33,7 @@ const NOTIFICATION_EVENT_KINDS = [
   'push_fallback',    // 푸시 실패 시 메일 재알림 안전망 — DB(migrate-push-fallback-pref)에는 있었는데 모델에만 빠져 있었다(2026-10-05 맞춤)
   'client_crash',     // 2026-10-05 — 화면 크래시 관리자 알림 (플랫폼, business_id NULL · 끝에 append)
   'survey',           // #460 설문 새 응답 (끝에 append — migrate-survey)
+  'doc_comment',      // 2026-10-15 문서 댓글 — «업무» 를 끈 사람이 문서 댓글까지 끄지 않게 따로 (끝에 append — migrate-post-comments)
 ];
 
 class NotificationPref extends Model {}

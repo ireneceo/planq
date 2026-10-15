@@ -334,4 +334,152 @@ async function applyAiEdit(actor, params = {}) {
   return done({ post, applied, beforeRevisionId: beforeRev ? beforeRev.id : null });
 }
 
-module.exports = { applyAiEdit, aiEditTarget, createPost, updatePostContent, setPostLinks, movePostToProject, checkEditable, attachFiles };
+// ─────────────────────────────────────────────
+// 문서 댓글 (2026-10-15, docs/DOC_COMMENTS_DESIGN.md — Fable 설계)
+//   만들기·지우기·알림·감사·실시간이 여기 한 곳이다. 화면 라우트(routes/post_comments.js)가 부르고,
+//   뒤에 AI 도구가 생겨도 같은 문을 지난다. 읽기 판정은 문서 본문과 같은 canReadPost 하나.
+// ─────────────────────────────────────────────
+const COMMENT_MAX = 5000;
+
+function signalComment(post, commentId) {
+  const io = getIO();
+  if (!io || !post) return;
+  // 신호만 — 본문·작성자 없음. 받는 화면은 자기 권한으로 다시 읽는다(고객은 shared 만 받는다).
+  const data = { id: post.id, business_id: post.business_id, project_id: post.project_id || null, comment_id: commentId };
+  if (post.business_id) io.to(`business:${post.business_id}`).emit('post:comment', data);
+  if (post.project_id) require('../projectRoom').emitProject(io, post.project_id, 'post:comment', data);
+}
+
+function auditComment(actor, action, post, comment) {
+  // 본문은 싣지 않는다 — 누가·어디에·어떤 범위로 만.
+  const payload = { comment_id: Number(comment.id), post_id: post.id, visibility: comment.visibility, author_id: comment.user_id };
+  require('../auditService').logAudit(actor.req || null, {
+    userId: actor.userId,
+    action,
+    targetType: 'post_comment',
+    targetId: Number(comment.id),
+    businessId: post.business_id,
+    ...(action === 'post.comment_delete' ? { oldValue: payload } : { newValue: payload }),
+  });
+}
+
+/**
+ * 댓글 쓰기 — 문서를 읽을 수 있는 사람(멤버·고객). 고객은 서버가 shared 로 강제.
+ * @returns {ok, data: PostComment 인스턴스} | fail
+ */
+async function createComment(actor, post, { content, visibility } = {}) {
+  const subj = await resolveSubject(actor);
+  if (!subj.ok) return subj;
+  const userId = subj.subjectId;
+  if (!post) return fail('not_found', 404);
+  const text = String(content || '').trim();
+  if (!text) return fail('content_required', 400);
+  if (text.length > COMMENT_MAX) return fail('content_too_long', 400);
+
+  const user = { id: userId, platform_role: subj.platformRole };
+  const { canReadPost } = require('../postAccess');
+  // 못 읽으면 없는 것과 같다(존재를 말하지 않는다 — 문서 상세와 같은 응답).
+  if (!(await canReadPost(user, post))) return fail('not_found', 404);
+  const { viewerOf, canShareWithClients } = require('../postComments');
+  const viewer = await viewerOf(user, post);
+  if (!viewer.isMember && !viewer.isClient) return fail('not_found', 404);
+
+  let vis = visibility === 'shared' ? 'shared' : 'internal';
+  if (!viewer.isMember) vis = 'shared';                                   // 고객은 shared 만
+  else if (vis === 'shared' && !(await canShareWithClients(post))) vis = 'internal';  // 볼 고객이 없으면 뜻이 없다
+
+  const { PostComment } = require('../../models');
+  const row = await PostComment.create({ post_id: post.id, business_id: post.business_id, user_id: userId, content: text, visibility: vis });
+
+  auditComment(actor, 'post.comment_create', post, row);
+  signalComment(post, row.id);
+  await notifyComment({ post, comment: row, subjectId: userId, actor }).catch((e) => console.warn('[post comment notify]', e.message));
+  return done(row);
+}
+
+/** 댓글 지우기 — 작성자 또는 owner/admin, 둘 다 지금 그 문서를 읽을 수 있어야 한다. 하드 삭제. */
+async function deleteComment(actor, post, commentId) {
+  const subj = await resolveSubject(actor);
+  if (!subj.ok) return subj;
+  const userId = subj.subjectId;
+  if (!post) return fail('not_found', 404);
+  const user = { id: userId, platform_role: subj.platformRole };
+  const { canReadPost } = require('../postAccess');
+  if (!(await canReadPost(user, post))) return fail('not_found', 404);
+  const { PostComment } = require('../../models');
+  const row = await PostComment.findOne({ where: { id: commentId, post_id: post.id, business_id: post.business_id } });
+  if (!row) return fail('comment_not_found', 404);
+  const { viewerOf, canModerate } = require('../postComments');
+  const viewer = await viewerOf(user, post);
+  // 고객은 internal 댓글이 «없는 것» 이다 — 지울 수 없다고 말하지 않고 없다고 답한다.
+  if (!viewer.isMember && row.visibility !== 'shared') return fail('comment_not_found', 404);
+  if (row.user_id !== userId && !canModerate(viewer.scope)) return fail('only_author_can_delete', 403);
+  await row.destroy();
+  auditComment(actor, 'post.comment_delete', post, row);
+  signalComment(post, row.id);
+  return done({ deleted: true });
+}
+
+async function notifyComment({ post, comment, subjectId, actor }) {
+  const { resolveMentions } = require('../mention_parser');
+  const { notifyMany } = require('../../routes/notifications');
+  const { canReadPost } = require('../postAccess');
+  const { getUserScope, isMemberOrAbove } = require('../../middleware/access_scope');
+  const { PostComment, Business, User } = require('../../models');
+
+  // 받을 수 있는가 — 지금 그 문서를 읽을 수 있고, internal 댓글이면 멤버 이상만.
+  //   못 읽는 사람에게 «문서에 댓글이 달렸다» 가 가면 그 제목 자체가 누수다.
+  const cache = new Map();
+  const canReceive = async (uid) => {
+    if (cache.has(uid)) return cache.get(uid);
+    let ok = false;
+    try {
+      const u = await User.findByPk(uid, { attributes: ['id', 'platform_role'] });
+      if (u && await canReadPost({ id: u.id, platform_role: u.platform_role }, post)) {
+        if (comment.visibility === 'shared') ok = true;
+        else ok = isMemberOrAbove(await getUserScope(u.id, post.business_id, u.platform_role));
+      }
+    } catch { ok = false; }
+    cache.set(uid, ok);
+    return ok;
+  };
+
+  const mentionedAll = await resolveMentions(comment.content, post.business_id, subjectId);
+  const mentioned = [];
+  for (const uid of mentionedAll) if (uid !== subjectId && await canReceive(uid)) mentioned.push(uid);
+  const mentionedSet = new Set(mentioned);
+
+  const prior = await PostComment.findAll({ where: { post_id: post.id }, attributes: ['user_id'], raw: true });
+  const others = new Set([post.author_id, ...prior.map((r) => r.user_id)].filter(Boolean));
+  others.delete(subjectId);
+  for (const m of mentionedSet) others.delete(m);
+  const general = [];
+  for (const uid of others) if (await canReceive(uid)) general.push(uid);
+  if (!mentioned.length && !general.length) return;
+
+  const biz = await Business.findByPk(post.business_id, { attributes: ['name', 'brand_name'] });
+  const wsName = biz?.brand_name || biz?.name || null;
+  const text = String(comment.content);
+  const preview = text.length > 80 ? text.slice(0, 80) + '…' : text;
+  const link = `/docs?post=${post.id}&comment=${comment.id}`;
+  const common = {
+    businessId: post.business_id, body: preview, link, ctaLabel: '댓글 보기', workspaceName: wsName,
+    // 사람이 쓴 글 — 밖(푸시 미리보기·재알림 메일)으로는 앞부분만. 메일은 보내지 않는다(앱 안 협업).
+    previewPolicy: 'excerpt', skipChannels: ['email'], suppressEscalation: true,
+    actorUserId: actor.userId, entityType: 'post', entityId: post.id, ioApp: getIO(),
+  };
+  if (mentioned.length) {
+    notifyMany({ ...common, userIds: mentioned, eventKind: 'comment_mention', titleSpec: { feature: 'docs', action: 'doc_comment_mention', subject: `"${post.title}"` } })
+      .catch((e) => console.warn('[notify doc comment_mention]', e.message));
+  }
+  if (general.length) {
+    const author = await User.findByPk(subjectId, { attributes: ['id', 'name'] });
+    const { getMemberDisplayName } = require('../displayName');
+    const authorName = await getMemberDisplayName(post.business_id, subjectId, author?.name || null).catch(() => author?.name || null);
+    const nm = (typeof authorName === 'string' ? authorName : authorName?.name) || author?.name || '';
+    notifyMany({ ...common, userIds: general, eventKind: 'doc_comment', titleSpec: { feature: 'docs', action: 'doc_comment', subject: `${nm} · "${post.title}"` } })
+      .catch((e) => console.warn('[notify doc_comment]', e.message));
+  }
+}
+
+module.exports = { createComment, deleteComment, applyAiEdit, aiEditTarget, createPost, updatePostContent, setPostLinks, movePostToProject, checkEditable, attachFiles };

@@ -74,6 +74,7 @@ const QnoteUsageEvent = require('./QnoteUsageEvent');
 const ProviderCredit = require('./ProviderCredit');   // 외부 API 선불 크레딧 잔액 추적
 const BusinessPlanHistory = require('./BusinessPlanHistory');
 const Post = require('./Post');
+const PostComment = require('./PostComment');
 const PostAttachment = require('./PostAttachment');
 const PostCategory = require('./PostCategory');
 // ─── Q Bill Phase 0 ───
@@ -346,6 +347,10 @@ Conversation.hasMany(Post, { as: 'posts', foreignKey: 'conversation_id' });
 PostAttachment.belongsTo(Post, { foreignKey: 'post_id', onDelete: 'CASCADE' });
 PostAttachment.belongsTo(File, { as: 'file', foreignKey: 'file_id' });
 Post.hasMany(PostAttachment, { as: 'attachments', foreignKey: 'post_id' });
+// 문서 댓글 (2026-10-15, docs/DOC_COMMENTS_DESIGN.md)
+Post.hasMany(PostComment, { as: 'comments', foreignKey: 'post_id' });
+PostComment.belongsTo(Post, { foreignKey: 'post_id' });
+PostComment.belongsTo(User, { as: 'author', foreignKey: 'user_id' });
 PostCategory.belongsTo(Business, { foreignKey: 'business_id' });
 PostCategory.belongsTo(Project, { foreignKey: 'project_id' });
 
@@ -652,6 +657,7 @@ module.exports = {
   QnoteUsageEvent,
   BusinessPlanHistory,
   Post,
+  PostComment,
   PostAttachment,
   PostCategory,
   // Q Bill Phase 0

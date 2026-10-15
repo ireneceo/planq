@@ -160,7 +160,8 @@
       "share_expiry": "Share link expiring",
       "push_fallback": "Email when push fails",
       "leave": "Leave",
-      "survey": "Survey responses"
+      "survey": "Survey responses",
+      "doc_comment": "Document comments"
     },
     "eventDesc": {
       "message": "New message arrives in a chat room · email is sent as one digest if unread for 5 minutes",
@@ -177,7 +178,8 @@
       "share_expiry": "When an external share link expires in 3 days",
       "push_fallback": "Re-sends unread notifications by email when a device push was not delivered",
       "leave": "Leave requests, approvals and rejections",
-      "survey": "A new response arrives on a survey you opened"
+      "survey": "A new response arrives on a survey you opened",
+      "doc_comment": "A new comment on a document you wrote or commented on"
     },
     "footerNote": "Inbox is the in-app notification area. Chat / Email go to external channels.",
     "policy": {

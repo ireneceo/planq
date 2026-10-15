@@ -711,3 +711,40 @@ export function applyPostAiEdit(
   return aiEditCall(`/api/posts/${postId}/ai-edit/apply`, body);
 }
 
+
+// ─── 문서 댓글 (2026-10-15, docs/DOC_COMMENTS_DESIGN.md) ───
+//   볼 수 있는 범위는 서버가 정한다(고객은 shared 만). 화면은 meta 를 그대로 따른다.
+export interface PostCommentRow {
+  id: number;
+  post_id: number;
+  content: string;
+  visibility: 'internal' | 'shared';
+  user_id: number;
+  author_name: string | null;
+  author_kind: 'member' | 'client';
+  created_at: string | null;
+  can_delete: boolean;
+}
+export interface PostCommentsResult {
+  items: PostCommentRow[];
+  meta: { viewer_kind: 'member' | 'client'; can_share_with_clients: boolean };
+}
+export async function fetchPostComments(postId: number): Promise<PostCommentsResult> {
+  const r = await apiFetch(`/api/posts/${postId}/comments`);
+  const j = await r.json().catch(() => null);
+  if (!r.ok || !j?.success) throw new Error(j?.message || `HTTP ${r.status}`);
+  return { items: j.data || [], meta: j.meta || { viewer_kind: 'member', can_share_with_clients: false } };
+}
+export async function addPostComment(postId: number, content: string, visibility: string): Promise<PostCommentRow> {
+  const r = await apiFetch(`/api/posts/${postId}/comments`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ content, visibility }) });
+  const j = await r.json().catch(() => null);
+  if (!r.ok || !j?.success) throw new Error(j?.message || `HTTP ${r.status}`);
+  return j.data;
+}
+export async function deletePostComment(postId: number, commentId: number): Promise<void> {
+  const r = await apiFetch(`/api/posts/${postId}/comments/${commentId}`, { method: 'DELETE' });
+  if (!r.ok) {
+    const j = await r.json().catch(() => null);
+    throw new Error(j?.message || `HTTP ${r.status}`);
+  }
+}

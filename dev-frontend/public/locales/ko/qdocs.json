@@ -1190,5 +1190,20 @@
     "hasRounds": "이미 보낸 회차가 있는 설문은 문서로 바꿀 수 없어요. 복사해서 새 문서로 시작하세요.",
     "descriptionPh": "왜 이 설문을 보내는지 한두 문장",
     "sendHint": "고객에게 메일로 보내 응답을 받아요"
+  },
+  "comments": {
+    "title": "댓글",
+    "empty": "아직 댓글이 없습니다",
+    "placeholder": "댓글을 남기세요 (Enter 전송 · Shift+Enter 줄바꿈)",
+    "vis": {
+      "internal": "팀만",
+      "shared": "고객도 봄"
+    },
+    "chip": {
+      "shared": "고객도 봄",
+      "client": "고객"
+    },
+    "loadFailed": "댓글을 불러오지 못했습니다",
+    "retry": "다시 시도"
   }
 }

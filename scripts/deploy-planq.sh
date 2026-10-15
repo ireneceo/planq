@@ -524,6 +524,8 @@ sync_database() {
   # 2026-10-15 Q talk «열어 봄 ≠ 참여» — conversation_participants.is_viewer TINYINT NOT NULL DEFAULT 0.
   #   모델 defaultScope 가 이 칸을 SELECT 하므로 PM2 reload 전(없으면 채팅 전부 500). 옛 행 정리는 backfill-conv-viewer.js(수동, dry-run 기본).
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-conv-viewer.js 2>&1 | tail -5"
+  # 2026-10-15 문서 댓글 — post_comments 표 + 두 알림 표 event_kind 끝 'doc_comment'(멱등). 문서 상세가 이 표를 세므로 PM2 reload 전.
+  prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-post-comments.js 2>&1 | tail -5"
   # 2026-09-21 랜딩 방문 집계 테이블 2개(CREATE IF NOT EXISTS · 재조회 검증). PM2 reload 전.
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-landing-visits.js 2>&1 | tail -3"
   # 2026-09-21 Sign in with Apple — oauth_connections.provider·ephemeral_tokens.kind ENUM 끝 append +

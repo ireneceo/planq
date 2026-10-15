@@ -160,7 +160,8 @@
       "share_expiry": "공유 링크 만료 임박",
       "push_fallback": "푸시 실패 시 메일",
       "leave": "휴가",
-      "survey": "설문 응답"
+      "survey": "설문 응답",
+      "doc_comment": "문서 댓글"
     },
     "eventDesc": {
       "message": "채팅방에 새 메시지 도착 · 메일은 5분 안 읽으면 묶어서 한 통",
@@ -177,7 +178,8 @@
       "share_expiry": "외부에 보낸 공유 링크가 3일 뒤 만료될 때",
       "push_fallback": "기기 알림이 전달되지 않았을 때, 안 읽은 알림을 메일로 한 번 더",
       "leave": "휴가 신청·승인·반려",
-      "survey": "내가 연 설문에 새 응답이 들어올 때"
+      "survey": "내가 연 설문에 새 응답이 들어올 때",
+      "doc_comment": "내가 쓴 문서나 댓글을 단 문서에 새 댓글이 달릴 때"
     },
     "footerNote": "확인필요(Inbox)는 PlanQ 안에서 직접 보는 알림 영역입니다. 채팅/이메일은 외부로 나가는 알림.",
     "policy": {

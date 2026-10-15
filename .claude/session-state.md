@@ -1,5 +1,14 @@
 ## 현재 작업 상태
 
+### 완료: 문서(Q docs) 댓글 (방 1abbce29 · 2026-10-15 · [Opus] · Fable 설계 + 게이트 PASS) — 운영 미배포
+- 설계 docs/DOC_COMMENTS_DESIGN.md. 새 표 `post_comments`(internal 팀만 / shared 고객도 봄) · 라우트 `routes/post_comments.js`(GET/POST/DELETE `/api/posts/:id/comments`, posts.js 앞 마운트) · 쓰는 문 `post_actions.createComment/deleteComment`(알림·감사·실시간) · 읽기 `services/postComments.js`.
+- 화면: 문서 보기 모드 첨부 아래 `DocCommentsSection`(공용 NoteThread — visibilityOptions·highlightId 등 확장, 기존 호출부 동작 그대로). 고객 있는 프로젝트 문서만 [팀만|고객도 봄]. 알림 링크 `/docs?post=&comment=` 스크롤·강조. 알림 설정에 «문서 댓글» 행.
+- 운영: `migrate-post-comments.js`(표 + 알림 두 표 ENUM 'doc_comment', 멱등) 배포 슬롯 등록(PM2 reload 전). dev 적용함.
+- 검증: 실HTTP 44/44(+Fable 16/16) · 브라우저 3폭 22/22 · 양성 대조군 · guard 69/70 · secrets 10/10 · e2e tenant 0 · build EXIT 0.
+- 확인용: ws6 문서 3120 «[확인용] 문서 댓글 시험»(프로젝트 35, 고객 client@).
+- 뺀 것(설계): 답글·편집·목록 댓글 수·확인필요 배지·첨부·AI 도구.
+- 곁에서 본 것(안 고침): 업무 상세(`GET /api/tasks/:id/detail`)는 멤버에게 남의 personal 댓글도 그대로 싣는다(고객만 거른다) — 화면이 거르는지 확인 필요.
+
 ### 완료: 묶음 3건 모두 대기열 앞으로 되돌림 (방 75f6c531 · 2026-10-15 · [Opus]) — 코드 변경 없음
 - 문서 댓글 · 비가입 고객 직접 관리 · 답변필요 메일 분류 고도화 — 셋 다 새 표/판정 기준/고객 status 의미가 걸린 설계(Fable) 대상이라 묶음 규칙대로 손대지 않고 `front:true` 로 되돌림.
 - 문서 댓글 정찰 메모 새로 씀: `.claude/plans/qdoccomments.md` (나머지 둘은 기존 계획 qmv7hp0uc · qmv7ly27u).

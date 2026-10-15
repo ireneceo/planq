@@ -427,6 +427,12 @@ router.get('/:id', authenticateToken, async (req, res, next) => {
     //   (b) 목록 정렬이 ['updated_at','DESC'] 라 남이 열어보기만 해도 순서가 뒤바뀐다
     await post.increment('view_count', { silent: true });
     const result = serialize(post, true);
+    // 문서 댓글 수 — 보는 사람 기준(고객은 shared 만). 범위 조건은 댓글 목록과 같은 함수(services/postComments).
+    try {
+      const pcs = require('../services/postComments');
+      const viewer = await pcs.viewerOf(req.user, post);
+      result.comment_count = await require('../models').PostComment.count({ where: pcs.visibleWhere(post.id, viewer) });
+    } catch { result.comment_count = 0; }
     // kind='table'·'survey' 이면 연결된 QRecord 정보도 같이 (그리드·질문지 임베드용)
     if ((post.kind === 'table' || post.kind === 'survey') && post.q_record_id) {
       const { QRecord } = require('../models');

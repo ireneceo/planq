@@ -28,6 +28,7 @@ const CLIENT_VIEW = {
   'inbox:refresh': signal,
   'project:updated': signal,     // 고객 화면은 다시 읽는다 — 프로젝트 행(계약 금액·전략)을 싣지 않는다
   'post:new': signal, 'post:updated': signal, 'post:deleted': signal,
+  'post:comment': signal,        // 문서 댓글 — 신호만, 고객은 다시 읽을 때 shared 만 받는다
   'kb:new': signal, 'kb:updated': signal, 'kb:deleted': signal,
   'file:new': signal, 'file:updated': signal, 'file:deleted': signal,
 };

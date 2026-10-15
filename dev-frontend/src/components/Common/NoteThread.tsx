@@ -3,7 +3,7 @@
 // 메모는 "어딘가에 붙는 댓글" 이다: 누가 언제 썼는지 보이고, 여러 개가 시간 순으로 쌓이고,
 // 공개 범위를 고를 수 있다. 화면마다 한 줄 입력 + [추가] 버튼으로 제각각 만들면 같은 기능이
 // 다른 물건처럼 보인다(Q mail 이 그랬다). 디자인 원본은 Q Talk RightPanel 의 메모 — 그대로 박제.
-import { useRef, useState, type ChangeEvent, type KeyboardEvent, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ChangeEvent, type KeyboardEvent, type ReactNode } from 'react';
 import { useDraftText, useDraftKey } from '../../hooks/useDraftText';
 import type { DraftKind } from '../../hooks/draftKinds';
 import DraftRestoredNote from './DraftRestoredNote';
@@ -20,14 +20,26 @@ export interface NoteItemData {
   created_at?: string | null;
 }
 
-interface Props {
+interface Props<V extends string> {
   notes: NoteItemData[];
   myUserId: number | null;
   /** 공개 범위 선택 노출 (client 는 숨김) */
   canChooseVisibility?: boolean;
   busy?: boolean;
   /** 성공하면 true — 쓰던 글(초안)은 true 일 때만 비운다. 실패를 삼키는 핸들러가 글을 지우지 못하게 타입으로 강제 */
-  onAdd: (body: string, visibility: 'internal' | 'personal') => Promise<boolean>;
+  // V — 공개 범위 값. 기본은 종전 'internal'|'personal', visibilityOptions 를 넘기면 그 값들로 추론된다
+  onAdd: (body: string, visibility: V) => Promise<boolean>;
+  /**
+   * 공개 범위 선택지를 바꾼다(문서 댓글 «팀만 / 고객도 봄» — 2026-10-15). 첫 값이 기본.
+   * 넘기지 않으면 종전 «공개(internal) / 나만(personal)» 그대로(Q talk·메일·Q sale 무변경).
+   */
+  visibilityOptions?: { value: V; label: string }[];
+  /** 목록 최대 높이 — 기본 260px(곁패널). 본문 아래에 이어 붙는 곳은 'none' */
+  listMaxHeight?: string;
+  /** 이 메모로 스크롤 + 잠깐 강조(알림 링크로 열렸을 때) */
+  highlightId?: number | null;
+  /** 삭제 버튼을 보일지 — 기본은 본인 메모만. 서버가 준 권한(작성자·관리자)을 쓰는 곳이 넘긴다 */
+  canDelete?: (note: NoteItemData) => boolean;
   /** 본인 메모만 삭제 가능 — 넘기지 않으면 삭제 버튼 없음 */
   onDelete?: (id: number) => void | Promise<void>;
   formatTime?: (iso: string) => string;
@@ -45,11 +57,12 @@ interface Props {
   draftLegacyKey?: string | null;
 }
 
-export default function NoteThread({
+export default function NoteThread<V extends string = 'internal' | 'personal'>({
   notes, myUserId, canChooseVisibility = true, busy,
   onAdd, onDelete, formatTime, emptyText, placeholder, renderMeta,
   draftKind, draftEntityId, draftBizId, draftLegacyKey,
-}: Props) {
+  visibilityOptions, listMaxHeight, highlightId, canDelete,
+}: Props<V>) {
   const { t } = useTranslation('common');
   // 운영 #367 — 대상이 바뀌어도(다른 대화·다른 스레드) 쓰던 글은 그 대상에 남아 있다가 돌아오면 되살아난다.
   // ★ 훅은 조건 없이 **항상** 부른다. 보존 여부로 훅 호출을 가르면 그 prop 이 바뀌는 순간
@@ -61,13 +74,30 @@ export default function NoteThread({
   const text = draftKey ? draft.text : localText;
   const setText = draftKey ? draft.setText : setLocalText;
   const [shared, setShared] = useState(true);
+  const [optVis, setOptVis] = useState<V | null>(null);
+  const chosenOpt = visibilityOptions && visibilityOptions.length
+    ? (visibilityOptions.find((o) => o.value === optVis) || visibilityOptions[0]).value
+    : null;
   const listRef = useRef<HTMLDivElement>(null);
+  // 알림 링크로 열렸을 때 — 그 메모로 스크롤하고 잠깐 강조한다(목록이 그려진 뒤 한 번)
+  const [flashId, setFlashId] = useState<number | null>(null);
+  const flashedRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (!highlightId || flashedRef.current === highlightId) return;
+    const el = listRef.current?.querySelector(`[data-note-id="${highlightId}"]`) as HTMLElement | null;
+    if (!el) return;
+    flashedRef.current = highlightId;
+    el.scrollIntoView({ block: 'center' });
+    setFlashId(highlightId);
+    const tm = window.setTimeout(() => setFlashId(null), 1600);
+    return () => window.clearTimeout(tm);
+  }, [highlightId, notes]);
 
   const submit = async () => {
     const body = text.trim();
     if (!body || busy) return;
     // ★ 성공했을 때만 비운다 — 저장이 실패했는데 입력칸이 비면 사용자는 쓰던 글을 잃는다(초안 계약 ②).
-    const ok = await onAdd(body, shared ? 'internal' : 'personal');
+    const ok = await onAdd(body, (chosenOpt ?? (shared ? 'internal' : 'personal')) as V);
     if (ok !== true) return;
     if (draftKey) draft.clear(); else setLocalText('');
     requestAnimationFrame(() => { if (listRef.current) listRef.current.scrollTop = listRef.current.scrollHeight; });
@@ -92,12 +122,12 @@ export default function NoteThread({
 
   return (
     <Wrap>
-      <List ref={listRef}>
+      <List ref={listRef} $maxH={listMaxHeight}>
         {notes.length === 0 && (
           <Empty>{emptyText || (t('note.empty', { defaultValue: '아직 메모가 없습니다' }) as string)}</Empty>
         )}
         {notes.map((n) => (
-          <Item key={n.id}>
+          <Item key={n.id} data-testid="note-item" data-note-id={n.id} $flash={flashId === n.id}>
             {n.visibility === 'personal' && (
               <Vis>{t('note.onlyMe', { defaultValue: '나만' }) as string}</Vis>
             )}
@@ -107,10 +137,10 @@ export default function NoteThread({
                 {n.author_name || t('note.someone', { defaultValue: '팀원' }) as string}
                 {n.created_at && formatTime ? ` · ${formatTime(n.created_at)}` : ''}
                 {renderMeta ? renderMeta(n) : null}
-                {onDelete && myUserId != null && Number(n.author_user_id) === Number(myUserId) && (
+                {onDelete && (canDelete ? canDelete(n) : (myUserId != null && Number(n.author_user_id) === Number(myUserId))) && (
                   <>
                     {' · '}
-                    <DelBtn type="button" onClick={() => onDelete(n.id)}>
+                    <DelBtn type="button" data-testid="note-delete" onClick={() => onDelete(n.id)}>
                       {t('note.delete', { defaultValue: '삭제' }) as string}
                     </DelBtn>
                   </>
@@ -130,7 +160,16 @@ export default function NoteThread({
           onKeyDown={onKeyDown}
           placeholder={placeholder || (t('note.placeholder', { defaultValue: '메모 작성... (Enter 저장 · Shift+Enter 줄바꿈)' }) as string)}
         />
-        {canChooseVisibility && (
+        {canChooseVisibility && visibilityOptions && visibilityOptions.length > 0 && (
+          <VisToggle>
+            {visibilityOptions.map((o) => (
+              <VisOption key={o.value} type="button" data-testid={`note-vis-${o.value}`} $active={chosenOpt === o.value} onClick={() => setOptVis(o.value)}>
+                {o.label}
+              </VisOption>
+            ))}
+          </VisToggle>
+        )}
+        {canChooseVisibility && !visibilityOptions && (
           <VisToggle>
             <VisOption type="button" $active={shared} onClick={() => setShared(true)}>
               {t('note.withTeam', { defaultValue: '공개' }) as string}
@@ -160,14 +199,16 @@ export default function NoteThread({
 }
 
 const Wrap = styled.div`display: flex; flex-direction: column; gap: 8px; min-width: 0;`;
-const List = styled.div`
+const List = styled.div<{ $maxH?: string }>`
   display: flex; flex-direction: column; gap: 6px;
-  max-height: 260px; overflow-y: auto;
+  max-height: ${(p) => p.$maxH || '260px'}; overflow-y: auto;
 `;
 const Empty = styled.div`font-size: 0.75rem; color: #94A3B8; padding: 6px 0;`;
-const Item = styled.div`
+const Item = styled.div<{ $flash?: boolean }>`
   display: flex; align-items: flex-start; gap: 6px;
-  padding: 8px 10px; background: #F8FAFC; border-radius: 8px;
+  padding: 8px 10px; background: ${(p) => (p.$flash ? '#F0FDFA' : '#F8FAFC')}; border-radius: 8px;
+  box-shadow: ${(p) => (p.$flash ? '0 0 0 2px #14B8A6' : 'none')};
+  transition: background 0.4s, box-shadow 0.4s;
 `;
 const Vis = styled.span`
   flex-shrink: 0; margin-top: 1px; padding: 1px 6px; border-radius: 999px;

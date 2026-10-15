@@ -18,6 +18,7 @@ import SlotFormModal from './SlotFormModal';
 import { displayName } from '../../utils/displayName';
 import i18n from '../../i18n';
 import { useSearchParams } from 'react-router-dom';
+import DocCommentsSection from './DocCommentsSection';
 import { useTabTitle } from '../../hooks/useTabTitle';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
 import SearchBox from '../Common/SearchBox';
@@ -2623,6 +2624,14 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId }) => {
                   )}
                 </AttachSection>
               )}
+
+              {/* 문서 댓글 (2026-10-15, docs/DOC_COMMENTS_DESIGN.md) — 보기 모드에만. 볼 범위는 서버가 정한다 */}
+              <DocCommentsSection
+                key={`cm-${detail.id}`}
+                postId={detail.id}
+                businessId={detail.business_id ?? scope.businessId}
+                projectId={detail.project_id ?? null}
+              />
             </Body>
           </>
         ) : (detailStatus === 'not_found' || detailStatus === 'forbidden' || detailStatus === 'error' || detailStatus === 'other_workspace') ? (

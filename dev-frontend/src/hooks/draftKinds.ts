@@ -56,6 +56,8 @@ export const DRAFT_KINDS = {
   'sale-next-contact': { ttlMs: 7 * DAY, mode: 'append', owners: ['components/QSale/NextContactModal.tsx'] },
   // 문서 AI 수정 지시 — 길게 적다가 창을 닫거나 다른 문서로 가면 사라지던 값(2026-10-08). 반영 성공 때 비운다.
   'post-ai-edit': { ttlMs: 7 * DAY, mode: 'append', owners: ['components/Docs/PostAiEditDrawer.tsx'] },
+  // 문서 댓글 (2026-10-15, docs/DOC_COMMENTS_DESIGN.md)
+  'post-comment': { ttlMs: 7 * DAY, mode: 'append', owners: ['components/Common/NoteThread.tsx', 'components/Docs/DocCommentsSection.tsx'] },
 } as const satisfies Record<string, DraftKindSpec>;
 
 export type DraftKind = keyof typeof DRAFT_KINDS;

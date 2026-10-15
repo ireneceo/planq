@@ -600,6 +600,7 @@ app.use('/api/admin', require('./routes/admin_credits'));
 app.use('/api/admin', require('./routes/admin_dev_status'));
 // 이력 라우터를 먼저 — /:id/revisions 가 /:id 패턴에 먹히지 않도록 순서를 명시한다.
 app.use('/api/posts', require('./routes/post_revisions'));
+app.use('/api/posts', require('./routes/post_comments'));   // 문서 댓글 — /:id/comments 꼬리만 (docs/DOC_COMMENTS_DESIGN.md)
 app.use('/api/posts', require('./routes/post_ai_edit'));   // 문서 AI 수정 — 제안·반영 (docs/DOC_AI_EDIT_DESIGN.md)
 app.use('/api/posts', require('./routes/posts'));
 app.use('/api/records', require('./routes/records'));

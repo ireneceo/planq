@@ -1,6 +1,11 @@
 # Fable 게이트 대기열 → **판정 기록 보관소** (2026-10-08 부터)
 
 
+## 2026-10-15 PASS — 문서(Q docs) 댓글 (방 1abbce29)
+- 설계 판정(같은 방, Fable): docs/DOC_COMMENTS_DESIGN.md — `post_comments`(internal/shared) · 읽기 = canReadPost 하나 · 고객 shared 강제 · 삭제 = 작성자·owner/admin · 알림 doc_comment(신설 ENUM)·comment_mention · 실시간 `post:comment` 신호만 · 문서 밖으로 안 나감.
+- 검증: Fable 독립 — 작업자 실HTTP 44/44 재현(재시작한 서버) + 추가 16/16(고객 본인 삭제·남의 shared 403·행 키 화이트리스트·작성자 경로 알림·doc_comment 끄면 0·다른 문서 댓글 id 삭제 404·PDF 본문 0) · 마이그레이션 멱등 · 배포 슬롯 reload 앞 · guard 69/70 · secrets 10/10 · e2e tenant 0 · 가시성 6/6. 작업자 브라우저 22/22(3폭), 양성 대조군(고객 필터 제거 → 3검사 뒤집힘).
+- 비차단: ① 검증 숫자는 마지막 편집 뒤 재시작한 서버에서 낼 것 ② 설계 §4 preview 문구를 코드(excerpt — 업무 댓글과 같음)에 맞춰 고침 ③ 작업자 하니스의 «절 전체 center + top+8» 가시성 판정은 댓글이 많으면 sticky 밴드 밑을 찔러 거짓 빨간불 — 정식 스위트로 옮기지 말 것.
+
 ## 2026-10-15 PASS — Q talk «열어 봄 ≠ 참여»(is_viewer) (방 dadb48f3)
 - 설계 판정(같은 방, Fable): A — `conversation_participants.is_viewer` + 모델 defaultScope + `services/convParticipants.js` 한 문 + 가드 convparticipants + 백필(dry-run·장부·revert). B(목록을 참여자만)는 안 함 — 열린 문화(10-09) 유지.
 - 검증: Fable 독립 실HTTP 35검사(33 PASS · FAIL 2 = 감사 setImmediate 조회 타이밍 1 · 비차단 1) · include 에 defaultScope 적용 직접 확인(Sequelize 6.37.8) · guard 69/70 · convparticipants 반증 2건 빨강 · health-check EXIT 0 · **운영 읽기 실측**: 백필 후보 5건(biz1:3·biz17:2) · 사적 방 0건 · 운영 participant_add 감사 최초 10-14.
