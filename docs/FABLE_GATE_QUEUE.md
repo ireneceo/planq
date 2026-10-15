@@ -1,6 +1,11 @@
 # Fable 게이트 대기열 → **판정 기록 보관소** (2026-10-08 부터)
 
 
+## 2026-10-15 PASS — 급여·계약 P0·P1 (방 671b6a35 · c45d87b1·470e7ba9)
+- 설계 판정(같은 방, Fable): docs/PAYROLL_DESIGN.md — 정리·대조 도구 · 법정 공제는 세무사 값 · 기능 스위치 businesses.modules · 대표 + 지정 담당자.
+- 검증: Fable 독립 실HTTP 95(94 PASS, 1 은 검사기 단언 버그 — 값은 맞음) · 모듈 끔 404·platform_admin 403·우회 경로(PUT /permissions 로 담당자 못 바꿈)·멀티테넌트 id 섞기 404/400·계좌 원문 응답·감사·로그 0·계약 전이·memberCost 꺼진 ws 종전 경로·서명 훅 양/음성 · guard 70/71(modulegate 양성 대조군) · health 85/86 · e2e tenant,signature 0 · 마이그레이션·시드 멱등 · 운영 읽기로 EMAIL_ENCRYPTION_KEY 있음 확인. 작업자: 실HTTP 54/54 · 화면 3폭.
+- 비차단: ① health-check invite_mail 하니스가 client_invites 미마운트(급여 무관, 기존) ② 멤버 드로어 «계약 이력» 링크 없음 ③ --suite tenant 에 payroll 라우트 미추가 ④ 비관리자에게도 탭 제목 «급여·계약» 라벨이 보임 ⑤ PUT /permissions 가 client_show_assignee 키를 박음(기존).
+
 ## 2026-10-15 PASS — 긴급 업무요청 알림 강화 (방 671b6a35)
 - 범위: services/urgentTaskNotify.js(신규 — 미확인 긴급 요청이 되는 전이에서만 담당자에게 «[긴급]» 1통) · notify({urgent}) → push(sw requireInteraction·APNs time-sensitive·FCM PRIORITY_MAX/PUBLIC)·소켓 · 추가 폼 «긴급으로 요청» · 팝아웃 맨 위 띠(my-week urgent_requests, [확인]=ack).
 - 검증: Fable 독립 실HTTP 26/26(생성 1통·보통 대조·본인 0·PUT 전이 1·재저장 0·10분 토글 0·ack 후 빠짐·확인한 업무 0·재배정 새 담당자 1·L1 confidential 수신자 1명·비멤버 403·client my-week 빈 배열·updateFields 직접 1) · owner web-push 실발송 sent 201 · 소켓 urgent:true 수신 · 브라우저 1440/390 · guard 69/70 · e2e inboxcount,tenant 0 · health-check 84/85(invite 실패는 기존 — health-access.js 가 client_invites 미마운트). 작업자: 실HTTP 16/16+1 · 화면 3폭 13/13 · build EXIT 0.
