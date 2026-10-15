@@ -1,6 +1,11 @@
 # Fable 게이트 대기열 → **판정 기록 보관소** (2026-10-08 부터)
 
 
+## 2026-10-15 PASS — 청구서 고객 알림 1회 · 종 범위 표시 + 다른 워크스페이스 줄 (방 3aee697b · 커밋 9807d895)
+- 설계 판정(같은 방, Fable): P1=B(종 머리 범위 표시 + 하단 다른 워크스페이스 최대 3줄 [전환]→/notifications, 전환기와 같은 집합·플랫폼 공지 제외) · P3=send(notifyPayer 한 함수 · 발송 1건에 1회 · 채널 결과에 안 걸림 · audience customer|self · 메일·재알림 끔 · eventKind invoice).
+- 검증: unread-count 실HTTP 9(해제된 멤버십 ws3 미읽음 48건이 others 에 안 나옴 — 자연 음성 대조군) · 발송 9시나리오(고객 알림 메일 0 · 청구서 메일 1 · 미리보기 0 · 본인 발송 0 · 채팅 실패에도 1 · 영어 본문) · 브라우저 1440/390 · guard 68/69 · e2e inboxcount,wssync 0.
+- 비차단: ① (기존) billEvents 'delivered' 가 bill_events.event_type ENUM 에 없어 발송 이력이 한 건도 안 남는다 — ENUM append 별건 ② unread-count 가 이제 모든 워크스페이스 notification:new 마다 불려 쿼리 +4(실해 없음) ③ /send 를 채널 둘 다 끈 채 부르면 고객 앱 알림만 간다(설계대로).
+
 ## 2026-10-15 PASS — 서명 요청 «우리 쪽 서명자» 앱 알림 (방 a57886b7 · 커밋 58fb357d)
 - 대상: signatureCore.notifyUsSigners(앱 알림·푸시, 메일 끔, 요청자 제외) · 서명 알림 링크 /posts/:id → /docs?post= · 프론트 옛 링크 이전.
 - Fable 실HTTP 26검사 0 FAIL(남을 겨냥 불가 400 · 알림 선호 존중 · confirm/영어 문구 · 바뀐 링크 실측) · 브라우저 3 · normalizeLink 10케이스.
