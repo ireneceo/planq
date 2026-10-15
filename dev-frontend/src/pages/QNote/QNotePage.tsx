@@ -17,7 +17,8 @@ import StartMeetingModal from './StartMeetingModal';
 import AudioUploadModal from './AudioUploadModal';
 import SaveToSaleModal from './SaveToSaleModal';
 // 업무 추출 — 서버·서비스는 2026-06-05 부터 있었는데 부르는 화면이 없었다(운영 #382)
-import NoteTaskExtract from '../../components/QNote/NoteTaskExtract';
+import CueTaskBar from '../../components/QTask/CueTaskBar';
+import AiAssistButton from '../../components/Common/AiAssistButton';
 // 새 노트 메뉴·＋ 버튼은 Q sale 과 **같은 한 벌**이다 — 여기서 다시 그리지 않는다
 import { NewNoteMenu, NewSessionWrap, NewSessionBtn } from '../../components/QNote/newNoteMenu';
 import { usePopoverAnchor } from '../../components/Common/popoverAnchor';
@@ -1596,6 +1597,9 @@ const QNotePage = ({ scope, onRecordingChange }: QNotePageProps = {}) => {
       title: activeSession?.title || '',
       emptyMsg: t('page.reviewBar.emptyTranscript') as string,
       failMsg: t('page.tasks.extractFailed') as string,
+      noneMsg: t('extract.none', '추출할 업무를 찾지 못했어요.') as string,
+      unavailableMsg: t('extract.aiUnavailable', 'AI 서비스를 잠시 사용할 수 없어요. 잠시 후 다시 시도해 주세요.') as string,
+      limitMsg: t('extract.limit', 'Cue 사용 한도를 다 써서 업무를 뽑지 못했어요.') as string,
     },
   );
 
@@ -3320,22 +3324,10 @@ const QNotePage = ({ scope, onRecordingChange }: QNotePageProps = {}) => {
               )}
             </SummarySection>
 
-            {/* ★ 2026-09-19 (#382: *"업무추출되게 하고"*) — 요약 바로 아래.
-                추출에 넣는 본문은 **전사 전문**이고, 없으면 요약으로 떨어진다. */}
-            {businessId && (
-              <NoteTaskExtract
-                businessId={Number(businessId)}
-                sessionId={activeSession.id}
-                title={activeSession.title}
-                myUserId={user ? Number(user.id) : undefined}
-                text={(activeSession.utterances || [])
-                  .map((u) => String(u.original_text || '').trim())
-                  .filter(Boolean)
-                  .join('\n') || String(activeSession.summary_full || '')}
-              />
-            )}
-
-            {/* N+88 — 업무 추출 (transcript → 후보 → 등록). TaskCandidateCard 통일 재사용. */}
+            {/* N+88 — 업무 추출 (transcript → 후보 → 등록). TaskCandidateCard 통일 재사용.
+                ★ 2026-10-15 (Irene: *"업무추출버튼이 두번 나오고 없을 경우 따로 입력하는 Cue에게 말해서 업무 추가하는 입력란이 없어.
+                  이메일 우측패널을 참고해서"*) — 2026-09-19 에 따로 얹은 NoteTaskExtract 와 이 칸이 같은 일을 두 번 했다.
+                  이 칸 하나로 합치고, 메일 작업대처럼 «못 찾으면 한 줄로 Cue 에게» 입력란(CueTaskBar)을 붙인다. */}
             <TasksSection>
               {/* ★ 2026-09-07 — 요약과 **같은 접기**를 여기에도 둔다.
                   Irene: "접기를 요청한 건 요약내용이 있을 경우 본문을 볼 수 없기 때문이었어.
@@ -3349,11 +3341,16 @@ const QNotePage = ({ scope, onRecordingChange }: QNotePageProps = {}) => {
                   </SummaryCaret>
                   <SummaryHeadTitle>{t('page.tasks.title', '업무')}</SummaryHeadTitle>
                 </SummaryToggle>
-                <SummaryRegenBtn type="button" onClick={noteTasks.extract} disabled={noteTasks.extracting}>
-                  {noteTasks.extracting ? t('page.tasks.extracting', '추출 중...') : t('page.tasks.extract', '업무 추출')}
-                </SummaryRegenBtn>
+                {/* 메일 작업대·메모와 같은 AI 버튼(모양이 자리마다 갈리지 않게) */}
+                <AiAssistButton
+                  onClick={noteTasks.extract}
+                  loading={noteTasks.extracting}
+                  label={noteTasks.extracting ? (t('page.tasks.extracting', '추출 중...') as string) : (t('page.tasks.extract', '업무 추출') as string)}
+                  title={t('page.tasks.emptyHint', '회의에서 실행할 업무를 AI가 찾아 후보로 제안합니다.') as string}
+                />
               </SummaryHead>
               {noteTasks.error && <SummaryError>{noteTasks.error}</SummaryError>}
+              {!tasksCollapsed && noteTasks.notice && <SummaryEmptyText role="status">{noteTasks.notice}</SummaryEmptyText>}
               {tasksCollapsed ? null : noteTasks.candidates.length > 0 ? (
                 <TaskCandidateList>
                   {noteTasks.candidates.map((c) => {
@@ -3379,7 +3376,18 @@ const QNotePage = ({ scope, onRecordingChange }: QNotePageProps = {}) => {
                   })}
                 </TaskCandidateList>
               ) : (
-                !noteTasks.extracting && <SummaryEmptyText>{t('page.tasks.emptyHint', '회의에서 실행할 업무를 AI가 찾아 후보로 제안합니다.')}</SummaryEmptyText>
+                !noteTasks.extracting && !noteTasks.notice && !noteTasks.error && <SummaryEmptyText>{t('page.tasks.emptyHint', '회의에서 실행할 업무를 AI가 찾아 후보로 제안합니다.')}</SummaryEmptyText>
+              )}
+              {!tasksCollapsed && businessId && (
+                <TaskQuickAdd data-testid="qnote-task-quickadd">
+                  <TaskQuickAddHint>{t('page.tasks.quickAdd', 'AI 가 못 찾은 업무는 Cue 에게 한 줄로 말해 바로 추가하세요.')}</TaskQuickAddHint>
+                  <CueTaskBar
+                    businessId={Number(businessId)}
+                    members={noteTasks.members}
+                    projectId={activeSession.project_id ?? null}
+                    compact
+                  />
+                </TaskQuickAdd>
               )}
             </TasksSection>
 
@@ -4811,6 +4819,17 @@ const TaskCandidateList = styled.div`
   display: flex;
   flex-direction: column;
   gap: 10px;
+`;
+// 못 찾았을 때 직접 적는 줄 — 메일 작업대 «한 줄 업무 등록» 과 같은 CueTaskBar
+const TaskQuickAdd = styled.div`
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+`;
+const TaskQuickAddHint = styled.div`
+  font-size: 0.75rem;
+  color: #94A3B8;
 `;
 
 const Transcript = styled.div`

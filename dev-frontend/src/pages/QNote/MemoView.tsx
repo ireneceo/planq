@@ -19,6 +19,7 @@ import type { QNoteSession } from '../../services/qnote';
 import { saveSummaryAsDoc } from '../../utils/qnoteSummaryDoc';
 import { useNoteTaskExtraction } from '../../hooks/useNoteTaskExtraction';
 import TaskCandidateCard, { type CandidateData } from '../../components/Common/TaskCandidateCard';
+import CueTaskBar from '../../components/QTask/CueTaskBar';
 import { parseBodyToDoc, deriveTitleFromDoc, isDocEmpty } from '../../utils/qnoteBody';
 import VisibilityChip from '../../components/Common/VisibilityChip';
 import { PanelHeaderBar, DetailMetaBar } from '../../components/Layout/PanelHeader';
@@ -115,6 +116,9 @@ const MemoView: React.FC<Props> = ({ session, businessId, prefillProjectId, pref
     title: deriveTitleFromDoc(doc) || '',
     emptyMsg: t('page.summary.emptyHint') as string,
     failMsg: t('page.tasks.extractFailed') as string,
+    noneMsg: t('extract.none', '추출할 업무를 찾지 못했어요.') as string,
+    unavailableMsg: t('extract.aiUnavailable', 'AI 서비스를 잠시 사용할 수 없어요. 잠시 후 다시 시도해 주세요.') as string,
+    limitMsg: t('extract.limit', 'Cue 사용 한도를 다 써서 업무를 뽑지 못했어요.') as string,
   });
 
   const saveMemoSummaryAsDoc = async () => {
@@ -395,6 +399,7 @@ const MemoView: React.FC<Props> = ({ session, businessId, prefillProjectId, pref
             />
           </MemoSummaryTop>
           {noteTasks.error && <MemoSummaryError>{noteTasks.error}</MemoSummaryError>}
+          {noteTasks.notice && <MemoSummaryHint role="status">{noteTasks.notice}</MemoSummaryHint>}
           {noteTasks.candidates.length > 0 ? (
             <MemoTaskList>
               {noteTasks.candidates.map((c) => {
@@ -410,7 +415,15 @@ const MemoView: React.FC<Props> = ({ session, businessId, prefillProjectId, pref
               })}
             </MemoTaskList>
           ) : (
-            !noteTasks.extracting && <MemoSummaryHint>{t('page.tasks.emptyHint', '회의에서 실행할 업무를 AI가 찾아 후보로 제안합니다.')}</MemoSummaryHint>
+            !noteTasks.extracting && !noteTasks.notice && !noteTasks.error && <MemoSummaryHint>{t('page.tasks.emptyHint', '회의에서 실행할 업무를 AI가 찾아 후보로 제안합니다.')}</MemoSummaryHint>
+          )}
+          {/* 2026-10-15 — 음성 노트와 같은 «못 찾으면 한 줄로 Cue 에게» (메일 작업대 «한 줄 업무 등록» 과 같은 CueTaskBar) */}
+          {businessId && (
+            <MemoTaskQuickAdd data-testid="qnote-task-quickadd">
+              <MemoSummaryHint>{t('page.tasks.quickAdd', 'AI 가 못 찾은 업무는 Cue 에게 한 줄로 말해 바로 추가하세요.')}</MemoSummaryHint>
+              <CueTaskBar businessId={Number(businessId)} members={noteTasks.members}
+                projectId={session?.project_id ?? null} compact />
+            </MemoTaskQuickAdd>
           )}
         </MemoTasks>
       )}
@@ -498,6 +511,12 @@ const MemoSummaryRegen = styled.button`
   transition: all 0.15s ease;
   &:hover:not(:disabled) { border-color: #CBD5E1; background: #F8FAFC; }
   &:disabled { opacity: 0.5; cursor: default; }
+`;
+const MemoTaskQuickAdd = styled.div`
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 `;
 const MemoTasks = styled.section`
   flex-shrink: 0;

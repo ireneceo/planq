@@ -220,7 +220,8 @@
       "extract": "Extract tasks",
       "extracting": "Extracting...",
       "emptyHint": "AI finds actionable tasks from this session and suggests them as candidates.",
-      "extractFailed": "Failed to extract tasks"
+      "extractFailed": "Failed to extract tasks",
+      "quickAdd": "Tell Cue in one line to add a task the AI missed."
     },
     "catAll": "All",
     "sidebar": {
@@ -535,7 +536,8 @@
     "failed": "Could not extract tasks.",
     "registerFailed": "Could not create the task.",
     "rejectFailed": "Could not dismiss the candidate.",
-    "needText": "A transcript or summary is needed to extract tasks."
+    "needText": "A transcript or summary is needed to extract tasks.",
+    "limit": "The Cue usage limit is reached, so tasks could not be extracted."
   },
   "common": {
     "deleting": "Deleting..."
