@@ -3,7 +3,7 @@
 // 브라우저 탭 모델: 탭 안에서 더 들어가면 그 탭의 경로만 바뀜(새 탭 X). '+' 는 마지막 탭 옆, 새 탭 생성
 // (같은 페이지도 중복 허용). 아이콘 없이 이름(경로) 텍스트만. 디자인 = 사이드바 색 토큰 수평 연장.
 // 설계: docs/MULTITAB_DESIGN.md §1.
-import { useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { BetaChip } from '../Common/BetaChip';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
@@ -23,6 +23,31 @@ const NAV_KEY: Record<TabKind, string> = {
   note: 'nav.note', docs: 'nav.docs', info: 'nav.qinfo', files: 'nav.file',
   clients: 'nav.clients', bill: 'nav.qbill', admin: 'nav.sectionAdmin', other: 'nav.settings',
 };
+
+// #5 — 그 탭에 열린 모달/드로어(aria-modal)가 있으면 탭을 닫지 않는다. 대신 그 탭을 활성화해
+//   사용자가 열어둔 패널을 보고 직접 닫게 한다("마음대로 닫히지 않게", Irene).
+//   X 버튼·가운데 클릭·단축키가 **이 함수 하나**를 쓴다(베끼면 모달 예외가 한쪽에만 남는다).
+function tryClose(id: string, isActiveTab: boolean) {
+  const pane = document.querySelector(`[data-pane-tab="${id}"]`);
+  if (pane && pane.querySelector('[aria-modal="true"]')) {
+    if (!isActiveTab) tabStore.setActive(id);
+    return;
+  }
+  tabStore.closeTab(id);
+}
+
+// 탭 닫기 단축키 (2026-10-15, Irene: "컨트롤 Or 커멘드 W가 우리 탭 닫히는 걸로 적용할 수 없어?")
+//   ★ 웹/PWA 창에서 ⌘W·Ctrl+W 는 브라우저 예약 키라 페이지가 막을 수 없다 — 누르면 창이 닫힌다.
+//   그래서 웹은 ⌥W(맥)·Alt+W(윈도우), 브라우저 껍데기가 없는 네이티브 앱(아이패드)은 ⌘W/Ctrl+W 도 받는다.
+//   판정은 e.code — 맥 ⌥W 의 e.key 는 '∑' 다.
+const isNativeShell = (): boolean => !!(window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } })
+  .Capacitor?.isNativePlatform?.();
+const isMacLike = (): boolean => /Mac|iPhone|iPad|iPod/.test(navigator.platform || navigator.userAgent);
+export function isCloseTabShortcut(e: KeyboardEvent): boolean {
+  if (e.code !== 'KeyW' || e.shiftKey) return false;
+  if (e.altKey && !e.metaKey && !e.ctrlKey) return true;
+  return isNativeShell() && !e.altKey && (e.metaKey || e.ctrlKey);
+}
 
 export default function TabStrip({ leftOffset = 0, onMenu }: {
   leftOffset?: number;
@@ -48,6 +73,20 @@ export default function TabStrip({ leftOffset = 0, onMenu }: {
     activeRef.current?.scrollIntoView({ inline: 'nearest', block: 'nearest' });
   }, [active?.id]);
 
+  // 단축키 — 탭이 하나면 아무것도 안 한다(X 버튼도 그때는 없다). 길게 눌러 연달아 닫히지 않게 repeat 무시.
+  const tabCountRef = useRef(tabs.length); tabCountRef.current = tabs.length;
+  const activeIdRef = useRef(active?.id); activeIdRef.current = active?.id;
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!isCloseTabShortcut(e)) return;
+      e.preventDefault();                       // 입력칸에 '∑' 가 들어가지 않게
+      if (e.repeat || tabCountRef.current <= 1 || !activeIdRef.current) return;
+      tryClose(activeIdRef.current, true);
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, []);
+
   if (tabs.length === 0) return null;
   // 관리자 탭 이름은 **사이드바와 같은 표**(ADMIN_MENUS)에서 온다 — 화면이 스스로 제목을
   //   심게 하면 빠뜨린 화면만 조용히 "설정" 이 된다. 표를 읽으면 메뉴를 늘릴 때 같이 따라온다.
@@ -60,16 +99,6 @@ export default function TabStrip({ leftOffset = 0, onMenu }: {
     return t(key, { defaultValue: tab.kind }) as string;
   };
 
-  // #5 — 그 탭에 열린 모달/드로어(aria-modal)가 있으면 탭을 닫지 않는다. 대신 그 탭을 활성화해
-  //   사용자가 열어둔 패널을 보고 직접 닫게 한다("마음대로 닫히지 않게", Irene).
-  const tryClose = (id: string, isActiveTab: boolean) => {
-    const pane = document.querySelector(`[data-pane-tab="${id}"]`);
-    if (pane && pane.querySelector('[aria-modal="true"]')) {
-      if (!isActiveTab) tabStore.setActive(id);
-      return;
-    }
-    tabStore.closeTab(id);
-  };
 
   // 드래그 정렬 — 대상 탭 위치로 이동(브라우저 탭처럼). 데스크탑 전용이라 HTML5 DnD 로 충분.
   const onDrop = (targetId: string) => {
@@ -126,6 +155,7 @@ export default function TabStrip({ leftOffset = 0, onMenu }: {
                 <Close
                   type="button"
                   aria-label={t('tabs.close', { defaultValue: '탭 닫기' }) as string}
+                  title={t('tabs.closeHint', { key: isNativeShell() ? (isMacLike() ? '⌘W' : 'Ctrl+W') : (isMacLike() ? '⌥W' : 'Alt+W'), defaultValue: '탭 닫기 ({{key}})' }) as string}
                   data-testid={`tabstrip-close-${tab.id}`}
                   onClick={(e) => { e.stopPropagation(); tryClose(tab.id, isActive); }}
                 ><XIcon size={12} /></Close>

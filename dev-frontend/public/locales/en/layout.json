@@ -3,6 +3,7 @@
     "strip": "Open tabs",
     "new": "New tab",
     "close": "Close tab",
+    "closeHint": "Close tab ({{key}})",
     "overflow": "All tabs",
     "recording": "Recording",
     "searchPlaceholder": "Search pages",
