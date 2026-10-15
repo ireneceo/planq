@@ -1,5 +1,9 @@
 ## 현재 작업 상태
 
+### 완료: 묶음 3건 모두 대기열 앞으로 되돌림 (방 75f6c531 · 2026-10-15 · [Opus]) — 코드 변경 없음
+- 문서 댓글 · 비가입 고객 직접 관리 · 답변필요 메일 분류 고도화 — 셋 다 새 표/판정 기준/고객 status 의미가 걸린 설계(Fable) 대상이라 묶음 규칙대로 손대지 않고 `front:true` 로 되돌림.
+- 문서 댓글 정찰 메모 새로 씀: `.claude/plans/qdoccomments.md` (나머지 둘은 기존 계획 qmv7hp0uc · qmv7ly27u).
+
 ### 완료: Q talk «열어 봄 ≠ 참여» — 초대 안 한 사람이 참여자로 들어가던 것 (방 dadb48f3 · 2026-10-15 · [Opus] · Fable 설계 A + 게이트 PASS) — 운영 미배포
 - 원인: 읽음(/read)·핀이 role member 참여자 행을 만들어 열기만 해도 참여자 목록·@·메시지 알림·읽음 분모에 들어갔다. 목록 가시성(멤버 이상은 프로젝트·고객 방을 봄)은 열린 문화 그대로.
 - `conversation_participants.is_viewer` + 모델 defaultScope(참여자만) + 쓰는 문 `services/convParticipants.js`(touchOwnRow viewer · joinParticipant 초대·생성·승격 · promoteSpeaker 말하면 참여자 · ownRows · removeRows) + 가드 `--category=convparticipants`. 설계 docs/QTALK_PARTICIPATION_DESIGN.md.
