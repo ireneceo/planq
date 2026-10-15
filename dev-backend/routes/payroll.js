@@ -1,5 +1,6 @@
 // 급여·계약 관리 API — /api/payroll/:businessId/... (docs/PAYROLL_DESIGN.md)
-//   P1: 급여 담당자 · 대상자 · 계약 이력.  P2~P4(항목·회차·대조·확정·명세서)는 이 접두어에 더한다.
+//   이 파일: 급여 담당자 · 대상자 · 계약 이력.  항목 = routes/payroll_items.js · 회차·대조·확정 = payroll_runs.js · 본인 명세서 = payroll_me.js
+//   (네 파일이 /api/payroll 접두어를 나눈다 — 경로가 겹치지 않는다. 체인 표준은 같다).
 //
 //   체인 표준: authenticateToken → checkBusinessAccess → requireModule('payroll') → (관리) requirePayrollManager [→ 쓰기 requirePayrollWrite]
 //   ★ 모듈이 꺼져 있으면 모든 라우트가 404(있는지도 말하지 않는다). platform_admin 도 관리자가 아니다(403).
@@ -14,6 +15,7 @@ const { logAudit } = require('../services/auditService');
 const { requireModule } = require('../services/modules');
 const { requirePayrollManager, requirePayrollWrite, isOwnerOf, payrollManagerIds } = require('../services/payrollAccess');
 const C = require('../services/payrollContracts');
+const { signalPayroll } = require('../services/payrollSignal');
 const { Business, BusinessMember, User, PayrollPerson, EmploymentContract, ContractPayLine, PayItem } = require('../models');
 
 const base = [authenticateToken, checkBusinessAccess, requireModule('payroll')];
@@ -27,19 +29,8 @@ const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const { dateOnlyOf } = require('../utils/dateOnly');
 const dayOf = (v) => (v ? dateOnlyOf(v) : null);
 
-/** owner + 담당자 개인 방에 «급여 바뀜» 신호. 실패해도 응답에는 영향 없다. */
-async function signal(req, businessId, payload) {
-  try {
-    const io = req.app.get('io');
-    if (!io) return;
-    const biz = await Business.findByPk(businessId, { attributes: ['id', 'owner_id', 'permissions'] });
-    const ids = new Set(await payrollManagerIds(biz));
-    const owners = await BusinessMember.findAll({ where: { business_id: businessId, role: 'owner', removed_at: null }, attributes: ['user_id'] });
-    owners.forEach((o) => ids.add(o.user_id));
-    if (biz?.owner_id) ids.add(biz.owner_id);
-    for (const uid of ids) io.to(`user:${uid}`).emit('payroll:updated', { business_id: businessId, ...payload });
-  } catch (e) { console.warn('[payroll signal]', e.message); }
-}
+// 실시간 신호는 services/payrollSignal 한 문(개인 방만)
+const signal = (req, businessId, payload) => signalPayroll(req, businessId, payload);
 
 function serializePerson(p) {
   const j = p.toJSON();
@@ -337,6 +328,5 @@ router.delete('/:businessId/contracts/:cid', ...writer, async (req, res, next) =
   } catch (e) { next(e); }
 });
 
-// 본인 계약·명세서 열람(GET …/me/*)은 화면과 함께 P4 에서 넣는다(설계 §9 /me/payslips). 술어는 payrollAccess.canReadOwnContracts.
 
 module.exports = router;

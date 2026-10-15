@@ -68,7 +68,7 @@ function periodHours(weekly, startYmd, endYmd) {
  *  - half_day / hours: days_charged 그대로. 단 그 날이 근무일이 아니면 0.
  * 휴일 행 0 · 승인 휴가 0 이면 {0,0} → 종전 값과 diff 0.
  */
-async function getDeductionsInRange(userId, businessId, startYmd, endYmd, { cal = null } = {}) {
+async function getDeductionsInRange(userId, businessId, startYmd, endYmd, { cal = null, leaveType = null } = {}) {
   const empty = { holiday_days: 0, holiday_list: [], leave_days: 0, work_weekdays: [1, 2, 3, 4, 5] };
   if (!businessId || !startYmd || !endYmd) return empty;
   const { getWorkCalendar, countWorkdays, isWorkday } = require('./workspaceHolidays');
@@ -82,6 +82,8 @@ async function getDeductionsInRange(userId, businessId, startYmd, endYmd, { cal 
     where: {
       business_id: businessId, user_id: userId, status: 'approved',
       start_date: { [Op.lte]: endYmd }, end_date: { [Op.gte]: startYmd },
+      // 급여 무급휴가 일할(services/payrollTransition)이 'unpaid' 만 센다 — 날짜 세는 규칙은 이 함수 한 벌
+      ...(leaveType ? { leave_type: leaveType } : {}),
     },
     attributes: ['unit', 'start_date', 'end_date', 'days_charged'],
   });

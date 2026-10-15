@@ -395,10 +395,11 @@ async function notificationScope(req) {
   const businessId = Number(raw);
   if (!Number.isInteger(businessId) || businessId <= 0) return { status: 400 };
   if (!(await assertWorkspaceAccess(req.user.id, businessId, req.user.platform_role))) return { status: 403 };
-  return {
-    where: { user_id: req.user.id, [Op.or]: [{ business_id: businessId }, { business_id: null }] },
-    businessId,
-  };
+  const where = { user_id: req.user.id, [Op.or]: [{ business_id: businessId }, { business_id: null }] };
+  // 꺼진 기능의 알림은 빼고 센다 — 켜면 돌아온다(지우지 않는다). docs/PAYROLL_DESIGN.md §2.2
+  const { moduleOnFor } = require('../services/modules');
+  if (!(await moduleOnFor(businessId, 'payroll'))) where.event_kind = { [Op.ne]: 'payroll' };
+  return { where, businessId };
 }
 const scopeError = (res, status) => errorResponse(res, status === 403 ? 'forbidden' : 'invalid business_id', status);
 

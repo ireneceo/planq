@@ -543,6 +543,42 @@ function checkProjectRoom() {
 // 6-a''. convbroadcast — 대화방 사건(새 메시지·반응·업무 후보)을 워크스페이스 방으로 직접 보내지 않는다 (2026-10-09 D3)
 //   사적 대화방은 참여자만 보므로 `business:` 방으로 보내면 목록을 막아도 본문이 전원 소켓에 간다.
 //   services/convBroadcast.emitConvWide 한 문 — 사적 방은 참여자 user 방으로, 그 밖은 종전대로. 하드 게이트.
+// 6-a'''. payrollroom — 급여 신호(payroll:* · payslip:*)는 개인 방(user:N)으로만 (2026-10-15, docs/PAYROLL_DESIGN.md §5.2-5)
+//   business 방으로 보내면 급여가 있다는 사실 자체가 전원에게 간다. 하드 게이트.
+//   ★ 같은 줄에 `.to(\`user:` 가 있어야 한다 — 방을 변수로 넘기면 판정할 수 없으니 그 모양 자체를 막는다.
+function checkPayrollRoom() {
+  const files = [...walk(`${ROOT}/dev-backend/routes`, ['.js']), ...walk(`${ROOT}/dev-backend/services`, ['.js'])];
+  const bad = [];
+  let n = 0;
+  for (const f of files) {
+    read(f).split('\n').forEach((l, i) => {
+      const t = l.trim();
+      if (t.startsWith('//') || t.startsWith('*')) return;
+      if (!/\.emit\(\s*'(payroll|payslip):/.test(l)) return;
+      n += 1;
+      if (!/\.to\(\s*`user:/.test(l)) bad.push(`${rel(f)}:${i + 1}: ${t.slice(0, 100)}`);
+    });
+  }
+  report('broadcast', `급여 신호는 개인 방으로만 (${n}곳 · 위반 ${bad.length})`, bad.length === 0 && n > 0, n === 0 ? ['급여 신호 발신 지점을 하나도 못 찾았다 — 검사가 아무것도 안 재고 있다'] : bad);
+}
+
+// 6-a''''. payrollsurface — 통합검색·Cue 문맥·AI 코드에 급여가 들어가지 않는다 (docs/PAYROLL_DESIGN.md §7.4)
+function checkPayrollSurface() {
+  const dirs = [`${ROOT}/dev-backend/services`, `${ROOT}/dev-backend/routes`];
+  const bad = [];
+  let files = 0;
+  for (const d of dirs) {
+    for (const f of walk(d, ['.js'])) {
+      const r = rel(f);
+      if (!/(^|\/)(cue[^/]*|search[^/]*|globalSearch[^/]*|kb[^/]*|contextBuilder[^/]*|qhelper[^/]*)\.js$/i.test(r) && !r.includes('/agent/')) continue;
+      files += 1;
+      const src = read(f).split('\n').filter((l) => !/^\s*\/\//.test(l)).join('\n');
+      if (/\b(Payroll[A-Za-z]*|EmploymentContract|PayItem|ContractPayLine)\b|\b(payroll_(people|runs|entries|entry_lines)|pay_items|employment_contracts|contract_pay_lines)\b/.test(src)) bad.push(`${r}: 급여 모델·표 참조`);
+    }
+  }
+  report('broadcast', `검색·Cue·AI 코드에 급여 참조 0 (${files}개 파일)`, bad.length === 0 && files > 0, bad);
+}
+
 function checkConvBroadcast() {
   const files = [
     ...walk(`${ROOT}/dev-backend/routes`, ['.js']),
@@ -971,6 +1007,8 @@ function checkAgentSurface() {
     const writes = (src.match(/\b(?!store\b)[A-Z][A-Za-z]+\.(create|bulkCreate|destroy|update|upsert|increment)\(/g) || []);
     if (writes.length) bad.push(`${rel}: 도메인 모델 직접 쓰기(${writes.join(',')}) — 행동 계층(services/actions)으로`);
     if (/\b(Invoice|Payment|InvoiceInstallment|InvoiceItem)\b/.test(src)) bad.push(`${rel}: 재무 모델 참조 — 외부 AI 표면 재무 봉쇄`);
+    // 급여(docs/PAYROLL_DESIGN.md §7.4 · §11) — AI 에이전트에 급여 도구는 없다. 모델·표 이름 참조 0
+    if (/\b(Payroll[A-Za-z]*|EmploymentContract|PayItem|ContractPayLine|payroll_[a-z_]+|pay_items|employment_contracts)\b/.test(src)) bad.push(`${rel}: 급여 모델·표 참조 — 외부 AI 표면에 급여 없음`);
     // M3-a(설계 docs/AI_AGENT_M3_DESIGN.md §3.2) — 모델 이름만 보면 비재무 모델의 금액 컬럼(Client.expected_amount 등)이 안 잡힌다
     const amt = src.match(/\b(grand_total|paid_amount|expected_amount|contract_amount|unit_price)\b/g);
     if (amt) bad.push(`${rel}: 금액 컬럼 참조(${[...new Set(amt)].join(',')}) — 외부 AI 표면에 금액 없음`);
@@ -3605,7 +3643,7 @@ const CATEGORIES = {
   tenant: checkTenant,
   pagination: checkPagination,
   notify: checkNotify,
-  broadcast: () => { checkBroadcast(); checkBroadcastPayload(); checkProjectRoom(); checkConvBroadcast(); },
+  broadcast: () => { checkBroadcast(); checkBroadcastPayload(); checkProjectRoom(); checkConvBroadcast(); checkPayrollRoom(); checkPayrollSurface(); },
   broadcastactor: checkBroadcastActor,
   finance: checkFinance,
   cuefinance: checkCueFinance,

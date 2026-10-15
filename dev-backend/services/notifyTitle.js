@@ -27,6 +27,7 @@ const FEATURES = {
   docs: { ko: 'Q docs', en: 'Q docs' },
   note: { ko: 'Q Note', en: 'Q Note' },
   sale: { ko: 'Q sales', en: 'Q sales' },
+  payroll: { ko: '급여', en: 'Payroll' },
   system: { ko: '시스템', en: 'System' },
 };
 
@@ -35,6 +36,10 @@ const FEATURES = {
 //     (가드는 dev-frontend/src 만 walk 한다). 여기 표가 사실상의 정본이므로
 //     새 행위를 추가할 때 en 을 빼먹지 말 것.
 const ACTIONS = {
+  // 급여 (docs/PAYROLL_DESIGN.md §5.2) — 금액은 제목·본문에 싣지 않는다(푸시 미리보기로 나간다)
+  payroll_payslip_ready: { ko: '급여명세서 준비됨', en: 'Payslip ready' },
+  payroll_payslip_adjusted: { ko: '정정 명세서 준비됨', en: 'Adjusted payslip ready' },
+  payroll_confirmed: { ko: '급여 확정', en: 'Payroll confirmed' },
   // Q Mail
   mail_reply_needed: { ko: '답변 필요', en: 'Reply needed' },
   mail_review: { ko: '확인 권장', en: 'Review suggested' },

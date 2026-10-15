@@ -82,6 +82,10 @@ const PayrollPerson = require('./PayrollPerson');
 const EmploymentContract = require('./EmploymentContract');
 const PayItem = require('./PayItem');
 const ContractPayLine = require('./ContractPayLine');
+const PayrollRun = require('./PayrollRun');
+const PayrollEntry = require('./PayrollEntry');
+const PayrollEntryLine = require('./PayrollEntryLine');
+const PayrollStatusHistory = require('./PayrollStatusHistory');
 // ─── Q Bill Phase 0 ───
 const Quote = require('./Quote');
 const QuoteItem = require('./QuoteItem');
@@ -364,6 +368,13 @@ EmploymentContract.hasMany(ContractPayLine, { foreignKey: 'contract_id', as: 'li
 ContractPayLine.belongsTo(EmploymentContract, { foreignKey: 'contract_id' });
 ContractPayLine.belongsTo(PayItem, { foreignKey: 'pay_item_id', as: 'item' });
 PayrollPerson.belongsTo(User, { foreignKey: 'user_id', as: 'user', constraints: false });
+PayrollRun.hasMany(PayrollEntry, { foreignKey: 'run_id', as: 'entries' });
+PayrollEntry.belongsTo(PayrollRun, { foreignKey: 'run_id', as: 'run' });
+PayrollEntry.belongsTo(PayrollPerson, { foreignKey: 'person_id', as: 'person' });
+PayrollEntry.hasMany(PayrollEntryLine, { foreignKey: 'entry_id', as: 'lines' });
+PayrollEntryLine.belongsTo(PayrollEntry, { foreignKey: 'entry_id', as: 'entry' });
+PayrollEntryLine.belongsTo(PayItem, { foreignKey: 'pay_item_id', as: 'item' });
+PayrollRun.hasMany(PayrollStatusHistory, { foreignKey: 'run_id', as: 'history' });
 PostCategory.belongsTo(Project, { foreignKey: 'project_id' });
 
 // Invoice
@@ -595,6 +606,7 @@ EmailAccountFolder.belongsTo(EmailAccount, { foreignKey: 'account_id', as: 'acco
 
 module.exports = {
   PayrollPerson, EmploymentContract, PayItem, ContractPayLine,
+  PayrollRun, PayrollEntry, PayrollEntryLine, PayrollStatusHistory,
   LandingVisit, LandingVisitor,
   ProjectHistoryEntry,
   ProviderCredit,

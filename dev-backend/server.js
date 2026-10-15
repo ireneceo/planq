@@ -475,6 +475,9 @@ app.use('/api/app-download', require('./routes/app_download')); // 공개 — �
 app.use('/api/platform', require('./routes/platform_public')); // 공개 — 랜딩 푸터 사업자 정보 (전자상거래법 표시의무)
 // 급여·계약 관리 (docs/PAYROLL_DESIGN.md) — 워크스페이스 기능 «급여» 가 꺼져 있으면 전 라우트 404
 app.use('/api/payroll', require('./routes/payroll'));
+app.use('/api/payroll', require('./routes/payroll_items'));   // 항목·프리셋 — 경로가 겹치지 않는다(items·item-presets)
+app.use('/api/payroll', require('./routes/payroll_runs'));    // 회차·칸·사람줄·대장·확정
+app.use('/api/payroll', require('./routes/payroll_me'));      // 본인 명세서·계약(관리자 술어 없음 — 자기 것만)
 app.use('/api/projects', require('./routes/projects'));
 // (2026-10-08 0-J) routes/project_process.js(공정 표 — status-options·process-columns·process-parts) 삭제:
 //   화면(ProcessPartsTab)이 어디서도 import 되지 않아 호출처 0. 표는 Q 레코드로 이관됨(migrate-process-to-records).

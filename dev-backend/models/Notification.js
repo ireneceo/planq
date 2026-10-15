@@ -29,6 +29,7 @@ Notification.init({
       'client_crash',     // 2026-10-05 — 화면 크래시 관리자 알림 (플랫폼, business_id NULL · 끝에 append)
       'survey',           // #460 설문 새 응답 (끝에 append — migrate-survey)
       'doc_comment',      // 2026-10-15 문서 댓글 (끝에 append — migrate-post-comments)
+      'payroll',          // 2026-10-15 급여 명세서·확정 (끝에 append — migrate-payroll)
     ),
     allowNull: false,
   },

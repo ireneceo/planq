@@ -1268,8 +1268,19 @@ function defineSecretTests() {
       if (!(det.data && det.data.has_bank_account === true)) throw new Error('has_bank_account 가 없다 — 응답이 비었을 가능성(거짓 통과)');
       const view = await http('GET', `${BACKEND}/api/payroll/${biz}/people/${pid}/bank-account`, { headers: H });
       if (!(view.data && view.data.number === NUM)) throw new Error('열람 문에서도 번호가 안 온다 — 저장이 안 됐을 가능성(거짓 통과)');
-      return '목록·상세 — 계좌번호 0 · 보유 여부 유지 · 열람 문만 번호';
+      // P4 — 확정 회차 상세·관리자 명세서에도 계좌번호 0, 끝 4자리만(«지급 계좌 ****1012»)
+      const mk = db(`const {PayrollRun,PayrollEntry}=require('./models');const r=await PayrollRun.create({business_id:${biz},period_ym:'1999-01',seq:1,status:'confirmed',confirmed_at:new Date()});const e=await PayrollEntry.create({business_id:${biz},run_id:r.id,person_id:${pid},display_name:'[health] payroll secret',currency:'KRW',bank_name_snapshot:'검사은행',bank_last4:'1012',gross_total:1,deduction_total:0,net_total:1});console.log('RID='+r.id+' EID='+e.id)`);
+      const rid = Number((mk.match(/RID=(\d+)/) || [])[1]); const eid = Number((mk.match(/EID=(\d+)/) || [])[1]);
+      try {
+        const run = await http('GET', `${BACKEND}/api/payroll/${biz}/runs/${rid}`, { headers: H });
+        const slip = await http('GET', `${BACKEND}/api/payroll/${biz}/entries/${eid}/payslip`, { headers: H });
+        const raw2 = JSON.stringify(run) + JSON.stringify(slip);
+        if (raw2.includes(NUM) || raw2.includes('bank_account_enc')) throw new Error('회차·명세서 응답에 계좌번호가 있다');
+        if (!(slip.data && slip.data.entry && slip.data.entry.bank_last4 === '1012')) throw new Error('명세서에 끝 4자리가 없다 — 응답이 비었을 가능성(거짓 통과)');
+      } finally { if (rid) db(`await sequelize.query('DELETE FROM payroll_runs WHERE id=${rid}')`); }
+      return '목록·상세·회차·명세서 — 계좌번호 0 · 보유 여부·끝 4자리 유지 · 열람 문만 번호';
     } finally {
+      if (pid) db(`await sequelize.query('DELETE FROM payroll_runs WHERE business_id=${biz} AND period_ym=\\'1999-01\\'')`);
       if (pid) db(`await sequelize.query('DELETE FROM payroll_people WHERE id=${Number(pid)}')`);
       db(`await sequelize.query('UPDATE businesses SET modules=? WHERE id=${biz}', { replacements: [${JSON.stringify(before === 'null' ? null : before)}] })`);
     }

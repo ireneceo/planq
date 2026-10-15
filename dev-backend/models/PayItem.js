@@ -1,6 +1,6 @@
 // PayItem — 워크스페이스가 정의하는 급여 항목(지급/공제) (docs/PAYROLL_DESIGN.md §3.3).
 //   나라별 요율은 코드에 두지 않는다 — 법정 공제는 calc 'external'(세무사 대장 값이 정답).
-//   P1 은 시스템 기본 항목 «기본급»(code 'base') 하나만 만든다(services/payrollContracts.ensureBaseItem).
+//   기본 항목 «기본급»(code 'base')은 services/payrollContracts.ensureBaseItem 이 만든다. 편집·프리셋은 services/payrollItems.
 const { DataTypes, Model } = require('sequelize');
 const { sequelize } = require('../config/database');
 
@@ -13,6 +13,8 @@ PayItem.init({
   name: { type: DataTypes.STRING(100), allowNull: false },
   name_en: { type: DataTypes.STRING(100), allowNull: true },
   side: { type: DataTypes.ENUM('earning', 'deduction'), allowNull: false },
+  // 누구에게 붙나 — 근로소득(직원)·사업소득(프리랜서)·기타·전체. 대상자의 income_kind 와 맞는 항목만 그 사람 초안에 줄이 생긴다.
+  applies_to: { type: DataTypes.ENUM('all', 'employment', 'business', 'other'), allowNull: false, defaultValue: 'all' },
   taxable: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: true },
   calc: { type: DataTypes.ENUM('fixed', 'rate', 'manual', 'external', 'unpaid_leave'), allowNull: false, defaultValue: 'fixed' },
   rate: { type: DataTypes.DECIMAL(8, 5), allowNull: true },

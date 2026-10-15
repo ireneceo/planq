@@ -18,7 +18,7 @@ const { BusinessMember } = require('../models');
 const { weeklyHours } = require('./memberCapacity');
 
 // 한 달 평균 주 수 (52주 / 12개월). 월급 → 주 → 시간 환산에만 쓴다.
-const WEEKS_PER_MONTH = 52 / 12;   // 4.3333…
+const { WEEKS_PER_MONTH } = require('./payrollCalc');   // 52 ÷ 12 — 무급휴가 일할 분모와 같은 상수(한 곳)
 
 /**
  * 워크스페이스 멤버들의 시간당 원가 맵.

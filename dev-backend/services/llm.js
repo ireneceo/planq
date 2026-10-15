@@ -85,6 +85,9 @@ const PURPOSES = {
   report:         { model: 'gpt-4o-mini', temperature: 0.3, maxTokens: 1200, timeoutMs: 45_000, maxInputChars: 44_000 },
   wiki_cluster:   { model: 'gpt-4o-mini', temperature: 0.3, maxTokens: 1500, timeoutMs: 45_000, maxInputChars: 24_000 },
   template:       { model: 'gpt-4o-mini', temperature: 0.2, maxTokens: 1500, timeoutMs: 45_000, maxInputChars: 16_000 },
+  // 급여(docs/PAYROLL_DESIGN.md §7) — 항목 틀 제안(사람·금액 안 보냄) · PDF 대장 → 표(주민번호·계좌 모양을 가린 본문만)
+  payroll_preset: { model: 'gpt-4o-mini', temperature: 0.2, maxTokens: 1500, timeoutMs: 45_000, maxInputChars: 4_000 },
+  payroll_extract: { model: 'gpt-4o-mini', temperature: 0, maxTokens: 8000, timeoutMs: 90_000, maxInputChars: 32_000 },
   generic:        { model: 'gpt-4o-mini', temperature: 0.3, maxTokens: 800,  timeoutMs: 45_000, maxInputChars: 16_000 },
 };
 

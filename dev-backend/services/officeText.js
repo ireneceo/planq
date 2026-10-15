@@ -364,4 +364,69 @@ function extractOfficeText(buf, kind) {
   }
 }
 
-module.exports = { extractOfficeText, zipIndex, zipRead, serialToDate };
+
+// ── xlsx 격자(행 × 열) — 급여 대장 가져오기(services/payrollStatement)용 ─────────────────────
+//   xlsxSheetRows 는 빈 칸을 버리고 탭으로 이어 «글» 을 만든다(Cue 가 읽기 좋게). 대장은 **열 위치가 곧 뜻**이라
+//   빈 칸을 버리면 다음 칸이 한 칸씩 당겨져 «식대» 값이 «기본급» 열로 들어간다. 그래서 셀 주소(r="C5")의 열을 지킨다.
+//   ★ SheetJS 는 쓰지 않는다(보안 권고) — 같은 자체 파서(zipIndex·sharedStrings·dateStyles)를 쓴다.
+function colIndex(ref) {
+  const letters = String(ref || '').match(/^[A-Z]+/);
+  if (!letters) return -1;
+  let n = 0;
+  for (const ch of letters[0]) n = n * 26 + (ch.charCodeAt(0) - 64);
+  return n - 1;
+}
+
+/** @returns [{ name, rows: string[][] }] — 각 행은 열 위치를 지킨 문자열 배열(빈 칸은 ''). */
+function extractXlsxRows(buf) {
+  const zip = zipIndex(buf);
+  if (!zip) return [];
+  const shared = xlsxSharedStrings(zip, buf);
+  const dateStyles = xlsxDateStyles(zip, buf);
+  const names = xlsxSheetNames(zip, buf);
+  const sheets = [...zip.keys()]
+    .filter((n) => /^xl\/worksheets\/sheet\d+\.xml$/.test(n))
+    .sort((a, b) => Number(a.match(/(\d+)/)[1]) - Number(b.match(/(\d+)/)[1]));
+  const out = [];
+  sheets.forEach((name, i) => {
+    const raw = zipRead(buf, zip.get(name));
+    if (!raw) return;
+    const xml = raw.toString('utf-8');
+    const rows = [];
+    const rowRe = /<row\b[^>]*?(?:\/>|>([\s\S]*?)<\/row>)/g;
+    let rm;
+    while ((rm = rowRe.exec(xml))) {
+      if (!rm[1]) continue;
+      const cells = [];
+      const cRe = /<c\b([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/g;
+      let cm;
+      let next = 0;
+      while ((cm = cRe.exec(rm[1]))) {
+        const attrs = cm[1] || '';
+        const inner = cm[2] || '';
+        const ref = (attrs.match(/\br="([A-Z]+)\d+"/) || [])[1];
+        const col = ref ? colIndex(ref) : next;
+        next = col + 1;
+        if (!inner) continue;
+        const type = (attrs.match(/\bt="([^"]*)"/) || [])[1] || 'n';
+        let val = '';
+        if (type === 's') { const idx = Number(tagTexts(inner, 'v')[0]); val = shared[idx] != null ? shared[idx] : ''; }
+        else if (type === 'inlineStr') val = tagTexts(inner, 't').join('');
+        else if (type === 'str') val = tagTexts(inner, 'v')[0] || '';
+        else if (type === 'e') val = '';
+        else {
+          val = tagTexts(inner, 'v')[0] || '';
+          const styleIdx = Number((attrs.match(/\bs="(\d+)"/) || [])[1]);
+          if (val && Number.isFinite(styleIdx) && dateStyles.has(styleIdx)) { const d = serialToDate(Number(val)); if (d) val = d; }
+        }
+        while (cells.length < col) cells.push('');
+        cells[col] = String(val).trim();
+      }
+      if (cells.some((c) => c)) rows.push(cells);
+    }
+    if (rows.length) out.push({ name: names[i] || `Sheet${i + 1}`, rows });
+  });
+  return out;
+}
+
+module.exports = { extractOfficeText, extractXlsxRows, zipIndex, zipRead, serialToDate };

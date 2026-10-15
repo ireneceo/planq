@@ -172,7 +172,8 @@ async function importDriveFile(ctx, meta, opts = {}) {
  *   호출자 책임: 확장자 판정(checkEligible/ALLOWED_EXT) · 사전 쿼터 · 임시 경로(uploadPathFor).
  *   실패하면 임시 파일을 지운다.
  * @param ctx { businessId, uploaderId }
- * @param opts { projectId, folderId, visibility, fileName, mimeType, originProvider, externalId, externalUrl, driveMd5, auditValue }
+ * @param opts { projectId, folderId, visibility, fileName, mimeType, originProvider, externalId, externalUrl, driveMd5, auditValue,
+ *               securityLevel(기본 general), private(true 면 실시간 신호·본문 색인 안 함 — 급여 대장처럼 AI·검색에 들어가면 안 되는 파일) }
  */
 async function ingestDownloadedFile(ctx, temp, opts) {
   const { businessId, uploaderId } = ctx;
@@ -230,7 +231,7 @@ async function ingestDownloadedFile(ctx, temp, opts) {
       // 권위 컬럼 동시 기록 — 한쪽만 쓰면 default 로 새어 전 멤버에게 노출된다.
       visibility,
       vlevel: visibility,
-      security_level: 'general',
+      security_level: ['general', 'internal', 'confidential'].includes(opts.securityLevel) ? opts.securityLevel : 'general',
     };
 
     if (existing) {
@@ -254,15 +255,15 @@ async function ingestDownloadedFile(ctx, temp, opts) {
 
   planEngine.invalidateBusinessCache(businessId);
 
-  // 실시간 반영 (CLAUDE.md 운영 규칙 16)
-  try {
+  // 실시간 반영 (CLAUDE.md 운영 규칙 16) — private 파일(급여 대장)은 신호·색인 모두 안 한다
+  if (!opts.private) try {
     const io = global.__planqIo || null;
     if (io) io.to(`business:${businessId}`).emit('file:new', { id: created.id, business_id: created.business_id, project_id: created.project_id || null });   // 신호만(2026-09-27 점검)
   } catch { /* 브로드캐스트 실패가 인제스트를 죽이면 안 된다 */ }
 
   // 들여온 파일도 업로드와 똑같이 본문을 색인한다 — 경로에 따라 Cue 가 아는 파일과
   //   모르는 파일이 갈리면 사용자는 "어떤 건 알고 어떤 건 모른다" 로 겪는다.
-  require('./fileIndex').indexOnUpload(created.id);
+  if (!opts.private) require('./fileIndex').indexOnUpload(created.id);
 
   require('./auditService').createAuditLog({
     action: 'file.ingest', targetType: 'file', targetId: created.id,
