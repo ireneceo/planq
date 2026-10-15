@@ -1,6 +1,8 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-10-12 새벽 ([Opus] Opus 5.5, 방 69426d00) — 정기 점검 개발완료: 10/11 작업 6건(Cue 일정 옮기기 · 표 글자 서식·행/열 끼워넣기 · 고객 링크 가로 배치 · AI 수정 버튼 · 시작 가이드 메뉴 · 캘린더 지난 마감 흐리게) 기록.
+> **최종 업데이트:** 2026-10-15 ([Opus] Opus 5.5, 방 1abbce29) — 개발완료: 문서 댓글(Fable 설계·게이트 PASS) + 10/12~10/15 작업기록 묶음 기록(상세는 .claude/session-state.md 방별 절). 전부 운영 미배포.
+> ── 이전 ──
+> 2026-10-12 새벽 ([Opus] Opus 5.5, 방 69426d00) — 정기 점검 개발완료: 10/11 작업 6건(Cue 일정 옮기기 · 표 글자 서식·행/열 끼워넣기 · 고객 링크 가로 배치 · AI 수정 버튼 · 시작 가이드 메뉴 · 캘린더 지난 마감 흐리게) 기록.
 > ── 이전 ──
 > 2026-10-11 아침 ([Opus] Opus 5.5, 방 c7f09277) — 아침 점검 개발완료: 10/10 낮 작업 4건(캘린더 끝난 일정 흐리게 · 고객 링크 [복사] · 옛 링크 «새 주소 받기» · 고객 프로젝트 링크 개요·히스토리·파일 보기) 기록 + 도움말 글 «고객에게 프로젝트를 링크로 보여주기» 갱신. 운영 미배포 — 고객 링크 PDF 보기가 운영 poppler 설치·Fable 재판정 대기.
 > ── 이전 ──
@@ -43,6 +45,44 @@
 > 오전([Opus] Opus 5.5, 1M): **운영 배포 6회(v1.61.0 ~ v1.63.5).**
 > 게스트 진입(P0·A·B) · 이미지 보안 2a·2b(0~2단계) · 감사 1~3순위(328→98) · PDF 이미지 · **남의 워크스페이스에 쓰던 권한 결함 3건**.
 > ★ v1.63.3 의 PDF 수정이 이미지 많은 문서를 500 으로 만든 회귀를 **배포 후 운영 실측**으로 잡아 v1.63.4 로 되돌렸다.
+
+---
+
+## ✅ 완료: 2026-10-15 [Opus]+[Fable] — 문서(Q docs) 댓글 (방 1abbce29)
+
+### 완료된 작업
+
+| 작업 | 설명 | 상태 |
+|------|------|:----:|
+| 설계 | Fable 설계 1회 — docs/DOC_COMMENTS_DESIGN.md (팀만/고객도 봄 · 읽기 = canReadPost · 문서 밖 0) | ✅ 완료 |
+| DB | 새 표 `post_comments` + 알림 ENUM `doc_comment` — `migrate-post-comments.js`(멱등, 배포 슬롯 등록) | ✅ 완료 |
+| API | GET/POST/DELETE `/api/posts/:id/comments` · 상세 `comment_count` · 행동 계층 `post_actions.createComment/deleteComment` | ✅ 완료 |
+| 알림·실시간 | 멘션 `comment_mention` · 작성자·이전 댓글자 `doc_comment`(못 읽는 사람·internal 고객 제외, 메일 없음) · `post:comment` 신호 | ✅ 완료 |
+| 화면 | 문서 보기 첨부 아래 댓글 절(공용 NoteThread 확장) · `?comment=` 강조 · 알림 설정 «문서 댓글» · ko/en | ✅ 완료 |
+| 검증 | 실HTTP 44/44 + Fable 16/16 · 브라우저 3폭 22/22 · 양성 대조군 · Fable 게이트 PASS | ✅ 완료 |
+
+### 수정된 파일
+- `dev-backend/models/PostComment.js` · `routes/post_comments.js` · `services/postComments.js` · `scripts/migrate-post-comments.js` (신규)
+- `dev-backend/services/actions/post_actions.js` · `routes/posts.js` · `server.js` · `models/{index,Notification,NotificationPref}.js` · `services/{notifyTitle,projectRoom}.js` · `scripts/deploy-planq.sh`
+- `dev-frontend/src/components/Docs/DocCommentsSection.tsx`(신규) · `components/Common/NoteThread.tsx` · `components/Docs/PostsPage.tsx` · `services/posts.ts` · `hooks/draftKinds.ts` · `pages/Settings/NotificationSettings.tsx` · locales ko/en
+
+## ✅ 완료: 2026-10-12 ~ 10-15 [Opus](+[Fable]) — 상황판 방별 작업 묶음 (기록 1abbce29)
+
+> 방마다 절이 `.claude/session-state.md` 에 있다(무엇·검증 숫자·확인용 데이터). 여기는 목록만. 전부 운영 미배포 — 다음 배포 때.
+
+| 작업 | 방 | 상태 |
+|------|----|:----:|
+| Q talk «열어 봄 ≠ 참여»(is_viewer) — Fable 설계·PASS | dadb48f3 | ✅ |
+| 청구서·알림 점검 P1~P4(고객 알림 한 통·다른 워크스페이스 알림 안내) — Fable PASS | 3aee697b · 2406a434 | ✅ |
+| 문의·피드백 답변 → 확인필요·메뉴 배지 | 0199896b | ✅ |
+| 메일 본문 첨부 · 받은 서명 알림/배지 · 서명 되돌리기 — Fable PASS(알림) | a57886b7 | ✅ |
+| 메모 검색 가림 · Q talk @ 후보 · 폰 업무 목록 | 90005e7f | ✅ |
+| 구글 미팅 시간 기준 · 메일 주소 추천/보내기 위치 | 2406a434 | ✅ |
+| 녹음 첨부 · 탭 닫기 단축키 · 메일 전달 초기화 · 캘린더 +N · Q노트 업무 추출 | 4ffaf526 · 0db309e2 | ✅ |
+| 초대 인앱 알림·수락 전 멤버 권한 · 초대 이메일 계정 일치 — Fable PASS | 3a26aed0 | ✅ |
+| 업무 공개 범위·보안등급 2차 · 내부 업무 · 결과물 액션 · 자리 비움 감지 — Fable | 99ab9b7d · c43d9583 · a9337893 | ✅ |
+| 팀 Google 캘린더 올릴 캘린더 고르기 · 캘린더 상단 정돈 — Fable PASS | 39dd5af6 · a22283ec | ✅ |
+| 설문 v2 Phase 1 · Cue 원가 절반 · dev-login · 팝아웃 내 순서 외 | bdb39775 · 004312ae · 1a0f9989 · 56931759 | ✅ |
 
 ---
 

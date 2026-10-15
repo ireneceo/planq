@@ -688,6 +688,20 @@ const ARTICLES = [
         'Duplicating a table document brings the body only, as a regular document — the table data is not copied.'),
     ] },
 
+  { cat: 'qdocs', slug: 'document-comments', visibility: 'public', linked_route: '/docs', est: 2,
+    title: t('문서에 댓글 남기기', 'Comment on a document'),
+    summary: t('문서 아래에서 의견을 주고받기', 'Discuss a document right below it'),
+    body: [
+      s('문서를 열면 본문과 첨부 아래에 «댓글» 칸이 있습니다. 입력하고 Enter 를 누르면 남습니다(줄바꿈은 Shift+Enter).',
+        'Open a document — below the body and attachments is the Comments section. Type and press Enter to post (Shift+Enter for a new line).'),
+      s('고객이 연결된 프로젝트 문서에서는 [팀만] / [고객도 봄] 을 고를 수 있습니다. 기본은 팀만이고, 고객도 봄을 고른 댓글만 고객에게 보입니다.',
+        'On a project document with a client, choose [Team only] or [Visible to client]. Team only is the default; only client-visible comments are shown to the client.'),
+      s('댓글은 문서를 볼 수 있는 사람에게만 보입니다. 문서 작성자와 앞서 댓글을 단 사람에게 알림이 가고, @이름 으로 부르면 그 사람에게 멘션 알림이 갑니다.',
+        'Comments are visible only to people who can see the document. The author and earlier commenters are notified, and @name sends a mention.'),
+      note('댓글은 공유 링크·PDF·복사본에는 들어가지 않습니다. 내가 쓴 댓글은 지울 수 있고, 대표·관리자는 다른 사람의 댓글도 지울 수 있습니다.',
+        'Comments are not included in share links, PDFs or copies. You can delete your own comments; owners and admins can delete anyone\'s.'),
+    ] },
+
   { cat: 'qdocs', slug: 'request-confirmation', visibility: 'public', linked_route: '/docs', est: 2,
     title: t('확인 요청 보내기 (서명 없이)', 'Request a confirmation (no signature)'),
     summary: t('서명까지는 필요 없을 때, 상대가 눌러서 확인하거나 의견만 남기게 하기',

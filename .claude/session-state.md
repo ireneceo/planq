@@ -1,4 +1,20 @@
 ## 현재 작업 상태
+**마지막 업데이트:** 2026-10-15 (방 1abbce29 · /개발완료)
+**작업 상태:** 완료
+
+### 진행 중인 작업
+- 없음 (이 방 기준)
+
+### 완료된 작업 (이번 개발완료에 기록)
+- 문서(Q docs) 댓글 — Fable 설계 + 게이트 PASS (아래 첫 절)
+- 10/12~10/15 방별 작업 묶음 — DEVELOPMENT_PLAN.md «2026-10-12 ~ 10-15 방별 작업 묶음» 표에 목록으로 옮김(상세는 아래 각 절)
+
+### 다음 할 일
+- 운영 반영: 다음 배포 때(배포 방). 문서 댓글은 배포 슬롯 `migrate-post-comments.js`(PM2 reload 전) + 도움말 `seed-wiki-content.js` 운영 실행 필요.
+- 대기열 앞: 비가입 고객 직접 관리(정찰 qmv7hp0uc) · 답변필요 메일 분류 고도화(qmv7ly27u) — 둘 다 Fable 설계부터.
+- 별건 확인: 업무 상세 응답이 멤버에게 남의 personal 댓글을 싣는지(아래 첫 절 «곁에서 본 것»).
+
+---
 
 ### 완료: 문서(Q docs) 댓글 (방 1abbce29 · 2026-10-15 · [Opus] · Fable 설계 + 게이트 PASS) — 운영 미배포
 - 설계 docs/DOC_COMMENTS_DESIGN.md. 새 표 `post_comments`(internal 팀만 / shared 고객도 봄) · 라우트 `routes/post_comments.js`(GET/POST/DELETE `/api/posts/:id/comments`, posts.js 앞 마운트) · 쓰는 문 `post_actions.createComment/deleteComment`(알림·감사·실시간) · 읽기 `services/postComments.js`.
