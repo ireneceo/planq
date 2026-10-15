@@ -45,6 +45,14 @@
 - 설계: security_level(general/internal) 한 축 · 공개 범위(vlevel) 없음 · 09-27 «첨부에서 파생» 판정 일부 뒤집음(OR) — docs/TASK_SECURITY_LEVEL_DESIGN.md
 - 검증 PASS: 실HTTP 39검사·게스트 링크·소켓·마이그레이션 멱등. 비차단 1 고객 작성자 등급 변경 → FIELD_RULES 에 !isClient (고침, 403 실측) · 비차단 2 잔여물 정리.
 
+
+## 2026-10-15 — 팀 Google 캘린더 «올릴 캘린더 고르기» 1·2단계 · **PASS** (방 39dd5af6 · 범위 04fdd1ef..eb8336da)
+- 확인: 옛 일정 수정·삭제 = 링크 캘린더(바꾸기 전 primary · 되돌린 뒤 팀) · L3→L1 회수도 링크 캘린더 · DELETE 라우트 옛 단일컬럼 중복 삭제 0 ·
+  고아 = 고른 ∪ 링크들 ∪ primary, 링크 있는 id 는 보내도 안 지움 · 손입력 id(목록 밖·reader·primary 이메일·빈 값) 400 · 멤버·고객 403 ·
+  비밀값 0(secrets 10/10) · 방송 신호만 · 감사 id 만 · L1/L2 insert 0 · 마이그레이션 2회 동일 · 배포 순서 sync_database → restart.
+- 비차단: ①PUT 의 구글 목록 호출이 401/403 외 오류면 500(GET 은 can_list:false) ②EventDrawer 가 열 때마다 상세 GET 1회 더 ③마이그레이션 ADD 분기는 읽기 확인만(dev 는 이미 있음)
+  ④실제 구글 호출 미검증·calendarlist.readonly 심사 전 ⑤dev 감사 행 잔존(무해) ⑥옛 캘린더 쪽 구글 수정은 돌아오지 않음(설계대로, 화면 안내).
+
 ## 2026-10-12 — Cue 업무 여러 개(task_batch) · 설계 DESIGN-OK (다) → 완료 **PASS** (b6695797 + ebbef4bb, 방 4bde0632)
 - 설계: 한 답에 create_task ≥2 → 후보 목록 한 덩이(상한 40 = MAX_CONFIRM_CANDIDATES) · AiCandidateCard + [N개 추가] → confirm cue_batch → 행마다 executeTool(create_task) · 계량 턴 1회/행 0 · 부분 실패 created[]/failed[] · 음성 같은 덩이(D4) · 팝아웃 CueTaskBar · D2·대량=HIGH 불변.
 - 완료 검증 실측: 가짜 LLM 주입 5+1→task_batch(5)+event · 41→40 · 일정4→3(D2) · 음성 3→batch / 실HTTP 10행 → 성공 5·replayed 1·실패 4(남 ws 프로젝트·모르는 칸·남 ws 메일·비멤버 담당) · 계량 묶음 0 / 카드 대조 1 · 41행 400 · 비멤버 403.
