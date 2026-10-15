@@ -29,7 +29,7 @@ import { isTabsBeta } from '../../utils/tabsBeta';
 import { useTimezones } from '../../hooks/useTimezones';
 import { useInboxCount } from '../../hooks/useInboxCount';
 import { useAdminInboxCounts } from '../../hooks/useAdminInboxCounts';
-import { useNotificationCount } from '../../hooks/useNotifications';
+import { useNotificationCountState } from '../../hooks/useNotifications';
 import NotificationDropdown from '../Common/NotificationDropdown';
 import { useWhatsNew } from '../../hooks/useWhatsNew';
 import WhatsNewDropdown from '../Common/WhatsNewDropdown';
@@ -1044,7 +1044,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
   // N+63 — platform_admin 좌측 inbox badge (feedback + inquiries)
   const adminCounts = useAdminInboxCounts();
   // N+63 — 알림 feed (Activity Feed) 미읽음 카운트. 확인필요 (Action Queue) 와 분리.
-  const notifCount = useNotificationCount();
+  const { count: notifCount, others: notifOthers, scopeBizId: notifScopeBizId } = useNotificationCountState();
   const [notifOpen, setNotifOpen] = useState(false);
   const bellRef = useRef<HTMLButtonElement>(null);
   // #194 — 제품 공지/체인지로그 "새 소식" (사이드바 메가폰 + 드로어)
@@ -1192,7 +1192,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
       {/* ⑥ 멀티탭 탭 스트립 — 사이드바 오른쪽부터(본문 영역 위). beta·데스크탑에서만. off 면 렌더 X(무회귀) */}
       {tabMode && <TabStrip leftOffset={sidebarW} onMenu={() => setSidebarOpen(true)} />}
       {/* N+63 — 알림 dropdown (사이드바 종 모양 trigger) */}
-      <NotificationDropdown open={notifOpen} onClose={() => setNotifOpen(false)} anchorRef={bellRef} />
+      <NotificationDropdown open={notifOpen} onClose={() => setNotifOpen(false)} anchorRef={bellRef} scopeBizId={notifScopeBizId} others={notifOthers} />
       {/* #194 — 제품 공지/체인지로그 새 소식 드로어 (사이드바 메가폰 trigger) */}
       {/* 운영 #306 — 우측 상세 드로어 → 알림과 같은 popover 드롭다운 */}
       <WhatsNewDropdown open={whatsNewOpen} onClose={() => setWhatsNewOpen(false)} anchorRef={megaphoneRef}

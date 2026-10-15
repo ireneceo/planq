@@ -91,3 +91,27 @@ export const FooterLink = styled(ChromeLink)`
   font-size: 0.75rem; font-weight: 600; color: #14B8A6;
   &:hover { background: #F0FDFA; }
 `;
+
+// 종 드롭다운 — 다른 워크스페이스의 새 알림 줄(P1, 2026-10-15 Fable 결정 B). 바닥(Footer) 위 한 구역.
+export const OthersSection = styled.div`
+  border-top: 1px solid #F1F5F9; padding: 6px 8px; flex-shrink: 0;
+  display: flex; flex-direction: column; gap: 2px;
+`;
+export const OtherRow = styled.div`
+  display: flex; align-items: center; gap: 8px; min-height: 36px; padding: 0 4px 0 8px;
+  border-radius: 6px; font-size: 0.75rem; color: #475569;
+`;
+export const OtherLabel = styled.span`
+  flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  & > b { font-weight: 600; color: #0F172A; }
+`;
+export const OtherSwitch = styled.button`
+  flex-shrink: 0; min-height: 32px; padding: 0 10px; border-radius: 6px;
+  border: 1px solid #E2E8F0; background: #fff; cursor: pointer;
+  font-size: 0.75rem; font-weight: 600; color: #0F766E;
+  &:hover { background: #F0FDFA; border-color: #99F6E4; }
+  &:disabled { opacity: 0.6; cursor: default; }
+  &:focus-visible { outline: 2px solid #14B8A6; outline-offset: 1px; }
+  @media (max-width: 640px) { min-height: 40px; }
+`;
+export const OtherMore = styled.div` padding: 2px 8px 4px; font-size: 0.6875rem; color: #94A3B8; `;

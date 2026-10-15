@@ -1438,6 +1438,7 @@ router.post('/:businessId/:id/send', authenticateToken, checkBusinessAccess, req
       message,
       shareUrl,
       io: req.app.get('io'),
+      audience: 'customer',
     });
 
     const refreshed = await Invoice.findByPk(invoice.id, {
@@ -1495,6 +1496,7 @@ router.post('/:businessId/:id/send-preview', authenticateToken, checkBusinessAcc
       message: '고객에게 발송하기 전 미리보기입니다. 첨부 PDF 로 내용을 확인한 뒤, 이상 없으면 "발송"으로 고객에게 보내세요.',
       shareUrl: null,                          // 미리보기에는 공개 결제 링크를 넣지 않는다
       io: req.app.get('io'),
+      audience: 'self',                        // 고객에게 앱 알림을 보내지 않는다
     });
     require('../services/auditService').logAudit(req, {
       action: 'invoice.send_preview', targetType: 'invoice', targetId: invoice.id,
@@ -1646,6 +1648,7 @@ router.post('/:businessId/:id/resend', authenticateToken, reminderLimiter, check
       message: req.body?.message ? String(req.body.message).slice(0, 1000) : '',
       shareUrl,
       io: req.app.get('io'),
+      audience: 'customer',
     });
 
     // 추적 (상태 무변경)

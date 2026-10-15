@@ -197,7 +197,12 @@
     "filterAll": "전체",
     "filterUnread": "미읽음",
     "emptyUnreadTitle": "모두 읽었어요",
-    "moreOlder": "이전 알림 더 보기"
+    "moreOlder": "이전 알림 더 보기",
+    "scopedTitle": "{{name}} 알림",
+    "platformTitle": "플랫폼 알림",
+    "otherWs": "<1>{{name}}</1> 새 알림 {{count}}",
+    "switchTo": "전환",
+    "otherWsMore": "외 {{n}}곳"
   },
   "role": {
     "platform_admin": "플랫폼 관리자",

@@ -197,7 +197,12 @@
     "filterAll": "All",
     "filterUnread": "Unread",
     "emptyUnreadTitle": "You're all caught up",
-    "moreOlder": "Load older notifications"
+    "moreOlder": "Load older notifications",
+    "scopedTitle": "{{name}} notifications",
+    "platformTitle": "Platform notifications",
+    "otherWs": "<1>{{name}}</1> · {{count}} new",
+    "switchTo": "Switch",
+    "otherWsMore": "+{{n}} more"
   },
   "role": {
     "platform_admin": "Platform Admin",

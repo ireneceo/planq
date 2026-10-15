@@ -365,10 +365,10 @@ async function notify({ userId, businessId, eventKind, title, titleSpec, body, l
 }
 
 // 멀티 수신자용 (워크스페이스 멤버 N 명에게 한 번에)
-async function notifyMany({ userIds, businessId, eventKind, title, titleSpec, body, link, ctaLabel, workspaceName, excludeUserId, tag, actorUserId, entityType, entityId, ioApp, skipChannels, previewPolicy }) {
+async function notifyMany({ userIds, businessId, eventKind, title, titleSpec, body, link, ctaLabel, workspaceName, excludeUserId, tag, actorUserId, entityType, entityId, ioApp, skipChannels, previewPolicy, suppressEscalation }) {
   const filtered = (userIds || []).filter((id) => id && id !== excludeUserId);
   const results = await Promise.all(
-    filtered.map((uid) => notify({ userId: uid, businessId, eventKind, title, titleSpec, body, link, ctaLabel, workspaceName, tag, actorUserId, entityType, entityId, ioApp, skipChannels, previewPolicy }))
+    filtered.map((uid) => notify({ userId: uid, businessId, eventKind, title, titleSpec, body, link, ctaLabel, workspaceName, tag, actorUserId, entityType, entityId, ioApp, skipChannels, previewPolicy, suppressEscalation }))
   );
   return results;
 }
@@ -430,7 +430,9 @@ router.get('/unread-count', authenticateToken, async (req, res, next) => {
     const sc = await notificationScope(req);
     if (sc.status) return scopeError(res, sc.status);
     const n = await Notification.count({ where: { ...sc.where, read_at: null } });
-    return successResponse(res, { count: n });
+    // 범위 인자가 없으면(관리자 범위·옛 번들) others 를 싣지 않는다 — 가장 좁은 쪽.
+    const others = sc.businessId ? await require('../services/notificationOthers').otherWorkspaceUnread(req.user.id, sc.businessId) : undefined;
+    return successResponse(res, others ? { count: n, others } : { count: n });
   } catch (err) { next(err); }
 });
 

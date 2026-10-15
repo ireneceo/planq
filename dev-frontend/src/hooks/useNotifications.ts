@@ -76,21 +76,29 @@ const isOtherScope = (payloadBiz: unknown, bizId: number | null): boolean => (
 // ★ `loaded` 를 같이 돌려준다. 앱 아이콘 배지는 **0 을 두 가지로 구분해야** 하기 때문이다.
 //   "아직 안 불러왔다(0)" 에서 배지를 지우면 푸시가 세워 둔 숫자가 앱을 열자마자 사라지고,
 //   "불러왔더니 0 이다" 에서 안 지우면 다 읽었는데 숫자가 남는다. 값으로 추측하지 않는다.
-export function useNotificationCountState(): { count: number; loaded: boolean } {
+/** 다른 워크스페이스의 안 읽은 알림 — 종 드롭다운 하단 줄(P1, 2026-10-15). 서버가 전환기와 같은 집합으로 센다. */
+export interface OtherWorkspaceUnread { business_id: number; name: string; unread: number }
+
+export function useNotificationCountState(): { count: number; loaded: boolean; others: OtherWorkspaceUnread[]; scopeBizId: number | null } {
   const { user } = useAuth();
   const bizId = useNotificationScope(user?.business_id ? Number(user.business_id) : null);
   const [count, setCount] = useState(0);
   const [loaded, setLoaded] = useState(false);
+  const [others, setOthers] = useState<OtherWorkspaceUnread[]>([]);
 
   useEffect(() => {
-    if (!user) { setCount(0); setLoaded(false); return; }
+    if (!user) { setCount(0); setLoaded(false); setOthers([]); return; }
     let cancelled = false;
 
     const refresh = async () => {
       try {
         const r = await apiFetch(withScope('/api/notifications/unread-count', bizId));
         const j = await r.json();
-        if (!cancelled && j.success) { setCount(Number(j.data?.count) || 0); setLoaded(true); }
+        if (!cancelled && j.success) {
+          setCount(Number(j.data?.count) || 0);
+          setOthers(Array.isArray(j.data?.others) ? j.data.others : []);
+          setLoaded(true);
+        }
       // 실패는 0 건이 아니다 — loaded 를 세우지 않아야 배지가 제 값을 잃지 않는다.
       } catch { /* silent */ }
     };
@@ -105,10 +113,9 @@ export function useNotificationCountState(): { count: number; loaded: boolean } 
     window.addEventListener('notification:refresh', onLocal);
 
     // 공유 소켓 (services/socket) — multi-device 동기화. notification:* 는 user room 자동 join.
-    const offNew = onSocket<{ business_id?: number | null }>('notification:new', (p) => {
-      if (isOtherScope(p?.business_id, bizId)) return;
-      refresh();
-    });
+    //   다른 워크스페이스 알림도 다시 센다 — 종 숫자는 그대로지만 드롭다운 하단 «다른 워크스페이스» 줄이 바뀐다(P1).
+    //   목록(useNotifications)은 종전대로 버린다.
+    const offNew = onSocket('notification:new', () => refresh());
     const offRead = onSocket('notification:read', () => refresh());
     // 모두 읽음은 범위가 있다 — 0 으로 덮지 않고 내 범위로 다시 센다(플랫폼 공지만 읽은 창이 워크스페이스 숫자를 지우지 않게).
     const offReadAll = onSocket('notification:read-all', () => refresh());
@@ -122,7 +129,7 @@ export function useNotificationCountState(): { count: number; loaded: boolean } 
     };
   }, [user?.id, bizId]);
 
-  return { count, loaded };
+  return { count, loaded, others, scopeBizId: bizId };
 }
 
 /** 숫자만 필요한 곳(헤더 종 아이콘) 용 얇은 래퍼. */

@@ -113,28 +113,69 @@ async function deliverChat({ invoice, actorUserId, message, shareUrl, io }) {
     if (targetIds.length) {
       const { notifyMany } = require('../routes/notifications');
       const biz = await Business.findByPk(conv.business_id, { attributes: ['name', 'brand_name'] }).catch(() => null);
-      // 청구를 받은 고객 본인은 «받은 청구서» 로 보낸다 (2026-10-14 Irene: "청구를 받은 워크스페이스의 받은 청구서로
-      //   고객 입장이어야지"). 그 밖의 참여자(팀)는 카드가 놓인 대화방으로. 판정은 auth-check 의 고객 술어와 같다
-      //   (invoice.client_id 의 활성 Client.user_id). 푸시·메일에는 notify() 가 ?ws= 를 붙인다.
-      const payer = invoice.client_id
-        ? await Client.findOne({ where: { id: invoice.client_id, status: 'active' }, attributes: ['user_id'] }).catch(() => null)
-        : null;
-      const payerUserId = payer?.user_id ? Number(payer.user_id) : null;
-      const common = {
-        businessId: conv.business_id,
-        eventKind: 'message',
-        titleSpec: { feature: 'bill', action: 'bill_invoice_sent', subject: invoice.invoice_number },
-        body: `${invoice.title || ''} 청구서가 도착했습니다.`,
-        workspaceName: biz?.brand_name || biz?.name || null,
-      };
-      const payerIds = targetIds.filter((uid) => Number(uid) === payerUserId);
+      // ★ 청구를 받은 고객 본인은 여기서 알리지 않는다 — `notifyPayer` 가 발송이 다 끝난 뒤 **한 번** 알린다
+      //   (2026-10-15 Fable 결정 P2·P3: 채팅+메일이면 알림 메일과 청구서 메일 두 통, 메일만이면 앱 알림 0 이었다).
+      //   여기서는 카드가 놓인 대화방의 나머지 참여자(팀)만 그 대화방으로.
+      const payerUserId = await payerUserIdOf(invoice);
       const otherIds = targetIds.filter((uid) => Number(uid) !== payerUserId);
-      if (payerIds.length) await notifyMany({ ...common, userIds: payerIds, link: `/bills?tab=invoices&invoice=${invoice.id}`, entityType: 'invoice', entityId: invoice.id });
-      if (otherIds.length) await notifyMany({ ...common, userIds: otherIds, link: `/talk?conv=${conv.id}` });
+      if (otherIds.length) {
+        await notifyMany({
+          userIds: otherIds,
+          businessId: conv.business_id,
+          eventKind: 'message',
+          titleSpec: { feature: 'bill', action: 'bill_invoice_sent', subject: invoice.invoice_number },
+          body: invoiceBody(invoice),
+          workspaceName: biz?.brand_name || biz?.name || null,
+          link: `/talk?conv=${conv.id}`,
+        });
+      }
     }
   } catch (nErr) { console.warn('[invoiceDelivery chat notify]', nErr.message); }
 
   return { status: 'sent', conversation_id: conv.id, message_id: msg.id, title: conv.title || null };
+}
+
+// 청구를 받은 고객 본인 — invoice.client_id 의 활성 Client.user_id (auth-check 의 고객 술어와 같다).
+async function payerUserIdOf(invoice) {
+  if (!invoice.client_id) return null;
+  const payer = await Client.findOne({ where: { id: invoice.client_id, status: 'active' }, attributes: ['user_id'] }).catch(() => null);
+  return payer?.user_id ? Number(payer.user_id) : null;
+}
+
+// 알림 본문 — 받는 사람 언어로(notify 가 함수형 body 를 수신자 언어로 부른다).
+function invoiceBody(invoice) {
+  return (lang) => (lang === 'en'
+    ? `${invoice.title ? `${invoice.title} — ` : ''}You have a new invoice.`
+    : `${invoice.title || ''} 청구서가 도착했습니다.`);
+}
+
+/**
+ * 고객 본인 알림 — **발송 1건에 정확히 1회**, 채팅·메일 어느 쪽으로 보냈든(2026-10-15 Fable 결정 P2·P3).
+ *   · 채널 결과에 걸지 않는다 — 청구서는 이미 sent 로 «받은 청구서» 에 있고, 메일이 실패했을수록 이 알림이 유일한 길이다.
+ *   · 앱 안 + 푸시만. 메일은 deliverEmail 만 보낸다(이메일을 안 고른 선택을 알림 메일로 뒤집지 않는다) —
+ *     5분 뒤 미읽음 재알림 메일도 끈다(suppressEscalation).
+ *   · eventKind 'invoice' — 고객의 «청구» 알림 설정이 먹게(대화방 알림 'message' 와 따로).
+ */
+async function notifyPayer({ invoice, actorUserId }) {
+  const payerUserId = await payerUserIdOf(invoice);
+  if (!payerUserId || payerUserId === Number(actorUserId)) return { notified: false };
+  const { notify } = require('../routes/notifications');
+  const biz = await Business.findByPk(invoice.business_id, { attributes: ['name', 'brand_name'] }).catch(() => null);
+  await notify({
+    userId: payerUserId,
+    businessId: invoice.business_id,
+    eventKind: 'invoice',
+    titleSpec: { feature: 'bill', action: 'bill_invoice_sent', subject: invoice.invoice_number },
+    body: invoiceBody(invoice),
+    workspaceName: biz?.brand_name || biz?.name || null,
+    link: `/bills?tab=invoices&invoice=${invoice.id}`,
+    entityType: 'invoice',
+    entityId: invoice.id,
+    actorUserId,
+    skipChannels: ['email'],
+    suppressEscalation: true,
+  });
+  return { notified: true, user_id: payerUserId };
 }
 
 // ── 이메일 ──────────────────────────────────────────────────────────
@@ -189,7 +230,10 @@ async function deliverEmail({ invoice, actorUserId, message, shareUrl, to: force
  * 발송을 백그라운드로 돌린다. **await 하지 말 것** — 그러면 분리한 의미가 없다.
  * 진행 상태는 invoice.meta 에 남고 매 전이마다 broadcast 된다.
  */
-function queueDelivery({ invoiceId, actorUserId, sendChat, sendEmail, message, shareUrl, io, emailTo = null }) {
+function queueDelivery({ invoiceId, actorUserId, sendChat, sendEmail, message, shareUrl, io, emailTo = null, audience }) {
+  // 누구에게 가는 발송인가 — 라우트가 정한다. 'self'(미리보기)면 고객에게 알리지 않는다.
+  //   기본값을 두지 않는다: 새 호출부가 빠뜨리면 조용히 고객에게 알림이 가는 대신 여기서 멈춘다.
+  if (audience !== 'customer' && audience !== 'self') throw new Error('queueDelivery: audience must be customer|self');
   const now = new Date().toISOString();
   const initial = {};
   if (sendChat) initial.chat_delivery = { status: 'queued', queued_at: now };
@@ -226,6 +270,11 @@ function queueDelivery({ invoiceId, actorUserId, sendChat, sendEmail, message, s
     }
     await patchMeta(invoiceId, patch);
     await broadcast(io, invoiceId);
+
+    if (audience === 'customer') {
+      try { await notifyPayer({ invoice, actorUserId }); }
+      catch (e) { console.warn('[invoiceDelivery payer notify]', e.message); }
+    }
 
     // 이력 — 무엇이 어디로 나갔는지는 화면 상태와 별개로 남긴다
     try {
@@ -277,4 +326,4 @@ async function sweepStaleDeliveries() {
   return fixed;
 }
 
-module.exports = { queueDelivery, sweepStaleDeliveries, DELIVERY_STATUSES, STALE_MS, resolveRecipient, deliverEmail, deliverChat, chatTargetFor };
+module.exports = { queueDelivery, notifyPayer, sweepStaleDeliveries, DELIVERY_STATUSES, STALE_MS, resolveRecipient, deliverEmail, deliverChat, chatTargetFor };

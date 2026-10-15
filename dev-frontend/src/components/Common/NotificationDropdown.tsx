@@ -1,12 +1,17 @@
 // N+63 — 알림 dropdown (사이드바 종 모양 클릭 시 popover).
 //   최근 10건 표시. 클릭 시 link 이동 + 자동 읽음. "모두 읽음" + "전체 보기" 버튼.
-import React, { useEffect, useRef } from 'react';
-import { useTranslation } from 'react-i18next';
+import React, { useEffect, useRef, useState } from 'react';
+import { useTranslation, Trans } from 'react-i18next';
 import {
   Popover, Header, HeaderTitle, HeaderAction, List, Loading, Empty, EmptyIcon, EmptyTitle, EmptyHint,
   ItemButton, ItemIcon, ItemBody, ItemTitle, ItemDesc, ItemMeta, UnreadDot, Footer, FooterLink,
+  OthersSection, OtherRow, OtherLabel, OtherSwitch, OtherMore,
 } from './dropdownShell';
-import { useNotifications, type NotificationItem } from '../../hooks/useNotifications';
+import { useNotifications, type NotificationItem, type OtherWorkspaceUnread } from '../../hooks/useNotifications';
+import { useAuth } from '../../contexts/AuthContext';
+
+// 다른 워크스페이스 줄은 많아야 3줄 — 넘치면 «외 N곳»(전환기를 쓰면 된다).
+const OTHERS_MAX = 3;
 import { useTimeFormat } from '../../hooks/useTimeFormat';
 import { resolveNotificationLink, openNotificationTarget } from '../../utils/notificationLink';
 import NotificationTypeIcon from './NotificationTypeIcon';
@@ -15,10 +20,16 @@ interface Props {
   open: boolean;
   onClose: () => void;
   anchorRef: React.RefObject<HTMLElement | null>;
+  /** 이 종이 보는 범위(현재 워크스페이스, 관리자 범위면 null) — 머리 제목이 범위를 말한다(P1). */
+  scopeBizId?: number | null;
+  /** 다른 워크스페이스의 안 읽은 알림 — 종 숫자 훅(useNotificationCountState)이 같이 센다. */
+  others?: OtherWorkspaceUnread[];
 }
 
-const NotificationDropdown: React.FC<Props> = ({ open, onClose, anchorRef }) => {
+const NotificationDropdown: React.FC<Props> = ({ open, onClose, anchorRef, scopeBizId = null, others = [] }) => {
   const { t } = useTranslation('layout');
+  const { user, switchWorkspace } = useAuth();
+  const [switchingId, setSwitchingId] = useState<number | null>(null);
   const { items, loading, markRead, markAllRead } = useNotifications({ limit: 10, autoRefresh: open });
   const popoverRef = useRef<HTMLDivElement>(null);
   const { formatTimeAgo } = useTimeFormat();
@@ -56,10 +67,30 @@ const NotificationDropdown: React.FC<Props> = ({ open, onClose, anchorRef }) => 
 
   const unreadCount = items.filter(i => !i.read_at).length;
 
+  // ★ P1 (2026-10-15 Fable 결정 B) — 종은 «현재 워크스페이스 + 플랫폼 공지» 만 보여 준다(Q7). 그런데 화면이 범위를
+  //   말하지 않아 «모든 워크스페이스가 다 나온다» 로 읽혔다. 머리에 범위를, 바닥에 다른 워크스페이스의 새 알림 수를 둔다.
+  //   전환기 숫자는 계속 없다(2026-09-11 Irene «알림숫자 필요없어»).
+  const scopeName = scopeBizId
+    ? (user?.workspaces || []).find((w) => Number(w.business_id) === Number(scopeBizId))?.brand_name || null
+    : null;
+  const headerTitle = scopeBizId
+    ? (scopeName ? t('notifications.scopedTitle', { name: scopeName, defaultValue: '{{name}} 알림' }) : t('notifications.title', '알림'))
+    : t('notifications.platformTitle', '플랫폼 알림');
+  const shownOthers = others.slice(0, OTHERS_MAX);
+  const hiddenOthers = others.length - shownOthers.length;
+  // 전환하면 알림 전체보기에 착지한다 — 왜 전환했는지가 «알림» 이다(전환기는 /talk). 실패하면 줄 그대로.
+  const handleSwitch = async (bizId: number) => {
+    if (switchingId) return;
+    setSwitchingId(bizId);
+    const ok = await switchWorkspace(bizId);
+    if (ok) { window.location.href = '/notifications'; return; }
+    setSwitchingId(null);
+  };
+
   return (
     <Popover ref={popoverRef} role="menu" aria-label={t('notifications.title', '알림') as string}>
       <Header>
-        <HeaderTitle>{t('notifications.title', '알림')}</HeaderTitle>
+        <HeaderTitle>{headerTitle}</HeaderTitle>
         {unreadCount > 0 && (
           <HeaderAction type="button" onClick={markAllRead}>
             {t('notifications.markAllRead', '모두 읽음')}
@@ -95,6 +126,22 @@ const NotificationDropdown: React.FC<Props> = ({ open, onClose, anchorRef }) => 
           ))
         )}
       </List>
+      {shownOthers.length > 0 && (
+        <OthersSection data-testid="notif-other-ws">
+          {shownOthers.map((o) => (
+            <OtherRow key={o.business_id} data-testid={`notif-other-ws-${o.business_id}`}>
+              <OtherLabel>
+                <Trans t={t} i18nKey="notifications.otherWs" values={{ name: o.name, count: o.unread > 99 ? '99+' : o.unread }}
+                  components={{ 1: <b /> }} />
+              </OtherLabel>
+              <OtherSwitch type="button" disabled={switchingId !== null} onClick={() => handleSwitch(o.business_id)}>
+                {t('notifications.switchTo', '전환')}
+              </OtherSwitch>
+            </OtherRow>
+          ))}
+          {hiddenOthers > 0 && <OtherMore>{t('notifications.otherWsMore', { n: hiddenOthers, defaultValue: '외 {{n}}곳' })}</OtherMore>}
+        </OthersSection>
+      )}
       <Footer>
         <FooterLink to="/notifications" newTab onClick={onClose}>
           {t('notifications.viewAll', '전체 알림 보기')} →
