@@ -128,12 +128,12 @@ function PayslipDrawer({ businessId, entryId, onClose, onViewed }: { businessId:
             </Who>
             <Sec>{t('payslips.earnings')}</Sec>
             <Lines>
-              {p.earnings.map((x, i) => <Line key={i}><span>{nm(x)}{!x.taxable ? <Inl> ({t('payslips.nontax')})</Inl> : null}</span><b>{money(x.amount)}</b></Line>)}
+              {p.earnings.map((x, i) => <Line key={i} data-testid="payslip-line"><span>{nm(x)}{!x.taxable ? <Inl> ({t('payslips.nontax')})</Inl> : null}</span><b>{money(x.amount)}</b></Line>)}
               <Line $sum><span>{t('payslips.gross')}</span><b>{money(p.entry.gross_total)}</b></Line>
             </Lines>
             <Sec>{t('payslips.deductions')}</Sec>
             <Lines>
-              {p.deductions.map((x, i) => <Line key={i}><span>{nm(x)}{x.sign === 'minus' ? <Inl> (−)</Inl> : null}</span><b>{money(x.amount)}</b></Line>)}
+              {p.deductions.map((x, i) => <Line key={i} data-testid="payslip-line"><span>{nm(x)}{x.sign === 'minus' ? <Inl> (−)</Inl> : null}</span><b>{money(x.amount)}</b></Line>)}
               <Line $sum><span>{t('payslips.deduction')}</span><b>{money(p.entry.deduction_total)}</b></Line>
             </Lines>
             <NetBox data-testid="payslip-net"><span>{t('payslips.net')}</span><b>{money(p.entry.net_total)}</b></NetBox>
@@ -165,7 +165,8 @@ const Title = styled.h2`margin: 0; font-size: 1rem; font-weight: 700; color: #0F
 const Err = styled.div`margin-bottom: 10px; padding: 8px 12px; border-radius: 8px; background: #FEF2F2; color: #B91C1C; font-size: 0.8125rem;`;
 const Who = styled.div`display: flex; flex-direction: column; gap: 2px; margin-bottom: 12px; b { font-size: 0.9375rem; color: #0F172A; } span { font-size: 0.75rem; color: #64748B; }`;
 const Sec = styled.h3`margin: 12px 0 6px; font-size: 0.8125rem; font-weight: 700; color: #334155;`;
-const Lines = styled.div`border: 1px solid #F1F5F9; border-radius: 10px; overflow: hidden;`;
+// ★ 서랍 본문은 세로 flex — overflow 를 준 상자는 flex-shrink:0 이 없으면 눌려 줄이 잘린다(2026-10-15 실측: 공제 줄 3개가 안 보였다)
+const Lines = styled.div`border: 1px solid #F1F5F9; border-radius: 10px; overflow: hidden; flex-shrink: 0;`;
 const Line = styled.div<{ $sum?: boolean }>`
   display: flex; justify-content: space-between; gap: 10px; padding: 8px 12px; border-bottom: 1px solid #F8FAFC; font-size: 0.8125rem; color: #334155;
   background: ${(p) => (p.$sum ? '#F8FAFC' : '#FFF')}; font-weight: ${(p) => (p.$sum ? 700 : 400)};

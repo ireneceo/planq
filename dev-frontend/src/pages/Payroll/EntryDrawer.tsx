@@ -156,7 +156,8 @@ const Tot = styled.div<{ $net?: boolean }>`
 const UnpaidRow = styled.div`display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; & > div { width: 96px; }`;
 const UnpaidLabel = styled.span`font-size: 0.8125rem; font-weight: 600; color: #334155; flex: 1 1 auto;`;
 const SectionTitle = styled.h3`margin: 14px 0 6px; font-size: 0.8125rem; font-weight: 700; color: #334155;`;
-const Lines = styled.div`display: flex; flex-direction: column; border: 1px solid #F1F5F9; border-radius: 10px; overflow: hidden;`;
+// ★ 서랍 본문은 세로 flex — overflow 를 준 상자는 flex-shrink:0 이 없으면 눌려 줄이 잘린다(2026-10-15 실측: 소득세·무급휴가 줄이 안 보였다)
+const Lines = styled.div`display: flex; flex-direction: column; border: 1px solid #F1F5F9; border-radius: 10px; overflow: hidden; flex-shrink: 0;`;
 const LineRow = styled.div`padding: 10px 12px; border-bottom: 1px solid #F1F5F9; &:last-child { border-bottom: none; }`;
 const LineHead = styled.div`display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px;`;
 const LineName = styled.span`font-size: 0.8125rem; font-weight: 600; color: #0F172A;`;
