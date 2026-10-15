@@ -16,6 +16,14 @@
 
 ---
 
+### 완료: 검토 — 구독 Stripe 원화 결제 · 워크스페이스(워프로랩) 카드 청구 점검 (방 1d520029 · 2026-10-15 · [Opus]) — 코드 변경 없음
+- 원화: `services/money.toMinorUnits` 가 KRW 를 무소수점으로 보낸다(330000원 → 330000). 구독·Q Bill 같은 함수. 문제 없음.
+- 워크스페이스 카드: 키 3개(pk·sk·whsec) + 웹훅 `/api/stripe/webhook/ws/<biz>` 등록이면 켜진다. 서버도 키 둘이 없으면 403. 같은 Stripe 계정을 구독과 같이 써도 두 웹훅이 서로의 결제(metadata.kind)를 무시한다.
+- 확인 못 함: 운영 DB 읽기(SSH)가 권한에서 막혀 운영 키 상태·워프로랩 id·APP_URL 을 못 봤다.
+- 작은 지적(고치지 않음): 웹훅이 `payment_status==='paid'` 를 안 본다(카드만 쓰면 무관, 지연 결제수단을 켜면 위험).
+### Irene 할 일
+- 워프로랩 청구서 카드결제 켜기 — 상황판에 올림(todomv9g0580). 먼저 세무사 확인: 한국 법인 청구서 대금이 말레이시아 법인 Stripe 로 들어가는 구조.
+
 ### 완료: 상황판 묶음 3건 — 문서 업무 연결 · 프로젝트 일정 탭 보완 · 앱 다운로드 컴퓨터 설치 (방 42e04bed · 2026-10-15 · [Opus]) — 운영 미배포
 - ① 문서 작성·수정 «업무 연결»: 편집 줄(MetaRow)에 `components/Docs/DocTaskLinkField` — 연결 정본은 그대로 업무 결과물 첨부(task_attachments.post_id, context task). 걸기 = 기존 `POST /api/tasks/:id/attachments/link`, 떼기 = 기존 `DELETE /api/tasks/attachments/:id`.
   해제 술어를 `services/taskAttachmentLink.canRemoveTaskAttachment` 한 곳으로 빼서 삭제 라우트와 `linkedTasksOf`(attachment_id·can_unlink 추가)가 같이 쓴다. 고르는 부품은 일정 것을 `components/Common/TaskLinkPicker` 로 옮겨 공용(excludeIds·testId). 칩 `LinkedTaskChips` 에 onRemove(×). 새 문서는 고른 업무를 들고 있다가 첫 저장(자동 초안·저장 버튼 둘 다)에 건다. 개인 보관함엔 칸 없음.
