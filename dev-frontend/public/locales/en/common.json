@@ -1773,5 +1773,27 @@
     "viaAction": "Linked through the task’s deliverable request — unlink it from the task",
     "linkFailed": "Couldn’t link to the task. Please try again.",
     "addMore": "Link a task"
+  },
+  "dict": {
+    "create": "Create",
+    "creating": "Creating…",
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "deleting": "Deleting…",
+    "rename": "Rename"
+  },
+  "memberRoles": {
+    "pickPh": "Select role",
+    "createNamed": "Add role '{{name}}'",
+    "createFailed": "Could not create the role",
+    "manageOpen": "Manage roles…",
+    "manageTitle": "Manage roles",
+    "newPh": "New role name",
+    "empty": "No roles yet.",
+    "usage": "Projects {{project}} · Default {{def}}",
+    "deleteConfirm": "Delete the role “{{name}}”? It will be cleared from {{project}} project member(s) and {{def}} default role(s).",
+    "renameFailed": "Could not rename",
+    "deleteFailed": "Could not delete"
   }
 }

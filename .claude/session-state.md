@@ -33,6 +33,15 @@
 - 남김(앱 빌드 몫): iOS 집중 모드 뚫기는 앱에 time-sensitive 엔타이틀먼트가 있어야 적용(지금은 보통 알림으로 온다) · 실기기 확인 못 함.
 - 확인용: 업무 3950 «[확인용] 긴급 요청 시험»(member1 → member2, ws6, 미확인).
 
+### 완료: 역할 사전 — 공통 기본 + 태그관리처럼 커스텀·동기화 (방 c8f9ad50 · 2026-10-15 · [Opus] · Fable 설계 + 게이트 PASS) — 운영 미배포
+- 원문: «역할들이 개발/디자인/기획 개발팀 기준 … 기본세팅은 공통 · 태그관리처럼 커스텀 · 설정에서 하거나 각 UI 에서 동기화».
+- 설계 docs/MEMBER_ROLES_DESIGN.md: 워크스페이스 역할 사전 `member_roles`(쓰는 문 services/memberRoles 한 벌) · 글자 그대로 저장(개명 = 같은 워크스페이스 두 칸 일괄) · 기본 7개(기획·디자인·제작·영업·마케팅·운영·고객지원 / en) · 잡값(기타·팀원·오너·owner·member) NULL · 프로젝트 역할 = 멤버 «기본 역할» 같은 사전, 넣을 때 미리채움 · 추가 멤버 이상, 이름 변경·삭제 owner/admin · 실시간 member_role:updated.
+- 화면: 설정 > 멤버 «역할 관리»(태그 관리창을 공용 DictManageModal 로 빼서 같이 씀) · 새 프로젝트·프로젝트 상세·멤버 기본 역할·초대 폼 = RolePicker(고르기 + «'xx' 역할 추가» + «역할 관리…»).
+- 운영: scripts/migrate-member-roles.js — 배포 슬롯 sync-database **앞**(dev 실행함: 118곳 834행).
+- 검증: 실HTTP 30/30 · 화면 3폭 50/50(2창 동기화 포함) · 태그 창 회귀 4/4 · build EXIT 0 · guard 72/73 · secrets 11/11 · Fable 1차 FAIL(배포 순서) → 고쳐 2차 PASS.
+- 남김: 업무 템플릿 role_hint 는 범위 밖(설계 6) · health-check invite_mail 픽스처 낡음(다른 변경).
+- 확인용: 프로젝트 660 «[확인용] 역할 사전 시험»(ws6, 멤버 역할 기획·디자인·[확인용] 현장 진행).
+
 ### 진행 중인 작업
 - 없음 (이 방 기준). 급여 P2~P4 는 상황판 대기열 맨 앞(설계 docs/PAYROLL_DESIGN.md §10).
 

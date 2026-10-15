@@ -64,7 +64,7 @@ BusinessMember.init({
     allowNull: true,
     defaultValue: null,
   },
-  // 프로젝트에서 사용하는 기본 역할 (예: '기획', '디자인', '개발')
+  // 기본 역할 — 프로젝트에 넣을 때 미리 채워진다. 워크스페이스 역할 사전(member_roles)과 같은 목록(docs/MEMBER_ROLES_DESIGN.md)
   default_role: {
     type: DataTypes.STRING(50),
     allowNull: true,

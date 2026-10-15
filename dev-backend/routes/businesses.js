@@ -854,6 +854,15 @@ router.post('/:businessId/members/invite', authenticateToken, checkBusinessAcces
       return res.status(422).json(planEngine.buildQuotaError(planCan, businessId));
     }
 
+    // 역할은 워크스페이스 역할 사전을 거친다 — 여기서 새로 친 글자도 사전에 생긴다(services/memberRoles).
+    let inviteRole = null;
+    try {
+      inviteRole = await require('../services/memberRoles').ensureRole(businessId, default_role, { userId: req.user.id });
+    } catch (e) {
+      if (e?.code && e.http) return errorResponse(res, e.code, e.http);
+      throw e;
+    }
+
     const token = crypto.randomBytes(24).toString('hex');
     // ★ user_id 는 **수락할 때만** 채운다(services/invites.acceptInvite). 2026-10-15 Fable 판정 D1.
     //   예전엔 기존 계정이면 여기서 채웠다 — 멤버십을 읽는 곳(access_scope.getUserScope·워크스페이스 전환기 등)은
@@ -864,7 +873,7 @@ router.post('/:businessId/members/invite', authenticateToken, checkBusinessAcces
       business_id: businessId,
       user_id: null,
       role: 'member',
-      default_role: default_role ? String(default_role).trim().slice(0, 50) : null,
+      default_role: inviteRole,
       invited_by: req.user.id,
       invited_at: new Date(),
       invite_token: token,
@@ -1385,7 +1394,19 @@ router.patch('/:id/members/:memberId/default-role', authenticateToken, async (re
     if (!member) return errorResponse(res, 'member_not_found', 404);
     const { default_role } = req.body || {};
     const prevDefaultRole = member.default_role;
-    await member.update({ default_role: default_role ? String(default_role).trim().slice(0, 50) : null });
+    // 역할 사전을 거친다(없으면 사전에 생기고, 있으면 사전 표기로 저장) — services/memberRoles
+    let nextRole = null;
+    try {
+      nextRole = await require('../services/memberRoles').ensureRole(businessId, default_role, { userId: req.user.id });
+    } catch (e) {
+      if (e?.code && e.http) return errorResponse(res, e.code, e.http);
+      throw e;
+    }
+    await member.update({ default_role: nextRole });
+    if (nextRole && nextRole !== prevDefaultRole) {
+      const io = req.app.get('io');
+      if (io) io.to(`business:${businessId}`).emit('member_role:updated', { business_id: businessId, actor_user_id: req.user.id });
+    }
     require('../services/auditService').logAudit(req, {
       action: 'member.default_role_change', targetType: 'business_member', targetId: member.id, businessId,
       oldValue: { default_role: prevDefaultRole }, newValue: { default_role: member.default_role },

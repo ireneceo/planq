@@ -71,7 +71,7 @@ function daysFrom(today, offset) {
     });
     for (const uid of memberIds) {
       await ProjectMember.create({
-        project_id: proj.id, user_id: uid, role: '팀원', role_order: 1,
+        project_id: proj.id, user_id: uid, role: null, role_order: 1,   // 역할 없음 — 옛 '팀원' 잡값은 폐기(docs/MEMBER_ROLES_DESIGN.md)
       });
     }
     for (const t of tasks) {

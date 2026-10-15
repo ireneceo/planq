@@ -491,7 +491,8 @@
     "roleMember": "Member",
     "roleAi": "Cue",
     "invite": "Invite Member",
-    "defaultRolePlaceholder": "Role (optional), e.g. Design"
+    "defaultRolePlaceholder": "Default role (optional)",
+    "roleManage": "Manage roles"
   },
   "cue": {
     "sectionTitle": "Cue Settings",

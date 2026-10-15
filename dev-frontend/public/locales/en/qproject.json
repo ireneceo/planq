@@ -421,8 +421,7 @@
     "color": "Color",
     "colorPicker": "Color picker",
     "description": "Description",
-    "rolePlaceholder": "Role",
-    "roleDefault": "Member"
+    "rolePlaceholder": "Role"
   },
   "close": {
     "title": "Complete project",

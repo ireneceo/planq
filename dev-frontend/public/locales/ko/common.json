@@ -1773,5 +1773,27 @@
     "viaAction": "업무의 결과물 요청으로 연결됨 — 업무에서 해제하세요",
     "linkFailed": "업무에 연결하지 못했습니다. 다시 시도해 주세요.",
     "addMore": "업무 연결 추가"
+  },
+  "dict": {
+    "create": "만들기",
+    "creating": "만드는 중…",
+    "save": "저장",
+    "cancel": "취소",
+    "delete": "삭제",
+    "deleting": "삭제 중…",
+    "rename": "이름 변경"
+  },
+  "memberRoles": {
+    "pickPh": "역할 선택",
+    "createNamed": "'{{name}}' 역할 추가",
+    "createFailed": "역할을 만들지 못했습니다",
+    "manageOpen": "역할 관리…",
+    "manageTitle": "역할 관리",
+    "newPh": "새 역할 이름",
+    "empty": "아직 역할이 없습니다.",
+    "usage": "프로젝트 {{project}} · 기본 {{def}}",
+    "deleteConfirm": "“{{name}}” 역할을 삭제할까요? 프로젝트 멤버 {{project}}명·기본 역할 {{def}}명의 역할이 비워집니다.",
+    "renameFailed": "이름을 바꾸지 못했습니다",
+    "deleteFailed": "삭제하지 못했습니다"
   }
 }

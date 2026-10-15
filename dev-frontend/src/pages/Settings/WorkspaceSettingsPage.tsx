@@ -48,6 +48,11 @@ import {
 import { isEnterAction } from '../../utils/imeKey';
 import { belowTabs } from '../../theme/layout';
 import ModulesSection from '../../components/Settings/ModulesSection';
+import RolePicker from '../../components/MemberRole/RolePicker';
+import RoleManageModal from '../../components/MemberRole/RoleManageModal';
+import DefaultRoleField from '../../components/MemberRole/DefaultRoleField';
+import { useMemberRoleDict } from '../../components/MemberRole/useMemberRoleDict';
+import { onSocket } from '../../services/socket';
 import { formatDay, formatDayTime } from '../../utils/dateFormat';
 
 type TabKey = 'attendance' | 'brand' | 'legal' | 'language' | 'work-env' | 'storage' | 'plan' | 'permissions' | 'members' | 'cue' | 'billing' | 'email' | 'mail-accounts' | 'notifications' | 'work-flow' | 'data-export' | 'activity';   // activity — 팀원 활동 기록(owner 전용)
@@ -94,11 +99,9 @@ const InviteInput = styled.input`
   flex: 2; padding: 8px 12px; border: 1px solid #CBD5E1; border-radius: 8px;
   font-size: 0.8125rem; background: #FFFFFF; &:focus { outline: none; border-color: #14B8A6; box-shadow: 0 0 0 2px rgba(20,184,166,0.15); }
 `;
-const InviteRoleInput = styled.input`
-  flex: 1; padding: 8px 12px; border: 1px solid #CBD5E1; border-radius: 8px;
-  font-size: 0.8125rem; background: #FFFFFF; min-width: 120px;
-  &:focus { outline: none; border-color: #14B8A6; box-shadow: 0 0 0 2px rgba(20,184,166,0.15); }
-`;
+// 초대 폼 역할 칸 — 역할 사전 고르기(RolePicker)를 담는 자리. 이메일 칸과 같은 줄.
+const InviteRoleSlot = styled.div`flex: 1; min-width: 140px;`;
+const MemberHeaderActions = styled.div`display: flex; align-items: center; gap: 8px; flex-shrink: 0; flex-wrap: wrap; justify-content: flex-end;`;
 const InviteHintText = styled.div`font-size: 0.75rem; color: #64748B; line-height: 1.5; margin-top: 6px;`;
 const InviteError = styled.div`font-size: 0.75rem; color: #DC2626;`;
 const InviteActionRow = styled.div`display: flex; gap: 8px; justify-content: flex-end;`;
@@ -454,11 +457,6 @@ const DrawerBioBox = styled.div`
   margin-top: 12px; padding: 10px 12px; background: #F8FAFC;
   border-radius: 8px; font-size: 0.8125rem; color: #334155; line-height: 1.55; white-space: pre-wrap;
 `;
-const DrawerInlineInput = styled.input`
-  width: 100%; max-width: 200px; height: 28px; padding: 0 8px; border: 1px solid #CBD5E1;
-  border-radius: 6px; font-size: 0.8125rem; background: #FFFFFF;
-  &:focus { outline: none; border-color: #14B8A6; box-shadow: 0 0 0 2px rgba(20,184,166,0.15); }
-`;
 const WorkHoursForm = styled.div`display: flex; gap: 16px; flex-wrap: wrap;`;
 const WorkHoursField = styled.label`display: flex; flex-direction: column; gap: 4px; min-width: 90px;`;
 const WorkHoursLabel = styled.span`font-size: 0.6875rem; color: #64748B; font-weight: 600;`;
@@ -522,6 +520,9 @@ export default function WorkspaceSettingsPage() {
   const isAdmin = user?.business_role === 'owner' || user?.platform_role === 'platform_admin';
   // isWsAdmin = 워크스페이스 관리자(owner·admin) — 서버 assertWorkspaceAdmin 과 같은 술어(권한 정책·근태·활동, 0-E E-1)
   const isWsAdmin = isAdmin || user?.business_role === 'admin';
+  // 역할 사전 — 프로젝트 멤버 역할과 «기본 역할» 이 같은 목록(docs/MEMBER_ROLES_DESIGN.md). 고객은 이 화면에 오지 않는다.
+  const roleDict = useMemberRoleDict(businessId || null);
+  const [roleManageOpen, setRoleManageOpen] = useState(false);
 
   const location = useLocation();
   const params = useParams<{ tab?: string }>();
@@ -579,6 +580,18 @@ export default function WorkspaceSettingsPage() {
 
   const [ws, setWs] = useState<Workspace | null>(null);
   const [members, setMembers] = useState<WorkspaceMember[]>([]);
+  // 역할 이름 변경·삭제는 멤버의 «기본 역할» 글자도 바꾼다(services/memberRoles) — 다른 창에서 바꿔도 목록을 다시 읽는다.
+  //   방 구독은 useMemberRoleDict 가 한다.
+  useEffect(() => {
+    if (!businessId) return undefined;
+    let timer: number | null = null;
+    const off = onSocket<{ business_id?: number }>('member_role:updated', (p) => {
+      if (p?.business_id && Number(p.business_id) !== Number(businessId)) return;
+      if (timer) window.clearTimeout(timer);
+      timer = window.setTimeout(() => { void listMembers(businessId).then(setMembers).catch(() => {}); }, 300);
+    });
+    return () => { off(); if (timer) window.clearTimeout(timer); };
+  }, [businessId]);
   const [inviteOpen, setInviteOpen] = useState(false);
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteRole, setInviteRole] = useState('');
@@ -1387,6 +1400,12 @@ export default function WorkspaceSettingsPage() {
                 <SectionTitle>{t('members.sectionTitle')}</SectionTitle>
                 <SectionDesc>{t('members.sectionDesc')}</SectionDesc>
               </div>
+              <MemberHeaderActions>
+              {/* 역할 관리 — 프로젝트·멤버에서 고르는 역할 목록(추가는 멤버 이상, 이름 변경·삭제는 관리자) */}
+              <ActionButton tone="secondary" size="sm" data-testid="settings-role-manage-open"
+                onClick={() => setRoleManageOpen(true)}>
+                {t('members.roleManage', '역할 관리')}
+              </ActionButton>
               {isAdmin && !inviteOpen && (
                 <InvitePrimaryBtn type="button" onClick={() => { setInviteOpen(true); setInviteError(null); }}>
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
@@ -1395,6 +1414,7 @@ export default function WorkspaceSettingsPage() {
                   {t('members.inviteBtn', '멤버 초대')}
                 </InvitePrimaryBtn>
               )}
+              </MemberHeaderActions>
             </SectionHeaderRow>
 
             {isAdmin && inviteOpen && (
@@ -1408,12 +1428,11 @@ export default function WorkspaceSettingsPage() {
                     onChange={(e) => setInviteEmail(e.target.value)}
                     onKeyDown={(e) => { if (isEnterAction(e) && inviteEmail.trim()) sendMemberInvite(); }}
                   />
-                  <InviteRoleInput
-                    type="text"
-                    placeholder={t('members.defaultRolePlaceholder', 'e.g. Design') as string}
-                    value={inviteRole}
-                    onChange={(e) => setInviteRole(e.target.value)}
-                  />
+                  <InviteRoleSlot>
+                    <RolePicker bizId={businessId} dict={roleDict.dict} onDictAdd={roleDict.add} size="md"
+                      placeholder={t('members.defaultRolePlaceholder', '기본 역할') as string}
+                      value={inviteRole || null} onChange={(v) => setInviteRole(v || '')} testId="invite-role" />
+                  </InviteRoleSlot>
                 </InviteInputRow>
                 <InviteHintText>{t('members.inviteHint', '받은 사람이 초대 메일의 링크로 가입(이미 계정이 있으면 로그인)하면 바로 팀원이 됩니다. 링크는 30일 동안 열립니다.')}</InviteHintText>
                 {inviteError && <InviteError>{inviteError}</InviteError>}
@@ -1463,6 +1482,9 @@ export default function WorkspaceSettingsPage() {
               );
             })}
           </Card>
+          <RoleManageModal open={roleManageOpen} onClose={() => setRoleManageOpen(false)}
+            bizId={businessId} dict={roleDict.dict} canManage={isWsAdmin}
+            onChanged={() => { void roleDict.reload(); void listMembers(businessId).then(setMembers).catch(() => {}); }} />
 
           {/* 멤버 상세 드로어 */}
           {selectedMemberId != null && (() => {
@@ -1564,26 +1586,10 @@ export default function WorkspaceSettingsPage() {
                             <DrawerInfoLabel>{t('members.drawer.defaultRole', '기본 역할')}</DrawerInfoLabel>
                             <DrawerInfoValue>
                               {isAdmin ? (
-                                <DrawerInlineInput
-                                  type="text"
-                                  placeholder={t('members.defaultRolePlaceholder', 'e.g. Design') as string}
-                                  defaultValue={target.default_role || ''}
-                                  onBlur={async (e) => {
-                                    const val = e.target.value.trim();
-                                    const input = e.target;
-                                    try {
-                                      const r = await apiFetch(`/api/businesses/${businessId}/members/${target.id}/default-role`, {
-                                        method: 'PATCH',
-                                        headers: { 'Content-Type': 'application/json' },
-                                        body: JSON.stringify({ default_role: val || null }),
-                                      });
-                                      // uncontrolled defaultValue — 실패 시 입력이 타이핑값 그대로 남아 거짓 저장. 서버값으로 원복.
-                                      if (!r.ok) { input.value = target.default_role || ''; return; }
-                                      const fresh = await listMembers(businessId);
-                                      setMembers(fresh);
-                                    } catch { input.value = target.default_role || ''; }
-                                  }}
-                                />
+                                <DefaultRoleField key={target.id} businessId={businessId} memberId={target.id}
+                                  value={target.default_role || null} dict={roleDict.dict} onDictAdd={roleDict.add}
+                                  onManage={isWsAdmin ? () => setRoleManageOpen(true) : undefined}
+                                  onSaved={async () => { setMembers(await listMembers(businessId)); }} />
                               ) : (
                                 <span>{target.default_role || '—'}</span>
                               )}

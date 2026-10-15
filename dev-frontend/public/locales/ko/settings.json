@@ -491,7 +491,8 @@
     "roleMember": "멤버",
     "roleAi": "Cue",
     "invite": "멤버 초대",
-    "defaultRolePlaceholder": "맡은 일 (선택) 예: 디자인"
+    "defaultRolePlaceholder": "기본 역할 (선택)",
+    "roleManage": "역할 관리"
   },
   "cue": {
     "sectionTitle": "Cue 설정",

@@ -428,6 +428,11 @@ sync_database() {
   if [ -n "${LAST_REMOTE:-}" ] && ! git -C "$REPO" diff --quiet "${LAST_REMOTE}" "$DEPLOY_COMMIT" -- dev-backend/models dev-backend/scripts/migrate- 2>/dev/null; then
     DEPLOY_SCHEMA_CHANGED=true
   fi
+  # 2026-10-15 역할 사전 — member_roles 표 + project_members.role DEFAULT NULL + (처음 한 번) 쓰인 글자 흡수·기본 세트 시드.
+  #   ★ 반드시 sync-database **앞**(Fable 게이트 FAIL 실측): sync 가 models/MemberRole.js 로 빈 표를 먼저 만들면
+  #     스크립트가 «이미 있음» 으로 흡수·시드를 건너뛰어 전 워크스페이스 역할 0개 + FK DDL 이 스크립트와 달라진다.
+  #     (스크립트도 «표가 비어 있으면» 흡수·시드하도록 막아 두었다 — 이중 방어.) docs/MEMBER_ROLES_DESIGN.md
+  prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-member-roles.js 2>&1 | tail -6"
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node sync-database.js 2>&1 | tail -20"
   success "DB sync 완료"
 

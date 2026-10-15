@@ -569,7 +569,7 @@ async function extractEmailTaskCandidates({ emailThreadId, userId, businessId })
   let memberNames = '';
   if (thread.project_id) {
     const members = await ProjectMember.findAll({ where: { project_id: thread.project_id }, include: [{ model: User, attributes: ['id', 'name'] }] });
-    memberNames = members.map((m) => `- ${m.User?.name || 'unknown'} (role: ${m.role})`).join('\n');
+    memberNames = members.map((m) => `- ${m.User?.name || 'unknown'}${m.role ? ` (role: ${m.role})` : ''}`).join('\n');
   } else {
     const bms = await BusinessMember.findAll({ where: { business_id: businessId, removed_at: null }, include: [{ model: User, as: 'user', attributes: ['id', 'name'] }] });
     memberNames = bms.map((m) => `- ${m.user?.name || 'unknown'} (role: ${m.role})`).join('\n');

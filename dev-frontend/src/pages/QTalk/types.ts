@@ -14,7 +14,7 @@ export type TaskStatus =
 export interface MockMember {
   user_id: number;
   name: string;
-  role: string;
+  role: string | null;   // 프로젝트 역할(역할 사전 글자) · NULL = 역할 없음
   avatar_color: string;
   is_default_assignee?: boolean;
 }

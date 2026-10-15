@@ -3,9 +3,10 @@ import CalendarPicker from '../../components/Common/CalendarPicker';
 import CreateDrawer from '../../components/Common/CreateDrawer';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
-import PlanQSelect from '../../components/Common/PlanQSelect';
 import LetterAvatar from '../../components/Common/LetterAvatar';
 import { listBusinessMembers, type WorkspaceMemberRow } from '../../services/qtalk';
+import RolePicker from '../../components/MemberRole/RolePicker';
+import { useMemberRoleDict } from '../../components/MemberRole/useMemberRoleDict';
 import { useAuth } from '../../contexts/AuthContext';
 import { PROJECT_COLOR_PALETTE } from '../../utils/projectColors';
 
@@ -42,7 +43,7 @@ export interface ChannelInput {
 interface MemberInput {
   user_id: number;
   name: string;
-  role: string;
+  role: string | null;
   is_default: boolean;
 }
 
@@ -51,15 +52,12 @@ interface ClientInput {
   email: string;
 }
 
-const ROLE_OPTIONS = ['기획', '디자인', '개발', '영업', '운영', '기타'];
-const ROLE_KEY: Record<string, string> = {
-  '기획': 'planning', '디자인': 'design', '개발': 'dev', '영업': 'sales', '운영': 'ops', '기타': 'etc',
-};
 
 const NewProjectModal: React.FC<Props> = ({ businessId, open, onClose, onCreate, prefillClient = null }) => {
   const { t } = useTranslation('qtalk');
-  const roleLabel = (r: string) => t(`newProject.role.${ROLE_KEY[r] || 'etc'}`, { defaultValue: r });
-  const ROLE_SELECT_OPTIONS = ROLE_OPTIONS.map((r) => ({ value: r, label: roleLabel(r) }));
+  // 역할은 워크스페이스 역할 사전(설정 > 멤버 «역할 관리» 와 같은 목록). 여기서 새로 친 역할도 사전에 생긴다.
+  //   옛 하드코딩 목록(기획·디자인·개발…)은 2026-10-15 폐기 — docs/MEMBER_ROLES_DESIGN.md
+  const roleDict = useMemberRoleDict(open ? businessId : null);
   const { user } = useAuth();
   const [availableMembers, setAvailableMembers] = useState<WorkspaceMemberRow[]>([]);
   const [name, setName] = useState('');
@@ -109,7 +107,8 @@ const NewProjectModal: React.FC<Props> = ({ businessId, open, onClose, onCreate,
         if (members.length === 0 && user) {
           const me = humans.find((m) => m.user_id === Number(user.id));
           if (me) {
-            setMembers([{ user_id: me.user_id, name: me.name || me.user?.name || user.name, role: '기획', is_default: true }]);
+            // 역할 = 그 사람의 «기본 역할»(설정 > 멤버). 없으면 비움(옛 '기획' 고정 폐기).
+            setMembers([{ user_id: me.user_id, name: me.name || me.user?.name || user.name, role: me.default_role || null, is_default: true }]);
           }
         }
       } catch (err) {
@@ -158,14 +157,14 @@ const NewProjectModal: React.FC<Props> = ({ businessId, open, onClose, onCreate,
   const addMember = (userId: number) => {
     const m = availableMembers.find((x) => x.user_id === userId);
     if (!m || members.find((x) => x.user_id === userId)) return;
-    setMembers([...members, { user_id: m.user_id, name: m.name || m.user?.name || `user ${m.user_id}`, role: '기타', is_default: false }]);
+    setMembers([...members, { user_id: m.user_id, name: m.name || m.user?.name || `user ${m.user_id}`, role: m.default_role || null, is_default: false }]);
   };
 
   const removeMember = (userId: number) => {
     setMembers(members.filter((m) => m.user_id !== userId));
   };
 
-  const updateMemberRole = (userId: number, role: string) => {
+  const updateMemberRole = (userId: number, role: string | null) => {
     setMembers(members.map((m) => (m.user_id === userId ? { ...m, role } : m)));
   };
 
@@ -363,15 +362,9 @@ const NewProjectModal: React.FC<Props> = ({ businessId, open, onClose, onCreate,
                     <LetterAvatar name={m.name} size={26} />
                     <MemberName>{m.name}</MemberName>
                     <RoleSelectWrap>
-                      <PlanQSelect
-                        options={ROLE_SELECT_OPTIONS}
-                        value={ROLE_SELECT_OPTIONS.find((o) => o.value === m.role) || null}
-                        onChange={(opt: unknown) => {
-                          const v = (opt as { value: string } | null)?.value;
-                          if (v) updateMemberRole(m.user_id, v);
-                        }}
-                        isSearchable={false}
-                      />
+                      <RolePicker bizId={businessId} dict={roleDict.dict} onDictAdd={roleDict.add}
+                        value={m.role} onChange={(v) => updateMemberRole(m.user_id, v)}
+                        testId="newproject-role" />
                     </RoleSelectWrap>
                     <DefaultCheck>
                       <input
@@ -488,7 +481,7 @@ const NewProjectModal: React.FC<Props> = ({ businessId, open, onClose, onCreate,
                                     if (checked) next.delete(m.user_id); else next.add(m.user_id);
                                     setParts(next);
                                   }} />
-                                <span>{m.name} · {roleLabel(m.role)}{m.is_default ? ' ★' : ''}</span>
+                                <span>{m.name}{m.role ? ` · ${m.role}` : ''}{m.is_default ? ' ★' : ''}</span>
                               </ChannelMemberChk>
                             );
                           })}

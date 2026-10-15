@@ -289,7 +289,6 @@ export const MemberRow = styled.div`display:flex;align-items:center;gap:8px;padd
 export const MemberName = styled.div`flex:1;min-width:0;font-size:0.8125rem;font-weight:600;color:#0F172A;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:flex;align-items:center;gap:6px;`;
 export const OwnerTag = styled.span`padding:1px 6px;font-size:0.625rem;font-weight:600;background:#F0FDFA;color:#0F766E;border-radius:6px;`;
 export const PmTag = styled.span`padding:1px 6px;font-size:0.625rem;font-weight:700;background:#EEF2FF;color:#4338CA;border-radius:6px;letter-spacing:0.2px;`;
-export const MemberRoleInput = styled.input`flex:0 0 120px;min-width:80px;height:28px;padding:0 8px;font-size:0.75rem;color:#0F172A;border:1px solid transparent;background:transparent;border-radius:6px;font-family:inherit;&:hover:not(:disabled){background:#FFF;border-color:#E2E8F0;}&:focus{outline:none;background:#FFF;border-color:#14B8A6;}&:disabled{color:#94A3B8;cursor:not-allowed;}`;
 export const PmToggle = styled.button<{ $active: boolean }>`
   flex-shrink:0;width:36px;height:24px;padding:0;font-size:0.625rem;font-weight:700;letter-spacing:0.3px;
   border-radius:6px;cursor:pointer;transition:background 0.12s, color 0.12s, border-color 0.12s;

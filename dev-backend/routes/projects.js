@@ -7,7 +7,7 @@ const router = express.Router();
 const { sequelize } = require('../config/database');
 const { archivePatch, unarchivePatch } = require('../services/conversationLifecycle');
 const {
-  Project, ProjectMember, ProjectClient,
+  Project, ProjectMember, ProjectClient, MemberRole,
   ProjectNote, ProjectIssue, TaskCandidate,
   Conversation, ConversationParticipant, Message, Task, TaskReviewer,
   BusinessMember, User, Business, Client,
@@ -987,13 +987,33 @@ router.put('/:id/members', authenticateToken, async (req, res, next) => {
     await ProjectMember.destroy({ where: { project_id: project.id }, transaction: t });
     const rows = [];
     const skipped = [];
+    // 역할 글자는 사전을 거친다 — 여기서 새로 친 역할도 워크스페이스 사전에 생긴다(docs/MEMBER_ROLES_DESIGN.md).
+    //   빈 값은 «역할 없음»(NULL). 옛 기본값 '기타' 는 폐기.
+    const memberRoles = require('../services/memberRoles');
+    const roleCache = new Map();
+    let roleAdded = false;
+    const roleOf = async (raw) => {
+      const key = memberRoles.normalizeName(raw).toLowerCase();
+      if (!key) return null;
+      if (!roleCache.has(key)) {
+        const before = await MemberRole.count({ where: { business_id: project.business_id }, transaction: t });
+        roleCache.set(key, await memberRoles.ensureRole(project.business_id, raw, { userId: req.user.id, transaction: t }));
+        if ((await MemberRole.count({ where: { business_id: project.business_id }, transaction: t })) > before) roleAdded = true;
+      }
+      return roleCache.get(key);
+    };
     for (const m of members) {
       // 워크스페이스 비멤버는 버린다 — 지금까지 **조용히 사라졌다.** 원장에라도 남긴다.
       if (!validUserIds.has(m.user_id)) { skipped.push(m.user_id); continue; }
+      let role;
+      try { role = await roleOf(m.role); } catch (e) {
+        if (e?.code && e.http) { await t.rollback(); return errorResponse(res, e.code, e.http); }
+        throw e;
+      }
       rows.push({
         project_id: project.id,
         user_id: m.user_id,
-        role: m.role || '기타',
+        role,
         role_order: 0,
         // PM 플래그 — 클라이언트 입력 반영 + 프로젝트 owner 는 강제 PM (PERMISSION_MATRIX §3)
         is_pm: m.user_id === project.owner_user_id ? true : !!m.is_pm,
@@ -1021,6 +1041,10 @@ router.put('/:id/members', authenticateToken, async (req, res, next) => {
       }, { transaction: t });
     }
     await t.commit();
+    if (roleAdded) {
+      const io = req.app.get('io');
+      if (io) io.to(`business:${project.business_id}`).emit('member_role:updated', { business_id: project.business_id, actor_user_id: req.user.id });
+    }
 
     const detail = await loadProjectDetail(project.id);
     return successResponse(res, detail);

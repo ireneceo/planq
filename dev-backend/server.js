@@ -544,6 +544,8 @@ app.use('/api/tasks', require('./routes/task_order'));   // 내 순서 — 리�
 app.use('/api/tasks', require('./routes/task_tags'));
 app.use('/api/tasks', require('./routes/task_estimations'));
 app.use('/api/task-templates', require('./routes/task_templates'));
+// 역할 사전(프로젝트 멤버 역할 · 멤버 기본 역할 공통) — docs/MEMBER_ROLES_DESIGN.md
+app.use('/api/member-roles', require('./routes/member_roles'));
 // ★ client_links 를 **먼저** 마운트한다 — `/:businessId/:clientId/qnotes` 같은 꼬리 경로가
 //   clients.js 의 `/:businessId/:id` 에 먼저 잡히면 안 된다(Express 는 순서대로 판정한다).
 app.use('/api/clients', require('./routes/client_links'));

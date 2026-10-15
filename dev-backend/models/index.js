@@ -54,6 +54,7 @@ const TaskActionItem = require('./TaskActionItem');
 const TaskUserOrder = require('./TaskUserOrder');
 const TaskTag = require('./TaskTag');
 const TaskTagLink = require('./TaskTagLink');
+const MemberRole = require('./MemberRole');
 const ProjectStatusOption = require('./ProjectStatusOption');
 const ProjectStage = require('./ProjectStage');
 const ProjectPinnedDoc = require('./ProjectPinnedDoc');
@@ -584,6 +585,15 @@ TaskTagLink.belongsTo(TaskTag, { as: 'tag', foreignKey: 'tag_id', onDelete: 'CAS
 TaskTag.hasMany(TaskTagLink, { as: 'links', foreignKey: 'tag_id', onDelete: 'CASCADE' });
 TaskTag.belongsTo(User, { as: 'creator', foreignKey: 'created_by' });
 
+// MemberRole — 역할 사전(docs/MEMBER_ROLES_DESIGN.md). 새 워크스페이스는 만들 때 공통 기본 세트를 받는다.
+//   ★ 생성 문이 셋(가입·두 번째 워크스페이스·OAuth)이라 훅 한 곳에서 시드한다. 같은 트랜잭션에 묶는다.
+MemberRole.belongsTo(Business, { foreignKey: 'business_id', onDelete: 'CASCADE' });
+Business.addHook('afterCreate', 'seedMemberRoles', async (biz, options) => {
+  await require('../services/memberRoles').seedDefaults(biz.id, {
+    lang: biz.default_language, userId: biz.owner_id || null, transaction: options?.transaction,
+  });
+});
+
 // FeedbackItem (P6 — 사용자 → 운영팀 피드백)
 FeedbackItem.belongsTo(User, { as: 'user', foreignKey: 'user_id' });
 FeedbackItem.belongsTo(User, { as: 'responder', foreignKey: 'responded_by' });
@@ -663,6 +673,7 @@ module.exports = {
   TaskUserOrder,
   TaskTag,
   TaskTagLink,
+  MemberRole,
   ProjectStatusOption,
   ProjectStage,
   ProjectPinnedDoc,

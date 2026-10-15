@@ -113,7 +113,6 @@ import {
   MemberName,
   OwnerTag,
   PmTag,
-  MemberRoleInput,
   PmToggle,
   MemberRemoveBtn,
   AddMemberBox,
@@ -136,6 +135,9 @@ import {
   BtnNone,
 } from './QProjectDetailPage.styles';
 import { formatDay } from '../../utils/dateFormat';
+import RolePicker from '../../components/MemberRole/RolePicker';
+import RoleManageModal from '../../components/MemberRole/RoleManageModal';
+import { useMemberRoleDict } from '../../components/MemberRole/useMemberRoleDict';
 
 const PROJECT_COLORS = PROJECT_COLOR_PALETTE.map(p => p.value);
 
@@ -150,7 +152,7 @@ type TabKey = 'dashboard' | 'tasks' | 'calendar' | 'details' | 'settings' | 'inf
 //   열자마자 403 + 처리 안 된 오류였다(2026-10-07 고객 순찰). 서버 술어와 같게 숨긴다.
 const CLIENT_HIDDEN_TABS: TabKey[] = ['dashboard', 'calendar', 'clients', 'transactions', 'report', 'details', 'settings', 'history', 'info'];
 
-interface BizMember { id: number; user_id: number; user?: { id: number; name: string; email?: string; is_ai?: boolean; display_name?: string | null } }
+interface BizMember { id: number; user_id: number; default_role?: string | null; user?: { id: number; name: string; email?: string; is_ai?: boolean; display_name?: string | null } }
 
 interface ProjectDetail {
   id: number;
@@ -168,7 +170,7 @@ interface ProjectDetail {
   owner_user_id: number;
   my_role_in_project?: 'owner' | 'admin' | 'member' | 'client' | string;
   Business?: { id: number; name: string; brand_name?: string };
-  projectMembers?: { user_id: number; role: string; is_pm?: boolean; User?: { id: number; name: string; display_name?: string | null }}[];
+  projectMembers?: { user_id: number; role: string | null; is_pm?: boolean; User?: { id: number; name: string; display_name?: string | null }}[];
   projectClients?: { id: number; client_id?: number | null; contact_name: string; contact_email: string | null; contact_user_id?: number | null; invite_token?: string | null; invited_at?: string | null }[];
 }
 interface Conv {
@@ -298,6 +300,12 @@ const QProjectDetailPage: React.FC = () => {
   // 탭 이름 = 프로젝트 이름. ★ 아래 `if (!projectId) return` 보다 반드시 위 — 훅은 조건부일 수 없다.
   useTabTitle(project?.name);
   const isClient = project?.my_role_in_project === 'client';
+  // 역할 사전(설정 > 멤버 «역할 관리» 와 같은 목록). 고객은 사전 API 가 403 이라 부르지 않는다.
+  const roleDict = useMemberRoleDict(project && !isClient ? project.business_id : null);
+  const [roleManageOpen, setRoleManageOpen] = useState(false);
+  // 워크스페이스 관리자(owner·admin) — 역할 이름 변경·삭제. 멤버십 role 타입에 admin 이 빠져 있어 글자로 비교한다.
+  const myWsRole: string | undefined = (authUser?.workspaces || []).find((w) => w.business_id === project?.business_id)?.role;
+  const canManageRoles = myWsRole === 'owner' || myWsRole === 'admin' || authUser?.platform_role === 'platform_admin';
   // 고객이 숨겨진 탭(캔버스 등)으로 진입하면 허용 탭(문서)으로 이동 — 빈/에러 화면 방지.
   useEffect(() => {
     if (isClient && CLIENT_HIDDEN_TABS.includes(tab)) setTab('docs');
@@ -528,26 +536,28 @@ const QProjectDetailPage: React.FC = () => {
     // 고객 초대 수락/변경 실시간 반영 (참여 고객 리스트 즉시 갱신)
     const offClientUpd = onSocket('client:updated', debouncedReload);
     const offProjClientUpd = onSocket('project_client:updated', debouncedReload);
+    // 역할 이름 변경·삭제는 이 프로젝트 멤버 역할 글자도 바꾼다(services/memberRoles) — 다시 읽는다.
+    const offRoleUpd = onSocket('member_role:updated', debouncedReload);
     return () => {
       if (pending) window.clearTimeout(pending);
       leaveRoom(`business:${Number(projectBizId)}`);
       leaveRoom(`project:${Number(projectId)}`);
       offTaskNew(); offTaskUpd(); offTaskDel();
       offNoteNew(); offIssueNew();
-      offClientUpd(); offProjClientUpd();
+      offClientUpd(); offProjClientUpd(); offRoleUpd();
     };
   }, [projectBizId, projectId, load]);
 
 
   // ── 멤버 관리 (bulk PUT) ──
-  const saveMembers = async (next: { user_id: number; role: string; is_pm?: boolean; User?: { id: number; name: string; display_name?: string | null }}[]) => {
+  const saveMembers = async (next: { user_id: number; role: string | null; is_pm?: boolean; User?: { id: number; name: string; display_name?: string | null }}[]) => {
     if (!project) return;
     setProject(prev => prev ? { ...prev, projectMembers: next } : prev);
     // 실패를 삼키지 않는다 (#147) — 옛 코드는 catch {} 로 조용히 넘겨서, 저장이 안 돼도
     // 화면은 낙관적 갱신 그대로였다. 이제 throw 해서 호출부(자동저장 뱃지)가 ! 를 띄운다.
     const r = await apiFetch(`/api/projects/${projectId}/members`, {
       method: 'PUT', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ members: next.map(m => ({ user_id: m.user_id, role: m.role || '기타', is_pm: !!m.is_pm })) }),
+      body: JSON.stringify({ members: next.map(m => ({ user_id: m.user_id, role: m.role || null, is_pm: !!m.is_pm })) }),
     });
     const j = await r.json().catch(() => null);
     if (!r.ok || !j?.success) throw new Error(j?.message || `members save failed: ${r.status}`);
@@ -600,7 +610,8 @@ const QProjectDetailPage: React.FC = () => {
     if (existing.some(m => m.user_id === userId)) return;
     const bm = bizMembers.find(b => b.user_id === userId);
     if (!bm?.user) return;
-    saveMembersOptimistic([...existing, { user_id: userId, role: '팀원', is_pm: false, User: { id: bm.user.id, name: bm.user.name, display_name: bm.user.display_name ?? null } }]);
+    // 역할 = 그 사람의 «기본 역할»(설정 > 멤버). 없으면 비움(옛 '팀원' 고정 폐기 — docs/MEMBER_ROLES_DESIGN.md)
+    saveMembersOptimistic([...existing, { user_id: userId, role: bm.default_role || null, is_pm: false, User: { id: bm.user.id, name: bm.user.name, display_name: bm.user.display_name ?? null } }]);
     setAddMemberOpen(false);
   };
   const removeMember = (userId: number) => {
@@ -608,7 +619,7 @@ const QProjectDetailPage: React.FC = () => {
     saveMembersOptimistic(existing.filter(m => m.user_id !== userId));
   };
   // 역할 입력만 자동저장 뱃지를 받는다 → 실패를 그대로 올린다 (await + throw)
-  const updateMemberRole = (userId: number, role: string) => {
+  const updateMemberRole = (userId: number, role: string | null) => {
     const existing = project?.projectMembers || [];
     return saveMembers(existing.map(m => m.user_id === userId ? { ...m, role } : m));
   };
@@ -985,16 +996,19 @@ const QProjectDetailPage: React.FC = () => {
                         {isOwner && <OwnerTag>{t('members.owner', '오너')}</OwnerTag>}
                         {isPm && !isOwner && <PmTag>PM</PmTag>}
                       </MemberName>
+                      {/* 역할 — 워크스페이스 역할 사전에서 고르거나 그 자리에서 추가(사전에 생겨 다른 화면에도 보인다) */}
                       <ActionAutoSave
-                        type="input"
-                        style={{ flex: '0 0 120px' }}   /* MemberRow 는 flex — 래퍼가 폭을 먹지 않게 입력칸 폭을 그대로 물려준다 */
-                        save={async patch => { await updateMemberRole(m.user_id, String(patch.role)); }}
+                        type="select"
+                        style={{ flex: '0 0 150px', minWidth: 0 }}
+                        save={async patch => { await updateMemberRole(m.user_id, (patch.role as string | null) || null); }}
                       >
                         {fire => (
-                          <MemberRoleInput defaultValue={m.role || t('edit.roleDefault', '팀원')} placeholder={t('edit.rolePlaceholder', '역할') as string}
-                            disabled={isOwner}
-                            onBlur={e => { const v = e.target.value.trim(); if (v && v !== m.role) fire({ role: v }); }}
-                            onKeyDown={e => { if (isEnterAction(e)) (e.target as HTMLInputElement).blur(); }} />
+                          <RolePicker bizId={project.business_id} dict={roleDict.dict} onDictAdd={roleDict.add}
+                            value={m.role} disabled={isOwner}
+                            placeholder={t('edit.rolePlaceholder', '역할') as string}
+                            onManage={canManageRoles ? () => setRoleManageOpen(true) : undefined}
+                            onChange={(v) => { if ((v || null) !== (m.role || null)) fire({ role: v }); }}
+                            testId="project-member-role" />
                         )}
                       </ActionAutoSave>
                       {/* PM 체크박스 — 오너는 강제 체크 + disabled */}
@@ -1412,6 +1426,12 @@ const QProjectDetailPage: React.FC = () => {
             </CloseFooter>
           </CloseDialog>
         </CloseBackdrop>
+      )}
+
+      {/* 역할 관리 — 역할 고르기 목록 끝 «역할 관리…» 로 연다(설정 > 멤버와 같은 창) */}
+      {project && !isClient && (
+        <RoleManageModal open={roleManageOpen} onClose={() => setRoleManageOpen(false)}
+          bizId={project.business_id} dict={roleDict.dict} canManage={canManageRoles} onChanged={roleDict.reload} />
       )}
 
       {/* 채팅방 ⋮ 메뉴 — 연결 끊기 / 삭제 confirm */}

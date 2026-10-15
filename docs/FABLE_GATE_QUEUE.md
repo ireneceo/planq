@@ -1,5 +1,12 @@
 # Fable 게이트 대기열 → **판정 기록 보관소** (2026-10-08 부터)
 
+## 2026-10-15 · 역할 사전(member_roles) — 1차 FAIL → 고쳐서 **PASS** (방 c8f9ad50)
+- 설계(Fable): docs/MEMBER_ROLES_DESIGN.md — 사전 표 + 글자 그대로 저장(쓰는 문 services/memberRoles 한 벌) · 공통 기본 7개 · 잡값 5종 NULL · default_role 과 같은 사전 · 개명·삭제 owner/admin.
+- 1차 FAIL(차단): 배포 슬롯이 sync-database 뒤 → sync 가 빈 표를 먼저 만들어 운영 첫 배포에 전 워크스페이스 역할 0개(dev 재현 118/118 빈 사전). 고침: 슬롯을 sync 앞 + «표가 비어 있으면» 흡수·시드 + 모델 FK onDelete.
+- 2차 PASS: 새 순서·옛 순서 둘 다 834행·빈 워크스페이스 0 · sync alter 뒤 FK 규칙 CASCADE/SET NULL · 재실행 skip · 지운 기본 역할 안 되살아남 · 만든 사용자 삭제 → created_by NULL.
+- 1차 때 Fable 실HTTP 45검사(권한·사전 경유·개명/삭제 범위·한도 409·미리채움) · guard 72/73 · tenant 실패 0 · 실브라우저 owner/member.
+- 비차단: ① health-check `invite_mail` 픽스처가 옮겨진 고객 초대 라우트를 침(이 변경 밖) ② 사용자가 `기타` 를 직접 다시 만드는 것은 허용(설계 기록).
+
 ## 2026-10-15 · 청구서 외부 카드 결제 링크 + 카드 «대금 받는 곳» (eaa60736) — **PASS**
 - Fable 실HTTP 52검사(51 PASS + 프로브 입력 오류 1) · 실브라우저 375/1440 공개·owner·member·설정 · guard 72/73 · secrets 11/11 · tenant 실패 0 · 마이그레이션 멱등·배포 순서 확인.
 - 차단 없음. 비차단: ① 허용 도메인 `naver.com` 통째 → `pay.naver.com` 으로 좁히기 권고 ② 화면 게이트 caps.canMarkPaid 가 서버(owner∨platform_admin)보다 좁음(기존 관례) ③ 공백만 URL 은 보안 미들웨어 일반 문구.

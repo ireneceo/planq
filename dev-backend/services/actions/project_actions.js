@@ -100,19 +100,29 @@ async function createProject(actor, params = {}, opts = {}) {
     }, { transaction: t });
 
     // 2) 만든 사람은 항상 멤버(= PM)
-    if (!members.some((m) => m.user_id === userId)) members.push({ user_id: userId, role: '기타', is_default: false });
+    //   역할을 안 줬으면 그 사람의 «기본 역할»(default_role)로 채운다 — 없으면 비움(옛 '기타' 고정 폐기).
+    if (!members.some((m) => m.user_id === userId)) members.push({ user_id: userId, role: null, is_default: false });
 
     // 3) 멤버 — 이 워크스페이스 멤버만(아닌 id 는 조용히 건너뛴다 — 옛 라우트 동작)
     const validUserIds = new Set((await BusinessMember.findAll({
       where: { business_id: businessId, user_id: members.map((m) => m.user_id) }, transaction: t,
     })).map((x) => x.user_id));
-    pmRows = members.filter((m) => validUserIds.has(m.user_id)).map((m) => ({
-      project_id: project.id,
-      user_id: m.user_id,
-      role: (m.role && String(m.role).trim()) || '기타',
-      role_order: 0,
-      is_pm: m.user_id === userId,   // 생성자 = 프로젝트 owner = 자동 PM (PERMISSION_MATRIX §3)
-    }));
+    //   역할 글자는 워크스페이스 역할 사전을 거친다(docs/MEMBER_ROLES_DESIGN.md — 새 글자는 사전에 생긴다).
+    const memberRoles = require('../memberRoles');
+    const defaultRoles = new Map((await BusinessMember.findAll({
+      where: { business_id: businessId, user_id: [...validUserIds] }, attributes: ['user_id', 'default_role'], transaction: t,
+    })).map((x) => [x.user_id, x.default_role]));
+    pmRows = [];
+    for (const m of members.filter((x) => validUserIds.has(x.user_id))) {
+      const raw = (m.role && String(m.role).trim()) || defaultRoles.get(m.user_id) || null;
+      pmRows.push({
+        project_id: project.id,
+        user_id: m.user_id,
+        role: await memberRoles.ensureRole(businessId, raw, { userId, transaction: t }),
+        role_order: 0,
+        is_pm: m.user_id === userId,   // 생성자 = 프로젝트 owner = 자동 PM (PERMISSION_MATRIX §3)
+      });
+    }
     await ProjectMember.bulkCreate(pmRows, { transaction: t });
 
     // 4) 고객 — 화면의 새 연락처(초대 토큰) + 이미 있는 고객(client_id·contact_user_id)
@@ -182,6 +192,8 @@ async function createProject(actor, params = {}, opts = {}) {
     if (!external) await t.commit();
   } catch (e) {
     if (!external) await t.rollback();
+    // 역할 사전 한도·길이 — 사람에게 보이는 거절(500 아님)
+    if (!external && e instanceof require('../memberRoles').RoleError) return fail(e.code, e.http);
     throw e;
   }
 
