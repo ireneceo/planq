@@ -210,7 +210,8 @@
     "me": "나",
     "meetingNote": "미팅 정리",
     "gcalTeamWhere": "팀 일정 → Google 「{{name}}」",
-    "gcalTeamPrevious": "전에 고른 캘린더"
+    "gcalTeamPrevious": "전에 고른 캘린더",
+    "gcalTzNote": "구글 캘린더·초대 메일에는 각자 구글 계정의 시간대로 표시됩니다. 같은 시각이에요."
   },
   "empty": {
     "month": "이번 달엔 예정된 일정이 없습니다",

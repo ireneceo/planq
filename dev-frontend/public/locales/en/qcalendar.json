@@ -210,7 +210,8 @@
     "me": "Me",
     "meetingNote": "Meeting note",
     "gcalTeamWhere": "Team event → Google “{{name}}”",
-    "gcalTeamPrevious": "previously chosen calendar"
+    "gcalTeamPrevious": "previously chosen calendar",
+    "gcalTzNote": "Google Calendar and invite emails show this in each person's Google time zone — it's the same moment."
   },
   "empty": {
     "month": "No events this month",

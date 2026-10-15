@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { toWall, wallStringsToIso } from './calTz';
+import { toWall, wallStringsToIso, tzFriendlyName, formatRangeIn } from './calTz';
 import { allDayDates, allDayIsoRange, localDateOf } from '../../utils/allDayDate';
 import ChangeNotifyDialog, { type NotifyChoice } from './ChangeNotifyDialog';
 import TzLines from './TzLines';
@@ -226,11 +226,28 @@ const EventDrawer: React.FC<Props> = ({
   const copyMeetingLink = async () => {
     if (!event.meeting_url) return;
     const locale = i18n.language === 'en' ? 'en-US' : 'ko-KR';
-    const day = formatDay(event.all_day ? wallOf(event, 'start_at', wsTz) : start, { locale, weekday: true, year: 'always' });
-    const when = event.all_day
-      ? day
-      : `${day} ${formatClock(start, { locale })}–${formatClock(end, { locale })}`;
-    const text = [event.title, when, event.meeting_url].filter(Boolean).join('\n');
+    // 시각은 화면과 같은 기준(워크스페이스 시간대)으로 찍고 그 시간대 이름을 붙인다 — 2026-10-15 Irene:
+    //   tz 를 안 넘겨 기기 시간대(쿠알라룸푸르)로 찍히던 것. 받는 사람은 어느 기준인지 알 수 없었다.
+    //   개인 시간대가 다르면 «내 시간» 줄을 화면(TzLines)과 같은 문구로 덧붙인다.
+    let lines: string[];
+    if (event.all_day) {
+      lines = [formatDay(wallOf(event, 'start_at', wsTz), { locale, weekday: true, year: 'always' })];
+    } else {
+      const dayOf = (x: Date) => formatDay(x, { tz: wsTz, locale, weekday: true, year: 'always' });
+      const sameDay = dayOf(start) === dayOf(end);
+      const range = sameDay
+        ? `${dayOf(start)} ${formatClock(start, { tz: wsTz, locale })}–${formatClock(end, { tz: wsTz, locale })}`
+        : `${dayOf(start)} ${formatClock(start, { tz: wsTz, locale })} – ${dayOf(end)} ${formatClock(end, { tz: wsTz, locale })}`;
+      lines = [`${range} (${tzFriendlyName(wsTz, i18n.language, start)})`];
+      if (personalTz && personalTz !== wsTz) {
+        lines.push(t('tz.myTimeLine', {
+          tz: tzFriendlyName(personalTz, i18n.language, start),
+          range: formatRangeIn(event.start_at, event.end_at, personalTz, i18n.language),
+          defaultValue: '내 시간 ({{tz}}): {{range}}',
+        }) as string);
+      }
+    }
+    const text = [event.title, ...lines, event.meeting_url].filter(Boolean).join('\n');
     try {
       await navigator.clipboard.writeText(text);
       setCopied(true);
@@ -744,6 +761,8 @@ const EventDrawer: React.FC<Props> = ({
                       </ReissueBtn>
                     )}
                   </MeetingActions>
+                  {/* 구글 캘린더·초대 메일은 보는 사람의 구글 계정 시간대로 그린다(구글 동작 — 우리가 바꿀 수 없다). 순간은 같다. */}
+                  <MeetingHint data-testid="event-gcal-tz-note">{t('drawer.gcalTzNote', '구글 캘린더·초대 메일에는 각자 구글 계정의 시간대로 표시됩니다. 같은 시각이에요.')}</MeetingHint>
                   {canEdit && (
                     <MeetingHint>{t('drawer.reissueHint', '만료된 링크는 재발급으로 복구하세요. 정기 회의는 모든 회차에 동일 링크가 유효해야 합니다.')}</MeetingHint>
                   )}
