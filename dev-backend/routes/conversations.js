@@ -501,6 +501,15 @@ router.post('/:businessId', authenticateToken, checkBusinessAccess, async (req, 
   } catch (error) { next(error); }
 });
 
+// 참여자 명단이 바뀌었다는 **신호만** 보낸다(행 없음) — 같은 방을 열어 둔 사람의 @ 후보·참여자 목록과
+//   추가·제거된 본인의 대화 목록이 새로고침 없이 따라오게. 받는 화면이 id 로 다시 읽는다.
+function emitParticipantsChanged(req, conversationId, userId) {
+  const io = req.app.get('io');
+  if (!io) return;
+  const payload = { conversation_id: conversationId };
+  io.to(`conv:${conversationId}`).to(`conv:${conversationId}:staff`).to(`user:${userId}`).emit('conversation:participants', payload);
+}
+
 // 참여자 개별 추가/제거
 router.post('/:businessId/:id/participants', authenticateToken, checkBusinessAccess, async (req, res, next) => {
   try {
@@ -534,6 +543,7 @@ router.post('/:businessId/:id/participants', authenticateToken, checkBusinessAcc
       action: 'conversation.participant_add', targetType: 'conversation', targetId: conv.id, businessId,
       newValue: { user_id: Number(user_id), role: created.role },
     });
+    emitParticipantsChanged(req, conv.id, Number(user_id));
     successResponse(res, created, 'Participant added', 201);
   } catch (error) { next(error); }
 });
@@ -555,6 +565,7 @@ router.delete('/:businessId/:id/participants/:userId', authenticateToken, checkB
       const io = req.app.get('io');
       if (io) io.in(`user:${targetUserId}`).socketsLeave([`conv:${conv.id}`, `conv:${conv.id}:staff`]);
     }
+    if (removed) emitParticipantsChanged(req, conv.id, targetUserId);
     if (removed) require('../services/auditService').logAudit(req, {
       action: 'conversation.participant_remove', targetType: 'conversation', targetId: conv.id, businessId: conv.business_id,
       oldValue: { user_id: targetUserId }, newValue: { self_leave: isSelfLeave },

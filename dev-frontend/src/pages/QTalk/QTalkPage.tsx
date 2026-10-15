@@ -531,6 +531,11 @@ const QTalkPage: React.FC<QTalkPageProps> = ({ embedded = false, initialConvId =
     };
     on('project:updated', reloadSoon);
     on('conversation:updated', reloadSoon);
+    // 참여자 추가·제거 신호 — 목록(추가된 본인)과 열려 있는 채팅의 @ 후보(ChatPanel)를 다시 읽힌다.
+    on('conversation:participants', (d: { conversation_id: number }) => {
+      reloadSoon();
+      window.dispatchEvent(new CustomEvent('qtalk:participants-changed', { detail: { conversation_id: d?.conversation_id } }));
+    });
     offs.push(() => { if (renameTimer) window.clearTimeout(renameTimer); });
 
     // #138 — 리액션 실시간 (다른 사람이 누른 것도 즉시 보임). 서버가 conv/business room 양쪽으로 emit.

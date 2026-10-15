@@ -30,6 +30,7 @@ import { mapApiError } from '../../utils/apiError';
 import { useImageLightbox } from '../../components/Common/ImageLightbox';
 import { useNavigate } from 'react-router-dom';
 import MessageReactions from './MessageReactions';   // #138 이모지 리액션 (메시지에 다는 것)
+import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
 import ReactionPickerPopover from './ReactionPickerPopover';   // 반응 고르기 — 도구줄에서 떠 있는 팝오버
 import EmojiPickerButton from './EmojiPickerButton';   // #380 입력창 이모지 (보내는 것)
 import { PanelBackButton, PanelHeaderBar, DetailMetaBar, DetailMetaLeft } from '../../components/Layout/PanelHeader';
@@ -281,6 +282,22 @@ const ChatPanel: React.FC<Props> = ({
   //   운영 실측: conv 18 참여자 = irene(owner) · Cue(ai) · Kate(client) 인데
   //             @ 목록은 irene · 한수정 이었다.
   const [mentionParticipants, setMentionParticipants] = useState<Array<{ user_id: number; name: string }>>([]);
+  // 참여자가 바뀌면 다시 읽는다 — 방 id 가 그대로라 한 번 읽고 끝내면 나중에 초대한 사람이
+  //   새로고침 전까지 @ 후보에 없었다(2026-10-15 신고). 신호: 설정 창(같은 탭) · 서버 소켓(QTalkPage 가 중계) · 탭 복귀.
+  const [participantsTick, setParticipantsTick] = useState(0);
+  useEffect(() => {
+    const onChanged = (e: Event) => {
+      const cid = (e as CustomEvent<{ conversation_id?: number }>).detail?.conversation_id;
+      if (!cid || cid === activeConversationId) setParticipantsTick((n) => n + 1);
+    };
+    window.addEventListener('qtalk:participants-changed', onChanged);
+    window.addEventListener('socket:reconnected', onChanged);
+    return () => {
+      window.removeEventListener('qtalk:participants-changed', onChanged);
+      window.removeEventListener('socket:reconnected', onChanged);
+    };
+  }, [activeConversationId]);
+  useVisibilityRefresh(useCallback(() => { setParticipantsTick((n) => n + 1); }, []));
   useEffect(() => {
     if (!mentionBizId || !activeConversationId) { setMentionParticipants([]); return; }
     let cancelled = false;
@@ -295,7 +312,7 @@ const ChatPanel: React.FC<Props> = ({
       })
       .catch(() => { setMentionParticipants([]); });   // 실패 시 후보 없음 — 멤버 전체로 새지 않게
     return () => { cancelled = true; };
-  }, [mentionBizId, activeConversationId]);
+  }, [mentionBizId, activeConversationId, participantsTick]);
 
   // 하이라이트용 이름 set — 참여자 + 워크스페이스 멤버 합집합.
   //   지난 메시지에는 지금 나간 사람의 @이름도 남아 있어서, 참여자만 보면 옛 멘션 강조가 풀린다.

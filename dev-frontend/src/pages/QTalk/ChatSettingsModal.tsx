@@ -124,6 +124,7 @@ const ChatSettingsModal: React.FC<Props> = ({
       setParticipants(prev => [...prev, { user_id: c.user_id, name: c.name, email: c.email, role: c.kind }]);
       setCandidates(prev => prev.filter(x => x.user_id !== c.user_id));
       setInviteId(null);
+      window.dispatchEvent(new CustomEvent('qtalk:participants-changed', { detail: { conversation_id: conversation.id } }));
     } catch (e) {
       setError((e as Error).message || (t('settings.errFailed', '저장 실패') as string));
     } finally { setBusy(false); }
@@ -135,6 +136,7 @@ const ChatSettingsModal: React.FC<Props> = ({
     try {
       await removeConversationParticipant(businessId, conversation.id, userId);
       setParticipants(prev => prev.filter(p => p.user_id !== userId));
+      window.dispatchEvent(new CustomEvent('qtalk:participants-changed', { detail: { conversation_id: conversation.id } }));
     } catch (e) {
       setError((e as Error).message || (t('settings.errFailed', '저장 실패') as string));
     } finally { setBusy(false); }
