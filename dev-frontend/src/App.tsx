@@ -43,6 +43,7 @@ const RightDock = lazy(() => import('./components/Common/RightDock'));
 
 // Eager — 자주 진입하거나 첫 화면 (Login). 분리해도 의미 작음
 import LoginPage from './pages/Login/LoginPage';
+import ModuleGate from './components/Common/ModuleGate';
 
 // Route-based code splitting — 페이지별 별도 chunk 로 첫 로드 번들 축소.
 // 이전: 모든 페이지 eager import → main bundle 2.75MB. 새로고침 시 모두 파싱·실행.
@@ -148,6 +149,7 @@ const DashboardPage = lazy(() => import('./pages/Dashboard/DashboardPage'));
 const ClientHomePage = lazy(() => import('./pages/ClientHome/ClientHomePage'));
 const TodoPage = lazy(() => import('./pages/Todo/TodoPage'));
 const AttendancePage = lazy(() => import('./pages/Attendance/AttendancePage'));
+const PayrollPage = lazy(() => import('./pages/Payroll/PayrollPage'));
 const NotificationsPage = lazy(() => import('./pages/Notifications/NotificationsPage'));
 const WhatsNewPage = lazy(() => import('./pages/WhatsNew/WhatsNewPage'));
 const QBillPage = lazy(() => import('./pages/QBill/QBillPage'));
@@ -413,6 +415,13 @@ function ShellApp() {
         <Route path="/attendance" element={
           <ProtectedRoute>
             <MainLayout><AttendancePage /></MainLayout>
+          </ProtectedRoute>
+        } />
+
+        {/* 급여·계약 — 기능이 꺼졌거나 관리자가 아니면 없는 화면(ModuleGate). 서버도 404/403 */}
+        <Route path="/payroll" element={
+          <ProtectedRoute requiredRole={['business_owner', 'business_member']}>
+            <MainLayout><ModuleGate module="payroll"><PayrollPage /></ModuleGate></MainLayout>
           </ProtectedRoute>
         } />
 

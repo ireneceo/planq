@@ -1241,6 +1241,40 @@ function defineSecretTests() {
     return `목록 ${rows.length}행 · 상세 1건 — 토큰 0 · 쓸 필드 유지`;
   });
 
+  // ★ 2026-10-15 급여(docs/PAYROLL_DESIGN.md §4·§11) — 대상자의 지급 계좌(bank_account_enc)는 목록·상세 응답에 원문도 암호문도 없어야 한다.
+  //   보유 여부(has_bank_account)만 온다. 계좌번호를 주는 문은 GET …/bank-account 하나(감사). 모델 통째 내보내기로 조용히 돌아온다.
+  //   검사 계정의 워크스페이스는 급여 기능이 꺼져 있을 수 있어 DB 로 잠깐 켜고 끝나면 원래대로 되돌린다.
+  test('secrets', '급여 대상자 목록·상세에 계좌번호가 실리지 않는다', async () => {
+    await setup();
+    const H = { Authorization: `Bearer ${ctx.token}` };
+    const biz = Number(ctx.businessId);
+    // 셸을 거치지 않는다(execFileSync) — 따옴표가 섞인 SQL 을 셸 문자열로 만들면 깨진다
+    const db = (js) => require('child_process').execFileSync('node', ['-e', `require('dotenv').config();const {sequelize}=require('./config/database');(async()=>{${js};process.exit(0)})().catch(e=>{console.error(e.message);process.exit(1)});`], { cwd: '/opt/planq/dev-backend', encoding: 'utf8', timeout: 30000 });
+    const before = db(`const [[r]]=await sequelize.query('SELECT modules FROM businesses WHERE id=${biz}');console.log('MODS='+JSON.stringify(r.modules===undefined?null:r.modules))`).split('\n').find((l) => l.startsWith('MODS=')).slice(5);
+    db(`await sequelize.query("UPDATE businesses SET modules=JSON_OBJECT('payroll', true) WHERE id=${biz}")`);
+    const NUM = '987-654-321012';
+    let pid = null;
+    try {
+      // 행은 DB 로 만든다 — 쓰기는 요금제(Pro) 게이트가 있어 검사 계정에서 막힐 수 있다. 이 검사가 재는 것은 «읽기 응답» 이다.
+      const made = db(`const {PayrollPerson}=require('./models');const enc=require('./services/encryption').encrypt(JSON.stringify({number:'${NUM}',holder:'검사'}));const p=await PayrollPerson.create({business_id:${biz},display_name:'[health] payroll secret',income_kind:'business',bank_name:'검사은행',bank_account_enc:enc});console.log('PID='+p.id)`);
+      pid = Number((made.split('\n').find((l) => l.startsWith('PID=')) || '').slice(4)) || null;
+      if (!pid) throw new Error('대상자를 만들지 못했다 — 검사 준비 실패');
+      const cr = {};
+      const list = await http('GET', `${BACKEND}/api/payroll/${biz}/people`, { headers: H });
+      const det = await http('GET', `${BACKEND}/api/payroll/${biz}/people/${pid}`, { headers: H });
+      const raw = JSON.stringify(cr) + JSON.stringify(list) + JSON.stringify(det);
+      if (raw.includes(NUM) || raw.includes('bank_account_enc')) throw new Error('급여 응답에 계좌번호(또는 암호문 칸)가 있다');
+      // 양성 대조군 — 보유 여부는 와야 하고, 열람 문에서는 번호가 와야 한다(검사가 통째로 빈 응답을 통과시키지 않게)
+      if (!(det.data && det.data.has_bank_account === true)) throw new Error('has_bank_account 가 없다 — 응답이 비었을 가능성(거짓 통과)');
+      const view = await http('GET', `${BACKEND}/api/payroll/${biz}/people/${pid}/bank-account`, { headers: H });
+      if (!(view.data && view.data.number === NUM)) throw new Error('열람 문에서도 번호가 안 온다 — 저장이 안 됐을 가능성(거짓 통과)');
+      return '목록·상세 — 계좌번호 0 · 보유 여부 유지 · 열람 문만 번호';
+    } finally {
+      if (pid) db(`await sequelize.query('DELETE FROM payroll_people WHERE id=${Number(pid)}')`);
+      db(`await sequelize.query('UPDATE businesses SET modules=? WHERE id=${biz}', { replacements: [${JSON.stringify(before === 'null' ? null : before)}] })`);
+    }
+  });
+
   // ★ 2026-10-07 #460 설문 — 표의 설문 열쇠(q_records.survey_token)는 «응답을 쓰는» 자격증명이다. 설정 라우트에서만
   //   내리고 표 상세·목록 응답에서는 뺀다(routes/records.js stripRecordSecrets). r.toJSON() 통째 내보내기로 조용히 돌아온다.
   test('secrets', '표 상세·목록 응답에 설문 열쇠가 실리지 않는다', async () => {

@@ -532,6 +532,9 @@ sync_database() {
   # 2026-10-15 메일 분류 기준 공개 — email_threads.triage_criterion VARCHAR(40) NULL + 인덱스(멱등). 모델이 SELECT 하므로 PM2 reload 전.
   #   옛 메일 재판정(승격 전용)은 여기서 하지 않는다 — 운영 읽기 전용 시뮬 뒤 수동(docs/MAIL_CRITERIA_DESIGN.md §6.2).
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-mail-criteria.js 2>&1 | tail -5"
+  # 2026-10-15 급여·계약 P1 — businesses.modules 칸 + payroll_people·employment_contracts·pay_items·contract_pay_lines(멱등).
+  #   모델이 businesses.modules 를 SELECT 하므로 PM2 reload 전. 급여 기능은 기본 꺼짐 — 운영 동작 변화 없음(docs/PAYROLL_DESIGN.md §3.10).
+  prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-payroll.js 2>&1 | tail -4"
   # 2026-10-15 직원 계약서 템플릿 3종 × ko/en(급여 설계 P0) — 시스템 템플릿 시드(kind+is_system+name upsert, 매 배포 안전).
   #   이 시드는 여태 배포 슬롯에 없었다 — 운영 템플릿이 dev 와 갈라지지 않게 매 배포 맞춘다(docs/PAYROLL_DESIGN.md §3.10).
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/seed-document-templates.js 2>&1 | tail -3"

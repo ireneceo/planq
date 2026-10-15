@@ -1,3 +1,4 @@
+import { onSocket } from '../../services/socket';
 import React, { Suspense, useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { BetaChip } from '../Common/BetaChip';   // #449 베타 메뉴 표시(navMenus maturity 한 곳)
 import { visibleNavMenus, permKeyForPath } from '../../config/navMenus';   // 0-E — «보이는가» 의 정본
@@ -861,7 +862,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
   // 모바일·앱 전용 뒤로 가기 (브라우저 뒤로가기가 없는 환경). 갈 곳이 있을 때만 버튼이 뜬다.
   useAppShellLock();  // 모바일 뷰포트 고정 락 — 앱 셸에서만 (공개 페이지는 body 스크롤)
   const { t } = useTranslation('layout');
-  const { user, logout, hasRole } = useAuth();
+  const { user, logout, hasRole, refreshUser } = useAuth();
   const userDisplayName = displayName(user, i18n.language);
   // 프로필 사진(#455) — 우리 API 주소는 인증이 필요해 받아서 그린다. 없거나 실패하면 첫 글자
   const userPhoto = useAuthedImageSrc(user?.avatar_url);
@@ -1106,9 +1107,12 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
   //   쿼리를 떼면 ws-backup(오너)과 me-data(멤버)가 같은 키가 되어 멤버에게 오너 메뉴가 보인다.
   const visiblePaths = useMemo(() => new Set(visibleNavMenus({
     businessRole: user?.business_role, isPlatformAdmin: user?.platform_role === 'platform_admin',
-    scope: 'workspace', menuLevels: user?.menu_levels,
-  }).map((m) => m.to)), [user?.business_role, user?.platform_role, user?.menu_levels]);
+    scope: 'workspace', menuLevels: user?.menu_levels, modules: user?.modules, canManagePayroll: user?.can_manage_payroll,
+  }).map((m) => m.to)), [user?.business_role, user?.platform_role, user?.menu_levels, user?.modules, user?.can_manage_payroll]);
   const show = (to: string) => visiblePaths.has(to);
+  // 워크스페이스 기능이 켜지고 꺼지면(PUT /modules) 메뉴를 다시 그린다 — 신호만 오고 값은 /api/auth/me 가 다시 준다
+  const refreshUserRef = useRef(refreshUser); refreshUserRef.current = refreshUser;   // 매 렌더 새 함수라 ref 로 — 구독을 다시 걸지 않는다
+  useEffect(() => onSocket('workspace:modules', () => { refreshUserRef.current().catch(() => null); }), []);
   // 주소로 바로 들어온 숨긴 메뉴 — 본문 대신 안내(서버는 403 이라 빈 화면이 된다)
   const hiddenKey = isAdminMode ? null : permKeyForPath(location.pathname);
   const menuHidden = !!(hiddenKey && user?.menu_levels && user.menu_levels[hiddenKey] === 'none');
@@ -1745,6 +1749,16 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
                           {attendanceMenuCount > 99 ? '99+' : attendanceMenuCount}
                         </InboxBadge>
                       )}
+                    </NavItem>
+                  )}
+                  {/* 급여·계약 — 기능이 켜졌고 급여 관리자(대표 + 지정 담당자)일 때만(docs/PAYROLL_DESIGN.md §2·§4) */}
+                  {show('/payroll') && (
+                    <NavItem to="/payroll" $isCollapsed={isCollapsed} $active={isActive('/payroll')}
+                      data-testid="nav-payroll" title={isCollapsed ? t('nav.payroll', '급여·계약') : undefined}>
+                      <NavIcon $isCollapsed={isCollapsed}>
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="6" width="18" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/><path d="M6 9v.01M18 15v.01"/></svg>
+                      </NavIcon>
+                      <NavLabel $isCollapsed={isCollapsed}>{t('nav.payroll', '급여·계약')}</NavLabel>
                     </NavItem>
                   )}
                   {/* 2026-09-21 — 문의·피드백은 개인 섹션 맨 아래(근태·휴가 다음). 솔루션에 대한 것이라 나의 일 메뉴들 뒤에 둔다 */}

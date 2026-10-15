@@ -302,6 +302,9 @@ Business.init({
     allowNull: true,
     defaultValue: { financial: 'all', schedule: 'all', client_info: 'all' },
   },
+  // 워크스페이스 기능 켜기/끄기 (2026-10-15 — docs/PAYROLL_DESIGN.md §2). 모양 { payroll: bool, attendance: bool }.
+  //   키가 없으면 services/modules.MODULE_DEFAULTS. ★ 이 칸을 직접 읽지 말고 services/modules.moduleOn 을 쓴다.
+  modules: { type: DataTypes.JSON, allowNull: true },
   // Q Mail 라벨 마스터 (M3-B) — [{ name, color }] (KbCategory 패턴, 별도 테이블 X)
   email_labels: {
     type: DataTypes.JSON,

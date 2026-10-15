@@ -24,11 +24,13 @@ const WEEKS_PER_MONTH = 52 / 12;   // 4.3333…
  * 워크스페이스 멤버들의 시간당 원가 맵.
  *
  * 결정 순서 (위에서 먼저 맞는 것):
+ *   0) 급여 기능이 켜져 있고 유효 계약이 있으면 계약 월급 ÷ (주간가용 × 4.33) → source 'contract'
+ *      (2026-10-15 급여 설계 §8 (a)안 — 계약이 정본, 컬럼은 계약 없는 멤버용. 파생값을 컬럼에 쓰지 않는다)
  *   1) hourly_rate 가 있으면 그 값                      → source 'hourly'
  *   2) monthly_salary 가 있으면 salary ÷ (주간가용 × 4.33) → source 'salary'
  *   3) 둘 다 없으면 **null**                             → source null (인건비 계산에서 제외)
  *
- * @returns Map<user_id, { cost: number|null, source: 'hourly'|'salary'|null }>
+ * @returns Map<user_id, { cost: number|null, source: 'contract'|'hourly'|'salary'|null }>
  */
 async function getMemberCostMap(businessId) {
   const rows = await BusinessMember.findAll({
@@ -41,9 +43,27 @@ async function getMemberCostMap(businessId) {
     raw: true,
   });
 
+  // 계약 월급(모듈이 꺼져 있으면 빈 Map → 옛 순서 그대로)
+  const contractPay = await require('./payrollContracts').activeMonthlyPayByUser(businessId).catch(() => new Map());
+
   const map = new Map();
   for (const r of rows) {
     if (!r.user_id) continue;
+    const weeklyOf = () => weeklyHours({
+      daily: Number(r.daily_work_hours) || 8,
+      days: Number(r.weekly_work_days) || 5,
+      rate: Number(r.participation_rate) || 1,
+      holidays: Number(r.weekly_holidays) || 0,
+    });
+
+    const cp = contractPay.get(r.user_id);
+    if (cp && cp.monthly > 0) {
+      const monthlyHours = weeklyOf() * WEEKS_PER_MONTH;
+      if (monthlyHours > 0) {
+        map.set(r.user_id, { cost: cp.monthly / monthlyHours, source: 'contract' });
+        continue;
+      }
+    }
 
     const hourly = Number(r.hourly_rate);
     if (Number.isFinite(hourly) && hourly > 0) {

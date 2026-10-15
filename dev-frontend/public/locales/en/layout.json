@@ -178,7 +178,8 @@
     "adminSecPeople": "Users & workspaces",
     "adminSecContent": "Content",
     "adminSecMonitor": "Insights & monitoring",
-    "adminSecSettings": "Settings"
+    "adminSecSettings": "Settings",
+    "payroll": "Payroll"
   },
   "user": {
     "profile": "My Profile",

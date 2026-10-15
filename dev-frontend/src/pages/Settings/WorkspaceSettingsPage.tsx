@@ -46,6 +46,7 @@ import {
 } from '../../services/workspace';
 import { isEnterAction } from '../../utils/imeKey';
 import { belowTabs } from '../../theme/layout';
+import ModulesSection from '../../components/Settings/ModulesSection';
 import { formatDay, formatDayTime } from '../../utils/dateFormat';
 
 type TabKey = 'attendance' | 'brand' | 'legal' | 'language' | 'work-env' | 'storage' | 'plan' | 'permissions' | 'members' | 'cue' | 'billing' | 'email' | 'mail-accounts' | 'notifications' | 'work-flow' | 'data-export' | 'activity';   // activity — 팀원 활동 기록(owner 전용)
@@ -53,6 +54,10 @@ type TabKey = 'attendance' | 'brand' | 'legal' | 'language' | 'work-env' | 'stor
 // ─────────────────────────────────────────────
 // Styled
 // ─────────────────────────────────────────────
+
+const ContractSalary = styled.span`
+  display: inline-flex; align-items: center; min-height: 36px; font-size: 0.8125rem; color: #0F766E; font-weight: 600;
+`;
 
 const Card = styled.section<{ $highlight?: boolean }>`
   background: #ffffff;
@@ -508,7 +513,7 @@ const InfoBanner = styled.div`
 // Page
 // ─────────────────────────────────────────────
 export default function WorkspaceSettingsPage() {
-  const { t, i18n } = useTranslation('settings');
+  const { t, i18n } = useTranslation(['settings', 'payroll']);
   const { t: tErr } = useTranslation('errors');
   const { user, refreshUser } = useAuth();
   const businessId = user?.business_id || 0;
@@ -680,7 +685,7 @@ export default function WorkspaceSettingsPage() {
   //   ★ owner 전용 라우트(`/members/:userId/rate`)를 쓴다 — 기존 members 목록에는 단가를 싣지 않는다
   //     (그 라우트는 member 도 부르므로 얹으면 전 직원 급여가 샌다).
   //   ★ apiFetch 는 throw 하지 않는다 — res.ok 를 봐야 실패를 안다.
-  const [rateMap, setRateMap] = useState<Record<number, { hourly_rate: number | null; monthly_salary: number | null }>>({});
+  const [rateMap, setRateMap] = useState<Record<number, { hourly_rate: number | null; monthly_salary: number | null; contract_monthly?: number | null }>>({});
   const [rateError, setRateError] = useState<string | null>(null);
   const loadRates = useCallback(async () => {
     if (!businessId || !isAdmin) return;
@@ -688,9 +693,10 @@ export default function WorkspaceSettingsPage() {
       const res = await apiFetch(`/api/businesses/${businessId}/members/rates`);
       if (!res.ok) return;                       // member 면 403 — 조용히 지나간다(화면에 섹션 자체가 없다)
       const j = await res.json();
-      const m: Record<number, { hourly_rate: number | null; monthly_salary: number | null }> = {};
+      const m: Record<number, { hourly_rate: number | null; monthly_salary: number | null; contract_monthly?: number | null }> = {};
       for (const r of (j.data || [])) {
-        if (r.user_id) m[r.user_id] = { hourly_rate: r.hourly_rate, monthly_salary: r.monthly_salary };
+        // contract_monthly — 급여 기능의 유효 계약 월급(있으면 그것이 정본, 아래 칸은 읽기 전용)
+        if (r.user_id) m[r.user_id] = { hourly_rate: r.hourly_rate, monthly_salary: r.monthly_salary, contract_monthly: r.contract_monthly ?? null };
       }
       setRateMap(m);
     } catch { /* silent */ }
@@ -1263,6 +1269,8 @@ export default function WorkspaceSettingsPage() {
           <ActivityLogSection businessId={businessId} />
         </Card>
       )}
+      {/* 기능 사용(급여 등) — 업무 환경 맨 위. 켜기·끄기는 owner 만(docs/PAYROLL_DESIGN.md §2.4) */}
+      {tab === 'work-env' && businessId && <ModulesSection businessId={businessId} />}
       {tab === 'work-env' && (
         <Card>
           <SectionTitle>{t('language.sectionTitle')}</SectionTitle>
@@ -1643,6 +1651,12 @@ export default function WorkspaceSettingsPage() {
                               </WorkHoursField>
                               <WorkHoursField>
                                 <WorkHoursLabel>{t('members.drawer.monthlySalary', '월급')}</WorkHoursLabel>
+                                {rateMap[target.user_id]?.contract_monthly != null ? (
+                                  // 급여 기능의 유효 계약이 정본 — 여기서 고치면 두 벌이 된다(서버도 409 salary_from_contract)
+                                  <ContractSalary data-testid="rate-from-contract">
+                                    {Number(rateMap[target.user_id]?.contract_monthly).toLocaleString()} · {t('rates.fromContract', { ns: 'payroll', defaultValue: '계약에서 옴' })}
+                                  </ContractSalary>
+                                ) : (
                                 <WorkHoursNumber
                                   type="number" min="0" step="100000"
                                   defaultValue={rateMap[target.user_id]?.monthly_salary ?? ''}
@@ -1651,6 +1665,7 @@ export default function WorkspaceSettingsPage() {
                                     saveRate(target.user_id as number, { monthly_salary: v === '' ? null : Number(v) });
                                   }}
                                 />
+                                )}
                                 <WorkHoursUnit>{t('members.drawer.perMonth', '원/월')}</WorkHoursUnit>
                               </WorkHoursField>
                             </WorkHoursForm>

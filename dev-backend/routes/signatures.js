@@ -607,7 +607,7 @@ router.post('/sign/:token/sign', async (req, res, next) => {
     if (io) io.to(`business:${sr.business_id}`).emit('inbox:refresh', { reason: 'signature_signed', entity_type: sr.entity_type, entity_id: sr.entity_id });
 
     // Phase D+1: project stage 자동 진행 (양사 서명 완료면 contract → completed)
-    require('../services/projectStageEngine').onSignatureChanged(sr.id).catch(() => null);
+    require('../services/signatureHooks').afterSignatureChange(sr.id);   // 거래 단계 + 직원 계약서 signed_at
 
     // 멤버 알림 — 서명 완료
     notifyWorkspaceMembersOnSignature(sr, 'signed', signerName).catch((e) => console.warn('[notify signature signed]', e.message));
@@ -651,7 +651,7 @@ router.post('/sign/:token/reject', async (req, res, next) => {
     const io = req.app.get('io');
     if (io) io.to(`business:${sr.business_id}`).emit('inbox:refresh', { reason: 'signature_rejected', entity_type: sr.entity_type, entity_id: sr.entity_id });
 
-    require('../services/projectStageEngine').onSignatureChanged(sr.id).catch(() => null);
+    require('../services/signatureHooks').afterSignatureChange(sr.id);   // 거래 단계 + 직원 계약서 signed_at
 
     notifyWorkspaceMembersOnSignature(sr, 'rejected', sr.signer_name).catch((e) => console.warn('[notify signature rejected]', e.message));
 

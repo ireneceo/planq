@@ -1,0 +1,147 @@
+{
+  "title": "Payroll & Contracts",
+  "responsibility": "Statutory deductions (social insurance, income tax) follow your tax accountant's payroll register. Amounts PlanQ pre-fills are estimates for comparison.",
+  "tabs": {
+    "people": "People"
+  },
+  "people": {
+    "add": "Add person",
+    "searchPlaceholder": "Search name or employee no.",
+    "statusAxis": "Status",
+    "statusActive": "Active",
+    "statusLeft": "Left",
+    "empty": "No one on payroll yet. Pick a member or add a freelancer to start.",
+    "emptyFiltered": "No one matches these filters.",
+    "noContract": "No contract",
+    "loadFailed": "Couldn't load people.",
+    "retry": "Retry",
+    "count": "{{n}}"
+  },
+  "kind": {
+    "regular": "Permanent",
+    "fixed_term": "Fixed-term",
+    "freelance": "Freelance"
+  },
+  "incomeKind": {
+    "employment": "Employment income",
+    "business": "Business income (freelance)",
+    "other": "Other income"
+  },
+  "contractStatus": {
+    "draft": "Draft",
+    "active": "Active",
+    "ended": "Ended",
+    "superseded": "Replaced"
+  },
+  "create": {
+    "title": "Add person",
+    "source": "How to add",
+    "fromMember": "Pick a member",
+    "direct": "Enter manually (no account)",
+    "member": "Member",
+    "memberPlaceholder": "Select a member",
+    "noCandidates": "Every member is already on payroll.",
+    "submit": "Add",
+    "failed": "Couldn't add."
+  },
+  "field": {
+    "displayName": "Name (as on payroll register)",
+    "employeeNo": "Employee no.",
+    "email": "Email",
+    "incomeKind": "Income type",
+    "hiredOn": "Hired on",
+    "leftOn": "Left on",
+    "jobTitle": "Position",
+    "status": "Status",
+    "note": "Note",
+    "bankName": "Bank",
+    "bankNumber": "Account number",
+    "bankHolder": "Account holder"
+  },
+  "detail": {
+    "info": "Details",
+    "bank": "Payment account",
+    "bankNone": "No account registered.",
+    "bankSet": "An account is registered (press Show to see the number — viewing is logged).",
+    "bankShow": "Show",
+    "bankHide": "Hide",
+    "bankEdit": "Set or change account",
+    "bankSave": "Save",
+    "bankCancel": "Cancel",
+    "bankRemove": "Remove account",
+    "contracts": "Contract history",
+    "contractsEmpty": "No contracts yet. Start with Add contract.",
+    "addContract": "Add contract",
+    "delete": "Delete person",
+    "deleteHint": "Only possible when there are no contracts. Otherwise set the status to Left.",
+    "deleteConfirmTitle": "Delete this person?",
+    "deleteConfirmMsg": "{{name}} will be removed from payroll. This can't be undone.",
+    "readOnlyPlan": "Your plan allows viewing only (editing needs Pro or above).",
+    "bankRemoveMsg": "The registered payment account will be removed. You will need to enter it again to use it."
+  },
+  "contract": {
+    "period": "{{start}} – {{end}}",
+    "openEnded": "ongoing",
+    "monthly": "{{amount}}/month",
+    "signed": "Signed",
+    "unsigned": "Not signed",
+    "doc": "Contract document",
+    "docOpen": "Open document",
+    "activate": "Make active",
+    "activateHint": "Making this contract active ends any overlapping earlier contract the day before it starts.",
+    "end": "End",
+    "endTitle": "Contract end date",
+    "endSubmit": "End",
+    "deleteDraft": "Delete draft",
+    "workCondition": "{{days}} days/week · {{hours}} h/day",
+    "payDay": "Paid on day {{day}}",
+    "deleteDraftMsg": "This draft contract will be deleted. This can't be undone."
+  },
+  "contractCreate": {
+    "title": "Add contract",
+    "kind": "Contract type",
+    "startDate": "Start date",
+    "endDate": "End date",
+    "endDateOptional": "End date (blank = ongoing)",
+    "basePay": "Monthly base pay",
+    "basePayFreelance": "Monthly fee",
+    "payDay": "Pay day (monthly)",
+    "weeklyDays": "Working days/week",
+    "dailyHours": "Hours/day",
+    "note": "Note",
+    "submit": "Save as draft",
+    "hint": "Save as a draft, then press Make active to use it for payroll and labor cost. Create the contract document from the Employment Contract template in Q docs and collect signatures there."
+  },
+  "error": {
+    "overlapping_contract": "An active contract already starts on or after this date.",
+    "end_date_required": "Fixed-term contracts need an end date.",
+    "end_before_start": "The end date is before the start date.",
+    "contract_locked": "Amounts and dates of active or ended contracts can't change. Add a new contract.",
+    "employee_no_taken": "That employee number is already used.",
+    "person_exists": "This member is already on payroll.",
+    "person_has_contracts": "This person has contracts. Set the status to Left instead.",
+    "plan_required": "Available from the Pro plan.",
+    "generic": "Something went wrong. Please try again."
+  },
+  "modules": {
+    "sectionTitle": "Features",
+    "sectionDesc": "Choose which features this workspace uses. Turned-off features disappear from menus, screens and notifications; records are kept.",
+    "payroll": "Payroll & contracts",
+    "payrollDesc": "Contract history for staff and freelancers, monthly payroll, and reconciliation with your accountant's register (rolling out in stages).",
+    "proBadge": "Pro",
+    "ownerOnly": "Only the owner can change this.",
+    "offConfirmTitle": "Turn off payroll & contracts?",
+    "offConfirmMsg": "The payroll menu and contract history will be hidden. Records are kept and come back when you turn it on again. Labor cost in profitability falls back to member rate settings.",
+    "offConfirm": "Turn off",
+    "planRequired": "Available on the Pro plan (or during a trial)."
+  },
+  "managers": {
+    "title": "Payroll managers",
+    "desc": "Members besides the owner who can view and manage payroll and contracts. Workspace admins can't see payroll unless named here.",
+    "placeholder": "Select members",
+    "ownerOnly": "Only the owner can assign managers."
+  },
+  "rates": {
+    "fromContract": "From contract"
+  }
+}

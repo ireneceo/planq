@@ -175,6 +175,16 @@ const getUserWithBusiness = async (userId) => {
     try {
       userData.menu_levels = (await require('../middleware/menu_permission').getMemberMenuLevels(activeWs.business_id, user.id))?.menus || null;
     } catch (e) { userData.menu_levels = null; console.warn('[auth] menu_levels failed:', e.message); }
+    // 워크스페이스 기능 켜기/끄기(services/modules — 메뉴가 서버 가드와 같은 값을 본다) + 급여 관리자 여부(메뉴 노출용)
+    try {
+      const { Business } = require('../models');
+      const bizRow = await Business.findByPk(activeWs.business_id, { attributes: ['id', 'modules', 'permissions'] });
+      const mods = require('../services/modules').modulesOf(bizRow);
+      userData.modules = mods;
+      userData.can_manage_payroll = mods.payroll
+        ? await require('../services/payrollAccess').canManagePayroll(user.id, activeWs.business_id, user.platform_role, bizRow)
+        : false;
+    } catch (e) { userData.modules = null; userData.can_manage_payroll = false; console.warn('[auth] modules failed:', e.message); }
     userData.workspace_timezone = activeWs.timezone;
     userData.workspace_reference_timezones = activeWs.reference_timezones || [];
     // 워크스페이스 컨텍스트의 표시명 — 사이드바 등 UI 가 active workspace 의 이름을 보여주도록.
@@ -186,6 +196,8 @@ const getUserWithBusiness = async (userId) => {
     userData.business_name = null;
     userData.business_role = null;
     userData.menu_levels = null;
+    userData.modules = null;
+    userData.can_manage_payroll = false;
     userData.display_name = user.name;
     userData.display_name_localized = user.name_localized || null;
     userData.workspace_timezone = null;

@@ -1,0 +1,147 @@
+{
+  "title": "급여·계약",
+  "responsibility": "법정 공제(4대보험·소득세)는 세무사 급여대장 값이 기준입니다. PlanQ 가 미리 채운 금액은 대조용 예상치입니다.",
+  "tabs": {
+    "people": "대상자"
+  },
+  "people": {
+    "add": "대상자 추가",
+    "searchPlaceholder": "이름·사번 검색",
+    "statusAxis": "상태",
+    "statusActive": "재직",
+    "statusLeft": "퇴사",
+    "empty": "아직 급여 대상자가 없습니다. 멤버를 고르거나 프리랜서를 직접 넣어 시작하세요.",
+    "emptyFiltered": "조건에 맞는 대상자가 없습니다.",
+    "noContract": "계약 없음",
+    "loadFailed": "대상자를 불러오지 못했습니다.",
+    "retry": "다시 시도",
+    "count": "{{n}}명"
+  },
+  "kind": {
+    "regular": "정규직",
+    "fixed_term": "계약직",
+    "freelance": "프리랜서"
+  },
+  "incomeKind": {
+    "employment": "근로소득",
+    "business": "사업소득(프리랜서)",
+    "other": "기타소득"
+  },
+  "contractStatus": {
+    "draft": "초안",
+    "active": "유효",
+    "ended": "종료",
+    "superseded": "변경됨"
+  },
+  "create": {
+    "title": "대상자 추가",
+    "source": "어떻게 넣을까요",
+    "fromMember": "멤버에서 고르기",
+    "direct": "직접 입력(계정 없는 사람)",
+    "member": "멤버",
+    "memberPlaceholder": "멤버 선택",
+    "noCandidates": "대상자로 넣을 멤버가 없습니다(모두 들어가 있어요).",
+    "submit": "추가",
+    "failed": "추가하지 못했습니다."
+  },
+  "field": {
+    "displayName": "이름(급여대장 표기)",
+    "employeeNo": "사번",
+    "email": "이메일",
+    "incomeKind": "소득 구분",
+    "hiredOn": "입사일",
+    "leftOn": "퇴사일",
+    "jobTitle": "직위",
+    "status": "상태",
+    "note": "메모",
+    "bankName": "은행",
+    "bankNumber": "계좌번호",
+    "bankHolder": "예금주"
+  },
+  "detail": {
+    "info": "기본 정보",
+    "bank": "지급 계좌",
+    "bankNone": "등록된 계좌가 없습니다.",
+    "bankSet": "계좌가 등록돼 있습니다(번호는 [보기] 를 눌러야 보입니다 — 열람이 기록됩니다).",
+    "bankShow": "보기",
+    "bankHide": "가리기",
+    "bankEdit": "계좌 등록·변경",
+    "bankSave": "저장",
+    "bankCancel": "취소",
+    "bankRemove": "계좌 지우기",
+    "contracts": "계약 이력",
+    "contractsEmpty": "계약이 없습니다. [계약 추가] 로 시작하세요.",
+    "addContract": "계약 추가",
+    "delete": "대상자 삭제",
+    "deleteHint": "계약이 하나도 없을 때만 지울 수 있습니다. 그 외에는 상태를 «퇴사» 로 두세요.",
+    "deleteConfirmTitle": "대상자를 지울까요?",
+    "deleteConfirmMsg": "{{name}} 님을 급여 대상자에서 지웁니다. 되돌릴 수 없습니다.",
+    "readOnlyPlan": "지금 요금제에서는 보기만 할 수 있습니다(쓰기는 Pro 이상).",
+    "bankRemoveMsg": "등록된 지급 계좌를 지웁니다. 다시 쓰려면 새로 넣어야 합니다."
+  },
+  "contract": {
+    "period": "{{start}} ~ {{end}}",
+    "openEnded": "계속",
+    "monthly": "월 {{amount}}",
+    "signed": "서명 완료",
+    "unsigned": "서명 전",
+    "doc": "계약서 문서",
+    "docOpen": "문서 열기",
+    "activate": "유효로 전환",
+    "activateHint": "이 계약을 유효로 바꾸면 겹치는 이전 계약은 시작 전날로 끝납니다.",
+    "end": "종료",
+    "endTitle": "계약 종료일",
+    "endSubmit": "종료",
+    "deleteDraft": "초안 삭제",
+    "workCondition": "주 {{days}}일 · 하루 {{hours}}시간",
+    "payDay": "매월 {{day}}일 지급",
+    "deleteDraftMsg": "이 계약 초안을 지웁니다. 되돌릴 수 없습니다."
+  },
+  "contractCreate": {
+    "title": "계약 추가",
+    "kind": "계약 종류",
+    "startDate": "시작일",
+    "endDate": "종료일",
+    "endDateOptional": "종료일(없으면 계속)",
+    "basePay": "월 기본급",
+    "basePayFreelance": "월 보수",
+    "payDay": "지급일(매월)",
+    "weeklyDays": "주 근무일",
+    "dailyHours": "하루 근로시간",
+    "note": "메모",
+    "submit": "초안으로 저장",
+    "hint": "초안으로 저장한 뒤 [유효로 전환] 을 눌러야 급여·인건비에 쓰입니다. 계약서는 Q docs 의 «근로계약서» 템플릿으로 만들어 서명받으세요."
+  },
+  "error": {
+    "overlapping_contract": "같은 날(또는 뒤)에 시작하는 유효 계약이 이미 있습니다.",
+    "end_date_required": "계약직은 종료일이 필요합니다.",
+    "end_before_start": "종료일이 시작일보다 빠릅니다.",
+    "contract_locked": "유효·종료된 계약의 금액·기간은 바꿀 수 없습니다. 새 계약을 추가하세요.",
+    "employee_no_taken": "이미 쓰는 사번입니다.",
+    "person_exists": "이미 대상자로 들어간 멤버입니다.",
+    "person_has_contracts": "계약이 있어 지울 수 없습니다. 상태를 «퇴사» 로 두세요.",
+    "plan_required": "Pro 요금제부터 쓸 수 있습니다.",
+    "generic": "처리하지 못했습니다. 잠시 후 다시 시도해 주세요."
+  },
+  "modules": {
+    "sectionTitle": "기능 사용",
+    "sectionDesc": "이 워크스페이스에서 쓸 기능을 고릅니다. 끈 기능은 메뉴·화면·알림 어디에도 나오지 않고, 기록은 지워지지 않습니다.",
+    "payroll": "급여·계약 관리",
+    "payrollDesc": "직원·프리랜서 계약 이력, 이달 급여 정리, 세무사 급여대장 대조(단계적으로 열립니다).",
+    "proBadge": "Pro",
+    "ownerOnly": "대표만 바꿀 수 있습니다.",
+    "offConfirmTitle": "급여·계약 관리를 끌까요?",
+    "offConfirmMsg": "급여 메뉴·계약 이력이 모두 숨겨집니다. 기록은 지워지지 않으며 다시 켜면 그대로 보입니다. 수익성 인건비는 멤버 단가 설정값으로 돌아갑니다.",
+    "offConfirm": "끄기",
+    "planRequired": "Pro 요금제(또는 체험 중)부터 켤 수 있습니다."
+  },
+  "managers": {
+    "title": "급여 담당자",
+    "desc": "대표 외에 급여·계약을 보고 관리할 멤버를 지정합니다. 관리자(admin) 역할이어도 지정하지 않으면 볼 수 없습니다.",
+    "placeholder": "멤버 선택",
+    "ownerOnly": "대표만 지정할 수 있습니다."
+  },
+  "rates": {
+    "fromContract": "계약에서 옴"
+  }
+}

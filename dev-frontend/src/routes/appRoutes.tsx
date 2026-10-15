@@ -8,6 +8,7 @@
 // 비페이지 라우트(redirect·팝아웃·standalone·wildcard·public·landing)는 App.tsx 전용(여기 없음).
 import { lazy } from 'react';
 import type { ReactElement } from 'react';
+import ModuleGate from '../components/Common/ModuleGate';
 
 const DashboardPage = lazy(() => import('../pages/Dashboard/DashboardPage'));
 const TodoPage = lazy(() => import('../pages/Todo/TodoPage'));
@@ -26,6 +27,7 @@ const QProjectPage = lazy(() => import('../pages/QProject/QProjectPage'));
 const QProjectDetailPage = lazy(() => import('../pages/QProject/QProjectDetailPage'));
 const QCalendarPage = lazy(() => import('../pages/QCalendar/QCalendarPage'));
 const AttendancePage = lazy(() => import('../pages/Attendance/AttendancePage'));
+const PayrollPage = lazy(() => import('../pages/Payroll/PayrollPage'));
 const WhatsNewPage = lazy(() => import('../pages/WhatsNew/WhatsNewPage'));
 const QNotePage = lazy(() => import('../pages/QNote/QNotePage'));
 const QFilePage = lazy(() => import('../pages/QFile/QFilePage'));
@@ -99,6 +101,7 @@ export const APP_ROUTES: AppRouteDef[] = [
   // ★ 이 표에 없으면 탭 모드에서 **빈 화면**이 된다. App.tsx 에만 등록하면 탭에서는 안 열린다
   //   (운영 2026-08-22: 근태 메뉴를 눌러도 아무것도 안 나왔다 — 원인이 정확히 이것이었다).
   { path: '/attendance', roles: BIZ, element: <AttendancePage /> },
+  { path: '/payroll', roles: BIZ, element: <ModuleGate module="payroll"><PayrollPage /></ModuleGate> },
   { path: '/notes', element: <QNotePage /> },
   { path: '/notes/:sessionId', element: <QNotePage /> },
   { path: '/files', element: <QFilePage /> },

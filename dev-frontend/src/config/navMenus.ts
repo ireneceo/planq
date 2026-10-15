@@ -29,6 +29,9 @@ export interface NavMenuEntry {
   /** 멤버 메뉴 권한 키(services/permissions MenuKey) — 그 사람의 수준이 'none' 이면 사이드바·검색·탭 + 에서 숨고,
    *  주소로 들어오면 «숨겨진 메뉴» 안내가 뜬다(0-E E-2). weekly_team 은 묶지 않는다(기본 none 이라 묶으면 전원에게서 사라진다). */
   permKey?: MenuKey;
+  /** 워크스페이스 기능이 켜져 있어야 보이는 메뉴(2026-10-15 — 서버 services/modules 와 같은 값, /api/auth/me 의 modules).
+   *  'payroll' 은 켜져 있고 **급여 관리자**(owner + 지정 담당자 — can_manage_payroll)일 때만 보인다. */
+  module?: 'payroll';
 }
 
 /** 섹션 헤더 i18n 키 (layout ns) */
@@ -95,6 +98,8 @@ export const WORKSPACE_MENUS: NavMenuEntry[] = [
   { key: 'ws-billing', to: '/business/settings/billing', labelKey: 'nav.billing', section: 'settings', roles: ['owner'] },
   { key: 'ws-org', to: '/business/org', labelKey: 'nav.org', section: 'settings', roles: ['owner'] },
   { key: 'ws-members', to: '/business/members', labelKey: 'nav.members', section: 'settings', roles: ['owner'] },
+  // 급여·계약 — 역할은 넓게 두고 module 이 거른다(관리자 = owner + 지정 담당자, admin 자동 아님 — docs/PAYROLL_DESIGN.md §4)
+  { key: 'payroll', to: '/payroll', labelKey: 'nav.payroll', section: 'personal', roles: ['owner', 'admin', 'member'], module: 'payroll' },
   { key: 'ws-clients', to: '/business/clients', labelKey: 'nav.clients', section: 'settings', roles: ['owner', 'member'], permKey: 'clients' },
   { key: 'ws-cue', to: '/business/settings/cue', labelKey: 'nav.cue', section: 'settings', roles: ['owner'] },
   { key: 'ws-company-mail', to: '/business/settings/mail-accounts', labelKey: 'nav.companyMail', section: 'settings', roles: ['owner', 'member'] },
@@ -154,11 +159,16 @@ export function visibleNavMenus(opts: {
   scope?: 'admin' | 'workspace';
   /** 멤버 메뉴 권한(GET /api/auth/me 의 menu_levels). 'none' 인 permKey 메뉴는 뺀다 (0-E E-2) */
   menuLevels?: MenuLevels;
+  /** 워크스페이스 기능(GET /api/auth/me 의 modules) — module 이 달린 메뉴는 켜져 있을 때만 */
+  modules?: { payroll?: boolean } | null;
+  /** 급여 관리자(GET /api/auth/me 의 can_manage_payroll) */
+  canManagePayroll?: boolean;
 }): NavMenuEntry[] {
   // #424 — 워크스페이스 admin 은 멤버 메뉴를 그대로 본다 + roles 에 'admin' 이 명시된 관리 메뉴도 본다.
   const role = (opts.businessRole || null) as NavRole | null;
   const ws = WORKSPACE_MENUS.filter((m) => {
     if (m.permKey && opts.menuLevels && opts.menuLevels[m.permKey] === 'none') return false;
+    if (m.module === 'payroll' && !(opts.modules?.payroll && opts.canManagePayroll)) return false;
     if (m.roles === 'any') return true;
     if (!role) return false;
     const roles = m.roles as NavRole[];

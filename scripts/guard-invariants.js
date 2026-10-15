@@ -2691,6 +2691,38 @@ function checkDupRoute() {
 }
 
 // ═══════════════════════════════════════════════
+// modulegate — 급여 라우트는 전부 «기능 스위치» 를 지난다 (2026-10-15 신설, docs/PAYROLL_DESIGN.md §11) [HARD]
+//
+//   Irene: "사용할지 말지 정해서 사용하게 할 수 있어?" — 끈 워크스페이스에서 한 라우트라도 열리면 스위치는 거짓말이다.
+//   ① routes/payroll*.js 의 모든 router.<verb>( 줄은 체인에 `...base` / `...manager` / `...writer` 또는 requireModule( 을 가진다
+//      (base 가 requireModule('payroll') 을 품는다 — 그 정의 줄도 같이 본다).
+//   ② businesses.modules 는 services/modules 밖에서 읽지 않는다(판정 두 벌 금지). 마이그레이션·모델 정의는 예외.
+// ═══════════════════════════════════════════════
+function checkModuleGate() {
+  const bad = [];
+  const dir = `${ROOT}/dev-backend/routes`;
+  let routes = 0;
+  for (const f of fs.readdirSync(dir).filter((x) => /^payroll.*\.js$/.test(x))) {
+    const src = read(`${dir}/${f}`);
+    if (!/const base = \[[^\]]*requireModule\('payroll'\)/.test(src)) bad.push(`routes/${f} — base 체인에 requireModule('payroll') 이 없다`);
+    src.split('\n').forEach((l, i) => {
+      if (!/^\s*router\.(get|post|put|patch|delete)\(/.test(l)) return;
+      routes++;
+      if (!/\.\.\.(base|manager|writer)\b|requireModule\(/.test(l)) bad.push(`routes/${f}:${i + 1} — 기능 스위치(requireModule) 를 거치지 않는 라우트`);
+    });
+  }
+  const walk = (d) => fs.readdirSync(d, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? (e.name === 'node_modules' ? [] : walk(`${d}/${e.name}`)) : [`${d}/${e.name}`]));
+  for (const file of walk(`${ROOT}/dev-backend`).filter((x) => x.endsWith('.js'))) {
+    const r = file.replace(`${ROOT}/`, '');
+    if (r.includes('/scripts/') || r.endsWith('services/modules.js') || r.endsWith('models/Business.js') || /test-/.test(r)) continue;
+    read(file).split('\n').forEach((l, i) => {
+      if (/\.modules\s*(\.|\[|\?\.)\s*(payroll|attendance)\b/.test(l) && !/modulesOf|moduleOn/.test(l)) bad.push(`${r}:${i + 1} — businesses.modules 를 직접 읽는다(services/modules.moduleOn 을 쓸 것)`);
+    });
+  }
+  report('modulegate', `급여 라우트 전부 기능 스위치 경유 + modules 직접 읽기 0 (하드 게이트 · ${routes}개 라우트)`, bad.length === 0, bad);
+}
+
+// ═══════════════════════════════════════════════
 // trialplan — **새 워크스페이스의 체험 필드는 config/plans.newTrialBusinessFields 하나가 만든다** (2026-10-09 신설)
 //
 //   Irene: "처음에 혼자 쓸지 말지 선택 가능한거 아니야? 플랜마다 다른 거잖아."
@@ -3563,6 +3595,7 @@ const CATEGORIES = {
   capci: checkCapCi,
   savemerge: checkSaveMerge,
   duproute: checkDupRoute,
+  modulegate: checkModuleGate,
   convparticipants: checkConvParticipants,
   trialplan: checkTrialPlan,
   navmenu: checkNavMenu,

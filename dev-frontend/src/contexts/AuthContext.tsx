@@ -63,6 +63,9 @@ export interface User {
   business_role?: string | null;
   // 메뉴 권한(0-E E-2) — 현재 워크스페이스에서 내 메뉴별 수준. owner/admin 은 전부 'write', 고객·없음은 null.
   menu_levels?: Record<string, 'none' | 'read' | 'write'> | null;
+  // 워크스페이스 기능 켜기/끄기(서버 services/modules — 메뉴가 서버 가드와 같은 값을 본다) + 급여 관리자 여부
+  modules?: { payroll: boolean } | null;
+  can_manage_payroll?: boolean;
   workspaces?: WorkspaceMembership[];
   language?: string | null;
   // Q note 답변 생성용 프로필
@@ -674,6 +677,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     business_name: (apiUser.business_name as string) || null,
     business_role: (apiUser.business_role as string) || null,
     menu_levels: (apiUser.menu_levels as Record<string, 'none' | 'read' | 'write'>) || null,
+    modules: (apiUser.modules as { payroll: boolean }) || null,
+    can_manage_payroll: !!apiUser.can_manage_payroll,
     workspaces: (apiUser.workspaces as WorkspaceMembership[]) || [],
     language: (apiUser.language as string) || null,
     bio: (apiUser.bio as string) || null,

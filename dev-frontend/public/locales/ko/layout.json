@@ -178,7 +178,8 @@
     "adminSecPeople": "사용자·워크스페이스",
     "adminSecContent": "콘텐츠",
     "adminSecMonitor": "분석·모니터링",
-    "adminSecSettings": "설정"
+    "adminSecSettings": "설정",
+    "payroll": "급여·계약"
   },
   "user": {
     "profile": "내 프로필",

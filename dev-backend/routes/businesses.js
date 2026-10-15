@@ -920,14 +920,21 @@ router.get('/:businessId/members/rates', authenticateToken, checkBusinessAccess,
       attributes: ['id', 'user_id', 'name', 'role', 'hourly_rate', 'monthly_salary'],
       include: [{ model: User, as: 'user', attributes: ['id', 'name'], required: false }],
     });
-    return successResponse(res, rows.map((m) => ({
-      member_id: m.id,
-      user_id: m.user_id,
-      name: m.name || m.user?.name || null,
-      role: m.role,
-      hourly_rate: m.hourly_rate == null ? null : Number(m.hourly_rate),
-      monthly_salary: m.monthly_salary == null ? null : Number(m.monthly_salary),
-    })));
+    // 급여 기능이 켜져 있고 유효 계약이 있으면 월급은 «계약에서 옴»(읽기 전용) — 설계 §8
+    const contractPay = await require('../services/payrollContracts').activeMonthlyPayByUser(businessId).catch(() => new Map());
+    return successResponse(res, rows.map((m) => {
+      const cp = contractPay.get(m.user_id);
+      return {
+        member_id: m.id,
+        user_id: m.user_id,
+        name: m.name || m.user?.name || null,
+        role: m.role,
+        hourly_rate: m.hourly_rate == null ? null : Number(m.hourly_rate),
+        monthly_salary: m.monthly_salary == null ? null : Number(m.monthly_salary),
+        contract_monthly: cp ? cp.monthly : null,
+        contract_currency: cp ? cp.currency : null,
+      };
+    }));
   } catch (err) { next(err); }
 });
 
@@ -963,6 +970,11 @@ router.put('/:businessId/members/:userId/rate', authenticateToken, checkBusiness
     const m = await BusinessMember.findOne({ where: { business_id: businessId, user_id: targetUserId, removed_at: null } });
     if (!m) return errorResponse(res, 'member_not_found', 404);
 
+    // 계약이 있는 멤버의 월급은 계약이 정본이다 — 여기서 받으면 두 벌이 된다(조용히 무시하지 않고 409)
+    if (Object.prototype.hasOwnProperty.call(req.body, 'monthly_salary')) {
+      const cp = await require('../services/payrollContracts').activeMonthlyPayByUser(businessId).catch(() => new Map());
+      if (cp.has(targetUserId)) return errorResponse(res, 'salary_from_contract', 409);
+    }
     const patch = {};
     for (const key of ['hourly_rate', 'monthly_salary']) {
       if (!Object.prototype.hasOwnProperty.call(req.body, key)) continue;
@@ -1601,6 +1613,36 @@ router.get('/:businessId/permissions', authenticateToken, checkBusinessAccess, a
       permissions,
       stats: { memberTotal, pmTotal },
     });
+  } catch (err) { next(err); }
+});
+
+// ─── 워크스페이스 기능 켜기/끄기 (2026-10-15 — docs/PAYROLL_DESIGN.md §2) ───
+//   owner 만(admin 도 못 켠다 — 급여는 «대표의 결정»). 판정·기본값은 services/modules 한 곳.
+//   켤 때 요금제(plan.can('use_payroll')) — 아니면 409 plan_required. 끌 때는 데이터를 지우지 않는다.
+router.put('/:businessId/modules', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+  try {
+    const businessId = Number(req.params.businessId);
+    const { isOwnerOf } = require('../services/payrollAccess');
+    if (!(await isOwnerOf(req.user.id, businessId, req.user.platform_role))) return errorResponse(res, 'owner_only', 403);
+    const M = require('../services/modules');
+    const body = req.body || {};
+    const keys = Object.keys(body).filter((k) => M.MODULE_KEYS.includes(k));
+    if (!keys.length || keys.some((k) => typeof body[k] !== 'boolean')) return errorResponse(res, 'invalid_modules', 400);
+    const biz = await Business.findByPk(businessId);
+    if (!biz) return errorResponse(res, 'business_not_found', 404);
+    const before = M.modulesOf(biz);
+    if (body.payroll === true && !before.payroll) {
+      const r = await require('../services/plan').can(businessId, 'use_payroll');
+      if (!r.ok) return errorResponse(res, 'plan_required', 409);
+    }
+    const next_ = { ...(biz.modules && typeof biz.modules === 'object' ? biz.modules : {}) };
+    for (const k of keys) next_[k] = body[k];
+    await biz.update({ modules: next_ });   // 새 객체로 통째로(JSON in-place 수정은 저장이 안 된다)
+    const after = M.modulesOf(biz);
+    logAudit(req, { action: 'business.module_toggle', targetType: 'business', targetId: businessId, businessId, oldValue: before, newValue: after });
+    // 같은 워크스페이스 창들이 메뉴를 다시 그리게 — 신호만(무엇이 켜졌는지는 /api/auth/me 가 다시 준다)
+    try { req.app.get('io')?.to(`business:${businessId}`).emit('workspace:modules', { business_id: businessId }); } catch { /* noop */ }
+    return successResponse(res, { modules: after });
   } catch (err) { next(err); }
 });
 

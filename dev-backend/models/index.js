@@ -77,6 +77,11 @@ const Post = require('./Post');
 const PostComment = require('./PostComment');
 const PostAttachment = require('./PostAttachment');
 const PostCategory = require('./PostCategory');
+// 급여·계약 (docs/PAYROLL_DESIGN.md)
+const PayrollPerson = require('./PayrollPerson');
+const EmploymentContract = require('./EmploymentContract');
+const PayItem = require('./PayItem');
+const ContractPayLine = require('./ContractPayLine');
 // ─── Q Bill Phase 0 ───
 const Quote = require('./Quote');
 const QuoteItem = require('./QuoteItem');
@@ -352,6 +357,13 @@ Post.hasMany(PostComment, { as: 'comments', foreignKey: 'post_id' });
 PostComment.belongsTo(Post, { foreignKey: 'post_id' });
 PostComment.belongsTo(User, { as: 'author', foreignKey: 'user_id' });
 PostCategory.belongsTo(Business, { foreignKey: 'business_id' });
+// 급여·계약 — 사람 1:N 계약 1:N 금액줄 N:1 항목
+PayrollPerson.hasMany(EmploymentContract, { foreignKey: 'person_id', as: 'contracts' });
+EmploymentContract.belongsTo(PayrollPerson, { foreignKey: 'person_id', as: 'person' });
+EmploymentContract.hasMany(ContractPayLine, { foreignKey: 'contract_id', as: 'lines' });
+ContractPayLine.belongsTo(EmploymentContract, { foreignKey: 'contract_id' });
+ContractPayLine.belongsTo(PayItem, { foreignKey: 'pay_item_id', as: 'item' });
+PayrollPerson.belongsTo(User, { foreignKey: 'user_id', as: 'user', constraints: false });
 PostCategory.belongsTo(Project, { foreignKey: 'project_id' });
 
 // Invoice
@@ -582,6 +594,7 @@ EmailAccount.hasMany(EmailAccountFolder, { foreignKey: 'account_id', as: 'extraF
 EmailAccountFolder.belongsTo(EmailAccount, { foreignKey: 'account_id', as: 'account' });
 
 module.exports = {
+  PayrollPerson, EmploymentContract, PayItem, ContractPayLine,
   LandingVisit, LandingVisitor,
   ProjectHistoryEntry,
   ProviderCredit,

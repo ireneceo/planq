@@ -330,7 +330,7 @@ async function can(businessId, action, ctx = {}) {
 }
 
 async function canInner(businessId, action, ctx = {}) {
-  const { plan, biz, active } = await getBusinessPlan(businessId);
+  const { plan, biz, active, inTrial } = await getBusinessPlan(businessId);
   if (!biz) return { ok: false, reason: 'business_not_found' };
   if (!active) return { ok: false, reason: 'subscription_inactive' };
 
@@ -412,6 +412,12 @@ async function canInner(businessId, action, ctx = {}) {
         return { ok: false, reason: 'conversations_quota_exceeded', limit: limits.conversations_max, current: cur };
       }
       return { ok: true };
+    }
+    case 'use_payroll': {
+      // 급여·계약 관리(docs/PAYROLL_DESIGN.md §2.1·§4) — Pro 이상, 또는 체험 중. 면제(billing_exempt)는 그 플랜 코드로 판정된다.
+      //   쓰기 자격이다 — 읽기 라우트는 이것을 보지 않는다(내려가도 명세서·이력은 남아야 한다).
+      if (inTrial || require('../config/plans').planAtLeast(plan.code, 'pro')) return { ok: true };
+      return { ok: false, reason: 'plan_required', required: 'pro' };
     }
     case 'use_cue': {
       const needed = Number(ctx.actions || 1);
