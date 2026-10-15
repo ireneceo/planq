@@ -656,6 +656,240 @@ const SOW_BODY = `<h1>작업 명세서 (Statement of Work)</h1>
 <tr><td>을</td><td>{{client.name}}</td><td>—</td><td><div data-signature-field data-slot="2" data-party="them"></div></td><td>—</td></tr>
 </tbody></table>`;
 
+// ════════════════════════════════════════════════════════════════
+// 8~13. 직원 계약서 3종 × ko/en (2026-10-15 — 급여 설계 P0, docs/PAYROLL_DESIGN.md §10)
+//   ★ «검수 전 초안» — 노무사·세무사 검수 전이다(설명에 적는다). 근로기준법 §17 필수 기재사항
+//     (임금 구성·계산·지급방법 · 소정근로시간 · 휴일 · 연차유급휴가 · 취업장소·업무)을 칸으로 둔다.
+//   칸은 schema_json 배열(SlotFormModal) — 회사 정보는 자동, 근로자 정보는 입력.
+//   ★ 주민등록번호 칸은 두지 않는다(PlanQ 는 주민번호를 갖지 않는다 — 급여 설계 §3). 필요하면 서명 뒤 서면으로.
+// ════════════════════════════════════════════════════════════════
+const EMP_COMMON_SLOTS = [
+  { key: 'company_name', label: '회사명', label_en: 'Company', type: 'text', required: true, default_from: 'business.name' },
+  { key: 'company_ceo', label: '대표자', label_en: 'Representative', type: 'text', default_from: 'business.representative' },
+  { key: 'company_address', label: '회사 주소', label_en: 'Company address', type: 'text', default_from: 'business.address' },
+  { key: 'employee_name', label: '성명', label_en: 'Name', type: 'text', required: true },
+  { key: 'employee_address', label: '주소', label_en: 'Address', type: 'text' },
+  { key: 'contract_date', label: '계약일', label_en: 'Contract date', type: 'date', default_from: 'today' },
+  { key: 'start_date', label: '시작일', label_en: 'Start date', type: 'date', required: true },
+];
+const EMP_WORK_SLOTS = [
+  { key: 'work_place', label: '근무 장소', label_en: 'Place of work', type: 'text', required: true },
+  { key: 'job_description', label: '업무 내용', label_en: 'Duties', type: 'textarea', required: true },
+  { key: 'job_title', label: '직위', label_en: 'Position', type: 'text' },
+  { key: 'work_days', label: '근무일', label_en: 'Working days', type: 'text', placeholder: '월~금 (주 5일)', placeholder_en: 'Mon–Fri (5 days/week)' },
+  { key: 'work_hours', label: '근로시간', label_en: 'Working hours', type: 'text', placeholder: '09:00 ~ 18:00', placeholder_en: '09:00–18:00' },
+  { key: 'break_time', label: '휴게시간', label_en: 'Break', type: 'text', placeholder: '12:00 ~ 13:00', placeholder_en: '12:00–13:00' },
+  { key: 'weekly_holiday', label: '주휴일', label_en: 'Weekly paid holiday', type: 'text', placeholder: '매주 일요일', placeholder_en: 'Every Sunday' },
+  { key: 'base_pay', label: '월 기본급(원)', label_en: 'Monthly base pay', type: 'text', required: true, placeholder: '3,000,000' },
+  { key: 'allowances', label: '수당(항목·금액)', label_en: 'Allowances (item · amount)', type: 'textarea', placeholder: '식대(비과세) 200,000원', placeholder_en: 'Meal allowance (non-taxable) 200,000' },
+  { key: 'pay_day', label: '임금 지급일', label_en: 'Pay day', type: 'text', required: true, placeholder: '매월 25일', placeholder_en: '25th of each month' },
+];
+const EMP_SIGN_TABLE_KO = `<h2>서명</h2>
+<table><tbody>
+<tr><th>구분</th><th>성명 / 회사명</th><th>서명</th><th>일자</th></tr>
+<tr><td>사업주</td><td>{{company_name}} 대표 {{company_ceo}}</td><td><div data-signature-field data-slot="1" data-party="us"></div></td><td>{{contract_date}}</td></tr>
+<tr><td>근로자</td><td>{{employee_name}}</td><td><div data-signature-field data-slot="2" data-party="them"></div></td><td>{{contract_date}}</td></tr>
+</tbody></table>`;
+const EMP_SIGN_TABLE_EN = `<h2>Signatures</h2>
+<table><tbody>
+<tr><th>Party</th><th>Name / Company</th><th>Signature</th><th>Date</th></tr>
+<tr><td>Employer</td><td>{{company_name}} (Representative: {{company_ceo}})</td><td><div data-signature-field data-slot="1" data-party="us"></div></td><td>{{contract_date}}</td></tr>
+<tr><td>Employee</td><td>{{employee_name}}</td><td><div data-signature-field data-slot="2" data-party="them"></div></td><td>{{contract_date}}</td></tr>
+</tbody></table>`;
+const EMP_BODY_KO = (fixed) => `<h1>${fixed ? '기간제 근로계약서' : '표준 근로계약서'}</h1>
+<p><strong>{{company_name}}</strong>(이하 "사업주")과 <strong>{{employee_name}}</strong>(이하 "근로자")은 다음과 같이 근로계약을 체결한다.</p>
+<h2>제1조 (당사자)</h2>
+<table><tbody>
+<tr><th>사업주</th><td>{{company_name}} · 대표 {{company_ceo}} · {{company_address}}</td></tr>
+<tr><th>근로자</th><td>{{employee_name}} · {{employee_address}}</td></tr>
+</tbody></table>
+<h2>제2조 (근로계약 기간)</h2>
+${fixed
+    ? '<p><strong>{{start_date}}</strong>부터 <strong>{{end_date}}</strong>까지로 한다. 기간이 끝나면 근로관계는 별도 합의가 없는 한 종료된다.</p>'
+    : '<p><strong>{{start_date}}</strong>부터 근로를 시작하며, 기간의 정함이 없는 근로계약으로 한다. 수습기간을 두는 경우 근로개시일부터 3개월로 한다(수습 중 임금 감액은 하지 않는다).</p>'}
+<h2>제3조 (근무 장소 및 업무)</h2>
+<table><tbody>
+<tr><th>근무 장소</th><td>{{work_place}}</td></tr>
+<tr><th>업무 내용</th><td>{{job_description}}</td></tr>
+<tr><th>직위</th><td>{{job_title}}</td></tr>
+</tbody></table>
+<h2>제4조 (소정근로시간 및 휴게)</h2>
+<table><tbody>
+<tr><th>근무일</th><td>{{work_days}}</td></tr>
+<tr><th>근로시간</th><td>{{work_hours}}</td></tr>
+<tr><th>휴게시간</th><td>{{break_time}}</td></tr>
+</tbody></table>
+<p>업무상 필요한 경우 근로자의 동의를 얻어 연장근로를 할 수 있으며, 연장·야간·휴일근로에 대해서는 근로기준법에 따라 가산임금을 지급한다.</p>
+<h2>제5조 (휴일)</h2>
+<p>주휴일은 <strong>{{weekly_holiday}}</strong>로 하며, 근로자의 날 및 관공서의 공휴일에 관한 규정에 따른 공휴일은 유급휴일로 한다.</p>
+<h2>제6조 (임금)</h2>
+<table><tbody>
+<tr><th>월 기본급</th><td>{{base_pay}} 원</td></tr>
+<tr><th>수당</th><td>{{allowances}}</td></tr>
+<tr><th>계산 방법</th><td>월급제. 월 중 입사·퇴사 또는 무급 결근·무급 휴가가 있는 경우 일할 계산한다.</td></tr>
+<tr><th>지급일</th><td>{{pay_day}} (휴일이면 그 전날 지급)</td></tr>
+<tr><th>지급 방법</th><td>근로자 명의 예금통장에 입금</td></tr>
+</tbody></table>
+<p>임금에서는 소득세·지방소득세 및 4대 사회보험료 근로자 부담분 등 법령에 따른 금액을 공제한다.</p>
+<h2>제7조 (연차유급휴가)</h2>
+<p>연차유급휴가는 근로기준법 제60조에 따라 부여한다.</p>
+<h2>제8조 (사회보험)</h2>
+<p>국민연금·건강보험·고용보험·산재보험에 가입한다(법령상 적용 대상인 경우).</p>
+<h2>제9조 (근로계약서 교부)</h2>
+<p>사업주는 근로계약을 체결함과 동시에 이 계약서를 근로자에게 교부한다(전자 문서 교부 포함).</p>
+<h2>제10조 (기타)</h2>
+<p>이 계약에 정하지 않은 사항은 근로기준법 등 관계 법령과 회사의 취업규칙에 따른다.</p>
+${EMP_SIGN_TABLE_KO}`;
+const EMP_BODY_EN = (fixed) => `<h1>${fixed ? 'Fixed-Term Employment Contract' : 'Employment Contract'}</h1>
+<p><strong>{{company_name}}</strong> (the "Employer") and <strong>{{employee_name}}</strong> (the "Employee") enter into this employment contract as follows.</p>
+<h2>1. Parties</h2>
+<table><tbody>
+<tr><th>Employer</th><td>{{company_name}} · Representative {{company_ceo}} · {{company_address}}</td></tr>
+<tr><th>Employee</th><td>{{employee_name}} · {{employee_address}}</td></tr>
+</tbody></table>
+<h2>2. Term</h2>
+${fixed
+    ? '<p>From <strong>{{start_date}}</strong> to <strong>{{end_date}}</strong>. Unless otherwise agreed, employment ends when the term expires.</p>'
+    : '<p>Employment begins on <strong>{{start_date}}</strong> with no fixed term. If a probation period applies, it is three months from the start date (no pay reduction during probation).</p>'}
+<h2>3. Place of Work and Duties</h2>
+<table><tbody>
+<tr><th>Place of work</th><td>{{work_place}}</td></tr>
+<tr><th>Duties</th><td>{{job_description}}</td></tr>
+<tr><th>Position</th><td>{{job_title}}</td></tr>
+</tbody></table>
+<h2>4. Working Hours and Breaks</h2>
+<table><tbody>
+<tr><th>Working days</th><td>{{work_days}}</td></tr>
+<tr><th>Working hours</th><td>{{work_hours}}</td></tr>
+<tr><th>Break</th><td>{{break_time}}</td></tr>
+</tbody></table>
+<p>Overtime requires the Employee's consent; overtime, night and holiday work are paid with premiums as required by law.</p>
+<h2>5. Holidays</h2>
+<p>The weekly paid holiday is <strong>{{weekly_holiday}}</strong>. Statutory public holidays are paid holidays.</p>
+<h2>6. Wages</h2>
+<table><tbody>
+<tr><th>Monthly base pay</th><td>{{base_pay}}</td></tr>
+<tr><th>Allowances</th><td>{{allowances}}</td></tr>
+<tr><th>Calculation</th><td>Monthly salary, pro-rated for partial months and unpaid absence or leave.</td></tr>
+<tr><th>Pay day</th><td>{{pay_day}} (paid on the previous business day if it falls on a holiday)</td></tr>
+<tr><th>Payment method</th><td>Bank transfer to the Employee's account</td></tr>
+</tbody></table>
+<p>Income tax, local income tax and the Employee's share of social insurance are withheld as required by law.</p>
+<h2>7. Annual Paid Leave</h2>
+<p>Annual paid leave is granted as required by applicable labor law.</p>
+<h2>8. Social Insurance</h2>
+<p>The Employee is enrolled in social insurance schemes where legally applicable.</p>
+<h2>9. Delivery of Contract</h2>
+<p>The Employer delivers a copy of this contract to the Employee upon signing (electronic delivery included).</p>
+<h2>10. Other Matters</h2>
+<p>Matters not set out here follow applicable labor law and the Employer's work rules.</p>
+${EMP_SIGN_TABLE_EN}`;
+
+const FREELANCE_SLOTS = [
+  { key: 'company_name', label: '회사명(위탁자)', label_en: 'Company (Client)', type: 'text', required: true, default_from: 'business.name' },
+  { key: 'company_ceo', label: '대표자', label_en: 'Representative', type: 'text', default_from: 'business.representative' },
+  { key: 'company_address', label: '회사 주소', label_en: 'Company address', type: 'text', default_from: 'business.address' },
+  { key: 'contractor_name', label: '수탁자 성명', label_en: 'Contractor name', type: 'text', required: true },
+  { key: 'contractor_address', label: '수탁자 주소', label_en: 'Contractor address', type: 'text' },
+  { key: 'contract_date', label: '계약일', label_en: 'Contract date', type: 'date', default_from: 'today' },
+  { key: 'start_date', label: '시작일', label_en: 'Start date', type: 'date', required: true },
+  { key: 'end_date', label: '종료일', label_en: 'End date', type: 'date', required: true },
+  { key: 'service_scope', label: '위탁 업무', label_en: 'Services', type: 'textarea', required: true },
+  { key: 'fee', label: '보수(금액·단위)', label_en: 'Fee (amount · basis)', type: 'text', required: true, placeholder: '월 2,000,000원', placeholder_en: '2,000,000 per month' },
+  { key: 'pay_day', label: '지급일', label_en: 'Payment date', type: 'text', required: true, placeholder: '매월 말일', placeholder_en: 'Last day of each month' },
+];
+const FREELANCE_KO = `<h1>프리랜서 업무위탁 계약서</h1>
+<p><strong>{{company_name}}</strong>(이하 "위탁자")과 <strong>{{contractor_name}}</strong>(이하 "수탁자")은 다음과 같이 업무위탁 계약을 체결한다.</p>
+<h2>제1조 (당사자)</h2>
+<table><tbody>
+<tr><th>위탁자</th><td>{{company_name}} · 대표 {{company_ceo}} · {{company_address}}</td></tr>
+<tr><th>수탁자</th><td>{{contractor_name}} · {{contractor_address}}</td></tr>
+</tbody></table>
+<h2>제2조 (위탁 업무)</h2>
+<p>{{service_scope}}</p>
+<h2>제3조 (계약 기간)</h2>
+<p><strong>{{start_date}}</strong>부터 <strong>{{end_date}}</strong>까지로 하며, 양 당사자의 서면 합의로 연장할 수 있다.</p>
+<h2>제4조 (보수 및 지급)</h2>
+<table><tbody>
+<tr><th>보수</th><td>{{fee}}</td></tr>
+<tr><th>지급일</th><td>{{pay_day}}</td></tr>
+<tr><th>지급 방법</th><td>수탁자 명의 예금통장에 입금</td></tr>
+</tbody></table>
+<p>위탁자는 보수를 지급할 때 소득세법에 따라 사업소득 원천징수세액(소득세 3%, 지방소득세 0.3%)을 공제하고 지급한다.</p>
+<h2>제5조 (업무 수행의 독립성)</h2>
+<p>수탁자는 위탁받은 업무를 자기의 책임과 판단으로 수행하며, 근무 시간·장소에 관하여 위탁자의 지휘·감독을 받지 않는다. 이 계약은 근로계약이 아니다.</p>
+<h2>제6조 (결과물과 지식재산권)</h2>
+<p>이 계약에 따른 결과물의 지식재산권은 보수 전액이 지급된 때 위탁자에게 귀속된다. 수탁자가 이 계약 전부터 가지고 있던 도구·노하우는 수탁자에게 남는다.</p>
+<h2>제7조 (비밀유지)</h2>
+<p>양 당사자는 이 계약 수행 중 알게 된 상대방의 비밀정보를 계약 종료 후 3년간 제3자에게 누설하지 않는다.</p>
+<h2>제8조 (계약 해지)</h2>
+<p>당사자 일방이 이 계약을 위반하고 14일 이내에 시정하지 않으면 상대방은 서면 통지로 해지할 수 있다. 해지 시 이미 수행한 부분의 보수는 정산한다.</p>
+<h2>제9조 (기타)</h2>
+<p>이 계약에 정하지 않은 사항은 민법 등 관계 법령과 일반 상관례에 따른다.</p>
+<h2>서명</h2>
+<table><tbody>
+<tr><th>구분</th><th>성명 / 회사명</th><th>서명</th><th>일자</th></tr>
+<tr><td>위탁자</td><td>{{company_name}} 대표 {{company_ceo}}</td><td><div data-signature-field data-slot="1" data-party="us"></div></td><td>{{contract_date}}</td></tr>
+<tr><td>수탁자</td><td>{{contractor_name}}</td><td><div data-signature-field data-slot="2" data-party="them"></div></td><td>{{contract_date}}</td></tr>
+</tbody></table>`;
+const FREELANCE_EN = `<h1>Freelance Service Agreement</h1>
+<p><strong>{{company_name}}</strong> (the "Client") and <strong>{{contractor_name}}</strong> (the "Contractor") agree as follows.</p>
+<h2>1. Parties</h2>
+<table><tbody>
+<tr><th>Client</th><td>{{company_name}} · Representative {{company_ceo}} · {{company_address}}</td></tr>
+<tr><th>Contractor</th><td>{{contractor_name}} · {{contractor_address}}</td></tr>
+</tbody></table>
+<h2>2. Services</h2>
+<p>{{service_scope}}</p>
+<h2>3. Term</h2>
+<p>From <strong>{{start_date}}</strong> to <strong>{{end_date}}</strong>, extendable by written agreement of both parties.</p>
+<h2>4. Fee and Payment</h2>
+<table><tbody>
+<tr><th>Fee</th><td>{{fee}}</td></tr>
+<tr><th>Payment date</th><td>{{pay_day}}</td></tr>
+<tr><th>Payment method</th><td>Bank transfer to the Contractor's account</td></tr>
+</tbody></table>
+<p>Any withholding tax required by applicable law is deducted from each payment.</p>
+<h2>5. Independent Contractor</h2>
+<p>The Contractor performs the services on their own responsibility and judgment and is not subject to the Client's direction as to working hours or place. This agreement is not an employment contract.</p>
+<h2>6. Deliverables and Intellectual Property</h2>
+<p>Intellectual property in the deliverables passes to the Client upon full payment. Tools and know-how the Contractor held before this agreement remain the Contractor's.</p>
+<h2>7. Confidentiality</h2>
+<p>Each party keeps the other's confidential information secret for three years after this agreement ends.</p>
+<h2>8. Termination</h2>
+<p>If a party breaches this agreement and does not cure it within 14 days, the other party may terminate by written notice. Work already performed is paid on termination.</p>
+<h2>9. Other Matters</h2>
+<p>Matters not set out here follow applicable law and general commercial practice.</p>
+<h2>Signatures</h2>
+<table><tbody>
+<tr><th>Party</th><th>Name / Company</th><th>Signature</th><th>Date</th></tr>
+<tr><td>Client</td><td>{{company_name}} (Representative: {{company_ceo}})</td><td><div data-signature-field data-slot="1" data-party="us"></div></td><td>{{contract_date}}</td></tr>
+<tr><td>Contractor</td><td>{{contractor_name}}</td><td><div data-signature-field data-slot="2" data-party="them"></div></td><td>{{contract_date}}</td></tr>
+</tbody></table>`;
+const END_DATE_SLOT = { key: 'end_date', label: '종료일', label_en: 'End date', type: 'date', required: true };
+const DRAFT_NOTE_KO = ' · 검수 전 초안(노무사·세무사 확인 후 쓰세요)';
+const DRAFT_NOTE_EN = ' · Draft, not yet reviewed by a labor/tax professional';
+const EMPLOYMENT_TEMPLATES = [
+  { kind: 'contract', name: '표준 근로계약서 (정규직)', locale: 'ko', mode: 'editor', visibility: 'workspace_only',
+    description: '기간의 정함 없는 근로계약 · 근로기준법 §17 필수 기재(임금·근로시간·휴일·연차·업무) · 양측 서명' + DRAFT_NOTE_KO,
+    schema_json: [...EMP_COMMON_SLOTS, ...EMP_WORK_SLOTS], body_template: EMP_BODY_KO(false) },
+  { kind: 'contract', name: '기간제 근로계약서 (계약직)', locale: 'ko', mode: 'editor', visibility: 'workspace_only',
+    description: '계약 기간이 있는 근로계약 · 필수 기재 사항 · 양측 서명' + DRAFT_NOTE_KO,
+    schema_json: [...EMP_COMMON_SLOTS, END_DATE_SLOT, ...EMP_WORK_SLOTS], body_template: EMP_BODY_KO(true) },
+  { kind: 'contract', name: '프리랜서 업무위탁 계약서', locale: 'ko', mode: 'editor', visibility: 'workspace_only',
+    description: '위탁 업무·기간·보수(사업소득 3.3% 원천징수) · 독립성 · 지식재산 · 비밀유지 · 양측 서명' + DRAFT_NOTE_KO,
+    schema_json: FREELANCE_SLOTS, body_template: FREELANCE_KO },
+  { kind: 'contract', name: 'Employment Contract (Permanent)', locale: 'en', mode: 'editor', visibility: 'workspace_only',
+    description: 'Open-ended employment · wages, hours, holidays, leave, duties · both parties sign' + DRAFT_NOTE_EN,
+    schema_json: [...EMP_COMMON_SLOTS, ...EMP_WORK_SLOTS], body_template: EMP_BODY_EN(false) },
+  { kind: 'contract', name: 'Fixed-Term Employment Contract', locale: 'en', mode: 'editor', visibility: 'workspace_only',
+    description: 'Employment with a fixed term · required terms · both parties sign' + DRAFT_NOTE_EN,
+    schema_json: [...EMP_COMMON_SLOTS, END_DATE_SLOT, ...EMP_WORK_SLOTS], body_template: EMP_BODY_EN(true) },
+  { kind: 'contract', name: 'Freelance Service Agreement', locale: 'en', mode: 'editor', visibility: 'workspace_only',
+    description: 'Services, term, fee and withholding · independent contractor · IP · confidentiality · both parties sign' + DRAFT_NOTE_EN,
+    schema_json: FREELANCE_SLOTS, body_template: FREELANCE_EN },
+];
+
 const TEMPLATES = [
   {
     kind: 'quote',
@@ -783,6 +1017,8 @@ const TEMPLATES = [
     visibility: 'client_shareable',
     body_template: SOW_BODY,
   },
+  // 직원 계약서 3종 × ko/en (급여 설계 P0)
+  ...EMPLOYMENT_TEMPLATES,
 ];
 
 (async () => {

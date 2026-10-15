@@ -8,6 +8,7 @@ import { apiFetch } from '../../contexts/AuthContext';
 import i18n from '../../i18n';
 import SingleDateField from '../Common/SingleDateField';
 import { mapApiError } from '../../utils/apiError';
+import { sanitizeRichText } from '../../utils/sanitizeHtml';
 
 export type SlotType = 'text' | 'textarea' | 'number' | 'date' | 'email';
 
@@ -165,7 +166,9 @@ const SlotFormModal: React.FC<Props> = ({ templateId, businessId, projectId, cli
               </FormCol>
               <PreviewCol>
                 <SectionTitle>{t('slot.preview', '미리보기')}</SectionTitle>
-                <Preview>{preview}</Preview>
+                {/* 문서처럼 그린다 — 원문 태그를 글자로 보이면 미리보기가 아니다(2026-10-15 근로계약서 템플릿이 처음 이 창을 썼다).
+                    본문은 시스템·워크스페이스 템플릿 + 사용자 입력이라 같은 정화기(sanitizeRichText)를 거친다. */}
+                <Preview data-testid="slot-preview" dangerouslySetInnerHTML={{ __html: sanitizeRichText(preview) }} />
               </PreviewCol>
             </Layout>
           )}
@@ -212,7 +215,10 @@ const Label = styled.label`font-size: 0.75rem; font-weight: 600; color: #475569;
 const Req = styled.span`color: #F43F5E; margin-left: 2px;`;
 const Input = styled.input`height: 34px; padding: 0 10px; border: 1px solid #E2E8F0; border-radius: 6px; font-size: 0.8125rem; color: #0F172A; &:focus { outline: none; border-color: #14B8A6; box-shadow: 0 0 0 3px rgba(20,184,166,0.15); }`;
 const TextArea = styled.textarea`padding: 8px 10px; border: 1px solid #E2E8F0; border-radius: 6px; font-size: 0.8125rem; color: #0F172A; font-family: inherit; resize: vertical; &:focus { outline: none; border-color: #14B8A6; box-shadow: 0 0 0 3px rgba(20,184,166,0.15); }`;
-const Preview = styled.pre`padding: 14px 16px; background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px; font-size: 0.75rem; line-height: 1.6; color: #334155; white-space: pre-wrap; word-break: break-word; font-family: inherit; max-height: 400px; overflow-y: auto;`;
+const Preview = styled.div`padding: 14px 16px; background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px; font-size: 0.8125rem; line-height: 1.6; color: #334155; word-break: break-word; max-height: 400px; overflow-y: auto;
+  h1 { font-size: 1rem; margin: 0 0 8px; } h2 { font-size: 0.875rem; margin: 12px 0 4px; } p { margin: 4px 0; }
+  table { width: 100%; border-collapse: collapse; margin: 4px 0; } th, td { border: 1px solid #E2E8F0; padding: 4px 6px; text-align: left; vertical-align: top; }
+  th { background: #F1F5F9; font-weight: 600; white-space: nowrap; } ul { margin: 4px 0; padding-left: 18px; }`;
 const Footer = styled.div`padding: 14px 22px; border-top: 1px solid #E2E8F0; display: flex; justify-content: flex-end; gap: 8px; flex-shrink: 0;`;
 const PrimaryBtn = styled.button`height: 36px; padding: 0 18px; background: #14B8A6; color: #FFFFFF; border: none; border-radius: 8px; font-size: 0.8125rem; font-weight: 600; cursor: pointer; &:disabled { background: #CBD5E1; cursor: not-allowed; } &:hover:not(:disabled) { background: #0D9488; }`;
 const SecondaryBtn = styled.button`height: 36px; padding: 0 14px; background: transparent; color: #475569; border: 1px solid #E2E8F0; border-radius: 8px; font-size: 0.8125rem; font-weight: 600; cursor: pointer; &:hover { background: #F8FAFC; border-color: #CBD5E1; }`;
