@@ -67,8 +67,11 @@ EmailThread.init({
   // 업체 스팸함에서 가져온 스레드면 'provider'. 사용자가 받은편지함에서 스팸 표시한 것은 NULL.
   //   ★ 30일 영구 삭제는 **provider 출신만** 대상이다(Fable 판정 ④) — 사용자가 고른 스팸은 지우지 않는다.
   //   [스팸 아님] 은 이 값을 NULL 로 돌린다(= 삭제 대상에서 빠진다).
-  spam_origin: { type: DataTypes.ENUM('provider'), allowNull: true, defaultValue: null },
+  // 'impersonation' — PlanQ 가 사칭 근거로 격리(services/mailImpersonation, 2026-10-15). ENUM 은 끝에 append.
+  spam_origin: { type: DataTypes.ENUM('provider', 'impersonation'), allowNull: true, defaultValue: null },
   spam_since: { type: DataTypes.DATE, allowNull: true },
+  // 사칭 판정 결과 — { level:'warn'|'quarantine', signals:[{code,level,detail}], assessed_at, released_at? }. 원문은 담지 않는다.
+  impersonation: { type: DataTypes.JSON, allowNull: true },
 }, {
   sequelize, tableName: 'email_threads', timestamps: true, underscored: true,
   indexes: [

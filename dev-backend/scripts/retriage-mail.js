@@ -8,6 +8,13 @@
 //   node scripts/retriage-mail.js            # 미리보기 (변경 없음)
 //   node scripts/retriage-mail.js --apply    # 실제 반영
 require('dotenv').config();
+// --impersonation (2026-10-15): 사칭 검사 소급은 따로 돈다 — scripts/retriage-impersonation.js(docs/MAIL_IMPERSONATION_DESIGN.md §5).
+if (process.argv.includes('--impersonation')) {
+  require('./retriage-impersonation').run()
+    .then(async () => { await require('../config/database').sequelize.close(); process.exit(0); })
+    .catch((e) => { console.error('[retriage-impersonation] 실패:', e.message); process.exit(1); });
+  return;
+}
 const { Op } = require('sequelize');
 const { sequelize } = require('../config/database');
 const { EmailThread, EmailAccount } = require('../models');

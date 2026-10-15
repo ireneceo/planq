@@ -453,7 +453,10 @@
     "noSubject": "(no subject)",
     "deleteConfirmTitle": "Delete this mail rule?",
     "deleteConfirmBody": "The \"{{pattern}}\" rule will be removed and new mail will follow the default classification.",
-    "deleteFailed": "Couldn't delete. Please try again shortly."
+    "deleteFailed": "Couldn't delete. Please try again shortly.",
+    "filterAll": "All {{n}}",
+    "filterSpam": "Blocked as spam {{n}}",
+    "filterSpamEmpty": "No addresses or domains are blocked as spam. Mark the same domain as spam twice and it appears here."
   },
   "filters": {
     "allLabels": "All tags",
@@ -737,7 +740,14 @@
       "spam_score": "High spam score ({{detail}})",
       "auth_pass": "Sender authentication passed ({{detail}})",
       "auth_fail": "Sender authentication failed — {{detail}}",
-      "auth_unknown": "No sender authentication data, so this couldn't be checked"
+      "auth_unknown": "No sender authentication data, so this couldn't be checked",
+      "impersonation_bidi_override": "Hidden text-direction character — {{detail}}",
+      "impersonation_hidden_chars": "Invisible characters inside words — {{detail}}",
+      "impersonation_mixed_script_label": "Mixed alphabets in a domain — {{detail}}",
+      "impersonation_ascii_masked_label": "Another alphabet imitating an English domain — {{detail}}",
+      "impersonation_lookalike_known_domain": "One character away from a domain you know — {{detail}}",
+      "impersonation_display_name_domain": "Sender name shows a different domain — {{detail}}",
+      "impersonation_reply_to_divergent": "Replies diverted to a free webmail address — {{detail}}"
     }
   },
   "inquiryBadge": "Inquiry",
@@ -763,7 +773,13 @@
   },
   "spamFolder": {
     "note": "Mail imported from your Gmail/Naver spam folder is deleted after 30 days. Marking it as not spam here doesn't change your provider — please also mark it as not spam in Gmail/Naver.",
-    "detailNote": "This mail came from your provider's (Gmail/Naver) spam folder. If it isn't spam, choose «Not spam» in the ⋯ menu and also mark it as not spam in Gmail/Naver. It is deleted automatically 30 days after it arrived."
+    "detailNote": "This mail came from your provider's (Gmail/Naver) spam folder. If it isn't spam, choose «Not spam» in the ⋯ menu and also mark it as not spam in Gmail/Naver. It is deleted automatically 30 days after it arrived.",
+    "reason": {
+      "provider": "Provider spam folder",
+      "rule": "Block rule",
+      "filter": "Spam score",
+      "manual": "Marked as spam"
+    }
   },
   "account": {
     "personal": "Personal"
@@ -888,7 +904,11 @@
     "confirmOnTitle": "Turn on “{{name}}”?",
     "confirmBody": "{{n}}{{more}} mails you already received will move ({{moves}}). You can switch it back any time, and no mail is deleted.",
     "confirmOff": "Turn off",
-    "confirmOn": "Turn on"
+    "confirmOn": "Turn on",
+    "impersonation": {
+      "title": "Quarantine possible impersonation",
+      "desc": "If hidden or text-direction characters are tucked into the sender name, subject or attachment names, if the sender or link domain mixes in look-alike letters from another alphabet, or if it differs by one character from a domain you know (a client, your own company), the mail is quarantined as spam and its links are disabled. Normal single-script domains, such as Korean ones, are not flagged. Mail from someone you know is only labelled \"Possible impersonation\", never quarantined. Turning this off stops the quarantine but keeps the label. See the help article \"How spam and impersonation mail is filtered\"."
+    }
   },
   "learnBar": {
     "progress": "Move “{{email}}” the same way once more and PlanQ will put it in {{where}} automatically from now on.",
@@ -899,5 +919,24 @@
     "undone": "Undid the rule for “{{email}}”.",
     "whereReply": "Reply needed",
     "whereReview": "Worth a look"
+  },
+  "impersonation": {
+    "row": "Possible impersonation",
+    "rowQuarantined": "Impersonation · quarantined",
+    "rowHint": "The sender or links show signs of imitating someone else. Open it to see why.",
+    "noteQuarantined": "Quarantined as possible impersonation. Links are disabled. If this mail is genuine, use \"Not spam\" in the ⋯ menu.",
+    "noteWarn": "This mail shows signs of impersonation. Check the sender before opening links or attachments.",
+    "noteReleased": "You marked this mail as not spam. The signs below are kept for reference.",
+    "knownHint": "Not quarantined because it comes from an address you know — the account may still be compromised.",
+    "learnMore": "How is this filtered?",
+    "signal": {
+      "bidi_override": "A text-direction override is hidden in the name, subject or an attachment name (e.g. a reversed company name, a file that looks like \"fdp.exe\").",
+      "hidden_chars": "Invisible characters are tucked inside words of the name, subject or an attachment name — a trick to slip past filters.",
+      "mixed_script_label": "The sender or link domain mixes in look-alike letters from another alphabet (Cyrillic, Greek, …).",
+      "ascii_masked_label": "The sender or link domain uses another alphabet to imitate an English name (e.g. \"аррӏе.com\").",
+      "lookalike_known_domain": "The domain differs by one character from a domain you know (a client, your own company).",
+      "display_name_domain": "The sender name contains a different company or domain than the actual sending address.",
+      "reply_to_divergent": "Replies are set to go to a free webmail address instead of the sending company."
+    }
   }
 }

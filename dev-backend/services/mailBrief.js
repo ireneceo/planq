@@ -13,7 +13,7 @@
 // 회귀는 `node scripts/e2e/run.js --suite mailbrief` 가 막는다(신호마다 양성/음성 대조군).
 const { Op } = require('sequelize');
 const {
-  EmailThread, EmailMessage, Client, Project, ProjectStage, Invoice, Task, Business,
+  EmailThread, EmailMessage, Client, Project, ProjectStage, Invoice, Task,
 } = require('../models');
 
 // ─── 신뢰 신호 ────────────────────────────────────────────────
@@ -105,23 +105,19 @@ async function collectTrustSignals({ businessId, thread, message, clientRow }) {
   // ② 등록된 고객인가 — 우리 원장에 있는 상대면 신뢰도가 올라간다.
   if (clientRow) add('known_client', 'ok', clientRow.display_name || clientRow.company_name || '');
 
-  // ③ 표시이름 ↔ 도메인. 표시이름에 등록 고객사 이름이 들어 있는데 도메인이 그 고객 도메인이
-  //    아니면 사칭 가능성이다. 우리 워크스페이스 이름을 사칭하는 경우도 같이 본다.
-  const fromName = String(message.from_name || '').trim();
-  if (fromName && fromDomain) {
-    // 워크스페이스 표시 이름 — brand_name 이 정본이고 name 은 legacy 호환이다(models/Business).
-    const biz = await Business.findByPk(businessId, { attributes: ['name', 'brand_name'] });
-    const bizName = String(biz?.brand_name || biz?.name || '').trim();
-    const ourDomains = new Set(
-      (await EmailMessage.findAll({
-        where: { business_id: businessId, direction: 'outbound' },
-        attributes: ['from_email'], limit: 200, order: [['id', 'DESC']],
-      })).map((m) => domainOf(m.from_email)).filter(Boolean),
-    );
-    if (bizName && bizName.length >= 2 && fromName.includes(bizName) && !ourDomains.has(fromDomain)) {
-      add('display_name_mismatch', 'danger', `${fromName} <${fromDomain}>`);
-    }
-  }
+  // ③ 사칭 신호 — 숨김·방향 제어 문자 · 섞인 문자 체계 · 아는 도메인 흉내 · 표시이름의 다른 도메인(우리 이름 포함).
+  //   판정은 services/mailImpersonation **한 함수**다(수집·재판정·스팸 해제와 같은 값). 옛 «표시이름에 우리 이름» 계산은
+  //   여기서 지우고 그 함수로 옮겼다(같은 값의 공식 두 벌 금지). 강 = danger · 약 = warn.
+  try {
+    const IMP = require('./mailImpersonation');
+    const ctxImp = await IMP.contextOf(businessId);
+    const atts0 = Array.isArray(message.attachments) ? message.attachments : [];
+    const r = IMP.assess({
+      ...IMP.inputFromStored(message, atts0.map((a) => String(a.filename || a.file_name || ''))),
+      ...ctxImp, known: !!clientRow,
+    });
+    for (const sg of (r ? r.signals : [])) add(`impersonation_${sg.code}`, sg.level === 'strong' ? 'danger' : 'warn', sg.detail);
+  } catch (e) { console.warn('[mailBrief] impersonation', e.message); }
 
   // ④ 링크 텍스트 ↔ 실제 주소
   const mismatches = findLinkMismatches(message.body_html);

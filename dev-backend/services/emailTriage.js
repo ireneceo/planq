@@ -507,9 +507,14 @@ function isBulkBody(bodyText) {
 //   적용 순서 = 카탈로그 order (docs/MAIL_CRITERIA_DESIGN.md §3.3):
 //     스팸 → 스팸 구제(아는 상대) → 보안 알림 → 상대 행동 도착(답변 필요) → 꼭 봐야 하는 통지 → 자동응답
 //     → 자동 발송의 업무 내용·우리 시스템 알림 → 사람 메일(답변 필요 판정, 아니면 확인 권장)
-function triageInbound({ subject, bodyText, fromEmail, headers, ownEmails, ownMatcher, isKnownContact = false, off = null }) {
+function triageInbound({ subject, bodyText, fromEmail, headers, ownEmails, ownMatcher, isKnownContact = false, off = null, impersonation = null }) {
   const on = (id) => CAT.isOn(id, off);
   const c = classify({ subject, bodyText, fromEmail, headers });
+  // 사칭 의심 격리 — 모든 기준보다 먼저(카탈로그 order 5). 판정은 services/mailImpersonation 한 곳이고
+  //   여기는 «격리할지» 만 정한다(아는 상대·사람이 풀어 준 스레드는 그 함수가 이미 경고로 낮췄다).
+  if (require('./mailImpersonation').shouldQuarantine(impersonation, off)) {
+    return { triage: 'spam', reply_needed: false, spam_score: c.spam_score, status: 'spam', uncertain_reason: null, criterion: 'impersonation' };
+  }
   // 우리 주소는 «아는 상대» 로 치지 않는다 — 우리가 우리에게 보낸 테스트가 스팸 구제되면 안 된다(설계 §2③).
   const known = !!isKnownContact && !isSelfSender(fromEmail, ownEmails);
 
@@ -609,12 +614,16 @@ function triageBySenderOnly({ subject, bodyText, fromEmail, ownEmails }) {
 //                           헤더 없이 triage 를 다시 계산하면 광고가 사람 메일로 뒤집힌다
 //                           (실제로 그랬다 — 109건이 human 으로 뒤집혀 백업에서 복원했다).
 //   순서는 triageInbound 와 같다 — 두 경로가 갈라지면 안 된다.
-function retriageStored({ triage, subject, bodyText, fromEmail, headers, ownEmails, ownMatcher, isKnownContact = false, headersComplete = false, off = null }) {
+function retriageStored({ triage, subject, bodyText, fromEmail, headers, ownEmails, ownMatcher, isKnownContact = false, headersComplete = false, off = null, impersonation = null }) {
   // 헤더가 있으면 동기화와 같은 문을 그대로 지난다 — 판정 로직이 두 벌로 갈라지지 않는다.
   if (headersComplete) {
-    return triageInbound({ subject, bodyText, fromEmail, headers, ownEmails, ownMatcher, isKnownContact, off });
+    return triageInbound({ subject, bodyText, fromEmail, headers, ownEmails, ownMatcher, isKnownContact, off, impersonation });
   }
   const on = (id) => CAT.isOn(id, off);
+  // 사칭 의심 격리 — triageInbound 와 같은 자리(맨 앞).
+  if (require('./mailImpersonation').shouldQuarantine(impersonation, off)) {
+    return { triage: 'spam', status: 'spam', reply_needed: false, uncertain_reason: null, criterion: 'impersonation' };
+  }
   const known = !!isKnownContact && !isSelfSender(fromEmail, ownEmails);
 
   if (triage === 'spam') {

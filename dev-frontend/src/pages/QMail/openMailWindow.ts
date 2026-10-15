@@ -20,6 +20,8 @@ export function openMailWindow(opts: {
   subtitle?: string;
   srcDoc?: string;
   text?: string | null;
+  /** 사칭 격리본 — 평문에 링크를 걸지 않는다 */
+  linksDisabled?: boolean;
 }): boolean {
   const w = Math.min(1100, Math.max(720, Math.round(window.screen.availWidth * 0.7)));
   const h = Math.min(900, Math.max(600, Math.round(window.screen.availHeight * 0.85)));
@@ -33,7 +35,7 @@ export function openMailWindow(opts: {
   const body = opts.srcDoc
     ? `<iframe id="pq-body" sandbox="allow-scripts" referrerpolicy="no-referrer"></iframe>`
     // escape 뒤에 링크를 건다 — 순서가 바뀌면 우리가 넣은 태그가 escape 되거나 본문 태그가 살아난다.
-    : `<pre class="plain">${linkifyEscapedHtml(esc(opts.text || ''))}</pre>`;
+    : `<pre class="plain">${opts.linksDisabled ? esc(opts.text || '') : linkifyEscapedHtml(esc(opts.text || ''))}</pre>`;
 
   win.document.open();
   win.document.write(`<!DOCTYPE html><html lang="ko"><head><meta charset="utf-8">

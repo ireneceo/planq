@@ -41,6 +41,8 @@ interface MsgTransState { text?: string; lang?: string; showing: boolean; loadin
 interface Props {
   messages: Message[];
   threadId: number;
+  /** 사칭 격리본 — 평문 본문도 링크를 걸지 않는다(HTML 은 서버가 이미 href 를 뗐다). docs/MAIL_IMPERSONATION_DESIGN.md §3 */
+  linksDisabled?: boolean;
   accountEmail: string;
   /** #260 — 전체 화면 읽기 헤더에 쓸 스레드 제목 */
   subject?: string;
@@ -78,7 +80,7 @@ interface Props {
 export default function ThreadMessages(p: Props) {
   const {
     addressActions,
-    messages, threadId, accountEmail, subject, myUserId, businessId, expandedMsgIds, toggleMsg,
+    messages, threadId, linksDisabled, accountEmail, subject, myUserId, businessId, expandedMsgIds, toggleMsg,
     frameH, msgCidData, msgTrans, setMsgTrans,
     translateMsg, cancelTranslate, startForward, foldLabels, toAddrList, formatTimeAgo, t,
     transLangByMsg, setTransLangByMsg, guessLangFromText, pickTranslateTarget, uiLang,
@@ -292,6 +294,7 @@ export default function ThreadMessages(p: Props) {
                   subtitle: sub,
                   srcDoc: m.body_html ? buildMailSrcDoc(m.id, m.body_html, msgCidData[m.id], foldLabels) : undefined,
                   text: m.body_text,
+                  linksDisabled,
                 });
                 if (!opened) setFullMsgId(m.id);
               }}
@@ -376,7 +379,7 @@ export default function ThreadMessages(p: Props) {
                   운영 실측: message #3517 은 body_html 이 NULL 이고 본문에 초대 링크가 있는데
                   누를 수가 없었다(Irene 신고). HTML 메일에만 링크가 있어서 같은 메일함 안에서
                   규칙이 갈렸다 → 채팅·댓글과 **같은 함수**(utils/linkify)를 쓴다. */}
-              {linkify(m.body_text || '') }
+              {linksDisabled ? (m.body_text || '') : linkify(m.body_text || '')}
             </MessageBodyText>
           )}
           {/* ★ 2026-09-18 (Irene: *"이메일 상세에 첨부파일 위치가 애매해. 내용에 바로 아래 첨부파일
@@ -465,6 +468,7 @@ export default function ThreadMessages(p: Props) {
           : undefined}
         srcDoc={fullMsg && fullMsg.body_html ? buildMailSrcDoc(fullMsg.id, fullMsg.body_html, msgCidData[fullMsg.id], foldLabels) : undefined}
         text={fullMsg ? fullMsg.body_text : null}
+        linksDisabled={linksDisabled}
       />
     </>
   );

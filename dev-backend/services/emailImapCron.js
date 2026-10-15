@@ -532,8 +532,8 @@ async function isPlanqSentTwin({ account, parsed, toEmails }) {
   });
 }
 
-/** 스팸함 메일은 항상 새 스레드 — 진행 중 대화에 끼어들지 못하게(Fable 판정 ①). */
-async function createProviderSpamThread({ account, parsed }) {
+/** 스팸함 메일·사칭 격리 메일은 항상 새 스레드 — 진행 중 대화에 끼어들지 못하게(Fable 판정 ① · 사칭 설계 §2). */
+async function createProviderSpamThread({ account, parsed, origin = 'provider' }) {
   const normSubj = normalizeSubject(parsed.subject);
   const thread = await EmailThread.create({
     business_id: account.business_id,
@@ -546,7 +546,7 @@ async function createProviderSpamThread({ account, parsed }) {
     participants: [],
     message_count: 0,
     unread_count: 0,
-    spam_origin: 'provider',
+    spam_origin: origin,
     spam_since: new Date(),
   });
   return { thread, isNew: true };
@@ -700,7 +700,8 @@ async function syncExtraFolders(conn, ctx, opts = {}) {
  */
 async function purgeProviderSpam({ now = new Date(), days = SPAM_RETENTION_DAYS } = {}) {
   const cutoff = new Date(now.getTime() - days * 86400000);
-  const pred = { spam_origin: 'provider', status: 'spam', spam_since: { [Op.lt]: cutoff } };
+  // 사칭 격리(impersonation)도 같은 수명이다 — 스팸 폴더의 보존 규칙은 하나(docs/MAIL_IMPERSONATION_DESIGN.md §2).
+  const pred = { spam_origin: { [Op.in]: ['provider', 'impersonation'] }, status: 'spam', spam_since: { [Op.lt]: cutoff } };
   const rows = await EmailThread.findAll({ where: pred, attributes: ['id', 'business_id'], raw: true, limit: 20000 });
   const byBiz = new Map();
   for (const r of rows) { if (!byBiz.has(r.business_id)) byBiz.set(r.business_id, []); byBiz.get(r.business_id).push(r.id); }
@@ -792,8 +793,28 @@ async function ingestMessage(ctx, { r, uid, box, role = 'inbox', isBackfill }) {
   // thread 매칭
   //   ★ 스팸함 메일은 **항상 새 스레드**다(Fable 판정 ①) — In-Reply-To 를 꾸며 진행 중 대화에 끼어드는 것을 막는다.
   //   ★ 보낸편지함 메일은 보낸 사람이 «나» 라 제목+참여자 매칭을 받는 사람(to/cc)으로 한다(Fable 판정 6).
-  const { thread, isNew } = role === 'spam'
-    ? await createProviderSpamThread({ account, parsed })
+  // ── 사칭 검사 (docs/MAIL_IMPERSONATION_DESIGN.md) — 스레드를 고르기 **전에** 본다.
+  //   강한 근거면 받은편지함 메일도 새 스레드로 격리한다(In-Reply-To 를 꾸며 진행 중 대화에 끼는 것이 사칭의 목적이다).
+  //   업체 스팸함 메일은 이미 스팸 — 판정만 남겨 스팸 폴더에 «왜» 를 보인다. 우리가 보낸 사본은 보지 않는다.
+  const ownCopy = role === 'sent'
+    || (role !== 'spam' && require('./emailAddress').isOwnSentCopy({ fromEmail, toEmails, ccEmails, selfEmails, ownEmails }));
+  let impersonation = null;
+  let quarantined = false;
+  let criteriaOff = null;
+  if (!ownCopy) {
+    try {
+      criteriaOff = await require('./mailCriteria').offFor(account.business_id);
+      const IMP = require('./mailImpersonation');
+      const impKnown = role === 'inbox' ? await isKnownContact(account.business_id, fromEmail) : false;
+      const ctxImp = await IMP.contextOf(account.business_id);
+      impersonation = IMP.stamp(IMP.assess({ ...IMP.inputFromParsed(parsed, { fromEmail, fromName }), ...ctxImp, known: impKnown }));
+      quarantined = role === 'inbox' && IMP.shouldQuarantine(impersonation, criteriaOff);
+    } catch (e) { console.warn('[mailImpersonation] assess', e.message); }
+  }
+  // 스팸 취급(고객 연결·첨부 파일 저장·알림·자동 추출 제외)은 업체 스팸과 사칭 격리가 같다.
+  const spammy = role === 'spam' || quarantined;
+  const { thread, isNew } = spammy
+    ? await createProviderSpamThread({ account, parsed, origin: quarantined ? 'impersonation' : 'provider' })
     : await findOrCreateThread({
       businessId: account.business_id,
       accountId: account.id,
@@ -814,8 +835,7 @@ async function ingestMessage(ctx, { r, uid, box, role = 'inbox', isBackfill }) {
   //   ★ 보낸 사람은 **이 계정(+별칭)** 으로만 본다 — 동료 계정이 고객에게 보내며 나를 참조한 메일은 나에겐 새 메일이다.
   //   ★ 보낸편지함 메일은 받는 칸에 내 주소가 없어 isOwnSentCopy 가 못 잡는다 — 역할로 정한다(Fable 판정 2).
   //   ★ 스팸함 메일은 우리 사본이 아니다 — 보낸 사람이 우리 주소로 꾸며져 있어도 받은 메일로 둔다.
-  const ownCopy = role === 'sent'
-    || (role !== 'spam' && require('./emailAddress').isOwnSentCopy({ fromEmail, toEmails, ccEmails, selfEmails, ownEmails }));
+  // (ownCopy 는 위 사칭 검사 앞에서 정했다)
   // 보낸편지함 메일의 받는 사람이 전부 우리 주소면 «답했다» 가 아니다(전달·메모 — Fable 판정 ②)
   const internalOnly = role === 'sent' && isInternalOnly({ toEmails, ccEmails, selfEmails, ownEmails, ownMatcher });
 
@@ -831,7 +851,7 @@ async function ingestMessage(ctx, { r, uid, box, role = 'inbox', isBackfill }) {
   ];
   let clientId = thread.client_id || null;
   // ★ 스팸 스레드는 고객에 걸지 않는다(Fable 판정 5) — clientTimeline 은 client_id 만 보므로 걸면 고객 이력에 스팸이 뜬다.
-  if (role !== 'spam') try {
+  if (!spammy) try {
     const linked = await require('./mailLink').linkThread(thread, { addresses: linkAddrs });
     clientId = linked.client_id ?? clientId;
   } catch (e) {
@@ -882,7 +902,7 @@ async function ingestMessage(ctx, { r, uid, box, role = 'inbox', isBackfill }) {
   if (Array.isArray(parsed.attachments) && parsed.attachments.length > 0) {
     for (const att of parsed.attachments) {
       // ★ 스팸함 첨부는 파일로 저장하지 않는다(쿼터·검색 오염) — 이름·크기만 메타로 남긴다.
-      const fileId = role === 'spam' ? null : await saveAttachmentAsFile({
+      const fileId = spammy ? null : await saveAttachmentAsFile({
         businessId: account.business_id,
         att,
         account,
@@ -938,7 +958,20 @@ async function ingestMessage(ctx, { r, uid, box, role = 'inbox', isBackfill }) {
   const isLatest = role !== 'sent' || isNew || !thread.last_message_at
     || new Date(msgAt).getTime() > new Date(thread.last_message_at).getTime();
   // 우리가 보낸 사본은 받은 메일 판정을 하지 않는다 — PlanQ 에서 답장했을 때와 같게 둔다(routes/email_threads 답장 경로).
-  if (role === 'spam') triageFields = { status: 'spam', triage: 'spam', reply_needed: false, spam_origin: 'provider', spam_since: new Date() };
+  if (role === 'spam') triageFields = { status: 'spam', triage: 'spam', reply_needed: false, spam_origin: 'provider', spam_since: new Date(), ...(impersonation ? { impersonation } : {}) };
+  else if (quarantined) {
+    // 사칭 격리 — 규칙(mailSenderRules)도 건너뛴다. 키워드 규칙이 피싱 문구에 걸려 답변 필요로 꺼내면 안 된다.
+    triageFields = {
+      status: 'spam', triage: 'spam', reply_needed: false, spam_origin: 'impersonation', spam_since: new Date(),
+      triage_criterion: 'impersonation', uncertain_reason: null, impersonation,
+    };
+    try {
+      await require('./auditService').writeAudit({
+        action: 'mail.quarantine_impersonation', targetType: 'email_thread', targetId: thread.id, businessId: account.business_id,
+        newValue: { codes: impersonation.signals.filter((x) => x.level === 'strong').map((x) => x.code) },
+      });
+    } catch (e) { console.warn('[mailImpersonation] audit', e.message); }
+  }
   else if (role === 'sent' && (!isLatest || internalOnly)) triageFields = {};
   else if (ownCopy) triageFields = { reply_needed: false, reply_needed_reason: 'replied', ...(thread.status === 'uncertain' ? { status: 'open' } : {}) };
   else try {
@@ -958,8 +991,8 @@ async function ingestMessage(ctx, { r, uid, box, role = 'inbox', isBackfill }) {
     });
     // 본문은 text 가 없으면 HTML 을 글자로 — 재판정과 같은 함수(triageBodyOf). HTML 전용 메일이 제목만으로 판정됐다.
     // 이 워크스페이스가 끈 분류 기준(설정 › 메일 분류 기준) — 엔진은 꺼진 기준이 없는 것처럼 돈다.
-    const criteriaOff = await require('./mailCriteria').offFor(account.business_id);
-    const base = triageInbound({ subject: parsed.subject, bodyText: require('./emailTriage').triageBodyOf(parsed.text, parsed.html), fromEmail, headers: trHeaders, ownEmails, ownMatcher, isKnownContact: known, off: criteriaOff });
+    if (!criteriaOff) criteriaOff = await require('./mailCriteria').offFor(account.business_id);
+    const base = triageInbound({ subject: parsed.subject, bodyText: require('./emailTriage').triageBodyOf(parsed.text, parsed.html), fromEmail, headers: trHeaders, ownEmails, ownMatcher, isKnownContact: known, off: criteriaOff, impersonation });
     // 학습된 발신자 규칙이 휴리스틱보다 우선한다 (사용자가 직접 알려준 정답).
     //   규칙은 분류만 바꾼다 — 원본 메일은 그대로라 규칙 삭제 시 즉시 원상복구.
     // #344 — 문구 규칙(제목·본문·키워드)을 보려면 규칙 엔진에 그 내용을 같이 줘야 한다.
@@ -974,6 +1007,8 @@ async function ingestMessage(ctx, { r, uid, box, role = 'inbox', isBackfill }) {
     });
     // 백필(과거 메일)은 읽기만 — 이미 다른 데서 처리했을 가능성이 높다.
     if (isNew && isBackfill) triageFields.reply_needed_reason = 'backfill';
+    // 사칭 경고(격리 아님) — 스레드 배지. 여러 메시지면 가장 센 것(사람이 풀어 준 표시는 유지).
+    if (impersonation) triageFields.impersonation = require('./mailImpersonation').mergeLevels(thread.impersonation, impersonation);
   } catch (e) { console.warn('[emailTriage]', e.message); }
   await thread.update({
     message_count: thread.message_count + 1,
@@ -990,7 +1025,7 @@ async function ingestMessage(ctx, { r, uid, box, role = 'inbox', isBackfill }) {
 
   // #235 — 분류가 끝난 **직후**가 자동추출 판정 시점이다(그 전엔 reply_needed 가 없다).
   //   백필 제외·scope 판정·디바운스는 전부 services/mailAutoExtract 안에 있다.
-  if (role !== 'spam') try {
+  if (!spammy) try {
     require('./mailAutoExtract').scheduleFromInbound({ thread, account, isBackfill, io });
   } catch (e) { console.warn('[mailAutoExtract] schedule', e.message); }
 
@@ -1011,7 +1046,7 @@ async function ingestMessage(ctx, { r, uid, box, role = 'inbox', isBackfill }) {
   //   여태 socket broadcast 만 하고 notify 호출이 없어 알림이 0건이었다 (CLAUDE.md §13).
   //   범위는 계정별 notify_scope, 수신자 분기(개인=본인만 / 회사=멤버 전원)는 mailNotify 안에서.
   //   과거분 백필(isBackfill)은 알리지 않는다 — 옛 메일 수백 통이 한꺼번에 울린다.
-  if (!isBackfill && !ownCopy && role !== 'spam') {
+  if (!isBackfill && !ownCopy && !spammy) {
     try {
       const { notifyInboundMail } = require('./mailNotify');
       await notifyInboundMail({

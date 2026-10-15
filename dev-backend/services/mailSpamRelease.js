@@ -11,8 +11,14 @@
 //   업체 쪽(Gmail·네이버)의 스팸 표시는 그대로다 — 우리는 업체에 아무것도 쓰지 않는다. 화면이 그것을 말한다.
 const { EmailMessage } = require('../models');
 
-async function releaseProviderSpam(thread) {
-  const base = { spam_origin: null, spam_since: null };
+// ★ 2026-10-15 — 사칭 격리(spam_origin='impersonation')도 같은 문으로 푼다(docs/MAIL_IMPERSONATION_DESIGN.md §2).
+//   풀면 impersonation.released_at 을 적는다 — 그 값이 있으면 재판정이 다시 격리하지 않는다(경고 배지는 남는다).
+//   복원은 학습하지 않는다 — 흉내 낸 도메인에 허용 규칙을 심는 것이 공격자가 바라는 바다.
+async function releaseQuarantined(thread) {
+  const released = thread.impersonation
+    ? { impersonation: { ...thread.impersonation, level: 'warn', released_at: new Date().toISOString() } }
+    : {};
+  const base = { spam_origin: null, spam_since: null, ...released };
   const msg = await EmailMessage.findOne({
     where: { thread_id: thread.id, direction: 'inbound' },
     order: [['sent_at', 'DESC'], ['id', 'DESC']],
@@ -38,6 +44,7 @@ async function releaseProviderSpam(thread) {
     ownMatcher,
     isKnownContact: known,
     off: await require('./mailCriteria').offFor(businessId),
+    impersonation: released.impersonation || null,   // 경고로 낮춘 값 — 격리 분기를 다시 타지 않는다
   });
   const tr = await applyRules(businessId, fromEmail, triaged, { subject: msg.subject, bodyText: msg.body_text });
 
@@ -69,4 +76,6 @@ async function releaseProviderSpam(thread) {
   return { retriaged: true, status: fields.status, reply_needed: !!fields.reply_needed };
 }
 
-module.exports = { releaseProviderSpam };
+// 옛 이름 — 호출부 호환.
+const releaseProviderSpam = releaseQuarantined;
+module.exports = { releaseQuarantined, releaseProviderSpam };

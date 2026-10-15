@@ -57,6 +57,8 @@ export default function MailRulesSection({ businessId }: Props) {
   const [matchField, setMatchField] = useState<MailSenderRule['match_field']>('subject');
   const [markImportant, setMarkImportant] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  // 차단 목록 보기 — 스팸으로 배운·넣은 규칙만(2026-10-15, docs/MAIL_IMPERSONATION_DESIGN.md §6). 새 화면이 아니라 이 목록의 거르기다.
+  const [onlySpam, setOnlySpam] = useState(false);
   // 저장 전 미리보기 · 저장 후 소급 적용 결과 — 둘 다 "이 조건이 무엇을 잡았는지" 를 말한다.
   const [preview, setPreview] = useState<MailRulePreview | null>(null);
   const [applied, setApplied] = useState<{ matched: number; changed: number; verdict: MailSenderRule['verdict'] } | null>(null);
@@ -273,8 +275,18 @@ export default function MailRulesSection({ businessId }: Props) {
           description={t('rules.empty.body', { defaultValue: '같은 발신자를 두 번 "답변 불필요" 하면 자동으로 규칙이 만들어집니다. 직접 추가할 수도 있습니다.' }) as string}
         />
       ) : (
+        <>
+        <KindTabs role="tablist" data-testid="mail-rules-filter">
+          <KindTab role="tab" type="button" $on={!onlySpam} onClick={() => setOnlySpam(false)}>
+            {t('rules.filterAll', { n: rules.length }) as string}
+          </KindTab>
+          <KindTab role="tab" type="button" $on={onlySpam} data-testid="mail-rules-filter-spam" onClick={() => setOnlySpam(true)}>
+            {t('rules.filterSpam', { n: rules.filter((r) => r.verdict === 'spam').length }) as string}
+          </KindTab>
+        </KindTabs>
+        {onlySpam && rules.every((r) => r.verdict !== 'spam') && <Muted>{t('rules.filterSpamEmpty') as string}</Muted>}
         <List>
-          {rules.map((r) => {
+          {rules.filter((r) => !onlySpam || r.verdict === 'spam').map((r) => {
             const tone = VERDICT_TONE[r.verdict];
             return (
               <Row key={r.id}>
@@ -303,6 +315,7 @@ export default function MailRulesSection({ businessId }: Props) {
             );
           })}
         </List>
+        </>
       )}
       <ConfirmDialog
         isOpen={!!deleteAsk}

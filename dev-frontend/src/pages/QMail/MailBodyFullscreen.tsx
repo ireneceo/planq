@@ -28,9 +28,11 @@ interface Props {
   srcDoc?: string;
   /** HTML 이 없는 메일의 평문 본문 */
   text?: string | null;
+  /** 사칭 격리본 — 평문에 링크를 걸지 않는다 */
+  linksDisabled?: boolean;
 }
 
-const MailBodyFullscreen: React.FC<Props> = ({ open, onClose, title, subtitle, srcDoc, text }) => {
+const MailBodyFullscreen: React.FC<Props> = ({ open, onClose, title, subtitle, srcDoc, text, linksDisabled }) => {
   const { t } = useTranslation('qmail');
   const ref = useRef<HTMLDivElement>(null);
   useBodyScrollLock(open);
@@ -61,7 +63,7 @@ const MailBodyFullscreen: React.FC<Props> = ({ open, onClose, title, subtitle, s
             ? <Frame sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox" srcDoc={srcDoc} title={title || 'mail'} />
             /* 평문도 링크는 눌려야 한다 — 상세와 **같은 함수**를 쓴다(진입점마다 갈라지면
                "여기선 되는데 저기선 안 된다" 가 된다). */
-            : <PlainText>{text ? linkify(text) : (t('detail.noContent', { defaultValue: '(내용 없음)' }) as string)}</PlainText>}
+            : <PlainText>{text ? (linksDisabled ? text : linkify(text)) : (t('detail.noContent', { defaultValue: '(내용 없음)' }) as string)}</PlainText>}
         </Body>
       </Panel>
     </Backdrop>,

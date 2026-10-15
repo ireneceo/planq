@@ -572,6 +572,12 @@ router.get('/:businessId/email-threads/:id',
         follow_up_days: tj.follow_up_days ?? null,
         // 업체 스팸함에서 가져온 스레드인가 — 화면이 «Gmail·네이버에서도 스팸 해제해 주세요» 를 말하는 근거
         spam_origin: tj.spam_origin || null,
+        triage_criterion: tj.triage_criterion || null,
+        // 사칭 판정 — 상세 안내 줄이 신호별 «왜» 를 말한다(원문 없이 코드·호스트·코드포인트만).
+        impersonation: tj.impersonation && tj.impersonation.level ? {
+          level: tj.impersonation.level, signals: (tj.impersonation.signals || []).slice(0, 20),
+          known: !!tj.impersonation.known, released: !!tj.impersonation.released_at,
+        } : null,
         unread_count: tj.unread_count || 0,
         message_count: tj.message_count || 0,
         labels: tj.labels || [],
@@ -588,7 +594,9 @@ router.get('/:businessId/email-threads/:id',
           //   메일 본문의 97~100% 가 이 덩어리라(실측), 이걸 빼면 스레드 응답이 2MB → 수십 KB 가 된다.
           //   실제 바이트는 프론트가 **펼친 메시지 것만** 따로 받아간다(useInlineCidImages 경로 재사용).
           const strip = stripEmbeddedImages(mj.body_html);
-          const bodyOut = strip.html;
+          // 사칭 격리본은 링크를 죽여서 보낸다(글자만) — 경고만 뜬 메일은 그대로(docs/MAIL_IMPERSONATION_DESIGN.md §3).
+          const bodyOut = tj.status === 'spam' && tj.spam_origin === 'impersonation'
+            ? require('../services/mailImpersonation').disarmLinks(strip.html) : strip.html;
           return {
             id: mj.id,
             direction: mj.direction,
@@ -737,12 +745,14 @@ router.post('/:businessId/email-threads/:id/mark-not-spam',
       // 업체 스팸함에서 가져온 스레드면 받은 메일 판정(관계·규칙·고객 연결)을 지금 돌린다 — services/mailSpamRelease.
       //   사용자가 받은편지함에서 스팸 표시했던 것은 종전대로 상태만 되돌린다.
       //   ★ 업체(Gmail·네이버) 쪽 스팸 표시는 그대로다 — 화면이 provider_origin 을 보고 그쪽에서도 해제하라고 말한다.
-      const providerOrigin = thread.spam_origin === 'provider';
+      //   ★ 사칭 격리(spam_origin='impersonation')도 같은 문 — 수집 때 건너뛴 판정을 지금 돌리고 released_at 을 남긴다.
+      const origin = thread.spam_origin || null;
+      const providerOrigin = origin === 'provider';
       let release = null;
-      if (providerOrigin) release = await require('../services/mailSpamRelease').releaseProviderSpam(thread);
+      if (origin) release = await require('../services/mailSpamRelease').releaseQuarantined(thread);
       else await thread.update({ status: 'open' });
-      const nextStatus = providerOrigin ? (release && release.status) || thread.status : 'open';
-      logAudit(req, { action: 'mail.mark_not_spam', targetType: 'email_thread', targetId: thread.id, businessId: Number(req.params.businessId), oldValue: { status: 'spam', spam_origin: providerOrigin ? 'provider' : null }, newValue: { status: nextStatus, spam_origin: null } });
+      const nextStatus = origin ? (release && release.status) || thread.status : 'open';
+      logAudit(req, { action: 'mail.mark_not_spam', targetType: 'email_thread', targetId: thread.id, businessId: Number(req.params.businessId), oldValue: { status: 'spam', spam_origin: origin }, newValue: { status: nextStatus, spam_origin: null } });
       return successResponse(res, { id: thread.id, status: nextStatus, provider_origin: providerOrigin });
     } catch (err) { next(err); }
   }

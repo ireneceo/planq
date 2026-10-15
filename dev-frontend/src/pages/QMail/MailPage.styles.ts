@@ -1227,3 +1227,16 @@ export const LearnClose = styled.button`
   font-size: 1rem; color: #64748B; border-radius: 6px;
   &:hover { background: #CCFBF1; }
 `;
+
+// 사칭 의심 (2026-10-15, docs/MAIL_IMPERSONATION_DESIGN.md §3) — 자리·형태는 UncertainBadge 와 같고 톤만 위험(빨강).
+//   폰은 title 이 안 뜬다 → 글자를 늘 보인다.
+export const ImpersonationBadge = styled(UncertainBadge)`
+  background: #FEE2E2; color: #B91C1C;
+`;
+// 스팸 폴더의 «왜 여기 왔나» — 회색 알약(RuleBadge 와 같은 모양).
+export const SpamReasonBadge = styled(RuleBadge)``;
+// 사칭 의심 안내 줄 — 상세 본문 위(SpamProviderNote 와 같은 자리·모양, 위험 톤).
+export const ImpersonationNote = styled(SpamProviderNote)`
+  background: #FEF2F2; border-color: #FECACA; color: #991B1B;
+  ul { margin: 4px 0 0; padding-left: 18px; }
+`;

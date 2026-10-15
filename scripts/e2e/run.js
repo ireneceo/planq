@@ -27,6 +27,7 @@ const SUITES = {
   //   판정은 응답이 아니라 **DB** 다: 실제 결함이 `updated:0` 이라고 답하면서 데이터를 고쳤다.
   tenantwrite: () => require('./canary-tenant-write'),
   mail: () => require('./canary-mail-triage'),  // 메일 판정 카나리 (실 mailparser 헤더 — 조용히 눈감는 계열)
+  mailimpersonation: () => require('./canary-mail-impersonation'),  // 메일 사칭 판정 (양성 8·음성 8·반증 2 — docs/MAIL_IMPERSONATION_DESIGN.md §8)
   // 메일 **검색**이 조용히 누락하지 않는가 (2026-09-15 Irene: "보낸 사람 이름으로 검색해도 안 나와").
   //   흔한 단어가 섞이면 옛 LIMIT 1000(무정렬)이 27% 를 잘라내고 있었다 — 오류 없이.
   mailsearch: () => require('./canary-mail-search'),

@@ -185,6 +185,7 @@ import {
   ComposeDraftStatus,
   PromoteErrTag, InquiryFilterBar, InquiryFilterClear, SentViaBar, SentViaHint,
   LearnBar, LearnText, LearnLink, LearnClose,
+  ImpersonationBadge, SpamReasonBadge, ImpersonationNote,
 } from './MailPage.styles';
 
 type Folder = 'reply_needed' | 'uncertain' | 'all' | 'sent' | 'marketing' | 'following' | 'spam' | 'archived';
@@ -218,7 +219,15 @@ interface Thread {
   // #384 — 이 대화의 후속 알림 기간. null=기본(3일) · 0=끔 · N=N일
   follow_up_days?: number | null;
   /** 'provider' = 업체(Gmail·네이버) 스팸함에서 가져온 스레드 — 30일 뒤 자동 삭제, 스팸 해제는 업체 쪽에도 따로 해야 한다 */
-  spam_origin?: 'provider' | null;
+  spam_origin?: 'provider' | 'impersonation' | null;
+  /** 이 폴더를 정한 기준 id(services/mailCriteriaCatalog) — 스팸 폴더 행의 «왜» */
+  triage_criterion?: string | null;
+  /** 사칭 판정(services/mailImpersonation.rowView) — 있으면 행에 «사칭 의심» 배지 */
+  //   목록은 codes, 상세는 signals(신호별 코드·호스트·코드포인트 — 원문 없음)를 싣는다.
+  impersonation?: {
+    level: 'warn' | 'quarantine'; codes?: string[]; released?: boolean; known?: boolean;
+    signals?: { code: string; level: 'strong' | 'weak'; detail: string }[];
+  } | null;
   status: string;
   reply_needed: boolean;
   reply_needed_at?: string | null;
@@ -2712,6 +2721,18 @@ const MailPage: React.FC = () => {
                       </FollowUpChip>
                     )
                   )}
+                  {/* 사칭 의심 — 서버 판정(services/mailImpersonation) 그대로. 격리된 것은 «격리» 까지 말한다. */}
+                  {mt.impersonation && (
+                    <ImpersonationBadge data-testid="mail-row-impersonation" title={t('impersonation.rowHint') as string}>
+                      ⚠ {t(mt.status === 'spam' && mt.spam_origin === 'impersonation' ? 'impersonation.rowQuarantined' : 'impersonation.row') as string}
+                    </ImpersonationBadge>
+                  )}
+                  {/* 스팸 폴더 — 왜 스팸인가(업체 스팸함 / 규칙 / 직접 표시 / 자체 판정). 사칭은 위 배지가 말한다. */}
+                  {folder === 'spam' && mt.status === 'spam' && mt.spam_origin !== 'impersonation' && (
+                    <SpamReasonBadge data-testid="mail-row-spam-reason">
+                      {t(`spamFolder.reason.${mt.spam_origin === 'provider' ? 'provider' : mt.rule_id ? 'rule' : mt.triage_criterion === 'spam_filter' ? 'filter' : 'manual'}`) as string}
+                    </SpamReasonBadge>
+                  )}
                   {/* 확인 권장 뱃지는 처리 버튼과 같은 줄에 둔다 — 따로 두면 빈 줄이 생기고 행이 길어진다.
                       확인 권장 폴더가 아닐 때만 단독 표시(그 폴더에선 아래 처리 줄에 함께 나온다). */}
                   {mt.status === 'uncertain' && folder !== 'uncertain' && (
@@ -3282,6 +3303,25 @@ const MailPage: React.FC = () => {
               </DetailMetaBar>
               <MessagesScroll ref={scrollRef}>
                 {/* 업체 스팸함에서 온 스레드 — 여기서 해제해도 업체 쪽 스팸 표시는 그대로다. 버튼을 누르는 화면에서 말한다(폰은 목록이 안 보인다). */}
+                {/* 사칭 의심 — 왜 그런지 신호별 한 줄(docs/MAIL_IMPERSONATION_DESIGN.md §3). 격리본은 링크가 꺼져 있다고 말한다. */}
+                {detail.impersonation && (
+                  <ImpersonationNote role="note" data-testid="mail-impersonation-note">
+                    <strong>
+                      {t(detail.status === 'spam' && detail.spam_origin === 'impersonation'
+                        ? 'impersonation.noteQuarantined' : detail.impersonation.released
+                          ? 'impersonation.noteReleased' : 'impersonation.noteWarn') as string}
+                    </strong>
+                    <ul>
+                      {[...new Set((detail.impersonation.signals || []).map((sg) => sg.code))].map((code) => (
+                        <li key={code}>{t(`impersonation.signal.${code}`) as string}</li>
+                      ))}
+                    </ul>
+                    {detail.impersonation.known && <span>{t('impersonation.knownHint') as string} </span>}
+                    <a href="/guide/a/qmail-spam-impersonation" target="_blank" rel="noopener noreferrer">
+                      {t('impersonation.learnMore') as string}
+                    </a>
+                  </ImpersonationNote>
+                )}
                 {detail.status === 'spam' && detail.spam_origin === 'provider' && (
                   <SpamProviderNote role="note" data-testid="mail-spam-provider-note">
                     {t('spamFolder.detailNote', { defaultValue: '업체(Gmail·네이버) 스팸함에서 가져온 메일이에요. 스팸이 아니면 ⋯ 메뉴에서 «스팸 해제» 하고, Gmail·네이버에서도 스팸 해제해 주세요. 들어온 지 30일이 지나면 자동으로 지워집니다.' }) as string}
@@ -3290,6 +3330,7 @@ const MailPage: React.FC = () => {
                 <ThreadMessages
                   messages={displayMessages}
                   threadId={detail.id}
+                  linksDisabled={detail.status === 'spam' && detail.spam_origin === 'impersonation'}
                   accountEmail={detail.account?.email || ''}
                   subject={detail.subject || ''}
                   myUserId={user ? Number(user.id) : null}

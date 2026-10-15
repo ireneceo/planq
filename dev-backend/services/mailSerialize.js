@@ -139,6 +139,10 @@ function serializeThreadRow(t, { folder, senderByThread, lastOutByThread, attach
       uncertain_reason: obj.uncertain_reason,
       spam_score: obj.spam_score,
       triage: obj.triage,
+      // 2026-10-15 — 스팸 폴더 행이 «왜» 를 말한다(사칭 격리·업체 스팸·기준 id). docs/MAIL_IMPERSONATION_DESIGN.md §3·§6
+      spam_origin: obj.spam_origin || null,
+      triage_criterion: obj.triage_criterion || null,
+      impersonation: require('./mailImpersonation').rowView(obj.impersonation),
     };
 }
 

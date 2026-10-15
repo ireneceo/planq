@@ -133,8 +133,11 @@ async function notifyInboundMail({ account, thread, fromName, fromEmail, subject
   }
   if (!userIds.length) return { sent: 0, reason: 'no_recipients' };
 
-  const sender = fromName || (fromEmail || '').split('@')[0] || 'unknown';
-  const subj = String(subject || '(제목 없음)').slice(0, 120);
+  // 알림 제목·본문에는 숨은 글자·방향 뒤집기 문자를 싣지 않는다 — 알림 화면·메일 제목에서 이름을 거꾸로 보이게 하는
+  //   사칭 수법이 그대로 옮겨 간다(docs/MAIL_IMPERSONATION_DESIGN.md · 2026-10-15 실측: 메일 알림 제목에 U+202E).
+  const clean = require('./mailImpersonation').stripFormat;
+  const sender = clean(fromName) || (fromEmail || '').split('@')[0] || 'unknown';
+  const subj = clean(String(subject || '(제목 없음)')).slice(0, 120);
   // #281 — 제목 첫 토큰이 기능명이어야 "채팅인지 메일인지" 가 바로 읽힌다.
   //   제목은 수신자별 언어로 만들어야 하므로 아래 루프 안에서 buildTitle 을 호출한다.
   const titleAction = kind === 'reply' ? 'mail_reply_needed' : 'mail_review';

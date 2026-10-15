@@ -167,6 +167,10 @@ const TERMS = {
 
 /** 카탈로그 — 화면 순서 = 엔진 순서. id 는 email_threads.triage_criterion 에 그대로 남는다. */
 const CATALOG = [
+  // ── 사칭 의심 격리 (모든 기준보다 먼저 — In-Reply-To 를 꾸며 우리 대화에 끼는 것도 막는다). 끄면 격리만 꺼지고 경고 배지는 남는다.
+  //   판정은 services/mailImpersonation.assess 한 함수(docs/MAIL_IMPERSONATION_DESIGN.md).
+  { id: 'impersonation', folder: 'spam', lockable: false, order: 5,
+    examples: ['보낸 사람 «Ama[숨은 글자]zon.co.jp» · 한 글자 다른 «gitconsu1ting.group» · 키릴 «аррӏе.com»'] },
   // ── 답변 필요
   { id: 'thread_reply', folder: 'reply', lockable: true, order: 10 },
   { id: 'known_contact', folder: 'reply', lockable: true, order: 20 },
