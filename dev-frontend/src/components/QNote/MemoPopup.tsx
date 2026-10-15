@@ -163,7 +163,8 @@ const Dropdown = styled.div`
   box-shadow: 0 10px 24px -6px rgba(15, 23, 42, 0.18);
   max-height: 280px;
   overflow-y: auto;
-  z-index: 5;
+  /* 에디터 sticky 툴바(PostEditor Head z 5)와 같은 층이면 DOM 뒤인 툴바가 목록을 덮는다 */
+  z-index: 20;
 `;
 const DropdownItem = styled.button.attrs({ type: 'button' as const })<{ $active?: boolean }>`
   display: block;
