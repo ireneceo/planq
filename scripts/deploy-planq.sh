@@ -518,6 +518,9 @@ sync_database() {
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-team-lead.js 2>&1 | tail -5"
   # 2026-09-21 문의/피드백 구분 — feedback_items.kind ENUM. 신 코드가 kind 를 쓰므로 PM2 reload 전.
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-feedback-kind.js 2>&1 | tail -5"
+  # 2026-10-15 문의·피드백 답 읽음 — feedback_items.reply_seen_at DATETIME NULL(옛 답은 읽음으로 백필, 처음 만들 때만).
+  #   신 코드(모델·확인필요 수집기)가 이 칸을 SELECT 하므로 PM2 reload 전.
+  prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-feedback-reply-seen.js 2>&1 | tail -5"
   # 2026-09-21 랜딩 방문 집계 테이블 2개(CREATE IF NOT EXISTS · 재조회 검증). PM2 reload 전.
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-landing-visits.js 2>&1 | tail -3"
   # 2026-09-21 Sign in with Apple — oauth_connections.provider·ephemeral_tokens.kind ENUM 끝 append +

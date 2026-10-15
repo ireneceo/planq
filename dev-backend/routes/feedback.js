@@ -3,6 +3,7 @@
 //   GET    /api/feedback/mine         (내 제출 이력)
 //   GET    /api/feedback/admin        (platform_admin 전체 — 상태/카테고리 필터)
 //   PATCH  /api/feedback/:id/respond  (platform_admin — 상태 변경 + 답변)
+//   POST   /api/feedback/:id/seen     (보고자 — 그 스레드의 답을 읽음, 확인필요에서 빠진다)
 const express = require('express');
 const router = express.Router();
 const { Op } = require('sequelize');
@@ -13,6 +14,9 @@ const { successResponse, errorResponse } = require('../middleware/errorHandler')
 const ALLOWED_CATS = ['bug', 'improve', 'feature', 'other'];
 const ALLOWED_STATUS = ['pending', 'reviewing', 'done', 'wontfix'];
 const ALLOWED_PRIORITY = ['normal', 'high'];
+
+// 안 읽은 답 = 답 글이 있고 보고자가 아직 안 읽었다. SQL 쪽은 routes/dashboard.collectFeedbackReplies.
+const hasUnreadReply = (o) => !!(o.admin_response && String(o.admin_response).trim()) && !o.reply_seen_at;
 
 // POST — 사용자 제출 (자동 메타 page_url, user_agent 수집)
 //   parent_id 동봉 시 = 답변 받은 원 피드백에 대한 추가 문의(스레드 자식, #70)
@@ -171,10 +175,39 @@ router.get('/mine', authenticateToken, async (req, res, next) => {
       // 스레드 마지막 항목이 미답변이면 대기 중 (추가문의 후 답변 전 등)
       const lastItem = p.replies.length ? p.replies[p.replies.length - 1] : p;
       p.awaiting_reply = !lastItem.admin_response;
+      // 안 읽은 답 — 확인필요 수집기(routes/dashboard.collectFeedbackReplies)와 같은 술어
+      p.unread_reply = [p, ...p.replies].some(hasUnreadReply);
     });
     parents.sort((a, b) => new Date(b.last_activity_at) - new Date(a.last_activity_at));
 
     return successResponse(res, parents.slice(0, 50));
+  } catch (err) { next(err); }
+});
+
+// POST /:id/seen — 보고자가 그 스레드를 열었다 → 스레드(최상위 + 추가 문의)의 답을 읽음으로.
+//   본인 것만(남의 id 는 404 — 있는지조차 말하지 않는다). 최상위가 아니면 그 부모 스레드로 본다.
+router.post('/:id/seen', authenticateToken, async (req, res, next) => {
+  // audit-exempt: 본인이 받은 답을 읽었다는 표시뿐 — 내용·권한·상태를 바꾸지 않는다(메시지 읽음과 같다)
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id <= 0) return errorResponse(res, 'not_found', 404);
+    const item = await FeedbackItem.findByPk(id, { attributes: ['id', 'user_id', 'parent_id'] });
+    if (!item || item.user_id !== req.user.id) return errorResponse(res, 'not_found', 404);
+    const rootId = item.parent_id || item.id;
+    const [updated] = await FeedbackItem.update({ reply_seen_at: new Date() }, {
+      where: {
+        user_id: req.user.id,
+        [Op.or]: [{ id: rootId }, { parent_id: rootId }],
+        admin_response: { [Op.ne]: null },
+        reply_seen_at: null,
+      },
+    });
+    if (updated > 0) {
+      // 같은 사람의 다른 기기·창 배지도 내려가게(신호만)
+      const io = req.app.get('io');
+      if (io) io.to(`user:${req.user.id}`).emit('inbox:refresh', { reason: 'feedback_seen' });
+    }
+    return successResponse(res, { updated });
   } catch (err) { next(err); }
 });
 

@@ -16,6 +16,7 @@ export type TodoType =
   | 'sale'           // Q sale — 답 안 한 문의·미확인 자동기록·다음 할 일 없음·계정 요청 (담당자 귀속)
   | 'planq_subscription'
   | 'booking'        // 고객 창구 상담 신청(담당 멤버에게) — services/todo/bookingBucket.js
+  | 'feedback_reply' // 문의·피드백에 운영팀 답이 왔는데 아직 안 읽음 (워크스페이스 무관 — routes/dashboard.collectFeedbackReplies)
   | 'chat';  // PlanQ 플랫폼 → 워크스페이스 구독 청구 (owner 만)
 
 export type TodoVerb =
@@ -46,7 +47,9 @@ export type TodoVerb =
   | 'sale_next_action'      // 다음 할 일이 없다 — 정한다
   | 'sale_account_request'
   | 'chat_unread' // 게스트가 계정을 요청했다 — 초대를 보낸다
-  | 'schedule';   // 상담 신청 — 승인·다른 시간 제안·거절 중 하나를 정한다
+  | 'schedule'
+  | 'inquiry_reply'   // 문의 답변 — 읽으면 확인필요에서 빠진다
+  | 'feedback_reply'; // 피드백 답변   // 상담 신청 — 승인·다른 시간 제안·거절 중 하나를 정한다
 
 export interface TodoWorkspace {
   business_id: number;
@@ -122,6 +125,7 @@ export interface TodoResponse {
   docsCount?: number;           // Q docs 메뉴 — 내가 보낸 서명의 거절·의견
   calendarCount?: number;       // Q calendar 메뉴 — 참석 응답·상담 신청
   attendanceCount?: number;     // 근태 메뉴 — 휴가 승인
+  feedbackCount?: number;       // 문의·피드백 메뉴 — 안 읽은 답이 있는 스레드
   workspaces?: TodoWorkspace[];
 }
 

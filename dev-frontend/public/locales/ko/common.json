@@ -1254,6 +1254,7 @@
     "you": "나",
     "selectPrompt": "왼쪽에서 문의를 선택하면 내용과 답변이 여기에 보여요.",
     "awaiting": "답변 대기",
+    "newReply": "새 답변",
     "answered": "답변 완료",
     "back": "목록으로",
     "filter": {

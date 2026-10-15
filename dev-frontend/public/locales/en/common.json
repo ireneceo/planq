@@ -1254,6 +1254,7 @@
     "you": "You",
     "selectPrompt": "Select an inquiry on the left to see its content and reply here.",
     "awaiting": "Awaiting reply",
+    "newReply": "New reply",
     "answered": "Answered",
     "back": "Back to list",
     "filter": {

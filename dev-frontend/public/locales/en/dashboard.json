@@ -123,7 +123,9 @@
       "sale_account_request": "Needs response — account request",
       "sale_inbox_reply": "Needs response — new inquiry",
       "chat_unread": "New messages",
-      "schedule": "Consultation request — review"
+      "schedule": "Consultation request — review",
+      "inquiry_reply": "Inquiry answered",
+      "feedback_reply": "Feedback answered"
     },
     "relTime": {
       "now": "Just now",

@@ -1039,6 +1039,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
   const docsMenuCount = inboxCounts.docs;
   const calendarMenuCount = inboxCounts.calendar;
   const attendanceMenuCount = inboxCounts.attendance;
+  const feedbackMenuCount = inboxCounts.feedback;  // 문의·피드백 — 안 읽은 답(2026-10-15)
   const saleMenuCount = inboxCounts.sale;  // Q sale 메뉴 뱃지 — 내게 귀속된 영업 확인 항목(확인 필요 total 의 부분집합)
   // N+63 — platform_admin 좌측 inbox badge (feedback + inquiries)
   const adminCounts = useAdminInboxCounts();
@@ -1758,6 +1759,12 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
                         {/* 메뉴명에는 넣지 않고 보조로 — 워크스페이스 안이지만 **솔루션(PlanQ)** 에 대한 문의다 (Irene 2026-09-21) */}
                         <NavSubTag>{t('nav.myFeedbackSub', 'PlanQ')}</NavSubTag>
                       </NavLabel>
+                      {feedbackMenuCount > 0 && (
+                        <InboxBadge $collapsed={isCollapsed} data-testid="nav-badge-feedback"
+                          aria-label={`${t('nav.myFeedback', '문의·피드백')} ${feedbackMenuCount}`}>
+                          {feedbackMenuCount > 99 ? '99+' : feedbackMenuCount}
+                        </InboxBadge>
+                      )}
                     </NavItem>
                   )}
                 </NavSection>

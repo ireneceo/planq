@@ -41,6 +41,8 @@ interface FeedbackThread extends FeedbackItem {
   replies: FeedbackItem[];
   last_activity_at: string;
   awaiting_reply: boolean;
+  /** 운영팀 답을 아직 안 읽음 — 확인필요·메뉴 배지와 같은 술어(서버 routes/feedback.hasUnreadReply) */
+  unread_reply?: boolean;
 }
 
 const CAT_FALLBACK: Record<string, string> = { bug: '버그', improve: '개선', feature: '기능 요청', other: '기타' };
@@ -146,6 +148,24 @@ const MyFeedbackPage = () => {
   const closeDetail = useCallback(() => {
     setParams(prev => { const n = new URLSearchParams(prev); n.delete('item'); return n; }, { replace: false });
   }, [setParams]);
+
+  // 스레드를 열면 답을 읽은 것 — 확인필요·문의·피드백 메뉴 배지에서 빠진다(2026-10-15).
+  //   알림·확인필요 링크(?item=)로 바로 들어와도 목록이 오고 나서 한 번 찍힌다.
+  const selectedUnread = !!selected?.unread_reply;
+  const selectedThreadId = selected?.id ?? null;
+  useEffect(() => {
+    if (!selectedThreadId || !selectedUnread) return;
+    let cancelled = false;
+    apiFetch(`/api/feedback/${selectedThreadId}/seen`, { method: 'POST' })
+      .then(r => r.json())
+      .then(j => {
+        if (cancelled || !j?.success) return;
+        setThreads(prev => prev.map(th => (th.id === selectedThreadId ? { ...th, unread_reply: false } : th)));
+        window.dispatchEvent(new CustomEvent('inbox:refresh'));
+      })
+      .catch(() => { /* 실패하면 표시는 그대로 — 다음에 열 때 다시 찍는다 */ });
+    return () => { cancelled = true; };
+  }, [selectedThreadId, selectedUnread]);
 
   // 선택 바뀌면 추가 문의 입력 초기화
   useEffect(() => { setFollowup(''); setResultMsg(null); setComposeOpen(false); }, [selectedId]);
@@ -282,6 +302,8 @@ const MyFeedbackPage = () => {
                     <KindTag $inq={isInquiry(th)} data-kind={isInquiry(th) ? 'inquiry' : 'feedback'}>{kindLabel(th)}</KindTag>
                     {!isInquiry(th) && <Cat>{catLabel(th.category)}</Cat>}
                     <Status $bg={tone.bg} $fg={tone.fg}>{statusLabel(th.status)}</Status>
+                    {/* 안 읽은 답 — 상태 칩과 같은 모양, 포인트 색(코랄) */}
+                    {th.unread_reply && <Status $bg="#FFE4E6" $fg="#BE123C" data-testid="feedback-new-reply">{t('myFeedback.newReply')}</Status>}
                     {th.awaiting_reply && <AwaitDot title={t('myFeedback.awaiting') as string} />}
                   </RowTop>
                   <RowTitle><HighlightText text={th.title} query={search} /></RowTitle>

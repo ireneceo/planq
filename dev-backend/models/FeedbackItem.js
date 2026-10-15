@@ -73,6 +73,11 @@ FeedbackItem.init({
     references: { model: 'users', key: 'id' },
   },
   responded_at: { type: DataTypes.DATE, allowNull: true },
+  // 보고자가 답을 읽은 시각 (2026-10-15). 답(admin_response)이 있는데 NULL 이면 «확인필요» 에 뜬다
+  //   (routes/dashboard.collectFeedbackReplies). 답할 때 NULL 로 되돌리고(services/feedbackRespond),
+  //   보고자가 /me/feedback 에서 그 스레드를 열면 찍는다(POST /api/feedback/:id/seen).
+  //   운영: scripts/migrate-feedback-reply-seen.js(멱등 · 옛 답변은 읽은 것으로 백필) — 코드보다 먼저.
+  reply_seen_at: { type: DataTypes.DATE, allowNull: true },
 }, {
   sequelize,
   tableName: 'feedback_items',

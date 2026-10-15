@@ -1015,6 +1015,7 @@
       "admin_response",
       "responded_by",
       "responded_at",
+      "reply_seen_at",
       "created_at",
       "updated_at",
       "parent_id",
