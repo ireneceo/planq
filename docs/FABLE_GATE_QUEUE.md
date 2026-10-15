@@ -12,6 +12,12 @@
 > `R=1 OR (S=1 AND F=0)` 은 공용 기준으로 대체됐다(뜻은 같다).
 
 
+### 2026-10-15 미출근인데 업무 «자리 비움·재개» — 설계 판정 (design · 방 a9337893)
+- 원인(운영 읽기): 업무 542 세션 236 — 자동 출근 11초 뒤 [취소] → 근태 행만 지워지고 포커스 2h40m 계속 → 자리 비움 자동 멈춤.
+- 판정: ①취소 = 그 워크스페이스의 살아 있는 세션 **종료**(stop, end_reason `undo_clock_in`) · 업무 상태 그대로 · 측정 초 그대로 누적. «시간만 재고 출근은 싫다» 는 설정 auto_clock_in_on_focus 의 일. 문구 autoUndoHint 에 «업무 시간 측정도 함께 멈춥니다». 재개 자동 출근 유지.
+  ②원인 1(GET /focus/current 범위) 고친다 — 다른 워크스페이스 세션이면 `{other_workspace, business_id}` 만(제목·id·경과 없음), 위젯 한 줄 + 전환, 숨기지 않음. 원인 2 고친다 — autoClose 2차 패스: 기준 시각(paused_at | last_activity_at | started_at)이 그 워크스페이스 tz 오늘 00:00 이전이면 `day_end` 로 stop(근태 닫기 먼저).
+  ③stopActiveFocus 에 businessId 범위 인자. 검증: 취소 양성·다른 ws 세션 무변 음성 · /current 원문에 제목 0 + 대조군 · day_end 양성·오늘 세션 음성·근태 열린 세션은 clock_out(순서). 커밋 셋으로.
+
 ### 2026-10-12 Cue 턴 과금(질문 1회 · 실행 0) + 질문자 줄 — 완료 **PASS** (방 004312ae · Irene «권고대로»)
 - 변경: /help workspace 턴은 카드 유무와 무관 `help` 1회 · execute-action·묶음 확정은 계량·한도 게이트 없음(executeTool meter:false, runTool 은 provider cue∧meter false 만 게이트 생략) · 외부 MCP 는 그대로 1회·게이트 · 프롬프트에 `[질문자] 이름 (user_id)` — «담당자는 나» 가 다른 멤버로 잡히던 결함.
 - 실측: 카드 턴 +1 · 실행 +0 · replayed · 묶음 2건 +0 · 한도 끝(30/30) 질문 422 / 카드 실행 201 · MCP 30/30 QUOTA_EXCEEDED · Cue 담당 자동실행은 cue_task_executor 한도가 막음 · 질문자 15→15, 17→17, 고객·비멤버·null 줄 없음.
