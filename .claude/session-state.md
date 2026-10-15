@@ -1,6 +1,8 @@
 ## 현재 작업 상태
 
-### 답 기다림: 정기 점검 10/15 배포 — 자체 검증만으로 배포할까요? (방 5b9aefa0 · 2026-10-15 · [Opus]) — 파일 변경 없음(이 기록만)
+### 완료: 정기 점검 10/15 — 배포 안 함 (방 5b9aefa0 · 2026-10-15 · [Opus]) — 파일 변경 없음(이 기록만)
+- Irene 답(01:21): *"이제 fable 돼. 그런데 배포 지금 하지 말자. 그냥 이 업무 완료해"* → 배포하지 않고 점검 종료. 새 커밋 5개는 다음 배포 때. Fable 대기 7건은 상황판 대기 그대로(한도 풀림 — 각 방이 이어 받음).
+- (아래는 질문 당시 기록)
 - 무엇: 운영 c7c38dc2 뒤 새 커밋 5개(2511febc·35479644·feeda6f3·b4f2e531·11e4c1b8, 모두 «Fable 안 씀» + 자체 검증 숫자 위 각 절) 배포 여부.
 - 왜 멈춤: PlanQ Fable 대기 7건 — 게이트 5건(설문 v2·업무 결과물 액션·팀 캘린더 고르기·dev-login·관리자 컨펌자/알림 ws)은 10-13 배포로 이미 운영에 있음, 설계 2건(초대 인앱 알림·미출근 재개)은 구현 없음. 상황판 질문 askmv8unwts(16:00Z 만료).
 - 답이 «예» 면: `./scripts/deploy-planq.sh --routine` → 보고에 «Fable 미검증(자체 검증·Irene 확인) 배포: 위 7건 대기 유지». Fable 대기 항목은 지우지 않는다.
@@ -58,15 +60,12 @@
 - 태그 필터는 안 넣음 — 일정에는 태그가 없고 업무 태그도 캘린더 응답에 안 실린다(새 데이터·설계 필요).
 - Fable 안 씀(UI 배치 — 필터 판정·저장 규칙 불변).
 
-### 나중에 — Fable 대기: 관리자 컨펌자 추가 + 다른 워크스페이스 알림 링크 (방 f12b6666 · 2026-10-13 · [Opus]) — 커밋 416a13dc·a6d95df2, 운영 미배포
-- 원문 *"관리자가 다른 사람 업무 컨펌다 추가를 못해. 왜? 그리고 알림을 누르면 다른 워크스페이스로 갈 경우 채팅방 제대로 안열리고 리스트로 열려 … 모든 경로가 워크스페이스 다른 경우 처음만 딱 다르게 제대로 디렉션 해줘."*
-- ① 원인: 서버 `canManageReviewers` 가 owner 만(admin 빠짐) · 화면 `canAddReviewer` 는 담당·요청자만(owner·admin 둘 다 빠짐). → owner|admin(볼 수 있는 업무 조건 유지).
-- ② 원인: 푸시·메일은 모든 워크스페이스 알림이 한 기기·메일함에 오는데 링크에 워크스페이스가 없었다 → 지금 워크스페이스에서 그 id 를 못 찾고 목록으로.
-  → 푸시·메일 링크에 `?ws=`(notification_link.withWorkspace, 인앱 행 제외) · 화면 `utils/workspaceLink` 한 벌을 부팅(ModeGate, 전환 중 로딩만)·앱 알림(NativeBridge)·앱 루트 착지·로그인 뒤 돌아가기 네 문이 쓴다.
-- 자체 검증: 실HTTP 멤버 403×2 / admin 추가 200·재조회 1·제거 200·0(역할 원복) · 실브라우저 health-check(ws 5·73) 3폭×3사례 9/9 · 대조군(ws 없는 옛 링크) 73 에 남고 방 안 열림 재현 · build EXIT 0 error TS 0 · guard 68/69(posts.js godfile 기존).
-- 확인 못 함: 네이티브 앱 콜드 스타트 실기기 · 로그인 전 링크 경로 · 이미 나간 옛 푸시(ws 없음)는 종전대로.
-- 언제: Fable 한도가 풀리면(상황판 Fable 대기). 그때 할 일: /fable-검증(범위 9a7f5124..a6d95df2) → PASS 면 마커·상황판 done · FAIL 이면 지적 수정. **운영 배포는 Fable 통과 뒤.**
-
+### 완료: 관리자 컨펌자 추가 + 다른 워크스페이스 알림 링크 (방 f12b6666 · 2026-10-13~15 · [Opus]) — Fable PASS, 커밋 416a13dc·a6d95df2·b6257d78, 운영 미배포
+- ① 서버 canManageReviewers owner→owner|admin(볼 수 있는 업무만) · 화면 canAddReviewer 같은 술어 · PERMISSION_MATRIX 갱신.
+- ② 푸시·메일 링크 ?ws= (notification_link.withWorkspace) · 화면 utils/workspaceLink 를 ModeGate·NativeBridge·앱 루트 착지·로그인 뒤 네 문이 사용.
+- Fable PASS(2026-10-15): 실HTTP L1 남의 업무 admin/owner 404 · L2/L3 200 · 실브라우저 9/9 + 로그인 전 링크 4/4 · 대조군 재현 · guard 68/69 EXIT 0 · health 85/85 · tenant 0.
+- Fable 비차단 지적(다음에 할 것): ⓐ 메일 링크는 호출자 원문 link 를 써서 경로면 상대 href·없으면 CTA 없음 — resolvedLink 절대화로 맞출 것(notifications.js 메일 분기) ⓑ 로그인 전 링크의 planq_boot_deeplink 에 ws 가 남아 tabStore.applyBootPath 가 그대로 탭 경로로 씀 — ModeGate 에서 dl 도 splitWorkspaceParam().clean ⓒ agent/tools/tasks.js add_task_reviewers 설명문 «or a workspace owner» → owner/admin.
+- 확인 못 함: 네이티브 앱 콜드 스타트 실기기.
 ### 완료: 담당자 아니어도 반복하기 + 태블릿 키보드 위 빈 띠 (방 cd805770 · 2026-10-12 · [Opus]) — 운영 미배포
 - 원문 *"왜 내가 담당자가 아니면 반복하기 기능을 못 써? … 아이패드에서 수정/컨펌요청 입력하는데 키보드가 올라오고 이상한 공간이 키보드 위에 … 태블릿 아이패드, 안드로이드 다"*
 - 반복: 업무 추가 폼이 남에게 요청하는 업무에서 반복 칸을 숨기고 서버(task_actions.createTask)도 반복을 지웠다(옛 §5.7). 이제 담당자와 무관하게 칸·저장. 예측시간 sanitize 는 그대로. 업무 상세의 반복 권한에 admin 이 빠져 있던 것도 서버 FIELD_RULES 와 맞춤. CLAUDE.md·PERMISSION_MATRIX §5.7 갱신.
@@ -137,11 +136,11 @@
 - 언제: Fable 한도가 풀리면(상황판 fid fwmv5u9v71 — 10-13 00:58 재시도도 한도로 실패, 10-13 09:44 KL 께 다시 깨움).
 - 그때 할 일: Fable design 1회(D1·D2·D3) → 운영 미수락 초대·«수락했는데 joined_at 없는» 행 읽기 전용 확인(운영 읽기 스크립트는 이 방에서 권한 거부됨) → 판정대로 구현(businesses.js 초대 · migrate 스크립트 배포 슬롯 · services/inviteNotify) → 문서 3절 검증 → Fable gate → fable-wait done.
 
-### 나중에 — Fable 대기: 미출근인데 업무 «자리 비움 감지·재개» (방 a9337893 · 2026-10-12 · [Opus]) — 코드 변경 없음
-- 원인 확정(운영 읽기 전용): 업무 542 세션 236(ws 1, user 1) — 03:20:52 업무 시작·자동 출근 → **03:21:03 자동 출근 [취소]** → 근태는 미출근(하루 행 삭제)인데 업무 측정은 계속 2h40m → 06:00 무활동 자동 멈춤 → «자리 비움 감지 · 재개». 같은 워크스페이스·같은 날 → 정찰 원인 1·2 무관, **3번(undoAutoClockIn 이 포커스를 안 건드림) 확정**.
-- 언제: Fable 한도가 풀리면(상황판이 10-13 12:45 KL 께 깨움, fid fwmv60qzs4 · 이전 fwmv5bisyd·fwmv5bcyux — 재시도 2회 모두 한도로 실패).
-- 그때 할 일: Fable design 1회 — ①취소 때 세션 그대로/멈춤/종료(«출근만 싫고 시간 추적은 원함» 가능성 고려) ②원인 1(focus/current 워크스페이스 범위)·2(날 넘긴 세션 정리) 같이 고칠지 ③검증 대조군. 판정대로 구현(attendanceTransition.undoAutoClockIn · focus.js · FocusWidget · locales) → 3폭·API 검증 → 상황판 fable-wait done. 계획 .claude/plans/qmv590ace.md.
-
+### 완료: 미출근인데 업무 «자리 비움 감지·재개» (방 a9337893 · 2026-10-12~15 · [Opus]+[Fable 설계 1]) — 커밋 59f9ba65·e8d3aeb0·ec327235·3329651c, 운영 미배포
+- 원인(운영 읽기): 업무 542 세션 236 — 자동 출근 11초 뒤 [취소] → 근태 행만 지워지고 측정 2h40m 계속 → 자리 비움 자동 멈춤.
+- Fable 설계 판정(docs/FABLE_GATE_QUEUE.md 2026-10-15): ①취소 = 그 워크스페이스 세션 종료(undo_clock_in) ②/focus/current 범위 — 다른 워크스페이스면 «다른 곳에서 진행 중» 한 줄+전환 ③자동 마감 2차 패스 — 근태 없이 날 넘긴 세션 day_end.
+- 자체 검증: 실HTTP 취소→stopped/undo_clock_in·업무 in_progress·current null · ws7 세션 무변(범위 끈 대조군 FAIL) · ws7 창 응답 원문에 제목·task_id 0(범위 끈 대조군 FAIL) · day_end/오늘 무변/clock_out 순서(2차 패스 끈 대조군 FAIL) · 위젯 3폭 other_workspace·재개 없음 · build EXIT 0·error TS 0 · guard 68/69 통과.
+- 완료 검증 Fable 안 씀 — 정해진 설계의 구현이고 판정이 전부 기계(대조군)로 갈림. 운영 세션 236 은 배포 뒤 첫 자동 마감이 day_end 로 닫는다.
 ### 완료: 묶음 3건 중 1건 — 모바일 업무 상세 제목 가림 (방 53a6ad69 · 2026-10-12 · [Opus]) — 운영 미배포
 - ① e4a918c2: 업무 상세의 포커스 바(sticky top:0)가 제목 **위**에 있어 폰에서 조금만 스크롤해도 제목을 덮었다(390 실측) → 제목 아래·메타 앞으로. 4폭(390·360·834·1440) 실측: 열었을 때 제목 위 겹침 0, 스크롤 시 바는 제목이 지나간 뒤에만 붙음. build 0 · guard 68/69 · --suite mobilechrome 0. Fable 안 씀(UI 배치). 확인용 업무 3774(ws 6, owner 담당·진행중).
 - ②·③ 대기열 앞으로 되돌림(설계 필요): 초대 인앱 알림 = 기존 계정 초대가 수락 전부터 멤버 권한(getUserScope·워크스페이스 목록이 joined_at 미확인) → Fable 설계부터 · 미출근인데 «자리 비움 감지·재개» = 근태↔포커스 규칙 3건(Fable 설계 + 운영 세션 행 확인). 정찰 계획 qmv5802hf·qmv590ace.
