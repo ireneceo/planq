@@ -1,5 +1,11 @@
 # Fable 게이트 대기열 → **판정 기록 보관소** (2026-10-08 부터)
 
+## 2026-10-15 · 업무 «결과물 액션» 1단계 (커밋 5c180d58) — **PASS** [Fable gate]
+- 실HTTP 86검사(85 PASS + 1건 자기 픽스처 오류 — DB 로 재측정 시 포함) · taskactions 3폭 0 실패(대조군 6) · tenant 0 · health EXIT 0 · guard 68/69(비통과 = DOCFRESH 경고) · 마이그레이션 멱등.
+- 권한: 비담당 /link·해제 403 only_assignee(owner 포함) · 고객 403/404 · 테넌트 ws6↔ws7 전부 404 · L1 draft hidden · 회차 박제(deliverable-versions·submit-review) 모두 액션 첨부 포함 · 반복 회차 pending·링크 0.
+- 비차단: ① 자체 보고의 guard 비통과 원인은 posts.js godfile 이 아니라 DOCFRESH ② platform_admin 은 소속 아닌 워크스페이스 업무에도 액션을 «적을» 수 있다(수행은 담당자만, 전역 계약과 같음 — 설계 문서에 한 줄) ③ deliverable-versions 응답에 attachment_ids 없음(기존).
+
+
 > ⚠️ **이제 상황판 Fable 대기를 쓴다.** 한도로 Fable 을 못 부르면 여기 쌓지 않고 상황판 `/api/fable-wait` 에 올린다
 > (공용 기준 `~/dev-server/FABLE.md` 5절 · PlanQ 장치는 CLAUDE.md «Fable 사용» 절 · 절차는 `.claude/commands/fable-검증.md`).
 > 상황판이 한도가 풀리면 방을 깨워 다시 올리게 한다.

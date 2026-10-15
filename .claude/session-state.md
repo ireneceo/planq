@@ -85,11 +85,12 @@
 - Fable 판정 PASS(2026-10-15, docs/FABLE_GATE_QUEUE.md 맨 위) · 마커 by:fable · 상황판 대기 done. 비차단: PUT 의 구글 목록 호출이 401/403 외 오류면 500 · 상세 GET 1회 추가.
 - 확인용: 일정 1260 «[확인용] 팀 일정 (PlanQ)»(ws 6).
 
-### 나중에 — Fable 대기: 업무 «결과물 액션» 1단계 완료 검증 (방 c43d9583 · 2026-10-12 · [Opus]) — 구현·자체 검증 끝, 커밋 5c180d58, 운영 미배포
+### 완료: 업무 «결과물 액션» 1단계 (방 c43d9583 · 2026-10-12~15 · [Opus]+[Fable 설계 1·검증 1 PASS]) — 커밋 5c180d58, 운영 미배포
 - 설계 docs/TASK_ACTIONS_DESIGN.md(Fable 설계 · Irene «권고대로»). 표 task_action_items + services/taskActionItems(fulfill·unlink·발행 완료·첨부 삭제 pending·linkedTasksOf·handoff·회차 복사) + routes/task_action_items + 문서·일정 ?from_action= 넘겨받기(hooks/useFromActionHandoff·FromTaskBanner) + 업무 상세 «결과물 액션» 칸 + 문서 밴드2 «업무:» 칩.
 - 운영: scripts/migrate-task-action-items.js 배포 슬롯 등록(migrate-task-security-level 뒤, 코드보다 먼저).
 - 자체 검증: 실HTTP 42/42 · --suite taskactions 42/42(3폭, 넘겨받기 버그 수정 전 9건 실패) · health 85/85 · tenant 0 · guard 68/69(posts.js godfile 기존) · delivver 12/12 · docsheader 13/13.
-- 언제: Fable 한도가 풀리면(상황판 Fable 대기). 그때 할 일: /fable-검증(범위 1331db50..5c180d58) → PASS 면 마커·상황판 done · FAIL 이면 지적 수정. **운영 배포는 Fable 통과 뒤.** 그 뒤 2단계(메일·프로젝트)는 별도 승인 없이.
+- Fable gate PASS(2026-10-15, 실HTTP 86검사 · 테넌트 404 · 비담당 403 · 회차 박제 포함) — 판정 docs/FABLE_GATE_QUEUE.md. 비차단: guard 비통과 원인은 DOCFRESH(godfile 아님) · platform_admin 도 액션 적기 가능(설계 문서에 적음).
+- 다음: 2단계(메일·프로젝트) — 별도 승인 없이 설계 §7 대로, 새 방에서.
 - 확인용: 업무 3803(ws 6, 담당 member2 · 액션 3) · 문서 2768.
 
 ### 완료: 정기 점검 10/13 00:15 (방 76727e26 · 2026-10-12 · [Claude Code]) — 파일 변경 없음(이 기록만)
