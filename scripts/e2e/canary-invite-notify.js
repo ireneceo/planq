@@ -67,8 +67,45 @@ async function one(label, viewport, results) {
   }
 }
 
+// 받는 이메일에 이미 계정이 있으면 그 계정만 수락한다(2026-10-15 Irene «권고대로») — 다른 계정으로 열면
+//   «지금 계정으로 수락» 이 **없어야** 하고, 계정 없는 이메일 초대(대조군)에는 **있어야** 한다.
+async function ownedInvite(results) {
+  const rows = [];
+  const { browser, page } = await b.launch();
+  try {
+    await page.setViewport({ width: 1440, height: 900 });
+    for (const [label, email] of [['owned', 'member2@test.planq.kr'], ['unowned', `ic-own-${Date.now()}@invite-check.test`]]) {
+      const token = crypto.randomBytes(24).toString('hex');
+      const [id] = await sequelize.query(
+        `INSERT INTO business_members (business_id, user_id, role, invited_by, invited_at, invite_token, invite_email, created_at, updated_at)
+         VALUES (7, NULL, 'member', 1, NOW(), ?, ?, NOW(), NOW())`, { replacements: [token, email] });
+      rows.push({ id, token, label });
+    }
+    await b.login(page);
+    for (const r of rows) {
+      await b.goto(page, `/invite/${r.token}`);
+      await b.sleep(3000);
+      r.st = await page.evaluate(() => ({
+        mismatch: !!document.querySelector('[data-testid="invite-email-mismatch"]'),
+        acceptCurrent: !!document.querySelector('[data-testid="invite-accept-current"]'),
+      }));
+    }
+    const own = rows[0].st; const un = rows[1].st;
+    results.push({ name: 'owned-no-accept-current', ok: own.mismatch && !own.acceptCurrent,
+      msg: own.mismatch && !own.acceptCurrent ? '계정 있는 이메일 초대: «지금 계정으로 수락» 없음' : `🔴 계정 있는 이메일 초대: mismatch=${own.mismatch} 지금계정수락=${own.acceptCurrent}` });
+    results.push({ name: 'unowned-accept-current', ok: un.mismatch && un.acceptCurrent,
+      msg: un.mismatch && un.acceptCurrent ? '대조군(계정 없는 이메일): «지금 계정으로 수락» 있음' : `🔴 대조군: mismatch=${un.mismatch} 지금계정수락=${un.acceptCurrent}` });
+  } catch (e) {
+    results.push({ name: 'owned-error', ok: false, msg: `🔴 owned: ${e.message}` });
+  } finally {
+    for (const r of rows) await sequelize.query('DELETE FROM business_members WHERE id = ? AND invite_token = ?', { replacements: [r.id, r.token] }).catch(() => {});
+    await browser.close().catch(() => {});
+  }
+}
+
 async function run() {
   const results = [];
+  await ownedInvite(results);
   await one('desktop', { width: 1440, height: 900 }, results);
   await one('phone', { width: 390, height: 844, isMobile: true, hasTouch: true, deviceScaleFactor: 2 }, results);
   return results;

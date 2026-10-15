@@ -8,7 +8,7 @@ const router = express.Router();
 const { authenticateToken } = require('../middleware/auth');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
 // 토큰 해석·수락은 services/invites 한 벌 — 회원가입·OAuth 가입도 같은 함수를 부른다(0-F F-1).
-const { resolveInviteToken, acceptInvite, InviteError } = require('../services/invites');
+const { resolveInviteToken, acceptInvite, InviteError, inviteeAccountOf } = require('../services/invites');
 
 // GET /api/invites/:token — 공개
 router.get('/:token', async (req, res, next) => {
@@ -19,6 +19,8 @@ router.get('/:token', async (req, res, next) => {
     return successResponse(res, {
       type: resolved.type,
       already_linked: resolved.alreadyLinked,
+      // 받는 이메일에 이미 계정이 있나(참/거짓만) — 있으면 화면이 «지금 계정으로 수락»·회원가입을 내지 않는다(그 계정만 수락 가능).
+      invitee_has_account: resolved.alreadyLinked ? undefined : !!(await inviteeAccountOf(resolved)),
       ...resolved.info,
     });
   } catch (err) { next(err); }

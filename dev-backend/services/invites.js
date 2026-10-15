@@ -111,6 +111,20 @@ async function landOn(user, businessId) {
 /** 수락 시점 «중복 흡수» 가 허용되는가 — 그 초대가 **이 사람 앞으로 온 것**일 때만.
  *  다른 주소로 온 초대를 이미 멤버/고객인 계정이 열면(로그인 계정이 달랐다) 흡수가 곧 **남의 초대 삭제**다 —
  *  2026-10-12 신고: 다른 이메일로 로그인한 채 초대 링크를 눌렀더니 초대가 지워지고 «만료되었거나 유효하지 않습니다» 만 남았다. */
+/** 초대받은 이메일의 PlanQ 계정(활성 · 게스트 그림자 아님) — 없으면 null.
+ *  2026-10-15 Irene «권고대로»(Fable 비차단 ①): 받는 사람이 이미 계정이 있다는 것을 **우리가 아는** 초대는 그 계정만 수락한다.
+ *  계정 없는 이메일 초대는 종전대로 토큰 소지자가 고른 계정으로 수락(«다른 주소로 가입» 흐름 유지). */
+function inviteEmailOf(resolved) {
+  const r = resolved?.record;
+  if (!r) return '';
+  return String((resolved.type === 'project_client' ? r.contact_email : r.invite_email) || '').trim();
+}
+async function inviteeAccountOf(resolved) {
+  const email = inviteEmailOf(resolved);
+  if (!email) return null;
+  return User.findOne({ where: { email, status: 'active', is_guest: false }, attributes: ['id'] });
+}
+
 function isSameInvitee(user, inviteEmail, prefilledUserId) {
   if (prefilledUserId && Number(prefilledUserId) === Number(user.id)) return true;
   const a = String(inviteEmail || '').trim().toLowerCase();
@@ -148,6 +162,9 @@ async function acceptInviteInner(user, resolved, opts = {}) {
     }
     throw new InviteError('already_accepted', 400);
   }
+  // 받는 사람이 이미 계정이면 그 계정만 받는다 — 링크(메일·앱 알림·푸시)를 가진 다른 계정이 대신 합류하지 못하게.
+  const invitee = await inviteeAccountOf(resolved);
+  if (invitee && Number(invitee.id) !== Number(user.id)) throw new InviteError('invite_for_other_account', 403);
 
   const t = await sequelize.transaction();
   try {
@@ -318,4 +335,4 @@ async function notifyInviterOnAccept(inviterUserId, projectId, kind, accepterUse
   });
 }
 
-module.exports = { resolveInviteToken, acceptInvite, InviteError, notifyInviterOnAccept };
+module.exports = { resolveInviteToken, acceptInvite, InviteError, notifyInviterOnAccept, inviteeAccountOf };

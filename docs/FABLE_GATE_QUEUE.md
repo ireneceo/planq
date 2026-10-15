@@ -33,6 +33,11 @@
 > `R=1 OR (S=1 AND F=0)` 은 공용 기준으로 대체됐다(뜻은 같다).
 
 
+### 2026-10-15 초대 이메일이 계정이면 그 계정만 수락 — 검증 PASS (gate · 방 3a26aed0)
+- Irene «권고대로»(앞 검증 비차단 ①). services/invites.inviteeAccountOf(활성·비게스트) → acceptInvite 403 invite_for_other_account · 공개 GET invitee_has_account · InvitePage 지금 계정 수락·회원가입 숨김.
+- Fable 독립 15/15 · e2e invitenotify 0 · health 85/85 · guard 68/69. 대조군(검사 끔) 3/10 뒤집힘.
+- 비차단: ①정지 계정 이메일 초대는 남이 수락 가능 → status != deleted 로 넓히기(다음 사이클) ②회원가입/OAuth 가입 + 남의 계정 앞 토큰 → 워크스페이스 0개 계정(막다른 길은 아님) — register 에서 초대 가입 분기 제외 권고(별건) ③공개 GET 계정 유무 참/거짓 노출 수용.
+
 ### 2026-10-15 워크스페이스 초대 인앱 알림 — 설계 판정 DESIGN-OK (design · 방 3a26aed0)
 - 정정 2: 프로젝트 고객 초대는 기존 계정이면 초대 순간 contact_user_id·고객 채널 부여(의도, 10-07 B7) → «수락하세요» 가 아니라 «추가되었습니다». unreadEscalationCron ESCALATE_KINDS 에 invite → 인앱만 보내도 5분 뒤 두 번째 메일.
 - D1 (가) 멤버 초대 user_id prefill 중단 + 백필. 술어 user_id NOT NULL ∧ joined_at NULL ∧ invite_token NOT NULL ∧ invite_email NOT NULL ∧ removed_at NULL ∧ role∉owner,ai. 대상별 그 biz audit_logs 0건 → user_id NULL / 1건↑ → joined_at=첫 audit 시각. --dry-run 기본·행별 출력·감사. 운영 사전 점검 ⒜~⒠(⒝ invite.accept 인데 joined_at NULL = 0 이어야 진행). active_business_id 는 자가치유.

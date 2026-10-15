@@ -44,7 +44,9 @@
     "switchAccount": "Sign in with another account",
     "mismatch": "This invitation was sent to {{invited}}. You're currently signed in as {{current}}.",
     "loginAsInvited": "Sign in as {{invited}}",
-    "acceptAsCurrent": "Accept with current account"
+    "acceptAsCurrent": "Accept with current account",
+    "forOtherAccount": "This invitation is for the {{invited}} account. Sign in with that account to accept it.",
+    "onlyInvitedAccount": "It can only be accepted with that account."
   },
   "time": {
     "justNow": "just now",

@@ -44,7 +44,9 @@
     "switchAccount": "다른 계정으로 로그인",
     "mismatch": "이 초대는 {{invited}} 로 보냈습니다. 지금은 {{current}} 계정으로 로그인되어 있어요.",
     "loginAsInvited": "{{invited}} 로 로그인",
-    "acceptAsCurrent": "지금 계정으로 수락"
+    "acceptAsCurrent": "지금 계정으로 수락",
+    "forOtherAccount": "이 초대는 {{invited}} 계정 앞으로 왔습니다. 그 계정으로 로그인해야 수락할 수 있어요.",
+    "onlyInvitedAccount": "이 초대는 그 계정으로만 수락할 수 있어요."
   },
   "time": {
     "justNow": "방금",

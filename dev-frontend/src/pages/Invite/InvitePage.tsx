@@ -10,6 +10,8 @@ type InviteType = 'project_client' | 'workspace_client' | 'workspace_member';
 interface InviteInfo {
   type: InviteType;
   already_linked: boolean;
+  // 받는 이메일에 이미 PlanQ 계정이 있나 — 있으면 그 계정만 수락할 수 있다(서버 services/invites.inviteeAccountOf)
+  invitee_has_account?: boolean;
   workspace_name?: string;
   project_name?: string;
   client_company?: string | null;
@@ -20,7 +22,7 @@ interface InviteInfo {
 }
 
 // 이 화면이 직접 사람 말로 바꾸는 코드 — 공용 매퍼로 보내면 «처리 중 오류 (…)» 가 된다.
-const INVITE_CODES = ['already_accepted', 'already_member', 'email_mismatch', 'invalid_or_expired_invite', 'invite_expired', 'invite_not_found'];
+const INVITE_CODES = ['already_accepted', 'already_member', 'email_mismatch', 'invalid_or_expired_invite', 'invite_expired', 'invite_not_found', 'invite_for_other_account'];
 
 const InvitePage: React.FC = () => {
   const { token } = useParams<{ token: string }>();
@@ -106,6 +108,7 @@ const InvitePage: React.FC = () => {
     if (code === 'invite_expired') return t('invite.expired', '초대 기간(30일)이 지났습니다. 초대한 분께 다시 보내 달라고 요청해 주세요.');
     if (code === 'invite_not_found') return t('invite.notFound', '이 초대를 찾을 수 없습니다. 취소됐거나 이미 처리된 초대일 수 있어요. 초대한 분께 다시 보내 달라고 요청해 주세요.');
     if (code === 'already_member') return t('invite.alreadyMember', '지금 로그인한 계정({{current}})은 이미 이 워크스페이스에 들어와 있습니다. 초대받은 이메일로 받으려면 그 이메일로 다시 로그인해 주세요.', { current: user?.email || '' });
+    if (code === 'invite_for_other_account') return t('invite.forOtherAccount', '이 초대는 {{invited}} 계정 앞으로 왔습니다. 그 계정으로 로그인해야 수락할 수 있어요.', { invited: invitedEmail });
     if (code === 'email_mismatch') return t('invite.emailMismatch', '이 초대는 다른 이메일 주소로 발송되었습니다. 초대받은 이메일로 로그인해 주세요.');
     if (code === 'already_accepted') return t('invite.alreadyAcceptedError', '이미 수락된 초대입니다.');
     return code;
@@ -172,13 +175,17 @@ const InvitePage: React.FC = () => {
           <>
             <Message data-testid="invite-email-mismatch">
               {t('invite.mismatch', '이 초대는 {{invited}} 로 보냈습니다. 지금은 {{current}} 계정으로 로그인되어 있어요.', { invited: invitedEmail, current: user.email })}
+              {/* 받는 이메일에 이미 계정이 있으면 그 계정만 수락할 수 있다(2026-10-15 Irene «권고대로») — 이유를 같이 말한다 */}
+              {info.invitee_has_account && <> {t('invite.onlyInvitedAccount', '이 초대는 그 계정으로만 수락할 수 있어요.')}</>}
             </Message>
             <ActionBtn onClick={loginAsInvited} data-testid="invite-login-invited">
               {t('invite.loginAsInvited', '{{invited}} 로 로그인', { invited: invitedEmail })}
             </ActionBtn>
-            <SecondaryBtn onClick={handleAccept} disabled={accepting} data-testid="invite-accept-current">
-              {accepting ? t('invite.accepting', '수락 중...') : t('invite.acceptAsCurrent', '지금 계정으로 수락')}
-            </SecondaryBtn>
+            {!info.invitee_has_account && (
+              <SecondaryBtn onClick={handleAccept} disabled={accepting} data-testid="invite-accept-current">
+                {accepting ? t('invite.accepting', '수락 중...') : t('invite.acceptAsCurrent', '지금 계정으로 수락')}
+              </SecondaryBtn>
+            )}
           </>
         ) : user ? (
           <ActionBtn onClick={handleAccept} disabled={accepting}>
@@ -190,9 +197,12 @@ const InvitePage: React.FC = () => {
             <ActionBtn onClick={() => navigate(`/login?redirect=/invite/${token}`)}>
               {t('invite.login', '로그인')}
             </ActionBtn>
-            <SecondaryBtn onClick={() => navigate(`/register?redirect=/invite/${token}`)}>
-              {t('invite.register', '회원가입')}
-            </SecondaryBtn>
+            {/* 받는 이메일에 이미 계정이 있으면 새로 가입한 계정으로는 수락할 수 없다 — 가입 문을 내지 않는다 */}
+            {!info.invitee_has_account && (
+              <SecondaryBtn onClick={() => navigate(`/register?redirect=/invite/${token}`)}>
+                {t('invite.register', '회원가입')}
+              </SecondaryBtn>
+            )}
           </>
         )}
       </Inner>
