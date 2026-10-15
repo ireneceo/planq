@@ -21,6 +21,9 @@ export interface SaleClient {
   status: string | null;
   access_kind: AccessKind;
   has_guest_link: boolean;
+  /** 초대해 같은 행을 올릴 수 있는가 · 받는 주소를 고칠 수 있는가 — 서버 services/clientAccess 판정 */
+  can_invite?: boolean;
+  email_editable?: boolean;
   quota_counted: boolean;
   sales_stage: SaleStage;
   sales_stage_changed_at: string | null;

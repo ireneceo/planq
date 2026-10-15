@@ -577,7 +577,8 @@ export interface ApiClientLite {
   user_id: number | null;   // 초대 수락 전(invited)에는 null — 프로젝트 contact_user_id 매칭용
   // 'prospect' = Q sale 문의 고객(게스트로 정보만 저장). 공개 결제 링크로 청구할 수 있어 목록에 들어온다 —
   //   정식 고객과 구별되게 라벨이 붙는다(상태값 규약: 새 값이 기본값으로 조용히 떨어지면 그게 버그다).
-  status?: 'invited' | 'active' | 'archived' | 'prospect';
+  //   'managed' = 직접 관리 고객(계정 없이 정보만 관리하는 정식 고객) — 정식 고객이라 태그 없이 고른다.
+  status?: 'invited' | 'active' | 'archived' | 'prospect' | 'managed';
   display_name: string | null;
   company_name: string | null;
   biz_name: string | null;

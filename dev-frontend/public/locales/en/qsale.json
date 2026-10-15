@@ -180,7 +180,10 @@
     "memoNone": "No notes — click to add one",
     "promoteToInbox": "Send to consults",
     "proceedConsult": "Start consult",
-    "addRecordShort": "Add"
+    "addRecordShort": "Add",
+    "registerManaged": "Make a client without account",
+    "registerManagedTitle": "Make this a client without an account?",
+    "registerManagedBody": "No email is sent. They become a managed client counted in your client limit, ready for invoices and projects. The sales stage stays as is."
   },
   "record": {
     "kind": {

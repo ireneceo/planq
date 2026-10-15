@@ -263,7 +263,7 @@ router.patch('/:businessId/clients/:clientId', ...writeChain, async (req, res, n
     if (body.phone !== undefined) patch.phone = trimOrNull(body.phone, 40);
     if (body.email !== undefined) {
       // 초대 메일이 이미 나간 고객의 주소를 여기서 바꾸면 초대 토큰과 받는 주소가 갈라진다 — 문의 고객만
-      if (client.status !== 'prospect') return errorResponse(res, 'email_locked_after_invite', 400);
+      if (!require('../services/clientAccess').emailEditable(client)) return errorResponse(res, 'email_locked_after_invite', 400);
       const e = normEmail(body.email);
       if (e && !EMAIL_RE.test(e)) return errorResponse(res, 'invalid_email', 400);
       patch.invite_email = e;

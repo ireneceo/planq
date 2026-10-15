@@ -74,7 +74,8 @@ Client.init({
     // ★ 'prospect'(Q sale 문의 고객 — 계정 없음 + 초대 안 함) 는 **끝에 append** 한다(순번 저장).
     //   값 순서를 바꾸면 sync(alter) 가 거부 없이 테이블을 복사한다(Fable 2026-09-11 실측).
     //   NULL 허용은 운영 DDL 그대로 둔다. 운영 적용: scripts/migrate-qsale.js
-    type: DataTypes.ENUM('invited', 'active', 'archived', 'prospect'),
+    //   'managed'(직접 관리 고객 — 계정 없이 정보만 관리하는 정식 고객, 한도 포함) 2026-10-15: scripts/migrate-client-managed.js
+    type: DataTypes.ENUM('invited', 'active', 'archived', 'prospect', 'managed'),
     defaultValue: 'invited'
   },
   // ─── Q sale 영업 축 (docs/Q_SALE_DESIGN.md §3.1) ───

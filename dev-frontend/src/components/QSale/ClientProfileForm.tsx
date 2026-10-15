@@ -34,7 +34,8 @@ export default function ClientProfileForm({ client, onSave, compact = false }: P
   const [amount, setAmount] = useState(client.expected_amount != null ? String(client.expected_amount) : '');
   const [source, setSource] = useState<SaleSource | ''>(client.sales_source || '');
   // 이메일은 계정이 붙은 뒤에는 못 바꾼다 — 로그인 신원이 그 주소이기 때문이다
-  const emailLocked = client.status !== 'prospect';
+  //   잠금 판정은 서버가 정한다(services/clientAccess.emailEditable — 계정·초대 토큰이 없을 때만 고친다)
+  const emailLocked = !client.email_editable;
   const idp = compact ? 'panel' : 'sale';
   const sourceOptions = useMemo(() => ([
     { value: '', label: '—' },

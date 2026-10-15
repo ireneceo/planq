@@ -30,29 +30,8 @@ const TARGETS = [
   { table: 'notification_prefs', column: 'event_kind', value: 'sale' },
 ];
 
-function parseEnum(type) {
-  const m = String(type).match(/^enum\((.*)\)$/i);
-  if (!m) return null;
-  return [...m[1].matchAll(/'((?:[^']|'')*)'/g)].map((x) => x[1].replace(/''/g, "'"));
-}
-
-async function appendEnum({ table, column, value }) {
-  const [rows] = await sequelize.query(`SHOW COLUMNS FROM \`${table}\` LIKE ?`, { replacements: [column] });
-  if (!rows.length) { console.log(`[migrate-qsale] ${table}.${column} 없음 — skip`); return false; }
-  const col = rows[0];
-  const values = parseEnum(col.Type);
-  if (!values) throw new Error(`${table}.${column} 가 ENUM 이 아니다: ${col.Type}`);
-  if (values.includes(value)) { console.log(`[migrate-qsale] ${table}.${column} 에 '${value}' 이미 있음 — skip`); return false; }
-
-  const next = [...values, value].map((v) => `'${v.replace(/'/g, "''")}'`).join(',');
-  const nullClause = col.Null === 'NO' ? 'NOT NULL' : 'NULL';
-  const defClause = col.Default != null ? ` DEFAULT '${String(col.Default).replace(/'/g, "''")}'` : '';
-  const sql = `ALTER TABLE \`${table}\` MODIFY COLUMN \`${column}\` ENUM(${next}) ${nullClause}${defClause}, ALGORITHM=INPLACE, LOCK=NONE`;
-  if (DRY) { console.log(`[migrate-qsale] (dry) ${sql}`); return true; }
-  await sequelize.query(sql);
-  console.log(`[migrate-qsale] ${table}.${column} +'${value}' (${nullClause}${defClause})`);
-  return true;
-}
+const { appendEnum: appendEnumLib } = require('./lib/enumAppend');
+const appendEnum = (t) => appendEnumLib(sequelize, t, { dry: DRY, tag: 'migrate-qsale' });
 
 async function main() {
   let changed = 0;

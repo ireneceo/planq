@@ -541,6 +541,8 @@ app.use('/api/task-templates', require('./routes/task_templates'));
 // ★ client_links 를 **먼저** 마운트한다 — `/:businessId/:clientId/qnotes` 같은 꼬리 경로가
 //   clients.js 의 `/:businessId/:id` 에 먼저 잡히면 안 된다(Express 는 순서대로 판정한다).
 app.use('/api/clients', require('./routes/client_links'));
+// 초대·재발송·직접 관리 등록 — 고유 꼬리 경로만 든다(clients.js 와 겹치지 않음)
+app.use('/api/clients', require('./routes/client_invites'));
 app.use('/api/clients', require('./routes/clients'));
 // Q sale — 영업 뷰(같은 clients). docs/Q_SALE_DESIGN.md
 //   한 접두어를 세 파일이 나눠 맡는다(라우트 파일 500줄 기준). 권한 체인은 services/saleCommon 한 벌.

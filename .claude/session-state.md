@@ -16,6 +16,15 @@
 
 ---
 
+### 완료: 직접 관리 고객(비가입 고객) (방 d1871180 · 2026-10-15 · [Opus] · Fable 설계 + 게이트 PASS) — 운영 미배포
+- 원문: «고객이 가입을 안 해도 관리자가 정보를 넣고 직접 관리하는 고객도 포함하면 안돼? 청구서나 다양한 관리에 고객정보가 필요한데 굳이 가입할 필요는 없어서.»
+- 설계 docs/CLIENT_MANAGED_DESIGN.md — `clients.status` ENUM 끝 'managed'(정식 고객 한도에 셈) · 술어 `services/clientAccess`(canInviteClient·emailEditable·reactivatedStatusOf) · 응답 can_invite/email_editable.
+- 서버: `routes/client_invites.js`(clients.js 에서 분리 — invite[client_id 행 승격]·managed·register-managed·resend-invite[invited 만]) · clients.js PUT status 입력 제거·invite_email/phone 편집 · 보관 해제는 증거로 되살림·문의 보관 409 · `services/clientResponse.js`.
+- 화면: 고객 관리 [고객 추가] = «초대 보내기 / 직접 관리로 등록» 모드(같은 CreateDrawer) · 계정 없는 고객 드로어 이메일·전화 자동저장 · «이 고객 초대» · Q sale 패널 ⋯ «계정 없이 정식 고객으로»(useClientRelationActions).
+- 운영: `scripts/migrate-client-managed.js` 배포 슬롯 등록(ENUM, PM2 reload 전). 옛 «active+계정없음» 백필은 **수동 `--apply`**(dev 4건 적용함).
+- 검증: 실HTTP 39/39 + 분리 후 9/9 · 대조군 뒤집힘 · 화면 3폭 36/36 · build EXIT 0 · guard 69/70 · secrets 10/10 · e2e tenant,clientlink,salecriteria 0 · **Fable 게이트 PASS**(비차단 3 — docs/FABLE_GATE_QUEUE.md 맨 위).
+- 확인용: ws7 «[확인용] 화면 등록 …»(1614~1616) · «[확인용] 청구 직접관리»(1608, 청구서 4667) · ws7 기타 1606·1607·1610·1611~1613.
+
 ### 완료: 문서(Q docs) 댓글 (방 1abbce29 · 2026-10-15 · [Opus] · Fable 설계 + 게이트 PASS) — 운영 미배포
 - 설계 docs/DOC_COMMENTS_DESIGN.md. 새 표 `post_comments`(internal 팀만 / shared 고객도 봄) · 라우트 `routes/post_comments.js`(GET/POST/DELETE `/api/posts/:id/comments`, posts.js 앞 마운트) · 쓰는 문 `post_actions.createComment/deleteComment`(알림·감사·실시간) · 읽기 `services/postComments.js`.
 - 화면: 문서 보기 모드 첨부 아래 `DocCommentsSection`(공용 NoteThread — visibilityOptions·highlightId 등 확장, 기존 호출부 동작 그대로). 고객 있는 프로젝트 문서만 [팀만|고객도 봄]. 알림 링크 `/docs?post=&comment=` 스크롤·강조. 알림 설정에 «문서 댓글» 행.

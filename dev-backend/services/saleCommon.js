@@ -175,6 +175,9 @@ async function serializeClients(businessId, rows) {
     status: c.status,
     access_kind: c.access_kind,
     has_guest_link: c.has_guest_link,
+    // 관계 축 판정 — 화면은 이 두 값만 본다(services/clientAccess 단일 원천)
+    can_invite: c.can_invite,
+    email_editable: c.email_editable,
     quota_counted: c.status !== 'prospect',
     sales_stage: c.sales_stage,
     sales_stage_changed_at: c.sales_stage_changed_at,

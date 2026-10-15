@@ -33,7 +33,8 @@
     "active": "Active",
     "archived": "Inactive",
     "invited": "Invited",
-    "prospect": "Inquiry"
+    "prospect": "Inquiry",
+    "managed": "Managed"
   },
   "quota": {
     "counted": "Counts toward plan limit",
@@ -137,7 +138,10 @@
     "updated": "Updated",
     "deleted": "Deleted",
     "projectAdded": "Project linked",
-    "projectRemoved": "Project unlinked"
+    "projectRemoved": "Project unlinked",
+    "createdManaged": "Added as managed",
+    "registeredManaged": "Inquiry → managed client",
+    "reinvited": "Invite resent"
   },
   "invitePending": {
     "title": "Invitation pending",
@@ -255,5 +259,27 @@
   "emptyTitle": "Invite your first client",
   "emptyDesc": "A client opens a conversation, and tasks and billing follow from there.",
   "emptyHowto": "How to",
-  "emptyWikiQuery": "Invite a client"
+  "emptyWikiQuery": "Invite a client",
+  "addClient": "Add client",
+  "addModal": {
+    "titleManaged": "Add client — managed",
+    "modeInvite": "Send invite",
+    "modeManaged": "Manage without account",
+    "modeInviteHelp": "Sends an invite email. Once they sign up, the client sees chats, files and invoices themselves.",
+    "modeManagedHelp": "No email is sent. Keep the client's details for invoices, projects and receipts. You can invite them any time later.",
+    "phone": "Phone",
+    "emailOptional": "Email (optional)",
+    "submitManaged": "Add",
+    "errNameOrCompany": "Enter a name or a company",
+    "errExists": "A client with the same email or phone already exists.",
+    "openExisting": "Open that client",
+    "errInvalidEmail": "Invalid email address",
+    "inviteThisTitle": "Invite this client"
+  },
+  "managed": {
+    "title": "Managed client",
+    "desc": "Details only, no account. Use them for invoices, projects and receipts. Invite them if the client should log in and see things directly.",
+    "invite": "Invite this client",
+    "contactHelper": "This client has no account, so you edit these here. The email is locked once an invite is sent."
+  }
 }

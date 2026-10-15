@@ -180,7 +180,10 @@
     "memoNone": "메모 없음 — 눌러서 남기기",
     "promoteToInbox": "상담으로 보내기",
     "proceedConsult": "상담 진행",
-    "addRecordShort": "응대 추가"
+    "addRecordShort": "응대 추가",
+    "registerManaged": "계정 없이 정식 고객으로",
+    "registerManagedTitle": "계정 없이 정식 고객으로 둘까요?",
+    "registerManagedBody": "메일은 보내지 않습니다. 직접 관리 고객이 되어 정식 고객 한도에 들어가고, 청구서·프로젝트에 씁니다. 영업 단계는 그대로입니다."
   },
   "record": {
     "kind": {

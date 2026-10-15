@@ -33,7 +33,8 @@
     "active": "활성",
     "archived": "비활성",
     "invited": "초대됨",
-    "prospect": "문의 고객"
+    "prospect": "문의 고객",
+    "managed": "직접 관리"
   },
   "quota": {
     "counted": "한도: 포함",
@@ -137,7 +138,10 @@
     "updated": "정보 수정",
     "deleted": "삭제",
     "projectAdded": "프로젝트 연결",
-    "projectRemoved": "프로젝트 연결 해제"
+    "projectRemoved": "프로젝트 연결 해제",
+    "createdManaged": "직접 관리로 등록",
+    "registeredManaged": "문의 → 직접 관리 고객",
+    "reinvited": "초대 재발송"
   },
   "invitePending": {
     "title": "초대 수락 대기 중",
@@ -255,5 +259,27 @@
   "emptyTitle": "고객을 초대해 보세요",
   "emptyDesc": "고객이 있어야 대화가 열리고, 거기서 업무와 청구까지 이어집니다.",
   "emptyHowto": "사용법",
-  "emptyWikiQuery": "고객 초대하기"
+  "emptyWikiQuery": "고객 초대하기",
+  "addClient": "고객 추가",
+  "addModal": {
+    "titleManaged": "고객 추가 — 직접 관리",
+    "modeInvite": "초대 보내기",
+    "modeManaged": "직접 관리로 등록",
+    "modeInviteHelp": "초대 메일을 보냅니다. 고객이 가입하면 대화·자료·청구서를 직접 봅니다.",
+    "modeManagedHelp": "메일을 보내지 않습니다. 고객 정보만 넣고 청구서·프로젝트·증빙에 씁니다. 나중에 언제든 초대할 수 있어요.",
+    "phone": "전화",
+    "emailOptional": "이메일 (선택)",
+    "submitManaged": "등록",
+    "errNameOrCompany": "이름이나 회사명 중 하나는 넣어 주세요",
+    "errExists": "같은 이메일·전화의 고객이 이미 있습니다.",
+    "openExisting": "그 고객 열기",
+    "errInvalidEmail": "이메일 형식이 맞지 않습니다",
+    "inviteThisTitle": "이 고객 초대"
+  },
+  "managed": {
+    "title": "직접 관리 고객",
+    "desc": "계정 없이 정보만 관리합니다. 청구서·프로젝트·증빙에 쓸 수 있고, 고객이 로그인해 직접 보게 하려면 초대하세요.",
+    "invite": "이 고객 초대",
+    "contactHelper": "계정이 없는 고객이라 여기서 직접 고칩니다. 초대 메일을 보낸 뒤에는 이메일을 바꿀 수 없습니다."
+  }
 }

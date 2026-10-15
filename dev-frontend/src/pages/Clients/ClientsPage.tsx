@@ -20,6 +20,7 @@ import SearchBox from '../../components/Common/SearchBox';
 import HighlightText from '../../components/Common/HighlightText';
 import PlanQSelect from '../../components/Common/PlanQSelect';
 import CreateDrawer from '../../components/Common/CreateDrawer';
+import { SegmentedToggle, SegmentedBtn } from '../../components/Common/segmentedToggle';
 import EmptyState from '../../components/Common/EmptyState';
 import { askCue } from '../../utils/cueAsk';
 import PartnerKindBadge, { usePartnerKindLabel } from '../../components/Common/PartnerKindBadge';
@@ -40,12 +41,13 @@ import AskDialog from '../../components/Common/ConfirmDialog';
 
 // 'prospect' = Q sale 문의 고객(게스트로 정보만 저장 · 초대 전). 계정·관계 축의 값이다.
 //   ★ 새 상태값을 해석하는 곳은 전수로 고친다 — 삼항 사슬 끝(기본값)에 떨어지면 그게 곧 버그다.
-type ClientStatus = 'invited' | 'active' | 'archived' | 'prospect';
+// 'managed' = 직접 관리 고객(계정·초대 없이 정보만 관리하는 정식 고객, docs/CLIENT_MANAGED_DESIGN.md).
+type ClientStatus = 'invited' | 'active' | 'archived' | 'prospect' | 'managed';
 
 interface ClientRow {
   id: number;
   business_id: number;
-  user_id: number;
+  user_id: number | null;
   display_name: string | null;
   company_name: string | null;
   notes: string | null;
@@ -69,6 +71,10 @@ interface ClientRow {
   reinvite_count?: number;  // 운영 #52
   /** 초대 메일이 **실제로 나가는 주소**. 아직 가입 전이면 `user` 가 없어 이 값만이 근거다. */
   invite_email?: string | null;
+  phone?: string | null;
+  /** 관계 축 판정 — 서버(services/clientAccess)가 정한 값만 본다. 화면이 status·user_id 로 스스로 판정하지 않는다 */
+  can_invite?: boolean;
+  email_editable?: boolean;
   created_at: string;
   user?: { id: number; name: string; email: string; phone: string | null; avatar_url?: string | null };
   linked_projects?: Array<{ id: number; name: string; status: string; color: string | null; project_type?: string; project_client_id: number }>;
@@ -93,6 +99,7 @@ const STATUS_STYLE: Record<ClientStatus, { bg: string; fg: string }> = {
   archived: { bg: '#E2E8F0', fg: '#475569' },
   invited: { bg: '#FEF3C7', fg: '#92400E' },
   prospect: { bg: '#F1F5F9', fg: '#475569' },
+  managed: { bg: '#E0F2FE', fg: '#075985' },
 };
 
 // 사업자·증빙 정보 개별 필드 — 라벨 + 자동저장 입력 (module-level 로 정의해 재렌더 시 focus 유지)
@@ -166,6 +173,12 @@ export default function ClientsPage() {
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteCompany, setInviteCompany] = useState('');
   const [inviteKind, setInviteKind] = useState<'customer' | 'vendor' | 'freelancer' | 'other'>('customer');
+  // 추가 모드 — 초대 보내기 / 직접 관리로 등록(메일 없음). 같은 폼·같은 CreateDrawer 를 쓴다(새 화면 금지).
+  const [addMode, setAddMode] = useState<'invite' | 'managed'>('invite');
+  const [invitePhone, setInvitePhone] = useState('');
+  // 드로어 «이 고객 초대» — 그 행을 승격한다(새 행 X). 값이 있으면 모드는 초대로 고정된다.
+  const [inviteClientId, setInviteClientId] = useState<number | null>(null);
+  const [existingClientId, setExistingClientId] = useState<number | null>(null);
   const [inviteSubmitting, setInviteSubmitting] = useState(false);
   const [inviteError, setInviteError] = useState<string | null>(null);
   // 초대는 만들어졌지만 메일이 안 나간 경우(0-F) — 드로어 안 인라인 경고(토스트 금지). 다음 입력·닫기에서 지운다.
@@ -311,7 +324,8 @@ export default function ClientsPage() {
   const patchClient = async (id: number, patch: Partial<Pick<ClientRow,
     'display_name' | 'company_name' | 'notes' | 'kind'
     | 'is_business' | 'biz_name' | 'biz_tax_id' | 'biz_ceo' | 'biz_address' | 'biz_type' | 'biz_item'
-    | 'tax_invoice_email' | 'billing_contact_name' | 'billing_contact_email' | 'billing_contact_phone'>>) => {
+    | 'tax_invoice_email' | 'billing_contact_name' | 'billing_contact_email' | 'billing_contact_phone'
+    | 'invite_email' | 'phone'>>) => {
     const res = await apiFetch(`/api/clients/${businessId}/${id}`, {
       method: 'PUT', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(patch),
@@ -352,8 +366,10 @@ export default function ClientsPage() {
     });
     const j = await res.json();
     if (j.success) {
-      setClients((prev) => prev.map((c) => c.id === id ? { ...c, status: next } : c));
-      setActiveDetail((prev) => prev && prev.id === id ? { ...prev, status: next } : prev);
+      // 되살린 상태는 서버가 증거로 정한다(계정 → 활성 · 초대 흔적 → 초대됨 · 그 외 → 직접 관리)
+      const st = ((j.data && j.data.status) || next) as ClientStatus;
+      setClients((prev) => prev.map((c) => c.id === id ? { ...c, status: st } : c));
+      setActiveDetail((prev) => prev && prev.id === id ? { ...prev, status: st } : prev);
       setHistoryLoaded(false); // 히스토리 재로드 필요
     }
   };
@@ -363,14 +379,14 @@ export default function ClientsPage() {
       const st = c.status || 'active';
       // '활성' = 보관하지 않은 것 전부. 문의 고객(prospect)을 빼면 Q sale 에서 저장한 고객이
       //   고객 관리 기본 화면에서 **조용히 사라진다**(사용자에겐 "저장이 안 됐다" 로 보인다).
-      if (statusFilter === 'active' && st !== 'active' && st !== 'invited' && st !== 'prospect') return false;
+      if (statusFilter === 'active' && st === 'archived') return false;
       if (statusFilter === 'archived' && st !== 'archived') return false;
     }
     if (!query.trim()) return true;
     const q = query.toLowerCase();
     const name = (c.display_name || c.user?.name || '').toLowerCase();
     const company = (c.company_name || '').toLowerCase();
-    const email = (c.user?.email || '').toLowerCase();
+    const email = (c.user?.email || c.invite_email || '').toLowerCase();
     return name.includes(q) || company.includes(q) || email.includes(q);
   }), [clients, query, statusFilter]);
 
@@ -382,23 +398,89 @@ export default function ClientsPage() {
     itemSelector: (id) => `[data-client-row="${id}"]`,
   });
 
+  const resetAddForm = () => {
+    setInviteName(''); setInviteEmail(''); setInviteCompany(''); setInvitePhone(''); setInviteKind('customer');
+    setInviteClientId(null); setExistingClientId(null); setInviteError(null);
+  };
+  const closeAddForm = () => { setInviteOpen(false); setInviteMailWarn(false); resetAddForm(); setAddMode('invite'); };
+  const isManagedMode = addMode === 'managed' && inviteClientId == null;
+  const addSubmitDisabled = isManagedMode
+    ? (!inviteName.trim() && !inviteCompany.trim())
+    : (!inviteName.trim() || !inviteEmail.trim());
+
+  // 드로어 «이 고객 초대» — 그 고객의 이름·주소를 채워 같은 폼을 연다
+  const openInviteFor = (c: ClientRow) => {
+    resetAddForm();
+    setAddMode('invite');
+    setInviteClientId(c.id);
+    setInviteName(c.display_name || c.company_name || '');
+    setInviteEmail(c.invite_email || '');
+    setInviteCompany(c.company_name || '');
+    setInviteKind(c.kind || 'customer');
+    setInviteMailWarn(false);
+    setInviteOpen(true);
+  };
+
+  const submitManaged = async () => {
+    setInviteError(null); setExistingClientId(null);
+    if (!inviteName.trim() && !inviteCompany.trim()) { setInviteError(t('addModal.errNameOrCompany')); return; }
+    setInviteSubmitting(true);
+    try {
+      const res = await apiFetch(`/api/clients/${businessId}/managed`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: inviteName.trim() || null, company_name: inviteCompany.trim() || null,
+          email: inviteEmail.trim() || null, phone: invitePhone.trim() || null, kind: inviteKind,
+        }),
+      });
+      const j = await res.json().catch(() => null);
+      if (res.status === 409 && j?.existing_client_id) {
+        setExistingClientId(Number(j.existing_client_id));
+        setInviteError(t('addModal.errExists'));
+        return;
+      }
+      if (!res.ok || !j?.success) {
+        throw new Error(j?.message === 'invalid_email' ? t('addModal.errInvalidEmail') : (j?.message || t('inviteModal.errFailed')));
+      }
+      const newId = j.data?.id as number | undefined;
+      closeAddForm();
+      await load();
+      if (newId) setActiveId(newId);
+    } catch (e) {
+      setInviteError((e as Error).message);
+    } finally { setInviteSubmitting(false); }
+  };
+
   const submitInvite = async () => {
+    if (isManagedMode) { await submitManaged(); return; }
     setInviteError(null);
     setInviteMailWarn(false);
     if (!inviteName.trim() || !inviteEmail.trim()) { setInviteError(t('inviteModal.errRequired')); return; }
     setInviteSubmitting(true);
     try {
+      const promotingId = inviteClientId;
       const res = await apiFetch(`/api/clients/${businessId}/invite`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: inviteName.trim(), email: inviteEmail.trim(), company_name: inviteCompany.trim() || null, kind: inviteKind }),
+        body: JSON.stringify({
+          name: inviteName.trim(), email: inviteEmail.trim(), company_name: inviteCompany.trim() || null, kind: inviteKind,
+          ...(promotingId != null ? { client_id: promotingId } : {}),
+        }),
       });
       const j = await res.json();
       if (!res.ok || !j.success) throw new Error(j.message || t('inviteModal.errFailed'));
       // 메일이 안 나갔으면 드로어를 닫지 않고 이유와 다음 행동을 말한다 — 닫으면 «초대했다» 로만 읽힌다
       const mailFailed = j.data && j.data.invite_email_sent === false;
-      setInviteName(''); setInviteEmail(''); setInviteCompany(''); setInviteKind('customer');
+      resetAddForm();
       if (mailFailed) setInviteMailWarn(true); else setInviteOpen(false);
       await load();
+      // 승격한 고객의 드로어는 새 상태로 다시 읽는다(초대 수락 대기 배너가 뜬다)
+      if (promotingId != null && activeId === promotingId) {
+        try {
+          const r = await apiFetch(`/api/clients/${businessId}/${promotingId}`);
+          const jj = await r.json();
+          if (r.ok && jj?.success) setActiveDetail(jj.data);
+        } catch { /* 목록은 이미 다시 읽었다 */ }
+      }
     } catch (e) {
       setInviteError((e as Error).message);
     } finally { setInviteSubmitting(false); }
@@ -455,9 +537,9 @@ export default function ClientsPage() {
             {t('csv.button', { defaultValue: '엑셀' }) as string}
           </ExportBtn>
           {isAdmin && (
-            <InviteBtn data-testid="clients-invite-open" type="button" onClick={() => setInviteOpen(true)}>
+            <InviteBtn data-testid="clients-invite-open" type="button" onClick={() => { resetAddForm(); setInviteOpen(true); }}>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
-              {t('invite')}
+              {t('addClient')}
             </InviteBtn>
           )}
         </>
@@ -482,14 +564,14 @@ export default function ClientsPage() {
             }
             title={t('emptyTitle', '고객을 초대해 보세요')}
             description={t('emptyDesc', '고객이 있어야 대화가 열리고, 거기서 업무와 청구까지 이어집니다.')}
-            ctaLabel={isAdmin ? (t('invite') as string) : undefined}
+            ctaLabel={isAdmin ? (t('addClient') as string) : undefined}
             ctaTestId="clients-empty-invite"
             ctaIcon={
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
                 <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
               </svg>
             }
-            onCta={isAdmin ? () => setInviteOpen(true) : undefined}
+            onCta={isAdmin ? () => { resetAddForm(); setInviteOpen(true); } : undefined}
             secondaryCtaLabel={t('emptyHowto', '사용법') as string}
             onSecondaryCta={() => askCue(t('emptyWikiQuery', '고객 초대하기') as string, 'wiki')}
           />
@@ -559,8 +641,9 @@ export default function ClientsPage() {
                         </CompanyCell>
                       )}
                     </Td>
-                    <Td>{c.user?.email ? <HighlightText text={c.user.email} query={query} /> : <Muted>—</Muted>}</Td>
-                    <Td>{c.user?.phone || <Muted>—</Muted>}</Td>
+                    {/* 계정 없는 고객(초대 전·직접 관리)은 받는 주소·전화 컬럼이 근거다 */}
+                    <Td>{(c.user?.email || c.invite_email) ? <HighlightText text={(c.user?.email || c.invite_email) as string} query={query} /> : <Muted>—</Muted>}</Td>
+                    <Td>{c.user?.phone || c.phone || <Muted>—</Muted>}</Td>
                     <Td>
                       <StatusPill style={{ background: sStyle.bg, color: sStyle.fg }}>{t(`status.${st}`)}</StatusPill>
                     </Td>
@@ -690,11 +773,36 @@ export default function ClientsPage() {
               </InviteBanner>
             )}
 
+            {activeDetail.status === 'managed' && (
+              <InviteBanner data-testid="client-managed-banner">
+                <InviteBannerText>
+                  <strong>{t('managed.title')}</strong>
+                  <span>{t('managed.desc')}</span>
+                </InviteBannerText>
+                {isAdmin && activeDetail.can_invite && (
+                  <ResendBtn type="button" data-testid="client-invite-this" onClick={() => openInviteFor(activeDetail)}>
+                    {t('managed.invite')}
+                  </ResendBtn>
+                )}
+              </InviteBanner>
+            )}
+
             <Section>
               <SectionTitle>{t('section.contact')}</SectionTitle>
-              <ContactRow><ContactLabel>{t('section.contactEmail')}</ContactLabel><ContactValue>{activeDetail.user?.email || '—'}</ContactValue></ContactRow>
-              <ContactRow><ContactLabel>{t('section.contactPhone')}</ContactLabel><ContactValue>{activeDetail.user?.phone || '—'}</ContactValue></ContactRow>
-              <Helper>{t('section.contactHelper')}</Helper>
+              {activeDetail.user_id ? (<>
+                <ContactRow><ContactLabel>{t('section.contactEmail')}</ContactLabel><ContactValue>{activeDetail.user?.email || '—'}</ContactValue></ContactRow>
+                <ContactRow><ContactLabel>{t('section.contactPhone')}</ContactLabel><ContactValue>{activeDetail.user?.phone || '—'}</ContactValue></ContactRow>
+                <Helper>{t('section.contactHelper')}</Helper>
+              </>) : (<>
+                {/* 계정 없는 고객 — 우리가 직접 고친다. 받는 주소는 초대 토큰이 나가기 전까지만(서버 email_editable) */}
+                <BizField key={`email-${activeDetail.id}`} label={t('section.contactEmail') as string} value={activeDetail.invite_email}
+                  disabled={!isAdmin || !activeDetail.email_editable} inputMode="email" placeholder="client@example.com"
+                  onSave={(val) => patchClient(activeDetail.id, { invite_email: val })} />
+                <BizField key={`phone-${activeDetail.id}`} label={t('section.contactPhone') as string} value={activeDetail.phone}
+                  disabled={!isAdmin} inputMode="tel" placeholder="010-1234-5678"
+                  onSave={(val) => patchClient(activeDetail.id, { phone: val })} />
+                <Helper>{t('managed.contactHelper')}</Helper>
+              </>)}
             </Section>
 
             {/* 사업자·증빙 정보 — 세금계산서/현금영수증 발행 정보 원천 (owner/admin 편집, 미입력 시 고객이 청구서에서 직접 입력하면 저장됨) */}
@@ -729,7 +837,7 @@ export default function ClientsPage() {
               <Helper>{t('billing.helper', { defaultValue: '청구서 발행 시 세금계산서·현금영수증 정보가 자동으로 채워집니다. 고객이 청구서에서 직접 입력해도 여기에 저장됩니다.' }) as string}</Helper>
             </Section>
 
-            {activeDetail.status === 'active' && businessId && (
+            {(activeDetail.status === 'active' || activeDetail.status === 'managed') && businessId && (
               <Section>
                 <ClientSubscriptions businessId={businessId} clientId={activeDetail.id} canWrite={isAdmin} />
               </Section>
@@ -833,23 +941,50 @@ export default function ClientsPage() {
       {/* 고객 초대 — 센터 모달 → 우측 CreateDrawer 로 통일(Fable 감사 2026-07-15: 추가/등록은 우측 패널 기본) */}
       <CreateDrawer
         open={inviteOpen}
-        onClose={() => { setInviteOpen(false); setInviteMailWarn(false); }}
-        title={t('inviteModal.title')}
+        onClose={closeAddForm}
+        title={inviteClientId != null ? t('addModal.inviteThisTitle') : isManagedMode ? t('addModal.titleManaged') : t('inviteModal.title')}
         onSubmit={submitInvite}
         submitting={inviteSubmitting}
-        submitLabel={t('inviteModal.submit')}
-        submitDisabled={!inviteName.trim() || !inviteEmail.trim()}
+        submitLabel={isManagedMode ? t('addModal.submitManaged') : t('inviteModal.submit')}
+        submitDisabled={addSubmitDisabled}
       >
-        <Field><FieldLabel>{t('inviteModal.name')} <Req>*</Req></FieldLabel><FieldInput autoFocus value={inviteName} onChange={(e) => setInviteName(e.target.value)} placeholder={t('inviteModal.namePlaceholder') as string} /></Field>
-        <Field><FieldLabel>{t('inviteModal.email')} <Req>*</Req></FieldLabel><FieldInput value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)} placeholder="client@example.com" type="email" /></Field>
+        {inviteClientId == null && (
+          <ModeRow>
+            <SegmentedToggle role="tablist" aria-label={t('addClient') as string}>
+              <SegmentedBtn type="button" role="tab" aria-selected={addMode === 'invite'} $active={addMode === 'invite'}
+                data-testid="clients-add-mode-invite" onClick={() => { setAddMode('invite'); setInviteError(null); setExistingClientId(null); }}>
+                {t('addModal.modeInvite')}
+              </SegmentedBtn>
+              <SegmentedBtn type="button" role="tab" aria-selected={addMode === 'managed'} $active={addMode === 'managed'}
+                data-testid="clients-add-mode-managed" onClick={() => { setAddMode('managed'); setInviteError(null); setExistingClientId(null); }}>
+                {t('addModal.modeManaged')}
+              </SegmentedBtn>
+            </SegmentedToggle>
+            <Helper>{isManagedMode ? t('addModal.modeManagedHelp') : t('addModal.modeInviteHelp')}</Helper>
+          </ModeRow>
+        )}
+        <Field><FieldLabel>{t('inviteModal.name')} {!isManagedMode && <Req>*</Req>}</FieldLabel><FieldInput autoFocus value={inviteName} onChange={(e) => setInviteName(e.target.value)} placeholder={t('inviteModal.namePlaceholder') as string} /></Field>
+        <Field><FieldLabel>{isManagedMode ? t('addModal.emailOptional') : <>{t('inviteModal.email')} <Req>*</Req></>}</FieldLabel><FieldInput value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)} placeholder="client@example.com" type="email" /></Field>
+        {isManagedMode && (
+          <Field><FieldLabel>{t('addModal.phone')}</FieldLabel><FieldInput value={invitePhone} onChange={(e) => setInvitePhone(e.target.value)} placeholder="010-1234-5678" type="tel" inputMode="tel" /></Field>
+        )}
         <Field><FieldLabel>{t('inviteModal.company')}</FieldLabel><FieldInput value={inviteCompany} onChange={(e) => setInviteCompany(e.target.value)} placeholder={t('inviteModal.companyPlaceholder') as string} /></Field>
         <Field><FieldLabel>{t('kind.label', { defaultValue: '유형' }) as string}</FieldLabel>
           <PlanQSelect size="md" isClearable={false} isSearchable={false}
             value={kindOptions.find((o) => o.value === inviteKind)} options={kindOptions}
             onChange={(o) => setInviteKind(((o as { value?: string })?.value as 'customer' | 'vendor' | 'freelancer' | 'other') || 'customer')} />
         </Field>
-        <Helper>{t('inviteModal.helper')}</Helper>
-        {inviteError && <WarnBlock>{inviteError}</WarnBlock>}
+        {!isManagedMode && <Helper>{t('inviteModal.helper')}</Helper>}
+        {inviteError && (
+          <WarnBlock role="alert" data-testid="clients-add-error">
+            {inviteError}
+            {existingClientId != null && (
+              <ExistingLink type="button" onClick={() => { const id = existingClientId; closeAddForm(); setActiveId(id); }}>
+                {t('addModal.openExisting')}
+              </ExistingLink>
+            )}
+          </WarnBlock>
+        )}
         {inviteMailWarn && <WarnBlock role="alert" data-testid="clients-invite-mail-failed">{t('inviteModal.emailFailed')}</WarnBlock>}
       </CreateDrawer>
 
@@ -859,7 +994,7 @@ export default function ClientsPage() {
           <ConfirmDialog role="dialog" aria-modal="true" aria-label={t('deleteModal.title') as string}>
             <ConfirmTitle>{t('deleteModal.title')}</ConfirmTitle>
             <ConfirmBody>
-              <strong>{deleteTarget.display_name || deleteTarget.user?.name || t('drawerHead.defaultName')}</strong> ({deleteTarget.user?.email || '—'}) {t('deleteModal.body')}
+              <strong>{deleteTarget.display_name || deleteTarget.user?.name || t('drawerHead.defaultName')}</strong> ({deleteTarget.user?.email || deleteTarget.invite_email || '—'}) {t('deleteModal.body')}
               {deleteImpact && deleteImpact.other_projects.length > 0 ? (
                 <WarnBlock>
                   <Trans i18nKey="deleteModal.impactWarn" ns="clients" count={deleteImpact.other_projects.length} components={{ 1: <strong /> }} />
@@ -888,6 +1023,9 @@ export default function ClientsPage() {
 function labelFor(action: string, t: TFunction): string {
   switch (action) {
     case 'client.invited': return t('history.invited');
+    case 'client.reinvited': return t('history.reinvited');
+    case 'client.created_managed': return t('history.createdManaged');
+    case 'client.registered_managed': return t('history.registeredManaged');
     case 'client.activated': return t('history.activated');
     case 'client.archived': return t('history.archived');
     case 'client.updated': return t('history.updated');
@@ -1040,6 +1178,8 @@ const SectionTitle = styled.h3`font-size:0.8125rem;font-weight:700;color:#0F172A
 const SectionTitleRow = styled.div`display:flex;align-items:center;justify-content:space-between;`;
 const SmallCount = styled.small`margin-left:6px;font-size:0.6875rem;color:#94A3B8;font-weight:500;`;
 const Helper = styled.div`font-size:0.6875rem;color:#94A3B8;line-height:1.5;`;
+const ModeRow = styled.div`display:flex;flex-direction:column;align-items:flex-start;gap:8px;`;
+const ExistingLink = styled.button`margin-left:8px;padding:0;border:none;background:none;color:#0F766E;font-weight:600;font-size:inherit;cursor:pointer;text-decoration:underline;`;
 const ContactRow = styled.div`display:flex;align-items:center;gap:8px;padding:6px 0;`;
 const ContactLabel = styled.span`font-size:0.6875rem;color:#94A3B8;font-weight:600;width:48px;flex-shrink:0;`;
 const ContactValue = styled.span`font-size:0.8125rem;color:#0F172A;`;

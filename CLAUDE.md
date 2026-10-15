@@ -610,6 +610,8 @@ dev 에만 있는 글이 운영에 샌다(그래서 배포 rsync 가 생성물�
 
 **Q sale (2):** **client_stage_history**, **client_interactions** (2026-09-11 신규 — 영업은 **새 고객 테이블이 아니라 `clients` 의 축**이다. 설계 docs/Q_SALE_DESIGN.md)
 - `clients` 확장: `status` ENUM 끝에 **`prospect`**(문의 고객 = 계정 없음 + 초대 안 함) append · `sales_stage`(none→inquiry→consulting→proposal→negotiation→won/lost) · `sales_source` · `lost_reason/lost_note` · `phone` · `expected_amount/currency` · `last_touch_at`(파생) · 인덱스 2.
+- **직접 관리 고객 = `clients.status='managed'`** (2026-10-15, Irene *"고객이 가입을 안 해도 관리자가 정보를 넣고 직접 관리하는 고객도"*) — 계정·초대 없이 정보만 관리하는 **정식 고객**(한도 포함). `active` 는 «계정이 연결된 고객» 이다 — 계정 없는 행을 active 로 만들지 않는다.
+  관계 판정은 `services/clientAccess`(canInviteClient·emailEditable·reactivatedStatusOf) 한 곳, 응답 `can_invite`·`email_editable` 만 화면이 본다. 초대·등록 문은 `routes/client_invites.js`(초대는 `client_id` 로 같은 행 승격). 운영 `migrate-client-managed.js`(배포 슬롯, 백필은 수동 `--apply`). 설계 docs/CLIENT_MANAGED_DESIGN.md
 - **단계를 바꾸는 문은 하나다** — `services/salesStage.js setStage`(컬럼 + 이력 + 감사 + broadcast). `client.update({sales_stage})` 를 다른 곳에서 부르면 이력·실시간이 조용히 빠진다.
 - **접근 종류는 컬럼이 아니라 파생이다** — `services/clientAccess.js accessKindOf`(guest/invited/member)와 같은 판정을 목록 필터도 쓴다(`accessWhere`). 프론트가 `user_id` 로 스스로 판정하지 않는다.
 - **한도 술어도 한 곳** — `services/clientQuota.js`: 정식 고객 = prospect 를 뺀 기존 집합, 문의 고객은 `prospects_max`(정식 ×3). `plan.can('add_client')`·`can('add_prospect')` 가 같은 술어를 쓴다. 생성 후 `invalidateBusinessCache`(사용량 30초 캐시).

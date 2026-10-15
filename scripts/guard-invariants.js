@@ -711,7 +711,8 @@ const COSTGUARD_LOCKED = [
   'dev-backend/routes/posts.js',
   'dev-backend/routes/share.js',
   'dev-backend/routes/users.js',
-  'dev-backend/routes/clients.js',
+  // 고객 초대 메일 — 2026-10-15 routes/clients.js 에서 client_invites.js 로 옮겼다(perUserDaily invite-email)
+  'dev-backend/routes/client_invites.js',
   'dev-backend/routes/businesses.js',
   'dev-backend/routes/inquiries.js',
   'dev-backend/routes/message_attachments.js',

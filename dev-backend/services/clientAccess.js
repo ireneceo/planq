@@ -1,6 +1,6 @@
 // services/clientAccess.js — 고객의 **접근 종류** 술어 단일 원천 (docs/Q_SALE_DESIGN.md §4.1·§4.2)
 //
-//   guest   — 정보만 저장됨 · 로그인 없음 (Q sale 문의 고객, status='prospect')
+//   guest   — 정보만 저장됨 · 로그인 없음 (Q sale 문의 고객 status='prospect' · 직접 관리 고객 status='managed')
 //   invited — 초대 메일을 보냈고 아직 수락 전
 //   member  — 로그인하는 고객 (middleware/access_scope.js 의 isClient 와 같은 조건: user_id + status 'active')
 //
@@ -13,7 +13,8 @@ const { Op } = require('sequelize');
 function accessKindOf(client) {
   if (!client) return 'guest';
   if (client.user_id && client.status === 'active') return 'member';
-  if (client.status === 'prospect') return 'guest';
+  // prospect(문의) · managed(직접 관리 — 계정 없이 정보만 관리하는 정식 고객) 는 둘 다 «정보만·로그인 없음»
+  if (client.status === 'prospect' || client.status === 'managed') return 'guest';
   if (client.invited_at || client.status === 'invited') return 'invited';
   // archived 이면서 계정·초대 흔적이 없는 행 — 정보만 있는 고객이다
   return 'guest';
@@ -31,7 +32,7 @@ function accessWhere(kind) {
     return {
       [Op.and]: [
         notMember,
-        { [Op.or]: [{ status: null }, { status: { [Op.ne]: 'prospect' } }] },
+        { [Op.or]: [{ status: null }, { status: { [Op.notIn]: ['prospect', 'managed'] } }] },
         { [Op.or]: [{ invited_at: { [Op.ne]: null } }, { status: 'invited' }] },
       ],
     };
@@ -41,7 +42,7 @@ function accessWhere(kind) {
       [Op.and]: [
         notMember,
         { [Op.or]: [
-          { status: 'prospect' },
+          { status: { [Op.in]: ['prospect', 'managed'] } },
           { [Op.and]: [{ invited_at: null }, { [Op.or]: [{ status: null }, { status: { [Op.ne]: 'invited' } }] }] },
         ] },
       ],
@@ -50,12 +51,36 @@ function accessWhere(kind) {
   return null;
 }
 
+// ─── 관계 축 판정 — 직접 관리 고객(docs/CLIENT_MANAGED_DESIGN.md, Fable 2026-10-15) ───
+//   화면은 응답의 can_invite · email_editable 만 본다(status 를 보고 스스로 판정하지 않는다).
+
+/** 초대 메일을 보내 **같은 행을** invited 로 올릴 수 있는가 — 계정·초대 흔적이 없는 문의/직접 관리 고객. */
+function canInviteClient(client) {
+  if (!client) return false;
+  return !client.user_id && (client.status === 'prospect' || client.status === 'managed');
+}
+
+/** 받는 주소(invite_email)를 고칠 수 있는가 — 초대 토큰이 나가면 토큰과 받는 주소가 갈라지므로 잠근다. */
+function emailEditable(client) {
+  if (!client) return false;
+  return !client.user_id && !client.invite_token && (client.status === 'prospect' || client.status === 'managed');
+}
+
+/** 보관 해제 때 되살릴 상태 — 증거로 파생한다. 계정 → active · 초대 흔적 → invited · 그 외 → managed. */
+function reactivatedStatusOf(client) {
+  if (client.user_id) return 'active';
+  if (client.invited_at || client.invite_token) return 'invited';
+  return 'managed';
+}
+
 /**
  * 고객 목록에 access_kind · has_guest_link 를 붙인다. 입력은 Client 인스턴스나 plain 객체.
  * 살아 있는 게스트 링크 = 회수 안 됨 + 만료 전.
  */
 async function withAccess(businessId, clients) {
-  const list = (clients || []).map((c) => (c && c.toJSON ? c.toJSON() : { ...c }));
+  // ★ 판정은 **원본 행**에서 한다 — toJSON 은 invite_token 을 내린다(models/index.js 전역 toJSON).
+  const src = clients || [];
+  const list = src.map((c) => (c && c.toJSON ? c.toJSON() : { ...c }));
   const ids = list.map((c) => c.id).filter(Boolean);
   const linked = new Set();
   if (ids.length) {
@@ -72,7 +97,13 @@ async function withAccess(businessId, clients) {
     });
     for (const r of rows) linked.add(r.client_id);
   }
-  return list.map((c) => ({ ...c, access_kind: accessKindOf(c), has_guest_link: linked.has(c.id) }));
+  return list.map((c, i) => ({
+    ...c,
+    access_kind: accessKindOf(c),
+    has_guest_link: linked.has(c.id),
+    can_invite: canInviteClient(src[i]),
+    email_editable: emailEditable(src[i]),
+  }));
 }
 
-module.exports = { accessKindOf, accessWhere, withAccess };
+module.exports = { accessKindOf, accessWhere, withAccess, canInviteClient, emailEditable, reactivatedStatusOf };

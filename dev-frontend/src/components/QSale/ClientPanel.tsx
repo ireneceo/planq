@@ -44,6 +44,7 @@ import ClientTimeline from '../Clients/ClientTimeline';
 import ClientLinksSection from './ClientLinksSection';
 // 프로필 입력 — 전체 프로필과 **같은 폼**. 여기서 고칠 수 있어야 한다(Irene 2026-09-13)
 import ClientProfileForm from './ClientProfileForm';
+import { useClientRelationActions } from './useClientRelationActions';
 import { openSaleTimelineItem } from '../../utils/saleTimelineTarget';
 import { tabStore } from '../../stores/tabStore';
 // 불발 사유 창은 **공용**(상세 페이지와 같은 것) — 여기서 단계만 넘기면 왜 깨졌는지가 원장에 안 남는다
@@ -232,7 +233,6 @@ const ClientPanel: React.FC<Props> = ({
   // 다음 액션 — 기록(상담) · 다음 연락(일정) · 업무 추가. 청구·프로젝트는 그 화면으로 넘긴다.
   const [recordOpen, setRecordOpen] = useState(false);
   const [nextOpen, setNextOpen] = useState(false);
-  const [inviteAsk, setInviteAsk] = useState(false);
   const [registerAsk, setRegisterAsk] = useState(false);
   const [deleteAsk, setDeleteAsk] = useState(false);
   const [taskOpen, setTaskOpen] = useState(false);
@@ -266,31 +266,13 @@ const ClientPanel: React.FC<Props> = ({
     await reload();
   }, [businessId, cid, reload]);
 
-  const inviteEmail = data?.contact?.invite_email || data?.contact?.account_email || data?.email || '';
   // 계정 이메일과 초대 이메일이 **실제로 다를 때만** 나눠 보여준다(같으면 한 줄).
   //   둘 중 하나만 있는 경우도 "다르지 않다" — 나눠 놓으면 빈 줄이 생긴다.
   const sameEmail = !data?.contact?.account_email || !data?.contact?.invite_email
     || data.contact.account_email.toLowerCase() === data.contact.invite_email.toLowerCase();
-  // 우리 고객으로 들여오는 문 — 계정이 아직 없으면 초대를 보낼 수 있다
-  const canInvite = !!cid && data?.status === 'prospect' && !!inviteEmail;
-
-  // 초대 — 기존 라우트를 그대로 부른다(초대 메일·토큰·중복 판정이 전부 거기 있다)
-  const sendInvite = useCallback(async () => {
-    if (!cid || !data || busy || !inviteEmail) return;
-    setBusy(true);
-    try {
-      const r = await apiFetch(`/api/clients/${businessId}/invite`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: data.display_name || data.company_name || inviteEmail,
-          email: inviteEmail,
-          company_name: data.company_name || undefined,
-        }),
-      });
-      if (!r.ok) { setError(true); return; }
-      await reload();
-    } catch { setError(true); } finally { setBusy(false); }
-  }, [businessId, cid, data, busy, inviteEmail, reload]);
+  // 초대 · 계정 없이 정식 고객으로 — 판정·확인창·호출은 한 훅(useClientRelationActions)
+  const relation = useClientRelationActions({ businessId, cid, data, busy, setBusy, setError, reload, t });
+  const { canInvite } = relation;
 
   // 고객 삭제 — **되돌릴 수 없다.** 설정의 고객 목록과 **같은 라우트**를 부른다(두 벌로 만들지 않는다).
   const deleteClient = useCallback(async () => {
@@ -350,6 +332,13 @@ const ClientPanel: React.FC<Props> = ({
       disabled: busy,
       onClick: () => withClient((id) => { void createContract(id); }),
     });
+    if (relation.canRegisterManaged) {
+      out.push({
+        key: 'managed', label: t('action.registerManaged') as string, testId: 'client-panel-register-managed',
+        disabled: busy,
+        onClick: relation.askManaged,
+      });
+    }
     if (cid) {
       out.push({
         key: 'full', label: t('panel.openFull') as string, testId: 'client-panel-full-menu',
@@ -365,7 +354,7 @@ const ClientPanel: React.FC<Props> = ({
       });
     }
     return out;
-  }, [t, withClient, navigate, busy, createContract, cid]);
+  }, [t, withClient, navigate, busy, createContract, cid, relation.canRegisterManaged, relation.askManaged]);
 
 
   return (
@@ -608,7 +597,7 @@ const ClientPanel: React.FC<Props> = ({
       <DetailDrawer.Footer>
         {canInvite && (
           <ActionButton tone="primary" size="md" disabled={busy}
-            data-testid="client-panel-invite" onClick={() => setInviteAsk(true)}>
+            data-testid="client-panel-invite" onClick={relation.askInvite}>
             {t('action.invite') as string}
           </ActionButton>
         )}
@@ -677,17 +666,7 @@ const ClientPanel: React.FC<Props> = ({
             clientName={name || '—'}
             onClose={() => setNextOpen(false)}
             onSaved={() => { setNextOpen(false); void reload(); }} />
-          {/* ★ 발송 전 확인 — 주소를 **보여주고** 묻는다. "정말?" 만 묻는 창은 확인이 아니다. */}
-          <ConfirmDialog
-            isOpen={inviteAsk}
-            title={t('action.inviteConfirmTitle') as string}
-            message={t('action.inviteConfirmBody', { email: inviteEmail }) as string}
-            confirmText={t('action.invite') as string}
-            cancelText={t('inquiry.cancel') as string}
-            variant="info"
-            onClose={() => setInviteAsk(false)}
-            onConfirm={() => { setInviteAsk(false); void sendInvite(); }}
-          />
+          {relation.dialogs}
           {/* ★ 고객을 실어 보낸다 — 여기서 만든 업무는 **그 고객의 업무**다(tasks.client_id). */}
           {taskOpen && (
             <TaskCreateForm businessId={businessId} layout="drawer" fixedClientId={cid}

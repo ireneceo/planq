@@ -1,22 +1,14 @@
 const express = require('express');
 const router = express.Router();
-const { Client, User, Business } = require('../models');
+const { Client, User } = require('../models');
 const { authenticateToken, checkBusinessAccess } = require('../middleware/auth');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
 const { createAuditLog } = require('../middleware/audit');
-const { perUserDaily } = require('../middleware/costGuard');
 // 메뉴 권한(0-C C-8) — 멤버별 «고객» 메뉴 none/read/write 를 서버가 지킨다. sale.js 체인과 같은 자리(checkBusinessAccess 다음).
 const { requireMenu } = require('../middleware/menu_permission');
 
-// N+38 — 실시간 동기화 (CLAUDE.md 운영 안정성 16번 박제).
-function broadcastClient(req, client, event = 'client:updated') {
-  const io = req.app.get('io');
-  if (!io) return;
-  // 신호만(0-C C-2) — 받는 화면은 id 로 다시 읽는다. 통째로 보내면 자격증명·영업 메모가 방 전원에게 간다.
-  const bizId = client.business_id || Number(req.params.businessId);
-  const data = { id: client.id, business_id: bizId };
-  if (bizId) io.to(`business:${bizId}`).emit(event, data);
-}
+// 응답·실시간 공용 조각 — 초대·등록 라우트(routes/client_invites.js)와 같이 쓴다(services/clientResponse 한 벌)
+const { broadcastClient, stripClientSecrets, withRelation } = require('../services/clientResponse');
 
 // List clients for a business
 // 프로젝트 매칭은 ProjectClient.contact_user_id = Client.user_id 로 통일 (FK 기반).
@@ -28,13 +20,6 @@ function broadcastClient(req, client, event = 'client:updated') {
 //   남의 고객 계정을 먼저 만들어 그 고객의 대화·자료로 들어갈 수 있었다.
 //   화면은 이 필드를 **한 곳도 쓰지 않는다**(프론트 grep: 프로젝트 고객·가입 폼만 사용).
 //   열거식이라 컬럼이 늘면 샌다 — 그래서 health-check 에 "응답에 토큰 없음" 검사를 같이 붙였다.
-const CLIENT_SECRET_FIELDS = ['invite_token'];
-function stripClientSecrets(json) {
-  if (!json || typeof json !== 'object') return json;
-  for (const k of CLIENT_SECRET_FIELDS) delete json[k];
-  return json;
-}
-
 router.get('/:businessId', authenticateToken, checkBusinessAccess, requireMenu('clients', 'read'), async (req, res, next) => {
   try {
     const clients = await Client.findAll({
@@ -53,7 +38,7 @@ router.get('/:businessId', authenticateToken, checkBusinessAccess, requireMenu('
       const linked = c.user_id ? pcRows.filter((pc) => pc.contact_user_id === c.user_id) : [];
       json.project_count = linked.length;
       json.active_project_count = linked.filter((pc) => pc.Project?.status === 'active').length;
-      return stripClientSecrets(json);
+      return stripClientSecrets(withRelation(c, json));
     });
     successResponse(res, enriched);
   } catch (error) {
@@ -200,7 +185,7 @@ router.get('/:businessId/:id', authenticateToken, checkBusinessAccess, requireMe
       project_id: c.project_id, last_message_at: c.last_message_at,
     }));
 
-    const out = stripClientSecrets(client.toJSON());
+    const out = stripClientSecrets(withRelation(client, client.toJSON()));
     out.linked_projects = projects;
     out.linked_conversations = conversations;
     successResponse(res, out);
@@ -213,15 +198,28 @@ router.put('/:businessId/:id', authenticateToken, checkBusinessAccess, requireMe
     const client = await Client.findOne({ where: { id: req.params.id, business_id: req.params.businessId } });
     if (!client) return errorResponse(res, 'Client not found', 404);
 
-    const { display_name, company_name, notes, status, kind } = req.body;
+    // ★ status 입력은 받지 않는다(2026-10-15 직접 관리 고객) — 여기서 아무 행이나 'active' 로 만들 수 있었다.
+    //   active = «계정이 연결된 고객» 이다. 상태는 초대·수락·보관·등록 문만 바꾼다(services/clientAccess).
+    const { display_name, company_name, notes, kind } = req.body;
     const patch = {};
     const before = {};
     if (display_name !== undefined && display_name !== client.display_name) { patch.display_name = display_name; before.display_name = client.display_name; }
     if (company_name !== undefined && company_name !== client.company_name) { patch.company_name = company_name; before.company_name = client.company_name; }
     if (notes !== undefined && notes !== client.notes) { patch.notes = notes; before.notes = client.notes; }
     if (kind !== undefined && ['customer', 'vendor', 'freelancer', 'other'].includes(kind) && kind !== client.kind) { patch.kind = kind; before.kind = client.kind; }
-    if (status !== undefined && ['invited','active','archived'].includes(status) && status !== client.status) {
-      patch.status = status; before.status = client.status;
+    // 계정 없는 고객의 받는 주소·전화 — 초대 토큰이 나가기 전까지만(emailEditable 한 술어 · Q sale 프로필과 같다)
+    if (req.body.invite_email !== undefined) {
+      const { emailEditable } = require('../services/clientAccess');
+      if (!emailEditable(client)) return errorResponse(res, 'email_locked_after_invite', 400);
+      const { normEmail, EMAIL_RE } = require('../services/saleCommon');
+      const e = normEmail(req.body.invite_email);
+      if (e && !EMAIL_RE.test(e)) return errorResponse(res, 'invalid_email', 400);
+      if (e !== client.invite_email) { patch.invite_email = e; before.invite_email = client.invite_email; }
+    }
+    if (req.body.phone !== undefined) {
+      const { trimOrNull } = require('../services/saleCommon');
+      const ph = trimOrNull(req.body.phone, 40);
+      if (ph !== client.phone) { patch.phone = ph; before.phone = client.phone; }
     }
 
     // 사업자·증빙 정보 (세금계산서/현금영수증 prefill 원천) — 빈 문자열은 null 로 저장
@@ -277,158 +275,7 @@ router.get('/:businessId/:id/history', authenticateToken, checkBusinessAccess, r
 
 // Invite (이메일 기반) — User 없어도 Client(invited) 생성 + 초대 토큰 발급 + 이메일 발송
 // accept 시 User 생성·연결
-router.post('/:businessId/invite', authenticateToken, checkBusinessAccess, requireMenu('clients', 'write'), ...perUserDaily('invite-email', { perMin: 20, perDay: 200, message: '초대 발송이 너무 잦습니다. 잠시 후 다시 시도하세요.' }), async (req, res, next) => {
-  try {
-    const { name, email, company_name, notes, kind } = req.body || {};
-    if (!name?.trim() || !email?.trim()) return errorResponse(res, 'name and email are required', 400);
-    const finalKind = ['customer', 'vendor', 'freelancer', 'other'].includes(kind) ? kind : 'customer';
-    // 플랜 쿼터 — 고객 수 한도
-    const planEngine = require('../services/plan');
-    const planCan = await planEngine.can(req.params.businessId, 'add_client');
-    if (!planCan.ok) {
-      return res.status(422).json(planEngine.buildQuotaError(planCan, req.params.businessId));
-    }
-    const crypto = require('crypto');
-    const existingUser = await User.findOne({ where: { email: email.trim() } });
-
-    // 동일 워크스페이스에 같은 이메일·user 이미 존재하는지 체크
-    if (existingUser) {
-      const dup = await Client.findOne({ where: { business_id: req.params.businessId, user_id: existingUser.id } });
-      if (dup) {
-        if (dup.status === 'archived') {
-          await dup.update({ status: 'invited', display_name: name.trim(), company_name: company_name?.trim() || dup.company_name, notes: notes?.trim() || dup.notes });
-          return successResponse(res, stripClientSecrets(dup.toJSON()), 'Re-invited', 200);
-        }
-        return errorResponse(res, 'Client already exists', 409);
-      }
-    }
-    const dupByEmail = await Client.findOne({ where: { business_id: req.params.businessId, invite_email: email.trim() } });
-    // Q sale 문의 고객(prospect) → 초대 = **승격**. 새 행을 만들지 않고 같은 행을 invited 로 올린다 —
-    //   상담 기록·단계 이력·타임라인이 그 행에 붙어 있다(docs/Q_SALE_DESIGN.md §4.4). 한도 검사는 위에서 끝났다.
-    if (dupByEmail && dupByEmail.status === 'prospect') {
-      const token = crypto.randomBytes(24).toString('hex');
-      await dupByEmail.update({
-        status: 'invited', invite_token: token, invited_by: req.user.id, invited_at: new Date(),
-        display_name: dupByEmail.display_name || name.trim(),
-        company_name: dupByEmail.company_name || company_name?.trim() || null,
-        user_id: dupByEmail.user_id || existingUser?.id || null,
-        assigned_member_id: dupByEmail.assigned_member_id || req.user.id,
-      });
-      await createAuditLog({
-        userId: req.user.id, businessId: req.params.businessId,
-        action: 'client.invited', targetType: 'client', targetId: dupByEmail.id,
-        oldValue: { status: 'prospect' }, newValue: { status: 'invited', email: email.trim() },
-      });
-      try {
-        const { sendInviteEmail } = require('../services/emailService');
-        const biz = await require('../models').Business.findByPk(req.params.businessId, { attributes: ['brand_name', 'name'] });
-        const inviter = await User.findByPk(req.user.id, { attributes: ['name'] });
-        await sendInviteEmail({
-          to: email.trim(),
-          workspaceName: biz?.brand_name || biz?.name || 'PlanQ',
-          inviterName: inviter?.name || '',
-          targetName: dupByEmail.display_name || name.trim(),
-          kind: 'workspace_client',
-          token,
-        });
-      } catch (e) { console.warn('invite email send failed:', e.message); }
-      await notifyClientInvitee(req, { email: email.trim(), entityId: dupByEmail.id, token });
-      // 문의 → 정식 고객으로 한도 계수가 바뀐다. 사용량 캐시(30초)를 비워야 플랜 화면이 바로 맞는다
-      try { require('../services/plan').invalidateBusinessCache(req.params.businessId); } catch { /* 캐시일 뿐이다 */ }
-      broadcastClient(req, dupByEmail, 'client:updated');
-      return successResponse(res, stripClientSecrets(dupByEmail.toJSON()), 'Client invited', 200);
-    }
-    if (dupByEmail && dupByEmail.status !== 'archived') {
-      return errorResponse(res, 'Client already exists', 409);
-    }
-
-    const token = crypto.randomBytes(24).toString('hex');
-    const created = await Client.create({
-      business_id: req.params.businessId,
-      user_id: existingUser?.id || null,
-      display_name: name.trim(),
-      company_name: company_name?.trim() || null,
-      notes: notes?.trim() || null,
-      kind: finalKind,
-      status: 'invited',
-      invited_by: req.user.id,
-      invited_at: new Date(),
-      invite_token: token,
-      invite_email: email.trim(),
-      // N+83 — 초대자를 기본 담당자로 자동 배정 (첫 응대 책임선 명확화). 이후 수동 변경 가능.
-      assigned_member_id: req.user.id,
-    });
-    await createAuditLog({
-      userId: req.user.id, businessId: req.params.businessId,
-      action: 'client.invited', targetType: 'client', targetId: created.id,
-      newValue: { email: email.trim(), name: name.trim(), company_name: company_name || null },
-    });
-
-    // 초대 이메일 발송 (실패해도 초대 레코드는 유지) — 실패를 **응답에 싣는다**(0-F F-1).
-    //   sendEmail 은 던지지 않고 false 를 돌려준다(발송 정지·차단 주소·SMTP 오류) — try/catch 만 보면 실패가 영영 안 보인다.
-    let inviteEmailSent = true;
-    try {
-      const { sendInviteEmail } = require('../services/emailService');
-      const biz = await require('../models').Business.findByPk(req.params.businessId, { attributes: ['brand_name', 'name'] });
-      const inviter = await User.findByPk(req.user.id, { attributes: ['name'] });
-      const sent = await sendInviteEmail({
-        to: email.trim(),
-        workspaceName: biz?.brand_name || biz?.name || 'PlanQ',
-        inviterName: inviter?.name || '',
-        targetName: name.trim(),
-        kind: 'workspace_client',
-        token,
-      });
-      inviteEmailSent = sent === true;
-    } catch (e) { inviteEmailSent = false; console.warn('invite email send failed:', e.message); }
-    if (existingUser) await notifyClientInvitee(req, { userId: existingUser.id, entityId: created.id, token });
-
-    broadcastClient(req, created, 'client:new');   // 신호만(0-C C-2) — 고객 목록을 연 다른 창이 따라온다
-    successResponse(res, { ...stripClientSecrets(created.toJSON()), invite_email_sent: inviteEmailSent },
-      inviteEmailSent ? 'Client invited' : 'invite_email_failed', 201);
-  } catch (error) { next(error); }
-});
-
-// 이미 PlanQ 계정인 고객에게 앱 안에서도 초대를 알린다 — services/inviteNotify 한 벌(초대·승격·재발송이 같이 쓴다)
-const notifyClientInvitee = (req, a) => require('../services/inviteNotify').notifyExistingInvitee({ kind: 'workspace_client',
-  businessId: Number(req.params.businessId), entityType: 'client', actorUserId: req.user.id, io: req.app.get('io'), ...a });
-// 초대 재발송 — 아직 수락 안 한 (invited) 고객에게 초대 메일 다시 보내기.
-//   토큰은 유지하되 invited_at 갱신(만료 30일 연장). 이미 가입(active)한 고객은 불가.
-router.post('/:businessId/:id/resend-invite', authenticateToken, checkBusinessAccess, requireMenu('clients', 'write'), async (req, res, next) => {
-  try {
-    const client = await Client.findOne({ where: { id: req.params.id, business_id: req.params.businessId } });
-    if (!client) return errorResponse(res, 'Client not found', 404);
-    if (client.status === 'active' || client.accepted_at) return errorResponse(res, 'already_accepted', 400);
-    if (!client.invite_email) return errorResponse(res, 'no_invite_email', 400);
-
-    const crypto = require('crypto');
-    // 토큰 없으면 신규 발급, 있으면 유지. invited_at 갱신으로 만료 연장. reinvite_count +1 (운영 #52 재발송 이력).
-    const token = client.invite_token || crypto.randomBytes(24).toString('hex');
-    await client.update({ invite_token: token, invited_at: new Date(), status: 'invited', reinvite_count: (client.reinvite_count || 0) + 1 });
-
-    try {
-      const { sendInviteEmail } = require('../services/emailService');
-      const biz = await require('../models').Business.findByPk(req.params.businessId, { attributes: ['brand_name', 'name'] });
-      const inviter = await User.findByPk(req.user.id, { attributes: ['name'] });
-      await sendInviteEmail({
-        to: client.invite_email,
-        workspaceName: biz?.brand_name || biz?.name || 'PlanQ',
-        inviterName: inviter?.name || '',
-        targetName: client.display_name || '',
-        kind: 'workspace_client',
-        token,
-      });
-    } catch (e) { console.warn('resend invite email failed:', e.message); }
-    await notifyClientInvitee(req, { email: client.invite_email, entityId: client.id, token });   // 안 읽은 알림이 있으면 helper 가 거른다
-
-    await createAuditLog({
-      userId: req.user.id, businessId: req.params.businessId,
-      action: 'client.reinvited', targetType: 'client', targetId: client.id,
-      newValue: { email: client.invite_email },
-    });
-    return successResponse(res, { id: client.id, status: 'invited' }, 'Invite resent');
-  } catch (error) { next(error); }
-});
+// 초대·재발송·직접 관리 등록은 routes/client_invites.js (같은 /api/clients 접두어, server.js 에서 이 파일 앞에 마운트)
 
 // Archive / activate toggle — POST body { status: 'active' | 'archived' }. 미지정 시 토글.
 // 권한: owner/platform_admin 만 (고객 상태 변경은 조직 관리 영역 · PERMISSION_MATRIX.md §5.5)
@@ -439,8 +286,14 @@ router.post('/:businessId/:id/archive', authenticateToken, checkBusinessAccess, 
     }
     const client = await Client.findOne({ where: { id: req.params.id, business_id: req.params.businessId } });
     if (!client) return errorResponse(res, 'Client not found', 404);
-    const target = req.body?.status || (client.status === 'archived' ? 'active' : 'archived');
-    if (!['active', 'archived'].includes(target)) return errorResponse(res, 'invalid status', 400);
+    const want = req.body?.status || (client.status === 'archived' ? 'active' : 'archived');
+    if (!['active', 'archived'].includes(want)) return errorResponse(res, 'invalid status', 400);
+    // 문의 고객을 보관하면 한도 계수(≠prospect)에 들어가 조용히 정식 고객이 된다 — 종결은 Q sale «무산» 단계로
+    if (client.status === 'prospect') return errorResponse(res, 'prospect_use_stage', 409);
+    // 되살릴 상태는 «active» 고정이 아니라 증거로 파생한다 — 계정 없는 고객이 «활성(가입)» 으로 둔갑하던 것
+    const { reactivatedStatusOf } = require('../services/clientAccess');
+    const target = want === 'archived' ? 'archived' : reactivatedStatusOf(client);
+    if (target === client.status) return successResponse(res, stripClientSecrets(client.toJSON()));
     const before = { status: client.status };
     await client.update({ status: target });
     if (target === 'archived') await require('../services/inviteNotify').dismissInviteNotice('client', client.id);
@@ -450,7 +303,8 @@ router.post('/:businessId/:id/archive', authenticateToken, checkBusinessAccess, 
       targetType: 'client', targetId: client.id,
       oldValue: before, newValue: { status: target },
     });
-    successResponse(res, client, target === 'archived' ? 'Client archived' : 'Client activated');
+    broadcastClient(req, client, 'client:updated');
+    successResponse(res, stripClientSecrets(client.toJSON()), target === 'archived' ? 'Client archived' : 'Client activated');
   } catch (error) { next(error); }
 });
 

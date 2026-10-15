@@ -1,6 +1,11 @@
 # Fable 게이트 대기열 → **판정 기록 보관소** (2026-10-08 부터)
 
 
+## 2026-10-15 PASS — 직접 관리 고객(비가입 고객, status 'managed') (방 d1871180)
+- 설계 판정(같은 방, Fable): docs/CLIENT_MANAGED_DESIGN.md — ENUM 끝 'managed' · 정식 고객 한도 · 행 id 초대 승격 · 술어 clientAccess(canInviteClient·emailEditable·reactivatedStatusOf) · PUT status 제거 · resend 는 invited 만 · 문의 보관 409 · register-managed.
+- 검증: Fable 독립 실HTTP 44/44(한도 +1/+0/-1 · 409 existing_client_id · 토큰 원문 0 · 보관 해제 증거 파생 · 승격 후 잠김 · 권한 403 · ws6 422 · 청구서 초안→발송→공개 링크 200 · 승격 행 초대 수락 → active) · 마이그레이션 멱등 + lib 임시 표 실적용·백필 · guard 69/70 · secrets 10/10 · clientlink 1/1 · e2e tenant,clientlink,salecriteria 28/0 · 화면 1440·390 12/12. 작업자: 실HTTP 39/39 + 분리 후 9/9 · 대조군(해제 'active' 고정 → FAIL) · 화면 3폭 36/36 · build EXIT 0.
+- 비차단: ① 기존 PlanQ 사용자를 초대하면 수락 전에도 user_id 가 선채워져, 보관→해제 시 active(수락 없이 member) — HEAD 보다 좁아졌을 뿐 회귀 아님. 다음에 `user_id && accepted_at` 로 조이고 고객 초대도 멤버 초대(D1)처럼 수락 때만 계정을 붙일지 결정 ② Q sale 패널 초대는 이메일 있을 때만(고객 관리 드로어에선 주소 입력 가능) ③ 메일이 안 나간 invited 행도 주소 잠김(옛 규칙, 범위 밖).
+
 ## 2026-10-15 PASS — 문서(Q docs) 댓글 (방 1abbce29)
 - 설계 판정(같은 방, Fable): docs/DOC_COMMENTS_DESIGN.md — `post_comments`(internal/shared) · 읽기 = canReadPost 하나 · 고객 shared 강제 · 삭제 = 작성자·owner/admin · 알림 doc_comment(신설 ENUM)·comment_mention · 실시간 `post:comment` 신호만 · 문서 밖으로 안 나감.
 - 검증: Fable 독립 — 작업자 실HTTP 44/44 재현(재시작한 서버) + 추가 16/16(고객 본인 삭제·남의 shared 403·행 키 화이트리스트·작성자 경로 알림·doc_comment 끄면 0·다른 문서 댓글 id 삭제 404·PDF 본문 0) · 마이그레이션 멱등 · 배포 슬롯 reload 앞 · guard 69/70 · secrets 10/10 · e2e tenant 0 · 가시성 6/6. 작업자 브라우저 22/22(3폭), 양성 대조군(고객 필터 제거 → 3검사 뒤집힘).
