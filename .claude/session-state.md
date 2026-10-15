@@ -130,12 +130,20 @@
 - ceda7971: 제목 «오늘 내 업무 ▾» 가 범위 고르기(PopoutScopeTitle) · 밀도 아이콘 헤더 · «직접 추가 · 보기 설정» 접기(PopoutToolsFold, 기본 접힘·요약 표시) · 태그 관리 = «태그별» 뒤 톱니 · 칩 줄 wrap.
 - 검증: build 0 · guard 68/69 · health frontend 4/4 · --suite rowtags 0 · 실브라우저 420/520/760: 가로 넘침 0, 완료 가리기 한 줄, 정렬 창 안(420 은 둘째 줄 오른쪽), 톱니→태그 관리 모달, 범위 메뉴→제목 바뀜, 접기 상태 새로고침 유지. 목록 시작 y ≈300 → 159(접힘). Fable 안 씀(UI 배치).
 
-### 나중에 — Fable 대기: 워크스페이스 초대 인앱 알림 (방 3a26aed0 · 2026-10-12 · [Opus]) — 코드 변경 없음
-- 무엇: 기존 계정 이메일을 멤버로 초대하면 초대 순간 `business_members.user_id` 가 채워져 **수락 전부터 멤버 권한·전환기 노출**(getUserScope·getUserWithBusiness 가 joined_at 미확인). 인앱 알림 «수락하세요» 가 참이 되려면 이것부터. 고객·프로젝트 고객 초대는 수락 전 접근 없음(status active 필요) 확인.
-- 설계 초안·사실: `docs/INVITE_INAPP_NOTIFY_DESIGN.md` — 권고 (가) 초대 때 user_id prefill 중단 + 백필(`joined_at NULL ∧ invite_token NOT NULL ∧ removed_at NULL ∧ role∉owner,ai` · dev 1행, invite_token NULL 실멤버 8행 제외) + 다섯 초대 경로 공용 헬퍼로 인앱 알림(business_id NULL · skipChannels email · 링크 /invite/<token>).
-- 언제: Fable 한도가 풀리면(상황판 fid fwmv5u9v71 — 10-13 00:58 재시도도 한도로 실패, 10-13 09:44 KL 께 다시 깨움).
-- 그때 할 일: Fable design 1회(D1·D2·D3) → 운영 미수락 초대·«수락했는데 joined_at 없는» 행 읽기 전용 확인(운영 읽기 스크립트는 이 방에서 권한 거부됨) → 판정대로 구현(businesses.js 초대 · migrate 스크립트 배포 슬롯 · services/inviteNotify) → 문서 3절 검증 → Fable gate → fable-wait done.
+### 답 기다림: 초대 링크를 다른 계정으로 수락 — 막을까요? (방 3a26aed0 · 2026-10-15 · [Opus]+[Fable 설계 1·검증 1])
+- 무엇: 초대 이메일이 이미 PlanQ 계정인데 링크를 가진 다른 로그인 계정이 수락하면 그 사람이 멤버가 된다(Fable 실측 — 기존 계약, 회귀 아님). 링크가 이제 앱 알림·푸시에도 실린다.
+- 선택: (가) 지금대로(10-12 결정: 경고 + 지금 계정으로 수락) / (나) 초대 이메일이 계정이면 그 계정만 수락. 권고 (나).
+- **초대 이메일이 이미 계정이면 그 계정만 수락하게 막을까요?**
+- 답이 오면: (나)면 services/invites.acceptInvite 에 «invite_email 의 계정이 있으면 수락자 = 그 계정» 검사 + InvitePage 의 [지금 계정으로 수락] 숨김 → 실HTTP·화면 3폭 → Fable gate(권한 변경). (가)면 기록만.
 
+### Irene 할 일
+- 초대 «수락 전 멤버» 되돌리기 — 다음 배포 뒤 운영에서 계획 읽기(`! ssh 87.106.78.146 'cd /opt/planq/backend && NODE_ENV=production node scripts/migrate-invite-prefill.js 2>&1 | tail -30'`, 읽기만). 상황판 todomv8y3tfn. 그 뒤 ⒝=0 이면 --apply 를 새 할 일로.
+
+### 완료: 워크스페이스 초대 인앱 알림 + 수락 전 멤버 권한 (방 3a26aed0 · 2026-10-15 · [Opus]+[Fable 설계 1·검증 1 PASS]) — 운영 미배포
+- e7f37914: 멤버 초대는 수락 때만 user_id(초대 순간 채워 수락 전부터 멤버였다) · services/inviteNotify 5경로(대기=범위 NULL·/invite/<token> · 프로젝트 고객 기존 계정=그 biz·프로젝트 주소) · 메일·재알림 메일 끔 · 수락/취소/삭제 때 읽음 · 알림 클릭 openNotificationTarget(앱 셸 밖은 문서 이동) · 멤버 초대 응답 토큰 제거 · 백필 migrate-invite-prefill.js(배포 땐 읽기만).
+- 자체: 실HTTP 27/27 · 백필 대조군 9/9 · guard 68/69 · health 85/85 · secrets 10/10 · build 0 · e2e invitenotify 0. Fable 재측정 + 독립 프로브 15/15 PASS. 프론트 양성 대조군 빌드는 메모리 부족으로 못 돌림.
+- Fable 비차단: 배포 스크립트의 읽기 전용 백필이 던지면 배포가 멈춘다(위험 낮음) · 다른 방 test-*.js 3개 남음.
+- 확인용: member1 이 ws7(브랜드 파트너스) 초대를 받은 상태(알림 9358) — 수락하지 말고 둘 것.
 ### 완료: 미출근인데 업무 «자리 비움 감지·재개» (방 a9337893 · 2026-10-12~15 · [Opus]+[Fable 설계 1]) — 커밋 59f9ba65·e8d3aeb0·ec327235·3329651c, 운영 미배포
 - 원인(운영 읽기): 업무 542 세션 236 — 자동 출근 11초 뒤 [취소] → 근태 행만 지워지고 측정 2h40m 계속 → 자리 비움 자동 멈춤.
 - Fable 설계 판정(docs/FABLE_GATE_QUEUE.md 2026-10-15): ①취소 = 그 워크스페이스 세션 종료(undo_clock_in) ②/focus/current 범위 — 다른 워크스페이스면 «다른 곳에서 진행 중» 한 줄+전환 ③자동 마감 2차 패스 — 근태 없이 날 넘긴 세션 day_end.
