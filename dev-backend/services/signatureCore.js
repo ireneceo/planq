@@ -116,7 +116,8 @@ function notifyUsSigners(rows, { post, docTitle, senderName, business, actorUser
       link: `/sign/${row.token}`,
       ctaLabel: (lang) => (en(lang) ? (isConfirm ? 'Confirm' : 'Sign') : (isConfirm ? '확인하기' : '서명하기')),
       workspaceName: business?.brand_name || business?.name || null,
-      actorUserId, skipChannels: ['email'],
+      // 5분 뒤 «안 읽은 알림» 재알림 메일도 끈다 — 안 끄면 그 메일이 서명 링크를 싣는다(Fable 2026-10-15 비차단 지적)
+      actorUserId, skipChannels: ['email'], suppressEscalation: true,
     }).catch((e) => console.warn('[signature] us 서명자 알림 실패', e?.message));
   }
 }
