@@ -598,6 +598,16 @@ router.put('/:businessId/billing', authenticateToken, checkBusinessAccess, async
       updates.overdue_grace_days = g;
     }
 
+    // ─── 카드 결제 «대금 받는 곳» (수단별) — 고객용 청구서 화면이 카드 버튼 옆에 보여 준다 (2026-10-15).
+    //   돈이 어디로 가는지 고객에게 말하는 값이라 계좌·Stripe 키와 같은 owner/admin 게이트. 정규화는 services/cardPayLink.
+    const { card_payees } = req.body;
+    if (card_payees !== undefined) {
+      if (req.businessRole !== 'owner' && req.businessRole !== 'admin' && req.user.platform_role !== 'platform_admin') {
+        return errorResponse(res, 'owner_or_admin_only', 403);
+      }
+      updates.card_payees = require('../services/cardPayLink').normalizePayees(card_payees, business.card_payees);
+    }
+
     // ─── Stripe (Q Bill 워크스페이스 카드결제 merchant) ───
     //   시크릿은 재무 설정 → owner/admin 만. write-only: 값 있으면 암호화, 빈문자열=해제, 미전송=보존.
     //   응답은 전역 toJSON 이 stripe_*_enc → stripe_*_set boolean 으로 redact.
@@ -629,6 +639,12 @@ router.put('/:businessId/billing', authenticateToken, checkBusinessAccess, async
     }
 
     await business.update(updates);
+    if (card_payees !== undefined) {
+      require('../services/auditService').logAudit(req, {
+        action: 'business.card_payees.update', targetType: 'business', targetId: business.id, businessId: business.id,
+        newValue: { card_payees: updates.card_payees },
+      });
+    }
     // Stripe 설정 변경은 감사(재무 설정). 시크릿 원문은 auditService 가 *_enc 마스킹 → 암호문도 저장 안 됨.
     if (stripeTouched) {
       require('../services/auditService').logAudit(req, {

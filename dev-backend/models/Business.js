@@ -233,6 +233,9 @@ Business.init({
   stripe_publishable_key: { type: DataTypes.STRING(255), allowNull: true, comment: 'Stripe Publishable Key (평문)' },
   stripe_secret_enc: { type: DataTypes.TEXT, allowNull: true, comment: 'Stripe Secret Key (AES-256-GCM 암호화)' },
   stripe_webhook_secret_enc: { type: DataTypes.TEXT, allowNull: true, comment: 'Stripe Webhook Signing Secret (AES-256-GCM 암호화)' },
+  // 카드 결제 «대금 받는 곳» — 결제 수단별 { stripe:{name,reg_no}, link:{name,reg_no} } (2026-10-15).
+  //   정규화·고객 화면 표시는 services/cardPayLink 한 곳. 운영 migrate-card-pay-link.js.
+  card_payees: { type: DataTypes.JSON, allowNull: true, comment: '카드 결제 대금 받는 곳(수단별)' },
 
   // 메일 발송 설정 (Phase E2/E3) — 사용자에게 보낼 이메일의 발신 표시이름과 회신 주소
   mail_from_name: { type: DataTypes.STRING(100), allowNull: true, comment: '메일 발신 표시이름 (예: "워프로랩 청구팀")' },

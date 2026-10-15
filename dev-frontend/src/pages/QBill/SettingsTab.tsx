@@ -64,6 +64,11 @@ export default function SettingsTab({ inWorkspaceSettings = false }: SettingsTab
   const [stripeSecretInput, setStripeSecretInput] = useState('');
   const [stripeWebhookInput, setStripeWebhookInput] = useState('');
   const [reveal, setReveal] = useState<Record<string, boolean>>({});
+  // 카드 결제 «대금 받는 곳» — 수단별(Stripe / 외부 결제 링크). 고객용 청구서 화면 카드 버튼 옆에 보인다.
+  const [stripePayeeName, setStripePayeeName] = useState('');
+  const [stripePayeeReg, setStripePayeeReg] = useState('');
+  const [linkPayeeName, setLinkPayeeName] = useState('');
+  const [linkPayeeReg, setLinkPayeeReg] = useState('');
 
   const hydrated = useRef(false);
 
@@ -88,6 +93,10 @@ export default function SettingsTab({ inWorkspaceSettings = false }: SettingsTab
         setBillingDay(d.auto_invoice_default_billing_day ?? 1);
         setGraceDays(d.overdue_grace_days ?? 7);
         setStripePub(d.stripe_publishable_key || '');
+        setStripePayeeName(d.card_payees?.stripe?.name || '');
+        setStripePayeeReg(d.card_payees?.stripe?.reg_no || '');
+        setLinkPayeeName(d.card_payees?.link?.name || '');
+        setLinkPayeeReg(d.card_payees?.link?.reg_no || '');
         hydrated.current = true;
       })
       .catch(err => { if (!cancelled) setError(err.message || 'load failed'); })
@@ -291,6 +300,54 @@ export default function SettingsTab({ inWorkspaceSettings = false }: SettingsTab
             {businessId && (
               <WebhookUrl>{`${window.location.origin}/api/stripe/webhook/ws/${businessId}`}</WebhookUrl>
             )}
+          </EditField>
+          {/* 대금 받는 곳 — Stripe 계정의 법인은 청구서 공급자와 다를 수 있다(해외 법인 계정 등). 고객에게 미리 알린다. */}
+          <EditField>
+            <EditLabel>{t('settings.payee.name', '대금 받는 곳 (상호)')}</EditLabel>
+            <AutoSaveField type="input" onSave={async () => save({ card_payees: { stripe: { name: stripePayeeName.trim() || null, reg_no: stripePayeeReg.trim() || null } } })}>
+              <EditInput type="text" value={stripePayeeName} onChange={e => setStripePayeeName(e.target.value)} disabled={!canManageMoney}
+                placeholder={t('settings.payee.stripeNamePh', 'Stripe 계정에 등록한 법인 이름') as string} data-testid="bill-settings-stripe-payee-name" />
+            </AutoSaveField>
+          </EditField>
+          <EditField>
+            <EditLabel>{t('settings.payee.regNo', '등록번호')}</EditLabel>
+            <AutoSaveField type="input" onSave={async () => save({ card_payees: { stripe: { name: stripePayeeName.trim() || null, reg_no: stripePayeeReg.trim() || null } } })}>
+              <EditInput type="text" value={stripePayeeReg} onChange={e => setStripePayeeReg(e.target.value)} disabled={!canManageMoney}
+                placeholder={t('settings.payee.regNoPh', '사업자등록번호 또는 해외 법인 등록번호') as string} />
+            </AutoSaveField>
+          </EditField>
+          <EditField $span={2}>
+            <FieldHint>{t('settings.payee.stripeHint', '고객용 청구서 화면의 «카드로 결제» 버튼 옆에 «대금 받는 곳» 으로 보입니다. 비워 두면 표시하지 않습니다. Stripe 결제창 위쪽의 상호와 카드 명세서 이름은 Stripe 대시보드 → 설정 → 비즈니스 → 공개 상세정보에서 정해지므로 같은 이름으로 맞춰 두세요.')}</FieldHint>
+          </EditField>
+        </EditGrid>
+      </Section>
+
+      {/* 외부 카드 결제 링크 — 토스페이먼츠 링크페이·페이앱 등 국내 결제 대행사에서 만든 링크를 청구서에 건다 */}
+      <Section>
+        <SectionHead>
+          <div>
+            <SectionTitle>{t('settings.cardLink.title', '카드 결제 링크 (국내 결제 대행사)')}</SectionTitle>
+            <SectionDesc>{t('settings.cardLink.desc', '토스페이먼츠 링크페이·페이앱 같은 결제 대행사에서 금액에 맞는 결제 링크를 만든 뒤, 청구서 상세의 «카드 결제 링크» 칸에 붙여 넣으세요. 고객용 청구서 화면에 «카드로 결제» 버튼이 생깁니다. 결제 결과는 PlanQ 로 전달되지 않으므로 결제가 들어오면 «결제 완료» 를 직접 표시해 주세요.')}</SectionDesc>
+          </div>
+        </SectionHead>
+        <EditGrid>
+          <EditField>
+            <EditLabel>{t('settings.payee.name', '대금 받는 곳 (상호)')}</EditLabel>
+            <AutoSaveField type="input" onSave={async () => save({ card_payees: { link: { name: linkPayeeName.trim() || null, reg_no: linkPayeeReg.trim() || null } } })}>
+              <EditInput type="text" value={linkPayeeName} onChange={e => setLinkPayeeName(e.target.value)} disabled={!canManageMoney}
+                placeholder={info.legal_name || info.name || ''} data-testid="bill-settings-link-payee-name" />
+            </AutoSaveField>
+          </EditField>
+          <EditField>
+            <EditLabel>{t('settings.payee.regNo', '등록번호')}</EditLabel>
+            <AutoSaveField type="input" onSave={async () => save({ card_payees: { link: { name: linkPayeeName.trim() || null, reg_no: linkPayeeReg.trim() || null } } })}>
+              <EditInput type="text" value={linkPayeeReg} onChange={e => setLinkPayeeReg(e.target.value)} disabled={!canManageMoney}
+                placeholder={info.tax_id || ''} />
+            </AutoSaveField>
+          </EditField>
+          <EditField $span={2}>
+            <FieldHint>{t('settings.payee.linkHint', '비워 두면 청구서 공급자(법인 정보의 상호·사업자등록번호)로 보입니다. 결제 대행사에 다른 사업자로 가입했다면 그 이름을 넣으세요.')}</FieldHint>
+            <FieldHint>{t('settings.cardLink.domains', '붙일 수 있는 링크: 토스페이먼츠·페이앱·KG이니시스·나이스페이·NHN KCP·카카오페이·네이버페이·포트원·페이코·Stripe·PayPal (https 주소)')}</FieldHint>
           </EditField>
         </EditGrid>
       </Section>

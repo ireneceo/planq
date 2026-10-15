@@ -23,6 +23,7 @@ import {
   type ApiInvoice, type ApiInstallment, type ApiReceiptCorrection, type ApiInvoiceStatusEvent, type ApiBillEvent,
 } from '../../services/invoices';
 import RecurringBillingNote from '../../components/QBill/RecurringBillingNote';
+import CardPayLinkSection, { cardPayLinkVisible } from './CardPayLinkSection';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
 import { isEnterAction } from '../../utils/imeKey';
 
@@ -855,6 +856,13 @@ export default function InvoiceDetailDrawer({ invoice: initialInvoice, onClose, 
                 />
               ))}
             </InstallmentList>
+          </Section>
+        )}
+
+        {/* 카드 결제 링크 — 국내 결제 대행사 링크를 단일/회차에 건다(owner). 고객 화면 «카드로 결제» 버튼 */}
+        {cardPayLinkVisible(invoice, installments, caps.canMarkPaid) && (
+          <Section>
+            <CardPayLinkSection invoice={invoice} installments={installments} canEdit={caps.canMarkPaid} onSaved={() => { void refresh(); }} />
           </Section>
         )}
 

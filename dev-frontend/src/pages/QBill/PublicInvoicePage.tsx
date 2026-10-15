@@ -27,7 +27,11 @@ interface Installment {
   paid_at: string | null;
   notify_paid_at: string | null;
   notify_payer_name: string | null;
+  card_pay_url?: string | null;   // 외부 카드 결제 링크(회차)
 }
+
+// 카드 결제 «대금 받는 곳» — 수단별. 서버 services/cardPayLink.payeesForPublic
+interface CardPayee { name: string | null; reg_no: string | null }
 
 interface PublicInvoice {
   id: number;
@@ -45,6 +49,8 @@ interface PublicInvoice {
   payment_terms: string | null;
   recurring?: InvoiceRecurring | null;
   stripe_enabled?: boolean;   // 워크스페이스가 Stripe 키 설정 시 "카드로 결제" 노출
+  card_pay_url?: string | null;   // 외부 카드 결제 링크(국내 결제 대행사) — 결제 결과는 받지 않는다
+  card_payees?: { stripe: CardPayee | null; link: CardPayee | null };
   notify_paid_at: string | null;
   notify_payer_name: string | null;
   items: Array<{ id: number; description: string; detail?: string | null; quantity: number; unit_price: number; amount: number }>;
@@ -451,6 +457,11 @@ const PublicInvoicePage: React.FC = () => {
                               {cardLoading === inst.id ? t('public.card.starting', '이동 중…') : t('public.card.payThis', '이 회차 카드결제')}
                             </CardPayBtnSm>
                           )}
+                          {inst.card_pay_url && !isFullyPaid && !isCanceled && (
+                            <LinkPayBtnSm href={inst.card_pay_url} target="_blank" rel="noopener noreferrer" data-testid={`public-card-link-${inst.id}`}>
+                              {invoice.stripe_enabled ? t('public.cardLink.payThisDomestic', '이 회차 국내 카드결제') : t('public.card.payThis', '이 회차 카드결제')}
+                            </LinkPayBtnSm>
+                          )}
                           <NotifyBtnSm
                             type="button"
                             disabled={isFullyPaid || isCanceled}
@@ -465,6 +476,13 @@ const PublicInvoicePage: React.FC = () => {
                 );
               })}
             </InstallList>
+          )}
+          {/* 분할 — 카드 대금 받는 곳은 회차마다 같으므로 목록 아래 한 번 */}
+          {isSplit && !isFullyPaid && !isCanceled && (
+            <>
+              {invoice.stripe_enabled && <PayeeLine payee={invoice.card_payees?.stripe} label={invoice.installments.some(i => i.card_pay_url) ? t('public.payee.stripe', '해외 카드 결제(Stripe) 대금 받는 곳') as string : undefined} />}
+              {invoice.installments.some(i => i.card_pay_url) && <PayeeLine payee={invoice.card_payees?.link} label={invoice.stripe_enabled ? t('public.payee.link', '국내 카드 결제 대금 받는 곳') as string : undefined} />}
+            </>
           )}
         </Card>
 
@@ -588,6 +606,18 @@ const PublicInvoicePage: React.FC = () => {
               {cardLoading === 'single' ? t('public.card.starting', '이동 중…') : t('public.card.pay', '카드로 결제')}
             </CardPayBtn>
             <NotifyHint>{t('public.card.hint', 'Stripe 보안 결제 페이지로 이동하며, 결제 완료 시 즉시 확정됩니다.')}</NotifyHint>
+            <PayeeLine payee={invoice.card_payees?.stripe} />
+          </NotifyArea>
+        )}
+
+        {/* 단일 발행 — 외부 카드 결제 링크(국내 결제 대행사). 결제 결과는 PlanQ 로 오지 않는다 → 발행자가 확인 후 완료 표시. */}
+        {!isSplit && !isFullyPaid && !isCanceled && invoice.card_pay_url && (
+          <NotifyArea>
+            <LinkPayBtn href={invoice.card_pay_url} target="_blank" rel="noopener noreferrer" data-testid="public-card-link">
+              {invoice.stripe_enabled ? t('public.cardLink.payDomestic', '국내 카드로 결제') : t('public.card.pay', '카드로 결제')}
+            </LinkPayBtn>
+            <NotifyHint>{t('public.cardLink.hint', '결제 대행사의 결제 화면이 새 창으로 열립니다. 결제가 확인되면 발행자가 결제 완료로 표시합니다.')}</NotifyHint>
+            <PayeeLine payee={invoice.card_payees?.link} />
           </NotifyArea>
         )}
 
@@ -988,6 +1018,21 @@ const CardPayBtnSm = styled.button`
   &:hover:not(:disabled) { background: #524DE0; }
   &:disabled { opacity: 0.5; cursor: not-allowed; }
 `;
+// 외부 카드 결제 링크 버튼 — 다른 결제창(대행사)으로 나가므로 새 창 링크(<a>). Stripe 보라와 구별되는 Primary 톤.
+const LinkPayBtnSm = styled.a`
+  display: inline-flex; align-items: center; min-height: 36px;
+  padding: 6px 12px; font-size: 0.6875rem; font-weight: 700; text-decoration: none;
+  background: #14B8A6; border-radius: 6px; color: #fff;
+  &:hover { background: #0D9488; }
+`;
+const LinkPayBtn = styled.a`
+  display: inline-flex; align-items: center; justify-content: center; min-height: 46px; box-sizing: border-box;
+  padding: 0 20px; font-size: 0.875rem; font-weight: 700; text-decoration: none;
+  background: #14B8A6; border-radius: 10px; color: #fff; width: 100%;
+  &:hover { background: #0D9488; }
+`;
+const PayeeText = styled.div`font-size: 0.75rem; color: #334155; text-align: center; line-height: 1.5;`;
+const PayeeMuted = styled.span`color: #64748B;`;
 const CardPayBtn = styled.button`
   display: inline-flex; align-items: center; justify-content: center; min-height: 46px;
   padding: 0 20px; font-size: 0.875rem; font-weight: 700;
@@ -1188,3 +1233,16 @@ const RcErr = styled.div`
   margin-top: 4px; padding: 9px 12px; font-size: 0.75rem; font-weight: 500;
   color: #B91C1C; background: #FEF2F2; border: 1px solid #FECACA; border-radius: 8px;
 `;
+
+// 카드 결제 «대금 받는 곳» 한 줄 — 설정에 넣은 값(서버 card_payees). 값이 없으면 그리지 않는다(이름을 지어내지 않는다).
+function PayeeLine({ payee, label }: { payee?: CardPayee | null; label?: string }) {
+  const { t } = useTranslation('qbill');
+  if (!payee || (!payee.name && !payee.reg_no)) return null;
+  return (
+    <PayeeText data-testid="public-card-payee">
+      <PayeeMuted>{label || t('public.payee.label', '대금 받는 곳')}: </PayeeMuted>
+      {payee.name}
+      {payee.reg_no && <PayeeMuted> · {t('public.payee.regNo', '등록번호')} {payee.reg_no}</PayeeMuted>}
+    </PayeeText>
+  );
+}

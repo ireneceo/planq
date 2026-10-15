@@ -532,6 +532,9 @@ sync_database() {
   # 2026-10-15 메일 분류 기준 공개 — email_threads.triage_criterion VARCHAR(40) NULL + 인덱스(멱등). 모델이 SELECT 하므로 PM2 reload 전.
   #   옛 메일 재판정(승격 전용)은 여기서 하지 않는다 — 운영 읽기 전용 시뮬 뒤 수동(docs/MAIL_CRITERIA_DESIGN.md §6.2).
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-mail-criteria.js 2>&1 | tail -5"
+  # 2026-10-15 청구서 외부 카드 결제 링크 + 카드 대금 받는 곳 — invoices·invoice_installments.card_pay_url, businesses.card_payees(멱등).
+  #   세 모델이 이 칸을 SELECT 하므로 PM2 reload 전(없으면 청구서·워크스페이스 조회 500).
+  prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-card-pay-link.js 2>&1 | tail -4"
   # 2026-10-15 급여·계약 P1 — businesses.modules 칸 + payroll_people·employment_contracts·pay_items·contract_pay_lines(멱등).
   #   모델이 businesses.modules 를 SELECT 하므로 PM2 reload 전. 급여 기능은 기본 꺼짐 — 운영 동작 변화 없음(docs/PAYROLL_DESIGN.md §3.10).
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-payroll.js 2>&1 | tail -4"

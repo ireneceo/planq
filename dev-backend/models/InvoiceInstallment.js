@@ -73,6 +73,8 @@ InvoiceInstallment.init({
   // Q Bill 워크스페이스 카드결제 (Stripe) — 회차별 Checkout 세션. 이중결제 가드: 열린 세션 재사용.
   stripe_session_id: { type: DataTypes.STRING(255), allowNull: true, comment: 'Stripe Checkout 세션 id (열린 세션 재사용)' },
   stripe_payment_intent: { type: DataTypes.STRING(255), allowNull: true, comment: 'Stripe PaymentIntent id (webhook 착지 기록)' },
+  // 외부 카드 결제 링크(국내 결제 대행사에서 만든 주소, 회차별) — 검증 services/cardPayLink (2026-10-15)
+  card_pay_url: { type: DataTypes.STRING(500), allowNull: true, comment: '외부 카드 결제 링크(회차)' },
 }, {
   sequelize, tableName: 'invoice_installments', timestamps: true, underscored: true,
   indexes: [

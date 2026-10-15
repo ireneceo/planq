@@ -15,6 +15,7 @@ const { receiptKindOf, payerCodeOf, resolveReceiptProfile, loadPriorReceiptProfi
 const { senderBlockOf, SENDER_ATTRIBUTES } = require('../services/invoiceSender');
 const { logBillEvent, listBillEvents } = require('../services/billEvents');
 const { isStripeEnabled } = require('../services/stripeService'); // Q Bill 워크스페이스 카드결제 활성 판정
+const { normalizeCardPayUrl, payeesForPublic } = require('../services/cardPayLink'); // 외부 카드 결제 링크 + 대금 받는 곳
 const { authenticateToken, optionalAuth, checkBusinessAccess } = require('../middleware/auth');
 const { requireMenu } = require('../middleware/menu_permission');
 
@@ -178,8 +179,9 @@ router.get('/public/:token', optionalAuth, async (req, res, next) => {
     //   senderBlockOf 가 아무리 잘 만들어도 값이 undefined 였다.
     //   (memory feedback_column_reference_must_exist — 안 읽은 컬럼은 조용히 없는 값이 된다)
     const business = await Business.findByPk(invoice.business_id, {
-      attributes: ['id', ...SENDER_ATTRIBUTES],
+      attributes: ['id', ...SENDER_ATTRIBUTES, 'card_payees'],
     });
+    const senderBlock = senderBlockOf(business);
     // 증빙 정보 — 상세·목록과 같은 함수에 같은 입력(직전 제출본 포함, B-⑤)
     const publicPrior = await loadPriorReceiptProfiles([invoice]);
     const publicRp = resolveReceiptProfile(invoice, invoice.Client || null, publicPrior(invoice));
@@ -209,6 +211,10 @@ router.get('/public/:token', optionalAuth, async (req, res, next) => {
       recurring: await resolveRecurringInfo(invoice),   // #92 — 정기 발송 기준(구독)
       // 카드결제(Stripe) 활성 여부 — 워크스페이스가 Stripe 키를 설정했을 때만 "카드로 결제" 노출.
       stripe_enabled: await isStripeEnabled('workspace', invoice.business_id),
+      // 외부 카드 결제 링크(국내 결제 대행사 주소) — 결제 결과는 받지 않는다(확정은 발행자). services/cardPayLink
+      card_pay_url: invoice.card_pay_url || null,
+      // 카드 결제 «대금 받는 곳» — 수단별(Stripe / 외부 링크). 설정값, 링크는 비면 공급자.
+      card_payees: payeesForPublic(business, senderBlock),
       notify_paid_at: invoice.notify_paid_at,
       notify_payer_name: invoice.notify_payer_name,
       items: (invoice.items || []).map(it => ({
@@ -220,6 +226,7 @@ router.get('/public/:token', optionalAuth, async (req, res, next) => {
         percent: i.percent, amount: i.amount, due_date: i.due_date,
         status: i.status, paid_at: i.paid_at,
         notify_paid_at: i.notify_paid_at, notify_payer_name: i.notify_payer_name,
+        card_pay_url: i.card_pay_url || null,
         // #77 — 발행된 증빙 파일 존재 여부 (다운로드 버튼 표시)
         tax_invoice_file: !!i.tax_invoice_file_id, cash_receipt_file: !!i.cash_receipt_file_id,
       })),
@@ -257,7 +264,7 @@ router.get('/public/:token', optionalAuth, async (req, res, next) => {
       // ★ 공급자 정보 공식은 services/invoiceSender.senderBlockOf 하나뿐이다 (2026-09-03).
       //   여기에 사본을 두면 PDF·메일과 조용히 갈라진다 — 실제로 갈라져 있었다:
       //   주소·전화·이메일·업태·종목·사업자등록번호가 이 응답에만 없어서 화면이 그릴 수가 없었다.
-      sender: senderBlockOf(business),
+      sender: senderBlock,
       source_post: sourcePost,
     };
     successResponse(res, safe);
@@ -2246,6 +2253,50 @@ router.delete('/:businessId/:id/installments/:installId', authenticateToken, che
     //   `invoice` 인스턴스로 부른다 — 이 스코프에 갱신본 변수는 없고, broadcastInvoice 는 business_id 만 쓴다.
     broadcastInvoice(req, invoice, 'invoice:updated');
     successResponse(res, inst, 'Installment canceled');
+  } catch (error) { next(error); }
+});
+
+// ─── 외부 카드 결제 링크 (2026-10-15) ───
+// PATCH /:businessId/:id/card-pay-link  body: { url, installment_id? }
+//   국내 결제 대행사(토스페이먼츠 링크페이·페이앱 등)에서 만든 주소를 청구서(단일) 또는 회차(분할)에 건다.
+//   고객용 청구서 화면에 «카드로 결제» 버튼으로 보인다. 결제 결과는 받지 않는다 — 확정은 발행자(mark-paid).
+//   돈이 들어갈 길을 바꾸는 일이라 계좌·발송·결제 마킹과 같은 owner 게이트. 발행 뒤에도 걸 수 있다(링크는 금액을 알고 만든다).
+//   빈 값 = 링크 떼기. 검증은 services/cardPayLink 한 곳(https + 결제 대행사 도메인).
+router.patch('/:businessId/:id/card-pay-link', authenticateToken, checkBusinessAccess, requireMenu('qbill', 'write'), async (req, res, next) => {
+  if (!assertInvoiceMutationOwner(req, res)) return;
+  try {
+    const invoice = await Invoice.findOne({ where: { id: req.params.id, business_id: req.params.businessId } });
+    if (!invoice) return errorResponse(res, 'Invoice not found', 404);
+    if (invoice.status === 'paid' || invoice.status === 'canceled') return errorResponse(res, 'invoice_closed', 400);
+    const norm = normalizeCardPayUrl(req.body ? req.body.url : undefined);
+    if (norm.error) return errorResponse(res, `card_pay_url_${norm.error}`, 400);
+
+    const isSplit = invoice.installment_mode === 'split';
+    const instId = req.body && req.body.installment_id ? Number(req.body.installment_id) : null;
+    let target = invoice;
+    if (isSplit) {
+      if (!instId) return errorResponse(res, 'installment_id_required', 400);
+      const inst = await InvoiceInstallment.findOne({ where: { id: instId, invoice_id: invoice.id } });
+      if (!inst) return errorResponse(res, 'installment_not_found', 404);
+      if (inst.status === 'paid' || inst.status === 'canceled') return errorResponse(res, 'installment_closed', 400);
+      target = inst;
+    } else if (instId) {
+      return errorResponse(res, 'not_split', 400);
+    }
+    const prev = target.card_pay_url || null;
+    if (prev !== norm.url) {
+      await target.update({ card_pay_url: norm.url });
+      require('../services/auditService').logAudit(req, {
+        action: 'invoice.card_pay_link',
+        targetType: 'invoice',
+        targetId: invoice.id,
+        businessId: invoice.business_id,
+        oldValue: { card_pay_url: prev, installment_id: isSplit ? target.id : null },
+        newValue: { card_pay_url: norm.url, installment_id: isSplit ? target.id : null },
+      });
+      broadcastInvoice(req, invoice);
+    }
+    return successResponse(res, { card_pay_url: norm.url, installment_id: isSplit ? target.id : null });
   } catch (error) { next(error); }
 });
 

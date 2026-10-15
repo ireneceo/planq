@@ -170,6 +170,8 @@ Invoice.init({
   notify_payer_name: { type: DataTypes.STRING(80), allowNull: true, comment: '입금자명 (고객 자기보고)' },
   // Q Bill 워크스페이스 카드결제 (Stripe) — 단일 발행(installment 없음) invoice 용. 분할은 installment 에 저장.
   stripe_session_id: { type: DataTypes.STRING(255), allowNull: true, comment: 'Stripe Checkout 세션 id (열린 세션 재사용, 단일 발행)' },
+  // 외부 카드 결제 링크(국내 결제 대행사에서 만든 주소, 단일 발행) — 검증 services/cardPayLink (2026-10-15)
+  card_pay_url: { type: DataTypes.STRING(500), allowNull: true, comment: '외부 카드 결제 링크(단일)' },
   stripe_payment_intent: { type: DataTypes.STRING(255), allowNull: true, comment: 'Stripe PaymentIntent id (webhook 착지 기록, 단일 발행)' },
   // 연체 알림 단계 등 보조 정보
   meta: { type: DataTypes.JSON, allowNull: true, comment: 'last_overdue_notify_stage / paused_due_to_invoice 등 보조 정보' },

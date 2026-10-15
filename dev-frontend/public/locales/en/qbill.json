@@ -383,7 +383,17 @@
       "message": "This can't be undone. For an invoice that has been sent, use \"Cancel\" instead of deleting.",
       "title": "Delete this invoice?"
     },
-    "financeError": "Something went wrong"
+    "financeError": "Something went wrong",
+    "cardLink": {
+      "title": "Card payment link",
+      "desc": "Paste a payment link created for this amount at Toss Payments Link Pay, PayApp, etc., and a “Pay by card” button appears on the customer invoice page. Mark it as paid yourself once the payment arrives.",
+      "placeholder": "https://… (payment link from your provider)",
+      "errDomain": "This is not a supported payment provider address. See “Card payment links” in Settings › Billing for supported providers.",
+      "errHttps": "Only addresses starting with https:// can be used.",
+      "errInvalid": "The address is not valid.",
+      "errLong": "The address is too long (500 characters max).",
+      "errSave": "Could not save. Please check the address."
+    }
   },
   "newInvoice": {
     "title": "New invoice",
@@ -852,6 +862,19 @@
       "hide": "Hide",
       "whose": "The Stripe account you enter here belongs to this workspace. When a customer pays by card, the money lands in this account directly — it never passes through PlanQ. Stripe accounts are not tied to a domain, so you can reuse one you already have: just add one more webhook endpoint (the URL shown on this screen) and paste its signing secret.",
       "storedMalformed": "The stored value is not a Stripe key. Replace it with a value starting with pk_, or clear it."
+    },
+    "payee": {
+      "name": "Payee (business name)",
+      "regNo": "Registration no.",
+      "stripeNamePh": "Legal entity registered on your Stripe account",
+      "regNoPh": "Business registration no. or overseas company no.",
+      "stripeHint": "Shown as “Payee” next to the “Pay by card” button on the customer invoice page. Left blank, nothing is shown. The business name at the top of the Stripe checkout and on card statements comes from Stripe Dashboard → Settings → Business → Public details, so keep them the same.",
+      "linkHint": "Left blank, the invoice issuer (business name and registration no. from your company info) is shown. If you signed up with the payment provider under a different business, enter that name."
+    },
+    "cardLink": {
+      "title": "Card payment links (local payment providers)",
+      "desc": "Create a payment link for the amount at a provider such as Toss Payments Link Pay or PayApp, then paste it into the “Card payment link” field on the invoice. A “Pay by card” button appears on the customer invoice page. Payment results are not sent to PlanQ, so mark the invoice as paid yourself once the payment arrives.",
+      "domains": "Supported links: Toss Payments, PayApp, KG Inicis, NICEPAY, NHN KCP, KakaoPay, Naver Pay, PortOne, PAYCO, Stripe, PayPal (https only)"
     }
   },
   "common": {
@@ -969,7 +992,18 @@
       "phone": "Phone",
       "email": "Email"
     },
-    "downloadPdf": "Download PDF"
+    "downloadPdf": "Download PDF",
+    "cardLink": {
+      "payDomestic": "Pay with a Korean card",
+      "payThisDomestic": "Pay this installment with a Korean card",
+      "hint": "The payment provider’s checkout opens in a new window. The issuer marks the invoice as paid once the payment is confirmed."
+    },
+    "payee": {
+      "label": "Payee",
+      "regNo": "Reg. no.",
+      "stripe": "Payee for international card payments (Stripe)",
+      "link": "Payee for Korean card payments"
+    }
   },
   "kind": {
     "contract": "Contract",

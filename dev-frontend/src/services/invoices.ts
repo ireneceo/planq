@@ -38,6 +38,7 @@ export interface ApiInstallment {
   cash_receipt_no: string | null;
   cash_receipt_at: string | null;
   milestone_ref: string | null;
+  card_pay_url?: string | null;   // 외부 카드 결제 링크(회차)
 }
 
 export interface ApiSourcePost {
@@ -81,6 +82,7 @@ export interface InvoiceRecurring {
 export interface ApiInvoice {
   id: number;
   business_id: number;
+  card_pay_url?: string | null;   // 외부 카드 결제 링크(단일 발행)
   recurring?: InvoiceRecurring | null;
   client_id: number | null;
   invoice_number: string;
@@ -288,6 +290,18 @@ export async function sendInvoice(businessId: number, invoiceId: number, opts: S
     body: JSON.stringify(opts),
   });
   return expectOk<SendInvoiceResult>(r);
+}
+
+// 외부 카드 결제 링크 걸기·떼기(빈 값) — 단일=청구서, 분할=회차(installmentId). owner 전용.
+export async function setCardPayLink(
+  businessId: number, invoiceId: number, url: string, installmentId: number | null = null,
+): Promise<{ card_pay_url: string | null; installment_id: number | null }> {
+  const r = await apiFetch(`/api/invoices/${businessId}/${invoiceId}/card-pay-link`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ url, installment_id: installmentId }),
+  });
+  return expectOk(r);
 }
 
 export async function markInstallmentPaid(
@@ -626,7 +640,12 @@ export interface ApiBusinessInfo {
   stripe_publishable_key?: string | null;
   stripe_secret_set?: boolean;
   stripe_webhook_secret_set?: boolean;
+  card_payees?: CardPayees | null;
 }
+
+// 카드 결제 «대금 받는 곳» — 수단별(Stripe / 외부 결제 링크). 서버 정규화 services/cardPayLink.
+export interface CardPayee { name: string | null; reg_no: string | null }
+export interface CardPayees { stripe: CardPayee | null; link: CardPayee | null }
 
 export async function getBusinessInfo(businessId: number): Promise<ApiBusinessInfo> {
   const r = await apiFetch(`/api/businesses/${businessId}`);
@@ -652,6 +671,7 @@ export interface BillingPatch {
   stripe_publishable_key?: string | null;
   stripe_secret?: string;
   stripe_webhook_secret?: string;
+  card_payees?: Partial<CardPayees>;
 }
 
 export async function updateBusinessBilling(businessId: number, patch: BillingPatch): Promise<ApiBusinessInfo> {
