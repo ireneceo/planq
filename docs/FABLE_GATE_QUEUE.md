@@ -1,6 +1,11 @@
 # Fable 게이트 대기열 → **판정 기록 보관소** (2026-10-08 부터)
 
 
+## 2026-10-15 · 급여 P2~P4 완료 검증 (gate·calc) — **PASS** (방 cd3690dc · 커밋 59a07c3d..4bc1faad)
+- Fable 실측: 검산 37/37 · migrate 멱등(변경 0) · guard 72/73(남은 1 = 문서 신선도 경고) · secrets 11/11 · tenant 실패 0 · 작성자 실HTTP 84/84(재시작 후 83/84 — 뒤집힌 1건은 Fable 프로브가 낸 메일을 5분 창이 집은 것) · PDF 가림 4/4 · Fable 프로브 74/74(역할 403·교차 테넌트 23건 404/409·송금 담당 검사·single 모드 멱등·소켓 음성 대조군·PDF 본문 계좌 0·계산 경계).
+- 차단 없음. 비차단: ① 백엔드 변경 뒤 pm2 restart 전에 검증(notificationScope 가 옛 프로세스엔 없었다 — 재시작 후 실측 통과) ② 송금 담당을 확정자와 다르게 고르면 업무 배정 알림이 메일까지 감(금액 0) — createTask 에 skipChannels 길 필요 ③ canary-tenant 에 급여 라우트 없음 ④ 계약 없는 사람의 고정 칸 draft 가 대장 값과 같아 «예상» 처럼 보임 ⑤ 급여일 전 알림 크론 미구현(설계 §2.2 vs §10 범위 불일치) ⑥ 시험 스크립트가 남긴 송금 할 일 → 정리함(23건).
+- 화면(4bc1faad)은 판정 범위 밖 — 빌드가 메모리 부족으로 강제 종료돼 화면 실측은 따로(자체 검증).
+
 ## 2026-10-15 PASS — 급여·계약 P0·P1 (방 671b6a35 · c45d87b1·470e7ba9)
 - 설계 판정(같은 방, Fable): docs/PAYROLL_DESIGN.md — 정리·대조 도구 · 법정 공제는 세무사 값 · 기능 스위치 businesses.modules · 대표 + 지정 담당자.
 - 검증: Fable 독립 실HTTP 95(94 PASS, 1 은 검사기 단언 버그 — 값은 맞음) · 모듈 끔 404·platform_admin 403·우회 경로(PUT /permissions 로 담당자 못 바꿈)·멀티테넌트 id 섞기 404/400·계좌 원문 응답·감사·로그 0·계약 전이·memberCost 꺼진 ws 종전 경로·서명 훅 양/음성 · guard 70/71(modulegate 양성 대조군) · health 85/86 · e2e tenant,signature 0 · 마이그레이션·시드 멱등 · 운영 읽기로 EMAIL_ENCRYPTION_KEY 있음 확인. 작업자: 실HTTP 54/54 · 화면 3폭.
