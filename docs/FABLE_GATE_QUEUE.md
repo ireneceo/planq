@@ -1,6 +1,11 @@
 # Fable 게이트 대기열 → **판정 기록 보관소** (2026-10-08 부터)
 
 
+## 2026-10-15 PASS — 긴급 업무요청 알림 강화 (방 671b6a35)
+- 범위: services/urgentTaskNotify.js(신규 — 미확인 긴급 요청이 되는 전이에서만 담당자에게 «[긴급]» 1통) · notify({urgent}) → push(sw requireInteraction·APNs time-sensitive·FCM PRIORITY_MAX/PUBLIC)·소켓 · 추가 폼 «긴급으로 요청» · 팝아웃 맨 위 띠(my-week urgent_requests, [확인]=ack).
+- 검증: Fable 독립 실HTTP 26/26(생성 1통·보통 대조·본인 0·PUT 전이 1·재저장 0·10분 토글 0·ack 후 빠짐·확인한 업무 0·재배정 새 담당자 1·L1 confidential 수신자 1명·비멤버 403·client my-week 빈 배열·updateFields 직접 1) · owner web-push 실발송 sent 201 · 소켓 urgent:true 수신 · 브라우저 1440/390 · guard 69/70 · e2e inboxcount,tenant 0 · health-check 84/85(invite 실패는 기존 — health-access.js 가 client_invites 미마운트). 작업자: 실HTTP 16/16+1 · 화면 3폭 13/13 · build EXIT 0.
+- 비차단: ① 10분 재발송 억제가 «배정» 알림까지 삼킨다 — 미확인 긴급 업무를 A→B→(10분 안) A 로 되돌리면 A 는 알림 0 ② 내 업무로 만든 뒤 남에게 넘긴 업무(request_by 없음)는 긴급이 안 울린다(확인필요 ① 술어와 같은 선) ③ 알림 설정에서 업무 푸시를 끈 사람에겐 긴급도 안 간다(«무조건» 이면 Irene 결정) ④ FCM PUBLIC 은 잠금화면에 업무 제목(대외비도) 노출 ⑤ 재알림 크론 없음 ⑥ health-access.js invite 검사기 마운트 누락(별건).
+
 ## 2026-10-15 PASS(2차) — 메일 분류 기준 공개·새 기준·학습 확대 + Q sale 상담 기준 (방 28cf8581)
 - 설계 판정(같은 방, Fable): docs/MAIL_CRITERIA_DESIGN.md — 카탈로그 한 벌(mailCriteriaCatalog) · 끄기 permissions.mail_criteria.off(owner/admin) · email_threads.triage_criterion · 새 기준 inbound_action(답변 필요)·auto_ack·spam_rescue·platform_notice · 역할 주소 확인 권장 유지(결정 ④) · 학습 «답변 필요로»/«확인 권장으로» 2회 · Q sale off(replied·personal)·domains.always/never.
 - 1차 FAIL(차단 3): ① inbound_action 이 자동 triage 그대로 답변 필요 → 자동·마케팅 폴더에도 겹쳐 보임 ② 학습 규칙 소급이 손으로 옮긴 스레드를 덮어 «되돌리기» 때 자동 폴더로 떨어짐 ③ isInboundAction 이 별칭(우리 주소)을 빼서 상점 주소 «New order» 가 영영 안 올라감(설계 밖 조건).

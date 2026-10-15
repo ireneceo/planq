@@ -69,6 +69,8 @@ const ACTIONS = {
   task_resumed: { ko: '보류 해제', en: 'Resumed' },
   task_recurring_created: { ko: '정기 업무 생성', en: 'Recurring task created' },
   task_reviewer_added: { ko: '컨펌자 지정', en: 'Added as approver' },
+  // 긴급 업무요청 — 제목 앞 «[긴급]» 은 services/urgentTaskNotify 가 붙인다(행위 문구에 또 넣으면 두 번 읽힌다)
+  task_urgent_request: { ko: '업무 요청', en: 'Task request' },
   task_comment_mention: { ko: '댓글 멘션', en: 'Mentioned in a comment' },
   // Q docs / 공유
   doc_comment: { ko: '새 댓글', en: 'New comment' },

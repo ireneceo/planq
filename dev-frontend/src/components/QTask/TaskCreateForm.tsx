@@ -140,6 +140,8 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({
   //   여기에 프리셋 셀렉트를 다시 그리면 달력과 업무의 반복 UI 가 갈라진다(그 컴포넌트의 주석이
   //   "Q Calendar / (향후) Q Task 가 공유" 라고 적어 둔 자리다 — 이제 실제로 공유한다).
   const [recurrence, setRecurrence] = useState<string | null>(null);
+  // 긴급 요청 — 남에게 요청할 때만 고른다. 담당자에게 «[긴급]» 강조 알림 + 팝아웃 맨 위 띠(services/urgentTaskNotify)
+  const [urgent, setUrgent] = useState(false);
 
   const [aiEstimating, setAiEstimating] = useState(false);
   const [aiEstReason, setAiEstReason] = useState('');
@@ -306,6 +308,8 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({
           workstream_id: workstreamId,
           // 고객 맥락에서 연 폼이면 그 고객의 업무가 된다 — 서버가 워크스페이스 소속을 확인한다
           client_id: fixedClientId,
+          // 남에게 요청할 때만 긴급을 싣는다 — 내 업무로 바꾼 뒤 남은 토글 값이 «중요도 긴급» 으로 새지 않게
+          ...(assignedToOther && urgent ? { priority_level: 'urgent' } : {}),
           ...(canPickSecurity ? { vlevel: vis.vlevel, target_member_ids: vis.target_member_ids, security_level: securityLevel } : {}),
         }),
       })).json();
@@ -416,6 +420,17 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({
               ...externals.map((e) => ({ value: String(e.user_id), label: e.name, icon: <PartnerKindBadge kind={e.kind} size="xs" /> })),
             ]} />
         </AddOptField>
+        {assignedToOther && (
+          <AddOptField data-field="urgent" style={{ flex: '0 1 150px' }}>
+            <AddOptLabel>{t('add.urgentLabel', '긴급')}</AddOptLabel>
+            <UrgentToggle type="button" data-testid="task-add-urgent" aria-pressed={urgent} $on={urgent}
+              title={t('add.urgentHint', '담당자에게 강조 알림이 가고, 확인할 때까지 업무리스트 맨 위에 남습니다') as string}
+              onClick={() => setUrgent((v) => !v)}>
+              <UrgentDot $on={urgent} aria-hidden>!</UrgentDot>
+              {urgent ? t('add.urgentOn', '긴급 요청') : t('add.urgentOff', '긴급으로 요청')}
+            </UrgentToggle>
+          </AddOptField>
+        )}
         <AddOptField data-field="dates" style={{ flex: '1 1 200px' }}>
           <AddOptLabel>{t('add.dateRange', '시작 ~ 마감')}</AddOptLabel>
           <AddDateTrigger ref={dateAnchorRef} type="button" onClick={() => setDatePickerOpen((v) => !v)}>
@@ -617,4 +632,6 @@ const AddDatePH = styled.span`color:#94A3B8;`;
 const AddBtnRow = styled.div`display:flex;justify-content:flex-end;gap:6px;`;
 const AddSaveBtn = styled.button`flex:0 0 auto;padding:6px 14px;font-size:0.8125rem;font-weight:600;background:#14B8A6;color:#FFFFFF;border:none;border-radius:6px;cursor:pointer;&:hover:not(:disabled){background:#0D9488;}&:disabled{background:#CBD5E1;cursor:not-allowed;}`;
 const AddCancelBtn = styled.button`flex:0 0 auto;padding:6px 10px;font-size:0.8125rem;color:#64748B;background:transparent;border:1px solid #E2E8F0;border-radius:6px;cursor:pointer;&:hover{background:#F8FAFC;color:#0F172A;}`;
+const UrgentToggle = styled.button<{ $on: boolean }>`height:36px;padding:0 10px;display:inline-flex;align-items:center;gap:6px;font-size:0.8125rem;font-weight:600;font-family:inherit;cursor:pointer;border-radius:6px;white-space:nowrap;color:${(p) => (p.$on ? '#BE123C' : '#475569')};background:${(p) => (p.$on ? '#FFF1F2' : '#FFF')};border:1px solid ${(p) => (p.$on ? '#FDA4AF' : '#E2E8F0')};&:hover{border-color:${(p) => (p.$on ? '#FB7185' : '#CBD5E1')};}&:focus-visible{outline:none;box-shadow:0 0 0 2px rgba(244,63,94,0.2);}`;
+const UrgentDot = styled.span<{ $on: boolean }>`display:inline-block;padding:0 5px;line-height:1.5;border-radius:4px;font-size:0.6875rem;font-weight:800;color:#FFF;background:${(p) => (p.$on ? '#E11D48' : '#CBD5E1')};`;
 const RecurRow = styled.div`display:flex;flex-direction:column;gap:6px;padding:8px 10px;background:#FFFFFF;border:1px solid #E2E8F0;border-radius:6px;`;

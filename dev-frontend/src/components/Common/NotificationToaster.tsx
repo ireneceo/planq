@@ -30,6 +30,7 @@ interface Toast {
   link?: string;            // 클릭 시 이동 (resolveNotificationLink 통과한 값)
   contextKey?: string;      // 활성 페이지 매칭용 (예: conv:123, task:45)
   notificationId?: number;  // N+73 — DB Notification.id (있으면 닫기/클릭 시 mark-read 호출)
+  urgent?: boolean;         // 긴급 업무요청(notification:new 의 urgent) — 빨간 띠로 강조
   ts: number;
 }
 
@@ -390,7 +391,8 @@ export default function NotificationToaster() {
           const idx = prev.findIndex(t => t.contextKey === contextKey && !t.notificationId);
           if (idx >= 0) {
             const updated = [...prev];
-            updated[idx] = { ...updated[idx], notificationId: row.id, link };
+            // 긴급 요청이면 서버 제목(«[긴급] …»)으로 갈아 끼운다 — raw 이벤트 문구에는 긴급이 없다
+            updated[idx] = { ...updated[idx], notificationId: row.id, link, ...(row.urgent ? { urgent: true, title: row.title } : {}) };
             didMatch = true;
             return updated;
           }
@@ -407,6 +409,7 @@ export default function NotificationToaster() {
           link,
           contextKey,
           notificationId: row.id,
+          urgent: !!row.urgent,
         });
       }
     });
@@ -586,6 +589,8 @@ export default function NotificationToaster() {
       {toasts.map(toast => (
         <ToastCard key={toast.id}
           $type={toast.type}
+          $urgent={!!toast.urgent}
+          data-urgent={toast.urgent ? '1' : undefined}
           onClick={() => {
             // N+73 — toast.link 가 항상 정확 (Toaster 자체 link OR notification:new full row OR resolveNotificationLink fallback)
             // ★ 하던 일 위에 얹히는 진입점은 새 탭 — 드롭다운·알림 페이지와 같은 규칙(2026-10-08 0-H).
@@ -627,7 +632,7 @@ const ToasterRoot = styled.div`
   width: min(360px, calc(100vw - 32px));
 `;
 
-const ToastCard = styled.div<{ $type: string }>`
+const ToastCard = styled.div<{ $type: string; $urgent?: boolean }>`
   pointer-events: auto;
   display: grid;
   grid-template-columns: 32px 1fr 28px;
@@ -646,6 +651,8 @@ const ToastCard = styled.div<{ $type: string }>`
   box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
   cursor: pointer;
   animation: slideIn 0.18s ease-out;
+  /* 긴급 업무요청 — 빨간 띠·연한 빨강 바탕. 토스트는 원래 자동으로 안 사라진다(닫기·클릭만) */
+  ${(p) => (p.$urgent ? 'border-color: #FECDD3; border-left: 4px solid #E11D48; background: #FFF1F2;' : '')}
   transition: transform 0.15s, box-shadow 0.15s;
   &:hover {
     transform: translateX(-2px);

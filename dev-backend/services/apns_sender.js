@@ -83,6 +83,9 @@ async function sendApns(deviceToken, payload, _retried = false) {
   };
   if (typeof payload.badge === 'number') aps.badge = payload.badge;
   if (payload.tag) aps['thread-id'] = String(payload.tag); // 알림 그룹핑 = 기존 tag 의미 보존
+  // 긴급 업무요청 — 집중 모드를 뚫는 time-sensitive. 앱 엔타이틀먼트
+  //   (com.apple.developer.usernotifications.time-sensitive)가 없는 빌드에선 iOS 가 보통 알림(active)으로 낮춘다 = 안전.
+  if (payload.urgent) { aps['interruption-level'] = 'time-sensitive'; aps['relevance-score'] = 1; }
   const body = JSON.stringify({ aps, link: payload.link || '/' }); // custom key 'link' — 앱이 딥링크로 사용
 
   const headers = {

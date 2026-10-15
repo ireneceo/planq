@@ -224,8 +224,11 @@ async function afterAssigneeChange({ task, prevAssigneeId, actorUserId }) {
     }
   } catch (e) { console.warn('[afterAssigneeChange cue]', e.message); }
   if (next !== actorUserId) {
+    const wsName = await workspaceName(task.business_id);
+    // 미확인 긴급 요청이면 새 담당자에게 «[긴급]» 알림 하나로 대신한다(services/urgentTaskNotify — 같은 사건 두 통 금지)
+    if (await require('../urgentTaskNotify').notifyUrgentRequest(task, { actorUserId, wsName })) return;
     notifyTask({
-      userId: next, task, wsName: await workspaceName(task.business_id),
+      userId: next, task, wsName,
       action: 'task_assigned', body: `"${task.title}"`, ctaLabel: '업무 보기',
     });
   }
@@ -306,6 +309,11 @@ async function updateFields(task, actor, fields = {}) {
   } catch (e) { await t.rollback(); throw e; }
   await task.reload();
   broadcastTask(task, 'task:updated', actor.userId);
+  // 미확인 요청을 긴급으로 올린 순간에만(전이) 담당자에게 강조 알림 — PUT /tasks/:id 와 같은 함수
+  if (patch.priority_level === 'urgent' && before.priority_level !== 'urgent') {
+    require('../urgentTaskNotify').notifyUrgentRequest(task, { actorUserId: subj.subjectId })
+      .catch((e) => console.warn('[updateFields urgent]', e.message));
+  }
   audit(actor, {
     action: 'task.update_fields', targetType: 'task', targetId: task.id, businessId: task.business_id,
     oldValue: before, newValue: { fields: keys },
@@ -938,7 +946,13 @@ async function afterCreate({ task, businessId, projectId, subjectId, actor, isIn
   }
 
   // 알림 — 담당자 ≠ 생성자 일 때만 (본인이 본인에게 만든 업무는 noise)
-  if (isInternalRequest && task.assignee_id) {
+  //   긴급으로 만든 요청이면 «[긴급]» 강조 알림 하나로 대신한다(services/urgentTaskNotify).
+  const urgentSent = isInternalRequest && task.assignee_id
+    ? await require('../urgentTaskNotify').notifyUrgentRequest(task, {
+      actorUserId: actor.userId, wsName: biz?.brand_name || biz?.name || null,
+    }).catch(() => false)
+    : false;
+  if (isInternalRequest && task.assignee_id && !urgentSent) {
     const { notify } = require('../../routes/notifications');
     const { buildTitle, recipientLang } = require('../notifyTitle');
     notify({

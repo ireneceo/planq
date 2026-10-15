@@ -276,7 +276,11 @@
     "attachShow": "파일·문서 첨부",
     "attachHide": "파일·문서 첨부 닫기",
     "workstream": "업무 그룹",
-    "workstreamNone": "그룹 없음"
+    "workstreamNone": "그룹 없음",
+    "urgentLabel": "긴급",
+    "urgentOff": "긴급으로 요청",
+    "urgentOn": "긴급 요청",
+    "urgentHint": "담당자에게 강조 알림이 가고, 확인할 때까지 업무리스트 맨 위에 남습니다"
   },
   "recur": {
     "toggle": "반복하기",
@@ -1393,7 +1397,16 @@
     "dragHandle": "끌어서 순서 바꾸기 (Alt+↑/↓) — 이 보기에서만 바뀌어요",
     "reorderFailed": "순서를 저장하지 못했어요 — 원래 순서로 되돌렸어요. 다시 끌어 주세요.",
     "toolsToggle": "직접 추가 · 보기 설정",
-    "doneHiddenShort": "완료 가림"
+    "doneHiddenShort": "완료 가림",
+    "urgent": {
+      "title": "긴급 요청",
+      "head": "긴급 요청 {{n}}건 — 확인해 주세요",
+      "from": "{{name}} 님 요청",
+      "due": "마감 {{date}}",
+      "ack": "확인",
+      "ackFailed": "확인하지 못했습니다. 다시 눌러 주세요.",
+      "flash": "(긴급 요청 {{n}}건)"
+    }
   },
   "tags": {
     "new": "새 태그",

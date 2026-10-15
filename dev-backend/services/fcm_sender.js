@@ -79,10 +79,15 @@ async function sendFcm(deviceToken, payload, _retried = false) {
   const message = {
     token: deviceToken,
     notification: { title: payload.title, body: payload.body },
-    data: { link: String(payload.link || '/') }, // FCM data 값은 문자열만
+    data: { link: String(payload.link || '/'), ...(payload.urgent ? { urgent: '1' } : {}) }, // FCM data 값은 문자열만
     android: {
       priority: 'high',
-      notification: { channel_id: 'planq_default', ...(payload.tag ? { tag: String(payload.tag) } : {}) },
+      notification: {
+        channel_id: 'planq_default',
+        ...(payload.tag ? { tag: String(payload.tag) } : {}),
+        // 긴급 업무요청 — 최고 우선순위 + 잠금화면에 내용까지(채널 중요도는 앱이 정한다: planq_default = 5)
+        ...(payload.urgent ? { notification_priority: 'PRIORITY_MAX', visibility: 'PUBLIC', default_vibrate_timings: true } : {}),
+      },
     },
   };
 

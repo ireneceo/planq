@@ -177,6 +177,26 @@ router.get('/my-week', authenticateToken, async (req, res, next) => {
       const posMap = await require('../services/taskUserOrder').readPositions(uid, businessId, tasksJson.map((t) => t.id));
       tasksJson.forEach((t) => { t.my_order = posMap.get(t.id) || {}; });
     }
+    // 긴급 요청 띠(팝아웃 맨 위, 2026-10-15) — 나에게 온 **미확인 긴급 요청**. 이번 주 집합과 무관하게 싣는다:
+    //   마감이 없거나 다음 주인 요청은 위 목록에 안 들어와 «무조건 보게» 가 깨진다. 술어는 urgentTaskNotify 와 같다
+    //   (= 확인필요 ① 버킷 + priority_level 'urgent'). 확인(ack)하면 빠진다.
+    let urgentRequests = [];
+    if (!tagScope.isClient) {
+      const { UNACKED_STATUSES } = require('../services/urgentTaskNotify');
+      const rows = await Task.findAll({
+        where: {
+          business_id: businessId, assignee_id: uid, priority_level: 'urgent',
+          request_by_user_id: { [Op.ne]: uid, [Op.not]: null },
+          request_ack_at: null, status: { [Op.in]: UNACKED_STATUSES },
+        },
+        attributes: ['id', 'title', 'due_date', 'status', 'created_at'],
+        include: [{ model: User, as: 'requester', attributes: ['id', 'name', 'name_localized'], required: false }],
+        order: [['created_at', 'DESC']],
+        limit: 20,
+      });
+      urgentRequests = rows.map((r) => r.toJSON());
+      await applyMemberDisplayName(urgentRequests, businessId, ['requester']);
+    }
     return successResponse(res, {
       week: monday,
       // ★ 2026-08-24 (Irene: "모든 시간은 워크스페이스 시간이야. 절대 미스 없게") —
@@ -192,6 +212,7 @@ router.get('/my-week', authenticateToken, async (req, res, next) => {
         total_remaining: Math.round(totalRemaining * 10) / 10,
       },
       tasks: tasksJson,
+      urgent_requests: urgentRequests,
     });
   } catch (err) { next(err); }
 });
@@ -292,7 +313,7 @@ router.post('/', authenticateToken, async (req, res, next) => { // audit-exempt:
   try {
     const { business_id, project_id, title, description, assignee_id, due_date,
       estimated_hours, category, source_message_id, conversation_id, planned_week_start, start_date,
-      cue_kind, cue_context_ref, recurrence_rule, workstream_id, client_id, security_level, vlevel, target_member_ids } = req.body;
+      cue_kind, cue_context_ref, recurrence_rule, workstream_id, client_id, security_level, vlevel, target_member_ids, priority_level } = req.body;
 
     // 생성은 행동 계층 단일 착지점을 지난다 (services/actions/task_actions.js).
     //   권한·요청자 자동 컨펌자·Cue 실행·socket·알림·감사가 전부 그 안에서 일어난다 — Cue 도 같은 문.
@@ -306,6 +327,8 @@ router.post('/', authenticateToken, async (req, res, next) => { // audit-exempt:
       // 고객 축 — 행동 계층이 같은 워크스페이스 고객인지 확인한 뒤에만 붙인다(task_actions 의 격리 검사)
       clientId: client_id,
       securityLevel: security_level, vlevel, targetMemberIds: target_member_ids,
+      // 중요도 — 추가 폼의 «긴급 요청»(2026-10-15). 값 검사는 행동 계층(PRIORITY_LEVELS)이 한다.
+      priorityLevel: priority_level,
     }, { autoAiEstimate: true });
     if (!result.ok) return errorResponse(res, result.code, result.http || 400);
 
@@ -1281,6 +1304,7 @@ router.put('/by-business/:businessId/:id', authenticateToken, async (req, res, n
       status: task.status, assignee_id: task.assignee_id, due_date: task.due_date,
       start_date: task.start_date,
       title: task.title, project_id: task.project_id,
+      priority_level: task.priority_level,
     };
 
     // 필드별 권한 정책 (사이클 N+5 — PERMISSION_MATRIX §5.7 책임선 분리)
@@ -1527,6 +1551,10 @@ router.put('/by-business/:businessId/:id', authenticateToken, async (req, res, n
       // 담당자 변경 → Cue 자동 실행(#81) + 새 담당자 알림(본인 지정이면 생략). reassign() 과 같은 함수.
       if (updates.assignee_id !== undefined && updates.assignee_id !== prev.assignee_id) {
         await taskActions.afterAssigneeChange({ task, prevAssigneeId: prev.assignee_id, actorUserId: req.user.id });
+      } else if (updates.priority_level === 'urgent' && prev.priority_level !== 'urgent') {
+        // 미확인 요청을 긴급으로 올린 순간(전이) — 담당자에게 강조 알림. updateFields(AI·Cue)와 같은 함수.
+        //   담당자도 같이 바뀌었으면 위 afterAssigneeChange 가 새 담당자에게 같은 알림을 보낸다.
+        await require('../services/urgentTaskNotify').notifyUrgentRequest(task, { actorUserId: req.user.id, wsName });
       }
       // 운영 #279 — 기간(시작·마감) 변경 알림.
       //   담당자에게 기간 편집을 열었으므로, 발주자가 "내가 준 마감이 조용히 밀린" 상태를 겪으면 안 된다.

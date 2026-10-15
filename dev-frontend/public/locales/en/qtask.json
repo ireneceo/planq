@@ -233,7 +233,11 @@
     "attachShow": "Attach files & docs",
     "attachHide": "Hide attachments",
     "workstream": "Work group",
-    "workstreamNone": "No group"
+    "workstreamNone": "No group",
+    "urgentLabel": "Urgent",
+    "urgentOff": "Mark as urgent",
+    "urgentOn": "Urgent request",
+    "urgentHint": "The assignee gets a highlighted alert, and it stays at the top of their task list until they acknowledge it"
   },
   "recur": {
     "toggle": "Repeat",
@@ -1393,7 +1397,16 @@
     "dragHandle": "Drag to reorder (Alt+↑/↓) — only in this view",
     "reorderFailed": "Couldn’t save the order — it’s back to how it was. Please drag again.",
     "toolsToggle": "Add & view options",
-    "doneHiddenShort": "done hidden"
+    "doneHiddenShort": "done hidden",
+    "urgent": {
+      "title": "Urgent requests",
+      "head": "{{n}} urgent request(s) — please acknowledge",
+      "from": "Requested by {{name}}",
+      "due": "Due {{date}}",
+      "ack": "Acknowledge",
+      "ackFailed": "Couldn't acknowledge. Please try again.",
+      "flash": "({{n}} urgent)"
+    }
   },
   "tags": {
     "new": "New tag",

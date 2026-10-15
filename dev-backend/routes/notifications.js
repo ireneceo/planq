@@ -110,7 +110,7 @@ router.isAllowed = isAllowed;
  *   메일·푸시에는 «무슨 일이 있었는지» 만 보낸다. 제목·링크는 그대로라 도달성은 안 떨어진다.
  *   ★ 이것은 «가리기» 가 아니라 **경로를 좁히는 것**이다 — 우리 DB 의 평문 저장은 별건이다.
  */
-async function notify({ userId, businessId, eventKind, title, titleSpec, body, link, ctaLabel, workspaceName, tag, actorUserId, entityType, entityId, ioApp, skipChannels, previewPolicy, suppressEscalation }) {
+async function notify({ userId, businessId, eventKind, title, titleSpec, body, link, ctaLabel, workspaceName, tag, actorUserId, entityType, entityId, ioApp, skipChannels, previewPolicy, suppressEscalation, urgent }) {
   if (!userId || !eventKind) return { inbox: false, email: false, push: false };
   // ★ 삭제된 워크스페이스로는 아무것도 발송하지 않는다 (Fable 중요 — 중앙 fan-out 무검사).
   //   여기 한 곳이 알림·메일·푸시의 공통 착지점이라, 여기서 막으면 발송 계열이 전부 닫힌다.
@@ -253,6 +253,8 @@ async function notify({ userId, businessId, eventKind, title, titleSpec, body, l
           entity_id: row.entity_id,
           business_id: row.business_id,
           created_at: row.createdAt || row.created_at,
+          // 긴급 업무요청(services/urgentTaskNotify) — 앱 안 토스트가 빨간 띠로 강조한다. 행에는 칸이 없다(소켓 신호만).
+          ...(urgent ? { urgent: true } : {}),
         });
       } catch { /* socket emit 실패해도 row 는 저장됨 */ }
     } catch (e) {
@@ -355,6 +357,8 @@ async function notify({ userId, businessId, eventKind, title, titleSpec, body, l
         link: withWorkspace(resolvedLink, businessId),
         tag: tag || `${eventKind}:${userId}`,
         ...(badge !== undefined ? { badge } : {}),
+        // 긴급 — sw.js(닫을 때까지 남김)·APNs(time-sensitive)·FCM(최고 우선순위)이 이 값을 읽는다
+        ...(urgent ? { urgent: true } : {}),
       });
       results.push = r;
     } catch (e) {
@@ -365,10 +369,10 @@ async function notify({ userId, businessId, eventKind, title, titleSpec, body, l
 }
 
 // 멀티 수신자용 (워크스페이스 멤버 N 명에게 한 번에)
-async function notifyMany({ userIds, businessId, eventKind, title, titleSpec, body, link, ctaLabel, workspaceName, excludeUserId, tag, actorUserId, entityType, entityId, ioApp, skipChannels, previewPolicy, suppressEscalation }) {
+async function notifyMany({ userIds, businessId, eventKind, title, titleSpec, body, link, ctaLabel, workspaceName, excludeUserId, tag, actorUserId, entityType, entityId, ioApp, skipChannels, previewPolicy, suppressEscalation, urgent }) {
   const filtered = (userIds || []).filter((id) => id && id !== excludeUserId);
   const results = await Promise.all(
-    filtered.map((uid) => notify({ userId: uid, businessId, eventKind, title, titleSpec, body, link, ctaLabel, workspaceName, tag, actorUserId, entityType, entityId, ioApp, skipChannels, previewPolicy, suppressEscalation }))
+    filtered.map((uid) => notify({ userId: uid, businessId, eventKind, title, titleSpec, body, link, ctaLabel, workspaceName, tag, actorUserId, entityType, entityId, ioApp, skipChannels, previewPolicy, suppressEscalation, urgent }))
   );
   return results;
 }

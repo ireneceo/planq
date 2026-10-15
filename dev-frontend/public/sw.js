@@ -98,6 +98,8 @@ self.addEventListener('push', (event) => {
   const title = n.title || raw.title || 'PlanQ';
   const link = n.navigate || n.link || raw.link || '/';
   const tag = n.tag || raw.tag || undefined;
+  // 긴급 업무요청(서버 services/urgentTaskNotify → payload.urgent) — 사용자가 닫을 때까지 남기고 진동을 길게.
+  const urgent = !!(raw && raw.urgent);
   const options = {
     body: n.body || raw.body || '',
     icon: n.icon || raw.icon || '/icon-192.png',
@@ -105,9 +107,9 @@ self.addEventListener('push', (event) => {
     tag,
     renotify: !!tag,
     silent: false,
-    vibrate: [200, 100, 200],
+    vibrate: urgent ? [400, 150, 400, 150, 400] : [200, 100, 200],
     data: { link },
-    requireInteraction: false,
+    requireInteraction: urgent,
   };
   event.waitUntil((async () => {
     // [측정 2026-06-15] showNotification 결과 + 실제 알림 생성 여부를 ack 에 담아 iOS 표시 단계 확정.

@@ -106,6 +106,8 @@ export interface NotificationFullRow {
   entity_type?: string | null;
   entity_id?: number | null;
   business_id?: number | null;
+  /** 긴급 업무요청 소켓 신호(행에는 없다 — routes/notifications.js notify urgent) */
+  urgent?: boolean;
 }
 
 /**
