@@ -226,3 +226,53 @@ export async function deleteMailRule(businessId: number, ruleId: number): Promis
   const j = await r.json();
   if (!j.success) throw new Error(j.message || 'failed');
 }
+
+// ─── 메일 분류 기준 공개·끄기 (2026-10-15, docs/MAIL_CRITERIA_DESIGN.md §3.4) ───
+export type MailCriterionFolder = 'reply' | 'review' | 'demote' | 'spam';
+export interface MailCriterion {
+  id: string;
+  folder: MailCriterionFolder;
+  lockable: boolean;
+  order: number;
+  examples: string[];
+  /** 엔진이 실제로 찾는 낱말(서버 카탈로그 그대로) */
+  terms: string[];
+  enabled: boolean;
+  hits_30d: number;
+}
+export interface MailCriteriaResponse {
+  items: MailCriterion[];
+  can_edit: boolean;
+  rule_hits_30d: number;
+  manual_hits_30d: number;
+  learning: { dismiss: number; spam: number; mark: number; domain_promote: number; recent: MailSenderRule[] };
+}
+export interface MailCriterionImpact {
+  scanned: number; moved: number; capped: boolean;
+  samples: Array<{ id: number; subject: string | null; from: string; to: string }>;
+  by: Record<string, number>;
+}
+async function okData<T>(r: Response): Promise<T> {
+  const j = await r.json().catch(() => null);
+  if (!r.ok || !j?.success) throw new Error(j?.message || 'failed');
+  return j.data as T;
+}
+export const getMailCriteria = (businessId: number) =>
+  apiFetch(`/api/businesses/${businessId}/mail-criteria`).then((r) => okData<MailCriteriaResponse>(r));
+export const previewMailCriterion = (businessId: number, id: string, enabled: boolean) =>
+  apiFetch(`/api/businesses/${businessId}/mail-criteria/${id}/preview`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ enabled }),
+  }).then((r) => okData<MailCriterionImpact & { id: string; enabled: boolean }>(r));
+export const setMailCriterion = (businessId: number, id: string, enabled: boolean) =>
+  apiFetch(`/api/businesses/${businessId}/mail-criteria/${id}`, {
+    method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ enabled }),
+  }).then((r) => okData<{ id: string; enabled: boolean; off: string[]; applied: MailCriterionImpact }>(r));
+
+/** 손으로 옮길 때 서버가 돌려주는 학습 진행 — 폴더 머리 한 줄 안내가 읽는다 */
+export interface MailMarkLearning {
+  email: string; verdict: 'always_reply' | 'review'; threshold: number; progress: number;
+  learned: boolean; rule_id: number | null; moved: number;
+}
+export const markMailReview = (businessId: number, threadId: number) =>
+  apiFetch(`/api/businesses/${businessId}/email-threads/${threadId}/mark-review`, { method: 'POST' })
+    .then((r) => okData<{ id: number; status: string; learning: MailMarkLearning | null }>(r));

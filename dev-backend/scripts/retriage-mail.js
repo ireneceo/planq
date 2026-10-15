@@ -10,10 +10,9 @@
 require('dotenv').config();
 const { Op } = require('sequelize');
 const { sequelize } = require('../config/database');
-const { EmailThread, EmailMessage, EmailAccount, EmailThreadParticipant } = require('../models');
-const { retriageStored, triageBodyOf, headersFromMessage, buildOwnEmailSet, buildOwnAddressMatcher } = require('../services/emailTriage');
-const { applyRules } = require('../services/mailSenderRules');
-const { isKnownContact } = require('../services/emailImapCron');
+const { EmailThread, EmailAccount } = require('../models');
+const R = require('../services/mailRetriage');
+const { offFor } = require('../services/mailCriteria');
 
 const APPLY = process.argv.includes('--apply');
 // --list: 바뀌는 스레드를 전부 출력(기본은 예시 8건) — 반영 전에 오승격이 없는지 한 줄씩 보려고 (2026-09-22)
@@ -21,45 +20,26 @@ const SAMPLE_MAX = process.argv.includes('--list') ? Infinity : 8;
 // --promote-only (2026-10-11, Fable): 자동·마케팅 폴더 → 확인 권장으로 **올라가는 행만** 쓴다.
 //   규칙 변경과 무관한 옛 드리프트(강등·답변 필요 해제)가 같이 적용되지 않게. 답변 필요는 건드리지 않는다.
 const PROMOTE_ONLY = process.argv.includes('--promote-only');
-const { folderOf } = require('../services/mailFolders');
+// --promote-reply-criterion=inbound_action (2026-10-15, docs/MAIL_CRITERIA_DESIGN.md §6.2):
+//   --promote-only 와 같이 쓰면 **그 기준이 정한** 답변 필요 승격(자동·마케팅/확인 권장 → 답변 필요)도 쓴다.
+//   다른 이유로 답변 필요가 켜지는 행(옛 드리프트)은 여전히 쓰지 않는다.
+// --fill-criterion (2026-10-15): 폴더가 그대로인 스레드에 «어느 기준이 정했나»(triage_criterion)만 적는다.
+//   폴더·답변 필요는 건드리지 않는다(메타데이터). 설정 «메일 분류 기준» 의 30일 적중 수가 옛 메일에도 보이게.
+const FILL_CRITERION = process.argv.includes('--fill-criterion');
+const PROMOTE_REPLY = (process.argv.find((a) => a.startsWith('--promote-reply-criterion=')) || '').split('=')[1] || null;
 
 (async () => {
   const accounts = await EmailAccount.findAll({ where: { is_active: true }, attributes: ['id', 'business_id', 'email'] });
   const accMap = new Map(accounts.map(a => [a.id, a]));
-  // "우리 주소" 공식은 **한 벌만 존재해야 한다** — 여기서 손으로 계정 email 만 모으던 옛 코드는
-  //   별칭(email_account_aliases)도 SMTP_FROM 도 몰라서, 동기화 경로와 재판정 경로가 서로 다른
-  //   판정을 내렸다(같은 메일이 실시간엔 답변 필요, 재판정 후엔 확인 권장). buildOwnEmailSet 이 정본.
-  const ownEmailsByBiz = new Map();
-  const ownMatcherByBiz = new Map();
-  for (const bizId of new Set(accounts.map(a => a.business_id))) {
-    ownEmailsByBiz.set(bizId, [...(await buildOwnEmailSet(bizId))]);
-    ownMatcherByBiz.set(bizId, await buildOwnAddressMatcher(bizId));
-  }
+  // "우리 주소" 공식은 **한 벌만 존재해야 한다** — services/mailRetriage.buildContext(수집 경로와 같은 함수).
+  const ctx = await R.buildContext(accounts.map(a => a.business_id));
+  const offByBiz = new Map();
+  for (const b of new Set(accounts.map(a => a.business_id))) offByBiz.set(b, await offFor(b));
 
-  // 사람이 이미 처리한 스레드는 제외 — reply_needed_reason 이 'rule'/'backfill' 이거나
-  // 담당자가 지정된 건 사용자의 판단이므로 그대로 둔다.
-  // 대상: ①답변 필요로 켜진 것(과잉 분류 해제) ②자동·마케팅으로 밀려난 것(내용이 업무면 확인 권장으로 승격)
   // 대상: 열린 메일 전부(답변 필요·확인 권장·자동). 단 **사람이 직접 내린 건 건드리지 않는다** —
-  //   "답변 완료"(dismissed) · "확인 완료"(handled) · 학습 규칙(rule) 은 사용자의 판단이다.
-  //   여태 human+확인 권장 스레드가 대상에서 빠져 있어, 규칙이 개선돼도 답변 필요로 승격되지 않았다
-  //   (실제 사례: "[해지관련 문의]" 가 확인 권장에 갇혀 있었다).
-  const threads = await EmailThread.findAll({
-    where: {
-      rule_id: null,
-      status: { [Op.in]: ['open', 'uncertain'] },
-      [Op.or]: [
-        { reply_needed_reason: null },
-        // #200 — 'replied'(우리가 답장함) 추가. 여태 답장 라우트가 reason 을 null 로 지워서
-        //   이미 답장한 스레드가 재판정 때마다 답변 필요로 **되살아났다**.
-        { reply_needed_reason: { [Op.notIn]: ['dismissed', 'handled', 'rule', 'replied', 'holding'] } },
-      ],
-    },
-    order: [['id', 'ASC']],
-  });
-  const assigned = new Set((await EmailThreadParticipant.findAll({
-    where: { thread_id: { [Op.in]: threads.map(t => t.id).concat([0]) }, is_assigned: true },
-    attributes: ['thread_id'],
-  })).map(p => p.thread_id));
+  //   제외 기준은 services/mailRetriage.eligibleWhere 한 곳(설정 화면의 기준 끄기 소급과 같다).
+  const threads = await EmailThread.findAll({ where: R.eligibleWhere(), order: [['id', 'ASC']] });
+  const assigned = await R.assignedIds(threads.map(t => t.id));
 
   // 백필(과거 메일)은 "읽기만" 이 정책인데 reply_needed=1 로 남은 모순 행 정리 (옛 동기화 잔재)
   const backfillStuck = await EmailThread.count({ where: { reply_needed: true, reply_needed_reason: 'backfill' } });
@@ -68,83 +48,46 @@ const { folderOf } = require('../services/mailFolders');
   }
   console.log(`백필인데 답변 필요로 켜져 있던 스레드: ${backfillStuck}건${APPLY ? ' → 해제' : ''}`);
 
-  let changed = 0, kept = 0, skipped = 0, withHeaders = 0;
+  let changed = 0, kept = 0, skipped = 0, filled = 0;
+  const flips = {};
   const samples = [];
   for (const th of threads) {
     if (assigned.has(th.id)) { skipped++; continue; }
     const acc = accMap.get(th.account_id);
     if (!acc) { skipped++; continue; }
-    // #200 — 마지막 **inbound** 만 보고 판정하면, 그 뒤에 우리가 보낸 답장을 못 본다.
-    //   → 이미 답장한 스레드가 재판정 때마다 답변 필요로 되살아났다. 마지막 메시지가 outbound 면
-    //   답변 필요로 승격하지 않는다(해제는 그대로 허용 — 노이즈 정리는 계속 돌아야 한다).
-    const lastMsg = await EmailMessage.findOne({
-      where: { thread_id: th.id },
-      order: [['sent_at', 'DESC'], ['id', 'DESC']],
-      attributes: ['id', 'direction'],
-    });
-    const repliedLast = !!lastMsg && lastMsg.direction === 'outbound';
-    const msg = await EmailMessage.findOne({
-      where: { thread_id: th.id, direction: 'inbound' },
-      order: [['sent_at', 'DESC']],
-    });
-    if (!msg) { skipped++; continue; }
-    const fromEmail = msg.from_email || '';
-    // 판정용 헤더 복원 — 단일 헬퍼. 저장된 헤더(triage_headers)가 있으면 complete=true 가 되어
-    //   triage 부터 처음부터 다시 계산한다. 헤더가 없는 옛 메일은 저장된 triage 를 신뢰한다.
-    const { headers, complete } = headersFromMessage(msg);
-    const known = await isKnownContact(acc.business_id, fromEmail);
-    const base = retriageStored({
-      triage: th.triage,
-      subject: msg.subject || th.subject,
-      bodyText: triageBodyOf(msg.body_text, msg.body_html),
-      fromEmail,
-      headers,
-      headersComplete: complete,
-      ownEmails: ownEmailsByBiz.get(acc.business_id) || [],
-      ownMatcher: ownMatcherByBiz.get(acc.business_id) || null,
-      isKnownContact: known,
-    });
-    if (complete) withHeaders++;
-    const tr = await applyRules(acc.business_id, fromEmail, base);
-    const nextStatus = tr.status || th.status;
-    // 마지막 메시지가 우리 답장이면 답변 필요로 올리지 않는다 (부활 차단)
-    const nextReply = repliedLast ? false : !!tr.reply_needed;
-    // #200 — triage 는 **marketing 으로 가는 단방향만** 저장한다.
-    //   status/reply_needed 만 고치면 법정 광고 표기 메일이 triage='human' 인 채로 남아
-    //   확인 권장 폴더 조건(status=open · reply_needed=false · triage NOT IN(automated,marketing))에
-    //   그대로 걸린다 — 폴더에서 안 빠진다. 반대 방향(marketing→human)은 저장하지 않는다
-    //   (헤더 없는 옛 메일이 사람 메일로 뒤집히던 사고 방지).
-    const nextTriage = (tr.triage === 'marketing' && th.triage !== 'marketing') ? 'marketing' : th.triage;
-    // 바뀐 게 없으면 건드리지 않는다 (멱등)
-    if (nextReply === !!th.reply_needed && nextStatus === th.status && nextTriage === th.triage) { kept++; continue; }
+    const j = await R.judgeThread(th, ctx, [offByBiz.get(acc.business_id)], { businessId: acc.business_id });
+    if (!j) { skipped++; continue; }
+    const { fields, criterion, folder: after } = j.results[0];
+    const before = R.folderOfRow(th);
+    // 바뀐 게 없으면 건드리지 않는다 (멱등) — 기준 이름만 비어 있으면 --fill-criterion 이 채운다.
+    if (fields.reply_needed === !!th.reply_needed && fields.status === th.status && fields.triage === th.triage) {
+      if (FILL_CRITERION && criterion && th.triage_criterion !== criterion) {
+        filled++;
+        if (APPLY) await th.update({ triage_criterion: criterion });
+      }
+      kept++; continue;
+    }
     if (PROMOTE_ONLY) {
-      const before = folderOf(th);
-      const after = folderOf({ status: nextStatus, triage: nextTriage, reply_needed: !!th.reply_needed, last_message_direction: th.last_message_direction });
-      if (!(before === 'marketing' && after === 'uncertain')) { kept++; continue; }
+      const promoteReview = before === 'auto' && after === 'review';
+      const promoteReply = !!PROMOTE_REPLY && after === 'reply' && before !== 'reply' && criterion === PROMOTE_REPLY;
+      if (!promoteReview && !promoteReply) { kept++; continue; }
     }
     changed++;
-    if (samples.length < SAMPLE_MAX) {
-      const to = nextReply ? '답변 필요' : (nextStatus === 'uncertain' ? '확인 권장' : nextStatus);
-      samples.push(`${th.id} | ${(th.subject || '').slice(0, 60)} | ${fromEmail} → ${to}`);
-    }
+    const k = `${before}→${after} [${criterion}]`;
+    flips[k] = (flips[k] || 0) + 1;
+    if (samples.length < SAMPLE_MAX) samples.push(`${th.id} | ${(th.subject || '').slice(0, 60)} | ${k}`);
     if (APPLY) {
-      if (PROMOTE_ONLY) {
-        await th.update({ status: nextStatus, triage: nextTriage, uncertain_reason: tr.uncertain_reason || null });
+      if (PROMOTE_ONLY && after === 'review') {
+        await th.update({ status: fields.status, triage: fields.triage, uncertain_reason: fields.uncertain_reason, triage_criterion: criterion });
         continue;
       }
-      await th.update({
-        reply_needed: nextReply,
-        reply_needed_reason: nextReply ? (th.reply_needed_reason || 'inbound') : 'retriage',
-        status: nextStatus,
-        triage: nextTriage,
-        uncertain_reason: tr.uncertain_reason || null,
-        rule_id: tr.rule_id || null,
-      });
+      await R.writeFields(th, fields);
     }
   }
   console.log(`대상 ${threads.length}건 — 그대로 ${kept} · 재분류 ${changed} · 건너뜀(담당자·데이터없음) ${skipped}`);
-  console.log(`헤더로 완전 재판정한 스레드: ${withHeaders}건 (나머지는 헤더 없는 옛 메일 → 저장된 분류 신뢰)`);
-  if (samples.length) console.log('해제 예시:\n  ' + samples.join('\n  '));
+  console.log('전이:', flips);
+  if (FILL_CRITERION) console.log(`기준 이름만 채움(폴더 그대로): ${filled}건`);
+  if (samples.length) console.log('예시:\n  ' + samples.join('\n  '));
   console.log(APPLY ? '→ 반영 완료' : '→ 미리보기 (반영하려면 --apply)');
   await sequelize.close();
 })();

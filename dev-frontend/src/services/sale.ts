@@ -198,10 +198,23 @@ export interface SaleInboxCounts {
 }
 
 /** #449 — Q sales 메일 유입 모드 저장(owner). 읽기는 customer-entry GET 의 `sales_intake`. */
+export interface SalesIntake {
+  mail: 'manual' | 'auto';
+  /** 끈 자동 기준(replied·personal) — 2026-10-15 */
+  off: string[];
+  /** 사람이 등록한 «늘 상담 / 상담 아님» 주소·도메인 */
+  domains: { always: string[]; never: string[] };
+}
+export interface SaleCriterion { id: string; lockable?: boolean; list?: 'always' | 'never' }
 export const saveSalesIntake = (businessId: number, mail: 'manual' | 'auto') =>
   apiFetch(`/api/businesses/${businessId}/sales-intake`, {
     method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mail }),
-  }).then(j<{ sales_intake: { mail: 'manual' | 'auto' } }>);
+  }).then(j<{ sales_intake: SalesIntake }>);
+/** 기준 끄기·주소 목록 부분 저장(owner) — 보낸 칸만 바뀐다. */
+export const patchSalesIntake = (businessId: number, patch: Partial<Pick<SalesIntake, 'off' | 'domains'>>) =>
+  apiFetch(`/api/businesses/${businessId}/sales-intake`, {
+    method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(patch),
+  }).then(j<{ sales_intake: SalesIntake }>);
 
 export async function listSaleInbox(
   businessId: number,

@@ -11,10 +11,21 @@
 
 ### 다음 할 일
 - 운영 반영: 다음 배포 때(배포 방). 문서 댓글은 배포 슬롯 `migrate-post-comments.js`(PM2 reload 전) + 도움말 `seed-wiki-content.js` 운영 실행 필요.
-- 대기열 앞: 비가입 고객 직접 관리(정찰 qmv7hp0uc) · 답변필요 메일 분류 고도화(qmv7ly27u) — 둘 다 Fable 설계부터.
+- 대기열 앞: 비가입 고객 직접 관리(정찰 qmv7hp0uc) — 완료됨(d1871180). 답변필요 메일 분류 고도화 — 완료(28cf8581).
 - 별건 확인: 업무 상세 응답이 멤버에게 남의 personal 댓글을 싣는지(아래 첫 절 «곁에서 본 것»).
 
 ---
+
+### 완료: 메일 분류 기준 공개·새 기준·학습 확대 + Q sale 상담 기준 (방 28cf8581 · 2026-10-15 · [Opus] · Fable 설계 + 게이트 2차 PASS) — 운영 미배포
+- 원문: Aspiration 학교 자동응답(«We have received your email»)을 놓침 · «자동메일이어도 주문·답변·문의가 왔다는 안내는 무조건 답변필요» · 확인 권장 제대로 나열 · 상세 조건 설정에 공개 · 학습 안내·삭제·추가 · Q sales 도.
+- 원인: 자동응답의 `Precedence: bulk` 를 광고로 읽어 자동·마케팅에 묻힘. 설계 docs/MAIL_CRITERIA_DESIGN.md.
+- 서버: 기준 카탈로그 `services/mailCriteriaCatalog.js`(엔진·화면 한 벌, 찾는 말 공개) · 끄기 `services/mailCriteria.js`(permissions.mail_criteria.off, owner/admin) · `email_threads.triage_criterion` · 새 기준 inbound_action(답변 필요)·auto_ack·spam_rescue·platform_notice · 재판정 `services/mailRetriage.js`(스크립트·미리보기·소급 공용) · 라우트 `routes/mail_criteria.js` · `POST …/mark-review` · 학습 «답변 필요로»/«확인 권장으로» 2회(반대 규칙 교체) · 자동·마케팅 폴더에서 답변 필요 제외 · Q sale off/domains(saleMailCriteria·salesIntake·customer_entry).
+- 화면: 설정 › 메일 계정 «메일 분류 기준·규칙»(공용 CriteriaList, 4묶음 19기준, 끄기 전 건수 확인창, 학습 안내) · 설정 › 권한 «상담 유입» 기준 8개 + 늘 상담/상담 아님 주소 · Q mail 자동·마케팅 행 «확인 권장으로» + 목록 위 학습 안내 줄.
+- 결정 ④(Fable): 역할 주소(info@·help@)의 안내는 확인 권장 유지 — 뒤집으면 dev 950건. 꼭 받을 곳은 «답변 필요로» 2회 학습·규칙.
+- dev 적용: migrate-mail-criteria · retriage --promote-only --promote-reply-criterion=inbound_action --apply(자동응답 10 → 확인 권장, 새 주문·문의 24 → 답변 필요) · --fill-criterion(5,984 기준 이름만).
+- 검증: HEAD 대비 6,300 시뮬 강등 0 · 카나리 mail 40/40(옛 엔진에 돌리면 새 양성 7 FAIL) · salecriteria 18/18 · maillabel·tenant 0 · guard 69/70 · 실HTTP · 브라우저 3폭 · Fable 1차 FAIL(차단 3) → 수정 → 2차 PASS(docs/FABLE_GATE_QUEUE.md 맨 위).
+- 남김: ① 마지막 모양 수정 3건(CriteriaList 제목 토큰·상담 칩 × 높이·MailPage 문구 기본값)은 **dev 빌드에 없음** — 재빌드가 메모리 부족으로 시스템에 중단됨. 다음 빌드·배포 때 반영(배포 전 build EXIT 0) ② 끄기 소급 상한 20,000(운영 규모면 수십 초) ③ health-check invite_mail 실패는 다른 방(client_invites.js 분리) 것 ④ dev 세무사 메일 8건은 내 학습 시험 소급으로 옮겨져 근거로 추정 원복.
+- 운영: `migrate-mail-criteria.js` 배포 슬롯 등록(PM2 reload 전). 옛 메일 재판정은 배포 뒤 수동 — 운영 읽기 전용 `retriage-mail.js --promote-only --promote-reply-criterion=inbound_action --list` 전수 육안 → `--apply`(+ `--fill-criterion`).
 
 ### 완료: 직접 관리 고객(비가입 고객) (방 d1871180 · 2026-10-15 · [Opus] · Fable 설계 + 게이트 PASS) — 운영 미배포
 - 원문: «고객이 가입을 안 해도 관리자가 정보를 넣고 직접 관리하는 고객도 포함하면 안돼? 청구서나 다양한 관리에 고객정보가 필요한데 굳이 가입할 필요는 없어서.»

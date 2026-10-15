@@ -1,5 +1,7 @@
 # 메일 분류 대점검 — 2026-10-11
 
+> 후속(2026-10-15): 분류 기준 공개·끄기·새 기준(inbound_action·auto_ack·spam_rescue) — `docs/MAIL_CRITERIA_DESIGN.md`.
+
 > Irene: *"이런 중요한 메일이 확인권장에도 답변필요에도 안들어와서 미씽했어. 메일 분류조건 다시 대점검 철저히 해줘."*
 > 놓친 메일: `gfmsupport@rgtech.com.my` «GFM B2B PORTAL - Online Sign Up» (Partner Code G4049 · GIT CONSULTING 파트너 가입 안내, dev thread 8523)
 > 판정 코드: `dev-backend/services/emailTriage.js` (수집 `triageInbound` · 재판정 `retriageStored` 같은 문)

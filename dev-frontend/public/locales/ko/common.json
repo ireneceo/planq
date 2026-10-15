@@ -1752,5 +1752,15 @@
   "linkedTasks": {
     "chip": "업무: {{title}}",
     "more": "+{{n}}"
+  },
+  "criteriaList": {
+    "hits": "최근 30일 {{n}}건",
+    "off": "꺼짐",
+    "showDetail": "자세한 조건 보기",
+    "hideDetail": "자세한 조건 접기",
+    "examples": "이런 메일",
+    "terms": "찾는 말 ({{n}}개)",
+    "locked": "기본",
+    "lockedHint": "이 기준을 끄면 메일이 갈 곳이 없어져 항상 켜져 있습니다"
   }
 }

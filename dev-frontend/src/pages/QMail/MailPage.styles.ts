@@ -1206,3 +1206,24 @@ export const SpamProviderNote = styled.p<{ $inList?: boolean }>`
     body[data-keyboard-up='1'] & { display: none; }
   }
 `;
+
+// 학습 안내 한 줄 (2026-10-15, docs/MAIL_CRITERIA_DESIGN.md §5) — 손으로 옮긴 결과를 목록 위에 알린다(토스트 금지).
+//   폰에서 입력 중에는 접는다(CLAUDE.md «모바일 입력» 절).
+export const LearnBar = styled.div`
+  margin: 0 16px 10px; padding: 6px 8px 6px 12px; border-radius: 8px;
+  background: #F0FDFA; border: 1px solid #99F6E4;
+  display: flex; align-items: center; gap: 4px; flex-wrap: wrap;
+  @media (max-width: 768px) {
+    body[data-keyboard-up='1'] & { display: none; }
+  }
+`;
+export const LearnText = styled.span`flex: 1 1 200px; min-width: 0; font-size: 0.75rem; line-height: 1.5; color: #0F766E;`;
+export const LearnLink = styled.button`
+  background: none; border: none; padding: 0 6px; min-height: 32px; cursor: pointer;
+  font-size: 0.75rem; font-weight: 600; color: #0F766E; text-decoration: underline;
+`;
+export const LearnClose = styled.button`
+  background: none; border: none; width: 32px; height: 32px; flex-shrink: 0; cursor: pointer;
+  font-size: 1rem; color: #64748B; border-radius: 6px;
+  &:hover { background: #CCFBF1; }
+`;

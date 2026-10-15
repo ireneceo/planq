@@ -6,6 +6,8 @@
 //   spam 판정은 emailSpamFilter.classify 재사용 (단일 진실원천).
 
 const { classify } = require('./emailSpamFilter');
+// 판정 기준 목록 — 엔진과 설정 화면이 같은 목록을 읽는다(docs/MAIL_CRITERIA_DESIGN.md §3).
+const CAT = require('./mailCriteriaCatalog');
 // 헤더 읽기·정규화는 공용 모듈 단일 원천 (#221). 인입(mailparser Map)·재판정(평문 객체) 두 경로가
 // 같은 입력으로 수렴한다 — 술어마다 Map 대응을 복붙하던 구조가 실제로 어긋났다 (services/emailHeaders.js 주석).
 const { hget, normalizeHeaders, pickTriageHeaders, TRIAGE_HEADER_KEYS } = require('./emailHeaders');
@@ -50,17 +52,26 @@ function hasAdPrefix(subject) {
 }
 
 // 벌크/뉴스레터 시그널 — RFC 2369 List-* + Precedence (+ 법정 광고 표기)
-function isMarketing(headers, subject) {
-  if (hasAdPrefix(subject)) return true;
-  if (hget(headers, 'list-unsubscribe')) return true;
-  if (hget(headers, 'list-id')) return true;
+//   반환: 걸린 기준 id('ad_prefix'|'bulk_headers') 또는 null. isMarketing 은 그 참/거짓.
+function marketingCriterion(headers, subject) {
+  if (hasAdPrefix(subject)) return 'ad_prefix';
+  if (hget(headers, 'list-unsubscribe')) return 'bulk_headers';
+  if (hget(headers, 'list-id')) return 'bulk_headers';
   const prec = (hget(headers, 'precedence') || '').toLowerCase();
-  if (/\b(bulk|list|junk)\b/.test(prec)) return true;
+  // ★ 2026-10-15 (Fable 설계 §2①) — 자동응답(`Auto-Submitted: auto-replied`)은 `Precedence: bulk` 를 같이 단다
+  //   (RFC 3834 권고 — 자동응답끼리 핑퐁하지 않게). 그걸 광고로 읽어 학교의 «메일 잘 받았습니다» 가 자동·마케팅에
+  //   묻혔다(Irene: "내가 미싱했어"). Precedence 는 **Auto-Submitted 가 없을 때만** 대량 발송 증거다.
+  //   자동응답은 isAutomated 로 떨어지고 auto_ack 기준이 확인 권장으로 올린다.
+  const autoSub = (hget(headers, 'auto-submitted') || '').toLowerCase();
+  if (/\b(bulk|list|junk)\b/.test(prec) && !(autoSub && autoSub !== 'no')) return 'bulk_headers';
   // ★ 2026-10-11 — ESP(발송 대행) 헤더는 여기서 보지 않는다. isAutomated 로 옮겼다(hasEspHeader).
   //   SendGrid·Mailgun·Feedback-ID 는 **보낸 도구**의 표식이라 영수증·청구서·계정 경고에도 똑같이 붙는다.
   //   광고로 보면 내용 승격(BUSINESS_RELEVANT)을 못 타고 자동·마케팅 폴더에 묻힌다 — 파트너 가입 안내(G4049)·
   //   «Claude API access is turned off»·Stripe 세금계산서가 그랬다(docs/MAIL_TRIAGE_AUDIT_2026-10-11.md, Fable A).
-  return false;
+  return null;
+}
+function isMarketing(headers, subject) {
+  return !!marketingCriterion(headers, subject);
 }
 
 // 발송 대행 서비스(ESP) 헤더 — 기계가 보냈다는 뜻이지 대량 광고라는 뜻이 아니다.
@@ -203,27 +214,7 @@ function hasWorkSignal(subject, bodyText) {
 // ── 확실한 요청 (Irene 정책: 답변 필요는 "확실히 답해야 하는 것" 만, 애매하면 전부 확인 권장)
 //   위 WORK_SIGNAL 은 물음표·'확인'·'진행' 같은 약한 신호까지 잡아서 뉴스레터도 통과했다
 //   ("Your Weekly WP Mail SMTP ... ?"). 여기선 상대가 우리에게 무언가를 해달라고 한 문장만 본다.
-const STRONG_REQUEST = new RegExp([
-  '문의(드|합|가|를|사항)', '요청(드|합|이|을|사항)', '부탁\\s*(드|합)', '의뢰',
-  '회신\\s*(부탁|주|바랍)', '답변\\s*(부탁|주|바랍)', '검토\\s*(부탁|요청|해\\s*주)',
-  // '확인 바랍니다' 는 고지서·통지문의 상투구다 → 강한 요청으로 보지 않는다 (아는 상대면 어차피 답변 필요)
-  '확인\\s*부탁', '보내\\s*주(세요|시)', '알려\\s*주(세요|시)', '주실\\s*수\\s*있',
-  '견적', '계약서', '청구서', '세금계산서', '입금\\s*(확인|예정|완료)',
-  '(미팅|회의|일정)\\s*(잡|조율|가능|어떠)', '가능(할까요|한가요|하신가요|하실까요)',
-  '\\bcould you\\b', '\\bcan you\\b', '\\bwould you\\b', '\\bplease (send|share|review|confirm|advise|let us know)\\b',
-  '\\brequest for\\b', '\\bquotation?\\b', '\\binquiry\\b', '\\bproposal\\b',
-  '\\blooking forward to your (reply|response)\\b', '\\bawaiting your\\b',
-  // 2026-09-11 Irene: "Ms Joanne Low 가 보낸 거 답변을 꼭 해야 하는 내용인데 답변필요에 배치가 안되었어"
-  //   말레이시아·영국식 업무 영어 관용구가 목록에 없어 요청으로 안 잡혔다
-  //   ("Kindly vet through and let me know if there are amendments" · "for your perusal and comments").
-  //   ★ 'let me know' 단독은 넣지 않는다 — 콜드메일 상투구("let me know if you're interested")까지 잡힌다.
-  //   운영 3,206통 시뮬레이션: 이 관용구만으로 뒤집히는 판정 0건(오승격 0) · 양성 대조군 2/2.
-  '\\bkindly (vet|review|check|confirm|advise|revert|reply|respond|provide|send|arrange|prepare|sign|let (me|us) know)\\b',
-  '\\bplease (revert|advise|vet|sign|check and confirm)\\b',
-  '\\bfor your (perusal|review|comments?|approval|confirmation|signature|vetting)\\b',
-  '\\blet (me|us) know if (there (are|is)|you (have|need|agree))\\b',
-  '\\bdraft (agreement|contract|tenancy agreement)\\b',
-].join('|'), 'i');
+const STRONG_REQUEST = CAT.regexOf('direct_request');   // 낱말 목록은 services/mailCriteriaCatalog.js (설정 화면과 한 벌)
 
 function hasStrongRequest(subject, bodyText) {
   const head = `${subject || ''}\n${plainText(bodyText).slice(0, 2000)}`;
@@ -299,38 +290,7 @@ function isForgedReplyRef(headers, fromEmail) {
 //   결제·입금·청구·증빙, 보고서, 우리 시스템이 보내는 업무 안내, 계약·서명, 장애·보안 공지 등.
 //   발신 방식(자동)이 아니라 **내용**으로 판단한다 → 확인 권장(uncertain)으로 올린다.
 //   광고·홍보(marketing)와 스팸은 대상이 아니다 — 그건 봐도 할 일이 없다.
-const BUSINESS_RELEVANT = new RegExp([
-  // 돈 — 결제·입금·증빙 (놓치면 돈이 샌다)
-  '결제', '입금', '출금', '송금', '환불',   // 돈이 움직인 알림은 자동이어도 반드시 본다
-  '청구서', '세금계산서', '현금영수증', '거래명세', '정산(서|\\s*내역)', '납부(\\s*안내|\\s*기한)?', '연체', '미납',
-  '\\bpayment (received|failed|confirmed|due)\\b', '\\binvoice\\b', '\\breceipt\\b', '\\brefund(ed)?\\b',
-  '\\bsubscription (renewed|canceled|cancelled|expiring|payment)\\b',
-  // 문서·서명·계약
-  '서명(\\s*요청|\\s*완료|하셨)', '전자계약', '계약(서|\\s*체결|\\s*완료)', '견적서', '제안서',
-  '\\bsignature request\\b', '\\bsigned\\b', '\\bcontract\\b',
-  // 보고서
-  '보고서', '주간\\s*보고', '월간\\s*보고', '리포트가', '\\bweekly (report|summary|digest)\\b', '\\breport is ready\\b',
-  // 발송 실패·반송 (고객에게 메일이 안 갔다는 뜻 — 반드시 봐야 한다)
-  'delivery status notification', '반송', '\\bundeliverable\\b', '\\bmail delivery failed\\b',
-  // 계정·운영 사고
-  '서비스\\s*(장애|중단)', '보안\\s*(경고|사고|알림)', '개인정보\\s*유출', '비밀번호\\s*(재설정|변경)',
-  '\\b(account|password|certificate|domain|card) (expir|suspend)', '\\bsecurity alert\\b', '\\bincident\\b',
-  // #221 — **내가 움직여야 완료되는** 자동 메일. 돈이 오간 것도 사고도 아니라서 위 어느 범주에도
-  //   안 걸렸고, 그래서 Apple Developer 등록 안내("등록 절차를 완료하려면 로그인…")가 자동·마케팅
-  //   폴더에 묻혔다 — Irene: "무조건 확인해야 하는데 확인권장에 안 들어와서 업무 미스 했어."
-  //   답장할 상대는 없으니 답변 필요가 아니라 **확인 권장**까지만 올린다.
-  '등록\\s*(요청|절차|신청|승인)', '가입\\s*(승인|완료|신청)', '멤버십', '승인\\s*(요청|되었|완료)',
-  '(계속|이어서)\\s*진행', '완료하려면', '조치가?\\s*필요', '확인이\\s*필요',
-  '\\benrollment\\b', '\\bmembership\\b', '\\bcomplete your\\b', '\\baction (required|needed)\\b',
-  '\\bcontinue your\\b', '\\bpending (approval|review|action)\\b',
-  // 2026-10-11 (Fable A') — 가입·등록을 **끝내라는** 안내. GFM B2B 파트너 가입(«To complete the Sign Up process,
-  //   please fill up online form»)이 어느 범주에도 안 걸려 자동함에 묻혔다.
-  '\\bcomplete (the|your) [\\w -]{0,30}(process|registration|sign[- ]?up|application|onboarding|verification)\\b',
-  '\\b(online|registration|application) form\\b',
-  // 2026-10-11 (Fable C-4) — 돈·권한이 움직인 자동 알림. automated 경로에서만 돈다.
-  '\\bpayout\\b', '\\bpayment (reminder|notification)\\b', '\\b(credit|debit) note\\b', '갱신되지\\s*않',
-  '(관리|소유권|액세스)\\s*요청', '\\b(request|access) (has been )?(approved|rejected)\\b',
-].join('|'), 'i');
+const BUSINESS_RELEVANT = CAT.regexOf('automated_relevant');   // 낱말 목록은 services/mailCriteriaCatalog.js (설정 화면과 한 벌)
 
 // 무료 메일 제공자 — Message-ID 도메인을 **제공자**가 발급한다(발신자가 아니다). isForgedReplyRef 의 자기참조 판정이
 //   이 발신자에게는 증거가 되지 않는다(needsReply ① 주석 참조).
@@ -356,48 +316,7 @@ function isFromOurPlatform(fromEmail) {
 //     실측: 이 계열 11건 중 9건이 marketing — 대상의 대부분이 규칙에 도달조차 못 했다.
 //   → 그래서 이 술어는 **triage 와 무관하게**(스팸 제외) 확인 권장으로 올린다.
 //   ★ '코드' 단독 금지 — "문서에서 코드 기능", "코드 리뷰" 같은 업무 메일이 걸린다. 짝으로만 본다.
-const SECURITY_CODE = new RegExp([
-  '인증\\s*(코드|번호)',
-  '확인\\s*코드',
-  '로그인\\s*(코드|번호|링크|알림|시도)',
-  '일회용\\s*(비밀번호|번호)',
-  '\\botp\\b',
-  '2단계\\s*인증',
-  '이중\\s*인증',
-  '새(로운)?\\s*(기기|디바이스)(에서)?\\s*(로그인|접속)',
-  '\\bverification code\\b',
-  '\\bverify your (email|account|identity)\\b',
-  '\\blogin code\\b',
-  '\\bsign[- ]?in code\\b',
-  '\\bsecurity code\\b',
-  '\\bone[- ]?time (code|password|passcode|pin)\\b',
-  '\\btwo[- ]?factor\\b',
-  '\\bnew (device|sign[- ]?in)\\b',
-  '\\baccess code\\b',
-  '로그인[\\s\\S]{0,30}코드',
-  '코드[\\s\\S]{0,30}로그인',
-  '인증[\\s\\S]{0,20}코드',
-  '코드[\\s\\S]{0,20}인증',
-  // ★ 2026-09-22 (Irene: "이런 거 인증문자나 리셋 등 이런 건 확인권장으로 가야 하는데 안들어와") —
-  //   비밀번호 재설정·변경 통지, 의심 로그인, 계정 복구, 이메일 확인이 빠져 있었다. Threads(Meta)의
-  //   «Reset your password» 가 수신거부 헤더 때문에 marketing 으로 묻혔다(운영 스레드 3442·3443·2663).
-  //   «password» 단독은 쓰지 않는다 — «비밀번호 관리자 할인» 같은 광고가 걸린다. 행위와 짝으로만.
-  '비밀번호\\s*(재설정|초기화|변경|찾기)',
-  '비밀번호가\\s*(변경|재설정|초기화)',
-  '\\breset (your )?([\\w-]+ )?password\\b',
-  '\\bpassword (reset|change|recovery)\\b',
-  '\\bpassword (has been|was) (changed|reset|updated)\\b',
-  '\\bchanged your password\\b',
-  '\\b(suspicious|unusual) (sign[- ]?in|login|activity)\\b',
-  '\\bsecurity alert\\b',
-  '보안\\s*(알림|경고)',
-  '\\baccount recovery\\b',
-  '계정\\s*(복구|보안)',
-  '\\bconfirm your (email|e-mail|email address|account)\\b',
-  '이메일\\s*(주소\\s*)?(인증|확인)',
-  // 2026-10-11 (Fable C-3) — «새 기기» 말고도 «새 로그인»·«새 환경» 으로 쓴다(AirAsia·네이버·Dropbox 를 놓쳤다).
-  '\\bnew login( alert)?\\b', '새(로운)?\\s*(환경|위치)에서\\s*로그인', '로그인이\\s*감지',
-].join('|'), 'i');
+const SECURITY_CODE = CAT.regexOf('security_code');   // 낱말 목록은 services/mailCriteriaCatalog.js (설정 화면과 한 벌)
 
 // ── 꼭 봐야 하는 거래·사고 통지 (2026-10-11, Fable C) ──
 //   대형 발송사는 결제 실패·연체·계정 보류 같은 **거래 메일에도 수신거부 헤더**를 단다 → marketing 으로 먼저
@@ -406,18 +325,7 @@ const SECURITY_CODE = new RegExp([
 //   그래서 보안 코드처럼 **triage 와 무관하게** 확인 권장으로 올린다(답장할 상대는 없으니 답변 필요는 아니다).
 //   ★ **제목만** 본다 — 본문까지 보면 광고 본문의 «overdue»·학교 공지 «Overdue» 가 걸린다(실측 +2 전부 오탐).
 //   ★ 제외: 스팸 · 법정 광고 표기(hasAdPrefix). 새 제외 정규식을 만들지 않는다.
-const CRITICAL_NOTICE = new RegExp([
-  '\\bpayment (has )?(failed|declined|unsuccessful|overdue|past due)', '\\b(failed|declined) payment',
-  '결제(가|에)?\\s*(실패|거절)', '연체|미납|체납', '\\boverdue\\b', '\\bpast due\\b', '\\b(blocked|fraudulent) .{0,20}payment',
-  '\\baction (required|needed)\\b', '조치\\s*(필요|요청)',
-  '\\baccount (is |has been )?(on hold|suspended|disabled|locked|restricted|deactivated)',
-  '계정이?\\s*(보류|정지|잠금|제한|비활성)', '보류\\s*상태',
-  '\\bdata breach\\b', '(개인정보|정보)\\s*유출', '\\bunrecognized (device|sign[- ]?in|login)', '\\bsecurity (incident|risk)',
-  '\\b(booking|reservation) (inquiry|request)\\b', '\\binquiry for\\b',
-  '\\bbuild\\b.{0,40}\\b(failed|has (one or more )?issues)\\b',
-  '\\b(listing|home|account)s? (has been|have been|will be|are) (hidden|unlisted|removed|deactivated)\\b', '\\bviolation of\\b',
-  '\\bnew ticket\\b', '\\bhelp request\\b',
-].join('|'), 'i');
+const CRITICAL_NOTICE = CAT.regexOf('critical_notice');   // 낱말 목록은 services/mailCriteriaCatalog.js (설정 화면과 한 벌)
 
 function isCriticalNotice(subject) {
   const s = String(subject || '');
@@ -460,14 +368,18 @@ function hasBusinessRelevance(subject, bodyText) {
 //     ③ 아는 상대(고객·멤버·전에 우리가 답장한 상대)가 직접 쓴 메일 → 답변 필요.
 //     ④ 모르는 상대 → 우리 주소로 직접 왔고 명확한 요청·질문이 있을 때만.
 //   그 외는 스팸·광고가 아니어도 확인 권장 — 사람이 한 번 보고 판단한다.
-function needsReply({ subject, bodyText, fromEmail, headers, ownEmails, ownMatcher, isKnownContact }) {
+function replyVerdict({ subject, bodyText, fromEmail, headers, ownEmails, ownMatcher, isKnownContact, off }) {
+  const on = (id) => CAT.isOn(id, off);
+  const no = (criterion) => ({ ok: false, criterion });
   // ② 답장할 상대가 없는 메일 — 관계(아는 상대)보다, 회신 여부보다 **먼저** 걸러낸다.
   //    여태 isKnownContact 가 맨 앞에 있어서 고객사가 보낸 뉴스레터·우리 시스템의 자동 안내가
   //    전부 "답변 필요" 로 올라왔다. 메일의 성격이 관계보다 먼저다.
-  if (isSelfSender(fromEmail, ownEmails) || isFromOurPlatform(fromEmail)) return false;  // 우리가 보낸 것
-  if (isBounce(fromEmail, subject)) return false;                                        // 반송 — 회신처럼 생겼다
-  if (isMarketing(headers, subject) || isBulkBody(bodyText)) return false;               // 대량 발송·법정 광고 표기
-  if (isTransactionalNotice(subject)) return false;                                      // 주문·배송·결제 알림
+  if (isSelfSender(fromEmail, ownEmails) || isFromOurPlatform(fromEmail)) return no('self_sender');  // 우리가 보낸 것
+  if (isBounce(fromEmail, subject)) return no('bounce');                                             // 반송 — 회신처럼 생겼다
+  const mk = marketingCriterion(headers, subject);
+  if (mk) return no(mk);                                                                             // 대량 발송·법정 광고 표기
+  if (on('bulk_body') && isBulkBody(bodyText)) return no('bulk_body');
+  if (on('transactional_notice') && isTransactionalNotice(subject)) return no('transactional_notice');  // 주문·배송·결제 알림
 
   // ① 우리 대화에 온 회신 — 여기까지 왔으면 사람이 쓴 회신이다 (반송·알림은 위에서 빠졌다).
   //    단 **발신자가 자기 도메인으로 지어낸 회신 헤더**는 제외한다 (콜드메일 위장).
@@ -475,34 +387,71 @@ function needsReply({ subject, bodyText, fromEmail, headers, ownEmails, ownMatch
   //      부활한다. 실측: 콜드메일 발송기 2곳(주석에 위조 실사례로 박제된 바로 그 도메인)이 ④로
   //      승격됐다. 위조가 증명된 발송기에 물음표 하나로 답변 필요를 줄 이유가 없다 → 하드스톱.
   if (isThreadReply(headers)) {
-    if (!isForgedReplyRef(headers, fromEmail)) return true;
+    if (!isForgedReplyRef(headers, fromEmail)) return { ok: true, criterion: 'thread_reply' };
     // ★ 2026-09-11 — 무료 메일(Gmail 등) 발신자의 "자기참조" 는 위조 증거가 아니다.
     //   Gmail 의 Message-ID 는 `@mail.gmail.com` 이라 발신자 도메인(gmail.com)의 하위로 읽혀
     //   **자기 앞 메일에 이어 쓴 정상 후속**("Further to the above …")이 전부 위조로 하드스톱됐다 —
     //   아는 상대여도 답변 필요에 못 올라왔다(Joanne Low 실사례, 운영 id 3711).
     //   ID 도메인은 발신자가 아니라 **메일 제공자**가 발급하므로 자작 여부를 가를 수 없다 → 회신 신호로도,
     //   위조로도 쓰지 않고 **새 메일처럼** 아래 ③④ 로 판정한다. 자체 도메인 발송기의 위조는 종전대로 하드스톱.
-    if (!FREE_MAIL_DOMAIN.test(String(fromEmail || '').toLowerCase().split('@')[1] || '')) return false;
+    if (!FREE_MAIL_DOMAIN.test(String(fromEmail || '').toLowerCase().split('@')[1] || '')) return no('unclear_intent');
   }
 
-  if (isAutomated(headers, fromEmail, ownEmails)) return false;                          // 자동 발송
+  if (isAutomated(headers, fromEmail, ownEmails)) return no('automated_sender');                     // 자동 발송
 
   // ③ 아는 상대(고객·멤버·전에 답장한 상대)가 직접 쓴 메일
-  if (isKnownContact) return true;
+  if (isKnownContact) return { ok: true, criterion: 'known_contact' };
 
   // ④ 모르는 상대 — 우리 주소로 직접 왔고 명확한 요청·질문이 있을 때만.
   //    본문 창을 앞부분으로 좁힌다 — 사람의 용건은 앞에 오고, 뒤쪽 상투구("Need help?")가 아니다.
+  if (!on('direct_request')) return no('unclear_intent');
   // ★ 수신 축만 matcher(도메인 규칙 포함). 위의 isSelfSender/isAutomated 는 ownEmails(정확 주소)를
   //   그대로 쓴다 — 도메인이 발신 축으로 새면 우리 도메인 동료의 문의가 자기발신으로 강등된다.
-  if (!isAddressedToUs(headers, ownMatcher || ownEmails)) return false;
+  if (!isAddressedToUs(headers, ownMatcher || ownEmails)) return no('unclear_intent');
   // ★ #450 (Irene 결정 2026-10-02) — **보낸 사람이 사람인가**를 Q sales 상담과 같은 부품으로 본다.
   //   역할·브랜드 주소(hosting@·mailmaster@·iclub@·account@)의 약관·마일리지·명세서가 물음표 하나로
   //   답변 필요에 올라왔다(운영 미연결 7건 중 6건). 상담 기준에는 이미 있던 조건이다(services/contactRelation).
   //   걸러진 메일은 사라지지 않고 **확인 권장**으로 간다. 운영 전수 시뮬: 뒤집히는 8건 중 진짜 문의 0건.
   //   ★ 아는 상대(③)는 위에서 이미 참이다 — 단일 토막 회사 주소의 기존 고객은 영향이 없다.
-  if (!require('./contactRelation').isPersonalSender(fromEmail)) return false;
+  //   ★ 2026-10-15 (Fable 설계 결정 ④) — Irene «안내·요청·문의면 무조건» 에도 이 조건은 유지한다:
+  //     뒤집으면 dev 950건이 답변 필요로 올라간다(삼성생명·홈택스·은행 명세 …). 꼭 받아야 하는 역할 주소는
+  //     «답변 필요로» 2회 학습 또는 규칙이 길이다. 자동이어도 «새 주문·문의·답변 도착» 은 inbound_action 이 올린다.
+  if (!require('./contactRelation').isPersonalSender(fromEmail)) return no('unclear_intent');
   const body = plainText(bodyText).slice(0, 1200);
-  return hasStrongRequest(subject, body) || hasQuestion(`${subject || ''}\n${body}`);
+  return (hasStrongRequest(subject, body) || hasQuestion(`${subject || ''}\n${body}`))
+    ? { ok: true, criterion: 'direct_request' } : no('unclear_intent');
+}
+
+/** 답변 필요인가(참/거짓) — replyVerdict 의 얇은 껍데기. 기존 호출부 호환. */
+function needsReply(args) {
+  return replyVerdict(args).ok;
+}
+
+/** 자동응답·접수 확인(«메일 잘 받았습니다», 부재중) — 2026-10-15 auto_ack.
+ *  헤더(Auto-Submitted: auto-replied · X-Autoreply) 또는 제목, 사람 메일이 아니면 본문 앞 600자까지 본다.
+ *  ★ 사람 메일(human)에는 본문 패턴을 쓰지 않는다 — «Thank you for contacting us, …» 로 시작하는 진짜 답장이 있다.
+ *  ★ 반송(DSN)도 auto-replied 를 단다 — 반송은 반송 경로 그대로(호출부가 isBounce 를 먼저 거른다). */
+function isAutoAck(headers, subject, bodyText, { useBody = true } = {}) {
+  const auto = (hget(headers, 'auto-submitted') || '').toLowerCase();
+  if (/auto-replied/.test(auto)) return true;
+  if (hget(headers, 'x-autoreply') || hget(headers, 'x-autorespond')) return true;
+  if (CAT.regexOf('auto_ack_subject').test(String(subject || ''))) return true;
+  if (!useBody) return false;
+  return CAT.regexOf('auto_ack_body').test(plainText(bodyText).slice(0, 600));
+}
+
+/** 상대의 행동이 도착했다는 알림(새 주문·새 문의·답변 도착) — 2026-10-15 inbound_action. **제목만** 본다.
+ *  먼저 거른다: 우리 시스템(PlanQ) 알림(앱 안에서 이미 알린다) · 반송 · (광고) · 내가 산 주문 알림(켜져 있으면). */
+function isInboundAction({ subject, fromEmail, ownEmails, off }) {
+  const s = String(subject || '');
+  if (!CAT.regexOf('inbound_action').test(s)) return false;
+  // ★ 우리 시스템(PlanQ) 발신만 뺀다 — «우리 주소»(계정·별칭)는 빼지 않는다(Fable 게이트 ③).
+  //   상점 주소(help@withmin.info)를 별칭으로 등록한 워크스페이스에서는 그 상점이 보내는 «New order #» 가
+  //   «우리 주소» 라 영영 답변 필요에 못 갔다 — Irene 이 말한 바로 그 메일이다. 설계 §4.1 제외 목록 그대로.
+  if (isFromOurPlatform(fromEmail)) return false;
+  if (isBounce(fromEmail, s) || hasAdPrefix(s)) return false;
+  if (CAT.isOn('transactional_notice', off) && isTransactionalNotice(s)) return false;
+  return true;
 }
 
 /** 반송(bounce) — 메일 서버가 되돌려보낸 것. In-Reply-To 를 달고 오기 때문에 "우리 대화 회신" 으로
@@ -519,22 +468,7 @@ function isBounce(fromEmail, subject) {
  *  헤더(List-Unsubscribe)는 DB 에 저장하지 않아서 **재판정 경로에선 광고 판정이 눈을 감는다**.
  *  그래서 쇼핑몰 알림이 그물을 빠져나갔다. 게다가 본문 상투구("Need help?" · "problems?")가
  *  물음표·요청 신호에 걸려 오히려 답변 필요로 올라왔다 — 제목으로 성격을 먼저 판정한다. */
-const TRANSACTIONAL_NOTICE = new RegExp([
-  'your (order|payment|parcel|shipment|delivery|refund|booking)',
-  'order #?[\\w-]+ (has been|is now)', 'have you received (your |the )?order',
-  '(has been|was) (delivered|shipped|dispatched|confirmed|cancell?ed)',
-  'out for delivery', 'on the way', 'tracking (number|code)',
-  'payment (has been )?(confirmed|received|successful)',
-  '주문(이)? (완료|접수|확인)', '배송(이)? (완료|시작|출발)', '결제(가)? (완료|확인)', '발송(이)? (완료|시작)',
-  // #221 — 규칙 ④(우리 주소로 직접 + 물음표)가 살아나면서 새로 노출된 오탐 계열.
-  //   "안내드립니다…변경하시겠습니까?" 처럼 상투적 물음표를 단 통지가 답변 필요로 올라왔다.
-  //   답장할 상대가 없는 통지이므로 여기서 막고 확인 권장으로 보낸다 (내용은 여전히 볼 가치가 있다).
-  '주문\\s*승인', '\\border acknowledgment\\b',
-  '운항\\s*(변경|취소|지연)', '\\bflight status change\\b', '\\bschedule change\\b',
-  // PG 영수증 계열 — "결제하신 내역"·"이용내역 안내". 답장 상대가 없다.
-  //   ('안내'·'확인' 전체를 잡으면 진짜 문의까지 강등되므로 '내역' 에만 건다.)
-  '(결제|이용|거래)하?신?\\s*내역',
-].join('|'), 'i');
+const TRANSACTIONAL_NOTICE = CAT.regexOf('transactional_notice');   // 낱말 목록은 services/mailCriteriaCatalog.js (설정 화면과 한 벌)
 
 /** 발신 주소만 보고 자동발송인가 — 저장된 triage 가 틀렸을 때 **다시 볼** 수 있게 내보낸다.
  *  (2026-09-12: 은행 거래 알림이 `triage='human'` 으로 저장돼 Q sale 상담 목록에 올라왔다.
@@ -565,33 +499,41 @@ function isBulkBody(bodyText) {
   return /(수신\s?거부|구독\s?취소|unsubscribe|opt[-\s]?out)/i.test(b) && /https?:\/\//.test(b);
 }
 
-// 메인 — { triage, reply_needed, spam_score, status, uncertain_reason }
+// 메인 — { triage, reply_needed, spam_score, status, uncertain_reason, criterion }
 //   status/spam_score/uncertain_reason 은 classify 결과 그대로 통과 (호환 유지).
-function triageInbound({ subject, bodyText, fromEmail, headers, ownEmails, ownMatcher, isKnownContact = false }) {
+//   criterion — 이 폴더를 **정한** 기준 id(services/mailCriteriaCatalog.js). email_threads.triage_criterion 에 남는다.
+//   off — 이 워크스페이스가 끈 기준(Set|배열, services/mailCriteria.offFor). 꺼진 기준은 분기가 없는 것처럼 돈다.
+//
+//   적용 순서 = 카탈로그 order (docs/MAIL_CRITERIA_DESIGN.md §3.3):
+//     스팸 → 스팸 구제(아는 상대) → 보안 알림 → 상대 행동 도착(답변 필요) → 꼭 봐야 하는 통지 → 자동응답
+//     → 자동 발송의 업무 내용·우리 시스템 알림 → 사람 메일(답변 필요 판정, 아니면 확인 권장)
+function triageInbound({ subject, bodyText, fromEmail, headers, ownEmails, ownMatcher, isKnownContact = false, off = null }) {
+  const on = (id) => CAT.isOn(id, off);
   const c = classify({ subject, bodyText, fromEmail, headers });
+  // 우리 주소는 «아는 상대» 로 치지 않는다 — 우리가 우리에게 보낸 테스트가 스팸 구제되면 안 된다(설계 §2③).
+  const known = !!isKnownContact && !isSelfSender(fromEmail, ownEmails);
 
   let triage;
+  let baseCriterion = null;
+  const mk = c.status === 'spam' ? null : marketingCriterion(headers, subject);
   if (c.status === 'spam') {
-    triage = 'spam';
-  } else if (isMarketing(headers, subject)) {
-    triage = 'marketing';
+    triage = 'spam'; baseCriterion = 'spam_filter';
+  } else if (mk) {
+    triage = 'marketing'; baseCriterion = mk;
   } else if (isAutomated(headers, fromEmail, ownEmails)) {
     triage = 'automated';
+    baseCriterion = isSelfSender(fromEmail, ownEmails) ? 'self_sender' : 'automated_sender';
   } else {
     triage = 'human';
   }
+  const out = (status, reply_needed, uncertain_reason, criterion) =>
+    ({ triage, reply_needed, spam_score: c.spam_score, status, uncertain_reason, criterion });
 
-  let status = c.status;
-  let uncertain_reason = c.uncertain_reason;
-  let reply_needed = false;
-
-  // 자동 발송(automated)이어도 내용이 업무면 확인 권장으로 올린다 — 결제 완료·보고서·시스템 업무
-  // 안내가 '자동·마케팅' 폴더에 묻혀 아무도 안 보는 일을 막는다. 답장할 상대는 없으니 답변 필요는 아니다.
-  if (triage === 'automated' && c.status === 'open'
-      && (isFromOurPlatform(fromEmail) || hasBusinessRelevance(subject, bodyText))) {
-    status = 'uncertain';
-    uncertain_reason = 'automated_relevant';
-    reply_needed = false;
+  // 스팸 — 아는 상대(고객·멤버·우리가 답한 주소)면 확인 권장으로 구제한다(spam_rescue). triage 는 spam 그대로라
+  //   스팸 표시가 남아 왜 왔는지 보인다. 개인 주소 «모양» 으로는 구제하지 않는다 — dev 실측 30건 전부 콜드메일.
+  if (triage === 'spam') {
+    if (on('spam_rescue') && known) return out('uncertain', false, 'spam_rescue', 'spam_rescue');
+    return out(c.status, false, c.uncertain_reason, 'spam_filter');
   }
 
   // 로그인·인증 코드 — **marketing 이든 automated 든 human 이든** 확인 권장까지 올린다.
@@ -599,14 +541,38 @@ function triageInbound({ subject, bodyText, fromEmail, headers, ownEmails, ownMa
   //   triage 로 게이트하면 대상 대부분을 놓친다(SECURITY_CODE 주석의 실측).
   //   답장할 상대는 없으니 답변 필요는 아니다 — human 경로에서 본문 상투구("요청이 아니라면")가
   //   요청 문장으로 잡혀 답변 필요로 오승격되던 것도 여기서 같이 막힌다.
-  if (triage !== 'spam' && status === 'open' && isSecurityNotice(subject, bodyText)) {
-    return { triage, reply_needed: false, spam_score: c.spam_score, status: 'uncertain', uncertain_reason: 'security_code' };
+  if (c.status === 'open' && on('security_code') && isSecurityNotice(subject, bodyText)) {
+    return out('uncertain', false, 'security_code', 'security_code');
+  }
+
+  // 상대의 행동이 도착했다는 알림(새 주문·새 문의·답변 도착) — 발송 방식(자동)과 무관하게 **답변 필요**.
+  //   Irene 2026-10-15: *"자동메일이어도 주문이 들어왔다. 답변이나 문의가 왔다 같은 안내는 무조건 답변필요"*.
+  //   꼭 봐야 하는 통지(«new ticket»·«booking inquiry» 도 들어 있다)보다 먼저 본다 — 그쪽은 확인 권장까지라서.
+  if (c.status !== 'spam' && on('inbound_action') && isInboundAction({ subject, fromEmail, ownEmails, off })) {
+    return out('open', true, null, 'inbound_action');
   }
 
   // 꼭 봐야 하는 통지(CRITICAL_NOTICE) — 자동·광고로 분류된 것을 확인 권장으로 올린다.
   //   사람 메일(human)은 아래에서 답변 필요 판정을 먼저 받는다 — 답변 필요가 확인 권장으로 내려가면 안 된다.
-  if (triage !== 'spam' && triage !== 'human' && status === 'open' && isCriticalNotice(subject)) {
-    return { triage, reply_needed: false, spam_score: c.spam_score, status: 'uncertain', uncertain_reason: 'critical_notice' };
+  if (triage !== 'human' && c.status === 'open' && on('critical_notice') && isCriticalNotice(subject)) {
+    return out('uncertain', false, 'critical_notice', 'critical_notice');
+  }
+
+  // 자동응답·접수 확인 — 답장할 상대는 없지만 «상대가 받았다» 는 봐야 하는 정보다(확인 권장).
+  if (triage !== 'human' && c.status === 'open' && on('auto_ack')
+      && !isBounce(fromEmail, subject) && isAutoAck(headers, subject, bodyText)) {
+    return out('uncertain', false, 'auto_ack', 'auto_ack');
+  }
+
+  // 자동 발송(automated)이어도 내용이 업무면 확인 권장으로 올린다 — 결제 완료·보고서·시스템 업무
+  // 안내가 '자동·마케팅' 폴더에 묻혀 아무도 안 보는 일을 막는다. 답장할 상대는 없으니 답변 필요는 아니다.
+  //   우리 시스템(PlanQ) 알림은 따로 끌 수 있게 platform_notice 로 가른다(앱 안에서 이미 알린다).
+  if (triage === 'automated' && c.status === 'open') {
+    if (isFromOurPlatform(fromEmail)) {
+      if (on('platform_notice')) return out('uncertain', false, 'platform_notice', 'platform_notice');
+    } else if (on('automated_relevant') && hasBusinessRelevance(subject, bodyText)) {
+      return out('uncertain', false, 'automated_relevant', 'automated_relevant');
+    }
   }
 
   if (triage === 'human' && c.status === 'open') {
@@ -615,23 +581,13 @@ function triageInbound({ subject, bodyText, fromEmail, headers, ownEmails, ownMa
     //              ② 우리 대화에 대한 회신 (기존 일과 연결)
     //              ③ 우리 주소로 직접 온 메일 + 명확한 요청 문장 (문의·견적·회신 부탁…)
     //   그 외는 스팸·광고가 아니어도 확인 권장 — 사람이 한 번 보고 판단한다.
-    const sure = needsReply({ subject, bodyText, fromEmail, headers, ownEmails, ownMatcher, isKnownContact });
-    if (sure) {
-      reply_needed = true;
-    } else {
-      status = 'uncertain';
-      uncertain_reason = isCriticalNotice(subject) ? 'critical_notice' : 'unclear_intent';
-      reply_needed = false;
-    }
+    const v = replyVerdict({ subject, bodyText, fromEmail, headers, ownEmails, ownMatcher, isKnownContact: known, off });
+    if (v.ok) return out('open', true, c.uncertain_reason, v.criterion);
+    const critical = on('critical_notice') && isCriticalNotice(subject);
+    return out('uncertain', false, critical ? 'critical_notice' : 'unclear_intent', critical ? 'critical_notice' : v.criterion);
   }
 
-  return {
-    triage,
-    reply_needed,
-    spam_score: c.spam_score,
-    status,
-    uncertain_reason,
-  };
+  return out(c.status, false, c.uncertain_reason, baseCriterion || (c.status === 'uncertain' ? 'unclear_intent' : null));
 }
 
 // 백필용 — 헤더 없는 기존 메일을 발신자 패턴만으로 재분류 (보수적: 확실한 것만 이동)
@@ -652,22 +608,38 @@ function triageBySenderOnly({ subject, bodyText, fromEmail, ownEmails }) {
 //   headersComplete=false — 헤더가 없는 옛 메일. 저장된 triage 를 신뢰하고 status/reply_needed 만 다시 센다.
 //                           헤더 없이 triage 를 다시 계산하면 광고가 사람 메일로 뒤집힌다
 //                           (실제로 그랬다 — 109건이 human 으로 뒤집혀 백업에서 복원했다).
-function retriageStored({ triage, subject, bodyText, fromEmail, headers, ownEmails, ownMatcher, isKnownContact = false, headersComplete = false }) {
+//   순서는 triageInbound 와 같다 — 두 경로가 갈라지면 안 된다.
+function retriageStored({ triage, subject, bodyText, fromEmail, headers, ownEmails, ownMatcher, isKnownContact = false, headersComplete = false, off = null }) {
   // 헤더가 있으면 동기화와 같은 문을 그대로 지난다 — 판정 로직이 두 벌로 갈라지지 않는다.
   if (headersComplete) {
-    return triageInbound({ subject, bodyText, fromEmail, headers, ownEmails, ownMatcher, isKnownContact });
+    return triageInbound({ subject, bodyText, fromEmail, headers, ownEmails, ownMatcher, isKnownContact, off });
+  }
+  const on = (id) => CAT.isOn(id, off);
+  const known = !!isKnownContact && !isSelfSender(fromEmail, ownEmails);
+
+  if (triage === 'spam') {
+    if (on('spam_rescue') && known) return { triage, status: 'uncertain', reply_needed: false, uncertain_reason: 'spam_rescue', criterion: 'spam_rescue' };
+    return { triage, status: 'spam', reply_needed: false, uncertain_reason: null, criterion: 'spam_filter' };
   }
 
-  if (triage === 'spam') return { triage, status: 'spam', reply_needed: false, uncertain_reason: null };
-
   // 로그인·인증 코드 — triage 무관 승격(triageInbound 와 같은 규칙. 두 경로가 갈라지면 안 된다).
-  if (isSecurityNotice(subject, bodyText)) {
-    return { triage, status: 'uncertain', reply_needed: false, uncertain_reason: 'security_code' };
+  if (on('security_code') && isSecurityNotice(subject, bodyText)) {
+    return { triage, status: 'uncertain', reply_needed: false, uncertain_reason: 'security_code', criterion: 'security_code' };
+  }
+
+  // 상대 행동 도착 — triageInbound 와 같은 자리(꼭 봐야 하는 통지보다 먼저).
+  if (on('inbound_action') && isInboundAction({ subject, fromEmail, ownEmails, off })) {
+    return { triage, status: 'open', reply_needed: true, uncertain_reason: null, criterion: 'inbound_action' };
   }
 
   // 꼭 봐야 하는 통지 — triageInbound 와 같은 규칙(사람 메일은 아래 답변 필요 판정이 먼저).
-  if (triage !== 'human' && isCriticalNotice(subject)) {
-    return { triage, status: 'uncertain', reply_needed: false, uncertain_reason: 'critical_notice' };
+  if (triage !== 'human' && on('critical_notice') && isCriticalNotice(subject)) {
+    return { triage, status: 'uncertain', reply_needed: false, uncertain_reason: 'critical_notice', criterion: 'critical_notice' };
+  }
+
+  // 자동응답 — 헤더가 없으니 제목·본문만(사람 메일은 제외 — triageInbound 와 같다).
+  if (triage !== 'human' && on('auto_ack') && !isBounce(fromEmail, subject) && isAutoAck({}, subject, bodyText)) {
+    return { triage, status: 'uncertain', reply_needed: false, uncertain_reason: 'auto_ack', criterion: 'auto_ack' };
   }
 
   // #200 — 헤더가 없어도 법정 광고 표기(제목 맨 앞 `(광고)`)는 확실하다. 이 한 가지만 triage 를 고쳐준다.
@@ -677,21 +649,25 @@ function retriageStored({ triage, subject, bodyText, fromEmail, headers, ownEmai
 
   // 자동 발송 — 내용이 업무이거나 우리 시스템 알림이면 확인 권장으로 올린다
   if (triage === 'automated' || triage === 'marketing') {
-    const relevant = triage === 'automated'
-      && (isFromOurPlatform(fromEmail) || hasBusinessRelevance(subject, bodyText));
-    return relevant
-      ? { triage, status: 'uncertain', reply_needed: false, uncertain_reason: 'automated_relevant' }
-      : { triage, status: 'open', reply_needed: false, uncertain_reason: null };
+    if (triage === 'automated' && isFromOurPlatform(fromEmail) && on('platform_notice')) {
+      return { triage, status: 'uncertain', reply_needed: false, uncertain_reason: 'platform_notice', criterion: 'platform_notice' };
+    }
+    if (triage === 'automated' && !isFromOurPlatform(fromEmail) && on('automated_relevant') && hasBusinessRelevance(subject, bodyText)) {
+      return { triage, status: 'uncertain', reply_needed: false, uncertain_reason: 'automated_relevant', criterion: 'automated_relevant' };
+    }
+    const crit = triage === 'marketing' ? (hasAdPrefix(subject) ? 'ad_prefix' : 'bulk_headers')
+      : (isSelfSender(fromEmail, ownEmails) ? 'self_sender' : 'automated_sender');
+    return { triage, status: 'open', reply_needed: false, uncertain_reason: null, criterion: crit };
   }
 
   // 사람이 보낸 메일 — 답변 필요는 확실한 것만, 나머지는 확인 권장
   //   ③ 우리 주소로 직접 온 메일 + (명확한 요청 || 질문). 사람이 물어봤으면 답해야 한다 —
   //      "…폐쇄를 진행하면 될까요?" 처럼 요청 단어 없이 질문만 있는 메일이 확인 권장에 갇혔다.
   //      광고·뉴스레터는 이미 자동·마케팅으로 빠지므로(triage) 여기 human 경로엔 오지 않는다.
-  const sure = needsReply({ subject, bodyText, fromEmail, headers, ownEmails, ownMatcher, isKnownContact });
-  return sure
-    ? { triage, status: 'open', reply_needed: true, uncertain_reason: null }
-    : { triage, status: 'uncertain', reply_needed: false, uncertain_reason: isCriticalNotice(subject) ? 'critical_notice' : 'unclear_intent' };
+  const v = replyVerdict({ subject, bodyText, fromEmail, headers, ownEmails, ownMatcher, isKnownContact: known, off });
+  if (v.ok) return { triage, status: 'open', reply_needed: true, uncertain_reason: null, criterion: v.criterion };
+  const critical = on('critical_notice') && isCriticalNotice(subject);
+  return { triage, status: 'uncertain', reply_needed: false, uncertain_reason: critical ? 'critical_notice' : 'unclear_intent', criterion: critical ? 'critical_notice' : v.criterion };
 }
 
 // 수신된 메일 한 통이 스레드의 상태를 어떻게 바꾸는가 — 신규/후속을 한 곳에서 결정한다.
@@ -718,6 +694,8 @@ function threadFieldsForInbound({ isNew, thread, tr, replyNeeded, ruleReason, me
       spam_score: tr.spam_score,
       uncertain_reason: tr.uncertain_reason,
       triage: tr.triage,
+      // 이 폴더를 정한 기준 — 설정 «메일 분류 기준» 의 적중 수·끄기 소급 근거(2026-10-15).
+      triage_criterion: tr.rule_applied ? 'rule' : (tr.criterion || null),
       reply_needed: replyNeeded,
       rule_id: tr.rule_applied?.id || null,
       ...(replyNeeded ? { reply_needed_at: at, reply_needed_reason: ruleReason } : {}),
@@ -726,13 +704,14 @@ function threadFieldsForInbound({ isNew, thread, tr, replyNeeded, ruleReason, me
   if (thread.status === 'spam' || tr.triage === 'spam') return {};
 
   // 확인 완료했던 스레드에 새 메일 → 다시 검토 대상으로 (reason 도 비워 재판정이 돌게)
+  const crit = tr.rule_applied ? 'rule' : (tr.criterion || null);
   const reopen = thread.status === 'archived'
-    ? { status: tr.status, uncertain_reason: tr.uncertain_reason, reply_needed_reason: null }
+    ? { status: tr.status, uncertain_reason: tr.uncertain_reason, reply_needed_reason: null, triage_criterion: crit }
     : {};
   Object.assign(reopen, important);
 
   if (replyNeeded) {
-    return { ...reopen, reply_needed: true, reply_needed_at: at, reply_needed_reason: ruleReason, rule_id: tr.rule_applied?.id || null };
+    return { ...reopen, reply_needed: true, reply_needed_at: at, reply_needed_reason: ruleReason, rule_id: tr.rule_applied?.id || null, triage_criterion: crit };
   }
   if (tr.rule_applied) {
     // 규칙이 "답장 불필요" 로 판정 → 기존 스레드의 답변 필요도 해제
@@ -758,6 +737,10 @@ module.exports = {
   isCriticalNotice,
   triageBodyOf,
   needsReply,
+  replyVerdict,
+  isAutoAck,
+  isInboundAction,
+  marketingCriterion,
   // 무료메일 도메인 — 회사 추정에서 제외하는 데 쓴다(services/saleInbox).
   //   목록을 베껴 가면 한쪽만 늘어난다. 여기가 단일 원천이다.
   FREE_MAIL_DOMAIN,

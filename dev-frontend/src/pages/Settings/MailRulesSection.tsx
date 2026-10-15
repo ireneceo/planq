@@ -7,6 +7,7 @@ import { useCallback, useEffect, useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import ConfirmDialog from '../../components/Common/ConfirmDialog';
+import MailCriteriaSection from './MailCriteriaSection';
 import ActionButton from '../../components/Common/ActionButton';
 import EmptyState from '../../components/Common/EmptyState';
 import PlanQSelect, { type PlanQSelectOption } from '../../components/Common/PlanQSelect';
@@ -133,6 +134,12 @@ export default function MailRulesSection({ businessId }: Props) {
       const n = sig.replace('spam_x', '');
       return t('rules.evidence.spam', { n, defaultValue: `스팸으로 ${n}번 표시해서 학습됨` }) as string;
     }
+    if (sig.startsWith('mark_reply_x')) {
+      return t('rules.evidence.markReply', { n: sig.replace('mark_reply_x', ''), defaultValue: '«답변 필요로» 를 {{n}}번 올려서 학습됨' }) as string;
+    }
+    if (sig.startsWith('mark_review_x')) {
+      return t('rules.evidence.markReview', { n: sig.replace('mark_review_x', ''), defaultValue: '«확인 권장으로» 를 {{n}}번 올려서 학습됨' }) as string;
+    }
     if (sig.startsWith('domain_promote')) {
       return t('rules.evidence.domain', { defaultValue: '같은 도메인 주소 여러 개가 답장 불필요로 학습되어 도메인 전체로 확장됨' }) as string;
     }
@@ -143,28 +150,18 @@ export default function MailRulesSection({ businessId }: Props) {
     <Section>
       <Head>
         <div>
-          <Title>{t('rules.title', { defaultValue: '메일 분류 규칙' })}</Title>
+          <Title>{t('rules.title', { defaultValue: '메일 분류 기준·규칙' })}</Title>
           <Desc>
-            {t('rules.desc', { defaultValue: '같은 발신자를 두 번 "답변 불필요" 하면 앞으로 그 발신자는 "답변 필요" 에 나타나지 않도록 자동으로 학습합니다. 학습된 규칙은 아래에서 전부 확인하고 지울 수 있습니다. 규칙을 지우면 원래대로 돌아갑니다 — 메일 자체는 삭제되지 않습니다.' })}
+            {t('rules.desc', { defaultValue: 'PlanQ 가 받은 메일을 나누는 기준을 전부 공개합니다. 메일 자체는 지워지지 않습니다.' })}
           </Desc>
         </div>
       </Head>
 
-      {/* ★ 2026-09-10 (Irene): "이런 조건화를 메일 설정에서 이해하게 해줘."
-          규칙을 만들려면 **지금 어떤 기준으로 나뉘는지**부터 알아야 한다. 규칙 설명서를 쓰지 않고
-          네 칸이 각각 무엇인지만 짧게 말한다 (feedback_rules_must_be_explained_briefly). */}
+      {/* ★ 2026-10-15 (Irene): "상세 조건들을 모두 설정에 나오게 하고 … 투명하게 공개하자."
+          여기 있던 4줄 요약은 코드와 따로 쓴 글이라 갈라질 수밖에 없었다 → 판정 엔진이 읽는 **같은 목록**을 그린다. */}
+      <MailCriteriaSection businessId={businessId} />
+
       <HowBox>
-        <HowTitle>{t('rules.how.title', { defaultValue: 'PlanQ 가 받은 메일을 나누는 기준' }) as string}</HowTitle>
-        <HowList>
-          <li><b>{t('rules.how.replyLabel', { defaultValue: '답변 필요' }) as string}</b>{' — '}
-            {t('rules.how.reply', { defaultValue: '사람이 우리 주소로 보낸 문의·회신, 고객·멤버가 직접 쓴 메일' }) as string}</li>
-          <li><b>{t('rules.how.reviewLabel', { defaultValue: '확인 권장' }) as string}</b>{' — '}
-            {t('rules.how.review', { defaultValue: '답장할 상대는 없지만 봐야 하는 것. 자동발송이어도 결제·입금·증빙·보고서·서명·로그인 코드·발송 실패는 여기로 올립니다' }) as string}</li>
-          <li><b>{t('rules.how.autoLabel', { defaultValue: '자동·마케팅' }) as string}</b>{' — '}
-            {t('rules.how.auto', { defaultValue: '수신거부 링크가 달린 대량 발송, (광고) 표기, 주문·배송 알림' }) as string}</li>
-          <li><b>{t('rules.how.spamLabel', { defaultValue: '스팸' }) as string}</b>{' — '}
-            {t('rules.how.spam', { defaultValue: '스팸 판정을 받은 메일' }) as string}</li>
-        </HowList>
         <HowNote>
           {t('rules.how.note', { defaultValue: '기계는 우리가 무엇을 운영하는지 모릅니다 — 에어비앤비 예약 알림, 우리 웹사이트 문의 알림, 같은 업계 소식처럼 "자동발송이지만 우리에겐 중요한 것" 은 아래에서 규칙으로 알려주세요. 규칙은 이미 받은 메일에도 바로 적용됩니다.' }) as string}
         </HowNote>
@@ -339,12 +336,6 @@ const SelectWrap = styled.div`min-width: 150px;`;
 const HowBox = styled.div`
   background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 10px;
   padding: 12px 14px; margin-bottom: 14px;
-`;
-const HowTitle = styled.div`font-size: 0.8125rem; font-weight: 700; color: #0F172A; margin-bottom: 6px;`;
-const HowList = styled.ul`
-  margin: 0 0 8px; padding-left: 16px;
-  li { font-size: 0.78125rem; color: #475569; line-height: 1.6; }
-  b { color: #0F172A; }
 `;
 const HowNote = styled.div`font-size: 0.78125rem; color: #64748B; line-height: 1.6;`;
 const PresetRow = styled.div`display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 10px;`;

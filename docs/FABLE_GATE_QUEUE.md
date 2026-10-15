@@ -1,6 +1,12 @@
 # Fable 게이트 대기열 → **판정 기록 보관소** (2026-10-08 부터)
 
 
+## 2026-10-15 PASS(2차) — 메일 분류 기준 공개·새 기준·학습 확대 + Q sale 상담 기준 (방 28cf8581)
+- 설계 판정(같은 방, Fable): docs/MAIL_CRITERIA_DESIGN.md — 카탈로그 한 벌(mailCriteriaCatalog) · 끄기 permissions.mail_criteria.off(owner/admin) · email_threads.triage_criterion · 새 기준 inbound_action(답변 필요)·auto_ack·spam_rescue·platform_notice · 역할 주소 확인 권장 유지(결정 ④) · 학습 «답변 필요로»/«확인 권장으로» 2회 · Q sale off(replied·personal)·domains.always/never.
+- 1차 FAIL(차단 3): ① inbound_action 이 자동 triage 그대로 답변 필요 → 자동·마케팅 폴더에도 겹쳐 보임 ② 학습 규칙 소급이 손으로 옮긴 스레드를 덮어 «되돌리기» 때 자동 폴더로 떨어짐 ③ isInboundAction 이 별칭(우리 주소)을 빼서 상점 주소 «New order» 가 영영 안 올라감(설계 밖 조건).
+- 수정 → 2차 PASS: folderWhere('marketing') reply_needed:false(538/68 교집합 0, 양성 대조 12행) · threadsMatchingRule 제외에 manual(되돌리기 뒤 manual 유지, always_reply 쪽도) · 자기주소 제외 삭제(HEAD 대비 dev 6,300 시뮬: auto_ack 10 · inbound_action 24 · 그 외 0 · 강등 0) · 같은 주소 다른 판정 규칙 교체(유일 키 충돌 없음). guard 69/70 · e2e mail·maillabel·salecriteria 0 · 실HTTP 41 · 브라우저 3폭.
+- 비차단: ① 끄기 소급 상한 20,000 — 운영 규모면 PUT 한 번 수십 초(프록시 타임아웃 가능, 1,000+이어가기 안내 없음) ② 마지막 모양 수정 3건은 dev 빌드에 없음(메모리 부족으로 재빌드 중단) — 배포 전 npm run build EXIT 0 ③ 우리 계정이 보낸 메일의 받은함 사본이라도 제목이 «New order» 모양이면 답변 필요(설계 그대로, 기록만) ④ «늘 상담» 은 사람 메일 판정 스레드에만 닿음 ⑤ 운영 옛 메일 재판정은 §10.5(운영 읽기 전용 시뮬·전수 육안) 뒤 수동.
+
 ## 2026-10-15 PASS — 직접 관리 고객(비가입 고객, status 'managed') (방 d1871180)
 - 설계 판정(같은 방, Fable): docs/CLIENT_MANAGED_DESIGN.md — ENUM 끝 'managed' · 정식 고객 한도 · 행 id 초대 승격 · 술어 clientAccess(canInviteClient·emailEditable·reactivatedStatusOf) · PUT status 제거 · resend 는 invited 만 · 문의 보관 409 · register-managed.
 - 검증: Fable 독립 실HTTP 44/44(한도 +1/+0/-1 · 409 existing_client_id · 토큰 원문 0 · 보관 해제 증거 파생 · 승격 후 잠김 · 권한 403 · ws6 422 · 청구서 초안→발송→공개 링크 200 · 승격 행 초대 수락 → active) · 마이그레이션 멱등 + lib 임시 표 실적용·백필 · guard 69/70 · secrets 10/10 · clientlink 1/1 · e2e tenant,clientlink,salecriteria 28/0 · 화면 1440·390 12/12. 작업자: 실HTTP 39/39 + 분리 후 9/9 · 대조군(해제 'active' 고정 → FAIL) · 화면 3폭 36/36 · build EXIT 0.

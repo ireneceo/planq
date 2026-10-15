@@ -147,7 +147,7 @@ async function run() {
     const hdr = t.normalizeHeaders({ headers: p.headers, toEmails: p.to });
     // extra.htmlOnly — 저장본처럼 text 가 없는 HTML 전용 메일(dev 실측 28%)의 경로를 잰다.
     return t.triageInbound({ subject: p.subject, bodyText: t.triageBodyOf(extra.htmlOnly ? null : p.text, p.html), fromEmail: extra.from,
-      headers: hdr, ownEmails: new Set(OWN), ownMatcher: { emails: OWN, domains: [] }, isKnownContact: !!extra.known });
+      headers: hdr, ownEmails: new Set(OWN), ownMatcher: { emails: OWN, domains: [] }, isKnownContact: !!extra.known, off: extra.off || null });
   };
   // ① 이번 신고 — SendGrid 헤더만 · HTML 전용 · 가입 완료 요청 → 확인 권장
   const gfm = await tri(['From: GFM B2B Support <gfmsupport@rgtech.example.my>', 'To: help@irenewp.com',
@@ -186,6 +186,74 @@ async function run() {
   const legacyS = t.retriageStored({ triage: 'marketing', subject: 'New login alert', bodyText: '', fromEmail: 'noreply@air.example',
     headers: {}, headersComplete: false, ownEmails: OWN });
   ok('헤더 없는 재판정 — 새 로그인 → 확인 권장(security_code)', legacyS.uncertain_reason === 'security_code', JSON.stringify(legacyS));
+
+  // ═══ 2026-10-15 분류 기준 공개·새 기준 (docs/MAIL_CRITERIA_DESIGN.md §10.2) ═══
+  //   양성(올라와야 한다)
+  const ack = await tri(['From: Help Desk <studenthelpdesk+canned.response@school.example.my>', 'To: help@irenewp.com',
+    'Subject: Re: Request for Confirmation of Student Enrollment', 'Auto-Submitted: auto-replied', 'Precedence: bulk'],
+    '<p>Thank you for reaching out to Aspiration. We have received your email in good order.</p>',
+    { from: 'studenthelpdesk+canned.response@school.example.my', htmlOnly: true });
+  ok('자동응답(auto-replied + Precedence bulk) → 확인 권장 auto_ack (광고 아님)',
+    ack.status === 'uncertain' && ack.criterion === 'auto_ack' && ack.triage !== 'marketing', JSON.stringify(ack));
+  const ooo = await tri(['From: Kim <noreply@corp.example.org>', 'To: help@irenewp.com', 'Subject: Automatic reply: 견적 건'],
+    '<p>I am out of office.</p>', { from: 'noreply@corp.example.org' });
+  ok('«Automatic reply:» 제목(헤더 없음) → 확인 권장 auto_ack', ooo.criterion === 'auto_ack' && ooo.status === 'uncertain', JSON.stringify(ooo));
+  const order = await tri(['From: With Min <help@withmin.example>', 'To: help@irenewp.com', 'Subject: [With Min]: New order #3171'],
+    '<p>You have received an order.</p>', { from: 'help@withmin.example' });
+  ok('셀러 «New order #» (역할 주소) → 답변 필요 inbound_action', order.reply_needed === true && order.criterion === 'inbound_action', JSON.stringify(order));
+  const ticket = await tri(['From: Tidio <no-reply@notifications.tidio.example>', 'To: help@irenewp.com',
+    'Subject: You have a new ticket 10050', 'List-Unsubscribe: <https://x.example/u>'], '<p>Hey</p>',
+    { from: 'no-reply@notifications.tidio.example' });
+  ok('수신거부 헤더 + «You have a new ticket» → 답변 필요 (marketing 이어도)', ticket.reply_needed === true && ticket.criterion === 'inbound_action', JSON.stringify(ticket));
+  const wadiz = await tri(['From: 와디즈 <info@wadiz.example>', 'To: help@irenewp.com', 'Subject: [와디즈] 문의하신 내용에 답변이 도착했어요.'],
+    '<p>답변 확인</p>', { from: 'info@wadiz.example' });
+  ok('«문의하신 내용에 답변이 도착» → 답변 필요', wadiz.reply_needed === true, JSON.stringify(wadiz));
+  const rescueRaw = { subject: '무료 쿠폰 당첨 카지노 대출', bodyText: '무료 쿠폰 당첨 카지노 대출 비아그라 클릭', fromEmail: 'ceo@client.example.org', headers: { 'x-spam-flag': 'YES', 'x-spam-score': '9' } };
+  const spamKnown = t.triageInbound({ ...rescueRaw, ownEmails: new Set(OWN), isKnownContact: true });
+  const spamStranger = t.triageInbound({ ...rescueRaw, ownEmails: new Set(OWN), isKnownContact: false });
+  ok('스팸 판정 + 아는 상대 → 확인 권장 spam_rescue (triage spam 유지)',
+    spamStranger.status === 'spam' ? (spamKnown.status === 'uncertain' && spamKnown.criterion === 'spam_rescue' && spamKnown.triage === 'spam') : false,
+    `known=${JSON.stringify(spamKnown)} stranger=${spamStranger.status}`);
+  //   음성(올라오면 안 된다)
+  ok('스팸 + 모르는 상대 → 스팸 그대로(주소 모양으로 구제 안 함)', spamStranger.status === 'spam', spamStranger.status);
+  const platform = process.env.SMTP_FROM || 'help@irenewp.com';
+  const pq = await tri([`From: PlanQ <${platform}>`, 'To: owner@client.example.org', 'Subject: [워프로랩] Q Talk · 새 메시지 · 김대표'],
+    '<p>새 메시지가 도착했습니다</p>', { from: platform });
+  ok('PlanQ 자체 알림 «새 메시지» → 답변 필요 아님', pq.reply_needed !== true && pq.criterion !== 'inbound_action', JSON.stringify(pq));
+  const bought = await tri(['From: Shopee <info@mail.shopee.example>', 'To: help@irenewp.com', 'Subject: Your order #2201 has been delivered'],
+    '<p>Delivered</p>', { from: 'info@mail.shopee.example' });
+  ok('내가 산 주문 «Your order … delivered» → 답변 필요 아님', bought.reply_needed !== true, JSON.stringify(bought));
+  const adOrder = await tri(['From: Promo <promo@shop.example.org>', 'To: help@irenewp.com', 'Subject: (광고) 새 주문 이벤트!'],
+    '<p>sale</p>', { from: 'promo@shop.example.org' });
+  ok('(광고) 새 주문 이벤트 → 답변 필요 아님', adOrder.reply_needed !== true && adOrder.triage === 'marketing', JSON.stringify(adOrder));
+  const dsn = await tri(['From: Mail Delivery Subsystem <mailer-daemon@googlemail.example>', 'To: help@irenewp.com',
+    'Subject: Delivery Status Notification (Failure)', 'Auto-Submitted: auto-replied'], '<p>Address not found</p>',
+    { from: 'mailer-daemon@googlemail.example' });
+  ok('반송(auto-replied) → auto_ack 아님', dsn.criterion !== 'auto_ack', JSON.stringify(dsn));
+  const humanThanks = await tri(['From: Officer <joanne.low@school.example.my>', 'To: help@irenewp.com', 'Subject: Re: Enrollment letter',
+    'In-Reply-To: <q-9@irenewp.com>'], '<p>Thank you for contacting us, here is the enrollment letter you requested.</p>',
+    { from: 'joanne.low@school.example.my', htmlOnly: true });
+  ok('사람의 회신 «Thank you for contacting us…» → 답변 필요(auto_ack 아님)', humanThanks.reply_needed === true && humanThanks.criterion !== 'auto_ack', JSON.stringify(humanThanks));
+  const roleNotice = await tri(['From: 세무사 <mail@jisungtax.example>', 'To: help@irenewp.com', 'Subject: [요청] 부가가치세 자료 요청'],
+    '<p>자료를 보내 주세요.</p>', { from: 'mail@jisungtax.example' });
+  ok('역할 주소의 요청(관계 없음) → 확인 권장 unclear_intent (결정 ④ 유지)', roleNotice.status === 'uncertain' && roleNotice.reply_needed !== true, JSON.stringify(roleNotice));
+  //   끄기 — 꺼진 기준은 없는 것처럼 돈다(양방향)
+  const orderOff = await tri(['From: With Min <help@withmin.example>', 'To: help@irenewp.com', 'Subject: [With Min]: New order #3171'],
+    '<p>You have received an order.</p>', { from: 'help@withmin.example', off: new Set(['inbound_action']) });
+  ok('inbound_action 끄면 → 답변 필요 아님 · 켜면(위) 답변 필요', orderOff.reply_needed !== true && order.reply_needed === true, JSON.stringify(orderOff));
+  const ackOff = await tri(['From: Help Desk <studenthelpdesk+canned.response@school.example.my>', 'To: help@irenewp.com',
+    'Subject: Re: Request', 'Auto-Submitted: auto-replied', 'Precedence: bulk'],
+    '<p>We have received your email in good order.</p>', { from: 'studenthelpdesk+canned.response@school.example.my', htmlOnly: true, off: ['auto_ack'] });
+  ok('auto_ack 끄면 → 자동 폴더(확인 권장 아님)', ackOff.status === 'open' && ackOff.criterion !== 'auto_ack', JSON.stringify(ackOff));
+  const lockedOff = t.triageInbound({ subject: 'Re: 견적', bodyText: '견적 보내 주실 수 있나요?', fromEmail: 'ceo@client.example.org',
+    headers: { 'in-reply-to': '<q-1@irenewp.com>' }, ownEmails: new Set(OWN), isKnownContact: true, off: ['thread_reply', 'known_contact'] });
+  ok('잠긴 기준은 off 에 넣어도 꺼지지 않는다', lockedOff.reply_needed === true, JSON.stringify(lockedOff));
+  //   카탈로그 — 엔진이 쓰는 기준 id 가 전부 목록에 있다(설명과 코드가 갈라지지 않게)
+  const CAT = require('/opt/planq/dev-backend/services/mailCriteriaCatalog');
+  const seen = [ack, ooo, order, ticket, wadiz, spamKnown, spamStranger, pq, bought, adOrder, dsn, humanThanks, roleNotice, orderOff, ackOff, lockedOff, gfm, fail, ad, nl, known]
+    .map((r) => r.criterion).filter(Boolean);
+  const missing = [...new Set(seen)].filter((id) => !CAT.BY_ID.has(id));
+  ok('판정이 낸 기준 id 가 전부 카탈로그에 있다', missing.length === 0, missing.join(',') || `${new Set(seen).size}종`);
 
   return out;
 }

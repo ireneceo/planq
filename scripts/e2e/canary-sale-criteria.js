@@ -84,6 +84,27 @@ async function run() {
     push('확인완료가 아니면 개인주소 추정이 그대로 산다 (음성 대조군)',
       V({ email: 'hong.gildong@bank.co.kr', outboundCount: 0, archived: false }) === 'inquiry');
 
+    // ── 2026-10-15 기준 공개·끄기·주소 목록 (docs/MAIL_CRITERIA_DESIGN.md §7·§10.3) ──
+    const R = (o) => mailThreadVerdict(o).reason;
+    push('개인 주소 기준을 끄면 후보로 · 켜면 상담 (양방향)',
+      V({ email: 'hong.gildong@gmail.com', off: ['personal'] }) === 'candidate' && V({ email: 'hong.gildong@gmail.com' }) === 'inquiry');
+    push('답장 기준을 끄면 후보로 · 켜면 상담 (양방향)',
+      V({ email: 'help@vendor.co.kr', outboundCount: 2, off: ['replied'] }) === 'candidate' && V({ email: 'help@vendor.co.kr', outboundCount: 2 }) === 'inquiry');
+    push('«늘 상담» 도메인 → 상담(domain_rule) · 역할 주소여도',
+      R({ email: 'info@acme.co.kr', domains: { always: ['acme.co.kr'], never: [] } }) === 'domain_rule');
+    push('«상담 아님» 이 «늘 상담» 보다 먼저 · 답장했어도 제외',
+      R({ email: 'kim.lee@acme.co.kr', outboundCount: 3, domains: { always: ['acme.co.kr'], never: ['kim.lee@acme.co.kr'] } }) === 'excluded_by_rule');
+    push('«상담 아님» 이어도 사람이 올리면 상담',
+      R({ email: 'kim.lee@acme.co.kr', promoted: true, domains: { always: [], never: ['acme.co.kr'] } }) === 'promoted');
+    push('서브도메인은 정확 등가만(suffix 매치 안 함)',
+      R({ email: 'x@mail.acme.co.kr', domains: { always: ['acme.co.kr'], never: [] } }) !== 'domain_rule');
+    {
+      const { normalizeIntake } = require('/opt/planq/dev-backend/services/salesIntake');
+      const n = normalizeIntake({ off: ['personal', 'promoted'], domains: { always: ['gmail.com', 'kim@gmail.com'], never: ['x'] } });
+      push('설정 정규화 — 잠긴 기준·무료메일 도메인 통째·형식 오류는 버린다',
+        JSON.stringify(n.off) === '["personal"]' && n.domains.always.join() === 'kim@gmail.com' && n.domains.never.length === 0, JSON.stringify(n));
+    }
+
     // ── ③ 사람이 올리는 문 — 여전히 작동하는가 (진입점은 Q mail 이다) ──
     //   후보 칸이 없어졌어도 **문은 닫히면 안 된다.** 관계 없는 메일 하나를 직접 올려 본다.
     const noRel = await sequelize.query(

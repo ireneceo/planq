@@ -211,7 +211,12 @@
     "automated_relevant": "Auto task",
     "unclear_intent": "Unclear",
     "critical_notice": "Must check",
-    "security_code": "Security notice"
+    "security_code": "Security notice",
+    "spam_rescue": "Known sender",
+    "auto_ack": "Received",
+    "platform_notice": "PlanQ notice",
+    "manual": "Moved by you",
+    "rule": "Rule"
   },
   "replyNeededBadge": "Reply needed",
   "actions": {
@@ -238,7 +243,9 @@
     "following": "Following",
     "newLabel": "+ New label",
     "removeLabel": "Remove label",
-    "unassigned": "Unassigned"
+    "unassigned": "Unassigned",
+    "markReview": "Move to Worth a look",
+    "markReviewHint": "Moves this mail to Worth a look. Do it twice for the same sender and PlanQ will put that sender there automatically."
   },
   "selectWorkspace": "Select a workspace.",
   "selectThread": "Select a thread",
@@ -384,8 +391,8 @@
     "line2Narrow": "Tap Open list above to pick a message, or write a new one."
   },
   "rules": {
-    "title": "Mail sorting rules",
-    "desc": "When you mark the same sender \"Replied\" twice, PlanQ learns to keep them out of \"Needs reply\". Every learned rule is listed below with the reason, and you can delete any of them — deleting a rule restores the original behaviour. No email is ever deleted.",
+    "title": "Mail sorting criteria & rules",
+    "desc": "Every criterion PlanQ uses to sort incoming mail is listed here. Open any criterion to see its exact conditions (the words it looks for); owners and admins can turn them on or off. Below you can add your own rules or delete learned ones. Mail itself is never deleted.",
     "add": "Add rule",
     "delete": "Delete",
     "placeholder": "noreply@company.com or company.com",
@@ -407,7 +414,9 @@
       "manual": "Added manually",
       "dismiss": "Learned after you marked it no-reply {{n}} times",
       "spam": "Learned after you marked it spam {{n}} times",
-      "domain": "Promoted to the whole domain after several addresses were learned as no-reply"
+      "domain": "Promoted to the whole domain after several addresses were learned as no-reply",
+      "markReply": "Learned after moving to Reply needed {{n}} times",
+      "markReview": "Learned after moving to Worth a look {{n}} times"
     },
     "empty": {
       "title": "No rules learned yet",
@@ -426,15 +435,6 @@
     "markImportant": "Star (mark important) when this rule matches",
     "importantTag": "Important",
     "how": {
-      "title": "How PlanQ sorts incoming mail",
-      "replyLabel": "Needs reply",
-      "reply": "Questions and replies people sent to our address, and mail written by clients or teammates",
-      "reviewLabel": "Worth a look",
-      "review": "No one to reply to, but you should see it. Even automated mail is raised here for payments, receipts, reports, signatures, login codes and delivery failures",
-      "autoLabel": "Automated & marketing",
-      "auto": "Bulk mail with unsubscribe links, ad-labelled mail, order and shipping notices",
-      "spamLabel": "Spam",
-      "spam": "Mail judged to be spam",
       "note": "PlanQ does not know what you run. Tell it below — Airbnb booking alerts, your own site's contact-form notices, industry news: automated mail that matters to you. A rule applies to mail you already received, too."
     },
     "preset": {
@@ -779,5 +779,125 @@
       "planq": "Only mail sent from PlanQ",
       "other": "Only mail sent outside PlanQ — Gmail, Naver web, other apps, AI tools"
     }
+  },
+  "criteria": {
+    "folder": {
+      "reply": "Reply needed",
+      "review": "Worth a look",
+      "demote": "Kept out of Reply needed (auto · marketing)",
+      "spam": "Spam",
+      "auto": "Auto · marketing",
+      "archived": "Done"
+    },
+    "folderHint": {
+      "reply": "Mail a person should answer. Checked from top to bottom.",
+      "review": "Nobody to reply to, but worth one look.",
+      "demote": "Bulk and automated mail with nothing to do. If a person's mail hits one of these, it goes to Worth a look instead of Reply needed.",
+      "spam": "Mail judged as spam."
+    },
+    "thread_reply": {
+      "title": "Replies to our mail",
+      "desc": "Someone answered a mail we sent. Fake reply headers made up by the sender's own domain are excluded."
+    },
+    "known_contact": {
+      "title": "Written by someone we know",
+      "desc": "Sent directly by a client, a member, or an address we replied to before. Bulk and automated mail is filtered out first."
+    },
+    "inbound_action": {
+      "title": "A new order, inquiry or reply has arrived",
+      "desc": "Even when sent automatically, notices like “New order”, “New inquiry”, “Your inquiry has been answered” or “New ticket” go to Reply needed. Subject only. Delivery notices for things we bought, PlanQ's own notices and (광고) ads are excluded."
+    },
+    "direct_request": {
+      "title": "A stranger asks us something directly",
+      "desc": "Sent straight to our address, from a personal address (personal free-mail or a two-part name at a company), with a request or a question mark. Role addresses such as info@ or help@ go to Worth a look — mark one as Reply needed twice and PlanQ learns it."
+    },
+    "spam_rescue": {
+      "title": "Judged as spam, but from someone we know",
+      "desc": "Mail from a client, member or address we replied to that was judged as spam is lifted to Worth a look (the spam mark stays). The look of an address alone never lifts it — cold mail would come back."
+    },
+    "security_code": {
+      "title": "Sign-in, verification and security notices",
+      "desc": "Verification codes, new-device sign-ins, password resets, suspicious sign-ins. A code you never asked for is a sign of account takeover, so it is worth one look."
+    },
+    "critical_notice": {
+      "title": "Notices you must not miss",
+      "desc": "Failed payments, overdue bills, accounts on hold, data breaches, failed builds, booking inquiries. Subject only."
+    },
+    "auto_ack": {
+      "title": "Auto-replies and receipt confirmations",
+      "desc": "“We have received your email”, “Your inquiry has been received”, out-of-office replies. Nobody to reply to, but it confirms the other side received your mail."
+    },
+    "automated_relevant": {
+      "title": "Automated, but about work",
+      "desc": "Automated mail tied to work: payments, deposits, invoices, tax invoices, receipts, reports, signatures, contracts, delivery failures, requests to finish a sign-up."
+    },
+    "platform_notice": {
+      "title": "Notices sent by PlanQ",
+      "desc": "Work notices sent by PlanQ itself. They also show inside the app — turn this off if you don't want them in the mailbox."
+    },
+    "unclear_intent": {
+      "title": "From a person, but no clear request",
+      "desc": "Mail from a person that did not meet any Reply needed rule (including notices from role addresses). This is where such mail lands, so it can't be turned off."
+    },
+    "ad_prefix": {
+      "title": "(광고) ad label",
+      "desc": "Mail whose subject starts with the legal Korean ad label (광고)."
+    },
+    "bulk_headers": {
+      "title": "Bulk-mail headers",
+      "desc": "Mail with unsubscribe headers (List-Unsubscribe, List-Id) or Precedence: bulk. Precedence added by auto-replies is not treated as bulk."
+    },
+    "bulk_body": {
+      "title": "Unsubscribe link in the body",
+      "desc": "Self-sent newsletters with an unsubscribe link in the body but no header."
+    },
+    "automated_sender": {
+      "title": "Send-only addresses and automated mail",
+      "desc": "noreply and notification addresses, mail-service markers (SendGrid etc.), auto-submitted markers, social notifications. Turning it off would flood Reply needed with receipts, so it can't be turned off."
+    },
+    "transactional_notice": {
+      "title": "Order, delivery and payment notices for things we bought",
+      "desc": "Notices such as “your order”, “shipped”, “payment complete”. New orders placed with us are caught first by the “new order or inquiry” rule above."
+    },
+    "self_sender": {
+      "title": "Mail we sent",
+      "desc": "Mail from our own addresses or PlanQ that came back to the inbox."
+    },
+    "bounce": {
+      "title": "Bounces",
+      "desc": "A mail server telling us a mail was not delivered. Shown in Worth a look."
+    },
+    "spam_filter": {
+      "title": "Spam judgment",
+      "desc": "High spam score, or put in spam by the mail provider. Mark the same domain as spam twice and PlanQ learns it."
+    },
+    "learn": {
+      "title": "PlanQ learns from what you click",
+      "body": "Mark the same sender “No reply needed” {{d}} times and it is treated as not needing replies; move it to Reply needed {{n}} times and it always goes there; move it to Worth a look {{n}} times and it goes there. Every learned rule is listed under Mail sorting rules below and can be deleted at any time — deleting it restores the previous sorting."
+    },
+    "ownerOnly": "Only the workspace owner or admins can turn criteria on or off. Anyone can add or delete learned rules below.",
+    "loadFailed": "Couldn't load the sorting criteria.",
+    "saveFailed": "Couldn't save. Please try again shortly.",
+    "previewFailed": "Couldn't count how many mails would move. Please try again shortly.",
+    "moveLine": "{{from}} → {{to}}: {{n}}",
+    "stateOn": "turned on",
+    "stateOff": "turned off",
+    "doneMoved": "“{{name}}” {{state}} — moved {{n}} mails you already received.",
+    "doneNone": "“{{name}}” {{state}} — no existing mail moved; it applies to new mail.",
+    "confirmOffTitle": "Turn off “{{name}}”?",
+    "confirmOnTitle": "Turn on “{{name}}”?",
+    "confirmBody": "{{n}}{{more}} mails you already received will move ({{moves}}). You can switch it back any time, and no mail is deleted.",
+    "confirmOff": "Turn off",
+    "confirmOn": "Turn on"
+  },
+  "learnBar": {
+    "progress": "Move “{{email}}” the same way once more and PlanQ will put it in {{where}} automatically from now on.",
+    "learned": "From now on, mail from “{{email}}” goes to {{where}}.",
+    "settings": "See in settings",
+    "undo": "Undo",
+    "close": "Close",
+    "undone": "Undid the rule for “{{email}}”.",
+    "whereReply": "Reply needed",
+    "whereReview": "Worth a look"
   }
 }

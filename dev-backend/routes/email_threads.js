@@ -895,10 +895,14 @@ router.post('/:businessId/email-threads/:id/mark-reply-needed',
         reply_needed: true,
         reply_needed_at: new Date(),
         reply_needed_reason: 'manual',
+        triage_criterion: 'manual',
         // 답변필요 폴더에 실제로 보이게 한다. uncertain 은 그대로 둔다(폴더 정의가 포함한다).
         status: prevStatus === 'uncertain' ? 'uncertain' : 'open',
         uncertain_reason: prevStatus === 'uncertain' ? thread.uncertain_reason : null,
       });
+
+      // 학습 — 같은 보낸 사람을 2번 «답변 필요로» 올리면 앞으로 그 주소는 답변 필요(2026-10-15, MAIL_CRITERIA_DESIGN §5).
+      const learning = await learnFromMarkSafe(businessId, thread.id, req.user.id, 'always_reply');
 
       broadcastMail(req, businessId, 'mail:updated', { id: thread.id, reply_needed: true });
       await createAuditLog({
@@ -907,7 +911,56 @@ router.post('/:businessId/email-threads/:id/mark-reply-needed',
         oldValue: { reply_needed: false, status: prevStatus },
         newValue: { reply_needed: true, status: thread.status },
       });
-      return successResponse(res, { id: thread.id, reply_needed: true, status: thread.status });
+      return successResponse(res, { id: thread.id, reply_needed: true, status: thread.status, learning });
+    } catch (err) { next(err); }
+  }
+);
+
+/** 손으로 옮긴 것에서 배우기 — 실패해도 옮기기 자체는 성공으로 둔다(학습은 부가). 화면이 안내 줄에 쓸 값만 돌려준다. */
+async function learnFromMarkSafe(businessId, threadId, userId, verdict) {
+  try {
+    const sender = await lastInboundSender(businessId, threadId);
+    if (!sender?.email) return null;
+    const r = await require('../services/mailSenderRules').learnFromMark({ businessId, fromEmail: sender.email, userId, verdict });
+    return {
+      email: sender.email, verdict, threshold: r.threshold,
+      progress: r.learned ? r.threshold : (r.progress || 0),
+      learned: !!r.learned, rule_id: r.rule?.id || null,
+      moved: r.applied?.changed || 0,
+    };
+  } catch (e) { console.warn('[mailSenderRules mark]', e.message); return null; }
+}
+
+// ─────────────────────────────────────────────
+// POST mark-review — «확인 권장으로» (2026-10-15, docs/MAIL_CRITERIA_DESIGN.md §3.4)
+//   Irene: *"확인권장에는 … 답변필요로 보내기 애매하지만 중요한 거 등 제대로 나열해 줘야 해"*.
+//   자동·마케팅에 묻힌 것을 사람이 한 번에 확인 권장으로 올리는 문. 답변 필요로 올리는 문(mark-reply-needed)의 짝이다.
+//   폴더 정의가 status='uncertain' 이면 triage 와 무관하게 확인 권장이라 상태만 바꾸면 바로 보인다.
+//   같은 보낸 사람을 2번 올리면 그 주소를 «확인 권장» 으로 배운다.
+// ─────────────────────────────────────────────
+router.post('/:businessId/email-threads/:id/mark-review',
+  authenticateToken, checkBusinessAccess, requireMenu('qmail', 'read'),
+  async (req, res, next) => {
+    try {
+      const businessId = Number(req.params.businessId);
+      const acctIds = await accessibleAccountIds(businessId, req.user.id);
+      const thread = await EmailThread.findOne({
+        where: { id: req.params.id, business_id: businessId, account_id: { [Op.in]: acctIds.length ? acctIds : [0] } },
+      });
+      if (!thread) return errorResponse(res, 'thread_not_found', 404);
+      const prev = { status: thread.status, reply_needed: !!thread.reply_needed, uncertain_reason: thread.uncertain_reason };
+      await thread.update({
+        status: 'uncertain', uncertain_reason: 'manual', triage_criterion: 'manual',
+        reply_needed: false, reply_needed_at: null,
+      });
+      const learning = await learnFromMarkSafe(businessId, thread.id, req.user.id, 'review');
+      broadcastMail(req, businessId, 'mail:updated', { id: thread.id, status: 'uncertain' });
+      await createAuditLog({
+        userId: req.user.id, businessId,
+        action: 'mail.mark_review', targetType: 'email_thread', targetId: thread.id,
+        oldValue: prev, newValue: { status: 'uncertain', reply_needed: false, uncertain_reason: 'manual' },
+      });
+      return successResponse(res, { id: thread.id, status: 'uncertain', reply_needed: false, learning });
     } catch (err) { next(err); }
   }
 );

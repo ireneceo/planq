@@ -681,6 +681,18 @@ dev 에만 있는 글이 운영에 샌다(그래서 배포 rsync 가 생성물�
 >   답장 발송·미리보기가 같이 쓰고, `emailSend.resolveSender ②` 가 그 순서로 **처음 나오는 우리 주소**(별칭·계정 본주소)를 고른다.
 >   답장 화면 자동 선택도 같은 규칙. 미등록 주소로는 보낼 수 없다 → 화면이 «별칭으로 등록» 을 안내한다(2026-10-01).
 >
+> ⑦ **분류 기준은 카탈로그 한 벌이다** (2026-10-15, Irene *"상세 조건들을 모두 설정에 나오게 하고 … 투명하게 공개하자"*) —
+>   `services/mailCriteriaCatalog.js` 가 기준 id·폴더·끌 수 있는지·**찾는 말**을 들고, 판정 엔진(emailTriage)과 설정 화면
+>   (`GET /mail-criteria` → `MailCriteriaSection`·공용 `components/Common/CriteriaList`)이 **같은 목록**을 읽는다. 설명을 따로 쓰지 않는다
+>   (설명은 id → i18n `qmail:criteria.<id>`). 폴더를 정한 기준은 `email_threads.triage_criterion` 에 남는다.
+>   끄기는 `businesses.permissions.mail_criteria.off` (owner/admin) — 미리보기·소급은 `services/mailRetriage.criterionImpact` **한 함수**(미리보기 수 = 옮긴 수).
+>   새 기준: `inbound_action`(새 주문·문의·답변 도착 → 자동이어도 **답변 필요**) · `auto_ack`(자동응답·접수 확인 → 확인 권장 —
+>   `Precedence: bulk` 는 `Auto-Submitted` 가 없을 때만 광고 증거) · `spam_rescue`(스팸이지만 아는 상대 → 확인 권장) · `platform_notice`(PlanQ 알림 분리).
+>   역할 주소(info@·help@)의 안내는 **확인 권장 유지**(Fable 결정 ④ — 뒤집으면 dev 950건) — 꼭 받을 곳은 «답변 필요로» 2회 학습·규칙.
+>   학습 확대: «답변 필요로» 2회 → 주소 `always_reply` · «확인 권장으로»(`POST …/mark-review`) 2회 → 주소 `review` · 반대 규칙은 갈아 끼운다.
+>   Q sale 도 같은 목록 컴포넌트 — `sales_intake.off`(replied·personal) · `domains.always/never`(키워드·자동 학습 없음).
+>   설계 `docs/MAIL_CRITERIA_DESIGN.md` · 운영 `migrate-mail-criteria.js`(배포 슬롯) · 옛 메일은 `retriage-mail.js --promote-only --promote-reply-criterion=inbound_action`(+ `--fill-criterion`) 수동.
+>
 > 회귀: `node scripts/e2e/run.js --suite maillabel` (16검사 — 폴더 술어 · i18n 원천 ko/en · 실화면 문구 ·
 > 배지 축 · **폰(375) 가시 단서** · 누르기 전후 수 일치).
 > ★ **빌드된 locales 는 `gzip_static`** 이다 — 대조군으로 문구를 되돌릴 때 평문 `.json` 만 바꾸면

@@ -36,6 +36,7 @@ import AttachmentField from '../../components/Common/AttachmentField';
 import ActionButton from '../../components/Common/ActionButton';
 import PlanQSelect from '../../components/Common/PlanQSelect';
 import { uploadMyFile } from '../../services/files';
+import { markMailReview, deleteMailRule, type MailMarkLearning } from '../../services/mail';
 import MailContextPanel, { requestExtractTasks, requestCueAdvice } from './MailContextPanel';
 import RecipientInput, { type RecipientSuggestion } from './RecipientInput';
 import { useInlineCidImages } from './useInlineCidImages';
@@ -183,6 +184,7 @@ import {
   DraftStatusLine,
   ComposeDraftStatus,
   PromoteErrTag, InquiryFilterBar, InquiryFilterClear, SentViaBar, SentViaHint,
+  LearnBar, LearnText, LearnLink, LearnClose,
 } from './MailPage.styles';
 
 type Folder = 'reply_needed' | 'uncertain' | 'all' | 'sent' | 'marketing' | 'following' | 'spam' | 'archived';
@@ -1128,6 +1130,9 @@ const MailPage: React.FC = () => {
   // 운영 #314 — "다른 메일 탭에서 답변필요로 보낼 수도 있어야 할 것 같아. 내가 판단할 때
   //   나중에 답변해야 한다고 판단하면 말이지." 탭을 옮기는 게 아니라 **보고 있는 자리에서** 올린다.
   //   서버가 상태까지 같이 되돌린다(archived 는 플래그만 켜면 답변필요 탭에 안 뜬다).
+  // 2026-10-15 — 손으로 옮기면 PlanQ 가 배운다(같은 보낸 사람 2회 → 규칙). 그 사실을 **폴더 머리 한 줄**로 알린다
+  //   (토스트 금지 — 설정에서 보기 · 되돌리기 를 같이 준다). docs/MAIL_CRITERIA_DESIGN.md §5.
+  const [learnNote, setLearnNote] = useState<(MailMarkLearning & { undone?: boolean }) | null>(null);
   const markReplyNeeded = useCallback(async (e: React.MouseEvent, threadId: number) => {
     e.stopPropagation();
     if (!businessId) return;
@@ -1135,10 +1140,33 @@ const MailPage: React.FC = () => {
     try {
       const r = await apiFetch(`/api/businesses/${businessId}/email-threads/${threadId}/mark-reply-needed`, { method: 'POST' });
       if (!r.ok) throw new Error('mark_reply_needed_failed');
+      const j = await r.json().catch(() => null);
+      if (j?.data?.learning) setLearnNote(j.data.learning as MailMarkLearning);
       afterTriage(threadId);
     } catch { /* 실패 시 목록 유지 — 다음 로드에서 복원 */ }
     finally { setDismissingId(null); }
   }, [businessId, afterTriage]);
+
+  // 2026-10-15 — «확인 권장으로»: 자동·마케팅에 묻힌 것을 사람이 올리는 문(답변 필요로 올리는 문의 짝).
+  const markReviewRow = useCallback(async (e: React.MouseEvent, threadId: number) => {
+    e.stopPropagation();
+    if (!businessId) return;
+    setDismissingId(threadId);
+    try {
+      const d = await markMailReview(businessId, threadId);
+      if (d.learning) setLearnNote(d.learning);
+      afterTriage(threadId);
+    } catch { /* 유지 */ }
+    finally { setDismissingId(null); }
+  }, [businessId, afterTriage]);
+
+  const undoLearn = useCallback(async () => {
+    if (!businessId || !learnNote?.rule_id) return;
+    try {
+      await deleteMailRule(businessId, learnNote.rule_id);
+      setLearnNote({ ...learnNote, undone: true });
+    } catch { /* 설정에서 지울 수 있다 — 줄은 그대로 둔다 */ }
+  }, [businessId, learnNote]);
 
   // 스팸으로 (리스트에서 바로) — 광고·스팸은 여기서 끝낸다
   const markSpamRow = useCallback(async (e: React.MouseEvent, threadId: number) => {
@@ -2414,6 +2442,29 @@ const MailPage: React.FC = () => {
             {t('spamFolder.note', { defaultValue: 'Gmail·네이버 스팸함에서 가져온 메일은 30일 뒤 지워집니다. 여기서 스팸 해제해도 업체 쪽은 그대로이니, Gmail·네이버에서도 스팸 해제해 주세요.' }) as string}
           </SpamProviderNote>
         )}
+        {/* 학습 안내 — 손으로 옮긴 결과(1/2회 진행 · 학습됨 · 되돌림). 토스트가 아니라 목록 위 한 줄이다. */}
+        {learnNote && learnNote.progress > 0 && (
+          <LearnBar role="status" data-testid="mail-learn-bar">
+            <LearnText>
+              {learnNote.undone
+                ? t('learnBar.undone', { email: learnNote.email, defaultValue: '«{{email}}» 학습을 되돌렸어요.' }) as string
+                : learnNote.learned
+                  ? t('learnBar.learned', { email: learnNote.email, where: t(learnNote.verdict === 'always_reply' ? 'learnBar.whereReply' : 'learnBar.whereReview') as string, defaultValue: '앞으로 «{{email}}» 메일은 «{{where}}» 에 둡니다.' }) as string
+                  : t('learnBar.progress', { email: learnNote.email, where: t(learnNote.verdict === 'always_reply' ? 'learnBar.whereReply' : 'learnBar.whereReview') as string, defaultValue: '«{{email}}» 을(를) 한 번 더 같은 곳으로 옮기면 앞으로 자동으로 «{{where}}» 에 둡니다.' }) as string}
+            </LearnText>
+            {learnNote.learned && !learnNote.undone && (
+              <>
+                <LearnLink type="button" onClick={() => navigate('/business/settings/mail-accounts')}>
+                  {t('learnBar.settings', { defaultValue: '설정에서 보기' }) as string}
+                </LearnLink>
+                <LearnLink type="button" data-testid="mail-learn-undo" onClick={() => { void undoLearn(); }}>
+                  {t('learnBar.undo', { defaultValue: '되돌리기' }) as string}
+                </LearnLink>
+              </>
+            )}
+            <LearnClose type="button" aria-label={t('learnBar.close', { defaultValue: '닫기' }) as string} onClick={() => setLearnNote(null)}>×</LearnClose>
+          </LearnBar>
+        )}
         {/* 계정(이메일주소) 선택 — 같은 줄. */}
         {filtersOpen && accounts.length >= 1 && (
           <AcctFilterRow>
@@ -2801,6 +2852,18 @@ const MailPage: React.FC = () => {
                       (전체·자동/마케팅·보관·보낸메일·스팸 …) 이미 답변 필요인 건 다시 올릴 이유가 없다. */}
                   {folder !== 'uncertain' && folder !== 'reply_needed' && !mt.reply_needed && !handledIds.has(mt.id) && (
                     <ReplyRow>
+                      {/* 2026-10-15 — 자동·마케팅 폴더에서만: «확인 권장으로» (상태 뱃지 «확인 권장» 과 글자가 다르다 — Q mail 계약 ②) */}
+                      {folder === 'marketing' && (
+                        <RowBtn
+                          type="button"
+                          data-testid="mail-row-review"
+                          disabled={dismissingId === mt.id}
+                          title={t('actions.markReviewHint', { defaultValue: '이 메일을 «확인 권장» 으로 올립니다.' }) as string}
+                          onClick={(e) => markReviewRow(e, mt.id)}
+                        >
+                          {t('actions.markReview', { defaultValue: '확인 권장으로' }) as string}
+                        </RowBtn>
+                      )}
                       <RowBtn
                         type="button"
                         data-testid="mail-row-reply-needed"

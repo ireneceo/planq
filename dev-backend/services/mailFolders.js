@@ -87,7 +87,10 @@ function folderWhere(folder, userId, businessId) {
     case 'archived': return { status: 'archived' };
     // 자동·마케팅 — 광고·뉴스레터·기계 알림. 단, 내용이 업무라 확인 권장으로 올라간 건 제외
     //   (같은 메일이 두 폴더에 겹쳐 보이면 어느 쪽이 진짜인지 알 수 없다).
-    case 'marketing': return { status: 'open', triage: { [Op.in]: ['automated', 'marketing'] } };
+    //   ★ 2026-10-15 — 답변 필요인 것은 뺀다(folderOf 의 우선순위와 같게). 자동 발송이어도 «새 주문·문의·답변 도착»
+    //     (inbound_action)은 triage 를 그대로 둔 채 답변 필요로 올라간다 — 이 조건이 없으면 같은 메일이
+    //     답변 필요·자동·마케팅 두 탭에 동시에 뜨고 자동·마케팅 수에도 들어갔다(Fable 게이트 ①).
+    case 'marketing': return { status: 'open', reply_needed: false, triage: { [Op.in]: ['automated', 'marketing'] } };
     // 전체 — **스팸만 뺀 모든 메일**. 이름 그대로 전부다.
     //
     //   ★ 2026-08-31 (Irene): "답변을 하면 보낸메일에만 저장이 되어버려. 왜 전체탭에 안나와?

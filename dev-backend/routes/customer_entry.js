@@ -117,6 +117,8 @@ router.get('/:businessId/customer-entry', authenticateToken, attachWorkspaceScop
       customer_entry: introOf(biz),
       // #449 — Q sales 상담 유입 모드(services/salesIntake 한 곳이 모양을 정한다).
       sales_intake: require('../services/salesIntake').intakeOf(biz),
+      // 2026-10-15 — 상담 유입 기준 목록(화면이 이 순서로 그린다 · 판정은 services/saleMailCriteria).
+      sales_criteria: require('../services/salesIntake').SALE_CATALOG,
       // 화면이 «왜 발급 버튼이 막혀 있는지» 를 말할 수 있어야 한다 — 눌리게 두고 403 으로
       //   거절하면 사용자에게는 "아무 일도 안 일어남" 이다(CLAUDE.md 외부 발송 절과 같은 규약).
       guest_links_enabled: biz.guest_links_enabled !== false,
@@ -180,13 +182,33 @@ router.put('/:businessId/sales-intake', authenticateToken, attachWorkspaceScope(
   try {
     const businessId = Number(req.params.businessId);
     if (!(await assertEntryAdmin(req, businessId))) return errorResponse(res, 'forbidden', 403);
-    const { MODES, intakeOf, normalizeIntake } = require('../services/salesIntake');
-    const mail = req.body?.mail;
-    if (!MODES.includes(mail)) return errorResponse(res, 'invalid_mode', 400);
+    const { MODES, TOGGLEABLE, intakeOf, normalizeIntake, normEntry } = require('../services/salesIntake');
+    // 2026-10-15 — 부분 저장: mail(모드) · off(끈 기준) · domains({always,never}) 중 보낸 것만 바꾼다.
+    const body = req.body || {};
+    if (body.mail !== undefined && !MODES.includes(body.mail)) return errorResponse(res, 'invalid_mode', 400);
+    if (body.off !== undefined && (!Array.isArray(body.off) || body.off.some((id) => !TOGGLEABLE.includes(id)))) {
+      return errorResponse(res, 'invalid_criterion', 400);
+    }
+    // 목록 항목은 하나라도 형식이 틀리면 400 — 조용히 버리면 «넣었는데 사라졌다» 가 된다.
+    if (body.domains !== undefined) {
+      const d = body.domains;
+      if (!d || typeof d !== 'object') return errorResponse(res, 'invalid_domains', 400);
+      for (const k of ['always', 'never']) {
+        if (d[k] === undefined) continue;
+        if (!Array.isArray(d[k])) return errorResponse(res, 'invalid_domains', 400);
+        for (const x of d[k]) if (!normEntry(x, { forAlways: k === 'always' })) return errorResponse(res, k === 'always' ? 'invalid_domain_always' : 'invalid_domain', 400);
+      }
+    }
+    if (body.mail === undefined && body.off === undefined && body.domains === undefined) return errorResponse(res, 'invalid_mode', 400);
     const biz = await Business.findByPk(businessId);
     if (!biz) return errorResponse(res, 'business_not_found', 404);
     const before = intakeOf(biz);
-    const next = normalizeIntake({ ...before, mail });
+    const next = normalizeIntake({
+      ...before,
+      ...(body.mail !== undefined ? { mail: body.mail } : {}),
+      ...(body.off !== undefined ? { off: body.off } : {}),
+      ...(body.domains !== undefined ? { domains: { ...before.domains, ...body.domains } } : {}),
+    });
     await biz.update({
       permissions: { ...(biz.permissions && typeof biz.permissions === 'object' ? biz.permissions : {}), sales_intake: next },
     });

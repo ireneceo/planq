@@ -22,6 +22,14 @@
 // «보낸 사람이 사람인가» 는 services/contactRelation 한 곳이다(#449·#450 — 메일 답변필요와 같은 부품).
 const { isPersonalSender, ROLE_WORD } = require('./contactRelation');
 
+/** 주소가 목록(주소 또는 도메인)에 드는가 — 도메인은 정확 등가만(서브도메인 suffix 매치 없음, fail-closed). */
+function inList(email, list) {
+  const e = String(email || '').toLowerCase().trim();
+  if (!e || !Array.isArray(list) || !list.length) return false;
+  const dom = e.split('@')[1] || '';
+  return list.includes(e) || (!!dom && list.includes(dom));
+}
+
 /**
  * 한 메일 스레드의 판정.
  * @param {object} p
@@ -29,14 +37,20 @@ const { isPersonalSender, ROLE_WORD } = require('./contactRelation');
  * @param {number} p.outboundCount    이 스레드에서 **우리가 보낸** 메일 수
  * @param {boolean} p.promoted        사람이 [상담으로 보내기] 를 눌렀는가
  * @param {boolean} p.archived         Q mail 에서 **[확인완료]** 를 누른 스레드인가
+ * @param {string[]} [p.off]           끈 자동 기준(replied·personal) — services/salesIntake
+ * @param {{always:string[],never:string[]}} [p.domains]  사람이 등록한 «늘 상담 / 상담 아님» 주소·도메인
  * @returns {{kind:'inquiry'|'candidate', reason:string}}
  */
-function mailThreadVerdict({ email = null, outboundCount = 0, promoted = false, archived = false } = {}) {
-  // 사람의 판단이 기계보다 위다 — 올린 것은 기준을 다시 묻지 않는다.
+function mailThreadVerdict({ email = null, outboundCount = 0, promoted = false, archived = false, off = [], domains = null } = {}) {
+  // 사람의 판단이 기계 판정보다 위다 — 올린 것은 기준을 다시 묻지 않는다.
   if (promoted) return { kind: 'inquiry', reason: 'promoted' };
+  // 사람이 선언한 목록 — «상담 아님» 이 «늘 상담» 보다 먼저다(둘 다 걸리면 좁은 쪽).
+  if (domains && inList(email, domains.never)) return { kind: 'candidate', reason: 'excluded_by_rule' };
+  if (domains && inList(email, domains.always)) return { kind: 'inquiry', reason: 'domain_rule' };
+  const on = (id) => !(Array.isArray(off) && off.includes(id));
   // 우리가 한 번이라도 답했다 = 이미 관계다. (상대가 우리 메일에 회신한 경우도 이 스레드에
   //   우리 발신이 있으므로 여기서 함께 걸린다 — 축을 둘로 나누지 않는다.)
-  if (Number(outboundCount) > 0) return { kind: 'inquiry', reason: 'replied' };
+  if (on('replied') && Number(outboundCount) > 0) return { kind: 'inquiry', reason: 'replied' };
 
   // ★ **확인완료한 것에는 «개인 주소» 추정을 쓰지 않는다** (2026-09-17, Fable 15차 차단).
   //   «확인완료 + 우리 답 없음» 은 사람이 **보고 무시했다**는 가장 강한 신호다.
@@ -46,8 +60,8 @@ function mailThreadVerdict({ email = null, outboundCount = 0, promoted = false, 
   //   그래도 놓친 것은 Q mail 우클릭 [상담으로 보내기] 로 올린다 — 문은 그대로다.
   if (archived) return { kind: 'candidate', reason: 'handled_no_reply' };
 
-  if (isPersonalSender(email)) return { kind: 'inquiry', reason: 'personal' };
+  if (on('personal') && isPersonalSender(email)) return { kind: 'inquiry', reason: 'personal' };
   return { kind: 'candidate', reason: 'no_relationship' };
 }
 
-module.exports = { mailThreadVerdict, isPersonalSender, ROLE_WORD };
+module.exports = { mailThreadVerdict, isPersonalSender, ROLE_WORD, inList };

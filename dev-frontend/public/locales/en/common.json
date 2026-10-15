@@ -1752,5 +1752,15 @@
   "linkedTasks": {
     "chip": "Task: {{title}}",
     "more": "+{{n}}"
+  },
+  "criteriaList": {
+    "hits": "{{n}} in last 30 days",
+    "off": "Off",
+    "showDetail": "Show exact conditions",
+    "hideDetail": "Hide exact conditions",
+    "examples": "Mail like",
+    "terms": "Words it looks for ({{n}})",
+    "locked": "Always on",
+    "lockedHint": "Turning this off would leave mail with nowhere to go, so it is always on"
   }
 }

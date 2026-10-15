@@ -839,6 +839,49 @@
       "manual": "Manual — only what you send with [Send to Sales] from mail or chat.",
       "auto": "Auto — also emails from people you replied to or personal addresses.",
       "hint": "In manual mode, emails matching the auto rule are tagged \"Possible lead\" in Q mail. Chat and guest inquiries come in regardless."
+    },
+    "criteria": {
+      "title": "What comes in as a consultation",
+      "hint": "Checked from top to bottom for person-sent mail in Q mail that isn't linked to a client yet. In manual mode only “sent by you” and “always a consultation” count; mail that meets the other automatic criteria is shown as an “inquiry candidate”.",
+      "vsMail": "The consultation list answers a different question from the mail folders — mail folders ask “is it my turn now?”, consultations ask “is this a sales relationship?”. That's why a mail you replied to leaves the mail folder but stays in consultations.",
+      "promoted": {
+        "title": "Sent to consultations by a person",
+        "desc": "Anything moved here from mail or chat comes in without being checked against the other criteria."
+      },
+      "domain_always": {
+        "title": "Always a consultation — addresses/domains you added",
+        "desc": "Person-sent mail from these addresses or domains always comes in, whatever the mode. Whole free-mail domains such as gmail.com can't be added (a single address can)."
+      },
+      "replied": {
+        "title": "Threads we replied to",
+        "desc": "If we replied even once, it counts as a relationship. This also catches mail where we are the customer (vendor support, school notices) — turn it off if it doesn't fit."
+      },
+      "personal": {
+        "title": "Mail from personal addresses",
+        "desc": "Personal free-mail accounts (gmail, naver…) or company addresses with a two-part name (joanne.low@…). Role addresses such as info@ or help@ don't come in."
+      },
+      "handled_no_reply": {
+        "title": "Not if marked done without a reply",
+        "desc": "Mail you marked Done in Q mail without replying is treated as seen and passed, so the look of the address alone won't bring it in."
+      },
+      "automated_sender": {
+        "title": "Not from send-only addresses",
+        "desc": "noreply and notification addresses never come in. If you must receive one (e.g. a web-form relay), add that address under “Always a consultation”."
+      },
+      "no_relationship": {
+        "title": "Not without evidence of a relationship",
+        "desc": "Mail that meets none of the above. Bring in a missed inquiry with right-click → Send to consultations in Q mail. Keywords are not used — they leaked twice."
+      },
+      "domain_never": {
+        "title": "Never a consultation — addresses/domains you added",
+        "desc": "These addresses or domains never come in, even if we replied or the address looks personal. Anything you send to consultations yourself still comes in."
+      },
+      "placeholder": "name@company.com or company.com",
+      "add": "Add",
+      "remove": "Remove {{v}}",
+      "errFreeMail": "A whole free-mail domain can't be added to “Always a consultation”. Add a single address (e.g. kim@gmail.com).",
+      "errFormat": "Check the address or domain (e.g. kim@company.com or company.com).",
+      "errSave": "Couldn't save. Please try again shortly."
     }
   },
   "aiAgent": {

@@ -67,7 +67,9 @@ async function classifyMailThreads(businessId, { userId = null, like = null, jud
   if (!acctIds.length) return empty;
   // #449 — 유입 모드(services/salesIntake 한 곳). manual 이면 사람이 올린 것만 상담이고,
   //   자동 기준에 드는 것은 autoIds(Q mail 「문의 후보」)로만 돌려준다.
-  const intake = mode || await require('./salesIntake').mailIntakeMode(businessId);
+  // 2026-10-15 — 끈 기준(off)·사람이 등록한 주소/도메인(domains)도 같은 설정 한 곳에서 읽는다.
+  const settings = await require('./salesIntake').intakeSettings(businessId);
+  const intake = mode || settings.mail;
   // ★ 사람의 판단 원장은 **항상** 읽는다 — 올린 메일은 triage 와 무관하게 상담이어야 한다(D2, 아래 where).
   const judged = judgments || await latestMailJudgments(businessId);
   const promotedThreadIds = [];
@@ -146,7 +148,10 @@ async function classifyMailThreads(businessId, { userId = null, like = null, jud
     if (!humanPromoted && r.triage !== 'human') continue;
     // 발송 전용 주소는 **어느 칸에도** 넣지 않는다 — 후보로도 볼 일이 없다(2026-09-12 판정 그대로).
     //   단, 사람이 올린 것은 예외다(위 주석).
-    if (!humanPromoted && outside?.email && isAutomatedSenderAddress(outside.email)) continue;
+    //   «늘 상담» 으로 등록한 주소·도메인도 사람의 선언이라 여기서 막지 않는다 — 단 위 where 가 사람 메일(human)
+    //   스레드만 가져오므로 **사람 메일로 판정된 스레드에만** 닿는다(자동 판정된 웹폼 릴레이는 [상담으로 보내기] 로 올린다).
+    const declared = !!outside?.email && require('./saleMailCriteria').inList(outside.email, settings.domains.always);
+    if (!humanPromoted && !declared && outside?.email && isAutomatedSenderAddress(outside.email)) continue;
     const v = mailThreadVerdict({
       email: outside?.email || null,
       outboundCount: outByThread.get(r.id) || 0,
@@ -157,6 +162,8 @@ async function classifyMailThreads(businessId, { userId = null, like = null, jud
       // ★ 확인완료한 것은 «개인 주소» 추정으로 들이지 않는다 — 판정은 `mailThreadVerdict` 한 곳이다
       //   (2026-09-17, Fable 15차 차단). 여기서 따로 세지 않고 그 함수에 축을 넘긴다.
       archived: r.status === 'archived',
+      off: settings.off,
+      domains: settings.domains,
     });
     // ★ 확인완료(archived)한 건은 목록에 **남되 «답할 차례» 로 세지 않는다.**
     //   그 숫자는 «지금 내가 할 일» 의 수다 — 처리한 것을 거기 넣으면 숫자가 거짓이 된다.
@@ -166,7 +173,8 @@ async function classifyMailThreads(businessId, { userId = null, like = null, jud
     meta.set(r.id, { outside, verdict: v, reply_needed: handled ? false : !!r.reply_needed, handled, mail_folder });
     if (v.kind !== 'inquiry') { candidateIds.push(r.id); continue; }
     // manual: 사람이 올린 것만 상담. 자동 기준에 든 나머지는 «문의 후보»(autoIds) — 목록엔 안 넣는다.
-    if (intake === 'manual' && v.reason !== 'promoted') autoIds.push(r.id);
+    //   «늘 상담» 목록(domain_rule)은 사람의 선언이라 모드와 무관하게 상담이다.
+    if (intake === 'manual' && v.reason !== 'promoted' && v.reason !== 'domain_rule') autoIds.push(r.id);
     else inquiryIds.push(r.id);
   }
   return { inquiryIds, candidateIds, autoIds, meta, acctIds, mode: intake };

@@ -42,16 +42,20 @@ async function findRuleFor(businessId, fromEmail, ctx = {}) {
   // 주소·도메인 규칙과 문구 규칙을 한 번에 읽는다(#344).
   //   문구 규칙은 pattern 이 주소가 아니라 **찾을 말**이라 DB 로 못 좁힌다 — 워크스페이스 규칙은
   //   많아야 수십 개라 전부 읽어 여기서 판정하는 편이 단순하고 빠르다.
-  const rules = await MailSenderRule.findAll({
-    where: {
-      business_id: businessId,
-      [Op.or]: [
-        ...(addr ? [{ pattern_type: 'address', pattern: addr }] : []),
-        ...(dom ? [{ pattern_type: 'domain', pattern: dom }] : []),
-        { pattern_type: 'keyword' },
-      ],
-    },
-  });
+  // ctx.rules — 미리 읽어 둔 이 워크스페이스 규칙 전부(재판정이 수천 통을 돌 때 메일마다 묻지 않게). 같은 술어로 거른다.
+  const rules = Array.isArray(ctx.rules)
+    ? ctx.rules.filter((r) => (r.pattern_type === 'address' && r.pattern === addr)
+      || (r.pattern_type === 'domain' && r.pattern === dom) || r.pattern_type === 'keyword')
+    : await MailSenderRule.findAll({
+      where: {
+        business_id: businessId,
+        [Op.or]: [
+          ...(addr ? [{ pattern_type: 'address', pattern: addr }] : []),
+          ...(dom ? [{ pattern_type: 'domain', pattern: dom }] : []),
+          { pattern_type: 'keyword' },
+        ],
+      },
+    });
   if (rules.length === 0) return null;
 
   const subject = String(ctx.subject || '').toLowerCase();
@@ -103,7 +107,7 @@ async function applyRules(businessId, fromEmail, triaged, ctx = {}) {
   }
   if (!rule) return triaged;
 
-  const out = { ...triaged, rule_applied: { id: rule.id, pattern: rule.pattern, verdict: rule.verdict } };
+  const out = { ...triaged, criterion: 'rule', rule_applied: { id: rule.id, pattern: rule.pattern, verdict: rule.verdict } };
   // #344 — 중요 표시는 분류와 별개 축이다. 표시는 기존 별표(is_starred)를 그대로 쓴다.
   if (rule.mark_important) out.mark_important = true;
   switch (rule.verdict) {
@@ -135,7 +139,7 @@ async function applyRules(businessId, fromEmail, triaged, ctx = {}) {
     default:
       break;
   }
-  await recordHit(rule);
+  if (!ctx.noRecord) await recordHit(rule);   // 미리보기(세기만)는 적중 수를 올리지 않는다
   return out;
 }
 
@@ -158,9 +162,12 @@ async function onDismissReply({ businessId, fromEmail, threadId, subject, userId
   const addr = normalizeEmail(fromEmail);
   if (!businessId || !addr) return { learned: false };
 
-  // 이미 규칙이 있으면 학습 불필요
+  // 이미 규칙이 있으면 학습 불필요 — 단 **반대 규칙**(항상 답변 필요·확인 권장)이면 세어서 갈아 끼운다(2026-10-15).
+  //   여태 어떤 규칙이든 있으면 멈춰서, «답변 필요로» 학습된 주소는 두 번 «답변 불필요» 해도 되돌릴 길이 없었다.
   const existing = await findRuleFor(businessId, addr);
-  if (existing) return { learned: false, rule: existing.toJSON() };
+  if (existing && !(existing.pattern_type === 'address' && OPPOSITE.no_reply.includes(existing.verdict))) {
+    return { learned: false, rule: existing.toJSON() };
+  }
 
   // 이 발신자의 dismiss 이력 — reply_needed_reason='dismissed' 인 스레드 수로 센다
   const senderThreadIds = await threadsFromSender(businessId, addr);
@@ -181,6 +188,7 @@ async function onDismissReply({ businessId, fromEmail, threadId, subject, userId
     attributes: ['id', 'subject'],
     limit: 5,
   });
+  if (existing) await removeRules(businessId, [existing]);
   const rule = await MailSenderRule.create({
     business_id: businessId,
     pattern: addr,
@@ -332,12 +340,18 @@ async function threadsMatchingRule(businessId, rule, { limit = 1000 } = {}) {
   const type = rule.pattern_type || 'address';
   const field = rule.match_field || (type === 'keyword' ? 'any' : 'from');
 
+  // ★ 2026-10-15 (Fable 게이트 ②) — **손으로 옮긴 것(manual)도 뺀다.** 학습 규칙이 사람이 두 번 올린 바로 그
+  //   스레드에 rule_id 를 박으면, 규칙을 지울 때(«되돌리기») 그 스레드까지 자동 폴더로 떨어져 사람의 행동이 지워졌다.
+  //   재판정의 제외 술어(services/mailRetriage.eligibleWhere)와 같은 뜻이다.
   const threadWhere = {
     business_id: businessId,
     status: { [Op.notIn]: ['archived'] },
-    [Op.or]: [
-      { reply_needed_reason: null },
-      { reply_needed_reason: { [Op.notIn]: ['dismissed', 'handled'] } },
+    [Op.and]: [
+      { [Op.or]: [
+        { reply_needed_reason: null },
+        { reply_needed_reason: { [Op.notIn]: ['dismissed', 'handled', 'manual'] } },
+      ] },
+      { [Op.or]: [{ uncertain_reason: null }, { uncertain_reason: { [Op.ne]: 'manual' } }] },
     ],
   };
 
@@ -400,6 +414,85 @@ async function applyRuleToExisting(businessId, rule) {
     changed++;
   }
   return { matched: rows.length, changed };
+}
+
+// ── 학습 확대 (2026-10-15, docs/MAIL_CRITERIA_DESIGN.md §5) ──
+//   «답변 필요로» 2회 → 그 주소 always_reply · «확인 권장으로» 2회 → 그 주소 review.
+//   **주소만** 배운다(도메인 승격 없음 — 역할 주소가 많은 회사 도메인 전체를 답변 필요로 만들면 950건 문제가 돌아온다).
+//   새 규칙이 생기면 그 주소의 **반대 규칙**(숨기는 규칙)은 지운다 — 지우는 것은 삭제 라우트와 같은 복구를 거친다.
+const MARK_THRESHOLD = 2;
+const OPPOSITE = {
+  no_reply: ['always_reply', 'review'],
+  always_reply: ['no_reply', 'marketing', 'spam'],
+  review: ['no_reply', 'marketing'],
+};
+
+/** 규칙들을 지운다 — 삭제 라우트·답장 경로와 같은 복구(restoreThreadsForRule)를 거친다. */
+async function removeRules(businessId, rules) {
+  let restored = 0;
+  for (const r of rules) restored += await restoreThreadsForRule(businessId, r.id, r.verdict);
+  if (rules.length) await MailSenderRule.destroy({ where: { id: rules.map((r) => r.id), business_id: businessId } });
+  return restored;
+}
+
+/**
+ * 사람이 손으로 폴더를 옮긴 것에서 배운다 — 같은 보낸 사람을 MARK_THRESHOLD 회 옮기면 주소 규칙.
+ * @param {'always_reply'|'review'} verdict
+ * @returns {Promise<{learned:boolean, progress?:number, threshold:number, rule?:object, removed?:number, applied?:object}>}
+ */
+async function learnFromMark({ businessId, fromEmail, userId, verdict }) {
+  const addr = normalizeEmail(fromEmail);
+  if (!businessId || !addr || !OPPOSITE[verdict]) return { learned: false, threshold: MARK_THRESHOLD };
+  const dom = domainOf(addr);
+
+  const mine = await MailSenderRule.findOne({ where: { business_id: businessId, pattern_type: 'address', pattern: addr } });
+  if (mine && mine.verdict === verdict) return { learned: false, threshold: MARK_THRESHOLD, rule: mine.toJSON() };
+
+  const senderThreadIds = await threadsFromSender(businessId, addr);
+  if (senderThreadIds.length === 0) return { learned: false, progress: 0, threshold: MARK_THRESHOLD };
+  const markWhere = verdict === 'always_reply'
+    ? { reply_needed_reason: 'manual' }
+    : { uncertain_reason: 'manual' };
+  const count = await EmailThread.count({ where: { business_id: businessId, id: { [Op.in]: senderThreadIds }, ...markWhere } });
+  if (count < MARK_THRESHOLD) return { learned: false, progress: count, threshold: MARK_THRESHOLD };
+
+  // 반대 규칙(이 주소 · 숨기는 쪽이면 이 도메인도) 해제 + 이 주소에 다른 판정 규칙이 있으면 그것도 갈아 끼운다
+  //   (주소 규칙은 (business_id, pattern) 이 유일하다 — 남겨 두면 새 규칙 생성이 중복으로 실패한다. Fable 비차단 지적).
+  const opp = await MailSenderRule.findAll({
+    where: {
+      business_id: businessId,
+      verdict: { [Op.in]: OPPOSITE[verdict] },
+      [Op.or]: [
+        { pattern_type: 'address', pattern: addr },
+        ...(dom ? [{ pattern_type: 'domain', pattern: dom }] : []),
+      ],
+    },
+  });
+  if (mine && !opp.some((r) => r.id === mine.id)) opp.push(mine);
+  const removed = opp.length;
+  await removeRules(businessId, opp);
+
+  const marked = await EmailThread.findAll({
+    where: { business_id: businessId, id: { [Op.in]: senderThreadIds }, ...markWhere },
+    attributes: ['id', 'subject'], limit: 5,
+  });
+  const rule = await MailSenderRule.create({
+    business_id: businessId,
+    pattern: addr,
+    pattern_type: 'address',
+    verdict,
+    source: 'learned',
+    created_by: userId || null,
+    evidence: {
+      signal: `${verdict === 'always_reply' ? 'mark_reply' : 'mark_review'}_x${count}`,
+      thread_ids: marked.map((t) => t.id),
+      subjects: marked.map((t) => String(t.subject || '').slice(0, 80)),
+      learned_at: new Date().toISOString(),
+    },
+  });
+  // 이미 받은 그 주소의 열린 메일에도 적용(사람이 판단한 것은 제외 — applyRuleToExisting 의 기준).
+  const applied = await applyRuleToExisting(businessId, rule).catch(() => ({ matched: 0, changed: 0 }));
+  return { learned: true, threshold: MARK_THRESHOLD, rule: rule.toJSON(), removed, applied };
 }
 
 /** 학습 신호 — "스팸으로" 2회 → 도메인 spam 규칙 */
@@ -469,6 +562,9 @@ async function onReplySent({ businessId, toEmails }) {
 }
 
 module.exports = {
+  learnFromMark,
+  removeRules,
+  MARK_THRESHOLD,
   findRuleFor,
   restoreThreadsForRule,
   threadsMatchingRule,

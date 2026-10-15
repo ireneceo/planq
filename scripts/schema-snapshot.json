@@ -1,5 +1,5 @@
 {
-  "_generated": "2026-10-12",
+  "_generated": "2026-10-15",
   "_db": "planq_dev_db",
   "_note": "스키마 변경 후 `node scripts/dump-schema.js` 로 갱신할 것. guard-invariants schemacol 이 읽는다.",
   "tables": {
@@ -125,7 +125,9 @@
       "workspace_folder_id",
       "sync_enabled",
       "gcal_sync_token",
-      "gdrive_ingest_cursor"
+      "gdrive_ingest_cursor",
+      "gcal_calendar_id",
+      "gcal_calendar_summary"
     ],
     "business_member_permissions": [
       "id",
@@ -488,7 +490,8 @@
       "summary_json",
       "summary_as_of",
       "summary_item_count",
-      "summary_model"
+      "summary_model",
+      "survey_opt_out_at"
     ],
     "contact_inquiries": [
       "id",
@@ -515,6 +518,7 @@
       "conversation_id",
       "user_id",
       "role",
+      "is_viewer",
       "joined_at",
       "created_at",
       "pinned_at",
@@ -909,6 +913,7 @@
       "reply_needed_reason",
       "reply_needed_at",
       "uncertain_reason",
+      "triage_criterion",
       "spam_score",
       "is_starred",
       "labels",
@@ -1734,6 +1739,16 @@
       "created_at",
       "updated_at"
     ],
+    "post_comments": [
+      "id",
+      "post_id",
+      "business_id",
+      "user_id",
+      "content",
+      "visibility",
+      "created_at",
+      "updated_at"
+    ],
     "post_revisions": [
       "id",
       "post_id",
@@ -2042,7 +2057,9 @@
       "created_by",
       "updated_by",
       "created_at",
-      "updated_at"
+      "updated_at",
+      "survey_issue_id",
+      "survey_recipient_id"
     ],
     "q_records": [
       "id",
@@ -2290,6 +2307,82 @@
       "demoted_at",
       "canceled_at",
       "cancel_reason",
+      "created_by",
+      "created_at",
+      "updated_at"
+    ],
+    "survey_issues": [
+      "id",
+      "business_id",
+      "q_record_id",
+      "rule_id",
+      "origin",
+      "subject_type",
+      "subject_id",
+      "period_key",
+      "idempotency_key",
+      "status",
+      "title",
+      "message",
+      "closes_at",
+      "created_by",
+      "approved_by",
+      "approved_at",
+      "sent_at",
+      "created_at",
+      "updated_at"
+    ],
+    "survey_recipients": [
+      "id",
+      "issue_id",
+      "business_id",
+      "client_id",
+      "email",
+      "display_name",
+      "token",
+      "status",
+      "sent_at",
+      "opened_at",
+      "responded_at",
+      "reminded_at",
+      "revoked_at",
+      "email_log_id",
+      "created_at",
+      "updated_at"
+    ],
+    "survey_rules": [
+      "id",
+      "business_id",
+      "q_record_id",
+      "created_by",
+      "trigger",
+      "delay_days",
+      "schedule_every",
+      "audience",
+      "send_mode",
+      "min_interval_days",
+      "enabled",
+      "enabled_at",
+      "last_run_at",
+      "created_at",
+      "updated_at"
+    ],
+    "task_action_items": [
+      "id",
+      "business_id",
+      "task_id",
+      "order_index",
+      "kind",
+      "label",
+      "note",
+      "meta",
+      "status",
+      "linked_entity_type",
+      "linked_entity_id",
+      "linked_attachment_id",
+      "fulfilled_by",
+      "fulfilled_at",
+      "fulfilled_round",
       "created_by",
       "created_at",
       "updated_at"

@@ -529,6 +529,9 @@ sync_database() {
   # 2026-10-15 직접 관리 고객 — clients.status ENUM 끝 'managed'(멱등). 모델이 이 값을 쓰므로 PM2 reload 전.
   #   옛 «active + 계정 없음» 행 백필은 여기선 읽기만(건수 출력) — 적용은 수동 `--apply`(docs/CLIENT_MANAGED_DESIGN.md).
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-client-managed.js 2>&1 | tail -5"
+  # 2026-10-15 메일 분류 기준 공개 — email_threads.triage_criterion VARCHAR(40) NULL + 인덱스(멱등). 모델이 SELECT 하므로 PM2 reload 전.
+  #   옛 메일 재판정(승격 전용)은 여기서 하지 않는다 — 운영 읽기 전용 시뮬 뒤 수동(docs/MAIL_CRITERIA_DESIGN.md §6.2).
+  prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-mail-criteria.js 2>&1 | tail -5"
   # 2026-09-21 랜딩 방문 집계 테이블 2개(CREATE IF NOT EXISTS · 재조회 검증). PM2 reload 전.
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-landing-visits.js 2>&1 | tail -3"
   # 2026-09-21 Sign in with Apple — oauth_connections.provider·ephemeral_tokens.kind ENUM 끝 append +

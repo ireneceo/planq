@@ -26,6 +26,9 @@ EmailThread.init({
   rule_id: { type: DataTypes.BIGINT, allowNull: true },
   // Uncertain (★ 사용자 호소 #6)
   uncertain_reason: { type: DataTypes.STRING(200), allowNull: true },
+  // 2026-10-15 — 이 폴더를 **정한** 판정 기준 id(services/mailCriteriaCatalog.js · 'rule' · 'manual'). NULL = 옛 판정.
+  //   설정 «메일 분류 기준» 의 적중 수와 기준 끄기의 소급 근거. 운영 컬럼은 scripts/migrate-mail-criteria.js.
+  triage_criterion: { type: DataTypes.STRING(40), allowNull: true },
   spam_score: { type: DataTypes.FLOAT, allowNull: true },
   // Inbound 트리아지 (사이클 N+83) — human(답장필요) / automated(자동알림) / marketing(벌크) / spam / unknown(미분류)
   //   인박스 노이즈 분리 + reply_needed 자동 판정 근거. emailTriage.js 가 IMAP 수집 시 계산.

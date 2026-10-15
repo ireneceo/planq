@@ -13,7 +13,8 @@ import { useTranslation } from 'react-i18next';
 import { apiFetch } from '../../contexts/AuthContext';
 import AutoSaveField from '../Common/AutoSaveField';
 import { SegmentedToggle, SegmentedBtn } from '../Common/segmentedToggle';
-import { saveSalesIntake } from '../../services/sale';
+import { saveSalesIntake, patchSalesIntake, type SalesIntake, type SaleCriterion } from '../../services/sale';
+import CriteriaList, { type CriteriaGroup } from '../Common/CriteriaList';
 
 type Mode = 'manual' | 'auto';
 interface Props { businessId: number; isOwner: boolean }
@@ -32,6 +33,13 @@ const SalesIntakeSection: React.FC<Props> = ({ businessId, isOwner }) => {
   const cardRef = useRef<HTMLDivElement>(null);
   const [flash, setFlash] = useState(false);
 
+  // 2026-10-15 — 상담 유입 기준 공개·끄기·주소 목록(docs/MAIL_CRITERIA_DESIGN.md §7). 목록 순서는 서버(SALE_CATALOG)가 정한다.
+  const [intake, setIntake] = useState<SalesIntake | null>(null);
+  const [criteria, setCriteria] = useState<SaleCriterion[]>([]);
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [critErr, setCritErr] = useState<string | null>(null);
+  const [draft, setDraft] = useState<{ always: string; never: string }>({ always: '', never: '' });
+
   useEffect(() => {
     let alive = true;
     (async () => {
@@ -41,9 +49,86 @@ const SalesIntakeSection: React.FC<Props> = ({ businessId, isOwner }) => {
       const m: Mode = j.data?.sales_intake?.mail === 'auto' ? 'auto' : 'manual';
       savedRef.current = m;
       setMode(m);
+      setIntake(j.data?.sales_intake || null);
+      setCriteria(Array.isArray(j.data?.sales_criteria) ? j.data.sales_criteria : []);
     })();
     return () => { alive = false; };
   }, [businessId]);
+
+  const patch = async (p: Partial<Pick<SalesIntake, 'off' | 'domains'>>, id: string) => {
+    setBusyId(id); setCritErr(null);
+    try {
+      const d = await patchSalesIntake(businessId, p);
+      setIntake(d.sales_intake);
+      return true;
+    } catch (e) {
+      const code = (e as Error).message;
+      setCritErr(t(code === 'invalid_domain_always' ? 'salesIntake.criteria.errFreeMail'
+        : code === 'invalid_domain' ? 'salesIntake.criteria.errFormat' : 'salesIntake.criteria.errSave') as string);
+      return false;
+    } finally { setBusyId(null); }
+  };
+  const onToggle = (id: string, next: boolean) => {
+    if (!intake) return;
+    const off = next ? intake.off.filter((x) => x !== id) : [...intake.off, id];
+    void patch({ off }, id);
+  };
+  const addEntry = async (k: 'always' | 'never') => {
+    if (!intake) return;
+    const v = draft[k].trim().toLowerCase();
+    if (!v) return;
+    const ok = await patch({ domains: { ...intake.domains, [k]: [...intake.domains[k], v] } }, `domain_${k}`);
+    if (ok) setDraft((d) => ({ ...d, [k]: '' }));
+  };
+  const removeEntry = (k: 'always' | 'never', v: string) => {
+    if (!intake) return;
+    void patch({ domains: { ...intake.domains, [k]: intake.domains[k].filter((x) => x !== v) } }, `domain_${k}`);
+  };
+  const listEditor = (k: 'always' | 'never') => intake && (
+    <ListBox data-testid={`sales-intake-list-${k}`}>
+      {intake.domains[k].length > 0 && (
+        <Chips>
+          {intake.domains[k].map((v) => (
+            <Chip key={v}>
+              {v}
+              {isOwner && (
+                // autosave-exempt: 지우기는 액션이다(누르면 바로 반영 — 메일·원장은 그대로라 다시 넣으면 돌아온다)
+                <ChipX type="button" aria-label={t('salesIntake.criteria.remove', { v }) as string}
+                  disabled={busyId === `domain_${k}`} onClick={() => removeEntry(k, v)}>×</ChipX>
+              )}
+            </Chip>
+          ))}
+        </Chips>
+      )}
+      {isOwner && (
+        <AddRow>
+          {/* autosave-exempt: 추가는 액션이다(주소를 다 쓰고 [추가] 를 누른다) */}
+          <AddInput value={draft[k]} placeholder={t('salesIntake.criteria.placeholder') as string}
+            data-testid={`sales-intake-input-${k}`}
+            onChange={(e) => setDraft((d) => ({ ...d, [k]: e.target.value }))}
+            onKeyDown={(e) => { if (e.key === 'Enter' && !e.nativeEvent.isComposing) { e.preventDefault(); void addEntry(k); } }} />
+          <AddBtn type="button" data-testid={`sales-intake-add-${k}`} disabled={!draft[k].trim() || busyId === `domain_${k}`}
+            onClick={() => { void addEntry(k); }}>
+            {t('salesIntake.criteria.add') as string}
+          </AddBtn>
+        </AddRow>
+      )}
+    </ListBox>
+  );
+  const groups: CriteriaGroup[] = intake ? [{
+    key: 'sale',
+    title: t('salesIntake.criteria.title') as string,
+    hint: t('salesIntake.criteria.hint') as string,
+    items: criteria.map((c) => ({
+      id: c.id,
+      title: t(`salesIntake.criteria.${c.id}.title`) as string,
+      desc: t(`salesIntake.criteria.${c.id}.desc`) as string,
+      // 목록 항목(늘 상담·상담 아님)은 스위치가 아니라 입력이다 — 잠긴 것처럼 «기본» 글자 대신 목록을 보인다.
+      lockable: c.lockable || !!c.list,
+      enabled: !intake.off.includes(c.id),
+      extra: c.list ? listEditor(c.list) : undefined,
+    })),
+  }] : [];
 
   useEffect(() => {
     if (focus !== 'sales-intake' || !mode || !cardRef.current) return;
@@ -87,6 +172,13 @@ const SalesIntakeSection: React.FC<Props> = ({ businessId, isOwner }) => {
       <Explain>{t(`salesIntake.mail.${mode}`) as string}</Explain>
       <Hint>{t('salesIntake.mail.hint') as string}</Hint>
       {!isOwner && <Hint>{t('salesIntake.ownerOnly') as string}</Hint>}
+      {intake && criteria.length > 0 && (
+        <CriteriaWrap data-testid="sales-intake-criteria">
+          <Hint>{t('salesIntake.criteria.vsMail') as string}</Hint>
+          <CriteriaList groups={groups} canEdit={isOwner} busyId={busyId} onToggle={onToggle} testIdPrefix="sales-criteria" />
+          {critErr && <Err>{critErr}</Err>}
+        </CriteriaWrap>
+      )}
     </Card>
   );
 };
@@ -104,3 +196,26 @@ const Title = styled.div`font-size:0.9375rem;font-weight:700;color:#0f172a;`;
 const Desc = styled.div`font-size:0.8125rem;color:#64748b;line-height:1.5;`;
 const Explain = styled.div`font-size:0.8125rem;color:#334155;line-height:1.5;`;
 const Hint = styled.div`font-size:0.75rem;color:#94a3b8;line-height:1.5;`;
+const CriteriaWrap = styled.div`align-self:stretch;display:flex;flex-direction:column;gap:8px;margin-top:6px;`;
+const Err = styled.div`font-size:0.75rem;font-weight:600;color:#B45309;`;
+const ListBox = styled.div`display:flex;flex-direction:column;gap:6px;margin-top:4px;`;
+const Chips = styled.div`display:flex;flex-wrap:wrap;gap:4px;`;
+const Chip = styled.span`
+  display:inline-flex;align-items:center;gap:2px;padding:2px 4px 2px 8px;border-radius:999px;
+  background:#F1F5F9;color:#334155;font-size:0.75rem;max-width:100%;word-break:break-all;
+`;
+const ChipX = styled.button`
+  border:none;background:none;cursor:pointer;color:#64748B;width:28px;height:32px;border-radius:999px;font-size:0.875rem;
+  &:hover:not(:disabled){background:#E2E8F0;}
+`;
+const AddRow = styled.div`display:flex;gap:6px;flex-wrap:wrap;`;
+const AddInput = styled.input`
+  flex:1 1 200px;min-width:0;max-width:320px;height:36px;padding:0 10px;border:1px solid #E2E8F0;border-radius:8px;
+  font-size:0.8125rem;color:#334155;
+  &:focus{outline:none;border-color:#14B8A6;box-shadow:0 0 0 3px rgba(20,184,166,.15);}
+`;
+const AddBtn = styled.button`
+  height:36px;padding:0 14px;border-radius:8px;border:1px solid #CBD5E1;background:#fff;color:#334155;
+  font-size:0.8125rem;font-weight:600;cursor:pointer;
+  &:disabled{opacity:.5;cursor:default;}
+`;

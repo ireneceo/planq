@@ -55,6 +55,7 @@ function addrList(v) {
 const TRIAGE_HEADER_KEYS = [
   'list-unsubscribe', 'list-id', 'precedence',            // 대량 발송 (RFC 2369)
   'auto-submitted', 'x-auto-response-suppress',           // 자동 발송 (RFC 3834)
+  'x-autoreply', 'x-autorespond',                          // 자동응답 (2026-10-15 auto_ack — RFC 3834 이전 관행)
   'feedback-id', 'x-mailgun-sid', 'x-sg-eid', 'x-campaign', 'x-csa-complaints', // ESP(대량발송기)
   // 외부 스팸 필터 점수 — 여태 저장하지 않아 **재판정 경로에선 스팸 점수가 눈을 감고** 자체 규칙으로만
   //   판정했다. 인입 경로를 평문 객체로 정규화하면 이 키들을 같이 옮겨야 그 신호가 죽지 않는다.

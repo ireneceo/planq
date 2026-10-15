@@ -37,6 +37,7 @@ async function releaseProviderSpam(thread) {
     ownEmails,
     ownMatcher,
     isKnownContact: known,
+    off: await require('./mailCriteria').offFor(businessId),
   });
   const tr = await applyRules(businessId, fromEmail, triaged, { subject: msg.subject, bodyText: msg.body_text });
 
