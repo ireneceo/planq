@@ -392,6 +392,7 @@
     "googleListFailed": "구글 캘린더 목록을 불러오지 못했습니다. 잠시 뒤 다시 열어 주세요.",
     "googleNeedList": "지금은 일정을 올리는 캘린더 하나만 보입니다. 다른 캘린더(보조·공유·공휴일)도 보려면 구글에서 «캘린더 목록 보기» 를 한 번 더 허용해 주세요.",
     "sourceGoogle": "Google · {{name}}",
-    "googleAccounts": "{{count}}계정"
+    "googleAccounts": "{{count}}계정",
+    "googleGroup": "Google 캘린더"
   }
 }

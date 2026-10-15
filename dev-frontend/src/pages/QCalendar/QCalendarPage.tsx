@@ -33,7 +33,6 @@ import { useDirectDetail } from '../../hooks/useDirectDetail';
 import { joinRoom, leaveRoom, onSocket } from '../../services/socket';
 import { todayInTz, detectBrowserTz } from '../../utils/timezones';
 import { displayName, type NameLocalizable } from '../../utils/displayName';
-import PlanQSelect from '../../components/Common/PlanQSelect';
 import { mapApiError } from '../../utils/apiError';
 
 // ─── URL 싱크 ─── (calendarUrl.ts)
@@ -41,10 +40,11 @@ import { readUrl } from './calendarUrl';
 import { useFromActionHandoff, type FromActionHandoff } from '../../hooks/useFromActionHandoff';
 import FromTaskBanner from '../../components/Common/FromTaskBanner';
 import CalendarProjectFilter, { byProject } from './ProjectFilter';
-import CalendarFrame, { useCalendarOptions } from './CalendarFrame';
+import CalendarFrame, { CalendarViewSelect } from './CalendarFrame';
 import { useWallNow } from './pastLook';
 import { useUrlDetailParams } from './useUrlDetailParams';
-import { useCalendarLayers, layerOf, layersParam, CalendarLayerChips, useGoogleCalendarVisibility, type PersonalCalSource } from './calendarLayers';
+import { useCalendarLayers, layerOf, layersParam, CalendarLayerToggle, GoogleCalendarGroup, FilterLine, useGoogleCalendarVisibility, type PersonalCalSource } from './calendarLayers';
+import { useMediaQuery } from '../../hooks/useMediaQuery';
 
 interface ProjectOption { id: number; name: string; color?: string | null }
 
@@ -518,21 +518,17 @@ const QCalendarPage: React.FC<{ scope?: { type: 'project'; businessId: number; p
 
   const days = view === 'week' ? getWeekDays(anchor, weekStart) : view === 'day' ? [anchor] : [];
 
-  const { viewOptions } = useCalendarOptions();
+  // 상단 배치(2026-10-13) — 머리줄 큰 단위 → 필터줄 → 년/월. 폰은 보기 고르기를 년/월 줄로(calendarLayers 머리말).
+  const isPhone = useMediaQuery('(max-width: 640px)');
+  const showProjectFilter = !embedded && projects.length > 0;
+  const showGoogleGroup = personalConnected && layers.has('google');
+  const viewSelect = <CalendarViewSelect view={view} onChange={setView} />;
 
   const headerActions = (
     <ActionsRow>
-      {!embedded && <CalendarProjectFilter projects={projects} value={projectId} onChange={setProjectId} />}
-      <PlanQSelect size="sm"
-        value={viewOptions.find(o => o.value === view)}
-        onChange={(opt: unknown) => {
-          const v = (opt as { value?: CalendarViewMode } | null)?.value;
-          if (v) setView(v);
-        }}
-        options={viewOptions}
-        isSearchable={false}
-        menuPlacement="bottom"
-      />
+      <CalendarLayerToggle layers={layers} onToggle={toggleLayer}
+        googleConnected={personalConnected} googleSources={personalSources} compact={isPhone} />
+      {!isPhone && viewSelect}
       <NewEventBtn onClick={handleOpenNew} type="button" title={t('new')} data-testid="calendar-new-event">
         <NewEventIcon viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
           <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
@@ -552,6 +548,14 @@ const QCalendarPage: React.FC<{ scope?: { type: 'project'; businessId: number; p
         onChanged={fetchRange}
         onStatusReload={loadSyncStatus}
       />
+      {(showProjectFilter || showGoogleGroup) && (
+        <FilterLine data-testid="calendar-filter-row">
+          {showProjectFilter && <CalendarProjectFilter projects={projects} value={projectId} onChange={setProjectId} />}
+          {showGoogleGroup && (
+            <GoogleCalendarGroup sources={personalSources} vis={googleVis} businessId={bizId} onReload={reloadPersonal} />
+          )}
+        </FilterLine>
+      )}
       <Toolbar>
         <ToolbarLeft>
           {view === 'day' && (
@@ -575,9 +579,7 @@ const QCalendarPage: React.FC<{ scope?: { type: 'project'; businessId: number; p
             </svg>
           </NavIconBtn>
         </ToolbarLeft>
-        <CalendarLayerChips layers={layers} onToggle={toggleLayer}
-          googleConnected={personalConnected} googleSources={personalSources}
-          businessId={bizId} googleVis={googleVis} onGoogleReload={reloadPersonal} />
+        {isPhone && <ToolbarEnd>{viewSelect}</ToolbarEnd>}
       </Toolbar>
 
       <ViewWrap $agenda={view === 'agenda'}>
@@ -719,14 +721,21 @@ const NewEventText = styled.span`
 `;
 
 const Toolbar = styled.div`
-  display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;
+  display: flex; align-items: center; gap: 8px;
   padding: 6px 0 14px;
 `;
-const ToolbarLeft = styled.div` display: flex; align-items: center; gap: 6px; `;
+const ToolbarLeft = styled.div`
+  display: flex; align-items: center; gap: 6px; min-width: 0;
+  @media (max-width: 640px) { gap: 4px; }
+`;
+// 폰 — 보기 고르기(아젠다·월·주·일)가 년/월 줄 오른쪽 끝에 선다
+const ToolbarEnd = styled.div` margin-left: auto; flex-shrink: 0; width: 92px; `;
 const TodayBtn = styled.button`
+  flex-shrink: 0; white-space: nowrap;
   padding: 6px 12px; border: 1px solid #CBD5E1; border-radius: 6px;
   background: #fff; color: #0F172A; font-size: 0.78125rem; font-weight: 600; cursor: pointer;
   &:hover { background: #F8FAFC; }
+  @media (max-width: 640px) { padding: 6px 10px; }
 `;
 // #193 — day 뷰 전용 월 복귀 버튼. teal 액센트로 "여기서 나가는 길"임을 눈에 띄게.
 const BackToMonthBtn = styled.button`
@@ -739,14 +748,15 @@ const BackToMonthBtn = styled.button`
   svg { flex-shrink: 0; }
 `;
 const NavIconBtn = styled.button`
-  width: 30px; height: 30px; border: 1px solid #CBD5E1; border-radius: 6px;
+  flex-shrink: 0; width: 30px; height: 30px; border: 1px solid #CBD5E1; border-radius: 6px;
   background: #fff; color: #475569; cursor: pointer;
   display: inline-flex; align-items: center; justify-content: center;
   &:hover { background: #F8FAFC; color: #0F172A; }
 `;
 const HeaderTitle = styled.h2`
   margin: 0 10px 0 10px; font-size: 1.125rem; font-weight: 700; color: #0F172A; letter-spacing: -0.3px;
-  @media (max-width: 640px) { font-size: 1rem; margin: 0 6px; }
+  white-space: nowrap; flex-shrink: 0;
+  @media (max-width: 640px) { font-size: 1rem; margin: 0 4px; }
 `;
 const ViewWrap = styled.div<{ $agenda?: boolean }>`
   height: calc(100vh - 60px - 56px - 40px); min-height: 520px;

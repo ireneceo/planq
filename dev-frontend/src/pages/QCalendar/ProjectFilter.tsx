@@ -22,7 +22,8 @@ interface Props {
 const CalendarProjectFilter: React.FC<Props> = ({ projects, value, onChange }) => {
   const { t } = useTranslation('qcalendar');
   const options = useMemo(() => [
-    { value: 0, label: t('filter.allProjects', { defaultValue: '모든 프로젝트' }) as string },
+    // 첫 옵션 = 축 이름(filterBar.axisOption 계약) — 고르기 전엔 «프로젝트», 다시 고르면 필터 해제
+    { value: 0, label: t('filter.project', { defaultValue: '프로젝트' }) as string },
     ...projects.map((p) => ({ value: p.id, label: p.name })),
   ], [projects, t]);
   if (!projects.length) return null;
@@ -43,11 +44,11 @@ const CalendarProjectFilter: React.FC<Props> = ({ projects, value, onChange }) =
   );
 };
 
-// 폰에서는 머리줄에 [범위][프로젝트][보기][+] 넷이 들어가야 한다 — 이 칸만 줄여 새 일정 버튼이 화면 밖으로 밀리지 않게.
+// 필터줄(2026-10-13 — 머리줄에서 내려왔다) 한 칸. 줄이 한 줄이라 줄어들지 않는다(넘치면 줄이 옆으로 밀린다).
 const Slot = styled.div`
-  min-width: 0; max-width: 180px;
+  flex-shrink: 0; width: 180px;
   & > * { width: 100%; }
-  @media (max-width: 640px) { max-width: 96px; }
+  @media (max-width: 640px) { width: 140px; }
 `;
 
 export default CalendarProjectFilter;

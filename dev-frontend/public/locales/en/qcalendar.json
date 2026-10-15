@@ -392,6 +392,7 @@
     "googleListFailed": "Couldn't load your Google calendar list. Please try again shortly.",
     "googleNeedList": "Only the calendar PlanQ adds events to is shown right now. To also see your other calendars (secondary, shared, holidays), allow \"See your calendar list\" in Google once more.",
     "sourceGoogle": "Google · {{name}}",
-    "googleAccounts": "{{count}} accounts"
+    "googleAccounts": "{{count}} accounts",
+    "googleGroup": "Google calendars"
   }
 }

@@ -5,6 +5,8 @@ import React, { useMemo } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import PageShell from '../../components/Layout/PageShell';
+import PlanQSelect from '../../components/Common/PlanQSelect';
+import type { CalendarViewMode } from './types';
 
 interface Props {
   embedded: boolean;
@@ -33,6 +35,23 @@ export function useCalendarOptions() {
   ], [t]);
   return { viewOptions };
 }
+
+/** 보기(아젠다·월·주·일) — 데스크탑·태블릿은 머리줄, 폰은 년/월 줄 오른쪽(2026-10-13). */
+export const CalendarViewSelect: React.FC<{ view: CalendarViewMode; onChange: (v: CalendarViewMode) => void }> = ({ view, onChange }) => {
+  const { viewOptions } = useCalendarOptions();
+  return (
+    <PlanQSelect size="sm"
+      value={viewOptions.find((o) => o.value === view)}
+      onChange={(opt: unknown) => {
+        const v = (opt as { value?: CalendarViewMode } | null)?.value;
+        if (v) onChange(v);
+      }}
+      options={viewOptions}
+      isSearchable={false}
+      menuPlacement="bottom"
+    />
+  );
+};
 
 const Embedded = styled.div`
   display: flex; flex-direction: column; min-height: 0; position: relative;

@@ -15,6 +15,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { FilterChip } from '../../components/Common/filterChip';
+import { SegmentedToggle, SegmentedBtn } from '../../components/Common/segmentedToggle';
 import HelpDot from '../../components/Common/HelpDot';
 import ChipPopover from '../../components/Common/ChipPopover';
 import AutoSaveField from '../../components/Common/AutoSaveField';
@@ -166,84 +167,149 @@ export function useGoogleCalendarVisibility(sources: PersonalCalSource[], onSave
   return { vis, toggle, persist, isVisible };
 }
 
-interface ChipsProps {
-  layers: Set<CalLayer>;
-  onToggle: (l: CalLayer) => void;
-  /** 개인 구글 캘린더가 연결돼 있을 때만 Google 칩을 보인다 */
-  googleConnected: boolean;
-  googleSources: PersonalCalSource[];
-  businessId?: number | null;
-  /** 캘린더별 보기/가리기 (useGoogleCalendarVisibility) */
-  googleVis?: ReturnType<typeof useGoogleCalendarVisibility>;
-  /** 목록 권한을 받은 뒤 다시 읽기 */
-  onGoogleReload?: () => void;
-}
+// ── 상단 배치 (2026-10-13, Irene: *"헤더에는 전처럼 팀/개인/업무/구글 이렇게 큰 단위고 나머지 프로젝트별 … 필터가 있어야"* ·
+//   *"구글캘린더 종류들 선택이 이렇게 구글 하위메뉴인지 알 수가 없어"*)
+//   큰 단위(개인·팀·업무·Google) = 머리줄의 연회색 알약(CalendarLayerToggle, 폰에선 필터줄 맨 앞).
+//   그 아래 필터줄 한 줄 = [프로젝트] │ [Google · 계정 › 캘린더 칩…] (GoogleCalendarGroup) — Google 이 켜졌을 때만, 자식임을 이름표로 말한다.
+//   년/월·이동은 필터줄 아래.
 
-const MAX_INLINE = 5;
-
-export const CalendarLayerChips: React.FC<ChipsProps> = ({ layers, onToggle, googleConnected, googleSources, businessId, googleVis, onGoogleReload }) => {
+/** 어느 계정인지 **보이는 글자**로 — 폰에서는 title 힌트가 안 뜬다(docs/TEAM_CALENDAR_PICK_DESIGN.md §3-2).
+ *  한 계정이면 «irene@…», 둘 이상이면 «2계정». 이제 Google 묶음 이름표에 붙는다. */
+function useGoogleWho(googleSources: PersonalCalSource[]) {
   const { t } = useTranslation('qcalendar');
   const calName = (s?: PersonalCalSource) =>
     (s && !s.calendar_primary && s.calendar_summary) ? s.calendar_summary : t('layer.googleDefault', '기본 캘린더');
-  const first = googleSources[0];
-  const anyList = googleSources.some((s) => s.can_list);
-  // 캘린더별 칩이 이름을 보여 주면 모 칩은 «Google» 만. 목록 권한이 없으면 종전처럼 지금 보는 캘린더 이름을 붙인다.
-  const googleLabel = anyList ? t('layer.google', 'Google') : t('layer.googleNamed', 'Google · {{name}}', { name: calName(first) });
-  // 어떤 계정의 어느 캘린더인지 — 연결이 여럿이면 줄마다
-  const googleWhich = googleSources.length
-    ? googleSources.map((s) => `${s.account_email || ''} — ${calName(s)}`).join('\n')
-    : '';
+  const accounts = Array.from(new Set(googleSources.map((s) => s.account_email).filter(Boolean))) as string[];
+  const accountTag = accounts.length > 1
+    ? t('layer.googleAccounts', { count: accounts.length, defaultValue: '{{count}}계정' }) as string
+    : accounts.length === 1 ? `${accounts[0].split('@')[0]}@…` : '';
+  const which = googleSources.map((s) => `${s.account_email || ''} — ${calName(s)}`).join('\n');
+  return { accountTag, which, calName };
+}
+
+interface ToggleProps {
+  layers: Set<CalLayer>;
+  onToggle: (l: CalLayer) => void;
+  /** 개인 구글 캘린더가 연결돼 있을 때만 Google 단위를 보인다 */
+  googleConnected: boolean;
+  googleSources: PersonalCalSource[];
+  /** 폰 — 자리가 좁아 버튼 여백을 줄인다(360 폭에서 [알약][?][+] 가 한 줄) */
+  compact?: boolean;
+}
+
+/** 큰 단위 — 개인 · 팀 · 업무 · Google. 누르는 대로 여러 개 켠다(켜진 것 = 흰 버튼). */
+export const CalendarLayerToggle: React.FC<ToggleProps> = ({ layers, onToggle, googleConnected, googleSources, compact }) => {
+  const { t } = useTranslation('qcalendar');
+  const { which } = useGoogleWho(googleSources);
   const items: Array<{ key: CalLayer; label: string; hint: string }> = [
     { key: 'personal', label: t('layer.personal', '개인'), hint: t('layer.personalHint', '나만 보기로 만든 일정') },
     { key: 'team', label: t('layer.team', '팀'), hint: t('layer.teamHint', '팀·프로젝트와 함께 보는 일정') },
     { key: 'task', label: t('layer.task', '업무'), hint: t('layer.taskHint', 'Q task 업무의 마감일') },
   ];
-  // 어느 계정인지 **보이는 글자**로 — 폰에서는 title 힌트가 안 뜬다(docs/TEAM_CALENDAR_PICK_DESIGN.md §3-2).
-  //   한 계정이면 «Google · irene@…», 둘 이상이면 «Google · 2계정». 전체 주소는 힌트에.
-  const accounts = Array.from(new Set(googleSources.map((s) => s.account_email).filter(Boolean))) as string[];
-  const accountTag = accounts.length > 1
-    ? t('layer.googleAccounts', { count: accounts.length, defaultValue: '{{count}}계정' }) as string
-    : accounts.length === 1 ? `${accounts[0].split('@')[0]}@…` : '';
-  const googleChipLabel = accountTag ? `${googleLabel} · ${accountTag}` : googleLabel;
-  if (googleConnected) items.push({ key: 'google', label: googleChipLabel, hint: `${t('layer.googleHint', '내 구글 캘린더 일정 — 끄면 구글 캘린더 전부를 가립니다')}${googleWhich ? `\n${googleWhich}` : ''}` });
+  if (googleConnected) items.push({ key: 'google', label: t('layer.google', 'Google'), hint: `${t('layer.googleHint', '내 구글 캘린더 일정 — 끄면 구글 캘린더 전부를 가립니다')}${which ? `\n${which}` : ''}` });
   return (
-    <Row data-testid="calendar-layers" role="group" aria-label={t('layer.group', '보기 분류') as string}>
-      {items.map((it) => (
-        <Chip key={it.key} type="button" $on={layers.has(it.key)} aria-pressed={layers.has(it.key)}
-          onClick={() => onToggle(it.key)} title={it.hint} data-testid={`calendar-layer-${it.key}`}>
-          {it.key === 'google' && <GDot />}
-          {it.label}
-        </Chip>
-      ))}
-      {googleConnected && layers.has('google') && googleVis && (
-        <GoogleCalendarChips sources={googleSources} vis={googleVis} businessId={businessId} onReload={onGoogleReload} />
-      )}
-      <HelpDot topic="calendar-layers" placement="auto">
-        {t('layer.help', '누른 분류의 일정만 보입니다. 여러 개를 함께 켤 수 있어요.\n· 개인 — 나만 보기로 만든 일정\n· 팀 — 팀·프로젝트와 함께 보는 일정\n· 업무 — Q task 업무의 마감일\n· Google — 연결한 내 구글 캘린더. 캘린더마다 따로 켜고 끌 수 있어요(연필 표시는 PlanQ 일정을 올리는 캘린더라 늘 보입니다)')}
-        {googleWhich ? `\n\n${googleWhich}` : ''}
-      </HelpDot>
-    </Row>
+    <LayerWrap>
+      <LayerSeg data-testid="calendar-layers" role="group" aria-label={t('layer.group', '보기 분류') as string}>
+        {items.map((it) => {
+          const on = layers.has(it.key);
+          return (
+            <LayerBtn key={it.key} type="button" $active={on} $compact={compact} aria-pressed={on}
+              onClick={() => onToggle(it.key)} title={it.hint} data-testid={`calendar-layer-${it.key}`}>
+              <Box $on={on} aria-hidden="true">
+                {on && <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>}
+              </Box>
+              {it.key === 'google' && <GDot />}
+              {it.label}
+            </LayerBtn>
+          );
+        })}
+      </LayerSeg>
+      <CalendarLayerHelp googleSources={googleSources} />
+    </LayerWrap>
   );
 };
 
-// 도구줄 오른쪽 묶음 — 폰에선 한 줄로 옆으로 민다(filterChip.ChipRow 와 같은 규칙).
-const Row = styled.div`
-  display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-left: auto;
-  @media (max-width: 640px) {
-    flex-wrap: nowrap; overflow-x: auto; overscroll-behavior-x: contain; max-width: 100%;
-    margin-left: 0; scrollbar-width: none; &::-webkit-scrollbar { display: none; }
-  }
+/** 큰 단위 도움말 점 — 알약 바로 옆. */
+const CalendarLayerHelp: React.FC<{ googleSources: PersonalCalSource[] }> = ({ googleSources }) => {
+  const { t } = useTranslation('qcalendar');
+  const { which } = useGoogleWho(googleSources);
+  return (
+    <HelpDot topic="calendar-layers" placement="auto">
+        {t('layer.help', '누른 분류의 일정만 보입니다. 여러 개를 함께 켤 수 있어요.\n· 개인 — 나만 보기로 만든 일정\n· 팀 — 팀·프로젝트와 함께 보는 일정\n· 업무 — Q task 업무의 마감일\n· Google — 연결한 내 구글 캘린더. 캘린더마다 따로 켜고 끌 수 있어요(연필 표시는 PlanQ 일정을 올리는 캘린더라 늘 보입니다)')}
+        {which ? `\n\n${which}` : ''}
+    </HelpDot>
+  );
+};
+
+/** 필터줄의 Google 묶음 — «Google · 계정 ›» 이름표 뒤에 그 계정의 캘린더 칩. Google 단위가 켜졌을 때만. */
+export const GoogleCalendarGroup: React.FC<{
+  sources: PersonalCalSource[];
+  vis: ReturnType<typeof useGoogleCalendarVisibility>;
+  businessId?: number | null;
+  onReload?: () => void;
+}> = ({ sources, vis, businessId, onReload }) => {
+  const { t } = useTranslation('qcalendar');
+  const { accountTag, which, calName } = useGoogleWho(sources);
+  const anyList = sources.some((s) => s.can_list);
+  return (
+    <GroupBox data-testid="calendar-google-group" role="group" aria-label={t('layer.googleGroup', 'Google 캘린더') as string}>
+      <GroupLabel title={which || undefined}>
+        <GDot />
+        <span>{t('layer.google', 'Google')}</span>
+        {/* 목록 권한이 없으면 칩이 없다 — 지금 보는 캘린더 이름을 이름표에 붙인다(종전 «Google · 이름») */}
+        {!anyList && sources[0] && <GroupSub>· {calName(sources[0])}</GroupSub>}
+        {accountTag && <GroupSub>· {accountTag}</GroupSub>}
+        <Caret aria-hidden="true">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6" /></svg>
+        </Caret>
+      </GroupLabel>
+      <GoogleCalendarChips sources={sources} vis={vis} businessId={businessId} onReload={onReload} />
+    </GroupBox>
+  );
+};
+
+// 필터줄 — 한 줄. 넘치면 줄을 바꾸지 않고 옆으로 민다(폰·좁은 태블릿).
+export const FilterLine = styled.div`
+  display: flex; align-items: center; gap: 8px; flex-wrap: nowrap;
+  padding-bottom: 12px; margin-bottom: 4px; border-bottom: 1px solid #F1F5F9;
+  overflow-x: auto; overscroll-behavior-x: contain;
+  scrollbar-width: none; &::-webkit-scrollbar { display: none; }
 `;
-// 도구줄(오늘·화살표 30px) 높이에 가깝게 규격 32 — 모양·색은 공용 알약 그대로.
+const LayerWrap = styled.div`display: inline-flex; align-items: center; gap: 4px; flex-shrink: 0;`;
+// 연회색 알약(segmentedToggle) 그대로 — 머리줄 32.
+const LayerSeg = styled(SegmentedToggle)``;
+const LayerBtn = styled(SegmentedBtn)<{ $compact?: boolean }>`
+  gap: ${(p) => (p.$compact ? 4 : 6)}px; padding: 0 ${(p) => (p.$compact ? 7 : 10)}px;
+`;
+// 여러 개를 함께 켜는 버튼이라는 것을 모양으로 — 작은 체크 상자(라디오처럼 하나만 고르는 탭과 구별)
+const Box = styled.span<{ $on: boolean }>`
+  width: 0.8125rem; height: 0.8125rem; border-radius: 3px; flex-shrink: 0; box-sizing: border-box;
+  display: inline-flex; align-items: center; justify-content: center; color: #fff;
+  border: 1px solid ${(p) => (p.$on ? '#0D9488' : '#94A3B8')}; background: ${(p) => (p.$on ? '#0D9488' : 'transparent')};
+`;
+// 필터줄 안의 한 묶음 — 이름표 + 자식 칩. 앞 묶음과는 칸막이로 가른다.
+const GroupBox = styled.div`
+  display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0;
+  padding-left: 10px; border-left: 1px solid #E2E8F0;
+`;
+const GroupLabel = styled.span`
+  display: inline-flex; align-items: center; gap: 5px; flex-shrink: 0; white-space: nowrap;
+  font-size: 0.75rem; font-weight: 700; color: #334155;
+`;
+const GroupSub = styled.span`font-weight: 500; color: #64748B;`;
+const Caret = styled.span`display: inline-flex; color: #94A3B8;`;
+// 칩 높이 — 필터줄 규격 36(공용 알약 그대로).
 const Chip = styled(FilterChip)`
-  height: 32px; gap: 6px;
+  gap: 6px;
 `;
-// 층 칩 줄이 곧 범례다 — 일정 칩 앞의 출처 점(sourceLook.SourceDot)과 같은 모양(10px · 흰 테두리).
+// 단위 버튼의 G 점 = 일정 칩 앞의 출처 점(sourceLook.SourceDot)과 같은 모양(10px · 흰 테두리).
 const GDot = styled.span`
   width: 10px; height: 10px; border-radius: 50%; background: ${GOOGLE_FALLBACK_COLOR}; box-shadow: 0 0 0 1.5px #fff; flex-shrink: 0;
 `;
 
 /** 구글 캘린더별 칩 — 앞 5개는 칩, 나머지는 «+N» 팝오버. 목록 권한이 없으면 «다른 캘린더» 에서 권한을 묻는다. */
+const MAX_INLINE = 5;
+
 const GoogleCalendarChips: React.FC<{
   sources: PersonalCalSource[];
   vis: ReturnType<typeof useGoogleCalendarVisibility>;
@@ -326,9 +392,9 @@ const GoogleCalendarChips: React.FC<{
   );
 };
 
+// 필터줄은 한 줄이다 — 칩이 많으면 줄이 옆으로 밀린다(줄 바꿈 없음).
 const SubRow = styled.div`
-  display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
-  @media (max-width: 640px) { flex-wrap: nowrap; }
+  display: flex; align-items: center; gap: 6px; flex-wrap: nowrap;
 `;
 const Dot = styled.span<{ $off?: boolean }>`
   width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; opacity: ${(p) => (p.$off ? 0.35 : 1)};
@@ -336,9 +402,9 @@ const Dot = styled.span<{ $off?: boolean }>`
 const Pen = styled.span`display: inline-flex; color: #64748B;`;
 const CalName = styled.span`max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;`;
 const Warn = styled.span`font-weight: 700; color: #DC2626;`;
-// 팝오버 칩도 같은 줄 높이(32)
+// 팝오버 칩도 같은 줄 높이(36)
 const MorePopover = styled(ChipPopover)`
-  & > button { height: 32px; border-radius: 999px; }
+  & > button { height: 36px; border-radius: 999px; }
 `;
 const PopList = styled.div`display: flex; flex-direction: column; max-height: 320px; overflow-y: auto; padding: 4px 0;`;
 const PopItem = styled.button`
