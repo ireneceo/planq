@@ -1604,8 +1604,10 @@ const ARTICLES = [
     title: t('ChatGPT·Claude 연결하기', 'Connect ChatGPT or Claude'),
     summary: t('ChatGPT·Claude 에서 말로 PlanQ 업무를 찾고 만들고 기록하기', 'Find, create and record PlanQ work by talking to ChatGPT or Claude'),
     body: [
-      p('ChatGPT 나 Claude 에 PlanQ 를 연결하면 «이번 주 내 업무 보여줘», «오늘 통화 내용 상담으로 저장해줘» 처럼 말로 PlanQ 를 씁니다. AI 는 연결한 사람의 권한 안에서만 움직이고, 연결할 때 고른 워크스페이스 하나만 봅니다.',
-        'Once ChatGPT or Claude is connected, you can use PlanQ by talking — «show my tasks this week», «save today\'s call as a consultation». The AI only acts within your own permissions and sees only the one workspace you chose when connecting.'),
+      p('ChatGPT 나 Claude 에 PlanQ 를 연결하면 «이번 주 내 업무 보여줘», «오늘 통화 내용 상담으로 저장해줘» 처럼 말로 PlanQ 를 씁니다. AI 는 연결한 사람의 권한 안에서만 움직이고, 연결할 때 고른 워크스페이스(기본)와 «함께 허용» 한 워크스페이스만 봅니다.',
+        'Once ChatGPT or Claude is connected, you can use PlanQ by talking — «show my tasks this week», «save today\'s call as a consultation». The AI only acts within your own permissions and sees only the workspace you chose (the default) plus any you also allowed when connecting.'),
+      p('워크스페이스를 여럿 쓰면(예: 회사용과 가족용) 연결 화면의 «다른 워크스페이스도 함께 허용» 에서 고르세요. 대화에서 «가족 워크스페이스에서 업무 보여줘» 처럼 이름을 말하면 그곳에서 일하고, 답에 어느 워크스페이스에서 했는지 함께 나옵니다. 이름이 애매하면 AI 가 먼저 묻습니다. 메일 읽기는 기본 워크스페이스에서만 됩니다. 이미 연결해 둔 앱에 워크스페이스를 더하려면 그 앱에서 다시 연결하세요.',
+        'If you use several workspaces (say, one for work and one for family), tick them under «Also allow other workspaces» on the connect screen. Name one in the chat — «show my tasks in the family workspace» — and the AI works there, and each answer says which workspace it used. If the name is unclear, the AI asks first. Mail reading works only in the default workspace. To add a workspace to an app you already connected, reconnect from that app.'),
       s('연결 주소를 확인합니다 — PlanQ 에서 개인 설정 › 외부 연동 › «연결된 AI 앱» 에 있는 주소를 [복사] 합니다(https://planq.kr/agent/mcp).',
         'Get the connection address — in PlanQ, open Personal settings › Integrations › «Connected AI apps» and [Copy] the address (https://planq.kr/agent/mcp).'),
       s('ChatGPT: 컴퓨터 브라우저로 chatgpt.com 에 로그인 → 왼쪽 아래 프로필 › 설정(Settings) › Security and login 에서 Developer mode 를 켭니다(경고에 동의). 유료 플랜(Plus·Pro·Business 등)에서만 보이고, 항목이 없으면 이미 켜진 계정일 수 있습니다.',

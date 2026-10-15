@@ -1,6 +1,16 @@
 ## 현재 작업 상태
 **마지막 업데이트:** 2026-10-15 (방 cd3690dc · 급여 P2~P4)
-**작업 상태:** 완료 — 급여 P2~P4(서버 Fable PASS · 화면 빌드·3폭 실측 72/72 · 운영 미배포)
+**작업 상태:** 완료 — AI 앱 여러 워크스페이스(Fable PASS · 운영 미배포) · 이전: 급여 P2~P4(서버 Fable PASS · 화면 빌드·3폭 실측 72/72 · 운영 미배포)
+
+### 완료: AI 앱 연결 여러 워크스페이스 (방 35bb469f · 2026-10-15 · [Opus] · Fable 설계 + 게이트 PASS) — 운영 미배포
+- 원문(상황판): ChatGPT 연동에서 허용된 워크스페이스 목록 조회 + 모든 도구에 workspace_id 지정 · 서버가 매 요청 검증 · 결과에 실제 워크스페이스 이름/ID · 대체 금지 · 생략 = 지금처럼.
+- 설계 docs/AI_AGENT_MULTI_WORKSPACE_DESIGN.md (§5 Fable 판정 10개 반영).
+- 서버: `agent_grants.extra_business_ids`(`scripts/migrate-agent-multi-ws.js` · 배포 슬롯) · grants.resolveWorkspace 한 곳 · execute 키에 워크스페이스 · 결과 workspace · list_workspaces · 동의 POST · 연결 목록 · 온보딩 · 가드 agentsurface 6줄.
+- 화면: 동의 화면 «다른 워크스페이스도 함께 허용» · 연결 목록 워크스페이스 줄 · 해제 확인창 «연결 전체» · 도움말 connect-chatgpt-claude 문구(dev 시드 실행).
+- 검증: 실 OAuth+MCP 30/30 · 메일·Cue·principal 7/7 · 화면 3폭 24/24 · agentconsent 실패 0 · build EXIT 0 · guard 72/73 · 양성 대조군 6/6 · secrets 11/11.
+- Fable 게이트 PASS(독립 60/60) · 비차단 ③ null 허용 고침 · 기록 docs/FABLE_GATE_QUEUE.md 맨 위.
+- 운영: 배포 슬롯 migrate-agent-multi-ws.js(코드 전) + 도움말 seed-wiki-content.js.
+- 확인용: ws7 업무 «[확인용] 다중 워크스페이스 시험 …» · health-check 계정 시험 연결은 해제함.
 
 ### 답 기다림 (이전): 급여 P2~P4 — 프론트 빌드 다시 돌리기 (방 cd3690dc · 2026-10-15 · [Opus])
 - 무엇: 서버(e0fb9f64)는 끝·실HTTP 84/84 · 계산 검산 37/37 · 가드 통과. 화면(회차·대조·항목·내 명세서) 코드는 커밋했지만 `npm run build` 가 서버 메모리 부족으로 Claude Code 가 강제 종료했다(첫 빌드는 끝까지 돌아 TS 오류 2건 = 안 쓰는 import → 고침). 강제 종료된 작업은 지시 없이 다시 돌리지 않는다.

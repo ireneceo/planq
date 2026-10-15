@@ -82,9 +82,9 @@ async function getOnboardingState({ businessId, userId }) {
     RefreshToken.count({
       where: { user_id: userId, client_kind: APP_CLIENT_KINDS, revoked_at: null, expires_at: { [Op.gt]: now } },
     }),
-    // AI 앱 — 이 워크스페이스로 동의를 마치고(코드 교환 끝) 아직 끊지 않은 연결.
+    // AI 앱 — 이 워크스페이스에 닿게(기본 또는 함께 허용) 동의를 마치고(코드 교환 끝) 아직 끊지 않은 연결.
     AgentGrant.count({
-      where: { user_id: userId, business_id: bizId, revoked_at: null, activated_at: { [Op.ne]: null } },
+      where: { ...require('./agent_oauth/grants').grantsTouchingWorkspaceWhere(userId, bizId), revoked_at: null, activated_at: { [Op.ne]: null } },
     }),
   ]);
 

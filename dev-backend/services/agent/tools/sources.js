@@ -39,6 +39,10 @@ async function resolveSource(p, source, allowed) {
   if (source.kind === 'mail') {
     // 메일을 출처로 붙이려면 그 메일을 **읽을 수 있어야** 한다 — 이 연결에 메일 권한이 없으면 붙일 수 없다
     if (!(p.scopes || []).includes('mail:read')) {
+      const { mailDeniedReason } = require('../../agent_oauth/grants');
+      if (mailDeniedReason(p, 'mail:read')) {
+        throw err('PERMISSION_DENIED', 'scope', { missing_scopes: ['mail:read'], reason: 'mail_default_workspace_only', default_workspace_id: p.defaultBusinessId, hint: 'Mail on this connection is allowed only in the default workspace.' });
+      }
       throw err('PERMISSION_DENIED', 'scope', { missing_scopes: ['mail:read'], hint: 'Reconnect PlanQ and allow email access in the consent screen.' });
     }
     const mail = require('./mail');

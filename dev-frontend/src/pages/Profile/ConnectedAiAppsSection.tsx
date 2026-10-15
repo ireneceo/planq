@@ -1,6 +1,7 @@
 // 연결된 AI 앱 (#439) — ChatGPT·Claude 등에 내가 이 워크스페이스로 준 연결을 보고 끊는다.
 //
-//   연결은 사람 × 워크스페이스 하나다(설계 docs/AI_AGENT_INTEGRATION_DESIGN.md §4.3). 그래서 목록도 지금 워크스페이스만 보여준다.
+//   연결은 사람 × 기본 워크스페이스(+ 함께 허용한 워크스페이스) 다(docs/AI_AGENT_MULTI_WORKSPACE_DESIGN.md). 목록은 지금 워크스페이스에
+//   닿는 연결 — 기본이든 함께 허용이든. 여러 곳에 닿으면 그 이름들을 적고, 해제는 연결 전체를 끊는다고 확인창이 말한다.
 //   연결하는 문은 AI 앱 쪽에 있다(ChatGPT 커스텀 커넥터에 아래 주소를 넣으면 PlanQ 동의 화면이 뜬다).
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import styled from 'styled-components';
@@ -20,7 +21,12 @@ interface Grant {
   created_at: string;
   last_used_at: string | null;
   outdated?: boolean;
+  workspaces?: { business_id: number; name: string | null; is_default: boolean }[];
+  is_default_here?: boolean;
 }
+
+// «기본 A · 함께 B, C» — 여러 곳에 닿는 연결만 쓴다(하나면 지금 워크스페이스라 적을 필요가 없다)
+const wsList = (g: Grant | null) => (g?.workspaces || []).map((w) => w.name || `#${w.business_id}`).join(', ');
 
 const PROVIDER_LABEL: Record<string, string> = { openai: 'ChatGPT', anthropic: 'Claude', local: 'Local app' };
 
@@ -123,6 +129,14 @@ const ConnectedAiAppsSection: React.FC<{ businessId: number }> = ({ businessId }
                   {t('aiApps.connectedAt', { date: formatDateTime(g.created_at) })}
                   {g.last_used_at && <> · {t('aiApps.lastUsed', { date: formatDateTime(g.last_used_at) })}</>}
                 </ConnMeta>
+                {(g.workspaces?.length || 0) > 1 && (
+                  <ConnMeta data-testid={`ai-app-workspaces-${g.id}`}>
+                    {t('aiApps.workspacesLine', {
+                      def: g.workspaces!.find((w) => w.is_default)?.name || '',
+                      others: g.workspaces!.filter((w) => !w.is_default).map((w) => w.name || `#${w.business_id}`).join(', '),
+                    })}
+                  </ConnMeta>
+                )}
                 {g.outdated && <ConnMeta data-testid={`ai-app-outdated-${g.id}`}>{t('aiApps.outdated')}</ConnMeta>}
               </ConnInfo>
               <DangerBtn type="button" onClick={() => setTarget(g)}>{t('aiApps.disconnect')}</DangerBtn>
@@ -135,7 +149,9 @@ const ConnectedAiAppsSection: React.FC<{ businessId: number }> = ({ businessId }
         onClose={() => setTarget(null)}
         onConfirm={revoke}
         title={t('aiApps.disconnectTitle')}
-        message={t('aiApps.disconnectMessage', { app: (target?.provider && PROVIDER_LABEL[target.provider]) || target?.client_name || '' })}
+        message={(target?.workspaces?.length || 0) > 1
+          ? t('aiApps.disconnectMessageMulti', { app: (target?.provider && PROVIDER_LABEL[target.provider]) || target?.client_name || '', list: wsList(target) })
+          : t('aiApps.disconnectMessage', { app: (target?.provider && PROVIDER_LABEL[target.provider]) || target?.client_name || '' })}
         confirmText={busy ? t('aiApps.disconnecting') : t('aiApps.disconnect')}
         variant="danger"
       />

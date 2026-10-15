@@ -8,6 +8,7 @@ const cfg = require('../agent_oauth/config');
 const { byName } = require('./registry');
 const { AgentError, err, envelope } = require('./errors');
 const store = require('../ephemeralStore');
+const grants = require('../agent_oauth/grants');
 
 const IDEM_TTL_MS = 10 * 60 * 1000;
 const CONFIRM_TTL_MS = 5 * 60 * 1000;   // MEDIUM 미리보기 → 동의 → 재호출까지
@@ -77,7 +78,8 @@ async function proposeTool(p, name, rawArgs) {
   }
 }
 
-async function runTool(p, name, rawArgs, opts = {}) {
+async function runTool(p0, name, rawArgs, opts = {}) {
+  let p = p0;
   // 사람 확인 면제는 **앱 안 Cue 에만** — 카드를 누른 것이 확인이다. 외부 AI 앱은 언제나 확인 토큰 2단계.
   const humanConfirmed = !!opts.humanConfirmed && p && p.provider === 'cue';
   // Cue 의 읽기 루프는 건별 감사를 남기지 않는다 — /help 가 «이번 질문에 무엇을 읽었는지» 를 1행으로 남긴다(설계 A)
@@ -87,14 +89,38 @@ async function runTool(p, name, rawArgs, opts = {}) {
   if (!tool) return envelope(err('NOT_FOUND', 'unknown_tool'));
   let args = rawArgs || {};
   let idemKey = null;
+  // 외부 앱만 — 호출마다 대상 워크스페이스(docs/AI_AGENT_MULTI_WORKSPACE_DESIGN.md). Cue 는 workspace_id 를 떼지 않는다 —
+  //   도구 입력에 그 칸이 없으므로 아래 .strict() 가 거절한다(Cue 는 로그인 세션의 워크스페이스뿐, Fable 2).
+  const external = !!p && p.provider !== 'cue';
+  let wsLabel = null;
   try {
     if (!cfg.enabledFor(p)) throw err('AUTH_REQUIRED', 'agent_disabled');
+    if (external) {
+      const { workspace_id: wsArg, ...restArgs } = args;
+      if (wsArg !== undefined && wsArg !== null && !(Number.isInteger(wsArg) && wsArg > 0)) {
+        throw err('VALIDATION_ERROR', 'invalid_input', { fields: [{ path: 'workspace_id', message: 'positive integer' }] });
+      }
+      const r = await grants.resolveWorkspace(p, wsArg);
+      if (!r.ok) {
+        // 대체 금지 — 기본 워크스페이스를 결과에 싣지 않는다(모델이 «기본에서 실행됐다» 로 읽는다, Fable 9)
+        throw err('PERMISSION_DENIED', r.code, {
+          workspace: null, requested_workspace_id: r.requested, allowed_workspaces: r.allowed,
+          hint: r.code === 'workspace_not_allowed'
+            ? 'This PlanQ connection does not include that workspace. Nothing was done anywhere. Use list_workspaces; to add a workspace the user reconnects PlanQ and also allows it.'
+            : 'The user can no longer use that workspace (removed, suspended or deleted). Nothing was done anywhere. Do not switch to another workspace on your own.',
+        });
+      }
+      p = r.principal;
+      args = restArgs;
+    }
     const missing = tool.scopes.filter((s) => !(p.scopes || []).includes(s));
     if (missing.length) {
       // 별도 동의 scope(mail:*) 는 «재연결 + 체크박스» 로만 얻는다 — 모델이 사용자에게 그 절차를 말하게 한다(설계 M3 §10).
       const optIn = missing.filter((x) => cfg.OPT_IN_SCOPES.includes(x));
       const extra = { missing_scopes: missing };
-      if (optIn.length) extra.hint = 'Reconnect PlanQ and allow email access in the consent screen.';
+      const mailOnlyDefault = optIn.map((x) => grants.mailDeniedReason(p, x)).find(Boolean);
+      if (mailOnlyDefault) { extra.reason = mailOnlyDefault; extra.default_workspace_id = p.defaultBusinessId; extra.hint = 'Mail on this connection is allowed only in the default workspace. Pass that workspace_id (or omit workspace_id) to read mail.'; }
+      else if (optIn.length) extra.hint = 'Reconnect PlanQ and allow email access in the consent screen.';
       else extra.hint = 'This PlanQ connection was approved before this ability existed. Ask the user to disconnect and reconnect PlanQ (choose read + write) to allow it.';
       throw err('PERMISSION_DENIED', 'scope', extra);
     }
@@ -115,7 +141,7 @@ async function runTool(p, name, rawArgs, opts = {}) {
       }
 
       const { idempotency_key: k, confirmation_token: ct, ...rest } = args;
-      const fp = crypto.createHash('sha256').update(`${p.grantId}|${name}|${stableStringify(rest)}`).digest('hex');
+      const fp = crypto.createHash('sha256').update(`${p.grantId}|${p.businessId}|${name}|${stableStringify(rest)}`).digest('hex');
 
       // MEDIUM — 확인 2단계(설계 §7, provider 와 무관). 토큰 없이 오면 **실행하지 않고** 미리보기 + 1회용 토큰을 준다.
       //   토큰은 (연결·도구·인자 지문)에 묶인다 — 다른 업무·다른 날짜에 쓰면 거절한다.
@@ -131,12 +157,13 @@ async function runTool(p, name, rawArgs, opts = {}) {
       //   MEDIUM 은 확인 토큰이 곧 키다 — 같은 토큰으로 재시도하면 이미 한 결과를 돌려준다(토큰을 다시 소비하지 않는다).
       //   ★ 확인 토큰을 키로 쓸 때는 인자 지문도 묶는다 — 토큰만 키로 두면, 쓴 토큰을 **다른 인자**로 다시 보냈을 때
       //     앞 결과를 «replayed» 로 돌려줘 모델이 다른 대상도 처리된 줄 안다(2026-10-07 create_project 검증 실측).
-      idemKey = crypto.createHash('sha256').update(`${p.grantId}|${name}|${k || (ct ? `${ct}|${fp}` : stableStringify(rest))}`).digest('hex');
+      idemKey = crypto.createHash('sha256').update(`${p.grantId}|${p.businessId}|${name}|${k || (ct ? `${ct}|${fp}` : stableStringify(rest))}`).digest('hex');
       const fresh = await store.setIfAbsent('agent_idem', idemKey, { status: 'pending' }, IDEM_TTL_MS);
       if (!fresh) {
         const row = await store.get('agent_idem', idemKey);
         if (row?.payload?.status === 'done') {
           const out = { ok: true, ...row.payload.result, created: false, replayed: true };
+          if (external && !out.workspace) out.workspace = await grants.workspaceLabel(p.businessId).catch(() => null);
           audit(p, name, args, { ok: true, replayed: true, target_type: row.payload.target_type, target_id: row.payload.target_id });
           return out;
         }
@@ -178,7 +205,9 @@ async function runTool(p, name, rawArgs, opts = {}) {
       }
     }
     if (!quiet) audit(p, name, args, { ok: true, ...target });
-    return { ok: true, ...data };
+    // 외부 앱 응답에는 실제로 일한 워크스페이스를 싣는다(요청 ④) — 도구가 이미 workspace 를 실었으면(get_context) 덮지 않는다
+    if (external) wsLabel = await grants.workspaceLabel(p.businessId).catch(() => null);
+    return external && !(data && data.workspace) ? { ok: true, ...data, workspace: wsLabel } : { ok: true, ...data };
   } catch (e) {
     // 실패한 쓰기는 멱등 자리를 비운다 — 같은 요청을 고쳐 다시 보낼 수 있게
     //   단, «같은 요청이 지금 실행 중»(in_progress) 은 남의 자리다 — 지우면 동시 요청이 두 번 실행된다.
@@ -188,6 +217,12 @@ async function runTool(p, name, rawArgs, opts = {}) {
     if (!(e instanceof AgentError)) console.error(`[agent ${name}] ${requestId}`, e.message);
     const out = envelope(e, requestId);
     if (!quiet) audit(p, name, args, { ok: false, code: out.error.code });
+    // 실패에도 어느 워크스페이스에서 거절됐는지 — 해석 단계 거절은 이미 workspace:null 을 실었다
+    //   (해석 거절·해석 전 실패에 workspace_id 가 있었으면 null — 기본을 실으면 «기본에서 거절» 로 읽힌다)
+    if (external) {
+      const unresolved = out.error?.workspace === null || (p === p0 && rawArgs && rawArgs.workspace_id != null);
+      out.workspace = unresolved ? null : await grants.workspaceLabel(p.businessId).catch(() => null);
+    }
     return out;
   }
 }

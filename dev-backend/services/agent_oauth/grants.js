@@ -41,6 +41,111 @@ async function connectableWorkspaces(userId) {
 }
 
 /**
+ * 여러 워크스페이스(2026-10-15, docs/AI_AGENT_MULTI_WORKSPACE_DESIGN.md · Fable 설계 판정) ──────────────
+ *   grant.business_id = 기본 워크스페이스(토큰 bid·형제 정리·감사 키) · extra_business_ids = 함께 허용한 것.
+ *   NULL = 옛 연결 = 기본 하나만. 기본 워크스페이스를 떠나면 연결 전체가 닫힌다(principalFromAccess — 의도, 설계 §1-1).
+ */
+function extraIdsOf(grant) {
+  const raw = grant && Array.isArray(grant.extra_business_ids) ? grant.extra_business_ids : [];
+  const def = Number(grant && grant.business_id);
+  return [...new Set(raw.map(Number).filter((x) => Number.isInteger(x) && x > 0 && x !== def))];
+}
+/** 이 연결이 닿는 워크스페이스 전부 — 기본이 맨 앞. */
+function workspaceIdsOf(grant) { return [Number(grant.business_id), ...extraIdsOf(grant)]; }
+
+/** «이 워크스페이스에 닿는 연결» 술어 한 벌 — 연결 목록(GET /api/agent/grants)·온보딩이 같이 쓴다(Fable 6). */
+function grantsTouchingWorkspaceWhere(userId, businessId) {
+  const { Op, literal } = require('sequelize');
+  const bid = Number(businessId);
+  if (!Number.isInteger(bid) || bid <= 0) return { id: -1 };
+  return {
+    user_id: userId,
+    [Op.or]: [
+      { business_id: bid },
+      literal(`JSON_CONTAINS(\`AgentGrant\`.\`extra_business_ids\`, '${bid}')`),
+    ],
+  };
+}
+
+async function workspaceNames(ids) {
+  if (!ids.length) return new Map();
+  const { Business } = require('../../models');
+  const rows = await Business.findAll({ where: { id: ids }, attributes: ['id', 'name', 'brand_name'] });
+  return new Map(rows.map((b) => [b.id, b.brand_name || b.name]));
+}
+
+/** 외부 앱에 보일 워크스페이스 표기 — 응답 봉투의 `workspace`. */
+async function workspaceLabel(businessId) {
+  const names = await workspaceNames([Number(businessId)]);
+  return { workspace_id: Number(businessId), name: names.get(Number(businessId)) || null };
+}
+
+/**
+ * 이 연결이 허용한 워크스페이스 목록(list_workspaces) — 연결 밖 워크스페이스는 이름도 내지 않는다.
+ *   available = 지금 canConnect 가 통과하는가(내보내짐·정지·삭제면 false + 이유).
+ */
+async function allowedWorkspaces(p) {
+  const { AgentGrant } = require('../../models');
+  const grant = p.grantId ? await AgentGrant.findByPk(p.grantId, { attributes: ['id', 'business_id', 'extra_business_ids'] }) : null;
+  const def = Number(p.defaultBusinessId || p.businessId);
+  const ids = grant ? workspaceIdsOf(grant) : [def];
+  const names = await workspaceNames(ids);
+  const grantScopes = p.grantScopes || p.scopes || [];
+  const out = [];
+  for (const id of ids) {
+    const can = await canConnect(p.userId, id);
+    out.push({
+      workspace_id: id, name: names.get(id) || null, is_default: id === def,
+      role: can.ok ? can.role : null, available: !!can.ok, unavailable_reason: can.ok ? null : can.code,
+      mail: id === def && grantScopes.includes('mail:read'),
+    });
+  }
+  return out;
+}
+
+/**
+ * 호출 하나의 대상 워크스페이스를 정한다 — execute.runTool 이 scope 판정 **앞에서** 한 번 부른다.
+ *   ★ 원본 principal 을 바꾸지 않고 **새 객체**를 돌려준다 — buildAgentServer 는 요청당 principal 하나를 모든 도구가 공유한다
+ *     (JSON-RPC batch 로 둘째 호출에 첫 호출의 치환이 남으면 안 된다, Fable 2).
+ *   생략·기본과 같음 → 기본. 허용 목록 밖 → workspace_not_allowed. 목록 안인데 지금 접근 불가 → workspace_unavailable:<code>.
+ *   **다른 워크스페이스로 대체하지 않는다.** 메일(opt-in)은 기본 워크스페이스에만 — 다른 곳에선 scopes 에서 뺀다.
+ * @returns {Promise<{ ok:true, principal } | { ok:false, code, requested, allowed }>}
+ */
+async function resolveWorkspace(p, workspaceId) {
+  const def = Number(p.businessId);
+  const base = { ...p, defaultBusinessId: def, grantScopes: p.scopes || [] };
+  if (workspaceId === undefined || workspaceId === null || Number(workspaceId) === def) return { ok: true, principal: base };
+  const want = Number(workspaceId);
+  const { AgentGrant } = require('../../models');
+  const grant = await AgentGrant.findByPk(p.grantId, { attributes: ['id', 'business_id', 'extra_business_ids'] });
+  const ids = grant ? workspaceIdsOf(grant) : [def];
+  const allowedList = async () => {
+    const names = await workspaceNames(ids);
+    return ids.map((id) => ({ workspace_id: id, name: names.get(id) || null, is_default: id === def }));
+  };
+  if (!ids.includes(want)) return { ok: false, code: 'workspace_not_allowed', requested: want, allowed: await allowedList() };
+  const can = await canConnect(p.userId, want);
+  if (!can.ok) return { ok: false, code: `workspace_unavailable:${can.code}`, requested: want, allowed: await allowedList() };
+  return {
+    ok: true,
+    principal: {
+      ...base, businessId: want, role: can.role, platformRole: can.platformRole,
+      scopes: (p.scopes || []).filter((x) => !cfg.OPT_IN_SCOPES.includes(x)),
+    },
+  };
+}
+
+/**
+ * 메일 scope 가 «없는» 이유가 «기본 워크스페이스에서만 허용» 인가 — scope 거절 안내·출처 메일·search_all 메일 그룹이 같은 술어(Fable 3).
+ *   이 경우 «다시 연결해서 메일 허용» 은 거짓 안내다(다시 연결해도 기본에만 붙는다).
+ */
+function mailDeniedReason(p, scope = 'mail:read') {
+  if (!cfg.OPT_IN_SCOPES.includes(scope)) return null;
+  if (!p || !p.defaultBusinessId || Number(p.businessId) === Number(p.defaultBusinessId)) return null;
+  return (p.grantScopes || []).includes(scope) ? 'mail_default_workspace_only' : null;
+}
+
+/**
  * 부여할 scope — ①요청 scope ∩ 묶음(읽기만/읽기+쓰기)(요청이 없으면 묶음 전체) ②별도 동의(opt-in)는
  *   **요청과 무관하게 체크박스가 켜졌을 때만** 더한다(설계 docs/AI_AGENT_M3_DESIGN.md §3.1).
  *   클라이언트가 mail:read 를 요청해도 사람이 체크하지 않으면 붙지 않고, 요청하지 않았어도 체크하면 붙는다.
@@ -116,18 +221,28 @@ async function issueTokens(grant) {
   };
 }
 
+/** 연결 감사를 연결이 닿는 워크스페이스마다 남긴다(기본 = role 'default', 함께 = role 'extra'). */
+function auditGrantPerWorkspace(req, grant, action, value) {
+  const { logAudit } = require('../auditService');
+  const def = Number(grant.business_id);
+  for (const bid of workspaceIdsOf(grant)) {
+    logAudit(req, {
+      userId: grant.user_id, businessId: bid, action, targetType: 'agent_grant', targetId: grant.id,
+      newValue: { ...value, role: bid === def ? 'default' : 'extra', default_business_id: def, extra_business_ids: extraIdsOf(grant) },
+    });
+  }
+}
+
 async function revokeGrant(grant, reason, extra = {}) {
   if (!grant || grant.revoked_at) return;
   await grant.update({ revoked_at: new Date(), revoked_reason: reason, refresh_token_hash: null });
-  require('../auditService').logAudit(null, {
-    userId: grant.user_id, businessId: grant.business_id,
-    action: 'agent_grant.revoke', targetType: 'agent_grant', targetId: grant.id,
-    newValue: { reason, provider: grant.provider, client_id: grant.client_id, ...extra },
-  });
+  // 함께 허용한 워크스페이스에도 한 줄씩 — 그 워크스페이스 감사에서 «닿던 연결이 끊겼다» 가 보여야 한다(Fable 5)
+  const { auditGrantPerWorkspace } = module.exports;
+  auditGrantPerWorkspace(null, grant, 'agent_grant.revoke', { reason, provider: grant.provider, client_id: grant.client_id, ...extra });
 }
 
 /**
- * 같은 사람 × 같은 워크스페이스 × **같은 앱**(돌아갈 주소가 같은 클라이언트)의 다른 살아 있는 연결을 닫는다.
+ * 같은 사람 × 겹치는 워크스페이스 × **같은 앱**(돌아갈 주소가 같은 클라이언트)의 다른 살아 있는 연결을 닫는다.
  *   ChatGPT 는 커넥터를 다시 추가할 때 클라이언트를 새로 등록하기도 해서(client_id 가 바뀐다) client_id 로는 못 묶는다.
  *   돌아갈 주소(커넥터 주소)는 그대로라 그것으로 묶는다. 다른 앱(Claude 등)·다른 워크스페이스 연결은 건드리지 않는다.
  *   이유 값은 'client'(앱이 다시 연결해 바꿨다) — ENUM 을 늘리지 않으려고. 감사에 replaced_by 를 남긴다.
@@ -136,9 +251,12 @@ async function supersedeSiblings(grant, redirectUri) {
   if (!grant || !redirectUri) return 0;
   const { Op } = require('sequelize');
   const { AgentGrant, AgentClient } = require('../../models');
-  const others = await AgentGrant.findAll({
-    where: { user_id: grant.user_id, business_id: grant.business_id, revoked_at: null, id: { [Op.ne]: grant.id } },
-  });
+  // 워크스페이스 집합이 **겹치면** 같은 자리다 — «기본 B + 함께 A» 로 다시 연결했는데 옛 «기본 A» 가 살아 있으면
+  //   A 의 목록에 같은 앱이 둘 보인다(Fable 4, 2026-10-15). 겹치지 않는 다른 워크스페이스 연결은 건드리지 않는다.
+  const mine = new Set(workspaceIdsOf(grant));
+  const others = (await AgentGrant.findAll({
+    where: { user_id: grant.user_id, revoked_at: null, id: { [Op.ne]: grant.id } },
+  })).filter((g) => workspaceIdsOf(g).some((id) => mine.has(id)));
   if (!others.length) return 0;
   const clients = await AgentClient.findAll({ where: { client_id: [...new Set(others.map((g) => g.client_id))] }, attributes: ['client_id', 'redirect_uris'] });
   const sameApp = new Set(clients.filter((c) => (Array.isArray(c.redirect_uris) ? c.redirect_uris : []).includes(redirectUri)).map((c) => c.client_id));
@@ -169,6 +287,8 @@ async function principalFromAccess(token) {
   const grant = await AgentGrant.findByPk(p.gid);
   if (!grant || grant.revoked_at || !grant.activated_at) return { ok: false, code: 'revoked' };
   if (grant.user_id !== p.uid || grant.business_id !== p.bid) return { ok: false, code: 'invalid' };
+  // ★ 기본 워크스페이스를 떠나면 함께 허용한 워크스페이스가 살아 있어도 연결 전체를 닫는다(설계 §1-1, Fable 8) —
+  //   기본을 다른 것으로 올리면 토큰 bid·메일 동의·형제 정리가 전부 갈라진다. 다시 연결하면 된다.
   const can = await canConnect(grant.user_id, grant.business_id);
   if (!can.ok) {
     if (can.code === 'members_only' || can.code === 'workspace_not_found') await revokeGrant(grant, 'membership_lost');
@@ -188,4 +308,6 @@ async function principalFromAccess(token) {
 module.exports = {
   sha256, randomToken, canConnect, connectableWorkspaces, grantedScopes, workspaceMailAllowed, mailAccountsFor,
   issueTokens, revokeGrant, supersedeSiblings, principalFromAccess, signAccess,
+  extraIdsOf, workspaceIdsOf, grantsTouchingWorkspaceWhere, workspaceLabel, allowedWorkspaces, resolveWorkspace,
+  mailDeniedReason, auditGrantPerWorkspace,
 };

@@ -665,6 +665,11 @@ sync_database() {
   log "Creating agent OAuth tables (#439)..."
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-agent-oauth.js 2>&1 | tail -5"
 
+  # 2026-10-15 — AI 앱 연결 여러 워크스페이스(docs/AI_AGENT_MULTI_WORKSPACE_DESIGN.md · Fable 설계):
+  #   agent_grants.extra_business_ids JSON NULL. ★ **코드보다 먼저 돈다** — 모델이 SELECT 하므로 없으면 AI 연결 전체가 500. 멱등.
+  log "Adding agent_grants.extra_business_ids..."
+  prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-agent-multi-ws.js 2>&1 | tail -5"
+
   # 2026-10-02 (#426) — 무료 업무체계 자가진단: diagnosis_responses + contact_inquiries.kind 'diagnosis' append.
   #   ★ **코드보다 먼저 돈다** — 이메일을 남긴 진단이 kind='diagnosis' 문의를 만드는데 ENUM 에 없으면 실패한다. 멱등.
   log "Creating diagnosis_responses (#426)..."

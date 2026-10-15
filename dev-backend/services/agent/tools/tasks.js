@@ -93,7 +93,7 @@ async function getContext(p) {
   }
   return {
     user: { user_id: p.userId, name: names.get(p.userId)?.name || u?.name || null, timezone: userTz },
-    workspace: { business_id: p.businessId, name: biz?.brand_name || biz?.name || null, timezone: wsTz },
+    workspace: { workspace_id: p.businessId, business_id: p.businessId, name: biz?.brand_name || biz?.name || null, timezone: wsTz },
     today: lp.date,
     weekday: lp.weekday,
     now_local: lp.local,
@@ -104,6 +104,13 @@ async function getContext(p) {
       mail_drafts: scopes.includes('mail_drafts:write'),
     },
     mail_accounts_count: mailCount,
+    // 여러 워크스페이스(2026-10-15) — 외부 앱 연결만. 몇 곳이 허용됐고 생략하면 어디인지(목록은 list_workspaces)
+    ...(p.provider !== 'cue' && p.grantId ? await (async () => {
+      const { AgentGrant } = require('../../../models');
+      const { workspaceIdsOf } = require('../../agent_oauth/grants');
+      const g = await AgentGrant.findByPk(p.grantId, { attributes: ['id', 'business_id', 'extra_business_ids'] });
+      return { workspaces: { count: g ? workspaceIdsOf(g).length : 1, default_workspace_id: p.defaultBusinessId || p.businessId } };
+    })() : {}),
   };
 }
 

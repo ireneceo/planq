@@ -1,6 +1,8 @@
 // AgentGrant — 한 사람이 한 워크스페이스에 대해 외부 AI 앱에 준 **연결(동의)** (#439).
 //
-//   토큰 = 이 grant 의 (user × **하나의** workspace × scopes). 다른 워크스페이스는 연결을 하나 더 한다.
+//   토큰 = 이 grant 의 (user × **기본 워크스페이스** × scopes). business_id = 기본(workspace_id 를 생략한 호출의 대상).
+//   extra_business_ids = 동의 화면에서 «함께 허용» 한 다른 워크스페이스(2026-10-15, docs/AI_AGENT_MULTI_WORKSPACE_DESIGN.md).
+//     NULL = 옛 연결 = 기본 하나만 — 옛 동의를 조용히 넓히지 않는다. 메일(opt-in)은 기본 워크스페이스에만.
 //   access 토큰(JWT, 1시간)은 매 호출 이 행을 다시 읽는다 — revoked_at 이 찍히면 다음 호출부터 닫힌다.
 //   refresh 는 평문을 두지 않는다(sha256). 회전할 때 직전 해시를 남겨 **재사용을 감지**한다(재사용 = 탈취 의심 → 전체 revoke).
 const { DataTypes, Model } = require('sequelize');
@@ -15,6 +17,7 @@ AgentGrant.init({
   client_id: { type: DataTypes.STRING(64), allowNull: false },
   provider: { type: DataTypes.STRING(20), allowNull: true },
   scopes: { type: DataTypes.JSON, allowNull: false },
+  extra_business_ids: { type: DataTypes.JSON, allowNull: true },
   refresh_token_hash: { type: DataTypes.STRING(64), allowNull: true },
   prev_refresh_token_hash: { type: DataTypes.STRING(64), allowNull: true },
   refresh_expires_at: { type: DataTypes.DATE, allowNull: true },

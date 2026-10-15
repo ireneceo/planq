@@ -62,10 +62,10 @@ router.get('/oauth/request/:id', authenticateToken, async (req, res, next) => {
 });
 
 // POST /api/agent/oauth/consent  { request_id, business_id, access:'read'|'write', approve }
-router.post('/oauth/consent', authenticateToken, consentLimit, async (req, res, next) => {
+router.post('/oauth/consent', authenticateToken, consentLimit, async (req, res, next) => { // audit-exempt: 감사는 grants.auditGrantPerWorkspace 가 쓴다(agent_grant.create — 연결이 닿는 워크스페이스마다 한 줄)
   try {
     if (!cfg.enabled() || !cfg.tokenSecret()) return errorResponse(res, 'agent_disabled', 404);
-    const { request_id, business_id, access, approve, mail, mail_drafts } = req.body || {};
+    const { request_id, business_id, access, approve, mail, mail_drafts, extra_business_ids } = req.body || {};
     const row = await store.get('agent_authreq', String(request_id || ''));
     if (!row) return errorResponse(res, 'request_expired', 404);
     const p = row.payload || {};
@@ -78,6 +78,19 @@ router.post('/oauth/consent', authenticateToken, consentLimit, async (req, res, 
     const bizId = Number(business_id);
     const can = await grants.canConnect(req.user.id, bizId);
     if (!can.ok) return errorResponse(res, can.code, 403);
+    // 함께 허용할 다른 워크스페이스(docs/AI_AGENT_MULTI_WORKSPACE_DESIGN.md · Fable 7) — 정수 배열 · 중복·기본 제거 ·
+    //   하나라도 연결 불가면 403(조용히 빼지 않는다 — 사람이 고른 대로 연결되거나, 안 되거나). 같은 읽기/쓰기 묶음 · 메일 없음.
+    let extraIds = [];
+    if (extra_business_ids !== undefined && extra_business_ids !== null) {
+      if (!Array.isArray(extra_business_ids) || extra_business_ids.some((x) => !Number.isInteger(x) || x <= 0)) return errorResponse(res, 'invalid_extra_business_ids', 400);
+      extraIds = [...new Set(extra_business_ids)].filter((x) => x !== bizId);
+      const connectable = await grants.connectableWorkspaces(req.user.id);
+      if (extraIds.length > connectable.length) return errorResponse(res, 'invalid_extra_business_ids', 400);
+      for (const id of extraIds) {
+        const c = await grants.canConnect(req.user.id, id);
+        if (!c.ok) return errorResponse(res, c.code, 403);
+      }
+    }
     // 메일 읽기(opt-in) — 화면이 체크박스를 비활성으로 그리는 조건을 서버가 **다시** 본다(화면만 막으면 요청으로 우회된다).
     //   스위치가 꺼졌거나 보이는 계정이 없으면 요청을 거절한다(조용히 빼면 사람이 켠 줄 알고 연결한다).
     const { AgentGrant, Business } = require('../models');
@@ -96,22 +109,20 @@ router.post('/oauth/consent', authenticateToken, consentLimit, async (req, res, 
     const prov = cfg.providerForRedirect(p.redirect_uri);
     const grant = await AgentGrant.create({
       user_id: req.user.id, business_id: bizId, client_id: p.client_id,
-      provider: prov ? prov.id : null, scopes,
+      provider: prov ? prov.id : null, scopes, extra_business_ids: extraIds.length ? extraIds : null,
     });
     const code = grants.randomToken();
     await store.set('agent_code', grants.sha256(code), {
       grant_id: grant.id, client_id: p.client_id, code_challenge: p.code_challenge,
       redirect_uri: p.redirect_uri, resource: p.resource || null,
     }, cfg.CODE_TTL_MS);
-    require('../services/auditService').logAudit(req, {
-      userId: req.user.id, businessId: bizId, action: 'agent_grant.create', targetType: 'agent_grant', targetId: grant.id,
-      newValue: { provider: grant.provider, client_id: p.client_id, client_name: p.client_name || null, scopes },
-    });
+    // 연결이 닿는 워크스페이스마다 감사 한 줄 — 함께 허용한 워크스페이스의 관리자도 자기 감사에서 본다(Fable 5)
+    grants.auditGrantPerWorkspace(req, grant, 'agent_grant.create', { provider: grant.provider, client_id: p.client_id, client_name: p.client_name || null, scopes });
     return successResponse(res, { redirect: redirectWith(p.redirect_uri, { code, state: p.state }) });
   } catch (err) { next(err); }
 });
 
-// GET /api/agent/grants?business_id= — 내가 이 워크스페이스에 연결한 AI 앱(살아 있는 것만)
+// GET /api/agent/grants?business_id= — 내가 이 워크스페이스에 닿게 연결한 AI 앱(기본이든 함께 허용이든, 살아 있는 것만)
 router.get('/grants', authenticateToken, async (req, res, next) => {
   try {
     const bizId = Number(req.query.business_id);
@@ -119,17 +130,23 @@ router.get('/grants', authenticateToken, async (req, res, next) => {
     const { AgentGrant, AgentClient } = require('../models');
     const { limit, page, offset } = parsePagination(req, { defaultLimit: 50, maxLimit: 200 });
     const { rows, count } = await AgentGrant.findAndCountAll({
-      where: { user_id: req.user.id, business_id: bizId, revoked_at: null },
+      where: { ...grants.grantsTouchingWorkspaceWhere(req.user.id, bizId), revoked_at: null },
       order: [['created_at', 'DESC']], limit, offset,
     });
     const clients = await AgentClient.findAll({ where: { client_id: rows.map((r) => r.client_id) }, attributes: ['client_id', 'client_name'] });
     const nameOf = new Map(clients.map((c) => [c.client_id, c.client_name]));
+    const allWs = [...new Set(rows.flatMap((g) => grants.workspaceIdsOf(g)))];
+    const { Business } = require('../models');
+    const wsName = new Map((allWs.length ? await Business.findAll({ where: { id: allWs }, attributes: ['id', 'name', 'brand_name'] }) : []).map((b) => [b.id, b.brand_name || b.name]));
     return paginatedResponse(res, rows.map((g) => ({
       id: g.id, provider: g.provider, client_name: nameOf.get(g.client_id) || null,
       access: (g.scopes || []).some((s) => cfg.WRITE_SCOPES.includes(s)) ? 'write' : 'read',
       // 「메일 포함」 칩 — 어느 연결이 메일을 보는지 사람이 알아야 끊을 수 있다(설계 §3.1)
       mail: (g.scopes || []).includes('mail:read'),
       connected: !!g.activated_at, created_at: g.created_at, last_used_at: g.last_used_at,
+      // 이 연결이 닿는 워크스페이스 — 해제하면 전부가 끊긴다(화면이 확인창에 적는다)
+      workspaces: grants.workspaceIdsOf(g).map((id) => ({ business_id: id, name: wsName.get(id) || null, is_default: id === Number(g.business_id) })),
+      is_default_here: Number(g.business_id) === bizId,
       // 그 묶음에 나중에 생긴 기능이 빠진 연결 — 다시 연결하면 붙는다(2026-10-06 재연결 반복 신고)
       outdated: (() => {
         const sc = g.scopes || [];

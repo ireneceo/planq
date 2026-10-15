@@ -1119,6 +1119,26 @@ function checkAgentSurface() {
   if (fs.existsSync(pna) && !/params\.businessId && Number\(project\.business_id\) !== Number\(params\.businessId\)/.test(read(pna))) {
     bad.push('services/actions/project_note_actions.js: businessId 묶음 판정이 없음 — AI 경로가 남의 워크스페이스 프로젝트에 쓴다');
   }
+  // 여러 워크스페이스(2026-10-15, docs/AI_AGENT_MULTI_WORKSPACE_DESIGN.md · Fable 10) — 각 줄은 «빼면 무엇이 새는가».
+  const exe = path.join(dir, 'execute.js');
+  if (fs.existsSync(exe)) {
+    const es = strip(exe);
+    const run = es.slice(es.indexOf('async function runTool'));
+    const iRes = run.indexOf('grants.resolveWorkspace(');
+    const iScope = run.indexOf('const missing = tool.scopes');
+    if (iRes < 0 || iScope < 0 || iRes > iScope) bad.push('services/agent/execute.js: runTool 이 scope 판정 앞에서 grants.resolveWorkspace 를 거치지 않음 — workspace_id 가 검증 없이 쓰이거나 무시된다');
+    if (!/update\(`\$\{p\.grantId\}\|\$\{p\.businessId\}\|\$\{name\}\|\$\{stableStringify\(rest\)\}`\)/.test(es)) bad.push('services/agent/execute.js: 확인 토큰 지문(fp)에 해석된 워크스페이스가 없음 — A 의 확인 토큰으로 B 를 실행한다');
+    if (!/update\(`\$\{p\.grantId\}\|\$\{p\.businessId\}\|\$\{name\}\|\$\{k \|\|/.test(es)) bad.push('services/agent/execute.js: 멱등 키에 해석된 워크스페이스가 없음 — B 요청이 A 의 결과를 replay 로 받는다');
+  }
+  if (/\bworkspace_id\s*:/.test(read(reg))) bad.push('registry.js: 도구 입력에 workspace_id 선언 — 칸은 외부 앱 표면(mcp/server.js buildAgentServer)만 붙인다(앱 안 Cue 는 거절돼야 한다)');
+  const mcpSrv = path.join(ROOT, 'dev-backend/mcp/server.js');
+  if (fs.existsSync(mcpSrv) && !/z\.object\(\{\s*\.\.\.tool\.input,\s*workspace_id:\s*WORKSPACE_ID_INPUT\s*\}\)\.strict\(\)/.test(read(mcpSrv))) bad.push('mcp/server.js: 외부 앱 도구 입력에 workspace_id(선택) 가 붙지 않거나 .strict() 가 빠짐');
+  const cueTools = path.join(ROOT, 'dev-backend/services/cue_tools.js');
+  if (fs.existsSync(cueTools)) {
+    const cs = read(cueTools);
+    const lists = (cs.match(/const CUE_(READ|WRITE)\s*=\s*\[[^\]]*\]/g) || []).join('\n');
+    if (/list_workspaces/.test(lists)) bad.push('services/cue_tools.js: Cue 허용 목록에 list_workspaces — 외부 앱 전용(연결이 허용한 목록)');
+  }
   report('agentsurface', `AI 에이전트 표면 불변식 (파일 ${files.length})`, bad.length === 0, bad);
 }
 

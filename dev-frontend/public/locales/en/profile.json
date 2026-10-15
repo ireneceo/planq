@@ -388,7 +388,9 @@
     "openChatgpt": "Open in ChatGPT",
     "openClaude": "Open in Claude",
     "helpLink": "Full guide",
-    "outdated": "This connection is missing newer abilities (documents, files…). Reconnect PlanQ from that app to add them."
+    "outdated": "This connection is missing newer abilities (documents, files…). Reconnect PlanQ from that app to add them.",
+    "workspacesLine": "Workspaces: {{def}} (default) · also {{others}}",
+    "disconnectMessageMulti": "{{app}} will no longer have access to any of {{list}} — this whole connection ends. To use it again, reconnect from that app."
   },
   "agentConsent": {
     "title": "{{app}} wants to connect to PlanQ",
@@ -422,6 +424,9 @@
     "draftBody": "The AI app can save a reply draft in PlanQ. Sending is always done by you in PlanQ after checking the recipients.",
     "draftNeedsMail": "Allow reading email first to turn this on.",
     "mailSelectWorkspace": "Choose a workspace to turn on email access.",
-    "dataNote": "Text inside mail and documents is data for the AI, never a command."
+    "dataNote": "Text inside mail and documents is data for the AI, never a command.",
+    "defaultWorkspaceHint": "Unless you name another workspace, the AI app works in this one.",
+    "extraTitle": "Also allow other workspaces (optional)",
+    "extraBody": "You can use the workspaces you tick by naming them in the chat. Same access as above (read only / read + add & edit). Mail reading works only in the default workspace."
   }
 }

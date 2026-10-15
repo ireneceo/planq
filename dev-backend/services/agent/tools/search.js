@@ -141,7 +141,13 @@ async function runGroup(kind, p, ctx, M, opt) {
 /** 그룹 상태 판정 — scope → (메일) 워크스페이스 스위치 → 메뉴. */
 async function gateOf(kind, p) {
   const [scope, menu] = KINDS[kind];
-  if (!(p.scopes || []).includes(scope)) return { status: 'not_granted', missing_scope: scope };
+  if (!(p.scopes || []).includes(scope)) {
+    // 메일은 기본 워크스페이스에만 허용된 연결 — «다시 연결해서 허용» 이 아니다(Fable 3, grants.mailDeniedReason 한 술어)
+    const { mailDeniedReason } = require('../../agent_oauth/grants');
+    const why = mailDeniedReason(p, scope);
+    if (why) return { status: 'denied', reason: why };
+    return { status: 'not_granted', missing_scope: scope };
+  }
   if (kind === 'mail') {
     const { Business } = require('../../../models');
     const { workspaceMailAllowed } = require('../../agent_oauth/grants');

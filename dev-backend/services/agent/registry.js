@@ -28,9 +28,15 @@ const confirm = z.string().max(200).optional().describe('Leave empty on the firs
 const TOOLS = [
   {
     name: 'get_context', risk: 'LOW', write: false, scopes: [],
-    description: 'Who am I and which PlanQ workspace is connected, today\'s date/weekday/local time in my time zone, and what this connection may access (granted.mail, granted.write). Call this first. Resolve relative dates ("next Friday") in user.timezone. Dates you pass to other tools are interpreted in that zone. Read-only.',
+    description: 'Who am I and which PlanQ workspace this call works in (workspaces.count > 1 means more are allowed — see list_workspaces), today\'s date/weekday/local time in my time zone, and what this connection may access (granted.mail, granted.write). Call this first. Resolve relative dates ("next Friday") in user.timezone. Dates you pass to other tools are interpreted in that zone. Read-only.',
     input: {},
     handler: (p) => t.getContext(p),
+  },
+  {
+    name: 'list_workspaces', risk: 'LOW', write: false, scopes: [],
+    description: 'List the PlanQ workspaces this connection may use: workspace_id, name, whether it is the default (used when workspace_id is omitted), the user\'s role, and whether it is available now. Every other PlanQ tool takes an optional workspace_id. If the user asks about a specific workspace (e.g. "the one I use with my kid"), call this, match the name, and pass that workspace_id on every call for that request. If the description could match more than one workspace, or none clearly, ask the user which one before doing anything. If a workspace is refused, say why — never switch to another workspace on your own. Mail is available only in the default workspace. If the user leaves the default workspace the whole connection ends and must be reconnected. Read-only.',
+    input: {},
+    handler: (p) => require('../agent_oauth/grants').allowedWorkspaces(p).then((workspaces) => ({ workspaces, default_workspace_id: p.defaultBusinessId || p.businessId })),
   },
   {
     name: 'search_tasks', risk: 'LOW', write: false, scopes: ['tasks:read'], list: true,

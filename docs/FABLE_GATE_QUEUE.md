@@ -1,5 +1,11 @@
 # Fable 게이트 대기열 → **판정 기록 보관소** (2026-10-08 부터)
 
+## 2026-10-15 · AI 앱 연결 여러 워크스페이스 — 설계 PASS-WITH-CHANGES(10) → 완료 **PASS** (방 35bb469f)
+- 설계(Fable): docs/AI_AGENT_MULTI_WORKSPACE_DESIGN.md — 기본 + `extra_business_ids` · runTool 입구 resolveWorkspace 한 번 · 옛 연결 안 넓힘 · 메일은 기본만 · 대체 금지 · 바꿀 점 10개 반영(§5).
+- 완료 검증: Fable 실OAuth+MCP 60/60(테넌트 격리 5도구·search_all·list_events·쓰기·교차 project/client/담당자·확인 토큰 교차 confirmation_invalid·멱등 키 교차·메일 기본 전용·동의 POST 우회·멤버십 상실 2종·감사·형제 정리·연결 목록·온보딩·batch principal·Cue 거절·배포 순서) · guard 72/73 · secrets 11/11 · agentconsent 실패 0.
+- 비차단: ① 해석 단계 거절 감사는 기본 워크스페이스에 args.workspace_id 로 남음(기록) ② 동의 라우트 길이 검사 중복(무해) ③ workspace_id:null 스키마 거절 → 고침(nullable) ④ 자체 검사의 확인 토큰 교차가 NOT_FOUND 도 통과로 침(Fable D2 가 직접 증명).
+- 다음 사이클 후보: 워크스페이스 단위 «AI 앱 연결 막기» 스위치(설계 비차단).
+
 ## 2026-10-15 · 역할 사전(member_roles) — 1차 FAIL → 고쳐서 **PASS** (방 c8f9ad50)
 - 설계(Fable): docs/MEMBER_ROLES_DESIGN.md — 사전 표 + 글자 그대로 저장(쓰는 문 services/memberRoles 한 벌) · 공통 기본 7개 · 잡값 5종 NULL · default_role 과 같은 사전 · 개명·삭제 owner/admin.
 - 1차 FAIL(차단): 배포 슬롯이 sync-database 뒤 → sync 가 빈 표를 먼저 만들어 운영 첫 배포에 전 워크스페이스 역할 0개(dev 재현 118/118 빈 사전). 고침: 슬롯을 sync 앞 + «표가 비어 있으면» 흡수·시드 + 모델 FK onDelete.
