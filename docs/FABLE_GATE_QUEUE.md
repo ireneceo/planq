@@ -1,5 +1,11 @@
 # Fable 게이트 대기열 → **판정 기록 보관소** (2026-10-08 부터)
 
+
+## 2026-10-15 PASS — 서명 요청 «우리 쪽 서명자» 앱 알림 (방 a57886b7 · 커밋 58fb357d)
+- 대상: signatureCore.notifyUsSigners(앱 알림·푸시, 메일 끔, 요청자 제외) · 서명 알림 링크 /posts/:id → /docs?post= · 프론트 옛 링크 이전.
+- Fable 실HTTP 26검사 0 FAIL(남을 겨냥 불가 400 · 알림 선호 존중 · confirm/영어 문구 · 바뀐 링크 실측) · 브라우저 3 · normalizeLink 10케이스.
+- 비차단: ① 5분 뒤 재알림 메일이 서명 링크를 실음 → 고침(커밋 다음 것, suppressEscalation) ② 종 알림 /sign 클릭이 앱 창 전체를 공개 서명 화면으로 바꿈(확인필요는 새 탭) — 아이패드 앱 막다른 길 가능, 후속 ③ (기존) 서명한 본인도 «서명 완료» 받음 · 정지 계정도 notify 가 안 거름.
+
 ## 2026-10-15 설문 v2 Phase 1 완료 검증 (커밋 1dbe8940) — **PASS** (방 bdb39775)
 - 근거: 실HTTP 68+8(코드 실패 0) · secrets 10/10 · 가드 68/69(기준선 동일) · --suite survey 0 실패 · migrate --dry 멱등.
 - 비차단: ①운영은 sync-database 가 migrate 보다 먼저 표를 만들어 survey_recipients.token 이 utf8mb4_bin 이 아니게 된다(정확 비교로 보안은 유지) — migrate 에 MODIFY COLLATE 멱등 단계 권고 ②TRIAL_COST_CAPS 에 survey_sends_monthly 없음(체험 중 basic100/pro500 발송 가능) ③20명 초과 백그라운드 발송 중 프로세스가 죽으면 queued 가 영영 남는다 ④primaryEmailOf 의 project_clients 폴백은 호출부가 안 넘겨 죽은 분기 ⑤설문 메일 한국어 고정 ⑥NPS 음수 .5 반올림 방향 모호 · 못 가른 것 답: canViewSurveyResponses 는 설계보다 좁다(고객은 앱 안에서 질문지도 403 — 닫힌 쪽) · devSuppressed 분기는 운영 .env 에 EMAIL_SENDING_ENABLED=false 가 있을 때만(배포 사전 점검 한 줄 권고).
