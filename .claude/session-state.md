@@ -1,6 +1,14 @@
 ## 현재 작업 상태
 **마지막 업데이트:** 2026-10-15 (방 cd3690dc · 급여 P2~P4)
-**작업 상태:** 완료 — 메일 사칭 검사(Fable PASS · 운영 미배포) · 이전: AI 앱 여러 워크스페이스(Fable PASS · 운영 미배포) · 이전: 급여 P2~P4(서버 Fable PASS · 화면 빌드·3폭 실측 72/72 · 운영 미배포)
+**작업 상태:** 완료 — dev 링크 앱 가로채기 웹 차단 준비(sudo 1건 Irene) · 이전: 메일 사칭 검사(Fable PASS · 운영 미배포) · 이전: AI 앱 여러 워크스페이스(Fable PASS · 운영 미배포) · 이전: 급여 P2~P4(서버 Fable PASS · 화면 빌드·3폭 실측 72/72 · 운영 미배포)
+
+### 완료: dev 링크를 운영 앱이 가로채는 것 — 웹 쪽 차단 준비 (방 272385e0 · 2026-10-15 · [Opus]) — Irene 할 일 1건(sudo)
+- 원문(서버 방 56438596 넘김): Irene «상황판 링크가 개발서버인데 모바일에서 앱으로 열려». 옛 스토어 앱(iOS 1.0·옛 안드로이드)이 dev.planq.kr 도 받는다. 앱 쪽 수정(10-09 cap-link-domains.js)은 새 앱 출시 전엔 안 먹는다.
+- 판단 ① iOS — **한다.** dev.planq.kr AASA 를 빈 details 로(webcredentials 는 둔다). iOS 는 도메인마다 따로 검증해 planq.kr 링크엔 영향 없음. 대가: Xcode dev 빌드(같은 appID H2HW8BHXNW.app.planq)도 dev 링크를 앱으로 못 연다 — OAuth 복귀는 planq:// 라 영향 없음. 적용은 애플 CDN 이 다시 읽은 뒤(보통 하루~며칠, 앱 재설치하면 바로).
+  - ★ `dev-frontend/public/.well-known/` 은 **고치지 않는다** — 배포가 같은 소스의 사본에서 운영 번들을 만들어 운영 AASA 까지 비게 된다. dev nginx 의 AASA location 만 `alias scripts/dev-well-known/apple-app-site-association` 로 돌린다.
+  - 스크립트 `scripts/apply-nginx-dev-aasa.sh`(sudo · dev 설정만 · 백업 → 한 줄 바꿈 → nginx -t 실패면 원복 → reload). 복사본으로 시험: 바뀌는 줄은 AASA 블록의 try_files 한 줄뿐.
+- 판단 ② 안드로이드 assetlinks 에서 운영 서명 키(6B:F7) 빼기 — **안 한다.** 안드로이드는 설치·갱신 때만 다시 검증해 효과가 작고, 안드로이드 11 이하는 한 앱의 autoVerify 도메인 중 하나만 실패해도 **전체**(planq.kr 포함) 자동 열기가 꺼진다 — 옛 빌드를 새로 까는 사람의 운영 링크가 깨지는 쪽이 더 크다. 새 안드로이드 빌드(planq.kr 만)가 나가면 저절로 해소.
+- Irene 할 일: `sudo bash /opt/planq/scripts/apply-nginx-dev-aasa.sh` — 상황판에 올림. 끝나면 `curl -s https://dev.planq.kr/.well-known/apple-app-site-association` 이 `"details": []` 인지 확인(운영 planq.kr 은 그대로여야 한다).
 
 ### 완료: 메일 사칭 검사 + 스팸 기준 안내·관리 (방 92bad145 · 2026-10-15 · [Opus] · Fable 설계 + 게이트 PASS) — 운영 미배포
 - 원문: 스팸을 어떻게 거르는지 안내돼 있나 · 기준·스팸관리 기능 · 유사 도메인 피싱(숨김 문자·다른 언어 문자·혼동 도메인) 검사 → 의심 경고·강하면 격리·복원 · 한글 도메인 보호 · 원 메일함 이동은 구분.
