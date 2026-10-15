@@ -166,3 +166,16 @@ export function applySignerSettings(contentJson: unknown, slot: number, patch: {
   };
   return walk(doc);
 }
+
+/** 서명 칸을 모두 걷어 낸 새 문서 — 서명 받을 문서가 아닌데 [서명 받기] 로 칸을 넣었을 때 되돌리는 문(2026-10-15).
+ *  서명 칸 노드만 빼고 나머지는 그대로 둔다. 손글씨 자리를 바꿔치기한 경우 원래 글자는 돌아오지 않는다(확인창이 말한다). */
+export function removeSignatureFields(contentJson: unknown): Node {
+  const doc = parseDoc(contentJson) || { type: 'doc', content: [] };
+  const walk = (n: Node): Node => (Array.isArray(n.content)
+    ? { ...n, content: n.content.filter((c) => c?.type !== 'signatureField').map(walk) }
+    : n);
+  const next = walk(doc);
+  // 빈 문서는 문단 하나를 남긴다 — content 가 빈 doc 은 편집기가 거절한다.
+  if (!Array.isArray(next.content) || next.content.length === 0) next.content = [{ type: 'paragraph' }];
+  return { ...next, type: 'doc' };
+}

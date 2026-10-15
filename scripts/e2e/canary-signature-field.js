@@ -253,7 +253,8 @@ async function run() {
     //   확인 전 reminder_count 불변(음성) · 확인 후 +1(양성) 을 DB 로 잰다.
     const rcOf = async () => Number((await db().query(`SELECT reminder_count n FROM signature_requests WHERE id=${Number(sigThem.id)}`))[0][0].n);
     const rc0 = await rcOf();
-    await page.evaluate(`(() => { const t = document.querySelector('[data-testid="sign-row-actions"]'); if (t) t.click(); })()`);
+    // ★ 받는 쪽 행의 ⋯ 를 집는다 — 2026-10-15 부터 보내는 쪽 행에도 ⋯(요청 취소만)가 있어 «첫 ⋯» 는 우리 칸일 수 있다.
+    await page.evaluate(`(() => { const t = document.querySelector('[data-testid="sign-row"][data-party="them"] [data-testid="sign-row-actions"]'); if (t) t.click(); })()`);
     await b.sleep(500);
     const menu = await page.evaluate(`(() => {
       const items = [...document.querySelectorAll('button')].map((x) => (x.textContent || '').trim());

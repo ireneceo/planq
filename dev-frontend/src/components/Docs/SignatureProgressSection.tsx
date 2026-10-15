@@ -80,6 +80,8 @@ const SignatureProgressSection: React.FC<Props> = ({ postId, inferredKind, reloa
   //   서명 링크(토큰)는 진행표 응답에 더 이상 오지 않는다(0-C C-1) — «URL 복사» 는 없앴다.
   const [remindTarget, setRemindTarget] = useState<SignatureRequest | null>(null);
   const [cancelTarget, setCancelTarget] = useState<SignatureRequest | null>(null);
+  // 살아 있는 요청 모두 취소 — 서명 받을 문서가 아닌데 잘못 보낸 경우(2026-10-15, Irene: "잘못 넣었을 때 해결방법이 없네")
+  const [cancelAllOpen, setCancelAllOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
 
   const wantSign = Number(searchParams.get('sign')) || null;
@@ -113,6 +115,10 @@ const SignatureProgressSection: React.FC<Props> = ({ postId, inferredKind, reloa
   }, [actionMenuId]);
 
   const visible = useMemo(() => (list || []).filter(s => s.status !== 'canceled'), [list]);
+  // 아직 끝나지 않은 요청 — 취소할 수 있는 것(서버 DELETE 는 signed·rejected 만 거절한다).
+  //   ★ 보내는 쪽(우리) 칸도 포함한다. 예전엔 ⋯ 메뉴가 받는 쪽에만 있어 우리 칸 pending 이 남으면
+  //     문서가 «서명 요청을 취소하세요» 로 영영 잠겼는데 취소할 버튼이 없었다.
+  const liveRows = useMemo(() => visible.filter(isLive), [visible]);
 
   // 양사 진행 집계
   const allSigned = visible.length > 0 && visible.every(s => s.status === 'signed');
@@ -149,6 +155,19 @@ const SignatureProgressSection: React.FC<Props> = ({ postId, inferredKind, reloa
     } finally { setBusyId(null); }
   };
 
+  const confirmCancelAll = async () => {
+    if (busyId) return;
+    setBusyId(-1);
+    try {
+      // 새 API 없이 한 건씩 — 한 건이 실패해도 나머지는 계속하고, 끝나면 표를 다시 읽어 실제 상태를 보여준다.
+      for (const sr of liveRows) {
+        try { await cancelSignature(sr.id); } catch { /* 그 건만 남는다 — 재조회로 보인다 */ }
+      }
+      setCancelAllOpen(false);
+      await reload();
+    } finally { setBusyId(null); }
+  };
+
   const onFollowupClick = () => {
     // 견적 → 단일 청구, 계약/SOW → 분할 청구 자동 분기
     const split = inferredKind === 'quote' ? '0' : '1';
@@ -178,6 +197,11 @@ const SignatureProgressSection: React.FC<Props> = ({ postId, inferredKind, reloa
           <Count>{visible.length}</Count>
         </Title>
         <HeaderActions>
+          {liveRows.length >= 2 && (
+            <CancelAllBtn type="button" data-testid="sign-cancel-all" disabled={busyId !== null} onClick={() => setCancelAllOpen(true)}>
+              {t('signProgress.cancelAll', '모두 취소')}
+            </CancelAllBtn>
+          )}
           <ReloadBtn type="button" onClick={reload} title={t('signProgress.reload', '새로고침') as string} aria-label={t('signProgress.reload', '새로고침') as string}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
           </ReloadBtn>
@@ -294,18 +318,21 @@ const SignatureProgressSection: React.FC<Props> = ({ postId, inferredKind, reloa
                     {t('signProgress.signNow', { defaultValue: '서명하기' }) as string}
                   </SignNowBtn>
                 )}
-                {sr.party !== 'us' && sr.status !== 'signed' && sr.status !== 'rejected' && sr.status !== 'expired' && (
+                {isLive(sr) && (
                   <ActionWrap>
                     <ActionToggle type="button" data-testid="sign-row-actions" onClick={() => setActionMenuId(actionMenuId === sr.id ? null : sr.id)} aria-label={t('signProgress.action', '액션') as string} title={t('signProgress.action', '액션') as string}>
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="6" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="18" r="1"/></svg>
                     </ActionToggle>
                     {actionMenuId === sr.id && (
                       <ActionMenu ref={menuRef}>
-                        <MenuItem type="button" data-testid="sign-row-resend" disabled={busyId === sr.id} onClick={() => onRemind(sr)}>
-                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
-                          {t('signProgress.resendLink', '링크 다시 보내기')}
-                        </MenuItem>
-                        <MenuItem type="button" $danger disabled={busyId === sr.id} onClick={() => onCancel(sr)}>
+                        {/* 보내는 쪽 칸은 메일이 안 나간다 — 재발송은 받는 쪽에만 */}
+                        {sr.party !== 'us' && (
+                          <MenuItem type="button" data-testid="sign-row-resend" disabled={busyId === sr.id} onClick={() => onRemind(sr)}>
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+                            {t('signProgress.resendLink', '링크 다시 보내기')}
+                          </MenuItem>
+                        )}
+                        <MenuItem type="button" data-testid="sign-row-cancel" $danger disabled={busyId === sr.id} onClick={() => onCancel(sr)}>
                           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
                           {t('signProgress.cancel', '요청 취소')}
                         </MenuItem>
@@ -324,7 +351,20 @@ const SignatureProgressSection: React.FC<Props> = ({ postId, inferredKind, reloa
         onClose={() => setCancelTarget(null)}
         onConfirm={confirmCancel}
         title={t('signProgress.cancelTitle', '서명 요청 취소') as string}
-        message={t('signProgress.cancelMessage', '"{{email}}" 의 서명 요청을 취소합니다. 받은 토큰 URL은 즉시 만료됩니다.', { email: cancelTarget?.signer_email || '' }) as string}
+        message={(cancelTarget?.party === 'us'
+          ? t('signProgress.cancelUsMessage', '{{name}} 님(보내는 쪽)의 서명 칸 요청을 취소합니다.', { name: cancelTarget?.signer_name || cancelTarget?.signer_email || '' })
+          : t('signProgress.cancelMessage', '"{{email}}" 의 서명 요청을 취소합니다. 받은 토큰 URL은 즉시 만료됩니다.', { email: cancelTarget?.signer_email || '' })) as string}
+        confirmText={t('signProgress.cancelConfirmBtn', '취소하기') as string}
+        cancelText={t('common.close', '닫기') as string}
+        variant="danger"
+      />
+
+      <ConfirmDialog
+        isOpen={cancelAllOpen}
+        onClose={() => setCancelAllOpen(false)}
+        onConfirm={confirmCancelAll}
+        title={t('signProgress.cancelAllTitle', '서명 요청 모두 취소') as string}
+        message={t('signProgress.cancelAllMessage', '진행 중인 서명 요청 {{n}}건을 모두 취소합니다. 받는 쪽에 보낸 링크는 즉시 만료되고, 문서를 다시 고칠 수 있습니다.', { n: liveRows.length }) as string}
         confirmText={t('signProgress.cancelConfirmBtn', '취소하기') as string}
         cancelText={t('common.close', '닫기') as string}
         variant="danger"
@@ -355,6 +395,11 @@ const SignatureProgressSection: React.FC<Props> = ({ postId, inferredKind, reloa
 };
 
 export default SignatureProgressSection;
+
+// 아직 끝나지 않은 요청 — 취소할 수 있는 것
+function isLive(sr: SignatureRequest): boolean {
+  return sr.status !== 'signed' && sr.status !== 'rejected' && sr.status !== 'expired' && sr.status !== 'canceled';
+}
 
 function statusLabel(s: SignatureStatus, t: (k: string, fb?: string) => string): string {
   switch (s) {
@@ -390,6 +435,14 @@ const Count = styled.span`
   background: #CCFBF1; border-radius: 999px;
 `;
 const HeaderActions = styled.div`display:flex;align-items:center;gap:6px;`;
+const CancelAllBtn = styled.button`
+  height: 32px; padding: 0 10px;
+  font-size: 0.75rem; font-weight: 600; color: #B91C1C;
+  background: transparent; border: 1px solid #FECACA; border-radius: 8px; cursor: pointer;
+  transition: background 0.15s;
+  &:hover:not(:disabled) { background: #FEF2F2; }
+  &:disabled { opacity: 0.5; cursor: default; }
+`;
 const ReloadBtn = styled.button`
   width: 28px; height: 28px; padding: 0;
   display: inline-flex; align-items: center; justify-content: center;

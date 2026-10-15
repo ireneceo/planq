@@ -130,22 +130,31 @@ async function run() {
     // ── ① 멤버: 우리 쪽 서명을 화면에서 끝까지 누른다 ───────────
     await b.goto(page, `/docs?post=${postId}`);
     await b.sleep(2500); await b.dismissBlockers(page).catch(() => {});
-    // ── ② 보내는 쪽 행에는 [URL 복사·재발송·취소] 메뉴가 없다 ──
+    // ── ② 보내는 쪽 행 ⋯ 에는 [요청 취소] 만 있고 [재발송] 은 없다 ──
     //    메일이 안 나가는 쪽에 «재발송» 을 두면 눌러도 아무 일이 없는 버튼이 된다.
+    //    ★ 2026-10-15 — 예전엔 보내는 쪽 행에 ⋯ 자체가 없어 그 칸이 pending 으로 남으면 문서가 영영 잠겼다
+    //      (Irene: "잘못 넣었을 때 해결방법이 없네"). 이제 ⋯ 는 있고 안에는 취소만.
     //    ★ **서명하기 전에** 잰다 — 서명을 마친 행은 어느 쪽이든 메뉴가 사라지므로,
     //      서명 뒤에 재면 «없다» 가 당연해져 아무것도 증명하지 못한다.
     //    ★ 손잡이는 `sign-row`(행) + `sign-row-actions`(⋯) — styled div 라 태그로는 못 찾는다(§17).
-    const menus = await page.evaluate(`(() => {
+    const menus = await page.evaluate(`(async () => {
       const rows = [...document.querySelectorAll('[data-testid="sign-row"]')];
       const us = rows.find((r) => r.getAttribute('data-party') === 'us');
       const them = rows.find((r) => r.getAttribute('data-party') === 'them');
-      const cnt = (row) => row ? row.querySelectorAll('[data-testid="sign-row-actions"]').length : -1;
-      return { rows: rows.length, usMenu: cnt(us), themMenu: cnt(them),
+      const open = async (row) => {
+        const t = row && row.querySelector('[data-testid="sign-row-actions"]');
+        if (!t) return null;
+        t.click(); await new Promise((r) => setTimeout(r, 300));
+        const m = { resend: !!document.querySelector('[data-testid="sign-row-resend"]'), cancel: !!document.querySelector('[data-testid="sign-row-cancel"]') };
+        t.click(); await new Promise((r) => setTimeout(r, 200));
+        return m;
+      };
+      return { rows: rows.length, us: await open(us), them: await open(them),
                usText: us ? (us.innerText || '').replace(/\\s+/g, ' ').slice(0, 60) : null };
     })()`);
-    P('② 보내는 쪽 행엔 «재발송·URL복사» 메뉴가 없다 (대조군: 받는 쪽엔 있다)',
-      menus.rows === 2 && menus.usMenu === 0 && menus.themMenu === 1,
-      menus.rows === 2 ? `보내는 쪽 ⋯ ${menus.usMenu}개 · 받는 쪽 ⋯ ${menus.themMenu}개 — "${menus.usText}"`
+    P('② 보내는 쪽 행 ⋯ = 취소만, 재발송 없음 (대조군: 받는 쪽엔 재발송 있다)',
+      menus.rows === 2 && !!menus.us && menus.us.cancel && !menus.us.resend && !!menus.them && menus.them.resend,
+      menus.rows === 2 ? `보내는 쪽 ${JSON.stringify(menus.us)} · 받는 쪽 ${JSON.stringify(menus.them)} — "${menus.usText}"`
         : `🔴 진행 표 행을 ${menus.rows}개만 찾았다(2개여야) — 판정 불가`);
 
     await page.click('[data-testid="sign-internal-open"]').catch(() => {});

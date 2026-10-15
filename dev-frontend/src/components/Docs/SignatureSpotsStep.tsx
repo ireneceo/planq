@@ -9,7 +9,7 @@ import React, { useMemo, useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import {
-  readSignerItems, findManualSignatureSpots, replaceManualSpots, applySignerSettings,
+  readSignerItems, findManualSignatureSpots, replaceManualSpots, applySignerSettings, removeSignatureFields,
 } from '../../utils/signatureFields';
 
 const CIRCLED = ['①', '②', '③', '④', '⑤', '⑥', '⑦', '⑧', '⑨', '⑩'];
@@ -29,6 +29,9 @@ const SignatureSpotsStep: React.FC<Props> = ({ contentJson, busy: busyIn, locked
   const signers = useMemo(() => readSignerItems(contentJson), [contentJson]);
   const spots = useMemo(() => (signers.length ? [] : findManualSignatureSpots(contentJson)), [contentJson, signers.length]);
   const [labels, setLabels] = useState<Record<number, string>>({});
+  // 서명 자리 모두 빼기 — 서명 받을 문서가 아닌데 칸을 넣었을 때(2026-10-15, Irene: "잘못 넣었을 때 해결방법이 없네").
+  //   잠긴 문서(살아 있는 요청)는 서버도 409 로 막는다 — 버튼을 아예 그리지 않는다.
+  const [removeOpen, setRemoveOpen] = useState(false);
   const partyText = (p: 'us' | 'them') => (p === 'us'
     ? t('editor.sigFieldUs', { defaultValue: '보내는 쪽' })
     : t('editor.sigFieldThem', { defaultValue: '받는 쪽' })) as string;
@@ -95,6 +98,31 @@ const SignatureSpotsStep: React.FC<Props> = ({ contentJson, busy: busyIn, locked
           ))}
         </List>
       )}
+
+      {/* 확인은 이 자리에서 한 줄로 묻는다 — 서명 창 위에 확인창을 또 띄우지 않는다(팝업 위 팝업 금지) */}
+      {signers.length > 0 && !locked && (removeOpen ? (
+        <RemoveConfirm data-testid="sign-spots-remove-confirm">
+          <RemoveConfirmText>
+            {t('sign.spots.removeMessage', { defaultValue: '서명 칸(서명·서명일·이름)을 모두 지웁니다. 나머지 본문은 그대로예요. 손으로 적은 «서명: ____» 를 바꿔 넣었던 경우 그 글자는 돌아오지 않아요.' })}
+          </RemoveConfirmText>
+          <Btns>
+            <RemoveBtn type="button" data-testid="sign-spots-remove-ok" disabled={busy}
+              onClick={async () => { await onSaveDoc(removeSignatureFields(contentJson)); setRemoveOpen(false); }}>
+              {t('sign.spots.removeConfirm', { defaultValue: '모두 빼기' })}
+            </RemoveBtn>
+            <Secondary type="button" disabled={busy} onClick={() => setRemoveOpen(false)}>
+              {t('sign.spots.removeCancel', { defaultValue: '그대로 두기' })}
+            </Secondary>
+          </Btns>
+        </RemoveConfirm>
+      ) : (
+        <RemoveRow>
+          <RemoveBtn type="button" data-testid="sign-spots-remove-all" disabled={busy} onClick={() => setRemoveOpen(true)}>
+            {t('sign.spots.removeAll', { defaultValue: '서명 자리 모두 빼기' })}
+          </RemoveBtn>
+          <RemoveHint>{t('sign.spots.removeHint', { defaultValue: '서명 받을 문서가 아니면 빼서 보통 문서로 되돌려요.' })}</RemoveHint>
+        </RemoveRow>
+      ))}
 
       {signers.length === 0 && spots.length > 0 && (
         <Found data-testid="sign-spots-found">
@@ -169,6 +197,16 @@ const Primary = styled.button`
   font-size: 0.8125rem; font-weight: 600; cursor: pointer;
   &:disabled { opacity: 0.5; cursor: not-allowed; }
 `;
+const RemoveRow = styled.div`display: flex; align-items: center; gap: 8px; flex-wrap: wrap;`;
+const RemoveBtn = styled.button`
+  height: 32px; padding: 0 12px; border: 1px solid #FECACA; border-radius: 8px; background: #fff; color: #B91C1C;
+  font-size: 0.75rem; font-weight: 600; cursor: pointer;
+  &:hover:not(:disabled) { background: #FEF2F2; }
+  &:disabled { opacity: 0.5; cursor: not-allowed; }
+`;
+const RemoveHint = styled.span`font-size: 0.75rem; color: #64748B;`;
+const RemoveConfirm = styled.div`border: 1px solid #FECACA; background: #FEF2F2; border-radius: 10px; padding: 12px;`;
+const RemoveConfirmText = styled.div`font-size: 0.8125rem; color: #7F1D1D; line-height: 1.5;`;
 const Secondary = styled.button`
   height: 36px; padding: 0 14px; border: 1px solid #CBD5E1; border-radius: 8px; background: #fff; color: #0F172A;
   font-size: 0.8125rem; font-weight: 600; cursor: pointer;

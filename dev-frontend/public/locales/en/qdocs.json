@@ -279,7 +279,11 @@
       "title": "Resend the signing link?",
       "desc": "A new signing link will be emailed to {{email}}.",
       "ok": "Send"
-    }
+    },
+    "cancelAll": "Cancel all",
+    "cancelAllTitle": "Cancel all signature requests",
+    "cancelAllMessage": "Cancel all {{n}} pending signature requests. Links sent to recipients expire immediately, and the document can be edited again.",
+    "cancelUsMessage": "Cancel the signature request for {{name}} (sender side)."
   },
   "publicSign": {
     "loading": "Loading document...",
@@ -438,7 +442,12 @@
       "addEnd": "+ Add signature spots at the end",
       "openEditor": "Place them in the editor",
       "lockedSave": "Signature spots can’t be changed after a signature request is sent. Cancel the active request to change them.",
-      "locked": "Signature spots can’t be changed after a signature request is sent. You can still assign more signers to these spots."
+      "locked": "Signature spots can’t be changed after a signature request is sent. You can still assign more signers to these spots.",
+      "removeAll": "Remove all signature spots",
+      "removeHint": "If this document doesn't need signatures, remove them to make it a regular document again.",
+      "removeMessage": "This deletes every signature field (signature, date, name). The rest of the document stays as is. If you converted handwritten «Signature: ____» text, that text won't come back.",
+      "removeConfirm": "Remove all",
+      "removeCancel": "Keep"
     },
     "steps": {
       "aria": "Signature request steps",
