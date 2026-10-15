@@ -41,6 +41,43 @@ async function guessCloseAt(day) {
   return best;
 }
 
+// 워크스페이스마다 '오늘' 이 다르다 — tz 를 한 번씩만 읽는다.
+async function tzOf(cache, businessId) {
+  let tz = cache.get(businessId);
+  if (!tz) {
+    const biz = await Business.findByPk(businessId, { attributes: ['timezone'] });
+    tz = biz?.timezone || 'Asia/Seoul';
+    cache.set(businessId, tz);
+  }
+  return tz;
+}
+
+/**
+ * 2차 패스(2026-10-15 Fable 판정) — 근태 행 없이 날을 넘긴 포커스 세션을 닫는다.
+ *   근태가 열려 있던 날은 1차 패스의 clockOut 이 세션도 닫는다(clock_out). 근태가 없던 날(자동 출근 끔·
+ *   다른 경로)은 닫을 근태가 없어 멈춘 세션이 며칠이고 남았다 — 다음 날 «미출근 + 어제 업무 자리 비움 · 재개».
+ *   기준 시각(멈춤이면 멈춘 시각, 아니면 마지막 활동 → 시작)이 그 워크스페이스 tz 의 오늘 이전일 때만 닫는다 —
+ *   야간 근무자는 heartbeat 로 마지막 활동이 오늘이라 건드리지 않는다. 시간은 computeActualSeconds 의 캡(#94)이 지킨다.
+ */
+async function closeStaleFocus(tzCache) {
+  const live = await FocusSession.findAll({
+    where: { state: { [Op.in]: ['active', 'paused'] } },
+    attributes: ['id', 'user_id', 'business_id', 'state', 'started_at', 'paused_at', 'last_activity_at'],
+    limit: 1000,
+  });
+  let stopped = 0;
+  for (const s of live) {
+    const tz = await tzOf(tzCache, s.business_id);
+    const ref = (s.state === 'paused' && s.paused_at) ? s.paused_at : (s.last_activity_at || s.started_at);
+    if (dateStrInTz(new Date(ref), tz) >= dateStrInTz(new Date(), tz)) continue;
+    try {
+      const r = await A.stopActiveFocus(s.user_id, 'day_end', { businessId: s.business_id, broadcast: true });
+      if (r) stopped += 1;
+    } catch (e) { console.warn('[attendanceAutoClose] focus', s.id, e.message); }
+  }
+  return stopped;
+}
+
 async function runAttendanceAutoClose() {
   try {
     const open = await AttendanceDay.findAll({
@@ -48,17 +85,10 @@ async function runAttendanceAutoClose() {
       attributes: ['id', 'business_id', 'user_id', 'work_date', 'clock_in_at'],
       limit: 1000,
     });
-    if (!open.length) return { closed: 0 };
-    // 워크스페이스마다 '오늘' 이 다르다 — tz 를 한 번씩만 읽는다.
     const tzCache = new Map();
     let closed = 0;
     for (const day of open) {
-      let tz = tzCache.get(day.business_id);
-      if (!tz) {
-        const biz = await Business.findByPk(day.business_id, { attributes: ['timezone'] });
-        tz = biz?.timezone || 'Asia/Seoul';
-        tzCache.set(day.business_id, tz);
-      }
+      const tz = await tzOf(tzCache, day.business_id);
       const today = dateStrInTz(new Date(), tz);
       if (ymd(day.work_date) >= today) continue;   // String(Date) 로 비교하면 요일 문자열이 나온다   // 오늘 근무 중인 사람은 건드리지 않는다
       const at = await guessCloseAt(day);
@@ -71,8 +101,10 @@ async function runAttendanceAutoClose() {
         closed += 1;
       } catch (e) { console.warn('[attendanceAutoClose] day', day.id, e.message); }
     }
-    if (closed) console.log(`[attendanceAutoClose] closed=${closed}`);
-    return { closed };
+    // 근태 닫기가 먼저다 — 열린 날의 세션은 clock_out 으로 닫혀야 한다(순서가 end_reason 을 정한다).
+    const focusStopped = await closeStaleFocus(tzCache);
+    if (closed || focusStopped) console.log(`[attendanceAutoClose] closed=${closed} focus_day_end=${focusStopped}`);
+    return { closed, focusStopped };
   } catch (err) {
     console.error('[attendanceAutoClose] error:', err.message);
     return { closed: 0, error: err.message };
