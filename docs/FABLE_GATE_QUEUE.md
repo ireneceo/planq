@@ -1,5 +1,9 @@
 # Fable 게이트 대기열 → **판정 기록 보관소** (2026-10-08 부터)
 
+## 2026-10-15 설문 v2 Phase 1 완료 검증 (커밋 1dbe8940) — **PASS** (방 bdb39775)
+- 근거: 실HTTP 68+8(코드 실패 0) · secrets 10/10 · 가드 68/69(기준선 동일) · --suite survey 0 실패 · migrate --dry 멱등.
+- 비차단: ①운영은 sync-database 가 migrate 보다 먼저 표를 만들어 survey_recipients.token 이 utf8mb4_bin 이 아니게 된다(정확 비교로 보안은 유지) — migrate 에 MODIFY COLLATE 멱등 단계 권고 ②TRIAL_COST_CAPS 에 survey_sends_monthly 없음(체험 중 basic100/pro500 발송 가능) ③20명 초과 백그라운드 발송 중 프로세스가 죽으면 queued 가 영영 남는다 ④primaryEmailOf 의 project_clients 폴백은 호출부가 안 넘겨 죽은 분기 ⑤설문 메일 한국어 고정 ⑥NPS 음수 .5 반올림 방향 모호 · 못 가른 것 답: canViewSurveyResponses 는 설계보다 좁다(고객은 앱 안에서 질문지도 403 — 닫힌 쪽) · devSuppressed 분기는 운영 .env 에 EMAIL_SENDING_ENABLED=false 가 있을 때만(배포 사전 점검 한 줄 권고).
+
 ## 2026-10-15 · 업무 «결과물 액션» 1단계 (커밋 5c180d58) — **PASS** [Fable gate]
 - 실HTTP 86검사(85 PASS + 1건 자기 픽스처 오류 — DB 로 재측정 시 포함) · taskactions 3폭 0 실패(대조군 6) · tenant 0 · health EXIT 0 · guard 68/69(비통과 = DOCFRESH 경고) · 마이그레이션 멱등.
 - 권한: 비담당 /link·해제 403 only_assignee(owner 포함) · 고객 403/404 · 테넌트 ws6↔ws7 전부 404 · L1 draft hidden · 회차 박제(deliverable-versions·submit-review) 모두 액션 첨부 포함 · 반복 회차 pending·링크 0.
