@@ -307,7 +307,7 @@ const FocusWidget: React.FC<Props> = ({ isCollapsed, embedded }) => {
         )}
         <SubText>
           {ws
-            ? t('widget.otherWorkspace', { name: ws.brand_name, defaultValue: '{{name}} 워크스페이스에서 업무 진행 중' }) as string
+            ? t('widget.otherWorkspace', { name: ws.brand_name, defaultValue: '{{name}}에서 업무 진행 중' }) as string
             : t('widget.otherWorkspaceUnknown', '다른 워크스페이스에서 업무 진행 중') as string}
         </SubText>
         {ws && (
