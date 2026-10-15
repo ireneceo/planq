@@ -27,6 +27,8 @@ async function postCardMessage({ conv, senderId, content, meta, io }) {
     is_internal: false,
   });
   await conv.update({ last_message_at: new Date() });
+  // 열어 보기만 하던 사람이 카드를 올리면 참여자다(2026-10-15 Fable A).
+  await require('./convParticipants').promoteSpeaker(conv.id, senderId, { io });
 
   try {
     if (io) {

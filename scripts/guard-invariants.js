@@ -2632,6 +2632,37 @@ function checkSaveMerge() {
 //   (memory `feedback_express_route_order` · `feedback_silent_no_output_paths`)
 //
 //   ★ 새 라우트를 더할 때 "이 경로가 이미 있나" 는 사람이 기억할 일이 아니다. 기계가 센다.
+// ═══════════════════════════════════════════════
+// convparticipants — 대화 참여자 행을 쓰는 문은 한 곳 (2026-10-15 Fable 설계 A · 하드)
+//   «열어 봄(is_viewer 1)» 과 «참여(0)» 를 가른다. 모델 defaultScope 가 참여자만 보이게 하므로
+//   ① unscoped() ② create/findOrCreate/bulkCreate/upsert/destroy 는 services/convParticipants.js 안에서만
+//   (scoped findOrCreate 는 viewer 행을 못 보고 만들다 unique 로 죽고, scoped destroy 는 viewer 행을 남긴다)
+//   ③ raw SQL 에 conversation_participants 를 쓰면 `is_viewer = 0` 또는 `own-row` 표식(내 읽음 커서)이 같은 줄에 있어야 한다.
+// ═══════════════════════════════════════════════
+function checkConvParticipants() {
+  const files = [
+    ...walk(`${ROOT}/dev-backend/routes`, ['.js']),
+    ...walk(`${ROOT}/dev-backend/services`, ['.js']),
+    ...walk(`${ROOT}/dev-backend/middleware`, ['.js']),
+    `${ROOT}/dev-backend/server.js`,
+  ];
+  const bad = [];
+  const write = /ConversationParticipant\s*\.\s*(unscoped|create|findOrCreate|bulkCreate|upsert|destroy)\s*\(/;
+  for (const f of files) {
+    const isHelper = rel(f).endsWith('services/convParticipants.js');
+    read(f).split('\n').forEach((l, i) => {
+      const t = l.trim();
+      if (t.startsWith('//') || t.startsWith('*') || t.startsWith('/*')) return;
+      if (!isHelper && write.test(l)) bad.push(`${rel(f)}:${i + 1}: 참여자 행 쓰기는 convParticipants 한 문 — ${t.slice(0, 90)}`);
+      if (/\bconversation_participants\s+cp\b|JOIN\s+conversation_participants|FROM\s+conversation_participants/i.test(l)
+        && !/is_viewer\s*=\s*0|own-row/.test(l)) {
+        bad.push(`${rel(f)}:${i + 1}: raw SQL 참여자 조회에 is_viewer = 0 또는 own-row 표식 없음 — ${t.slice(0, 90)}`);
+      }
+    });
+  }
+  report('convparticipants', `대화 참여자 쓰기 한 문 · raw SQL viewer 판정 (${bad.length}건)`, bad.length === 0, bad);
+}
+
 function checkDupRoute() {
   const dir = `${ROOT}/dev-backend/routes`;
   const bad = [];
@@ -3531,6 +3562,7 @@ const CATEGORIES = {
   capci: checkCapCi,
   savemerge: checkSaveMerge,
   duproute: checkDupRoute,
+  convparticipants: checkConvParticipants,
   trialplan: checkTrialPlan,
   navmenu: checkNavMenu,
   i18n: checkI18n,

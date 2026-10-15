@@ -295,11 +295,7 @@ async function issueGuestLink({ businessId, conversationId, projectId = null, cl
   //   ★ 워크스페이스 창구(scope='workspace')에는 방이 없다 — 방은 방문자가 이메일을 확인한 뒤
   //     개인 링크마다 생기고(ensureVisitorConversation), 참여자도 그때 붙는다.
   if (conversationId) {
-    await ConversationParticipant.findOrCreate({
-      where: { conversation_id: conversationId, user_id: guestUser.id },
-      defaults: { conversation_id: conversationId, user_id: guestUser.id, role: 'client' },
-      transaction,
-    });
+    await require('./convParticipants').joinParticipant(conversationId, guestUser.id, 'client', { transaction });
   }
 
   const placeholder = generateToken();   // 버리는 값 — 파생 토큰을 붙이기 전까지 이 행은 열리지 않는다
@@ -508,10 +504,7 @@ async function promotePersonalIdentity(link) {
   //   그 경로의 방·참여자는 바로 다음에 `ensureVisitorConversation` 이 만든다 — 순서가 계약이다
   //   (신원을 먼저 갈라야 그 방이 «그 사람의 방» 이 된다. 부모 그림자로 만들면 무리 전체가 들어온다).
   if (link.conversation_id) {
-    await ConversationParticipant.findOrCreate({
-      where: { conversation_id: link.conversation_id, user_id: guestUser.id },
-      defaults: { conversation_id: link.conversation_id, user_id: guestUser.id, role: 'client' },
-    });
+    await require('./convParticipants').joinParticipant(link.conversation_id, guestUser.id, 'client');
   }
   await link.update({ guest_user_id: guestUser.id });
   return guestUser;
@@ -546,10 +539,7 @@ async function ensureVisitorConversation(link) {
         //   (guest_subscribe verify), 그 사람이 **주소를 다시 증명한 순간**에만 자리가 돌아온다.
         //   그림자(guest_user_id)는 이 사람 고유라 남이 이 줄로 들어올 수 없다.
         if (link.guest_user_id) {
-          await ConversationParticipant.findOrCreate({
-            where: { conversation_id: existing.id, user_id: link.guest_user_id },
-            defaults: { conversation_id: existing.id, user_id: link.guest_user_id, role: 'client' },
-          });
+          await require('./convParticipants').joinParticipant(existing.id, link.guest_user_id, 'client');
         }
         return existing;
       }
@@ -577,22 +567,13 @@ async function ensureVisitorConversation(link) {
 
     // 참여자 — 방문자(그림자 User)는 필수. 확인 직후라 `promotePersonalIdentity` 가 이미
     //   자기 그림자를 붙여 두었다(호출 순서가 계약이다 — 부모 것으로 만들면 무리 전체가 한 방에 들어온다).
-    await ConversationParticipant.findOrCreate({
-      where: { conversation_id: conversation.id, user_id: link.guest_user_id },
-      defaults: { conversation_id: conversation.id, user_id: link.guest_user_id, role: 'client' },
-    });
+    await require('./convParticipants').joinParticipant(conversation.id, link.guest_user_id, 'client');
     // 팀 쪽 참여자 — 창구를 만든 사람(created_by). 없으면 방이 **아무에게도 안 보인다.**
     if (link.created_by && link.created_by !== link.guest_user_id) {
-      await ConversationParticipant.findOrCreate({
-        where: { conversation_id: conversation.id, user_id: link.created_by },
-        defaults: { conversation_id: conversation.id, user_id: link.created_by, role: 'owner' },
-      });
+      await require('./convParticipants').joinParticipant(conversation.id, link.created_by, 'owner');
     }
     if (biz?.cue_user_id && biz.cue_user_id !== link.created_by) {
-      await ConversationParticipant.findOrCreate({
-        where: { conversation_id: conversation.id, user_id: biz.cue_user_id },
-        defaults: { conversation_id: conversation.id, user_id: biz.cue_user_id, role: 'member' },
-      });
+      await require('./convParticipants').joinParticipant(conversation.id, biz.cue_user_id, 'member');
     }
 
     // 환영 메시지 — 초대 경로와 **같은 문구**(clientOnboarding 한 곳).

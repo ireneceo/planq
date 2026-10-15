@@ -52,23 +52,14 @@ async function ensureWelcomeConversation(client, { io, transaction } = {}) {
 
   // 참여자: 고객(client) + 담당 멤버(owner) + Cue(member). user 중복 방지 (한 user = 한 participant).
   const seen = new Set();
-  await ConversationParticipant.create(
-    { conversation_id: conversation.id, user_id: client.user_id, role: 'client' },
-    { transaction }
-  );
+  await require('./convParticipants').joinParticipant(conversation.id, client.user_id, 'client', { transaction });
   seen.add(client.user_id);
   if (assignedUserId && !seen.has(assignedUserId)) {
-    await ConversationParticipant.create(
-      { conversation_id: conversation.id, user_id: assignedUserId, role: 'owner' },
-      { transaction }
-    );
+    await require('./convParticipants').joinParticipant(conversation.id, assignedUserId, 'owner', { transaction });
     seen.add(assignedUserId);
   }
   if (biz?.cue_user_id && !seen.has(biz.cue_user_id)) {
-    await ConversationParticipant.create(
-      { conversation_id: conversation.id, user_id: biz.cue_user_id, role: 'member' },
-      { transaction }
-    );
+    await require('./convParticipants').joinParticipant(conversation.id, biz.cue_user_id, 'member', { transaction });
   }
 
   // 환영 메시지 — 담당 멤버 명의 (없으면 Cue, 그것도 없으면 system)
@@ -172,7 +163,7 @@ async function joinProjectCustomerChannels({ businessId, projectIds, userId, cli
     if (!cv) continue;
     const ex = await ConversationParticipant.findOne({ where: { conversation_id: cv.id, user_id: userId }, transaction });
     if (!ex) {
-      await ConversationParticipant.create({ conversation_id: cv.id, user_id: userId, role: isMember ? 'member' : 'client' }, { transaction });
+      await require('./convParticipants').joinParticipant(cv.id, userId, isMember ? 'member' : 'client', { transaction });   // «보는 중» 행이면 올린다
       joined += 1;
     } else if (!isMember && ex.role !== 'client') {
       await ex.update({ role: 'client' }, { transaction });

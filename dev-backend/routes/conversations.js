@@ -10,6 +10,7 @@ const { serializeMessageAttachments } = require('../services/filePreview');
 const { maskDeletedMessages } = require('../utils/deletedMessage');
 const { CLIENT_VISIBLE_MESSAGE_WHERE, clientVisibleSql, isVisibleToClient } = require('../utils/messageVisibility');
 const { createAuditLog } = require('../middleware/audit');
+const { touchOwnRow, ownRows, joinParticipant, promoteSpeaker, removeRows } = require('../services/convParticipants');
 const cueOrchestrator = require('../services/cue_orchestrator');
 const kbService = require('../services/kb_service');
 const { applyMemberDisplayName, applyMemberDisplayNameOne, getMemberNameMap, applyGuestDisplayName } = require('../services/displayName');
@@ -72,7 +73,7 @@ router.get('/me/unread-total-all', authenticateToken, async (req, res, next) => 
       const [rows] = await sequelize.query(
         `SELECT COUNT(m.id) AS cnt
            FROM messages m
-           INNER JOIN conversation_participants cp
+           INNER JOIN conversation_participants cp /* own-row: viewer 포함 — 내 읽음 커서로 내 안읽음을 센다 */
              ON cp.conversation_id = m.conversation_id AND cp.user_id = :uid
           WHERE m.conversation_id IN (:cids)
             AND m.sender_id != :uid
@@ -114,10 +115,8 @@ router.get('/:businessId', authenticateToken, attachWorkspaceScope(), async (req
     });
     // 사용자 본인의 pinned_at + last_read_at 부착 (응답 sort 용 + unread 계산).
     // ConversationParticipant 의 두 필드는 사용자별 — 같은 conv 라도 사람마다 핀/읽음 상태가 다름.
-    const myParts = await ConversationParticipant.findAll({
-      where: { user_id: req.user.id, conversation_id: conversations.map(c => c.id) },
-      attributes: ['conversation_id', 'pinned_at', 'last_read_at'],
-    });
+    //   ★ viewer(열어 보기만 한) 행도 내 핀·읽음 커서다 — 그래서 unscoped 인 ownRows.
+    const myParts = await ownRows(req.user.id, conversations.map(c => c.id), ['conversation_id', 'pinned_at', 'last_read_at']);
     const pinMap = new Map(myParts.map(p => [p.conversation_id, p.pinned_at]));
     // 진입 시점 '여기까지 읽음' 구분선용 — markRead 전 last_read_at (frontend 가 진입 시 freeze).
     const lastReadMap = new Map(myParts.map(p => [p.conversation_id, p.last_read_at]));
@@ -135,7 +134,7 @@ router.get('/:businessId', authenticateToken, attachWorkspaceScope(), async (req
       const [rows] = await sequelize.query(
         `SELECT m.conversation_id AS cid, COUNT(m.id) AS cnt
            FROM messages m
-           INNER JOIN conversation_participants cp
+           INNER JOIN conversation_participants cp /* own-row: viewer 포함 — 내 읽음 커서로 내 안읽음을 센다 */
              ON cp.conversation_id = m.conversation_id AND cp.user_id = :uid
           WHERE m.conversation_id IN (:cids)
             AND m.sender_id != :uid
@@ -254,11 +253,8 @@ router.post('/:businessId/:id/pin', authenticateToken, checkBusinessAccess, asyn
     // ★ 핀은 참여자 행을 **만든다**(findOrCreate) — 검사가 없으면 비참여자가 사적 대화방을 id 로 핀해
     //   참여자가 되어 규칙을 우회한다(2026-10-09 D3). 읽음 처리(/read)와 같은 술어를 먼저 본다.
     if (!(await canAccessConversation(req.user.id, conv))) return errorResponse(res, 'conversation_not_found', 404);
-    const [part] = await ConversationParticipant.findOrCreate({
-      where: { conversation_id: convId, user_id: req.user.id },
-      defaults: { conversation_id: convId, user_id: req.user.id, role: 'member' },
-    });
-    await part.update({ pinned_at: new Date() });
+    // 참여자가 아니면 «보는 중» 행에 핀만 담는다 — 핀했다고 참여자가 되지 않는다(2026-10-15 Fable A).
+    const part = await touchOwnRow(convId, req.user.id, { pinned_at: new Date() });
     // 다중 디바이스 동기화 — 같은 user 의 모든 socket 에 핀 상태 broadcast
     const io = req.app.get('io');
     if (io) io.to(`user:${req.user.id}`).emit('conversation:pin', { conversation_id: convId, pinned_at: part.pinned_at });
@@ -269,9 +265,7 @@ router.delete('/:businessId/:id/pin', authenticateToken, checkBusinessAccess, as
   try {
     const businessId = Number(req.params.businessId);
     const convId = Number(req.params.id);
-    const part = await ConversationParticipant.findOne({
-      where: { conversation_id: convId, user_id: req.user.id },
-    });
+    const [part] = await ownRows(req.user.id, [convId]);   // viewer 행의 핀도 푼다
     if (part && part.pinned_at) {
       await part.update({ pinned_at: null });
     }
@@ -301,11 +295,9 @@ router.put('/:businessId/:id/read', authenticateToken, attachWorkspaceScope(), a
     if (!(await canAccessConversation(req.user.id, conv, req.scope))) {
       return errorResponse(res, 'forbidden', 403);
     }
-    const [part] = await ConversationParticipant.findOrCreate({
-      where: { conversation_id: convId, user_id: req.user.id },
-      defaults: { conversation_id: convId, user_id: req.user.id, role: 'member' },
-    });
-    await part.update({ last_read_at: new Date() });
+    // ★ 열어 본 것은 참여가 아니다(2026-10-15 Fable A) — 참여자가 아니면 «보는 중»(is_viewer) 행에
+    //   읽음 커서만 담는다. 예전엔 여기서 role member 참여자를 만들어 초대 안 한 사람이 참여자 목록·@·알림에 들어갔다.
+    const part = await touchOwnRow(convId, req.user.id, { last_read_at: new Date() });
     // 대화 진입 = 그 대화 관련 미읽음 알림도 읽은 것 → Notification.read_at 마킹.
     //   목적: 미읽음 이메일 에스컬레이션(unreadEscalationCron)이 자리에 있는 사용자에게 안 가게.
     //   (push 못 받아도 사용자가 대화를 직접 열어 봤으면 에스컬레이션 불필요)
@@ -357,7 +349,7 @@ router.get('/:businessId/unread-total', authenticateToken, attachWorkspaceScope(
     const [rows] = await sequelize.query(
       `SELECT m.conversation_id AS cid, COUNT(m.id) AS cnt
          FROM messages m
-         LEFT JOIN conversation_participants cp
+         LEFT JOIN conversation_participants cp /* own-row: viewer 포함 — 내 읽음 커서 */
            ON cp.conversation_id = m.conversation_id AND cp.user_id = :uid
         WHERE m.conversation_id IN (:cids)
           AND m.sender_id != :uid
@@ -443,18 +435,10 @@ router.post('/:businessId', authenticateToken, checkBusinessAccess, async (req, 
       translation_languages: finalTranslationLanguages,
     });
 
-    await ConversationParticipant.create({
-      conversation_id: conversation.id,
-      user_id: req.user.id,
-      role: 'owner'
-    });
+    await joinParticipant(conversation.id, req.user.id, 'owner');
 
     if (finalChannel === 'customer' && business.cue_user_id) {
-      await ConversationParticipant.create({
-        conversation_id: conversation.id,
-        user_id: business.cue_user_id,
-        role: 'member'
-      });
+      await joinParticipant(conversation.id, business.cue_user_id, 'member');
     }
 
     // ★ 고객을 참여자로 넣는다 (운영 신고 2026-08-21: "고객을 넣어서 만들었는데도 고객이 안 들어와 있어").
@@ -469,10 +453,7 @@ router.post('/:businessId', authenticateToken, checkBusinessAccess, async (req, 
         attributes: ['id', 'user_id'],
       });
       if (cli && cli.user_id && cli.user_id !== req.user.id) {
-        await ConversationParticipant.findOrCreate({
-          where: { conversation_id: conversation.id, user_id: cli.user_id },
-          defaults: { conversation_id: conversation.id, user_id: cli.user_id, role: 'client' },
-        });
+        await joinParticipant(conversation.id, cli.user_id, 'client');
       }
     }
 
@@ -484,11 +465,7 @@ router.post('/:businessId', authenticateToken, checkBusinessAccess, async (req, 
     for (const pid of uniq) {
       if (pid === req.user.id) continue;
       if (pid === business.cue_user_id) continue;
-      await ConversationParticipant.create({
-        conversation_id: conversation.id,
-        user_id: pid,
-        role: 'member'
-      });
+      await joinParticipant(conversation.id, pid, 'member');
     }
 
     await createAuditLog({
@@ -530,14 +507,14 @@ router.post('/:businessId/:id/participants', authenticateToken, checkBusinessAcc
       allowed = !!pc;
     }
     if (!allowed) return errorResponse(res, 'user_not_in_workspace', 403);
+    // 참여자면 그대로. «보는 중»(열어 보기만 한) 행이면 아래 joinParticipant 가 참여자로 **올린다** —
+    //   예전엔 행이 있으면 그대로 돌려줘서 viewer 를 초대할 길이 없었다(Fable 판정 3).
     const exists = await ConversationParticipant.findOne({ where: { conversation_id: conv.id, user_id } });
     if (exists) return successResponse(res, exists);
     // ★ 역할은 **서버가 정한다** — 워크스페이스 멤버면 member, 아니면(프로젝트 고객) client.
     //   여태 요청 본문의 role 을 그대로 썼고 없으면 'member' 였다 → 고객이 member 로 들어가
     //   내부 메시지 알림 제외(role==='client' 판정)에서 빠질 수 있었다(운영 실측 1건, 2026-10-06).
-    const created = await ConversationParticipant.create({
-      conversation_id: conv.id, user_id, role: isWorkspaceMember ? 'member' : 'client',
-    });
+    const { row: created } = await joinParticipant(conv.id, Number(user_id), isWorkspaceMember ? 'member' : 'client');
     // 감사 — 대화 접근권을 준다(AUDIT_GAPS 1순위). 이미 있던 참여자는 위에서 반환돼 여기 안 온다.
     require('../services/auditService').logAudit(req, {
       action: 'conversation.participant_add', targetType: 'conversation', targetId: conv.id, businessId,
@@ -559,7 +536,8 @@ router.delete('/:businessId/:id/participants/:userId', authenticateToken, checkB
     if (!isSelfLeave && !isOwner) {
       return errorResponse(res, 'self_or_admin_only', 403);
     }
-    const removed = await ConversationParticipant.destroy({ where: { conversation_id: conv.id, user_id: targetUserId } });
+    // viewer 행까지 지운다 — 내보내면 핀·읽음 커서도 리셋. 다시 열면 «보는 중» 으로만 돌아온다.
+    const removed = await removeRows({ conversation_id: conv.id, user_id: targetUserId });
     // 사적 대화방에서 빠진 사람은 열어 둔 소켓도 그 방에서 뺀다 — 안 빼면 연결이 끊길 때까지 새 메시지를 받는다(D3).
     if (removed && await require('../middleware/access_scope').isPrivateConversation(conv)) {
       const io = req.app.get('io');
@@ -808,6 +786,8 @@ router.post('/:businessId/:id/messages', authenticateToken, attachWorkspaceScope
     });
 
     await conversation.update({ last_message_at: new Date() });
+    // 열어 보기만 하던 사람이 말하면 참여자다(Fable A) — 알림 팬아웃(아래 참여자 조회)보다 먼저.
+    await promoteSpeaker(conversation.id, req.user.id, { io: req.app.get('io') });
 
     // Socket.IO broadcast — 채팅 페이지 실시간 반영 + 우측 상단 in-app 토스터 트리거.
     // (projects.js 의 메시지 라우트와 동일 패턴. NotificationToaster 의 'message:new' 핸들러가 받음.)
@@ -1129,10 +1109,7 @@ router.post('/:businessId/:id/cue/resume', authenticateToken, checkBusinessAcces
     try {
       const biz = await Business.findByPk(conversation.business_id, { attributes: ['cue_user_id'] });
       if (biz?.cue_user_id) {
-        await ConversationParticipant.findOrCreate({
-          where: { conversation_id: conversation.id, user_id: biz.cue_user_id },
-          defaults: { conversation_id: conversation.id, user_id: biz.cue_user_id, role: 'member' },
-        });
+        await joinParticipant(conversation.id, biz.cue_user_id, 'member');
       }
     } catch (e) { console.warn('[cue/resume] add cue participant', e.message); }
     await conversation.update({ cue_enabled: true });
@@ -1300,7 +1277,7 @@ router.delete('/:businessId/:id', authenticateToken, checkBusinessAccess, async 
       // 2. messages
       await Message.destroy({ where: { conversation_id: convId }, transaction: t });
       // 3. conversation_participants
-      await ConversationParticipant.destroy({ where: { conversation_id: convId }, transaction: t });
+      await removeRows({ conversation_id: convId }, { transaction: t });   // viewer 행까지(FK)
       // 4. task_candidates
       await TaskCandidate.destroy({ where: { conversation_id: convId }, transaction: t });
       // 5. 남은 참조 정리 — 이게 없어서 **삭제가 400(ERR_FK) 로 조용히 막혔다**(2026-09-04).

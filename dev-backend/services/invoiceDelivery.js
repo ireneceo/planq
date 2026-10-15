@@ -94,6 +94,8 @@ async function deliverChat({ invoice, actorUserId, message, shareUrl, io }) {
     },
   });
   await conv.update({ last_message_at: new Date() });
+  // 열어 보기만 하던 사람이 청구서 카드를 올리면 참여자다(2026-10-15 Fable A).
+  if (actorUserId) await require('./convParticipants').promoteSpeaker(conv.id, actorUserId, { io });
 
   try {
     const full = await Message.findByPk(msg.id, { include: [{ model: User, as: 'sender', attributes: ['id', 'name', 'name_localized'] }] });

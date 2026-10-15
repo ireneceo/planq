@@ -68,7 +68,7 @@ async function countMyRecordings(userId, businessId) {
 
 // 같은 판정을 쓰는 SQL — 고객이 끼어 있는 대화방(고객 대화방)인가.
 const CLIENT_CONV = `(c.client_id IS NOT NULL OR EXISTS (
-  SELECT 1 FROM conversation_participants cp WHERE cp.conversation_id = c.id AND cp.role = 'client'))`;
+  SELECT 1 FROM conversation_participants cp WHERE cp.conversation_id = c.id AND cp.role = 'client' AND cp.is_viewer = 0))`;
 
 /**
  * @param {{ businessId:number, userId:number, role:string }} p

@@ -164,12 +164,10 @@ async function createProject(actor, params = {}, opts = {}) {
           : pmRows.map((r) => r.user_id);
         if (!participantIds.includes(userId)) participantIds = [userId, ...participantIds];
         for (const uid of participantIds) {
-          await ConversationParticipant.create({
-            conversation_id: conv.id, user_id: uid, role: uid === userId ? 'owner' : 'member',
-          }, { transaction: t });
+          await require('../convParticipants').joinParticipant(conv.id, uid, uid === userId ? 'owner' : 'member', { transaction: t });
         }
         if (type === 'customer' && biz?.cue_user_id) {
-          await ConversationParticipant.create({ conversation_id: conv.id, user_id: biz.cue_user_id, role: 'member' }, { transaction: t });
+          await require('../convParticipants').joinParticipant(conv.id, biz.cue_user_id, 'member', { transaction: t });
         }
       }
     }

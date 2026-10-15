@@ -1390,6 +1390,8 @@ router.post('/conversations/:id/messages', authenticateToken, async (req, res, n
     });
     // last_message_at 업데이트
     await conv.update({ last_message_at: new Date() });
+    // 열어 보기만 하던 사람이 말하면 참여자다(2026-10-15 Fable A · services/convParticipants).
+    await require('../services/convParticipants').promoteSpeaker(conv.id, req.user.id, { io: req.app.get('io') });
 
     // 응답에 sender 포함
     const full = await Message.findByPk(msg.id, {

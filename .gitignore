@@ -46,3 +46,4 @@ logs/sweep/
 
 # 상황판 정찰 방의 계획 파일(.claude/plans/q<번호>.md) — 조사 메모일 뿐 커밋하지 않는다(2026-10-12)
 .claude/plans/
+dev-backend/scripts/out/

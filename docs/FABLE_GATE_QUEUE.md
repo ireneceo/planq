@@ -1,6 +1,11 @@
 # Fable 게이트 대기열 → **판정 기록 보관소** (2026-10-08 부터)
 
 
+## 2026-10-15 PASS — Q talk «열어 봄 ≠ 참여»(is_viewer) (방 dadb48f3)
+- 설계 판정(같은 방, Fable): A — `conversation_participants.is_viewer` + 모델 defaultScope + `services/convParticipants.js` 한 문 + 가드 convparticipants + 백필(dry-run·장부·revert). B(목록을 참여자만)는 안 함 — 열린 문화(10-09) 유지.
+- 검증: Fable 독립 실HTTP 35검사(33 PASS · FAIL 2 = 감사 setImmediate 조회 타이밍 1 · 비차단 1) · include 에 defaultScope 적용 직접 확인(Sequelize 6.37.8) · guard 69/70 · convparticipants 반증 2건 빨강 · health-check EXIT 0 · **운영 읽기 실측**: 백필 후보 5건(biz1:3·biz17:2) · 사적 방 0건 · 운영 participant_add 감사 최초 10-14.
+- 비차단: ① 행이 아예 없는 멤버가 바로 말하면(청구서 카드·chatPost·직접 API) 참여자가 안 된다 — promoteSpeaker 는 viewer 행만 올림(종전과 같음, 회귀 아님) ② touchOwnRow 가 고객 scope 에도 role member 로 만든다 — role 을 scope 로 정해야(종전보다 나빠지지 않음) ③ 초대 감사는 setImmediate ④ 운영 백필은 수동(dry-run 먼저) — 실측상 적용 안전.
+
 ## 2026-10-15 — dev-login(상황판 «시험 계정으로 열기») 완료 검증 — **PASS** (커밋 827b9df8)
 - 실호출: 정상(ws6·쿠키·15분 보통 토큰·impersonator 없음) · 재사용 409 · 변조/만료 400 · 없는 역할 400 · 모르는 범위 403 · member→ws3/ws7 403 · admin+ws 403 · next //evil·https 400 · 코드 속 이메일 무시 · /login·refresh 회귀 없음. 운영 설정이면 라우트 미등록, 배포 가드 실배포 경로에서 동작.
 - 비차단: ① dev-login 에 /login 의 5회/15분 제한기 없음(HMAC·1회용·90초라 현실성 없음, dev 전용) ② 운영 번들에도 /dev-login 화면은 실림(백엔드 404 라 실패 화면만, 노출 없음).

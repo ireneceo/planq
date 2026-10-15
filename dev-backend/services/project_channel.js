@@ -51,10 +51,7 @@ async function ensureProjectCustomerChannel(project, userId, { createIfMissing =
   const ids = new Set(members.map((m) => m.user_id));
   ids.add(userId);
   for (const uid of ids) {
-    await ConversationParticipant.findOrCreate({
-      where: { conversation_id: conv.id, user_id: uid },
-      defaults: { conversation_id: conv.id, user_id: uid },
-    });
+    await require('./convParticipants').joinParticipant(conv.id, uid, 'member');
   }
   // ★ createAuditLog 는 내부에서 setImmediate 로 던지고 **아무것도 반환하지 않는다**.
   //   `.catch()` 를 붙이면 undefined 에 접근해 500 이 난다 — 실제로 났다.
@@ -151,19 +148,11 @@ async function ensureClientChannel(project, clientId, actorUserId, { transaction
   const ids = new Set(members.map((m) => m.user_id));
   if (actorUserId) ids.add(actorUserId);
   for (const uid of ids) {
-    await ConversationParticipant.findOrCreate({
-      where: { conversation_id: conv.id, user_id: uid },
-      defaults: { conversation_id: conv.id, user_id: uid, role: 'member' },
-      transaction,
-    });
+    await require('./convParticipants').joinParticipant(conv.id, uid, 'member', { transaction });
   }
   const biz = await Business.findByPk(project.business_id, { attributes: ['cue_user_id'], transaction });
   if (biz?.cue_user_id && !ids.has(biz.cue_user_id)) {
-    await ConversationParticipant.findOrCreate({
-      where: { conversation_id: conv.id, user_id: biz.cue_user_id },
-      defaults: { conversation_id: conv.id, user_id: biz.cue_user_id, role: 'member' },
-      transaction,
-    });
+    await require('./convParticipants').joinParticipant(conv.id, biz.cue_user_id, 'member', { transaction });
   }
   try {
     createAuditLog({

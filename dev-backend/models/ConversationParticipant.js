@@ -23,6 +23,15 @@ ConversationParticipant.init({
     type: DataTypes.ENUM('owner', 'member', 'client'),
     defaultValue: 'member'
   },
+  // «열어 봤을 뿐» 인 행 — 읽음 커서(last_read_at)·핀(pinned_at)을 담으려고 생긴 행이다(2026-10-15 Fable 설계 A).
+  //   참여자가 아니다: 참여자 목록·@ 후보·메시지 알림·읽음 분모·사적 방 접근권 어디에도 들지 않는다.
+  //   ★ 아래 defaultScope 가 기본으로 뺀다. 1 을 쓰는 문은 services/convParticipants.touchOwnRow 하나,
+  //     0 으로 올리는 문은 joinParticipant 하나(초대·말하기). 그 밖에서 unscoped()/create 금지 — 가드 convparticipants.
+  is_viewer: {
+    type: DataTypes.BOOLEAN,
+    allowNull: false,
+    defaultValue: false
+  },
   joined_at: {
     type: DataTypes.DATE,
     defaultValue: DataTypes.NOW
@@ -47,6 +56,8 @@ ConversationParticipant.init({
   createdAt: 'created_at',
   updatedAt: false,
   underscored: true,
+  // 진짜 참여자만이 기본 — 새로 읽는 코드가 깜빡해도 «빠지는 쪽(안전)» 으로 틀린다.
+  defaultScope: { where: { is_viewer: false } },
   indexes: [
     { unique: true, fields: ['conversation_id', 'user_id'] }
   ]

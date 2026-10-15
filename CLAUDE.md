@@ -443,6 +443,10 @@ router.get('/', authenticateToken, async (req, res, next) => {
 - **프로젝트·고객 없는 팀 대화는 참여자만** (2026-10-09 D3) — 정의 `access_scope.isPrivateConversation` 하나, 판정 `canAccessConversation`/`conversationListWhere`.
   워크스페이스 전체로 알리는 대화 사건(새 메시지·반응·업무 후보)은 **`services/convBroadcast.emitConvWide` 한 문**(사적 방은 참여자 `user:` 방) — 가드 checkConvBroadcast.
   참여자 행을 **만드는** 문(핀·읽음·참여자 추가)은 반드시 술어를 먼저 본다(findOrCreate 가 곧 끼어들기다). 설계 `docs/PRIVATE_CHAT_DESIGN.md`.
+- **Q talk «열어 봄» ≠ «참여»** (2026-10-15 Fable A) — 읽음·핀이 만드는 행은 `conversation_participants.is_viewer=1`(내 읽음 커서·핀만).
+  모델 defaultScope 가 참여자만 보이게 해 참여자 목록·@·메시지 알림·읽음 분모·사적 방 접근권에서 빠진다. 쓰는 문은 `services/convParticipants.js` 하나
+  (`touchOwnRow` viewer · `joinParticipant` 초대·생성·승격 · `promoteSpeaker` 말하면 참여자 · `removeRows`). 가드 `--category=convparticipants`.
+  목록에 보이는 범위(멤버 이상은 프로젝트·고객 방)는 그대로. 운영: `migrate-conv-viewer.js`(배포 슬롯) · 옛 행 `backfill-conv-viewer.js`(dry-run 기본, 수동). 설계 `docs/QTALK_PARTICIPATION_DESIGN.md`.
 - **관리자는 남의 개인 메일 계정을 끄기만 한다**(공용 전환은 주인만, 2026-10-09 D4).
 - **멤버 초대는 수락할 때만 계정을 붙인다** (2026-10-15 Fable D1) — 멤버십을 읽는 곳은 `user_id` 로 찾고 `joined_at` 을 안 보므로,
   초대 순간 `business_members.user_id` 를 채우면 **수락 전부터 멤버**다(거절 불가·만료 뒤에도). 초대 행은 `user_id NULL` 로 만들고

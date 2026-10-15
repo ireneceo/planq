@@ -1,5 +1,13 @@
 ## 현재 작업 상태
 
+### 완료: Q talk «열어 봄 ≠ 참여» — 초대 안 한 사람이 참여자로 들어가던 것 (방 dadb48f3 · 2026-10-15 · [Opus] · Fable 설계 A + 게이트 PASS) — 운영 미배포
+- 원인: 읽음(/read)·핀이 role member 참여자 행을 만들어 열기만 해도 참여자 목록·@·메시지 알림·읽음 분모에 들어갔다. 목록 가시성(멤버 이상은 프로젝트·고객 방을 봄)은 열린 문화 그대로.
+- `conversation_participants.is_viewer` + 모델 defaultScope(참여자만) + 쓰는 문 `services/convParticipants.js`(touchOwnRow viewer · joinParticipant 초대·생성·승격 · promoteSpeaker 말하면 참여자 · ownRows · removeRows) + 가드 `--category=convparticipants`. 설계 docs/QTALK_PARTICIPATION_DESIGN.md.
+- 운영: `migrate-conv-viewer.js` 배포 슬롯 등록(PM2 reload 전) · 옛 행 `backfill-conv-viewer.js`(**수동** — 배포 뒤 dry-run → `--apply`, 운영 실측 후보 5·사적 방 0). dev: 적용함(8건, 장부 scripts/out/).
+- 검증: 실HTTP 23/23 · defaultScope 뺀 대조군 7건 뒤집힘 · 백필 apply→0→revert 8/8 · guard 69/70(docfresh 경고) · health-check 85/85 · e2e tenant,inboxcount 0 · Fable 독립 35검사 PASS.
+- 남김(Fable 비차단): 행이 아예 없는 멤버가 바로 말하면 참여자 안 됨(종전과 같음) · touchOwnRow 가 고객 scope 에도 role member(종전과 같음).
+- 확인용: ws6 대화 1159 «[확인용] 열어 봄 ≠ 참여 시험» — 이디자(member1) 열어 봄(viewer)·박개발 참여자.
+
 ### 완료: 상황판 묶음 3건 — 메모 검색 목록 가림 · Q talk @ 후보 · 모바일 업무 목록 (방 90005e7f · 2026-10-15 · [Opus]) — 운영 미배포
 - ① 메모 팝업/분리 창: 검색 목록(z 5)이 에디터 sticky 툴바(z 5, DOM 뒤)에 덮였다 → 목록 z 20. 1440·768·390 3/3 행 · 옛 z 5 대조군 첫 행 = «굵게». 커밋 fc8314f0. 확인용 메모 ws5(health-check) «[확인용] 메모 검색 1~3».
 - ② Q talk: 나중에 초대한 사람이 @ 후보에 없던 것 → 서버 참여자 추가·제거 때 `conversation:participants` 신호(id 만, conv 방 + 그 사람 user 방), ChatPanel 이 신호·설정 창 이벤트·탭 복귀·재연결에 다시 읽음. 실호출(추가 201+신호1 · 재추가 200+신호0 · 제거 200+신호1) · 브라우저 1440 추가 직후 @ 후보에 뜸/제거 후 빠짐. 커밋 4ffd92c5.

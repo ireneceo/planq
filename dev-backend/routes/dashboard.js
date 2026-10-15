@@ -1004,7 +1004,7 @@ async function collectChats(businessId, userId) {
   const [rows] = await sequelize.query(
     `SELECT m.conversation_id AS cid, COUNT(m.id) AS cnt, MAX(m.created_at) AS last_at
        FROM messages m
-       INNER JOIN conversation_participants cp
+       INNER JOIN conversation_participants cp /* own-row: viewer 포함 — 내 읽음 커서로 내 안읽음을 센다 */
          ON cp.conversation_id = m.conversation_id AND cp.user_id = :uid
       WHERE m.conversation_id IN (:cids)
         AND m.sender_id != :uid
