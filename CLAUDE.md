@@ -444,6 +444,11 @@ router.get('/', authenticateToken, async (req, res, next) => {
   워크스페이스 전체로 알리는 대화 사건(새 메시지·반응·업무 후보)은 **`services/convBroadcast.emitConvWide` 한 문**(사적 방은 참여자 `user:` 방) — 가드 checkConvBroadcast.
   참여자 행을 **만드는** 문(핀·읽음·참여자 추가)은 반드시 술어를 먼저 본다(findOrCreate 가 곧 끼어들기다). 설계 `docs/PRIVATE_CHAT_DESIGN.md`.
 - **관리자는 남의 개인 메일 계정을 끄기만 한다**(공용 전환은 주인만, 2026-10-09 D4).
+- **멤버 초대는 수락할 때만 계정을 붙인다** (2026-10-15 Fable D1) — 멤버십을 읽는 곳은 `user_id` 로 찾고 `joined_at` 을 안 보므로,
+  초대 순간 `business_members.user_id` 를 채우면 **수락 전부터 멤버**다(거절 불가·만료 뒤에도). 초대 행은 `user_id NULL` 로 만들고
+  `services/invites.acceptInvite` 만 채운다. 옛 행은 `scripts/migrate-invite-prefill.js`(기본 읽기만 · `--apply` 따로).
+  기존 계정에게는 앱 안에서도 알린다 — **`services/inviteNotify` 한 벌**(멤버·고객·프로젝트 고객 초대 5곳, 범위 NULL·링크 `/invite/<token>`,
+  메일·재알림 메일 끔, 수락·취소 때 읽음). 알림 클릭은 `utils/notificationLink.openNotificationTarget`(앱 셸 밖 경로는 문서 이동). 회귀 `--suite invitenotify`.
 - **「같은 서버에서 왔나」를 접속 IP 로만 보지 않는다** — nginx 도 127.0.0.1 에서 프록시한다. q-note 는 `X-Real-IP`/`X-Forwarded-For` 가 있으면 바깥으로 본다(`main.py _internal_gate`), Node 는 `trust proxy` 로 본 `req.ip`(`utils/internalAuth`).
 
 ### 외부 발송은 **확인을 받는다** (2026-09-13, Irene 지시 "확인을 받아")

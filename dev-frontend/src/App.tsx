@@ -7,6 +7,7 @@ import ProtectedRoute from './components/ProtectedRoute';
 import ErrorBoundary from './components/Common/ErrorBoundary';
 import { isPopoutWindow } from './utils/popout';
 import { isPublicSurfacePath, isPublicViewPath } from './utils/publicSurface';
+import { isNonAppPath } from './utils/nonAppPath';
 import TabMirror from './components/Tab/TabMirror';
 import TabAppShell from './components/Tab/TabAppShell';
 import { isTabsSpike } from './utils/tabsBeta';
@@ -800,8 +801,8 @@ function isAppInitialPath(): boolean {
   // 공개 표면(마케팅·위키)은 isPublicSurfacePath 단일 원천을 그대로 쓴다.
   // 여기에 목록을 한 벌 더 두면 갈라진다 — 실제로 /insights 가 이 목록에만 빠져 있어서
   // 로그인 데스크탑이 /insights 를 열면 인사이츠 마케팅 페이지 대신 워크스페이스 셸이 떴다.
-  const nonAppOther = /^\/(login|dev-login|register|invite|forgot-password|reset-password|verify-email|oauth|connect|legal|privacy|terms|app|public|sign|memo|talk-popout|task-popout|note-popout|help-popout)(\/|$)/;
-  return !(isPublicSurfacePath(p) || nonAppOther.test(p));
+  // 그 밖의 비앱 경로(로그인·초대·팝아웃 등)는 utils/nonAppPath 한 곳 — 알림 클릭도 같은 목록을 읽는다.
+  return !(isPublicSurfacePath(p) || isNonAppPath(p));
 }
 
 // ModeGate — auth 로딩 해소 후 1회 확정(세션 불변, Fable §3). AuthProvider 아래 · Router 위.

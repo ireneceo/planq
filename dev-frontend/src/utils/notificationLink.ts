@@ -1,3 +1,5 @@
+import { isNonAppPath } from './nonAppPath';
+import { tabStore } from '../stores/tabStore';
 // 알림 deep link 통합 helper — backend services/notification_link.js 의 mirror.
 // 사이클 N+73 박제.
 //
@@ -121,4 +123,15 @@ export function notificationRowToToastLink(row: NotificationFullRow): string {
     entity_id: row.entity_id,
     event_kind: row.event_kind,
   });
+}
+
+/**
+ * 알림을 눌렀을 때 여는 문 — 드롭다운·토스터·전체 목록이 같이 쓴다(셋이 각자 열면 갈라진다).
+ *   보통은 보던 탭을 덮지 않고 새 탭(tabStore.openInNewTab). 단 앱 셸 밖 경로(초대 수락 /invite/<token> 등)는
+ *   탭 안에 그릴 화면이 없어 빈 탭이 되므로 문서 이동으로 간다(2026-10-15 초대 인앱 알림 — Fable 판정).
+ */
+export function openNotificationTarget(path: string): void {
+  const pathname = path.split(/[?#]/)[0];
+  if (isNonAppPath(pathname)) { window.location.assign(path); return; }
+  tabStore.openInNewTab(withJumpToLatest(path));
 }

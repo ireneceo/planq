@@ -332,6 +332,7 @@ router.post('/:businessId/invite', authenticateToken, checkBusinessAccess, requi
           token,
         });
       } catch (e) { console.warn('invite email send failed:', e.message); }
+      await notifyClientInvitee(req, { email: email.trim(), entityId: dupByEmail.id, token });
       // 문의 → 정식 고객으로 한도 계수가 바뀐다. 사용량 캐시(30초)를 비워야 플랜 화면이 바로 맞는다
       try { require('../services/plan').invalidateBusinessCache(req.params.businessId); } catch { /* 캐시일 뿐이다 */ }
       broadcastClient(req, dupByEmail, 'client:updated');
@@ -380,6 +381,7 @@ router.post('/:businessId/invite', authenticateToken, checkBusinessAccess, requi
       });
       inviteEmailSent = sent === true;
     } catch (e) { inviteEmailSent = false; console.warn('invite email send failed:', e.message); }
+    if (existingUser) await notifyClientInvitee(req, { userId: existingUser.id, entityId: created.id, token });
 
     broadcastClient(req, created, 'client:new');   // 신호만(0-C C-2) — 고객 목록을 연 다른 창이 따라온다
     successResponse(res, { ...stripClientSecrets(created.toJSON()), invite_email_sent: inviteEmailSent },
@@ -387,6 +389,9 @@ router.post('/:businessId/invite', authenticateToken, checkBusinessAccess, requi
   } catch (error) { next(error); }
 });
 
+// 이미 PlanQ 계정인 고객에게 앱 안에서도 초대를 알린다 — services/inviteNotify 한 벌(초대·승격·재발송이 같이 쓴다)
+const notifyClientInvitee = (req, a) => require('../services/inviteNotify').notifyExistingInvitee({ kind: 'workspace_client',
+  businessId: Number(req.params.businessId), entityType: 'client', actorUserId: req.user.id, io: req.app.get('io'), ...a });
 // 초대 재발송 — 아직 수락 안 한 (invited) 고객에게 초대 메일 다시 보내기.
 //   토큰은 유지하되 invited_at 갱신(만료 30일 연장). 이미 가입(active)한 고객은 불가.
 router.post('/:businessId/:id/resend-invite', authenticateToken, checkBusinessAccess, requireMenu('clients', 'write'), async (req, res, next) => {
@@ -414,6 +419,7 @@ router.post('/:businessId/:id/resend-invite', authenticateToken, checkBusinessAc
         token,
       });
     } catch (e) { console.warn('resend invite email failed:', e.message); }
+    await notifyClientInvitee(req, { email: client.invite_email, entityId: client.id, token });   // 안 읽은 알림이 있으면 helper 가 거른다
 
     await createAuditLog({
       userId: req.user.id, businessId: req.params.businessId,
@@ -437,6 +443,7 @@ router.post('/:businessId/:id/archive', authenticateToken, checkBusinessAccess, 
     if (!['active', 'archived'].includes(target)) return errorResponse(res, 'invalid status', 400);
     const before = { status: client.status };
     await client.update({ status: target });
+    if (target === 'archived') await require('../services/inviteNotify').dismissInviteNotice('client', client.id);
     await createAuditLog({
       userId: req.user.id, businessId: req.params.businessId,
       action: target === 'archived' ? 'client.archived' : 'client.activated',
@@ -476,6 +483,7 @@ router.delete('/:businessId/:id', authenticateToken, checkBusinessAccess, requir
       where: pcWhere,
     });
     const removedProjectLinks = pcRows.length;
+    { const dn = require('../services/inviteNotify').dismissInviteNotice; await dn('client', client.id); await dn('project_client', pcRows.map((pc) => pc.id)); }
     for (const pc of pcRows) await pc.destroy();
 
     await client.destroy();

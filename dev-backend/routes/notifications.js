@@ -110,7 +110,7 @@ router.isAllowed = isAllowed;
  *   메일·푸시에는 «무슨 일이 있었는지» 만 보낸다. 제목·링크는 그대로라 도달성은 안 떨어진다.
  *   ★ 이것은 «가리기» 가 아니라 **경로를 좁히는 것**이다 — 우리 DB 의 평문 저장은 별건이다.
  */
-async function notify({ userId, businessId, eventKind, title, titleSpec, body, link, ctaLabel, workspaceName, tag, actorUserId, entityType, entityId, ioApp, skipChannels, previewPolicy }) {
+async function notify({ userId, businessId, eventKind, title, titleSpec, body, link, ctaLabel, workspaceName, tag, actorUserId, entityType, entityId, ioApp, skipChannels, previewPolicy, suppressEscalation }) {
   if (!userId || !eventKind) return { inbox: false, email: false, push: false };
   // ★ 삭제된 워크스페이스로는 아무것도 발송하지 않는다 (Fable 중요 — 중앙 fan-out 무검사).
   //   여기 한 곳이 알림·메일·푸시의 공통 착지점이라, 여기서 막으면 발송 계열이 전부 닫힌다.
@@ -231,6 +231,11 @@ async function notify({ userId, businessId, eventKind, title, titleSpec, body, l
         //   재알림 메일)이 'default' 를 보면 본문 140자를 통째로 싣는다. 업무 댓글은 kind 가 'task' 라
         //   FREE_TEXT_KINDS 로도 안 걸러진다(2026-10-05 댓글 미리보기 전환 때 실측).
         preview_policy: (previewPolicy === 'internal_only' || previewPolicy === 'excerpt') ? 'internal_only' : 'default',
+        // ★ 미읽음 재알림 메일을 처음부터 끈다(2026-10-15 초대 인앱 알림 — Fable 판정).
+        //   `skipChannels:['email']` 는 지금 보내는 메일만 끈다 — 5분 뒤 unreadEscalationCron 은 이 행을 보고
+        //   메일을 **또** 보낸다(초대 메일이 따로 나가는 알림이면 두 통). 크론은 이 칸이 비어 있는 행만 집는다.
+        //   skipChannels 의 뜻은 바꾸지 않는다 — 채팅 안전망이 «지금 메일 끄고 나중에 재알림» 에 기댄다.
+        email_escalated_at: suppressEscalation ? new Date() : null,
       });
       results.inbox = !!row.id;
       // N+73 — multi-device sync. socket emit 에 full row 포함 (옛: { id, kind } 만).

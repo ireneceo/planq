@@ -61,6 +61,8 @@ const SUITES = {
   mailattach: () => require('./canary-mail-attach-order'),
   mailimage: () => require('./canary-mail-image'),   // #378 메일 본문 이미지 — 드래그가 무시되는지 눈으로 구별이 안 되는 계열
   dropdowns: () => require('./canary-dropdowns'),   // 알림↔새소식 규격 일치 + 새 탭으로 열기
+  // 초대 인앱 알림 클릭(/invite 는 앱 셸 밖) — 탭 모드에서 빈 탭이 되지 않고 수락 화면이 보이는가 (2026-10-15 Fable D4-4)
+  invitenotify: () => require('./canary-invite-notify'),
   imgresize: () => require('./canary-image-resize'),
   mobileboot: () => require('./canary-mobile-boot'), // 콜드스타트 착지 · 재진입 즉시표시 · Cue 키보드 (저장소+뷰포트+키보드가 합쳐진 뒤에만 존재)
   trash: () => require('./canary-file-trash'),

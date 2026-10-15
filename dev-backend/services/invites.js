@@ -126,7 +126,17 @@ function isSameInvitee(user, inviteEmail, prefilledUserId) {
  * @returns {{ type, business_id, redirect, already: boolean, project_id? }}
  * @throws InviteError(code: 'invalid_or_expired_invite'|'already_accepted'|'already_member'|'quota', status)
  */
+// 수락이 끝나면(이미 수락·중복 흡수 포함) 그 초대의 «초대» 알림을 읽음으로 — 누가 수락했든 초대 기준(Fable D3).
+//   세 갈래·여러 return 마다 붙이면 하나가 빠진다 — 감싸서 한 곳에서 한다.
+const INVITE_ENTITY = { workspace_member: 'business_member', workspace_client: 'client', project_client: 'project_client' };
 async function acceptInvite(user, resolved, opts = {}) {
+  const out = await acceptInviteInner(user, resolved, opts);
+  const et = resolved && INVITE_ENTITY[resolved.type];
+  if (et && resolved.record?.id) await require('./inviteNotify').dismissInviteNotice(et, resolved.record.id);
+  return out;
+}
+
+async function acceptInviteInner(user, resolved, opts = {}) {
   const io = opts.io || null;
   if (!resolved) throw new InviteError('invalid_or_expired_invite', 404);
   if (resolved.expired) throw new InviteError('invalid_or_expired_invite', 410);

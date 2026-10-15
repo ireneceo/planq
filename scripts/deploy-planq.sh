@@ -489,6 +489,9 @@ sync_database() {
   # 2026-10-09 체험 중 결제 환불 요청(docs/TRIAL_REFUND_DESIGN.md) — payments 컬럼 6개 + 인덱스. 멱등.
   #   ★ 순서: PM2 reload 보다 먼저 — Payment 모델이 이 칸을 SELECT 하므로 없으면 결제 조회 전부 500.
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-trial-refund.js 2>&1 | tail -10"
+  # 2026-10-15 멤버 초대 «수락 전 멤버» 되돌리기(docs/INVITE_INAPP_NOTIFY_DESIGN.md §4) — 배포 때는 **읽기만**(계획·점검 수치 출력).
+  #   실제 적용(--apply)은 출력을 사람이 본 뒤 따로 한다(Fable D1 — ⒝=0 확인 후). 코드 앞·뒤 어느 쪽이든 무해.
+  prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-invite-prefill.js 2>&1 | tail -20"
   # 2026-10-12 업무 «내부 업무» 보안등급(docs/TASK_SECURITY_LEVEL_DESIGN.md) — tasks.security_level ENUM NOT NULL DEFAULT 'general'. 멱등.
   #   ★ 순서: PM2 reload 보다 먼저 — Task 모델이 이 칸을 SELECT 하므로 없으면 업무 전체가 500.
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-task-security-level.js 2>&1 | tail -6"

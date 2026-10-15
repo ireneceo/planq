@@ -839,9 +839,14 @@ router.post('/:businessId/members/invite', authenticateToken, checkBusinessAcces
     }
 
     const token = crypto.randomBytes(24).toString('hex');
+    // ★ user_id 는 **수락할 때만** 채운다(services/invites.acceptInvite). 2026-10-15 Fable 판정 D1.
+    //   예전엔 기존 계정이면 여기서 채웠다 — 멤버십을 읽는 곳(access_scope.getUserScope·워크스페이스 전환기 등)은
+    //   joined_at 을 안 보고 user_id 로 찾으므로, 그 사람은 **수락 전부터 멤버**였다(거절 불가 · 만료 뒤에도 그대로).
+    //   계정 없는 초대가 이미 user_id NULL 행이라, 같은 모양으로 합치면 읽는 곳 86개를 하나도 안 고쳐도 닫힌다.
+    //   기존 행은 scripts/migrate-invite-prefill.js 가 되돌린다.
     const created = await BusinessMember.create({
       business_id: businessId,
-      user_id: existingUser?.id || null,
+      user_id: null,
       role: 'member',
       default_role: default_role ? String(default_role).trim().slice(0, 50) : null,
       invited_by: req.user.id,
@@ -864,6 +869,15 @@ router.post('/:businessId/members/invite', authenticateToken, checkBusinessAcces
       });
     } catch (e) { console.warn('member invite email failed:', e.message); }
 
+    // 이미 PlanQ 계정이면 앱 안에서도 알린다(메일만으로는 앱만 쓰는 사람이 모른다) — services/inviteNotify 한 벌
+    if (existingUser) {
+      await require('../services/inviteNotify').notifyExistingInvitee({
+        userId: existingUser.id, kind: 'workspace_member', businessId,
+        entityType: 'business_member', entityId: created.id, token,
+        actorUserId: req.user.id, io: req.app.get('io'),
+      });
+    }
+
     // 사이클 N+21 — 인사 변경 audit log
     require('../services/auditService').logAudit(req, {
       action: 'business_member.invite',
@@ -871,7 +885,10 @@ router.post('/:businessId/members/invite', authenticateToken, checkBusinessAcces
       targetId: created.id,
       newValue: { email: email.trim(), default_role: created.default_role || null },
     });
-    successResponse(res, created, 'Member invited', 201);
+    // 초대 토큰은 계정을 «그 멤버로» 붙이는 열쇠다 — 응답에 싣지 않는다(메일·받는 사람 알림으로만 간다.
+    //   projects.js 프로젝트 고객 추가·clients.js stripClientSecrets 와 같은 이유).
+    const out = created.toJSON(); delete out.invite_token;
+    successResponse(res, out, 'Member invited', 201);
   } catch (error) { next(error); }
 });
 
@@ -1464,6 +1481,8 @@ router.delete('/:id/members/:memberId', authenticateToken, async (req, res, next
     // 멤버 수가 바뀌었다 — 사용량 캐시(30초)를 비운다. 안 비우면 내보낸 직후 «체험 플랜 내리기»(trial-plan)가
     //   옛 인원으로 409 over_limit 이고, 초대 한도 판정도 30초간 옛 숫자다(2026-10-09 Fable 비차단 ④).
     require('../services/plan').invalidateBusinessCache(businessId);
+    // 대기 중인 초대를 취소한 것이면 받는 사람 종의 «초대» 알림도 읽음으로(누르면 이미 닫힌 초대로 간다)
+    if (!member.joined_at) await require('../services/inviteNotify').dismissInviteNotice('business_member', member.id);
     // 내보낸 사람의 소켓을 이 워크스페이스 룸에서 뺀다 — 안 빼면 연결이 끊길 때까지 방송을 계속 받는다.
     if (member.user_id) require('../services/socketRevoke').leaveBusinessRooms(req.app.get('io'), member.user_id, businessId);
     // 사이클 N+21 — 인사 변경 audit log (가장 중요한 영역)

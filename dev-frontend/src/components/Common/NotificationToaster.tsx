@@ -15,9 +15,8 @@ import { useChromeLocation } from '../../hooks/useChromeNav';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { useAuth, apiFetch } from '../../contexts/AuthContext';
-import { notificationRowToToastLink, withJumpToLatest, type NotificationFullRow } from '../../utils/notificationLink';
+import { notificationRowToToastLink, openNotificationTarget, type NotificationFullRow } from '../../utils/notificationLink';
 import NotificationTypeIcon from './NotificationTypeIcon';
-import { tabStore } from '../../stores/tabStore';
 
 interface Toast {
   id: string;
@@ -591,7 +590,7 @@ export default function NotificationToaster() {
             // N+73 — toast.link 가 항상 정확 (Toaster 자체 link OR notification:new full row OR resolveNotificationLink fallback)
             // ★ 하던 일 위에 얹히는 진입점은 새 탭 — 드롭다운·알림 페이지와 같은 규칙(2026-10-08 0-H).
             //   옛: navigate 로 보던 탭을 덮어써 쓰던 글을 잃었다. 미러 모드(폰)는 tabStore 가 종전대로 이동한다.
-            tabStore.openInNewTab(withJumpToLatest(toast.link || '/notifications'));
+            openNotificationTarget(toast.link || '/notifications');
             dismiss(toast.id);  // dismiss 가 mark-read 까지 처리
           }}
           role="alert"

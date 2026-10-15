@@ -3405,6 +3405,15 @@ router.post('/:id/clients', authenticateToken, async (req, res, next) => {
       } catch (e) { console.warn('invite email send failed:', e.message); }
     }
 
+    // 이미 PlanQ 계정이면 앱 안에서도 알린다 — services/inviteNotify 한 벌.
+    //   계정이 붙은 고객(contact_user_id)은 지금 이미 프로젝트가 열린다 → «추가되었습니다»(그 워크스페이스·프로젝트 주소·토큰 없음).
+    //   아직 안 붙었는데 이메일이 계정이면 → 수락이 필요한 초대(링크 /invite/<token>, 범위 NULL).
+    await require('../services/inviteNotify').notifyExistingInvitee(contact_user_id
+      ? { userId: contact_user_id, kind: 'project_client_added', businessId: project.business_id, projectId: project.id, projectName: project.name,
+        entityType: 'project_client', entityId: row.id, actorUserId: req.user.id, io: req.app.get('io') }
+      : { email: row.contact_email, kind: 'project_client_pending', businessId: project.business_id, projectId: project.id, projectName: project.name,
+        entityType: 'project_client', entityId: row.id, token, actorUserId: req.user.id, io: req.app.get('io') });
+
     // 초대 토큰은 계정을 «그 고객으로» 붙이는 열쇠다 — 응답에 싣지 않는다(clients.js stripClientSecrets 와 같은 이유,
     //   2026-10-09 보안점검). 메일로만 간다.
     const out = row.toJSON(); delete out.invite_token;
@@ -3441,6 +3450,10 @@ router.post('/:id/clients/:clientId/resend-invite', authenticateToken, async (re
       console.warn('resend project invite email failed:', e.message);
       return errorResponse(res, 'email_send_failed', 502);
     }
+    await require('../services/inviteNotify').notifyExistingInvitee({
+      email: row.contact_email, kind: 'project_client_pending', businessId: project.business_id, projectId: project.id, projectName: project.name,
+      entityType: 'project_client', entityId: row.id, token: row.invite_token, actorUserId: req.user.id, io: req.app.get('io'),
+    });
     // 감사 — 외부 발송 트리거. 초대 토큰(링크)은 싣지 않는다.
     require('../services/auditService').logAudit(req, { action: 'project_invite.resend', targetType: 'project_client', targetId: row.id, businessId: project.business_id,
       newValue: { project_id: project.id, contact_email: row.contact_email } });
@@ -3468,6 +3481,7 @@ router.delete('/:id/clients/:clientId', authenticateToken, async (req, res, next
       });
       clientId = cl?.id || null;
     } catch { /* ignore */ }
+    await require('../services/inviteNotify').dismissInviteNotice('project_client', row.id);
     await row.destroy();
     await createAuditLog({
       userId: req.user.id, businessId: project.business_id,
