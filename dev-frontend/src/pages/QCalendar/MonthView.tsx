@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo } from 'react';
 import { linkLine } from './linkLine';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
@@ -12,7 +12,7 @@ import { isTaskEvent } from './taskToEvent';
 import { formatDay } from '../../utils/dateFormat';
 import type { HolidayMark } from '../../hooks/useWorkspaceHolidays';
 import { HolidayName, holidayLabel } from './holidayLook';
-import { CardShell, DayEventsBody, TaskIcon, formatChipTime } from './DayEventsCard';
+import { TaskIcon, formatChipTime } from './DayEventsCard';
 import { useDayHoverCard, DayHoverCard } from './DayHoverCard';
 
 // 날짜 키 별 인덱스 — 멀티데이 이벤트는 걸친 모든 날짜에 등장
@@ -59,16 +59,10 @@ const MonthView: React.FC<Props> = ({ anchor, today, now, events, onSelectEvent,
   const ALL_DAYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
   const weekdayKeys = [...ALL_DAYS.slice(weekStart), ...ALL_DAYS.slice(0, weekStart)];
 
-  // "+N 더보기" 팝오버 — 해당 날짜 전체 이벤트 리스트
-  const [popoverDay, setPopoverDay] = useState<Date | null>(null);
-  const popoverEvents = popoverDay ? eventMap[toDateKey(popoverDay)] || [] : [];
-  const popoverTitle = popoverDay
-    ? formatDay(popoverDay, { locale: i18n.language === 'en' ? 'en-US' : 'ko-KR', month: 'long', weekday: true })
-    : '';
   const dayTitle = (d: Date) => formatDay(d, { locale: i18n.language === 'en' ? 'en-US' : 'ko-KR', month: 'long', weekday: true });
   const createOn = (day: Date) => { if (!onCreateAt) return; const d = new Date(day); d.setHours(9, 0, 0, 0); onCreateAt(d); };
-  // 날짜 호버 카드 — 마우스로 일정 있는 날 위에 잠시 머물면 칸 옆에 그 날 목록(DayHoverCard). 더보기 창이 열려 있으면 안 연다.
-  const hc = useDayHoverCard(!!popoverDay);
+  // 날짜 호버 카드 — 마우스로 일정 있는 날 위에 잠시 머물면 칸 옆에 그 날 목록(DayHoverCard).
+  const hc = useDayHoverCard(false);
   const hoverEvents = hc.hover ? eventMap[hc.hover.key] || [] : [];
 
   return (
@@ -161,7 +155,7 @@ const MonthView: React.FC<Props> = ({ anchor, today, now, events, onSelectEvent,
               {hidden > 0 && (
                 <MoreLinkWrap>
                   <MoreLink
-                    onClick={(ev) => { ev.stopPropagation(); hc.close(); setPopoverDay(day); }}
+                    onClick={(ev) => { ev.stopPropagation(); hc.close(); onSelectDate(day); }}
                   >
                     {t('more', { count: hidden })}
                   </MoreLink>
@@ -172,16 +166,6 @@ const MonthView: React.FC<Props> = ({ anchor, today, now, events, onSelectEvent,
         })}
       </Grid>
 
-      {popoverDay && (
-        <>
-          <PopoverBackdrop onClick={() => setPopoverDay(null)} />
-          <PopoverCard role="dialog" aria-label={popoverTitle}>
-            <DayEventsBody title={popoverTitle} events={popoverEvents} now={now}
-              onSelectEvent={(e) => { onSelectEvent(e.id, e.start_at?.slice(0, 10)); setPopoverDay(null); }}
-              onClose={() => setPopoverDay(null)} />
-          </PopoverCard>
-        </>
-      )}
       {hc.hover && hoverEvents.length > 0 && (
         <DayHoverCard rect={hc.hover.rect} title={dayTitle(hc.hover.day)} events={hoverEvents} now={now}
           onSelectEvent={(e) => { hc.close(); onSelectEvent(e.id, e.start_at?.slice(0, 10)); }}
@@ -294,11 +278,3 @@ const MoreLink = styled.div`
   &:hover { text-decoration: underline; }
 `;
 
-// ── 더보기 팝오버 ──
-const PopoverBackdrop = styled.div`
-  position: fixed; inset: 0; background: rgba(15, 23, 42, 0.08); z-index: 55;
-`;
-// 더보기 — 가운데 창(모양은 DayEventsCard 공용 껍데기)
-const PopoverCard = styled(CardShell)`
-  top: 50%; left: 50%; transform: translate(-50%, -50%);
-`;
