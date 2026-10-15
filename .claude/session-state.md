@@ -1,5 +1,5 @@
 ## 현재 작업 상태
-**마지막 업데이트:** 2026-10-15 (방 1abbce29 · /개발완료)
+**마지막 업데이트:** 2026-10-15 (방 42e04bed · 묶음 3건)
 **작업 상태:** 완료
 
 ### 진행 중인 작업
@@ -15,6 +15,18 @@
 - 별건 확인: 업무 상세 응답이 멤버에게 남의 personal 댓글을 싣는지(아래 첫 절 «곁에서 본 것»).
 
 ---
+
+### 완료: 상황판 묶음 3건 — 문서 업무 연결 · 프로젝트 일정 탭 보완 · 앱 다운로드 컴퓨터 설치 (방 42e04bed · 2026-10-15 · [Opus]) — 운영 미배포
+- ① 문서 작성·수정 «업무 연결»: 편집 줄(MetaRow)에 `components/Docs/DocTaskLinkField` — 연결 정본은 그대로 업무 결과물 첨부(task_attachments.post_id, context task). 걸기 = 기존 `POST /api/tasks/:id/attachments/link`, 떼기 = 기존 `DELETE /api/tasks/attachments/:id`.
+  해제 술어를 `services/taskAttachmentLink.canRemoveTaskAttachment` 한 곳으로 빼서 삭제 라우트와 `linkedTasksOf`(attachment_id·can_unlink 추가)가 같이 쓴다. 고르는 부품은 일정 것을 `components/Common/TaskLinkPicker` 로 옮겨 공용(excludeIds·testId). 칩 `LinkedTaskChips` 에 onRemove(×). 새 문서는 고른 업무를 들고 있다가 첫 저장(자동 초안·저장 버튼 둘 다)에 건다. 개인 보관함엔 칸 없음.
+  검증: 실HTTP 9/9(연결·중복 없음·member can_unlink=false·member DELETE 403·남의 워크스페이스 업무 403·해제) · 브라우저 3폭 18/18(× 해제→서버 0 · 골라 연결→서버 1 · 새 문서 첫 저장 뒤 업무에 1건).
+  남김: 업무 첨부 link/delete 라우트가 실시간 방송을 안 한다(기존 결함, 정찰 계획 4) — 업무 상세를 열어 둔 사람은 새 연결을 다시 열어야 본다.
+- ② 프로젝트 > 일정 탭(Q calendar 본체 얹기) 보완: 죽은 Google 토글·캘린더 칩 제거(googleOn = !embedded && 연결) · 액션 줄 + 년/월 줄 두 줄 → 한 줄(폰은 다음 줄) · 높이: 바깥 스크롤 1440 176px·1024 172px → 0(얹는탭 껍데기 ProjectTabFull + 안쪽 여백 ProjectCalendarInner, 일반탭과 같은 x) · 층 선택 기억을 Q calendar 와 분리(`planq:calendar-layers:project`) · 보기·날짜 프로젝트별 기억(sessionStorage `pq:projcal:<id>`).
+  검증: 3폭 11/11 · projecttabs·docsheader·tenant 0 실패. Google 0 은 dev 시험 계정이 구글 미연결이라 대조 못 함(코드 판정만).
+- ③ /app 앱 다운로드: 데스크탑에서 맨 위 «이 컴퓨터 (Windows · Mac)» 카드 — 설치 창이 되면 [이 컴퓨터에 설치](usePwaInstall), 아니면 브라우저별 메뉴 단계. 단계 함수를 `utils/pwaInstallSteps` 로 빼 설정 > 앱 설치와 공용 · 데스크탑 Safari 문구를 «파일 → Dock에 추가»(Sonoma+)로 정정 · 부제·알림 문구·seo-pages /app 문구 컴퓨터 포함.
+  검증: 3폭 10/10(폰 UA 엔 컴퓨터 카드 없음). 설치 버튼 분기는 헤드리스가 설치 창 신호를 안 받아 ⬜ 미측정(메뉴 단계 분기만 확인).
+- 확인용: 문서 3187 «[확인용] 문서 업무연결 시험»(프로젝트 35, 업무 157 연결) · 임시저장 «[확인용] 새 문서 업무연결»(업무 157 연결).
+- 공통: build EXIT 0 · guard 69/70 · health-check 84/85(invite 0-F 는 다른 방 것).
 
 ### 완료: 메일 분류 기준 공개·새 기준·학습 확대 + Q sale 상담 기준 (방 28cf8581 · 2026-10-15 · [Opus] · Fable 설계 + 게이트 2차 PASS) — 운영 미배포
 - 원문: Aspiration 학교 자동응답(«We have received your email»)을 놓침 · «자동메일이어도 주문·답변·문의가 왔다는 안내는 무조건 답변필요» · 확인 권장 제대로 나열 · 상세 조건 설정에 공개 · 학습 안내·삭제·추가 · Q sales 도.
