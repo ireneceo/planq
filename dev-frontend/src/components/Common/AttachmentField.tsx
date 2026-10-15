@@ -79,6 +79,13 @@ const AttachmentField: React.FC<Props> = ({
   // 파일첨부 열고 닫기 되게 하고 접어두자."* 드롭존(약 110px)+검색+Drive 가 본문 쓰는 자리를 먹었다.
   const [open, setOpen] = useState(!collapsible);
   const attachedCount = uploads.length + existingFileIds.length + (includePosts ? existingPostIds.length : 0);
+  // 바깥(본문 에디터에 끌어놓은 파일 등)에서 새 파일이 붙으면 접힌 칸을 편다 — 접힌 줄에 떨어뜨렸을 때와 같은 동작.
+  //   숫자만 1 오르면 무엇이 붙었는지 안 보인다(2026-10-15 메일 본문 첨부).
+  const prevUploadsLen = useRef(uploads.length);
+  useEffect(() => {
+    if (collapsible && uploads.length > prevUploadsLen.current) setOpen(true);
+    prevUploadsLen.current = uploads.length;
+  }, [uploads.length, collapsible]);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const wsFiles = providedFiles ?? internalFiles;

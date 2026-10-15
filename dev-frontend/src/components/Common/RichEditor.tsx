@@ -18,6 +18,7 @@ import { TableRow } from '@tiptap/extension-table-row';
 import { TableCell } from '@tiptap/extension-table-cell';
 import { TableHeader } from '@tiptap/extension-table-header';
 import { handleMarkdownPaste } from '../../utils/markdownPaste';
+import { Selection } from '@tiptap/pm/state';
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import styled from 'styled-components';
@@ -54,6 +55,10 @@ type Props = {
    *  메일 작성처럼 "다른 메일 서비스만큼은 돼야 하는" 화면에서 켠다. 슬래시 커맨드·버블 메뉴는
    *  그대로 남는다 — 아는 사람은 계속 쓰고, 모르는 사람은 버튼을 본다. */
   toolbar?: boolean;
+  /** 본문에 올린 **이미지가 아닌 파일**(끌어놓기·붙여넣기)을 받을 곳 — 메일처럼 본문 옆에 첨부 칸이 있는 화면이 준다.
+   *  주면: 이미지 아닌 파일은 이리로 넘기고(브라우저가 파일을 열어 작성 화면을 떠나지 않게 막는다),
+   *  본문 업로드에 실패한 이미지도 잃지 않게 이리로 넘긴다. 안 주면 종전 동작 그대로. */
+  onAttachFiles?: (files: File[]) => void;
 };
 
 export default function RichEditor({
@@ -66,6 +71,7 @@ export default function RichEditor({
   minHeight = 180,
   toolbar = false,
   privateInline = false,
+  onAttachFiles,
 }: Props) {
   const { t } = useTranslation('common');
   const effectivePlaceholder = placeholder ?? t('editor.placeholder');
@@ -77,6 +83,8 @@ export default function RichEditor({
   // 에디터는 한 번만 만들어지므로(useEditor) 클로저가 초기값을 붙잡는다 — ref 로 최신값을 본다.
   const privateInlineRef = useRef(privateInline);
   useEffect(() => { privateInlineRef.current = privateInline; }, [privateInline]);
+  const onAttachFilesRef = useRef(onAttachFiles);
+  useEffect(() => { onAttachFilesRef.current = onAttachFiles; }, [onAttachFiles]);
 
   const editor = useEditor({
     extensions: [
@@ -128,13 +136,14 @@ export default function RichEditor({
     editorProps: {
       attributes: { class: 'pq-editor-body' },
       handlePaste: (view, event) => {
-        // 1) 이미지 붙여넣기 — 옛 동작 그대로 (업로드 경로가 있을 때만)
-        if (uploadUrlRef.current) {
+        // 1) 파일 붙여넣기 — 이미지는 본문에(업로드 경로가 있을 때), 그 외 파일은 첨부 칸으로(onAttachFiles 가 있을 때).
+        {
           const files = Array.from(event.clipboardData?.files || []);
-          const images = files.filter(f => f.type.startsWith('image/'));
-          if (images.length > 0) {
+          const { inline, attach } = splitDroppedFiles(files);
+          if (inline.length || attach.length) {
             event.preventDefault();
-            images.forEach(f => uploadAndInsertImage(f));
+            if (attach.length) onAttachFilesRef.current?.(attach);
+            inline.forEach(f => uploadAndInsertImage(f));
             return true;
           }
         }
@@ -169,15 +178,23 @@ export default function RichEditor({
         // 3) 마크다운 텍스트 붙여넣기 → 제목·표·목록으로 변환 (#151)
         return handleMarkdownPaste(view, event);
       },
-      handleDrop: (_view, event) => {
-        if (!uploadUrlRef.current) return false;
+      handleDrop: (view, event) => {
         const dt = (event as DragEvent).dataTransfer;
         if (!dt) return false;
         const files = Array.from(dt.files || []);
-        const images = files.filter(f => f.type.startsWith('image/'));
-        if (images.length === 0) return false;
+        const { inline, attach } = splitDroppedFiles(files);
+        if (inline.length === 0 && attach.length === 0) return false;
+        // ★ 파일만 든 끌기를 ProseMirror 에 넘기면 preventDefault 를 안 해서 **브라우저가 그 파일을 연다**
+        //   (작성 중이던 화면을 떠난다). 받을 곳이 있으면 여기서 끝낸다.
         event.preventDefault();
-        images.forEach(f => uploadAndInsertImage(f));
+        // 그림은 **놓은 자리**에 넣는다 — 커서를 그 자리로 옮겨 두면 아래 삽입이 거기 들어간다.
+        if (inline.length) {
+          const de = event as DragEvent;
+          const at = view.posAtCoords({ left: de.clientX, top: de.clientY });
+          if (at) view.dispatch(view.state.tr.setSelection(Selection.near(view.state.doc.resolve(at.pos))));
+        }
+        if (attach.length) onAttachFilesRef.current?.(attach);
+        inline.forEach(f => uploadAndInsertImage(f));
         return true;
       },
     },
@@ -233,10 +250,33 @@ export default function RichEditor({
     }
   };
 
+  // 본문에 올린 파일 가르기 — 이미지(본문에 넣을 수 있을 때)는 본문, 그 외는 첨부 칸(받을 곳이 있을 때).
+  //   받을 곳이 없는 쪽은 비워 둔다 → 둘 다 비면 종전대로 ProseMirror 에 넘긴다.
+  //   ★ 이미지+PDF 를 같이 끌면 옛 코드는 이미지만 넣고 PDF 를 조용히 버렸다.
+  function splitDroppedFiles(files: File[]): { inline: File[]; attach: File[] } {
+    const canInline = !!uploadUrlRef.current;
+    const canAttach = !!onAttachFilesRef.current;
+    const inline: File[] = []; const attach: File[] = [];
+    for (const f of files) {
+      if (canInline && f.type.startsWith('image/')) inline.push(f);
+      else if (canAttach) attach.push(f);
+    }
+    return { inline, attach };
+  }
+
   const uploadAndInsertImage = async (file: File) => {
     if (!editor) return;
     const src = await uploadImageForUrl(file);
-    if (src) editor.chain().focus().setImage({ src, alt: file.name }).run();
+    // ★ 방금 넣은 그림은 «선택된 채» 로 남는다 — 그 상태에서 setImage 를 부르면 **그 그림을 갈아 끼운다**
+    //   (그림 둘을 연달아 넣으면 하나만 남았다, 2026-10-15 실측). 선택된 블록이 있으면 그 뒤로 커서를 옮겨 넣는다.
+    if (src) {
+      editor.chain().focus().command(({ tr }) => {
+        if ((tr.selection as unknown as { node?: unknown }).node) tr.setSelection(Selection.near(tr.doc.resolve(tr.selection.to)));
+        return true;
+      }).setImage({ src, alt: file.name }).run();
+    }
+    // 본문에 못 넣은 그림도 잃지 않는다 — 첨부 칸이 있는 화면이면 첨부로 붙인다.
+    else onAttachFilesRef.current?.([file]);
   };
 
   // 링크 입력 — window.prompt 는 금지(CLAUDE.md 절대 금지 사항)라 인라인 입력줄로 받는다.

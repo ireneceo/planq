@@ -2914,7 +2914,9 @@ const MailPage: React.FC = () => {
                   fromAliasId={cFromAliasId}
                 />
                 <RichEditor value={cBody} onChange={(v: string) => { markComposeTouched(); setCBody(v); }} toolbar placeholder={t('compose.bodyPh', { defaultValue: '메일 내용을 입력하세요…' }) as string} uploadUrl={businessId ? `/api/files/${businessId}` : undefined}
-                  privateInline={inlineIsPrivate(cAccountId)} />
+                  privateInline={inlineIsPrivate(cAccountId)}
+                  /* 본문에 끌어놓거나 붙여넣은 이미지 아닌 파일은 아래 첨부 칸으로 — 그림은 본문 미리보기로 들어간다 */
+                  onAttachFiles={(fs) => { markComposeTouched(); setCUploads((prev) => [...prev, ...fs]); }} />
                 {fwdFromMsgId && (
                   <FwdAttachHint>{t('forward.originalIncluded', { defaultValue: '원본 메일이 아래에 그대로 붙어 전달됩니다 — 위에 덧붙일 말만 쓰시면 돼요 (비워도 됩니다)' }) as string}</FwdAttachHint>
                 )}
@@ -3394,6 +3396,8 @@ const MailPage: React.FC = () => {
                       uploadUrl={businessId ? `/api/files/${businessId}` : undefined}
                       /* 개인메일이면 본문 이미지도 개인 — 메일은 안 보이는데 그림만 새면 안 된다 */
                       privateInline={inlineIsPrivate(detail?.account?.id ?? null, detail?.account?.owner_user_id ?? undefined)}
+                      /* 본문에 올린 이미지 아닌 파일은 첨부 칸으로 */
+                      onAttachFiles={(fs) => setReplyUploads((prev) => [...prev, ...fs])}
                     />
                     <AttachmentField
                       collapsible
