@@ -23,7 +23,9 @@ type Props = {
   onUploaded: (sessionId: number) => void;
 };
 
-const ACCEPT = AUDIO_UPLOAD_EXT.map((e) => `.${e}`).join(',');
+// audio/* 를 같이 준다 — 확장자만 주면 안드로이드 크롬이 자기 MIME 표로 걸러 녹음 앱 파일이 회색(선택 불가)이 될 수 있다.
+//   고른 뒤 pick() 이 확장자를 다시 보므로 넓혀도 받는 형식은 그대로다.
+const ACCEPT = ['audio/*', ...AUDIO_UPLOAD_EXT.map((e) => `.${e}`)].join(',');
 
 export default function AudioUploadModal({ open, businessId, projectId = null, onClose, onUploaded }: Props) {
   const { t } = useTranslation('qnote');
