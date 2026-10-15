@@ -591,8 +591,8 @@
         "2": "권장: Chrome / Edge / Samsung Internet 으로 다시 열어주세요"
       },
       "desktopSafari": {
-        "1": "데스크탑 Safari 는 PWA 설치를 지원하지 않습니다",
-        "2": "북마크 / Dock 에 추가해 빠른 진입만 가능합니다"
+        "1": "Safari 위 메뉴 «파일» → «Dock에 추가» 를 누릅니다 (macOS Sonoma 이상)",
+        "2": "«추가» 를 누르면 Dock 과 응용 프로그램에 PlanQ 가 생깁니다"
       },
       "other": {
         "1": "이 브라우저는 PWA 설치를 지원하지 않거나 식별할 수 없습니다",

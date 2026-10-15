@@ -1,6 +1,6 @@
 {
   "title": "Download the PlanQ app",
-  "subtitle": "Never miss a work notification. Get real-time alerts with the mobile app.",
+  "subtitle": "Never miss a work notification. Install PlanQ on your computer and phone for real-time alerts.",
   "ios": {
     "label": "iPhone · iPad",
     "cta": "Install on iPhone",
@@ -13,7 +13,7 @@
   "comingSoon": "Coming soon",
   "desktop": {
     "hint": "Scan the QR code with your phone camera, or open the address below on your phone",
-    "or": "Choose your platform to install",
+    "or": "To install on your phone too",
     "qrAlt": "QR code that opens the PlanQ app download page on your phone"
   },
   "inApp": {
@@ -21,7 +21,7 @@
     "cta": "Go home"
   },
   "webContinue": "Continue on the web",
-  "notifyNote": "The app supports real-time push notifications on iOS and Android.",
+  "notifyNote": "The app supports real-time push notifications on Windows, Mac, iOS and Android.",
   "androidPwa": {
     "cta": "Install on home screen",
     "stepChrome": "In Chrome, open the menu (⋮) at the top right and tap \"Install app\" or \"Add to Home screen\".",
@@ -32,5 +32,14 @@
     "dismissed": "Installation was cancelled. You can tap it again anytime.",
     "onPhone": "Scan the QR code below with your Android phone to install right away.",
     "storeSoon": "Our Play Store app is in review — once it is live you can get it right here."
+  },
+  "desktopPwa": {
+    "label": "This computer (Windows · Mac)",
+    "cta": "Install on this computer",
+    "installed": "PlanQ is already installed on this computer. Open it from the Start menu or Dock.",
+    "done": "Installed. Launch PlanQ from the Start menu or Dock.",
+    "dismissed": "Installation cancelled. You can try again anytime.",
+    "stepsTitle": "Install from your browser menu",
+    "note": "No download needed — installs straight from your browser, opens in its own window and gets notifications."
   }
 }

@@ -1,5 +1,6 @@
 // 모바일 앱 다운로드 페이지 — 공개(비인증). planq.kr/app
 //   환경 감지(iOS/Android/데스크탑) → 해당 스토어/파일로 안내. 링크는 platform_settings(관리자) 값.
+//   데스크탑은 «이 컴퓨터» 카드(PWA 설치)가 맨 위 — 2026-10-15 Irene «데스크탑 다운로드는 왜 없어? PWA 다운받게».
 //   출시 전이면 "출시 준비 중". 네이티브 앱 안에서 열면 "이미 앱에서 실행 중".
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -9,6 +10,7 @@ import { usePwaInstall } from '../../contexts/PwaInstallContext';
 import { isNativeApp } from '../../services/native';
 import LandingLayout from '../../components/Landing/LandingLayout';
 import AppQrCode, { appDownloadUrl } from '../../components/Common/AppQrCode';
+import { getManualSteps } from '../../utils/pwaInstallSteps';
 
 type Platform = 'ios' | 'android' | 'desktop';
 
@@ -104,6 +106,12 @@ export default function DownloadAppPage() {
           <Skeleton />
         ) : platform === 'desktop' ? (
           <>
+            {/* 지금 보고 있는 기기 — 맨 위 한 줄 전체(460px 카드에 3칸은 좁다). 설치 장치는 워크스페이스 배너·설정과 같은 usePwaInstall */}
+            <DesktopCard $highlight data-testid="app-desktop-card">
+              <PlatIcon><MonitorGlyph /></PlatIcon>
+              <PlatLabel>{t('desktopPwa.label')}</PlatLabel>
+              <DesktopPwaInstall />
+            </DesktopCard>
             <DesktopHint>{t('desktop.or')}</DesktopHint>
             <Grid>
               <StoreCard p="ios" url={iosUrl} />
@@ -169,7 +177,57 @@ function AndroidPwaInstall({ onThisDevice }: { onThisDevice: boolean }) {
   );
 }
 
+/** 데스크탑 — 브라우저 PWA 설치. 설치 창을 띄울 수 있으면 버튼, 아니면 그 브라우저의 메뉴 경로(설정 > 앱 설치와 같은 단계 함수). */
+function DesktopPwaInstall() {
+  const { t } = useTranslation('appdownload');
+  const { t: ts } = useTranslation('settings');
+  const pwa = usePwaInstall();
+  const [msg, setMsg] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  if (pwa.isStandalone || pwa.isRelatedInstalled) {
+    return <PwaNote data-testid="app-desktop-pwa-installed">{t('desktopPwa.installed')}</PwaNote>;
+  }
+  const doInstall = async () => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const r = await pwa.install();
+      setMsg(r === 'accepted' ? t('desktopPwa.done') as string : r === 'dismissed' ? t('desktopPwa.dismissed') as string : null);
+    } finally { setBusy(false); }
+  };
+  return (
+    <>
+      {pwa.canPrompt ? (
+        <PrimaryBtn as="button" type="button" data-testid="app-desktop-pwa-install" onClick={doInstall} disabled={busy}>
+          {t('desktopPwa.cta')}
+        </PrimaryBtn>
+      ) : (
+        <StepsBox data-testid="app-desktop-pwa-steps">
+          <StepsTitle>{t('desktopPwa.stepsTitle')}</StepsTitle>
+          <PwaSteps>
+            {getManualSteps(pwa.platform, ts).map((line, i) => <li key={i}>{line}</li>)}
+          </PwaSteps>
+        </StepsBox>
+      )}
+      {msg && <PwaNote>{msg}</PwaNote>}
+      <ViaHint>{t('desktopPwa.note')}</ViaHint>
+    </>
+  );
+}
+
 // ── 아이콘 (인라인 SVG — 외부 의존 0) ──
+const DesktopCard = styled.div<{ $highlight?: boolean }>`
+  border: 1px solid #14B8A6; background: #F0FDFA;
+  border-radius: 12px; padding: 20px 16px; margin-bottom: 16px;
+  display: flex; flex-direction: column; align-items: center; gap: 10px;
+`;
+const StepsBox = styled.div`width: 100%; text-align: left;`;
+const StepsTitle = styled.div`font-size: 0.8125rem; font-weight: 600; color: #0F172A;`;
+const MonitorGlyph = () => (
+  <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+    <rect x="2" y="3" width="20" height="14" rx="2" /><line x1="8" y1="21" x2="16" y2="21" /><line x1="12" y1="17" x2="12" y2="21" />
+  </svg>
+);
 const PwaSteps = styled.ol`
   margin: 4px 0 0; padding-left: 18px; text-align: left;
   font-size: 0.8125rem; line-height: 1.6; color: #334155;

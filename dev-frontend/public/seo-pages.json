@@ -332,12 +332,12 @@
       "changefreq": "monthly",
       "priority": "0.5",
       "title": {
-        "ko": "PlanQ 앱 다운로드 — iOS·Android | PlanQ",
-        "en": "Download the PlanQ app — iOS & Android | PlanQ"
+        "ko": "PlanQ 앱 다운로드 — Windows·Mac·iOS·Android | PlanQ",
+        "en": "Download the PlanQ app — Windows, Mac, iOS & Android | PlanQ"
       },
       "description": {
-        "ko": "업무 알림을 놓치지 마세요. PlanQ 모바일 앱으로 실시간 알림을 받습니다.",
-        "en": "Never miss a work notification. Get real-time alerts with the PlanQ mobile app."
+        "ko": "업무 알림을 놓치지 마세요. 컴퓨터와 휴대폰에 PlanQ 를 설치해 실시간 알림을 받습니다.",
+        "en": "Never miss a work notification. Install PlanQ on your computer and phone for real-time alerts."
       },
       "h1": {
         "ko": "PlanQ 앱 다운로드",
@@ -345,10 +345,10 @@
       },
       "intro": {
         "ko": [
-          "iOS와 Android에서 PlanQ를 설치하고 실시간 푸시 알림을 받으세요."
+          "컴퓨터(Windows·Mac)는 브라우저에서 바로, 휴대폰은 iOS·Android 앱으로 PlanQ 를 설치하고 실시간 푸시 알림을 받으세요."
         ],
         "en": [
-          "Install PlanQ on iOS and Android and get real-time push notifications."
+          "Install PlanQ on your computer (Windows, Mac) straight from the browser, or on iOS and Android, and get real-time push notifications."
         ]
       },
       "label": "앱 다운로드",

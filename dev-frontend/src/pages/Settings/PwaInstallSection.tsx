@@ -7,10 +7,10 @@
 import React, { useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
-import type { TFunction } from 'i18next';
 import { usePwaInstall } from '../../contexts/PwaInstallContext';
 import { isNativeApp } from '../../services/native';
 import AppQrCode, { appDownloadUrl } from '../../components/Common/AppQrCode';
+import { getManualSteps } from '../../utils/pwaInstallSteps';
 
 // 브라우저별 메뉴 위치는 OS·버전마다 달라 일반화된 안내 사용.
 // 메뉴 명칭은 브라우저 한국어 UI 기준 (영어 환경에서는 i18n 분기로 영어 명칭 사용).
@@ -24,45 +24,6 @@ function getBrowserFallback(platform: string): string {
     case 'desktop-firefox': return 'Firefox (데스크탑)';
     case 'desktop-safari': return 'Safari (데스크탑)';
     default: return '현재 브라우저';
-  }
-}
-
-function getManualSteps(platform: string, t: TFunction): string[] {
-  switch (platform) {
-    case 'android-chrome':
-      return [
-        t('pwa.steps.androidChrome.1', '주소창 우측의 ⋮ (세로 점 3개) 메뉴를 엽니다') as string,
-        t('pwa.steps.androidChrome.2', '"홈 화면에 추가" 또는 "앱 설치" 를 선택합니다') as string,
-        t('pwa.steps.androidChrome.3', '"추가" / "설치" 를 눌러 완료합니다') as string,
-      ];
-    case 'android-samsung':
-      return [
-        t('pwa.steps.androidSamsung.1', '하단 ☰ 메뉴를 엽니다') as string,
-        t('pwa.steps.androidSamsung.2', '"현재 페이지 추가" → "홈 화면" 을 선택합니다') as string,
-      ];
-    case 'desktop-chrome':
-    case 'desktop-edge':
-      return [
-        t('pwa.steps.desktopChromium.1', '주소창 우측의 설치 아이콘 (⊕ 또는 모니터 + ↓) 을 클릭하거나') as string,
-        t('pwa.steps.desktopChromium.2', '주소창 우측의 ⋮ 메뉴 → "PlanQ 설치" / "앱 설치" 를 선택합니다') as string,
-        t('pwa.steps.desktopChromium.3', '설치 다이얼로그에서 "설치" 를 누르면 시작 메뉴·독에 추가됩니다') as string,
-      ];
-    case 'android-firefox':
-    case 'desktop-firefox':
-      return [
-        t('pwa.steps.firefox.1', 'Firefox 는 PWA 설치를 제한적으로만 지원합니다') as string,
-        t('pwa.steps.firefox.2', '권장: Chrome / Edge / Samsung Internet 으로 다시 열어주세요') as string,
-      ];
-    case 'desktop-safari':
-      return [
-        t('pwa.steps.desktopSafari.1', '데스크탑 Safari 는 PWA 설치를 지원하지 않습니다') as string,
-        t('pwa.steps.desktopSafari.2', '북마크 / Dock 에 추가해 빠른 진입만 가능합니다') as string,
-      ];
-    default:
-      return [
-        t('pwa.steps.other.1', '이 브라우저는 PWA 설치를 지원하지 않거나 식별할 수 없습니다') as string,
-        t('pwa.steps.other.2', 'Chrome / Edge / Samsung Internet 또는 iOS Safari 에서 다시 시도하세요') as string,
-      ];
   }
 }
 

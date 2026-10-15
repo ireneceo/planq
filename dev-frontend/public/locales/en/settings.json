@@ -591,8 +591,8 @@
         "2": "Recommended: reopen in Chrome / Edge / Samsung Internet"
       },
       "desktopSafari": {
-        "1": "Desktop Safari doesn't support PWA installation",
-        "2": "You can only bookmark or add to Dock for quick access"
+        "1": "In Safari, open File → “Add to Dock” (macOS Sonoma or later)",
+        "2": "Click “Add” and PlanQ appears in your Dock and Applications"
       },
       "other": {
         "1": "This browser doesn't support PWA installation, or it can't be identified",
