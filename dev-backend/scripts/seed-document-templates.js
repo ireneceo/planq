@@ -658,7 +658,8 @@ const SOW_BODY = `<h1>작업 명세서 (Statement of Work)</h1>
 
 // ════════════════════════════════════════════════════════════════
 // 8~13. 직원 계약서 3종 × ko/en (2026-10-15 — 급여 설계 P0, docs/PAYROLL_DESIGN.md §10)
-//   ★ «검수 전 초안» — 노무사·세무사 검수 전이다(설명에 적는다). 근로기준법 §17 필수 기재사항
+//   ★ «기본 틀» — 법정 필수 기재 칸은 PlanQ 가 점검했고(2026-10-15), 회사별 문구 검토는 각 워크스페이스 관리자 몫이다
+//     (Irene 2026-10-15 «각자 관리자들이 할 일 · 회사마다 다를텐데 · 기본 점검은 너가 해»). 근로기준법 §17 필수 기재사항
 //     (임금 구성·계산·지급방법 · 소정근로시간 · 휴일 · 연차유급휴가 · 취업장소·업무)을 칸으로 둔다.
 //   칸은 schema_json 배열(SlotFormModal) — 회사 정보는 자동, 근로자 정보는 입력.
 //   ★ 주민등록번호 칸은 두지 않는다(PlanQ 는 주민번호를 갖지 않는다 — 급여 설계 §3). 필요하면 서명 뒤 서면으로.
@@ -705,7 +706,7 @@ const EMP_BODY_KO = (fixed) => `<h1>${fixed ? '기간제 근로계약서' : '표
 </tbody></table>
 <h2>제2조 (근로계약 기간)</h2>
 ${fixed
-    ? '<p><strong>{{start_date}}</strong>부터 <strong>{{end_date}}</strong>까지로 한다. 기간이 끝나면 근로관계는 별도 합의가 없는 한 종료된다.</p>'
+    ? '<p><strong>{{start_date}}</strong>부터 <strong>{{end_date}}</strong>까지로 한다. 기간이 끝나면 근로관계는 별도 합의가 없는 한 종료된다. 계약을 갱신·반복해 총 2년을 넘게 사용하면 법이 정한 예외가 아닌 한 기간의 정함이 없는 근로계약을 체결한 것으로 본다(기간제 및 단시간근로자 보호 등에 관한 법률 제4조).</p>'
     : '<p><strong>{{start_date}}</strong>부터 근로를 시작하며, 기간의 정함이 없는 근로계약으로 한다. 수습기간을 두는 경우 근로개시일부터 3개월로 한다(수습 중 임금 감액은 하지 않는다).</p>'}
 <h2>제3조 (근무 장소 및 업무)</h2>
 <table><tbody>
@@ -730,7 +731,7 @@ ${fixed
 <tr><th>지급일</th><td>{{pay_day}} (휴일이면 그 전날 지급)</td></tr>
 <tr><th>지급 방법</th><td>근로자 명의 예금통장에 입금</td></tr>
 </tbody></table>
-<p>임금에서는 소득세·지방소득세 및 4대 사회보험료 근로자 부담분 등 법령에 따른 금액을 공제한다.</p>
+<p>임금은 최저임금법에 따른 최저임금 이상으로 한다. 임금에서는 소득세·지방소득세 및 4대 사회보험료 근로자 부담분 등 법령에 따른 금액을 공제한다.</p>
 <h2>제7조 (연차유급휴가)</h2>
 <p>연차유급휴가는 근로기준법 제60조에 따라 부여한다.</p>
 <h2>제8조 (사회보험)</h2>
@@ -749,7 +750,7 @@ const EMP_BODY_EN = (fixed) => `<h1>${fixed ? 'Fixed-Term Employment Contract' :
 </tbody></table>
 <h2>2. Term</h2>
 ${fixed
-    ? '<p>From <strong>{{start_date}}</strong> to <strong>{{end_date}}</strong>. Unless otherwise agreed, employment ends when the term expires.</p>'
+    ? '<p>From <strong>{{start_date}}</strong> to <strong>{{end_date}}</strong>. Unless otherwise agreed, employment ends when the term expires. Where applicable law limits fixed-term employment (in Korea, more than two years in total), longer use is treated as employment with no fixed term.</p>'
     : '<p>Employment begins on <strong>{{start_date}}</strong> with no fixed term. If a probation period applies, it is three months from the start date (no pay reduction during probation).</p>'}
 <h2>3. Place of Work and Duties</h2>
 <table><tbody>
@@ -774,7 +775,7 @@ ${fixed
 <tr><th>Pay day</th><td>{{pay_day}} (paid on the previous business day if it falls on a holiday)</td></tr>
 <tr><th>Payment method</th><td>Bank transfer to the Employee's account</td></tr>
 </tbody></table>
-<p>Income tax, local income tax and the Employee's share of social insurance are withheld as required by law.</p>
+<p>Wages are not less than the statutory minimum wage. Income tax, local income tax and the Employee's share of social insurance are withheld as required by law.</p>
 <h2>7. Annual Paid Leave</h2>
 <p>Annual paid leave is granted as required by applicable labor law.</p>
 <h2>8. Social Insurance</h2>
@@ -815,7 +816,7 @@ const FREELANCE_KO = `<h1>프리랜서 업무위탁 계약서</h1>
 <tr><th>지급일</th><td>{{pay_day}}</td></tr>
 <tr><th>지급 방법</th><td>수탁자 명의 예금통장에 입금</td></tr>
 </tbody></table>
-<p>위탁자는 보수를 지급할 때 소득세법에 따라 사업소득 원천징수세액(소득세 3%, 지방소득세 0.3%)을 공제하고 지급한다.</p>
+<p>수탁자가 사업자등록 없이 용역을 제공하는 개인이면, 위탁자는 보수를 지급할 때 소득세법에 따라 사업소득 원천징수세액(소득세 3%, 지방소득세 0.3%)을 공제하고 지급한다. 수탁자가 사업자이면 원천징수 대신 세금계산서 등 법정 증빙을 주고받는다.</p>
 <h2>제5조 (업무 수행의 독립성)</h2>
 <p>수탁자는 위탁받은 업무를 자기의 책임과 판단으로 수행하며, 근무 시간·장소에 관하여 위탁자의 지휘·감독을 받지 않는다. 이 계약은 근로계약이 아니다.</p>
 <h2>제6조 (결과물과 지식재산권)</h2>
@@ -849,7 +850,7 @@ const FREELANCE_EN = `<h1>Freelance Service Agreement</h1>
 <tr><th>Payment date</th><td>{{pay_day}}</td></tr>
 <tr><th>Payment method</th><td>Bank transfer to the Contractor's account</td></tr>
 </tbody></table>
-<p>Any withholding tax required by applicable law is deducted from each payment.</p>
+<p>Where the Contractor is an individual without business registration, withholding tax required by law (in Korea, 3% income tax plus 0.3% local income tax) is deducted from each payment. Where the Contractor is a registered business, the parties exchange the invoices required by law instead.</p>
 <h2>5. Independent Contractor</h2>
 <p>The Contractor performs the services on their own responsibility and judgment and is not subject to the Client's direction as to working hours or place. This agreement is not an employment contract.</p>
 <h2>6. Deliverables and Intellectual Property</h2>
@@ -867,8 +868,8 @@ const FREELANCE_EN = `<h1>Freelance Service Agreement</h1>
 <tr><td>Contractor</td><td>{{contractor_name}}</td><td><div data-signature-field data-slot="2" data-party="them"></div></td><td>{{contract_date}}</td></tr>
 </tbody></table>`;
 const END_DATE_SLOT = { key: 'end_date', label: '종료일', label_en: 'End date', type: 'date', required: true };
-const DRAFT_NOTE_KO = ' · 검수 전 초안(노무사·세무사 확인 후 쓰세요)';
-const DRAFT_NOTE_EN = ' · Draft, not yet reviewed by a labor/tax professional';
+const DRAFT_NOTE_KO = ' · 기본 틀 — 회사 사정(인원·근무형태·수당)에 맞게 고쳐 쓰세요';
+const DRAFT_NOTE_EN = ' · Basic template — adjust it to your company (headcount, working pattern, allowances)';
 const EMPLOYMENT_TEMPLATES = [
   { kind: 'contract', name: '표준 근로계약서 (정규직)', locale: 'ko', mode: 'editor', visibility: 'workspace_only',
     description: '기간의 정함 없는 근로계약 · 근로기준법 §17 필수 기재(임금·근로시간·휴일·연차·업무) · 양측 서명' + DRAFT_NOTE_KO,
