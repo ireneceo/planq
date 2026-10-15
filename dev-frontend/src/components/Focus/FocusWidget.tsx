@@ -11,7 +11,7 @@ import styled, { keyframes, css } from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { useChromeNav } from '../../hooks/useChromeNav';
 import ChromeLink from '../Tab/ChromeLink';
-import { apiFetch } from '../../contexts/AuthContext';
+import { apiFetch, useAuth } from '../../contexts/AuthContext';
 import { useActivityTracker } from '../../hooks/useActivityTracker';
 import { onSocket } from '../../services/socket';
 import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
@@ -55,6 +55,12 @@ const FocusWidget: React.FC<Props> = ({ isCollapsed, embedded }) => {
   const [idleMin, setIdleMin] = useState(15);
   const [autoPauseMin, setAutoPauseMin] = useState(30);
   const [session, setSession] = useState<FocusSession | null>(null);
+  // 2026-10-15 (Fable 판정) — 살아 있는 세션이 **다른 워크스페이스** 것이면 서버가 내용 없이
+  //   { other_workspace, business_id } 만 준다. 한 창 한 워크스페이스 — 제목·경과·재개 버튼을 그리지 않는다.
+  //   숨기지는 않는다(한 사람 = 세션 1개라 숨기면 보이지 않는 타이머가 돈다).
+  const [otherWsId, setOtherWsId] = useState<number | null>(null);
+  const { user, switchWorkspace } = useAuth();
+  const [switching, setSwitching] = useState(false);
   const [tick, setTick] = useState(0);  // 매초 카운터 re-render 트리거 (값 자체는 카운터에 더하지 않음)
   // N+45 — 정확한 카운터 baseline. server fetch 시점의 actual_seconds + Date.now() ms 차이로 계산
   // (옛 로직: actual_seconds + tick → 30초마다 server fetch 가 actual_seconds 30 증가시키는데 tick reset 안 돼서
@@ -98,7 +104,10 @@ const FocusWidget: React.FC<Props> = ({ isCollapsed, embedded }) => {
     try {
       const r = await apiFetch('/api/focus/current');
       const j = await r.json();
-      if (j.success) setSession(j.data || null);
+      if (j.success) {
+        if (j.data && j.data.other_workspace) { setOtherWsId(Number(j.data.business_id) || null); setSession(null); }
+        else { setOtherWsId(null); setSession(j.data || null); }
+      }
     } catch { /* noop */ }
   }, []);
 
@@ -276,6 +285,39 @@ const FocusWidget: React.FC<Props> = ({ isCollapsed, embedded }) => {
       <CollapsedDot $state={state} title={t('widget.title') as string} aria-label={t(`widget.state.${state}`) as string}>
         <DotInner $state={state} />
       </CollapsedDot>
+    );
+  }
+
+  if (!session && otherWsId) {
+    const ws = (user?.workspaces || []).find((w) => Number(w.business_id) === otherWsId) || null;
+    const onSwitch = async () => {
+      if (!ws || switching) return;
+      setSwitching(true);
+      const ok = await switchWorkspace(ws.business_id);
+      if (ok) { window.location.reload(); return; }   // OtherWorkspaceNotice 와 같은 길 — 그 워크스페이스로 다시 부팅
+      setSwitching(false);
+    };
+    return (
+      <Wrap $embedded={embedded} data-testid="focus-widget" data-focus-state="other_workspace">
+        {!embedded && (
+          <WidgetHeader>
+            <Dot $state="idle" />
+            <Label>{t('widget.title')}</Label>
+          </WidgetHeader>
+        )}
+        <SubText>
+          {ws
+            ? t('widget.otherWorkspace', { name: ws.brand_name, defaultValue: '{{name}} 워크스페이스에서 업무 진행 중' }) as string
+            : t('widget.otherWorkspaceUnknown', '다른 워크스페이스에서 업무 진행 중') as string}
+        </SubText>
+        {ws && (
+          <Actions>
+            <SecondaryBtn type="button" onClick={onSwitch} disabled={switching} data-testid="focus-other-ws-switch">
+              {t('widget.otherWorkspaceSwitch', { name: ws.brand_name, defaultValue: '{{name}}(으)로 전환' }) as string}
+            </SecondaryBtn>
+          </Actions>
+        )}
+      </Wrap>
     );
   }
 

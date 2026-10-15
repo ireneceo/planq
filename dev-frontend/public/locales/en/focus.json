@@ -9,6 +9,9 @@
       "break": "On break"
     },
     "idleHint": "Auto-tracked when you start a task",
+    "otherWorkspace": "A task is running in {{name}}",
+    "otherWorkspaceUnknown": "A task is running in another workspace",
+    "otherWorkspaceSwitch": "Switch to {{name}}",
     "gotoTasks": "Go to my tasks",
     "noTask": "No task selected",
     "noTaskHint": "The task for this session is gone. Starting another task will auto-switch.",

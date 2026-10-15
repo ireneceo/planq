@@ -23,6 +23,7 @@ const {
 const { sequelize } = require('../config/database');
 const { recomputeActualHours } = require('../services/taskActualHours');
 const { getUserScope } = require('../middleware/access_scope');
+const { requestScope, staleResponse } = require('../middleware/workspaceContext');
 
 // 워크스페이스 접근 확인 — tasks.js 와 같은 술어(owner/member/admin/client).
 async function assertBusinessAccess(userId, businessId, platformRole) {
@@ -92,7 +93,6 @@ async function loadTaskInfo(taskId) {
   return t ? { id: t.id, title: t.title, status: t.status, project_id: t.project_id } : null;
 }
 
-
 // ─── GET /current ────────────────────────────────────────────────
 router.get('/current', authenticateToken, async (req, res, next) => {
   try {
@@ -101,6 +101,10 @@ router.get('/current', authenticateToken, async (req, res, next) => {
       order: [['id', 'DESC']],
     });
     if (!session) return successResponse(res, null);
+    const wsScope = requestScope(req, req.query.business_id, { legacy: 'aggregate' });
+    if (wsScope.stale) return staleResponse(res, wsScope);
+    const scopeId = Number(wsScope.businessId) || null;
+    if (scopeId && session.business_id !== scopeId) return successResponse(res, { other_workspace: true, business_id: session.business_id }); // 범위(Fable 2026-10-15): 다른 워크스페이스 세션은 내용 없이 «다른 곳에서 진행 중» 만 — 한 창 한 워크스페이스, 숨기면 안 보이는 타이머가 돈다
     const taskInfo = await loadTaskInfo(session.task_id);
     const taskAccum = await sumStoppedFocusSeconds(session.task_id, req.user.id, session.id);
     return successResponse(res, serializeSession(session, taskInfo, taskAccum));
@@ -254,15 +258,11 @@ router.post('/resume', authenticateToken, startStopLimiter, async (req, res, nex
 router.post('/stop', authenticateToken, startStopLimiter, async (req, res, next) => {
   try {
     const { session_id, end_reason } = req.body;
-    // ★ 2026-09-07 — session_id 검증이 없어 **500** 이 났다:
-    //   `findOne({ where: { id: undefined } })` 를 Sequelize 가 던진다
-    //   ("WHERE parameter \"id\" has invalid \"undefined\" value"). 실측으로 잡았다.
-    //   빠뜨린 인자는 400 으로 말한다 — 서버 오류로 위장하면 부르는 쪽이 원인을 못 찾는다.
+    // ★ 2026-09-07 — session_id 가 없으면 Sequelize 가 던져 500 이었다. 빠뜨린 인자는 400 으로 말한다.
     if (!session_id) return errorResponse(res, 'session_id_required', 400);
     const session = await FocusSession.findOne({ where: { id: session_id, user_id: req.user.id } });
     if (!session) return errorResponse(res, 'session_not_found', 404);
-    // ★ broadcast 는 **상태를 바꾼 뒤**에 한다. 여기서 먼저 쏘면 듣는 쪽이 곧바로 되읽어
-    //   아직 안 바뀐 상태를 가져간다(그러면 실시간인데 값이 옛것이다).
+    // ★ broadcast 는 상태를 바꾼 뒤에 한다(먼저 쏘면 듣는 쪽이 옛 상태를 되읽는다).
     if (session.state === 'stopped') {
       broadcastFocus(req, req.user.id, { state: session.state, task_id: session.task_id });
       return successResponse(res, serializeSession(session, await loadTaskInfo(session.task_id)));

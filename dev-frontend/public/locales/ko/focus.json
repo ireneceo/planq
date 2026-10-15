@@ -9,6 +9,9 @@
       "break": "휴게 중"
     },
     "idleHint": "Q Task 에서 \"진행 시작\" 시 자동 측정",
+    "otherWorkspace": "{{name}} 워크스페이스에서 업무 진행 중",
+    "otherWorkspaceUnknown": "다른 워크스페이스에서 업무 진행 중",
+    "otherWorkspaceSwitch": "{{name}}(으)로 전환",
     "gotoTasks": "내 업무로 가기",
     "noTask": "업무 미지정",
     "noTaskHint": "이 세션의 업무가 사라졌어요. 다른 업무를 시작하면 자동 전환됩니다.",
