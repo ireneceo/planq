@@ -12,6 +12,12 @@
 > `R=1 OR (S=1 AND F=0)` 은 공용 기준으로 대체됐다(뜻은 같다).
 
 
+### 2026-10-15 워크스페이스 초대 인앱 알림 — 설계 판정 DESIGN-OK (design · 방 3a26aed0)
+- 정정 2: 프로젝트 고객 초대는 기존 계정이면 초대 순간 contact_user_id·고객 채널 부여(의도, 10-07 B7) → «수락하세요» 가 아니라 «추가되었습니다». unreadEscalationCron ESCALATE_KINDS 에 invite → 인앱만 보내도 5분 뒤 두 번째 메일.
+- D1 (가) 멤버 초대 user_id prefill 중단 + 백필. 술어 user_id NOT NULL ∧ joined_at NULL ∧ invite_token NOT NULL ∧ invite_email NOT NULL ∧ removed_at NULL ∧ role∉owner,ai. 대상별 그 biz audit_logs 0건 → user_id NULL / 1건↑ → joined_at=첫 audit 시각. --dry-run 기본·행별 출력·감사. 운영 사전 점검 ⒜~⒠(⒝ invite.accept 인데 joined_at NULL = 0 이어야 진행). active_business_id 는 자가치유.
+- D2 services/inviteNotify(notifyExistingInvitee·dismissInviteNotice). 경로 5: 멤버·고객(+재초대)·프로젝트 고객(+resend). 재발송은 미읽음 행 있으면 새로 안 만듦. 멤버·워크스페이스 고객 = business_id NULL·링크 /invite/<token>(푸시 토큰 허용, 제목·본문엔 금지). 프로젝트 고객 = 그 biz·프로젝트 주소·토큰 없음. skipChannels email + 에스컬레이션 차단 옵션(email_escalated_at=now). 문구 lang 함수형. 수락·대기 삭제·고객 삭제/보관·프로젝트 고객 제거 때 read_at. ★ 알림 드롭다운·토스터의 /invite 클릭은 비앱 경로 → 한 정본 접두어로 location.assign.
+- D3 유지(10-12 Irene 결정). D4 백필·실HTTP·음성 대조군·화면 2모드·secrets·guard·build·tenant. 완료 Fable gate 1회 필요.
+
 ### 2026-10-15 미출근인데 업무 «자리 비움·재개» — 설계 판정 (design · 방 a9337893)
 - 원인(운영 읽기): 업무 542 세션 236 — 자동 출근 11초 뒤 [취소] → 근태 행만 지워지고 포커스 2h40m 계속 → 자리 비움 자동 멈춤.
 - 판정: ①취소 = 그 워크스페이스의 살아 있는 세션 **종료**(stop, end_reason `undo_clock_in`) · 업무 상태 그대로 · 측정 초 그대로 누적. «시간만 재고 출근은 싫다» 는 설정 auto_clock_in_on_focus 의 일. 문구 autoUndoHint 에 «업무 시간 측정도 함께 멈춥니다». 재개 자동 출근 유지.

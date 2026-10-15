@@ -52,3 +52,11 @@
 - 음성 대조군: 없는 이메일 초대 → 알림 0 · 옛 코드(prefill)로 되돌리면 ①② 가 뒤집히는지.
 - 백필 스크립트 dev 실행 → id 330 user_id NULL · F9 8행 불변 · 재실행 0행.
 - `node scripts/health-check.js` · `guard-invariants.js` · `e2e --suite tenant` · build.
+
+## 4. Fable 판정 (2026-10-15 · DESIGN-OK) — 구현은 이것을 따른다
+정본 기록: `docs/FABLE_GATE_QUEUE.md` 맨 위 «2026-10-15 워크스페이스 초대 인앱 알림». 요지:
+- 1절 정정: **F8 틀림** — 프로젝트 고객은 기존 계정이면 초대 순간 `contact_user_id` 와 고객 채널을 받는다(의도). 알림은 «추가되었습니다» · 그 biz · 프로젝트 주소 · 토큰 없음.
+  **F11 보강** — `unreadEscalationCron` 이 `invite` 를 5분 뒤 메일로 다시 보낸다 → notify 에 에스컬레이션 차단 옵션.
+- D1 (가) + 백필 둘 갈래(그 biz 감사 기록 0 → 대기로 / 1↑ → joined_at = 첫 감사 시각). 운영 사전 점검 ⒝=0 이어야 진행.
+- D2 헬퍼 `services/inviteNotify` 한 벌 · 경로 5 · 재발송 중복 금지 · 수락/취소 때 읽음 처리 · 알림 클릭의 `/invite` 는 전면 이동.
+- D3 유지. D4 완료 때 Fable gate 1회.
