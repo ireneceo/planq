@@ -716,7 +716,8 @@ const MailPage: React.FC = () => {
       // 전달(forward) 은 이 브라우저에 초안이 남는다(위 fwdDraft) → **이동을 막지 않는다.**
       //   옛 동작은 쓴 게 있으면 이탈 자체를 차단했다 — 사용자에겐 "안 나가져" 로 보였다.
       if (fwdFromMsgId) {
-        setComposeOpen(false);
+        // 폼도 비운다 — 닫기만 하면 전달 표식(fwdFromMsgId)이 살아 있어 다음 [+ 새 메일] 이 다시 전달로 열렸다.
+        setComposeOpen(false); resetComposeFields();
         navigateToThread(id);
         return;
       }
@@ -734,14 +735,14 @@ const MailPage: React.FC = () => {
             setCError(t('compose.draftSaveFailed', { defaultValue: '작성 중인 내용을 저장하지 못해 폼을 닫지 않았습니다. 잠시 후 다시 시도하거나 내용을 복사해 두세요.' }) as string);
             return;
           }
-          setComposeOpen(false);
+          setComposeOpen(false); resetComposeFields();
           navigateToThread(id);
         }).catch(() => {
           setCError(t('compose.draftSaveFailed', { defaultValue: '작성 중인 내용을 저장하지 못해 폼을 닫지 않았습니다. 잠시 후 다시 시도하거나 내용을 복사해 두세요.' }) as string);
         });
         return;   // 저장 결과를 본 뒤에 닫고 이동한다
       }
-      setComposeOpen(false);
+      setComposeOpen(false); resetComposeFields();
     }
     navigateToThread(id);
   };
@@ -1901,13 +1902,9 @@ const MailPage: React.FC = () => {
       //   초안 복원이 그것을 이길 수 없다.
       //   → 이 경로는 **빈 폼 + 그 주소**로 연다. 초안은 서버에 그대로 두므로(지우지 않는다)
       //     상단 '새 메일' 로 열면 종전대로 이어 쓸 수 있다.
+      resetComposeFields();
       composeFreshToRef.current = email;
       setCTo(email);
-      setCSubject('');
-      setCBody('');
-      setCFileIds([]);
-      setCUploads([]);
-      setFwdFromMsgId(null);
       setComposeOpen(true);
     },
     onSaveClient: (email: string, name?: string | null) => {
@@ -2178,24 +2175,46 @@ const MailPage: React.FC = () => {
 
   // 사용자가 컴포저를 실제로 편집했다 — 이 시점부터 자동저장이 정상 동작한다.
   const markComposeTouched = () => { composeVoiceUntouched.current = false; };
+  // 작성 폼 값을 비운다(여닫기는 부르는 쪽이 정한다). 새 메일 ↔ 전달처럼 **모드를 바꾸는 모든 문**이 이것을 먼저 부른다 —
+  //   문마다 손으로 지우면 한 곳씩 빠져 전달 제목·첨부·발신 주소가 다른 모드로 넘어간다(2026-10-15).
+  //   setter·ref 만 쓰므로 [businessId] 로 메모된 addressActions 안에서 불러도 낡은 값을 보지 않는다.
+  function resetComposeFields() {
+    setCTo(''); setCSubject(''); setCBody(''); setCUploads([]); setCFileIds([]); setCError(null);
+    setCFromAliasId(0);
+    setFwdFromMsgId(null); setFwdAttachCount(0);
+    fwdRestoredRef.current = '';   // 같은 메일을 다시 전달하면 로컬 초안을 다시 읽는다
+    composeFreshToRef.current = null; setKeptDraftNotice(false); setComposeDraftStatus('idle');
+    pendingVoiceRef.current = null; composeVoiceUntouched.current = false;
+  }
 
 
   // reason — 'user'(✕·취소): 걸려 있던 초안을 먼저 보낸다(다시 열면 서버 초안이 복원된다) · 'sent': 버린다
   const closeCompose = (reason: 'user' | 'sent') => {
     if (reason === 'user') void sendPendingDraft(composePendingRef); else composePendingRef.current = null;
-    setComposeOpen(false); setCTo(''); setCSubject(''); setCBody(''); setCUploads([]); setCFileIds([]); setCError(null);
-    setFwdFromMsgId(null); setFwdAttachCount(0);
-    composeFreshToRef.current = null; setKeptDraftNotice(false); setComposeDraftStatus('idle');
-    pendingVoiceRef.current = null; composeVoiceUntouched.current = false;
+    setComposeOpen(false); resetComposeFields();
+  };
+  // 새 메일 열기 — [+ 새 메일]·빈 화면 CTA 가 같이 쓰는 문.
+  //   ★ 2026-10-15 (Irene: "전달 눌렀다가 다시 새메일 쓰려고 + 누르면 리셋 안되고 전달한 내용이 남아있어")
+  //     작성 폼 하나를 새 메일·전달이 같이 쓰는데, + 가 `setComposeOpen(true)` 만 해서 전달 폼이 그대로 남았다.
+  //     전달 중이었으면 폼을 비우고 새 메일로 연다(전달 글은 로컬 초안으로 남아 다시 전달하면 복원된다).
+  //     이미 새 메일을 쓰는 중이면 건드리지 않는다 — 쓰던 것을 지우지 않는다.
+  const openNewCompose = () => {
+    if (fwdFromMsgId) resetComposeFields();
+    else if (composeOpen) return;
+    composeFreshToRef.current = null; setKeptDraftNotice(false);
+    setComposeOpen(true);
   };
   // 전달 시작 — compose 모달을 전달 모드로 열고 제목/인용본문 prefill
   const startForward = (m: Message) => {
     const baseSubj = detail?.subject || '';
     const subj = /^fwd:/i.test(baseSubj.trim()) ? baseSubj : `Fwd: ${baseSubj}`;
     // 인용 헤더는 **서버가** 만든다(원문과 같은 자리에서 붙어야 하므로). 여기서는 만들지 않는다.
+    // 새 메일을 쓰던 중이었으면 걸린 서버 초안부터 보내고, 폼을 통째로 비운다 — 새 메일 첨부·발신 주소가
+    //   전달로 섞이지 않게(2026-10-15). 다른 메일 전달 중이었으면 그 글은 로컬 초안으로 남는다.
+    if (composeOpen && !fwdFromMsgId) void sendPendingDraft(composePendingRef);
+    resetComposeFields();
     setFwdFromMsgId(m.id);
     setFwdAttachCount((m.attachments || []).length);
-    setCTo(''); setCError(null);
     setCSubject(subj);
     // ★ 2026-08-24 (Irene) — 원문을 **에디터에 넣지 않는다.**
     //   리치 에디터(TipTap)는 메일의 <table>·인라인 스타일을 자기 노드로 재해석해 표를 박스로 만들고
@@ -2282,7 +2301,7 @@ const MailPage: React.FC = () => {
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" /></svg>
               </AcctManageIcon>
             )}
-            <ComposeBtn type="button" data-testid="mail-compose-open" onClick={() => { composeFreshToRef.current = null; setKeptDraftNotice(false); setComposeOpen(true); if (viewportNarrow) setSidebarCollapsed(true); }} title={t('compose.new', { defaultValue: '새 메일' }) as string} aria-label={t('compose.new', { defaultValue: '새 메일' }) as string}>
+            <ComposeBtn type="button" data-testid="mail-compose-open" onClick={() => { openNewCompose(); if (viewportNarrow) setSidebarCollapsed(true); }} title={t('compose.new', { defaultValue: '새 메일' }) as string} aria-label={t('compose.new', { defaultValue: '새 메일' }) as string}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                 <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
               </svg>
@@ -2989,7 +3008,7 @@ const MailPage: React.FC = () => {
                   : (t('empty.line2', { defaultValue: '왼쪽 목록에서 메일을 선택하거나, 새 메일을 보내보세요.' }) as string)
               }`}
               ctaLabel={accounts.length > 0 ? (t('compose.new', { defaultValue: '새 메일' }) as string) : undefined}
-              onCta={accounts.length > 0 ? () => setComposeOpen(true) : undefined}
+              onCta={accounts.length > 0 ? openNewCompose : undefined}
             />
           ) : (
             <>
