@@ -25,9 +25,10 @@ async function respondToFeedback(item, { status, admin_response, actorUserId, io
       userId: item.user_id,
       businessId: item.business_id || null,
       eventKind: 'feedback',
+      // 문의(kind 'inquiry')에 답해도 «피드백 …» 이라 적혔다(2026-10-15) — 종류대로 부른다.
       title: (lang) => (L(lang) === 'en'
-        ? `Feedback ${LABEL.en[item.status] || LABEL.en.pending} — ${item.title}`
-        : `피드백 ${LABEL.ko[item.status] || LABEL.ko.pending} — ${item.title}`),
+        ? `${item.kind === 'inquiry' ? 'Inquiry' : 'Feedback'} ${LABEL.en[item.status] || LABEL.en.pending} — ${item.title}`
+        : `${item.kind === 'inquiry' ? '문의' : '피드백'} ${LABEL.ko[item.status] || LABEL.ko.pending} — ${item.title}`),
       body: (lang) => (item.admin_response ? String(item.admin_response).slice(0, 300)
         : (L(lang) === 'en' ? 'The PlanQ team has replied.' : '운영팀이 회신했습니다.')),
       link: '/me/feedback',

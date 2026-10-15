@@ -1034,6 +1034,11 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
   //   확인 필요는 '나에게 귀속된, 내가 완료할 수 있는 액션' 만 담는 신뢰 자산이고,
   //   회사 공용 메일함은 담당자 미지정이 기본이라 멤버 전원 뱃지가 같은 메일로 동시에 오른다.
   const mailMenuCount = inboxCounts.mail;
+  // 2026-10-15 — 확인필요에만 잡히고 메뉴 숫자가 없던 넷. 서버 all.filter 한 공식(routes/dashboard.js).
+  const signMenuCount = inboxCounts.signReceived;
+  const docsMenuCount = inboxCounts.docs;
+  const calendarMenuCount = inboxCounts.calendar;
+  const attendanceMenuCount = inboxCounts.attendance;
   const saleMenuCount = inboxCounts.sale;  // Q sale 메뉴 뱃지 — 내게 귀속된 영업 확인 항목(확인 필요 total 의 부분집합)
   // N+63 — platform_admin 좌측 inbox badge (feedback + inquiries)
   const adminCounts = useAdminInboxCounts();
@@ -1631,6 +1636,12 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
                       title={isCollapsed ? t('nav.calendar') : undefined}>
                       <NavIcon $isCollapsed={isCollapsed}><IconCalendar /></NavIcon>
                       <NavLabel $isCollapsed={isCollapsed}>{t('nav.calendar')}</NavLabel>
+                      {calendarMenuCount > 0 && (
+                        <InboxBadge $collapsed={isCollapsed} data-testid="nav-badge-calendar"
+                          aria-label={`${t('nav.calendar')} ${calendarMenuCount}`}>
+                          {calendarMenuCount > 99 ? '99+' : calendarMenuCount}
+                        </InboxBadge>
+                      )}
                     </NavItem>
                   )}
                   {show('/notes') && (
@@ -1645,6 +1656,12 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
                       title={isCollapsed ? t('nav.docs') : undefined}>
                       <NavIcon $isCollapsed={isCollapsed}><IconDocs /></NavIcon>
                       <NavLabel $isCollapsed={isCollapsed}>{t('nav.docs')}</NavLabel>
+                      {docsMenuCount > 0 && (
+                        <InboxBadge $collapsed={isCollapsed} data-testid="nav-badge-docs"
+                          aria-label={`${t('nav.docs')} ${docsMenuCount}`}>
+                          {docsMenuCount > 99 ? '99+' : docsMenuCount}
+                        </InboxBadge>
+                      )}
                     </NavItem>
                   )}
                   {show('/info') && (
@@ -1704,6 +1721,12 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/><path d="M2 2l7.586 7.586"/><circle cx="11" cy="11" r="2"/></svg>
                       </NavIcon>
                       <NavLabel $isCollapsed={isCollapsed}>{t('nav.receivedSignatures', '받은 서명')}</NavLabel>
+                      {signMenuCount > 0 && (
+                        <InboxBadge $collapsed={isCollapsed} data-testid="nav-badge-sign-received"
+                          aria-label={`${t('nav.receivedSignatures', '받은 서명')} ${signMenuCount}`}>
+                          {signMenuCount > 99 ? '99+' : signMenuCount}
+                        </InboxBadge>
+                      )}
                     </NavItem>
                   )}
                   {/* #208 — 내 출퇴근·내 휴가는 **개인** 것이다. 승인·팀 현황·통계는
@@ -1715,6 +1738,12 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/></svg>
                       </NavIcon>
                       <NavLabel $isCollapsed={isCollapsed}>{t('nav.attendance', '근태·휴가')}</NavLabel>
+                      {attendanceMenuCount > 0 && (
+                        <InboxBadge $collapsed={isCollapsed} data-testid="nav-badge-attendance"
+                          aria-label={`${t('nav.attendance', '근태·휴가')} ${attendanceMenuCount}`}>
+                          {attendanceMenuCount > 99 ? '99+' : attendanceMenuCount}
+                        </InboxBadge>
+                      )}
                     </NavItem>
                   )}
                   {/* 2026-09-21 — 문의·피드백은 개인 섹션 맨 아래(근태·휴가 다음). 솔루션에 대한 것이라 나의 일 메뉴들 뒤에 둔다 */}

@@ -118,6 +118,10 @@ export interface TodoResponse {
   /** Q Talk 메뉴 뱃지 — 안 읽은 **대화방** 수. 채팅 리스트의 방별 숫자(메시지 수)와 단위가 다르다. */
   talkCount?: number;
   saleCount?: number;  // Q sale 메뉴 뱃지 — 내게 귀속된 영업 확인 항목 (확인 필요 total 의 부분집합)
+  signReceivedCount?: number;   // 받은 서명 메뉴 — 나에게 온 서명·확인 요청
+  docsCount?: number;           // Q docs 메뉴 — 내가 보낸 서명의 거절·의견
+  calendarCount?: number;       // Q calendar 메뉴 — 참석 응답·상담 신청
+  attendanceCount?: number;     // 근태 메뉴 — 휴가 승인
   workspaces?: TodoWorkspace[];
 }
 

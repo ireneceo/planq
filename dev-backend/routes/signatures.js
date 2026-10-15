@@ -130,7 +130,7 @@ router.post('/posts/:id/signatures', authenticateToken, async (req, res, next) =
 
     // 발송자 + 워크스페이스 정보
     const sender = await User.findByPk(req.user.id, { attributes: ['name'], transaction: t });
-    const business = await Business.findByPk(post.business_id, { attributes: ['name'], transaction: t });
+    const business = await Business.findByPk(post.business_id, { attributes: ['name', 'brand_name'], transaction: t });
 
     // #239 — 서명 요청(sign) vs 확인 요청(confirm). 모르는 값이면 sign 으로 떨어진다(fail-safe:
     //   기존 클라이언트가 kind 를 안 보내도 종전과 똑같이 동작).
@@ -220,8 +220,8 @@ router.post('/posts/:id/signatures', authenticateToken, async (req, res, next) =
     // 트랜잭션 커밋 후 외부 호출 (이메일·채팅)
     const docTitle = post.title;
     for (const row of created) {
-      // 보내는 쪽(우리 멤버)에게는 서명 링크 메일을 보내지 않는다 — 앱 안에서 서명한다
-      if (row.party === 'us') continue;
+      // 보내는 쪽(우리 멤버)에게는 서명 링크 메일 대신 앱 알림 — 앱 안에서 서명한다(services/signatureCore 한 곳)
+      if (row.party === 'us') { require('../services/signatureCore').notifyUsSigners([row], { post, docTitle, senderName: sender?.name || '', business, actorUserId: req.user.id }); continue; }
       const signUrl = `${APP_URL}/sign/${row.token}`;
       await sendSignatureRequestEmail({
         to: row.signer_email,

@@ -84,14 +84,41 @@ async function notifyWorkspaceMembersOnSignature(sr, event, signerName) {
   const excludeUserId = sr.requester_user_id;
   const title = copy.title;
   const body = `${signerName || sr.signer_email}${copy.suffix}${entityTitle ? `\n문서: ${entityTitle}` : ''}`;
-  const link = sr.entity_type === 'post'
-    ? `${process.env.APP_URL || 'https://dev.planq.kr'}/posts/${sr.entity_id}`
-    : `${process.env.APP_URL || 'https://dev.planq.kr'}/docs/${sr.entity_id}`;
+  // ★ 2026-10-15 — 옛 링크 `/posts/:id`·`/docs/:id` 는 **화면에 없는 주소**였다(누르면 홈으로 튕김, dev 428건 전부).
+  //   정본은 services/notification_link.js 의 post 매핑(`/docs?post=`). 옛 행은 프론트 normalizeLink 가 옮겨 읽는다.
+  const link = sr.entity_type === 'post' ? `/docs?post=${sr.entity_id}` : '/docs';
   await notifyMany({
     userIds, businessId: sr.business_id, eventKind: 'signature',
     title, body, link, ctaLabel: '확인하기',
     workspaceName: wsName, excludeUserId,
   });
+}
+
+
+// 보내는 쪽(우리 멤버) 서명자에게 **앱 알림** (2026-10-15).
+//   요청 라우트는 이 칸에 메일을 건너뛰기만 하고 다른 알림이 없어 확인필요에만 뜨고 종·푸시는 0 이었다
+//   (Irene: "받은 서명에 알림이 안나오는 것 같아"). 받는 사람은 그 칸에 박힌 본인(signer_user_id) 하나뿐 —
+//   요청한 본인이면 이미 아는 일이라 건너뛴다. 메일 채널은 끈다(앱 안에서 서명한다 — 서명 링크를 메일로 내보내지 않는 기존 결정 그대로).
+function notifyUsSigners(rows, { post, docTitle, senderName, business, actorUserId }) {
+  const { notify } = require('../routes/notifications');
+  const en = (lang) => lang === 'en';
+  for (const row of rows) {
+    if (row.party !== 'us' || !row.signer_user_id || row.signer_user_id === actorUserId) continue;
+    const isConfirm = row.kind === 'confirm';
+    notify({
+      userId: row.signer_user_id, businessId: post.business_id, eventKind: 'signature',
+      // 받는 사람의 언어로 — notify 가 함수에 수신자 언어를 넘긴다(feedbackRespond 와 같은 방식)
+      title: (lang) => (en(lang) ? (isConfirm ? 'Document confirmation requested' : 'Signature requested')
+        : (isConfirm ? '문서 확인 요청' : '서명 요청')),
+      body: (lang) => (en(lang)
+        ? `${senderName ? `${senderName} requested ` : 'Requested '}${isConfirm ? 'your confirmation' : 'your signature'}.\nDocument: ${docTitle}`
+        : `${senderName ? `${senderName} 님이 ` : ''}${isConfirm ? '문서 확인을 요청했습니다.' : '서명을 요청했습니다.'}\n문서: ${docTitle}`),
+      link: `/sign/${row.token}`,
+      ctaLabel: (lang) => (en(lang) ? (isConfirm ? 'Confirm' : 'Sign') : (isConfirm ? '확인하기' : '서명하기')),
+      workspaceName: business?.brand_name || business?.name || null,
+      actorUserId, skipChannels: ['email'],
+    }).catch((e) => console.warn('[signature] us 서명자 알림 실패', e?.message));
+  }
 }
 
 
@@ -245,5 +272,5 @@ module.exports = {
   canReadPostFn, canEditPostFn, postOfRequest, canManageRequest,
   isPostSignatureLocked, blockIfSigned, parseMaybeJson, buildEntitySnapshot, planOutboundScope, loadEntity, maybeUpdateEntityStatus,
   loadByToken, confirmLimiter, docConfirmEnabled, assertKind,
-  isExpiredNow, SIGNATURE_EVENT_COPY, notifyWorkspaceMembersOnSignature,
+  isExpiredNow, SIGNATURE_EVENT_COPY, notifyWorkspaceMembersOnSignature, notifyUsSigners,
 };

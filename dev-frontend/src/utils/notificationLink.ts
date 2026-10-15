@@ -49,10 +49,19 @@ const EVENT_KIND_FALLBACK: Record<string, () => string> = {
 // N+74-D fix — backend 옛 notify 호출자가 'https://planq.kr/talk?conv=3' 같은 절대 URL 을
 // link 에 저장한 경우 react-router navigate() 가 외부 link 처리 → 클릭 시 작동 안 됨.
 // 같은 도메인 (planq.kr / dev.planq.kr / localhost) 이면 path 부분만 추출.
+// 화면에 없는 옛 주소 → 지금 주소. 서명 알림이 2026-10-15 전까지 `/posts/:id`·`/docs/:id` 로 저장됐다
+//   (그 주소는 라우트가 없어 홈으로 튕겼다). DB 를 고치지 않고 읽을 때 옮긴다.
+function migrateLegacyPath(path: string): string {
+  const post = path.match(/^\/posts\/(\d+)\/?$/);
+  if (post) return `/docs?post=${post[1]}`;
+  if (/^\/docs\/\d+\/?$/.test(path)) return '/docs';
+  return path;
+}
+
 function normalizeLink(link: string): string | null {
   if (typeof link !== 'string' || !link) return null;
   // 이미 path 형식 + 의미 있는 경로
-  if (link.startsWith('/') && link !== '/') return link;
+  if (link.startsWith('/') && link !== '/') return migrateLegacyPath(link);
   // 절대 URL — 같은 도메인이면 path 추출
   if (link.startsWith('http://') || link.startsWith('https://')) {
     try {
@@ -60,7 +69,7 @@ function normalizeLink(link: string): string | null {
       const sameDomain = ['planq.kr', 'www.planq.kr', 'dev.planq.kr', 'localhost', '127.0.0.1'].includes(u.hostname);
       if (sameDomain) {
         const path = u.pathname + u.search + u.hash;
-        return path && path !== '/' ? path : null;
+        return path && path !== '/' ? migrateLegacyPath(path) : null;
       }
     } catch { /* invalid URL */ }
   }

@@ -1266,13 +1266,24 @@ router.get('/todo', authenticateToken, async (req, res, next) => {
     //   ★ 채팅 **리스트**의 방별 숫자는 여전히 안 읽은 메시지 수다(routes/conversations.js). 거기선 그게 맞다.
     const talkCount = all.filter((it) => it.type === 'chat').length;
 
+    // 배지가 없던 메뉴 넷 (2026-10-15, Irene: "확인필요랑 좌측 메뉴들 알림 숫자가 안맞아서 보니까 받은 서명에 알림이 안나오는 것 같아")
+    //   확인필요에는 들어가는데 어느 메뉴에도 숫자가 없어 «메뉴 합 ≠ 확인필요» 였다. 같은 공식(all.filter) — 다시 세지 않는다.
+    //   한 항목 = 한 메뉴: 받은 서명·확인 요청 → 받은 서명 / 내가 보낸 서명의 거절·의견 → Q docs(링크가 문서) /
+    //   참석 응답·상담 신청 → Q calendar(링크가 일정) / 휴가 승인 → 근태. 초대·요금 결제는 메뉴가 없다(확인필요에만).
+    const SIGN_RECEIVED_VERBS = new Set(['sign', 'doc_confirm']);
+    const signReceivedCount = all.filter((it) => it.type === 'signature' && SIGN_RECEIVED_VERBS.has(it.verb)).length;
+    const docsCount = all.filter((it) => it.type === 'signature' && !SIGN_RECEIVED_VERBS.has(it.verb)).length;
+    const calendarCount = all.filter((it) => it.type === 'event' || it.type === 'booking').length;
+    const attendanceCount = all.filter((it) => it.type === 'leave').length;
+
     return successResponse(res, {
       items: displayed,
       counts,
       total: all.length,          // ★ 진짜 개수 — 목록 상한과 무관하다
       shown: displayed.length,
       hidden: hiddenCount,        // 화면이 "외 N건" 을 말할 수 있게
-      taskCount, billCount, billTabCounts, mailReplyCount, talkCount, saleCount, workspaces,
+      taskCount, billCount, billTabCounts, mailReplyCount, talkCount, saleCount,
+      signReceivedCount, docsCount, calendarCount, attendanceCount, workspaces,
     });
   } catch (err) {
     return next(err);
