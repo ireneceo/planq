@@ -595,7 +595,8 @@
     "subject": "Subject",
     "subjectPh": "Enter a subject",
     "to": "To",
-    "toRequired": "Please enter a recipient"
+    "toRequired": "Please enter a recipient",
+    "suggestClient": "Client"
   },
   "attachment": {
     "preview": "Preview",

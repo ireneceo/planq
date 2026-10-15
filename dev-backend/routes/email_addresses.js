@@ -35,15 +35,25 @@ async function ownAddressSet(businessId) {
 
 function counterpartsOf(msg, own) {
   // 받은 메일이면 보낸 사람이 상대. 보낸 메일이면 받는 사람들이 상대.
+  // + 함께 받은 사람(받은 메일의 받는 사람·참조 · 보낸 메일의 참조)도 «오간 사람» 이다 — 2026-10-15 Irene:
+  //   "현재 이메일 안에서 모든 주소들 검색해서 리스트업" (새 메일 받는 사람 추천이 이 목록을 쓴다).
+  //   함께 받은 사람은 그 메일의 안읽음에 세지 않는다(cc 로 받았다고 그 사람이 보낸 것이 아니다) — `cc: true`.
   const out = [];
+  const seen = new Set();
+  const push = (x, cc) => {
+    const email = norm(typeof x === 'string' ? x : x?.email);
+    if (!email || own.has(email) || seen.has(email)) return;
+    seen.add(email);
+    out.push({ email, name: (typeof x === 'object' && x?.name) || null, cc });
+  };
+  const list = (v) => (Array.isArray(v) ? v : []);
   if (msg.direction === 'inbound') {
-    if (msg.from_email && !own.has(norm(msg.from_email))) out.push({ email: norm(msg.from_email), name: msg.from_name || null });
+    if (msg.from_email) push({ email: msg.from_email, name: msg.from_name || null }, false);
+    for (const x of list(msg.to_emails)) push(x, true);
+    for (const x of list(msg.cc_emails)) push(x, true);
   } else {
-    const to = Array.isArray(msg.to_emails) ? msg.to_emails : [];
-    for (const x of to) {
-      const email = norm(typeof x === 'string' ? x : x?.email);
-      if (email && !own.has(email)) out.push({ email, name: (typeof x === 'object' && x?.name) || null });
-    }
+    for (const x of list(msg.to_emails)) push(x, false);
+    for (const x of list(msg.cc_emails)) push(x, true);
   }
   return out;
 }
@@ -68,7 +78,7 @@ router.get('/', authenticateToken, checkBusinessAccess, requireMenu('qmail', 're
 
     const msgs = await EmailMessage.findAll({
       where: { business_id: businessId, thread_id: { [Op.in]: threadIds } },
-      attributes: ['id', 'thread_id', 'direction', 'from_email', 'from_name', 'to_emails', 'sent_at', 'is_read'],
+      attributes: ['id', 'thread_id', 'direction', 'from_email', 'from_name', 'to_emails', 'cc_emails', 'sent_at', 'is_read'],
       order: [['sent_at', 'DESC']],
       limit: 20000,   // 안전 상한 — 전수 집계이므로 상한에 걸리면 최근 것부터 센다
     });
@@ -84,7 +94,7 @@ router.get('/', authenticateToken, checkBusinessAccess, requireMenu('qmail', 're
         };
         cur.total += 1;
         if (m.direction === 'inbound') cur.inbound += 1; else cur.outbound += 1;
-        if (m.direction === 'inbound' && !m.is_read) cur.unread += 1;
+        if (m.direction === 'inbound' && !m.is_read && !c.cc) cur.unread += 1;
         if (!cur.name && c.name) cur.name = c.name;
         if (!cur.last_at || new Date(m.sent_at) > new Date(cur.last_at)) cur.last_at = m.sent_at;
         cur.thread_ids.add(m.thread_id);

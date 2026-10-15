@@ -37,7 +37,7 @@ import ActionButton from '../../components/Common/ActionButton';
 import PlanQSelect from '../../components/Common/PlanQSelect';
 import { uploadMyFile } from '../../services/files';
 import MailContextPanel, { requestExtractTasks, requestCueAdvice } from './MailContextPanel';
-import RecipientInput from './RecipientInput';
+import RecipientInput, { type RecipientSuggestion } from './RecipientInput';
 import { useInlineCidImages } from './useInlineCidImages';
 import { displayName, type NameLocalizable } from '../../utils/displayName';
 import HighlightText from '../../components/Common/HighlightText';
@@ -181,6 +181,7 @@ import {
   FwdPreview, FwdPreviewHead, FwdChevron, FwdPreviewBody, FwdPreviewMeta,
   KeptDraftNote,
   DraftStatusLine,
+  ComposeDraftStatus,
   PromoteErrTag, InquiryFilterBar, InquiryFilterClear, SentViaBar, SentViaHint,
 } from './MailPage.styles';
 
@@ -1873,6 +1874,23 @@ const MailPage: React.FC = () => {
   // ── 새 메일 작성 (compose) ──
 
   const [composeOpen, setComposeOpen] = useState(false);
+  // 받는 사람 추천 — 이 워크스페이스에서 내가 볼 수 있는 메일에 나온 상대 주소(최근순). 작성창을 열 때 한 번만 부른다
+  //   (키 입력마다 부르지 않는다 — 라우트가 메시지를 전수 집계한다). 실패는 추천 없이 그대로 쓴다.
+  const [toSuggestions, setToSuggestions] = useState<RecipientSuggestion[]>([]);
+  useEffect(() => {
+    if (!composeOpen || !businessId) return;
+    let alive = true;
+    (async () => {
+      try {
+        const r = await apiFetch(`/api/businesses/${businessId}/email-addresses?limit=500`);
+        const j = await r.json();
+        if (alive && j?.success && Array.isArray(j.data)) {
+          setToSuggestions(j.data.map((x: RecipientSuggestion) => ({ email: x.email, name: x.name || null, client: x.client || null })));
+        }
+      } catch { /* 추천 없이 진행 */ }
+    })();
+    return () => { alive = false; };
+  }, [composeOpen, businessId]);
   const [cAccountId, setCAccountId] = useState<number | null>(null);
   // 컴포저(새 메일·전달)용 별칭 — 답장(detail.account)과 계정이 다를 수 있어 따로 로딩한다.
   const [cAliases, setCAliases] = useState<Array<{ id: number; email: string; display_name: string | null; is_default: boolean; account_id: number }>>([]);
@@ -2879,7 +2897,7 @@ const MailPage: React.FC = () => {
                         setCFromAliasId(aliasId);
                       }}
                       options={composeFromOptions}
-                      isSearchable={false}
+                      isSearchable  /* 계정·별칭이 많을 때 주소로 찾는다(2026-10-15) */
                       menuPlacement="bottom"
                     />
                   </ComposeField>
@@ -2893,6 +2911,7 @@ const MailPage: React.FC = () => {
                     value={cTo}
                     onChange={(next) => { markComposeTouched(); setCTo(next); }}
                     placeholder="name@example.com"
+                    suggestions={toSuggestions}
                   />
                 </ComposeField>
                 <ComposeField>
@@ -2964,18 +2983,20 @@ const MailPage: React.FC = () => {
                 {cError && <ComposerError>{cError}</ComposerError>}
               </ComposeBody>
               <ComposeFoot>
-                {/* 좌측부터 [보내기][취소] — 답장 컴포저와 같은 자리. 화면마다 순서가 다르면 손이 헷갈린다. */}
-                {composeDraftStatus !== 'idle' && (
-                  <DraftStatusLine $err={composeDraftStatus === 'error'} role="status">
-                    {draftStatusText(composeDraftStatus)}
-                  </DraftStatusLine>
-                )}
-                <ActionButton tone="primary" size="md" loading={cSending} onClick={sendCompose}>
+                {/* 좌측부터 [보내기][취소] — 답장 컴포저와 같은 자리. 화면마다 순서가 다르면 손이 헷갈린다.
+                    ★ 상태줄은 버튼 **뒤**에 둔다 — 앞에 두면 그 auto 여백이 한 글자 쓰는 순간 버튼을 오른쪽 끝
+                    (Cue 버튼 자리)으로 밀었다(2026-10-15 Irene «작성만 보내기가 우측에 있어»). */}
+                <ActionButton tone="primary" size="md" loading={cSending} onClick={sendCompose} data-testid="mail-compose-send">
                   {t('compose.send', { defaultValue: '보내기' }) as string}
                 </ActionButton>
                 <ActionButton tone="secondary" size="md" onClick={() => closeCompose('user')} disabled={cSending}>
                   {t('compose.cancel', { defaultValue: '취소' }) as string}
                 </ActionButton>
+                {composeDraftStatus !== 'idle' && (
+                  <ComposeDraftStatus $err={composeDraftStatus === 'error'} role="status">
+                    {draftStatusText(composeDraftStatus)}
+                  </ComposeDraftStatus>
+                )}
               </ComposeFoot>
             </ComposeFull>
           ) : detailLoading && !detail ? (

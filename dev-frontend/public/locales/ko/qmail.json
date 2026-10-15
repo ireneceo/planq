@@ -595,7 +595,8 @@
     "subject": "제목",
     "subjectPh": "제목을 입력하세요",
     "to": "받는 사람",
-    "toRequired": "받는 사람을 입력해 주세요"
+    "toRequired": "받는 사람을 입력해 주세요",
+    "suggestClient": "고객"
   },
   "attachment": {
     "preview": "미리보기",

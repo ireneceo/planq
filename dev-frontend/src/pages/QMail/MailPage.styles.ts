@@ -1190,6 +1190,11 @@ export const DraftStatusLine = styled.span<{ $err?: boolean }>`
   font-weight: ${p => (p.$err ? 600 : 500)};
 `;
 
+// 새 메일 아래줄의 상태줄 — [보내기][취소] 뒤에 붙는다. auto 여백을 쓰면 줄이 넘칠 때 버튼을 밀 수 있어 끈다.
+export const ComposeDraftStatus = styled(DraftStatusLine)`
+  margin-right: 0; margin-left: 4px; min-width: 0;
+`;
+
 // 업체 스팸함 안내 — 스팸 탭 목록 위($inList) · 스팸 상세 본문 위. (docs/MAIL_SENT_SPAM_SYNC_DESIGN.md)
 //   폰에서 입력 중(검색창)에는 접는다 — 부가 안내가 목록 높이를 먹지 않게(CLAUDE.md «모바일 입력» 절).
 export const SpamProviderNote = styled.p<{ $inList?: boolean }>`
