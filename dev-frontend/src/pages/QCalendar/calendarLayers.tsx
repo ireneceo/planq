@@ -62,18 +62,20 @@ export function layersParam(layers: Set<CalLayer>): string | null {
 }
 
 export function useCalendarLayers(search: string, embedded: boolean) {
+  // 프로젝트 탭(얹힌 모드)은 따로 기억한다 — 같은 키를 쓰면 프로젝트에서 끈 [개인] 이 Q calendar 에서도 꺼져 있었다
+  const key = embedded ? `${LS_KEY}:project` : LS_KEY;
   const [layers, setLayers] = useState<Set<CalLayer>>(() => {
     const fromUrl = embedded ? null : readLayers(search);
     if (fromUrl) return fromUrl;
     try {   // 마지막 선택은 이 기기 편의값일 뿐이다 — 못 읽으면 전부 켠다
-      const saved = window.localStorage.getItem(LS_KEY);
+      const saved = window.localStorage.getItem(key);
       if (saved) return parseList(saved);
     } catch { /* 사생활 모드 등 */ }
     return new Set(ALL_LAYERS);
   });
   useEffect(() => {
-    try { window.localStorage.setItem(LS_KEY, layersParam(layers) || ALL_LAYERS.join(',')); } catch { /* 위와 같음 */ }
-  }, [layers]);
+    try { window.localStorage.setItem(key, layersParam(layers) || ALL_LAYERS.join(',')); } catch { /* 위와 같음 */ }
+  }, [layers, key]);
   const toggle = useCallback((l: CalLayer) => {
     setLayers((prev) => { const next = new Set(prev); if (next.has(l)) next.delete(l); else next.add(l); return next; });
   }, []);

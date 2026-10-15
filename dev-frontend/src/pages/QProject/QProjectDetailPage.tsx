@@ -45,6 +45,7 @@ import {
   OverviewDesc,
   ProjectTabPane,
   ProjectTabFull,
+  ProjectCalendarInner,
   ProjectNotesWrap,
   EditGrid,
   EditField,
@@ -1178,9 +1179,11 @@ const QProjectDetailPage: React.FC = () => {
       )}
       {/* 일정 — Q calendar 본체를 이 프로젝트로 고정해 얹는다(#461). 목록을 다시 그리지 않는다. */}
       {tab === 'calendar' && (
-        <ProjectTabPane data-testid="project-tab-body-calendar">
-          <QCalendarPage scope={{ type: 'project', businessId: project.business_id, projectId }} />
-        </ProjectTabPane>
+        <ProjectTabFull data-testid="project-tab-body-calendar">
+          <ProjectCalendarInner>
+            <QCalendarPage scope={{ type: 'project', businessId: project.business_id, projectId }} />
+          </ProjectCalendarInner>
+        </ProjectTabFull>
       )}
       {tab === 'docs' && (
         <ProjectTabFull data-testid="project-tab-body-docs">

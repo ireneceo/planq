@@ -36,11 +36,11 @@ import { displayName, type NameLocalizable } from '../../utils/displayName';
 import { mapApiError } from '../../utils/apiError';
 
 // ─── URL 싱크 ─── (calendarUrl.ts)
-import { readUrl } from './calendarUrl';
+import { readUrl, readEmbedded, saveEmbedded } from './calendarUrl';
 import { useFromActionHandoff, type FromActionHandoff } from '../../hooks/useFromActionHandoff';
 import FromTaskBanner from '../../components/Common/FromTaskBanner';
 import CalendarProjectFilter, { byProject } from './ProjectFilter';
-import CalendarFrame, { CalendarViewSelect } from './CalendarFrame';
+import CalendarFrame, { CalendarViewSelect, EmbeddedEnd } from './CalendarFrame';
 import { useWallNow } from './pastLook';
 import { useUrlDetailParams } from './useUrlDetailParams';
 import { useCalendarLayers, layerOf, layersParam, CalendarLayerToggle, GoogleCalendarGroup, FilterLine, useGoogleCalendarVisibility, type PersonalCalSource } from './calendarLayers';
@@ -62,7 +62,7 @@ const QCalendarPage: React.FC<{ scope?: { type: 'project'; businessId: number; p
   const bizId = user?.business_id || null;
   const myUserId = user?.id ? Number(user.id) : null;
 
-  const initial = useMemo(() => readUrl(embedded ? '' : location.search), []); // eslint-disable-line react-hooks/exhaustive-deps
+  const initial = useMemo(() => (pageScope ? readEmbedded(pageScope.projectId) : readUrl(location.search)), []); // eslint-disable-line react-hooks/exhaustive-deps
   const [anchor, setAnchor] = useState<Date>(initial.date);
   const holidays = useWorkspaceHolidays(bizId, anchor);   // #424 — 휴일 표시(정본: 설정 › 근태 관리)
   const [view, setView] = useState<CalendarViewMode>(initial.view);
@@ -150,6 +150,7 @@ const QCalendarPage: React.FC<{ scope?: { type: 'project'; businessId: number; p
   //   서버는 같은 워크스페이스 연결이 없으면 다른 워크스페이스 연결로 폴백하므로
   //   두 판정이 어긋나 "배너는 연결됐다는데 화면은 아니라는" 상태가 만들어질 수 있었다.
   const personalConnected = !!syncStatus?.personal_connected;
+  const googleOn = !embedded && personalConnected;   // 프로젝트 탭엔 Google 층이 없다(구글 일정엔 프로젝트가 없어 byProject 가 다 뺀다 — 죽은 버튼이었다)
   const personalCanWrite = !!syncStatus?.personal_can_write;
   // ★ 캘린더 시간 기준 = 워크스페이스 시간대 설정(calTz.ts 머리말) — 화면엔 벽시계로 넘긴다
   const wsTz = user?.workspace_timezone || detectBrowserTz();
@@ -206,7 +207,7 @@ const QCalendarPage: React.FC<{ scope?: { type: 'project'; businessId: number; p
       setEvents(list);
 
       // 개인 Google 일정 overlay (연결 + 토글 ON 일 때만). 실패해도 회사 일정은 정상 표시.
-      if (personalConnected && showPersonal) {
+      if (googleOn && showPersonal) {
         try {
           const r = await apiFetch(
             `/api/me/calendar/events?business_id=${bizId}&start=${startIso}&end=${endIso}`
@@ -224,7 +225,7 @@ const QCalendarPage: React.FC<{ scope?: { type: 'project'; businessId: number; p
     } finally {
       setLoading(false);
     }
-  }, [bizId, view, anchor, personalConnected, showPersonal, weekStart, wsTz]);
+  }, [bizId, view, anchor, googleOn, showPersonal, weekStart, wsTz]);
 
   // 구글 캘린더별 보기/가리기 (2026-10-12) — 누르면 바로 가리고, 저장 뒤 다시 읽어 새로 켠 캘린더 일정을 가져온다.
   const reloadPersonal = useCallback(() => { void fetchRange(); }, [fetchRange]);
@@ -294,7 +295,7 @@ const QCalendarPage: React.FC<{ scope?: { type: 'project'; businessId: number; p
 
   // URL 싱크 반영
   useEffect(() => {
-    if (embedded) return;   // 프로젝트 탭에 얹혔을 때는 주인의 주소를 건드리지 않는다
+    if (pageScope) { saveEmbedded(pageScope.projectId, view, anchor); return; }   // 얹혔을 때 주소는 주인(프로젝트) 것 — 보기·날짜는 이 창에만
     const p = new URLSearchParams();
     // Fable A-4 — view 를 항상 기록. 폰 기본값(agenda)이라 month 선택 시 옛 코드는 안 써서 새로고침하면
     //   agenda 로 되돌아가던 문제. 디바이스 기본값은 무파라미터 최초 방문에만 적용(readUrl defaultView).
@@ -310,10 +311,10 @@ const QCalendarPage: React.FC<{ scope?: { type: 'project'; businessId: number; p
 
   // 분류 적용 — events + task-as-events + 개인 Google 일정. 한 일정 = 한 분류(layerOf).
   const filteredEvents = useMemo<CalendarItem[]>(() => {
-    const personal: CalendarItem[] = (personalConnected && showPersonal)
+    const personal: CalendarItem[] = (googleOn && showPersonal)
       ? personalEvents.filter((e) => googleVis.isVisible(e.connection_id, e.calendar_id)) : [];
     return byProject([...events, ...taskEvents, ...personal], projectId).filter((e) => layers.has(layerOf(e)));
-  }, [events, taskEvents, personalEvents, personalConnected, showPersonal, layers, projectId, googleVis.isVisible]);
+  }, [events, taskEvents, personalEvents, googleOn, showPersonal, layers, projectId, googleVis.isVisible]);
 
   const listedEvent = useMemo(
     () => (selectedEventId != null ? events.find((e) => e.id === selectedEventId) || null : null),
@@ -521,13 +522,13 @@ const QCalendarPage: React.FC<{ scope?: { type: 'project'; businessId: number; p
   // 상단 배치(2026-10-13) — 머리줄 큰 단위 → 필터줄 → 년/월. 폰은 보기 고르기를 년/월 줄로(calendarLayers 머리말).
   const isPhone = useMediaQuery('(max-width: 640px)');
   const showProjectFilter = !embedded && projects.length > 0;
-  const showGoogleGroup = personalConnected && layers.has('google');
+  const showGoogleGroup = googleOn && layers.has('google');
   const viewSelect = <CalendarViewSelect view={view} onChange={setView} />;
 
   const headerActions = (
     <ActionsRow>
       <CalendarLayerToggle layers={layers} onToggle={toggleLayer}
-        googleConnected={personalConnected} googleSources={personalSources} compact={isPhone} />
+        googleConnected={googleOn} googleSources={personalSources} compact={isPhone} />
       {!isPhone && viewSelect}
       <NewEventBtn onClick={handleOpenNew} type="button" title={t('new')} data-testid="calendar-new-event">
         <NewEventIcon viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
@@ -580,9 +581,10 @@ const QCalendarPage: React.FC<{ scope?: { type: 'project'; businessId: number; p
           </NavIconBtn>
         </ToolbarLeft>
         {isPhone && <ToolbarEnd>{viewSelect}</ToolbarEnd>}
+        {embedded && <EmbeddedEnd>{headerActions}</EmbeddedEnd>}{/* 얹힌 모드 — 머리줄이 없어 년/월 줄 끝에. 폰은 다음 줄 */}
       </Toolbar>
 
-      <ViewWrap $agenda={view === 'agenda'}>
+      <ViewWrap $agenda={view === 'agenda'} $embedded={embedded}>
         {view === 'agenda' && (
           <AgendaView
             anchor={anchor}
@@ -721,7 +723,7 @@ const NewEventText = styled.span`
 `;
 
 const Toolbar = styled.div`
-  display: flex; align-items: center; gap: 8px;
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
   padding: 6px 0 14px;
 `;
 const ToolbarLeft = styled.div`
@@ -758,9 +760,10 @@ const HeaderTitle = styled.h2`
   white-space: nowrap; flex-shrink: 0;
   @media (max-width: 640px) { font-size: 1rem; margin: 0 4px; }
 `;
-const ViewWrap = styled.div<{ $agenda?: boolean }>`
+const ViewWrap = styled.div<{ $agenda?: boolean; $embedded?: boolean }>`
   height: calc(100vh - 60px - 56px - 40px); min-height: 520px;
   display: flex;
+  ${({ $embedded }) => $embedded && 'height: auto; flex: 1; min-height: 360px;'} /* 프로젝트 탭 — 상자(ProjectTabFull)가 높이를 정한다 */
   /* #133 아젠다: 고정 높이 대신 문서 흐름으로(PageShell Body 가 스크롤). 그리드 뷰만 고정 높이 유지. */
   ${({ $agenda }) => $agenda && `
     height: auto; min-height: 0; display: block;

@@ -150,6 +150,15 @@ export const ProjectTabFull = styled.div`
        34px 을 주면 sticky 자식이 붙을 때 26px 헛자리가 생긴다. */
   overflow-y: auto;
 `;
+// 일정 탭 (2026-10-15) — 높이는 얹는탭 껍데기(ProjectTabFull)를 쓰고 여백은 일반탭(ProjectTabPane)과 같은 숫자를 안쪽에 둔다.
+//   일반탭 껍데기에 얹었더니 캘린더 격자 높이(뷰포트 공식)가 슬롯을 넘어 바깥(PageShell Body)이 172~176px 스크롤했다(1440·1024 실측).
+//   이 상자는 투명 래퍼라 projecttabs 검사가 일반탭과 같은 x·시작점으로 잰다.
+export const ProjectCalendarInner = styled.div`
+  box-sizing: border-box; height: 100%; min-height: 0;
+  display: flex; flex-direction: column;
+  padding: 20px 20px 20px;
+  @media (max-width: 640px) { padding: 14px 14px 14px; }
+`;
 // 노트 탭 — 문서 탭과 **같은 껍데기**(Q Note 본체를 그대로 얹는다).
 //   $hidden: 녹음 중에 다른 탭으로 옮겨도 이 트리를 **살려 둔다** — 언마운트되면 LiveSession 이
 //   끊겨 녹음이 소리 없이 멈춘다. 자리만 감춘다(display:none).
