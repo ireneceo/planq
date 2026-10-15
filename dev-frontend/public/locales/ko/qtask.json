@@ -24,7 +24,9 @@
     "allStatus": "전체 상태",
     "hideCompleted": "완료 가리기",
     "showCompleted": "완료 업무 보기",
-    "allTags": "전체 태그"
+    "allTags": "전체 태그",
+    "toggle": "필터",
+    "toggleN": "필터 {{n}}"
   },
   "period": {
     "title": "기간",

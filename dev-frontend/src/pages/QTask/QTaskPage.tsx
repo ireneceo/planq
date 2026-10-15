@@ -53,6 +53,7 @@ import WeeklyReviewModal from '../../components/QTask/WeeklyReviewModal';
 import WeeklyReviewTab from '../../components/QTask/WeeklyReviewTab';
 import { type TaskTagLite } from '../../components/QTask/TagChips';
 import RowTags from '../../components/QTask/RowTags';
+import { DesktopOnly, PhoneStatus, PhoneMeta, fmtDueShort } from '../../components/QTask/phoneRow';
 import OpenTaskPopoutButton from '../../components/QTask/OpenTaskPopoutButton';
 import { useMenuReset } from '../../hooks/useMenuReset';
 import TagManageModal from '../../components/QTask/TagManageModal';
@@ -301,6 +302,8 @@ const QTaskPage:React.FC=()=>{
   //   폰에서만 자동 포커스를 끈다 — 먼저 폼을 보고, 입력할 때 사용자가 직접 탭한다.
   //   (isNarrow 는 레이아웃 기준이라 태블릿·분할에서도 참이다 — 여기선 폰만 대상이라 별도 판정)
   const isPhone = useMediaQuery('(max-width: 640px)');
+  // 폰(≤640)은 상태·태그·담당자 필터를 [필터] 버튼 하나로 접는다 — 펼쳐 두면 목록 위가 화면의 절반을 먹었다(2026-10-15).
+  const [phoneFiltersOpen, setPhoneFiltersOpen] = useState(false);
   const rightOverlayOpen = panel.asideOpen;
   const setRightOverlayOpen = (v: boolean | ((x: boolean) => boolean)) =>
     panel.setAsideOpen(typeof v === 'function' ? (v as (x: boolean) => boolean)(panel.asideOpen) : v);
@@ -1842,7 +1845,18 @@ const QTaskPage:React.FC=()=>{
           <ListScroll>
           {/* Filter bar — 테이블과 함께 스크롤 */}
           <FilterBar>
-            <SearchBox placeholder={t('search','Search tasks...') as string} value={search} onChange={setSearch} width={200} size="md" />
+            <SearchSlot><SearchBox placeholder={t('search','Search tasks...') as string} value={search} onChange={setSearch} width={200} size="md" /></SearchSlot>
+            {(()=>{
+              const n=(statusFilter?1:0)+(tagFilter!=null?1:0)+(scope==='workspace'&&assigneeFilter!=null?1:0);
+              return (
+                <PhoneFilterToggle type="button" data-testid="qtask-phone-filter-toggle"
+                  $on={phoneFiltersOpen||n>0} aria-expanded={phoneFiltersOpen}
+                  onClick={()=>setPhoneFiltersOpen(v=>!v)}>
+                  {n>0?t('filter.toggleN',{n,defaultValue:'필터 {{n}}'}):t('filter.toggle','필터')}
+                </PhoneFilterToggle>
+              );
+            })()}
+            <FilterGroup $open={phoneFiltersOpen} data-testid="qtask-filter-group">
             <div style={{minWidth:140}}>
               <PlanQSelect size="sm" isClearable
                 placeholder={t('filter.allStatus','All status')}
@@ -1910,6 +1924,7 @@ const QTaskPage:React.FC=()=>{
             )}
             {tab!=='week' && tab!=='today' && <HideCheck><input type="checkbox" checked={hideCompleted} onChange={e=>setHideCompleted(e.target.checked)} />{t('filter.hideCompleted','Hide completed')}</HideCheck>}
             {(tab==='week'||tab==='today') && <HideCheck><input type="checkbox" checked={hideCompletedInWeek} onChange={e=>setHideCompletedInWeek(e.target.checked)} />{t('filter.hideCompleted','Hide completed')}</HideCheck>}
+            </FilterGroup>
             <ChipRow>
               {/* ★ 2026-08-24 (Irene) — 오늘 탭은 건수만. 계획/가용/초과는 **주간 개념**이라
                   (loadBreakdown.plan = 주간 Σ예측, effectiveCapacity = 1일×영업일) 오늘 탭에 붙으면
@@ -2010,7 +2025,8 @@ const QTaskPage:React.FC=()=>{
                     style={{cursor:'pointer'}}>
 
                     {(tab==='week'||tab==='today') && (
-                      <TCell $w="30px" $center>
+                      // 폰에서는 번호가 붙은 행만 칸을 둔다 — 빈 점 원이 행마다 30px 를 먹었다(번호 매기기는 데스크탑·팝아웃).
+                      <TCell $w="30px" $center $hideBelow={displayPriorityMap.get(task.id)?undefined:640}>
                         <PrioNum $active={!!task.priority_order} $disabled={task.status==='completed'||task.status==='canceled'}
                           disabled={prioBusy}
                           onClick={e=>{e.stopPropagation();if(task.status!=='completed'&&task.status!=='canceled')togglePriority(task.id);}}>
@@ -2027,6 +2043,8 @@ const QTaskPage:React.FC=()=>{
                       <ProjLabel>{task.Project?.name ? <HighlightText text={task.Project.name} query={search} /> : '-'}</ProjLabel>
                     </TCell>
                     <TCell $flex $minW={titleMinW}>
+                      {/* 폰에서는 접는다 — 복사·삭제는 상세에서, 아래에 추가는 [+ 업무 추가] 로 */}
+                      <DesktopOnly>
                       <TaskRowActionMenu
                         onAddBelow={() => { setNewBelowTitle(''); setAddingBelowId(task.id); }}
                         onCopy={async () => {
@@ -2045,6 +2063,7 @@ const QTaskPage:React.FC=()=>{
                           return { ok: true };
                         }}
                       />
+                      </DesktopOnly>
                       {/* ★ 행 onClick(상세 열기)과 겹쳐 체크가 먹지 않았다 — 클릭을 여기서 끊는다.
                           (mousedown 까지 끊어야 행의 드래그/선택 처리에 삼켜지지 않는다) */}
                       {/* ★ 2026-08-24 (Irene) — "확인요청·컨펌·요청받은 업무는 리스트에서 완료 체크박스가
@@ -2083,6 +2102,8 @@ const QTaskPage:React.FC=()=>{
                         {task.has_unread
                           ? <UnreadDot title={t('list.hasUnread', { defaultValue: '새 활동(댓글·변경) — 열면 사라집니다' }) as string} />
                           : <UnreadDotSpacer aria-hidden="true" />}
+                        {/* 폰 전용 상태 배지 — 상태 칸은 폰에서 숨으므로 제목 앞에 둔다(오늘 내 업무 팝아웃과 같은 자리) */}
+                        <PhoneStatus $bg={sc.bg} $fg={sc.fg} data-testid="qtask-phone-status">{_statusLabel}</PhoneStatus>
                         {/* ★ 2026-09-07 (Irene: "Q task 리스트 모든 디바이스 모든 곳에서 제목 편집기능
                             없애고 클릭하면 다 업무상세 나오게 해줘.") — 제목 클릭은 **상세를 연다.**
                             같은 자리에서 어떤 때는 편집칸이 열리고 어떤 때는 상세가 열리면 무엇을 누른
@@ -2093,6 +2114,16 @@ const QTaskPage:React.FC=()=>{
                         </TaskTitle>
                         {/* 폰에서만 여기서 줄을 끊는다 — 첫 줄은 ⋮·체크·제목, 둘째 줄은 태그·지연 칩(제목 밑으로 들여쓴다). */}
                         <RowBreak aria-hidden="true" data-row-break="" />
+                        {/* 폰 전용 메타 — 프로젝트·마감·담당자(전체 업무). 표의 칸들이 폰에서 숨는 몫을 여기서 말한다. */}
+                        {task.Project?.name && <PhoneMeta data-testid="qtask-phone-project">{task.Project.name}</PhoneMeta>}
+                        {_due && !isDelayed && (
+                          <PhoneMeta $tone={dColor==='today'?'today':undefined} data-testid="qtask-phone-due">
+                            {t('popout.due','마감 {{date}}',{date:fmtDueShort(_due)})}
+                          </PhoneMeta>
+                        )}
+                        {scope==='workspace' && task.assignee?.name && (
+                          <PhoneMeta $tone="person">{displayName(task.assignee, i18nClient.language)}</PhoneMeta>
+                        )}
                         {/* #353 ⑤ 중요도 — 높음·긴급만 그린다. 보통까지 그리면 배경 소음이 된다. */}
                         <ImportanceChip level={task.priority_level} />
                         {/* #250 "리스트에도 태그들 볼 수 있게 하기로 하지 않았어?" — 메인은 3칩 + `+k`.
@@ -2108,7 +2139,7 @@ const QTaskPage:React.FC=()=>{
                             칩 바로 뒤에 두면 칩 개수에 따라 + 의 가로 위치가 행마다 달라져 정신없다. */}
                         <RowTags
                           only="chips"
-                          taskId={task.id} bizId={bizId} max={3}
+                          taskId={task.id} bizId={bizId} max={isPhone?1:3}
                           shownTags={tagFilter != null ? (task.tags || []).filter(tg => tg.id !== tagFilter) : task.tags}
                           allTags={task.tags}
                           editable={!isClient && canEditDatesFor(task)}
@@ -2176,7 +2207,8 @@ const QTaskPage:React.FC=()=>{
                             </DelayBadgeWrap>
                           );
                         })()}
-                        {/* 태그 붙이기 — 항상 > 화살표 바로 앞 고정 자리 (위 only="chips" 주석 참조) */}
+                        {/* 태그 붙이기 — 항상 > 화살표 바로 앞 고정 자리 (위 only="chips" 주석 참조). 폰은 상세에서 붙인다. */}
+                        <DesktopOnly>
                         <RowTags
                           only="menu"
                           taskId={task.id} bizId={bizId} max={3}
@@ -2190,6 +2222,7 @@ const QTaskPage:React.FC=()=>{
                             ? prev
                             : [...prev,{id:tag.id,name:tag.name,color:tag.color??null}].sort((a,b)=>a.name.localeCompare(b.name)))}
                         />
+                        </DesktopOnly>
                       </>)}
                     </TCell>
                     {/* ★ 상세 열기 `>` — **자기 칸**을 갖는다 (Irene 2026-08-31
@@ -3213,7 +3246,11 @@ const Header=styled.div`padding:14px 20px;height:60px;display:flex;align-items:c
   @media(max-width:640px){height:56px;padding:8px 12px;gap:6px;overflow-x:auto;}@media(max-width:380px){gap:4px;padding:8px 10px;}@media(max-width:640px){scrollbar-width:none;&::-webkit-scrollbar{display:none;}& > *{flex-shrink:0;}}`;
 const PageTitle=styled.h1`font-size:1.125rem;font-weight:700;color:#0F172A;margin:0;flex-shrink:0;letter-spacing:-0.2px;`;
 const HideCheck=styled.label`display:flex;align-items:center;gap:4px;font-size:0.75rem;color:#64748B;cursor:pointer;white-space:nowrap;& input{accent-color:#0D9488;}`;
-const ChipRow=styled.div`display:flex;gap:4px;margin-left:auto;`;
+const ChipRow=styled.div`display:flex;gap:4px;margin-left:auto;@media (max-width: 640px){order:10;flex:1 1 100%;margin-left:0;overflow-x:auto;white-space:nowrap;&::-webkit-scrollbar{display:none;}& > *{flex-shrink:0;}}`;
+// 폰(≤640) 필터 접기 — 데스크탑은 display:contents 라 종전 배치 그대로. 폰은 [검색][필터][AI][+추가] 한 줄 → 펼친 필터 → 요약 칩.
+const SearchSlot=styled.div`display:contents;@media (max-width: 640px){display:block;flex:1 1 0;min-width:0;& > *{width:100% !important;}}`;
+const FilterGroup=styled.div<{$open:boolean}>`display:contents;@media (max-width: 640px){display:${p=>p.$open?'flex':'none'};order:5;flex:1 1 100%;flex-wrap:wrap;align-items:center;gap:8px;& > div{flex:1 1 140px;}}`;
+const PhoneFilterToggle=styled.button<{$on:boolean}>`display:none;@media (max-width: 640px){display:inline-flex;align-items:center;flex-shrink:0;height:36px;padding:0 12px;border-radius:8px;font-size:0.8125rem;font-weight:600;cursor:pointer;font-family:inherit;border:1px solid ${p=>p.$on?'#14B8A6':'#E2E8F0'};background:${p=>p.$on?'#F0FDFA':'#FFF'};color:${p=>p.$on?'#0F766E':'#475569'};}`;
 const Chip=styled.span<{$teal?:boolean;$coral?:boolean;$warn?:boolean}>`padding:2px 8px;font-size:0.6875rem;font-weight:600;border-radius:6px;background:${p=>p.$warn?'#FEF3C7':p.$teal?'#F0FDFA':p.$coral?'#FFF1F2':'#F1F5F9'};color:${p=>p.$warn?'#B45309':p.$teal?'#0F766E':p.$coral?'#9F1239':'#475569'};`;
 
 const TabBar=styled.div`display:flex;border-bottom:1px solid #E2E8F0;flex-shrink:0;@media(max-width:640px){overflow-x:auto;-webkit-overflow-scrolling:touch;&::-webkit-scrollbar{display:none;}}`;
@@ -3243,7 +3280,7 @@ const BottomAddLink=styled.button`margin:10px 14px 20px;padding:6px 0;background
 // #250 태그 관리 진입 — FilterBar 안의 보조 버튼. 기존 FinalizeBtn 톤을 그대로(bespoke 금지).
 const FilterBar=styled.div`display:flex;align-items:center;gap:10px;padding:8px 14px;border-bottom:1px solid #F1F5F9;background:#FFF;flex-wrap:wrap;`;
 
-const ColRow=styled.div`display:flex;align-items:center;gap:6px;padding:6px 14px;border-bottom:1px solid #E2E8F0;background:#F8FAFC;position:sticky;top:0;z-index:1;min-width:520px;@media(max-width:640px){min-width:0;padding:6px 10px;}`;
+const ColRow=styled.div`display:flex;align-items:center;gap:6px;padding:6px 14px;border-bottom:1px solid #E2E8F0;background:#F8FAFC;position:sticky;top:0;z-index:1;min-width:520px;@media(max-width:640px){display:none;}`;
 // 태그 필터 셀렉트(PlanQSelect size="sm" = CONTROL.sm)와 **같은 높이**로 둔다.
 // 손으로 34 를 적었더니 옆 셀렉트(36)보다 2px 낮아 한 줄에서 밑선이 어긋났다. 토큰을 쓴다.
 const TagManageBtn=styled.button`
@@ -3364,7 +3401,7 @@ const UnreadDot=styled.span`flex-shrink:0;width:6px;height:6px;border-radius:50%
 //   점이 있는 행만 제목이 9px 밀리면 좌측선이 데이터에 따라 흔들린다.
 // 폰 목록 줄바꿈 — 너비 100% 빈 칸이 다음 칩들을 둘째 줄로 보낸다. 둘째 줄 첫 칩은 제목 시작선에 맞춘다
 //   (폰 ⋮ 36 + 체크 15 + 안읽음 점 6 + 간격 4×3 = 69 — TaskRowActionMenu 폰 규칙과 같은 숫자). 데스크탑·태블릿은 그리지 않는다.
-const RowBreak=styled.span`display:none;@media (max-width: 640px){display:block;flex:0 0 100%;height:0;& + *{margin-left:69px;}}`;
+const RowBreak=styled.span`display:none;@media (max-width: 640px){display:block;flex:0 0 100%;height:0;& + *{margin-left:29px;}}`;
 const UnreadDotSpacer=styled.span`flex-shrink:0;width:6px;height:6px;display:inline-block;`;
 const StatusPill=styled.span<{$bg:string;$fg:string;$clickable?:boolean}>`
   padding:2px 8px;background:${p=>p.$bg};color:${p=>p.$fg};font-size:0.625rem;font-weight:700;

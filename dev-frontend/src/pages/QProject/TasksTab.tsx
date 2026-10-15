@@ -387,10 +387,11 @@ export default TasksTab;
 
 // ─── styled ───
 const Wrap = styled.div``;
-const Toolbar = styled.div`display:flex;align-items:center;gap:8px;margin-bottom:12px;`;
-const ViewTabs = styled.div`display:inline-flex;background:#F1F5F9;padding:3px;border-radius:8px;gap:2px;`;
-const ViewBtn = styled.button<{$active?:boolean}>`padding:6px 14px;border:none;background:${p=>p.$active?'#FFF':'transparent'};color:${p=>p.$active?'#0F766E':'#64748B'};border-radius:6px;font-size:0.75rem;font-weight:600;cursor:pointer;box-shadow:${p=>p.$active?'0 1px 2px rgba(0,0,0,0.06)':'none'};&:hover{color:#0F766E;}`;
-const ToolbarRight = styled.div`margin-left:auto;display:inline-flex;align-items:center;gap:6px;`;
+const Toolbar = styled.div`display:flex;align-items:center;gap:8px;margin-bottom:12px;@media (max-width: 640px){flex-wrap:wrap;}`;
+// 폰: 보기 전환이 한 글자씩 세로로 접혔다(390 실측) — 글자는 줄바꿈하지 않고, 넘치면 보기 줄이 가로로 흐른다.
+const ViewTabs = styled.div`display:inline-flex;background:#F1F5F9;padding:3px;border-radius:8px;gap:2px;max-width:100%;overflow-x:auto;`;
+const ViewBtn = styled.button<{$active?:boolean}>`padding:6px 14px;border:none;background:${p=>p.$active?'#FFF':'transparent'};color:${p=>p.$active?'#0F766E':'#64748B'};border-radius:6px;font-size:0.75rem;font-weight:600;cursor:pointer;white-space:nowrap;flex-shrink:0;box-shadow:${p=>p.$active?'0 1px 2px rgba(0,0,0,0.06)':'none'};&:hover{color:#0F766E;}`;
+const ToolbarRight = styled.div`margin-left:auto;display:inline-flex;align-items:center;gap:6px;@media (max-width: 640px){flex-wrap:wrap;& > button{white-space:nowrap;}}`;
 const TemplateBtn = styled.button`
   display:inline-flex;align-items:center;gap:6px;
   height:32px;padding:0 12px;

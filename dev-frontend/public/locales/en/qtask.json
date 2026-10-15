@@ -24,7 +24,9 @@
     "allStatus": "All status",
     "hideCompleted": "Hide completed",
     "showCompleted": "Show completed",
-    "allTags": "All tags"
+    "allTags": "All tags",
+    "toggle": "Filters",
+    "toggleN": "Filters {{n}}"
   },
   "period": {
     "title": "Period",

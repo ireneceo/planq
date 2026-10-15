@@ -3,7 +3,7 @@
 import styled from 'styled-components';
 
 // 좌우 패딩은 TRow(본문 행)와 같아야 한다 — 2px 만 달라도 라벨이 컬럼과 어긋난다 (#236 후속)
-export const ColRow = styled.div`display:flex;align-items:center;gap:6px;padding:6px 12px;border-bottom:1px solid #E2E8F0;background:#F8FAFC;position:sticky;top:0;z-index:1;min-width:520px;@media(max-width:640px){min-width:0;}`;
+export const ColRow = styled.div`display:flex;align-items:center;gap:6px;padding:6px 12px;border-bottom:1px solid #E2E8F0;background:#F8FAFC;position:sticky;top:0;z-index:1;min-width:520px;@media(max-width:640px){display:none;}`;
 export const Col = styled.span<{$w?:string;$flex?:boolean;$flex2?:boolean;$center?:boolean;$hideBelow?:number}>`
   box-sizing:border-box;min-width:0;
   /* ★ 헤더(Col)와 본문(TCell)의 flex·min-width 는 **문자 그대로 같아야** 한다.
@@ -31,11 +31,15 @@ export const TRow = styled.div<{$done?:boolean;$delayed?:boolean;$selected?:bool
 `;
 export const TCell = styled.div<{$w?:string;$flex?:boolean;$flex2?:boolean;$center?:boolean;$hideBelow?:number}>`
   box-sizing:border-box;
-  ${p=>p.$flex2 ? 'flex:2 1 0;min-width:240px;display:flex;align-items:center;gap:6px;overflow:hidden;' : p.$flex ? 'flex:1 1 0;min-width:100px;display:flex;align-items:center;gap:6px;overflow:hidden;' : `flex:0 0 ${p.$w||'auto'};width:${p.$w||'auto'};overflow:hidden;`}
+  ${p=>p.$flex2 ? 'flex:2 1 0;min-width:240px;display:flex;align-items:center;gap:6px;overflow:hidden;@media (max-width: 640px){min-width:0;flex-wrap:wrap;row-gap:4px;}' : p.$flex ? 'flex:1 1 0;min-width:100px;display:flex;align-items:center;gap:6px;overflow:hidden;' : `flex:0 0 ${p.$w||'auto'};width:${p.$w||'auto'};overflow:hidden;`}
   ${p=>p.$center&&'display:flex;justify-content:center;align-items:center;'}
   ${p=>p.$hideBelow?`@media (max-width: ${p.$hideBelow}px){display:none;}`:''}
 `;
-export const Spacer = styled.div`flex:1;min-width:8px;`;
+export const Spacer = styled.div`flex:1;min-width:8px;@media (max-width: 640px){display:none;}`;
+// 폰(≤640) 행 둘째 줄 — 데스크탑은 display:contents 라 칩 배치가 그대로다. 폰에서는 줄을 끊고(PhoneBreak)
+//   상태·마감·사람·지연을 제목 밑(체크박스 폭만큼 들여)으로 모은다. Q task 목록 폰 행과 같은 모양.
+export const PhoneBreak = styled.span`display:none;@media (max-width: 640px){display:block;order:1;flex:0 0 100%;height:0;}`;
+export const PhoneLine2 = styled.span`display:contents;@media (max-width: 640px){& > *{order:2;}& > :first-child{margin-left:21px;}}`;
 export const DragHandle = styled.span`
   display:inline-flex;align-items:center;justify-content:center;width:18px;height:24px;flex-shrink:0;
   color:#CBD5E1;cursor:grab;border-radius:4px;
@@ -62,7 +66,7 @@ export const InlineInput = styled.input`
   &::placeholder { color: #94A3B8; }
 `;
 // #249 — QTaskPage 와 같은 결함. 같은 셀의 배지들이 flex-shrink:0 이라 좁아지면 업무명만 압사한다.
-export const TaskTitle = styled.span<{$done?:boolean}>`font-size:0.875rem;font-weight:500;color:#0F172A;cursor:text;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1 1 auto;min-width:96px;${p=>p.$done&&'text-decoration:line-through;color:#94A3B8;'}&:hover{color:#0F766E;}`;
+export const TaskTitle = styled.span<{$done?:boolean}>`font-size:0.875rem;font-weight:500;color:#0F172A;cursor:text;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1 1 auto;min-width:96px;@media (max-width: 640px){flex:1 1 0;min-width:0;white-space:normal;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;word-break:keep-all;overflow-wrap:anywhere;}${p=>p.$done&&'text-decoration:line-through;color:#94A3B8;'}&:hover{color:#0F766E;}`;
 export const TitleInput = styled.input`flex:1;font-size:0.875rem;font-weight:500;color:#0F172A;border:1px solid #14B8A6;background:#F0FDFA;padding:2px 8px;border-radius:6px;font-family:inherit;height:24px;box-sizing:border-box;&:focus{outline:none;box-shadow:0 0 0 2px rgba(20,184,166,0.15);}`;
 export const DelayBadge = styled.span`padding:1px 6px;font-size:0.5625rem;font-weight:700;color:#DC2626;background:#FEF2F2;border:1px solid #FECACA;border-radius:4px;flex-shrink:0;white-space:nowrap;`;
 export const DetailBtn = styled.button<{$active?:boolean}>`display:flex;align-items:center;justify-content:center;width:28px;height:28px;background:${p=>p.$active?'#F43F5E':'transparent'};border:1px solid ${p=>p.$active?'#F43F5E':'transparent'};border-radius:6px;color:${p=>p.$active?'#FFF':'#94A3B8'};cursor:pointer;flex-shrink:0;transition:all 0.15s;&:hover{background:${p=>p.$active?'#E11D48':'#F1F5F9'};color:${p=>p.$active?'#FFF':'#0F766E'};border-color:${p=>p.$active?'#E11D48':'#E2E8F0'};}`;

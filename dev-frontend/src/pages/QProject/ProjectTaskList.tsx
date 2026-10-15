@@ -62,7 +62,7 @@ import {
   TRow,
   TaskCheck,
   TaskTitle,
-  TitleInput,
+  TitleInput, PhoneBreak, PhoneLine2,
 } from './ProjectTaskList.styles';
 
 import TaskRowActionMenu from '../../components/QTask/TaskRowActionMenu';
@@ -78,6 +78,7 @@ import {
 } from '../../services/projectCanvas';
 import { isEnterAction } from '../../utils/imeKey';
 import ImportanceChip from '../../components/QTask/ImportanceChip';
+import { DesktopOnly, PhoneStatus, PhoneMeta, fmtDueShort } from '../../components/QTask/phoneRow';
 import SeriesScopeDialog, { type SeriesScope } from '../../components/QTask/SeriesScopeDialog';
 import { needsSeriesScope } from '../../utils/taskSeries';
 import { formatDay } from '../../utils/dateFormat';
@@ -401,7 +402,6 @@ const ProjectTaskList: React.FC<Props> = ({
     const frozen = task.status === 'completed' || task.status === 'on_hold' || task.status === 'external_review';
     const holdBlocked = task.status === 'on_hold' || task.status === 'external_review';
     const sliderColor = frozen ? '#94A3B8' : isDelayed ? '#DC2626' : '#14B8A6';
-
     return (
       <Fragment key={task.id}>
         <TRow data-task-row $done={task.status === 'completed'} $delayed={isDelayed} $selected={selectedId === task.id} $dragging={dragTaskId === task.id}
@@ -411,21 +411,20 @@ const ProjectTaskList: React.FC<Props> = ({
             onOpen(task.id);
           }}
           style={{ cursor: 'pointer' }}>
-
           {/* #236 — 업무명 셀은 $flex2(바닥 240px). $flex(100px)면 좁은 폭에서 제목이 먼저 뭉개진다
               ("업무명은 마지막까지 적절하게 제대로 보여야 해"). 폭이 모자라면 뒤쪽 메타가 크롭되고
               표 전체는 TableWrap 가로 스크롤로 도달한다 — Q Task 리스트(#249)와 같은 규칙. */}
           <TCell $flex2>
             {grouped && (
-              <DragHandle draggable role="button" aria-label={t('list.group.dragMove', '드래그하여 그룹 이동') as string}
+              <DesktopOnly><DragHandle draggable role="button" aria-label={t('list.group.dragMove', '드래그하여 그룹 이동') as string}
                 title={t('list.group.dragMove', '드래그하여 그룹 이동') as string}
                 onClick={(e) => e.stopPropagation()}
                 onDragStart={(e) => { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', String(task.id)); setDragTaskId(task.id); }}
                 onDragEnd={() => { setDragTaskId(null); setDragOverGroup(null); }}>
                 <svg width="12" height="14" viewBox="0 0 12 14" fill="currentColor"><circle cx="3" cy="3" r="1.3"/><circle cx="9" cy="3" r="1.3"/><circle cx="3" cy="7" r="1.3"/><circle cx="9" cy="7" r="1.3"/><circle cx="3" cy="11" r="1.3"/><circle cx="9" cy="11" r="1.3"/></svg>
-              </DragHandle>
+              </DragHandle></DesktopOnly>
             )}
-            <TaskRowActionMenu
+            <DesktopOnly><TaskRowActionMenu
               onAddBelow={() => { setNewBelowTitle(''); setAddingBelowId(task.id); }}
               onCopy={async () => {  // 실패 표면화 (onDelete 패턴) — apiFetch throw 안 함
                 const r = await apiFetch(`/api/tasks/${task.id}/copy`, { method: 'POST' });
@@ -441,7 +440,7 @@ const ProjectTaskList: React.FC<Props> = ({
                 // 성공: 부모가 socket task:deleted 로 즉시 제거 (전체 reload 안 함 — 리프레시 제거)
                 return { ok: true };
               }}
-            />
+            /></DesktopOnly>
             {/* #206 — 보류/외부컨펌 중 완료 우회 차단 (백엔드 가드와 미러) */}
             <TaskCheck type="checkbox" checked={task.status === 'completed'} disabled={holdBlocked}
               title={holdBlocked ? t('hold.completeBlocked', '보류 해제 후 완료 처리할 수 있어요') as string : undefined}
@@ -459,7 +458,8 @@ const ProjectTaskList: React.FC<Props> = ({
                 title={t('list.titleClickEdit', '클릭하여 업무명 수정') as string}>
                 {task.title}
               </TaskTitle>
-              {/* #353 ⑤ 중요도 — Q Task 목록과 같은 칩. */}
+              {/* #353 ⑤ 중요도 — Q Task 목록과 같은 칩. 폰은 둘째 줄(PhoneLine2)에 상태·마감·사람·지연을 모은다 — 상태·기간 칸이 폰에서 숨는다. */}
+              <PhoneBreak aria-hidden="true" /><PhoneLine2><PhoneStatus $bg={sc.bg} $fg={sc.fg}>{statusLabel}</PhoneStatus>{!isDelayed && task.due_date && <PhoneMeta>{t('popout.due', '마감 {{date}}', { date: fmtDueShort(task.due_date) })}</PhoneMeta>}
               <ImportanceChip level={task.priority_level} />
               {(() => {
                 if (task.assignee_id === myId && (task.source === 'internal_request' || task.source === 'qtalk_extract') && task.requester?.name)
@@ -470,7 +470,7 @@ const ProjectTaskList: React.FC<Props> = ({
                   return <NameChip $type="observer">{task.assignee.name}</NameChip>;
                 return null;
               })()}
-              {isDelayed && <DelayBadge>{t('status.delayed', '지연')}</DelayBadge>}
+              {isDelayed && <DelayBadge>{t('status.delayed', '지연')}</DelayBadge>}</PhoneLine2>
               <Spacer />
               {grouped && (
                 <GroupMoveMenu
@@ -513,7 +513,7 @@ const ProjectTaskList: React.FC<Props> = ({
               </AssigneeDropdown>
             )}
           </TCell>
-          <TCell $w={showTimeline ? '60px' : '100px'} $center style={{ position: 'relative', overflow: 'visible' }}>
+          <TCell $w={showTimeline ? '60px' : '100px'} $center $hideBelow={640} style={{ position: 'relative', overflow: 'visible' }}>
             <StatusPill data-dropdown $bg={sc.bg} $fg={sc.fg} $clickable
               onClick={e => { e.stopPropagation(); setStatusOpenId(statusOpenId === task.id ? null : task.id); }}
               aria-haspopup="listbox" aria-expanded={statusOpenId === task.id}>
@@ -543,7 +543,7 @@ const ProjectTaskList: React.FC<Props> = ({
               <SliderPct>{prog}%</SliderPct>
             </SliderWrap>
           </TCell>
-          <TCell $w="100px" $center>
+          <TCell $w="100px" $center $hideBelow={640}>
             <DateTrigger ref={el => { dateRefs.current[task.id] = el; }}
               $color={isDelayed ? 'overdue' : (task.due_date?.slice(0, 10) === today ? 'today' : 'default')}
               $empty={!(task.start_date || task.due_date)}
@@ -572,7 +572,7 @@ const ProjectTaskList: React.FC<Props> = ({
             </TCell>
           )}
           {showTimeline && range && (
-            <TCell $flex2 style={{ overflow: 'visible' }}>
+            <TCell $flex2 $hideBelow={640} style={{ overflow: 'visible' }}>
               <GanttRowTrack registry={gantt} range={range} todayStr={today} showGrid>
                 <GanttBar range={range} start={task.start_date} end={task.due_date}
                   bg={sc.bg} fg={sc.fg} label={task.assignee?.name || ''}
@@ -680,9 +680,9 @@ const ProjectTaskList: React.FC<Props> = ({
           아래 값들은 본문 TCell(446·469·489·499·521·526행)과 **글자 그대로 같아야 한다** — 한쪽만 고치지 말 것. */}
       <Col $flex2 onClick={() => handleSort('title')}>{t('col.task', '업무')} {sortIcon('title')}</Col>
       <Col $w={showTimeline ? '90px' : '150px'} $center $hideBelow={900}>{t('col.assignee', '담당자')}</Col>
-      <Col $w={showTimeline ? '60px' : '100px'} $center onClick={() => handleSort('status')}>{t('col.status', '상태')} {sortIcon('status')}</Col>
+      <Col $w={showTimeline ? '60px' : '100px'} $center $hideBelow={640} onClick={() => handleSort('status')}>{t('col.status', '상태')} {sortIcon('status')}</Col>
       <Col $w={showTimeline ? '110px' : '180px'} $center $hideBelow={1024} onClick={() => handleSort('progress_percent')}>{t('col.progressPercent', '진행률')} {sortIcon('progress_percent')}</Col>
-      <Col $w="100px" $center onClick={() => handleSort('start_date')}>{t('col.dates', '기간')} {sortIcon('start_date')}</Col>
+      <Col $w="100px" $center $hideBelow={640} onClick={() => handleSort('start_date')}>{t('col.dates', '기간')} {sortIcon('start_date')}</Col>
       {showTimeline && range && (
         <Col $flex2 $center style={{ position: 'relative', overflow: 'visible' }}>
           <GanttHeader registry={gantt} range={range} tickMode="auto" />
