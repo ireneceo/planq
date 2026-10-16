@@ -1,6 +1,8 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-10-16 ([Opus] Opus 5.5, 방 3e1a0e26) — 개발완료: 사이드바 «메뉴 편집»(Irene «권고대로», 자체 검증) + 10/15~10/16 상황판 방별 작업 묶음 기록(상세는 .claude/session-state.md). 10/16 03:18·03:52 운영 배포(df197a66·db1143b4 포함) 이후 커밋은 운영 미배포.
+> **최종 업데이트:** 2026-10-16 밤 ([Opus] Opus 5.5, 방 e911aa4f · 정기 점검 10/17 00:15) — 개발완료: 서명 2칸 완료 화면 · 서명 칸 이름·이미지 미리보기 · Q docs 정렬 아이콘 + signatures.js 분리(god-file 래칫, Irene «권고대로»). 이어서 운영 배포.
+> ── 이전 ──
+> 2026-10-16 ([Opus] Opus 5.5, 방 3e1a0e26) — 개발완료: 사이드바 «메뉴 편집»(Irene «권고대로», 자체 검증) + 10/15~10/16 상황판 방별 작업 묶음 기록(상세는 .claude/session-state.md). 10/16 03:18·03:52 운영 배포(df197a66·db1143b4 포함) 이후 커밋은 운영 미배포.
 > ── 이전 ──
 > 2026-10-15 ([Opus] Opus 5.5, 방 1abbce29) — 개발완료: 문서 댓글(Fable 설계·게이트 PASS) + 10/12~10/15 작업기록 묶음 기록(상세는 .claude/session-state.md 방별 절). 전부 운영 미배포.
 > ── 이전 ──
@@ -47,6 +49,22 @@
 > 오전([Opus] Opus 5.5, 1M): **운영 배포 6회(v1.61.0 ~ v1.63.5).**
 > 게스트 진입(P0·A·B) · 이미지 보안 2a·2b(0~2단계) · 감사 1~3순위(328→98) · PDF 이미지 · **남의 워크스페이스에 쓰던 권한 결함 3건**.
 > ★ v1.63.3 의 PDF 수정이 이미지 많은 문서를 500 으로 만든 회귀를 **배포 후 운영 실측**으로 잡아 v1.63.4 로 되돌렸다.
+
+---
+
+## ✅ 완료: 2026-10-16 [Opus] — 서명 칸 이름·2칸 완료 화면 · Q docs 정렬 아이콘 · signatures.js 분리 (방 f901a0b2 · 886989c5 · e911aa4f)
+
+| 작업 | 설명 | 상태 |
+|------|------|:----:|
+| 서명 칸 이름 | 한 사람 칸이 2개 이상이면 요청자가 칸마다 이름(사인·회사 스탬프)을 적고 서명자·서명본·PDF 에 보임 · 이미지 미리보기 상자 280px 이하 (d01a2893) | ✅ 완료 |
+| 서명 2칸 완료 화면 | 진행 표·공개 서명 완료 카드·받은 서명 상세가 첫 장만 그리던 것 → 칸마다 · `GET /api/signatures/:id/image?i=` (cc15c1b6) | ✅ 완료 |
+| Q docs 정렬 아이콘 | 목록 정렬을 아이콘 버튼으로 — 검색칸 87→179px(폰 390: 174→262) (5fd46757) | ✅ 완료 |
+| signatures.js 분리 | god-file 래칫 초과(709 > 697) → 이미지 라우트 `routes/signature_image.js` · `assertMember` 는 `services/signatureCore` 한 곳 (94ad97f1, 동작 무변경) | ✅ 완료 |
+| 검증 | guard EXIT 0 · health 86/86 · e2e tenant,signature,signflow,signitems,signinbox 실패 0 · 실HTTP 이미지 8검사 · Fable 안 씀(표시 버그·동작 불변 리팩터링) | ✅ 완료 |
+
+### 수정된 파일
+- `dev-backend/routes/signatures.js` · `routes/signature_image.js`(신규) · `routes/signature_public.js` · `services/signatureCore.js` · `services/signatureItems.js` · `server.js`
+- `dev-frontend/src/components/Docs/SignatureProgressSection.tsx` · `pages/QDocs/PublicSignPage*.ts(x)` · `pages/Signatures/ReceivedSignaturesList.tsx` · `components/Common/ListSortSelect.tsx` 외
 
 ---
 

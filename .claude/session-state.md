@@ -1,7 +1,14 @@
 ## 현재 작업 상태
-**마지막 업데이트:** 2026-10-16 (방 886989c5 · 서명 2칸 완료 화면 · Q docs 목록 정렬 아이콘)
+**마지막 업데이트:** 2026-10-16 밤 (방 e911aa4f · 정기 점검 — signatures.js 분리 · 개발완료 · 운영 배포)
 **작업 상태:** 완료 — 서명 사인+스탬프 완료 화면 2장 · Q docs 목록 정렬 아이콘(방 886989c5 · 운영 미배포) · 이전: 서명 칸 이름·이미지 미리보기 폭(방 f901a0b2 · 운영 미배포) · 이전: 사이드바 «메뉴 편집»(방 3e1a0e26 · 운영 미배포 · 다음 배포 때 migrate-nav-prefs 슬롯) · 이전: 확인필요 답하기 저장 실패·업무 상세 스크롤(방 47d98562 · 운영 미배포) · 이전: 메일 답장 보낸 주소 표시(65cadd84 · 운영 미배포) · 이전: dev 링크 앱 가로채기 웹 차단 준비(sudo 1건 Irene) · 이전: 메일 사칭 검사(Fable PASS · 운영 미배포) · 이전: AI 앱 여러 워크스페이스(Fable PASS · 운영 미배포) · 이전: 급여 P2~P4(서버 Fable PASS · 화면 빌드·3폭 실측 72/72 · 운영 미배포)
 **다음 할 일:** 운영 반영은 다음 배포 때(10/16 03:52 배포 이후 커밋 전부 미배포) · 갈라진 옛 메일 대화 합치기는 배포 뒤 운영 미리보기 건수를 Irene 에게 · 아래 방별 «Irene 할 일»·«나중에» 절 그대로
+
+### 완료: 정기 점검 10/17 00:15 — 가드 실패 정리 후 개발완료·배포 (방 e911aa4f · 2026-10-16 · [Opus]) — Irene «권고대로»
+- 막힌 것: god-file 래칫 — `routes/signatures.js` 709줄(한도 697, cc15c1b6 이 695 → 709). 배포 게이트도 같은 가드라 배포 불가였다.
+- 고침 94ad97f1: 서명 이미지 라우트 → `routes/signature_image.js`(server.js signature_internal 뒤 마운트) · `assertMember` → `services/signatureCore` 한 곳. 669줄. 동작 무변경.
+- 검증: 실HTTP 8검사(옮기기 전 기록과 같음) · guard EXIT 0 · health 86/86(첫 회 5건 «fetch failed» = 17:10 밤 검사 중 백엔드 재시작, 다시 돌려 통과) · e2e tenant,signature,signflow,signitems,signinbox 실패 0 · Fable 안 씀(동작 불변 리팩터링).
+- 운영 피드백: 열린 9건, 10/08 이후 새 신고 0. #463·#464 답글은 초안 docs/feedback-replies-2026-10-08.json 그대로(앞선 방 결정대로 Irene 확인 후).
+- 밤 검사: 10-15 순찰 실패 5 · 전체 검사 141 중 실패 13(mailrt·docscollapse·docsheader·consultlinks·tablefit·tablestyle·tablemenu·taskaddparity·dupname·guestentry·drafts·salelayout·headerrow) — 판정은 다음 고치는 방. 10-16 밤 검사는 점검 시각에 도는 중.
 
 ### 완료: 서명 완료본 — 사인+스탬프 2칸인데 1개만 보이던 것 (방 886989c5 · 2026-10-16 · [Opus]) — 운영 미배포 · cc15c1b6
 - 원문: «서명1에 사인 서명2에 스탬프 넣었는데 완료 후 사인 하나만 보여 … 문서에 넣은 상태로 봐야 하는 거 아니야?»
