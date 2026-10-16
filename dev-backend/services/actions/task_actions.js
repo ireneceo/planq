@@ -1128,9 +1128,13 @@ async function notifyComment({ task, comment, subjectId, actor, io }) {
   for (const m of mentionedSet) recipients.delete(m);
   if (recipients.size === 0) return;
 
-  // 알림 제목의 작성자 이름 — 옛 코드가 이메일 앞부분을 썼다. 문구가 계약이라 그대로 재현한다.
-  const author = await User.findByPk(subjectId, { attributes: ['email'] });
-  const authorName = author?.email?.split('@')[0] || '누군가';
+  // 알림 제목의 작성자 이름 — 워크스페이스 표시명(없으면 계정 이름). 문서 댓글(post_actions.notifyComment)과 같은 규칙.
+  //   ★ 2026-10-16 — 옛 코드는 이메일 앞부분(«member1»)을 썼다. 같은 사람이 문서 댓글 알림엔 «이디자», 업무 댓글 알림엔
+  //   «member1» 로 떠 다른 사람처럼 읽혔다. 이름이 비면 이메일 앞부분으로 떨어진다(옛 동작).
+  const author = await User.findByPk(subjectId, { attributes: ['email', 'name'] });
+  const { getMemberDisplayName } = require('../displayName');
+  const dn = await getMemberDisplayName(task.business_id, subjectId, author?.name || null).catch(() => null);
+  const authorName = dn?.name || author?.email?.split('@')[0] || '누군가';
   notifyMany({
     userIds: [...recipients], businessId: task.business_id, eventKind: 'task',
     // #281 — `Q Task · 새 댓글 · {작성자} · "{업무명}"`. 첫 토큰이 기능명이라 출처가 먼저 읽힌다.
