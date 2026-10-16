@@ -50,6 +50,10 @@ router.post('/:businessId/invite', authenticateToken, checkBusinessAccess, requi
     }
 
     const existingUser = await User.findOne({ where: { email: email.trim() } });
+    // 이미 이 워크스페이스 멤버인 계정은 고객으로 초대하지 않는다 — «멤버이면서 고객» 은 없는 상태다(2026-10-16, services/clientToMember)
+    if (existingUser && await require('../services/clientToMember').isActiveWorkspaceMember(businessId, existingUser.id)) {
+      return errorResponse(res, 'already_member', 409, 'already_member');
+    }
     // 동일 워크스페이스에 같은 이메일·user 이미 존재하는지 체크
     if (existingUser) {
       const dup = await Client.findOne({ where: { business_id: businessId, user_id: existingUser.id } });

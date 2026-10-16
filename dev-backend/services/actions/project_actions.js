@@ -77,6 +77,8 @@ async function createProject(actor, params = {}, opts = {}) {
   const members = Array.isArray(params.members) ? params.members.slice() : [];
   const contacts = Array.isArray(params.contacts) ? params.contacts : [];
   const projectType = params.projectType === 'ongoing' ? 'ongoing' : 'fixed';
+  // 멤버에게 보이는 범위(2026-10-16) — 기본 참여 멤버만. 'workspace' 만 명시로 넓힌다.
+  const visibility = params.visibility === 'workspace' ? 'workspace' : 'members';
   const kind = params.kind === 'internal' ? 'internal' : 'client';
   const defaultAssignee = members.find((m) => m.is_default)?.user_id || userId;
 
@@ -94,6 +96,7 @@ async function createProject(actor, params = {}, opts = {}) {
       end_date: params.endDate || null,
       color: (params.color && HEX_RE.test(params.color)) ? params.color : null,
       project_type: projectType,
+      visibility,
       kind,
       default_assignee_user_id: defaultAssignee,
       owner_user_id: userId,

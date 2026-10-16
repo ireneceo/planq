@@ -36,9 +36,14 @@ async function getUserScope(userId, businessId, platformRole) {
     clientIds: [],                  // me 와 매칭된 clients.id (보통 1개)
     projectClientProjectIds: [],    // me 가 ProjectClient.contact_user_id 인 project.id 들
     projectMemberIds: [],           // me 가 ProjectMember 인 project.id 들 (옵션 A — L2 권한 검사용)
+    // 내가 볼 수 있는 프로젝트 id (2026-10-16 — docs/MEMBER_PROJECT_SCOPE_DESIGN.md, Fable 설계)
+    //   null = 제한 없음(platform_admin·owner·admin) · 배열 = 그 id 만(member·ai = 참여 ∪ 전체 공개, client = 참여 고객).
+    //   ★ 판정은 canSeeProject / projectScopeWhere 로만 — projects.visibility 를 다른 곳에서 직접 읽지 않는다.
+    visibleProjectIds: [],
   };
   if (scope.isPlatformAdmin) {
     scope.businessRole = 'admin';
+    scope.visibleProjectIds = null;
     return scope;
   }
   if (!userId || !businessId) return scope;
@@ -110,13 +115,26 @@ async function getUserScope(userId, businessId, platformRole) {
 
   // 4) ProjectMember — 옵션 A (사이클 N+9) L2 권한 검사용.
   //    내가 멤버 (owner/member) 일 때만 채움. client 는 ProjectClient 로 별도 권한.
-  if (bm && (bm.role === 'owner' || bm.role === 'member' || bm.role === 'admin')) {
+  //    ai(Cue) 도 같은 축 — 프로젝트 가시성 판정(visibleProjectIds)에 쓴다.
+  if (bm && (bm.role === 'owner' || bm.role === 'member' || bm.role === 'admin' || bm.role === 'ai')) {
     const pmRows = await ProjectMember.findAll({
       where: { user_id: userId },
       include: [{ model: Project, attributes: ['id'], where: { business_id: businessId }, required: true }],
       attributes: ['project_id'],
     });
     scope.projectMemberIds = pmRows.map((r) => r.project_id);
+  }
+
+  // 5) 볼 수 있는 프로젝트 — owner/admin 은 제한 없음, member·ai 는 참여 ∪ 전체 공개, 고객은 참여 고객 프로젝트.
+  if (scope.isOwner || scope.isAdmin) {
+    scope.visibleProjectIds = null;
+  } else if (scope.isMember || scope.isAi) {
+    const open = await Project.findAll({
+      where: { business_id: businessId, visibility: 'workspace' }, attributes: ['id'],
+    });
+    scope.visibleProjectIds = [...new Set([...scope.projectMemberIds, ...open.map((p) => p.id)])];
+  } else if (scope.isClient) {
+    scope.visibleProjectIds = [...scope.projectClientProjectIds];
   }
 
   return scope;
@@ -132,6 +150,61 @@ async function assertWorkspaceAccess(userId, businessId, platformRole) {
 // member 이상만 (client 차단). admin(N+21) 도 member 이상 — 데이터 접근 전권.
 function isMemberOrAbove(scope) {
   return !!(scope?.isPlatformAdmin || scope?.isOwner || scope?.isMember || scope?.isAdmin);
+}
+
+/**
+ * 이 프로젝트가 보이는가 — 프로젝트 가시성 **한 곳** (2026-10-16, docs/MEMBER_PROJECT_SCOPE_DESIGN.md).
+ *   Irene: *"관리자 아닌데 모든 프로젝트가 나오고 있어. 자기가 들어가 있는 프로젝트 … 아니면 전체공개분만"*
+ *   projectId 가 없으면(프로젝트 없는 항목) 참 — 그 항목은 종전 규칙대로 판정한다.
+ */
+function canSeeProject(scope, projectId) {
+  if (!projectId) return true;
+  if (!scope) return false;
+  if (scope.isPlatformAdmin || scope.visibleProjectIds === null) return true;
+  return (scope.visibleProjectIds || []).map(Number).includes(Number(projectId));
+}
+/** 목록 판. 제한이 없으면 null(조건 없음). 있으면 «프로젝트 없음 ∨ 보이는 프로젝트». col 은 where 키(또는 '$Alias.col$'). */
+function projectScopeWhere(scope, col = 'project_id') {
+  if (!scope || scope.isPlatformAdmin || scope.visibleProjectIds === null) return null;
+  const ids = (scope.visibleProjectIds || []).map(Number).filter(Boolean);
+  return { [Op.or]: [{ [col]: null }, ...(ids.length ? [{ [col]: { [Op.in]: ids } }] : [])] };
+}
+/**
+ * 숨은 프로젝트(참여 멤버만)를 «직원으로» 볼 수 있는 사람 — 실시간 방송이 쓴다(2026-10-16, Fable 검증 FAIL ②③).
+ *   반환: null = 제한 없음(프로젝트 없음·전체 공개) · Set(user_id) = 프로젝트 멤버 ∪ owner/admin(∪ businesses.owner_id).
+ *   워크스페이스 방(`business:<id>`)은 멤버 전원이 들어 있다 — 숨은 프로젝트의 행·본문을 거기로 보내면 REST 를 막아도 샌다.
+ */
+async function hiddenProjectAudience(projectId) {
+  if (!projectId) return null;
+  const p = await Project.findByPk(projectId, { attributes: ['id', 'business_id', 'visibility'] });
+  if (!p || p.visibility === 'workspace') return null;
+  const ids = new Set();
+  // ★ 프로젝트 멤버 행은 워크스페이스에서 내보내도 남는다 — 현직 멤버(removed_at NULL)만 센다(Fable 재검증: 내보낸 사람의 user: 방으로 본문이 갔다).
+  const pmIds = (await ProjectMember.findAll({ where: { project_id: p.id }, attributes: ['user_id'] })).map((m) => Number(m.user_id));
+  if (pmIds.length) {
+    for (const b of await BusinessMember.findAll({
+      where: { business_id: p.business_id, user_id: pmIds, removed_at: null }, attributes: ['user_id'],
+    })) ids.add(Number(b.user_id));
+  }
+  for (const a of await BusinessMember.findAll({
+    where: { business_id: p.business_id, role: { [Op.in]: ['owner', 'admin'] }, removed_at: null }, attributes: ['user_id'],
+  })) if (a.user_id) ids.add(Number(a.user_id));
+  const biz = await Business.findByPk(p.business_id, { attributes: ['owner_id'] });
+  if (biz?.owner_id) ids.add(Number(biz.owner_id));
+  return ids;
+}
+
+/** 쓰기 문(만들기·옮기기)이 부른다 — 볼 수 없는 프로젝트에 항목을 붙이지 않는다(2026-10-16). */
+async function userCanSeeProject(userId, businessId, projectId, platformRole) {
+  if (!projectId) return true;
+  return canSeeProject(await getUserScope(userId, businessId, platformRole), projectId);
+}
+/** 조건 배열(rest)을 프로젝트 범위로 감싼다 — 제한이 없으면 그대로. 결과는 OR 항목 한 개(배열)로 돌려준다. */
+function scopedOr(scope, rest, col) {
+  const ps = projectScopeWhere(scope, col);
+  if (!ps) return rest;
+  if (!rest.length) return [];
+  return [{ [Op.and]: [ps, { [Op.or]: rest }] }];
 }
 
 /** 워크스페이스 관리 권한 — owner · admin · platform_admin. PERMISSION_MATRIX «admin = owner_only 외 전권» (0-E E-1).
@@ -189,6 +262,12 @@ async function canAccessConversation(userId, conversation, scope) {
   if (!scope) scope = await getUserScope(userId, conversation.business_id);
   if (isMemberOrAbove(scope)) {
     if (scope.isPlatformAdmin) return true;
+    // 숨은 프로젝트의 방 — 그 방 참여자(이름 박힌 사람)만(2026-10-16 프로젝트 가시성).
+    if (scope.visibleProjectIds !== null) {
+      let pid = conversation.project_id;
+      if (pid === undefined) pid = (await Conversation.findByPk(conversation.id, { attributes: ['project_id'] }))?.project_id;
+      if (pid && !canSeeProject(scope, pid)) return isConversationParticipant(userId, conversation.id);
+    }
     if (!(await isPrivateConversation(conversation))) return true;
     return isConversationParticipant(userId, conversation.id);
   }
@@ -211,13 +290,16 @@ async function conversationListWhere(userId, businessId, scope) {
     const mine = (await ConversationParticipant.findAll({
       where: { user_id: userId }, attributes: ['conversation_id'],
     })).map((r) => r.conversation_id);
+    const open = scopedOr(scope, [
+      { project_id: { [Op.ne]: null } },
+      { client_id: { [Op.ne]: null } },
+      { channel_type: { [Op.notIn]: PRIVATE_CHANNELS } },
+    ]);
     return {
       business_id: businessId,
       [Op.and]: [{
         [Op.or]: [
-          { project_id: { [Op.ne]: null } },
-          { client_id: { [Op.ne]: null } },
-          { channel_type: { [Op.notIn]: PRIVATE_CHANNELS } },
+          ...open,
           ...(mine.length ? [{ id: { [Op.in]: mine } }] : []),
         ],
       }],
@@ -302,6 +384,9 @@ async function canAccessTask(userId, task, scope) {
 
   const v = taskVlevel(task);
   if (memberish) {
+    // 숨은 프로젝트의 업무 — 이름이 박힌 사람(위 ①)만(2026-10-16 프로젝트 가시성).
+    if (task.project_id === undefined && scope.visibleProjectIds !== null) return false;   // 칸을 안 실었으면 fail-closed
+    if (!canSeeProject(scope, task.project_id)) return false;
     // ② 멤버
     if (v === 'L3' || v === 'L4') return true;
     if (v !== 'L2') return false;                       // L1 — 이름이 박힌 사람만(owner/admin 도)
@@ -343,15 +428,17 @@ async function taskListWhere(userId, businessId, scope) {
 
   const or = await taskParticipantOr(uid);
   if (memberish) {
-    or.push({ vlevel: { [Op.in]: ['L3', 'L4'] } });
+    const rest = [{ vlevel: { [Op.in]: ['L3', 'L4'] } }];
     if (scope.isOwner || scope.isAdmin) {
-      or.push({ vlevel: 'L2' });
+      rest.push({ vlevel: 'L2' });
     } else {
       // «특정 멤버» — 표 이름을 붙인다(위 TARGETS_EMPTY_SQL 와 같은 이유). uid 는 정수로 강제했다.
-      or.push(sequelize.literal(`(\`Task\`.\`vlevel\` = 'L2' AND JSON_CONTAINS(\`Task\`.\`target_member_ids\`, '${uid}'))`));
+      rest.push(sequelize.literal(`(\`Task\`.\`vlevel\` = 'L2' AND JSON_CONTAINS(\`Task\`.\`target_member_ids\`, '${uid}'))`));
       const pids = scope.projectMemberIds || [];
-      if (pids.length) or.push({ [Op.and]: [{ vlevel: 'L2', project_id: { [Op.in]: pids } }, sequelize.literal(TARGETS_EMPTY_SQL)] });
+      if (pids.length) rest.push({ [Op.and]: [{ vlevel: 'L2', project_id: { [Op.in]: pids } }, sequelize.literal(TARGETS_EMPTY_SQL)] });
     }
+    // 이름이 박힌 사람(or) 밖의 조건만 프로젝트 가시성으로 감싼다(2026-10-16).
+    or.push(...scopedOr(scope, rest));
     return { business_id: businessId, [Op.and]: [{ [Op.or]: or }] };
   }
 
@@ -417,7 +504,7 @@ async function assertAssignable(targetUserId, businessId, projectId) {
 async function canAccessProject(userId, project, scope) {
   if (!project) return false;
   if (!scope) scope = await getUserScope(userId, project.business_id);
-  if (isMemberOrAbove(scope)) return true;
+  if (isMemberOrAbove(scope) || scope.isAi) return canSeeProject(scope, project.id);
   if (!scope.isClient) return false;
   return scope.projectClientProjectIds.includes(project.id);
 }
@@ -554,9 +641,8 @@ async function calendarListWhere(userId, businessId, scope) {
     return { business_id: businessId, vlevel: { [Op.in]: ['L3', 'L4'] } };
   }
 
-  const myProjectIds = (await ProjectMember.findAll({
-    where: { user_id: uid }, attributes: ['project_id'],
-  })).map((r) => r.project_id);
+  // ★ 이 워크스페이스 프로젝트만 — getUserScope 가 business 로 좁혀 둔 값(옛 코드는 전 워크스페이스 ProjectMember 를 읽었다).
+  const myProjectIds = scope.projectMemberIds || [];
   const attended = await attendedEventIds(uid, businessId);
 
   return {
@@ -566,6 +652,8 @@ async function calendarListWhere(userId, businessId, scope) {
         { created_by: uid },
         // 초대받은 일정은 공개 범위와 무관하게 보인다 — 초대가 곧 공유다(구글 캘린더와 같다)
         ...(attended.length ? [{ id: { [Op.in]: attended } }] : []),
+        // 그 밖은 보이는 프로젝트의 일정만(2026-10-16 프로젝트 가시성 — 이름 박힌 사람 = 만든 사람·초대받은 사람)
+        ...scopedOr(scope, [
         { vlevel: 'L3' },
         { vlevel: 'L4' },
         { vlevel: 'L2', project_id: { [Op.in]: myProjectIds.length > 0 ? myProjectIds : [0] } },
@@ -575,6 +663,7 @@ async function calendarListWhere(userId, businessId, scope) {
         sequelize.literal(`\`CalendarEvent\`.\`vlevel\`='L2' AND JSON_CONTAINS(\`CalendarEvent\`.\`target_member_ids\`, '${uid}')`),
         // legacy fallback (vlevel NULL) — 옛 visibility 기반
         { vlevel: null, visibility: 'business' },
+        ]),
         { vlevel: null, visibility: 'personal', created_by: uid },
       ],
     }],
@@ -683,6 +772,8 @@ async function canAccessFileByLevel(userId, file, scope) {
   if (scope.isPlatformAdmin) return true;
   // 본인 업로드 무조건 OK
   if (file.uploader_id === userId) return true;
+  // 숨은 프로젝트의 파일 — 올린 사람만(2026-10-16 프로젝트 가시성)
+  if (!canSeeProject(scope, file.project_id)) return false;
   // N+74 — vlevel 신컬럼 우선, legacy visibility fallback
   const v = file.vlevel || file.visibility;
   if (v === 'L1') return false;
@@ -716,7 +807,7 @@ function fileListWhereByLevel(scope) {
   //   같은 어휘를 쓰는 두 술어가 갈라져 있던 것이고, 그래서 문서는 보이는데 그 첨부만
   //   사라지는 상태가 나왔다(운영 post 77). 프론트에서 우회하지 않고 여기서 맞춘다.
   //   ※ 노출이 넓어지지 않는다 — 대상은 **자기가 올린 파일**뿐이다.
-  conds.push({ uploader_id: scope.userId });
+  const mineF = { uploader_id: scope.userId };
   if (fullView || scope.isMember) {
     // L3 / L4 / legacy null — 워크스페이스 멤버는 모두 OK
     conds.push({ vlevel: 'L3' });
@@ -752,8 +843,9 @@ function fileListWhereByLevel(scope) {
     conds.push(sequelize.literal(
       `\`File\`.\`vlevel\` = 'L2' AND JSON_CONTAINS(\`File\`.\`target_member_ids\`, '${Number(scope.userId)}')`));
   }
-  if (conds.length === 0) return { business_id: scope.businessId, id: { [Op.in]: [-1] } };
-  return { business_id: scope.businessId, [Op.or]: conds };
+  // 올린 사람 밖의 조건은 보이는 프로젝트로 감싼다(2026-10-16) — `File` 자격은 where 키라 Sequelize 가 붙인다.
+  const fconds = [mineF, ...scopedOr(scope, conds)];
+  return { business_id: scope.businessId, [Op.or]: fconds };
 }
 
 // Post (vlevel) — 동일 패턴
@@ -763,6 +855,8 @@ async function canAccessPostByLevel(userId, post, scope) {
   if (scope.isPlatformAdmin) return true;
   // 본인 작성 무조건 OK
   if (post.author_id === userId) return true;
+  // 숨은 프로젝트의 문서 — 작성자만(2026-10-16 프로젝트 가시성)
+  if (!canSeeProject(scope, post.project_id)) return false;
   const v = post.vlevel;
   // L1 — 본인만 (위에서 처리)
   if (v === 'L1') return false;
@@ -812,8 +906,9 @@ function postListWhereByLevel(scope) {
   if (!fullView) {
     conds.push(sequelize.literal(`vlevel = 'L2' AND JSON_CONTAINS(target_member_ids, '${Number(scope.userId)}')`));
   }
-  if (conds.length === 0) return { business_id: scope.businessId, id: { [Op.in]: [-1] } };
-  return { business_id: scope.businessId, [Op.or]: conds };
+  // 작성자 본인(앞 두 줄) 밖은 보이는 프로젝트로 감싼다(2026-10-16 프로젝트 가시성)
+  const pconds = [...conds.slice(0, 2), ...scopedOr(scope, conds.slice(2))];
+  return { business_id: scope.businessId, [Op.or]: pconds };
 }
 
 // KbDocument(Q info) 읽기 — **한 벌**(2026-09-27). 목록·상세·공유 발급·통합검색·Cue 가 모두 이 두 함수를 쓴다.
@@ -834,6 +929,8 @@ async function canAccessKbDocumentByLevel(userId, doc, scope) {
   //   그 밖은 종전대로 전부 본다.
   if (scope.isOwner || scope.isAdmin) return !isPrivateKb(doc);
   if (!scope.isMember) return false;
+  // 숨은 프로젝트의 자료 — 올린 사람만(2026-10-16 프로젝트 가시성)
+  if (!canSeeProject(scope, doc.project_id)) return false;
   const myProjects = scope.projectMemberIds || [];
   const v = doc.vlevel;
   if (v === 'L3' || v === 'L4') return true;
@@ -870,9 +967,10 @@ function kbDocumentsListWhereByLevel(scope) {
   }
   const uid = Number(scope.userId);
   const conds = [{ uploaded_by: uid }];
+  const kbRest = [];
   if (scope.isMember) {
     const myProjects = (scope.projectMemberIds || []).length ? scope.projectMemberIds : [0];
-    conds.push(
+    kbRest.push(
       { vlevel: 'L3' },
       { vlevel: 'L4' },
       { vlevel: 'L2', scope: 'project', project_id: { [Op.in]: myProjects } },
@@ -882,6 +980,7 @@ function kbDocumentsListWhereByLevel(scope) {
       { vlevel: null, scope: 'client' },
       { vlevel: null, scope: 'project', project_id: { [Op.in]: myProjects } },
     );
+    conds.push(...scopedOr(scope, kbRest));   // 보이는 프로젝트로 감싼다(2026-10-16)
   } else if (scope.isClient && (scope.clientIds || []).length > 0) {
     conds.push({ scope: 'client', client_id: { [Op.in]: scope.clientIds } });
   }
@@ -993,6 +1092,10 @@ module.exports = {
   taskListWhere,
   assertAssignable,
   canAccessProject,
+  canSeeProject,        // 2026-10-16 프로젝트 가시성 — 한 곳
+  userCanSeeProject,
+  hiddenProjectAudience,
+  projectScopeWhere,
   fileListWhere,
   invoiceListWhere,
   isInvoiceVisibleToClient,   // #274 — PDF·정정·증빙 등 다른 소비처가 같은 술어를 쓰게

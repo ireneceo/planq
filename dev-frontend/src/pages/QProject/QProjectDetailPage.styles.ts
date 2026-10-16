@@ -166,13 +166,14 @@ export const ProjectNotesWrap = styled(ProjectTabFull)<{ $hidden?: boolean }>`
   ${(p) => (p.$hidden ? 'display: none;' : '')}
 `;
 
-export const EditGrid = styled.div`display:grid;grid-template-columns:1fr 1fr;gap:12px;`;
+// 폰(≤640)에서는 한 칸 — 두 칸이면 오른쪽 칸(고객사·구분·상태)이 화면 밖으로 잘렸다(2026-10-16 실측 390px).
+export const EditGrid = styled.div`display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;@media (max-width:640px){grid-template-columns:minmax(0,1fr);}`;
 export const EditField = styled.div`display:flex;flex-direction:column;gap:4px;`;
 export const EditLabel = styled.span`font-size:0.6875rem;color:#64748B;font-weight:700;`;
 export const EditHint = styled.div`font-size:0.625rem;color:#94A3B8;margin-top:4px;line-height:1.5;`;
 export const EditInput = styled.input`height:34px;padding:0 10px;border:1px solid #E2E8F0;border-radius:6px;font-size:0.8125rem;font-family:inherit;&:focus{outline:none;border-color:#14B8A6;}`;
 export const EditTextarea = styled.textarea`padding:8px 10px;border:1px solid #E2E8F0;border-radius:6px;font-size:0.8125rem;font-family:inherit;resize:vertical;&:focus{outline:none;border-color:#14B8A6;}`;
-export const TypeBtn2 = styled.button<{$active?:boolean}>`flex:1;padding:8px 12px;border:1px solid ${p=>p.$active?'#14B8A6':'#E2E8F0'};background:${p=>p.$active?'#F0FDFA':'#FFF'};color:${p=>p.$active?'#0F766E':'#334155'};border-radius:6px;font-size:0.75rem;font-weight:600;cursor:pointer;&:hover{border-color:#14B8A6;}`;
+export const TypeBtn2 = styled.button<{$active?:boolean}>`flex:1;padding:8px 12px;border:1px solid ${p=>p.$active?'#14B8A6':'#E2E8F0'};background:${p=>p.$active?'#F0FDFA':'#FFF'};color:${p=>p.$active?'#0F766E':'#334155'};border-radius:6px;font-size:0.75rem;font-weight:600;cursor:pointer;&:hover:not(:disabled){border-color:#14B8A6;}&:disabled{cursor:not-allowed;opacity:0.6;}`;
 export const EditDateRangeTrigger = styled.button`width:100%;height:34px;padding:0 10px;border:1px solid #E2E8F0;border-radius:6px;font-size:0.8125rem;color:#0F172A;background:#FFF;font-family:inherit;text-align:left;cursor:pointer;&:hover{border-color:#14B8A6;}`;
 export const DatePH = styled.span`color:#94A3B8;`;
 export const ColorRow = styled.div`display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:flex-start;padding:2px 0;width:100%;`;

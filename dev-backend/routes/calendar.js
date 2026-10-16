@@ -345,7 +345,10 @@ router.get('/by-business/:businessId/:id', authenticateToken, attachWorkspaceSco
     if (!isEventAdmin && !req.scope?.isClient) {
       const uid = parseInt(req.user.id, 10);
       let allowed = false;
+      const { canSeeProject } = require('../middleware/access_scope');
       if (event.created_by === uid) allowed = true;                       // 본인 생성은 무조건
+      // 숨은 프로젝트의 일정 — 만든 사람·초대받은 사람만(2026-10-16 프로젝트 가시성, calendarListWhere 와 같은 선)
+      else if (!canSeeProject(req.scope, event.project_id)) allowed = false;
       else if (event.vlevel === 'L3' || event.vlevel === 'L4') allowed = true;
       else if (event.vlevel === 'L2') {
         const inProject = event.project_id
@@ -733,6 +736,10 @@ router.put('/by-business/:businessId/:id', authenticateToken, checkBusinessAcces
       } else {
         const prj = await Project.findOne({ where: { id: project_id, business_id: businessId } });
         if (!prj) { await t.rollback(); return errorResponse(res, 'invalid_project', 400); }
+        // 볼 수 없는 프로젝트로 옮기지 않는다(2026-10-16 프로젝트 가시성)
+        if (!(await require('../middleware/access_scope').userCanSeeProject(req.user.id, businessId, prj.id, req.user.platform_role))) {
+          await t.rollback(); return errorResponse(res, 'not_project_member', 403);
+        }
         updates.project_id = prj.id;
       }
     }

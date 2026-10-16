@@ -447,6 +447,14 @@ router.get('/', authenticateToken, async (req, res, next) => {
   모델 defaultScope 가 참여자만 보이게 해 참여자 목록·@·메시지 알림·읽음 분모·사적 방 접근권에서 빠진다. 쓰는 문은 `services/convParticipants.js` 하나
   (`touchOwnRow` viewer · `joinParticipant` 초대·생성·승격 · `promoteSpeaker` 말하면 참여자 · `removeRows`). 가드 `--category=convparticipants`.
   목록에 보이는 범위(멤버 이상은 프로젝트·고객 방)는 그대로. 운영: `migrate-conv-viewer.js`(배포 슬롯) · 옛 행 `backfill-conv-viewer.js`(dry-run 기본, 수동). 설계 `docs/QTALK_PARTICIPATION_DESIGN.md`.
+- **멤버는 참여한 프로젝트 ∪ «전체 공개» 프로젝트만 본다** (2026-10-16, Irene *"관리자 아닌데 모든 프로젝트가 나오고 있어 … 자기가 들어가 있는 프로젝트와 그와 연결된 업무들과 일정들만 … 아니면 전체공개분만"* · Fable 설계) —
+  `projects.visibility`(members 기본·기존 행도 / workspace). owner·admin·platform_admin 은 전부. 판정은 `access_scope` **한 곳**:
+  `scope.visibleProjectIds`(null=제한 없음) · `canSeeProject` · `projectScopeWhere` · 쓰기 문 `userCanSeeProject` — `visibility` 칸을 다른 곳에서 직접 읽지 않는다.
+  프로젝트에 달린 항목 = 이름 박힌 사람 ∨ (프로젝트 보임 ∧ 기존 vlevel). 목록·상세·업무·일정·대화·파일·문서·Q info·검색·AI 앱·Cue·소켓 `project:<id>`·만들기/옮기기가 같은 판정.
+  바꾸는 것은 관리자·PM(`PUT /api/projects/:id visibility`). 배정해도 프로젝트 멤버로 자동 추가하지 않는다. 운영 `migrate-project-visibility.js`(배포 슬롯, 숨겨지는 쌍 수 출력). 설계 `docs/MEMBER_PROJECT_SCOPE_DESIGN.md`.
+- **고객이 같은 계정으로 멤버가 되면 «멤버가 이긴다»** (2026-10-16, Irene *"고객이었는데 … 멤버 가입했는데 그대로 고객이야"*) — `services/clientToMember.promoteClientToMember` 한 곳
+  (멤버 초대 수락이 부른다): 고객 행 보관(`archived`+`member_converted_at`, 이력 유지) · 프로젝트 고객 행 → 같은 프로젝트 멤버 · 대화 역할 client→member.
+  멤버 해제는 고객으로 되돌리지 않는다. 활성 멤버를 고객으로 붙이는 문(프로젝트 고객 추가·고객 초대 수락)은 409 `already_member`. 옛 데이터 `migrate-client-to-member.js`(기본 읽기만, `--apply`).
 - **관리자는 남의 개인 메일 계정을 끄기만 한다**(공용 전환은 주인만, 2026-10-09 D4).
 - **멤버 초대는 수락할 때만 계정을 붙인다** (2026-10-15 Fable D1) — 멤버십을 읽는 곳은 `user_id` 로 찾고 `joined_at` 을 안 보므로,
   초대 순간 `business_members.user_id` 를 채우면 **수락 전부터 멤버**다(거절 불가·만료 뒤에도). 초대 행은 `user_id NULL` 로 만들고

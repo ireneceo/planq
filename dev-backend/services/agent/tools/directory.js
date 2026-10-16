@@ -135,6 +135,10 @@ async function searchProjects(p, a) {
   const { Project } = require('../../../models');
   const q = String(a.query || '').normalize('NFC').trim();
   const conds = [{ business_id: p.businessId }];
+  // 보이는 프로젝트만(2026-10-16 — 사람 화면 GET /api/projects 와 같은 판정, access_scope 한 곳)
+  const { getUserScope: gus, projectScopeWhere } = require('../../../middleware/access_scope');
+  const vis = projectScopeWhere(await gus(p.userId, p.businessId, p.platformRole), 'id');
+  if (vis) conds.push(vis);
   if (q) conds.push({ [Op.or]: [{ name: { [Op.like]: `%${escLike(q)}%` } }, { client_company: { [Op.like]: `%${escLike(q)}%` } }] });
   if (a.status) conds.push({ status: a.status });
   const pg = parsePage(a);

@@ -1,5 +1,11 @@
 # Fable 게이트 대기열 → **판정 기록 보관소** (2026-10-08 부터)
 
+## 2026-10-16 · 멤버 프로젝트 가시성 · 고객→멤버 전환 (방 c6810b76) — 설계 1회 + 완료 검증 4회 → **PASS**
+- Irene: «고객이었는데 같은 이메일로 멤버 가입했는데 그대로 고객이야 … 관리자 아닌데 모든 프로젝트가 나오고 있어 … 자기가 들어가 있는 프로젝트와 그와 연결된 업무들과 일정들만 … 아니면 전체공개분만».
+- 설계: projects.visibility(members 기본·기존 행도) · access_scope 한 곳 · services/clientToMember. docs/MEMBER_PROJECT_SCOPE_DESIGN.md.
+- 검증 FAIL 1차: 복사 문 우회 · 숨은 L3 업무 행·대화 본문이 business 방으로. 2차: 팀 메모 본문 · 권한 줄어도 소켓 방 유지. 3차: 내보낸 멤버의 프로젝트 멤버 행이 청중에 남음. 4차 PASS — 내보낸 사람 5종 0건 · 되살리면 다시 받음(민감도) · 실제 내보내기 문 0건 · 현직·비참여·공개 경로 불변.
+- 운영: migrate-project-visibility.js · migrate-client-to-member.js 배포 슬롯(코드 전). 옛 고객 자국 정리는 운영 읽기 결과 보고 `--apply` 수동.
+
 ## 2026-10-16 · 메일 분류 기준 «일정 안내»(schedule_notice) — 예약 확정 안내가 자동 폴더에 묻힘 (방 b7b3246a) — 설계+완료 **PASS** (1회)
 - Irene: IKEA «Thanks for confirming your Kitchen planning appointment» 가 확인 권장·답변 필요 어디에도 없었다(noreply → automated_sender).
 - 판정: 폴더는 확인 권장(우리가 예약한 것/상대가 예약한 것을 제목으로 못 가름 — 상대의 «new booking» 은 inbound_action 이 먼저 답변 필요로) · 순서 auto_ack 다음·automated_relevant 앞, 두 경로 같은 자리 · human 불변 · 운영 시뮬은 배포 게이트 아님(auto→review 단방향·토글로 되돌림·옛 메일 소급은 수동).

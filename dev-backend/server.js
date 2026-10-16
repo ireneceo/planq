@@ -53,6 +53,7 @@ io.use((socket, next) => {
     // ★ 용도가 박힌 토큰(kind)은 소켓 인증에도 못 쓴다 — middleware/auth.js 와 같은 규칙.
     if (decoded && decoded.kind) return next(new Error('Invalid token'));
     socket.userId = decoded.userId || decoded.id;
+    socket.data.userId = socket.userId;   // fetchSockets()(services/socketRevoke)가 읽는 자리 — 원격 소켓에는 data 만 실린다
   } catch (err) {
     return next(new Error('Invalid token'));
   }
@@ -86,9 +87,17 @@ async function projectRoomRole(userId, projectId) {
   if (!proj) return null;
   const bm = await BusinessMember.findOne({
     where: { business_id: proj.business_id, user_id: userId, removed_at: null },
-    attributes: ['id'],
+    attributes: ['id', 'role'],
   });
-  if (bm) return 'staff';
+  if (bm) {
+    // 멤버·Cue 는 보이는 프로젝트의 방만(2026-10-16 프로젝트 가시성 — access_scope.canSeeProject 한 곳)
+    if (bm.role === 'member' || bm.role === 'ai') {
+      const { getUserScope, canSeeProject } = require('./middleware/access_scope');
+      const scope = await getUserScope(userId, proj.business_id);
+      if (!canSeeProject(scope, proj.id)) return null;
+    }
+    return 'staff';
+  }
   const pc = await ProjectClient.findOne({
     where: { project_id: projectId, contact_user_id: userId },
     attributes: ['id'],

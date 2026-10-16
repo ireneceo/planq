@@ -126,6 +126,13 @@ router.post('/:id/duplicate', authenticateToken, async (req, res, next) => {
     const bm = await requireBusinessMember(req.user.id, src.business_id);
     if (!bm) { await t.rollback(); return errorResponse(res, 'forbidden', 403); }
     if (bm.role === 'ai') { await t.rollback(); return errorResponse(res, 'forbidden', 403); }
+    // 볼 수 없는 프로젝트는 복사도 못 한다 — 읽기와 같은 술어(2026-10-16 · Fable 검증 FAIL ①: 비참여 멤버가 id 로 숨은 프로젝트 설명·명단을 가져갔다)
+    {
+      const { getUserScope, canSeeProject } = require('../middleware/access_scope');
+      if (!canSeeProject(await getUserScope(req.user.id, src.business_id, req.user.platform_role), src.id)) {
+        await t.rollback(); return errorResponse(res, 'not_project_member', 403);
+      }
+    }
     // 복사본도 **새 프로젝트**다 — 플랜 쿼터를 그대로 통과해야 한다(생성 라우트와 같은 게이트).
     const planEngine = require('../services/plan');
     const planCan = await planEngine.can(src.business_id, 'create_project');
@@ -301,7 +308,7 @@ router.post('/', authenticateToken, async (req, res, next) => {
     const { createProject } = require('../services/actions/project_actions');
     const r = await createProject({ kind: 'user', userId: req.user.id, platformRole: req.user.platform_role, req }, {
       businessId: business_id, name, description, clientCompany: client_company, startDate: start_date, endDate: end_date,
-      color, projectType: project_type, kind, stageTemplate: stage_template,
+      color, projectType: project_type, kind, stageTemplate: stage_template, visibility: req.body?.visibility,
       members: Array.isArray(members) ? members : [], contacts: Array.isArray(clients) ? clients : [], channels,
     });
     if (!r.ok) {
@@ -324,6 +331,15 @@ router.get('/', authenticateToken, async (req, res, next) => {
 
     const where = { business_id: businessId };
     if (req.query.status) where.status = req.query.status;
+
+    // 멤버는 참여 ∪ 전체 공개 프로젝트만(2026-10-16, Irene «관리자 아닌데 모든 프로젝트가 나오고 있어»).
+    //   판정은 access_scope 한 곳 — owner/admin 은 제한 없음(null). Op.and 안에 둔다(최상위 키는 덮인다).
+    if (bm) {
+      const { getUserScope, projectScopeWhere } = require('../middleware/access_scope');
+      const scope = await getUserScope(req.user.id, businessId, req.user.platform_role);
+      const ps = projectScopeWhere(scope, 'id');
+      if (ps) where[Op.and] = [ps];
+    }
 
     // 고객이면 본인 참여 프로젝트만
     let projectIdFilter = null;
@@ -767,6 +783,19 @@ router.put('/:id', authenticateToken, async (req, res, next) => {
     if (process_tab_label !== undefined) patch.process_tab_label = String(process_tab_label).trim().slice(0, 80) || '테이블';
     // 내부/고객 구분 (수익성 세그먼트 축) — 멤버 이상 편집 가능(재무 게이트 아님, 분류일 뿐)
     if (kind !== undefined && ['client', 'internal'].includes(kind)) patch.kind = kind;
+    // 멤버에게 보이는 범위(2026-10-16 프로젝트 가시성) — owner/admin/PM 만. 넓히면 비참여 멤버 전원이 업무·일정·대화를 보게 된다.
+    const { visibility } = req.body || {};
+    if (visibility !== undefined) {
+      if (!['members', 'workspace'].includes(visibility)) return errorResponse(res, 'invalid_visibility', 400);
+      const isPlatformAdmin = req.user.platform_role === 'platform_admin';
+      let canSet = isPlatformAdmin || role === 'owner' || role === 'admin';
+      if (!canSet) {
+        const pm = await ProjectMember.findOne({ where: { project_id: project.id, user_id: req.user.id, is_pm: true }, attributes: ['id'] });
+        canSet = !!pm;
+      }
+      if (!canSet) return errorResponse(res, 'pm_or_admin_only', 403, 'pm_or_admin_only');
+      patch.visibility = visibility;
+    }
 
     // ─── 정기청구 설정 (재무) — owner/platform_admin 만. 자동발행 여부는 고객에게 자동 발송을 좌우하므로 invoice 정책과 동일하게 owner 전용. ───
     const { billing_type, monthly_fee, invoice_billing_day, auto_invoice_enabled, auto_invoice_mode } = req.body || {};
@@ -785,6 +814,10 @@ router.put('/:id', authenticateToken, async (req, res, next) => {
     const prevName = project.name;
     const projBefore = project.get({ plain: true, clone: true });   // 감사용
     await project.update(patch);
+    // 참여 멤버만으로 좁혔으면 이제 못 보는 직원의 실시간 방을 회수한다(2026-10-16 · CLAUDE.md «권한이 줄면 실시간도 회수»)
+    if (patch.visibility === 'members' && projBefore.visibility !== 'members') {
+      require('../services/socketRevoke').leaveHiddenProjectRooms(req.app.get('io'), project.id).catch(() => {});
+    }
     // 프로젝트 'closed' 전환 시 연결 대화 자동 archived (cascade, soft). 데이터는 보존.
     //   Irene 결정(2026-08-18): **삭제하지 않는다.** 업무 정보가 쌓이는 게 이 제품의 핵심 가치인데
     //   삭제는 그걸 스스로 버리는 것이다. 목록에서만 내려가고 내용은 그대로 열람 가능하다.
@@ -916,7 +949,8 @@ router.put('/:id', authenticateToken, async (req, res, next) => {
       const io = req.app.get('io');
       if (io) {
         const payload = { id: project.id, name: project.name, business_id: project.business_id };
-        io.to(`business:${project.business_id}`).emit('project:updated', payload);
+        // 숨은 프로젝트면 이름은 볼 수 있는 사람에게만(2026-10-16 프로젝트 가시성)
+        require('../services/projectRoom').emitBusinessForProject(io, project.business_id, project.id, 'project:updated', payload).catch(() => {});
         require('../services/projectRoom').emitProject(io, project.id, 'project:updated', payload);
         io.to(`business:${project.business_id}`).emit('inbox:refresh', { reason: 'project_updated', project_id: project.id });
         // 대화방 제목이 프로젝트명에서 파생되므로 rename 은 채팅 목록도 갱신해야 한다 (#150)
@@ -1041,6 +1075,8 @@ router.put('/:id/members', authenticateToken, async (req, res, next) => {
       }, { transaction: t });
     }
     await t.commit();
+    // 빠진 멤버는 숨은 프로젝트의 실시간 방에서 나간다(2026-10-16 · 전체 공개면 할 일 없음)
+    require('../services/socketRevoke').leaveHiddenProjectRooms(req.app.get('io'), project.id).catch(() => {});
     if (roleAdded) {
       const io = req.app.get('io');
       if (io) io.to(`business:${project.business_id}`).emit('member_role:updated', { business_id: project.business_id, actor_user_id: req.user.id });
@@ -2011,7 +2047,7 @@ function broadcastCanvas(req, project, reason) {
   const io = req.app.get('io');
   if (!io) return;
   const payload = { id: project.id, business_id: project.business_id, actor_user_id: req.user.id };
-  io.to(`business:${project.business_id}`).emit('project:updated', payload);
+  require('../services/projectRoom').emitBusinessForProject(io, project.business_id, project.id, 'project:updated', payload).catch(() => {});
   require('../services/projectRoom').emitProject(io, project.id, 'project:updated', payload);
   io.to(`business:${project.business_id}`).emit('inbox:refresh', { reason, project_id: project.id });
 }
@@ -2390,7 +2426,7 @@ router.delete('/:id/workstreams/:wsId', authenticateToken, async (req, res, next
       for (const tk of affected) {
         const payload = { id: tk.id, project_id: project.id, workstream_id: null, actor_user_id: req.user.id };
         require('../services/projectRoom').emitProject(io, project.id, 'task:updated', payload);
-        io.to(`business:${project.business_id}`).emit('task:updated', payload);
+        require('../services/projectRoom').emitBusinessForProject(io, project.business_id, project.id, 'task:updated', payload, null).catch(() => {});
       }
     }
     return successResponse(res, { deleted: true });
@@ -2921,7 +2957,9 @@ router.post('/conversations/:convId/notes', authenticateToken, async (req, res, 
     // ★ 개인 메모(personal)는 쓴 사람만 본다(GET 과 같은 규칙) — 본문을 워크스페이스 방에 뿌리지 않고
     //   쓴 사람의 기기(user 방)로만 보낸다(2026-10-09 보안점검). Q talk 화면이 이 행을 그대로 그린다.
     if (io && conversation.business_id) {
-      io.to(vis === 'personal' ? `user:${req.user.id}` : `business:${conversation.business_id}`).emit('note:new', noteJson);
+      // 팀 메모는 «그 방을 볼 수 있는 사람» 에게만 — 숨은 프로젝트·사적 대화는 청중 개인 방으로(convBroadcast 한 문, 2026-10-16 Fable 재검증 A)
+      if (vis === 'personal') io.to(`user:${req.user.id}`).emit('note:new', noteJson);
+      else await require('../services/convBroadcast').emitConvWide(io, conversation, 'note:new', noteJson);
     }
     return successResponse(res, noteJson);
   } catch (err) { next(err); }
@@ -2965,7 +3003,8 @@ router.post('/conversations/:convId/issues', authenticateToken, async (req, res,
     // N+38 — business room broadcast
     const io = req.app.get('io');
     if (io && conversation.business_id) {
-      io.to(`business:${conversation.business_id}`).emit('issue:new', full.toJSON());
+      // 숨은 프로젝트 대화의 이슈 본문은 볼 수 있는 사람에게만(2026-10-16 프로젝트 가시성)
+      require('../services/projectRoom').emitBusinessForProject(io, conversation.business_id, conversation.project_id, 'issue:new', full.toJSON(), null).catch(() => {});
     }
     return successResponse(res, full.toJSON());
   } catch (err) { next(err); }
@@ -3344,6 +3383,11 @@ router.post('/:id/clients', authenticateToken, async (req, res, next) => {
       if (dup) return successResponse(res, { id: dup.id, client_id: cid, already: true });
       contact_user_id = clientRow.user_id || null;
     }
+    // 이미 이 워크스페이스 멤버인 계정은 고객으로 붙이지 않는다 — 프로젝트 멤버로 넣는다(2026-10-16, services/clientToMember).
+    const { isActiveWorkspaceMember } = require('../services/clientToMember');
+    if (contact_user_id && await isActiveWorkspaceMember(project.business_id, contact_user_id)) {
+      return errorResponse(res, 'already_member', 409, 'already_member');
+    }
 
     if (!clientRow && (!name || !String(name).trim())) return errorResponse(res, 'name is required', 400);
     const emailTrim = email && email.trim() ? email.trim() : null;
@@ -3352,6 +3396,9 @@ router.post('/:id/clients', authenticateToken, async (req, res, next) => {
     } else if (emailTrim) {
       const existingUser = await UserM.findOne({ where: { email: emailTrim } });
       if (existingUser) contact_user_id = existingUser.id;
+      if (existingUser && await isActiveWorkspaceMember(project.business_id, existingUser.id)) {
+        return errorResponse(res, 'already_member', 409, 'already_member');
+      }
       // 기존 Client 매칭: user_id(가입자) 우선, 없으면 같은 워크스페이스 invite_email
       if (existingUser) {
         clientRow = await ClientM.findOne({ where: { business_id: project.business_id, user_id: existingUser.id } });
@@ -3797,10 +3844,10 @@ router.get('/workspace/:bizId/all-files', authenticateToken, async (req, res, ne
     //   대화 첨부·업무 첨부의 파일명과 무인증 public download_url 까지 받아간다.
     //   owner/admin/platform_admin 은 워크스페이스 전권이라 기존대로 전체.
     const fullView = fileScope.isPlatformAdmin || fileScope.isOwner || fileScope.isAdmin;
+    const { canSeeProject } = require('../middleware/access_scope');
     const myProjIds = fullView
       ? projIds
-      : projIds.filter((id) => (fileScope.projectMemberIds || []).includes(id)
-        || (fileScope.projectClientProjectIds || []).includes(id));
+      : projIds.filter((id) => canSeeProject(fileScope, id));   // 참여 ∪ 전체 공개 · 고객은 참여 고객(2026-10-16)
 
     const results = [];
 
@@ -4044,9 +4091,8 @@ router.get('/:id/files', authenticateToken, async (req, res, next) => {
     //   필터는 files 목록과 같은 단일 원천(fileListWhereByLevel)을 재사용한다.
     const { getUserScope, fileListWhereByLevel } = require('../middleware/access_scope');
     const scope = await getUserScope(req.user.id, bizId, req.user.platform_role);
-    const isProjectMember = scope.isPlatformAdmin || scope.isOwner || scope.isAdmin
-      || (scope.projectMemberIds || []).includes(projId)
-      || (scope.projectClientProjectIds || []).includes(projId);
+    // 볼 수 있는 프로젝트면(참여 ∪ 전체 공개 · 고객은 참여 고객) 그 대화·업무 첨부도 본다 — access_scope 한 곳(2026-10-16)
+    const isProjectMember = require('../middleware/access_scope').canSeeProject(scope, projId);
     const levelWhere = fileListWhereByLevel(scope);
 
     // 1) direct 파일

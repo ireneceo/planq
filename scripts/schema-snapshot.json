@@ -495,7 +495,8 @@
       "summary_as_of",
       "summary_item_count",
       "summary_model",
-      "survey_opt_out_at"
+      "survey_opt_out_at",
+      "member_converted_at"
     ],
     "contact_inquiries": [
       "id",
@@ -2170,7 +2171,8 @@
       "strategy_approach",
       "success_metrics",
       "timeline_key_only",
-      "strategy_sources"
+      "strategy_sources",
+      "visibility"
     ],
     "provider_credits": [
       "id",

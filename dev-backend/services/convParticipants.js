@@ -111,4 +111,18 @@ async function removeRows(where, opts = {}) {
   return model().unscoped().destroy({ where, transaction: opts.transaction });
 }
 
-module.exports = { touchOwnRow, ownRows, joinParticipant, promoteSpeaker, removeRows };
+/**
+ * 한 사람의 참여 역할을 바꾼다(viewer 행 포함) — 고객이 멤버가 됐을 때 client → member (services/clientToMember, 2026-10-16).
+ * @returns {Promise<number>} 바뀐 행 수
+ */
+async function changeRole(userId, conversationIds, fromRole, toRole, opts = {}) {
+  if (!userId || !Array.isArray(conversationIds) || !conversationIds.length) return 0;
+  const { Op } = require('sequelize');
+  const [n] = await model().unscoped().update(
+    { role: toRole },
+    { where: { user_id: userId, role: fromRole, conversation_id: { [Op.in]: conversationIds } }, transaction: opts.transaction },
+  );
+  return n || 0;
+}
+
+module.exports = { touchOwnRow, ownRows, joinParticipant, promoteSpeaker, removeRows, changeRole };

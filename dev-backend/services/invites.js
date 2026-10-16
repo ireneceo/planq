@@ -168,6 +168,18 @@ async function acceptInviteInner(user, resolved, opts = {}) {
 
   const t = await sequelize.transaction();
   try {
+    // 이미 이 워크스페이스 멤버면 고객으로 붙이지 않는다 — «멤버이면서 고객» 은 없는 상태다(2026-10-16, clientToMember).
+    if (resolved.type === 'project_client' || resolved.type === 'workspace_client') {
+      let wsId = resolved.business_id;
+      if (!wsId && resolved.type === 'project_client') {
+        wsId = (await Project.findByPk(resolved.record.project_id, { attributes: ['business_id'], transaction: t }))?.business_id;
+      }
+      if (await require('./clientToMember').isActiveWorkspaceMember(wsId, user.id, { transaction: t })) {
+        await t.rollback();
+        throw new InviteError('already_member', 409);
+      }
+    }
+
     if (resolved.type === 'project_client') {
       const pc = resolved.record;
       await pc.update({ contact_user_id: user.id, accepted_at: new Date() }, { transaction: t });
@@ -273,7 +285,10 @@ async function acceptInviteInner(user, resolved, opts = {}) {
           throw new InviteError('already_member', 409);
         }
         await bm.destroy({ transaction: t });
+        // 이 사람에게 남은 고객 자국 → 멤버(2026-10-16 — services/clientToMember 한 곳)
+        const conv = await require('./clientToMember').promoteClientToMember({ businessId: dup.business_id, userId: user.id, transaction: t });
         await t.commit();
+        require('./clientToMember').afterPromote(conv, { businessId: dup.business_id, userId: user.id, actorUserId: user.id, io });
         await landOn(user, dup.business_id);
         broadcast(io, dup.business_id, 'member:updated', { id: dup.id });
         return { type: 'workspace_member', business_id: dup.business_id, redirect: REDIRECT.workspace_member, already: false };
@@ -286,7 +301,10 @@ async function acceptInviteInner(user, resolved, opts = {}) {
         throw new InviteError('quota', 422, planEngine.buildQuotaError(planCan, bm.business_id));
       }
       await bm.update({ user_id: user.id, joined_at: new Date() }, { transaction: t });
+      // 같은 계정이 이 워크스페이스 고객이었으면 고객 자국을 멤버로 바꾼다(2026-10-16 — Irene «그대로 고객이야»)
+      const conv = await require('./clientToMember').promoteClientToMember({ businessId: bm.business_id, userId: user.id, transaction: t });
       await t.commit();
+      require('./clientToMember').afterPromote(conv, { businessId: bm.business_id, userId: user.id, actorUserId: user.id, io });
       await landOn(user, bm.business_id);
       broadcast(io, bm.business_id, 'member:updated', { id: bm.id });
       notifyInviterOnAccept(bm.invited_by, null, 'workspace_member', user.id, bm.business_id).catch((e) => console.warn('[notify invite workspace_member]', e.message));

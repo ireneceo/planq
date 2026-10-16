@@ -14,7 +14,8 @@
   "empty": {
     "title": "No projects yet",
     "desc": "Create a project to bring its tasks, schedule, documents and chat together here",
-    "cta": "+ New project"
+    "cta": "+ New project",
+    "descMember": "You're not in any project yet. Ask a project manager or admin to add you."
   },
   "status": {
     "dialogAria": "Change project status",
@@ -88,7 +89,8 @@
     "noDept": "No department",
     "noTeam": "No team",
     "duplicate": "Duplicate",
-    "duplicateHint": "Creates a new project with the settings only (tasks, documents and conversations are not copied)"
+    "duplicateHint": "Creates a new project with the settings only (tasks, documents and conversations are not copied)",
+    "workspaceVisible": "Visible to all"
   },
   "common": {
     "cancel": "Cancel",
@@ -421,7 +423,12 @@
     "color": "Color",
     "colorPicker": "Color picker",
     "description": "Description",
-    "rolePlaceholder": "Role"
+    "rolePlaceholder": "Role",
+    "visibility": "Visibility",
+    "visibilityMembers": "Project members only",
+    "visibilityWorkspace": "Visible to all",
+    "visibilityHint": "Project members only = only project members and admins see this project and its tasks, events and docs. Visible to all = every workspace member sees it.",
+    "visibilityHintReadonly": "Only admins or the PM can change visibility."
   },
   "close": {
     "title": "Complete project",

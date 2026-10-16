@@ -12,8 +12,9 @@
 //     `if (role === 'client') return 403` 을 따로 건다 — 이 함수는 "들어올 수 있는가" 만 답한다.
 const { Project, BusinessMember, ProjectClient } = require('../models');
 
+// ★ 해제된 멤버십(removed_at)은 멤버가 아니다 — getUserScope 와 같은 조건(2026-10-16).
 async function requireBusinessMember(userId, businessId) {
-  return BusinessMember.findOne({ where: { user_id: userId, business_id: businessId } });
+  return BusinessMember.findOne({ where: { user_id: userId, business_id: businessId, removed_at: null } });
 }
 
 async function loadProjectOrForbidden(projectId, userId) {
@@ -21,7 +22,16 @@ async function loadProjectOrForbidden(projectId, userId) {
   if (!project) return { error: { code: 404, message: 'project_not_found' } };
   // 워크스페이스 멤버 여부 (owner/admin/member)
   const bm = await requireBusinessMember(userId, project.business_id);
-  if (bm) return { project, role: bm.role };
+  if (bm) {
+    // 멤버·Cue 는 참여 ∪ 전체 공개 프로젝트만(2026-10-16 — docs/MEMBER_PROJECT_SCOPE_DESIGN.md).
+    //   판정은 access_scope.canSeeProject 한 곳. owner/admin 은 visibleProjectIds=null 이라 그대로 통과.
+    if (bm.role === 'member' || bm.role === 'ai') {
+      const { getUserScope, canSeeProject } = require('../middleware/access_scope');
+      const scope = await getUserScope(userId, project.business_id);
+      if (!canSeeProject(scope, project.id)) return { error: { code: 403, message: 'not_project_member' } };
+    }
+    return { project, role: bm.role };
+  }
   // 또는 프로젝트 참여 고객
   const pc = await ProjectClient.findOne({
     where: { project_id: project.id, contact_user_id: userId },

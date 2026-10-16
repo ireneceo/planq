@@ -165,6 +165,8 @@ interface ProjectDetail {
   end_date: string | null;
   project_type?: 'fixed' | 'ongoing';
   kind?: 'client' | 'internal';
+  // 멤버에게 보이는 범위 — members(참여 멤버만, 기본) · workspace(워크스페이스 멤버 모두). 2026-10-16
+  visibility?: 'members' | 'workspace';
   process_tab_label?: string;
   color?: string | null;
   owner_user_id: number;
@@ -296,6 +298,10 @@ const QProjectDetailPage: React.FC = () => {
   const [detailStatus, setDetailStatus] = useState<DetailStatus>('idle');
   // 다른 워크스페이스 프로젝트를 /projects/p/:id 로 열었을 때 그 워크스페이스 — 내용 대신 전환 안내
   const { user: authUser } = useAuth();
+  // 공개 범위를 바꿀 수 있는가 — 서버 PUT /api/projects/:id 와 같은 술어(관리자·PM). 2026-10-16
+  const canSetVisibility = !!authUser && (authUser.platform_role === 'platform_admin'
+    || authUser.business_role === 'owner' || authUser.business_role === 'admin'
+    || (project?.projectMembers || []).some((m) => Number(m.user_id) === Number(authUser.id) && !!m.is_pm));
   const [otherWsBizId, setOtherWsBizId] = useState<number | null>(null);
   // 탭 이름 = 프로젝트 이름. ★ 아래 `if (!projectId) return` 보다 반드시 위 — 훅은 조건부일 수 없다.
   useTabTitle(project?.name);
@@ -865,6 +871,27 @@ const QProjectDetailPage: React.FC = () => {
                   )}
                 </ActionAutoSave>
                 <EditHint>{t('edit.kindHint', '내부 = 자체 투자(비청구). 수익성 통계에서 제외되고 "내부 투자"로 별도 집계됩니다.')}</EditHint>
+              </EditField>
+              {/* 공개 범위 (2026-10-16) — 바꾸는 것은 관리자·PM 만(서버 PUT 과 같은 술어). 나머지에겐 값만 보인다. */}
+              <EditField>
+                <EditLabel>{t('edit.visibility', '공개 범위')}</EditLabel>
+                <ActionAutoSave type="select" save={saveProject}>
+                  {fire => (
+                    <div style={{ display: 'flex', gap: 6 }} data-testid="project-visibility">
+                      <TypeBtn2 type="button" disabled={!canSetVisibility} $active={(project.visibility ?? 'members') === 'members'} onClick={() => {
+                        if ((project.visibility ?? 'members') === 'members') return;
+                        fire({ visibility: 'members' });
+                      }}>{t('edit.visibilityMembers', '참여 멤버만')}</TypeBtn2>
+                      <TypeBtn2 type="button" disabled={!canSetVisibility} $active={project.visibility === 'workspace'} onClick={() => {
+                        if (project.visibility === 'workspace') return;
+                        fire({ visibility: 'workspace' });
+                      }}>{t('edit.visibilityWorkspace', '전체 공개')}</TypeBtn2>
+                    </div>
+                  )}
+                </ActionAutoSave>
+                <EditHint>{canSetVisibility
+                  ? t('edit.visibilityHint', '참여 멤버만 = 프로젝트 멤버와 관리자만 이 프로젝트와 업무·일정·문서를 봅니다. 전체 공개 = 워크스페이스 멤버 모두에게 보입니다.')
+                  : t('edit.visibilityHintReadonly', '공개 범위는 관리자나 PM 만 바꿀 수 있습니다.')}</EditHint>
               </EditField>
               <EditField>
                 <EditLabel>{t('edit.status', '상태')}</EditLabel>

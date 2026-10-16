@@ -565,6 +565,10 @@ async function getWorkspaceMatches({ businessId, scope, query, audience = 'clien
       const ids = [...new Set([...(scope.projectClientProjectIds || []), ...(scope.projectMemberIds || [])])];
       if (ids.length === 0) throw new Error('no project scope');
       where.id = { [Op.in]: ids };
+    } else {
+      // 멤버는 참여 ∪ 전체 공개 프로젝트만(2026-10-16 — access_scope 한 곳)
+      const vis = require('../middleware/access_scope').projectScopeWhere(scope, 'id');
+      if (vis) where[Op.and] = [...(where[Op.and] || []), vis];
     }
     out.projects = await Project.findAll({
       where, attributes: ['id', 'name', 'description', 'status'],
@@ -802,6 +806,9 @@ async function getWorkspaceOverview({ businessId, scope, businessTimezone, audie
     if (!isStaff) {
       const ids = [...new Set([...(scope.projectClientProjectIds || []), ...(scope.projectMemberIds || [])])];
       where.id = ids.length ? { [Op.in]: ids } : -1;
+    } else {
+      const vis = require('../middleware/access_scope').projectScopeWhere(scope, 'id');
+      if (vis) where[Op.and] = [...(where[Op.and] || []), vis];
     }
     ov.projects = await Project.findAll({ where, attributes: ['id', 'name', 'status'], order: [['updated_at', 'DESC']], limit: 15 });
   } catch (e) { void e; }

@@ -24,6 +24,11 @@ Project.init({
   // 내부 vs 고객 구분 (수익성 통계 분리 축) — client=고객 대응(매출 발생), internal=자체 투자(제품/마케팅/운영·비청구)
   //   billing_type='internal'(청구구조)과 별개 — kind 는 수익성 집계에서 고객/내부 세그먼트 분리에 사용.
   kind: { type: DataTypes.ENUM('client', 'internal'), allowNull: false, defaultValue: 'client', comment: 'client=고객 프로젝트(매출), internal=내부 투자(비청구·수익성 제외)' },
+  // 멤버에게 보이는 범위 (2026-10-16, docs/MEMBER_PROJECT_SCOPE_DESIGN.md · Fable 설계)
+  //   members = 참여 멤버만(기본) · workspace = 워크스페이스 멤버 모두. owner/admin 은 값과 무관하게 전부 본다.
+  //   ★ 이 칸을 직접 읽어 판정하지 않는다 — middleware/access_scope.js canSeeProject/projectScopeWhere 한 곳.
+  //   운영 적용: scripts/migrate-project-visibility.js (코드 배포 전)
+  visibility: { type: DataTypes.ENUM('members', 'workspace'), allowNull: false, defaultValue: 'members' },
   // 프로세스 파트 탭 커스텀 라벨 (프로젝트별) — 기본 '테이블'
   process_tab_label: { type: DataTypes.STRING(80), allowNull: false, defaultValue: '테이블' },
   // 외부 클라우드 폴더 매핑 (Phase 2B+) — 연동 시 루트 폴더 아래 자동 생성

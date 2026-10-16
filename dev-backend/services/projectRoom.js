@@ -58,4 +58,21 @@ function emitProjectTaskHidden(io, projectId, sig, exceptRooms) {
   io.to(`project:${projectId}:client`).except(exceptRooms).emit('task:deleted', sig);
 }
 
-module.exports = { emitProject, emitProjectTaskHidden, CLIENT_VIEW, signal };
+/**
+ * 프로젝트에 달린 사건을 «워크스페이스 방» 대신 보내는 문 (2026-10-16 멤버 프로젝트 가시성 · Fable 검증 FAIL).
+ *   전체 공개·프로젝트 없음 → 종전대로 `business:<id>` 에 payload.
+ *   참여 멤버만 → 볼 수 있는 사람(access_scope.hiddenProjectAudience)의 `user:<id>` 방에 payload,
+ *                 나머지 워크스페이스 방에는 hiddenPayload(기본: 신호 {id,business_id,project_id}) — 이름·본문을 싣지 않는다.
+ *   hiddenPayload 를 null 로 주면 나머지에는 아무것도 안 보낸다.
+ */
+async function emitBusinessForProject(io, businessId, projectId, event, payload, hiddenPayload) {
+  if (!io || !businessId) return;
+  const aud = projectId ? await require('../middleware/access_scope').hiddenProjectAudience(projectId) : null;
+  if (!aud) { io.to(`business:${businessId}`).emit(event, payload); return; }
+  const rooms = [...aud].map((id) => `user:${id}`);
+  if (rooms.length) io.to(rooms).emit(event, payload);
+  const hp = hiddenPayload === undefined ? { ...signal(payload), project_id: projectId } : hiddenPayload;
+  if (hp !== null) io.to(`business:${businessId}`).except(rooms).emit(event, hp);
+}
+
+module.exports = { emitProject, emitProjectTaskHidden, emitBusinessForProject, CLIENT_VIEW, signal };

@@ -459,6 +459,9 @@ async function searchProjects(ctx, M, { limit, filters } = {}) {
     ? { business_id: businessId, id: { [Op.in]: scope.projectClientProjectIds.length ? scope.projectClientProjectIds : [-1] } }
     : { business_id: businessId };
   const extra = [];
+  // 멤버는 참여 ∪ 전체 공개 프로젝트만(2026-10-16 — access_scope 한 곳)
+  const visP = require('../middleware/access_scope').projectScopeWhere(scope, 'id');
+  if (visP) extra.push(visP);
   if (filters) {
     if (filters.projectId) extra.push({ id: filters.projectId });
     if (filters.clientId) {

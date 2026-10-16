@@ -432,6 +432,8 @@ async function prepareMove(task, actor, { projectId, assigneeId } = {}) {
     // 남의 워크스페이스 id 는 없는 id 와 같은 응답 — 존재 여부를 흘리지 않는다
     target = await Project.findOne({ where: { id: next, business_id: task.business_id }, attributes: ['id', 'name', 'status'] });
     if (!target) return fail('invalid_project', 404);
+    // 볼 수 없는 프로젝트로 옮기지 않는다(2026-10-16 프로젝트 가시성) — 없는 id 와 같은 응답
+    if (!(await require('../../middleware/access_scope').userCanSeeProject(subj.subjectId, task.business_id, target.id, subj.platformRole))) return fail('invalid_project', 404);
     // 닫힌 프로젝트에 산 업무를 넣으면 목록에서 사라진다. 닫힌 곳에서 **빼내는** 것은 허용(구출 경로)
     if (target.status === 'closed' && task.project_id !== next) return fail('project_closed', 409);
   }
@@ -708,6 +710,8 @@ async function createTask(actor, params = {}, opts = {}) {
   if (projectId) {
     const prj = await Project.findOne({ where: { id: projectId, business_id: businessId }, attributes: ['id'] });
     if (!prj) return fail('invalid_project', 400);
+    // 볼 수 없는 프로젝트에 붙이지 않는다(2026-10-16 프로젝트 가시성 — access_scope 한 곳)
+    if (!(await require('../../middleware/access_scope').userCanSeeProject(subjectId, businessId, prj.id, subj.platformRole))) return fail('not_project_member', 403);
   }
   if (params.clientId) {
     const cl = await Client.findOne({ where: { id: params.clientId, business_id: businessId }, attributes: ['id'] });

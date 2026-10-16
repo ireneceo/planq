@@ -392,6 +392,11 @@ router.post('/:businessId', authenticateToken, checkBusinessAccess, async (req, 
     if (project_id) {
       const proj = await Project.findOne({ where: { id: project_id, business_id: req.params.businessId } });
       if (!proj) return errorResponse(res, 'invalid_project', 400);
+      // 볼 수 없는 프로젝트에 방을 붙이지 않는다(2026-10-16 프로젝트 가시성)
+      const { getUserScope, canSeeProject } = require('../middleware/access_scope');
+      if (!canSeeProject(await getUserScope(req.user.id, Number(req.params.businessId), req.user.platform_role), proj.id)) {
+        return errorResponse(res, 'not_project_member', 403);
+      }
     }
 
     // channel_type 정책:

@@ -35,4 +35,38 @@ function disconnectUser(io, userId) {
   try { io.in(`user:${userId}`).disconnectSockets(true); } catch (e) { console.warn('[socketRevoke] disconnectUser', e.message); }
 }
 
-module.exports = { leaveBusinessRooms, disconnectUser };
+/**
+ * 프로젝트가 «참여 멤버만» 이 되었거나 프로젝트 멤버가 빠졌을 때 — 이제 못 보는 직원의 소켓을
+ * 그 프로젝트 방·그 프로젝트 대화방에서 내보낸다(2026-10-16 멤버 프로젝트 가시성 · Fable 재검증 B).
+ *   볼 수 있는 사람 = access_scope.hiddenProjectAudience(프로젝트 멤버 ∪ owner/admin). 대화방은 그 방 참여자도 남긴다.
+ *   고객 방(`…:client`)은 건드리지 않는다 — 고객의 가시성은 프로젝트 고객 관계로 따로 정해진다.
+ *   전체 공개(audience=null)면 할 일이 없다.
+ */
+async function leaveHiddenProjectRooms(io, projectId) {
+  if (!io || !projectId) return;
+  try {
+    const aud = await require('../middleware/access_scope').hiddenProjectAudience(projectId);
+    if (!aud) return;
+    const { Conversation, ConversationParticipant } = require('../models');
+    const convs = await Conversation.findAll({ where: { project_id: projectId }, attributes: ['id'], raw: true });
+    const checks = [[`project:${projectId}`, aud]];
+    for (const c of convs) {
+      const parts = (await ConversationParticipant.findAll({ where: { conversation_id: c.id }, attributes: ['user_id'], raw: true }))
+        .map((p) => Number(p.user_id));
+      const allowed = new Set([...aud, ...parts]);
+      checks.push([`conv:${c.id}`, allowed], [`conv:${c.id}:staff`, allowed]);
+    }
+    for (const [room, allowed] of checks) {
+      const sockets = await io.in(room).fetchSockets();
+      for (const s of sockets) {
+        const uid = Number(s.userId ?? s.data?.userId);
+        // 고객 소켓은 conv:<id> 방에 참여자로 들어 있다 — 참여자는 allowed 에 있으므로 남는다.
+        if (!uid || !allowed.has(uid)) s.leave(room);
+      }
+    }
+  } catch (e) {
+    console.warn('[socketRevoke] leaveHiddenProjectRooms', e.message);
+  }
+}
+
+module.exports = { leaveBusinessRooms, disconnectUser, leaveHiddenProjectRooms };

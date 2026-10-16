@@ -65,7 +65,7 @@ router.get('/:recordId/candidates', authenticateToken, async (req, res, next) =>
     const pid = Number(req.query.project_id);
     if (Number.isInteger(pid) && pid > 0) {
       const p = await Project.findOne({ where: { id: pid, business_id: bizId }, attributes: ['id'] });
-      if (!p) return errorResponse(res, 'invalid project_id', 400);
+      if (!p || !(await require('../middleware/access_scope').userCanSeeProject(req.user.id, bizId, p.id, req.user.platform_role))) return errorResponse(res, 'invalid project_id', 400);
       const pcs = await ProjectClient.findAll({ where: { project_id: pid, client_id: { [Op.ne]: null } }, attributes: ['client_id'] });
       clientIds = [...new Set(pcs.map((x) => x.client_id))];
     }
@@ -80,7 +80,10 @@ router.get('/:recordId/candidates', authenticateToken, async (req, res, next) =>
       const email = await primaryEmailOf(c, null, c.user_id ? (uById.get(c.user_id) || null) : null);
       out.push({ id: c.id, name: displayNameOf(c) || `#${c.id}`, company: c.company_name || null, email, status: c.status });
     }
-    const projects = await Project.findAll({ where: { business_id: bizId, status: { [Op.ne]: 'closed' } }, attributes: ['id', 'name'], order: [['id', 'DESC']], limit: 300 });
+    // 보이는 프로젝트만(2026-10-16 프로젝트 가시성 — access_scope 한 곳)
+    const { getUserScope, projectScopeWhere } = require('../middleware/access_scope');
+    const visP = projectScopeWhere(await getUserScope(req.user.id, bizId, req.user.platform_role), 'id');
+    const projects = await Project.findAll({ where: { business_id: bizId, status: { [Op.ne]: 'closed' }, ...(visP ? { [Op.and]: [visP] } : {}) }, attributes: ['id', 'name'], order: [['id', 'DESC']], limit: 300 });
     return successResponse(res, { clients: out, projects: projects.map((p) => ({ id: p.id, name: p.name })), quota: await quotaOf(bizId) });
   } catch (e) { return next(e); }
 });

@@ -26,23 +26,28 @@ function targetsOf(p) {
   return Array.isArray(a) ? a.map(Number).filter(Boolean) : [];
 }
 
-/** 이 업무를 볼 수 있는 사람 — canAccessTask 와 같은 집합(L1·L2 만 부른다). */
-async function viewerIds(p) {
+/** 이 업무를 볼 수 있는 사람 — canAccessTask 와 같은 집합(L1·L2, 그리고 숨은 프로젝트의 L3·L4 — 아래 emitTask). */
+async function viewerIds(p, hidden = null) {
   const { TaskReviewer, BusinessMember, ProjectMember } = require('../models');
   const ids = new Set([p.created_by, p.assignee_id, p.request_by_user_id].filter(Boolean).map(Number));
   const revs = await TaskReviewer.findAll({ where: { task_id: p.id }, attributes: ['user_id'] });
   for (const r of revs) ids.add(Number(r.user_id));
-  if (p.vlevel === 'L2') {
+  // 숨은 프로젝트(참여 멤버만)의 L3·L4 는 «프로젝트 L2» 와 같은 청중이다(관리자 + 프로젝트 멤버 + 관계 고객). 2026-10-16
+  if (p.vlevel === 'L2' || (hidden && (OPEN.has(p.vlevel) || !p.vlevel))) {
     const admins = await BusinessMember.findAll({
       where: { business_id: p.business_id, role: { [Op.in]: ['owner', 'admin'] }, removed_at: null }, attributes: ['user_id'],
     });
     for (const a of admins) ids.add(Number(a.user_id));
-    const targets = targetsOf(p);
+    const targets = p.vlevel === 'L2' ? targetsOf(p) : [];
     if (targets.length) targets.forEach((id) => ids.add(id));
     else {
       if (p.project_id) {
         const pms = await ProjectMember.findAll({ where: { project_id: p.project_id }, attributes: ['user_id'] });
-        for (const m of pms) ids.add(Number(m.user_id));
+        // 내보낸 멤버의 프로젝트 멤버 행은 남는다 — 현직(removed_at NULL)만(2026-10-16 Fable 재검증)
+        const pmIds = pms.map((m) => Number(m.user_id));
+        if (pmIds.length) {
+          for (const b of await BusinessMember.findAll({ where: { business_id: p.business_id, user_id: pmIds, removed_at: null }, attributes: ['user_id'] })) ids.add(Number(b.user_id));
+        }
         // 프로젝트 L2 는 «관계로 닿는» 범위다 — 그 프로젝트 고객도 본다(canAccessTask ③). 고객용 직렬화로 간다(아래).
         const { ProjectClient } = require('../models');
         const pcs = await ProjectClient.findAll({ where: { project_id: p.project_id, contact_user_id: { [Op.ne]: null } }, attributes: ['contact_user_id'] });
@@ -72,13 +77,27 @@ async function emitTask(io, event, payload, opts = {}) {
   const bizId = payload.business_id ?? opts.businessId;
   const projectId = payload.project_id ?? opts.projectId;
   const { emitProject } = require('./projectRoom');
-  const restricted = event !== 'task:deleted' && payload.vlevel && !OPEN.has(payload.vlevel);
+  // 숨은 프로젝트(참여 멤버만)면 L3·L4 업무도 워크스페이스 방에 행을 싣지 않는다(2026-10-16 · Fable 검증 FAIL ②).
+  //   vlevel 을 안 실었어도 제목·설명이 실린 행이면 같은 판정을 탄다(앞으로 축약 payload 가 생겨도 새지 않게 — Fable 재검증 비차단).
+  //   제목 없는 부분 방송({id, workstream_id} 등)은 종전대로 — 막으면 참여 멤버 화면이 그 행을 지운다.
+  const carriesContent = !!payload.vlevel || payload.title !== undefined || payload.description !== undefined;
+  const hidden = (event !== 'task:deleted' && carriesContent && projectId)
+    ? await require('../middleware/access_scope').hiddenProjectAudience(projectId) : null;
+  const restricted = event !== 'task:deleted' && ((payload.vlevel && !OPEN.has(payload.vlevel)) || !!hidden);
   if (!restricted) {
     if (projectId) emitProject(io, projectId, event, payload);
     if (bizId) io.to(`business:${bizId}`).emit(event, payload);
     return;
   }
-  const ids = [...(await viewerIds({ ...payload, business_id: bizId, project_id: projectId }))];
+  let ids = [...(await viewerIds({ ...payload, business_id: bizId, project_id: projectId }, hidden))];
+  if (hidden) {
+    // 숨은 프로젝트 — 직원은 «프로젝트를 볼 수 있는 사람 ∪ 이름이 박힌 사람» 만(canAccessTask 와 같은 선). 고객(비멤버)은 위 관계 판정 그대로.
+    const named = new Set([payload.created_by, payload.assignee_id, payload.request_by_user_id].filter(Boolean).map(Number));
+    const { TaskReviewer, BusinessMember: BM } = require('../models');
+    for (const r of await TaskReviewer.findAll({ where: { task_id: payload.id }, attributes: ['user_id'] })) named.add(Number(r.user_id));
+    const staff = new Set((await BM.findAll({ where: { business_id: bizId, user_id: ids, removed_at: null }, attributes: ['user_id'] })).map((m) => Number(m.user_id)));
+    ids = ids.filter((id) => !staff.has(id) || hidden.has(id) || named.has(id));
+  }
   const rooms = ids.map((id) => `user:${id}`);
   const sig = signalOf({ ...payload, business_id: bizId, project_id: projectId });
   // 볼 수 없는 사람 — 신호만(이미 들고 있던 행을 지운다)

@@ -55,6 +55,8 @@ async function createPost(actor, params = {}) {
   if (projectId) {
     const p = await Project.findOne({ where: { id: projectId, business_id: businessId }, attributes: ['id'] });
     if (!p) return fail('invalid project_id', 400);
+    // 볼 수 없는 프로젝트에 붙이지 않는다(2026-10-16 프로젝트 가시성 — access_scope 한 곳)
+    if (!(await require('../../middleware/access_scope').userCanSeeProject(userId, businessId, p.id, subj.platformRole))) return fail('not_project_member', 403);
   }
   if (params.conversationId) {
     const { Conversation } = require('../../models');
@@ -187,6 +189,8 @@ async function movePostToProject(actor, params = {}) {
   if (params.projectId) {
     const p = await Project.findOne({ where: { id: Number(params.projectId), business_id: businessId }, attributes: ['id'] });
     if (!p) return fail('invalid project_id', 400);
+    // 볼 수 없는 프로젝트에 붙이지 않는다(2026-10-16 프로젝트 가시성 — access_scope 한 곳)
+    if (!(await require('../../middleware/access_scope').userCanSeeProject(subj.subjectId, businessId, p.id, subj.platformRole))) return fail('not_project_member', 403);
     projectId = p.id;
   }
   const oldProjectId = post.project_id || null;

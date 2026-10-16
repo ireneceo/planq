@@ -78,6 +78,9 @@ Client.init({
     type: DataTypes.ENUM('invited', 'active', 'archived', 'prospect', 'managed'),
     defaultValue: 'invited'
   },
+  // 같은 사람이 이 워크스페이스 멤버가 된 때 (2026-10-16 — services/clientToMember.js 가 status='archived' 와 같이 찍는다).
+  //   행은 청구·상담 이력 때문에 지우지 않는다. 운영 적용: scripts/migrate-client-to-member.js
+  member_converted_at: { type: DataTypes.DATE, allowNull: true },
   // ─── Q sale 영업 축 (docs/Q_SALE_DESIGN.md §3.1) ───
   //   status 는 계정·관계 축, sales_stage 는 영업 축이다. 한 컬럼에 섞으면 "초대는 됐는데 협상 중" 을 못 쓴다.
   //   ★ sales_stage 를 직접 update 하지 않는다 — services/salesStage.js setStage 한 곳(이력·broadcast·감사).

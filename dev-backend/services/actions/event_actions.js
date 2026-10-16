@@ -94,6 +94,8 @@ async function createEvent(actor, params = {}) {
   if (params.projectId) {
     const prj = await Project.findOne({ where: { id: params.projectId, business_id: businessId } });
     if (!prj) return fail('invalid_project');
+    // 볼 수 없는 프로젝트에 붙이지 않는다(2026-10-16 프로젝트 가시성 — access_scope 한 곳)
+    if (!(await require('../../middleware/access_scope').userCanSeeProject(subjectId, businessId, prj.id, subj.platformRole))) return fail('not_project_member', 403);
     projectId = prj.id;
   }
   // task_id — 같은 business + 만드는 사람이 열 수 있는 업무만(services/eventTaskLink — 수정 라우트와 같은 함수)

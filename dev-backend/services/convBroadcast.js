@@ -18,6 +18,25 @@ async function emitConvWide(io, conv, event, payload) {
     for (const p of parts) if (p.user_id) io.to(`user:${p.user_id}`).emit(event, payload);
     return;
   }
+  // 숨은 프로젝트(참여 멤버만)의 방 — 프로젝트를 볼 수 있는 사람 ∪ 그 방에 참여한 직원에게만(2026-10-16 · Fable 검증 FAIL ③).
+  //   고객 참여자는 워크스페이스 방에 없던 사람이라 종전대로 여기서 보내지 않는다(내부 메시지가 섞일 수 있다).
+  let projectId = conv.project_id;
+  if (projectId === undefined) {
+    const { Conversation } = require('../models');
+    projectId = (await Conversation.findByPk(conv.id, { attributes: ['project_id'] }))?.project_id || null;
+  }
+  const aud = projectId ? await require('../middleware/access_scope').hiddenProjectAudience(projectId) : null;
+  if (aud) {
+    const { ConversationParticipant, BusinessMember } = require('../models');
+    const parts = (await ConversationParticipant.findAll({ where: { conversation_id: conv.id }, attributes: ['user_id'], raw: true }))
+      .map((p) => Number(p.user_id)).filter(Boolean);
+    if (parts.length && conv.business_id) {
+      const staff = await BusinessMember.findAll({ where: { business_id: conv.business_id, user_id: parts, removed_at: null }, attributes: ['user_id'], raw: true });
+      for (const s of staff) aud.add(Number(s.user_id));
+    }
+    for (const id of aud) io.to(`user:${id}`).emit(event, payload);
+    return;
+  }
   if (conv.business_id) io.to(`business:${conv.business_id}`).emit(event, payload);
 }
 

@@ -50,6 +50,7 @@ interface ProjectRow {
   client_company: string | null;
   status: 'active' | 'paused' | 'closed';
   kind?: 'client' | 'internal';
+  visibility?: 'members' | 'workspace';   // 2026-10-16 멤버 프로젝트 가시성
   owner_department?: string | null;
   owner_team?: string | null;
   start_date: string | null;
@@ -437,7 +438,8 @@ const QProjectPage: React.FC = () => {
             </svg>
           </EmptyIcon>
           <EmptyTitle>{t('empty.title')}</EmptyTitle>
-          <EmptyDesc>{t('empty.desc')}</EmptyDesc>
+          {/* 멤버는 참여한 프로젝트·전체 공개 프로젝트만 본다(2026-10-16) — 빈 목록이 «없다» 가 아니라 «참여한 것이 없다» 다 */}
+          <EmptyDesc>{user?.business_role === 'member' ? t('empty.descMember', '참여 중인 프로젝트가 없습니다. 프로젝트 담당자나 관리자에게 추가를 요청하세요.') : t('empty.desc')}</EmptyDesc>
           {/* 같은 화면의 [새 프로젝트] 와 같은 문 — 옛: Q talk 로 보냈다(0-J). 고객에게는 머리줄 버튼과 같은 술어로 숨긴다. */}
           {user?.business_role !== 'client' && (
             <EmptyCta type="button" onClick={() => setNewProjectOpen(true)}>{t('empty.cta')}</EmptyCta>
@@ -553,6 +555,10 @@ const ListView: React.FC<{
         <CardHead>
           <CardTitle><HighlightText text={p.name} query={query} /></CardTitle>
           <CardHeadRight>
+            {/* 전체 공개 프로젝트 — 워크스페이스 멤버 모두에게 보인다(기본은 참여 멤버만, 2026-10-16) */}
+            {p.visibility === 'workspace' && (
+              <StatusBadge $bg="#F1F5F9" $fg="#475569" data-testid={`project-card-public-${p.id}`}>{tl('card.workspaceVisible', '전체 공개')}</StatusBadge>
+            )}
             <StatusBadge $bg={STATUS_COLOR[p.status]?.bg} $fg={STATUS_COLOR[p.status]?.fg}>
               {t(`status.${p.status}`)}
             </StatusBadge>
