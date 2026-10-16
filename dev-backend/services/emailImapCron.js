@@ -76,7 +76,7 @@ function headerIdList(v) {
 //     업체 보낸편지함 메일은 보낸 사람이 «나» 라 참여자(= 나를 뺀 상대)와 절대 안 맞는다 → 받는 사람(to/cc)을 넘긴다.
 //   ★ 업체 스팸함에서 온 메일·스레드에는 붙지 않는다 — 스팸 메일의 Message-ID 를 가리키는 회신이
 //     스팸 스레드에 숨으면 안 된다(그 스레드는 30일 뒤 지워진다). 옛 행은 전부 inbox·NULL 이라 받은편지함 동작은 그대로다.
-async function findOrCreateThread({ businessId, accountId, parsed, fromEmail, matchEmails = null, messageId = null }) {
+async function findOrCreateThread({ businessId, accountId, parsed, fromEmail, matchEmails = null, messageId = null, ownCopy = false }) {
   // 1·2. In-Reply-To → References(**전부**, 최근 것부터) 가 가리키는 메시지의 스레드
   //   ★ 2026-10-16 (Irene: "새로 온 메일이 이전 메일이랑 연결해서 안보여주는데? 계속 소통중인데 알 수가 없어.")
   //     옛 판은 References 의 **마지막 하나**만 봤다. 내가 휴대폰·다른 앱에서 답장하면 그 답장은 PlanQ 에 없어서
@@ -86,6 +86,9 @@ async function findOrCreateThread({ businessId, accountId, parsed, fromEmail, ma
   if (wantIds.length) {
     const hits = await EmailMessage.findAll({
       where: { business_id: businessId, message_id: { [Op.in]: wantIds }, source_folder: { [Op.ne]: 'spam' } },
+      // ★ 같은 메일함(account)의 스레드에만 붙는다(Fable 2026-10-16 필수 2) — 개인 메일함 메일이 공용 메일함 스레드에
+      //   붙으면 그 순간 팀 전원에게 보이고, 반대면 팀에서 사라진다.
+      include: [{ model: EmailThread, attributes: ['id'], where: { account_id: accountId }, required: true }],
       attributes: ['message_id', 'thread_id'],
     });
     const threadOf = new Map(hits.map((m) => [m.message_id, m.thread_id]));
@@ -96,30 +99,39 @@ async function findOrCreateThread({ businessId, accountId, parsed, fromEmail, ma
       if (t) return { thread: t, isNew: false };
     }
   }
-  // 2b. 거꾸로 — **이 메일을 가리키는** 메일이 이미 와 있으면 그 스레드로.
+  // 2b. 거꾸로 — **우리 사본**을 가리키는 상대 답장이 이미 와 있으면 그 스레드로.
   //   업체 보낸편지함은 받은편지함보다 늦게 읽힌다(폴더 순서·주기). 그래서 내가 다른 앱에서 보낸 메일의 사본이
   //   상대 답장보다 **나중에** 들어오면, 답장은 부모를 못 찾아 새 스레드가 되고 사본은 제목 매칭으로 다른 스레드에 붙어
-  //   한 대화가 둘로 갈렸다(dev 실측 75건 — 학교 문의 «Confirmation of Student Enrollment» 가 그 모양).
+  //   한 대화가 둘로 갈렸다(학교 문의 «Confirmation of Student Enrollment» 가 그 모양).
+  //   ★ Fable 2026-10-16 필수 1 — 우리 사본일 때만 · 자식은 사람이 보낸 받은 메일만(반송·자동 주소 제외) ·
+  //     같은 메일함 · 스팸/격리 아님. 반송(DSN)을 자식으로 세면 dev 보낸 사본 75건 중 72건이 반송 288건짜리 스레드로 끌려갔다.
   //   답장은 원본 뒤에 오므로 원본 시각 하루 전부터만 본다(인덱스 business_id·sent_at 범위).
-  //   ★ 격리된 사칭 스레드로는 끌려가지 않는다 — 우리 사본이 숨은 스레드에 들어가면 안 된다.
-  if (messageId) {
+  if (messageId && ownCopy) {
+    const { isBounce, isAutomatedSenderAddress } = require('./emailTriage');
     const base = parsed.date instanceof Date && !Number.isNaN(parsed.date.getTime()) ? parsed.date : new Date();
     const since = new Date(base.getTime() - 86400 * 1000);
     const likeId = `%${String(messageId).replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
-    const child = await EmailMessage.findOne({
+    const kids = await EmailMessage.findAll({
       where: {
         business_id: businessId,
+        direction: 'inbound',
         source_folder: { [Op.ne]: 'spam' },
         sent_at: { [Op.gte]: since },
         message_id: { [Op.ne]: messageId },
         [Op.or]: [{ in_reply_to: messageId }, { references_chain: { [Op.like]: likeId } }],
       },
-      include: [{ model: EmailThread, attributes: ['id'], where: { spam_origin: null }, required: true }],
-      order: [['id', 'ASC']],
-      attributes: ['thread_id'],
+      include: [{
+        model: EmailThread, attributes: ['id'], required: true,
+        where: { account_id: accountId, spam_origin: null, status: { [Op.ne]: 'spam' } },
+      }],
+      order: [['sent_at', 'ASC'], ['id', 'ASC']],
+      attributes: ['thread_id', 'from_email', 'subject'],
+      limit: 20,
     });
-    if (child) {
-      const t = await EmailThread.findByPk(child.thread_id);
+    // 반송·자동 주소 판정은 정본 함수로(새 정규식을 쓰지 않는다 — 판정이 갈라진다).
+    const kid = kids.find((k) => !isBounce(k.from_email, k.subject) && !isAutomatedSenderAddress(k.from_email));
+    if (kid) {
+      const t = await EmailThread.findByPk(kid.thread_id);
       if (t) return { thread: t, isNew: false };
     }
   }
@@ -855,6 +867,7 @@ async function ingestMessage(ctx, { r, uid, box, role = 'inbox', isBackfill }) {
       parsed,
       fromEmail,
       messageId,
+      ownCopy,
       ...(role === 'sent'
         ? { matchEmails: [...toEmails, ...(ccEmails || [])].map((x) => x && x.email).filter(Boolean) }
         : {}),
