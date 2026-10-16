@@ -123,9 +123,12 @@ SELF_DIR="${PLANQ_DEPLOY_SELF_DIR:?}"
 case "$SELF_DIR" in /tmp/planq-deploy-self.*) ;; *) echo "[ERROR] 절차 폴더가 이상함: $SELF_DIR"; exit 1 ;; esac
 git -C "$REPO" rev-parse --verify "${DEPLOY_PIN}^{commit}" >/dev/null 2>&1 || { echo "[ERROR] 고정한 커밋 $DEPLOY_PIN 이 없음 — 배포 중단"; exit 1; }
 # 다시 실행된 절차가 정말 그 커밋의 것인지 — 아니면 «절차와 사본이 같은 커밋» 이 거짓이 된다.
-if ! git -C "$REPO" show "$DEPLOY_PIN:scripts/deploy-planq.sh" | cmp -s - "$SELF_DIR/scripts/deploy-planq.sh"; then
-  echo "[ERROR] 도는 배포 절차가 커밋 ${DEPLOY_PIN:0:8} 의 것과 다름 — 배포 중단"; exit 1
-fi
+#   make-deploy-snapshot.sh 도 본다 — 사본 커밋(COMMIT 줄)을 찍는 것이 그 파일이라 바뀌면 PIN 대조까지 같이 속는다.
+for f in $SELF_FILES; do
+  if ! git -C "$REPO" show "$DEPLOY_PIN:$f" | cmp -s - "$SELF_DIR/$f"; then
+    echo "[ERROR] 도는 배포 절차($f)가 커밋 ${DEPLOY_PIN:0:8} 의 것과 다름 — 배포 중단"; exit 1
+  fi
+done
 cleanup_self() { rm -rf "$SELF_DIR"; }
 trap cleanup_self EXIT
 
