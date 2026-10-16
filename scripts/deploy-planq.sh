@@ -242,11 +242,31 @@ build_protect_list() {   # $1 = 저장소 안 하위 폴더(dev-backend|q-note) 
   OUTF=$(mktemp /tmp/planq-deploy-protect.XXXXXX)
   {
     printf '%s\n' '.env' '.env.*' 'node_modules' 'uploads' '*.log' '.server.pid' '/.last-deployed-commit' \
-      '/secrets/' '/backups/' '/.claude/' 'test-*.js' 'venv' 'data' '*.db' '__pycache__' '*.pyc'
+      '/secrets/' '/backups/' '/.claude/' 'test-*.js' 'venv' '/data/' '*.db' '__pycache__' '*.pyc'
     (cd "$REPO" && git ls-files --others --ignored --exclude-standard --directory -- "$SUB" 2>/dev/null \
       | sed "s#^$SUB/#/#") || true
   } > "$OUTF"
   printf '%s' "$OUTF"
+}
+
+# 보호 목록이 **커밋된 파일**을 빼면 운영에 그 파일이 안 간다 — 멈춘다.
+#   2026-10-16 사고: 보호 목록의 'data'(q-note/data SQLite 용)가 앵커 없이 적혀 있어
+#   dev-backend/services/data/confusables-latin.json(메일 사칭 검사 표)까지 빠졌고,
+#   운영 메일 목록이 전부 500 → 화면 폭주 차단(request_throttled)으로 메일이 하나도 안 보였다.
+#   예외: .env.* 예시 파일(운영 .env 를 덮지 않으려고 일부러 뺀다).
+assert_protect_keeps_tracked() {   # $1 = 하위 폴더 · $2 = 보낼 폴더 · $3 = 보호 목록 파일
+  local SUB="$1" SRC="$2" PROTECT="$3" EMPTY LOST
+  EMPTY=$(mktemp -d /tmp/planq-deploy-empty.XXXXXX)
+  LOST=$(comm -23 \
+    <(cd "$SRC" && git -C "$REPO" ls-tree -r --name-only "${DEPLOY_COMMIT:-HEAD}" -- "$SUB" | sed "s#^$SUB/##" | grep -vE '(^|/)\.env' | sort) \
+    <(rsync -an --exclude-from="$PROTECT" --out-format='%n' "$SRC/" "$EMPTY/" | grep -v '/$' | sort))
+  rm -rf "$EMPTY"
+  if [ -n "$LOST" ]; then
+    error "보호 목록이 커밋된 파일을 빼서 운영에 안 갑니다($SUB) — build_protect_list 패턴을 고치세요:"
+    printf '%s\n' "$LOST" | head -20 | sed 's/^/    /'
+    rm -f "$PROTECT"
+    exit 1
+  fi
 }
 
 # ──────────────────────────────────────────
@@ -417,6 +437,7 @@ sync_backend() {
 
   local PROTECT
   PROTECT=$(build_protect_list dev-backend)
+  assert_protect_keeps_tracked dev-backend "$DEV_BE" "$PROTECT"
   RSYNC_FLAGS="-az --delete --exclude-from=$PROTECT"
 
   if [ "$DRY_RUN" = true ]; then
@@ -920,6 +941,7 @@ sync_qnote() {
   log "Syncing Q Note (rsync)..."
   local PROTECT
   PROTECT=$(build_protect_list q-note)
+  assert_protect_keeps_tracked q-note "$DEV_QNOTE" "$PROTECT"
   RSYNC_FLAGS="-az --delete --exclude-from=$PROTECT"
 
   if [ "$DRY_RUN" = true ]; then
