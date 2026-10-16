@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import styled from 'styled-components';
 import { useTranslation, Trans } from 'react-i18next';
+import { useLocation } from 'react-router-dom';
 import ConfirmDialog from '../../components/Common/ConfirmDialog';
 import FontScaleSection from '../../components/Common/FontScaleSection';
 import { useAuth, apiFetch, apiUpload } from '../../contexts/AuthContext';
@@ -95,15 +96,6 @@ export default function ProfilePage() {
 
   const [accountName, setAccountName] = useState<string>(user?.name || '');
   useEffect(() => { setAccountName(user?.name || ''); }, [user?.name]);
-  // `#timezone` 해시로 들어오면 그 카드까지 스크롤 — 사이드바 시계 클릭의 착지점.
-  //   렌더 직후엔 아직 카드가 없을 수 있어 한 틱 뒤에 찾는다.
-  useEffect(() => {
-    if (window.location.hash !== '#timezone') return;
-    const id = window.setTimeout(() => {
-      document.getElementById('section-timezone')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }, 120);
-    return () => window.clearTimeout(id);
-  }, []);
   const [usernameStatus, setUsernameStatus] = useState<{ available: boolean | null; reason?: string }>({ available: null });
   const usernameCheckTimer = useRef<number | null>(null);
   const [emailModalOpen, setEmailModalOpen] = useState(false);
@@ -1325,6 +1317,18 @@ export function UserTimezoneSection() {
   const [now, setNow] = useState<Date>(new Date());
   const [pickerTz, setPickerTz] = useState<string>('');
   const browserTz = detectBrowserTz();
+  const { hash } = useLocation();
+
+  // `#timezone` 해시로 들어오면 «주 시간대» 칸까지 스크롤 — 사이드바 시계의 착지점.
+  //   탭 모드는 페이지가 MemoryRouter 라 창 주소 해시가 아니라 라우터 location 을 본다.
+  //   keep-alive 탭으로 다시 들어와도 걸리게 hash 를 deps 로 둔다. 렌더 직후엔 카드가 없을 수 있어 한 틱 뒤.
+  useEffect(() => {
+    if (hash !== '#timezone') return;
+    const id = window.setTimeout(() => {
+      document.getElementById('section-timezone')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 120);
+    return () => window.clearTimeout(id);
+  }, [hash]);
 
   useEffect(() => {
     const id = window.setInterval(() => setNow(new Date()), 10_000);
@@ -1353,7 +1357,7 @@ export function UserTimezoneSection() {
         <TzUserTime>{formatTimeInTz(now, userTz)}</TzUserTime>
       </TzUserCard>
 
-      {/* 사이드바 시계에서 `/profile#timezone` 으로 들어온다 — 그 항목까지 데려다 놓는다
+      {/* 사이드바 시계에서 `/me/work-settings#timezone` 으로 들어온다 — 그 항목까지 데려다 놓는다
           (페이지 최상단에 떨구면 "이상한 곳으로 갔다" 가 된다, Irene 2026-08-24). */}
       <Card id="section-timezone">
         <SectionTitle>{t('timezone.primaryTitle')}</SectionTitle>

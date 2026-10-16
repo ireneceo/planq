@@ -151,6 +151,9 @@ const ReferenceList = styled.div<{ $open?: boolean }>`
   margin-top: ${(p) => (p.$open ? '2px' : '0')};
 `;
 
+// 본인 시간대 칸은 «내 업무 설정» 에 있다(N+32 에 프로필에서 옮겼다) — 시계 세 곳이 같은 값을 쓴다.
+const TZ_SETTINGS_PATH = '/me/work-settings#timezone';
+
 export default function SidebarClock({
   workspaceTz,
   workspaceLabel,
@@ -212,7 +215,7 @@ export default function SidebarClock({
           <Row
             $interactive
             title={tooltipFor(userTz, t('clock.you'))}
-            onClick={() => navigate('/profile#timezone')}
+            onClick={() => navigate(TZ_SETTINGS_PATH)}
             type="button"
           >
             <City $variant="you">{cityFromTz(userTz)}</City>
@@ -220,9 +223,9 @@ export default function SidebarClock({
           </Row>
         )}
         {/* user 시계 안 보일 때 (명시 안 했거나 workspace tz 와 같을 때) — 설정 안내.
-            subtle 톤. 클릭 시 프로필로. */}
+            subtle 톤. 클릭 시 내 업무 설정의 시간대 칸으로. */}
         {!userTzExplicit && (
-          <SetupHint type="button" onClick={() => navigate('/profile#timezone')}
+          <SetupHint type="button" onClick={() => navigate(TZ_SETTINGS_PATH)}
             title={t('clock.userSetupHintTitle', { defaultValue: '본인 시간대를 다르게 설정하면 두 줄로 표시됩니다' }) as string}>
             <span aria-hidden="true">+</span>
             {t('clock.userSetupHint', { defaultValue: '본인 시간대 설정' })}
@@ -238,7 +241,7 @@ export default function SidebarClock({
                 key={tz}
                 $interactive
                 title={tooltipFor(tz, t('clock.reference'))}
-                onClick={() => navigate('/profile#timezone')}
+                onClick={() => navigate(TZ_SETTINGS_PATH)}
                 type="button"
               >
                 <City $variant="reference">{cityFromTz(tz)}</City>
