@@ -523,11 +523,11 @@ router.get('/:businessId/email-threads/:id',
   async (req, res, next) => {
     try {
       const businessId = Number(req.params.businessId);
-      const id = Number(req.params.id);
+      let id = Number(req.params.id);
 
       const acctIds = await accessibleAccountIds(businessId, req.user.id);
-      const thread = await EmailThread.findOne({
-        where: { id, business_id: businessId, account_id: { [Op.in]: acctIds.length ? acctIds : [0] } },
+      const loadThread = (tid) => EmailThread.findOne({
+        where: { id: tid, business_id: businessId, account_id: { [Op.in]: acctIds.length ? acctIds : [0] } },
         include: [
           // ★ owner_user_id 를 같이 내린다 — 프론트가 **이 스레드가 개인메일인지** 목록 조회 없이
           //   바로 알 수 있어야 한다. 목록에 의존하면 로딩 경합에서 "모름" 이 되고, 그때
@@ -538,6 +538,17 @@ router.get('/:businessId/email-threads/:id',
           { model: Project, attributes: ['id', 'name', 'color'], required: false },
         ],
       });
+      let thread = await loadThread(id);
+      // 합쳐진 스레드의 옛 번호 — 알림·메일로 이미 나간 링크가 새 스레드를 연다(services/mailThreadRedirect).
+      //   같은 접근 판정(계정 격리)을 새 번호에 다시 건다. 화면은 redirected_from 을 보고 주소를 바꾼다.
+      let redirectedFrom = null;
+      if (!thread) {
+        const nid = await require('../services/mailThreadRedirect').resolveThreadRedirect(businessId, id);
+        if (nid) {
+          thread = await loadThread(nid);
+          if (thread) { redirectedFrom = id; id = nid; }
+        }
+      }
       if (!thread) return errorResponse(res, 'thread_not_found', 404);
 
       const messages = await EmailMessage.findAll({
@@ -572,6 +583,7 @@ router.get('/:businessId/email-threads/:id',
       const tj = thread.toJSON();
       return successResponse(res, {
         id: tj.id,
+        ...(redirectedFrom ? { redirected_from: redirectedFrom } : {}),
         subject: tj.subject,
         status: tj.status,
         reply_needed: tj.reply_needed,

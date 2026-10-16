@@ -1337,6 +1337,12 @@ const MailPage: React.FC = () => {
       if (stale()) return;
       if (!j || j.success === false) { setDetailStatus('error'); setDetail(null); return; }
       if (j.success) {
+        // 합쳐진 스레드의 옛 번호로 열었다(알림·메일 링크) — 서버가 새 스레드를 돌려준다. 주소를 새 번호로 바꾸면
+        //   위 activeId 효과가 새 번호로 다시 연다(같은 상세를 두 번 그리지 않게 여기서는 멈춘다).
+        if (j.data && j.data.redirected_from && Number(j.data.id) !== id) {
+          setSp((prev) => { const n = new URLSearchParams(prev); n.set('thread', String(j.data.id)); return n; }, { replace: true });
+          return;
+        }
         setDetailStatus('ready');
         setDetail(j.data);
         // 자동 읽음 처리 (unread_count 있을 때만)
@@ -1356,7 +1362,7 @@ const MailPage: React.FC = () => {
     } finally {
       if (!stale()) setDetailLoading(false);
     }
-  }, [businessId, loadList, loadCounts]);
+  }, [businessId, loadList, loadCounts, setSp]);
 
   useEffect(() => { setHandledIds(new Set()); }, [folder, accountFilter, qDebounced, labelFilter, projectFilter]);
   useEffect(() => { loadList(); }, [loadList]);

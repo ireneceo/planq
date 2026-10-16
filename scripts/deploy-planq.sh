@@ -242,7 +242,8 @@ build_protect_list() {   # $1 = 저장소 안 하위 폴더(dev-backend|q-note) 
   OUTF=$(mktemp /tmp/planq-deploy-protect.XXXXXX)
   {
     printf '%s\n' '.env' '.env.*' 'node_modules' 'uploads' '*.log' '.server.pid' '/.last-deployed-commit' \
-      '/secrets/' '/backups/' '/.claude/' 'test-*.js' 'venv' '/data/' '*.db' '__pycache__' '*.pyc'
+      '/secrets/' '/backups/' '/.claude/' 'test-*.js' 'venv' '/data/' '*.db' '__pycache__' '*.pyc' \
+      '/scripts/out/'
     (cd "$REPO" && git ls-files --others --ignored --exclude-standard --directory -- "$SUB" 2>/dev/null \
       | sed "s#^$SUB/#/#") || true
   } > "$OUTF"
@@ -601,6 +602,10 @@ sync_database() {
   # 2026-10-15 메일 사칭 검사 — email_threads.spam_origin ENUM 끝 'impersonation' + impersonation JSON NULL(멱등).
   #   모델이 이 칸을 SELECT 하므로 PM2 reload 전. 옛 메일 소급은 retriage-mail.js --impersonation(dry-run 기본, 수동 — docs/MAIL_IMPERSONATION_DESIGN.md §5).
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-mail-impersonation.js 2>&1 | tail -4"
+  # 2026-10-16 갈라진 옛 메일 스레드 합치기 — email_thread_redirects 표(옛 스레드 번호 → 새 번호, 멱등). 상세 GET 이 읽는다(없으면 종전 404).
+  #   합치기 자체는 여기서 하지 않는다 — 운영 미리보기(merge-split-mail-threads.js, 기본 dry-run) 보고 뒤 --apply 수동.
+  #   그 스크립트의 되돌리기 장부(scripts/out/)는 위 보호 목록 '/scripts/out/' 이 지킨다.
+  prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-mail-thread-redirects.js 2>&1 | tail -3"
   # 2026-10-15 청구서 외부 카드 결제 링크 + 카드 대금 받는 곳 — invoices·invoice_installments.card_pay_url, businesses.card_payees(멱등).
   #   세 모델이 이 칸을 SELECT 하므로 PM2 reload 전(없으면 청구서·워크스페이스 조회 500).
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-card-pay-link.js 2>&1 | tail -4"
