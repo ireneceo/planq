@@ -187,11 +187,12 @@ export default function ThreadMessages(p: Props) {
             >
               {/* 운영 #220 — 팀 주소는 여러 사람이 함께 쓴다. 전부 "나" 로 보이면 누가 답했는지 알 수 없다.
                   내가 보낸 것만 "나", 다른 팀원이 보냈으면 그 사람 표시명을 적는다(워크스페이스 프로필 우선).
-                  옛 데이터처럼 발신자 기록이 없으면 종전대로 "나". */}
+                  옛 데이터처럼 발신자 기록이 없으면 종전대로 "나".
+                  주소는 실제로 보낸 주소(별칭 포함 — from_email). 계정 주소는 기록이 없을 때만. */}
               {m.direction === 'outbound'
                 ? `${(m.sent_by_user_id && myUserId && m.sent_by_user_id !== myUserId && m.sent_by_name)
                     ? m.sent_by_name
-                    : (t('me', { defaultValue: '나' }) as string)} <${accountEmail}>`
+                    : (t('me', { defaultValue: '나' }) as string)} <${m.from_email || accountEmail}>`
                 : (
                   // #261 — 발신 주소는 누르면 무엇이든 할 수 있어야 한다(모아보기·복사·새 메일·고객 저장·차단).
                   //   주소 자체가 진입점이 아니면 사람을 기준으로 메일을 되찾을 방법이 없다.
@@ -217,7 +218,10 @@ export default function ThreadMessages(p: Props) {
               {/* 어느 주소로 온 메일인지 — 여러 도메인을 한 메일함으로 받으면 이게 없으면 답장 주소를 알 수 없다 */}
               {toAddrList(m.to_emails).length > 0 && (
                 <MessageTo>
-                  {t('detail.toAddr', { defaultValue: '받은 주소' }) as string}: {toAddrList(m.to_emails).join(', ')}
+                  {/* 보낸 메일은 «받은 주소» 가 아니라 받는 사람이다 — 같은 글자를 쓰면 우리가 받은 주소로 읽힌다 */}
+                  {(m.direction === 'outbound'
+                    ? t('detail.toAddrOut', { defaultValue: '받는 사람' })
+                    : t('detail.toAddr', { defaultValue: '받은 주소' })) as string}: {toAddrList(m.to_emails).join(', ')}
                 </MessageTo>
               )}
             </MessageFrom>
@@ -283,7 +287,7 @@ export default function ThreadMessages(p: Props) {
               <MsgIconBtn type="button" data-testid="mail-fullview" onClick={(e) => {
                 e.stopPropagation();
                 const sub = m.direction === 'outbound'
-                  ? `${(m.sent_by_user_id && myUserId && m.sent_by_user_id !== myUserId && m.sent_by_name) ? m.sent_by_name : (t('me', { defaultValue: '나' }) as string)} <${accountEmail}>`
+                  ? `${(m.sent_by_user_id && myUserId && m.sent_by_user_id !== myUserId && m.sent_by_name) ? m.sent_by_name : (t('me', { defaultValue: '나' }) as string)} <${m.from_email || accountEmail}>`
                   : `${m.from_name || ''} <${m.from_email || ''}>`;
                 // ★ 2026-10-14 (Irene: "모바일 메일 상세에서 뒤로 가기 화살표가 없어") — 폰·태블릿·앱에서
                 //   새 창은 앱 머리줄도 뒤로 버튼도 없는 빈 탭(앱은 사파리)으로 열려 돌아올 길이 없었다.
@@ -463,7 +467,7 @@ export default function ThreadMessages(p: Props) {
         title={subject || ''}
         subtitle={fullMsg
           ? (fullMsg.direction === 'outbound'
-            ? `${(fullMsg.sent_by_user_id && myUserId && fullMsg.sent_by_user_id !== myUserId && fullMsg.sent_by_name) ? fullMsg.sent_by_name : (t('me', { defaultValue: '나' }) as string)} <${accountEmail}>`
+            ? `${(fullMsg.sent_by_user_id && myUserId && fullMsg.sent_by_user_id !== myUserId && fullMsg.sent_by_name) ? fullMsg.sent_by_name : (t('me', { defaultValue: '나' }) as string)} <${fullMsg.from_email || accountEmail}>`
             : `${fullMsg.from_name || ''} <${fullMsg.from_email || ''}>`)
           : undefined}
         srcDoc={fullMsg && fullMsg.body_html ? buildMailSrcDoc(fullMsg.id, fullMsg.body_html, msgCidData[fullMsg.id], foldLabels) : undefined}

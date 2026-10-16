@@ -532,6 +532,7 @@
   },
   "detail": {
     "toAddr": "Received at",
+    "toAddrOut": "To",
     "noContent": "(no content)",
     "fullView": "Open in a new window",
     "copyBody": "Copy content",
