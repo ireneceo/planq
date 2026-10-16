@@ -65,7 +65,7 @@ router.get('/sign/:token', async (req, res, next) => {
       //   (POST /api/signatures/:id/sign-internal, 그 라우트가 본인·멤버를 다시 본다). 받는 쪽에는 싣지 않는다.
       ...(sr.party === 'us' ? { request_id: sr.id, signer_user_id: sr.signer_user_id ?? null } : {}),
       // 서명 항목(2026-10-05) — 이 서명자가 채울 서명 칸 수(그리기·이미지). 없으면 옛 요청 = 1칸
-      required_items: sr.required_items ? { sign: sr.required_items.sign, date: !!sr.required_items.date, name: !!sr.required_items.name } : null,
+      required_items: require('../services/signatureItems').publicRequiredItems(sr.required_items),
       entity: {
         type: sr.entity_type,
         id: sr.entity_id,

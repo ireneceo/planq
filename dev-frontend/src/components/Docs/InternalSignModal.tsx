@@ -69,7 +69,7 @@ const InternalSignModal: React.FC<Props> = ({ open, onClose, request, docTitle, 
     >
       {docTitle && <DocLine>{docTitle}</DocLine>}
       <Hint>{t('internalSign.hintItems', { defaultValue: '서명 칸마다 그리거나 이미지(사인·도장·회사 스탬프)를 올리세요.' }) as string}</Hint>
-      <SignatureItemsInput ref={itemsRef} count={signCount} disabled={busy} onReadyChange={setReady} />
+      <SignatureItemsInput ref={itemsRef} count={signCount} captions={request?.required_items?.captions} disabled={busy} onReadyChange={setReady} />
       <ConsentRow>
         <input
           id="internal-sign-consent" type="checkbox" checked={consent}

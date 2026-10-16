@@ -13,6 +13,8 @@ export interface SignatureItemsHandle { getItems: () => SignatureItemValue[] | n
 
 interface Props {
   count: number;
+  /** 칸마다 무엇을 넣을지(«사인»·«회사 스탬프») — 요청한 사람이 정한 이름(required_items.captions). 없으면 «서명 칸 n / N» */
+  captions?: (string | null)[] | null;
   disabled?: boolean;
   onReadyChange?: (ready: boolean) => void;
 }
@@ -48,7 +50,7 @@ function readImage(file: File): Promise<string> {
 
 interface ItemState { mode: 'draw' | 'image'; drawn: boolean; image: string | null; error: string | null }
 
-const SignatureItemsInput = React.forwardRef<SignatureItemsHandle, Props>(({ count, disabled, onReadyChange }, ref) => {
+const SignatureItemsInput = React.forwardRef<SignatureItemsHandle, Props>(({ count, captions, disabled, onReadyChange }, ref) => {
   const { t } = useTranslation('qdocs');
   const n = Math.max(1, count || 1);
   const [items, setItems] = useState<ItemState[]>(() => Array.from({ length: n }, () => ({ mode: 'draw', drawn: false, image: null, error: null })));
@@ -92,9 +94,15 @@ const SignatureItemsInput = React.forwardRef<SignatureItemsHandle, Props>(({ cou
       {items.map((it, i) => (
         <Item key={i} data-testid={`sign-item-${i}`}>
           <ItemHead>
-            <ItemName>{n > 1
-              ? t('signItems.nth', { n: i + 1, total: n, defaultValue: '서명 칸 {{n}} / {{total}}' })
-              : t('signItems.one', { defaultValue: '서명' })}</ItemName>
+            {/* 칸 이름이 있으면 그것이 제목이다(«회사 스탬프») — 번호만으로는 무엇을 넣을지 모른다(2026-10-16) */}
+            <ItemName data-testid={`sign-item-${i}-name`}>
+              {captions?.[i]
+                ? captions[i]
+                : n > 1
+                  ? t('signItems.nth', { n: i + 1, total: n, defaultValue: '서명 칸 {{n}} / {{total}}' })
+                  : t('signItems.one', { defaultValue: '서명' })}
+              {captions?.[i] && n > 1 && <ItemNo>{t('signItems.nthShort', { n: i + 1, total: n, defaultValue: '{{n}} / {{total}}' })}</ItemNo>}
+            </ItemName>
             <Tabs role="radiogroup" aria-label={t('signItems.modeAria', { defaultValue: '서명 방법' }) as string}>
               {(['draw', 'image'] as const).map((m) => (
                 <Tab key={m} type="button" role="radio" aria-checked={it.mode === m} $on={it.mode === m} disabled={disabled}
@@ -140,7 +148,8 @@ export default SignatureItemsInput;
 const List = styled.div`display: flex; flex-direction: column; gap: 12px;`;
 const Item = styled.div`border: 1px solid #E2E8F0; border-radius: 10px; padding: 10px; background: #fff;`;
 const ItemHead = styled.div`display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; flex-wrap: wrap;`;
-const ItemName = styled.div`font-size: 0.8125rem; font-weight: 700; color: #0F172A;`;
+const ItemName = styled.div`font-size: 0.8125rem; font-weight: 700; color: #0F172A; min-width: 0; overflow-wrap: anywhere;`;
+const ItemNo = styled.span`margin-left: 6px; font-size: 0.6875rem; font-weight: 600; color: #94A3B8;`;
 const Tabs = styled.div`display: inline-flex; background: #F1F5F9; border-radius: 8px; padding: 2px;`;
 const Tab = styled.button<{ $on: boolean }>`
   height: 32px; padding: 0 12px; border: none; border-radius: 6px; cursor: pointer; font-size: 0.75rem; font-weight: 600;
@@ -156,8 +165,9 @@ const Clear = styled.button`
 `;
 const ImageBox = styled.div`display: flex; flex-direction: column; align-items: flex-start; gap: 8px;`;
 const ImageHint = styled.div`font-size: 0.75rem; color: #64748B; line-height: 1.5;`;
+// 미리보기는 도장·사인 크기에 맞춘 작은 상자다 — 창 폭 전체로 늘리면 가로로 긴 띠가 되어 어색했다(2026-10-16 Irene «좌우로 너무 길게»)
 const Preview = styled.div`
-  width: 100%; height: 140px; border: 1px dashed #CBD5E1; border-radius: 10px; background: #F8FAFC;
+  width: min(100%, 280px); height: 140px; border: 1px dashed #CBD5E1; border-radius: 10px; background: #F8FAFC;
   display: flex; align-items: center; justify-content: center; padding: 8px;
   img { max-width: 100%; max-height: 100%; object-fit: contain; }
 `;

@@ -447,7 +447,13 @@
       "removeHint": "If this document doesn't need signatures, remove them to make it a regular document again.",
       "removeMessage": "This deletes every signature field (signature, date, name). The rest of the document stays as is. If you converted handwritten «Signature: ____» text, that text won't come back.",
       "removeConfirm": "Remove all",
-      "removeCancel": "Keep"
+      "removeCancel": "Keep",
+      "captionHint": "This signer has more than one signature box. Name each box — the signer sees these names when filling them in.",
+      "captionNo": "Box {{n}}",
+      "captionPh1": "e.g. Representative's signature",
+      "captionPh2": "e.g. Company stamp",
+      "captionAria": "Name of signature box {{n}}",
+      "sealCaption": "Seal"
     },
     "steps": {
       "aria": "Signature request steps",
@@ -1034,7 +1040,8 @@
     "clear": "Clear",
     "imageHint": "Signature, seal or company stamp image (PNG recommended — a transparent background sits naturally on the document)",
     "replace": "Use another image",
-    "pick": "Choose image"
+    "pick": "Choose image",
+    "nthShort": "{{n}} / {{total}}"
   },
   "links": {
     "saveFailed": "The document was saved, but its linked documents were not. Please try again."

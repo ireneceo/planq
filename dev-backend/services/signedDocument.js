@@ -18,7 +18,8 @@ const escapeHtml = (s) => String(s == null ? '' : s)
 const FIELD_RE = /<div data-signature-field(?:[^>]*)><\/div>/g;
 const attrOf = (tag, name) => {
   const m = new RegExp(`data-${name}="([^"]*)"`).exec(tag);
-  return m ? m[1] : null;
+  // 속성값은 pdfTemplates 가 escapeHtml 한 것 — 되돌려 두어야 그릴 때 한 번만 escape 된다(«&» 가 «&amp;amp;» 로 보이지 않게)
+  return m ? m[1].replace(/&quot;/g, '"').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&#39;/g, "'").replace(/&amp;/g, '&') : null;
 };
 
 function fmt(dt) {
@@ -29,7 +30,7 @@ function fmt(dt) {
 }
 
 /** 한 칸의 표시 — 서명 전이면 빈 칸, 서명 후면 이미지·이름·일시. 라벨은 문서에 적힌 것 우선. */
-function fieldHtml(label, party, sr, L, slot, index = 0) {
+function fieldHtml(label, party, sr, L, slot, index = 0, caption = null) {
   const name = sr ? (sr.signer_name || sr.signer_email || '') : '';
   const cap = escapeHtml(label || (party === 'us' ? L.us : L.them));
   // 서명 항목 요청(2026-10-05)인지 — required_items 가 있으면 이름·서명일은 **각자 자리**가 있다.
@@ -37,7 +38,9 @@ function fieldHtml(label, party, sr, L, slot, index = 0) {
   //   옛 요청(required_items 없음)은 이름·일시를 칸 아래에 그대로 둔다 — 그 문서에는 다른 자리가 없다.
   const itemized = !!(sr && sr.required_items);
   // 한 서명자의 둘째 이후 서명 칸(회사 스탬프 등)은 이름표를 따로 달았을 때만 보인다 — 같은 «보내는 쪽» 을 두 번 쓰지 않는다
-  const capHtml = (index > 0 && !label) ? '' : `<div class="pq-sig-cap">${cap}</div>`;
+  //   ★ 칸 이름(caption, 2026-10-16)이 있으면 그것을 붙인다 — «가맹본부 · 회사 스탬프». 둘째 칸도 이름이 있으면 보인다
+  const capText = caption ? (index > 0 && !label ? escapeHtml(caption) : `${cap} · ${escapeHtml(caption)}`) : cap;
+  const capHtml = (index > 0 && !label && !caption) ? '' : `<div class="pq-sig-cap">${capText}</div>`;
   // ★ 칸 번호·구분을 결과에도 싣는다 — 서명 화면이 «내 칸» 을 이걸로 찾아 강조한다.
   //   빼면 서명자가 자기 서명이 어디에 들어가는지 모른 채 서명한다(설계 §1의 출발점).
   const idAttr = `${slot != null ? ` data-slot="${escapeHtml(String(slot))}"` : ''} data-party="${party === 'us' ? 'us' : 'them'}"`;
@@ -127,7 +130,7 @@ function injectSignatures(html, reqs, labels) {
     if (item === 'name') return nameItemHtml(sr, L, slot);
     const k = signIndex.get(slot) || 0;
     signIndex.set(slot, k + 1);
-    return fieldHtml(attrOf(tag, 'label'), party, sr, L, slot, k);
+    return fieldHtml(attrOf(tag, 'label'), party, sr, L, slot, k, attrOf(tag, 'caption'));
   });
   // 서명란에 못 붙은 서명(옛 요청 · 칸보다 서명자가 많음)은 문서 끝 서명 영역으로 — 조용히 사라지지 않게
   const rest = signs.filter((r) => !used.has(r.id));

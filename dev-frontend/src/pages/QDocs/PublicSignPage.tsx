@@ -60,7 +60,7 @@ interface PublicSignData {
   request_id?: number;
   signer_user_id?: number | null;
   // 서명 항목(2026-10-05) — 채울 서명 칸 수. null = 옛 요청(1칸)
-  required_items?: { sign: number; date: boolean; name: boolean } | null;
+  required_items?: { sign: number; date: boolean; name: boolean; captions?: (string | null)[] } | null;
   // 본문 이미지 문맥 — 서명자(익명)에게 고정본 이미지를 여는 증명(utils/imageCtx)
   image_ctx?: string | null;
   entity: {
@@ -716,7 +716,7 @@ const PublicSignPage: React.FC = () => {
             <>
               {internalSelf && <SectionDesc data-testid="sign-login-id">{t('publicSign.loginIdentity', { defaultValue: '로그인한 계정으로 본인 확인을 대신합니다. 서명 시각과 접속 정보가 함께 기록됩니다.' }) as string}</SectionDesc>}
               <SectionDesc>{t('publicSign.signDescItems', { defaultValue: '서명 칸마다 직접 그리거나 이미지(사인·도장·회사 스탬프)를 올려 주세요. 서명일·이름은 서명하면 자동으로 들어갑니다.' })}</SectionDesc>
-              <SignatureItemsInput ref={itemsRef} count={doc.required_items?.sign || 1} disabled={signing} onReadyChange={setItemsReady} />
+              <SignatureItemsInput ref={itemsRef} count={doc.required_items?.sign || 1} captions={doc.required_items?.captions} disabled={signing} onReadyChange={setItemsReady} />
               <ConsentBox>
                 <input type="checkbox" id="consent" checked={consent} onChange={e => setConsent(e.target.checked)} />
                 <ConsentLabel htmlFor="consent">

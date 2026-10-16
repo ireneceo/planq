@@ -16,7 +16,7 @@ import PlanQSelect, { type PlanQSelectOption } from '../Common/PlanQSelect';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import { useEscapeStack } from '../../hooks/useEscapeStack';
 import { isEnterAction } from '../../utils/imeKey';
-import { readSignatureFields, type DocSignatureField } from '../../utils/signatureFields';
+import { readSignatureFields, readSignerItems, signersMissingCaptions, type DocSignatureField } from '../../utils/signatureFields';
 import SignatureSpotsStep from './SignatureSpotsStep';
 import SignOutboundScope from './SignOutboundScope';
 import SignSlotThemInput from './SignSlotThemInput';
@@ -72,6 +72,10 @@ const PostSignatureModal: React.FC<Props> = ({ open, onClose, post, onSent, onPo
   //   «서명: ____» 자리는 그대로 비어 있어 서명본이 «어디에 서명했는지» 를 말하지 못한다.
   //   확인 요청(가벼운 확인)은 서명 칸이 필요 없으므로 그대로다.
   const needsFields = kind === 'sign' && fields.length === 0;
+  // 한 사람에게 서명 칸이 둘 이상인데 칸 이름이 없으면 1단계에서 멈춘다(SignatureSpotsStep 이 입력란을 보여 준다, 2026-10-16)
+  const needsCaptions = useMemo(
+    () => kind === 'sign' && open && signersMissingCaptions(readSignerItems(contentOverride ?? post.content_json)).length > 0,
+    [kind, open, contentOverride, post.content_json]);
   // 서명 요청은 3단계다(docs/SIGNATURE_ITEMS_DESIGN.md §2-1) — ① 서명 자리 ② 서명할 사람 ③ 보내기.
   //   Irene: *"UI UX에서 바로 알아야 하는 거야 … 순서가 편집이랑 서명설정 보내기 등이 되는거야"*
   //   확인 요청은 서명 자리가 필요 없으므로 한 장 그대로다.
@@ -541,7 +545,7 @@ const PostSignatureModal: React.FC<Props> = ({ open, onClose, post, onSent, onPo
               : <SecondaryBtn type="button" onClick={closeAll} disabled={busy}>{t('cancel', '취소')}</SecondaryBtn>}
             {stepped && step < 3 ? (
               <PrimaryBtn type="button" data-testid="sign-step-next"
-                disabled={inserting || (step === 1 ? needsFields : !slotsFilled)}
+                disabled={inserting || (step === 1 ? (needsFields || (needsCaptions && !docLocked)) : !slotsFilled)}
                 onClick={() => setStep((step + 1) as 2 | 3)}>
                 {t('sign.steps.next', { defaultValue: '다음' })}
               </PrimaryBtn>

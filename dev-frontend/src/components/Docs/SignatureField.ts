@@ -35,6 +35,8 @@ export interface SignatureFieldAttrs {
   party: 'us' | 'them';
   /** 2026-10-05 서명 항목 — sign(그리기·이미지, 사인·스탬프) | date(서명일 자동) | name(이름 자동). 없으면 sign */
   item: SignatureItem;
+  /** 2026-10-16 서명 칸 이름(«사인»·«회사 스탬프») — 한 사람에게 서명 칸이 둘 이상이면 이것으로 구별한다. sign 칸만 */
+  caption?: string | null;
 }
 
 declare module '@tiptap/core' {
@@ -86,6 +88,12 @@ export const SignatureField = Node.create<SignatureFieldOptions>({
         // sign 은 쓰지 않는다 — 옛 문서와 바이트가 같아야 옛 서명본·고정본 지문이 그대로다
         renderHTML: (attrs: { item?: string }) => (attrs.item === 'date' || attrs.item === 'name' ? { 'data-item': attrs.item } : {}),
       },
+      // 칸 이름 — 없으면 쓰지 않는다(옛 문서와 바이트가 같아야 한다)
+      caption: {
+        default: null,
+        parseHTML: (el: HTMLElement) => el.getAttribute('data-caption'),
+        renderHTML: (attrs: { caption?: string | null }) => (attrs.caption ? { 'data-caption': attrs.caption } : {}),
+      },
     };
   },
 
@@ -101,7 +109,7 @@ export const SignatureField = Node.create<SignatureFieldOptions>({
     return {
       insertSignatureField: (attrs = {}) => ({ commands }) => commands.insertContent({
         type: this.name,
-        attrs: { slot: attrs.slot ?? 1, label: attrs.label ?? null, party: attrs.party ?? 'them', item: attrs.item ?? 'sign' },
+        attrs: { slot: attrs.slot ?? 1, label: attrs.label ?? null, party: attrs.party ?? 'them', item: attrs.item ?? 'sign', ...(attrs.caption ? { caption: attrs.caption } : {}) },
       }),
     };
   },
@@ -124,7 +132,9 @@ export const SignatureField = Node.create<SignatureFieldOptions>({
       const kind = item === 'date' ? (L.date || 'Date') : item === 'name' ? (L.name || 'Name') : (L.sign || L.empty);
       const who = node.attrs.label || (node.attrs.party === 'us' ? L.us : L.them);
       const circled = ['①', '②', '③', '④', '⑤', '⑥', '⑦', '⑧', '⑨', '⑩'][(Number(node.attrs.slot) || 1) - 1] || `(${node.attrs.slot})`;
-      cap.textContent = item === 'sign' ? `${circled} ${kind} · ${who}` : `${circled} ${kind}`;
+      // 칸 이름이 있으면 «① 회사 스탬프 · 가맹본부» — 종류 대신 무엇을 넣을지 말한다
+      const caption = item === 'sign' && node.attrs.caption ? String(node.attrs.caption) : null;
+      cap.textContent = item === 'sign' ? `${circled} ${caption || kind} · ${who}` : `${circled} ${kind}`;
       const line = document.createElement('div');
       line.className = 'pq-sig-field-line';
       line.textContent = item === 'sign' ? this.options.labels.empty : '';

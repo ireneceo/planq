@@ -10,6 +10,7 @@ import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import {
   readSignerItems, findManualSignatureSpots, replaceManualSpots, applySignerSettings, removeSignatureFields,
+  applySignCaption, captionOf, CAPTION_MAX,
 } from '../../utils/signatureFields';
 
 const CIRCLED = ['①', '②', '③', '④', '⑤', '⑥', '⑦', '⑧', '⑨', '⑩'];
@@ -29,6 +30,13 @@ const SignatureSpotsStep: React.FC<Props> = ({ contentJson, busy: busyIn, locked
   const signers = useMemo(() => readSignerItems(contentJson), [contentJson]);
   const spots = useMemo(() => (signers.length ? [] : findManualSignatureSpots(contentJson)), [contentJson, signers.length]);
   const [labels, setLabels] = useState<Record<number, string>>({});
+  // 서명 칸 이름(2026-10-16, Irene: *"서명 1, 서명 2가 뭔지 모르겠어. 사인인지 회사 스탬프인지 … 입력란 넣은 사람이 참조 넣어야지"*)
+  //   한 사람에게 칸이 둘 이상이면 이름이 있어야 다음으로 간다(PostSignatureModal) — 서명하는 사람은 이 이름만 보고 칸을 채운다.
+  const [caps, setCaps] = useState<Record<string, string>>({});
+  const saveCaption = (slot: number, i: number, prev: string | null) => {
+    const v = captionOf(caps[`${slot}-${i}`] ?? (prev || ''));
+    if (v !== (prev || null)) void onSaveDoc(applySignCaption(contentJson, slot, i, v));
+  };
   // 서명 자리 모두 빼기 — 서명 받을 문서가 아닌데 칸을 넣었을 때(2026-10-15, Irene: "잘못 넣었을 때 해결방법이 없네").
   //   잠긴 문서(살아 있는 요청)는 서버도 409 로 막는다 — 버튼을 아예 그리지 않는다.
   const [removeOpen, setRemoveOpen] = useState(false);
@@ -39,7 +47,7 @@ const SignatureSpotsStep: React.FC<Props> = ({ contentJson, busy: busyIn, locked
   const convertSpots = async () => {
     const parties: Record<number, 'us' | 'them'> = {};
     spots.forEach((s) => { if (!parties[s.slot]) parties[s.slot] = s.slot === 1 ? 'us' : 'them'; });
-    await onSaveDoc(replaceManualSpots(contentJson, spots, parties));
+    await onSaveDoc(replaceManualSpots(contentJson, spots, parties, t('sign.spots.sealCaption', { defaultValue: '도장' }) as string));
   };
   const addAtEnd = async () => {
     let doc: { type: string; content?: unknown[] } = { type: 'doc', content: [] };
@@ -94,6 +102,32 @@ const SignatureSpotsStep: React.FC<Props> = ({ contentJson, busy: busyIn, locked
                 {s.date && <Item>{t('editor.sigItemDate', { defaultValue: '서명일' })}</Item>}
                 {s.name && <Item>{t('editor.sigItemName', { defaultValue: '이름' })}</Item>}
               </Items>
+              {/* 칸이 둘 이상일 때만 이름을 묻는다 — 하나면 «서명» 으로 충분하다 */}
+              {s.sign > 1 && (
+                <Caps data-testid={`sign-spot-${s.slot}-captions`}>
+                  <CapsHint>{t('sign.spots.captionHint', { defaultValue: '서명 칸이 여러 개예요. 칸마다 무엇을 넣을지 적어 주세요 — 서명하는 분은 이 이름을 보고 채워요.' })}</CapsHint>
+                  {s.captions.map((c, i) => {
+                    const key = `${s.slot}-${i}`;
+                    const val = caps[key] ?? (c || '');
+                    const missing = !val.trim();
+                    return (
+                      <CapRow key={key}>
+                        <CapNo>{t('sign.spots.captionNo', { n: i + 1, defaultValue: '칸 {{n}}' })}</CapNo>
+                        <CapInput
+                          data-testid={`sign-spot-${s.slot}-caption-${i}`}
+                          value={val} maxLength={CAPTION_MAX} disabled={busy} $missing={missing && !locked}
+                          placeholder={(i === 0
+                            ? t('sign.spots.captionPh1', { defaultValue: '예: 대표자 사인' })
+                            : t('sign.spots.captionPh2', { defaultValue: '예: 회사 스탬프' })) as string}
+                          aria-label={t('sign.spots.captionAria', { n: i + 1, defaultValue: '서명 칸 {{n}} 이름' }) as string}
+                          onChange={(e) => setCaps((m) => ({ ...m, [key]: e.target.value }))}
+                          onBlur={() => saveCaption(s.slot, i, c)}
+                        />
+                      </CapRow>
+                    );
+                  })}
+                </Caps>
+              )}
             </Row>
           ))}
         </List>
@@ -184,6 +218,16 @@ const PartyBtn = styled.button<{ $on: boolean }>`
 `;
 const Items = styled.div`display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px;`;
 const Item = styled.span`font-size: 0.6875rem; font-weight: 600; color: #0F766E; background: #F0FDFA; border-radius: 4px; padding: 2px 8px;`;
+const Caps = styled.div`margin-top: 10px; display: flex; flex-direction: column; gap: 6px;`;
+const CapsHint = styled.div`font-size: 0.75rem; color: #475569; line-height: 1.5;`;
+const CapRow = styled.div`display: flex; align-items: center; gap: 8px;`;
+const CapNo = styled.span`flex-shrink: 0; width: 40px; font-size: 0.75rem; font-weight: 600; color: #334155;`;
+const CapInput = styled.input<{ $missing: boolean }>`
+  flex: 1 1 auto; min-width: 0; height: 36px; padding: 0 10px; border-radius: 8px; font-size: 0.8125rem; color: #0F172A;
+  border: 1px solid ${(p) => (p.$missing ? '#FCA5A5' : '#CBD5E1')};
+  &:focus { outline: none; border-color: #14B8A6; box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.15); }
+  @media (max-width: 640px) { height: 40px; }
+`;
 const Found = styled.div`border: 1px solid #99F6E4; background: #F0FDFA; border-radius: 10px; padding: 12px;`;
 const FoundTitle = styled.div`font-size: 0.875rem; font-weight: 700; color: #0F172A;`;
 const FoundBody = styled.div`font-size: 0.8125rem; color: #334155; margin-top: 4px; line-height: 1.5;`;

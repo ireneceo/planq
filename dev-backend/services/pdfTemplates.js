@@ -323,7 +323,9 @@ function nodeToHtml(n) {
       // 2026-10-05 서명 항목 — data-item: sign(그리기·이미지) | date(서명일) | name(이름). 없으면 sign(옛 문서)
       return `<div data-signature-field data-slot="${Number(a.slot) || 1}" data-party="${a.party === 'us' ? 'us' : 'them'}"`
         + `${a.label ? ` data-label="${escapeHtml(a.label)}"` : ''}`
-        + `${a.item === 'date' || a.item === 'name' ? ` data-item="${a.item}"` : ''}></div>`;
+        + `${a.item === 'date' || a.item === 'name' ? ` data-item="${a.item}"` : ''}`
+        // 2026-10-16 서명 칸 이름(«사인»·«회사 스탬프») — 없으면 쓰지 않는다(옛 고정본과 같은 HTML)
+        + `${a.caption && !(a.item === 'date' || a.item === 'name') ? ` data-caption="${escapeHtml(String(a.caption).slice(0, 40))}"` : ''}></div>`;
     case 'paragraph': return `<p>${inner}</p>`;
     case 'heading': return `<h${a.level || 2}>${inner}</h${a.level || 2}>`;
     case 'bulletList': return `<ul>${inner}</ul>`;

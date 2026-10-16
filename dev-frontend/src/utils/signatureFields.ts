@@ -47,7 +47,39 @@ export function nextSlot(fields: DocSignatureField[]): number {
 }
 
 // ─── 서명자별 항목 수 (2026-10-05) — 요청 창 1단계 목록 · 서버 signatureItemsBySlot 과 같은 공식 ───
-export interface SignerItems { slot: number; party: 'us' | 'them'; label: string | null; sign: number; date: boolean; name: boolean }
+// captions[i] = i번째 서명 칸에 들어갈 것(«사인»·«회사 스탬프») — 칸이 둘 이상이면 서명하는 사람이 칸을 구별할 유일한 단서다(2026-10-16)
+export interface SignerItems { slot: number; party: 'us' | 'them'; label: string | null; sign: number; date: boolean; name: boolean; captions: (string | null)[] }
+/** 칸 이름 정리 — 서버 services/signatureItems.js captionOf 와 같은 규칙(앞뒤 공백·40자) */
+export const CAPTION_MAX = 40;
+export function captionOf(v: unknown): string | null {
+  const s = typeof v === 'string' ? v.trim().slice(0, CAPTION_MAX) : '';
+  return s || null;
+}
+
+/** 칸이 둘 이상인데 이름이 빠진 서명자 — 보내기 전에 막는다(서명하는 사람이 «서명 1·서명 2» 만 보고 무엇을 넣을지 모른다) */
+export function signersMissingCaptions(signers: SignerItems[]): SignerItems[] {
+  return signers.filter((s) => s.sign > 1 && s.captions.some((c) => !c));
+}
+
+/** 서명자 slot 의 index 번째 서명 칸 이름을 바꾼 새 문서 */
+export function applySignCaption(contentJson: unknown, slot: number, index: number, caption: string | null): Node {
+  const doc = parseDoc(contentJson) || { type: 'doc', content: [] };
+  let k = 0;
+  const walk = (n: Node): Node => {
+    if (n.type === 'signatureField' && (Number(n.attrs?.slot) || 1) === slot && !(n.attrs?.item === 'date' || n.attrs?.item === 'name')) {
+      const mine = k === index;
+      k += 1;
+      if (!mine) return n;
+      const attrs = { ...(n.attrs || {}) };
+      const c = captionOf(caption);
+      if (c) attrs.caption = c; else delete attrs.caption;
+      return { ...n, attrs };
+    }
+    return Array.isArray(n.content) ? { ...n, content: n.content.map(walk) } : n;
+  };
+  return walk(doc);
+}
+
 export function readSignerItems(contentJson: unknown): SignerItems[] {
   let doc: Node | null = null;
   try { doc = typeof contentJson === 'string' ? JSON.parse(contentJson) : (contentJson as Node); } catch { return []; }
@@ -57,10 +89,11 @@ export function readSignerItems(contentJson: unknown): SignerItems[] {
     if (n.type === 'signatureField') {
       const slot = Number(n.attrs?.slot) || 1;
       const item = n.attrs?.item === 'date' || n.attrs?.item === 'name' ? n.attrs.item as 'date' | 'name' : 'sign';
-      const cur = map.get(slot) || { slot, party: 'them' as const, label: null, sign: 0, date: false, name: false };
+      const cur = map.get(slot) || { slot, party: 'them' as const, label: null, sign: 0, date: false, name: false, captions: [] };
       if (item === 'sign') {
         if (cur.sign === 0) { cur.party = n.attrs?.party === 'us' ? 'us' : 'them'; cur.label = (n.attrs?.label as string) || null; }
         cur.sign += 1;
+        cur.captions.push(captionOf(n.attrs?.caption));
       } else cur[item] = true;
       map.set(slot, cur);
     }
@@ -135,7 +168,7 @@ export function findManualSignatureSpots(contentJson: unknown): ManualSignatureS
 }
 
 /** 찾은 자리를 서명 항목으로 바꾼 새 문서. parties[slot] = 그 서명자의 쪽. 줄 앞 글자(«서명:»)는 남긴다. */
-export function replaceManualSpots(contentJson: unknown, spots: ManualSignatureSpot[], parties: Record<number, 'us' | 'them'>): Node {
+export function replaceManualSpots(contentJson: unknown, spots: ManualSignatureSpot[], parties: Record<number, 'us' | 'them'>, sealCaption: string): Node {
   const doc = parseDoc(contentJson) || { type: 'doc', content: [] };
   const blocks = Array.isArray(doc.content) ? doc.content : [];
   const at = new Map(spots.map((s) => [s.index, s]));
@@ -145,7 +178,9 @@ export function replaceManualSpots(contentJson: unknown, spots: ManualSignatureS
     if (!sp) { next.push(b); return; }
     const party = parties[sp.slot] || (sp.slot === 1 ? 'us' : 'them');
     if (sp.prefix && !SEAL_ONLY.test(sp.prefix)) next.push({ type: 'paragraph', content: [{ type: 'text', text: sp.prefix } as Node] });
-    next.push({ type: 'signatureField', attrs: { slot: sp.slot, party, label: sp.label, item: sp.item } });
+    // 서명 칸 이름은 손으로 적었던 글자(«서명:»·«회사 스탬프:»)에서 — «(인)» 만 있던 줄은 도장 자리
+    const cap = sp.item === 'sign' ? captionOf(SEAL_ONLY.test(sp.prefix || '') ? sealCaption : String(sp.prefix || '').replace(/[:：]\s*$/, '')) : null;
+    next.push({ type: 'signatureField', attrs: { slot: sp.slot, party, label: sp.label, item: sp.item, ...(cap ? { caption: cap } : {}) } });
   });
   return { ...doc, type: 'doc', content: next };
 }

@@ -682,7 +682,7 @@ function serialize(sr, { withLink = false } = {}) {   // ★ token·sign_url 은
     signed_ip: sr.signed_ip,
     signature_image_b64: sr.signature_image_b64 ? '(present)' : null,  // 진행 표 응답에서 이미지 본문 노출 X (대신 별도 GET)
     // 서명 항목 — 앱 안 서명 창이 «칸 몇 개를 채울지» 를 안다. 채운 이미지(item_images)는 싣지 않는다(위와 같은 이유)
-    required_items: sr.required_items ? { sign: sr.required_items.sign, date: !!sr.required_items.date, name: !!sr.required_items.name } : null,
+    required_items: require('../services/signatureItems').publicRequiredItems(sr.required_items),
     rejected_at: sr.rejected_at, rejected_reason: sr.rejected_reason,
     note: sr.note,
     expires_at: sr.expires_at,

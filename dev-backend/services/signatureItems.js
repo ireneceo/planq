@@ -38,6 +38,12 @@ function readItemImages(body, sr) {
   return { ok: true, images, first: images[0].b64 };
 }
 
+/** 서명 칸 이름 — 화면 utils/signatureFields.ts captionOf 와 같은 규칙(앞뒤 공백·40자) */
+function captionOf(v) {
+  const s = typeof v === 'string' ? v.trim().slice(0, 40) : '';
+  return s || null;
+}
+
 /** 고정본(content_json 문자열)의 서명 항목을 서명자 번호별로 — { sign: 서명 칸 수, date, name }.
  *  읽는 공식은 화면 utils/signatureFields.ts readSignerItems 와 같다(item 없음 = sign). */
 function signatureItemsBySlot(contentSnapshot) {
@@ -49,8 +55,8 @@ function signatureItemsBySlot(contentSnapshot) {
     if (n.type === 'signatureField') {
       const slot = Number(n.attrs && n.attrs.slot) || 1;
       const item = n.attrs && (n.attrs.item === 'date' || n.attrs.item === 'name') ? n.attrs.item : 'sign';
-      const cur = out.get(slot) || { sign: 0, date: false, name: false };
-      if (item === 'sign') cur.sign += 1; else cur[item] = true;
+      const cur = out.get(slot) || { sign: 0, date: false, name: false, captions: [] };
+      if (item === 'sign') { cur.sign += 1; cur.captions.push(captionOf(n.attrs && n.attrs.caption)); } else cur[item] = true;
       out.set(slot, cur);
     }
     if (Array.isArray(n.content)) n.content.forEach(walk);
@@ -83,9 +89,17 @@ async function planRequiredItems({ kind, contentSnapshot, signers, userId, busin
     ok: true,
     requiredFor: (slot) => {
       const it = bySlot.get(Number(slot));
-      return it ? { sign: it.sign, date: it.date, name: it.name, ...meta } : null;
+      // captions — 칸마다 무엇을 넣을지(«사인»·«회사 스탬프»). 하나도 없으면 싣지 않는다(옛 요청과 같은 모양)
+      return it ? { sign: it.sign, date: it.date, name: it.name, ...(it.captions.some(Boolean) ? { captions: it.captions } : {}), ...meta } : null;
     },
   };
 }
 
-module.exports = { readItemImages, signCountOf, signatureItemsBySlot, planRequiredItems };
+/** 화면에 내보내는 모양 — 공개 서명·앱 안 서명 두 라우트가 같이 쓴다 */
+function publicRequiredItems(ri) {
+  if (!ri) return null;
+  const captions = Array.isArray(ri.captions) ? ri.captions.map(captionOf) : null;
+  return { sign: ri.sign, date: !!ri.date, name: !!ri.name, ...(captions && captions.some(Boolean) ? { captions } : {}) };
+}
+
+module.exports = { readItemImages, signCountOf, signatureItemsBySlot, planRequiredItems, publicRequiredItems, captionOf };
