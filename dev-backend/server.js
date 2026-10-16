@@ -633,6 +633,8 @@ app.use('/api', require('./routes/signature_public'));
 // 보내는 쪽(우리 멤버) 서명 — /api/signatures/:id/sign-internal (로그인이 본인 확인).
 //   2026-09-22 분리. 꼬리 경로가 고유해 signatures 와 겹치지 않는다(가드 --category=duproute 가 센다).
 app.use('/api', require('./routes/signature_internal'));
+// 서명 이미지 — /api/signatures/:id/image (2026-10-16 signatures.js 에서 분리, 꼬리 경로 고유)
+app.use('/api', require('./routes/signature_image'));
 app.use('/api/inquiries', require('./routes/inquiries'));
 app.use('/api/diagnosis', require('./routes/diagnosis'));   // #426 무료 업무체계 자가진단 — 공개 제출 + 관리자 통계
 app.use('/api', require('./routes/kb'));

@@ -7,7 +7,7 @@ const crypto = require('crypto');
 // **같은 판정을 두 벌로 갖지 않는다** — 이 저장소가 반복해서 당한 실패 계열이다.
 const rateLimit = require('express-rate-limit');
 const { ipKeyGenerator } = require('express-rate-limit');
-const { SignatureRequest, PostAttachment, File, Post, Document, Project } = require('../models');
+const { SignatureRequest, PostAttachment, File, Post, Document, Project, Business, BusinessMember } = require('../models');
 const { errorResponse } = require('../middleware/errorHandler');
 
 async function loadByToken(token) {
@@ -269,7 +269,18 @@ async function canManageRequest(req, sr) {
   return !!post && canEditPostFn()(req.user.id, post, req.user.platform_role);
 }
 
+/** 같은 워크스페이스 멤버(또는 소유자·플랫폼 관리자). 서명 멤버 라우트들이 같이 쓴다 —
+ *  2026-10-16 signatures.js 에서 옮겼다(이미지 라우트 분리 · 판정은 그대로). */
+async function assertMember(userId, businessId, isPlatformAdmin) {
+  if (isPlatformAdmin) return true;
+  const bm = await BusinessMember.findOne({ where: { user_id: userId, business_id: businessId } });
+  if (bm) return true;
+  const biz = await Business.findOne({ where: { id: businessId, owner_id: userId } });
+  return !!biz;
+}
+
 module.exports = {
+  assertMember,
   canReadPostFn, canEditPostFn, postOfRequest, canManageRequest,
   isPostSignatureLocked, blockIfSigned, parseMaybeJson, buildEntitySnapshot, planOutboundScope, loadEntity, maybeUpdateEntityStatus,
   loadByToken, confirmLimiter, docConfirmEnabled, assertKind,
