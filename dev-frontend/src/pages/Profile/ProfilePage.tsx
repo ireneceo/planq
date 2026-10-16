@@ -1313,7 +1313,7 @@ export function DateFormatSection() {
 
 export function UserTimezoneSection() {
   const { t } = useTranslation('profile');
-  const { userTz, userRefs, update } = useTimezones();
+  const { userTz, userRefs, userTzExplicit, update } = useTimezones();
   const [now, setNow] = useState<Date>(new Date());
   const [pickerTz, setPickerTz] = useState<string>('');
   const browserTz = detectBrowserTz();
@@ -1349,10 +1349,20 @@ export function UserTimezoneSection() {
       <TzUserCard>
         <TzUserLeft>
           <TzUserLabel>{t('timezone.previewLabel')}</TzUserLabel>
-          <TzUserCity title={userTz}>{cityFromTz(userTz)}</TzUserCity>
-          <TzUserSub>
-            {userTz}{offsetFromTz(now, userTz) ? ` · UTC${offsetFromTz(now, userTz)}` : ''}
-          </TzUserSub>
+          {/* 아직 고르지 않았으면 기기 시간대를 «내 값» 처럼 보여주지 않는다 — 새 멤버에게 남의 도시가 박혀 보였다. */}
+          {userTzExplicit ? (
+            <>
+              <TzUserCity title={userTz}>{cityFromTz(userTz)}</TzUserCity>
+              <TzUserSub>
+                {userTz}{offsetFromTz(now, userTz) ? ` · UTC${offsetFromTz(now, userTz)}` : ''}
+              </TzUserSub>
+            </>
+          ) : (
+            <>
+              <TzUserCity>{t('timezone.notSet')}</TzUserCity>
+              <TzUserSub>{t('timezone.notSetSub', { tz: browserTz })}</TzUserSub>
+            </>
+          )}
         </TzUserLeft>
         <TzUserTime>{formatTimeInTz(now, userTz)}</TzUserTime>
       </TzUserCard>
@@ -1370,11 +1380,12 @@ export function UserTimezoneSection() {
               onSave={async () => { update({ userTz }); }}
             >
               <TimezoneSelector
-                value={userTz}
+                value={userTzExplicit ? userTz : ''}
                 onChange={(tz) => update({ userTz: tz })}
+                placeholder={t('timezone.primaryPlaceholder') || ''}
               />
             </AutoSaveField>
-            {userTz !== browserTz && (
+            {(!userTzExplicit || userTz !== browserTz) && (
               <BrowserHint
                 type="button"
                 onClick={() => update({ userTz: browserTz })}

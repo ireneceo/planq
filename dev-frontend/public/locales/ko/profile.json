@@ -13,7 +13,10 @@
     "referenceEmpty": "추가된 참조 타임존이 없습니다.",
     "addPlaceholder": "타임존을 검색해 선택",
     "addButton": "추가",
-    "useBrowser": "브라우저 기준({{tz}})으로 설정"
+    "useBrowser": "브라우저 기준({{tz}})으로 설정",
+    "notSet": "설정 안 함",
+    "notSetSub": "고르기 전에는 이 기기 시간대({{tz}})로 보여요",
+    "primaryPlaceholder": "시간대를 검색해 선택"
   },
   "basic": {
     "sectionTitle": "기본 정보",

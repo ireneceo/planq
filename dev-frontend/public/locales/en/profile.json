@@ -13,7 +13,10 @@
     "referenceEmpty": "No reference timezones added.",
     "addPlaceholder": "Search a timezone",
     "addButton": "Add",
-    "useBrowser": "Use browser timezone ({{tz}})"
+    "useBrowser": "Use browser timezone ({{tz}})",
+    "notSet": "Not set",
+    "notSetSub": "Until you pick one, times follow this device ({{tz}})",
+    "primaryPlaceholder": "Search and pick a time zone"
   },
   "basic": {
     "sectionTitle": "Basic Info",
