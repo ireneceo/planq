@@ -1,6 +1,42 @@
 ## 현재 작업 상태
 **마지막 업데이트:** 2026-10-16 (방 1740e0b9 · 정기 점검 배포 막힘 고침)
-**작업 상태:** 완료 — dev 링크 앱 가로채기 웹 차단 준비(sudo 1건 Irene) · 이전: 메일 사칭 검사(Fable PASS · 운영 미배포) · 이전: AI 앱 여러 워크스페이스(Fable PASS · 운영 미배포) · 이전: 급여 P2~P4(서버 Fable PASS · 화면 빌드·3폭 실측 72/72 · 운영 미배포)
+**작업 상태:** 완료 — 메일 답장 보낸 주소 표시(65cadd84 · 운영 미배포) · 이전: dev 링크 앱 가로채기 웹 차단 준비(sudo 1건 Irene) · 이전: 메일 사칭 검사(Fable PASS · 운영 미배포) · 이전: AI 앱 여러 워크스페이스(Fable PASS · 운영 미배포) · 이전: 급여 P2~P4(서버 Fable PASS · 화면 빌드·3폭 실측 72/72 · 운영 미배포)
+
+### 완료: 답장 보낸 주소가 고른 주소(별칭)로 안 보이던 것 (방 5777d091 · 2026-10-16 · [Opus]) — 운영 미배포 · 65cadd84
+- 원문: «내가 답변할 때 왜 보낸주소가 선택해서 보낸 도메인이 안나와??? 나 <help@irenewp.com> 받은 주소: nibeas5@naver.com»
+- 원인: 실제 발송은 고른 별칭으로 나갔다(운영 읽기 — nibeas5 답장 2건 from_email=help@wor-pro.com, 보낸 메일 80건 중 31건이 별칭). 화면(ThreadMessages 3곳: 메시지 머리·새 창 제목·전체 화면)이 보낸 메일 주소를 늘 계정 주소로 그렸다.
+- 고침: from_email(없으면 계정 주소) · 보낸 메일의 수신 라벨 «받은 주소» → «받는 사람»(ko/en).
+- 검증: build EXIT 0(error TS 0) · i18n/parity 가드 통과 · 화면 3폭(1440/820/390) 실측 — 별칭 표시·계정 주소 안 보임·«받는 사람»·받은 메일은 «받은 주소» 그대로. Fable 안 씀(화면 표시 버그).
+- 확인용(ws6): 스레드 9151 «[확인용] 답장 보낸 주소 — 별칭으로 보냄».
+
+### 완료: 메일 이어 묶기 · 주소 검색 보낸 사람 이름 (방 b2724ed6 · 2026-10-16 · [Opus]) — 운영 미배포 · c5499935
+- 원문: «새로 온 메일이 이전 메일이랑 연결해서 안보여주는데? 계속 소통중인데 알 수가 없어. 그리고 이메일주소로 검색해서 해당 내용만 보면 보낸사람 이름이 제대로 안나와.»
+- 원인 ① References 마지막 하나만 봤다 — 휴대폰·다른 앱 답장(PlanQ 에 없음)이 끼면 상대 다음 메일이 매번 새 스레드(dev 129건). ② 보낸편지함 사본이 답장보다 늦게 들어오면 답장·사본이 두 스레드로(dev 75건). ③ 제목 접두는 Re/Fwd 두 겹만.
+- 고침 services/emailImapCron.findOrCreateThread: References 전부(최근부터) · 거꾸로(이 메일을 가리키는 메일이 있으면 그 스레드, 사칭 격리 스레드 제외) · 접두 «RE[2]:/회신:/답장:/전달:» 여러 겹.
+- 검색: 주소(@) 검색이면 그 주소의 사람을 보낸 사람 자리에(services/mailSerialize.searchPartiesByThread) + 검색 이유 «이름 <주소>» · 이름 없는 상대는 워크스페이스가 아는 이름(resolveNamesForEmails).
+- 검증: 묶기 7검사(옛 코드 3 실패) · 검색 실HTTP 8검사(옛 코드 3 실패) · guard 72/73 · health 86/86 · Fable 안 씀(새 메일 묶는 규칙의 버그 수정, 데이터 변경 없음 — 자체 검증).
+- 확인용(ws6): 스레드 9143~9145 «[확인용] 주소 검색 — …» (검색어 helpdesk@school-check.example).
+- 남은 것: 이미 갈라져 있는 옛 대화는 그대로다(새 메일부터 묶인다) — 옛 것 합치기는 아래 답 기다림.
+
+### 완료: 갈라진 옛 메일 대화 합치기 (방 b2724ed6 · 2026-10-16 · [Opus] · Fable 설계 DESIGN-OK · 완료 검증 PASS) — Irene «권고대로» · 운영 미배포
+- Fable 판정: 새 메일 묶기 ②(거꾸로)가 반송 메일 쪽으로 끌려가는 회귀(dev 보낸 사본 75건 중 72건) → 우리 사본만·사람 답장만·같은 메일함으로 고침(60d1ab0d). 1·2단계도 같은 메일함만.
+- 합치기 `dev-backend/scripts/merge-split-mail-threads.js`(기본 미리보기 · `--apply --expect=<plan>` · `--undo=<run_id>` · `--business` · `--only` 시험용) — 헤더 링크만, 반송·스팸·격리 제외, 같은 메일함, 20개 상한, 고객/프로젝트/공개범위/공유링크 충돌은 건너뜀, 그룹당 트랜잭션, 장부 scripts/out/.
+- 옛 링크: `email_thread_redirects` 표(`scripts/migrate-mail-thread-redirects.js`, 배포 슬롯 등록) · 상세 GET 이 옛 번호면 새 스레드 + redirected_from · 화면이 주소를 새 번호로 바꿈.
+- dev 실행: 16묶음 · 37스레드 합침 · 실패 0 · 다시 미리보기 0 · 불변식 23/23 · 되돌리기 후 스냅숏 6항목 완전 일치 → 다시 적용. 반송 스레드 3319(288건) 그대로.
+- 운영 할 일(배포 뒤 수동): `cd /opt/planq/backend && node scripts/merge-split-mail-threads.js`(미리보기 — 건수를 Irene 에게) → `--apply --expect=<plan 파일>`.
+- 확인용(ws6): 스레드 9175 «[확인용] 갈라진 대화 합치기»(옛 9176 링크 → 9175) · 9177/9178 «[확인용] 고객 다른 대화»(건너뜀 확인).
+
+### 완료: 문서·업무 댓글 알림 실제로 오는지 확인 (방 29adeef4 · 2026-10-16 · [Opus]) — 운영 미배포(코드 1줄)
+- 원문: «문서에 댓글 달리는 거랑 다른 곳에 댓글달리는 것도 다 알림은 오지? 새로 문서에 댓글기능 단 거 확인해.»
+- 실HTTP(시험 계정 4명, ws6) 22검사: 문서 — 작성자·이전 댓글 작성자에게 doc_comment · @멘션 comment_mention(중복 없음) · 고객 댓글 shared 강제 → 팀 전원 · 공유 댓글 → 고객 받음 / 내부 댓글 → 고객 안 받음 · 링크 /docs?post=&comment= · 푸시 sent(구독 있는 대표). 업무 — 담당자·요청자 task 알림 · 멘션 · 개인 메모 0건.
+- 고침: 업무 댓글 알림 제목 작성자가 이메일 앞부분(«member1»)이던 것 → 표시명(문서 댓글과 같은 규칙).
+- 설계대로(고치지 않음): 멘션만 받고 댓글을 안 쓴 사람은 그 뒤 댓글 알림을 받지 않는다(받는 사람 = 작성자 + 이전 댓글 작성자). 프로젝트 메모는 댓글이 아니라 알림 없음.
+- 확인용: 문서 3630·3631 · 업무 4055·4056 «[확인용] 댓글 알림 확인 …»(ws6 프로젝트 35).
+
+### 완료: 운영 배포(배포 버튼, Irene «권고대로») (방 419493aa · 2026-10-16 · [Opus])
+- 이 방은 미리보기(dry-run) EXIT 0 까지 하고 일시정지. 그 사이 배포 방이 03:18·03:52 두 번 내보냄(운영 기록 df197a66 · 백업 20261016_035224). 첫 배포에서 운영 메일 목록 500(services/data 빠짐) → db1143b4 로 고친 뒤 재배포.
+- 04:23 확인: https://planq.kr/api/health ok · 첫 화면 200 · 운영 PM2 3개 online · confusables-latin.json 있음 · 재시작(04:00) 뒤 메일 500 0건. 남은 미배포 = 6b1411b1(문서만).
+
 
 ### 완료: 확인필요에서 문의·피드백 답 빼기 (방 29399824 · 2026-10-16 · [Opus]) — 운영 미배포
 - 원문: «확인필요에 문의/피드백 받는 게 나오는데 … 플랜큐와의 별도 소통 … 업무도 아닌데 알림으로만 오면 되는 거야».
@@ -9,32 +45,12 @@
 - 검증: 실HTTP — 답 도착(reply_seen_at NULL) 뒤 todo total 6→6 · 문의 항목 0 · 종 알림 1건 · guard 72/73 · build EXIT 0(error TS 0) · e2e inboxcount 실패 0 · Fable 미검증(자체 검증 — 목록 항목 제외·화면 숫자, 대상 아님).
 - 확인용: 피드백 #49 «[확인용] 확인필요 제외 확인»(owner ws6, 답 있음·안 읽음).
 
-### 완료(운영 반영은 Irene 할 일): 배포 후 운영 메일 목록 0건 · request_throttled (방 ce0f7668 · 2026-10-16 · [Opus])
+### 완료(운영 반영됨 — 10-16 03:59 /배포 방 a87a9df6 가 df197a66 배포(db1143b4 포함)): 배포 후 운영 메일 목록 0건 · request_throttled (방 ce0f7668 · 2026-10-16 · [Opus])
 - 원인: deploy-planq.sh 보호 목록의 `'data'`(q-note/data 용)가 앵커 없어 `dev-backend/services/data/confusables-latin.json` 이 운영에 안 감 →
   `GET /email-threads` 매번 500(운영 out 로그 03:33 실측) → 화면 apiFetch 폭주 차단이 503 `request_throttled` 로 막음.
 - 고침 db1143b4: `'/data/'` 앵커 + `assert_protect_keeps_tracked`(보호 목록이 커밋 파일을 빼면 배포 중단). 대조군 옛 패턴 FAIL·새 패턴 PASS · 운영 q-note/data 보호 유지(rsync -n data 줄 0).
-- Irene 할 일: `! cd /opt/planq && ./scripts/deploy-planq.sh --routine` (방 권한으로 배포 막힘) — 상황판에 올림.
+- 운영 반영됨 — 10-16 03:59 /배포 방 a87a9df6 가 df197a66 배포(db1143b4 포함).
 
-### 나중에 — 일시정지로 멈춤: 운영 배포 (방 419493aa · 2026-10-16 · [Opus])
-- 무엇: Irene 상황판 답 «권고대로 진행» = 배포 버튼으로 운영 배포(10/13 이후 쌓인 커밋). 버전은 안 올림(배포 버튼 = 정기 점검식 --routine).
-- 어디까지: dev 헬스 OK · 상황판 Fable 대기 planq 0건 · `./scripts/deploy-planq.sh --dry-run --routine` EXIT 0(커밋 ed944db4 깨끗한 사본, 게이트 통과). 실제 배포는 **아직 안 함** — 운영 변경 0. 이 방이 고친 파일 없음.
-- 다시 시작하면: HEAD 가 바뀌었으면 dry-run 다시 → `./scripts/deploy-planq.sh --routine`(백그라운드) → 3단계 검증(https://planq.kr/api/health · 운영 pm2) → 배포 방 산출물만 경로 지정 커밋.
-- 배포 뒤 수동 운영 실행 거리(각 완료 절 참조): seed-wiki-content.js · retriage-mail.js(dry-run→--apply) · backfill-conv-viewer.js · migrate-client-managed.js --apply 백필.
-
-
-### 완료: 청구서 발행 권한 안내(영어) + 청구서↔프로젝트↔Q sale 고객 연결 (방 115a6b77 · 2026-10-16 · [Opus]) — 운영 미배포
-- 원문: «관리자 아니면 청구서 발행 안된다는 안내멘트가 한국어 설정인데 영어로 나와. 청구서도 프로젝트랑 Q sales 고객이랑 연동·동기화되서 문제 없게».
-- ① 영어 안내: 서버 `assertInvoiceMutationOwner` 가 영어 문장을 실어 보내고 발행 창·상세가 원문을 띄웠다 → 서버는 코드 `owner_only` 만 · 화면은
-  `pages/QBill/invoiceErrors.invoiceErrorText` 한 곳(qbill `errors.*` ko/en, 옛 서버 «owner_only — …» 도 앞 토막으로 판정) · 발행 창은 대표가 아니면
-  [발행] 꺼짐 + 본문 안내 줄(폰에서도 보임) · 상세 «결제 완료 처리» 에 없던 catch 추가. 규칙(발행·결제 처리는 대표만)은 그대로.
-- ② 연결: 발행 창에 «프로젝트» 칸(고른 고객이 연결된 프로젝트만, 고객을 바꾸면 안 맞는 프로젝트는 비움) · 고객 목록을 `GET /api/invoices/:biz/client-options`
-  (Q bill 쓰기 권한 · 청구에 필요한 칸 + 연결 프로젝트, 술어 clientAccess.projectsByClient)로 — Q sale 권한 없는 청구 담당자도 고를 수 있다 ·
-  POST/PUT 이 «고객이 그 프로젝트에 연결됐나» 를 본다(`tenantRef.assertClientInProject` → 400 client_not_in_project, 외부 수신자는 검사 안 함) ·
-  PUT 이 project_id 를 받는다(안 보내면 유지) · 프로젝트를 안 골랐고 출처 문서가 그 고객의 프로젝트 문서면 그 프로젝트로 자동 연결(아니면 붙이지도 거절하지도 않음).
-- 검증: 실HTTP 20/20(연결·어긋남 400·외부 수신자·PUT 유지/비우기/어긋남/재연결·거래 탭·Q sale 기록·멤버 발행 403 코드만·client 역할 403·출처 자동 연결 양/음) ·
-  화면 3폭 × 대표/멤버 43/43(프로젝트 칸 보임·가로 넘침 0·영어 0·멤버 버튼 꺼짐+안내 보임 — 폰에서 안내가 숨던 것을 잡아 고침) · build EXIT 0 · guard 72/73 · health-check 86/86 · secrets 11/11.
-- Fable 게이트 PASS(Stop 훅이 권한 표면 확장으로 멈춤 → 독립 실HTTP 41/41 · 브라우저 16/16) · 기록 docs/FABLE_GATE_QUEUE.md 맨 위 · 비차단 ①은 PERMISSION_MATRIX §5.2 에 반영, ②~④ 다음 사이클 후보.
-- 확인용(ws6): 청구서 #5558 «[확인용] 청구서 연결 시험»(고객 66 · 프로젝트 1, 초안).
 
 ### 완료: 정기 점검·배포 버튼이 «배포 스크립트 미커밋» 으로 계속 막히던 것 (방 1740e0b9 · 2026-10-16 · [Opus] · Fable 게이트)
 - 원문(서버 방 5b750333 넘김): 10-16 00:15 정기 점검 배포가 다른 방의 미커밋 마이그 슬롯 줄 때문에 deploy-planq.sh 자기-미커밋 검사(10-12 C1)에서 멈춤. Irene «도대체 배포가 언제 되는거야? 왜 이렇게 문제가 지속되는 건데?»
@@ -784,6 +800,7 @@
 - 10/12 Codemagic 안드로이드 빌드 1시간 멈춤 신고 → 같은 커밋(origin/main 3c4231e8)을 서버에서 CI 단계 그대로 재현: npm ci 18초 · cap:beta:android 통과 · bundleRelease 3분22초 · AAB 검사 통과 · google-play 번호 조회는 1초 만에 실패(정상 경로). 코드 원인 아님 → Codemagic 쪽(대기열·한 단계 멈춤). «Irene 할 일: 멈춘 빌드 취소·재시도 + 멈춘 단계 이름 메모» 올림.
 - 10/15 Irene: 취소·재시도해도 계속 돌기만 함(멈춘 단계 이름은 못 받음, «다른 작업방에 말했어» — 그 뒤 codemagic.yaml·android 커밋 0건). 빌드 시간 한도 60분인데 1시간 넘게 돈다 = 실행이 아니라 «대기열» 가능성 큼. → «Irene 할 일: Codemagic API 토큰을 secrets/codemagic-token 에(서버 창 read -s)» 올림. 들어오면 API 로 빌드 상태·단계 로그를 직접 읽는다(빌드 시작·취소는 안 함).
 - 10/16 Irene: «빌드 다 했어» → 토큰 할 일 뺌. 남은 것: Play 업로드·실기기 확인(«안드로이드 앱 새 빌드 올리기» 할 일 그대로) · 아이폰은 Apple 설정 대기.
+- 10/16 Irene «공유할 때 어디로 갈지 너무 어려울 것 같아 … 검토 제대로 해» → [Fable] UX 설계 판정(그대로 iPhone 불가) → [Opus] 받은 뒤 화면 재설계 구현(추천 카드 1장+최근 칩 · 대화방 검색·묶음 · 프로젝트 행 → 폴더 · 저장 결과 카드 · 대화방 입력칸 위 줄 · 썸네일 · 배너 숨김 · 뒤로 가기) → [Fable] 완성 점검 PASS. sharereceive 66/66 · 빌드 0 · guard 72/73. 남음: 고객 역할 실측 · 실기기(안드로이드 Play 업데이트 뒤) · iOS 는 Apple 설정 뒤 착수.
 
 ### 정기 점검 10/12 (방 69426d00 · [Opus])
 - 개발완료: health 84/84 · guard 68/69 · e2e tenant 0 · 위키 커버리지 통과 → 10/11 작업 6건 DEVELOPMENT_PLAN·next.json 기록.

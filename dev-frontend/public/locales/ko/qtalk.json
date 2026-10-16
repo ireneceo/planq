@@ -379,7 +379,8 @@
     "openClientTimeline": "{{name}} 의 통합 타임라인 열기",
     "guestBadge": "게스트",
     "guestBadgeHint": "로그인 없이 초대 링크로 들어온 상대입니다",
-    "dropHere": "여기에 놓아 업로드"
+    "dropHere": "여기에 놓아 업로드",
+    "sharedBand": "공유한 내용이 담겨 있어요 — 확인하고 보내기를 누르세요"
   },
   "page": {
     "title": "Q talk",

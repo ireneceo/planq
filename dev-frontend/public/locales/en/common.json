@@ -840,40 +840,26 @@
     "title": "Share to PlanQ",
     "received": "Received content",
     "empty": "(empty)",
-    "chooseDest": "Where to send?",
-    "dest": {
-      "chat": "Chat",
-      "chatDesc": "Send as a message",
-      "task": "Task",
-      "taskDesc": "Create a new task",
-      "note": "Note",
-      "noteDesc": "Save to Q Note",
-      "doc": "Document",
-      "docDesc": "Insert into new document",
-      "file": "Q File",
-      "fileDesc": "Save to a folder you choose"
-    },
     "uploading": "Uploading...",
-    "fileNote": "Files are first saved to your files, then attached where you choose.",
     "staleNote": "The shared data has expired and was cleared automatically. Please share again.",
-    "hint": "File and image sharing will arrive in a future update. For now, please attach directly inside PlanQ.",
-    "loadFailed": "Could not load the list",
     "uploadFailed": "Could not upload the files. Please try again.",
     "back": "← Somewhere else",
     "pickConv": "Which chat should it go to?",
     "convEmpty": "No chats to send to",
     "convCustomer": "Client",
     "convTeam": "Team",
-    "convHint": "The chat opens with your text and files in the message box. You press Send yourself.",
     "place": {
-      "title": "Where should it be saved?",
       "company": "Company files",
       "root": "Top level (no folder)",
       "newFolderPh": "New folder name (created inside the selected folder)",
       "create": "+ Folder",
-      "save": "Save here",
       "createFailed": "Could not create the folder",
-      "projectNote": "Files saved to a project are visible to its members."
+      "projectNote": "Files saved to a project are visible to its members.",
+      "pickProject": "Which project should it go in?",
+      "companyMeta": "Outside projects · only you",
+      "backToProjects": "← Another project",
+      "saveN": "Save here ({{n}} file(s))",
+      "companyNote": "Company files are visible only to you. Change the sharing scope to share with your team."
     },
     "chatExport": {
       "label": {
@@ -891,6 +877,49 @@
       "desc": "The chat is kept as a file, unchanged. Save it in the client's project folder so your team can see it.",
       "save": "Keep as chat record",
       "waMedia": "For chats with many photos or voice notes, export “Without media” in WhatsApp — it's lighter and faster."
+    },
+    "recommendTag": "Suggested",
+    "recentLabel": "Recent",
+    "others": "Put it somewhere else",
+    "reco": {
+      "chat": "Send in a chat",
+      "chatDesc": "Pick a chat and your text and files are placed in the message box. You press Send yourself.",
+      "chatGo": "Choose a chat",
+      "file": "Save to project files",
+      "fileDesc": "Saved in a project folder, the project team can see it too.",
+      "fileGo": "Choose where to save"
+    },
+    "row": {
+      "chat": "Send in a chat",
+      "chatDesc": "Pick a chat and send it as a message",
+      "file": "Save to project files",
+      "fileDesc": "Pick a folder — your team can see it",
+      "task": "Create a new task",
+      "taskDesc": "Opens the new task form with it filled in",
+      "doc": "Put in a new document",
+      "docDesc": "Opens a new document with it in the body",
+      "note": "Save as a Q note memo",
+      "noteDesc": "Saves it as your memo",
+      "fileFirst": "files go to your files first"
+    },
+    "searchConv": "Search chats or clients",
+    "searchProject": "Search projects or clients",
+    "noMatch": "Nothing matches",
+    "more": "Show more ({{n}})",
+    "group": {
+      "recent": "Recently sent to",
+      "pinned": "Pinned chats",
+      "customer": "Client chats",
+      "team": "Team chats"
+    },
+    "clientFiles": "Please attach files directly in the chat — only the text is carried over for now.",
+    "uploadingN": "Uploading… {{done}}/{{total}}",
+    "done": {
+      "title": "Saved to “{{where}}”",
+      "files": "{{n}} file(s)",
+      "open": "Open",
+      "again": "Send somewhere else too",
+      "close": "Close"
     }
   },
   "pwa": {

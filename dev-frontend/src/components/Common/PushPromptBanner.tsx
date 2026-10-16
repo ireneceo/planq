@@ -240,6 +240,8 @@ const Banner = styled.div`
   @media (max-width: 768px) {
     body[data-keyboard-up='1'] & { display: none; }
   }
+  /* 공유 받기 화면에선 숨긴다 — 폰에서 «어디로 보낼까» 가 크롬(헤더·배너·제목 180px) 아래로 밀렸다(2026-10-16 Fable UX). */
+  body[data-share-receive='1'] & { display: none; }
 `;
 const BellIcon = styled.div`
   width: 36px; height: 36px; flex-shrink: 0;

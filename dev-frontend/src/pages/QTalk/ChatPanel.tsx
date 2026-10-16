@@ -639,6 +639,9 @@ const ChatPanel: React.FC<Props> = ({
   // 사용자가 채팅방 선택 시 input + chip(이름+크기) 자동 노출. send 시 자동 첨부.
   const [searchParams, setSearchParams] = useSearchParams();
   const prefillAppliedRef = useRef(false);
+  // 공유로 담겨 온 내용이 입력칸에 있다는 표시 — 보내기는 사람이 누른다. 안내가 목록 맨 아래 회색 한 줄이라
+  //   «보냈다» 고 믿고 닫았다(2026-10-16 Fable UX). 보내거나 비우면 사라진다.
+  const [sharedStaged, setSharedStaged] = useState(false);
   useEffect(() => {
     if (prefillAppliedRef.current) return;
     const prefill = searchParams.get('prefill');
@@ -674,6 +677,7 @@ const ChatPanel: React.FC<Props> = ({
       next.delete('attachFileIds');
       setSearchParams(next, { replace: true });
       prefillAppliedRef.current = true;
+      setSharedStaged(true);
     }
   }, [searchParams, setSearchParams, businessIdForPrefill]);
 
@@ -776,7 +780,11 @@ const ChatPanel: React.FC<Props> = ({
     await Promise.allSettled(files.map(uploadOne));
   };
 
+  useEffect(() => {
+    if (sharedStaged && !input.trim() && stagedExistingIds.length === 0) setSharedStaged(false);
+  }, [sharedStaged, input, stagedExistingIds.length]);
   const handleSend = () => {
+    setSharedStaged(false);
     const hasFiles = stagedExistingIds.length > 0;
     const hasPosts = stagedPostIds.length > 0;
     const hasUploading = uploadingFiles.some(x => !x.error);
@@ -2249,6 +2257,11 @@ const ChatPanel: React.FC<Props> = ({
 
       {/* 입력창 */}
       <InputBar>
+        {sharedStaged && (
+          <SharedBand role="status" data-testid="chat-shared-band">
+            {t('chat.sharedBand', { defaultValue: '공유한 내용이 담겨 있어요 — 확인하고 보내기를 누르세요' })}
+          </SharedBand>
+        )}
         {mentionActive && mentionCandidates.length > 0 && (
           <MentionDropdown role="listbox" aria-label={t('chat.mention.aria', { defaultValue: '멤버 멘션' }) as string}>
             {mentionCandidates.map((mc, i) => (
@@ -3810,6 +3823,11 @@ const MentionItem = styled.button<{ $active: boolean }>`
   background: ${(p) => (p.$active ? '#F0FDFA' : 'transparent')};
   &:hover { background: #F0FDFA; }
   span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+`;
+const SharedBand = styled.div`
+  margin: 0 0 8px; padding: 8px 12px; border-radius: 8px;
+  background: #F0FDFA; border: 1px solid #99F6E4; color: #0F766E;
+  font-size: 0.8125rem; font-weight: 600; line-height: 1.4;
 `;
 const InputBar = styled.div`
   position: relative;

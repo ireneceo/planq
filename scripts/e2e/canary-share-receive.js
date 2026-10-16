@@ -19,6 +19,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const BIZ = 5;
 const VPS = [
+  { key: '폰 360', vp: { width: 360, height: 740, isMobile: true, hasTouch: true, deviceScaleFactor: 2 }, mobile: true },
   { key: '폰 390', vp: { width: 390, height: 844, isMobile: true, hasTouch: true, deviceScaleFactor: 2 }, mobile: true },
   { key: '태블릿 820', vp: { width: 820, height: 1180, isMobile: true, hasTouch: true } },
   { key: '데스크탑 1440', vp: { width: 1440, height: 900 } },
@@ -60,9 +61,11 @@ async function run() {
         await b.dismissBlockers(page);
         const noCard = await page.$('[data-testid="share-chat-export"]');
         push(`${v.key} · ④ 음성 대조 — 보통 txt 에는 대화 기록 카드가 없다`, !noCard, noCard ? '카드가 떴다' : '없음');
-        await page.click('[data-testid="share-dest-file"]').catch(() => null);
+        const reco = await page.$('[data-testid="share-reco-file"]');
+        push(`${v.key} · ⑤ 문서 파일이면 추천은 «프로젝트 파일로 저장»`, !!reco, reco ? '추천 카드 file' : '추천 카드가 file 이 아니다');
+        await page.click('[data-testid="share-reco-go"]').catch(() => null);
         await sleep(1200);
-        const chip = await page.evaluateHandle((name) => Array.from(document.querySelectorAll('[data-testid="share-place-picker"] button')).find((x) => x.innerText.trim() === name) || null, proj.name);
+        const chip = await page.evaluateHandle((name) => Array.from(document.querySelectorAll('[data-testid="share-project-row"]')).find((x) => (x.querySelector('span') || x).innerText.trim() === name) || null, proj.name);
         const hasChip = await chip.evaluate((x) => !!x);
         if (!hasChip) push(`${v.key} · ① 프로젝트 고르기`, false, `«${proj.name}» 칩이 없다`);
         else {
@@ -76,6 +79,10 @@ async function run() {
           push(`${v.key} · ① 새 폴더가 그 프로젝트에 생긴다`, !!fold && Number(fold.project_id) === Number(proj.id), JSON.stringify(fold || null));
           await page.click('[data-testid="share-place-save"]').catch(() => null);
           await sleep(3000);
+          const doneTxt = await page.evaluate(() => (document.querySelector('[data-testid="share-done-where"]') || {}).innerText || null);
+          push(`${v.key} · ⑥ 저장 뒤 «프로젝트 › 폴더» 를 화면이 말한다(DB 이름과 같다)`, !!doneTxt && doneTxt.includes(proj.name) && doneTxt.includes(fname), String(doneTxt));
+          await page.click('[data-testid="share-done-open"]').catch(() => null);
+          await sleep(2500);
           const at = await page.evaluate(() => location.pathname + location.search);
           const [row] = await sequelize.query(
             `SELECT id, project_id, folder_id, vlevel FROM files WHERE business_id=? AND file_name='zz-share-canary.txt' AND created_at >= ? ORDER BY id DESC LIMIT 1`,
@@ -85,6 +92,28 @@ async function run() {
             `${JSON.stringify(row || null)} · 이동 ${at}`);
         }
       }
+
+      // ⑨ 사진 1장 — 썸네일이 실제로 그려지고, 폰에선 스크롤 없이 추천 카드가 보인다(알림 배너 숨김)
+      await page.evaluate(async () => {
+        const c = await caches.open('planq-share-v1');
+        const png = Uint8Array.from(atob('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='), (ch) => ch.charCodeAt(0));
+        await c.put('/_share_payload', new Response(JSON.stringify({ title: '', text: '', url: '', fileCount: 1, ts: Date.now() }), { headers: { 'Content-Type': 'application/json' } }));
+        await c.put('/_share_file_0', new Response(new Blob([png], { type: 'image/png' }), { headers: { 'Content-Type': 'image/png', 'X-Filename': encodeURIComponent('zz-share-photo.png') } }));
+      });
+      await b.goto(page, '/share-receive?shared=1');
+      await b.dismissBlockers(page);
+      await sleep(1500);
+      const ph = await page.evaluate(() => {
+        const img = document.querySelector('[data-testid="share-thumb"]');
+        const card = document.querySelector('[data-testid="share-reco-chat"]');
+        const ir = img && img.getBoundingClientRect();
+        const hit = ir && document.elementFromPoint(ir.left + ir.width / 2, ir.top + ir.height / 2);
+        const cr = card && card.getBoundingClientRect();
+        return { img: ir ? { w: Math.round(ir.width), h: Math.round(ir.height), loaded: img.complete && img.naturalWidth > 0, hit: !!(hit && img.contains(hit)) } : null,
+          cardBottom: cr ? Math.round(cr.bottom) : null, vh: window.innerHeight };
+      });
+      push(`${v.key} · ⑨ 사진은 썸네일이 그려진다`, !!ph.img && ph.img.w >= 60 && ph.img.loaded && ph.img.hit, JSON.stringify(ph.img));
+      push(`${v.key} · ⑨ 사진이면 추천 «채팅» 카드가 스크롤 없이 보인다`, ph.cardBottom !== null && ph.cardBottom <= ph.vh, `카드 아래 ${ph.cardBottom} / 화면 ${ph.vh}`);
 
       // ④ 카톡 대화 내보내기 → 대화 기록으로 보관(회사 파일 맨 위)
       await seedShare(page, { text: '', withFile: true, fileName: 'KakaoTalkChats.txt',
@@ -107,8 +136,12 @@ async function run() {
       if (card) {
         await page.click('[data-testid="share-chat-export-save"]').catch(() => null);
         await sleep(1200);
+        await page.click('[data-testid="share-project-company"]').catch(() => null);
+        await sleep(600);
         await page.click('[data-testid="share-place-save"]').catch(() => null);
         await sleep(3000);
+        await page.click('[data-testid="share-done-open"]').catch(() => null);
+        await sleep(2000);
         const [kf] = await sequelize.query(`SELECT id, file_name, project_id, folder_id FROM files WHERE business_id=? AND file_name LIKE ? AND created_at >= ? ORDER BY id DESC LIMIT 1`,
           { replacements: [BIZ, `카카오톡 대화 - ${KAKAO_ROOM} - %`, since], type: 'SELECT' });
         const at = await page.evaluate(() => location.pathname);
@@ -119,7 +152,9 @@ async function run() {
       await seedShare(page, { text: 'zz 공유 채팅 글', withFile: false });
       await b.goto(page, '/share-receive?shared=1');
       await b.dismissBlockers(page);
-      await page.click('[data-testid="share-dest-chat"]').catch(() => null);
+      const recoChat = await page.$('[data-testid="share-reco-chat"]');
+      push(`${v.key} · ⑤ 글이면 추천은 «채팅으로 보내기»`, !!recoChat, recoChat ? 'chat' : '추천 카드가 chat 이 아니다');
+      await page.click('[data-testid="share-reco-go"]').catch(() => null);
       await sleep(1500);
       const nConv = await page.$$eval('[data-testid="share-conv-row"]', (xs) => xs.length);
       if (!nConv) push(`${v.key} · ② 대화방 목록`, false, '대화방 0 — 미측정');
@@ -138,9 +173,33 @@ async function run() {
           return { url: location.pathname + location.search, conv, filled: !!ta };
         });
         push(`${v.key} · ② 고른 대화방이 열리고 입력칸에 글이 담김(보내지 않음)`, !!want && st.conv === want && st.filled, JSON.stringify({ want, ...st }));
+        const band = await page.evaluate(() => { const e = document.querySelector('[data-testid="chat-shared-band"]'); if (!e) return null; const r = e.getBoundingClientRect(); const h = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2); return { h: Math.round(r.height), hit: !!(h && e.contains(h)) }; });
+        push(`${v.key} · ⑦ 대화방 입력칸 위에 «담겨 있어요» 줄이 보인다`, !!band && band.h > 0 && band.hit, JSON.stringify(band));
         // 입력칸 비우기 — 초안으로 남으면 다음 실행·사람 화면에 섞인다
         await page.evaluate(() => { const ta = Array.from(document.querySelectorAll('textarea')).find((x) => x.value && x.value.includes('zz 공유 채팅 글')); if (ta) { const set = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set; set.call(ta, ''); ta.dispatchEvent(new Event('input', { bubbles: true })); } });
         await sleep(500);
+        const bandGone = await page.$('[data-testid="chat-shared-band"]');
+        push(`${v.key} · ⑦ 입력칸을 비우면 그 줄이 사라진다`, !bandGone, bandGone ? '남아 있다' : '사라짐');
+      }
+
+      // ⑧ 최근 칩 — 방금 보낸 대화방이 다음 공유의 추천 카드에 칩으로 뜬다 · 검색이 그 방을 찾는다
+      if (nConv) {
+        await seedShare(page, { text: 'zz 공유 최근', withFile: false });
+        await b.goto(page, '/share-receive?shared=1');
+        await b.dismissBlockers(page);
+        await sleep(1800);
+        const chips = await page.$$eval('[data-testid="share-recent-chip"]', (xs) => xs.map((x) => x.innerText.trim()));
+        push(`${v.key} · ⑧ 방금 보낸 대화방이 최근 칩으로 뜬다`, chips.length > 0, JSON.stringify(chips));
+        await page.click('[data-testid="share-reco-go"]').catch(() => null);
+        await sleep(1200);
+        const target = chips[0] || '';
+        const q = target.replace(/\s+/g, ' ').slice(0, 4);
+        if (q.trim()) {
+          await page.type('[data-testid="share-search"]', q);
+          await sleep(500);
+          const first = await page.evaluate(() => { const r = document.querySelector('[data-testid="share-conv-row"] span'); return r ? r.innerText.trim() : null; });
+          push(`${v.key} · ⑧ 검색 «${q}» → 맞는 방이 첫 행`, !!first && first.includes(q.trim()), String(first));
+        }
       }
 
       // ③ 문서

@@ -411,7 +411,8 @@
     "openClientTimeline": "Open {{name}}'s unified timeline",
     "guestBadge": "Guest",
     "guestBadgeHint": "Joined through an invite link, without signing in",
-    "dropHere": "Drop here to upload"
+    "dropHere": "Drop here to upload",
+    "sharedBand": "Your shared content is in the message box — check it and press Send"
   },
   "page": {
     "title": "Q talk",

@@ -840,40 +840,26 @@
     "title": "PlanQ 로 공유",
     "received": "받은 내용",
     "empty": "(빈 내용)",
-    "chooseDest": "어디로 보낼까요?",
-    "dest": {
-      "chat": "채팅",
-      "chatDesc": "대화방에 메시지로",
-      "task": "업무",
-      "taskDesc": "새 업무로 등록",
-      "note": "메모",
-      "noteDesc": "Q Note 에 저장",
-      "doc": "문서",
-      "docDesc": "새 문서 본문에",
-      "file": "Q File",
-      "fileDesc": "원하는 폴더에 저장"
-    },
     "uploading": "업로드 중...",
-    "fileNote": "파일은 먼저 내 파일로 저장된 뒤, 고른 곳에 첨부로 붙습니다.",
     "staleNote": "공유 받은 데이터가 오래되어 자동 정리되었습니다. 다시 공유해주세요.",
-    "hint": "파일·이미지 공유는 다음 업데이트에서 지원됩니다. 지금은 PlanQ 안에서 직접 첨부해주세요.",
-    "loadFailed": "목록을 불러오지 못했습니다",
     "uploadFailed": "파일을 올리지 못했습니다. 다시 시도해 주세요.",
     "back": "← 다른 곳",
     "pickConv": "어느 대화방에 보낼까요?",
     "convEmpty": "보낼 수 있는 대화방이 없습니다",
     "convCustomer": "고객",
     "convTeam": "팀",
-    "convHint": "대화방이 열리면 글과 파일이 입력칸에 담겨 있습니다. 보내기는 직접 누릅니다.",
     "place": {
-      "title": "어디에 저장할까요?",
       "company": "회사 파일",
       "root": "맨 위 (폴더 없이)",
       "newFolderPh": "새 폴더 이름 (고른 폴더 안에 만듭니다)",
       "create": "+ 폴더",
-      "save": "여기에 저장",
       "createFailed": "폴더를 만들지 못했습니다",
-      "projectNote": "프로젝트에 저장한 파일은 그 프로젝트 멤버가 봅니다."
+      "projectNote": "프로젝트에 저장한 파일은 그 프로젝트 멤버가 봅니다.",
+      "pickProject": "어느 프로젝트에 둘까요?",
+      "companyMeta": "프로젝트 밖 · 나만 봄",
+      "backToProjects": "← 다른 프로젝트",
+      "saveN": "여기에 저장 (파일 {{n}}개)",
+      "companyNote": "회사 파일은 나만 봅니다. 팀과 나누려면 공유 범위를 바꿔 주세요."
     },
     "chatExport": {
       "label": {
@@ -891,6 +877,49 @@
       "desc": "대화 내용을 파일 그대로 보관합니다. 고객의 프로젝트 폴더에 두면 팀이 같이 봅니다.",
       "save": "대화 기록으로 보관",
       "waMedia": "사진·음성이 많은 대화는 왓츠앱에서 «미디어 없이» 내보내면 가볍고 빠릅니다."
+    },
+    "recommendTag": "추천",
+    "recentLabel": "최근",
+    "others": "다른 곳에 두기",
+    "reco": {
+      "chat": "채팅으로 보내기",
+      "chatDesc": "대화방을 고르면 글과 파일이 입력칸에 담깁니다. 보내기는 직접 누릅니다.",
+      "chatGo": "대화방 고르기",
+      "file": "프로젝트 파일로 저장",
+      "fileDesc": "프로젝트 폴더에 두면 그 프로젝트 팀이 같이 봅니다.",
+      "fileGo": "저장할 곳 고르기"
+    },
+    "row": {
+      "chat": "채팅으로 보내기",
+      "chatDesc": "대화방을 골라 메시지로 보냅니다",
+      "file": "프로젝트 파일로 저장",
+      "fileDesc": "폴더를 골라 둡니다 — 팀이 같이 봅니다",
+      "task": "새 업무 만들기",
+      "taskDesc": "업무 등록 창에 담아 엽니다",
+      "doc": "새 문서에 넣기",
+      "docDesc": "새 문서 본문에 담아 엽니다",
+      "note": "Q note 메모로",
+      "noteDesc": "내 메모로 저장합니다",
+      "fileFirst": "파일은 내 파일에 먼저 올라갑니다"
+    },
+    "searchConv": "대화방·고객 이름으로 찾기",
+    "searchProject": "프로젝트·고객 이름으로 찾기",
+    "noMatch": "맞는 곳이 없습니다",
+    "more": "더 보기 ({{n}})",
+    "group": {
+      "recent": "최근 보낸 곳",
+      "pinned": "고정한 대화방",
+      "customer": "고객 대화방",
+      "team": "팀 대화방"
+    },
+    "clientFiles": "파일은 대화방에서 직접 첨부해 주세요 — 지금은 글만 담깁니다.",
+    "uploadingN": "올리는 중… {{done}}/{{total}}",
+    "done": {
+      "title": "«{{where}}» 에 저장했어요",
+      "files": "파일 {{n}}개",
+      "open": "열어 보기",
+      "again": "다른 곳에도 보내기",
+      "close": "닫기"
     }
   },
   "pwa": {
