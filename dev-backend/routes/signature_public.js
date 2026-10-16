@@ -56,6 +56,9 @@ router.get('/sign/:token', async (req, res, next) => {
     otp_verified: !!sr.otp_verified_at,
       signed_at: sr.signed_at,
       signature_image_b64: sr.signature_image_b64,  // 서명 후 미리보기
+      // 채운 서명 칸 전부(사인 + 회사 스탬프) — 완료 카드가 첫 장만 그려 «2개 했는데 1개» 였다(2026-10-16).
+      //   본인 토큰 응답이고 서명이 끝난 뒤에만 — 위 첫 장과 같은 범위다
+      signature_images: sr.status === 'signed' ? require('../services/signatureItems').signedImagesOf(sr) : [],
       note: sr.note,
       // 서명란(2026-09-22) — 화면이 «내 칸» 을 문서 안에서 강조한다. 어디에 들어가는지 모른 채
       //   서명하게 두지 않는다(설계 §1). slot NULL 이면 서명란 없는 옛 요청이다.

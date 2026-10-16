@@ -102,4 +102,14 @@ function publicRequiredItems(ri) {
   return { sign: ri.sign, date: !!ri.date, name: !!ri.name, ...(captions && captions.some(Boolean) ? { captions } : {}) };
 }
 
-module.exports = { readItemImages, signCountOf, signatureItemsBySlot, planRequiredItems, publicRequiredItems, captionOf };
+/** 서명자가 채운 서명 칸 이미지 전부(칸 순서) — 사인 + 회사 스탬프처럼 여럿이면 여러 장(2026-10-16).
+ *  요약 자리(진행 표·완료 카드·받은 서명)가 첫 장(signature_image_b64)만 그려 «2개 했는데 1개» 로 보였다.
+ *  옛 요청(item_images 없음)은 signature_image_b64 한 장. */
+function signedImagesOf(sr) {
+  const items = Array.isArray(sr && sr.item_images) ? sr.item_images : [];
+  const list = items.map((it) => (it && typeof it.b64 === 'string' ? it.b64 : null)).filter(Boolean);
+  if (list.length) return list;
+  return sr && sr.signature_image_b64 ? [sr.signature_image_b64] : [];
+}
+
+module.exports = { signedImagesOf, readItemImages, signCountOf, signatureItemsBySlot, planRequiredItems, publicRequiredItems, captionOf };

@@ -49,22 +49,28 @@ const SignatureProgressSection: React.FC<Props> = ({ postId, inferredKind, reloa
   // 서명 이미지 — 목록 응답은 본문 대신 '(present)' 를 싣는다(표 응답을 가볍게). 이미지는
   //   GET /api/signatures/:id/image 로 따로 받아 쓴다. 예전엔 그 GET 이 없어 서명된 행이 늘 «—» 였다(2026-09-22).
   //   <img> 는 인증 헤더를 못 싣으므로 apiFetch 로 받아 blob URL 로 만든다.
-  const [sigImg, setSigImg] = useState<Record<number, string>>({});
+  //   ★ 서명 칸이 여럿(사인 + 회사 스탬프)이면 칸마다 한 장 — `?i=` 로 받는다. 첫 장만 그리면 «2개 했는데 1개» 다(2026-10-16).
+  const [sigImg, setSigImg] = useState<Record<number, string[]>>({});
+  const imgCount = (sr: SignatureRequest) => (sr.signature_image_b64 ? Math.max(1, sr.signature_image_count || 1) : 0);
   useEffect(() => {
     if (!list) return undefined;
     const need = list.filter((sr) => sr.signature_image_b64 === '(present)' && !sigImg[sr.id]);
     if (!need.length) return undefined;
     let alive = true;
     void (async () => {
-      const got: Record<number, string> = {};
+      const got: Record<number, string[]> = {};
       for (const sr of need) {
-        try {
-          const r = await apiFetch(`/api/signatures/${sr.id}/image`);
-          if (r.ok) got[sr.id] = URL.createObjectURL(await r.blob());
-        } catch { /* 이미지 한 장 실패는 그 칸만 «—» */ }
+        const urls: string[] = [];
+        for (let i = 0; i < imgCount(sr); i += 1) {
+          try {
+            const r = await apiFetch(`/api/signatures/${sr.id}/image?i=${i}`);
+            if (r.ok) urls.push(URL.createObjectURL(await r.blob()));
+          } catch { /* 이미지 한 장 실패는 그 장만 빠진다 */ }
+        }
+        if (urls.length) got[sr.id] = urls;
       }
       if (alive && Object.keys(got).length) setSigImg((prev) => ({ ...prev, ...got }));
-      else Object.values(got).forEach((u) => URL.revokeObjectURL(u));
+      else Object.values(got).flat().forEach((u) => URL.revokeObjectURL(u));
     })();
     return () => { alive = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -72,9 +78,9 @@ const SignatureProgressSection: React.FC<Props> = ({ postId, inferredKind, reloa
   // 만든 blob URL 은 화면을 떠날 때 한 번에 푼다(목록이 바뀔 때 풀면 아직 쓰는 이미지가 깨진다)
   const sigImgRef = useRef(sigImg);
   sigImgRef.current = sigImg;
-  useEffect(() => () => { Object.values(sigImgRef.current).forEach((u) => URL.revokeObjectURL(u)); }, []);
-  const sigSrc = (sr: SignatureRequest) => (sr.signature_image_b64 && sr.signature_image_b64 !== '(present)'
-    ? sr.signature_image_b64 : (sigImg[sr.id] || null));
+  useEffect(() => () => { Object.values(sigImgRef.current).flat().forEach((u) => URL.revokeObjectURL(u)); }, []);
+  const sigSrcs = (sr: SignatureRequest): string[] => (sr.signature_image_b64 && sr.signature_image_b64 !== '(present)'
+    ? [sr.signature_image_b64] : (sigImg[sr.id] || []));
   const [lightboxAlt, setLightboxAlt] = useState<string>('');
   // 재발송 확인 — 외부로 메일이 나가므로 받는 주소를 보여 주고 확인을 받는다(CLAUDE.md «외부 발송은 확인을 받는다»).
   //   서명 링크(토큰)는 진행표 응답에 더 이상 오지 않는다(0-C C-1) — «URL 복사» 는 없앴다.
@@ -300,13 +306,17 @@ const SignatureProgressSection: React.FC<Props> = ({ postId, inferredKind, reloa
                 )}
               </Td>
               <Td>
-                {sigSrc(sr) ? (
-                  <SigThumb onClick={() => {
-                    setLightboxSrc(sigSrc(sr));
-                    setLightboxAlt(`${sr.signer_name || sr.signer_email}${sr.signed_at ? ' · ' + formatDateTime(sr.signed_at) : ''}`);
-                  }}>
-                    <img src={sigSrc(sr) || undefined} alt="signature" />
-                  </SigThumb>
+                {sigSrcs(sr).length ? (
+                  <SigThumbs data-testid="sign-progress-images">
+                    {sigSrcs(sr).map((src, i) => (
+                      <SigThumb key={i} onClick={() => {
+                        setLightboxSrc(src);
+                        setLightboxAlt(`${sr.signer_name || sr.signer_email}${sr.signed_at ? ' · ' + formatDateTime(sr.signed_at) : ''}`);
+                      }}>
+                        <img src={src} alt="signature" />
+                      </SigThumb>
+                    ))}
+                  </SigThumbs>
                 ) : sr.status === 'signed' ? (
                   <SigPlaceholder>—</SigPlaceholder>
                 ) : null}
@@ -571,6 +581,8 @@ const SigThumb = styled.button`
   &:hover { border-color: #14B8A6; transform: scale(1.05); }
   &:focus-visible { outline: 2px solid #14B8A6; outline-offset: 2px; }
 `;
+// 서명 칸이 여럿이면(사인 + 회사 스탬프) 나란히
+const SigThumbs = styled.div`display: inline-flex; gap: 4px; flex-wrap: nowrap;`;
 const SigPlaceholder = styled.span`
   display: inline-block; width: 60px; text-align: center;
   font-size: 0.8125rem; color: #CBD5E1;

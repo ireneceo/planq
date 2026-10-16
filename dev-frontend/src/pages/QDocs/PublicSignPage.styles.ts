@@ -284,6 +284,7 @@ export const ResultHint = styled.p`font-size:0.8125rem;color:#475569;margin:8px 
 export const SignatureSnap = styled.div`
   margin-top: 12px; padding: 10px 14px;
   background: #FAFBFC; border: 1px solid #E2E8F0; border-radius: 10px;
+  display: flex; flex-wrap: wrap; gap: 12px; align-items: center;
   & img { max-width: min(320px, 100%); max-height: 140px; display: block; }
 `;
 

@@ -31,6 +31,7 @@ interface ReceivedSignature {
   rejected_reason: string | null;
   viewed_at: string | null;
   signature_image_b64: string | null;
+  signature_image_count?: number;
   signed_ip: string | null;
   note: string | null;
   reminder_count: number;
@@ -226,6 +227,29 @@ export default function ReceivedSignaturesTab() {
 function Detail({ signature: s, onClose, onSign }: { signature: ReceivedSignature; onClose: () => void; onSign: (it: ReceivedSignature) => void }) {
   const { t } = useTranslation('qdocs');
   const { formatDateTime } = useTimeFormat();
+  // 서명 이미지 — 응답은 본문 대신 '(present)' 다(진행 표와 같은 응답 모양). 그대로 src 에 넣어 깨진 그림이 떴다.
+  //   본인 서명이라 GET /api/signatures/:id/image?i= 로 칸마다 받는다(사인 + 회사 스탬프면 2장, 2026-10-16).
+  const [imgs, setImgs] = useState<string[]>([]);
+  useEffect(() => {
+    if (!s.signature_image_b64) return undefined;
+    if (s.signature_image_b64 !== '(present)') {
+      setImgs([s.signature_image_b64.startsWith('data:') ? s.signature_image_b64 : `data:image/png;base64,${s.signature_image_b64}`]);
+      return undefined;
+    }
+    let alive = true;
+    const made: string[] = [];
+    void (async () => {
+      const n = Math.max(1, s.signature_image_count || 1);
+      for (let i = 0; i < n; i += 1) {
+        try {
+          const r = await apiFetch(`/api/signatures/${s.id}/image?i=${i}`);
+          if (r.ok) made.push(URL.createObjectURL(await r.blob()));
+        } catch { /* 한 장 실패는 그 장만 빠진다 */ }
+      }
+      if (alive) setImgs([...made]);
+    })();
+    return () => { alive = false; made.forEach((u) => URL.revokeObjectURL(u)); };
+  }, [s.id, s.signature_image_b64, s.signature_image_count]);
   return (
     <Backdrop onClick={onClose}>
       <Dialog role="dialog" aria-modal="true" aria-label={s.entity_title} onClick={(e) => e.stopPropagation()}>
@@ -243,10 +267,10 @@ function Detail({ signature: s, onClose, onSign }: { signature: ReceivedSignatur
             <>
               <Field><FieldLabel>{t('received.detail.signedAt', 'Signed at')}</FieldLabel><FieldValue>{formatDateTime(s.signed_at)}</FieldValue></Field>
               {s.signed_ip && <Field><FieldLabel>{t('received.detail.signedIp', 'IP')}</FieldLabel><FieldValue>{s.signed_ip}</FieldValue></Field>}
-              {s.signature_image_b64 && (
+              {imgs.length > 0 && (
                 <Field>
                   <FieldLabel>{t('received.detail.signatureImage', 'Signature')}</FieldLabel>
-                  <SigImg src={s.signature_image_b64.startsWith('data:') ? s.signature_image_b64 : `data:image/png;base64,${s.signature_image_b64}`} alt="signature" />
+                  <SigImgs data-testid="received-sign-images">{imgs.map((src, i) => <SigImg key={i} src={src} alt="signature" />)}</SigImgs>
                 </Field>
               )}
             </>
@@ -409,4 +433,5 @@ const DialogFooter = styled.div`
 const Field = styled.div`display: flex; flex-direction: column; gap: 4px;`;
 const FieldLabel = styled.div`font-size: 0.6875rem; font-weight: 600; color: #64748B; text-transform: uppercase; letter-spacing: 0.3px;`;
 const FieldValue = styled.div`font-size: 0.8125rem; color: #0F172A;`;
+const SigImgs = styled.div`display: flex; flex-wrap: wrap; gap: 8px;`;
 const SigImg = styled.img`max-width: 240px; max-height: 120px; border: 1px solid #E2E8F0; border-radius: 6px; background: #FFFFFF;`;

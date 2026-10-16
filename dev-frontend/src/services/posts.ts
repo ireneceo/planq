@@ -529,6 +529,8 @@ export interface SignatureRequest {
   signed_at: string | null;
   signed_ip: string | null;
   signature_image_b64: string | null;
+  /** 채운 서명 칸 수(사인 + 회사 스탬프면 2) — 이미지는 GET /api/signatures/:id/image?i=0..n-1 */
+  signature_image_count?: number;
   rejected_at: string | null;
   rejected_reason: string | null;
   note: string | null;

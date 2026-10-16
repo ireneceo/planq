@@ -33,6 +33,7 @@ const { authenticateToken } = require('../middleware/auth');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
 const { createAuditLog } = require('../middleware/audit');
 const { sendSignatureRequestEmail, sendSignatureOtpEmail } = require('../services/emailService');
+const { signedImagesOf } = require('../services/signatureItems');
 // 서명·확인 공용 조각 (services/signatureCore.js). 판정을 두 벌로 두지 않기 위해 여기서만 가져온다.
 const {
   loadByToken, confirmLimiter, docConfirmEnabled, assertKind,
@@ -322,25 +323,36 @@ router.get('/posts/:id/signature-scope', authenticateToken, async (req, res, nex
   } catch (err) { next(err); }
 });
 
-// GET /api/signatures/:id/image — 서명 이미지 (진행 표 썸네일·크게 보기)
+// GET /api/signatures/:id/image?i=<칸 번호> — 서명 이미지 (진행 표 썸네일·크게 보기·받은 서명)
 //   ★ 2026-09-22 — 진행 표 응답은 이미지 본문 대신 '(present)' 를 싣고 «별도 GET» 으로 받는다고 적혀 있었는데
 //     그 GET 이 **없었다.** 화면은 '(present)' 면 이미지를 숨겨서, 서명된 행이 늘 «—» 였다.
-//   권한은 형제 문(목록 GET)과 같다 — 같은 워크스페이스 멤버.
+//   ★ 2026-10-16 — 서명 칸이 여럿(사인 + 회사 스탬프)이면 `?i=` 로 그 칸. 없으면 0(옛 요청 호환).
+//     여태 첫 장만 줘서 «서명 2개 했는데 완료 뒤 1개만» 이었다. 장 수는 진행 표 응답의 signature_image_count.
+//   권한은 형제 문(목록 GET)과 같다 — 같은 워크스페이스 멤버 + 문서 읽기.
+//     그리고 **서명한 본인**(받은 서명 목록 — 고객은 멤버가 아니다). 자기 서명이라 넓히는 것이 아니다.
 router.get('/signatures/:id/image', authenticateToken, async (req, res, next) => {
   try {
     const sr = await SignatureRequest.findByPk(req.params.id);
-    if (!sr || !sr.signature_image_b64) return errorResponse(res, 'not_found', 404);
-    if (!(await assertMember(req.user.id, sr.business_id, req.user.platform_role === 'platform_admin'))) {
-      return errorResponse(res, 'forbidden', 403);
+    const imgs = sr ? signedImagesOf(sr) : [];
+    const i = req.query.i == null ? 0 : Number(req.query.i);
+    if (!Number.isInteger(i) || i < 0 || i >= imgs.length) return errorResponse(res, 'not_found', 404);
+    const mine = !!(req.user.email && sr.signer_email
+      && String(sr.signer_email).toLowerCase() === String(req.user.email).toLowerCase());
+    if (!mine) {
+      if (!(await assertMember(req.user.id, sr.business_id, req.user.platform_role === 'platform_admin'))) {
+        return errorResponse(res, 'forbidden', 403);
+      }
+      const imgPost = await postOfRequest(sr);
+      if (!imgPost || !(await canReadPostFn()(req.user, imgPost))) return errorResponse(res, imgPost ? 'forbidden' : 'not_found', imgPost ? 403 : 404);
     }
-    const imgPost = await postOfRequest(sr);
-    if (!imgPost || !(await canReadPostFn()(req.user, imgPost))) return errorResponse(res, imgPost ? 'forbidden' : 'not_found', imgPost ? 403 : 404);
-    const m = /^data:(image\/(png|jpeg|webp));base64,(.+)$/i.exec(String(sr.signature_image_b64));
+    // 저장 쪽(signatureItems DATA_URL)이 jpg 도 받으므로 여기서도 — 안 그러면 data:image/jpg 스탬프가 422
+    const m = /^data:image\/(png|jpe?g|webp);base64,(.+)$/i.exec(String(imgs[i]));
     if (!m) return errorResponse(res, 'invalid_image', 422);
-    res.set('Content-Type', m[1].toLowerCase());
+    const sub = m[1].toLowerCase() === 'jpg' ? 'jpeg' : m[1].toLowerCase();
+    res.set('Content-Type', `image/${sub}`);
     res.set('Cache-Control', 'private, no-store');
     res.set('X-Content-Type-Options', 'nosniff');
-    return res.send(Buffer.from(m[3], 'base64'));
+    return res.send(Buffer.from(m[2], 'base64'));
   } catch (err) { next(err); }
 });
 
@@ -681,6 +693,8 @@ function serialize(sr, { withLink = false } = {}) {   // ★ token·sign_url 은
     signed_at: sr.signed_at,
     signed_ip: sr.signed_ip,
     signature_image_b64: sr.signature_image_b64 ? '(present)' : null,  // 진행 표 응답에서 이미지 본문 노출 X (대신 별도 GET)
+    // 채운 서명 칸 수 — 사인 + 회사 스탬프면 2. 화면이 GET …/image?i=0..n-1 로 다 그린다(첫 장만 그리면 «2개 했는데 1개»)
+    signature_image_count: signedImagesOf(sr).length,
     // 서명 항목 — 앱 안 서명 창이 «칸 몇 개를 채울지» 를 안다. 채운 이미지(item_images)는 싣지 않는다(위와 같은 이유)
     required_items: require('../services/signatureItems').publicRequiredItems(sr.required_items),
     rejected_at: sr.rejected_at, rejected_reason: sr.rejected_reason,

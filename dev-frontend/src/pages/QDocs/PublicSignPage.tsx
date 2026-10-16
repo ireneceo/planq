@@ -52,6 +52,8 @@ interface PublicSignData {
   otp_verified: boolean;
   signed_at: string | null;
   signature_image_b64: string | null;
+  /** 채운 서명 칸 전부(사인 + 회사 스탬프) — 서명이 끝난 뒤에만 온다 */
+  signature_images?: string[];
   note: string | null;
   // 서명란(2026-09-22) — 내 칸이 문서 어디인지. null 이면 서명란 없는 옛 요청.
   slot?: number | null;
@@ -486,9 +488,16 @@ const PublicSignPage: React.FC = () => {
             <ResultTitle>{t('publicSign.doneTitle', '서명 완료')}</ResultTitle>
             <ResultMeta>{t('publicSign.doneAt', '{{at}} 에 서명하셨습니다', { at: formatPublicDateTime(doc.signed_at!) })}</ResultMeta>
             <ResultHint>{t('publicSign.doneHint', '양 당사자가 모두 서명을 완료하면 발송자에게 자동으로 통보됩니다. 이 창을 닫으셔도 됩니다.')}</ResultHint>
-            {doc.signature_image_b64 && doc.signature_image_b64 !== '(present)' && (
-              <SignatureSnap><img src={doc.signature_image_b64} alt="signature" /></SignatureSnap>
-            )}
+            {/* 서명 칸이 여럿이면(사인 + 회사 스탬프) 전부 — 첫 장만 보이면 «2개 했는데 1개» 로 읽힌다(2026-10-16) */}
+            {(() => {
+              const imgs = doc.signature_images?.length ? doc.signature_images
+                : (doc.signature_image_b64 && doc.signature_image_b64 !== '(present)' ? [doc.signature_image_b64] : []);
+              return imgs.length ? (
+                <SignatureSnap data-testid="sign-done-images">
+                  {imgs.map((src, i) => <img key={i} src={src} alt="signature" />)}
+                </SignatureSnap>
+              ) : null;
+            })()}
             <DoneActions>
               {doc.entity.signed_html && (
                 <PrimaryBtn type="button" data-testid="sign-view-signed" aria-expanded={showSignedDoc}
