@@ -254,7 +254,8 @@ const PostEditor: React.FC<Props> = ({ value, onChange, onReady, placeholder, ed
   }, [value, editor]);
 
   useEffect(() => {
-    if (editor) editor.setEditable(editable);
+    // 잠금/해제는 내용 변경이 아니다 — false 를 안 주면 'update' 가 나가 onChange(=저장 대기)가 불린다(RichEditor 와 같은 이유)
+    if (editor) editor.setEditable(editable, false);
   }, [editable, editor]);
 
   // 보기 모드로 바뀌면 막대를 닫는다(칠한 자리도 막대가 닫히며 지운다)

@@ -215,7 +215,10 @@ export default function RichEditor({
   useEffect(() => {
     if (!editor) return;
     if (editor.isEditable === !readOnly) return;
-    editor.setEditable(!readOnly);
+    // ★ 두 번째 인자 false — 기본값(true)은 'update' 를 쏴서 onChange 가 불린다. 업무 결과물은 확인 요청·완료로
+    //   잠기는 순간 그 onChange 가 빈 본문(<p></p>) 자동저장을 예약해, 2초 뒤 서버 잠금(409 body_locked)에 막혀
+    //   «저장 실패» 가 떴다(2026-10-16 Irene «답하면 에러가 나서 멈춰»). 잠금/해제는 내용 변경이 아니다.
+    editor.setEditable(!readOnly, false);
   }, [readOnly, editor]);
 
   // 업로드만 하고 **URL 을 돌려준다** — 삽입 위치가 다른 호출부(#342 base64 치환)가 재사용한다.

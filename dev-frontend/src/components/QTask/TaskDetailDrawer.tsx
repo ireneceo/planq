@@ -3122,7 +3122,11 @@ const PillSpinner = styled.span`
   animation:pqspin 0.7s linear infinite;
   @keyframes pqspin{to{transform:rotate(360deg);}}
 `;
-const Scroll = styled.div`flex:1;overflow-y:auto;overflow-x:hidden;min-width:0;&>*{min-width:0;max-width:100%;}&::-webkit-scrollbar{width:6px;}&::-webkit-scrollbar-thumb{background:#E2E8F0;border-radius:3px;}`;
+// ★ overscroll-behavior: contain (2026-10-16 Irene «위아래 스크롤이 멈춰. 업무명 없어지고 위에 태그 안보이고») —
+//   DetailDrawer.Body 에는 있었는데 업무 상세만 빠져 있었다. 본문 끝에서 그 힘이 뒤 화면(MainLayout PageScroll)으로
+//   넘어가면, 이 패널(position:fixed)이 그 스크롤 상자 **안**에 그려져 있어 아이폰에서 패널째 위로 끌려 올라가
+//   제목·칩이 화면 밖으로 나가고 손가락은 뒤 상자를 굴려 패널은 «멈춘» 것처럼 보였다.
+const Scroll = styled.div`flex:1;overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;min-width:0;&>*{min-width:0;max-width:100%;}&::-webkit-scrollbar{width:6px;}&::-webkit-scrollbar-thumb{background:#E2E8F0;border-radius:3px;}`;
 // #290 — 팝아웃(440px)에서만 여백을 조인다. 터치 타겟(MetaValueRow 28px)·헤더 60px 는 안 건드린다.
 const Section = styled.div`border-bottom:1px solid #F1F5F9;padding:12px 14px;
   body[data-popout='1'] &{padding:10px 12px;}
