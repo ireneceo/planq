@@ -1,5 +1,12 @@
 # Fable 게이트 대기열 → **판정 기록 보관소** (2026-10-08 부터)
 
+## 2026-10-16 · 메일 분류 기준 «일정 안내»(schedule_notice) — 예약 확정 안내가 자동 폴더에 묻힘 (방 b7b3246a) — 설계+완료 **PASS** (1회)
+- Irene: IKEA «Thanks for confirming your Kitchen planning appointment» 가 확인 권장·답변 필요 어디에도 없었다(noreply → automated_sender).
+- 판정: 폴더는 확인 권장(우리가 예약한 것/상대가 예약한 것을 제목으로 못 가름 — 상대의 «new booking» 은 inbound_action 이 먼저 답변 필요로) · 순서 auto_ack 다음·automated_relevant 앞, 두 경로 같은 자리 · human 불변 · 운영 시뮬은 배포 게이트 아님(auto→review 단방향·토글로 되돌림·옛 메일 소급은 수동).
+- 실측: dev 6,162스레드 dry-run 28건 auto→review, 오승격 0(제목 전수 확인), reply 변화 0 · --suite mail 실패 0(새 8검사 · 끄기 대조군) · 설정 API 목록·미리보기 200.
+- 비차단 ①②③(arrives 항 · visit · 본문 confirmation) **반영함** — 다시 재도 28건·판촉 3예 안 걸림. ④ 운영 소급은 미리보기 수 확인 뒤 수동.
+- 범위 주의: 마커 시점 HEAD 앞의 다른 방 커밋 9건(서명 분리·정렬 아이콘 등)은 각 방이 «Fable 대상 아님 · 자체 검증» 으로 보고한 것 — 이 판정이 그것들을 본 것은 아니다.
+
 ## 2026-10-16 · 공유 받기 화면 재설계 «대상 먼저, 형태는 다음» (방 10e2e2be) — UX 설계 1회 · 완성 점검 **PASS**
 - Irene: «파일 공유할 때 어디로 갈지 우리 앱을 너무 어려울 것 같아 … 검토 좀 제대로 해». 설계 판정: 그대로 iPhone 에 내보내면 안 됨(첫 질문이 메뉴 분류 · 대화방 검색/최근 없음 · 결과 안 보임 · 썸네일 없음 · 상단 크롬). 재설계는 docs/NATIVE_SHARE_RECEIVE.md 끝 절.
 - 실측: --suite sharereceive 66/66(폰 360·390·태블릿 820·데스크탑 1440) — 추천 갈림 · 프로젝트→새 폴더→저장 DB 일치 L2 · 결과 글자 = DB 이름 · 썸네일 실제 그려짐(양성 대조군 display:none → 판정 뒤집힘) · 추천 카드 하단 449/740·844 · 대화방 줄 보임/비우면 사라짐 · 최근 칩·검색 · 카톡 카드 회귀 · 빌드 EXIT 0 · guard 72/73.

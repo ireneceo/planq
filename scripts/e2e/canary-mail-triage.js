@@ -248,9 +248,38 @@ async function run() {
   const lockedOff = t.triageInbound({ subject: 'Re: 견적', bodyText: '견적 보내 주실 수 있나요?', fromEmail: 'ceo@client.example.org',
     headers: { 'in-reply-to': '<q-1@irenewp.com>' }, ownEmails: new Set(OWN), isKnownContact: true, off: ['thread_reply', 'known_contact'] });
   ok('잠긴 기준은 off 에 넣어도 꺼지지 않는다', lockedOff.reply_needed === true, JSON.stringify(lockedOff));
+  // ═══ 2026-10-16 일정 안내(schedule_notice) — 예약 확정 안내가 자동 폴더에 묻혔다(IKEA appointment) ═══
+  const ikea = await tri(['From: IKEA <noreply@booking.email.ikea.example>', 'To: help@irenewp.com',
+    'Subject: Thanks for confirming your Kitchen planning appointment with us.'],
+    '<p>Appointment number: KP437429</p><p>Appointment date: 17 October 2026</p><p>Kindly prepare your floor plan.</p>',
+    { from: 'noreply@booking.email.ikea.example', htmlOnly: true });
+  ok('예약 확정 안내(noreply) → 확인 권장 schedule_notice', ikea.status === 'uncertain' && ikea.criterion === 'schedule_notice', JSON.stringify(ikea));
+  const bodyOnly = await tri(['From: Clinic <noreply@clinic.example>', 'To: help@irenewp.com', 'Subject: Your visit details'],
+    '<p>Booking number: A-1029</p><p>Date: 3 Nov</p>', { from: 'noreply@clinic.example', htmlOnly: true });
+  ok('제목은 평범해도 본문 «Booking number:» 칸 → schedule_notice(자동 발송)', bodyOnly.criterion === 'schedule_notice', JSON.stringify(bodyOnly));
+  const krResv = await tri(['From: NOL <noreply@nol.example>', 'To: help@irenewp.com', 'Subject: [NOL] 예약확인서 - 호텔 / 체크인 : 2026.07.17'],
+    '<p>예약 안내</p>', { from: 'noreply@nol.example' });
+  ok('한국어 «예약확인서 … 체크인 :» → schedule_notice', krResv.criterion === 'schedule_notice', JSON.stringify(krResv));
+  //   음성 — 광고·바우처는 올라오면 안 된다
+  const adVisit = await tri(['From: Guide <news@guide.example>', 'To: help@irenewp.com', 'Subject: 10 restaurants worth a visit right now',
+    'List-Unsubscribe: <https://guide.example/u>'], '<p>Book your table today</p>', { from: 'news@guide.example' });
+  ok('광고 «worth a visit» → schedule_notice 아님', adVisit.criterion !== 'schedule_notice', JSON.stringify(adVisit));
+  const voucher = await tri(['From: Air <noreply@air.example>', 'To: help@irenewp.com', 'Subject: Free Duty-free Voucher from Add-On Bundle Booking No: GH8THN'],
+    '<p>Enjoy your voucher</p>', { from: 'noreply@air.example' });
+  ok('바우처 «Booking No:»(제목, 확정 낱말 없음) → schedule_notice 아님', voucher.criterion !== 'schedule_notice', JSON.stringify(voucher));
+  const mktBody = await tri(['From: Promo <promo@hotel.example>', 'To: help@irenewp.com', 'Subject: Summer deals',
+    'List-Unsubscribe: <https://hotel.example/u>'], '<p>Booking number: use code SUMMER</p>', { from: 'promo@hotel.example' });
+  ok('대량 발송은 본문 칸 이름으로 안 올린다 → schedule_notice 아님', mktBody.criterion !== 'schedule_notice', JSON.stringify(mktBody));
+  const ikeaOff = await tri(['From: IKEA <noreply@booking.email.ikea.example>', 'To: help@irenewp.com',
+    'Subject: Thanks for confirming your Kitchen planning appointment with us.'], '<p>Appointment date: 17 October 2026</p>',
+    { from: 'noreply@booking.email.ikea.example', htmlOnly: true, off: ['schedule_notice'] });
+  ok('schedule_notice 끄면 → 자동 폴더 · 켜면(위) 확인 권장', ikeaOff.status === 'open' && ikeaOff.criterion !== 'schedule_notice' && ikea.criterion === 'schedule_notice', JSON.stringify(ikeaOff));
+  const ikeaLegacy = t.retriageStored({ triage: 'automated', subject: 'We\'re pleased to confirm your appointment with us.', bodyText: '',
+    fromEmail: 'noreply@booking.email.ikea.example', headers: {}, headersComplete: false, ownEmails: OWN });
+  ok('헤더 없는 재판정 — 예약 확정 → 확인 권장(schedule_notice)', ikeaLegacy.criterion === 'schedule_notice' && ikeaLegacy.status === 'uncertain', JSON.stringify(ikeaLegacy));
   //   카탈로그 — 엔진이 쓰는 기준 id 가 전부 목록에 있다(설명과 코드가 갈라지지 않게)
   const CAT = require('/opt/planq/dev-backend/services/mailCriteriaCatalog');
-  const seen = [ack, ooo, order, ticket, wadiz, spamKnown, spamStranger, pq, bought, adOrder, dsn, humanThanks, roleNotice, orderOff, ackOff, lockedOff, gfm, fail, ad, nl, known]
+  const seen = [ack, ooo, order, ticket, wadiz, spamKnown, spamStranger, pq, bought, adOrder, dsn, humanThanks, roleNotice, orderOff, ackOff, lockedOff, ikea, bodyOnly, krResv, ikeaOff, ikeaLegacy, gfm, fail, ad, nl, known]
     .map((r) => r.criterion).filter(Boolean);
   const missing = [...new Set(seen)].filter((id) => !CAT.BY_ID.has(id));
   ok('판정이 낸 기준 id 가 전부 카탈로그에 있다', missing.length === 0, missing.join(',') || `${new Set(seen).size}종`);

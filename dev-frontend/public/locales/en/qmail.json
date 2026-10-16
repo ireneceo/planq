@@ -214,6 +214,7 @@
     "security_code": "Security notice",
     "spam_rescue": "Known sender",
     "auto_ack": "Received",
+    "schedule_notice": "Schedule",
     "platform_notice": "PlanQ notice",
     "manual": "Moved by you",
     "rule": "Rule"
@@ -843,6 +844,10 @@
     "auto_ack": {
       "title": "Auto-replies and receipt confirmations",
       "desc": "“We have received your email”, “Your inquiry has been received”, out-of-office replies. Nobody to reply to, but it confirms the other side received your mail."
+    },
+    "schedule_notice": {
+      "title": "Schedule notices (booking confirmed · changed · cancelled)",
+      "desc": "“Your appointment is confirmed”, “Appointment date: …”, booking reminders, changes and cancellations — automated mail about something with a date on it. Nobody to reply to, but missing it means missing the appointment. Promotional wording only counts when it comes with words like confirmed/changed/cancelled or a field such as “Booking number:”."
     },
     "automated_relevant": {
       "title": "Automated, but about work",

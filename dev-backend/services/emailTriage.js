@@ -440,6 +440,19 @@ function isAutoAck(headers, subject, bodyText, { useBody = true } = {}) {
   return CAT.regexOf('auto_ack_body').test(plainText(bodyText).slice(0, 600));
 }
 
+/** 일정 안내(예약 확정·리마인더·변경·취소) — 2026-10-16 schedule_notice. 사람 메일이 아닐 때만 부른다.
+ *  제목은 늘 본다. 본문(앞 1500자) «예약 번호:»·«Appointment date:» 칸 이름은 자동 발송(automated)일 때만 —
+ *  대량 발송(marketing)은 제목으로만 올린다(광고 본문에 «Booking No:» 를 다는 바우처가 있다).
+ *  우리 시스템(PlanQ) 알림·우리가 보낸 것은 뺀다 — 그쪽은 platform_notice·self_sender 가 따로 다룬다. */
+function isScheduleNotice({ triage, subject, bodyText, fromEmail, ownEmails }) {
+  if (isFromOurPlatform(fromEmail) || isSelfSender(fromEmail, ownEmails)) return false;
+  const s = String(subject || '');
+  if (hasAdPrefix(s) || isBounce(fromEmail, s)) return false;
+  if (CAT.regexOf('schedule_notice_subject').test(s)) return true;
+  if (triage !== 'automated') return false;
+  return CAT.regexOf('schedule_notice_body').test(plainText(bodyText).slice(0, 1500));
+}
+
 /** 상대의 행동이 도착했다는 알림(새 주문·새 문의·답변 도착) — 2026-10-15 inbound_action. **제목만** 본다.
  *  먼저 거른다: 우리 시스템(PlanQ) 알림(앱 안에서 이미 알린다) · 반송 · (광고) · 내가 산 주문 알림(켜져 있으면). */
 function isInboundAction({ subject, fromEmail, ownEmails, off }) {
@@ -569,6 +582,12 @@ function triageInbound({ subject, bodyText, fromEmail, headers, ownEmails, ownMa
     return out('uncertain', false, 'auto_ack', 'auto_ack');
   }
 
+  // 일정 안내(예약 확정·변경·취소) — 날짜가 박힌 약속이라 자동 폴더에 묻히면 놓친다(확인 권장).
+  if (triage !== 'human' && c.status === 'open' && on('schedule_notice')
+      && isScheduleNotice({ triage, subject, bodyText, fromEmail, ownEmails })) {
+    return out('uncertain', false, 'schedule_notice', 'schedule_notice');
+  }
+
   // 자동 발송(automated)이어도 내용이 업무면 확인 권장으로 올린다 — 결제 완료·보고서·시스템 업무
   // 안내가 '자동·마케팅' 폴더에 묻혀 아무도 안 보는 일을 막는다. 답장할 상대는 없으니 답변 필요는 아니다.
   //   우리 시스템(PlanQ) 알림은 따로 끌 수 있게 platform_notice 로 가른다(앱 안에서 이미 알린다).
@@ -649,6 +668,11 @@ function retriageStored({ triage, subject, bodyText, fromEmail, headers, ownEmai
   // 자동응답 — 헤더가 없으니 제목·본문만(사람 메일은 제외 — triageInbound 와 같다).
   if (triage !== 'human' && on('auto_ack') && !isBounce(fromEmail, subject) && isAutoAck({}, subject, bodyText)) {
     return { triage, status: 'uncertain', reply_needed: false, uncertain_reason: 'auto_ack', criterion: 'auto_ack' };
+  }
+
+  // 일정 안내 — triageInbound 와 같은 자리(자동응답 다음).
+  if (triage !== 'human' && on('schedule_notice') && isScheduleNotice({ triage, subject, bodyText, fromEmail, ownEmails })) {
+    return { triage, status: 'uncertain', reply_needed: false, uncertain_reason: 'schedule_notice', criterion: 'schedule_notice' };
   }
 
   // #200 — 헤더가 없어도 법정 광고 표기(제목 맨 앞 `(광고)`)는 확실하다. 이 한 가지만 triage 를 고쳐준다.
@@ -749,6 +773,7 @@ module.exports = {
   replyVerdict,
   isAutoAck,
   isInboundAction,
+  isScheduleNotice,
   marketingCriterion,
   // 무료메일 도메인 — 회사 추정에서 제외하는 데 쓴다(services/saleInbox).
   //   목록을 베껴 가면 한쪽만 늘어난다. 여기가 단일 원천이다.

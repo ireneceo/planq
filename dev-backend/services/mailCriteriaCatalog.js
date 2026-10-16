@@ -153,6 +153,25 @@ const TERMS = {
     '답변이\\s*(등록|도착|달렸)', '문의하신 내용에 답변', '회신이?\\s*도착',
     '님이\\s*(답변|회신|메시지|댓글|문의)',
   ],
+  // 2026-10-16 — 일정이 잡혔다·바뀌었다는 안내(예약 확정·리마인더·변경·취소). 답장할 상대는 없지만 날짜가 박힌 약속이다.
+  //   Irene: *"스케줄 제대로 예약된 안내인데 확인권장에도 안나오고 답변필요에도 안나와. 이런 미스는 너무 커"*
+  //   (IKEA «Thanks for confirming your Kitchen planning appointment» — noreply 발신이라 자동 폴더에 묻혔다.
+  //    dev 실측 같은 계열: Airbnb «Reservation confirmed - … arrives» · «Canceled: Reservation …» · AirAsia «(CONFIRMED) Booking No» · NOL «예약확인서»)
+  //   ★ «visit»·«arrives <월>»·본문 «confirmation number» 는 뺐다(Fable 비차단 — 판촉 «Reminder: visit us»·주문 영수증이 샌다).
+  //   ★ «reservation»·«booking» 단독은 쓰지 않는다 — «Booking No» 바우처·«worth a visit» 같은 광고가 걸린다. 확정·변경 낱말과 짝으로만.
+  schedule_notice_subject: [
+    '\\b(appointment|reservation|booking|consultation)s?\\b.{0,40}\\b(confirm(ed|ation)?|reminder|cancell?(ed|ation)|chang(e|ed)|reschedul(e|ed)|updated|accepted|approved)\\b',
+    '\\b(confirm(ed|ing|ation)?|reminder|cancell?(ed|ation)|reschedul(e|ed))\\b.{0,40}\\b(appointment|reservation|booking|consultation)s?\\b',
+    '\\breservation for\\b.{0,80}\\b\\d+\\s*[–-]\\s*\\d+\\b',
+    '예약\\s*(확정|완료|확인서?|변경|취소|안내|알림)', '예약(이|가)\\s*(확정|완료|변경|취소)', '(방문|상담|진료|미팅|회의)\\s*예약',
+    '일정\\s*(확정|변경|취소)\\s*(안내|알림)', '체크인\\s*[:：]',
+  ],
+  // 본문은 «예약 번호:»·«Appointment date:» 같은 칸 이름만 본다(자동 발송일 때만, 앞 1500자) — 광고 문장은 칸 이름을 달지 않는다.
+  schedule_notice_body: [
+    '\\b(appointment|reservation|booking) (number|no\\.?|date|time|code|id)\\s*[:#]',
+    '\\bcheck-?in( date| time)?\\s*:',
+    '예약\\s*(번호|일시|일자|날짜|시간)\\s*[:：]', '체크인\\s*[:：]',
+  ],
   // 2026-10-15 (Fable 설계 §2①) — 자동응답·접수 확인. 제목은 늘 보고, 본문(앞 600자)은 사람 메일이 아닐 때만.
   auto_ack_subject: [
     '\\bautomatic reply\\b', '\\bauto-?reply\\b', '\\bout of (the )?office\\b', '\\bautoreply\\b',
@@ -183,6 +202,8 @@ const CATALOG = [
   { id: 'critical_notice', folder: 'review', lockable: false, order: 70, terms: ['critical_notice'] },
   { id: 'auto_ack', folder: 'review', lockable: false, order: 80, terms: ['auto_ack_subject', 'auto_ack_body'],
     examples: ['Thank you for reaching out to Aspiration. We have received your email in good order.', 'Automatic reply: …'] },
+  { id: 'schedule_notice', folder: 'review', lockable: false, order: 85, terms: ['schedule_notice_subject', 'schedule_notice_body'],
+    examples: ['Thanks for confirming your Kitchen planning appointment with us.', 'Reservation confirmed - Gaelle arrives Oct 13', '[NOL] 예약확인서 - … / 체크인 : 2026.07.17'] },
   { id: 'automated_relevant', folder: 'review', lockable: false, order: 90, terms: ['automated_relevant'] },
   { id: 'platform_notice', folder: 'review', lockable: false, order: 100 },
   { id: 'unclear_intent', folder: 'review', lockable: true, order: 110 },
