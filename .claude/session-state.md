@@ -2,6 +2,33 @@
 **마지막 업데이트:** 2026-10-16 (방 1740e0b9 · 정기 점검 배포 막힘 고침)
 **작업 상태:** 완료 — dev 링크 앱 가로채기 웹 차단 준비(sudo 1건 Irene) · 이전: 메일 사칭 검사(Fable PASS · 운영 미배포) · 이전: AI 앱 여러 워크스페이스(Fable PASS · 운영 미배포) · 이전: 급여 P2~P4(서버 Fable PASS · 화면 빌드·3폭 실측 72/72 · 운영 미배포)
 
+### 완료(운영 반영은 Irene 할 일): 배포 후 운영 메일 목록 0건 · request_throttled (방 ce0f7668 · 2026-10-16 · [Opus])
+- 원인: deploy-planq.sh 보호 목록의 `'data'`(q-note/data 용)가 앵커 없어 `dev-backend/services/data/confusables-latin.json` 이 운영에 안 감 →
+  `GET /email-threads` 매번 500(운영 out 로그 03:33 실측) → 화면 apiFetch 폭주 차단이 503 `request_throttled` 로 막음.
+- 고침 db1143b4: `'/data/'` 앵커 + `assert_protect_keeps_tracked`(보호 목록이 커밋 파일을 빼면 배포 중단). 대조군 옛 패턴 FAIL·새 패턴 PASS · 운영 q-note/data 보호 유지(rsync -n data 줄 0).
+- Irene 할 일: `! cd /opt/planq && ./scripts/deploy-planq.sh --routine` (방 권한으로 배포 막힘) — 상황판에 올림.
+
+### 나중에 — 일시정지로 멈춤: 운영 배포 (방 419493aa · 2026-10-16 · [Opus])
+- 무엇: Irene 상황판 답 «권고대로 진행» = 배포 버튼으로 운영 배포(10/13 이후 쌓인 커밋). 버전은 안 올림(배포 버튼 = 정기 점검식 --routine).
+- 어디까지: dev 헬스 OK · 상황판 Fable 대기 planq 0건 · `./scripts/deploy-planq.sh --dry-run --routine` EXIT 0(커밋 ed944db4 깨끗한 사본, 게이트 통과). 실제 배포는 **아직 안 함** — 운영 변경 0. 이 방이 고친 파일 없음.
+- 다시 시작하면: HEAD 가 바뀌었으면 dry-run 다시 → `./scripts/deploy-planq.sh --routine`(백그라운드) → 3단계 검증(https://planq.kr/api/health · 운영 pm2) → 배포 방 산출물만 경로 지정 커밋.
+- 배포 뒤 수동 운영 실행 거리(각 완료 절 참조): seed-wiki-content.js · retriage-mail.js(dry-run→--apply) · backfill-conv-viewer.js · migrate-client-managed.js --apply 백필.
+
+
+### 완료: 청구서 발행 권한 안내(영어) + 청구서↔프로젝트↔Q sale 고객 연결 (방 115a6b77 · 2026-10-16 · [Opus]) — 운영 미배포
+- 원문: «관리자 아니면 청구서 발행 안된다는 안내멘트가 한국어 설정인데 영어로 나와. 청구서도 프로젝트랑 Q sales 고객이랑 연동·동기화되서 문제 없게».
+- ① 영어 안내: 서버 `assertInvoiceMutationOwner` 가 영어 문장을 실어 보내고 발행 창·상세가 원문을 띄웠다 → 서버는 코드 `owner_only` 만 · 화면은
+  `pages/QBill/invoiceErrors.invoiceErrorText` 한 곳(qbill `errors.*` ko/en, 옛 서버 «owner_only — …» 도 앞 토막으로 판정) · 발행 창은 대표가 아니면
+  [발행] 꺼짐 + 본문 안내 줄(폰에서도 보임) · 상세 «결제 완료 처리» 에 없던 catch 추가. 규칙(발행·결제 처리는 대표만)은 그대로.
+- ② 연결: 발행 창에 «프로젝트» 칸(고른 고객이 연결된 프로젝트만, 고객을 바꾸면 안 맞는 프로젝트는 비움) · 고객 목록을 `GET /api/invoices/:biz/client-options`
+  (Q bill 쓰기 권한 · 청구에 필요한 칸 + 연결 프로젝트, 술어 clientAccess.projectsByClient)로 — Q sale 권한 없는 청구 담당자도 고를 수 있다 ·
+  POST/PUT 이 «고객이 그 프로젝트에 연결됐나» 를 본다(`tenantRef.assertClientInProject` → 400 client_not_in_project, 외부 수신자는 검사 안 함) ·
+  PUT 이 project_id 를 받는다(안 보내면 유지) · 프로젝트를 안 골랐고 출처 문서가 그 고객의 프로젝트 문서면 그 프로젝트로 자동 연결(아니면 붙이지도 거절하지도 않음).
+- 검증: 실HTTP 20/20(연결·어긋남 400·외부 수신자·PUT 유지/비우기/어긋남/재연결·거래 탭·Q sale 기록·멤버 발행 403 코드만·client 역할 403·출처 자동 연결 양/음) ·
+  화면 3폭 × 대표/멤버 43/43(프로젝트 칸 보임·가로 넘침 0·영어 0·멤버 버튼 꺼짐+안내 보임 — 폰에서 안내가 숨던 것을 잡아 고침) · build EXIT 0 · guard 72/73 · health-check 86/86 · secrets 11/11.
+- Fable 안 씀 — 돈 공식·상태 전이 변경 없음. 새 읽기 문은 이미 청구서 쓰기 권한자가 청구서에서 보는 고객 칸만 내리고, 추가된 검사는 거절만 늘린다(자체 검증).
+- 확인용(ws6): 청구서 #5558 «[확인용] 청구서 연결 시험»(고객 66 · 프로젝트 1, 초안).
+
 ### 완료: 정기 점검·배포 버튼이 «배포 스크립트 미커밋» 으로 계속 막히던 것 (방 1740e0b9 · 2026-10-16 · [Opus] · Fable 게이트)
 - 원문(서버 방 5b750333 넘김): 10-16 00:15 정기 점검 배포가 다른 방의 미커밋 마이그 슬롯 줄 때문에 deploy-planq.sh 자기-미커밋 검사(10-12 C1)에서 멈춤. Irene «도대체 배포가 언제 되는거야? 왜 이렇게 문제가 지속되는 건데?»
 - 고침 ① 11a89574·8498c1ce — 시작 때 HEAD 고정(DEPLOY_PIN) → 그 커밋의 deploy-planq.sh·make-deploy-snapshot.sh 를 /tmp/planq-deploy-self.* 에 꺼내 다시 실행, 사본도 같은 커밋. 미커밋 슬롯 줄은 경고만 하고 불리지 않음. 바꿔치기 대조 두 파일 모두.
@@ -749,6 +776,7 @@
 - 곁: guard-native-release 실패 1건(nativeShare.ts 의 @capacitor/core static import — 실해 없음). iOS 작업 때 같이 정리.
 - 10/12 Codemagic 안드로이드 빌드 1시간 멈춤 신고 → 같은 커밋(origin/main 3c4231e8)을 서버에서 CI 단계 그대로 재현: npm ci 18초 · cap:beta:android 통과 · bundleRelease 3분22초 · AAB 검사 통과 · google-play 번호 조회는 1초 만에 실패(정상 경로). 코드 원인 아님 → Codemagic 쪽(대기열·한 단계 멈춤). «Irene 할 일: 멈춘 빌드 취소·재시도 + 멈춘 단계 이름 메모» 올림.
 - 10/15 Irene: 취소·재시도해도 계속 돌기만 함(멈춘 단계 이름은 못 받음, «다른 작업방에 말했어» — 그 뒤 codemagic.yaml·android 커밋 0건). 빌드 시간 한도 60분인데 1시간 넘게 돈다 = 실행이 아니라 «대기열» 가능성 큼. → «Irene 할 일: Codemagic API 토큰을 secrets/codemagic-token 에(서버 창 read -s)» 올림. 들어오면 API 로 빌드 상태·단계 로그를 직접 읽는다(빌드 시작·취소는 안 함).
+- 10/16 Irene: «빌드 다 했어» → 토큰 할 일 뺌. 남은 것: Play 업로드·실기기 확인(«안드로이드 앱 새 빌드 올리기» 할 일 그대로) · 아이폰은 Apple 설정 대기.
 
 ### 정기 점검 10/12 (방 69426d00 · [Opus])
 - 개발완료: health 84/84 · guard 68/69 · e2e tenant 0 · 위키 커버리지 통과 → 10/11 작업 6건 DEVELOPMENT_PLAN·next.json 기록.

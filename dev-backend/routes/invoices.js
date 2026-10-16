@@ -28,7 +28,7 @@ const { sequelize } = require('../config/database');
 // 금액 반올림(통화별) · 청구서 번호 · 테넌트 참조 검증 — 각각 한 곳 (docs/FIX_0AB_MONEY_DESIGN.md B-①②③)
 const { roundMoney } = require('../services/money');
 const { nextInvoiceNumber } = require('../services/invoiceNumber');
-const { assertClientInBusiness, assertProjectInBusiness } = require('../services/tenantRef');
+const { assertClientInBusiness, assertProjectInBusiness, assertClientInProject, isClientInProject } = require('../services/tenantRef');
 const { Op } = require('sequelize');
 const rateLimit = require('express-rate-limit');
 const { ipKeyGenerator } = require('express-rate-limit');
@@ -76,7 +76,8 @@ function invoiceSignal(inv) {
 function assertInvoiceMutationOwner(req, res) {
   const ok = req.businessRole === 'owner' || req.user?.platform_role === 'platform_admin';
   if (!ok) {
-    errorResponse(res, 'owner_only — financial mutation requires workspace owner or platform admin', 403);
+    // 코드만 보낸다 — 문장을 실으면 화면이 그대로 띄워 한국어 설정에서도 영어가 나왔다(2026-10-16). 화면이 qbill:errors.ownerOnly 로 옮긴다.
+    errorResponse(res, 'owner_only', 403);
     return false;
   }
   return true;
@@ -856,6 +857,7 @@ router.post('/:businessId', authenticateToken, checkBusinessAccess, requireMenu(
 
     // 출처 post 검증 — 같은 business 의 published 게시물만 허용 (category 는 자유 분류라 검증 X)
     let sourcePostId = null;
+    let sourceProjectId = null;
     if (source_post_id) {
       const sp = await Post.findOne({
         where: { id: Number(source_post_id), business_id: req.params.businessId },
@@ -867,6 +869,7 @@ router.post('/:businessId', authenticateToken, checkBusinessAccess, requireMenu(
         return errorResponse(res, 'source post must be published', 400);
       }
       sourcePostId = sp.id;
+      sourceProjectId = sp.project_id || null;
     }
 
     // 분할 모드 검증
@@ -897,7 +900,12 @@ router.post('/:businessId', authenticateToken, checkBusinessAccess, requireMenu(
 
     // 참조 칸은 이 워크스페이스의 것만 — 남의 client_id 를 넣으면 그 고객 정보가 응답·메일로 나간다(B-③)
     const clientIdChecked = await assertClientInBusiness(client_id, req.params.businessId, { transaction: t });
-    const projectIdChecked = await assertProjectInBusiness(project_id, req.params.businessId, { transaction: t });
+    // 프로젝트를 안 골랐는데 출처 문서가 프로젝트 문서면 그 프로젝트로 — 프로젝트 «거래» 탭에서 빠지지 않게.
+    //   단 그 프로젝트에 고른 고객이 연결돼 있을 때만(아니면 묻지 않고 붙이지 않는다 — 사람이 고른 값이 아니다).
+    const derivedProjectId = (!project_id && sourceProjectId && await isClientInProject(clientIdChecked, sourceProjectId, req.params.businessId, { transaction: t }))
+      ? sourceProjectId : null;
+    const projectIdChecked = await assertProjectInBusiness(project_id || derivedProjectId, req.params.businessId, { transaction: t });
+    await assertClientInProject(clientIdChecked, projectIdChecked, req.params.businessId, { transaction: t });
 
     const invoice_number = await nextInvoiceNumber(Number(req.params.businessId), { transaction: t });
     const vatRateNum = vat_rate !== undefined ? Number(vat_rate) : 0.1;
@@ -1035,6 +1043,36 @@ router.get('/:businessId/source-candidates', authenticateToken, checkBusinessAcc
       limit: 50,
     });
     successResponse(res, posts);
+  } catch (error) { next(error); }
+});
+
+// ─── 발행 창 고객 목록 (2026-10-16) ───
+// GET /:businessId/client-options — 청구서 발행 창의 «받는 고객» 고르기 전용.
+//   옛 화면은 GET /api/clients/:biz(Q sale 읽기 권한)를 불러, Q sale 권한이 없는 청구 담당자는 고객을 못 골랐다.
+//   여기서는 청구서 작성에 필요한 칸만 내리고(메모·영업 단계·연락처 이력 없음), 연결 프로젝트를 같이 싣는다 —
+//   발행 창이 «이 고객의 프로젝트» 를 고르게 하기 위해. 연결 술어는 Q sale 과 같은 clientAccess.projectsByClient.
+router.get('/:businessId/client-options', authenticateToken, checkBusinessAccess, requireMenu('qbill', 'write'), async (req, res, next) => {
+  try {
+    if (req.businessRole === 'client') return errorResponse(res, 'forbidden', 403);
+    const businessId = Number(req.params.businessId);
+    const clients = await Client.findAll({
+      where: { business_id: businessId },
+      attributes: ['id', 'user_id', 'status', 'display_name', 'company_name', 'biz_name', 'biz_tax_id', 'biz_ceo',
+        'biz_address', 'biz_address_en', 'is_business', 'country', 'tax_invoice_email', 'billing_contact_email', 'invite_email'],
+      order: [['created_at', 'DESC']],
+    });
+    const { projectsByClient } = require('../services/clientAccess');
+    const linked = await projectsByClient(businessId, clients);
+    const out = clients.map((c) => ({
+      id: c.id, user_id: c.user_id, status: c.status,
+      display_name: c.display_name, company_name: c.company_name,
+      biz_name: c.biz_name, biz_tax_id: c.biz_tax_id, biz_ceo: c.biz_ceo,
+      biz_address: c.biz_address, biz_address_en: c.biz_address_en,
+      is_business: !!c.is_business, country: c.country,
+      tax_invoice_email: c.tax_invoice_email, billing_contact_email: c.billing_contact_email, invite_email: c.invite_email,
+      projects: (linked.get(c.id) || []).map((p) => ({ id: p.id, name: p.name, status: p.status })),
+    }));
+    successResponse(res, out);
   } catch (error) { next(error); }
 });
 
@@ -1253,6 +1291,8 @@ router.put('/:businessId/:id', authenticateToken, checkBusinessAccess, requireMe
       title, client_id, due_date, recipient_email, recipient_business_name, recipient_business_number,
       notes, items, vat_rate, installment_mode, installments, source_post_id, currency, receipt_type,
     } = req.body;
+    // project_id 는 보낸 경우에만 바꾼다(안 보낸 옛 화면이 연결을 지우지 않게) — 임시 저장본에서 프로젝트를 고칠 수 있게 2026-10-16 추가
+    const hasProject = Object.prototype.hasOwnProperty.call(req.body, 'project_id');
     if (!title) { await t.rollback(); return errorResponse(res, 'Title required', 400); }
     if (!itemsAmountsValid(items)) { await t.rollback(); return errorResponse(res, 'invalid_amount', 400); }
     const receiptType = ['tax_invoice', 'cash_receipt'].includes(receipt_type) ? receipt_type : 'none';
@@ -1293,9 +1333,14 @@ router.put('/:businessId/:id', authenticateToken, checkBusinessAccess, requireMe
     const cur = currency || invoice.currency || 'KRW';
     // 참조 칸 테넌트 검증(B-③) — 생성 라우트와 같은 함수
     const clientIdChecked = await assertClientInBusiness(client_id, req.params.businessId, { transaction: t });
+    const projectIdNext = hasProject
+      ? await assertProjectInBusiness(req.body.project_id, req.params.businessId, { transaction: t })
+      : invoice.project_id;
+    await assertClientInProject(clientIdChecked, projectIdNext, req.params.businessId, { transaction: t });
 
     await invoice.update({
       client_id: clientIdChecked,
+      project_id: projectIdNext,
       title,
       due_date: due_date || null,
       recipient_email: recipient_email || null,

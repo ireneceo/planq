@@ -15,11 +15,13 @@ import { useEscapeStack } from '../../hooks/useEscapeStack';
 import { useAuth } from '../../contexts/AuthContext';
 import {
   formatMoney, roundMoney, currencyDecimals, missingClientBizFields,
-  listClientsForBilling, listSourceCandidates, findConversationForClient,
+  listClientOptionsForInvoice, listSourceCandidates, findConversationForClient,
   getBusinessInfo, createInvoice, updateInvoice, getInvoice, sendInvoice,
   type Currency, type ApiClientLite, type ApiSourcePost, type ApiBusinessInfo, type ApiConvFound,
 } from '../../services/invoices';
 import PlanQSelect, { type PlanQSelectOption } from '../../components/Common/PlanQSelect';
+import { invoiceCapsOf, invoiceViewerOf } from './invoiceCaps';
+import { invoiceErrorText } from './invoiceErrors';
 
 interface Props {
   open: boolean;
@@ -61,6 +63,9 @@ export default function NewInvoiceModal({ open, onClose, prefillSplit, prefillPo
   const { user } = useAuth();
   const navigate = useNavigate();
   const businessId = user?.business_id ? Number(user.business_id) : null;
+  // 발행(send)은 대표만(서버 assertInvoiceMutationOwner) — 판정은 invoiceCaps 한 곳. 멤버는 임시 저장까지.
+  //   옛: 멤버도 [발행] 이 눌려 초안을 만든 뒤 서버 403 영어 문장이 그대로 떴다(2026-10-16 신고).
+  const canIssue = invoiceCapsOf(invoiceViewerOf(user)).canSend;
   // 발행일 기본값 = 워크스페이스 타임존 기준 실제 오늘 (옛 하드코딩 '2026-04-27' 버그 fix).
   const todayStr = useMemo(() => todayInTz(user?.workspace_timezone || 'Asia/Seoul'), [user?.workspace_timezone]);
   useBodyScrollLock(open);
@@ -182,7 +187,7 @@ export default function NewInvoiceModal({ open, onClose, prefillSplit, prefillPo
     if (!open || !businessId) return;
     Promise.all([
       getBusinessInfo(businessId).catch(() => null),
-      listClientsForBilling(businessId).catch(() => []),
+      listClientOptionsForInvoice(businessId).catch(() => []),
     ]).then(([info, list]) => {
       setBusinessInfo(info);
       setClients(list);
@@ -380,6 +385,22 @@ export default function NewInvoiceModal({ open, onClose, prefillSplit, prefillPo
     return { value: c.id, label: `${base}${tag}` };
   }), [clients, t]);
 
+  // 프로젝트 고르기 — 고른 고객이 연결된 프로젝트만(서버 client-options 가 Q sale 과 같은 술어로 싣는다).
+  //   지금 값이 목록에 없으면(프로젝트에서 열었는데 아직 목록이 안 왔다 등) 그 값을 지우지 않고 보여 준다.
+  const projectOptions: PlanQSelectOption[] = useMemo(() => {
+    const list = (client?.projects || []).map(p => ({ value: p.id, label: p.name }));
+    if (projectId && !list.some(o => o.value === projectId)) list.unshift({ value: projectId, label: projectName || `#${projectId}` });
+    return list;
+  }, [client, projectId, projectName]);
+  /** 사람이 고객을 바꾸면 — 새 고객이 연결 안 된 프로젝트는 비운다(서버가 client_not_in_project 로 거절한다) */
+  const pickClient = (nextId: number | null) => {
+    setClientId(nextId);
+    setSourcePostId(null);
+    setOverrideBiz({});
+    const next = nextId ? clients.find(c => c.id === nextId) : null;
+    if (projectId && next && !(next.projects || []).some(p => p.id === projectId)) { setProjectId(null); setProjectName(''); }
+  };
+
   const sourceOptions: PlanQSelectOption[] = useMemo(() => sourceCandidates.map(p => ({
     value: p.id,
     label: `[${p.category ? t(`kind.${p.category}`, { defaultValue: p.category }) : t('kind.document', { defaultValue: '문서' })}] ${p.title}`,
@@ -479,6 +500,7 @@ export default function NewInvoiceModal({ open, onClose, prefillSplit, prefillPo
   };
 
   const submit = async (asDraft: boolean) => {
+    if (!asDraft && !canIssue) return;  // 버튼도 꺼져 있다 — Enter 등 다른 길로 들어와도 서버 403 까지 가지 않게
     if (submitting) return;
     if (!businessId) { setErrors([t('newInvoice.misc.selectWorkspaceFirst', { defaultValue: '워크스페이스를 먼저 선택하세요' }) as string]); return; }
     if (!asDraft) {
@@ -542,7 +564,7 @@ export default function NewInvoiceModal({ open, onClose, prefillSplit, prefillPo
       }
       onClose();
     } catch (err) {
-      setErrors([(err as Error).message || (t('newInvoice.misc.issueFailed', { defaultValue: '발행 실패' }) as string)]);
+      setErrors([invoiceErrorText(err, t) || (err as Error).message || (t('newInvoice.misc.issueFailed', { defaultValue: '발행 실패' }) as string)]);
     } finally {
       setSubmitting(false);
     }
@@ -643,7 +665,7 @@ export default function NewInvoiceModal({ open, onClose, prefillSplit, prefillPo
                 <PlanQSelect
                   options={clientOptions}
                   value={clientOptions.find(o => o.value === clientId) || null}
-                  onChange={(opt) => { setClientId(opt ? Number((opt as PlanQSelectOption).value) : null); setSourcePostId(null); setOverrideBiz({}); }}
+                  onChange={(opt) => pickClient(opt ? Number((opt as PlanQSelectOption).value) : null)}
                   placeholder={t('newInvoice.to.selectPh') as string}
                   isClearable
                   isSearchable
@@ -738,8 +760,35 @@ export default function NewInvoiceModal({ open, onClose, prefillSplit, prefillPo
             </Section>
           </SectionGrid>
 
-          {/* 프로젝트 연결 표시 — 프로젝트에서 발행 시 */}
-          {projectId && (
+          {/* 프로젝트 — 기존 고객이면 그 고객의 프로젝트 중에서 고른다(2026-10-16: 옛엔 프로젝트에서 열 때만 붙어
+               Q Bill 에서 바로 만든 청구서는 프로젝트 «거래» 탭에 안 보였다) */}
+          {recipientMode === 'client' && client && (
+            <Section data-testid="invoice-project-section">
+              <SectionLabel>{t('newInvoice.project.label') as string}</SectionLabel>
+              {projectOptions.length === 0 ? (
+                <SourceEmpty>{t('newInvoice.project.noProjects') as string}</SourceEmpty>
+              ) : (
+                <>
+                  <SourceHint>{t('newInvoice.project.hint') as string}</SourceHint>
+                  <PlanQSelect
+                    options={projectOptions}
+                    value={projectOptions.find(o => o.value === projectId) || null}
+                    onChange={(opt) => {
+                      const o = opt as PlanQSelectOption | null;
+                      setProjectId(o ? Number(o.value) : null);
+                      setProjectName(o ? String(o.label) : '');
+                    }}
+                    placeholder={t('newInvoice.project.none') as string}
+                    isClearable
+                    isSearchable
+                  />
+                </>
+              )}
+            </Section>
+          )}
+
+          {/* 프로젝트 연결 표시 — 외부 수신자인데 프로젝트에서 발행했을 때 */}
+          {recipientMode === 'external' && projectId && (
             <ProjectLink>
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 17H7A5 5 0 0 1 7 7h2"/><path d="M15 7h2a5 5 0 0 1 0 10h-2"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
               {t('newInvoice.projectLinked', { defaultValue: '이 청구서는 프로젝트에 연결됩니다' }) as string}
@@ -1098,6 +1147,11 @@ export default function NewInvoiceModal({ open, onClose, prefillSplit, prefillPo
             </Section>
           )}
 
+          {/* 발행 권한 안내 — 버튼만 꺼 두면 폰에서는 이유가 안 보인다(title 은 터치에서 안 뜨고 바닥줄 요약은 폰에서 숨는다) */}
+          {!canIssue && (
+            <OwnerOnlyNote data-testid="invoice-owner-only-hint">{t('newInvoice.ownerOnlyIssue') as string}</OwnerOnlyNote>
+          )}
+
           {/* 에러 */}
           {errors.length > 0 && (
             <ErrorPanel>
@@ -1113,14 +1167,15 @@ export default function NewInvoiceModal({ open, onClose, prefillSplit, prefillPo
           </FooterLeft>
           <FooterRight>
             <FooterSummary>
-              {client && (sendChat || sendEmail) ? (
+              {canIssue && client && (sendChat || sendEmail) ? (
                 <FooterSumText>{t('newInvoice.deliverOpts.after', { list: deliverSummary.join(' · ') })}</FooterSumText>
               ) : null}
             </FooterSummary>
             <SecondaryBtn type="button" onClick={() => submit(true)} disabled={submitting}>
               {isEdit ? t('newInvoice.actions.saveChanges', { defaultValue: '변경 저장' }) as string : t('newInvoice.actions.saveDraft')}
             </SecondaryBtn>
-            <PrimaryBtn type="button" onClick={() => submit(false)} disabled={submitting}>
+            <PrimaryBtn type="button" onClick={() => submit(false)} disabled={submitting || !canIssue}
+              title={!canIssue ? (t('newInvoice.ownerOnlyIssue') as string) : undefined} data-testid="invoice-issue">
               {submitting ? '...' : (sendChat || sendEmail ? t('newInvoice.actions.issueAndSend') : t('newInvoice.actions.issue'))}
             </PrimaryBtn>
           </FooterRight>
@@ -1422,6 +1477,10 @@ const BankAuto = styled.div`
 `;
 const BankAutoTitle = styled.div`font-size: 0.8125rem; font-weight: 700; color: #0F172A; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;`;
 const BankAutoSub = styled.div`font-size: 0.6875rem; color: #64748B;`;
+const OwnerOnlyNote = styled.div`
+  background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px; padding: 10px 12px;
+  font-size: 0.75rem; color: #475569; line-height: 1.5;
+`;
 const ErrorPanel = styled.div`
   background: #FEF2F2; border: 1px solid #FECACA; border-radius: 8px; padding: 10px 12px;
   display: flex; flex-direction: column; gap: 4px;

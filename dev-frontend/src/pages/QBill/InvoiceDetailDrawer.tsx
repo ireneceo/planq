@@ -10,6 +10,7 @@ import DetailDrawer from '../../components/Common/DetailDrawer';
 import ConfirmDialog from '../../components/Common/ConfirmDialog';
 import { apiFetch, useAuth } from '../../contexts/AuthContext';
 import { invoiceViewerOf, invoiceCapsOf, payerCodeOf } from './invoiceCaps';
+import { invoiceErrorText } from './invoiceErrors';
 import { CheckIcon } from '../../components/Common/Icons';
 import {
   formatMoney, invoiceStatusColor, installmentStatusColor,
@@ -256,7 +257,8 @@ export default function InvoiceDetailDrawer({ invoice: initialInvoice, onClose, 
   };
 
   // 재무 헬퍼는 throw 함(403 owner_only·400 등) — catch 없으면 uncaught rejection + 사용자 피드백 0.
-  const financeErr = (e: unknown) => setRemindNote({ tone: 'warn', text: (e as Error).message || (t('detail.financeError', { defaultValue: '처리에 실패했습니다' }) as string) });
+  //   서버 거절 코드는 invoiceErrorText 로 옮긴다 — 원문(영어)을 그대로 띄우던 것(2026-10-16 신고).
+  const financeErr = (e: unknown) => setRemindNote({ tone: 'warn', text: invoiceErrorText(e, t) || (t('detail.financeError', { defaultValue: '처리에 실패했습니다' }) as string) });
   const handleMarkPaid = async (installmentId: number) => {
     if (busy) return;
     setBusy(true); setRemindNote(null);
@@ -381,6 +383,7 @@ export default function InvoiceDetailDrawer({ invoice: initialInvoice, onClose, 
     if (busy) return;
     setBusy(true);
     try { await updateInvoiceStatus(invoice.business_id, invoice.id, 'paid'); await refresh(); }
+    catch (e) { financeErr(e); }
     finally { setBusy(false); }
   };
   const handleMarkInvoicePaid = () => {

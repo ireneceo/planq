@@ -602,7 +602,14 @@
       "publicLink": "Issue a public link automatically",
       "publicLinkTarget": "Public payment page (created on issue)",
       "after": "After issuing: {{list}}"
-    }
+    },
+    "project": {
+      "label": "Project",
+      "none": "No project",
+      "hint": "Only projects this client takes part in are listed. Linked invoices also appear in that project's Transactions tab.",
+      "noProjects": "This client is not in any project."
+    },
+    "ownerOnlyIssue": "Only the workspace owner can issue. Save it as a draft and the owner can review and issue it."
   },
   "payments": {
     "title": "Payments",
@@ -1035,5 +1042,11 @@
     "ended": "Recurring ended",
     "editScopeProject": "Editing this invoice does not change the next ones. To change future invoices, edit the project's monthly billing settings.",
     "editScopeSub": "Editing this invoice does not change the next ones. To change future invoices, edit the client's subscription (plan name, amount)."
+  },
+  "errors": {
+    "ownerOnly": "Only the workspace owner can issue invoices, mark payments or receipts, or delete them.",
+    "clientNotInProject": "This client is not linked to the selected project. Choose another project or leave it empty.",
+    "projectNotInWorkspace": "This project is not in this workspace. Please choose again.",
+    "clientNotInWorkspace": "This client is not in this workspace. Please choose again."
   }
 }

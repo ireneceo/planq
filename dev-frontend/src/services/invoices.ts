@@ -605,6 +605,14 @@ export interface ApiClientLite {
   tax_invoice_email: string | null;
   billing_contact_email: string | null;
   invite_email: string | null;
+  /** 이 고객이 연결된 프로젝트 — 발행 창 고객 목록(client-options)만 싣는다. 판정은 서버 clientAccess.projectsByClient(Q sale 과 같은 술어) */
+  projects?: { id: number; name: string; status: string | null }[];
+}
+
+/** 청구서 발행 창의 고객 목록 — Q bill 쓰기 권한으로 연다(Q sale 권한 없는 청구 담당자도 고를 수 있게) + 연결 프로젝트 */
+export async function listClientOptionsForInvoice(businessId: number): Promise<ApiClientLite[]> {
+  const r = await apiFetch(`/api/invoices/${businessId}/client-options`);
+  return expectOk<ApiClientLite[]>(r);
 }
 
 export async function listClientsForBilling(businessId: number): Promise<ApiClientLite[]> {
