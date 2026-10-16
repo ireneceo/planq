@@ -52,6 +52,19 @@ if (appd && /didRegisterForRemoteNotificationsWithDeviceToken/.test(appd)
   fail('AppDelegate APNs 콜백', 'didRegister/didFailToRegister 가 없으면 iOS 푸시가 전면 무동작한다');
 }
 
+// iOS 로그인 창(ASWebAuthenticationSession, 2026-10-16) — 앱 안 플러그인이라 cap sync 가 등록하지 않는다.
+//   첫 화면이 등록하는 하위 클래스가 아니면 JS 의 isPluginAvailable 이 false 가 되어 조용히 옛 창(SFSafariViewController
+//   — 아이패드에서 하얀 팝오버 → 6자리 코드)으로 떨어진다. 에러는 아무 데도 안 난다.
+{
+  const sb = read(path.join(FE, 'ios/App/App/Base.lproj/Main.storyboard'));
+  const sbOk = sb && /customClass="PlanqBridgeViewController"\s+customModule="App"/.test(sb);
+  const regOk = appd && /class PlanqBridgeViewController:\s*CAPBridgeViewController/.test(appd)
+    && /registerPluginInstance\(PlanqAuthSessionPlugin\(\)\)/.test(appd)
+    && /jsName = "PlanqAuthSession"/.test(appd);
+  if (sbOk && regOk) ok('iOS 로그인 창 플러그인 등록 (Main.storyboard → PlanqBridgeViewController)');
+  else fail('iOS 로그인 창 플러그인 등록', 'Main.storyboard 첫 화면이 PlanqBridgeViewController(customModule App)이고 AppDelegate.swift 가 PlanqAuthSessionPlugin 을 등록해야 한다 — 아니면 앱 로그인이 옛 창으로 떨어진다');
+}
+
 // ── 2. 딥링크 복귀 경로 ────────────────────────────────────────────────
 section('DEEPLINK');
 

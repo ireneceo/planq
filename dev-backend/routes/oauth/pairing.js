@@ -26,6 +26,19 @@ router.post('/google/pair/start', limit('google-pair-start', 20), async (req, re
   }
 });
 
+// ③' 앱이 «코드 입력창을 띄울 때인가» 를 묻는다(로그인 창이 닫힌 순간). 상태 한 단어만 — 코드·계정은 안 나간다.
+//   pair_id 는 추측 불가 128비트라 남의 흐름 상태를 볼 수 없다.
+// audit-exempt: 읽기만 한다 — 세션도 데이터도 바뀌지 않는다
+router.post('/google/pair/status', limit('google-pair-status', 30), async (req, res) => {
+  try {
+    const pairId = req.body && req.body.pair_id;
+    return res.json({ success: true, data: { status: await oauthPairing.status(typeof pairId === 'string' ? pairId : '') } });
+  } catch (e) {
+    console.error('[auth_oauth/pair-status]', e);
+    return res.status(500).json({ success: false, message: 'pair_status_failed' });
+  }
+});
+
 // ④ 앱이 pair_id + **사용자가 브라우저 화면에서 읽어 입력한 6자리**로 세션을 받아간다.
 // audit-exempt: 로그인 감사(auth.login)는 issueSessionCookie(oauth/core.js)가 authAudit.signInOk 로 남긴다 — 여기서 또 쓰면 한 로그인이 두 행
 router.post('/google/claim', limit('google-claim', 10), async (req, res) => {

@@ -1,5 +1,6 @@
 import UIKit
 import Capacitor
+import AuthenticationServices
 
 @UIApplicationMain
 class AppDelegate: UIResponder, UIApplicationDelegate {
@@ -80,4 +81,66 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         NotificationCenter.default.post(name: .capacitorDidFailToRegisterForRemoteNotifications, object: error)
     }
 
+}
+
+// ── 앱 로그인 창 = ASWebAuthenticationSession (2026-10-16) ──
+// Irene(아이패드 앱): "구글계정 자동로그인하는데 팝업이 하얗게 나오고 다시 닫으니까 예전 이상한 코드
+//   넣으라는 잘못된 UI 가 그대로 나와. 구글 원터치 로그인 제대로 되게."
+// 여태 로그인 창은 @capacitor/browser(SFSafariViewController)였다. 그 창은 **planq:// 로 돌아오는 길을
+// 스스로 잡지 못한다** — 서버 302 는 무시하고, 페이지 안 이동은 «열기» 확인을 한 번 더 묻고,
+// 그래도 안 되면 6자리 코드를 손으로 옮기게 했다. 아이패드에서는 팝오버로 떠 하얗게 비었다.
+// ASWebAuthenticationSession 은 iOS 가 OAuth 용으로 만든 창이다(구글 공식 SDK 도 이것을 쓴다):
+//   · 사파리 쿠키를 같이 써서 이미 로그인한 구글 계정이 바로 뜬다(한 번 눌러 고르면 끝)
+//   · planq:// 로 가는 순간 **OS 가 창을 닫고 그 주소를 우리에게 준다** — «열기»·코드 입력이 없다
+// JS 쪽: dev-frontend/src/services/oauth.ts (이 플러그인이 없는 옛 앱은 종전 창으로 간다)
+@objc(PlanqAuthSessionPlugin)
+public class PlanqAuthSessionPlugin: CAPPlugin, CAPBridgedPlugin, ASWebAuthenticationPresentationContextProviding {
+    public let identifier = "PlanqAuthSessionPlugin"
+    public let jsName = "PlanqAuthSession"
+    public let pluginMethods: [CAPPluginMethod] = [
+        CAPPluginMethod(name: "start", returnType: CAPPluginReturnPromise)
+    ]
+    private var session: ASWebAuthenticationSession?
+
+    @objc func start(_ call: CAPPluginCall) {
+        guard let raw = call.getString("url"), let url = URL(string: raw), url.scheme?.lowercased() == "https" else {
+            call.reject("invalid_url")
+            return
+        }
+        let scheme = call.getString("callbackScheme") ?? "planq"
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            self.session?.cancel()
+            let s = ASWebAuthenticationSession(url: url, callbackURLScheme: scheme) { [weak self] callbackURL, error in
+                self?.session = nil
+                if let u = callbackURL {
+                    call.resolve(["url": u.absoluteString])
+                } else if let e = error as? ASWebAuthenticationSessionError, e.code == .canceledLogin {
+                    call.resolve(["canceled": true])
+                } else {
+                    call.reject(error?.localizedDescription ?? "auth_session_failed")
+                }
+            }
+            s.presentationContextProvider = self
+            // false — 사파리에 이미 로그인한 구글 계정을 그대로 쓴다(이것이 «한 번에» 의 근거다).
+            s.prefersEphemeralWebBrowserSession = false
+            self.session = s
+            if !s.start() {
+                self.session = nil
+                call.reject("auth_session_not_started")
+            }
+        }
+    }
+
+    public func presentationAnchor(for session: ASWebAuthenticationSession) -> ASPresentationAnchor {
+        return self.bridge?.viewController?.view.window ?? ASPresentationAnchor()
+    }
+}
+
+// 위 플러그인은 npm 패키지가 아니라 앱 안에 있어 cap sync 가 목록에 넣지 않는다 — 여기서 직접 등록한다.
+// Main.storyboard 의 첫 화면이 이 클래스다(customModule="App").
+class PlanqBridgeViewController: CAPBridgeViewController {
+    override open func capacitorDidLoad() {
+        bridge?.registerPluginInstance(PlanqAuthSessionPlugin())
+    }
 }

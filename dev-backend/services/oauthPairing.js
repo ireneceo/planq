@@ -96,10 +96,24 @@ async function claim(pairId, code) {
   return { ok: true, uid: v.uid };
 }
 
+/**
+ * 앱이 «코드 입력창을 띄울 때인가» 를 묻는다 — 'ready'(브라우저에서 로그인이 끝나 코드가 화면에 떴다) ·
+ * 'pending'(아직) · 'unknown'(만료·없음). 코드도 uid 도 내보내지 않는다.
+ * ★ 2026-10-16 (Irene 아이패드): 로그인 창이 하얗게 떠 그냥 닫았는데 앱이 6자리 코드를 물었다 —
+ *   앱은 «페어링이 열려 있다» 만 보고 띄웠다. 로그인이 끝나지 않았으면 입력할 코드 자체가 없다.
+ */
+async function status(pairId) {
+  if (!pairId || typeof pairId !== 'string' || pairId.length > 64) return 'unknown';
+  const row = await store.get(KIND, pairId);
+  if (!row) return 'unknown';
+  const v = row.payload || {};
+  return v.uid && v.codeHash ? 'ready' : 'pending';
+}
+
 /** 점검용 — 건수만. 내용은 노출하지 않는다. */
 async function size() {
   const { EphemeralToken } = require('../models');
   return EphemeralToken.count({ where: { kind: KIND } });
 }
 
-module.exports = { start, attach, claim, size, TTL_MS, MAX_ATTEMPTS, KIND };
+module.exports = { start, attach, claim, status, size, TTL_MS, MAX_ATTEMPTS, KIND };

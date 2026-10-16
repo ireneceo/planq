@@ -10,9 +10,9 @@ import { useCallback, useEffect, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { foreignWorkspaceOf, enterWorkspaceLink, splitWorkspaceParam } from '../utils/workspaceLink';
 import { useChromeNav } from '../hooks/useChromeNav';
-import { isNativeApp, nativePlatform } from '../services/native';
+import { isNativeApp } from '../services/native';
 import { bindNativeShare } from '../services/nativeShare';
-import { clearPair } from '../services/oauth';
+import { handleNativeReturnUrl } from '../services/nativeReturn';
 import { markDeepLinkInflight, markDeepLinkArrived } from '../services/nativePush';
 import { installNativeLinkRouting } from '../services/nativeLinks';
 
@@ -147,71 +147,9 @@ export default function NativeBridge() {
             let u: URL;
             try { u = new URL(url); } catch { return; }
 
-            // 복귀 경로 판정 — 두 형태를 모두 받는다.
-            //   ① https://planq.kr/oauth/native-return   (Universal Link — 외부에서 들어올 때)
-            //   ② planq://oauth/native-return            (커스텀 스킴 — 시스템 브라우저 OAuth 복귀)
-            //   ②가 정본이다: iOS 는 같은 도메인 안의 302 로는 UL 을 발화하지 않아 ①이 복불복이었다
-            //   (2026-08-25 운영 실측 — 3번 시도해야 앱이 열렸다). 서버는 이제 ②로만 보낸다.
-            //   https 분기는 반드시 same-origin 으로 좁힌다 — 경로만 보고 받으면 남의 도메인 링크로도
-            //   code 교환이 트리거된다(로그인 CSRF). OS 가 AASA 로 한 번 거르지만 겹쳐서 막는다.
-            const isNativeReturn =
-              (u.pathname === '/oauth/native-return' && u.origin === window.location.origin) ||
-              (u.protocol === 'planq:' && `${u.hostname}${u.pathname}`.replace(/\/+$/, '') === 'oauth/native-return');
-
-            // ── 네이티브 Google 로그인 code 교환 (H-2) ──
-            //   딥링크로 받은 일회용 code 를 앱 WebView 컨텍스트에서 세션으로 교환 → refresh cookie 심김
-            //   → /inbox 리로드 시 AuthContext bootstrap 이 자동 로그인.
-            if (isNativeReturn) {
-              // #125a — 개인 연동(구글 캘린더·드라이브·Gmail) 복귀. 로그인과 달리 교환할 code 가 없다.
-              //   여기서 걸러내지 않으면 아래 code 분기에서 조용히 무시돼 "연동 완료 창이 멈춘" 것처럼 보인다.
-              if (u.searchParams.get('kind') === 'connect') {
-                window.dispatchEvent(new CustomEvent('planq:oauth-connected', {
-                  detail: {
-                    provider: u.searchParams.get('provider') || null,
-                    ok: u.searchParams.get('ok') === '1',
-                    error: u.searchParams.get('error') || null,
-                  },
-                }));
-                return;
-              }
-              // ★ 2026-09-04 — 기존 회원의 구글 "연결 확인". 서버가 앱으로 먼저 돌려보내고
-              //   확인 화면은 **앱 WebView 안에서** 연다(세션 쿠키가 앱에 심겨야 하므로).
-              //   시스템 브라우저에서 확인시키면 쿠키가 거기 심겨 앱은 계속 로그인 화면에 머문다.
-              // ★ 2026-09-10 — 로그인 **실패**도 앱으로 돌아온다(서버 failLogin). 페어링을 지우고
-              //   로그인 화면이 사유를 말하게 한다. 이게 없으면 팝오버를 닫은 뒤 앱이 6자리 코드를
-              //   묻는다 — 로그인은 시작도 안 됐는데(Irene: "번호를 어쩌라는 건지").
-              const loginError = u.searchParams.get('error');
-              if (loginError) {
-                clearPair();
-                window.location.href = `/login?oauth_error=${encodeURIComponent(loginError)}`;
-                return;
-              }
-              const confirmToken = u.searchParams.get('confirm');
-              if (confirmToken) {
-                window.location.href = `/oauth/connect-confirm?token=${encodeURIComponent(confirmToken)}`;
-                return;
-              }
-              const code = u.searchParams.get('code');
-              if (code) {
-                try {
-                  const r = await fetch('/api/auth/google/native-exchange', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    credentials: 'include',
-                    body: JSON.stringify({ code, client_kind: nativePlatform() }),
-                  });
-                  if (r.ok) {
-                    // ★ 딥링크로 들어왔으면 코드 페어링은 쓸 일이 없다 — 지우지 않으면 다음
-                    //   로그아웃 뒤에 코드 입력 모달이 떴다가 404 로 사라진다(2026-09-06 Fable 지적).
-                    clearPair();
-                    window.location.href = '/inbox';
-                    return;
-                  }
-                } catch { /* fall through */ }
-                window.location.href = '/login?oauth_error=native_exchange';
-              }
-              return;
-            }
+            // OAuth 복귀(planq://oauth/native-return · 같은 출처 https)는 services/nativeReturn 한 곳이 처리한다 —
+            //   iOS 로그인 창(ASWebAuthenticationSession)이 돌려준 주소도 같은 함수를 탄다.
+            if (await handleNativeReturnUrl(u)) return;
 
             // ★ 2026-10-09 — 다른 서버의 링크는 앱 안에서 열지 않는다. 아래는 **경로만** 꺼내 이 앱의 서버로
             //   이동하므로, 운영 앱이 dev.planq.kr 링크를 받으면 운영 데이터의 같은 경로(/tasks?task=123 …)를

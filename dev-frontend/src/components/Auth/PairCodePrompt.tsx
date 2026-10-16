@@ -9,12 +9,12 @@
 //   공격자가 될 수 있었다. 사람이 자기 화면에서 읽어 자기 앱에 넣는 이 경로는 그 벡터가 없다.
 //   (dev-backend/services/oauthPairing.js 머리말)
 //
-// 노출 조건: 네이티브 앱 + 진행 중인 페어링이 있고 + 아직 로그인되지 않았을 때만.
+// 노출 조건: 네이티브 앱 + 진행 중인 페어링이 **로그인을 마쳐 코드가 생겼고**(서버 pair/status) + 아직 로그인되지 않았을 때만.
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import styled from 'styled-components';
 import { isNativeApp } from '../../services/native';
-import { pendingPairId, clearPair, claimWithCode } from '../../services/oauth';
+import { pendingPairId, clearPair, claimWithCode, pairReadyForCode } from '../../services/oauth';
 import { useEscapeStack } from '../../hooks/useEscapeStack';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
@@ -33,12 +33,19 @@ const PairCodePrompt: React.FC<{ authed: boolean }> = ({ authed }) => {
   // 앱이 앞으로 나올 때마다 진행 중인 흐름이 있는지 본다 (브라우저에서 돌아온 순간).
   useEffect(() => {
     if (!isNativeApp() || authed) return;
-    const check = () => setOpen(!!pendingPairId());
+    // ★ 흐름이 열려 있는 것만으로 띄우지 않는다 — 로그인이 끝나 코드가 생겼을 때만(서버에 묻는다).
+    //   창을 그냥 닫으면 입력할 코드가 없다(2026-10-16 Irene 아이패드).
+    let alive = true;
+    const check = () => {
+      if (!pendingPairId()) { setOpen(false); return; }
+      pairReadyForCode().then((ready) => { if (alive) setOpen(ready); });
+    };
     check();
     const onVis = () => { if (document.visibilityState === 'visible') check(); };
     document.addEventListener('visibilitychange', onVis);
     window.addEventListener('planq:oauth-dismissed', check);
     return () => {
+      alive = false;
       document.removeEventListener('visibilitychange', onVis);
       window.removeEventListener('planq:oauth-dismissed', check);
     };

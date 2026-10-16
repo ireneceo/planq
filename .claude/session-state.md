@@ -3,6 +3,15 @@
 **작업 상태:** 완료 — 멤버 프로젝트 가시성·고객→멤버 전환(방 c6810b76 · Fable PASS · 운영 미배포 · 배포 슬롯 2개) · 이전: 서명 사인+스탬프 완료 화면 2장 · Q docs 목록 정렬 아이콘(방 886989c5 · 운영 미배포) · 이전: 서명 칸 이름·이미지 미리보기 폭(방 f901a0b2 · 운영 미배포) · 이전: 사이드바 «메뉴 편집»(방 3e1a0e26 · 운영 미배포 · 다음 배포 때 migrate-nav-prefs 슬롯) · 이전: 확인필요 답하기 저장 실패·업무 상세 스크롤(방 47d98562 · 운영 미배포) · 이전: 메일 답장 보낸 주소 표시(65cadd84 · 운영 미배포) · 이전: dev 링크 앱 가로채기 웹 차단 준비(sudo 1건 Irene) · 이전: 메일 사칭 검사(Fable PASS · 운영 미배포) · 이전: AI 앱 여러 워크스페이스(Fable PASS · 운영 미배포) · 이전: 급여 P2~P4(서버 Fable PASS · 화면 빌드·3폭 실측 72/72 · 운영 미배포)
 **다음 할 일:** 운영 반영은 다음 배포 때(10/16 03:52 배포 이후 커밋 전부 미배포) · 갈라진 옛 메일 대화 합치기는 배포 뒤 운영 미리보기 건수를 Irene 에게 · 아래 방별 «Irene 할 일»·«나중에» 절 그대로
 
+### 완료: 앱(아이패드·아이폰) 구글/애플 로그인 창 교체 (방 4a116d8b · 2026-10-16 · [Opus]) — Fable 완료 검증 PASS · 운영 미배포
+- 원문: «아이패드 앱 … 구글계정 자동로그인하는데 팝업이 하얗게 나오고 다시 닫으니까 예전 이상한 코드 넣으라는 잘못된 UI가 그대로 나와. 구글 원터치 로그인 제대로 되게»
+- 원인: 앱 로그인 창 = SFSafariViewController 를 popover 로(아이패드에서만 가운데 팝오버 → 하얗게) · 창을 닫기만 해도 «페어링이 열려 있다» 만 보고 6자리 코드 입력창을 띄웠다.
+- 고침: ① iOS 앱 안 플러그인 PlanqAuthSessionPlugin(ASWebAuthenticationSession — 사파리 구글 계정 그대로, planq:// 복귀를 OS 가 잡아 창을 닫음, 코드 입력 없음) — AppDelegate.swift + Main.storyboard ② 웹: 플러그인 있으면 그 창, 없으면(옛 앱) 전체 화면 창 ③ POST /api/auth/google/pair/status — 코드 입력창은 브라우저 로그인이 끝났을 때만 ④ 복귀 처리 한 곳 services/nativeReturn.ts.
+- 검증: --suite nativelogin 8/8(창 못 뜨면 종전 창 폴백 포함) · pair/status 실HTTP · guard-native-release 새 항목(음성 대조군 FAIL 확인) · guard 72/73 · health 87/87 · build EXIT 0 · pushdeeplink 0.
+- 반영: ②③④ 웹 배포 때(옛 앱도 하얀 팝오버·엉뚱한 코드창 해소) · ① 새 앱 빌드(Codemagic) + App Store 심사 필요 — GitHub 푸시함.
+### Irene 할 일
+- iOS 새 앱 빌드(Codemagic «PlanQ iOS — TestFlight»)·실기기 확인 — 상황판에 올림. iOS 확인창 «로그인을 위해 planq.kr 사용» 1회는 iOS 것이라 끌 수 없음.
+
 ### 완료: Cue 고객 자동답변 재료 = 그 고객에 연결된 것만 (방 81843b55 · 2026-10-16 · [Opus] · 설계 Fable) — 운영 미배포 · a0b42a7b
 - 원문: «워크스페이스 내용들 중 보안단위가 전체워크스페이스여도 고객에게는 안보이는 거 맞지? 고객은 연결된 곳만 보이는 거야.»
 - 있던 구멍: 고객 발화 Cue 답변이 Q info «전체 공개·일반» 워크스페이스 자료 전부 + 그 방 프로젝트 자료 + 운영진 전용(read_policy owner) 자료 + 지식 카드(다른 고객 특성 포함)를 재료로 썼다.

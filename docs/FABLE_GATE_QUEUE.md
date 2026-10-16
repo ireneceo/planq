@@ -1,5 +1,11 @@
 # Fable 게이트 대기열 → **판정 기록 보관소** (2026-10-08 부터)
 
+## 2026-10-16 · 앱(아이패드·아이폰) 구글/애플 로그인 창 (방 4a116d8b) — 완료 검증 **PASS**(Fable, 후속 1회 PASS)
+- Irene: «아이패드 앱 … 구글계정 자동로그인하는데 팝업이 하얗게 나오고 다시 닫으니까 예전 이상한 코드 넣으라는 잘못된 UI가 그대로 나와. 구글 원터치 로그인 제대로 되게»
+- 변경: iOS 앱 안 플러그인 PlanqAuthSessionPlugin(ASWebAuthenticationSession) · 옛 창 popover→fullscreen · 무인증 POST /api/auth/google/pair/status(상태 한 단어, 30/분) · 코드 입력창은 ready 일 때만 · 복귀 처리 services/nativeReturn.ts 한 곳.
+- Fable 실측: pair/status 응답에 code·uid 없음 · 31번째부터 429 · nativelogin 7/7 → 후속 8/8 · 새 가드 음성 대조군 · Capacitor 7 등록 경로 정적 대조. 차단 없음.
+- 비차단: ① iOS 가 «“PlanQ”이(가) 로그인을 위해 “planq.kr” 사용» 확인창을 한 번 띄운다(끌 수 없음) ② Swift 는 Codemagic 에서 처음 컴파일 — 실기기 확인 필수 ③ reject 시 종전 창 폴백(반영함) ④ 주석(반영함) ⑤ 배포 중 수 초 pair/status 404 는 «안 띄움» 쪽 ⑥ guard-native-release nativeShare static import 실패는 10-07 부터 별건 ⑦ 카나리 webkit postMessage 경로는 reject 를 안 만든다.
+
 ## 2026-10-16 · Cue 고객 자동답변 재료 범위 (방 81843b55) — 설계 판정 1회 **A안(수정)** · 완료 검증 **PASS**(Fable)
 - Irene: «워크스페이스 내용들 중 보안단위가 전체워크스페이스여도 고객에게는 안보이는 거 맞지? 고객은 연결된 곳만 보이는 거야.»
 - 판정: 고객 답변 재료 = 고객에 연결된 Q info(scope client · client_id 또는 client_ids) ∧ 보안등급 일반. 워크스페이스·프로젝트 범위 자료 0 · 지식 카드(CueKnowledge) 0 · 고정 FAQ 유지. «고객 공개» 칸(B안)은 지금 안 만든다(가역·fail-closed 좁히기라 Irene 결정 불필요, 신고 오면 kb_documents.client_visible 기본 false).
