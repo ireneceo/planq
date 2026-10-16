@@ -305,6 +305,23 @@ const ARTICLES = [
       note('한 번 올린 것은 다시 내려가지 않습니다. 반대로 상담에서 [문의 아님] 으로 내린 것은 **보관함**에 남아 언제든 되돌릴 수 있습니다.',
         'Once promoted it stays. Conversely, anything you mark as “not an inquiry” goes to the Archive and can be restored at any time.'),
     ] },
+  // 2026-10-16 — 사이드바 «메뉴 편집»(순서·숨기기·더보기).
+  { cat: 'getting-started', slug: 'edit-sidebar-menu', visibility: 'public', linked_route: '/dashboard', est: 2, published: '2026-10-16',
+    title: t('왼쪽 메뉴 순서 바꾸고 숨기기', 'Reorder and hide sidebar menus'),
+    summary: t('자주 쓰는 메뉴를 위로 올리고, 안 쓰는 메뉴는 «더보기» 로 접어 둡니다',
+      'Move the menus you use most to the top and tuck the rest under “More”'),
+    body: [
+      s('왼쪽 메뉴의 **협업**·**개인** 칸 제목 옆 **연필**을 누르면 그 자리에서 편집이 열립니다(컴퓨터에서는 칸에 마우스를 올리면 연필이 보입니다).',
+        'Tap the **pencil** next to the **Collaboration** or **Personal** heading in the sidebar to edit it in place (on a computer, hover over the section to see the pencil).'),
+      s('메뉴를 **끌거나 ↑ ↓ 화살표**로 순서를 바꾸고, **눈** 아이콘을 눌러 숨깁니다. 바꾸는 즉시 저장되고 **완료**를 누르면 편집이 닫힙니다.',
+        'Drag a menu or use the **↑ ↓ arrows** to reorder, and tap the **eye** to hide it. Changes save right away; tap **Done** to close.'),
+      s('숨긴 메뉴는 칸 맨 아래 **«더보기 (n)»** 한 줄에 모입니다. 누르면 펼쳐져 전체를 볼 수 있고, 숨긴 메뉴에 새 알림 숫자가 있으면 «더보기» 옆에 합계가 보입니다.',
+        'Hidden menus gather in one **“More (n)”** row at the bottom of the section. Tap it to see everything; if a hidden menu has new items, their total shows next to “More”.'),
+      s('**기본으로 되돌리기**를 누르면 처음 순서로 돌아갑니다. 설정은 워크스페이스마다 따로 저장되고 컴퓨터·휴대폰·앱에 같이 적용됩니다.',
+        '**Reset to default** restores the original order. Your setup is saved per workspace and applies on your computer, phone and app alike.'),
+      note('숨기기는 보기 편의일 뿐 권한이 아닙니다 — 숨긴 메뉴도 통합 검색과 탭 «+» 에서 그대로 열 수 있습니다. 대시보드·확인 필요·관리·설정은 늘 그 자리에 있습니다.',
+        'Hiding is only for tidiness, not a permission — hidden menus still open from search and the tab “+”. Dashboard, Needs attention, Management and Settings always stay in place.'),
+    ] },
   // 2026-09-15 — 우리 우클릭 메뉴 + 같은 화면 두 탭.
   { cat: 'getting-started', slug: 'right-click-menu', visibility: 'public', linked_route: '/dashboard', est: 2,
     title: t('마우스 오른쪽 버튼으로 새 탭 열기', 'Right-click to open a new tab'),

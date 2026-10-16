@@ -1,6 +1,8 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-10-15 ([Opus] Opus 5.5, 방 1abbce29) — 개발완료: 문서 댓글(Fable 설계·게이트 PASS) + 10/12~10/15 작업기록 묶음 기록(상세는 .claude/session-state.md 방별 절). 전부 운영 미배포.
+> **최종 업데이트:** 2026-10-16 ([Opus] Opus 5.5, 방 3e1a0e26) — 개발완료: 사이드바 «메뉴 편집»(Irene «권고대로», 자체 검증) + 10/15~10/16 상황판 방별 작업 묶음 기록(상세는 .claude/session-state.md). 10/16 03:18·03:52 운영 배포(df197a66·db1143b4 포함) 이후 커밋은 운영 미배포.
+> ── 이전 ──
+> 2026-10-15 ([Opus] Opus 5.5, 방 1abbce29) — 개발완료: 문서 댓글(Fable 설계·게이트 PASS) + 10/12~10/15 작업기록 묶음 기록(상세는 .claude/session-state.md 방별 절). 전부 운영 미배포.
 > ── 이전 ──
 > 2026-10-12 새벽 ([Opus] Opus 5.5, 방 69426d00) — 정기 점검 개발완료: 10/11 작업 6건(Cue 일정 옮기기 · 표 글자 서식·행/열 끼워넣기 · 고객 링크 가로 배치 · AI 수정 버튼 · 시작 가이드 메뉴 · 캘린더 지난 마감 흐리게) 기록.
 > ── 이전 ──
@@ -45,6 +47,34 @@
 > 오전([Opus] Opus 5.5, 1M): **운영 배포 6회(v1.61.0 ~ v1.63.5).**
 > 게스트 진입(P0·A·B) · 이미지 보안 2a·2b(0~2단계) · 감사 1~3순위(328→98) · PDF 이미지 · **남의 워크스페이스에 쓰던 권한 결함 3건**.
 > ★ v1.63.3 의 PDF 수정이 이미지 많은 문서를 500 으로 만든 회귀를 **배포 후 운영 실측**으로 잡아 v1.63.4 로 되돌렸다.
+
+---
+
+## ✅ 완료: 2026-10-16 [Opus] — 사이드바 «메뉴 편집» (방 3e1a0e26)
+
+| 작업 | 설명 | 상태 |
+|------|------|:----:|
+| 메뉴 편집 | «협업»·«개인» 칸 제목 옆 연필 → 사이드바 안에서 끌기·↑↓로 순서, 눈으로 숨기기 · «기본으로 되돌리기» | ✅ 완료 |
+| 더보기 | 숨긴 메뉴는 «더보기 (n)» 한 줄 — 숨긴 메뉴 숫자 합계 배지 · 숨긴 메뉴 화면이면 저절로 펼침 · 아이콘만 사이드바에서도 동작 | ✅ 완료 |
+| 저장 | 사람×워크스페이스 `business_members.nav_prefs` · PUT `/api/businesses/:id/me/nav-prefs` · `/api/auth/me` 로 읽기 · 운영 `migrate-nav-prefs.js`(배포 슬롯) | ✅ 완료 |
+| 검증 | build EXIT 0 · guard 72/73 · health 86/86 · tenant 0 실패 · 실HTTP 9 · 실브라우저 3폭×17 통과 · e2e collapsed,inboxcount 0 실패 · Fable 안 씀(개인 화면 설정, 설계 Irene 승인) | ✅ 완료 |
+
+### 수정된 파일
+- `dev-frontend/src/components/Layout/EditableNavSection.tsx` (신규) · `config/navPrefs.ts` (신규) · `hooks/useNavPrefsSave.ts` (신규) · `components/Layout/MainLayout.tsx` · `contexts/AuthContext.tsx` · `public/locales/{ko,en}/layout.json`
+- `dev-backend/routes/nav_prefs.js` (신규) · `services/navPrefs.js` (신규) · `scripts/migrate-nav-prefs.js` (신규) · `models/BusinessMember.js` · `routes/auth.js` · `server.js`
+- `scripts/deploy-planq.sh` · `scripts/schema-snapshot.json` · `CLAUDE.md`(사이드바 메뉴 편집 절)
+
+## ✅ 완료: 2026-10-15 ~ 10-16 [Opus](+[Fable]) — 상황판 방별 작업 묶음 (기록 3e1a0e26)
+
+| 작업 | 설명 | 상태 |
+|------|------|:----:|
+| 고객 화면 한 벌 | 설정 > 고객 → Q sale 로 합침 · 직접 관리 고객(managed) | ✅ 완료 |
+| Q mail | 메일 분류 기준 공개·끄기 · 사칭 메일 검사(Fable PASS) · 이어진 메일 묶기·갈라진 옛 대화 합치기(Fable PASS) · 보낸 주소(별칭) 표시 | ✅ 완료 |
+| 급여·계약 | P1 · P2~P4 서버·화면(Fable PASS) · 직원 계약서 템플릿 | ✅ 완료 |
+| Q Bill | 외부 카드 결제 링크(Fable PASS) · 카드 결제 설정 안내 · 발행 권한·프로젝트 연결 | ✅ 완료 |
+| 그 밖 | 역할 사전 · AI 앱 여러 워크스페이스(Fable PASS) · 긴급 업무요청 · 문서 업무 연결 · 공유 받기 «대상 먼저»(Fable PASS) · 확인필요에서 문의·피드백 제외 · 모바일 메모 편집 · 업무 상세 저장 실패 · 배포 스크립트 보강 | ✅ 완료 |
+
+상세·검증 숫자는 `.claude/session-state.md` 방별 절.
 
 ---
 
