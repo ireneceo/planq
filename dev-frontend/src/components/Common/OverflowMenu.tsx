@@ -45,11 +45,15 @@ type Props = {
    *    (파일 행의 이 메뉴는 «폴더로 이동» 전용이라 지금 폴더 이름을 그대로 보여 준다 —
    *     값이 보이고 고치는 목록은 누를 때만 나오는 ChipPopover 와 같은 규칙.) */
   triggerLabel?: string;
+  /** 트리거 아이콘 — ⋯ 대신(예: 정렬 화살표). 기본은 종전대로 ⋯ */
+  triggerIcon?: React.ReactNode;
+  /** 기본값이 아닌 값이 골라져 있다 — 아이콘만인 트리거는 지금 값이 안 보이므로 민트 점으로 «바뀜» 을 알린다 */
+  triggerActive?: boolean;
   className?: string;
   'data-testid'?: string;
 };
 
-export default function OverflowMenu({ items, label, triggerLabel, className, ...rest }: Props) {
+export default function OverflowMenu({ items, label, triggerLabel, triggerIcon, triggerActive, className, ...rest }: Props) {
   const { open, toggle, close, pos, wrapRef, panelRef } = usePopoverAnchor();
 
   if (items.length === 0) return null;
@@ -60,6 +64,7 @@ export default function OverflowMenu({ items, label, triggerLabel, className, ..
         type="button"
         {...rest}
         $open={open}
+        $active={!!triggerActive}
         aria-haspopup="menu"
         aria-expanded={open}
         aria-label={label}
@@ -68,6 +73,8 @@ export default function OverflowMenu({ items, label, triggerLabel, className, ..
       >
         {triggerLabel ? (
           <TriggerText>{triggerLabel}</TriggerText>
+        ) : triggerIcon ? (
+          <>{triggerIcon}{triggerActive && <TriggerDot aria-hidden="true" />}</>
         ) : (
           <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
             <circle cx="5" cy="12" r="1.7" /><circle cx="12" cy="12" r="1.7" /><circle cx="19" cy="12" r="1.7" />
@@ -113,18 +120,23 @@ const Wrap = styled.div`position:relative;display:inline-flex;align-items:center
 // 헤더의 다른 액션(32px)과 같은 크기·톤 — 줄이 어긋나 보이지 않게.
 // 높이는 토큰 표준(36 / 폰 44) — theme/tokens.ts CONTROL. 액션 줄의 글자 버튼도 같은 36 이라
 // 좌측 검색 박스(36px)와 한 줄로 선다.
-const Trigger = styled.button<{ $open: boolean }>`
+const Trigger = styled.button<{ $open: boolean; $active: boolean }>`
+  position:relative;
   /* 글자가 들어오면 폭이 늘어야 한다 — 36px 고정이면 글자가 잘린다.
      높이는 36px 그대로(한 줄 안 컨트롤 기준). 아이콘만일 때의 모양은 바뀌지 않는다. */
   min-width:36px;height:36px;display:inline-flex;align-items:center;justify-content:center;
   padding:0;max-width:100%;
   background:${p => (p.$open ? '#F0FDFA' : '#FFF')};
-  border:1px solid ${p => (p.$open ? '#14B8A6' : '#E2E8F0')};border-radius:8px;
-  color:${p => (p.$open ? '#0F766E' : '#475569')};cursor:pointer;
+  border:1px solid ${p => (p.$open || p.$active ? '#14B8A6' : '#E2E8F0')};border-radius:8px;
+  color:${p => (p.$open || p.$active ? '#0F766E' : '#475569')};cursor:pointer;
   transition:border-color 0.15s,color 0.15s,background 0.15s;
   &:hover{border-color:#14B8A6;color:#0F766E;}
   &:focus-visible{outline:2px solid #14B8A6;outline-offset:2px;}
   @media (max-width: 640px){ min-width:44px;height:44px; }
+`;
+// 기본값이 아닌 값이 골라져 있음 — 아이콘 오른쪽 위 점
+const TriggerDot = styled.span`
+  position:absolute;top:5px;right:5px;width:6px;height:6px;border-radius:50%;background:#14B8A6;
 `;
 /* 트리거에 보이는 글자 — 길면 자른다(행 폭을 밀어내면 옆 칸 정렬이 깨진다). */
 const TriggerText = styled.span`

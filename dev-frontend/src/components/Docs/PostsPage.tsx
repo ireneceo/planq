@@ -1860,7 +1860,7 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId }) => {
             예전엔 필터 아래 얇은 줄의 «아이콘+글자» 링크였고 파일 휴지통은 글자 버튼이라 모양이 갈라져 있었다. */}
         <SearchWrap>
           <SearchBox width="100%" value={query} onChange={setQuery} placeholder={t('search.placeholder', '제목·내용·프로젝트 검색') as string} />
-          <ListSortWrap data-testid="docs-sort"><ListSortSelect value={listSort} onChange={setListSort} /></ListSortWrap>
+          <ListSortSelect variant="icon" data-testid="docs-sort" value={listSort} onChange={setListSort} />
           <TrashButton active={trashOpen} data-testid="docs-trash-open" onClick={() => setTrashOpen(true)} />
         </SearchWrap>
 
@@ -3162,9 +3162,6 @@ const SearchWrap = styled.div`
   padding: 12px 16px 8px; border-bottom: 1px solid #F1F5F9;
   display: flex; align-items: center; gap: 8px;
   & > :first-child { flex: 1; min-width: 0; }
-`;
-const ListSortWrap = styled.div`
-  flex: 0 0 auto; width: 128px;
 `;
 const FilterSection = styled.div`
   padding: 10px 16px; border-bottom: 1px solid #F1F5F9;

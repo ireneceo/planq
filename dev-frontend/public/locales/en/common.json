@@ -1741,6 +1741,7 @@
     }
   },
   "listSort": {
+    "title": "Sort",
     "newest": "Newest first",
     "oldest": "Oldest first",
     "updated": "Recently edited",
