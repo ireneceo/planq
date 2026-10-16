@@ -45,6 +45,12 @@
 - 수정 → 2차 PASS: folderWhere('marketing') reply_needed:false(538/68 교집합 0, 양성 대조 12행) · threadsMatchingRule 제외에 manual(되돌리기 뒤 manual 유지, always_reply 쪽도) · 자기주소 제외 삭제(HEAD 대비 dev 6,300 시뮬: auto_ack 10 · inbound_action 24 · 그 외 0 · 강등 0) · 같은 주소 다른 판정 규칙 교체(유일 키 충돌 없음). guard 69/70 · e2e mail·maillabel·salecriteria 0 · 실HTTP 41 · 브라우저 3폭.
 - 비차단: ① 끄기 소급 상한 20,000 — 운영 규모면 PUT 한 번 수십 초(프록시 타임아웃 가능, 1,000+이어가기 안내 없음) ② 마지막 모양 수정 3건은 dev 빌드에 없음(메모리 부족으로 재빌드 중단) — 배포 전 npm run build EXIT 0 ③ 우리 계정이 보낸 메일의 받은함 사본이라도 제목이 «New order» 모양이면 답변 필요(설계 그대로, 기록만) ④ «늘 상담» 은 사람 메일 판정 스레드에만 닿음 ⑤ 운영 옛 메일 재판정은 §10.5(운영 읽기 전용 시뮬·전수 육안) 뒤 수동.
 
+## 2026-10-16 PASS — 고객 화면 한 벌로(설정 > 고객 → Q sale) (방 d1871180)
+- 설계 판정(같은 방, Fable): docs/CLIENT_SCREENS_MERGE_DESIGN.md — Q sale 하나로 합침 · 권한 키 qsale 하나(이관 fail-closed·옛 행 보존) · 상세 절 공용(components/Clients) · 옛 주소 쿼리째 리다이렉트 · 연결 프로젝트 술어 한 벌 · PUT 저장 뒤 방송.
+- 검증: Fable 독립 실HTTP 61/61(권한 none/read/write · 이관 «안 하면 열린다» 200→403 실측 · 이관 5조합 · 연결 프로젝트 술어 일치 · billing/notes · invite_token 0 · 방송 1건 · 보관 축 합계 · owner_only · removal-impact 404) · 실브라우저 1440·390·member·ws7 전부 통과 · guard 72/73 · health-check 86/86 · e2e tenant·clientlink 0. 작업자: 실HTTP 14/14 · 방송 대조군 뒤집힘 · 화면 3폭 44/44 + 보관 메뉴 대조군 · e2e tenant·clientlink·salecriteria·detailopen 0 · build EXIT 0.
+- 작업자 판단 ①~⑧ 전부 승인(이관 --apply 슬롯 · removal-impact 삭제 · 삭제 문구 사실만 · 삭제 대표만 노출 · 보관 축 기본 전체 · 관리 편집 대표만 · health-access 수정 · baseline godfile 되돌림).
+- 비차단: ① 사업자·증빙·메모·유형 PUT 은 서버가 멤버(qsale write)에게 열려 있다 — 화면만 대표 전용(옛날과 같음) ② 삭제 라우트는 이름/이메일로만 project_clients 를 지워 client_id 연결 행이 NULL 로 남는다 · client_subscriptions·guest_links FK NO ACTION 이라 그런 고객 삭제는 FK 오류 가능(기존) ③ `--suite salecriteria` ⑤ 는 검사 계정 현재 워크스페이스가 픽스처 biz 와 다르면 빨갛다(카나리 범위 의존, 회귀 아님 — 이 방 실행에선 0) ④ `nav.clients`·TabKind 'clients' 읽는 곳 없음(무해) ⑤ 문서 신선도 경고.
+
 ## 2026-10-15 PASS — 직접 관리 고객(비가입 고객, status 'managed') (방 d1871180)
 - 설계 판정(같은 방, Fable): docs/CLIENT_MANAGED_DESIGN.md — ENUM 끝 'managed' · 정식 고객 한도 · 행 id 초대 승격 · 술어 clientAccess(canInviteClient·emailEditable·reactivatedStatusOf) · PUT status 제거 · resend 는 invited 만 · 문의 보관 409 · register-managed.
 - 검증: Fable 독립 실HTTP 44/44(한도 +1/+0/-1 · 409 existing_client_id · 토큰 원문 0 · 보관 해제 증거 파생 · 승격 후 잠김 · 권한 403 · ws6 422 · 청구서 초안→발송→공개 링크 200 · 승격 행 초대 수락 → active) · 마이그레이션 멱등 + lib 임시 표 실적용·백필 · guard 69/70 · secrets 10/10 · clientlink 1/1 · e2e tenant,clientlink,salecriteria 28/0 · 화면 1440·390 12/12. 작업자: 실HTTP 39/39 + 분리 후 9/9 · 대조군(해제 'active' 고정 → FAIL) · 화면 3폭 36/36 · build EXIT 0.

@@ -13,7 +13,7 @@
 5. **보관 해제는 증거로 되살린다** — `reactivatedStatusOf`: 계정 → active · 초대 흔적 → invited · 그 외 → managed. prospect 보관은 409(종결은 Q sale lost).
    기존 «active + 계정 없음» 행은 마이그레이션 백필로 invited/managed.
 6. won → managed 자동 착지는 안 한다. 사람이 누르는 문 `POST /:biz/:id/register-managed`(prospect → managed, 한도 검사).
-7. 화면: 새 화면 없음 — 고객 추가 CreateDrawer 에 «초대 보내기 / 직접 관리로 등록» 모드, 드로어에서 계정 없는 고객의 이메일·전화 자동저장 편집, «이 고객 초대».
+7. 화면: 새 화면 없음 — 고객 추가 CreateDrawer 에(2026-10-16 부터 Q sale > 고객 탭 [+ 고객 추가] — docs/CLIENT_SCREENS_MERGE_DESIGN.md) «초대 보내기 / 직접 관리로 등록» 모드, 드로어에서 계정 없는 고객의 이메일·전화 자동저장 편집, «이 고객 초대».
 8. PUT 의 `status` 입력 제거(아무 행이나 active 로 만들던 문) · resend-invite 는 invited 만.
 
 ## 술어 단일 원천

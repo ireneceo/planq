@@ -1,6 +1,6 @@
 {
   "_comment": "래칫 베이스라인 — guard-invariants.js --update-baseline 으로만 갱신. 수동 편집 금지.",
-  "_updated": "2026-10-08",
+  "_updated": "2026-10-16",
   "i18n": {
     "dev-frontend/src/components/Common/CalendarPicker.tsx": 1,
     "dev-frontend/src/components/Common/CueHelpDrawer.tsx": 1,
@@ -39,12 +39,10 @@
     "dev-frontend/src/pages/QDocs/BriefViewerPage.tsx": 6,
     "dev-frontend/src/pages/QMail/MailPage.tsx": 8,
     "dev-frontend/src/pages/QNote/QNotePage.tsx": 1,
-    "dev-frontend/src/pages/QProject/QProjectDetailPage.tsx": 2,
     "dev-frontend/src/pages/QProject/TransactionsTab.tsx": 1,
     "dev-frontend/src/pages/QTalk/ChatPanel.tsx": 1,
     "dev-frontend/src/pages/QTalk/ChatSettingsModal.tsx": 1,
     "dev-frontend/src/pages/QTalk/NewChatModal.tsx": 1,
-    "dev-frontend/src/pages/QTalk/NewProjectModal.tsx": 4,
     "dev-frontend/src/pages/Settings/EmailAccountSettings.tsx": 39,
     "dev-frontend/src/pages/Settings/PwaInstallSection.tsx": 4,
     "dev-frontend/src/pages/Todo/TodoPage.tsx": 1,
@@ -70,9 +68,8 @@
     "dev-backend/routes/admin_dev_status.js": 1,
     "dev-backend/routes/auth.js": 1,
     "dev-backend/routes/businesses.js": 2,
-    "dev-backend/routes/feedback.js": 2,
-    "dev-backend/routes/project_process.js": 2,
-    "dev-backend/routes/projects.js": 11,
+    "dev-backend/routes/feedback.js": 1,
+    "dev-backend/routes/projects.js": 8,
     "dev-backend/routes/push.js": 2
   },
   "pagination": {
@@ -83,9 +80,7 @@
     "dev-backend/routes/email_accounts.js": 1,
     "dev-backend/routes/external_connections.js": 1,
     "dev-backend/routes/file_folders.js": 1,
-    "dev-backend/routes/invites.js": 1,
     "dev-backend/routes/org.js": 1,
-    "dev-backend/routes/project_process.js": 1,
     "dev-backend/routes/push.js": 1,
     "dev-backend/routes/qnote_bridge.js": 1,
     "dev-backend/routes/reports.js": 1,
@@ -119,7 +114,6 @@
     "dev-frontend/src/components/Layout/MainLayout.tsx": 2301,
     "dev-frontend/src/components/QTask/TaskDetailDrawer.tsx": 3438,
     "dev-frontend/src/components/QTask/TemplateSelectModal.tsx": 837,
-    "dev-frontend/src/pages/Clients/ClientsPage.tsx": 1154,
     "dev-frontend/src/pages/Knowledge/KnowledgePage.tsx": 2656,
     "dev-frontend/src/pages/Profile/ProfilePage.tsx": 2046,
     "dev-frontend/src/pages/QBill/InvoiceDetailDrawer.tsx": 1747,
@@ -144,7 +138,7 @@
   "schemacol": {},
   "uispec": {
     "customHeaders": 36,
-    "controlHeights": 599,
+    "controlHeights": 592,
     "listFontSizes": 0,
     "fixedMinWidth": 0
   },
@@ -174,7 +168,6 @@
     "dev-frontend/src/components/QTask/TemplateSelectModal.tsx": 1,
     "dev-frontend/src/components/QTask/WeeklyReviewModal.tsx": 1,
     "dev-frontend/src/pages/Admin/adminModalKit.ts": 1,
-    "dev-frontend/src/pages/Clients/ClientsPage.tsx": 1,
     "dev-frontend/src/pages/Knowledge/KbAiIngestModal.tsx": 1,
     "dev-frontend/src/pages/Knowledge/KbCsvIngestModal.tsx": 1,
     "dev-frontend/src/pages/Knowledge/KnowledgePage.tsx": 1,
@@ -184,8 +177,6 @@
     "dev-frontend/src/pages/QBill/PublicInvoicePage.tsx": 1,
     "dev-frontend/src/pages/QBill/TaxInvoicesTab.tsx": 1,
     "dev-frontend/src/pages/QCalendar/EventDrawer.tsx": 1,
-    "dev-frontend/src/pages/QCalendar/MonthView.tsx": 1,
-    "dev-frontend/src/pages/QDocs/PublicDocPage.tsx": 1,
     "dev-frontend/src/pages/QDocs/PublicSignPage.styles.ts": 1,
     "dev-frontend/src/pages/QMail/MailPage.styles.ts": 2,
     "dev-frontend/src/pages/QNote/AudioUploadModal.tsx": 1,
@@ -194,7 +185,6 @@
     "dev-frontend/src/pages/QNote/QNotePage.tsx": 2,
     "dev-frontend/src/pages/QNote/StartMeetingModal.tsx": 1,
     "dev-frontend/src/pages/QProject/DocsTab.tsx": 1,
-    "dev-frontend/src/pages/QProject/ProcessPartsTab.tsx": 1,
     "dev-frontend/src/pages/QProject/QProjectDetailPage.styles.ts": 1,
     "dev-frontend/src/pages/QProject/QProjectPage.tsx": 1,
     "dev-frontend/src/pages/QProject/docs/dialogStyles.ts": 1,
@@ -209,7 +199,6 @@
     "dev-frontend/src/pages/Signatures/ReceivedSignaturesList.tsx": 1
   },
   "autosave": {
-    "dev-frontend/src/pages/QProject/ProcessPartsTab.tsx": 3,
     "dev-frontend/src/pages/QProject/ProjectTaskList.tsx": 2,
     "dev-frontend/src/pages/QProject/QProjectPage.tsx": 1,
     "dev-frontend/src/components/QTask/TagQuickMenu.tsx": 1
@@ -217,7 +206,8 @@
   "auditentry": {},
   "wsscope": {},
   "draft": {
-    "components/Common/CueActionCard.tsx": 4,
+    "components/Clients/ClientSubscriptions.tsx": 1,
+    "components/Common/CueActionCard.tsx": 2,
     "components/Common/CueHelpDrawer.tsx": 3,
     "components/Common/CuePanelSection.tsx": 1,
     "components/Common/ShareModal.tsx": 2,
@@ -243,7 +233,6 @@
     "pages/Attendance/AdminFixDrawer.tsx": 1,
     "pages/Attendance/CorrectDayModal.tsx": 1,
     "pages/Attendance/LeaveRequestDrawer.tsx": 1,
-    "pages/Clients/ClientSubscriptions.tsx": 1,
     "pages/Guest/GuestChatPanel.tsx": 1,
     "pages/Guest/GuestConversationPage.tsx": 1,
     "pages/Knowledge/KbAiIngestModal.tsx": 2,
@@ -254,7 +243,6 @@
     "pages/QBill/NewInvoiceModal.tsx": 2,
     "pages/QBill/PublicInvoicePage.tsx": 3,
     "pages/QCalendar/NewEventModal.tsx": 1,
-    "pages/QDocs/PublicDocPage.tsx": 1,
     "pages/QDocs/PublicSignPage.tsx": 2,
     "pages/QMail/MailPage.tsx": 2,
     "pages/QNote/StartMeetingModal.tsx": 6,
@@ -268,12 +256,11 @@
     "pages/Settings/PlanSettings.tsx": 2
   },
   "autosavekey": {
-    "dev-frontend/src/pages/Clients/ClientsPage.tsx": 2,
     "dev-frontend/src/pages/Profile/ProfileIntegrationsPage.tsx": 1,
     "dev-frontend/src/pages/Profile/ProfilePage.tsx": 9,
     "dev-frontend/src/pages/QMail/MailContextPanel.tsx": 2,
     "dev-frontend/src/pages/QProject/QProjectDetailPage.tsx": 5,
-    "dev-frontend/src/pages/QTask/QTaskPage.tsx": 4,
+    "dev-frontend/src/pages/QTask/QTaskPage.tsx": 3,
     "dev-frontend/src/pages/Settings/EmailSettings.tsx": 2,
     "dev-frontend/src/pages/Settings/MailSignatureSection.tsx": 1,
     "dev-frontend/src/pages/Settings/WorkspaceSettingsPage.tsx": 20,
@@ -293,7 +280,7 @@
     "dev-backend/routes/calendar.js": 1,
     "dev-backend/routes/calendar_sync.js": 3,
     "dev-backend/routes/client_errors.js": 1,
-    "dev-backend/routes/conversations.js": 6,
+    "dev-backend/routes/conversations.js": 3,
     "dev-backend/routes/cue.js": 3,
     "dev-backend/routes/cue_knowledge.js": 1,
     "dev-backend/routes/export.js": 1,
@@ -311,7 +298,6 @@
     "dev-backend/routes/notifications.js": 3,
     "dev-backend/routes/oauth/apple.js": 1,
     "dev-backend/routes/plan.js": 2,
-    "dev-backend/routes/project_process.js": 9,
     "dev-backend/routes/push.js": 5,
     "dev-backend/routes/qnote_bridge.js": 3,
     "dev-backend/routes/reports.js": 3,
@@ -339,8 +325,6 @@
     "dev-frontend/src/pages/Public/PublicKbDocumentPage.tsx": 2,
     "dev-frontend/src/pages/QBill/PublicInvoicePage.tsx": 3,
     "dev-frontend/src/pages/QCalendar/AgendaView.tsx": 2,
-    "dev-frontend/src/pages/QCalendar/EventDrawer.tsx": 1,
-    "dev-frontend/src/pages/QCalendar/NewEventModal.tsx": 1,
     "dev-frontend/src/pages/QCalendar/QCalendarPage.tsx": 5,
     "dev-frontend/src/pages/QDocs/PublicDocPage.tsx": 1,
     "dev-frontend/src/pages/QNote/PublicQNoteSessionPage.tsx": 1,
@@ -348,13 +332,11 @@
   },
   "broadcastpayload": {
     "dev-backend/routes/conversations.js": 1,
-    "dev-backend/routes/guest.js": 2,
-    "dev-backend/routes/invoices.js": 4,
-    "dev-backend/routes/projects.js": 11,
-    "dev-backend/services/actions/project_note_actions.js": 1,
+    "dev-backend/routes/guest.js": 1,
+    "dev-backend/routes/projects.js": 8,
     "dev-backend/services/actions/task_actions.js": 1,
     "dev-backend/services/chatPost.js": 1,
-    "dev-backend/services/invoiceDelivery.js": 3
+    "dev-backend/services/invoiceDelivery.js": 1
   },
   "adminpredicate": {
     "dev-backend/routes/activity.js": 1,
@@ -371,7 +353,6 @@
     "dev-backend/routes/internal.js": 1,
     "dev-backend/routes/invoices.js": 1,
     "dev-backend/routes/posts.js": 1,
-    "dev-backend/services/actions/task_actions.js": 1,
     "dev-backend/services/gdrive.js": 1
   },
   "deadroute": {

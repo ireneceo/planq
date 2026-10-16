@@ -17,7 +17,7 @@ const ROUTES = [
   ['Q File', '/files'],
   ['캘린더', '/calendar'],
   ['프로젝트', '/projects'],
-  ['고객', '/business/clients'],
+  ['고객', '/sale?tab=clients'],
   ['설정', '/business/settings'],
 ];
 

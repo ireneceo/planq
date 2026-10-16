@@ -268,7 +268,7 @@ limits.prospects_max       = clients_max === Infinity ? Infinity : clients_max *
 | 위치 | 무엇이 보이나 |
 |---|---|
 | 설정 > 구독 플랜 사용량 (`PlanSettings.tsx:304-306` 옆) | 두 줄: **"정식 고객 12 / 20"** · **"문의 고객 7 / 60"**. 각 줄 라벨 옆 회색 한 줄 "초대했거나 로그인하는 고객" / "게스트로 정보만 저장된 고객 — 초대하면 정식 고객으로 셉니다" |
-| 고객 관리 목록·드로어 (`ClientsPage.tsx`) 와 Q sale 상세 프로필 | 접근 종류 배지(§4.2) 옆 **"한도: 포함"** / **"한도: 미포함 · 초대하면 포함"** 칩 |
+| 고객 관리 목록·드로어 (`ClientsPage.tsx` — 2026-10-16 Q sale 로 합쳐 없앰, docs/CLIENT_SCREENS_MERGE_DESIGN.md) 와 Q sale 상세 프로필 | 접근 종류 배지(§4.2) 옆 **"한도: 포함"** / **"한도: 미포함 · 초대하면 포함"** 칩 |
 | 초대 보내기 모달 (Q sale·고객 관리 공통) | 버튼 위 한 줄 **"초대하면 정식 고객 한도에 포함됩니다 (지금 12 / 20)"**. 초과면 기존 422 `clients_quota_exceeded` → `LimitReachedDialog` |
 | Q sale 목록 헤더 count 옆 | **"정식 12/20 · 문의 7/60"** 칩 (클릭 → 플랜 설정) |
 | `UsageWarningCard.tsx:71` | `prospects` 줄 추가 — 임박 경고도 두 줄 |

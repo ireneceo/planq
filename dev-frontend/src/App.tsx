@@ -79,9 +79,8 @@ const MyFeedbackPage = lazy(() => import('./pages/MyFeedback/MyFeedbackPage'));
 const QTaskPage = lazy(() => import('./pages/QTask/QTaskPage'));
 const QProjectPage = lazy(() => import('./pages/QProject/QProjectPage'));
 const QProjectDetailPage = lazy(() => import('./pages/QProject/QProjectDetailPage'));
-const ClientsPage = lazy(() => import('./pages/Clients/ClientsPage'));
 const OrgPage = lazy(() => import('./pages/Settings/OrgPage'));
-const ClientTimelinePage = lazy(() => import('./pages/Clients/ClientTimelinePage'));
+const LegacyClientsRedirect = lazy(() => import('./components/Clients/LegacyClientsRedirect'));
 const InvitePage = lazy(() => import('./pages/Invite/InvitePage'));
 const AgentConsentPage = lazy(() => import('./pages/Connect/AgentConsentPage'));
 const QCalendarPage = lazy(() => import('./pages/QCalendar/QCalendarPage'));
@@ -371,9 +370,10 @@ function ShellApp() {
             <MainLayout><WorkspaceSettingsPage /></MainLayout>
           </ProtectedRoute>
         } />
+        {/* 2026-10-16 설정 > 고객 은 Q sale 로 합쳤다 — 옛 주소는 쿼리째 넘긴다 */}
         <Route path="/business/clients" element={
           <ProtectedRoute requiredRole={['business_owner', 'business_member']}>
-            <MainLayout><ClientsPage /></MainLayout>
+            <MainLayout><LegacyClientsRedirect /></MainLayout>
           </ProtectedRoute>
         } />
         <Route path="/business/org" element={
@@ -383,7 +383,7 @@ function ShellApp() {
         } />
         <Route path="/business/clients/:clientId/timeline" element={
           <ProtectedRoute requiredRole={['business_owner', 'business_member']}>
-            <MainLayout><ClientTimelinePage /></MainLayout>
+            <MainLayout><LegacyClientsRedirect /></MainLayout>
           </ProtectedRoute>
         } />
         <Route path="/business/*" element={

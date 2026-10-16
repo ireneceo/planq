@@ -1426,7 +1426,7 @@ const ChatPanel: React.FC<Props> = ({
           {activeConv.channel_type === 'customer' && activeConv.client && (
             <CustomerLink
               type="button"
-              onClick={() => navigate(`/business/clients/${activeConv.client!.id}/timeline`)}
+              onClick={() => navigate(`/sale/${activeConv.client!.id}`)}
               title={t('chat.openClientTimeline', '{{name}} 의 통합 타임라인 열기', { name: activeConv.client.name }) as string}
             >
               {activeConv.client.name}

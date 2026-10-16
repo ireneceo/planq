@@ -47,7 +47,7 @@ type ActionKind = 'open' | 'connect' | 'turnOn' | 'installGuide';
  *    create-task · connect-mail · google-calendar-meet · connect-chatgpt-claude.
  *    알림 켜기·앱 설치는 글이 없다 → 사용법 없음. */
 const STEP_META: Record<string, { go?: string; act?: 'push' | 'wiki'; action: ActionKind; hasWiki?: boolean }> = {
-  invite_client: { go: '/business/clients', action: 'open', hasWiki: true },
+  invite_client: { go: '/sale?tab=clients', action: 'open', hasWiki: true },
   start_conversation: { go: '/talk', action: 'open', hasWiki: true },
   create_task: { go: '/tasks', action: 'open', hasWiki: true },
   // 메일 계정 연결은 회사 메일함 화면이다(위키 connect-mail 의 linked_route 와 같은 곳).

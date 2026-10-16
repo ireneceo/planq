@@ -25,6 +25,8 @@ export interface SaleClient {
   can_invite?: boolean;
   email_editable?: boolean;
   quota_counted: boolean;
+  /** 연결 프로젝트 수 — 상세와 같은 술어(client_id 또는 계정 contact_user_id) */
+  project_count?: number;
   sales_stage: SaleStage;
   sales_stage_changed_at: string | null;
   sales_source: SaleSource | null;
@@ -50,6 +52,20 @@ export interface StageHistoryRow {
   at: string;
 }
 
+export interface ClientBilling {
+  is_business: boolean;
+  biz_name: string | null;
+  biz_tax_id: string | null;
+  biz_ceo: string | null;
+  biz_type: string | null;
+  biz_item: string | null;
+  biz_address: string | null;
+  tax_invoice_email: string | null;
+  billing_contact_name: string | null;
+  billing_contact_email: string | null;
+  billing_contact_phone: string | null;
+}
+
 export interface SaleClientDetail extends SaleClient {
   stage_history: StageHistoryRow[];
   channels: { conversations: number; email_threads: number; guest_links: number };
@@ -71,16 +87,11 @@ export interface SaleClientDetail extends SaleClient {
   registered_at?: string | null;
   /** 다가오는 «다음 연락» 일정(target_client_ids 에 이 고객) — 없으면 null (0-J) */
   next_contact?: { id: number; title: string; start_at: string } | null;
-  /** 사업자 정보 — 없으면 null */
-  biz?: {
-    name: string | null;
-    ceo: string | null;
-    tax_id: string | null;
-    type: string | null;
-    item: string | null;
-    address: string | null;
-    address_en: string | null;
-  } | null;
+  /** 사업자·증빙 — 패널에서 고친다(저장은 PUT /api/clients/:biz/:id). 2026-10-16 설정 > 고객 을 합치며 옮겼다 */
+  billing?: ClientBilling;
+  /** 내부 메모 · 초대 재발송 횟수 */
+  notes?: string | null;
+  reinvite_count?: number;
 }
 
 export interface SaleQuota {
@@ -250,6 +261,7 @@ export interface ListParams {
   stage?: string;        // 'in_progress' | SaleStage
   access?: string;       // AccessKind
   assignee?: string;     // userId | 'none'
+  status?: string;       // 빈 값 = 전부 · active = 보관 안 한 것 · archived = 보관만
   limit?: number;
   page?: number;
 }
@@ -477,3 +489,15 @@ export const IN_PROGRESS_STAGES: SaleStage[] = ['inquiry', 'consulting', 'propos
 export const LOST_REASONS: LostReason[] = ['price', 'timing', 'competitor', 'no_response', 'fit', 'other'];
 export const SALE_SOURCES: SaleSource[] = ['guest_link', 'email', 'phone', 'referral', 'web', 'event', 'manual', 'other'];
 export const INTERACTION_KINDS: InteractionKind[] = ['call', 'meeting', 'visit', 'memo', 'other'];
+
+/**
+ * 고객 관리 칸 저장 — 사업자·증빙 · 메모 · 유형 · 계정 없는 고객의 이메일/전화.
+ *   저장 문은 PUT /api/clients/:biz/:id 하나다(감사·실시간 방송이 거기 있다). 실패는 던진다 — AutoSaveField 가 ! 를 띄운다.
+ */
+export async function putClientFields(businessId: number, clientId: number, patch: Record<string, unknown>): Promise<void> {
+  const res = await apiFetch(`/api/clients/${businessId}/${clientId}`, {
+    method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(patch),
+  });
+  const body = await res.json().catch(() => null);
+  if (!res.ok || !body?.success) throw new Error(body?.message || 'save_failed');
+}

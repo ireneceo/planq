@@ -20,24 +20,21 @@ const { broadcastClient, stripClientSecrets, withRelation } = require('../servic
 //   남의 고객 계정을 먼저 만들어 그 고객의 대화·자료로 들어갈 수 있었다.
 //   화면은 이 필드를 **한 곳도 쓰지 않는다**(프론트 grep: 프로젝트 고객·가입 폼만 사용).
 //   열거식이라 컬럼이 늘면 샌다 — 그래서 health-check 에 "응답에 토큰 없음" 검사를 같이 붙였다.
-router.get('/:businessId', authenticateToken, checkBusinessAccess, requireMenu('clients', 'read'), async (req, res, next) => {
+router.get('/:businessId', authenticateToken, checkBusinessAccess, requireMenu('qsale', 'read'), async (req, res, next) => {
   try {
     const clients = await Client.findAll({
       where: { business_id: req.params.businessId },
       include: [{ model: User, as: 'user', attributes: ['id', 'name', 'email', 'phone'] }],
       order: [['created_at', 'DESC']]
     });
-    const { ProjectClient, Project } = require('../models');
-    const userIds = clients.map((c) => c.user_id).filter(Boolean);
-    const pcRows = userIds.length > 0 ? await ProjectClient.findAll({
-      include: [{ model: Project, attributes: ['id', 'business_id', 'name', 'status'], where: { business_id: req.params.businessId } }],
-      where: { contact_user_id: userIds },
-    }) : [];
+    // 연결 프로젝트 — services/clientAccess.projectsByClient 한 벌(Q sale 상세와 같은 술어)
+    const { projectsByClient } = require('../services/clientAccess');
+    const linkedMap = await projectsByClient(Number(req.params.businessId), clients);
     const enriched = clients.map((c) => {
       const json = c.toJSON();
-      const linked = c.user_id ? pcRows.filter((pc) => pc.contact_user_id === c.user_id) : [];
+      const linked = linkedMap.get(c.id) || [];
       json.project_count = linked.length;
-      json.active_project_count = linked.filter((pc) => pc.Project?.status === 'active').length;
+      json.active_project_count = linked.filter((p) => p.status === 'active').length;
       return stripClientSecrets(withRelation(c, json));
     });
     successResponse(res, enriched);
@@ -46,32 +43,13 @@ router.get('/:businessId', authenticateToken, checkBusinessAccess, requireMenu('
   }
 });
 
-// 고객 내보내기 영향도 조회 — 프로젝트 완료 시 "이 워크스페이스에서 아예 나감" 경고 여부
-router.get('/:businessId/:clientId/removal-impact', authenticateToken, checkBusinessAccess, requireMenu('clients', 'read'), async (req, res, next) => {
-  try {
-    const { ProjectClient, Project } = require('../models');
-    const client = await Client.findOne({
-      where: { id: req.params.clientId, business_id: req.params.businessId },
-    });
-    if (!client) return errorResponse(res, 'Client not found', 404);
-    // user_id 기반 매칭 (FK). user_id 없으면 연결 프로젝트 없음.
-    const pcRows = client.user_id ? await ProjectClient.findAll({
-      include: [{ model: Project, attributes: ['id', 'name', 'status'], where: { business_id: req.params.businessId } }],
-      where: { contact_user_id: client.user_id },
-    }) : [];
-    const other = pcRows.map((pc) => ({ id: pc.Project?.id, name: pc.Project?.name, status: pc.Project?.status })).filter((p) => p.id);
-    successResponse(res, {
-      client_id: Number(req.params.clientId),
-      other_projects: other,
-      will_leave_workspace: other.length === 0,
-    });
-  } catch (error) { next(error); }
-});
+// (2026-10-16) GET /:businessId/:clientId/removal-impact 는 지웠다 — 부르던 설정 > 고객 삭제 창이 없어졌고,
+//   Q sale 패널은 상세 응답의 projects(같은 술어 clientAccess.projectsByClient)로 같은 경고를 보인다.
 
 // 고객 통합 타임라인 (Customer 360, N+87 Phase A) — 채팅·메일·업무·청구 시간순 merge.
 //   ★ 내부 전용: client 역할은 403 (자기 360 타임라인 노출 X — docs §8.5).
 //   ?limit= ?before=<ISO> ?channels=chat,email,task,invoice
-router.get('/:businessId/:clientId/timeline', authenticateToken, checkBusinessAccess, requireMenu('clients', 'read'), async (req, res, next) => {
+router.get('/:businessId/:clientId/timeline', authenticateToken, checkBusinessAccess, requireMenu('qsale', 'read'), async (req, res, next) => {
   try {
     if (req.businessRole === 'client') return errorResponse(res, 'forbidden', 403);
     const businessId = Number(req.params.businessId);
@@ -87,7 +65,7 @@ router.get('/:businessId/:clientId/timeline', authenticateToken, checkBusinessAc
 });
 
 // cross-channel 요약 (우측 패널 "이 고객" — 채널별 카운트 + 최근 1건). 내부 전용.
-router.get('/:businessId/:clientId/channel-summary', authenticateToken, checkBusinessAccess, requireMenu('clients', 'read'), async (req, res, next) => {
+router.get('/:businessId/:clientId/channel-summary', authenticateToken, checkBusinessAccess, requireMenu('qsale', 'read'), async (req, res, next) => {
   try {
     if (req.businessRole === 'client') return errorResponse(res, 'forbidden', 403);
     const businessId = Number(req.params.businessId);
@@ -101,7 +79,7 @@ router.get('/:businessId/:clientId/channel-summary', authenticateToken, checkBus
 });
 
 // Create client (invite)
-router.post('/:businessId', authenticateToken, checkBusinessAccess, requireMenu('clients', 'write'), async (req, res, next) => {
+router.post('/:businessId', authenticateToken, checkBusinessAccess, requireMenu('qsale', 'write'), async (req, res, next) => {
   try {
     const { user_id, display_name, company_name, notes, kind } = req.body;
     if (!user_id) return errorResponse(res, 'User ID required', 400);
@@ -142,7 +120,7 @@ router.post('/:businessId', authenticateToken, checkBusinessAccess, requireMenu(
 });
 
 // Get single client — 드로어용. 연결 프로젝트 + 대화 + 기본 정보.
-router.get('/:businessId/:id', authenticateToken, checkBusinessAccess, requireMenu('clients', 'read'), async (req, res, next) => {
+router.get('/:businessId/:id', authenticateToken, checkBusinessAccess, requireMenu('qsale', 'read'), async (req, res, next) => {
   try {
     const { Op } = require('sequelize');
     const { ProjectClient, Project, Conversation, ConversationParticipant } = require('../models');
@@ -154,10 +132,12 @@ router.get('/:businessId/:id', authenticateToken, checkBusinessAccess, requireMe
 
     // 연결 프로젝트 — ProjectClient.contact_user_id = Client.user_id (FK 매칭).
     // email/name 문자열 매칭 폐기 — 이름/이메일 변경 시 연결 끊김 + 동명이인 혼선 제거.
-    const pcRows = client.user_id ? await ProjectClient.findAll({
+    // 같은 술어(services/clientAccess.projectLinkWhere) — 계정 없는 고객도 client_id 로 붙은 프로젝트가 보인다
+    const { projectLinkWhere } = require('../services/clientAccess');
+    const pcRows = await ProjectClient.findAll({
       include: [{ model: Project, attributes: ['id', 'name', 'status', 'color', 'project_type', 'start_date', 'end_date'], where: { business_id: req.params.businessId } }],
-      where: { contact_user_id: client.user_id },
-    }) : [];
+      where: projectLinkWhere(client),
+    });
     // 중복 프로젝트 id 제거
     const seenProjects = new Set();
     const projects = [];
@@ -193,7 +173,7 @@ router.get('/:businessId/:id', authenticateToken, checkBusinessAccess, requireMe
 });
 
 // Update client — display_name / company_name / notes 변경 + AuditLog
-router.put('/:businessId/:id', authenticateToken, checkBusinessAccess, requireMenu('clients', 'write'), async (req, res, next) => {
+router.put('/:businessId/:id', authenticateToken, checkBusinessAccess, requireMenu('qsale', 'write'), async (req, res, next) => {
   try {
     const client = await Client.findOne({ where: { id: req.params.id, business_id: req.params.businessId } });
     if (!client) return errorResponse(res, 'Client not found', 404);
@@ -238,19 +218,22 @@ router.put('/:businessId/:id', authenticateToken, checkBusinessAccess, requireMe
       if (nv !== client.is_business) { patch.is_business = nv; before.is_business = client.is_business; }
     }
 
-    if (Object.keys(patch).length === 0) { broadcastClient(req, client, 'client:updated'); return successResponse(res, stripClientSecrets(client.toJSON())); }
+    // ★ 2026-10-16 — 옛 코드는 **아무것도 안 바뀐 경우에만** 방송했고 실제로 저장한 뒤엔 방송이 없었다.
+    //   그래서 다른 창의 고객 패널·목록이 사업자 정보 수정을 못 따라왔다. 바뀐 것이 없으면 조용히, 바뀌면 방송한다.
+    if (Object.keys(patch).length === 0) return successResponse(res, stripClientSecrets(withRelation(client, client.toJSON())));
     await client.update(patch);
     await createAuditLog({
       userId: req.user.id, businessId: req.params.businessId,
       action: 'client.updated', targetType: 'client', targetId: client.id,
       oldValue: before, newValue: patch,
     });
-    successResponse(res, stripClientSecrets(client.toJSON()));
+    broadcastClient(req, client, 'client:updated');
+    successResponse(res, stripClientSecrets(withRelation(client, client.toJSON())));
   } catch (error) { next(error); }
 });
 
 // History — AuditLog 조회 (target=client / 관련 프로젝트 이벤트 포함)
-router.get('/:businessId/:id/history', authenticateToken, checkBusinessAccess, requireMenu('clients', 'read'), async (req, res, next) => {
+router.get('/:businessId/:id/history', authenticateToken, checkBusinessAccess, requireMenu('qsale', 'read'), async (req, res, next) => {
   try {
     const { Op } = require('sequelize');
     const AuditLog = require('../models/AuditLog');
@@ -279,7 +262,7 @@ router.get('/:businessId/:id/history', authenticateToken, checkBusinessAccess, r
 
 // Archive / activate toggle — POST body { status: 'active' | 'archived' }. 미지정 시 토글.
 // 권한: owner/platform_admin 만 (고객 상태 변경은 조직 관리 영역 · PERMISSION_MATRIX.md §5.5)
-router.post('/:businessId/:id/archive', authenticateToken, checkBusinessAccess, requireMenu('clients', 'write'), async (req, res, next) => {
+router.post('/:businessId/:id/archive', authenticateToken, checkBusinessAccess, requireMenu('qsale', 'write'), async (req, res, next) => {
   try {
     if (req.businessRole !== 'owner' && req.user.platform_role !== 'platform_admin') {
       return errorResponse(res, 'owner_only', 403);
@@ -311,7 +294,7 @@ router.post('/:businessId/:id/archive', authenticateToken, checkBusinessAccess, 
 // Hard delete — 워크스페이스에서 고객 완전 삭제. 연결된 ProjectClient 도 같이 정리.
 // User 계정 자체는 유지 (다른 워크스페이스/플랫폼 계정일 수 있음).
 // 권한: owner/platform_admin 만 (PERMISSION_MATRIX.md §5.5 — 고객 삭제는 조직 인사 영역)
-router.delete('/:businessId/:id', authenticateToken, checkBusinessAccess, requireMenu('clients', 'write'), async (req, res, next) => {
+router.delete('/:businessId/:id', authenticateToken, checkBusinessAccess, requireMenu('qsale', 'write'), async (req, res, next) => {
   try {
     if (req.businessRole !== 'owner' && req.user.platform_role !== 'platform_admin') {
       return errorResponse(res, 'owner_only', 403);

@@ -11,11 +11,12 @@
 // ★ 저장 버튼이 없다(AutoSaveField). 대상이 바뀌면 **부르는 쪽이 `key` 로 인스턴스를 가른다** —
 //   같은 인스턴스를 다른 고객에 재사용하면 떠난 고객의 마지막 입력이 새 고객으로 저장된다
 //   (가드 `--category=autosavekey`).
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import AutoSaveField from '../Common/AutoSaveField';
 import PlanQSelect from '../Common/PlanQSelect';
+import { usePartnerKindLabel } from '../Common/PartnerKindBadge';
 import { SALE_SOURCES, type SaleClientDetail, type SaleSource } from '../../services/sale';
 
 interface Props {
@@ -23,10 +24,18 @@ interface Props {
   onSave: (patch: Record<string, unknown>) => Promise<void>;
   /** 패널처럼 폭이 좁은 자리 — 라벨을 줄여 쌓는다(칸 수는 같다) */
   compact?: boolean;
+  /** 유형(고객·협력사·프리랜서·기타) 저장 — 있으면 칸이 나온다. 저장 문은 PUT /api/clients(감사·방송).
+   *  2026-10-16 설정 > 고객 을 합치며 옮겼다. 없으면(권한 없음) 칸을 그리지 않는다 */
+  onSaveKind?: (kind: string) => Promise<void>;
 }
 
-export default function ClientProfileForm({ client, onSave, compact = false }: Props) {
+export default function ClientProfileForm({ client, onSave, compact = false, onSaveKind }: Props) {
   const { t } = useTranslation('qsale');
+  const kindLabel = usePartnerKindLabel();
+  const kindOptions = useMemo(() => ['customer', 'vendor', 'freelancer', 'other'].map((k) => ({ value: k, label: kindLabel(k) })), [kindLabel]);
+  const [kind, setKind] = useState(client.kind || 'customer');
+  const kindRef = useRef(kind);
+  kindRef.current = kind;
   const [name, setName] = useState(client.display_name || '');
   const [company, setCompany] = useState(client.company_name || '');
   const [phone, setPhone] = useState(client.phone || '');
@@ -82,6 +91,17 @@ export default function ClientProfileForm({ client, onSave, compact = false }: P
             onChange={(e) => setAmount(e.target.value.replace(/[^\d.]/g, ''))} />
         </AutoSaveField>
       </Field>
+      {onSaveKind && (
+        <Field data-testid={`${idp}-kind`}>
+          <FieldLabel>{t('clients:kind.label', { defaultValue: '유형' }) as string}</FieldLabel>
+          <AutoSaveField type="select" onSave={async () => { await onSaveKind(kindRef.current); }}>
+            <PlanQSelect size="sm" isSearchable={false} isClearable={false} options={kindOptions}
+              aria-label={t('clients:kind.label', { defaultValue: '유형' }) as string}
+              value={kindOptions.find((o) => o.value === kind) || kindOptions[0]}
+              onChange={(opt: unknown) => setKind(((opt as { value?: string } | null)?.value) || 'customer')} />
+          </AutoSaveField>
+        </Field>
+      )}
       <Field>
         <FieldLabel>{t('source.label') as string}</FieldLabel>
         <AutoSaveField type="select" onSave={async () => { await onSave({ sales_source: source || null }); }}>

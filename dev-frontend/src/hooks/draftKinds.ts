@@ -51,7 +51,7 @@ export const DRAFT_KINDS = {
   'project-history-entry': { ttlMs: 7 * DAY, mode: 'append', owners: ['pages/QProject/HistoryTab.tsx'] },
   'sale-task-add': { ttlMs: 7 * DAY, mode: 'append', owners: ['components/QSale/SaleInboxList.tsx', 'components/QTask/TaskCreateForm.tsx'] },
   // 문의 추가 모달 — 붙여넣은 원문과 첫 상담 메모. 둘 다 길고, 쓰다 닫으면 사라지던 값이다(2026-09-12).
-  'sale-inquiry-add': { ttlMs: 7 * DAY, mode: 'append', owners: ['pages/QSale/SalePage.tsx', 'components/QSale/SaleCueBar.tsx'] },
+  'sale-inquiry-add': { ttlMs: 7 * DAY, mode: 'append', owners: ['components/QSale/AddInquiryModal.tsx', 'components/QSale/SaleCueBar.tsx'] },
   // 다음 연락 약속 메모 — 일정으로 저장되기 전까지 남는다(2026-09-12)
   'sale-next-contact': { ttlMs: 7 * DAY, mode: 'append', owners: ['components/QSale/NextContactModal.tsx'] },
   // 문서 AI 수정 지시 — 길게 적다가 창을 닫거나 다른 문서로 가면 사라지던 값(2026-10-08). 반영 성공 때 비운다.

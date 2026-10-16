@@ -16,9 +16,13 @@ interface Args {
   setError: (v: boolean) => void;
   reload: () => Promise<void>;
   t: TFunction;
+  /** 관리 행위(보관·되살리기)를 할 수 있는가 — 대표·플랫폼 관리자(서버 archive 라우트와 같은 술어) */
+  canManage?: boolean;
+  /** 거절 이유를 패널 안내줄에 — 토스트 금지 */
+  setNotice?: (msg: string | null) => void;
 }
 
-export function useClientRelationActions({ businessId, cid, data, busy, setBusy, setError, reload, t }: Args) {
+export function useClientRelationActions({ businessId, cid, data, busy, setBusy, setError, reload, t, canManage = false, setNotice }: Args) {
   const [inviteAsk, setInviteAsk] = useState(false);
   const [managedAsk, setManagedAsk] = useState(false);
 
@@ -27,6 +31,9 @@ export function useClientRelationActions({ businessId, cid, data, busy, setBusy,
   const canInvite = !!cid && !!data?.can_invite && !!inviteEmail;
   // 문의 고객 → 직접 관리 고객. 영업 단계는 그대로 두고 관계 축만 바꾼다
   const canRegisterManaged = !!cid && data?.status === 'prospect';
+  // 보관 — 문의 고객은 보관하지 않는다(서버 409 prospect_use_stage · 종결은 «무산» 단계). 2026-10-16 설정 > 고객 에서 옮겼다
+  const canArchive = !!cid && canManage && !!data?.status && data.status !== 'prospect';
+  const archived = data?.status === 'archived';
 
   const run = useCallback(async (fn: () => Promise<Response>) => {
     if (!cid || busy) return;
@@ -80,8 +87,26 @@ export function useClientRelationActions({ businessId, cid, data, busy, setBusy,
     </>
   );
 
+  // 보관 ↔ 되살리기 — 되살릴 상태는 서버가 증거로 정한다(계정 → 활성 · 초대 흔적 → 초대됨 · 그 외 → 직접 관리)
+  const setArchived = useCallback(async (next: 'archived' | 'active') => {
+    if (!cid || busy) return;
+    setBusy(true); setNotice?.(null);
+    try {
+      const r = await apiFetch(`/api/clients/${businessId}/${cid}/archive`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: next }),
+      });
+      if (!r.ok) {
+        const j = await r.json().catch(() => null);
+        setNotice?.(t(`action.archiveError.${j?.message || 'failed'}`, { defaultValue: t('action.archiveError.failed') as string }) as string);
+        return;
+      }
+      await reload();
+    } catch { setError(true); } finally { setBusy(false); }
+  }, [businessId, cid, busy, setBusy, setError, setNotice, reload, t]);
+  const toggleArchive = useCallback(() => { void setArchived(archived ? 'active' : 'archived'); }, [setArchived, archived]);
+
   // 안정된 참조 — 부르는 쪽 useMemo(⋯ 메뉴 항목) 가 매 렌더 다시 만들어지지 않게
   const askInvite = useCallback(() => setInviteAsk(true), []);
   const askManaged = useCallback(() => setManagedAsk(true), []);
-  return { canInvite, canRegisterManaged, askInvite, askManaged, dialogs };
+  return { canInvite, canRegisterManaged, askInvite, askManaged, dialogs, canArchive, archived, toggleArchive };
 }

@@ -6,9 +6,9 @@ import React, { useCallback, useEffect, useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { apiFetch } from '../../contexts/AuthContext';
-import PlanQSelect from '../../components/Common/PlanQSelect';
-import SingleDateField from '../../components/Common/SingleDateField';
-import ActionButton from '../../components/Common/ActionButton';
+import PlanQSelect from '../Common/PlanQSelect';
+import SingleDateField from '../Common/SingleDateField';
+import ActionButton from '../Common/ActionButton';
 
 type Interval = 'weekly' | 'biweekly' | 'monthly' | 'quarterly' | 'semiannual' | 'yearly';
 type EndMode = 'never' | 'after_count' | 'until_date';

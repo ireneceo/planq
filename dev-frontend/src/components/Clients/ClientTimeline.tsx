@@ -1,6 +1,6 @@
 // components/Clients/ClientTimeline.tsx — 고객 통합 타임라인의 **행 렌더링 한 벌**
 //
-// 고객 타임라인 페이지(/business/clients/:id/timeline)와 Q sale 상세가 같은 것을 그린다.
+// Q sale 상세·우측 패널이 같은 것을 그린다(옛 고객 타임라인 페이지는 2026-10-16 Q sale 로 합쳤다).
 // 베껴 두면 갈라진다 — 채널이 늘 때 한쪽에만 붙고, 늘어난 type 이 색 표에 없으면
 // 그 행이 통째로 죽는다(memory feedback_copied_component_drifts_extract_shell).
 //

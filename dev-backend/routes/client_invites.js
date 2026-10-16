@@ -30,7 +30,7 @@ async function sendClientInviteMail(req, { to, targetName, token }) {
   } catch (e) { console.warn('invite email send failed:', e.message); return false; }
 }
 
-router.post('/:businessId/invite', authenticateToken, checkBusinessAccess, requireMenu('clients', 'write'), ...perUserDaily('invite-email', { perMin: 20, perDay: 200, message: '초대 발송이 너무 잦습니다. 잠시 후 다시 시도하세요.' }), async (req, res, next) => {
+router.post('/:businessId/invite', authenticateToken, checkBusinessAccess, requireMenu('qsale', 'write'), ...perUserDaily('invite-email', { perMin: 20, perDay: 200, message: '초대 발송이 너무 잦습니다. 잠시 후 다시 시도하세요.' }), async (req, res, next) => {
   try {
     const { name, email, company_name, notes, kind, client_id } = req.body || {};
     if (!name?.trim() || !email?.trim()) return errorResponse(res, 'name and email are required', 400);
@@ -142,7 +142,7 @@ router.post('/:businessId/invite', authenticateToken, checkBusinessAccess, requi
 // 직접 관리 고객 등록 — 계정·초대 없이 정보만 넣고 관리하는 **정식 고객**(docs/CLIENT_MANAGED_DESIGN.md).
 //   청구서·프로젝트·증빙에 쓰려고 넣는 고객이다. 한도는 정식 고객(add_client). 메일은 보내지 않는다.
 //   이메일·전화는 선택 — 이름 또는 회사 하나는 있어야 한다. 이미 같은 이메일·전화의 고객이 있으면 409(조용히 연결하지 않는다).
-router.post('/:businessId/managed', authenticateToken, checkBusinessAccess, requireMenu('clients', 'write'), async (req, res, next) => {
+router.post('/:businessId/managed', authenticateToken, checkBusinessAccess, requireMenu('qsale', 'write'), async (req, res, next) => {
   try {
     const businessId = Number(req.params.businessId);
     const { trimOrNull, normEmail, EMAIL_RE, findExistingByContact } = require('../services/saleCommon');
@@ -189,7 +189,7 @@ router.post('/:businessId/managed', authenticateToken, checkBusinessAccess, requ
 
 // 문의 고객 → 직접 관리 고객(계정 없이 정식 고객으로) — 사람이 누르는 문. 영업 단계(sales_stage)는 건드리지 않는다.
 //   정식 고객 한도에 들어가므로 add_client 를 본다.
-router.post('/:businessId/:id/register-managed', authenticateToken, checkBusinessAccess, requireMenu('clients', 'write'), async (req, res, next) => {
+router.post('/:businessId/:id/register-managed', authenticateToken, checkBusinessAccess, requireMenu('qsale', 'write'), async (req, res, next) => {
   try {
     const businessId = Number(req.params.businessId);
     const client = await Client.findOne({ where: { id: req.params.id, business_id: businessId } });
@@ -215,7 +215,7 @@ const notifyClientInvitee = (req, a) => require('../services/inviteNotify').noti
   businessId: Number(req.params.businessId), entityType: 'client', actorUserId: req.user.id, io: req.app.get('io'), ...a });
 // 초대 재발송 — 아직 수락 안 한 (invited) 고객에게 초대 메일 다시 보내기.
 //   토큰은 유지하되 invited_at 갱신(만료 30일 연장). 이미 가입(active)한 고객은 불가.
-router.post('/:businessId/:id/resend-invite', authenticateToken, checkBusinessAccess, requireMenu('clients', 'write'), async (req, res, next) => {
+router.post('/:businessId/:id/resend-invite', authenticateToken, checkBusinessAccess, requireMenu('qsale', 'write'), async (req, res, next) => {
   try {
     const client = await Client.findOne({ where: { id: req.params.id, business_id: req.params.businessId } });
     if (!client) return errorResponse(res, 'Client not found', 404);

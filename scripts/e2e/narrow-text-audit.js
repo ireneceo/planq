@@ -35,7 +35,7 @@ const ROUTES = [
   ['설정·메일', '/business/settings/email'],
   ['설정·알림', '/business/settings/notifications'],
   ['멤버', '/business/members'],
-  ['고객', '/business/clients'],
+  ['고객', '/sale?tab=clients'],
   ['조직', '/business/org'],
   ['Q Talk', '/talk'],
   ['Q Task', '/tasks'],

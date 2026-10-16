@@ -51,6 +51,11 @@ router.get('/:businessId/clients', ...readChain, async (req, res, next) => {
     const aw = accessWhere(String(req.query.access || ''));
     if (aw) and.push(aw);
 
+    // 보관 축(2026-10-16 설정 > 고객 을 합치며 옮겼다) — active = 보관 안 한 것 전부(NULL 포함) · archived = 보관만
+    const statusAxis = String(req.query.status || '');
+    if (statusAxis === 'archived') and.push({ status: 'archived' });
+    else if (statusAxis === 'active') and.push({ [Op.or]: [{ status: null }, { status: { [Op.ne]: 'archived' } }] });
+
     const assignee = String(req.query.assignee || '');
     if (assignee === 'none') and.push({ assigned_member_id: null });
     else if (/^\d+$/.test(assignee)) and.push({ assigned_member_id: Number(assignee) });
@@ -200,11 +205,10 @@ router.get('/:businessId/clients/:clientId', ...readChain, async (req, res, next
       }
     } catch (e) { console.warn('[sale next_contact]', e.message); }
 
-    // 연결 프로젝트 — project_clients.client_id 또는 (계정이 있으면) contact_user_id
-    const pcOr = [{ client_id: client.id }];
-    if (client.user_id) pcOr.push({ contact_user_id: client.user_id });
+    // 연결 프로젝트 — project_clients.client_id 또는 (계정이 있으면) contact_user_id (services/clientAccess.projectLinkWhere 한 벌)
+    const { projectLinkWhere } = require('../services/clientAccess');
     const pcs = await ProjectClient.findAll({
-      where: { [Op.or]: pcOr },
+      where: projectLinkWhere(client),
       include: [{ model: Project, attributes: ['id', 'name', 'status'], where: { business_id: businessId }, required: true }],
       attributes: ['id', 'project_id'],
     });
@@ -235,15 +239,23 @@ router.get('/:businessId/clients/:clientId', ...readChain, async (req, res, next
       billing_phone: client.billing_contact_phone || null,
       billing_contact_name: client.billing_contact_name || null,
     };
-    out.biz = client.biz_name || client.biz_tax_id ? {
-      name: client.biz_name || null,
-      ceo: client.biz_ceo || null,
-      tax_id: client.biz_tax_id || null,
-      type: client.biz_type || null,
-      item: client.biz_item || null,
-      address: client.biz_address || null,
-      address_en: client.biz_address_en || null,
-    } : null;
+    // 사업자·증빙 — 패널에서 **고친다**(2026-10-16 설정 > 고객 을 합치며 옮겼다). 저장은 PUT /api/clients/:biz/:id.
+    //   옛 `biz`(읽기 전용, 상호·번호가 있을 때만)는 이것으로 대체했다 — 같은 값의 모양 두 벌을 두지 않는다.
+    out.billing = {
+      is_business: !!client.is_business,
+      biz_name: client.biz_name || null,
+      biz_tax_id: client.biz_tax_id || null,
+      biz_ceo: client.biz_ceo || null,
+      biz_type: client.biz_type || null,
+      biz_item: client.biz_item || null,
+      biz_address: client.biz_address || null,
+      tax_invoice_email: client.tax_invoice_email || null,
+      billing_contact_name: client.billing_contact_name || null,
+      billing_contact_email: client.billing_contact_email || null,
+      billing_contact_phone: client.billing_contact_phone || null,
+    };
+    out.notes = client.notes || null;
+    out.reinvite_count = client.reinvite_count || 0;
 
     return successResponse(res, out);
   } catch (err) { next(err); }

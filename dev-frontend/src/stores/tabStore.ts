@@ -102,8 +102,8 @@ const PREFIX_KIND: Array<[RegExp, TabKind]> = [
   [/^\/mail/, 'mail'],
   [/^\/sale/, 'sale'],          // Q sale — 목록·상세 같은 kind(고객별 복수 탭은 열지 않는다)
   [/^\/files/, 'files'],
-  [/^\/business\/clients/, 'clients'], // 실 라우트(App.tsx). /^\/clients/ 보다 먼저 — other kind 흡수 방지
-  [/^\/clients/, 'clients'],
+  // 2026-10-16 설정 > 고객 은 Q sale 로 합쳤다 — 옛 주소로 열린 탭도 Q sale 탭이다(리다이렉트 전 한 순간도 같은 kind)
+  [/^\/business\/clients/, 'sale'],
   [/^\/info/, 'info'],
   [/^\/inbox/, 'inbox'],
   [/^\/home/, 'home'],

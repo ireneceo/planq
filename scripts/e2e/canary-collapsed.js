@@ -12,7 +12,7 @@ const b = require('./lib/browser');
 
 const ROUTES = [
   '/dashboard', '/inbox', '/talk', '/tasks', '/info', '/projects', '/calendar',
-  '/notes', '/files', '/docs', '/mail', '/bills', '/business/clients',
+  '/notes', '/files', '/docs', '/mail', '/bills', '/sale?tab=clients',
   '/personal-vault', '/business/settings', '/notifications',
 ];
 

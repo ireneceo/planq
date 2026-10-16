@@ -106,4 +106,53 @@ async function withAccess(businessId, clients) {
   }));
 }
 
-module.exports = { accessKindOf, accessWhere, withAccess, canInviteClient, emailEditable, reactivatedStatusOf };
+/**
+ * 고객에 연결된 프로젝트 — project_clients 행의 술어 **한 벌**(2026-10-16 고객 화면 통합).
+ *   client_id 로 붙은 행(계정 없는 고객도) + 계정이 있으면 contact_user_id 로 붙은 옛 행.
+ *   옛 설정 화면은 contact_user_id 만 봐서 계정 없는 고객의 프로젝트가 0 으로 보였다.
+ */
+function projectLinkWhere(client) {
+  const or = [{ client_id: client.id }];
+  if (client.user_id) or.push({ contact_user_id: client.user_id });
+  return { [Op.or]: or };
+}
+
+/**
+ * 여러 고객의 연결 프로젝트를 한 번에 — Map<clientId, [{id,name,status,link_id}]>(프로젝트 중복 제거).
+ * 같은 술어(projectLinkWhere)를 묶어서 쓴다.
+ */
+async function projectsByClient(businessId, clients) {
+  const out = new Map();
+  const list = (clients || []).filter(Boolean);
+  for (const c of list) out.set(c.id, []);
+  if (!list.length) return out;
+  const { ProjectClient, Project } = require('../models');
+  const ids = list.map((c) => c.id);
+  const userIds = list.map((c) => c.user_id).filter(Boolean);
+  const or = [{ client_id: { [Op.in]: ids } }];
+  if (userIds.length) or.push({ contact_user_id: { [Op.in]: userIds } });
+  const rows = await ProjectClient.findAll({
+    where: { [Op.or]: or },
+    include: [{ model: Project, attributes: ['id', 'name', 'status'], where: { business_id: businessId }, required: true }],
+    attributes: ['id', 'project_id', 'client_id', 'contact_user_id'],
+  });
+  const byUser = new Map(list.filter((c) => c.user_id).map((c) => [c.user_id, c.id]));
+  const seen = new Map();
+  for (const r of rows) {
+    const owners = new Set();
+    if (r.client_id && out.has(r.client_id)) owners.add(r.client_id);
+    if (r.contact_user_id && byUser.has(r.contact_user_id)) owners.add(byUser.get(r.contact_user_id));
+    for (const cid of owners) {
+      const key = `${cid}:${r.Project.id}`;
+      if (seen.has(key)) continue;
+      seen.set(key, true);
+      out.get(cid).push({ id: r.Project.id, name: r.Project.name, status: r.Project.status, link_id: r.id });
+    }
+  }
+  return out;
+}
+
+module.exports = {
+  accessKindOf, accessWhere, withAccess, canInviteClient, emailEditable, reactivatedStatusOf,
+  projectLinkWhere, projectsByClient,
+};

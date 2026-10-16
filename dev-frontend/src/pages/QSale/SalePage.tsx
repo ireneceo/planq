@@ -24,22 +24,21 @@ import { HeaderCta } from '../../components/Common/headerCta';
 import { ChipRow, FilterChip, ChipDivider, ChipRight } from '../../components/Common/filterChip';
 import { SegmentedToggle, SegmentedBtn } from '../../components/Common/segmentedToggle';
 import ActionButton from '../../components/Common/ActionButton';
-import StandardModal from '../../components/Common/StandardModal';
 import LetterAvatar from '../../components/Common/LetterAvatar';
+import PartnerKindBadge from '../../components/Common/PartnerKindBadge';
+import ClientAddDrawer from '../../components/Clients/ClientAddDrawer';
+import { downloadRowsAsCsv } from '../../utils/csv';
 // ★ 2026-09-12 Irene: "상세(채팅, 메일, 전화, 등등) > 고객 이렇게 들어가야지 · 상담리스트, 고객리스트 2가지 다 보여줘도 좋고"
 //   입구를 상담(고객 미등록 문의)으로 바꾸고 고객 목록은 옆 탭으로 둔다. 목록·액션은 SaleInboxList 한 곳.
 import SaleInboxList from '../../components/QSale/SaleInboxList';
 import SaleCueBar from '../../components/QSale/SaleCueBar';
+import AddInquiryModal from '../../components/QSale/AddInquiryModal';
 // 응대 내역 입력칸은 **공용 한 벌** — RecordModal 과 같은 것을 쓴다
-import InteractionFields, { emptyInteraction, type InteractionValue } from '../../components/QSale/InteractionFields';
 // 이메일·전화는 **공용 입력**을 쓴다 — 형식을 입력 중에 맞춰 주고 틀리면 그 자리에서 말한다
-import EmailInput, { isEmailUsable } from '../../components/Common/EmailInput';
-import PhoneInput, { isPhoneUsable } from '../../components/Common/PhoneInput';
-import { useDraftKey, useDraftText } from '../../hooks/useDraftText';
 import {
-  listSaleClients, getSaleSummary, saveAsClient,
-  SALE_STAGES, IN_PROGRESS_STAGES, SALE_SOURCES,
-  type SaleClient, type SaleSummary, type SaleStage, type AccessKind, type SaleSource,
+  listSaleClients, getSaleSummary,
+  SALE_STAGES, IN_PROGRESS_STAGES,
+  type SaleClient, type SaleSummary, type SaleStage, type AccessKind,
 } from '../../services/sale';
 
 const PAGE = 50;
@@ -75,6 +74,13 @@ export default function SalePage() {
   });
   const [inboxCounts, setInboxCounts] = useState<{ needs_reply: number } | null>(null);
   const [addOpen, setAddOpen] = useState(false);
+  // 고객 탭 [+ 고객 추가](초대 / 직접 관리) — 2026-10-16 설정 > 고객 을 Q sale 로 합치며 옮겼다.
+  //   관리 행위라 대표·플랫폼 관리자에게만(옛 설정 화면과 같은 선). 멤버는 고객 탭에서도 [응대 추가] 를 본다.
+  const canManage = user?.business_role === 'owner' || user?.platform_role === 'platform_admin';
+  const [clientAddOpen, setClientAddOpen] = useState(false);
+  const [clientAddPrefill, setClientAddPrefill] = useState<{ name?: string; email?: string } | null>(null);
+  // 보관 축 — 고객 탭만(활성 = 보관 안 한 것 · 보관 = 보관만)
+  const [statusAxis, setStatusAxis] = useState<string>('');
   // [상담 진행] 드롭다운 — 좌표·바깥클릭·Esc·포커스는 공용 앵커 한 벌(각자 계산하면 갈라진다).
   const noteAnchor = usePopoverAnchor();
   // ★ 행을 눌러도 **페이지를 갈아타지 않는다** (Irene 2026-09-12: "고객탭에서는 리스트 누르면
@@ -117,10 +123,25 @@ export default function SalePage() {
     setTab(urlTab === 'clients' ? 'clients' : 'inbox');
   }, [urlQ, urlTab]);
 
+  // `?new=1&email=&name=` — 메일 «고객으로 저장»·옛 설정 > 고객 주소가 보낸다. 고객 탭에서 고객 추가를 **채워서** 연다.
+  //   한 번 쓰고 지운다(새로고침·공유 때 다시 열리지 않게). keep-alive 탭이라 초기값이 아니라 주소를 따라간다.
+  const urlNew = searchParams.get('new');
+  useEffect(() => {
+    if (urlNew !== '1') return;
+    setTab('clients');
+    setClientAddPrefill({ email: searchParams.get('email') || '', name: searchParams.get('name') || '' });
+    setClientAddOpen(true);
+    setSearchParams((sp) => {
+      const out = new URLSearchParams(sp);
+      out.delete('new'); out.delete('email'); out.delete('name');
+      return out;
+    }, { replace: true });
+  }, [urlNew, searchParams, setSearchParams]);
+
   // 상담 목록을 다시 읽게 하는 신호 — 문의를 추가하면 **그 목록에** 들어와야 한다
   const [inboxRefresh, setInboxRefresh] = useState(0);
 
-  const filters = useMemo(() => ({ q, stage, access, assignee }), [q, stage, access, assignee]);
+  const filters = useMemo(() => ({ q, stage, access, assignee, status: statusAxis }), [q, stage, access, assignee, statusAxis]);
   const filtersRef = useRef(filters);
   filtersRef.current = filters;
 
@@ -150,7 +171,7 @@ export default function SalePage() {
   useEffect(() => {
     const h = window.setTimeout(() => { load({ page: 1 }); }, q ? 300 : 0);
     return () => window.clearTimeout(h);
-  }, [q, stage, access, assignee, load]);
+  }, [q, stage, access, assignee, statusAxis, load]);
 
   // 실시간 — 다른 사람이 고객을 저장·수정하면 즉시 반영 (CLAUDE.md 운영 안정성 16)
   const silentLoad = useCallback(() => { load({ silent: true, page: 1 }); }, [load]);
@@ -191,6 +212,11 @@ export default function SalePage() {
     axisOption(t('stage.label') as string),
     { value: 'in_progress', label: t('list.stageInProgress') as string },
     ...SALE_STAGES.map((s) => ({ value: s, label: t(`stage.${s}`) as string })),
+  ]), [t]);
+  const statusOptions = useMemo(() => ([
+    axisOption(t('clientStatus.label', { defaultValue: '보관' }) as string),
+    { value: 'active', label: t('clientStatus.active', { defaultValue: '활성' }) as string },
+    { value: 'archived', label: t('clientStatus.archived', { defaultValue: '보관됨' }) as string },
   ]), [t]);
   const accessOptions = useMemo(() => ([
     axisOption(t('access.label') as string),
@@ -237,12 +263,22 @@ export default function SalePage() {
               머리줄 주 액션은 **공용 `HeaderCta` 한 곳**에서 온다 — 프로젝트 [+ 새 프로젝트] ·
               Q task [+ 업무 추가] 와 같은 껍데기다. 오전에는 secondary(흰 배경)였는데,
               세 화면을 나란히 놓으면 여기만 눌리지 않는 버튼처럼 보였다. */}
-          <HeaderCta data-testid="sale-add-inquiry" onClick={() => setAddOpen(true)}>
-            <PlusIcon aria-hidden />
-            {/* 폰은 짧은 이름 — 세 컨트롤이 한 줄(폭 365)을 넘어 버튼이 화면 끝에 붙었다(#445) */}
-            <LongLabel>{t('action.addRecord') as string}</LongLabel>
-            <ShortLabel>{t('action.addRecordShort', { defaultValue: '응대 추가' }) as string}</ShortLabel>
-          </HeaderCta>
+          {/* 탭마다 주 액션 하나 — 고객 탭은 [+ 고객 추가](초대 / 직접 관리), 상담 탭은 [+ 고객응대 내역 추가](문의).
+              문의 저장은 «상담 기록» 이 본체라 폼이 다르다 — 한 폼에 세 갈래를 묶지 않는다(Fable 2026-10-16). */}
+          {tab === 'clients' && canManage ? (
+            <HeaderCta data-testid="sale-add-client" onClick={() => { setClientAddPrefill(null); setClientAddOpen(true); }}>
+              <PlusIcon aria-hidden />
+              <LongLabel>{t('clients:addClient') as string}</LongLabel>
+              <ShortLabel>{t('clients:addClient') as string}</ShortLabel>
+            </HeaderCta>
+          ) : (
+            <HeaderCta data-testid="sale-add-inquiry" onClick={() => setAddOpen(true)}>
+              <PlusIcon aria-hidden />
+              {/* 폰은 짧은 이름 — 세 컨트롤이 한 줄(폭 365)을 넘어 버튼이 화면 끝에 붙었다(#445) */}
+              <LongLabel>{t('action.addRecord') as string}</LongLabel>
+              <ShortLabel>{t('action.addRecordShort', { defaultValue: '응대 추가' }) as string}</ShortLabel>
+            </HeaderCta>
+          )}
           {/* ★ 2026-09-18 (Irene: *"Q sale에 상 진행 이라고 버튼 넣고 고객응대 내역 추가 뒤에 넣어줘.
               그리고 Q note + 드롭다운 그대로 넣고 누르면 Q note로 열리게 해."*)
               상담을 **지금 진행**하는 문 — 메뉴는 Q note 사이드바의 ＋ 와 **같은 한 벌**이다
@@ -310,7 +346,7 @@ export default function SalePage() {
         </FilterSearchSlot>
         <FilterMoreToggle testId="sale-filter-toggle" open={filtersOpen}
           onToggle={() => setFiltersOpen((v) => { const n = !v; try { localStorage.setItem('planq.sale.filtersOpen', n ? '1' : '0'); } catch { /* private mode */ } return n; })}
-          activeCount={(stage ? 1 : 0) + (access ? 1 : 0) + (assignee ? 1 : 0) + (tab === 'inbox' && replyOnly ? 1 : 0) + (tab === 'inbox' && !hideClosed ? 1 : 0)}
+          activeCount={(stage ? 1 : 0) + (access ? 1 : 0) + (assignee ? 1 : 0) + (tab === 'clients' && statusAxis ? 1 : 0) + (tab === 'inbox' && replyOnly ? 1 : 0) + (tab === 'inbox' && !hideClosed ? 1 : 0)}
           label={t('list.filters', { defaultValue: '필터' }) as string} />
         {/* 폰에서는 접힌다(#447) — 데스크탑·태블릿은 이 상자가 레이아웃에 끼어들지 않는다 */}
         <FilterCollapsible $open={filtersOpen}>
@@ -332,6 +368,14 @@ export default function SalePage() {
             value={assigneeOptions.find((o) => o.value === assignee) || assigneeOptions[0]}
             onChange={(opt: unknown) => setAssignee(String((opt as { value?: string } | null)?.value ?? ''))} />
         </FilterSlot>
+        {tab === 'clients' && (
+          <FilterSlot width={110} testId="sale-status-filter">
+            <PlanQSelect size="sm" isSearchable={false} options={statusOptions}
+              aria-label={t('clientStatus.label', { defaultValue: '보관' }) as string}
+              value={statusOptions.find((o) => o.value === statusAxis) || statusOptions[0]}
+              onChange={(opt: unknown) => setStatusAxis(String((opt as { value?: string } | null)?.value ?? ''))} />
+          </FilterSlot>
+        )}
         {tab === 'inbox' && (
           <>
             {/* 참/거짓 하나짜리는 셀렉트로 만들지 않는다 — 켜고 끄는 것이 곧 뜻이다 */}
@@ -441,10 +485,12 @@ export default function SalePage() {
               <tr>
                 <Th style={{ width: 44 }} />
                 <Th>{t('list.columns.client') as string}</Th>
+                <Th>{t('list.columns.email', { defaultValue: '이메일' }) as string}</Th>
                 <Th style={{ width: 96 }}>{t('list.columns.access') as string}</Th>
                 <Th style={{ width: 104 }}>{t('list.columns.stage') as string}</Th>
                 <Th style={{ width: 110 }}>{t('list.columns.assignee') as string}</Th>
                 <Th style={{ width: 130 }}>{t('list.columns.lastTouch') as string}</Th>
+                <Th style={{ width: 80, textAlign: 'center' }}>{t('list.columns.projects', { defaultValue: '프로젝트' }) as string}</Th>
                 <Th style={{ width: 130, textAlign: 'right' }}>{t('list.columns.expected') as string}</Th>
               </tr>
             </thead>
@@ -461,9 +507,11 @@ export default function SalePage() {
                             행 전체도 패널을 열지만, 이름을 직접 눌러도 **같은 패널**이라 동작이 갈라지지 않는다. */}
                         <ClientLink clientId={c.id} name={name}
                           onOpen={(id) => setPanelClientId((prev) => (prev === id ? null : id))} />
+                        {c.kind && c.kind !== 'customer' && <PartnerKindBadge kind={c.kind} />}
                         {c.company_name && c.display_name && <CompanySub>{c.company_name}</CompanySub>}
                       </NameCell>
                     </Td>
+                    <Td><Dim>{c.email || '—'}</Dim></Td>
                     <Td><AccessBadge $kind={c.access_kind} title={t(`access.${c.access_kind}_hint`) as string}>{t(`access.${c.access_kind}`) as string}</AccessBadge></Td>
                     <Td><StageBadge $stage={c.sales_stage} title={t(`stage.${c.sales_stage}_hint`) as string}>{t(`stage.${c.sales_stage}`) as string}</StageBadge></Td>
                     <Td><Dim>{c.assigned_member?.name || '—'}</Dim></Td>
@@ -472,6 +520,7 @@ export default function SalePage() {
                         ? <Dim title={formatDateTime(c.last_touch_at)}>{formatTimeAgo(c.last_touch_at)}</Dim>
                         : <Dim>{t('list.noTouch') as string}</Dim>}
                     </Td>
+                    <Td style={{ textAlign: 'center' }}><Dim>{c.project_count ? c.project_count : '—'}</Dim></Td>
                     <Td style={{ textAlign: 'right' }}>
                       {c.expected_amount != null
                         ? <Dim>{Number(c.expected_amount).toLocaleString()} {c.expected_currency || 'KRW'}</Dim>
@@ -484,6 +533,22 @@ export default function SalePage() {
           </Table>
           <FootRow>
             <Dim>{t('list.count', { count: total }) as string}</Dim>
+            {/* 보이는 목록(검색·필터 적용본)을 그대로 내보낸다 — 옛 설정 > 고객 의 [엑셀] 을 옮겼다(#225) */}
+            <ActionButton tone="secondary" size="sm" data-testid="sale-clients-export-csv"
+              onClick={() => downloadRowsAsCsv(`clients_${new Date().toISOString().slice(0, 10)}.csv`, items, [
+                { key: 'display_name', header: t('clients:csv.name', { defaultValue: '이름' }) as string },
+                { key: 'company_name', header: t('clients:csv.company', { defaultValue: '회사' }) as string },
+                { key: 'email', header: t('clients:col.email', { defaultValue: '이메일' }) as string },
+                { key: 'phone', header: t('clients:col.phone', { defaultValue: '전화' }) as string },
+                { key: 'kind', header: t('clients:csv.kind', { defaultValue: '구분' }) as string },
+                { key: 'status', header: t('clients:csv.status', { defaultValue: '상태' }) as string },
+                { key: 'sales_stage', header: t('stage.label') as string },
+                { key: 'project_count', header: t('clients:csv.projects', { defaultValue: '프로젝트' }) as string },
+                { key: 'invited_at', header: t('clients:csv.invitedAt', { defaultValue: '초대일' }) as string,
+                  format: (r) => (r.invited_at ? String(r.invited_at).slice(0, 10) : '') },
+              ])}>
+              {t('clients:csv.button', { defaultValue: '엑셀' }) as string}
+            </ActionButton>
             {hasMore && (
               <ActionButton tone="secondary" size="sm" onClick={() => load({ page: page + 1 })}>
                 {t('timeline.more') as string}
@@ -508,6 +573,12 @@ export default function SalePage() {
           setPanelClientId(clientId);
         }}
       />
+      {businessId && (
+        <ClientAddDrawer open={clientAddOpen} onClose={() => setClientAddOpen(false)} businessId={businessId}
+          prefill={clientAddPrefill}
+          onDone={(id) => { load({ silent: true, page: 1 }); if (id) setPanelClientId(id); }}
+          onOpenExisting={(id) => setPanelClientId(id)} />
+      )}
       <ClientPanel
         businessId={businessId as number}
         clientId={panelClientId}
@@ -515,127 +586,6 @@ export default function SalePage() {
         onChanged={() => load({ silent: true })}
       />
     </PageShell>
-  );
-}
-
-// ─── 문의 추가 ────────────────────────────────────────────────────
-function AddInquiryModal({ open, businessId, onClose, onDone }: {
-  open: boolean; businessId: number | null; onClose: () => void; onDone: (clientId: number) => void;
-}) {
-  const { t } = useTranslation('qsale');
-  const [name, setName] = useState('');
-  const [company, setCompany] = useState('');
-  const [phone, setPhone] = useState('');
-  const [email, setEmail] = useState('');
-  const [source, setSource] = useState<SaleSource>('manual');
-  // 첫 상담 기록 — 전화·방문 내용은 **등록하는 그 순간**에만 손에 있다(Irene 2026-09-12).
-  //   여기서 안 받으면 저장 후 상세로 들어가 한 번 더 써야 하고, 대개 안 쓴다.
-  // 응대 내역 값 — 공용 칸(InteractionFields)이 쓰는 모양 그대로
-  const [rec, setRec] = useState<InteractionValue>(() => emptyInteraction());
-  const [saving, setSaving] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
-
-  // 붙여넣은 글·상담 메모는 길다 — 쓰다 닫아도 남는다(입력 초안 계약).
-  //   대상이 하나뿐인 폼이라 entityId 는 고정값이고, 비우는 것은 **저장 성공**뿐이다.
-  const note = useDraftText(useDraftKey('sale-inquiry-add', 'note', businessId));
-
-  const sourceOptions = useMemo(() => SALE_SOURCES.map((x) => ({ value: x as string, label: t(`source.${x}`) as string })), [t]);
-
-  useEffect(() => {
-    // ★ 초안(붙여넣은 글·메모)은 **여기서 비우지 않는다** — 열 때마다 지우면 초안이 아니다.
-    if (open) { setName(''); setCompany(''); setPhone(''); setEmail(''); setSource('manual'); setRec(emptyInteraction()); setErr(null); }
-  }, [open]);
-
-  const submit = async () => {
-    if (!businessId || saving) return;              // 중복 제출 가드
-    if (!name.trim() && !company.trim()) { setErr(t('inquiry.nameRequired') as string); return; }
-    // 형식이 틀린 값은 **보내지 않는다** — 서버 400 을 받고 나서 말하면 사용자는 무엇이 틀렸는지 모른다
-    if (!isEmailUsable(email)) { setErr(t('inquiry.invalidEmail') as string); return; }
-    if (!isPhoneUsable(phone)) { setErr(t('inquiry.invalidPhone') as string); return; }
-    setSaving(true);
-    try {
-      const body = note.text.trim();
-      const out = await saveAsClient(businessId, {
-        from: 'manual',
-        display_name: name.trim() || undefined,
-        company_name: company.trim() || undefined,
-        phone: phone.trim() || undefined,
-        email: email.trim() || undefined,
-        sales_source: source,
-        // 내용이 있을 때만 기록을 만든다(빈 기록은 원장을 더럽힌다)
-        // 시각·제목·길이까지 같이 보낸다 — 칸이 생겼는데 안 보내면 사용자가 적은 것이 사라진다
-        interaction: body ? {
-          kind: rec.kind, body,
-          direction: rec.direction || 'inbound',
-          occurred_at: rec.date && rec.time ? `${rec.date}T${rec.time}` : undefined,
-          title: rec.title.trim() || undefined,
-          duration_minutes: rec.minutes ? Number(rec.minutes) : undefined,
-        } : undefined,
-      });
-      // 저장이 끝난 뒤에만 초안을 비운다 — 실패를 삼키고 비우면 저장 실패가 곧 글 삭제다
-      note.clear();
-      onDone(out.client.id);
-    } catch (e) {
-      const msg = (e as Error).message;
-      setErr(msg === 'invalid_email' ? (t('inquiry.invalidEmail') as string)
-        : msg === 'prospects_quota_exceeded' ? (t('quota.header') as string)
-          : (t('error.saveFailed') as string));
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  return (
-    <StandardModal open={open} onClose={onClose} title={t('action.addRecord') as string} size="sm"
-      footer={(
-        <>
-          <ActionButton tone="secondary" size="md" onClick={onClose}>{t('inquiry.cancel') as string}</ActionButton>
-          <ActionButton tone="primary" size="md" loading={saving} onClick={submit} data-testid="sale-inquiry-submit">
-            {t('inquiry.submit') as string}
-          </ActionButton>
-        </>
-      )}>
-      <Field>
-        <FieldLabel htmlFor="sale-inq-name">{t('inquiry.nameLabel') as string}</FieldLabel>
-        <TextInput id="sale-inq-name" value={name} onChange={(e) => setName(e.target.value)} autoFocus />
-      </Field>
-      <Field>
-        <FieldLabel htmlFor="sale-inq-company">{t('inquiry.companyLabel') as string}</FieldLabel>
-        <TextInput id="sale-inq-company" value={company} onChange={(e) => setCompany(e.target.value)} />
-      </Field>
-      <Field>
-        <FieldLabel htmlFor="sale-inq-phone">{t('inquiry.phoneLabel') as string}</FieldLabel>
-        <PhoneInput id="sale-inq-phone" value={phone} onChange={setPhone} />
-      </Field>
-      <Field>
-        <FieldLabel htmlFor="sale-inq-email">{t('inquiry.emailLabel') as string}</FieldLabel>
-        <EmailInput id="sale-inq-email" value={email} onChange={setEmail} />
-      </Field>
-      <Field>
-        <FieldLabel>{t('inquiry.sourceLabel') as string}</FieldLabel>
-        <PlanQSelect size="md" isSearchable={false}
-          aria-label={t('inquiry.sourceLabel') as string}
-          options={sourceOptions}
-          value={sourceOptions.find((o) => o.value === source)}
-          onChange={(opt: unknown) => {
-            const v = (opt as { value?: string } | null)?.value;
-            if (v) setSource(v as SaleSource);
-          }} />
-      </Field>
-      {/* ★ 응대 내역 칸은 **공용 한 벌**(InteractionFields) — `RecordModal` 과 같은 것을 쓴다.
-          2026-09-13 이전엔 여기만 종류·내용 둘뿐이라, 어디서 적느냐에 따라 남는 정보가 달랐다. */}
-      <InteractionFields
-        idPrefix="sale-inq"
-        value={rec}
-        onChange={(patch) => setRec((v) => ({ ...v, ...patch }))}
-        bodySlot={(
-          <TextArea id="sale-inq-body" rows={3} data-draft-kind="sale-inquiry-add"
-            placeholder={t('inquiry.notePlaceholder') as string}
-            value={note.text} onChange={(e) => note.setText(e.target.value)} />
-        )}
-      />
-      {err && <ErrText role="alert">{err}</ErrText>}
-    </StandardModal>
   );
 }
 
@@ -723,22 +673,6 @@ const StageGuide = styled.div`display: flex; flex-direction: column; gap: 4px; m
 const GuideRow = styled.div`display: flex; gap: 10px; font-size: 0.75rem;`;
 const GuideName = styled.span`width: 60px; flex-shrink: 0; font-weight: 700; color: #475569;`;
 const GuideHint = styled.span`color: #94A3B8;`;
-const Field = styled.div`display: flex; flex-direction: column; gap: 6px;`;
-const FieldLabel = styled.label`font-size: 0.75rem; font-weight: 600; color: #475569;`;
-const TextInput = styled.input`
-  height: 40px; padding: 0 10px; border: 1px solid #E2E8F0; border-radius: 8px;
-  font-size: 0.875rem; color: #0F172A;
-  &:focus { outline: none; border-color: #5EEAD4; }
-`;
-const TextArea = styled.textarea`
-  width: 100%; padding: 8px 10px; border: 1px solid #E2E8F0; border-radius: 8px;
-  font-size: 0.8125rem; color: #0F172A; font-family: inherit; line-height: 1.5; resize: vertical;
-  &:focus { outline: none; border-color: #5EEAD4; }
-  &::placeholder { color: #94A3B8; }
-`;
-const ErrText = styled.div`font-size: 0.8125rem; color: #B91C1C;`;
-
-// [상담 진행] — 머리줄 보조 액션. 주 액션(HeaderCta)과 **같은 높이**여야 줄이 들쭉날쭉하지 않는다.
 const ProceedBtn = styled.button`
   /* ★ 머리줄 컨트롤은 32px (필터줄이 36) — HeaderCta 와 같은 높이여야 줄이 들쭉날쭉하지 않는다.
      memory feedback_uiux_unified_master. */

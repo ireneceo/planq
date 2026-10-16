@@ -14,7 +14,7 @@ const ROUTES = [
   '/dashboard', '/inbox', '/tasks', '/todo', '/talk', '/calendar', '/notes', '/docs',
   '/files', '/mail', '/bills', '/insights', '/guide', '/records', '/info', '/knowledge',
   '/signatures/received', '/personal-vault',
-  '/business/clients', '/business/members', '/business/org', '/business/settings',
+  '/sale?tab=clients', '/business/members', '/business/org', '/business/settings',
   '/profile', '/me/work-settings', '/profile/integrations',
 ];
 

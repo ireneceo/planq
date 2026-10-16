@@ -28,7 +28,7 @@ const KEYBOARD_H = 330;
 const ROUTES = [
   '/dashboard', '/inbox', '/tasks', '/tasks?create=1', '/tasks?task={task}', '/talk', '/talk/{conv}',
   '/calendar', '/calendar?create=1', '/notes', '/docs', '/files', '/mail', '/bills', '/bills?tab=invoices&new=1',
-  '/sale', '/info', '/projects', '/business/clients', '/business/members', '/business/settings',
+  '/sale', '/info', '/projects', '/sale?tab=clients', '/business/members', '/business/settings',
   '/profile', '/me/work-settings', '/attendance',
   '/docs?post={post}', '/mail?thread={thread}', '/sale/{client}',
 ];

@@ -11,7 +11,7 @@ import { tabStore } from '../../stores/tabStore';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
-import { useAuth } from '../../contexts/AuthContext';
+import { useAuth, apiFetch } from '../../contexts/AuthContext';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
 import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
 import { onSocket } from '../../services/socket';
@@ -28,6 +28,10 @@ import SummaryCard from '../../components/QSale/SummaryCard';
 import ClientLinksSection from '../../components/QSale/ClientLinksSection';
 // 프로필 입력은 **우측 패널과 같은 폼**이다 — 여기 인라인으로 두면 패널이 쓸 수 없어 읽기 전용이 된다
 import ClientProfileForm from '../../components/QSale/ClientProfileForm';
+import ClientStatusBanner from '../../components/Clients/ClientStatusBanner';
+import ClientRecordSections from '../../components/Clients/ClientRecordSections';
+import ClientAuditHistory from '../../components/Clients/ClientAuditHistory';
+import ClientAddDrawer from '../../components/Clients/ClientAddDrawer';
 import { findOtherWorkspaceOf } from '../../utils/workspaceMatch';
 // 불발 사유 창은 **공용**이다 — 우측 패널도 같은 것을 쓴다(자리마다 다른 동작을 만들지 않는다)
 import LostReasonModal from '../../components/QSale/LostReasonModal';
@@ -38,7 +42,7 @@ import AiTaskCreateModal from '../../components/QTask/AiTaskCreateModal';
 import { listMembers } from '../../services/workspace';
 import { openSaleTimelineItem } from '../../utils/saleTimelineTarget';
 import {
-  getSaleClient, patchSaleClient, setSaleStage, getSaleTimeline, deleteInteraction, reviewInteraction,
+  getSaleClient, patchSaleClient, putClientFields, setSaleStage, getSaleTimeline, deleteInteraction, reviewInteraction,
   SALE_STAGES,
   type SaleClientDetail, type SaleStage, type TimelineItem, type TimelineType,
 } from '../../services/sale';
@@ -135,6 +139,16 @@ export default function SaleDetailPage() {
   useEffect(() => { beforeRef.current = null; loadTimeline(true); }, [loadTimeline]);
 
   const silentReload = useCallback(() => { loadClient(true); loadTimeline(true); }, [loadClient, loadTimeline]);
+  // 관리 행위(사업자·증빙·메모 · 초대 재발송 · 되살리기) — 대표·플랫폼 관리자. 패널과 같은 선(2026-10-16 설정 > 고객 을 합침)
+  const canManage = user?.business_role === 'owner' || user?.platform_role === 'platform_admin';
+  const [inviteFormOpen, setInviteFormOpen] = useState(false);
+  const restoreClient = useCallback(async () => {
+    if (!businessId || !client) return;
+    const r = await apiFetch(`/api/clients/${businessId}/${client.id}/archive`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'active' }),
+    });
+    if (r.ok) silentReload();
+  }, [businessId, client, silentReload]);
   useEffect(() => {
     let pending: number | null = null;
     const debounced = () => {
@@ -274,12 +288,20 @@ export default function SaleDetailPage() {
             refFilterActive={!!refFilter}
             onClearFilter={() => setRefFilter(null)}
           />
+          <ClientStatusBanner businessId={businessId as number} canManage={canManage}
+            client={{ ...client, invite_email: client.contact?.invite_email || null }}
+            onInvite={() => setInviteFormOpen(true)} onRestore={() => { void restoreClient(); }}
+            onChanged={() => silentReload()} />
           <Card>
             <CardTitle>{t('detail.profile') as string}</CardTitle>
             <ClientProfileForm
               key={`profile-${client.id}`}
               client={client}
               onSave={save}
+              onSaveKind={canManage ? async (kind) => {
+                await putClientFields(businessId as number, client.id, { kind });
+                silentReload();
+              } : undefined}
             />
           </Card>
 
@@ -328,6 +350,20 @@ export default function SaleDetailPage() {
               onOpenProject={(id) => navigate(`/projects/p/${id}`)}
             />
           </Card>
+
+          {/* 사업자·증빙 · 정기 청구 · 메모 — 패널과 같은 묶음(설정 > 고객 을 합치며 옮겼다) */}
+          <Card>
+            <RecordStack>
+              <ClientRecordSections businessId={businessId as number} client={client} canManage={canManage}
+                onSaved={() => silentReload()} />
+            </RecordStack>
+          </Card>
+          <Card>
+            <ClientAuditHistory businessId={businessId as number} clientId={client.id} />
+          </Card>
+          <ClientAddDrawer open={inviteFormOpen} onClose={() => setInviteFormOpen(false)} businessId={businessId as number}
+            inviteFor={{ ...client, invite_email: client.contact?.invite_email || null }}
+            onDone={() => silentReload()} />
         </LeftCol>
 
         <RightCol>
@@ -466,6 +502,7 @@ const Body = styled.div`
   @media (max-width: 640px) { padding: 14px 14px 88px; }
 `;
 const LeftCol = styled.div`display: flex; flex-direction: column; gap: 12px; min-width: 0;`;
+const RecordStack = styled.div`display: flex; flex-direction: column; gap: 20px;`;
 const RightCol = styled.div`display: flex; flex-direction: column; gap: 10px; min-width: 0;`;
 const Card = styled.section`background: #fff; border: 1px solid #E2E8F0; border-radius: 12px; padding: 14px;`;
 const CardTitle = styled.h2`margin: 0 0 10px; font-size: 0.8125rem; font-weight: 700; color: #334155;`;

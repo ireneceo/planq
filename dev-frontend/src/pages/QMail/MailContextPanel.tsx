@@ -582,9 +582,7 @@ const MailContextPanel: React.FC<Props> = ({ businessId, thread, members, myUser
               <WorkbenchSectionLink type="button" onClick={() => navigate(`/sale/${clientId}`)}>
                 {t('context.openInSale', { defaultValue: 'Q sales 에서 보기' }) as string}<span aria-hidden>›</span>
               </WorkbenchSectionLink>
-              <WorkbenchSectionLink type="button" onClick={() => navigate(`/business/clients/${clientId}/timeline`)}>
-                {t('context.openTimeline', { defaultValue: '통합 타임라인 보기' }) as string}<span aria-hidden>›</span>
-              </WorkbenchSectionLink>
+              {/* (2026-10-16) «통합 타임라인 보기» 는 없앴다 — Q sale 상세가 같은 타임라인이다(같은 곳을 가리키는 링크 두 개) */}
             </>
           ) : (
             <WorkbenchEmptyRow>{t('context.noActivity', { defaultValue: '아직 다른 채널 활동이 없어요.' }) as string}</WorkbenchEmptyRow>

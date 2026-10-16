@@ -45,7 +45,7 @@ const ROUTES = (process.env.HDR_ROUTES || [
   '/notes', '/docs', '/info', '/files', '/bills', '/billing', '/sale', '/knowledge',
   '/personal-vault', '/records', '/attendance', '/insights', '/signatures/received', '/guide',
   '/stats',
-  '/business/settings', '/business/members', '/business/clients', '/business/org',
+  '/business/settings', '/business/members', '/sale?tab=clients', '/business/org',
   '/business/settings/notifications',
   '/profile', '/profile/integrations', '/me/work-settings', '/me/feedback',
   '/notifications', '/whats-new', '/settings', '/admin/dashboard', '/admin/users',

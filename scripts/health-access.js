@@ -329,8 +329,9 @@ const cases = {
   async clientsmenu() {
     const { biz, B } = await makeWorld();
     const setLevel = async (level) => {
-      await M.BusinessMemberPermission.destroy({ where: { business_id: biz.id, user_id: B.id, menu_key: 'clients' } });
-      if (level) await M.BusinessMemberPermission.create({ business_id: biz.id, user_id: B.id, menu_key: 'clients', level });
+      // 2026-10-16 고객 화면을 Q sale 로 합치며 메뉴 키 'clients' 를 폐지했다 — 고객 라우트는 'qsale' 이 지킨다
+      await M.BusinessMemberPermission.destroy({ where: { business_id: biz.id, user_id: B.id, menu_key: 'qsale' } });
+      if (level) await M.BusinessMemberPermission.create({ business_id: biz.id, user_id: B.id, menu_key: 'qsale', level });
     };
     await setLevel('none');
     const n = await call(B, 'GET', `/api/clients/${biz.id}`);
@@ -567,6 +568,8 @@ const cases = {
     const { biz, O } = await makeWorld();
     const express = require(`${BE}/node_modules/express`);
     const app = express(); app.use(express.json()); app.set('io', null);
+    // 초대·재발송·직접 관리 등록은 2026-10-15 routes/client_invites.js 로 옮겼다 — 서버(server.js)와 같은 순서로 붙인다
+    app.use('/api/clients', require(`${BE}/routes/client_invites`));
     app.use('/api/clients', require(`${BE}/routes/clients`));
     app.use((err, req, res, next) => { res.status(500).json({ success: false, message: err.message }); });   // eslint-disable-line no-unused-vars
     const srv = await new Promise((r) => { const x = app.listen(0, '127.0.0.1', () => r(x)); });

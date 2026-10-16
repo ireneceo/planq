@@ -30,8 +30,10 @@ const { BusinessMember, BusinessMemberPermission } = require('../models');
 // 사이드바 메뉴 순서와 정합 — talk → mail → task → calendar → note → docs → info → file → bill → clients → insights
 // weekly_team: 워크스페이스 통합 주간보고 보기 (사이클 N+26, default 'none' — 멤버끼리 자동 공유 X)
 // qsale (2026-09-11) — Q sale 은 Q mail 바로 아래 메뉴다(docs/Q_SALE_DESIGN.md §5.1). 새 키는 기존 행이 없어 기본 write.
+// ★ 'clients' 키는 2026-10-16 폐지 — 설정 > 고객 화면을 Q sale 로 합쳤다(docs/CLIENT_SCREENS_MERGE_DESIGN.md).
+//   고객 라우트(clients·client_invites·client_links)는 'qsale' 로 지킨다. 옛 행은 scripts/migrate-menu-key-clients.js 가 옮긴다.
 const VALID_MENUS = new Set([
-  'qtalk', 'qmail', 'qsale', 'qtask', 'qcalendar', 'qnote', 'qdocs', 'qinfo', 'qfile', 'qbill', 'clients', 'insights',
+  'qtalk', 'qmail', 'qsale', 'qtask', 'qcalendar', 'qnote', 'qdocs', 'qinfo', 'qfile', 'qbill', 'insights',
   'weekly_team',
 ]);
 const VALID_LEVELS = new Set(['none', 'read', 'write']);
@@ -137,7 +139,8 @@ async function getMemberMenuLevels(businessId, userId) {
   });
   const map = {};
   for (const m of VALID_MENUS) map[m] = 'write';  // default
-  for (const p of perms) map[p.menu_key] = p.level;
+  // 폐지된 키(옛 'clients' 행 등)는 내보내지 않는다 — 화면이 없는 메뉴의 권한을 그리게 된다
+  for (const p of perms) if (VALID_MENUS.has(p.menu_key)) map[p.menu_key] = p.level;
   return { role: 'member', menus: map };
 }
 

@@ -17,7 +17,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const ROUTES = [
   '/dashboard', '/inbox', '/tasks', '/talk', '/calendar', '/notes', '/docs', '/files', '/mail',
-  '/bills', '/sale', '/info', '/projects', '/business/clients', '/business/members', '/business/settings',
+  '/bills', '/sale', '/info', '/projects', '/sale?tab=clients', '/business/members', '/business/settings',
   '/profile', '/me/work-settings',
 ];
 const VPS = [

@@ -44,7 +44,15 @@ import ClientTimeline from '../Clients/ClientTimeline';
 import ClientLinksSection from './ClientLinksSection';
 // 프로필 입력 — 전체 프로필과 **같은 폼**. 여기서 고칠 수 있어야 한다(Irene 2026-09-13)
 import ClientProfileForm from './ClientProfileForm';
-import { useClientRelationActions } from './useClientRelationActions';
+import { useClientRelationActions } from './useClientRelationActions'; // 초대·직접 관리·보관 · 상태 배너/사업자·메모/이력은 ../Clients
+import { loadClientOrFallback, type ClientLoadResult } from './clientDetailLoad';
+import DetailFallback from '../Common/DetailFallback';
+import ClientStatusBanner from '../Clients/ClientStatusBanner';
+import ClientRecordSections from '../Clients/ClientRecordSections';
+import ClientAuditHistory from '../Clients/ClientAuditHistory';
+import ClientAddDrawer from '../Clients/ClientAddDrawer';
+import { putClientFields } from '../../services/sale';
+import { useAuth } from '../../contexts/AuthContext';
 import { openSaleTimelineItem } from '../../utils/saleTimelineTarget';
 import { tabStore } from '../../stores/tabStore';
 // 불발 사유 창은 **공용**(상세 페이지와 같은 것) — 여기서 단계만 넘기면 왜 깨졌는지가 원장에 안 남는다
@@ -107,6 +115,9 @@ const ClientPanel: React.FC<Props> = ({
 }) => {
   const { t } = useTranslation('qsale');
   const navigate = useChromeNav();
+  const { user } = useAuth(); // 관리 행위(사업자·증빙·메모·재발송·보관) = 대표·플랫폼 관리자(옛 설정 > 고객 과 같은 선)
+  const canManage = user?.business_role === 'owner' || user?.platform_role === 'platform_admin';
+  const [inviteFormOpen, setInviteFormOpen] = useState(false);
   // 시각은 목록과 **같은 포맷터**로 — 날 ISO 문자열을 그대로 내보내면 사람이 읽는 값이 아니다
   const { formatDateTime } = useTimeFormat();
 
@@ -124,6 +135,7 @@ const ClientPanel: React.FC<Props> = ({
   const [error, setError] = useState(false);
   const [busy, setBusy] = useState(false);
   const [localNotice, setLocalNotice] = useState<string | null>(null);
+  const [fallback, setFallback] = useState<ClientLoadResult | null>(null);
 
   // 히스토리 — **패널에서 전체를 본다**(Irene: "전체 히스토리보기는 뭐야. 다 나오는데").
   //   그래서 balanced(채널 쿼터)를 쓰지 않는다 — 커서 페이지네이션에서는 건너뛴 항목이 커서를 거짓으로 만든다.
@@ -185,11 +197,12 @@ const ClientPanel: React.FC<Props> = ({
   useEffect(() => {
     if (!cid) { setData(null); return; }
     let alive = true;
-    setLoading(true); setError(false);
-    getSaleClient(businessId, cid)
-      .then((d) => { if (alive) setData(d); })
-      .catch(() => { if (alive) setError(true); })
-      .finally(() => { if (alive) setLoading(false); });
+    setLoading(true); setError(false); setFallback(null);
+    void loadClientOrFallback(businessId, cid).then((r) => {
+      if (!alive) return;
+      if (r.data) setData(r.data); else { setError(true); setFallback(r); }
+      setLoading(false);
+    });
     return () => { alive = false; };
   }, [businessId, cid]);
 
@@ -271,7 +284,7 @@ const ClientPanel: React.FC<Props> = ({
   const sameEmail = !data?.contact?.account_email || !data?.contact?.invite_email
     || data.contact.account_email.toLowerCase() === data.contact.invite_email.toLowerCase();
   // 초대 · 계정 없이 정식 고객으로 — 판정·확인창·호출은 한 훅(useClientRelationActions)
-  const relation = useClientRelationActions({ businessId, cid, data, busy, setBusy, setError, reload, t });
+  const relation = useClientRelationActions({ businessId, cid, data, busy, setBusy, setError, reload, t, canManage, setNotice: setLocalNotice });
   const { canInvite } = relation;
 
   // 고객 삭제 — **되돌릴 수 없다.** 설정의 고객 목록과 **같은 라우트**를 부른다(두 벌로 만들지 않는다).
@@ -332,6 +345,13 @@ const ClientPanel: React.FC<Props> = ({
       disabled: busy,
       onClick: () => withClient((id) => { void createContract(id); }),
     });
+    if (relation.canArchive) {
+      out.push({
+        key: 'archive', testId: 'client-panel-archive', disabled: busy,
+        label: (relation.archived ? t('action.restoreClient') : t('action.archiveClient')) as string,
+        onClick: relation.toggleArchive,
+      });
+    }
     if (relation.canRegisterManaged) {
       out.push({
         key: 'managed', label: t('action.registerManaged') as string, testId: 'client-panel-register-managed',
@@ -346,15 +366,16 @@ const ClientPanel: React.FC<Props> = ({
         onClick: () => navigate(`/sale/${cid}`),
       });
       // ★ 고객 삭제 (Irene: *"고객 삭제 버튼이 있어야 하지 않아?"*) — **되돌릴 수 없다.**
-      //   그래서 ⋯ 안쪽 맨 아래, 구분선 뒤, danger 톤. 누르면 이름을 적어 묻는다.
-      out.push({
+      //   그래서 ⋯ 안쪽 맨 아래, 구분선 뒤, danger 톤. 누르면 이름을 적어 묻는다. 서버가 대표만 허락하므로 대표에게만(2026-10-16).
+      if (canManage) out.push({
         key: 'delete', label: t('action.deleteClient') as string, testId: 'client-panel-delete',
         danger: true, dividerBefore: true, disabled: busy,
         onClick: () => setDeleteAsk(true),
       });
     }
     return out;
-  }, [t, withClient, navigate, busy, createContract, cid, relation.canRegisterManaged, relation.askManaged]);
+  }, [t, withClient, navigate, busy, createContract, cid, relation.canRegisterManaged, relation.askManaged,
+    relation.canArchive, relation.archived, relation.toggleArchive, canManage]);
 
 
   return (
@@ -476,15 +497,20 @@ const ClientPanel: React.FC<Props> = ({
           loading && !data ? (
             <Dim>{t('timeline.loading', { defaultValue: '불러오는 중…' }) as string}</Dim>
           ) : error || !data ? (
-            <Dim>{t('error.loadFailed') as string}</Dim>
+            <DetailFallback status={fallback?.status || 'error'} businessId={fallback?.otherBiz ?? null} />
           ) : (
             <>
               {/* 프로필 — **여기서 고친다**. 전체 프로필과 같은 폼이다.
                   ★ 대상이 바뀌면 key 로 인스턴스를 가른다(떠난 고객의 마지막 입력이 새 고객으로 저장되지 않게). */}
               {/* ★ 항목명 없이 바로 입력칸 (Irene: *"굳이 프로필 이라고 항목명 없어도 돼"*).
                   칸마다 라벨이 이미 있어 제목이 한 겹 더 붙으면 같은 말이 두 번이다. */}
+              <ClientStatusBanner businessId={businessId} canManage={canManage}
+                client={{ ...data, invite_email: data.contact?.invite_email || null }}
+                onInvite={() => setInviteFormOpen(true)} onRestore={relation.toggleArchive}
+                onChanged={() => { void reload(); }} />
               <Section $first>
-                <ClientProfileForm key={`panel-profile-${cid}`} client={data} onSave={saveProfile} compact />
+                <ClientProfileForm key={`panel-profile-${cid}`} client={data} onSave={saveProfile} compact
+                  onSaveKind={canManage ? async (kind) => { await putClientFields(businessId, cid, { kind }); await reload(); } : undefined} />
               </Section>
 
               {/* ★ 2026-09-13 (Irene: *"연락처, 등록 이런 항목도 어차피 다른 항목명이 겹쳐서
@@ -502,20 +528,11 @@ const ClientPanel: React.FC<Props> = ({
                     <Row label={t('panel.inviteEmail') as string} value={data.contact?.invite_email} />
                   </>
                 )}
-                <Row label={t('panel.billingEmail') as string} value={data.contact?.billing_email} />
-                <Row label={t('panel.taxEmail') as string} value={data.contact?.tax_invoice_email} />
-                <Row label={t('panel.billingPhone', { defaultValue: '청구 전화' }) as string} value={data.contact?.billing_phone} />
               </Section>
 
-              {data.biz && (
-                <Section>
-                  <SectionTitle>{t('panel.biz') as string}</SectionTitle>
-                  <Row label={t('panel.bizName') as string} value={data.biz.name} />
-                  <Row label={t('panel.bizCeo') as string} value={data.biz.ceo} />
-                  <Row label={t('panel.bizTaxId') as string} value={data.biz.tax_id} />
-                  <Row label={t('panel.bizAddress') as string} value={data.biz.address} />
-                </Section>
-              )}
+              {/* 사업자·증빙(편집) · 정기 청구 · 메모 — 상세 페이지와 같은 묶음 */}
+              <ClientRecordSections businessId={businessId} client={data} canManage={canManage}
+                onSaved={() => { void reload(); }} />
 
               <Section>
                 {/* 누가 언제 등록했는가 — 값은 줄곧 원장에 있었고 **화면에 없었을 뿐**이다(Irene 2026-09-12).
@@ -579,7 +596,8 @@ const ClientPanel: React.FC<Props> = ({
                 )}
               </Section>
 
-              {/* ★ 보관·삭제·한도 같은 **관리**는 여기 없다 — 설정 > 고객/파트너의 몫이다. */}
+              {/* 변경 이력(감사 — 누가 초대·보관·수정했나). 2026-10-16 설정 > 고객 을 합치며 옮겼다. 보관·삭제는 ⋯ */}
+              <ClientAuditHistory businessId={businessId} clientId={cid} />
             </>
           )
         ) : (
@@ -648,7 +666,7 @@ const ClientPanel: React.FC<Props> = ({
         <ConfirmDialog
           isOpen={deleteAsk}
           title={t('action.deleteClientTitle') as string}
-          message={t('action.deleteClientBody', { who: name || `#${cid}` }) as string}
+          message={`${t('action.deleteClientBody', { who: name || `#${cid}` })}${data?.projects?.length ? ` ${t('action.deleteClientProjects', { count: data.projects.length, names: data.projects.map((p) => p.name).join(', ') })}` : ''}`}
           confirmText={t('action.deleteClient') as string}
           cancelText={t('inquiry.cancel') as string}
           variant="danger"
@@ -667,6 +685,9 @@ const ClientPanel: React.FC<Props> = ({
             onClose={() => setNextOpen(false)}
             onSaved={() => { setNextOpen(false); void reload(); }} />
           {relation.dialogs}
+          <ClientAddDrawer open={inviteFormOpen} onClose={() => setInviteFormOpen(false)} businessId={businessId}
+            inviteFor={data ? { ...data, invite_email: data.contact?.invite_email || null } : null}
+            onDone={() => { void reload(); }} />
           {/* ★ 고객을 실어 보낸다 — 여기서 만든 업무는 **그 고객의 업무**다(tasks.client_id). */}
           {taskOpen && (
             <TaskCreateForm businessId={businessId} layout="drawer" fixedClientId={cid}

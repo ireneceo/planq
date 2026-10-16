@@ -8,7 +8,7 @@ import { useMediaQuery } from '../../hooks/useMediaQuery';
 /**
  * PageShell — 단일 컬럼 페이지의 표준 레이아웃.
  *
- * 사용처: /profile, /business/settings, /business/members, /business/clients 등.
+ * 사용처: /profile, /business/settings, /business/members 등.
  * 좌측 리스트 + 우측 패널 같은 멀티 컬럼 페이지는 `PanelHeader` 사용.
  *
  * 표준값 (절대 바꾸지 말 것):

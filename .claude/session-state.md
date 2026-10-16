@@ -94,6 +94,16 @@
 
 ---
 
+### 완료: 고객 화면 한 벌로 — 설정 > 고객 을 Q sale 로 합침 (방 d1871180 · 2026-10-16 · [Opus] · Fable 설계 + 게이트 PASS) — 운영 미배포
+- 원문: «원래 설정에 고객리스트와 큐세일즈에 고객이랑 또 따로 만들었어? 큐세일즈랑 연결이나 합쳐서 제대로 구성되게 점검 해줘»
+- 점검: 데이터는 한 벌(clients)인데 화면이 네 벌(설정 > 고객·Q sale 고객 탭/패널·Q sale 상세·고객 타임라인). 설정 드로어는 계정 없는 고객의 연결 프로젝트를 0 으로 보였다(dev 5명) · 권한 키 두 개.
+- 설계 docs/CLIENT_SCREENS_MERGE_DESIGN.md (Fable 판정: Q sale 하나로).
+- 서버: 권한 키 `qsale` 하나(`clients` 폐지, `migrate-menu-key-clients.js --apply` 배포 슬롯 — 더 좁은 쪽·옛 행 보존) · sale 상세 `billing`·`notes`·`reinvite_count`(옛 `biz` 대체) · `clientAccess.projectLinkWhere/projectsByClient` 한 벌 · 목록 `project_count`·`?status=` · PUT 저장 뒤 방송(옛: 안 바뀐 경우에만 방송) · removal-impact 삭제(호출처 없음).
+- 화면: `components/Clients/`(ClientStatusBanner·ClientRecordSections·ClientBillingInfoForm·ClientNotesSection·ClientAuditHistory·ClientAddDrawer·LegacyClientsRedirect) · Q sale 패널/상세에 같은 절 · 고객 탭 이메일·프로젝트 열·보관 필터·엑셀·[+ 고객 추가] · 옛 주소 리다이렉트 · 메뉴 «고객·파트너» 제거 · 삭제는 대표에게만 노출.
+- 검증: 실HTTP 권한·연결·사업자·필터 14/14 · 소켓 방송 대조군 뒤집힘 · 화면 3폭 44/44 + 보관 메뉴 대조군 · build EXIT 0 · guard 72/73 · health-check 86/86 · e2e tenant·clientlink·salecriteria·detailopen 0 · **Fable 게이트 PASS**(비차단 5 — docs/FABLE_GATE_QUEUE.md 맨 위).
+- 운영 반영: 다음 배포 때 — 배포 슬롯 `migrate-menu-key-clients.js --apply`(코드보다 먼저) · 도움말 문구 `seed-wiki-content.js` 운영 실행 필요.
+- 확인용: ws7 «[확인용] 통합 시험»(1687·1688) · ws6 고객 66(계정 없음·프로젝트 연결).
+
 ### 완료: 청구서 외부 카드 결제 링크 + 카드 «대금 받는 곳» 표시 (방 1d520029 · 2026-10-15 · [Opus]) — 운영 미배포
 - 원문: «스트라이프는 그대로 두고 결제링크 … 한국 고객에게 적합한거» → A안 «권고대로» · «카드결제 과정에 대금 수신자 정보가 표시되어야지. 미리 설정에 입력한 걸로».
 - 서버: `services/cardPayLink.js` 한 곳(https + 결제 대행사 도메인 목록 · 대금 받는 곳 정규화·공개 표시) · 컬럼 `invoices.card_pay_url`·`invoice_installments.card_pay_url`·`businesses.card_payees`(JSON, 수단별 stripe/link) ·

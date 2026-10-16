@@ -24,7 +24,7 @@ const b = require('./lib/browser');
 const ROUTES_ALL = [
   '/dashboard', '/inbox', '/tasks', '/talk', '/mail', '/calendar', '/notes', '/docs', '/files', '/info',
   '/projects', '/sale', '/bills', '/attendance', '/signatures/received', '/notifications', '/whats-new',
-  '/business/clients', '/business/members', '/business/org', '/business/settings', '/business/settings/notifications',
+  '/sale?tab=clients', '/business/members', '/business/org', '/business/settings', '/business/settings/notifications',
   '/settings', '/profile', '/profile/integrations', '/personal-vault', '/me/feedback', '/me/work-settings',
 ];
 // ★ 상세 화면 (2026-10-07) — 목록만 돌면 기능의 대부분이 있는 **상세(업무·문서·메일·프로젝트 탭)** 를 한 번도 안 연다.

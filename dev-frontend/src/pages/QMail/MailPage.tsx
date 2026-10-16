@@ -1968,7 +1968,8 @@ const MailPage: React.FC = () => {
       // ★ 경로가 `/clients` 로 틀려 있었다 (2026-09-09). 실제 라우트는 `/business/clients` 라
       //   폴백(`path="*"`)에 걸려 **받은메일함으로 튕겼다** — 사용자에게는 "눌러도 아무 일이 없다".
       //   받는 쪽(ClientsPage)이 new·email·name 을 읽어 등록 폼을 채워 여는 것도 같이 넣었다.
-      navigate(`/business/clients?new=1&email=${encodeURIComponent(email)}${name ? `&name=${encodeURIComponent(name)}` : ''}`);
+      //   2026-10-16 고객 관리는 Q sale > 고객 탭 하나다 — 그 탭의 [고객 추가] 를 채워 연다(옛 /business/clients 는 넘겨줄 뿐).
+      navigate(`/sale?tab=clients&new=1&email=${encodeURIComponent(email)}${name ? `&name=${encodeURIComponent(name)}` : ''}`);
     },
     onBlock: async (email: string) => {
       if (!businessId) return;

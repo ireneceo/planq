@@ -183,7 +183,16 @@
     "addRecordShort": "Add",
     "registerManaged": "Make a client without account",
     "registerManagedTitle": "Make this a client without an account?",
-    "registerManagedBody": "No email is sent. They become a managed client counted in your client limit, ready for invoices and projects. The sales stage stays as is."
+    "registerManagedBody": "No email is sent. They become a managed client counted in your client limit, ready for invoices and projects. The sales stage stays as is.",
+    "archiveClient": "Archive",
+    "restoreClient": "Restore",
+    "archiveError": {
+      "failed": "Couldn't do that. Please try again shortly.",
+      "prospect_use_stage": "Prospects aren't archived — close them by moving the stage to \"Lost\".",
+      "owner_only": "Only the owner can archive clients."
+    },
+    "deleteClientProjects_one": "This client is linked to {{count}} project ({{names}}).",
+    "deleteClientProjects_other": "This client is linked to {{count}} projects ({{names}})."
   },
   "record": {
     "kind": {
@@ -228,7 +237,9 @@
       "stage": "Stage",
       "assignee": "Owner",
       "lastTouch": "Last touch",
-      "expected": "Expected"
+      "expected": "Expected",
+      "email": "Email",
+      "projects": "Projects"
     },
     "noTouch": "No touchpoints",
     "count": "{{count}}",
@@ -461,5 +472,10 @@
     "guest_inquiry": "Guest inquiry",
     "manual_add": "Added manually",
     "client_added": "Registered as client"
+  },
+  "clientStatus": {
+    "label": "Archive",
+    "active": "Active",
+    "archived": "Archived"
   }
 }

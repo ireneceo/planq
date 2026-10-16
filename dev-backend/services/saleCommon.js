@@ -165,6 +165,9 @@ function applyNoteCounts(items, counts) {
 
 async function serializeClients(businessId, rows) {
   const withA = await withAccess(businessId, rows);
+  // 연결 프로젝트 수 — 상세와 같은 술어(services/clientAccess.projectsByClient), 한 번의 조회
+  const { projectsByClient } = require('./clientAccess');
+  const linked = await projectsByClient(businessId, rows || []);
   return withA.map((c) => ({
     id: c.id,
     display_name: c.display_name || c.user?.name || null,
@@ -179,6 +182,7 @@ async function serializeClients(businessId, rows) {
     can_invite: c.can_invite,
     email_editable: c.email_editable,
     quota_counted: c.status !== 'prospect',
+    project_count: (linked.get(c.id) || []).length,
     sales_stage: c.sales_stage,
     sales_stage_changed_at: c.sales_stage_changed_at,
     sales_source: c.sales_source,

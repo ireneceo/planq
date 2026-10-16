@@ -28,7 +28,7 @@ const PAGE_RECYCLE = 12;
 const ROUTES = (process.env.GUT_ROUTES || [
   '/dashboard', '/inbox', '/todo', '/projects', '/calendar', '/files', '/bills', '/billing', '/sale',
   '/knowledge', '/personal-vault', '/records', '/attendance', '/insights', '/signatures/received',
-  '/stats', '/business/settings', '/business/members', '/business/clients', '/business/org',
+  '/stats', '/business/settings', '/business/members', '/sale?tab=clients', '/business/org',
   '/business/settings/notifications', '/business/settings/billing', '/business/settings/email',
   '/profile', '/profile/integrations', '/me/work-settings', '/me/feedback',
   '/notifications', '/whats-new', '/settings', '/admin/dashboard', '/admin/users', '/admin/guide',

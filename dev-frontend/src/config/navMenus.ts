@@ -103,7 +103,7 @@ export const WORKSPACE_MENUS: NavMenuEntry[] = [
   { key: 'payroll', to: '/payroll', labelKey: 'nav.payroll', section: 'personal', roles: ['owner', 'admin', 'member'], module: 'payroll' },
   // 내 급여명세서 — 기능이 켜져 있으면 직원 누구나(자기 것만 — 서버 routes/payroll_me.js 가 대상자 user_id 로 판정)
   { key: 'payslips', to: '/me/payslips', labelKey: 'nav.myPayslips', section: 'personal', roles: ['owner', 'admin', 'member'], module: 'payroll_self' },
-  { key: 'ws-clients', to: '/business/clients', labelKey: 'nav.clients', section: 'settings', roles: ['owner', 'member'], permKey: 'clients' },
+  // (2026-10-16) 'ws-clients'(설정 > 고객) 는 없앴다 — 고객 관리는 Q sale > 고객 탭 하나다(docs/CLIENT_SCREENS_MERGE_DESIGN.md)
   { key: 'ws-cue', to: '/business/settings/cue', labelKey: 'nav.cue', section: 'settings', roles: ['owner'] },
   { key: 'ws-company-mail', to: '/business/settings/mail-accounts', labelKey: 'nav.companyMail', section: 'settings', roles: ['owner', 'member'] },
   { key: 'ws-email', to: '/business/settings/email', labelKey: 'nav.email', section: 'settings', roles: ['owner'] },

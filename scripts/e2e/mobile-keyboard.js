@@ -108,8 +108,8 @@ async function assertMailDetailHeaderClear(page) {
 // 시나리오: path + (선택) open 스텝 + (선택) assert 판정. open 후 보이는 입력요소 전부 판정.
 //   create 모달은 URL 파라미터(?create=1 · ?new=1)로 결정론적 오픈 — path 에 쿼리를 넣으면 goto 시 자동 오픈.
 const SCENARIOS = [
-  { name: 'clients-search', path: '/business/clients', open: null },
-  { name: 'clients-invite', path: '/business/clients', open: (p) => clickTestId(p, 'clients-invite-open').then((ok) => ok || clickByText(p, ['고객 초대', '초대'])) },
+  { name: 'clients-search', path: '/sale?tab=clients', open: null },
+  { name: 'clients-invite', path: '/sale?tab=clients', open: (p) => clickTestId(p, 'sale-add-client').then((ok) => ok || clickByText(p, ['고객 추가'])) },
   { name: 'qbill-list', path: '/bills', open: null },
   { name: 'bill-new', path: '/bills?tab=invoices&new=1', open: null },  // 청구서 발행 모달(invoices 서브탭 활성 후 URL 자동 오픈)
   { name: 'tasks-week', path: '/tasks', open: null },

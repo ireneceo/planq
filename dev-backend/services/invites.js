@@ -326,7 +326,9 @@ async function notifyInviterOnAccept(inviterUserId, projectId, kind, accepterUse
     workspace_client: '초대한 고객이 가입했습니다',
     project_client: '프로젝트 고객이 초대를 수락했습니다',
   };
-  const link = projectId ? `/projects/p/${projectId}` : '/business/clients';
+  // 고객 관리는 Q sale 하나다(2026-10-16 — 설정 > 고객 화면을 합쳤다). 멤버 초대 수락은 멤버 화면으로.
+  const link = projectId ? `/projects/p/${projectId}`
+    : (kind === 'workspace_member' ? '/business/members' : '/sale?tab=clients');
   await notify({
     userId: inviterUserId, businessId, eventKind: 'invite',
     title: titleMap[kind] || '초대 수락',

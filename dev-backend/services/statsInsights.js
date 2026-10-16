@@ -119,7 +119,7 @@ const CATALOG = {
     en: { title: 'Utilization over capacity', value: '{{pct}}%', hint: 'Overtime is accumulating', action_label: 'Open team' },
   },
   overview_new_clients: {
-    severity: 'info', action_link: '/business/clients',
+    severity: 'info', action_link: '/sale?tab=clients',
     ko: { title: '신규 고객', value: '{{count}}건', hint: '관계 강화 시점', action_label: '고객 보기' },
     en: { title: 'New clients', value: '{{count}}', hint: 'Good moment to deepen the relationship', action_label: 'Open clients' },
   },

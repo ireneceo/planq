@@ -75,7 +75,8 @@
     "danger": "Danger Zone",
     "dangerDelete": "Delete Client Permanently",
     "dangerHelper": "Permanently removes from this workspace. Disconnects from all linked projects.",
-    "billing": "Business · Receipt info"
+    "billing": "Business · Receipt info",
+    "historyFailed": "Couldn't load"
   },
   "billing": {
     "typeTip": "Business → tax invoice; individual → cash receipt.",
@@ -152,7 +153,8 @@
     "invitedAt": "Invited: {{when}}",
     "resendConfirmTitle": "Send the invitation again?",
     "resendConfirmBody": "Another invitation email will go to {{email}}. Sent email cannot be recalled.",
-    "noEmail": "No address to send to — add an email to this client"
+    "noEmail": "No address to send to — add an email to this client",
+    "resendFailed": "Couldn't resend. Please try again shortly."
   },
   "subscription": {
     "title": "Recurring subscription",
@@ -281,5 +283,10 @@
     "desc": "Details only, no account. Use them for invoices, projects and receipts. Invite them if the client should log in and see things directly.",
     "invite": "Invite this client",
     "contactHelper": "This client has no account, so you edit these here. The email is locked once an invite is sent."
+  },
+  "archivedBanner": {
+    "title": "Archived client",
+    "desc": "Hidden from the default list. Records and links stay as they are.",
+    "restore": "Restore"
   }
 }

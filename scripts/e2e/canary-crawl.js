@@ -22,7 +22,7 @@ const EMAIL = 'health-check@planq.kr';
 const ROUTES = [
   '/dashboard', '/inbox', '/tasks', '/talk', '/calendar', '/notes', '/docs',
   '/files', '/bills', '/insights', '/guide', '/info', '/signatures/received',
-  '/business/clients', '/business/members', '/business/org',
+  '/sale?tab=clients', '/business/members', '/business/org',
   '/attendance',
 ];
 

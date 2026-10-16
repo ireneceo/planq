@@ -392,7 +392,7 @@ router.get('/', authenticateToken, async (req, res, next) => {
 (`routes/auth.js:242` · `routes/invites.js:57`) — 고객 목록 **읽기 권한만** 있어도 남의 고객 초대 링크를
 만들 수 있었다. 화면은 그 필드를 한 곳도 쓰지 않았다.
 
-- **비밀 필드는 한 곳에서 내린다** — `routes/clients.js` 의 `CLIENT_SECRET_FIELDS` + `stripClientSecrets()`.
+- **비밀 필드는 한 곳에서 내린다** — `services/clientResponse.js` 의 `CLIENT_SECRET_FIELDS` + `stripClientSecrets()`(고객 라우트 두 파일이 같이 쓴다).
   응답 지점마다 손으로 지우면 새 라우트에서 빠진다.
 - **열거식은 컬럼이 늘면 샌다**(`feedback_mask_by_whitelist_not_denylist`). 그래서 **게이트에 붙였다** —
   `node scripts/health-check.js --category=secrets` 가 응답 **원문 문자열**로 판정한다(키 이름만 보면
@@ -618,6 +618,11 @@ dev 에만 있는 글이 운영에 샌다(그래서 배포 rsync 가 생성물�
 - `clients` 확장: `status` ENUM 끝에 **`prospect`**(문의 고객 = 계정 없음 + 초대 안 함) append · `sales_stage`(none→inquiry→consulting→proposal→negotiation→won/lost) · `sales_source` · `lost_reason/lost_note` · `phone` · `expected_amount/currency` · `last_touch_at`(파생) · 인덱스 2.
 - **직접 관리 고객 = `clients.status='managed'`** (2026-10-15, Irene *"고객이 가입을 안 해도 관리자가 정보를 넣고 직접 관리하는 고객도"*) — 계정·초대 없이 정보만 관리하는 **정식 고객**(한도 포함). `active` 는 «계정이 연결된 고객» 이다 — 계정 없는 행을 active 로 만들지 않는다.
   관계 판정은 `services/clientAccess`(canInviteClient·emailEditable·reactivatedStatusOf) 한 곳, 응답 `can_invite`·`email_editable` 만 화면이 본다. 초대·등록 문은 `routes/client_invites.js`(초대는 `client_id` 로 같은 행 승격). 운영 `migrate-client-managed.js`(배포 슬롯, 백필은 수동 `--apply`). 설계 docs/CLIENT_MANAGED_DESIGN.md
+- **고객 화면은 Q sale 하나다** (2026-10-16, Irene *"설정에 고객리스트와 큐세일즈에 고객이랑 또 따로 만들었어? … 합쳐서 제대로"*) — 옛 설정 > 고객(`/business/clients`)·고객 타임라인 페이지는
+  없앴고 주소는 `components/Clients/LegacyClientsRedirect` 가 쿼리째 `/sale?tab=clients`·`/sale/:id` 로 넘긴다. 상세는 Q sale 패널·상세 페이지가 **같은 절**
+  (`components/Clients/` — ClientStatusBanner·ClientRecordSections(사업자·증빙·정기 청구·메모)·ClientAuditHistory·ClientAddDrawer)을 얹는다.
+  메뉴 권한 키는 `qsale` 하나(`clients` 폐지 — 옛 행은 `migrate-menu-key-clients.js --apply` 가 더 좁은 쪽으로, 배포 슬롯). 연결 프로젝트 판정은
+  `clientAccess.projectLinkWhere`/`projectsByClient` 한 벌(client_id 또는 계정 contact_user_id). 설계 docs/CLIENT_SCREENS_MERGE_DESIGN.md
 - **단계를 바꾸는 문은 하나다** — `services/salesStage.js setStage`(컬럼 + 이력 + 감사 + broadcast). `client.update({sales_stage})` 를 다른 곳에서 부르면 이력·실시간이 조용히 빠진다.
 - **접근 종류는 컬럼이 아니라 파생이다** — `services/clientAccess.js accessKindOf`(guest/invited/member)와 같은 판정을 목록 필터도 쓴다(`accessWhere`). 프론트가 `user_id` 로 스스로 판정하지 않는다.
 - **한도 술어도 한 곳** — `services/clientQuota.js`: 정식 고객 = prospect 를 뺀 기존 집합, 문의 고객은 `prospects_max`(정식 ×3). `plan.can('add_client')`·`can('add_prospect')` 가 같은 술어를 쓴다. 생성 후 `invalidateBusinessCache`(사용량 30초 캐시).

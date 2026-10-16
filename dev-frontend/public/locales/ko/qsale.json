@@ -183,7 +183,16 @@
     "addRecordShort": "응대 추가",
     "registerManaged": "계정 없이 정식 고객으로",
     "registerManagedTitle": "계정 없이 정식 고객으로 둘까요?",
-    "registerManagedBody": "메일은 보내지 않습니다. 직접 관리 고객이 되어 정식 고객 한도에 들어가고, 청구서·프로젝트에 씁니다. 영업 단계는 그대로입니다."
+    "registerManagedBody": "메일은 보내지 않습니다. 직접 관리 고객이 되어 정식 고객 한도에 들어가고, 청구서·프로젝트에 씁니다. 영업 단계는 그대로입니다.",
+    "archiveClient": "보관",
+    "restoreClient": "되살리기",
+    "archiveError": {
+      "failed": "처리하지 못했습니다. 잠시 뒤 다시 시도해 주세요.",
+      "prospect_use_stage": "문의 고객은 보관하지 않습니다 — 단계를 «무산»으로 바꿔 종결하세요.",
+      "owner_only": "보관은 대표만 할 수 있습니다."
+    },
+    "deleteClientProjects_one": "이 고객은 프로젝트 {{count}}곳({{names}})에 연결되어 있습니다.",
+    "deleteClientProjects_other": "이 고객은 프로젝트 {{count}}곳({{names}})에 연결되어 있습니다."
   },
   "record": {
     "kind": {
@@ -228,7 +237,9 @@
       "stage": "단계",
       "assignee": "담당",
       "lastTouch": "마지막 접점",
-      "expected": "예상"
+      "expected": "예상",
+      "email": "이메일",
+      "projects": "프로젝트"
     },
     "noTouch": "접점 없음",
     "count": "{{count}}명",
@@ -461,5 +472,10 @@
     "guest_inquiry": "게스트 문의",
     "manual_add": "직접 등록",
     "client_added": "고객으로 등록"
+  },
+  "clientStatus": {
+    "label": "보관",
+    "active": "활성",
+    "archived": "보관됨"
   }
 }

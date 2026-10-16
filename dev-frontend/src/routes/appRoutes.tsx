@@ -17,9 +17,8 @@ const ClientHomePage = lazy(() => import('../pages/ClientHome/ClientHomePage'));
 const NotificationsPage = lazy(() => import('../pages/Notifications/NotificationsPage'));
 const ShareReceivePage = lazy(() => import('../pages/ShareReceive/ShareReceivePage'));
 const WorkspaceSettingsPage = lazy(() => import('../pages/Settings/WorkspaceSettingsPage'));
-const ClientsPage = lazy(() => import('../pages/Clients/ClientsPage'));
 const OrgPage = lazy(() => import('../pages/Settings/OrgPage'));
-const ClientTimelinePage = lazy(() => import('../pages/Clients/ClientTimelinePage'));
+const LegacyClientsRedirect = lazy(() => import('../components/Clients/LegacyClientsRedirect'));
 const QTalkPage = lazy(() => import('../pages/QTalk/QTalkPage'));
 const QTaskPage = lazy(() => import('../pages/QTask/QTaskPage'));
 const KnowledgePage = lazy(() => import('../pages/Knowledge/KnowledgePage'));
@@ -88,9 +87,10 @@ export const APP_ROUTES: AppRouteDef[] = [
   { path: '/business/settings/:tab', roles: BIZ, element: <WorkspaceSettingsPage /> },
   { path: '/business/members', roles: BIZ, element: <WorkspaceSettingsPage /> },
   { path: '/business/members/:tab', roles: BIZ, element: <WorkspaceSettingsPage /> },
-  { path: '/business/clients', roles: BIZ, element: <ClientsPage /> },
+  // 2026-10-16 설정 > 고객 은 Q sale 로 합쳤다 — 옛 주소는 쿼리째 넘긴다(components/Clients/LegacyClientsRedirect)
+  { path: '/business/clients', roles: BIZ, element: <LegacyClientsRedirect /> },
   { path: '/business/org', roles: BIZ, element: <OrgPage /> },
-  { path: '/business/clients/:clientId/timeline', roles: BIZ, element: <ClientTimelinePage /> },
+  { path: '/business/clients/:clientId/timeline', roles: BIZ, element: <LegacyClientsRedirect /> },
   { path: '/talk', element: <QTalkPage /> },
   { path: '/talk/:conversationId', element: <QTalkPage /> },
   { path: '/tasks', element: <QTaskPage /> },

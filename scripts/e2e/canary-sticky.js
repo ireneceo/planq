@@ -22,7 +22,7 @@ const PAGES = (process.env.STICKY_PAGES || [
   '/notes', '/docs', '/info', '/files', '/bills', '/personal-vault',
   '/stats/overview', '/stats/tasks', '/stats/weekly', '/stats/profit', '/stats/team',
   '/stats/finance', '/stats/reports',
-  '/business/settings', '/business/members', '/business/clients', '/business/org',
+  '/business/settings', '/business/members', '/sale?tab=clients', '/business/org',
   '/business/settings/plan', '/business/settings/work-env', '/business/settings/permissions',
   '/business/settings/storage', '/business/settings/notifications',
   '/profile', '/profile/integrations', '/me/work-settings', '/me/feedback',
