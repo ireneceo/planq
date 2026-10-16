@@ -33,6 +33,8 @@
 #   배포 방이 쓰는 기록(docs/dev-status/next.json · docs/release-notes · scripts/feedback-close-backlog.txt)도
 #   **커밋된 것**을 읽는다 — 배포 전에 `git commit -- <그 경로>` 로 그 파일만 커밋한다(`git add -A` 금지).
 #   dev 화면의 빌드(/opt/planq/dev-frontend-build)는 이제 배포가 건드리지 않는다 — 운영 번들은 사본 안에서 만든다.
+#   ★ 2026-10-16 — 이 스크립트 자신도 그 커밋 것으로 돈다(아래 «절차도 커밋에서»). 작업 폴더의 이 파일이
+#   미커밋이어도 멈추지 않고, 미커밋 슬롯 줄은 불리지 않는다.
 set -euo pipefail
 
 # ─── 설정 ───
@@ -84,6 +86,49 @@ for arg in "$@"; do
   esac
 done
 
+# ─── 절차도 커밋에서 — 시작할 때 커밋 하나를 고정하고, 그 커밋의 이 스크립트로 다시 실행한다 (2026-10-16) ───
+#   10-12 Fable C1: 마이그 슬롯이 부르는 파일은 사본(커밋)에서 가는데 절차가 작업 폴더 것이면 «미커밋 슬롯 줄 +
+#   미커밋 마이그 파일» 이 운영에서 없는 파일을 불러 반쪽 배포가 된다 → 그때는 배포 스크립트가 미커밋이면 멈췄다.
+#   그런데 DB 를 바꾸는 일은 거의 다 이 파일에 슬롯 줄을 넣고, 정기 점검의 «저장하고 멈춤» 은 커밋하지 않는다 —
+#   점검 시각에 그런 방이 하나라도 있으면 배포가 늘 멈췄다(10-16 00:15 · 방 35bb469f / d1871180).
+#   이제 멈추지 않고 **절차와 사본을 같은 커밋으로 맞춘다**: 시작할 때 HEAD 를 한 번 읽어 고정(DEPLOY_PIN)하고,
+#   그 커밋의 deploy-planq.sh · make-deploy-snapshot.sh 를 임시 폴더에 꺼내 그것으로 다시 실행한다.
+#   미커밋 슬롯 줄은 그 절차에 없으므로 불리지 않는다(C1 이 막으려던 반쪽 배포는 그대로 막힌다).
+#   깨끗할 때도 똑같이 다시 실행한다 — 내용이 같아 동작은 그대로이고, 배포 중 다른 방이 이 파일을 고쳐도
+#   (bash 는 스크립트를 실행하면서 읽는다) 도는 절차가 바뀌지 않는다. 사본도 같은 DEPLOY_PIN 으로 만든다 —
+#   시작 뒤 다른 방이 커밋해도 절차와 사본이 갈라지지 않는다.
+SELF_FILES="scripts/deploy-planq.sh scripts/make-deploy-snapshot.sh"
+if [ -z "${PLANQ_DEPLOY_PIN:-}" ]; then
+  DEPLOY_PIN=$(git -C "$REPO" rev-parse --verify 'HEAD^{commit}') || { echo "[ERROR] HEAD 커밋을 읽지 못함 — 배포 중단"; exit 1; }
+  # 지난 배포가 강제 종료로 남긴 절차 폴더(하루 넘은 것만 — 지금 도는 다른 배포의 것을 지우지 않게)
+  find /tmp -maxdepth 1 -name 'planq-deploy-self.*' -mmin +1440 -exec rm -rf {} + 2>/dev/null || true
+  SELF_TMP=$(mktemp -d /tmp/planq-deploy-self.XXXXXX)
+  mkdir -p "$SELF_TMP/scripts"
+  for f in $SELF_FILES; do
+    git -C "$REPO" show "$DEPLOY_PIN:$f" > "$SELF_TMP/$f" || { echo "[ERROR] 커밋 ${DEPLOY_PIN:0:8} 에서 $f 를 꺼내지 못함 — 배포 중단"; rm -rf "$SELF_TMP"; exit 1; }
+    chmod 700 "$SELF_TMP/$f"
+  done
+  SELF_DRIFT=$(git -C "$REPO" status --porcelain -- $SELF_FILES scripts/check-deploy-snapshot.js 2>/dev/null || true)
+  echo "[$(date +%H:%M:%S)] 배포 절차 = 커밋 ${DEPLOY_PIN:0:8} 의 deploy-planq.sh (작업 폴더 것이 아니라)"
+  if [ -n "$SELF_DRIFT" ]; then
+    echo "[WARN] 작업 폴더의 배포 스크립트가 미커밋 — 다른 방의 진행 중 일로 보고 이번 배포에서 뺀다(그 슬롯 줄은 불리지 않음):"
+    printf '%s\n' "$SELF_DRIFT" | sed 's/^/    /'
+  fi
+  export PLANQ_DEPLOY_PIN="$DEPLOY_PIN" PLANQ_DEPLOY_SELF_DIR="$SELF_TMP"
+  exec bash "$SELF_TMP/scripts/deploy-planq.sh" "$@"
+fi
+# 여기부터는 커밋에서 꺼낸 절차다.
+DEPLOY_PIN="$PLANQ_DEPLOY_PIN"
+SELF_DIR="${PLANQ_DEPLOY_SELF_DIR:?}"
+case "$SELF_DIR" in /tmp/planq-deploy-self.*) ;; *) echo "[ERROR] 절차 폴더가 이상함: $SELF_DIR"; exit 1 ;; esac
+git -C "$REPO" rev-parse --verify "${DEPLOY_PIN}^{commit}" >/dev/null 2>&1 || { echo "[ERROR] 고정한 커밋 $DEPLOY_PIN 이 없음 — 배포 중단"; exit 1; }
+# 다시 실행된 절차가 정말 그 커밋의 것인지 — 아니면 «절차와 사본이 같은 커밋» 이 거짓이 된다.
+if ! git -C "$REPO" show "$DEPLOY_PIN:scripts/deploy-planq.sh" | cmp -s - "$SELF_DIR/scripts/deploy-planq.sh"; then
+  echo "[ERROR] 도는 배포 절차가 커밋 ${DEPLOY_PIN:0:8} 의 것과 다름 — 배포 중단"; exit 1
+fi
+cleanup_self() { rm -rf "$SELF_DIR"; }
+trap cleanup_self EXIT
+
 # ─── 색상 ───
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; BLUE='\033[0;34m'; GRAY='\033[90m'; NC='\033[0m'
 log()     { echo -e "${BLUE}[$(date +%H:%M:%S)]${NC} $1"; }
@@ -123,43 +168,32 @@ cleanup_snapshot() {
   if [ -n "$SNAP" ] && [ -d "$SNAP" ]; then
     rm -rf "$SNAP"
   fi
+  cleanup_self
 }
 
 make_snapshot() {
   log "마지막 커밋의 깨끗한 사본 만드는 중..."
   cd "$REPO"
 
-  # 배포 스크립트 자체는 작업 폴더 것이 돈다 — 그런데 마이그 슬롯이 부르는 파일은 사본(커밋)에서 간다.
-  #   «슬롯 줄 추가 + 마이그 파일 미커밋» 상태(방이 일하다 멈춘 정기 점검의 흔한 모양)로 돌면 운영에서
-  #   없는 파일을 불러 rsync·npm ci 뒤 재시작 전에 멈춘다(반쪽 배포). 절차와 사본이 같은 커밋이어야 한다.
-  #   (2026-10-12 Fable 게이트 C1)
-  local SELF_DIRTY
-  SELF_DIRTY=$(git status --porcelain -- scripts/deploy-planq.sh scripts/make-deploy-snapshot.sh scripts/check-deploy-snapshot.js 2>/dev/null || true)
-  if [ -n "$SELF_DIRTY" ]; then
-    if [ "$AUTO_MODE" = true ]; then
-      error "배포 스크립트가 미커밋 — 작업 폴더 절차와 사본(커밋)이 달라 배포하지 않음:"
-      printf '%s\n' "$SELF_DIRTY" | sed 's/^/    /'
-      exit 1
-    fi
-    warn "배포 스크립트가 미커밋 — 작업 폴더 절차와 사본(커밋)이 다를 수 있음:"
-    printf '%s\n' "$SELF_DIRTY" | sed 's/^/    /'
-    if [ "$DRY_RUN" = false ]; then
-      confirm "그래도 진행?" || { error "취소"; exit 1; }
-    fi
-  fi
+  # 절차와 사본은 같은 커밋(DEPLOY_PIN)이다 — 위 «절차도 커밋에서» 가 이 스크립트를 그 커밋 것으로 다시 실행했다.
+  #   (2026-10-12 Fable 게이트 C1 의 «미커밋이면 멈춤» 을 2026-10-16 «커밋된 절차로 다시 실행» 으로 바꿨다.)
 
   # 지난 배포가 강제 종료(SIGKILL)로 끝나 trap 이 못 지운 사본(.env 복사본 포함)을 치운다 — 배포 방은 한 번에 하나다.
   rm -rf /tmp/planq-deploy-src.* /tmp/planq-deploy-protect.* 2>/dev/null || true
   SNAP=$(mktemp -d /tmp/planq-deploy-src.XXXXXX)   # 700 — 사본에 dev .env 복사본이 들어간다
   trap cleanup_snapshot EXIT
   local OUT
-  if ! OUT=$("$REPO/scripts/make-deploy-snapshot.sh" "$SNAP" HEAD 2>&1); then
+  if ! OUT=$(bash "$SELF_DIR/scripts/make-deploy-snapshot.sh" "$SNAP" "$DEPLOY_PIN" 2>&1); then
     error "사본 만들기 실패 — 배포 중단"
     printf '%s\n' "$OUT" | tail -5
     exit 1
   fi
   DEPLOY_COMMIT=$(printf '%s\n' "$OUT" | awk '/^COMMIT /{print $2}' | tail -1)
   [ -n "$DEPLOY_COMMIT" ] || { error "사본 커밋을 읽지 못함 — 배포 중단"; exit 1; }
+  [ "$DEPLOY_COMMIT" = "$DEPLOY_PIN" ] || { error "사본 커밋(${DEPLOY_COMMIT:0:8})이 절차 커밋(${DEPLOY_PIN:0:8})과 다름 — 배포 중단"; exit 1; }
+  if [ "$(git rev-parse HEAD)" != "$DEPLOY_PIN" ]; then
+    warn "시작 뒤 새 커밋이 생김 — 이번 배포는 시작 때 커밋 ${DEPLOY_PIN:0:8} 그대로 나간다(새 커밋은 다음 배포)"
+  fi
   DEV_BE="$SNAP/dev-backend"
   DEV_FE="$SNAP/dev-frontend"
   DEV_FE_BUILD="$SNAP/dev-frontend-build"
