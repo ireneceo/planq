@@ -203,6 +203,10 @@ async function canFinancialAction(user, businessId, projectId) {
 | 통계 — 매출 총계 (금액) | ● | ● | ● | ● | - |
 | 고객 민감정보 **조회** (세금ID/은행) | ● | ● | ● | ● | - |
 
+> **청구서 발행 창의 고객 목록 (2026-10-16)** — `GET /api/invoices/:biz/client-options` 는 메뉴 권한 **Q bill 쓰기**로 연다(Q sale 메뉴가 none 이어도).
+> 내리는 칸은 청구서 작성에 필요한 것뿐(이름·사업자·청구/증빙 이메일·상태·연결 프로젝트) — 메모·영업 단계·금액·전화·초대 토큰 없음. client 역할 403.
+> 옛 발행 창은 `GET /api/clients/:biz`(전체 행)를 썼다. 메뉴 키를 qsale 로 합치며 Q sale 권한 없는 청구 담당자가 고객을 못 고르게 돼 더 좁은 문으로 되살렸다(Fable 게이트 PASS).
+
 ### 5.3 쓰기 — 투명하게 풀기 (조직 운영)
 
 | 액션 | platform_admin | owner | member | PM | client |

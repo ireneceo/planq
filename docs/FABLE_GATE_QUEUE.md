@@ -1,5 +1,11 @@
 # Fable 게이트 대기열 → **판정 기록 보관소** (2026-10-08 부터)
 
+## 2026-10-16 · 청구서 발행 권한 안내 한국어 + 청구서↔프로젝트↔고객 연결 (방 115a6b77) — **PASS**
+- 범위: ed944db4..df197a66 — 1e485ce6(주 대상) · db1143b4(방 ce0f7668 배포 보호 목록) · df197a66(다른 방 확인필요 문의 답 제거, 가볍게).
+- 핵심 판정: `GET /api/invoices/:biz/client-options`(Q bill 쓰기)가 Q sale none 인 청구 담당자에게 고객 목록을 보이는 표면 확장 → **허용**(옛 발행 창은 clients 메뉴로 전체 행을 받았다 · 새 문은 16칸만 · invite_token·notes·sales_stage·금액·전화 0 · qbill read/none·client·비소속 403 · ws 교차 0).
+- 실측: 실HTTP 41/41(연결·어긋남 400·타ws 400·외부 수신자·출처 자동 연결/명시 우선·PUT 유지/해제/재연결/어긋남·거래 탭·Q sale 타임라인·member send/PATCH/DELETE 403 owner_only) · 실브라우저 16/16 · db1143b4 대조군(옛 'data' LOST 잡힘 / 새 0) · df197a66 todo 에 feedback 0·inboxcount 실패 0 · guard 72/73 · health-check 86/86.
+- 비차단(다음 사이클): ① 문서에 client-options 박제(→ PERMISSION_MATRIX §5.2 에 반영함) ② tenantRef.isClientInProject 가 project 의 business_id 를 스스로 안 본다(호출부가 assertProjectInBusiness 를 먼저 부름) ③ 프로젝트 칸이 closed 프로젝트도 보임 — 상태 표시·정렬 후보 ④ Docs PostSignatureModal·PostAiModal 은 여전히 /api/clients(qsale read).
+
 ## 2026-10-16 · 배포 절차를 커밋된 자기 사본으로 재실행 + health-check 집 워크스페이스 (방 1740e0b9) — **PASS** (2회)
 - 범위: 11a89574 · 1761fb14 · 8498c1ce. 1차(11a89574) PASS → 비차단 1(make-deploy-snapshot.sh 도 cmp) 반영 8498c1ce → 2차(HEAD 8498c1ce, health-check 포함) PASS.
 - 실측: --routine --dry-run 깨끗 EXIT 0 · 미커밋 가짜 슬롯+파일 EXIT 0·가짜 호출 0·[dry] 97줄 동일(임시 폴더 이름만 다름) · 옛 절차 EXIT 1 · 바꿔치기(두 파일)·PIN 없음·폴더 밖 EXIT 1 · SIGTERM 정리 · 커밋 절차가 부르는 마이그 88개 모두 커밋에 있음 · health-check 옛 판 3 FAILED / 새 판 되돌림 86/86.
