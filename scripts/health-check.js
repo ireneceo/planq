@@ -281,6 +281,22 @@ async function setup() {
   ctx.businessId = loginRes.data?.user?.business_id;
   if (!ctx.token || !ctx.businessId) throw new Error('no token or business_id after login');
 
+  // 3-0) 자기 워크스페이스로 돌아온다 (2026-10-16) — 이 계정은 다른 방 시험이 워크스페이스를 더 만들거나 전환해
+  //   «지금 워크스페이스» 가 남의 시험용(해지된 «WS검증» 73)으로 바뀌어 있었다. 그러면 구독 비활성·고객 0건으로
+  //   secrets 검사 3건이 실패하고, 이 검사를 게이트로 쓰는 배포(deploy-planq.sh)가 코드와 무관하게 멈췄다.
+  //   집 = 가입 때 만든 «Health Check Biz»(없으면 가장 먼저 만든 워크스페이스).
+  const wss = loginRes.data?.user?.workspaces || [];
+  const home = wss.find((w) => w.brand_name === TEST_USER.business_name)
+    || wss.slice().sort((a, b) => a.business_id - b.business_id)[0];
+  if (home && home.business_id !== ctx.businessId) {
+    await http('POST', `${BACKEND}/api/auth/switch-workspace`, {
+      headers: { Authorization: `Bearer ${ctx.token}` },
+      body: { business_id: home.business_id },
+    });
+    console.log(`  (health-check 계정을 자기 워크스페이스 ${home.business_id} 로 되돌림 — 직전 ${ctx.businessId})`);
+    ctx.businessId = home.business_id;
+  }
+
   // 3) 캐시 저장
   try {
     fs.writeFileSync(
