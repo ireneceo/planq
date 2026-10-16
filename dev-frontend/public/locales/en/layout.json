@@ -180,7 +180,19 @@
     "adminSecMonitor": "Insights & monitoring",
     "adminSecSettings": "Settings",
     "payroll": "Payroll",
-    "myPayslips": "My payslips"
+    "myPayslips": "My payslips",
+    "editMenu": "Edit menu",
+    "editDone": "Done",
+    "editHint": "Drag or use the arrows to reorder, and tap the eye to hide. Hidden menus go under “More”.",
+    "editReset": "Reset to default",
+    "editSaveFailed": "Couldn't save. Please try again.",
+    "moveUp": "Move {{name}} up",
+    "moveDown": "Move {{name}} down",
+    "hideMenu": "Hide {{name}}",
+    "showMenu": "Show {{name}}",
+    "moreMenus": "More ({{count}})",
+    "lessMenus": "Show less",
+    "moreBadge": "{{count}} in hidden menus"
   },
   "user": {
     "profile": "My Profile",

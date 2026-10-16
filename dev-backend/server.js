@@ -492,6 +492,7 @@ app.use('/api/users', require('./routes/account_deletion'));
 app.use('/api/businesses', require('./routes/customer_entry'));
 // #424 휴일·근무일 — `/:businessId/holiday…` 꼬리 경로만 둔다(위와 같은 패턴).
 app.use('/api/businesses', require('./routes/business_holidays'));
+app.use('/api/businesses', require('./routes/nav_prefs'));   // 사이드바 «메뉴 편집» (2026-10-16) — businesses.js 보다 앞
 app.use('/api/businesses', require('./routes/businesses'));
 // KNOWLEDGE_LOOP 축1 — Cue 워크스페이스 지식 카드
 app.use('/api/businesses', require('./routes/cue_knowledge'));

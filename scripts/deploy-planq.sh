@@ -580,6 +580,8 @@ sync_database() {
   # 2026-09-21 팀장 — teams.lead_user_id INT NULL. sync 가 먼저 만들었으면 skip, 없으면 추가 후 재조회로 검증.
   #   ★ 순서: PM2 reload 보다 먼저(신 코드가 없는 컬럼을 읽으면 조직 화면이 500).
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-team-lead.js 2>&1 | tail -5"
+  # 2026-10-16 사이드바 메뉴 편집 — business_members.nav_prefs JSON NULL. 모델이 SELECT 하므로 PM2 reload 전(없으면 멤버 조회 전부 500).
+  prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-nav-prefs.js 2>&1 | tail -5"
   # 2026-09-21 문의/피드백 구분 — feedback_items.kind ENUM. 신 코드가 kind 를 쓰므로 PM2 reload 전.
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-feedback-kind.js 2>&1 | tail -5"
   # 2026-10-15 문의·피드백 답 읽음 — feedback_items.reply_seen_at DATETIME NULL(옛 답은 읽음으로 백필, 처음 만들 때만).

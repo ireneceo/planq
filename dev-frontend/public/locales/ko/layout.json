@@ -180,7 +180,19 @@
     "adminSecMonitor": "분석·모니터링",
     "adminSecSettings": "설정",
     "payroll": "급여·계약",
-    "myPayslips": "내 급여명세서"
+    "myPayslips": "내 급여명세서",
+    "editMenu": "메뉴 편집",
+    "editDone": "완료",
+    "editHint": "끌거나 화살표로 순서를 바꾸고, 눈을 눌러 숨겨요. 숨긴 메뉴는 «더보기» 에 모여요.",
+    "editReset": "기본으로 되돌리기",
+    "editSaveFailed": "저장하지 못했어요. 다시 바꿔 보세요.",
+    "moveUp": "{{name}} 위로",
+    "moveDown": "{{name}} 아래로",
+    "hideMenu": "{{name}} 숨기기",
+    "showMenu": "{{name}} 보이기",
+    "moreMenus": "더보기 ({{count}})",
+    "lessMenus": "접기",
+    "moreBadge": "숨긴 메뉴 {{count}}건"
   },
   "user": {
     "profile": "내 프로필",

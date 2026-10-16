@@ -1,3 +1,4 @@
+import type { NavPrefs } from '../config/navPrefs';
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 import type { ReactNode } from 'react';
 import i18n from '../i18n';
@@ -66,6 +67,8 @@ export interface User {
   // 워크스페이스 기능 켜기/끄기(서버 services/modules — 메뉴가 서버 가드와 같은 값을 본다) + 급여 관리자 여부
   modules?: { payroll: boolean } | null;
   can_manage_payroll?: boolean;
+  // 사이드바 «메뉴 편집» — 이 워크스페이스에서 내가 고른 순서·숨김(서버 services/navPrefs). null = 기본 그대로
+  nav_prefs?: NavPrefs | null;
   workspaces?: WorkspaceMembership[];
   language?: string | null;
   // Q note 답변 생성용 프로필
@@ -679,6 +682,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     menu_levels: (apiUser.menu_levels as Record<string, 'none' | 'read' | 'write'>) || null,
     modules: (apiUser.modules as { payroll: boolean }) || null,
     can_manage_payroll: !!apiUser.can_manage_payroll,
+    nav_prefs: (apiUser.nav_prefs as NavPrefs) || null,
     workspaces: (apiUser.workspaces as WorkspaceMembership[]) || [],
     language: (apiUser.language as string) || null,
     bio: (apiUser.bio as string) || null,

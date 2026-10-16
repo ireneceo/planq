@@ -3,6 +3,8 @@ import React, { Suspense, useState, useEffect, useRef, useCallback, useMemo } fr
 import { BetaChip } from '../Common/BetaChip';   // #449 베타 메뉴 표시(navMenus maturity 한 곳)
 import { visibleNavMenus, permKeyForPath } from '../../config/navMenus';   // 0-E — «보이는가» 의 정본
 import MenuHiddenPage from '../Common/MenuHiddenPage';
+import EditableNavSection, { type MoreRowProps } from './EditableNavSection';   // 사이드바 «메뉴 편집»(2026-10-16)
+import { useNavPrefsSave } from '../../hooks/useNavPrefsSave';
 import styled, { css } from 'styled-components';
 // ⑥ 멀티탭 chrome RR 탈피 — MainLayout 은 router-less zone 후보라 react-router 훅/Link 미사용.
 //   TabStore 소비로 전환(미러 모드에서 단일탭 동작 동일). Link → ChromeLink, useLocation/Navigate → chromeNav.
@@ -297,7 +299,22 @@ const SearchKbd = styled.kbd`
   @media (hover: none), (max-width: 640px) { display: none; }
 `;
 
-const NavSection = styled.div`margin-bottom: 0;`;
+const NavSection = styled.div`
+  margin-bottom: 0;
+  /* 메뉴 편집 연필 — 데스크탑은 칸에 마우스를 올릴 때만(평소엔 조용히). 태블릿·폰은 늘 보인다(올릴 마우스가 없다) */
+  @media (min-width: 1025px) {
+    .pq-nav-edit { opacity: 0; transition: opacity 0.15s; }
+    &:hover .pq-nav-edit, &:focus-within .pq-nav-edit, .pq-nav-edit:focus-visible { opacity: 1; }
+  }
+`;
+
+// 칸 제목 + 편집 버튼 한 줄 — 제목만 있을 때(NavTitle 단독)와 높이가 같게 여백을 나눈다
+const NavTitleRow = styled.div`
+  display: flex; align-items: center; justify-content: space-between;
+  margin-top: 15px; margin-bottom: 1px; padding-right: 8px;
+  & > div { margin: 0; flex: 1; min-width: 0; }
+  ${mediaTablet} { margin-top: 12px; margin-bottom: 0; }
+`;
 
 const NavTitle = styled.div<{ $isCollapsed?: boolean }>`
   color: rgba(204, 251, 241, 0.5); font-size: 0.6875rem; font-weight: 600;
@@ -316,7 +333,7 @@ const NavTitle = styled.div<{ $isCollapsed?: boolean }>`
   `}
 `;
 
-const NavItem = styled(ChromeLink)<{ $active?: boolean; $isCollapsed?: boolean }>`
+const navItemCss = css<{ $active?: boolean; $isCollapsed?: boolean }>`
   position: relative;
   display: flex; align-items: center;
   padding: ${props => props.$isCollapsed ? '6px 0' : '4px 16px'};
@@ -337,6 +354,13 @@ const NavItem = styled(ChromeLink)<{ $active?: boolean; $isCollapsed?: boolean }
     min-height: 44px;
     font-size: 0.875rem;
   }
+`;
+const NavItem = styled(ChromeLink)<{ $active?: boolean; $isCollapsed?: boolean }>`${navItemCss}`;
+// «더보기 (n)» 줄 — 메뉴 줄과 같은 모양(같은 css 한 벌)의 버튼
+const NavMoreBtn = styled.button<{ $active?: boolean; $isCollapsed?: boolean }>`
+  ${navItemCss}
+  width: 100%; border: none; background: transparent; cursor: pointer; font-family: inherit; text-align: left;
+  color: rgba(204, 251, 241, 0.7);
 `;
 
 const NavIcon = styled.span<{ $isCollapsed?: boolean }>`
@@ -362,7 +386,8 @@ const NavSubTag = styled.span`
 // 인박스 미처리 카운트 — pill 배지 (확장 상태) / 작은 dot (collapsed 상태)
 // 통일 정책: 모든 알림 카운트는 숫자만 표시. 점 표시 X (Irene 명시).
 // 사이드바 expanded — 메뉴 라벨 우측 inline. collapsed — 아이콘 우상단 absolute (NavItem 안).
-const InboxBadge = styled.span<{ $collapsed?: boolean }>`
+// data-nav-badge — 메뉴 편집 줄(EditableNavSection)이 숫자를 감추는 손잡이(편집 중엔 숫자가 화살표를 가린다)
+const InboxBadge = styled.span.attrs(() => ({ 'data-nav-badge': '' } as React.HTMLAttributes<HTMLSpanElement>))<{ $collapsed?: boolean }>`
   margin-left: auto;
   display: inline-flex; align-items: center; justify-content: center;
   min-width: 20px; height: 18px; padding: 0 6px;
@@ -381,6 +406,32 @@ const InboxBadge = styled.span<{ $collapsed?: boolean }>`
     pointer-events: none;
   `}
 `;
+
+// 사이드바 «메뉴 편집»에서 숨긴 메뉴를 모아 둔 줄. 접혀 있으면 숨긴 메뉴들의 숫자 합을 배지로 보인다
+//   (숨겼다고 숫자가 사라지면 «확인 필요» 와 메뉴 배지 합이 어긋나 보인다 — 숫자 배지 계약).
+function NavMoreRow({ expanded, hiddenCount, badge, onClick, section, isCollapsed }: MoreRowProps & { section: string; isCollapsed: boolean }) {
+  const { t } = useTranslation('layout');
+  const label = expanded ? t('nav.lessMenus', '접기') : t('nav.moreMenus', { count: hiddenCount, defaultValue: '더보기 ({{count}})' });
+  return (
+    <NavMoreBtn type="button" $isCollapsed={isCollapsed} onClick={onClick} aria-expanded={expanded}
+      data-testid={`nav-more-${section}`} title={isCollapsed ? label : undefined}>
+      <NavIcon $isCollapsed={isCollapsed}>
+        {expanded ? (
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="18 15 12 9 6 15"/></svg>
+        ) : (
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg>
+        )}
+      </NavIcon>
+      <NavLabel $isCollapsed={isCollapsed}>{label}</NavLabel>
+      {badge > 0 && (
+        <InboxBadge $collapsed={isCollapsed} data-testid={`nav-badge-more-${section}`}
+          aria-label={t('nav.moreBadge', { count: badge, defaultValue: '숨긴 메뉴 {{count}}건' }) as string}>
+          {badge > 99 ? '99+' : badge}
+        </InboxBadge>
+      )}
+    </NavMoreBtn>
+  );
+}
 
 // ─────────────────────────────────────────────────────────────
 // SecondaryPanel — 2뎁스 (통계·분석 / 워크스페이스 전용)
@@ -1108,6 +1159,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
     scope: 'workspace', menuLevels: user?.menu_levels, modules: user?.modules, canManagePayroll: user?.can_manage_payroll,
   }).map((m) => m.to)), [user?.business_role, user?.platform_role, user?.menu_levels, user?.modules, user?.can_manage_payroll]);
   const show = (to: string) => visiblePaths.has(to);
+  const saveNavPrefs = useNavPrefsSave();   // 사이드바 «메뉴 편집» 저장
   // 워크스페이스 기능이 켜지고 꺼지면(PUT /modules) 메뉴를 다시 그린다 — 신호만 오고 값은 /api/auth/me 가 다시 준다
   const refreshUserRef = useRef(refreshUser); refreshUserRef.current = refreshUser;   // 매 렌더 새 함수라 ref 로 — 구독을 다시 걸지 않는다
   useEffect(() => onSocket('workspace:modules', () => { refreshUserRef.current().catch(() => null); }), []);
@@ -1572,217 +1624,231 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
 
               {hasBiz('owner', 'member', 'client') && (
                 <NavSection>
-                  <NavTitle $isCollapsed={isCollapsed}>{t('nav.sectionFeatures')}</NavTitle>
-                  {show('/talk') && (
-                    <NavItem to="/talk" $isCollapsed={isCollapsed} $active={isActive('/talk')}
-                      title={isCollapsed ? `${t('nav.talk')}${talkUnreadCount > 0 ? ` (${talkUnreadCount})` : ''}` : undefined}>
-                      <NavIcon $isCollapsed={isCollapsed}><IconTalk /></NavIcon>
-                      <NavLabel $isCollapsed={isCollapsed}>{t('nav.talk')}</NavLabel>
-                      {talkUnreadCount > 0 && (
-                        <InboxBadge $collapsed={isCollapsed} data-testid="nav-badge-talk"
-                          aria-label={`${t('nav.talk')} ${talkUnreadCount}`}>
-                          {talkUnreadCount > 99 ? '99+' : talkUnreadCount}
-                        </InboxBadge>
-                      )}
-                    </NavItem>
-                  )}
-                  {show('/mail') && (
-                    <NavItem to="/mail" $isCollapsed={isCollapsed}
-                      $active={isActive('/mail')}
-                      title={isCollapsed ? `${t('nav.qmail', 'Q mail')}${mailMenuCount > 0 ? ` (${mailMenuCount})` : ''}` : undefined}>
-                      <NavIcon $isCollapsed={isCollapsed}><IconMail /></NavIcon>
-                      <NavLabel $isCollapsed={isCollapsed}>{t('nav.qmail', 'Q mail')}</NavLabel>
-                      {mailMenuCount > 0 && (
-                        <InboxBadge $collapsed={isCollapsed} aria-label={`${t('nav.qmail', 'Q mail')} ${mailMenuCount}`}>
-                          {mailMenuCount > 99 ? '99+' : mailMenuCount}
-                        </InboxBadge>
-                      )}
-                    </NavItem>
-                  )}
-                  {show('/sale') && (
-                    <NavItem to="/sale" $isCollapsed={isCollapsed}
-                      $active={isActive('/sale')}
-                      title={isCollapsed ? `${t('nav.qsale', 'Q sales')}${saleMenuCount > 0 ? ` (${saleMenuCount})` : ''}` : undefined}>
-                      <NavIcon $isCollapsed={isCollapsed}><IconSale /></NavIcon>
-                      <NavLabel $isCollapsed={isCollapsed}>{t('nav.qsale', 'Q sales')}</NavLabel>
-                      {!isCollapsed && <BetaChip path="/sale" />}
-                      {saleMenuCount > 0 && (
-                        <InboxBadge $collapsed={isCollapsed} data-testid="nav-badge-sale"
-                          aria-label={`${t('nav.qsale', 'Q sales')} ${saleMenuCount}`}>
-                          {saleMenuCount > 99 ? '99+' : saleMenuCount}
-                        </InboxBadge>
-                      )}
-                    </NavItem>
-                  )}
-                  {show('/tasks') && (
-                    <NavItem to="/tasks" $isCollapsed={isCollapsed} $active={isActive('/tasks')}
-                      title={isCollapsed ? `${t('nav.task')}${taskMenuCount > 0 ? ` (${taskMenuCount})` : ''}` : undefined}>
-                      <NavIcon $isCollapsed={isCollapsed}><IconTask /></NavIcon>
-                      <NavLabel $isCollapsed={isCollapsed}>{t('nav.task')}</NavLabel>
-                      {taskMenuCount > 0 && (
-                        <InboxBadge $collapsed={isCollapsed} data-testid="nav-badge-task"
-                          aria-label={`${t('nav.task')} ${taskMenuCount}`}>
-                          {taskMenuCount > 99 ? '99+' : taskMenuCount}
-                        </InboxBadge>
-                      )}
-                    </NavItem>
-                  )}
-                  {show('/projects') && (
-                    <NavItem to="/projects" $isCollapsed={isCollapsed} $active={isActive('/projects')}
-                      title={isCollapsed ? t('nav.project') : undefined}>
-                      <NavIcon $isCollapsed={isCollapsed}><IconProject /></NavIcon>
-                      <NavLabel $isCollapsed={isCollapsed}>{t('nav.project')}</NavLabel>
-                    </NavItem>
-                  )}
-                  {show('/calendar') && (
-                    <NavItem to="/calendar" $isCollapsed={isCollapsed} $active={isActive('/calendar')}
-                      title={isCollapsed ? t('nav.calendar') : undefined}>
-                      <NavIcon $isCollapsed={isCollapsed}><IconCalendar /></NavIcon>
-                      <NavLabel $isCollapsed={isCollapsed}>{t('nav.calendar')}</NavLabel>
-                      {calendarMenuCount > 0 && (
-                        <InboxBadge $collapsed={isCollapsed} data-testid="nav-badge-calendar"
-                          aria-label={`${t('nav.calendar')} ${calendarMenuCount}`}>
-                          {calendarMenuCount > 99 ? '99+' : calendarMenuCount}
-                        </InboxBadge>
-                      )}
-                    </NavItem>
-                  )}
-                  {show('/notes') && (
-                    <NavItem to="/notes" $isCollapsed={isCollapsed} $active={isActive('/notes')}
-                      title={isCollapsed ? t('nav.note') : undefined}>
-                      <NavIcon $isCollapsed={isCollapsed}><IconNote /></NavIcon>
-                      <NavLabel $isCollapsed={isCollapsed}>{t('nav.note')}</NavLabel>
-                    </NavItem>
-                  )}
-                  {show('/docs') && (
-                    <NavItem to="/docs" $isCollapsed={isCollapsed} $active={isActive('/docs')}
-                      title={isCollapsed ? t('nav.docs') : undefined}>
-                      <NavIcon $isCollapsed={isCollapsed}><IconDocs /></NavIcon>
-                      <NavLabel $isCollapsed={isCollapsed}>{t('nav.docs')}</NavLabel>
-                      {docsMenuCount > 0 && (
-                        <InboxBadge $collapsed={isCollapsed} data-testid="nav-badge-docs"
-                          aria-label={`${t('nav.docs')} ${docsMenuCount}`}>
-                          {docsMenuCount > 99 ? '99+' : docsMenuCount}
-                        </InboxBadge>
-                      )}
-                    </NavItem>
-                  )}
-                  {show('/info') && (
-                    <NavItem to="/info" $isCollapsed={isCollapsed} $active={isActive('/info') || isActive('/knowledge')}
-                      title={isCollapsed ? t('nav.qinfo', 'Q info') : undefined}>
-                      <NavIcon $isCollapsed={isCollapsed}>
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 6.253v13"/><path d="M12 6.253C10.832 5.477 9.246 5 7.5 5 5.754 5 4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253"/><path d="M12 6.253C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18s-3.332.477-4.5 1.253"/></svg>
-                      </NavIcon>
-                      <NavLabel $isCollapsed={isCollapsed}>{t('nav.qinfo', 'Q info')}</NavLabel>
-                    </NavItem>
-                  )}
-                  {show('/files') && (
-                    <NavItem to="/files" $isCollapsed={isCollapsed} $active={isActive('/files')}
-                      title={isCollapsed ? t('nav.file') : undefined}>
-                      <NavIcon $isCollapsed={isCollapsed}><IconFile /></NavIcon>
-                      <NavLabel $isCollapsed={isCollapsed}>{t('nav.file')}</NavLabel>
-                    </NavItem>
-                  )}
-                  {show('/bills') && (
-                    <NavItem to="/bills" $isCollapsed={isCollapsed}
-                      $active={isActive('/bills') || isActive('/billing')}
-                      title={isCollapsed ? `${t('nav.qbill', 'Q Bill')}${billMenuCount > 0 ? ` (${billMenuCount})` : ''}` : undefined}>
-                      <NavIcon $isCollapsed={isCollapsed}><IconBill /></NavIcon>
-                      <NavLabel $isCollapsed={isCollapsed}>{t('nav.qbill', 'Q Bill')}</NavLabel>
-                      {billMenuCount > 0 && (
-                        <InboxBadge $collapsed={isCollapsed} aria-label={`${t('nav.qbill', 'Q Bill')} ${billMenuCount}`}>
-                          {billMenuCount > 99 ? '99+' : billMenuCount}
-                        </InboxBadge>
-                      )}
-                    </NavItem>
-                  )}
+                  
+                  <EditableNavSection section="features" prefs={user?.nav_prefs} editable={hasBiz('owner', 'member')} isCollapsed={isCollapsed} onSave={saveNavPrefs}
+                    renderTitle={(action) => action
+                      ? <NavTitleRow><NavTitle $isCollapsed={isCollapsed}>{t('nav.sectionFeatures')}</NavTitle>{action}</NavTitleRow>
+                      : <NavTitle $isCollapsed={isCollapsed}>{t('nav.sectionFeatures')}</NavTitle>}
+                    renderMore={(m) => <NavMoreRow {...m} section="features" isCollapsed={isCollapsed} />}
+                    items={[
+                    { key: 'talk', label: t('nav.talk', 'Q talk') as string, count: talkUnreadCount, active: isActive('/talk'), node: show('/talk') && (
+                      <NavItem to="/talk" $isCollapsed={isCollapsed} $active={isActive('/talk')}
+                        title={isCollapsed ? `${t('nav.talk')}${talkUnreadCount > 0 ? ` (${talkUnreadCount})` : ''}` : undefined}>
+                        <NavIcon $isCollapsed={isCollapsed}><IconTalk /></NavIcon>
+                        <NavLabel $isCollapsed={isCollapsed}>{t('nav.talk')}</NavLabel>
+                        {talkUnreadCount > 0 && (
+                          <InboxBadge $collapsed={isCollapsed} data-testid="nav-badge-talk"
+                            aria-label={`${t('nav.talk')} ${talkUnreadCount}`}>
+                            {talkUnreadCount > 99 ? '99+' : talkUnreadCount}
+                          </InboxBadge>
+                        )}
+                      </NavItem>
+                    ) },
+                    { key: 'mail', label: t('nav.qmail', 'Q mail') as string, count: mailMenuCount, active: isActive('/mail'), node: show('/mail') && (
+                      <NavItem to="/mail" $isCollapsed={isCollapsed}
+                        $active={isActive('/mail')}
+                        title={isCollapsed ? `${t('nav.qmail', 'Q mail')}${mailMenuCount > 0 ? ` (${mailMenuCount})` : ''}` : undefined}>
+                        <NavIcon $isCollapsed={isCollapsed}><IconMail /></NavIcon>
+                        <NavLabel $isCollapsed={isCollapsed}>{t('nav.qmail', 'Q mail')}</NavLabel>
+                        {mailMenuCount > 0 && (
+                          <InboxBadge $collapsed={isCollapsed} aria-label={`${t('nav.qmail', 'Q mail')} ${mailMenuCount}`}>
+                            {mailMenuCount > 99 ? '99+' : mailMenuCount}
+                          </InboxBadge>
+                        )}
+                      </NavItem>
+                    ) },
+                    { key: 'sale', label: t('nav.qsale', 'Q sales') as string, count: saleMenuCount, active: isActive('/sale'), node: show('/sale') && (
+                      <NavItem to="/sale" $isCollapsed={isCollapsed}
+                        $active={isActive('/sale')}
+                        title={isCollapsed ? `${t('nav.qsale', 'Q sales')}${saleMenuCount > 0 ? ` (${saleMenuCount})` : ''}` : undefined}>
+                        <NavIcon $isCollapsed={isCollapsed}><IconSale /></NavIcon>
+                        <NavLabel $isCollapsed={isCollapsed}>{t('nav.qsale', 'Q sales')}</NavLabel>
+                        {!isCollapsed && <BetaChip path="/sale" />}
+                        {saleMenuCount > 0 && (
+                          <InboxBadge $collapsed={isCollapsed} data-testid="nav-badge-sale"
+                            aria-label={`${t('nav.qsale', 'Q sales')} ${saleMenuCount}`}>
+                            {saleMenuCount > 99 ? '99+' : saleMenuCount}
+                          </InboxBadge>
+                        )}
+                      </NavItem>
+                    ) },
+                    { key: 'task', label: t('nav.task') as string, count: taskMenuCount, active: isActive('/tasks'), node: show('/tasks') && (
+                      <NavItem to="/tasks" $isCollapsed={isCollapsed} $active={isActive('/tasks')}
+                        title={isCollapsed ? `${t('nav.task')}${taskMenuCount > 0 ? ` (${taskMenuCount})` : ''}` : undefined}>
+                        <NavIcon $isCollapsed={isCollapsed}><IconTask /></NavIcon>
+                        <NavLabel $isCollapsed={isCollapsed}>{t('nav.task')}</NavLabel>
+                        {taskMenuCount > 0 && (
+                          <InboxBadge $collapsed={isCollapsed} data-testid="nav-badge-task"
+                            aria-label={`${t('nav.task')} ${taskMenuCount}`}>
+                            {taskMenuCount > 99 ? '99+' : taskMenuCount}
+                          </InboxBadge>
+                        )}
+                      </NavItem>
+                    ) },
+                    { key: 'project', label: t('nav.project') as string, count: 0, active: isActive('/projects'), node: show('/projects') && (
+                      <NavItem to="/projects" $isCollapsed={isCollapsed} $active={isActive('/projects')}
+                        title={isCollapsed ? t('nav.project') : undefined}>
+                        <NavIcon $isCollapsed={isCollapsed}><IconProject /></NavIcon>
+                        <NavLabel $isCollapsed={isCollapsed}>{t('nav.project')}</NavLabel>
+                      </NavItem>
+                    ) },
+                    { key: 'calendar', label: t('nav.calendar') as string, count: calendarMenuCount, active: isActive('/calendar'), node: show('/calendar') && (
+                      <NavItem to="/calendar" $isCollapsed={isCollapsed} $active={isActive('/calendar')}
+                        title={isCollapsed ? t('nav.calendar') : undefined}>
+                        <NavIcon $isCollapsed={isCollapsed}><IconCalendar /></NavIcon>
+                        <NavLabel $isCollapsed={isCollapsed}>{t('nav.calendar')}</NavLabel>
+                        {calendarMenuCount > 0 && (
+                          <InboxBadge $collapsed={isCollapsed} data-testid="nav-badge-calendar"
+                            aria-label={`${t('nav.calendar')} ${calendarMenuCount}`}>
+                            {calendarMenuCount > 99 ? '99+' : calendarMenuCount}
+                          </InboxBadge>
+                        )}
+                      </NavItem>
+                    ) },
+                    { key: 'note', label: t('nav.note') as string, count: 0, active: isActive('/notes'), node: show('/notes') && (
+                      <NavItem to="/notes" $isCollapsed={isCollapsed} $active={isActive('/notes')}
+                        title={isCollapsed ? t('nav.note') : undefined}>
+                        <NavIcon $isCollapsed={isCollapsed}><IconNote /></NavIcon>
+                        <NavLabel $isCollapsed={isCollapsed}>{t('nav.note')}</NavLabel>
+                      </NavItem>
+                    ) },
+                    { key: 'docs', label: t('nav.docs') as string, count: docsMenuCount, active: isActive('/docs'), node: show('/docs') && (
+                      <NavItem to="/docs" $isCollapsed={isCollapsed} $active={isActive('/docs')}
+                        title={isCollapsed ? t('nav.docs') : undefined}>
+                        <NavIcon $isCollapsed={isCollapsed}><IconDocs /></NavIcon>
+                        <NavLabel $isCollapsed={isCollapsed}>{t('nav.docs')}</NavLabel>
+                        {docsMenuCount > 0 && (
+                          <InboxBadge $collapsed={isCollapsed} data-testid="nav-badge-docs"
+                            aria-label={`${t('nav.docs')} ${docsMenuCount}`}>
+                            {docsMenuCount > 99 ? '99+' : docsMenuCount}
+                          </InboxBadge>
+                        )}
+                      </NavItem>
+                    ) },
+                    { key: 'info', label: t('nav.qinfo', 'Q info') as string, count: 0, active: isActive('/info') || isActive('/knowledge'), node: show('/info') && (
+                      <NavItem to="/info" $isCollapsed={isCollapsed} $active={isActive('/info') || isActive('/knowledge')}
+                        title={isCollapsed ? t('nav.qinfo', 'Q info') : undefined}>
+                        <NavIcon $isCollapsed={isCollapsed}>
+                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 6.253v13"/><path d="M12 6.253C10.832 5.477 9.246 5 7.5 5 5.754 5 4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253"/><path d="M12 6.253C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18s-3.332.477-4.5 1.253"/></svg>
+                        </NavIcon>
+                        <NavLabel $isCollapsed={isCollapsed}>{t('nav.qinfo', 'Q info')}</NavLabel>
+                      </NavItem>
+                    ) },
+                    { key: 'files', label: t('nav.file') as string, count: 0, active: isActive('/files'), node: show('/files') && (
+                      <NavItem to="/files" $isCollapsed={isCollapsed} $active={isActive('/files')}
+                        title={isCollapsed ? t('nav.file') : undefined}>
+                        <NavIcon $isCollapsed={isCollapsed}><IconFile /></NavIcon>
+                        <NavLabel $isCollapsed={isCollapsed}>{t('nav.file')}</NavLabel>
+                      </NavItem>
+                    ) },
+                    { key: 'bill', label: t('nav.qbill', 'Q Bill') as string, count: billMenuCount, active: isActive('/bills') || isActive('/billing'), node: show('/bills') && (
+                      <NavItem to="/bills" $isCollapsed={isCollapsed}
+                        $active={isActive('/bills') || isActive('/billing')}
+                        title={isCollapsed ? `${t('nav.qbill', 'Q Bill')}${billMenuCount > 0 ? ` (${billMenuCount})` : ''}` : undefined}>
+                        <NavIcon $isCollapsed={isCollapsed}><IconBill /></NavIcon>
+                        <NavLabel $isCollapsed={isCollapsed}>{t('nav.qbill', 'Q Bill')}</NavLabel>
+                        {billMenuCount > 0 && (
+                          <InboxBadge $collapsed={isCollapsed} aria-label={`${t('nav.qbill', 'Q Bill')} ${billMenuCount}`}>
+                            {billMenuCount > 99 ? '99+' : billMenuCount}
+                          </InboxBadge>
+                        )}
+                      </NavItem>
+                    ) },
+                    ]} />
                 </NavSection>
               )}
 
               {/* ─── 개인 (Personal) — 사이클 N+9 — VISIBILITY_VOCABULARY §5 ─── */}
               {hasBiz('owner', 'member') && (
                 <NavSection>
-                  <NavTitle $isCollapsed={isCollapsed}>{t('nav.sectionPersonal', '개인')}</NavTitle>
-                  {show('/personal-vault') && (
-                    <NavItem to="/personal-vault" $isCollapsed={isCollapsed} $active={isActive('/personal-vault')}
-                      title={isCollapsed ? t('nav.personalVault', '개인 보관함') : undefined}>
-                      <NavIcon $isCollapsed={isCollapsed}>
-                        {/* archive icon — 자물쇠 아님 (자물쇠는 Q note·visibility 배지 전용) */}
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="3" width="20" height="5" rx="1"/><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
-                      </NavIcon>
-                      <NavLabel $isCollapsed={isCollapsed}>{t('nav.personalVault', '개인 보관함')}</NavLabel>
-                    </NavItem>
-                  )}
-                  {/* ★ 2026-09-21 (#423) — 새 소식·알림을 개인 메뉴에서 **뺐다.** Irene: *"개인 메뉴에서
-                      새소식 알림 그냥 빼. 이상해."* 둘은 헤더의 스피커·종 아이콘이 여는 화면이다.
-                      탭 이름은 config/navMenus.ts EXTRA_PAGE_LABELS 가 계속 준다. */}
-                  {show('/signatures/received') && (
-                    <NavItem to="/signatures/received" $isCollapsed={isCollapsed} $active={isActive('/signatures/received')}
-                      title={isCollapsed ? t('nav.receivedSignatures', '받은 서명') : undefined}>
-                      <NavIcon $isCollapsed={isCollapsed}>
-                        {/* pen/signature icon */}
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/><path d="M2 2l7.586 7.586"/><circle cx="11" cy="11" r="2"/></svg>
-                      </NavIcon>
-                      <NavLabel $isCollapsed={isCollapsed}>{t('nav.receivedSignatures', '받은 서명')}</NavLabel>
-                      {signMenuCount > 0 && (
-                        <InboxBadge $collapsed={isCollapsed} data-testid="nav-badge-sign-received"
-                          aria-label={`${t('nav.receivedSignatures', '받은 서명')} ${signMenuCount}`}>
-                          {signMenuCount > 99 ? '99+' : signMenuCount}
-                        </InboxBadge>
-                      )}
-                    </NavItem>
-                  )}
-                  {/* #208 — 내 출퇴근·내 휴가는 **개인** 것이다. 승인·팀 현황·통계는
-                      설정 > 근태 관리(관리자)로 따로 나갔다 — 성격이 다른 둘을 한 화면에 묶지 않는다. */}
-                  {show('/attendance') && (
-                    <NavItem to="/attendance" $isCollapsed={isCollapsed} $active={isActive('/attendance')}
-                      title={isCollapsed ? t('nav.attendance', '근태·휴가') : undefined}>
-                      <NavIcon $isCollapsed={isCollapsed}>
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/></svg>
-                      </NavIcon>
-                      <NavLabel $isCollapsed={isCollapsed}>{t('nav.attendance', '근태·휴가')}</NavLabel>
-                      {attendanceMenuCount > 0 && (
-                        <InboxBadge $collapsed={isCollapsed} data-testid="nav-badge-attendance"
-                          aria-label={`${t('nav.attendance', '근태·휴가')} ${attendanceMenuCount}`}>
-                          {attendanceMenuCount > 99 ? '99+' : attendanceMenuCount}
-                        </InboxBadge>
-                      )}
-                    </NavItem>
-                  )}
-                  {/* 급여·계약 — 기능이 켜졌고 급여 관리자(대표 + 지정 담당자)일 때만(docs/PAYROLL_DESIGN.md §2·§4) */}
-                  {show('/payroll') && (
-                    <NavItem to="/payroll" $isCollapsed={isCollapsed} $active={isActive('/payroll')}
-                      data-testid="nav-payroll" title={isCollapsed ? t('nav.payroll', '급여·계약') : undefined}>
-                      <NavIcon $isCollapsed={isCollapsed}>
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="6" width="18" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/><path d="M6 9v.01M18 15v.01"/></svg>
-                      </NavIcon>
-                      <NavLabel $isCollapsed={isCollapsed}>{t('nav.payroll', '급여·계약')}</NavLabel>
-                    </NavItem>
-                  )}
-                  {/* 내 급여명세서 — 기능이 켜져 있으면 누구나(자기 것만) */}
-                  {show('/me/payslips') && (
-                    <NavItem to="/me/payslips" $isCollapsed={isCollapsed} $active={isActive('/me/payslips')}
-                      data-testid="nav-payslips" title={isCollapsed ? t('nav.myPayslips', '내 급여명세서') : undefined}>
-                      <NavIcon $isCollapsed={isCollapsed}>
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="13" y2="17"/></svg>
-                      </NavIcon>
-                      <NavLabel $isCollapsed={isCollapsed}>{t('nav.myPayslips', '내 급여명세서')}</NavLabel>
-                    </NavItem>
-                  )}
-                  {/* 2026-09-21 — 문의·피드백은 개인 섹션 맨 아래(근태·휴가 다음). 솔루션에 대한 것이라 나의 일 메뉴들 뒤에 둔다 */}
-                  {show('/me/feedback') && (
-                    <NavItem to="/me/feedback" $isCollapsed={isCollapsed} $active={isActive('/me/feedback')}
-                      title={isCollapsed ? t('nav.myFeedback', '문의·피드백') : undefined}>
-                      <NavIcon $isCollapsed={isCollapsed}>
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-                      </NavIcon>
-                      <NavLabel $isCollapsed={isCollapsed}>
-                        {t('nav.myFeedback', '문의·피드백')}
-                        {/* 메뉴명에는 넣지 않고 보조로 — 워크스페이스 안이지만 **솔루션(PlanQ)** 에 대한 문의다 (Irene 2026-09-21) */}
-                        <NavSubTag>{t('nav.myFeedbackSub', 'PlanQ')}</NavSubTag>
-                      </NavLabel>
-                    </NavItem>
-                  )}
+                  
+                  <EditableNavSection section="personal" prefs={user?.nav_prefs} editable={hasBiz('owner', 'member')} isCollapsed={isCollapsed} onSave={saveNavPrefs}
+                    renderTitle={(action) => action
+                      ? <NavTitleRow><NavTitle $isCollapsed={isCollapsed}>{t('nav.sectionPersonal', '개인')}</NavTitle>{action}</NavTitleRow>
+                      : <NavTitle $isCollapsed={isCollapsed}>{t('nav.sectionPersonal', '개인')}</NavTitle>}
+                    renderMore={(m) => <NavMoreRow {...m} section="personal" isCollapsed={isCollapsed} />}
+                    items={[
+                    { key: 'personal-vault', label: t('nav.personalVault', '개인 보관함') as string, count: 0, active: isActive('/personal-vault'), node: show('/personal-vault') && (
+                      <NavItem to="/personal-vault" $isCollapsed={isCollapsed} $active={isActive('/personal-vault')}
+                        title={isCollapsed ? t('nav.personalVault', '개인 보관함') : undefined}>
+                        <NavIcon $isCollapsed={isCollapsed}>
+                          {/* archive icon — 자물쇠 아님 (자물쇠는 Q note·visibility 배지 전용) */}
+                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="3" width="20" height="5" rx="1"/><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
+                        </NavIcon>
+                        <NavLabel $isCollapsed={isCollapsed}>{t('nav.personalVault', '개인 보관함')}</NavLabel>
+                      </NavItem>
+                    ) },
+                    /* ★ 2026-09-21 (#423) — 새 소식·알림을 개인 메뉴에서 **뺐다.** Irene: *"개인 메뉴에서
+                        새소식 알림 그냥 빼. 이상해."* 둘은 헤더의 스피커·종 아이콘이 여는 화면이다.
+                        탭 이름은 config/navMenus.ts EXTRA_PAGE_LABELS 가 계속 준다. */
+                    { key: 'received-signatures', label: t('nav.receivedSignatures', '받은 서명') as string, count: signMenuCount, active: isActive('/signatures/received'), node: show('/signatures/received') && (
+                      <NavItem to="/signatures/received" $isCollapsed={isCollapsed} $active={isActive('/signatures/received')}
+                        title={isCollapsed ? t('nav.receivedSignatures', '받은 서명') : undefined}>
+                        <NavIcon $isCollapsed={isCollapsed}>
+                          {/* pen/signature icon */}
+                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/><path d="M2 2l7.586 7.586"/><circle cx="11" cy="11" r="2"/></svg>
+                        </NavIcon>
+                        <NavLabel $isCollapsed={isCollapsed}>{t('nav.receivedSignatures', '받은 서명')}</NavLabel>
+                        {signMenuCount > 0 && (
+                          <InboxBadge $collapsed={isCollapsed} data-testid="nav-badge-sign-received"
+                            aria-label={`${t('nav.receivedSignatures', '받은 서명')} ${signMenuCount}`}>
+                            {signMenuCount > 99 ? '99+' : signMenuCount}
+                          </InboxBadge>
+                        )}
+                      </NavItem>
+                    ) },
+                    /* #208 — 내 출퇴근·내 휴가는 **개인** 것이다. 승인·팀 현황·통계는
+                        설정 > 근태 관리(관리자)로 따로 나갔다 — 성격이 다른 둘을 한 화면에 묶지 않는다. */
+                    { key: 'attendance', label: t('nav.attendance', '근태·휴가') as string, count: attendanceMenuCount, active: isActive('/attendance'), node: show('/attendance') && (
+                      <NavItem to="/attendance" $isCollapsed={isCollapsed} $active={isActive('/attendance')}
+                        title={isCollapsed ? t('nav.attendance', '근태·휴가') : undefined}>
+                        <NavIcon $isCollapsed={isCollapsed}>
+                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/></svg>
+                        </NavIcon>
+                        <NavLabel $isCollapsed={isCollapsed}>{t('nav.attendance', '근태·휴가')}</NavLabel>
+                        {attendanceMenuCount > 0 && (
+                          <InboxBadge $collapsed={isCollapsed} data-testid="nav-badge-attendance"
+                            aria-label={`${t('nav.attendance', '근태·휴가')} ${attendanceMenuCount}`}>
+                            {attendanceMenuCount > 99 ? '99+' : attendanceMenuCount}
+                          </InboxBadge>
+                        )}
+                      </NavItem>
+                    ) },
+                    /* 급여·계약 — 기능이 켜졌고 급여 관리자(대표 + 지정 담당자)일 때만(docs/PAYROLL_DESIGN.md §2·§4) */
+                    { key: 'payroll', label: t('nav.payroll', '급여·계약') as string, count: 0, active: isActive('/payroll'), node: show('/payroll') && (
+                      <NavItem to="/payroll" $isCollapsed={isCollapsed} $active={isActive('/payroll')}
+                        data-testid="nav-payroll" title={isCollapsed ? t('nav.payroll', '급여·계약') : undefined}>
+                        <NavIcon $isCollapsed={isCollapsed}>
+                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="6" width="18" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/><path d="M6 9v.01M18 15v.01"/></svg>
+                        </NavIcon>
+                        <NavLabel $isCollapsed={isCollapsed}>{t('nav.payroll', '급여·계약')}</NavLabel>
+                      </NavItem>
+                    ) },
+                    /* 내 급여명세서 — 기능이 켜져 있으면 누구나(자기 것만) */
+                    { key: 'payslips', label: t('nav.myPayslips', '내 급여명세서') as string, count: 0, active: isActive('/me/payslips'), node: show('/me/payslips') && (
+                      <NavItem to="/me/payslips" $isCollapsed={isCollapsed} $active={isActive('/me/payslips')}
+                        data-testid="nav-payslips" title={isCollapsed ? t('nav.myPayslips', '내 급여명세서') : undefined}>
+                        <NavIcon $isCollapsed={isCollapsed}>
+                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="13" y2="17"/></svg>
+                        </NavIcon>
+                        <NavLabel $isCollapsed={isCollapsed}>{t('nav.myPayslips', '내 급여명세서')}</NavLabel>
+                      </NavItem>
+                    ) },
+                    /* 2026-09-21 — 문의·피드백은 개인 섹션 맨 아래(근태·휴가 다음). 솔루션에 대한 것이라 나의 일 메뉴들 뒤에 둔다 */
+                    { key: 'my-feedback', label: t('nav.myFeedback', '문의·피드백') as string, count: 0, active: isActive('/me/feedback'), node: show('/me/feedback') && (
+                      <NavItem to="/me/feedback" $isCollapsed={isCollapsed} $active={isActive('/me/feedback')}
+                        title={isCollapsed ? t('nav.myFeedback', '문의·피드백') : undefined}>
+                        <NavIcon $isCollapsed={isCollapsed}>
+                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                        </NavIcon>
+                        <NavLabel $isCollapsed={isCollapsed}>
+                          {t('nav.myFeedback', '문의·피드백')}
+                          {/* 메뉴명에는 넣지 않고 보조로 — 워크스페이스 안이지만 **솔루션(PlanQ)** 에 대한 문의다 (Irene 2026-09-21) */}
+                          <NavSubTag>{t('nav.myFeedbackSub', 'PlanQ')}</NavSubTag>
+                        </NavLabel>
+                      </NavItem>
+                    ) },
+                    ]} />
                 </NavSection>
               )}
 

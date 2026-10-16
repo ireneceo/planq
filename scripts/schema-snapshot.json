@@ -1,5 +1,5 @@
 {
-  "_generated": "2026-10-15",
+  "_generated": "2026-10-16",
   "_db": "planq_dev_db",
   "_note": "스키마 변경 후 `node scripts/dump-schema.js` 로 갱신할 것. guard-invariants schemacol 이 읽는다.",
   "tables": {
@@ -23,6 +23,7 @@
       "client_id",
       "provider",
       "scopes",
+      "extra_business_ids",
       "refresh_token_hash",
       "prev_refresh_token_hash",
       "refresh_expires_at",
@@ -173,7 +174,8 @@
       "department_id",
       "team_id",
       "removed_reason",
-      "onboarding_dismissed_at"
+      "onboarding_dismissed_at",
+      "nav_prefs"
     ],
     "business_plan_history": [
       "id",
@@ -302,7 +304,9 @@
       "billing_exempt_set_at",
       "guest_links_enabled",
       "onboarding_dismissed_at",
-      "holiday_country"
+      "holiday_country",
+      "modules",
+      "card_payees"
     ],
     "calendar_event_attachments": [
       "id",
@@ -512,6 +516,15 @@
       "updated_at",
       "from_user_timezone",
       "locale"
+    ],
+    "contract_pay_lines": [
+      "id",
+      "business_id",
+      "contract_id",
+      "pay_item_id",
+      "amount",
+      "created_at",
+      "updated_at"
     ],
     "conversation_participants": [
       "id",
@@ -901,6 +914,13 @@
       "created_at",
       "updated_at"
     ],
+    "email_thread_redirects": [
+      "old_thread_id",
+      "new_thread_id",
+      "business_id",
+      "run_id",
+      "created_at"
+    ],
     "email_threads": [
       "id",
       "business_id",
@@ -939,7 +959,27 @@
       "follow_up_days",
       "last_extracted_email_message_id",
       "spam_origin",
-      "spam_since"
+      "spam_since",
+      "impersonation"
+    ],
+    "employment_contracts": [
+      "id",
+      "business_id",
+      "person_id",
+      "kind",
+      "start_date",
+      "end_date",
+      "weekly_work_days",
+      "daily_work_hours",
+      "currency",
+      "pay_day",
+      "post_id",
+      "signed_at",
+      "status",
+      "note",
+      "created_by",
+      "created_at",
+      "updated_at"
     ],
     "ephemeral_tokens": [
       "id",
@@ -1229,7 +1269,8 @@
       "tax_invoice_file_id",
       "cash_receipt_file_id",
       "stripe_session_id",
-      "stripe_payment_intent"
+      "stripe_payment_intent",
+      "card_pay_url"
     ],
     "invoice_items": [
       "id",
@@ -1331,7 +1372,8 @@
       "tax_invoice_file_id",
       "stripe_session_id",
       "stripe_payment_intent",
-      "idempotency_key"
+      "idempotency_key",
+      "card_pay_url"
     ],
     "kb_categories": [
       "id",
@@ -1495,6 +1537,15 @@
       "match_field",
       "mark_important"
     ],
+    "member_roles": [
+      "id",
+      "business_id",
+      "name",
+      "sort_order",
+      "created_by",
+      "created_at",
+      "updated_at"
+    ],
     "message_attachments": [
       "id",
       "message_id",
@@ -1619,6 +1670,32 @@
       "created_at",
       "updated_at"
     ],
+    "pay_items": [
+      "id",
+      "business_id",
+      "code",
+      "name",
+      "name_en",
+      "side",
+      "applies_to",
+      "taxable",
+      "calc",
+      "rate",
+      "rate_base",
+      "base_item_id",
+      "sign",
+      "in_total",
+      "is_settlement",
+      "is_statutory",
+      "rounding",
+      "rounding_unit",
+      "aliases",
+      "sort_order",
+      "is_active",
+      "preset_source",
+      "created_at",
+      "updated_at"
+    ],
     "payments": [
       "id",
       "business_id",
@@ -1667,6 +1744,106 @@
       "refund_account_enc",
       "refund_kind",
       "stripe_refund_id"
+    ],
+    "payroll_entries": [
+      "id",
+      "business_id",
+      "run_id",
+      "person_id",
+      "contract_id",
+      "display_name",
+      "employee_no",
+      "job_title",
+      "department_name",
+      "unpaid_leave_days",
+      "unpaid_leave_source",
+      "gross_total",
+      "taxable_total",
+      "nontaxable_total",
+      "deduction_total",
+      "net_total",
+      "currency",
+      "bank_name_snapshot",
+      "bank_last4",
+      "statement_matched",
+      "statement_warnings",
+      "transfer_task_id",
+      "payslip_viewed_at",
+      "note",
+      "created_at",
+      "updated_at"
+    ],
+    "payroll_entry_lines": [
+      "id",
+      "business_id",
+      "entry_id",
+      "pay_item_id",
+      "draft_amount",
+      "statement_amount",
+      "final_amount",
+      "final_source",
+      "item_name_snapshot",
+      "note",
+      "created_at",
+      "updated_at"
+    ],
+    "payroll_people": [
+      "id",
+      "business_id",
+      "user_id",
+      "display_name",
+      "employee_no",
+      "email",
+      "income_kind",
+      "hired_on",
+      "left_on",
+      "job_title",
+      "department_id",
+      "bank_name",
+      "bank_account_enc",
+      "status",
+      "note",
+      "created_by",
+      "created_at",
+      "updated_at"
+    ],
+    "payroll_runs": [
+      "id",
+      "business_id",
+      "period_ym",
+      "seq",
+      "kind",
+      "pay_date",
+      "status",
+      "statement_file_id",
+      "statement_imported_at",
+      "statement_extract_json",
+      "headcount",
+      "gross_total",
+      "deduction_total",
+      "net_total",
+      "totals_by_currency",
+      "confirmed_by",
+      "confirmed_at",
+      "paid_by",
+      "paid_at",
+      "transfer_task_mode",
+      "transfer_assignee_id",
+      "adjusts_run_id",
+      "note",
+      "created_by",
+      "created_at",
+      "updated_at"
+    ],
+    "payroll_status_history": [
+      "id",
+      "business_id",
+      "run_id",
+      "from_status",
+      "to_status",
+      "changed_by",
+      "note",
+      "created_at"
     ],
     "platform_settings": [
       "id",

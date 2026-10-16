@@ -82,7 +82,7 @@ const getUserWithBusiness = async (userId) => {
   //   removed_at 도 같이 건다 — 여태 select 만 하고 쓰지 않아 제거된 멤버십이 남아 있었다.
   const memberships = await BusinessMember.findAll({
     where: { user_id: userId, removed_at: null },
-    attributes: ['business_id', 'role', 'name', 'name_localized', 'removed_at'],
+    attributes: ['business_id', 'role', 'name', 'name_localized', 'removed_at', 'nav_prefs'],
     include: [{
       model: Business,
       required: true,
@@ -121,6 +121,8 @@ const getUserWithBusiness = async (userId) => {
       // 워크스페이스별 표시명 (메모 project_account_workspace_profile_split)
       member_name: m.name || null,
       member_name_localized: m.name_localized || null,
+      // 사이드바 «메뉴 편집»(services/navPrefs) — 사람×워크스페이스. 고객은 없다(편집 안 함)
+      nav_prefs: m.nav_prefs || null,
     });
   }
   for (const c of clientRows) {
@@ -189,6 +191,7 @@ const getUserWithBusiness = async (userId) => {
     userData.workspace_reference_timezones = activeWs.reference_timezones || [];
     // 워크스페이스 컨텍스트의 표시명 — 사이드바 등 UI 가 active workspace 의 이름을 보여주도록.
     // 메모 project_account_workspace_profile_split: 계정 (User.name) vs 워크스페이스 (BusinessMember.name) 분리.
+    userData.nav_prefs = activeWs.nav_prefs || null;
     userData.display_name = activeWs.member_name || user.name;
     userData.display_name_localized = activeWs.member_name_localized || user.name_localized || null;
   } else {
@@ -196,6 +199,7 @@ const getUserWithBusiness = async (userId) => {
     userData.business_name = null;
     userData.business_role = null;
     userData.menu_levels = null;
+    userData.nav_prefs = null;
     userData.modules = null;
     userData.can_manage_payroll = false;
     userData.display_name = user.name;

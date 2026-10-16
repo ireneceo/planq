@@ -1583,6 +1583,15 @@ import { mediaPhone, mediaTablet, BP } from 'theme/breakpoints';
 - **구형 WebView 폴리필** — `public/legacy-polyfill.js`(classic script, 모듈보다 먼저). 번들 라이브러리가 쓰는 ES2022
   (`Object.hasOwn` 등)가 앱 안 브라우저(Chrome 90)에서 화면을 통째로 죽였다(운영 크래시 2026-09-18).
 
+## 사이드바 «메뉴 편집» — 칸 안의 메뉴는 배열 항목이다 (2026-10-16)
+
+> Irene: *"메뉴를 … 자기가 선택한 순서대로 커스텀하고 가려두고 전체보기 기능이 있게 … 원하면 사용하는 거야."*
+
+- «기능»·«개인» 칸은 `components/Layout/EditableNavSection` 이 그린다 — MainLayout 은 메뉴 한 줄을 `{ key, label, count, active, node }` 로 넘긴다.
+  **이 두 칸에 메뉴를 더하면 그 배열에 항목으로 넣는다**(key = navMenus 키 · count = 그 메뉴 배지 값 — 숨겼을 때 «더보기» 합계에 쓴다).
+- 저장은 사람 × 워크스페이스 `business_members.nav_prefs`(검증 `services/navPrefs.js`, 계산 `config/navPrefs.ts`). 새 메뉴는 «보이는 끝» 에 붙는다.
+- **숨김은 권한이 아니다** — `visibleNavMenus`(검색·탭 +)는 이 값을 모른다. 대시보드·확인 필요·관리·설정 칸은 편집하지 않는다.
+
 ## UI 규칙 — 리스트 재클릭 토글
 
 **"선택된 항목을 다시 클릭하면 선택 해제"** — 리스트/드로어/탭 모두 공통.
