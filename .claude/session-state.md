@@ -1326,3 +1326,8 @@
 - Irene: «너가 확인하고 넘겨. 나중에 안 되면 운영에서 보고 다시 요청할게.» → 카드 뺌.
 - 확인함(PlanQ 연결 도구, 읽기): 운영 ws1 «워프로랩» 개인 계정 #5 irene@irenewp.com — 켜짐 · 07:06Z 동기화(몇 분 전) · 계정 오류 없음. 공용 #3 help@ 도 정상.
 - 확인 못 함: 보낸편지함 폴더 줄(email_account_folders) 상태와 가져온 사본 수 — 운영 SSH 읽기·보낸메일 검색 모두 권한 거부. 코드상 건너뛰는 경우는 그 주소가 운영 SMTP_FROM/SMTP_USER 이거나 별칭일 때뿐(dev 는 help@ 가 발송 주소).
+
+### 완료: «확인되지 않은 앱» 경고 원인 설명 (2026-10-16 · [Opus] 방 ec554023)
+- 원인: 구글 연결 전부(로그인·팀/개인 캘린더·Drive)가 같은 구글 앱(GOOGLE_CLIENT_ID 하나)을 쓰는데, 그 앱이 민감 권한(calendar.events · calendar.calendarlist.readonly)에 대한 구글 심사를 아직 통과하지 못함. 코드 버그 아님, 코드로 끌 수 없음.
+- 조치: Irene 할 일 «구글 콘솔 인증 센터 상태 확인하고 심사 제출하기» 상황판에 올림(todomvbdo20g). 절차·문안·영상 대본 docs/GOOGLE_OAUTH_CALENDARLIST_GUIDE.md.
+- 코드 변경 없음.
