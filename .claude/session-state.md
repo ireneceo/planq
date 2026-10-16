@@ -2,6 +2,13 @@
 **마지막 업데이트:** 2026-10-16 (방 1740e0b9 · 정기 점검 배포 막힘 고침)
 **작업 상태:** 완료 — dev 링크 앱 가로채기 웹 차단 준비(sudo 1건 Irene) · 이전: 메일 사칭 검사(Fable PASS · 운영 미배포) · 이전: AI 앱 여러 워크스페이스(Fable PASS · 운영 미배포) · 이전: 급여 P2~P4(서버 Fable PASS · 화면 빌드·3폭 실측 72/72 · 운영 미배포)
 
+### 완료: 확인필요에서 문의·피드백 답 빼기 (방 29399824 · 2026-10-16 · [Opus]) — 운영 미배포
+- 원문: «확인필요에 문의/피드백 받는 게 나오는데 … 플랜큐와의 별도 소통 … 업무도 아닌데 알림으로만 오면 되는 거야».
+- 10-15 44f6dc17 에서 넣은 확인필요 수집기(collectFeedbackReplies)·feedbackCount·문의·피드백 메뉴 숫자·inbox:refresh 신호를 걷어냄.
+  남긴 것: 종 알림(feedbackRespond notify) · /me/feedback 목록 «새 답변» 칩(reply_seen_at, 운영 마이그레이션 슬롯 그대로).
+- 검증: 실HTTP — 답 도착(reply_seen_at NULL) 뒤 todo total 6→6 · 문의 항목 0 · 종 알림 1건 · guard 72/73 · build EXIT 0(error TS 0) · e2e inboxcount 실패 0 · Fable 미검증(자체 검증 — 목록 항목 제외·화면 숫자, 대상 아님).
+- 확인용: 피드백 #49 «[확인용] 확인필요 제외 확인»(owner ws6, 답 있음·안 읽음).
+
 ### 완료(운영 반영은 Irene 할 일): 배포 후 운영 메일 목록 0건 · request_throttled (방 ce0f7668 · 2026-10-16 · [Opus])
 - 원인: deploy-planq.sh 보호 목록의 `'data'`(q-note/data 용)가 앵커 없어 `dev-backend/services/data/confusables-latin.json` 이 운영에 안 감 →
   `GET /email-threads` 매번 500(운영 out 로그 03:33 실측) → 화면 apiFetch 폭주 차단이 503 `request_throttled` 로 막음.

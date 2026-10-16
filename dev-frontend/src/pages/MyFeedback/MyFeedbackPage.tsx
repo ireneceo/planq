@@ -149,7 +149,7 @@ const MyFeedbackPage = () => {
     setParams(prev => { const n = new URLSearchParams(prev); n.delete('item'); return n; }, { replace: false });
   }, [setParams]);
 
-  // 스레드를 열면 답을 읽은 것 — 확인필요·문의·피드백 메뉴 배지에서 빠진다(2026-10-15).
+  // 스레드를 열면 답을 읽은 것 — 목록의 «새 답변» 칩이 빠진다(확인필요·메뉴 배지에는 2026-10-16 부터 안 들어간다).
   //   알림·확인필요 링크(?item=)로 바로 들어와도 목록이 오고 나서 한 번 찍힌다.
   const selectedUnread = !!selected?.unread_reply;
   const selectedThreadId = selected?.id ?? null;
@@ -161,7 +161,6 @@ const MyFeedbackPage = () => {
       .then(j => {
         if (cancelled || !j?.success) return;
         setThreads(prev => prev.map(th => (th.id === selectedThreadId ? { ...th, unread_reply: false } : th)));
-        window.dispatchEvent(new CustomEvent('inbox:refresh'));
       })
       .catch(() => { /* 실패하면 표시는 그대로 — 다음에 열 때 다시 찍는다 */ });
     return () => { cancelled = true; };

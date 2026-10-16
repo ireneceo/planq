@@ -56,7 +56,6 @@ function TypeIcon({ type }: { type: TodoItem['type'] }) {
   if (type === 'sale') return <IconSale />;                 // Q sale — 영업 확인 항목
   if (type === 'booking') return <IconEvent />;             // 상담 신청 — 일정이다(고객이 시간을 골랐다)
   if (type === 'chat') return <IconChat />;                 // Q Talk — 안 읽은 대화방
-  if (type === 'feedback_reply') return <IconChat />;       // 문의·피드백 답 — 말풍선(메뉴 아이콘과 같은 뜻)
   return <IconMention />;
 }
 
@@ -110,8 +109,8 @@ function formatRelativeTime(iso: string | null | undefined, t: ReturnType<typeof
 // 카테고리 그룹 — "전체" 탭에서 무엇에 대한 일인지 먼저 보이게 한다 (업무·메일·서명·청구).
 const CATEGORY_OF: Record<string, string> = {
   task: 'work', event: 'work', invite: 'work', mention: 'work', task_candidate: 'work',
-  // 휴가 승인·문의 답 — 여기 없으면 '전체' 탭(카테고리 묶음)에서 어느 섹션에도 안 들어가 **사라진다**(상태값 규약)
-  leave: 'work', feedback_reply: 'work',
+  // 휴가 승인 — 여기 없으면 '전체' 탭(카테고리 묶음)에서 어느 섹션에도 안 들어가 **사라진다**(상태값 규약)
+  leave: 'work',
   email: 'mail',
   // Q sale — 여기 없으면 '전체' 탭 그룹에서 어느 섹션에도 안 들어가 **목록에서 사라진다**
   sale: 'sale',

@@ -35,8 +35,8 @@ interface MemberOpt { user_id: number; name: string; }
 type InboxTab = 'all' | 'work' | 'mail' | 'sale' | 'chat' | 'signature' | 'billing';
 const TYPE_TO_TAB: Record<string, Exclude<InboxTab, 'all'>> = {
   task: 'work', event: 'work', invite: 'work', mention: 'work', task_candidate: 'work',
-  // 휴가 승인·문의 답 — 여기 없으면 탭 분류에서 떨어져 목록에서 사라진다(상태값 규약)
-  leave: 'work', feedback_reply: 'work',
+  // 휴가 승인 — 여기 없으면 탭 분류에서 떨어져 목록에서 사라진다(상태값 규약)
+  leave: 'work',
   // 메일은 별도 탭 — "답장하면 끝" 인 1회성 액션이라 확인 필요에 들어온다
   email: 'mail',
   // 채팅 (2026-09-15, Irene: "Talk 안에 안읽은 메시지도 확인필요에 나와야지").

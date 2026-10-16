@@ -474,54 +474,8 @@ async function collectInvites(userEmail) {
   return items;
 }
 
-/* ─────────────────────────────────────────────
-   문의·피드백 답 — 운영팀이 답했는데 내가 아직 안 읽은 스레드 (2026-10-15)
-   Irene: "문의 피드백에 답변받아도 알림있어야 하잖아." — 종 알림은 갔지만 확인필요·메뉴 배지가 없었다.
-   워크스페이스와 무관한 개인 원장이라 초대처럼 **한 번만** 부른다(워크스페이스마다 부르면 중복 계수).
-   한 스레드 = 한 항목(최상위 기준). 읽음은 /me/feedback 에서 그 스레드를 열 때(POST /api/feedback/:id/seen).
-   술어는 routes/feedback.hasUnreadReply 와 같다: 답 글 있음 ∧ reply_seen_at NULL.
-   ──────────────────────────────────────────── */
-async function collectFeedbackReplies(userId) {
-  if (!userId) return [];
-  const { FeedbackItem } = require('../models');
-  // 범위 = user_id(본인 원장). business_id 로 거르지 않는다 — 문의는 플랫폼에 보낸 것이라 워크스페이스에 속하지 않는다.
-  const rows = await FeedbackItem.findAll({
-    where: {
-      user_id: userId,
-      admin_response: { [Op.ne]: null },
-      [Op.and]: [literal("TRIM(`FeedbackItem`.`admin_response`) <> ''")],
-      reply_seen_at: null,
-    },
-    attributes: ['id', 'parent_id', 'responded_at'],
-    order: [['responded_at', 'DESC']],
-    limit: COLLECT_LIMIT,
-  });
-  if (!rows.length) return [];
-  // 스레드(최상위)별 가장 최근 답 시각
-  const lastByRoot = new Map();
-  for (const r of rows) {
-    const root = r.parent_id || r.id;
-    const at = r.responded_at ? new Date(r.responded_at).getTime() : 0;
-    if (!lastByRoot.has(root) || at > lastByRoot.get(root)) lastByRoot.set(root, at);
-  }
-  const roots = await FeedbackItem.findAll({
-    where: { id: [...lastByRoot.keys()], user_id: userId },
-    attributes: ['id', 'title', 'kind'],
-  });
-  return roots.map((p) => {
-    const at = lastByRoot.get(p.id) || 0;
-    return {
-      id: `feedback_reply-${p.id}`,
-      type: 'feedback_reply',
-      priority: 'today',
-      verb: p.kind === 'inquiry' ? 'inquiry_reply' : 'feedback_reply',
-      subject: p.title || '',
-      dueAt: null,
-      createdAt: at ? new Date(at).toISOString() : null,
-      link: `/me/feedback?item=${p.id}`,
-    };
-  });
-}
+/* 문의·피드백 답은 확인필요에 넣지 않는다 (2026-10-16, Irene: "플랜큐와의 별도 소통이라서… 업무도 아닌데 알림으로만 오면 되는 거야").
+   답이 오면 종 알림(services/feedbackRespond notify)만 간다. 안 읽은 답 표시는 /me/feedback 목록의 «새 답변» 칩(reply_seen_at)이 맡는다. */
 
 /* ─────────────────────────────────────────────
    Q Talk/Q Note 추출 후보 — pending 상태만
@@ -1248,10 +1202,7 @@ router.get('/todo', authenticateToken, async (req, res, next) => {
 
     // invites 는 이메일 기반 (워크스페이스 무관) — 1번만 호출
     const invites = await collectInvites(req.user.email);
-    // 문의·피드백 답도 개인 원장(워크스페이스 무관) — 같은 이유로 1번만
-    const feedbackReplies = await collectFeedbackReplies(userId);
-
-    const all = [...allBuckets.flat(), ...invites, ...feedbackReplies];
+    const all = [...allBuckets.flat(), ...invites];
 
     // Sort: priority order → dueAt asc
     const PRI = { urgent: 0, today: 1, waiting: 2, week: 3 };
@@ -1326,8 +1277,6 @@ router.get('/todo', authenticateToken, async (req, res, next) => {
     const docsCount = all.filter((it) => it.type === 'signature' && !SIGN_RECEIVED_VERBS.has(it.verb)).length;
     const calendarCount = all.filter((it) => it.type === 'event' || it.type === 'booking').length;
     const attendanceCount = all.filter((it) => it.type === 'leave').length;
-    // 문의·피드백 메뉴 — 안 읽은 답이 있는 스레드 수(2026-10-15). 같은 공식.
-    const feedbackCount = all.filter((it) => it.type === 'feedback_reply').length;
 
     return successResponse(res, {
       items: displayed,
@@ -1336,7 +1285,7 @@ router.get('/todo', authenticateToken, async (req, res, next) => {
       shown: displayed.length,
       hidden: hiddenCount,        // 화면이 "외 N건" 을 말할 수 있게
       taskCount, billCount, billTabCounts, mailReplyCount, talkCount, saleCount,
-      signReceivedCount, docsCount, calendarCount, attendanceCount, feedbackCount, workspaces,
+      signReceivedCount, docsCount, calendarCount, attendanceCount, workspaces,
     });
   } catch (err) {
     return next(err);

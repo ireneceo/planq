@@ -202,11 +202,6 @@ router.post('/:id/seen', authenticateToken, async (req, res, next) => {
         reply_seen_at: null,
       },
     });
-    if (updated > 0) {
-      // 같은 사람의 다른 기기·창 배지도 내려가게(신호만)
-      const io = req.app.get('io');
-      if (io) io.to(`user:${req.user.id}`).emit('inbox:refresh', { reason: 'feedback_seen' });
-    }
     return successResponse(res, { updated });
   } catch (err) { next(err); }
 });

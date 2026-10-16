@@ -11,18 +11,12 @@ async function respondToFeedback(item, { status, admin_response, actorUserId, io
   if (Object.keys(updates).length === 0) return item;
   updates.responded_by = actorUserId || null;
   updates.responded_at = new Date();
-  // 답이 있으면 «아직 안 읽음» 으로 되돌린다 — 확인필요·문의·피드백 메뉴 배지가 이것을 센다(routes/dashboard).
+  // 답이 있으면 «아직 안 읽음» 으로 되돌린다 — /me/feedback 목록의 «새 답변» 칩이 이것을 본다.
+  //   (확인필요·메뉴 배지에는 넣지 않는다 — 2026-10-16 Irene «알림으로만». 알려 주는 것은 아래 종 알림이다.)
   //   상태만 바꾸고 답 글이 없는 회신(«검토 중» 등)은 읽을 답이 없으므로 건드리지 않는다.
   const nextResponse = updates.admin_response !== undefined ? updates.admin_response : item.admin_response;
   if (nextResponse && String(nextResponse).trim()) updates.reply_seen_at = null;
   await item.update(updates);
-  if (updates.reply_seen_at === null && item.user_id) {
-    // 배지가 바로 오르게 — 보고자 개인 방으로 신호만(useInboxCount 가 다시 센다)
-    try {
-      const io = (ioApp && typeof ioApp.get === 'function' && ioApp.get('io')) || global.__planqIo || null;
-      if (io) io.to(`user:${item.user_id}`).emit('inbox:refresh', { reason: 'feedback_reply' });
-    } catch { /* 신호 실패는 무시 — 탭 복귀·포커스에 다시 센다 */ }
-  }
 
   if (item.user_id) {
     const { notify } = require('../routes/notifications');
