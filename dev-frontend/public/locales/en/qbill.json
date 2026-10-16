@@ -882,6 +882,35 @@
       "title": "Card payment links (local payment providers)",
       "desc": "Create a payment link for the amount at a provider such as Toss Payments Link Pay or PayApp, then paste it into the “Card payment link” field on the invoice. A “Pay by card” button appears on the customer invoice page. Payment results are not sent to PlanQ, so mark the invoice as paid yourself once the payment arrives.",
       "domains": "Supported links: Toss Payments, PayApp, KG Inicis, NICEPAY, NHN KCP, KakaoPay, Naver Pay, PortOne, PAYCO, Stripe, PayPal (https only)"
+    },
+    "guide": {
+      "copy": "Copy",
+      "copied": "Copied",
+      "stripe": {
+        "summary": "How to set up Stripe card payments",
+        "entity": "Check first — card payments go to the business registered on the Stripe account. If that is different from the business issuing your invoices (for example, an overseas company account), confirm tax invoices and revenue handling with your accountant first. To receive payments directly as a Korean business, use “Card payment links” below.",
+        "step1": "Copy the webhook address.",
+        "step2": "In the Stripe Dashboard › Developers › Webhooks › “Add endpoint”, paste the address, select the two events checkout.session.completed and payment_intent.succeeded, and save. Copy the endpoint’s Signing secret (whsec_…).",
+        "step2Hint": "If you already have a webhook for something else, keep it and add another one.",
+        "openWebhooks": "Open Stripe Webhooks",
+        "step3": "In the Stripe Dashboard › Developers › API keys, copy the Publishable key (pk_live_…) and Secret key (sk_live_…).",
+        "openKeys": "Open Stripe API keys",
+        "step4": "Paste them into the Publishable Key, Secret Key and Webhook Secret fields below. They save automatically; once both show “Set”, the “Pay by card” button appears on customer invoices.",
+        "step5": "Enter the business name and registration number registered on the Stripe account under “Payee”. It appears below the card button on customer invoices. The name at the top of the Stripe checkout and on card statements comes from Stripe › Settings › Public details, so keep them the same.",
+        "openPublic": "Open Stripe public details",
+        "step6": "Test it — issue a 1,000 KRW invoice and pay it with “Pay by card” from the customer link. Within a few seconds the invoice should change to “Paid”. Refund the test payment in the Stripe Dashboard.",
+        "step6Hint": "If it doesn’t change to “Paid”, check the webhook address, the two events and the Webhook Secret again."
+      },
+      "link": {
+        "summary": "How to use card payment links",
+        "step1": "Sign up with a payment provider that can create payment links, such as Toss Payments Link Pay or PayApp (there may be a review).",
+        "openToss": "Toss Payments",
+        "openPayapp": "PayApp",
+        "step2": "If you signed up with the provider under a different business than the invoice issuer, enter that name and registration number under “Payee” below. Otherwise leave it blank — the issuer’s details are shown.",
+        "step3": "After issuing an invoice, create a payment link for that amount at the provider. For split invoices, create one per installment.",
+        "step4": "Paste it into the “Card payment link” field on the invoice in Q Bill. A “Pay by card” button appears on the customer invoice.",
+        "step5": "Payment results are not sent to PlanQ. Check the payment at your provider, then mark the invoice as paid."
+      }
     }
   },
   "common": {

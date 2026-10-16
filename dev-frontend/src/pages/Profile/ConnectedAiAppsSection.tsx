@@ -10,6 +10,7 @@ import { apiFetch } from '../../contexts/AuthContext';
 import ConfirmDialog from '../../components/Common/ConfirmDialog';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
 import { Section, SectionTitle, SectionSub, Empty, ConnList, ConnRow, ConnInfo, ConnTitle, ConnSub, ConnMeta, DangerBtn } from './integrationStyles';
+import { HowTo, Steps, OpenRow, OpenLink, StepHint } from '../../components/Common/setupSteps';
 
 interface Grant {
   id: number;
@@ -104,7 +105,7 @@ const ConnectedAiAppsSection: React.FC<{ businessId: number }> = ({ businessId }
               <OpenLink href={OPEN_URLS.chatgpt} target="_blank" rel="noopener noreferrer" data-testid="ai-apps-open-chatgpt">{t('aiApps.openChatgpt')} ↗</OpenLink>
               <OpenLink href={OPEN_URLS.claude} target="_blank" rel="noopener noreferrer" data-testid="ai-apps-open-claude">{t('aiApps.openClaude')} ↗</OpenLink>
             </OpenRow>
-            <Hint>{t('aiApps.step2Hint')}</Hint>
+            <StepHint>{t('aiApps.step2Hint')}</StepHint>
           </li>
           <li><span>{t('aiApps.step3')}</span></li>
           <li><span>{t('aiApps.step4')}</span></li>
@@ -165,24 +166,7 @@ const MailChip = styled.span`
   display: inline-block; margin-left: 6px; padding: 1px 8px; border-radius: 999px; vertical-align: middle;
   background: #FFF1F2; color: #BE123C; font-size: 0.6875rem; font-weight: 600;
 `;
-const HowTo = styled.div`
-  display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px;
-  font-size: 0.75rem; color: #475569; line-height: 1.5;
-`;
 const UrlRow = styled.div`display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 6px;`;
-const Steps = styled.ol`
-  margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 10px;
-  li::marker { color: #0D9488; font-weight: 700; }
-`;
-const OpenRow = styled.div`display: flex; gap: 8px; flex-wrap: wrap; margin-top: 6px;`;
-const OpenLink = styled.a`
-  height: 32px; padding: 0 12px; display: inline-flex; align-items: center; border-radius: 6px;
-  background: #F0FDFA; border: 1px solid #99F6E4; color: #0F766E; font-size: 0.75rem; font-weight: 600; text-decoration: none;
-  &:hover { background: #CCFBF1; }
-  &:focus-visible { outline: 2px solid #5EEAD4; outline-offset: 2px; }
-  @media (max-width: 640px) { height: 40px; }
-`;
-const Hint = styled.div`margin-top: 4px; font-size: 0.6875rem; color: #64748B;`;
 const HelpLink = styled.a`
   align-self: flex-start; font-size: 0.75rem; font-weight: 600; color: #0D9488; text-decoration: none;
   &:hover { text-decoration: underline; }

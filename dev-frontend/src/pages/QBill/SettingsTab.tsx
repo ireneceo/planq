@@ -9,6 +9,7 @@ import {
   type ApiBusinessInfo, type BillingPatch,
 } from '../../services/invoices';
 import AutoSaveField from '../../components/Common/AutoSaveField';
+import { StripeSetupGuide, CardLinkSetupGuide } from './CardPaySetupGuide';
 import PlanQSelect, { type PlanQSelectOption } from '../../components/Common/PlanQSelect';
 
 // 통화: 한국 계좌 1개로 외화 송금받으면 은행에서 자동 KRW 환전. 견적/청구서는 해당 통화로 표기.
@@ -244,6 +245,8 @@ export default function SettingsTab({ inWorkspaceSettings = false }: SettingsTab
             <SectionDesc>{t('settings.stripe.whose', '여기 넣는 Stripe 계정은 이 워크스페이스의 것입니다. 고객이 카드로 결제하면 그 돈은 PlanQ 를 거치지 않고 이 계정으로 바로 들어옵니다. Stripe 계정은 도메인과 무관하므로 이미 쓰는 계정이 있으면 그대로 쓰면 되고, Webhook 만 이 화면에 표시된 주소로 하나 더 등록해 그 Signing secret 을 넣으세요.')}</SectionDesc>
           </div>
         </SectionHead>
+        {/* 설정 방법 — 운영자에게 따로 보내던 순서를 화면 안에(2026-10-16). 설정 전이면 펼쳐 둔다 */}
+        <StripeSetupGuide businessId={businessId} configured={!!info.stripe_secret_set && !!info.stripe_webhook_secret_set} />
         <EditGrid>
           <EditField $span={2}>
             <EditLabel>{t('settings.stripe.publishable', 'Publishable Key')}</EditLabel>
@@ -330,6 +333,7 @@ export default function SettingsTab({ inWorkspaceSettings = false }: SettingsTab
             <SectionDesc>{t('settings.cardLink.desc', '토스페이먼츠 링크페이·페이앱 같은 결제 대행사에서 금액에 맞는 결제 링크를 만든 뒤, 청구서 상세의 «카드 결제 링크» 칸에 붙여 넣으세요. 고객용 청구서 화면에 «카드로 결제» 버튼이 생깁니다. 결제 결과는 PlanQ 로 전달되지 않으므로 결제가 들어오면 «결제 완료» 를 직접 표시해 주세요.')}</SectionDesc>
           </div>
         </SectionHead>
+        <CardLinkSetupGuide />
         <EditGrid>
           <EditField>
             <EditLabel>{t('settings.payee.name', '대금 받는 곳 (상호)')}</EditLabel>
