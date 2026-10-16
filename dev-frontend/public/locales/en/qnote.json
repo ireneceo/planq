@@ -569,5 +569,9 @@
       "title": "Workspace"
     },
     "needProject": "(No project is linked to these meeting notes)"
+  },
+  "memoAi": {
+    "summary": "AI summary",
+    "tasksHint": "Extract tasks with AI · add a task via Cue"
   }
 }

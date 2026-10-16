@@ -22,7 +22,7 @@ import TaskCandidateCard, { type CandidateData } from '../../components/Common/T
 import CueTaskBar from '../../components/QTask/CueTaskBar';
 import { parseBodyToDoc, deriveTitleFromDoc, isDocEmpty } from '../../utils/qnoteBody';
 import VisibilityChip from '../../components/Common/VisibilityChip';
-import { PanelHeaderBar, DetailMetaBar } from '../../components/Layout/PanelHeader';
+import { PanelHeaderBar, DetailMetaBar, DetailMetaLeft, DetailMetaRight } from '../../components/Layout/PanelHeader';
 import AiAssistButton from '../../components/Common/AiAssistButton';
 import type { VLevel } from '../../components/Common/VisibilityBadge';
 import SessionTaxonomyBar from '../../components/QNote/SessionTaxonomyBar';
@@ -108,6 +108,11 @@ const MemoView: React.FC<Props> = ({ session, businessId, prefillProjectId, pref
   const [reSummarizeInput, setReSummarizeInput] = useState('');
   const [savingDoc, setSavingDoc] = useState(false);
   const [docSaved, setDocSaved] = useState(false);
+  // ★ 2026-10-16 (Irene: *"메모쓰기 가면 모바일에서 커서가 안보여 … AI 요약 생성, 업무추출 … 너무 길게 내용을 잡아먹어.
+  //   버튼들로 모아서"*) — 요약·업무 두 밴드가 에디터 위에 늘 펼쳐져(스크롤 밖 고정) 폰에서 키보드가 뜨면
+  //   본문 자리가 남지 않았다. 이제 밴드2 오른쪽 버튼 두 개가 «하나의 칸» 을 연다. 칸은 본문 스크롤 안이라
+  //   글을 쓰면 위로 밀려 사라진다. 한 번에 하나만 연다(둘을 같이 펼치면 옛 상태와 같다).
+  const [aiPanel, setAiPanel] = useState<'summary' | 'tasks' | null>(null);
 
   // N+88 — 메모 업무 추출 (음성 review 와 동일 공유 훅, getText=body 평문)
   const noteTasks = useNoteTaskExtraction(businessId || null, sessionId, {
@@ -193,6 +198,7 @@ const MemoView: React.FC<Props> = ({ session, businessId, prefillProjectId, pref
     setSaveState(session ? 'saved' : 'idle');
     setSavedAt(session ? Date.now() : null);
     dirtyRef.current = false;
+    setAiPanel(null);
   }, [session?.id]);  // eslint-disable-line react-hooks/exhaustive-deps
 
   // leaving — 나가며 저장(hooks/useLeaveSave: 언마운트·pagehide·로그아웃/전환). 부모 콜백을 부르지 않는다 —
@@ -311,34 +317,62 @@ const MemoView: React.FC<Props> = ({ session, businessId, prefillProjectId, pref
       </Header>
       {/* 밴드2 — 저장 상태와 분류/태그. 제목 줄에서 내려온 것들이다. */}
       <MetaBand>
-        <Status>
-          <Dot $tone={saveState} />
-          {saveState === 'saving' && (t('memoPopup.savingNow') as string)}
-          {saveState === 'saved' && timeAgo(t as any, savedAt)}
-          {saveState === 'error' && (t('memoPopup.errorRetry') as string)}
-          {saveState === 'idle' && !sessionId && (t('memoPopup.idleNew') as string)}
-        </Status>
-        {/* 운영 #54 — 메모 분류/태그 (음성 review 와 동일 컴포넌트) */}
-        {sessionId && session && (
-          <SessionTaxonomyBar
-            sessionId={sessionId}
-            category={session.category ?? null}
-            tags={session.tags ?? null}
-            editable
-            onChange={(patch) => onUpdated({ ...session, ...patch })}
-          />
+        <DetailMetaLeft>
+          <Status>
+            <Dot $tone={saveState} />
+            {saveState === 'saving' && (t('memoPopup.savingNow') as string)}
+            {saveState === 'saved' && timeAgo(t as any, savedAt)}
+            {saveState === 'error' && (t('memoPopup.errorRetry') as string)}
+            {saveState === 'idle' && !sessionId && (t('memoPopup.idleNew') as string)}
+          </Status>
+          {/* 운영 #54 — 메모 분류/태그 (음성 review 와 동일 컴포넌트) */}
+          {sessionId && session && (
+            <SessionTaxonomyBar
+              sessionId={sessionId}
+              category={session.category ?? null}
+              tags={session.tags ?? null}
+              editable
+              onChange={(patch) => onUpdated({ ...session, ...patch })}
+            />
+          )}
+        </DetailMetaLeft>
+        {/* AI 도구 — 요약·업무를 버튼 두 개로 모았다. 저장된 메모일 때만(요약·추출은 세션에 붙는다). */}
+        {sessionId && (
+          <DetailMetaRight>
+            <AiAssistButton
+              testId="memo-ai-summary"
+              pressed={aiPanel === 'summary'}
+              loading={summarizing}
+              onClick={() => {
+                if (aiPanel === 'summary') { setAiPanel(null); return; }
+                setAiPanel('summary');
+                // 요약이 아직 없으면 누르는 것이 곧 «만들기» 다 — 빈 칸을 열고 또 누르게 하지 않는다.
+                if (!session?.summary_full && !summarizing) runMemoSummary();
+              }}
+              label={summarizing ? (t('page.summary.generating', '생성 중...') as string) : (t('memoAi.summary', 'AI 요약') as string)}
+              title={t('page.summary.emptyHint', 'AI가 이 회의의 핵심을 요약합니다.') as string}
+              icon={SummaryIcon}
+            />
+            <AiAssistButton
+              testId="memo-ai-tasks"
+              pressed={aiPanel === 'tasks'}
+              onClick={() => setAiPanel((v) => (v === 'tasks' ? null : 'tasks'))}
+              label={t('page.tasks.title', '업무') as string}
+              count={noteTasks.candidates.length}
+              title={t('memoAi.tasksHint', 'AI 업무 추출 · Cue 에게 업무 추가') as string}
+            />
+          </DetailMetaRight>
         )}
       </MetaBand>
 
-      {/* N+88 — 메모 요약 (body 기반·영속). 저장된 메모일 때만. */}
-      {sessionId && (
-        <MemoSummary>
-          {session?.summary_full ? (
-            <>
+      <Body>
+        {/* AI 칸은 본문 스크롤 **안** — 에디터 툴바(sticky)가 그 위로 붙고, 글을 쓰면 칸은 위로 밀려 사라진다. */}
+          {aiPanel === 'summary' && (
+            <AiPanelSection data-testid="memo-ai-panel" aria-label={t('page.summary.title', '요약') as string}>
               <MemoSummaryTop>
                 <MemoSummaryTitle>{t('page.summary.title', '요약')}</MemoSummaryTitle>
                 <MemoSummaryActions>
-                  {docSaved ? (
+                  {session?.summary_full && (docSaved ? (
                     <MemoSummarySaved>
                       <MemoSummarySavedText>{t('page.summary.savedDoc', '문서 저장됨')}</MemoSummarySavedText>
                       <MemoSummaryLink type="button" onClick={() => navigate('/docs')}>{t('page.summary.viewDoc', '보기')}</MemoSummaryLink>
@@ -347,13 +381,19 @@ const MemoView: React.FC<Props> = ({ session, businessId, prefillProjectId, pref
                     <MemoSummaryDocBtn type="button" onClick={saveMemoSummaryAsDoc} disabled={savingDoc}>
                       {savingDoc ? t('page.summary.savingDoc', '저장 중...') : t('page.summary.saveDoc', '문서로 저장')}
                     </MemoSummaryDocBtn>
+                  ))}
+                  {session?.summary_full && (
+                    <MemoSummaryRegen type="button" onClick={() => setReSummarizeOpen((v) => !v)} disabled={summarizing}>
+                      {t('page.summary.regenerate', '재요약')}
+                    </MemoSummaryRegen>
                   )}
-                  <MemoSummaryRegen type="button" onClick={() => setReSummarizeOpen((v) => !v)} disabled={summarizing}>
-                    {t('page.summary.regenerate', '재요약')}
-                  </MemoSummaryRegen>
+                  <PanelClose type="button" onClick={() => setAiPanel(null)}
+                    title={t('memoPopup.close') as string} aria-label={t('memoPopup.close') as string}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                  </PanelClose>
                 </MemoSummaryActions>
               </MemoSummaryTop>
-              {reSummarizeOpen && (
+              {reSummarizeOpen && session?.summary_full && (
                 <MemoReRow>
                   <MemoReInput
                     value={reSummarizeInput}
@@ -366,69 +406,80 @@ const MemoView: React.FC<Props> = ({ session, businessId, prefillProjectId, pref
                   </MemoSummaryDocBtn>
                 </MemoReRow>
               )}
-              {(session.summary_key_points || []).length > 0 && (
-                <MemoSummaryPoints>
-                  {(session.summary_key_points || []).map((p, i) => <li key={i}>{p}</li>)}
-                </MemoSummaryPoints>
+              {session?.summary_full ? (
+                <>
+                  {(session.summary_key_points || []).length > 0 && (
+                    <MemoSummaryPoints>
+                      {(session.summary_key_points || []).map((p, i) => <li key={i}>{p}</li>)}
+                    </MemoSummaryPoints>
+                  )}
+                  <MemoSummaryFull>{session.summary_full}</MemoSummaryFull>
+                </>
+              ) : (
+                !summaryError && (
+                  <MemoSummaryHint role="status">
+                    {summarizing ? t('page.summary.generating', '생성 중...') : t('page.summary.emptyHint', 'AI가 이 회의의 핵심을 요약합니다.')}
+                  </MemoSummaryHint>
+                )
               )}
-              <MemoSummaryFull>{session.summary_full}</MemoSummaryFull>
               {summaryError && <MemoSummaryError>{summaryError}</MemoSummaryError>}
-            </>
-          ) : (
-            <MemoSummaryEmpty>
-              <MemoSummaryHint>{t('page.summary.emptyHint', 'AI가 이 회의의 핵심을 요약합니다.')}</MemoSummaryHint>
-              <MemoSummaryGenerate type="button" onClick={() => runMemoSummary()} disabled={summarizing}>
-                {summarizing ? t('page.summary.generating', '생성 중...') : t('page.summary.generate', 'AI 요약 생성')}
-              </MemoSummaryGenerate>
-              {summaryError && <MemoSummaryError>{summaryError}</MemoSummaryError>}
-            </MemoSummaryEmpty>
+              {!session?.summary_full && !summarizing && summaryError && (
+                <MemoSummaryRetry>
+                  <MemoSummaryDocBtn type="button" onClick={() => runMemoSummary()}>
+                    {t('page.summary.generate', 'AI 요약 생성')}
+                  </MemoSummaryDocBtn>
+                </MemoSummaryRetry>
+              )}
+            </AiPanelSection>
           )}
-        </MemoSummary>
-      )}
 
-      {/* N+88 — 메모 업무 추출 (음성 review 와 동일 TaskCandidateCard) */}
-      {sessionId && (
-        <MemoTasks>
-          <MemoSummaryTop>
-            <MemoSummaryTitle>{t('page.tasks.title', '업무')}</MemoSummaryTitle>
-            <AiAssistButton
-              onClick={noteTasks.extract}
-              loading={noteTasks.extracting}
-              label={noteTasks.extracting ? (t('page.tasks.extracting', '추출 중...') as string) : (t('page.tasks.extract', '업무 추출') as string)}
-              title={t('page.tasks.emptyHint', '회의에서 실행할 업무를 AI가 찾아 후보로 제안합니다.') as string}
-            />
-          </MemoSummaryTop>
-          {noteTasks.error && <MemoSummaryError>{noteTasks.error}</MemoSummaryError>}
-          {noteTasks.notice && <MemoSummaryHint role="status">{noteTasks.notice}</MemoSummaryHint>}
-          {noteTasks.candidates.length > 0 ? (
-            <MemoTaskList>
-              {noteTasks.candidates.map((c) => {
-                const cd: CandidateData = {
-                  id: c.id, title: c.title, description: c.description,
-                  guessed_assignee: c.guessedAssignee ? { user_id: c.guessedAssignee.id, name: c.guessedAssignee.name } : null,
-                  guessed_due_date: c.guessed_due_date, similar_task_id: c.similar_task_id,
-                };
-                return (
-                  <TaskCandidateCard key={c.id} candidate={cd} members={noteTasks.members}
-                    onRegister={noteTasks.register} onReject={noteTasks.reject} busy={noteTasks.busy === c.id} />
-                );
-              })}
-            </MemoTaskList>
-          ) : (
-            !noteTasks.extracting && !noteTasks.notice && !noteTasks.error && <MemoSummaryHint>{t('page.tasks.emptyHint', '회의에서 실행할 업무를 AI가 찾아 후보로 제안합니다.')}</MemoSummaryHint>
+          {/* N+88 — 메모 업무 추출 (음성 review 와 동일 TaskCandidateCard) */}
+          {aiPanel === 'tasks' && (
+            <AiPanelSection data-testid="memo-ai-panel" aria-label={t('page.tasks.title', '업무') as string}>
+              <MemoSummaryTop>
+                <MemoSummaryTitle>{t('page.tasks.title', '업무')}</MemoSummaryTitle>
+                <MemoSummaryActions>
+                  <AiAssistButton
+                    onClick={noteTasks.extract}
+                    loading={noteTasks.extracting}
+                    label={noteTasks.extracting ? (t('page.tasks.extracting', '추출 중...') as string) : (t('page.tasks.extract', '업무 추출') as string)}
+                    title={t('page.tasks.emptyHint', '회의에서 실행할 업무를 AI가 찾아 후보로 제안합니다.') as string}
+                  />
+                  <PanelClose type="button" onClick={() => setAiPanel(null)}
+                    title={t('memoPopup.close') as string} aria-label={t('memoPopup.close') as string}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                  </PanelClose>
+                </MemoSummaryActions>
+              </MemoSummaryTop>
+              {noteTasks.error && <MemoSummaryError>{noteTasks.error}</MemoSummaryError>}
+              {noteTasks.notice && <MemoSummaryHint role="status">{noteTasks.notice}</MemoSummaryHint>}
+              {noteTasks.candidates.length > 0 ? (
+                <MemoTaskList>
+                  {noteTasks.candidates.map((c) => {
+                    const cd: CandidateData = {
+                      id: c.id, title: c.title, description: c.description,
+                      guessed_assignee: c.guessedAssignee ? { user_id: c.guessedAssignee.id, name: c.guessedAssignee.name } : null,
+                      guessed_due_date: c.guessed_due_date, similar_task_id: c.similar_task_id,
+                    };
+                    return (
+                      <TaskCandidateCard key={c.id} candidate={cd} members={noteTasks.members}
+                        onRegister={noteTasks.register} onReject={noteTasks.reject} busy={noteTasks.busy === c.id} />
+                    );
+                  })}
+                </MemoTaskList>
+              ) : (
+                !noteTasks.extracting && !noteTasks.notice && !noteTasks.error && <MemoSummaryHint>{t('page.tasks.emptyHint', '회의에서 실행할 업무를 AI가 찾아 후보로 제안합니다.')}</MemoSummaryHint>
+              )}
+              {/* 2026-10-15 — 음성 노트와 같은 «못 찾으면 한 줄로 Cue 에게» (메일 작업대 «한 줄 업무 등록» 과 같은 CueTaskBar) */}
+              {businessId && (
+                <MemoTaskQuickAdd data-testid="qnote-task-quickadd">
+                  <MemoSummaryHint>{t('page.tasks.quickAdd', 'AI 가 못 찾은 업무는 Cue 에게 한 줄로 말해 바로 추가하세요.')}</MemoSummaryHint>
+                  <CueTaskBar businessId={Number(businessId)} members={noteTasks.members}
+                    projectId={session?.project_id ?? null} compact />
+                </MemoTaskQuickAdd>
+              )}
+            </AiPanelSection>
           )}
-          {/* 2026-10-15 — 음성 노트와 같은 «못 찾으면 한 줄로 Cue 에게» (메일 작업대 «한 줄 업무 등록» 과 같은 CueTaskBar) */}
-          {businessId && (
-            <MemoTaskQuickAdd data-testid="qnote-task-quickadd">
-              <MemoSummaryHint>{t('page.tasks.quickAdd', 'AI 가 못 찾은 업무는 Cue 에게 한 줄로 말해 바로 추가하세요.')}</MemoSummaryHint>
-              <CueTaskBar businessId={Number(businessId)} members={noteTasks.members}
-                projectId={session?.project_id ?? null} compact />
-            </MemoTaskQuickAdd>
-          )}
-        </MemoTasks>
-      )}
-
-      <Body>
         <Suspense fallback={<EditorLoading>{t('memoPopup.searchLoading') as string}</EditorLoading>}>
           {/* #127 — 풀블리드: 외곽 박스 제거하고 편집기가 영역 전체를 차지 */}
           <PostEditor
@@ -488,14 +539,33 @@ const Wrap = styled.div`
   display: flex; flex-direction: column;
   background: #FFFFFF;
 `;
-// N+88 — 메모 요약 밴드 (Header 와 Body 사이)
-const MemoSummary = styled.section`
+// 요약·업무 칸 — 본문 스크롤 안, 에디터 위. 버튼으로 열 때만 그린다.
+const AiPanelSection = styled.section`
   flex-shrink: 0;
   padding: 14px 20px;
   border-bottom: 1px solid #E2E8F0;
   background: #F8FAFC;
-  @media (max-width: 768px) { padding: 12px 14px; }
+  @media (max-width: 768px) {
+    padding: 12px 14px;
+    /* 폰에서 본문을 쓰는 중(키보드 위)에는 접는다 — 칸 안 입력(Cue 한 줄·재요약)을 쓰는 중이면 그대로 둔다. */
+    body[data-keyboard-up='1'] &:not(:focus-within) { display: none; }
+  }
 `;
+const PanelClose = styled.button`
+  width: 32px; height: 32px; flex-shrink: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: transparent; color: #64748B;
+  border: none; border-radius: 6px; cursor: pointer;
+  &:hover { background: #E2E8F0; color: #0F172A; }
+  &:focus-visible { outline: 2px solid rgba(15,118,110,0.5); outline-offset: 2px; }
+  @media (max-width: 640px) { width: 36px; height: 36px; }
+`;
+const MemoSummaryRetry = styled.div`margin-top: 8px;`;
+const SummaryIcon = (
+  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" aria-hidden="true">
+    <line x1="4" y1="6" x2="20" y2="6" /><line x1="4" y1="12" x2="16" y2="12" /><line x1="4" y1="18" x2="12" y2="18" />
+  </svg>
+);
 const MemoSummaryTop = styled.div`
   display: flex; align-items: center; justify-content: space-between; gap: 12px;
   margin-bottom: 8px;
@@ -517,15 +587,6 @@ const MemoTaskQuickAdd = styled.div`
   display: flex;
   flex-direction: column;
   gap: 6px;
-`;
-const MemoTasks = styled.section`
-  flex-shrink: 0;
-  padding: 14px 20px;
-  border-bottom: 1px solid #E2E8F0;
-  background: #FFFFFF;
-  max-height: 300px;
-  overflow-y: auto;
-  @media (max-width: 768px) { padding: 12px 14px; }
 `;
 const MemoTaskList = styled.div`
   display: flex; flex-direction: column; gap: 10px;
@@ -567,19 +628,8 @@ const MemoSummaryFull = styled.div`
   font-size: 0.8125rem; line-height: 1.7; color: #334155; white-space: pre-wrap;
   max-height: 140px; overflow-y: auto;
 `;
-const MemoSummaryEmpty = styled.div`
-  display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;
-`;
 const MemoSummaryHint = styled.div`
   font-size: 0.8125rem; color: #64748B;
-`;
-const MemoSummaryGenerate = styled.button`
-  border: none; background: #14B8A6; color: #FFFFFF;
-  font-size: 0.8125rem; font-weight: 600; padding: 8px 16px; border-radius: 8px; cursor: pointer;
-  white-space: nowrap; transition: background 0.15s ease;
-  &:hover:not(:disabled) { background: #0D9488; }
-  &:active:not(:disabled) { background: #0F766E; }
-  &:disabled { opacity: 0.6; cursor: default; }
 `;
 const MemoSummaryError = styled.div`
   font-size: 0.75rem; color: #B91C1C; margin-top: 8px; flex-basis: 100%;
@@ -591,6 +641,11 @@ const Header = styled(PanelHeaderBar)``;
 const MetaBand = styled(DetailMetaBar)`
   justify-content: flex-start;
   gap: 10px;
+  /* 폰에서 본문을 쓰는 중(키보드 위)에는 접는다 — 좁은 폰(360)에선 이 밴드가 두 줄(81px)이라 본문 자리를 먹는다.
+     분류·태그 입력을 쓰는 중이면 그대로 둔다. 키보드를 내리면 돌아온다. */
+  @media (max-width: 768px) {
+    body[data-keyboard-up='1'] &:not(:focus-within) { display: none; }
+  }
 `;
 const TitleArea = styled.div`
   flex: 1 1 0; min-width: 0;

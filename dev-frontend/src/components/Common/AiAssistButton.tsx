@@ -17,6 +17,11 @@ interface Props {
   loading?: boolean;
   /** 왼쪽 아이콘 (기본: 체크박스 = 업무 추출). 요약 등은 다른 아이콘을 넘긴다. */
   icon?: ReactNode;
+  /** 패널을 여닫는 버튼이면 열림 상태(aria-pressed + 진한 바탕). */
+  pressed?: boolean;
+  /** 라벨 뒤 작은 숫자(예: 업무 후보 수). 0·없음이면 안 그린다. */
+  count?: number;
+  testId?: string;
 }
 
 const DefaultIcon = (
@@ -26,11 +31,13 @@ const DefaultIcon = (
   </svg>
 );
 
-export default function AiAssistButton({ onClick, label, title, disabled, loading, icon }: Props) {
+export default function AiAssistButton({ onClick, label, title, disabled, loading, icon, pressed, count, testId }: Props) {
   return (
-    <Btn type="button" onClick={onClick} title={title} disabled={disabled || loading}>
+    <Btn type="button" onClick={onClick} title={title} disabled={disabled || loading}
+      aria-pressed={pressed === undefined ? undefined : pressed} data-testid={testId}>
       {loading ? <Spinner aria-hidden="true" /> : (icon ?? DefaultIcon)}
       {label}
+      {!!count && count > 0 && <Count>{count}</Count>}
     </Btn>
   );
 }
@@ -63,4 +70,12 @@ const Btn = styled.button`
   &:hover:not(:disabled) { background: #CCFBF1; }
   &:focus-visible { outline: 2px solid #14B8A6; outline-offset: 2px; }
   &:disabled { opacity: 0.6; cursor: not-allowed; }
+  &[aria-pressed='true'] { background: #CCFBF1; border-color: #14B8A6; }
+`;
+
+const Count = styled.span`
+  min-width: 16px; height: 16px; padding: 0 4px; box-sizing: border-box;
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 8px; background: #14B8A6; color: #FFFFFF;
+  font-size: 0.625rem; font-weight: 700;
 `;

@@ -569,5 +569,9 @@
       "title": "워크스페이스"
     },
     "needProject": "(이 회의록에 연결된 프로젝트가 없습니다)"
+  },
+  "memoAi": {
+    "summary": "AI 요약",
+    "tasksHint": "AI 업무 추출 · Cue 에게 업무 추가"
   }
 }

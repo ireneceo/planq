@@ -520,7 +520,23 @@ const Toolbar = styled.div<{ $compact?: boolean }>`
       flex-shrink: 0;
     }
     & > div { gap: 1px !important; flex-shrink: 0; }
-  ` : `flex-wrap: wrap;`}
+  ` : `
+    flex-wrap: wrap;
+    /* 폰은 한 줄 + 좌우로 밀어 본다 — 감기게 두면 버튼 30여 개가 3줄을 먹어 키보드가 뜬 뒤
+       본문·캐럿이 보일 자리가 없다(Irene 2026-10-16 «에디터 위에 메뉴가 3줄»). RichEditor 와 같은 규칙.
+       버튼 크기(28px)는 그대로 — 터치 대상을 줄이지 않는다. */
+    @media (max-width: 640px) {
+      flex-wrap: nowrap;
+      overflow-x: auto;
+      overflow-y: hidden;
+      padding: 4px 6px;
+      -webkit-overflow-scrolling: touch;
+      overscroll-behavior-x: contain;
+      scrollbar-width: none;
+      &::-webkit-scrollbar { display: none; }
+      & > div { flex-shrink: 0; }
+    }
+  `}
 `;
 const Group = styled.div`display: inline-flex; gap: 2px;`;
 const Sep = styled.div`width: 1px; height: 18px; background: #E2E8F0; margin: 0 4px;`;
