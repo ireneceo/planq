@@ -1,9 +1,10 @@
 # Fable 게이트 대기열 → **판정 기록 보관소** (2026-10-08 부터)
 
-## 2026-10-16 · Cue 고객 자동답변 재료 범위 (방 81843b55) — 설계 판정 1회 **A안(수정)** · 완료는 자체 검증
+## 2026-10-16 · Cue 고객 자동답변 재료 범위 (방 81843b55) — 설계 판정 1회 **A안(수정)** · 완료 검증 **PASS**(Fable)
 - Irene: «워크스페이스 내용들 중 보안단위가 전체워크스페이스여도 고객에게는 안보이는 거 맞지? 고객은 연결된 곳만 보이는 거야.»
 - 판정: 고객 답변 재료 = 고객에 연결된 Q info(scope client · client_id 또는 client_ids) ∧ 보안등급 일반. 워크스페이스·프로젝트 범위 자료 0 · 지식 카드(CueKnowledge) 0 · 고정 FAQ 유지. «고객 공개» 칸(B안)은 지금 안 만든다(가역·fail-closed 좁히기라 Irene 결정 불필요, 신고 오면 kb_documents.client_visible 기본 false).
 - 구현: access_scope.canClientReadKb/kbClientReadableWhere 한 벌(상세 고객 분기·목록 고객 분기·cue_context 가 같이 씀) · hybridSearch 고객 가중에 client_ids · buildKnowledgeBlock 은 audience internal 만.
+- Fable 완료 검증 PASS: ws6 실데이터 옛 코드 고객 재료 워크스페이스 자료 5건 → 새 코드 0건(술어 집합과 일치) · 고객 Q info 목록·검색 403 · 차단 지적 없음. 비차단: ① canClientReadKb 가 vlevel 을 안 본다(고객 자료 L1 도 연결 고객에게 열림 — 옛 분기와 같음, 다음 결정) ② 메일 답장 초안 FAQ 는 멤버 scope(사람 검토 초안이라 범위 밖).
 - 자체 검증: health-check kbauth `cue_client_kb`(새) — 옛 cue_context 로 되돌리면 FAIL(X 실림) · 전체 87/87 · guard 72/73. 비차단 4(FAQ 화면 안내)는 FAQ 화면이 프론트에 없어 못 붙임.
 
 ## 2026-10-16 · 멤버 프로젝트 가시성 · 고객→멤버 전환 (방 c6810b76) — 설계 1회 + 완료 검증 4회 → **PASS**
