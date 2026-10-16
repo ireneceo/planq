@@ -117,6 +117,13 @@ async function attachMailMatches(rows, { query, businessId }) {
   const pending = new Map();   // needle → rows
   const waiting = [];
   for (const row of rows) {
+    // 주소로 검색해 보낸 사람 자리에 그 사람을 그렸으면(mailSerialize.searchPartiesByThread) 그것이 이유다.
+    //   화면은 이름만 그리므로 주소를 창으로 보여 준다 — «왜 이 사람인가» 가 행에서 보인다.
+    const cp = row.counterpart;
+    if (cp && cp.email && cp.name && textMatches(cp.email, pq.raw, { needle: pq.squashed })) {
+      row.match = { field: 'sender', snippet: `${cp.name} <${cp.email}>`.slice(0, 158) };
+      continue;
+    }
     const need = unmetNeedle(row, pq);
     if (need == null) {
       const hit = pickMatch(shownFields(row), pq.raw);

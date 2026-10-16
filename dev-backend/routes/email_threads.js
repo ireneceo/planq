@@ -29,7 +29,7 @@ const { buildQuote, buildForwardHeader, isolateForwardedHtml } = require('../ser
 const { folderWhere, searchFolderWhere, folderOf, sentOrder, sentViaWhere, normalizeSentVia, SENT_VIA_SQL, receivedOrder, receivedAtAttribute, BULK_FOLDERS } = require('../services/mailFolders');
 // accessibleAccountIds 도 여기서 온다 — 프라이버시 격리 정의를 두 벌 두지 않는다
 const { outgoingIdentityFor, accessibleAccountIds, receivedAddressesOf } = require('../services/mailIdentity');
-const { serializeThreadRow, resolveRecipientNames } = require('../services/mailSerialize');
+const { serializeThreadRow, resolveRecipientNames, resolveNamesForEmails, searchPartiesByThread } = require('../services/mailSerialize');
 // 검색 결과의 "왜 걸렸나" (match: { field, snippet }) — 2026-09-11
 const { attachMailMatches } = require('../services/mailSearchMatch');
 const { mailSearchCondition } = require('../services/mailSearchWhere');
@@ -300,9 +300,25 @@ router.get('/:businessId/email-threads',
         for (const r of attRows) attachCountByThread.set(r.thread_id, Number(r.cnt) || 0);
       }
 
+      const searchParties = hasQuery
+        ? await searchPartiesByThread({ q, threadIds, businessId })
+          .catch((err) => { console.error('[email-threads] search party err:', err.message); return null; })
+        : null;
       const data = rows.map(t => serializeThreadRow(t, {
-        folder, senderByThread, lastOutByThread, attachCountByThread, nameByEmail,
+        folder, senderByThread, lastOutByThread, attachCountByThread, nameByEmail, searchParties,
       }));
+      // 이름 없는 상대 — 워크스페이스가 아는 이름으로(보낸메일함 #324 와 같은 규칙). 없으면 화면이 주소를 그린다.
+      const nameless = data.filter((d) => d.counterpart && !d.counterpart.name && d.counterpart.email).map((d) => d.counterpart.email);
+      if (nameless.length) {
+        const known = await resolveNamesForEmails(nameless, businessId)
+          .catch((err) => { console.error('[email-threads] name resolve err:', err.message); return new Map(); });
+        for (const d of data) {
+          if (d.counterpart && !d.counterpart.name && d.counterpart.email) {
+            const nm = known.get(String(d.counterpart.email).trim().toLowerCase());
+            if (nm) d.counterpart.name = nm;
+          }
+        }
+      }
 
       // ★ 2026-09-29 운영 #438 — **답을 기다리는 쪽의 말을 보여준다.**
       //   Irene: *"답변필요한 고객의 리플이 우리 보낸메일로 표시되고 아예 안나와서 볼 수 없어."*

@@ -19,8 +19,7 @@ const { followUpState } = require('./mailFollowUp');
 //   둘 다 없으면 담지 않는다 — 프론트가 주소를 그대로 그린다(없는 이름을 지어내지 않는다).
 //   N+1 금지 — 폴더 목록당 최대 2쿼리.
 async function resolveRecipientNames({ folder, lastOutByThread, businessId }) {
-  const nameByEmail = new Map();
-  if (folder !== 'sent' || !lastOutByThread || lastOutByThread.size === 0) return nameByEmail;
+  if (folder !== 'sent' || !lastOutByThread || lastOutByThread.size === 0) return new Map();
 
   const wanted = new Set();
   for (const v of lastOutByThread.values()) {
@@ -29,7 +28,13 @@ async function resolveRecipientNames({ folder, lastOutByThread, businessId }) {
     const em = typeof first === 'string' ? first : (first && first.email);
     if (em) wanted.add(String(em).trim().toLowerCase());
   }
-  const emails = [...wanted];
+  return resolveNamesForEmails([...wanted], businessId);
+}
+
+// 주소 → 워크스페이스가 아는 이름(위 ①②와 같은 규칙). 보낸메일함 밖에서도 쓴다(2026-10-16 — 이름 없는 상대·검색한 주소).
+async function resolveNamesForEmails(emailList, businessId) {
+  const nameByEmail = new Map();
+  const emails = [...new Set((emailList || []).map((e) => String(e || '').trim().toLowerCase()).filter(Boolean))];
   if (!emails.length) return nameByEmail;
 
   const inboundNames = await sequelize.query(
@@ -72,7 +77,55 @@ async function resolveRecipientNames({ folder, lastOutByThread, businessId }) {
   return nameByEmail;
 }
 
-function serializeThreadRow(t, { folder, senderByThread, lastOutByThread, attachCountByThread, nameByEmail }) {
+// ★ 2026-10-16 — 주소로 검색하면 «그 주소의 사람» 을 보낸 사람 자리에 그린다.
+//   Irene: "이메일주소로 검색해서 해당 내용만 보면 보낸사람 이름이 제대로 안나와."
+//   목록의 보낸 사람 자리는 «마지막으로 받은 메일의 발신자» 라, 그 주소가 참조(Cc)·받는 사람·앞선 메일에만 있는
+//   스레드는 **다른 사람 이름**(동료·담당 교사·나 자신)이 떴다 — 검색한 사람이 누구와 오간 메일인지 목록에서 안 보였다.
+//   검색어 중 «@» 가 든 토큰이 이 스레드의 발신·수신·참조 주소에 들어 있으면 그 사람을 고른다(최근 메시지부터).
+//   이름은 스레드 안에서 그 주소가 **보낸** 메일의 이름 → (없으면) 받는 칸에 적힌 이름 순. 비면 호출부가 워크스페이스 이름으로 채운다.
+//   반환: Map(thread_id → [{ email, name }] 최근 순) — 우리 주소 걸러 내기는 행(계정)을 아는 serializeThreadRow 가 한다.
+async function searchPartiesByThread({ q, threadIds, businessId }) {
+  const out = new Map();
+  const needles = String(q || '').trim().slice(0, 100).split(/\s+/)
+    .map((x) => x.trim().toLowerCase()).filter((x) => x.includes('@')).slice(0, 4);
+  if (!needles.length || !threadIds || !threadIds.length) return out;
+  const rows = await sequelize.query(
+    `SELECT thread_id, direction, from_email, from_name, to_emails, cc_emails
+       FROM email_messages
+      WHERE business_id = :bid AND thread_id IN (:ids)
+      ORDER BY id DESC`,
+    { replacements: { bid: businessId, ids: threadIds }, type: sequelize.QueryTypes.SELECT },
+  );
+  const asList = (v) => {
+    if (!v) return [];
+    let arr = v;
+    if (typeof v === 'string') { try { arr = JSON.parse(v); } catch { return []; } }
+    return Array.isArray(arr) ? arr.map((x) => (typeof x === 'string' ? { email: x, name: null } : x)).filter(Boolean) : [];
+  };
+  const hit = (em) => { const e = String(em || '').toLowerCase(); return !!e && needles.some((n) => e.includes(n)); };
+  const perThread = new Map();   // tid → Map(email → { email, sentName, listedName })
+  for (const r of rows) {
+    if (!perThread.has(r.thread_id)) perThread.set(r.thread_id, new Map());
+    const bucket = perThread.get(r.thread_id);
+    const touch = (email, name, asSender) => {
+      if (!hit(email)) return;
+      const key = String(email).trim().toLowerCase();
+      if (!bucket.has(key)) bucket.set(key, { email: key, sentName: null, listedName: null });
+      const b = bucket.get(key);
+      const nm = String(name || '').trim();
+      if (!nm || nm.toLowerCase() === key) return;
+      if (asSender) { if (!b.sentName) b.sentName = nm; } else if (!b.listedName) b.listedName = nm;
+    };
+    touch(r.from_email, r.from_name, true);
+    for (const x of [...asList(r.to_emails), ...asList(r.cc_emails)]) touch(x.email, x.name, false);
+  }
+  for (const [tid, bucket] of perThread.entries()) {
+    if (bucket.size) out.set(tid, [...bucket.values()].map((b) => ({ email: b.email, name: b.sentName || b.listedName || null })));
+  }
+  return out;
+}
+
+function serializeThreadRow(t, { folder, senderByThread, lastOutByThread, attachCountByThread, nameByEmail, searchParties = null }) {
 
     const obj = t.toJSON();
     const myAddr = String(obj.EmailAccount?.email || '').toLowerCase();
@@ -101,6 +154,12 @@ function serializeThreadRow(t, { folder, senderByThread, lastOutByThread, attach
       if (toEmail || resolvedName) other = { name: resolvedName, email: toEmail };
       if (out.preview) preview = out.preview;
       if (out.sent_at) stamp = out.sent_at;
+    }
+    // 주소로 검색했으면 그 주소의 사람(위 searchPartiesByThread). 우리 메일함 주소는 고르지 않는다.
+    const sp = searchParties ? (searchParties.get(obj.id) || []).find((x) => x.email !== myAddr) : null;
+    if (sp) {
+      const same = other && String(other.email || '').toLowerCase() === sp.email;
+      other = { name: (same && other.name) || sp.name || null, email: sp.email };
     }
     // 보낸메일함 행의 «어디서 보냈나» — 마지막 보낸 메일(필터가 있으면 그 쪽의 마지막) 기준. 받은 메일 폴더에는 싣지 않는다.
     const sentVia = folder === 'sent' && out ? (out.via || null) : null;
@@ -146,4 +205,4 @@ function serializeThreadRow(t, { folder, senderByThread, lastOutByThread, attach
     };
 }
 
-module.exports = { serializeThreadRow, resolveRecipientNames };
+module.exports = { serializeThreadRow, resolveRecipientNames, resolveNamesForEmails, searchPartiesByThread };

@@ -55,8 +55,20 @@ const FAIL_ALERT_THRESHOLD = 3;
 const UPLOAD_ROOT = path.join(__dirname, '..', 'uploads');
 
 // Subject 정규화 (Re:/Fwd: 제거)
+//   ★ 2026-10-16 — 접두가 몇 겹이든 벗긴다(옛 판은 두 겹까지). «RE[2]:»·«회신:»·«답장:»·«전달:» 도 같은 접두다 —
+//     한국 메일 앱(네이버·다음·아웃룩 한글판)이 붙이는 것이라 남기면 제목 매칭(3단계)이 같은 대화를 못 찾는다.
+const SUBJECT_PREFIX_RE = /^\s*(?:re|fwd?|fw|회신|답장|전달)\s*(?:\[\d+\])?\s*[:：]\s*/i;
 function normalizeSubject(s) {
-  return String(s || '').replace(/^\s*(re|fwd|fw)\s*:\s*/i, '').replace(/^\s*(re|fwd|fw)\s*:\s*/i, '').trim();
+  let out = String(s || '');
+  for (let i = 0; i < 10 && SUBJECT_PREFIX_RE.test(out); i += 1) out = out.replace(SUBJECT_PREFIX_RE, '');
+  return out.trim();
+}
+
+// 헤더의 Message-ID 목록 — mailparser 는 References 를 문자열 또는 배열로 준다.
+function headerIdList(v) {
+  if (!v) return [];
+  const arr = Array.isArray(v) ? v : String(v).split(/\s+/);
+  return arr.map((x) => String(x || '').trim()).filter(Boolean);
 }
 
 // thread 매칭 — In-Reply-To / References / Subject+참여자
@@ -64,28 +76,50 @@ function normalizeSubject(s) {
 //     업체 보낸편지함 메일은 보낸 사람이 «나» 라 참여자(= 나를 뺀 상대)와 절대 안 맞는다 → 받는 사람(to/cc)을 넘긴다.
 //   ★ 업체 스팸함에서 온 메일·스레드에는 붙지 않는다 — 스팸 메일의 Message-ID 를 가리키는 회신이
 //     스팸 스레드에 숨으면 안 된다(그 스레드는 30일 뒤 지워진다). 옛 행은 전부 inbox·NULL 이라 받은편지함 동작은 그대로다.
-async function findOrCreateThread({ businessId, accountId, parsed, fromEmail, matchEmails = null }) {
-  // 1. In-Reply-To → 기존 message_id
-  if (parsed.inReplyTo) {
-    const existingMsg = await EmailMessage.findOne({
-      where: { business_id: businessId, message_id: parsed.inReplyTo, source_folder: { [Op.ne]: 'spam' } },
-      attributes: ['thread_id'],
+async function findOrCreateThread({ businessId, accountId, parsed, fromEmail, matchEmails = null, messageId = null }) {
+  // 1·2. In-Reply-To → References(**전부**, 최근 것부터) 가 가리키는 메시지의 스레드
+  //   ★ 2026-10-16 (Irene: "새로 온 메일이 이전 메일이랑 연결해서 안보여주는데? 계속 소통중인데 알 수가 없어.")
+  //     옛 판은 References 의 **마지막 하나**만 봤다. 내가 휴대폰·다른 앱에서 답장하면 그 답장은 PlanQ 에 없어서
+  //     (In-Reply-To = 내 답장 = 없음, References 마지막 = 내 답장 = 없음) 상대의 다음 메일이 **매번 새 스레드**가 됐다.
+  //     References 앞쪽에는 PlanQ 가 이미 가진 상대의 앞선 메일이 그대로 있다(dev 실측 129건이 그 모양).
+  const wantIds = [...new Set([...headerIdList(parsed.inReplyTo), ...headerIdList(parsed.references).reverse()])].slice(0, 60);
+  if (wantIds.length) {
+    const hits = await EmailMessage.findAll({
+      where: { business_id: businessId, message_id: { [Op.in]: wantIds }, source_folder: { [Op.ne]: 'spam' } },
+      attributes: ['message_id', 'thread_id'],
     });
-    if (existingMsg) {
-      const t = await EmailThread.findByPk(existingMsg.thread_id);
+    const threadOf = new Map(hits.map((m) => [m.message_id, m.thread_id]));
+    for (const id of wantIds) {
+      const tid = threadOf.get(id);
+      if (!tid) continue;
+      const t = await EmailThread.findByPk(tid);
       if (t) return { thread: t, isNew: false };
     }
   }
-  // 2. References 헤더의 마지막 message-id
-  const refs = parsed.references || [];
-  if (Array.isArray(refs) && refs.length > 0) {
-    const last = refs[refs.length - 1];
-    const existingMsg = await EmailMessage.findOne({
-      where: { business_id: businessId, message_id: last, source_folder: { [Op.ne]: 'spam' } },
+  // 2b. 거꾸로 — **이 메일을 가리키는** 메일이 이미 와 있으면 그 스레드로.
+  //   업체 보낸편지함은 받은편지함보다 늦게 읽힌다(폴더 순서·주기). 그래서 내가 다른 앱에서 보낸 메일의 사본이
+  //   상대 답장보다 **나중에** 들어오면, 답장은 부모를 못 찾아 새 스레드가 되고 사본은 제목 매칭으로 다른 스레드에 붙어
+  //   한 대화가 둘로 갈렸다(dev 실측 75건 — 학교 문의 «Confirmation of Student Enrollment» 가 그 모양).
+  //   답장은 원본 뒤에 오므로 원본 시각 하루 전부터만 본다(인덱스 business_id·sent_at 범위).
+  //   ★ 격리된 사칭 스레드로는 끌려가지 않는다 — 우리 사본이 숨은 스레드에 들어가면 안 된다.
+  if (messageId) {
+    const base = parsed.date instanceof Date && !Number.isNaN(parsed.date.getTime()) ? parsed.date : new Date();
+    const since = new Date(base.getTime() - 86400 * 1000);
+    const likeId = `%${String(messageId).replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
+    const child = await EmailMessage.findOne({
+      where: {
+        business_id: businessId,
+        source_folder: { [Op.ne]: 'spam' },
+        sent_at: { [Op.gte]: since },
+        message_id: { [Op.ne]: messageId },
+        [Op.or]: [{ in_reply_to: messageId }, { references_chain: { [Op.like]: likeId } }],
+      },
+      include: [{ model: EmailThread, attributes: ['id'], where: { spam_origin: null }, required: true }],
+      order: [['id', 'ASC']],
       attributes: ['thread_id'],
     });
-    if (existingMsg) {
-      const t = await EmailThread.findByPk(existingMsg.thread_id);
+    if (child) {
+      const t = await EmailThread.findByPk(child.thread_id);
       if (t) return { thread: t, isNew: false };
     }
   }
@@ -820,6 +854,7 @@ async function ingestMessage(ctx, { r, uid, box, role = 'inbox', isBackfill }) {
       accountId: account.id,
       parsed,
       fromEmail,
+      messageId,
       ...(role === 'sent'
         ? { matchEmails: [...toEmails, ...(ccEmails || [])].map((x) => x && x.email).filter(Boolean) }
         : {}),
