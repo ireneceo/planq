@@ -1404,20 +1404,23 @@ async function buildCueContext({ businessId, conversationId, emailThreadId = nul
   // 5. KB 검색 (사이클 G 의 ctx 우선순위 활용)
   //    P0 — 질문자가 내부 사람(멤버/owner/admin)이면 그 사람 권한 안에서만 검색한다.
   //    (여태 business_id 로 전체를 긁어, 참여하지 않은 프로젝트의 KB 가 답변 재료로 들어갔다.)
-  //    ⚠️ 외부 고객이 질문자인 경우는 의도적으로 필터하지 않는다 — 고객 문의에 워크스페이스 KB 로
-  //    답하는 것이 Cue 자동응답의 존재 이유. "어떤 KB 를 고객에게 인용해도 되는가" 는 별도 제품 정책
-  //    (KB 문서에 고객 공개 플래그) 이며 이번 절단면 밖.
+  //    ★ 외부 고객이 질문자면 **고객이 직접 열 수 있는 것과 같은 술어**(access_scope.kbClientReadableWhere) —
+  //      그 고객에 연결된 일반 등급 자료뿐이다(2026-10-16, Fable 판정 A). 워크스페이스·프로젝트 범위 자료는
+  //      «팀» 자료라 L3/L4 여도 싣지 않는다(Irene: «고객은 연결된 곳만 보이는 거야»). LLM 이 고객 방에 인용하는 것은
+  //      되돌릴 수 없는 공개다. 고객 답변용 재료는 고정 FAQ(kb_pinned_faqs)로 넣는다 — hybridSearch 가 그대로 싣는다.
   const internalAsker = !!(scope && (scope.isMember || scope.isOwner || scope.isAdmin || scope.isPlatformAdmin));
-  //   ★ 단 보안등급(internal·confidential)은 «외부 공유 금지» 표시다 — 고객에게 인용하면 그 표시가 무의미해진다.
-  //     그래서 외부 질문자에게는 일반(general) 자료만 쓴다(2026-09-27 점검).
+  const accessScope = require('../middleware/access_scope');
   const kbDocWhere = internalAsker
-    ? require('../middleware/access_scope').kbDocumentsListWhereByLevel(scope)
-    : { business_id: businessId, security_level: 'general', vlevel: { [require('sequelize').Op.in]: ['L3', 'L4'] } };
-  //   ★ (2026-10-09) 공개 범위도 본다 — «나만 보기»(L1)·«지정 멤버만»(L2) 자료는 같은 팀원에게도 안 보이는 것이다.
-  //     고객에게 인용하면 그 범위가 무의미해진다. KB 번들 공개(열 때 L1·L2 제외)와 같은 선.
+    ? accessScope.kbDocumentsListWhereByLevel(scope)
+    // 질문자 고객의 연결 ∩ 이 대화방의 고객(방에 고객이 정해져 있으면 그 고객 자료만). 질문자를 모르면 0건.
+    : accessScope.kbClientReadableWhere(businessId, ((scope && scope.clientIds) || [])
+      .filter((id) => !clientId || Number(id) === Number(clientId)));
   const kbP = query
     ? kbService.hybridSearch(businessId, query, {
-        limit: 5, project_id: projectId, client_id: clientId, docWhere: kbDocWhere,
+        limit: 5,
+        // 고객 질문자에게는 프로젝트 범위 가중을 넘기지 않는다(술어상 0건 — 의도를 코드에 남긴다)
+        project_id: internalAsker ? projectId : null,
+        client_id: clientId, docWhere: kbDocWhere,
       })
     : Promise.resolve({ has_results: false });
   // 6. #61 — 질문 기반 워크스페이스 전방위 검색 (권한 scope 있을 때만)
@@ -1430,7 +1433,11 @@ async function buildCueContext({ businessId, conversationId, emailThreadId = nul
     : Promise.resolve(null);
 
   // 8. KNOWLEDGE_LOOP 축1 — 팀이 확정한 워크스페이스 지식 카드 (active 만)
-  const knowledgeP = require('./cueKnowledge').buildKnowledgeBlock(businessId).catch(() => '');
+  //    ★ 내부 화면에서만(2026-10-16 Fable 판정 A) — 카드에는 공개 대상 칸이 없고 고객 특성(다른 고객 것)·업무 실측·
+  //      결정 같은 내부 사실이 실린다. 고객 대화방 답변에는 싣지 않는다.
+  const knowledgeP = audience === 'internal'
+    ? require('./cueKnowledge').buildKnowledgeBlock(businessId).catch(() => '')
+    : Promise.resolve('');
   // 9. 근태·휴가 / 주간 보고서 (2026-09-08) — 커버리지에 '못 봄' 으로 남아 있던 두 영역.
   //    Irene: "cue가 워크스페이스 정보를 탄탄하게 소통해줘야 해."
   //    둘 다 내부 사람에게만 싣는다(고객 대화방 경로에서는 null 로 떨어진다).

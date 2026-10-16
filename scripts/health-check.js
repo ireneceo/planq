@@ -1554,6 +1554,7 @@ function defineAccessTests() {
     ['signauth', 'signauth', '서명 멤버 라우트 = 문서 읽기/편집 술어 — 남의 L1 403 · L3 200 (0-C C-1)'],
     ['signauth', 'docsign', '옛 Document 공개 서명 라우트 없음 · 공개 보기는 그대로 (0-C C-6)'],
     ['kbauth', 'kbauth', 'Q info 등급 변경·공유 해제는 볼 수 있는 사람만 · 고객 검색 차단 (0-C C-3)'],
+    ['kbauth', 'cue_client_kb', 'Cue 고객 자동답변 재료 = 고객에 연결된 일반 자료 + 고정 FAQ만 · 지식 카드 없음 (2026-10-16)'],
     ['folderauth', 'folderauth', '폴더째 삭제 = 파일별 단건 삭제 술어(원자적 거절) · 해제 멤버 차단 (0-C C-4)'],
     ['mailscope', 'mailscope', '상담 메모 — 남의 개인 메일 스레드 404 · 공용 200 (0-C C-7)'],
     ['clientsmenu', 'clientsmenu', '고객 메뉴 권한 none/read/write 를 서버가 지킨다 (0-C C-8)'],

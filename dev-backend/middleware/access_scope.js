@@ -923,7 +923,7 @@ async function canAccessKbDocumentByLevel(userId, doc, scope) {
   if (scope.isPlatformAdmin) return true;
   if (doc.uploaded_by === userId) return true;
   if (scope.isClient && !scope.isMember && !scope.isOwner && !scope.isAdmin) {
-    return doc.scope === 'client' && (scope.clientIds || []).includes(doc.client_id);
+    return canClientReadKb(doc, scope.clientIds);
   }
   // ★ owner/admin 도 남의 «나만 보기»(L1·옛 private)는 못 본다 — 문서·파일 L1 과 같은 규칙(2026-10-09 D2).
   //   그 밖은 종전대로 전부 본다.
@@ -945,6 +945,34 @@ async function canAccessKbDocumentByLevel(userId, doc, scope) {
   if (doc.scope === 'client') return true;
   if (doc.scope === 'project') return !!doc.project_id && myProjects.includes(doc.project_id);
   return false;   // private
+}
+
+// 고객이 읽을 수 있는 Q info — **한 벌**(2026-10-16, Fable 판정 A). 고객 직접 열람과 Cue 고객 자동답변 재료가 같은 술어.
+//   Irene: «보안단위가 전체워크스페이스여도 고객에게는 안보이는 거 맞지? 고객은 연결된 곳만 보이는 거야.»
+//   = 그 고객에 연결된 자료(scope 'client' · client_id 또는 client_ids) ∧ 보안등급 일반.
+//   워크스페이스·프로젝트 범위 자료는 «팀» 자료라 고객 연결 프로젝트여도 빠진다. 고객에게 답할 재료는 고정 FAQ 로 넣는다.
+function canClientReadKb(doc, clientIds) {
+  if (!doc || doc.scope !== 'client') return false;
+  if ((doc.security_level || 'general') !== 'general') return false;
+  const mine = (clientIds || []).map(Number);
+  if (doc.client_id != null && mine.includes(Number(doc.client_id))) return true;
+  const multi = Array.isArray(doc.client_ids) ? doc.client_ids.map(Number) : [];
+  return multi.some((id) => mine.includes(id));
+}
+
+function kbClientReadableWhere(businessId, clientIds) {
+  const ids = (clientIds || []).map(Number).filter((n) => Number.isInteger(n) && n > 0);
+  if (!ids.length) return { business_id: businessId, id: -1 };   // 연결된 고객이 없으면 0건
+  return {
+    business_id: businessId,
+    scope: 'client',
+    security_level: 'general',
+    [Op.or]: [
+      { client_id: { [Op.in]: ids } },
+      // 숫자만 들어가므로 literal 안전
+      ...ids.map((id) => sequelize.literal(`JSON_CONTAINS(\`KbDocument\`.\`client_ids\`, '${id}')`)),
+    ],
+  };
 }
 
 // 남의 것이면 owner/admin 에게도 닫히는 Q info — «나만 보기»(L1) · 옛 개인 자료(vlevel 없음 + scope private).
@@ -982,7 +1010,9 @@ function kbDocumentsListWhereByLevel(scope) {
     );
     conds.push(...scopedOr(scope, kbRest));   // 보이는 프로젝트로 감싼다(2026-10-16)
   } else if (scope.isClient && (scope.clientIds || []).length > 0) {
-    conds.push({ scope: 'client', client_id: { [Op.in]: scope.clientIds } });
+    // 고객 — canClientReadKb 의 SQL 판(같은 술어)
+    const { business_id: _b, ...clientWhere } = kbClientReadableWhere(scope.businessId, scope.clientIds);
+    conds.push(clientWhere);
   }
   return { business_id: scope.businessId, [Op.or]: conds };
 }
@@ -1112,4 +1142,6 @@ module.exports = {
   postListWhereByLevel,
   canAccessKbDocumentByLevel,
   kbDocumentsListWhereByLevel,
+  canClientReadKb,
+  kbClientReadableWhere,
 };

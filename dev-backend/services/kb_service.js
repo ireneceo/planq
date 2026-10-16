@@ -228,7 +228,14 @@ async function hybridSearch(businessId, query, opts = {}) {
   // (좁은 스코프 = 정밀, workspace = fallback)
   const scopeOr = [{ scope: 'workspace' }];
   if (ctxProjectId) scopeOr.push({ scope: 'project', project_id: ctxProjectId });
-  if (ctxClientId) scopeOr.push({ scope: 'client', client_id: ctxClientId });
+  if (ctxClientId) {
+    // 다중 고객 자료(client_ids JSON)도 그 고객 자료다 — access_scope.canClientReadKb 와 같은 판정(2026-10-16)
+    const cid = Number(ctxClientId);
+    scopeOr.push({ scope: 'client', [Op.or]: [
+      { client_id: cid },
+      ...(Number.isInteger(cid) && cid > 0 ? [sequelize.literal(`JSON_CONTAINS(\`KbDocument\`.\`client_ids\`, '${cid}')`)] : []),
+    ] });
+  }
   docWhere[Op.or] = scopeOr;
 
   // 권한 필터가 있으면 AND 결합 (두 개의 Op.or 이 한 객체에서 충돌하지 않게 감싼다)

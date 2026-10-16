@@ -286,6 +286,48 @@ const cases = {
     return 'B→A의 L1: 등급·공유해제 403(값 불변) · 고객 검색 403 · B→자기 L1·A의 L3 200';
   },
 
+  // ─── Cue 고객 자동답변 재료 = 고객에 연결된 일반 자료만 (2026-10-16 Fable 판정 A) ───
+  //   Irene: «보안단위가 전체워크스페이스여도 고객에게는 안보이는 거 맞지? 고객은 연결된 곳만.»
+  //   대조군: 같은 재료를 내부(Q helper, 대표)로 빌드하면 워크스페이스 자료·지식 카드가 들어온다.
+  async cue_client_kb() {
+    const { biz, O, C, clientRow } = await makeWorld({ client: true });
+    const other = await M.Client.create({ business_id: biz.id, display_name: '[ha] other', status: 'active' }, { hooks: false });
+    const proj = await M.Project.create({ business_id: biz.id, name: `[ha] p ${stamp}`, owner_user_id: O.id }, { hooks: false });
+    const T = `HAKB${stamp}`;
+    const ids = {};
+    const mk = async (k, f) => {
+      const d = await makeKb(biz, O, 'L3', { title: `[ha] ${k}`, security_level: 'general', ...f });
+      await M.KbChunk.create({ kb_document_id: d.id, business_id: biz.id, chunk_index: 0, content: `${T} ${k}-${T}`, source_type: 'kb', token_count: 3 });
+      ids[k] = d.id;
+    };
+    await mk('X', { scope: 'workspace' });
+    await mk('Y', { scope: 'project', project_id: proj.id });
+    await mk('Z', { scope: 'client', client_id: clientRow.id, vlevel: 'L4' });
+    await mk('V', { scope: 'client', client_ids: [other.id, clientRow.id], vlevel: 'L4' });
+    await mk('W', { scope: 'client', client_id: other.id, vlevel: 'L4' });
+    await mk('S', { scope: 'client', client_id: clientRow.id, vlevel: 'L4', security_level: 'confidential' });
+    await M.KbPinnedFaq.create({ business_id: biz.id, question: `${T} q`, answer: `F-${T}`, created_by: O.id });
+    await M.CueKnowledge.create({ business_id: biz.id, kind: 'client_trait', title: `[ha] K`, body: `K-${T}`, status: 'active', source: 'user' });
+    const { getUserScope, canClientReadKb } = require(`${BE}/middleware/access_scope`);
+    const { buildCueContext } = require(`${BE}/services/cue_context`);
+    const build = async (u, audience) => {
+      const sc = await getUserScope(u.id, biz.id);
+      const c = await buildCueContext({ businessId: biz.id, projectId: proj.id, clientId: clientRow.id, userId: u.id, query: T, scope: sc, audience });
+      return { sc, c, text: JSON.stringify(c.kb || {}) + (c.markdown || '') };
+    };
+    const has = (t, k) => t.includes(`${k}-${T}`);
+    const cli = await build(C, 'client_facing');
+    for (const k of ['Z', 'V', 'F']) assert(has(cli.text, k), `고객 Cue 재료에 ${k} 가 없다(연결된 자료·고정 FAQ)`);
+    for (const k of ['X', 'Y', 'W', 'S', 'K']) assert(!has(cli.text, k), `고객 Cue 재료에 ${k} 가 실렸다 — 연결 밖·대외비·지식 카드`);
+    const docs = await M.KbDocument.findAll({ where: { id: Object.values(ids) } });
+    const pred = docs.filter((d) => canClientReadKb(d, cli.sc.clientIds)).map((d) => d.id).sort().join();
+    const got = [...new Set((cli.c.kb?.kb_chunks || []).map((x) => x.document_id))].sort().join();
+    assert(pred === got, `Cue 재료(${got}) ≠ 고객 열람 술어(${pred})`);
+    const inn = await build(O, 'internal');
+    for (const k of ['X', 'Z', 'K']) assert(has(inn.text, k), `대조군: 내부 Q helper 에 ${k} 가 없다(검사가 재료를 못 보는 것일 수 있다)`);
+    return '고객 Cue: 연결 자료 Z·V(client_ids)·고정 FAQ 있음 · 워크스페이스·프로젝트·다른 고객·대외비·지식 카드 없음 · 술어 집합 일치 · 내부 대조군 X·Z·K 있음';
+  },
+
   // ─── C-4 folderauth ───
   async folderauth() {
     const { biz, A, B, R } = await makeWorld({ removed: true });

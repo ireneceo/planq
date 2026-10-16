@@ -416,6 +416,9 @@ router.get('/', authenticateToken, async (req, res, next) => {
 5. **참조(첨부·연결·미팅자료·복사·brief·KB 가져오기)는 붙일 때 원본 읽기 권한, 보여줄 때 보는 사람 기준.** 제목을 복사해 두지 않는다.
 
 - **Q info 읽기 판정은 한 벌**(`access_scope.canAccessKbDocumentByLevel`·`kbDocumentsListWhereByLevel`) — 목록·상세·검색·Cue·추천이 같은 함수.
+- **Cue 가 고객 대화방에 답할 때 재료는 «그 고객에 연결된 것» 뿐** (2026-10-16, Irene *"고객은 연결된 곳만 보이는 거야"* · Fable 판정) —
+  Q info 는 `access_scope.canClientReadKb`/`kbClientReadableWhere` 한 벌(scope client · client_id/client_ids · 보안등급 일반 — 전체 공개 L3/L4 워크스페이스·프로젝트 자료도 빠진다).
+  지식 카드(CueKnowledge)는 내부 화면(audience internal)만. 고객에게 답할 재료는 고정 FAQ 로 넣는다. 회귀 health-check kbauth `cue_client_kb`.
 - **고객이 볼 프로젝트는 `project_clients.contact_user_id = 나` 하나로 판정한다**(프로젝트 목록·access_scope·참여자 추가 등 10곳).
   고객에 계정이 붙는 문(초대 수락)은 반드시 `services/clientOnboarding.linkClientToProjects` 를 부른다 — 2026-10-06 워크스페이스 고객
   수락이 이 값을 안 채워 **고객 화면에서 프로젝트·채팅방이 통째로 사라졌다**(프로젝트 상세는 표시용으로만 메워 «참여 중» 이라 우리 쪽에선
