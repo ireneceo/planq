@@ -111,6 +111,8 @@ export const WORKSPACE_MENUS: NavMenuEntry[] = [
   { key: 'ws-backup', to: '/business/settings/data-export', labelKey: 'nav.wsBackup', section: 'settings', roles: ['owner'] },
 
   { key: 'me-profile', to: '/profile', labelKey: 'user.profile', section: 'account', roles: 'any' },
+  // 내 명함 — 계정 것(워크스페이스 데이터 아님, docs/BUSINESS_CARD_DESIGN.md). 고객 계정은 «내 계정» 칸 자체가 좁아 owner/member 만.
+  { key: 'me-cards', to: '/me/cards', labelKey: 'nav.myCards', section: 'account', roles: ['owner', 'member'] },
   { key: 'me-integrations', to: '/profile/integrations', labelKey: 'nav.myIntegrations', section: 'account', roles: ['owner', 'member'] },
   { key: 'me-mail-accounts', to: '/business/settings/mail-accounts?scope=personal', labelKey: 'nav.myMailAccounts', section: 'account', roles: ['owner', 'member'] },
   { key: 'me-work-env', to: '/me/work-settings', labelKey: 'nav.myWorkEnv', section: 'account', roles: ['owner', 'member'] },

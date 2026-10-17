@@ -374,6 +374,8 @@ const NON_TENANT_MODELS = new Set([
   'User', 'RefreshToken', 'PlatformSetting', 'PlatformSettings',
   'HelpArticle', 'HelpCategory', 'PushLog', 'EmailLog', 'ContactInquiry',
   'Plan', 'DocumentTemplate', 'Payment',
+  // 내 명함·받은 명함(2026-10-17) — **계정 소유**라 business_id 가 없다. 모든 조회는 user_id: req.user.id(routes/name_cards.js).
+  'NameCard', 'SavedNameCard',
   // 배포별 개발 현황 — business_id 가 없는 플랫폼 공통. platform_admin 라우터 전역 가드로 막는다.
   'DevStatusReport',
   // Cue 질문 분석(2026-10-07) — 원장에 business_id 가 **일부러 없다**(개인·워크스페이스 비식별). platform_admin 라우터 전역 가드.

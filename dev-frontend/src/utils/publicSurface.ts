@@ -46,6 +46,7 @@ export function isPublicSurfacePath(pathname: string): boolean {
  * ★ `/sign/` 이 이 판정에 빠져 있어 서명 화면에만 우측 하단 Q helper(채팅 모양) 버튼이 떴고, 로그인 상태면
  *   도크·메모 단추까지 붙었다(2026-10-12 Irene: «서명하기 페이지는 웹으로 보기처럼 … 우측하단 채팅버튼 없고»).
  */
+// ★ '/c/' — 내 명함 공개 페이지(2026-10-17). 받는 사람은 대개 비회원이고, 로그인한 회원이 열어도 같은 단독 화면이다.
 export function isPublicViewPath(pathname: string): boolean {
-  return pathname.startsWith('/public/') || pathname.startsWith('/sign/');
+  return pathname.startsWith('/public/') || pathname.startsWith('/sign/') || pathname.startsWith('/c/');
 }

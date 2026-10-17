@@ -64,6 +64,8 @@ async function ensureUser(spec) {
     if (u.terms_version !== ps[0].terms_version) { u.terms_version = ps[0].terms_version; u.terms_accepted_at = new Date(); }
     if (u.privacy_version !== ps[0].privacy_version) { u.privacy_version = ps[0].privacy_version; u.privacy_accepted_at = new Date(); }
   }
+  // 이메일 인증 — 내 명함 공개 링크는 인증된 계정만 열린다(services/nameCard.closedReason). 시험 계정은 인증된 상태로 둔다.
+  if (!u.email_verified_at) u.email_verified_at = new Date();
   await u.save();
   return u;
 }

@@ -19,16 +19,19 @@ User-agent: GPTBot
 Disallow: /public/
 Disallow: /sign/
 Disallow: /g/
+Disallow: /c/
 
 User-agent: Google-Extended
 Disallow: /public/
 Disallow: /sign/
 Disallow: /g/
+Disallow: /c/
 
 User-agent: ClaudeBot
 Disallow: /public/
 Disallow: /sign/
 Disallow: /g/
+Disallow: /c/
 
 User-agent: CCBot
 Disallow: /

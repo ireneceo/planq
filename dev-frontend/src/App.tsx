@@ -97,6 +97,8 @@ const PublicKbDocumentPage = lazy(() => import('./pages/Public/PublicKbDocumentP
 const PublicKbBundlePage = lazy(() => import('./pages/Public/PublicKbBundlePage'));
 const PublicCalendarEventPage = lazy(() => import('./pages/Public/PublicCalendarEventPage'));
 const PublicSurveyPage = lazy(() => import('./pages/Public/PublicSurveyPage'));   // #460 설문 응답 (무로그인)
+const PublicCardPage = lazy(() => import('./pages/Public/PublicCardPage'));   // 내 명함 공개 페이지 (무로그인, 2026-10-17)
+const MyCardsPage = lazy(() => import('./pages/MyCards/MyCardsPage'));   // 내 명함·받은 명함 (2026-10-17)
 const PublicSignPage = lazy(() => import('./pages/QDocs/PublicSignPage'));
 const PublicInvoicePage = lazy(() => import('./pages/QBill/PublicInvoicePage'));
 const PublicQNoteSessionPage = lazy(() => import('./pages/QNote/PublicQNoteSessionPage'));
@@ -566,6 +568,11 @@ function ShellApp() {
             <MainLayout><MyWorkSettingsPage /></MainLayout>
           </ProtectedRoute>
         } />
+        <Route path="/me/cards" element={
+          <ProtectedRoute>
+            <MainLayout><MyCardsPage /></MainLayout>
+          </ProtectedRoute>
+        } />
 
         <Route path="/settings" element={
           <ProtectedRoute>
@@ -724,6 +731,8 @@ function ShellApp() {
         <Route path="/public/kb-bundle/:token" element={<PublicKbBundlePage />} />
         <Route path="/public/calendar/:token" element={<PublicCalendarEventPage />} />
         <Route path="/public/survey/:token" element={<PublicSurveyPage />} />
+        {/* 내 명함 — 주소를 짧게(QR 밀도). 색인 차단은 서버(nginx location ^~ /c/ · ogMeta) — docs/BUSINESS_CARD_DESIGN.md */}
+        <Route path="/c/:token" element={<PublicCardPage />} />
         <Route path="/public/invoices/:token" element={<PublicInvoicePage />} />
         <Route path="/public/qnote-sessions/:token" element={<PublicQNoteSessionPage />} />
         <Route path="/public/report/:token" element={<PublicReportPage />} />

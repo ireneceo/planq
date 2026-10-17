@@ -900,18 +900,21 @@ router.get('/audit-logs', async (req, res, next) => {
 //   해당 사용자의 모든 개인 데이터 (User row + AuditLog + 본인 메시지 일부) 를 JSON 으로
 router.get('/users/:id/data-export', async (req, res, next) => {
   try {
-    const { User, AuditLog, Business, BusinessMember, ContactInquiry, FeedbackItem } = require('../models');
+    const { User, AuditLog, Business, BusinessMember, ContactInquiry, FeedbackItem, NameCard, SavedNameCard } = require('../models');
     const target = await User.findByPk(req.params.id, {
       attributes: { exclude: USER_SENSITIVE_FIELDS },   // utils/userFields — 목록은 한 곳에서만
     });
     if (!target) return errorResponse(res, 'user_not_found', 404);
 
-    const [memberships, owned, audits, inquiries, feedbacks] = await Promise.all([
+    const [memberships, owned, audits, inquiries, feedbacks, nameCards, savedNameCards] = await Promise.all([
       BusinessMember.findAll({ where: { user_id: target.id } }),
       Business.findAll({ where: { owner_id: target.id }, attributes: ['id','name','brand_name','plan','created_at'] }),
       AuditLog.findAll({ where: { user_id: target.id }, limit: 1000, order: [['id','DESC']] }),
       ContactInquiry.findAll({ where: { from_user_id: target.id } }),
       FeedbackItem.findAll({ where: { user_id: target.id } }),
+      // 내 명함 — 공개 링크 토큰은 내보내지 않는다(관리자 손을 거치는 파일이다)
+      NameCard.findAll({ where: { user_id: target.id }, attributes: { exclude: ['public_token'] } }),
+      SavedNameCard.findAll({ where: { user_id: target.id }, attributes: ['id', 'snapshot', 'memo', 'created_at', 'updated_at'] }),
     ]);
 
     await writeAudit({
@@ -941,6 +944,8 @@ router.get('/users/:id/data-export', async (req, res, next) => {
       audit_logs: audits.map(a => a.toJSON()),
       contact_inquiries: inquiries.map(i => i.toJSON()),
       feedback_items: feedbacks.map(f => f.toJSON()),
+      name_cards: nameCards.map(c => c.toJSON()),
+      saved_name_cards: savedNameCards.map(c => c.toJSON()),
     });
   } catch (err) { next(err); }
 });

@@ -891,6 +891,7 @@ const IconCreditCard = () => (<svg width="16" height="16" viewBox="0 0 24 24" fi
 const IconMembers = () => (<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>);
 const IconUsers = () => (<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>);
 const IconPlug = () => (<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 11V5a2 2 0 0 1 2-2h0a2 2 0 0 1 2 2v6"/><path d="M5 11h14v3a7 7 0 0 1-14 0z"/><line x1="12" y1="21" x2="12" y2="18"/></svg>);
+const IconIdCard = () => (<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><circle cx="8" cy="11" r="2"/><path d="M5 16c.6-1.4 1.8-2 3-2s2.4.6 3 2"/><line x1="14" y1="10" x2="19" y2="10"/><line x1="14" y1="14" x2="18" y2="14"/></svg>);
 const IconSliders = () => (<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg>);
 const IconInbox = () => (<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg>);
 const IconBusinesses = () => (<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/></svg>);
@@ -1191,6 +1192,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
   const isAccountPath =
     location.pathname.startsWith('/profile')
     || location.pathname.startsWith('/me/work-settings')
+    || location.pathname.startsWith('/me/cards')
     || location.pathname === '/business/settings/notifications'
     || (location.pathname === '/business/settings/data-export' && accountScope)
     || (location.pathname === '/business/settings/mail-accounts' && accountScope);
@@ -2087,6 +2089,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
                           <IconUsers /> {t('user.profile')}
                         </AccordionItem>
                       )}
+                      {show('/me/cards') && <AccordionItem to="/me/cards" $active={location.pathname.startsWith('/me/cards')}><IconIdCard /> {t('nav.myCards', '내 명함')}</AccordionItem>}
                       {show('/profile/integrations') && (
                         <AccordionItem to="/profile/integrations" $active={location.pathname.startsWith('/profile/integrations')}>
                           <IconPlug /> {t('nav.myIntegrations', '내 외부 연동')}
@@ -2489,6 +2492,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
                 <IconUsers /> {t('user.profile')}
               </SecondaryNavItem>
             )}
+            {show('/me/cards') && <SecondaryNavItem $collapsed={secondaryCollapsed} to="/me/cards" $active={location.pathname.startsWith('/me/cards')}><IconIdCard /> {t('nav.myCards', '내 명함')}</SecondaryNavItem>}
             {/* 개인 외부 연동 — 내 Google Drive/Calendar (워크스페이스 파일·외부연동과 별개) */}
             {show('/profile/integrations') && (
               <SecondaryNavItem $collapsed={secondaryCollapsed} to="/profile/integrations" $active={location.pathname.startsWith('/profile/integrations')}>

@@ -1386,6 +1386,33 @@ function defineSecretTests() {
     }
   });
 
+  // ★ 2026-10-17 내 명함(docs/BUSINESS_CARD_DESIGN.md §5) — 무인증 공개 응답은 화이트리스트(cardPublicView)다.
+  //   공개 토큰·user_id·명함 이름(label, 주인만 보는 이름)·출처 워크스페이스가 실리면 안 된다. 모델 통째 내보내기로 조용히 돌아온다.
+  //   공개 링크는 이메일 인증 계정만 열리므로 검사 계정이 미인증이면 잠깐 인증 상태로 두고 끝나면 되돌린다.
+  test('secrets', '내 명함 공개 응답에 토큰·user_id·명함 이름이 실리지 않는다', async () => {
+    await setup();
+    if (!BACKEND.startsWith('http://localhost')) return true;
+    const uid = Number(ctx.userId);
+    const label = `health-card-${Date.now()}`;
+    const mk = require('child_process').execSync(`node -e "require('dotenv').config();const M=require('./models');const nc=require('./services/nameCard');(async()=>{const u=await M.User.findByPk(${uid});const was=u.email_verified_at?1:0;if(!was)await u.update({email_verified_at:new Date()});const c=await M.NameCard.create({user_id:${uid},label:'${label}',name:'검사 명함',company:'검사 회사',source_business_id:${Number(ctx.businessId)},public_token:nc.newToken()});console.log('ID='+c.id+' T='+c.public_token+' W='+was);process.exit(0)})().catch(e=>{console.error(e.message);process.exit(1)});"`, { cwd: '/opt/planq/dev-backend', encoding: 'utf8', timeout: 30000 });
+    const id = Number((mk.match(/ID=(\d+)/) || [])[1]);
+    const tok = (mk.match(/T=([A-Za-z0-9_-]+)/) || [])[1];
+    const was = (mk.match(/W=(\d)/) || [])[1] === '1';
+    if (!id || !tok) throw new Error('검사용 명함을 만들지 못했다 — 준비 실패');
+    try {
+      const pub = await http('GET', `${BACKEND}/api/name-cards/public/${tok}`);
+      const raw = JSON.stringify(pub);
+      if (raw.includes(tok)) throw new Error('공개 응답에 공개 토큰이 있다');
+      if (raw.includes('user_id') || raw.includes('source_business_id')) throw new Error('공개 응답에 user_id·출처 워크스페이스가 있다');
+      if (raw.includes(label)) throw new Error('공개 응답에 명함 이름(주인만 보는 이름)이 있다');
+      // 양성 대조군 — 보여야 할 값은 그대로 온다(빈 응답·404 로 거짓 통과하는 것을 막는다)
+      if (!pub.data || pub.data.name !== '검사 명함' || pub.data.company !== '검사 회사') throw new Error('공개 응답에 이름·회사가 없다 — 응답이 비었을 가능성(거짓 통과)');
+      return '공개 응답 — 토큰·user_id·명함 이름 0 · 이름·회사 유지';
+    } finally {
+      require('child_process').execSync(`node -e "require('dotenv').config();const {sequelize}=require('./config/database');(async()=>{await sequelize.query('DELETE FROM name_cards WHERE id=${id} AND label=\\'${label}\\'');${was ? '' : `await sequelize.query('UPDATE users SET email_verified_at=NULL WHERE id=${uid}');`}process.exit(0)})();"`, { cwd: '/opt/planq/dev-backend', encoding: 'utf8', timeout: 30000 });
+    }
+  });
+
   // ★ 2026-10-04 AI 에이전트 M3-a(설계 docs/AI_AGENT_M3_DESIGN.md §7.1) — 메일 도구 응답이 계정 자격증명·동기화 오류 원문
   //   (호스트·아이디가 들어 있다)·본문 HTML·공유 토큰을 싣지 않는다. 메일 계정 모델은 비밀 칸이 많아(IMAP/SMTP 암호·OAuth 토큰)
   //   통째로 내보내는 순간 전부 나간다. 판정은 응답 원문 문자열 + «쓸 필드는 그대로 온다» 대조군.

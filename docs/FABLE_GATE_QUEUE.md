@@ -1,5 +1,12 @@
 # Fable 게이트 대기열 → **판정 기록 보관소** (2026-10-08 부터)
 
+## 2026-10-17 · 내 명함(/me/cards · 공개 /c/:token) (방 3b9480e1) — 설계 1회 **FAIL(차단 3)→반영** · 완료 검증 1회 **FAIL(차단 1)→고침, 재판정 없음(한 사안 2회 한도) · 자체 검증**
+- Irene: «내 계정에 내 명함 메뉴 … 자동으로 불러올 거 … 종류마다 … 웹페이지 … 링크랑 큐알 … 명함마다 … 사진 넣으면 나오고 안넣으면 안나오고 … 받은 사람은 다운받아서 저장 … 명함 보관처럼»
+- 설계 차단: ① 색인 차단은 서버(nginx `location ^~ /c/` · ogMeta /c/ · robots AI봇) ② 보관 응답에 원본 토큰 없음 ③ 익명화 트랜잭션에 명함·보관 삭제(사진은 커밋 뒤) + data-export. 비차단(표 이름 name_cards · 미인증·이름 없음 404 · 제어문자 제거 · 레이트리밋 · 복제 새 토큰 등) 반영. docs/BUSINESS_CARD_DESIGN.md 0절.
+- 완료 검증 실측: 실HTTP 52/52 · guard 73/74 · secrets 12/12 · build 0 · 마이그 멱등 · 익명화 실측(남의 보관본 남고 source NULL) · data-export 토큰 0 · 감사 3행 · OG 봇 · i18n 140=140 · 실브라우저 3폭 24/24.
+- 완료 검증 차단 1: nginx 블록 `try_files $uri /index.html` 이 내부 이동 → `location /` 가 응답해 X-Robots-Tag 버려짐(Googlebot·Yeti UA 헤더 없음). 고침: `try_files /index.html =404;` + 스크립트가 옛 블록 교체 · 임시 nginx 대조군(옛 헤더 없음/새 있음) · 공개 화면 head meta noindex(받침, 실측) · 배포 사전 점검 2b(운영 /c/ 헤더 경고). dev nginx 재적용 후 실측 — Googlebot·Yeti·일반 UA 모두 X-Robots-Tag noindex.
+- 비차단: 원본 열기는 302 대신 누를 때 주소 JSON(취지 동일, 문서 정정) · 고객 계정도 /me/cards 사용 가능(메뉴는 owner/member — 의도로 문서화) · multer 8MB(문서 정정).
+
 ## 2026-10-16 · 앱(아이패드·아이폰) 구글/애플 로그인 창 (방 4a116d8b) — 완료 검증 **PASS**(Fable, 후속 1회 PASS)
 - Irene: «아이패드 앱 … 구글계정 자동로그인하는데 팝업이 하얗게 나오고 다시 닫으니까 예전 이상한 코드 넣으라는 잘못된 UI가 그대로 나와. 구글 원터치 로그인 제대로 되게»
 - 변경: iOS 앱 안 플러그인 PlanqAuthSessionPlugin(ASWebAuthenticationSession) · 옛 창 popover→fullscreen · 무인증 POST /api/auth/google/pair/status(상태 한 단어, 30/분) · 코드 입력창은 ready 일 때만 · 복귀 처리 services/nativeReturn.ts 한 곳.

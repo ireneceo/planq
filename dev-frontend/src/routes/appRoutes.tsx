@@ -34,6 +34,7 @@ const QNotePage = lazy(() => import('../pages/QNote/QNotePage'));
 const QFilePage = lazy(() => import('../pages/QFile/QFilePage'));
 const PersonalVaultPage = lazy(() => import('../pages/PersonalVault/PersonalVaultPage'));
 const MyFeedbackPage = lazy(() => import('../pages/MyFeedback/MyFeedbackPage'));
+const MyCardsPage = lazy(() => import('../pages/MyCards/MyCardsPage'));
 const QDocsPage = lazy(() => import('../pages/QDocs/QDocsPage'));
 const BriefViewerPage = lazy(() => import('../pages/QDocs/BriefViewerPage'));
 const ReceivedSignaturesPage = lazy(() => import('../pages/Signatures/ReceivedSignaturesPage'));
@@ -117,6 +118,7 @@ export const APP_ROUTES: AppRouteDef[] = [
   { path: '/profile', element: <ProfilePage /> },
   { path: '/profile/integrations', element: <ProfileIntegrationsPage /> },
   { path: '/me/work-settings', element: <MyWorkSettingsPage /> },
+  { path: '/me/cards', element: <MyCardsPage /> },
   { path: '/settings', element: <WorkspaceSettingsPage /> },
   { path: '/settings/:tab', element: <WorkspaceSettingsPage /> },
   { path: '/mail', roles: BIZ, element: <MailPage /> },

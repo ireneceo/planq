@@ -266,7 +266,9 @@ async function resolveTypedShare(type, token, settings) {
 //   웹서버가 이 경로를 백엔드로 넘기게 되면, **봇이 아닌 사람**도 여기 도달한다.
 //   그때 next() 로 흘리면 매칭 라우트가 없어 "Cannot GET" 이 뜬다 — 사람에게는 SPA 를 돌려줘야 한다.
 function isSharePath(pathOnly) {
-  return /^\/public\/[a-z-]+\/[A-Za-z0-9_-]+$/.test(pathOnly) || /^\/sign\/[A-Za-z0-9_-]+$/.test(pathOnly);
+  return /^\/public\/[a-z-]+\/[A-Za-z0-9_-]+$/.test(pathOnly) || /^\/sign\/[A-Za-z0-9_-]+$/.test(pathOnly)
+    // 내 명함 공개 페이지(2026-10-17) — 개인 연락처라 색인 차단이 필수(docs/BUSINESS_CARD_DESIGN.md 0절)
+    || /^\/c\/[A-Za-z0-9_-]+$/.test(pathOnly);
 }
 
 // 검색엔진 색인 차단 — 공유 토큰이 색인되면 **의도치 않은 영구 공개**가 된다.
@@ -318,6 +320,27 @@ async function ogMetaMiddleware(req, res, next) {
   // ★ API·소켓·정적 자원은 OG HTML 대상 아님 (#189 — 크롤러 판정돼도 여기엔 HTML 주면 안 됨).
   if (OG_SKIP_PREFIX.test(pathOnly)) return next();
   const settings = await loadSettings();
+
+  // 0) /c/:token — 내 명함. 판정은 services/nameCard.resolvePublicCard(공개 API 와 같은 함수).
+  //   제목 «이름 · 직책 · 회사», 설명 = 소개 앞 120자. 사진은 OG 이미지로 쓰지 않는다
+  //   (크롤러 캐시에 얼굴이 박제되면 주인이 회수할 수 없다 — Fable). 닫힌 명함은 기본 OG + noindex.
+  const cm = pathOnly.match(/^\/c\/([A-Za-z0-9_-]+)$/);
+  if (cm) {
+    let data = null;
+    try {
+      const nc = require('../services/nameCard');
+      const card = await nc.resolvePublicCard(cm[1]);
+      if (card) {
+        const v = nc.cardPublicView(card);
+        const title = [v.name, v.job_title, v.company].filter(Boolean).join(' · ');
+        const desc = (v.intro || '').replace(/\s+/g, ' ').trim().slice(0, 120);
+        data = { title, description: desc || [v.department, v.company].filter(Boolean).join(' · '), image: ogImage(settings), siteName: settings?.brand || 'PlanQ' };
+      }
+    } catch { data = null; }
+    setNoIndex(res);
+    res.set('Content-Type', 'text/html; charset=utf-8');
+    return res.send(buildHtml({ url: `https://planq.kr${pathOnly}`, ...(data || ogPack(settings?.seo_title || 'PlanQ', null, '명함', null, settings)) }));
+  }
 
   // 1) /public/posts/:token
   let m = pathOnly.match(/^\/public\/posts\/([A-Za-z0-9_-]+)$/);

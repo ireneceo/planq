@@ -82,7 +82,7 @@ ALTER TABLE business_members
   - Message/TaskComment/ProjectNote 에는 작성자명 캐시 컬럼 **없음**(Fable 확인) — join 표시라 users 익명화로 충분.
 
 purge(행 삭제): `refresh_tokens` · `api_tokens` · `push_subscriptions` · `oauth_connections` · `external_connections` · `email_accounts`(+연쇄 email_threads/messages/첨부 물리파일 — CASCADE 범위 구현 시 실측) · `notification_prefs`
-삭제: 개인 자산 L1(D4) · Q Note 전량(D6)
+삭제: 개인 자산 L1(D4) · Q Note 전량(D6) · **내 명함·받은 명함**(`name_cards`·`saved_name_cards` 행 + `uploads/name-cards` 사진, 커밋 뒤 파일 삭제 — 2026-10-17). 남이 보관한 내 명함 스냅샷은 남는다(종이 명함과 같다 — `source_card_id` SET NULL)
 보존(작성자만 익명 표시): 메시지 · 댓글 · 업무 · 감사 로그. `email_logs.to_email`·`audit_logs` JSON 내 과거 이름/이메일은 보존(감사 목적) — 트레이드오프 명시, 보관기한은 별도 정책.
 
 ## 신규 API

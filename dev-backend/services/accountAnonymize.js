@@ -8,7 +8,7 @@ const { sequelize } = require('../config/database');
 const {
   User, BusinessMember, Client, Conversation, File, Post, KbDocument,
   RefreshToken, ApiToken, PushSubscription, OauthConnection, ExternalConnection,
-  EmailAccount, NotificationPref,
+  EmailAccount, NotificationPref, NameCard, SavedNameCard,
 } = require('../models');
 
 /** 익명화가 지운 L1 파일의 Drive 사본 — **커밋 뒤** 거둔다(되돌릴 수 없는 외부 호출). */
@@ -93,7 +93,18 @@ async function anonymizeUser(user) {
     await EmailAccount.destroy({ where: { owner_user_id: uid }, transaction: t });
     await NotificationPref.destroy({ where: { user_id: uid }, transaction: t });
 
+    // 6) 내 명함·받은 명함(docs/BUSINESS_CARD_DESIGN.md §8) — 전화·이메일·얼굴 사진.
+    //   남이 보관한 내 명함 스냅샷은 남는다(source_card_id SET NULL — 종이 명함과 같다, ACCOUNT_DELETION_DESIGN).
+    //   사진 파일은 지울 경로를 먼저 모으고 **커밋 뒤** 지운다(롤백되면 파일만 사라진 상태가 되지 않게).
+    const nc = require('./nameCard');
+    const myCards = await NameCard.findAll({ where: { user_id: uid }, attributes: ['id'], transaction: t, raw: true });
+    const mySaved = await SavedNameCard.findAll({ where: { user_id: uid }, attributes: ['id'], transaction: t, raw: true });
+    const cardFiles = [...myCards.map((c) => nc.cardPhotoPath(c.id)), ...mySaved.map((s) => nc.savedPhotoPath(s.id))];
+    await SavedNameCard.destroy({ where: { user_id: uid }, transaction: t });
+    await NameCard.destroy({ where: { user_id: uid }, transaction: t });
+
     await t.commit();
+    for (const f of cardFiles) nc.unlinkQuiet(f);
     await flushAnonymizeRecalls(anonymizeRecalls);   // ★ 커밋 뒤에 Drive 사본을 거둔다
     return true;
   } catch (e) {

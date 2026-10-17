@@ -288,6 +288,15 @@ preflight_check() {
     warn "dev 서버 health 응답 없음 — 진행은 가능 (배포 후 운영에서 검증)"
   fi
 
+  # 2b) 내 명함 공개 페이지(/c/) 검색 차단 — 운영 nginx 에 `location ^~ /c/` noindex 가 실제로 붙는가(일반 UA 로 잰다).
+  #   nginx 는 sudo 라 배포가 고칠 수 없다 → 경고만. 고치는 명령: sudo bash scripts/apply-nginx-name-card.sh /etc/nginx/sites-enabled/planq.kr
+  #   (2026-10-17 Fable — 장치가 있는데 헤더가 안 나가던 것을 일반 UA 로만 잡을 수 있었다)
+  if curl -s --max-time 5 -o /dev/null -D - -A 'Mozilla/5.0' https://planq.kr/c/AAAAAAAAAAAAAAAAAAAAAA | grep -qi '^x-robots-tag:.*noindex'; then
+    success "운영 /c/ 검색 차단 헤더 OK"
+  else
+    warn "운영 /c/ 응답에 X-Robots-Tag noindex 없음 — 명함 연락처가 검색에 잡힐 수 있다. scripts/apply-nginx-name-card.sh 를 운영 서버에 복사해 sudo bash <파일> <운영 nginx 설정 경로> 로 적용(Irene)"
+  fi
+
   # 3) 운영서버 SSH 도달
   if ssh $SSH_OPTS -o BatchMode=yes "$PROD_HOST" 'echo ok' > /dev/null 2>&1; then
     success "운영서버 SSH OK ($PROD_HOST)"
@@ -587,6 +596,8 @@ sync_database() {
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-project-visibility.js 2>&1 | tail -5"
   # 2026-10-16 고객→멤버 — clients.member_converted_at DATETIME NULL 추가 + 대상 목록(읽기만). 옛 데이터 정리는 --apply 수동.
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-client-to-member.js 2>&1 | tail -20"
+  # 2026-10-17 내 명함 — name_cards · saved_name_cards 표(멱등). 모델이 읽으므로 PM2 reload 전. nginx `location ^~ /c/` noindex 는 따로(Irene sudo).
+  prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-name-cards.js 2>&1 | tail -5"
   # 2026-09-21 문의/피드백 구분 — feedback_items.kind ENUM. 신 코드가 kind 를 쓰므로 PM2 reload 전.
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-feedback-kind.js 2>&1 | tail -5"
   # 2026-10-15 문의·피드백 답 읽음 — feedback_items.reply_seen_at DATETIME NULL(옛 답은 읽음으로 백필, 처음 만들 때만).
