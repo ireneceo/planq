@@ -111,6 +111,7 @@ export interface PersonalCalendarEvent {
   // 어느 구글 캘린더의 일정인가 (2026-10-12 — 여러 캘린더를 함께 본다). 고치고 지울 때 서버에 그대로 보낸다.
   calendar_id: string;
   calendar_name: string | null;
+  calendar_primary?: boolean;           // 기본 캘린더 — 구글 이름이 이메일이라 «기본 캘린더» 로 부른다
   calendar_color: string | null;        // 구글 캘린더 색 — 칩 점·일정 블록 색
 }
 

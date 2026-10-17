@@ -27,6 +27,8 @@ function normalize(ev, conn, cal = null) {
     id: `gcal-${conn.id}-${encodeURIComponent(c.id)}-${ev.id}`,
     calendar_id: c.id,
     calendar_name: c.summary || null,
+    // 기본 캘린더의 구글 이름(summary)은 계정 이메일이다 — 화면이 «기본 캘린더» 로 부르도록 따로 내린다
+    calendar_primary: !!(c.primary ?? (c.id === 'primary')),
     calendar_color: c.color || null,
     access_role: c.access_role || null,
     ical_uid: ev.iCalUID || null,

@@ -9,7 +9,7 @@ import type { CalendarEvent, CalendarItem, PersonalCalendarEvent } from './types
 import { toDateKey, isSameDay, isSameMonth, startOfMonth, startOfDay, addMonths } from './dateUtils';
 import { getEventColors } from './categoryColors';
 import { bookingAttr, bookingCss, BookingTag } from './bookingLook';
-import { SourceDot } from './sourceLook';
+import { SourceDot, googleCalName } from './sourceLook';
 import { pastAttr, pastCss, pastDayAttr, PAST_DAY_TEXT } from './pastLook';
 import { isTaskEvent } from './taskToEvent';
 
@@ -190,8 +190,8 @@ const AgendaView: React.FC<Props> = ({ anchor, today, now, events, onSelectEvent
                       <ExtLink viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" /><polyline points="15 3 21 3 21 9" /><line x1="10" y1="14" x2="21" y2="3" /></ExtLink>
                     )}
                   </CardTitle>
-                  {personal && (e as PersonalCalendarEvent).account_email && (
-                    <CardSub>{(e as PersonalCalendarEvent).account_email}</CardSub>
+                  {personal && (
+                    <CardSub data-testid="calendar-item-gcal-name">{googleCalName(e as PersonalCalendarEvent, t)}</CardSub>
                   )}
                   {!personal && (e as CalendarEvent).location && (
                     <CardSub>{(e as CalendarEvent).location}</CardSub>

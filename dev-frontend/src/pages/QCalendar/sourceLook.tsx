@@ -7,10 +7,15 @@ import { useTranslation } from 'react-i18next';
 import type { CalendarItem } from './types';
 import { isPersonalEvent } from './taskToEvent';
 
+// 구글 일정의 캘린더 이름 — 필터줄 칩(calendarLayers nameOf)과 같은 규칙. 기본 캘린더의 구글 이름은 이메일이라 «기본 캘린더».
+export function googleCalName(e: { calendar_primary?: boolean; calendar_name?: string | null }, t: ReturnType<typeof useTranslation>['t']): string {
+  return (!e.calendar_primary && e.calendar_name) ? e.calendar_name : (t('layer.googleDefault', '기본 캘린더') as string);
+}
+
 export function SourceDot({ e }: { e: CalendarItem }) {
   const { t } = useTranslation('qcalendar');
   if (!isPersonalEvent(e)) return null;
-  const name = e.calendar_name || (t('layer.googleDefault', '기본 캘린더') as string);
+  const name = googleCalName(e, t);
   const label = t('layer.sourceGoogle', { name, defaultValue: 'Google · {{name}}' }) as string;
   return <Dot $color={e.color} role="img" aria-label={label} title={label} data-testid="calendar-source-google" />;
 }

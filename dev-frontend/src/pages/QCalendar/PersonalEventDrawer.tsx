@@ -31,6 +31,7 @@ const dateKeyOf = (ev: { all_day?: boolean; start_at: string; end_at: string }, 
 };
 import { personalToEvent } from './taskToEvent';
 import type { PersonalCalendarEvent } from './types';
+import { googleCalName } from './sourceLook';
 
 const TIME_OPTIONS = (() => {
   const arr: Array<{ value: string; label: string }> = [];
@@ -243,7 +244,7 @@ export default function PersonalEventDrawer({ event, businessId, onClose, onChan
           <Label>{t('personal.calendar', { defaultValue: '캘린더' }) as string}</Label>
           <Value>
             <CalDot style={{ background: event.color }} aria-hidden="true" />
-            {event.calendar_name || (t('layer.googleDefault', { defaultValue: '기본 캘린더' }) as string)}
+            {googleCalName(event, t)}
           </Value>
         </Row>
 
