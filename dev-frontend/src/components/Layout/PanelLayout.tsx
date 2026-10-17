@@ -107,7 +107,7 @@ export const Panel = styled.div<{
     @media (max-width: 1024px) {
       position: fixed;
       /* ★ 56px 하드코딩이었다 — 상태바도 탭 모드도 모르는 숫자다(2026-09-06). */
-      top: var(--pq-panel-top, 56px);   /* 폰은 앱 헤더를 덮는 전면 상세(2026-10-05) */
+      top: var(--pq-panel-top, 56px);   /* 상세 패널 기준선(2026-10-17 — 폰도 앱 머리줄 아래) */
       right: 0; bottom: 0;
       width: min(400px, 92vw);
       z-index: 41;

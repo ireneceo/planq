@@ -3036,8 +3036,9 @@ const DateRangeCell: React.FC<{
 
 // ─── styled ───
 const Backdrop = styled.div`
-  /* --chrome-top: 멀티탭 스트립 높이 (DetailDrawer 와 동일 계약, #199) */
-  position:fixed;top:var(--chrome-top, 0px);left:0;right:0;bottom:0;background:rgba(15, 23, 42, 0.08);
+  /* 패널과 같은 기준선(--pq-panel-top, DetailDrawer.Backdrop 과 같은 계약). 2026-10-17 — 여태 --chrome-top 이라 폰에서 0 이어서
+     어두운 막이 PlanQ 앱 머리줄을 덮고 그 위 메뉴·대화 버튼 누름을 가로챘다. */
+  position:fixed;top:var(--pq-panel-top, 0px);left:0;right:0;bottom:0;background:rgba(15, 23, 42, 0.08);
   z-index:125;
   animation:pqFadeIn 0.22s ease-out;
   @keyframes pqFadeIn{from{opacity:0;}to{opacity:1;}}
@@ -3058,7 +3059,7 @@ const Drawer = styled.aside<{ $w: number }>`
   @media (prefers-reduced-motion: reduce){animation:none;}
   /* RightDock FAB(120) 위로 z-index 130. 모바일 고정 헤더(99) 밑에서 시작 + safe-area 보정 → 닫기 버튼 안 가림(#171/172). */
   /* 헤더와 같은 단일 원천(--pq-mobile-chrome). 따로 계산하면 노치 높이만큼 어긋난다(index.css 주석). */
-  /* ★ 2026-10-05 — --pq-panel-top: 폰은 앱 헤더를 덮는 전면 상세(상태바 아래), 태블릿 미러 모드는 종전처럼 모바일 헤더 아래. */
+  /* ★ --pq-panel-top: 폰·태블릿 미러 모드 모두 앱 머리줄 아래(2026-10-17 — 10-05 «폰은 덮는 전면» 되돌림). */
   @media (max-width: 1024px){ top:calc(var(--pq-panel-top, 56px) + var(--vv-top, 0px)); height:calc(var(--vvh, 100dvh) - var(--pq-panel-top, 56px)); }
   /* ≤640 폰 — 풀스크린(여태 min(w,100vw-56)이라 56px 조각으로 뒤 화면이 비쳤다). 좌측 border·그림자 제거. */
   @media (max-width: 640px){ width:100vw; border-left:none; box-shadow:none; }

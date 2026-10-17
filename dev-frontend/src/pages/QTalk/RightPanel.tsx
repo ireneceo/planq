@@ -561,7 +561,7 @@ const Container = styled.aside<{ $overlay?: boolean; $w?: number }>`
          여태 --chrome-top(탭바 아래 · 미러 모드=0)이라 폰에서 패널 윗부분이 모바일 헤더 밑에 깔렸고,
          아이폰 앱은 헤더가 상태바만큼 커서(56+59) 작업대 머리가 통째로 가려졌다.
          곁패널은 크롬과 **함께** 보여야 한다(CLAUDE.md 상단 기준선 계약 · theme/layout belowChrome). */
-      position: fixed; top: var(--pq-panel-top, 0px); right: 0; bottom: 0;   /* 폰은 앱 헤더를 덮는 전면(2026-10-05) */
+      position: fixed; top: var(--pq-panel-top, 0px); right: 0; bottom: 0;   /* 상세 패널 기준선(2026-10-17 — 폰도 앱 머리줄 아래) */
       width: ${PANEL_WIDTH_CSS};
       /* 폰 — 다른 우측 패널(DetailDrawer·업무 상세)과 같이 전체 폭. 56px 조각으로 뒤 화면이 비치지 않게. 앱 헤더(100) 위. */
       @media (max-width: 640px) { width: 100vw; border-left: none; box-shadow: none; z-index: var(--pq-z-overlay, 130); }

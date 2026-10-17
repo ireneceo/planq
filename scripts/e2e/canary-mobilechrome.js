@@ -137,11 +137,22 @@ async function run() {
         });
         return a ? Math.round(a.getBoundingClientRect().top) : null;
       });
-      // ★ 2026-10-05 계약 변경(Irene: "모바일 상세 들어가면 상단 헤더가 그대로 있어. 없어져야지") —
-      //   폰(≤640)의 상세 패널은 앱 헤더를 **덮는** 전면(--pq-panel-top = 상태바 아래, 웹은 0). 태블릿·데스크탑은 종전대로 크롬 하단.
-      const expectTop = W <= 640 ? await page.evaluate(() => Math.round(parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--pq-safe-top')) || 0)) : cb;
-      push(`드로어/${w} 상단 = ${W <= 640 ? '상태바 아래(앱 헤더를 덮음)' : '크롬 하단'}`, top !== null && Math.abs(top - expectTop) <= 1,
+      // ★ 2026-10-17 계약(Irene: "상세에서도 플랜큐 헤더 그대로 나오고 서브 타이틀 아래로 내려가야지. 모바일에서.") —
+      //   모든 폭에서 상세 패널은 상단 크롬 **바로 아래**(--pq-panel-top = --pq-chrome-bottom). 10-05 «폰은 앱 헤더를 덮는 전면» 을 되돌렸다.
+      const expectTop = cb;
+      push(`드로어/${w} 상단 = 크롬 하단(앱 머리줄 아래)`, top !== null && Math.abs(top - expectTop) <= 1,
         `기대=${expectTop} 크롬하단=${cb} 패널top=${top}`);
+      if (W <= 640) {
+        // 앱 머리줄(PlanQ 로고)이 실제로 보이는가 — 좌표가 아니라 그 자리에 무엇이 그려지는가로 잰다.
+        const hdr = await page.evaluate(() => {
+          const h = document.querySelector('[data-pq-mobile-header]');
+          if (!h) return { err: 'no-header' };
+          const b = h.getBoundingClientRect();
+          const el = document.elementFromPoint(innerWidth / 2, Math.max(1, b.bottom - 20));
+          return { bottom: Math.round(b.bottom), onTop: !!el && h.contains(el) };
+        });
+        push(`드로어/${w} 상세가 열려도 PlanQ 앱 머리줄이 보인다`, !hdr.err && hdr.onTop, JSON.stringify(hdr));
+      }
 
       // ── ⑤ 같은 메뉴 재클릭 = 그 메뉴 처음으로 ──────────────────────
       const clicked = await page.evaluate(() => {
