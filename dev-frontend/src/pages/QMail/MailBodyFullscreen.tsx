@@ -6,7 +6,12 @@
 //
 // 보안: 원본과 **같은 sandbox 조합**을 쓴다(allow-scripts, same-origin 없음).
 //   여기서 sandbox 를 느슨하게 하면 정화·격리 계약이 이 경로에서만 깨진다.
-import React, { useRef } from 'react';
+//
+// 확대 (2026-10-17, Irene: "메일이 너무 작은 글자로 오면 … 모바일에서 손가락으로 확대 어렵지? 확대기능")
+//   페이지 확대는 막혀 있다(iOS maximum-scale=1 · 앱 WebView) — **본문만** 키운다.
+//   HTML 본문: iframe 안 /mail-frame.js 에 {planqMailZoom} 로 배율을 보내고, 두 손가락으로 바꾸면
+//   {planqMailZoomed} 로 돌려받아 % 를 맞춘다. 평문: 글자 크기에 같은 배율. 열 때마다 100% 에서 시작한다.
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { renderTextWithLinks as linkify } from '../../utils/linkify';
 import { createPortal } from 'react-dom';
 import styled from 'styled-components';
@@ -32,9 +37,39 @@ interface Props {
   linksDisabled?: boolean;
 }
 
+const ZOOM_STEPS = [0.5, 0.75, 1, 1.25, 1.5, 2, 2.5, 3];
+
 const MailBodyFullscreen: React.FC<Props> = ({ open, onClose, title, subtitle, srcDoc, text, linksDisabled }) => {
   const { t } = useTranslation('qmail');
   const ref = useRef<HTMLDivElement>(null);
+  const frameRef = useRef<HTMLIFrameElement>(null);
+  const [zoom, setZoom] = useState(1);
+  const zoomRef = useRef(1);
+  zoomRef.current = zoom;
+  // 열 때마다 100% — 메일마다 글자 크기가 달라 앞 메일의 배율을 물려받으면 예측이 안 된다.
+  useEffect(() => { if (open) setZoom(1); }, [open, srcDoc]);
+  const pushZoom = useCallback((z: number) => {
+    try { frameRef.current?.contentWindow?.postMessage({ planqMailZoom: z }, '*'); } catch { /* 부가 기능 */ }
+  }, []);
+  const changeZoom = useCallback((z: number) => { setZoom(z); pushZoom(z); }, [pushZoom]);
+  const stepZoom = (dir: 1 | -1) => {
+    const cur = zoomRef.current;
+    const next = dir > 0
+      ? ZOOM_STEPS.find((s) => s > cur + 0.01)
+      : [...ZOOM_STEPS].reverse().find((s) => s < cur - 0.01);
+    if (next != null) changeZoom(next);
+  };
+  // 두 손가락으로 바꾼 배율을 iframe 이 알려 준다 — 이 창의 iframe 이 보낸 것만 받는다.
+  useEffect(() => {
+    if (!open) return;
+    const onMsg = (e: MessageEvent) => {
+      if (!frameRef.current || e.source !== frameRef.current.contentWindow) return;
+      const d = e.data as { planqMailZoomed?: number } | null;
+      if (d && typeof d.planqMailZoomed === 'number') setZoom(d.planqMailZoomed);
+    };
+    window.addEventListener('message', onMsg);
+    return () => window.removeEventListener('message', onMsg);
+  }, [open]);
   useBodyScrollLock(open);
   useEscapeStack(open, onClose);
   useFocusTrap(ref, open);
@@ -52,6 +87,23 @@ const MailBodyFullscreen: React.FC<Props> = ({ open, onClose, title, subtitle, s
             <HeadTitle>{title}</HeadTitle>
             {subtitle && <HeadSub>{subtitle}</HeadSub>}
           </HeadText>
+          <ZoomGroup role="group" aria-label={t('detail.zoom', { defaultValue: '글자 크기' }) as string}>
+            <ZoomBtn type="button" data-testid="mail-zoom-out" onClick={() => stepZoom(-1)} disabled={zoom <= ZOOM_STEPS[0] + 0.01}
+              aria-label={t('detail.zoomOut', { defaultValue: '작게 보기' }) as string}
+              title={t('detail.zoomOut', { defaultValue: '작게 보기' }) as string}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="5" y1="12" x2="19" y2="12" /></svg>
+            </ZoomBtn>
+            <ZoomPct type="button" data-testid="mail-zoom-reset" onClick={() => changeZoom(1)}
+              aria-label={t('detail.zoomReset', { defaultValue: '원래 크기로' }) as string}
+              title={t('detail.zoomReset', { defaultValue: '원래 크기로' }) as string}>
+              {Math.round(zoom * 100)}%
+            </ZoomPct>
+            <ZoomBtn type="button" data-testid="mail-zoom-in" onClick={() => stepZoom(1)} disabled={zoom >= ZOOM_STEPS[ZOOM_STEPS.length - 1] - 0.01}
+              aria-label={t('detail.zoomIn', { defaultValue: '크게 보기' }) as string}
+              title={t('detail.zoomIn', { defaultValue: '크게 보기' }) as string}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+            </ZoomBtn>
+          </ZoomGroup>
           <CloseBtn type="button" onClick={onClose}
             aria-label={t('common.close', { defaultValue: '닫기' }) as string}
             title={t('common.close', { defaultValue: '닫기' }) as string}>
@@ -60,10 +112,12 @@ const MailBodyFullscreen: React.FC<Props> = ({ open, onClose, title, subtitle, s
         </Head>
         <Body>
           {srcDoc
-            ? <Frame sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox" srcDoc={srcDoc} title={title || 'mail'} />
+            ? <Frame ref={frameRef} data-testid="mail-fullview-frame" sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox" srcDoc={srcDoc} title={title || 'mail'}
+                /* 문서가 다시 읽히면 안쪽 배율이 1 로 돌아간다 — 지금 배율을 다시 보낸다. */
+                onLoad={() => { if (zoomRef.current !== 1) pushZoom(zoomRef.current); }} />
             /* 평문도 링크는 눌려야 한다 — 상세와 **같은 함수**를 쓴다(진입점마다 갈라지면
                "여기선 되는데 저기선 안 된다" 가 된다). */
-            : <PlainText>{text ? (linksDisabled ? text : linkify(text)) : (t('detail.noContent', { defaultValue: '(내용 없음)' }) as string)}</PlainText>}
+            : <PlainText $zoom={zoom}>{text ? (linksDisabled ? text : linkify(text)) : (t('detail.noContent', { defaultValue: '(내용 없음)' }) as string)}</PlainText>}
         </Body>
       </Panel>
     </Backdrop>,
@@ -111,6 +165,29 @@ const HeadSub = styled.div`
   margin-top: 2px; font-size: 0.75rem; color: #64748B;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 `;
+const ZoomGroup = styled.div`
+  flex-shrink: 0; display: inline-flex; align-items: center; gap: 2px;
+  background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 10px; padding: 2px;
+`;
+const ZoomBtn = styled.button`
+  width: 32px; height: 32px;
+  @media (max-width: 640px) { width: 40px; height: 40px; }
+  display: inline-flex; align-items: center; justify-content: center;
+  background: transparent; border: none; border-radius: 8px;
+  color: #334155; cursor: pointer;
+  &:hover:not(:disabled) { background: #E2E8F0; color: #0F172A; }
+  &:disabled { color: #CBD5E1; cursor: default; }
+  &:focus-visible { outline: 2px solid rgba(15,118,110,0.5); outline-offset: 1px; }
+`;
+const ZoomPct = styled.button`
+  min-width: 48px; height: 32px; padding: 0 4px;
+  @media (max-width: 640px) { height: 40px; }
+  background: transparent; border: none; border-radius: 8px;
+  font: inherit; font-size: 0.8125rem; font-weight: 600; color: #0F172A;
+  font-variant-numeric: tabular-nums; cursor: pointer;
+  &:hover { background: #E2E8F0; }
+  &:focus-visible { outline: 2px solid rgba(15,118,110,0.5); outline-offset: 1px; }
+`;
 const CloseBtn = styled.button`
   /* touch-target-44: 폰 터치 타깃 (theme/tokens CONTROL.touchMin). 데스크탑 크기는 그대로. */
   @media (max-width: 640px) { min-width: 44px; min-height: 44px; }
@@ -134,8 +211,8 @@ const Body = styled.div`
 // 전체 화면에서는 iframe 이 영역을 꽉 채우고 **자기 안에서** 스크롤한다.
 //   바깥 Body 스크롤과 겹치면 두 겹 스크롤이 되어 읽기가 더 나빠진다.
 const Frame = styled.iframe` width: 100%; height: 100%; border: none; display: block; background: #fff; `;
-const PlainText = styled.pre`
+const PlainText = styled.pre<{ $zoom: number }>`
   margin: 0; padding: 0;   /* 여백은 Body 가 담당 — 여기에도 주면 이중이 된다 */
-  font: inherit; font-size: 0.875rem; line-height: 1.7; color: #0F172A;
+  font: inherit; font-size: ${(p) => 0.875 * p.$zoom}rem; line-height: 1.7; color: #0F172A;
   white-space: pre-wrap; word-break: break-word;
 `;

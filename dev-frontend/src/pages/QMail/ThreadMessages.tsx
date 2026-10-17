@@ -470,7 +470,7 @@ export default function ThreadMessages(p: Props) {
             ? `${(fullMsg.sent_by_user_id && myUserId && fullMsg.sent_by_user_id !== myUserId && fullMsg.sent_by_name) ? fullMsg.sent_by_name : (t('me', { defaultValue: '나' }) as string)} <${fullMsg.from_email || accountEmail}>`
             : `${fullMsg.from_name || ''} <${fullMsg.from_email || ''}>`)
           : undefined}
-        srcDoc={fullMsg && fullMsg.body_html ? buildMailSrcDoc(fullMsg.id, fullMsg.body_html, msgCidData[fullMsg.id], foldLabels) : undefined}
+        srcDoc={fullMsg && fullMsg.body_html ? buildMailSrcDoc(fullMsg.id, fullMsg.body_html, msgCidData[fullMsg.id], foldLabels, { fullscreen: true }) : undefined}
         text={fullMsg ? fullMsg.body_text : null}
         linksDisabled={linksDisabled}
       />

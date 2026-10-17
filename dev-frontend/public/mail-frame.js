@@ -100,13 +100,100 @@
     document.head.appendChild(st);
   }
 
+  // ── 사용자 확대 (2026-10-17, Irene: "메일이 너무 작은 글자로 오면 … 모바일에서 손가락으로 확대 어렵지? 확대기능") ──
+  //
+  //   페이지 전체를 키우는 손가락 확대는 쓸 수 없다 — iOS 는 viewport 에 maximum-scale=1 을 걸었고
+  //   (#435 — 머리줄·패널까지 같이 커져 레이아웃이 깨진다) 앱 WebView 는 그 값을 지킨다.
+  //   그래서 **본문만** 키운다: 실제 배율 = 폭 맞춤(fitZoom) × 사용자(userZoom).
+  //   · 두 손가락 벌리기/오므리기 — 두 손가락일 때만 기본 동작을 막는다(한 손가락 스크롤은 그대로)
+  //   · 부모의 [−][100%][+] 버튼 — {planqMailZoom: n} 메시지(부모 창에서 온 것만 받는다)
+  //   · 바뀌면 부모에 {planqMailZoomed: n} 로 알려 버튼의 % 를 맞춘다
+  //   배율 1 이면 zoom 을 아예 안 건다 — 확대하지 않은 메일의 렌더는 종전과 한 픽셀도 같다.
+  var ZOOM_MIN = 0.5, ZOOM_MAX = 3;
+  var fitZoom = 1;
+  var userZoom = 1;
+  function clampZoom(z) {
+    if (!(z > 0)) return 1;
+    z = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, z));
+    return Math.abs(z - 1) < 0.03 ? 1 : Math.round(z * 100) / 100;
+  }
+  function applyZoom() {
+    try {
+      var z = fitZoom * userZoom;
+      document.documentElement.style.zoom = Math.abs(z - 1) < 0.001 ? '' : String(z);
+    } catch (e) { /* 부가 기능 */ }
+  }
+  // 배율을 바꾸면서 (fx, fy) — iframe 안 화면 좌표 — 아래 내용이 제자리에 남게 스크롤을 옮긴다.
+  function setUserZoom(next, fx, fy, report) {
+    next = clampZoom(next);
+    if (next === userZoom) return;
+    var ratio = next / userZoom;
+    var se = document.scrollingElement || document.documentElement;
+    var sx = se.scrollLeft, sy = se.scrollTop;
+    userZoom = next;
+    applyZoom();
+    if (typeof fx === 'number' && typeof fy === 'number') {
+      se.scrollLeft = (sx + fx) * ratio - fx;
+      se.scrollTop = (sy + fy) * ratio - fy;
+    }
+    send();
+    if (report) {
+      try { parent.postMessage({ planqMailZoomed: userZoom }, '*'); } catch (e) { /* 무시 */ }
+    }
+  }
+  window.addEventListener('message', function (e) {
+    if (e.source !== parent) return;               // 부모 창이 보낸 것만 — 본문 스크립트는 없지만 선을 긋는다
+    var d = e.data;
+    if (d && typeof d.planqMailZoom === 'number') setUserZoom(d.planqMailZoom, 0, 0, false);
+  });
+  (function pinch() {
+    var startDist = 0, startZoom = 1, raf = 0, pending = null;
+    function dist(t) {
+      var dx = t[0].clientX - t[1].clientX, dy = t[0].clientY - t[1].clientY;
+      return Math.sqrt(dx * dx + dy * dy);
+    }
+    document.addEventListener('touchstart', function (e) {
+      if (e.touches.length === 2) {
+        startDist = dist(e.touches);
+        startZoom = userZoom;
+        e.preventDefault();
+      }
+    }, { passive: false });
+    document.addEventListener('touchmove', function (e) {
+      if (e.touches.length !== 2 || !startDist) return;
+      e.preventDefault();                          // 두 손가락일 때만 — 브라우저 확대·스크롤 대신 본문 배율
+      var t = e.touches;
+      pending = {
+        z: startZoom * dist(t) / startDist,
+        x: (t[0].clientX + t[1].clientX) / 2,
+        y: (t[0].clientY + t[1].clientY) / 2,
+      };
+      if (!raf) {
+        raf = requestAnimationFrame(function () {
+          raf = 0;
+          if (pending) setUserZoom(pending.z, pending.x, pending.y, true);
+          pending = null;
+        });
+      }
+    }, { passive: false });
+    function end(e) { if (e.touches.length < 2) startDist = 0; }
+    document.addEventListener('touchend', end);
+    document.addEventListener('touchcancel', end);
+  })();
+
   function fitWidth() {
+    try { fitWidthInner(); } finally { applyZoom(); }
+  }
+  function fitWidthInner() {
     try {
       if (!isPhone()) return;                      // 데스크탑·태블릿은 손대지 않는다
       var de = document.documentElement;
       var b = document.body;
       if (!b) return;
       // 다시 재기 전에 배율을 푼다 — 축소된 상태에서 재면 콘텐츠 폭이 이미 줄어 보인다.
+      //   ★ 사용자 배율도 같이 풀렸으므로 이 함수가 어디서 끝나든 마지막에 applyZoom() 이
+      //     「맞춤 × 사용자」 를 다시 얹는다(인용 펼치기·load 재측정에 확대가 날아가지 않게).
+      fitZoom = 1;
       if (de.style.zoom) de.style.zoom = '';
       var vw = window.innerWidth || 0;             // 여기서는 iframe 폭이 맞다(맞출 대상)
       if (!vw) return;
@@ -117,7 +204,7 @@
       // ★ 하한 미달이어도 **왼쪽 정렬은 한다.** 축소를 못 한다고 손을 떼면
       //   320px 폰에서 신고 증상(왼쪽 공백 + 내용이 오른쪽 밖)이 그대로 남는다(Fable 지적).
       if (r < MIN_SCALE) { leftAlign(); return; }
-      de.style.zoom = r;
+      fitZoom = r;
       leftAlign();
     } catch (e) { /* 폭 맞춤은 부가 기능 — 실패해도 본문과 높이 보고는 살아야 한다 */ }
   }

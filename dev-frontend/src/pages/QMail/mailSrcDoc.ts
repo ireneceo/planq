@@ -45,6 +45,7 @@ export function buildMailSrcDoc(
   html: string,
   cidMap?: Record<string, string>,
   foldLabels?: QuoteFoldLabels,
+  opts?: { fullscreen?: boolean },
 ): string {
   let safe = sanitizeMailHtml(html);
   if (cidMap && Object.keys(cidMap).length > 0) {
@@ -87,7 +88,10 @@ export function buildMailSrcDoc(
   const attrs = foldLabels
     ? ` data-fold-show="${escAttr(foldLabels.show)}" data-fold-hide="${escAttr(foldLabels.hide)}"`
     : '';
-  const resize = `<script src="/mail-frame.js" data-frame-id="${id}"${attrs}><\/script>`;
+  // ★ 전체 화면 본문은 높이를 보고하지 않는다(frame-id 0) — 같은 메일 id 로 보내면 MailPage 의
+  //   높이 리스너가 **뒤에 깔린 상세 iframe** 높이를 전체 화면 값(확대하면 더 큰 값)으로 바꾼다.
+  const frameId = opts?.fullscreen ? 0 : id;
+  const resize = `<script src="/mail-frame.js" data-frame-id="${frameId}"${attrs}><\/script>`;
   // 가로 넘침만 최소 보정 (고정폭 템플릿이 패널보다 넓을 때 잘리지 않고 스크롤되게)
   // 최상위 고정폭 블록(뉴스레터 table/div/center)을 가운데 정렬 — Gmail 등 타 클라이언트와 동일.
   //   width 없는(=full) 콘텐츠는 margin:auto 영향 없이 그대로 풀폭. 고정폭만 중앙으로 모인다(Irene).

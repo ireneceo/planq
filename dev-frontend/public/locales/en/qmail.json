@@ -538,7 +538,11 @@
     "fullView": "Open in a new window",
     "copyBody": "Copy content",
     "copied": "Copied",
-    "copyFailed": "Couldn't copy"
+    "copyFailed": "Couldn't copy",
+    "zoom": "Text size",
+    "zoomIn": "Zoom in",
+    "zoomOut": "Zoom out",
+    "zoomReset": "Reset zoom"
   },
   "bulk": {
     "markAllRead": "Mark all read",

@@ -538,7 +538,11 @@
     "fullView": "새 창으로 크게 보기",
     "copyBody": "내용 복사",
     "copied": "복사됨",
-    "copyFailed": "복사 실패"
+    "copyFailed": "복사 실패",
+    "zoom": "글자 크기",
+    "zoomIn": "크게 보기",
+    "zoomOut": "작게 보기",
+    "zoomReset": "원래 크기로"
   },
   "bulk": {
     "markAllRead": "모두 읽음",
