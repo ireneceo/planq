@@ -1,7 +1,7 @@
 // #133 — 모바일 아젠다(리스트) 뷰. 폰에서 월/주 그리드 칩이 판독 불가한 문제 해소.
 //   anchor 월의 이벤트 있는 날만 날짜별 그룹으로 세로 나열. 오늘 자동 스크롤. 빈 월 빈 상태.
 //   데이터는 QCalendarPage 의 filteredEvents(events+tasks+personal 병합, RRULE 전개) 그대로 재사용.
-import React, { useMemo, useRef, useLayoutEffect } from 'react';
+import React, { useMemo, useRef, useLayoutEffect, useEffect } from 'react';
 import { linkLine } from './linkLine';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
@@ -83,19 +83,38 @@ const AgendaView: React.FC<Props> = ({ anchor, today, now, events, onSelectEvent
     return out;
   }, [anchor, today, eventMap]);
 
-  // 오늘로 자동 스크롤 — 월 바뀔 때 1회. useLayoutEffect 즉시(RAF 지연 금지 박제).
+  // 오늘로 자동 스크롤 — 월이 바뀌면, 그리고 오늘 위에 묶음이 늘 때마다(사용자가 직접 움직이기 전까지).
+  //   useLayoutEffect 즉시(RAF 지연 금지 박제).
+  //   ★ 2026-10-16 — 한 번만 맞추면 1일이 보였다: 첫 렌더는 loading=false(조회 전)라 «오늘» 묶음만 있을 때
+  //     스크롤을 써 버리고, 이어 일정·업무(따로 도착)가 오늘 위에 끼면서 오늘이 화면 밖으로 밀렸다.
+  //     그래서 «오늘 위 묶음 수» 가 바뀔 때마다 다시 맞춘다. 사용자가 굴린 뒤로는 손대지 않는다.
   const todayRef = useRef<HTMLDivElement>(null);
   const monthKey = toDateKey(startOfMonth(anchor));
+  const beforeToday = groups.findIndex((g) => g.isToday);
   const scrolledFor = useRef<string>('');
+  const userMoved = useRef(false);
+  useEffect(() => {
+    userMoved.current = false;
+    const mark = () => { userMoved.current = true; };
+    window.addEventListener('wheel', mark, { capture: true, passive: true });
+    window.addEventListener('touchmove', mark, { capture: true, passive: true });
+    window.addEventListener('keydown', mark, { capture: true });
+    return () => {
+      window.removeEventListener('wheel', mark, { capture: true });
+      window.removeEventListener('touchmove', mark, { capture: true });
+      window.removeEventListener('keydown', mark, { capture: true });
+    };
+  }, [monthKey]);
   useLayoutEffect(() => {
-    // Fable A-1 — fetch 완료(loading=false) 후에만 스크롤/마킹. 로딩 중 빈-오늘 그룹에서 미리 마킹하면
-    //   이후 과거 날짜 그룹이 위에 삽입돼도 재스크롤 안 돼 오늘이 화면 밖으로 밀림(폰 기본 진입 경로).
+    // Fable A-1 — fetch 완료(loading=false) 후에만 스크롤/마킹.
     if (loading) return;
-    if (groups.length === 0) return;
-    if (scrolledFor.current === monthKey) return;
-    scrolledFor.current = monthKey;
+    if (beforeToday < 0) return;
+    const key = `${monthKey}:${beforeToday}`;
+    if (scrolledFor.current === key) return;
+    if (userMoved.current && scrolledFor.current.startsWith(`${monthKey}:`)) return;
+    scrolledFor.current = key;
     todayRef.current?.scrollIntoView({ block: 'start' });
-  }, [monthKey, groups.length, loading]);
+  }, [monthKey, beforeToday, loading]);
 
   if (!loading && groups.length === 0) {
     return (
