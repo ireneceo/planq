@@ -51,7 +51,7 @@ export const HeadBtn = styled.button`
 `;
 export const TabBar = styled.div`
   display:flex;gap:2px;background:#fff;border-bottom:1px solid #e2e8f0;flex-shrink:0;
-  overflow-x:auto;-webkit-overflow-scrolling:touch;
+  overflow-x:auto;
   /* 탭도 본문과 같은 기둥에 세운다 — 안 그러면 탭은 화면 끝, 글은 가운데가 된다. */
   padding:0 12px;
   > * { flex-shrink:0; }

@@ -3253,7 +3253,7 @@ const FilterGroup=styled.div<{$open:boolean}>`display:contents;@media (max-width
 const PhoneFilterToggle=styled.button<{$on:boolean}>`display:none;@media (max-width: 640px){display:inline-flex;align-items:center;flex-shrink:0;height:36px;padding:0 12px;border-radius:8px;font-size:0.8125rem;font-weight:600;cursor:pointer;font-family:inherit;border:1px solid ${p=>p.$on?'#14B8A6':'#E2E8F0'};background:${p=>p.$on?'#F0FDFA':'#FFF'};color:${p=>p.$on?'#0F766E':'#475569'};}`;
 const Chip=styled.span<{$teal?:boolean;$coral?:boolean;$warn?:boolean}>`padding:2px 8px;font-size:0.6875rem;font-weight:600;border-radius:6px;background:${p=>p.$warn?'#FEF3C7':p.$teal?'#F0FDFA':p.$coral?'#FFF1F2':'#F1F5F9'};color:${p=>p.$warn?'#B45309':p.$teal?'#0F766E':p.$coral?'#9F1239':'#475569'};`;
 
-const TabBar=styled.div`display:flex;border-bottom:1px solid #E2E8F0;flex-shrink:0;@media(max-width:640px){overflow-x:auto;-webkit-overflow-scrolling:touch;&::-webkit-scrollbar{display:none;}}`;
+const TabBar=styled.div`display:flex;border-bottom:1px solid #E2E8F0;flex-shrink:0;@media(max-width:640px){overflow-x:auto;&::-webkit-scrollbar{display:none;}}`;
 const TabBtn=styled.button<{$active?:boolean}>`flex:1;padding:10px 8px;font-size:0.8125rem;font-weight:600;border:none;cursor:pointer;background:transparent;color:${p=>p.$active?'#0F766E':'#94A3B8'};border-bottom:2px solid ${p=>p.$active?'#14B8A6':'transparent'};display:inline-flex;align-items:center;justify-content:center;gap:4px;white-space:nowrap;@media(max-width:640px){flex:none;padding:10px 12px;font-size:0.75rem;}`;
 const FinalizeBtn=styled.button`display:inline-flex;align-items:center;gap:6px;padding:6px 14px;background:#FFFFFF;border:1px solid #E2E8F0;border-radius:6px;font-size:0.8125rem;font-weight:600;color:#475569;cursor:pointer;transition:background 0.15s, border-color 0.15s;&:hover{background:#F8FAFC;border-color:#CBD5E1;color:#0F172A;}@media(max-width:640px){padding:6px 10px;}`;
 const FinalizeIcon=styled.svg`width:16px;height:16px;flex-shrink:0;`;
@@ -3274,7 +3274,7 @@ const TabBadge=styled.span<{$active?:boolean}>`display:inline-flex;align-items:c
    고침: **가로 스크롤을 세로 스크롤러로 올린다.** 그러면 sticky 가 진짜 스크롤러(ListScroll)에 묶여
    목록 맨 위에 붙고, 가로 스크롤도 그대로 된다(실측: sticky top 280 == 패널 top 280, 가로 스크롤 유지).
    TableHScroll 은 래퍼로만 남긴다 — JSX 를 건드리지 않기 위해서다(min-width 를 가진 자식들의 기준). */
-const ListScroll=styled.div`flex:1;overflow-y:auto;overflow-x:auto;overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch;&::-webkit-scrollbar{width:6px;height:6px;}&::-webkit-scrollbar-thumb{background:#E2E8F0;border-radius:3px;}`;
+const ListScroll=styled.div`flex:1;overflow-y:auto;overflow-x:auto;overscroll-behavior-x:contain;&::-webkit-scrollbar{width:6px;height:6px;}&::-webkit-scrollbar-thumb{background:#E2E8F0;border-radius:3px;}`;
 const TableHScroll=styled.div`overflow:visible;`;
 const BottomAddLink=styled.button`margin:10px 14px 20px;padding:6px 0;background:transparent;color:#94A3B8;border:none;font-size:0.8125rem;font-weight:500;cursor:pointer;text-align:left;display:block;font-family:inherit;&:hover{color:#0F766E;}`;
 // #250 태그 관리 진입 — FilterBar 안의 보조 버튼. 기존 FinalizeBtn 톤을 그대로(bespoke 금지).

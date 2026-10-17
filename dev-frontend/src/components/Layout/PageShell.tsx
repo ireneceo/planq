@@ -226,7 +226,6 @@ const PhoneActionRow = styled.div`
   border-bottom: 1px solid #e2e8f0;
   flex-shrink: 0;
   overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
   &::-webkit-scrollbar { display: none; }
   /* 안쪽 요소가 스스로 줄어들어 사라지지 않게 — 넘치면 줄 전체가 스크롤된다 */
@@ -281,5 +280,4 @@ const Body = styled.div`
   /* N+29 — 본문만 스크롤. flex 자식 안에서 overflow-y:auto 가 동작하려면 min-height:0 필수 (flex hack). */
   min-height: 0;
   overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
 `;

@@ -21,7 +21,6 @@ export const postContentTableCss = css`
     margin: 16px 0;
     max-width: 100%;
     overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
     &::-webkit-scrollbar { height: 8px; }
     &::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 4px; }
   }

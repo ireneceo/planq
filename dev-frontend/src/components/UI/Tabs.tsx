@@ -8,7 +8,6 @@ export const TabContainer = styled.div`
   margin-bottom: 32px;
   border-bottom: 1px solid #E6EBF1;
   overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
   &::-webkit-scrollbar { height: 3px; }
   &::-webkit-scrollbar-track { background: #F8FAFC; }
   &::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 3px; }

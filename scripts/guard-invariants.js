@@ -248,6 +248,24 @@ function checkFontPx() {
 }
 
 // ═══════════════════════════════════════════════
+// iosstack — -webkit-overflow-scrolling:touch 금지 (2026-10-17)
+//   아이폰은 이 값이 붙은 스크롤 상자를 별도 층으로 만들어, 그 안의 fixed 상세 패널이 바깥 앱 머리줄 아래에 깔린다
+//   (업무 상세 제목이 머리줄에 가려진 운영 신고). 크롬은 무시해서 화면 검사로는 안 잡힌다 — 그래서 소스로 막는다.
+// ═══════════════════════════════════════════════
+function checkIosStack() {
+  const files = walk(`${ROOT}/dev-frontend/src`, ['.ts', '.tsx', '.css']);
+  const hits = [];
+  for (const f of files) {
+    read(f).split('\n').forEach((l, i) => {
+      const t = l.trim();
+      if (t.startsWith('//') || t.startsWith('*')) return;
+      if (/-webkit-overflow-scrolling:\s*touch|WebkitOverflowScrolling:\s*['"]touch/.test(l)) hits.push(`${rel(f)}:${i + 1}: ${t.slice(0, 90)}`);
+    });
+  }
+  report('iosstack', '-webkit-overflow-scrolling:touch 0건 (아이폰에서 상세 패널이 앱 머리줄 아래로 깔림 · 하드 게이트)', hits.length === 0, hits.slice(0, 12));
+}
+
+// ═══════════════════════════════════════════════
 // 2b. parity — locales ko/en 키 패리티 래칫 + i18n.ts ns 등록 하드 게이트
 //     "기획 단계부터 ko/en 동시 작성" (CLAUDE.md 다국어 필수) 자동 검출.
 // ═══════════════════════════════════════════════
@@ -3660,6 +3678,7 @@ const CATEGORIES = {
   i18n: checkI18n,
   parity: checkParity,
   fontpx: checkFontPx,
+  iosstack: checkIosStack,
   tenant: checkTenant,
   pagination: checkPagination,
   notify: checkNotify,

@@ -991,7 +991,6 @@ const FilterScroll = styled.div`
     gap:6px;
     flex-wrap:nowrap;
     overflow-x:auto;
-    -webkit-overflow-scrolling:touch;
     scrollbar-width:none;
     &::-webkit-scrollbar{ display:none; }
     /* 넘쳤다는 신호 — 스크롤바를 숨겼으니 오른쪽 끝을 흐린다(Q Mail FolderTabs 와 같은 방식). */

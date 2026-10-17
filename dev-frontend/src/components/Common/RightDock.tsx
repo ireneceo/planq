@@ -298,7 +298,6 @@ const Menu = styled.div`
   /* #86 — 짧은 화면(키보드/가로모드)에서 위로 넘쳐 상단바 뒤로 잘리지 않게: visual viewport 안에 가두고 스크롤 */
   max-height: calc(var(--vvh, 100dvh) - 96px);
   overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
   padding: 2px;            /* 스크롤 시 버튼 그림자 잘림 방지 */
   scrollbar-width: none;
   &::-webkit-scrollbar { display: none; }

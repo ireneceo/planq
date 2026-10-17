@@ -710,12 +710,15 @@ const MainContent = styled.div<{ $marginLeft: number; $tabMode?: boolean }>`
 
 /* 페이지 스크롤 영역 — 배너 아래 남은 공간(flex:1). 흐름형 페이지는 여기서 스크롤,
    PanelLayout 형(height:100%) 페이지는 이 영역을 꽉 채움. */
+// ★ -webkit-overflow-scrolling:touch 를 쓰지 않는다 (2026-10-17, Irene «모바일에서 우측패널 상세 열어도 좌측 헤더가 나와 … 업무명 못봐»).
+//   아이폰(WebKit)은 이 값이 있는 스크롤 상자를 **따로 층(stacking context)** 으로 만든다 — 그 안에 그려지는 상세 패널
+//   (position:fixed · z 130)이 상자 밖 앱 머리줄(z 99) **아래**에 깔려 제목·칩이 가려졌다. 크롬은 이 값을 무시해 재현되지 않는다.
+//   iOS 13 부터 관성 스크롤은 기본이라 남은 효과는 이 부작용뿐이다. 가드 --category=iosstack.
 const PageScroll = styled.div`
   flex: 1;
   min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
-  -webkit-overflow-scrolling: touch;
 `;
 
 const MobileHeader = styled.div<{ $tabMode?: boolean }>`

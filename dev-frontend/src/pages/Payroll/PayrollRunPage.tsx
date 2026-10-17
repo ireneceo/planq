@@ -300,7 +300,7 @@ const Info = styled.div<{ $subtle?: boolean }>`
 const Warn = styled.div`margin-bottom: 10px; padding: 8px 12px; border-radius: 8px; background: #FFFBEB; color: #B45309; font-size: 0.8125rem;`;
 const TabRow = styled.div`display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 6px 0 12px; flex-wrap: wrap;`;
 const Empty = styled.div`padding: 40px 16px; text-align: center; color: #64748B; font-size: 0.875rem; line-height: 1.6; background: #FFF; border: 1px dashed #E2E8F0; border-radius: 12px;`;
-const TableWrap = styled.div`background: #FFF; border: 1px solid #E2E8F0; border-radius: 12px; overflow-x: auto; -webkit-overflow-scrolling: touch;`;
+const TableWrap = styled.div`background: #FFF; border: 1px solid #E2E8F0; border-radius: 12px; overflow-x: auto; `;
 const Table = styled.table`border-collapse: separate; border-spacing: 0; min-width: 100%; font-size: 0.8125rem;`;
 const Th = styled.th<{ $sticky?: boolean; $sum?: boolean }>`
   position: ${(p) => (p.$sticky ? 'sticky' : 'static')}; left: 0; z-index: ${(p) => (p.$sticky ? 1 : 0)};

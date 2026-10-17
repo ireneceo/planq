@@ -75,6 +75,6 @@ const PaneWrap = styled.div<{ $active: boolean }>`
   flex-direction: column; flex: 1; min-height: 0; height: 100%; min-width: 0;
 `;
 const PaneScroll = styled.div`
-  flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; -webkit-overflow-scrolling: touch;
+  flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; 
 `;
 const Fallback = styled.div`flex: 1;`;

@@ -531,7 +531,6 @@ const Toolbar = styled.div<{ $compact?: boolean }>`
       overflow-x: auto;
       overflow-y: hidden;
       padding: 4px 6px;
-      -webkit-overflow-scrolling: touch;
       overscroll-behavior-x: contain;
       scrollbar-width: none;
       &::-webkit-scrollbar { display: none; }
@@ -577,7 +576,7 @@ const Body = styled.div<{ $editable?: boolean; $borderless?: boolean; $compact?:
   min-height: ${p => p.$compact ? '0' : (p.$editable ? '240px' : '80px')};
   /* compact (메모 popup) — Wrap 이 overflow:hidden + flex:1 이라 Body 가 직접 스크롤 영역이어야 함.
      이게 없으면 본문이 길어질 때 Wrap 에 잘려 스크롤 불가 (메모장 스크롤 안 됨 회귀 fix). */
-  ${p => p.$compact ? `flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch;` : ''}
+  ${p => p.$compact ? `flex: 1; min-height: 0; overflow-y: auto; ` : ''}
 
   ${signatureFieldEditorCss}${checklistEditorCss}${findReplaceEditorCss}
 
@@ -591,7 +590,6 @@ const Body = styled.div<{ $editable?: boolean; $borderless?: boolean; $compact?:
     margin: 16px 0;
     max-width: 100%;
     overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
     &::-webkit-scrollbar { height: 8px; }
     &::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 4px; }
   }
@@ -672,7 +670,6 @@ const Body = styled.div<{ $editable?: boolean; $borderless?: boolean; $compact?:
   & table:has(colgroup col:nth-child(9)) {
     display: block;
     overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
     table-layout: auto;
     &::-webkit-scrollbar { height: 8px; }
     &::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 4px; }
