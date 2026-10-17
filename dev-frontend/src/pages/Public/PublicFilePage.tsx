@@ -124,7 +124,7 @@ const PublicFilePage = () => {
     <PublicPageShell layout="card" width="sm" brand={false}>
       <ErrorTitle>{t('public.notFound', { defaultValue: '링크가 만료되었거나 없는 항목입니다' }) as string}</ErrorTitle>
       <Hint>{t('public.notFoundHint', { defaultValue: '링크 작성자에게 다시 받으세요.' }) as string}</Hint>
-      <CTA href="/" type="button">{t('public.goHome', { defaultValue: 'PlanQ 홈으로' }) as string}</CTA>
+      <CTA href="/" rel="noreferrer" type="button">{t('public.goHome', { defaultValue: 'PlanQ 홈으로' }) as string}</CTA>
     </PublicPageShell>
   );
 

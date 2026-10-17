@@ -235,7 +235,8 @@
       "regNoIntl": "Company reg. no.",
       "krEntity": "Korea entity",
       "myEntity": "Malaysia entity"
-    }
+    },
+    "cookieSettings": "Cookie settings"
   },
   "featuresPage": {
     "eyebrow": "FEATURES",
@@ -1618,5 +1619,26 @@
     "setupBody": "Turning on notifications, installing the mobile app, connecting your calendar and connecting an AI app (ChatGPT, Claude) are one-off setups each person does, whatever the stage.",
     "closingTitle": "Start with stage 1",
     "closingSub": "New accounts get a 14-day free trial."
+  },
+  "consent": {
+    "bannerLabel": "Cookie notice",
+    "bannerNotice": "PlanQ's public pages use Google Analytics and Meta Pixel cookies for visit statistics and ad measurement. You can turn them off in Settings.",
+    "bannerAsk": "May we use Google Analytics and Meta Pixel cookies for visit statistics and ad measurement? Nothing is loaded until you allow it.",
+    "ok": "OK",
+    "accept": "Allow",
+    "reject": "Decline",
+    "settings": "Settings",
+    "cancel": "Cancel",
+    "save": "Save",
+    "modalTitle": "Cookie settings",
+    "modalIntro": "Used only on our public pages and the sign-up screen — never inside the service after you log in, on shared links, or in the apps. Your choice is stored in this browser only.",
+    "essential": "Essential",
+    "essentialDesc": "Needed to keep you signed in and secure.",
+    "always": "Always on",
+    "analytics": "Visit statistics",
+    "analyticsDesc": "Google Analytics — which pages are viewed and where visitors come from.",
+    "ads": "Ad measurement",
+    "adsDesc": "Meta Pixel — whether an ad led to a sign-up or inquiry, and who to show ads to.",
+    "privacyLink": "Read the privacy policy"
   }
 }

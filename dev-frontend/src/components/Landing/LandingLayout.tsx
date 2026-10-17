@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Link, NavLink, useLocation } from 'react-router-dom';
 import { useSeoHead } from '../../hooks/useSeoHead';
 import { useLandingBeacon } from '../../hooks/useLandingBeacon';
+import { CONSENT_OPEN_EVENT } from '../../services/marketingTags';
 import BILLING_ENTITY from '../../config/legalEntities';
 import styled, { css } from 'styled-components';
 import { useTranslation } from 'react-i18next';
@@ -20,6 +21,7 @@ interface CompanyInfo {
   company_phone: string | null;
   company_email: string | null;
   support_email: string | null;
+  gtm_container_id?: string | null;
 }
 
 // ★ 2026-10-12 GNB 정리 (Irene: "GNB가 너무 많은데 … 전체 다 판단 좀 해줘. fable이" → Fable 판정).
@@ -262,6 +264,13 @@ const LandingLayout: React.FC<Props> = ({ children, transparentTop = true }) => 
               <FooterTitle>{t('footer.legal', 'LEGAL')}</FooterTitle>
               <FooterLink to="/privacy">{t('footer.privacy', '개인정보처리방침')}</FooterLink>
               <FooterLink to="/terms">{t('footer.terms', '이용약관')}</FooterLink>
+              {/* 쿠키 설정 — 측정 태그가 켜진 서버에서만(services/marketingTags). 꺼져 있으면 고를 것이 없다. */}
+              {company?.gtm_container_id && (
+                <FooterButton type="button" data-testid="footer-cookie-settings"
+                  onClick={() => window.dispatchEvent(new CustomEvent(CONSENT_OPEN_EVENT))}>
+                  {t('footer.cookieSettings', '쿠키 설정')}
+                </FooterButton>
+              )}
             </FooterCol>
           </FooterCols>
           <FooterBottom>
@@ -569,6 +578,12 @@ const FooterTitle = styled.div`
 const FooterLink = styled(Link)`
   font-size: 0.8125rem; color: #94A3B8;
   text-decoration: none;
+  transition: color 0.15s;
+  &:hover { color: #FFFFFF; }
+`;
+const FooterButton = styled.button`
+  padding: 0; border: none; background: none; cursor: pointer; text-align: left;
+  font: inherit; font-size: 0.8125rem; color: #94A3B8;
   transition: color 0.15s;
   &:hover { color: #FFFFFF; }
 `;

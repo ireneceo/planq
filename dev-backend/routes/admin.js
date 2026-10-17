@@ -706,6 +706,10 @@ router.put('/platform-settings', async (req, res, next) => {
       const bad = require('../services/apple_oauth_login').validatePrivateKey(String(b.apple_private_key).trim());
       if (bad) return errorResponse(res, `apple_private_key_invalid: ${bad}`, 400);
     }
+    // GTM 컨테이너 ID — 모양이 틀린 값이 들어가면 랜딩이 엉뚱한 주소의 스크립트를 싣는다.
+    if (b.gtm_container_id && !/^GTM-[A-Z0-9]{4,12}$/.test(String(b.gtm_container_id).trim())) {
+      return errorResponse(res, 'gtm_container_id_invalid (GTM-XXXXXXX)', 400);
+    }
     for (const k of ['apple_team_id', 'apple_key_id']) {
       if (b[k] && !/^[A-Z0-9]{10}$/.test(String(b[k]).trim())) return errorResponse(res, `${k}_invalid (10자 영문 대문자·숫자)`, 400);
     }
@@ -773,6 +777,7 @@ router.put('/platform-settings', async (req, res, next) => {
       ...setStr('og_image_url', 500),
       ...setStr('app_ios_url', 500),
       ...setStr('app_android_url', 500),
+      ...(b.gtm_container_id !== undefined ? { gtm_container_id: String(b.gtm_container_id || '').trim() || null } : {}),
       updated_by_user_id: req.user.id,
     };
     // VAT rate 0~1 검증

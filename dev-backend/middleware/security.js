@@ -131,7 +131,10 @@ const cspMiddleware = (req, res, next) => {
     // ★ apis.google.com — Google Picker(`js/api.js`). Picker 는 외부 스크립트가 **필수**라
     //   'self' 만 두면 **에러 하나 없이 조용히 죽는다**(2026-09-02 srcdoc CSP 사고와 같은 모양:
     //   스크립트가 안 돌아 높이가 추정치에 고정됐다). 도메인은 이 하나만 연다.
-    "script-src 'self' https://apis.google.com",
+    // ★ googletagmanager·connect.facebook.net — 랜딩 마케팅 측정(GTM·GA4·Meta 픽셀, 2026-10-17).
+    //   싣는 판정은 프론트 services/marketingTags 한 곳(랜딩·가입 화면만, 동의·ID 있을 때만).
+    //   'unsafe-inline' 은 열지 않는다 — GTM 안 «맞춤 HTML» 태그는 막히는 것이 의도다(템플릿만).
+    "script-src 'self' https://apis.google.com https://www.googletagmanager.com https://connect.facebook.net",
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "font-src 'self' https://fonts.gstatic.com data:",
     "img-src 'self' data: blob: https:",

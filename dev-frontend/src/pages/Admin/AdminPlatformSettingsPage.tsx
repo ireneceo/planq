@@ -40,6 +40,7 @@ interface PlatformSettings {
   apple_key_id: string | null;
   apple_private_key_set?: boolean;
   app_android_url: string | null;
+  gtm_container_id: string | null;
 }
 
 const EMPTY: PlatformSettings = {
@@ -49,7 +50,7 @@ const EMPTY: PlatformSettings = {
   guest_links_enabled: false,
   announcement_text: '', announcement_text_en: '', announcement_dismissible: true, announcement_severity: 'info',
   seo_title: '', seo_description: '', seo_keywords: '', og_image_url: '',
-  app_ios_url: '', app_android_url: '',
+  app_ios_url: '', app_android_url: '', gtm_container_id: '',
   apple_services_id: '', apple_team_id: '', apple_key_id: '', apple_private_key_set: false,
 };
 
@@ -88,6 +89,7 @@ const AdminPlatformSettingsPage = () => {
           og_image_url: r.data.og_image_url || '',
           app_ios_url: r.data.app_ios_url || '',
           app_android_url: r.data.app_android_url || '',
+          gtm_container_id: r.data.gtm_container_id || '',
           apple_services_id: r.data.apple_services_id || '',
           apple_team_id: r.data.apple_team_id || '',
           apple_key_id: r.data.apple_key_id || '',
@@ -409,6 +411,21 @@ const AdminPlatformSettingsPage = () => {
             />
           </AutoSaveField>
           <OgHint>{t('platform.app_url_hint', '/app 다운로드 페이지가 방문자 환경(iOS/Android)에 맞춰 이 링크로 안내합니다. 비우면 "출시 준비 중"으로 표시됩니다.')}</OgHint>
+        </Field>
+
+        {/* 랜딩 마케팅 측정(GTM) — 비우면 꺼짐. 서버별 설정이라 dev 값은 운영에 안 간다(docs/MARKETING_TRACKING_DESIGN.md §6) */}
+        <Field>
+          <Label>{t('platform.gtm_container_id', '마케팅 측정 — Google 태그 관리자 컨테이너 ID')}</Label>
+          <AutoSaveField type="input" onSave={async () => save({ gtm_container_id: (data.gtm_container_id || '').trim().toUpperCase() })}>
+            <Input
+              value={data.gtm_container_id || ''}
+              onChange={(e) => set('gtm_container_id', e.target.value)}
+              placeholder="GTM-XXXXXXX"
+              maxLength={20}
+              data-testid="admin-gtm-container-id"
+            />
+          </AutoSaveField>
+          <OgHint>{t('platform.gtm_hint', '넣으면 공개 소개 페이지·회원가입 화면에서만 이 컨테이너(GA4·Meta 픽셀)를 싣습니다 — 로그인 뒤 서비스 화면·공유 링크·앱에서는 싣지 않습니다. 비우면 꺼집니다. 처리방침 문구를 먼저 반영하고 넣으세요.')}</OgHint>
         </Field>
       </Card>
 

@@ -206,6 +206,11 @@ async function finishOauthLogin(req, res, { provider, profile, native, pairId, l
 
   await issueSessionCookie(req, res, user, { method: provider });
   // 303 — 애플 콜백은 POST 라 302 면 일부 브라우저가 POST 를 다시 보낸다. GET 콜백에도 무해하다.
+  // 새로 가입한 사람(초대 아님·돌아갈 곳 없음)은 «가입 완료» 착지를 한 번 지난다 — 이메일 가입과 같은 자리에서
+  //   가입 전환(pq_sign_up)을 한 번 재고 앱으로 간다(docs/MARKETING_TRACKING_DESIGN.md §3-3, Fable D).
+  if (isNewUser && !inviteResolved && !redirect) {
+    return res.redirect(303, `/register?done=1&method=${encodeURIComponent(provider)}`);
+  }
   return res.redirect(303, buildRedirectTarget({ ok: true, isNewUser, redirect }));
 }
 

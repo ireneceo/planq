@@ -14,7 +14,7 @@ router.get('/info', async (req, res, next) => {
       attributes: [
         'brand', 'legal_entity', 'website',
         'biz_registration_no', 'mail_order_no', 'representative_name',
-        'company_phone', 'company_email', 'company_address', 'support_email',
+        'company_phone', 'company_email', 'company_address', 'support_email', 'gtm_container_id',
       ],
     });
     // 전자상거래법 표시의무 항목만 노출 (계좌 등 비표시 필드는 제외 — 최소 노출)
@@ -28,6 +28,8 @@ router.get('/info', async (req, res, next) => {
       company_phone: row?.company_phone || null,
       company_email: row?.company_email || row?.support_email || null,
       company_address: row?.company_address || null,
+      // 랜딩 마케팅 측정(GTM) — 비어 있으면 랜딩이 아무것도 싣지 않는다(docs/MARKETING_TRACKING_DESIGN.md §6).
+      gtm_container_id: row?.gtm_container_id || null,
     });
   } catch (err) { next(err); }
 });

@@ -118,6 +118,9 @@ PlatformSetting.init({
   //   iOS: App Store 또는 TestFlight 초대 링크 / Android: Play Store 또는 직접 APK URL.
   app_ios_url: { type: DataTypes.STRING(500), allowNull: true },
   app_android_url: { type: DataTypes.STRING(500), allowNull: true },
+  // 마케팅 측정 GTM 컨테이너 ID (2026-10-17, docs/MARKETING_TRACKING_DESIGN.md) — 비우면 꺼짐.
+  //   서버별 DB 라 dev 는 비워 두면 운영 통계에 시험 방문이 섞이지 않는다. 공개 값(페이지 소스에 보이는 값)이다.
+  gtm_container_id: { type: DataTypes.STRING(20), allowNull: true },
   updated_by_user_id: {
     type: DataTypes.INTEGER,
     allowNull: true,

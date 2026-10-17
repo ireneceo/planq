@@ -8,6 +8,7 @@ import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { usePwaInstall } from '../../contexts/PwaInstallContext';
 import { isNativeApp } from '../../services/native';
+import { track } from '../../services/marketingTags';
 import LandingLayout from '../../components/Landing/LandingLayout';
 import AppQrCode, { appDownloadUrl } from '../../components/Common/AppQrCode';
 import { getManualSteps } from '../../utils/pwaInstallSteps';
@@ -72,7 +73,7 @@ export default function DownloadAppPage() {
       <PlatLabel>{t(`${p}.label`)}</PlatLabel>
       {url ? (
         <>
-          <PrimaryBtn href={url} target="_blank" rel="noopener noreferrer">{t(`${p}.cta`)}</PrimaryBtn>
+          <PrimaryBtn href={url} target="_blank" rel="noopener noreferrer" onClick={() => track('pq_app_download', { platform: p })}>{t(`${p}.cta`)}</PrimaryBtn>
           {/* 링크가 App Store 가 아니면 무엇을 거치는지 미리 알린다. 문구를 박지 않고
               **주소에서 파생**시켜, 나중에 App Store 주소로 바꾸면 이 줄이 저절로 사라진다.
               (2026-09-04 — TestFlight 언급을 전부 걷었더니 사용자가 예고 없이 그 화면을 만났다) */}
@@ -155,6 +156,7 @@ function AndroidPwaInstall({ onThisDevice }: { onThisDevice: boolean }) {
     setBusy(true);
     try {
       const r = await pwa.install();
+      if (r === 'accepted') track('pq_app_download', { platform: 'android_pwa' });
       setMsg(r === 'accepted' ? t('androidPwa.done') as string : r === 'dismissed' ? t('androidPwa.dismissed') as string : null);
     } finally { setBusy(false); }
   };
@@ -192,6 +194,7 @@ function DesktopPwaInstall() {
     setBusy(true);
     try {
       const r = await pwa.install();
+      if (r === 'accepted') track('pq_app_download', { platform: 'desktop_pwa' });
       setMsg(r === 'accepted' ? t('desktopPwa.done') as string : r === 'dismissed' ? t('desktopPwa.dismissed') as string : null);
     } finally { setBusy(false); }
   };

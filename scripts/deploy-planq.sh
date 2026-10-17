@@ -598,6 +598,8 @@ sync_database() {
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-client-to-member.js 2>&1 | tail -20"
   # 2026-10-17 내 명함 — name_cards · saved_name_cards 표(멱등). 모델이 읽으므로 PM2 reload 전. nginx `location ^~ /c/` noindex 는 따로(Irene sudo).
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-name-cards.js 2>&1 | tail -5"
+  # 2026-10-17 랜딩 마케팅 측정 — platform_settings.gtm_container_id(NULL = 꺼짐). 모델이 SELECT 하므로 PM2 reload 전. 켜기는 Irene 승인 뒤 관리자 화면.
+  prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-marketing-tags.js 2>&1 | tail -5"
   # 2026-09-21 문의/피드백 구분 — feedback_items.kind ENUM. 신 코드가 kind 를 쓰므로 PM2 reload 전.
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-feedback-kind.js 2>&1 | tail -5"
   # 2026-10-15 문의·피드백 답 읽음 — feedback_items.reply_seen_at DATETIME NULL(옛 답은 읽음으로 백필, 처음 만들 때만).

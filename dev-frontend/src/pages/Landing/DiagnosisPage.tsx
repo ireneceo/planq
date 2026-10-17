@@ -11,6 +11,7 @@ import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { i18nArray } from '../../utils/i18nArray';
 import LandingLayout from '../../components/Landing/LandingLayout';
+import { track } from '../../services/marketingTags';
 import { Container, Eyebrow, PrimaryCta, SecondaryCta } from '../../components/Landing/landingShell';
 
 const LAYERS = ['structure', 'workflow', 'information', 'decision', 'automation', 'platform'] as const;
@@ -69,6 +70,8 @@ const DiagnosisPage: React.FC = () => {
       if (!j.success) throw new Error(j.message);
       setResult(j.data as Result);
       setStep(13);
+      // 범주값만(고른 업종·인원·가장 약한 층) — 문항 점수는 보내지 않는다(docs/MARKETING_TRACKING_DESIGN.md §3-4)
+      track('pq_diagnosis_complete', { industry: industry || undefined, team_size: teamSize || undefined, weakest_layer: (j.data as Result).weakest });
       clearStore();
     } catch { setError(D('submitFailed')); }
     finally { setSubmitting(false); }
@@ -86,6 +89,7 @@ const DiagnosisPage: React.FC = () => {
       const j = await r.json();
       if (!j.success) throw new Error(j.message);
       setMailState('sent');
+      track('pq_diagnosis_email');
     } catch { setMailState('error'); setMailError(D('sendFailed')); }
   };
 
@@ -104,7 +108,7 @@ const DiagnosisPage: React.FC = () => {
                 <H1>{D('title')}</H1>
                 <Lead>{D('sub')}</Lead>
                 <LayerChips>{LAYERS.map((l) => <Chip key={l}>{D(`layers.${l}`)}</Chip>)}</LayerChips>
-                <Actions><StartBtn type="button" onClick={() => setStep(0)} data-testid="diagnosis-start">{D('start')}</StartBtn></Actions>
+                <Actions><StartBtn type="button" onClick={() => { setStep(0); track('pq_diagnosis_start'); }} data-testid="diagnosis-start">{D('start')}</StartBtn></Actions>
               </>
             )}
 

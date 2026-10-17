@@ -1,5 +1,5 @@
 {
-  "_generated": "2026-10-16",
+  "_generated": "2026-10-17",
   "_db": "planq_dev_db",
   "_note": "스키마 변경 후 `node scripts/dump-schema.js` 로 갱신할 것. guard-invariants schemacol 이 읽는다.",
   "tables": {
@@ -1605,6 +1605,33 @@
       "cue_rating_at",
       "cue_rating_by_user_id"
     ],
+    "name_cards": [
+      "id",
+      "user_id",
+      "label",
+      "source_business_id",
+      "name",
+      "name_en",
+      "job_title",
+      "department",
+      "company",
+      "intro",
+      "mobile",
+      "phone",
+      "fax",
+      "email",
+      "website",
+      "address",
+      "links",
+      "accent_color",
+      "has_photo",
+      "photo_ver",
+      "public_token",
+      "is_public",
+      "sort_order",
+      "created_at",
+      "updated_at"
+    ],
     "notification_prefs": [
       "id",
       "user_id",
@@ -1898,7 +1925,8 @@
       "apple_team_id",
       "apple_key_id",
       "apple_private_key_enc",
-      "image_gate_l1_off_until"
+      "image_gate_l1_off_until",
+      "gtm_container_id"
     ],
     "post_attachments": [
       "id",
@@ -2402,6 +2430,17 @@
       "updated_at",
       "status",
       "error_message"
+    ],
+    "saved_name_cards": [
+      "id",
+      "user_id",
+      "source_card_id",
+      "snapshot",
+      "source_updated_at",
+      "has_photo",
+      "memo",
+      "created_at",
+      "updated_at"
     ],
     "schedule_batches": [
       "id",

@@ -235,7 +235,8 @@
       "regNoIntl": "법인등록번호",
       "krEntity": "한국 법인",
       "myEntity": "말레이시아 법인"
-    }
+    },
+    "cookieSettings": "쿠키 설정"
   },
   "featuresPage": {
     "eyebrow": "FEATURES",
@@ -1618,5 +1619,26 @@
     "setupBody": "알림 켜기 · 모바일 앱 설치 · 캘린더 연결 · AI 앱(ChatGPT·Claude) 연결은 단계와 상관없이 각자 한 번 해 두면 됩니다.",
     "closingTitle": "1단계부터 시작해 보세요",
     "closingSub": "가입하면 14일 동안 무료로 써 볼 수 있습니다."
+  },
+  "consent": {
+    "bannerLabel": "쿠키 안내",
+    "bannerNotice": "PlanQ 소개 페이지는 방문 통계와 광고 성과 측정을 위해 Google Analytics·Meta 픽셀 쿠키를 씁니다. 원하지 않으면 «설정»에서 끌 수 있습니다.",
+    "bannerAsk": "방문 통계와 광고 성과 측정을 위해 Google Analytics·Meta 픽셀 쿠키를 써도 될까요? 허용하기 전에는 싣지 않습니다.",
+    "ok": "확인",
+    "accept": "허용",
+    "reject": "거부",
+    "settings": "설정",
+    "cancel": "취소",
+    "save": "저장",
+    "modalTitle": "쿠키 설정",
+    "modalIntro": "공개 소개 페이지와 회원가입 화면에서만 쓰입니다. 로그인한 뒤의 서비스 화면·공유 링크·앱에서는 쓰지 않습니다. 이 선택은 이 브라우저에만 저장됩니다.",
+    "essential": "필수",
+    "essentialDesc": "로그인 유지·보안에 필요한 쿠키입니다.",
+    "always": "항상 켜짐",
+    "analytics": "방문 통계",
+    "analyticsDesc": "Google Analytics — 어떤 페이지를 어디서 보고 들어왔는지 통계로 봅니다.",
+    "ads": "광고 성과",
+    "adsDesc": "Meta 픽셀 — 광고를 보고 가입·문의했는지 재고, 광고 대상을 정합니다.",
+    "privacyLink": "개인정보처리방침 보기"
   }
 }

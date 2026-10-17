@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { startAuthRedirect } from '../../services/oauth';
+import { finishSignup } from '../../services/marketingTags';
 import GoogleAuthButton from '../../components/Auth/GoogleAuthButton';
 import TrialPlanPicker, { DEFAULT_TRIAL_PLAN, parseTrialPlan, type TrialPlanCode } from '../../components/Auth/TrialPlanPicker';
 import styled from 'styled-components';
@@ -280,7 +281,10 @@ const RegisterPage: React.FC = () => {
   const { t: tErr } = useTranslation('errors');
   const navigate = useNavigate();
   const location = useLocation();
-  const { register, isAuthenticated, isLoading: authLoading } = useAuth();
+  const { register, isAuthenticated, isLoading: authLoading, user } = useAuth();
+  // 가입 전환 측정(services/marketingTags) — 이 화면에서 방금 가입했는가 · 완료 처리를 이미 시작했는가
+  const justRegisteredRef = useRef(false);
+  const finishingRef = useRef(false);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -325,6 +329,18 @@ const RegisterPage: React.FC = () => {
 
   useEffect(() => {
     if (!authLoading && isAuthenticated) {
+      // 가입 완료 — 이메일 가입이 방금 성공했거나 구글·애플 신규 가입 착지(/register?done=1, 서버 oauth/finish 가 붙인다).
+      //   가입 전환을 한 번 재고 앱으로 간다(services/marketingTags.finishSignup — 측정이 꺼져 있으면 바로 이동).
+      const qs = new URLSearchParams(location.search);
+      if (justRegisteredRef.current || qs.get('done') === '1') {
+        if (finishingRef.current) return;
+        finishingRef.current = true;
+        const method = justRegisteredRef.current ? 'email' : (qs.get('method') === 'apple' ? 'apple' : 'google');
+        const to = justRegisteredRef.current ? '/dashboard' : '/inbox';
+        void finishSignup({ method, trial_plan: justRegisteredRef.current ? trialPlan : undefined }, user?.id, to,
+          (p) => navigate(p, { replace: true }));
+        return;
+      }
       const redirectQuery = new URLSearchParams(location.search).get('redirect');
       const isValidPath = redirectQuery && redirectQuery.startsWith('/') && !redirectQuery.startsWith('//') && !redirectQuery.includes('javascript:');
       if (isValidPath && redirectQuery !== '/login' && redirectQuery !== '/register') {
@@ -333,7 +349,7 @@ const RegisterPage: React.FC = () => {
         navigate('/dashboard', { replace: true });
       }
     }
-  }, [authLoading, isAuthenticated, navigate, location]);
+  }, [authLoading, isAuthenticated, navigate, location, user?.id, trialPlan]);
 
   const validate = (): boolean => {
     const errors: Record<string, string> = {};
@@ -371,12 +387,17 @@ const RegisterPage: React.FC = () => {
         setIsLoading(false);
         return;
       }
+      // 초대 가입·돌아갈 곳이 있는 가입(공유 링크 → 로그인 → 가입)은 전환으로 세지 않고 종전대로 돌아간다 —
+      //   서버 oauth/finish 의 `!inviteResolved && !redirect` 와 같은 술어. 성공하면 위 effect 가 완료 처리를 한다.
+      justRegisteredRef.current = !inviteToken && !redirectParam;
       const success = await register(name.trim(), email.trim(), password, businessName.trim(),
         { terms_accepted: termsAgreed, privacy_accepted: privacyAgreed, ...(inviteToken ? { invite_token: inviteToken } : { plan_code: trialPlan }) });
       if (!success) {
+        justRegisteredRef.current = false;
         setError(t('register.errorGeneric'));
       }
     } catch (err: unknown) {
+      justRegisteredRef.current = false;
       setError(mapApiError(err, tErr));
     } finally {
       setIsLoading(false);

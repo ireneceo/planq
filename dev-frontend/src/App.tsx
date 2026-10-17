@@ -29,6 +29,7 @@ const BuildVersionGuard = lazy(() => import('./components/Common/BuildVersionGua
 // 다른 창·기기의 워크스페이스 전환을 이 창에 반영 (docs/WORKSPACE_SCOPE_DESIGN.md C4)
 const WorkspaceSyncGuard = lazy(() => import('./components/Common/WorkspaceSyncGuard'));
 const SignupSourceReporter = lazy(() => import('./components/Common/SignupSourceReporter'));
+const MarketingTags = lazy(() => import('./components/Landing/MarketingTags'));
 const LeaveDecisionGuard = lazy(() => import('./components/Common/LeaveDecisionGuard'));
 const DownloadTray = lazy(() => import('./components/Common/DownloadTray'));
 const AppContextMenu = lazy(() => import('./components/Common/AppContextMenu'));
@@ -269,6 +270,8 @@ function ShellApp() {
   const rrNavigate = useNavigate();
   return (
     <>
+      {/* 랜딩 마케팅 측정(GTM) — 랜딩·가입 화면은 로그인 전이라 언제나 이 셸 트리다(services/marketingTags) */}
+      <Suspense fallback={null}><MarketingTags /></Suspense>
       <Suspense fallback={<PageLoadingFallback />}>
       <Routes>
         {/* Public routes */}

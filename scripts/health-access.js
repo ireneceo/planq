@@ -584,8 +584,10 @@ const cases = {
     const u = await M.User.findByPk(inv.user.id);
     assert(u.active_business_id === Y.biz.id, `active ${u.active_business_id} (기대 ${Y.biz.id})`);
     const ctl = await run('ctl', null);
-    assert(ctl.delta === 1 && ctl.target === '/inbox', `대조군 — redirect 없으면 워크스페이스 +1·/inbox 여야: +${ctl.delta} ${ctl.target}`);
-    return `초대 모드: 워크스페이스 +0 · 멤버십 연결 · active=초대 워크스페이스 · 착지 /invite/… | 대조군: +1 · /inbox`;
+    // 일반 신규 가입은 «가입 완료» 착지(/register?done=1)를 지나 앱으로 간다 — 가입 전환 측정(2026-10-17, docs/MARKETING_TRACKING_DESIGN.md §3-3).
+    //   초대 가입은 위처럼 /invite/… 그대로(전환으로 세지 않는다).
+    assert(ctl.delta === 1 && ctl.target === '/register?done=1&method=google', `대조군 — redirect 없으면 워크스페이스 +1·가입 완료 착지 여야: +${ctl.delta} ${ctl.target}`);
+    return `초대 모드: 워크스페이스 +0 · 멤버십 연결 · active=초대 워크스페이스 · 착지 /invite/… | 대조군: +1 · /register?done=1`;
   },
 
   // ─── 0-F invite 3: state 가 redirect 를 나른다 · 열린 리다이렉트 차단 ───

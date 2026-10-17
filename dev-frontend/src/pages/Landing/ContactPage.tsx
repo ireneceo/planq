@@ -13,6 +13,7 @@ import { useSearchParams } from 'react-router-dom';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import LandingLayout from '../../components/Landing/LandingLayout';
+import { track } from '../../services/marketingTags';
 import { useReveal } from '../../hooks/useReveal';
 import { mapApiError } from '../../utils/apiError';
 
@@ -84,6 +85,8 @@ const ContactPage: React.FC = () => {
       const j = await r.json();
       if (!r.ok || !j.success) throw new Error(j.message || 'submit_failed');
       setResult('ok');
+      // 고른 칸 값만 — 이름·메일·본문은 보내지 않는다(docs/MARKETING_TRACKING_DESIGN.md §3-4)
+      track('pq_lead', { lead_type: isQuote ? 'quote' : 'contact', contact_reason: isQuote ? 'quote' : reason });
       setName(''); setEmail(''); setMessage(''); setReason('sales');
       setCompany(''); setPhone(''); setScopes([]);
     } catch (err) {

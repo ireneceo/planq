@@ -289,7 +289,9 @@
     },
     "severity": "Severity",
     "taglinePh": "PlanQ keeps work from becoming a chore.",
-    "terms_version": "Terms of service version"
+    "terms_version": "Terms of service version",
+    "gtm_container_id": "Marketing measurement — Google Tag Manager container ID",
+    "gtm_hint": "When set, this container (GA4 · Meta Pixel) loads only on public pages and the sign-up screen — never in the logged-in service, shared links or apps. Leave empty to turn it off. Update the privacy policy first."
   },
   "page": {
     "title": "Workspace Admin",
