@@ -1,5 +1,12 @@
 # Fable 게이트 대기열 → **판정 기록 보관소** (2026-10-08 부터)
 
+## 2026-10-18 · 랜딩 마케팅 측정 GTM·GA4·Meta 픽셀 (방 d103516d) — 설계 **PASS**(차단 3 반영) · 완료 검증 1회 **FAIL(차단 2)→고침** · 재판정(상황판 Fable 대기 재시도) **PASS**
+- Irene: «메타 픽셀, 구글 서치콘솔, GA4, GTM 설정. 이벤트는 사이트 구조에 맞게 설계하고 설계서도 남기고 발행·게시 전에는 목록 보여주고 승인»
+- 설계 docs/MARKETING_TRACKING_DESIGN.md · 커밋 e6b255f5. 설계 차단(반영): EU 기본 꺼짐↔«거부=안 실음» 모순 → 지역 판정 우리 코드 · 처리방침 보관 문구·자체 집계 해시 · 가입 완료 예외 문장.
+- 완료 차단(고침): ① 이메일 가입 /register?redirect=/c/<토큰> 에서 GTM 실림 → RegisterPage 술어 !inviteToken&&!redirectParam + ensureLoaded 범위·redirect 거절 ② 공유 링크 «홈으로» referrer 토큰 → rel=noreferrer + 같은 사이트 referrer 출처만.
+- 재판정 실측(Fable 읽기): 술어가 서버 finish 와 같음 · ensureLoaded 호출자 2곳뿐 · 네이티브 OAuth 는 앞에서 return · referrer 덮기가 GTM 싣기보다 먼저 · 카나리 ⑨⑩ 실제로 잼(⑨ /login 음성 대조군). 자체: e2e marketingtags 15/15 · health 88/88 · guard 73/74 · build 0.
+- 비차단: 범위 안 경로+쿼리 토큰 referrer(예 /register?redirect=…)는 안 덮음 — 지금 풀 이동 링크 없음, origin+pathname 만 남기면 더 안전 · /register?done=1&redirect 수동 조작 시 /inbox · 픽셀 disablePushState·autoConfig 끔은 GTM 게시 체크(§10-2) · 기존 사용자 done=1 수동 가짜 전환 1건 · 운영 ID 비어 태그 0, OAuth 신규 착지만 배포 즉시.
+
 ## 2026-10-17 · 내 명함(/me/cards · 공개 /c/:token) (방 3b9480e1) — 설계 1회 **FAIL(차단 3)→반영** · 완료 검증 1회 **FAIL(차단 1)→고침, 재판정 없음(한 사안 2회 한도) · 자체 검증**
 - Irene: «내 계정에 내 명함 메뉴 … 자동으로 불러올 거 … 종류마다 … 웹페이지 … 링크랑 큐알 … 명함마다 … 사진 넣으면 나오고 안넣으면 안나오고 … 받은 사람은 다운받아서 저장 … 명함 보관처럼»
 - 설계 차단: ① 색인 차단은 서버(nginx `location ^~ /c/` · ogMeta /c/ · robots AI봇) ② 보관 응답에 원본 토큰 없음 ③ 익명화 트랜잭션에 명함·보관 삭제(사진은 커밋 뒤) + data-export. 비차단(표 이름 name_cards · 미인증·이름 없음 404 · 제어문자 제거 · 레이트리밋 · 복제 새 토큰 등) 반영. docs/BUSINESS_CARD_DESIGN.md 0절.

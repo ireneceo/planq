@@ -154,7 +154,7 @@ GA4(`_ga`)·Meta(`_fbp`) 는 쿠키를 쓰고, 데이터가 미국(Google·Meta)
 Q1 K2 변형(한국 기본 켜짐·그 밖 opt-in, 지역 판정은 우리 코드) · Q2 §2 그대로 + 초대 가입은 GTM 안 실음 · Q3 D(가입 완료 착지 한 곳) · Q4 Meta 로 중간 이벤트 안 보냄(GA4 `begin_sign_up` 만) · Q5 버전 안 올림, 개정일·공지 7일 · Q6 platform_settings + 기존 `/api/platform/info`.
 차단(반영됨): ①EU 기본 꺼짐 ↔ «거부=안 실음» 모순 → 지역 판정을 우리 코드로 ②«보관 14개월» 문구 + 자체 집계 해시 누락 → §5 ③범위 문장 ↔ 가입 완료 예외 → §5 문장에 담음.
 
-### Fable 완료 검증 (2026-10-17) — FAIL 2건 → 고침(재판정 없음: 한 사안 2회 한도, 자체 검증)
+### Fable 완료 검증 (2026-10-17) — FAIL 2건 → 고침 → 재판정 2026-10-18 **PASS**(상황판 Fable 대기 재시도, 비차단은 docs/FABLE_GATE_QUEUE.md)
 1. 이메일 가입이 `/register?redirect=/c/<토큰>` 에서도 가입 완료 처리로 GTM 을 실을 수 있었다(픽셀이 주소를 읽어 토큰 유출 + 돌아갈 곳 회귀)
    → RegisterPage 술어를 `!inviteToken && !redirectParam`(서버 finish 와 같은 술어)로 · `ensureLoaded` 가 범위 밖 주소·`redirect` 있는 주소에서 거절(마지막 방어선).
 2. 공유 링크(`/public/tasks|files|calendar/<토큰>`)의 «홈으로» 문서 이동이 referrer 로 토큰을 실었다
