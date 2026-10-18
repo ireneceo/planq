@@ -1,7 +1,30 @@
 ## 현재 작업 상태
-**마지막 업데이트:** 2026-10-17 밤 (방 f5bf4f06 · 정기 점검 10/18 00:15 — 개발완료 · 배포 판정 · 개발시작)
-**작업 상태:** 완료 — 운영은 이미 4fae09e1(내 명함·메일 본문 확대까지) 배포됨. 아래 방별 절의 «운영 미배포» 표기 중 4fae09e1 이전 커밋은 모두 운영 반영됨. 이번 방: 도움말 «내 명함» 글(dev) · 운영 nginx /c/ 는 Irene 할 일(todomvclt75t)
-**다음 할 일:** 밤 검사 실패 정리(10-16 전체 검사 실패 17·시간초과 2·죽음 1 — 아래 이번 방 절) · 운영 피드백 #463·#464 답글 초안(docs/feedback-replies-2026-10-08.json) Irene 확인 · 도움말 운영 시드(seed-wiki-content.js)는 운영 DB 쓰기라 배포 방/수동 · 아래 방별 «Irene 할 일»·«나중에» 절 그대로
+**마지막 업데이트:** 2026-10-19 새벽 (방 0c7289b2 · 정기 점검 10/19 00:15 — 개발완료 · 배포 · 개발시작)
+**작업 상태:** 완료 — 개발완료 기록(10/17~10/18). 운영은 289cd865 까지 배포돼 있었고 이번 점검에서 49755935(처리방침 개정)까지 배포 시도 — 결과는 아래 «정기 점검 10/19» 절. 아래 방별 절의 «운영 미배포» 중 289cd865 이전 커밋은 모두 운영 반영됨.
+**다음 할 일:** ★ 위로 뜨는 창 이중 오프셋(폰에서 창 아래 56px 잘림 — 289cd865 회귀, 운영에 나가 있음) 수리 · 순찰 «폰 우측 패널 = 전면» 판정 갱신(10-17 계약 변경) · 조직 규모 결정 8건 Irene 답 · 운영 피드백 #463·#464 답글 초안 Irene 확인 · 아래 방별 «Irene 할 일»·«나중에» 절 그대로
+
+### 답 기다림: 조직 규모 검토 — Irene 결정 8건 (방 75b90f45 · 2026-10-18 · [Opus] · 판정 Fable)
+- 원문: «10-20명 이상의 조직의 경우 우리 솔루션을 쓰면 부족하게 느낄 문제가 뭘까? 보완해야 할 기능이나 구조가 있어? … fable 토큰 생기면 진행하게 해줘.»
+- Fable 판정 완료 → docs/ORG_SCALE_REVIEW.md (사실 묶음 docs/for-fable/ORG_SCALE_REVIEW_FACTS.md). 대기 fwmvdbmupa done.
+- 정할 것(5절): ①퇴사 인수인계 도입 ②퇴사자 «나만 보기» 처리(R1) ③대표가 보는 변경 이력 범위(R1) ④팀·부서를 대상 집합으로 ⑤부서장 권한(R1) ⑥요금 구조 ⑦1단계 착수 시점 ⑧2단계 인증 시점 — 권고 전부 문서에.
+- 답이 오면: «권고대로» 면 0단계(퇴사 인수인계·L1 정책·대표용 이력·여러 명 초대·목록 서버 필터)부터 설계(R1 항목 Fable 설계 1회) → 구현. 1단계는 운영 인원 분포를 읽기 전용으로 본 뒤.
+
+### 완료: 마케팅 측정 — Irene 승인(10-18 «권고대로») 뒤 처리방침 개정·고지 메일·켜는 순서 (방 d103516d · 2026-10-18 · [Opus] · Fable PASS) — 49755935 · 운영 미배포
+- 처리방침 8조·3조·10조(시행 2026-10-26, 버전 안 올림) · 처리방침 화면 «쿠키 설정» · scripts/send-policy-notice.js(미리보기 기본·confirm 일치 시만) · docs/marketing/SETUP_GUIDE.md · gtm-container-import.json(가져오기 미검증).
+- 검증: Fable 완료 PASS(비차단 반영) · build EXIT 0 · guard 74/75 · e2e marketingtags 0 실패 · /privacy ko/en 3폭(8조 5항목·시행일·넘침 0) · 쿠키 설정 버튼 3폭 눌러 창 열림 · 메일 미리보기 대상 72.
+- ★ 배포가 10-19 보다 늦으면 시행일을 배포일+7 로(PrivacyPolicy.tsx · legal.json s10 · emailService POLICY_NOTICE 3곳).
+### Irene 할 일 (마케팅 측정 — 상황판에 올림)
+- 배포 당일 공지 띠 + 회원 메일(todomvdbjkl4) · nginx CSP sudo(todomvdbjkw2) · GTM·GA4·Meta 계정·ID·가져오기(todomvdbjl6v) · 10-26 이후 GTM 게시 + 운영 ID 입력(todomvdbjlhb, check)
+### 답 기다림 (이전): 마케팅 측정(GTM·GA4·Meta 픽셀) 게시 목록 승인 (방 d103516d · 2026-10-17 · [Opus] · 설계·검증 Fable)
+- 원문: «이거 해야 하는 거 안한거 있어? 메타 픽셀, 구글 서치콘솔, GA4, GTM 설정. 이벤트는 사이트 구조에 맞게 설계하고 설계서도 남기고 발행·게시 전에는 목록 보여주고 승인»
+- 실측: 서치콘솔만 돼 있었고(06-05 부터 sitemap) GTM·GA4·Meta 픽셀은 0 — 09-21 에 CSP·쿠키 동의 때문에 일부러 안 하고 자체 집계를 만들었었다.
+- 설계 docs/MARKETING_TRACKING_DESIGN.md (Fable 설계 PASS — 한국 기본 켜짐·그 밖 허용 전 0 · 랜딩+가입 화면만 · 가입 완료 착지 한 곳). 이벤트 11종(§3) · GTM 목록(§7) · 처리방침 문구(§10-1).
+- dev 구현: services/marketingTags.ts(판정 한 곳) · components/Landing/MarketingTags(띠·쿠키 설정·페이지뷰·CTA) · 가입/문의/진단/앱 이벤트 · oauth/finish 신규 → /register?done=1 · platform_settings.gtm_container_id(+migrate-marketing-tags.js 배포 슬롯) · /api/platform/info · 관리자 입력칸 · CSP script-src(nginx 스니펫+security.js).
+- Fable 완료 검증 FAIL 2(공유 링크 토큰이 redirect 가입·referrer 로 샐 길) → 고침, 재판정 없음(2회 한도) — 자체 검증 e2e marketingtags 15/15 · health 88/88 · guard 73/74(종전) · build EXIT 0.
+- 운영: 코드가 나가도 운영 gtm_container_id 가 비어 있어 아무것도 안 돈다(처리방침 그대로 사실). dev 는 가짜 GTM-PLANQDEV(띠 확인용).
+- 답이 오면: 승인 → 처리방침 문구 반영(legal.json ko/en, 버전 안 올림) → Irene 할 일(GTM·GA4·Meta 계정·ID, nginx CSP sudo, 개정 공지 7일+메일 승인) → 운영 ID 입력.
+- 별개 결함 발견(미착수): /register?redirect=/invite/<잘못된 토큰> 화면 멈춤(dev·운영 같음).
+- Fable 재판정 2026-10-18 PASS(대기 fwmvd00fs3 done) — 운영 배포 막는 것 없음(켜기는 여전히 Irene 승인 뒤).
 
 ### 완료(빌드 1건 남음): 폰 상세 — PlanQ 앱 머리줄 남기고 상세 머리줄을 그 아래로 (방 1c9351b3 · 2026-10-17 · [Opus]) — 9af2e736 · 운영 미배포
 - 원문: «여전히 운영에 플랜큐 헤더가 없어져. 상세에서도 플랜큐 헤더 그대로 나오고 서브 타이틀 아래로 내려가야지. 모바일에서. … 배포 했는데 왜 안바뀌는지»
