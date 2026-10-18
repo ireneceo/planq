@@ -231,12 +231,12 @@ export const ComposeBtn = styled.button`
 `;
 // 새 메일 작성 모달
 export const ComposeOverlay = styled.div`
-  position: fixed; inset: 0; z-index: 1000;
+  position: fixed; inset: var(--pq-popup-top, 0px) 0 0; z-index: 1000;
   background: rgba(15, 23, 42, 0.45);
   display: flex; align-items: center; justify-content: center;
   padding: 20px;
   @media (max-width: 640px) {
-    height: var(--vvh, 100vh); bottom: auto; padding: 0; align-items: stretch;
+    height: calc(var(--vvh, 100vh) - var(--pq-popup-top, 0px)); bottom: auto; padding: 0; align-items: stretch;
   }
 `;
 export const ComposeModal = styled.div`

@@ -128,7 +128,7 @@ const MailBodyFullscreen: React.FC<Props> = ({ open, onClose, title, subtitle, s
 export default MailBodyFullscreen;
 
 const Backdrop = styled.div`
-  position: fixed; inset: 0; z-index: 1200;
+  position: fixed; inset: var(--pq-popup-top, 0px) 0 0; z-index: 1200;
   background: rgba(15, 23, 42, 0.55);
   display: flex; align-items: center; justify-content: center;
   padding: 24px;
@@ -146,8 +146,9 @@ const Panel = styled.div`
        상태바가 24~47px 을 먹으면 닫기 버튼(세로 중앙 y≈30)이 그 아래로 들어간다.
        아래쪽만 safe 를 주고 위쪽을 뺀 탓 — 안전영역은 원시 env() 가 아니라
        토큰으로, 그리고 **양쪽 다** 준다(memory feedback_safe_area_token_not_raw_env).
-       브라우저는 --pq-safe-top 이 0 이라 이 계열이 웹에서는 재현되지 않는다. */
-    padding-top: var(--pq-safe-top, 0px);
+       브라우저는 --pq-safe-top 이 0 이라 이 계열이 웹에서는 재현되지 않는다.
+       ★ 2026-10-18 — 백드롭이 앱 머리줄 아래(--pq-popup-top)에서 시작하므로 상태바는 그 머리줄이 이미 비웠다. */
+    padding-top: var(--pq-popup-safe-pad, 0px);
     padding-bottom: var(--pq-safe-bottom, 0px);
   }
 `;

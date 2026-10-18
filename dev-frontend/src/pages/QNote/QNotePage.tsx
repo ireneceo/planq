@@ -3685,7 +3685,7 @@ export default QNotePage;
 
 // 사이클 N+24 — review 모드 모달들 (요약 / 질문 / 설정 보기) — 공통 styled
 const ModalBackdrop = styled.div`
-  position: fixed; inset: 0; background: rgba(15, 23, 42, 0.4);
+  position: fixed; inset: var(--pq-popup-top, 0px) 0 0; background: rgba(15, 23, 42, 0.4);
   display: flex; align-items: center; justify-content: center;
   z-index: 100; padding: 24px;
 `;
@@ -4082,7 +4082,7 @@ const SessionDelBtn = styled.button`
   &:hover { background: #FEF2F2; border-color: #FECACA; color: #DC2626; }
 `;
 const SessDelBackdrop = styled.div`
-  position: fixed; inset: 0; background: rgba(15,23,42,0.4);
+  position: fixed; inset: var(--pq-popup-top, 0px) 0 0; background: rgba(15,23,42,0.4);
   display: flex; align-items: center; justify-content: center; z-index: 1100; padding: 20px;
 `;
 const SessDelDialog = styled.div`

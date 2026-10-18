@@ -2511,7 +2511,7 @@ const BulkShareBtn = styled.button`
   &:disabled { opacity: 0.6; cursor: default; }
 `;
 const BundleBackdrop = styled.div`
-  position: fixed; inset: 0; z-index: 2200;
+  position: fixed; inset: var(--pq-popup-top, 0px) 0 0; z-index: 2200;
   background: rgba(15,23,42,0.45);
   display: flex; align-items: center; justify-content: center; padding: 20px;
 `;

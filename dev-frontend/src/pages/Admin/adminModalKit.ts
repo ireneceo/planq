@@ -13,7 +13,7 @@ export const ModalOverlay = styled.div`
      팝업이 뒤에 깔려 보이지도 않고 닫기 버튼도 못 누른다. 그러면 open 상태가 계속 남아
      드로어를 열 때마다 다시 뜬다(운영 신고: "팝업이 뒤로 뜨고 닫을 수가 없어").
      RightDock FAB 120 · 드로어 130 · 이 모달 200 · 전역 LimitReachedDialog 9999 순서. */
-  position: fixed; inset: 0; z-index: 200;
+  position: fixed; inset: var(--pq-popup-top, 0px) 0 0; z-index: 200;
   background: rgba(15,23,42,0.28);
   display: flex; align-items: center; justify-content: center; padding: 20px;
   @media (max-width: 640px) { padding: 0; align-items: stretch; }

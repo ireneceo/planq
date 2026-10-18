@@ -3086,7 +3086,7 @@ const NewItemDesc = styled.div`font-size: 0.6875rem; color: #94A3B8; margin-top:
      오버레이는 공용 모달과 같은 층(1100/1110)에 둔다 — 베낀 컴포넌트는 반드시 갈라진다
      (memory: copied_component_drifts_extract_shell). */
 const ModalBackdrop = styled.div`
-  position: fixed; inset: 0; background: rgba(15,23,42,0.08);
+  position: fixed; inset: var(--pq-popup-top, 0px) 0 0; background: rgba(15,23,42,0.08);
   z-index: 1100;
 `;
 const ModalDialog = styled.div`

@@ -393,7 +393,7 @@ export default GlobalSearchModal;
 
 // ─── styled ───
 const Backdrop = styled.div`
-  position: fixed; inset: 0; background: rgba(15,23,42,0.5);
+  position: fixed; inset: var(--pq-popup-top, 0px) 0 0; background: rgba(15,23,42,0.5);
   display: flex; align-items: flex-start; justify-content: center;
   padding-top: 80px; z-index: 1100;
   @media (max-width: 640px) { padding-top: 0; align-items: stretch; }

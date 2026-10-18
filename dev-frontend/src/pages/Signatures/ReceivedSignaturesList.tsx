@@ -403,7 +403,7 @@ const PageInfo = styled.span`font-size: 0.75rem; color: #64748B; font-variant-nu
 
 // 상세 드로어
 const Backdrop = styled.div`
-  position: fixed; inset: 0; background: rgba(15,23,42,0.5);
+  position: fixed; inset: var(--pq-popup-top, 0px) 0 0; background: rgba(15,23,42,0.5);
   display: flex; align-items: center; justify-content: center;
   z-index: 1200; padding: 16px;
 `;

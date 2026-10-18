@@ -134,15 +134,15 @@ export default StandardModal;
 //   · sm — 풀스크린으로 키우지 않고 가운데 카드. 한두 줄짜리 확인(출근 기록 등)이 화면 전체를 덮으면
 //     보던 화면을 통째로 잃은 것처럼 보인다(#433).
 const Backdrop = styled.div<{ $compact?: boolean }>`
-  position: fixed; inset: 0; background: rgba(15,23,42,0.4);
+  position: fixed; inset: var(--pq-popup-top, 0px) 0 0; background: rgba(15,23,42,0.4);
   display: flex; align-items: center; justify-content: center; z-index: 1100;
   padding: 20px;
   /* 모바일: 키보드가 올라오면 visual viewport(--vvh)로 줄여 하단 입력·버튼이 안 가리게 (운영 #23). */
   @media (max-width: 640px) {
-    height: var(--vvh, 100vh); bottom: auto;
+    height: calc(var(--vvh, 100vh) - var(--pq-popup-top, 0px)); bottom: auto;
     ${p => p.$compact
-      ? 'padding: calc(var(--pq-safe-top, 0px) + 16px) 16px 16px;'
-      : 'align-items: stretch; padding: var(--pq-safe-top, 0px) 0 0;'}
+      ? 'padding: calc(var(--pq-popup-safe-pad, 0px) + 16px) 16px 16px;'
+      : 'align-items: stretch; padding: var(--pq-popup-safe-pad, 0px) 0 0;'}
   }
 `;
 const Dialog = styled.div<{ $maxWidth: string; $compact?: boolean; $full?: boolean }>`

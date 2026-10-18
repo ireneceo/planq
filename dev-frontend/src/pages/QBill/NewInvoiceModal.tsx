@@ -1187,7 +1187,7 @@ export default function NewInvoiceModal({ open, onClose, prefillSplit, prefillPo
 
 // ─── styled ───
 const Backdrop = styled.div`
-  position: fixed; inset: 0; background: rgba(15, 23, 42, 0.08); z-index: 1000;
+  position: fixed; inset: var(--pq-popup-top, 0px) 0 0; background: rgba(15, 23, 42, 0.08); z-index: 1000;
 `;
 const Dialog = styled.div`
   position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);

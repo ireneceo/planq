@@ -160,7 +160,7 @@ const LimitReachedDialog: React.FC = () => {
 export default LimitReachedDialog;
 
 const Backdrop = styled.div`
-  position: fixed; inset: 0;
+  position: fixed; inset: var(--pq-popup-top, 0px) 0 0;
   background: rgba(15, 23, 42, 0.5);
   display: flex; align-items: center; justify-content: center;
   z-index: 9999; padding: 16px;

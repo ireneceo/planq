@@ -477,12 +477,12 @@ export default ShareModal;
 
 // styled
 const Backdrop = styled.div`
-  position: fixed; inset: 0; background: rgba(15,23,42,0.4);
+  position: fixed; inset: var(--pq-popup-top, 0px) 0 0; background: rgba(15,23,42,0.4);
   display: flex; align-items: center; justify-content: center; z-index: 1100; padding: 20px;
   /* 모바일: 오버레이도 visual viewport 에 묶는다 — 안쪽 다이얼로그만 --vvh 로 줄이면
      레이아웃 뷰포트 기준으로 가운데 정렬돼 키보드 아래로 내려앉는다. */
   @media (max-width: 640px) {
-    height: var(--vvh, 100vh); bottom: auto; align-items: stretch; padding: 0;
+    height: calc(var(--vvh, 100vh) - var(--pq-popup-top, 0px)); bottom: auto; align-items: stretch; padding: 0;
   }
 `;
 const Dialog = styled.div`

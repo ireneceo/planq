@@ -172,7 +172,7 @@ const BodyInner = styled.div`
 
 // modal variant styled
 const Backdrop = styled.div`
-  position: fixed; inset: 0; background: rgba(15,23,42,0.4);
+  position: fixed; inset: var(--pq-popup-top, 0px) 0 0; background: rgba(15,23,42,0.4);
   display: flex; align-items: center; justify-content: center; z-index: 1100;
   padding: 20px;
   /* 모바일: bottom sheet 패턴 — 화면 아래쪽에 붙어서 슬라이드업.
@@ -180,7 +180,7 @@ const Backdrop = styled.div`
   @media (max-width: 640px) {
     align-items: flex-end; justify-content: stretch;
     padding: 0;
-    bottom: auto; height: var(--vvh, 100dvh);
+    bottom: auto; height: calc(var(--vvh, 100dvh) - var(--pq-popup-top, 0px));
   }
 `;
 const Dialog = styled.div`

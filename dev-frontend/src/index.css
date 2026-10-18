@@ -181,6 +181,18 @@ html.pq-tabmode { --pq-chrome-bottom: var(--pq-chrome-top); }
    가운데 모달·드롭다운은 이 값을 쓰지 않는다. */
 html { --pq-panel-top: var(--pq-chrome-bottom); }
 
+/* ★ --pq-popup-top : **앱 머리줄 위층으로 뜨는 창(가운데 창·시트·어두운 막·전체 화면 창)이 서는 y** (2026-10-18).
+   Irene: "최상위 헤더를 팝업들도 모바일에서 열릴 땐 가리면 안돼. 같은 정렬이고 레이아웃이어야지.
+           큐너 헬퍼 열면. 우측하단에서 업무일정 둥 추가하면 해도 없어지잖아."
+   → 미러 모드(폰 — 모바일 앱 머리줄이 있는 화면)에서는 상세 패널과 같은 자리(앱 머리줄 바로 아래)에서 시작한다.
+     탭 모드(태블릿·데스크탑)는 0 — 가운데 창이 탭바까지 덮는 종전 동작 그대로.
+   ★ pq-main-shell(MainLayout 이 붙인다) 안에서만 — 팝아웃·공개 화면은 앱 머리줄이 없으니 0 이다.
+   ★ 화면 위로 뜨는 창의 머리 안쪽 여백은 상태바를 또 더하지 않는다 — --pq-popup-safe-pad 를 쓴다
+     (머리줄 아래에서 시작하면 0, 전체 화면으로 뜨는 곳(팝아웃)에서는 상태바만큼). */
+html { --pq-popup-top: 0px; }
+html.pq-main-shell:not(.pq-tabmode) { --pq-popup-top: var(--pq-chrome-bottom); }
+html { --pq-popup-safe-pad: max(0px, calc(var(--pq-safe-top, 0px) - var(--pq-popup-top, 0px))); }
+
 
 /* 에디터 버블(표·이미지 편집 컨트롤) — TipTap 이 만드는 래퍼 div 에 붙는다.
    래퍼는 우리 컴포넌트가 아니라서 styled-components 로는 못 잡는다. className 으로만 닿는다. */

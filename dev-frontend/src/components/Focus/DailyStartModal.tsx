@@ -214,7 +214,7 @@ function formatDue(iso: string, t: (k: string, opts?: Record<string, unknown>) =
 
 // ─── styled ─────────────────────────────────────────────────────
 const Backdrop = styled.div`
-  position: fixed; inset: 0; z-index: 1200;
+  position: fixed; inset: var(--pq-popup-top, 0px) 0 0; z-index: 1200;
   background: rgba(15, 23, 42, 0.55);
   display: flex; align-items: center; justify-content: center;
   padding: 24px;

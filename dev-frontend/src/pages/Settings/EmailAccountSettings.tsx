@@ -984,7 +984,7 @@ const ErrorBox = styled.div`
 `;
 // confirm modal
 const ConfirmBackdrop = styled.div`
-  position: fixed; inset: 0; z-index: 9000;
+  position: fixed; inset: var(--pq-popup-top, 0px) 0 0; z-index: 9000;
   background: rgba(15,23,42,0.5);
   display: flex; align-items: center; justify-content: center; padding: 16px;
 `;

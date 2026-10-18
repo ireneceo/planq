@@ -1516,7 +1516,7 @@ const HeaderShareBtn = styled.button`
 
 // N+63 P2a — RecurrenceScopeModal styled
 const ScopeBackdrop = styled.div`
-  position: fixed; inset: 0; background: rgba(15, 23, 42, 0.4);
+  position: fixed; inset: var(--pq-popup-top, 0px) 0 0; background: rgba(15, 23, 42, 0.4);
   z-index: 2099;
 `;
 const ScopeModal = styled.div`

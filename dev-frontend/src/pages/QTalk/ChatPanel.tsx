@@ -3396,7 +3396,7 @@ const SelectionCancel = styled.button`
 `;
 
 const ConfirmBackdrop = styled.div`
-  position: fixed; inset: 0;
+  position: fixed; inset: var(--pq-popup-top, 0px) 0 0;
   background: rgba(15, 23, 42, 0.35);
   z-index: 2500;
   display: flex; align-items: center; justify-content: center;

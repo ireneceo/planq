@@ -266,6 +266,47 @@ function checkIosStack() {
 }
 
 // ═══════════════════════════════════════════════
+// popuptop — 앱 머리줄(z 99) 위층으로 뜨는 화면 덮개는 --pq-popup-top 에서 시작한다 (2026-10-18)
+//   Irene: "최상위 헤더를 팝업들도 모바일에서 열릴 땐 가리면 안돼." — position:fixed + 화면 맨 위(inset:0·top:0) + z-index>99 인
+//   styled 블록은 폰에서 PlanQ 머리줄을 덮는다. 기준선 토큰(--pq-popup-top · --pq-panel-top)을 쓰거나 아래 허용 목록에 이유와 함께 둔다.
+// ═══════════════════════════════════════════════
+const POPUPTOP_ALLOW = {
+  'components/Auth/PairCodePrompt.tsx': '로그인 코드 입력 — 앱 셸 밖에서도 뜬다',
+  'components/Common/ImageLightbox.tsx': '이미지 전체 화면 보기',
+  'components/Common/ImpersonateBanner.tsx': '대리 로그인 경고 띠(맨 위 고정이 목적)',
+  'components/Common/OpenInAppBanner.tsx': '앱 열기 안내 띠(맨 위 고정이 목적)',
+  'components/Common/TermsReacceptModal.tsx': '약관 재동의 — 앱 전체를 막는 문',
+  'components/Common/UserInfoPopover.tsx': '투명 바깥클릭 막(보이지 않는다)',
+  'components/Common/CueHelpDrawer.tsx': '투명 바깥클릭 막(보이지 않는다)',
+  'pages/QBill/InvoiceDetailDrawer.tsx#MenuBackdrop': '투명 바깥클릭 막(보이지 않는다)',
+  'pages/QBill/PublicInvoicePage.tsx': '공개 화면 — 앱 머리줄 없음',
+  'pages/QDocs/PublicSignPage.styles.ts': '공개 화면 — 앱 머리줄 없음',
+  'pages/QCalendar/QCalendarPage.tsx#LoadingBar': '2px 로딩 막대',
+};
+function checkPopupTop() {
+  const files = walk(`${ROOT}/dev-frontend/src`, ['.ts', '.tsx']);
+  const hits = [];
+  const re = /(?:const|export const)\s+(\w+)\s*=\s*styled[^`]*`([^`]*)`/g;
+  for (const f of files) {
+    const s = read(f); const r = rel(f).replace(/^dev-frontend\/src\//, '');
+    let m; re.lastIndex = 0;
+    while ((m = re.exec(s))) {
+      const body = m[2];
+      if (!/position:\s*fixed/.test(body)) continue;
+      if (!/inset:\s*0\s*;|(^|[;\s{])top:\s*0(px)?\s*[;!]/m.test(body)) continue;
+      const z = Number((body.match(/z-index:\s*(\d+)/) || [])[1] || 0);
+      if (z <= 99) continue;
+      // ★ «토큰을 어딘가 쓴다» 로 면제하지 않는다 — 높이 공식에만 토큰이 있고 top 이 0 이면 그대로 덮는다(양성 대조군이 잡았다).
+      //   위 조건(inset:0 · top:0 이 블록에 남아 있음) 자체가 결함이다.
+      if (POPUPTOP_ALLOW[r] || POPUPTOP_ALLOW[`${r}#${m[1]}`]) continue;
+      if (/^components\/Layout\/MainLayout\.tsx$|^components\/Tab\//.test(r)) continue;   // 앱 머리줄·사이드바·탭바 자신
+      hits.push(`${r}:${s.slice(0, m.index).split('\n').length} ${m[1]} (z ${z})`);
+    }
+  }
+  report('popuptop', '머리줄 위층 화면 덮개는 --pq-popup-top 에서 시작 (폰에서 PlanQ 머리줄을 가리지 않음 · 하드 게이트)', hits.length === 0, hits.slice(0, 12));
+}
+
+// ═══════════════════════════════════════════════
 // 2b. parity — locales ko/en 키 패리티 래칫 + i18n.ts ns 등록 하드 게이트
 //     "기획 단계부터 ko/en 동시 작성" (CLAUDE.md 다국어 필수) 자동 검출.
 // ═══════════════════════════════════════════════
@@ -3681,6 +3722,7 @@ const CATEGORIES = {
   parity: checkParity,
   fontpx: checkFontPx,
   iosstack: checkIosStack,
+  popuptop: checkPopupTop,
   tenant: checkTenant,
   pagination: checkPagination,
   notify: checkNotify,

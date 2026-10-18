@@ -65,7 +65,7 @@ const SeriesScopeDialog: React.FC<Props> = ({ open, onPick, onClose, variant = '
 export default SeriesScopeDialog;
 
 const Backdrop = styled.div`
-  position: fixed; inset: 0; z-index: 1100;
+  position: fixed; inset: var(--pq-popup-top, 0px) 0 0; z-index: 1100;
   background: rgba(15, 23, 42, 0.35);
   display: flex; align-items: center; justify-content: center;
   padding: 20px;

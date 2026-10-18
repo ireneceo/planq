@@ -187,7 +187,7 @@ const SlotFormModal: React.FC<Props> = ({ templateId, businessId, projectId, cli
 export default SlotFormModal;
 
 // ─── styled ───
-const Backdrop = styled.div`position: fixed; inset: 0; background: rgba(15,23,42,0.40); z-index: 1000; display: flex; align-items: center; justify-content: center; padding: 20px;`;
+const Backdrop = styled.div`position: fixed; inset: var(--pq-popup-top, 0px) 0 0; background: rgba(15,23,42,0.40); z-index: 1000; display: flex; align-items: center; justify-content: center; padding: 20px;`;
 const Modal = styled.div`
   width: 100%; max-width: 880px; background: #FFFFFF; border-radius: 14px;
   box-shadow: 0 24px 48px rgba(15,23,42,0.18); display: flex; flex-direction: column;

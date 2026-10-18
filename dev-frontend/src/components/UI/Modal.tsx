@@ -7,7 +7,7 @@ import { useEscapeStack } from '../../hooks/useEscapeStack';
 
 export const ModalOverlay = styled.div`
   position: fixed;
-  top: 0;
+  top: var(--pq-popup-top, 0px);
   left: 0;
   right: 0;
   bottom: 0;

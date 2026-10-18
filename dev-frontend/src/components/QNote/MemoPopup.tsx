@@ -111,9 +111,10 @@ const Container = styled.div<{ $x: number; $y: number; $w: number; $h: number; $
 
   /* 모바일 — 풀스크린 (standalone 도 동일). 키보드 대응(#113): height 를 --vvh 바운드 →
      키보드 up 시 팝업이 줄고 내부 Body 스크롤 + 입력(에디터 캐럿)이 키보드 위에 유지. */
+  /* ★ 2026-10-18 — 앱 머리줄 아래에서 시작한다(--pq-popup-top · 팝아웃 창은 0). Irene: «팝업들도 모바일에서 열릴 땐 머리줄을 가리면 안돼» */
   @media (max-width: 640px) {
-    left: 0 !important; top: 0 !important;
-    width: 100vw !important; height: var(--vvh, 100dvh) !important;
+    left: 0 !important; top: var(--pq-popup-top, 0px) !important;
+    width: 100vw !important; height: calc(var(--vvh, 100dvh) - var(--pq-popup-top, 0px)) !important;
     border-radius: 0;
     padding-bottom: var(--pq-safe-bottom, 0px);
   }
@@ -128,7 +129,7 @@ const Header = styled.div<{ $standalone?: boolean }>`
   flex-shrink: 0;
 
   /* #84 — 모바일(풀스크린) 노치/상태바 대응 (전 팝아웃 헤더 통일). */
-  @media (max-width: 640px) { cursor: default; padding-top: calc(10px + var(--pq-safe-top, 0px)); }
+  @media (max-width: 640px) { cursor: default; padding-top: calc(10px + var(--pq-popup-safe-pad, 0px)); }
 `;
 
 const SearchWrap = styled.div`

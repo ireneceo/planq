@@ -353,7 +353,7 @@ const pulse = keyframes`0%,100%{transform:scale(1);opacity:.9}50%{transform:scal
 const spin = keyframes`to{transform:rotate(360deg)}`;
 
 const Backdrop = styled.div`
-  position: fixed; inset: 0; z-index: 1200;
+  position: fixed; inset: var(--pq-popup-top, 0px) 0 0; z-index: 1200;
   background: rgba(15, 23, 42, 0.45);
   display: flex; align-items: flex-end; justify-content: center;
   @media (min-width: 641px) { align-items: center; }

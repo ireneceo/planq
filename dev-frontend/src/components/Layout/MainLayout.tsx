@@ -105,7 +105,8 @@ const Sidebar = styled.div<{ $isOpen?: boolean; $isCollapsed?: boolean; $tabMode
     /* ★ 2026-09-29 #441 — 열린 메뉴는 **맨 위**다. 헤더의 햄버거는 우측패널(130)·Q helper(1001)가
        떠 있어도 보이므로 누를 수 있는데, 메뉴가 100 층이면 그 패널들 **뒤로** 열려 아무 일이
        없는 것처럼 보였다. 가운데 모달(1100↑)은 헤더까지 덮어 햄버거를 누를 수 없으니 그 아래면 된다. */
-    ${props => props.$isOpen ? 'z-index: 1060;' : ''}
+    /* ★ 10-18 — 폰은 위로 뜨는 창도 머리줄 아래(--pq-popup-top)라 햄버거가 눌린다 → 열린 메뉴는 그 창들(최고 9999)보다 위. */
+    ${props => props.$isOpen ? 'z-index: 10060;' : ''}
     width: 240px; transition: transform 0.3s, width 0.3s ease;
     /* 높이는 --vvh(=visualViewport.height, main.tsx 가 계속 sync) 하나로 잡는다.
        ★ -webkit-fill-available 을 쓰지 않는다 — WKWebView 에서 이 값은 가시영역이 아니라
@@ -767,8 +768,8 @@ const Overlay = styled.div<{ $show?: boolean }>`
   display: ${props => props.$show ? 'block' : 'none'};
   position: fixed; top: 0; left: 0; right: 0; bottom: 0;
   background: rgba(0,0,0,0.4); z-index: 95;
-  /* 열린 메뉴(1060) 바로 밑 — 우측패널·Q helper 위를 덮어야 바깥 탭이 메뉴를 닫는다 (#441) */
-  ${mediaTablet} { z-index: 1055; }
+  /* 열린 메뉴(10060) 바로 밑 — 우측패널·Q helper 위를 덮어야 바깥 탭이 메뉴를 닫는다 (#441) */
+  ${mediaTablet} { z-index: 10055; }
 `;
 
 const MobileContentPadding = styled.div`
@@ -1226,7 +1227,8 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
     // --pq-chrome-bottom(= 상단 크롬이 끝나는 y)의 분기는 index.css 가 한다. 여기서는
     // **같은 술어(tabMode)로 클래스만** 켠다 — 값을 두 번 계산하면 그 순간 갈라진다.
     root.classList.toggle('pq-tabmode', !!tabMode);
-    return () => { root.style.setProperty('--chrome-top', '0px'); root.classList.remove('pq-tabmode'); };
+    root.classList.add('pq-main-shell');   // 앱 머리줄이 있는 화면 — 위로 뜨는 창 기준선(--pq-popup-top)이 본다(index.css)
+    return () => { root.style.setProperty('--chrome-top', '0px'); root.classList.remove('pq-tabmode', 'pq-main-shell'); };
   }, [tabMode]);
 
   // Secondary 접힘 — 아이콘 strip 모드 (완전 숨김 아님). localStorage 유지.

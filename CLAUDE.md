@@ -1718,7 +1718,10 @@ useBodyScrollLock(open);                 // ★ **가운데 모달에만.** 우�
 - **우측 상세/편집은 `components/Common/DetailDrawer` 를 쓴다.** 18개 화면이 이미 쓰고 있어
   기준선 수정 한 번이 전부에 먹는다. 직접 그리면 갈라진다 — 실측으로 오버레이 101개 중
   우측 패널 **8곳**이 `top:0` / `56px` / `--pq-mobile-chrome` / `16px` 로 제각각이었다.
-- **가운데 모달은 예외** — 전면(`inset:0`)으로 크롬을 덮는 게 맞다. 팝오버/드롭다운도 앵커가 다르다.
+- **위로 뜨는 창(가운데 모달·시트·어두운 막·전체 화면 창)도 폰에서는 앱 머리줄을 가리지 않는다** (2026-10-18, Irene: *"최상위 헤더를 팝업들도 모바일에서 열릴 땐 가리면 안돼. 같은 정렬이고 레이아웃이어야지."*) —
+  `inset:0`/`top:0` 대신 `inset: var(--pq-popup-top, 0px) 0 0`(조각 `theme/layout.popupTop`). 값은 index.css 한 곳: 미러 모드(앱 머리줄이 있는 화면, `html.pq-main-shell`) = `--pq-chrome-bottom`, 탭 모드·팝아웃·공개 화면 = 0(탭 모드 데스크탑은 종전처럼 전면).
+  창 머리의 상태바 여백은 `--pq-popup-safe-pad`(머리줄 아래면 0). 열린 햄버거 메뉴는 창들보다 위(10060). `belowTabs` 도 같은 날 `--pq-panel-top` 으로 맞췄다(폰에서 Q task 우측 패널이 머리줄 뒤로 깔렸다).
+  가드 `--category=popuptop`(z>99 + 화면 맨 위 고정 = 실패, 이유 붙은 허용 목록만 예외 — 투명 바깥클릭 막·이미지 보기·공개 화면·약관 재동의). 팝오버/드롭다운은 앵커가 다르다.
 - 재발은 가드가 막는다: `node scripts/guard-invariants.js --category=overlaytop`
   (`position:fixed` + `right:0` 인 styled 의 `top` 이 토큰이 아니면 실패).
 - 실브라우저 회귀: `node scripts/e2e/run.js --suite tabletchrome` (9 뷰포트 + **네이티브 상태바 모사**).

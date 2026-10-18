@@ -137,7 +137,7 @@ export default function AudioUploadModal({ open, businessId, projectId = null, o
 }
 
 const Backdrop = styled.div`
-  position: fixed; inset: 0; z-index: 1200;
+  position: fixed; inset: var(--pq-popup-top, 0px) 0 0; z-index: 1200;
   background: rgba(15, 23, 42, 0.45);
   display: flex; align-items: center; justify-content: center;
   padding: 16px;

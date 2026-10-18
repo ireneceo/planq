@@ -288,7 +288,7 @@ const KbCsvIngestModal: React.FC<Props> = ({ businessId, onClose, onSaved }) => 
 export default KbCsvIngestModal;
 
 const Backdrop = styled.div`
-  position: fixed; inset: 0; z-index: 200;
+  position: fixed; inset: var(--pq-popup-top, 0px) 0 0; z-index: 200;
   background: rgba(15, 23, 42, 0.5);
   display: flex; align-items: center; justify-content: center; padding: 24px;
   @media (max-width: 640px) { padding: 0; align-items: stretch; }

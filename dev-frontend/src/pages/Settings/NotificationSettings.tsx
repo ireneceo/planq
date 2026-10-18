@@ -453,7 +453,7 @@ const PushDiagnoseModal: React.FC<{ os: ReturnType<typeof detectOS>; onClose: ()
   );
 };
 
-const DiagBackdrop = styled.div`position: fixed; inset: 0; background: rgba(15,23,42,0.5); z-index: 3000; display: flex; align-items: center; justify-content: center; padding: 20px;`;
+const DiagBackdrop = styled.div`position: fixed; inset: var(--pq-popup-top, 0px) 0 0; background: rgba(15,23,42,0.5); z-index: 3000; display: flex; align-items: center; justify-content: center; padding: 20px;`;
 const DiagCard = styled.div`background: #FFFFFF; border-radius: 14px; max-width: 520px; width: 100%; box-shadow: 0 12px 32px rgba(15,23,42,0.18); display: flex; flex-direction: column; max-height: 90vh; overflow: hidden;`;
 const DiagHead = styled.div`display: flex; align-items: center; justify-content: space-between; padding: 18px 20px 12px; border-bottom: 1px solid #E2E8F0;`;
 const DiagTitle = styled.h3`margin: 0; font-size: 1rem; font-weight: 700; color: #0F172A;`;

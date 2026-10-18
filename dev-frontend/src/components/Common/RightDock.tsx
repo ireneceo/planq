@@ -236,7 +236,7 @@ const OPEN_TOOLS: Array<{ tool: DockTool; bg: string; testid: string; Icon: Reac
 // ===== styled =====
 // #157 — 퀵메뉴 뒤 딤 배경 (FabWrap z-index 120 바로 아래). 메뉴·FAB 는 위에 떠 선명하게 보인다.
 const DockBackdrop = styled.div`
-  position: fixed; inset: 0; z-index: 119;
+  position: fixed; inset: var(--pq-popup-top, 0px) 0 0; z-index: 119;
   background: rgba(15, 23, 42, 0.45);
   animation: dockBackdropIn 0.12s ease-out;
   @keyframes dockBackdropIn { from { opacity: 0; } to { opacity: 1; } }

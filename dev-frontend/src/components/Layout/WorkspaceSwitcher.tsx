@@ -553,10 +553,10 @@ const PlusBadge = styled.span`
   background: rgba(94,234,212,0.16); color: #5EEAD4;
 `;
 const CreateOverlay = styled.div`
-  position: fixed; inset: 0; z-index: 2000;
+  position: fixed; inset: var(--pq-popup-top, 0px) 0 0; z-index: 2000;
   /* 키보드가 올라오면 레이아웃 뷰포트는 그대로인데 보이는 영역만 줄어든다 —
      --vvh(visual viewport, main.tsx 가 동기화)에 높이를 묶어야 모달이 키보드에 가리지 않는다. */
-  height: var(--vvh, 100vh);
+  height: calc(var(--vvh, 100vh) - var(--pq-popup-top, 0px));
   background: rgba(15,23,42,0.45);
   display: flex; align-items: center; justify-content: center; padding: 16px;
   padding-bottom: calc(16px + var(--pq-safe-bottom, 0px));
