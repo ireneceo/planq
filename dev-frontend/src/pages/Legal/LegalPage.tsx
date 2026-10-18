@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { i18nArray } from '../../utils/i18nArray';
 import { Link } from 'react-router-dom';
 import { billingEntityVars } from '../../config/legalEntities';
+import { CONSENT_OPEN_EVENT, loadContainerId } from '../../services/marketingTags';
 
 interface SectionDef {
   key: string;                    // 번역 키 prefix (예: 'privacy.s1')
@@ -23,6 +24,8 @@ interface Props {
 const asItems = (v: unknown): string[] => i18nArray<string>(v);
 
 const LegalPage: React.FC<Props> = ({ doc, effectiveDate }) => {
+  const [hasTags, setHasTags] = useState(false);
+  useEffect(() => { let alive = true; void loadContainerId().then((id) => { if (alive) setHasTags(!!id); }); return () => { alive = false; }; }, []);
   const { t, i18n, ready } = useTranslation('legal');
   const isKo = i18n.language?.startsWith('ko') !== false;
 
@@ -72,7 +75,7 @@ const LegalPage: React.FC<Props> = ({ doc, effectiveDate }) => {
         { key: 'privacy.s5', intro: true, items: true },
         { key: 'privacy.s6', content: 'content' },
         { key: 'privacy.s7', items: true },
-        { key: 'privacy.s8', content: 'content' },
+        { key: 'privacy.s8', intro: true, items: true },
         { key: 'privacy.s9', content: 'content' },
         { key: 'privacy.s10', content: 'content' },
         { key: 'privacy.s11', content: 'content', contact: true },
@@ -175,6 +178,16 @@ const LegalPage: React.FC<Props> = ({ doc, effectiveDate }) => {
             <Link to="/privacy">{t('privacy.title')}</Link>
             <span>·</span>
             <Link to="/terms">{t('terms.title')}</Link>
+            {/* 쿠키 설정 — 처리방침을 읽는 바로 이 화면에서도 끌 수 있어야 한다(측정 태그가 켜진 서버에서만, services/marketingTags) */}
+            {hasTags && (
+              <>
+                <span>·</span>
+                <FooterButton type="button" data-testid="legal-cookie-settings"
+                  onClick={() => window.dispatchEvent(new CustomEvent(CONSENT_OPEN_EVENT))}>
+                  {t('common.cookieSettings')}
+                </FooterButton>
+              </>
+            )}
           </FooterLinks>
         </Footer>
       </Container>
@@ -253,6 +266,9 @@ const Footer = styled.footer`
   display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;
   font-size:0.75rem;
   a{color:#64748B;text-decoration:none;&:hover{color:#0F172A;}}
+`;
+const FooterButton = styled.button`
+  padding:0;border:none;background:none;cursor:pointer;font:inherit;color:inherit;text-decoration:underline;
 `;
 const FooterLinks = styled.div`display:inline-flex;gap:8px;align-items:center;
   span{color:#CBD5E1;}

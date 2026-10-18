@@ -1398,6 +1398,62 @@ async function sendUnreadNotificationEmail({ to, name, items, count, workspaceNa
   });
 }
 
+// ═══════════════════════════════════════════════════════════════
+// 처리방침 개정 고지 (2026-10-18 — 랜딩 마케팅 측정, docs/MARKETING_TRACKING_DESIGN.md §10)
+//   처리방침 10조 «시행 7일 전 서비스 공지 및 이메일로 안내» 의 메일 쪽. 보내는 문은 scripts/send-policy-notice.js 하나(미리보기 기본).
+//   법령상 고지라 수신 동의와 무관하게 보낸다 — 본문이 그 사실을 말한다.
+// ═══════════════════════════════════════════════════════════════
+const POLICY_NOTICE = {
+  ko: {
+    subject: '[PlanQ] 개인정보처리방침 개정 안내 (2026년 10월 26일 시행)',
+    hello: (n) => `${n}님, 안녕하세요.`,
+    lead: 'PlanQ 개인정보처리방침이 2026년 10월 26일부터 아래와 같이 바뀝니다.',
+    items: [
+      '공개 소개 페이지(소개·요금제·문의 등)와 회원가입 화면에서 방문 통계(Google Analytics)와 광고 성과 측정(Meta 픽셀) 도구를 사용합니다.',
+      '로그인한 뒤의 서비스 화면, 공유 링크, 모바일 앱에서는 사용하지 않으며, 업무 데이터·이름·이메일은 이 도구들로 보내지 않습니다.',
+      '이 도구들의 데이터는 미국에 있는 Google·Meta 로 전송됩니다(국외 이전).',
+      '사이트 하단 «쿠키 설정»에서 언제든 끌 수 있습니다. 브라우저 언어가 한국어가 아니고 한국 시간대도 아니면 허용하기 전에는 싣지 않습니다.',
+    ],
+    cta: '개정된 처리방침 보기',
+    legal: '이 메일은 개인정보 보호법에 따른 처리방침 변경 고지로, 수신 동의 여부와 관계없이 보내드립니다.',
+  },
+  en: {
+    subject: '[PlanQ] Privacy Policy update (effective October 26, 2026)',
+    hello: (n) => `Hello ${n},`,
+    lead: 'Our Privacy Policy changes as follows from October 26, 2026.',
+    items: [
+      'On our public pages (overview, pricing, contact, etc.) and the sign-up screen we use visit statistics (Google Analytics) and ad measurement (Meta Pixel) tools.',
+      'They are not used inside the service after you log in, on shared links, or in the mobile apps, and no work data, names or email addresses are sent to them.',
+      'Data from these tools is sent to Google and Meta in the United States (overseas transfer).',
+      'You can turn them off at any time under «Cookie settings» at the bottom of the site. If your browser language is not Korean and you are not in the Korea time zone, nothing is loaded until you allow it.',
+    ],
+    cta: 'Read the updated policy',
+    legal: 'This is a legally required notice of a privacy policy change and is sent regardless of your email preferences.',
+  },
+};
+function policyNoticeEmailHtml({ name, lang }) {
+  const c = POLICY_NOTICE[lang === 'en' ? 'en' : 'ko'];
+  const url = `${APP_URL}/privacy`;
+  const body = `
+    <div style="font-size:16px;font-weight:700;color:#0F172A;line-height:1.5;">${escapeHtml(c.hello(name || (lang === 'en' ? 'there' : '회원')))}</div>
+    <div style="margin-top:12px;font-size:14px;color:#475569;line-height:1.7;">${escapeHtml(c.lead)}</div>
+    <ul style="margin:12px 0 0;padding-left:18px;font-size:14px;color:#334155;line-height:1.7;">
+      ${c.items.map((it) => `<li style="margin-bottom:6px;">${escapeHtml(it)}</li>`).join('')}
+    </ul>
+    <div style="margin-top:20px;">${ctaButton(url, c.cta)}</div>
+    ${fallbackLink(url)}
+    <div style="margin-top:18px;font-size:12px;color:#94A3B8;line-height:1.6;">${escapeHtml(c.legal)}</div>`;
+  return emailWrap({ title: c.subject, body });
+}
+async function sendPolicyNoticeEmail({ to, name, lang, userId }) {
+  if (!to) return false;
+  const c = POLICY_NOTICE[lang === 'en' ? 'en' : 'ko'];
+  return sendEmail({
+    to, subject: c.subject, html: policyNoticeEmailHtml({ name, lang }),
+    template: 'policy_notice_2026_10', relatedEntityType: 'user', relatedEntityId: userId || null,
+  });
+}
+
 module.exports = {
   sendTrialRefundDoneEmail,
   MAIL_FONT_STACK,
@@ -1412,6 +1468,7 @@ module.exports = {
   sendDiagnosisResultEmail,
   sendNotificationEmail,
   sendPasswordResetEmail,
+  sendPolicyNoticeEmail, policyNoticeEmailHtml,
   sendSignupVerifyEmail,
   getPlanqBankInfo,
   invalidatePlatformCache,  // admin 라우트가 PUT 후 호출

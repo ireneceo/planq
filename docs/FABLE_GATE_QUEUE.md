@@ -1,5 +1,11 @@
 # Fable 게이트 대기열 → **판정 기록 보관소** (2026-10-08 부터)
 
+## 2026-10-18 · 마케팅 측정 후속 — 처리방침 문구·개정 고지 메일 (방 d103516d) — 완료 검증 **PASS**(Fable)
+- Irene 승인 «권고대로» 뒤 작업. legal.json 8조·3조·10조 · LegalPage «쿠키 설정» 버튼 · `sendPolicyNoticeEmail` + `scripts/send-policy-notice.js`(미리보기 기본, confirm 수 일치 시만 발송, EmailLog sent 기준 재실행 안전) · docs/marketing/SETUP_GUIDE.md · gtm-container-import.json.
+- Fable 대조: 처리방침 범위·보내는 것·비한국 opt-in·자체 집계 — 코드와 일치. 차단 없음.
+- 비차단 반영: 자체 집계 문구(날짜+비밀값·400일 삭제) · 비한국 판정을 «브라우저 언어·시간대» 로 · 처리방침 화면 하단에도 «쿠키 설정» · 메일에 국외 이전 한 줄 · 발송 대상 is_guest/is_ai 제외 + 도메인별 미리보기 · 언어 없음=한국어/그 밖=영어 · 시행일 바뀌는 곳 3곳·GA4 보관 14개월 확인을 SETUP_GUIDE 에.
+- 남긴 판단: 정지(suspended) 계정은 고지 대상에서 빠진다(활성만).
+
 ## 2026-10-18 · 랜딩 마케팅 측정 GTM·GA4·Meta 픽셀 (방 d103516d) — 설계 **PASS**(차단 3 반영) · 완료 검증 1회 **FAIL(차단 2)→고침** · 재판정(상황판 Fable 대기 재시도) **PASS**
 - Irene: «메타 픽셀, 구글 서치콘솔, GA4, GTM 설정. 이벤트는 사이트 구조에 맞게 설계하고 설계서도 남기고 발행·게시 전에는 목록 보여주고 승인»
 - 설계 docs/MARKETING_TRACKING_DESIGN.md · 커밋 e6b255f5. 설계 차단(반영): EU 기본 꺼짐↔«거부=안 실음» 모순 → 지역 판정 우리 코드 · 처리방침 보관 문구·자체 집계 해시 · 가입 완료 예외 문장.

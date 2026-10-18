@@ -2,7 +2,8 @@
   "common": {
     "lastUpdated": "Last updated",
     "backToHome": "Back to home",
-    "effective": "Effective date"
+    "effective": "Effective date",
+    "cookieSettings": "Cookie settings"
   },
   "privacy": {
     "title": "Privacy Policy",
@@ -41,6 +42,8 @@
         "PlanQ's access, use, and storage of Google user data complies with the Google API Services User Data Policy, including the Limited Use requirements. Such data is used only to provide the features described above, and is never used for advertising or sold to third parties.",
         "Stripe, Inc. (USA) — card payment processing: amount, email. Card details are handled by Stripe directly and are not stored by the Company.",
         "{{billingEntity}} (Malaysia, company reg. no. {{billingEntityRegNo}}) — the entity that collects subscription fees for card payments only: amount, email, transaction identifier. Because that entity is located in Malaysia, this data is transferred outside Korea. If you prefer not to have your data transferred abroad, you may pay by bank transfer instead, which is processed domestically with no international transfer. Retention: the transaction-record retention period required by applicable law.",
+        "Google LLC (USA) — Google Analytics 4 and Tag Manager: the information in Section 8, sent when you visit our public pages or the sign-up screen; event data retained 14 months. To refuse: turn it off under «Cookie settings» at the bottom of the site",
+        "Meta Platforms, Inc. (USA) — Meta Pixel: the information in Section 8, sent when you visit our public pages or the sign-up screen; retained per Meta's policy. To refuse: turn it off under «Cookie settings» at the bottom of the site",
         "When a workspace connects its own Stripe account to receive card payments from its clients (Q Bill), payment data is processed directly between the client and that workspace's Stripe account and does not pass through the Company. The Company stores only the transaction ID and amount for invoice processing; the workspace operator is the data controller for such payments.",
         "OpenAI, L.L.C. (USA) — Cue AI feature: partial conversation content. Not used for model training (per OpenAI API terms).",
         "When you connect an external AI app (e.g. ChatGPT, Claude) to PlanQ (optional): tasks, notes, clients, projects and events you ask it about, and — only if you separately allow it — email contents (attachments excluded). Retention and training of transferred data follow that AI service's terms and your settings there. You can disconnect at any time in Settings.",
@@ -87,7 +90,14 @@
     },
     "s8": {
       "title": "8. Cookies and Similar Technologies",
-      "content": "We use cookies to provide services and improve user experience. You can disable cookies in your browser, but some features may be limited."
+      "intro": "We use essential cookies to keep you signed in and secure. On our public pages and the sign-up screen (including the moment sign-up completes) we use the tools below for visit statistics and ad measurement. They are not used inside the service after you log in, on shared links, or in the mobile apps.",
+      "items": [
+        "Google Analytics 4 and Google Tag Manager (Google LLC): pages visited, referral source, device and browser information, cookie identifiers / Purpose: visit statistics / Retention: event data 14 months; aggregated statistics per Google's retention policy",
+        "Meta Pixel (Meta Platforms, Inc.): pages visited, conversions such as sign-ups and inquiries, cookie identifiers / Purpose: ad measurement and personalized advertising / Retention: per Meta's policy",
+        "Our own visit counter: to count visits we combine connection information with the date and a secret into a one-way value used only to remove same-day duplicates. IP addresses and browser information are not stored, and the counts are deleted after 400 days",
+        "For visitors whose browser language is not Korean and who are not in the Korea time zone, the two tools above are not loaded until they allow them. You can turn them on or off at any time under «Cookie settings» at the bottom of the site or of this policy page, or «Settings» in the first-visit notice, and you can also refuse cookies in your browser (some features may be limited)",
+        "Names, email addresses, phone numbers and inquiry contents are never sent to these tools"
+      ]
     },
     "s9": {
       "title": "9. Children's Privacy",
@@ -95,7 +105,7 @@
     },
     "s10": {
       "title": "10. Changes to This Policy",
-      "content": "Material changes will be announced via service notice and email at least 7 days before taking effect. Significant changes may require re-consent."
+      "content": "Material changes will be announced via service notice and email at least 7 days before taking effect. Significant changes may require re-consent. Change history: 2026-10-26 — added visit statistics and ad measurement tools on our public pages (Sections 8 and 3)."
     },
     "s11": {
       "title": "11. Contact",
