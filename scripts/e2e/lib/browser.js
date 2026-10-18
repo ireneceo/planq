@@ -78,7 +78,7 @@ async function login(page, creds = CREDS) {
 //   (실측: 하니스는 timeout ❌ · 같은 페이지를 직접 재면 DOM 135ms · 3초에 103,854자 정상).
 //   그래서 idle 은 **기다려 보되 못 기다려도 계속 간다**. 대신 DOM 준비 + 내용이 붙을 때까지는
 //   반드시 기다린다 — 진짜 빈 화면은 여기서 안 걸러지고 각 카나리의 내용 검사에 그대로 잡힌다.
-async function goto(page, pathname) {
+async function goto(page, pathname, { keepAttnNotice = false } = {}) {
   try {
     await page.goto(BASE + pathname, { waitUntil: 'networkidle2', timeout: 15000 });
   } catch {
@@ -91,6 +91,12 @@ async function goto(page, pathname) {
     await sleep(500);
   }
   await sleep(500);
+  // ★ «출근으로 기록했어요» 알림 (2026-10-19) — 본 회차를 localStorage 에 남기므로 **새 브라우저마다** 다시 뜬다.
+  //   시험 계정이 그날 자동 출근되면 그날 밤 모든 카나리가 z 1100 막에 클릭을 먹혔다(10-18 전체 검사 새 실패 대부분).
+  //   dismissBlockers 를 부르는 카나리만 피했었다 — 모든 이동이 지나는 여기서 닫는다.
+  //   이 알림 자체를 재는 카나리(modaltop)는 keepAttnNotice 로 끈다.
+  const ok = keepAttnNotice ? null : await page.$('[data-testid="attn-auto-ok"]').catch(() => null);
+  if (ok) { await ok.click().catch(() => null); await sleep(500); }
 }
 
 // SPA 클라이언트 네비게이션 — 앱 리부트 없이 이동 (전 화면 크롤 시 goto 반복 리부트→refresh rotation 레이스/

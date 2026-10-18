@@ -407,7 +407,7 @@ const Dialog = styled.div`
   overflow: hidden;
   @media (max-width: 640px) {
     max-width: none; max-height: none; border-radius: 0;
-    margin-top: var(--pq-chrome-bottom, 60px); height: calc(100vh - var(--pq-chrome-bottom, 60px)); height: calc(100dvh - var(--pq-chrome-bottom, 60px));
+    height: calc(100vh - var(--pq-popup-top, 0px)); height: calc(100dvh - var(--pq-popup-top, 0px));
   }
 `;
 const SearchHeader = styled.div`

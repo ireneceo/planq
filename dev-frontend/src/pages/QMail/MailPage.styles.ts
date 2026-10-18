@@ -247,7 +247,7 @@ export const ComposeModal = styled.div`
   /* 모바일: 키보드가 올라오면 visual viewport(--vvh)로 줄인다 — 레이아웃 뷰포트(100vh)는
      키보드를 무시해서 그 아래를 키보드가 덮는다. StandardModal 과 같은 계약. */
   @media (max-width: 640px) {
-    border-radius: 0; max-height: var(--vvh, 100vh); height: var(--vvh, 100vh);
+    border-radius: 0; max-height: 100%; height: 100%;  /* 감싼 막이 vvh − 머리줄 높이를 이미 가진다 (2026-10-19) */
   }
 `;
 export const ComposeHead = styled.div`

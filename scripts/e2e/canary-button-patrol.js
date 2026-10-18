@@ -232,7 +232,7 @@ const MARK = (maxN, dangerSrc, doneNames = [], scope = 'content') => {
 //   «화면» 이 아니라 **버튼을 눌러 연 창**(우측 패널·모달·답장 작성)의 모양이었다. 순찰은 그 창을 열기만 하고
 //   오류·빈 화면만 봤다. 이제 연 창마다 잰다:
 //   ① 창이 화면 밖으로 나감 ② 창의 위·아래 끝이 다른 것(앱 머리줄 등)에 가려짐 ③ 창 안 내용이 오른쪽으로 잘림
-//   ④ 폰에서 우측 패널이 전면을 덮지 않음(위 여백·아래 여백 — CLAUDE.md «폰 상세 패널은 앱 헤더를 덮는 전면»)
+//   ④ 폰 우측 패널 = 폭 전체 · 위 끝은 앱 머리줄 바로 아래(--pq-panel-top, 2026-10-17 계약) · 아래 여백 없음
 const OPENED_SIG = () => {
   const vis = (e) => { const r = e.getBoundingClientRect(); const cs = getComputedStyle(e); return r.width > 40 && r.height > 40 && cs.visibility !== 'hidden' && cs.display !== 'none' && cs.opacity !== '0'; };
   return [...document.querySelectorAll('[aria-modal="true"], [data-pq-drawer-panel]')].filter((e) => !e.closest('[aria-hidden="true"]') && vis(e)).length;
@@ -270,8 +270,14 @@ const OPENED_JUDGE = () => {
   // ④ 폰 우측 패널 = 전면
   if (W <= 640 && ov.hasAttribute('data-pq-drawer-panel')) {
     if (r.width < W - 2) out.push(`폰 우측 패널이 화면 폭을 다 안 씀 (${Math.round(r.width)}/${W})`);
-    const safeTop = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--pq-safe-top')) || 0;
-    if (r.top > safeTop + 2) out.push(`폰 우측 패널 위에 빈자리 ${Math.round(r.top - safeTop)}px — 앱 머리줄을 덮어야 한다`);
+    // 기준선 = --pq-panel-top (2026-10-17 계약 변경 — 폰도 앱 머리줄을 남기고 그 바로 아래에 선다). 토큰은 calc 일 수 있어 탐침으로 잰다.
+    const probe = document.createElement('div');
+    probe.style.cssText = 'position:fixed;left:0;width:1px;height:1px;visibility:hidden;top:var(--pq-panel-top, 0px)';
+    document.body.appendChild(probe);
+    const panelTop = probe.getBoundingClientRect().top;
+    probe.remove();
+    if (r.top > panelTop + 2) out.push(`폰 우측 패널 위에 빈자리 ${Math.round(r.top - panelTop)}px — 앱 머리줄 바로 아래(--pq-panel-top ${Math.round(panelTop)})에 서야 한다`);
+    if (r.top < panelTop - 2) out.push(`폰 우측 패널이 앱 머리줄을 덮음 (위 끝 ${Math.round(r.top)} < 머리줄 아래 ${Math.round(panelTop)})`);
     if (r.bottom < H - 2) out.push(`폰 우측 패널 아래에 빈자리 ${Math.round(H - r.bottom)}px`);
   }
   return { name, issues: out };

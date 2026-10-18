@@ -107,7 +107,7 @@ const Dialog = styled.div`
   max-height: 86vh; display: flex; flex-direction: column;
   box-shadow: 0 20px 60px rgba(0,0,0,0.25);
   @media (max-width: 640px) {
-    max-height: 100vh; border-radius: 0; max-width: 100vw;
+    max-height: 100%; border-radius: 0; max-width: 100vw;
   }
 `;
 const Header = styled.div`

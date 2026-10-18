@@ -102,7 +102,7 @@ async function run() {
   const { browser, page } = await b.launch();
   try {
     await b.login(page);
-    await b.goto(page, '/tasks');
+    await b.goto(page, '/tasks', { keepAttnNotice: true });
 
     // ─── 준비: 오늘 근태를 비우고, 업무를 '진행중' 으로 올려 자동 출근을 실제로 발생시킨다 ───
     await api(page, '/api/attendance/undo-auto-clock-in', { method: 'POST', body: JSON.stringify({ business_id: BIZ_ID }) });
@@ -130,7 +130,7 @@ async function run() {
       // 확인 박제를 지워 매 뷰포트마다 같은 조건에서 뜨게 한다
       await page.evaluate(() => { try { localStorage.removeItem('planq.attn.autoSeen'); } catch { /* private */ } });
       // 업무 상세(우측 패널)를 연 채로 — 신고 상황 그대로
-      await b.goto(page, `/tasks?task=${TASK_ID}`);
+      await b.goto(page, `/tasks?task=${TASK_ID}`, { keepAttnNotice: true });
       await b.sleep(2500);
       if (vp.openSidebar) {
         await page.evaluate(() => {
@@ -141,7 +141,16 @@ async function run() {
         await b.sleep(1200);
       }
 
-      const p = await page.evaluate(probe);
+      const pOpen = await page.evaluate(probe);
+      // ★ 2026-10-19 — 10-18 계약(«열린 햄버거 메뉴는 창들 위로(10060), 바깥을 누르면 메뉴가 닫힌다»)으로
+      //   메뉴가 열린 동안은 메뉴가 맨 위인 것이 정답이다. 09-07 결함(창이 메뉴 층 **안에** 갇힘)은 메뉴를 연 채
+      //   «body 직속» 으로 재고, «최상위» 는 메뉴를 다시 닫은 뒤 잰다 — 갇혀 있었다면 닫아도 메뉴와 함께 사라진다.
+      if (vp.openSidebar) {
+        // 사람이 하듯 메뉴 바깥(오른쪽 끝)을 눌러 닫는다 — 메뉴 바깥 막(10055)이 그 누름을 받는다
+        await page.mouse.click(vp.w - 8, Math.round(vp.h / 2));
+        await b.sleep(1200);
+      }
+      const p = vp.openSidebar ? { ...(await page.evaluate(probe)), parentIsBody: pOpen.parentIsBody, stackingAncestors: pOpen.stackingAncestors } : pOpen;
       if (!p.found) {
         raw.push({ name: `${vp.name}/모달 표시`, ok: false, msg: `모달이 화면에 없다 (aria-modal ${p.dialogs}개)` });
         continue;

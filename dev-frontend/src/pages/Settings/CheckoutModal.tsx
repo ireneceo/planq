@@ -462,7 +462,7 @@ const Dialog = styled.div`
   box-shadow: 0 20px 60px rgba(0,0,0,0.25);
   @media (max-width: 640px) {
     width: 100%; max-height: none; border-radius: 0;
-    margin-top: var(--pq-chrome-bottom, 60px); height: calc(var(--vvh, 100vh) - var(--pq-chrome-bottom, 60px));
+    height: calc(var(--vvh, 100vh) - var(--pq-popup-top, 0px));
   }
 `;
 const ModalHeader = styled.div`
