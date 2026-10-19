@@ -1075,6 +1075,15 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
   //   앱 전체 클릭이 막혔다. 바깥을 한 번 눌러야 풀린다 — 그 사이 사용자에겐 "앱이 멈춘" 것이다.
   //   CLAUDE.md 드로어 접근성은 Esc 닫기를 필수로 못 박고 있다. 표준 스택을 쓴다(중첩 안전).
   useEscapeStack(sidebarOpen, () => setSidebarOpen(false));
+  // ★ 2026-10-19 (Irene: "좌측메뉴 상단 알림이랑 공지를 누르면 모바일에서 좌측메뉴 뒤로 숨어버려")
+  //   열린 폰 메뉴는 10060 층(위 Sidebar 주석)이라, 메뉴 안에서 여는 드롭다운·검색·워크스페이스 만들기 창이
+  //   전부 그 **뒤로** 열렸다. 메뉴에서 무언가를 띄우는 문은 먼저 메뉴를 닫는다(Q helper 와 같은 규칙).
+  //   메뉴 밖 컴포넌트(WorkspaceSwitcher)는 이 이벤트로 닫는다.
+  useEffect(() => {
+    const close = () => setSidebarOpen(false);
+    window.addEventListener('pq:close-mobile-menu', close);
+    return () => window.removeEventListener('pq:close-mobile-menu', close);
+  }, []);
 
   const isActive = (path: string) => location.pathname === path || location.pathname.startsWith(path + '/');
   // ★ 2026-09-13 — **경로만 보면 안 된다.** 여태 `/admin/*` 경로이기만 하면 관리자 사이드바를
@@ -1111,6 +1120,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
   //   ★ 2026-09-11 Irene: "드롭다운하면 알림처럼 모두 읽음 표시 나오게 해야지 그냥 왜 다 읽은 걸로 돼? 알림이랑 똑같이 해."
   //     열기만 해서는 읽음이 되지 않는다 — 항목을 누르면 그것만, [모두 읽음] 을 누르면 전부(WhatsNewDropdown).
   const openWhatsNew = () => {
+    setSidebarOpen(false);
     setWhatsNewOpen((prev) => !prev);
   };
   // 안 읽은 **메시지** 수 두 가지 — OS 아이콘 계산에만 쓴다(사이드바 배지는 아래 방 수를 쓴다).
@@ -1328,7 +1338,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
                   ref={bellRef}
                   data-testid="header-notifications"
                   type="button"
-                  onClick={() => setNotifOpen(v => !v)}
+                  onClick={() => { setSidebarOpen(false); setNotifOpen(v => !v); }}
                   aria-label={t('notifications.title', '알림') as string}
                   title={t('notifications.title', '알림') as string}
                 >
@@ -1369,7 +1379,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
             <GlobalSearchTrigger
               type="button"
               data-testid="nav-search"
-              onClick={() => setSearchOpen(true)}
+              onClick={() => { setSidebarOpen(false); setSearchOpen(true); }}
               title={t('nav.globalSearch', '통합 검색') as string}
             >
               <SearchIconSvg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

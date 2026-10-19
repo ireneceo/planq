@@ -125,6 +125,8 @@ const Row = styled.button`
 const Dot = styled.span`width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; display: inline-block;`;
 const Pop = styled.div`
   position: fixed; z-index: 1100; max-height: min(60vh, 420px);
+  /* 폰·태블릿에선 열린 메뉴(MainLayout Sidebar 10060) 위 — 메뉴 옆에 붙는 창이라 메뉴를 닫지 않고 위로 올린다 (2026-10-19) */
+  @media (max-width: 1024px) { z-index: 10070; }
   display: flex; flex-direction: column;
   background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 12px;
   box-shadow: 0 12px 32px rgba(15, 23, 42, 0.18); overflow: hidden;

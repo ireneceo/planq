@@ -175,7 +175,7 @@ const WorkspaceSwitcher: React.FC<Props> = ({ collapsed }) => {
         onClick={() => {
           if (collapsed) return;
           // 0개면 고를 것이 없다 — 드롭다운을 여는 대신 곧장 만들기로.
-          if (noWorkspace) { setCreateErr(''); setCreateName(''); setCreateOpen(true); return; }
+          if (noWorkspace) { window.dispatchEvent(new Event('pq:close-mobile-menu')); setCreateErr(''); setCreateName(''); setCreateOpen(true); return; }
           setOpen((v) => !v);
         }}
         title={t('switcher.tooltip', '워크스페이스 전환') as string}
@@ -245,7 +245,7 @@ const WorkspaceSwitcher: React.FC<Props> = ({ collapsed }) => {
           )}
 
           <MenuDivider />
-          <MenuItem type="button" $current={false} onClick={() => { setOpen(false); setCreateErr(''); setCreateName(''); setCreateOpen(true); }}>
+          <MenuItem type="button" $current={false} onClick={() => { setOpen(false); window.dispatchEvent(new Event('pq:close-mobile-menu')); setCreateErr(''); setCreateName(''); setCreateOpen(true); }}>
             <PlusBadge>
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
             </PlusBadge>
