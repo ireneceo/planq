@@ -3,6 +3,7 @@ import styled from 'styled-components';
 import { useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import UserChip from './UserChip';
+import { backButtonLook, BackChevron } from './PanelHeader';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
 
 /**
@@ -85,9 +86,7 @@ export default function PageShell({
             <BackArrow type="button" onClick={onBack}
               aria-label={backLabel || (t('back', { defaultValue: '뒤로' }) as string)}
               title={backLabel || (t('back', { defaultValue: '뒤로' }) as string)}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="15 18 9 12 15 6" />
-              </svg>
+              <BackChevron />
             </BackArrow>
           )}
           <TitleGroup>
@@ -110,18 +109,11 @@ export default function PageShell({
 }
 
 // ─────────────────────────────────────────────
-/** 제목 왼쪽 뒤로가기 — PanelHeader.BackBtn 과 같은 규격(터치 타깃 폰 40). */
+/** 제목 왼쪽 뒤로가기 — PanelHeader 뒤로 버튼과 **같은 모양 조각**(backButtonLook)을 쓴다.
+ *  ★ 2026-10-19 — 손으로 다시 적었던 값(옅은 #64748B·폰 40)이 다른 상세와 달라 «화살표가 혼자 다르다» 로 보였다. */
 const BackArrow = styled.button`
-  flex-shrink: 0;
-  width: 36px; height: 36px; padding: 0;
-  display: inline-flex; align-items: center; justify-content: center;
-  background: transparent; border: none; border-radius: 8px;
-  color: #64748b; cursor: pointer;
-  /* 글리프 크기는 rem (CLAUDE.md UI 가이드 §0 — px 금지). 1.25rem = 20px 로 PanelHeader 뒤로가기와 같다. */
-  svg { width: 1.25rem; height: 1.25rem; }
-  &:hover { background: #f1f5f9; color: #0f172a; }
-  &:focus-visible { outline: 2px solid rgba(20,184,166,0.4); outline-offset: 2px; }
-  @media (max-width: 640px) { width: 40px; height: 40px; margin-left: -8px; }
+  ${backButtonLook}
+  display: inline-flex;
 `;
 
 const Page = styled.div`

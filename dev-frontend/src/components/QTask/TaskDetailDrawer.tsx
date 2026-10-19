@@ -10,6 +10,7 @@ import { isOtherWorkspace } from '../../utils/workspaceMatch';
 import type { DetailStatus } from '../../hooks/useDetailResource';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import styled from 'styled-components';
+import { backButtonLook, BackChevron } from '../Layout/PanelHeader';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { renderTextWithLinks as linkify } from '../../utils/linkify';
@@ -1426,7 +1427,7 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
         {/* 밴드1 = «< 제목 · 액션» — 다른 상세(문서·메일·노트)와 같은 모양. 뒤로는 아이콘 하나(폰은 ✕ 대신 이것만). */}
         <BackBtn type="button" onClick={onClose} data-testid="task-detail-back"
           aria-label={t('detail.back', '돌아가기') as string} title={t('detail.back', '돌아가기') as string}>
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+          <BackChevron />
         </BackBtn>
         <HeaderTitleSlot>
           {detailTask && (editingTitle ? (
@@ -3099,10 +3100,11 @@ const SourceRefLink = styled.div<{ $clickable?: boolean }>`
   & > span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 `;
 const BackBtn = styled.button`
-  width:36px;height:36px;flex-shrink:0;display:flex;align-items:center;justify-content:center;
-  background:transparent;border:none;border-radius:8px;color:#334155;cursor:pointer;padding:0;outline:none;
-  &:hover{background:#F1F5F9;color:#0F172A;}&:focus{outline:none;}&:focus-visible{outline:2px solid #14B8A6;outline-offset:-2px;}
-  @media (max-width: 640px){ width:40px;height:44px; }
+  /* 모양은 공용 뒤로 버튼(backButtonLook) — 다른 상세와 같은 ‹ (2026-10-19). */
+  ${backButtonLook}
+  display:inline-flex;
+  /* 이 머리줄은 좌우 여백이 좁아(4px) 공용 -8px 를 그대로 두면 화면 밖으로 밀린다 — 다른 상세와 같은 x(6)에 맞춘다. */
+  margin-left:2px;
 `;
 const CloseBtn = styled.button`
   /* touch-target-44: 폰 터치 타깃 (theme/tokens CONTROL.touchMin). 데스크탑 크기는 그대로. */

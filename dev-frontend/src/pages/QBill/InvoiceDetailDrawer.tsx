@@ -6,6 +6,7 @@ import { ReportProblemLink } from '../../components/Common/ReportProblem';
 import { onSocket } from '../../services/socket';
 import { useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
+import { backButtonLook, BackChevron } from '../../components/Layout/PanelHeader';
 import DetailDrawer from '../../components/Common/DetailDrawer';
 import ConfirmDialog from '../../components/Common/ConfirmDialog';
 import { apiFetch, useAuth } from '../../contexts/AuthContext';
@@ -495,7 +496,7 @@ export default function InvoiceDetailDrawer({ invoice: initialInvoice, onClose, 
           {/* 폰·태블릿은 전면 패널이라 ✕ 보다 «뒤로» 로 읽힌다 — 공용 DetailDrawer.Header 와 같은 자리·모양(2026-10-13).
               이 화면만 공용 머리를 안 써서 뒤로 버튼이 없었다. */}
           <BackBtn type="button" onClick={onClose} aria-label={t('common.back', { defaultValue: '뒤로' }) as string} data-testid="invoice-detail-back">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6" /></svg>
+            <BackChevron />
           </BackBtn>
           <NumWrap>
             <NumBadge>{invoice.invoice_number}</NumBadge>
@@ -1351,6 +1352,8 @@ const TaxModalSecondary = styled.button`
 // ─── styled ───
 const DrawerHeader = styled.div`
   flex-shrink: 0; padding: 18px 22px 14px; border-bottom: 1px solid #F1F5F9; background: #fff;
+  /* 폰 좌우 여백은 다른 상세 머리줄과 같은 14 — 뒤로 ‹ 가 같은 x 에 선다(2026-10-19). */
+  @media (max-width: 640px) { padding-left: 14px; padding-right: 14px; }
 `;
 const HeaderTop = styled.div`
   display: flex; align-items: center; gap: 8px; margin-bottom: 12px;
@@ -1359,15 +1362,10 @@ const NumWrap = styled.div`
   display: inline-flex; align-items: center; gap: 8px; min-width: 0; flex: 1;
 `;
 const BackBtn = styled.button`
+  /* 모양은 공용 뒤로 버튼(backButtonLook) — 다른 상세와 같은 ‹ (2026-10-19). */
+  ${backButtonLook}
   display: none;
-  @media (max-width: 1024px) {
-    display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0;
-    width: 40px; height: 40px; margin-left: -10px;
-    border: none; background: transparent; color: #475569; border-radius: 8px; cursor: pointer;
-    &:hover { background: #F1F5F9; color: #0F172A; }
-    &:focus-visible { outline: 2px solid #0D9488; outline-offset: 2px; }
-  }
-  @media (max-width: 640px) { width: 44px; height: 44px; }
+  @media (max-width: 1024px) { display: inline-flex; }
 `;
 const NumBadge = styled.span`
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
@@ -1385,6 +1383,8 @@ const StatusDot = styled.span<{ $color: string }>`
 const CloseBtn = styled.button`
   /* touch-target-44: 폰 터치 타깃 (theme/tokens CONTROL.touchMin). 데스크탑 크기는 그대로. */
   @media (max-width: 640px) { min-width: 44px; min-height: 44px; }
+  /* 폰은 ✕ 를 그리지 않는다 — 왼쪽 ‹ 가 같은 일을 한다(업무 상세·공용 우측 패널과 같은 규칙, 2026-10-19). */
+  @media (max-width: 640px) { display: none !important; }
 
   width: 30px; height: 30px; display: inline-flex; align-items: center; justify-content: center;
   background: transparent; border: none; border-radius: 6px; cursor: pointer; color: #64748B;

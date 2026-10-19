@@ -49,6 +49,7 @@ import { useFocusTrap } from '../../hooks/useFocusTrap';
 import { useEscapeStack } from '../../hooks/useEscapeStack';
 import { useBackToClose } from '../../hooks/useBackToClose';
 import { mediaPhone } from '../../theme/breakpoints';
+import { backButtonLook, BackChevron } from '../Layout/PanelHeader';
 
 /** 우측 곁패널 표준 폭 — 데스크탑. 태블릿·폰은 아래 미디어쿼리가 덮는다. */
 const DRAWER_W = 480;
@@ -109,13 +110,11 @@ const Header: React.FC<HeaderProps> = ({ onClose, children }) => (
         폰에서 이 드로어는 전체화면이라 "닫기 X" 가 아니라 **뒤로가기**로 읽힌다.
         다른 화면(PanelBackButton)과 같은 자리·같은 모양으로 좌측 상단에 둔다.
         공용 프리미티브에 넣었으므로 일정·업무·고객 상세가 한 번에 통일된다. */}
-    <BackBtn onClick={onClose} aria-label="back">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M15 18l-6-6 6-6" />
-      </svg>
+    <BackBtn type="button" onClick={onClose} aria-label="back">
+      <BackChevron />
     </BackBtn>
     <HeaderContent>{children}</HeaderContent>
-    <CloseBtn onClick={onClose} aria-label="close">
+    <CloseBtn type="button" onClick={onClose} aria-label="close">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
         <line x1="18" y1="6" x2="6" y2="18" />
         <line x1="6" y1="6" x2="18" y2="18" />
@@ -294,17 +293,11 @@ const HeaderWrap = styled.div`
 const HeaderContent = styled.div` flex: 1; min-width: 0; `;
 
 const BackBtn = styled.button`
-  /* 데스크탑에는 옆에 목록이 그대로 보이므로 필요 없다 — 폰·태블릿에서만. */
+  /* 데스크탑에는 옆에 목록이 그대로 보이므로 필요 없다 — 폰·태블릿에서만.
+     모양은 공용 뒤로 버튼(backButtonLook) 그대로 — 채팅·메일·업무 상세와 같은 ‹ (2026-10-19). */
+  ${backButtonLook}
   display: none;
-  @media (max-width: 1024px) {
-    display: inline-flex; align-items: center; justify-content: center;
-    width: 40px; height: 40px; margin-left: -6px;
-    border: none; background: transparent; color: #475569;
-    border-radius: 8px; cursor: pointer; flex-shrink: 0;
-    &:hover { background: #F1F5F9; color: #0F172A; }
-    &:focus-visible { outline: 2px solid #0D9488; outline-offset: 2px; }
-  }
-  @media (max-width: 640px) { width: 44px; height: 44px; }
+  @media (max-width: 1024px) { display: inline-flex; }
 `;
 
 const CloseBtn = styled.button`
@@ -316,8 +309,7 @@ const CloseBtn = styled.button`
   display: flex; align-items: center; justify-content: center;
   flex-shrink: 0;
   &:hover { background: #F1F5F9; color: #0F172A; }
-  /* 폰에서 터치 타겟 확대 */
-  @media (max-width: 640px) {
-    width: 40px; height: 40px;
-  }
+  /* 폰은 ✕ 를 그리지 않는다 — 왼쪽 ‹ 가 같은 일을 한다(업무 상세와 같은 규칙, 2026-10-19).
+     둘 다 그리면 이 패널만 «‹ 와 ✕» 두 개가 보여 다른 폰 상세와 모양이 달랐다(문의 인박스 신고). */
+  @media (max-width: 640px) { display: none; }
 `;

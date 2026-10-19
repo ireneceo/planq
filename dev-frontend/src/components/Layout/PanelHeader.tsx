@@ -42,9 +42,7 @@ export default function PanelHeader({ children, className, onBack, backLabel, ba
     <PanelHeaderBar className={className} data-testid="panel-header">
       {onBack && (
         <BackBtn type="button" $always={!!backOnDesktop} onClick={onBack} aria-label={backLabel || '뒤로'} title={backLabel || '뒤로'}>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-            <polyline points="15 18 9 12 15 6" />
-          </svg>
+          <BackChevron />
         </BackBtn>
       )}
       {children}
@@ -204,21 +202,41 @@ export const PanelMetaTitle = styled.h2`
   letter-spacing: -0.1px;
 `;
 
-/** 표준 뒤로 버튼 — 폰 터치 타깃 44 (theme/tokens CONTROL.touchMin). 데스크탑에서는 숨긴다. */
-const BackBtn = styled.button<{ $always?: boolean }>`
-  display: ${(p) => (p.$always ? 'inline-flex' : 'none')};
+/**
+ * 표준 뒤로 버튼의 **모양** — 폰 터치 타깃 44 (theme/tokens CONTROL.touchMin).
+ * ★ 2026-10-19 Irene: *"문의 인박스가면 상세에서 뒤로가기 화살표가 혼자 달라. 모바일에서. 모두 같은 형태여야 해."*
+ *   공용 우측 패널(DetailDrawer)·PageShell·문서·업무·위키 편집이 각자 크기(28·32·36·40)·색(#475569·#64748B)·
+ *   선 굵기(2)를 따로 적어 화면마다 화살표가 달랐다. 모양은 여기 한 곳 — 보이는 조건(폭)만 각자 정한다.
+ */
+export const backButtonLook = css`
   flex-shrink: 0;
-  width: 40px; height: 40px;
+  width: 40px; height: 40px; padding: 0;
   margin-left: -8px; margin-right: 2px;
   align-items: center; justify-content: center;
   background: none; border: none; border-radius: 8px;
   color: #334155; cursor: pointer;
   svg { width: 20px; height: 20px; }
-  &:hover { background: #F1F5F9; }
-  @media (max-width: 1024px) { display: inline-flex; }
+  &:hover { background: #F1F5F9; color: #0F172A; }
+  &:focus-visible { outline: 2px solid rgba(20,184,166,0.4); outline-offset: 2px; }
   /* 터치 영역은 44 로 두되 줄 높이에는 36 만 차지한다(위아래 -4px) — 44 그대로면 폰 밴드1 이
      목록 화면 56px 과 달리 상세 화면만 65px 로 커졌다(2026-09-30 실측: 채팅·문서·고객·메일 상세). */
   @media (max-width: 640px) { width: 44px; height: 44px; margin-top: -5px; margin-bottom: -5px; }
+`;
+
+/** 표준 뒤로 화살표(‹) — 모든 뒤로 버튼이 이 글리프를 쓴다. 크기는 backButtonLook 이 정한다. */
+export function BackChevron() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <polyline points="15 18 9 12 15 6" />
+    </svg>
+  );
+}
+
+/** 표준 뒤로 버튼 — 데스크탑에서는 숨긴다(always 면 항상). */
+const BackBtn = styled.button<{ $always?: boolean }>`
+  ${backButtonLook}
+  display: ${(p) => (p.$always ? 'inline-flex' : 'none')};
+  @media (max-width: 1024px) { display: inline-flex; }
 `;
 
 /**
@@ -234,9 +252,7 @@ export function PanelBackButton(
   //   돌아올 길이 없다(Fable 2026-09-18 실측: 1440·820 에서 뒤로 0건. 같은 자리의 문서 탭은 있다).
   return (
     <BackBtn type="button" $always={always} onClick={onClick} aria-label={label || '뒤로'} title={label || '뒤로'}>
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-        <polyline points="15 18 9 12 15 6" />
-      </svg>
+      <BackChevron />
     </BackBtn>
   );
 }

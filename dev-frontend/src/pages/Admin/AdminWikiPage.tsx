@@ -7,6 +7,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { listRowTitleCss } from '../../theme/tokens';
 import styled from 'styled-components';
+import { backButtonLook, BackChevron } from '../../components/Layout/PanelHeader';
 import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router-dom';
 import PageShell from '../../components/Layout/PageShell';
@@ -283,7 +284,7 @@ const AdminWikiPage = ({ mode = 'help' }: { mode?: 'help' | 'blog' }) => {
             <>
               <EditorHeader>
                 <BackBtn type="button" onClick={closeEditor} aria-label={t('adminWiki.backToList') as string}>
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6" /></svg>
+                  <BackChevron />
                 </BackBtn>
                 <EditorTitle>{form.id ? form.title_ko || t('adminWiki.editArticle') : t('adminWiki.newArticle')}</EditorTitle>
                 {form.id && form.slug && (
@@ -533,9 +534,8 @@ const RowTitle = styled.div`
 const RowSlug = styled.div`font-size: 0.6875rem; color: #94a3b8; font-family: ui-monospace, monospace;`;
 const EditorHeader = styled.div`flex-shrink: 0; display: flex; align-items: center; gap: 10px; padding: 16px 20px; background: #fff; border-bottom: 1px solid #e2e8f0;`;
 const BackBtn = styled.button`
-  display: none; width: 32px; height: 32px; flex-shrink: 0; align-items: center; justify-content: center;
-  background: transparent; border: none; border-radius: 8px; color: #64748b; cursor: pointer;
-  &:hover { background: #f1f5f9; color: #0f172a; }
+  ${backButtonLook}
+  display: none;
   @media (max-width: 1024px) { display: inline-flex; }
 `;
 const EditorTitle = styled.h2`flex: 1; min-width: 0; font-size: 1rem; font-weight: 700; color: #0f172a; margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;`;

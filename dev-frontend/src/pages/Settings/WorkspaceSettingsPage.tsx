@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import styled from 'styled-components';
+import { backButtonLook, BackChevron } from '../../components/Layout/PanelHeader';
 import { tabStore } from '../../stores/tabStore';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useParams, useSearchParams } from 'react-router-dom';
@@ -428,16 +429,21 @@ const MemberDrawer = styled.aside`
 const MemberDrawerHeader = styled.div`
   display: flex; align-items: center; justify-content: space-between;
   min-height: 60px; padding: 14px 20px; border-bottom: 1px solid #E2E8F0;
+  @media (max-width: 640px) { padding-left: 14px; padding-right: 14px; }
 `;
+/* 2026-10-19 — 다른 상세(공용 우측 패널)와 같은 규칙: 폰·태블릿은 왼쪽 ‹ (공용 모양), 폰은 ✕ 를 숨긴다.
+   옛 «‹ 목록» 글자 버튼은 이 패널에만 있던 모양이었다. */
 const MemberDrawerBack = styled.button`
-  display: flex; align-items: center; gap: 4px; background: transparent; border: none;
-  color: #0F766E; font-size: 0.75rem; font-weight: 600; cursor: pointer; padding: 0;
-  &:hover { color: #134E4A; }
+  ${backButtonLook}
+  display: none;
+  @media (max-width: 1024px) { display: inline-flex; }
 `;
 const MemberDrawerClose = styled.button`
   width: 28px; height: 28px; display: flex; align-items: center; justify-content: center;
+  margin-left: auto;
   background: transparent; border: none; border-radius: 6px; color: #64748B; cursor: pointer;
   &:hover { background: #F1F5F9; color: #0F172A; }
+  @media (max-width: 640px) { display: none; }
 `;
 const MemberDrawerScroll = styled.div`flex: 1; overflow: auto; padding: 20px;`;
 const DrawerHeadRow = styled.div`display: flex; align-items: center; gap: 14px; padding-bottom: 20px; border-bottom: 1px solid #F1F5F9;`;
@@ -1503,9 +1509,9 @@ export default function WorkspaceSettingsPage() {
                 <MemberDrawerBackdrop onClick={() => openMember(null)} />
                 <MemberDrawer role="dialog" aria-modal="true" aria-label={targetName || 'member'}>
                   <MemberDrawerHeader>
-                    <MemberDrawerBack type="button" onClick={() => openMember(null)}>
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="15 18 9 12 15 6"/></svg>
-                      {t('members.drawer.back', '목록')}
+                    <MemberDrawerBack type="button" onClick={() => openMember(null)}
+                      aria-label={t('members.drawer.back', '목록') as string} title={t('members.drawer.back', '목록') as string}>
+                      <BackChevron />
                     </MemberDrawerBack>
                     <MemberDrawerClose type="button" onClick={() => openMember(null)} aria-label={t('members.drawer.close', '닫기') as string}>
                       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
