@@ -271,6 +271,9 @@ router.get('/payments', async (req, res, next) => {
       limit, offset, distinct: true,
     });
 
+    // 환불 요청 행이 «체험 중 결제» 인지 — 처리 모드(trial/manual)를 화면이 고르지 않게 서버가 판정한다(처리와 같은 술어).
+    const trialReq = await require('../services/refundRequest').trialRequestIds(rows);
+
     res.set('X-Total-Count', String(count));
     return successResponse(res, rows.map((p) => ({
       id: p.id,
@@ -315,6 +318,7 @@ router.get('/payments', async (req, res, next) => {
       // 체험 중 결제 환불 요청(docs/TRIAL_REFUND_DESIGN.md) — 계좌는 싣지 않는다(있는지만). 읽는 문은 refund-account 하나.
       refund_requested_at: p.refund_requested_at,
       refund_request_note: p.refund_request_note,
+      refund_request_trial: trialReq.has(p.id),
       has_refund_account: !!p.refund_account_enc,
       refund_kind: p.refund_kind,
       stripe_refund_id: p.stripe_refund_id,
@@ -368,6 +372,13 @@ router.post('/payments/:id/refund', async (req, res, next) => {
       reason: req.body?.reason, viaStripe: req.body?.via_stripe === true,
       adminUserId: req.user.id, actor: { userId: req.user.id, ip: req.ip },
     });
+    // 고객이 요청한 일반 환불을 처리했으면 대표에게 알린다(체험 환불은 서비스가 전용 메일·알림을 보낸다).
+    if (mode === 'manual' && !r.alreadyRefunded && r.payment.refund_requested_at) {
+      setImmediate(() => require('../services/refundRequest').notifyRefundOwner(r.payment, {
+        title: '환불이 처리됐습니다',
+        body: `${require('../services/refundRequest').moneyStr(r.payment)} 결제의 환불 요청이 처리됐습니다. 돌려받는 데 카드사·은행 사정으로 며칠 걸릴 수 있습니다.`,
+      }));
+    }
     return successResponse(res, {
       refunded: true, already_refunded: !!r.alreadyRefunded, refunded_at: r.payment.refunded_at,
       restored_to: r.restoredTo || null, stripe_refund_id: r.stripeRefundId || null,
@@ -376,23 +387,6 @@ router.post('/payments/:id/refund', async (req, res, next) => {
     if (err.statusCode) return errorResponse(res, err.code || err.message, err.statusCode);
     next(err);
   }
-});
-
-// 계좌이체 환불 계좌 — 읽는 문은 여기 하나(docs/TRIAL_REFUND_DESIGN.md §5). 응답 일반 경로엔 _enc 라 실리지 않는다.
-router.get('/payments/:id/refund-account', async (req, res, next) => {
-  try {
-    const p = await Payment.findByPk(req.params.id);
-    if (!p) return errorResponse(res, 'payment_not_found', 404);
-    let account = null;
-    if (p.refund_account_enc) {
-      try { account = JSON.parse(require('../services/encryption').decrypt(p.refund_account_enc)); } catch { account = null; }
-    }
-    require('../services/auditService').logAudit(req, {
-      action: 'admin.payment.refund_account_view', targetType: 'payment', targetId: p.id,
-      newValue: { business_id: p.business_id, has_account: !!account },
-    });
-    return successResponse(res, { account });
-  } catch (err) { next(err); }
 });
 
 // ═════════════════════════════════════════════════════════════

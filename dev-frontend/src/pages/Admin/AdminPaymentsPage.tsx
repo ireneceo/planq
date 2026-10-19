@@ -1,7 +1,7 @@
 // 결제 이력 + 환불·조정 — platform_admin 만
 // 라우트: /admin/payments
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import PageShell from '../../components/Layout/PageShell';
@@ -54,6 +54,7 @@ interface PaymentRow {
   // 체험 중 결제 환불 요청 (docs/TRIAL_REFUND_DESIGN.md) — 계좌는 실리지 않는다(있는지만)
   refund_requested_at?: string | null;
   refund_request_note?: string | null;
+  refund_request_trial?: boolean;
   has_refund_account?: boolean;
   refund_kind?: 'trial' | 'manual' | null;
   stripe_refund_id?: string | null;
@@ -115,6 +116,20 @@ const AdminPaymentsPage = () => {
     if (!focusId || loading) return;
     const el = document.querySelector(`[data-payment-id="${focusId}"]`);
     if (el) el.scrollIntoView({ block: 'center' });
+  }, [focusId, loading, items]);
+  // 알림의 [환불 요청 처리하기] 로 왔으면 그 행의 처리 창을 바로 연다(한 번만) — 행을 찾아 버튼을 또 누르게 하지 않는다.
+  const autoOpenedRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (!focusId || loading || autoOpenedRef.current === focusId) return;
+    const p = items.find(x => x.id === focusId);
+    if (!p || p.status !== 'paid' || !p.refund_requested_at) return;
+    autoOpenedRef.current = focusId;
+    setTrialRefund({
+      id: p.id, amount: p.amount, currency: p.currency, method: p.method,
+      businessName: p.business?.name || null, requestedAt: p.refund_requested_at || null,
+      note: p.refund_request_note || null, hasStripeIntent: !!p.has_stripe_intent,
+      taxIssued: p.tax_invoice_status === 'issued', trial: !!p.refund_request_trial,
+    });
   }, [focusId, loading, items]);
 
   const fmtKRW = (n: number) => new Intl.NumberFormat('ko-KR').format(Math.round(n));
@@ -327,9 +342,9 @@ const AdminPaymentsPage = () => {
                           id: p.id, amount: p.amount, currency: p.currency, method: p.method,
                           businessName: p.business?.name || null, requestedAt: p.refund_requested_at || null,
                           note: p.refund_request_note || null, hasStripeIntent: !!p.has_stripe_intent,
-                          taxIssued: p.tax_invoice_status === 'issued',
+                          taxIssued: p.tax_invoice_status === 'issued', trial: !!p.refund_request_trial,
                         })}>
-                        {t('payments.trialRefundOpen', '체험 환불 처리')}
+                        {p.refund_request_trial ? t('payments.trialRefundOpen', '체험 환불 처리') : t('payments.requestRefundOpen', '환불 요청 처리')}
                       </DangerBtn>
                     )}
                     {p.status === 'paid' && !p.refund_requested_at && (

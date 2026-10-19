@@ -168,7 +168,16 @@
       "trial_refund_used": "This workspace has already used its trial refund.",
       "not_requested": "No refund was requested for this payment.",
       "not_trial_payment": "This is not a payment made during the trial."
-    }
+    },
+    "requestRefundReason": "Customer-requested refund",
+    "requestRefundTitle": "Handle refund request",
+    "back": "Back",
+    "declineSubmit": "Decline request",
+    "decline": "Decline",
+    "requestRefundLead": "{{biz}} requested a refund of the {{amount}} payment. Check it against Terms §4 (full refund within 7 days for monthly / 14 days for yearly, pro-rated after), then refund or decline. Refunding records this payment as refunded; the subscription status does not change.",
+    "requestReason": "Customer reason: {{note}}",
+    "declineReason": "Reason for declining (sent to the owner as a notification)",
+    "requestRefundOpen": "Handle refund request"
   },
   "subs": {
     "title": "Subscriptions",

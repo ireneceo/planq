@@ -134,6 +134,7 @@ router.get('/:businessId/status', authenticateToken, checkBusinessAccess, async 
         period_start: p.period_start, period_end: p.period_end,
         payer_name: p.payer_name, method: p.method,
         line_items: p.line_items || null,   // 금액 내역(플랜 + 애드온, A-④) — 이력 행이 «왜 이 금액인가» 를 말한다
+        refund_requested_at: p.refund_requested_at || null,   // 환불 요청 중 — 행에 «요청됨 · 요청 취소» (routes/plan_refund)
       })),
       usage,
       // 실제로 적용되는 한도(add-on 합산 + 체험 중 비용 캡) — 사용량 막대·경고는 이것을 읽는다.

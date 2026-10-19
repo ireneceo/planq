@@ -347,7 +347,10 @@
       "trial_refund_used": "This workspace has already used its trial refund.",
       "owner_only": "Only the workspace owner can request this.",
       "already_refunded": "This payment has already been refunded.",
-      "not_requested": "There is no refund request."
+      "not_requested": "There is no refund request.",
+      "refund_reason_required": "Please enter a reason for the refund.",
+      "not_paid": "Only completed payments can be refunded.",
+      "payment_not_found": "Payment not found."
     }
   },
   "refundHelp": {
@@ -359,6 +362,13 @@
     "request": "Request a refund",
     "ownerOnly": "Only the workspace owner can request a refund.",
     "prefill": "Refund request — paid on {{date}} · {{amount}}\nReason: ",
-    "submit": "Send refund request"
+    "submit": "Send refund request",
+    "subtitle2": "We review the request against our refund policy (Terms §4) and let you know the result. Requesting alone does not change your payment or subscription.",
+    "pickPayment": "Payment to refund",
+    "reason": "Reason",
+    "reasonPh": "Tell us why you'd like a refund.",
+    "toCard": "Card payments are refunded to the card you paid with.",
+    "toAccount": "Bank transfer payments are returned to the account below.",
+    "requested": "Refund requested · {{date}}"
   }
 }

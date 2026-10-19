@@ -71,16 +71,14 @@ const PlanSettings: React.FC<Props> = ({ businessId }) => {
   const [inqPhone, setInqPhone] = useState('');
   const [inqMessage, setInqMessage] = useState('');
 
-  // 문의 창 = Enterprise 문의 / 환불 요청(components/Settings/RefundHelp 머리말) 두 뜻
-  const [inqMode, setInqMode] = useState<'enterprise' | 'refund'>('enterprise');
-  const openInquiry = useCallback((mode: 'enterprise' | 'refund' = 'enterprise', prefill = '') => {
+  // 환불 요청은 문의가 아니라 결제에 묶인 요청이다(components/Settings/RefundRequestModal — 2026-10-19)
+  const openInquiry = useCallback((_mode: 'enterprise' = 'enterprise') => {
     // 로그인 사용자 정보 prefill
-    setInqMode(mode);
     setInqName(user?.name || '');
     setInqEmail(user?.email || '');
     setInqCompany(user?.business_name || '');
     setInqPhone('');
-    setInqMessage(prefill);
+    setInqMessage('');
     setInquiryErr(false);
     setInquirySuccess(null);
     setInquiryOpen(true);
@@ -91,8 +89,8 @@ const PlanSettings: React.FC<Props> = ({ businessId }) => {
     setInquirySubmitting(true);
     setInquiryErr(false);
     const r = await submitInquiry({
-      kind: inqMode === 'refund' ? 'general' : 'enterprise',
-      source: inqMode === 'refund' ? 'plan_refund' : 'plan_page',
+      kind: 'enterprise',
+      source: 'plan_page',
       business_id: businessId || null,
       from_name: inqName,
       from_email: inqEmail,
@@ -103,7 +101,7 @@ const PlanSettings: React.FC<Props> = ({ businessId }) => {
     setInquirySubmitting(false);
     if (r) setInquirySuccess({ email: inqEmail });
     else setInquiryErr(true);
-  }, [inqName, inqEmail, inqCompany, inqPhone, inqMessage, businessId, inqMode]);
+  }, [inqName, inqEmail, inqCompany, inqPhone, inqMessage, businessId]);
 
   // 표에 표시할 플랜 — Enterprise 는 별도 섹션으로 이동 (Irene 요청)
   const comparisonPlans = useMemo(() => catalog.filter(p => p.code !== 'enterprise'), [catalog]);
@@ -597,7 +595,7 @@ const PlanSettings: React.FC<Props> = ({ businessId }) => {
         <SectionTitle>{t('billing.history.title', '결제 이력')}</SectionTitle>
         {businessId && (
           <PaymentHistory businessId={businessId} payments={status.recent_payments} isOwner={isOwnerRole}
-            trialRefund={status.trial_refund} onRefundRequest={(pre) => openInquiry('refund', pre)} />
+            trialRefund={status.trial_refund} onChanged={load} />
         )}
       </Section>
 
@@ -705,12 +703,12 @@ const PlanSettings: React.FC<Props> = ({ businessId }) => {
       {inquiryOpen && (
         <Modal onMouseDown={e => { if (e.target === e.currentTarget && !inquirySubmitting) setInquiryOpen(false); }}>
           <Dialog>
-            <DTitle>{inqMode === 'refund' ? t('refundHelp.title', '환불 요청') : t('inquiry.title')}</DTitle>
+            <DTitle>{t('inquiry.title')}</DTitle>
             {inquirySuccess ? (
               <>
                 <DBody>
                   <SuccessBox>
-                    <SuccessTitle>{inqMode === 'refund' ? t('refundHelp.successTitle', '환불 요청이 접수되었습니다') : t('inquiry.successTitle')}</SuccessTitle>
+                    <SuccessTitle>{t('inquiry.successTitle')}</SuccessTitle>
                     <SuccessDesc>{t('inquiry.successDesc', { email: inquirySuccess.email })}</SuccessDesc>
                   </SuccessBox>
                 </DBody>
@@ -721,7 +719,7 @@ const PlanSettings: React.FC<Props> = ({ businessId }) => {
             ) : (
               <>
                 <DBody>
-                  <InqSub>{inqMode === 'refund' ? t('refundHelp.subtitle') : t('inquiry.subtitle')}</InqSub>
+                  <InqSub>{t('inquiry.subtitle')}</InqSub>
                   <InqGrid>
                     <InqField>
                       <InqLabel>{t('inquiry.name')}<Req>*</Req></InqLabel>
@@ -741,7 +739,7 @@ const PlanSettings: React.FC<Props> = ({ businessId }) => {
                     </InqField>
                     <InqField $span2>
                       <InqLabel>{t('inquiry.message')}<Req>*</Req></InqLabel>
-                      <InqTextarea rows={5} value={inqMessage} onChange={e => setInqMessage(e.target.value)} placeholder={(inqMode === 'refund' ? t('refundHelp.messagePh', '환불을 원하는 결제와 사유를 적어 주세요.') : t('inquiry.messagePh')) as string} maxLength={5000} />
+                      <InqTextarea rows={5} value={inqMessage} onChange={e => setInqMessage(e.target.value)} placeholder={t('inquiry.messagePh') as string} maxLength={5000} />
                     </InqField>
                   </InqGrid>
                   {inquiryErr && <InqError>{t('inquiry.error')}</InqError>}
@@ -749,7 +747,7 @@ const PlanSettings: React.FC<Props> = ({ businessId }) => {
                 <DFooter>
                   <BtnGhost type="button" disabled={inquirySubmitting} onClick={() => setInquiryOpen(false)}>{t('inquiry.cancel')}</BtnGhost>
                   <BtnPrimary type="button" disabled={inquirySubmitting || !inqName.trim() || !inqEmail.trim() || !inqMessage.trim()} onClick={submitInquiryForm}>
-                    {inquirySubmitting ? t('inquiry.submitting') : (inqMode === 'refund' ? t('refundHelp.submit', '환불 요청 보내기') : t('inquiry.submit'))}
+                    {inquirySubmitting ? t('inquiry.submitting') : t('inquiry.submit')}
                   </BtnPrimary>
                 </DFooter>
               </>

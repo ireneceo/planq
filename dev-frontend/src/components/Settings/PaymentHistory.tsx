@@ -1,6 +1,6 @@
 // 요금제 화면 «결제 이력» 목록 — 영수증 PDF + 환불 안내·요청 입구 (PlanSettings 에서 분리, 2026-10-12)
 //   PlanSettings 는 god-file 래칫 대상이라 환불 입구(RefundHelp)를 붙이며 이 목록을 통째로 옮겼다(동작·모양 그대로).
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
@@ -8,17 +8,19 @@ import { downloadFromApi } from '../../utils/download';
 import { receiptPdfUrl, type PaymentRecord } from '../../services/plan';
 import type { TrialRefundState } from './TrialRefundRequest';
 import { RefundHelpLine, RefundRowButton } from './RefundHelp';
+import RefundRequestModal from './RefundRequestModal';
+import { apiFetch } from '../../contexts/AuthContext';
 
 interface Props {
   businessId: number;
   payments: PaymentRecord[] | null | undefined;
   isOwner: boolean;
   trialRefund: TrialRefundState | null | undefined;
-  /** 환불 요청 — 요금제 화면의 문의 창을 «환불» 뜻으로 연다(prefill = 그 결제의 날짜·금액) */
-  onRefundRequest: (prefill: string) => void;
+  /** 환불 요청·취소 뒤 /status 를 다시 읽는다 */
+  onChanged: () => void;
 }
 
-const PaymentHistory: React.FC<Props> = ({ businessId, payments, isOwner, trialRefund, onRefundRequest }) => {
+const PaymentHistory: React.FC<Props> = ({ businessId, payments, isOwner, trialRefund, onChanged }) => {
   const { t } = useTranslation('plan');
   const { formatDate } = useTimeFormat();
   // 영수증 — 링크(<a href>)로 열면 Authorization 헤더가 안 실려 401 빈 화면이었다(운영 #464).
@@ -32,10 +34,34 @@ const PaymentHistory: React.FC<Props> = ({ businessId, payments, isOwner, trialR
     catch { setReceiptErr(paymentId); }
     finally { setReceiptBusy(null); }
   };
+  const money = (p: PaymentRecord) => (p.currency === 'KRW' ? t('amountKrw', { amount: Number(p.amount).toLocaleString() }) : `${p.currency} ${Number(p.amount).toLocaleString()}`) as string;
+  // 환불 요청 — 결제에 묶인 요청(RefundRequestModal). 체험 중 결제(자격 있음)는 위 전용 카드가 받는다.
+  const isTrialCandidate = (p: PaymentRecord) => !!(trialRefund?.available && trialRefund.payment_id === p.id);
+  const refundable = useMemo(
+    () => (payments || []).filter(p => p.status === 'paid' && !p.refund_requested_at && !isTrialCandidate(p)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [payments, trialRefund?.available, trialRefund?.payment_id],
+  );
+  const [refundPick, setRefundPick] = useState<{ id: number | null } | null>(null);
+  const [cancelBusy, setCancelBusy] = useState<number | null>(null);
+  const [cancelErr, setCancelErr] = useState<number | null>(null);
+  const cancelRequest = async (paymentId: number) => {
+    if (cancelBusy) return;
+    setCancelBusy(paymentId); setCancelErr(null);
+    try {
+      const r = await apiFetch(`/api/plan/${businessId}/payments/${paymentId}/refund-request`, { method: 'DELETE' });
+      const j = await r.json();
+      if (!j?.success) throw new Error(j?.message || 'failed');
+      onChanged();
+    } catch { setCancelErr(paymentId); }
+    finally { setCancelBusy(null); }
+  };
+  // 체험 중 결제 요청은 전용 카드가 «요청 중 · 요청 취소» 를 보여 준다 — 행에 같은 버튼을 두 번 두지 않는다.
+  const trialPending = (p: PaymentRecord) => !!(trialRefund?.requested && trialRefund.request_valid && trialRefund.payment_id === p.id);
   return (
     <>
       {payments?.some(p => p.status === 'paid') && (
-        <RefundHelpLine isOwner={isOwner} onRequest={() => onRefundRequest('')} />
+        <RefundHelpLine isOwner={isOwner} canRequest={refundable.length > 0} onRequest={() => setRefundPick({ id: null })} />
       )}
       {(!payments || payments.length === 0) ? (
         <Dim>{t('billing.history.empty', '결제 내역이 없습니다')}</Dim>
@@ -68,10 +94,19 @@ const PaymentHistory: React.FC<Props> = ({ businessId, payments, isOwner, trialR
                   <ReceiptLink type="button" onClick={() => openReceipt(p.id)} disabled={receiptBusy === p.id} data-testid="plan-receipt">
                     {t('billing.history.receipt', '영수증')}
                   </ReceiptLink>
-                  {isOwner && !(trialRefund?.available && trialRefund.payment_id === p.id) && (
-                    <RefundRowButton date={p.paid_at ? formatDate(p.paid_at) : '—'} onRequest={onRefundRequest}
-                      amount={p.currency === 'KRW' ? t('amountKrw', { amount: Number(p.amount).toLocaleString() }) : `${p.currency} ${Number(p.amount).toLocaleString()}`} />
+                  {p.refund_requested_at ? (
+                    <>
+                      <RequestedTag data-testid="plan-refund-requested">{t('refundHelp.requested', { date: formatDate(p.refund_requested_at), defaultValue: '환불 요청됨 · {{date}}' })}</RequestedTag>
+                      {isOwner && !trialPending(p) && (
+                        <ReceiptLink type="button" onClick={() => cancelRequest(p.id)} disabled={cancelBusy === p.id} data-testid="plan-refund-cancel">
+                          {t('trialRefund.cancelRequest', '요청 취소')}
+                        </ReceiptLink>
+                      )}
+                    </>
+                  ) : isOwner && !isTrialCandidate(p) && (
+                    <RefundRowButton onRequest={() => setRefundPick({ id: p.id })} />
                   )}
+                  {cancelErr === p.id && <ReceiptError role="alert">{t('trialRefund.errGeneric', '처리하지 못했습니다. 잠시 후 다시 시도해 주세요.')}</ReceiptError>}
                   {receiptErr === p.id && <ReceiptError role="alert">{t('billing.history.receiptFailed', '영수증을 받지 못했습니다. 다시 시도해 주세요.')}</ReceiptError>}
                 </RowActions>
               )}
@@ -79,6 +114,9 @@ const PaymentHistory: React.FC<Props> = ({ businessId, payments, isOwner, trialR
           ))}
         </PaymentList>
       )}
+      <RefundRequestModal businessId={businessId} candidates={refundPick ? refundable : null} initialId={refundPick?.id ?? null}
+        onClose={() => setRefundPick(null)} onDone={() => { setRefundPick(null); onChanged(); }}
+        label={(p) => `${p.paid_at ? formatDate(p.paid_at) : '—'} · ${money(p)}`} />
     </>
   );
 };
@@ -128,6 +166,10 @@ const ReceiptLink = styled.button`
   border: 1px solid #5EEAD4; border-radius: 6px;
   &:hover { background: #F0FDFA; }
   &:disabled { opacity: 0.6; cursor: wait; }
+`;
+const RequestedTag = styled.span`
+  font-size: 0.6875rem; font-weight: 600; color: #BE123C; background: #FFE4E6;
+  padding: 3px 8px; border-radius: 999px; white-space: nowrap;
 `;
 const ReceiptError = styled.span`
   font-size: 0.6875rem; color: #DC2626;

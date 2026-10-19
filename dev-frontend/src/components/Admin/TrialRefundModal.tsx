@@ -1,4 +1,9 @@
-// 관리자 «체험 환불 처리» 창 — docs/TRIAL_REFUND_DESIGN.md §4·§5
+// 관리자 «환불 요청 처리» 창 — docs/TRIAL_REFUND_DESIGN.md §4·§5
+//
+//   요청이 둘이다(2026-10-19 — 일반 환불 요청도 결제에 묶여 여기로 온다, routes/plan_refund):
+//     · trial  — 체험 중 결제. 처리 = mode 'trial'(구독이 체험으로 돌아간다).
+//     · general — 그 밖의 결제. 약관 제4조 기준으로 판단해 처리 = mode 'manual'(결제만 환불 — 구독은 그대로) 또는 [반려](사유 → 대표 알림).
+//     어느 쪽인지는 서버가 판정한 refund_request_trial 을 읽는다(화면이 고르지 않는다).
 //
 //   카드(Stripe 결제): «Stripe 로 카드 환불 실행» 기본 켬 — 끄면 이미 Stripe 대시보드에서 돌려준 건으로 기록만 한다.
 //   계좌이체: 사용자가 적은 환불 계좌를 보여 주고(읽는 문 GET refund-account — 열람이 감사에 남는다),
@@ -21,6 +26,8 @@ export interface TrialRefundTarget {
   note: string | null;
   hasStripeIntent: boolean;
   taxIssued: boolean;
+  /** 서버 판정 — 체험 중 결제 환불이면 true */
+  trial: boolean;
 }
 
 interface Props {
@@ -40,9 +47,12 @@ const TrialRefundModal: React.FC<Props> = ({ target, onClose, onDone, fmtMoney, 
   const [accountLoaded, setAccountLoaded] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [declining, setDeclining] = useState(false);
+  const [declineReason, setDeclineReason] = useState('');
 
   useEffect(() => {
     setViaStripe(true); setTransferred(false); setAccount(null); setAccountLoaded(false); setError(null);
+    setDeclining(false); setDeclineReason('');
     if (!target || isCard) return;
     let alive = true;
     (async () => {
@@ -57,7 +67,24 @@ const TrialRefundModal: React.FC<Props> = ({ target, onClose, onDone, fmtMoney, 
   }, [target, isCard]);
 
   if (!target) return null;
-  const canSubmit = isCard ? true : transferred;
+  const trial = target.trial;
+  const canSubmit = declining ? !!declineReason.trim() : (isCard ? true : transferred);
+
+  const decline = async () => {
+    if (!declineReason.trim() || busy) return;
+    setBusy(true); setError(null);
+    try {
+      const r = await apiFetch(`/api/admin/payments/${target.id}/refund-request/decline`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason: declineReason.trim() }),
+      });
+      const j = await r.json();
+      if (!j?.success) throw new Error(j?.message || 'failed');
+      onDone();
+    } catch (e) {
+      setError(t('payments.trialRefundFailed', { code: (e as Error).message, defaultValue: '환불 처리 실패 ({{code}})' }) as string);
+    } finally { setBusy(false); }
+  };
 
   const submit = async () => {
     if (!canSubmit || busy) return;
@@ -66,9 +93,9 @@ const TrialRefundModal: React.FC<Props> = ({ target, onClose, onDone, fmtMoney, 
       const r = await apiFetch(`/api/admin/payments/${target.id}/refund`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          mode: 'trial',
+          mode: trial ? 'trial' : 'manual',
           via_stripe: isCard && target.hasStripeIntent ? viaStripe : false,
-          reason: t('payments.trialRefundReason', '체험 중 환불'),
+          reason: trial ? t('payments.trialRefundReason', '체험 중 환불') : t('payments.requestRefundReason', '고객 요청 환불'),
         }),
       });
       const j = await r.json();
@@ -82,27 +109,48 @@ const TrialRefundModal: React.FC<Props> = ({ target, onClose, onDone, fmtMoney, 
   };
 
   return (
-    <StandardModal open onClose={onClose} title={t('payments.trialRefundTitle', '체험 중 결제 환불') as string} size="sm"
-      ariaLabel={t('payments.trialRefundTitle', '체험 중 결제 환불') as string}
-      footer={(
+    <StandardModal open onClose={onClose} size="sm"
+      title={(trial ? t('payments.trialRefundTitle', '체험 중 결제 환불') : t('payments.requestRefundTitle', '환불 요청 처리')) as string}
+      ariaLabel={(trial ? t('payments.trialRefundTitle', '체험 중 결제 환불') : t('payments.requestRefundTitle', '환불 요청 처리')) as string}
+      footer={declining ? (
         <>
-          <ActionButton tone="secondary" size="md" onClick={onClose}>{t('payments.cancel', '취소') as string}</ActionButton>
+          <ActionButton tone="secondary" size="md" onClick={() => setDeclining(false)}>{t('payments.back', '돌아가기') as string}</ActionButton>
+          <ActionButton tone="danger" size="md" loading={busy} disabled={!canSubmit} onClick={decline} data-testid="admin-refund-decline-submit">
+            {t('payments.declineSubmit', '요청 반려') as string}
+          </ActionButton>
+        </>
+      ) : (
+        <>
+          <ActionButton tone="secondary" size="md" onClick={() => { setError(null); setDeclining(true); }} data-testid="admin-refund-decline-open">
+            {t('payments.decline', '반려') as string}
+          </ActionButton>
           <ActionButton tone="danger" size="md" loading={busy} disabled={!canSubmit} onClick={submit} data-testid="admin-trial-refund-submit">
             {t('payments.trialRefundSubmit', '환불 처리') as string}
           </ActionButton>
         </>
       )}>
       <Lead>
-        {t('payments.trialRefundLead', {
+        {trial ? t('payments.trialRefundLead', {
           biz: target.businessName || '', amount: fmtMoney(target.amount, target.currency),
           defaultValue: '{{biz}} 의 {{amount}} 결제를 전액 환불합니다. 처리하면 구독이 체험 상태로 돌아갑니다(체험 종료일은 그대로).',
+        }) as string : t('payments.requestRefundLead', {
+          biz: target.businessName || '', amount: fmtMoney(target.amount, target.currency),
+          defaultValue: '{{biz}} 가 {{amount}} 결제의 환불을 요청했습니다. 약관 제4조(월간 7일·연간 14일 이내 전액, 그 뒤 일할)로 확인한 뒤 처리하거나 반려하세요. 처리하면 이 결제가 «환불» 로 기록되고 구독 상태는 바뀌지 않습니다.',
         }) as string}
       </Lead>
       <Meta>
         <span>{isCard ? t('payments.method.card', '카드') : t('payments.method.bank_transfer', '계좌이체')}</span>
         <span>{t('payments.trialRefundRequested', { date: fmtDate(target.requestedAt), defaultValue: '{{date}} 요청' }) as string}</span>
       </Meta>
-      {target.note && <Note>{target.note}</Note>}
+      {target.note && <Note>{t('payments.requestReason', { note: target.note, defaultValue: '고객 사유: {{note}}' }) as string}</Note>}
+      {declining ? (
+        <DeclineBox>
+          <label htmlFor="rf-decline">{t('payments.declineReason', '반려 사유 (대표에게 알림으로 갑니다)') as string}</label>
+          {/* draft-exempt: 창 안에서 바로 보내는 짧은 사유 */}
+          <textarea id="rf-decline" rows={3} maxLength={255} value={declineReason} onChange={(e) => setDeclineReason(e.target.value)} data-testid="admin-refund-decline-reason" />
+          {error && <Err role="alert">{error}</Err>}
+        </DeclineBox>
+      ) : (<>
       {target.taxIssued && <Warn>{t('payments.trialRefundTaxIssued', '세금계산서가 이미 발행됐습니다 — 수정세금계산서를 따로 발행하세요.') as string}</Warn>}
 
       {isCard ? (
@@ -128,6 +176,7 @@ const TrialRefundModal: React.FC<Props> = ({ target, onClose, onDone, fmtMoney, 
         </>
       )}
       {error && <Err role="alert">{error}</Err>}
+      </>)}
     </StandardModal>
   );
 };
@@ -142,4 +191,8 @@ const Hint = styled.div`font-size: 0.8125rem; color: #64748B; line-height: 1.5;`
 const AccountBox = styled.div`font-size: 0.875rem; color: #0F172A; background: #F0FDFA; border: 1px solid #99F6E4; border-radius: 8px; padding: 10px 12px;`;
 const Check = styled.label`display: flex; align-items: flex-start; gap: 8px; font-size: 0.8125rem; color: #0F172A; cursor: pointer; line-height: 1.5;
   input { margin-top: 2px; }`;
+const DeclineBox = styled.div`display: flex; flex-direction: column; gap: 6px;
+  label { font-size: 0.75rem; font-weight: 600; color: #334155; }
+  textarea { padding: 8px 12px; border: 1px solid #E2E8F0; border-radius: 8px; font-size: 0.875rem; font-family: inherit; resize: vertical; }
+  textarea:focus { outline: none; border-color: #14B8A6; box-shadow: 0 0 0 3px rgba(20,184,166,0.12); }`;
 const Err = styled.div`font-size: 0.8125rem; color: #DC2626;`;

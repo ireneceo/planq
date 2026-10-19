@@ -134,6 +134,7 @@ export interface PaymentRecord {
   payer_name: string | null;
   method: string;
   line_items?: PaymentLineItem[] | null;
+  refund_requested_at?: string | null;   // 환불 요청 중(routes/plan_refund)
 }
 
 export interface PlanStatus {

@@ -168,7 +168,16 @@
       "trial_refund_used": "이 워크스페이스는 체험 중 환불을 이미 한 번 받았습니다.",
       "not_requested": "환불 요청이 없는 결제입니다.",
       "not_trial_payment": "체험 중 결제가 아닙니다."
-    }
+    },
+    "requestRefundReason": "고객 요청 환불",
+    "requestRefundTitle": "환불 요청 처리",
+    "back": "돌아가기",
+    "declineSubmit": "요청 반려",
+    "decline": "반려",
+    "requestRefundLead": "{{biz}} 가 {{amount}} 결제의 환불을 요청했습니다. 약관 제4조(월간 7일·연간 14일 이내 전액, 그 뒤 일할)로 확인한 뒤 처리하거나 반려하세요. 처리하면 이 결제가 «환불» 로 기록되고 구독 상태는 바뀌지 않습니다.",
+    "requestReason": "고객 사유: {{note}}",
+    "declineReason": "반려 사유 (대표에게 알림으로 갑니다)",
+    "requestRefundOpen": "환불 요청 처리"
   },
   "subs": {
     "title": "구독 관리",

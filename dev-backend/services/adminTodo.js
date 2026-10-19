@@ -10,7 +10,7 @@
 //       deposit_plan  → 구독 관리      (플랜 결제 · 고객이 입금 통보함 · 아직 pending)
 //       deposit_addon → 결제 이력      (애드온 결제 · 같은 조건)
 //       tax_invoice   → 결제 이력      (결제 완료 · 세금계산서 요청됨/발행 실패 · 환불 요청 중이 아님)
-//       refund_request→ 결제 이력      (결제 완료 · 체험 중 결제 환불 요청됨 — docs/TRIAL_REFUND_DESIGN.md §2)
+//       refund_request→ 결제 이력      (결제 완료 · 환불 요청됨 — 체험 중·일반 둘 다, docs/TRIAL_REFUND_DESIGN.md §2)
 //         ★ 한 결제가 세금계산서 요청과 환불 요청을 같이 가지면 **환불 요청 하나로만** 센다(환불이 먼저다).
 //       inquiry       → 문의 인박스    (new · in_progress)
 //       feedback      → 사용자 피드백  (pending · reviewing)
@@ -35,7 +35,7 @@ async function collectAdminTodo() {
 
   const depositWhere = { status: 'pending', notify_paid_at: { [Op.ne]: null } };
   const taxWhere = { status: 'paid', tax_invoice_status: { [Op.in]: ['requested', 'failed'] }, refund_requested_at: null };
-  const refundWhere = { status: 'paid', kind: 'plan', refund_requested_at: { [Op.ne]: null } };
+  const refundWhere = { status: 'paid', refund_requested_at: { [Op.ne]: null } };   // 체험 중·일반 환불 요청 둘 다(routes/plan_refund)
   const inquiryWhere = { status: { [Op.in]: ['new', 'in_progress'] } };
   const feedbackWhere = { status: { [Op.in]: ['pending', 'reviewing'] } };
 

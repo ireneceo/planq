@@ -17,6 +17,7 @@ const { isExemptNow, exemptBusinessIds } = require('../services/billingExemptVie
 
 // 구독·결제 라우트는 절출됨(god-file 래칫). 이 라우터에 마운트해 인증 게이트를 공유한다.
 router.use('/', require('./admin_billing'));
+router.use('/', require('./admin_refund'));   // 환불 요청 반려 — admin_billing god-file 상한으로 분리
 
 // 확인 필요 — 관리자가 처리할 일(입금 통보·세금계산서·문의·피드백). 사이드바 배지의 유일한 원천.
 router.get('/todo', async (req, res, next) => {
