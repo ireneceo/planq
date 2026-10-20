@@ -18,6 +18,7 @@ import CreateDrawer from '../../components/Common/CreateDrawer';
 import CalendarPicker from '../../components/Common/CalendarPicker';
 import RecurrencePicker from '../../components/Common/RecurrencePicker';
 import { getVideoStatus, notifyEventMaterials } from '../../services/calendar';
+import GcalSyncRows, { type GcalTarget } from './GcalSyncRows';
 import AttendeeNotifyField, { notifyCountOf } from './AttendeeNotifyField';
 import AttachmentField from '../../components/Common/AttachmentField';
 import { uploadMaterialFiles } from './EventMaterials';
@@ -241,6 +242,8 @@ const NewEventModal: React.FC<Props> = ({ initialStart, initialTitle, initialDes
   const [personalConnected, setPersonalConnected] = useState(false);
   // 회의가 어느 계정에 개설되는지 — 'personal' 이면 본인 구글 계정이 호스트가 된다.
   const [meetSource, setMeetSource] = useState<'personal' | 'workspace' | null>(null);
+  // «어디로 들어가는지» — 연결마다 고른 캘린더 하나(일정마다 고르지 않는다). 이름 null = 기본 캘린더.
+  const [gcalTarget, setGcalTarget] = useState<GcalTarget | null>(null);
   const [rrule, setRrule] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -253,11 +256,18 @@ const NewEventModal: React.FC<Props> = ({ initialStart, initialTitle, initialDes
         setWorkspaceConnected(!!s.workspace_connected);
         setPersonalConnected(!!s.personal_connected);
         setMeetSource(s.meet_source ?? null);
+        setGcalTarget({
+          teamEmail: s.workspace_account_email ?? null,
+          teamCal: s.workspace_calendar_summary ?? null,
+          personalEmail: s.personal_account_email ?? null,
+          personalCal: s.personal_calendar_summary ?? null,
+          canChangeTeam: !!s.can_reconnect_workspace,
+        });
       })
       .catch(() => {
         setGcalConfigured(false); setGcalCanWrite(false);
         setWorkspaceCanWrite(false); setWorkspaceConnected(false);
-        setPersonalConnected(false); setMeetSource(null);
+        setPersonalConnected(false); setMeetSource(null); setGcalTarget(null);
       });
   }, [businessId]);
 
@@ -677,33 +687,12 @@ const NewEventModal: React.FC<Props> = ({ initialStart, initialTitle, initialDes
           {(workspaceCanWrite || personalCalWritable) && (
             <Field>
               <Label>{t('form.gcalSection')}</Label>
-              {workspaceCanWrite && (
-                <GcalRow $disabled={isPrivateVis}>
-                  <input
-                    type="checkbox"
-                    checked={gcalSyncWorkspace && !isPrivateVis}
-                    disabled={isPrivateVis}
-                    onChange={(e) => setGcalSyncWorkspace(e.target.checked)}
-                  />
-                  <span>
-                    {t('form.gcalTeam')}
-                    <GcalHint>{isPrivateVis ? t('form.gcalTeamBlocked') : t('form.gcalTeamHint')}</GcalHint>
-                  </span>
-                </GcalRow>
-              )}
-              {personalCalWritable && (
-                <GcalRow>
-                  <input
-                    type="checkbox"
-                    checked={gcalSyncPersonal}
-                    onChange={(e) => setGcalSyncPersonal(e.target.checked)}
-                  />
-                  <span>
-                    {t('form.gcalPersonal')}
-                    <GcalHint>{t('form.gcalPersonalHint')}</GcalHint>
-                  </span>
-                </GcalRow>
-              )}
+              <GcalSyncRows
+                team={workspaceCanWrite ? { checked: gcalSyncWorkspace, onChange: setGcalSyncWorkspace } : null}
+                personal={personalCalWritable ? { checked: gcalSyncPersonal, onChange: setGcalSyncPersonal } : null}
+                isPrivateVis={isPrivateVis}
+                target={gcalTarget}
+              />
             </Field>
           )}
     </CreateDrawer>
@@ -713,13 +702,6 @@ const NewEventModal: React.FC<Props> = ({ initialStart, initialTitle, initialDes
 export default NewEventModal;
 
 // ── styled ──
-const GcalRow = styled.label<{ $disabled?: boolean }>`
-  display: flex; align-items: flex-start; gap: 8px;
-  padding: 6px 0; font-size: 0.8125rem; color: #334155;
-  cursor: ${p => (p.$disabled ? 'not-allowed' : 'pointer')};
-  opacity: ${p => (p.$disabled ? 0.55 : 1)};
-`;
-const GcalHint = styled.small`display:block;margin-top:2px;font-size:0.71875rem;color:#94A3B8;line-height:1.45;`;
 const Field = styled.div` display: flex; flex-direction: column; gap: 6px; position: relative; `;
 const Label = styled.label`
   font-size: 0.6875rem; font-weight: 600; color: #64748B;

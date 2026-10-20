@@ -153,6 +153,12 @@ function calendarIdOf(conn) {
   const id = metaOf(conn).calendar_id;
   return (typeof id === 'string' && id.trim()) ? id.trim() : 'primary';
 }
+// 이 연결의 쓰기 캘린더 이름 — 화면이 «어디로 올리는지» 를 적는 근거다(목록 권한 없이도).
+//   기본 캘린더면 summary null(화면이 «기본 캘린더» 로 부른다). 연결 목록·일정 상태 응답이 같이 쓴다.
+function calendarLabelOf(conn) {
+  const id = calendarIdOf(conn);
+  return { calendar_id: id, calendar_primary: id === 'primary', calendar_summary: id === 'primary' ? null : (metaOf(conn).calendar_summary || null) };
+}
 /** 캘린더 목록을 읽을 권한이 있는가 — 옛 연결은 «다시 연결하면 고를 수 있다» 로 안내한다. */
 function hasCalendarList(conn) {
   return googleScopes.hasCalendarList(conn && conn.scope);
@@ -446,6 +452,6 @@ module.exports = {
   hasCalendarWrite, insertEvent, updateEvent, deleteEvent, CALENDAR_WRITE_SCOPES,
   patchPersonalOriginEvent, getEvent, normalize,
   createMeetingEvent, recordConnError,
-  calendarIdOf, hasCalendarList, listCalendars, CALENDAR_LIST_SCOPE,
+  calendarIdOf, calendarLabelOf, hasCalendarList, listCalendars, CALENDAR_LIST_SCOPE,
   readableCalendars, visibleCalendarsOf, assertEditableCalendar, invalidateEvents, isWritableRole, VISIBLE_MAX,
 };

@@ -1090,6 +1090,8 @@ router.get('/video/status', authenticateToken, videoStatusAccess, async (req, re
     let meetEmail = null;
     let personalConnected = false;
     let personalCanWrite = false;
+    let personalEmail = null;
+    let personalCalendarSummary = null;
     // ── 동기화 상태 축 (2026-08-14, #242) — 캘린더 화면이 "왜 안 오는지" 를 말할 수 있어야 한다.
     //   ★ 새 라우트를 만들지 않는다. 프론트가 이미 이 라우트를 쓰고 있는데 sync-status 를 신설하면
     //     /cloud/status · /video/status · /sync-status 세 벌 판정이 된다(Fable 설계 게이트 치명-1).
@@ -1114,6 +1116,10 @@ router.get('/video/status', authenticateToken, videoStatusAccess, async (req, re
       const personalConn = await calendarSync.pickPersonalConn(req.user.id, businessId);
       personalConnected = !!personalConn;
       personalCanWrite = !!(personalConn && personalCalendar.hasCalendarWrite(personalConn));
+      if (personalConn) {
+        personalEmail = personalConn.account_email || null;
+        personalCalendarSummary = personalCalendar.calendarLabelOf(personalConn).calendar_summary;
+      }
       const src = await calendarSync.resolveMeetSource({ businessId, userId: req.user.id });
       if (src.kind) {
         meetSourceKind = src.kind;
@@ -1157,6 +1163,9 @@ router.get('/video/status', authenticateToken, videoStatusAccess, async (req, re
       //   합산된 gcal_connected 만으로는 직원에게 owner 전용 워크스페이스 설정을 안내하게 된다.
       personal_connected: personalConnected,
       personal_can_write: personalCanWrite,
+      // 일정 추가 창이 «어디로 올라가는지» 를 적는다 — 이름 null = 기본 캘린더.
+      personal_account_email: personalEmail,
+      personal_calendar_summary: personalCalendarSummary,
       // ── Meet 축 — 워크스페이스 **또는** 개인 연동 중 하나라도 회의를 만들 수 있으면 true.
       // #242 — 토큰이 있어도 캘린더 쓰기 권한(scope)이 없을 수 있다. 옛 응답은 그 구분이 없어
       //   프론트가 Meet 자동생성 체크박스를 켤 수 있게 노출했고, 켜면 일정 생성이 실패했다.

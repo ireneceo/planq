@@ -22,13 +22,6 @@ async function assertBusinessMember(req, bizId) {
   return !!bm;
 }
 
-// 이 연결의 쓰기 캘린더 이름 — 화면이 «어디로 올리는지» 를 적는 근거다(목록 권한 없이도).
-function calendarLabelOf(conn) {
-  const id = personalCalendar.calendarIdOf(conn);
-  const meta = (conn.metadata && typeof conn.metadata === 'object') ? conn.metadata : {};
-  return { calendar_id: id, calendar_primary: id === 'primary', calendar_summary: id === 'primary' ? null : (meta.calendar_summary || null) };
-}
-
 // 묶어서 돌린다 — 동시에 limit 개까지, 전체 deadline 을 넘긴 일은 기다리지 않고 «시간 초과» 로 돌려준다.
 async function runPool(jobs, { limit = 4, deadlineAt }) {
   const results = new Array(jobs.length);
@@ -161,7 +154,7 @@ router.get('/me/calendar/events', authenticateToken,
       const tried = calendars.filter((c) => c.visible);
       const anyOk = tried.some((c) => c.ok);
       connections.push({
-        id: conn.id, account_email: conn.account_email, ok: anyOk, ...calendarLabelOf(conn),
+        id: conn.id, account_email: conn.account_email, ok: anyOk, ...personalCalendar.calendarLabelOf(conn),
         can_list: p.canList, list_error: p.listError, visible_max: personalCalendar.VISIBLE_MAX, calendars,
         ...(anyOk ? {} : { error: (tried[0] && tried[0].error) || 'failed' }),
       });
