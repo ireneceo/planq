@@ -395,8 +395,11 @@ const ARTICLES = [
         'When adding a task inside a project you can also set the work group (workstream), recurrence, and a description. Recurrence requires a due date.'),
       note('마감이 지나면 빨간 뱃지로 표시되고, 마감 연장은 담당자 이상만 가능합니다.',
         'Overdue tasks show a red badge; only the owner or above can extend a due date.'),
-      note('다른 사람을 담당자로 직접 지정하면 예상 시간·반복은 그 사람이 정하도록 비워집니다 — 요청받은 사람이 자기 일정에 맞춰 채웁니다.',
-        'If you explicitly assign someone else, estimated time and recurrence are left for them to set — the assignee fills those in to fit their own schedule.'),
+      note('다른 사람을 담당자로 직접 지정하면 예상 시간은 그 사람이 정하도록 비워집니다 — 요청받은 사람이 자기 일정에 맞춰 채웁니다. 반복 주기는 요청하는 사람이 정할 수 있습니다.',
+        'If you explicitly assign someone else, estimated time is left for them to set — the assignee fills it in to fit their own schedule. The requester can still set recurrence.'),
+      // 2026-10-20 f4979e74 — 폼 안에서 요청으로 전환
+      p('업무 추가 창 맨 위의 [내 업무 | 요청하기] 로 바로 바꿀 수 있습니다. 요청하기를 고르면 담당자를 동료 중에서 꼭 골라야 하고, 만든 뒤에는 «요청하기» 탭에서 보입니다.',
+        'Switch between [My task | Request] at the top of the Add task form. With Request you must pick a teammate as the owner, and the task then appears under the Request tab.'),
       // 2026-09-07 — 책임선에서 직급 예외를 걷었다. 사용자가 알아야 하는 동작 변경이라 여기 적는다.
       s('업무 설명은 만든 사람만, 결과물은 담당자만 씁니다.', 'Only the creator edits the request; only the assignee writes the deliverable.'),
       p('업무 설명(무엇을 해 달라는 요청)은 그 업무를 만든 사람만 고칠 수 있고, 결과물은 담당자만 쓸 수 있습니다. 소유자·관리자도 예외가 없습니다 — 남의 글을 대신 고치면 나중에 누가 왜 바꿨는지 알 수 없기 때문입니다.',
