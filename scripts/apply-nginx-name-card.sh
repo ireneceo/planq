@@ -62,7 +62,7 @@ if nginx -t; then
   systemctl reload nginx
   echo "완료 — nginx 다시 읽음. (백업: $BAK)"
   HOST=$(grep -m1 -oE 'server_name [^;]+' "$CONF" | awk '{print $2}')
-  curl -s -o /dev/null -D - "https://${HOST}/c/AAAAAAAAAAAAAAAAAAAAAA" | grep -iE '^HTTP|x-robots-tag'
+  curl -sL -o /dev/null -D - "https://${HOST}/c/AAAAAAAAAAAAAAAAAAAAAA" | grep -iE '^HTTP|x-robots-tag'
 else
   cp "$BAK" "$(readlink -f "$CONF")"
   echo "문법 오류 → 원래대로 되돌림. 아무것도 바뀌지 않았습니다."
