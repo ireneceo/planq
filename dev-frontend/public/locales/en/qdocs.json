@@ -1038,7 +1038,8 @@
   },
   "signItems": {
     "badType": "Only PNG, JPG or WEBP images.",
-    "tooLarge": "Images must be 5MB or smaller.",
+    "tooLarge": "Images must be 30MB or smaller. Large images are resized automatically.",
+    "reading": "Resizing the image…",
     "readFailed": "Couldn’t read the image. Try another file.",
     "nth": "Signature {{n}} of {{total}}",
     "one": "Signature",

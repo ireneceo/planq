@@ -19,36 +19,67 @@ interface Props {
   onReadyChange?: (ready: boolean) => void;
 }
 
-const MAX_FILE = 5 * 1024 * 1024;   // 서버 상한(base64 ≈ 7MB)과 같은 문턱
-const MAX_EDGE = 1200;               // 올린 이미지 긴 변 — 서명본·PDF 에 충분하고 요청이 가볍다
+// 2026-10-21 Irene «서명 이미지 넣는게 너무 느려 … 큰 이미지를 누가 넣어도 제대로 줄여줘»
+//   예전엔 5MB 넘는 사진은 거절하고, 1200px 이하는 원본 그대로, 그 외는 PNG 로 다시 그려 수 MB 가 그대로 올라갔다.
+//   서명본·PDF 에서 서명 칸은 최대 300×96 으로 찍힌다 → 긴 변 900px(3배)이면 레티나·인쇄에도 충분하다.
+//   투명 픽셀이 있으면(배경 없는 스탬프) PNG, 없으면(종이에 찍은 사진) JPEG 로 줄인다. 서버는 바이트를 바꾸지 않는다(증거 해시).
+const MAX_FILE = 30 * 1024 * 1024;   // 줄이기 전 안전 문턱(디코드 폭주 방지) — 그 아래는 전부 줄여서 받는다
+const MAX_EDGE = 900;
+const TARGET_BYTES = 350_000;        // 불투명 사진은 이 아래가 될 때까지 JPEG 품질을 낮춘다
 const ACCEPT = 'image/png,image/jpeg,image/webp';
 
-/** 큰 이미지는 줄인다. PNG·WEBP 는 투명(스탬프 배경)을 지키려고 PNG 로, JPEG 는 JPEG 로. */
-function readImage(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const fr = new FileReader();
-    fr.onerror = () => reject(new Error('read_failed'));
-    fr.onload = () => {
-      const src = String(fr.result || '');
-      const img = new Image();
-      img.onerror = () => reject(new Error('read_failed'));
-      img.onload = () => {
-        const scale = Math.min(1, MAX_EDGE / Math.max(img.width, img.height));
-        if (scale >= 1 && /^data:image\/(png|jpeg|webp);base64,/.test(src)) { resolve(src); return; }
-        const c = document.createElement('canvas');
-        c.width = Math.max(1, Math.round(img.width * scale)); c.height = Math.max(1, Math.round(img.height * scale));
-        const ctx = c.getContext('2d');
-        if (!ctx) { reject(new Error('read_failed')); return; }
-        ctx.drawImage(img, 0, 0, c.width, c.height);
-        resolve(file.type === 'image/jpeg' ? c.toDataURL('image/jpeg', 0.9) : c.toDataURL('image/png'));
-      };
-      img.src = src;
-    };
-    fr.readAsDataURL(file);
-  });
+async function decode(file: File): Promise<{ src: CanvasImageSource; w: number; h: number; close?: () => void }> {
+  if (typeof createImageBitmap === 'function') {
+    try {
+      // 폰 사진의 회전 정보(EXIF)를 따른다
+      const bmp = await createImageBitmap(file, { imageOrientation: 'from-image' } as ImageBitmapOptions);
+      return { src: bmp, w: bmp.width, h: bmp.height, close: () => bmp.close() };
+    } catch { /* 아래 방식으로 */ }
+  }
+  const url = URL.createObjectURL(file);
+  try {
+    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const el = new Image();
+      el.onload = () => resolve(el);
+      el.onerror = () => reject(new Error('read_failed'));
+      el.src = url;
+    });
+    return { src: img, w: img.naturalWidth, h: img.naturalHeight, close: () => URL.revokeObjectURL(url) };
+  } catch (e) { URL.revokeObjectURL(url); throw e; }
 }
 
-interface ItemState { mode: 'draw' | 'image'; drawn: boolean; image: string | null; error: string | null }
+function hasTransparency(ctx: CanvasRenderingContext2D, w: number, h: number): boolean {
+  const d = ctx.getImageData(0, 0, w, h).data;
+  for (let k = 3; k < d.length; k += 4) if (d[k] < 250) return true;
+  return false;
+}
+
+/** 어떤 크기의 이미지든 긴 변 900px 이하로 다시 그린다 — 투명이면 PNG, 아니면 JPEG */
+async function readImage(file: File): Promise<string> {
+  const { src, w, h, close } = await decode(file);
+  try {
+    if (!w || !h) throw new Error('read_failed');
+    const scale = Math.min(1, MAX_EDGE / Math.max(w, h));
+    const c = document.createElement('canvas');
+    c.width = Math.max(1, Math.round(w * scale)); c.height = Math.max(1, Math.round(h * scale));
+    const ctx = c.getContext('2d');
+    if (!ctx) throw new Error('read_failed');
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(src, 0, 0, c.width, c.height);
+    if (file.type !== 'image/jpeg' && hasTransparency(ctx, c.width, c.height)) return c.toDataURL('image/png');
+    // 불투명 — JPEG 는 투명이 없으므로 흰 바탕을 깐다(반투명 테두리가 검게 되지 않게)
+    ctx.globalCompositeOperation = 'destination-over';
+    ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, c.width, c.height);
+    let out = '';
+    for (const q of [0.88, 0.78, 0.68]) {
+      out = c.toDataURL('image/jpeg', q);
+      if (out.length * 0.75 <= TARGET_BYTES) break;
+    }
+    return out;
+  } finally { close?.(); }
+}
+
+interface ItemState { mode: 'draw' | 'image'; drawn: boolean; image: string | null; error: string | null; reading?: boolean }
 
 const SignatureItemsInput = React.forwardRef<SignatureItemsHandle, Props>(({ count, captions, disabled, onReadyChange }, ref) => {
   const { t } = useTranslation('qdocs');
@@ -115,9 +146,10 @@ const SignatureItemsInput = React.forwardRef<SignatureItemsHandle, Props>(({ cou
   const pick = async (i: number, file: File | undefined) => {
     if (!file) return;
     if (!ACCEPT.split(',').includes(file.type)) { patch(i, { error: t('signItems.badType', { defaultValue: 'PNG·JPG·WEBP 이미지만 올릴 수 있어요.' }) as string }); return; }
-    if (file.size > MAX_FILE) { patch(i, { error: t('signItems.tooLarge', { defaultValue: '5MB 이하 이미지만 올릴 수 있어요.' }) as string }); return; }
-    try { patch(i, { image: await readImage(file), error: null }); }
-    catch { patch(i, { error: t('signItems.readFailed', { defaultValue: '이미지를 읽지 못했어요. 다른 파일로 해 보세요.' }) as string }); }
+    if (file.size > MAX_FILE) { patch(i, { error: t('signItems.tooLarge', { defaultValue: '30MB 이하 이미지만 올릴 수 있어요. 큰 이미지는 알맞은 크기로 줄여서 넣어요.' }) as string }); return; }
+    patch(i, { reading: true, error: null });
+    try { patch(i, { image: await readImage(file), error: null, reading: false }); }
+    catch { patch(i, { reading: false, error: t('signItems.readFailed', { defaultValue: '이미지를 읽지 못했어요. 다른 파일로 해 보세요.' }) as string }); }
   };
 
   return (
@@ -155,7 +187,9 @@ const SignatureItemsInput = React.forwardRef<SignatureItemsHandle, Props>(({ cou
           </PadBox>
           {it.mode === 'image' && (
             <ImageBox>
-              {it.image
+              {it.reading
+                ? <Reading data-testid={`sign-item-${i}-reading`} role="status">{t('signItems.reading', { defaultValue: '이미지를 알맞은 크기로 줄이는 중…' })}</Reading>
+                : it.image
                 ? <Preview><img src={it.image} alt="" /></Preview>
                 : (
                   <>
@@ -169,7 +203,7 @@ const SignatureItemsInput = React.forwardRef<SignatureItemsHandle, Props>(({ cou
               <input ref={(el) => { files.current[i] = el; }} type="file" accept={ACCEPT} hidden
                 data-testid={`sign-item-${i}-file`}
                 onChange={(e) => { void pick(i, e.target.files?.[0]); e.target.value = ''; }} />
-              <PickBtn type="button" disabled={disabled} onClick={() => files.current[i]?.click()}>
+              <PickBtn type="button" disabled={disabled || it.reading} onClick={() => files.current[i]?.click()}>
                 {it.image ? t('signItems.replace', { defaultValue: '다른 이미지로' }) : t('signItems.pick', { defaultValue: '이미지 고르기' })}
               </PickBtn>
             </ImageBox>
@@ -185,6 +219,7 @@ SignatureItemsInput.displayName = 'SignatureItemsInput';
 export default SignatureItemsInput;
 
 const List = styled.div`display: flex; flex-direction: column; gap: 12px;`;
+const Reading = styled.div`font-size: 0.8125rem; color: #475569; padding: 18px 12px; text-align: center; background: #F8FAFC; border-radius: 8px;`;
 const Item = styled.div<{ $drag?: boolean }>`
   border: 1px solid ${(p) => (p.$drag ? '#14B8A6' : '#E2E8F0')}; border-radius: 10px; padding: 10px;
   background: ${(p) => (p.$drag ? '#F0FDFA' : '#fff')};
