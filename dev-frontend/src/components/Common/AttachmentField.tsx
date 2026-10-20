@@ -338,8 +338,12 @@ const UploadDrop = styled.div<{ $dragOver?: boolean }>`
   display: flex; flex-direction: column; align-items: center; gap: 8px;
   cursor: pointer; transition: all 0.15s; text-align: center;
   &:hover { border-color: #14B8A6; background: #F0FDFA; }
+  /* 폰은 끌어다 놓을 일이 없다 — 누르는 칸만 남기고 높이를 줄인다(옛 약 150px → 약 70px, 2026-10-20 문서 작성 폰 최적화) */
+  @media (max-width: 640px) { padding: 12px; gap: 4px; border-width: 1.5px; }
 `;
-const UploadIcon = styled.svg`width: 36px; height: 36px; color: #94A3B8;`;
+const UploadIcon = styled.svg`width: 36px; height: 36px; color: #94A3B8;
+  @media (max-width: 640px) { width: 22px; height: 22px; }
+`;
 const UploadText = styled.div`font-size: 0.8125rem; font-weight: 600; color: #334155;`;
 const UploadSub = styled.div`font-size: 0.6875rem; color: #94A3B8;`;
 const ChipList = styled.div`

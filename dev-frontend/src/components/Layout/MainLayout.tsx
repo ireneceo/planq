@@ -354,6 +354,10 @@ const navItemCss = css<{ $active?: boolean; $isCollapsed?: boolean }>`
     justify-content: flex-start;
     min-height: 44px;
     font-size: 0.875rem;
+    /* 손가락이 닿는 순간 눌린 티 — 회색 탭 번쩍임 대신 메뉴 색으로 */
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+    &:active { background: rgba(255, 255, 255, 0.16); }
   }
 `;
 const NavItem = styled(ChromeLink)<{ $active?: boolean; $isCollapsed?: boolean }>`${navItemCss}`;
@@ -1016,6 +1020,22 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
   }, []);
 
   useEffect(() => { setSidebarOpen(false); }, [location.pathname]);
+  // ★ 폰 메뉴는 **누르는 순간** 닫는다 (2026-10-20, Irene «좌측메뉴에서 눌러도 메뉴 이동이 바로 바로 안되고 자꾸 안눌려»).
+  //   위 이펙트만 있으면 메뉴는 새 화면이 **다 그려진 뒤에야** 닫힌다 — 화면 이동은 transition 으로 그려져
+  //   주소는 0.1초 안에 바뀌어도 location 이 그 렌더 끝에 넘어온다. 느린 폰(CPU ×6 실측)에서 0.8~1.5초 동안
+  //   메뉴가 그대로 열려 있어 «안 눌렸다» 로 보였고, 다시 누르면 엉뚱한 메뉴가 눌렸다.
+  //   닫기는 급한 업데이트라 먼저 그려지고, 새 화면은 그 뒤에 이어 그려진다.
+  //   첫 누름이 «펼치기만» 인 메뉴(통계·설정·계정)는 열어 둔다(navStayRef). 포털로 뜬 드롭다운 안 링크는 건드리지 않는다.
+  const navStayRef = useRef(false);
+  const closeMenuOnNav = (e: React.MouseEvent<HTMLDivElement>) => {
+    const stay = navStayRef.current;
+    navStayRef.current = false;
+    if (!sidebarOpen || !isMobileNav || stay) return;
+    if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+    const a = (e.target as Element | null)?.closest?.('a[href]');
+    if (!a || !e.currentTarget.contains(a)) return;
+    setSidebarOpen(false);
+  };
 
   // #405 — 탭은 워크스페이스별로 따로 보관한다. 워크스페이스를 바꾸거나 플랫폼 관리자로
   //   들어가면 그 범위의 탭으로 갈아 끼운다 (앞 범위 것은 그 키에 그대로 남는다).
@@ -1048,8 +1068,9 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
     if (!window.matchMedia('(max-width: 1024px)').matches) return;
     // 이미 펼쳐있으면 (두 번째 클릭) → 이동 진행
     if (mobileExpandedSection === section) return;
-    // 첫 클릭 → 펼침만, 이동 차단
+    // 첫 클릭 → 펼침만, 이동 차단 (메뉴도 열어 둔다 — closeMenuOnNav)
     e.preventDefault();
+    navStayRef.current = true;
     setMobileExpandedSection(section);
   };
   useEffect(() => { writeLS(LS_COLLAPSED, isCollapsed); }, [isCollapsed]);
@@ -1295,7 +1316,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
 
       <Overlay $show={sidebarOpen} onClick={() => setSidebarOpen(false)} />
 
-      <Sidebar $isOpen={sidebarOpen} $isCollapsed={isCollapsed} $tabMode={tabMode}>
+      <Sidebar $isOpen={sidebarOpen} $isCollapsed={isCollapsed} $tabMode={tabMode} onClick={closeMenuOnNav}>
         <SidebarHeader $isCollapsed={isCollapsed}>
           {isCollapsed ? (
             <SidebarToggleButton

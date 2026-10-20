@@ -966,6 +966,7 @@
     "confirmMsg": "The document will be replaced with the version {{who}} saved on {{when}}.\nThe current content stays in the history, so you can switch back any time."
   },
   "revertEdit": "Undo this edit",
+  "revertEditShort": "Revert",
   "doneEditing": "Done",
   "trash": {
     "retentionDays": "You can restore within {{count}} days of deleting",
@@ -1212,5 +1213,10 @@
     },
     "loadFailed": "Couldn't load comments",
     "retry": "Retry"
+  },
+  "metaSummary": {
+    "label": "Category · links",
+    "empty": "None",
+    "tasks": "{{count}} tasks"
   }
 }

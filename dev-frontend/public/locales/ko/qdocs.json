@@ -966,6 +966,7 @@
     "confirmMsg": "{{when}} · {{who}} 님이 저장한 버전으로 문서를 바꿉니다.\n지금 내용은 기록에 남아 언제든 다시 되돌릴 수 있습니다."
   },
   "revertEdit": "이번 편집 되돌리기",
+  "revertEditShort": "되돌리기",
   "doneEditing": "편집 완료",
   "trash": {
     "retentionDays": "삭제 후 {{count}}일 안에는 되돌릴 수 있어요",
@@ -1212,5 +1213,10 @@
     },
     "loadFailed": "댓글을 불러오지 못했습니다",
     "retry": "다시 시도"
+  },
+  "metaSummary": {
+    "label": "분류·연결",
+    "empty": "없음",
+    "tasks": "업무 {{count}}"
   }
 }

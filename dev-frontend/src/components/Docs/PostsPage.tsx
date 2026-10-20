@@ -347,6 +347,11 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId }) => {
   // 새 문서에서 고른 «업무 연결» 중 아직 못 건 것(DocTaskLinkField 가 알려 준다) — 저장 버튼 분기가 건다
   const pendingTaskIdsRef = useRef<number[]>([]);
   const beginEditSession = useCallback(() => setEditEpoch((n) => n + 1), []);
+  // 폰(≤640) 편집 — 분류·연결 칸은 요약 한 줄로 접어 두고 누를 때만 편다(2026-10-20, Irene «카테고리가 다 한줄씩 …
+  //   높이값이 넓어서 입력란이 좁아»). 편집 세션마다 접힌 채로 시작한다. 넓은 화면은 이 값을 보지 않는다(CSS).
+  const [metaOpenPhone, setMetaOpenPhone] = useState(false);
+  const [pendingTaskCount, setPendingTaskCount] = useState(0);
+  useEffect(() => { setMetaOpenPhone(false); setPendingTaskCount(0); }, [editEpoch]);
   useEffect(() => { detailRef.current = detail; }, [detail]);
   const [shareOpen, setShareOpen] = useState(false);
   const [aiOpen, setAiOpen] = useState(false);
@@ -2067,7 +2072,7 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId }) => {
       )}
 
       {(!isProject || pinned || detail || isEditing) && (
-      <Content $hasDetail={!!detail || isEditing} $projectFull={isProject}>
+      <Content $hasDetail={!!detail || isEditing} $projectFull={isProject} $editing={isEditing}>
         {isEditing ? (
           <>
             <StickyBands data-testid="docs-detail-bands">
@@ -2090,8 +2095,9 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId }) => {
                   title={autoErr || undefined}
                   aria-live="polite"
                 >
-                  {autoState === 'saving' && t('autosave.saving', '임시저장 중…')}
-                  {autoState === 'saved' && `✓ ${t('autosave.saved', '임시저장됨')}`}
+                  {/* 폰은 저장 중·저장됨 글자를 접는다(제목 칸 자리) — 실패·충돌 글자는 그대로 보인다 */}
+                  {autoState === 'saving' && <AutoSaveText>{t('autosave.saving', '임시저장 중…')}</AutoSaveText>}
+                  {autoState === 'saved' && <>✓<AutoSaveText> {t('autosave.saved', '임시저장됨')}</AutoSaveText></>}
                   {/* 동시 편집 표시 — 나 말고 이 문서를 지금 편집 중인 사람 (구글 문서식) */}
                   {presenceUsers.filter((p) => p.userId !== Number(user?.id)).map((p) => (
                     <PresenceChip key={p.userId} title={t('presence.editing', { name: p.name, defaultValue: '{{name}} 님이 편집 중' }) as string}>
@@ -2107,7 +2113,10 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId }) => {
                     이중 상태 혼란이 그대로 남는다. 되돌리기는 변경 기록이 담당한다.
                     새 문서는 처음 공개되는 순간이 의도적이어야 하므로 버튼을 유지한다. */}
                 <SecondaryBtn type="button" disabled={saving} onClick={cancelEdit}>
-                  {mode === 'new' ? t('cancel', '취소') : t('revertEdit', '이번 편집 되돌리기')}
+                  {mode === 'new' ? t('cancel', '취소') : (
+                    // 폰은 짧은 글자 — 긴 글자가 제목 칸을 92px 로 눌렀다(2026-10-20 실측)
+                    <><WideOnly>{t('revertEdit', '이번 편집 되돌리기')}</WideOnly><PhoneOnly>{t('revertEditShort', '되돌리기')}</PhoneOnly></>
+                  )}
                 </SecondaryBtn>
                 {mode === 'new' ? (
                   <PrimaryBtn type="button" disabled={saving || !titleDraft.trim()} onClick={submit}>
@@ -2138,7 +2147,27 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId }) => {
                 {t('autosave.leaveBlocked', '저장하지 못한 변경이 있어 이동하지 못했습니다. 저장하거나 취소해 주세요.')}
               </LeaveBlockedNote>
             )}
-            <MetaRow>
+            {(() => {
+              // 폰 요약 줄 — 접혀 있어도 지금 값이 보인다(숨긴 채 바뀌어 있지 않게)
+              const projName = scope.type === 'workspace' && projectDraft ? projectOptions.find(o => o.value === projectDraft)?.label : null;
+              const taskN = (mode === 'edit' ? (detail?.linked_tasks?.length || 0) : pendingTaskCount);
+              const parts: string[] = [];
+              if (categoryDraft.trim()) parts.push(`#${categoryDraft.trim()}`);
+              if (projName) parts.push(String(projName));
+              if (taskN > 0) parts.push(t('metaSummary.tasks', { count: taskN, defaultValue: '업무 {{count}}' }) as string);
+              if (mode === 'edit' && detail) parts.push(`${t('visibility.label', { defaultValue: '공개' }) as string}: ${visLabel(detail.vlevel)}`);
+              return (
+                <MetaSummaryBtn type="button" data-testid="docs-meta-summary" aria-expanded={metaOpenPhone}
+                  onClick={() => setMetaOpenPhone(v => !v)}>
+                  <MetaSummaryLabel>{t('metaSummary.label', '분류·연결')}</MetaSummaryLabel>
+                  <MetaSummaryValue>{parts.length ? parts.join(' · ') : t('metaSummary.empty', '없음')}</MetaSummaryValue>
+                  <MetaSummaryChevron $open={metaOpenPhone} aria-hidden="true">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+                  </MetaSummaryChevron>
+                </MetaSummaryBtn>
+              );
+            })()}
+            <MetaRow $phoneOpen={metaOpenPhone} data-testid="docs-meta-row">
               {/* ★ 카테고리 입력은 width:100% 라 행을 통째로 먹었고, 그래서 혼자 한 줄을 차지했다
                   (Irene: "카테고리 창이 너무 심하게 길어. 혼자 있을 이유가 없는데").
                   폭을 묶어 프로젝트·형태·공개·보안과 **한 줄**에 서게 한다. 좁아지면 자연히 접힌다. */}
@@ -2173,7 +2202,7 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId }) => {
                   tasks={(detail?.linked_tasks || []) as LinkedTaskRef[]}
                   onTasksChange={(list) => setDetail((prev) => (prev ? { ...prev, linked_tasks: list } : prev))}
                   fromTaskId={fromAction?.task.id ?? null}
-                  onPendingChange={(ids) => { pendingTaskIdsRef.current = ids; }}
+                  onPendingChange={(ids) => { pendingTaskIdsRef.current = ids; setPendingTaskCount(ids.length); }}
                 />
               )}
               {/* N+72-7 — 문서 ↔ 표 타입 toggle (편집 모드에서 변경 가능). 표→문서: 데이터 있으면 confirm 모달 */}
@@ -2218,7 +2247,7 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId }) => {
               )}
             </MetaRow>
             </StickyBands>
-            <Body>
+            <EditBody>
               {fromAction && <FromTaskBanner handoff={fromAction} linkFailed={fromActionFailed} />}
               {error && <ErrorBar>{error}</ErrorBar>}
               {/* 다운로드 실패는 조용히 넘기지 않는다 — 이전엔 링크가 401 이어도 화면에 아무 말이 없었다 */}
@@ -2315,7 +2344,7 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId }) => {
                   onExistingPostIdsChange={setPendingPostIds}
                 />
               </AttachSection>
-            </Body>
+            </EditBody>
           </>
         ) : detail ? (
           <>
@@ -3290,6 +3319,7 @@ const RowVisChip = styled.span<{ $level: string }>`
 // N+72-7 — 본문↔표 사이 시각 간격 (사용자 호소 "들러붙어 보기 안좋아")
 const SectionGap = styled.div`
   height: 24px;
+  @media (max-width: 640px) { height: 0; margin-top: -8px; }
 `;
 // 운영 — AI 재생성 바 행 (에디터 상단)
 const AiRegenRow = styled.div`
@@ -3325,7 +3355,7 @@ const RowMeta = styled.div`
 `;
 const Dim = styled.div`padding: 24px 16px; color: #94A3B8; font-size: 0.75rem; text-align: center;`;
 
-const Content = styled.section<{ $hasDetail?: boolean; $projectFull?: boolean }>`
+const Content = styled.section<{ $hasDetail?: boolean; $projectFull?: boolean; $editing?: boolean }>`
   display: flex; flex-direction: column;
   min-height: 0; overflow: hidden;
   background: #fff;
@@ -3334,7 +3364,8 @@ const Content = styled.section<{ $hasDetail?: boolean; $projectFull?: boolean }>
   @media (max-width: 900px) {
     display: ${p => p.$hasDetail ? 'flex' : 'none'};
     /* 모바일: 헤더+본문 함께 스크롤 (세로 공간을 본문에 돌려주려는 의도) */
-    overflow-y: auto;
+    /* 편집은 본문(EditBody)이 스크롤한다 — 아래 EditBody 설명 */
+    overflow-y: ${p => p.$editing ? 'hidden' : 'auto'};
   }
 `;
 // ★ 2026-09-08 (Irene: "문서 상세로 가면 스크롤이 서브헤더에도 적용돼.
@@ -3379,8 +3410,19 @@ const Body = styled.div`
     padding: 16px 0;
   }
 `;
+// 편집 본문 — 좁은 폭에서도 **본문이** 스크롤한다(데스크탑과 같은 구조).
+//   ★ 2026-10-20 (Irene «에디터가 뒤로 숨고 에디터기능들만 위로 올라와서 에러 같아») — 좁은 폭은 Content 가 스크롤하고
+//     밴드 묶음(z 3)과 서식 툴바(z 5)가 **같은 스크롤 상자 맨 위**에 붙었다. 툴바가 제목·분류 밴드를 덮고
+//     본문은 밴드 뒤로 지나갔다. 본문이 스크롤하면 밴드는 위에 서 있고 툴바는 본문 맨 위에 붙는다.
+const EditBody = styled(Body)`
+  @media (max-width: 900px) {
+    overflow-y: auto;
+    --pq-body-pad-top: 16px;
+    overscroll-behavior: contain;
+  }
+`;
 const TitleInput = styled.input`
-  flex: 1; height: 32px; padding: 0 10px;
+  flex: 1; min-width: 0; height: 32px; padding: 0 10px;
   background: #fff; border: 1px solid #E2E8F0; border-radius: 8px;
   font-size: 0.9375rem; font-weight: 700; color: #0F172A;
   &:focus { outline: none; border-color: #14B8A6; box-shadow: 0 0 0 2px rgba(20,184,166,0.15); }
@@ -3392,6 +3434,16 @@ const AutoSaveMark = styled.span<{ $tone: 'ok' | 'err' }>`
   /* ★ 모바일에서 숨기지 않는다 — 실패·충돌이 안 보이면 저장된 줄 알고 창을 닫는다(조용한 실패 금지).
      좁은 화면에서는 글자만 줄인다. */
   @media (max-width: 640px) { font-size: 0.6875rem; }
+`;
+const WideOnly = styled.span`
+  @media (max-width: 640px) { display: none; }
+`;
+const PhoneOnly = styled.span`
+  display: none;
+  @media (max-width: 640px) { display: inline; }
+`;
+const AutoSaveText = styled.span`
+  @media (max-width: 640px) { display: none; }
 `;
 // #252 — 목록의 임시저장(draft) 행 표시. 이 행은 작성자에게만 보인다(백엔드 필터).
 const DraftTag = styled.span`
@@ -3468,20 +3520,61 @@ const MetaField = styled.div<{ $basis: number }>`
   flex: 1 1 ${(p) => p.$basis}px;
   min-width: 150px;
   max-width: ${(p) => p.$basis + 80}px;
-  @media (max-width: 640px) { flex-basis: 100%; max-width: none; }
+  /* 폰은 두 칸씩 — 한 줄에 하나씩 쌓이면 세 칸이 200px 를 먹었다(2026-10-20) */
+  @media (max-width: 640px) {
+    flex: 1 1 calc(50% - 5px); min-width: 0; max-width: none;
+    /* 입력의 기본 최소 폭(약 20자)이 칸을 넘어 옆 칸 밑으로 겹쳤다 */
+    & input { min-width: 0; }
+  }
 `;
 // 구분선 풀폭, 글자만 좌우 24px 안쪽.
 // 편집 모드 밴드2 — 분류·프로젝트·형태·공개·보안. 보기 모드의 ViewMeta 와 **같은 자리**라
 //   보기↔편집을 오갈 때 가로 실선이 위아래로 튀지 않는다.
 //   ★ 여기만 wrap 을 허용한다 — 폼 필드라 좁아지면 접혀야 입력이 가능하다. 그래서
 //     DetailMetaBar 를 상속하지 않고 밴드 크롬(padding·밑줄)만 같은 값으로 맞춘다.
-const MetaRow = styled.div`
+const MetaRow = styled.div<{ $phoneOpen?: boolean }>`
   display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 0;
   box-sizing: border-box; min-height: 57px; padding: 12px 20px 8px; background: #FFFFFF;
   border-bottom: 1px solid #F1F5F9; flex-shrink: 0;
-  @media (max-width: 640px) { padding: 10px 14px 8px; }
+  /* 폰: 요약 줄(MetaSummaryBtn)을 눌렀을 때만 편다. ★ 접어도 **언마운트하지 않는다** — 업무 연결 칸이
+     아직 못 건 업무를 들고 있다(새 문서). 숨기기만 한다. */
+  @media (max-width: 640px) {
+    padding: 8px 14px; min-height: 0; gap: 8px;
+    ${(p) => (p.$phoneOpen ? '' : 'display: none;')}
+    & > [data-testid="post-task-link-field"] { flex: 1 1 100%; min-width: 0; }
+  }
+  /* 입력 중(키보드)에는 본문 자리를 위해 접는다 — 이 칸 안에서 입력 중이면 그대로 */
+  @media (max-width: 768px) {
+    body[data-keyboard-up='1'] &:not(:focus-within) { display: none; }
+  }
   /* ★ 칩·토글은 줄어들면 글자가 잘리므로 고정. 입력·셀렉트는 MetaField 가 스스로 줄어든다. */
   & > *:not(${MetaField}) { flex-shrink: 0; }
+`;
+// 폰 편집 — 분류·연결 요약 한 줄(누르면 MetaRow 가 펴진다). 넓은 화면엔 없다.
+const MetaSummaryBtn = styled.button`
+  display: none;
+  @media (max-width: 640px) {
+    display: flex; align-items: center; gap: 8px; width: 100%;
+    min-height: 40px; padding: 0 14px; box-sizing: border-box;
+    border: none; border-bottom: 1px solid #F1F5F9; background: #FFFFFF;
+    font: inherit; text-align: left; cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    &:active { background: #F8FAFC; }
+  }
+  @media (max-width: 768px) {
+    body[data-keyboard-up='1'] & { display: none; }
+  }
+`;
+const MetaSummaryLabel = styled.span`
+  flex-shrink: 0; font-size: 0.75rem; font-weight: 700; color: #475569;
+`;
+const MetaSummaryValue = styled.span`
+  flex: 1; min-width: 0; font-size: 0.75rem; color: #94A3B8;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+`;
+const MetaSummaryChevron = styled.span<{ $open: boolean }>`
+  flex-shrink: 0; display: inline-flex; color: #64748B;
+  transition: transform 0.15s; transform: rotate(${(p) => (p.$open ? '180deg' : '0deg')});
 `;
 // N+67 — visibility chip (PostsPage detail meta row)
 const VisibilityChip = styled.button`
