@@ -317,7 +317,10 @@
       "email": "메일에 남긴 메모",
       "project": "프로젝트에 남긴 메모",
       "task": "업무에 남긴 댓글"
-    }
+    },
+    "emailIn": "받은 메일",
+    "emailOut": "보낸 메일",
+    "emailFrom": "보낸 사람 {{from}}"
   },
   "inquiry": {
     "title": "문의 추가",

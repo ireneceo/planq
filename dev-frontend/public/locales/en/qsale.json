@@ -317,7 +317,10 @@
       "email": "Note on mail",
       "project": "Note on project",
       "task": "Comment on task"
-    }
+    },
+    "emailIn": "Received",
+    "emailOut": "Sent",
+    "emailFrom": "From {{from}}"
   },
   "inquiry": {
     "title": "Add inquiry",

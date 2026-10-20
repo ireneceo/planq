@@ -22,7 +22,7 @@ type Props = {
 
 const TYPE_COLOR: Record<TimelineType, { bg: string; fg: string }> = {
   chat: { bg: '#F0FDFA', fg: '#0F766E' },
-  email: { bg: '#EFF6FF', fg: '#1D4ED8' },
+  email: { bg: '#EFF6FF', fg: '#1D4ED8' },   // 받은 메일(고객 → 우리)
   task: { bg: '#FEF3C7', fg: '#92400E' },
   invoice: { bg: '#F0FDFA', fg: '#0F766E' },
   interaction: { bg: '#FDF4FF', fg: '#A21CAF' },
@@ -32,6 +32,8 @@ const TYPE_COLOR: Record<TimelineType, { bg: string; fg: string }> = {
   note: { bg: '#F5F3FF', fg: '#6D28D9' },
 };
 const FALLBACK_COLOR = { bg: '#F1F5F9', fg: '#475569' };
+// 보낸 메일(우리 → 고객) — 받은 메일과 한눈에 갈리게 다른 색(청록 = 우리 쪽 브랜드 색)
+const EMAIL_OUT_COLOR = { bg: '#F0FDFA', fg: '#0F766E' };
 
 export default function ClientTimeline({ items, onOpen, renderActions, emptyText }: Props) {
   const { t } = useTranslation('qsale');
@@ -47,15 +49,21 @@ export default function ClientTimeline({ items, onOpen, renderActions, emptyText
   return (
     <List>
       {items.map((it) => {
-        const color = TYPE_COLOR[it.type] || FALLBACK_COLOR;
         const meta = (it.meta || {}) as Record<string, unknown>;
+        // ★ 2026-10-20 (Irene: *"히스토리에서 우리가 보낸 메일도 고객메일처럼 나와. 우리가 보낸 거랑 받은 거랑 알게 표시해줘"*)
+        //   메일은 배지 자체가 방향을 말한다 — «받은 메일»(파랑) / «보낸 메일»(청록). 옛날엔 맨 아래 작은 칩에
+        //   전화용 글자(«받은»/«건»)로만 나와 보낸 메일이 고객 메일처럼 읽혔다.
+        const mailDir = it.type === 'email' ? (meta.direction === 'outbound' ? 'out' : meta.direction === 'inbound' ? 'in' : null) : null;
+        const color = mailDir === 'out' ? EMAIL_OUT_COLOR : (TYPE_COLOR[it.type] || FALLBACK_COLOR);
         const clickable = !!onOpen;
         return (
           <Row key={`${it.type}-${it.id}`} $clickable={clickable}
             data-timeline-type={it.type}
             onClick={clickable ? () => onOpen?.(it) : undefined}>
-            <TypeBadge style={{ background: color.bg, color: color.fg }}>
-              {t(`timeline.channel.${it.type}`, { defaultValue: it.type }) as string}
+            <TypeBadge style={{ background: color.bg, color: color.fg }} data-mail-direction={mailDir || undefined}>
+              {mailDir
+                ? t(mailDir === 'out' ? 'timeline.emailOut' : 'timeline.emailIn') as string
+                : t(`timeline.channel.${it.type}`, { defaultValue: it.type }) as string}
             </TypeBadge>
             <Body>
               <RowTitle>{titleOf(it, meta, label)}</RowTitle>
@@ -82,8 +90,9 @@ export default function ClientTimeline({ items, onOpen, renderActions, emptyText
                 {it.type === 'invoice' && typeof meta.grand_total === 'number' && (
                   <Meta>{Number(meta.grand_total).toLocaleString()} {String(meta.currency || 'KRW')}</Meta>
                 )}
-                {it.type === 'email' && typeof meta.direction === 'string' && (
-                  <Meta>{t(`record.direction.${meta.direction}`, { defaultValue: String(meta.direction) }) as string}</Meta>
+                {/* 받은 메일은 누가 보냈는지 — 고객 쪽 여러 사람이 쓰는 경우가 있다 */}
+                {mailDir === 'in' && typeof meta.from_email === 'string' && meta.from_email && (
+                  <Meta>{t('timeline.emailFrom', { from: meta.from_email }) as string}</Meta>
                 )}
               </Metas>
             </Body>
