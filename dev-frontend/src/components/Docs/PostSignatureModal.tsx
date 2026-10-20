@@ -8,7 +8,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
-import { requestSignatures, updatePost, SignatureLockedError, type PostDetail, type SignatureRequest } from '../../services/posts';
+import { requestSignatures, type PostDetail, type SignatureRequest } from '../../services/posts';
 import SingleDateField from '../Common/SingleDateField';
 import { listProjectConversations, listBusinessConversations, listBusinessMembers, type ApiConversation } from '../../services/qtalk';
 import { listClientsForBilling, type ApiClientLite } from '../../services/invoices';
@@ -18,6 +18,7 @@ import { useEscapeStack } from '../../hooks/useEscapeStack';
 import { isEnterAction } from '../../utils/imeKey';
 import { readSignatureFields, readSignerItems, signersMissingCaptions, type DocSignatureField } from '../../utils/signatureFields';
 import SignatureSpotsStep from './SignatureSpotsStep';
+import { useSignDocSaver } from './useSignDocSaver';
 import SignOutboundScope from './SignOutboundScope';
 import SignSlotThemInput from './SignSlotThemInput';
 import { SignerFields, SignerEmailInput, SignerNameInput } from './signerInputs';
@@ -63,7 +64,12 @@ const PostSignatureModal: React.FC<Props> = ({ open, onClose, post, onSent, onPo
   const [memberOptions, setMemberOptions] = useState<Array<PlanQSelectOption & { userId: number; name: string }>>([]);
   // 문서에 그려진 서명란. 있으면 «칸마다 배정», 없으면 종전처럼 문서 끝 서명 영역.
   // 이 창에서 서명란을 넣었으면 그 문서로 칸을 읽는다(상위 상세가 새로 고쳐지기 전에도)
-  const [contentOverride, setContentOverride] = useState<unknown>(null);
+  // 1단계가 문서를 고친다 — 저장 줄은 useSignDocSaver 한 곳(같은 문서를 두 곳에서 PUT 하지 않는다).
+  // 서명 요청이 살아 있으면 문서가 잠긴다 — 그때 1단계는 읽기 전용(SignRequestSteps.useSignatureLock)
+  const [docLocked, setDocLocked] = useSignatureLock(open, post.id);
+  const { contentOverride, inserting, stageDoc, flushDoc, saveDoc } = useSignDocSaver({
+    open, post, onPostUpdated, onLocked: () => setDocLocked(true), onError: (m) => setError(m),
+  });
   const fields = useMemo<DocSignatureField[]>(
     () => (open ? readSignatureFields(contentOverride ?? post.content_json) : []), [open, post.content_json, contentOverride]);
   const useSlots = fields.length > 0 && kind === 'sign';
@@ -81,28 +87,9 @@ const PostSignatureModal: React.FC<Props> = ({ open, onClose, post, onSent, onPo
   //   확인 요청은 서명 자리가 필요 없으므로 한 장 그대로다.
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const stepped = kind === 'sign';
-  const [inserting, setInserting] = useState(false);
-  // 1단계가 문서를 고친다(서명 자리 바꾸기·추가·이름표·쪽). 저장은 여기 한 곳 — 같은 문서를 두 곳에서 PUT 하지 않는다.
-  const baseUpdatedRef = useRef<string | null>(post.updated_at || null);
-  useEffect(() => { baseUpdatedRef.current = post.updated_at || null; }, [post.updated_at]);
-  // 서명 요청이 살아 있으면 문서가 잠긴다 — 그때 1단계는 읽기 전용(SignRequestSteps.useSignatureLock)
-  const [docLocked, setDocLocked] = useSignatureLock(open, post.id);
-  const saveDoc = async (next: unknown) => {
-    if (inserting) return;
-    setInserting(true); setError(null);
-    try {
-      const saved = await updatePost(post.id, { content_json: next as never, base_updated_at: baseUpdatedRef.current });
-      baseUpdatedRef.current = saved.updated_at || baseUpdatedRef.current;
-      setContentOverride(next);
-      onPostUpdated?.(saved);
-    } catch (e) {
-      if (e instanceof SignatureLockedError) {
-        setDocLocked(true);
-        setError(t('sign.spots.lockedSave', { defaultValue: '서명 요청을 보낸 문서라 서명 자리를 바꿀 수 없어요. 바꾸려면 진행 중인 서명 요청을 취소하세요.' }) as string);
-        return;
-      }
-      setError((e as Error).message || (t('sign.noFields.insertFailed', { defaultValue: '서명 자리를 저장하지 못했어요. 편집에서 [서명 항목] 으로 넣어 주세요.' }) as string));
-    } finally { setInserting(false); }
+  const goNext = async () => {
+    if (step === 1 && !(await flushDoc())) return;
+    setStep((step + 1) as 2 | 3);
   };
   // 칸 → 서명자. 받는 쪽은 email/name, 보내는 쪽은 멤버 user_id.
   const [slotMap, setSlotMap] = useState<Record<number, { email: string; name: string; userId: number | null }>>({});
@@ -370,7 +357,7 @@ const PostSignatureModal: React.FC<Props> = ({ open, onClose, post, onSent, onPo
               {stepped && <SignStepsBar step={step} />}
               {stepped && step === 1 && (
                 <SignatureSpotsStep contentJson={contentOverride ?? post.content_json} busy={inserting} locked={docLocked}
-                  onSaveDoc={saveDoc} onOpenEditor={onOpenEditor} />
+                  onSaveDoc={saveDoc} onStageDoc={stageDoc} onFlushDoc={flushDoc} onOpenEditor={onOpenEditor} />
               )}
               {(!stepped || step === 2) && <>
               <SectionLabel>{kind === 'confirm'
@@ -545,8 +532,8 @@ const PostSignatureModal: React.FC<Props> = ({ open, onClose, post, onSent, onPo
               : <SecondaryBtn type="button" onClick={closeAll} disabled={busy}>{t('cancel', '취소')}</SecondaryBtn>}
             {stepped && step < 3 ? (
               <PrimaryBtn type="button" data-testid="sign-step-next"
-                disabled={inserting || (step === 1 ? (needsFields || (needsCaptions && !docLocked)) : !slotsFilled)}
-                onClick={() => setStep((step + 1) as 2 | 3)}>
+                disabled={step === 1 ? (needsFields || (needsCaptions && !docLocked)) : !slotsFilled}
+                onClick={() => void goNext()}>
                 {t('sign.steps.next', { defaultValue: '다음' })}
               </PrimaryBtn>
             ) : (

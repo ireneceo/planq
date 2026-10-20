@@ -20,23 +20,26 @@ interface Props {
   busy: boolean;
   /** 서명 요청이 살아 있어 문서가 잠겼다 — 보여주기만 한다 */
   locked?: boolean;
-  onSaveDoc: (next: unknown) => Promise<void>;
+  /** 문서를 바꿔 저장한다 — 변환은 저장 줄에서 그 순간의 최신 문서에 얹힌다 */
+  onSaveDoc: (transform: (doc: unknown) => unknown) => Promise<boolean>;
+  /** 타이핑 중 — 화면 문서만 바꾼다([다음] 판정이 방금 친 글자를 안다) */
+  onStageDoc: (transform: (doc: unknown) => unknown) => void;
+  /** 칸을 떠날 때 — 바뀐 것을 저장 줄에 올린다 */
+  onFlushDoc: () => Promise<boolean>;
   onOpenEditor?: () => void;
 }
 
-const SignatureSpotsStep: React.FC<Props> = ({ contentJson, busy: busyIn, locked = false, onSaveDoc, onOpenEditor }) => {
+const SignatureSpotsStep: React.FC<Props> = ({ contentJson, busy: busyIn, locked = false, onSaveDoc, onStageDoc, onFlushDoc, onOpenEditor }) => {
   const { t } = useTranslation('qdocs');
+  // 구조를 바꾸는 버튼(바꾸기·추가·모두 빼기)만 저장 중에 잠근다. 글자 입력·쪽 고르기는 저장 중에도 된다(2026-10-21)
   const busy = busyIn || locked;
   const signers = useMemo(() => readSignerItems(contentJson), [contentJson]);
   const spots = useMemo(() => (signers.length ? [] : findManualSignatureSpots(contentJson)), [contentJson, signers.length]);
-  const [labels, setLabels] = useState<Record<number, string>>({});
   // 서명 칸 이름(2026-10-16, Irene: *"서명 1, 서명 2가 뭔지 모르겠어. 사인인지 회사 스탬프인지 … 입력란 넣은 사람이 참조 넣어야지"*)
   //   한 사람에게 칸이 둘 이상이면 이름이 있어야 다음으로 간다(PostSignatureModal) — 서명하는 사람은 이 이름만 보고 칸을 채운다.
+  //   입력 중 글자는 caps 에, 문서에는 다듬은 값(captionOf)을 바로 반영하고 떠날 때 저장한다.
   const [caps, setCaps] = useState<Record<string, string>>({});
-  const saveCaption = (slot: number, i: number, prev: string | null) => {
-    const v = captionOf(caps[`${slot}-${i}`] ?? (prev || ''));
-    if (v !== (prev || null)) void onSaveDoc(applySignCaption(contentJson, slot, i, v));
-  };
+  const [labels, setLabels] = useState<Record<number, string>>({});
   // 서명 자리 모두 빼기 — 서명 받을 문서가 아닌데 칸을 넣었을 때(2026-10-15, Irene: "잘못 넣었을 때 해결방법이 없네").
   //   잠긴 문서(살아 있는 요청)는 서버도 409 로 막는다 — 버튼을 아예 그리지 않는다.
   const [removeOpen, setRemoveOpen] = useState(false);
@@ -47,20 +50,22 @@ const SignatureSpotsStep: React.FC<Props> = ({ contentJson, busy: busyIn, locked
   const convertSpots = async () => {
     const parties: Record<number, 'us' | 'them'> = {};
     spots.forEach((s) => { if (!parties[s.slot]) parties[s.slot] = s.slot === 1 ? 'us' : 'them'; });
-    await onSaveDoc(replaceManualSpots(contentJson, spots, parties, t('sign.spots.sealCaption', { defaultValue: '도장' }) as string));
+    await onSaveDoc((doc) => replaceManualSpots(doc, spots, parties, t('sign.spots.sealCaption', { defaultValue: '도장' }) as string));
   };
   const addAtEnd = async () => {
-    let doc: { type: string; content?: unknown[] } = { type: 'doc', content: [] };
-    try { doc = (typeof contentJson === 'string' ? JSON.parse(contentJson) : contentJson) as typeof doc || doc; } catch { /* 빈 문서 */ }
-    await onSaveDoc({
-      ...doc, type: 'doc',
-      content: [
-        ...((doc.content as unknown[]) || []),
-        { type: 'signatureField', attrs: { slot: 1, party: 'us', label: null, item: 'sign' } },
-        { type: 'signatureField', attrs: { slot: 1, party: 'us', label: null, item: 'date' } },
-        { type: 'signatureField', attrs: { slot: 2, party: 'them', label: null, item: 'sign' } },
-        { type: 'signatureField', attrs: { slot: 2, party: 'them', label: null, item: 'date' } },
-      ],
+    await onSaveDoc((cur) => {
+      let doc: { type: string; content?: unknown[] } = { type: 'doc', content: [] };
+      try { doc = (typeof cur === 'string' ? JSON.parse(cur) : cur) as typeof doc || doc; } catch { /* 빈 문서 */ }
+      return {
+        ...doc, type: 'doc',
+        content: [
+          ...((doc.content as unknown[]) || []),
+          { type: 'signatureField', attrs: { slot: 1, party: 'us', label: null, item: 'sign' } },
+          { type: 'signatureField', attrs: { slot: 1, party: 'us', label: null, item: 'date' } },
+          { type: 'signatureField', attrs: { slot: 2, party: 'them', label: null, item: 'sign' } },
+          { type: 'signatureField', attrs: { slot: 2, party: 'them', label: null, item: 'date' } },
+        ],
+      };
     });
   };
 
@@ -85,9 +90,9 @@ const SignatureSpotsStep: React.FC<Props> = ({ contentJson, busy: busyIn, locked
                     <FieldLabel>{t('sign.spots.partyLabel', { defaultValue: '누가 서명하나요' })}</FieldLabel>
                     <PartyToggle role="radiogroup" aria-label={t('sign.spots.partyLabel', { defaultValue: '누가 서명하나요' }) as string}>
                       {(['us', 'them'] as const).map((p) => (
-                        <PartyBtn key={p} type="button" role="radio" aria-checked={s.party === p} $on={s.party === p} disabled={busy}
+                        <PartyBtn key={p} type="button" role="radio" aria-checked={s.party === p} $on={s.party === p} disabled={locked}
                           data-testid={`sign-party-${s.slot}-${p}`}
-                          onClick={() => { if (s.party !== p) void onSaveDoc(applySignerSettings(contentJson, s.slot, { party: p })); }}>
+                          onClick={() => { if (s.party !== p) void onSaveDoc((doc) => applySignerSettings(doc, s.slot, { party: p })); }}>
                           {p === 'us'
                             ? t('sign.spots.partyUsLong', { defaultValue: '우리 쪽 · 앱에서 서명' })
                             : t('sign.spots.partyThemLong', { defaultValue: '상대방 · 메일로 서명' })}
@@ -107,12 +112,14 @@ const SignatureSpotsStep: React.FC<Props> = ({ contentJson, busy: busyIn, locked
                         ? t('sign.spots.namePhUs', { defaultValue: '예: (주)우리회사 대표 홍길동' })
                         : t('sign.spots.namePhThem', { defaultValue: '예: 고객사 이름 · 담당자' })) as string}
                       aria-label={t('sign.spots.nameLabel', { defaultValue: '문서에 보일 이름' }) as string}
-                      disabled={busy}
-                      onChange={(e) => setLabels((m) => ({ ...m, [s.slot]: e.target.value }))}
-                      onBlur={() => {
-                        const v = (labels[s.slot] ?? (s.label || '')).trim();
-                        if (v !== (s.label || '')) void onSaveDoc(applySignerSettings(contentJson, s.slot, { label: v || null }));
+                      disabled={locked}
+                      onChange={(e) => {
+                        const raw = e.target.value;
+                        setLabels((m) => ({ ...m, [s.slot]: raw }));
+                        const v = raw.trim();
+                        if (v !== (s.label || '')) onStageDoc((doc) => applySignerSettings(doc, s.slot, { label: v || null }));
                       }}
+                      onBlur={() => { void onFlushDoc(); }}
                     />
                   </Field>
                 </Fields>
@@ -138,13 +145,18 @@ const SignatureSpotsStep: React.FC<Props> = ({ contentJson, busy: busyIn, locked
                         <CapNo>{t('sign.spots.captionNo', { n: i + 1, defaultValue: '칸 {{n}}' })}</CapNo>
                         <CapInput
                           data-testid={`sign-spot-${s.slot}-caption-${i}`}
-                          value={val} maxLength={CAPTION_MAX} disabled={busy} $missing={missing && !locked}
+                          value={val} maxLength={CAPTION_MAX} disabled={locked} $missing={missing && !locked}
                           placeholder={(i === 0
                             ? t('sign.spots.captionPh1', { defaultValue: '예: 대표자 사인' })
                             : t('sign.spots.captionPh2', { defaultValue: '예: 회사 스탬프' })) as string}
                           aria-label={t('sign.spots.captionAria', { n: i + 1, defaultValue: '서명 칸 {{n}} 이름' }) as string}
-                          onChange={(e) => setCaps((m) => ({ ...m, [key]: e.target.value }))}
-                          onBlur={() => saveCaption(s.slot, i, c)}
+                          onChange={(e) => {
+                            const raw = e.target.value;
+                            setCaps((m) => ({ ...m, [key]: raw }));
+                            const v = captionOf(raw);
+                            if (v !== (c || null)) onStageDoc((doc) => applySignCaption(doc, s.slot, i, v));
+                          }}
+                          onBlur={() => { void onFlushDoc(); }}
                         />
                       </CapRow>
                     );
@@ -164,7 +176,7 @@ const SignatureSpotsStep: React.FC<Props> = ({ contentJson, busy: busyIn, locked
           </RemoveConfirmText>
           <Btns>
             <RemoveBtn type="button" data-testid="sign-spots-remove-ok" disabled={busy}
-              onClick={async () => { await onSaveDoc(removeSignatureFields(contentJson)); setRemoveOpen(false); }}>
+              onClick={async () => { await onSaveDoc((doc) => removeSignatureFields(doc)); setRemoveOpen(false); }}>
               {t('sign.spots.removeConfirm', { defaultValue: '모두 빼기' })}
             </RemoveBtn>
             <Secondary type="button" disabled={busy} onClick={() => setRemoveOpen(false)}>
