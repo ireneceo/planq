@@ -1,7 +1,7 @@
 ## 현재 작업 상태
 **마지막 업데이트:** 2026-10-20 (방 f0ea9ea5 — 설명란 가림 수리 뒤 개발완료)
 **작업 상태:** 완료 — 개발완료(10/19~10/20 기록 · 게이트 health 88/88 · guard 74/75 · tenant 0 · wiki 통과). 운영은 042c74b4 까지 — 미배포: 91309d09 처리방침 10-28 · f4979e74 업무/요청 전환 · bbf8270e 설명란 가림.
-**다음 할 일:** 다음 배포에 91309d09·f4979e74·bbf8270e(+ 위키 «업무 만들기» 글 운영 반영: seed-wiki-content.js) — 처리방침 공지 띠·메일은 그 배포 뒤(늦어도 10-21) · Fable 대기 3건(환불 0eeeef09 완료 검증+구독 해지 설계 · 조직 규모 0단계 fwmvezqzws · 내 명함 v2) · 밤 검사 남은 실패 5(mobileboot·tablemenu·teampresence·guestproject·salelayout) · 운영 피드백 #463·#464 답글 초안 Irene 확인 · #465 은 042c74b4 로 운영 반영됨(답글 확인)
+**다음 할 일:** 다음 배포에 91309d09·f4979e74·bbf8270e(+ 위키 «업무 만들기» 글 운영 반영: seed-wiki-content.js) — 처리방침 공지 띠·메일은 그 배포 뒤(늦어도 10-21) · Fable 대기 3건(환불 0eeeef09 완료 검증+구독 해지 설계 · 조직 규모 0단계 fwmvezqzws · 내 명함 v2) · 밤 검사 남은 실패 5(mobileboot·tablemenu·teampresence·guestproject·salelayout) · 운영 피드백 #463·#464 답글 초안 Irene 확인 · #465 답글 달고 done(10-20, 운영 반영·Irene 실기기 확인 근거)
 
 
 ### 완료: 업무·요청 추가 설명란 오른쪽이 가려지던 것 (방 f0ea9ea5 · 2026-10-20 · [Opus]) — 운영 미배포
