@@ -11,7 +11,6 @@ import { isNativeApp } from '../../services/native';
 import { track } from '../../services/marketingTags';
 import LandingLayout from '../../components/Landing/LandingLayout';
 import AppQrCode, { appDownloadUrl } from '../../components/Common/AppQrCode';
-import { getManualSteps } from '../../utils/pwaInstallSteps';
 
 type Platform = 'ios' | 'android' | 'desktop';
 
@@ -179,7 +178,9 @@ function AndroidPwaInstall({ onThisDevice }: { onThisDevice: boolean }) {
   );
 }
 
-/** 데스크탑 — 브라우저 PWA 설치. 설치 창을 띄울 수 있으면 버튼, 아니면 그 브라우저의 메뉴 경로(설정 > 앱 설치와 같은 단계 함수). */
+/** 데스크탑 — 브라우저 PWA 설치. 크롬·엣지는 버튼 하나(2026-10-20 Irene «그냥 다운로드 해서 pwa 설치되잖아» —
+ *  메뉴 찾기 3줄 안내를 없앴다). 설치 창을 아직 못 받았으면(이미 설치·잠시 늦음) 누를 때 한 줄만 알려 준다.
+ *  Safari·Firefox 는 설치 창 자체가 없어 버튼 대신 한 줄. */
 function DesktopPwaInstall() {
   const { t } = useTranslation('appdownload');
   const { t: ts } = useTranslation('settings');
@@ -191,29 +192,28 @@ function DesktopPwaInstall() {
   }
   const doInstall = async () => {
     if (busy) return;
+    if (!pwa.canPrompt) { setMsg(t('desktopPwa.notReady') as string); return; }
     setBusy(true);
     try {
       const r = await pwa.install();
       if (r === 'accepted') track('pq_app_download', { platform: 'desktop_pwa' });
-      setMsg(r === 'accepted' ? t('desktopPwa.done') as string : r === 'dismissed' ? t('desktopPwa.dismissed') as string : null);
+      setMsg(r === 'accepted' ? t('desktopPwa.done') as string
+        : r === 'dismissed' ? t('desktopPwa.dismissed') as string
+        : t('desktopPwa.notReady') as string);
     } finally { setBusy(false); }
   };
+  if (pwa.platform === 'desktop-safari') {
+    return <PwaNote data-testid="app-desktop-pwa-hint">{ts('pwa.steps.desktopSafari.1')}</PwaNote>;
+  }
+  if (pwa.platform !== 'desktop-chrome' && pwa.platform !== 'desktop-edge') {
+    return <PwaNote data-testid="app-desktop-pwa-hint">{t('desktopPwa.otherBrowser')}</PwaNote>;
+  }
   return (
     <>
-      {pwa.canPrompt ? (
-        <PrimaryBtn as="button" type="button" data-testid="app-desktop-pwa-install" onClick={doInstall} disabled={busy}>
-          {t('desktopPwa.cta')}
-        </PrimaryBtn>
-      ) : (
-        <StepsBox data-testid="app-desktop-pwa-steps">
-          <StepsTitle>{t('desktopPwa.stepsTitle')}</StepsTitle>
-          <PwaSteps>
-            {getManualSteps(pwa.platform, ts).map((line, i) => <li key={i}>{line}</li>)}
-          </PwaSteps>
-        </StepsBox>
-      )}
-      {msg && <PwaNote>{msg}</PwaNote>}
-      <ViaHint>{t('desktopPwa.note')}</ViaHint>
+      <PrimaryBtn as="button" type="button" data-testid="app-desktop-pwa-install" onClick={doInstall} disabled={busy}>
+        {t('desktopPwa.cta')}
+      </PrimaryBtn>
+      {msg && <PwaNote data-testid="app-desktop-pwa-msg">{msg}</PwaNote>}
     </>
   );
 }
@@ -224,8 +224,6 @@ const DesktopCard = styled.div<{ $highlight?: boolean }>`
   border-radius: 12px; padding: 20px 16px; margin-bottom: 16px;
   display: flex; flex-direction: column; align-items: center; gap: 10px;
 `;
-const StepsBox = styled.div`width: 100%; text-align: left;`;
-const StepsTitle = styled.div`font-size: 0.8125rem; font-weight: 600; color: #0F172A;`;
 const MonitorGlyph = () => (
   <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
     <rect x="2" y="3" width="20" height="14" rx="2" /><line x1="8" y1="21" x2="16" y2="21" /><line x1="12" y1="17" x2="12" y2="21" />

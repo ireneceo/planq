@@ -39,7 +39,7 @@
     "installed": "PlanQ is already installed on this computer. Open it from the Start menu or Dock.",
     "done": "Installed. Launch PlanQ from the Start menu or Dock.",
     "dismissed": "Installation cancelled. You can try again anytime.",
-    "stepsTitle": "Install from your browser menu",
-    "note": "No download needed — installs straight from your browser, opens in its own window and gets notifications."
+    "notReady": "If it is already installed, use «Open in app» on the right of the address bar. Otherwise click the install icon (⊕) on the right of the address bar.",
+    "otherBrowser": "Open this page in Chrome or Edge to install it with one click."
   }
 }

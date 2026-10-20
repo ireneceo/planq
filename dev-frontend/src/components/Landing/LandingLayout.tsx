@@ -34,6 +34,7 @@ interface CompanyInfo {
 //   - «시작 가이드·도움말» 은 «갈 곳» 이 아니라 «읽을 것» 이라 **리소스** 한 묶음.
 //     시작 가이드는 홈 히어로 아래 한 줄로도 연다.
 //   - ★ «앱 다운로드» 는 묶음에 넣지 않는다 — 데스크탑은 메뉴 줄(폰 아이콘), 폰·태블릿 시트는 가입 버튼 바로 아래.
+//     데스크탑 줄에서는 **맨 끝(브랜드스토리 뒤)** — 2026-10-20 Irene «앱다운로드 브랜드스토리 뒤로 보내. 맨 마지막. 혼자 아이콘 있잖아».
 //     처음엔 리소스 안에 넣었다가 Irene «앱 다운로드 메뉴는 어디로 보낸 거야? 중요한건데 아예 없애면 어떻게 해? 상단에서»
 //     (2026-10-12). 드롭다운 안 = 안 보이는 것이다(2026-09-05 안드로이드 태블릿 «앱다운로드를 어디서 해?» 와 같은 모양).
 //   - «문의» 는 메뉴가 아니라 우측 흰(outline) 버튼 — B2B 사이트의 Contact 자리.
@@ -166,14 +167,14 @@ const LandingLayout: React.FC<Props> = ({ children, transparentTop = true }) => 
             {NAV_ITEMS.map(item => (
               <NavItem key={item.to} to={item.to} $light={isTransparent}>{t(item.key)}</NavItem>
             ))}
+            <ResourceMenu light={isTransparent} />
+            <NavItem to={ABOUT_ITEM.to} $light={isTransparent}>{t(ABOUT_ITEM.key)}</NavItem>
             <NavItem to={APP_ITEM.to} $light={isTransparent} data-testid="landing-gnb-app">
               <AppIcon width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                 <rect x="6" y="2" width="12" height="20" rx="2.5" /><line x1="11" y1="18" x2="13" y2="18" />
               </AppIcon>
               {t(APP_ITEM.key)}
             </NavItem>
-            <ResourceMenu light={isTransparent} />
-            <NavItem to={ABOUT_ITEM.to} $light={isTransparent}>{t(ABOUT_ITEM.key)}</NavItem>
           </DesktopNav>
 
           <DesktopCta>

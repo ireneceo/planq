@@ -59,8 +59,8 @@ async function run() {
               overflow: document.documentElement.scrollWidth - innerWidth };
           }, VIS_FN);
           const hrefs = g.links.map((x) => x.href).join(',');
-          push(`${w}px · ① 메뉴 = 기능·요금제·컨설팅·인사이트·앱 다운로드·브랜드스토리 + 리소스 · 우측 문의·로그인·무료로 시작 · 한 줄 · 넘침 0`,
-            hrefs === '/features,/pricing,/service,/insights,/app,/about' && g.links.every((x) => x.v) && g.res && g.right.every(Boolean) && g.oneLine && g.tall === 0 && g.overflow <= 0, JSON.stringify(g));
+          push(`${w}px · ① 메뉴 = 기능·요금제·컨설팅·인사이트·브랜드스토리·앱 다운로드(맨 끝) + 리소스 · 우측 문의·로그인·무료로 시작 · 한 줄 · 넘침 0`,
+            hrefs === '/features,/pricing,/service,/insights,/about,/app' && g.links.every((x) => x.v) && g.res && g.right.every(Boolean) && g.oneLine && g.tall === 0 && g.overflow <= 0, JSON.stringify(g));
           // ② 리소스 — 마우스를 올리면 열리고, 네 항목이 보이고, 누르면 같은 창으로 간다
           await page.hover('[data-testid="landing-gnb-resources"]');
           await sleep(300);

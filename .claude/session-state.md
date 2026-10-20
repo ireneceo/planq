@@ -2,6 +2,13 @@
 **마지막 업데이트:** 2026-10-20 (방 f0ea9ea5 — 설명란 가림 수리 뒤 개발완료)
 **작업 상태:** 완료 — 개발완료(10/19~10/20 기록 · 게이트 health 88/88 · guard 74/75 · tenant 0 · wiki 통과). 운영은 042c74b4 까지 — 미배포: 91309d09 처리방침 10-28 · f4979e74 업무/요청 전환 · bbf8270e 설명란 가림.
 
+
+### 완료: /app «이 컴퓨터» 설치 안내를 버튼 하나로 · 랜딩 상단 «앱 다운로드» 맨 끝 (방 efa71b43 · 2026-10-20 · [Opus]) — 운영 미배포
+- 원문: «다운로드를 왜 이렇게 안내해? 그냥 다운로드 해서 pwa 설치되잖아 … 랜딩페이지에서 앱다운로드 브랜드스토리 뒤로 보내. 맨 마지막. 혼자 아이콘 있잖아»
+- DownloadAppPage DesktopPwaInstall: 크롬·엣지는 [이 컴퓨터에 설치] 버튼 항상(설치 창 못 받았으면 누를 때 한 줄 «앱에서 열기/⊕») · Safari 한 줄(파일 → Dock에 추가) · 그 외 «Chrome·Edge 로 열면» 한 줄. 3줄 메뉴 안내·«따로 받을 파일 없이…» 삭제(키 stepsTitle·note 삭제, notReady·otherBrowser 추가).
+- LandingLayout 데스크탑 메뉴 줄: …·리소스·브랜드스토리·[아이콘]앱 다운로드(맨 끝). 폰·태블릿 메뉴 시트는 그대로(가입 버튼 아래 — 10-12 지시). 카나리 landinggnb 기대 순서 갱신.
+- 검증: 범위 tsc 0 + vite build 0(전체 tsc -b 는 earlyoom 이 3회 SIGTERM — 정식 전체 타입검사 아님) · i18n·parity 가드 통과 · /app 크롬(이벤트 있음=설치 창 열림 / 막음=한 줄)·Safari·Firefox UA 각각 한 줄 · 3줄 목록 0 · landinggnb 0 실패, 대조군 12 실패. Fable 미검증(자체 검증) — 화면 배치·문구.
+
 ### 답 기다림: 휴가 종류를 회사가 직접 추가·수정하게 할지 (방 671b6a35 · 2026-10-20 · [Opus]) — 코드 변경 없음
 - 무엇: Irene «연차나 휴가종류 등록/관리 어디에 있어? 관리자 설정에 안보이는데»
 - 사실: 연차 부여 = 설정 › 근태 관리(/business/settings/attendance) 세 번째 칸 «연간 부여»(TeamTab GrantForm, owner·admin). 휴가 종류 = 연차·병가·경조사·기타 4개 고정(LeaveRequest.category ENUM · pages/Attendance/leaveCategory.ts · services/leaveTransition LEAVE_CATEGORIES) — 등록·수정 화면 없음.
