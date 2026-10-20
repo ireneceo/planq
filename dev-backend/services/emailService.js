@@ -1405,9 +1405,9 @@ async function sendUnreadNotificationEmail({ to, name, items, count, workspaceNa
 // ═══════════════════════════════════════════════════════════════
 const POLICY_NOTICE = {
   ko: {
-    subject: '[PlanQ] 개인정보처리방침 개정 안내 (2026년 10월 26일 시행)',
+    subject: '[PlanQ] 개인정보처리방침 개정 안내 (2026년 10월 28일 시행)',
     hello: (n) => `${n}님, 안녕하세요.`,
-    lead: 'PlanQ 개인정보처리방침이 2026년 10월 26일부터 아래와 같이 바뀝니다.',
+    lead: 'PlanQ 개인정보처리방침이 2026년 10월 28일부터 아래와 같이 바뀝니다.',
     items: [
       '공개 소개 페이지(소개·요금제·문의 등)와 회원가입 화면에서 방문 통계(Google Analytics)와 광고 성과 측정(Meta 픽셀) 도구를 사용합니다.',
       '로그인한 뒤의 서비스 화면, 공유 링크, 모바일 앱에서는 사용하지 않으며, 업무 데이터·이름·이메일은 이 도구들로 보내지 않습니다.',
@@ -1418,9 +1418,9 @@ const POLICY_NOTICE = {
     legal: '이 메일은 개인정보 보호법에 따른 처리방침 변경 고지로, 수신 동의 여부와 관계없이 보내드립니다.',
   },
   en: {
-    subject: '[PlanQ] Privacy Policy update (effective October 26, 2026)',
+    subject: '[PlanQ] Privacy Policy update (effective October 28, 2026)',
     hello: (n) => `Hello ${n},`,
-    lead: 'Our Privacy Policy changes as follows from October 26, 2026.',
+    lead: 'Our Privacy Policy changes as follows from October 28, 2026.',
     items: [
       'On our public pages (overview, pricing, contact, etc.) and the sign-up screen we use visit statistics (Google Analytics) and ad measurement (Meta Pixel) tools.',
       'They are not used inside the service after you log in, on shared links, or in the mobile apps, and no work data, names or email addresses are sent to them.',

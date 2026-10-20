@@ -1,4 +1,4 @@
-// 처리방침 개정 고지 메일 — 2026-10-26 시행분(랜딩 마케팅 측정). docs/MARKETING_TRACKING_DESIGN.md §10-5 ③.
+// 처리방침 개정 고지 메일 — 2026-10-28 시행분(랜딩 마케팅 측정). docs/MARKETING_TRACKING_DESIGN.md §10-5 ③.
 //   처리방침 10조가 «시행 7일 전 서비스 공지 및 이메일로 안내» 를 약속한다. 그 메일 쪽 한 번짜리 문.
 //
 // 사용:  node scripts/send-policy-notice.js                     (미리보기 — 받는 사람 수·언어별 수·예시 3명만 출력, 아무것도 안 보냄)

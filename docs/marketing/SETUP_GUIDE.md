@@ -6,17 +6,17 @@
 | # | 무엇 | 누가 | 언제 |
 |---|---|---|---|
 | 1 | 코드·처리방침 문구 배포(마이그레이션 `migrate-marketing-tags.js` 는 배포 슬롯에 있음) | 배포 방 | 다음 배포 |
-| 2 | 처리방침 개정 공지 — 공지 띠 + 회원 메일 | Irene(명령 한 줄) | **배포 당일**(시행 2026-10-26 의 7일 전까지) |
+| 2 | 처리방침 개정 공지 — 공지 띠 + 회원 메일 | Irene(명령 한 줄) | **배포 당일**(시행 2026-10-28 의 7일 전까지) |
 | 3 | 운영·dev nginx CSP 적용(GTM·픽셀 스크립트 허용) | Irene(sudo) | 배포 뒤 아무 때나 |
 | 4 | Google 태그 관리자·GA4·Meta 계정에서 ID 만들기, GTM 컨테이너 가져오기 | Irene | 시행일 전 |
-| 5 | GTM 게시 → 운영 관리자 > 플랫폼 설정 > «마케팅 측정» 에 GTM ID 입력 | Irene | **2026-10-26 시행일 이후** |
+| 5 | GTM 게시 → 운영 관리자 > 플랫폼 설정 > «마케팅 측정» 에 GTM ID 입력 | Irene | **2026-10-28 시행일 이후** |
 | 6 | 확인 — GTM 미리보기·GA4 실시간·Meta 테스트 이벤트 | Irene + 이 방 | 켠 직후 |
 
 ★ 배포가 10-19 보다 늦어지면 시행일을 **배포일 + 7일**로 옮긴다 — 바뀌는 곳 셋: ① `dev-frontend/src/pages/Legal/PrivacyPolicy.tsx` effectiveDate ② `locales/{ko,en}/legal.json` privacy.s10 변경 이력 날짜 ③ `dev-backend/services/emailService.js` POLICY_NOTICE ko/en 제목·본문 날짜.
 ★ 배포 때 `dev-backend/scripts/send-policy-notice.js` 가 운영 `backend/scripts/` 에 실렸는지 확인한다.
 
 ## 2. 개정 공지
-- 공지 띠: 운영 관리자 > 플랫폼 설정 > 공지 — 한국어 «개인정보처리방침이 2026년 10월 26일부터 바뀝니다(공개 소개 페이지의 방문 통계·광고 측정 도구 추가). 자세히: 개인정보처리방침» · 영어 «Our Privacy Policy changes on October 26, 2026 (visit statistics and ad measurement on our public pages).»
+- 공지 띠: 운영 관리자 > 플랫폼 설정 > 공지 — 한국어 «개인정보처리방침이 2026년 10월 28일부터 바뀝니다(공개 소개 페이지의 방문 통계·광고 측정 도구 추가). 자세히: 개인정보처리방침» · 영어 «Our Privacy Policy changes on October 28, 2026 (visit statistics and ad measurement on our public pages).»
 - 회원 메일: 운영 서버에서 `cd /opt/planq/backend && NODE_ENV=production node scripts/send-policy-notice.js` (미리보기 — 보낼 사람 수만 나온다) → 나온 수 N 으로 `… --send --confirm=N`. 다시 돌려도 이미 보낸 주소는 건너뛴다.
 
 ## 3. nginx CSP (sudo)
