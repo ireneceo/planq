@@ -2,6 +2,10 @@
 **마지막 업데이트:** 2026-10-20 (방 f0ea9ea5 — 설명란 가림 수리 뒤 개발완료)
 **작업 상태:** 완료 — 개발완료(10/19~10/20 기록 · 게이트 health 88/88 · guard 74/75 · tenant 0 · wiki 통과). 운영은 042c74b4 까지 — 미배포: 91309d09 처리방침 10-28 · f4979e74 업무/요청 전환 · bbf8270e 설명란 가림.
 
+### 나중에 — Fable 대기: 휴가 종류 직접 추가·수정 기능 설계 · Fable 한도가 풀리면(상황판 재시도 2026-10-20 18:45 KL, fid fwmvgdotw2) · 그때 Fable 설계 → docs/LEAVE_TYPES_DESIGN.md → 구현(설계 전 구현 시작 안 함)
+- Irene 2026-10-20 «권고대로»(① 회사가 종류 추가·수정 — 이름·유급/무급·연간 기본 일수, «휴가 설정» 칸을 근태 관리 맨 위로).
+- 설계 요청 내용: 이 방 대화의 Fable 프롬프트와 같다 — 현황 파일(LeaveRequest/LeaveGrant ENUM · leaveTransition · routes/leave · pages/Attendance/leaveCategory.ts · AttendanceAdminSettings/TeamTab · 급여 무급 일할)·이행·박제·급여 연결·권한·화면·검증.
+
 
 ### 완료: /app «이 컴퓨터» 설치 안내를 버튼 하나로 · 랜딩 상단 «앱 다운로드» 맨 끝 (방 efa71b43 · 2026-10-20 · [Opus]) — 운영 미배포
 - 원문: «다운로드를 왜 이렇게 안내해? 그냥 다운로드 해서 pwa 설치되잖아 … 랜딩페이지에서 앱다운로드 브랜드스토리 뒤로 보내. 맨 마지막. 혼자 아이콘 있잖아»
@@ -9,12 +13,11 @@
 - LandingLayout 데스크탑 메뉴 줄: …·리소스·브랜드스토리·[아이콘]앱 다운로드(맨 끝). 폰·태블릿 메뉴 시트는 그대로(가입 버튼 아래 — 10-12 지시). 카나리 landinggnb 기대 순서 갱신.
 - 검증: 범위 tsc 0 + vite build 0(전체 tsc -b 는 earlyoom 이 3회 SIGTERM — 정식 전체 타입검사 아님) · i18n·parity 가드 통과 · /app 크롬(이벤트 있음=설치 창 열림 / 막음=한 줄)·Safari·Firefox UA 각각 한 줄 · 3줄 목록 0 · landinggnb 0 실패, 대조군 12 실패. Fable 미검증(자체 검증) — 화면 배치·문구.
 
-### 답 기다림: 휴가 종류를 회사가 직접 추가·수정하게 할지 (방 671b6a35 · 2026-10-20 · [Opus]) — 코드 변경 없음
+### 답 기다림 (이전): 휴가 종류를 회사가 직접 추가·수정하게 할지 (방 671b6a35 · 2026-10-20 · [Opus]) — Irene «권고대로» → ① 진행 중(Fable 설계 → docs/LEAVE_TYPES_DESIGN.md)
 - 무엇: Irene «연차나 휴가종류 등록/관리 어디에 있어? 관리자 설정에 안보이는데»
 - 사실: 연차 부여 = 설정 › 근태 관리(/business/settings/attendance) 세 번째 칸 «연간 부여»(TeamTab GrantForm, owner·admin). 휴가 종류 = 연차·병가·경조사·기타 4개 고정(LeaveRequest.category ENUM · pages/Attendance/leaveCategory.ts · services/leaveTransition LEAVE_CATEGORIES) — 등록·수정 화면 없음.
 - 선택지: ① 회사가 종류 추가·수정(이름·유급/무급·연간 기본 일수) + «휴가 설정» 칸 맨 위 — 새 표·화면·마이그레이션 → Fable 설계 1회 ② 종류 고정 유지, «연간 부여» 칸만 맨 위로.
 - 권고 ①. 답이 오면: ① → /기능설계(Fable 설계) 후 구현 · ② → 근태 관리 화면 칸 순서만 바꾸고 3폭 확인.
-**휴가 종류를 회사가 직접 추가·수정하는 기능(①)으로 만들까요?**
 **다음 할 일:** 다음 배포에 91309d09·f4979e74·bbf8270e(+ 위키 «업무 만들기» 글 운영 반영: seed-wiki-content.js) — 처리방침 공지 띠·메일은 그 배포 뒤(늦어도 10-21) · Fable 대기 3건(환불 0eeeef09 완료 검증+구독 해지 설계 · 조직 규모 0단계 fwmvezqzws · 내 명함 v2) · 밤 검사 남은 실패 5(mobileboot·tablemenu·teampresence·guestproject·salelayout) · 운영 피드백 #463·#464 답글 초안 Irene 확인 · #465 답글 달고 done(10-20, 운영 반영·Irene 실기기 확인 근거)
 
 
