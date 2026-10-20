@@ -34,10 +34,30 @@
     "storeSoon": "Play 스토어 앱은 심사 중이에요 — 나오면 여기서 바로 받을 수 있어요."
   },
   "desktopPwa": {
-    "label": "이 컴퓨터 (Windows · Mac)",
-    "cta": "이 컴퓨터에 설치",
-    "installed": "이 컴퓨터에 PlanQ 앱이 이미 설치돼 있어요. 시작 메뉴·Dock 의 PlanQ 로 여세요.",
-    "done": "설치됐어요. 시작 메뉴·Dock 에서 PlanQ 를 실행하세요.",
+    "label": {
+      "windows": "Windows PC",
+      "mac": "Mac",
+      "linux": "Linux PC",
+      "chromeos": "Chromebook",
+      "other": "데스크탑 앱"
+    },
+    "cta": {
+      "windows": "Windows PC에 설치",
+      "mac": "Mac에 설치",
+      "linux": "Linux PC에 설치",
+      "chromeos": "Chromebook에 설치",
+      "other": "PlanQ 앱 설치"
+    },
+    "installed": {
+      "windows": "이 Windows PC에 PlanQ 앱이 이미 설치돼 있어요. 시작 메뉴의 PlanQ 로 여세요.",
+      "mac": "이 Mac에 PlanQ 앱이 이미 설치돼 있어요. Launchpad·Dock 의 PlanQ 로 여세요.",
+      "other": "PlanQ 앱이 이미 설치돼 있어요. 앱 목록의 PlanQ 로 여세요."
+    },
+    "done": {
+      "windows": "설치됐어요. 시작 메뉴에서 PlanQ 를 실행하세요.",
+      "mac": "설치됐어요. Launchpad·Dock 에서 PlanQ 를 실행하세요.",
+      "other": "설치됐어요. 앱 목록에서 PlanQ 를 실행하세요."
+    },
     "dismissed": "설치를 취소했어요. 언제든 다시 누를 수 있어요.",
     "notReady": "이미 설치돼 있으면 주소창 오른쪽 «앱에서 열기» 로 여세요. 아니라면 주소창 오른쪽 설치 아이콘(⊕)을 누르세요.",
     "otherBrowser": "Chrome·Edge 로 이 페이지를 열면 버튼 하나로 바로 설치돼요."

@@ -34,10 +34,30 @@
     "storeSoon": "Our Play Store app is in review — once it is live you can get it right here."
   },
   "desktopPwa": {
-    "label": "This computer (Windows · Mac)",
-    "cta": "Install on this computer",
-    "installed": "PlanQ is already installed on this computer. Open it from the Start menu or Dock.",
-    "done": "Installed. Launch PlanQ from the Start menu or Dock.",
+    "label": {
+      "windows": "Windows PC",
+      "mac": "Mac",
+      "linux": "Linux PC",
+      "chromeos": "Chromebook",
+      "other": "Desktop app"
+    },
+    "cta": {
+      "windows": "Install on Windows PC",
+      "mac": "Install on Mac",
+      "linux": "Install on Linux PC",
+      "chromeos": "Install on Chromebook",
+      "other": "Install PlanQ app"
+    },
+    "installed": {
+      "windows": "PlanQ is already installed on this Windows PC. Open it from the Start menu.",
+      "mac": "PlanQ is already installed on this Mac. Open it from Launchpad or the Dock.",
+      "other": "PlanQ is already installed. Open it from your app list."
+    },
+    "done": {
+      "windows": "Installed. Launch PlanQ from the Start menu.",
+      "mac": "Installed. Launch PlanQ from Launchpad or the Dock.",
+      "other": "Installed. Launch PlanQ from your app list."
+    },
     "dismissed": "Installation cancelled. You can try again anytime.",
     "notReady": "If it is already installed, use «Open in app» on the right of the address bar. Otherwise click the install icon (⊕) on the right of the address bar.",
     "otherBrowser": "Open this page in Chrome or Edge to install it with one click."

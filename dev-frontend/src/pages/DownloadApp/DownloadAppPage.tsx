@@ -1,6 +1,6 @@
 // 모바일 앱 다운로드 페이지 — 공개(비인증). planq.kr/app
 //   환경 감지(iOS/Android/데스크탑) → 해당 스토어/파일로 안내. 링크는 platform_settings(관리자) 값.
-//   데스크탑은 «이 컴퓨터» 카드(PWA 설치)가 맨 위 — 2026-10-15 Irene «데스크탑 다운로드는 왜 없어? PWA 다운받게».
+//   데스크탑은 지금 기기(OS 감지 — Windows PC·Mac…, 모르면 «데스크탑 앱») 카드(PWA 설치)가 맨 위 — 2026-10-15 Irene «데스크탑 다운로드는 왜 없어? PWA 다운받게».
 //   출시 전이면 "출시 준비 중". 네이티브 앱 안에서 열면 "이미 앱에서 실행 중".
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -28,6 +28,22 @@ function detectPlatform(): Platform {
   return 'desktop';
 }
 
+/** 데스크탑 OS — 카드 이름·버튼·«어디서 여나» 문구를 OS 에 맞춘다. 알 수 없으면 null(=특정 기기라고 말하지 않는다).
+ *  2026-10-20 Irene «이 컴퓨터라고 하면서 Windows · Mac 둘다 표시하면 어떻게 해? … 파악 안되면 이 컴퓨터라고 지정하면 안되지» */
+type DesktopOs = 'windows' | 'mac' | 'linux' | 'chromeos';
+function detectDesktopOs(): DesktopOs | null {
+  if (typeof navigator === 'undefined') return null;
+  const hint = ((navigator as Navigator & { userAgentData?: { platform?: string } }).userAgentData?.platform || '').toLowerCase();
+  const ua = navigator.userAgent || '';
+  if (hint === 'windows' || /Windows NT/.test(ua)) return 'windows';
+  if (hint === 'macos' || /Macintosh|Mac OS X/.test(ua)) return 'mac';
+  if (hint === 'chrome os' || hint === 'chromeos' || /CrOS/.test(ua)) return 'chromeos';
+  if (hint === 'linux' || /Linux/.test(ua)) return 'linux';
+  return null;
+}
+/** 시작 메뉴·Dock 처럼 OS 마다 다른 문구는 windows/mac 만 따로, 나머지는 공통(other). */
+const launchKey = (os: DesktopOs | null) => (os === 'windows' || os === 'mac' ? os : 'other');
+
 interface DownloadInfo { ios_url: string | null; android_url: string | null; }
 
 export default function DownloadAppPage() {
@@ -36,6 +52,7 @@ export default function DownloadAppPage() {
   const [info, setInfo] = useState<DownloadInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const platform = detectPlatform();
+  const desktopOs = detectDesktopOs();
   const inApp = isNativeApp();
 
   useEffect(() => {
@@ -109,7 +126,7 @@ export default function DownloadAppPage() {
             {/* 지금 보고 있는 기기 — 맨 위 한 줄 전체(460px 카드에 3칸은 좁다). 설치 장치는 워크스페이스 배너·설정과 같은 usePwaInstall */}
             <DesktopCard $highlight data-testid="app-desktop-card">
               <PlatIcon><MonitorGlyph /></PlatIcon>
-              <PlatLabel>{t('desktopPwa.label')}</PlatLabel>
+              <PlatLabel>{t(`desktopPwa.label.${desktopOs ?? 'other'}`)}</PlatLabel>
               <DesktopPwaInstall />
             </DesktopCard>
             <DesktopHint>{t('desktop.or')}</DesktopHint>
@@ -185,10 +202,11 @@ function DesktopPwaInstall() {
   const { t } = useTranslation('appdownload');
   const { t: ts } = useTranslation('settings');
   const pwa = usePwaInstall();
+  const os = detectDesktopOs();
   const [msg, setMsg] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   if (pwa.isStandalone || pwa.isRelatedInstalled) {
-    return <PwaNote data-testid="app-desktop-pwa-installed">{t('desktopPwa.installed')}</PwaNote>;
+    return <PwaNote data-testid="app-desktop-pwa-installed">{t(`desktopPwa.installed.${launchKey(os)}`)}</PwaNote>;
   }
   const doInstall = async () => {
     if (busy) return;
@@ -197,7 +215,7 @@ function DesktopPwaInstall() {
     try {
       const r = await pwa.install();
       if (r === 'accepted') track('pq_app_download', { platform: 'desktop_pwa' });
-      setMsg(r === 'accepted' ? t('desktopPwa.done') as string
+      setMsg(r === 'accepted' ? t(`desktopPwa.done.${launchKey(os)}`) as string
         : r === 'dismissed' ? t('desktopPwa.dismissed') as string
         : t('desktopPwa.notReady') as string);
     } finally { setBusy(false); }
@@ -211,7 +229,7 @@ function DesktopPwaInstall() {
   return (
     <>
       <PrimaryBtn as="button" type="button" data-testid="app-desktop-pwa-install" onClick={doInstall} disabled={busy}>
-        {t('desktopPwa.cta')}
+        {t(`desktopPwa.cta.${os ?? 'other'}`)}
       </PrimaryBtn>
       {msg && <PwaNote data-testid="app-desktop-pwa-msg">{msg}</PwaNote>}
     </>
