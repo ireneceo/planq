@@ -24,6 +24,7 @@ import { useTranslation } from 'react-i18next';
 import styled from 'styled-components';
 import { apiFetch } from '../../contexts/AuthContext';
 import { SlashCommand } from './SlashCommand';
+import { toolbarScrollCss, useToolbarHScroll, ToolbarEdgeArrow } from './editorToolbarScroll';
 import SlashCommandList from './SlashCommandList';
 import { LightboxWrapper } from './ImageLightbox';
 import { plainTextToHtml } from '../../utils/sanitizeHtml';
@@ -86,6 +87,7 @@ export default function RichEditor({
   const onAttachFilesRef = useRef(onAttachFiles);
   useEffect(() => { onAttachFilesRef.current = onAttachFiles; }, [onAttachFiles]);
 
+  const tbScroll = useToolbarHScroll();   // 툴바 한 줄 가로 밀기 — ‹ › 와 휠
   const editor = useEditor({
     extensions: [
       StarterKit.configure({ heading: { levels: [1, 2, 3] }, link: false }),
@@ -327,7 +329,8 @@ export default function RichEditor({
       {/* 상단 고정 툴바 (opt-in). 디자인·동작은 문서 에디터(PostEditor)와 같은 계열로 맞춘다 —
           같은 앱에서 화면마다 다른 편집기처럼 보이지 않게. */}
       {toolbar && !readOnly && (
-        <Toolbar>
+        <Toolbar ref={tbScroll.ref}>
+          <ToolbarEdgeArrow side="start" show={tbScroll.start} onStep={tbScroll.step} />
           <TGroup>
             <ToolBtn type="button" $active={editor.isActive('bold')} title={t('editor.bold', { defaultValue: '굵게' }) as string}
               onMouseDown={(e) => { e.preventDefault(); editor.chain().focus().toggleBold().run(); }}>B</ToolBtn>
@@ -393,6 +396,7 @@ export default function RichEditor({
             <ToolBtn type="button" title={t('editor.redo', { defaultValue: '다시 실행' }) as string}
               onMouseDown={(e) => { e.preventDefault(); editor.chain().focus().redo().run(); }}>↷</ToolBtn>
           </TGroup>
+          <ToolbarEdgeArrow side="end" show={tbScroll.end} onStep={tbScroll.step} />
         </Toolbar>
       )}
       {linkOpen && !readOnly && (
@@ -448,13 +452,15 @@ export default function RichEditor({
 
 const PlainFallback = styled.div`min-height:80px;`;
 
-// 툴바 — 문서 에디터(PostEditor)와 같은 계열. 좁은 화면에서는 한 줄 가로 스크롤.
+// 툴바 — 문서 에디터(PostEditor)와 같은 계열.
+// 모든 폭에서 한 줄 + 옆으로 밀기 — 규칙·이유는 editorToolbarScroll(PostEditor 와 한 벌).
 const Toolbar = styled.div`
-  display:flex;align-items:center;gap:2px;padding:6px 8px;flex-wrap:wrap;
+  display:flex;align-items:center;gap:2px;padding:6px 8px;
+  ${toolbarScrollCss}
   background:#F8FAFC;border-bottom:1px solid #E2E8F0;border-radius:10px 10px 0 0;
   /* top 은 스크롤 컨테이너가 --pq-sticky-top 으로 정한다 (PostEditor 주석 참조) */
   position:sticky;top:var(--pq-sticky-top,0px);z-index:5;
-  @media (max-width:640px){flex-wrap:nowrap;overflow-x:auto;overflow-y:hidden;padding:4px 6px;}
+  @media (max-width:640px){padding:4px 6px;}
 `;
 const TGroup = styled.div`display:inline-flex;gap:2px;`;
 const TSep = styled.div`width:1px;height:18px;background:#E2E8F0;margin:0 4px;flex-shrink:0;`;

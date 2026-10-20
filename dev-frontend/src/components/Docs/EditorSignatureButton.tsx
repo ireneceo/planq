@@ -8,6 +8,7 @@
 //   서명 칸은 서명자가 그리거나 이미지를 올린다(사인·회사 스탬프 모두). 한 서명자에게 서명 칸을 여러 개 둘 수 있다.
 //   Irene: «편집 들어가도 안나오는데» — 아이콘만 있던 버튼에 글자를 붙이고, 메뉴로 무엇을 넣는지 고르게 했다.
 import React, { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import styled from 'styled-components';
 import type { Editor } from '@tiptap/react';
 import { useTranslation } from 'react-i18next';
@@ -26,6 +27,15 @@ const EditorSignatureButton: React.FC<Props> = ({ editor, as: ToolBtn }) => {
   const { t } = useTranslation('qdocs');
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLSpanElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  // 화면 기준(fixed)으로 띄운다 — 툴바가 한 줄 가로 스크롤(overflow)이라 absolute 면 메뉴가 잘린다(TextStyleButton 과 같다)
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+  const place = () => {
+    const r = wrapRef.current?.getBoundingClientRect();
+    if (!r) return;
+    const W = Math.min(340, window.innerWidth - 32);
+    setPos({ top: r.bottom + 6, left: Math.max(8, Math.min(r.left, window.innerWidth - W - 8)) });
+  };
 
   // 문서에 이미 있는 서명자(서명 칸 기준) — 번호·쪽·이름표
   const signers = (): DocSignatureField[] => {
@@ -41,11 +51,20 @@ const EditorSignatureButton: React.FC<Props> = ({ editor, as: ToolBtn }) => {
 
   useEffect(() => {
     if (!open) return;
-    const onDoc = (e: MouseEvent) => { if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setOpen(false); };
+    place();
+    const onDoc = (e: MouseEvent) => {
+      const tg = e.target as Node;
+      if (!wrapRef.current?.contains(tg) && !menuRef.current?.contains(tg)) setOpen(false);
+    };
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
     document.addEventListener('mousedown', onDoc);
     document.addEventListener('keydown', onKey);
-    return () => { document.removeEventListener('mousedown', onDoc); document.removeEventListener('keydown', onKey); };
+    window.addEventListener('resize', place);
+    window.addEventListener('scroll', place, true);
+    return () => {
+      document.removeEventListener('mousedown', onDoc); document.removeEventListener('keydown', onKey);
+      window.removeEventListener('resize', place); window.removeEventListener('scroll', place, true);
+    };
   }, [open]);
 
   const insert = (slot: number, item: SignatureItem, party: 'us' | 'them', label: string | null) => {
@@ -85,8 +104,8 @@ const EditorSignatureButton: React.FC<Props> = ({ editor, as: ToolBtn }) => {
         </svg>
         <BtnText>{t('editor.insertSignatureShort', { defaultValue: '서명 항목' })} ▾</BtnText>
       </ToolBtn>
-      {open && (
-        <Menu role="menu" data-testid="editor-signature-menu">
+      {open && pos && createPortal(
+        <Menu ref={menuRef} role="menu" data-testid="editor-signature-menu" style={{ top: pos.top, left: pos.left }}>
           <MenuHint>{t('editor.sigMenuHint', { defaultValue: '누구의 칸인지 고르고, 넣을 것을 누르세요. 커서 자리에 들어갑니다.' })}</MenuHint>
           {rows.map((s) => (
             <SignerRow key={`${s.slot}${s.isNew ? '-new' : ''}`}>
@@ -106,7 +125,8 @@ const EditorSignatureButton: React.FC<Props> = ({ editor, as: ToolBtn }) => {
               </ItemBtns>
             </SignerRow>
           ))}
-        </Menu>
+        </Menu>,
+        document.body,
       )}
     </Wrap>
   );
@@ -117,8 +137,9 @@ export default EditorSignatureButton;
 const Wrap = styled.span`position: relative; display: inline-flex;`;
 const BtnText = styled.span`margin-left: 4px; font-size: 0.75rem; font-weight: 600; white-space: nowrap;`;
 const Menu = styled.div`
-  /* 버튼 왼쪽 기준으로 펼친다 — 버튼은 툴바 앞쪽에 있어 오른쪽 기준이면 왼쪽 목록 패널 밑으로 잘렸다(실측 1440) */
-  position: absolute; top: calc(100% + 6px); left: 0; z-index: 60;
+  /* 버튼 왼쪽 기준으로 펼친다 — 버튼은 툴바 앞쪽에 있어 오른쪽 기준이면 왼쪽 목록 패널 밑으로 잘렸다(실측 1440).
+     자리(top·left)는 place() 가 버튼 rect 로 정한다. */
+  position: fixed; z-index: 1200;
   width: min(340px, calc(100vw - 32px)); max-height: 60vh; overflow-y: auto;
   background: #fff; border: 1px solid #E2E8F0; border-radius: 10px;
   box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12); padding: 8px;

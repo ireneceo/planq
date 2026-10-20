@@ -28,7 +28,8 @@ import { codeBlockNodeView } from '../Common/CodeBlockNodeView';
 import { checklistExtensions, checklistEditorCss } from './editorChecklist';   // 할 일 목록(동그라미 체크 + 가운데 줄)
 import { FindReplace, findReplaceEditorCss } from './editorFindReplace';   // 찾기·바꾸기(2026-10-08)
 import FindReplaceBar from './FindReplaceBar';
-import TextStyleButton from './TextStyleButton';   // 글자색·배경·크기(2026-10-11 — 문서 안 표 포함)
+import TextStyleButton from './TextStyleButton';
+import { toolbarScrollCss, useToolbarHScroll, ToolbarEdgeArrow } from '../Common/editorToolbarScroll';   // 글자색·배경·크기(2026-10-11 — 문서 안 표 포함)
 import { textStyleExtensions, currentTextStyleKeys, applyTextStyle, stripForeignTextStyle } from './editorTextStyle';
 
 // 사이클 N+16 — 노션 스타일 코드 블록. lowlight + common 언어팩 (30개+: js/ts/python/go/rust/sql/bash 등).
@@ -85,6 +86,7 @@ async function uploadEditorImage(file: File, businessId?: number, projectId?: nu
 const PostEditor: React.FC<Props> = ({ value, onChange, onReady, placeholder, editable = true, businessId, projectId, borderless = false, compact = false }) => {
   const { t } = useTranslation('qdocs');
   const fileRef = useRef<HTMLInputElement>(null);
+  const tbScroll = useToolbarHScroll();   // 툴바 한 줄 가로 밀기 — ‹ › 와 휠
   // 찾기·바꾸기 막대 — 편집 중에만. focusSignal 은 열린 채 ⌘F 를 다시 눌렀을 때 검색칸으로 돌아가게 한다.
   const [find, setFind] = useState<{ open: boolean; replace: boolean; initial: string; signal: number }>(
     { open: false, replace: false, initial: '', signal: 0 });
@@ -315,7 +317,8 @@ const PostEditor: React.FC<Props> = ({ value, onChange, onReady, placeholder, ed
     <Wrap data-pq-editor-wrap="" $borderless={borderless} $compact={compact} onClick={handleWrapperClick} onKeyDown={handleKeyDown}>
       {editable && (
         <Head data-pq-editor-head="">
-        <Toolbar $compact={compact}>
+        <Toolbar ref={tbScroll.ref} $compact={compact}>
+          <ToolbarEdgeArrow side="start" show={tbScroll.start} onStep={tbScroll.step} />
           <Group>
             <ToolBtn type="button" $active={isActive('bold')} onClick={() => editor.chain().focus().toggleBold().run()} title={t('editor.bold', { defaultValue: '굵게' })}>B</ToolBtn>
             <ToolBtn type="button" $active={isActive('italic')} onClick={() => editor.chain().focus().toggleItalic().run()} title={t('editor.italic', { defaultValue: '기울임' })} style={{ fontStyle: 'italic' }}>I</ToolBtn>
@@ -437,6 +440,7 @@ const PostEditor: React.FC<Props> = ({ value, onChange, onReady, placeholder, ed
               </svg>
             </ToolBtn>
           </Group>
+          <ToolbarEdgeArrow side="end" show={tbScroll.end} onStep={tbScroll.step} />
         </Toolbar>
         {find.open && (
           <FindReplaceBar
@@ -522,20 +526,10 @@ const Toolbar = styled.div<{ $compact?: boolean }>`
     }
     & > div { gap: 1px !important; flex-shrink: 0; }
   ` : `
-    flex-wrap: wrap;
-    /* 폰은 한 줄 + 좌우로 밀어 본다 — 감기게 두면 버튼 30여 개가 3줄을 먹어 키보드가 뜬 뒤
-       본문·캐럿이 보일 자리가 없다(Irene 2026-10-16 «에디터 위에 메뉴가 3줄»). RichEditor 와 같은 규칙.
+    /* 모든 폭에서 한 줄 + 옆으로 밀기 — 폭은 화면이 아니라 편집기 칸이 정한다(규칙·이유는 editorToolbarScroll).
        버튼 크기(28px)는 그대로 — 터치 대상을 줄이지 않는다. */
-    @media (max-width: 640px) {
-      flex-wrap: nowrap;
-      overflow-x: auto;
-      overflow-y: hidden;
-      padding: 4px 6px;
-      overscroll-behavior-x: contain;
-      scrollbar-width: none;
-      &::-webkit-scrollbar { display: none; }
-      & > div { flex-shrink: 0; }
-    }
+    ${toolbarScrollCss}
+    @media (max-width: 640px) { padding: 4px 6px; }
   `}
 `;
 const Group = styled.div`display: inline-flex; gap: 2px;`;

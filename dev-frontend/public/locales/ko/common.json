@@ -1826,5 +1826,9 @@
     "deleteConfirm": "“{{name}}” 역할을 삭제할까요? 프로젝트 멤버 {{project}}명·기본 역할 {{def}}명의 역할이 비워집니다.",
     "renameFailed": "이름을 바꾸지 못했습니다",
     "deleteFailed": "삭제하지 못했습니다"
+  },
+  "editorToolbar": {
+    "scrollLeft": "앞 도구 보기",
+    "scrollRight": "뒤 도구 보기"
   }
 }

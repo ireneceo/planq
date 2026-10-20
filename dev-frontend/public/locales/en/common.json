@@ -1826,5 +1826,9 @@
     "deleteConfirm": "Delete the role “{{name}}”? It will be cleared from {{project}} project member(s) and {{def}} default role(s).",
     "renameFailed": "Could not rename",
     "deleteFailed": "Could not delete"
+  },
+  "editorToolbar": {
+    "scrollLeft": "Show earlier tools",
+    "scrollRight": "Show more tools"
   }
 }
