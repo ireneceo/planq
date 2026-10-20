@@ -457,51 +457,52 @@ const EventDrawer: React.FC<Props> = ({
             </svg>
           </SectionIcon>
           <SectionBody>
-            {canEdit && (
-              <Grid2 $single>
+            {/* 프로젝트 · 업무 연결 한 줄(2026-10-20 Irene «1행으로») — 등록 창과 같은 모양.
+                업무 제목은 보는 사람 기준(볼 수 없으면 «볼 수 없는 업무»). 편집 권한이 없으면 업무 칸만. */}
+            {(canEdit || event.task) && (
+              <Grid2 $single={!canEdit}>
+                {canEdit && (
+                  <Field>
+                    <FieldLabel>{t('form.project')}</FieldLabel>
+                    <AutoSaveField key={`ev${event.id}-7`} type="select" onSave={async () => { /* onChange 직접 호출 */ }}>
+                      <PlanQSelect
+                        size="sm"
+                        isClearable
+                        placeholder={tc(CONNECT_PROMPT.projectNone) as string}
+                        options={projects.map((p) => ({ value: p.id, label: p.name }))}
+                        value={event.project_id == null
+                          ? null
+                          : { value: event.project_id, label: projects.find((p) => p.id === event.project_id)?.name || `#${event.project_id}` }
+                        }
+                        onChange={(opt) => {
+                          const v = opt ? Number((opt as { value: number }).value) : null;
+                          if (v !== event.project_id) updateMaybeScoped({ project_id: v });
+                        }}
+                      />
+                    </AutoSaveField>
+                  </Field>
+                )}
                 <Field>
-                  <FieldLabel>{t('form.project')}</FieldLabel>
-                  <AutoSaveField key={`ev${event.id}-7`} type="select" onSave={async () => { /* onChange 직접 호출 */ }}>
-                    <PlanQSelect
-                      size="sm"
-                      isClearable
-                      placeholder={tc(CONNECT_PROMPT.projectNone) as string}
-                      options={projects.map((p) => ({ value: p.id, label: p.name }))}
-                      value={event.project_id == null
-                        ? null
-                        : { value: event.project_id, label: projects.find((p) => p.id === event.project_id)?.name || `#${event.project_id}` }
-                      }
-                      onChange={(opt) => {
-                        const v = opt ? Number((opt as { value: number }).value) : null;
-                        if (v !== event.project_id) updateMaybeScoped({ project_id: v });
-                      }}
-                    />
-                  </AutoSaveField>
+                  <FieldLabel>{t('taskLink.label', { defaultValue: '업무 연결' }) as string}</FieldLabel>
+                  {canEdit && (
+                    <AutoSaveField key={`ev${event.id}-task`} type="select" onSave={async () => { /* onChange 직접 호출 */ }}>
+                      <TaskLinkPicker
+                        businessId={event.business_id}
+                        value={event.task ? { id: event.task.id, title: event.task.title, hidden: event.task.hidden, deleted: event.task.deleted } : null}
+                        onChange={(tk) => { const v = tk ? tk.id : null; if (v !== (event.task_id ?? null)) updateMaybeScoped({ task_id: v }); }}
+                      />
+                    </AutoSaveField>
+                  )}
+                  {event.task && !event.task.hidden && onOpenTask && (
+                    <TaskOpenBtn type="button" data-testid="event-task-open" onClick={() => onOpenTask(event.task!.id)}>
+                      {canEdit
+                        ? (t('taskLink.open', { defaultValue: '업무 열기' }) as string)
+                        : (t('taskLink.taskOf', { title: event.task.title, defaultValue: '업무: {{title}}' }) as string)} ›
+                    </TaskOpenBtn>
+                  )}
+                  {!canEdit && event.task?.hidden && <MutedSmall>{(event.task.deleted ? t('taskLink.deleted', { defaultValue: '삭제된 업무' }) : t('taskLink.hidden', { defaultValue: '볼 수 없는 업무' })) as string}</MutedSmall>}
                 </Field>
               </Grid2>
-            )}
-            {/* 업무 연결 — 프로젝트 바로 아래. 제목은 보는 사람 기준(볼 수 없으면 «볼 수 없는 업무»). */}
-            {(canEdit || event.task) && (
-              <Field>
-                <FieldLabel>{t('taskLink.label', { defaultValue: '업무 연결' }) as string}</FieldLabel>
-                {canEdit && (
-                  <AutoSaveField key={`ev${event.id}-task`} type="select" onSave={async () => { /* onChange 직접 호출 */ }}>
-                    <TaskLinkPicker
-                      businessId={event.business_id}
-                      value={event.task ? { id: event.task.id, title: event.task.title, hidden: event.task.hidden, deleted: event.task.deleted } : null}
-                      onChange={(tk) => { const v = tk ? tk.id : null; if (v !== (event.task_id ?? null)) updateMaybeScoped({ task_id: v }); }}
-                    />
-                  </AutoSaveField>
-                )}
-                {event.task && !event.task.hidden && onOpenTask && (
-                  <TaskOpenBtn type="button" data-testid="event-task-open" onClick={() => onOpenTask(event.task!.id)}>
-                    {canEdit
-                      ? (t('taskLink.open', { defaultValue: '업무 열기' }) as string)
-                      : (t('taskLink.taskOf', { title: event.task.title, defaultValue: '업무: {{title}}' }) as string)} ›
-                  </TaskOpenBtn>
-                )}
-                {!canEdit && event.task?.hidden && <MutedSmall>{(event.task.deleted ? t('taskLink.deleted', { defaultValue: '삭제된 업무' }) : t('taskLink.hidden', { defaultValue: '볼 수 없는 업무' })) as string}</MutedSmall>}
-              </Field>
             )}
             <MutedSmall>{t('form.category')}</MutedSmall>
             <CategoryRow>
@@ -1341,7 +1342,7 @@ const CheckboxLabel = styled.label`
 // 카테고리 / project / visibility
 const Grid2 = styled.div<{ $single?: boolean }>`
   display: grid;
-  grid-template-columns: ${(p) => (p.$single ? '1fr' : '1fr 1fr')};
+  grid-template-columns: ${(p) => (p.$single ? 'minmax(0, 1fr)' : 'minmax(0, 1fr) minmax(0, 1fr)')};
   gap: 10px; margin-top: 4px;
 `;
 const Field = styled.div` display: flex; flex-direction: column; gap: 4px; min-width: 0; `;

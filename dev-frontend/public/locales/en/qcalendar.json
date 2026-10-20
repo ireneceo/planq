@@ -350,7 +350,7 @@
   },
   "taskLink": {
     "label": "Linked task",
-    "placeholder": "Search a task to link",
+    "placeholder": "Search tasks",
     "empty": "No matching tasks",
     "hidden": "Task you can’t view",
     "open": "Open task",

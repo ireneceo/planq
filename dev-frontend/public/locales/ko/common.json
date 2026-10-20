@@ -1795,7 +1795,7 @@
   },
   "taskLink": {
     "label": "업무 연결",
-    "placeholder": "업무 검색해서 연결",
+    "placeholder": "업무 검색",
     "empty": "찾는 업무가 없습니다",
     "hidden": "볼 수 없는 업무",
     "deleted": "삭제된 업무",

@@ -52,7 +52,7 @@ const TaskLinkPicker: React.FC<Props> = ({ businessId, value, onChange, disabled
       isClearable
       isDisabled={disabled}
       isLoading={loading}
-      placeholder={t('taskLink.placeholder', { defaultValue: '업무 검색해서 연결' }) as string}
+      placeholder={t('taskLink.placeholder', { defaultValue: '업무 검색' }) as string}
       noOptionsMessage={() => t('taskLink.empty', { defaultValue: '찾는 업무가 없습니다' }) as string}
       options={shown}
       filterOption={() => true}

@@ -393,14 +393,14 @@ const NewEventModal: React.FC<Props> = ({ initialStart, initialTitle, initialDes
                 onChange={(opt) => setProjectId(opt ? Number((opt as { value: number | string }).value) : '')}
               />
             </Field>
+            {/* 업무 연결 — 프로젝트 옆 한 줄(2026-10-07 «프로젝트, 업무연결은 최상단» · 2026-10-20 «1행으로») */}
+            {!!businessId && (
+              <Field>
+                <Label>{t('taskLink.label', { defaultValue: '업무 연결' }) as string}</Label>
+                <TaskLinkPicker businessId={businessId} value={linkedTask} onChange={setLinkedTask} />
+              </Field>
+            )}
           </Grid2>
-          {/* 업무 연결 — 프로젝트 바로 아래(2026-10-07 Irene: «프로젝트, 업무연결은 최상단») */}
-          {!!businessId && (
-            <Field>
-              <Label>{t('taskLink.label', { defaultValue: '업무 연결' }) as string}</Label>
-              <TaskLinkPicker businessId={businessId} value={linkedTask} onChange={setLinkedTask} />
-            </Field>
-          )}
 
           <Field>
             <Label>{t('form.category')}</Label>
@@ -760,7 +760,7 @@ const TimePair = styled.div`
 const TimeWrap = styled.div` width: 112px; `;
 const Dash = styled.span` color: #94A3B8; font-size: 0.8125rem; `;
 
-const Grid2 = styled.div` display: grid; grid-template-columns: 1fr 1fr; gap: 12px; `;
+const Grid2 = styled.div` display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; `;
 const Row = styled.div` display: flex; gap: 16px; `;
 const CheckboxLabel = styled.label`
   display: inline-flex; align-items: center; gap: 6px; cursor: pointer;

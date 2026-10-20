@@ -1795,7 +1795,7 @@
   },
   "taskLink": {
     "label": "Linked tasks",
-    "placeholder": "Search a task to link",
+    "placeholder": "Search tasks",
     "empty": "No matching tasks",
     "hidden": "Task you can’t view",
     "deleted": "Deleted task",
