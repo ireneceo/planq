@@ -895,6 +895,8 @@ const QTaskPage:React.FC=()=>{
   const addFormProps = {
     businessId: Number(bizId),
     mode: (tab==='requested' ? 'request' : 'task') as 'request'|'task',
+    // 내 업무 화면에서는 폼 안에서 [내 업무 | 요청하기] 를 바꾼다 — 요청하려고 탭을 옮겨 다시 열 필요가 없다
+    allowModeSwitch: scope==='mine',
     // 내 업무(오늘·이번 주·전체)에서 만든 업무는 담당자가 나다
     assigneeFixedToMe: scope==='mine'&&(tab==='week'||tab==='today'||tab==='all'),
     createDefaults: tabCreateDefaults,
@@ -911,7 +913,13 @@ const QTaskPage:React.FC=()=>{
     onClose: closeAddForm,
     // Socket task:new 가 먼저 도착했을 가능성 — 중복 방지
     // 추가한 업무가 우선순위·마감 순서 어디에 끼었는지 — 그 행으로 스크롤 + 잠깐 강조(정렬은 그대로)
-    onCreated: (task: TaskCreatedTask) => { setAllTasks(prev=>prev.some(x=>x.id===task.id)?prev:[task as never,...prev]); revealRow([task.id]); },
+    // 남에게 맡긴 업무(=요청)는 «요청하기» 탭 소속이다 — 다른 탭에서 만들었으면 그 탭으로 옮겨 보여 준다(목록 술어와 같은 판정).
+    onCreated: (task: TaskCreatedTask) => {
+      setAllTasks(prev=>prev.some(x=>x.id===task.id)?prev:[task as never,...prev]);
+      const aid=(task as {assignee_id?:number|null}).assignee_id;
+      if(scope==='mine'&&tab!=='requested'&&aid!=null&&aid!==myId) setTab('requested');
+      revealRow([task.id]);
+    },
   };
 
   // 우선순위 토글 — #250 ②청크. **재인덱스는 백엔드가 단독 수행**한다.
@@ -3161,9 +3169,9 @@ const QTaskPage:React.FC=()=>{
         </RightPanel>
       )}
       {/* ── 업무 추가 우측 패널 (panel 모드만) ── */}
+      {/* 제목은 폼이 자기 모드(내 업무/요청)로 정한다 — 폼 안에서 모드를 바꾸면 제목도 따라간다 */}
       {addingTask&&!addInline&&(
-        <TaskCreateForm {...addFormProps} layout="drawer"
-          drawerTitle={scope==='mine'&&tab==='requested'?t('add.reqBtn','요청 추가'):t('add.btn','업무 추가')} />
+        <TaskCreateForm {...addFormProps} layout="drawer" />
       )}
       {/* 주간 보고 마무리 모달 */}
       {weeklyReviewModalOpen && bizId && (

@@ -107,8 +107,10 @@ async function run() {
     // ── ④ 요청 탭 음성 대조군 — 예측(h)·반복이 없다 ──────────────────
     const tabOk = await clickTestId(page, 'qtask-tab-requested');
     const req = tabOk ? await openForm(page, 'task-add-btn') : { error: '요청 탭 버튼이 없다' };
-    push('④ 요청 탭에는 예측(h)·반복이 없다 (음성 대조군)',
-      !req.error && !req.fields.includes('est') && !req.fields.includes('recur'),
+    // ★ 반복은 2026-10-12 부터 요청에도 남는다(Irene «담당자가 아니면 반복 못 써? 쓸 수 있어야 해» — 의뢰 명세).
+    //   여태 «반복도 없어야» 로 재서 10-16 부터 빨간불이었다(제품이 아니라 판정이 낡았다). 예측시간만 사라진다.
+    push('④ 요청 탭에는 예측(h)이 없고 반복은 있다 (음성 대조군)',
+      !req.error && !req.fields.includes('est') && req.fields.includes('recur'),
       req.error || `필드 ${req.fields.join(',')} — PERMISSION_MATRIX §5.7(예측시간은 담당자만)`);
     push('④-대조 일반 탭에는 예측(h)·반복이 있다 (양성 대조군)',
       !!(drawer.fields && drawer.fields.includes('est') && drawer.fields.includes('recur')),
@@ -258,8 +260,8 @@ async function run() {
       await sleep(900);
     }
     const afterOther = await page.evaluate(FIELDS);
-    push('⑨ 남에게 지정하면 예측(h)·반복이 사라진다 (§5.7 — 서버가 버리는 값)',
-      !!chose && !!afterOther && !afterOther.fields.includes('est') && !afterOther.fields.includes('recur'),
+    push('⑨ 남에게 지정하면 예측(h)이 사라지고 반복은 남는다 (§5.7 — 서버가 버리는 값은 예측시간뿐)',
+      !!chose && !!afterOther && !afterOther.fields.includes('est') && afterOther.fields.includes('recur'),
       chose ? `담당자="${chose}" → 필드 ${afterOther && afterOther.fields.join(',')}`
         : `고를 상대가 없어 판정 불가 (옵션 ${optTexts.length}개: ${optTexts.join(' / ')})`);
     push('⑨ 양성 대조군 — 고르기 전에는 둘 다 있었다',

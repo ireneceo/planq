@@ -36,6 +36,7 @@ import { isEnterAction } from '../../utils/imeKey';
 import VisibilityChip from '../Common/VisibilityChip';
 import VisibilityChangeModal from '../Common/VisibilityChangeModal';
 import { useSecurityLevelLabel } from '../Common/SecurityLevelBadge';
+import { SegmentedToggle, SegmentedBtn } from '../Common/segmentedToggle';
 import { useDraftKey, useDraftText } from '../../hooks/useDraftText';
 import type { DraftKind } from '../../hooks/draftKinds';
 
@@ -62,6 +63,10 @@ export interface TaskCreateFormProps {
   layout?: 'drawer' | 'inline';
   /** 'request' = 업무 **요청**(담당자 필수 · 예측시간·AI·반복 숨김 — PERMISSION_MATRIX §5.7) */
   mode?: 'task' | 'request';
+  /** 폼 안에서 [내 업무 | 요청하기] 를 바꿀 수 있게 한다 — `mode` 는 첫 값이 된다.
+   *  Irene 2026-10-20: *"업무추가할 때 요청하기로 바꾸는 거 쉽게 할 수 없을까? … 요청하기라고 해도 업무추가랑 같은 형국이잖아."*
+   *  요청인지는 서버가 «담당자 ≠ 나» 로만 가른다(isInternalRequest) — 바뀌는 것은 화면(담당자 필수·나 제외·예측시간 숨김)뿐이다. */
+  allowModeSwitch?: boolean;
   /** 내 업무(오늘·이번 주·전체) — 담당자는 무조건 나 */
   assigneeFixedToMe?: boolean;
   /** 프로젝트가 이미 정해진 화면(Q project 업무 탭) — 프로젝트 칸을 숨기고 이 값으로 고정한다 */
@@ -90,7 +95,7 @@ export interface TaskCreateFormProps {
 }
 
 const TaskCreateForm: React.FC<TaskCreateFormProps> = ({
-  businessId, layout = 'drawer', mode = 'task', assigneeFixedToMe = false,
+  businessId, layout = 'drawer', mode = 'task', allowModeSwitch = false, assigneeFixedToMe = false,
   fixedProjectId = null, fixedClientId = null, workstreams,
   createDefaults = null, initial = null, initialNonce = 0,
   draftKind, draftId = null,
@@ -100,7 +105,10 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({
   const { t } = useTranslation('qtask');
   const { user } = useAuth();
   const myId = user ? Number(user.id) : null;
-  const isRequest = mode === 'request';
+  // 모드는 첫 값(mode)에서 시작하고, allowModeSwitch 면 폼 안에서 바뀐다. 새 진입(initialNonce)마다 첫 값으로 돌아간다.
+  const [modeState, setModeState] = useState<'task' | 'request'>(mode);
+  useEffect(() => { setModeState(mode); }, [mode, initialNonce]);
+  const isRequest = modeState === 'request';
   const bizId = businessId;
 
   // ── 제목·설명 — 임시저장이 붙어 있으면 저장본이 정본 (NoteThread 와 같은 idiom) ──
@@ -285,8 +293,10 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({
     //   · 요청 : 선택 필수
     //   · 그 외 : 미선택이면 **null 로 보낸다** — 그래야 서버의 담당자 체인
     //     (프로젝트 기본담당자 → PM → 생성자)이 탄다. 여기서 나로 채우면 그 체인은 영영 죽은 코드다.
-    const targetAssignee = assigneeFixedToMe ? (assigneeId ?? myId) : assigneeId;
-    const finalDue = dueDate || (createDefaults?.due_date ?? null);
+    const targetAssignee = (assigneeFixedToMe && !isRequest) ? (assigneeId ?? myId) : assigneeId;
+    // 탭 기본값(오늘·이번 주 탭에 남게 하는 마감·주)은 **내 업무** 몫이다 — 요청은 «요청하기» 탭 소속이라 싣지 않는다.
+    const tabDefaults = isRequest ? null : createDefaults;
+    const finalDue = dueDate || (tabDefaults?.due_date ?? null);
     // 정기업무는 due_date 가 anchor 다(백엔드도 검증) — 없으면 반복을 붙이지 않는다
     // 반복은 담당자와 무관하다(2026-10-12 Irene «담당자가 아니면 반복 못 써? 쓸 수 있어야 해») — 서버도 살린다.
     const recurrenceRule = finalDue ? recurrence : null;
@@ -300,7 +310,7 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({
           description: description.trim() || null,
           assignee_id: targetAssignee,
           project_id: projectId,
-          planned_week_start: createDefaults?.planned_week_start ?? null,
+          planned_week_start: tabDefaults?.planned_week_start ?? null,
           start_date: startDate || null,
           due_date: finalDue,
           estimated_hours: capacityMine && estHours ? Number(estHours) : null,
@@ -370,8 +380,27 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({
     return '';
   };
 
+  // 모드 전환 — 담당자만 맞춘다(나머지 입력은 그대로 둔다).
+  //   → 요청: «나» 는 요청 대상이 아니므로 비운다(필수 칸이 된다) · → 내 업무: 비어 있으면 원래 기본값(나 고정 화면이면 나)
+  const switchMode = (next: 'task' | 'request') => {
+    if (next === modeState) return;
+    setModeState(next);
+    if (next === 'request') { if (assigneeId === myId) setAssigneeId(null); }
+    else if (assigneeId == null) setAssigneeId(assigneeFixedToMe ? myId : null);
+  };
+
   const fields = (
     <>
+      {allowModeSwitch && (
+        <ModeRow>
+          <SegmentedToggle role="group" aria-label={t('add.modeGroup', '업무 종류') as string}>
+            <SegmentedBtn type="button" data-testid="task-add-mode-task" $active={!isRequest} aria-pressed={!isRequest}
+              onClick={() => switchMode('task')}>{t('add.modeTask', '내 업무')}</SegmentedBtn>
+            <SegmentedBtn type="button" data-testid="task-add-mode-request" $active={isRequest} aria-pressed={isRequest}
+              onClick={() => switchMode('request')}>{t('add.modeRequest', '요청하기')}</SegmentedBtn>
+          </SegmentedToggle>
+        </ModeRow>
+      )}
       <AddInput autoFocus={autoFocus} value={title} data-draft-kind={draftKind}
         data-testid="task-create-title"
         placeholder={t('add.placeholder', '업무명 입력 후 Ctrl+Enter 로 저장') as string}
@@ -615,6 +644,7 @@ const InlineAddBox = styled.div`display:flex;flex-direction:column;gap:8px;margi
 const PanelAddForm = styled.div`display:flex;flex-direction:column;gap:10px;padding:0;background:transparent;border:none;`;
 const TitleHint = styled.div`display:flex;align-items:center;gap:6px;margin-top:-2px;font-size:0.75rem;line-height:1.4;color:#64748B;`;
 const TitleHintMark = styled.svg`width:14px;height:14px;flex-shrink:0;color:#F43F5E;`;
+const ModeRow = styled.div`display:flex;`;
 const AddOptRow = styled.div`display:flex;gap:8px;flex-wrap:wrap;align-items:flex-start;`;
 const DescEditorWrap = styled.div`background:#FFF;border:1px solid #E2E8F0;border-radius:8px;padding:0;overflow:hidden;&:focus-within{border-color:#14B8A6;}`;
 const AttachToggleRow = styled.div`display:flex;`;
