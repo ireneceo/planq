@@ -55,7 +55,7 @@ export function usePopoutMyOrder<T extends Positioned>({
 
   /** 팝아웃에서 방금 만든 업무를 맨 위로 — 생성 라우트와 묶지 않고 PUT 1건(설계 §8). */
   const placeOnTop = useCallback(async (view: OrderView, newId: number, openIdsInOrder: number[]) => {
-    const ids = [newId, ...openIdsInOrder.filter((x) => x !== newId)].slice(0, 500);
+    const ids = [...new Set([newId, ...openIdsInOrder])].slice(0, 500);   // 방금 만든 앞 줄이 화면 목록과 겹칠 수 있다
     try { await send(view, newId, ids); } catch { /* 순서만 못 붙었다 — 업무는 이미 만들어졌다 */ }
   }, [send]);
 

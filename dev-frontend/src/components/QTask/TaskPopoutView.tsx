@@ -258,7 +258,7 @@ const TaskPopoutView: React.FC<TaskPopoutViewProps> = ({ pinSlot }) => {
   const orderViewRef = useRef<OrderView>('due');   // 퀵애드 콜백이 지금 보기를 읽는다(effView 는 아래에서 정해진다)
   const { quickPick, setQuickPick, quickDue, setQuickDue, quickStart, setQuickStart, quickAdd, projectDict } = usePopoutQuickAdd({
     bizId, myId, popTab, todayStr, weekStart, viewMode, silentLoad,
-    onCreated: (newId) => myOrder.placeOnTop(orderViewRef.current, newId, openInMyOrder(orderViewRef.current)),
+    onCreated: (newId, recentIds) => myOrder.placeOnTop(orderViewRef.current, newId, [...recentIds, ...openInMyOrder(orderViewRef.current)]),
   });
 
   // ── 퀵액션 (체크박스 완료처리) ─────────────────────────────

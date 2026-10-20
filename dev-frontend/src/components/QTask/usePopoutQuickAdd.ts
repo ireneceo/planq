@@ -5,7 +5,7 @@
 //   퀵애드는 "무엇을 고르고(보기 기준별) 무엇으로 만드는가" 하나의 이야기라 경계가 분명하다.
 //
 // 계약: 화면은 상태와 함수만 받아 그린다. 기본값 결정(오늘·이번 주)은 여기 있다.
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { listProjects } from '../../services/qtalk';
 import { apiFetch } from '../../contexts/AuthContext';
 
@@ -18,7 +18,8 @@ export interface UsePopoutQuickAddArgs {
   viewMode: string;
   silentLoad: () => Promise<void> | void;
   /** 만든 직후(목록 갱신 전) — 내 순서 맨 위로 붙인다(설계 docs/TASK_USER_ORDER_DESIGN.md §8). */
-  onCreated?: (newId: number) => Promise<void> | void;
+  /** recentIds = 이 칸에서 방금 만든 앞 업무들(최신 먼저) — 화면 목록에 아직 없을 수 있다. */
+  onCreated?: (newId: number, recentIds: number[]) => Promise<void> | void;
 }
 
 export function usePopoutQuickAdd({
@@ -45,8 +46,14 @@ export function usePopoutQuickAdd({
   }, [bizId]);
 
 
+  // 뒤에서 잇는 일(태그·맨 위로·갱신)은 **한 줄로 세운다** — 빠르게 연달아 치면 «맨 위로» 가 앞 줄보다 먼저 닿아
+  //   순서가 뒤집힐 수 있다. 만들기 자체는 줄 세우지 않는다(그게 기다림의 원인이었다).
+  const tailRef = useRef<Promise<unknown>>(Promise.resolve());
+  // 빠르게 연달아 친 앞 줄은 화면 목록(tasks)에 아직 없다 — 그 목록으로 «맨 위로» 를 보내면 앞 줄을 모른 채
+  //   같은 자리를 받아 새 것이 아래로 갔다(2026-10-21 실측 pos 동일). 방금 만든 것을 2분간 기억해 같이 싣는다.
+  const recentRef = useRef<Array<{ id: number; at: number }>>([]);
   const quickAdd = useCallback(async (title: string): Promise<boolean> => {
-    if (!bizId) return false;
+    if (!bizId || !myId || myId <= 0) return false;   // 담당자는 언제나 나 — 나를 모르면 만들지 않는다(서버 체인이 남을 고른다)
     // 이번 주 탭인데 아직 weekStart 를 못 받았으면 만들지 않는다 —
     //   null 로 보내면 주간 술어를 못 넘겨 방금 만든 업무가 화면에서 사라진다.
     if (popTab === 'week' && !weekStart) return false;
@@ -78,22 +85,30 @@ export function usePopoutQuickAdd({
       if (!res.ok) return false;
       const json = await res.json();
       if (!json.success) return false;
-      // #309 — 태그는 생성 API 가 안 받는다. 전용 경로로 이어 붙인다(QTaskPage 와 같은 계약).
-      //   ★ 태그 부여가 실패해도 업무는 이미 만들어졌다 — 되돌리지 않고 목록만 갱신한다.
-      //     (apiFetch 는 throw 하지 않으므로 res.ok 를 본다.)
+      // 업무는 만들어졌다 — 여기서 true 를 돌려 입력 칸을 바로 비운다(PopoutQuickAdd 2026-10-21 주석).
+      //   태그·순서·목록 갱신은 **뒤에서** 잇는다. 예전엔 셋을 다 기다린 뒤에야 칸이 비었다.
+      //   순서는 그대로다: 태그 → 맨 위로(placeOnTop) → 서버 fresh 로 덮어쓰기(부분 merge 금지).
       const newId = json.data?.id;
-      if (viewMode === 'tag' && quickPick && newId) {
-        try {
-          const tagRes = await apiFetch(`/api/tasks/${newId}/tags`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ tag_ids: [Number(quickPick)] }),
-          });
-          if (!tagRes.ok) console.warn('[popout quickadd tags] HTTP', tagRes.status);
-        } catch (err) { console.warn('[popout quickadd tags]', err); }
-      }
-      if (newId && onCreated) await onCreated(Number(newId));
-      await silentLoad();     // 서버 fresh 로 덮어쓴다(부분 merge 금지)
+      const tagId = viewMode === 'tag' && quickPick ? Number(quickPick) : null;
+      tailRef.current = tailRef.current.then(async () => {
+        // #309 — 태그는 생성 API 가 안 받는다. 전용 경로로 이어 붙인다(QTaskPage 와 같은 계약).
+        //   ★ 태그 부여가 실패해도 업무는 이미 만들어졌다 — 되돌리지 않고 목록만 갱신한다.
+        if (tagId && newId) {
+          try {
+            const tagRes = await apiFetch(`/api/tasks/${newId}/tags`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ tag_ids: [tagId] }),
+            });
+            if (!tagRes.ok) console.warn('[popout quickadd tags] HTTP', tagRes.status);
+          } catch (err) { console.warn('[popout quickadd tags]', err); }
+        }
+        const now = Date.now();
+        const recent = recentRef.current.filter((r) => now - r.at < 120000).map((r) => r.id);
+        if (newId) recentRef.current = [{ id: Number(newId), at: now }, ...recentRef.current.filter((r) => now - r.at < 120000)].slice(0, 20);
+        try { if (newId && onCreated) await onCreated(Number(newId), recent); } catch { /* 순서만 못 붙었다 */ }
+        await silentLoad();
+      }).catch(() => { /* 갱신 실패는 다음 갱신이 메운다 */ });
       return true;
     } catch {
       return false;

@@ -26,8 +26,6 @@ const Input = styled.input`
   background: #FFFFFF;
   &::placeholder { color: #94A3B8; }
   &:focus { outline: none; border-color: #14B8A6; box-shadow: 0 0 0 3px rgba(20,184,166,0.12); }
-  /* 제출 중 표시. disabled 가 아니라 readonly 다 — 아래 submit() 주석의 포커스 유지 이유. */
-  &[readonly] { background: #F8FAFC; color: #94A3B8; }
 `;
 /* 입력이 주인공이라 셀렉터는 좁게 둔다. 고정폭 대신 상한만 걸어 좁은 팝아웃에서도 줄어든다. */
 // ★ 2026-09-08 (Irene: "태그선택이랑 프로젝트 선택 영역이 너무 좁아. 조금만 길이가 나오게 하고
@@ -111,29 +109,32 @@ export interface PopoutQuickAddProps {
 
 const PopoutQuickAdd: React.FC<PopoutQuickAddProps> = ({ onAdd, placeholder, addLabel, errorText, option, dateOption }) => {
   const [value, setValue] = useState('');
-  const [submitting, setSubmitting] = useState(false);
+  const [pending, setPending] = useState(0);        // 서버로 가는 중인 줄 수(입력은 막지 않는다)
+  const [failedTitle, setFailedTitle] = useState('');
   const [failed, setFailed] = useState(false);
   const [dateOpen, setDateOpen] = useState(false);
   const dateAnchor = useRef<HTMLButtonElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  // ★ 2026-10-21 (Irene: "엔터 치고 너무 오랫동안 기다려야 입력이 들어가. 신속하게 추가되어야")
+  //   예전엔 만들기 → 순서 저장 → 목록 다시 읽기 세 왕복이 **다 끝나야** 칸이 비었다(그동안 readonly).
+  //   서버는 각각 수십 ms 인데 운영은 왕복마다 망 지연이 붙어 «한참 기다린다» 가 됐다.
+  //   → Enter 순간 칸을 비우고 바로 다음 줄을 칠 수 있게 한다. 실패하면 적은 글을 되돌려 놓는다.
+  //   중복 제출 가드는 «빈 칸» 이 대신한다 — 연타한 두 번째 Enter 는 칠 글자가 없다.
   const submit = async () => {
     const title = value.trim();
-    if (!title || submitting) return;   // 빈/공백 차단 + 중복 제출 가드
-    setSubmitting(true);
+    if (!title) return;
+    setValue('');
     setFailed(false);
+    setFailedTitle('');
+    setPending((n) => n + 1);
+    inputRef.current?.focus();   // 버튼으로 제출했어도 다음 줄은 입력에서 이어 친다
     const ok = await onAdd(title);
-    setSubmitting(false);
-    if (ok) {
-      setValue('');
-      // 연속 입력 — 값만 비우고 포커스는 그대로 둔다.
-      //   ★ 여기서 focus() 가 통하려면 입력이 **그 순간에도 포커스 가능**해야 한다.
-      //     제출 중 잠금을 `disabled` 로 걸면 브라우저가 즉시 blur 시키고, 위 setSubmitting(false) 는
-      //     아직 re-render 로 flush 되기 전이라 이 focus() 가 **여전히 disabled 인 DOM** 에 닿아 no-op 이 된다
-      //     (activeElement=BODY → 이어 친 글자가 허공으로 사라진다). readonly 는 blur 도 없고 포커스도 받는다.
-      //   버튼으로 제출한 경우엔 포커스가 버튼에 있다가 버튼이 disabled 로 풀리므로, 이 호출이 입력으로 되돌린다.
-      inputRef.current?.focus();
-    } else {
+    setPending((n) => n - 1);
+    if (!ok) {
+      // 그사이 다음 줄을 치고 있으면 덮지 않는다 — 무엇이 안 됐는지는 알림 줄에 적는다
+      setValue((cur) => (cur ? cur : title));
+      setFailedTitle(title);
       setFailed(true);
     }
   };
@@ -147,8 +148,7 @@ const PopoutQuickAdd: React.FC<PopoutQuickAddProps> = ({ onAdd, placeholder, add
         <Input
           ref={inputRef}
           value={value}
-          readOnly={submitting}
-          aria-busy={submitting}
+          aria-busy={pending > 0}
           placeholder={placeholder}
           aria-label={placeholder}
           data-testid="task-popout-quickadd-input"
@@ -200,11 +200,11 @@ const PopoutQuickAdd: React.FC<PopoutQuickAddProps> = ({ onAdd, placeholder, add
             )}
           </OptWrap>
         )}
-        <AddBtn type="submit" disabled={submitting || !value.trim()} data-testid="task-popout-quickadd-submit">
+        <AddBtn type="submit" disabled={!value.trim()} data-testid="task-popout-quickadd-submit">
           {addLabel}
         </AddBtn>
       </Wrap>
-      {failed && <Err role="alert">{errorText}</Err>}
+      {failed && <Err role="alert">{errorText}{failedTitle ? ` — ${failedTitle}` : ''}</Err>}
     </>
   );
 };
