@@ -119,9 +119,9 @@ const DocTaskLinkField: React.FC<Props> = ({ postId, businessId, tasks, onTasksC
 
   return (
     <Wrap data-testid="post-task-link-field">
-      {shown.length > 0 && (
-        <Chips><LinkedTaskChips tasks={shown} onRemove={remove} /></Chips>
-      )}
+      {/* 고르는 칸이 먼저, 걸린 업무는 그 오른쪽 한 줄 — 2026-10-20 Irene «업무 추가하는 거 높이값 높아지는 ui … 위로 올라가는게
+          너무 이상해 … 업무 여러 개 연결하면 완전 엉망». 칩이 칸 위로 쌓여 밴드가 자라고 칸이 아래로 밀렸다.
+          이제 몇 개를 걸어도 한 줄이고, 넘치면 가로로 흘린다(밴드2 계약). */}
       <PickerSlot>
         {postId ? (
           // 걸기는 고르는 즉시(onChange 를 래퍼가 감싸 저장을 부른다), 떼기는 × 가 triggerSave 로
@@ -130,6 +130,15 @@ const DocTaskLinkField: React.FC<Props> = ({ postId, businessId, tasks, onTasksC
           </AutoSaveField>
         ) : picker /* autosave-exempt: 아직 문서가 없다 — 첫 저장으로 id 가 생기면 위 이펙트가 건다 */}
       </PickerSlot>
+      {/* 둘 이상이면 몇 개인지 먼저 — 칩 줄이 좁아 가로로 흘러도 수는 보인다 */}
+      {shown.length > 1 && (
+        <Count data-testid="post-task-link-count" title={shown.map((x) => x.title).join(', ')}>
+          {t('taskLink.linkedCount', { n: shown.length })}
+        </Count>
+      )}
+      {shown.length > 0 && (
+        <Chips data-testid="post-task-link-chips"><LinkedTaskChips tasks={shown} onRemove={remove} /></Chips>
+      )}
       {failed && <Fail role="alert">{t('taskLink.linkFailed')}</Fail>}
     </Wrap>
   );
@@ -138,9 +147,19 @@ const DocTaskLinkField: React.FC<Props> = ({ postId, businessId, tasks, onTasksC
 export default DocTaskLinkField;
 
 const Wrap = styled.div`
-  display: flex; align-items: center; gap: 6px; flex-wrap: wrap; min-width: 0;
-  flex: 1 1 260px; max-width: 100%;
+  display: flex; align-items: center; gap: 6px; flex-wrap: nowrap; min-width: 0;
+  flex: 3 1 240px; max-width: 100%;  /* 남는 폭은 칩 줄이 먼저 받는다 */
 `;
-const Chips = styled.div`display: inline-flex; align-items: center; gap: 4px; flex-wrap: wrap; min-width: 0;`;
-const PickerSlot = styled.div`flex: 1 1 200px; min-width: 180px; max-width: 280px;`;
-const Fail = styled.span`flex-basis: 100%; font-size: 0.75rem; color: #B91C1C;`;
+// 칩 줄 — 줄바꿈 없이 가로로 흘린다(높이가 칩 수에 따라 자라지 않게)
+const Chips = styled.div`
+  display: flex; align-items: center; gap: 4px; flex-wrap: nowrap; min-width: 96px; flex: 0 1 auto;
+  overflow-x: auto; overflow-y: hidden; scrollbar-width: thin; padding: 2px 0;
+`;
+const Count = styled.span`
+  flex: 0 0 auto; white-space: nowrap; padding: 2px 8px; border-radius: 999px;
+  background: #F1F5F9; color: #475569; font-size: 0.75rem; font-weight: 600;
+`;
+const PickerSlot = styled.div`flex: 0 0 200px; min-width: 0; max-width: 200px;
+  @media (max-width: 640px) { flex-basis: 150px; max-width: 150px; }
+`;
+const Fail = styled.span`flex: 0 0 auto; white-space: nowrap; font-size: 0.75rem; color: #B91C1C;`;

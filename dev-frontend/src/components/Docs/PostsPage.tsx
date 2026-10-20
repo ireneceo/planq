@@ -2171,7 +2171,7 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId }) => {
               {/* ★ 카테고리 입력은 width:100% 라 행을 통째로 먹었고, 그래서 혼자 한 줄을 차지했다
                   (Irene: "카테고리 창이 너무 심하게 길어. 혼자 있을 이유가 없는데").
                   폭을 묶어 프로젝트·형태·공개·보안과 **한 줄**에 서게 한다. 좁아지면 자연히 접힌다. */}
-              <MetaField $basis={240}>
+              <MetaField $basis={180}>
                 <CategoryCombobox
                   value={categoryDraft}
                   onChange={setCategoryDraft}
@@ -3520,11 +3520,11 @@ const MetaField = styled.div<{ $basis: number }>`
   flex: 1 1 ${(p) => p.$basis}px;
   min-width: 150px;
   max-width: ${(p) => p.$basis + 80}px;
+  /* 입력의 기본 최소 폭(약 20자)이 칸을 넘어 옆 칸 밑으로 겹친다 — 모든 폭에서 */
+  & input { min-width: 0; }
   /* 폰은 두 칸씩 — 한 줄에 하나씩 쌓이면 세 칸이 200px 를 먹었다(2026-10-20) */
   @media (max-width: 640px) {
     flex: 1 1 calc(50% - 5px); min-width: 0; max-width: none;
-    /* 입력의 기본 최소 폭(약 20자)이 칸을 넘어 옆 칸 밑으로 겹쳤다 */
-    & input { min-width: 0; }
   }
 `;
 // 구분선 풀폭, 글자만 좌우 24px 안쪽.

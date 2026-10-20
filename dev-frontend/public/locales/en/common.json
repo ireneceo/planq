@@ -1802,7 +1802,8 @@
     "remove": "Unlink “{{title}}”",
     "viaAction": "Linked through the task’s deliverable request — unlink it from the task",
     "linkFailed": "Couldn’t link to the task. Please try again.",
-    "addMore": "Link a task"
+    "addMore": "Link a task",
+    "linkedCount": "Linked {{n}}"
   },
   "dict": {
     "create": "Create",
