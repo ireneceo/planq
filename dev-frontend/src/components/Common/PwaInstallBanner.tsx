@@ -95,6 +95,10 @@ const BannerRoot = styled.div`
      그래서 이 배너(z 8500)가 패널(z 130) 아래쪽 입력칸·버튼을 덮고 있었다(2026-10-09 새 팀 첫 길 점검).
      열린 다이얼로그가 있으면 비운다. */
   body:has([aria-modal="true"]) & { display: none; }
+  /* 다이얼로그가 아닌 입력 자리도 덮지 않는다 — 업무 목록 아래 인라인 추가 폼이 열렸거나 무엇이든 입력 중이면 비운다.
+     2026-10-20: 1366px 이하에서 이 배너가 업무 설명란 오른쪽을 덮어 쓰는 글이 그 밑으로 들어갔다. */
+  body:has([data-task-add-form]) & { display: none; }
+  body:has(:is(input, textarea, [contenteditable="true"]):focus) & { display: none; }
 `;
 const Icon = styled.div`
   width: 36px; height: 36px;

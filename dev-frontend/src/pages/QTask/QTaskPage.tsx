@@ -2498,7 +2498,8 @@ const QTaskPage:React.FC=()=>{
           {/* 인라인 추가 폼 — 표 하단에서 새 행 형태 (사용자: 표 아래에서 추가).
               data-task-add-form 마커: 외부 클릭 핸들러가 폼 내부 클릭을 외부로 인식 안 하도록.  */}
           {addingTask&&addInline&&(
-            <TaskCreateForm {...addFormProps} layout="inline" />
+            // 우하단 대화 버튼(FAB)이 폼의 [추가] 를 덮지 않게 바닥 여백 — PageShell 과 같은 --pq-fab-clearance 계약.
+            <InlineAddSlot><TaskCreateForm {...addFormProps} layout="inline" /></InlineAddSlot>
           )}
           </TableHScroll>
           )}
@@ -3284,6 +3285,7 @@ const TabBadge=styled.span<{$active?:boolean}>`display:inline-flex;align-items:c
    TableHScroll 은 래퍼로만 남긴다 — JSX 를 건드리지 않기 위해서다(min-width 를 가진 자식들의 기준). */
 const ListScroll=styled.div`flex:1;overflow-y:auto;overflow-x:auto;overscroll-behavior-x:contain;&::-webkit-scrollbar{width:6px;height:6px;}&::-webkit-scrollbar-thumb{background:#E2E8F0;border-radius:3px;}`;
 const TableHScroll=styled.div`overflow:visible;`;
+const InlineAddSlot=styled.div`padding-bottom:var(--pq-fab-clearance, 88px);`;
 const BottomAddLink=styled.button`margin:10px 14px 20px;padding:6px 0;background:transparent;color:#94A3B8;border:none;font-size:0.8125rem;font-weight:500;cursor:pointer;text-align:left;display:block;font-family:inherit;&:hover{color:#0F766E;}`;
 // #250 태그 관리 진입 — FilterBar 안의 보조 버튼. 기존 FinalizeBtn 톤을 그대로(bespoke 금지).
 const FilterBar=styled.div`display:flex;align-items:center;gap:10px;padding:8px 14px;border-bottom:1px solid #F1F5F9;background:#FFF;flex-wrap:wrap;`;
@@ -3625,7 +3627,9 @@ const RightPanel=styled.aside<{$w?:number;$overlay?:boolean}>`background:#FFF;bo
     @media (prefers-reduced-motion: reduce){animation:none;}
   `:`
     width:${p.$w||420}px;flex-shrink:0;position:relative;
-    @media(max-width:${RIGHT_PANEL_INLINE_MIN}px){display:none;}
+    /* ★ 경계는 «미만» 이다 — usePanelStack 은 폭 >= 1366 을 3단(인라인 패널)으로 본다. max-width:1366 이면 정확히 1366px
+       (흔한 노트북 폭)에서 패널만 사라지고 토글은 화면 가운데 떠서 표·업무 추가 폼을 덮었다(2026-10-20). */
+    @media(max-width:${RIGHT_PANEL_INLINE_MIN - 0.02}px){display:none;}
   `}
 `;
 const RightPanelBackdrop=styled.div`position:fixed;left:0;right:0;bottom:0;${belowTabs}background:rgba(15, 23, 42, 0.08);-webkit-z-index:45;animation:pqRpFade 0.22s ease-out;@keyframes pqRpFade{from{opacity:0;}to{opacity:1;}}@media (prefers-reduced-motion: reduce){animation:none;}`;
