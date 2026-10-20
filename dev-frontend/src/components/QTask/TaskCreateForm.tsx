@@ -119,7 +119,12 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({
   const title = titleDraft.text;
   const description = descDraft.text;
 
-  const [assigneeId, setAssigneeId] = useState<number | null>(initial?.assigneeId ?? (isRequest ? null : myId));
+  const [assigneePick, setAssigneeId] = useState<number | null>(initial?.assigneeId ?? (isRequest ? null : myId));
+  // 내 업무(오늘·이번 주·전체)에서 «내 업무» 로 만들면 담당자는 **언제나 나**다 — 칸은 보이되 바꾸지 못한다.
+  //   ★ 2026-10-21 Irene «오늘 내업무에서 업무추가할 때는 이번주 내업무도, 담당자가 항상 나야, 팝아웃에서도»
+  //     10-09 에는 칸에서 동료를 고르면 그 사람에게 갔다 — 그 길은 이제 폼 안 [요청하기] 가 맡는다(f4979e74).
+  const assigneeLockedToMe = assigneeFixedToMe && !isRequest && myId != null;
+  const assigneeId = assigneeLockedToMe ? myId : assigneePick;
   const [projectId, setProjectId] = useState<number | null>(fixedProjectId ?? initial?.projectId ?? null);
   const [workstreamId, setWorkstreamId] = useState<number | null>(null);
   // 공개 범위·보안등급(2026-10-12) — 문서와 같은 컴포넌트(VisibilityChip·VisibilityChangeModal·보안 선택).
@@ -163,6 +168,8 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({
     if (initial.title !== undefined) titleDraft.setText(initial.title);
     if (initial.description !== undefined) descDraft.setText(initial.description);
     if (initial.assigneeId !== undefined) setAssigneeId(initial.assigneeId);
+    // 말로 추가에서 남을 담당자로 짚었으면 그건 요청이다 — 나로 고정된 화면에서 이름이 조용히 버려지지 않게
+    if (allowModeSwitch && assigneeFixedToMe && initial.assigneeId != null && initial.assigneeId !== myId) setModeState('request');
     if (initial.projectId !== undefined && !fixedProjectId) setProjectId(initial.projectId);
     if (initial.startDate !== undefined) setStartDate(initial.startDate);
     if (initial.dueDate !== undefined) setDueDate(initial.dueDate);
@@ -286,14 +293,12 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({
   const submit = async () => {
     if (submitting || invalid || !bizId) return;
     // 담당자 결정
-    //   · 내 업무(오늘·이번 주·전체) : 기본은 나. **담당자 칸에서 동료를 골랐으면 그 사람이다.**
-    //     ★ 2026-10-09 새 팀 첫 길 점검 — 칸은 바뀌어 보이는데(예측시간 칸까지 사라짐) 저장은 무조건 나로
-    //       나갔다. «동료에게 업무 요청» 을 처음 해 보는 바로 그 자리라 요청이 조용히 내 업무가 됐다.
-    //       비우면(null) 나 — 내 업무 목록에서 서버 담당자 체인을 타지 않게 하던 원래 뜻은 그대로다.
+    //   · 내 업무(오늘·이번 주·전체) : 언제나 나(assigneeLockedToMe — 위 assigneeId 가 이미 나다).
+    //     남에게 맡기려면 폼 안 [요청하기] 로 바꾼다.
     //   · 요청 : 선택 필수
     //   · 그 외 : 미선택이면 **null 로 보낸다** — 그래야 서버의 담당자 체인
     //     (프로젝트 기본담당자 → PM → 생성자)이 탄다. 여기서 나로 채우면 그 체인은 영영 죽은 코드다.
-    const targetAssignee = (assigneeFixedToMe && !isRequest) ? (assigneeId ?? myId) : assigneeId;
+    const targetAssignee = assigneeId;
     // 탭 기본값(오늘·이번 주 탭에 남게 하는 마감·주)은 **내 업무** 몫이다 — 요청은 «요청하기» 탭 소속이라 싣지 않는다.
     const tabDefaults = isRequest ? null : createDefaults;
     const finalDue = dueDate || (tabDefaults?.due_date ?? null);
@@ -435,7 +440,7 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({
         )}
         <AddOptField data-field="assignee">
           <AddOptLabel>{t('add.assignee', '담당자')}{isRequest && ' *'}</AddOptLabel>
-          <PlanQSelect size="sm" isClearable={!isRequest}
+          <PlanQSelect size="sm" isClearable={!isRequest && !assigneeLockedToMe} isDisabled={assigneeLockedToMe}
             placeholder={assigneePlaceholder as string}
             value={assigneeId == null ? null : {
               value: String(assigneeId),
