@@ -1400,7 +1400,7 @@ async function sendUnreadNotificationEmail({ to, name, items, count, workspaceNa
 
 // ═══════════════════════════════════════════════════════════════
 // 처리방침 개정 고지 (2026-10-18 — 랜딩 마케팅 측정, docs/MARKETING_TRACKING_DESIGN.md §10)
-//   처리방침 10조 «시행 7일 전 서비스 공지 및 이메일로 안내» 의 메일 쪽. 보내는 문은 scripts/send-policy-notice.js 하나(미리보기 기본).
+//   처리방침 10조 개정 안내 메일(2026-10-20 Irene «회원 메일은 보낼 필요 없어» — 10조를 «서비스 공지» 로 고쳤고 이 메일은 쓰지 않는다. 필요할 때만). 보내는 문은 scripts/send-policy-notice.js 하나(미리보기 기본).
 //   법령상 고지라 수신 동의와 무관하게 보낸다 — 본문이 그 사실을 말한다.
 // ═══════════════════════════════════════════════════════════════
 const POLICY_NOTICE = {
