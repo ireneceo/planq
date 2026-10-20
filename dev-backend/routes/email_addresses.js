@@ -18,7 +18,7 @@ const { authenticateToken, checkBusinessAccess } = require('../middleware/auth')
 const { requireMenu } = require('../middleware/menu_permission');
 const { successResponse, errorResponse } = require('../utils/response');
 const { parsePagination, paginatedResponse } = require('../middleware/errorHandler');
-const { EmailMessage, EmailThread, MailSenderRule } = require('../models');
+const { EmailMessage, EmailThread, MailSenderRule, EmailAccount, Client, Project } = require('../models');
 const { accessibleAccountIds } = require('../services/mailIdentity');
 const { sequelize } = require('../config/database');
 
@@ -165,14 +165,22 @@ router.get('/:email/threads', authenticateToken, checkBusinessAccess, requireMen
     const { rows: threads, count } = await EmailThread.findAndCountAll({
       // ★ 보관된 것도 포함한다 — 이 화면은 "그 사람과 오간 전부" 다(파일 상단 주석).
       where: { id: { [Op.in]: ids }, business_id: businessId },
+      // 목록 화면과 같은 행을 만들려면 같은 연결이 필요하다(메일함·고객·프로젝트 — routes/email_threads 목록과 같은 칸).
+      include: [
+        { model: EmailAccount, attributes: ['id', 'email', 'display_name', 'owner_user_id'], required: false },
+        { model: Client, attributes: ['id', 'display_name', 'company_name'], required: false },
+        { model: Project, attributes: ['id', 'name', 'color'], required: false },
+      ],
       order: [['last_message_at', 'DESC']],
       limit, offset,
+      distinct: true,
     });
-    return paginatedResponse(res, threads.map((t) => ({
-      id: t.id, subject: t.subject, status: t.status, triage: t.triage,
-      reply_needed: !!t.reply_needed, unread_count: t.unread_count,
-      last_message_at: t.last_message_at, participants: t.participants,
-    })), count, { limit, page, offset });
+    // ★ 2026-10-20 — 목록과 **같은 행**(services/mailThreadRows). 날 행(id·제목·상태)만 주던 때는 보낸 사람 자리가
+    //   «(unknown)» 이고 「보낸」 표시·미리보기가 비어, 그 사람과 오간 메일 중 무엇이 우리가 보낸 것인지 알 수 없었다.
+    //   q 에 그 주소를 넘겨 행마다 «그 사람» 을 보낸 사람 자리에 그린다(참조로만 걸린 스레드도).
+    const { buildThreadRows } = require('../services/mailThreadRows');
+    const data = await buildThreadRows(threads, { folder: 'all', businessId, q: email });
+    return paginatedResponse(res, data, count, { limit, page, offset });
   } catch (err) { next(err); }
 });
 

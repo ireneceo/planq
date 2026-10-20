@@ -45,7 +45,14 @@ interface Props {
   members: Member[];
   myUserId: number | null;
   onLinked: () => void; // 연결 변경 후 상세 새로고침
+  /** 이 메일의 상대 주소(마지막 받은 메일의 보낸 사람 → 없으면 마지막 보낸 메일의 받는 사람). 없으면 «오간 메일» 칸을 안 그린다 */
+  counterpartEmail?: string | null;
+  onOpenThread?: (id: number) => void;
+  onViewAddress?: (email: string) => void;
 }
+// «이 사람과 오간 메일» 한 줄 — 서버 GET /email-addresses/:email/threads 가 목록과 같은 행을 준다(services/mailThreadRows)
+interface PeerThread { id: number; subject?: string | null; last_message_at?: string | null; last_message_direction?: 'inbound' | 'outbound' | null; folder?: string | null }
+const PEER_SHOWN = 5;
 type Channel = 'chat' | 'email' | 'task' | 'invoice';
 interface Summary {
   counts: Record<Channel, number>;
@@ -82,7 +89,7 @@ export function requestCueAdvice(threadId: number) {
   window.dispatchEvent(new CustomEvent('qmail:cue-advice', { detail: { threadId } }));
 }
 
-const MailContextPanel: React.FC<Props> = ({ businessId, thread, members, myUserId, onLinked }) => {
+const MailContextPanel: React.FC<Props> = ({ businessId, thread, members, myUserId, onLinked, counterpartEmail, onOpenThread, onViewAddress }) => {
   const { t } = useTranslation('qmail');
   const { formatTimeAgo } = useTimeFormat();
   const navigate = useNavigate();
@@ -92,6 +99,31 @@ const MailContextPanel: React.FC<Props> = ({ businessId, thread, members, myUser
   const [extractBusy, setExtractBusy] = useState(false);
   const [extractMsg, setExtractMsg] = useState<string | null>(null);
   const [rowBusy, setRowBusy] = useState<number | null>(null);
+  // ★ 2026-10-20 (Irene: *"다시 받은 메일이랑 연결된 우리가 보낸 메일이나 과거 메일을 알 수가 없네."*)
+  //   같은 사람과 오간 메일이라도 제목이 바뀌거나 새로 보낸 메일이면 다른 대화(스레드)다. 그 목록은
+  //   주소 메뉴 «이 주소의 메일 보기» 안에만 있어서 메일을 열어도 보이지 않았다 → 여기서 최근 것 몇 개를 보여 준다.
+  //   보낸/받은은 그 대화의 마지막 메일 방향(목록의 「보낸」 표시와 같은 값).
+  const [peer, setPeer] = useState<{ email: string; rows: PeerThread[]; total: number } | null>(null);
+  const [peerLoading, setPeerLoading] = useState(false);
+  useEffect(() => {
+    const email = (counterpartEmail || '').trim().toLowerCase();
+    if (!email || !email.includes('@')) { setPeer(null); return; }
+    let alive = true;
+    setPeerLoading(true);
+    (async () => {
+      try {
+        const r = await apiFetch(`/api/businesses/${businessId}/email-addresses/${encodeURIComponent(email)}/threads?limit=${PEER_SHOWN + 1}`);
+        const j = await r.json();
+        if (!alive) return;
+        if (!j.success) { setPeer(null); return; }
+        const rows: PeerThread[] = (j.data || []).filter((x: PeerThread) => x.id !== thread.id).slice(0, PEER_SHOWN);
+        const total = Math.max(0, Number(j.pagination?.total ?? (j.data || []).length) - 1);
+        setPeer({ email, rows, total });
+      } catch { if (alive) setPeer(null); }
+      finally { if (alive) setPeerLoading(false); }
+    })();
+    return () => { alive = false; };
+  }, [businessId, counterpartEmail, thread.id, thread.last_message_at]);
   // 자동·마케팅·스팸 메일엔 추출 버튼 숨김 (실 요청만 — 설계 §4)
   const canExtract = !thread.triage || thread.triage === 'human' || thread.triage === 'unknown';
   // 요약 (AI 스레드 요약 — Phase A 의 channel-summary 와 다름)
@@ -404,6 +436,40 @@ const MailContextPanel: React.FC<Props> = ({ businessId, thread, members, myUser
             : <WorkbenchEmptyRow>{t('context.summaryHint', { defaultValue: '긴 스레드를 AI가 핵심만 요약해요.' }) as string}</WorkbenchEmptyRow>}
       </WorkbenchSection>
 
+      {counterpartEmail && (
+        <WorkbenchSection
+          title={t('context.peerTitle', { defaultValue: '이 사람과 오간 메일' }) as string}
+          count={peer ? peer.total : undefined}
+        >
+          {peerLoading && !peer ? (
+            <WorkbenchEmptyRow>{t('context.loading', { defaultValue: '불러오는 중…' }) as string}</WorkbenchEmptyRow>
+          ) : peer && peer.rows.length > 0 ? (
+            <>
+              <PeerList data-testid="mail-peer-threads">
+                {peer.rows.map((x) => {
+                  const out = x.last_message_direction === 'outbound';
+                  return (
+                    <PeerRow key={x.id} type="button" data-testid="mail-peer-thread" data-direction={out ? 'out' : 'in'}
+                      onClick={() => onOpenThread?.(x.id)} title={x.subject || ''}>
+                      <PeerDir $out={out}>{t(out ? 'context.peerSent' : 'context.peerReceived', { defaultValue: out ? '보낸' : '받은' }) as string}</PeerDir>
+                      <PeerSubject>{x.subject || t('context.peerNoSubject', { defaultValue: '(제목 없음)' }) as string}</PeerSubject>
+                      <PeerTime>{formatTimeAgo(x.last_message_at || '')}</PeerTime>
+                    </PeerRow>
+                  );
+                })}
+              </PeerList>
+              {onViewAddress && (
+                <WorkbenchSectionLink type="button" data-testid="mail-peer-all" onClick={() => onViewAddress(peer.email)}>
+                  {t('context.peerAll', { count: peer.total, defaultValue: '모두 보기 ({{count}})' }) as string}<span aria-hidden>›</span>
+                </WorkbenchSectionLink>
+              )}
+            </>
+          ) : (
+            <WorkbenchEmptyRow>{t('context.peerEmpty', { defaultValue: '이 메일 말고는 오간 메일이 없어요.' }) as string}</WorkbenchEmptyRow>
+          )}
+        </WorkbenchSection>
+      )}
+
       {/* 한 줄 업무 등록 — AI 추출이 못 찾아도 사람이 바로 적는다. 이름을 지목하면 요청 업무가 된다. */}
       <WorkbenchSection title={t('context.quickAddTitle', { defaultValue: '한 줄 업무 등록' }) as string} static>
         <CueTaskBar
@@ -619,6 +685,20 @@ const RecentType = styled.span<{ $type: Channel }>`
   flex-shrink:0; font-size:0.625rem; font-weight:700; padding:1px 6px; border-radius:999px;
   background:${p => typeColor[p.$type].bg}; color:${p => typeColor[p.$type].fg};
 `;
+const PeerList = styled.div`display:flex; flex-direction:column; gap:2px;`;
+const PeerRow = styled.button`
+  display:flex; align-items:center; gap:6px; min-width:0; width:100%;
+  border:none; background:none; padding:6px 4px; border-radius:8px; cursor:pointer; text-align:left;
+  &:hover { background:#F8FAFC; }
+  &:focus-visible { outline:2px solid #14B8A6; outline-offset:1px; }
+`;
+// 보낸(우리 → 상대) / 받은(상대 → 우리) — 고객 히스토리 배지와 같은 색(ClientTimeline: 받은 파랑 · 보낸 청록)
+const PeerDir = styled.span<{ $out: boolean }>`
+  flex-shrink:0; font-size:0.625rem; font-weight:700; padding:1px 6px; border-radius:999px;
+  background:${p => (p.$out ? '#F0FDFA' : '#EFF6FF')}; color:${p => (p.$out ? '#0F766E' : '#1D4ED8')};
+`;
+const PeerSubject = styled.span`flex:1; min-width:0; font-size:0.75rem; color:#334155; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;`;
+const PeerTime = styled.span`flex-shrink:0; font-size:0.6875rem; color:#94A3B8;`;
 const RecentText = styled.span`font-size:0.75rem; color:#475569; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;`;
 /* Q sale 히스토리 요약 2줄 — 길면 자른다(패널은 좁고, 전문은 Q sale 상세에 있다) */
 const SaleSummaryBox = styled.div`background:#F0FDFA; border:1px solid #CCFBF1; border-radius:10px; padding:8px 10px;`;

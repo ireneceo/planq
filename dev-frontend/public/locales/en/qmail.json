@@ -364,7 +364,13 @@
     "cueEmpty": "Ask about this email. You can add tasks and events here too.",
     "refreshSummary": "Update with new mail",
     "summaryUpToDate": "Up to date",
-    "cueAdviceAsk": "I just got this email. What should I do next? Beyond replying, list what to take care of (tasks, schedule, client notes, things to check) in priority order, in 3–5 short lines. If tasks were already made from this email, mention them first, and propose anything worth creating right away as a card."
+    "cueAdviceAsk": "I just got this email. What should I do next? Beyond replying, list what to take care of (tasks, schedule, client notes, things to check) in priority order, in 3–5 short lines. If tasks were already made from this email, mention them first, and propose anything worth creating right away as a card.",
+    "peerTitle": "Mail with this person",
+    "peerSent": "Sent",
+    "peerReceived": "Received",
+    "peerNoSubject": "(no subject)",
+    "peerAll": "View all ({{count}})",
+    "peerEmpty": "No other mail with this person."
   },
   "accounts": {
     "all": "All mailboxes",

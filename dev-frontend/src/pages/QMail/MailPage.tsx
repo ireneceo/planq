@@ -694,6 +694,9 @@ const MailPage: React.FC = () => {
   const [viewportNarrow, setViewportNarrow] = useState<boolean>(() => (
     typeof window !== 'undefined' ? window.innerWidth <= 1024 : false
   ));
+  // addressActions 는 [businessId] 로만 메모된다 — 거기서 폭을 읽으려면 ref 로(낡은 값을 보지 않게).
+  const viewportNarrowRef = useRef(viewportNarrow);
+  viewportNarrowRef.current = viewportNarrow;
   useEffect(() => {
     const mql = window.matchMedia('(max-width: 1024px)');
     const handler = (e: MediaQueryListEvent | MediaQueryList) => setViewportNarrow('matches' in e ? e.matches : false);
@@ -1805,6 +1808,22 @@ const MailPage: React.FC = () => {
   // 스레드를 바꾸면 사용자 선택 흔적을 지운다 (다음 스레드는 다시 자동 결정)
   useEffect(() => { fromAliasTouched.current = false; }, [activeId]);
 
+  // 맥락 패널 «이 사람과 오간 메일» 의 상대 — 마지막 받은 메일의 보낸 사람, 없으면(우리가 먼저 보낸 대화) 마지막 보낸 메일의 첫 받는 사람.
+  //   우리 메일함 주소는 상대가 아니다.
+  const peerEmail = useMemo(() => {
+    if (!detail) return null;
+    const mine = String(detail.account?.email || '').toLowerCase();
+    const ok = (e: string | null | undefined) => { const v = String(e || '').trim().toLowerCase(); return v && v.includes('@') && v !== mine ? v : null; };
+    const msgs = [...detail.messages].reverse();
+    const lastIn = msgs.find(m => m.direction === 'inbound' && ok(m.from_email));
+    if (lastIn) return ok(lastIn.from_email);
+    for (const m of msgs) {
+      if (m.direction !== 'outbound') continue;
+      for (const x of m.to_emails || []) { const e = ok(typeof x === 'string' ? x : x?.email); if (e) return e; }
+    }
+    return null;
+  }, [detail]);
+
   // 답장 받는 사람 힌트 (마지막 inbound 발신자)
   const replyToHint = useMemo(() => {
     if (!detail) return '';
@@ -1955,6 +1974,8 @@ const MailPage: React.FC = () => {
       nsp.set('address', email);
       nsp.delete('thread');
       setSp(nsp, { replace: false });
+      // 좁은 화면은 메일을 열면 목록 칸이 접힌다 — 그대로 두면 주소 목록을 불러 놓고도 «메일에서 시작해 보세요» 빈 화면이 보였다(2026-10-20 실측).
+      if (viewportNarrowRef.current) setSidebarCollapsed(false);
     },
     onCompose: (email: string) => {
       // ★ 2026-09-09 (Irene: "이 주소로 새메일 눌러도 전에 쓰던 임시저장된 메일이 그대로 나와.")
@@ -2910,9 +2931,10 @@ const MailPage: React.FC = () => {
                   )}
                   {/* 검색은 폴더를 넘으므로, 지금 보고 있는 폴더가 아닌 곳에서 온 결과는 어디 것인지 말한다.
                       같은 폴더면 붙이지 않는다 — 모든 행에 같은 칩이 붙으면 읽히지 않는다. */}
-                  {(mt.labels && mt.labels.length > 0) || (qDebounced && mt.folder && mt.folder !== folder) ? (
+                  {(mt.labels && mt.labels.length > 0) || ((qDebounced || addressMode) && mt.folder && mt.folder !== folder) ? (
                     <RowLabels>
-                      {qDebounced && mt.folder && mt.folder !== folder && (
+                      {/* 주소 보기(«이 주소와 오간 메일», 보관 포함)도 폴더를 넘는다 — 검색과 같이 자리를 말한다 */}
+                      {(qDebounced || addressMode) && mt.folder && mt.folder !== folder && (
                         <FolderChip $color="#64748B">{t(`folders.${mt.folder}`, { defaultValue: mt.folder }) as string}</FolderChip>
                       )}
                       {(mt.labels || []).map(l => <LabelChip key={l} $color={labelColor(l)}><HighlightText text={l} query={qDebounced} /></LabelChip>)}
@@ -3621,7 +3643,8 @@ const MailPage: React.FC = () => {
             <PanelHeader>
               <PanelMetaTitle>{t('context.panelTitle', { defaultValue: '맥락' }) as string}</PanelMetaTitle>
             </PanelHeader>
-            <MailContextPanel businessId={businessId} thread={detail} members={members} myUserId={myUserId} onLinked={() => loadDetail(detail.id)} />
+            <MailContextPanel businessId={businessId} thread={detail} members={members} myUserId={myUserId} onLinked={() => loadDetail(detail.id)}
+              counterpartEmail={peerEmail} onOpenThread={(id) => setActive(id)} onViewAddress={addressActions.onViewMail} />
           </Panel>
         )}
 
