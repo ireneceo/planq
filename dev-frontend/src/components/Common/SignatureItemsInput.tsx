@@ -81,6 +81,37 @@ const SignatureItemsInput = React.forwardRef<SignatureItemsHandle, Props>(({ cou
     },
   }), [items, n]);
 
+  // 끌어다 놓기(2026-10-21 Irene «서명이미지 올리기에 드롭도 되게») — 칸 카드 어디에 놓아도 받는다.
+  //   그리기 중이어도 이미지를 놓으면 이미지로 바꾼다(놓는 동작은 그리기와 헷갈리지 않는다). 검사는 pick() 한 벌.
+  //   ★ stopPropagation — 이 창은 프로젝트>문서 탭(업로드 오버레이가 drop 을 받는다) 안에서도 열린다. 버블되면
+  //   서명 이미지가 프로젝트 파일로 올라간다(포털도 React 트리로 버블된다).
+  const [dragOver, setDragOver] = useState<number | null>(null);
+  const hasFiles = (e: React.DragEvent) => Array.from(e.dataTransfer?.types || []).includes('Files');
+  const dropProps = (i: number) => ({
+    onDragEnter: (e: React.DragEvent) => {
+      if (!hasFiles(e)) return;
+      e.preventDefault(); e.stopPropagation();
+      if (!disabled) setDragOver(i);
+    },
+    onDragOver: (e: React.DragEvent) => {
+      if (!hasFiles(e)) return;
+      e.preventDefault(); e.stopPropagation();
+      e.dataTransfer.dropEffect = disabled ? 'none' : 'copy';
+      if (!disabled && dragOver !== i) setDragOver(i);
+    },
+    onDragLeave: (e: React.DragEvent) => {
+      if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDragOver((v) => (v === i ? null : v));
+    },
+    onDrop: (e: React.DragEvent) => {
+      if (!hasFiles(e)) return;
+      e.preventDefault(); e.stopPropagation();
+      setDragOver(null);
+      if (disabled) return;
+      patch(i, { mode: 'image', error: null });
+      void pick(i, e.dataTransfer.files?.[0]);
+    },
+  });
+
   const pick = async (i: number, file: File | undefined) => {
     if (!file) return;
     if (!ACCEPT.split(',').includes(file.type)) { patch(i, { error: t('signItems.badType', { defaultValue: 'PNG·JPG·WEBP 이미지만 올릴 수 있어요.' }) as string }); return; }
@@ -92,7 +123,7 @@ const SignatureItemsInput = React.forwardRef<SignatureItemsHandle, Props>(({ cou
   return (
     <List data-testid="sign-items">
       {items.map((it, i) => (
-        <Item key={i} data-testid={`sign-item-${i}`}>
+        <Item key={i} data-testid={`sign-item-${i}`} $drag={dragOver === i} {...dropProps(i)}>
           <ItemHead>
             {/* 칸 이름이 있으면 그것이 제목이다(«회사 스탬프») — 번호만으로는 무엇을 넣을지 모른다(2026-10-16) */}
             <ItemName data-testid={`sign-item-${i}-name`}>
@@ -126,7 +157,15 @@ const SignatureItemsInput = React.forwardRef<SignatureItemsHandle, Props>(({ cou
             <ImageBox>
               {it.image
                 ? <Preview><img src={it.image} alt="" /></Preview>
-                : <ImageHint>{t('signItems.imageHint', { defaultValue: '사인·도장·회사 스탬프 이미지(PNG 권장 — 배경이 투명하면 문서에 자연스럽게 얹혀요)' })}</ImageHint>}
+                : (
+                  <>
+                    <ImageHint>{t('signItems.imageHint', { defaultValue: '사인·도장·회사 스탬프 이미지(PNG 권장 — 배경이 투명하면 문서에 자연스럽게 얹혀요)' })}</ImageHint>
+                    <DropZone data-testid={`sign-item-${i}-drop`} $drag={dragOver === i}
+                      onClick={() => { if (!disabled) files.current[i]?.click(); }}>
+                      {t('signItems.dropHint', { defaultValue: '이미지를 여기로 끌어다 놓거나 눌러서 고르세요' })}
+                    </DropZone>
+                  </>
+                )}
               <input ref={(el) => { files.current[i] = el; }} type="file" accept={ACCEPT} hidden
                 data-testid={`sign-item-${i}-file`}
                 onChange={(e) => { void pick(i, e.target.files?.[0]); e.target.value = ''; }} />
@@ -146,7 +185,11 @@ SignatureItemsInput.displayName = 'SignatureItemsInput';
 export default SignatureItemsInput;
 
 const List = styled.div`display: flex; flex-direction: column; gap: 12px;`;
-const Item = styled.div`border: 1px solid #E2E8F0; border-radius: 10px; padding: 10px; background: #fff;`;
+const Item = styled.div<{ $drag?: boolean }>`
+  border: 1px solid ${(p) => (p.$drag ? '#14B8A6' : '#E2E8F0')}; border-radius: 10px; padding: 10px;
+  background: ${(p) => (p.$drag ? '#F0FDFA' : '#fff')};
+  box-shadow: ${(p) => (p.$drag ? '0 0 0 3px rgba(20, 184, 166, 0.15)' : 'none')};
+`;
 const ItemHead = styled.div`display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; flex-wrap: wrap;`;
 const ItemName = styled.div`font-size: 0.8125rem; font-weight: 700; color: #0F172A; min-width: 0; overflow-wrap: anywhere;`;
 const ItemNo = styled.span`margin-left: 6px; font-size: 0.6875rem; font-weight: 600; color: #94A3B8;`;
@@ -170,6 +213,15 @@ const Preview = styled.div`
   width: min(100%, 280px); height: 140px; border: 1px dashed #CBD5E1; border-radius: 10px; background: #F8FAFC;
   display: flex; align-items: center; justify-content: center; padding: 8px;
   img { max-width: 100%; max-height: 100%; object-fit: contain; }
+`;
+// 비어 있을 때의 놓는 자리 — 미리보기와 같은 크기의 점선 상자(놓으면 그 자리에 이미지가 보인다)
+const DropZone = styled.div<{ $drag: boolean }>`
+  width: min(100%, 280px); height: 140px; border: 1px dashed ${(p) => (p.$drag ? '#14B8A6' : '#CBD5E1')}; border-radius: 10px;
+  background: ${(p) => (p.$drag ? '#CCFBF1' : '#F8FAFC')}; color: ${(p) => (p.$drag ? '#0F766E' : '#64748B')};
+  display: flex; align-items: center; justify-content: center; padding: 12px; text-align: center;
+  font-size: 0.75rem; line-height: 1.5; cursor: pointer;
+  /* 폰에는 끌어다 놓기가 없다 — 고르기 버튼만 남긴다(폭으로 가른다: 헤드리스는 hover:none 이라 그 분기는 못 잰다) */
+  @media (max-width: 640px) { display: none; }
 `;
 const PickBtn = styled.button`
   height: 36px; padding: 0 14px; border: 1px solid #CBD5E1; border-radius: 8px; background: #fff; color: #0F172A;

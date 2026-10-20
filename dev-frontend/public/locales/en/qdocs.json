@@ -1050,7 +1050,8 @@
     "imageHint": "Signature, seal or company stamp image (PNG recommended — a transparent background sits naturally on the document)",
     "replace": "Use another image",
     "pick": "Choose image",
-    "nthShort": "{{n}} / {{total}}"
+    "nthShort": "{{n}} / {{total}}",
+    "dropHint": "Drag an image here, or click to choose"
   },
   "links": {
     "saveFailed": "The document was saved, but its linked documents were not. Please try again."
