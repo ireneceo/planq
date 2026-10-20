@@ -8,12 +8,15 @@
 //   signed              → "PDF 다운" + "원본 보기" (DetailDrawer)
 //   rejected/expired/canceled → DetailDrawer (사유)
 
-import { useEffect, useState, useMemo } from 'react';
+import { useCallback, useEffect, useRef, useState, useMemo } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { apiFetch } from '../../contexts/AuthContext';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
 import HighlightText from '../../components/Common/HighlightText';
+import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
+import { onSocket } from '../../services/socket';
+import { downloadFromApi } from '../../utils/download';
 
 interface ReceivedSignature {
   id: number;
@@ -37,6 +40,25 @@ interface ReceivedSignature {
   reminder_count: number;
   created_at: string;
   workspace: { business_id: number; brand_name: string; role: string } | null;
+  kind?: 'sign' | 'confirm';
+  /** 같은 문서의 서명 진행 — 서명 요청일 때만. others 는 나 말고 나머지(칸·쪽·상태만) */
+  progress?: { total: number; signed: number; others: Array<{ party: 'us' | 'them'; slot: number | null; status: string }> };
+}
+
+/** 내가 서명했는데 남은 사람이 있으면 누구를 기다리는지 — 쪽으로 말한다(이름은 싣지 않는다) */
+function waitingKey(it: ReceivedSignature): 'waitingUs' | 'waitingThem' | 'allSigned' | null {
+  const p = it.progress;
+  if (!p || p.total < 2) return null;
+  if (p.signed >= p.total) return 'allSigned';
+  if (it.status !== 'signed') return null;
+  const left = p.others.filter((o) => o.status !== 'signed');
+  if (left.length && left.every((o) => o.party === 'us') && it.party !== 'us') return 'waitingUs';
+  return 'waitingThem';
+}
+
+/** PDF 는 새 창 없이 받는다(2026-10-21 Irene «새창이 열렸다가 다운돼. 안열리고 바로 다운되어야지») — 다운로드 트레이 한 곳 */
+function pdfName(it: ReceivedSignature) {
+  return `${(it.entity_title || 'document').replace(/[\\/:*?"<>|]+/g, '_').slice(0, 120)}.pdf`;
 }
 
 interface Workspace {
@@ -83,22 +105,47 @@ export default function ReceivedSignaturesTab() {
     return sp.toString();
   }, [filter, wsFilter, q, offset]);
 
-  useEffect(() => {
-    let alive = true;
-    setLoading(true);
-    apiFetch(`/api/signatures/received?${queryStr}`)
-      .then(r => r.json())
-      .then(j => {
-        if (!alive) return;
-        if (!j.success) throw new Error(j.message);
-        setItems(j.data.items || []);
-        setTotal(j.data.total || 0);
-        setWorkspaces(j.data.workspaces || []);
-      })
-      .catch(() => { if (alive) { setItems([]); setTotal(0); } })
-      .finally(() => { if (alive) setLoading(false); });
-    return () => { alive = false; };
+  // 2026-10-21 Irene «서명해도 완료되었는데도 계속 돌아» — 처음 한 번만 읽어서, 다른 창에서 서명하고 돌아와도 줄이
+  //   «대기 + [서명하기]» 그대로였다(다시 누르면 «서명 완료» 화면 → 반복). 돌아오는 순간·서명 신호에 조용히 다시 읽는다.
+  const seqRef = useRef(0);
+  const load = useCallback(async (silent: boolean) => {
+    const seq = ++seqRef.current;
+    if (!silent) setLoading(true);
+    try {
+      const r = await apiFetch(`/api/signatures/received?${queryStr}`);
+      const j = await r.json();
+      if (seq !== seqRef.current) return;
+      if (!j.success) throw new Error(j.message);
+      setItems(j.data.items || []);
+      setTotal(j.data.total || 0);
+      setWorkspaces(j.data.workspaces || []);
+    } catch {
+      // 조용한 재조회 실패는 보던 목록을 그대로 둔다
+      if (!silent && seq === seqRef.current) { setItems([]); setTotal(0); }
+    } finally {
+      if (!silent && seq === seqRef.current) setLoading(false);
+    }
   }, [queryStr]);
+  useEffect(() => { void load(false); }, [load]);
+  const silentReload = useCallback(() => { void load(true); }, [load]);
+  useVisibilityRefresh(silentReload, 1000);
+  useEffect(() => {
+    let pending: number | null = null;
+    const debounced = () => {
+      if (pending) return;
+      pending = window.setTimeout(() => { pending = null; silentReload(); }, 250);
+    };
+    // 서명 창은 새 탭이다 — 이 탭으로 돌아오는 순간(focus)이 곧 «서명이 끝났을 수 있다» 다
+    window.addEventListener('focus', debounced);
+    window.addEventListener('inbox:refresh', debounced);
+    const off = onSocket('inbox:refresh', debounced);
+    return () => {
+      if (pending) window.clearTimeout(pending);
+      window.removeEventListener('focus', debounced);
+      window.removeEventListener('inbox:refresh', debounced);
+      off();
+    };
+  }, [silentReload]);
 
   // 상태별 카운트 (메인 데이터 + 별도 fetch 없이 클라이언트 추정 — 일단 단순)
   const isExpiredItem = (it: ReceivedSignature) => {
@@ -112,10 +159,13 @@ export default function ReceivedSignaturesTab() {
     window.open(`/sign/${it.token}`, '_blank', 'noopener');
   };
 
-  const handlePdf = (it: ReceivedSignature) => {
-    if (it.entity_type === 'post') {
-      window.open(`/api/sign/${it.token}/pdf`, '_blank');
-    }
+  const [pdfBusy, setPdfBusy] = useState<number | null>(null);
+  const handlePdf = async (it: ReceivedSignature) => {
+    if (it.entity_type !== 'post' || pdfBusy === it.id) return;
+    setPdfBusy(it.id);
+    // 실패 문구는 다운로드 트레이가 보여 준다
+    try { await downloadFromApi(`/api/sign/${it.token}/pdf`, pdfName(it)); } catch { /* 트레이에 표시됨 */ }
+    finally { setPdfBusy((v) => (v === it.id ? null : v)); }
   };
 
   return (
@@ -167,6 +217,7 @@ export default function ReceivedSignaturesTab() {
           {items.map((it) => {
             const expired = isExpiredItem(it);
             const status = expired ? 'expired' : it.status;
+            const wait = waitingKey(it);
             return (
               <Card key={it.id} onClick={() => setSelected(it)}>
                 <CardLeft>
@@ -176,6 +227,16 @@ export default function ReceivedSignaturesTab() {
                   <CardTitle><HighlightText text={it.entity_title} query={q} /></CardTitle>
                   <CardMeta>
                     <StatusPill $status={status}>{t(`received.statusFull.${status}`, status)}</StatusPill>
+                    {it.progress && it.progress.total >= 2 && (
+                      <ProgressChip data-testid={`received-progress-${it.id}`}>
+                        {t('received.progress', { signed: it.progress.signed, total: it.progress.total, defaultValue: '서명 {{signed}}/{{total}}명' })}
+                      </ProgressChip>
+                    )}
+                    {wait && (
+                      <WaitText $done={wait === 'allSigned'} data-testid={`received-wait-${it.id}`}>
+                        {t(`received.${wait}`, { defaultValue: wait === 'allSigned' ? '모두 서명 완료' : wait === 'waitingUs' ? '보내는 쪽 서명 대기' : '상대 서명 대기' })}
+                      </WaitText>
+                    )}
                     {it.workspace && <WsChip>{it.workspace.brand_name}</WsChip>}
                     {(status === 'sent' || status === 'viewed' || status === 'pending') && it.expires_at && (
                       <DueText>{t('received.expiresAt', 'Expires {{date}}', { date: formatDate(it.expires_at) })}</DueText>
@@ -195,7 +256,7 @@ export default function ReceivedSignaturesTab() {
                     </PrimaryBtn>
                   )}
                   {status === 'signed' && (
-                    <SecondaryBtn type="button" onClick={() => handlePdf(it)}>
+                    <SecondaryBtn type="button" disabled={pdfBusy === it.id} data-testid={`received-pdf-${it.id}`} onClick={() => void handlePdf(it)}>
                       {t('received.action.pdf', 'PDF')}
                     </SecondaryBtn>
                   )}
@@ -219,12 +280,19 @@ export default function ReceivedSignaturesTab() {
       )}
 
       {/* 상세 드로어 (간단 모달) */}
-      {selected && <Detail signature={selected} onClose={() => setSelected(null)} onSign={(it) => { setSelected(null); handleSign(it); }} />}
+      {selected && (
+        <Detail signature={items.find((x) => x.id === selected.id) || selected} onClose={() => setSelected(null)}
+          onSign={(it) => { setSelected(null); handleSign(it); }}
+          onPdf={(it) => void handlePdf(it)} pdfBusy={pdfBusy === selected.id} />
+      )}
     </Container>
   );
 }
 
-function Detail({ signature: s, onClose, onSign }: { signature: ReceivedSignature; onClose: () => void; onSign: (it: ReceivedSignature) => void }) {
+function Detail({ signature: s, onClose, onSign, onPdf, pdfBusy }: {
+  signature: ReceivedSignature; onClose: () => void; onSign: (it: ReceivedSignature) => void;
+  onPdf: (it: ReceivedSignature) => void; pdfBusy: boolean;
+}) {
   const { t } = useTranslation('qdocs');
   const { formatDateTime } = useTimeFormat();
   // 서명 이미지 — 응답은 본문 대신 '(present)' 다(진행 표와 같은 응답 모양). 그대로 src 에 넣어 깨진 그림이 떴다.
@@ -259,6 +327,26 @@ function Detail({ signature: s, onClose, onSign }: { signature: ReceivedSignatur
         </DialogHeader>
         <DialogBody>
           <Field><FieldLabel>{t('received.detail.status', 'Status')}</FieldLabel><FieldValue><StatusPill $status={s.status}>{t(`received.statusFull.${s.status}`, s.status)}</StatusPill></FieldValue></Field>
+          {s.progress && s.progress.total >= 2 && (
+            <Field>
+              <FieldLabel>{t('received.detail.progress', { defaultValue: '서명 진행' })}</FieldLabel>
+              <FieldValue>
+                <ProgressList data-testid="received-detail-progress">
+                  <li>{t('received.progress', { signed: s.progress.signed, total: s.progress.total, defaultValue: '서명 {{signed}}/{{total}}명' })}</li>
+                  <li>
+                    {t('received.detail.me', { defaultValue: '나' })} · <StatusPill $status={s.status}>{t(`received.statusFull.${s.status}`, s.status)}</StatusPill>
+                  </li>
+                  {s.progress.others.map((o, i) => (
+                    <li key={i}>
+                      {o.slot ? `${t('received.detail.slot', { n: o.slot, defaultValue: '{{n}}번 칸' })} · ` : ''}
+                      {o.party === 'us' ? t('received.detail.partyUs', { defaultValue: '보내는 쪽' }) : t('received.detail.partyThem', { defaultValue: '받는 쪽' })}
+                      {' · '}<StatusPill $status={o.status}>{t(`received.statusFull.${o.status}`, o.status)}</StatusPill>
+                    </li>
+                  ))}
+                </ProgressList>
+              </FieldValue>
+            </Field>
+          )}
           <Field><FieldLabel>{t('received.detail.workspace', 'Workspace')}</FieldLabel><FieldValue>{s.workspace?.brand_name || '—'}</FieldValue></Field>
           {s.note && <Field><FieldLabel>{t('received.detail.note', 'Note')}</FieldLabel><FieldValue>{s.note}</FieldValue></Field>}
           {s.expires_at && <Field><FieldLabel>{t('received.detail.expiresAt', 'Expires at')}</FieldLabel><FieldValue>{formatDateTime(s.expires_at)}</FieldValue></Field>}
@@ -289,7 +377,7 @@ function Detail({ signature: s, onClose, onSign }: { signature: ReceivedSignatur
             </PrimaryBtn>
           )}
           {s.status === 'signed' && (
-            <SecondaryBtn type="button" onClick={() => window.open(`/api/sign/${s.token}/pdf`, '_blank')}>
+            <SecondaryBtn type="button" disabled={pdfBusy} onClick={() => onPdf(s)}>
               {t('received.action.pdf', 'PDF')}
             </SecondaryBtn>
           )}
@@ -372,6 +460,15 @@ const WsChip = styled.span`
   border-radius: 999px; font-size: 0.625rem; font-weight: 600;
 `;
 const DueText = styled.span`color: #64748B; font-size: 0.6875rem;`;
+const ProgressChip = styled.span`
+  padding: 2px 8px; background: #F1F5F9; color: #334155;
+  border-radius: 999px; font-size: 0.625rem; font-weight: 600;
+`;
+const WaitText = styled.span<{ $done: boolean }>`font-size: 0.6875rem; font-weight: 600; color: ${(p) => (p.$done ? '#15803D' : '#B45309')};`;
+const ProgressList = styled.ul`
+  margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 4px;
+  li { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+`;
 
 const PrimaryBtn = styled.button`
   padding: 8px 14px; background: #0D9488; color: #FFFFFF;
@@ -382,6 +479,7 @@ const SecondaryBtn = styled.button`
   padding: 8px 14px; background: #FFFFFF; color: #334155;
   border: 1px solid #CBD5E1; border-radius: 8px; font-size: 0.75rem; font-weight: 600; cursor: pointer;
   &:hover { background: #F8FAFC; }
+  &:disabled { opacity: 0.6; cursor: progress; }
 `;
 
 const EmptyState = styled.div`

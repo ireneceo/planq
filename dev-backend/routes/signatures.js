@@ -34,6 +34,7 @@ const { successResponse, errorResponse } = require('../middleware/errorHandler')
 const { createAuditLog } = require('../middleware/audit');
 const { sendSignatureRequestEmail, sendSignatureOtpEmail } = require('../services/emailService');
 const { signedImagesOf } = require('../services/signatureItems');   // serialize 의 signature_image_count
+const { signProgressByEntities } = require('../services/signedDocument');   // 받은 서명 «N명 중 M명»
 // 서명·확인 공용 조각 (services/signatureCore.js). 판정을 두 벌로 두지 않기 위해 여기서만 가져온다.
 const {
   loadByToken, confirmLimiter, docConfirmEnabled, assertKind,
@@ -424,6 +425,27 @@ router.get('/signatures/received', authenticateToken, async (req, res, next) => 
       const q = String(req.query.q).toLowerCase();
       items = items.filter(it => (it.entity_title || '').toLowerCase().includes(q));
     }
+
+    // 서명 진행(2026-10-21 Irene «서명 리스트에서 상대는 서명 아직 안한거 표시해야지 … 몇 명 서명자고 몇 명 되었는지») —
+    //   같은 문서(같은 워크스페이스)의 서명 라운드를 서명본과 같은 조건으로 센다. 상대의 이메일·이름은 싣지 않는다(칸·쪽·상태만).
+    const signPostIds = Array.from(new Set(rows.filter(r => r.entity_type === 'post' && (r.kind || 'sign') === 'sign').map(r => r.entity_id)));
+    const progressMap = await signProgressByEntities('post', signPostIds);
+    const nowMs = Date.now();
+    const effStatus = (r) => (['pending', 'sent', 'viewed'].includes(r.status) && r.expires_at && new Date(r.expires_at).getTime() < nowMs
+      ? 'expired' : r.status);
+    items = items.map((it) => {
+      if (it.entity_type !== 'post' || it.kind !== 'sign') return it;
+      const round = progressMap.get(`${it.business_id}:${it.entity_id}`) || [];
+      if (!round.length) return it;
+      return {
+        ...it,
+        progress: {
+          total: round.length,
+          signed: round.filter(r => r.status === 'signed').length,
+          others: round.filter(r => r.id !== it.id).map(r => ({ party: r.party, slot: r.slot, status: effStatus(r) })),
+        },
+      };
+    });
 
     // 워크스페이스 목록 (필터 UI 용 — 받은 적 있는 워크스페이스 모두)
     const allRowsForWs = await SignatureRequest.findAll({

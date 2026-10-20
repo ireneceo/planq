@@ -204,14 +204,42 @@ function labelsFor(req) {
  *
  * @returns {{requests, frozen:{title,content_json}|null, total:number, signed:number, complete:boolean}}
  */
-async function loadSignedView(entity_type, entity_id) {
+/** 한 문서의 서명 라운드 = 서명 요청 중 취소 안 된 것. 서명본·받은 서명 진행 칩이 **같은 조건**을 쓴다 */
+function signRoundWhere(entity_type, entity_id) {
+  const { Op } = require('sequelize');
+  return {
+    entity_type, entity_id, kind: 'sign',
+    status: { [Op.notIn]: ['canceled'] },   // 취소된 요청은 문서에 자리를 차지하지 않는다
+  };
+}
+
+/**
+ * 여러 문서의 서명 진행 — «N명 중 M명 서명» (받은 서명 목록, 2026-10-21).
+ * 이메일·이름·이미지·토큰은 읽지 않는다 — 받는 사람이 외부 고객일 수 있다.
+ * @returns {Map<string, Array<{id,party,slot,status,expires_at}>>} 키 `${business_id}:${entity_id}`
+ */
+async function signProgressByEntities(entity_type, entityIds) {
   const { SignatureRequest } = require('../models');
   const { Op } = require('sequelize');
+  const out = new Map();
+  if (!entityIds.length) return out;
+  const rows = await SignatureRequest.findAll({
+    where: signRoundWhere(entity_type, { [Op.in]: entityIds }),
+    attributes: ['id', 'business_id', 'entity_id', 'party', 'slot', 'status', 'expires_at'],
+    order: [['id', 'ASC']],
+  });
+  for (const r of rows) {
+    const k = `${r.business_id}:${r.entity_id}`;
+    if (!out.has(k)) out.set(k, []);
+    out.get(k).push({ id: r.id, party: r.party || 'them', slot: r.slot ?? null, status: r.status, expires_at: r.expires_at });
+  }
+  return out;
+}
+
+async function loadSignedView(entity_type, entity_id) {
+  const { SignatureRequest } = require('../models');
   const requests = await SignatureRequest.findAll({
-    where: {
-      entity_type, entity_id, kind: 'sign',
-      status: { [Op.notIn]: ['canceled'] },   // 취소된 요청은 문서에 자리를 차지하지 않는다
-    },
+    where: signRoundWhere(entity_type, entity_id),
     // 칸 번호 순 → 같은 칸이면 만든 순. slot NULL 은 뒤로(옛 요청은 문서 끝 영역)
     order: [[require('../config/database').sequelize.literal('`slot` IS NULL'), 'ASC'], ['slot', 'ASC'], ['id', 'ASC']],
   });
@@ -223,4 +251,4 @@ async function loadSignedView(entity_type, entity_id) {
   return { requests, frozen, total: requests.length, signed, complete: requests.length > 0 && signed === requests.length };
 }
 
-module.exports = { injectSignatures, certificateHtml, loadSignedView, labelsFor, LABELS, SIGNED_CSS, CERT_CSS, fieldHtml, signDate };
+module.exports = { injectSignatures, certificateHtml, loadSignedView, signRoundWhere, signProgressByEntities, labelsFor, LABELS, SIGNED_CSS, CERT_CSS, fieldHtml, signDate };

@@ -113,8 +113,17 @@
       "signedIp": "서명 IP",
       "signatureImage": "서명 이미지",
       "rejectedAt": "거절 시각",
-      "rejectedReason": "거절 사유"
-    }
+      "rejectedReason": "거절 사유",
+      "progress": "서명 진행",
+      "me": "나",
+      "slot": "{{n}}번 칸",
+      "partyUs": "보내는 쪽",
+      "partyThem": "받는 쪽"
+    },
+    "progress": "서명 {{signed}}/{{total}}명",
+    "waitingUs": "보내는 쪽 서명 대기",
+    "waitingThem": "상대 서명 대기",
+    "allSigned": "모두 서명 완료"
   },
   "section": {
     "library": "템플릿 라이브러리",

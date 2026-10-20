@@ -113,8 +113,17 @@
       "signedIp": "Signed IP",
       "signatureImage": "Signature",
       "rejectedAt": "Rejected at",
-      "rejectedReason": "Reason"
-    }
+      "rejectedReason": "Reason",
+      "progress": "Signing progress",
+      "me": "Me",
+      "slot": "Slot {{n}}",
+      "partyUs": "Sender",
+      "partyThem": "Recipient"
+    },
+    "progress": "Signed {{signed}}/{{total}}",
+    "waitingUs": "Waiting for sender",
+    "waitingThem": "Waiting for other party",
+    "allSigned": "All signed"
   },
   "section": {
     "library": "Template library",
