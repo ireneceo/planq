@@ -75,28 +75,51 @@ const SignatureSpotsStep: React.FC<Props> = ({ contentJson, busy: busyIn, locked
         <List>
           {signers.map((s) => (
             <Row key={s.slot} data-testid={`sign-spot-${s.slot}`}>
+              {/* 2026-10-21 Irene «보내는 쪽 받는 쪽 이게 뭐야? 뭘 쓰라는지 모르겠다. 회사명? 이메일?» —
+                  입력칸에 라벨이 없고 placeholder 가 «보내는 쪽» 이라 값이 든 것처럼 보였고, 옆 토글도 같은 글자였다.
+                  칸마다 무엇을 정하는지 라벨을 붙이고, 토글은 서명 방식까지 말한다. 저장 값(party·label)은 그대로. */}
               <Top>
                 <No>{CIRCLED[s.slot - 1] || `(${s.slot})`}</No>
-                <LabelInput
-                  value={labels[s.slot] ?? (s.label || '')}
-                  placeholder={partyText(s.party)}
-                  aria-label={t('sign.spots.labelAria', { defaultValue: '서명자 이름표' }) as string}
-                  disabled={busy}
-                  onChange={(e) => setLabels((m) => ({ ...m, [s.slot]: e.target.value }))}
-                  onBlur={() => {
-                    const v = (labels[s.slot] ?? (s.label || '')).trim();
-                    if (v !== (s.label || '')) void onSaveDoc(applySignerSettings(contentJson, s.slot, { label: v || null }));
-                  }}
-                />
-                <PartyToggle role="radiogroup" aria-label={t('sign.spots.partyAria', { defaultValue: '보내는 쪽 / 받는 쪽' }) as string}>
-                  {(['us', 'them'] as const).map((p) => (
-                    <PartyBtn key={p} type="button" role="radio" aria-checked={s.party === p} $on={s.party === p} disabled={busy}
-                      onClick={() => { if (s.party !== p) void onSaveDoc(applySignerSettings(contentJson, s.slot, { party: p })); }}>
-                      {partyText(p)}
-                    </PartyBtn>
-                  ))}
-                </PartyToggle>
+                <Fields>
+                  <Field>
+                    <FieldLabel>{t('sign.spots.partyLabel', { defaultValue: '누가 서명하나요' })}</FieldLabel>
+                    <PartyToggle role="radiogroup" aria-label={t('sign.spots.partyLabel', { defaultValue: '누가 서명하나요' }) as string}>
+                      {(['us', 'them'] as const).map((p) => (
+                        <PartyBtn key={p} type="button" role="radio" aria-checked={s.party === p} $on={s.party === p} disabled={busy}
+                          data-testid={`sign-party-${s.slot}-${p}`}
+                          onClick={() => { if (s.party !== p) void onSaveDoc(applySignerSettings(contentJson, s.slot, { party: p })); }}>
+                          {p === 'us'
+                            ? t('sign.spots.partyUsLong', { defaultValue: '우리 쪽 · 앱에서 서명' })
+                            : t('sign.spots.partyThemLong', { defaultValue: '상대방 · 메일로 서명' })}
+                        </PartyBtn>
+                      ))}
+                    </PartyToggle>
+                  </Field>
+                  <Field $grow>
+                    <FieldLabel>
+                      {t('sign.spots.nameLabel', { defaultValue: '문서에 보일 이름' })}
+                      <Optional>{t('sign.spots.optional', { defaultValue: '선택' })}</Optional>
+                    </FieldLabel>
+                    <LabelInput
+                      data-testid={`sign-label-${s.slot}`}
+                      value={labels[s.slot] ?? (s.label || '')}
+                      placeholder={(s.party === 'us'
+                        ? t('sign.spots.namePhUs', { defaultValue: '예: (주)우리회사 대표 홍길동' })
+                        : t('sign.spots.namePhThem', { defaultValue: '예: 고객사 이름 · 담당자' })) as string}
+                      aria-label={t('sign.spots.nameLabel', { defaultValue: '문서에 보일 이름' }) as string}
+                      disabled={busy}
+                      onChange={(e) => setLabels((m) => ({ ...m, [s.slot]: e.target.value }))}
+                      onBlur={() => {
+                        const v = (labels[s.slot] ?? (s.label || '')).trim();
+                        if (v !== (s.label || '')) void onSaveDoc(applySignerSettings(contentJson, s.slot, { label: v || null }));
+                      }}
+                    />
+                  </Field>
+                </Fields>
               </Top>
+              <NameHint>
+                {t('sign.spots.nameHint', { party: partyText(s.party), defaultValue: '서명 칸 위에 찍히는 이름이에요. 비워 두면 «{{party}}» 라고 찍혀요. 이메일은 다음 단계에서 정해요.' })}
+              </NameHint>
               <Items>
                 <Item>{t('sign.spots.signN', { n: s.sign, defaultValue: '서명 {{n}}칸' })}</Item>
                 {s.date && <Item>{t('editor.sigItemDate', { defaultValue: '서명일' })}</Item>}
@@ -203,10 +226,18 @@ const Locked = styled.div`font-size: 0.8125rem; color: #334155; background: #F1F
 const Hint = styled.div`font-size: 0.8125rem; color: #475569; line-height: 1.5;`;
 const List = styled.div`display: flex; flex-direction: column; gap: 8px;`;
 const Row = styled.div`border: 1px solid #E2E8F0; border-radius: 10px; padding: 10px 12px; background: #fff;`;
-const Top = styled.div`display: flex; align-items: center; gap: 8px; flex-wrap: wrap;`;
-const No = styled.span`font-size: 0.9375rem; font-weight: 700; color: #0F766E; flex-shrink: 0;`;
+const Top = styled.div`display: flex; align-items: flex-start; gap: 8px;`;
+const No = styled.span`font-size: 0.9375rem; font-weight: 700; color: #0F766E; flex-shrink: 0; line-height: 1; padding-top: 24px;`;
+const Fields = styled.div`flex: 1; min-width: 0; display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: flex-end;`;
+const Field = styled.div<{ $grow?: boolean }>`
+  display: flex; flex-direction: column; gap: 4px; min-width: 0;
+  flex: ${(p) => (p.$grow ? '1 1 200px' : '0 0 auto')};
+`;
+const FieldLabel = styled.span`font-size: 0.75rem; font-weight: 600; color: #334155; display: inline-flex; align-items: center; gap: 6px;`;
+const Optional = styled.span`font-size: 0.6875rem; font-weight: 500; color: #94A3B8;`;
+const NameHint = styled.div`font-size: 0.75rem; color: #64748B; line-height: 1.5; margin-top: 6px;`;
 const LabelInput = styled.input`
-  flex: 1 1 160px; min-width: 0; height: 36px; padding: 0 10px; border: 1px solid #CBD5E1; border-radius: 8px;
+  width: 100%; min-width: 0; height: 36px; padding: 0 10px; border: 1px solid #CBD5E1; border-radius: 8px;
   font-size: 0.8125rem; color: #0F172A;
   &:focus { outline: none; border-color: #14B8A6; box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.15); }
 `;

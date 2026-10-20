@@ -111,7 +111,7 @@ async function run() {
       await page.click('[data-testid="sign-spots-convert"]').catch(() => {});
       await b.sleep(1800);
       const f2 = await page.evaluate(`(() => ({
-        spots: [...document.querySelectorAll('[data-testid^="sign-spot-"]')].filter((e) => /^sign-spot-\\d+$/.test(e.getAttribute('data-testid'))).map((e) => e.innerText.replace(/\\s+/g, ' ').slice(0, 60)),
+        spots: [...document.querySelectorAll('[data-testid^="sign-spot-"]')].filter((e) => /^sign-spot-\\d+$/.test(e.getAttribute('data-testid'))).map((e) => e.innerText.replace(/\\s+/g, ' ').slice(0, 400)),   // 2026-10-21 라벨이 칸 칩(서명 n칸·서명일) 앞에 붙었다 — 줄 전체를 본다
         nextDisabled: !!document.querySelector('[data-testid="sign-step-next"]')?.disabled,
       }))()`);
       const saved = await api(`/posts/${pid}`, { headers: H });
