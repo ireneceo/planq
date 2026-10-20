@@ -4,7 +4,8 @@
   "tabs": {
     "people": "대상자",
     "runs": "급여",
-    "items": "항목"
+    "items": "항목",
+    "mine": "내 명세서"
   },
   "people": {
     "add": "대상자 추가",

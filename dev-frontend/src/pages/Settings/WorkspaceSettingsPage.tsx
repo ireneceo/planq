@@ -3,7 +3,7 @@ import styled from 'styled-components';
 import { backButtonLook, BackChevron } from '../../components/Layout/PanelHeader';
 import { tabStore } from '../../stores/tabStore';
 import { useTranslation } from 'react-i18next';
-import { useLocation, useParams, useSearchParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useAuth, apiFetch } from '../../contexts/AuthContext';
 import AutoSaveField from '../../components/Common/AutoSaveField';
 import PlanQSelect from '../../components/Common/PlanQSelect';
@@ -49,6 +49,7 @@ import {
 import { isEnterAction } from '../../utils/imeKey';
 import { belowTabs } from '../../theme/layout';
 import ModulesSection from '../../components/Settings/ModulesSection';
+import PayrollManagersSection from '../../components/Permissions/PayrollManagersSection';
 import RolePicker from '../../components/MemberRole/RolePicker';
 import RoleManageModal from '../../components/MemberRole/RoleManageModal';
 import DefaultRoleField from '../../components/MemberRole/DefaultRoleField';
@@ -56,7 +57,7 @@ import { useMemberRoleDict } from '../../components/MemberRole/useMemberRoleDict
 import { onSocket } from '../../services/socket';
 import { formatDay, formatDayTime } from '../../utils/dateFormat';
 
-type TabKey = 'attendance' | 'brand' | 'legal' | 'language' | 'work-env' | 'storage' | 'plan' | 'permissions' | 'members' | 'cue' | 'billing' | 'email' | 'mail-accounts' | 'notifications' | 'work-flow' | 'data-export' | 'activity';   // activity — 팀원 활동 기록(owner 전용)
+type TabKey = 'payroll' | 'attendance' | 'brand' | 'legal' | 'language' | 'work-env' | 'storage' | 'plan' | 'permissions' | 'members' | 'cue' | 'billing' | 'email' | 'mail-accounts' | 'notifications' | 'work-flow' | 'data-export' | 'activity';   // activity — 팀원 활동 기록(owner 전용)
 
 // ─────────────────────────────────────────────
 // Styled
@@ -531,6 +532,7 @@ export default function WorkspaceSettingsPage() {
   const [roleManageOpen, setRoleManageOpen] = useState(false);
 
   const location = useLocation();
+  const navigate = useNavigate();
   const params = useParams<{ tab?: string }>();
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -543,7 +545,7 @@ export default function WorkspaceSettingsPage() {
     // ★ 새 탭을 만들면 **이 목록에도 넣어야 한다.** 여기 없으면 URL 이 맞아도
     //   아래 fallback 이 visibleTabs[0] 로 떨어뜨려 첫 탭이 열린다 — 화면은 멀쩡한데
     //   내가 만든 섹션만 영영 안 보인다(실측: activity 탭이 그렇게 죽어 있었다).
-    isMembersMode ? ['members'] : ['brand', 'legal', 'work-env', 'attendance', 'plan', 'permissions', 'billing', 'mail-accounts', 'email', 'storage', 'cue', 'notifications', 'data-export', 'activity']
+    isMembersMode ? ['members'] : ['brand', 'legal', 'work-env', 'attendance', 'payroll', 'plan', 'permissions', 'billing', 'mail-accounts', 'email', 'storage', 'cue', 'notifications', 'data-export', 'activity']
   ), [isMembersMode]);
 
   const tabFromUrl = useMemo<TabKey>(() => {
@@ -934,6 +936,7 @@ export default function WorkspaceSettingsPage() {
     switch (tab) {
       case 'work-env':    return t('tabs.workEnv', '업무 환경') as string;
       case 'attendance':  return t('tabs.attendance', '근태 관리') as string;
+      case 'payroll':     return t('tabs.payroll', '급여 설정') as string;
       case 'storage':     return t('tabs.storage') as string;
       case 'plan':        return t('tabs.plan') as string;
       case 'permissions': return t('tabs.permissions') as string;
@@ -1289,8 +1292,23 @@ export default function WorkspaceSettingsPage() {
           <ActivityLogSection businessId={businessId} />
         </Card>
       )}
-      {/* 기능 사용(급여 등) — 업무 환경 맨 위. 켜기·끄기는 owner 만(docs/PAYROLL_DESIGN.md §2.4) */}
-      {tab === 'work-env' && businessId && <ModulesSection businessId={businessId} />}
+      {/* 급여 설정 — 기능 켜기·끄기 + 급여 담당자 한 곳(2026-10-20 Irene «관리자가 설정하고 관리하는 메뉴는 왜 없어?»).
+          예전엔 업무 환경(켜기)과 권한(담당자)에 흩어져 찾을 수 없었다. 켜고 끄기·지정은 owner 만(docs/PAYROLL_DESIGN.md §2.1). */}
+      {tab === 'payroll' && businessId && (
+        <>
+          <ModulesSection businessId={businessId} />
+          <PayrollManagersSection businessId={businessId} />
+          {user?.modules?.payroll && (
+            <Card>
+              <SectionTitle>{t('payrollSettings.openTitle', '급여 화면')}</SectionTitle>
+              <SectionDesc>{t('payrollSettings.openDesc', '월별 급여 회차·급여 대상자·지급/공제 항목은 급여 화면에서 관리합니다.')}</SectionDesc>
+              <ActionButton tone="secondary" size="sm" data-testid="payroll-settings-open" onClick={() => navigate('/payroll')}>
+                {t('payrollSettings.open', '급여 화면 열기')}
+              </ActionButton>
+            </Card>
+          )}
+        </>
+      )}
       {tab === 'work-env' && (
         <Card>
           <SectionTitle>{t('language.sectionTitle')}</SectionTitle>

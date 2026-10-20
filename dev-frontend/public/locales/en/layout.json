@@ -193,7 +193,8 @@
     "showMenu": "Show {{name}}",
     "moreMenus": "More ({{count}})",
     "lessMenus": "Show less",
-    "moreBadge": "{{count}} in hidden menus"
+    "moreBadge": "{{count}} in hidden menus",
+    "payrollSettings": "Payroll settings"
   },
   "user": {
     "profile": "My Profile",

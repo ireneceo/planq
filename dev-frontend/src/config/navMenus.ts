@@ -99,10 +99,11 @@ export const WORKSPACE_MENUS: NavMenuEntry[] = [
   { key: 'ws-billing', to: '/business/settings/billing', labelKey: 'nav.billing', section: 'settings', roles: ['owner'] },
   { key: 'ws-org', to: '/business/org', labelKey: 'nav.org', section: 'settings', roles: ['owner'] },
   { key: 'ws-members', to: '/business/members', labelKey: 'nav.members', section: 'settings', roles: ['owner'] },
-  // 급여·계약 — 역할은 넓게 두고 module 이 거른다(관리자 = owner + 지정 담당자, admin 자동 아님 — docs/PAYROLL_DESIGN.md §4)
-  { key: 'payroll', to: '/payroll', labelKey: 'nav.payroll', section: 'personal', roles: ['owner', 'admin', 'member'], module: 'payroll' },
-  // 내 급여명세서 — 기능이 켜져 있으면 직원 누구나(자기 것만 — 서버 routes/payroll_me.js 가 대상자 user_id 로 판정)
-  { key: 'payslips', to: '/me/payslips', labelKey: 'nav.myPayslips', section: 'personal', roles: ['owner', 'admin', 'member'], module: 'payroll_self' },
+  // 급여·계약 — 메뉴 하나(2026-10-20 Irene «합쳐야 할 것 같은데 왜 나눠?»). 기능이 켜져 있으면 직원 누구나 —
+  //   관리자(owner + 지정 담당자)에게는 회차·대상자·항목·내 명세서 탭, 그 밖의 직원에게는 내 명세서만(화면이 가르고 서버가 다시 거른다).
+  { key: 'payroll', to: '/payroll', labelKey: 'nav.payroll', section: 'personal', roles: ['owner', 'admin', 'member'], module: 'payroll_self' },
+  // 급여 설정 — 기능 켜기·끄기 · 급여 담당자 지정. 대표의 결정이라 owner 만(docs/PAYROLL_DESIGN.md §2.1). 기능이 꺼져 있어도 보인다(켜는 문)
+  { key: 'ws-payroll', to: '/business/settings/payroll', labelKey: 'nav.payrollSettings', section: 'settings', roles: ['owner'] },
   // (2026-10-16) 'ws-clients'(설정 > 고객) 는 없앴다 — 고객 관리는 Q sale > 고객 탭 하나다(docs/CLIENT_SCREENS_MERGE_DESIGN.md)
   { key: 'ws-cue', to: '/business/settings/cue', labelKey: 'nav.cue', section: 'settings', roles: ['owner'] },
   { key: 'ws-company-mail', to: '/business/settings/mail-accounts', labelKey: 'nav.companyMail', section: 'settings', roles: ['owner', 'member'] },
@@ -208,6 +209,7 @@ const EXTRA_PAGE_LABELS: Array<[string, string]> = [
   ['/records', 'nav.records'],
   ['/personal-vault', 'nav.personalVault'],
   ['/me/feedback', 'nav.myFeedback'],
+  ['/me/payslips', 'nav.payroll'],
   ['/whats-new', 'nav.whatsNew'],
   ['/notifications', 'nav.notifications'],
   ['/me/work-settings', 'nav.myWorkEnv'],

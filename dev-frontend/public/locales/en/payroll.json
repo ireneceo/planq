@@ -4,7 +4,8 @@
   "tabs": {
     "people": "People",
     "runs": "Payroll",
-    "items": "Items"
+    "items": "Items",
+    "mine": "My payslips"
   },
   "people": {
     "add": "Add person",

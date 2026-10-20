@@ -28,7 +28,8 @@
     "myNotifications": "My notifications",
     "notificationSettings": "Notification settings",
     "workEnv": "Work environment",
-    "wsBackup": "Workspace backup"
+    "wsBackup": "Workspace backup",
+    "payroll": "Payroll settings"
   },
   "dataExport": {
     "intro": "Export your personal data or workspace data as a ZIP file. Files are kept as-is and documents are saved as HTML.",
@@ -930,5 +931,10 @@
     "unsubscribeBtn": "Turn off notifications on this device",
     "unsubscribedMsg": "Notifications are off for this device",
     "unsupportedMsg": "This browser doesn't support push notifications."
+  },
+  "payrollSettings": {
+    "openTitle": "Payroll",
+    "openDesc": "Monthly payroll runs, people and pay items are managed on the Payroll page. Employees see only their own payslips and contracts in the same menu.",
+    "open": "Open Payroll"
   }
 }

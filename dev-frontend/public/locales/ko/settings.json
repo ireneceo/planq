@@ -28,7 +28,8 @@
     "myNotifications": "내 알림",
     "notificationSettings": "알림 설정",
     "workEnv": "업무 환경",
-    "wsBackup": "워크스페이스 백업"
+    "wsBackup": "워크스페이스 백업",
+    "payroll": "급여 설정"
   },
   "dataExport": {
     "intro": "내 개인 자료 또는 워크스페이스 자료를 ZIP 파일로 내보냅니다. 파일은 원본 그대로, 문서는 HTML로 저장됩니다.",
@@ -930,5 +931,10 @@
     "unsubscribeBtn": "이 디바이스 알림 끄기",
     "unsubscribedMsg": "디바이스 알림이 꺼졌습니다",
     "unsupportedMsg": "이 브라우저는 푸시 알림을 지원하지 않습니다."
+  },
+  "payrollSettings": {
+    "openTitle": "급여 화면",
+    "openDesc": "월별 급여 회차·급여 대상자·지급/공제 항목은 급여 화면에서 관리합니다. 직원은 같은 메뉴에서 자기 명세서와 계약만 봅니다.",
+    "open": "급여 화면 열기"
   }
 }

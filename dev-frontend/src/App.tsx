@@ -428,7 +428,7 @@ function ShellApp() {
         {/* 급여·계약 — 기능이 꺼졌거나 관리자가 아니면 없는 화면(ModuleGate). 서버도 404/403 */}
         <Route path="/payroll" element={
           <ProtectedRoute requiredRole={['business_owner', 'business_member']}>
-            <MainLayout><ModuleGate module="payroll"><PayrollPage /></ModuleGate></MainLayout>
+            <MainLayout><ModuleGate module="payroll_self"><PayrollPage /></ModuleGate></MainLayout>
           </ProtectedRoute>
         } />
         <Route path="/payroll/runs/:id" element={

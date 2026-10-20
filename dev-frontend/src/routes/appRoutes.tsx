@@ -104,7 +104,7 @@ export const APP_ROUTES: AppRouteDef[] = [
   // ★ 이 표에 없으면 탭 모드에서 **빈 화면**이 된다. App.tsx 에만 등록하면 탭에서는 안 열린다
   //   (운영 2026-08-22: 근태 메뉴를 눌러도 아무것도 안 나왔다 — 원인이 정확히 이것이었다).
   { path: '/attendance', roles: BIZ, element: <AttendancePage /> },
-  { path: '/payroll', roles: BIZ, element: <ModuleGate module="payroll"><PayrollPage /></ModuleGate> },
+  { path: '/payroll', roles: BIZ, element: <ModuleGate module="payroll_self"><PayrollPage /></ModuleGate> },
   { path: '/payroll/runs/:id', roles: BIZ, element: <ModuleGate module="payroll"><PayrollRunPage /></ModuleGate> },
   { path: '/me/payslips', roles: BIZ, element: <ModuleGate module="payroll_self"><MyPayslipsPage /></ModuleGate> },
   { path: '/notes', element: <QNotePage /> },

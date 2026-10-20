@@ -1821,7 +1821,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
                         )}
                       </NavItem>
                     ) },
-                    /* 급여·계약 — 기능이 켜졌고 급여 관리자(대표 + 지정 담당자)일 때만(docs/PAYROLL_DESIGN.md §2·§4) */
+                    /* 급여·계약 — 메뉴 하나: 기능이 켜져 있으면 누구나(관리자는 관리 탭, 직원은 내 명세서 — docs/PAYROLL_DESIGN.md §9) */
                     { key: 'payroll', label: t('nav.payroll', '급여·계약') as string, count: 0, active: isActive('/payroll'), node: show('/payroll') && (
                       <NavItem to="/payroll" $isCollapsed={isCollapsed} $active={isActive('/payroll')}
                         data-testid="nav-payroll" title={isCollapsed ? t('nav.payroll', '급여·계약') : undefined}>
@@ -1829,16 +1829,6 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
                           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="6" width="18" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/><path d="M6 9v.01M18 15v.01"/></svg>
                         </NavIcon>
                         <NavLabel $isCollapsed={isCollapsed}>{t('nav.payroll', '급여·계약')}</NavLabel>
-                      </NavItem>
-                    ) },
-                    /* 내 급여명세서 — 기능이 켜져 있으면 누구나(자기 것만) */
-                    { key: 'payslips', label: t('nav.myPayslips', '내 급여명세서') as string, count: 0, active: isActive('/me/payslips'), node: show('/me/payslips') && (
-                      <NavItem to="/me/payslips" $isCollapsed={isCollapsed} $active={isActive('/me/payslips')}
-                        data-testid="nav-payslips" title={isCollapsed ? t('nav.myPayslips', '내 급여명세서') : undefined}>
-                        <NavIcon $isCollapsed={isCollapsed}>
-                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="13" y2="17"/></svg>
-                        </NavIcon>
-                        <NavLabel $isCollapsed={isCollapsed}>{t('nav.myPayslips', '내 급여명세서')}</NavLabel>
                       </NavItem>
                     ) },
                     /* 2026-09-21 — 문의·피드백은 개인 섹션 맨 아래(근태·휴가 다음). 솔루션에 대한 것이라 나의 일 메뉴들 뒤에 둔다 */
@@ -1962,6 +1952,17 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
                         >
                           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/></svg>
                           {t('nav.attendanceAdmin', '근태 관리')}
+                        </AccordionItem>
+                      )}
+                      {/* 급여 설정 — 기능 켜기·끄기·급여 담당자(대표만) */}
+                      {show('/business/settings/payroll') && (
+                        <AccordionItem
+                          to="/business/settings/payroll"
+                          data-testid="nav-payroll-settings"
+                          $active={location.pathname.includes('/business/settings/payroll')}
+                        >
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="6" width="18" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/></svg>
+                          {t('nav.payrollSettings', '급여 설정')}
                         </AccordionItem>
                       )}
                       {/* 활동 기록 — 누가 언제 무엇을 했는지(삭제 포함). owner/admin 만.
@@ -2366,6 +2367,16 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
               >
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/></svg>
                 {t('nav.attendanceAdmin', '근태 관리')}
+              </SecondaryNavItem>
+            )}
+            {/* 급여 설정 — 폰 아코디언과 같은 항목·같은 조건(대표만) */}
+            {show('/business/settings/payroll') && (
+              <SecondaryNavItem $collapsed={secondaryCollapsed}
+                to="/business/settings/payroll"
+                $active={location.pathname.includes('/business/settings/payroll')}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="6" width="18" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/></svg>
+                {t('nav.payrollSettings', '급여 설정')}
               </SecondaryNavItem>
             )}
             {show('/business/settings/activity') && (

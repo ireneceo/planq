@@ -11,7 +11,6 @@ import { Switch, SwitchKnob } from '../../components/Common/switchShell';
 // 사이클 N+21 — 멤버 매트릭스 + 기본 청구 담당
 import MemberPermissionMatrix from '../../components/Permissions/MemberPermissionMatrix';
 import DefaultBillingOwnerSection from '../../components/Permissions/DefaultBillingOwnerSection';
-import PayrollManagersSection from '../../components/Permissions/PayrollManagersSection';
 // 고객 창구 — «고객 공개 범위» 와 같은 축(«고객에게 무엇이 보이는가»)이라 이 탭에 둔다.
 import CustomerEntrySection from '../../components/Permissions/CustomerEntrySection';
 import SalesIntakeSection from '../../components/Permissions/SalesIntakeSection';   // #449 상담 유입 모드
@@ -282,7 +281,6 @@ const PermissionsSettings: React.FC<Props> = ({ businessId, canEdit, canEditPoli
       <MemberPermissionMatrix businessId={businessId} isOwner={canEdit} />
       <DefaultBillingOwnerSection businessId={businessId} isOwner={isOwner} />
       {/* 급여 담당자 — 급여 기능이 켜졌을 때만 보인다(docs/PAYROLL_DESIGN.md §2.4) */}
-      <PayrollManagersSection businessId={businessId} />
     </Wrap>
   );
 };

@@ -193,7 +193,8 @@
     "showMenu": "{{name}} 보이기",
     "moreMenus": "더보기 ({{count}})",
     "lessMenus": "접기",
-    "moreBadge": "숨긴 메뉴 {{count}}건"
+    "moreBadge": "숨긴 메뉴 {{count}}건",
+    "payrollSettings": "급여 설정"
   },
   "user": {
     "profile": "내 프로필",

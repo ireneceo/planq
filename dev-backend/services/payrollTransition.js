@@ -597,7 +597,7 @@ async function afterConfirm(businessId, runId, actorId, req) {
       await notify({
         userId: uid, businessId, eventKind: 'payroll',
         title: buildTitle({ feature: 'payroll', action: run.kind === 'adjustment' ? 'payroll_payslip_adjusted' : 'payroll_payslip_ready', subject: run.period_ym, lang }),
-        link: `/me/payslips?entry=${e.id}`, workspaceName: biz?.name, actorUserId: actorId,
+        link: `/payroll?tab=mine&entry=${e.id}`, workspaceName: biz?.name, actorUserId: actorId,
         entityType: 'payroll_entry', entityId: e.id,
         skipChannels: ['email'],            // 금액이 메일로 나가지 않게 — 앱·푸시만
         previewPolicy: 'internal_only',

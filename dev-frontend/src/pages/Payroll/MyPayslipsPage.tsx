@@ -1,12 +1,13 @@
-// 내 급여명세서 — /me/payslips (docs/PAYROLL_DESIGN.md §9). 기능이 켜져 있으면 직원 누구나, 보이는 것은 «자기 것» 만(서버 routes/payroll_me.js).
-//   목록(PageShell) → 명세서 상세(DetailDrawer · ?entry= 싱크 · 재클릭 토글) + [PDF 내려받기].
+// 내 급여명세서 — 급여 메뉴(/payroll)의 «내 명세서» 칸 (docs/PAYROLL_DESIGN.md §9). 기능이 켜져 있으면 직원 누구나, 보이는 것은 «자기 것» 만(서버 routes/payroll_me.js).
+//   ★ 2026-10-20 Irene «급여/계약, 내 급여명세서 메뉴는 합쳐야 할 것 같은데 왜 나눠?» — 메뉴를 하나로 합쳤다.
+//     관리자에게는 급여 화면의 탭 하나, 직원에게는 급여 화면 그 자체다. 옛 주소 /me/payslips 는 /payroll?tab=mine 으로 넘긴다(알림 링크·즐겨찾기).
+//   목록 → 명세서 상세(DetailDrawer · ?entry= 싱크 · 재클릭 토글) + [PDF 내려받기].
 //   ★ 금액은 확정된 회차만(초안은 명세서가 아니다 — 서버가 404). 계좌번호는 없다(끝 4자리만). 열람하면 «새로 옴» 이 사라진다.
 //   실시간: payslip:new(내 개인 방) → 다시 읽기 + 탭 복귀 재조회.
 import { useCallback, useEffect, useRef, useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
-import { useSearchParams } from 'react-router-dom';
-import PageShell from '../../components/Layout/PageShell';
+import { Navigate, useLocation, useSearchParams } from 'react-router-dom';
 import DetailDrawer from '../../components/Common/DetailDrawer';
 import ActionButton from '../../components/Common/ActionButton';
 import { useAuth } from '../../contexts/AuthContext';
@@ -15,7 +16,15 @@ import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
 import { listRowTitleCss } from '../../theme/tokens';
 import { payrollApi, PayrollError, formatMoney, type MyContract, type Payslip, type PayslipSummary } from './payrollApi';
 
-export default function MyPayslipsPage() {
+/** 옛 주소 /me/payslips?entry=… → /payroll?tab=mine&entry=… (쿼리 그대로) */
+export default function MyPayslipsRedirect() {
+  const loc = useLocation();
+  const sp = new URLSearchParams(loc.search);
+  sp.set('tab', 'mine');
+  return <Navigate to={`/payroll?${sp.toString()}`} replace />;
+}
+
+export function MyPayslipsView() {
   const { t, i18n } = useTranslation('payroll');
   const lang = i18n.language;
   const { user } = useAuth();
@@ -53,7 +62,7 @@ export default function MyPayslipsPage() {
   const close = () => { const sp = new URLSearchParams(params); sp.delete('entry'); setParams(sp, { replace: true }); };
 
   return (
-    <PageShell title={t('payslips.title')} count={rows.length}>
+    <>
       {loading ? null : error ? (
         <Empty>
           <span>{t('payslips.loadFailed')}</span>
@@ -92,7 +101,7 @@ export default function MyPayslipsPage() {
       {bizId && entryId !== null && (
         <PayslipDrawer key={entryId} businessId={bizId} entryId={entryId} onClose={close} onViewed={silentLoad} />
       )}
-    </PageShell>
+    </>
   );
 }
 
