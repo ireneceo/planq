@@ -119,7 +119,7 @@ const Dot = styled.span<{ $none?: boolean }>`
   border: 1px solid ${(p) => (p.$none ? '#64748B' : 'rgba(255,255,255,0.6)')};
 `;
 const Pop = styled.div`
-  position: fixed; z-index: 1200;
+  position: fixed; z-index: 10000;  /* 메모 팝업(2301) 안 편집기에서도 위 — 서명 항목 메뉴와 같은 층 */
   width: 248px; max-width: calc(100vw - 32px); box-sizing: border-box;
   padding: 10px; background: #fff; border: 1px solid #E2E8F0; border-radius: 10px;
   box-shadow: 0 8px 24px rgba(15, 23, 42, 0.14);

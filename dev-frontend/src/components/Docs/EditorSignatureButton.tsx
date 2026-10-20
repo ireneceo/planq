@@ -7,7 +7,7 @@
 // 2026-10-05 (docs/SIGNATURE_ITEMS_DESIGN.md §9) — 한 패턴: «누구의 것(서명자 번호) × 무엇(서명·서명일·이름)».
 //   서명 칸은 서명자가 그리거나 이미지를 올린다(사인·회사 스탬프 모두). 한 서명자에게 서명 칸을 여러 개 둘 수 있다.
 //   Irene: «편집 들어가도 안나오는데» — 아이콘만 있던 버튼에 글자를 붙이고, 메뉴로 무엇을 넣는지 고르게 했다.
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import styled from 'styled-components';
 import type { Editor } from '@tiptap/react';
@@ -29,13 +29,39 @@ const EditorSignatureButton: React.FC<Props> = ({ editor, as: ToolBtn }) => {
   const wrapRef = useRef<HTMLSpanElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   // 화면 기준(fixed)으로 띄운다 — 툴바가 한 줄 가로 스크롤(overflow)이라 absolute 면 메뉴가 잘린다(TextStyleButton 과 같다)
-  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+  // 2026-10-21 Irene «앱화면에서 잘려서 보여 … 데스크탑 앱 밖으로 못 나가면 안잘리게» — 늘 버튼 아래 + 60vh 였다.
+  //   창이 낮거나(설치 앱 창은 밖으로 못 나간다) 키보드가 올라오면 메뉴 아래가 잘렸다. 보이는 아래 끝을 재고
+  //   모자라면 버튼 위로 뒤집고, 고른 쪽 자리를 max-height 로 준다 — 넘치면 메뉴 안에서 스크롤한다(CellFillButton 과 같은 방식).
+  const [pos, setPos] = useState<{ top: number; left: number; maxHeight: number } | null>(null);
   const place = () => {
     const r = wrapRef.current?.getBoundingClientRect();
     if (!r) return;
     const W = Math.min(340, window.innerWidth - 32);
-    setPos({ top: r.bottom + 6, left: Math.max(8, Math.min(r.left, window.innerWidth - W - 8)) });
+    const vv = window.visualViewport;
+    const viewTop = vv ? vv.offsetTop : 0;
+    const viewBottom = vv ? vv.offsetTop + vv.height : window.innerHeight;
+    const H = menuRef.current?.scrollHeight || 320;
+    const below = r.bottom + 6;
+    const spaceBelow = viewBottom - below - 8;
+    const spaceAbove = r.top - 6 - (viewTop + 8);
+    const up = spaceBelow < H && spaceAbove > spaceBelow;
+    const room = Math.max(120, up ? spaceAbove : spaceBelow);
+    const h = Math.min(H, room);
+    setPos({
+      top: up ? r.top - 6 - h : below,
+      left: Math.max(8, Math.min(r.left, window.innerWidth - W - 8)),
+      maxHeight: room,
+    });
   };
+  // 처음 열 때는 메뉴 높이를 모른다 — 그려진 뒤 실제 높이로 한 번 더 맞춘다
+  const measuredRef = useRef(false);
+  useLayoutEffect(() => {
+    if (!open) { measuredRef.current = false; return; }
+    place();
+  }, [open]);   // eslint-disable-line react-hooks/exhaustive-deps
+  useLayoutEffect(() => {
+    if (open && pos && !measuredRef.current && menuRef.current) { measuredRef.current = true; place(); }
+  }, [open, pos]);   // eslint-disable-line react-hooks/exhaustive-deps
 
   // 문서에 이미 있는 서명자(서명 칸 기준) — 번호·쪽·이름표
   const signers = (): DocSignatureField[] => {
@@ -51,7 +77,6 @@ const EditorSignatureButton: React.FC<Props> = ({ editor, as: ToolBtn }) => {
 
   useEffect(() => {
     if (!open) return;
-    place();
     const onDoc = (e: MouseEvent) => {
       const tg = e.target as Node;
       if (!wrapRef.current?.contains(tg) && !menuRef.current?.contains(tg)) setOpen(false);
@@ -61,7 +86,11 @@ const EditorSignatureButton: React.FC<Props> = ({ editor, as: ToolBtn }) => {
     document.addEventListener('keydown', onKey);
     window.addEventListener('resize', place);
     window.addEventListener('scroll', place, true);
+    const vv = window.visualViewport;
+    vv?.addEventListener('resize', place);
+    vv?.addEventListener('scroll', place);
     return () => {
+      vv?.removeEventListener('resize', place); vv?.removeEventListener('scroll', place);
       document.removeEventListener('mousedown', onDoc); document.removeEventListener('keydown', onKey);
       window.removeEventListener('resize', place); window.removeEventListener('scroll', place, true);
     };
@@ -105,7 +134,7 @@ const EditorSignatureButton: React.FC<Props> = ({ editor, as: ToolBtn }) => {
         <BtnText>{t('editor.insertSignatureShort', { defaultValue: '서명 항목' })} ▾</BtnText>
       </ToolBtn>
       {open && pos && createPortal(
-        <Menu ref={menuRef} role="menu" data-testid="editor-signature-menu" style={{ top: pos.top, left: pos.left }}>
+        <Menu ref={menuRef} role="menu" data-testid="editor-signature-menu" style={{ top: pos.top, left: pos.left, maxHeight: pos.maxHeight }}>
           <MenuHint>{t('editor.sigMenuHint', { defaultValue: '누구의 칸인지 고르고, 넣을 것을 누르세요. 커서 자리에 들어갑니다.' })}</MenuHint>
           {rows.map((s) => (
             <SignerRow key={`${s.slot}${s.isNew ? '-new' : ''}`}>
@@ -138,8 +167,9 @@ const Wrap = styled.span`position: relative; display: inline-flex;`;
 const BtnText = styled.span`margin-left: 4px; font-size: 0.75rem; font-weight: 600; white-space: nowrap;`;
 const Menu = styled.div`
   /* 버튼 왼쪽 기준으로 펼친다 — 버튼은 툴바 앞쪽에 있어 오른쪽 기준이면 왼쪽 목록 패널 밑으로 잘렸다(실측 1440).
-     자리(top·left)는 place() 가 버튼 rect 로 정한다. */
-  position: fixed; z-index: 1200;
+     자리(top·left·max-height)는 place() 가 버튼 rect 와 보이는 화면 높이로 정한다.
+     z 는 Q note 메모 팝업(2301) 안의 편집기에서도 위에 서도록 포털 드롭다운 층(10000) — 1200 이면 팝업 뒤로 깔렸다. */
+  position: fixed; z-index: 10000;
   width: min(340px, calc(100vw - 32px)); max-height: 60vh; overflow-y: auto;
   background: #fff; border: 1px solid #E2E8F0; border-radius: 10px;
   box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12); padding: 8px;
