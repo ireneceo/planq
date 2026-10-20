@@ -109,7 +109,7 @@
 - 검증: 범위 tsc 0 + vite build 0(전체 tsc -b 는 earlyoom SIGTERM 143 — 정식 전체 타입검사 아님) · 실HTTP 주소 보기 5주소 «이름 없음» 0 · 남의 워크스페이스 403 · 목록 6폴더 회귀 0 · 화면 3폭 ALL OK, 옛 서버 대조군에서 «(unknown)» 3건·6실패 재현 · health 88/88 · guard 74/75(MainLayout 크기, 기존) · maillabel 0 실패. Fable 안 씀 — 화면 표시·같은 권한 라우트의 응답 모양.
 - 시험 데이터: ws6 «[확인용] 오간 메일 —» 스레드 3개(9495 보관·9496 보낸·9497 받은). 시험 메일 계정 425 는 꺼져 있어(is_active 0) owner 화면 목록이 «연결된 계정 없음» 으로 가려짐 — 화면 검사는 계정 목록 응답만 채워 넣고 쟀다.
 
-### 나중에 — Fable 대기: 휴가 종류 직접 추가·수정 기능 설계 · Fable 한도가 풀리면(상황판 재시도 2026-10-20 18:45 KL, fid fwmvgdotw2) · 그때 Fable 설계 → docs/LEAVE_TYPES_DESIGN.md → 구현(설계 전 구현 시작 안 함)
+### 나중에 — Fable 대기: 휴가 종류 직접 추가·수정 기능 설계 · Fable 한도가 풀리면(상황판 재시도 2026-10-21 09:09 KL, fid fwmvh8kbx2 — 10-20 재시도도 한도) · 그때 Fable 설계 → docs/LEAVE_TYPES_DESIGN.md → 구현(설계 전 구현 시작 안 함)
 - Irene 2026-10-20 «권고대로»(① 회사가 종류 추가·수정 — 이름·유급/무급·연간 기본 일수, «휴가 설정» 칸을 근태 관리 맨 위로).
 - 설계 요청 내용: 이 방 대화의 Fable 프롬프트와 같다 — 현황 파일(LeaveRequest/LeaveGrant ENUM · leaveTransition · routes/leave · pages/Attendance/leaveCategory.ts · AttendanceAdminSettings/TeamTab · 급여 무급 일할)·이행·박제·급여 연결·권한·화면·검증.
 
