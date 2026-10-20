@@ -3606,8 +3606,8 @@ const MailPage: React.FC = () => {
                       <ActionButton tone="secondary" size="md" onClick={() => { void sendPendingDraft(replyPendingRef); setReplyOpen(false); }} disabled={sending}>
                         {t('reply.cancel', { defaultValue: '취소' }) as string}
                       </ActionButton>
+                      <ComposerHint>{t('reply.shortcut', { defaultValue: '⌘/Ctrl + Enter 로 보내기' }) as string}</ComposerHint>
                     </ComposerActions>
-                    <ComposerHint>{t('reply.shortcut', { defaultValue: '⌘/Ctrl + Enter 로 보내기' }) as string}</ComposerHint>
                   </Composer>
                 )}
               </DetailFooter>

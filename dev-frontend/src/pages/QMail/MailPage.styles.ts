@@ -974,11 +974,18 @@ export const KeepNeededRow = styled.div`
 export const ComposerActions = styled.div`
   display: flex; align-items: center; justify-content: flex-start; gap: 8px;
   flex-wrap: wrap;
-  position: sticky; bottom: 0; z-index: 4;
+  position: sticky; z-index: 4;
+  /* ★ 2026-10-20 (Irene: "하단 버튼 아래에 빈 공간이 있어서 뒷 내용이 보여") — sticky 의 기준선은
+     스크롤 상자의 콘텐츠 박스라 bottom 0 이면 DetailFooter 아래 padding(14px) 만큼 위에서 멈춘다.
+     그 틈으로 본문이 지나가 비쳤다. 위쪽 --pq-sticky-top 과 같은 방식으로 padding 만큼 음수를 준다.
+     DetailFooter 의 padding 숫자와 같아야 한다 — 바꿀 땐 둘을 같이. */
+  bottom: -14px;
   background: #FFFFFF;
   border-top: 1px solid #E2E8F0;
   /* 스크롤 컨테이너는 DetailFooter (padding 14px 24px) — 그 여백을 되밀어 끝까지 덮는다.
-     안 덮으면 좌우 틈으로 본문이 비쳐 지저분하다. 아래도 -14px 로 바닥에 정확히 붙인다. */
+     안 덮으면 좌우 틈으로 본문이 비쳐 지저분하다. 아래도 -14px 로 바닥에 정확히 붙인다.
+     ★ 그러려면 이 줄이 Composer 의 **마지막 자식**이어야 한다 — 뒤에 형제가 있으면 끝까지 내렸을 때
+     그 형제가 버튼 줄 아래에 빈 띠로 남는다(단축키 안내가 그랬다 → 이 줄 안으로 옮김). */
   margin: 4px -24px -14px;
   /* ★ 원시 env() 를 쓰면 안 된다 — 단일 원천은 --pq-safe-bottom 이고,
      index.css 가 키보드 up 시 body[data-keyboard-up='1'] 로 그것을 0 으로 내린다.
@@ -994,8 +1001,11 @@ export const ComposerActions = styled.div`
     body[data-keyboard-up='1'] & { position: static; margin-bottom: 0; }
   }
 `;
-export const ComposerHint = styled.div`
+/* 버튼 줄 안 오른쪽 끝 — 줄이 좁으면 아래로 감긴다. 단축키는 키보드가 있는 폭에서만 뜻이 있다. */
+export const ComposerHint = styled.span`
+  margin-left: auto;
   font-size: 0.6875rem; color: #94A3B8;
+  @media (max-width: 640px) { display: none; }
 `;
 // AI 답변 제안 — Coral 강조 (AI 감지/액션 컬러)
 // 자동·마케팅 메일 — AI 답변 비노출 안내 (게이트)
