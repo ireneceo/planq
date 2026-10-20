@@ -210,6 +210,16 @@ router.post('/:id/seen', authenticateToken, async (req, res, next) => {
 router.get('/admin', authenticateToken, requireRole('platform_admin'), async (req, res, next) => {
   try {
     const where = {};
+    // ?id= — 알림·확인필요 링크로 한 건을 열 때. 화면은 그 건의 상태를 몰라 다른 탭을 보고 있을 수 있다.
+    if (/^\d+$/.test(String(req.query.id || ''))) {
+      const one = await FeedbackItem.findByPk(Number(req.query.id), {
+        include: [
+          { model: User, as: 'user', attributes: ['id', 'name', 'email'] },
+          { model: User, as: 'responder', attributes: ['id', 'name'] },
+        ],
+      });
+      return successResponse(res, one ? [one] : []);
+    }
     if (req.query.status && ALLOWED_STATUS.includes(req.query.status)) where.status = req.query.status;
     if (req.query.category && ALLOWED_CATS.includes(req.query.category)) where.category = req.query.category;
     if (req.query.kind === 'inquiry' || req.query.kind === 'feedback') where.kind = req.query.kind;

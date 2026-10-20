@@ -16,6 +16,7 @@ import { pickMatch } from '../../utils/searchMatch';
 import { useSearchParams } from 'react-router-dom';
 import { refreshAdminTodo } from '../../hooks/useAdminInboxCounts';
 import { apiFetch } from '../../contexts/AuthContext';
+import { onSocket } from '../../services/socket';
 import { formatDay, formatDayTime } from '../../utils/dateFormat';
 
 type Status = 'pending' | 'reviewing' | 'done' | 'wontfix';
@@ -65,8 +66,8 @@ const AdminFeedbackPage = () => {
   const [responseStatus, setResponseStatus] = useState<Status>('reviewing');
   const [submitting, setSubmitting] = useState(false);
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  const load = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const sp = new URLSearchParams();
       sp.set('status', activeStatus);
@@ -76,7 +77,8 @@ const AdminFeedbackPage = () => {
       const r = await apiFetch(`/api/feedback/admin?${sp.toString()}`);
       const j = await r.json();
       if (j.success) setItems(j.data || []);
-    } finally { setLoading(false); }
+    } catch { /* silent 재조회 실패는 보던 목록을 그대로 둔다 */ }
+    finally { if (!silent) setLoading(false); }
   }, [activeStatus, activeCategory, activeKind, search]);
 
   const loadCounts = useCallback(async () => {
@@ -90,13 +92,51 @@ const AdminFeedbackPage = () => {
   useEffect(() => { void load(); }, [load]);
   useEffect(() => { void loadCounts(); }, [loadCounts]);
 
+  // 실시간 — 처음 한 번만 읽으면 화면을 열어 둔 채(폰 앱·탭 유지) 들어온 피드백이 영영 안 보인다
+  //   (2026-10-19 Irene: "지금 피드백 들어왔는데 모바일리스트에 안나와").
+  //   관리자 알림 도착(business_id null) · 같은 탭에서 처리 · 탭/앱 복귀에 다시 읽는다 — AdminInboxPage 와 같은 신호.
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const soon = () => {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => { void load(true); void loadCounts(); }, 250);
+    };
+    const onVisible = () => { if (document.visibilityState === 'visible') soon(); };
+    window.addEventListener('admin-todo:refresh', soon);
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('focus', soon);
+    const off = onSocket<{ business_id?: number | null }>('notification:new', (p) => { if (p?.business_id == null) soon(); });
+    return () => {
+      if (timer) clearTimeout(timer);
+      window.removeEventListener('admin-todo:refresh', soon);
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('focus', soon);
+      off();
+    };
+  }, [load, loadCounts]);
+
   // 확인 필요에서 넘어온 주소 — ?status=pending|reviewing&id=:id (그 탭을 열고 그 건을 연다)
   const [params] = useSearchParams();
   useEffect(() => {
     const st = params.get('status') as Status | null;
     if (st && STATUSES.includes(st)) setActiveStatus(st);
     const id = params.get('id');
-    if (id && /^\d+$/.test(id)) setDetailId(Number(id));
+    if (!id || !/^\d+$/.test(id)) return;
+    setDetailId(Number(id));
+    // 알림 링크(?id= 만)는 그 건의 상태를 모른다 — 다른 탭을 보고 있으면 상세가 안 열렸다.
+    //   그 건을 직접 읽어 그 상태의 탭으로 옮긴다(분류·종류·검색 필터도 풀어 목록에 반드시 보이게).
+    if (!st) {
+      void (async () => {
+        try {
+          const r = await apiFetch(`/api/feedback/admin?id=${id}`);
+          const j = await r.json();
+          const one: FeedbackItem | undefined = j?.success ? j.data?.[0] : undefined;
+          if (!one) return;
+          setActiveCategory('all'); setActiveKind('all'); setSearch('');
+          setActiveStatus(one.status);
+        } catch { /* 열지 못하면 목록만 보인다 */ }
+      })();
+    }
   }, [params]);
 
   // detail 선택 시 폼 prefill
@@ -294,6 +334,8 @@ export default AdminFeedbackPage;
 // ─── styled ───
 const SearchInput = styled.input`
   width: 200px; height: 32px; padding: 0 10px;
+  /* 폰 — 액션 줄(PageShell PhoneActionRow)에 셀렉트 둘과 같이 들어가게 남는 폭만 쓴다. 고정 200 이면 «분류» 셀렉트가 화면 밖으로 밀렸다. */
+  @media (max-width: 640px) { width: auto; flex: 1 1 0; min-width: 80px; }
   border: 1px solid #E2E8F0; border-radius: 6px;
   font-size: 0.8125rem; color: #0F172A;
   &:focus { outline: none; border-color: #14B8A6; box-shadow: 0 0 0 3px rgba(20,184,166,0.15); }
@@ -311,6 +353,13 @@ const Row = styled.div<{ $active: boolean }>`
   transition: background 0.12s;
   &:first-child { border-top: 1px solid #E2E8F0; }
   &:hover { background: ${p => p.$active ? '#F0FDFA' : '#F8FAFC'}; }
+  /* 폰 — 칩·제목 한 줄, 작성자·날짜는 아래 줄. 4칸 한 줄이면 제목 최소 200px 때문에 작성자가 잘리고 칩 글자가 세로로 섰다. */
+  @media (max-width: 640px) {
+    display: flex; flex-wrap: wrap;
+    gap: 4px 8px; padding: 10px 12px;
+    & > :nth-last-child(2) { flex: 1 1 0; min-width: 0; }
+    & > :last-child { flex-basis: 100%; }
+  }
 `;
 const RowTitle = styled.div`
   ${listRowTitleCss}
@@ -323,13 +372,13 @@ const RowMeta = styled.div`
 `;
 // 종류 배지 — 사용자 화면(MyFeedbackPage KindTag)과 같은 색: 문의 파랑 · 피드백 회색 테두리
 const KindChip = styled.span<{ $inq: boolean }>`
-  flex-shrink: 0; font-size: 0.6875rem; font-weight: 700; border-radius: 6px; padding: 2px 7px;
+  flex-shrink: 0; white-space: nowrap; font-size: 0.6875rem; font-weight: 700; border-radius: 6px; padding: 2px 7px;
   color: ${p => (p.$inq ? '#1D4ED8' : '#475569')};
   background: ${p => (p.$inq ? '#EFF6FF' : '#FFFFFF')};
   border: 1px solid ${p => (p.$inq ? '#BFDBFE' : '#E2E8F0')};
 `;
 const CatChip = styled.span<{ $cat: Category }>`
-  flex-shrink: 0;
+  flex-shrink: 0; white-space: nowrap;
   padding: 3px 10px; border-radius: 999px;
   font-size: 0.6875rem; font-weight: 700;
   ${p => p.$cat === 'bug' ? 'background:#FEE2E2;color:#B91C1C;' :
@@ -338,7 +387,7 @@ const CatChip = styled.span<{ $cat: Category }>`
         'background:#F1F5F9;color:#475569;'}
 `;
 const UrgentChip = styled.span`
-  flex-shrink: 0;
+  flex-shrink: 0; white-space: nowrap;
   padding: 3px 10px; border-radius: 999px;
   background: #F43F5E; color: #FFFFFF;
   font-size: 0.6875rem; font-weight: 700;
