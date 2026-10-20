@@ -19,6 +19,12 @@ export const Popover = styled.div.attrs<{ 'data-popover'?: string }>({ 'data-pop
   z-index: 2000;
   display: flex; flex-direction: column; overflow: hidden;
 `;
+// 좌측 메뉴(사이드바)에서 여는 드롭다운(알림·새 소식). 폰·태블릿에선 열린 메뉴가 10060 층이라
+// 그대로면 메뉴 **뒤로** 열린다(2026-10-19 Irene «좌측메뉴 뒤로 숨어버려»). 메뉴를 닫지 않고 그 위로 올린다 —
+// 드롭다운은 메뉴 이동이 아니다(Irene «메뉴 이동이 아닌데 … 가장 앞에 나오면 되는건데»). 배경은 메뉴 덮개가 계속 어둡게 둔다.
+export const MenuPopover = styled(Popover)`
+  @media (max-width: 1024px) { z-index: 10070; }
+`;
 export const Header = styled.div`
   display: flex; align-items: center; justify-content: space-between;
   padding: 12px 16px; border-bottom: 1px solid #F1F5F9; flex-shrink: 0;

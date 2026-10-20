@@ -175,7 +175,7 @@ const WorkspaceSwitcher: React.FC<Props> = ({ collapsed }) => {
         onClick={() => {
           if (collapsed) return;
           // 0개면 고를 것이 없다 — 드롭다운을 여는 대신 곧장 만들기로.
-          if (noWorkspace) { window.dispatchEvent(new Event('pq:close-mobile-menu')); setCreateErr(''); setCreateName(''); setCreateOpen(true); return; }
+          if (noWorkspace) { setCreateErr(''); setCreateName(''); setCreateOpen(true); return; }
           setOpen((v) => !v);
         }}
         title={t('switcher.tooltip', '워크스페이스 전환') as string}
@@ -245,7 +245,7 @@ const WorkspaceSwitcher: React.FC<Props> = ({ collapsed }) => {
           )}
 
           <MenuDivider />
-          <MenuItem type="button" $current={false} onClick={() => { setOpen(false); window.dispatchEvent(new Event('pq:close-mobile-menu')); setCreateErr(''); setCreateName(''); setCreateOpen(true); }}>
+          <MenuItem type="button" $current={false} onClick={() => { setOpen(false); setCreateErr(''); setCreateName(''); setCreateOpen(true); }}>
             <PlusBadge>
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
             </PlusBadge>
@@ -554,6 +554,8 @@ const PlusBadge = styled.span`
 `;
 const CreateOverlay = styled.div`
   position: fixed; inset: var(--pq-popup-top, 0px) 0 0; z-index: 2000;
+  /* 폰·태블릿은 좌측 메뉴(10060) 안에서 연다 — 메뉴 위에 (2026-10-19) */
+  @media (max-width: 1024px) { z-index: 10070; }
   /* 키보드가 올라오면 레이아웃 뷰포트는 그대로인데 보이는 영역만 줄어든다 —
      --vvh(visual viewport, main.tsx 가 동기화)에 높이를 묶어야 모달이 키보드에 가리지 않는다. */
   height: calc(var(--vvh, 100vh) - var(--pq-popup-top, 0px));

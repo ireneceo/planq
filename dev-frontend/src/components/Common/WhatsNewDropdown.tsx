@@ -11,7 +11,7 @@
 import React, { useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
-  Popover, Header, HeaderTitle, HeaderAction, List, Loading, Empty, EmptyIcon, EmptyTitle, EmptyHint,
+  MenuPopover, Header, HeaderTitle, HeaderAction, List, Loading, Empty, EmptyIcon, EmptyTitle, EmptyHint,
   ItemLink, ItemIcon, ItemBody, ItemTitle, ItemDesc, ItemMeta, UnreadDot, Footer, FooterLink,
 } from './dropdownShell';
 import type { WhatsNewItem } from '../../hooks/useWhatsNew';
@@ -59,7 +59,7 @@ const WhatsNewDropdown: React.FC<Props> = ({ open, onClose, anchorRef, items, lo
   const hasUnread = items.some((it) => it.is_new);
 
   return (
-    <Popover ref={popoverRef} role="menu" aria-label={t('whatsNew.title', '새 소식') as string}>
+    <MenuPopover ref={popoverRef} role="menu" aria-label={t('whatsNew.title', '새 소식') as string}>
       <Header>
         <HeaderTitle>{t('whatsNew.title', '새 소식')}</HeaderTitle>
         {hasUnread && (
@@ -113,7 +113,7 @@ const WhatsNewDropdown: React.FC<Props> = ({ open, onClose, anchorRef, items, lo
           {t('whatsNew.viewAll', '새 소식 모두 보기')} →
         </FooterLink>
       </Footer>
-    </Popover>
+    </MenuPopover>
   );
 };
 

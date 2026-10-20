@@ -3,7 +3,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useTranslation, Trans } from 'react-i18next';
 import {
-  Popover, Header, HeaderTitle, HeaderAction, List, Loading, Empty, EmptyIcon, EmptyTitle, EmptyHint,
+  MenuPopover, Header, HeaderTitle, HeaderAction, List, Loading, Empty, EmptyIcon, EmptyTitle, EmptyHint,
   ItemButton, ItemIcon, ItemBody, ItemTitle, ItemDesc, ItemMeta, UnreadDot, Footer, FooterLink,
   OthersSection, OtherRow, OtherLabel, OtherSwitch, OtherMore,
 } from './dropdownShell';
@@ -88,7 +88,7 @@ const NotificationDropdown: React.FC<Props> = ({ open, onClose, anchorRef, scope
   };
 
   return (
-    <Popover ref={popoverRef} role="menu" aria-label={t('notifications.title', '알림') as string}>
+    <MenuPopover ref={popoverRef} role="menu" aria-label={t('notifications.title', '알림') as string}>
       <Header>
         <HeaderTitle>{headerTitle}</HeaderTitle>
         {unreadCount > 0 && (
@@ -147,7 +147,7 @@ const NotificationDropdown: React.FC<Props> = ({ open, onClose, anchorRef, scope
           {t('notifications.viewAll', '전체 알림 보기')} →
         </FooterLink>
       </Footer>
-    </Popover>
+    </MenuPopover>
   );
 };
 

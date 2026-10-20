@@ -396,6 +396,8 @@ const Backdrop = styled.div`
   position: fixed; inset: var(--pq-popup-top, 0px) 0 0; background: rgba(15,23,42,0.5);
   display: flex; align-items: flex-start; justify-content: center;
   padding-top: 80px; z-index: 1100;
+  /* 폰·태블릿은 좌측 메뉴(10060)에서 열린다 — 메뉴를 닫지 않고 그 위에 (2026-10-19) */
+  @media (max-width: 1024px) { z-index: 10070; }
   @media (max-width: 640px) { padding-top: 0; align-items: stretch; }
 `;
 const Dialog = styled.div`
