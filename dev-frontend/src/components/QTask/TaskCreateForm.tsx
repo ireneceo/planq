@@ -38,6 +38,7 @@ import VisibilityChangeModal from '../Common/VisibilityChangeModal';
 import { useSecurityLevelLabel } from '../Common/SecurityLevelBadge';
 import { SegmentedToggle, SegmentedBtn } from '../Common/segmentedToggle';
 import { useDraftKey, useDraftText } from '../../hooks/useDraftText';
+import { todayInTz } from '../../utils/timezones';
 import type { DraftKind } from '../../hooks/draftKinds';
 
 export interface TaskFormMember { user_id: number; name: string }
@@ -158,6 +159,26 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({
   const [recurrence, setRecurrence] = useState<string | null>(null);
   // 긴급 요청 — 남에게 요청할 때만 고른다. 담당자에게 «[긴급]» 강조 알림 + 팝아웃 맨 위 띠(services/urgentTaskNotify)
   const [urgent, setUrgent] = useState(false);
+  // 긴급을 켜면 마감을 오늘(워크스페이스 시간대)로 먼저 채운다 — 이미 고른 기간이 있어도 오늘이 우선(2026-10-21 Irene).
+  //   시작일이 오늘보다 뒤면 기간이 뒤집히므로 비운다. 끄면 우리가 채운 값 그대로일 때만 켜기 전 값으로 되돌린다.
+  const urgentPrevDatesRef = useRef<{ start: string; due: string; today: string } | null>(null);
+  const toggleUrgent = () => {
+    if (!urgent) {
+      const today = todayInTz(user?.workspace_timezone || 'Asia/Seoul');
+      urgentPrevDatesRef.current = { start: startDate, due: dueDate, today };
+      setDueDate(today);
+      if (startDate && startDate > today) setStartDate('');
+      setUrgent(true);
+      return;
+    }
+    const prev = urgentPrevDatesRef.current;
+    if (prev && dueDate === prev.today && (startDate === prev.start || (startDate === '' && prev.start > prev.today))) {
+      setDueDate(prev.due);
+      setStartDate(prev.start);
+    }
+    urgentPrevDatesRef.current = null;
+    setUrgent(false);
+  };
 
   const [aiEstimating, setAiEstimating] = useState(false);
   const [aiEstReason, setAiEstReason] = useState('');
@@ -490,8 +511,8 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({
           <AddOptField data-field="urgent" style={{ flex: '0 1 150px' }}>
             <AddOptLabel>{t('add.urgentLabel', '긴급')}</AddOptLabel>
             <UrgentToggle type="button" data-testid="task-add-urgent" aria-pressed={urgent} $on={urgent}
-              title={t('add.urgentHint', '담당자에게 강조 알림이 가고, 확인할 때까지 업무리스트 맨 위에 남습니다') as string}
-              onClick={() => setUrgent((v) => !v)}>
+              title={t('add.urgentHint', '담당자에게 강조 알림이 가고, 확인할 때까지 업무리스트 맨 위에 남습니다. 마감은 오늘로 먼저 정해집니다') as string}
+              onClick={toggleUrgent}>
               <UrgentDot $on={urgent} aria-hidden>!</UrgentDot>
               {urgent ? t('add.urgentOn', '긴급 요청') : t('add.urgentOff', '긴급으로 요청')}
             </UrgentToggle>

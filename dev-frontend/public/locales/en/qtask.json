@@ -242,7 +242,7 @@
     "urgentLabel": "Urgent",
     "urgentOff": "Mark as urgent",
     "urgentOn": "Urgent request",
-    "urgentHint": "The assignee gets a highlighted alert, and it stays at the top of their task list until they acknowledge it"
+    "urgentHint": "The assignee gets a highlighted alert, and it stays at the top of their task list until they acknowledge it. The due date is set to today first"
   },
   "recur": {
     "toggle": "Repeat",
