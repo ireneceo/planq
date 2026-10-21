@@ -5,7 +5,7 @@
 //   신원·범위는 principal(토큰)에서만 — 입력에 workspace/user id 칸이 없다.
 const { Op } = require('sequelize');
 const { z } = require('zod');
-const { err, fromActionFailure } = require('../errors');
+const { err, fromActionFailure, forbiddenFieldsError } = require('../errors');
 const { taskItem, noteItem } = require('../serialize');
 
 const dateOnly = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'YYYY-MM-DD');
@@ -508,7 +508,7 @@ async function previewUpdateTask(p, a) {
     .filter(([, v]) => v !== undefined).map(([k]) => k);
   const ctx = await taskActions.fieldContext(t, p.userId, p.platformRole);
   const denied = taskActions.deniedFields(keys, ctx);
-  if (denied.length) throw err('PERMISSION_DENIED', `forbidden_fields:${denied.join(',')}`);
+  if (denied.length) throw forbiddenFieldsError(`forbidden_fields:${denied.join(',')}`);
   if (a.tag_names !== undefined) {
     if (!(ctx.isCreator || ctx.isAssignee || ctx.isOwnerOrAdmin)) throw err('PERMISSION_DENIED', 'forbidden_field_tags');
     await resolveTagNames(p, a.tag_names);

@@ -599,11 +599,11 @@ const TOOLS = [
   },
   {
     name: 'update_task', risk: 'LOW', write: true, scopes: ['tasks:write'],
-    description: 'Edit a task\'s title, description, priority, category, estimated hours or tags. Only the fields you pass change. Never deletes. The description (the request) can only be edited by the person who created the task; estimated hours only by the assignee. Tags must already exist in the workspace (the list replaces the task\'s tags). For dates use reschedule_task.',
+    description: 'Edit a task\'s title, description, priority, category, estimated hours or tags. Only the fields you pass change. Never deletes. The description (the request) can only be edited by the person who created the task; estimated hours only by the assignee. The description is replaced as a whole (max 5000 characters) — to add information to someone else\'s task, or to keep the existing description, use add_task_note instead. Tags must already exist in the workspace (the list replaces the task\'s tags). For dates use reschedule_task.',
     input: {
       task_id: z.number().int().positive(),
       title: z.string().trim().min(1).max(300).optional(),
-      description: z.string().max(5000).optional(),
+      description: z.string().max(5000).optional().describe('Replaces the whole description. Max 5000 characters.'),
       priority: z.enum(['low', 'normal', 'high', 'urgent']).optional(),
       category: z.string().trim().max(100).optional(),
       estimated_hours: z.number().min(0).max(1000).optional(),
