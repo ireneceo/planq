@@ -171,7 +171,9 @@
       "inquiry": "문의",
       "feedback": "피드백"
     },
-    "attachments": "첨부 이미지"
+    "attachments": "첨부 이미지",
+    "loadError": "목록을 불러오지 못했습니다",
+    "retry": "다시 불러오기"
   },
   "qhelper": {
     "action": {

@@ -43,6 +43,8 @@ interface FeedbackItem {
   created_at: string;
   // N+63 — 사용자 호소 #3c 피드백 이미지 첨부 (base64 dataUrl 배열)
   attachments?: Array<{ name: string; type: string; dataUrl: string }> | null;
+  /** 목록 응답은 첨부 원본 대신 개수만 싣는다 — 원본은 한 건을 열 때(?id=) 읽는다 (routes/feedback.js LIST_ATTRS) */
+  attachment_count?: number;
   user?: { id: number; name: string; email: string };
   responder?: { id: number; name: string };
 }
@@ -55,6 +57,8 @@ const AdminFeedbackPage = () => {
   const [items, setItems] = useState<FeedbackItem[]>([]);
   const [counts, setCounts] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
+  // 목록을 못 읽었을 때 — «피드백이 없습니다» 로 보이면 안 된다(2026-10-21: 서버 500 을 그렇게 숨겼다)
+  const [loadError, setLoadError] = useState(false);
   const [activeStatus, setActiveStatus] = useState<Status>('pending');
   const [activeCategory, setActiveCategory] = useState<Category | 'all'>('all');
   // 문의/피드백 — 사용자 화면(개인 > 문의·피드백)과 같은 축으로 가른다
@@ -75,9 +79,10 @@ const AdminFeedbackPage = () => {
       if (activeKind !== 'all') sp.set('kind', activeKind);
       if (search.trim()) sp.set('q', search.trim());
       const r = await apiFetch(`/api/feedback/admin?${sp.toString()}`);
-      const j = await r.json();
-      if (j.success) setItems(j.data || []);
-    } catch { /* silent 재조회 실패는 보던 목록을 그대로 둔다 */ }
+      const j = await r.json().catch(() => null);
+      if (j?.success) { setItems(j.data || []); setLoadError(false); }
+      else if (!silent) setLoadError(true);
+    } catch { if (!silent) setLoadError(true); /* silent 재조회 실패는 보던 목록을 그대로 둔다 */ }
     finally { if (!silent) setLoading(false); }
   }, [activeStatus, activeCategory, activeKind, search]);
 
@@ -139,13 +144,27 @@ const AdminFeedbackPage = () => {
     }
   }, [params]);
 
-  // detail 선택 시 폼 prefill
+  // detail 선택 시 폼 prefill — 목록 행으로 먼저 열고, 첨부 원본은 그 한 건을 따로 읽어 채운다
   useEffect(() => {
     const it = items.find(x => x.id === detailId);
     setDetail(it || null);
     setResponse(it?.admin_response || '');
     setResponseStatus((it?.status === 'pending' ? 'reviewing' : it?.status) || 'reviewing');
   }, [detailId, items]);
+  const needAttachments = !!detail && (detail.attachment_count || 0) > 0 && !detail.attachments;
+  useEffect(() => {
+    if (!needAttachments || detailId == null) return;
+    let alive = true;
+    void (async () => {
+      try {
+        const r = await apiFetch(`/api/feedback/admin?id=${detailId}`);
+        const j = await r.json();
+        const one: FeedbackItem | undefined = j?.success ? j.data?.[0] : undefined;
+        if (alive && one) setDetail(prev => (prev && prev.id === one.id ? { ...prev, attachments: one.attachments } : prev));
+      } catch { /* 첨부를 못 읽으면 첨부 칸만 비어 있다 */ }
+    })();
+    return () => { alive = false; };
+  }, [needAttachments, detailId]);
 
   const submit = async () => {
     if (!detail || submitting) return;
@@ -208,6 +227,15 @@ const AdminFeedbackPage = () => {
       </Tabs>
 
       {loading ? <Loading>{t('loading', '로딩 중…')}</Loading> :
+       loadError ? (
+        <div data-testid="admin-feedback-load-error">
+        <EmptyState
+          title={t('adminFeedback.loadError', '목록을 불러오지 못했습니다') as string}
+          ctaLabel={t('adminFeedback.retry', '다시 불러오기') as string}
+          onCta={() => { void load(); void loadCounts(); }}
+        />
+        </div>
+       ) :
        filtered.length === 0 ? (
         <EmptyState
           icon={<svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>}
@@ -224,7 +252,7 @@ const AdminFeedbackPage = () => {
               { field: 'content', text: it.body },
             ], search);
             return (
-            <Row key={it.id} $active={detailId === it.id} onClick={() => setDetailId(prev => prev === it.id ? null : it.id)}>
+            <Row key={it.id} data-testid="admin-feedback-row" $active={detailId === it.id} onClick={() => setDetailId(prev => prev === it.id ? null : it.id)}>
               <KindChip $inq={it.kind === 'inquiry'}>{t(`adminFeedback.kind.${it.kind === 'inquiry' ? 'inquiry' : 'feedback'}`)}</KindChip>
               {it.kind !== 'inquiry' && <CatChip $cat={it.category}>{t(`qhelper.fbCat.${it.category}`)}</CatChip>}
               {it.priority === 'high' && <UrgentChip>{t('adminFeedback.urgent', '긴급')}</UrgentChip>}

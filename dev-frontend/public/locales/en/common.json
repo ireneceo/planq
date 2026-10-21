@@ -171,7 +171,9 @@
       "inquiry": "Question",
       "feedback": "Feedback"
     },
-    "attachments": "Attached images"
+    "attachments": "Attached images",
+    "loadError": "Couldn't load the list",
+    "retry": "Try again"
   },
   "qhelper": {
     "action": {

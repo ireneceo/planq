@@ -8,6 +8,7 @@ const express = require('express');
 const router = express.Router();
 const { Op } = require('sequelize');
 const { FeedbackItem, User } = require('../models');
+const { sequelize } = require('../config/database');
 const { authenticateToken, requireRole } = require('../middleware/auth');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
 
@@ -17,6 +18,26 @@ const ALLOWED_PRIORITY = ['normal', 'high'];
 
 // 안 읽은 답 = 답 글이 있고 보고자가 아직 안 읽었다. SQL 쪽은 routes/dashboard.collectFeedbackReplies.
 const hasUnreadReply = (o) => !!(o.admin_response && String(o.admin_response).trim()) && !o.reply_seen_at;
+
+// ★ 목록에는 첨부 원본을 싣지 않는다 (2026-10-21).
+//   첨부는 이미지 base64 를 행 안 JSON 에 그대로 둔다(한 건 최대 수 MB). 목록이 그 칸까지 읽어 정렬하면
+//   MySQL 이 «Out of sort memory» 로 500 을 내고, 화면은 그 실패를 «피드백이 없습니다» 로 보였다
+//   (Irene: «플랫폼관리자의 사용자 피드백에서 리스트가 안나와» — dev 에서 첨부 큰 건 25개로 재현).
+//   목록은 개수만, 원본은 한 건을 열 때(?id=) 읽는다.
+//   ★ 개수도 정렬 쿼리 안에서 세지 않는다 — select 에 JSON_LENGTH(attachments) 를 두면 MySQL 이 그 칸을
+//     정렬 버퍼에 같이 실어 똑같이 터진다(실측). 정렬이 끝난 id 들로 따로 센다.
+const LIST_ATTRS = { exclude: ['attachments'] };
+async function withAttachmentCounts(rows) {
+  const out = rows.map((r) => (typeof r.toJSON === 'function' ? r.toJSON() : r));
+  if (!out.length) return out;
+  const counted = await sequelize.query(
+    'SELECT id, COALESCE(JSON_LENGTH(attachments), 0) AS n FROM feedback_items WHERE id IN (:ids)',
+    { replacements: { ids: out.map((o) => o.id) }, type: sequelize.QueryTypes.SELECT },
+  );
+  const byId = new Map(counted.map((c) => [Number(c.id), Number(c.n) || 0]));
+  out.forEach((o) => { o.attachment_count = byId.get(Number(o.id)) || 0; });
+  return out;
+}
 
 // POST — 사용자 제출 (자동 메타 page_url, user_agent 수집)
 //   parent_id 동봉 시 = 답변 받은 원 피드백에 대한 추가 문의(스레드 자식, #70)
@@ -149,6 +170,7 @@ router.get('/mine', authenticateToken, async (req, res, next) => {
   try {
     const rows = await FeedbackItem.findAll({
       where: { user_id: req.user.id },
+      attributes: LIST_ATTRS, // 이 목록을 그리는 화면(개인 > 문의·피드백·도움말 내역)은 첨부를 안 쓴다
       order: [['created_at', 'ASC']],
       limit: 400,
     });
@@ -232,6 +254,7 @@ router.get('/admin', authenticateToken, requireRole('platform_admin'), async (re
     }
     const items = await FeedbackItem.findAll({
       where,
+      attributes: LIST_ATTRS,
       include: [
         { model: User, as: 'user', attributes: ['id', 'name', 'email'] },
         { model: User, as: 'responder', attributes: ['id', 'name'] },
@@ -239,7 +262,7 @@ router.get('/admin', authenticateToken, requireRole('platform_admin'), async (re
       order: [['created_at', 'DESC']],
       limit: 200,
     });
-    return successResponse(res, items);
+    return successResponse(res, await withAttachmentCounts(items));
   } catch (err) { next(err); }
 });
 
