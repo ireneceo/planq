@@ -598,7 +598,13 @@ const MailPage: React.FC = () => {
   // #213 — 접힌 상태에서도 "지금 뭐가 걸려 있는지" 는 알려야 한다. 검색어는 접힘 밖(검색줄)이라 세지 않는다.
   const activeFilterCount = (accountFilter ? 1 : 0) + (labelFilter ? 1 : 0) + (projectFilter ? 1 : 0);
   const [qDebounced, setQDebounced] = useState('');
-  useEffect(() => { const id = window.setTimeout(() => setQDebounced(searchQ.trim()), 300); return () => window.clearTimeout(id); }, [searchQ]);
+  // 지울 때는 기다리지 않는다 — 비운 뒤 300ms 안에 탭을 옮기면 옛 검색어로 한 번 더 읽어 혼란스러웠다.
+  useEffect(() => {
+    const q = searchQ.trim();
+    if (!q) { setQDebounced(''); return undefined; }
+    const id = window.setTimeout(() => setQDebounced(q), 300);
+    return () => window.clearTimeout(id);
+  }, [searchQ]);
   // M4 — FAQ 자동 클러스터링 제안
   const [faqSuggestions, setFaqSuggestions] = useState<Array<{ id: number; question: string; answer: string; occurrence_count: number }>>([]);
   const [faqExpandId, setFaqExpandId] = useState<number | null>(null);
@@ -794,6 +800,14 @@ const MailPage: React.FC = () => {
     if (sentVia) s2 += `&sent_via=${sentVia}`;
     return s2;
   }, [labelFilter, projectFilter, inquiryOnly, sentVia]);
+  // ★ 2026-10-21 (Irene: *"메일 검색 후 답변한 다음 탭을 이동해도 리스트가 맞게 안나왔어. 검색을 지웠는데도"*)
+  //   답장 발송·일괄 처리처럼 await 뒤에 목록을 다시 읽는 곳은 **누른 순간의** loadList(그때 검색어·탭)를 쥐고 있다.
+  //   그 사이 검색을 지우고 탭을 옮기면, 늦게 도착한 옛 loadList 가 가장 새 순번을 받아 지금 화면 목록을 덮어썼다.
+  //   → 목록 조건을 한 키로 두고, 옛 조건의 호출은 지금 조건의 loadList 로 돌린다(loadMore 는 버린다).
+  const listKey = `${businessId ?? 0}|${folder}|${addressMode ?? ''}|${accountFilter ?? 0}|${qDebounced}|${filterQuery()}`;
+  const listKeyRef = useRef(listKey);
+  listKeyRef.current = listKey;
+  const loadListRef = useRef<(opts?: { silent?: boolean }) => Promise<void>>(async () => {});
   // 목록 갱신 — **읽고 있던 자리를 지킨다**.
   //   여태 무조건 1페이지(30건)만 다시 받아 threads 를 통째로 교체했다. 그래서 무한스크롤로 90건을
   //   내려본 상태에서 "확인 완료" 를 누르면(→ socket mail:updated → silentReload) 목록이 30건으로
@@ -878,6 +892,7 @@ const MailPage: React.FC = () => {
   }, [threads]);
   const loadList = useCallback(async (opts: { silent?: boolean } = {}) => {
     if (!businessId) return;
+    if (listKey !== listKeyRef.current) return loadListRef.current(opts);   // 옛 조건으로 불렸다 — 지금 조건으로
     // 실시간 갱신(silent)은 이미 읽은 페이지 수만큼 다시 받아 **서버 상태를 그대로 반영**한다.
     //   (Irene: "리프레시 아무것도 안 되고 움직임 없이 바로바로 적용되는 형태여야 해")
     //   순서·소멸은 서버가 정하고(#200·#205), 화면이 튀지 않게 하는 건 스크롤 앵커의 몫이다.
@@ -932,7 +947,8 @@ const MailPage: React.FC = () => {
     } finally {
       if (!silent) setListLoading(false);
     }
-  }, [businessId, folder, addressMode, accountFilter, qDebounced, filterQuery, captureAnchor, t]);
+  }, [businessId, folder, addressMode, accountFilter, qDebounced, filterQuery, captureAnchor, t, listKey]);
+  loadListRef.current = loadList;
 
   // 무한스크롤 — 다음 페이지 append
   //
@@ -945,6 +961,7 @@ const MailPage: React.FC = () => {
   //   목록을 여는 두 경로가 갈라져 있으면 반드시 이런 식으로 어긋난다 — 같은 분기를 쓴다.
   const loadMore = useCallback(async () => {
     if (!businessId || loadingMore || !hasMore) return;
+    if (listKey !== listKeyRef.current) return;   // 옛 조건의 다음 쪽 — 지금 목록에 붙이지 않는다
     setLoadingMore(true);
     try {
       const next = pageRef.current + 1;
@@ -955,6 +972,7 @@ const MailPage: React.FC = () => {
         : `/api/businesses/${businessId}/email-threads?folder=${folder}&limit=${PAGE_SIZE}&page=${next}${acctQ}${qP}${filterQuery()}`;
       const r = await apiFetch(url);
       const j = await r.json();
+      if (listKey !== listKeyRef.current) return;   // 받는 사이 검색·탭이 바뀌었다 — 버린다
       if (j.success) {
         const fresh: Thread[] = j.data || [];
         // ★ 2026-10-12 — «새로 붙은 수» 를 setThreads 업데이터 **안에서** 세면 안 된다. React 18 은 업데이터를
@@ -977,7 +995,7 @@ const MailPage: React.FC = () => {
         setHasMore(false);   // 실패를 무한 재시도로 바꾸지 않는다
       }
     } catch { setHasMore(false); } finally { setLoadingMore(false); }
-  }, [businessId, folder, addressMode, accountFilter, qDebounced, filterQuery, loadingMore, hasMore]);
+  }, [businessId, folder, addressMode, accountFilter, qDebounced, filterQuery, loadingMore, hasMore, listKey]);
 
   // 메일 계정 목록 (회사/개인 그룹 + unread)
   const loadAccounts = useCallback(async () => {

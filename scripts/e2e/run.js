@@ -31,6 +31,8 @@ const SUITES = {
   // 메일 **검색**이 조용히 누락하지 않는가 (2026-09-15 Irene: "보낸 사람 이름으로 검색해도 안 나와").
   //   흔한 단어가 섞이면 옛 LIMIT 1000(무정렬)이 27% 를 잘라내고 있었다 — 오류 없이.
   mailsearch: () => require('./canary-mail-search'),
+  // 검색 중 답장을 보내고 그사이 검색을 지우고 탭을 옮겨도 목록이 지금 조건인가 (2026-10-21 Irene 신고 — 발송 후 옛 조건 loadList 가 덮어썼다)
+  mailsearchreply: () => require('./canary-mail-search-reply'),
   mailrt: () => require('./canary-mail-realtime'), // #205 실시간 반영 — 한 탭에서 내린 행이 다른 탭에서도 사라지는가
   handles: () => require('./canary-panel-handles'), // 패널 토글 화살표 중복 카나리 (접힘 상태에서만 드러남)
   mobilechrome: () => require('./canary-mobilechrome'),  // 폰 상단 크롬 충돌 계열(제목 크기·빈 줄·오버레이·드로어·메뉴 재클릭)
