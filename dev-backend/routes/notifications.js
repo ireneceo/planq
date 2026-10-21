@@ -209,6 +209,9 @@ async function notify({ userId, businessId, eventKind, title, titleSpec, body, l
   const normalizedFromCaller = normalizeLink(link);
   const resolvedLink = normalizedFromCaller || buildLink({ entity_type: entityType, entity_id: entityId, event_kind: eventKind });
 
+  // 앱 안 알림 행 번호 — 푸시에도 싣는다. 데스크탑에서 PlanQ 창을 보고 있으면 앱 안 카드가 이미 같은 알림을
+  //   띄웠으므로 sw.js 가 이 번호로 창에 물어 OS 알림을 한 번 더 띄우지 않는다(2026-10-21 «긴급 알림이 두 번»).
+  let inboxRowId = null;
   if (await isAllowed(userId, businessId, eventKind, 'inbox')) {
     try {
       const { Notification } = require('../models');
@@ -238,6 +241,7 @@ async function notify({ userId, businessId, eventKind, title, titleSpec, body, l
         email_escalated_at: suppressEscalation ? new Date() : null,
       });
       results.inbox = !!row.id;
+      inboxRowId = row.id || null;
       // N+73 — multi-device sync. socket emit 에 full row 포함 (옛: { id, kind } 만).
       //   Toaster 가 받으면 notification_id 까지 알아 닫기 시 mark-read 호출 가능.
       //   Dropdown 은 refresh API 호출로 갱신 — 이 payload 도 옵티미스틱 prepend 에 사용 가능.
@@ -359,6 +363,7 @@ async function notify({ userId, businessId, eventKind, title, titleSpec, body, l
         ...(badge !== undefined ? { badge } : {}),
         // 긴급 — sw.js(닫을 때까지 남김)·APNs(time-sensitive)·FCM(최고 우선순위)이 이 값을 읽는다
         ...(urgent ? { urgent: true } : {}),
+        ...(inboxRowId ? { notification_id: inboxRowId } : {}),
       });
       results.push = r;
     } catch (e) {

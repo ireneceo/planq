@@ -192,6 +192,25 @@ export default function NotificationToaster() {
   // 페이지에서 사용자가 한 번이라도 클릭/키 입력/터치하면 자동으로 unlock.
   useEffect(() => { ensureUnlock(); }, []);
 
+  // 지금 떠 있는 카드 — sw.js 의 «이 알림 카드를 띄웠나» 물음에 답할 때 읽는다(state 는 리스너 클로저에서 낡는다).
+  const toastsRef = useRef<Toast[]>([]);
+  useEffect(() => { toastsRef.current = toasts; }, [toasts]);
+  // 2026-10-21 «긴급 알림이 데스크탑앱에서 두 번» — 이 창을 보고 있고 같은 알림 카드를 띄워 두었으면
+  //   sw.js 가 OS 알림을 생략한다(한 알림 = 한 번). 카드를 안 띄웠으면(끈 설정·같은 화면) false — OS 알림이 뜬다.
+  useEffect(() => {
+    const sw = typeof navigator !== 'undefined' ? navigator.serviceWorker : undefined;
+    if (!sw) return;
+    const onMsg = (e: MessageEvent) => {
+      if (!e.data || e.data.type !== 'planq:push-shown-in-app?' || !e.ports?.[0]) return;
+      const id = Number(e.data.notification_id);
+      const looking = document.visibilityState === 'visible' && document.hasFocus();
+      const shown = looking && !!id && toastsRef.current.some((x) => x.notificationId === id);
+      e.ports[0].postMessage({ shown });
+    };
+    sw.addEventListener('message', onMsg);
+    return () => sw.removeEventListener('message', onMsg);
+  }, []);
+
   // 활성 컨텍스트 추적 — toast 가 같은 page/conv 에 떠 있으면 표시 X.
   // 사이클 N+15-D — URL 패턴 2종 모두 인식: /talk?conv=123 (쿼리), /talk/123 (path).
   // 옛 쿼리만 본 코드는 path-param 진입 직후 (URL 정규화 직전) 토스트 skip 실패.
@@ -391,8 +410,9 @@ export default function NotificationToaster() {
           const idx = prev.findIndex(t => t.contextKey === contextKey && !t.notificationId);
           if (idx >= 0) {
             const updated = [...prev];
-            // 긴급 요청이면 서버 제목(«[긴급] …»)으로 갈아 끼운다 — raw 이벤트 문구에는 긴급이 없다
-            updated[idx] = { ...updated[idx], notificationId: row.id, link, ...(row.urgent ? { urgent: true, title: row.title } : {}) };
+            // 긴급 요청이면 서버 제목·본문(«[긴급] …»)으로 갈아 끼운다 — raw 이벤트 문구에는 긴급이 없고,
+            //   본문만 raw(따옴표 없는 제목)로 남기면 OS 알림·종 목록과 글자가 달라 «다른 알림» 으로 읽혔다(2026-10-21)
+            updated[idx] = { ...updated[idx], notificationId: row.id, link, ...(row.urgent ? { urgent: true, title: row.title, body: row.body || updated[idx].body } : {}) };
             didMatch = true;
             return updated;
           }

@@ -80,6 +80,26 @@ self.addEventListener('fetch', (event) => {
   }
 });
 
+// 지금 보고 있는(포커스+보임) PlanQ 창에 «이 알림 카드를 띄웠나» 를 묻는다 — sw push 핸들러 전용.
+function isChromiumDesktop() {
+  const ua = (self.navigator && self.navigator.userAgent) || '';
+  return /(Chrome|Chromium|Edg)\//.test(ua) && !/Mobile|Android|iPhone|iPad/.test(ua);
+}
+async function askFocusedClientShown(notificationId) {
+  if (!notificationId || !isChromiumDesktop()) return false;
+  const cs = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+  const focused = cs.filter((c) => c.focused && c.visibilityState === 'visible');
+  if (!focused.length) return false;
+  const asks = focused.map((c) => new Promise((resolve) => {
+    const ch = new MessageChannel();
+    const timer = setTimeout(() => resolve(false), 500);
+    ch.port1.onmessage = (e) => { clearTimeout(timer); resolve(!!(e.data && e.data.shown)); };
+    try { c.postMessage({ type: 'planq:push-shown-in-app?', notification_id: notificationId }, [ch.port2]); }
+    catch { clearTimeout(timer); resolve(false); }
+  }));
+  return (await Promise.all(asks)).some(Boolean);
+}
+
 self.addEventListener('push', (event) => {
   if (!event.data) return;
   // push 도착 시 새 SW 자가 점검 — 옛 SW 가 활성인데 새 빌드가 떠 있으면 install + activate.
@@ -114,7 +134,17 @@ self.addEventListener('push', (event) => {
   event.waitUntil((async () => {
     // [측정 2026-06-15] showNotification 결과 + 실제 알림 생성 여부를 ack 에 담아 iOS 표시 단계 확정.
     let diag = 'shown';
-    try {
+    // ★ 2026-10-21 «긴급 알림이 데스크탑앱에서 두 번» — 서버는 한 통인데, PlanQ 창을 보고 있으면
+    //   앱 안 카드(NotificationToaster, 소켓)와 OS 알림(여기)이 같은 알림을 둘 다 띄웠다.
+    //   보고 있는 창이 «그 알림 카드를 지금 띄워 두었다» 고 답할 때만 OS 알림을 생략한다.
+    //   · Chromium(크롬·엣지) 데스크탑만 — 창이 보이는 동안의 무표시 푸시를 벌하지 않는다.
+    //     Safari·iOS 는 푸시마다 알림을 띄우지 않으면 구독을 끊으므로 제외(그쪽은 종전대로 띄운다).
+    //   · 답이 없거나(옛 번들·로그아웃·카드를 끈 설정) 늦으면(500ms) 띄운다 — 못 보는 쪽으로 떨어지지 않는다.
+    let shownInApp = false;
+    try { shownInApp = await askFocusedClientShown(raw && raw.notification_id); } catch { shownInApp = false; }
+    if (shownInApp) {
+      diag = 'in_app';
+    } else try {
       // ★ 항상 showNotification 호출 (구버전·Chrome 검증된 동작). tag 로 collapse.
       //   iOS 18.4+ declarative: 시스템이 먼저 표시 → SW 가 같은 tag 로 교체(렌더되면 1개,
       //   SW 렌더 실패해도 시스템 표시분이 남음). dedup-by-title 은 옛 미닫은 알림을 잘못
