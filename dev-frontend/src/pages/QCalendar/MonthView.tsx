@@ -3,7 +3,7 @@ import { linkLine } from './linkLine';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import type { CalendarEvent, CalendarItem } from './types';
-import { getMonthGridDays, isSameMonth, isSameDay, toDateKey } from './dateUtils';
+import { getMonthGridDays, isSameMonth, isSameDay, toDateKey, defaultStartOn } from './dateUtils';
 import { getEventColors } from './categoryColors';
 import { bookingAttr, bookingCss, BookingTag } from './bookingLook';
 import { SourceDot } from './sourceLook';
@@ -60,7 +60,7 @@ const MonthView: React.FC<Props> = ({ anchor, today, now, events, onSelectEvent,
   const weekdayKeys = [...ALL_DAYS.slice(weekStart), ...ALL_DAYS.slice(0, weekStart)];
 
   const dayTitle = (d: Date) => formatDay(d, { locale: i18n.language === 'en' ? 'en-US' : 'ko-KR', month: 'long', weekday: true });
-  const createOn = (day: Date) => { if (!onCreateAt) return; const d = new Date(day); d.setHours(9, 0, 0, 0); onCreateAt(d); };
+  const createOn = (day: Date) => { if (!onCreateAt) return; onCreateAt(defaultStartOn(day, now)); };
   // 날짜 호버 카드 — 마우스로 일정 있는 날 위에 잠시 머물면 칸 옆에 그 날 목록(DayHoverCard).
   const hc = useDayHoverCard(false);
   const hoverEvents = hc.hover ? eventMap[hc.hover.key] || [] : [];

@@ -117,3 +117,22 @@ export const clipEventToDay = (startAt: string, endAt: string, day: Date) => {
   const e = Math.min(new Date(endAt).getTime(), dayEnd);
   return { start: new Date(s), end: new Date(e) };
 };
+
+// 새 일정의 기본 시작 시각 — 일정 추가 창은 시각을 30분 단위로 고른다.
+//   지금 이후 가장 가까운 30분 칸(14:10 → 14:30, 14:40 → 15:00). 지금을 그대로 넣으면 창이 분을
+//   내림(14:40 → 14:30)해 열자마자 **지난 시각**이 된다.
+export const nextSlot = (now: Date): Date => {
+  const x = new Date(now);
+  x.setSeconds(0, 0);
+  x.setMinutes(x.getMinutes() < 30 ? 30 : 60);
+  return x;
+};
+
+// 고른 날의 기본 시작 — 오늘이면 곧 올 30분 칸, 다른 날이면 09:00.
+//   (오늘을 눌렀는데 09:00 이 들어가 이미 지난 시각으로 열리던 것 — 2026-10-21 Irene)
+export const defaultStartOn = (day: Date, now: Date): Date => {
+  if (isSameDay(day, now)) return nextSlot(now);
+  const x = startOfDay(day);
+  x.setHours(9, 0, 0, 0);
+  return x;
+};

@@ -6,7 +6,7 @@ import { linkLine } from './linkLine';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import type { CalendarEvent, CalendarItem, PersonalCalendarEvent } from './types';
-import { toDateKey, isSameDay, isSameMonth, startOfMonth, startOfDay, addMonths } from './dateUtils';
+import { toDateKey, isSameDay, isSameMonth, startOfMonth, addMonths, defaultStartOn } from './dateUtils';
 import { getEventColors } from './categoryColors';
 import { bookingAttr, bookingCss, BookingTag } from './bookingLook';
 import { SourceDot, googleCalName } from './sourceLook';
@@ -145,7 +145,7 @@ const AgendaView: React.FC<Props> = ({ anchor, today, now, events, onSelectEvent
             <MonthLabel>{new Intl.DateTimeFormat(locale, { month: 'short' }).format(g.date)}</MonthLabel>
             <AddBtn
               type="button"
-              onClick={(e) => { e.stopPropagation(); const d = startOfDay(g.date); d.setHours(9, 0, 0, 0); onCreateAt(d); }}
+              onClick={(e) => { e.stopPropagation(); onCreateAt(defaultStartOn(g.date, now)); }}
               aria-label={t('agenda.addOnDay', '이 날짜에 일정 추가') as string}
               title={t('agenda.addOnDay', '이 날짜에 일정 추가') as string}
             >

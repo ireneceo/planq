@@ -17,7 +17,7 @@ import NewEventModal from './NewEventModal';
 import { parseVoiceWhen, takeVoiceHandoff, type VoiceHandoff } from '../../utils/voiceHandoff';
 import type { CalendarEvent, CalendarViewMode, CalendarItem, PersonalCalendarEvent } from './types';
 import {
-  addDays, addMonths, getWeekDays, startOfDay, startOfMonth, startOfWeek, toDateKey,
+  addDays, addMonths, getWeekDays, startOfDay, startOfMonth, startOfWeek, toDateKey, nextSlot, defaultStartOn,
 } from './dateUtils';
 import { useAuth } from '../../contexts/AuthContext';
 import {
@@ -82,7 +82,7 @@ const QCalendarPage: React.FC<{ scope?: { type: 'project'; businessId: number; p
   const [fromActionFailed, setFromActionFailed] = useState(false);
   useFromActionHandoff(!embedded, (h) => {
     const now = toWall(new Date(), wsTz);
-    let d = new Date(now); d.setHours(now.getHours() + 1, 0, 0, 0);
+    let d = nextSlot(now);
     const due = h.task.due_date ? String(h.task.due_date).slice(0, 10) : '';
     if (/^\d{4}-\d{2}-\d{2}$/.test(due)) { const [y, m, dd] = due.split('-').map(Number); d = new Date(y, m - 1, dd, 10, 0, 0, 0); }
     setNewModalInitial(d);
@@ -104,14 +104,14 @@ const QCalendarPage: React.FC<{ scope?: { type: 'project'; businessId: number; p
     if (voice) {
       const when = parseVoiceWhen(voice.when_start);
       // 음성 시각은 시간대 없는 «말한 그대로»라 이미 벽시계 · 없으면 지금을 벽시계로(calTz)
-      setNewModalInitial(when || toWall(new Date(), wsTz));
+      setNewModalInitial(when || nextSlot(toWall(new Date(), wsTz)));
       setVoiceSeed({
         title: voice.title || voice.text || '',
         description: voice.detail || '',
         allDay: voice.when_all_day === true,
       });
     } else {
-      setNewModalInitial(toWall(new Date(), wsTz));
+      setNewModalInitial(nextSlot(toWall(new Date(), wsTz)));
       setVoiceSeed(null);
     }
     setShowNewModal(true);
@@ -419,12 +419,9 @@ const QCalendarPage: React.FC<{ scope?: { type: 'project'; businessId: number; p
   }, []);
 
   const handleOpenNew = useCallback(() => {
-    const base = view === 'day' ? anchor : toWall(new Date(), wsTz);
-    const d = new Date(base);
     const now = toWall(new Date(), wsTz);
-    // 기본 시작: 지금(시간 부분) 또는 09:00
-    if (view === 'day') d.setHours(9, 0, 0, 0);
-    else d.setHours(now.getHours() + 1, 0, 0, 0);
+    // 기본 시작: 일 보기면 보고 있는 날(오늘이면 곧 올 30분 칸, 다른 날 09:00), 그 외는 곧 올 30분 칸
+    const d = view === 'day' ? defaultStartOn(anchor, now) : nextSlot(now);
     setVoiceSeed(null);
     setNewModalInitial(d);
     setShowNewModal(true);
