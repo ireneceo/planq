@@ -1129,6 +1129,7 @@ Capacitor 가 `errorPath`(번들 안 로컬 파일)로 갈아끼우기 때문이
   메일 답장 초안에 `file_ids`(보내지 않는다). 문서 쓰기는 **`services/actions/post_actions` 한 곳**(화면 `POST /api/posts`·첨부 라우트도 같은 함수),
   파일 저장은 `driveImport.ingestDownloadedFile`(Drive 가져오기와 같은 함수), 업무 첨부는 `services/taskAttachmentLink`.
   scope `docs:write`·`files:write` 는 **새로 생겼다 — 이미 연결된 앱은 다시 연결해야** 생긴다(옛 동의를 조용히 넓히지 않는다).
+  ★ 2026-10-21 — 낡은 연결은 **AI 가 대화 안에서 한 번 먼저 말한다**(`get_context.connection` · 판정 `grants.missingBundleScopes`·안내 `reconnectAdvice` 한 벌). 묶음에 scope 를 더하면 `config.SCOPE_ABILITIES` + i18n `profile.aiApps.ability.*` 에 한 줄(설계서 부록).
 - **쓰기 보강(2026-10-07, Fable B 판정 2·3)** — `create_project`(MEDIUM · scope **`projects:write` 신설 → 재연결 필요** · 이미 있는 고객·멤버만,
   미리보기에 이름 · 초대 메일 없음 · 계정 고객은 그 고객 채널에 들인다) · `add_task_reviewers`(MEDIUM, 컨펌자에게 알림) · `create_memo`(Q note 텍스트 메모, L1 고정,
   q-note `internal/create-memo`) · `create_knowledge_item`(Q info, 비밀 칸 거절, 기본 나만 보기) · `create_task` 에 `tag_names`(**있는 태그만** — AI 가 태그를 만들지 않는다)·

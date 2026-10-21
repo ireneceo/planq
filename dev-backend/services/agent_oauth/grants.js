@@ -169,6 +169,40 @@ function grantedScopes(_requested, access, optIn = {}) {
 }
 
 /**
+ * 이 연결이 고른 묶음에서 **나중에 생겨 빠진** scope — 다시 연결하면 붙는다(grantedScopes 가 묶음 전체를 준다).
+ *   읽기만 고른 연결에 쓰기를 권하지 않는다(자기 묶음 안에서만 센다). 프로필 «연결된 AI 앱»·get_context·권한 거절이 같은 함수.
+ */
+function missingBundleScopes(scopes) {
+  const sc = scopes || [];
+  const bundle = sc.some((x) => cfg.WRITE_SCOPES.includes(x)) ? cfg.BUNDLE_SCOPES : cfg.READ_SCOPES;
+  return bundle.filter((x) => !sc.includes(x));
+}
+
+// 그 앱에서 다시 연결하는 길 — AI 가 사용자에게 옮겨 말한다. 메뉴 이름은 그쪽이 자주 바꾸므로 «찾아 들어가는 곳» 수준으로만 적는다
+//   (화면 쪽 같은 안내: dev-frontend ConnectedAiAppsSection OPEN_URLS · 도움말 connect-chatgpt-claude).
+const RECONNECT_STEPS = {
+  openai: 'In ChatGPT, open Settings → Apps (Connectors), open PlanQ, disconnect it, then connect it again. On the PlanQ screen choose "read + add and edit" and Allow.',
+  anthropic: 'In Claude, open Settings → Connectors, open PlanQ, disconnect it, then connect it again. On the PlanQ screen choose "read + add and edit" and Allow.',
+};
+const RECONNECT_GENERIC = 'In this AI app\'s connector/app settings, disconnect PlanQ and connect it again. On the PlanQ screen choose "read + add and edit" and Allow.';
+
+/**
+ * 낡은 연결 안내 한 벌 — 빠진 것이 없으면 null.
+ *   { new_abilities:[문장], missing_scopes, how_to_reconnect, reconnect_page }
+ */
+function reconnectAdvice(p) {
+  const missing = missingBundleScopes(p && p.scopes);
+  if (!missing.length) return null;
+  return {
+    new_abilities: missing.map((s) => (cfg.SCOPE_ABILITIES[s] && cfg.SCOPE_ABILITIES[s].en) || s),
+    missing_scopes: missing,
+    how_to_reconnect: RECONNECT_STEPS[p && p.provider] || RECONNECT_GENERIC,
+    // PlanQ 쪽에서 연결을 보고 끊는 곳(프로필 > 연결된 AI 앱)
+    reconnect_page: `${cfg.APP_URL}/profile/integrations?focus=ai`,
+  };
+}
+
+/**
  * 이 워크스페이스에서 AI 앱이 메일을 읽어도 되는가 — 동의 화면(체크박스 활성)과 **매 호출**(메일 도구 첫 줄)이 같은 함수.
  *   저장 자리는 businesses.permissions.ai_agent.mail(새 컬럼 0). 값이 없으면 기본 true(설계 §12-①).
  */
@@ -309,5 +343,5 @@ module.exports = {
   sha256, randomToken, canConnect, connectableWorkspaces, grantedScopes, workspaceMailAllowed, mailAccountsFor,
   issueTokens, revokeGrant, supersedeSiblings, principalFromAccess, signAccess,
   extraIdsOf, workspaceIdsOf, grantsTouchingWorkspaceWhere, workspaceLabel, allowedWorkspaces, resolveWorkspace,
-  mailDeniedReason, auditGrantPerWorkspace,
+  mailDeniedReason, auditGrantPerWorkspace, missingBundleScopes, reconnectAdvice,
 };

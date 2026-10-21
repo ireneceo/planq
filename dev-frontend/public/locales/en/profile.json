@@ -391,9 +391,18 @@
     "openChatgpt": "Open in ChatGPT",
     "openClaude": "Open in Claude",
     "helpLink": "Full guide",
-    "outdated": "This connection is missing newer abilities (documents, files…). Reconnect PlanQ from that app to add them.",
     "workspacesLine": "Workspaces: {{def}} (default) · also {{others}}",
-    "disconnectMessageMulti": "{{app}} will no longer have access to any of {{list}} — this whole connection ends. To use it again, reconnect from that app."
+    "disconnectMessageMulti": "{{app}} will no longer have access to any of {{list}} — this whole connection ends. To use it again, reconnect from that app.",
+    "outdatedTitle": "Reconnect to get new abilities",
+    "outdatedAbilities": "New: {{list}}",
+    "reconnectChatgpt": "In ChatGPT Settings › Apps (Connectors) › PlanQ, disconnect and connect again, then choose \"Read + add and edit\" on the PlanQ screen and Allow. Everything you use now keeps working.",
+    "reconnectClaude": "In Claude Settings › Connectors › PlanQ, disconnect and connect again, then choose \"Read + add and edit\" on the PlanQ screen and Allow. Everything you use now keeps working.",
+    "reconnectGeneric": "In that app's connection settings, disconnect PlanQ and connect again, then choose \"Read + add and edit\" on the PlanQ screen and Allow. Everything you use now keeps working.",
+    "ability": {
+      "docs_write": "create and edit documents",
+      "files_write": "upload files from the chat to PlanQ",
+      "projects_write": "create projects"
+    }
   },
   "agentConsent": {
     "title": "{{app}} wants to connect to PlanQ",

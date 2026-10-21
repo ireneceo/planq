@@ -143,15 +143,16 @@ router.get('/grants', authenticateToken, async (req, res, next) => {
       access: (g.scopes || []).some((s) => cfg.WRITE_SCOPES.includes(s)) ? 'write' : 'read',
       // 「메일 포함」 칩 — 어느 연결이 메일을 보는지 사람이 알아야 끊을 수 있다(설계 §3.1)
       mail: (g.scopes || []).includes('mail:read'),
-      connected: !!g.activated_at, created_at: g.created_at, last_used_at: g.last_used_at,
+      // ★ underscored 모델 — 속성 이름은 createdAt(g.created_at 은 undefined 라 «연결:» 날짜가 빈칸이었다)
+      connected: !!g.activated_at, created_at: g.createdAt, last_used_at: g.last_used_at,
       // 이 연결이 닿는 워크스페이스 — 해제하면 전부가 끊긴다(화면이 확인창에 적는다)
       workspaces: grants.workspaceIdsOf(g).map((id) => ({ business_id: id, name: wsName.get(id) || null, is_default: id === Number(g.business_id) })),
       is_default_here: Number(g.business_id) === bizId,
       // 그 묶음에 나중에 생긴 기능이 빠진 연결 — 다시 연결하면 붙는다(2026-10-06 재연결 반복 신고)
-      outdated: (() => {
-        const sc = g.scopes || [];
-        const bundle = sc.some((x) => cfg.WRITE_SCOPES.includes(x)) ? cfg.BUNDLE_SCOPES : cfg.READ_SCOPES;
-        return bundle.some((x) => !sc.includes(x));
+      //   new_scopes — 다시 연결하면 생기는 것(화면이 aiApps.ability.<scope> 로 이름을 적는다). 판정은 grants.missingBundleScopes 한 곳.
+      ...(() => {
+        const missing = grants.missingBundleScopes(g.scopes);
+        return { outdated: missing.length > 0, new_scopes: missing };
       })(),
     })), count, { limit, page, offset });
   } catch (err) { next(err); }

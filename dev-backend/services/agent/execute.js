@@ -121,7 +121,14 @@ async function runTool(p0, name, rawArgs, opts = {}) {
       const mailOnlyDefault = optIn.map((x) => grants.mailDeniedReason(p, x)).find(Boolean);
       if (mailOnlyDefault) { extra.reason = mailOnlyDefault; extra.default_workspace_id = p.defaultBusinessId; extra.hint = 'Mail on this connection is allowed only in the default workspace. Pass that workspace_id (or omit workspace_id) to read mail.'; }
       else if (optIn.length) extra.hint = 'Reconnect PlanQ and allow email access in the consent screen.';
-      else extra.hint = 'This PlanQ connection was approved before this ability existed. Ask the user to disconnect and reconnect PlanQ (choose read + write) to allow it.';
+      else {
+        // 나중에 생긴 기능 — 무엇이 생기는지·어떻게 다시 연결하는지를 같은 안내 한 벌로(grants.reconnectAdvice, get_context 와 같다)
+        const adv = grants.reconnectAdvice(p);
+        if (adv) Object.assign(extra, { new_abilities: adv.new_abilities, how_to_reconnect: adv.how_to_reconnect, reconnect_page: adv.reconnect_page });
+        extra.hint = adv
+          ? 'This PlanQ connection was approved before this ability existed. Nothing was done. Tell the user, in their language, that reconnecting PlanQ adds it (new_abilities) and how (how_to_reconnect).'
+          : 'This PlanQ connection was approved with read-only access. Nothing was done. To allow changes, the user reconnects PlanQ and chooses "read + add and edit".';
+      }
       throw err('PERMISSION_DENIED', 'scope', extra);
     }
     // 입력 검증 — MCP SDK 가 이미 했지만 이 함수를 다른 입구(Cue 등)가 부를 때를 위해 한 번 더(.strict: 모르는 칸 거절)

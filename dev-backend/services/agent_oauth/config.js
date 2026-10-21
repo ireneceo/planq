@@ -26,6 +26,16 @@ const BUNDLE_SCOPES = [...READ_SCOPES, ...WRITE_SCOPES];
 // 디스커버리(scopes_supported)에 보여야 하므로 ALL 에는 넣는다 — 부여 판단은 grants.grantedScopes 가 묶음과 체크박스로 한다.
 const ALL_SCOPES = [...BUNDLE_SCOPES, ...OPT_IN_SCOPES];
 
+// 나중에 생긴 scope 를 사람 말로 — «다시 연결하면 무엇이 생기나» 안내의 한 곳(2026-10-21, Irene: "어떤 기능을 추가했고
+//   다시 연결하는 거 추천한다고 … 자연스럽게"). get_context·권한 거절·프로필 화면이 같은 표를 읽는다.
+//   ★ 묶음(READ/WRITE)에 scope 를 새로 더하면 **여기에 한 줄을 같이 더한다** — 없으면 그 scope 이름이 그대로 보인다.
+//   en 은 AI 앱이 받는 문장(모델이 사용자 언어로 옮겨 말한다) · 화면 문구는 i18n profile aiApps.ability.<scope>.
+const SCOPE_ABILITIES = {
+  'docs:write': { since: '2026-10-05', en: 'create and edit documents in Q docs' },
+  'files:write': { since: '2026-10-05', en: 'upload files from the chat to PlanQ' },
+  'projects:write': { since: '2026-10-07', en: 'create projects' },
+};
+
 // provider adapter — **인증 모양과 메타만** 다르다. 툴·정책은 services/agent 레지스트리 한 벌.
 //   redirectHosts 밖의 redirect_uri 는 등록(DCR)부터 거절한다 — 인가 코드를 남의 서버로 빼돌리는 문을 닫는다.
 const PROVIDERS = {
@@ -70,7 +80,7 @@ function tokenSecret() {
 
 module.exports = {
   APP_URL, ISSUER, RESOURCE, CONSENT_URL,
-  READ_SCOPES, WRITE_SCOPES, OPT_IN_SCOPES, BUNDLE_SCOPES, ALL_SCOPES, PROVIDERS, providerForRedirect,
+  READ_SCOPES, WRITE_SCOPES, OPT_IN_SCOPES, BUNDLE_SCOPES, ALL_SCOPES, SCOPE_ABILITIES, PROVIDERS, providerForRedirect,
   ACCESS_TTL_SEC, REFRESH_TTL_MS, AUTHREQ_TTL_MS, CODE_TTL_MS, CODE_MAX_ATTEMPTS,
   enabled, writeEnabled, enabledFor, writeEnabledFor, cueEnabled, tokenSecret,
 };

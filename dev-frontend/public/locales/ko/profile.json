@@ -391,9 +391,18 @@
     "openChatgpt": "ChatGPT 에서 열기",
     "openClaude": "Claude 에서 열기",
     "helpLink": "자세한 사용법",
-    "outdated": "새로 생긴 기능(문서·파일 등)이 빠진 연결이에요. 그 앱에서 PlanQ 를 다시 연결하면 붙어요.",
     "workspacesLine": "워크스페이스: {{def}}(기본) · 함께 허용 {{others}}",
-    "disconnectMessageMulti": "{{app}} 이(가) {{list}} 모두에 더는 접근하지 못합니다 — 이 연결 전체가 끊깁니다. 다시 쓰려면 그 앱에서 다시 연결해야 합니다."
+    "disconnectMessageMulti": "{{app}} 이(가) {{list}} 모두에 더는 접근하지 못합니다 — 이 연결 전체가 끊깁니다. 다시 쓰려면 그 앱에서 다시 연결해야 합니다.",
+    "outdatedTitle": "다시 연결하면 새 기능이 생겨요",
+    "outdatedAbilities": "새로 생긴 기능: {{list}}",
+    "reconnectChatgpt": "ChatGPT 설정 › 앱(커넥터) › PlanQ 에서 연결을 끊고 다시 연결한 뒤, PlanQ 화면에서 «읽기 + 추가·수정» 을 골라 [허용] 하세요. 지금 쓰던 기능은 그대로 됩니다.",
+    "reconnectClaude": "Claude 설정 › 커넥터 › PlanQ 에서 연결을 끊고 다시 연결한 뒤, PlanQ 화면에서 «읽기 + 추가·수정» 을 골라 [허용] 하세요. 지금 쓰던 기능은 그대로 됩니다.",
+    "reconnectGeneric": "그 앱의 연결 설정에서 PlanQ 를 끊고 다시 연결한 뒤, PlanQ 화면에서 «읽기 + 추가·수정» 을 골라 [허용] 하세요. 지금 쓰던 기능은 그대로 됩니다.",
+    "ability": {
+      "docs_write": "문서 만들기·고치기",
+      "files_write": "대화 속 파일을 PlanQ 에 올리기",
+      "projects_write": "프로젝트 만들기"
+    }
   },
   "agentConsent": {
     "title": "{{app}} 이(가) PlanQ 연결을 요청합니다",

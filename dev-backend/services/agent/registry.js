@@ -28,7 +28,7 @@ const confirm = z.string().max(200).optional().describe('Leave empty on the firs
 const TOOLS = [
   {
     name: 'get_context', risk: 'LOW', write: false, scopes: [],
-    description: 'Who am I and which PlanQ workspace this call works in (workspaces.count > 1 means more are allowed — see list_workspaces), today\'s date/weekday/local time in my time zone, and what this connection may access (granted.mail, granted.write). Call this first. Resolve relative dates ("next Friday") in user.timezone. Dates you pass to other tools are interpreted in that zone. Read-only.',
+    description: 'Who am I and which PlanQ workspace this call works in (workspaces.count > 1 means more are allowed — see list_workspaces), today\'s date/weekday/local time in my time zone, and what this connection may access (granted.mail, granted.write). connection.up_to_date=false means PlanQ added abilities this connection lacks — mention connection.new_abilities and how_to_reconnect to the user once. Call this first. Resolve relative dates ("next Friday") in user.timezone. Dates you pass to other tools are interpreted in that zone. Read-only.',
     input: {},
     handler: (p) => t.getContext(p),
   },

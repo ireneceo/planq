@@ -227,6 +227,9 @@ const AGENT_INSTRUCTIONS = [
   'omit it to use the default workspace. When the user names another workspace, call list_workspaces and pass its workspace_id on every call.',
   'If the name could match more than one workspace, or none clearly, ask the user first. Each result says which workspace it came from (workspace).',
   'If a workspace is refused, tell the user why — never fall back to another workspace on your own.',
+  'If get_context says connection.up_to_date is false, PlanQ has new abilities this connection lacks: once per conversation, briefly',
+  'and naturally, tell the user what they would gain and how to reconnect (connection.new_abilities, connection.how_to_reconnect) —',
+  'a recommendation, never a reason to delay what they asked.',
 ].join(' ');
 
 // 여러 워크스페이스(2026-10-15, docs/AI_AGENT_MULTI_WORKSPACE_DESIGN.md) — 이 칸은 **외부 앱 표면에서만** 붙인다(레지스트리에 두지 않는다 —

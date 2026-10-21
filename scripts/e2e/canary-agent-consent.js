@@ -30,7 +30,9 @@ const visible = (page, sel) => page.evaluate((s) => {
   if (!el) return { found: false };
   el.scrollIntoView({ block: 'center' });
   const r = el.getBoundingClientRect();
-  const h = document.elementFromPoint(r.left + r.width / 2, r.top + Math.min(10, r.height / 2));
+  // 화면 안에 들어온 부분의 가운데를 찍는다 — 화면보다 키가 큰 칸은 가운데 맞춤 뒤 «위 끝 +10» 이 고정 머리줄 밑이라
+  //   보이는데도 «안 보임» 이 됐다(2026-10-21, 낡은 연결 안내 상자가 붙어 칸이 길어진 날).
+  const h = document.elementFromPoint(r.left + r.width / 2, (Math.max(r.top, 0) + Math.min(r.bottom, innerHeight)) / 2);
   return { found: true, w: Math.round(r.width), vis: r.width > 0 && !!h && (h === el || el.contains(h)), text: el.textContent.slice(0, 160) };
 }, sel);
 

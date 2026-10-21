@@ -104,6 +104,16 @@ async function getContext(p) {
       mail_drafts: scopes.includes('mail_drafts:write'),
     },
     mail_accounts_count: mailCount,
+    // 낡은 연결(2026-10-21) — 연결한 뒤 PlanQ 에 새 기능이 생겼는데 이 연결엔 빠져 있으면 무엇이 생기는지·어떻게 다시 연결하는지.
+    //   말하는 빈도(대화당 한 번)는 note 와 MCP instructions 가 정한다 — 서버는 상태만 준다. 앱 안 Cue 는 연결이 아니라 해당 없음.
+    ...(p.provider !== 'cue' ? { connection: (() => {
+      const adv = require('../../agent_oauth/grants').reconnectAdvice(p);
+      if (!adv) return { up_to_date: true };
+      return {
+        up_to_date: false, ...adv,
+        note_for_assistant: 'PlanQ gained abilities after this connection was approved. Once in this conversation, briefly and naturally (e.g. at the end of your first answer, or when the user asks for one of these), tell the user in their language what they would be able to do and how to reconnect. Recommend it; do not block or delay what they asked. Everything they could do before still works.',
+      };
+    })() } : {}),
     // 여러 워크스페이스(2026-10-15) — 외부 앱 연결만. 몇 곳이 허용됐고 생략하면 어디인지(목록은 list_workspaces)
     ...(p.provider !== 'cue' && p.grantId ? await (async () => {
       const { AgentGrant } = require('../../../models');

@@ -22,6 +22,7 @@ interface Grant {
   created_at: string;
   last_used_at: string | null;
   outdated?: boolean;
+  new_scopes?: string[];   // 다시 연결하면 생기는 것 — 서버 grants.missingBundleScopes 한 곳(이름은 aiApps.ability.<scope 의 : → _>)
   workspaces?: { business_id: number; name: string | null; is_default: boolean }[];
   is_default_here?: boolean;
 }
@@ -138,7 +139,18 @@ const ConnectedAiAppsSection: React.FC<{ businessId: number }> = ({ businessId }
                     })}
                   </ConnMeta>
                 )}
-                {g.outdated && <ConnMeta data-testid={`ai-app-outdated-${g.id}`}>{t('aiApps.outdated')}</ConnMeta>}
+                {/* 낡은 연결 — 무엇이 생기는지 이름으로 + 그 앱에서 다시 연결하는 길(2026-10-21). 같은 안내를 AI 도 대화 안에서 한 번 말한다(get_context.connection). */}
+                {g.outdated && (
+                  <OutdatedBox data-testid={`ai-app-outdated-${g.id}`}>
+                    <strong>{t('aiApps.outdatedTitle')}</strong>
+                    {(g.new_scopes || []).length > 0 && (
+                      <span>{t('aiApps.outdatedAbilities', {
+                        list: (g.new_scopes || []).map((s) => t(`aiApps.ability.${s.replace(':', '_')}`, { defaultValue: s })).join(', '),
+                      })}</span>
+                    )}
+                    <span>{g.provider === 'openai' ? t('aiApps.reconnectChatgpt') : g.provider === 'anthropic' ? t('aiApps.reconnectClaude') : t('aiApps.reconnectGeneric')}</span>
+                  </OutdatedBox>
+                )}
               </ConnInfo>
               <DangerBtn type="button" onClick={() => setTarget(g)}>{t('aiApps.disconnect')}</DangerBtn>
             </ConnRow>
@@ -165,6 +177,12 @@ export default ConnectedAiAppsSection;
 const MailChip = styled.span`
   display: inline-block; margin-left: 6px; padding: 1px 8px; border-radius: 999px; vertical-align: middle;
   background: #FFF1F2; color: #BE123C; font-size: 0.6875rem; font-weight: 600;
+`;
+const OutdatedBox = styled.div`
+  display: flex; flex-direction: column; gap: 2px; margin-top: 6px; padding: 8px 10px;
+  background: #F0FDFA; border: 1px solid #99F6E4; border-radius: 8px;
+  font-size: 0.75rem; line-height: 1.5; color: #0F172A;
+  strong { font-weight: 600; color: #0F766E; }
 `;
 const UrlRow = styled.div`display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 6px;`;
 const HelpLink = styled.a`

@@ -464,3 +464,22 @@ Developer mode 커넥터로 §6.2 시나리오 + «해제 후 재연결» + «�
 8. **scope 동의 UI** — 8개 scope 를 «읽기만 / 읽기+쓰기» 두 묶음으로 보여줌 (**추천: 예**)
 9. **`mcpreadonly` 가드 해제** — 2026-07-11 «MCP 외부 개방 보류» 결정을 이 설계로 푼다(쓰기는 행동 계층 경유 + `agentsurface` 가드로 대체) (**추천: 예**)
 10. **M1 착수 승인 및 Fable 게이트** — R=1 이므로 M1-d 전 Fable 게이트 1회(묶어서) (**추천: 승인**)
+
+---
+
+## 부록 — 기능이 늘 때 «다시 연결» 계약 (2026-10-21, [Opus] · Fable 안 씀)
+
+> Irene: *"플러그인 업그레이드하면 사용자가 다시 연결해야 해? … 어떤 기능을 추가했고 다시 연결하는 거 추천한다고 안내해서 다시 연결하게. 자연스럽게. AI들로 말하는 걸로 다 끝내고 싶어하니까."*
+
+| 바뀐 것 | 다시 연결? |
+|---|---|
+| 기존 scope 안에서 도구 추가·수정 | 필요 없음 — MCP 세션마다 도구 목록을 새로 준다(ChatGPT 가 도구 목록을 캐시하는지는 미실측) |
+| 묶음에 새 scope 추가(10-05 docs·files:write · 10-07 projects:write) | 필요 — 옛 동의를 조용히 넓히지 않는다. 다시 연결하면 묶음 전체가 붙는다(grants.grantedScopes) |
+
+- 판정 한 곳 `grants.missingBundleScopes`(자기 묶음 안에서만 — 읽기만 연결에 쓰기를 권하지 않는다) · 안내 한 벌 `grants.reconnectAdvice`.
+- **AI 가 대화 안에서 먼저 말한다** — `get_context.connection`(`up_to_date:false` + `new_abilities` + `how_to_reconnect`(그 앱 기준) + `note_for_assistant`) ·
+  MCP instructions 한 문장(«대화당 한 번, 짧게, 요청을 미루지 말 것»). 서버는 상태만 준다(빈도 기록 DB 없음 — 다시 연결하면 저절로 사라진다).
+- 새 기능을 시켰다가 거절될 때도 같은 안내(`PERMISSION_DENIED scope` 에 `new_abilities`·`how_to_reconnect`).
+- 프로필 › 연결된 AI 앱 — 낡은 연결 카드에 «새로 생긴 기능: …» + 그 앱의 다시 연결 길.
+- ★ **묶음에 scope 를 더하면 `config.SCOPE_ABILITIES` 에 한 줄 + i18n `profile.aiApps.ability.<scope 의 : → _>`** — 없으면 scope 이름이 그대로 보인다.
+- 남은 선택지(안 함): MCP 단계 인가(403 `insufficient_scope` 로 클라이언트가 스스로 재인가) — 클라이언트 지원이 불확실하고 요청 전체가 막힌다.
