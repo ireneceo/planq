@@ -54,6 +54,7 @@ import TaskAttachments from './TaskAttachments';
 import PostPreviewModal from '../Docs/PostPreviewModal';
 import RelatedTasksSection from './RelatedTasksSection';
 import TaskActionItemsSection from './TaskActionItemsSection';
+import CommentContextTag from './CommentContextTag';
 import DescriptionAttachments from './DescriptionAttachments';
 import { STATUS_COLOR, displayStatus, getStatusLabel, statusOptionsFor, type StatusCode } from '../../utils/taskLabel';
 import { getRoles, primaryPerspective } from '../../utils/taskRoles';
@@ -102,6 +103,8 @@ interface CommentRow {
   created_at?: string;
   author?: { id?: number; name: string };
   attachments?: CommentAttach[];
+  /** 확인 요청·승인·수정 요청과 함께 남긴 글인지 — 서버 services/taskCommentContext 가 싣는다 */
+  context?: string | null;
 }
 
 /** 행 시각을 **한 곳**에서 읽는다 — 이 저장소는 같은 값에 두 이름이 있다(중첩 조회는
@@ -2549,7 +2552,7 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                       </CommentEditActions>
                     </CommentEditWrap>
                   ) : (
-                    c.content && c.content !== '(첨부파일)' && <CommentBody>{linkify(c.content)}</CommentBody>
+                    c.content && c.content !== '(첨부파일)' && <CommentBody><CommentContextTag context={c.context} />{linkify(c.content)}</CommentBody>
                   )}
                   {/* 댓글 첨부 — 결과물·의뢰 명세와 **같은 공용 목록**(2026-10-02). 여태 여기만 파일을 누르면
                       미리보기 없이 곧바로 내려받았다. 이미지는 한 댓글 안끼리 넘겨 본다. */}

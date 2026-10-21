@@ -11,6 +11,7 @@ import { quickActionFor } from '../../components/QTask/popoutQuickAction';   // 
 import { useAuth } from '../../contexts/AuthContext';
 import { joinRoom, leaveRoom, onSocket, getSocket } from '../../services/socket';
 import CapacityWorkdays, { type CapacityInfo } from '../../components/QTask/CapacityWorkdays';
+import CommentContextTag from '../../components/QTask/CommentContextTag';   // 댓글이 확인 요청·승인·수정 요청과 함께 남긴 글인지
 import { apiFetch } from '../../contexts/AuthContext';
 import CalendarPicker from '../../components/Common/CalendarPicker';
 import { PanelLayout, Panel } from '../../components/Layout/PanelLayout';
@@ -126,7 +127,7 @@ interface TaskRow {
 interface IssueRow { id: number; body: string; author?: { name: string }; projectName?: string; }
 interface NoteRow { id: number; body: string; author?: { name: string }; visibility?: string; projectName?: string; }
 interface CommentAttach { id: number; stored_name?: string; original_name: string; file_size: number; mime_type: string | null; }
-interface CommentRow { id: number; content: string; createdAt: string; author?: { name: string }; Task?: { id: number; title: string }; attachments?: CommentAttach[]; }
+interface CommentRow { id: number; content: string; createdAt: string; author?: { name: string }; Task?: { id: number; title: string }; attachments?: CommentAttach[]; context?: string | null; }
 interface CandidateRow { id: number; title: string; description: string | null; project_name?: string; guessedAssignee?: { id: number; name: string }; guessed_due_date: string | null; }
 
 // 라벨·displayStatus·STATUS_COLOR 는 utils 로 이동 — 관점별 라벨 반영
@@ -3129,7 +3130,7 @@ const QTaskPage:React.FC=()=>{
                   <CommentItem key={c.id} onClick={()=>c.Task&&openDetail(c.Task.id)} style={{cursor:'pointer'}}>
                     <CommentHead><strong>{c.author?.name}</strong><span>{c.createdAt?.slice(5,16).replace('T',' ')}</span></CommentHead>
                     {c.Task&&<IProjTag>{c.Task.title}</IProjTag>}
-                    <CommentBody>{c.content}</CommentBody>
+                    <CommentBody><CommentContextTag context={c.context} />{c.content}</CommentBody>
                   </CommentItem>
                 ))}
               </RSection>}

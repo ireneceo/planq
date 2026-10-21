@@ -22,6 +22,7 @@ const { applyMemberDisplayName, applyMemberDisplayNameOne } = require('../servic
 // §8.5 — 고객용 task 직렬화 (공수 시간·예측 출처·내부 메타·internal 댓글 차단)
 const { serializeTaskForClient, serializeTasksForClient } = require('../utils/taskClientView');
 const { serializeTaskComment } = require('../utils/rowTimestamps');
+const { annotateCommentContext } = require('../services/taskCommentContext');
 // 생성·전이는 행동 계층 단일 착지점을 지난다 (사람도 Cue 도 같은 문).
 const taskActions = require('../services/actions/task_actions');
 const { myWeekWhere } = require('../services/weekTaskSet');
@@ -1846,6 +1847,8 @@ router.get('/:id/detail', authenticateToken, async (req, res, next) => {
     // #87 — 댓글 작성자도 워크스페이스 표시명으로 (업무 상세 본문)
     if (Array.isArray(json.comments)) {
       await applyMemberDisplayName(json.comments, task.business_id, ['author']);
+      // 확인 요청·승인·수정 요청과 함께 남긴 댓글 표시(services/taskCommentContext 한 곳)
+      await annotateCommentContext(json.comments);
     }
     // latest_estimation_source 명시 노출 — drawer 가 회색 분기 표시하려면 필요 (사이클 N+6)
     try {
@@ -2281,6 +2284,7 @@ router.get('/requested-comments', authenticateToken, async (req, res, next) => {
     });
     const commentsJson = comments.map(c => c.toJSON());
     await applyMemberDisplayName(commentsJson, businessId, ['author']);
+    await annotateCommentContext(commentsJson);
     return successResponse(res, commentsJson);
   } catch (err) { next(err); }
 });

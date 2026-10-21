@@ -1605,5 +1605,10 @@
       "kind_mismatch": "That item doesn't match the action type",
       "label_required": "Write what to make"
     }
+  },
+  "commentContext": {
+    "submit": "Review request",
+    "approve": "Approved",
+    "revision": "Revision request"
   }
 }

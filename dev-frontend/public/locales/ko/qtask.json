@@ -1605,5 +1605,10 @@
       "kind_mismatch": "액션 종류와 다른 항목입니다",
       "label_required": "무엇을 만들지 적어 주세요"
     }
+  },
+  "commentContext": {
+    "submit": "확인 요청",
+    "approve": "승인",
+    "revision": "수정 요청"
   }
 }
