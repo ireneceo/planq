@@ -2,6 +2,13 @@
 **마지막 업데이트:** 2026-10-21 (방 c9d2c55c — 묶음 2건: AI 앱 재연결 안내 ✅ · 고객 목록 멤버 Fable 대기 · 이전: 방 a4f4681a — 메일 보낸 사람 «나» → 멤버 이름 · 이전: 방 be9ec522 — 데스크탑 긴급 알림 두 번 · 개발완료 · 이전: 방 bac44f4c — 업무 추가 컨펌자 칸 · 상세 하단 고정 줄 · 우측 패널 하단 버튼 통일 · 이전: 방 9fdd0593 — 관리자 피드백 목록 수리 · 승인 체계 Fable 대기 · 이전: 방 1895159d — 업무 댓글 상황 꼬리표 · 이전: 방 1631adb0 — 메일 번역 버튼 자리 Fable 대기 · 이전: 방 42f22a17 — 묶음 2건: 데스크탑앱 느림 조사·메일 수리 · SNS 발송 상의)
 **작업 상태:** 일정 추가 장소 토글 완료(방 3404829e, 운영 미배포) · 1건 완료(운영 미배포) · SNS 발송 설계 Fable 대기.
 
+### 완료: 정기 점검 10/22 00:15 — 운영 배포 b25f3949 (방 40af8206 · 2026-10-22 · [Claude Code] Opus 5.5)
+- 개발완료: 건너뜀 — 같은 폴더에서 일하는 방 3곳(baa00446 환불 메일 · 671b6a35 급여·휴가 · fced25bd 자정 근태). 작업 트리는 깨끗했음.
+- 배포 b25f3949(--routine, 528초) — eb9ad962..b25f3949 33커밋(업무 컨펌자 칸·하단 고정 줄 · 긴급 알림 두 번 · 메일 보낸 사람 이름 · AI 앱 재연결 안내 · 관리자 피드백 목록 · 일정 장소 토글 · 서명 3건 등). planq.kr/api/health 200 · pm2 backend·qnote·mcp online · .last-deployed-commit b25f3949 · PDF OK · 마이그 멱등 skip · 운영 CSP MISMATCH(종전 nginx sudo Irene 할 일). 백업 /opt/planq/backups/20261021_161654(운영).
+- 상황판 PlanQ Fable 대기 13건은 모두 설계 단계·구현 0 — 이번 배포 커밋에 묶인 것 없음(10/19 와 같은 판단, 10/20 처럼 코드가 묶였으면 물었음).
+- 개발시작: 운영 피드백 새 1건 **#466**(수정요청 때 사유 필수 — 댓글로 이미 적었는데 또 써야 함). 아직 그대로: 화면(TaskDetailDrawer submitRevision)·서버(task_actions.requestRevision note_required_for_revision) 둘 다 필수. 업무 상태 전이 규칙 변경이라 다음 방에서 판단. 열린 #463·#464 답글 없음(초안 docs/feedback-replies-2026-10-08.json), 나머지 7건 reviewing(답글 있음).
+- 밤 검사: 순찰 10-20 은 브라우저 연결 끊김(FATAL Connection closed, exit=2)으로 결과 없음 · 10-21 순찰은 이 점검과 같은 시각에 도는 중 · 전체 검사 10-20: 144 중 실패 14 + 하니스 죽음 1(mobilepanels — health-check 계정 로그인 실패) — crosscut·mailrt·docsheader·mobileboot·consultlinks·tablefit·tablestyle·taskaddparity·dupname·guestentry·sharereceive·booking·salelayout·headerrow.
+
 ### 나중에 — Fable 대기: 멤버·고객 프로필 통합 (방 f9b7abaa · 2026-10-21 · [Opus]) · 한도가 풀리면(상황판 fid fwmvhx2ksv, 20:35 KL 뒤 깨움) · 그때 docs/PEOPLE_PROFILE_UNIFY_DESIGN.md «판정 받을 것» 6개를 Fable 설계 판정(docs/CLIENT_MEMBER_EMAIL_MATCH_DESIGN.md 같이 묶음) → 판정대로 구현(사람 카드 components/People · clients.job_title · 이메일 작성 창/폰 보내고 뒤로 · 프로젝트>고객 ClientAddDrawer · 설정 구성원 [멤버|고객] · 멤버 overview API) → 문서 4절 검증
 - 원문: «모든 고객과 멤버를 넣으면 기본 정보가 나오고 회사 직책 … 이메일은 클릭하면 우리 이메일 작성이 새창으로 … 모바일은 보내고 뒤로 … 프로젝트>고객에서도 Q sales>고객탭처럼 입력도 … 멤버프로필, 고객 프로필도 통합 … 설정/구성원에 고객리스트도 … 멤버도 연결된 프로젝트랑 업무리스트, 히스토리 … 이거 중요하니까 fable 로 해줘.»
 - 조사 사실은 설계 문서 1절(고객 직책 칸 없음 · 메일 작성은 받는사람 인자 없음·따로 창 없음 · 프로젝트 고객 탭 «기존 고객 연결» 이 client_id 를 안 보냄 · 멤버별 프로젝트/업무/활동 API 없음).
