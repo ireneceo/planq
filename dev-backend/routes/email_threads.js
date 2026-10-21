@@ -436,14 +436,12 @@ router.get('/:businessId/email-threads/:id',
       // 운영 #220 — "팀메일이면 다른 담당자가 보내도 [나] 라고만 나오는데 누가 보냈는지 알 수 없어?"
       //   sent_by_user_id 는 처음부터 기록돼 있었는데 직렬화에서 빠져 화면에 도달한 적이 없다.
       //   표시명은 워크스페이스 프로필 우선(BusinessMember.name → User.name) — 목록 표시명 규칙과 동일.
-      const senderIds = [...new Set(messages.map(m => m.sent_by_user_id).filter(Boolean))];
-      const senderMap = new Map();
-      if (senderIds.length) {
-        const users = await User.findAll({ where: { id: senderIds }, attributes: ['id', 'name'], raw: true });
-        const shells = users.map(u => ({ user_id: u.id, sender: { id: u.id, name: u.name, name_localized: null } }));
-        await applyMemberDisplayName(shells, businessId, ['sender']);
-        for (const sh of shells) senderMap.set(sh.user_id, sh.sender);
-      }
+      //   2026-10-21 — 보낸메일함을 IMAP 으로 가져온 메일(sent_by_user_id 없음)은 보낸 주소로 멤버를 찾는다.
+      //   판정은 services/mailSender 한 곳. 확인 안 된 것은 null(화면이 «나» 로 쓰지 않는다).
+      const senderMap = await require('../services/mailSender').resolveOutboundSenders(
+        businessId, thread.EmailAccount ? thread.EmailAccount.get({ plain: true }) : null,
+        messages.map(m => ({ id: m.id, direction: m.direction, from_email: m.from_email, sent_by_user_id: m.sent_by_user_id })),
+      );
 
       // M3-B — 담당/팔로우 상태 (EmailThreadParticipant)
       const parts = await EmailThreadParticipant.findAll({
@@ -513,7 +511,11 @@ router.get('/:businessId/email-threads/:id',
             // #220 — 이 메일을 우리 쪽에서 누가 보냈는지. inbound 면 null.
             sent_by_user_id: mj.direction === 'outbound' ? (mj.sent_by_user_id || null) : null,
             sent_by_name: mj.direction === 'outbound' && mj.sent_by_user_id
-              ? ((senderMap.get(mj.sent_by_user_id) || {}).name || null) : null,
+              ? ((senderMap.get(mj.id) || {}).name || null) : null,
+            // 표시용 «보낸 멤버» — PlanQ 에서 보냈거나(planq) 보낸 주소가 멤버 주소(address). 모르면 null.
+            sender_user_id: (senderMap.get(mj.id) || {}).user_id || null,
+            sender_name: (senderMap.get(mj.id) || {}).name || null,
+            sender_source: (senderMap.get(mj.id) || {}).source || null,
             // 발송 상태 — outbound 만 의미 있다. 'sent' 는 SMTP 250 accept 까지이고
             //   수신자 메일함 도착 보증이 아니다. 'suppressed'(서버 발송 정지)를 'sent' 로 뭉개지 않는다.
             delivery_status: mj.direction === 'outbound' ? mj.delivery_status : null,

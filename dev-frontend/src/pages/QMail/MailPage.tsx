@@ -284,6 +284,10 @@ export interface Message {
   // 운영 #220 — 팀메일함에서 이 메일을 실제로 보낸 사람. inbound 면 null.
   sent_by_user_id?: number | null;
   sent_by_name?: string | null;
+  // 2026-10-21 — 표시용 «보낸 멤버»(서버 services/mailSender). IMAP 으로 가져온 보낸 메일도 보낸 주소로 멤버를 찾는다. 모르면 null.
+  sender_user_id?: number | null;
+  sender_name?: string | null;
+  sender_source?: 'planq' | 'address' | null;
   delivery_error?: string | null;
   attachments: Array<{ id: number; file_id: number | null; file_name: string; file_size: number; mime_type: string }>;
   // #215-H — 본문이 cid: 로 참조하는 이미지. 본문은 sandbox iframe srcDoc 이라 cid 를 해석할 수 없어
