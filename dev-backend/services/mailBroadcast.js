@@ -24,7 +24,9 @@ function mailSignal(payload) {
 function broadcastMail(req, businessId, event, rawPayload) {
   const io = req.app.get('io');
   if (!io) return;
-  const payload = mailSignal(rawPayload);
+  // business_id 를 늘 싣는다 — 여러 워크스페이스 방에 든 창(소켓은 소속 워크스페이스 방에 전부 든다)이
+  //   지금 보는 워크스페이스의 신호인지 가려 남의 워크스페이스 신호로 메일 화면을 다시 읽지 않게(2026-10-21).
+  const payload = mailSignal(rawPayload && typeof rawPayload === 'object' ? { ...rawPayload, business_id: Number(businessId) } : rawPayload);
   const room = `business:${businessId}`;
   io.to(room).emit(event, payload);
   if (payload && Object.prototype.hasOwnProperty.call(payload, 'reply_needed')) {

@@ -30,6 +30,7 @@ import { PanelGridLayout, CollapsibleSidebar, SidebarBackdrop, Panel } from '../
 import { useAuth, apiFetch } from '../../contexts/AuthContext';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
 import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
+import { useReallyVisible } from '../../contexts/TabActiveContext';
 import { joinRoom, leaveRoom, onSocket, getSocket } from '../../services/socket';
 import RichEditor from '../../components/Common/RichEditor';
 import AttachmentField from '../../components/Common/AttachmentField';
@@ -1497,7 +1498,9 @@ const MailPage: React.FC = () => {
   }, [detail?.id, detail?.status, detail?.client, detail?.follow_up_days, detail?.last_message_direction, t, setFollowUpDays, promoteThread]);
 
   // ── 실시간 silent 갱신 (socket / visibility) — 스피너 없이 list+counts+열린 detail 갱신
+  const lastSilentAt = useRef(0);
   const silentReload = useCallback(() => {
+    lastSilentAt.current = Date.now();
     loadList({ silent: true });   // 제자리 병합 — 스크롤도 순서도 흔들지 않는다
     loadCounts();
     loadAccounts();
@@ -1506,16 +1509,32 @@ const MailPage: React.FC = () => {
   const silentReloadRef = useRef(silentReload);
   useEffect(() => { silentReloadRef.current = silentReload; }, [silentReload]);
 
+  // ★ 보이지 않을 때 온 신호는 «다시 읽을 것 있음» 표시만 하고, 다시 보이는 순간 한 번 읽는다 (2026-10-21).
+  //   Irene: *"요즘 좀 느리고 불안정하게 데스크탑앱이 버벅거리는데"* — 실측: 숨은 메일 탭(탭 모드 keep-alive)·
+  //   내린 창이 메일 신호 한 번마다 목록·폴더 수 10건·계정을 통째로 다시 읽었다(신호 3번 = 메일 요청 30건).
+  //   신호는 워크스페이스 방 전체로 가서(누가 읽음·확인완료만 눌러도) 메일 탭을 열어 둔 사람 모두에게 곱해진다.
+  //   보고 있을 때는 그대로 즉시 갱신한다(§16 실시간 계약).
+  const reallyVisible = useReallyVisible();
+  const reallyVisibleRef = useRef(reallyVisible);
+  reallyVisibleRef.current = reallyVisible;
+  const staleWhileHidden = useRef(false);
   useEffect(() => {
     if (!user || !businessId) return;
     let pending: number | null = null;
     const debounced = () => {
+      if (!reallyVisibleRef.current) { staleWhileHidden.current = true; return; }
       if (pending) return;
       pending = window.setTimeout(() => { pending = null; silentReloadRef.current(); }, 250);
     };
+    // 다른 워크스페이스의 신호는 이 화면과 무관하다 — 소켓은 소속 워크스페이스 방에 전부 든다(개인 메일은 user 방).
+    const onSignal = (p: unknown) => {
+      const bid = p && typeof p === 'object' ? Number((p as { business_id?: unknown }).business_id) : NaN;
+      if (Number.isFinite(bid) && bid > 0 && bid !== businessId) return;
+      debounced();
+    };
     joinRoom(`business:${businessId}`);
-    const offNew = onSocket('mail:new', debounced);
-    const offUpdated = onSocket('mail:updated', debounced);
+    const offNew = onSocket('mail:new', onSignal);
+    const offUpdated = onSocket('mail:updated', onSignal);
     const onLocal = () => debounced();
     window.addEventListener('mail:refresh', onLocal);
     // 소켓이 끊겼다 다시 붙으면 그 사이 도착한 메일은 신호가 다시 오지 않는다 — 서버에서 다시 읽는다.
@@ -1531,10 +1550,17 @@ const MailPage: React.FC = () => {
   }, [user?.id, businessId]);
 
   useVisibilityRefresh(useCallback(() => {
+    staleWhileHidden.current = false;
     silentReloadRef.current();
     const s = getSocket();
     if (s && !s.connected) s.connect();
   }, []));
+  // 숨은 동안 신호가 있었는데 위 복귀 갱신이 간격 제한(5초)으로 건너뛰었으면 여기서 한 번 읽는다.
+  useEffect(() => {
+    if (!reallyVisible || !staleWhileHidden.current) return;
+    staleWhileHidden.current = false;
+    if (Date.now() - lastSilentAt.current > 1000) silentReloadRef.current();
+  }, [reallyVisible]);
 
   // ── 답장 컴포저 ──
   const [replyOpen, setReplyOpen] = useState(false);
