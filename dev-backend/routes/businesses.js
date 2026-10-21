@@ -234,7 +234,7 @@ router.post('/:businessId/symbol',
 );
 
 // 심볼 공개 서빙 — 인증 없이 (UUID 추측 불가)
-router.get('/symbol/:filename', (req, res) => {
+router.get('/symbol/:filename', async (req, res) => {
   const filename = String(req.params.filename || '');
   if (!/^[0-9a-f-]+\.(png|jpe?g|gif|webp|svg)$/i.test(filename)) {
     return errorResponse(res, 'invalid_filename', 400);
@@ -247,7 +247,17 @@ router.get('/symbol/:filename', (req, res) => {
   //   래스터는 inline. `<img>` 로고 표시는 어느 쪽이든 그대로다(img 는 이 헤더를 무시하고 스크립트를 돌리지 않는다).
   const ext = path.extname(filename).toLowerCase();
   const MIME = { '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif', '.webp': 'image/webp', '.svg': 'image/svg+xml' };
+  // ★ 2026-10-21 (Irene: *"좌측 상단 워크스페이스 썸네일이 늦게 떠"*) — 이 이미지는 /api/ 아래라
+  //   전역 보안 미들웨어의 `no-store` 를 그대로 받아 **앱을 열 때마다 다시 받았다**(실측 fromCache false).
+  //   게다가 28px 자리에 916×920 원본 55KB 가 통째로 나갔고, /api/auth/me 가 끝난 뒤에야 요청이 시작돼
+  //   다른 API 요청 11개와 줄을 섰다. 파일명은 UUID 이고 새로 올리면 **이름이 바뀌므로**(위 업로드 라우트)
+  //   같은 주소의 바이트는 영영 변하지 않는다 → 1년 immutable 이 안전하다. `?w=` 이면 작은 webp(공용 리사이즈기).
+  const cacheControl = 'public, max-age=31536000, immutable';
+  res.removeHeader('Pragma');
+  res.removeHeader('Expires');
+  if (await require('../services/imageResize').maybeServeResized(req, res, fp, MIME[ext], { cacheControl })) return;
   require('../services/fileServing').applyFileResponseHeaders(res, { mime_type: MIME[ext], file_name: filename }, { inline: true });
+  res.setHeader('Cache-Control', cacheControl);
   res.sendFile(fp);
 });
 

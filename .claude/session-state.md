@@ -2,6 +2,11 @@
 **마지막 업데이트:** 2026-10-21 (방 1631adb0 — 메일 번역 버튼 자리 Fable 대기 · 이전: 방 42f22a17 — 묶음 2건: 데스크탑앱 느림 조사·메일 수리 · SNS 발송 상의)
 **작업 상태:** 1건 완료(운영 미배포) · 1건 답 기다림.
 
+### ✅ 좌측 상단 워크스페이스 썸네일 늦게 뜨던 것 (방 7cc9f3b8 · 2026-10-21 · [Opus]) — 운영 반영: 다음 배포 때
+- 원인: ①심볼 주소가 /api/ 아래라 전역 no-store → 앱 열 때마다 다시 받음(실측 fromCache false) ②28px 자리에 916×920 원본 55KB(운영 워프로랩 로고 같은 파일) ③/api/auth/me 뒤에야 요청 시작, 그때 다른 요청 11개와 줄.
+- 고침: routes/businesses.js 심볼 GET → `public, max-age=31536000, immutable`(UUID 이름·새 업로드=새 이름) + `?w=` 공용 리사이즈기(webp) · WorkspaceSwitcher 가 `?w=200` 요청. 오류 응답은 그대로 no-store.
+- 검증: 55,030B → 1,558B · 다시 로드·세 번째 로드 fromCache true / 전송 0B (전엔 매번 받음) · 가드 74/75 · vite 빌드 0. Fable 미검증(자체 검증 — 기존 공개 이미지의 캐시·크기만).
+
 ### ✅ Q task 알림 «PlanQ 에서 내용을 확인하세요» 정리 (방 fda21bcb · 2026-10-21 · [Opus]) — 수정요청·보류 사유 알림 3곳 internal_only → excerpt(앞 40자). 커밋 42f32628. 운영 반영: 다음 배포 때.
 
 ### 나중에 — Fable 대기: Q mail 번역 버튼 자리 (방 1631adb0 · 2026-10-21 · [Opus]) · 한도가 풀리면(상황판이 깨움, 17:45 뒤) · 그때 docs/MAIL_TRANSLATE_PLACEMENT.md 로 Fable UX 판정 → 판정대로 ThreadMessages.tsx 구현 → 3폭 실측 + mail-attach-order 카나리 갱신

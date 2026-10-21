@@ -44,6 +44,10 @@ const ROLE_DOT: Record<WorkspaceMembership['role'], string> = {
   ai: '#5EEAD4',     // 라벤더
 };
 
+// 28px 자리에 원본(운영 916×920 · 55KB)을 받지 않는다 — 우리 심볼 주소면 서버의 작은 webp(`?w=`, 1.5KB).
+//   다른 주소(브랜드 설정에 직접 넣은 외부 URL)는 그대로 둔다.
+const symbolThumb = (url: string) => (url.startsWith('/api/businesses/symbol/') && !/\.(svg|gif)$/i.test(url) ? `${url}?w=200` : url);
+
 interface Props {
   collapsed?: boolean;
 }
@@ -187,7 +191,7 @@ const WorkspaceSwitcher: React.FC<Props> = ({ collapsed }) => {
             </svg>
           </AdminBadge>
         ) : activeWs?.brand_logo_url ? (
-          <LogoImg src={activeWs.brand_logo_url} alt={currentName} />
+          <LogoImg src={symbolThumb(activeWs.brand_logo_url)} alt={currentName} />
         ) : (
           <InitialBadge $color={currentDot}>{(currentName || '·').charAt(0).toUpperCase()}</InitialBadge>
         )}
@@ -224,7 +228,7 @@ const WorkspaceSwitcher: React.FC<Props> = ({ collapsed }) => {
                     onClick={() => handleSwitchWs(w)}
                   >
                     {w.brand_logo_url ? (
-                      <MenuLogoImg src={w.brand_logo_url} alt={w.brand_name} />
+                      <MenuLogoImg src={symbolThumb(w.brand_logo_url)} alt={w.brand_name} />
                     ) : (
                       <MenuInitial $color={ROLE_DOT[w.role]}>{(w.brand_name || '·').charAt(0).toUpperCase()}</MenuInitial>
                     )}
