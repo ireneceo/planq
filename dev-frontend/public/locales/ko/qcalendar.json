@@ -100,7 +100,7 @@
     "description": "설명",
     "descriptionPlaceholder": "일정에 대한 세부 내용",
     "location": "장소",
-    "locationPlaceholder": "회의실·주소·화상 링크",
+    "locationPlaceholder": "회의실·주소",
     "startAt": "시작",
     "endAt": "종료",
     "allDay": "하루 종일",
@@ -146,7 +146,12 @@
     "reminderMinutes_other": "{{count}}분 전",
     "attendeesPh": "함께할 사람을 고르세요",
     "attendeesHint": "고른 참석자에게 알림을 보낼지 아래에서 고를 수 있어요. 계정이 있는 고객은 앱 알림으로 받고, 메일은 가지 않습니다.",
-    "attendeeClientTag": "고객"
+    "attendeeClientTag": "고객",
+    "place": "장소",
+    "placeOffline": "오프라인",
+    "placeOnline": "온라인",
+    "addOnlineToo": "온라인 링크도",
+    "addPlaceToo": "장소도"
   },
   "button": {
     "create": "일정 만들기",

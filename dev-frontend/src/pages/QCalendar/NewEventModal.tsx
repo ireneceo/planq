@@ -26,6 +26,8 @@ import VisibilityField, { serializeVisibility, type VisibilityValue } from '../.
 import { listWorkspaceClients, type WorkspaceClientRow } from '../../services/qtalk';
 import { isEnterAction } from '../../utils/imeKey';
 import { formatDay } from '../../utils/dateFormat';
+import EventPlaceField from './EventPlaceField';
+import { Field, Label, AttachToggle, CheckboxLabel } from './eventFormStyles';
 
 interface Props {
   initialStart: Date;
@@ -206,6 +208,12 @@ const NewEventModal: React.FC<Props> = ({ initialStart, initialTitle, initialDes
   const notifyCount = useMemo(() => notifyCountOf(attendeeKeys, clientsList, Number(user?.id)), [attendeeKeys, clientsList, user?.id]);
   const [meetingUrl, setMeetingUrl] = useState('');
   const [autoCreateMeeting, setAutoCreateMeeting] = useState(false);
+  // 만나는 곳 — [오프라인 | 온라인] 중 고른 쪽 칸만 보인다(2026-10-21 Irene «권고대로»: 장소·링크·Meet 줄이 늘 같이 떠 폼이 길었다).
+  //   둘 다 쓰는 회의는 «+ … 도» 로 나머지 칸을 연다. 토글을 바꿔도 적은 값은 state 에 남고, 저장은 **보이는 칸만** 보낸다.
+  const [placeMode, setPlaceMode] = useState<'offline' | 'online'>('offline');
+  const [placeBoth, setPlaceBoth] = useState(false);
+  const showLocation = placeMode === 'offline' || placeBoth;
+  const showOnline = placeMode === 'online' || placeBoth;
   // 구글 캘린더에 올릴지 — **팀/개인 각각** (계정이 다르므로 하나로 합치면 안 된다). 기본 둘 다 ON.
   const [gcalSyncWorkspace, setGcalSyncWorkspace] = useState(true);
   const [gcalSyncPersonal, setGcalSyncPersonal] = useState(true);
@@ -330,7 +338,7 @@ const NewEventModal: React.FC<Props> = ({ initialStart, initialTitle, initialDes
     const created = onCreate({
       title: title.trim(),
       description: description.trim() || null,
-      location: location.trim() || null,
+      location: (showLocation && location.trim()) || null,
       start_at: sISO,
       end_at: eISO,
       all_day: allDay,
@@ -339,13 +347,13 @@ const NewEventModal: React.FC<Props> = ({ initialStart, initialTitle, initialDes
       visibility,  // backend hook 가 vlevel 우선 처리하므로 backward-compat
       project_id: finalProjectId,
       task_id: linkedTask ? linkedTask.id : null, ...(fromTask?.actionId ? { from_action_id: fromTask.actionId } as Partial<CalendarEvent> : {}),
-      meeting_url: meetingUrl.trim() || null,
+      meeting_url: (showOnline && meetingUrl.trim()) || null,
       // 비공개 전환은 체크 후에도 일어날 수 있다 — 체크박스를 숨기는 것만으로는 부족하고,
       // 전송 시점에도 걸러야 백엔드 400(일정 생성 전체 실패)을 막는다.
-      meeting_provider: autoCreateMeeting && gcalCanWrite && !isPrivateVis
+      meeting_provider: showOnline && autoCreateMeeting && gcalCanWrite && !isPrivateVis
         ? 'google_meet'
-        : (meetingUrl.trim() ? 'manual' : null),
-      auto_create_meeting: autoCreateMeeting && gcalCanWrite && !isPrivateVis,
+        : (showOnline && meetingUrl.trim() ? 'manual' : null),
+      auto_create_meeting: showOnline && autoCreateMeeting && gcalCanWrite && !isPrivateVis,
       rrule,
       gcal_sync_workspace: gcalSyncWorkspace,
       gcal_sync_personal: gcalSyncPersonal,
@@ -382,7 +390,7 @@ const NewEventModal: React.FC<Props> = ({ initialStart, initialTitle, initialDes
       submitDisabled={!title.trim()} submitTestId="calendar-new-submit"
     >
           {fromTask?.notice}<Field>
-            <TitleInput
+            <TitleInput data-testid="new-event-title"
               ref={titleRef}
               value={title}
               onChange={(e) => setTitle(e.target.value)}
@@ -535,78 +543,14 @@ const NewEventModal: React.FC<Props> = ({ initialStart, initialTitle, initialDes
             )}
           </Field>))}
 
-          <Field>
-            <Label>{t('form.location')}</Label>
-            <Input
-              value={location} onChange={(e) => setLocation(e.target.value)}
-              placeholder={t('form.locationPlaceholder')}
-            />
-          </Field>
-
-          <Field>
-            <Label>{t('form.meetingUrl')}</Label>
-            {/* Google Meet 자동 생성 — 워크스페이스가 Google Calendar 연결되어 있을 때만 노출.
-                연결 안 됨 + 서버 OAuth 설정은 정상 → "Google 계정 연결하기" CTA 안내. */}
-            {/* 비공개(L1/L2) 일정에는 Meet 을 걸 수 없다 — 백엔드가 400 으로 **일정 생성 자체를
-                거부**하므로(유출 차단), 체크할 수 있게 두면 저장이 통째로 실패한다. */}
-            {gcalCanWrite && !isPrivateVis && (
-              <AutoMeetingRow>
-                <CheckboxLabel>
-                  <input
-                    type="checkbox"
-                    checked={autoCreateMeeting}
-                    onChange={(e) => setAutoCreateMeeting(e.target.checked)}
-                  />
-                  <AutoMeetingText>
-                    <strong>{t('form.autoCreateMeeting')}</strong>
-                    <small>
-                      {meetSource === 'personal'
-                        ? t('form.autoCreateMeetingPersonal')
-                        : t('form.autoCreateMeetingHelp')}
-                    </small>
-                  </AutoMeetingText>
-                </CheckboxLabel>
-              </AutoMeetingRow>
-            )}
-            {/* Meet 을 못 만드는 상태의 안내 — **그 사용자가 스스로 할 수 있는 행동**만 가리킨다.
-                개인 연동(/profile/integrations)은 누구나 할 수 있고, 워크스페이스 연동
-                (/business/settings/storage)은 오너 전용이다. 옛 코드는 둘 다 워크스페이스로
-                보내서, 직원에게는 눌러도 403 이 나는 죽은 안내였다(#246 과 같은 계열).
-                Meet 은 이미 개인 연동 우선으로 동작하므로 개인 경로가 주 CTA 가 맞다. */}
-            {gcalConfigured && !gcalCanWrite && (
-              <>
-                <AutoMeetingRow as="a" href="/profile/integrations" style={{ textDecoration: 'none', cursor: 'pointer' }}>
-                  <AutoMeetingText>
-                    <strong>
-                      {personalConnected
-                        ? t('form.gcalPersonalReconnectPrompt')
-                        : t('form.gcalPersonalConnectPrompt')}
-                    </strong>
-                    <small>
-                      {personalConnected
-                        ? t('form.gcalPersonalReconnectHelp')
-                        : t('form.gcalPersonalConnectHelp')}
-                    </small>
-                  </AutoMeetingText>
-                </AutoMeetingRow>
-                {/* 오너에게만 — 워크스페이스 연동도 권한이 없으면 그쪽도 고칠 수 있다고 알린다.
-                    오너가 아니면 이 줄은 뜨지 않는다(누를 수 없는 경로를 보여주지 않기 위해). */}
-                {isOwnerHere && workspaceConnected && !workspaceCanWrite && (
-                  <AutoMeetingRow as="a" href="/business/settings/storage" style={{ textDecoration: 'none', cursor: 'pointer' }}>
-                    <AutoMeetingText>
-                      <strong>{t('form.gcalWorkspaceReconnectPrompt')}</strong>
-                      <small>{t('form.gcalWorkspaceReconnectHelp')}</small>
-                    </AutoMeetingText>
-                  </AutoMeetingRow>
-                )}
-              </>
-            )}
-            <Input
-              value={meetingUrl} onChange={(e) => setMeetingUrl(e.target.value)}
-              placeholder={t('form.meetingUrlPlaceholder')}
-              disabled={autoCreateMeeting}
-            />
-          </Field>
+          <EventPlaceField
+            placeMode={placeMode} setPlaceMode={setPlaceMode} placeBoth={placeBoth} setPlaceBoth={setPlaceBoth}
+            location={location} setLocation={setLocation} meetingUrl={meetingUrl} setMeetingUrl={setMeetingUrl}
+            autoCreateMeeting={autoCreateMeeting} setAutoCreateMeeting={setAutoCreateMeeting}
+            gcalConfigured={gcalConfigured} gcalCanWrite={gcalCanWrite} isPrivateVis={isPrivateVis}
+            meetSource={meetSource} personalConnected={personalConnected}
+            showWorkspaceReconnect={isOwnerHere && workspaceConnected && !workspaceCanWrite}
+          />
 
           <Field>
             <Label>{t('form.attendees', { defaultValue: '참석자' }) as string}</Label>
@@ -702,11 +646,6 @@ const NewEventModal: React.FC<Props> = ({ initialStart, initialTitle, initialDes
 export default NewEventModal;
 
 // ── styled ──
-const Field = styled.div` display: flex; flex-direction: column; gap: 6px; position: relative; `;
-const Label = styled.label`
-  font-size: 0.6875rem; font-weight: 600; color: #64748B;
-  text-transform: uppercase; letter-spacing: 0.3px;
-`;
 const TitleInput = styled.input`
   font-size: 1.25rem; font-weight: 700; color: #0F172A; letter-spacing: -0.3px;
   border: none; outline: none; padding: 4px 0; background: transparent;
@@ -717,13 +656,6 @@ const TitleInput = styled.input`
 
 const DateRow = styled.div`
   display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
-`;
-// 접어 둔 첨부를 여는 줄 — 링크처럼 가볍게(입력란 하나를 통째로 차지하지 않게)
-const AttachToggle = styled.button`
-  align-self: flex-start; background: none; border: none; padding: 4px 0; cursor: pointer;
-  font-size: 0.8125rem; font-weight: 600; color: #0F766E;
-  &:hover { color: #0D9488; text-decoration: underline; }
-  &:focus-visible { outline: 2px solid #14B8A6; outline-offset: 2px; border-radius: 4px; }
 `;
 const TzHint = styled.div`
   font-size: 0.6875rem; font-weight: 500; color: #94A3B8; margin-top: 4px;
@@ -744,11 +676,6 @@ const Dash = styled.span` color: #94A3B8; font-size: 0.8125rem; `;
 
 const Grid2 = styled.div` display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; `;
 const Row = styled.div` display: flex; gap: 16px; `;
-const CheckboxLabel = styled.label`
-  display: inline-flex; align-items: center; gap: 6px; cursor: pointer;
-  font-size: 0.8125rem; color: #334155;
-  input { accent-color: #14B8A6; cursor: pointer; }
-`;
 const CategoryRow = styled.div` display: flex; flex-wrap: wrap; gap: 6px; `;
 const CategoryBtn = styled.button<{ $active: boolean }>`
   padding: 6px 12px; border-radius: 999px;
@@ -757,21 +684,6 @@ const CategoryBtn = styled.button<{ $active: boolean }>`
   color: ${({ $active }) => $active ? '#fff' : '#475569'};
   border: none; cursor: pointer;
   &:hover { background: ${({ $active }) => $active ? '#0D9488' : '#E2E8F0'}; }
-`;
-const Input = styled.input`
-  padding: 9px 11px; border: 1px solid #CBD5E1; border-radius: 8px;
-  font-size: 0.8125rem; color: #0F172A; outline: none; background: #fff;
-  &:focus { border-color: #14B8A6; box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.12); }
-  &:disabled { background: #F8FAFC; color: #94A3B8; cursor: not-allowed; }
-`;
-const AutoMeetingRow = styled.div`
-  background: #F0FDFA; border: 1px solid #99F6E4; border-radius: 8px;
-  padding: 10px 12px; margin-bottom: 2px;
-`;
-const AutoMeetingText = styled.div`
-  display: flex; flex-direction: column; gap: 2px;
-  strong { font-size: 0.8125rem; color: #0F172A; font-weight: 600; }
-  small { font-size: 0.71875rem; color: #64748B; }
 `;
 const Textarea = styled.textarea`
   padding: 9px 11px; border: 1px solid #CBD5E1; border-radius: 8px;

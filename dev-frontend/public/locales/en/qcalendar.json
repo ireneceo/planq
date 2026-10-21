@@ -100,7 +100,7 @@
     "description": "Description",
     "descriptionPlaceholder": "Details about this event",
     "location": "Location",
-    "locationPlaceholder": "Room, address, or meeting link",
+    "locationPlaceholder": "Room or address",
     "startAt": "Start",
     "endAt": "End",
     "allDay": "All day",
@@ -146,7 +146,12 @@
     "reminderMinutes_other": "{{count}} minutes before",
     "attendeesPh": "Choose who is joining",
     "attendeesHint": "You can choose below whether to notify the attendees you pick. Clients with an account get an in-app notification; no email is sent.",
-    "attendeeClientTag": "Client"
+    "attendeeClientTag": "Client",
+    "place": "Where",
+    "placeOffline": "In person",
+    "placeOnline": "Online",
+    "addOnlineToo": "Add an online link too",
+    "addPlaceToo": "Add a place too"
   },
   "button": {
     "create": "Create event",
