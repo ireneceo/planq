@@ -1613,8 +1613,9 @@ router.put('/by-business/:businessId/:id', authenticateToken, async (req, res, n
             userIds: audience, businessId: task.business_id, eventKind: 'task',
             titleSpec: { feature: 'task', action: holdAction, subject: `"${task.title}"` },
             body: task.hold_reason ? `"${task.title}" — ${task.hold_reason}` : `"${task.title}"`,
-            // #407 — 보류 사유는 사람이 쓴 글이다. 사유가 있을 때만 울타리 안으로 제한한다.
-            previewPolicy: task.hold_reason ? 'internal_only' : undefined,
+            // 보류 사유는 사람이 쓴 글이다 — 밖(푸시·메일)으로는 앞 40자만(2026-10-21, 댓글·채팅과 같은 규칙.
+            //   옛 internal_only 는 «PlanQ 에서 내용을 확인하세요» 만 보냈다).
+            previewPolicy: task.hold_reason ? 'excerpt' : undefined,
             link: taskLink, ctaLabel: '업무 보기', workspaceName: wsName,
             excludeUserId: req.user.id,
           }).catch((e) => console.warn('[notify hold]', e.message));

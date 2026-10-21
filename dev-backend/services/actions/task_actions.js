@@ -108,7 +108,7 @@ function notifyTask({ userId, task, title, action, body, ctaLabel, wsName, exclu
       title: finalTitle, body: body || `"${task.title}"`,
       link: taskLink(task.id), ctaLabel: ctaLabel || '업무 보기',
       workspaceName: wsName, tag: `task:${task.id}`,
-      previewPolicy,   // #407 — 사람이 쓴 사유·댓글이면 울타리 밖으로 안 내보낸다
+      previewPolicy,   // 사람이 쓴 사유·댓글은 밖(푸시·메일)으로 앞 40자만(excerpt)
       skipChannels,
     });
   })().catch((e) => console.warn('[task_actions notify]', e.message));
@@ -1495,7 +1495,9 @@ async function requestRevision(task, actor, { note } = {}) {
     task, wsName: await workspaceName(task.business_id), excludeUserId: actor.userId,
     action: 'task_revision',
     body: text.length > 140 ? text.slice(0, 140) + '…' : text,
-    previewPolicy: 'internal_only',   // #407 — 수정요청 사유는 사람이 쓴 글이다
+    // 2026-10-21 (Irene: *"Q task 알림 중 PlanQ에서 내용을 확인하세요 라고 오는게 있어 … 내용 요약이 나오는게 기본"*)
+    //   — 댓글·채팅과 같은 «앞 40자»(services/outsidePreview). 옛 internal_only 는 중립 문구만 보냈다.
+    previewPolicy: 'excerpt',
     ctaLabel: '수정 시작',
   });
 
@@ -1740,7 +1742,7 @@ async function hold(task, actor, { reason = null } = {}) {
   notifyStatusAudience(task, actor, {
     action: 'task_hold',
     body: cleanReason ? `"${task.title}" — ${cleanReason}` : undefined,
-    previewPolicy: cleanReason ? 'internal_only' : undefined,   // #407 — 보류 사유는 사람이 쓴 글이다
+    previewPolicy: cleanReason ? 'excerpt' : undefined,   // 사유는 앞 40자만 밖으로(2026-10-21 — 수정요청과 같은 규칙)
     wsName,
   });
 
