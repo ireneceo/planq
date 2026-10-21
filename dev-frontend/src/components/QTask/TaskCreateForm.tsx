@@ -141,6 +141,9 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({
   const [dueDate, setDueDate] = useState<string>(initial?.dueDate ?? '');
   const [estHours, setEstHours] = useState<string>('');
   const [tagIds, setTagIds] = useState<number[]>([]);
+  // 컨펌자 — 담당자(일을 하는 사람)와 따로, 끝내기 전에 확인·승인할 사람. 내 업무·요청 둘 다 고른다(2026-10-21 Irene).
+  //   저장은 만든 뒤 업무 상세와 같은 문(POST /api/tasks/:id/reviewers)으로 한 명씩 — 서버 canManageReviewers·알림이 그대로 탄다.
+  const [reviewerPick, setReviewerIds] = useState<number[]>([]);
   const [uploads, setUploads] = useState<File[]>([]);
   const [existingFileIds, setExistingFileIds] = useState<number[]>(initial?.fileIds ?? []);
   const [existingPostIds, setExistingPostIds] = useState<number[]>([]);
@@ -289,6 +292,8 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({
   const capacityMine = !isRequest && !assignedToOther;
 
   const invalid = !title.trim() || (isRequest && !assigneeId);
+  // 담당자는 컨펌자가 될 수 없다(서버 assignee_cannot_be_reviewer) — 담당자를 바꾸면 그 사람은 컨펌자 칸에서 빠진다.
+  const reviewerIds = reviewerPick.filter((id) => id !== assigneeId);
 
   const submit = async () => {
     if (submitting || invalid || !bizId) return;
@@ -358,7 +363,17 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({
           if (!linkRes.ok) console.warn('[task attach link] HTTP', linkRes.status);
         } catch (err) { console.warn('[task attach link]', err); }
       }
-      // 3) 태그 (#236/#250) — 실패해도 업무 생성은 이미 성공이라 되돌리지 않는다.
+      // 3) 컨펌자 — 업무 상세의 [+ 컨펌자 추가] 와 같은 문. 실패해도 업무는 이미 만들어졌으니 되돌리지 않는다.
+      for (const uid of reviewerIds) {
+        try {
+          const rvRes = await apiFetch(`/api/tasks/${newTaskId}/reviewers`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ user_id: uid }),
+          });
+          if (!rvRes.ok) console.warn('[task reviewers] HTTP', rvRes.status);
+        } catch (err) { console.warn('[task reviewers]', err); }
+      }
+      // 4) 태그 (#236/#250) — 실패해도 업무 생성은 이미 성공이라 되돌리지 않는다.
       if (tagIds.length > 0) {
         try {
           const tagRes = await apiFetch(`/api/tasks/${newTaskId}/tags`, {
@@ -452,6 +467,23 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({
               ...members.filter((m) => (isRequest ? m.user_id !== myId : true))
                 .map((m) => ({ value: String(m.user_id), label: m.name + (m.user_id === myId ? t('detail.meSuffix', ' (나)') : '') })),
               ...externals.map((e) => ({ value: String(e.user_id), label: e.name, icon: <PartnerKindBadge kind={e.kind} size="xs" /> })),
+            ]} />
+        </AddOptField>
+        <AddOptField data-field="reviewers" data-testid="task-add-reviewers" style={{ flex: '1 1 200px' }}>
+          <AddOptLabel>{t('add.reviewers', '컨펌자')}</AddOptLabel>
+          <PlanQSelect<true> size="sm" isMulti isClearable isSearchable
+            placeholder={t('add.reviewersPh', '선택 — 끝내기 전에 확인할 사람') as string}
+            value={reviewerIds.map((id) => ({
+              value: String(id),
+              label: (members.find((m) => m.user_id === id)?.name || externals.find((e) => e.user_id === id)?.name || '-')
+                + (id === myId ? t('detail.meSuffix', ' (나)') : ''),
+            }))}
+            onChange={(v) => setReviewerIds((v || []).map((o) => Number(o.value)))}
+            options={[
+              ...members.filter((m) => m.user_id !== assigneeId)
+                .map((m) => ({ value: String(m.user_id), label: m.name + (m.user_id === myId ? t('detail.meSuffix', ' (나)') : '') })),
+              ...externals.filter((e) => e.user_id !== assigneeId && !members.some((m) => m.user_id === e.user_id))
+                .map((e) => ({ value: String(e.user_id), label: e.name, icon: <PartnerKindBadge kind={e.kind} size="xs" /> })),
             ]} />
         </AddOptField>
         {assignedToOther && (

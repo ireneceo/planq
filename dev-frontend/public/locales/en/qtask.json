@@ -203,6 +203,8 @@
     "datesReadOnly": "Only the requester, assignee, or an admin can change the dates"
   },
   "add": {
+    "reviewers": "Reviewers",
+    "reviewersPh": "Optional — who checks before it is done",
     "placeholder": "Task name (Ctrl+Enter to save)",
     "titleHint": "Name it so it's clear when it's done — e.g. \"Send quote to Acme\"",
     "titleHintWhy": "A name like \"Quote work\" means a different finish line to each person.\nName the action that ends it, like \"Send quote\", and the assignee, requester and reviewer all see the same \"done\" — due dates, progress and reviews line up with it.",
@@ -573,7 +575,7 @@
       "start": "Start → In progress",
       "resume": "Resume → In progress",
       "submitReview": "Submit → Review sent",
-      "resubmitReview": "Resubmit → Review sent",
+      "resubmitReview": "Revised · request re-review → Review sent",
       "cancelReview": "Cancel review → In progress",
       "completeSimple": "Mark complete → Completed",
       "complete": "Finalize → Completed",
@@ -592,6 +594,17 @@
       "submitNotePlaceholder": "Anything to tell the reviewer? (optional — also posted as a comment)",
       "reviseNew": "Write revision (v{{n}})",
       "revisePlain": "Write revision"
+    },
+    "footer": {
+      "ack": "Acknowledge",
+      "start": "Start work",
+      "resume": "Resume work",
+      "submit": "Request review",
+      "resubmit": "Request re-review",
+      "complete": "Mark complete",
+      "final": "Finalize",
+      "approve": "Approve",
+      "revision": "Request revision"
     },
     "delete": {
       "button": "Delete task",

@@ -31,11 +31,12 @@ export interface DrawerFooterProps {
   size?: 'sm' | 'md';         // 패딩 변형. 기본 'md'.
   className?: string;
   sticky?: boolean;           // 기본 true. false 면 normal flow.
+  'data-testid'?: string;     // 검사 손잡이(§17)
 }
 
-const DrawerFooter: React.FC<DrawerFooterProps> = ({ left, children, align = 'space-between', size = 'md', className, sticky = true }) => {
+const DrawerFooter: React.FC<DrawerFooterProps> = ({ left, children, align = 'space-between', size = 'md', className, sticky = true, 'data-testid': testId }) => {
   return (
-    <Wrap className={className} $sticky={sticky} $size={size}>
+    <Wrap className={className} $sticky={sticky} $size={size} data-testid={testId}>
       <Inner $align={align}>
         <LeftSlot>{left}</LeftSlot>
         <RightSlot>{children}</RightSlot>

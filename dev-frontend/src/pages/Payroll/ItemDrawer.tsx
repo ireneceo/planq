@@ -99,13 +99,14 @@ export default function ItemDrawer({ businessId, item, allItems, onClose, onChan
           {it.calc === 'external' && <ToggleRow key={`settle-${it.id}`} label={t('items.field.settlement')} value={it.is_settlement} onSave={(v) => save({ is_settlement: v })} />}
           <ToggleRow key={`active-${it.id}`} label={t('items.field.active')} value={it.is_active} onSave={(v) => save({ is_active: v })} testId="payroll-item-active" />
         </Toggles>
-        {it.code !== 'base' && (
-          <Danger>
-            <ActionButton tone="danger" size="sm" disabled={!!it.used_count} onClick={() => setConfirmDelete(true)} data-testid="payroll-item-delete">{t('items.delete')}</ActionButton>
-            {!!it.used_count && <Muted>{t('items.used', { n: it.used_count })} · {t('error.item_in_use')}</Muted>}
-          </Danger>
-        )}
       </DetailDrawer.Body>
+      {/* 삭제는 하단 고정 줄(2026-10-21 우측 패널 통일) */}
+      {it.code !== 'base' && (
+        <DetailDrawer.Footer>
+          {!!it.used_count && <Muted>{t('items.used', { n: it.used_count })} · {t('error.item_in_use')}</Muted>}
+          <ActionButton tone="danger" size="sm" disabled={!!it.used_count} onClick={() => setConfirmDelete(true)} data-testid="payroll-item-delete">{t('items.delete')}</ActionButton>
+        </DetailDrawer.Footer>
+      )}
       <ConfirmDialog isOpen={confirmDelete} onClose={() => setConfirmDelete(false)} onConfirm={doDelete} variant="danger"
         title={t('items.deleteTitle')} message={t('items.deleteMsg', { name: it.name })} confirmText={t('items.delete') as string} cancelText={t('common:cancel', 'Cancel') as string} />
     </DetailDrawer>
@@ -171,4 +172,3 @@ const Input = styled.input`
 `;
 const Toggles = styled.div`margin-top: 18px; display: flex; flex-direction: column; gap: 4px;`;
 const ToggleLine = styled.div`display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 40px; font-size: 0.875rem; color: #0F172A;`;
-const Danger = styled.div`margin-top: 24px; padding-top: 16px; border-top: 1px solid #F1F5F9; display: flex; align-items: center; gap: 10px; flex-wrap: wrap;`;

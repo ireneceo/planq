@@ -101,12 +101,13 @@ export default function EntryDrawer({ businessId, detail, entry, onClose, onChan
         <Lines>{deductions.map(lineRow)}</Lines>
 
         {locked && entry.bank_last4 && <Muted>{t('entry.bank')}: {entry.bank_name || ''} ****{entry.bank_last4}</Muted>}
-        <Footer>
-          {locked
-            ? <ActionButton tone="secondary" size="sm" data-testid="payroll-entry-pdf" onClick={() => payrollApi.entryPayslipPdf(businessId, entry.id, lang).catch(fail)}>{t('entry.pdf')}</ActionButton>
-            : <ActionButton tone="secondary" size="sm" data-testid="payroll-entry-remove" onClick={() => setConfirmRemove(true)}>{t('entry.remove')}</ActionButton>}
-        </Footer>
       </DetailDrawer.Body>
+      {/* 하단 고정 줄 — 옛 자리는 본문 안 «Footer» 라 명세 줄이 길면 스크롤 밖이었다(2026-10-21 우측 패널 통일) */}
+      <DetailDrawer.Footer>
+        {locked
+          ? <ActionButton tone="secondary" size="sm" data-testid="payroll-entry-pdf" onClick={() => payrollApi.entryPayslipPdf(businessId, entry.id, lang).catch(fail)}>{t('entry.pdf')}</ActionButton>
+          : <ActionButton tone="secondary" size="sm" data-testid="payroll-entry-remove" onClick={() => setConfirmRemove(true)}>{t('entry.remove')}</ActionButton>}
+      </DetailDrawer.Footer>
       <ConfirmDialog isOpen={confirmRemove} onClose={() => setConfirmRemove(false)} variant="warning"
         title={t('entry.removeTitle')} message={t('entry.removeMsg', { name: entry.display_name })} confirmText={t('entry.remove') as string} cancelText={t('common:cancel', 'Cancel') as string}
         onConfirm={() => { setConfirmRemove(false); payrollApi.removeEntry(businessId, entry.id).then(() => { onChanged(); onClose(); }).catch(fail); }} />
@@ -175,4 +176,3 @@ const Num = styled.input`
 `;
 const Quick = styled.div`display: flex; gap: 10px; margin-top: 4px; justify-content: flex-end;`;
 const LinkBtn = styled.button`background: none; border: none; padding: 4px 0; color: #0F766E; font-size: 0.75rem; font-weight: 600; cursor: pointer; font-family: inherit; min-height: 32px;`;
-const Footer = styled.div`margin-top: 20px; display: flex; gap: 8px;`;

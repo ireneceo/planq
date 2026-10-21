@@ -149,10 +149,15 @@ function PayslipDrawer({ businessId, entryId, onClose, onViewed }: { businessId:
             {p.entry.bank_last4 && <Small>{t('payslips.account')}: {p.entry.bank_name || ''} ****{p.entry.bank_last4}</Small>}
             {!!p.entry.unpaid_leave_days && <Small>{t('payslips.unpaid', { n: p.entry.unpaid_leave_days })}</Small>}
             <Resp>{t('responsibility')}</Resp>
-            <ActionButton tone="secondary" size="sm" loading={busy} data-testid="payslip-pdf" onClick={pdf}>{t('payslips.pdf')}</ActionButton>
           </>
         )}
       </DetailDrawer.Body>
+      {/* PDF 는 하단 고정 줄(2026-10-21 우측 패널 통일) — 명세 줄이 길면 본문 끝 버튼은 스크롤 밖이었다 */}
+      {p && (
+        <DetailDrawer.Footer>
+          <ActionButton tone="secondary" size="sm" loading={busy} data-testid="payslip-pdf" onClick={pdf}>{t('payslips.pdf')}</ActionButton>
+        </DetailDrawer.Footer>
+      )}
     </DetailDrawer>
   );
 }

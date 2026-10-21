@@ -277,43 +277,43 @@ export default function PersonalEventDrawer({ event, businessId, onClose, onChan
             ? t('personal.editableHint', { defaultValue: '나에게만 보입니다. 수정하면 Google 캘린더에 바로 반영됩니다.' }) as string
             : blockedReason}
         </Hint>
-
-        {canEdit && (
-          confirmDelete ? (
-            <DeleteConfirm>
-              <ConfirmText>
-                {event.recurring_event_id
-                  ? t('personal.deleteConfirmRecurring', { defaultValue: '이 회차만 Google 캘린더에서 삭제합니다.' }) as string
-                  : t('personal.deleteConfirm', { defaultValue: '이 일정을 Google 캘린더에서 삭제합니다.' }) as string}
-              </ConfirmText>
-              <ConfirmActions>
-                <ActionButton tone="secondary" size="sm" onClick={() => setConfirmDelete(false)}>
-                  {t('personal.cancel', { defaultValue: '취소' }) as string}
-                </ActionButton>
-                <ActionButton tone="danger" size="sm" onClick={remove} loading={deleting}>
-                  {t('personal.delete', { defaultValue: '삭제' }) as string}
-                </ActionButton>
-              </ConfirmActions>
-            </DeleteConfirm>
-          ) : (
-            <DeleteRow>
-              <LinkDanger type="button" onClick={() => setConfirmDelete(true)}>
-                {t('personal.delete', { defaultValue: '삭제' }) as string}
-              </LinkDanger>
-            </DeleteRow>
-          )
-        )}
       </DetailDrawer.Body>
 
-      {event.html_link && (
+      {/* 하단 고정 줄 — 삭제도 여기(2026-10-21 우측 패널 통일). 옛 자리는 본문 끝이라 설명이 길면 스크롤 밖이었다. */}
+      {(event.html_link || canEdit) && (
         <DetailDrawer.Footer>
-          <ActionButton
+          {canEdit && (
+            confirmDelete ? (
+              <DeleteConfirm>
+                <ConfirmText>
+                  {event.recurring_event_id
+                    ? t('personal.deleteConfirmRecurring', { defaultValue: '이 회차만 Google 캘린더에서 삭제합니다.' }) as string
+                    : t('personal.deleteConfirm', { defaultValue: '이 일정을 Google 캘린더에서 삭제합니다.' }) as string}
+                </ConfirmText>
+                <ConfirmActions>
+                  <ActionButton tone="secondary" size="sm" onClick={() => setConfirmDelete(false)}>
+                    {t('personal.cancel', { defaultValue: '취소' }) as string}
+                  </ActionButton>
+                  <ActionButton tone="danger" size="sm" onClick={remove} loading={deleting}>
+                    {t('personal.delete', { defaultValue: '삭제' }) as string}
+                  </ActionButton>
+                </ConfirmActions>
+              </DeleteConfirm>
+            ) : (
+              <DeleteRow>
+                <ActionButton tone="danger" size="sm" onClick={() => setConfirmDelete(true)}>
+                  {t('personal.delete', { defaultValue: '삭제' }) as string}
+                </ActionButton>
+              </DeleteRow>
+            )
+          )}
+          {event.html_link && !confirmDelete && <ActionButton
             tone="secondary"
             size="md"
             onClick={() => window.open(event.html_link as string, '_blank', 'noopener')}
           >
             {t('personal.openInGoogle', { defaultValue: 'Google Calendar 에서 열기' }) as string}
-          </ActionButton>
+          </ActionButton>}
         </DetailDrawer.Footer>
       )}
     </DetailDrawer>
@@ -361,14 +361,10 @@ const Notice = styled.div`
   background: #F8FAFC; border: 1px solid #E2E8F0; font-size: 0.6875rem; color: #64748B; line-height: 1.6;
 `;
 const Warn = styled(Notice)`background: #FFFBEB; border-color: #FDE68A; color: #92400E; font-weight: 600;`;
-const DeleteRow = styled.div`margin-top: 16px; display: flex; justify-content: flex-end;`;
-const LinkDanger = styled.button`
-  border: none; background: none; padding: 0; cursor: pointer;
-  font-size: 0.75rem; font-weight: 600; color: #94A3B8;
-  &:hover { color: #DC2626; text-decoration: underline; }
-`;
+// 하단 줄 왼쪽(삭제) — 오른쪽 «Google 에서 열기» 와 떨어뜨린다(업무 상세 하단 줄과 같은 배치)
+const DeleteRow = styled.div`margin-right: auto; display: flex;`;
 const DeleteConfirm = styled.div`
-  margin-top: 16px; padding: 12px; border-radius: 10px;
+  flex: 1; min-width: 0; padding: 12px; border-radius: 10px;
   background: #FEF2F2; border: 1px solid #FECACA;
   display: flex; flex-direction: column; gap: 10px;
 `;

@@ -36,6 +36,7 @@ import VisibilityChangeModal from '../Common/VisibilityChangeModal';
 import SecurityLevelBadge, { useSecurityLevelLabel } from '../Common/SecurityLevelBadge';
 import ConfirmDialog from '../Common/ConfirmDialog';
 import ActionButton from '../Common/ActionButton';
+import DrawerFooter from '../Common/DrawerFooter';
 import AutoSaveField from '../Common/AutoSaveField';
 import { StatusGlyph } from '../Common/Icons';
 import {
@@ -442,6 +443,12 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
   // 운영 #271 — 확인 요청에도 메시지를 같이 남긴다. 승인 폼(#112c)과 같은 인라인 확장 패턴.
   //   비워도 그대로 요청된다(선택 입력).
   const [submitOpen, setSubmitOpen] = useState(false);
+  // 하단 고정 줄의 버튼은 위 «담당자로서·컨펌자로서» 카드와 **같은 함수**를 부른다.
+  //   메모를 받는 액션(확인 요청·승인·수정 요청)은 폼이 카드 안에 있으므로, 폼을 열고 그 자리로 데려간다.
+  const actionSectionRef = useRef<HTMLDivElement>(null);
+  const revealActions = () => {
+    window.requestAnimationFrame(() => actionSectionRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }));
+  };
   const submitDraft = useDraftText(useDraftKey('task-submit-note', detailTask?.id, bizId));
   const submitNote = submitDraft.text;
   // #112 — 수정요청에 참고 파일 첨부 (일반 댓글 첨부와 동일 인프라: context='comment')
@@ -2297,7 +2304,7 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
             {/* 액션 섹션 — 항상 마운트 유지 (상태 전환 시 섹션 자체가 사라지며 생기는 깜빡임 방지)
               * ★ 조건에 hold/external 을 반드시 포함한다. 빼면 워크플로 버튼이 없는 뷰어
               *   (owner·작성자)에게 보류 진입이 통째로 사라진다. */}
-            <Section style={{ display: (assigneeHasAction || reviewerCanAct || holdAvailable || externalAvailable || externalLocked) ? 'block' : 'none' }}>
+            <Section ref={actionSectionRef} data-testid="task-action-section" style={{ display: (assigneeHasAction || reviewerCanAct || holdAvailable || externalAvailable || externalLocked) ? 'block' : 'none' }}>
               {assigneeHasAction && <ActionCard>
                 <ActionCardTitle>{t('detail.actions.assigneeTitle', 'As assignee')}</ActionCardTitle>
                 {ackAvailable && <ActionPrimary onClick={actAck} disabled={actionBusy}>{t('detail.actions.ack', 'Acknowledge request')}</ActionPrimary>}
@@ -2914,17 +2921,53 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
               const isMine = detailTask.created_by === myId
                 || detailTask.assignee_id === myId
                 || detailTask.request_by_user_id === myId;
-              if (!isAdmin && !isMine) return null;
-              // N+63 — inline DangerConfirm 제거. drawer 끝에 펼쳐져 사용자가 스크롤 위치에 따라 안 보이는 회귀.
-              // ConfirmDialog (modal, zIndex 2100) 로 교체 — drawer 위 가운데 항상 노출.
+              const canDelete = isAdmin || isMine;
+              // 하단 고정 줄 — 왼쪽 [업무 삭제] · 오른쪽 «다음 할 일» 버튼(2026-10-21 Irene).
+              //   위 카드와 같은 게이트·같은 함수다. 글자만 «→ 다음 단계» 없이 동작으로 쓴다(detail.footer.*).
+              //   되돌리는 동작(확인 요청 취소·내 결정 취소·보류)은 위 카드에만 둔다 — 여기는 앞으로 가는 것만.
+              const isResubmit = detailTask.status === 'revision_requested';
+              const reviewerPending = reviewerCanAct && myReviewer?.state === 'pending';
+              const footerActions: React.ReactNode[] = [];
+              if (ackAvailable) footerActions.push(
+                <ActionPrimary key="ack" onClick={actAck} disabled={actionBusy} data-testid="task-footer-ack">{t('detail.footer.ack', '요청 확인하기')}</ActionPrimary>);
+              if (startAvailable) footerActions.push(
+                <ActionPrimary key="start" onClick={actStart} disabled={actionBusy} data-testid="task-footer-start">
+                  {resumeFromRevision ? t('detail.footer.resume', '다시 진행하기') : t('detail.footer.start', '진행 시작하기')}
+                </ActionPrimary>);
+              if (submitAvailable) footerActions.push(
+                <ActionPrimary key="submit" disabled={actionBusy} data-testid="task-footer-submit"
+                  onClick={() => { if (submitOpen || submitNote) void submitReviewWithNote(); else { setSubmitOpen(true); revealActions(); } }}>
+                  {isResubmit ? t('detail.footer.resubmit', '재확인 요청하기') : t('detail.footer.submit', '확인 요청하기')}
+                </ActionPrimary>);
+              if (completeSimple) footerActions.push(
+                <ActionPrimary key="complete" onClick={actComplete} disabled={actionBusy} data-testid="task-footer-complete">{t('detail.footer.complete', '완료 처리하기')}</ActionPrimary>);
+              if (completeFinal) footerActions.push(
+                <ActionPrimary key="final" onClick={actComplete} disabled={actionBusy} data-testid="task-footer-final">{t('detail.footer.final', '최종 완료하기')}</ActionPrimary>);
+              if (reviewerPending) {
+                footerActions.push(
+                  <ActionDanger key="revision" disabled={actionBusy || ((revisionOpen || !!revisionNote) && !revisionNote.trim())} data-testid="task-footer-revision"
+                    onClick={() => { if (revisionOpen && revisionNote.trim()) void submitRevision(); else { setRevisionOpen(true); revealActions(); } }}>
+                    {t('detail.footer.revision', '수정 요청하기')}
+                  </ActionDanger>);
+                footerActions.push(
+                  <ActionPrimary key="approve" disabled={actionBusy} data-testid="task-footer-approve"
+                    onClick={() => { if (approveOpen || approveNote) void submitApprove(); else { setApproveOpen(true); revealActions(); } }}>
+                    {t('detail.footer.approve', '승인하기')}
+                  </ActionPrimary>);
+              }
+              if (!canDelete && footerActions.length === 0) return null;
+              // N+63 — 삭제 확인은 ConfirmDialog(modal) — 하단 줄 안에서 펼치지 않는다.
               return (
-                <DangerSection>
-                  <DangerActionRow>
-                    <ActionDanger onClick={() => setDeleteConfirmOpen(true)} disabled={deleting}>
+                <TaskFooter data-testid="task-detail-footer"
+                  left={canDelete ? (
+                    <ActionDanger onClick={() => setDeleteConfirmOpen(true)} disabled={deleting} data-testid="task-delete-open">
                       {t('detail.delete.button', '업무 삭제')}
                     </ActionDanger>
-                  </DangerActionRow>
-                </DangerSection>
+                  ) : undefined}
+                  align={canDelete ? 'space-between' : 'right'}
+                  size="sm">
+                  {footerActions}
+                </TaskFooter>
               );
             })()}
           </>);
@@ -3569,9 +3612,9 @@ const WarnBody = styled.div`font-size:0.6875rem;color:#7F1D1D;line-height:1.5;`;
 const WarnRow = styled.div`display:flex;gap:6px;justify-content:flex-end;`;
 
 // 업무 삭제 (위험 영역)
-const DangerSection = styled.div`margin-top:16px;padding:16px 14px 20px;border-top:1px dashed #E2E8F0;display:flex;flex-direction:column;gap:8px;`;
+// 하단 고정 줄 — 공용 DrawerFooter(sticky). 스크롤 상자(Scroll) 맨 끝 자식이라 상자 바닥에 붙는다.
+const TaskFooter = styled(DrawerFooter)`margin-top:16px;`;
 // N+63 — DangerConfirm / DangerTitle / DangerBody / DangerRow 제거 (ConfirmDialog modal 로 대체)
-const DangerActionRow = styled.div`display:flex;justify-content:flex-end;`;
 
 // History
 const Timeline = styled.div`display:flex;flex-direction:column;gap:8px;padding-left:6px;border-left:2px solid #E2E8F0;margin-top:6px;`;

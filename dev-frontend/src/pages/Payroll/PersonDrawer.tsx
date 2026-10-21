@@ -190,16 +190,16 @@ export default function PersonDrawer({ businessId, personId, onClose, onChanged,
             </Section>
 
             <ContractSection businessId={businessId} person={p} onChanged={() => { load(); onChanged(); }} onError={setError} />
-
-            {p.contracts.length === 0 && (
-              <Section>
-                <Muted>{t('detail.deleteHint')}</Muted>
-                <Actions><ActionButton tone="danger" size="sm" data-testid="payroll-person-delete" onClick={() => setConfirmDelete(true)}>{t('detail.delete')}</ActionButton></Actions>
-              </Section>
-            )}
           </>
         )}
       </DetailDrawer.Body>
+      {/* 삭제는 하단 고정 줄 — 본문 끝에 두면 계약·계좌 칸을 다 내려야 보였다(2026-10-21 우측 패널 통일) */}
+      {p && p.contracts.length === 0 && (
+        <DetailDrawer.Footer>
+          <Muted>{t('detail.deleteHint')}</Muted>
+          <ActionButton tone="danger" size="sm" data-testid="payroll-person-delete" onClick={() => setConfirmDelete(true)}>{t('detail.delete')}</ActionButton>
+        </DetailDrawer.Footer>
+      )}
       <ConfirmDialog isOpen={confirmDelete} onClose={() => setConfirmDelete(false)} onConfirm={doDelete} variant="danger"
         title={t('detail.deleteConfirmTitle')} message={t('detail.deleteConfirmMsg', { name: p?.display_name || '' })} confirmText={t('detail.delete') as string} />
       <ConfirmDialog isOpen={confirmBankRemove} onClose={() => setConfirmBankRemove(false)} onConfirm={removeBank} variant="danger"
