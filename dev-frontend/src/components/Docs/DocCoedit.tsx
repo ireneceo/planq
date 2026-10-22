@@ -79,7 +79,7 @@ export const SignLockedBar: React.FC = () => {
   const { t } = useTranslation('qdocs');
   return (
     <CoeditBar role="alert" $tone="err" data-testid="docs-sign-locked">
-      {t('autosave.signatureLocked', '서명 요청을 보낸 문서라 고칠 수 없습니다. 받는 분이 아직 서명하지 않았으면 아래 서명 진행에서 [고쳐서 다시 보내기] 를 누르세요. 이미 서명받았다면 문서를 복사해 새로 보내 주세요.')}
+      {t('autosave.signatureLocked', '서명 요청을 보낸 문서라 고칠 수 없습니다. 받는 분이 아직 서명하지 않았으면 아래 서명 진행에서 [고쳐서 다시 보내기] 를 누르세요 — 누르면 쓰던 글이 바로 저장됩니다. 이미 서명받았다면 문서를 복사해 새로 보내 주세요.')}
     </CoeditBar>
   );
 };

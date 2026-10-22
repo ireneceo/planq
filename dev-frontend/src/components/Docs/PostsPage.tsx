@@ -2273,6 +2273,23 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId }) => {
             </MetaRow>
             </StickyBands>
             <EditBody>
+              {/* 서명 잠금이면 [고쳐서 다시 보내기] 가 있는 서명 진행을 편집 화면에도 꺼낸다 — 안내가 «아래 서명 진행» 을
+                  가리키는데 그 칸이 보기 화면에만 있어 편집 중에는 누를 곳이 없었다(2026-10-22 Irene). 닫으면 잠금이 풀려
+                  쓰던 글을 바로 저장한다. */}
+              {signLocked && detail && (
+                <SignatureProgressSection
+                  postId={detail.id}
+                  inferredKind={inferKindFromTitle(detail.title, detail.category)}
+                  reloadTrigger={signReloadKey}
+                  onAddMore={() => setSignOpen(true)}
+                  onRoundClosed={() => {
+                    setSignLocked(false);
+                    setAutoErr(null);
+                    setAutoState('idle');
+                    void runAutosaveRef.current?.();
+                  }}
+                />
+              )}
               {fromAction && <FromTaskBanner handoff={fromAction} linkFailed={fromActionFailed} />}
               {error && <ErrorBar>{error}</ErrorBar>}
               {/* 다운로드 실패는 조용히 넘기지 않는다 — 이전엔 링크가 401 이어도 화면에 아무 말이 없었다 */}

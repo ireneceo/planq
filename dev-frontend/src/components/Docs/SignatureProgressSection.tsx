@@ -24,9 +24,11 @@ interface Props {
   reloadTrigger?: number;
   /** "서명 받기" 모달 열기 콜백 */
   onAddMore: () => void;
+  /** [고쳐서 다시 보내기] 로 회차를 닫은 뒤 — 편집 화면은 잠금을 풀고 쓰던 글을 저장한다 */
+  onRoundClosed?: () => void;
 }
 
-const SignatureProgressSection: React.FC<Props> = ({ postId, inferredKind, reloadTrigger, onAddMore }) => {
+const SignatureProgressSection: React.FC<Props> = ({ postId, inferredKind, reloadTrigger, onAddMore, onRoundClosed }) => {
   const { t } = useTranslation('qdocs');
   const { formatDateTime, formatTimeAgo } = useTimeFormat();
   const navigate = useNavigate();
@@ -202,6 +204,7 @@ const SignatureProgressSection: React.FC<Props> = ({ postId, inferredKind, reloa
       await closeSignatureRound(postId);
       setCloseOpen(false);
       await reload();
+      onRoundClosed?.();
     } catch (e) {
       setCloseOpen(false);
       setCloseErr((e as { code?: string }).code === 'round_has_counterparty_signature'

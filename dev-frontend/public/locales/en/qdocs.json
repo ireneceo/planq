@@ -969,7 +969,7 @@
     "staleBar": "Someone else saved first. What would you like to do? Their text stays in the version history even if you overwrite.",
     "staleReload": "Load latest",
     "staleOverwrite": "Overwrite with my edits",
-    "signatureLocked": "A signature request was sent for this document, so it can't be edited. If no recipient has signed yet, press [Revise and resend] in Signature progress below. If it's already signed, duplicate the document and send a new request.",
+    "signatureLocked": "A signature request was sent for this document, so it can't be edited. If no recipient has signed yet, press [Revise and resend] in Signature progress below — what you typed is saved right away. If it's already signed, duplicate the document and send a new request.",
     "staleSee": "See what changed",
     "signLockedShort": "Locked for signing"
   },
