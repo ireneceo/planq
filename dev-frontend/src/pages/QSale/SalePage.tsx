@@ -86,6 +86,8 @@ export default function SalePage({ embedded = false }: { embedded?: boolean } = 
   const [clientAddPrefill, setClientAddPrefill] = useState<{ name?: string; email?: string; company?: string; phone?: string; job_title?: string; department?: string } | null>(null);
   // 받은 명함에서 왔을 때(내 명함 > 받은 명함 [고객으로 추가] → ?new=1&card=<보관본 id>) — 서버 판정을 드로어에 넘긴다
   const [clientAddFromCard, setClientAddFromCard] = useState<{ savedCardId: number; colleague: boolean; match: CardIntake['match'] } | null>(null);
+  // 메일 «고객으로 저장»(?thread=) — 드로어가 그 메일 서명으로 빈 칸을 채운다
+  const [clientAddFromMail, setClientAddFromMail] = useState<{ threadId: number } | null>(null);
   // 명함 사진에서 왔을 때 — 원본 파일(저장 뒤 고객 파일로 남긴다)·읽기 결과·못 읽었을 때 이유
   const [clientAddFromPhoto, setClientAddFromPhoto] = useState<{ file: File; match: CardIntake['match']; notice: string | null } | null>(null);
   // 보관 축 — 고객 탭만(활성 = 보관 안 한 것 · 보관 = 보관만)
@@ -142,7 +144,7 @@ export default function SalePage({ embedded = false }: { embedded?: boolean } = 
     const cardId = Number(searchParams.get('card')) || null;
     setSearchParams((sp) => {
       const out = new URLSearchParams(sp);
-      out.delete('new'); out.delete('email'); out.delete('name'); out.delete('card');
+      out.delete('new'); out.delete('email'); out.delete('name'); out.delete('card'); out.delete('thread');
       return out;
     }, { replace: true });
     if (cardId && businessId) {
@@ -153,13 +155,16 @@ export default function SalePage({ embedded = false }: { embedded?: boolean } = 
           name: v.name || '', email: v.email || '', company: v.company || '', phone: v.mobile || v.phone || '',
           job_title: v.job_title || '', department: v.department || '',
         });
-        setClientAddFromCard({ savedCardId: cardId, colleague: it.colleague, match: it.match });
+        setClientAddFromCard({ savedCardId: cardId, colleague: it.colleague, match: it.match }); setClientAddFromMail(null);
         setClientAddFromPhoto(null);
         setClientAddOpen(true);
-      }).catch(() => { setClientAddFromCard(null); setClientAddPrefill(null); setClientAddOpen(true); });
+      }).catch(() => { setClientAddFromCard(null); setClientAddFromMail(null); setClientAddPrefill(null); setClientAddOpen(true); });
       return;
     }
-    setClientAddFromCard(null); setClientAddFromPhoto(null);
+    setClientAddFromCard(null); setClientAddFromMail(null); setClientAddFromPhoto(null);
+    // 메일에서 왔으면(`thread`) 드로어가 그 메일 서명으로 빈 칸을 채운다 — 이메일·이름으로 먼저 연다
+    const threadId = Number(searchParams.get('thread')) || null;
+    setClientAddFromMail(threadId ? { threadId } : null);
     setClientAddPrefill({ email: searchParams.get('email') || '', name: searchParams.get('name') || '' });
     setClientAddOpen(true);
   }, [urlNew, searchParams, setSearchParams, businessId]);
@@ -295,7 +300,7 @@ export default function SalePage({ embedded = false }: { embedded?: boolean } = 
           {tab === 'clients' && canManage && businessId && (
             <CardPhotoButton businessId={businessId} onRead={(r, file, err) => {
               const v = r?.values;
-              setClientAddFromCard(null);
+              setClientAddFromCard(null); setClientAddFromMail(null);
               setClientAddPrefill(v ? {
                 name: v.name || '', email: v.email || '', company: v.company || '', phone: v.mobile || v.phone || '',
                 job_title: v.job_title || '', department: v.department || '',
@@ -305,7 +310,7 @@ export default function SalePage({ embedded = false }: { embedded?: boolean } = 
             }} />
           )}
           {tab === 'clients' && canManage ? (
-            <HeaderCta data-testid="sale-add-client" onClick={() => { setClientAddPrefill(null); setClientAddFromCard(null); setClientAddFromPhoto(null); setClientAddOpen(true); }}>
+            <HeaderCta data-testid="sale-add-client" onClick={() => { setClientAddPrefill(null); setClientAddFromCard(null); setClientAddFromMail(null); setClientAddFromPhoto(null); setClientAddOpen(true); }}>
               <PlusIcon aria-hidden />
               <LongLabel>{t('clients:addClient') as string}</LongLabel>
               <ShortLabel>{t('clients:addClient') as string}</ShortLabel>
@@ -614,7 +619,7 @@ export default function SalePage({ embedded = false }: { embedded?: boolean } = 
       />
       {businessId && (
         <ClientAddDrawer open={clientAddOpen} onClose={() => setClientAddOpen(false)} businessId={businessId}
-          prefill={clientAddPrefill} fromCard={clientAddFromCard} fromPhoto={clientAddFromPhoto}
+          prefill={clientAddPrefill} fromCard={clientAddFromCard} fromPhoto={clientAddFromPhoto} fromMail={clientAddFromMail}
           onDone={(id) => { load({ silent: true, page: 1 }); if (id) setPanelClientId(id); }}
           onOpenExisting={(id) => setPanelClientId(id)} />
       )}

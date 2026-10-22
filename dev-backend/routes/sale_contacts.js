@@ -79,6 +79,45 @@ router.post('/:businessId/card-read', ...writeChain, ...readLimit, photoUpload.s
   } catch (err) { return fail(res, next, err); }
 });
 
+// ─── 메일 서명 → 고객 추가 폼 (2026-10-22) ─────────────────────────────
+//   Irene: *"메일에서 고객을 추가하거나 초대할 수 있게 하면, 기본 정보를 메일 서명 같은 곳에서 가져와야 해"*
+//   메일 «고객으로 저장» 이 연 고객 추가 폼을 서명 값(회사·직함·부서·전화)으로 채운다. **저장하지 않는다**.
+//   스레드 접근 = 웹폼 본문(sale_save inbox/webform-text)과 같은 술어(이 워크스페이스 + 내가 볼 수 있는 메일함).
+//   그 스레드에서 **그 주소가 보낸** 마지막 메일의 끝부분만 읽는다(다른 사람 서명을 섞지 않는다).
+const sigLimit = perUserDaily('mail-signature-read', { perMin: 10, perDay: 100, message: '서명 읽기가 너무 잦습니다. 잠시 후 다시 시도하세요.' });
+// audit-exempt: 읽기만 한다 — 메일 끝부분을 AI 로 읽어 값을 돌려줄 뿐 저장·변경이 없다(저장은 고객 추가가 감사)
+router.post('/:businessId/mail-signature-read', ...writeChain, ...sigLimit, async (req, res, next) => {
+  try {
+    const businessId = Number(req.params.businessId);
+    const threadId = Number((req.body || {}).email_thread_id || 0);
+    const email = String((req.body || {}).email || '').trim().toLowerCase();
+    if (!threadId || !email) return errorResponse(res, 'thread_not_found', 404);
+    const { Op } = require('sequelize');
+    const { EmailThread, EmailMessage } = require('../models');
+    const { accessibleAccountIds } = require('../services/clientTimeline');
+    const acctIds = await accessibleAccountIds(businessId, req.user.id);
+    const thread = await EmailThread.findOne({
+      where: { id: threadId, business_id: businessId, account_id: { [Op.in]: acctIds.length ? acctIds : [0] } },
+      attributes: ['id'],
+    });
+    if (!thread) return errorResponse(res, 'thread_not_found', 404);
+    const last = await EmailMessage.findOne({
+      where: { business_id: businessId, thread_id: thread.id, direction: 'inbound', from_email: email },
+      order: [['id', 'DESC']], attributes: ['body_text', 'body_html', 'from_name'],
+    });
+    const { signatureTail } = require('../services/emailBodyClean');
+    const tail = last ? signatureTail(last.body_text, last.body_html) : '';
+    const fromName = last ? last.from_name : (req.body || {}).name;
+    const { readSignatureText } = require('../services/cardRead');
+    const { values, found } = await readSignatureText(businessId, { text: tail, fromName, fromEmail: email });
+    let match = null;
+    const { findExistingByContact } = require('../services/saleCommon');
+    const hit = await findExistingByContact(businessId, { email: values.email, phone: values.mobile || values.phone });
+    if (hit) match = { id: hit.id, name: hit.display_name || hit.company_name || null };
+    return successResponse(res, { values, found, match });
+  } catch (err) { return fail(res, next, err); }
+});
+
 // 명함 사진을 그 고객의 파일로 남긴다 — contact_id 가 있으면 그 담당자의 사진으로 건다(없으면 고객 파일로만)
 router.post('/:businessId/clients/:clientId/card-photo', ...writeChain, ...photoLimit, photoUpload.single('file'), async (req, res, next) => {
   try {

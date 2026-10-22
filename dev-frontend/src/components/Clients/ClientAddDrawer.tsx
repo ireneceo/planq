@@ -7,7 +7,7 @@ import { useEffect, useMemo, useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { apiFetch } from '../../contexts/AuthContext';
-import { attachCardToClient, attachValuesToClient, saveCardPhoto, type CardIntake } from '../../services/sale';
+import { attachCardToClient, attachValuesToClient, saveCardPhoto, readMailSignature, type CardIntake } from '../../services/sale';
 import CreateDrawer from '../Common/CreateDrawer';
 import PlanQSelect from '../Common/PlanQSelect';
 import { SegmentedToggle, SegmentedBtn } from '../Common/segmentedToggle';
@@ -35,6 +35,8 @@ interface Props {
   fromCard?: { savedCardId: number; colleague: boolean; match: CardIntake['match'] } | null;
   /** 명함 사진에서 왔을 때 — 원본 파일(저장 뒤 그 고객의 파일로 남긴다) · 이미 있는 고객 · 못 읽었을 때 안내 */
   fromPhoto?: { file: File; match: CardIntake['match']; notice: string | null } | null;
+  /** 메일 «고객으로 저장» 에서 왔을 때 — 그 메일의 서명으로 빈 칸(회사·직함·부서·전화)을 채운다(2026-10-22) */
+  fromMail?: { threadId: number } | null;
   /** 있으면 «이 고객 초대» — 그 행을 승격한다(새 행 X). 모드는 초대로 고정 */
   inviteFor?: InviteTarget | null;
   /** 끝난 뒤 — 새로 만든 고객 id(직접 관리) 또는 승격한 고객 id */
@@ -46,7 +48,7 @@ interface Props {
   projectId?: number | null;
 }
 
-export default function ClientAddDrawer({ open, onClose, businessId, prefill, fromCard, fromPhoto, inviteFor, onDone, onOpenExisting, projectId }: Props) {
+export default function ClientAddDrawer({ open, onClose, businessId, prefill, fromCard, fromPhoto, fromMail, inviteFor, onDone, onOpenExisting, projectId }: Props) {
   const { t } = useTranslation('clients');
   const kindLabel = usePartnerKindLabel();
   const kindOptions = useMemo(() => (['customer', 'vendor', 'freelancer', 'other'] as Kind[]).map((k) => ({ value: k, label: kindLabel(k) })), [kindLabel]);
@@ -70,7 +72,8 @@ export default function ClientAddDrawer({ open, onClose, businessId, prefill, fr
   useEffect(() => {
     if (!open) return;
     // 명함에서 왔으면 «직접 관리» 로 연다 — 받은 명함은 아직 초대할 사이가 아닌 경우가 대부분이다
-    setMode(fromCard || fromPhoto ? 'managed' : 'invite'); setError(null); setExistingId(null); setMailWarn(false);
+    //   메일 서명에서 왔을 때도 «직접 관리» — 서명이 주는 전화·직함·부서 칸이 그 모드에만 있다(초대로 바꿀 수 있다)
+    setMode(fromCard || fromPhoto || fromMail ? 'managed' : 'invite'); setError(null); setExistingId(null); setMailWarn(false);
     setPhone(prefill?.phone || ''); setJobTitle(prefill?.job_title || ''); setDepartment(prefill?.department || '');
     if (inviteFor) {
       setName(inviteFor.display_name || inviteFor.company_name || '');
@@ -82,7 +85,36 @@ export default function ClientAddDrawer({ open, onClose, businessId, prefill, fr
     }
     // ★ 값으로 비교한다 — 부르는 쪽이 객체를 새로 만들어 넘기면 입력 중에 폼이 비워진다
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, inviteFor?.id, prefill?.name, prefill?.email, fromCard?.savedCardId, fromPhoto?.file]);
+  }, [open, inviteFor?.id, prefill?.name, prefill?.email, fromCard?.savedCardId, fromPhoto?.file, fromMail?.threadId]);
+
+  // 메일 서명 → 빈 칸 채우기. ★ 사람이 이미 친 칸은 덮지 않는다(읽는 사이 입력을 시작할 수 있다).
+  //   위 «처음부터» 효과 뒤에 돈다(같은 렌더의 효과는 적은 순서대로).
+  const [sigState, setSigState] = useState<'idle' | 'reading' | 'filled' | 'none' | 'failed' | 'usage_limit'>('idle');
+  const [sigMatch, setSigMatch] = useState<{ id: number; name: string | null } | null>(null);
+  useEffect(() => {
+    setSigMatch(null);
+    if (!open || !fromMail?.threadId || !prefill?.email) { setSigState('idle'); return undefined; }
+    let alive = true;
+    setSigState('reading');
+    readMailSignature(businessId, fromMail.threadId, prefill.email, prefill.name)
+      .then((r) => {
+        if (!alive) return;
+        const v = r.values;
+        const fill = (set: (fn: (prev: string) => string) => void, val: string | null | undefined) => {
+          if (val) set((prev) => (prev.trim() ? prev : val));
+        };
+        fill(setName, v.name); fill(setCompany, v.company); fill(setPhone, v.mobile || v.phone);
+        fill(setJobTitle, v.job_title); fill(setDepartment, v.department);
+        setSigMatch(r.match);
+        setSigState(r.found ? 'filled' : 'none');
+      })
+      .catch((e: unknown) => {
+        if (!alive) return;
+        setSigState(String((e as Error)?.message || '').includes('usage_limit') ? 'usage_limit' : 'failed');
+      });
+    return () => { alive = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, fromMail?.threadId, prefill?.email, businessId]);
 
   // 명함 사진 미리보기 — 읽은 값과 사진을 나란히 대조할 수 있게
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
@@ -216,6 +248,22 @@ export default function ClientAddDrawer({ open, onClose, businessId, prefill, fr
           <AttachBtn type="button" disabled={attaching} onClick={() => void attachTo(fromPhoto.match!.id)} data-testid="clients-add-card-attach">
             {t('fromCard.attach')}
           </AttachBtn>
+        </InfoBlock>
+      )}
+      {sigState === 'reading' && <Helper data-testid="clients-add-sig-reading">{t('fromMail.reading')}</Helper>}
+      {sigState === 'filled' && <Helper data-testid="clients-add-sig-filled">{t('fromMail.filled')}</Helper>}
+      {sigState === 'none' && <Helper data-testid="clients-add-sig-none">{t('fromMail.none')}</Helper>}
+      {(sigState === 'failed' || sigState === 'usage_limit') && (
+        <WarnBlock role="status" data-testid="clients-add-sig-failed">{t(sigState === 'usage_limit' ? 'fromMail.usageLimit' : 'fromMail.failed')}</WarnBlock>
+      )}
+      {sigMatch && (
+        <InfoBlock data-testid="clients-add-sig-match">
+          <span>{t('fromCard.matchFound', { name: sigMatch.name || `#${sigMatch.id}` })}</span>
+          {onOpenExisting && (
+            <AttachBtn type="button" onClick={() => { onOpenExisting(sigMatch.id); onClose(); }} data-testid="clients-add-sig-open-existing">
+              {t('addModal.openExisting')}
+            </AttachBtn>
+          )}
         </InfoBlock>
       )}
       {fromCard?.colleague && <WarnBlock role="alert" data-testid="clients-add-card-colleague">{t('fromCard.colleague')}</WarnBlock>}

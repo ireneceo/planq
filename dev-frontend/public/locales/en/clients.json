@@ -333,6 +333,13 @@
     "attachFailed": "Couldn't add the contact. Please try again in a moment.",
     "loadFailed": "Couldn't load the saved card."
   },
+  "fromMail": {
+    "reading": "Reading company, title and phone from the email signature…",
+    "filled": "Filled from the email signature. Check the values and fix anything wrong before adding.",
+    "none": "No more details were found in the email signature. Only the email and name were filled.",
+    "failed": "Couldn't read the email signature. Only the email and name were filled — enter the rest yourself.",
+    "usageLimit": "This month's AI usage is used up, so the signature wasn't read. Only the email and name were filled."
+  },
   "cardPhoto": {
     "button": "Add from a card photo",
     "consentTitle": "Read the card photo with AI",

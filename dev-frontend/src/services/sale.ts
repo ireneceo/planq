@@ -562,6 +562,16 @@ export const getCardIntake = async (businessId: number, savedCardId: number) =>
 export const attachCardToClient = async (businessId: number, clientId: number, savedCardId: number) =>
   jx<{ role: 'primary' | 'extra' }>(await apiFetch(`/api/sale/${businessId}/clients/${clientId}/attach-card`, jsonInit('POST', { saved_card_id: savedCardId })));
 
+// ─── 메일 서명 읽기 (2026-10-22) — 메일 «고객으로 저장» 이 연 고객 추가 폼을 채운다(저장 없음)
+export interface MailSignatureRead {
+  values: CardIntake['values'];
+  found: boolean;
+  match: { id: number; name: string | null } | null;
+}
+export const readMailSignature = async (businessId: number, threadId: number, email: string, name?: string | null) =>
+  jx<MailSignatureRead>(await apiFetch(`/api/sale/${businessId}/mail-signature-read`,
+    jsonInit('POST', { email_thread_id: threadId, email, name: name || null })));
+
 // ─── 명함 사진 읽기 (docs/NAME_CARD_V3_STRATEGY.md 9절 결정 3) ───────────────
 export interface CardPhotoRead {
   values: CardIntake['values'] & { website: string | null };

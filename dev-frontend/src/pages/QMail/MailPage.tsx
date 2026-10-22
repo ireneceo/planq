@@ -2091,6 +2091,9 @@ const MailPage: React.FC = () => {
   // 그 경로에서 **건드리지 않고 남겨 둔** 초안이 있으면 화면이 그렇게 말한다 —
   //   말하지 않으면 사용자는 "내가 쓰던 메일이 날아갔나" 로 읽는다.
   const [keptDraftNotice, setKeptDraftNotice] = useState(false);
+  // 주소 메뉴 «고객으로 저장» 이 열린 메일 번호를 읽는다 — addressActions 는 businessId 로만 다시 만든다(ref 로 최신값)
+  const detailIdRef = useRef<number | null>(null);
+  detailIdRef.current = detail?.id ?? null;
   const addressActions = React.useMemo(() => ({
     onViewMail: (email: string) => {
       const nsp = new URLSearchParams(window.location.search);
@@ -2119,7 +2122,10 @@ const MailPage: React.FC = () => {
       //   폴백(`path="*"`)에 걸려 **받은메일함으로 튕겼다** — 사용자에게는 "눌러도 아무 일이 없다".
       //   받는 쪽(ClientsPage)이 new·email·name 을 읽어 등록 폼을 채워 여는 것도 같이 넣었다.
       //   2026-10-16 고객 관리는 Q sale > 고객 탭 하나다 — 그 탭의 [고객 추가] 를 채워 연다(옛 /business/clients 는 넘겨줄 뿐).
-      navigate(`/sale?tab=clients&new=1&email=${encodeURIComponent(email)}${name ? `&name=${encodeURIComponent(name)}` : ''}`);
+      //   2026-10-22 — 열린 메일 번호(`thread`)를 같이 넘긴다. 받는 쪽이 그 메일의 **서명**으로 회사·직함·전화를 채운다
+      //   (Irene: "기본 정보를 메일 서명 같은 곳에서 가져와야 해"). 서명 값은 주소에 싣지 않는다 — 서버가 다시 읽는다.
+      const tid = detailIdRef.current;
+      navigate(`/sale?tab=clients&new=1&email=${encodeURIComponent(email)}${name ? `&name=${encodeURIComponent(name)}` : ''}${tid ? `&thread=${tid}` : ''}`);
     },
     onBlock: async (email: string) => {
       if (!businessId) return;

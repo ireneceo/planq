@@ -110,4 +110,28 @@ function buildPreview(text, html, maxLen = 500) {
   return cleanVisibleBody(text, html).replace(/\s+/g, ' ').trim().slice(0, maxLen);
 }
 
-module.exports = { cleanVisibleBody, detectLang, buildPreview, htmlToText, preferHtmlBody };
+// 서명 꼬리 — «메일에서 고객으로 저장» 이 보낸 사람의 회사·직함·전화를 읽는 재료(2026-10-22).
+//   인용·전달 마커에서 자르되 서명 구분선(`-- `)은 자르지 않는다 — 그 아래가 바로 서명이다.
+//   구분선이 있으면 그 아래, 없으면 새 본문의 마지막 줄들(서명은 대개 끝 3~12줄). 길이 상한을 둔다(AI 입력).
+const SIG_MAX_LINES = 15;
+const SIG_MAX_CHARS = 1500;
+function signatureTail(text, html) {
+  let body = preferHtmlBody(text, html) ? htmlToText(html) : String(text || '');
+  if (!body) return '';
+  let cutAt = body.length;
+  for (const re of CUT_MARKERS) {
+    if (String(re) === String(/^--\s*$/m)) continue;
+    const m = body.match(re);
+    if (m && m.index != null && m.index < cutAt) cutAt = m.index;
+  }
+  body = body.slice(0, cutAt);
+  const lines = body.split(/\r?\n/).map((l) => l.replace(/[ \t]+/g, ' ').trim()).filter((l) => !/^>/.test(l));
+  const sep = lines.findIndex((l) => /^--$/.test(l));
+  let tail = sep >= 0 ? lines.slice(sep + 1) : lines;
+  tail = tail.filter(Boolean);
+  if (sep < 0) tail = tail.slice(-SIG_MAX_LINES);
+  else tail = tail.slice(0, SIG_MAX_LINES + 5);
+  return tail.join('\n').slice(0, SIG_MAX_CHARS).trim();
+}
+
+module.exports = { signatureTail, cleanVisibleBody, detectLang, buildPreview, htmlToText, preferHtmlBody };

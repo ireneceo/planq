@@ -74,4 +74,63 @@ async function saveCardPhoto({ businessId, uploaderId, clientId, buf, label }) {
   return out.file;
 }
 
-module.exports = { readCardImage, saveCardPhoto, normalizeJpeg, CardReadError };
+// ─── 메일 서명 읽기 (2026-10-22) ─────────────────────────────────
+//   Irene: *"메일에서 고객을 추가하거나 초대할 수 있게 하면, 기본 정보를 메일 서명 같은 곳에서 가져와야 해"*
+//   서명은 «글로 된 명함» 이다 — 칸(FIELDS)·정리(trim)·이메일 검사가 명함 사진과 같다. **저장하지 않는다**.
+//   보낸 사람 주소는 요청한 주소로 고정한다(서명 속 다른 주소로 바꾸지 않는다 — 다른 사람 주소일 수 있다).
+const SIG_SYSTEM = [
+  '당신은 이메일 끝의 서명 글에서 보낸 사람의 연락처를 칸에 나누는 추출기다. 글에 **있는 것만** 옮긴다. 추측하거나 만들지 않는다.',
+  '서명이 아닌 본문 문장(인사·요청 내용)은 무시한다. 없으면 null. JSON 만 출력한다:',
+  '{"name":string|null,"name_en":string|null,"company":string|null,"job_title":string|null,"department":string|null,',
+  ' "mobile":string|null,"phone":string|null,"fax":string|null,"address":string|null,"website":string|null}',
+  '- name: 보낸 사람 이름(존칭·직함 제외). «보낸 사람 표시 이름» 이 주어지면 참고하되 서명에 더 정확한 이름이 있으면 그것.',
+  '- company: 회사·기관명. 이메일 도메인으로 **추측하지 않는다**. job_title: 직함·직책. department: 부서·팀.',
+  '- mobile: 휴대폰(010 등, M/Mobile/HP). phone: 사무실·대표 전화(T/Tel). fax: F/Fax. 숫자·하이픈·+ 만 남긴다.',
+].join('\n');
+
+/** @returns {{ values: object, found: boolean }} — 실패는 CardReadError(usage_limit 429 · ai_unavailable 503) */
+async function readSignatureText(businessId, { text, fromName, fromEmail }) {
+  const body = String(text || '').trim();
+  const email = String(fromEmail || '').trim().toLowerCase();
+  const values = {};
+  for (const k of Object.keys(FIELDS)) values[k] = null;
+  values.email = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? email : null;
+  // 서명이 없으면 AI 를 부르지 않는다(비용) — 표시 이름만 돌려준다
+  if (!body) {
+    values.name = trim(fromName, FIELDS.name);
+    return { values, found: false };
+  }
+  const usage = await checkUsageLimit(businessId);
+  if (usage.over) throw new CardReadError('usage_limit', 429);
+  const { callLLM } = require('./llm');
+  const user = `보낸 사람 표시 이름: ${String(fromName || '').slice(0, 100) || '(없음)'}\n보낸 사람 주소: ${email || '(없음)'}\n\n메일 끝부분:\n${body}`;
+  const r = await callLLM({
+    purpose: 'card_read', json: true, fallback: '',
+    messages: [{ role: 'system', content: SIG_SYSTEM }, { role: 'user', content: user }],
+  });
+  if (r.fallback || !r.content) throw new CardReadError('ai_unavailable', 503);
+  let parsed = null;
+  try { parsed = JSON.parse(r.content); } catch { parsed = null; }
+  if (!parsed || typeof parsed !== 'object') throw new CardReadError('ai_unavailable', 503);
+  await recordUsage(businessId, 'card_read', r.model, r.input_tokens, r.output_tokens);
+  // ★ 글에 **실제로 있는** 값만 남긴다 — 지시해도 모델이 도메인(test.planq.kr)을 회사명으로 지어냈다(2026-10-22 실측).
+  //   전화는 숫자만 비교한다. 이름은 표시 이름에서도 올 수 있어 서명 글 + 표시 이름에서 찾는다.
+  const norm = (x) => String(x || '').replace(/\s+/g, ' ').toLowerCase();
+  const bodyHay = norm(body);
+  const nameHay = `${bodyHay}\n${norm(fromName)}`;
+  const digits = body.replace(/\D/g, '');
+  const grounded = (k, v) => {
+    if (!v) return null;
+    if (['mobile', 'phone', 'fax'].includes(k)) {
+      const d = v.replace(/\D/g, '');
+      return d.length >= 7 && digits.includes(d) ? v : null;
+    }
+    return (k === 'name' || k === 'name_en' ? nameHay : bodyHay).includes(norm(v)) ? v : null;
+  };
+  for (const [k, max] of Object.entries(FIELDS)) if (k !== 'email') values[k] = grounded(k, trim(parsed[k], max));
+  if (!values.name) values.name = trim(fromName, FIELDS.name);
+  const found = ['company', 'job_title', 'department', 'mobile', 'phone'].some((k) => values[k]);
+  return { values, found };
+}
+
+module.exports = { readSignatureText, readCardImage, saveCardPhoto, normalizeJpeg, CardReadError };
