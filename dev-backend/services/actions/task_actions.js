@@ -26,8 +26,14 @@ const {
 const { assertAssignable, getUserScope, canAccessTask } = require('../../middleware/access_scope');
 const { syncFocusOnTaskStatus } = require('../focusSync');
 const {
-  broadcastTask, canEnterStatus, submitForReview, cancelReview: cancelReviewTransition, getIO,
+  broadcastTask, canEnterStatus, submitForReview, cancelReview: cancelReviewTransition, getIO, canEditBodyInStatus,
 } = require('../taskTransition');
+
+// 저장 한도 — description 은 TEXT(64KB **바이트**)라 글자 수가 아니라 바이트로 본다(한글 2만 자 = 6만 바이트).
+//   넘으면 조용히 자르지 않고 말한다(2026-10-22 Fable 설계 — 옛 slice(0,5000) 은 잘린 사실을 아무도 몰랐다).
+const DESCRIPTION_MAX_BYTES = 60000;
+const BODY_MAX_CHARS = 200000;
+const descriptionTooLong = (v) => v != null && Buffer.byteLength(String(v), 'utf8') > DESCRIPTION_MAX_BYTES;
 const { applyMemberDisplayName, applyMemberDisplayNameOne } = require('../displayName');
 
 // 위임 주체 해석 + 메뉴 쓰기 권한 — event/document 생성 액션과 공유 (services/actions/_subject.js).
@@ -269,8 +275,11 @@ async function reassign(task, actor, { assigneeId } = {}) {
 }
 
 /**
- * 제목·설명·중요도 수정 — PUT 과 같은 책임선(제목=작성자·담당자·owner/admin · 설명=**작성자만** · 중요도=제목과 같은 집합).
- *   결과물(body)은 여기서 열지 않는다(담당자만 · 편집 상태에서만 — 버전 규칙이 PUT 에 있다).
+ * 제목·설명·결과물·중요도 수정 — PUT 과 같은 책임선(제목=작성자·담당자·owner/admin · 설명=**작성자만** ·
+ *   결과물=**담당자만** · 중요도=제목과 같은 집합). 지금 부르는 곳은 AI 도구 update_task 하나다.
+ *   결과물은 PUT 과 같은 잠금(편집 상태에서만 — canEditBodyInStatus)을 본다. 버전 박제는 명시 동작이라 여기서 하지 않는다.
+ *   fields.mode — 'replace'(기본 · PUT 과 같은 뜻) | 'append'(설명·결과물 끝에 덧붙인다 · 옛 평문은 HTML 로 바꾼 뒤 잇는다).
+ *   설명·결과물 값은 **HTML** 로 받는다(마크다운 변환은 도구 쪽 — services/agent/markdown).
  */
 async function updateFields(task, actor, fields = {}) {
   const subj = await resolveSubject(actor);
@@ -281,7 +290,22 @@ async function updateFields(task, actor, fields = {}) {
     if (!title) return fail('title required');
     patch.title = title.slice(0, 300);
   }
-  if (fields.description !== undefined) patch.description = fields.description === null ? null : String(fields.description).slice(0, 5000);
+  const mode = fields.mode === 'append' ? 'append' : 'replace';
+  const { plainToHtml } = require('../agent/markdown');
+  const merged = (prev, next) => {
+    if (next === null) return null;
+    if (mode !== 'append') return String(next);
+    const before = plainToHtml(prev || '').trim();
+    return (before && before !== '<p></p>') ? before + String(next) : String(next);
+  };
+  if (fields.description !== undefined) {
+    patch.description = merged(task.description, fields.description);
+    if (descriptionTooLong(patch.description)) return fail('description_too_long', 400);
+  }
+  if (fields.body !== undefined) {
+    patch.body = merged(task.body, fields.body);
+    if (patch.body != null && patch.body.length > BODY_MAX_CHARS) return fail('body_too_long', 400);
+  }
   if (fields.priority_level !== undefined) {
     if (fields.priority_level !== null && !['low', 'normal', 'high', 'urgent'].includes(fields.priority_level)) return fail('invalid_priority');
     patch.priority_level = fields.priority_level;
@@ -298,6 +322,7 @@ async function updateFields(task, actor, fields = {}) {
   const ctx = await fieldContext(task, subj.subjectId, subj.platformRole);
   const denied = deniedFields(keys, ctx);
   if (denied.length) return fail(`forbidden_fields:${denied.join(',')}`, 403);
+  if (patch.body !== undefined && !canEditBodyInStatus(task.status)) return fail(`body_locked:${task.status}`, 409);
   const before = { title: task.title, priority_level: task.priority_level, category: task.category, estimated_hours: task.estimated_hours };
   const t = await sequelize.transaction();
   try {
@@ -316,7 +341,7 @@ async function updateFields(task, actor, fields = {}) {
   }
   audit(actor, {
     action: 'task.update_fields', targetType: 'task', targetId: task.id, businessId: task.business_id,
-    oldValue: before, newValue: { fields: keys },
+    oldValue: before, newValue: { fields: keys, mode },
   });
   return done({ task, changed: true });
 }
@@ -667,6 +692,7 @@ async function createTask(actor, params = {}, opts = {}) {
   const title = String(params.title || '').trim();
   if (!businessId) return fail('business_id required');
   if (!title) return fail('title required');
+  if (descriptionTooLong(params.description)) return fail('description_too_long', 400);
 
   // 워크스페이스 접근권 — 멤버(owner/member/admin) 또는 고객(Client)
   const bm = await BusinessMember.findOne({ where: { user_id: subjectId, business_id: businessId } });

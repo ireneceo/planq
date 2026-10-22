@@ -59,4 +59,46 @@ function markdownToDoc(md) {
   return { type: 'doc', content: content.length ? content : [{ type: 'paragraph' }] };
 }
 
-module.exports = { markdownToDoc };
+// ── 업무 설명·결과물용 HTML (2026-10-22 Fable 설계 — docs/AGENT_TASK_BODY_DESIGN.md) ──────────
+//   업무 칸은 TipTap HTML 을 저장한다. 같은 markdownToDoc 결과를 HTML 로 내린다 — 글자는 전부 이스케이프하고,
+//   태그는 아래 표에 있는 것만 우리가 만든다(AI 가 보낸 원시 HTML 은 해석하지 않는다).
+const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+function textToHtml(n) {
+  let out = esc(n.text || '');
+  for (const m of n.marks || []) {
+    if (m.type === 'bold') out = `<strong>${out}</strong>`;
+    else if (m.type === 'italic') out = `<em>${out}</em>`;
+    else if (m.type === 'link' && SAFE_HREF.test(m.attrs?.href || '')) out = `<a href="${esc(m.attrs.href)}">${out}</a>`;
+  }
+  return out;
+}
+const inlineHtml = (nodes) => (nodes || []).map(textToHtml).join('');
+
+function nodeToHtml(n) {
+  switch (n.type) {
+    case 'paragraph': return `<p>${inlineHtml(n.content)}</p>`;
+    case 'heading': { const l = Math.min(3, Math.max(1, Number(n.attrs?.level) || 1)); return `<h${l}>${inlineHtml(n.content)}</h${l}>`; }
+    case 'bulletList': return `<ul>${(n.content || []).map(nodeToHtml).join('')}</ul>`;
+    case 'orderedList': return `<ol>${(n.content || []).map(nodeToHtml).join('')}</ol>`;
+    case 'listItem': return `<li>${(n.content || []).map(nodeToHtml).join('')}</li>`;
+    case 'blockquote': return `<blockquote>${(n.content || []).map(nodeToHtml).join('')}</blockquote>`;
+    case 'horizontalRule': return '<hr>';
+    case 'codeBlock': return `<pre><code>${esc((n.content || []).map((c) => c.text || '').join(''))}</code></pre>`;
+    default: return '';
+  }
+}
+
+/** @returns {string} TipTap 이 읽는 HTML */
+function docToHtml(doc) { return (doc?.content || []).map(nodeToHtml).join(''); }
+function markdownToHtml(md) { return docToHtml(markdownToDoc(md)); }
+
+/** 옛 평문 칸을 HTML 로 — 화면 sanitizeHtml.plainTextToHtml 과 같은 규칙(이미 HTML 이면 그대로). 덧붙이기 전에 쓴다. */
+function plainToHtml(value) {
+  if (!value) return '';
+  if (/<[a-z][\s\S]*>/i.test(value)) return value;
+  const e = String(value).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  return e.split(/\n{2,}/).map((para) => `<p>${para.replace(/\n/g, '<br/>')}</p>`).join('');
+}
+
+module.exports = { markdownToDoc, docToHtml, markdownToHtml, plainToHtml };

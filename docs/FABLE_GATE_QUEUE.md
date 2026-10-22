@@ -1,6 +1,11 @@
 # Fable 게이트 대기열 → **판정 기록 보관소** (2026-10-08 부터)
 
 
+## 2026-10-22 · AI 앱(ChatGPT) 업무 결과물·덧붙이기 쓰기 (방 a08876dd) — 설계 **ADJUST**(4항 승인 + 조정 3) · 완료 검증 대기
+- 조정: 덮어쓰기는 칸 내용과 무관하게 항상 MEDIUM(riskOf 는 인자만 본다) · description 은 TEXT 라 바이트 한도(60000) · 덧붙이기 전 옛 평문을 HTML 로.
+- 스펙·검증 10건: docs/AGENT_TASK_BODY_DESIGN.md «Fable 판정» 절. 자체 검증 13/14(⑩ 실패는 판정 정규식 — 값은 들어 있음) · 잠금 대조군 뒤집힘 · 가드 76/77 · health-check 89/89.
+- 비차단: get_task 가 description 을 HTML 로 준다(나중에 모델용 글자 변환) · add_task_note 5000자 그대로 · Cue 경로도 replace=MEDIUM.
+
 ## 2026-10-22 · 문서 같이 편집 B (방 a0fa896b) — 방향 **DESIGN_READY**(B 먼저) · 완료 검증 3f3a6ec8 **FAIL**(차단 1) → 62b1aac2 고침, 재검증 대기
 - Irene: «같은 문서를 같이 편집하고 싶으면 어떻게 해? 히스토리 남기고 공동작업 할 수 없어?» → «Fable 권고대로. UI 는 아주 쉽고 바로 알고 심플하게 통일된 디자인만». 설계 docs/DOC_COEDIT_DESIGN.md.
 - Fable 실측: 서버 소켓 26/26 · 회수·재확인 17/17(canEditPost 양성 대조군 뒤집힘) · 실브라우저 33/35(빨강 2 = 검사 조건 오류, 재측정 통과) · 치는 중 글 손실 0(양성 대조군) · drafts·leavesave 카나리 실패 0 · guard 76/77.

@@ -29,10 +29,16 @@ function forbiddenFieldsError(code) {
   return err('PERMISSION_DENIED', code, hints.length ? { denied_fields: fields, hint: hints.join(' ') } : { denied_fields: fields });
 }
 
+// 결과물 잠금 — 검토 중·끝난 업무의 결과물은 담당자가 PlanQ 에서 «수정본 작성하기» 로 다시 열어야 바뀐다(PUT 과 같은 잠금).
+function bodyLockedError(code) {
+  return err('CONFLICT', code, { hint: 'The task result is locked while it is under review or after the task is closed. The assignee can reopen it in PlanQ with "Write a revision" (수정본 작성하기). Nothing was changed. Offer to add the content as a note with add_task_note instead.' });
+}
+
 /** 행동 계층 실패 { ok:false, code, http } → 봉투 code */
 function fromActionFailure(r) {
   const c = String(r?.code || '');
   if (c.startsWith('forbidden_fields:')) return forbiddenFieldsError(c);
+  if (c.startsWith('body_locked')) return bodyLockedError(c);
   if (/not_found|invalid_task|invalid_project|invalid_client/.test(c)) return err('NOT_FOUND', c);
   if (/^forbidden|menu_forbidden|cannot_assign|only_|forbidden_fields|not_allowed|members_only/.test(c) || r?.http === 403) {
     return err('PERMISSION_DENIED', c);
@@ -52,4 +58,4 @@ function envelope(e, requestId) {
   return { ok: false, error: { code: 'INTERNAL', message: 'internal error', request_id: requestId || null } };
 }
 
-module.exports = { AgentError, err, fromActionFailure, forbiddenFieldsError, envelope, CODES };
+module.exports = { AgentError, err, fromActionFailure, forbiddenFieldsError, bodyLockedError, envelope, CODES };

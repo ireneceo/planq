@@ -5,7 +5,7 @@
 //   신원·범위는 principal(토큰)에서만 — 입력에 workspace/user id 칸이 없다.
 const { Op } = require('sequelize');
 const { z } = require('zod');
-const { err, fromActionFailure, forbiddenFieldsError } = require('../errors');
+const { err, fromActionFailure, forbiddenFieldsError, bodyLockedError } = require('../errors');
 const { taskItem, noteItem } = require('../serialize');
 
 const dateOnly = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'YYYY-MM-DD');
@@ -27,6 +27,7 @@ async function scopeOf(p) {
 // 메뉴 Layer — 화면에서 안 보이는 메뉴를 AI 로 보면 안 된다(설계 §5.5). 판정은 services/agent/menu 한 벌.
 const { assertMenu } = require('../menu');
 const { parsePage, pageOf, clip } = require('../page');
+const { markdownToHtml } = require('../markdown');
 const cfg = require('../../agent_oauth/config');
 
 const TASK_INCLUDE = () => {
@@ -284,7 +285,7 @@ async function createTask(p, a, actor) {
     title: a.title,
     estimatedHours: a.estimated_hours !== undefined ? a.estimated_hours : null,
     tagIds,
-    description: a.description || null,
+    description: a.description ? markdownToHtml(a.description) : null,   // 업무 칸은 HTML — 마크다운을 서식으로(원시 HTML 은 글자 그대로)
     dueDate: a.due_date || null,
     startDate: a.start_date || null,
     assigneeId: a.assignee_user_id || null,
@@ -490,13 +491,19 @@ async function updateTask(p, a, actor) {
   await assertMenu(p, 'qtask', 'write');
   const t = await loadTask(p, a.task_id, await scopeOf(p));
   const taskActions = require('../../actions/task_actions');
-  const fields = { title: a.title, description: a.description, priority_level: a.priority, category: a.category, estimated_hours: a.estimated_hours };
+  // 설명·결과물은 마크다운 → HTML(업무 칸 저장 형식). 기본은 덧붙이기 — 덮어쓰기는 MEDIUM(확인 2단계)을 거쳐 온다.
+  const fields = {
+    title: a.title,
+    description: a.description !== undefined ? markdownToHtml(a.description) : undefined,
+    body: a.body !== undefined ? markdownToHtml(a.body) : undefined,
+    priority_level: a.priority, category: a.category, estimated_hours: a.estimated_hours,
+  };
   const hasFields = Object.values(fields).some((v) => v !== undefined);
   if (!hasFields && a.tag_names === undefined) throw err('VALIDATION_ERROR', 'no_fields');
   // 태그 — 있는 것만(만들지 않는다). 칸 수정과 태그 수정은 각자의 행동 계층 함수(화면도 두 요청이다).
   const tagIds = a.tag_names !== undefined ? await resolveTagNames(p, a.tag_names) : undefined;
   if (hasFields) {
-    const r = await taskActions.updateFields(t, actor, fields);
+    const r = await taskActions.updateFields(t, actor, { ...fields, mode: a.mode || 'append' });
     if (!r.ok) throw fromActionFailure(r);
   }
   if (tagIds !== undefined) {
@@ -505,7 +512,10 @@ async function updateTask(p, a, actor) {
   }
   const fresh = await loadTask(p, t.id, await scopeOf(p));
   const [item] = await shapeTasks([fresh], p.businessId);
-  return { task: { ...item, description: fresh.description || null, category: fresh.category || null,
+  const d = clip(fresh.description, DESC_MAX);
+  const b = clip(fresh.body, DESC_MAX);
+  return { task: { ...item, description: fresh.description ? d.text : null, description_total_chars: d.total,
+    body: fresh.body ? b.text : null, body_total_chars: b.total, category: fresh.category || null,
     estimated_hours: fresh.estimated_hours != null ? Number(fresh.estimated_hours) : null, tags: await tagNamesOf(p, t.id) } };
 }
 
@@ -514,20 +524,27 @@ async function previewUpdateTask(p, a) {
   await assertMenu(p, 'qtask', 'read');
   const t = await loadTask(p, a.task_id, await scopeOf(p));
   const taskActions = require('../../actions/task_actions');
-  const keys = [['title', a.title], ['description', a.description], ['priority_level', a.priority], ['category', a.category], ['estimated_hours', a.estimated_hours]]
+  const keys = [['title', a.title], ['description', a.description], ['body', a.body], ['priority_level', a.priority], ['category', a.category], ['estimated_hours', a.estimated_hours]]
     .filter(([, v]) => v !== undefined).map(([k]) => k);
   const ctx = await taskActions.fieldContext(t, p.userId, p.platformRole);
   const denied = taskActions.deniedFields(keys, ctx);
   if (denied.length) throw forbiddenFieldsError(`forbidden_fields:${denied.join(',')}`);
+  // 결과물 잠금도 실행과 같은 판정 — 실패할 요청에 확인 토큰을 내주지 않는다
+  if (a.body !== undefined && !require('../../taskTransition').canEditBodyInStatus(t.status)) throw bodyLockedError(`body_locked:${t.status}`);
   if (a.tag_names !== undefined) {
     if (!(ctx.isCreator || ctx.isAssignee || ctx.isOwnerOrAdmin)) throw err('PERMISSION_DENIED', 'forbidden_field_tags');
     await resolveTagNames(p, a.tag_names);
   }
-  const before = { title: t.title, description: t.description || null, priority: t.priority_level || null, category: t.category || null,
+  const PREVIEW_MAX = 2000;
+  const cut = (v) => { const c = clip(v || '', PREVIEW_MAX); return v ? c.text : null; };
+  const before = { title: t.title, description: cut(t.description), body: cut(t.body), priority: t.priority_level || null, category: t.category || null,
     estimated_hours: t.estimated_hours != null ? Number(t.estimated_hours) : null, tag_names: await tagNamesOf(p, t.id) };
-  const asked = ['title', 'description', 'priority', 'category', 'estimated_hours', 'tag_names'].filter((k) => a[k] !== undefined);
-  return { task: { task_id: t.id, title: t.title },
-    before: Object.fromEntries(asked.map((k) => [k, before[k]])), after: Object.fromEntries(asked.map((k) => [k, a[k]])) };
+  const asked = ['title', 'description', 'body', 'priority', 'category', 'estimated_hours', 'tag_names'].filter((k) => a[k] !== undefined);
+  const totals = {};
+  if (a.description !== undefined) totals.description_total_chars = (t.description || '').length;
+  if (a.body !== undefined) totals.body_total_chars = (t.body || '').length;
+  return { task: { task_id: t.id, title: t.title }, mode: a.mode || 'append',
+    before: { ...Object.fromEntries(asked.map((k) => [k, before[k]])), ...totals }, after: Object.fromEntries(asked.map((k) => [k, a[k]])) };
 }
 
 // ── submit_review (MEDIUM — Cue 의 «검토 요청 보내줘», 2026-10-12) — 행동 계층 submitReview(담당자만·컨펌자 필요) ──
