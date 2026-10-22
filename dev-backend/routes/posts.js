@@ -1126,7 +1126,10 @@ router.put('/:id/visibility', authenticateToken, async (req, res, next) => {
       patch.shared_at = new Date();
     }
     const prevVlevel = post.vlevel;   // 감사용 — 바꾸기 전 등급
-    await post.update(patch);
+    // ★ silent — 공유·공개 범위·보안등급은 **본문 저장이 아니다.** updated_at 을 올리면 편집 중인 사람의
+    //   다음 자동저장이 낙관적 잠금(base_updated_at)에 걸려 «다른 사람이 저장했어요» 가 뜬다 — editor_id 도
+    //   안 바뀌므로 by_me=false 다(2026-10-22 Irene «혼자 수정 중인데 떠» · 공유 링크 만들기·끄기로 재현).
+    await post.update(patch, { silent: true });
     broadcastPost(req, post, 'post:updated');
     // 감사 — 공개 범위가 바뀐다(L4 면 공유 토큰이 자동 발급된다, AUDIT_GAPS 1순위). 토큰은 싣지 않는다.
     require('../services/auditService').logAudit(req, { action: 'post.visibility_change', targetType: 'post', targetId: post.id, businessId: post.business_id,
@@ -1496,10 +1499,13 @@ router.post('/:id/share', authenticateToken, async (req, res, next) => {
     //   ★ 토큰 형식은 종전대로 hex 64 를 유지한다 — 이미 나가 있는 링크와 같은 모양이어야 한다.
     //     그래서 없을 때만 먼저 심고 헬퍼를 부른다(헬퍼의 토큰 생성 분기를 타지 않게).
     if (!post.share_token) {
-      await post.update({ share_token: crypto.randomBytes(32).toString('hex'), shared_at: new Date() });
+      // ★ silent — 공유·공개 범위·보안등급은 **본문 저장이 아니다.** updated_at 을 올리면 편집 중인 사람의
+      //   다음 자동저장이 낙관적 잠금(base_updated_at)에 걸려 «다른 사람이 저장했어요» 가 뜬다 — editor_id 도
+      //   안 바뀌므로 by_me=false 다(2026-10-22 Irene «혼자 수정 중인데 떠» · 공유 링크 만들기·끄기로 재현).
+      await post.update({ share_token: crypto.randomBytes(32).toString('hex'), shared_at: new Date() }, { silent: true });
     }
     const { applyShareUpdate } = require('../services/share_helper');
-    const r = await applyShareUpdate(post, req.body || {});
+    const r = await applyShareUpdate(post, req.body || {}, { silent: true });
     void expiresAt;   // 만료 계산도 헬퍼가 한다(두 벌로 두면 갈린다)
     // 감사 — 외부 노출을 연다(AUDIT_GAPS 1순위). 토큰 원문은 싣지 않는다(기록이 곧 유출이 된다).
     require('../services/auditService').logAudit(req, { action: 'post.share_create', targetType: 'post', targetId: post.id, businessId: post.business_id,
@@ -1524,7 +1530,7 @@ router.delete('/:id/share', authenticateToken, async (req, res, next) => {
       return errorResponse(res, 'forbidden', 403);
     }
     // 회수하면 비밀번호도 같이 지운다 — 남겨 두면 다음 발급이 옛 비번을 물려받는다(사용자는 모른다).
-    await post.update({ share_token: null, shared_at: null, share_expires_at: null, share_password_hash: null });
+    await post.update({ share_token: null, shared_at: null, share_expires_at: null, share_password_hash: null }, { silent: true });   // 본문 저장 아님 — 위 공유 발급과 같은 이유
     require('../services/auditService').logAudit(req, { action: 'post.share_revoke', targetType: 'post', targetId: post.id, businessId: post.business_id });
     return successResponse(res, { revoked: true });
   } catch (err) { next(err); }
@@ -1552,7 +1558,7 @@ router.put('/:id/security-level', authenticateToken, async (req, res, next) => {
       if (post.vlevel === 'L4') patch.vlevel = 'L3'; // 외부 공개였으면 워크스페이스로 내림
       revokedShare = true;
     }
-    await post.update(patch);
+    await post.update(patch, { silent: true });   // 본문 저장 아님 — 공개 범위 변경과 같은 이유(편집 중 거짓 충돌)
     // #460 — 표 문서의 설문 링크도 밖으로 나가는 문이다. 일반이 아니게 되면 같이 닫는다(공유 링크와 같은 술어).
     //   공개 라우트도 매 요청 등급을 보지만(services/survey.resolveSurveyToken), 열쇠를 남겨 두면 등급을 되돌리는 순간 옛 링크가 살아난다.
     let revokedSurvey = false;
@@ -1604,7 +1610,7 @@ router.post('/:id/share/email', authenticateToken, ...postShareEmailLimiter, asy
     // share_token 자동 발급
     if (!post.share_token) {
       const token = crypto.randomBytes(32).toString('hex');
-      await post.update({ share_token: token, shared_at: new Date() });
+      await post.update({ share_token: token, shared_at: new Date() }, { silent: true });   // 본문 저장 아님
     }
     const shareUrl = `${APP_URL}/public/posts/${post.share_token}`;
     const sender = await User.findByPk(req.user.id, { attributes: ['name'] });
@@ -1660,7 +1666,7 @@ router.post('/:id/share-to-chat', authenticateToken, async (req, res, next) => {
     const linkIssued = !post.share_token;
     if (!post.share_token) {
       const token = crypto.randomBytes(32).toString('hex');
-      await post.update({ share_token: token, shared_at: new Date() });
+      await post.update({ share_token: token, shared_at: new Date() }, { silent: true });   // 본문 저장 아님
     }
     const shareUrl = `${APP_URL}/public/posts/${post.share_token}`;
     const userMessage = req.body?.message ? String(req.body.message).slice(0, 1000) : '';

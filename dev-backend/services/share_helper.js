@@ -14,7 +14,7 @@ const crypto = require('crypto');
 //     password         — 빈 문자열/null: 비번 없음, 비어있지 않으면 bcrypt hash 저장
 //
 // 미설정 (undefined) 인 필드는 기존 값 유지.
-async function applyShareUpdate(entity, body = {}) {
+async function applyShareUpdate(entity, body = {}, opts = {}) {
   const updates = {};
   let token = entity.share_token;
   if (!token) {
@@ -35,7 +35,7 @@ async function applyShareUpdate(entity, body = {}) {
       updates.share_password_hash = null;
     }
   }
-  if (Object.keys(updates).length > 0) await entity.update(updates);
+  if (Object.keys(updates).length > 0) await entity.update(updates, opts.silent ? { silent: true } : undefined);
   return {
     token,
     updates,

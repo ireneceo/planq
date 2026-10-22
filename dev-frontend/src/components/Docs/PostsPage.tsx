@@ -1134,6 +1134,9 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId }) => {
         if (e.byMe && e.currentUpdatedAt && !autoRetriedRef.current) {
           autoRetriedRef.current = true;
           baseUpdatedAtRef.current = e.currentUpdatedAt;
+          // ★ 아직 이 호출 안이라 busy 가 켜져 있다 — 풀지 않으면 재시도가 첫 줄에서 'skip' 으로 돌아와
+          //   저장은 안 됐는데 성공처럼 지나간다(나가는 순간이면 마지막 글이 사라진다).
+          autoBusyRef.current = false;
           const again = (await runAutosaveRef.current?.()) ?? 'stale';
           autoRetriedRef.current = false;
           return again;
