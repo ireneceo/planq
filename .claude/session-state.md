@@ -3,7 +3,12 @@
 **작업 상태:** 일정 추가 장소 토글 완료(방 3404829e, 운영 미배포) · 1건 완료(운영 미배포) · SNS 발송 설계 Fable 대기.
 
 
-### 답 기다림: 서명 진행 중 문서 수정 규칙 (방 1f0b2f16 · 2026-10-22 · [Opus]) · 무엇·왜·답이 오면
+
+### 나중에 — Fable 대기: 서명 요청 뒤 문서 고치기 «회차 닫기» (방 1f0b2f16 · 2026-10-22 · [Opus]) · 한도가 풀리면(상황판 Fable 대기) · 그때 docs/SIGNATURE_REVISE_ROUND_DESIGN.md 2절 D1~D7 Fable 설계 판정 → 판정대로 구현(signatureCore.closeRound 한 문 · status ENUM superseded 마이그 · signRoundWhere·payrollContracts·projectStageEngine·projects 거래 탭·화면 visible 반영 · 문서 서명 진행 칸 «고쳐서 다시 보내기») → 3절 검증
+- Irene 답: «권고대로 진행해 줘»(② — 고객 수정 요청이 오면 같은 문서에서 고쳐 다시 보냄, 우리 서명도 다시).
+- 구현 0 — 서명 증빙 규칙 변경이라 설계 Fable 필수, Fable 429.
+
+### 답 기다림 (이전): 서명 진행 중 문서 수정 규칙 (방 1f0b2f16 · 2026-10-22 · [Opus]) · 무엇·왜·답이 오면
 - 원문: «나만 서명했는데 고객이 수정요청하면 수정할 수 있어? 보내는 사람 서명 말고 다른 사람 서명 전에는 문서 서명 가능하지? 이후는 안되는 거고. 그치? 어떤 상태야?»
 - 지금(코드 사실): 서명 요청을 보내는 순간 본문 잠김(services/signatureCore.isPostSignatureLocked — pending·sent·viewed·signed 하나라도). 아무도 서명 안 했어도 잠김 → 진행 중 요청을 [취소]해야 고칠 수 있음. 우리 쪽이 이미 서명(signed)했으면 그 행은 취소 불가(DELETE already_finalized) → 고객이 거절(=수정 요청, 사유 적기)해도 문서는 영영 잠김 → 유일한 길은 문서 복사 후 새로 요청.
 - 정할 것: Irene 기대(상대 서명 전엔 수정 가능)대로 바꿀지. 서명 증빙 규칙 변경이라 바꾸면 Fable 설계.
