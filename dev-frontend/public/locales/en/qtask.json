@@ -449,7 +449,9 @@
     "datesReadOnly": "Only the requester, assignee, or an admin can change the dates",
     "checkLocked": "Completed via approval — revert from the detail panel",
     "hasUnread": "New activity (comments · changes) — clears when opened",
-    "capped": "There are many tasks — showing the latest {{n}}. Narrow it down with search or filters."
+    "capped": "There are many tasks — showing the latest {{n}}. Narrow it down with search or filters.",
+    "loadingRest": "Loading the rest of your tasks…",
+    "moreRows": "Showing more…"
   },
   "empty": {
     "title": "Start your first task",

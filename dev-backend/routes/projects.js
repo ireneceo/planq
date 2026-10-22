@@ -3337,13 +3337,19 @@ router.get('/workspace/:businessId/all-tasks', authenticateToken, async (req, re
     const { limit, page, offset } = parsePagination(req, { defaultLimit: 500, maxLimit: 1000 });
     const { rows, count } = await Task.findAndCountAll({
       where,
+      // ★ 목록 칸만 싣는다(2026-10-22 속도) — 의뢰 명세·결과물 본문(리치 HTML)이 응답의 대부분이었다.
+      //   이 목록을 읽는 화면(QTaskPage)은 본문을 그리지 않고, 상세는 TaskDetailDrawer 가 /api/tasks/:id 로 따로 읽는다.
+      //   본문이 필요한 새 화면은 이 응답이 아니라 상세 라우트를 쓴다.
+      attributes: { exclude: ['description', 'body', 'client_share_content', 'cue_context_ref'] },
       include: [
         { model: Project, attributes: ['id', 'name', 'client_company', 'status'] },
         { model: User, as: 'assignee', attributes: ['id', 'name', 'name_localized'], required: false },
         { model: User, as: 'requester', attributes: ['id', 'name', 'name_localized'], required: false },
         { model: TaskReviewer, as: 'reviewers', attributes: ['id', 'user_id', 'state', 'is_client'], required: false },
       ],
-      order: [['createdAt', 'DESC']],
+      // id 로 순서를 못 박는다 — 같은 초에 만든 업무(일괄 생성·AI 분해)는 created_at 이 같아 쪽마다 순서가 달라지고,
+      //   화면이 여러 쪽을 나눠 받을 때 같은 행이 두 번 오거나 빠졌다(dev 실측: 나눠 받은 순서 ≠ 한 번에 받은 순서).
+      order: [['createdAt', 'DESC'], ['id', 'DESC']],
       limit, offset,
       distinct: true,
     });

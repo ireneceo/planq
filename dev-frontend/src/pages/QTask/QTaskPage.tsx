@@ -84,6 +84,11 @@ type ViewMode = 'list' | 'kanban';
 // 목록 받는 상한 — 1,000건 × 5쪽. 상한 안내 문구도 이 두 값으로 센다(숫자를 두 곳에 적지 않는다).
 const TASK_LIST_PAGE = 1000;
 const TASK_LIST_PAGES = 5;
+const TASK_LIST_MAX = TASK_LIST_PAGE * TASK_LIST_PAGES;
+// 처음 그릴 몫 — 최신순이라 대개 열린 업무가 다 들어온다. 나머지는 뒤에서 병렬로 받는다.
+const TASK_FIRST_PAGE = 200;
+// 한 번에 그리는 행 수 — 목록 끝에 닿으면 이만큼씩 더 그린다(행 하나가 셀렉트·슬라이더·메뉴를 가진 무거운 행이다).
+const ROW_CHUNK = 80;
 const DONE_RECENT_DAYS = 30;
 /** 서버 done=recent 의 기준일(YYYY-MM-DD) — 기간 필터가 이보다 앞이면 끝난 업무를 전부 받는다 */
 function doneRecentFromStr(): string {
@@ -294,6 +299,11 @@ const QTaskPage:React.FC=()=>{
   const[fullDone,setFullDone]=useState(false);
   // 받을 수 있는 상한(TASK_LIST_PAGES × TASK_LIST_PAGE)에 닿았으면 화면이 말한다 — 조용히 잘리지 않게
   const[listCapped,setListCapped]=useState(false);
+  // 첫 쪽만 그려 놓고 나머지를 받는 중 — 목록 끝이 «불러오는 중» 을 말한다(load 참조)
+  const[listPartial,setListPartial]=useState(false);
+  // 나눠 그리기 — 처음 ROW_CHUNK 행만 그리고 목록 끝 감시줄이 보이면 더 그린다
+  const[rowLimit,setRowLimit]=useState(ROW_CHUNK);
+  const rowSentinelRef=useRef<HTMLDivElement|null>(null);
   const[capacity,setCapacity]=useState<CapacityInfo>({daily:8,days:5,rate:1,weekly:40});
   const[issues,setIssues]=useState<IssueRow[]>([]);
   const[notes,setNotes]=useState<NoteRow[]>([]);
@@ -618,31 +628,59 @@ const QTaskPage:React.FC=()=>{
     // 캐시로 이미 그려 놓았으면 전체 화면 스피너로 되돌리지 않는다.
     if(!hasCache(taskCacheKey)) setLoading(true);
     try{
-      // 사이클 N+55 — auto-paginate. 워크스페이스 task 1000+ 누적 시 5000 까지 자동 누적
-      const allTasksCollected: unknown[] = [];
-      let firstPageOk = false;
-      let capped = false;
-      for (let page = 1; page <= TASK_LIST_PAGES; page++) {
-        const r = await(await apiFetch(`/api/projects/workspace/${bizId}/all-tasks?page=${page}&limit=${TASK_LIST_PAGE}${fullDone ? '' : '&done=recent'}`)).json();
-        if (!r.success) break;
-        if (page === 1) firstPageOk = true;
-        allTasksCollected.push(...(r.data || []));
-        if (!r.pagination || !r.pagination.has_more) break;
-        if (page === TASK_LIST_PAGES) capped = true;
-      }
-      setListCapped(capped);
-      // ★ 첫 페이지부터 실패하면 **빈 목록으로 바꾸지 않는다.** 옛 코드는 빈 배열을 상태에 넣고
+      // ★ 앞쪽 먼저 그리고 나머지는 뒤에서 한꺼번에 (2026-10-22 속도 — Irene «업무리스트가 많으니까 늦게 열려»).
+      //   종전: 1000건씩 **차례로** 최대 5쪽을 다 받고 나서야 한 줄을 그렸고, 멤버 목록은 그 뒤에야 불렀다.
+      //   지금: ① 멤버 목록은 업무와 **같이** 부른다 ② 최신 TASK_FIRST_PAGE 건을 받아 곧바로 그린다(캐시가 없을 때)
+      //   ③ 남은 쪽은 **병렬**로 받아 한 번에 이어 붙인다 — 쪽마다 붙이면 정렬·번호가 여러 번 튄다.
+      //   받는 중에는 목록 끝이 «불러오는 중» 을 말하고(listPartial), 캐시에는 **다 받은 뒤 한 번만** 쓴다
+      //   (잘린 목록을 캐시에 쓰면 다음 진입이 그것을 최신으로 그린다). 상한은 종전 그대로 5,000건.
+      const membersP=apiFetch(`/api/businesses/${bizId}/members`).then(r=>r.json()).catch(()=>null);
+      const doneQ=fullDone ? '' : '&done=recent';
+      const urlAt=(offset:number,limit:number)=>`/api/projects/workspace/${bizId}/all-tasks?offset=${offset}&limit=${limit}${doneQ}`;
+      const r1=await(await apiFetch(urlAt(0,TASK_FIRST_PAGE))).json().catch(()=>null);
+      // ★ 첫 쪽부터 실패하면 **빈 목록으로 바꾸지 않는다.** 옛 코드는 빈 배열을 상태에 넣고
       //   캐시에까지 써서, 서버 오류가 "업무가 하나도 없음" 으로 보였고 그 상태가 저장됐다.
-      //   (2페이지 이후 실패는 부분 성공이라 있는 만큼 보여준다 — 종전 동작 유지)
+      //   (뒤쪽 실패는 부분 성공이라 있는 만큼 보여준다 — 종전 동작 유지)
       //   ★ 대기 상태를 같이 끝낸다 — setLoading(false) 는 try 밖에 있어서 return 하면 건너뛴다.
       //     안 그러면 스켈레톤이 영원히 돈다(이 함수 맨 위 주석의 그 함정 그대로).
-      if (!firstPageOk) { setLoadError(true); setLoading(false); return; }
+      if (!r1||!r1.success) { setLoadError(true); setLoading(false); return; }
       setLoadError(false);
-      setAllTasks(allTasksCollected as never[]);
-      writeCache(taskCacheKey, allTasksCollected);
+      const first:TaskRow[]=r1.data||[];
+      const total=Number(r1.pagination?.total)||first.length;
+      const want=Math.min(total,TASK_LIST_MAX);
+      const more=!!r1.pagination?.has_more&&first.length<want;
+      // 캐시로 이미 그려 놓았으면 첫 쪽으로 줄여 그리지 않는다(목록이 잠깐 짧아졌다 다시 길어진다) — 다 받은 뒤 바꾼다.
+      const drewFirst=!more||!hasCache(taskCacheKey);
+      if(drewFirst){
+        setAllTasks(first as never[]);
+        setListPartial(more);
+        setLoading(false);
+      }
+      let collected=first;
+      if(more){
+        const offsets:number[]=[];
+        for(let o=first.length;o<want;o+=TASK_LIST_PAGE) offsets.push(o);
+        const rest=await Promise.all(offsets.map(o=>
+          apiFetch(urlAt(o,Math.min(TASK_LIST_PAGE,want-o))).then(r=>r.json()).catch(()=>null)));
+        // 받는 사이에 새 업무가 생기면 쪽 경계가 한 칸 밀려 같은 행이 두 번 올 수 있다 — id 로 한 번만.
+        const seen=new Set(first.map(x=>x.id));
+        collected=[...first];
+        for(const r of rest){
+          if(!r||!r.success)continue;
+          for(const x of (r.data||[]) as TaskRow[]){ if(!seen.has(x.id)){ seen.add(x.id); collected.push(x); } }
+        }
+        // 첫 쪽을 이미 그렸으면 그 위에 **덧붙인다** — 받는 사이 실시간(task:new·updated)으로 바뀐 행을 덮어쓰지 않게.
+        //   캐시로 그려 둔 경우는 그 목록이 옛것이라 통째로 바꾼다.
+        const tail=collected.slice(first.length);
+        if(drewFirst) setAllTasks(prev=>{ const have=new Set(prev.map(x=>x.id)); return [...prev, ...tail.filter(x=>!have.has(x.id))] as never[]; });
+        else setAllTasks(collected as never[]);
+        setListPartial(false);
+      }
+      setListCapped(total>TASK_LIST_MAX);
+      writeCache(taskCacheKey, collected);
       try{
-        const mr=await(await apiFetch(`/api/businesses/${bizId}/members`)).json();
-        if(mr.success){
+        const mr=await membersP;
+        if(mr&&mr.success){
           // 사이클 P8 — Cue (is_ai=true) 도 팀원으로 표시. 자동 실행 가능.
           const opts=(mr.data||[])
             .filter((m:{user_id:number|null})=>m.user_id!=null) // user_id null row (탈퇴/끊김) 제외
@@ -702,7 +740,8 @@ const QTaskPage:React.FC=()=>{
   // scope 바뀌면 insights 재로드 (mine ↔ workspace 프로젝트 범위 다름)
   useEffect(()=>{loadedExtrasRef.current.insights=false;},[scope]);
   useEffect(()=>{
-    if(!bizId||allTasks.length===0)return;
+    // 받는 중(listPartial)이면 기다린다 — 이슈·메모의 프로젝트를 고르는 데 전체 업무를 쓴다
+    if(!bizId||allTasks.length===0||listPartial)return;
     const ran=loadedExtrasRef.current;
     // 인사이트(Capacity/Burndown/Issues/Notes) 는 모든 탭에서 공통으로 노출되므로 한 번만 로드
     if(!ran.insights){
@@ -757,7 +796,7 @@ const QTaskPage:React.FC=()=>{
       })();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  },[tab,bizId,allTasks.length,scope]);
+  },[tab,bizId,allTasks.length,scope,listPartial]);
 
   // Socket.IO (공유 소켓 services/socket) — 워크스페이스 room 에서 task:* 수신 (Q Talk 후보 등록 즉시 반영)
   useEffect(() => {
@@ -1245,6 +1284,25 @@ const QTaskPage:React.FC=()=>{
 
   // 키보드 ↑/↓ — 리스트 뷰에서만 활성화
   const taskItemIds=useMemo(()=>filtered.map(t=>t.id),[filtered]);
+
+  // 나눠 그리기 — 보이는 앞부분만 먼저 그린다. 열려 있는 업무(?task=·키보드 ↑/↓)는 그 행까지 그린다.
+  //   보기 조건(탭·검색·필터·정렬)이 바뀌면 처음 몫으로 되돌린다. 실시간 갱신으로 filtered 가 바뀌는 것은 되돌리지 않는다
+  //   (스크롤해 내려간 목록이 갑자기 짧아진다).
+  useEffect(()=>{ setRowLimit(ROW_CHUNK); },[scope,tab,search,statusFilter,assigneeFilter,tagFilter,effSortKey,sortDir,hideCompleted,periodFrom,periodTo]);
+  const visibleRows=useMemo(()=>{
+    const sel=detailTaskId!=null?filtered.findIndex(t=>t.id===detailTaskId):-1;
+    const n=Math.max(rowLimit,sel+1);
+    return n>=filtered.length?filtered:filtered.slice(0,n);
+  },[filtered,rowLimit,detailTaskId]);
+  const hasMoreRows=visibleRows.length<filtered.length;
+  useEffect(()=>{
+    if(!hasMoreRows||viewMode!=='list')return;
+    const el=rowSentinelRef.current;
+    if(!el||typeof IntersectionObserver==='undefined'){ setRowLimit(Infinity); return; }
+    const io=new IntersectionObserver((es)=>{ if(es.some(e=>e.isIntersecting)) setRowLimit(n=>n+ROW_CHUNK); },{rootMargin:'800px 0px'});
+    io.observe(el);
+    return()=>io.disconnect();
+  },[hasMoreRows,viewMode,visibleRows.length]);
 
   // togglePriority 가 latest weekSet 에 접근하기 위한 ref.
   //   ★ filtered 가 아니라 weekSet — 보기 옵션(검색·상태필터·완료가리기)이 DB 재인덱스 범위를
@@ -2036,7 +2094,7 @@ const QTaskPage:React.FC=()=>{
           </ColRow>
 
           {/* Flat task list (no grouping) */}
-          {filtered.map((task)=>{
+          {visibleRows.map((task)=>{
                 const _dispStatus=displayStatus(task,todayStr);
                 const sc=STATUS_COLOR[_dispStatus as StatusCode]||STATUS_COLOR.not_started;
                 const _role=primaryPerspective(getRoles(task,myId));
@@ -2459,6 +2517,11 @@ const QTaskPage:React.FC=()=>{
               기본 빈 상태만 두면 삭제된 줄 안다. */}
           {/* ★ 실패를 빈 상태로 위장하지 않는다. 아래 빈 상태들보다 **먼저** 판정한다 —
               순서가 뒤면 "업무를 시작해 보세요" 가 먼저 걸려 오류가 영영 안 보인다. */}
+          {(hasMoreRows||listPartial)&&!loadError&&(
+            <MoreRowsNotice ref={rowSentinelRef} data-testid="qtask-more-rows" aria-live="polite">
+              {listPartial?t('list.loadingRest','나머지 업무를 불러오는 중…'):t('list.moreRows','이어서 보여 주는 중…')}
+            </MoreRowsNotice>
+          )}
           {listCapped&&!loadError&&(
             <CapNotice data-testid="qtask-list-capped">
               {t('list.capped','업무가 많아 최근 {{n}}건만 보여요. 검색이나 필터로 좁혀 보세요.',{n:(TASK_LIST_PAGE*TASK_LIST_PAGES).toLocaleString()})}
@@ -3567,6 +3630,7 @@ const EmptyFull=styled.div`display:flex;align-items:center;justify-content:cente
 // 반복 옵션 펼침 (inline 폼 전용 컴팩트 행)
 // 빈 상태 — 명시적으로 flex column 안에서 가운데 정렬. 부모(LeftPanel) 의 남은 공간 모두 차지.
 const EmptyCenterWrap=styled.div`flex:1;display:flex;align-items:center;justify-content:center;min-height:50vh;width:100%;`;
+const MoreRowsNotice=styled.div`padding:14px 12px;text-align:center;color:#94A3B8;font-size:0.75rem;`;
 const CapNotice=styled.div`margin:8px 12px;padding:8px 12px;border-radius:8px;background:#FFFBEB;border:1px solid #FDE68A;color:#92400E;font-size:0.75rem;line-height:1.5;`;
 /* 우측 패널 추가 폼 — 박스 없이 패널 padding 안에 직접 배치 (박스 안 박스 금지) */
 // 행별 그룹: row1=프로젝트/담당자, row2=기간/예측+AI. 모바일에서는 wrap.
