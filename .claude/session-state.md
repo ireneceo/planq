@@ -7,6 +7,7 @@
 - 고침: 첨부 허용 목록 두 원천(services/uploadPolicy 업무·채팅 · services/driveImport Drive 가져오기·AI 업로드)에 hwp/hwpx. 파일 아이콘 색 문서 계열.
 - 실측(dev, 업무 4443 [확인용]): .hwp 요청 내용 첨부 200 · .hwpx 결과물 첨부 200 · .exe 400 disallowed_extension · 내려받기 200 바이트 일치·한글 파일명 · 상세 패널 미리보기(폰·데스크탑) = «HWP · 다운로드 후 확인» + [다운로드].
 - 앱 안 한글 본문 미리보기는 없음(별도 기능).
+- 프론트 빌드 3회 모두 tsc 중 약 100초에 SIGTERM(143)으로 끊김 — 누가 끊는지 못 찾음(OOM 기록 없음). 프론트 변경은 아이콘 색 한 줄뿐이라 다음 빌드 때 반영. 핵심 수정(서버)은 dev 반영·실측 끝.
 ### Irene 할 일
 - #467 답변 달기(운영 쓰기라 이 방 권한으로 막힘) — 상황판에 올림. 문구 .claude/plans/feedback-467-reply.json, 상태 reviewing. 배포 뒤 done 으로.
 
