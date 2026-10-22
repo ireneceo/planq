@@ -132,7 +132,7 @@ async function notifyInboundMail({ account, thread, fromName, fromEmail, subject
 
   // 사람별 범위 — pref ?? 계정 기본값. 쿼리 한 번.
   const prefRows = await EmailAccountNotifyPref.findAll({
-    where: { email_account_id: account.id, user_id: userIds },
+    where: { business_id: account.business_id, email_account_id: account.id, user_id: userIds },
     attributes: ['user_id', 'notify_scope'],
     raw: true,
   });
