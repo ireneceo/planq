@@ -9,6 +9,7 @@ import { InboxIcon, ChatIcon, MailIcon } from '../../components/Common/Icons';
 import AutoSaveField from '../../components/Common/AutoSaveField';
 import { Switch, SwitchKnob } from '../../components/Common/switchShell';
 import PwaInstallSection from './PwaInstallSection';
+import MailPerAccountNotifySection from './MailPerAccountNotifySection';
 import WeeklyReviewAutoSection from '../../components/QTask/WeeklyReviewAutoSection';
 
 interface Props {
@@ -296,6 +297,18 @@ const NotificationSettings: React.FC<Props> = ({ businessId }) => {
           </PolicyItem>
         </PolicyBox>
       </Section>
+
+      {/* 2026-10-22 — 메일함(주소)별로 내가 받을 범위 (docs/MAIL_NOTIFY_PER_ADDRESS_DESIGN.md D5) */}
+      {businessId && (
+        <Section>
+          <SectionTitle>{t('notifications.mailPerAccount.title')}</SectionTitle>
+          <SectionDesc>{t('notifications.mailPerAccount.desc')}</SectionDesc>
+          <MailPerAccountNotifySection
+            businessId={businessId}
+            mailChannelsOff={!!matrix.mail && Object.values(matrix.mail).every((v) => v === false)}
+          />
+        </Section>
+      )}
     </Wrap>
   );
 };

@@ -8,7 +8,7 @@ const { sequelize } = require('../config/database');
 const {
   User, BusinessMember, Client, Conversation, File, Post, KbDocument,
   RefreshToken, ApiToken, PushSubscription, OauthConnection, ExternalConnection,
-  EmailAccount, NotificationPref, NameCard, SavedNameCard,
+  EmailAccount, NotificationPref, EmailAccountNotifyPref, NameCard, SavedNameCard,
 } = require('../models');
 
 /** 익명화가 지운 L1 파일의 Drive 사본 — **커밋 뒤** 거둔다(되돌릴 수 없는 외부 호출). */
@@ -92,6 +92,8 @@ async function anonymizeUser(user) {
     await ExternalConnection.destroy({ where: { user_id: uid }, transaction: t });
     await EmailAccount.destroy({ where: { owner_user_id: uid }, transaction: t });
     await NotificationPref.destroy({ where: { user_id: uid }, transaction: t });
+    // 메일함별 알림 덮어쓰기(회사 메일함 몫) — users 행이 남는 흐름이라 FK CASCADE 에 기대지 않는다
+    await EmailAccountNotifyPref.destroy({ where: { user_id: uid }, transaction: t });
 
     // 6) 내 명함·받은 명함(docs/BUSINESS_CARD_DESIGN.md §8) — 전화·이메일·얼굴 사진.
     //   남이 보관한 내 명함 스냅샷은 남는다(source_card_id SET NULL — 종이 명함과 같다, ACCOUNT_DELETION_DESIGN).

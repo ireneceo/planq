@@ -728,6 +728,13 @@ dev 에만 있는 글이 운영에 샌다(그래서 배포 rsync 가 생성물�
 >   Q sale 도 같은 목록 컴포넌트 — `sales_intake.off`(replied·personal) · `domains.always/never`(키워드·자동 학습 없음).
 >   설계 `docs/MAIL_CRITERIA_DESIGN.md` · 운영 `migrate-mail-criteria.js`(배포 슬롯) · 옛 메일은 `retriage-mail.js --promote-only --promote-reply-criterion=inbound_action`(+ `--fill-criterion`) 수동.
 >
+> ⑧ **메일 알림 범위는 «메일함 기본값 + 사람별 덮어쓰기»** (2026-10-22, Irene *"회사 건 받고 개인 거 안 받거나 … 반대도"* · Fable 설계) —
+>   `email_account_notify_prefs`(사람 × 메일함, `off|reply_only|recommended|all`, **행 없음 = 메일함 기본값** — ENUM 에 default 없음).
+>   판정은 `services/mailNotify` 한 곳: 수신자 집합(개인=주인·회사=활성 멤버)은 그대로 두고 **좁히기만** 한다 · `off` 는 답변 필요도 끈다 ·
+>   전원 거절이면 시간당 캡을 쓰기 **전에** 끝 · 중복 표시(`seenRecently`)는 **실제로 알릴 사람만** 찍는다(끈 메일함이 켠 메일함 알림을 «중복» 으로 버리던 순서).
+>   본인 설정 API `routes/email_account_notify.js`(GET my-notify · PUT :id/my-notify, 볼 수 있는 메일함만 — 남의 개인 계정 404) · 화면 설정 > 알림 «메일 주소별 알림».
+>   채널 매트릭스(mail × 채널)와는 독립 축. 운영 `migrate-mail-notify-per-user.js`(배포 슬롯, 코드보다 먼저). 설계 `docs/MAIL_NOTIFY_PER_ADDRESS_DESIGN.md`.
+>
 > 회귀: `node scripts/e2e/run.js --suite maillabel` (16검사 — 폴더 술어 · i18n 원천 ko/en · 실화면 문구 ·
 > 배지 축 · **폰(375) 가시 단서** · 누르기 전후 수 일치).
 > ★ **빌드된 locales 는 `gzip_static`** 이다 — 대조군으로 문구를 되돌릴 때 평문 `.json` 만 바꾸면

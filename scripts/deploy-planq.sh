@@ -620,6 +620,10 @@ sync_database() {
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-conv-viewer.js 2>&1 | tail -5"
   # 2026-10-15 문서 댓글 — post_comments 표 + 두 알림 표 event_kind 끝 'doc_comment'(멱등). 문서 상세가 이 표를 세므로 PM2 reload 전.
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-post-comments.js 2>&1 | tail -5"
+  # 2026-10-22 — 메일 알림 주소별·사람별 (docs/MAIL_NOTIFY_PER_ADDRESS_DESIGN.md D1). 백필 없음.
+  #   ★ 코드보다 먼저 — mailNotify 가 이 표를 SELECT 한다. 표가 없으면 cron 의 catch 가 삼켜 **메일 알림 전체가 조용히 0** 이 된다(#203 과 같은 모양).
+  log "  Creating email_account_notify_prefs (메일 알림 주소별)..."
+  prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-mail-notify-per-user.js 2>&1 | tail -6"
   # 2026-10-15 직접 관리 고객 — clients.status ENUM 끝 'managed'(멱등). 모델이 이 값을 쓰므로 PM2 reload 전.
   #   옛 «active + 계정 없음» 행 백필은 여기선 읽기만(건수 출력) — 적용은 수동 `--apply`(docs/CLIENT_MANAGED_DESIGN.md).
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-client-managed.js 2>&1 | tail -5"

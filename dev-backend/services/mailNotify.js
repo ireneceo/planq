@@ -5,6 +5,8 @@
 //
 //   설계(Fable 게이트) 요약:
 //     · 범위는 계정 속성(email_accounts.notify_scope) — 전체 / 확인권장+답변필요(기본) / 답변필요만
+//       ★ 2026-10-22 — 계정 범위는 «기본값» 이고 사람마다 메일함별로 덮어쓴다(«받지 않음» 포함).
+//         email_account_notify_prefs, 행 없음 = 계정 기본값. 설계 docs/MAIL_NOTIFY_PER_ADDRESS_DESIGN.md
 //     · 채널은 사용자 속성(notification_prefs 의 event_kind='mail') — 기존 매트릭스 그대로
 //     · 수신자: 개인 계정(owner_user_id) = 본인만 / 회사 계정 = 워크스페이스 멤버 전원
 //       ★ 개인 메일 격리가 이 기능의 최대 리스크다. accessibleAccountIds 와 같은 술어를 쓴다.
@@ -38,6 +40,8 @@ function classify({ replyNeeded, status, triage }) {
 
 /** 범위 설정이 이 성격의 메일을 허용하는가. */
 function allowedByScope(kind, scope) {
+  // «받지 않음» 은 답변 필요 규칙보다 **앞**이다 — 뒤에 두면 끔이 답변 필요를 못 끈다.
+  if (scope === 'off') return false;
   if (kind === 'spam') return false;
   if (kind === 'reply') return true;                       // 답변 필요는 어느 범위에서도 알린다
   if (kind === 'review') return scope === 'all' || scope === 'recommended';
@@ -109,18 +113,11 @@ async function notifyInboundMail({ account, thread, fromName, fromEmail, subject
   }
 
   const kind = classify({ replyNeeded, status, triage });
-  const scope = account.notify_scope || 'recommended';
-  if (!allowedByScope(kind, scope)) return { sent: 0, reason: `scope_${scope}_skip_${kind}` };
-
-  // 시간당 캡 — 넘으면 개별 알림 중단 (스팸성 대량 유입이 push 로 새는 것 차단)
-  const c = bump(account.id);
-  if (c.count > HOURLY_CAP) {
-    if (!c.capNotified) { c.capNotified = true; console.warn(`[mailNotify] account #${account.id} 시간당 ${HOURLY_CAP}건 초과 — 개별 알림 중단`); }
-    return { sent: 0, reason: 'hourly_cap' };
-  }
+  const scope = account.notify_scope || 'recommended';   // 계정 기본값 — 사람별 덮어쓰기가 없을 때
 
   // 수신자 — 개인 계정은 본인만, 회사 계정은 워크스페이스 멤버 전원
-  const { BusinessMember, Business, User } = require('../models');
+  //   (accessibleAccountIds 의 전치. 사람별 설정은 이 집합을 **좁히기만** 한다)
+  const { BusinessMember, Business, User, EmailAccountNotifyPref } = require('../models');
   let userIds = [];
   if (account.owner_user_id) {
     userIds = [account.owner_user_id];
@@ -132,6 +129,25 @@ async function notifyInboundMail({ account, thread, fromName, fromEmail, subject
     userIds = members.map((m) => m.user_id).filter(Boolean);
   }
   if (!userIds.length) return { sent: 0, reason: 'no_recipients' };
+
+  // 사람별 범위 — pref ?? 계정 기본값. 쿼리 한 번.
+  const prefRows = await EmailAccountNotifyPref.findAll({
+    where: { email_account_id: account.id, user_id: userIds },
+    attributes: ['user_id', 'notify_scope'],
+    raw: true,
+  });
+  const prefOf = new Map(prefRows.map((r) => [r.user_id, r.notify_scope]));
+  const targets = userIds.filter((uid) => allowedByScope(kind, prefOf.get(uid) || scope));
+  const scoped = userIds.length - targets.length;
+  // ★ bump 전에 끝낸다 — 아무도 안 받는 메일(광고 등)이 시간당 캡을 소진해 진짜 알림을 막지 않게.
+  if (!targets.length) return { sent: 0, reason: `scope_skip_${kind}`, scoped, kind, scope };
+
+  // 시간당 캡 — 넘으면 개별 알림 중단 (스팸성 대량 유입이 push 로 새는 것 차단). 계정 기준 그대로.
+  const c = bump(account.id);
+  if (c.count > HOURLY_CAP) {
+    if (!c.capNotified) { c.capNotified = true; console.warn(`[mailNotify] account #${account.id} 시간당 ${HOURLY_CAP}건 초과 — 개별 알림 중단`); }
+    return { sent: 0, reason: 'hourly_cap', scoped };
+  }
 
   // 알림 제목·본문에는 숨은 글자·방향 뒤집기 문자를 싣지 않는다 — 알림 화면·메일 제목에서 이름을 거꾸로 보이게 하는
   //   사칭 수법이 그대로 옮겨 간다(docs/MAIL_IMPERSONATION_DESIGN.md · 2026-10-15 실측: 메일 알림 제목에 U+202E).
@@ -164,7 +180,9 @@ async function notifyInboundMail({ account, thread, fromName, fromEmail, subject
   let sent = 0;
   let deduped = 0;
   const now = Date.now();
-  for (const uid of userIds) {
+  // ★ targets 만 돈다 — 이 메일함을 끈 사람이 중복 표시(seenRecently)를 먼저 찍으면,
+  //   같은 메일이 그 사람이 켠 다른 메일함으로 왔을 때 «중복» 으로 버려진다.
+  for (const uid of targets) {
     // 같은 Message-ID 로 이 사용자에게 이미 알렸으면 건너뛴다 (다른 계정으로 온 같은 메일).
     if (seenRecently(uid, messageId, now)) { deduped += 1; continue; }
     const skipChannels = [];
@@ -201,7 +219,7 @@ async function notifyInboundMail({ account, thread, fromName, fromEmail, subject
       console.error('[mailNotify]', e.message);
     }
   }
-  return { sent, deduped, kind, scope };
+  return { sent, deduped, scoped, kind, scope };
 }
 
 module.exports = { notifyInboundMail, classify, allowedByScope, seenRecently, HOURLY_CAP, DEDUP_WINDOW_MS };

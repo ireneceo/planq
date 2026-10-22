@@ -156,6 +156,7 @@ const CueKnowledge = require('./CueKnowledge');
 // ─── Q Mail (Phase 9 — M1) ───
 const EmailAccount = require('./EmailAccount');
 const EmailAccountAlias = require('./EmailAccountAlias');
+const EmailAccountNotifyPref = require('./EmailAccountNotifyPref');
 const EmailDomainRule = require('./EmailDomainRule');
 const EmailThread = require('./EmailThread');
 const EmailMessage = require('./EmailMessage');
@@ -635,6 +636,7 @@ ExportJob.belongsTo(Business, { as: 'targetBusiness', foreignKey: 'target_busine
 
 EmailAccount.hasMany(EmailAccountAlias, { foreignKey: 'account_id', as: 'aliases', onDelete: 'CASCADE' });
 EmailAccountAlias.belongsTo(EmailAccount, { foreignKey: 'account_id', as: 'account' });
+EmailAccount.hasMany(EmailAccountNotifyPref, { foreignKey: 'email_account_id', as: 'notifyPrefs', onDelete: 'CASCADE' });
 EmailAccount.hasMany(EmailAccountFolder, { foreignKey: 'account_id', as: 'extraFolders', onDelete: 'CASCADE' });
 EmailAccountFolder.belongsTo(EmailAccount, { foreignKey: 'account_id', as: 'account' });
 
@@ -648,6 +650,7 @@ module.exports = {
   AttendanceDay, AttendanceEvent, LeaveGrant, LeaveRequest, LeaveType, WorkspaceHoliday,
   TaskDeliverableVersion,
   EmailAccountAlias,
+  EmailAccountNotifyPref,
   EmailDomainRule,
   MessageReaction,
   MailSenderRule,

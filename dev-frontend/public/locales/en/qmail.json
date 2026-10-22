@@ -566,8 +566,8 @@
     "capped": "Too many to do at once — part of them were handled. Press again to continue."
   },
   "notifyScope": {
-    "title": "Notification scope",
-    "desc": "Decides which new mail in this mailbox triggers a notification. Choose how you receive them (in-app, mobile, email) in notification settings.",
+    "title": "Default alert range",
+    "desc": "The default rule for alerts when new mail arrives in this mailbox. Each person can change or turn it off per address in Settings > Notifications, where you also pick how to receive them (in-app, mobile, email).",
     "replyOnly": "Reply needed only",
     "replyOnlyDesc": "Only mail where someone is waiting for your reply",
     "recommended": "Reply needed + review",

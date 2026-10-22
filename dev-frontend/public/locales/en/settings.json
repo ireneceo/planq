@@ -203,6 +203,19 @@
       "allOn": "All on",
       "allOff": "All off",
       "mixed": "Some on"
+    },
+    "mailPerAccount": {
+      "title": "Mail alerts by address",
+      "desc": "Choose, per mailbox, which mail alerts you get — e.g. company mail on, personal mail off. «Follow default» uses the mailbox's default alert range.",
+      "default": "Follow default ({{scope}})",
+      "off": "Don't notify",
+      "shared": "Company",
+      "personal": "Personal",
+      "pickLabel": "Alert range for {{email}}",
+      "channelsOffHint": "All «Mail» alerts are turned off above, so no mail alerts arrive regardless of these settings.",
+      "empty": "No mailbox is connected.",
+      "connect": "Connect a mail account",
+      "loadFailed": "Couldn't load your mailboxes."
     }
   },
   "permissions": {

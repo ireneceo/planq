@@ -483,6 +483,7 @@ app.use('/api/businesses', require('./routes/businesses'));
 // KNOWLEDGE_LOOP 축1 — Cue 워크스페이스 지식 카드
 app.use('/api/businesses', require('./routes/cue_knowledge'));
 // Q Mail (Phase 9 — M1)
+app.use('/api/businesses', require('./routes/email_account_notify'));   // 내 메일 알림 주소별 — email_accounts 보다 앞
 app.use('/api/businesses', require('./routes/email_accounts'));
 // N+75-D — Q Mail M2 인박스 read-only API (email_threads list/detail/mark-read/mark-spam)
 app.use('/api/businesses', require('./routes/email_threads'));
