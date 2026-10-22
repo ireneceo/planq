@@ -23,7 +23,7 @@ class FocusSession extends Model {
     //   ended_at=now 로 종료된다. 그 결과 한 세션이 8일(190h) 을 기록 → 주간 진척 그래프 실제선이
     //   168h(일주일) 을 초과하는 비현실값으로 오염되고, recompute 시 task.actual_hours 까지 부풀려졌다.
     //   heartbeat(클라 30s) 가 멈춘 last_activity_at 이후는 "사용자 부재" 이므로 비계상한다.
-    const GRACE_SEC = 300;          // last_activity 후 유예 5분 (heartbeat 30s 의 충분한 여유)
+    const GRACE_SEC = FocusSession.GRACE_SEC;
     const HARD_CAP_SEC = 12 * 3600; // 단일 세션 절대 상한 12h (last_activity 없을 때 backstop)
     const end = this.ended_at || new Date();
     const total = Math.max(0, Math.floor((end.getTime() - new Date(this.started_at).getTime()) / 1000));
@@ -86,5 +86,9 @@ FocusSession.init({
     { fields: ['business_id', 'started_at'], name: 'idx_biz_date' },
   ],
 });
+
+// last_activity 후 유예 5분(heartbeat 30s 의 충분한 여유). «살아 있는 세션» 판정도 같은 값을 쓴다
+//   — 근태 자정 분할(services/attendanceTransition.stillWorkingAcrossMidnight).
+FocusSession.GRACE_SEC = 300;
 
 module.exports = FocusSession;

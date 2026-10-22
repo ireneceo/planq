@@ -175,7 +175,8 @@
     "source": {
       "auto_focus": "Auto clock-in",
       "auto_close": "Auto-closed",
-      "admin_fix": "Corrected"
+      "admin_fix": "Corrected",
+      "auto_midnight": "Continued past midnight"
     },
     "timeline": "Corrected record for this day",
     "timelineHint": "What you leave here becomes the record for this day. Fix or remove wrong times — the originals are kept as history.",

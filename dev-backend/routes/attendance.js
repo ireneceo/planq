@@ -65,9 +65,16 @@ router.get('/today', authenticateToken, async (req, res, next) => {
     const scope = await requireMember(req, res, businessId);
     if (!scope) return;
     const workDate = await A.todayFor(businessId);
-    const day = await AttendanceDay.findOne({
+    let day = await AttendanceDay.findOne({
       where: { business_id: businessId, user_id: req.user.id, work_date: workDate },
     });
+    // 0시를 넘겨 일하는 중이면 그 자리에서 이어 준다(어제 24:00 퇴근 + 오늘 00:00 출근) — 매시 5분 cron 을
+    //   기다리면 00:00~00:05 동안 «미출근» 이 보인다. 아닌 사람은 가벼운 조회 하나로 끝난다.
+    if (!day) {
+      const split = await A.ensureMidnightSplit({ businessId, userId: req.user.id })
+        .catch((e) => { console.warn('[attendance today split]', e.message); return null; });
+      if (split) day = split.today;
+    }
     if (!day) return successResponse(res, { work_date: workDate, state: null, day: null });
     const live = await A.liveTotals(day);
     // #208 — 자동으로 출근 처리된 경우 그 사실을 화면에 알린다.
@@ -326,7 +333,7 @@ router.get('/stats', authenticateToken, async (req, res, next) => {
 
     const days = await AttendanceDay.findAll({
       where,
-      attributes: ['user_id', 'work_date', 'clock_in_at', 'clock_out_at', 'work_total_sec', 'break_total_sec', 'auto_closed'],
+      attributes: ['id', 'user_id', 'work_date', 'clock_in_at', 'clock_out_at', 'work_total_sec', 'break_total_sec', 'auto_closed'],
     });
 
     // 근무 기준시간·부서는 멤버 설정에서 온다 — 초과 판정의 분모다.
@@ -349,6 +356,23 @@ router.get('/stats', authenticateToken, async (req, res, next) => {
       attributes: ['user_id', 'leave_type', 'days_charged'],
     });
 
+    // 자정 분할(auto_midnight) 이벤트 — 00:00 출근·24:00 퇴근은 사람이 찍은 시각이 아니라 날짜 경계다.
+    //   그 날의 출근이 전부 자정 이어받기면 근무일로 세지 않고(전날의 꼬리), 평균 출근·퇴근 표본에서도 뺀다.
+    //   근무·휴게 초 합은 그대로(분할은 합을 보존한다). docs/ATTENDANCE_MIDNIGHT_SPLIT_DESIGN.md §2-5
+    const dayIds = days.map((d) => d.id);
+    const midEvents = dayIds.length ? await AttendanceEvent.findAll({
+      // 스코프: attendance_day_id 는 위에서 business_id 로 고른 하루들이다.
+      where: { attendance_day_id: { [Op.in]: dayIds }, superseded_at: null, kind: { [Op.in]: ['clock_in', 'clock_out'] } },
+      attributes: ['attendance_day_id', 'kind', 'at', 'source'],
+      order: [['at', 'ASC'], ['id', 'ASC']],
+    }) : [];
+    const evByDay = new Map();
+    for (const e of midEvents) {
+      if (!evByDay.has(e.attendance_day_id)) evByDay.set(e.attendance_day_id, []);
+      evByDay.get(e.attendance_day_id).push(e);
+    }
+    const isMid = (e) => e.source === 'auto_midnight';
+
     const acc = new Map();
     const row = (uid) => {
       if (!acc.has(uid)) {
@@ -369,15 +393,24 @@ router.get('/stats', authenticateToken, async (req, res, next) => {
     };
     for (const d of days) {
       const r = row(d.user_id);
-      r.work_days += 1;
+      const evs = evByDay.get(d.id) || [];
+      const ins = evs.filter((e) => e.kind === 'clock_in');
+      const hasMidIn = ins.some(isMid);
+      const onlyMidIn = ins.length > 0 && ins.every(isMid);
+      if (!onlyMidIn) r.work_days += 1;
       r.work_sec += Number(d.work_total_sec || 0);
       r.break_sec += Number(d.break_total_sec || 0);
       if (d.auto_closed) r.auto_closed_count += 1;
       const dailySec = (Number(byUser.get(d.user_id)?.daily_work_hours) || 8) * 3600;
       r.overtime_sec += Math.max(0, Number(d.work_total_sec || 0) - dailySec);
-      const mi = minutesOf(d.clock_in_at);
+      // 평균 출근 — 자정 이어받기가 있는 날은 첫 «사람의» 출근, 없으면 표본에서 뺀다.
+      const firstRealIn = hasMidIn ? (ins.find((e) => !isMid(e))?.at || null) : d.clock_in_at;
+      const mi = minutesOf(firstRealIn);
       if (mi !== null) r.in_minutes.push(mi);
-      const mo = minutesOf(d.clock_out_at);
+      // 평균 퇴근 — 퇴근 시각이 자정 마감 그 자체면 뺀다(그 뒤 진짜 퇴근을 찍었으면 그 값은 쓴다).
+      const midOutAt = evs.filter((e) => e.kind === 'clock_out' && isMid(e)).map((e) => new Date(e.at).getTime());
+      const outIsMid = d.clock_out_at && midOutAt.includes(new Date(d.clock_out_at).getTime());
+      const mo = outIsMid ? null : minutesOf(d.clock_out_at);
       if (mo !== null) r.out_minutes.push(mo);
     }
     for (const l of leaves) {

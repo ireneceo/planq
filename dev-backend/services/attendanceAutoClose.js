@@ -8,11 +8,11 @@
 const cron = require('node-cron');
 const { Op } = require('sequelize');
 const { AttendanceDay, AttendanceEvent, FocusSession, Business } = require('../models');
-const { dateStrInTz, ymd } = require('../utils/datetime');
+const { dateStrInTz, ymd, addDaysStr, startOfDayInTz } = require('../utils/datetime');
 const A = require('./attendanceTransition');
 
 /** 마감 시각 추정 — 마지막 근태 이벤트와 그날 마지막 몰입 활동 중 늦은 쪽. */
-async function guessCloseAt(day) {
+async function guessCloseAt(day, tz) {
   const lastEvent = await AttendanceEvent.findOne({
     // 스코프: attendance_day_id 는 한 워크스페이스·한 사람의 하루에 묶인 자식이다.
     where: { attendance_day_id: day.id },
@@ -29,16 +29,20 @@ async function guessCloseAt(day) {
   //   가 매 tick 반복돼 **자동 마감이 한 번도 동작한 적이 없었다.** 정규화 함수를 쓴다.
   const dayStart = new Date(`${ymd(day.work_date)}T00:00:00Z`);
   const dayEnd = new Date(dayStart.getTime() + 36 * 3600 * 1000);
+  // ★ 그 날 다음 자정 전에 **시작한** 세션만 보고, 결과도 다음 자정을 넘기지 않는다(2026-10-22 Fable 자정 분할 판정).
+  //   안 그러면 00:02 에 새로 시작한 오늘 세션의 활동이 어제 퇴근 시각이 되어 «어제 퇴근 00:05 > 오늘 출근 00:02» 로 뒤집힌다.
+  const nextMidnight = startOfDayInTz(addDaysStr(ymd(day.work_date), 1), tz);
   const focus = await FocusSession.findOne({
     where: {
       user_id: day.user_id, business_id: day.business_id,
+      started_at: { [Op.lt]: nextMidnight },
       last_activity_at: { [Op.between]: [dayStart, dayEnd] },
     },
     order: [['last_activity_at', 'DESC']],
     attributes: ['last_activity_at'],
   });
   if (focus?.last_activity_at && new Date(focus.last_activity_at) > best) best = new Date(focus.last_activity_at);
-  return best;
+  return best > nextMidnight ? nextMidnight : best;
 }
 
 // 워크스페이스마다 '오늘' 이 다르다 — tz 를 한 번씩만 읽는다.
@@ -87,11 +91,21 @@ async function runAttendanceAutoClose() {
     });
     const tzCache = new Map();
     let closed = 0;
+    let splitCount = 0;
     for (const day of open) {
       const tz = await tzOf(tzCache, day.business_id);
       const today = dateStrInTz(new Date(), tz);
       if (ymd(day.work_date) >= today) continue;   // String(Date) 로 비교하면 요일 문자열이 나온다   // 오늘 근무 중인 사람은 건드리지 않는다
-      const at = await guessCloseAt(day);
+      // 자정을 넘겨 일하는 중이면 마감 대신 이어 준다(어제 24:00 퇴근 + 오늘 00:00 출근) — /today 가 먼저 했으면 no-op.
+      //   어제보다 오래된 열린 행은 술어와 무관하게 종전 마감.
+      if (ymd(day.work_date) === addDaysStr(today, -1)) {
+        let split = null;
+        try {
+          split = await A.ensureMidnightSplit({ businessId: day.business_id, userId: day.user_id });
+        } catch (e) { console.warn('[attendanceAutoClose] split', day.id, e.message); }
+        if (split) { splitCount += 1; continue; }
+      }
+      const at = await guessCloseAt(day, tz);
       try {
         await A.clockOut({
           businessId: day.business_id, userId: day.user_id,
@@ -103,8 +117,8 @@ async function runAttendanceAutoClose() {
     }
     // 근태 닫기가 먼저다 — 열린 날의 세션은 clock_out 으로 닫혀야 한다(순서가 end_reason 을 정한다).
     const focusStopped = await closeStaleFocus(tzCache);
-    if (closed || focusStopped) console.log(`[attendanceAutoClose] closed=${closed} focus_day_end=${focusStopped}`);
-    return { closed, focusStopped };
+    if (closed || focusStopped || splitCount) console.log(`[attendanceAutoClose] closed=${closed} midnight_split=${splitCount} focus_day_end=${focusStopped}`);
+    return { closed, split: splitCount, focusStopped };
   } catch (err) {
     console.error('[attendanceAutoClose] error:', err.message);
     return { closed: 0, error: err.message };

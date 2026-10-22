@@ -19,9 +19,10 @@ AttendanceEvent.init({
   kind: { type: DataTypes.ENUM('clock_in', 'break_start', 'break_end', 'clock_out'), allowNull: false },
   /** 발생 시각. admin_fix 는 과거 시각을 넣을 수 있다 */
   at: { type: DataTypes.DATE, allowNull: false },
-  /** user = 본인이 눌렀다 / auto_focus = 업무 시작이 대신 찍었다 / auto_close = 미퇴근 마감 / admin_fix = 정정 */
+  /** user = 본인이 눌렀다 / auto_focus = 업무 시작이 대신 찍었다 / auto_close = 미퇴근 마감 / admin_fix = 정정
+   *  / auto_midnight = 자정을 넘겨 일하는 중이라 어제를 24:00 에 닫고 오늘을 00:00 에 열었다(docs/ATTENDANCE_MIDNIGHT_SPLIT_DESIGN.md) */
   source: {
-    type: DataTypes.ENUM('user', 'auto_focus', 'auto_close', 'admin_fix'),
+    type: DataTypes.ENUM('user', 'auto_focus', 'auto_close', 'admin_fix', 'auto_midnight'),
     allowNull: false, defaultValue: 'user',
   },
   actor_user_id: { type: DataTypes.INTEGER, allowNull: false, references: { model: 'users', key: 'id' } },

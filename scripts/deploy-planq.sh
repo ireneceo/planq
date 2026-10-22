@@ -818,6 +818,9 @@ sync_database() {
   #   롤백(코드만): node scripts/migrate-leave-types.js --rollback-nullable
   log "Adding leave types table..."
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-leave-types.js 2>&1 | tail -8"
+  # 2026-10-22 근태 자정 분할 — attendance_events.source ENUM 끝 'auto_midnight'(멱등). 분할 INSERT 가 이 값을 쓰므로 PM2 reload 전.
+  #   백필 없음 · 롤백 코드만(docs/ATTENDANCE_MIDNIGHT_SPLIT_DESIGN.md §2-8).
+  prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-attendance-midnight.js 2>&1 | tail -5"
 
   # 운영 #257 — 결과물 회차의 승인/수정요청이 **남의 라운드**에 붙어 있었다(버전 번호 ≠ 컨펌 라운드).
   #   제출 시점의 컨펌 라운드를 회차 행에 적어 두고(review_round), 백필로 옛 행도 잇는다.

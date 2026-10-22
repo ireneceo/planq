@@ -83,8 +83,35 @@ function tzOffsetOf(tz, at = new Date()) {
   } catch { return '+00:00'; }
 }
 
+/**
+ * tz 의 'YYYY-MM-DD' 가 시작하는 순간(그 날 00:00)을 Date 로.
+ *   오프셋을 손으로 적지 않는다 — 그 날의 오프셋으로 후보를 만들고, 후보가 정말 그 날의 첫 초인지
+ *   (dateStrInTz 왕복 + 1초 전이 전날) 확인한다. DST 로 어긋나면 후보 시각의 오프셋으로 한 번 더.
+ */
+function offsetMinutes(tz, at) {
+  const o = tzOffsetOf(tz, at);
+  const m = o.match(/^([+-])(\d{2}):(\d{2})$/);
+  if (!m) return 0;
+  return (m[1] === '-' ? -1 : 1) * (Number(m[2]) * 60 + Number(m[3]));
+}
+function startOfDayInTz(yyyyMmDd, tz) {
+  const base = Date.parse(`${yyyyMmDd}T00:00:00Z`);
+  const ok = (t) => dateStrInTz(new Date(t), tz) === yyyyMmDd
+    && dateStrInTz(new Date(t - 1000), tz) === addDaysStr(yyyyMmDd, -1);
+  let cand = base - offsetMinutes(tz, new Date(base)) * 60000;
+  if (ok(cand)) return new Date(cand);
+  cand = base - offsetMinutes(tz, new Date(cand)) * 60000;
+  if (ok(cand)) return new Date(cand);
+  // 자정 자체가 없는 날(드문 DST) — 그 날의 첫 시각을 분 단위로 찾는다
+  for (let t = cand - 3 * 3600000; t <= cand + 3 * 3600000; t += 60000) {
+    if (ok(t)) return new Date(t);
+  }
+  return new Date(cand);
+}
+
 module.exports = {
   dateStrInTz,
+  startOfDayInTz,
   tzOffsetOf,
   ymd,
   todayInTz,

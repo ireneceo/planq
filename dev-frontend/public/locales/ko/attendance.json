@@ -175,7 +175,8 @@
     "source": {
       "auto_focus": "자동 출근",
       "auto_close": "자동 마감",
-      "admin_fix": "정정"
+      "admin_fix": "정정",
+      "auto_midnight": "자정 이어서"
     },
     "timeline": "이 날의 확정 기록",
     "timelineHint": "여기에 남긴 것이 이 날의 기록이 됩니다. 잘못 찍힌 시각은 고치거나 지우세요 — 원래 기록은 이력으로 남습니다.",

@@ -74,6 +74,8 @@ const CATEGORIES = [
   'imagegate', 'clientlink', 'money',
   // 0-C~0-F 접근·격리 (docs/FIX_0CDEF_ACCESS_DESIGN.md) — 픽스처는 scripts/health-access.js
   'signauth', 'kbauth', 'folderauth', 'mailscope', 'clientsmenu', 'invite',
+  // 2026-10-22 근태 자정 분할 (docs/ATTENDANCE_MIDNIGHT_SPLIT_DESIGN.md)
+  'attnmidnight',
 ];
 
 const args = process.argv.slice(2);
@@ -1452,6 +1454,20 @@ function defineSecretTests() {
 }
 
 function defineDateOnlyTests() {
+  // 근태 자정 분할 — 살아 있는 측정이 자정을 걸치면 어제 24:00 퇴근 + 오늘 00:00 출근(측정 유지),
+  //   죽은 세션은 분할하지 않는다(대조군). 지난 날짜·주입한 «지금» 으로 서비스 함수를 직접 부르고 행은 지운다.
+  test('attnmidnight', '자정을 넘겨 일하면 어제 24:00 퇴근 + 오늘 00:00 출근으로 이어진다 (①·④ 대조군)', async () => {
+    const { execSync } = require('child_process');
+    if (!ctx.token) await setup();
+    if (!ctx.businessId || !ctx.userId) throw new Error('health-check 계정 컨텍스트 없음');
+    const out = execSync(`node scripts/check-attendance-midnight.js ${Number(ctx.businessId)} ${Number(ctx.userId)}`,
+      { cwd: '/opt/planq/dev-backend', encoding: 'utf8', timeout: 60000 });
+    const info = JSON.parse(out.slice(out.lastIndexOf('<<') + 2));
+    const bad = info.checks.filter((c) => !c.ok).map((c) => c.name);
+    if (!info.ok) throw new Error(`실패: ${bad.join(' · ') || '검사 0건'}`);
+    return `${info.checks.length}검사 통과`;
+  });
+
   test('dateonly', 'DATEONLY 비교 전 정규화 (dev/운영 타입 차이)', async () => {
     // ★ DB 조회는 백엔드 cwd 의 별도 프로세스로 — 이 스크립트에는 DB 환경변수가 없다(다른 검사와 동일 패턴).
     const { execSync } = require('child_process');

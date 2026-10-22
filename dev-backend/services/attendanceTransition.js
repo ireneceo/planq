@@ -14,7 +14,7 @@ const { sequelize } = require('../config/database');
 const {
   AttendanceDay, AttendanceEvent, Business, User, FocusSession,
 } = require('../models');
-const { dateStrInTz, ymd } = require('../utils/datetime');
+const { dateStrInTz, ymd, addDaysStr, startOfDayInTz } = require('../utils/datetime');
 
 // 라우트가 아닌 경로(cron·Focus 연동)에서도 broadcast 해야 한다 — taskTransition 과 같은 방식.
 function getIO() { return global.__planqIo || null; }
@@ -248,7 +248,13 @@ async function clockOut({ businessId, userId, actorUserId, source = 'user', at =
     broadcast(day);
     // 연동 B — 퇴근했으면 켜져 있던 몰입 세션도 닫는다. 안 닫으면 밤새 켜진 세션이
     //   다음 날 업무시간으로 잡힌다.
-    await stopActiveFocus(userId, 'clock_out').catch(() => null);
+    // ★ 자동 마감(cron)은 **그 날에 시작한 세션만** 끊는다(2026-10-22 Fable 자정 분할 판정).
+    //   범위 없이 끊으면 00:05 cron 이 어제를 닫으며 00:02 에 새로 시작한 오늘 세션까지 죽였다.
+    //   사람이 누른 퇴근은 종전대로 전부.
+    const stopOpts = source === 'auto_close'
+      ? { businessId, startedBefore: startOfDayInTz(addDaysStr(workDate, 1), await workspaceTz(businessId)) }
+      : {};
+    await stopActiveFocus(userId, 'clock_out', stopOpts).catch(() => null);
     return day;
   } catch (err) { await t.rollback(); throw err; }
 }
@@ -314,6 +320,8 @@ async function applyAdminFix({ dayId, events, fixReason, actorUserId }) {
 async function stopActiveFocus(userId, reason, opts = {}) {
   const where = { user_id: userId, state: { [Op.in]: ['active', 'paused'] } };
   if (opts.businessId) where.business_id = opts.businessId;
+  // opts.startedBefore — 그 시각 전에 시작한 세션만(자동 마감이 다음 날 세션을 끊지 않게).
+  if (opts.startedBefore) where.started_at = { [Op.lt]: opts.startedBefore };
   const s = await FocusSession.findOne({ where });
   if (!s) return null;
   let extraPause = 0;
@@ -351,6 +359,8 @@ async function pauseActiveFocus(userId) {
  */
 async function autoClockInOnFocus({ businessId, userId }) {
   try {
+    // 자정을 넘겨 일하던 중이면 어제를 24:00 에 닫고 오늘을 00:00 에 연다 — 그 뒤엔 아래가 «이미 근무중» 으로 끝난다.
+    await ensureMidnightSplit({ businessId, userId }).catch((e) => console.warn('[attendance midnight split]', e.message));
     const u = await User.findByPk(userId, { attributes: ['id', 'auto_clock_in_on_focus'] });
     if (!u || u.auto_clock_in_on_focus === false) return null;
     const workDate = await todayFor(businessId);
@@ -370,6 +380,97 @@ async function autoClockInOnFocus({ businessId, userId }) {
     console.warn('[attendance auto clock-in]', e.message);
     return null;
   }
+}
+
+// ─── 자정 분할 (docs/ATTENDANCE_MIDNIGHT_SPLIT_DESIGN.md · 2026-10-22 Fable DESIGN-READY) ───
+// Irene: «12시가 지나면 미출근 상태가 되는 거야? 그냥 12시에 퇴근 찍히고 다시 출근하는 걸로 기록할 수 없어?»
+//   하루 = work_date 한 행이라 0시가 되면 오늘 행이 없어 «미출근» 이었다. 자정을 넘겨 **업무 측정이 살아 있는**
+//   사람만 어제를 24:00 에 닫고 오늘을 00:00 에 연다(source auto_midnight). 출근 버튼만 누르고 측정 없이 밤을
+//   넘긴 사람은 퇴근 누락과 구별할 수 없어 종전 자동 마감(정정 경로가 있다).
+
+/**
+ * 자정을 넘겨 일하고 있는가 — ① 지금 살아 있는 세션(active · 마지막 활동이 유예 안) ∧
+ * ② 자정을 걸친 세션(같은 워크스페이스·사람, ①과 같아도 된다 — 업무 전환으로 00:02 에 바뀐 사람도 잡힌다).
+ * ②가 없으면 버튼 출근 뒤 방치한 어제 행이 00:02 에 새로 시작한 사람 때문에 23:00~00:00 근무가 된다.
+ */
+async function stillWorkingAcrossMidnight({ businessId, userId, midnight, now = new Date() }) {
+  const graceFrom = new Date(now.getTime() - FocusSession.GRACE_SEC * 1000);
+  const alive = await FocusSession.findOne({
+    where: {
+      business_id: businessId, user_id: userId, state: 'active',
+      last_activity_at: { [Op.gte]: graceFrom },
+    },
+    attributes: ['id'],
+  });
+  if (!alive) return false;
+  // ★ 자정에 실제로 활동 중이었어야 한다(마지막 활동 ≥ 자정 − 유예). ended_at 만 보면 어제 낮에 멈춘 채
+  //   cron 이 아직 못 치운 좀비 세션(ended_at NULL)도 «걸쳤다» 가 되어 00:02 에 새로 시작한 사람까지 분할된다.
+  const spanned = await FocusSession.findOne({
+    where: {
+      business_id: businessId, user_id: userId,
+      started_at: { [Op.lt]: midnight },
+      last_activity_at: { [Op.gte]: new Date(midnight.getTime() - FocusSession.GRACE_SEC * 1000) },
+      [Op.or]: [{ ended_at: null }, { ended_at: { [Op.gte]: midnight } }],
+    },
+    attributes: ['id'],
+  });
+  return !!spanned;
+}
+
+/**
+ * 어제 행이 근무중이고 아직 일하고 있으면 한 트랜잭션에서 어제 clock_out(24:00) + 오늘 clock_in(00:00).
+ *   ★ clockOut() 을 부르지 않는다 — 거기 붙은 stopActiveFocus 가 업무 측정을 끊는다.
+ *   휴게 중(on_break)은 분할하지 않는다(00:00 에 근무로 바꾸는 것이 더 큰 거짓). 두 번째 실행은 no-op.
+ *   돌려주는 값: 분할했으면 { yesterday, today }, 아니면 null.
+ */
+async function ensureMidnightSplit({ businessId, userId, now = new Date() }) {
+  const tz = await workspaceTz(businessId);
+  const today = dateStrInTz(now, tz);
+  const yesterday = addDaysStr(today, -1);
+  // 잠그기 전 가벼운 확인 — 대부분의 호출(/today·업무 시작)은 여기서 끝난다.
+  const peek = await AttendanceDay.findOne({
+    where: { business_id: businessId, user_id: userId, work_date: yesterday },
+    attributes: ['id', 'state'],
+  });
+  if (!peek || peek.state !== 'working') return null;
+  const midnight = startOfDayInTz(today, tz);
+  if (!(await stillWorkingAcrossMidnight({ businessId, userId, midnight, now }))) return null;
+
+  const t = await sequelize.transaction();
+  let yDay; let tDay;
+  try {
+    yDay = await lockDay({ businessId, userId, workDate: yesterday }, t);
+    if (!yDay || yDay.state !== 'working') { await t.rollback(); return null; }
+    tDay = await lockDay({ businessId, userId, workDate: today }, t);
+    await appendEvent({ day: yDay, kind: 'clock_out', at: midnight, source: 'auto_midnight', actorUserId: userId }, t);
+    await recomputeDay(yDay.id, t);
+    if (!tDay) {
+      tDay = await AttendanceDay.create({
+        business_id: businessId, user_id: userId, work_date: today,
+        state: 'working', clock_in_at: midnight,
+      }, { transaction: t });
+      await appendEvent({ day: tDay, kind: 'clock_in', at: midnight, source: 'auto_midnight', actorUserId: userId }, t);
+      await recomputeDay(tDay.id, t);
+    }
+    await t.commit();
+  } catch (err) {
+    await t.rollback().catch(() => null);
+    // 오늘 행 생성이 unique 에 걸렸다 = cron 과 요청이 동시에 왔고 상대가 이겼다. 재시도하지 않는다.
+    if (err && err.name === 'SequelizeUniqueConstraintError') return null;
+    // 없는 행에 건 잠금(간격 잠금)끼리 부딪혀도 같은 뜻이다 — 상대 트랜잭션이 분할을 끝낸다.
+    if (err && /Deadlock found/i.test(err.message || '')) return null;
+    throw err;
+  }
+  await yDay.reload();
+  await tDay.reload();
+  await audit({
+    action: 'attendance.midnight_split', day: tDay, actorUserId: userId,
+    oldValue: { attendance_day_id: yDay.id, work_date: yesterday },
+    newValue: { attendance_day_id: tDay.id, work_date: today, at: midnight },
+  });
+  broadcast(yDay);
+  broadcast(tDay);
+  return { yesterday: yDay, today: tDay };
 }
 
 /** 되돌릴 수 있는 창 — 30분. 그 뒤엔 이미 하루의 일부라 정정(관리자)의 영역이다. */
@@ -463,5 +564,6 @@ module.exports = {
   recomputeDay, foldEvents, liveTotals,
   autoClockInOnFocus, stopActiveFocus, pauseActiveFocus,
   autoClockInNotice, undoAutoClockIn,
+  ensureMidnightSplit, stillWorkingAcrossMidnight,
   todayFor, workspaceTz, getIO,
 };
