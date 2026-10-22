@@ -571,12 +571,14 @@ const MatrixHead = styled.div`
   display: grid; grid-template-columns: minmax(160px, 1fr) repeat(4, 84px);
   /* 폰 — 160 + 84*4 = 496px 라 375px 화면을 넘겨 오른쪽으로 삐져나갔다(2026-08-25 실측).
      라벨을 줄이고 채널 칸을 좁혀 화면 안에 넣는다(96 + 56*4 = 320px). */
-  @media (max-width: 640px) { grid-template-columns: minmax(96px, 1fr) repeat(4, 56px); }
+  /* 2026-10-22 — 그래도 360px 에서 설명 칸이 55px 로 짓눌려 한 줄 설명이 4~5줄이 됐다.
+     폰은 종류 이름·설명을 한 줄 전폭(EventCell grid-column 1/-1)에 두고 스위치 4개를 그 아래 같은 열에 세운다. */
+  @media (max-width: 640px) { grid-template-columns: repeat(4, 1fr); }
   border-bottom: 1px solid #E2E8F0;
 `;
 const HeadCell = styled.div`
   padding: 12px 14px; text-align: center;
-  @media (max-width: 640px) { padding: 10px 4px; }
+  @media (max-width: 640px) { padding: 10px 4px; &:empty { display: none; } }
   display: flex; flex-direction: column; align-items: center; gap: 4px;
 `;
 const ChannelIcon = styled.div`
@@ -588,7 +590,9 @@ const MatrixRow = styled.div`
   display: grid; grid-template-columns: minmax(160px, 1fr) repeat(4, 84px);
   /* 폰 — 160 + 84*4 = 496px 라 375px 화면을 넘겨 오른쪽으로 삐져나갔다(2026-08-25 실측).
      라벨을 줄이고 채널 칸을 좁혀 화면 안에 넣는다(96 + 56*4 = 320px). */
-  @media (max-width: 640px) { grid-template-columns: minmax(96px, 1fr) repeat(4, 56px); }
+  /* 2026-10-22 — 그래도 360px 에서 설명 칸이 55px 로 짓눌려 한 줄 설명이 4~5줄이 됐다.
+     폰은 종류 이름·설명을 한 줄 전폭(EventCell grid-column 1/-1)에 두고 스위치 4개를 그 아래 같은 열에 세운다. */
+  @media (max-width: 640px) { grid-template-columns: repeat(4, 1fr); }
   border-top: 1px solid #F1F5F9;
   &:first-child { border-top: none; }
   &:hover { background: #FAFBFC; }
@@ -607,10 +611,11 @@ const BulkKnob = styled(SwitchKnob)<{ $mixed: boolean }>`
   ${p => p.$mixed ? 'left: 10px;' : ''}
 `;
 const EventCell = styled.div`padding: 14px 14px; display: flex; flex-direction: column; gap: 2px;
-  @media (max-width: 640px) { padding: 12px 6px 12px 0; min-width: 0; }`;
+  @media (max-width: 640px) { grid-column: 1 / -1; padding: 12px 0 4px; min-width: 0; }`;
 const EventLabel = styled.div`font-size: 0.8125rem; font-weight: 600; color: #0F172A;`;
 const EventDesc = styled.div`font-size: 0.6875rem; color: #94A3B8; line-height: 1.4;`;
-const ToggleCell = styled.div`padding: 14px 0; display: flex; align-items: center; justify-content: center;`;
+const ToggleCell = styled.div`padding: 14px 0; display: flex; align-items: center; justify-content: center;
+  @media (max-width: 640px) { padding: 2px 0 12px; }`;
 // $saving 은 없앴다 — 저장 중 표시는 AutoSaveField 의 스피너가 맡는다(한 곳에서).
 const FooterNote = styled.div`
   font-size: 0.6875rem; color: #94A3B8; line-height: 1.5;
@@ -643,6 +648,8 @@ const Attention = styled.div`
   border: 1px solid #FED7AA;
   border-radius: 10px;
   margin-top: 4px;
+  /* 폰 — 버튼이 오른쪽 칸을 먹어 설명이 109px 로 짓눌렸다. 버튼은 아래 줄 전폭으로 */
+  @media (max-width: 640px) { grid-template-columns: 40px 1fr; }
 `;
 const AttentionIcon = styled.div`
   width: 40px; height: 40px;
@@ -656,6 +663,7 @@ const AttentionTitle = styled.div`font-size: 0.8125rem; font-weight: 700; color:
 const AttentionDesc = styled.div`font-size: 0.75rem; color: #7C2D12; line-height: 1.4;`;
 const AttentionCta = styled.button`
   height: 36px; padding: 0 16px;
+  @media (max-width: 640px) { grid-column: 1 / -1; }
   background: #14B8A6; color: #FFFFFF; border: none; border-radius: 8px;
   font-size: 0.8125rem; font-weight: 600; cursor: pointer;
   transition: background 0.15s;

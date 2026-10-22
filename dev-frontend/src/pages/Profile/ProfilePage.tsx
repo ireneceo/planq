@@ -878,6 +878,7 @@ const Label = styled.div`
 
 const FieldBody = styled.div`
   flex: 1;
+  min-width: 0; /* 없으면 숙련도 카드 그리드(auto-fit 170px)가 태블릿 768 에서 화면을 97px 넘겼다(2026-10-22 실측) */
   display: flex;
   flex-direction: column;
   gap: 4px;

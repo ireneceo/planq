@@ -9,7 +9,7 @@ import { useTranslation } from 'react-i18next';
 import { apiFetch } from '../../contexts/AuthContext';
 import ConfirmDialog from '../../components/Common/ConfirmDialog';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
-import { Section, SectionTitle, SectionSub, Empty, ConnList, ConnRow, ConnInfo, ConnTitle, ConnSub, ConnMeta, DangerBtn } from './integrationStyles';
+import { Section, SectionTitle, SectionSub, Empty, ConnList, ConnRow, ConnInfo, ConnTitle, ConnSub, ConnMeta, ConnActions, DangerBtn } from './integrationStyles';
 import { HowTo, Steps, OpenRow, OpenLink, StepHint } from '../../components/Common/setupSteps';
 
 interface Grant {
@@ -152,7 +152,9 @@ const ConnectedAiAppsSection: React.FC<{ businessId: number }> = ({ businessId }
                   </OutdatedBox>
                 )}
               </ConnInfo>
-              <DangerBtn type="button" onClick={() => setTarget(g)}>{t('aiApps.disconnect')}</DangerBtn>
+              <ConnActions>
+                <DangerBtn type="button" onClick={() => setTarget(g)}>{t('aiApps.disconnect')}</DangerBtn>
+              </ConnActions>
             </ConnRow>
           ))}
         </ConnList>

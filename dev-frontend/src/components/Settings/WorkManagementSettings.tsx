@@ -185,6 +185,8 @@ const Row = styled.div`
   display: flex; align-items: center; gap: 16px;
   padding: 12px 0;
   & + & { border-top: 1px solid #F1F5F9; }
+  /* 폰 — 고르기(Control 140px)가 옆에 서면 설명 칸이 39px 로 짓눌렸다(2026-10-22). 고르기는 설명 아래 줄로 */
+  @media (max-width: 640px) { flex-wrap: wrap; row-gap: 8px; }
 `;
 const Field = styled.div`flex: 1; min-width: 0;`;
 const FieldLabel = styled.div`
@@ -195,6 +197,7 @@ const FieldHint = styled.div`
 `;
 const Control = styled.div`
   flex-shrink: 0; min-width: 140px;
+  @media (max-width: 640px) { width: 100%; min-width: 0; }
 `;
 const Switch = styled.button<{ $on: boolean }>`
   position: relative;

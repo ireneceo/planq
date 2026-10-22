@@ -93,6 +93,8 @@ const SectionTitle = styled.h2`
 `;
 const SectionHeaderRow = styled.div`
   display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; margin-bottom: 12px;
+  /* 폰 — [역할 관리][+ 멤버 초대] 가 옆에 서면 섹션 설명이 31px 폭으로 한 글자씩 세로가 됐다(2026-10-22). 버튼은 아래로 */
+  @media (max-width: 640px) { flex-direction: column; gap: 10px; }
 `;
 const InvitePrimaryBtn = styled.button`
   display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 14px;
@@ -113,7 +115,8 @@ const InviteInput = styled.textarea`
 `;
 // 초대 폼 역할 칸 — 역할 사전 고르기(RolePicker)를 담는 자리. 이메일 칸과 같은 줄.
 const InviteRoleSlot = styled.div`flex: 1; min-width: 140px;`;
-const MemberHeaderActions = styled.div`display: flex; align-items: center; gap: 8px; flex-shrink: 0; flex-wrap: wrap; justify-content: flex-end;`;
+const MemberHeaderActions = styled.div`display: flex; align-items: center; gap: 8px; flex-shrink: 0; flex-wrap: wrap; justify-content: flex-end;
+  @media (max-width: 640px) { justify-content: flex-start; }`;
 const InviteHintText = styled.div`font-size: 0.75rem; color: #64748B; line-height: 1.5; margin-top: 6px;`;
 const InviteError = styled.div`font-size: 0.75rem; color: #DC2626;`;
 const InviteResultList = styled.ul`margin: 6px 0 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 2px;`;

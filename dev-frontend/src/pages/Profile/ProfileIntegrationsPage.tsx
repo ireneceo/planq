@@ -15,7 +15,7 @@ import { useTranslation } from 'react-i18next';
 import ConfirmDialog from '../../components/Common/ConfirmDialog';
 import CalendarPicker from './CalendarPicker';
 import PageShell from '../../components/Layout/PageShell';
-import { Section, SectionTitle, SectionSub, Empty, ConnList, ConnRow, ConnIcon, ConnInfo, ConnTitle, ConnSub, ConnMeta, DangerBtn } from './integrationStyles';
+import { Section, SectionTitle, SectionSub, Empty, ConnList, ConnRow, ConnIcon, ConnInfo, ConnTitle, ConnSub, ConnMeta, ConnActions, DangerBtn } from './integrationStyles';
 import ConnectedAiAppsSection from './ConnectedAiAppsSection';
 import { useAuth, apiFetch } from '../../contexts/AuthContext';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
@@ -343,9 +343,11 @@ const ProfileIntegrationsPage: React.FC = () => {
                   <ConnSub>{c.email}{c.display_name && ` · ${c.display_name}`}</ConnSub>
                   <ConnMeta>{t('integrations.connectedAt', '연결: {{date}}', { date: formatDate(c.connected_at) }) as string}</ConnMeta>
                 </ConnInfo>
-                <DangerBtn type="button" onClick={() => setDisconnectAsk({ kind: 'oauth', id: c.id, label: c.email || c.provider })}>
-                  {t('integrations.disconnect', '해제') as string}
-                </DangerBtn>
+                <ConnActions>
+                  <DangerBtn type="button" onClick={() => setDisconnectAsk({ kind: 'oauth', id: c.id, label: c.email || c.provider })}>
+                    {t('integrations.disconnect', '해제') as string}
+                  </DangerBtn>
+                </ConnActions>
               </ConnRow>
             ))}
             {/* N+75-C — 추가 provider (Microsoft) 안내 + 같은 google 다른 계정 추가는 향후 */}
@@ -427,8 +429,10 @@ const ProfileIntegrationsPage: React.FC = () => {
                     <CalendarPicker connectionId={c.id} businessId={businessId} />
                   )}
                 </ConnInfo>
-                {c.permission_status && <PermissionBadge status={c.permission_status} />}
-                <DangerBtn type="button" onClick={() => { if (typeof c.id === 'number') setDisconnectAsk({ kind: 'personal', id: c.id, label: c.account_email || c.provider }); }}>{t('integrations.disconnect', '해제') as string}</DangerBtn>
+                <ConnActions>
+                  {c.permission_status && <PermissionBadge status={c.permission_status} />}
+                  <DangerBtn type="button" onClick={() => { if (typeof c.id === 'number') setDisconnectAsk({ kind: 'personal', id: c.id, label: c.account_email || c.provider }); }}>{t('integrations.disconnect', '해제') as string}</DangerBtn>
+                </ConnActions>
               </ConnRow>
             ))}
           </ConnList>
@@ -503,8 +507,10 @@ const ProfileIntegrationsPage: React.FC = () => {
                     />
                   )}
                 </ConnInfo>
-                {c.permission_status && <PermissionBadge status={c.permission_status} />}
-                <DangerBtn type="button" onClick={() => { if (typeof c.id === 'number') setDisconnectAsk({ kind: 'personal', id: c.id, label: c.account_email || c.provider }); }}>{t('integrations.disconnect', '해제') as string}</DangerBtn>
+                <ConnActions>
+                  {c.permission_status && <PermissionBadge status={c.permission_status} />}
+                  <DangerBtn type="button" onClick={() => { if (typeof c.id === 'number') setDisconnectAsk({ kind: 'personal', id: c.id, label: c.account_email || c.provider }); }}>{t('integrations.disconnect', '해제') as string}</DangerBtn>
+                </ConnActions>
               </ConnRow>
             ))}
           </ConnList>
