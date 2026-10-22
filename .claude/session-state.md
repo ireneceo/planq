@@ -65,11 +65,11 @@
 
 
 
-### 나중에 — Fable 대기: 서명 요청 뒤 문서 고치기 «회차 닫기» (방 1f0b2f16 · 2026-10-22 · [Opus]) · 한도가 풀리면(상황판 Fable 대기) · 그때 docs/SIGNATURE_REVISE_ROUND_DESIGN.md 2절 D1~D7 Fable 설계 판정 → 판정대로 구현(signatureCore.closeRound 한 문 · status ENUM superseded 마이그 · signRoundWhere·payrollContracts·projectStageEngine·projects 거래 탭·화면 visible 반영 · 문서 서명 진행 칸 «고쳐서 다시 보내기») → 3절 검증
-- Irene 답: «권고대로 진행해 줘»(② — 고객 수정 요청이 오면 같은 문서에서 고쳐 다시 보냄, 우리 서명도 다시).
-- 구현 0 — 서명 증빙 규칙 변경이라 설계 Fable 필수, Fable 429.
-- 10-22 Irene 추가: «수정요청도 들어오고 하게 잘 프로세스 점검해줘» → dev 실측(설계 1-b 절, 문서 4386 [확인용]): 거절 뒤 본문 409·우리 서명 취소 400 · 요청 보낸 본인 알림 0건 · 알림에 사유 없음 · 확인필요 owner 만 · 고객 화면에 «수정 요청» 길 없음 → D8~D10 으로 같은 판정에 묶음(상황판 fid fwmvitbh3l, 11:38 KL 뒤).
-
+### ✅ 완료: 서명 요청 뒤 문서 고치기 «회차 닫기» + 고객 «수정 요청» (방 1f0b2f16 · 2026-10-22 · [Opus]) — 커밋 2f07a161·2fa7c1c1 · Fable 완료 검증 FAIL(영어 폰 버튼 넘침) → 고침 → 재판정 PASS · 운영 반영: 다음 배포 때(migrate-signature-supersede.js 배포 슬롯 등록)
+- Irene: «권고대로 진행» · «수정요청도 들어오고 하게 잘 프로세스 점검해줘». Fable 설계 PASS(docs/FABLE_GATE_QUEUE.md 맨 위 · 설계 문서 «Fable 판정» 절).
+- 한 것: 서명 진행 [고쳐서 다시 보내기](받는 쪽 서명 0 일 때) · 공개 화면 [수정 요청·거절] 창(수정 요청 사유 필수) · 알림 요청자 포함·사유 줄·수신자 언어 · 확인 필요 요청자에게 sign_revise · 열린 요청만 서명/거절 · 조건부 UPDATE · 옛 링크 410 superseded · 거절만 남은 회차 자동 닫기 · 서명본 칸 «수정 요청».
+- 자체 검증: 실HTTP 37/37 · 화면 3폭 30/30 · 가드 76/77 · health 89/89 · secrets 12/12 · e2e signature 실패 0 · 범위 tsc 0 + vite 0(전체 tsc -b 는 earlyoom 143).
+- 확인용: 문서 4571(수정 요청 받음) · 4572(공개 화면 열린 토큰) · 4562~4564 시험 흔적.
 ### 답 기다림 (이전): 서명 진행 중 문서 수정 규칙 (방 1f0b2f16 · 2026-10-22 · [Opus]) · 무엇·왜·답이 오면
 - 원문: «나만 서명했는데 고객이 수정요청하면 수정할 수 있어? 보내는 사람 서명 말고 다른 사람 서명 전에는 문서 서명 가능하지? 이후는 안되는 거고. 그치? 어떤 상태야?»
 - 지금(코드 사실): 서명 요청을 보내는 순간 본문 잠김(services/signatureCore.isPostSignatureLocked — pending·sent·viewed·signed 하나라도). 아무도 서명 안 했어도 잠김 → 진행 중 요청을 [취소]해야 고칠 수 있음. 우리 쪽이 이미 서명(signed)했으면 그 행은 취소 불가(DELETE already_finalized) → 고객이 거절(=수정 요청, 사유 적기)해도 문서는 영영 잠김 → 유일한 길은 문서 복사 후 새로 요청.
