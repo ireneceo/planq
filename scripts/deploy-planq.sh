@@ -821,6 +821,10 @@ sync_database() {
   # 2026-10-22 근태 자정 분할 — attendance_events.source ENUM 끝 'auto_midnight'(멱등). 분할 INSERT 가 이 값을 쓰므로 PM2 reload 전.
   #   백필 없음 · 롤백 코드만(docs/ATTENDANCE_MIDNIGHT_SPLIT_DESIGN.md §2-8).
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-attendance-midnight.js 2>&1 | tail -5"
+  # 2026-10-22 조직 0단계 — 이용약관 제10조 개정(퇴사 시 업무 인수인계) 공지 띠 + 약관 버전 1.2(재동의). Irene «너가 해».
+  #   시행일(memberHandover HANDOVER_L1_EFFECTIVE_ON)이 오늘+30일보다 이르면 바꾸지 않고 경고만(약관 13조 30일 공지) — 그땐 시행일을 옮겨 다시 배포.
+  #   멱등 · 배포를 막지 않는다(실패해도 exit 0 — 버전이 안 오르면 «나만 보기» 넘기기는 꺼진 채다). 순서 무관.
+  prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-terms-handover.js 2>&1 | tail -5"
 
   # 운영 #257 — 결과물 회차의 승인/수정요청이 **남의 라운드**에 붙어 있었다(버전 번호 ≠ 컨펌 라운드).
   #   제출 시점의 컨펌 라운드를 회차 행에 적어 두고(review_round), 백필로 옛 행도 잇는다.

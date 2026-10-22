@@ -227,4 +227,4 @@ async function canManageMembership(req, businessId, transaction) {
   return !!me && me.role === 'owner';
 }
 
-module.exports = { summarize, apply, assertRecipient, canManageMembership, l1Effective, HANDOVER_L1_EFFECTIVE_AT, HANDOVER_TERMS_VERSION };
+module.exports = { summarize, apply, assertRecipient, canManageMembership, l1Effective, HANDOVER_L1_EFFECTIVE_AT, HANDOVER_L1_EFFECTIVE_ON, HANDOVER_TERMS_VERSION };
