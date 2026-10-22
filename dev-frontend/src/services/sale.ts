@@ -3,7 +3,7 @@
 // ★ 실패는 던진다. `if (j.success)` 로 삼키면 저장이 안 돼도 화면은 바뀐 채로 남아
 //   사용자는 값이 슬쩍 되돌아가는 것만 보고 이유를 모른다(AutoSaveField 는 던져야 ! 배지를 띄운다).
 // ★ 접근 종류(access_kind)·한도 포함 여부는 **서버가 준 값만** 쓴다 — 화면이 user_id 로 판정하지 않는다.
-import { apiFetch } from '../contexts/AuthContext';
+import { apiFetch, apiUpload } from '../contexts/AuthContext';
 
 export type SaleStage = 'none' | 'inquiry' | 'consulting' | 'proposal' | 'negotiation' | 'won' | 'lost';
 export type AccessKind = 'guest' | 'invited' | 'member';
@@ -561,3 +561,24 @@ export const getCardIntake = async (businessId: number, savedCardId: number) =>
   jx<CardIntake>(await apiFetch(`/api/sale/${businessId}/card-intake/${savedCardId}`));
 export const attachCardToClient = async (businessId: number, clientId: number, savedCardId: number) =>
   jx<{ role: 'primary' | 'extra' }>(await apiFetch(`/api/sale/${businessId}/clients/${clientId}/attach-card`, jsonInit('POST', { saved_card_id: savedCardId })));
+
+// ─── 명함 사진 읽기 (docs/NAME_CARD_V3_STRATEGY.md 9절 결정 3) ───────────────
+export interface CardPhotoRead {
+  values: CardIntake['values'] & { website: string | null };
+  found: boolean;
+  match: CardIntake['match'];
+}
+export async function readCardPhoto(businessId: number, file: File): Promise<CardPhotoRead> {
+  const fd = new FormData();
+  fd.append('file', file);
+  return jx<CardPhotoRead>(await apiUpload(`/api/sale/${businessId}/card-read`, fd));
+}
+export async function saveCardPhoto(businessId: number, clientId: number, file: File, contactId?: number | null): Promise<{ file_id: number }> {
+  const fd = new FormData();
+  fd.append('file', file);
+  if (contactId) fd.append('contact_id', String(contactId));
+  return jx<{ file_id: number }>(await apiUpload(`/api/sale/${businessId}/clients/${clientId}/card-photo`, fd));
+}
+/** 사진에서 읽고 사람이 확인한 값을 기존 고객에 붙인다(대표 칸이 비면 채우고, 아니면 담당자 추가) */
+export const attachValuesToClient = async (businessId: number, clientId: number, values: Partial<CardIntake['values']>) =>
+  jx<{ role: 'primary' | 'extra'; contact?: ClientContact }>(await apiFetch(`/api/sale/${businessId}/clients/${clientId}/attach-card`, jsonInit('POST', { values })));

@@ -27,6 +27,7 @@ import ActionButton from '../../components/Common/ActionButton';
 import LetterAvatar from '../../components/Common/LetterAvatar';
 import PartnerKindBadge from '../../components/Common/PartnerKindBadge';
 import ClientAddDrawer from '../../components/Clients/ClientAddDrawer';
+import CardPhotoButton from '../../components/Clients/CardPhotoButton';
 import { downloadRowsAsCsv } from '../../utils/csv';
 // ★ 2026-09-12 Irene: "상세(채팅, 메일, 전화, 등등) > 고객 이렇게 들어가야지 · 상담리스트, 고객리스트 2가지 다 보여줘도 좋고"
 //   입구를 상담(고객 미등록 문의)으로 바꾸고 고객 목록은 옆 탭으로 둔다. 목록·액션은 SaleInboxList 한 곳.
@@ -82,6 +83,8 @@ export default function SalePage() {
   const [clientAddPrefill, setClientAddPrefill] = useState<{ name?: string; email?: string; company?: string; phone?: string; job_title?: string; department?: string } | null>(null);
   // 받은 명함에서 왔을 때(내 명함 > 받은 명함 [고객으로 추가] → ?new=1&card=<보관본 id>) — 서버 판정을 드로어에 넘긴다
   const [clientAddFromCard, setClientAddFromCard] = useState<{ savedCardId: number; colleague: boolean; match: CardIntake['match'] } | null>(null);
+  // 명함 사진에서 왔을 때 — 원본 파일(저장 뒤 고객 파일로 남긴다)·읽기 결과·못 읽었을 때 이유
+  const [clientAddFromPhoto, setClientAddFromPhoto] = useState<{ file: File; match: CardIntake['match']; notice: string | null } | null>(null);
   // 보관 축 — 고객 탭만(활성 = 보관 안 한 것 · 보관 = 보관만)
   const [statusAxis, setStatusAxis] = useState<string>('');
   // [상담 진행] 드롭다운 — 좌표·바깥클릭·Esc·포커스는 공용 앵커 한 벌(각자 계산하면 갈라진다).
@@ -147,11 +150,12 @@ export default function SalePage() {
           job_title: v.job_title || '', department: v.department || '',
         });
         setClientAddFromCard({ savedCardId: cardId, colleague: it.colleague, match: it.match });
+        setClientAddFromPhoto(null);
         setClientAddOpen(true);
       }).catch(() => { setClientAddFromCard(null); setClientAddPrefill(null); setClientAddOpen(true); });
       return;
     }
-    setClientAddFromCard(null);
+    setClientAddFromCard(null); setClientAddFromPhoto(null);
     setClientAddPrefill({ email: searchParams.get('email') || '', name: searchParams.get('name') || '' });
     setClientAddOpen(true);
   }, [urlNew, searchParams, setSearchParams, businessId]);
@@ -283,8 +287,20 @@ export default function SalePage() {
               세 화면을 나란히 놓으면 여기만 눌리지 않는 버튼처럼 보였다. */}
           {/* 탭마다 주 액션 하나 — 고객 탭은 [+ 고객 추가](초대 / 직접 관리), 상담 탭은 [+ 고객응대 내역 추가](문의).
               문의 저장은 «상담 기록» 이 본체라 폼이 다르다 — 한 폼에 세 갈래를 묶지 않는다(Fable 2026-10-16). */}
+          {tab === 'clients' && canManage && businessId && (
+            <CardPhotoButton businessId={businessId} onRead={(r, file, err) => {
+              const v = r?.values;
+              setClientAddFromCard(null);
+              setClientAddPrefill(v ? {
+                name: v.name || '', email: v.email || '', company: v.company || '', phone: v.mobile || v.phone || '',
+                job_title: v.job_title || '', department: v.department || '',
+              } : null);
+              setClientAddFromPhoto({ file, match: r?.match || null, notice: err || (r && !r.found ? (t('clients:cardPhoto.notFound') as string) : null) });
+              setClientAddOpen(true);
+            }} />
+          )}
           {tab === 'clients' && canManage ? (
-            <HeaderCta data-testid="sale-add-client" onClick={() => { setClientAddPrefill(null); setClientAddFromCard(null); setClientAddOpen(true); }}>
+            <HeaderCta data-testid="sale-add-client" onClick={() => { setClientAddPrefill(null); setClientAddFromCard(null); setClientAddFromPhoto(null); setClientAddOpen(true); }}>
               <PlusIcon aria-hidden />
               <LongLabel>{t('clients:addClient') as string}</LongLabel>
               <ShortLabel>{t('clients:addClient') as string}</ShortLabel>
@@ -593,7 +609,7 @@ export default function SalePage() {
       />
       {businessId && (
         <ClientAddDrawer open={clientAddOpen} onClose={() => setClientAddOpen(false)} businessId={businessId}
-          prefill={clientAddPrefill} fromCard={clientAddFromCard}
+          prefill={clientAddPrefill} fromCard={clientAddFromCard} fromPhoto={clientAddFromPhoto}
           onDone={(id) => { load({ silent: true, page: 1 }); if (id) setPanelClientId(id); }}
           onOpenExisting={(id) => setPanelClientId(id)} />
       )}

@@ -320,7 +320,9 @@
       "invalid_email": "이메일 형식이 맞지 않아요.",
       "too_many_contacts": "한 고객에 담당자는 50명까지예요.",
       "generic": "저장하지 못했어요. 잠시 뒤 다시 시도해 주세요."
-    }
+    },
+    "fromPhoto": "명함 사진",
+    "photoAlt": "{{name}} 님의 명함 사진"
   },
   "fromCard": {
     "colleague": "우리 워크스페이스 멤버의 명함이에요. 멤버는 고객으로 넣지 않아요.",
@@ -328,5 +330,21 @@
     "attach": "그 고객의 담당자로 붙이기",
     "attachFailed": "담당자로 붙이지 못했어요. 잠시 뒤 다시 시도해 주세요.",
     "loadFailed": "받은 명함을 불러오지 못했어요."
+  },
+  "cardPhoto": {
+    "button": "명함 사진으로 추가",
+    "consentTitle": "명함 사진을 AI 로 읽어요",
+    "consentMsg": "글자를 읽기 위해 사진을 OpenAI(미국)로 보냅니다. 학습에는 쓰이지 않아요(OpenAI API 약관). 읽은 값은 저장 전에 직접 확인하고 고칠 수 있어요.",
+    "consentOk": "계속",
+    "checkHint": "사진에서 읽은 값이에요. 사진과 대조해 틀린 곳을 고친 뒤 등록하세요. 사진은 등록하면 이 고객의 파일로 남아요.",
+    "notFound": "사진에서 명함 글자를 찾지 못했어요. 직접 입력해 주세요.",
+    "previewAlt": "명함 사진",
+    "errors": {
+      "usage_limit": "이번 달 AI 사용량을 다 썼어요. 직접 입력해 주세요.",
+      "ai_unavailable": "지금은 사진을 읽지 못해요. 직접 입력해 주세요.",
+      "image_unreadable": "이 사진은 열 수 없어요. JPG·PNG 사진으로 다시 시도해 주세요.",
+      "image_required": "사진을 골라 주세요.",
+      "generic": "사진을 읽지 못했어요. 직접 입력해 주세요."
+    }
   }
 }

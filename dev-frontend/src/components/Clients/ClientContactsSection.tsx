@@ -11,6 +11,7 @@ import StandardModal from '../Common/StandardModal';
 import ConfirmDialog from '../Common/ConfirmDialog';
 import LetterAvatar from '../Common/LetterAvatar';
 import { onSocket } from '../../services/socket';
+import { useAuthedImageSrc } from '../../hooks/useAuthedImageSrc';
 import {
   listClientContacts, createClientContact, patchClientContact, deleteClientContact, makeContactBilling,
   type ClientContact, type ContactField,
@@ -87,12 +88,12 @@ export default function ClientContactsSection({ businessId, clientId, canEdit, o
           {items.map((c) => (
             <Item key={c.id} $open={c.id === openId}>
               <RowBtn type="button" onClick={() => setOpenId(c.id === openId ? null : c.id)} aria-expanded={c.id === openId} data-testid={`client-contact-row-${c.id}`}>
-                <LetterAvatar name={c.name} size={32} />
+                {c.photo_file_id ? <CardThumb businessId={businessId} fileId={c.photo_file_id} /> : <LetterAvatar name={c.name} size={32} />}
                 <RowMain>
                   <RowName>{c.name}{(c.job_title || c.department) && <RowRole>{[c.job_title, c.department].filter(Boolean).join(' · ')}</RowRole>}</RowName>
                   <RowSub>{[c.email, c.mobile || c.phone].filter(Boolean).join(' · ') || t('contacts.noReach')}</RowSub>
                 </RowMain>
-                {c.source === 'name_card' && <SourceChip>{t('contacts.fromCard')}</SourceChip>}
+                {(c.source === 'name_card' || c.source === 'photo') && <SourceChip>{t(c.source === 'photo' ? 'contacts.fromPhoto' : 'contacts.fromCard')}</SourceChip>}
               </RowBtn>
               {c.id === openId && (
                 <ContactForm key={c.id} businessId={businessId} clientId={clientId} contact={c} disabled={!canEdit}
@@ -141,6 +142,7 @@ function ContactForm({ businessId, clientId, contact, disabled, onChanged, onBil
   const { t } = useTranslation('clients');
   return (
     <Form>
+      {contact.photo_file_id && <CardPhoto businessId={businessId} fileId={contact.photo_file_id} alt={t('contacts.photoAlt', { name: contact.name }) as string} />}
       <Grid>
         {FIELD_ROWS.map((f) => (
           <ContactInput key={`${contact.id}-${f.key}`} label={t(`contacts.field.${f.key}`) as string} field={f.key} max={f.max} mode={f.mode}
@@ -157,6 +159,16 @@ function ContactForm({ businessId, clientId, contact, disabled, onChanged, onBil
       )}
     </Form>
   );
+}
+
+// 명함 사진 — 고객 파일(File)이라 인증된 주소로만 그린다(목록 32px · 펼친 칸 큰 사진)
+function CardThumb({ businessId, fileId }: { businessId: number; fileId: number }) {
+  const src = useAuthedImageSrc(`/api/files/${businessId}/${fileId}/download?w=96`);
+  return src ? <Thumb src={src} alt="" /> : <ThumbBlank aria-hidden />;
+}
+function CardPhoto({ businessId, fileId, alt }: { businessId: number; fileId: number; alt: string }) {
+  const src = useAuthedImageSrc(`/api/files/${businessId}/${fileId}/download?w=800`);
+  return src ? <Photo src={src} alt={alt} data-testid="client-contact-photo" /> : null;
 }
 
 function ContactInput({ label, field, max, mode, initial, disabled, wide, onSave, errText }: {
@@ -194,6 +206,9 @@ const RowBtn = styled.button`
   padding:8px 12px;min-height:52px;box-sizing:border-box;border:none;background:transparent;
   &:hover{background:#F8FAFC;}
 `;
+const Thumb = styled.img`width:44px;height:32px;border-radius:6px;object-fit:cover;flex-shrink:0;border:1px solid #E2E8F0;background:#F8FAFC;`;
+const ThumbBlank = styled.span`width:44px;height:32px;border-radius:6px;flex-shrink:0;background:#F1F5F9;`;
+const Photo = styled.img`display:block;width:100%;max-height:240px;object-fit:contain;border-radius:8px;border:1px solid #E2E8F0;background:#F8FAFC;`;
 const RowMain = styled.div`flex:1;min-width:0;display:flex;flex-direction:column;gap:2px;`;
 const RowName = styled.div`display:flex;align-items:baseline;gap:6px;min-width:0;font-size:0.8125rem;font-weight:600;color:#0F172A;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;`;
 const RowRole = styled.span`font-size:0.75rem;font-weight:500;color:#64748B;overflow:hidden;text-overflow:ellipsis;`;

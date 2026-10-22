@@ -58,6 +58,9 @@ const PURPOSES = {
   //   입력 상한은 설계의 capText(8000자)보다 크게 둔다 — 자르는 책임은 생성기(saleSummary)가 지고,
   //   게이트웨이 상한에서 **꼬리가 조용히 잘리면** 최근 접점이 사라진 요약이 나온다.
   sale_summary:   { model: 'gpt-4o-mini', temperature: 0.2, maxTokens: 1200, timeoutMs: 60_000, maxInputChars: 12_000 },
+  // 명함 사진 읽기(docs/NAME_CARD_V3_STRATEGY.md 9절 결정 3) — 이미지 1장(≤1024px, detail low)에서 칸 10개만 뽑는다.
+  //   추출이라 temperature 0 · 출력이 짧다. 글자 부분 상한(maxInputChars)은 callLLMImage 가 직접 본다.
+  card_read:      { model: 'gpt-4o-mini', temperature: 0, maxTokens: 400, timeoutMs: 30_000, maxInputChars: 4_000 },
   translation:    { model: 'gpt-4o-mini', temperature: 0.1, maxTokens: 2000, timeoutMs: 20_000, maxInputChars: 16_000 },
   // 메일 본문 번역 — 채팅 한 줄과 달리 수천 자다. 20초/2000토큰이면 JSON 이 중간에서 잘려
   // 재시도까지 겹쳐 2분 대기 후 실패했다(#197). 다른 mail_* 와 같은 45초로 정렬.
@@ -301,6 +304,26 @@ async function callLLM({ purpose = 'generic', messages, json = false, tools = nu
   return { content: fallback, tool_calls: [], input_tokens: 0, output_tokens: 0, fallback: true, model: cfg.model, ms, attempts: MAX_ATTEMPTS, truncated: capped.truncated };
 }
 
+/**
+ * 이미지 1장 + 지시문 — 명함 읽기 전용 경로(Fable 2026-10-22: capMessages 를 고치지 말고 따로 둔다).
+ *   글자 부분만 상한을 직접 본다(넘으면 부르지 않는다). 이미지는 data URL(JPEG) 로 싣고 detail 은 low(비용 고정).
+ *   그 뒤는 callLLM 그대로(재시도·통계·fallback) — 배열 content 는 capMessages 가 길이를 세지 못해 건드리지 않는다.
+ */
+async function callLLMImage({ purpose = 'card_read', system, text = '', imageJpegBuf, json = true, fallback = '' }) {
+  const cfg = resolve(purpose);
+  if (String(system || '').length + String(text || '').length > cfg.maxInputChars) {
+    return { content: fallback, tool_calls: [], input_tokens: 0, output_tokens: 0, fallback: true, model: cfg.model, ms: 0, attempts: 0, truncated: true };
+  }
+  if (!Buffer.isBuffer(imageJpegBuf) || !imageJpegBuf.length) {
+    return { content: fallback, tool_calls: [], input_tokens: 0, output_tokens: 0, fallback: true, model: cfg.model, ms: 0, attempts: 0, truncated: false };
+  }
+  const content = [
+    ...(text ? [{ type: 'text', text: String(text) }] : []),
+    { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${imageJpegBuf.toString('base64')}`, detail: 'low' } },
+  ];
+  return callLLM({ purpose, json, fallback, messages: [{ role: 'system', content: String(system || '') }, { role: 'user', content }] });
+}
+
 /** 임베딩 — 실패 시 null (호출부가 키워드 검색으로 폴백한다) */
 async function embed(text, { model = EMBED_MODEL } = {}) {
   const t = String(text || '').slice(0, EMBED_MAX_CHARS).trim();
@@ -363,4 +386,4 @@ function getStats() {
 /** 이 용도가 실제로 쓰는 모델 이름 (env override 반영) — 응답에 모델을 표기하는 호출부용 */
 function modelFor(purpose) { return resolve(purpose).model; }
 
-module.exports = { callLLM, embed, getStats, isEnabled, modelFor, PURPOSES, EMBED_MODEL };
+module.exports = { callLLM, callLLMImage, embed, getStats, isEnabled, modelFor, PURPOSES, EMBED_MODEL };

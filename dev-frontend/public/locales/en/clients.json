@@ -320,7 +320,9 @@
       "invalid_email": "That email address doesn't look right.",
       "too_many_contacts": "A client can have up to 50 contacts.",
       "generic": "Couldn't save. Please try again in a moment."
-    }
+    },
+    "fromPhoto": "Card photo",
+    "photoAlt": "{{name}}'s business card photo"
   },
   "fromCard": {
     "colleague": "This card belongs to a member of this workspace. Members aren't added as clients.",
@@ -328,5 +330,21 @@
     "attach": "Add to that client as a contact",
     "attachFailed": "Couldn't add the contact. Please try again in a moment.",
     "loadFailed": "Couldn't load the saved card."
+  },
+  "cardPhoto": {
+    "button": "Add from a card photo",
+    "consentTitle": "Read the card photo with AI",
+    "consentMsg": "To read the text, the photo is sent to OpenAI (USA). It isn't used for training (per OpenAI API terms). You can check and fix the values before saving.",
+    "consentOk": "Continue",
+    "checkHint": "These values were read from the photo. Compare and fix anything wrong before saving. The photo is kept in this client’s files once you save.",
+    "notFound": "Couldn't find card text in the photo. Please enter the details yourself.",
+    "previewAlt": "Business card photo",
+    "errors": {
+      "usage_limit": "This month's AI usage is used up. Please enter the details yourself.",
+      "ai_unavailable": "Can't read photos right now. Please enter the details yourself.",
+      "image_unreadable": "This photo can't be opened. Try a JPG or PNG photo.",
+      "image_required": "Please choose a photo.",
+      "generic": "Couldn't read the photo. Please enter the details yourself."
+    }
   }
 }

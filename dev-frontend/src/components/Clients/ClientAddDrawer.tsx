@@ -7,7 +7,7 @@ import { useEffect, useMemo, useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { apiFetch } from '../../contexts/AuthContext';
-import { attachCardToClient, type CardIntake } from '../../services/sale';
+import { attachCardToClient, attachValuesToClient, saveCardPhoto, type CardIntake } from '../../services/sale';
 import CreateDrawer from '../Common/CreateDrawer';
 import PlanQSelect from '../Common/PlanQSelect';
 import { SegmentedToggle, SegmentedBtn } from '../Common/segmentedToggle';
@@ -33,6 +33,8 @@ interface Props {
   prefill?: { name?: string; email?: string; company?: string; phone?: string; job_title?: string; department?: string } | null;
   /** 받은 명함에서 왔을 때 — 보관본 id 와 서버 판정(동료 명함·이미 있는 고객) */
   fromCard?: { savedCardId: number; colleague: boolean; match: CardIntake['match'] } | null;
+  /** 명함 사진에서 왔을 때 — 원본 파일(저장 뒤 그 고객의 파일로 남긴다) · 이미 있는 고객 · 못 읽었을 때 안내 */
+  fromPhoto?: { file: File; match: CardIntake['match']; notice: string | null } | null;
   /** 있으면 «이 고객 초대» — 그 행을 승격한다(새 행 X). 모드는 초대로 고정 */
   inviteFor?: InviteTarget | null;
   /** 끝난 뒤 — 새로 만든 고객 id(직접 관리) 또는 승격한 고객 id */
@@ -41,7 +43,7 @@ interface Props {
   onOpenExisting?: (clientId: number) => void;
 }
 
-export default function ClientAddDrawer({ open, onClose, businessId, prefill, fromCard, inviteFor, onDone, onOpenExisting }: Props) {
+export default function ClientAddDrawer({ open, onClose, businessId, prefill, fromCard, fromPhoto, inviteFor, onDone, onOpenExisting }: Props) {
   const { t } = useTranslation('clients');
   const kindLabel = usePartnerKindLabel();
   const kindOptions = useMemo(() => (['customer', 'vendor', 'freelancer', 'other'] as Kind[]).map((k) => ({ value: k, label: kindLabel(k) })), [kindLabel]);
@@ -65,7 +67,7 @@ export default function ClientAddDrawer({ open, onClose, businessId, prefill, fr
   useEffect(() => {
     if (!open) return;
     // 명함에서 왔으면 «직접 관리» 로 연다 — 받은 명함은 아직 초대할 사이가 아닌 경우가 대부분이다
-    setMode(fromCard ? 'managed' : 'invite'); setError(null); setExistingId(null); setMailWarn(false);
+    setMode(fromCard || fromPhoto ? 'managed' : 'invite'); setError(null); setExistingId(null); setMailWarn(false);
     setPhone(prefill?.phone || ''); setJobTitle(prefill?.job_title || ''); setDepartment(prefill?.department || '');
     if (inviteFor) {
       setName(inviteFor.display_name || inviteFor.company_name || '');
@@ -77,17 +79,39 @@ export default function ClientAddDrawer({ open, onClose, businessId, prefill, fr
     }
     // ★ 값으로 비교한다 — 부르는 쪽이 객체를 새로 만들어 넘기면 입력 중에 폼이 비워진다
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, inviteFor?.id, prefill?.name, prefill?.email, fromCard?.savedCardId]);
+  }, [open, inviteFor?.id, prefill?.name, prefill?.email, fromCard?.savedCardId, fromPhoto?.file]);
+
+  // 명함 사진 미리보기 — 읽은 값과 사진을 나란히 대조할 수 있게
+  const [photoUrl, setPhotoUrl] = useState<string | null>(null);
+  useEffect(() => {
+    if (!open || !fromPhoto?.file) { setPhotoUrl(null); return undefined; }
+    const u = URL.createObjectURL(fromPhoto.file);
+    setPhotoUrl(u);
+    return () => URL.revokeObjectURL(u);
+  }, [open, fromPhoto?.file]);
+  // 사진은 저장이 끝난 뒤 그 고객의 파일로 남긴다 — 실패해도 고객은 이미 만들어졌으니 막지 않는다
+  const keepPhoto = async (clientId: number, contactId?: number | null) => {
+    if (!fromPhoto?.file) return;
+    try { await saveCardPhoto(businessId, clientId, fromPhoto.file, contactId || null); } catch { /* 사진만 빠진다 — 담당자 절에서 다시 볼 수 있다 */ }
+  };
 
   const managed = mode === 'managed' && !inviteFor;
   const disabled = !!fromCard?.colleague || (managed ? (!name.trim() && !company.trim()) : (!name.trim() || !email.trim()));
 
   // 이미 있는 고객에 이 명함을 담당자로 붙인다(서버가 대표/추가를 가른다) — 끝나면 그 고객을 연다
   const attachTo = async (clientId: number) => {
-    if (!fromCard || attaching) return;
+    if ((!fromCard && !fromPhoto) || attaching) return;
     setAttaching(true); setError(null);
     try {
-      await attachCardToClient(businessId, clientId, fromCard.savedCardId);
+      if (fromCard) await attachCardToClient(businessId, clientId, fromCard.savedCardId);
+      else {
+        // 사진에서 읽은 값 — 사람이 폼에서 고친 지금 값을 붙인다
+        const r = await attachValuesToClient(businessId, clientId, {
+          name: name.trim() || null, company: company.trim() || null, email: email.trim() || null,
+          mobile: phone.trim() || null, job_title: jobTitle.trim() || null, department: department.trim() || null,
+        });
+        await keepPhoto(clientId, r.contact?.id || null);
+      }
       onClose();
       onOpenExisting?.(clientId);
     } catch (e) {
@@ -114,6 +138,7 @@ export default function ClientAddDrawer({ open, onClose, businessId, prefill, fr
     if (!res.ok || !j?.success) {
       throw new Error(j?.message === 'invalid_email' ? t('addModal.errInvalidEmail') : (j?.message || t('inviteModal.errFailed')));
     }
+    if (j.data?.id) await keepPhoto(Number(j.data.id));
     onClose();
     onDone?.(j.data?.id ?? null);
   };
@@ -156,6 +181,17 @@ export default function ClientAddDrawer({ open, onClose, businessId, prefill, fr
       submitLabel={managed ? t('addModal.submitManaged') : t('inviteModal.submit')}
       submitDisabled={disabled}
     >
+      {photoUrl && <PhotoPreview src={photoUrl} alt={t('cardPhoto.previewAlt') as string} data-testid="clients-add-card-photo" />}
+      {fromPhoto?.notice && <WarnBlock role="status" data-testid="clients-add-photo-notice">{fromPhoto.notice}</WarnBlock>}
+      {fromPhoto && !fromPhoto.notice && <Helper>{t('cardPhoto.checkHint')}</Helper>}
+      {fromPhoto && fromPhoto.match && (
+        <InfoBlock data-testid="clients-add-card-match">
+          <span>{t('fromCard.matchFound', { name: fromPhoto.match.name || `#${fromPhoto.match.id}` })}</span>
+          <AttachBtn type="button" disabled={attaching} onClick={() => void attachTo(fromPhoto.match!.id)} data-testid="clients-add-card-attach">
+            {t('fromCard.attach')}
+          </AttachBtn>
+        </InfoBlock>
+      )}
       {fromCard?.colleague && <WarnBlock role="alert" data-testid="clients-add-card-colleague">{t('fromCard.colleague')}</WarnBlock>}
       {fromCard && !fromCard.colleague && fromCard.match && (
         <InfoBlock data-testid="clients-add-card-match">
@@ -201,7 +237,7 @@ export default function ClientAddDrawer({ open, onClose, businessId, prefill, fr
       {error && (
         <WarnBlock role="alert" data-testid="clients-add-error">
           {error}
-          {existingId != null && fromCard && !fromCard.colleague && (
+          {existingId != null && (fromPhoto || (fromCard && !fromCard.colleague)) && (
             <ExistingLink type="button" disabled={attaching} onClick={() => void attachTo(existingId)} data-testid="clients-add-card-attach-existing">
               {t('fromCard.attach')}
             </ExistingLink>
@@ -224,6 +260,7 @@ const FieldLabel = styled.label`font-size:0.75rem;font-weight:600;color:#0F172A;
 const FieldInput = styled.input`height:38px;padding:0 12px;border:1px solid #E2E8F0;border-radius:8px;font-size:0.8125rem;color:#0F172A;font-family:inherit;background:#FFF;&:focus{outline:none;border-color:#14B8A6;box-shadow:0 0 0 3px rgba(20,184,166,0.1);}&::placeholder{color:#CBD5E1;}`;
 const Req = styled.span`color:#F43F5E;margin-left:2px;`;
 const WarnBlock = styled.div`margin-top:4px;padding:10px 12px;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;color:#991b1b;font-size:0.75rem;`;
+const PhotoPreview = styled.img`display:block;width:100%;max-height:220px;object-fit:contain;border-radius:8px;border:1px solid #E2E8F0;background:#F8FAFC;`;
 const InfoBlock = styled.div`display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;padding:10px 12px;background:#F0FDFA;border:1px solid #99F6E4;border-radius:8px;color:#0F766E;font-size:0.75rem;`;
 const AttachBtn = styled.button`flex-shrink:0;min-height:32px;padding:0 12px;border-radius:8px;border:1px solid #0D9488;background:#0D9488;color:#FFF;font-size:0.75rem;font-weight:600;cursor:pointer;&:disabled{opacity:0.6;cursor:default;}`;
 const ExistingLink = styled.button`margin-left:8px;padding:0;border:none;background:none;color:#0F766E;font-weight:600;font-size:inherit;cursor:pointer;text-decoration:underline;`;
