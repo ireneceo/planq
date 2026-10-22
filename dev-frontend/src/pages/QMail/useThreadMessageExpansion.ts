@@ -91,6 +91,9 @@ export function useThreadMessageExpansion(
   useLayoutEffect(() => {
     if (!msgKey || !scrollRef.current) return;
     scrollRef.current.scrollTop = 0;
+    // 폰에서는 바깥 상세 칸(DetailScroll)이 원문과 답장 줄을 함께 굴린다 — 그쪽도 맨 위로.
+    const outer = scrollRef.current.parentElement;
+    if (outer) outer.scrollTop = 0;
   }, [msgKey]);
 
   const toggleMsg = useCallback((id: number) => {

@@ -142,6 +142,7 @@ import {
   SkelLine,
   SkelCard,
   MessagesScroll,
+  DetailScroll,
   MetaChip,
   FollowUpChip,
   NewLabelInput,
@@ -1578,7 +1579,10 @@ const MailPage: React.FC = () => {
       const ed = c?.querySelector('.pq-rich-editor');
       const footer = c?.closest('[data-pq-writing]') as HTMLElement | null;
       if (!ed || !footer) return;
-      footer.scrollTop += ed.getBoundingClientRect().top - footer.getBoundingClientRect().top - 8;
+      // 폰에서는 답장 줄이 제 상자로 스크롤하지 않는다 — 바깥 상세 칸(DetailScroll)이 굴린다.
+      const sc = getComputedStyle(footer).overflowY === 'visible' ? (footer.parentElement as HTMLElement | null) : footer;
+      if (!sc) return;
+      sc.scrollTop += ed.getBoundingClientRect().top - sc.getBoundingClientRect().top - 8;
     });
     return () => cancelAnimationFrame(id);
   }, [replyScrollTick]);
@@ -3378,6 +3382,7 @@ const MailPage: React.FC = () => {
                   )}
                 </DetailMetaRight>
               </DetailMetaBar>
+              <DetailScroll data-testid="mail-detail-scroll">
               <MessagesScroll ref={scrollRef}>
                 {/* 업체 스팸함에서 온 스레드 — 여기서 해제해도 업체 쪽 스팸 표시는 그대로다. 버튼을 누르는 화면에서 말한다(폰은 목록이 안 보인다). */}
                 {/* 사칭 의심 — 왜 그런지 신호별 한 줄(docs/MAIL_IMPERSONATION_DESIGN.md §3). 격리본은 링크가 꺼져 있다고 말한다. */}
@@ -3659,6 +3664,7 @@ const MailPage: React.FC = () => {
                   </Composer>
                 )}
               </DetailFooter>
+              </DetailScroll>
             </>
           )}
         </Panel>

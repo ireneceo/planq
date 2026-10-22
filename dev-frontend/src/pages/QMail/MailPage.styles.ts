@@ -703,11 +703,27 @@ export const NewLabelInput = styled.input`
 // 메일 본문은 상세 패널(이미 카드) 안에서 또 카드로 감싸지 않는다 — 읽는 화면은 넓고 평평해야 한다.
 // 메시지끼리는 구분선으로만 나누고, 내가 보낸 메일은 좌측 민트 라인 + 옅은 배경으로만 구분한다.
 // 본문 iframe 은 내용 높이만큼 늘어나고, 길어지면 이 스크롤러가 끝까지 스크롤한다.
+/* 상세 본문 칸 — 원문(MessagesScroll)과 답장 줄(DetailFooter)을 감싼다.
+   ★ 폰(≤640)에서는 버튼 줄을 화면에 고정하지 않는다 (2026-10-22, Irene: "이메일도 푸터가 모바일에서 이상해. 상세가.
+     제대로 푸터 공백이 안없어지고" — 같은 날 «모바일에서는 모든 고정푸터 다 고정 안해야» 규칙의 메일 상세 몫).
+     옛 폰 화면: 답장 줄이 바닥에 붙어 두 줄 125px 을 늘 먹고 채팅 버튼이 그 위를 덮었다 · 답장을 열면 아래 55%(464px)가
+     따로 스크롤하는 상자가 되어 원문이 눌렸다. 이제 폰에서는 이 칸 하나가 원문 → 답장 줄 → 답장 창을 차례로 굴린다
+     (머리·메타 두 밴드는 그대로 위에 남는다). 내용이 짧으면 답장 줄은 바닥(margin-top:auto).
+     태블릿·데스크탑은 display:contents 라 종전 그대로(원문만 스크롤 + 답장 줄 바닥 고정). */
+export const DetailScroll = styled.div`
+  display: contents;
+  @media (max-width: 640px) {
+    display: flex; flex-direction: column;
+    flex: 1; min-height: 0; overflow-y: auto;
+    overscroll-behavior: contain;
+    background: #FFFFFF;
+  }
+`;
 export const MessagesScroll = styled.div`
   flex: 1; min-height: 0; overflow-y: auto;
   padding: 0 24px 24px;
   background: #FFFFFF;
-  @media (max-width: 640px) { padding: 0 16px 16px; }
+  @media (max-width: 640px) { padding: 0 16px 16px; flex: none; min-height: auto; overflow: visible; }
 `;
 export const MessageCard = styled.div<{ $outbound: boolean }>`
   background: ${p => p.$outbound ? '#F8FDFC' : 'transparent'};
@@ -910,6 +926,16 @@ export const DetailFooter = styled.div`
      위 padding 만큼 아래에서 멈춘다. 그 틈으로 본문이 지나가 비쳤다.
      padding 만큼 음수를 주면 위에 바짝 붙는다 (Q docs PostsPage 가 쓰는 것과 같은 방식). */
   --pq-sticky-top: -14px;
+  /* 폰 — 제 상자로 스크롤하지 않고 위 DetailScroll 의 흐름에 놓인다(높이 상한·안쪽 스크롤 없음).
+     아래 여백은 우하단 대화 버튼(FAB)이 마지막 버튼을 덮지 않을 만큼(--pq-fab-clearance 계약) — 키보드가 뜨면 FAB 가
+     없으므로 14px 로 돌아간다. 에디터 도구줄 sticky 기준도 바깥 칸(여백 없음)이라 0. */
+  @media (max-width: 640px) {
+    max-height: none; overflow: visible; flex-shrink: 0;
+    margin-top: auto;
+    padding-bottom: var(--pq-fab-clearance, calc(88px + var(--pq-safe-bottom, 0px)));
+    --pq-sticky-top: 0px;
+    body[data-keyboard-up='1'] & { padding-bottom: 14px; }
+  }
 `;
 export const ReplyBar = styled.div`
   display: flex; align-items: center; justify-content: flex-start; gap: 8px; flex-wrap: wrap;
@@ -998,6 +1024,11 @@ export const ComposerActions = styled.div`
      본문 끝에 두면 다 쓴 뒤 내려서 누른다. 키보드를 내리면 다시 바닥에 붙는다. */
   @media (max-width: 768px) {
     body[data-keyboard-up='1'] & { position: static; margin-bottom: 0; }
+  }
+  /* 폰은 고정하지 않는다(위 DetailScroll 주석) — 답장 창 끝, 내용 뒤에 놓인다. 바닥 되밀기·안전영역도 필요 없다
+     (DetailFooter 아래 여백이 FAB·안전영역 몫을 맡는다). */
+  @media (max-width: 640px) {
+    position: static; margin-bottom: 0; padding-bottom: 0;
   }
 `;
 /* 버튼 줄 안 오른쪽 끝 — 줄이 좁으면 아래로 감긴다. 단축키는 키보드가 있는 폭에서만 뜻이 있다. */
