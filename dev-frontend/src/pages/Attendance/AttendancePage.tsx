@@ -22,6 +22,7 @@ import {
   List, HighlightRow, RowMain, RowTitle, RowMeta, ErrorBar,
 } from './shared';
 import { labelOf } from './leaveTypes';
+import { ByTypeList } from './LeaveBalanceParts';
 import { joinRoom, leaveRoom, onSocket } from '../../services/socket';
 import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
 import { useRevealSelectedRow } from '../../hooks/useRevealSelectedRow';
@@ -291,6 +292,8 @@ const AttendancePage: React.FC = () => {
               <BalanceItem><span>{t('leave.pending')}</span><b>{balance?.pending ?? 0}</b></BalanceItem>
               <BalanceItem $accent><span>{t('leave.remaining')}</span><b>{balance?.remaining ?? 0}</b></BalanceItem>
             </BalanceRow>
+            {/* 종류별 — 합계만 보면 «연차가 몇 개 남았나» 를 알 수 없다(Irene 2026-10-22) */}
+            <ByTypeList byType={balance?.by_type} />
             <ActionButton tone="primary" size="md" data-testid="leave-new" onClick={() => setDrawerOpen(true)}>
               + {t('leave.new')}
             </ActionButton>

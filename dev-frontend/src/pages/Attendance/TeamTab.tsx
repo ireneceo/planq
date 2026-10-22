@@ -5,6 +5,7 @@ import styled from 'styled-components';
 import ActionButton from '../../components/Common/ActionButton';
 import PlanQSelect from '../../components/Common/PlanQSelect';
 import { useLeaveTypes, labelOf } from './leaveTypes';
+import { LeaveBalancesSection } from './LeaveBalanceParts';
 import SingleDateField from '../../components/Common/SingleDateField';
 import { apiFetch } from '../../contexts/AuthContext';
 import { formatHours, type AttendanceDay } from '../../hooks/useAttendance';
@@ -66,6 +67,8 @@ export const TeamTab: React.FC<{
   }, [allTypes]);
   const [grantNote, setGrantNote] = useState('');
   const [saving, setSaving] = useState(false);
+  // 부여 뒤 «휴가 현황» 표를 다시 읽게 한다(같은 창 — 소켓 신호와 별개의 안전망)
+  const [balanceKey, setBalanceKey] = useState(0);
 
   const submitGrant = async () => {
     if (!grantUser || !grantTypeId || grantDays === '' || saving) return;
@@ -75,7 +78,7 @@ export const TeamTab: React.FC<{
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ business_id: bizId, user_id: grantUser, year, days: Number(grantDays), leave_type_id: grantTypeId, note: grantNote }),
       });
-      if (r.ok) { setGrantNote(''); setDaysTouched(false); await onReload(); }
+      if (r.ok) { setGrantNote(''); setDaysTouched(false); setBalanceKey((k) => k + 1); await onReload(); }
     } finally { setSaving(false); }
   };
 
@@ -150,6 +153,8 @@ export const TeamTab: React.FC<{
         </GrantForm>
         <Hint>{t('leave.grantHint')}</Hint>
       </Section>
+
+      <LeaveBalancesSection bizId={bizId} year={year} nameOf={nameOf} refreshKey={balanceKey} />
 
       <Section>
         <SectionTitle>{t('team.records')}</SectionTitle>

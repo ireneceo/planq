@@ -90,11 +90,64 @@ router.post('/grants', authenticateToken, async (req, res, next) => {
       leave_type_id: type.id, category: LT.legacyCategoryOf(type),
       days: Number(days), note: (note || '').slice(0, 300) || null, granted_by: req.user.id,
     });
+    // 부여도 «휴가 현황» 표가 따라오게 신호만(leave:updated — 신청 전이와 같은 사건 이름)
+    try { req.app.get('io')?.to(`business:${businessId}`).emit('leave:updated', { grant_id: grant.id, user_id: grant.user_id }); } catch (e) { void e; }
     await writeAudit({
       user_id: req.user.id, business_id: businessId, action: 'leave.grant',
       entity_type: 'leave_grant', entity_id: grant.id, new_value: grant.toJSON(),
     }).catch(() => null);
     return successResponse(res, { id: grant.id, days: Number(grant.days), leave_type_id: type.id, type: LT.briefType(type), category: LT.legacyCategoryOf(type) }, null, 201);
+  } catch (err) { next(err); }
+});
+
+// 부여 고치기·지우기 — 관리자만. 규칙(잔여가 승인 사용량 아래로 못 내려감)·감사는 leaveTransition 안.
+// audit-exempt: 감사(leave.grant_update|grant_delete, 옛 값·새 값)는 services/leaveTransition 안에서 쓴다
+router.patch('/grants/:id', authenticateToken, async (req, res, next) => {
+  try {
+    const g = await LeaveGrant.findByPk(Number(req.params.id), { attributes: ['id', 'business_id'] });
+    if (!g) return errorResponse(res, 'not_found', 404);
+    const scope = await requireMember(req, res, g.business_id);
+    if (!scope) return;
+    if (!isManager(scope)) return errorResponse(res, 'forbidden', 403);
+    const updated = await L.updateGrant({ grantId: g.id, businessId: g.business_id, actorUserId: req.user.id, patch: req.body || {} });
+    return successResponse(res, { id: updated.id, days: Number(updated.days), note: updated.note, leave_type_id: updated.leave_type_id, year: updated.year });
+  } catch (err) {
+    if (err instanceof L.LeaveError) return errorResponse(res, err.code, err.status || 400);
+    next(err);
+  }
+});
+
+// audit-exempt: 감사(leave.grant_update|grant_delete, 옛 값·새 값)는 services/leaveTransition 안에서 쓴다
+router.delete('/grants/:id', authenticateToken, async (req, res, next) => {
+  try {
+    const g = await LeaveGrant.findByPk(Number(req.params.id), { attributes: ['id', 'business_id'] });
+    if (!g) return errorResponse(res, 'not_found', 404);
+    const scope = await requireMember(req, res, g.business_id);
+    if (!scope) return;
+    if (!isManager(scope)) return errorResponse(res, 'forbidden', 403);
+    await L.deleteGrant({ grantId: g.id, businessId: g.business_id, actorUserId: req.user.id });
+    return successResponse(res, { deleted: true });
+  } catch (err) {
+    if (err instanceof L.LeaveError) return errorResponse(res, err.code, err.status || 400);
+    next(err);
+  }
+});
+
+// 팀 잔여 표 — 관리자만. 지금 멤버(owner·admin·member) 전원 × 종류별 부여·사용·남음.
+router.get('/team-balances', authenticateToken, async (req, res, next) => {
+  try {
+    const businessId = Number(req.query.business_id);
+    const scope = await requireMember(req, res, businessId);
+    if (!scope) return;
+    if (!isManager(scope)) return errorResponse(res, 'forbidden', 403);
+    const year = req.query.year ? Number(req.query.year) : new Date().getFullYear();
+    const { BusinessMember } = require('../models');
+    const members = await BusinessMember.findAll({
+      where: { business_id: businessId, removed_at: null, role: ['owner', 'admin', 'member'] },
+      attributes: ['user_id'], limit: 500,
+    });
+    const ids = members.map((m) => m.user_id).filter(Boolean);
+    return successResponse(res, { year, members: await L.getTeamBalances(businessId, ids, year) });
   } catch (err) { next(err); }
 });
 

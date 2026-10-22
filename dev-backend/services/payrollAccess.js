@@ -18,11 +18,18 @@ async function payrollManagerIds(biz) {
 }
 
 /** 이 사람이 이 워크스페이스 급여를 관리할 수 있나. biz 는 행(없으면 읽는다). */
+// ★ 판정은 **그 사람의 실제 멤버십**으로 한다 — platformRole 을 getUserScope 에 넘기지 않는다.
+//   getUserScope 는 platform_admin 이면 멤버십을 읽기도 전에 돌아와(isOwner=false) **자기 워크스페이스의 대표인
+//   플랫폼 관리자가 급여를 아예 못 썼다**(2026-10-22 Irene: «급여관리는 아예 못 쓰는데» — 기능 켜기 403 owner_only).
+//   «platform_admin 백도어 없음» 은 그대로다: 멤버가 아닌 플랫폼 관리자는 여기서 아무 권한도 얻지 못한다.
+const realScope = (userId, businessId) => getUserScope(userId, businessId, null);
+
 async function canManagePayroll(userId, businessId, platformRole, biz) {
+  void platformRole;
   if (!userId || !businessId) return false;
-  const scope = await getUserScope(userId, businessId, platformRole);
+  const scope = await realScope(userId, businessId);
   if (scope.isOwner) return true;
-  // platform_admin·client·ai 는 담당자 목록에 있어도 안 된다(getUserScope 가 platform_admin 을 owner 로 보지 않는다)
+  // client·ai 는 담당자 목록에 있어도 안 된다
   if (scope.isPlatformAdmin || scope.isClient || scope.isAi || !(scope.isMember || scope.isAdmin)) return false;
   const b = biz || await Business.findByPk(businessId, { attributes: ['id', 'permissions'] });
   if (!b) return false;
@@ -45,7 +52,8 @@ function requirePayrollWrite(req, res, next) {
 
 /** owner 만 — 급여 담당자 지정·기능 켜기는 «대표의 결정» 이다(설계 §2.1). */
 async function isOwnerOf(userId, businessId, platformRole) {
-  const scope = await getUserScope(userId, businessId, platformRole);
+  void platformRole;   // 실제 멤버십으로만(위 realScope 주석)
+  const scope = await realScope(userId, businessId);
   return !!scope.isOwner;
 }
 

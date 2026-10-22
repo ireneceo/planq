@@ -90,7 +90,7 @@
     "grantDays": "Days",
     "grantNote": "Note",
     "grantSubmit": "Grant",
-    "grantHint": "Use a negative number to correct. Grants are appended, never overwritten.",
+    "grantHint": "To correct, enter a negative number — or click a member in «Leave overview» below to edit or delete their grants.",
     "balance": {
       "remaining": "Paid leave left",
       "days": "{{count}} day(s)",
@@ -117,6 +117,28 @@
     "payChip": {
       "paid": "Paid · deducted from your balance",
       "unpaid": "Unpaid · doesn't reduce your balance"
+    },
+    "byType": {
+      "remaining": "{{n}} day(s) left",
+      "detail": "Granted {{g}} · Used {{u}} · Pending {{p}}",
+      "unpaidUsed": "Unpaid · used {{u}} · pending {{p}}"
+    },
+    "team": {
+      "title": "{{year}} leave overview",
+      "empty": "No members",
+      "used": "used {{n}}",
+      "hint": "Numbers are «left / granted». Click a row to edit or delete that member's grants.",
+      "noGrants": "No leave granted this year",
+      "days": "day(s)",
+      "delete": "Delete",
+      "deleteTitle": "Delete grant",
+      "deleteMsg": "Delete the {{days}}-day {{type}} grant. It will be removed from the balance.",
+      "err": {
+        "grant_below_used": "Can't go below leave that's already approved. Cancel that leave first",
+        "invalid_days": "Days must be in 0.5 steps, non-zero, up to 366",
+        "not_found": "This grant was already deleted",
+        "forbidden": "Only admins can edit this"
+      }
     }
   },
   "team": {

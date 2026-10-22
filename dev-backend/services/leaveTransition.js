@@ -317,7 +317,68 @@ async function cancel({ requestId, actorUserId, isManager }) {
   return request;
 }
 
+/**
+ * 부여 고치기·지우기 (2026-10-22, Irene: «부여한 것도 관리하고 수정 삭제 해야지»).
+ *   옛 원칙은 «정정은 음수 행을 얹는다» 였다 — 지금도 음수 행은 된다. 다만 잘못 넣은 행을 사람이 직접 고치고 지우게 한다.
+ *   ★ 고친 결과 그 종류·그 해의 잔여가 **이미 승인된 사용량 아래로** 내려가면 막는다(409 grant_below_used) —
+ *     막지 않으면 승인된 휴가가 «잔여 −2» 로 남고 그 뒤 승인 판정이 어긋난다. 신청 중(pending)은 보지 않는다(승인 때 다시 검사한다).
+ *   ★ 감사(leave.grant_update·leave.grant_delete)에 옛 값·새 값을 남긴다 — 원장 행을 고치는 대신 «누가 언제 무엇을» 이 여기 남는다.
+ */
+async function updateGrant({ grantId, businessId, actorUserId, patch }) {
+  const grant = await LeaveGrant.findOne({ where: { id: grantId, business_id: businessId } });
+  if (!grant) throw new LeaveError('not_found', 404);
+  const before = grant.toJSON();
+  const next = {};
+  if (patch.days !== undefined) {
+    const d = Number(patch.days);
+    if (!Number.isFinite(d) || d === 0 || Math.abs(d) > 366 || Math.round(d * 2) !== d * 2) throw new LeaveError('invalid_days');
+    next.days = d;
+  }
+  if (patch.note !== undefined) next.note = (String(patch.note || '')).slice(0, 300) || null;
+  if (!Object.keys(next).length) return grant;
+  if (next.days !== undefined) {
+    const bal = await getBalance(businessId, grant.user_id, grant.year, grant.leave_type_id);
+    const after = bal.remaining - Number(grant.days) + next.days;
+    if (after < 0) throw new LeaveError('grant_below_used', 409);
+  }
+  await grant.update(next);
+  await writeAudit({
+    user_id: actorUserId, business_id: businessId, action: 'leave.grant_update',
+    entity_type: 'leave_grant', entity_id: grant.id, old_value: before, new_value: grant.toJSON(),
+  }).catch((e) => console.warn('[leave grant audit] update', grant.id, e.message));
+  broadcastGrant(grant);
+  return grant;
+}
+
+async function deleteGrant({ grantId, businessId, actorUserId }) {
+  const grant = await LeaveGrant.findOne({ where: { id: grantId, business_id: businessId } });
+  if (!grant) throw new LeaveError('not_found', 404);
+  const bal = await getBalance(businessId, grant.user_id, grant.year, grant.leave_type_id);
+  if (bal.remaining - Number(grant.days) < 0) throw new LeaveError('grant_below_used', 409);
+  const before = grant.toJSON();
+  await grant.destroy();
+  await writeAudit({
+    user_id: actorUserId, business_id: businessId, action: 'leave.grant_delete',
+    entity_type: 'leave_grant', entity_id: before.id, old_value: before, new_value: null,
+  }).catch((e) => console.warn('[leave grant audit] delete', before.id, e.message));
+  broadcastGrant(before);
+}
+
+function broadcastGrant(g) {
+  const io = getIO();
+  if (!io) return;
+  try { io.to(`business:${g.business_id}`).emit('leave:updated', { grant_id: g.id, user_id: g.user_id }); } catch (e) { /* 신호 실패는 저장을 막지 않는다 */ }
+}
+
+/** 팀 잔여 — 관리 화면 표(멤버 × 종류). 숫자는 getBalance 한 벌(개인 화면·승인 판정과 같은 공식). */
+async function getTeamBalances(businessId, userIds, year) {
+  const out = [];
+  for (const uid of userIds) out.push({ user_id: uid, ...(await getBalance(businessId, uid, year)) });
+  return out;
+}
+
 module.exports = {
   LeaveError, getBalance, computeDaysCharged, daysBetween,
   createRequest, approve, reject, cancel,
+  updateGrant, deleteGrant, getTeamBalances,
 };

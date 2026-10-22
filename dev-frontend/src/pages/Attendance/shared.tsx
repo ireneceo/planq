@@ -13,7 +13,11 @@ export interface LeaveRequestRow {
   status: 'pending' | 'approved' | 'rejected' | 'canceled';
   decide_note: string | null;
 }
-export interface Balance { year: number; granted: number; used: number; pending: number; remaining: number }
+export interface Balance {
+  year: number; granted: number; used: number; pending: number; remaining: number;
+  /** 종류별(2026-10-22) — 서버 getBalance 한 벌 */
+  by_type?: import('./LeaveBalanceParts').TypeBalance[];
+}
 export interface PresenceRow { user_id: number; state: string | null; on_leave_today: boolean }
 export interface StatRow {
   user_id: number; department_id: number | null;

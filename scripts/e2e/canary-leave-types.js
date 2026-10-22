@@ -4,6 +4,7 @@
 //   ③ 신청 드로어에 유급/무급 고르는 칸이 없고(읽기 전용 칩) 종류 옵션 수 == 활성 종류 수
 //   ④ 연간 부여 폼에서 종류의 «연간 기본 일수» 가 일수 칸에 채워진다
 //   ⑤ 폰 390 가로 넘침 0
+//   ⑥ 휴가 현황 표 3폭 · 줄을 누르면 부여 이력 · 일수 고치기 PATCH 정확히 1건  ⑦ 내 휴가 카드에 종류별 줄
 //   양성 대조군: 섹션 순서를 화면에서 뒤집으면 ① 판정이 뒤집히는가(뒤집히지 않으면 판정기가 거짓이다).
 const { launch, login, BASE } = require('./lib/browser');
 
@@ -125,6 +126,45 @@ async function run() {
     const days = await page.evaluate(() => [...document.querySelectorAll('[data-testid="leave-grant-days"]')].find((x) => x.getBoundingClientRect().height > 1)?.value);
     add('leavetypes:부여기본일수', days !== '15', `${days === '15' ? '✅' : '🔴'} 일수 칸 «${days}» (기대 15)`);
 
+    // ⑥ 휴가 현황 표(멤버 × 종류) · 줄을 누르면 부여 이력 · 일수 고치기 PATCH 1건 — 3폭
+    const me = await page.evaluate(async (t) => (await (await fetch('/api/auth/me', { credentials: 'include', headers: { Authorization: `Bearer ${t}` } })).json())?.data?.id, tok);
+    const gr = await call(page, tok, 'POST', '/api/leave/grants', { business_id: biz, user_id: me, year: new Date().getFullYear(), days: 2, leave_type_id: annual.id, note: '[확인용] 카나리' });
+    const gid = gr.j?.data?.id;
+    restore.grant = gid;
+    for (const [w, h] of [[1440, 900], [900, 1000], [390, 844]]) {
+      await page.setViewport({ width: w, height: h });
+      await page.goto(`${BASE}/business/settings/attendance`, { waitUntil: 'networkidle2' }).catch(() => {});
+      const shown = await waitFor(page, `[data-testid="leave-balance-row-${me}"]`);
+      add(`leavetypes:현황표@${w}`, !shown, `${shown ? '✅' : '🔴'} 내 줄이 그려짐 ${shown}`);
+      if (!shown) continue;
+      await page.evaluate((id) => { const el = [...document.querySelectorAll(`[data-testid="leave-balance-row-${id}"]`)].find((x) => x.getBoundingClientRect().height > 1); el.scrollIntoView({ block: 'center' }); el.click(); }, me);
+      const hist = await waitFor(page, `[data-testid="leave-grant-${gid}"]`);
+      add(`leavetypes:부여이력@${w}`, !hist, `${hist ? '✅' : '🔴'} 줄을 누르면 부여 이력(이번 부여 ${gid})`);
+      if (w === 390) {
+        const over = await page.evaluate(() => document.documentElement.scrollWidth - innerWidth);
+        add('leavetypes:현황폰넘침', over > 0, `${over > 0 ? '🔴' : '✅'} 문서 가로 ${over}px`);
+      }
+      if (w === 1440 && hist) {
+        const pt = [];
+        const onR = (r) => { if (r.method() === 'PATCH' && r.url().includes(`/api/leave/grants/${gid}`)) pt.push(1); };
+        page.on('request', onR);
+        const s2 = `[data-testid="leave-grant-days-${gid}"]`;
+        await page.click(s2, { clickCount: 3 });
+        await page.keyboard.type('3');
+        await sleep(3200);
+        page.off('request', onR);
+        const g2 = await call(page, tok, 'GET', `/api/leave/grants?business_id=${biz}&user_id=${me}`);
+        const d = g2.j?.data?.find((x) => x.id === gid)?.days;
+        add('leavetypes:부여수정', pt.length !== 1 || d !== 3, `${pt.length === 1 && d === 3 ? '✅' : '🔴'} PATCH ${pt.length}건 · 저장값 ${d}`);
+      }
+    }
+    // ⑦ 내 휴가 카드 — 종류별 줄
+    await page.setViewport({ width: 1440, height: 900 });
+    await page.goto(`${BASE}/attendance?tab=leave`, { waitUntil: 'networkidle2' }).catch(() => {});
+    const byT = await waitFor(page, '[data-testid="leave-by-type"]');
+    const txt = byT ? await page.evaluate(() => [...document.querySelectorAll('[data-testid="leave-by-type"]')].find((x) => x.getBoundingClientRect().height > 1)?.innerText || '') : '';
+    add('leavetypes:내종류별', !byT || !/연차|Annual/.test(txt), `${byT && /연차|Annual/.test(txt) ? '✅' : '🔴'} «${txt.replace(/\n/g, ' / ').slice(0, 80)}»`);
+
     // ③ 신청 드로어
     const active = (await call(page, tok, 'GET', `/api/businesses/${biz}/leave-types`)).j?.data?.types || [];
     await page.goto(`${BASE}/attendance?tab=leave`, { waitUntil: 'networkidle2' }).catch(() => {});
@@ -157,6 +197,7 @@ async function run() {
         const tok = await apiToken(page);
         const biz = await page.evaluate(async (t) => (await (await fetch('/api/auth/me', { credentials: 'include', headers: { Authorization: `Bearer ${t}` } })).json())?.data?.business_id, tok);
         await call(page, tok, 'PATCH', `/api/businesses/${biz}/leave-types/${restore.id}`, { name: restore.name || '', default_days: restore.default_days });
+        if (restore.grant) await call(page, tok, 'DELETE', `/api/leave/grants/${restore.grant}`);
       } catch (e) { /* 원복 실패는 다음 실행이 덮는다 */ }
     }
     await browser.close();

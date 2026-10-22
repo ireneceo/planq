@@ -121,7 +121,7 @@ qnote_usage(롤업) + qnote_usage_events(원장) 선례 준용.
 | id | INT PK AI | |
 | business_id / user_id | INT NOT NULL FK | |
 | year | INT NOT NULL | 부여 연도 (워크스페이스 tz 기준) |
-| days | DECIMAL(4,1) NOT NULL | 부여 일수 (0.5 단위 허용). 정정은 row 추가(음수 허용)로 — 원장식, 기존 row 수정 금지 |
+| days | DECIMAL(4,1) NOT NULL | 부여 일수 (0.5 단위 허용). 정정은 row 추가(음수 허용) 또는 2026-10-22 부터 **직접 고치기·지우기**(Irene 지시 — `PATCH/DELETE /api/leave/grants/:id`, 관리자만, 결과 잔여가 승인 사용량 아래면 409 `grant_below_used`, 감사 옛 값·새 값) |
 | note | VARCHAR(300) NULL | 사유 (예: "2026 연차", "리프레시 +2") |
 | granted_by | INT NOT NULL FK users | |
 
@@ -229,7 +229,9 @@ approved ─ cancel → canceled      시작일 전: 본인 / 시작일 후: own
 | 메서드·경로 | 권한 | 설명 |
 |---|---|---|
 | GET `/api/leave/grants?business_id=&user_id=&year=` | owner/admin 전체 / member 본인 | 부여 이력 |
-| POST `/api/leave/grants` `{business_id,user_id,year,days,note}` | **owner/admin** | days 음수 허용(정정). AuditLog |
+| POST `/api/leave/grants` `{business_id,user_id,year,days,note,leave_type_id}` | **owner/admin** | days 음수 허용(정정). AuditLog |
+| PATCH/DELETE `/api/leave/grants/:id` `{days,note}` | **owner/admin** | 2026-10-22 — 고치기·지우기. 잔여 < 승인 사용량이면 409 grant_below_used. 감사 leave.grant_update/delete |
+| GET `/api/leave/team-balances?business_id=&year=` | **owner/admin** | 멤버 × 종류 잔여(설정 «휴가 현황» 표) — getBalance 한 벌 |
 | GET `/api/leave/balance?business_id=&year=[&user_id=]` | 본인 / owner·admin 은 user_id 지정 가능 | `{granted, used, pending, remaining}` — 전부 파생 계산 |
 | POST `/api/leave/requests` | 본인 | 신청. 유급이면 잔여−pending 사전 검사(안내용 — 확정 검사는 approve 시) |
 | GET `/api/leave/requests?business_id=&status=&scope=mine\|all&year=` | scope=all 은 owner/admin | pagination. all 은 승인함 |
