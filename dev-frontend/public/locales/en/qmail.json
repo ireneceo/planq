@@ -427,7 +427,7 @@
     },
     "empty": {
       "title": "No rules learned yet",
-      "body": "Mark the same sender \"Replied\" twice and a rule is created automatically. You can also add one yourself."
+      "body": "Mark the same sender \"Replied\" twice and a rule is created automatically (not for clients, members or people you have emailed — for them it means you replied). You can also add one yourself."
     },
     "applied": "Sorted by a rule",
     "appliedHint": "You can review and delete this rule in Settings → Mail accounts → Mail sorting rules",

@@ -169,6 +169,19 @@ async function onDismissReply({ businessId, fromEmail, threadId, subject, userId
     return { learned: false, rule: existing.toJSON() };
   }
 
+  // ★ 2026-10-22 (Fable) — **아는 상대**(고객·멤버·우리가 메일 보낸 적 있음·우리 메시지에 회신함)는 배우지 않는다.
+  //   이 버튼은 «밖에서 답했다» 가 기본 뜻이라, 아는 상대에게서 «앞으로 안 묻는다» 를 배우면 정반대가 된다
+  //   (운영 ws17: 진행 중 사건의 고객 corkworld@ 를 «답변 완료» 두 번에 답장 불필요로 배워 다음 메일부터 답변 필요에서 빠졌다).
+  //   판정이 실패하면 배우지 않는다 — 규칙 생성이 되돌리기 어려운 쪽이다. 아는 상대의 자동 안내는 설정의 명시 규칙으로 막는다.
+  try {
+    if (await require('./emailImapCron').isKnownContact(businessId, addr, { strict: true })) {
+      return { learned: false, reason: 'known_contact' };
+    }
+  } catch (e) {
+    console.warn('[mailSenderRules] known-contact check failed — 학습 안 함:', e.message);
+    return { learned: false, reason: 'known_check_failed' };
+  }
+
   // 이 발신자의 dismiss 이력 — reply_needed_reason='dismissed' 인 스레드 수로 센다
   const senderThreadIds = await threadsFromSender(businessId, addr);
   if (senderThreadIds.length === 0) return { learned: false };

@@ -119,3 +119,10 @@ index adfceb05..fd6df12c 100644
   guard 실패 3건은 서명 기능 파일(signatures.js·signature_round.js·PublicSignPage.tsx — 다른 방 작업, 이번 변경 무관).
 - D4: 코드 변경 없음. 기율 법원 송달 발신 주소가 법원마다 다르다(0x…ecfs@scourt.go.kr 5개) → 주소 학습이 아니라 **도메인 규칙** «scourt.go.kr → 항상 답변 필요» 가 맞다(설정 › 메일 규칙).
 - 확인 못 함: 실제 발송 메일에 `X-PlanQ-Notice` 가 붙는지(dev 는 발송 정지) — 운영 배포 뒤 받은 PlanQ 알림 1통의 헤더로 확인.
+
+## 7. «답변 완료» 학습이 고객을 «답장 불필요» 로 배우던 것 (2026-10-22 추가, Fable 판정 PASS — 안 A)
+- 운영 실측: 학습된 답장 불필요 규칙 6개 중 2개가 아는 상대 — ws17 고객 corkworld@naver.com(발송 6통, 오늘 «답변 완료» 2회로 생성) · ws1 mail@jisungtax.com(세무사, 발송 1통).
+  그 규칙이 있으면 그 상대의 다음 메일은 답변 필요에 못 간다(규칙이 known_contact 보다 앞선다).
+- 고침: `mailSenderRules.onDismissReply` — 아는 상대(`isKnownContact`, strict)면 배우지 않는다 · 판정 실패도 배우지 않는다. applyRules·명시 규칙·다른 학습은 그대로. 설명 문구(ko/en)에 «아는 상대 제외».
+- 검증: dev 실DB 아는 상대 ×2 → 규칙 0 · 모르는 상대 ×2 → 규칙 1(대조군) · 시험 행 정리. 카나리 mail 0 실패 · parity 통과.
+- 남은 것: 이미 생긴 두 규칙은 자동으로 안 지운다 — 설정 › 메일 규칙에서 삭제(복구까지 같이 돈다). Irene 할 일로 올림.

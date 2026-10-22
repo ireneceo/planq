@@ -189,7 +189,7 @@ async function matchClient(businessId, fromEmail) {
 //   LLM 0 — 관계 데이터만 본다.
 // 무료메일 도메인 — emailTriage 의 FREE_MAIL_DOMAIN 과 같은 목록(그쪽이 정본, 내보내 쓴다)
 const FREE_MAIL_DOMAIN_RE = require('./emailTriage').FREE_MAIL_DOMAIN;
-async function isKnownContact(businessId, fromEmail, { excludeMessageId = null } = {}) {
+async function isKnownContact(businessId, fromEmail, { excludeMessageId = null, strict = false } = {}) {
   const addr = String(fromEmail || '').toLowerCase().trim();
   if (!businessId || !addr) return false;
   try {
@@ -260,6 +260,8 @@ async function isKnownContact(businessId, fromEmail, { excludeMessageId = null }
     return replied.length > 0;
   } catch (e) {
     console.warn('[isKnownContact]', e.message);
+    // strict — 호출부가 «모름» 을 «모르는 상대» 로 읽으면 안 될 때(학습 규칙을 만드는 쪽, mailSenderRules.onDismissReply).
+    if (strict) throw e;
     return false;   // 판정 실패 시 보수적으로 '모르는 상대' — 확인 권장으로 가지 답변 필요로 오분류하지 않는다
   }
 }
