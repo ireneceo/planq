@@ -391,19 +391,23 @@ export const ActionBarDesc = styled.div`
 `;
 export const ActionBarButtons = styled.div`
   display: flex; gap: 8px; flex-shrink: 0;
-  @media (max-width: 640px) { width: 100%; }
+  /* 폰은 넘치면 두 줄로 — 영어 «Request changes / Decline» + «I have reviewed it · Sign» 이 한 줄이면 360~414px 에서
+     주 버튼이 화면 밖으로 밀렸다(Fable 2026-10-22 실측 12~66px). 두 버튼 모두 남은 폭을 나눠 쓴다 */
+  @media (max-width: 640px) { width: 100%; flex-wrap: wrap; }
 `;
 export const ActionBarNote = styled.div`
   max-width: 760px; margin: 0 auto; padding: 0 20px 8px;
   & > p { margin: 0; }
   @media (max-width: 640px) { padding: 0 12px 8px; }
 `;
+// 폰: 글자 폭(basis auto)을 기준으로 줄을 나눈 뒤 남은 폭을 채운다 — basis 0(flex:1)이면 한 줄에 우겨 넣어 글자가 버튼 밖으로 넘쳤다
 export const BarPrimaryBtn = styled(PrimaryBtn)`
   height: 40px; white-space: nowrap;
-  @media (max-width: 640px) { flex: 1; }
+  @media (max-width: 640px) { flex: 1 1 auto; }
 `;
 export const BarRejectBtn = styled(RejectBtn)`
   height: 40px; white-space: nowrap;
+  @media (max-width: 640px) { flex: 1 1 auto; }
 `;
 
 /* ─── 서명 안내 상자 (2026-10-12) — 내 칸 위치 + 작은 서명 버튼 + 범위 고지 + 보낸 분 메모를 한 상자에 ─── */

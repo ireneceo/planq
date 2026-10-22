@@ -349,6 +349,10 @@ async function deriveActionForStage(stage, projectId) {
       if (allSigned) {
         return { ...base, action_kind: 'wait_or_proceed', label: '계약 체결 완료', hint: '청구서 발행 단계로 진행', link: null };
       }
+      // 고객 «수정 요청»(2026-10-22) — 거절과 다음 행동이 다르다: 같은 문서를 고쳐 다시 보낸다(services/signatureRound)
+      if (sigs.some(s => s.status === 'rejected' && s.rejected_kind === 'revise')) {
+        return { ...base, action_kind: 'review_signature', label: '수정 요청 받음', hint: '서명 진행에서 [고쳐서 다시 보내기] 후 재요청', link: `/projects/p/${projectId}?tab=docs&post=${post.id}` };
+      }
       const anyRejected = sigs.some(s => s.status === 'rejected');
       if (anyRejected) {
         return { ...base, action_kind: 'review_signature', label: '서명 거절됨', hint: '거절 사유 확인 후 재요청', link: `/projects/p/${projectId}?tab=docs&post=${post.id}` };
