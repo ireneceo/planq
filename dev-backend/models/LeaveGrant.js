@@ -26,6 +26,8 @@ LeaveGrant.init({
     type: DataTypes.ENUM('annual', 'sick', 'family', 'other'),
     allowNull: false, defaultValue: 'annual',
   },
+  /** 휴가 종류(leave_types) — 2026-10-22 부터 정본. 아래 category 는 deprecated: 쓰기만(롤백용 이중 기록), 읽지 않는다 */
+  leave_type_id: { type: DataTypes.INTEGER, allowNull: false, references: { model: 'leave_types', key: 'id' } },
   /** 부여 일수. 0.5 단위 허용, 정정을 위해 음수 허용 */
   days: { type: DataTypes.DECIMAL(4, 1), allowNull: false },
   note: { type: DataTypes.STRING(300), allowNull: true },
@@ -36,7 +38,10 @@ LeaveGrant.init({
   tableName: 'leave_grants',
   timestamps: true,
   underscored: true,
-  indexes: [{ fields: ['business_id', 'user_id', 'year'], name: 'leave_grant_biz_user_year' }],
+  indexes: [
+    { fields: ['business_id', 'user_id', 'year'], name: 'leave_grant_biz_user_year' },
+    { fields: ['business_id', 'user_id', 'year', 'leave_type_id'], name: 'leave_grant_biz_user_year_type' },
+  ],
 });
 
 module.exports = LeaveGrant;

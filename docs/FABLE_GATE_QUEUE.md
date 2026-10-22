@@ -1,5 +1,10 @@
 # Fable 게이트 대기열 → **판정 기록 보관소** (2026-10-08 부터)
 
+## 2026-10-22 · 휴가 종류 직접 관리 leave_types (방 44657160) — 설계 DESIGN_READY · 완료 검증 **FAIL(차단 1) → 고친 뒤 PASS**
+- 설계 `docs/LEAVE_TYPES_DESIGN.md`. 완료 검증 실측: API 60/62(실패 2 = 검증자 스크립트 오류, 재실행 통과) · 박제 불변(이름 변경·끄기 뒤 잔여·급여 동일) · 급여 무급 2일 = 276,923 · 테넌트 격리(대조군 201) · 권한 · 롤백 --rollback-nullable 왕복 · guard 76/77 · health 88/88 · 카나리 leavetypes 0.
+- 차단(고침): migrate 검증 ② 가 커스텀·무급휴가 행의 category='other' 이중기록을 글자 그대로 비교 → **두 번째 배포부터 SLOT EXIT 1**. → 옛 category 축으로 접어 비교. 재판정: 커스텀·무급 행 있음 EXIT 0 · 어긋난 행 음성 대조군 EXIT 1 · PASS.
+- 비차단: `isUsed` 가 반려·취소 신청도 세서 한 번 반려된 종류도 pay 잠김(보수적, 문구로 설명 — 다음 정리 때 판단). 설계와 다른 5건(CREATE·FK·시스템 pay·by_category 필터·서버 ko 폴백)은 적절 판정.
+
 ## 2026-10-22 · 조직 규모 0단계 구현 baecdbec (방 75b90f45) — 완료 검증 **PASS**(Fable, 차단 없음)
 - 실측: notify 직접 7·호출처 50파일 · 인수인계 실HTTP 38(권한·격리·수신자·컨펌 재계산·L1 시행 전 skip·멱등·알림 1통·감사) · 활동 기록 scope=admin 300건(제목 0·급여 담당만·남의 ws 이름 null) · 초대 배열(dry_run 쓰기 0·422 쓰기 0·21명 400·부서 격리·429) · done=recent 세 역할 ⊆ · 약관 문구 대조 · health 88/88 · guard 75/76.
 - 비차단 반영(같은 날): ①L1 넘기기는 날짜 + **이용약관 버전 ≥ 1.2** 일 때만(memberHandover.l1Effective) ②멤버 행 없는 대표(businesses.owner_id)도 알림 수신(notifyRecipient).

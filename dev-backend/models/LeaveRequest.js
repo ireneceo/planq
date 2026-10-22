@@ -13,7 +13,8 @@ LeaveRequest.init({
   business_id: { type: DataTypes.INTEGER, allowNull: false, references: { model: 'businesses', key: 'id' } },
   user_id: { type: DataTypes.INTEGER, allowNull: false, references: { model: 'users', key: 'id' } },
   /** paid = 잔여 차감 / unpaid = 차감 없이 승인만.
-   *  ★ 이것은 **결제 축**이다. 무슨 휴가인지는 아래 category 가 정한다(다른 축 — 섞지 말 것). */
+   *  ★ 이것은 **결제 축**이고, 2026-10-22 부터는 **신청 시점에 종류(leave_types.pay)에서 복사한 박제**다.
+   *    잔여·통계·급여는 이 박제만 읽는다 — 종류를 나중에 고쳐도 옛 신청은 움직이지 않는다. */
   leave_type: { type: DataTypes.ENUM('paid', 'unpaid'), allowNull: false, defaultValue: 'paid' },
   /** ★ 휴가 종류 (2026-09-09). 잔여는 **이 종류의 부여분에서만** 깎인다.
    *  기존 행은 전부 'annual' — 지금까지의 신청은 전부 연차였다. */
@@ -21,6 +22,8 @@ LeaveRequest.init({
     type: DataTypes.ENUM('annual', 'sick', 'family', 'other'),
     allowNull: false, defaultValue: 'annual',
   },
+  /** 휴가 종류(leave_types) — 2026-10-22 부터 정본. 아래 category 는 deprecated: 쓰기만(롤백용 이중 기록), 읽지 않는다 */
+  leave_type_id: { type: DataTypes.INTEGER, allowNull: false, references: { model: 'leave_types', key: 'id' } },
   unit: { type: DataTypes.ENUM('full_day', 'half_day', 'hours'), allowNull: false, defaultValue: 'full_day' },
   /** full_day 는 기간 가능. half_day·hours 는 start=end 강제(라우트에서 검증) */
   start_date: { type: DataTypes.DATEONLY, allowNull: false },

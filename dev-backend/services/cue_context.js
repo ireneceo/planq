@@ -946,9 +946,14 @@ async function getHrSnapshot({ businessId, userId, scope, businessTimezone }) {
         business_id: businessId, user_id: userId,
         [Op.or]: [{ status: 'pending' }, { end_date: { [Op.gte]: today } }],
       },
-      attributes: ['id', 'status', 'leave_type', 'unit', 'start_date', 'end_date', 'days_charged'],
+      attributes: ['id', 'status', 'leave_type', 'leave_type_id', 'unit', 'start_date', 'end_date', 'days_charged'],
+      include: [{ model: require('../models').LeaveType, as: 'type', attributes: ['id', 'code', 'name'], required: false }],
       order: [['start_date', 'ASC']], limit: 5,
-    })).map((r) => r.toJSON());
+    })).map((r) => {
+      // 종류 이름(회사가 정한 이름 · 없으면 기본 이름)만 싣는다 — 종류 행 전체는 넘기지 않는다.
+      const { type, ...rest } = r.toJSON();
+      return { ...rest, type_name: require('./leaveTypes').displayName(r.type) || null };
+    });
 
     // 팀 오늘 현황 — 누가 근무 중이고 누가 휴가인지. 인원만 세면 "누구에게 물어보면 되나" 에 못 답한다.
     const working = await AttendanceDay.findAll({

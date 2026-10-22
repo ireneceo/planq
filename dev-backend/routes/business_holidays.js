@@ -14,12 +14,7 @@ const { ymd, todayInTz } = require('../utils/datetime');
 
 const router = express.Router();
 
-const canWrite = (req) => req.user?.platform_role === 'platform_admin'
-  || req.businessRole === 'owner' || req.businessRole === 'admin';
-const blockClient = (req, res) => {
-  if (req.businessRole === 'client') { errorResponse(res, 'forbidden', 403); return true; }
-  return false;
-};
+const { canWrite, blockClient } = require('../services/attendanceAdmin');
 const YMD = /^\d{4}-\d{2}-\d{2}$/;
 const validYmd = (v) => typeof v === 'string' && YMD.test(v) && !Number.isNaN(Date.parse(`${v}T00:00:00Z`))
   && new Date(`${v}T00:00:00Z`).toISOString().slice(0, 10) === v;

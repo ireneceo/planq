@@ -112,6 +112,8 @@ qnote_usage(롤업) + qnote_usage_events(원장) 선례 준용.
 인덱스: (`attendance_day_id`,`at`) / (`business_id`,`at`).
 `work_total_sec` = kind 시퀀스에서 working 스팬 합산 — 재계산 함수는 `attendanceTransition.js` 안 1벌 (`recomputeDay(dayId)`), 정정 시에도 이걸로만 갱신.
 
+> ★ 2026-10-22 — 휴가 **종류**는 워크스페이스 데이터(`leave_types`)다. 부여·신청은 `leave_type_id` 로 가리키고, 유급/무급은 종류가 정한다(신청 행 `leave_type` = 신청 시점 박제). 정본 `docs/LEAVE_TYPES_DESIGN.md`. 아래 `category` ENUM 은 롤백용 이중 기록(쓰기만).
+
 ### 3.3 `leave_grants` — 관리자 연간 부여 (유급 잔여의 원천)
 
 | 컬럼 | 타입 | 설명 |

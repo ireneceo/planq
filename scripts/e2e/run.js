@@ -97,6 +97,7 @@ const SUITES = {
   //   ★ 탭 keep-alive 로 같은 data-row-id 가 둘이 될 수 있어 «보이는 것» 으로 판정한다.
   //   ★ 이미 처리된 신청도 막다른 길이 아닌지 같이 잰다(대기 목록엔 없다).
   leavelink: () => require('./canary-leave-deeplink'),
+  leavetypes: () => require('./canary-leave-types'),
   // Q sale 우측 패널이 **한 벌인가** — 문의로 열어도 고객 액션이 있는가 · 이름 중복 · 푸터 한 줄 ·
   //   저장 액션이 묻고 나서 나가는가 · **패널이 열려도 뒤 목록이 스크롤되는가**(2026-09-13 계약 변경).
   //   전부 CSS·런타임이 합쳐진 뒤에만 존재하는 종류라 정적 검사로는 안 잡힌다.

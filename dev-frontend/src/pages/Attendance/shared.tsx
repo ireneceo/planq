@@ -5,6 +5,8 @@ import { listRowTitleCss } from '../../theme/tokens';
 
 export interface LeaveRequestRow {
   id: number; user_id: number; leave_type: 'paid' | 'unpaid';
+  /** 종류(2026-10-22). leave_type 은 신청 시점의 유급/무급 박제다 */
+  leave_type_id?: number; type?: { id: number; code: string | null; name: string | null; pay: 'paid' | 'unpaid' } | null;
   unit: 'full_day' | 'half_day' | 'hours';
   start_date: string; end_date: string; half_kind: 'am' | 'pm' | null; hours: number | null;
   days_charged: number; reason: string | null;

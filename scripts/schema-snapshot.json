@@ -1516,7 +1516,8 @@
       "granted_by",
       "created_at",
       "updated_at",
-      "category"
+      "category",
+      "leave_type_id"
     ],
     "leave_requests": [
       "id",
@@ -1538,7 +1539,21 @@
       "canceled_at",
       "created_at",
       "updated_at",
-      "category"
+      "category",
+      "leave_type_id"
+    ],
+    "leave_types": [
+      "id",
+      "business_id",
+      "code",
+      "name",
+      "pay",
+      "default_days",
+      "is_active",
+      "sort_order",
+      "created_by",
+      "created_at",
+      "updated_at"
     ],
     "mail_sender_rules": [
       "id",

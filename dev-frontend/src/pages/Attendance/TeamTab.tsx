@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import styled from 'styled-components';
 import ActionButton from '../../components/Common/ActionButton';
 import PlanQSelect from '../../components/Common/PlanQSelect';
-import { LEAVE_CATEGORY_KEYS, type LeaveCategory } from './leaveCategory';
+import { useLeaveTypes, labelOf } from './leaveTypes';
 import SingleDateField from '../../components/Common/SingleDateField';
 import { apiFetch } from '../../contexts/AuthContext';
 import { formatHours, type AttendanceDay } from '../../hooks/useAttendance';
@@ -45,23 +45,37 @@ export const TeamTab: React.FC<{
   // 목록 안에서 보이게 — 공용 훅(화면마다 스크롤 코드를 쓰지 않는다)
   useRevealSelectedRow(highlightLeaveId ?? null);
   const [grantUser, setGrantUser] = useState<number | null>(null);
-  const [grantDays, setGrantDays] = useState('15');
-  // ★ 2026-09-09 — 휴가 **종류** (Irene: "종류별로 제공하는 거 어떻게 줘?").
-  //   유급/무급(신청의 leave_type)과 **다른 축**이다 — 이건 "무슨 휴가냐" 다.
-  //   잔여도 종류별로 따로 계산된다(서버 getBalance). 안 고르면 연차 = 지금까지의 동작.
-  const [grantCategory, setGrantCategory] = useState<LeaveCategory>('annual');
+  const [grantDays, setGrantDays] = useState('');
+  // ★ 휴가 **종류**(2026-10-22 — 회사가 정한 목록, 설정 › 근태 관리 맨 위 «휴가 설정»).
+  //   부여는 **유급** 종류에만 한다(무급은 잔여가 없다). 잔여도 종류별로 따로 계산된다(서버 getBalance).
+  //   종류를 고르면 일수 칸을 그 종류의 «연간 기본 일수» 로 채운다 — 단 사람이 이미 친 값은 덮지 않는다
+  //   (시스템이 채운 값 ≠ 사용자 입력).
+  const { types: allTypes } = useLeaveTypes(bizId);
+  const paidTypes = allTypes.filter((x) => x.pay === 'paid');
+  const [grantTypeId, setGrantTypeId] = useState<number | null>(null);
+  const [daysTouched, setDaysTouched] = useState(false);
+  const pickGrantType = (id: number | null) => {
+    setGrantTypeId(id);
+    const d = paidTypes.find((x) => x.id === id)?.default_days;
+    if (!daysTouched) setGrantDays(d === null || d === undefined ? '' : String(d));
+  };
+  React.useEffect(() => {
+    if (!paidTypes.length) return;
+    if (!grantTypeId || !paidTypes.some((x) => x.id === grantTypeId)) pickGrantType(paidTypes[0].id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allTypes]);
   const [grantNote, setGrantNote] = useState('');
   const [saving, setSaving] = useState(false);
 
   const submitGrant = async () => {
-    if (!grantUser || saving) return;
+    if (!grantUser || !grantTypeId || grantDays === '' || saving) return;
     setSaving(true);
     try {
       const r = await apiFetch('/api/leave/grants', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ business_id: bizId, user_id: grantUser, year, days: Number(grantDays), category: grantCategory, note: grantNote }),
+        body: JSON.stringify({ business_id: bizId, user_id: grantUser, year, days: Number(grantDays), leave_type_id: grantTypeId, note: grantNote }),
       });
-      if (r.ok) { setGrantNote(''); await onReload(); }
+      if (r.ok) { setGrantNote(''); setDaysTouched(false); await onReload(); }
     } finally { setSaving(false); }
   };
 
@@ -99,7 +113,7 @@ export const TeamTab: React.FC<{
               <HighlightRow key={r.id} data-row-id={r.id} $highlight={r.id === highlightLeaveId}>
                 <RowMain>
                   <RowTitle>{nameOf(r.user_id)} · {r.start_date}{r.end_date !== r.start_date ? ` ~ ${r.end_date}` : ''}</RowTitle>
-                  <RowMeta>{t(`leave.${r.leave_type}`)} · {t(`leave.${unitKey(r.unit)}`)}{r.reason ? ` · ${r.reason}` : ''}</RowMeta>
+                  <RowMeta>{r.type ? `${labelOf(r.type, t)} · ` : ''}{t(`leave.${r.leave_type}`)} · {t(`leave.${unitKey(r.unit)}`)}{r.reason ? ` · ${r.reason}` : ''}</RowMeta>
                 </RowMain>
                 <ActionButton tone="primary" size="sm" onClick={() => onDecide(r.id, 'approve')}>{t('leave.approve')}</ActionButton>
                 <ActionButton tone="danger" size="sm" onClick={() => onDecide(r.id, 'reject')}>{t('leave.reject')}</ActionButton>
@@ -121,12 +135,14 @@ export const TeamTab: React.FC<{
           />
           <PlanQSelect
             size="sm"
-            options={LEAVE_CATEGORY_KEYS.map((c) => ({ value: c, label: t(`leave.category.${c}`) as string }))}
-            value={{ value: grantCategory, label: t(`leave.category.${grantCategory}`) as string }}
-            onChange={(opt) => setGrantCategory(((opt as { value: string } | null)?.value as LeaveCategory) || 'annual')}
+            options={paidTypes.map((x) => ({ value: x.id, label: labelOf(x, t) }))}
+            value={paidTypes.filter((x) => x.id === grantTypeId).map((x) => ({ value: x.id, label: labelOf(x, t) }))[0] || null}
+            onChange={(opt) => pickGrantType(Number((opt as { value: number } | null)?.value) || null)}
             aria-label={t('leave.categoryLabel', { defaultValue: '휴가 종류' }) as string}
           />
-          <NumInput type="number" step="0.5" value={grantDays} onChange={(e) => setGrantDays(e.target.value)}
+          <NumInput type="number" step="0.5" value={grantDays} data-testid="leave-grant-days"
+            onChange={(e) => { setGrantDays(e.target.value); setDaysTouched(true); }}
+            placeholder={t('leave.grantDays') as string}
             aria-label={t('leave.grantDays') as string} />
           <TextInput value={grantNote} onChange={(e) => setGrantNote(e.target.value)}
             placeholder={t('leave.grantNote') as string} />

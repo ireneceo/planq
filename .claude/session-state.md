@@ -2,6 +2,14 @@
 **마지막 업데이트:** 2026-10-22 (방 657ad10d — 한글 파일 첨부 허용 #467 · 이전: 방 255c2316 — 공용 메일 멤버별 읽음·답변 담당 Fable 대기 · 이전: 방 da9f3688 — 메일 답변 필요 누락 진단 · Fable 대기 · 이전: 방 c9d2c55c — 묶음 2건: AI 앱 재연결 안내 ✅ · 고객 목록 멤버 Fable 대기 · 이전: 방 a4f4681a — 메일 보낸 사람 «나» → 멤버 이름 · 이전: 방 be9ec522 — 데스크탑 긴급 알림 두 번 · 개발완료 · 이전: 방 bac44f4c — 업무 추가 컨펌자 칸 · 상세 하단 고정 줄 · 우측 패널 하단 버튼 통일 · 이전: 방 9fdd0593 — 관리자 피드백 목록 수리 · 승인 체계 Fable 대기 · 이전: 방 1895159d — 업무 댓글 상황 꼬리표 · 이전: 방 1631adb0 — 메일 번역 버튼 자리 Fable 대기 · 이전: 방 42f22a17 — 묶음 2건: 데스크탑앱 느림 조사·메일 수리 · SNS 발송 상의)
 **작업 상태:** 일정 추가 장소 토글 완료(방 3404829e, 운영 미배포) · 1건 완료(운영 미배포) · SNS 발송 설계 Fable 대기.
 
+### 답 기다림: 운영 배포 중단 — 운영 서버 파일 되돌릴지 (방 657ad10d · 2026-10-22 · [Opus])
+- 무엇: Irene «배포하고 고객에게 답변해야지» → /배포 --auto 실행. 시작 때 HEAD 가 baecdbec(다른 방 «조직 규모 0단계 — 빌드·화면·완료 검증 전»)라 그게 실렸고, 그 커밋 TS 오류(DepartedMembersSection.tsx:10 type-only import)로 프론트 빌드에서 멈춤.
+- 운영 상태: 백업 /opt/planq/backups/20261022_035541 · 백엔드 파일 sync·DB sync·마이그레이션 실행됨(스키마 변경은 ca26ba1b 명함 v2 것 — Fable PASS, 추가만) · PM2 재시작 전이라 실행 중 코드는 옛것(b25f3949), health 200 · .last-deployed-commit 그대로.
+- 위험: 운영 PM2 가 다시 뜨면 검증 안 된 baecdbec 백엔드가 뜬다.
+- 선택: ① 백업으로 파일 되돌리기(권고) → 다른 방 검증 뒤 재배포 ② 그대로 두고 고쳐지면 재배포 ③ 오류 한 줄 고쳐 지금 재배포(미검증 기능 나감).
+- 답이 오면: ① 이면 상황판 명령 실행 결과 확인 → 다른 방 커밋 검증되면 재배포 → #467 답변(.claude/plans/feedback-467-reply.json, done) + 상황판 할 일.
+- **운영 서버 파일을 배포 직전 백업으로 되돌릴까요?**
+
 ### 완료: 한글 파일(.hwp·.hwpx) 첨부 허용 — 운영 피드백 #467 (방 657ad10d · 2026-10-22 · [Opus]) — 커밋 b7b9a678, 운영 미배포
 - 원문(#467 고객 user 62·biz 17): «task 업무 추가 또는 업무 요청에서 파일 첨부를 할 때 한글파일(HWP)은 허용되지 않는 파일 형식으로 파일 추가가 안되는것 같습니다.»
 - 고침: 첨부 허용 목록 두 원천(services/uploadPolicy 업무·채팅 · services/driveImport Drive 가져오기·AI 업로드)에 hwp/hwpx. 파일 아이콘 색 문서 계열.
@@ -274,10 +282,16 @@
 - 검증: 범위 tsc 0 + vite build 0(전체 tsc -b 는 earlyoom SIGTERM 143 — 정식 전체 타입검사 아님) · 실HTTP 주소 보기 5주소 «이름 없음» 0 · 남의 워크스페이스 403 · 목록 6폴더 회귀 0 · 화면 3폭 ALL OK, 옛 서버 대조군에서 «(unknown)» 3건·6실패 재현 · health 88/88 · guard 74/75(MainLayout 크기, 기존) · maillabel 0 실패. Fable 안 씀 — 화면 표시·같은 권한 라우트의 응답 모양.
 - 시험 데이터: ws6 «[확인용] 오간 메일 —» 스레드 3개(9495 보관·9496 보낸·9497 받은). 시험 메일 계정 425 는 꺼져 있어(is_active 0) owner 화면 목록이 «연결된 계정 없음» 으로 가려짐 — 화면 검사는 계정 목록 응답만 채워 넣고 쟀다.
 
-### 나중에 — Fable 대기: 휴가 종류 직접 추가·수정 기능 설계 · Fable 한도가 풀리면(fid fwmvh8kbx2 → 다시 올림 fwmvilgfa8, 다음 재시도 2026-10-22 07:58 KL — 10-20·10-21 두 번 재시도 모두 한도 429) · 그때 Fable 설계 → docs/LEAVE_TYPES_DESIGN.md → 구현(설계 전 구현 시작 안 함)
-- Irene 2026-10-20 «권고대로»(① 회사가 종류 추가·수정 — 이름·유급/무급·연간 기본 일수, «휴가 설정» 칸을 근태 관리 맨 위로).
-- 설계 요청 내용: 이 방 대화의 Fable 프롬프트와 같다 — 현황 파일(LeaveRequest/LeaveGrant ENUM · leaveTransition · routes/leave · pages/Attendance/leaveCategory.ts · AttendanceAdminSettings/TeamTab · 급여 무급 일할)·이행·박제·급여 연결·권한·화면·검증.
-
+### 완료: 휴가 종류를 회사가 직접 등록·관리 (방 44657160 · 2026-10-22 · [Opus] · 설계 Fable DESIGN_READY) — 운영 미배포
+- 원문(10-20): «연차나 휴가종류 등록/관리 어디에 있어? 관리자 설정에 안보이는데» → Irene «권고대로»(① 회사가 종류 추가·수정, 근태 관리 맨 위).
+- 설계 docs/LEAVE_TYPES_DESIGN.md(Fable, 커밋 346276ed). 새 표 leave_types + leave_grants/leave_requests.leave_type_id. 유급/무급은 종류가 정하고 신청 행 leave_type 은 박제(잔여·통계·급여 무급 일할은 박제만 읽음).
+- 서버: services/leaveTypes(문 하나) · services/attendanceAdmin(휴일·종류 권한 술어 한 곳) · routes/business_leave_types · leaveTransition(createRequest 종류에서 박제 · getBalance by_type) · leave.js(grants 유급 종류만·type 동봉) · 확인필요 라벨 종류 이름 · Cue type_name.
+- 화면: 설정 › 근태 관리 맨 위 «휴가 설정»(이름·유급 스위치·기본 일수·사용·삭제, AutoSave) · 신청 드로어 유급/무급 칸 → 읽기 전용 칩 · 연간 부여 종류=유급 종류·기본 일수 미리 채움 · 휴일 섹션과 껍데기 공유(attendanceSectionShell).
+- 운영: migrate-leave-types.js(배포 슬롯 등록, category 슬롯 뒤 · 롤백 --rollback-nullable). 옛 category 는 한 릴리즈 쓰기만 — 다음 정리 때 지운다(설계 §10-10).
+- 검증: Fable 완료 검증 FAIL(차단 1: migrate 검증 ② 두 번째 배포 거짓 실패) → 고침 → 재판정 PASS · API 42/42(대조군 포함) · 이행 전후 잔여 JSON 동일 · 카나리 leavetypes 10/10 · build 0 · guard 76/77 · health 88/88 · tenant·leavelink 0 · payroll 검산 37/0.
+- 비차단 남김: 반려·취소만 된 종류도 pay 잠김(isUsed 보수적). 2차 «전원 일괄 부여» 버튼은 안 함(설계상 선택).
+- 별건: baecdbec(조직 규모) DepartedMembersSection type import TS1484 가 빌드를 막아 한 단어 고침(커밋 따로).
+- 시험 데이터: ws6 커스텀 «[확인용] 리프레시 휴가»(유급·기본 2일, 안 쓰임).
 
 ### 완료: /app «이 컴퓨터» 설치 안내를 버튼 하나로 · 랜딩 상단 «앱 다운로드» 맨 끝 (방 efa71b43 · 2026-10-20 · [Opus]) — 운영 미배포
 - 원문: «다운로드를 왜 이렇게 안내해? 그냥 다운로드 해서 pwa 설치되잖아 … 랜딩페이지에서 앱다운로드 브랜드스토리 뒤로 보내. 맨 마지막. 혼자 아이콘 있잖아»

@@ -21,6 +21,7 @@ import {
   Empty, TableWrap, Table, Th, Td, Muted, Badge,
   List, HighlightRow, RowMain, RowTitle, RowMeta, ErrorBar,
 } from './shared';
+import { labelOf } from './leaveTypes';
 import { joinRoom, leaveRoom, onSocket } from '../../services/socket';
 import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
 import { useRevealSelectedRow } from '../../hooks/useRevealSelectedRow';
@@ -303,7 +304,7 @@ const AttendancePage: React.FC = () => {
                   <RowMain>
                     <RowTitle>{r.start_date}{r.end_date !== r.start_date ? ` ~ ${r.end_date}` : ''}</RowTitle>
                     <RowMeta>
-                      {t(`leave.${r.leave_type}`)} · {t(`leave.${unitKey(r.unit)}`)}
+                      {r.type ? `${labelOf(r.type, t)} · ` : ''}{t(`leave.${r.leave_type}`)} · {t(`leave.${unitKey(r.unit)}`)}
                       {r.status === 'approved' && ` · ${t('leave.chargedDays', { days: r.days_charged })}`}
                       {r.reason ? ` · ${r.reason}` : ''}
                     </RowMeta>

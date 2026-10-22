@@ -988,5 +988,37 @@
     "openTitle": "Payroll",
     "openDesc": "Monthly payroll runs, people and pay items are managed on the Payroll page. Employees see only their own payslips and contracts in the same menu.",
     "open": "Open Payroll"
+  },
+  "leaveTypes": {
+    "title": "Leave types",
+    "desc": "Set the kinds of leave your company uses. Paid types are deducted from the days granted each year; unpaid types don't reduce the balance (they count toward unpaid-leave proration in payroll). Default days per year is pre-filled in «Annual grant» below.",
+    "readOnly": "Only workspace admins can change this.",
+    "loadError": "Couldn't load leave types.",
+    "empty": "No leave types.",
+    "col": {
+      "name": "Name",
+      "pay": "Paid",
+      "days": "Default days / year",
+      "active": "In use"
+    },
+    "namePh": "Name",
+    "system": "Default",
+    "paid": "Paid",
+    "unpaid": "Unpaid",
+    "payLocked": "Paid/unpaid can't change once the type has been used",
+    "delete": "Delete",
+    "addNamePh": "New type name (e.g. Refresh leave)",
+    "add": "Add type",
+    "err": {
+      "generic": "Couldn't save. Please try again.",
+      "name_taken": "A type with that name already exists",
+      "name_required": "Enter a name",
+      "pay_locked": "Paid/unpaid can't change once used. Create a new type and turn this one off",
+      "type_in_use": "A type that's been used can't be deleted. Turn off «In use» instead",
+      "last_active_type": "At least one type must stay in use",
+      "system_type": "Default types can't be deleted. Turn off «In use» instead",
+      "invalid_days": "Days must be in 0.5 steps, above 0 and up to 366",
+      "invalid_pay": "Invalid paid/unpaid value"
+    }
   }
 }

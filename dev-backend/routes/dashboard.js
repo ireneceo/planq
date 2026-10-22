@@ -8,7 +8,7 @@ const {
   Client, BusinessMember, Business, User,
   TaskCandidate, Conversation,
   Invoice, InvoiceInstallment, SignatureRequest, Post,
-  LeaveRequest,
+  LeaveRequest, LeaveType,
 } = require('../models');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
 const { requestScope, staleResponse } = require('../middleware/workspaceContext');
@@ -364,8 +364,8 @@ async function collectEvents(businessId, userId) {
    ★ 본인 신청은 제외 — 자기 신청이 자기 확인필요에 뜨면 처리할 것이 아니라 기다리는 것이다.
    ──────────────────────────────────────────── */
 /** 표시 라벨 — 연차/무급 + 반차·시간 단위 (예: "연차 반차", "연차 4시간"). */
-function unitLabel(r, TYPE, UNIT) {
-  const base = TYPE[r.leave_type] || r.leave_type;
+function unitLabel(r, TYPE, UNIT, typeName = '') {
+  const base = typeName || TYPE[r.leave_type] || r.leave_type;
   if (r.unit === 'half_day') return `${base} ${UNIT.half_day}${r.half_kind ? `(${r.half_kind === 'am' ? '오전' : '오후'})` : ''}`;
   if (r.unit === 'hours' && r.hours) return `${base} ${Number(r.hours)}${UNIT.hours}`;
   return base;
@@ -377,6 +377,7 @@ async function collectLeaveApprovals(businessId, userRole, userId) {
   const items = [];
   const pend = await LeaveRequest.findAll({
     where: { business_id: businessId, status: 'pending', user_id: { [Op.ne]: userId } },
+    include: [{ model: LeaveType, as: 'type', required: false }],
     order: [['start_date', 'ASC']],
     limit: COLLECT_LIMIT,
   });
@@ -392,8 +393,9 @@ async function collectLeaveApprovals(businessId, userRole, userId) {
     const us = await User.findAll({ where: { id: missing }, attributes: ['id', 'name', 'username'] });
     for (const u of us) nameMap.set(u.id, u.name || u.username);
   }
-  // ★ leave_type ENUM 은 ('paid','unpaid') 두 값뿐이다(models/LeaveRequest). 종류를 임의로 늘려 적으면
-  //   매칭이 안 돼 코드값('paid')이 그대로 사용자에게 노출된다.
+  // ★ 라벨은 종류 이름(2026-10-22 — 회사가 정한 이름, 없으면 기본 이름). 옛 `{paid:'연차'}` 는 유급 병가도
+  //   «연차» 로 보였다. 종류가 없는 행(이행 전)만 박제로 폴백한다.
+  const { displayName } = require('../services/leaveTypes');
   const TYPE = { paid: '연차', unpaid: '무급' };
   const UNIT = { half_day: '반차', hours: '시간' };
   for (const r of pend) {
@@ -404,7 +406,7 @@ async function collectLeaveApprovals(businessId, userRole, userId) {
       type: 'leave',
       priority: 'waiting',
       verb: 'approve',
-      subject: `${nameMap.get(r.user_id) || '팀원'} · ${unitLabel(r, TYPE, UNIT)} ${start === end ? start : `${start} ~ ${end}`}`,
+      subject: `${nameMap.get(r.user_id) || '팀원'} · ${unitLabel(r, TYPE, UNIT, displayName(r.type))} ${start === end ? start : `${start} ~ ${end}`}`,
       context: '휴가 승인 대기',
       createdAt: safeToIso(r.created_at || r.createdAt),
       actor: { name: nameMap.get(r.user_id) || null },

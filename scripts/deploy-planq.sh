@@ -812,6 +812,13 @@ sync_database() {
   log "Adding leave category columns..."
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-leave-category.js 2>&1 | tail -8"
 
+  # 2026-10-22 — 휴가 종류를 워크스페이스 데이터로(leave_types 표 + leave_type_id). 설계 docs/LEAVE_TYPES_DESIGN.md §4.
+  #   ★ **코드보다 먼저 돈다** — 모델이 leave_type_id 를 선언한다. 위 category 슬롯 **뒤**여야 한다(백필이 category 로 잇는다).
+  #   검증(NULL 0 · 종류별 건수 일치 · 유급/무급 박제 분포 불변)이 실패하면 exit 1 로 멈춘다. 멱등.
+  #   롤백(코드만): node scripts/migrate-leave-types.js --rollback-nullable
+  log "Adding leave types table..."
+  prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-leave-types.js 2>&1 | tail -8"
+
   # 운영 #257 — 결과물 회차의 승인/수정요청이 **남의 라운드**에 붙어 있었다(버전 번호 ≠ 컨펌 라운드).
   #   제출 시점의 컨펌 라운드를 회차 행에 적어 두고(review_round), 백필로 옛 행도 잇는다.
   #   ★ **코드보다 먼저 돈다** — 모델이 컬럼을 선언하므로 없으면 회차 목록 조회가 500 이 된다. 멱등.

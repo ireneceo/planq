@@ -16,6 +16,7 @@ import SingleDateField from '../../components/Common/SingleDateField';
 import ActionButton from '../../components/Common/ActionButton';
 import { Switch, SwitchKnob } from '../../components/Common/switchShell';
 import { formatDay } from '../../utils/dateFormat';
+import { Section, Head, Title, Hint, AddRow, NameInput, ErrText, Empty, List, Row, Badge, DelBtn } from './attendanceSectionShell';
 
 interface HolidayRow {
   id: number; date: string; name: string; name_en: string | null;
@@ -210,7 +211,7 @@ export default function HolidaySettingsSection({ businessId }: { businessId: num
               <DateCell>{formatDay(h.date, { weekday: true, year: 'always' })}</DateCell>
               <NameCell>
                 <span>{nameOf(h)}</span>
-                <Badge $custom={h.source === 'custom'}>
+                <Badge $accent={h.source === 'custom'}>
                   {h.source === 'custom' ? t('holidays.source.custom', '직접') as string : t('holidays.source.national', '공휴일') as string}
                 </Badge>
                 {!h.on_workday && <Note>{t('holidays.notWorkday', '근무 요일 아님 — 반영 없음') as string}</Note>}
@@ -244,14 +245,6 @@ export default function HolidaySettingsSection({ businessId }: { businessId: num
   );
 }
 
-const Section = styled.section`
-  display: flex; flex-direction: column; gap: 10px;
-  padding: 16px; margin-bottom: 20px;
-  background: #fff; border: 1px solid #E2E8F0; border-radius: 12px;
-`;
-const Head = styled.div` display: flex; align-items: center; justify-content: space-between; `;
-const Title = styled.h3` margin: 0; font-size: 0.9375rem; font-weight: 700; color: #0F172A; `;
-const Hint = styled.p` margin: 0; font-size: 0.8125rem; color: #64748B; line-height: 1.5; `;
 const CountryRow = styled.div` display: flex; align-items: center; gap: 12px; flex-wrap: wrap; `;
 const Label = styled.span` font-size: 0.8125rem; font-weight: 600; color: #334155; `;
 const CountrySlot = styled.div` width: 200px; max-width: 100%; `;
@@ -264,40 +257,15 @@ const NavBtn = styled.button`
   &:focus-visible { outline: 2px solid #14B8A6; outline-offset: 2px; }
 `;
 const YearLabel = styled.span` min-width: 48px; text-align: center; font-weight: 700; color: #0F172A; `;
-const AddRow = styled.div` display: flex; align-items: center; gap: 8px; flex-wrap: wrap; `;
-const NameInput = styled.input`
-  flex: 1 1 180px; min-width: 0; height: 36px; padding: 0 10px;
-  border: 1px solid #CBD5E1; border-radius: 8px; font-size: 0.875rem;
-  &:focus { outline: none; border-color: #14B8A6; }
-`;
-const ErrText = styled.span` flex-basis: 100%; font-size: 0.75rem; color: #DC2626; `;
 const PastToggle = styled.button`
   align-self: flex-start; border: none; background: none; padding: 4px 0;
   font-size: 0.8125rem; color: #0F766E; cursor: pointer;
   &:hover { text-decoration: underline; }
-`;
-const Empty = styled.div` padding: 16px 0; font-size: 0.8125rem; color: #94A3B8; `;
-const List = styled.ul` list-style: none; margin: 0; padding: 0; border-top: 1px solid #F1F5F9; `;
-const Row = styled.li<{ $muted: boolean }>`
-  display: flex; align-items: center; gap: 12px; min-height: 48px; padding: 6px 0;
-  border-bottom: 1px solid #F1F5F9;
-  color: ${(p) => (p.$muted ? '#94A3B8' : '#0F172A')};
 `;
 const DateCell = styled.span` flex: 0 0 auto; min-width: 120px; font-size: 0.8125rem; font-variant-numeric: tabular-nums; `;
 const NameCell = styled.span`
   flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
   font-size: 0.875rem;
 `;
-const Badge = styled.span<{ $custom: boolean }>`
-  font-size: 0.6875rem; padding: 2px 6px; border-radius: 6px;
-  background: ${(p) => (p.$custom ? '#F0FDFA' : '#F1F5F9')};
-  color: ${(p) => (p.$custom ? '#0F766E' : '#64748B')};
-`;
 const Note = styled.span` font-size: 0.75rem; color: #94A3B8; `;
 const Actions = styled.span` flex: 0 0 auto; display: flex; align-items: center; gap: 4px; `;
-const DelBtn = styled.button`
-  width: 36px; height: 36px; display: inline-flex; align-items: center; justify-content: center;
-  border: none; background: none; border-radius: 8px; color: #94A3B8; cursor: pointer;
-  &:hover { background: #FEF2F2; color: #DC2626; }
-  &:focus-visible { outline: 2px solid #14B8A6; outline-offset: 2px; }
-`;

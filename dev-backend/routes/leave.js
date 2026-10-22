@@ -11,8 +11,9 @@ const { authenticateToken } = require('../middleware/auth');
 const { getUserScope } = require('../middleware/access_scope');
 const { successResponse, errorResponse } = require('../utils/response');
 const { parsePagination, paginatedResponse } = require('../middleware/errorHandler');
-const { LeaveGrant, LeaveRequest, AuditLog } = require('../models');
+const { LeaveGrant, LeaveRequest, LeaveType, AuditLog } = require('../models');
 const L = require('../services/leaveTransition');
+const LT = require('../services/leaveTypes');
 const { ymd } = require('../utils/datetime');
 
 async function requireMember(req, res, businessId) {
@@ -27,7 +28,9 @@ const isManager = (scope) => !!(scope.isOwner || scope.isAdmin || scope.isPlatfo
 
 function serializeRequest(r) {
   return {
-    id: r.id, user_id: r.user_id, leave_type: r.leave_type, category: r.category || 'annual', unit: r.unit,
+    // category 는 한 릴리즈 호환(옛 번들) — 새 화면은 type 을 본다(docs/LEAVE_TYPES_DESIGN.md §5.3)
+    id: r.id, user_id: r.user_id, leave_type: r.leave_type, leave_type_id: r.leave_type_id,
+    type: LT.briefType(r.type), category: r.category || 'annual', unit: r.unit,
     start_date: ymd(r.start_date), end_date: ymd(r.end_date), half_kind: r.half_kind,
     hours: r.hours === null ? null : Number(r.hours),
     days_charged: Number(r.days_charged || 0),
@@ -51,9 +54,11 @@ router.get('/grants', authenticateToken, async (req, res, next) => {
     if (req.query.year) where.year = Number(req.query.year);
     const { rows, count } = await LeaveGrant.findAndCountAll({
       where, order: [['year', 'DESC'], ['id', 'DESC']], limit, offset,
+      include: [{ model: LeaveType, as: 'type', required: false }],
     });
     return paginatedResponse(res, rows.map((g) => ({
-      id: g.id, user_id: g.user_id, year: g.year, category: g.category || 'annual', days: Number(g.days),
+      id: g.id, user_id: g.user_id, year: g.year, leave_type_id: g.leave_type_id, type: LT.briefType(g.type),
+      category: g.category || 'annual', days: Number(g.days),
       note: g.note, granted_by: g.granted_by, created_at: g.created_at,
     })), count, { limit, page, offset });
   } catch (err) { next(err); }
@@ -65,23 +70,31 @@ router.post('/grants', authenticateToken, async (req, res, next) => {
     const scope = await requireMember(req, res, businessId);
     if (!scope) return;
     if (!isManager(scope)) return errorResponse(res, 'forbidden', 403);
-    const { user_id, year, days, note, category } = req.body;
+    const { user_id, year, days, note, category, leave_type_id } = req.body;
     if (!user_id || !year || days === undefined || days === null) return errorResponse(res, 'invalid_payload', 400);
-    // ★ 종류는 화이트리스트로만 — 모르는 값이 들어오면 연차로 떨어뜨리지 않고 **거절**한다.
-    //   조용히 기본값으로 떨어뜨리면 병가를 준 줄 알았는데 연차가 늘어난다
-    //   (memory feedback_unknown_state_silent_default).
-    const cat = category === undefined || category === null ? 'annual' : String(category);
-    if (!L.LEAVE_CATEGORIES.includes(cat)) return errorResponse(res, 'invalid_leave_category', 400);
+    // ★ 종류는 이 워크스페이스의 **활성 유급** 종류만 — 모르는 값은 연차로 떨어뜨리지 않고 거절한다
+    //   (memory feedback_unknown_state_silent_default). 옛 번들은 category 코드로 온다.
+    let type;
+    try {
+      type = (leave_type_id !== undefined && leave_type_id !== null && leave_type_id !== '')
+        ? await LT.resolveType(businessId, leave_type_id)
+        : await LT.resolveByCode(businessId, category || 'annual');
+    } catch (e) {
+      if (e instanceof LT.LeaveTypeError) return errorResponse(res, e.code, e.status);
+      throw e;
+    }
+    if (type.pay !== 'paid') return errorResponse(res, 'type_not_paid', 400);
     // 음수 허용 — 정정은 기존 row 를 고치는 게 아니라 반대 부호 row 를 얹는 것이다(원장식).
     const grant = await LeaveGrant.create({
-      business_id: businessId, user_id: Number(user_id), year: Number(year), category: cat,
+      business_id: businessId, user_id: Number(user_id), year: Number(year),
+      leave_type_id: type.id, category: LT.legacyCategoryOf(type),
       days: Number(days), note: (note || '').slice(0, 300) || null, granted_by: req.user.id,
     });
     await writeAudit({
       user_id: req.user.id, business_id: businessId, action: 'leave.grant',
       entity_type: 'leave_grant', entity_id: grant.id, new_value: grant.toJSON(),
     }).catch(() => null);
-    return successResponse(res, { id: grant.id, days: Number(grant.days), category: grant.category }, null, 201);
+    return successResponse(res, { id: grant.id, days: Number(grant.days), leave_type_id: type.id, type: LT.briefType(type), category: LT.legacyCategoryOf(type) }, null, 201);
   } catch (err) { next(err); }
 });
 
@@ -94,9 +107,16 @@ router.get('/balance', authenticateToken, async (req, res, next) => {
     const targetUser = req.query.user_id ? Number(req.query.user_id) : req.user.id;
     if (targetUser !== req.user.id && !isManager(scope)) return errorResponse(res, 'forbidden', 403);
     const year = req.query.year ? Number(req.query.year) : new Date().getFullYear();
-    const cat = req.query.category ? String(req.query.category) : null;
-    if (cat && !L.LEAVE_CATEGORIES.includes(cat)) return errorResponse(res, 'invalid_leave_category', 400);
-    return successResponse(res, await L.getBalance(businessId, targetUser, year, cat));
+    // 종류 하나로 좁히기 — leave_type_id(새) · category(옛 번들). 남의 워크스페이스 종류 id 는 400.
+    let typeId = null;
+    try {
+      if (req.query.leave_type_id) typeId = (await LT.resolveType(businessId, req.query.leave_type_id, { requireActive: false })).id;
+      else if (req.query.category) typeId = (await LT.resolveByCode(businessId, req.query.category, { requireActive: false })).id;
+    } catch (e) {
+      if (e instanceof LT.LeaveTypeError) return errorResponse(res, e.code, e.status);
+      throw e;
+    }
+    return successResponse(res, await L.getBalance(businessId, targetUser, year, typeId));
   } catch (err) { next(err); }
 });
 
@@ -137,6 +157,7 @@ router.get('/requests', authenticateToken, async (req, res, next) => {
     }
     const { rows, count } = await LeaveRequest.findAndCountAll({
       where, order: [['start_date', 'DESC'], ['id', 'DESC']], limit, offset,
+      include: [{ model: LeaveType, as: 'type', required: false }],
     });
     return paginatedResponse(res, rows.map(serializeRequest), count, { limit, page, offset });
   } catch (err) { next(err); }
@@ -150,6 +171,7 @@ router.post('/requests', authenticateToken, async (req, res, next) => {
     const request = await L.createRequest({
       businessId, userId: req.user.id, payload: req.body, actorUserId: req.user.id,
     });
+    request.type = await LeaveType.findByPk(request.leave_type_id);
     return successResponse(res, serializeRequest(request), null, 201);
   } catch (err) {
     if (err instanceof L.LeaveError) return errorResponse(res, err.code, err.status || 400);
@@ -171,6 +193,7 @@ function decisionHandler(fn) {
         return errorResponse(res, 'self_decision_forbidden', 403);
       }
       const updated = await fn({ requestId: request.id, actorUserId: req.user.id, decideNote: req.body.decide_note });
+      updated.type = await LeaveType.findByPk(updated.leave_type_id);
       return successResponse(res, serializeRequest(updated));
     } catch (err) {
       if (err instanceof L.LeaveError) return errorResponse(res, err.code, err.status || 400);
@@ -188,6 +211,7 @@ router.post('/requests/:id/cancel', authenticateToken, async (req, res, next) =>
     const scope = await requireMember(req, res, request.business_id);
     if (!scope) return;
     const updated = await L.cancel({ requestId: request.id, actorUserId: req.user.id, isManager: isManager(scope) });
+    updated.type = await LeaveType.findByPk(updated.leave_type_id);
     return successResponse(res, serializeRequest(updated));
   } catch (err) {
     if (err instanceof L.LeaveError) return errorResponse(res, err.code, err.status || 400);

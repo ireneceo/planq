@@ -8,16 +8,24 @@ import DetailDrawer from '../../components/Common/DetailDrawer';
 import { apiFetch } from '../../contexts/AuthContext';
 import styled from 'styled-components';
 import { Field, FieldLabel, NumInput, TextArea, ErrorBar } from './shared';
-import { LEAVE_CATEGORY_KEYS, type LeaveCategory } from './leaveCategory';
+import { useLeaveTypes, labelOf } from './leaveTypes';
 
 // ─── 신청 드로어 ────────────────────────────────────────────────
 export const LeaveRequestDrawer: React.FC<{ open: boolean; onClose: () => void; bizId: number; onDone: () => Promise<void> }> =
 ({ open, onClose, bizId, onDone }) => {
   const { t } = useTranslation('attendance');
   const today = new Date().toISOString().slice(0, 10);
-  const [leaveType, setLeaveType] = useState<'paid' | 'unpaid'>('paid');
-  // ★ 2026-09-09 — 휴가 **종류**. 잔여는 이 종류의 부여분에서만 깎인다.
-  const [category, setCategory] = useState<LeaveCategory>('annual');
+  // ★ 휴가 **종류**(2026-10-22 — 회사가 정한 목록). 잔여는 이 종류의 부여분에서만 깎인다.
+  //   유급/무급은 종류가 정한다 — 신청자가 고르지 않는다(docs/LEAVE_TYPES_DESIGN.md §2.2).
+  const { types } = useLeaveTypes(open ? bizId : null);
+  const [typeId, setTypeId] = useState<number | null>(null);
+  useEffect(() => {
+    if (!types.length) return;
+    if (!typeId || !types.some((x) => x.id === typeId)) setTypeId(types[0].id);
+  }, [types, typeId]);
+  const selType = types.find((x) => x.id === typeId) || null;
+  const leaveType = selType?.pay || 'paid';
+  const typeLabel = labelOf(selType, t);
   const [unit, setUnit] = useState<'full_day' | 'half_day' | 'hours'>('full_day');
   const [halfKind, setHalfKind] = useState<'am' | 'pm'>('am');
   const [hours, setHours] = useState('2');
@@ -35,16 +43,16 @@ export const LeaveRequestDrawer: React.FC<{ open: boolean; onClose: () => void; 
   //   ※ 최종 판정은 그대로 서버가 한다(여기서 막는 것은 안내일 뿐 — 화면만 믿으면 안 된다).
   const [balance, setBalance] = useState<{ granted: number; used: number; pending: number; remaining: number; remaining_after_pending: number; daily_work_hours: number } | null>(null);
   useEffect(() => {
-    if (!open || !bizId) return;
+    if (!open || !bizId || !typeId) return;
     let alive = true;
     const year = Number(start.slice(0, 4)) || new Date().getFullYear();
     // ★ **고른 종류의** 잔여를 묻는다. 전 종류 합을 보여주면 병가 잔여로 연차가 되는 줄 안다.
-    apiFetch(`/api/leave/balance?business_id=${bizId}&year=${year}&category=${category}`)
+    apiFetch(`/api/leave/balance?business_id=${bizId}&year=${year}&leave_type_id=${typeId}`)
       .then((r) => r.json())
       .then((j) => { if (alive && j?.success) setBalance(j.data); })
       .catch(() => { /* 잔여를 못 불러도 신청 자체는 막지 않는다 */ });
     return () => { alive = false; };
-  }, [open, bizId, start, category]);
+  }, [open, bizId, start, typeId]);
 
   // 이번 신청이 며칠인가 — **서버 `computeDaysCharged` 가 센다**(`/api/leave/preview`).
   //   ★ 2026-10-02 (#424) — 종일 휴가는 근무일(근무 요일 ∧ 워크스페이스 휴일 아님)만 센다.
@@ -76,13 +84,13 @@ export const LeaveRequestDrawer: React.FC<{ open: boolean; onClose: () => void; 
   const insufficient = shortBy > 0;
 
   const submit = async () => {
-    if (saving) return;
+    if (saving || !typeId) return;
     setSaving(true); setErr(null);
     try {
       const r = await apiFetch('/api/leave/requests', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          business_id: bizId, leave_type: leaveType, category, unit,
+          business_id: bizId, leave_type_id: typeId, unit,
           start_date: start, end_date: unit === 'full_day' ? end : start,
           half_kind: unit === 'half_day' ? halfKind : undefined,
           hours: unit === 'hours' ? Number(hours) : undefined,
@@ -97,10 +105,7 @@ export const LeaveRequestDrawer: React.FC<{ open: boolean; onClose: () => void; 
     } finally { setSaving(false); }
   };
 
-  const typeOpts = [
-    { value: 'paid', label: t('leave.paid') as string },
-    { value: 'unpaid', label: t('leave.unpaid') as string },
-  ];
+  const typeOpts = types.map((x) => ({ value: x.id, label: labelOf(x, t) }));
   const unitOpts = [
     { value: 'full_day', label: t('leave.fullDay') as string },
     { value: 'half_day', label: t('leave.halfDay') as string },
@@ -117,10 +122,10 @@ export const LeaveRequestDrawer: React.FC<{ open: boolean; onClose: () => void; 
       <DetailDrawer.Body>
         {/* ★ 잔여를 **고르기 전에** 보여준다. 여태 이 화면에는 잔여가 한 글자도 없어서
             잔여 0 으로 유급 신청을 하고, 그 사실을 승인 누른 관리자가 처음 알았다. */}
-        {balance && (
+        {balance && leaveType === 'paid' && (
           <BalanceBox $warn={insufficient}>
             <BalanceRow>
-              <span>{t('leave.balance.remainingOf', { cat: t(`leave.category.${category}`), defaultValue: '남은 {{cat}}' }) as string}</span>
+              <span>{t('leave.balance.remainingOf', { cat: typeLabel, defaultValue: '남은 {{cat}}' }) as string}</span>
               <strong>{t('leave.balance.days', { count: balance.remaining, defaultValue: '{{count}}일' }) as string}</strong>
             </BalanceRow>
             <BalanceSub>
@@ -141,17 +146,17 @@ export const LeaveRequestDrawer: React.FC<{ open: boolean; onClose: () => void; 
               <BalanceWarn>
                 {t('leave.balance.short', {
                   days: shortBy,
-                  defaultValue: '{{days}}일이 모자랍니다. 무급으로 신청하거나 관리자에게 휴가 부여를 요청하세요.',
+                  defaultValue: '{{days}}일이 모자랍니다. 무급 종류로 신청하거나 관리자에게 휴가 부여를 요청하세요.',
                 }) as string}
               </BalanceWarn>
             )}
           </BalanceBox>
         )}
-        {balance && balance.granted === 0 && (
+        {balance && leaveType === 'paid' && balance.granted === 0 && (
           <BalanceBox>
             <BalanceSub>
               {t('leave.balance.none', {
-                cat: t(`leave.category.${category}`),
+                cat: typeLabel,
                 defaultValue: '올해 부여받은 {{cat}} 가 없습니다. 관리자가 설정 > 근태에서 부여할 수 있어요.',
               }) as string}
             </BalanceSub>
@@ -159,16 +164,17 @@ export const LeaveRequestDrawer: React.FC<{ open: boolean; onClose: () => void; 
         )}
         <Field>
           <FieldLabel>{t('leave.categoryLabel', { defaultValue: '휴가 종류' }) as string}</FieldLabel>
-          <PlanQSelect size="md"
-            options={LEAVE_CATEGORY_KEYS.map((c) => ({ value: c, label: t(`leave.category.${c}`) as string }))}
-            value={{ value: category, label: t(`leave.category.${category}`) as string }}
-            onChange={(o) => setCategory(((o as { value: string })?.value as LeaveCategory) || 'annual')} />
-        </Field>
-        <Field>
-          <FieldLabel>{t('leave.type')}</FieldLabel>
           <PlanQSelect size="md" options={typeOpts}
-            value={typeOpts.find((o) => o.value === leaveType) || null}
-            onChange={(o) => setLeaveType(((o as { value: string })?.value as 'paid' | 'unpaid') || 'paid')} />
+            value={typeOpts.find((o) => o.value === typeId) || null}
+            onChange={(o) => setTypeId(Number((o as { value: number } | null)?.value) || null)} />
+          {/* 유급/무급은 종류가 정한다 — 고르는 칸이 아니라 읽기 전용 표시다 */}
+          {selType && (
+            <PayChip $paid={selType.pay === 'paid'} data-testid="leave-pay-chip">
+              {selType.pay === 'paid'
+                ? t('leave.payChip.paid', { defaultValue: '유급 · 남은 휴가에서 빠져요' }) as string
+                : t('leave.payChip.unpaid', { defaultValue: '무급 · 남은 휴가를 깎지 않아요' }) as string}
+            </PayChip>
+          )}
         </Field>
         <Field>
           <FieldLabel>{t('leave.unit')}</FieldLabel>
@@ -233,6 +239,12 @@ const BalanceRow = styled.div`
 `;
 const BalanceSub = styled.div`
   margin-top: 4px; font-size: 0.6875rem; color: #94A3B8; line-height: 1.5;
+`;
+const PayChip = styled.span<{ $paid: boolean }>`
+  display: inline-block; margin-top: 6px; padding: 2px 8px; border-radius: 6px;
+  font-size: 0.75rem; font-weight: 600;
+  background: ${(p) => (p.$paid ? '#F0FDFA' : '#F1F5F9')};
+  color: ${(p) => (p.$paid ? '#0F766E' : '#475569')};
 `;
 const BalanceWarn = styled.div`
   margin-top: 6px; font-size: 0.75rem; color: #B45309; font-weight: 600; line-height: 1.5;

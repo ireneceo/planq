@@ -14,6 +14,7 @@ import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
 import { ATTENDANCE_REFRESH_EVENT, type AttendanceDay } from '../../hooks/useAttendance';
 import { TeamTab } from '../Attendance/TeamTab';
 import HolidaySettingsSection from './HolidaySettingsSection';   // #424 휴일·근무일
+import LeaveTypeSettingsSection from './LeaveTypeSettingsSection';   // 휴가 종류 — 맨 위(docs/LEAVE_TYPES_DESIGN.md §6.1)
 import { AdminFixDrawer } from '../Attendance/AdminFixDrawer';
 import type { LeaveRequestRow, PresenceRow, StatRow } from '../Attendance/shared';
 
@@ -111,6 +112,7 @@ export default function AttendanceAdminSettings({ businessId }: Props) {
   return (
     <Wrap>
       <Desc>{t('admin.desc') as string}</Desc>
+      <LeaveTypeSettingsSection businessId={businessId} />
       <HolidaySettingsSection businessId={businessId} />
       <TeamTab
         presence={presence} teamDays={teamDays} allRequests={allRequests}

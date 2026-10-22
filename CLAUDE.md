@@ -619,6 +619,8 @@ dev 에만 있는 글이 운영에 샌다(그래서 배포 rsync 가 생성물�
 - 무인증 표면 `routes/survey_public.js`(`/api/survey/:token`) — 판정은 매 요청 `services/survey.resolveSurveyToken` **한 함수**(문서 생존·워크스페이스 생존·`blocksExternalShare`·게시·마감·정원·하드캡 5,000). 레이트리밋 주 키 = 토큰. 화면 `/public/survey/:token`.
 - 켜기 = 멤버 이상 ∧ `canEditPost`(L1 은 작성자만) · 보안등급 일반 아니면 켤 수 없고, 올리면 열쇠 회수. 운영 `migrate-survey.js`(배포 슬롯).
 
+**휴가 종류 (1, 2026-10-22):** **leave_types** — 워크스페이스가 직접 등록·관리하는 휴가 종류(시스템 5종 code annual·sick·family·other·unpaid + 커스텀 · 이름 · 유급/무급 `pay` · 연간 기본 일수 = 부여 폼 기본값, 자동 부여 아님). 부여·신청은 `leave_type_id` 로 가리키고 **유급/무급은 종류가 정한다** — 신청 행 `leave_type` 은 신청 시점 박제라 잔여·통계·급여 무급 일할은 그 박제만 읽는다(종류를 고쳐도 옛 신청·잔여·급여 불변). 쓰인 종류는 pay 불변·삭제 불가(끄기만). 읽고 쓰는 문 `services/leaveTypes`(resolveType 이 business_id 를 건다) · 화면 설정 › 근태 관리 맨 위 «휴가 설정». 옛 `category` ENUM 은 한 릴리즈 동안 쓰기만(롤백용) — 가드 `--category=leavetypes` 가 목록 리터럴·옛 칸 읽기를 막는다. 운영 `migrate-leave-types.js`(배포 슬롯, 롤백 `--rollback-nullable`). 설계 docs/LEAVE_TYPES_DESIGN.md
+
 **급여·계약 (8, 2026-10-15 · 기능 스위치 `businesses.modules.payroll` 기본 꺼짐):** payroll_people · employment_contracts · pay_items · contract_pay_lines · payroll_runs · payroll_entries · payroll_entry_lines · payroll_status_history. 설계 docs/PAYROLL_DESIGN.md(§13 구현 메모)
 - **PlanQ 는 급여를 «계산» 하지 않고 «정리·대조·확정» 한다** — 법정 공제는 세무사 대장 값이 정답(항목 calc `external`, 프리셋에 요율 숫자 없음). 금액 공식은 `services/payrollCalc` 한 벌(순수 함수, 검산 `node scripts/check-payroll-calc.js`).
 - 상태 전이는 `services/payrollTransition` 한 문(초안 → 대조 → 확정·잠금 → 지급완료, 정정은 정정 회차로만). 대장 읽기 `services/payrollStatement`(xlsx·csv 기계 · PDF 만 AI · 주민번호/계좌 모양 가림 `maskSensitive` 한 벌).

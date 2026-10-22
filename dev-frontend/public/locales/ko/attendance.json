@@ -96,7 +96,7 @@
       "days": "{{count}}일",
       "detail": "부여 {{granted}}일 · 사용 {{used}}일 · 신청 중 {{pending}}일",
       "thisRequest": "이번 신청은 근무일 기준 {{days}}일로 계산됩니다(쉬는 요일·휴일 제외)",
-      "short": "{{days}}일이 모자랍니다. 무급으로 신청하거나 관리자에게 휴가 부여를 요청하세요.",
+      "short": "{{days}}일이 모자랍니다. 무급 종류로 신청하거나 관리자에게 휴가 부여를 요청하세요.",
       "none": "올해 부여받은 {{cat}} 가 없습니다. 관리자가 설정 > 근태에서 부여할 수 있어요.",
       "remainingOf": "남은 {{cat}}"
     },
@@ -104,7 +104,8 @@
       "annual": "연차",
       "sick": "병가",
       "family": "경조사",
-      "other": "기타"
+      "other": "기타",
+      "unpaid": "무급휴가"
     },
     "categoryLabel": "휴가 종류",
     "linkedDecided": {
@@ -112,6 +113,10 @@
       "rejected": "{{name}} · {{date}} 신청은 이미 반려됐습니다.",
       "canceled": "{{name}} · {{date}} 신청은 취소됐습니다.",
       "pending": "{{name}} · {{date}} 신청은 아직 대기 중입니다."
+    },
+    "payChip": {
+      "paid": "유급 · 남은 휴가에서 빠져요",
+      "unpaid": "무급 · 남은 휴가를 깎지 않아요"
     }
   },
   "team": {

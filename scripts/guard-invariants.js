@@ -2872,6 +2872,60 @@ function checkTrialPlan() {
 }
 
 // ═══════════════════════════════════════════════
+// leavetypes — **휴가 종류 목록을 코드에 적지 않는다** (2026-10-22, docs/LEAVE_TYPES_DESIGN.md §9.4)
+//
+//   종류는 워크스페이스 데이터(leave_types)다. 코드에 4종 목록을 다시 적거나 옛 category 컬럼을
+//   **읽으면** 회사가 만든 종류가 그 자리에서 «기타» 로 떨어지거나 잔여·급여가 옛 축으로 갈라진다.
+//   category 는 롤백용 이중 기록이라 **쓰기만** 한다(legacyCategoryOf). 예외: migrate-* · leaveTypes.js.
+//   화면은 leave_type(유급/무급)을 본문에 싣지 않는다 — 유급/무급은 종류가 정한다.
+// ═══════════════════════════════════════════════
+function checkLeaveTypes() {
+  const bad = [];
+  let files = 0;
+  const walk = (dir, fn) => {
+    if (!fs.existsSync(dir)) return;
+    for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+      const fp = `${dir}/${e.name}`;
+      if (e.isDirectory()) { if (e.name !== 'node_modules') walk(fp, fn); continue; }
+      fn(fp, e.name);
+    }
+  };
+  const isComment = (t) => t.startsWith('//') || t.startsWith('*') || t.startsWith('/*');
+  for (const d of ['services', 'routes']) {
+    walk(`${ROOT}/dev-backend/${d}`, (fp, name) => {
+      if (!name.endsWith('.js') || name.startsWith('migrate-') || name === 'leaveTypes.js') return;
+      files += 1;
+      const src = read(fp);
+      const leaveFile = /Leave(Request|Grant|Type)|leaveTransition|leave_type/.test(src);
+      src.split('\n').forEach((l, i) => {
+        const t = l.trim();
+        if (isComment(t)) return;
+        const at = `${fp.replace(`${ROOT}/`, '')}:${i + 1}`;
+        if (/\bLEAVE_CATEGORIES\b/.test(l)) bad.push(`${at} — LEAVE_CATEGORIES (종류 목록은 leave_types 표에서 읽는다)`);
+        if (/\[\s*'annual'\s*,\s*'sick'\s*,\s*'family'\s*,\s*'other'\s*\]/.test(l)) bad.push(`${at} — 휴가 종류 4종 리터럴`);
+        // 옛 category 를 **읽는** 코드 — r.category · g.category · where.category · category: { [Op…
+        if (leaveFile && /\b(r|g|request|grant|row|x)\.category\b/.test(l) && !/category\s*:\s*(r|g|request|grant|row|x)\.category\s*\|\|\s*'annual'/.test(l)) {
+          bad.push(`${at} — 옛 category 읽기 (leave_type_id·type 을 본다)`);
+        }
+        if (leaveFile && /where\.category\b|category\s*:\s*\{\s*\[Op/.test(l)) bad.push(`${at} — 옛 category 로 조회`);
+      });
+    });
+  }
+  walk(`${ROOT}/dev-frontend/src`, (fp, name) => {
+    if (!/\.(tsx?|jsx?)$/.test(name)) return;
+    files += 1;
+    read(fp).split('\n').forEach((l, i) => {
+      const t = l.trim();
+      if (isComment(t)) return;
+      const at = `${fp.replace(`${ROOT}/`, '')}:${i + 1}`;
+      if (/\bLEAVE_CATEGORY_KEYS\b|from '\.\/leaveCategory'/.test(l)) bad.push(`${at} — 휴가 종류 목록을 화면에 적음 (useLeaveTypes)`);
+      if (/\/api\/leave\/requests/.test(read(fp)) && /\bleave_type\s*:\s*leaveType\b/.test(l)) bad.push(`${at} — 신청 본문에 leave_type (유급/무급은 종류가 정한다)`);
+    });
+  });
+  report('leavetypes', `휴가 종류는 leave_types 한 곳 — 목록 리터럴·옛 category 읽기 0 (${files}개 파일)`, bad.length === 0, bad);
+}
+
+// ═══════════════════════════════════════════════
 // navmenu — **메뉴 이름이 화면에 키로 노출되지 않는가** (2026-09-09 신설)
 //
 //   운영 신고 (Irene 2026-09-09): "탭 열기에서 어떤 메뉴들이 이름 제대로 안나오고 nav.으로 나와."
@@ -3744,6 +3798,7 @@ const CATEGORIES = {
   modulegate: checkModuleGate,
   convparticipants: checkConvParticipants,
   trialplan: checkTrialPlan,
+  leavetypes: checkLeaveTypes,
   navmenu: checkNavMenu,
   i18n: checkI18n,
   parity: checkParity,
