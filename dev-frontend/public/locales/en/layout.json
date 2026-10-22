@@ -116,7 +116,7 @@
       "calendar": "calendar,schedule",
       "note": "note,meeting,recording",
       "docs": "docs,document",
-      "info": "knowledge,info",
+      "info": "knowledge,info,information,accounts,contacts,list,checklist,pricing,policy",
       "files": "file,storage",
       "bill": "bill,invoice,billing",
       "personal-vault": "vault,personal",

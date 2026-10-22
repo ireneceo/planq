@@ -91,7 +91,7 @@
       "actionTask": "Create task",
       "actionTaskHint": "Prefill Q Task new-task modal with the transcript",
       "actionKnowledge": "Register knowledge",
-      "actionKnowledgeHint": "Save as a new entry in Q info",
+      "actionKnowledgeHint": "Save as an item in Q info (information DB)",
       "actionDocs": "Promote to document",
       "actionDocsHint": "AI-organize into a Q docs Brief",
       "actionShare": "External share",

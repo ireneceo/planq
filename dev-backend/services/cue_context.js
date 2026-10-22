@@ -53,7 +53,7 @@ const { M } = require('./cueMenus');
 const { label } = require('./cueLabels');
 const COVERED_DOMAINS = [
   '프로젝트', `업무(${M.task})`, `워크스페이스 일정(${M.calendar})`, '고객 명단',
-  `청구(${M.qbill})`, '서명 요청', `대화(${M.talk}) 최근 내역`, `회사 자료·지식베이스(${M.qinfo})`,
+  `청구(${M.qbill})`, '서명 요청', `대화(${M.talk}) 최근 내역`, `정보 DB(${M.qinfo} — 계정·연락처·가격·규정·체크리스트)`,
 ];
 const UNCOVERED_DOMAINS = [
   `문서(${M.docs})`, `파일(${M.file})`, `메일(${M.qmail})`,
@@ -1336,7 +1336,7 @@ function composeMarkdown({ history, project, client, kb, userSnap, matches, over
   }
 
   if (kb?.has_results) {
-    parts.push(`\n## 회사 자료 (${M.qinfo})`);
+    parts.push(`\n## 정보 DB (${M.qinfo})`);
     if (kb.pinned_faqs?.length) {
       kb.pinned_faqs.slice(0, 2).forEach(f => parts.push(`- FAQ: ${snip(f.question, 80)} → ${snip(f.answer, 200)}`));
     }

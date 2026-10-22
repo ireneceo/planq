@@ -25,7 +25,7 @@
     "aiIngestHint": "AI organizes pasted content or a text file into topics and adds them"
   },
   "help": {
-    "body": "Company knowledge DB referenced by Cue, AI writing, and Q note answer-finding.\n\n• Categories: Policy / Manual / Incident / FAQ / About / Pricing\n• Scope: Workspace / Project / Client\n• Narrower scope = higher answer precision",
+    "body": "Q info is your workspace information DB — information the team keeps reusing, stored item by item.\n\n• What: accounts and logins, vendors and contacts, price lists, policies and procedures, checklists and required documents, FAQs\n• How: a title plus named fields (URL, email, secret fields…) so items line up like a table · import and export with CSV · secret fields stay masked\n• Who sees it: only me / workspace / a project / a client (your team sees it, and Cue may use it when answering that client — clients have no Q info screen)\n• Cue and AI replies use what is here as their source\n\nDocuments to read (contracts, reports, minutes) go in Q docs, meeting recordings and personal memos in Q note, original files in Q file.",
     "cuePrefill": "Tell me how categories and scopes in Q info affect Cue's answers"
   },
   "cat": {
@@ -135,8 +135,8 @@
     "attached": "{{n}} attached"
   },
   "empty": {
-    "title": "No knowledge yet",
-    "desc": "Add company materials so Cue can find answers from them.",
+    "title": "No information yet",
+    "desc": "Collect information you keep reusing — accounts, contacts, pricing, policies, checklists — item by item. Cue finds answers here too.",
     "cta": "+ Add knowledge"
   },
   "modal": {
@@ -151,7 +151,7 @@
     "policyProject": "Specific project",
     "policyProjectHint": "Project members only",
     "policyClient": "Specific clients (multi)",
-    "policyClientHint": "Selected clients + our team",
+    "policyClientHint": "Your team sees it, and Cue may use it when answering the selected client(s) — not shown on the client's screen",
     "policyOwner": "Owners only",
     "policyOwnerHint": "Owner + admin only (price lists, internal accounts)",
     "vAll": "Workspace",
@@ -161,7 +161,7 @@
     "vMembers": "Selected members",
     "vMembersHint": "Only selected members can view (price lists, internal accounts)",
     "vClient": "Specific clients (multi)",
-    "vClientHint": "Selected client(s) and our team can view",
+    "vClientHint": "Your team sees it, and Cue may use it when answering the selected client(s) — not shown on the client's screen",
     "vPrivate": "Just me",
     "vPrivateHint": "Only you can view (personal vault)",
     "memberPick": "Pick members",

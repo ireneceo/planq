@@ -478,9 +478,9 @@
       },
       "wiki": {
         "name": "Q info · Guide",
-        "lead": "Build up FAQs and product how-tos as knowledge, reused across AI replies and help.",
+        "lead": "An information DB for what your team keeps reusing — accounts, contacts, pricing, policies, checklists — stored item by item. Product how-tos are right alongside.",
         "bullets": {
-          "0": "Search your workspace knowledge (FAQ) by meaning, not just keywords",
+          "0": "Named fields line items up like a table · CSV import · secret fields stay masked",
           "1": "Korean-language help search",
           "2": "Grounds Cue & mail AI replies"
         }

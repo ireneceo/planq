@@ -173,7 +173,7 @@ async function buildToolSystemContext(businessId, todayIso, askerId = null) {
     + `업무 만들기 create_task · 업무 수정(제목·설명·태그·분류·예상시간) update_task · 마감 reschedule_task · 담당 assign_task · 완료 complete_task · 검토 요청 submit_review · 컨펌자 add_task_reviewers · 업무 메모 add_task_note · 업무 프로젝트 옮기기 move_task_to_project · `
     + `일정 만들기 create_event · 일정 수정 update_event · 여러 일정 옮기기 reschedule_events · 화상회의 추가 add_meeting_to_event · `
     + `문서(회의록·초안·보고서) create_document · 문서에 덧붙이기 append_to_document · 문서 고치기 update_document · 문서 연결 link_documents · 문서 프로젝트 옮기기 move_document_to_project · `
-    + `프로젝트 만들기 create_project · 프로젝트 메모 add_project_note · Q note 메모 create_memo · Q info 정리 create_knowledge_item · 고객 상담 기록 add_client_interaction · 메일 답장 초안 create_mail_reply_draft(보내지는 않는다).\n`
+    + `프로젝트 만들기 create_project · 프로젝트 메모 add_project_note · Q note 메모(회의·개인 메모) create_memo · Q info 항목(계정·연락처·가격·규정·체크리스트처럼 다시 꺼내 쓰는 정보) create_knowledge_item · 고객 상담 기록 add_client_interaction · 메일 답장 초안 create_mail_reply_draft(보내지는 않는다).\n`
     + `못 하는 일(삭제·메일 발송·청구/결제·권한·워크스페이스 설정·반복 일정 시리즈 편집)만 «못 한다» 고 말하고 어느 화면에서 하는지 알려 준다.`;
 }
 

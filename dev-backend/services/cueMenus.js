@@ -25,7 +25,7 @@ const CUE_MENUS = [
   { navKey: 'calendar', name: 'Q calendar', desc: '일정' },
   { navKey: 'note',     name: 'Q note',     desc: '음성·요약' },
   { navKey: 'docs',     name: 'Q docs',     desc: '문서·서명' },
-  { navKey: 'qinfo',    name: 'Q info',     desc: '회사 자료·지식' },
+  { navKey: 'qinfo',    name: 'Q info',     desc: '정보 DB — 계정·연락처·가격·규정·체크리스트' },
   { navKey: 'file',     name: 'Q file',     desc: '파일' },
   { navKey: 'qbill',    name: 'Q bill',     desc: '청구' },
 ];
@@ -49,10 +49,23 @@ function menuRuleBlock() {
   return `메뉴 이름은 **실제로 있는 것만** 댄다. 이 워크스페이스의 메뉴는 이게 전부다:
   ${menuListNames()}.
   여기 없는 이름을 지어내지 말 것 — 특히 "Q knowledge" 는 **없는 메뉴다**(지식베이스는 Q info).
-  어느 메뉴인지 확실하지 않으면 메뉴 이름을 대지 말고, 무엇을 못 봤는지만 말한다.`;
+  어느 메뉴인지 확실하지 않으면 메뉴 이름을 대지 말고, 무엇을 못 봤는지만 말한다.
+  ${placementRule()}`;
+}
+
+/**
+ * 어디에 둘지 권하는 기준 — Cue·도움말이 같은 말을 쓴다(2026-10-22, Irene «Q info 는 DB 처럼 … 리스트업하는 곳»).
+ *   Cue 가 «Q note 나 Q info 에 정리해 두세요» 처럼 두 곳을 같이 권했다 — 기준이 없어서다.
+ */
+function placementRule() {
+  return `무엇을 어디에 남기라고 권할 때는 **한 메뉴만** 고른다(«A 나 B» 로 권하지 않는다):
+  · ${M.qinfo} = 정보 DB — 다시 꺼내 쓰는 정보를 항목별로 모아 두는 목록(계정·접속 정보, 거래처·연락처, 가격표, 규정·절차, 체크리스트·필요 서류, FAQ). 칸(항목)을 붙여 표처럼 정리하고 Cue 가 답할 때 근거로 쓴다
+  · ${M.docs} = 글로 읽는 것(계약·제안·보고서·회의록 문서)
+  · ${M.note} = 회의 녹음·받아쓰기·요약, 개인 메모
+  · ${M.task} = 할 일(누가 언제까지) · ${M.file} = 파일 원본`;
 }
 
 /** navKey → 표시 이름. 문장 안에 메뉴 이름을 끼워 넣을 때 쓴다 (문자열 직접 타이핑 금지). */
 const M = Object.fromEntries(CUE_MENUS.map((m) => [m.navKey, m.name]));
 
-module.exports = { CUE_MENUS, EXTRA_MENUS, M, menuListWithDesc, menuListNames, menuRuleBlock };
+module.exports = { CUE_MENUS, EXTRA_MENUS, M, menuListWithDesc, menuListNames, menuRuleBlock, placementRule };

@@ -47,8 +47,10 @@ const CATEGORIES = [
     summary: t('업무·수익성·팀·재무 통계와 내부/고객 구분', 'Tasks, profitability, team, finance stats with client/internal split') },
   { slug: 'cue', icon: 'star', sort: 12, title: t('Cue (AI 팀원)', 'Cue (AI teammate)'),
     summary: t('Cue에게 업무 맡기기·채팅 자동응답·자료 요약', 'Hand off tasks to Cue, auto-reply in chat, summarize material') },
-  { slug: 'qinfo', icon: 'info', sort: 13, title: t('Q info (고객·멤버 정보)', 'Q info'),
-    summary: t('고객·멤버 360° 정보와 통합 타임라인', 'Client and member 360° profiles with a unified timeline') },
+  // 2026-10-22 — 이 칸이 «고객·멤버 360°»(Q sale 고객 상세)를 설명하고 있었고 Q info 자체를 설명하는 글은 0건이었다.
+  //   정의는 Cue 와 같은 말(services/cueMenus.js placementRule) — Q info = 정보 DB.
+  { slug: 'qinfo', icon: 'info', sort: 13, title: t('Q info (정보 DB)', 'Q info (information DB)'),
+    summary: t('계정·연락처·가격·규정·체크리스트를 항목별로 모아 두고 꺼내 쓰기', 'Keep accounts, contacts, pricing, policies and checklists as items you can pull up anytime') },
   { slug: 'attendance', icon: 'clock', sort: 13.5, title: t('근태 (출퇴근·휴가)', 'Attendance & Leave'),
     summary: t('출퇴근 기록, 휴가 신청·승인, 업무와의 연동', 'Clock in and out, request and approve leave, and how it links to work') },
   { slug: 'settings', icon: 'gear', sort: 14, title: t('설정·권한', 'Settings & Permissions'),
@@ -1671,7 +1673,7 @@ const ARTICLES = [
     ] },
 
   // ── Q info ──
-  // #195 — 'Q info' 카테고리의 유일한 글. authenticated 면 카테고리 자체가 게스트에게 사라진다.
+  // #195 — authenticated 면 카테고리 자체가 게스트에게 사라진다 → public.
   { cat: 'settings', slug: 'connect-chatgpt-claude', visibility: 'public', linked_route: '/profile/integrations', est: 3,
     title: t('ChatGPT·Claude 연결하기', 'Connect ChatGPT or Claude'),
     summary: t('ChatGPT·Claude 에서 말로 PlanQ 업무를 찾고 만들고 기록하기', 'Find, create and record PlanQ work by talking to ChatGPT or Claude'),
@@ -1703,7 +1705,23 @@ const ARTICLES = [
       note('삭제·청구·결제·메일 발송·권한 변경은 AI 로 할 수 없습니다. 금액도 AI 에게 보여주지 않습니다. 연결을 끊으려면 «연결된 AI 앱» 에서 [연결 끊기] — 다음 요청부터 바로 막힙니다.',
         'Deleting, billing, payments, sending email and changing permissions are not available to the AI, and amounts are never shown to it. To disconnect, choose [Disconnect] in «Connected AI apps» — the next request is blocked immediately.'),
     ] },
-  { cat: 'qinfo', slug: 'client-member-360', visibility: 'public', linked_route: '/sale?tab=clients', est: 2,
+  { cat: 'qinfo', slug: 'use-qinfo', visibility: 'public', linked_route: '/info', est: 3,
+    title: t('Q info — 정보 DB 쓰기', 'Q info — using the information DB'),
+    summary: t('다시 꺼내 쓰는 정보를 항목별로 모아 두고, Cue 답변의 근거로', 'Store information you keep reusing as items — and let Cue answer from it'),
+    body: [
+      p('Q info 는 팀이 다시 꺼내 쓰는 정보를 항목별로 모아 두는 정보 DB 입니다. 계정·접속 정보, 거래처·연락처, 가격표, 규정·절차, 체크리스트·필요 서류, FAQ 처럼 «찾아서 그대로 쓰는» 것을 둡니다.',
+        'Q info is your workspace information DB — information the team keeps reusing, stored item by item: accounts and logins, vendors and contacts, price lists, policies and procedures, checklists and required documents, FAQs — things you look up and use as they are.'),
+      s('Q info 에서 [+ 정보 등록] 을 누르고 제목과 분류를 정합니다. 분류는 자유롭게 지어도 됩니다(예: 계정, 거래처, 비자 서류).',
+        'In Q info choose [+ Add], then give a title and a category. Categories are free text (e.g. Accounts, Vendors, Visa documents).'),
+      s('항목 칸을 붙입니다 — URL·이메일·긴 글·비밀 칸 등. 같은 분류의 항목들이 같은 칸을 쓰면 목록이 표처럼 정리되고, «리스트에 항상 표시» 를 켠 칸은 목록에서 바로 보입니다. 비밀 칸은 가려져 있다가 누를 때만 보입니다.',
+        'Add fields — URL, email, long text, secret and so on. Items in the same category that share fields line up like a table, and fields set to «always show in list» appear right in the list. Secret fields stay masked until you reveal them.'),
+      s('누가 볼지 고릅니다 — 나만 / 워크스페이스 / 특정 프로젝트 / 특정 고객. 고객 범위는 우리 팀이 보고, 그 고객의 대화방에서 Cue 가 답할 때 근거로 씁니다(고객 화면에는 Q info 가 보이지 않습니다).',
+        'Choose who sees it — only me / workspace / a project / a client. Client-scoped items are visible to your team and Cue may use them when answering that client in chat (clients do not see a Q info screen).'),
+      s('많을 때는 CSV 로 한 번에 올리고, 필요하면 CSV 로 내려받습니다.', 'For many items, import them at once with CSV — and export to CSV when you need to.'),
+      note('어디에 둘지 헷갈리면 — 글로 읽는 문서(계약·제안·보고서·회의록)는 Q docs, 회의 녹음·받아쓰기·개인 메모는 Q note, 할 일은 Q task, 파일 원본은 Q file, 다시 꺼내 쓰는 정보는 Q info.',
+        'Not sure where something goes? Documents to read (contracts, proposals, reports, minutes) go in Q docs; meeting recordings, transcripts and personal memos in Q note; to-dos in Q task; original files in Q file; reusable information in Q info.'),
+    ] },
+  { cat: 'qsale', slug: 'client-member-360', visibility: 'public', linked_route: '/sale?tab=clients', est: 2,
     title: t('고객·멤버 360° 정보', 'Client & member 360° profiles'),
     summary: t('고객·멤버의 대화·업무·청구·파일을 한 곳에서', 'See a person’s chats, tasks, billing, and files in one place'),
     body: [

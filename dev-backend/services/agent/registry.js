@@ -394,7 +394,7 @@ const TOOLS = [
   },
   {
     name: 'search_knowledge', risk: 'LOW', write: false, scopes: ['projects:read'], list: true,
-    description: 'Search Q info (the workspace knowledge base: policies, manuals, FAQs, pricing, account info…) by title, body or field values. Secret fields are never searched or shown; items with a security level are restricted (no snippet). Read-only.',
+    description: 'Search Q info (the workspace information DB — items the team keeps reusing, each with named fields: accounts and logins, contacts and vendors, pricing, policies and procedures, checklists, FAQs) by title, body or field values. Secret fields are never searched or shown; items with a security level are restricted (no snippet). Read-only.',
     input: {
       query: z.string().max(100).optional(),
       category: z.enum(['policy', 'manual', 'incident', 'faq', 'about', 'pricing']).optional(),
@@ -542,7 +542,7 @@ const TOOLS = [
   },
   {
     name: 'create_knowledge_item', risk: 'LOW', write: true, scopes: ['docs:write'],
-    description: 'Add an item to PlanQ Q info (the team\'s reference information: guides, policies, account lists…). Give a title, a body and a category, and optionally named fields (e.g. {"Service": "…", "URL": "…"}). Passwords, tokens or keys are not accepted. Who can see it: "private" (only the user, default), "project" (that project\'s members), "workspace" (all members) or "client" (that client can see it too).',
+    description: 'Add an item to PlanQ Q info (the workspace information DB — information the team keeps reusing, stored as an item with named fields: accounts, contacts, pricing, policies, checklists, FAQs). Use Q docs for documents to read (contracts, reports, minutes) and Q note for meeting notes or personal memos. Give a title, a body and a category, and optionally named fields (e.g. {"Service": "…", "URL": "…"}). Passwords, tokens or keys are not accepted. Who can see it: "private" (only the user, default), "project" (that project\'s members), "workspace" (all members) or "client" (team members, and Cue may use it when answering that client — the client has no Q info screen).',
     input: {
       title: z.string().trim().min(1).max(300),
       body: z.string().max(100000).optional(),
