@@ -1850,6 +1850,11 @@ const MailPage: React.FC = () => {
   // 보내는 주소(Send-as) — 이 계정에 등록된 별칭. 주소가 하나뿐이면 셀렉트를 숨긴다
   //   (없는 선택지를 보여주지 않는다).
   const aiInstructionRef = useRef<HTMLTextAreaElement | null>(null);
+  // [AI 답변 초안] 은 바로 생성하지 않고 답장창의 AI 요청 바로 데려온다 — 의도를 적고 Enter, 비우고 Enter 면 알아서(2026-10-22 Irene).
+  const aiBarFocusPending = useRef(false);
+  useEffect(() => {
+    if (replyOpen && aiBarFocusPending.current) { aiBarFocusPending.current = false; aiInstructionRef.current?.focus(); }
+  }, [replyOpen]);
   const [aliases, setAliases] = useState<Array<{ id: number; email: string; display_name: string | null; is_default: boolean }>>([]);
   // 3상태: null = 미지정(서버가 "받은 주소로" 자동 결정) / 0 = 계정 주소 **명시 선택** / N = 별칭 명시.
   //   ★ 여태 미지정과 명시선택이 둘 다 0 이었다. 별칭 목록이 아직 안 실렸거나 매칭이 빗나가면 0 이 나갔고,
@@ -3483,7 +3488,7 @@ const MailPage: React.FC = () => {
                       {t('reply.button', { defaultValue: '답장하기' }) as string}
                     </ActionButton>
                     {/* AI 답변 초안 — 플랫폼 기능은 'AI' 로 통일한다 (Cue 는 팀원으로 존재할 때만 Cue).
-                      * 여기서 바로 부르면 작성창이 초안이 채워진 채로 열린다.
+                      * 누르면 작성창을 열고 AI 요청 바에 커서를 둔다(바로 생성하면 의도를 적을 틈이 없었다).
                       * ★ 운영 #251·#221 — 옛 코드는 triage 가 human/unknown 일 때만 노출해서,
                       *   자동·마케팅으로 분류된 메일에서는 버튼이 사라졌다. 그 결과 사용자에게는
                       *   "답변 필요 탭에만 나온다" 로 보였다. 분류는 우선순위 힌트이지
@@ -3493,7 +3498,7 @@ const MailPage: React.FC = () => {
                       <AiActionButton
                         size="md"
                         loading={aiBusy}
-                        onClick={() => { setReplyOpen(true); aiSuggest(); }}
+                        onClick={() => { aiBarFocusPending.current = true; setReplyOpen(true); }}
                         label={aiBusy
                           ? (t('reply.aiThinking', { defaultValue: 'AI 작성 중…' }) as string)
                           : (t('reply.aiDraft', { defaultValue: 'AI 답변 초안' }) as string)}

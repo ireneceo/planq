@@ -283,7 +283,7 @@
     "dismiss": "No reply needed",
     "waitingDays": "{{n}} days waiting",
     "aiLimitExceeded": "You've used all AI actions this month.",
-    "aiHint": "AI writes a draft reply for this email",
+    "aiHint": "Tell AI what you want to say and it drafts the reply · leave empty to let it decide",
     "aiInstructionPlaceholder": "Ask AI to revise (e.g., more polite · emphasize price · shorter) · Enter",
     "aiInstructionLabel": "AI request",
     "from": "From",
