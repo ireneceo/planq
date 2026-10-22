@@ -1003,7 +1003,10 @@
       "last_extracted_email_message_id",
       "spam_origin",
       "spam_since",
-      "impersonation"
+      "impersonation",
+      "last_inbound_message_id",
+      "read_floor_message_id",
+      "reply_task_id"
     ],
     "employment_contracts": [
       "id",
@@ -1103,6 +1106,8 @@
       "admin_response",
       "responded_by",
       "responded_at",
+      "approved_by",
+      "approved_at",
       "reply_seen_at",
       "created_at",
       "updated_at",
@@ -1988,7 +1993,8 @@
       "apple_key_id",
       "apple_private_key_enc",
       "image_gate_l1_off_until",
-      "gtm_container_id"
+      "gtm_container_id",
+      "feedback_approval_since"
     ],
     "post_attachments": [
       "id",

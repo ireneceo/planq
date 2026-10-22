@@ -319,8 +319,9 @@ async function listUnlinkedTouchpoints(businessId, opts = {}) {
       const showIds = wantIds.slice(0, perSource);
       const threads = await EmailThread.findAll({
         where: { id: { [Op.in]: showIds } }, order: [['last_message_at', 'DESC']],
+        // unread_count = 보는 사람 기준 0/1(services/mailRead — 화면이 같은 키를 읽는다)
         attributes: ['id', 'subject', 'last_message_at', 'last_message_preview',
-          'last_message_direction', 'unread_count', 'reply_needed', 'reply_needed_reason', 'created_at'],
+          'last_message_direction', (userId ? require('./mailRead').unreadAttribute(userId) : [require('../config/database').sequelize.literal('0'), 'unread_count']), 'reply_needed', 'reply_needed_reason', 'created_at'],
       });
       const { isAutomatedSenderAddress } = require('./emailTriage');
       for (const t of threads) {

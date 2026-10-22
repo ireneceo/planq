@@ -171,6 +171,8 @@ router.get('/:email/threads', authenticateToken, checkBusinessAccess, requireMen
         { model: Client, attributes: ['id', 'display_name', 'company_name'], required: false },
         { model: Project, attributes: ['id', 'name', 'color'], required: false },
       ],
+      // unread_count = 보는 사람 기준 0/1(services/mailRead) — 전체 목록과 같은 칸이어야 같은 메일이 같은 굵기로 보인다
+      attributes: { exclude: ['unread_count'], include: [require('../services/mailRead').unreadAttribute(req.user.id)] },
       order: [['last_message_at', 'DESC']],
       limit, offset,
       distinct: true,

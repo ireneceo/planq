@@ -220,6 +220,7 @@ async function applyGroup(plan, runId) {
     // ⑧ 생존자 행 — 상태 계열은 최근 스레드 값 하나, 카운터는 메시지에서
     const agg = (await Q(`SELECT COUNT(*) n, SUM(is_read = 0) u FROM email_messages WHERE thread_id = :S`, { S }, t))[0];
     const last = (await Q('SELECT id, direction, sent_at, body_text, body_html FROM email_messages WHERE thread_id = :S ORDER BY sent_at DESC, id DESC LIMIT 1', { S }, t))[0];
+    const lastIn = (await Q("SELECT id FROM email_messages WHERE thread_id = :S AND direction = 'inbound' ORDER BY sent_at DESC, id DESC LIMIT 1", { S }, t))[0];
     const firstNonNull = (k) => { for (const id of order) { const v = byId.get(id)[k]; if (v != null) return v; } return null; };
     const labels = [...new Set(rows.flatMap((r) => asArr(r.labels) || []))].slice(0, 20);
     let parts = []; for (const r of [sv, ...rows.filter((r) => r.id !== S)]) parts = mergeParticipants(parts, asArr(r.participants) || []);
@@ -237,6 +238,11 @@ async function applyGroup(plan, runId) {
       last_extracted_email_message_id: cursors.some((c) => c == null) ? null : Math.min(...cursors),
       participants: JSON.stringify(parts),
       message_count: Number(agg.n) || 0, unread_count: Number(agg.u) || 0,
+      // 2026-10-22 멤버별 읽음 — 마지막 받은 메일은 메시지에서 다시 찾고, 바닥은 그 메일을 가졌던 스레드의 것만 잇는다
+      //   (다른 스레드의 바닥 id 를 쓰면 시각과 무관한 id 비교로 안 읽은 메일이 읽음이 된다). 답변 업무는 최근 스레드 것부터.
+      last_inbound_message_id: lastIn ? lastIn.id : null,
+      read_floor_message_id: lastIn ? ((rows.find((r) => Number(r.last_inbound_message_id) === Number(lastIn.id)) || {}).read_floor_message_id ?? null) : null,
+      reply_task_id: firstNonNull('reply_task_id'),
       last_message_at: last ? last.sent_at : sv.last_message_at,
       last_message_direction: last ? last.direction : sv.last_message_direction,
       last_message_preview: last ? (buildPreview(last.body_text, last.body_html, 500) || null) : sv.last_message_preview,

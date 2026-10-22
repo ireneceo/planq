@@ -955,5 +955,35 @@
       "display_name_domain": "보낸 사람 이름에 실제 보낸 주소와 다른 회사·도메인 이름이 들어 있어요.",
       "reply_to_divergent": "답장이 보낸 회사가 아니라 무료 메일 주소로 가도록 되어 있어요."
     }
+  },
+  "replyOwner": {
+    "prefix": "답변 담당",
+    "none": "없음",
+    "aria": "답변 담당 정하기",
+    "intro": "정하면 «메일 답변» 업무가 생기고, 담당자가 답장하면 끝납니다.",
+    "me": "내가 답변할게요",
+    "askOther": "다른 멤버에게 답변 요청",
+    "clear": "담당 없음으로",
+    "openTask": "연결된 업무 보기",
+    "doneShort": "답변함",
+    "taskState": {
+      "open": "진행 중",
+      "completed": "완료",
+      "canceled": "취소"
+    },
+    "errReassign": "연결된 업무를 만든 사람이나 관리자만 담당을 바꿀 수 있어요.",
+    "errCannotSee": "그 멤버는 이 메일함을 볼 수 없어요.",
+    "errGeneric": "담당을 바꾸지 못했어요. 다시 시도해 주세요.",
+    "errNoTask": "담당은 정했지만 업무는 만들지 못했어요(업무 메뉴 권한)."
+  },
+  "readStatus": {
+    "prefix": "읽음",
+    "aria": "누가 읽고 답했는지",
+    "read": "읽음 ({{n}})",
+    "unread": "안 읽음 ({{n}})",
+    "replied": "답장 ({{n}})",
+    "earlier": "이전에 읽음",
+    "none": "아직 없음",
+    "noReply": "아직 답장한 멤버 없음"
   }
 }

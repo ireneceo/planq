@@ -1060,9 +1060,20 @@ async function ingestMessage(ctx, { r, uid, box, role = 'inbox', isBackfill }) {
     // 사칭 경고(격리 아님) — 스레드 배지. 여러 메시지면 가장 센 것(사람이 풀어 준 표시는 유지).
     if (impersonation) triageFields.impersonation = require('./mailImpersonation').mergeLevels(thread.impersonation, impersonation);
   } catch (e) { console.warn('[emailTriage]', e.message); }
+  // 2026-10-22 멤버별 읽음 — 마지막 «받은» 메일(우리 사본 제외 · 순서 역전 제외, Fable C1). 판정은 services/mailRead.
+  //   늦게 들어온 옛 메일(백필·순서 바뀐 도착)이 이 값을 덮으면 모두에게 «안 읽음» 으로 되살아난다 — 시각으로 비교한다.
+  let inboundLatest = false;
+  if (!ownCopy) {
+    if (!thread.last_inbound_message_id) inboundLatest = true;
+    else {
+      const prev = await EmailMessage.findByPk(thread.last_inbound_message_id, { attributes: ['sent_at'] }).catch(() => null);
+      inboundLatest = !prev || !prev.sent_at || new Date(msgAt).getTime() >= new Date(prev.sent_at).getTime();
+    }
+  }
   await thread.update({
     message_count: thread.message_count + 1,
     unread_count: ownCopy ? thread.unread_count : thread.unread_count + 1,
+    ...(inboundLatest ? { last_inbound_message_id: message.id } : {}),
     ...(isLatest ? {
       last_message_at: parsed.date || new Date(),
       last_message_direction: ownCopy ? 'outbound' : 'inbound',
@@ -1078,6 +1089,19 @@ async function ingestMessage(ctx, { r, uid, box, role = 'inbox', isBackfill }) {
   if (!spammy) try {
     require('./mailAutoExtract').scheduleFromInbound({ thread, account, isBackfill, io });
   } catch (e) { console.warn('[mailAutoExtract] schedule', e.message); }
+
+  // 2026-10-22 답변 업무 — 업체 보낸편지함 사본(우리가 밖에서 보낸 답장)이면 보낸 멤버를 찾아 완료/댓글(services/mailReplyTask).
+  //   답변 업무가 걸린 스레드만 본다. 백필 사본이 새 업무를 닫지 않게 시각 조건은 그 함수가 본다(Fable C5).
+  if (role === 'sent' && thread.reply_task_id && !internalOnly) {
+    try {
+      const senders = await require('./mailSender').resolveOutboundSenders(account.business_id, account.get ? account.get({ plain: true }) : account,
+        [{ id: message.id, direction: 'outbound', from_email: fromEmail, sent_by_user_id: null }]);
+      const s = senders.get(message.id);
+      if (s && s.user_id) {
+        await require('./mailReplyTask').onReplySent({ thread, senderUserId: s.user_id, sentAt: msgAt, viaImapCopy: true });
+      }
+    } catch (e) { console.warn('[mailReplyTask imap]', e.message); }
+  }
 
   // socket emit
   if (io) {

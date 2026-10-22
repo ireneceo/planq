@@ -104,3 +104,8 @@
 - C7 마이그레이션 `migrate-mail-member-read.js` 배포 슬롯·코드보다 먼저·멱등·chunk · 칸 3 + 인덱스 · 출력 «바닥 채운 수 / 안 읽음으로 남는 수» · 롤백은 코드만.
 
 비차단: N1 `unread_count`·`is_read` 계속 쓴다(되돌리기용), 읽기 금지 가드 `mailread` · N2 memberHandover 거울 카나리 · N3 명단 `audienceOf` = 공용이면 qmail≠none 멤버(ai 제외)·개인이면 주인, 상세에만 · N4 알림 한 통(task_assigned 만, mail_assigned 끔) · N5 스레드 합치기·retriage 가 참여자 행을 옮기는지 · N6 칩 모양·문구는 자체 검증.
+
+### 7-1. 완료 검증 1차(Fable) — FAIL → 반영
+- C8 요청 답변 업무가 요청자 자동 컨펌 때문에 답장해도 안 닫힘 → **메일 답변 업무만 자동 컨펌자를 붙이지 않는다**(`createTask` opts `autoReviewer:false`). 담당자 답장 = 완료, 요청자에게 완료 알림. 사람이 나중에 컨펌자를 더한 업무는 완료 대신 댓글(결정 3 그대로).
+- C9 주소 모드 목록(`routes/email_addresses.js`)이 옛 공용 칸을 냈다 → `unreadAttribute` 한 줄 + 가드 mailread 가 «목록 행을 만드는 파일은 unreadAttribute 를 가진다» 를 본다 + 카나리 1검사.
+- N7 «답변 불필요»·«확인 완료» 로 업무가 취소돼도 담당 거울(`is_assigned`)은 남는다 — 담당은 사람이 건 표시라 확인 완료로 안 지워진다(Q mail 계약 ①). 칩은 «담당 X», 팝오버의 업무 줄이 «취소» 를 말한다.

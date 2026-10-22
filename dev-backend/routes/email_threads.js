@@ -32,6 +32,13 @@ const { outgoingIdentityFor, accessibleAccountIds, receivedAddressesOf } = requi
 // 검색 결과의 "왜 걸렸나" (match: { field, snippet }) — 2026-09-11
 const { attachMailMatches } = require('../services/mailSearchMatch');
 const { mailSearchCondition } = require('../services/mailSearchWhere');
+// 2026-10-22 — 읽음은 «사람 × 스레드»(services/mailRead 한 곳). 칸 unread_count 는 읽지 않는다(가드 mailread).
+const mailRead = require('../services/mailRead');
+// 읽음 신호는 **내 방에만**(Fable C4) — 내 다른 기기만 다시 읽으면 된다. 워크스페이스 방에 쏘면 멤버 전원이 목록을 다시 읽는다.
+function emitMyRead(req, businessId, payload) {
+  const io = req.app.get('io');
+  if (io) io.to(`user:${req.user.id}`).emit('mail:updated', { ...payload, business_id: Number(businessId), read: true });
+}
 
 // 발신 별칭 id 파싱 — **0 은 "계정 주소 명시 선택"이고 미지정이 아니다.**
 //   `from_alias_id || null` 로 뭉개면 서버가 기본별칭으로 덮어써, 화면은 help@ 를 보여주는데
@@ -158,7 +165,7 @@ router.get('/:businessId/email-threads',
           sequelize.literal(`JSON_CONTAINS(\`labels\`, ${sequelize.escape(JSON.stringify(lb))})`),
         ];
       }
-      if (String(unread) === 'true') where.unread_count = { [Op.gt]: 0 };
+      if (String(unread) === 'true') where[Op.and] = [...(where[Op.and] || []), mailRead.unreadForWhere(req.user.id)];
       if (String(starred) === 'true') where.is_starred = true;
       // #449 — 「문의 후보만」(수동 모드에서 자동 기준에만 드는 메일). 판정은 상담 유입과 **같은 함수**의 캐시다.
       //   ★ id 조건은 Op.and 안에 넣는다 — assigned/following 의 where.id 를 덮어쓰지 않게.
@@ -205,7 +212,11 @@ router.get('/:businessId/email-threads',
         //   reply·compose·forward 3곳 + 향후 IMAP Sent 동기화까지 있어 컬럼은 조용히 어긋난다
         //   (memory feedback_dual_column_authority_write_side). 인덱스 email_messages_thread_time 이 받쳐 준다.
         //   받은 메일 폴더는 **받은 시각** 순이다 — 내가 답장해도 자리가 움직이지 않는다(services/mailFolders receivedOrder).
-        ...(folder === 'sent' ? {} : { attributes: { include: [receivedAtAttribute()] } }),
+        // unread_count 는 **보는 사람 기준 0/1** 로 갈아 끼운다(services/mailRead — 키 이름은 그대로).
+        attributes: {
+          exclude: ['unread_count'],
+          include: [...(folder === 'sent' ? [] : [receivedAtAttribute()]), mailRead.unreadAttribute(req.user.id)],
+        },
         order: relevanceOrder
           ? [relevanceOrder, ...(folder === 'sent' ? sentOrder(sentVia) : receivedOrder())]
           : (folder === 'sent' ? sentOrder(sentVia) : receivedOrder()),
@@ -369,9 +380,10 @@ router.get('/:businessId/mail-accounts',
       const ids = accts.map(a => a.id);
       const unreadMap = {};
       if (ids.length) {
+        // 계정별 «나에게 안 읽은 스레드 수»(services/mailRead — 옛 SUM(unread_count) 은 메시지 수·공용 읽음이었다)
         const rows = await EmailThread.findAll({
-          where: { business_id: businessId, account_id: { [Op.in]: ids } },
-          attributes: ['account_id', [sequelize.fn('SUM', sequelize.col('unread_count')), 'unread']],
+          where: { [Op.and]: [{ business_id: businessId, account_id: { [Op.in]: ids } }, mailRead.unreadForWhere(req.user.id)] },
+          attributes: ['account_id', [sequelize.fn('COUNT', sequelize.col('EmailThread.id')), 'unread']],
           group: ['account_id'],
         });
         rows.forEach(r => { unreadMap[r.account_id] = Number(r.get('unread')) || 0; });
@@ -451,6 +463,43 @@ router.get('/:businessId/email-threads/:id',
       const assignedP = parts.find(p => p.is_assigned);
       const myP = parts.find(p => p.user_id === req.user.id);
 
+      // 2026-10-22 — «누가 읽고 누가 답했나»(공용 메일함만 · 개인은 주인 혼자라 그리지 않는다).
+      //   명단 = 이 계정을 지금 볼 수 있는 멤버(services/mailRead.audienceOf). 답장 = 확인된 보낸 멤버만(senderMap).
+      let readStatus = null;
+      if (thread.EmailAccount && !thread.EmailAccount.owner_user_id) {
+        try {
+          const audience = await mailRead.audienceOf(businessId, thread.EmailAccount);
+          const readers = await mailRead.readersOf(thread, audience);
+          const lastInboundAt = (() => {
+            const m = messages.find(x => x.id === thread.last_inbound_message_id);
+            return m ? new Date(m.sent_at).getTime() : 0;
+          })();
+          const repl = new Map();
+          for (const m of messages) {
+            if (m.direction !== 'outbound') continue;
+            const s = senderMap.get(m.id);
+            if (!s || !s.user_id) continue;
+            const at = m.sent_at ? new Date(m.sent_at).getTime() : 0;
+            const prev = repl.get(s.user_id);
+            if (!prev || at > prev.at || (at === prev.at && m.id > prev.mid)) repl.set(s.user_id, { user_id: s.user_id, name: s.name || null, at, mid: m.id });
+          }
+          readStatus = {
+            readers,
+            repliers: [...repl.values()].sort((a, b) => (b.at - a.at) || (b.mid - a.mid)).map(r => ({
+              user_id: r.user_id, name: r.name, replied_at: r.at ? new Date(r.at).toISOString() : null,
+              after_last_inbound: !!(lastInboundAt && r.at >= lastInboundAt),
+            })),
+          };
+        } catch (e) { console.warn('[mail detail readStatus]', e.message); }
+      }
+      // 답변 업무(services/mailReplyTask) — 담당 칩이 업무 상태를 같이 보인다. 없는 업무 = 없음.
+      let replyTask = null;
+      if (thread.reply_task_id) {
+        const { Task } = require('../models');
+        const tk = await Task.findOne({ where: { id: thread.reply_task_id, business_id: businessId }, attributes: ['id', 'status', 'assignee_id', 'due_date'] }).catch(() => null);
+        if (tk) replyTask = { id: tk.id, status: tk.status, assignee_id: tk.assignee_id, due_date: tk.due_date };
+      }
+
       const tj = thread.toJSON();
       return successResponse(res, {
         id: tj.id,
@@ -477,9 +526,12 @@ router.get('/:businessId/email-threads/:id',
           level: tj.impersonation.level, signals: (tj.impersonation.signals || []).slice(0, 20),
           known: !!tj.impersonation.known, released: !!tj.impersonation.released_at,
         } : null,
-        unread_count: tj.unread_count || 0,
+        // 보는 사람 기준(services/mailRead) — 옛 공용 칸을 읽지 않는다
+        unread_count: mailRead.isUnreadFor(thread, myP ? myP.last_read_message_id : null) ? 1 : 0,
         message_count: tj.message_count || 0,
         labels: tj.labels || [],
+        read_status: readStatus,
+        reply_task: replyTask,
         assignee_user_id: assignedP ? assignedP.user_id : null,
         assignee_name: assignedP && assignedP.User ? assignedP.User.name : null,
         my_following: !!(myP && myP.is_following),
@@ -575,14 +627,16 @@ router.post('/:businessId/email-threads/:id/mark-read', // audit-exempt: 본인 
         where: { id: req.params.id, business_id: req.params.businessId, account_id: { [Op.in]: acctIds.length ? acctIds : [0] } },
       });
       if (!thread) return errorResponse(res, 'thread_not_found', 404);
+      // 읽음 = **나만**(services/mailRead). 옛 공용 칸(unread_count·is_read)은 «아무도 안 읽음» 사본으로 계속 쓴다(되돌리기용).
+      await mailRead.markReadFor(req.user.id, [thread.id]);
       if (thread.unread_count > 0) {
         await thread.update({ unread_count: 0 });
-        // EmailMessage 의 is_read 도 같이 갱신
         await EmailMessage.update(
           { is_read: true },
           { where: { thread_id: thread.id, is_read: false } }
         );
       }
+      emitMyRead(req, req.params.businessId, { thread_id: thread.id, unread: 0 });
       return successResponse(res, { id: thread.id, unread_count: 0 });
     } catch (err) { next(err); }
   }
@@ -694,10 +748,16 @@ router.post('/:businessId/email-threads/:id/mark-handled',
         { is_read: true },
         { where: { thread_id: thread.id, is_read: false } },
       ).catch(() => {});
+      // 확인 완료 = 상태는 팀 것, 읽음은 **누른 사람만**(services/mailRead).
+      await mailRead.markReadFor(req.user.id, [thread.id]);
       // reply_needed:false 를 실어야 위 헬퍼가 뱃지 갱신까지 쏜다 (답변 완료 = 답변필요 해제).
       const handledDiff = auditDiff(handledBefore, thread.get({ plain: true }), ['status', 'reply_needed']);
       if (handledDiff) logAudit(req, { action: 'mail.mark_handled', targetType: 'email_thread', targetId: thread.id, businessId, ...handledDiff });
-      broadcastMail(req, businessId, 'mail:updated', { thread_id: thread.id, handled: true, unread: 0, reply_needed: false });
+      broadcastMail(req, businessId, 'mail:updated', { thread_id: thread.id, handled: true, reply_needed: false });
+      // 확인 완료 = 열린 답변 업무 취소(services/mailReplyTask — 권한 없으면 그대로).
+      try {
+        await require('../services/mailReplyTask').onReplyNotNeeded({ thread, actorUserId: req.user.id, platformRole: req.user.platform_role || null, reason: 'mail_handled' });
+      } catch (e) { console.warn('[mailReplyTask handled]', e.message); }
       return successResponse(res, { id: thread.id, status: 'archived', unread_count: 0 });
     } catch (err) { next(err); }
   }
@@ -775,6 +835,10 @@ router.post('/:businessId/email-threads/:id/dismiss-reply',
       } catch (e) { console.warn('[mailSenderRules dismiss]', e.message); }
 
       broadcastMail(req, businessId, 'mail:updated', { id: thread.id, reply_needed: false });
+      // 답변 불필요 = 열린 답변 업무 취소(services/mailReplyTask — 권한 없으면 그대로). 메일 동작은 이미 끝났다.
+      try {
+        await require('../services/mailReplyTask').onReplyNotNeeded({ thread, actorUserId: req.user.id, platformRole: req.user.platform_role || null, reason: 'mail_reply_not_needed' });
+      } catch (e) { console.warn('[mailReplyTask dismiss]', e.message); }
       return successResponse(res, { id: thread.id, reply_needed: false, learned });
     } catch (err) { next(err); }
   }
@@ -939,6 +1003,17 @@ async function inChunks(ids, fn) {
 const parseThreadIds = (body) => (Array.isArray(body?.thread_ids)
   ? body.thread_ids.map(Number).filter(Boolean).slice(0, 500) : []);
 
+/** 일괄 «답변 불필요»·«확인 완료» 뒤 — 열린 답변 업무가 걸린 스레드만 취소한다(services/mailReplyTask, 개별 문과 같은 처리). */
+async function cancelReplyTasksFor(req, businessId, ids, reason) {
+  try {
+    const rows = await EmailThread.findAll({ where: { id: { [Op.in]: ids }, business_id: businessId, reply_task_id: { [Op.ne]: null } }, attributes: ['id', 'business_id', 'reply_task_id'] });
+    const svc = require('../services/mailReplyTask');
+    for (const th of rows) {
+      await svc.onReplyNotNeeded({ thread: th, actorUserId: req.user.id, platformRole: req.user.platform_role || null, reason }).catch(() => null);
+    }
+  } catch (e) { console.warn('[mailReplyTask bulk]', e.message); }
+}
+
 router.post('/:businessId/email-threads/bulk-dismiss',
   authenticateToken, checkBusinessAccess, requireMenu('qmail', 'read'),
   async (req, res, next) => {
@@ -956,6 +1031,7 @@ router.post('/:businessId/email-threads/bulk-dismiss',
       });
       if (count > 0) logAudit(req, { action: 'mail.bulk_dismiss_reply', targetType: 'email_thread', targetId: null, businessId, newValue: { updated: count, requested: ids.length, capped, thread_ids: ids.slice(0, 50) } });
       broadcastMail(req, businessId, 'mail:updated', { bulk: true, reply_needed: false });
+      await cancelReplyTasksFor(req, businessId, ids, 'mail_reply_not_needed');
       return successResponse(res, { updated: count, requested: ids.length, capped });
     } catch (err) { next(err); }
   },
@@ -967,18 +1043,21 @@ router.post('/:businessId/email-threads/bulk-read', // audit-exempt: 본인 읽�
     try {
       const businessId = Number(req.params.businessId);
       const { ids, acctScope, capped } = await resolveBulkTargetIds(
-        req.body, businessId, req.user.id, { unread_count: { [Op.gt]: 0 } });
+        req.body, businessId, req.user.id, { [Op.and]: [mailRead.unreadForWhere(req.user.id)] });
       if (!ids.length) return errorResponse(res, 'no_threads', 400);
+      // 「모두 읽음」 = **나만**. 라벨(N)·확인·실행이 같은 술어(mailRead.unreadForWhere)를 본다(Q mail ④).
+      //   ids 는 resolveBulkTargetIds 가 범위(business_id·접근 계정)를 거른 것만이다(Q mail ⑤).
       const count = await inChunks(ids, async (chunk) => {
-        const [n] = await EmailThread.update(
+        await mailRead.markReadFor(req.user.id, chunk);
+        // 옛 공용 사본(«아무도 안 읽음»)도 계속 내린다 — 되돌리기용.
+        await EmailThread.update(
           { unread_count: 0 },
-          { where: { id: { [Op.in]: chunk }, business_id: businessId, account_id: acctScope, unread_count: { [Op.gt]: 0 } } },
+          { where: { id: { [Op.in]: chunk }, business_id: businessId, account_id: acctScope, unread_count: { [Op.gt]: 0 } } },   // mailread-exempt: 옛 공용 사본을 내리는 쓰기 WHERE(읽음 판정 아님)
         );
-        // 메시지까지 읽음 — 스레드만 0 으로 만들면 다음 동기화가 미읽음을 되살린다.
         await EmailMessage.update({ is_read: true }, { where: { thread_id: { [Op.in]: chunk }, is_read: false } }).catch(() => {});
-        return n;
+        return chunk.length;
       });
-      broadcastMail(req, businessId, 'mail:updated', { bulk: true, unread: 0 });
+      emitMyRead(req, businessId, { bulk: true, unread: 0 });
       return successResponse(res, { updated: count, requested: ids.length, capped });
     } catch (err) { next(err); }
   },
@@ -1005,10 +1084,12 @@ router.post('/:businessId/email-threads/bulk-handled',
           { is_read: true },
           { where: { thread_id: { [Op.in]: chunk }, is_read: false } },
         ).catch(() => {});
+        await mailRead.markReadFor(req.user.id, chunk);   // 읽음은 누른 사람만
         return n;
       });
       if (count > 0) logAudit(req, { action: 'mail.bulk_handled', targetType: 'email_thread', targetId: null, businessId, newValue: { updated: count, requested: ids.length, capped, thread_ids: ids.slice(0, 50) } });
-      broadcastMail(req, businessId, 'mail:updated', { bulk: true, handled: true, unread: 0 });
+      broadcastMail(req, businessId, 'mail:updated', { bulk: true, handled: true });
+      await cancelReplyTasksFor(req, businessId, ids, 'mail_handled');
       return successResponse(res, { updated: count, requested: ids.length, capped });
     } catch (err) { next(err); }
   },
@@ -1207,6 +1288,13 @@ router.post('/:businessId/email-threads/:id/messages',
         const removed = await rules.onReplySent({ businessId, toEmails: toList });
         if (removed.removed > 0) console.log(`[mailSenderRules] 답장 발송 → 규칙 ${removed.removed}건 해제`);
       } catch (e) { console.warn('[mailSenderRules reply]', e.message); }
+
+      // 답변 업무(services/mailReplyTask) — 담당자가 답장하면 완료 · 남이 답했으면 댓글. 임시 답변은 건드리지 않는다.
+      //   스레드가 위에서 «답했음» 으로 바뀐 것과 같은 기준이다(발송 정지 서버도 스레드는 답했음으로 본다).
+      //   메일은 이미 처리됐다 — 이 훅의 실패가 답장 응답을 바꾸지 않는다(Fable C5).
+      try {
+        await require('../services/mailReplyTask').onReplySent({ thread, senderUserId: req.user.id, sentAt: now, keepReplyNeeded });
+      } catch (e) { console.warn('[mailReplyTask reply]', e.message); }
 
       broadcastMail(req, businessId, 'mail:updated', {
         thread_id: threadId,
@@ -1833,39 +1921,36 @@ router.post('/:businessId/email-threads/:id/assign',
       const acctIds = await accessibleAccountIds(businessId, req.user.id);
       const thread = await EmailThread.findOne({ where: { id: threadId, business_id: businessId, account_id: { [Op.in]: acctIds.length ? acctIds : [0] } } });
       if (!thread) return errorResponse(res, 'thread_not_found', 404);
+      const account = await EmailAccount.findOne({ where: { id: thread.account_id, business_id: businessId }, attributes: ['id', 'owner_user_id'] });
+      if (!account) return errorResponse(res, 'account_not_found', 404);
       const userId = (req.body || {}).user_id ? Number(req.body.user_id) : null;
       const prevAssignee = (await EmailThreadParticipant.findOne({ where: { thread_id: threadId, is_assigned: true }, attributes: ['user_id'] }))?.user_id ?? null;
-      // 다른 담당 해제 (담당자 1명 정책)
-      await EmailThreadParticipant.update({ is_assigned: false }, { where: { thread_id: threadId, is_assigned: true } });
-      if (userId) {
-        const [p] = await EmailThreadParticipant.findOrCreate({ where: { thread_id: threadId, user_id: userId }, defaults: { thread_id: threadId, user_id: userId } });
-        await p.update({ is_assigned: true });
-      }
-      if (prevAssignee !== userId) logAudit(req, { action: 'mail.assign', targetType: 'email_thread', targetId: threadId, businessId, oldValue: { assignee_user_id: prevAssignee }, newValue: { assignee_user_id: userId } });
+      // 2026-10-22 «답변 담당» = 답변 업무 한 건(services/mailReplyTask — Fable PASS). 지정하면 업무가 생기고(요청 알림 한 통),
+      //   바꾸면 그 업무의 담당이 바뀌고(업무 작성자·관리자만 — 아니면 403), 해제하면 업무는 미배정으로 남는다.
+      //   받는 사람이 이 메일 계정을 못 보면 400(업무 제목이 곧 메일 제목이다). 개인 메일 계정은 주인만.
+      const r = await require('../services/mailReplyTask').assignReply({
+        actor: { kind: 'user', userId: req.user.id, onBehalfOfUserId: null, platformRole: req.user.platform_role || null, req },
+        businessId, thread, account, userId,
+      });
+      if (!r.ok) return errorResponse(res, r.code, r.http || 400);
+      if (prevAssignee !== userId) logAudit(req, { action: 'mail.assign', targetType: 'email_thread', targetId: threadId, businessId, oldValue: { assignee_user_id: prevAssignee }, newValue: { assignee_user_id: userId, task_id: r.data.task_id } });
       broadcastMail(req, businessId, 'mail:updated', { thread_id: threadId, assignee_user_id: userId });
-      // 담당 지정 알림 (2026-10-08 0-H) — 옛: 알림 0 이라 지정된 사람은 «담당» 폴더를 열기 전까지 몰랐다.
-      //   자기 지정은 알리지 않는다. 받는 사람이 **이 메일 계정을 볼 수 있을 때만** 알린다
-      //   (user_id 는 화면이 보낸 값 — 볼 수 없는 사람에게 제목이 나가면 그게 유출이다).
-      if (userId && userId !== prevAssignee && userId !== req.user.id) {
+      // 업무가 안 생겼을 때만(업무 메뉴 권한 없음 등) 옛 «담당 지정» 알림을 보낸다 — 업무가 생겼으면 요청 알림 한 통으로 끝(Fable N4).
+      if (!r.data.task_created && !r.data.task_id && userId && userId !== prevAssignee && userId !== req.user.id) {
         try {
-          const { getUserScope, isMemberOrAbove } = require('../middleware/access_scope');
-          const targetScope = await getUserScope(userId, businessId);
-          const targetAccts = isMemberOrAbove(targetScope) ? await accessibleAccountIds(businessId, userId) : [];
-          if (targetAccts.includes(thread.account_id)) {
-            const { notify } = require('./notifications');
-            await notify({
-              userId, businessId, eventKind: 'mail',
-              titleSpec: { feature: 'mail', action: 'mail_assigned', subject: String(thread.subject || '').slice(0, 60) },
-              link: `/mail?thread=${threadId}`,
-              entityType: 'email_thread', entityId: threadId,
-              actorUserId: req.user.id,
-              tag: `mail-${threadId}`,
-              ioApp: req.app.get('io'),
-            });
-          }
+          const { notify } = require('./notifications');
+          await notify({
+            userId, businessId, eventKind: 'mail',
+            titleSpec: { feature: 'mail', action: 'mail_assigned', subject: String(thread.subject || '').slice(0, 60) },
+            link: `/mail?thread=${threadId}`,
+            entityType: 'email_thread', entityId: threadId,
+            actorUserId: req.user.id,
+            tag: `mail-${threadId}`,
+            ioApp: req.app.get('io'),
+          });
         } catch (e) { console.warn('[mail assign notify]', e.message); }
       }
-      return successResponse(res, { thread_id: threadId, assignee_user_id: userId });
+      return successResponse(res, r.data);
     } catch (err) { next(err); }
   }
 );

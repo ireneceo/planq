@@ -629,6 +629,9 @@ sync_database() {
   # 2026-10-15 메일 분류 기준 공개 — email_threads.triage_criterion VARCHAR(40) NULL + 인덱스(멱등). 모델이 SELECT 하므로 PM2 reload 전.
   #   옛 메일 재판정(승격 전용)은 여기서 하지 않는다 — 운영 읽기 전용 시뮬 뒤 수동(docs/MAIL_CRITERIA_DESIGN.md §6.2).
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-mail-criteria.js 2>&1 | tail -5"
+  # 2026-10-22 공용 메일 멤버별 읽음 · 답변 담당 업무 — email_threads.last_inbound_message_id·read_floor_message_id·reply_task_id + 인덱스(멱등).
+  #   모델이 SELECT 하므로 PM2 reload 전. 바닥(옛 «누군가 읽음» = 모두 읽음)은 칸을 처음 만들 때 한 번만 채운다. 롤백은 코드만.
+  prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-mail-member-read.js 2>&1 | tail -6"
   # 2026-10-15 메일 사칭 검사 — email_threads.spam_origin ENUM 끝 'impersonation' + impersonation JSON NULL(멱등).
   #   모델이 이 칸을 SELECT 하므로 PM2 reload 전. 옛 메일 소급은 retriage-mail.js --impersonation(dry-run 기본, 수동 — docs/MAIL_IMPERSONATION_DESIGN.md §5).
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-mail-impersonation.js 2>&1 | tail -4"

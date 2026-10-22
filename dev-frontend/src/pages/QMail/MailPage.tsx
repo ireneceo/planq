@@ -23,6 +23,8 @@ import PageShell from '../../components/Layout/PageShell';
 import PanelHeader, { PanelTitle, PanelSubTitle, PanelMetaTitle, DetailMetaBar, DetailMetaLeft, DetailMetaRight } from '../../components/Layout/PanelHeader';
 import OverflowMenu, { type OverflowItem } from '../../components/Common/OverflowMenu';
 import ChipPopover from '../../components/Common/ChipPopover';
+import MailReplyOwnerChip from './MailReplyOwnerChip';
+import MailReadStatusChip, { type ReadStatus } from './MailReadStatusChip';
 import DetailFallback from '../../components/Common/DetailFallback';
 import type { DetailStatus } from '../../hooks/useDetailResource';
 import { findOtherWorkspaceOf } from '../../utils/workspaceMatch';
@@ -75,10 +77,6 @@ import {
   AddLabelChip,
   LabelPickList,
   LabelPickEmpty,
-  PickerFilter,
-  PickerList,
-  PickerItem,
-  PickerHint,
   ClipIcon,
   CloseBtn,
   ComposeBody,
@@ -302,6 +300,9 @@ interface ThreadDetail extends Thread {
   assignee_user_id?: number | null;
   assignee_name?: string | null;
   my_following?: boolean;
+  // 2026-10-22 — 누가 읽고 답했나(공용 메일함만) · 답변 업무(services/mailReplyTask)
+  read_status?: ReadStatus | null;
+  reply_task?: { id: number; status: string; assignee_id: number | null } | null;
 }
 
 interface MailLabel { name: string; color: string }
@@ -1326,21 +1327,42 @@ const MailPage: React.FC = () => {
   const labelColor = useCallback((name: string) => labelMaster.find(l => l.name === name)?.color || '#14B8A6', [labelMaster]);
 
   // 담당자 지정 — 상세 밴드2 의 담당 칩 팝오버가 부른다(멤버 목록 버튼).
+  // 답변 담당 — 지정하면 서버가 «메일 답변» 업무를 만든다(services/mailReplyTask). 실패하면 되돌리고 **이유를 칩 안에 말한다**
+  //   (업무 작성자·관리자만 담당을 바꿀 수 있다 — 403 을 조용히 삼키면 «눌러도 안 바뀜» 이 된다).
+  const [assignError, setAssignError] = useState<string | null>(null);
+  useEffect(() => { setAssignError(null); }, [detail?.id]);
   const assignTo = useCallback(async (uid: number | null) => {
     if (!detail || !businessId) return;
     const prevUid = detail.assignee_user_id; const prevName = detail.assignee_name;
+    const threadId = detail.id;
+    setAssignError(null);
     setDetail(prev => (prev ? { ...prev, assignee_user_id: uid, assignee_name: uid ? (members.find(m => m.user_id === uid)?.name || null) : null } : prev));
+    const revert = (msg: string) => {
+      setDetail(prev => (prev && prev.id === threadId ? { ...prev, assignee_user_id: prevUid, assignee_name: prevName } : prev));
+      setAssignError(msg);
+    };
     try {
-      const r = await apiFetch(`/api/businesses/${businessId}/email-threads/${detail.id}/assign`, {
+      const r = await apiFetch(`/api/businesses/${businessId}/email-threads/${threadId}/assign`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user_id: uid }),
       });
-      if (!r.ok) { setDetail(prev => (prev ? { ...prev, assignee_user_id: prevUid, assignee_name: prevName } : prev)); return; }  // 실패 시 되돌림
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) {
+        const code = String(j?.message || '');
+        revert(code === 'cannot_reassign_task'
+          ? t('replyOwner.errReassign', { defaultValue: '연결된 업무를 만든 사람이나 관리자만 담당을 바꿀 수 있어요.' }) as string
+          : code === 'assignee_cannot_see_mail'
+            ? t('replyOwner.errCannotSee', { defaultValue: '그 멤버는 이 메일함을 볼 수 없어요.' }) as string
+            : t('replyOwner.errGeneric', { defaultValue: '담당을 바꾸지 못했어요. 다시 시도해 주세요.' }) as string);
+        return;
+      }
+      // 업무를 못 만들었으면(업무 메뉴 권한 없음 등) 담당만 정해진 것 — 그 사실을 말한다.
+      if (uid && j?.data && !j.data.task_id) setAssignError(t('replyOwner.errNoTask', { defaultValue: '담당은 정했지만 업무는 만들지 못했어요(업무 메뉴 권한).' }) as string);
+      if (j?.data?.task_id) setDetail(prev => (prev && prev.id === threadId ? { ...prev, reply_task: { id: j.data.task_id, status: prev.reply_task && prev.reply_task.id === j.data.task_id ? prev.reply_task.status : 'not_started', assignee_id: uid } } : prev));
       loadCounts();
-    } catch { setDetail(prev => (prev ? { ...prev, assignee_user_id: prevUid, assignee_name: prevName } : prev)); }
-  }, [detail, businessId, members, loadCounts]);
+    } catch { revert(t('replyOwner.errGeneric', { defaultValue: '담당을 바꾸지 못했어요. 다시 시도해 주세요.' }) as string); }
+  }, [detail, businessId, members, loadCounts, t]);
 
   // 새 라벨 생성 (마스터 추가 후 현재 스레드에 적용)
-  const [assignQuery, setAssignQuery] = useState('');   // 담당자 팝오버 안 이름 필터
   const [newLabelName, setNewLabelName] = useState('');
   const [labelBusy, setLabelBusy] = useState(false);
   const createLabel = useCallback(async () => {
@@ -1404,7 +1426,15 @@ const MailPage: React.FC = () => {
         setDetail(j.data);
         // 자동 읽음 처리 (unread_count 있을 때만)
         if (j.data.unread_count > 0) {
-          await apiFetch(`/api/businesses/${businessId}/email-threads/${id}/mark-read`, { method: 'POST' });
+          const mr = await apiFetch(`/api/businesses/${businessId}/email-threads/${id}/mark-read`, { method: 'POST' });
+          // 지금 연 사람(나)은 읽은 것이다 — «읽음 n/m» 명단이 연 직후에도 나를 «안 읽음» 에 두지 않게(받아 온 명단은 읽기 전 것).
+          if (mr.ok && myUserId) {
+            const at = new Date().toISOString();
+            setDetail(prev => (prev && prev.id === j.data.id && prev.read_status ? {
+              ...prev, unread_count: 0,
+              read_status: { ...prev.read_status, readers: prev.read_status.readers.map(r => (r.user_id === myUserId && !r.read ? { ...r, read: true, read_at: at } : r)) },
+            } : prev));
+          }
           // ★ 2R-1 — silent 로 부른다. 일반 loadList 는 좌측 목록을 로딩 상태로 되돌려,
           //   **미읽음 메일을 클릭할 때마다** 목록이 깜빡이고 스크롤이 리셋됐다
           //   (Irene: "리스트에서 다른 이메일 클릭하면 계속 제대로 안나와").
@@ -1419,7 +1449,7 @@ const MailPage: React.FC = () => {
     } finally {
       if (!stale()) setDetailLoading(false);
     }
-  }, [businessId, loadList, loadCounts, setSp]);
+  }, [businessId, loadList, loadCounts, setSp, myUserId]);
 
   useEffect(() => { setHandledIds(new Set()); }, [folder, accountFilter, qDebounced, labelFilter, projectFilter]);
   useEffect(() => { loadList(); }, [loadList]);
@@ -3279,57 +3309,17 @@ const MailPage: React.FC = () => {
                   {detail.client && <MetaChip>{detail.client.display_name || detail.client.company_name}</MetaChip>}
                   {/* 담당자 — 값이 곧 칩이다. 고치는 셀렉트는 누를 때만 꺼낸다.
                       옛 구조는 PlanQSelect 를 툴바에 그대로 세워 150px 를 상시 점유했다. */}
-                  <ChipPopover
-                    data-testid="mail-assign-chip"
-                    prefix={t('actions.assigneePrefix', { defaultValue: '담당' }) as string}
-                    label={detail.assignee_name || (t('actions.unassigned', { defaultValue: '담당 없음' }) as string)}
-                    active={!!detail.assignee_user_id}
-                    ariaLabel={t('actions.assignAria', { defaultValue: '담당자 지정' }) as string}
-                    width={260}
-                  >
-                    {(close) => (
-                      <>
-                        {/* ★ 여기에 PlanQSelect 를 쓰지 않는다 — 그 컴포넌트는 메뉴를
-                            document.body 로 **포털**한다(PlanQSelect.tsx:309). 팝오버의
-                            바깥클릭 판정은 자기 패널 안인지를 보므로, 포털된 옵션을 누르는 순간
-                            "바깥" 으로 읽혀 **선택되기 전에 팝오버가 닫힌다** — 눌러도 아무 일이
-                            일어나지 않는 컨트롤이 된다(memory feedback_ui_control_sends_nothing).
-                            멤버는 목록으로 직접 그린다. 많으면 위 입력으로 좁힌다. */}
-                        {members.length > 8 && (
-                          <PickerFilter
-                            value={assignQuery}
-                            onChange={(e) => setAssignQuery(e.target.value)}
-                            placeholder={t('actions.assignSearch', { defaultValue: '이름으로 찾기' }) as string}
-                            aria-label={t('actions.assignSearch', { defaultValue: '이름으로 찾기' }) as string}
-                          />
-                        )}
-                        <PickerList>
-                          <PickerItem
-                            type="button"
-                            $on={!detail.assignee_user_id}
-                            onClick={() => { assignTo(null); setAssignQuery(''); close(); }}
-                          >
-                            {t('actions.unassigned', { defaultValue: '담당 없음' }) as string}
-                          </PickerItem>
-                          {members
-                            .filter(m => !assignQuery.trim() || m.name.toLowerCase().includes(assignQuery.trim().toLowerCase()))
-                            .map(m => (
-                              <PickerItem
-                                key={m.user_id}
-                                type="button"
-                                $on={detail.assignee_user_id === m.user_id}
-                                data-testid={m.user_id === myUserId ? 'mail-assign-me' : undefined}
-                                /* 재클릭 토글 — 이미 담당인 사람을 다시 누르면 해제 (CLAUDE.md UI 규칙) */
-                                onClick={() => { assignTo(detail.assignee_user_id === m.user_id ? null : m.user_id); setAssignQuery(''); close(); }}
-                              >
-                                {m.name}
-                                {m.user_id === myUserId && <PickerHint>{t('actions.meShort', { defaultValue: '나' }) as string}</PickerHint>}
-                              </PickerItem>
-                            ))}
-                        </PickerList>
-                      </>
-                    )}
-                  </ChipPopover>
+                  <MailReplyOwnerChip
+                    assigneeId={detail.assignee_user_id}
+                    assigneeName={detail.assignee_name}
+                    replyTask={detail.reply_task}
+                    members={members}
+                    myUserId={myUserId}
+                    personal={!!detail.account?.owner_user_id}
+                    error={assignError}
+                    onAssign={assignTo}
+                  />
+                  <MailReadStatusChip status={detail.read_status} myUserId={myUserId} />
                   {/* ★ '+ 라벨' 을 라벨칩들 **앞**에 둔다 — 이 칸은 넘치면 오른쪽부터
                       스크롤 밖으로 나간다. 뒤에 두면 라벨 3개부터 붙이는 입구가 사라진다
                       (2026-09-06 Fable 실측: 패널 600px·라벨 4개에서 보이는 폭 0). */}

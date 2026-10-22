@@ -219,6 +219,10 @@ async function assigneeChangeEvent(prevId, nextId) {
  */
 async function afterAssigneeChange({ task, prevAssigneeId, actorUserId }) {
   const next = task.assignee_id;
+  // 메일 답변 업무면 메일 «답변 담당» 거울을 맞춘다(services/mailReplyTask — 두 값이 갈라지는 길을 두지 않는다, Fable C6).
+  if (task.email_thread_id && next !== prevAssigneeId) {
+    try { await require('../mailReplyTask').mirrorAssigneeFromTask(task); } catch (e) { console.warn('[mailReplyTask mirror]', e.message); }
+  }
   if (!next || next === prevAssigneeId) return;
   try {
     const cueBiz = await Business.findByPk(task.business_id, { attributes: ['cue_user_id'] });
@@ -681,6 +685,7 @@ async function pickProjectAssignee(projectId, businessId, subjectId) {
  *   keepEstimateForCue — 요청 업무라도 담당=Cue 면 예측시간 저장 (confirm 경로 §5.7 예외)
  *   demoteCueAssignee  — 담당=Cue 면 등록자로 강등 (registerCandidate — 실행 트리거가 없는 경로)
  *   autoReviewerIsClient — 요청자 자동 컨펌자의 is_client 값 (POST 는 실값, 나머지는 false)
+ *   autoReviewer — false 면 요청 업무여도 요청자 자동 컨펌자를 붙이지 않는다(메일 답변 업무만 — services/mailReplyTask)
  *   skipCueExecute     — Cue 자동 실행 트리거 억제
  */
 async function createTask(actor, params = {}, opts = {}) {
@@ -898,7 +903,9 @@ async function createTask(actor, params = {}, opts = {}) {
 
     // 요청 업무 — 요청자를 컨펌자로 자동 등록. 담당자가 곧장 '완료' 하지 못하고 요청자 승인을 거친다.
     //   (책임선 = 권한선 — 발주자가 결과물 컨펌 권한을 가진다)
-    if (isInternalRequest) {
+    //   ★ opts.autoReviewer === false 는 그 결과물이 곧 «보낸 것» 인 업무만 — 메일 답변 업무(services/mailReplyTask):
+    //     보낸 답장 뒤의 컨펌은 뜻 없는 단계라 담당자가 답장하면 닫힌다(Fable 2026-10-22 결정). 요청자에게는 완료 알림이 간다.
+    if (isInternalRequest && opts.autoReviewer !== false) {
       await TaskReviewer.findOrCreate({
         where: { task_id: task.id, user_id: subjectId },
         defaults: {
@@ -1413,6 +1420,35 @@ async function complete(task, actor) {
     task, wsName: await workspaceName(task.business_id), excludeUserId: actor.userId,
     action: 'task_completed',
     ctaLabel: '결과 확인',
+  });
+  return done(task);
+}
+
+/**
+ * 취소 — 화면 PUT(status=canceled)과 같은 가드(FIELD_RULES.status · 닫힌 업무 거절 · 이력 · 방송).
+ *   지금 부르는 곳은 메일 답변 업무(services/mailReplyTask — «답변 불필요»·«확인 완료»). completed_at 은 건드리지 않는다.
+ */
+async function cancel(task, actor, { reason = null } = {}) {
+  const subj = await resolveSubject(actor);
+  if (!subj.ok) return subj;
+  const ctx = await fieldContext(task, subj.subjectId, subj.platformRole);
+  if (deniedFields(['status'], ctx).length) return fail('forbidden_fields:status', 403);
+  if (['completed', 'canceled'].includes(task.status)) return fail('task_closed');
+  const fromStatus = task.status;
+  const t = await sequelize.transaction();
+  try {
+    await task.update({ status: 'canceled', hold_prev_status: null, hold_reason: null }, { transaction: t });
+    await logHistory({
+      taskId: task.id, eventType: 'status_change', fromStatus, toStatus: 'canceled',
+      actorUserId: subj.subjectId, note: reason ? String(reason).slice(0, 200) : null, transaction: t,
+    });
+    await t.commit();
+  } catch (e) { await t.rollback(); throw e; }
+  await syncFocusOnTaskStatus(task, fromStatus, 'canceled');
+  broadcastTask(task, 'task:updated', actor.userId);
+  audit(actor, {
+    action: 'task.cancel', targetType: 'task', targetId: task.id, businessId: task.business_id,
+    oldValue: { status: fromStatus }, newValue: { status: 'canceled', reason },
   });
   return done(task);
 }
@@ -2180,7 +2216,7 @@ module.exports = {
   // 미리보기(에이전트 MEDIUM 확인 1단계)가 실행과 같은 판정을 먼저 보도록
   canChangeStatus,
   // 행동 — 전이
-  ack, submitReview, cancelReview, complete,
+  ack, submitReview, cancelReview, complete, cancel,
   approve, requestRevision, revertReviewerState,
   revertStatus, addReviewer, removeReviewer, setPolicy,
   // 행동 — 인수인계(사람 교체, docs/ORG_STAGE0_DESIGN.md 9절)

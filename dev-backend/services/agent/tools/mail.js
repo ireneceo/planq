@@ -162,7 +162,8 @@ async function searchMail(p, a) {
   else if (direction === 'outbound') conds.push(folderWhere('sent', p.userId, p.businessId));
   if (a.client_id) conds.push({ client_id: a.client_id });
   if (a.project_id) conds.push({ project_id: a.project_id });
-  if (a.unread_only) conds.push({ unread_count: { [Op.gt]: 0 } });
+  // 읽음은 «이 연결의 사람» 기준(services/mailRead — 화면과 같은 술어)
+  if (a.unread_only) conds.push(require('../../mailRead').unreadForWhere(p.userId));
   if (a.since) conds.push({ last_message_at: { [Op.gte]: parseIsoOrThrow(a.since, 'since') } });
   if (a.until) conds.push({ last_message_at: { [Op.lte]: parseIsoOrThrow(a.until, 'until') } });
   if (a.label) conds.push(sequelize.literal(`JSON_CONTAINS(\`EmailThread\`.\`labels\`, ${sequelize.escape(JSON.stringify(String(a.label).trim().slice(0, 50)))})`));
@@ -183,6 +184,7 @@ async function searchMail(p, a) {
 
   const { rows, count } = await EmailThread.findAndCountAll({
     where: { [Op.and]: conds }, include: THREAD_INCLUDE(), order,
+    attributes: { exclude: ['unread_count'], include: [require('../../mailRead').unreadAttribute(p.userId)] },
     limit: pg.pageSize, offset: pg.offset, distinct: true,
   });
   const ids = rows.map((r) => r.id);
@@ -238,6 +240,8 @@ async function getMailThread(p, a) {
   return {
     thread: {
       ...ser.mailThreadItem(t, { counterpart: cps.get(t.id) || null, hasAttachments: atts.has(t.id), folder: folderOf(t) }),
+      // 읽음은 이 연결의 사람 기준(services/mailRead) — 옛 공용 칸을 덮는다
+      unread_count: require('../../mailRead').isUnreadFor(t, mine ? mine.last_read_message_id : null) ? 1 : 0,
       status: t.status,
       reply_needed: !!t.reply_needed,
       assignee: assigned ? { user_id: assigned.user_id, name: assigneeName } : null,

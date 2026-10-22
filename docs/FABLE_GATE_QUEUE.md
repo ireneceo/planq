@@ -1,5 +1,10 @@
 # Fable 게이트 대기열 → **판정 기록 보관소** (2026-10-08 부터)
 
+## 2026-10-22 · 공용 메일 멤버별 읽음 · 답변 담당 → 업무 완료 검증 (방 255c2316) — **FAIL**(차단 2) → 재판정 **PASS**(Fable)
+- 1차 차단: C8 요청 답변 업무가 요청자 자동 컨펌 때문에 담당자 답장해도 안 닫힘 → 메일 답변 업무만 자동 컨펌자 없음(createTask opts.autoReviewer:false) · C9 주소 모드 목록(email_addresses.js)이 옛 공용 읽음 → unreadAttribute + 가드 mailread 보강.
+- 재판정 실측: 카나리 mailread 47/47 · 가드 양성 대조군 뒤집힘 · 독립 프로브(요청 업무 컨펌자 0 → 박개발 답장 → completed · 요청자 완료 알림 · 주소 모드 owner 1/member 0 = 전체 목록과 같음). 결정 2)~4) 맞음(발송 정지여도 훅 · 일괄 취소 · 업무 못 만들면 옛 알림).
+- 비차단(반영): N11 카나리가 남긴 완료 알림 25건 정리 + 정리 단계에 링크로 지우기 · N7 설계 §7-1 · N9 schema-snapshot 에 피드백 승인 칸 따라잡음. 남김: IMAP 보낸편지함 사본 훅 실메일 미측정 · N8 BCC 자기 사본은 inbound 로 셈(옛 전제와 같음).
+
 ## 2026-10-22 · 공용 메일 멤버별 읽음 · 답변 담당 → 업무 설계 (방 255c2316) — 판정 **PASS**(Fable design, 수정 7건)
 - 결정: 읽음 바닥 칸(배포 1회) · 표식 email_threads.reply_task_id · 담당자 본인 답장만 완료(남이면 댓글) · 해제=미배정, 답변 불필요/확인 완료=취소(task_actions.cancel 최소 신설) · 같은 메일함 멤버끼리 시각 공개 · 개인 메일 L1·본인만.
 - 차단 C1~C7(크론 isLatest·!ownCopy · 응답 키 unread_count 유지=보는 사람 기준 · 단일 UPSERT · 읽음 신호 user 방만 · 메일 동작 먼저·훅 try/catch · 담당 거울 · 마이그레이션 배포 슬롯). 전문 docs/MAIL_MEMBER_READ_AND_REPLY_OWNER_DESIGN.md §7.

@@ -955,5 +955,35 @@
       "display_name_domain": "The sender name contains a different company or domain than the actual sending address.",
       "reply_to_divergent": "Replies are set to go to a free webmail address instead of the sending company."
     }
+  },
+  "replyOwner": {
+    "prefix": "Reply owner",
+    "none": "None",
+    "aria": "Choose who replies",
+    "intro": "Choosing someone creates an «email reply» task; it closes when that person replies.",
+    "me": "I'll reply",
+    "askOther": "Ask another member to reply",
+    "clear": "Clear owner",
+    "openTask": "Open linked task",
+    "doneShort": "replied",
+    "taskState": {
+      "open": "Open",
+      "completed": "Done",
+      "canceled": "Canceled"
+    },
+    "errReassign": "Only the task's creator or an admin can change the owner.",
+    "errCannotSee": "That member can't see this mailbox.",
+    "errGeneric": "Couldn't change the owner. Please try again.",
+    "errNoTask": "Owner set, but the task couldn't be created (task menu permission)."
+  },
+  "readStatus": {
+    "prefix": "Read",
+    "aria": "Who read and replied",
+    "read": "Read ({{n}})",
+    "unread": "Unread ({{n}})",
+    "replied": "Replied ({{n}})",
+    "earlier": "Read earlier",
+    "none": "None yet",
+    "noReply": "No member has replied yet"
   }
 }

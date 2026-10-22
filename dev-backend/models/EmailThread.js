@@ -44,6 +44,14 @@ EmailThread.init({
   // 메타
   message_count: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
   unread_count: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
+  // 2026-10-22 멤버별 읽음 (docs/MAIL_MEMBER_READ_AND_REPLY_OWNER_DESIGN.md §7) — 판정은 services/mailRead.js 한 곳.
+  //   unread_count 는 «아무도 안 읽음» 사본으로 계속 쓰기만 한다(되돌리기용 — 읽지 않는다, 가드 mailread).
+  //   last_inbound_message_id: 마지막 받은 메일(우리 사본 제외, 순서 역전 제외) — 크론 한 곳이 쓴다.
+  //   read_floor_message_id: 배포 때 한 번 «옛 공용 읽음» 을 모두의 읽음으로 이은 바닥. 그 뒤 안 쓴다.
+  //   reply_task_id: 이 메일의 답변 업무(services/mailReplyTask). FK 없음 — 없는 업무 = 없음.
+  last_inbound_message_id: { type: DataTypes.INTEGER, allowNull: true },
+  read_floor_message_id: { type: DataTypes.INTEGER, allowNull: true },
+  reply_task_id: { type: DataTypes.INTEGER, allowNull: true },
   last_message_at: { type: DataTypes.DATE, allowNull: true },
   last_message_direction: { type: DataTypes.ENUM('inbound', 'outbound'), allowNull: true },
   // 이 대화가 **우리 쪽 어느 주소**로 들어왔는가 (계정 본주소 또는 별칭).
@@ -82,6 +90,7 @@ EmailThread.init({
     { fields: ['business_id', 'project_id'], name: 'email_threads_biz_project' },
     { fields: ['business_id', 'vlevel'], name: 'email_threads_biz_vlevel' },
     { unique: true, fields: ['share_token'], name: 'email_threads_share_token_unique' },
+    { fields: ['business_id', 'account_id', 'last_inbound_message_id'], name: 'email_threads_biz_acct_inbound' },
   ],
 });
 

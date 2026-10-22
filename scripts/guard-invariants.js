@@ -2872,6 +2872,46 @@ function checkTrialPlan() {
 }
 
 // ═══════════════════════════════════════════════
+// mailread — **메일 읽음은 «사람 × 스레드» 한 곳(services/mailRead)** (2026-10-22 신설 · Fable N1)
+//
+//   Irene: "그냥 읽음 표시는 누구 기준이야? … 내가 읽은 건지 아닌지 기준이고"
+//   email_threads.unread_count 는 옛 «워크스페이스 공용 읽음» 사본이다 — 되돌리기용으로 쓰기만 하고 읽지 않는다.
+//   이 칸으로 거르거나(where·Op)·세거나(col)·그대로 고르면(attributes 문자열) 다시 «누가 열면 모두 읽음» 이 된다.
+//   읽는 쪽은 mailRead.unreadForWhere / unreadAttribute(같은 키를 보는 사람 기준으로 갈아 끼움)를 쓴다.
+//   대상: dev-backend 의 메일 관련 파일(이름에 mail·email · saleInbox). 쓰기 WHERE 는 줄 끝 `// mailread-exempt: <이유>`.
+function checkMailRead() {
+  const roots = ['routes', 'services'].map((d) => `${ROOT}/dev-backend/${d}`);
+  const bad = [];
+  let files = 0;
+  const walk = (dir) => {
+    for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+      const fp = `${dir}/${e.name}`;
+      if (e.isDirectory()) { if (e.name !== 'node_modules') walk(fp); continue; }
+      if (!e.name.endsWith('.js')) continue;
+      const rel = fp.replace(`${ROOT}/`, '');
+      if (!/mail|email|saleInbox/i.test(rel) || /services\/mailRead\.js$/.test(rel)) continue;
+      files += 1;
+      const src = read(fp);
+      // 목록 행을 만드는 곳(buildThreadRows·serializeThreadRow 를 부르는 라우트)은 unread_count 를 갈아 끼워야 한다 —
+      //   안 그러면 행 직렬화가 옛 공용 칸을 그대로 낸다(Fable C9: 주소 모드 목록이 그랬다).
+      if (/\b(buildThreadRows|serializeThreadRow)\(/.test(src) && !/services\/(mailThreadRows|mailSerialize)\.js$/.test(rel) && !/unreadAttribute\(/.test(src)) {
+        bad.push(`${rel} — 목록 행을 만들면서 mailRead.unreadAttribute 로 unread_count 를 갈아 끼우지 않는다`);
+      }
+      src.split('\n').forEach((l, i) => {
+        const t = l.trim();
+        if (t.startsWith('//') || t.startsWith('*') || t.startsWith('/*')) return;
+        if (/mailread-exempt:/.test(l)) return;
+        const hit = /unread_count\s*:\s*\{\s*\[Op\./.test(l) || /col\(\s*'unread_count'\s*\)/.test(l)
+          || /where\.unread_count/.test(l) || (/'unread_count'/.test(l) && !/exclude/.test(l) && !/\]\s*$|'unread_count'\]/.test(l));
+        if (hit) bad.push(`${rel}:${i + 1} — 옛 공용 읽음 칸으로 거르기·세기. services/mailRead(unreadForWhere·unreadAttribute)를 쓴다`);
+      });
+    }
+  };
+  roots.forEach((r) => { if (fs.existsSync(r)) walk(r); });
+  report('mailread', `메일 읽음 판정은 services/mailRead 한 곳 (${files}개 파일)`, bad.length === 0, bad);
+}
+
+// ═══════════════════════════════════════════════
 // leavetypes — **휴가 종류 목록을 코드에 적지 않는다** (2026-10-22, docs/LEAVE_TYPES_DESIGN.md §9.4)
 //
 //   종류는 워크스페이스 데이터(leave_types)다. 코드에 4종 목록을 다시 적거나 옛 category 컬럼을
@@ -3798,6 +3838,7 @@ const CATEGORIES = {
   modulegate: checkModuleGate,
   convparticipants: checkConvParticipants,
   trialplan: checkTrialPlan,
+  mailread: checkMailRead,
   leavetypes: checkLeaveTypes,
   navmenu: checkNavMenu,
   i18n: checkI18n,
