@@ -359,8 +359,9 @@
 - Fable 설계 판정 10-22(FAIL 차단 4 → 반영하면 PASS) — 기록 docs/FABLE_GATE_QUEUE.md · 반영 docs/ORG_STAGE0_DESIGN.md 9절. 대기 fwmvezqzws done.
 - 구현(커밋, 운영 미배포): 알림 받는 사람 확인(services/notifyRecipient — 나간 멤버에게 안 감) · task_actions.handoverNamedRoles · services/memberHandover + routes/member_handover(나간 멤버도) · services/memberInvite(여러 명·dry_run·한도 전부 거절·부서/팀) · services/activityLabels + /api/activity scope=admin · all-tasks done=recent · 약관 제10조 한 줄(2026-11-25 시행) · 화면: 멤버 제거 칸 «남은 일 넘기기»·«나간 멤버 — 남은 일»·초대 창(여러 명·확인창)·활동 기록(관리 행위/전체·사람)·Q task(최근 30일·5,000건 안내·칸반 제목).
 - 자체 검증: 서버 실호출 30건 중 29 ✅(남은 1건은 검사 쪽 — 감사가 많아 최근 200건이 전부 감사, 1,000건이면 다른 소스 나옴) · health-check 88/88 · guard 75/76(종전).
-- **멈춘 곳: 프론트 빌드 2회가 서버 메모리 부족으로 중단(시스템이 끔).** 화면 검증(3폭) 미측정 · Fable 완료 검증 미실행.
-- 다음: 메모리 여유 때 `cd dev-frontend && npm run build`(백그라운드) → 멤버 관리(ws6, 확인용 나간 멤버 user 1015074 / member 17847 · 나만 보기 업무 4449 남김)·초대 창·활동 기록·Q task 3폭 확인 → Fable 완료 검증 1회(gate: 권한·L1·알림) → 보고.
+- Fable 완료 검증 PASS(서버 — 차단 없음, 37a7d24d 에 비차단 2 반영: 약관 버전 1.2 이상일 때만 나만 보기 넘김 · 멤버 행 없는 대표 알림).
+- **멈춘 곳: 프론트 빌드 2회가 서버 메모리 부족으로 중단(시스템이 끔).** 화면 검증(3폭) 미측정.
+- 다음: 메모리 여유 때 `cd dev-frontend && npm run build`(백그라운드) → 멤버 관리(ws6, 확인용 나간 멤버 user 1015074 / member 17847 · 나만 보기 업무 4449 남김)·초대 창·활동 기록·Q task 3폭 확인 → 보고(Fable 은 끝남).
 - 남은 Irene 할 일(완료 뒤 올림): 배포 당일 약관 개정 공지(30일 전 — 시행 2026-11-25, 늦어지면 memberHandover.HANDOVER_L1_EFFECTIVE_AT·legal.json terms.s10 두 곳 이동) + 운영 관리자 화면 이용약관 버전 1.1→1.2.
 
 ### 답 기다림 (이전): 조직 규모 검토 — Irene 결정 8건 → 10-19 «권고대로»
