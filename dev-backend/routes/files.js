@@ -1645,6 +1645,13 @@ router.get('/:businessId/:id/download', authenticateToken, attachWorkspaceScope(
       return errorResponse(res, 'forbidden', 403);
     }
     if (await _s3Redirect(file, res)) return;
+    // ★ 2026-10-22 (Irene: "미리보기가 … 다시 열어도 다시 늦게 뜨네") — /api/* 는 security.js 가 no-store 를
+    //   박아 PDF·문서 미리보기가 열 때마다 원본을 통째로 다시 받았다. 브라우저에 두되 **쓸 때마다 묻게**
+    //   (no-cache → If-None-Match 에 304, 본문 0바이트) 한다. 권한 판정(canDownloadFile)은 위에서 매번 돌므로
+    //   회수되면 바로 403 이다 — max-age 를 주면 회수 뒤에도 그 기간 열리므로 주지 않는다.
+    res.setHeader('Cache-Control', 'private, no-cache');
+    res.removeHeader('Pragma');
+    res.removeHeader('Expires');
     // ★ 인앱 다운로드도 같다 — 여기서 Drive 로 리다이렉트하면 프론트의 fetch 기반 다운로드
     //   (useFileDownload → downloadFromApi)가 CORS 없는 401 을 만나 "다운로드 실패" 로 떨어진다.
     //   **오너 본인도** 실패한다. 서버가 바이트를 받아 흘려준다.

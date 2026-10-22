@@ -44,7 +44,7 @@ const isPreviewable = (a: MailAttachment): boolean => {
 
 const MessageAttachments: React.FC<Props> = ({ businessId, attachments }) => {
   const { t } = useTranslation('qmail');
-  const objUrlsRef = useRef<Map<number, string>>(new Map());
+  const objUrlsRef = useRef<Map<string, string>>(new Map());
   const [attachErr, setAttachErr] = useState<Record<number, boolean>>({});
   const [dlId, setDlId] = useState<number | null>(null);
   // ★ 2026-09-20 (Irene: *"메일에 첨부된것도 굳이 따로 저장할 필요 없어. 다운로드나 이 워크스페이스에
@@ -61,13 +61,16 @@ const MessageAttachments: React.FC<Props> = ({ businessId, attachments }) => {
   }, []);
 
   // file_id → objectURL (탭 수명 내 캐시). 실패 시 null.
-  const fetchObjectUrl = useCallback(async (fileId: number): Promise<string | null> => {
-    const cached = objUrlsRef.current.get(fileId);
+  //   width 를 주면 리사이즈본(서버 imageResize, 못 줄이는 형식은 원본) — 이미지 미리보기는 원본 수 MB 대신 이것을 받는다
+  //   (2026-10-22 "미리보기 … 다시 열어도 다시 늦게 뜨네"). 내려받기는 그대로 원본.
+  const fetchObjectUrl = useCallback(async (fileId: number, width?: number): Promise<string | null> => {
+    const key = width ? `${fileId}:w${width}` : String(fileId);
+    const cached = objUrlsRef.current.get(key);
     if (cached) return cached;
-    const r = await apiFetch(`/api/files/${businessId}/${fileId}/download`);
+    const r = await apiFetch(`/api/files/${businessId}/${fileId}/download${width ? `?w=${width}` : ''}`);
     if (!r.ok) return null;              // apiFetch 는 throw 하지 않는다 — res.ok 를 반드시 본다
     const url = URL.createObjectURL(await r.blob());
-    objUrlsRef.current.set(fileId, url);
+    objUrlsRef.current.set(key, url);
     return url;
   }, [businessId]);
 
@@ -118,7 +121,7 @@ const MessageAttachments: React.FC<Props> = ({ businessId, attachments }) => {
       if (mime.startsWith('image/')) {
         // 같은 메시지의 이미지 첨부를 모아 갤러리로 — 좌우 이동이 자연스럽다.
         const imgs = attachments.filter(x => isPreviewable(x) && String(x.mime_type || '').toLowerCase().startsWith('image/'));
-        const urls = await Promise.all(imgs.map(x => fetchObjectUrl(x.file_id as number)));
+        const urls = await Promise.all(imgs.map(x => fetchObjectUrl(x.file_id as number, 1600)));
         const ok = imgs.map((x, i) => ({ x, src: urls[i] })).filter(p => !!p.src);
         if (!ok.length) { flagAttachErr(a.id); return; }
         const idx = Math.max(0, ok.findIndex(p => p.x.id === a.id));
