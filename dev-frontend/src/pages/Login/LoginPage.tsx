@@ -70,7 +70,10 @@ const LeftSection = styled.div`
     /* ★ 헤더가 없는 화면이라 상단 안전영역을 **여기서** 비켜줘야 한다.
        노치(47~59px) 아래로 로고가 내려오지 않으면 잘려 보인다(2026-09-04 Irene 신고).
        웹·PWA 는 --pq-safe-top 이 0 이라 회귀 0. */
-    padding: calc(24px + var(--pq-safe-top, 0px)) 24px 20px;
+    /* ★ 2026-10-22 (Irene: "로그인 화면이 상단이 쓸데없이 높아서 로그인 입력과 연결 버튼들이 아래로 가려지는데")
+       — 폰 머리가 185px(앱은 상태바까지 240px 이상)이라 375×667 에서 구글 버튼이 화면 끝에 걸렸다.
+       로고 한 줄(약 80px)로 줄이고 설명 문단은 폰에서 뺀다(회원가입 화면과 같은 판단 — 폼이 주인). */
+    padding: calc(14px + var(--pq-safe-top, 0px)) 24px 14px;
     min-height: auto;
     flex: 0 0 auto;
   }
@@ -90,8 +93,8 @@ const BrandLogo = styled.img`
   user-select: none;
 
   @media (max-width: 768px) {
-    max-width: 140px;
-    margin-bottom: 8px;
+    max-width: 120px;
+    margin-bottom: 0;
   }
 `;
 
@@ -101,6 +104,7 @@ const BrandDescription = styled.p`
   margin-top: 24px;
   max-width: 260px;
   line-height: 1.5;
+  @media (max-width: 768px) { display: none; }
 `;
 
 const RightSection = styled.div`
@@ -113,7 +117,8 @@ const RightSection = styled.div`
   @media (max-width: 768px) {
     /* 폼이 길어도 RightSection 안에서만 스크롤 — Container 자체는 fixed.
        safe-area-inset-bottom 으로 iOS 홈바 영역 보정. */
-    padding: 24px 24px calc(24px + var(--pq-safe-bottom, 0px));
+    /* 아래 여백 — 우하단 도움말 버튼(FAB)이 마지막 줄(구글·애플 버튼·링크)을 덮지 않게 끝까지 올릴 수 있는 만큼 */
+    padding: 22px 24px calc(88px + var(--pq-safe-bottom, 0px));
     flex: 1 1 auto;
     overflow-y: auto;
     justify-content: flex-start;
@@ -131,6 +136,7 @@ const FormSubtitle = styled.p`
   font-size: 0.875rem;
   color: #475569;
   margin: 0 0 32px 0;
+  @media (max-width: 768px) { margin-bottom: 20px; }
 `;
 
 const RecoverBanner = styled.div`
