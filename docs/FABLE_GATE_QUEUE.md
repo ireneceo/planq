@@ -1,6 +1,11 @@
 # Fable 게이트 대기열 → **판정 기록 보관소** (2026-10-08 부터)
 
 
+
+## 2026-10-22 · 고객행 메일 제목 접두어·표시 이름 (방 a6d11ff9) — 설계 **PASS**(Fable, (b) 채택) · 결과 `docs/MAIL_SUBJECT_PREFIX_REVIEW.md` §4
+- 고객행(청구·독촉·증빙·설문·예약·서명 요청·OTP·공유·고객 초대·게스트 답글): 표시 이름 = 워크스페이스 사슬 · replyTo · 제목 접두어 없음. 멤버행(notify·다이제스트·멤버 초대)은 [ws]·PlanQ·기능명 유지. 'PlanQ' 폴백 제거·헬퍼 한 벌. 로고 헤더는 범위 밖.
+- 비차단: mail_from_name 사칭 값(브랜드명·@·<) 400 · 플랫폼 법적 고지 [PlanQ] 리터럴 제거(낮음).
+
 ## 2026-10-22 · 멤버·고객 프로필 한 벌 + 이메일 일치 전환 (방 f9b7abaa) — 설계 **PASS**(Fable, 수정 반영 조건) · 완료 검증 1회 **FAIL(차단 1)→고침(ba596d30), 재판정 없음(한 사안 2회 한도) · 자체 검증** · 결과 `docs/PEOPLE_PROFILE_UNIFY_DESIGN.md` «Fable 설계 판정» 절
 - 차단 7: managed 프로젝트 연결 외부 발송 · 기존 고객 연결 중복 행 · `?to=` 는 onCompose 길 · managed 409 already_member · overview Op.and · job_title 마이그레이션 금지(이미 있음) · personProfile.js·/mail-compose 금지.
 - 완료 검증(a7853c5d·49be196f·672876d6): 서버 실호출 61/61 통과 · 차단 1 = 폰·태블릿에서 이메일 → 작성 패널이 메일 목록 사이드바 뒤에 깔림(?compose=1 이 목록을 안 접음) → 고침 후 3폭 좌표 클릭 elementFromPoint 6/6. 비차단: 보관 고객 프로젝트 연결 → 409 로 막음 · MailPage god-file 래칫(작성 인자 처리를 composeReturn.ts 로 빼서 안으로) · 화면 canManageClients 가 서버 requireMenu 보다 좁음(옛 술어 그대로) · owner 시험 계정 Q mail «연결 계정 없음» 표시 vs /email-accounts 1건(범위 밖).
