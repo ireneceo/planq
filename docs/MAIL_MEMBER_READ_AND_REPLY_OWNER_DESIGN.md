@@ -83,3 +83,24 @@
 4. 해제·답변 불필요·확인 완료 → 업무 취소가 맞나(아니면 그대로 두기).
 5. 남의 읽음 시각을 멤버끼리 보여도 되나(제안: 같은 메일함을 보는 팀원끼리 — 시각까지).
 6. 개인 메일 계정 답변 업무 = L1 고정.
+
+## 7. Fable 판정 (2026-10-22, design) — **PASS** (아래 수정대로)
+
+6절 결정:
+1. 읽음 바닥 = `read_floor_message_id`, 배포 때 한 번(`unread_count=0` 행만). «배포 전 전부 읽음» 은 dev 6,810건 안 읽음을 지운다.
+2. 표식 = **`email_threads.reply_task_id`** INT NULL(FK 없음). `tasks.created_via='mail_reply'` 는 표시용으로만.
+3. **담당자 본인 답장만 완료**(`complete()` 가 담당자 외 403). 남이 답장하면 업무에 시스템 댓글(internal).
+4. 해제 = `reassign(null)`(미배정, 취소 아님) · 답변 불필요·확인 완료 = 취소 — `task_actions.cancel` 최소 신설(PUT 인라인과 같은 가드). 권한 없으면 댓글만, 메일 동작은 성공.
+5. 같은 메일함 멤버끼리 시각까지 공개. 개인 메일함은 칩 안 그림.
+6. 개인 메일 계정 답변 업무 = L1, 담당은 주인 본인만(다른 멤버 400 `assignee_cannot_see_mail`).
+
+차단(반영 필수):
+- C1 `last_inbound_message_id` 는 크론 `isLatest && !ownCopy` 일 때만. 백필은 `sent_at DESC, id DESC` 첫 inbound(MAX(id) 금지). 읽음 커서도 그 값.
+- C2 응답 키 `unread_count` 유지 — **보는 사람 기준 0/1** 로 직렬화. mailSerialize·agent/serialize·saleInbox·계정별 unread·`?unread=true`·`unread_only`·`resolveBulkTargetIds` actionWhere 전부 `mailRead.unreadForWhere(userId)` 한 조각. 「모두 읽음 (N)」 라벨·확인·실행 같은 술어.
+- C3 읽음 쓰기 = 단일 UPSERT(`ON DUPLICATE KEY UPDATE last_read_message_id = GREATEST(…)`) chunk, 다른 칸 안 건드림. 판정 = LEFT JOIN participants(user) + `t.last_inbound_message_id > GREATEST(COALESCE(p.last_read_message_id,0), COALESCE(t.read_floor_message_id,0))`. 인덱스 `(business_id, account_id, last_inbound_message_id)`.
+- C4 읽음 신호는 `user:<나>` 방에만. `business:` 방에 `unread:0` 안 쏨. handled 방송은 종전대로(unread 키만 뺌).
+- C5 메일 동작 먼저, 업무 훅은 뒤 try/catch. `keep_reply_needed=true` 면 완료 안 함. IMAP 보낸 사본 완료는 `sent_at >= task.created_at` 이고 마지막 받은 메일보다 뒤일 때만.
+- C6 담당 정본 = 열린 답변 업무의 담당자. assign: 열린 업무 있으면 `reassign` 먼저(403 전파 `cannot_reassign_task`), 통과하면 `is_assigned` 거울. 업무 쪽 담당 변경(`afterAssigneeChange`)도 `reply_task_id === task.id` 면 거울 맞춤.
+- C7 마이그레이션 `migrate-mail-member-read.js` 배포 슬롯·코드보다 먼저·멱등·chunk · 칸 3 + 인덱스 · 출력 «바닥 채운 수 / 안 읽음으로 남는 수» · 롤백은 코드만.
+
+비차단: N1 `unread_count`·`is_read` 계속 쓴다(되돌리기용), 읽기 금지 가드 `mailread` · N2 memberHandover 거울 카나리 · N3 명단 `audienceOf` = 공용이면 qmail≠none 멤버(ai 제외)·개인이면 주인, 상세에만 · N4 알림 한 통(task_assigned 만, mail_assigned 끔) · N5 스레드 합치기·retriage 가 참여자 행을 옮기는지 · N6 칩 모양·문구는 자체 검증.

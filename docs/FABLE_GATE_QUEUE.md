@@ -1,5 +1,9 @@
 # Fable 게이트 대기열 → **판정 기록 보관소** (2026-10-08 부터)
 
+## 2026-10-22 · 공용 메일 멤버별 읽음 · 답변 담당 → 업무 설계 (방 255c2316) — 판정 **PASS**(Fable design, 수정 7건)
+- 결정: 읽음 바닥 칸(배포 1회) · 표식 email_threads.reply_task_id · 담당자 본인 답장만 완료(남이면 댓글) · 해제=미배정, 답변 불필요/확인 완료=취소(task_actions.cancel 최소 신설) · 같은 메일함 멤버끼리 시각 공개 · 개인 메일 L1·본인만.
+- 차단 C1~C7(크론 isLatest·!ownCopy · 응답 키 unread_count 유지=보는 사람 기준 · 단일 UPSERT · 읽음 신호 user 방만 · 메일 동작 먼저·훅 try/catch · 담당 거울 · 마이그레이션 배포 슬롯). 전문 docs/MAIL_MEMBER_READ_AND_REPLY_OWNER_DESIGN.md §7.
+
 ## 2026-10-22 · 사용자 피드백 승인 체계 설계 (방 9fdd0593) — 판정 **PASS 조건부**(Fable design)
 - 상태 6값(접수·검토중·진행대기·반영중·완료·보류) · 승인 정본 = approved_at · 승인자 = platform_admin · 추가 문의는 개발 단계 불가 · 옛 reviewing 은 배포 닫기 시한부 호환(approval_since).
 - 완료 검증은 권한·배포 닫기 술어라 gate 1회 더(묶어서). 전문 docs/FEEDBACK_APPROVAL_DESIGN.md §8.
