@@ -8,29 +8,20 @@ const router = express.Router();
 const { NotificationPref } = require('../models');
 const { authenticateToken } = require('../middleware/auth');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
+const prefsSvc = require('../services/notificationPrefs');
 
 // ★ 목록은 모델 한 곳(NotificationPref.EVENT_KINDS — DB ENUM 과 같은 배열)이다 (2026-10-08 0-H).
 //   여기 따로 두었더니 `leave`·`survey` 가 빠져 PUT /prefs 가 거절 = 끌 수 없는 알림이었다.
 //   (옛 목록의 «sale 이 빠져 설정 화면이 통째로 크래시» 2026-09-14 도 같은 두 벌 결함이었다.)
 const EVENT_KINDS = NotificationPref.EVENT_KINDS;
-const CHANNELS = ['inbox', 'chat', 'email', 'push']; // 사이클 J4 — push 채널 추가
+const CHANNELS = prefsSvc.CHANNELS; // 사이클 J4 — push 채널 추가 (목록은 services/notificationPrefs 한 곳)
 
 // GET /api/notifications/prefs?business_id=X
 router.get('/prefs', authenticateToken, async (req, res, next) => {
   try {
     const businessId = req.query.business_id ? Number(req.query.business_id) : null;
     // business_id 미지정 = 전역(platform-wide, NULL row 만) — 사용자 cross-workspace 매트릭스 mix 방지
-    const where = { user_id: req.user.id, business_id: businessId };
-    const rows = await NotificationPref.findAll({ where });
-    // 매트릭스 형태로 변환 — 기본 ON, 명시적 row 만 반영
-    const matrix = {};
-    for (const ev of EVENT_KINDS) {
-      matrix[ev] = {};
-      for (const ch of CHANNELS) matrix[ev][ch] = true; // 기본 ON
-    }
-    for (const r of rows) {
-      if (matrix[r.event_kind]) matrix[r.event_kind][r.channel] = r.enabled;
-    }
+    const matrix = await prefsSvc.buildMatrix(req.user.id, businessId);
     return successResponse(res, { matrix, business_id: businessId });
   } catch (err) { next(err); }
 });
@@ -56,6 +47,18 @@ router.put('/prefs', authenticateToken, async (req, res, next) => {
     });
     if (row.enabled !== enabled) await row.update({ enabled });
     return successResponse(res, { event_kind: eventKind, channel, enabled, business_id: businessId });
+  } catch (err) { next(err); }
+});
+
+// PUT /prefs/bulk { business_id?, channel, enabled } — 한 채널(열)을 전 종류에 (services/notificationPrefs)
+// audit-exempt: 본인 알림 수신 설정(한 칸 PUT /prefs 와 같은 수준) — 타인·워크스페이스 데이터 변경 아님
+router.put('/prefs/bulk', authenticateToken, async (req, res, next) => {
+  try {
+    const businessId = req.body?.business_id ? Number(req.body.business_id) : null;
+    const channel = String(req.body?.channel || ''), enabled = !!req.body?.enabled;
+    if (!CHANNELS.includes(channel)) return errorResponse(res, 'invalid_channel', 400);
+    const matrix = await prefsSvc.setChannelForAll(req.user.id, businessId, channel, enabled);
+    return successResponse(res, { channel, enabled, matrix, business_id: businessId });
   } catch (err) { next(err); }
 });
 

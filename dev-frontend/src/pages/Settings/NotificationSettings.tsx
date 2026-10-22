@@ -115,6 +115,57 @@ const NotificationSettings: React.FC<Props> = ({ businessId }) => {
     window.dispatchEvent(new Event('planq:notif-prefs-changed'));
   };
 
+  // ★ 2026-10-22 — 채널(열)별 한 번에 켜기/끄기 (Irene: «이메일 다 꺼버리거나»).
+  //   열 전체가 켜져 있으면 on, 하나라도 꺼져 있으면 off(일부면 «일부» 표시) → 누르면 전부 켬, on 이면 전부 끔.
+  //   칸 토글과 같은 계약 — flipColumn 은 화면만, persistColumn 은 래퍼가 부르는 저장(PUT 1건).
+  //   서버가 저장 뒤 매트릭스를 통째로 돌려주므로 그것으로 갈아끼운다.
+  const shownEvents = (m: Matrix) => EVENTS.filter(ev => !!m[ev]);
+  const columnState = (m: Matrix, ch: Channel): 'on' | 'off' | 'mixed' => {
+    const vals = shownEvents(m).map(ev => m[ev][ch] ?? true);
+    if (vals.every(Boolean)) return 'on';
+    return vals.some(Boolean) ? 'mixed' : 'off';
+  };
+  const prevMatrixRef = useRef<Matrix | null>(null);
+  const columnTargetRef = useRef<Partial<Record<Channel, boolean>>>({});
+
+  const flipColumn = (ch: Channel) => {
+    setMatrix((m) => {
+      if (!m) return m;
+      if (!prevMatrixRef.current) prevMatrixRef.current = m;
+      const next = columnState(m, ch) !== 'on';
+      columnTargetRef.current[ch] = next;
+      const out = { ...m } as Matrix;
+      for (const ev of shownEvents(m)) out[ev] = { ...m[ev], [ch]: next };
+      return out;
+    });
+  };
+
+  const persistColumn = async (ch: Channel) => {
+    const next = columnTargetRef.current[ch];
+    if (next === undefined) return;
+    const before = prevMatrixRef.current;
+    setError(null);
+    try {
+      const r = await apiFetch('/api/notifications/prefs/bulk', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ business_id: businessId, channel: ch, enabled: next }),
+      });
+      const j = await r.json();
+      if (!j.success) throw new Error(j.message || 'save_failed');
+      setMatrix(j.data.matrix as Matrix);
+      window.dispatchEvent(new Event('planq:notif-prefs-changed'));
+    } catch (e) {
+      // 실패 시 원복 — 화면이 서버와 다른 값을 보여주면 안 된다
+      if (before) setMatrix(before);
+      setError((e as Error).message || 'save_failed');
+      throw e;   // 래퍼가 ! 뱃지를 띄우려면 던져야 한다
+    } finally {
+      prevMatrixRef.current = null;
+      delete columnTargetRef.current[ch];
+    }
+  };
+
   if (loading) return <Loading>{t('common.loading', '불러오는 중...')}</Loading>;
   if (error) return <ErrorBanner>{error}</ErrorBanner>;
   if (!matrix) return null;
@@ -148,6 +199,38 @@ const NotificationSettings: React.FC<Props> = ({ businessId }) => {
               </HeadCell>
             ))}
           </MatrixHead>
+          <BulkRow data-testid="notif-bulk-row">
+            <EventCell>
+              <EventLabel>{t('notifications.bulk.label', '모두 켜기·끄기')}</EventLabel>
+              <EventDesc>{t('notifications.bulk.desc', '이 줄의 스위치로 그 열의 알림을 한 번에 바꿉니다.')}</EventDesc>
+            </EventCell>
+            {CHANNELS.map(ch => {
+              const st = columnState(matrix, ch);
+              const chName = t(`notifications.ch.${ch}`) as string;
+              return (
+                <ToggleCell key={ch}>
+                  <AutoSaveField type="toggle" onSave={() => persistColumn(ch)}>
+                    <BulkSwitch
+                      type="button"
+                      role="switch"
+                      data-testid={`notif-bulk-${ch}`}
+                      aria-checked={st === 'mixed' ? 'mixed' : st === 'on'}
+                      aria-label={(st === 'on'
+                        ? t('notifications.bulk.turnOff', { ch: chName, defaultValue: '{{ch}} 알림 모두 끄기' })
+                        : t('notifications.bulk.turnOn', { ch: chName, defaultValue: '{{ch}} 알림 모두 켜기' })) as string}
+                      title={(st === 'on' ? t('notifications.bulk.allOn', '모두 켜짐')
+                        : st === 'mixed' ? t('notifications.bulk.mixed', '일부만 켜짐') : t('notifications.bulk.allOff', '모두 꺼짐')) as string}
+                      $on={st === 'on'}
+                      $mixed={st === 'mixed'}
+                      onClick={() => flipColumn(ch)}
+                    >
+                      <BulkKnob $on={st === 'on'} $mixed={st === 'mixed'} />
+                    </BulkSwitch>
+                  </AutoSaveField>
+                </ToggleCell>
+              );
+            })}
+          </BulkRow>
           {/* ★ 2026-09-14 — 서버 matrix 에 **없는 종류는 그리지 않는다.**
               여태 `matrix[ev][ch]` 를 바로 읽어서, 목록이 한 칸이라도 어긋나면 이 화면이 통째로
               크래시했다(실측: `sale` 이 서버 EVENT_KINDS 에만 빠져 있어
@@ -509,6 +592,19 @@ const MatrixRow = styled.div`
   border-top: 1px solid #F1F5F9;
   &:first-child { border-top: none; }
   &:hover { background: #FAFBFC; }
+`;
+// 열 일괄 줄 — 머리줄 바로 아래, 연한 바탕으로 «이 열 전체» 로 읽히게.
+const BulkRow = styled(MatrixRow)`
+  background: #F8FAFC;
+  border-bottom: 1px solid #E2E8F0;
+  &:hover { background: #F8FAFC; }
+`;
+// 일부만 켜짐 — 손잡이를 가운데에, 바탕은 연한 민트(켜짐·꺼짐과 구별)
+const BulkSwitch = styled(Switch)<{ $mixed: boolean }>`
+  ${p => p.$mixed ? 'background: #99E2D8;' : ''}
+`;
+const BulkKnob = styled(SwitchKnob)<{ $mixed: boolean }>`
+  ${p => p.$mixed ? 'left: 10px;' : ''}
 `;
 const EventCell = styled.div`padding: 14px 14px; display: flex; flex-direction: column; gap: 2px;
   @media (max-width: 640px) { padding: 12px 6px 12px 0; min-width: 0; }`;
