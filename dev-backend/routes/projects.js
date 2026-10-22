@@ -3373,6 +3373,9 @@ router.post('/:id/clients', authenticateToken, async (req, res, next) => {
     if (error) return errorResponse(res, error.message, error.code);
     if (role === 'client') return errorResponse(res, 'forbidden', 403);
     const { name, email, client_id } = req.body || {};
+    // 고객 추가 폼(ClientAddDrawer 초대 모드)이 같이 보내는 값 — 새 고객 행을 만들 때만 쓴다
+    const newCompany = req.body?.company_name ? String(req.body.company_name).trim().slice(0, 200) || null : null;
+    const newKind = ['customer', 'vendor', 'freelancer', 'other'].includes(req.body?.kind) ? req.body.kind : undefined;
     const token = crypto.randomBytes(24).toString('hex');
     // 프로젝트 고객 초대 = 워크스페이스 Client 로도 항상 편입.
     //  - 옛 버그: 이미 가입한 User 일 때만 Client 행 생성 → 미가입 초대 고객은 청구서/고객목록에 안 떠서
@@ -3424,6 +3427,8 @@ router.post('/:id/clients', authenticateToken, async (req, res, next) => {
           user_id: existingUser ? existingUser.id : null,
           invite_email: emailTrim,
           display_name: String(name).trim(),
+          company_name: newCompany,
+          ...(newKind ? { kind: newKind } : {}),
           status: 'invited',
           invited_by: req.user.id, invited_at: new Date(),
         });
@@ -3447,13 +3452,18 @@ router.post('/:id/clients', authenticateToken, async (req, res, next) => {
       || clientRow?.invite_email
       || '',
     ).trim();
+    // ★ 2026-10-22 (Fable 판정 3) — 초대하지 않은 고객(직접 관리·문의 = canInviteClient)을 붙일 때는
+    //   토큰·초대 메일·«초대 대기» 알림을 만들지 않는다. 정보만 관리하는 고객에게 메일이 나가면 외부 발송이고,
+    //   «직접 관리» 가 «초대 대기» 로 바뀐다. 뒤에 그 고객을 초대·수락하면 linkClientToProjects 가 contact_user_id 를 채운다.
+    const quiet = !!(clientRow && client_id !== undefined && client_id !== null && client_id !== ''
+      && require('../services/clientAccess').canInviteClient(clientRow));
     const row = await ProjectClient.create({
       project_id: project.id,
       client_id: clientRow ? clientRow.id : null,
       contact_user_id,
       contact_name: contactName,
       contact_email: emailTrim || clientRow?.invite_email || null,
-      invite_token: token,
+      invite_token: quiet ? null : token,
       invited_by: req.user.id,
     });
     // 계정이 이미 있는 고객은 추가와 동시에 프로젝트가 보인다(contact_user_id) — 그 프로젝트의 고객 채널에도 들인다.
@@ -3473,7 +3483,7 @@ router.post('/:id/clients', authenticateToken, async (req, res, next) => {
     });
 
     // 초대 이메일 발송 (실패해도 초대 자체는 성공 처리)
-    if (row.contact_email) {
+    if (row.contact_email && !quiet) {
       try {
         const { sendInviteEmail } = require('../services/emailService');
         const biz = await Business.findByPk(project.business_id, { attributes: ['brand_name', 'name'] });
@@ -3493,7 +3503,7 @@ router.post('/:id/clients', authenticateToken, async (req, res, next) => {
     // 이미 PlanQ 계정이면 앱 안에서도 알린다 — services/inviteNotify 한 벌.
     //   계정이 붙은 고객(contact_user_id)은 지금 이미 프로젝트가 열린다 → «추가되었습니다»(그 워크스페이스·프로젝트 주소·토큰 없음).
     //   아직 안 붙었는데 이메일이 계정이면 → 수락이 필요한 초대(링크 /invite/<token>, 범위 NULL).
-    await require('../services/inviteNotify').notifyExistingInvitee(contact_user_id
+    if (!quiet) await require('../services/inviteNotify').notifyExistingInvitee(contact_user_id
       ? { userId: contact_user_id, kind: 'project_client_added', businessId: project.business_id, projectId: project.id, projectName: project.name,
         entityType: 'project_client', entityId: row.id, actorUserId: req.user.id, io: req.app.get('io') }
       : { email: row.contact_email, kind: 'project_client_pending', businessId: project.business_id, projectId: project.id, projectName: project.name,
@@ -3515,6 +3525,8 @@ router.post('/:id/clients/:clientId/resend-invite', authenticateToken, async (re
     const row = await ProjectClient.findOne({ where: { id: Number(req.params.clientId), project_id: project.id } });
     if (!row) return errorResponse(res, 'not_found', 404);
     if (row.invite_token_used_at || row.contact_user_id) return errorResponse(res, 'already_accepted', 400);
+    // 초대 없이 붙인 고객(직접 관리) — 재발송할 초대가 없다. 초대는 고객 화면의 «이 고객 초대» 로.
+    if (!row.invite_token) return errorResponse(res, 'not_invited', 400);
     if (!row.contact_email) return errorResponse(res, 'no_email', 400);
     // 기존 토큰 유지(옛 메일 링크도 유효) + 발송 시점 갱신.
     await row.update({ invited_at: new Date() });
@@ -3749,7 +3761,7 @@ async function loadProjectDetail(projectId) {
       const clients = await Client.findAll({
         where: { id: cids, business_id: project.business_id },
         attributes: ['id', 'display_name', 'company_name', 'biz_name', 'user_id', 'status',
-          'invite_email', 'tax_invoice_email', 'billing_contact_email'],
+          'invite_email', 'tax_invoice_email', 'billing_contact_email', 'job_title', 'department'],
       });
       const cMap = new Map(clients.map(c => [c.id, c]));
       json.projectClients = json.projectClients.map(pc => {
@@ -3760,6 +3772,10 @@ async function loadProjectDetail(projectId) {
           // 연결된 Client 가 실제 사용자(user_id)면 '참여 중'. (contact_user_id 가 명단의 joined 판정 기준)
           if (!pc.contact_user_id && cli.user_id && cli.status === 'active') pc.contact_user_id = cli.user_id;
           pc.client_status = cli.status;
+          // 사람 카드(components/People) — 회사·직책·부서. 값은 고객 행이 정본(프로젝트 행에 복사해 두지 않는다)
+          pc.company_name = cli.company_name || cli.biz_name || null;
+          pc.job_title = cli.job_title || null;
+          pc.department = cli.department || null;
         }
         return pc;
       });
