@@ -372,6 +372,15 @@ router.post('/ai-create', authenticateToken, aiCreateModeLimiter, async (req, re
     if (!business_id) return errorResponse(res, 'business_id required', 400);
     if (!prompt || !String(prompt).trim()) return errorResponse(res, 'prompt required', 400);
     if (String(prompt).length > 4000) return errorResponse(res, 'prompt_too_long', 400);
+    // 2026-10-22 (Fable) — 저장 상한(MAX_CONFIRM_CANDIDATES)보다 많이 나열했으면 LLM 을 부르기 전에 말한다.
+    //   미리보기까지 만들고 확정에서 막히면 기다린 시간·비용을 다 버린다.
+    {
+      const { countEnumeratedItems, MAX_CONFIRM_CANDIDATES } = require('../services/aiTaskPlanner');
+      const listed = String(mode || '') === 'routine' ? 0 : countEnumeratedItems(prompt);
+      if (listed > MAX_CONFIRM_CANDIDATES) {
+        return res.status(400).json({ success: false, message: 'too_many_items', max: MAX_CONFIRM_CANDIDATES, got: listed });
+      }
+    }
 
     // #354 — 모드 화이트리스트. 모르는 값은 조용히 낙하시키지 않고 **거절**한다.
     const AI_MODES = ['quick', 'routine'];
@@ -503,6 +512,8 @@ router.post('/ai-create', authenticateToken, aiCreateModeLimiter, async (req, re
     if (result.error === 'output_truncated') {
       return errorResponse(res, 'output_truncated', 422);
     }
+    // 프로젝트가 없으면 업무그룹이 존재할 수 없다 — LLM 이 지어낸 그룹 이름을 화면에 칩으로 약속하지 않는다.
+    if (!project_id) (result.candidates || []).forEach((c) => { c.workstream_hint = null; });
 
     return successResponse(res, {
       // ★ mode 에코 — 프론트가 "내가 보낸 모드로 실제 처리됐는지" 를 대조한다.

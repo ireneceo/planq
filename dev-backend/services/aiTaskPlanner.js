@@ -32,7 +32,7 @@ function detectVague(title, language) {
   return list.some(w => lower.includes(w.toLowerCase()));
 }
 
-function buildSystemPrompt(language, members, projectContext, targetDate, todayLocal, mode, workstreams = [], routineCtx = null) {
+function buildSystemPrompt(language, members, projectContext, targetDate, todayLocal, mode, workstreams = [], routineCtx = null, enumerated = 0) {
   const lang = language === 'en' ? 'English' : 'Korean';
   // #354 루틴 설계 모드 — 일회성 분해가 아니라 **상시 반복 체계**를 설계한다.
   //   ★ 여기서 만들지 않는 것(Fable 판정): 성과지표(측정 방법 없는 지표 금지 — #358 게이트가 먼저),
@@ -126,25 +126,42 @@ Additional output key for this mode:
   // ★ 2026-10-12 — 줄바꿈·번호·글머리 목록이 «명시적 나열» 예시에 없어 모델이 묶거나 몇 개만 남겼다
   //   (Irene: "여러 개 업무 추가하면 Q task에 그대로 추가해야 하는데 마음대로 줄이거나").
   //   서버 안전망(countEnumeratedItems + 1회 재요구)이 같이 막는다.
-  const quickBlock = mode === 'quick' ? `
-
-═══ QUICK CAPTURE MODE (override decomposition) ═══
-
-This input came from a casual "talk to me" bar. The user expects ONE task unless they listed several items.
-- Default to exactly 1 task for a single request. Do NOT auto-expand a single deliverable into phases.
+  // ★ 2026-10-22 (Fable 판정) — 나열 규칙을 Cue 바 전용에서 떼어 **모달 일회성 분해에도** 건다.
+  //   모달은 서버가 번호·글머리 나열을 센 경우(enumerated ≥ 2)만 받는다 — 표식 없는 한 줄 목표
+  //   («WordPress 런칭. 디자인부터 SEO 까지») 는 종전 분해 정책 그대로다.
+  //   (Irene: "ai로 업무추가 창에서 여러 개 업무 추가했더니 에러야" — 15개 목록이 2,000토큰에서 잘리고
+  //    제목마다 «완료» 가 붙었다.)
+  const isQuick = mode === 'quick';
+  const listedBlock = (isQuick || enumerated >= 2) ? `
 - LISTED ITEMS — if the user listed several items in ANY form: separate lines, numbers ("1." "1)" "①"),
-  bullets ("-" "•" "*"), or a run joined by commas / "그리고" / "하고" / "and" (예: "A 하고 B 하고 C", "A, B, C 업무 추가"):
+  bullets ("-" "•" "*")${isQuick ? ', or a run joined by commas / "그리고" / "하고" / "and" (예: "A 하고 B 하고 C", "A, B, C 업무 추가")' : ''}:
     * output EXACTLY one task per listed item — same count, same order.
     * Do NOT merge items, do NOT drop items, do NOT split one item into several, do NOT add extra items.
     * Title = the user's own wording for that item, unchanged. Only if the item is a bare noun with no action
       (예: "월간 리포트") append ONE completion noun ("작성"). If it already ends with an action word
       (수정·정리·검토·발행·전달·발송·잡기·만들기·작성·제작 …) keep it EXACTLY as written — never write "수정 작성" or "발송 문서 작성".
+      Never append "완료" to a title.
     * A leading line that only introduces the list (예: "다음 업무 추가해줘:") is NOT an item.
-    * Keep each description to ONE short sentence when there are many items.
+    * Keep each description to ONE short sentence when there are many items. If 15 or more items, "description" may be an empty string.
+    * "depends_on_index": null for listed items unless the user wrote a dependency between them.
+    * "instruction": null for listed items.
+- Still respect any stated deadline / assignee per item.` : '';
+  const quickBlock = isQuick ? `
+
+═══ QUICK CAPTURE MODE (override decomposition) ═══
+
+This input came from a casual "talk to me" bar. The user expects ONE task unless they listed several items.
+- Default to exactly 1 task for a single request. Do NOT auto-expand a single deliverable into phases.${listedBlock}
 - Only expand into phases if the user explicitly asked to break a single goal down.
-- Still respect any stated deadline / assignee per item.
-- This QUICK rule OVERRIDES the "minimum tasks", domain-expansion, DECOMPOSITION and NAMING rules below.
-` : '';
+- This QUICK rule OVERRIDES the "minimum tasks", domain-expansion, DECOMPOSITION, NAMING and depends_on_index ("use this aggressively") rules below.
+` : (listedBlock ? `
+
+═══ LISTED ITEMS MODE (override decomposition) ═══
+
+The user wrote a list of ${enumerated} items. Add them as tasks — do not decompose them into phases.${listedBlock}
+- This LISTED rule OVERRIDES the "minimum tasks", domain-expansion, DECOMPOSITION, NAMING and depends_on_index ("use this aggressively") rules below.
+  Listed items are independent unless the user said otherwise: depends_on_index MUST be null.
+` : '');
 
   // #353 ② — 업무그룹(워크스트림) 배치. 이름을 알려주지 않으면 LLM 이 힌트를 지어내고,
   //   지어낸 이름은 confirm 의 보수 매칭에서 전부 미배치로 떨어진다(기능이 있으나 마나가 된다).
@@ -189,8 +206,9 @@ GOOD (outcome-named, completion-clear):
   - "런칭 체크리스트 발행"
 
 Rules:
-1. Each title ends with a completion-noun (작성/발행/제작/등록/배포/런칭/완료) or a deliverable noun (시안/초안/보고서/문서/리스트).
+1. Each title ends with a completion-noun (작성/발행/제작/등록/배포/런칭) or a deliverable noun (시안/초안/보고서/문서/리스트).
 2. NEVER output a title that is just a verb or a domain word.
+   NEVER end a title with "완료" or "작업 완료" — "완료" is a task status in this app, not a deliverable (BAD "퍼블리싱 작업 완료" → GOOD "퍼블리싱 결과물 배포").
 3. If unsure, name the deliverable explicitly: "X 작성", "Y 발행".
 
 ═══ DECOMPOSITION POLICY ═══
@@ -227,7 +245,7 @@ Rules:
 - completed: true ONLY when the user says the work is ALREADY DONE and just needs to be recorded
   (예: "완료로 추가해줘", "이건 어제 끝냈어 기록만 해줘"). Anything the user still has to do → false. Default false.
   A completed task is recorded on today's date. Never combine completed:true with a recurrence.
-- depends_on_index: 0-based index of another task in the SAME response that must complete first. Use this aggressively — most tasks have at least one upstream.
+${listedBlock ? '- depends_on_index: null for listed items — they are independent unless the user wrote an order between them.' : '- depends_on_index: 0-based index of another task in the SAME response that must complete first. Use this aggressively — most tasks have at least one upstream.'}
 - assignee_hint: short role keyword (예: "디자이너" / "백엔드 개발자" / "마케터" / "기획자"). Match domain expertise.
 - assignee_name: if the user EXPLICITLY named a specific person to handle this task (예: "루아에게 요청", "민수가 맡아"), set the EXACT member name copied from the Workspace members list below. Otherwise null. Names take priority over assignee_hint.
 - description: 1-2 sentences explaining what the deliverable contains. CRITICAL — if the user's input contains any URL/link or specific reference, PRESERVE it verbatim inside the description (never drop the link). Capture the user's actual request faithfully; do NOT replace it with a generic restatement.
@@ -407,8 +425,10 @@ async function planTasksFromPrompt({ prompt, businessId, projectContext, members
     return { candidates: [], reasoning: '', fallback: true, error: 'empty_prompt' };
   }
   const isRoutine = mode === 'routine';
+  // 나열 항목 수 — 루틴 아닌 모든 모드(Cue 바·모달 일회성 분해). 프롬프트 규칙·출력 상한·개수 재요구가 같은 값을 읽는다.
+  const enumerated = isRoutine ? 0 : countEnumeratedItems(prompt);
   let systemPrompt = buildSystemPrompt(language, members, projectContext, targetDate, todayLocal, mode, workstreams,
-    isRoutine ? { strategy, existingRecurring } : null);
+    isRoutine ? { strategy, existingRecurring } : null, enumerated);
   // KNOWLEDGE_LOOP 축1 — 워크스페이스 카테고리별 실측 소요시간 통계 주입 (estimated_hours 정확도 ↑)
   try { systemPrompt += await require('./cueKnowledge').getWorkPatternPromptBlock(businessId); } catch { /* noop */ }
   // 운영 #312 — 재생성은 "처음부터 다시 분해" 가 아니라 **"직전 결과를 고쳐 쓰기"** 다.
@@ -446,7 +466,6 @@ async function planTasksFromPrompt({ prompt, businessId, projectContext, members
   }
   // 2026-10-12 — 나열 항목이 많으면 task_plan 의 출력 2,000토큰에서 JSON 이 잘린다(= 전량 유실·422).
   //   상한만 넓힌 task_plan_list 로 부른다(상한은 천장이라 짧은 답의 비용은 그대로).
-  const enumerated = mode === 'quick' ? countEnumeratedItems(prompt) : 0;
   const planPurpose = isRoutine ? 'routine_plan' : (enumerated >= 8 ? 'task_plan_list' : 'task_plan');
   const result = await callOpenAi(systemPrompt, userPrompt, planPurpose);
 
@@ -554,7 +573,9 @@ async function planTasksFromPrompt({ prompt, businessId, projectContext, members
       : [];
     // #90 — 이름 지정 우선, 없으면 역할 힌트
     const assignee_user_id = matchMemberByName(assignee_name, members) ?? matchMemberByHint(assignee_hint, members);
-    const vague = detectVague(title, language);
+    // 사용자가 목록으로 적은 항목은 «적은 말 그대로» 가 규칙이다 — 그 말을 모호하다고 노랗게 칠하지 않는다
+    //   (15개 목록이 전부 ⚠ 로 덮였다, 2026-10-22).
+    const vague = enumerated >= 2 ? false : detectVague(title, language);
     return {
       idx,
       title,

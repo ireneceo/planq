@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import PlanQSelect from '../Common/PlanQSelect';
-import { CalendarIcon, ClockIcon, AlertTriangleIcon } from '../Common/Icons';
+import { CalendarIcon, ClockIcon } from '../Common/Icons';
 // 반복 규칙 라벨은 단일 원천에서만 온다 (운영 #347 — 3벌 하드코딩 제거).
 import { formatRRuleLabel } from '../../utils/recurrence';
 import type { TFunction } from 'i18next';
@@ -164,7 +164,9 @@ export default function AiCandidateCard({ candidate: c, members, baseDate, onCha
             isClearable
             placeholder={hasProject
               ? t('ai.assigneeProjectDefault', '프로젝트 기본 담당자') as string
-              : t('ai.assigneeUnassigned', '미배정') as string}
+              /* 프로젝트 없이 담당자를 비워 두면 서버가 만든 사람(나)에게 배정한다(task_actions.createTask) —
+                 «미배정» 이라고 쓰면 거짓이다. */
+              : t('ai.assigneeDefaultMe', '나 (기본)') as string}
             /* 운영 #263 — "담당자로 내가 안나오고 이상한 1, 2 라고 표시되는데."
                목록에 없는 id 가 오면 여태 `#2` 같은 날 id 를 그렸다. 사용자에게 숫자는 아무 뜻이 없다.
                (근본 원인인 "후보 풀 ≠ 표시 목록" 은 routes/tasks.js 에서 기준을 맞춰 막았고,
@@ -215,7 +217,8 @@ export default function AiCandidateCard({ candidate: c, members, baseDate, onCha
             여태 이 값은 만들어지고도 저장 자리가 없어 매번 버려졌다(카드 타입에는 있었는데 렌더 0곳).
             사람이 고친 값이 우선이다 — confirm 이 이 값을 그대로 실어 보낸다. */}
         <MetaItem>
-          <MetaIcon><AlertTriangleIcon size={13} /></MetaIcon>
+          {/* 경고 삼각형을 쓰면 경고로 읽힌다 — 칸 이름을 글자로 */}
+          <MetaLabel>{t('importance.label', '중요도')}</MetaLabel>
           <PlanQSelect size="sm" isClearable
             placeholder={t('importance.unset', '미지정') as string}
             value={c.priority ? { value: c.priority, label: t(`importance.${c.priority}`, c.priority) as string } : null}
@@ -255,7 +258,8 @@ export default function AiCandidateCard({ candidate: c, members, baseDate, onCha
             이름이 기존 그룹과 글자까지 같지 않으면 그대로 미분류로 떨어졌다.
             그룹이 아직 하나도 없으면 고를 것이 없으므로 힌트 칩만 두고, 힌트가 있으면
             그 이름으로 만들 수 있게 한다(생성은 기존 라우트를 통한다). */}
-        {(workstreams.length > 0 || c.workstream_hint) && (
+        {/* 프로젝트가 없으면 그룹이 존재할 수 없다 — 저장되지 않을 그룹을 칩으로 약속하지 않는다 */}
+        {hasProject && (workstreams.length > 0 || c.workstream_hint) && (
           <MetaItem>
             <MetaIcon>
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
@@ -382,6 +386,7 @@ const CardMetaRow = styled.div`
   font-size: 0.75rem; color: #475569;
 `;
 const MetaItem = styled.div`display: inline-flex; align-items: center; gap: 4px;`;
+const MetaLabel = styled.span`color: #94A3B8; font-size: 0.75rem; flex-shrink: 0;`;
 const MetaIcon = styled.span`display: inline-flex; align-items: center; color: #94A3B8; flex-shrink: 0;`;
 const DateRange = styled.span`color: #0F172A; font-weight: 600;`;
 const DurEdit = styled.span`display: inline-flex; align-items: center; gap: 2px; color: #94A3B8; font-size: 0.6875rem;`;

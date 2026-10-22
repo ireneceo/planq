@@ -18,7 +18,6 @@ import AiRegenerateBar from '../Common/AiRegenerateBar';
 import AiAreaBlock, { type AiArea } from './AiAreaBlock';
 import AiLoadSummary from './AiLoadSummary';
 import { isEnterAction } from '../../utils/imeKey';
-import { formatDay } from '../../utils/dateFormat';
 
 interface Member { user_id: number; name: string; }
 interface Project { id: number; name: string; }
@@ -105,6 +104,7 @@ export default function AiTaskCreateModal({ open, onClose, businessId, projectId
       setReasoning('');
       setError(null);
       setNotice(null);
+      setListShortfall(null);
       setSubmitting(false);
       setSelectedProjectId(projectId || null);
       setBaseDate(new Date().toISOString().slice(0, 10));
@@ -155,6 +155,7 @@ export default function AiTaskCreateModal({ open, onClose, businessId, projectId
   // 서버가 "계약을 못 채웠다" 고 알려준 것 — 조용히 삼키지 않고 그대로 보여준다.
   type Shortfall = string | { code: string; n?: number; min?: number };
   const [shortfall, setShortfall] = useState<Shortfall[] | null>(null);
+  const [listShortfall, setListShortfall] = useState<{ expected: number; got: number } | null>(null);
 
   if (!open) return null;
 
@@ -189,7 +190,15 @@ export default function AiTaskCreateModal({ open, onClose, businessId, projectId
         // ★ 결과가 상한에서 잘린 경우 — "더 구체적으로 입력해 주세요" 를 띄우면 안 된다.
         //   더 구체적으로 쓸수록 출력이 길어져 더 잘린다. 반대 처방을 말해 준다.
         if (j.message === 'output_truncated') {
-          setError(t('ai.truncated', '결과가 너무 커서 잘렸어요. 루틴 범위를 나눠서 다시 요청해 주세요.') as string);
+          setError((routineMode
+            ? t('ai.truncated', '결과가 너무 커서 잘렸어요. 루틴 범위를 나눠서 다시 요청해 주세요.')
+            : t('ai.truncatedOneoff', '결과가 너무 길어 잘렸어요. 업무를 몇 묶음으로 나눠서 다시 요청해 주세요.')) as string);
+          setStage('input');
+          return;
+        }
+        // 저장 상한보다 많이 나열했다 — 서버가 LLM 을 부르기 전에 거절한다(기다린 뒤 확정에서 막히지 않게).
+        if (j.message === 'too_many_items') {
+          setError(t('ai.tooManyItems', { max: j.max, got: j.got, defaultValue: '한 번에 {{max}}개까지 추가할 수 있어요. {{got}}개를 적으셨어요 — 나눠서 추가해 주세요.' }) as string);
           setStage('input');
           return;
         }
@@ -225,6 +234,9 @@ export default function AiTaskCreateModal({ open, onClose, businessId, projectId
       setShortfall((j.data?.routine_shortfall as Shortfall[] | null) || null);
       setAiInstructions(nextInstructions);   // ★ 성공했을 때만 누적 확정 (실패한 지시는 쌓지 않는다)
       setReasoning(j.data?.reasoning || '');
+      // 나열한 N개 중 M개만 정리됐으면 말한다(Cue 바와 같은 문구) — 확정은 막지 않는다.
+      const enumShort = j.data?.enumerated_shortfall as { expected: number; got: number } | null;
+      setListShortfall(enumShort && enumShort.got < enumShort.expected ? enumShort : null);
       setStage('preview');
     } catch (e) {
       setError(mapApiError(e, tErr));
@@ -307,14 +319,6 @@ export default function AiTaskCreateModal({ open, onClose, businessId, projectId
         <Body>
           {stage === 'input' && (
             <AIForm>
-              <AIDesc>
-                {t('ai.todayLabel', '오늘')}: {formatDay(new Date(), { year: 'always' })} · {t('ai.membersLabel', '멤버')} {members.length}
-              </AIDesc>
-              <FieldRow>
-                <FieldLabel>{t('ai.startDate', '시작일')}</FieldLabel>
-                <SingleDateField value={baseDate} onChange={(d) => setBaseDate(d || new Date().toISOString().slice(0, 10))} size="sm" />
-                <Hint>{t('ai.startHint', '이 날짜 기준으로 모든 업무의 일정이 자동 계산됩니다.') as string}</Hint>
-              </FieldRow>
               {!projectFixed && (
                 <FieldRow>
                   <FieldLabel>{t('ai.projectLabel', '프로젝트 연결 (선택)')}</FieldLabel>
@@ -346,8 +350,8 @@ export default function AiTaskCreateModal({ open, onClose, businessId, projectId
                     data-testid="ai-mode-oneoff"
                     onClick={() => setRoutineMode(false)}
                   >
-                    <ModeName>{t('ai.mode.oneoff', '일회성 업무 분해') as string}</ModeName>
-                    <ModeDesc>{t('ai.mode.oneoffDesc', '프로젝트를 단계별 업무로 나눕니다') as string}</ModeDesc>
+                    <ModeName>{t('ai.mode.oneoff', '한 번 하는 업무') as string}</ModeName>
+                    <ModeDesc>{t('ai.mode.oneoffDesc', '목표를 단계로 나누거나, 적은 목록을 그대로 추가해요') as string}</ModeDesc>
                   </ModeBtn>
                   <ModeBtn
                     type="button" role="radio" aria-checked={routineMode}
@@ -358,12 +362,12 @@ export default function AiTaskCreateModal({ open, onClose, businessId, projectId
                     title={!selectedProjectId ? (t('ai.mode.routineNeedsProject', '프로젝트를 먼저 선택하세요') as string) : undefined}
                   >
                     <ModeName>{t('ai.mode.routine', '루틴 설계') as string}</ModeName>
-                    <ModeDesc>{t('ai.mode.routineDesc', '영역을 나누고 반복 업무·실행 지침까지 만듭니다') as string}</ModeDesc>
+                    {/* 프로젝트가 없으면 설명 자리에 «먼저 선택» 을 — 루틴을 안 쓸 사람에게 별도 줄로 늘 띄우지 않는다 */}
+                    <ModeDesc>{(selectedProjectId
+                      ? t('ai.mode.routineDesc', '영역을 나누고 반복 업무·실행 지침까지 만듭니다')
+                      : t('ai.mode.routineNeedsProject', '프로젝트를 먼저 선택하세요')) as string}</ModeDesc>
                   </ModeBtn>
                 </ModeRow>
-                {!selectedProjectId && (
-                  <Hint>{t('ai.mode.routineNeedsProject', '프로젝트를 먼저 선택하세요') as string}</Hint>
-                )}
               </FieldRow>
               <FieldRow>
                 <FieldLabel>{routineMode ? t('ai.promptLabelRoutine', '만들 루틴') : t('ai.promptLabel', '추가할 업무')}</FieldLabel>
@@ -374,11 +378,11 @@ export default function AiTaskCreateModal({ open, onClose, businessId, projectId
                   rows={5}
                   placeholder={(routineMode
                     ? t('ai.placeholderRoutine', '예: 개인 브랜드 연구 루틴. 매일 논문 인사이트 기록, 평일 SNS 발행, 매주 월요일 리서치 계획, 매월 마지막 평일 회고.')
-                    : t('ai.placeholder', '예: WordPress 블로그 사이트 한 달 안에 런칭. 디자인부터 컨텐츠 마이그레이션, SEO 까지.')) as string}
+                    : t('ai.placeholder', '예: WordPress 블로그 한 달 안에 런칭 — 디자인부터 SEO 까지\n또는 목록으로:\n1. 견적서 발송\n2. 회의록 정리')) as string}
                 />
                 <Hint>{(routineMode
                   ? t('ai.promptHintRoutine', '반복 주기와 하고 싶은 일을 적으면 영역·반복 규칙·실행 지침까지 만들어요.')
-                  : t('ai.promptHint', '한 줄로 적으면 AI 가 여러 업무로 나눠 줘요.')) as string}</Hint>
+                  : t('ai.promptHint', '한 줄로 적으면 단계로 나눠 주고, 번호나 줄바꿈으로 여러 개 적으면 적은 그대로 하나씩 추가해요.')) as string}</Hint>
               </FieldRow>
               {recMatch && onUseTemplate && (
                 <RecBanner>
@@ -412,13 +416,18 @@ export default function AiTaskCreateModal({ open, onClose, businessId, projectId
               <LoadingText>{t('ai.loadingTitle', 'AI 가 업무를 분해하고 있어요')}</LoadingText>
               <LoadingSub>{t('ai.loadingSub', '결과물 중심으로 단계를 나누는 중...')}</LoadingSub>
               <ProgressTrack><ProgressFill /></ProgressTrack>
-              <LoadingHint>{t('ai.loadingHint', '보통 5~10초 정도 걸려요. 잠시만 기다려 주세요.')}</LoadingHint>
+              <LoadingHint>{t('ai.loadingHint', '보통 10초 안팎, 목록이 길면 30초쯤 걸려요.')}</LoadingHint>
             </LoadingBox>
           )}
 
           {stage === 'preview' && (
             <AIForm>
               {reasoning && <ReasoningBox>{reasoning}</ReasoningBox>}
+              {listShortfall && (
+                <NoticeMsg role="status">
+                  {t('ai.bar.shortfall', { expected: listShortfall.expected, got: listShortfall.got, defaultValue: '적어 주신 {{expected}}개 중 {{got}}개만 정리됐어요 — 빠진 항목은 다시 보내 주세요' }) as string}
+                </NoticeMsg>
+              )}
               <PreviewBaseRow>
                 <FieldLabel>{t('ai.startDate', '시작일')}</FieldLabel>
                 <SingleDateField value={baseDate} onChange={(d) => setBaseDate(d || new Date().toISOString().slice(0, 10))} size="sm" />
@@ -485,7 +494,7 @@ export default function AiTaskCreateModal({ open, onClose, businessId, projectId
             <>
               <ModalActionButton variant="secondary" onClick={onClose}>{t('ai.cancel', '취소')}</ModalActionButton>
               <ModalActionButton variant="ai" onClick={() => generate()} disabled={!prompt.trim() || submitting}>
-                {submitting ? t('ai.generating', '생성 중...') : t('ai.generate', 'AI 업무 추가')}
+                {submitting ? t('ai.generating', '정리하는 중...') : t('ai.generate', 'AI 로 정리하기')}
               </ModalActionButton>
             </>
           )}
@@ -571,7 +580,6 @@ const Footer = styled.div`
   ${modalFooterRadius}
 `;
 const AIForm = styled.div`display:flex;flex-direction:column;gap:14px;`;
-const AIDesc = styled.div`font-size:0.75rem;color:#64748B;line-height:1.5;`;
 const FieldRow = styled.div`display:flex;flex-direction:column;gap:6px;`;
 const FieldLabel = styled.label`font-size:0.75rem;font-weight:600;color:#0F172A;`;
 const FieldTextarea = styled.textarea`
