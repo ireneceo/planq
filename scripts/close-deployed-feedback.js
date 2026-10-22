@@ -88,16 +88,17 @@ async function main() {
   }
 
   console.log(`\n닫을 건 ${toClose.length}: ${toClose.map((r) => '#' + r.id + (legacy.includes(r.id) ? '(옛 규칙)' : '')).join(' ') || '(없음)'}`);
-  {
-    // 시한부 호환이 얼마나 남았나 — 0 이 되면 deployCloseDecision 의 옛 규칙 분기를 지운다
+  if (skipped.length) console.log(`건너뜀 ${skipped.length}:\n  ${skipped.join('\n  ')}`);
+
+  // 시한부 호환이 얼마나 남았나 — 0 이 되면 deployCloseDecision 의 옛 규칙 분기를 지운다(적용 때는 닫은 뒤 다시 센다)
+  const remainingLegacy = async () => {
     const [[n]] = await sequelize.query(`SELECT COUNT(*) n FROM feedback_items WHERE parent_id IS NULL AND status = 'reviewing'
       AND approved_at IS NULL AND admin_response IS NOT NULL AND TRIM(admin_response) <> ''${since ? ' AND responded_at < :since' : ''}`,
     { replacements: { since } });
     console.log(`옛 규칙 대상(승인 체계 전 답글 달린 검토중) 남은 수: ${n.n}${since ? '' : ' (approval_since 없음 — 마이그레이션 전)'}`);
-  }
-  if (skipped.length) console.log(`건너뜀 ${skipped.length}:\n  ${skipped.join('\n  ')}`);
-
+  };
   if (!APPLY) {
+    await remainingLegacy();
     console.log('\n(dry-run — 실제로 닫으려면 --apply)');
     process.exit(0);
   }
@@ -113,6 +114,8 @@ async function main() {
     }).catch(() => null);
   }
   console.log(`\n✅ ${toClose.length}건 done 처리 완료`);
+  if (legacy.length) console.log(`옛 규칙으로 닫은 번호: ${legacy.map((i) => '#' + i).join(' ')} — 배포 보고에 적는다`);
+  await remainingLegacy();
   process.exit(0);
 }
 

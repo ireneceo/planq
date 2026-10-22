@@ -612,7 +612,8 @@ sync_database() {
   #   신 코드(모델·확인필요 수집기)가 이 칸을 SELECT 하므로 PM2 reload 전.
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-feedback-reply-seen.js 2>&1 | tail -5"
   # 2026-10-22 피드백 승인 체계 — feedback_items.status ENUM +queued·in_progress(끝 append) · approved_by/approved_at.
-  #   모델이 SELECT 하므로 PM2 reload 전. approved_at 칸 설명에 approval_since(배포 닫기 옛 reviewing 호환 기준) 를 남긴다.
+  #   모델이 SELECT 하므로 PM2 reload 전. platform_settings.feedback_approval_since(배포 닫기 옛 reviewing 호환 기준)를 비어 있을 때만 적는다.
+  #   sync-database 와 순서가 바뀌어도 된다(칸·ENUM 있으면 건너뜀). 배포 닫기가 «옛 규칙» 으로 닫은 번호는 배포 보고에 적는다.
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-feedback-approval.js 2>&1 | tail -5"
   # 2026-10-15 Q talk «열어 봄 ≠ 참여» — conversation_participants.is_viewer TINYINT NOT NULL DEFAULT 0.
   #   모델 defaultScope 가 이 칸을 SELECT 하므로 PM2 reload 전(없으면 채팅 전부 500). 옛 행 정리는 backfill-conv-viewer.js(수동, dry-run 기본).

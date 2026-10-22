@@ -3,6 +3,8 @@
 ## 2026-10-22 · 사용자 피드백 승인 체계 설계 (방 9fdd0593) — 판정 **PASS 조건부**(Fable design)
 - 상태 6값(접수·검토중·진행대기·반영중·완료·보류) · 승인 정본 = approved_at · 승인자 = platform_admin · 추가 문의는 개발 단계 불가 · 옛 reviewing 은 배포 닫기 시한부 호환(approval_since).
 - 완료 검증은 권한·배포 닫기 술어라 gate 1회 더(묶어서). 전문 docs/FEEDBACK_APPROVAL_DESIGN.md §8.
+- 완료 검증 1625c362 **FAIL**(차단 1 — sync-database 가 칸 설명을 지워 마이그레이션 exit 1·배포 정지) → fc39aeb4(시각을 platform_settings 칸으로) 재판정 **PASS**(Fable · 배포 순서 양방향 재현 exit 0·멱등 · 배포 닫기 5건 · 실호출 38/38).
+- 비차단 반영: deploy-planq.sh 거짓 주석 · 옛 규칙 남은 수를 닫은 뒤 집계 + 옛 규칙으로 닫은 번호 출력(배포 보고에 적기).
 
 ## 2026-10-22 · «답변 완료» 2회 학습이 아는 상대를 답장 불필요로 배우던 것 (방 da9f3688) — 판정 **PASS 안 A**(Fable)
 - 학습 시점에서 아는 상대(isKnownContact)면 배우지 않는다 · 판정 실패도 배우지 않는다. 분류 시점 무시(안 B)는 기각 — 보이는 규칙이 조용히 안 먹는 상태가 된다.
