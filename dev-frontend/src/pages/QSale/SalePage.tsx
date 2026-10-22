@@ -40,6 +40,7 @@ import {
   SALE_STAGES, IN_PROGRESS_STAGES,
   type SaleClient, type SaleSummary, type SaleStage, type AccessKind,
 } from '../../services/sale';
+import { getCardIntake, type CardIntake } from '../../services/sale';
 
 const PAGE = 50;
 
@@ -78,7 +79,9 @@ export default function SalePage() {
   //   관리 행위라 대표·플랫폼 관리자에게만(옛 설정 화면과 같은 선). 멤버는 고객 탭에서도 [응대 추가] 를 본다.
   const canManage = user?.business_role === 'owner' || user?.platform_role === 'platform_admin';
   const [clientAddOpen, setClientAddOpen] = useState(false);
-  const [clientAddPrefill, setClientAddPrefill] = useState<{ name?: string; email?: string } | null>(null);
+  const [clientAddPrefill, setClientAddPrefill] = useState<{ name?: string; email?: string; company?: string; phone?: string; job_title?: string; department?: string } | null>(null);
+  // 받은 명함에서 왔을 때(내 명함 > 받은 명함 [고객으로 추가] → ?new=1&card=<보관본 id>) — 서버 판정을 드로어에 넘긴다
+  const [clientAddFromCard, setClientAddFromCard] = useState<{ savedCardId: number; colleague: boolean; match: CardIntake['match'] } | null>(null);
   // 보관 축 — 고객 탭만(활성 = 보관 안 한 것 · 보관 = 보관만)
   const [statusAxis, setStatusAxis] = useState<string>('');
   // [상담 진행] 드롭다운 — 좌표·바깥클릭·Esc·포커스는 공용 앵커 한 벌(각자 계산하면 갈라진다).
@@ -129,14 +132,29 @@ export default function SalePage() {
   useEffect(() => {
     if (urlNew !== '1') return;
     setTab('clients');
-    setClientAddPrefill({ email: searchParams.get('email') || '', name: searchParams.get('name') || '' });
-    setClientAddOpen(true);
+    const cardId = Number(searchParams.get('card')) || null;
     setSearchParams((sp) => {
       const out = new URLSearchParams(sp);
-      out.delete('new'); out.delete('email'); out.delete('name');
+      out.delete('new'); out.delete('email'); out.delete('name'); out.delete('card');
       return out;
     }, { replace: true });
-  }, [urlNew, searchParams, setSearchParams]);
+    if (cardId && businessId) {
+      // 명함 값은 서버가 준다(보관본은 내 것만) — 주소에 이름·연락처를 싣지 않는다
+      void getCardIntake(businessId, cardId).then((it) => {
+        const v = it.values;
+        setClientAddPrefill({
+          name: v.name || '', email: v.email || '', company: v.company || '', phone: v.mobile || v.phone || '',
+          job_title: v.job_title || '', department: v.department || '',
+        });
+        setClientAddFromCard({ savedCardId: cardId, colleague: it.colleague, match: it.match });
+        setClientAddOpen(true);
+      }).catch(() => { setClientAddFromCard(null); setClientAddPrefill(null); setClientAddOpen(true); });
+      return;
+    }
+    setClientAddFromCard(null);
+    setClientAddPrefill({ email: searchParams.get('email') || '', name: searchParams.get('name') || '' });
+    setClientAddOpen(true);
+  }, [urlNew, searchParams, setSearchParams, businessId]);
 
   // 상담 목록을 다시 읽게 하는 신호 — 문의를 추가하면 **그 목록에** 들어와야 한다
   const [inboxRefresh, setInboxRefresh] = useState(0);
@@ -266,7 +284,7 @@ export default function SalePage() {
           {/* 탭마다 주 액션 하나 — 고객 탭은 [+ 고객 추가](초대 / 직접 관리), 상담 탭은 [+ 고객응대 내역 추가](문의).
               문의 저장은 «상담 기록» 이 본체라 폼이 다르다 — 한 폼에 세 갈래를 묶지 않는다(Fable 2026-10-16). */}
           {tab === 'clients' && canManage ? (
-            <HeaderCta data-testid="sale-add-client" onClick={() => { setClientAddPrefill(null); setClientAddOpen(true); }}>
+            <HeaderCta data-testid="sale-add-client" onClick={() => { setClientAddPrefill(null); setClientAddFromCard(null); setClientAddOpen(true); }}>
               <PlusIcon aria-hidden />
               <LongLabel>{t('clients:addClient') as string}</LongLabel>
               <ShortLabel>{t('clients:addClient') as string}</ShortLabel>
@@ -575,7 +593,7 @@ export default function SalePage() {
       />
       {businessId && (
         <ClientAddDrawer open={clientAddOpen} onClose={() => setClientAddOpen(false)} businessId={businessId}
-          prefill={clientAddPrefill}
+          prefill={clientAddPrefill} fromCard={clientAddFromCard}
           onDone={(id) => { load({ silent: true, page: 1 }); if (id) setPanelClientId(id); }}
           onOpenExisting={(id) => setPanelClientId(id)} />
       )}

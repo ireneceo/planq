@@ -1,7 +1,11 @@
 // 받은 명함(명함첩) — 목록 + 우측 상세(URL ?saved=:id). 설계 docs/BUSINESS_CARD_DESIGN.md §3·§4
 //   보관본은 보관한 순간의 스냅샷이다 — 주인이 바꾸면 «바뀐 내용 있음» 을 보여 주고, [새로 받기] 로만 갱신한다.
 //   원본 주소는 목록 응답에 없다(서버가 토큰을 싣지 않는다) — [원본 열기] 를 누를 때 한 번 묻는다.
+//   2026-10-22 [고객으로 추가] — 받은 명함은 «고객으로 들이는 자리» 다(docs/NAME_CARD_V3_STRATEGY.md 9절 결정 1).
+//   지금 워크스페이스의 Q sale 고객 추가를 명함 값으로 채워 연다(판정·값은 서버 card-intake). 멤버 이상만(고객 역할엔 Q sale 이 없다).
 import React, { useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../../contexts/AuthContext';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import DetailDrawer from '../../components/Common/DetailDrawer';
@@ -42,6 +46,7 @@ const SavedCardsPanel: React.FC<Props> = ({ items, selectedId, onSelect, onChang
   }
   return (
     <>
+      <Intro>{t('saved.intro')}</Intro>
       <Toolbar>
         <SearchBox value={q} onChange={setQ} placeholder={t('saved.searchPlaceholder') as string} size="sm" width="100%" ariaLabel={t('saved.searchPlaceholder') as string} />
       </Toolbar>
@@ -90,6 +95,10 @@ const SavedDetail: React.FC<{ item: SavedCard; onClose: () => void; onChanged: (
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const [askDelete, setAskDelete] = useState(false);
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  const role = user?.business_role;
+  const canAddClient = role === 'owner' || role === 'admin' || role === 'member';
 
   const run = async (key: string, fn: () => Promise<void>) => {
     setBusy(key); setMsg(null);
@@ -120,6 +129,10 @@ const SavedDetail: React.FC<{ item: SavedCard; onClose: () => void; onChanged: (
         <Actions>
           <ActionButton tone="primary" size="md" loading={busy === 'vcf'} disabled={!!busy} data-testid="saved-vcf"
             onClick={() => void run('vcf', () => downloadSavedVcf(item))}>{t('saved.vcf')}</ActionButton>
+          {canAddClient && (
+            <ActionButton tone="secondary" size="md" disabled={!!busy} data-testid="saved-to-client"
+              onClick={() => navigate(`/sale?new=1&card=${item.id}`)}>{t('saved.toClient')}</ActionButton>
+          )}
           {item.source_alive && (
             <ActionButton tone="secondary" size="md" disabled={!!busy} onClick={() => void openOriginal()} data-testid="saved-open">{t('saved.openOriginal')}</ActionButton>
           )}
@@ -144,6 +157,7 @@ const SavedDetail: React.FC<{ item: SavedCard; onClose: () => void; onChanged: (
   );
 };
 
+const Intro = styled.p`margin: 0 0 12px; font-size: 0.8125rem; color: #64748B; line-height: 1.5; max-width: 640px;`;
 const Toolbar = styled.div`display: flex; gap: 8px; margin-bottom: 12px; max-width: 420px;`;
 const NoMatch = styled.div`padding: 24px; text-align: center; color: #94A3B8; font-size: 0.875rem;`;
 const List = styled.div`display: flex; flex-direction: column; background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 12px; overflow: hidden;`;

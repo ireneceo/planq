@@ -263,7 +263,9 @@
     "projects": "Linked projects",
     "links": "Linked",
     "projectsEmpty": "No linked projects",
-    "emailLocked": "Email can't be changed here once an invitation was sent"
+    "emailLocked": "Email can't be changed here once an invitation was sent",
+    "jobTitle": "Job title",
+    "department": "Department"
   },
   "summary": {
     "title": "History summary",

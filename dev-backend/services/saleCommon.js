@@ -173,6 +173,8 @@ async function serializeClients(businessId, rows) {
     display_name: c.display_name || c.user?.name || null,
     company_name: c.company_name,
     phone: c.phone,
+    job_title: c.job_title || null,
+    department: c.department || null,
     email: c.invite_email || c.user?.email || c.billing_contact_email || null,
     kind: c.kind,
     status: c.status,
@@ -223,6 +225,9 @@ async function findExistingByContact(businessId, { email, phone }) {
     });
     const hit = rows.find((r) => normPhoneDigits(r.phone) === digits);
     if (hit) return Client.findOne({ where: { id: hit.id, business_id: businessId } });
+    // 담당자 휴대폰·전화(고객 아래 주소록) — 같은 사람의 명함을 두 번 들일 때 새 고객이 생기지 않게
+    const byContact = await require('./clientContacts').clientIdByContactPhone(businessId, phone);
+    if (byContact) return Client.findOne({ where: { id: byContact, business_id: businessId } });
   }
   return null;
 }

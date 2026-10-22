@@ -288,5 +288,45 @@
     "title": "보관된 고객",
     "desc": "목록 기본 보기에서 빠져 있습니다. 기록과 연결은 그대로입니다.",
     "restore": "되살리기"
+  },
+  "contacts": {
+    "title": "담당자",
+    "add": "담당자 추가",
+    "helper": "이 고객(회사)의 다른 담당자 — 명함 정보를 그대로 넣어 두면 그 사람의 메일도 이 고객에 붙습니다.",
+    "empty": "아직 추가한 담당자가 없어요.",
+    "noReach": "연락처 없음",
+    "fromCard": "명함",
+    "create": "추가",
+    "cancel": "취소",
+    "delete": "삭제",
+    "deleteTitle": "담당자를 삭제할까요?",
+    "deleteMsg": "{{name}} 님의 담당자 정보를 지웁니다. 되돌릴 수 없어요.",
+    "makeBilling": "청구 담당자로 지정",
+    "billingDone": "{{name}} 님을 청구 담당자로 지정했어요.",
+    "field": {
+      "name": "이름",
+      "name_en": "영문 이름",
+      "job_title": "직함",
+      "department": "부서",
+      "email": "이메일",
+      "mobile": "휴대폰",
+      "phone": "전화",
+      "fax": "팩스",
+      "address": "주소",
+      "memo": "메모"
+    },
+    "errors": {
+      "name_required": "이름을 입력해 주세요.",
+      "invalid_email": "이메일 형식이 맞지 않아요.",
+      "too_many_contacts": "한 고객에 담당자는 50명까지예요.",
+      "generic": "저장하지 못했어요. 잠시 뒤 다시 시도해 주세요."
+    }
+  },
+  "fromCard": {
+    "colleague": "우리 워크스페이스 멤버의 명함이에요. 멤버는 고객으로 넣지 않아요.",
+    "matchFound": "이메일·전화가 같은 고객 «{{name}}» 이(가) 이미 있어요.",
+    "attach": "그 고객의 담당자로 붙이기",
+    "attachFailed": "담당자로 붙이지 못했어요. 잠시 뒤 다시 시도해 주세요.",
+    "loadFailed": "받은 명함을 불러오지 못했어요."
   }
 }

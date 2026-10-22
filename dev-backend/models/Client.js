@@ -101,6 +101,9 @@ Client.init({
   lost_note: { type: DataTypes.STRING(500), allowNull: true },
   // 상담 전화. billing_contact_phone(세금계산서 담당)과 다르다
   phone: { type: DataTypes.STRING(40), allowNull: true },
+  // 명함 칸 — 대표 담당자(이 행의 사람)의 직함·부서. 추가 담당자는 client_contacts(docs/NAME_CARD_V3_STRATEGY.md 9절 결정 2)
+  job_title: { type: DataTypes.STRING(100), allowNull: true },
+  department: { type: DataTypes.STRING(100), allowNull: true },
   // 설문 «더 받지 않기»(Phase 2 — docs/SURVEY_V2_DESIGN.md). NULL = 받음
   survey_opt_out_at: { type: DataTypes.DATE, allowNull: true },
   // 예상 규모 — 재무 아님. 표시·집계 전용이고 AI·Cue 가 채우거나 읽지 않는다

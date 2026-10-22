@@ -273,6 +273,8 @@ router.patch('/:businessId/clients/:clientId', ...writeChain, async (req, res, n
     if (body.display_name !== undefined) patch.display_name = trimOrNull(body.display_name, 100);
     if (body.company_name !== undefined) patch.company_name = trimOrNull(body.company_name, 200);
     if (body.phone !== undefined) patch.phone = trimOrNull(body.phone, 40);
+    if (body.job_title !== undefined) patch.job_title = trimOrNull(body.job_title, 100);
+    if (body.department !== undefined) patch.department = trimOrNull(body.department, 100);
     if (body.email !== undefined) {
       // 초대 메일이 이미 나간 고객의 주소를 여기서 바꾸면 초대 토큰과 받는 주소가 갈라진다 — 문의 고객만
       if (!require('../services/clientAccess').emailEditable(client)) return errorResponse(res, 'email_locked_after_invite', 400);

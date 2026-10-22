@@ -120,7 +120,7 @@
   "saved": {
     "searchPlaceholder": "Search name, company, memo",
     "emptyTitle": "No saved cards",
-    "emptyHint": "Open a card link you received and tap “Save to my cards” to collect it here.",
+    "emptyHint": "Open a card link you received and tap “Keep in my card wallet” — it shows up here, and you can add it as a client.",
     "noMatch": "No matching cards.",
     "savedAt": "Saved {{date}}",
     "changed": "Updated",
@@ -135,7 +135,9 @@
     "delete": "Remove",
     "deleteTitle": "Remove this saved card?",
     "deleteMsg": "It's removed from your saved cards only. The owner isn't affected.",
-    "closedHint": "The owner turned off or deleted the link. Your saved copy stays as it is."
+    "closedHint": "The owner turned off or deleted the link. Your saved copy stays as it is.",
+    "intro": "Cards you kept from PlanQ card links with “Keep in my card wallet”. If it's someone you work with, use “Add as client” to bring them into the client list your team shares.",
+    "toClient": "Add as client"
   },
   "public": {
     "saveContact": "Save to contacts",

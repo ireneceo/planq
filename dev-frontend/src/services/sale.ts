@@ -16,6 +16,9 @@ export interface SaleClient {
   display_name: string | null;
   company_name: string | null;
   phone: string | null;
+  /** 명함 칸 — 대표 담당자(이 고객 행의 사람)의 직함·부서 */
+  job_title?: string | null;
+  department?: string | null;
   email: string | null;
   kind: string | null;
   status: string | null;
@@ -501,3 +504,60 @@ export async function putClientFields(businessId: number, clientId: number, patc
   const body = await res.json().catch(() => null);
   if (!res.ok || !body?.success) throw new Error(body?.message || 'save_failed');
 }
+
+// ─── 고객 담당자 · 받은 명함 → 고객 (docs/NAME_CARD_V3_STRATEGY.md 9절) ───────────────
+export interface ClientContact {
+  id: number;
+  client_id: number;
+  name: string;
+  name_en: string | null;
+  job_title: string | null;
+  department: string | null;
+  email: string | null;
+  mobile: string | null;
+  phone: string | null;
+  fax: string | null;
+  address: string | null;
+  memo: string | null;
+  photo_file_id: number | null;
+  source: 'manual' | 'name_card' | 'photo' | 'mail' | 'chat';
+  sort_order: number;
+}
+export type ContactField = 'name' | 'name_en' | 'job_title' | 'department' | 'email' | 'mobile' | 'phone' | 'fax' | 'address' | 'memo';
+
+/** 실패는 서버 코드(message)를 던진다 — 화면이 i18n 으로 바꾼다 */
+async function jx<T>(r: Response): Promise<T> {
+  const body = await r.json().catch(() => null);
+  if (!r.ok || !body?.success) throw new Error(body?.message || 'save_failed');
+  return body.data as T;
+}
+const jsonInit = (method: string, data?: unknown): RequestInit => ({
+  method, headers: { 'Content-Type': 'application/json' }, body: data === undefined ? undefined : JSON.stringify(data),
+});
+
+export const listClientContacts = async (businessId: number, clientId: number) =>
+  jx<ClientContact[]>(await apiFetch(`/api/sale/${businessId}/clients/${clientId}/contacts`));
+export const createClientContact = async (businessId: number, clientId: number, input: Partial<Record<ContactField, string | null>>) =>
+  jx<ClientContact>(await apiFetch(`/api/sale/${businessId}/clients/${clientId}/contacts`, jsonInit('POST', input)));
+export const patchClientContact = async (businessId: number, clientId: number, id: number, patch: Partial<Record<ContactField, string | null>>) =>
+  jx<ClientContact>(await apiFetch(`/api/sale/${businessId}/clients/${clientId}/contacts/${id}`, jsonInit('PATCH', patch)));
+export const deleteClientContact = async (businessId: number, clientId: number, id: number) =>
+  jx<{ id: number }>(await apiFetch(`/api/sale/${businessId}/clients/${clientId}/contacts/${id}`, { method: 'DELETE' }));
+export const makeContactBilling = async (businessId: number, clientId: number, id: number) =>
+  jx<Record<string, string | null>>(await apiFetch(`/api/sale/${businessId}/clients/${clientId}/contacts/${id}/make-billing`, { method: 'POST' }));
+
+/** 받은 명함 → 고객: 들이기 전 판정 */
+export interface CardIntake {
+  values: {
+    name: string | null; name_en: string | null; job_title: string | null; department: string | null; company: string | null;
+    email: string | null; mobile: string | null; phone: string | null; fax: string | null; address: string | null;
+  };
+  /** 이 워크스페이스 멤버의 명함 — 고객으로 넣지 않는다 */
+  colleague: boolean;
+  /** 이메일·전화가 같은 기존 고객 */
+  match: { id: number; name: string | null; suggested_role: 'primary' | 'extra' } | null;
+}
+export const getCardIntake = async (businessId: number, savedCardId: number) =>
+  jx<CardIntake>(await apiFetch(`/api/sale/${businessId}/card-intake/${savedCardId}`));
+export const attachCardToClient = async (businessId: number, clientId: number, savedCardId: number) =>
+  jx<{ role: 'primary' | 'extra' }>(await apiFetch(`/api/sale/${businessId}/clients/${clientId}/attach-card`, jsonInit('POST', { saved_card_id: savedCardId })));

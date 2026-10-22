@@ -156,6 +156,8 @@ router.post('/:businessId/managed', authenticateToken, checkBusinessAccess, requ
       company_name: trimOrNull(body.company_name, 200),
       email: normEmail(body.email),
       phone: trimOrNull(body.phone, 40),
+      job_title: trimOrNull(body.job_title, 100),
+      department: trimOrNull(body.department, 100),
       notes: trimOrNull(body.notes, 5000),
     };
     if (!seed.display_name && !seed.company_name) return errorResponse(res, 'name_required', 400);
@@ -175,6 +177,8 @@ router.post('/:businessId/managed', authenticateToken, checkBusinessAccess, requ
       company_name: seed.company_name,
       invite_email: seed.email,
       phone: seed.phone,
+      job_title: seed.job_title,
+      department: seed.department,
       notes: seed.notes,
       kind: finalKind,
       status: 'managed',

@@ -39,6 +39,8 @@ export default function ClientProfileForm({ client, onSave, compact = false, onS
   const [name, setName] = useState(client.display_name || '');
   const [company, setCompany] = useState(client.company_name || '');
   const [phone, setPhone] = useState(client.phone || '');
+  const [jobTitle, setJobTitle] = useState(client.job_title || '');
+  const [department, setDepartment] = useState(client.department || '');
   const [email, setEmail] = useState(client.email || '');
   const [amount, setAmount] = useState(client.expected_amount != null ? String(client.expected_amount) : '');
   const [source, setSource] = useState<SaleSource | ''>(client.sales_source || '');
@@ -63,6 +65,19 @@ export default function ClientProfileForm({ client, onSave, compact = false, onS
         <FieldLabel htmlFor={`${idp}-company`}>{t('detail.company') as string}</FieldLabel>
         <AutoSaveField onSave={async () => { await onSave({ company_name: company }); }}>
           <TextInput id={`${idp}-company`} value={company} onChange={(e) => setCompany(e.target.value)} />
+        </AutoSaveField>
+      </Field>
+      {/* 명함 칸 — 대표 담당자의 직함·부서(추가 담당자는 아래 «담당자» 절) */}
+      <Field>
+        <FieldLabel htmlFor={`${idp}-job-title`}>{t('detail.jobTitle') as string}</FieldLabel>
+        <AutoSaveField onSave={async () => { await onSave({ job_title: jobTitle }); }}>
+          <TextInput id={`${idp}-job-title`} value={jobTitle} maxLength={100} onChange={(e) => setJobTitle(e.target.value)} />
+        </AutoSaveField>
+      </Field>
+      <Field>
+        <FieldLabel htmlFor={`${idp}-department`}>{t('detail.department') as string}</FieldLabel>
+        <AutoSaveField onSave={async () => { await onSave({ department }); }}>
+          <TextInput id={`${idp}-department`} value={department} maxLength={100} onChange={(e) => setDepartment(e.target.value)} />
         </AutoSaveField>
       </Field>
       <Field>

@@ -398,6 +398,28 @@
       "booking_status",
       "task_id"
     ],
+    "client_contacts": [
+      "id",
+      "business_id",
+      "client_id",
+      "name",
+      "name_en",
+      "job_title",
+      "department",
+      "email",
+      "mobile",
+      "phone",
+      "fax",
+      "address",
+      "memo",
+      "photo_file_id",
+      "source",
+      "source_card_id",
+      "created_by",
+      "sort_order",
+      "created_at",
+      "updated_at"
+    ],
     "client_interactions": [
       "id",
       "business_id",
@@ -514,7 +536,9 @@
       "summary_item_count",
       "summary_model",
       "survey_opt_out_at",
-      "member_converted_at"
+      "member_converted_at",
+      "job_title",
+      "department"
     ],
     "contact_inquiries": [
       "id",

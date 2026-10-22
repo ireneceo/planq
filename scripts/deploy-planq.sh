@@ -602,6 +602,8 @@ sync_database() {
   #   모델(Brand·BusinessMember)이 읽으므로 PM2 reload 전. 순서: name_cards 다음(FK).
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-brands.js 2>&1 | tail -5"
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-name-card-default.js 2>&1 | tail -5"
+  # 2026-10-22 명함 v3-A — clients.job_title·department + client_contacts 표(고객 담당자). 모델이 SELECT 하므로 PM2 reload 전. name_cards 다음(FK).
+  prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-client-contacts.js 2>&1 | tail -5"
   # 2026-10-17 랜딩 마케팅 측정 — platform_settings.gtm_container_id(NULL = 꺼짐). 모델이 SELECT 하므로 PM2 reload 전. 켜기는 Irene 승인 뒤 관리자 화면.
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-marketing-tags.js 2>&1 | tail -5"
   # 2026-09-21 문의/피드백 구분 — feedback_items.kind ENUM. 신 코드가 kind 를 쓰므로 PM2 reload 전.

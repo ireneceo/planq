@@ -82,6 +82,10 @@ async function matchClientByAddresses(businessId, addresses) {
     attributes: ['id', 'invite_email', 'billing_contact_email'],
   });
   if (exact) return exact.id;
+  // 담당자 이메일(3순위 — 청구 담당 다음·별칭 앞). 같은 회사 두 번째 사람의 메일이 **새 고객이 아니라 그 고객에** 붙는다.
+  //   여러 고객에 걸리면 null(아무 쪽에나 붙이지 않는다). docs/NAME_CARD_V3_STRATEGY.md 9절 결정 2
+  const byContact = await require('./clientContacts').clientIdByContactEmails(businessId, addresses);
+  if (byContact) return byContact;
   // 별칭 — JSON_SEARCH. ★ 값은 **반드시 바인딩**한다(같은 파일 계열의 옛 코드가 손으로
   //   따옴표를 바꾸다 백슬래시를 못 막아 인젝션이었던 전례).
   for (const a of addresses) {

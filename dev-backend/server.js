@@ -546,6 +546,8 @@ app.use('/api/sale', require('./routes/sale'));
 app.use('/api/sale', require('./routes/sale_interactions'));
 app.use('/api/sale', require('./routes/sale_save'));
 app.use('/api/sale', require('./routes/sale_summary'));
+// 고객 담당자 · 받은 명함 → 고객 (docs/NAME_CARD_V3_STRATEGY.md 9절)
+app.use('/api/sale', require('./routes/sale_contacts'));
 app.use('/api/invites', require('./routes/invites'));
 app.use('/api/conversations', require('./routes/conversations'));
 app.use('/api/message-attachments', require('./routes/message_attachments'));

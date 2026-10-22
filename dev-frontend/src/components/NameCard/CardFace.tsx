@@ -38,6 +38,8 @@ const CardFace: React.FC<Props> = ({ view, photoSrc, variant = 'full', className
   // 브랜드(v2 결정 1) — 첫 브랜드가 회사 자리, 나머지는 이름 칩 · 회사명은 모든 브랜드 이름과 다를 때만 작게
   const isEn = (i18n.language || '').startsWith('en');
   const brands: BrandView[] = view.brands || [];
+  // 옛 보관본·빠진 칸에도 앞면이 죽지 않게 — 링크 칸이 없으면 빈 목록
+  const links = view.links || [];
   const bName = (b: BrandView) => (isEn && b.name_en) || b.name;
   const bTag = (b: BrandView) => (isEn && b.tagline_en) || b.tagline;
   const first = brands[0] || null;
@@ -118,15 +120,15 @@ const CardFace: React.FC<Props> = ({ view, photoSrc, variant = 'full', className
             )}
           </Rows>
 
-          {(view.links.length > 0 || brands.some((b) => b.links.length > 0)) && (
+          {(links.length > 0 || brands.some((b) => (b.links || []).length > 0)) && (
             <Links>
-              {brands.flatMap((b, bi) => b.links.map((l, i) => (
+              {brands.flatMap((b, bi) => (b.links || []).map((l, i) => (
                 <LinkChip key={`b${bi}-${l.url}-${i}`} href={l.url} target="_blank" rel={EXT_REL} $accent={accent} data-testid="card-brand-link">
                   <strong>{l.label || bName(b)}</strong>
                   <span>{hostOf(l.url)}</span>
                 </LinkChip>
               )))}
-              {view.links.map((l, i) => (
+              {links.map((l, i) => (
                 <LinkChip key={`${l.url}-${i}`} href={l.url} target="_blank" rel={EXT_REL} $accent={accent}>
                   <strong>{l.label || hostOf(l.url)}</strong>
                   {l.label && <span>{hostOf(l.url)}</span>}

@@ -1421,6 +1421,27 @@ function defineSecretTests() {
     }
   });
 
+  // ★ 2026-10-22 고객 담당자(docs/NAME_CARD_V3_STRATEGY.md 9절 결정 2) — 담당자 응답은 contactView 화이트리스트다.
+  //   테넌트 키·만든 사람·명함 출처 id 가 실리면 모델을 통째로 내보낸 것이다. 대조군: 넣은 이름·이메일은 그대로 온다.
+  test('secrets', '고객 담당자 응답에 내부 칸(business_id·created_by·source_card_id)이 실리지 않는다', async () => {
+    await setup();
+    const H = { Authorization: `Bearer ${ctx.token}`, 'Content-Type': 'application/json' };
+    const tag = `hc-contact-${Date.now()}`;
+    const c = await http('POST', `${BACKEND}/api/clients/${ctx.businessId}/managed`, { headers: H, body: { name: tag, company_name: tag }, expectStatus: 201 });
+    const cid = c && c.data && c.data.id;
+    if (!cid) throw new Error('검사용 고객을 만들지 못했다 — 준비 실패');
+    try {
+      await http('POST', `${BACKEND}/api/sale/${ctx.businessId}/clients/${cid}/contacts`, { headers: H, body: { name: `${tag}-p`, email: `${tag}@example.com` }, expectStatus: 201 });
+      const list = await http('GET', `${BACKEND}/api/sale/${ctx.businessId}/clients/${cid}/contacts`, { headers: H });
+      const raw = JSON.stringify(list);
+      for (const k of ['business_id', 'created_by', 'source_card_id']) if (raw.includes(`"${k}"`)) throw new Error(`담당자 응답에 ${k} 칸이 실려 있다`);
+      if (!raw.includes(`${tag}@example.com`)) throw new Error('넣은 담당자가 응답에 없다 — 빈 응답으로 거짓 통과');
+      return `담당자 ${(list.data || []).length}행 — 내부 칸 0 · 이름·이메일 유지`;
+    } finally {
+      require('child_process').execSync(`node -e "require('dotenv').config();const {sequelize}=require('./config/database');sequelize.query('DELETE FROM clients WHERE id=${Number(cid)} AND display_name=\\'${tag}\\'').then(()=>process.exit(0));"`, { cwd: '/opt/planq/dev-backend', encoding: 'utf8', timeout: 30000 });
+    }
+  });
+
   // ★ 2026-10-04 AI 에이전트 M3-a(설계 docs/AI_AGENT_M3_DESIGN.md §7.1) — 메일 도구 응답이 계정 자격증명·동기화 오류 원문
   //   (호스트·아이디가 들어 있다)·본문 HTML·공유 토큰을 싣지 않는다. 메일 계정 모델은 비밀 칸이 많아(IMAP/SMTP 암호·OAuth 토큰)
   //   통째로 내보내는 순간 전부 나간다. 판정은 응답 원문 문자열 + «쓸 필드는 그대로 온다» 대조군.

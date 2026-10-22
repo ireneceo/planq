@@ -263,7 +263,9 @@
     "projects": "연결 프로젝트",
     "projectsEmpty": "연결된 프로젝트가 없습니다",
     "links": "연결",
-    "emailLocked": "초대를 보낸 뒤에는 이메일을 여기서 바꿀 수 없어요"
+    "emailLocked": "초대를 보낸 뒤에는 이메일을 여기서 바꿀 수 없어요",
+    "jobTitle": "직함",
+    "department": "부서"
   },
   "summary": {
     "title": "히스토리 요약",

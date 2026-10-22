@@ -81,6 +81,7 @@ const NameCard = require('./NameCard');
 const SavedNameCard = require('./SavedNameCard');
 const Brand = require('./Brand');
 const NameCardBrand = require('./NameCardBrand');
+const ClientContact = require('./ClientContact');
 const PostAttachment = require('./PostAttachment');
 const PostCategory = require('./PostCategory');
 // 급여·계약 (docs/PAYROLL_DESIGN.md)
@@ -421,6 +422,9 @@ Client.hasMany(ClientStageHistory, { as: 'stageHistory', foreignKey: 'client_id'
 ClientInteraction.belongsTo(Client, { foreignKey: 'client_id', constraints: false });
 ClientInteraction.belongsTo(User, { as: 'creator', foreignKey: 'created_by', constraints: false });
 Client.hasMany(ClientInteraction, { as: 'interactions', foreignKey: 'client_id', constraints: false });
+// 고객 담당자(추가 담당자 주소록 — docs/NAME_CARD_V3_STRATEGY.md 9절 결정 2). 읽고 쓰는 문은 services/clientContacts.js
+Client.hasMany(ClientContact, { as: 'contacts', foreignKey: 'client_id' });
+ClientContact.belongsTo(Client, { as: 'client', foreignKey: 'client_id' });
 
 // KbDocument
 KbDocument.belongsTo(Business, { foreignKey: 'business_id' });
@@ -711,7 +715,7 @@ module.exports = {
   BusinessPlanHistory,
   Post,
   PostComment,
-  NameCard, SavedNameCard, Brand, NameCardBrand,
+  NameCard, SavedNameCard, Brand, NameCardBrand, ClientContact,
   PostAttachment,
   PostCategory,
   // Q Bill Phase 0

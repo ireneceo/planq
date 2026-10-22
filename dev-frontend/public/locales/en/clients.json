@@ -288,5 +288,45 @@
     "title": "Archived client",
     "desc": "Hidden from the default list. Records and links stay as they are.",
     "restore": "Restore"
+  },
+  "contacts": {
+    "title": "Contacts",
+    "add": "Add contact",
+    "helper": "Other people at this client — save their card details and their emails will attach to this client.",
+    "empty": "No contacts added yet.",
+    "noReach": "No contact details",
+    "fromCard": "Card",
+    "create": "Add",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "deleteTitle": "Delete this contact?",
+    "deleteMsg": "This removes {{name}}'s contact details. This can't be undone.",
+    "makeBilling": "Set as billing contact",
+    "billingDone": "{{name}} is now the billing contact.",
+    "field": {
+      "name": "Name",
+      "name_en": "Name (English)",
+      "job_title": "Job title",
+      "department": "Department",
+      "email": "Email",
+      "mobile": "Mobile",
+      "phone": "Phone",
+      "fax": "Fax",
+      "address": "Address",
+      "memo": "Memo"
+    },
+    "errors": {
+      "name_required": "Please enter a name.",
+      "invalid_email": "That email address doesn't look right.",
+      "too_many_contacts": "A client can have up to 50 contacts.",
+      "generic": "Couldn't save. Please try again in a moment."
+    }
+  },
+  "fromCard": {
+    "colleague": "This card belongs to a member of this workspace. Members aren't added as clients.",
+    "matchFound": "A client with the same email or phone already exists: “{{name}}”.",
+    "attach": "Add to that client as a contact",
+    "attachFailed": "Couldn't add the contact. Please try again in a moment.",
+    "loadFailed": "Couldn't load the saved card."
   }
 }
