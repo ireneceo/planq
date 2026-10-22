@@ -51,7 +51,8 @@ function fieldHtml(label, party, sr, L, slot, index = 0, caption = null) {
   if (sr && sr.status === 'rejected') {
     return `<div class="pq-sig pq-sig-rejected"${idAttr}>`
       + capHtml
-      + `<div class="pq-sig-no">${escapeHtml(L.rejected)}</div>`
+      // 받는 쪽 «수정 요청»(2026-10-22) 은 거절과 다른 뜻 — 칸에도 그대로 적는다
+      + `<div class="pq-sig-no">${escapeHtml(sr.rejected_kind === 'revise' ? (L.revised || L.rejected) : L.rejected)}</div>`
       + `<div class="pq-sig-meta">${escapeHtml(name)}${sr.rejected_at ? ` · ${escapeHtml(fmt(sr.rejected_at))}` : ''}</div>`
       + `</div>`;
   }
@@ -181,12 +182,12 @@ const CERT_CSS = `
 //   (memory feedback_backend_strings_outside_i18n_guard). 언어는 부르는 쪽이 고른다.
 const LABELS = {
   ko: {
-    us: '보내는 쪽', them: '받는 쪽', empty: '서명 전', verified: '전자서명 확인됨', rejected: '서명 거절', dateEmpty: '서명일', nameEmpty: '이름',
+    us: '보내는 쪽', them: '받는 쪽', empty: '서명 전', verified: '전자서명 확인됨', rejected: '서명 거절', revised: '수정 요청', dateEmpty: '서명일', nameEmpty: '이름',
     title: '전자서명 증명서', docTitle: '문서', hash: '문서 지문(SHA-256)', signer: '서명자',
     email: '이메일', verifiedAt: '본인 확인', signedAt: '서명 시각', ip: 'IP', side: '구분', none: '—',
   },
   en: {
-    us: 'Sender', them: 'Recipient', empty: 'Not signed', verified: 'e-signature verified', rejected: 'Declined', dateEmpty: 'Date', nameEmpty: 'Name',
+    us: 'Sender', them: 'Recipient', empty: 'Not signed', verified: 'e-signature verified', rejected: 'Declined', revised: 'Changes requested', dateEmpty: 'Date', nameEmpty: 'Name',
     title: 'E-signature certificate', docTitle: 'Document', hash: 'Document fingerprint (SHA-256)',
     signer: 'Signer', email: 'Email', verifiedAt: 'Identity verified', signedAt: 'Signed at',
     ip: 'IP', side: 'Party', none: '—',
@@ -209,7 +210,8 @@ function signRoundWhere(entity_type, entity_id) {
   const { Op } = require('sequelize');
   return {
     entity_type, entity_id, kind: 'sign',
-    status: { [Op.notIn]: ['canceled'] },   // 취소된 요청은 문서에 자리를 차지하지 않는다
+    // 취소된 요청·닫힌 회차(superseded, 2026-10-22)는 문서에 자리를 차지하지 않는다 — services/signatureRound 와 같은 술어
+    status: { [Op.notIn]: ['canceled', 'superseded'] },
   };
 }
 

@@ -26,14 +26,15 @@ import {
   ConfirmActions, ConfirmTextArea,
   ConfirmedComment, ConsentBox, ConsentHint, ConsentLabel, ConsentTitle, Content, DocBody, ErrorBox,
   ErrorCenter, ErrorHint, ErrorIcon, ErrorTitle, InlineSpinner, LoadingCenter, OtpActions, OtpInput,
-  OtpRow, Page, PrimaryBtn, ProgressBar, ProjectChip, RejectActions, RejectBackdrop, RejectBtn, RejectDialog,
+  OtpRow, Page, PrimaryBtn, ProgressBar, ProjectChip,
   ResendBtn, ResultCard, ResultHint, ResultIcon, ResultMeta, ResultTitle, SecondaryBtn, Section, SectionDesc,
-  SectionTitle, SignatureSnap, SignedHtml, Spinner, Step, Textarea,
+  SectionTitle, SignatureSnap, SignedHtml, Spinner, Step,
   StickyHead, ActionBar, ActionBarInner, ActionBarText, ActionBarTitle, ActionBarDesc, ActionBarButtons, ActionBarNote, BarPrimaryBtn, BarRejectBtn,
   AttachBox, AttachTitle, AttachRow, AttachIcon, AttachName, AttachSize, DoneActions, SlotLine, SlotLink,
   NoticeBox, NoticeRow, NoticeText, NoticeSlot, NoticeActionBtn, NoticeMemo, NoticeMemoLabel,
 } from './PublicSignPage.styles';
 import SignLinkedDocs from './SignLinkedDocs';
+import SignRejectDialog from './SignRejectDialog';
 import { PublicToolbar, PublicBtn } from '../../components/Layout/PublicPageShell';
 import StandardModal from '../../components/Common/StandardModal';
 import { useTabId } from '../../contexts/TabActiveContext';
@@ -47,7 +48,9 @@ interface PublicSignData {
   comment?: string | null;
   signer_email: string;
   signer_name: string | null;
-  status: 'pending' | 'sent' | 'viewed' | 'signed' | 'rejected' | 'expired' | 'canceled' | 'confirmed' | 'commented';
+  status: 'pending' | 'sent' | 'viewed' | 'signed' | 'rejected' | 'expired' | 'canceled' | 'confirmed' | 'commented' | 'superseded';
+  /** 거절 종류 — revise(수정 요청) | decline(서명 안 함). 옛 행 null = 거절 */
+  rejected_kind?: 'revise' | 'decline' | null;
   expires_at: string;
   otp_verified: boolean;
   signed_at: string | null;
@@ -127,7 +130,6 @@ const PublicSignPage: React.FC = () => {
   const [signing, setSigning] = useState(false);
   const [signError, setSignError] = useState<string | null>(null);
   const [showReject, setShowReject] = useState(false);
-  const [rejectReason, setRejectReason] = useState('');
 
   // 캔버스
   // 그리기는 공용 서명판 한 벌(components/Common/SignaturePad) — 앱 안 서명과 같은 것.
@@ -367,13 +369,13 @@ const PublicSignPage: React.FC = () => {
     } finally { setSigning(false); }
   };
 
-  const submitReject = async () => {
+  const submitReject = async (rejectKind: 'revise' | 'decline', rejectReason: string) => {
     if (signing) return;
     setSigning(true); setSignError(null);
     try {
       const r = await fetch(`/api/sign/${token}/reject`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ reason: rejectReason.trim() || null, consent: true }),
+        body: JSON.stringify({ kind: rejectKind, reason: rejectReason.trim() || null, consent: true }),
       });
       const j = await r.json();
       if (!j.success) { setSignError(j.message || (t('publicSign.rejectFailed', '거절 실패') as string)); return; }
@@ -394,10 +396,13 @@ const PublicSignPage: React.FC = () => {
       <ErrorTitle>{
         loadErr?.code === 'expired' ? t('publicSign.errExpired', '이 서명 요청은 만료됐습니다')
         : loadErr?.code === 'canceled' ? t('publicSign.errCanceled', '이 서명 요청은 취소됐습니다')
+        : loadErr?.code === 'superseded' ? t('publicSign.errSuperseded', '이 링크의 문서는 새 버전으로 대체됐습니다')
         : loadErr?.code === 'not_found' ? t('publicSign.errNotFound', '서명 요청을 찾을 수 없습니다')
         : t('publicSign.errLoad', '문서를 불러올 수 없습니다')
       }</ErrorTitle>
-      <ErrorHint>{t('publicSign.errHint', '발송한 분에게 새 요청을 부탁해 주세요.')}</ErrorHint>
+      <ErrorHint>{loadErr?.code === 'superseded'
+        ? t('publicSign.errSupersededHint', '가장 최근에 받은 이메일의 링크를 열어 주세요.')
+        : t('publicSign.errHint', '발송한 분에게 새 요청을 부탁해 주세요.')}</ErrorHint>
     </ErrorCenter></Page>;
   }
 
@@ -465,7 +470,7 @@ const PublicSignPage: React.FC = () => {
                     : t('publicSign.resumeSign', { defaultValue: '본인 확인은 끝났어요. 서명만 하면 됩니다.' })) as string}</ActionBarDesc>
               </ActionBarText>
               <ActionBarButtons>
-                <BarRejectBtn type="button" onClick={() => setShowReject(true)} disabled={signing}>{t('publicSign.reject', '거절')}</BarRejectBtn>
+                <BarRejectBtn type="button" data-testid="sign-reject-open" onClick={() => setShowReject(true)} disabled={signing}>{t('publicSign.reject', '수정 요청·거절')}</BarRejectBtn>
                 {primaryAction && (
                   <BarPrimaryBtn type="button" data-testid={primaryAction.testid} onClick={primaryAction.onClick}>
                     {primaryAction.label}
@@ -528,8 +533,12 @@ const PublicSignPage: React.FC = () => {
             <ResultIcon $tone="reject">
               <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
             </ResultIcon>
-            <ResultTitle>{t('publicSign.rejectedTitle', '서명 거절됨')}</ResultTitle>
-            <ResultHint>{t('publicSign.rejectedHint', '발송자에게 자동 통보됩니다. 의견은 별도로 회신해 주시기 바랍니다.')}</ResultHint>
+            <ResultTitle>{doc.rejected_kind === 'revise'
+              ? t('publicSign.revisedTitle', '수정 요청을 보냈습니다')
+              : t('publicSign.rejectedTitle', '서명하지 않음')}</ResultTitle>
+            <ResultHint>{doc.rejected_kind === 'revise'
+              ? t('publicSign.revisedHint', '보낸 분에게 전달됐습니다. 고친 문서는 새 이메일 링크로 받게 됩니다.')
+              : t('publicSign.rejectedHint', '보낸 분에게 전달됐습니다.')}</ResultHint>
           </ResultCard>
         )}
 
@@ -762,27 +771,13 @@ const PublicSignPage: React.FC = () => {
         )}
       </StandardModal>
 
-      {/* 거절 확인 모달 */}
-      {showReject && (
-        <RejectBackdrop onClick={() => !signing && setShowReject(false)}>
-          <RejectDialog onClick={e => e.stopPropagation()} role="dialog" aria-modal="true">
-            <h3>{t('publicSign.rejectConfirm', '서명을 거절하시겠습니까?')}</h3>
-            <p>{t('publicSign.rejectWarn', '거절 후에는 변경할 수 없으며 발송자에게 자동 통보됩니다.')}</p>
-            <Textarea
-              rows={3}
-              value={rejectReason}
-              onChange={e => setRejectReason(e.target.value)}
-              placeholder={t('publicSign.rejectReasonPh', '거절 사유 (선택)') as string}
-            />
-            <RejectActions>
-              <SecondaryBtn type="button" onClick={() => setShowReject(false)} disabled={signing}>{t('cancel', '취소')}</SecondaryBtn>
-              <RejectBtn type="button" onClick={() => { submitReject(); setShowReject(false); }} disabled={signing}>
-                {signing ? <><InlineSpinner />{t('publicSign.rejecting', '거절 중…')}</> : t('publicSign.rejectFinal', '거절 확정')}
-              </RejectBtn>
-            </RejectActions>
-          </RejectDialog>
-        </RejectBackdrop>
-      )}
+      {/* 수정 요청·거절 창 — 받는 쪽이 고른다(2026-10-22 Fable D8) */}
+      <SignRejectDialog
+        open={showReject}
+        busy={signing}
+        onClose={() => setShowReject(false)}
+        onSubmit={(kind, reason) => { setShowReject(false); void submitReject(kind, reason); }}
+      />
     </Page>
   );
 };

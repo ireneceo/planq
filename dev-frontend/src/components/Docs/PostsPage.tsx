@@ -1147,7 +1147,7 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId }) => {
       if ((e as { code?: string })?.code === 'post_locked_by_signature') {
         setAutoState('stale');   // 자동저장 정지 상태(재시도 안 함)
         setSignLocked(true);
-        setAutoErr((e as Error).message || (t('autosave.signatureLocked', '서명 요청이 진행 중이거나 완료된 문서라 수정할 수 없습니다. 서명 요청을 취소하거나 새 버전 문서로 작성해 주세요.') as string));
+        setAutoErr((e as Error).message || (t('autosave.signatureLocked', '서명 요청을 보낸 문서라 고칠 수 없습니다. 받는 분이 아직 서명하지 않았으면 아래 서명 진행에서 [고쳐서 다시 보내기] 를 누르세요. 이미 서명받았다면 문서를 복사해 새로 보내 주세요.') as string));
         return 'stale';
       }
       setAutoState('error');

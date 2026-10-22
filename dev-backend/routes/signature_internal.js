@@ -44,7 +44,8 @@ router.post('/signatures/:id/sign-internal', authenticateToken, async (req, res,
     }
     if (sr.status === 'signed') { await t.rollback(); return errorResponse(res, 'already_signed', 409); }
     if (isExpiredNow(sr)) { await t.rollback(); return errorResponse(res, 'expired', 410); }
-    if (sr.status === 'rejected' || sr.status === 'canceled') { await t.rollback(); return errorResponse(res, 'invalid_state', 400); }
+    // 열린 요청만 — 거절·취소·닫힌 회차(superseded, 2026-10-22)는 서명할 수 없다
+    if (!['pending', 'sent', 'viewed'].includes(sr.status)) { await t.rollback(); return errorResponse(res, 'invalid_state', 400); }
     if (!req.body?.consent) { await t.rollback(); return errorResponse(res, 'consent_required', 400); }
     // 서명 칸 수만큼(사인·스탬프 — 그리기 또는 이미지). 받는 쪽 공개 서명과 **같은 규칙**(services/signatureItems)
     const got = require('../services/signatureItems').readItemImages(req.body, sr);
@@ -65,7 +66,8 @@ router.post('/signatures/:id/sign-internal', authenticateToken, async (req, res,
       }
     } catch (e) { console.warn('[sign-internal] snapshot 대조 실패', e.message); }
 
-    await sr.update({
+    // ★ 조건부 UPDATE(Fable 2026-10-22 R2) — 그 사이 회차가 닫혔으면 0행 → 409(닫힌 행을 signed 로 덮지 않는다)
+    const [hit] = await SignatureRequest.update({
       status: 'signed',
       signature_image_b64: sig,
       item_images: got.images,
@@ -74,7 +76,8 @@ router.post('/signatures/:id/sign-internal', authenticateToken, async (req, res,
       signer_user_id: req.user.id,
       signed_content_hash: signedHash,
       snapshot_mismatch: mismatch,
-    }, { transaction: t });
+    }, { where: { id: sr.id, status: sr.status }, transaction: t });
+    if (!hit) { await t.rollback(); return errorResponse(res, 'state_changed', 409); }
     await maybeUpdateEntityStatus(sr.entity_type, sr.entity_id, sr.business_id, t);
     await t.commit();
 
@@ -86,7 +89,8 @@ router.post('/signatures/:id/sign-internal', authenticateToken, async (req, res,
     const io = req.app.get('io');
     if (io) io.to(`business:${sr.business_id}`).emit('inbox:refresh', { reason: 'signature_signed', entity_type: sr.entity_type, entity_id: sr.entity_id });
     require('../services/signatureHooks').afterSignatureChange(sr.id);   // 거래 단계 + 직원 계약서 signed_at
-    notifyWorkspaceMembersOnSignature(sr, 'signed', sr.signer_name).catch((e) => console.warn('[notify signature signed]', e.message));
+    // 앱 안에서 직접 서명한 본인만 뺀다(D9 — 다른 멤버·요청자는 받는다)
+    notifyWorkspaceMembersOnSignature(sr, 'signed', sr.signer_name, { excludeUserId: req.user.id }).catch((e) => console.warn('[notify signature signed]', e.message));
 
     return successResponse(res, { signed: true, signed_at: new Date() });
   } catch (err) {

@@ -101,7 +101,7 @@ async function resolveDoc(p) {
     const sr = await loadByToken(p.t);
     if (!sr) return null;
     // 공개 서명 조회(`GET /api/sign/:token`)가 410 으로 닫는 상태와 같다.
-    if (sr.status === 'canceled' || sr.status === 'expired') return null;
+    if (sr.status === 'canceled' || sr.status === 'expired' || sr.status === 'superseded') return null;
     if (sr.expires_at && sr.expires_at < new Date() && sr.status !== 'signed' && sr.status !== 'rejected') return null;
     if (sr.entity_type !== 'post') return null;
     const entity = await loadEntity(sr.entity_type, sr.entity_id);

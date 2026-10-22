@@ -145,6 +145,12 @@ router.post('/posts/:id/signatures', authenticateToken, async (req, res, next) =
     if (!items.ok) { await t.rollback(); return errorResponse(res, items.code, 400); }
     const requiredFor = items.requiredFor;
 
+    // D5(2026-10-22) — 회차에 거절·만료만 남아 있으면(열린·서명 행 0) 그 회차를 닫고 새로 시작한다.
+    //   안 그러면 옛 거절 행이 회차에 남아 서명본 고정본이 «고치기 전 본문» 이 된다. 확인 요청(confirm)은 회차 밖.
+    if (kind === 'sign') {
+      await require('../services/signatureRound').autoSupersedeStale({ postId: post.id, businessId: post.business_id, userId: req.user.id, transaction: t });
+    }
+
     // 멱등 처리: 같은 (entity, signer_email) 의 pending/sent/viewed 가 있으면 그것 갱신
     const created = [];
     for (const s of signers) {
@@ -326,7 +332,7 @@ router.delete('/signatures/:id', authenticateToken, async (req, res, next) => {
       return errorResponse(res, 'forbidden', 403);
     }
     if (!(await canManageRequest(req, sr))) return errorResponse(res, 'forbidden', 403);
-    if (sr.status === 'signed' || sr.status === 'rejected') {
+    if (sr.status === 'signed' || sr.status === 'rejected' || sr.status === 'superseded') {
       return errorResponse(res, 'already_finalized', 400);
     }
     await sr.update({ status: 'canceled' });
@@ -517,6 +523,8 @@ router.post('/sign/:token/verify', otpVerifyLimiter, async (req, res, next) => {
     if (!sr) return errorResponse(res, 'not_found', 404);
     // #239 — 역방향 가드 (위 /otp 와 같은 이유)
     if (!assertKind(sr, 'sign', res)) return;
+    // 열린 요청만(2026-10-22 R1) — 닫힌 회차·취소·만료 토큰이 인증을 통과해 거절·서명으로 되살아나지 않게
+    if (sr.status !== 'sent' && sr.status !== 'viewed') return errorResponse(res, 'invalid_state', 400);
     if (sr.otp_locked_until && sr.otp_locked_until > new Date()) return errorResponse(res, 'locked', 423);
     if (!sr.otp_code_hash || !sr.otp_expires_at || sr.otp_expires_at < new Date()) {
       return errorResponse(res, 'otp_expired', 410);
@@ -548,7 +556,8 @@ router.post('/sign/:token/sign', async (req, res, next) => {
     if (!assertKind(sr, 'sign', res)) { await t.rollback(); return; }
     if (sr.status === 'signed') { await t.rollback(); return errorResponse(res, 'already_signed', 409); }
     if (isExpiredNow(sr)) { await t.rollback(); return errorResponse(res, 'expired', 410); }
-    if (sr.status === 'rejected' || sr.status === 'canceled') {
+    // 열린 요청만 — 거절·취소·닫힌 회차(superseded)는 서명할 수 없다(2026-10-22 R1)
+    if (sr.status !== 'sent' && sr.status !== 'viewed') {
       await t.rollback(); return errorResponse(res, 'invalid_state', 400);
     }
     if (!sr.otp_verified_at) { await t.rollback(); return errorResponse(res, 'otp_required', 400); }
@@ -577,7 +586,9 @@ router.post('/sign/:token/sign', async (req, res, next) => {
       }
     } catch (e) { console.warn('[sign] snapshot 대조 실패', e.message); }
 
-    await sr.update({
+    // ★ 조건부 UPDATE(2026-10-22 Fable R2) — 읽은 뒤 그 사이 회차가 닫혔으면(superseded) 0행 → 409.
+    //   예전엔 읽은 인스턴스를 그대로 update 해 닫힌 행이 signed 로 덮일 수 있었다(증빙 무결성).
+    const [hit] = await SignatureRequest.update({
       status: 'signed',
       signature_image_b64: sig,
       item_images: got.images,
@@ -586,7 +597,8 @@ router.post('/sign/:token/sign', async (req, res, next) => {
       signer_name: signerName,
       signed_content_hash: signedHash,
       snapshot_mismatch: mismatch,
-    }, { transaction: t });
+    }, { where: { id: sr.id, status: sr.status }, transaction: t });
+    if (!hit) { await t.rollback(); return errorResponse(res, 'state_changed', 409); }
 
     await maybeUpdateEntityStatus(sr.entity_type, sr.entity_id, sr.business_id, t);
     await t.commit();
@@ -613,48 +625,7 @@ router.post('/sign/:token/sign', async (req, res, next) => {
   }
 });
 
-// POST /api/sign/:token/reject — 거절
-// body: { reason?, consent: true }
-router.post('/sign/:token/reject', async (req, res, next) => {
-  const t = await sequelize.transaction();
-  try {
-    const sr = await loadByToken(req.params.token);
-    if (!sr) { await t.rollback(); return errorResponse(res, 'not_found', 404); }
-    // #239 — 역방향 가드: 확인 요청(confirm)이 서명 경로로 들어오면 안 된다.
-    if (!assertKind(sr, 'sign', res)) { await t.rollback(); return; }
-    if (sr.status === 'signed' || sr.status === 'rejected') {
-      await t.rollback(); return errorResponse(res, 'already_finalized', 409);
-    }
-    if (!sr.otp_verified_at) { await t.rollback(); return errorResponse(res, 'otp_required', 400); }
-    const reason = req.body?.reason ? String(req.body.reason).slice(0, 500) : null;
-    const ip = req.ip || req.headers['x-forwarded-for'] || null;
-    const ua = String(req.headers['user-agent'] || '').slice(0, 500);
-    await sr.update({
-      status: 'rejected', rejected_at: new Date(),
-      rejected_reason: reason, signed_ip: ip, signed_ua: ua,
-    }, { transaction: t });
-    await maybeUpdateEntityStatus(sr.entity_type, sr.entity_id, sr.business_id, t);
-    await t.commit();
-
-    createAuditLog({
-      userId: null, businessId: sr.business_id, action: 'signature.reject',
-      targetType: 'SignatureRequest', targetId: sr.id,
-      metadata: { signer: sr.signer_email, reason, ip },
-    });
-
-    const io = req.app.get('io');
-    if (io) io.to(`business:${sr.business_id}`).emit('inbox:refresh', { reason: 'signature_rejected', entity_type: sr.entity_type, entity_id: sr.entity_id });
-
-    require('../services/signatureHooks').afterSignatureChange(sr.id);   // 거래 단계 + 직원 계약서 signed_at
-
-    notifyWorkspaceMembersOnSignature(sr, 'rejected', sr.signer_name).catch((e) => console.warn('[notify signature rejected]', e.message));
-
-    return successResponse(res, { rejected: true });
-  } catch (err) {
-    try { await t.rollback(); } catch { /* */ }
-    next(err);
-  }
-});
+// POST /api/sign/:token/reject — routes/signature_reject.js 로 옮겼다(2026-10-22 «수정 요청» 추가 · god-file 래칫)
 function serialize(sr, { withLink = false } = {}) {   // ★ token·sign_url 은 받는 사람 본인(received)만 — 진행표·생성 응답은 멤버 전원이 받는다 (0-C C-1)
   return {
     id: sr.id,
@@ -680,6 +651,8 @@ function serialize(sr, { withLink = false } = {}) {   // ★ token·sign_url 은
     // 서명 항목 — 앱 안 서명 창이 «칸 몇 개를 채울지» 를 안다. 채운 이미지(item_images)는 싣지 않는다(위와 같은 이유)
     required_items: require('../services/signatureItems').publicRequiredItems(sr.required_items),
     rejected_at: sr.rejected_at, rejected_reason: sr.rejected_reason,
+    rejected_kind: sr.rejected_kind || null,
+    superseded_at: sr.superseded_at || null,
     note: sr.note,
     expires_at: sr.expires_at,
     reminder_count: sr.reminder_count,

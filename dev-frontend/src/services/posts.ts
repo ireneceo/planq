@@ -503,7 +503,7 @@ export async function sharePostToChat(postId: number, payload: { conversation_id
 }
 
 // ─── 서명 받기 (Phase A) ───
-export type SignatureStatus = 'pending' | 'sent' | 'viewed' | 'signed' | 'rejected' | 'expired' | 'canceled';
+export type SignatureStatus = 'pending' | 'sent' | 'viewed' | 'signed' | 'rejected' | 'expired' | 'canceled' | 'superseded';
 
 export interface SignatureRequest {
   id: number;
@@ -533,11 +533,27 @@ export interface SignatureRequest {
   signature_image_count?: number;
   rejected_at: string | null;
   rejected_reason: string | null;
+  /** 받는 쪽이 고른 것 — revise(수정 요청) | decline(서명 안 함). 옛 행 null = 거절 */
+  rejected_kind?: 'revise' | 'decline' | null;
+  /** 닫힌 회차의 행만 — 같은 값 = 같은 회차(이전 회차 묶음) */
+  superseded_at?: string | null;
   note: string | null;
   expires_at: string;
   reminder_count: number;
   last_reminder_at: string | null;
   created_at: string;
+}
+
+/** 서명 회차 닫기 [고쳐서 다시 보내기] — 받는 쪽 서명 0 일 때만(아니면 code round_has_counterparty_signature) */
+export async function closeSignatureRound(postId: number, reason?: string): Promise<{ closed: boolean; superseded_ids: number[] }> {
+  const r = await apiFetch(`/api/posts/${postId}/signatures/close-round`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ reason: reason || null }),
+  });
+  const j = await r.json();
+  if (!j.success) { const e = new Error(j.message || 'close round failed') as Error & { code?: string }; e.code = j.message; throw e; }
+  return j.data;
 }
 
 export async function requestSignatures(postId: number, payload: {

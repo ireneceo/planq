@@ -54,13 +54,27 @@ function isExpiredNow(sr) {
 //   `event` 로 부른다. #239 로 confirmed/commented 가 추가됐는데 문구가 2분기(signed/rejected)뿐이라
 //   **확인했는데 "서명 거절됨" 이 발송되던** 오보를 Fable 이 실측으로 잡았다.
 //   사건을 늘리면 이 표도 같이 늘린다 — 표에 없는 사건은 아래에서 발송 자체를 중단한다(거짓 문구 금지).
+// 사건별 문구 — 받는 사람의 언어로(2026-10-22 Fable N1). 제목만 바뀌던 옛 표는 ko 고정이라 영어 사용자에게 한국어가 갔다.
+//   'revised' = 받는 쪽 «수정 요청»(rejected + rejected_kind='revise'). 'rejected' = «서명 안 함»(decline·옛 행).
 const SIGNATURE_EVENT_COPY = {
-  signed: { title: '서명 완료', suffix: ' 님이 서명을 완료했습니다.' },
-  rejected: { title: '서명 거절됨', suffix: ' 님이 서명을 거절했습니다.' },
-  confirmed: { title: '문서 확인 완료', suffix: ' 님이 문서를 확인했습니다.' },
-  commented: { title: '문서 의견 등록', suffix: ' 님이 문서에 의견을 남겼습니다.' },
+  signed: { ko: ['서명 완료', '님이 서명을 완료했습니다.'], en: ['Signed', ' signed the document.'] },
+  rejected: { ko: ['서명 거절됨', '님이 서명을 거절했습니다.'], en: ['Signature declined', ' declined to sign.'] },
+  revised: { ko: ['수정 요청 받음', '님이 문서 수정을 요청했습니다.'], en: ['Revision requested', ' requested changes to the document.'] },
+  confirmed: { ko: ['문서 확인 완료', '님이 문서를 확인했습니다.'], en: ['Document confirmed', ' confirmed the document.'] },
+  commented: { ko: ['문서 의견 등록', '님이 문서에 의견을 남겼습니다.'], en: ['Comment on document', ' left a comment on the document.'] },
 };
-async function notifyWorkspaceMembersOnSignature(sr, event, signerName) {
+/** 거절 행의 사건 이름 — 수정 요청이면 'revised'. 알림·확인 필요가 같은 판정을 쓴다 */
+function rejectEventOf(sr) { return sr && sr.rejected_kind === 'revise' ? 'revised' : 'rejected'; }
+/** 사유 첫 줄 80자 — 알림 본문 둘째 줄(D10). 없으면 null */
+function reasonLine(reason) {
+  const first = String(reason || '').split(/\r?\n/).map((x) => x.trim()).find(Boolean);
+  if (!first) return null;
+  return first.length > 80 ? `${first.slice(0, 80)}…` : first;
+}
+// ★ D9(2026-10-22) — 옛 코드는 요청자를 «자기 행동» 이라며 빼서, 서명을 보낸 본인이 수정 요청·거절·서명 완료를 못 받았다
+//   (dev 실측: 7명 중 요청자 0건). 행동한 사람은 받는 쪽이다. 뺄 사람은 «앱 안에서 직접 서명한 우리 멤버» 하나뿐 —
+//   호출부가 opts.excludeUserId 로 넘긴다.
+async function notifyWorkspaceMembersOnSignature(sr, event, signerName, opts = {}) {
   const copy = SIGNATURE_EVENT_COPY[event];
   // 모르는 사건에 아무 문구나 붙이지 않는다. 틀린 알림은 알림 없음보다 나쁘다.
   if (!copy) { console.warn('[notify signature] 미정의 event:', event); return; }
@@ -80,17 +94,23 @@ async function notifyWorkspaceMembersOnSignature(sr, event, signerName) {
     attributes: ['user_id'],
   });
   const userIds = members.map((m) => m.user_id);
-  // 요청자 본인은 제외 (이미 자신의 액션)
-  const excludeUserId = sr.requester_user_id;
-  const title = copy.title;
-  const body = `${signerName || sr.signer_email}${copy.suffix}${entityTitle ? `\n문서: ${entityTitle}` : ''}`;
+  const who = signerName || sr.signer_email;
+  const reason = (event === 'rejected' || event === 'revised') ? reasonLine(sr.rejected_reason) : null;
+  const L = (lang) => (lang === 'en' ? copy.en : copy.ko);
+  const body = (lang) => {
+    const en = lang === 'en';
+    const lines = [en ? `${who}${L(lang)[1]}` : `${who} ${L(lang)[1]}`];
+    if (reason) lines.push(`${en ? 'Reason' : '사유'}: ${reason}`);
+    if (entityTitle) lines.push(`${en ? 'Document' : '문서'}: ${entityTitle}`);
+    return lines.join('\n');
+  };
   // ★ 2026-10-15 — 옛 링크 `/posts/:id`·`/docs/:id` 는 **화면에 없는 주소**였다(누르면 홈으로 튕김, dev 428건 전부).
   //   정본은 services/notification_link.js 의 post 매핑(`/docs?post=`). 옛 행은 프론트 normalizeLink 가 옮겨 읽는다.
   const link = sr.entity_type === 'post' ? `/docs?post=${sr.entity_id}` : '/docs';
   await notifyMany({
     userIds, businessId: sr.business_id, eventKind: 'signature',
-    title, body, link, ctaLabel: '확인하기',
-    workspaceName: wsName, excludeUserId,
+    title: (lang) => L(lang)[0], body, link, ctaLabel: (lang) => (lang === 'en' ? 'Open' : '확인하기'),
+    workspaceName: wsName, excludeUserId: opts.excludeUserId || null,
   });
 }
 
@@ -155,7 +175,8 @@ async function blockIfSigned(res, postId, opts = {}) {
   res.status(409).json({
     success: false,
     code: 'post_locked_by_signature',
-    message: '서명 요청이 진행 중이거나 완료된 문서라 내용을 수정할 수 없습니다. 수정하려면 서명 요청을 취소하거나, 새 버전 문서로 다시 서명을 받아 주세요.',
+    // 2026-10-22 — 받는 쪽 서명 전이면 [고쳐서 다시 보내기](services/signatureRound) 로 풀 수 있다. 화면은 i18n autosave.signatureLocked 를 쓴다
+    message: '서명 요청을 보낸 문서라 고칠 수 없습니다. 받는 분이 아직 서명하지 않았으면 서명 진행에서 [고쳐서 다시 보내기] 를 누르세요. 이미 서명받았다면 문서를 복사해 새로 보내 주세요.',
   });
   return true;
 }
@@ -284,5 +305,5 @@ module.exports = {
   canReadPostFn, canEditPostFn, postOfRequest, canManageRequest,
   isPostSignatureLocked, blockIfSigned, parseMaybeJson, buildEntitySnapshot, planOutboundScope, loadEntity, maybeUpdateEntityStatus,
   loadByToken, confirmLimiter, docConfirmEnabled, assertKind,
-  isExpiredNow, SIGNATURE_EVENT_COPY, notifyWorkspaceMembersOnSignature, notifyUsSigners,
+  isExpiredNow, SIGNATURE_EVENT_COPY, notifyWorkspaceMembersOnSignature, notifyUsSigners, rejectEventOf, reasonLine,
 };

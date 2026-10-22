@@ -101,6 +101,7 @@
       "review": "Review",
       "candidate_other": "Task candidate — assigned to others",
       "sign_rejected": "Signature rejected",
+      "sign_revise": "Revision requested",
       "pay": "Payment pending",
       "revise": "Resubmit",
       "attend": "Meeting today",

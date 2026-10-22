@@ -2542,7 +2542,9 @@
       "party",
       "signer_user_id",
       "required_items",
-      "item_images"
+      "item_images",
+      "superseded_at",
+      "rejected_kind"
     ],
     "subscriptions": [
       "id",

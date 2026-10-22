@@ -97,7 +97,8 @@ async function progressProject(projectId) {
   //   (Fable 설계 게이트가 잡은 회귀. 옛 행은 DEFAULT 'sign' 이라 기존 동작 무변화.)
   const allSigs = postIds.length
     ? await SignatureRequest.findAll({
-        where: { entity_type: 'post', entity_id: { [Op.in]: postIds }, kind: 'sign' },
+        // 회차 술어는 서명본과 한 벌(signRoundWhere — 취소·닫힌 회차 제외, Fable 2026-10-22 R1).
+        where: require('./signedDocument').signRoundWhere('post', { [Op.in]: postIds }),
         attributes: ['id', 'entity_id', 'status'],
       })
     : [];
@@ -340,7 +341,7 @@ async function deriveActionForStage(stage, projectId) {
         return { ...base, action_kind: 'create_post', label: '계약서 작성하기', hint: '계약/SOW 를 작성하면 서명 받기로 진행', link: `/projects/p/${projectId}?tab=docs&new=1&category=contract` };
       }
       // #239 — 위와 같은 이유로 kind:'sign' 한정 (확인 요청이 계약 체결 판정에 섞이면 안 된다).
-      const sigs = await SignatureRequest.findAll({ where: { entity_type: 'post', entity_id: post.id, kind: 'sign' } });
+      const sigs = await SignatureRequest.findAll({ where: require('./signedDocument').signRoundWhere('post', post.id) });
       if (sigs.length === 0) {
         return { ...base, action_kind: 'request_signature', label: '서명 요청 보내기', hint: `${post.title} — 양사 서명을 받아 계약을 체결합니다`, link: `/projects/p/${projectId}?tab=docs&post=${post.id}&action=sign` };
       }

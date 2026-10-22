@@ -15,14 +15,18 @@ router.get('/sign/:token', async (req, res, next) => {
   try {
     const sr = await loadByToken(req.params.token);
     if (!sr) return errorResponse(res, 'not_found', 404);
+    // 닫힌 회차(2026-10-22) — 문서가 새 버전으로 대체됐다. canceled 와 다른 코드라 화면이 «새 메일의 링크를 여세요» 로 안내한다
+    if (sr.status === 'superseded') return errorResponse(res, 'superseded', 410);
     if (sr.status === 'canceled') return errorResponse(res, 'canceled', 410);
     if (sr.status === 'expired' || (sr.expires_at && sr.expires_at < new Date() && sr.status !== 'signed' && sr.status !== 'rejected')) {
-      if (sr.status !== 'expired') await sr.update({ status: 'expired' });
+      // 조건부 — 그 사이 회차가 닫혔으면(superseded) 덮지 않는다(Fable 2026-10-22 R2)
+      if (sr.status !== 'expired') await sr.constructor.update({ status: 'expired' }, { where: { id: sr.id, status: sr.status } });
       return errorResponse(res, 'expired', 410);
     }
     // viewed 마킹
     if (sr.status === 'sent') {
-      await sr.update({ status: 'viewed', viewed_at: new Date() });
+      const [hit] = await sr.constructor.update({ status: 'viewed', viewed_at: new Date() }, { where: { id: sr.id, status: 'sent' } });
+      if (hit) sr.status = 'viewed';
     }
     const entity = await loadEntity(sr.entity_type, sr.entity_id);
     if (!entity) return errorResponse(res, 'entity_missing', 404);
@@ -46,6 +50,7 @@ router.get('/sign/:token', async (req, res, next) => {
       signer_email: sr.signer_email,
       signer_name: sr.signer_name,
       status: sr.status,
+      rejected_kind: sr.rejected_kind || null,   // 수정 요청(revise) vs 서명 안 함(decline) — 결과 카드 문구
       expires_at: sr.expires_at,
       // 이미지 문맥(2b 1단계) — 고정본 본문 이미지가 서명자(익명)에게 열리게 한다(services/imageCtx).
       image_ctx: require('../services/imageCtx').issueImageCtx('sign', { token: sr.token }),
@@ -109,6 +114,8 @@ router.get('/sign/:token/attachments/:fileId', async (req, res, next) => {
   try {
     const sr = await loadByToken(req.params.token);
     if (!sr) return errorResponse(res, 'not_found', 404);
+    // 닫힌 회차(2026-10-22) — 문서가 새 버전으로 대체됐다. canceled 와 다른 코드라 화면이 «새 메일의 링크를 여세요» 로 안내한다
+    if (sr.status === 'superseded') return errorResponse(res, 'superseded', 410);
     if (sr.status === 'canceled') return errorResponse(res, 'canceled', 410);
     if (isExpiredNow(sr)) return errorResponse(res, 'expired', 410);
     const list = Array.isArray(sr.attachments_snapshot) ? sr.attachments_snapshot : [];
@@ -149,6 +156,8 @@ router.get('/sign/:token/linked/:postId', async (req, res, next) => {
   try {
     const sr = await loadByToken(req.params.token);
     if (!sr) return errorResponse(res, 'not_found', 404);
+    // 닫힌 회차(2026-10-22) — 문서가 새 버전으로 대체됐다. canceled 와 다른 코드라 화면이 «새 메일의 링크를 여세요» 로 안내한다
+    if (sr.status === 'superseded') return errorResponse(res, 'superseded', 410);
     if (sr.status === 'canceled') return errorResponse(res, 'canceled', 410);
     if (isExpiredNow(sr)) return errorResponse(res, 'expired', 410);
     const list = Array.isArray(sr.attachments_snapshot) ? sr.attachments_snapshot : [];
@@ -182,6 +191,8 @@ router.get('/sign/:token/pdf', pdfLimiter, async (req, res, next) => {
   try {
     const sr = await loadByToken(req.params.token);
     if (!sr) return errorResponse(res, 'not_found', 404);
+    // 닫힌 회차(2026-10-22) — 문서가 새 버전으로 대체됐다. canceled 와 다른 코드라 화면이 «새 메일의 링크를 여세요» 로 안내한다
+    if (sr.status === 'superseded') return errorResponse(res, 'superseded', 410);
     if (sr.status === 'canceled') return errorResponse(res, 'canceled', 410);
     if (!['signed', 'confirmed', 'commented'].includes(sr.status)) return errorResponse(res, 'not_signed_yet', 409);
     if (sr.entity_type !== 'post') return errorResponse(res, 'not_found', 404);

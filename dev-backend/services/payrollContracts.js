@@ -240,7 +240,7 @@ async function onSignatureChanged(signatureRequestId) {
   const contracts = await EmploymentContract.findAll({ where: { post_id: sr.entity_id, signed_at: null } });
   if (!contracts.length) return;
   const reqs = await SignatureRequest.findAll({ where: { entity_type: 'post', entity_id: sr.entity_id }, attributes: ['status'] });
-  const live = reqs.filter((r) => !['canceled', 'expired', 'rejected'].includes(r.status));
+  const live = reqs.filter((r) => !['canceled', 'expired', 'rejected', 'superseded'].includes(r.status));
   if (!live.length || !live.every((r) => r.status === 'signed')) return;
   const now = new Date();
   for (const c of contracts) await c.update({ signed_at: now });

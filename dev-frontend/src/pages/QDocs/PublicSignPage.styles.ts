@@ -261,6 +261,16 @@ export const Textarea = styled.textarea`
   &:focus { outline: none; border-color: #14B8A6; box-shadow: 0 0 0 3px rgba(20,184,166,0.15); }
 `;
 export const RejectActions = styled.div`display: flex; justify-content: flex-end; gap: 6px; margin-top: 14px;`;
+// 수정 요청 / 서명 안 함 고르기 (2026-10-22 Fable D8) — 한 줄에 라디오 하나, 터치 44px
+export const RejectChoice = styled.label<{ $on: boolean }>`
+  display: flex; align-items: flex-start; gap: 10px; min-height: 44px;
+  padding: 10px 12px; margin-bottom: 8px; border-radius: 8px; cursor: pointer;
+  border: 1px solid ${(p) => (p.$on ? '#14B8A6' : '#E2E8F0')};
+  background: ${(p) => (p.$on ? '#F0FDFA' : '#fff')};
+  font-size: 0.8125rem; color: #0F172A; line-height: 1.5;
+  & input { margin: 3px 0 0; accent-color: #14B8A6; flex-shrink: 0; }
+`;
+export const RejectFieldError = styled.div`font-size: 0.75rem; color: #DC2626; margin-top: 6px;`;
 
 // 결과
 export const ResultCard = styled.section<{ $tone: 'ok' | 'reject' }>`

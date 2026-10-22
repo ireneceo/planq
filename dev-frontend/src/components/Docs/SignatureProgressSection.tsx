@@ -9,7 +9,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { listSignatures, cancelSignature, remindSignature, type SignatureRequest, type SignatureStatus } from '../../services/posts';
+import { listSignatures, cancelSignature, remindSignature, closeSignatureRound, type SignatureRequest, type SignatureStatus } from '../../services/posts';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
 import ConfirmDialog from '../Common/ConfirmDialog';
 import ImageLightbox from '../Common/ImageLightbox';
@@ -88,6 +88,10 @@ const SignatureProgressSection: React.FC<Props> = ({ postId, inferredKind, reloa
   const [cancelTarget, setCancelTarget] = useState<SignatureRequest | null>(null);
   // 살아 있는 요청 모두 취소 — 서명 받을 문서가 아닌데 잘못 보낸 경우(2026-10-15, Irene: "잘못 넣었을 때 해결방법이 없네")
   const [cancelAllOpen, setCancelAllOpen] = useState(false);
+  // 회차 닫기 [고쳐서 다시 보내기] (2026-10-22 Fable D2·D3) — 받는 쪽 서명 0 일 때만. 닫으면 문서 잠금이 풀린다
+  const [closeOpen, setCloseOpen] = useState(false);
+  const [closeErr, setCloseErr] = useState<string | null>(null);
+  const [historyOpen, setHistoryOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
 
   const wantSign = Number(searchParams.get('sign')) || null;
@@ -120,7 +124,24 @@ const SignatureProgressSection: React.FC<Props> = ({ postId, inferredKind, reloa
     return () => window.removeEventListener('mousedown', handler);
   }, [actionMenuId]);
 
-  const visible = useMemo(() => (list || []).filter(s => s.status !== 'canceled'), [list]);
+  // 지금 회차만 — 취소·닫힌 회차(superseded)는 표에서 뺀다(닫힌 회차는 아래 «이전 회차» 에 묶어 보인다)
+  const visible = useMemo(() => (list || []).filter(s => s.status !== 'canceled' && s.status !== 'superseded'), [list]);
+  // 이전 회차 — 같은 superseded_at = 같은 회차(서버가 한 번에 같은 시각으로 닫는다). 최근 회차가 위
+  const pastRounds = useMemo(() => {
+    const m = new Map<string, SignatureRequest[]>();
+    for (const sr of list || []) {
+      if (sr.status !== 'superseded') continue;
+      const k = sr.superseded_at || '';
+      if (!m.has(k)) m.set(k, []);
+      m.get(k)!.push(sr);
+    }
+    return [...m.entries()].sort((a, b) => (a[0] < b[0] ? 1 : -1));
+  }, [list]);
+  // 닫을 수 있는가 — 서버 canCloseRows 와 같은 판정(서명 요청 행 ≥1 ∧ 받는 쪽 서명 0). 확인 요청은 회차 밖
+  const roundRows = useMemo(() => visible.filter(s => (s.kind || 'sign') === 'sign'), [visible]);
+  const canCloseRound = roundRows.length > 0 && !roundRows.some(s => (s.party || 'them') === 'them' && s.status === 'signed');
+  // 받는 쪽이 고친 뒤 다시 보내 달라고 했나
+  const revision = useMemo(() => roundRows.find(s => s.status === 'rejected' && s.rejected_kind === 'revise') || null, [roundRows]);
   // 아직 끝나지 않은 요청 — 취소할 수 있는 것(서버 DELETE 는 signed·rejected 만 거절한다).
   //   ★ 보내는 쪽(우리) 칸도 포함한다. 예전엔 ⋯ 메뉴가 받는 쪽에만 있어 우리 칸 pending 이 남으면
   //     문서가 «서명 요청을 취소하세요» 로 영영 잠겼는데 취소할 버튼이 없었다.
@@ -174,6 +195,21 @@ const SignatureProgressSection: React.FC<Props> = ({ postId, inferredKind, reloa
     } finally { setBusyId(null); }
   };
 
+  const confirmCloseRound = async () => {
+    if (busyId) return;
+    setBusyId(-2); setCloseErr(null);
+    try {
+      await closeSignatureRound(postId);
+      setCloseOpen(false);
+      await reload();
+    } catch (e) {
+      setCloseOpen(false);
+      setCloseErr((e as { code?: string }).code === 'round_has_counterparty_signature'
+        ? t('signProgress.closeRound.blocked', '받는 쪽이 이미 서명해 고칠 수 없어요. 문서를 복사해 새로 보내 주세요.') as string
+        : t('signProgress.closeRound.failed', '서명 요청을 닫지 못했어요. 잠시 뒤 다시 시도해 주세요.') as string);
+    } finally { setBusyId(null); }
+  };
+
   const onFollowupClick = () => {
     // 견적 → 단일 청구, 계약/SOW → 분할 청구 자동 분기
     const split = inferredKind === 'quote' ? '0' : '1';
@@ -203,6 +239,11 @@ const SignatureProgressSection: React.FC<Props> = ({ postId, inferredKind, reloa
           <Count>{visible.length}</Count>
         </Title>
         <HeaderActions>
+          {canCloseRound && (
+            <CloseRoundBtn type="button" data-testid="sign-close-round" disabled={busyId !== null} onClick={() => setCloseOpen(true)}>
+              {t('signProgress.closeRound.button', '고쳐서 다시 보내기')}
+            </CloseRoundBtn>
+          )}
           {liveRows.length >= 2 && (
             <CancelAllBtn type="button" data-testid="sign-cancel-all" disabled={busyId !== null} onClick={() => setCancelAllOpen(true)}>
               {t('signProgress.cancelAll', '모두 취소')}
@@ -238,8 +279,26 @@ const SignatureProgressSection: React.FC<Props> = ({ postId, inferredKind, reloa
         </FollowupCard>
       )}
 
+      {closeErr && <CloseErr role="alert">{closeErr}</CloseErr>}
+
+      {/* 수정 요청 카드 (2026-10-22) — 받는 쪽이 고쳐서 다시 보내 달라고 했다. 사유를 보이고, 닫을 수 있으면 바로 버튼 */}
+      {revision && (
+        <FollowupCard $tone="reject" as="div" data-testid="sign-revision-card">
+          <FollowupIcon $tone="reject">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+          </FollowupIcon>
+          <FollowupBody>
+            <FollowupTitle>{t('signProgress.followup.revise', '{{name}} 님이 수정을 요청했어요', { name: revision.signer_name || revision.signer_email })}</FollowupTitle>
+            {revision.rejected_reason && <FollowupDesc>"{revision.rejected_reason}"</FollowupDesc>}
+            <FollowupDesc>{canCloseRound
+              ? t('signProgress.followup.reviseDesc', '[고쳐서 다시 보내기] 를 누르면 문서를 고칠 수 있어요. 고친 뒤 서명 요청을 다시 보내면 우리 쪽 서명도 새로 합니다.')
+              : t('signProgress.followup.reviseLocked', '다른 받는 분이 이미 서명해 이 문서는 고칠 수 없어요. 문서를 복사해 새로 보내 주세요.')}</FollowupDesc>
+          </FollowupBody>
+        </FollowupCard>
+      )}
+
       {/* 거절 알림 카드 */}
-      {anyRejected && allFinal && !allSigned && (
+      {!revision && anyRejected && allFinal && !allSigned && (
         <FollowupCard $tone="reject" as="div">
           <FollowupIcon $tone="reject">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
@@ -286,7 +345,9 @@ const SignatureProgressSection: React.FC<Props> = ({ postId, inferredKind, reloa
                 </SignerCell>
               </Td>
               <Td>
-                <StatusBadge $status={sr.status}>{statusLabel(sr.status, t as (k: string, fb?: string) => string)}</StatusBadge>
+                <StatusBadge $status={sr.status}>{sr.status === 'rejected' && sr.rejected_kind === 'revise'
+                  ? t('signProgress.statusRevise', '수정 요청')
+                  : statusLabel(sr.status, t as (k: string, fb?: string) => string)}</StatusBadge>
                 {sr.status === 'rejected' && sr.rejected_reason && (
                   <RejectReason title={sr.rejected_reason}>"{sr.rejected_reason}"</RejectReason>
                 )}
@@ -356,6 +417,38 @@ const SignatureProgressSection: React.FC<Props> = ({ postId, inferredKind, reloa
         </TBody>
       </Table>
 
+      {/* 이전 회차 (D7) — 닫힌 회차는 기록으로만. 누가·언제·무엇(서명/수정 요청/거절)·사유 */}
+      {pastRounds.length > 0 && (
+        <History>
+          <HistoryToggle type="button" data-testid="sign-history-toggle" aria-expanded={historyOpen} onClick={() => setHistoryOpen(v => !v)}>
+            {t('signProgress.history.toggle', '이전 회차 {{n}}건', { n: pastRounds.length })}
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" style={{ transform: historyOpen ? 'rotate(180deg)' : 'none' }}><polyline points="6 9 12 15 18 9"/></svg>
+          </HistoryToggle>
+          {historyOpen && pastRounds.map(([at, rows]) => (
+            <HistoryRound key={at} data-testid="sign-history-round">
+              <HistoryHead>{t('signProgress.history.closedAt', '{{at}} 에 닫음', { at: at ? formatDateTime(at) : '—' })}</HistoryHead>
+              {rows.map(sr => (
+                <HistoryRow key={sr.id}>
+                  <span>{sr.signer_name || sr.signer_email}{sr.party === 'us' ? ` · ${t('signProgress.partyUs', { defaultValue: '보내는 쪽' })}` : ''}</span>
+                  <span>{pastLabel(sr, t as (k: string, fb?: string) => string)}{sr.rejected_reason ? ` — "${sr.rejected_reason}"` : ''}</span>
+                </HistoryRow>
+              ))}
+            </HistoryRound>
+          ))}
+        </History>
+      )}
+
+      <ConfirmDialog
+        isOpen={closeOpen}
+        onClose={() => setCloseOpen(false)}
+        onConfirm={confirmCloseRound}
+        title={t('signProgress.closeRound.title', '고쳐서 다시 보낼까요?') as string}
+        message={t('signProgress.closeRound.message', '지금 서명 요청을 닫고 문서를 다시 고칠 수 있게 합니다. 보낸 서명 링크는 더 이상 열리지 않고, 우리 쪽 서명도 고친 문서에 다시 해야 합니다. 받는 분께 메일은 가지 않아요 — 고친 뒤 서명 요청을 다시 보내 주세요.') as string}
+        confirmText={t('signProgress.closeRound.ok', '닫고 고치기') as string}
+        cancelText={t('common.close', '닫기') as string}
+        variant="info"
+      />
+
       <ConfirmDialog
         isOpen={!!cancelTarget}
         onClose={() => setCancelTarget(null)}
@@ -411,12 +504,20 @@ function isLive(sr: SignatureRequest): boolean {
   return sr.status !== 'signed' && sr.status !== 'rejected' && sr.status !== 'expired' && sr.status !== 'canceled';
 }
 
+// 이전 회차 행의 그때 상태 — 닫히기 전에 무엇이었나(서명 완료 / 수정 요청 / 거절 / 응답 없음)
+function pastLabel(sr: SignatureRequest, t: (k: string, fb?: string) => string): string {
+  if (sr.signed_at) return t('signProgress.statusSigned', '서명 완료');
+  if (sr.rejected_at) return sr.rejected_kind === 'revise' ? t('signProgress.statusRevise', '수정 요청') : t('signProgress.statusRejected', '거절됨');
+  return t('signProgress.history.noAnswer', '응답 없음');
+}
+
 function statusLabel(s: SignatureStatus, t: (k: string, fb?: string) => string): string {
   switch (s) {
     case 'sent': return t('signProgress.statusSent', '발송됨');
     case 'viewed': return t('signProgress.statusViewed', '검토 중');
     case 'signed': return t('signProgress.statusSigned', '서명 완료');
     case 'rejected': return t('signProgress.statusRejected', '거절됨');
+    case 'superseded': return t('signProgress.statusSuperseded', '새 버전으로 대체');
     case 'expired': return t('signProgress.statusExpired', '만료');
     case 'canceled': return t('signProgress.statusCanceled', '취소');
     default: return t('signProgress.statusPending', '대기');
@@ -452,6 +553,37 @@ const CancelAllBtn = styled.button`
   transition: background 0.15s;
   &:hover:not(:disabled) { background: #FEF2F2; }
   &:disabled { opacity: 0.5; cursor: default; }
+`;
+// 회차 닫기 — 보조 버튼(민트 테두리, 서명 추가와 같은 톤 · 높이 32 = 모두 취소와 같은 줄 높이)
+const CloseRoundBtn = styled.button`
+  height: 32px; padding: 0 10px;
+  font-size: 0.75rem; font-weight: 600; color: #0F766E;
+  background: #fff; border: 1px solid #14B8A6; border-radius: 8px; cursor: pointer;
+  transition: background 0.15s;
+  &:hover:not(:disabled) { background: #F0FDFA; }
+  &:disabled { opacity: 0.5; cursor: default; }
+`;
+const CloseErr = styled.div`
+  font-size: 0.75rem; color: #B91C1C; background: #FEF2F2; border: 1px solid #FECACA;
+  border-radius: 8px; padding: 8px 12px; margin-bottom: 10px; line-height: 1.5;
+`;
+// 이전 회차 — 접힌 기록
+const History = styled.div`margin-top: 10px;`;
+const HistoryToggle = styled.button`
+  display: inline-flex; align-items: center; gap: 6px; min-height: 32px; padding: 0 4px;
+  font-size: 0.75rem; font-weight: 600; color: #64748B; background: transparent; border: 0; cursor: pointer;
+  &:hover { color: #0F172A; }
+  & svg { transition: transform 0.15s; }
+`;
+const HistoryRound = styled.div`
+  border: 1px solid #E2E8F0; border-radius: 8px; background: #F8FAFC; padding: 8px 12px; margin-top: 6px;
+`;
+const HistoryHead = styled.div`font-size: 0.6875rem; font-weight: 700; color: #64748B; margin-bottom: 4px;`;
+const HistoryRow = styled.div`
+  display: flex; justify-content: space-between; gap: 12px; padding: 3px 0;
+  font-size: 0.75rem; color: #475569; line-height: 1.5;
+  & > span:last-child { text-align: right; min-width: 0; overflow-wrap: anywhere; }
+  @media (max-width: 640px) { flex-direction: column; gap: 0; & > span:last-child { text-align: left; } }
 `;
 const ReloadBtn = styled.button`
   width: 28px; height: 28px; padding: 0;

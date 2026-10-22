@@ -624,6 +624,10 @@ app.use('/api', require('./routes/signature_public'));
 app.use('/api', require('./routes/signature_internal'));
 // 서명 이미지 — /api/signatures/:id/image (2026-10-16 signatures.js 에서 분리, 꼬리 경로 고유)
 app.use('/api', require('./routes/signature_image'));
+// 서명 회차 닫기 [고쳐서 다시 보내기] — /api/posts/:id/signatures/close-round (2026-10-22, 꼬리 경로 고유)
+app.use('/api', require('./routes/signature_round'));
+// 받는 쪽 «수정 요청·거절» — /api/sign/:token/reject (2026-10-22 signatures.js 에서 분리, 꼬리 경로 고유)
+app.use('/api', require('./routes/signature_reject'));
 app.use('/api/inquiries', require('./routes/inquiries'));
 app.use('/api/diagnosis', require('./routes/diagnosis'));   // #426 무료 업무체계 자가진단 — 공개 제출 + 관리자 통계
 app.use('/api', require('./routes/kb'));

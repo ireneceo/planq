@@ -614,7 +614,7 @@ async function collectInvoices(businessId, userRole, userId) {
    - 워크스페이스 발행분 진행 중 (waiting other party — owner/admin 만)
    - 거절 받음 (today, owner/admin 만)
    ──────────────────────────────────────────── */
-async function collectSignatures(businessId, userEmail, userRole) {
+async function collectSignatures(businessId, userEmail, userRole, userId = null) {
   const items = [];
   const now = new Date();
   const oneDayMs = 24 * 60 * 60 * 1000;
@@ -681,13 +681,16 @@ async function collectSignatures(businessId, userEmail, userRole) {
     }
   }
 
-  // 발행자 측 — owner/admin 만 (member 는 본인이 발행한 건 위주로 보고 싶을 수도 있으나 단순화)
-  if (businessId && (userRole === 'owner' || userRole === 'admin')) {
+  // 발행자 측 — owner/admin 은 워크스페이스 전체, 그 밖에는 **내가 보낸 요청**만(2026-10-22 Fable D10).
+  //   예전엔 owner/admin 만이라 서명을 보낸 멤버 본인이 고객의 «수정 요청» 을 확인 필요에서 못 봤다.
+  const isManager = userRole === 'owner' || userRole === 'admin';
+  if (businessId && (isManager || userId)) {
     // 거절 받음 (최근 7일)
     const sevenDaysAgo = new Date(now.getTime() - 7 * 86400 * 1000);
     const rejected = await SignatureRequest.findAll({
       where: {
         business_id: businessId,
+        ...(isManager ? {} : { requester_user_id: userId }),
         // #239 — 확인 요청의 '의견 남김'(commented)도 사람이 읽어야 하는 신호다.
         //   거절과 같은 자리에 모은다 — 둘 다 "상대가 뭔가 말했다" 이고 놓치면 안 된다.
         //
@@ -700,7 +703,7 @@ async function collectSignatures(businessId, userEmail, userRole) {
           { status: 'commented', comment_at: { [Op.gte]: sevenDaysAgo } },
         ],
       },
-      attributes: ['id', 'token', 'signer_email', 'signer_name', 'status', 'rejected_at', 'rejected_reason', 'entity_type', 'entity_id', 'kind', 'comment', 'comment_at'],
+      attributes: ['id', 'token', 'signer_email', 'signer_name', 'status', 'rejected_at', 'rejected_reason', 'rejected_kind', 'entity_type', 'entity_id', 'kind', 'comment', 'comment_at'],
       // 두 컬럼이 섞이므로 정렬도 합쳐서 본다 — rejected_at 만으로 정렬하면 의견 건이 항상 맨 뒤로 밀린다.
       order: [[literal('COALESCE(rejected_at, comment_at)'), 'DESC']],
       limit: COLLECT_LIMIT,
@@ -718,6 +721,8 @@ async function collectSignatures(businessId, userEmail, userRole) {
       // 의견 남김을 '거절' 로 적지 않는다. 상대는 거절한 적이 없다 —
       //   같은 계열의 거짓 문구가 알림에서 한 번 잡혔고, 이 표면에도 남아 있었다.
       const isComment = sr.status === 'commented';
+      // 수정 요청(revise)은 거절과 다른 사건이다 — 판정은 알림과 같은 함수(signatureCore.rejectEventOf)
+      const isRevise = !isComment && require('../services/signatureCore').rejectEventOf(sr) === 'revised';
       const at = isComment ? sr.comment_at : sr.rejected_at;
       const who = sr.signer_name || sr.signer_email;
       const excerpt = isComment ? sr.comment : sr.rejected_reason;
@@ -725,10 +730,10 @@ async function collectSignatures(businessId, userEmail, userRole) {
         id: `sign-rejected-${sr.id}`,
         type: 'signature',
         priority: 'today',
-        verb: isComment ? 'doc_commented' : 'sign_rejected',
+        verb: isComment ? 'doc_commented' : (isRevise ? 'sign_revise' : 'sign_rejected'),
         kind: sr.kind || 'sign',
         subject,
-        context: `${who} ${isComment ? '의견' : '거절'}${excerpt ? ` — ${String(excerpt).slice(0, 40)}` : ''}`,
+        context: `${who} ${isComment ? '의견' : (isRevise ? '수정 요청' : '거절')}${excerpt ? ` — ${String(excerpt).slice(0, 40)}` : ''}`,
         dueAt: safeToIso(at),
         createdAt: safeToIso(at),
         actor: { name: sr.signer_name || sr.signer_email },
@@ -1182,7 +1187,7 @@ router.get('/todo', authenticateToken, async (req, res, next) => {
         // collectCandidates 함수 자체는 보존 (향후 별도 카테고리 또는 옵트인 활용 가능성).
         Promise.resolve([]),
         collectInvoices(w.business_id, userRole, userId),
-        collectSignatures(w.business_id, req.user.email, userRole),
+        collectSignatures(w.business_id, req.user.email, userRole, req.user.id),
         collectPaymentNotifies(w.business_id, userRole),
         collectTaxInvoices(w.business_id, userRole),
         collectPlanqSubscription(w.business_id, userRole),

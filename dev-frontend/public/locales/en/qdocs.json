@@ -95,7 +95,8 @@
       "signed": "Signed",
       "rejected": "Rejected",
       "expired": "Expired",
-      "canceled": "Canceled"
+      "canceled": "Canceled",
+      "superseded": "Replaced by a newer version"
     },
     "action": {
       "sign": "Sign",
@@ -279,7 +280,10 @@
       "toInvoice": "Issue an invoice from this quote",
       "toSplit": "Create a split-payment schedule from this contract",
       "rejected": "Signature rejected",
-      "rejectedDesc": "The signer rejected. Review the reason and send a new request after discussion."
+      "rejectedDesc": "The signer rejected. Review the reason and send a new request after discussion.",
+      "revise": "{{name}} requested changes",
+      "reviseDesc": "Press [Revise and resend] to edit the document. When you send the signature request again, our side signs again too.",
+      "reviseLocked": "Another recipient has already signed, so this document can’t be edited. Duplicate it and send a new request."
     },
     "partyUs": "Sender",
     "signNow": "Sign now",
@@ -292,7 +296,22 @@
     "cancelAll": "Cancel all",
     "cancelAllTitle": "Cancel all signature requests",
     "cancelAllMessage": "Cancel all {{n}} pending signature requests. Links sent to recipients expire immediately, and the document can be edited again.",
-    "cancelUsMessage": "Cancel the signature request for {{name}} (sender side)."
+    "cancelUsMessage": "Cancel the signature request for {{name}} (sender side).",
+    "statusRevise": "Changes requested",
+    "statusSuperseded": "Replaced by a newer version",
+    "closeRound": {
+      "button": "Revise and resend",
+      "title": "Revise and resend?",
+      "message": "This closes the current signature request so the document can be edited again. Signature links already sent stop working, and our side signs the revised document again. No email goes to recipients — send a new signature request after editing.",
+      "ok": "Close and edit",
+      "blocked": "A recipient has already signed, so this document can’t be edited. Duplicate it and send a new request.",
+      "failed": "Couldn’t close the signature request. Please try again shortly."
+    },
+    "history": {
+      "toggle": "Previous rounds ({{n}})",
+      "closedAt": "Closed {{at}}",
+      "noAnswer": "No response"
+    }
   },
   "publicSign": {
     "loading": "Loading document...",
@@ -334,18 +353,18 @@
     "signing": "Signing…",
     "signFailed": "Signature failed",
     "expired": "Request has expired.",
-    "reject": "Reject",
-    "rejectConfirm": "Reject this signature request?",
-    "rejectWarn": "This action is irreversible and the sender is notified automatically.",
+    "reject": "Request changes / Decline",
+    "rejectConfirm": "Notify the sender without signing",
+    "rejectWarn": "After sending, this request can't be signed. A revised document arrives as a new link.",
     "rejectReasonPh": "Reason (optional)",
-    "rejectFinal": "Confirm reject",
-    "rejecting": "Rejecting…",
+    "rejectFinal": "Send",
+    "rejecting": "Sending…",
     "rejectFailed": "Reject failed",
     "doneTitle": "Signed",
     "doneAt": "Signed at {{at}}",
     "doneHint": "When all parties sign, the sender is notified automatically. You may close this window.",
-    "rejectedTitle": "Signature rejected",
-    "rejectedHint": "The sender is notified automatically. Please reply separately for further discussion.",
+    "rejectedTitle": "Declined",
+    "rejectedHint": "The sender has been notified.",
     "confirm": {
       "title": "Please review this document",
       "desc": "After reading it, tap the button below. You can leave a comment too.",
@@ -391,7 +410,15 @@
     "resumeTitle": "Your signature is not finished yet",
     "resumeOtp": "Continue from identity verification.",
     "resumeSign": "You are verified. Only the signature is left.",
-    "resume": "Continue signing"
+    "resume": "Continue signing",
+    "rejectKindRevise": "Request changes — the sender will revise and resend",
+    "rejectKindDecline": "I decline to sign",
+    "rejectReasonPhRevise": "What should change? (required)",
+    "rejectReasonRequired": "Please describe what should change.",
+    "revisedTitle": "Changes requested",
+    "revisedHint": "The sender has been notified. You'll receive the revised document as a new email link.",
+    "errSuperseded": "This document has been replaced by a newer version",
+    "errSupersededHint": "Please open the link in your most recent email."
   },
   "sign": {
     "button": "Get signatures",
@@ -942,7 +969,7 @@
     "staleBar": "Someone else saved first. What would you like to do? Their text stays in the version history even if you overwrite.",
     "staleReload": "Load latest",
     "staleOverwrite": "Overwrite with my edits",
-    "signatureLocked": "This document has a signature request in progress or completed, so it can't be edited. Cancel the signature request or write a new version.",
+    "signatureLocked": "A signature request was sent for this document, so it can't be edited. If no recipient has signed yet, press [Revise and resend] in Signature progress below. If it's already signed, duplicate the document and send a new request.",
     "staleSee": "See what changed",
     "signLockedShort": "Locked for signing"
   },

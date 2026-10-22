@@ -36,6 +36,7 @@ export type TodoVerb =
   | 'issue'
   | 'candidate_other'
   | 'sign_rejected'
+  | 'sign_revise'
   // #239 — 받은 문서 확인 요청. 업무 승인 verb(confirm)와 뜻이 달라 갈라 둔다.
   | 'doc_confirm'
   // #239 — 외부인이 문서에 의견을 남김. 거절이 아니다.

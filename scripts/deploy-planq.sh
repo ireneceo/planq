@@ -683,6 +683,9 @@ sync_database() {
   #   ★ 롤백은 **코드만 revert**. 컬럼·ENUM 은 남긴다(옛 코드에 무해). 단 models/SignatureRequest.js 의
   #     컬럼 선언은 revert 금지 — sync alter 가 모델에 없는 컬럼을 DROP 한다. (스크립트 헤더 참조)
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-doc-external-confirm.js 2>&1 | tail -10"
+  # 2026-10-22 서명 회차 닫기·고객 «수정 요청» — status ENUM 끝 'superseded' + superseded_at + rejected_kind. 멱등.
+  #   ★ PM2 reload **앞** — 모델이 새 칸을 SELECT 하므로 칸 없이 새 백엔드가 뜨면 서명 조회 전체가 500. 롤백은 코드만(모델 선언 유지).
+  prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-signature-supersede.js 2>&1 | tail -6"
 
   # #379 — Drive 역방향 동기화 스키마 (gdrive_sync_logs · file_folders.gdrive_folder_id).
   #   ★ 2026-08-28 실측: sync-database 가 모델 정의를 보고 **우연히** 만들어 줬다. 그래도 명시한다 —

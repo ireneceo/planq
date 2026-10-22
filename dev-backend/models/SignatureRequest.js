@@ -95,6 +95,8 @@ SignatureRequest.init({
   // 거절
   rejected_at: { type: DataTypes.DATE, allowNull: true },
   rejected_reason: { type: DataTypes.STRING(500), allowNull: true },
+  // 받는 쪽이 고른 거절 종류 — revise(수정 요청) | decline(서명 안 함). 옛 행 NULL = 거절
+  rejected_kind: { type: DataTypes.ENUM('revise', 'decline'), allowNull: true },
 
   // #239 확인(confirm) 결과 — 서명과 달리 이미지·동의체크가 없다. 누가 언제 확인했고 뭐라 했는지만.
   confirmed_at: { type: DataTypes.DATE, allowNull: true },
@@ -106,9 +108,12 @@ SignatureRequest.init({
     // #239 — 'confirmed','commented' 는 **끝에 append**. ENUM 은 내부적으로 순번 저장이라
     //   앞쪽 순서를 건드리면 기존 행의 의미가 통째로 뒤바뀐다.
     type: DataTypes.ENUM('pending', 'sent', 'viewed', 'signed', 'rejected', 'expired', 'canceled',
-      'confirmed', 'commented'),
+      'confirmed', 'commented', 'superseded'),
     allowNull: false, defaultValue: 'pending',
   },
+  // 서명 회차 닫기(2026-10-22, docs/SIGNATURE_REVISE_ROUND_DESIGN.md) — 닫힌 회차의 행은 status 'superseded'.
+  //   같은 superseded_at = 같은 회차. 서명 이미지·시각·IP·해시는 그대로 둔다(감사 증거). scripts/migrate-signature-supersede.js
+  superseded_at: { type: DataTypes.DATE, allowNull: true },
   viewed_at: { type: DataTypes.DATE, allowNull: true },
 
   // 요청자 메모 (이메일에 포함)

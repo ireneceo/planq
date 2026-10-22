@@ -95,7 +95,8 @@
       "signed": "서명 완료",
       "rejected": "거절",
       "expired": "만료",
-      "canceled": "취소됨"
+      "canceled": "취소됨",
+      "superseded": "새 버전으로 대체"
     },
     "action": {
       "sign": "서명하기",
@@ -279,7 +280,10 @@
       "toInvoice": "이 견적으로 청구서를 발행하세요",
       "toSplit": "계약 금액 기반 분할 청구 일정을 만들어보세요",
       "rejected": "서명 거절됨",
-      "rejectedDesc": "서명자 측에서 거절했습니다. 사유를 확인하고 협의 후 새로 요청해주세요."
+      "rejectedDesc": "서명자 측에서 거절했습니다. 사유를 확인하고 협의 후 새로 요청해주세요.",
+      "revise": "{{name}} 님이 수정을 요청했어요",
+      "reviseDesc": "[고쳐서 다시 보내기] 를 누르면 문서를 고칠 수 있어요. 고친 뒤 서명 요청을 다시 보내면 우리 쪽 서명도 새로 합니다.",
+      "reviseLocked": "다른 받는 분이 이미 서명해 이 문서는 고칠 수 없어요. 문서를 복사해 새로 보내 주세요."
     },
     "partyUs": "보내는 쪽",
     "signNow": "서명하기",
@@ -292,7 +296,22 @@
     "cancelAll": "모두 취소",
     "cancelAllTitle": "서명 요청 모두 취소",
     "cancelAllMessage": "진행 중인 서명 요청 {{n}}건을 모두 취소합니다. 받는 쪽에 보낸 링크는 즉시 만료되고, 문서를 다시 고칠 수 있습니다.",
-    "cancelUsMessage": "{{name}} 님(보내는 쪽)의 서명 칸 요청을 취소합니다."
+    "cancelUsMessage": "{{name}} 님(보내는 쪽)의 서명 칸 요청을 취소합니다.",
+    "statusRevise": "수정 요청",
+    "statusSuperseded": "새 버전으로 대체",
+    "closeRound": {
+      "button": "고쳐서 다시 보내기",
+      "title": "고쳐서 다시 보낼까요?",
+      "message": "지금 서명 요청을 닫고 문서를 다시 고칠 수 있게 합니다. 보낸 서명 링크는 더 이상 열리지 않고, 우리 쪽 서명도 고친 문서에 다시 해야 합니다. 받는 분께 메일은 가지 않아요 — 고친 뒤 서명 요청을 다시 보내 주세요.",
+      "ok": "닫고 고치기",
+      "blocked": "받는 쪽이 이미 서명해 고칠 수 없어요. 문서를 복사해 새로 보내 주세요.",
+      "failed": "서명 요청을 닫지 못했어요. 잠시 뒤 다시 시도해 주세요."
+    },
+    "history": {
+      "toggle": "이전 회차 {{n}}건",
+      "closedAt": "{{at}} 에 닫음",
+      "noAnswer": "응답 없음"
+    }
   },
   "publicSign": {
     "loading": "문서 로드 중...",
@@ -334,18 +353,18 @@
     "signing": "서명 중…",
     "signFailed": "서명 실패",
     "expired": "만료된 요청입니다.",
-    "reject": "거절",
-    "rejectConfirm": "서명을 거절하시겠습니까?",
-    "rejectWarn": "거절 후에는 변경할 수 없으며 발송자에게 자동 통보됩니다.",
-    "rejectReasonPh": "거절 사유 (선택)",
-    "rejectFinal": "거절 확정",
-    "rejecting": "거절 중…",
+    "reject": "수정 요청·거절",
+    "rejectConfirm": "서명하지 않고 보낸 분께 알립니다",
+    "rejectWarn": "보낸 뒤에는 이 요청에서 서명할 수 없습니다. 고친 문서는 새 링크로 다시 옵니다.",
+    "rejectReasonPh": "사유 (선택)",
+    "rejectFinal": "보내기",
+    "rejecting": "보내는 중…",
     "rejectFailed": "거절 실패",
     "doneTitle": "서명 완료",
     "doneAt": "{{at}} 에 서명하셨습니다",
     "doneHint": "양 당사자가 모두 서명을 완료하면 발송자에게 자동으로 통보됩니다. 이 창을 닫으셔도 됩니다.",
-    "rejectedTitle": "서명 거절됨",
-    "rejectedHint": "발송자에게 자동 통보됩니다. 의견은 별도로 회신해 주시기 바랍니다.",
+    "rejectedTitle": "서명하지 않음",
+    "rejectedHint": "보낸 분에게 전달됐습니다.",
     "confirm": {
       "title": "문서를 확인해 주세요",
       "desc": "내용을 보신 뒤 아래 버튼을 눌러 주세요. 의견이 있으면 함께 남기실 수 있습니다.",
@@ -391,7 +410,15 @@
     "resumeTitle": "서명이 아직 끝나지 않았어요",
     "resumeOtp": "본인 확인부터 이어서 하면 됩니다.",
     "resumeSign": "본인 확인은 끝났어요. 서명만 하면 됩니다.",
-    "resume": "서명 계속하기"
+    "resume": "서명 계속하기",
+    "rejectKindRevise": "수정을 요청합니다 — 보낸 분이 고쳐서 다시 보내 드립니다",
+    "rejectKindDecline": "서명하지 않겠습니다",
+    "rejectReasonPhRevise": "어디를 어떻게 고칠지 적어 주세요 (필수)",
+    "rejectReasonRequired": "고칠 내용을 적어 주세요.",
+    "revisedTitle": "수정 요청을 보냈습니다",
+    "revisedHint": "보낸 분에게 전달됐습니다. 고친 문서는 새 이메일 링크로 받게 됩니다.",
+    "errSuperseded": "이 링크의 문서는 새 버전으로 대체됐습니다",
+    "errSupersededHint": "가장 최근에 받은 이메일의 링크를 열어 주세요."
   },
   "sign": {
     "button": "서명 받기",
@@ -942,7 +969,7 @@
     "staleBar": "다른 사람이 먼저 저장했어요. 어떻게 할까요? 덮어써도 그 글은 변경 기록에 남아요.",
     "staleReload": "최신 내용 가져오기",
     "staleOverwrite": "내 수정으로 덮어쓰기",
-    "signatureLocked": "서명 요청이 진행 중이거나 완료된 문서라 수정할 수 없습니다. 서명 요청을 취소하거나 새 버전 문서로 작성해 주세요.",
+    "signatureLocked": "서명 요청을 보낸 문서라 고칠 수 없습니다. 받는 분이 아직 서명하지 않았으면 아래 서명 진행에서 [고쳐서 다시 보내기] 를 누르세요. 이미 서명받았다면 문서를 복사해 새로 보내 주세요.",
     "staleSee": "바뀐 내용 보기",
     "signLockedShort": "서명 중이라 수정 불가"
   },

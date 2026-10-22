@@ -168,7 +168,7 @@ async function resolveSignShare(token, settings) {
     // 만료·취소된 서명 요청의 문서 제목이 크롤러에 계속 나가면 안 된다.
     //   (이 테이블은 만료 컬럼명이 expires_at 이고, cron 이 status='expired' 로도 마킹한다.)
     if (!sr) return null;
-    if (isShareExpired(sr, 'expires_at') || sr.status === 'expired' || sr.status === 'canceled') return null;
+    if (isShareExpired(sr, 'expires_at') || sr.status === 'expired' || sr.status === 'canceled' || sr.status === 'superseded') return null;
     let entityTitle = '서명 요청';
     if (sr.entity_type === 'post' && Post) {
       const p = await Post.findByPk(sr.entity_id, { attributes: ['title'] });
