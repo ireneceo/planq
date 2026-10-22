@@ -1,5 +1,18 @@
 # Fable 게이트 대기열 → **판정 기록 보관소** (2026-10-08 부터)
 
+## 2026-10-22 · 서명 요청 뒤 문서 고치기 — 회차 닫기 + 고객 «수정 요청» D1~D10 (방 1f0b2f16) — 설계 판정 **PASS**(Fable)
+- 근거 docs/SIGNATURE_REVISE_ROUND_DESIGN.md «Fable 판정» 절. D1 + `rejected_kind` 칸 · D3 CHANGE(회차 모든 행 → superseded, 같은 superseded_at = 회차 키, FOR UPDATE 재검사) · D8 CHANGE(버튼 하나·창 안에서 수정 요청(사유 필수)/거절 선택, 상태 rejected + rejected_kind) · 나머지 그대로.
+- 차단 조건(구현에 넣을 것): R1 status 읽는 곳 7곳 · R2 sign/reject/sign-internal 조건부 UPDATE(409 state_changed) · R3 reject 는 sent·viewed 만 · R4 옛 링크 410 superseded · R6 멱등 마이그레이션 배포 슬롯.
+- 비차단: N1 알림 문구 수신자 언어 · N2 잠금 안내를 [고쳐서 다시 보내기] 로 · N3 채팅 카드 정적 그대로.
+
+## 2026-10-22 · 메일 답변 필요 누락 보완 D1~D5 (방 da9f3688) — 설계 판정 **PASS**(Fable)
+- 근거 문서 docs/MAIL_REPLY_MISS_2026-10-22.md. D1 PASS(사람 메일은 관계가 보안 기준보다 먼저 — 카탈로그 순서에 엔진을 맞춤) ·
+  D2 CHANGE(서명 낱말 8개 중 `please sign`·`invited you to sign` 뒤에 `(?!\s*(in|up|on|out)\b)`, `님이…서명 요청` 은 `요청(했|하였|하셨|드|합)` 로 — sign in 피싱·요청 취소 통지 제외) ·
+  D3 PASS(새 계정 첫 동기화 뒤 백필 스레드를 14일 창으로 한 번 다시 재서 올리기만 · ws17 일회 실행은 Irene 승인 뒤) ·
+  D4 PASS(법원 송달은 확인 권장 유지 — 공용 낱말 안 넣음, 그 워크스페이스 «답변 필요로» 학습·규칙으로) ·
+  D5 CHANGE→(c) PlanQ 발송 메일에 `X-PlanQ-Notice` 표식 · 표식으로만 platform_notice(헤더 없는 옛 메일만 SMTP_FROM 정확 주소 폴백) · 도메인 일치 폐지 · 자동 소급 없음.
+- 비차단: §3.3 순서 줄 추가 · replyVerdict 한 번만 · 리마인더 시계는 승격 시각부터 · 배포 뒤 platform_notice 수 재기.
+
 
 ## 2026-10-22 · 약관 개정 고지(배포 때 버전 1.2·공지 띠·회원 메일) ccebf356·397da976 (방 75b90f45) — 완료 검증 **PASS**(Fable, 차단 없음)
 - 실측: 받는 사람 집합(활성·게스트/AI 제외·막힌 주소) · 멱등(EmailLog sent 건너뜀·재실행 새 행 0) · versionLt 9쌍 · 30일 판정 KST(시계 꾸며 10-26 23:30 진행/10-27 00:30 경고) · 공지 띠 덮어쓰기 없음 · 문구=legal.json s10/s13 · l1Effective 버전∧날짜 · 실패해도 배포 계속 · 가짜 SMTP 실제 발송 · 적용 경로 실행 후 dev 원복.

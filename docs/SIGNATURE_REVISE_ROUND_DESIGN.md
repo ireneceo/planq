@@ -66,3 +66,30 @@ Irene 추가 지시: *"수정요청도 들어오고 하게 잘 프로세스 점�
 - 거래 단계·급여 계약 signed_at 이 닫힌 회차를 «완료» 로 세지 않는다.
 - 화면 3폭: 버튼 보임·확인창 문구·닫은 뒤 편집 가능.
 - 운영 마이그레이션 멱등(ENUM append 2회 실행).
+
+---
+## Fable 판정 (2026-10-22, 방 1f0b2f16) — VERDICT: PASS
+**추가 사실**: dev 회차 섞인 문서 0건(백필 불필요) · reject 가 canceled·expired 토큰도 rejected 로 되돌리던 구멍 · projectStageEngine 이 canceled 도 «서명 대기» 로 셈 · DELETE 가 superseded 를 canceled 로 덮을 수 있음 · sign/reject/sign-internal 이 트랜잭션 밖에서 읽고 안에서 update(닫기와 경합).
+
+| 항목 | 판정 |
+|---|---|
+| D1 | ENUM 끝 `superseded` · `superseded_at DATETIME NULL` · **`rejected_kind ENUM('revise','decline') NULL`**(옛 행 NULL = 거절). 증거 칸 불변 |
+| D2 | `signatureCore.canCloseRound(postId)` = 회차(kind=sign ∧ status∉{canceled,superseded})에 them signed 0 ∧ 행 ≥1. 아니면 409 `round_has_counterparty_signature`. 자동 닫기 없음. confirm 은 회차 밖 |
+| D3 | **회차 모든 행 → superseded**(열린 행도), `superseded_at` 같은 now = 회차 키. 트랜잭션 안 FOR UPDATE 재읽기 + them-signed 재검사 → 감사 `signature.round_closed {ids, frozen_content_hash, reason}` → inbox:refresh → afterSignatureChange. 메일 없음 |
+| D4 | 그대로. 요청 창 메모 기본값 «요청하신 수정 사항을 반영했습니다»(비차단) |
+| D5 | 회차가 «open·signed 0 ∧ 행 ≥1» 이면 새 요청 트랜잭션 안에서 자동 superseded, 감사 `{auto:true}` |
+| D6 | 회차 어느 행의 requester ∨ canEditPost, 멤버 이상 |
+| D7 | GET /posts/:id/signatures 전 행 → 화면이 superseded_at 으로 묶음. 현재 표에서 superseded 제외. 공개 화면 없음 |
+| D8 | 버튼 하나 «수정 요청·거절», 창 안 선택 ○수정 요청(사유 **필수**, 기본) ○서명 안 함(사유 선택). status rejected + rejected_kind. 서버 `{kind, reason}`, revise 사유 없음 400 `reason_required` |
+| D9 | `notifyWorkspaceMembersOnSignature(sr, event, name, {actorUserId})` — them 사건 제외 없음, us 로그인 서명만 본인 제외 |
+| D10 | 본문 둘째 줄 `사유: <첫 줄 80자>`, 제목 kind 로(«수정 요청 받음»/«서명 거절됨»). 확인 필요 거절 분기 = owner/admin ∨ requester=나. verb `sign_revise` |
+
+**차단 조건(구현에 넣는다)**
+- R1 status 읽는 곳: signRoundWhere notIn [canceled, superseded] · projectStageEngine 2곳 같은 술어 · payrollContracts live · projects.js 거래 탭 · ogMeta.resolveSignShare·imageCtx sign 분기 · signature_public 4 라우트 410 `superseded` · sign/OTP/reject/sign-internal/DELETE 가 superseded 거절, **reject 는 status∉{sent,viewed} 면 409**. 프론트 타입·라벨·`received.statusFull.superseded`.
+- R2 sign·reject·sign-internal 조건부 UPDATE(`where:{id, status:읽은 값}`) → 0행이면 409 `state_changed`.
+- R4 옛 링크 410 «새 버전으로 대체» 안내. R5 confirm 은 손대지 않음. R6 `migrate-signature-supersede.js` 멱등 · 배포 슬롯 코드보다 먼저. R7 닫기 메일 0통.
+- 비차단 N1 알림 문구 수신자 언어 · N2 잠금 안내를 [고쳐서 다시 보내기] 로 · N3 채팅 카드 그대로.
+
+**공개 화면 문구 (publicSign.*)**: reject «수정 요청·거절»/«Request changes / Decline» · rejectConfirm «서명하지 않고 보낸 분께 알립니다»/«Notify the sender without signing» · rejectKindRevise «수정을 요청합니다 — 보낸 분이 고쳐서 다시 보내 드립니다»/«Request changes — the sender will revise and resend» · rejectKindDecline «서명하지 않겠습니다»/«I decline to sign» · rejectReasonPhRevise «어디를 어떻게 고칠지 적어 주세요 (필수)»/«What should change? (required)» · rejectReasonPh «사유 (선택)»/«Reason (optional)» · rejectWarn «보낸 뒤에는 이 요청에서 서명할 수 없습니다. 고친 문서는 새 링크로 다시 옵니다.»/«After sending, this request can't be signed. A revised document arrives as a new link.» · rejectFinal «보내기»/«Send» · revisedTitle «수정 요청을 보냈습니다»/«Changes requested» · rejectedTitle «서명하지 않음»/«Declined» · revisedHint «보낸 분에게 전달됐습니다. 고친 문서는 새 이메일 링크로 받게 됩니다.»/«The sender has been notified. You'll receive the revised document as a new email link.» · rejectedHint «보낸 분에게 전달됐습니다.»/«The sender has been notified.» · superseded(410) «이 링크의 문서는 새 버전으로 대체됐습니다. 가장 최근에 받은 이메일의 링크를 열어 주세요.»/«This document has been replaced by a newer version. Please open the link in your most recent email.»
+
+**검증 보강**: 닫기+서명 동시 → 한쪽만 200 · OTP 통과 canceled/superseded 토큰 reject 409 · 옛 토큰 GET/attachments/pdf 410 superseded · 거래 단계가 canceled/superseded 를 대기로 안 셈 · 비 owner 요청자 확인 필요 «수정 요청 받음» 1건 · 알림 사유 줄 · revise 사유 없음 400 · 마이그레이션 2회 exit 0.
