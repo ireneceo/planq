@@ -76,7 +76,7 @@ import { cacheKey, readCache, hasCache, writeCache } from '../../lib/pageCache';
 import FloatingPanelToggle from '../Common/FloatingPanelToggle';
 import PanelResizeHandle, { usePanelWidth } from '../Layout/PanelResizeHandle';
 import { usePostPresence } from '../../hooks/usePostPresence';
-import { useConflictStash, CoeditTypingNotice, ConflictStashNote, ConflictBar, PresenceChips } from './DocCoedit';
+import { useConflictStash, CoeditTypingNotice, ConflictStashNote, ConflictBar, SignLockedBar, PresenceChips } from './DocCoedit';
 import PostHistoryPanel from './PostHistoryPanel';
 import PostAiEditDrawer from './PostAiEditDrawer';
 import { isEnterAction } from '../../utils/imeKey';
@@ -348,6 +348,8 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId }) => {
   // 새 문서에서 고른 «업무 연결» 중 아직 못 건 것(DocTaskLinkField 가 알려 준다) — 저장 버튼 분기가 건다
   const pendingTaskIdsRef = useRef<number[]>([]);
   const beginEditSession = useCallback(() => setEditEpoch((n) => n + 1), []);
+  // 서명 잠금으로 멈춘 자동저장 — 겹침(남이 먼저 저장)과 같은 «멈춤» 이지만 다른 사실이라 바를 가른다(Fable 2026-10-22 FAIL ①)
+  const [signLocked, setSignLocked] = useState(false);
   // 폰(≤640) 편집 — 분류·연결 칸은 요약 한 줄로 접어 두고 누를 때만 편다(2026-10-20, Irene «카테고리가 다 한줄씩 …
   //   높이값이 넓어서 입력란이 좁아»). 편집 세션마다 접힌 채로 시작한다. 넓은 화면은 이 값을 보지 않는다(CSS).
   const [metaOpenPhone, setMetaOpenPhone] = useState(false);
@@ -1144,6 +1146,7 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId }) => {
       // 서명 잠금 — 재시도해도 영영 안 된다. 자동저장을 멈추고 사실과 다음 행동을 알린다.
       if ((e as { code?: string })?.code === 'post_locked_by_signature') {
         setAutoState('stale');   // 자동저장 정지 상태(재시도 안 함)
+        setSignLocked(true);
         setAutoErr((e as Error).message || (t('autosave.signatureLocked', '서명 요청이 진행 중이거나 완료된 문서라 수정할 수 없습니다. 서명 요청을 취소하거나 새 버전 문서로 작성해 주세요.') as string));
         return 'stale';
       }
@@ -1167,6 +1170,7 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId }) => {
   const runAutosaveRef = useRef(runAutosave);
   const modeRef = useRef(mode);
   const autoStateRef = useRef(autoState);
+  useEffect(() => { if (autoState !== 'stale') setSignLocked(false); }, [autoState]);
   useEffect(() => {
     runAutosaveRef.current = runAutosave;
     modeRef.current = mode;
@@ -2129,7 +2133,7 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId }) => {
                   {autoState === 'saved' && <>✓<AutoSaveText> {t('autosave.saved', '임시저장됨')}</AutoSaveText></>}
                   <PresenceChips users={presenceUsers} short />
                   {autoState === 'error' && `! ${t('autosave.failed', '임시저장 실패')}`}
-                  {autoState === 'stale' && `! ${t('autosave.stale', '다른 사람이 수정함')}`}
+                  {autoState === 'stale' && `! ${signLocked ? t('autosave.signLockedShort', '서명 중이라 수정 불가') : t('autosave.stale', '다른 사람이 수정함')}`}
                 </AutoSaveMark>
                 {/* ★ 저장 버튼은 **새 문서에만** 둔다 (2026-08-25, Notion 방식으로 정렬).
                     기존 문서 편집은 치는 대로 저장되고, 나가는 순간 첨부까지 마무리된다
@@ -2155,7 +2159,8 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId }) => {
             </PanelHeader>
             {/* 저장 충돌·이동 차단 경고 — 상시 밴드가 아니라 있을 때만 뜬다.
                 밴드로 두면 평소에 빈 줄이 남아 상세가 3밴드가 된다. */}
-            {autoState === 'stale' && <ConflictBar onSee={() => setHistoryOpen(true)} onReload={() => { void resolveStaleReload(); }} onOverwrite={() => { void resolveStaleOverwrite(); }} />}
+            {autoState === 'stale' && signLocked && <SignLockedBar />}
+            {autoState === 'stale' && !signLocked && <ConflictBar onSee={() => setHistoryOpen(true)} onReload={() => { void resolveStaleReload(); }} onOverwrite={() => { void resolveStaleOverwrite(); }} />}
             {autoState !== 'stale' && <CoeditTypingNotice users={presenceUsers} />}
             {conflict.stash && <ConflictStashNote stash={conflict.stash} onDrop={conflict.drop} />}
             {leaveBlocked && (

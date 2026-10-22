@@ -74,6 +74,16 @@ export const ConflictBar: React.FC<{ onSee: () => void; onReload: () => void; on
   );
 };
 
+// 서명 요청이 진행 중·완료된 문서 — 남이 저장한 것이 아니다. 고르게 하지 않고 사실과 다음 행동만 말한다.
+export const SignLockedBar: React.FC = () => {
+  const { t } = useTranslation('qdocs');
+  return (
+    <CoeditBar role="alert" $tone="err" data-testid="docs-sign-locked">
+      {t('autosave.signatureLocked', '서명 요청이 진행 중이거나 완료된 문서라 수정할 수 없습니다. 서명 요청을 취소하거나 새 버전 문서로 작성해 주세요.')}
+    </CoeditBar>
+  );
+};
+
 export const ConflictStashNote: React.FC<{ stash: ConflictStash; onDrop: () => void }> = ({ stash, onDrop }) => {
   const { t } = useTranslation('qdocs');
   const [open, setOpen] = useState(false);

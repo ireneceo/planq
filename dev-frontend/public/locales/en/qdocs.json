@@ -943,7 +943,8 @@
     "staleReload": "Load latest",
     "staleOverwrite": "Overwrite with my edits",
     "signatureLocked": "This document has a signature request in progress or completed, so it can't be edited. Cancel the signature request or write a new version.",
-    "staleSee": "See what changed"
+    "staleSee": "See what changed",
+    "signLockedShort": "Locked for signing"
   },
   "toc": {
     "title": "Contents",

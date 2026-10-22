@@ -943,7 +943,8 @@
     "staleReload": "최신 내용 가져오기",
     "staleOverwrite": "내 수정으로 덮어쓰기",
     "signatureLocked": "서명 요청이 진행 중이거나 완료된 문서라 수정할 수 없습니다. 서명 요청을 취소하거나 새 버전 문서로 작성해 주세요.",
-    "staleSee": "바뀐 내용 보기"
+    "staleSee": "바뀐 내용 보기",
+    "signLockedShort": "서명 중이라 수정 불가"
   },
   "toc": {
     "title": "목차",
