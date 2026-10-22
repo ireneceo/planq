@@ -374,6 +374,20 @@ captureFirstTouch();
 // 크래시 직전 조작을 남긴다 — 보고에 '어디서' 뿐 아니라 '무엇을 눌렀을 때' 가 실린다.
 installCrashTrail();
 
+// 앱 첫 실행 «불러오는 중» 화면 걷기 — index.html 의 #pq-boot(앱·설치형에서만 켜진다).
+//   root 에 «읽을 것»(글자나 입력칸)이 그려지면 걷는다. 빈 로딩 스피너(PageLoadingFallback)만 있을 때는 남겨 둔다 —
+//   그 사이에 흰 화면으로 바뀌면 다시 «멈췄다» 로 읽힌다.
+{
+  const boot = document.getElementById('pq-boot');
+  const rootEl = document.getElementById('root');
+  if (boot && rootEl && boot.style.display !== 'none') {
+    const ready = () => !!rootEl.querySelector('input, textarea, [contenteditable="true"]') || (rootEl.textContent || '').trim().length > 0;
+    const done = () => { obs.disconnect(); boot.remove(); };
+    const obs = new MutationObserver(() => { if (ready()) done(); });
+    obs.observe(rootEl, { childList: true, subtree: true, characterData: true });
+  }
+}
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <App />
