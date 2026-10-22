@@ -68,16 +68,12 @@ function initialFields({ isPlatformAdmin, userId, isFollowup }) {
 }
 
 // ── 배포 닫기 ──
-// 승인 체계가 생긴 시각 — 마이그레이션이 approved_at 칸 설명(COMMENT)에 «approval_since=<ISO>» 로 남긴다.
+// 승인 체계가 생긴 시각 — platform_settings.feedback_approval_since(마이그레이션이 비어 있을 때 한 번만 적는다).
 //   그 전에 /개발완료 가 «고쳤지만 배포 전» 으로 단 reviewing 은 옛 규칙대로 닫는다(시한부 호환 — 옛 reviewing 이 0 이 되면 지운다).
-let sinceCache;
+//   없으면 null — 옛 규칙 분기는 닫지 않는 쪽(건너뜀)으로 떨어진다.
 async function approvalSince(sequelize) {
-  if (sinceCache !== undefined) return sinceCache;
-  const [rows] = await sequelize.query(`SELECT COLUMN_COMMENT c FROM information_schema.COLUMNS
-    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'feedback_items' AND COLUMN_NAME = 'approved_at'`);
-  const m = rows[0] && /approval_since=([0-9T:.\-Z]+)/.exec(rows[0].c || '');
-  sinceCache = m ? new Date(m[1]) : null;
-  return sinceCache;
+  const [rows] = await sequelize.query('SELECT feedback_approval_since s FROM platform_settings ORDER BY id LIMIT 1');
+  return rows[0] && rows[0].s ? new Date(rows[0].s) : null;
 }
 
 /** 배포에 실린 건을 닫아도 되나 — { close, legacy, reason } */

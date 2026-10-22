@@ -121,6 +121,10 @@ PlatformSetting.init({
   // 마케팅 측정 GTM 컨테이너 ID (2026-10-17, docs/MARKETING_TRACKING_DESIGN.md) — 비우면 꺼짐.
   //   서버별 DB 라 dev 는 비워 두면 운영 통계에 시험 방문이 섞이지 않는다. 공개 값(페이지 소스에 보이는 값)이다.
   gtm_container_id: { type: DataTypes.STRING(20), allowNull: true },
+  // 사용자 피드백 승인 체계가 이 서버에 처음 생긴 시각 (2026-10-22, scripts/migrate-feedback-approval.js 가 비어 있을 때 한 번만 적는다).
+  //   배포 닫기가 이 시각 전에 «고쳤지만 배포 전» 으로 단 옛 검토중만 옛 규칙대로 닫는다(services/feedbackStatus.approvalSince).
+  //   ★ 칸 설명(COMMENT)에 두던 첫 구현은 sync-database(alter)가 배포마다 지워 운영에서 한 번도 안 먹었다(Fable 게이트 FAIL 실측).
+  feedback_approval_since: { type: DataTypes.DATE, allowNull: true },
   updated_by_user_id: {
     type: DataTypes.INTEGER,
     allowNull: true,

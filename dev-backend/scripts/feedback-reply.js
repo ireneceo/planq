@@ -35,6 +35,9 @@ if (!file) { console.error('사용: node scripts/feedback-reply.js <replies.json
     actorUserId = admin ? admin.id : null;
   }
 
+  // dry-run 판정도 실제 적용과 같은 역할로 본다(관리자 아닌 actor 면 승인 전이가 적용 때 거절된다)
+  const actorRow = actorUserId ? await User.findByPk(actorUserId, { attributes: ['platform_role'] }) : null;
+  const actorIsAdmin = !!actorRow && actorRow.platform_role === 'platform_admin';
   for (const r of list) {
     const id = Number(r.id);
     const response = String(r.response || '').trim();
@@ -45,7 +48,7 @@ if (!file) { console.error('사용: node scripts/feedback-reply.js <replies.json
     console.log(`#${id} [${item.status} → ${r.status}] ${item.title}\n    ↳ ${response.replace(/\n/g, ' ')}`);
     if (!APPLY) {
       // dry-run 도 같은 판정을 미리 본다 — 적용 때 거절될 줄을 미리 알린다
-      try { require('../services/feedbackStatus').planTransition(item, r.status, { id: actorUserId, isPlatformAdmin: true }); }
+      try { require('../services/feedbackStatus').planTransition(item, r.status, { id: actorUserId, isPlatformAdmin: actorIsAdmin }); }
       catch (e) { console.log(`    ✗ 거절 예정 — ${e.code || e.message}`); }
       continue;
     }

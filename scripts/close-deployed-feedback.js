@@ -101,8 +101,16 @@ async function main() {
     console.log('\n(dry-run — 실제로 닫으려면 --apply)');
     process.exit(0);
   }
+  // 닫는 판정은 deployCloseDecision 이 했다 — 여기서는 기록만(감사 행 포함, 관리자 화면 전이와 같은 action 이름).
+  const { writeAudit } = require(`${base}/services/auditService`);
   for (const r of toClose) {
+    const prev = r.status;
     await r.update({ status: 'done', responded_at: r.responded_at || new Date() });
+    await writeAudit({
+      user_id: null, business_id: r.business_id || null, action: 'feedback.status',
+      target_type: 'feedback_item', target_id: r.id,
+      old_value: { status: prev }, new_value: { status: 'done', via: legacy.includes(r.id) ? 'deploy_close_legacy' : 'deploy_close' },
+    }).catch(() => null);
   }
   console.log(`\n✅ ${toClose.length}건 done 처리 완료`);
   process.exit(0);
