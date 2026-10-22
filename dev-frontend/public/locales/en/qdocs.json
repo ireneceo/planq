@@ -939,10 +939,11 @@
     "draftBadgeHint": "Only you can see this draft. Open it and save to publish.",
     "leaveBlocked": "Couldn't leave — there are unsaved changes. Save or cancel first.",
     "pendingLocal": "Kept on this device — press Save to apply",
-    "staleBar": "Someone else saved this document. What would you like to do?",
+    "staleBar": "Someone else saved first. What would you like to do? Their text stays in the version history even if you overwrite.",
     "staleReload": "Load latest",
     "staleOverwrite": "Overwrite with my edits",
-    "signatureLocked": "This document has a signature request in progress or completed, so it can't be edited. Cancel the signature request or write a new version."
+    "signatureLocked": "This document has a signature request in progress or completed, so it can't be edited. Cancel the signature request or write a new version.",
+    "staleSee": "See what changed"
   },
   "toc": {
     "title": "Contents",
@@ -1237,5 +1238,14 @@
     "label": "Category · links",
     "empty": "None",
     "tasks": "{{count}} tasks"
+  },
+  "coedit": {
+    "othersTyping": "{{names}} is also editing now. If you both change the same part, your saves may clash.",
+    "stashNote": "We switched to the latest version and kept what you were writing.",
+    "stashView": "View my text",
+    "stashDrop": "Discard",
+    "stashTitle": "What you were writing",
+    "stashHint": "This is your unsaved text. Copy what you need and paste it into the document.",
+    "close": "Close"
   }
 }

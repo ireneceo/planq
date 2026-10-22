@@ -37,6 +37,8 @@ export const DRAFT_KINDS = {
   // 별칭(보내는 주소)별 서명 — 설정의 편집 폼. [저장]/[취소] 로 끝나지만, 쓰다가 다른 행을 누르거나
   //   화면을 떠나면 그대로 사라졌다. 한국어·영문 둘 다 같은 규칙이다(2026-09-18).
   'mail-signature-alias': { ttlMs: 7 * DAY, mode: 'append', owners: ['pages/Settings/MailAliasSection.tsx'] },
+  // 문서를 같이 고치다 겹쳐 «최신 내용 가져오기» 를 고른 뒤 따로 남겨 둔 내 글(제목+본문 JSON) — docs/DOC_COEDIT_DESIGN.md.
+  'doc-conflict': { ttlMs: 7 * DAY, mode: 'append', owners: ['components/Docs/DocCoedit.tsx'] },
   'mail-issue': { ttlMs: 7 * DAY, mode: 'append', owners: ['components/Common/NoteThread.tsx', 'pages/QMail/MailContextPanel.tsx'] },
   'mail-note': { ttlMs: 7 * DAY, mode: 'append', owners: ['components/Common/NoteThread.tsx', 'pages/QMail/MailContextPanel.tsx'] },
   'qtalk-note': { ttlMs: 7 * DAY, mode: 'append', owners: ['components/Common/NoteThread.tsx', 'pages/QTalk/RightPanel.tsx'] },

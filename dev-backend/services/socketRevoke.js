@@ -24,6 +24,8 @@ async function leaveBusinessRooms(io, userId, businessId) {
     for (const s of sockets) {
       for (const r of [...s.rooms]) if (rooms.has(r)) s.leave(r);
     }
+    // 그 워크스페이스 문서의 «누가 같이 쓰고 있나» 방에서도 뺀다(services/postPresence).
+    await require('./postPresence').dropUserFromBusiness(io, userId, businessId);
   } catch (e) {
     console.warn('[socketRevoke] leaveBusinessRooms', e.message);
   }

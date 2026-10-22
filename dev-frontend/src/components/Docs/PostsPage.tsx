@@ -76,6 +76,7 @@ import { cacheKey, readCache, hasCache, writeCache } from '../../lib/pageCache';
 import FloatingPanelToggle from '../Common/FloatingPanelToggle';
 import PanelResizeHandle, { usePanelWidth } from '../Layout/PanelResizeHandle';
 import { usePostPresence } from '../../hooks/usePostPresence';
+import { useConflictStash, CoeditTypingNotice, ConflictStashNote, ConflictBar, PresenceChips } from './DocCoedit';
 import PostHistoryPanel from './PostHistoryPanel';
 import PostAiEditDrawer from './PostAiEditDrawer';
 import { isEnterAction } from '../../utils/imeKey';
@@ -124,7 +125,7 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId }) => {
   const { t } = useTranslation('qdocs');
   const { t: tc } = useTranslation('common');   // 연결 문구 정본
   const { t: tErr } = useTranslation('errors');
-  const { formatDate } = useTimeFormat();
+  const { formatDate, formatTimeAgo } = useTimeFormat();
   // 목록 정렬 — 기본은 **작성일 최신순**(2026-10-06 Irene: "수정될 때 리스트 순서가 바뀌니까 이상해").
   //   그래서 날짜도 작성일을 보인다. «최근 수정순» 을 골랐을 때만 수정일을 «수정 …» 으로 말한다
   //   (2026-09-05: 날짜만 찍혀 있어 오래전 글이 "오늘 쓴 글" 로 읽혔다 — 그 이름 붙이기는 유지).
@@ -405,13 +406,15 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId }) => {
   const [slotTplId, setSlotTplId] = useState<number | null>(null);
   const [tplSearch, setTplSearch] = useState('');
   const { user } = useAuth();
-  // 지금 이 문서를 함께 편집 중인 사람들 (본인 제외하고 표시).
-  const presenceUsers = usePostPresence(
-    detail?.id ?? null,
-    scope.businessId ?? null,
-    user?.name || user?.username || '',
-    mode === 'edit',
-  );
+  // 같이 고치고 있는 사람(나 빼고, 보기 화면에서도) · 마지막 입력 시각 · 남의 저장을 맞추는 함수 · 겹쳐서 남긴 내 글
+  //   — docs/DOC_COEDIT_DESIGN.md B 안
+  const presence = usePostPresence(detail?.id ?? null, scope.businessId ?? null, user?.id ? Number(user.id) : null, mode === 'edit', !!detail?.id);
+  const presenceUsers = presence.others;
+  const presencePingRef = useRef(presence.ping);
+  presencePingRef.current = presence.ping;
+  const lastInputAtRef = useRef(0);
+  const remoteSavedRef = useRef<((postId: number) => Promise<void>) | null>(null);
+  const conflict = useConflictStash(detail?.id ?? null, scope.businessId ?? null);
 
   // N+30 — personal 도 scope.businessId 우선 사용 (multi-workspace 사용자 시 user.business_id fallback 잘못된 bizId 회귀 차단)
   const businessId = (scope.type === 'workspace' || scope.type === 'personal') ? scope.businessId : (user?.business_id ? Number(user.business_id) : null);
@@ -549,7 +552,10 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId }) => {
         // #252 MAJOR-1 — 편집 중이면 남의 저장으로 내 에디터를 갈아끼우지 않는다.
         //   setDetail 은 스냅샷·base_updated_at 기준까지 흔들어 타이핑 중 글을 날린다.
         //   충돌은 낙관적 잠금이 409(stale 배지)로 알려준다 — 조용히 덮는 대신 사용자가 판단한다.
-        if (modeRef.current === 'edit' || modeRef.current === 'new') return;
+        //   ★ 2026-10-22 — 단, **안 치고 있으면** 바로 최신으로 맞춘다(remoteSavedRef). 치는 중이면 그대로 두고
+        //   다음 자동저장이 409 로 «고르기» 바를 띄운다.
+        if (modeRef.current === 'new') return;
+        if (modeRef.current === 'edit') { await remoteSavedRef.current?.(postId); return; }
         const d = await fetchPost(postId);
         setDetail(d);
       } catch (_) { /* skip */ }
@@ -1000,10 +1006,8 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId }) => {
   //   "저장은 누가 해?"(Irene) — 둘이 같이 고치면 **나중에 저장한 사람 내용이 남는다**.
   //   문제는 여태 뒤늦은 사람이 뱃지 하나만 보고 저장도 이동도 못 하는 막다른 길에 갇혔다는 것.
   //   두 갈래를 명시적으로 준다: 남의 최신본으로 갈아타거나, 내 내용으로 덮어쓰거나.
-  const resolveStaleReload = useCallback(async () => {
-    if (!detail?.id) return;
-    const latest = await fetchPost(detail.id);
-    if (!latest) return;
+  // 서버 최신본으로 편집 화면을 맞춘다 — 기준 시각·마지막 저장분까지 같이(안 그러면 맞춘 직후 자동저장이 나간다).
+  const applyLatestPost = useCallback((latest: PostDetail) => {
     setDetail(latest);
     setTitleDraft(latest.title);
     setContentDraft(latest.content_json);
@@ -1011,10 +1015,34 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId }) => {
     baseUpdatedAtRef.current = latest.updated_at ?? null;
     lastSavedRef.current = { title: latest.title, content: latest.content_json, category: latest.category || '', projectId: latest.project_id ?? null };
     autoDirtyRef.current = false;
+  }, []);
+
+  // 남이 저장했다는 신호 — 내가 안 치고 있고 저장할 것도 없을 때만 바로 맞춘다.
+  remoteSavedRef.current = async (postId: number) => {
+    const idle = () => !autoDirtyRef.current
+      && autoStateRef.current !== 'saving' && autoStateRef.current !== 'stale'
+      && Date.now() - lastInputAtRef.current > 3000;
+    if (!idle()) return;
+    const latest = await fetchPost(postId);
+    if (!latest || latest.id !== postId || modeRef.current !== 'edit') return;
+    if ((latest.updated_at ?? null) === baseUpdatedAtRef.current) return;   // 내 저장이 돌아온 것
+    if (!idle()) return;   // 받아 오는 사이 치기 시작했다
+    applyLatestPost(latest);
+  };
+
+  const resolveStaleReload = useCallback(async () => {
+    if (!detail?.id) return;
+    const latest = await fetchPost(detail.id);
+    if (!latest) return;
+    // 내가 쓰던 글은 버리지 않고 따로 남긴다(이 문서·이 사람 몫 하나 — 7일).
+    if (titleDraft !== latest.title || JSON.stringify(contentDraft ?? null) !== JSON.stringify(latest.content_json ?? null)) {
+      conflict.save({ title: titleDraft, content: contentDraft });
+    }
+    applyLatestPost(latest);
     setAutoErr(null);
     setAutoState('idle');
     setLeaveBlocked(false);
-  }, [detail?.id]);
+  }, [detail?.id, conflict.save, titleDraft, contentDraft, applyLatestPost]);
 
   const resolveStaleOverwrite = useCallback(async () => {
     if (!detail?.id) return;
@@ -1235,6 +1263,7 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId }) => {
       // 워크스페이스 화면에서만 프로젝트를 고를 수 있다 — 프로젝트 화면은 값이 고정이라 비교 대상이 아니다
       || (scope.type === 'workspace' && projectDraft !== snap.projectId);
     if (!changed && !autoDirtyRef.current) return;
+    if (changed) { lastInputAtRef.current = Date.now(); presencePingRef.current(); }
     autoDirtyRef.current = true;
     if (autoTimerRef.current) clearTimeout(autoTimerRef.current);
     autoTimerRef.current = setTimeout(() => { runAutosave(); }, AUTOSAVE_DEBOUNCE_MS);
@@ -2098,12 +2127,7 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId }) => {
                   {/* 폰은 저장 중·저장됨 글자를 접는다(제목 칸 자리) — 실패·충돌 글자는 그대로 보인다 */}
                   {autoState === 'saving' && <AutoSaveText>{t('autosave.saving', '임시저장 중…')}</AutoSaveText>}
                   {autoState === 'saved' && <>✓<AutoSaveText> {t('autosave.saved', '임시저장됨')}</AutoSaveText></>}
-                  {/* 동시 편집 표시 — 나 말고 이 문서를 지금 편집 중인 사람 (구글 문서식) */}
-                  {presenceUsers.filter((p) => p.userId !== Number(user?.id)).map((p) => (
-                    <PresenceChip key={p.userId} title={t('presence.editing', { name: p.name, defaultValue: '{{name}} 님이 편집 중' }) as string}>
-                      <PresenceDot />{p.name || t('presence.someone', '누군가')}
-                    </PresenceChip>
-                  ))}
+                  <PresenceChips users={presenceUsers} short />
                   {autoState === 'error' && `! ${t('autosave.failed', '임시저장 실패')}`}
                   {autoState === 'stale' && `! ${t('autosave.stale', '다른 사람이 수정함')}`}
                 </AutoSaveMark>
@@ -2131,17 +2155,9 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId }) => {
             </PanelHeader>
             {/* 저장 충돌·이동 차단 경고 — 상시 밴드가 아니라 있을 때만 뜬다.
                 밴드로 두면 평소에 빈 줄이 남아 상세가 3밴드가 된다. */}
-            {autoState === 'stale' && (
-              <StaleBar role="alert">
-                <span>{t('autosave.staleBar', '다른 사람이 이 문서를 저장했습니다. 어떻게 할까요?')}</span>
-                <StaleBtn type="button" onClick={() => { void resolveStaleReload(); }}>
-                  {t('autosave.staleReload', '최신 내용 가져오기')}
-                </StaleBtn>
-                <StaleBtn type="button" $danger onClick={() => { void resolveStaleOverwrite(); }}>
-                  {t('autosave.staleOverwrite', '내 수정으로 덮어쓰기')}
-                </StaleBtn>
-              </StaleBar>
-            )}
+            {autoState === 'stale' && <ConflictBar onSee={() => setHistoryOpen(true)} onReload={() => { void resolveStaleReload(); }} onOverwrite={() => { void resolveStaleOverwrite(); }} />}
+            {autoState !== 'stale' && <CoeditTypingNotice users={presenceUsers} />}
+            {conflict.stash && <ConflictStashNote stash={conflict.stash} onDrop={conflict.drop} />}
             {leaveBlocked && (
               <LeaveBlockedNote role="alert">
                 {t('autosave.leaveBlocked', '저장하지 못한 변경이 있어 이동하지 못했습니다. 저장하거나 취소해 주세요.')}
@@ -2456,6 +2472,10 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId }) => {
               {detail.editor && detail.editor.id !== detail.author?.id && (
                 <><span>·</span><span>{t('editedBy', '수정: {{name}}', { name: detail.editor.name })}</span></>
               )}
+              {detail.updated_at && detail.updated_at !== detail.created_at && (
+                <><span>·</span><span title={formatDate(detail.updated_at)}>{formatTimeAgo(detail.updated_at)}</span></>
+              )}
+              <PresenceChips users={presenceUsers} />
               {detail.category && (
                 <CategoryTag
                   type="button"
@@ -2553,6 +2573,7 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId }) => {
             
               </MetaRight>
             </ViewMeta>
+            {conflict.stash && <ConflictStashNote stash={conflict.stash} onDrop={conflict.drop} />}
             </StickyBands>
             <Body>
               {/* ★ 보기 모드에는 오류 자리가 아예 없었다 — PDF·워드 생성 실패가 setError 로만 남고
@@ -3756,34 +3777,6 @@ const KnowledgeToast = styled.div`
   z-index: 1200;
   animation: fadeInUp 0.2s ease-out;
   @keyframes fadeInUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
-`;
-
-// 동시 편집 표시 칩 — 편집 헤더에 인라인. 초록 점 = 지금 접속해 편집 중.
-const PresenceChip = styled.span`
-  display: inline-flex; align-items: center; gap: 5px;
-  padding: 3px 9px; margin-left: 6px;
-  font-size: 0.71875rem; font-weight: 600; color: #0F766E;
-  background: #F0FDFA; border: 1px solid #99F6E4; border-radius: 999px;
-  white-space: nowrap;
-`;
-const PresenceDot = styled.span`
-  width: 6px; height: 6px; border-radius: 50%; background: #14B8A6; flex-shrink: 0;
-`;
-
-// 충돌 해결 바 — 뱃지만 띄우면 사용자는 막다른 길에 갇힌다(저장도 이동도 불가).
-const StaleBar = styled.div`
-  display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap;
-  padding: 6px 10px; margin-left: 8px;
-  background: #FEF2F2; border: 1px solid #FECACA; border-radius: 8px;
-  font-size: 0.75rem; color: #991B1B;
-`;
-const StaleBtn = styled.button<{ $danger?: boolean }>`
-  height: 28px; padding: 0 10px; border-radius: 6px; cursor: pointer;
-  font-size: 0.75rem; font-weight: 700; white-space: nowrap;
-  color: ${(p) => (p.$danger ? '#B91C1C' : '#0F766E')};
-  background: #fff;
-  border: 1px solid ${(p) => (p.$danger ? '#FECACA' : '#99F6E4')};
-  &:hover { background: ${(p) => (p.$danger ? '#FEF2F2' : '#F0FDFA')}; }
 `;
 
 // 서명본 본문 — 서버가 조립한 HTML 을 그대로 그린다. 서명 칸 규격은 서버

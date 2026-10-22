@@ -202,23 +202,6 @@ function invalidateBuildId() {
 // 외부 호출 (예: deploy hook) 가능하도록 노출
 app.locals.invalidatePlanqBuildId = invalidateBuildId;
 
-// 문서 동시 편집 표시 — postId → Map<userId,{userId,name}>. 프로세스 메모리에만 둔다.
-const editingPresence = new Map();
-function leaveEditing(socket, postId) {
-  const room = editingPresence.get(postId);
-  if (room) {
-    room.delete(socket.userId);
-    if (room.size === 0) editingPresence.delete(postId);
-  }
-  socket.leave(`post:${postId}`);
-  if (socket.data.editingPosts) socket.data.editingPosts.delete(postId);
-  const io = socket.server;
-  io.to(`post:${postId}`).emit('post:presence', {
-    post_id: postId,
-    users: room ? [...room.values()] : [],
-  });
-}
-
 io.on('connection', (socket) => {
   // [진단 2026-06-15] 알림 미수신 회귀 — socket 연결/인증/room join 가시화
   console.log(`[socket-diag] connection id=${socket.id} userId=${socket.userId || 'NONE(인증실패)'} transport=${socket.conn?.transport?.name}`);
@@ -314,38 +297,25 @@ io.on('connection', (socket) => {
     if (businessId) socket.leave(`business:${businessId}`);
   });
 
-  // ── 문서 동시 편집 표시 (2026-08-25) ─────────────────────────────
-  //   "같이 다른 사람하고도 쓰고 싶어. 누가 쓰고 있으면 아이디 표시 못해? 구글문서처럼?"(Irene)
-  //   지금 단계는 **누가 편집 중인지 알려주는 것**까지다. 같은 문단을 동시에 타이핑해도
-  //   글자가 합쳐지지는 않는다(그건 CRDT 가 필요한 별도 과제) — 대신 서로를 보게 해서
-  //   "모르고 덮어쓰는" 사고를 없앤다.
-  //   상태는 메모리에만 둔다: 프로세스가 죽으면 자연히 비고, 그게 맞는 동작이다.
-  socket.on('post:editing:join', async ({ postId: rawPostId, businessId: rawBizId, name } = {}) => {
-    // 룸 이름에 쓰는 값은 정수로 못 박는다(roomId) · 문서가 그 워크스페이스 것인지도 본다 —
-    //   아니면 아무 문서 id 로 «누가 편집 중인지» 를 엿볼 수 있었다(2026-10-09 보안점검).
+  // ── 문서 «누가 같이 쓰고 있나» — services/postPresence 한 곳 (2026-10-22 · docs/DOC_COEDIT_DESIGN.md)
+  //   들어올 수 있는 사람·표시 이름·«치는 중» 판정은 전부 서버가 정한다. 글자 단위 동시 입력은 하지 않는다
+  //   (겹치면 저장 때 409 → 화면이 고르게 한다).
+  socket.on('post:presence:join', async ({ postId: rawPostId, businessId: rawBizId, editing } = {}) => {
     const postId = roomId(rawPostId);
     const businessId = roomId(rawBizId);
-    if (!postId || !businessId) return;
-    try {
-      if (!(await canJoinBusiness(socket.userId, businessId))) return;   // 남의 워크스페이스 문서 감시 차단
-      const { Post } = getModels();
-      const owned = await Post.findOne({ where: { id: postId, business_id: businessId }, attributes: ['id'] });
-      if (!owned) return;
-      socket.join(`post:${postId}`);
-      const room = editingPresence.get(postId) || new Map();
-      room.set(socket.userId, { userId: socket.userId, name: String(name || '').slice(0, 40) });
-      editingPresence.set(postId, room);
-      socket.data.editingPosts = socket.data.editingPosts || new Set();
-      socket.data.editingPosts.add(postId);
-      io.to(`post:${postId}`).emit('post:presence', { post_id: postId, users: [...room.values()] });
-    } catch (e) {
-      console.warn('[socket] post:editing:join', e.message);
-    }
+    if (!postId || !businessId || !socket.userId) return;
+    try { await require('./services/postPresence').join(io, socket, postId, businessId, !!editing); }
+    catch (e) { console.warn('[socket] post:presence:join', e.message); }
   });
-  socket.on('post:editing:leave', ({ postId: rawPostId } = {}) => {
+  socket.on('post:presence:typing', async ({ postId: rawPostId } = {}) => {
     const postId = roomId(rawPostId);
     if (!postId) return;
-    leaveEditing(socket, postId);
+    try { await require('./services/postPresence').typing(io, socket, postId); }
+    catch (e) { console.warn('[socket] post:presence:typing', e.message); }
+  });
+  socket.on('post:presence:leave', ({ postId: rawPostId } = {}) => {
+    const postId = roomId(rawPostId);
+    if (postId) require('./services/postPresence').leave(io, socket, postId);
   });
 
   // 실시간 가드용 — socket 자신이 들어가 있는 room 목록 ack 반환 (자기 정보만, read-only).
@@ -357,7 +327,7 @@ io.on('connection', (socket) => {
 
   socket.on('disconnect', () => {
     // 편집 중이던 문서에서 내 표식을 걷는다 — 안 하면 나간 사람이 영영 "편집 중" 으로 남는다.
-    for (const pid of (socket.data.editingPosts || [])) leaveEditing(socket, pid);
+    require('./services/postPresence').leaveAll(io, socket);
     // 자동으로 모든 room에서 퇴장됨
   });
 });
