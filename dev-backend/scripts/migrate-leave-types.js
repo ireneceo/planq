@@ -101,8 +101,8 @@ async function rollbackNullable() {
     // 4. 백필 — «안 채워진 행» = NULL **또는 이 워크스페이스의 종류를 가리키지 않는 값**.
     //   ★ 2026-10-22 운영 실측: 배포가 sync-database(alter)를 이 슬롯보다 먼저 돌려, 모델대로
     //   leave_grants.leave_type_id 를 NOT NULL 로 먼저 만들었다 → 기존 행이 0 으로 채워져
-    //   «IS NULL 만 채우기» 가 건너뛰고 검증이 «종류별 건수 불일치» 로 멈췄다. 순서는 배포 스크립트에서
-    //   sync 앞으로 옮겼고, 이미 그 상태가 된 DB 도 여기서 채운다(채워진 정상 행은 조건에 안 걸린다).
+    //   «IS NULL 만 채우기» 가 건너뛰고 검증이 «종류별 건수 불일치» 로 멈췄다. 배포 순서는 그대로(sync 뒤)라
+    //   sync 가 먼저 만든 칸의 0 도 여기서 채운다(채워진 정상 행은 조건에 안 걸린다).
     let filled = 0;
     for (const t of TABLES) {
       const [, meta] = await sequelize.query(
