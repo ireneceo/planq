@@ -2,6 +2,10 @@
 
 
 
+## 2026-10-22 · 메일 알림 주소별·사람별 설계 + 완료 검증 (방 94ab422c) — 설계 **PASS** · 완료 **PASS**(Fable, 차단 0)
+- 설계 docs/MAIL_NOTIFY_PER_ADDRESS_DESIGN.md · 커밋 9429333b + fc02d9b9. Fable 재실행: 사례 1~13 17/17 · 옛 순서 대조군 뒤집힘 · bump 미소진 probe · 추가 HTTP(다른 ws 경로 404·대문자 400·401·옛 PUT 403) · 마이그레이션 dry/본/빈 표 경로 · 3폭 화면 PUT 1건 12/12 · guard 78/79 · health 91/91 · tenant 0.
+- 비차단: ①pref 조회에 business_id 없음 → fc02d9b9 에서 반영 ②시험 스크립트 잔존 → 삭제함 ③platform_admin(비멤버)도 GET/PUT 200 — 설계 D4 «무해» 그대로.
+
 ## 2026-10-22 · 화상 업무설계·사용안내 신청 완료 검증 (방 afbf466c) — **PASS**(Fable, 차단 0)
 - 반영 조건 8 전부 실행 대조 · 실HTTP 45/46(FAIL 1 = 기존 결함) · 단위 31/32 · 실브라우저 3폭 재측정 통과(UI 제출 → DB 행 · 유료 ws 대조군 카드 없음) · guard 78/79 · health 91/91 · 시험 데이터 원복.
 - 비차단: ①POST /api/inquiries 응답 submitted_at 빠짐(created_at → createdAt, HEAD 부터 있던 결함) ②availability 의 exempt 분기는 닿지 않음(면제는 inTrial false 로 먼저 거절 — 결과 같음) ③requested_at 이 역할 무관이라 체험 ws 멤버도 «신청을 받았어요» 카드를 본다 · 유료 전환 뒤 열린 신청 남으면 카드도 남음 ④로그인이어도 business_id 없이 보내면 비로그인 경로 ⑤2027-02-30 같은 날짜가 느슨한 파서로 통과(화면 선택기는 못 만듦).
