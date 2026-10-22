@@ -1,5 +1,9 @@
 # Fable 게이트 대기열 → **판정 기록 보관소** (2026-10-08 부터)
 
+## 2026-10-22 · 근태 자정 분할(12시 퇴근 → 0시 재출근) 설계 (방 fced25bd) — 설계 **DESIGN-READY**(Fable)
+- Irene: «12시가 지나면 미출근 상태가 되는 거야? 그냥 12시에 퇴근 찍히고 다시 출근하는 걸로 기록할 수 없어?» · 한도로 두 번 미뤄졌다가 세 번째에 받음.
+- 결정: 술어 = 살아 있는 세션(last_activity ≥ now−300s) ∧ 자정을 걸친 세션(같은 ws) · working 만(휴게 중은 종전 auto_close) · source auto_midnight(auto_closed 안 켬) · ensureMidnightSplit 한 함수(/today·autoClockInOnFocus·cron) · clockOut 안 거침(측정 유지) · auto_close 가 오늘 세션 끊던 구멍(startedBefore)·guessCloseAt 캡 · startOfDayInTz · 통계 work_days/avg 표본에서 자정 이벤트 제외. 전문 docs/ATTENDANCE_MIDNIGHT_SPLIT_DESIGN.md §2.
+
 ## 2026-10-22 · 휴가 종류 직접 관리 leave_types (방 44657160) — 설계 DESIGN_READY · 완료 검증 **FAIL(차단 1) → 고친 뒤 PASS**
 - 설계 `docs/LEAVE_TYPES_DESIGN.md`. 완료 검증 실측: API 60/62(실패 2 = 검증자 스크립트 오류, 재실행 통과) · 박제 불변(이름 변경·끄기 뒤 잔여·급여 동일) · 급여 무급 2일 = 276,923 · 테넌트 격리(대조군 201) · 권한 · 롤백 --rollback-nullable 왕복 · guard 76/77 · health 88/88 · 카나리 leavetypes 0.
 - 차단(고침): migrate 검증 ② 가 커스텀·무급휴가 행의 category='other' 이중기록을 글자 그대로 비교 → **두 번째 배포부터 SLOT EXIT 1**. → 옛 category 축으로 접어 비교. 재판정: 커스텀·무급 행 있음 EXIT 0 · 어긋난 행 음성 대조군 EXIT 1 · PASS.
