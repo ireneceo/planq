@@ -527,6 +527,8 @@
       "fallbackHint": "미리보기는 다운로드 후 확인 가능합니다",
       "zoom": "클릭하여 확대",
       "loadingMedia": "재생 준비 중…",
+      "loadingPdf": "PDF 여는 중…",
+      "loadingPdfPct": "PDF 여는 중… {{pct}}%",
       "zipCount": "압축 파일 안 {{n}}개",
       "zipTooBig": "압축 파일이 커서 목록을 읽지 않았습니다. 내려받아 확인해 주세요.",
       "zipUnreadable": "압축 파일 목록을 읽을 수 없습니다. 내려받아 확인해 주세요.",

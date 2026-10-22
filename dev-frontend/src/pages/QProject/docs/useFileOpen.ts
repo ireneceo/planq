@@ -5,7 +5,7 @@
 //   같은 함수를 부른다. 두 곳이 따로 열면 «버튼은 문서로 가는데 영역은 Drive 로 간다» 가 된다.
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { isGoogleShortcut, fetchShortcutUrl, type ProjectFile } from '../../../services/files';
-import { objectUrlFromApi } from '../../../utils/download';
+import { loadFileBlob } from '../../../utils/fileBlobCache';
 
 export function useFileOpen(
   businessId: number,
@@ -35,7 +35,9 @@ export function useFileOpen(
     if (!w) { dl.start(f.download_url, f.file_name); return; }   // 팝업이 막히면 내려받기로
     openingRef.current = true; setOpening(true);
     try {
-      const url = await objectUrlFromApi(`${f.download_url}${f.download_url.includes('?') ? '&' : '?'}inline=1`);
+      // 미리보기가 이미 받아 둔 바이트를 쓴다(utils/fileBlobCache) — 같은 파일을 또 받지 않는다.
+      //   새 탭의 blob URL 은 이 창이 주인이라 따로 만들고 회수한다.
+      const url = URL.createObjectURL(await loadFileBlob(f.download_url, { size: f.file_size }));
       w.location.href = url;
       window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
     } catch {

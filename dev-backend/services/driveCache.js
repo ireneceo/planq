@@ -247,7 +247,41 @@ function initDriveCacheSweep() {
   if (iv.unref) iv.unref();
 }
 
+/**
+ * 방금 Drive 로 올린 파일 — 손에 있는 로컬 임시 파일을 그대로 캐시본으로 옮긴다(2026-10-22).
+ *   Irene: *"pdf를 올리고 미리보기 나올 때까지 너무 오래 걸려"* — 올리자마자 미리보기를 열면
+ *   방금 지운 바이트를 Drive 에서 다시 받아 왔다(왕복 0.7~2.5초 + 전량). 지우는 대신 여기로 옮긴다.
+ *   srcPath 는 **언제나 소비된다**(옮겨지거나 지워진다) — 호출부는 그 뒤로 쓰지 않는다.
+ *   실패해도 업로드는 성공이다(다음 다운로드가 종전대로 Drive 를 다녀오며 채운다).
+ */
+function seedFromFile(businessId, externalId, srcPath, size) {
+  const finalPath = cachePathOf(businessId, externalId);
+  const n = Number(size) || 0;
+  const unlinkSrc = () => { try { fs.unlinkSync(srcPath); } catch { /* 이미 없음 */ } };
+  if (!finalPath || !srcPath || n <= 0 || n > MAX_ONE) { unlinkSrc(); return false; }
+  try {
+    const st = fs.statSync(srcPath);
+    if (st.size !== n) { unlinkSrc(); return false; }   // 크기가 다르면 캐시본이 거짓이 된다
+    fs.mkdirSync(path.dirname(finalPath), { recursive: true });
+    try {
+      fs.renameSync(srcPath, finalPath);   // 같은 디스크면 원자적으로 옮겨진다
+    } catch (e) {
+      if (e.code !== 'EXDEV') throw e;
+      // 다른 디스크 — 임시 이름으로 복사한 뒤 rename(teeIntoCache 와 같은 원자성)
+      const tmp = `${finalPath}.tmp-${process.pid}-${Date.now()}-${crypto.randomBytes(4).toString('hex')}`;
+      fs.copyFileSync(srcPath, tmp);
+      fs.renameSync(tmp, finalPath);
+      unlinkSrc();
+    }
+    return true;
+  } catch (e) {
+    console.warn('[driveCache] 업로드 캐시 채우기 실패 — 업로드는 그대로', e.message);
+    unlinkSrc();
+    return false;
+  }
+}
+
 module.exports = {
-  lookup, teeIntoCache, dropByExternalId, dropBusiness, sweepDriveCache, initDriveCacheSweep, cachePathOf,
+  lookup, teeIntoCache, seedFromFile, dropByExternalId, dropBusiness, sweepDriveCache, initDriveCacheSweep, cachePathOf,
   ROOT, MAX_TOTAL, TTL_MS, MAX_ONE,
 };

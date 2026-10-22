@@ -21,6 +21,7 @@
 //   const [loading, setLoading] = useState(() => !hasCache(key));   // 캐시가 있으면 스피너 없이 시작
 //   ... fetch 성공 시 setItems(fresh); writeCache(key, fresh);
 
+import { clearFileBlobCache } from '../utils/fileBlobCache';
 interface Entry { at: number; data: unknown }
 
 // 신선도 — 이 시간을 넘긴 캐시는 첫 페인트에 쓰지 않는다(오래된 화면을 새것처럼 보여주지 않기 위해).
@@ -66,4 +67,5 @@ export function writeCache(key: string, data: unknown): void {
 // 로그아웃 · 워크스페이스 전환 — 남의 데이터가 한 프레임이라도 비치지 않게 통째로 비운다.
 export function clearPageCache(): void {
   store.clear();
+  clearFileBlobCache();   // 미리보기로 받아 둔 파일도 같이(utils/fileBlobCache)
 }

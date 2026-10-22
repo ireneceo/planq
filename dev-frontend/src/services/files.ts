@@ -4,6 +4,7 @@
 import { apiFetch, apiUpload } from '../contexts/AuthContext';
 import type { UploadProgress } from '../contexts/AuthContext';
 import i18next from 'i18next';
+import { seedFileBlob } from '../utils/fileBlobCache';
 
 export type FileSource = 'direct' | 'chat' | 'task' | 'meeting' | 'post' | 'mail';
 export type StorageProvider = 'planq' | 'gdrive';
@@ -566,6 +567,7 @@ export async function uploadProjectFile(
   }
 
   const f = parsed.data;
+  seedJustUploaded(`/api/files/${businessId}/${f.id}/download`, file, Number(f.file_size));
   return {
     success: true,
     file: {
@@ -610,6 +612,7 @@ export async function uploadMyFile(
     return { success: false, message: parsed.message, status: parsed.status, retryAfterMs: parsed.retryAfterMs };
   }
   const f = parsed.data;
+  seedJustUploaded(`/api/files/${businessId}/${f.id}/download`, file, Number(f.file_size));
   return {
     success: true,
     file: {
@@ -628,6 +631,13 @@ export async function uploadMyFile(
       storage_provider: (f.storage_provider || 'planq') as StorageProvider,
     }
   };
+}
+
+// 방금 올린 PDF — 손에 쥔 바이트를 미리보기 캐시에 넣는다(올리자마자 열 때 서버에서 다시 받지 않게).
+//   이미지는 preview_url(objectURL)로 이미 그렇게 한다. 2026-10-22 "pdf를 올리고 미리보기 나올 때까지 너무 오래 걸려"
+function seedJustUploaded(downloadUrl: string, file: File, size: number): void {
+  const isPdf = file.type === 'application/pdf' || /\.pdf$/i.test(file.name);
+  if (isPdf && size === file.size) seedFileBlob(downloadUrl, file, size);
 }
 
 export async function deleteProjectFile(businessId: number, fileId: string): Promise<boolean> {

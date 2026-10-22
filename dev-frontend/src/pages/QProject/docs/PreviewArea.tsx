@@ -5,8 +5,7 @@ import { postContentTableCss } from '../../../styles/postContentView';
 import { useTranslation } from 'react-i18next';
 import { useImageLightbox } from '../../../components/Common/ImageLightbox';
 import { extOf, isImage, isVideo, isAudio, requestMediaUrl, isGoogleShortcut, type ProjectFile } from '../../../services/files';
-import { objectUrlFromApi } from '../../../utils/download';
-import { apiFetch } from '../../../contexts/AuthContext';
+import { loadFileBlob, loadFileObjectUrl, isCachedObjectUrl } from '../../../utils/fileBlobCache';
 import { marked } from 'marked';
 import { listZip, type ZipEntry } from '../../../utils/zipList';
 import DOMPurify from 'dompurify';
@@ -46,17 +45,15 @@ export const PreviewArea: React.FC<{
     setText(null); setTextErr(false);
     (async () => {
       try {
-        const r = await apiFetch(file.download_url);
-        // apiFetch 는 throw 하지 않는다 — 상태를 직접 본다(안 보면 실패가 빈 화면으로 조용히 남는다).
-        if (!r.ok) { if (alive) setTextErr(true); return; }
-        const blob = await r.blob();
+        // 한 번 받은 것은 기억한다(utils/fileBlobCache) — 실패는 throw 로 온다.
+        const blob = await loadFileBlob(file.download_url, { size: file.file_size });
         if (blob.size > TEXT_VIEW_MAX) { if (alive) setTextErr(true); return; }
         const body = await blob.text();
         if (alive) setText(body);
       } catch { if (alive) setTextErr(true); }
     })();
     return () => { alive = false; };
-  }, [kind, file.download_url]);
+  }, [kind, file.download_url, file.file_size]);
   // ── zip — 안에 무엇이 들었는지 목록만 (압축 해제 없음, utils/zipList)
   const isZip = file.mime_type === 'application/zip' || ext === 'zip';
   const [zip, setZip] = useState<ZipEntry[] | null>(null);
@@ -70,9 +67,7 @@ export const PreviewArea: React.FC<{
       //   상한을 둔다 — 큰 압축파일까지 받아 오면 모바일에서 그대로 멈춘다.
       if ((file.file_size || 0) > ZIP_LIST_MAX) { if (alive) setZipErr('too_big'); return; }
       try {
-        const r = await apiFetch(file.download_url);
-        if (!r.ok) { if (alive) setZipErr('failed'); return; }
-        const buf = await r.arrayBuffer();
+        const buf = await (await loadFileBlob(file.download_url, { size: file.file_size })).arrayBuffer();
         const res = listZip(buf);
         if (!alive) return;
         if (res.ok) setZip(res.entries); else setZipErr(res.reason);
@@ -82,6 +77,8 @@ export const PreviewArea: React.FC<{
   }, [isZip, file.download_url, file.file_size]);
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [pdfFailed, setPdfFailed] = useState(false);
+  // 받는 동안 몇 % 인지 — 진행이 안 보이면 «멈췄다» 로 읽힌다(Irene 2026-10-22 "재생 준비 중…").
+  const [pdfPct, setPdfPct] = useState<number | null>(null);
   const [imgFailed, setImgFailed] = useState(false);
   // 크게 보기 — 모든 미리보기에 돋보기(2026-10-07 Irene: «모든 미리보기는 확대해서 전체보기 가능하게»)
   const [expanded, setExpanded] = useState(false);
@@ -93,13 +90,20 @@ export const PreviewArea: React.FC<{
     if (!isPdf || !file.download_url || file.download_url === '#') { setPdfUrl(null); return; }
     let alive = true;
     let made: string | null = null;
-    setPdfUrl(null); setPdfFailed(false);
-    objectUrlFromApi(file.download_url)
-      .then(u => { if (alive) { made = u; setPdfUrl(u); } else URL.revokeObjectURL(u); })
+    setPdfUrl(null); setPdfFailed(false); setPdfPct(null);
+    // ★ 한 번 받은 PDF 는 기억한다(utils/fileBlobCache — 닫았다 다시 열기·돋보기·빠른 보기가 같은 것을 쓴다).
+    //   blob URL 의 주인은 캐시다. 너무 커서 기억하지 않은 것만 여기서 회수한다.
+    loadFileObjectUrl(file.download_url, {
+      size: file.file_size,
+      onProgress: (p) => { if (alive && p.total) setPdfPct(Math.min(99, Math.floor((p.received / p.total) * 100))); },
+    })
+      .then(u => {
+        const own = !isCachedObjectUrl(u);
+        if (alive) { if (own) made = u; setPdfUrl(u); } else if (own) URL.revokeObjectURL(u);
+      })
       .catch(() => { if (alive) setPdfFailed(true); });
-    // blob URL 은 반드시 회수한다 — 안 하면 미리보기를 열 때마다 메모리에 파일이 쌓인다.
     return () => { alive = false; if (made) URL.revokeObjectURL(made); };
-  }, [isPdf, file.download_url]);
+  }, [isPdf, file.download_url, file.file_size]);
   useEffect(() => {
     if (!video && !audio) { setMediaUrl(null); setMediaFailed(false); return; }
     let alive = true;
@@ -236,7 +240,16 @@ const FullImage = styled.img`max-width:100%;max-height:100%;width:auto;height:au
     return expandable(zipView(false), () => zipView(true));
   }
   if (isPdf && hasValidUrl(file.download_url) && !pdfFailed) {
-    if (!pdfUrl) return <PreviewLoading>{t('docs.preview.loadingMedia', '재생 준비 중…')}</PreviewLoading>;
+    // ★ 여기는 «재생 준비 중»(영상·음성 문구)을 쓰고 있었다 — PDF 를 여는 것이다.
+    if (!pdfUrl) {
+      return (
+        <PreviewLoading data-testid="file-preview-pdf-loading">
+          {pdfPct !== null && pdfPct > 0
+            ? (t('docs.preview.loadingPdfPct', { pct: pdfPct, defaultValue: 'PDF 여는 중… {{pct}}%' }) as string)
+            : (t('docs.preview.loadingPdf', { defaultValue: 'PDF 여는 중…' }) as string)}
+        </PreviewLoading>
+      );
+    }
     // 크게 보기 창에서는 브라우저 PDF 보기(확대·페이지 넘김)가 창 높이를 다 쓴다.
     return expandable(<PreviewIframe src={pdfUrl} title={file.file_name} />,
       () => <PreviewIframe $full src={pdfUrl} title={file.file_name} />);

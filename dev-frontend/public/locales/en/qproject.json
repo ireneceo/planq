@@ -527,6 +527,8 @@
       "fallbackHint": "Preview available after download",
       "zoom": "Click to zoom",
       "loadingMedia": "Preparing playback…",
+      "loadingPdf": "Opening PDF…",
+      "loadingPdfPct": "Opening PDF… {{pct}}%",
       "zipCount": "{{n}} items in archive",
       "zipTooBig": "Archive is too large to list here. Download it to check.",
       "zipUnreadable": "Could not read the archive listing. Download it to check.",

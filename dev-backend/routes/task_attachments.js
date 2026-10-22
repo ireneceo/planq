@@ -152,7 +152,8 @@ router.post('/:taskId/attachments',
             externalUrl = driveFile.webViewLink;
             finalFilePath = driveFile.id;
             finalStoredName = driveFile.id;
-            fs.unlinkSync(req.file.path);
+            // 지우지 않고 Drive 캐시본으로 옮긴다 — 올리자마자 미리보기가 Drive 를 다녀오지 않게(services/driveCache.seedFromFile, 2026-10-22)
+            require('../services/driveCache').seedFromFile(req._task.business_id, driveFile.id, req.file.path, req.file.size);
             gdrive.clearTokenError(attachCloud);
           }
         } catch (e) {

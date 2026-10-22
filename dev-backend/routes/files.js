@@ -823,8 +823,9 @@ router.post('/:businessId', authenticateToken, ...perUserDaily('file-upload', { 
           // ★ vlevel 이 권위 컬럼 — 같이 안 쓰면 모델 default 'L3' 로 저장돼 개인 파일이 전 멤버에게 노출된다
           vlevel: uploadLevel,
         });
-        // 로컬 임시 파일 제거
-        fs.unlinkSync(tempPath);
+        // 로컬 임시 파일 — 지우지 않고 Drive 캐시본으로 옮긴다(2026-10-22). 올리자마자 미리보기를 열 때
+        //   Drive 를 다녀오지 않는다. 크기가 Drive 가 말한 것과 다르면 옮기지 않고 지운다.
+        require('../services/driveCache').seedFromFile(businessId, driveFile.id, tempPath, file.file_size);
         tempPath = null;
         broadcastFile(req, file, 'file:new');
         gdrive.clearTokenError(cloudToken);
