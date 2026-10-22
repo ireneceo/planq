@@ -3,6 +3,7 @@
 //   @capacitor/push-notifications 는 dynamic import — 웹 번들에 eager 로드되지 않음.
 import { apiFetch, getAccessToken } from '../contexts/AuthContext';
 import { nativePlatform } from './native';
+import { journalTap, journalArrived } from './navDiag';
 
 let bound = false;
 // device token 을 localStorage 에 영속 — 세션 재시작 후에도 unregisterNative(알림 끄기) 가능.
@@ -117,6 +118,7 @@ function handleTap(action: { notification?: { data?: unknown } }) {
   const data = action.notification?.data as Record<string, unknown> | undefined;
   const link = (typeof data?.link === 'string' ? data.link : '') || '';
   if (!link) return;
+  journalTap(link);   // «연결 안 됨» 추적 — 다음 문서가 도착 못 한 탭을 보고한다(services/navDiag)
   // ★ 콜드 스타트 — 앱이 꺼진 상태에서 알림을 누르면 이 이벤트가 라우터보다 먼저 온다.
   //   여태는 그대로 dispatch 해서 아무도 못 듣고 링크가 사라졌고, 앱은 기본 화면(확인필요)으로
   //   떨어졌다(Irene: "Q mail 알림 눌렀더니 확인필요로 가버려", 2026-08-25).
@@ -139,6 +141,7 @@ export function markDeepLinkInflight(path: string | null): void {
  *  보관값이 남았다가, 나중에 `/` 로 들어오는 순간 지난 알림 자리로 끌려갔다(Fable 2026-09-26 관찰). */
 export function markDeepLinkArrived(path: string): void {
   inflightDeepLink = null;
+  journalArrived(path);
   try { if (sessionStorage.getItem(PENDING_PUSH_LINK_KEY) === path) sessionStorage.removeItem(PENDING_PUSH_LINK_KEY); } catch { /* 무시 */ }
 }
 // 루트(/)는 목적지가 아니다 — 서버는 링크 없는 알림에 '/' 를 넣어 보낸다(apns/fcm sender·notification_link).

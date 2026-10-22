@@ -4,6 +4,7 @@
 //     2) 입력 중이 아니면 즉시 hard reload, 입력 중이면 다음 navigation 까지 보류 (폼 데이터 보호)
 //   폴링: 5분 인터벌 + focus/visibility 복귀 시 즉시 (오래 켜둔 탭도 빠르게 최신화).
 //   운영: 알림 미수신이 "옛 SW 캐시"로 밝혀진 사고 (2026-06-15) → SW 강제 update 추가.
+import { noteReload } from '../../services/navDiag';
 import { useEffect, useRef, useState } from 'react';
 import styled, { keyframes } from 'styled-components';
 import { useTranslation } from 'react-i18next';
@@ -59,7 +60,7 @@ const BuildVersionGuard: React.FC = () => {
           await forceSwUpdate();
           // 화면을 안 보고 있을 때(hidden)만 즉시 reload — 보고 있으면 다음 navigation 때 조용히 적용.
           // (잦은 배포 시 사용자가 보는 중에 화면이 튀는 것 방지. 다음 페이지 이동 effect 가 안전 적용)
-          if (document.visibilityState === 'hidden' && isReloadSafe()) window.location.reload();
+          if (document.visibilityState === 'hidden' && isReloadSafe()) { noteReload('build_hidden'); window.location.reload(); }
         }
       } catch { /* network 일시 오류 무시 */ }
     };
@@ -94,7 +95,7 @@ const BuildVersionGuard: React.FC = () => {
     const [prevId, prevPath] = prev.split('\n');
     if (prevId !== String(id)) return;                 // 탭 전환·새 탭 — 이동 아님
     if (prevPath === location.pathname) return;
-    if (pendingReloadRef.current && isReloadSafe()) window.location.reload();
+    if (pendingReloadRef.current && isReloadSafe()) { noteReload('build_nav'); window.location.reload(); }
   }, [activeTab?.id, location.pathname]);
 
   if (!updateReady) return null;

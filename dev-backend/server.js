@@ -550,6 +550,8 @@ app.use('/api/reports', require('./routes/reports'));
 app.use('/api/push', require('./routes/push'));
 // 렌더 크래시 자동 보고 — 사용자가 신고를 안 해도 우리가 먼저 안다(routes/client_errors 주석 참조).
 app.use('/api/client-errors', require('./routes/client_errors'));
+// 앱 알림 탭 → «연결 안 됨» 추적 — 다음 문서가 «눌렀는데 못 간» 탭을 보고한다(routes/app_diag 주석 참조).
+app.use('/api/app-diag', require('./routes/app_diag'));
 app.use('/api/focus', require('./routes/focus'));
 app.use('/api/attendance', require('./routes/attendance'));   // #208 출퇴근
 app.use('/api/leave', require('./routes/leave'));               // #208 휴가

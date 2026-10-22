@@ -13,6 +13,7 @@
 // ★ ws 를 믿지 않는다 — 전환 가능 여부는 서버(/api/auth/switch-workspace)가 다시 판정한다.
 // 부르는 곳: App.tsx ModeGate(문서 로드 — 웹 푸시·메일·주소 입력) · NativeBridge.deepLinkNav(앱 알림 탭 — SPA 이동).
 
+import { journalStep } from '../services/navDiag';
 import { getRequestWorkspaceId } from '../contexts/AuthContext';
 
 export const WS_PARAM = 'ws';
@@ -69,6 +70,7 @@ export async function enterWorkspaceLink(
   try { ok = await switchWorkspace(target); } catch { ok = false; }
   if (!ok) return false;
   const { clean } = splitWorkspaceParam(path);
+  journalStep('ws_reload', clean);   // 알림 탭 추적 — 일부러 문서를 다시 연다(services/navDiag)
   try {
     window.location.replace(new URL(clean, window.location.origin).href);
   } catch {

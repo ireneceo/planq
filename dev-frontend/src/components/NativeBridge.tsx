@@ -15,6 +15,7 @@ import { bindNativeShare } from '../services/nativeShare';
 import { handleNativeReturnUrl } from '../services/nativeReturn';
 import { markDeepLinkInflight, markDeepLinkArrived } from '../services/nativePush';
 import { installNativeLinkRouting } from '../services/nativeLinks';
+import { markBridgeReady, journalStep, reportStaleTaps } from '../services/navDiag';
 
 // 딥링크가 착지하기를 기다리는 시간 — 400ms × 6 = 2.4초.
 //   실측(2026-09-14, 모바일 뷰포트)상 웹에서는 한 번에 착지하므로, 기다림이 도는 것은
@@ -89,6 +90,7 @@ export default function NativeBridge() {
       }
       // 마지막 수단 — **절대 URL** 로. 상대경로로 걸면 앱이 이미 오프라인 폴백(로컬 스킴)에
       //   있을 때 자기 자신으로 돌아 영영 못 빠져나온다.
+      journalStep('full_load', path);
       try {
         window.location.assign(new URL(path, window.location.origin).href);
       } catch {
@@ -98,7 +100,19 @@ export default function NativeBridge() {
     tick();
   }, [chromeNav]);
 
+  // «연결 안 됨» 추적 — 로그인된 뒤 한 번, 앞 문서에서 눌렀는데 못 간 알림 탭을 보고한다(services/navDiag).
+  const signedIn = !!user;
   useEffect(() => {
+    if (!signedIn) return;
+    const id = window.setTimeout(() => {
+      const biz = (userRef.current as { business_id?: number | null } | null)?.business_id ?? null;
+      void reportStaleTaps(biz);
+    }, 3000);
+    return () => window.clearTimeout(id);
+  }, [signedIn]);
+
+  useEffect(() => {
+    markBridgeReady();
     // 공용 — 알림 탭/딥링크가 발행하는 앱 내부 네비게이션 이벤트.
     const onNavigate = (e: Event) => {
       let path = (e as CustomEvent).detail?.path;

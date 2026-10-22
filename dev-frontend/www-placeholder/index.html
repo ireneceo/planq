@@ -65,20 +65,33 @@
     var KEY = 'pq_offline_retry_at';
     var MIN_GAP_MS = 8000;
     function lastTry() { try { return Number(sessionStorage.getItem(KEY)) || 0; } catch (e) { return 0; } }
-    function go(force) {
+    // ★ 2026-10-22 — 돌아갈 때 «이 화면을 거쳐 왔다» 는 표식을 싣는다(services/navDiag 가 읽어 보고하고 주소에서 지운다).
+    //   이 화면은 로컬 파일이라 여기서는 서버에 아무것도 못 보낸다 — 표식이 없으면 웹은 오프라인 화면이 떴던 것조차 모른다.
+    var shownAt = Date.now();
+    var tries = 0;
+    function mark(why) {
+      try {
+        return '?pq_offline=' + encodeURIComponent(JSON.stringify({
+          shownAt: shownAt, leftAt: Date.now(), tries: tries, why: why,
+          online: navigator.onLine, href: String(location.href).slice(0, 120)
+        }));
+      } catch (e) { return ''; }
+    }
+    function go(force, why) {
       var now = Date.now();
       if (!force && now - lastTry() < MIN_GAP_MS) return;
       if (!force && navigator.onLine === false) return;
       try { sessionStorage.setItem(KEY, String(now)); } catch (e) { /* 무시 */ }
-      location.replace(PQ_SERVER + '/');
+      tries += 1;
+      location.replace(PQ_SERVER + '/' + mark(why));
     }
 
-    retry.addEventListener('click', function () { go(true); });   // 사람이 누른 것은 간격 무시
-    window.addEventListener('online', function () { go(false); });
+    retry.addEventListener('click', function () { go(true, 'retry'); });   // 사람이 누른 것은 간격 무시
+    window.addEventListener('online', function () { go(false, 'online'); });
     document.addEventListener('visibilitychange', function () {
-      if (document.visibilityState === 'visible') go(false);      // 알림 탭으로 앱이 앞에 나온 순간
+      if (document.visibilityState === 'visible') go(false, 'visible');      // 알림 탭으로 앱이 앞에 나온 순간
     });
-    setTimeout(function () { go(false); }, 1500);                 // 첫 로드 직후 한 번
+    setTimeout(function () { go(false, 'auto'); }, 1500);                 // 첫 로드 직후 한 번
   </script>
 </body>
 </html>

@@ -92,9 +92,9 @@ async function run() {
     const url = ((JSON.parse(fs.readFileSync(cfgPath, 'utf8')).server) || {}).url || '';
     const want = url.replace(/\/$/, '') + '/';
     const clicked = await offlineProbe(pagePath, async (pg) => { await pg.click('#retry'); });
-    push(`${p.name} 오프라인 폴백 [다시 시도] → ${want}`, clicked.includes(want), `시도한 주소 ${JSON.stringify(clicked)}`);
+    push(`${p.name} 오프라인 폴백 [다시 시도] → ${want}`, clicked.some(u => u === want || u.startsWith(want + '?pq_offline=')), `시도한 주소 ${JSON.stringify(clicked)}`);
     const auto = await offlineProbe(pagePath, async () => { /* 가만히 둔다 */ });
-    push(`${p.name} 오프라인 폴백 자동 복귀 → ${want}`, auto.includes(want), `시도한 주소 ${JSON.stringify(auto)}`);
+    push(`${p.name} 오프라인 폴백 자동 복귀 → ${want}`, auto.some(u => u === want || u.startsWith(want + '?pq_offline=')), `시도한 주소 ${JSON.stringify(auto)}`);
   }
 
   // 음성 대조군 — 옛 방식(location.reload)은 서버로 **못 나간다**. 검사기가 그걸 구별하는지.
