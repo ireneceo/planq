@@ -44,22 +44,29 @@ async function run() {
       await b.goto(page, `/mail?folder=all&thread=${threadId}`);
       await b.sleep(4500);
 
-      // 2026-10-22 — 내 언어 메일은 번역 줄이 접혀 있고 머리 아이콘(mail-tools-toggle)으로 연다.
-      //   접혀 있으면 «접힘» 을 기록하고 열어서 순서를 잰다. 다른 언어 메일이면 아이콘이 없고 줄이 이미 있다.
-      const pre = await page.evaluate(() => {
-        const card = [...document.querySelectorAll('[data-testid="mail-message-card"]')]
-          .find((c) => c.querySelector('[data-testid="mail-attachments"]') && c.querySelector('[data-testid="mail-message-header"]'));
+      // 2026-10-22 2차 — 번역·메일 내용 요약 줄은 **모든 메일에 기본으로 보이고**, 머리 아이콘(mail-tools-toggle)이 숨기기/다시 보이기.
+      //   ⓪ 기본 보임 + 아이콘 있음 → 눌러 숨김 → 다시 눌러 보임(그 뒤 순서를 잰다).
+      const cardSel = () => [...document.querySelectorAll('[data-testid="mail-message-card"]')]
+        .find((c) => c.querySelector('[data-testid="mail-attachments"]') && c.querySelector('[data-testid="mail-message-header"]'));
+      const state = () => page.evaluate((src) => {
+        const card = eval(src)();
         if (!card) return null;
-        const toggle = card.querySelector('[data-testid="mail-tools-toggle"]');
-        const hadBar = !!card.querySelector('[data-testid="mail-trans-bar"]');
-        if (toggle) toggle.click();
-        return { toggle: !!toggle, hadBar };
-      });
-      if (pre && pre.toggle) {
-        push(`${vp.w} ⓪ 내 언어 메일은 번역 줄이 접혀 있다`, !pre.hadBar, `아이콘 있음 · 누르기 전 줄 ${pre.hadBar ? '있음 ← ❌' : '없음'}`);
-        await b.sleep(400);
-      } else if (pre) {
-        push(`${vp.w} ⓪ 다른 언어 메일은 번역 줄이 펼쳐져 있다`, pre.hadBar, `아이콘 없음 · 줄 ${pre.hadBar ? '있음' : '없음 ← ❌'}`);
+        return { toggle: !!card.querySelector('[data-testid="mail-tools-toggle"]'), bar: !!card.querySelector('[data-testid="mail-trans-bar"]'),
+          brief: !!card.querySelector('[data-testid="mail-brief-open"]') };
+      }, `(${cardSel.toString()})`);
+      const clickToggle = () => page.evaluate((src) => { const c = eval(src)(); c && c.querySelector('[data-testid="mail-tools-toggle"]')?.click(); }, `(${cardSel.toString()})`);
+      const s0 = await state();
+      if (s0) {
+        push(`${vp.w} ⓪ 기본으로 번역·요약 줄이 보이고 숨김 아이콘이 있다`, s0.bar && s0.brief && s0.toggle,
+          `줄 ${s0.bar ? '있음' : '없음 ← ❌'} · 요약 버튼 ${s0.brief ? '있음' : '없음 ← ❌'} · 아이콘 ${s0.toggle ? '있음' : '없음 ← ❌'}`);
+        if (s0.toggle) {
+          await clickToggle(); await b.sleep(300);
+          const s1 = await state();
+          await clickToggle(); await b.sleep(400);
+          const s2 = await state();
+          push(`${vp.w} ⓪b 아이콘으로 숨기고 다시 보인다`, !!s1 && !s1.bar && !!s2 && s2.bar,
+            `누른 뒤 줄 ${s1?.bar ? '있음 ← ❌' : '없음'} · 다시 누른 뒤 ${s2?.bar ? '있음' : '없음 ← ❌'}`);
+        }
       }
 
       const m = await page.evaluate(() => {
@@ -98,7 +105,9 @@ async function run() {
       const ours = Math.max(m.bar.bottom, m.transBody ? m.transBody.bottom : 0, m.brief ? m.brief.bottom : 0);
       push(`${tag} ④ 첨부가 카드 끝(아래에 우리 블록 없음)`, m.attach.top >= ours,
         `첨부 ${m.attach.top} · 우리 블록 끝 ${ours}${m.attach.top >= ours ? '' : ' ← ❌ 첨부 아래에 번역·확인 블록이 있다'}`);
-      if (vp.mobile) push(`${tag} ⑤ 번역 버튼 터치 높이 ≥40`, (m.barBtnH || 0) >= 40, `버튼 높이 ${m.barBtnH}px`);
+      // 2026-10-22 Irene «모바일에서는 더 작게 해서 내용 보는데 불편함 없게» — 폰 번역·요약 버튼은 32px(터치 40 규칙보다 지시 우선).
+      //   너무 작아지거나(28 미만) 다시 커지는(36 초과) 것을 잡는다.
+      if (vp.mobile) push(`${tag} ⑤ 폰 번역·요약 버튼은 작게(28~36px)`, (m.barBtnH || 0) >= 28 && (m.barBtnH || 0) <= 36, `버튼 높이 ${m.barBtnH}px`);
     } finally { try { await browser.close(); } catch { /* ignore */ } }
   }
   return results;

@@ -203,7 +203,7 @@
       "zh": "中文",
       "es": "Español"
     },
-    "tools": "Translate · Check this email"
+    "tools": "Translate · Summarize email"
   },
   "uncertain": {
     "billing": "Billing",
@@ -342,7 +342,7 @@
     "summaryTitle": "Key points",
     "summarize": "Create key points",
     "summarizing": "Summarizing…",
-    "summaryHint": "AI condenses the whole thread. To judge this one email, use “Check this email” below the body.",
+    "summaryHint": "AI condenses the whole thread. To judge this one email, use “Summarize email” above the body.",
     "issuesTitle": "Issues",
     "issuePh": "Write an issue… (Enter to save · Shift+Enter for a new line)",
     "notesTitle": "Notes",
@@ -717,10 +717,10 @@
     "mail_image_generic": "The images in the body could not be attached to this email."
   },
   "brief": {
-    "open": "Check this email",
-    "close": "Close check",
-    "loading": "Checking…",
-    "failed": "Can't check right now",
+    "open": "Summarize email",
+    "close": "Close summary",
+    "loading": "Summarizing…",
+    "failed": "Can't summarize right now",
     "summaryTitle": "Summary",
     "contextTitle": "Related work",
     "nextTitle": "Next steps",

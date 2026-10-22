@@ -144,7 +144,7 @@ const MailBriefPanel: React.FC<{ brief: MailBrief }> = ({ brief }) => {
 };
 
 const Wrap = styled.div`
-  margin-top: 8px; padding: 12px 14px; border-radius: 8px;
+  margin: 8px 0 10px; padding: 12px 14px; border-radius: 8px;
   background: #F8FAFC; border: 1px solid #E2E8F0;
   color: #1E293B; font-size: 0.8125rem; line-height: 1.6;
 `;

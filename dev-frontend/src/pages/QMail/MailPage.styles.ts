@@ -520,16 +520,18 @@ export const PromoteErrTag = styled.span`
   font-size: 0.6875rem; font-weight: 600; vertical-align: middle;
 `;
 // #184 — 번역 컨트롤 바 + 번역 본문
+// 아래 여백 10px — HTML 메일 본문(iframe)은 자기 여백이 0 이라 없으면 버튼 줄 바로 밑에 붙는다(2026-10-22).
 export const TransBar = styled.div`
   display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
-  margin-top: 8px;
+  margin: 8px 0 10px;
+  ${mediaPhone} { gap: 6px; margin: 6px 0 8px; }
 `;
 export const TransSelect = styled.select`
   height: 28px; padding: 0 6px; border: 1px solid #E2E8F0; border-radius: 6px;
   background: #FFF; color: #334155; font-size: 0.75rem; cursor: pointer;
   &:focus-visible { outline: 2px solid #14B8A6; outline-offset: -1px; }
-  /* 폰은 손가락 — 터치 40px (모양·색은 그대로) */
-  @media (max-width: 640px) { height: 40px; }
+  /* 폰은 본문을 가리지 않게 작게 — Irene 2026-10-22 «모바일에서는 더 작게 해서 내용 보는데 불편함 없게» (터치 40 규칙보다 지시 우선) */
+  @media (max-width: 640px) { height: 32px; font-size: 0.6875rem; }
 `;
 export const TransBtn = styled.button`
   height: 28px; padding: 0 12px; border: 1px solid #14B8A6; border-radius: 6px;
@@ -537,7 +539,7 @@ export const TransBtn = styled.button`
   font-size: 0.75rem; font-weight: 600; cursor: pointer;
   &:hover:not(:disabled) { background: rgba(20, 184, 166, 0.16); }
   &:disabled { opacity: 0.6; cursor: default; }
-  @media (max-width: 640px) { height: 40px; }
+  @media (max-width: 640px) { height: 32px; padding: 0 10px; font-size: 0.6875rem; }
 `;
 // 번역문 머리 — 무엇으로 번역했는지. 닫기는 바로 위 번역 줄의 [번역 닫기] 하나(2026-10-22 — 줄이 머리 밑으로 와 ✕ 는 두 벌이었다)
 export const TransHead = styled.div`
