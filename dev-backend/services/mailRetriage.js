@@ -185,4 +185,49 @@ async function criterionImpact(businessId, criterionId, offBefore, offAfter, { a
   return { scanned: threads.length, moved, capped, samples, by };
 }
 
-module.exports = { eligibleWhere, folderOfRow, buildContext, assignedIds, judgeThread, lastInboundOf, preloadRules, writeFields, criterionImpact, HUMAN_REASONS };
+/**
+ * 새로 연결한 계정의 «지난 메일(읽기만)» 중 최근 것을 한 번 다시 재서 **답변 필요로 올리기만** 한다 (2026-10-22 Fable D3).
+ *   첫 가져오기 30일은 답변 필요를 끈다(옛 결정 — 수백 건이 한꺼번에 오면 폴더가 무용지물). 그런데 받은편지함을 보낸편지함보다
+ *   먼저 가져와 그 순간엔 «우리가 메일 보낸 상대» 를 몰랐고, 그래서 정말 답할 메일까지 확인 권장에 남았다(운영 ws17 33건).
+ *   → 받은·보낸 첫 가져오기가 끝난 뒤, 마지막 받은 메일이 기준 시각 − windowDays 안이고 마지막이 우리 답장이 아닌 것만.
+ *   다른 폴더로 옮기지 않는다(올리기만). 쓰기는 writeFields(이유 'inbound') · 알림 없음(백필과 같다).
+ *   자동 경로(emailImapCron 첫 동기화 뒤)와 운영 일회 스크립트(scripts/promote-backfill-replies.js)가 이 함수 하나를 쓴다.
+ * @returns {{ scanned:number, promoted:number, rows:Array<{id,subject,criterion,last_inbound_at}> }}
+ */
+async function promoteBackfillReplies({ accountId, baseAt = new Date(), windowDays = 14, apply = true } = {}) {
+  const account = await EmailAccount.findByPk(Number(accountId), { attributes: ['id', 'business_id'] });
+  if (!account) return { scanned: 0, promoted: 0, rows: [] };
+  const bizId = Number(account.business_id);
+  const since = new Date(new Date(baseAt).getTime() - windowDays * 86400000);
+  const threads = await EmailThread.findAll({
+    where: eligibleWhere({
+      business_id: bizId, account_id: account.id, reply_needed: false, reply_needed_reason: 'backfill',
+      // NULL(옛 행)도 대상 — SQL `<> 'outbound'` 는 NULL 을 빼므로 따로 넣는다. 마지막이 우리 답장인지는 judgeThread 가 다시 본다.
+      [Op.or]: [{ last_message_direction: { [Op.ne]: 'outbound' } }, { last_message_direction: null }],
+    }),
+    order: [['last_message_at', 'DESC']],
+  });
+  const assigned = await assignedIds(threads.map((t) => t.id));
+  const ctx = await buildContext([bizId]);
+  ctx.noRecord = !apply;
+  await preloadRules(ctx, [bizId]);
+  const off = await require('./mailCriteria').offFor(bizId);
+  const msgs = await lastInboundOf(threads.map((t) => t.id));
+  const rows = [];
+  let scanned = 0;
+  for (const th of threads) {
+    if (assigned.has(th.id)) continue;
+    const msg = msgs.get(th.id) || null;
+    if (!msg || !msg.sent_at || new Date(msg.sent_at) < since) continue;
+    scanned++;
+    const j = await judgeThread(th, ctx, [off], { businessId: bizId, msg });
+    if (!j || j.repliedLast) continue;
+    const r = j.results[0];
+    if (!r.fields.reply_needed) continue;
+    rows.push({ id: th.id, subject: th.subject, criterion: r.criterion, last_inbound_at: msg.sent_at });
+    if (apply) await writeFields(th, r.fields);
+  }
+  return { scanned, promoted: rows.length, rows };
+}
+
+module.exports = { eligibleWhere, folderOfRow, buildContext, assignedIds, judgeThread, lastInboundOf, preloadRules, writeFields, criterionImpact, promoteBackfillReplies, HUMAN_REASONS };

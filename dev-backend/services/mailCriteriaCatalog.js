@@ -152,6 +152,14 @@ const TERMS = {
     '(문의|예약|신청|주문|상담|견적|리뷰|후기)(이|가)?\\s*(접수|등록|도착|들어왔)',
     '답변이\\s*(등록|도착|달렸)', '문의하신 내용에 답변', '회신이?\\s*도착',
     '님이\\s*(답변|회신|메시지|댓글|문의)',
+    // 2026-10-22 — 내 서명을 기다리는 전자서명 요청(모두싸인·DocuSign 등). 우리가 움직여야 끝나는 일이다.
+    //   Irene: *"서명요청에 대한 요청내용 왔는데 이게 확인권장이야"* (운영 4978 모두싸인 «… 서명할 차례입니다» → 확인 권장이었다).
+    //   «서명 완료» 같은 결과 통지는 넣지 않는다(automated_relevant 가 확인 권장으로 둔다).
+//   ★ Fable D2 — «please sign in/up» 은 피싱 모양이라 뺀다(뒤에 in·up·on·out 이 오면 안 걸린다) · «님이 서명 요청을 취소» 같은 통지도 뺀다.
+    '\\[서명\\s*요청\\]', '서명할\\s*차례', '님이[\\s\\S]{0,60}서명을?\\s*요청(했|하였|하셨|드|합)',
+    '\\b(please|kindly) (review and )?(docu)?sign\\b(?!\\s*(in|up|on|out)\\b)', '\\b(waiting|awaiting) (for )?your signature\\b',
+    '\\b(invited|requested) you to (review and )?sign\\b(?!\\s*(in|up|on|out)\\b)', '\\bsent you a document to (review and )?sign\\b',
+    '\\byour signature is (requested|required)\\b',
   ],
   // 2026-10-16 — 일정이 잡혔다·바뀌었다는 안내(예약 확정·리마인더·변경·취소). 답장할 상대는 없지만 날짜가 박힌 약속이다.
   //   Irene: *"스케줄 제대로 예약된 안내인데 확인권장에도 안나오고 답변필요에도 안나와. 이런 미스는 너무 커"*

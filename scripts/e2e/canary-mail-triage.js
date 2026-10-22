@@ -217,7 +217,9 @@ async function run() {
   //   음성(올라오면 안 된다)
   ok('스팸 + 모르는 상대 → 스팸 그대로(주소 모양으로 구제 안 함)', spamStranger.status === 'spam', spamStranger.status);
   const platform = process.env.SMTP_FROM || 'help@irenewp.com';
-  const pq = await tri([`From: PlanQ <${platform}>`, 'To: owner@client.example.org', 'Subject: [워프로랩] Q Talk · 새 메시지 · 김대표'],
+  // PlanQ 가 실제로 다는 헤더 그대로(emailService.sendEmail) — 판정은 표식(X-PlanQ-Notice)을 본다(2026-10-22 Fable D5).
+  const PQ_HDR = ['Auto-Submitted: auto-generated', 'X-Auto-Response-Suppress: All', 'X-PlanQ-Notice: talk_message'];
+  const pq = await tri([`From: PlanQ <${platform}>`, 'To: owner@client.example.org', 'Subject: [워프로랩] Q Talk · 새 메시지 · 김대표', ...PQ_HDR],
     '<p>새 메시지가 도착했습니다</p>', { from: platform });
   ok('PlanQ 자체 알림 «새 메시지» → 답변 필요 아님', pq.reply_needed !== true && pq.criterion !== 'inbound_action', JSON.stringify(pq));
   const bought = await tri(['From: Shopee <info@mail.shopee.example>', 'To: help@irenewp.com', 'Subject: Your order #2201 has been delivered'],
@@ -277,9 +279,36 @@ async function run() {
   const ikeaLegacy = t.retriageStored({ triage: 'automated', subject: 'We\'re pleased to confirm your appointment with us.', bodyText: '',
     fromEmail: 'noreply@booking.email.ikea.example', headers: {}, headersComplete: false, ownEmails: OWN });
   ok('헤더 없는 재판정 — 예약 확정 → 확인 권장(schedule_notice)', ikeaLegacy.criterion === 'schedule_notice' && ikeaLegacy.status === 'uncertain', JSON.stringify(ikeaLegacy));
+  // ── 2026-10-22 Fable D1·D2·D5 (docs/MAIL_REPLY_MISS_2026-10-22.md) ──
+  ok('PlanQ 표식 → platform_notice(확인 권장)', pq.criterion === 'platform_notice', JSON.stringify(pq));
+  const pqOld = await tri([`From: PlanQ <${platform}>`, 'To: owner@client.example.org', 'Subject: 새 문의 #2 — 한루아',
+    'Auto-Submitted: auto-generated', 'X-Auto-Response-Suppress: All'], '<p>새 문의</p>', { from: platform });
+  ok('표식 전 옛 PlanQ 알림(정확 주소 + Suppress) → 답변 필요 아님 · platform_notice', pqOld.reply_needed !== true && pqOld.criterion === 'platform_notice', JSON.stringify(pqOld));
+  const pos = await tri([`From: Purple Here <${platform}>`, 'To: help@irenewp.com', 'Subject: Role request: Store admin · Seoul Garden BBQ'],
+    '<p>A user requested a role</p>', { from: platform });
+  ok('같은 주소를 쓰는 다른 시스템(표식 없음) → platform_notice 아님', pos.criterion !== 'platform_notice' && pos.reply_needed !== true, JSON.stringify(pos));
+  const pqLegacy = t.retriageStored({ triage: 'automated', subject: '[워프로랩] Q Task · 컨펌 요청', bodyText: '', fromEmail: platform,
+    headers: {}, headersComplete: false, ownEmails: OWN });
+  ok('헤더 없는 옛 메일 + 정확 SMTP_FROM → platform_notice(폴백)', pqLegacy.criterion === 'platform_notice', JSON.stringify(pqLegacy));
+  const sameDomainHuman = t.triageInbound({ subject: '자료 요청드립니다', bodyText: '확인 부탁드립니다', fromEmail: 'irene@irenewp.com',
+    headers: t.normalizeHeaders({ headers: {}, toEmails: [{ email: 'hssong@kiyul.example' }] }), ownEmails: new Set(['hssong@kiyul.example']),
+    ownMatcher: { emails: ['hssong@kiyul.example'], domains: [] }, isKnownContact: true });
+  ok('플랫폼과 같은 도메인의 사람(다른 워크스페이스, 아는 상대) → 답변 필요(known_contact)', sameDomainHuman.criterion === 'known_contact' && sameDomainHuman.reply_needed === true, JSON.stringify(sameDomainHuman));
+  const sigReply = await tri(['From: Partner <sangeun.yoo@partner.example>', 'To: help@irenewp.com',
+    'Subject: RE: [워프로랩] 서명 요청 — "업무협력 계약서"', 'In-Reply-To: <abc-123@irenewp.com>', 'References: <abc-123@irenewp.com>'],
+    '<p>계약서 확인했습니다. 사업자 주소가 바뀌어 수정 요청 드립니다.</p><p>From: PlanQ — 서명하려면 이메일 인증 코드를 입력하세요. 인증번호 123456</p>',
+    { from: 'sangeun.yoo@partner.example' });
+  ok('우리 메일에 온 답장 + 인용문에 인증 코드 문구 → 답변 필요(thread_reply, 보안 기준보다 먼저)', sigReply.criterion === 'thread_reply' && sigReply.reply_needed === true, JSON.stringify(sigReply));
+  const esign = await tri(['From: 모두싸인 <no-reply@modusign.example>', 'To: help@irenewp.com', "Subject: [서명요청] '최정*'님이 '위임장'에 서명할 차례입니다.", 'X-SG-EID: x'],
+    '<p>서명하기</p>', { from: 'no-reply@modusign.example' });
+  ok('전자서명 «내 차례» → 답변 필요(inbound_action)', esign.criterion === 'inbound_action' && esign.reply_needed === true, JSON.stringify(esign));
+  const signIn = await tri(['From: Bank <no-reply@bank.example>', 'To: help@irenewp.com', 'Subject: Please sign in to view your statement', 'X-SG-EID: x'],
+    '<p>Sign in</p>', { from: 'no-reply@bank.example' });
+  ok('«Please sign in …» → 답변 필요 아님(피싱 모양)', signIn.reply_needed !== true && signIn.criterion !== 'inbound_action', JSON.stringify(signIn));
+
   //   카탈로그 — 엔진이 쓰는 기준 id 가 전부 목록에 있다(설명과 코드가 갈라지지 않게)
   const CAT = require('/opt/planq/dev-backend/services/mailCriteriaCatalog');
-  const seen = [ack, ooo, order, ticket, wadiz, spamKnown, spamStranger, pq, bought, adOrder, dsn, humanThanks, roleNotice, orderOff, ackOff, lockedOff, ikea, bodyOnly, krResv, ikeaOff, ikeaLegacy, gfm, fail, ad, nl, known]
+  const seen = [ack, ooo, order, ticket, wadiz, spamKnown, spamStranger, pq, bought, adOrder, dsn, humanThanks, roleNotice, orderOff, ackOff, lockedOff, ikea, bodyOnly, krResv, ikeaOff, ikeaLegacy, gfm, fail, ad, nl, known, pqOld, pos, pqLegacy, sameDomainHuman, sigReply, esign, signIn]
     .map((r) => r.criterion).filter(Boolean);
   const missing = [...new Set(seen)].filter((id) => !CAT.BY_ID.has(id));
   ok('판정이 낸 기준 id 가 전부 카탈로그에 있다', missing.length === 0, missing.join(',') || `${new Set(seen).size}종`);

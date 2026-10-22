@@ -64,6 +64,8 @@ const TRIAGE_HEADER_KEYS = [
   //   ★ 옛 메일에는 없다. 없는 것을 통과로 세지 말고 **"모른다"** 로 표시한다
   //     (services/mailBrief 의 auth_unknown 신호).
   'authentication-results', 'received-spf', 'reply-to', 'return-path',
+  // PlanQ 알림 표식(2026-10-22 Fable D5) — 저장돼야 재판정도 같은 판정을 한다(emailTriage.isFromOurPlatform).
+  'x-planq-notice',
 ];
 
 /** 수집 시점 — mailparser 헤더에서 판정용 키만 골라 평문 객체로. 없으면 null (빈 객체 X:

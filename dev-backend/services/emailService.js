@@ -432,6 +432,10 @@ const sendEmail = async ({
       headers: {
         'Auto-Submitted': 'auto-generated',
         'X-Auto-Response-Suppress': 'All',
+        // PlanQ 가 보낸 알림이라는 표식(2026-10-22 Fable D5) — 받는 쪽 판정(emailTriage.isFromOurPlatform)이 이것만 본다.
+        //   여태 발신 **도메인**으로 판정해, 같은 주소(help@irenewp.com)를 쓰는 다른 시스템(POS·Plesk) 알림까지
+        //   «PlanQ 알림» 으로 확인 권장을 덮었다(운영 30일 137건 중 PlanQ 것 ~10).
+        'X-PlanQ-Notice': String(template || 'generic').replace(/[^\w.-]/g, '').slice(0, 60) || 'generic',
       },
       ...(allAtt.length > 0 ? { attachments: allAtt } : {}),
       ...(replyTo ? { replyTo } : {}),

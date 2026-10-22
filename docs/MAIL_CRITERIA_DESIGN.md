@@ -172,6 +172,7 @@
 spam_filter → [spam_rescue: 아는 상대면 확인 권장]            ← 신규(스팸 뒤, 나머지 앞)
 ad_prefix / bulk_headers(auto-replied 제외) / bulk_body → marketing
 automated_sender(+Auto-Submitted) → automated
+human 이면 thread_reply · known_contact 먼저(관계 — 2026-10-22 Fable D1)            ← 보안 기준보다 앞
 security_code / critical_notice (triage 무관, 기존)
 inbound_action (triage 무관, human 이면 needsReply 보다 먼저 — 역할 주소여도 올린다)   ← 신규
 auto_ack (triage ≠ human)                                                              ← 신규
@@ -180,6 +181,8 @@ human → needsReply(thread_reply → 성격 필터 → known_contact → direct
 ```
 
 - 수집(`triageInbound`)과 재판정(`retriageStored`, 헤더 있음)이 **같은 문**인 구조는 그대로. 헤더 없는 옛 메일(`headersComplete=false`)은 지금처럼 저장된 triage 를 믿고 `inbound_action`·`auto_ack`(제목)·`spam_rescue` 만 더 본다.
+- **PlanQ 알림 판정은 표식 헤더 `X-PlanQ-Notice`** (2026-10-22 Fable D5, `emailService.sendEmail` 이 단다). 표식 전 옛 메일만 SMTP_FROM 정확 주소(+ 헤더가 있으면 `X-Auto-Response-Suppress`)로 본다. 발신 도메인 일치는 폐지 — 같은 주소를 쓰는 POS·Plesk 알림이 platform_notice 로 확인 권장을 덮고, 그 도메인의 사람이 다른 워크스페이스에서 «우리가 보낸 것» 으로 강등됐다.
+- **새 계정 첫 가져오기 뒤 한 번** `mailRetriage.promoteBackfillReplies` — 읽기만 들어온 스레드 중 마지막 받은 메일이 14일 안·마지막이 우리 답장 아님·지금 판정 답변 필요인 것만 올린다(Fable D3). 운영 일회 실행 `scripts/promote-backfill-replies.js --account= --base=`.
 - 꺼진 기준은 `activeCatalog(off)` 에서 빠지므로 **그 분기가 없는 것처럼** 돈다. 끄기 → 소급은 §6.
 
 ### 3.4 API

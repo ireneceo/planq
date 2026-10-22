@@ -297,11 +297,20 @@ const BUSINESS_RELEVANT = CAT.regexOf('automated_relevant');   // 낱말 목록�
 const FREE_MAIL_DOMAIN = /^(gmail\.com|googlemail\.com|outlook\.com|hotmail\.com|live\.com|msn\.com|yahoo\.[a-z.]+|ymail\.com|icloud\.com|me\.com|mac\.com|aol\.com|proton(mail)?\.(me|com)|naver\.com|daum\.net|hanmail\.net|kakao\.com|nate\.com)$/;
 
 // 우리 플랫폼이 보낸 알림인가 (PlanQ 업무 안내·컨펌 요청 등) — 자동 발송이지만 우리 일 그 자체다
-function isFromOurPlatform(fromEmail) {
-  const f = String(fromEmail || '').toLowerCase();
-  const platform = String(process.env.SMTP_FROM || '').toLowerCase();
-  const domain = platform.includes('@') ? platform.split('@')[1] : 'planq.kr';
-  return !!domain && f.endsWith('@' + domain);
+//   ★ 2026-10-22 (Fable D5) — 판정은 **표식 헤더**(X-PlanQ-Notice, emailService.sendEmail 이 단다) 하나다.
+//     여태 발신 도메인(SMTP_FROM 의 @irenewp.com)으로 판정해 ① 같은 주소를 쓰는 다른 시스템(POS «Role request»·Plesk)이
+//     전부 «PlanQ 알림» 으로 확인 권장을 덮었고(운영 30일 137건 중 PlanQ 것 ~10) ② 그 도메인의 **사람**(irene@irenewp.com)이
+//     다른 워크스페이스에 쓴 메일까지 «우리가 보낸 것» 으로 강등됐다.
+//   표식이 생기기 전 메일은 SMTP_FROM **정확 주소**로만 본다 — 헤더가 저장된 옛 메일이면 PlanQ 가 늘 달던
+//   `X-Auto-Response-Suppress` 도 있어야 한다(운영 실측: PlanQ 알림엔 있고 POS «Role request»·Plesk·케어 경보엔 없다).
+//   ★ Fable D5 계약(«헤더가 완전하면 표식만»)을 이 한 가지만 넓혔다 — 표식만 보면 옛 PlanQ 알림 «새 문의 #2» 가
+//     재판정 때 inbound_action 으로 **답변 필요** 에 올라갔다(시뮬 4건). 새 메일은 표식이 있어 이 분기를 안 탄다.
+function isFromOurPlatform(fromEmail, headers, headersComplete = true) {
+  if (hget(headers, 'x-planq-notice')) return true;
+  const f = String(fromEmail || '').toLowerCase().trim();
+  const platform = String(process.env.SMTP_FROM || '').toLowerCase().trim();
+  if (!platform || f !== platform) return false;
+  return !headersComplete || !!hget(headers, 'x-auto-response-suppress');
 }
 
 // ── 로그인·인증 코드 / 계정 보안 통지 (Irene 2026-08-20) ──
@@ -368,13 +377,13 @@ function hasBusinessRelevance(subject, bodyText) {
 //     ③ 아는 상대(고객·멤버·전에 우리가 답장한 상대)가 직접 쓴 메일 → 답변 필요.
 //     ④ 모르는 상대 → 우리 주소로 직접 왔고 명확한 요청·질문이 있을 때만.
 //   그 외는 스팸·광고가 아니어도 확인 권장 — 사람이 한 번 보고 판단한다.
-function replyVerdict({ subject, bodyText, fromEmail, headers, ownEmails, ownMatcher, isKnownContact, off }) {
+function replyVerdict({ subject, bodyText, fromEmail, headers, ownEmails, ownMatcher, isKnownContact, off, headersComplete = true }) {
   const on = (id) => CAT.isOn(id, off);
   const no = (criterion) => ({ ok: false, criterion });
   // ② 답장할 상대가 없는 메일 — 관계(아는 상대)보다, 회신 여부보다 **먼저** 걸러낸다.
   //    여태 isKnownContact 가 맨 앞에 있어서 고객사가 보낸 뉴스레터·우리 시스템의 자동 안내가
   //    전부 "답변 필요" 로 올라왔다. 메일의 성격이 관계보다 먼저다.
-  if (isSelfSender(fromEmail, ownEmails) || isFromOurPlatform(fromEmail)) return no('self_sender');  // 우리가 보낸 것
+  if (isSelfSender(fromEmail, ownEmails) || isFromOurPlatform(fromEmail, headers, headersComplete)) return no('self_sender');  // 우리가 보낸 것
   if (isBounce(fromEmail, subject)) return no('bounce');                                             // 반송 — 회신처럼 생겼다
   const mk = marketingCriterion(headers, subject);
   if (mk) return no(mk);                                                                             // 대량 발송·법정 광고 표기
@@ -422,6 +431,13 @@ function replyVerdict({ subject, bodyText, fromEmail, headers, ownEmails, ownMat
     ? { ok: true, criterion: 'direct_request' } : no('unclear_intent');
 }
 
+/** 관계로 답변 필요가 되는가 — replyVerdict 가 thread_reply·known_contact 로 참일 때만 그 기준 id, 아니면 null.
+ *  보안 알림보다 먼저 보는 데 쓴다(관계 없는 ④ direct_request 는 종전 순서 그대로). */
+function relationVerdict(args) {
+  const v = replyVerdict(args);
+  return v.ok && (v.criterion === 'thread_reply' || v.criterion === 'known_contact') ? v.criterion : null;
+}
+
 /** 답변 필요인가(참/거짓) — replyVerdict 의 얇은 껍데기. 기존 호출부 호환. */
 function needsReply(args) {
   return replyVerdict(args).ok;
@@ -444,8 +460,8 @@ function isAutoAck(headers, subject, bodyText, { useBody = true } = {}) {
  *  제목은 늘 본다. 본문(앞 1500자) «예약 번호:»·«Appointment date:» 칸 이름은 자동 발송(automated)일 때만 —
  *  대량 발송(marketing)은 제목으로만 올린다(광고 본문에 «Booking No:» 를 다는 바우처가 있다).
  *  우리 시스템(PlanQ) 알림·우리가 보낸 것은 뺀다 — 그쪽은 platform_notice·self_sender 가 따로 다룬다. */
-function isScheduleNotice({ triage, subject, bodyText, fromEmail, ownEmails }) {
-  if (isFromOurPlatform(fromEmail) || isSelfSender(fromEmail, ownEmails)) return false;
+function isScheduleNotice({ triage, subject, bodyText, fromEmail, ownEmails, headers = null, headersComplete = true }) {
+  if (isFromOurPlatform(fromEmail, headers, headersComplete) || isSelfSender(fromEmail, ownEmails)) return false;
   const s = String(subject || '');
   if (hasAdPrefix(s) || isBounce(fromEmail, s)) return false;
   if (CAT.regexOf('schedule_notice_subject').test(s)) return true;
@@ -455,13 +471,13 @@ function isScheduleNotice({ triage, subject, bodyText, fromEmail, ownEmails }) {
 
 /** 상대의 행동이 도착했다는 알림(새 주문·새 문의·답변 도착) — 2026-10-15 inbound_action. **제목만** 본다.
  *  먼저 거른다: 우리 시스템(PlanQ) 알림(앱 안에서 이미 알린다) · 반송 · (광고) · 내가 산 주문 알림(켜져 있으면). */
-function isInboundAction({ subject, fromEmail, ownEmails, off }) {
+function isInboundAction({ subject, fromEmail, ownEmails, off, headers = null, headersComplete = true }) {
   const s = String(subject || '');
   if (!CAT.regexOf('inbound_action').test(s)) return false;
   // ★ 우리 시스템(PlanQ) 발신만 뺀다 — «우리 주소»(계정·별칭)는 빼지 않는다(Fable 게이트 ③).
   //   상점 주소(help@withmin.info)를 별칭으로 등록한 워크스페이스에서는 그 상점이 보내는 «New order #» 가
   //   «우리 주소» 라 영영 답변 필요에 못 갔다 — Irene 이 말한 바로 그 메일이다. 설계 §4.1 제외 목록 그대로.
-  if (isFromOurPlatform(fromEmail)) return false;
+  if (isFromOurPlatform(fromEmail, headers, headersComplete)) return false;
   if (isBounce(fromEmail, s) || hasAdPrefix(s)) return false;
   if (CAT.isOn('transactional_notice', off) && isTransactionalNotice(s)) return false;
   return true;
@@ -559,6 +575,14 @@ function triageInbound({ subject, bodyText, fromEmail, headers, ownEmails, ownMa
   //   triage 로 게이트하면 대상 대부분을 놓친다(SECURITY_CODE 주석의 실측).
   //   답장할 상대는 없으니 답변 필요는 아니다 — human 경로에서 본문 상투구("요청이 아니라면")가
   //   요청 문장으로 잡혀 답변 필요로 오승격되던 것도 여기서 같이 막힌다.
+  // ★ 2026-10-22 — 사람 메일의 **관계**(우리 대화에 온 회신·아는 상대)는 보안 알림보다 먼저 본다.
+  //   우리 서명 요청 메일에 거래처가 «수정 요청 드립니다» 로 답했는데, 인용된 원문의 안내 문구가 보안 기준에 걸려
+  //   확인 권장으로 갔다(운영 5015, Irene: "내 메일도 서명요청에 대한 요청내용 왔는데 이게 확인권장이야").
+  //   보안 우선 순서의 이유(모르는 상대 본문의 «요청이 아니라면» 상투구가 ④ 로 올라가는 것)는 관계 없는 메일에만 해당한다.
+  if (triage === 'human' && c.status === 'open') {
+    const rel = relationVerdict({ subject, bodyText, fromEmail, headers, ownEmails, ownMatcher, isKnownContact: known, off });
+    if (rel) return out('open', true, c.uncertain_reason, rel);
+  }
   if (c.status === 'open' && on('security_code') && isSecurityNotice(subject, bodyText)) {
     return out('uncertain', false, 'security_code', 'security_code');
   }
@@ -566,7 +590,7 @@ function triageInbound({ subject, bodyText, fromEmail, headers, ownEmails, ownMa
   // 상대의 행동이 도착했다는 알림(새 주문·새 문의·답변 도착) — 발송 방식(자동)과 무관하게 **답변 필요**.
   //   Irene 2026-10-15: *"자동메일이어도 주문이 들어왔다. 답변이나 문의가 왔다 같은 안내는 무조건 답변필요"*.
   //   꼭 봐야 하는 통지(«new ticket»·«booking inquiry» 도 들어 있다)보다 먼저 본다 — 그쪽은 확인 권장까지라서.
-  if (c.status !== 'spam' && on('inbound_action') && isInboundAction({ subject, fromEmail, ownEmails, off })) {
+  if (c.status !== 'spam' && on('inbound_action') && isInboundAction({ subject, fromEmail, ownEmails, off, headers })) {
     return out('open', true, null, 'inbound_action');
   }
 
@@ -584,7 +608,7 @@ function triageInbound({ subject, bodyText, fromEmail, headers, ownEmails, ownMa
 
   // 일정 안내(예약 확정·변경·취소) — 날짜가 박힌 약속이라 자동 폴더에 묻히면 놓친다(확인 권장).
   if (triage !== 'human' && c.status === 'open' && on('schedule_notice')
-      && isScheduleNotice({ triage, subject, bodyText, fromEmail, ownEmails })) {
+      && isScheduleNotice({ triage, subject, bodyText, fromEmail, ownEmails, headers })) {
     return out('uncertain', false, 'schedule_notice', 'schedule_notice');
   }
 
@@ -592,7 +616,7 @@ function triageInbound({ subject, bodyText, fromEmail, headers, ownEmails, ownMa
   // 안내가 '자동·마케팅' 폴더에 묻혀 아무도 안 보는 일을 막는다. 답장할 상대는 없으니 답변 필요는 아니다.
   //   우리 시스템(PlanQ) 알림은 따로 끌 수 있게 platform_notice 로 가른다(앱 안에서 이미 알린다).
   if (triage === 'automated' && c.status === 'open') {
-    if (isFromOurPlatform(fromEmail)) {
+    if (isFromOurPlatform(fromEmail, headers)) {
       if (on('platform_notice')) return out('uncertain', false, 'platform_notice', 'platform_notice');
     } else if (on('automated_relevant') && hasBusinessRelevance(subject, bodyText)) {
       return out('uncertain', false, 'automated_relevant', 'automated_relevant');
@@ -651,12 +675,17 @@ function retriageStored({ triage, subject, bodyText, fromEmail, headers, ownEmai
   }
 
   // 로그인·인증 코드 — triage 무관 승격(triageInbound 와 같은 규칙. 두 경로가 갈라지면 안 된다).
+  // 사람 메일의 관계 — triageInbound 와 같은 자리(보안 알림보다 먼저).
+  if (triage === 'human' && !hasAdPrefix(subject)) {
+    const rel = relationVerdict({ subject, bodyText, fromEmail, headers, ownEmails, ownMatcher, isKnownContact: known, off, headersComplete: false });
+    if (rel) return { triage, status: 'open', reply_needed: true, uncertain_reason: null, criterion: rel };
+  }
   if (on('security_code') && isSecurityNotice(subject, bodyText)) {
     return { triage, status: 'uncertain', reply_needed: false, uncertain_reason: 'security_code', criterion: 'security_code' };
   }
 
   // 상대 행동 도착 — triageInbound 와 같은 자리(꼭 봐야 하는 통지보다 먼저).
-  if (on('inbound_action') && isInboundAction({ subject, fromEmail, ownEmails, off })) {
+  if (on('inbound_action') && isInboundAction({ subject, fromEmail, ownEmails, off, headers, headersComplete: false })) {
     return { triage, status: 'open', reply_needed: true, uncertain_reason: null, criterion: 'inbound_action' };
   }
 
@@ -671,7 +700,7 @@ function retriageStored({ triage, subject, bodyText, fromEmail, headers, ownEmai
   }
 
   // 일정 안내 — triageInbound 와 같은 자리(자동응답 다음).
-  if (triage !== 'human' && on('schedule_notice') && isScheduleNotice({ triage, subject, bodyText, fromEmail, ownEmails })) {
+  if (triage !== 'human' && on('schedule_notice') && isScheduleNotice({ triage, subject, bodyText, fromEmail, ownEmails, headers, headersComplete: false })) {
     return { triage, status: 'uncertain', reply_needed: false, uncertain_reason: 'schedule_notice', criterion: 'schedule_notice' };
   }
 
@@ -682,10 +711,10 @@ function retriageStored({ triage, subject, bodyText, fromEmail, headers, ownEmai
 
   // 자동 발송 — 내용이 업무이거나 우리 시스템 알림이면 확인 권장으로 올린다
   if (triage === 'automated' || triage === 'marketing') {
-    if (triage === 'automated' && isFromOurPlatform(fromEmail) && on('platform_notice')) {
+    if (triage === 'automated' && isFromOurPlatform(fromEmail, headers, false) && on('platform_notice')) {
       return { triage, status: 'uncertain', reply_needed: false, uncertain_reason: 'platform_notice', criterion: 'platform_notice' };
     }
-    if (triage === 'automated' && !isFromOurPlatform(fromEmail) && on('automated_relevant') && hasBusinessRelevance(subject, bodyText)) {
+    if (triage === 'automated' && !isFromOurPlatform(fromEmail, headers, false) && on('automated_relevant') && hasBusinessRelevance(subject, bodyText)) {
       return { triage, status: 'uncertain', reply_needed: false, uncertain_reason: 'automated_relevant', criterion: 'automated_relevant' };
     }
     const crit = triage === 'marketing' ? (hasAdPrefix(subject) ? 'ad_prefix' : 'bulk_headers')
@@ -697,7 +726,7 @@ function retriageStored({ triage, subject, bodyText, fromEmail, headers, ownEmai
   //   ③ 우리 주소로 직접 온 메일 + (명확한 요청 || 질문). 사람이 물어봤으면 답해야 한다 —
   //      "…폐쇄를 진행하면 될까요?" 처럼 요청 단어 없이 질문만 있는 메일이 확인 권장에 갇혔다.
   //      광고·뉴스레터는 이미 자동·마케팅으로 빠지므로(triage) 여기 human 경로엔 오지 않는다.
-  const v = replyVerdict({ subject, bodyText, fromEmail, headers, ownEmails, ownMatcher, isKnownContact: known, off });
+  const v = replyVerdict({ subject, bodyText, fromEmail, headers, ownEmails, ownMatcher, isKnownContact: known, off, headersComplete: false });
   if (v.ok) return { triage, status: 'open', reply_needed: true, uncertain_reason: null, criterion: v.criterion };
   const critical = on('critical_notice') && isCriticalNotice(subject);
   return { triage, status: 'uncertain', reply_needed: false, uncertain_reason: critical ? 'critical_notice' : 'unclear_intent', criterion: critical ? 'critical_notice' : v.criterion };
@@ -771,6 +800,7 @@ module.exports = {
   triageBodyOf,
   needsReply,
   replyVerdict,
+  relationVerdict,
   isAutoAck,
   isInboundAction,
   isScheduleNotice,

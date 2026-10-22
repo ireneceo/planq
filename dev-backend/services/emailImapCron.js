@@ -1213,8 +1213,17 @@ async function syncOne(account, opts = {}) {
     // ── 업체 보낸편지함·스팸함 (docs/MAIL_SENT_SPAM_SYNC_DESIGN.md) ──
     //   받은편지함 커서를 **먼저** 저장한 뒤 같은 연결로 연다 — 여기서 무엇이 실패해도 받은편지함 저장은 되돌아가지 않는다.
     //   실패는 폴더 행의 last_error 에만 남는다(계정 fail_count·last_sync_error 를 건드리지 않는다).
-    try { await syncExtraFolders(conn, ctx, opts); }
+    let extra = null;
+    try { extra = await syncExtraFolders(conn, ctx, opts); }
     catch (e) { console.warn(`[emailImapCron] extra folders account #${account.id}:`, e.message); }
+    // 첫 가져오기(받은편지함 또는 보낸편지함)가 끝났으면 «지난 메일 읽기만» 중 최근 14일을 한 번 다시 잰다(Fable D3).
+    //   보낸편지함은 다른 틱에 처음 들어올 수 있어 둘 중 어느 쪽이 첫 가져오기였든 돈다 — 올리기만 하므로 두 번 돌아도 같다.
+    if (isBackfill || (extra && extra.sent && extra.sent.backfill)) {
+      try {
+        const pr = await require('./mailRetriage').promoteBackfillReplies({ accountId: account.id });
+        if (pr.promoted > 0) console.log(`[emailImapCron] account #${account.id} 지난 메일 중 답변 필요 ${pr.promoted}건 (최근 14일 ${pr.scanned}건 재판정)`);
+      } catch (e) { console.warn(`[emailImapCron] backfill promote account #${account.id}:`, e.message); }
+    }
   } finally {
     // #357 — 폴링 연결도 같은 함정. end() 가 비동기 EPIPE 를 던지면 리스너가 없어 프로세스가 죽는다.
     silenceLateErrors(conn && conn.imap);
