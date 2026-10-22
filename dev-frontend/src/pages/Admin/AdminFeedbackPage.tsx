@@ -1,7 +1,7 @@
 // 사이클 P6 — platform_admin 의 사용자 피드백 관리 페이지
 // 라우트: /admin/feedback
 // 기능: 상태별 탭 (pending/reviewing/done/wontfix), 카테고리 필터, 답변 작성 + 상태 변경
-import { useEffect, useMemo, useState, useCallback } from 'react';
+import { useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import { listRowTitleCss } from '../../theme/tokens';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
@@ -19,7 +19,8 @@ import { apiFetch } from '../../contexts/AuthContext';
 import { onSocket } from '../../services/socket';
 import { formatDay, formatDayTime } from '../../utils/dateFormat';
 
-type Status = 'pending' | 'reviewing' | 'done' | 'wontfix';
+// 접수 → 검토중 → 진행대기(플랫폼관리자 승인) → 반영중 → 완료/보류 — 전이 판정은 서버 services/feedbackStatus 한 곳(2026-10-22).
+type Status = 'pending' | 'reviewing' | 'queued' | 'in_progress' | 'done' | 'wontfix';
 type Category = 'bug' | 'improve' | 'feature' | 'other';
 
 interface FeedbackItem {
@@ -40,6 +41,10 @@ interface FeedbackItem {
   admin_response: string | null;
   responded_by: number | null;
   responded_at: string | null;
+  approved_at?: string | null;
+  /** 지금 상태에서 갈 수 있는 상태 — 서버가 정한다(전이 표를 화면에 베끼지 않는다) */
+  next_statuses?: Status[];
+  parent_id?: number | null;
   created_at: string;
   // N+63 — 사용자 호소 #3c 피드백 이미지 첨부 (base64 dataUrl 배열)
   attachments?: Array<{ name: string; type: string; dataUrl: string }> | null;
@@ -49,7 +54,7 @@ interface FeedbackItem {
   responder?: { id: number; name: string };
 }
 
-const STATUSES: Status[] = ['pending', 'reviewing', 'done', 'wontfix'];
+const STATUSES: Status[] = ['pending', 'reviewing', 'queued', 'in_progress', 'done', 'wontfix'];
 const CATEGORIES: Category[] = ['bug', 'improve', 'feature', 'other'];
 
 const AdminFeedbackPage = () => {
@@ -69,8 +74,14 @@ const AdminFeedbackPage = () => {
   const [response, setResponse] = useState('');
   const [responseStatus, setResponseStatus] = useState<Status>('reviewing');
   const [submitting, setSubmitting] = useState(false);
+  // 서버가 전이를 거절한 이유(접수 → 진행대기 바로 등) — 저장이 안 됐는데 창이 닫히면 «아무 일도 없음» 으로 보인다
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
+  // 늦게 온 옛 조건의 응답은 버린다 — 알림 링크(?id=)로 열면 «접수» 탭 요청이 먼저 나가고 그 건의 탭 요청이 뒤따르는데,
+  //   접수 목록이 크면 나중에 도착해 목록을 덮어써 상세가 안 열렸다(2026-10-22 카나리 실측).
+  const loadSeq = useRef(0);
   const load = useCallback(async (silent = false) => {
+    const seq = ++loadSeq.current;
     if (!silent) setLoading(true);
     try {
       const sp = new URLSearchParams();
@@ -80,10 +91,11 @@ const AdminFeedbackPage = () => {
       if (search.trim()) sp.set('q', search.trim());
       const r = await apiFetch(`/api/feedback/admin?${sp.toString()}`);
       const j = await r.json().catch(() => null);
+      if (seq !== loadSeq.current) return;
       if (j?.success) { setItems(j.data || []); setLoadError(false); }
       else if (!silent) setLoadError(true);
-    } catch { if (!silent) setLoadError(true); /* silent 재조회 실패는 보던 목록을 그대로 둔다 */ }
-    finally { if (!silent) setLoading(false); }
+    } catch { if (seq === loadSeq.current && !silent) setLoadError(true); /* silent 재조회 실패는 보던 목록을 그대로 둔다 */ }
+    finally { if (seq === loadSeq.current && !silent) setLoading(false); }
   }, [activeStatus, activeCategory, activeKind, search]);
 
   const loadCounts = useCallback(async () => {
@@ -149,7 +161,9 @@ const AdminFeedbackPage = () => {
     const it = items.find(x => x.id === detailId);
     setDetail(it || null);
     setResponse(it?.admin_response || '');
+    // 접수 건은 «검토중» 이 기본 — 검토를 반드시 거친다. 나머지는 지금 상태 그대로(답글만 고치기).
     setResponseStatus((it?.status === 'pending' ? 'reviewing' : it?.status) || 'reviewing');
+    setSubmitError(null);
   }, [detailId, items]);
   const needAttachments = !!detail && (detail.attachment_count || 0) > 0 && !detail.attachments;
   useEffect(() => {
@@ -166,23 +180,32 @@ const AdminFeedbackPage = () => {
     return () => { alive = false; };
   }, [needAttachments, detailId]);
 
-  const submit = async () => {
+  const submit = async (statusOverride?: Status) => {
     if (!detail || submitting) return;
     setSubmitting(true);
+    setSubmitError(null);
     try {
-      await apiFetch(`/api/feedback/${detail.id}/respond`, {
+      const r = await apiFetch(`/api/feedback/${detail.id}/respond`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          status: responseStatus,
+          status: statusOverride || responseStatus,
           admin_response: response.trim(),
         }),
       });
+      const j = await r.json().catch(() => null);
+      if (!r.ok || !j?.success) {
+        const code = j?.code || j?.message || 'unknown';
+        setSubmitError(t(`adminFeedback.transitionError.${code}`, { defaultValue: t('adminFeedback.transitionError.unknown') as string }) as string);
+        return;
+      }
       setDetailId(null);
       await Promise.all([load(), loadCounts()]);
       refreshAdminTodo();
     } finally { setSubmitting(false); }
   };
+  // 상태 셀렉트에는 지금 상태 + 서버가 허락한 다음 상태만
+  const statusChoices: Status[] = detail ? [detail.status, ...(detail.next_statuses || [])] : [];
 
   const filtered = useMemo(() => items, [items]);
 
@@ -304,6 +327,9 @@ const AdminFeedbackPage = () => {
                   )}
                   <MetaRow><MetaLabel>{t('adminFeedback.ua', '브라우저')}</MetaLabel><MetaValue>{(detail.user_agent || '—').slice(0, 80)}</MetaValue></MetaRow>
                   <MetaRow><MetaLabel>{t('adminFeedback.createdAt', '제출')}</MetaLabel><MetaValue>{formatDayTime(detail.created_at, { year: 'always' })}</MetaValue></MetaRow>
+                  {detail.approved_at && (
+                    <MetaRow><MetaLabel>{t('adminFeedback.approvedAt', '승인')}</MetaLabel><MetaValue>{formatDayTime(detail.approved_at, { year: 'always' })}</MetaValue></MetaRow>
+                  )}
                 </Meta>
               </Section>
               <Section>
@@ -332,10 +358,11 @@ const AdminFeedbackPage = () => {
                     <PlanQSelect size="sm" isSearchable={false}
                       value={{ value: responseStatus, label: t(`adminFeedback.status.${responseStatus}`) as string }}
                       onChange={(opt) => setResponseStatus(((opt as PlanQSelectOption | null)?.value as Status) || 'reviewing')}
-                      options={STATUSES.map(s => ({ value: s, label: t(`adminFeedback.status.${s}`) as string }))}
+                      options={statusChoices.map(s => ({ value: s, label: t(`adminFeedback.status.${s}`) as string }))}
                     />
                   </FieldHalf>
                 </FieldRow>
+                <FlowHint>{t(detail.parent_id ? 'adminFeedback.flowHintFollowup' : 'adminFeedback.flowHint')}</FlowHint>
                 <ResponseArea
                   value={response}
                   onChange={e => setResponse(e.target.value)}
@@ -347,10 +374,22 @@ const AdminFeedbackPage = () => {
           )}
         </DetailDrawer.Body>
         <DetailDrawer.Footer>
+          {submitError && <SubmitError role="alert" data-testid="admin-feedback-submit-error">{submitError}</SubmitError>}
           <Spacer />
-          <PrimaryBtn type="button" onClick={submit} disabled={submitting}>
-            {submitting ? t('saving') : t('adminFeedback.submit', '저장')}
-          </PrimaryBtn>
+          {detail?.status === 'reviewing' && (detail.next_statuses || []).includes('queued') ? (
+            <>
+              <SecondaryBtn type="button" onClick={() => { void submit(); }} disabled={submitting}>
+                {t('adminFeedback.submit', '저장')}
+              </SecondaryBtn>
+              <PrimaryBtn type="button" data-testid="admin-feedback-approve" onClick={() => { void submit('queued'); }} disabled={submitting}>
+                {submitting ? t('saving') : t('adminFeedback.approve')}
+              </PrimaryBtn>
+            </>
+          ) : (
+            <PrimaryBtn type="button" data-testid="admin-feedback-save" onClick={() => { void submit(); }} disabled={submitting}>
+              {submitting ? t('saving') : t('adminFeedback.submit', '저장')}
+            </PrimaryBtn>
+          )}
         </DetailDrawer.Footer>
       </DetailDrawer>
     </PageShell>
@@ -425,6 +464,8 @@ const StatusChip = styled.span<{ $s: Status }>`
   font-size: 0.6875rem; font-weight: 700;
   ${p => p.$s === 'pending' ? 'background:#FEF3C7;color:#92400E;' :
         p.$s === 'reviewing' ? 'background:#DBEAFE;color:#1E40AF;' :
+        p.$s === 'queued' ? 'background:#CCFBF1;color:#0F766E;' :
+        p.$s === 'in_progress' ? 'background:#EDE9FE;color:#5B21B6;' :
         p.$s === 'done' ? 'background:#DCFCE7;color:#166534;' :
         'background:#F1F5F9;color:#64748B;'}
 `;
@@ -480,6 +521,16 @@ const ResponseArea = styled.textarea`
   &:focus { outline: none; border-color: #14B8A6; box-shadow: 0 0 0 3px rgba(20,184,166,0.15); }
 `;
 const Spacer = styled.div`flex: 1;`;
+const FlowHint = styled.div`font-size: 0.75rem; color: #64748B; line-height: 1.5;`;
+const SubmitError = styled.div`font-size: 0.75rem; font-weight: 600; color: #B91C1C; min-width: 0;`;
+const SecondaryBtn = styled.button`
+  height: 36px; padding: 0 16px; margin-right: 8px;
+  background: #FFFFFF; color: #334155;
+  border: 1px solid #CBD5E1; border-radius: 8px;
+  font-size: 0.8125rem; font-weight: 600; cursor: pointer;
+  &:disabled { color: #94A3B8; cursor: not-allowed; }
+  &:hover:not(:disabled) { background: #F8FAFC; }
+`;
 const PrimaryBtn = styled.button`
   height: 36px; padding: 0 18px;
   background: #14B8A6; color: #FFFFFF;

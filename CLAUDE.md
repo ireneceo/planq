@@ -589,6 +589,10 @@ router.get('/', authenticateToken, async (req, res, next) => {
 그 팀과 팀의 부서로 옮겨진다, `routes/org.js resolveLead`·`placeLead*` 한 벌, 이 워크스페이스 멤버만) ·
 `feedback_items.kind` ENUM('feedback','inquiry')(로그인 사용자의 «문의» 도 이 원장 — 개인 > 문의·피드백에서 답을 본다.
 손님 문의만 `contact_inquiries` 이메일 창구). 둘 다 멱등 스크립트(`migrate-team-lead`·`migrate-feedback-kind`), 롤백은 코드만.
+- **피드백·문의는 플랫폼관리자 승인을 거쳐야 개발에 들어간다** (2026-10-22, Irene *"검토중을 무조건 거쳐야 해 … 진행대기 단계"* · Fable 설계) —
+  접수(pending) → 검토중(reviewing) → **진행대기(queued, 승인)** → 반영중(in_progress) → 완료/보류. 승인 정본 = `approved_at IS NOT NULL`.
+  전이는 `services/feedbackStatus` 한 곳(관리자 화면·`feedback-reply.js`·배포 닫기 `close-deployed-feedback.js`). 플랫폼관리자 최상위 제출만 즉시 진행대기.
+  상황판 «문의 가져오기» 는 개발시작.md 1-B 조회(진행대기만)를 읽는다. 운영 `migrate-feedback-approval.js`(배포 슬롯). 설계 `docs/FEEDBACK_APPROVAL_DESIGN.md`.
 
 > **캘린더 «누가 보나» 는 `attendedEventIds` 한 원천이다 (2026-09-21).** 초대받은 참석자는 공개 범위와 무관하게 본다.
 > 목록(`calendarListWhere`)·상세·RSVP·확인필요가 같은 함수를 쓴다. 고객 참석자는 **`client_id` 로 저장**되므로

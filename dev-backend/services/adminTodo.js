@@ -37,7 +37,9 @@ async function collectAdminTodo() {
   const taxWhere = { status: 'paid', tax_invoice_status: { [Op.in]: ['requested', 'failed'] }, refund_requested_at: null };
   const refundWhere = { status: 'paid', refund_requested_at: { [Op.ne]: null } };   // 체험 중·일반 환불 요청 둘 다(routes/plan_refund)
   const inquiryWhere = { status: { [Op.in]: ['new', 'in_progress'] } };
-  const feedbackWhere = { status: { [Op.in]: ['pending', 'reviewing'] } };
+  // 관리자가 처리할 것 = 접수·검토중(승인 전) 최상위 건 — 진행대기·반영중은 개발 쪽 일이다(2026-10-22 승인 체계, Fable 판정 검증 10).
+  //   추가 문의는 부모 스레드 하나로 본다(알림은 부모 링크로 간다).
+  const feedbackWhere = { status: { [Op.in]: ['pending', 'reviewing'] }, parent_id: null };
 
   const [deposits, taxes, refunds, inquiries, feedbacks, inquiryCount, feedbackCount] = await Promise.all([
     Payment.findAll({

@@ -1414,6 +1414,8 @@ const MyHistCat = styled.span`
 const STATUS_TONE: Record<string, { bg: string; fg: string }> = {
   pending: { bg: '#FEF3C7', fg: '#92400E' },
   reviewing: { bg: '#DBEAFE', fg: '#1E40AF' },
+  queued: { bg: '#CCFBF1', fg: '#0F766E' },        // 진행 예정 — 운영팀이 반영하기로 승인
+  in_progress: { bg: '#EDE9FE', fg: '#5B21B6' },   // 반영 중
   done: { bg: '#DCFCE7', fg: '#166534' },
   wontfix: { bg: '#F1F5F9', fg: '#64748B' },
 };

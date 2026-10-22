@@ -60,9 +60,10 @@ FeedbackItem.init({
   // #162 — 디바이스·앱 환경(vw/vh/dpr/lang/platform/standalone 등) + 팝아웃 여부. 트리아지 정확도.
   client_env: { type: DataTypes.JSON, allowNull: true, defaultValue: null },
   is_popout: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
-  // 처리 상태
+  // 처리 상태 — 전이는 services/feedbackStatus 한 곳(접수 → 검토중 → 진행대기 → 반영중 → 완료/보류).
+  //   queued·in_progress 는 2026-10-22 끝에 append(scripts/migrate-feedback-approval.js) — 순서 = DB 순서.
   status: {
-    type: DataTypes.ENUM('pending', 'reviewing', 'done', 'wontfix'),
+    type: DataTypes.ENUM('pending', 'reviewing', 'done', 'wontfix', 'queued', 'in_progress'),
     allowNull: false,
     defaultValue: 'pending',
   },
@@ -73,6 +74,13 @@ FeedbackItem.init({
     references: { model: 'users', key: 'id' },
   },
   responded_at: { type: DataTypes.DATE, allowNull: true },
+  // 플랫폼관리자 승인(진행대기로 올림) — «승인됨» 의 정본은 approved_at IS NOT NULL (services/feedbackStatus).
+  //   승인을 거두면(진행대기→검토중, 다시 열기) 비운다. 사용자 응답(/mine)에는 싣지 않는다.
+  approved_by: {
+    type: DataTypes.INTEGER, allowNull: true,
+    references: { model: 'users', key: 'id' },
+  },
+  approved_at: { type: DataTypes.DATE, allowNull: true },
   // 보고자가 답을 읽은 시각 (2026-10-15). 답(admin_response)이 있는데 NULL 이면 «확인필요» 에 뜬다
   //   (routes/dashboard.collectFeedbackReplies). 답할 때 NULL 로 되돌리고(services/feedbackRespond),
   //   보고자가 /me/feedback 에서 그 스레드를 열면 찍는다(POST /api/feedback/:id/seen).

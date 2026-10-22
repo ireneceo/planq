@@ -162,9 +162,11 @@
     "submit": "저장",
     "status": {
       "pending": "신규",
-      "reviewing": "검토 중",
+      "reviewing": "검토중",
       "done": "처리됨",
-      "wontfix": "보류"
+      "wontfix": "보류",
+      "queued": "진행대기",
+      "in_progress": "반영중"
     },
     "kind": {
       "all": "전체 종류",
@@ -173,7 +175,19 @@
     },
     "attachments": "첨부 이미지",
     "loadError": "목록을 불러오지 못했습니다",
-    "retry": "다시 불러오기"
+    "retry": "다시 불러오기",
+    "approve": "승인 — 진행대기로",
+    "approvedAt": "승인",
+    "flowHint": "접수 → 검토중 → 진행대기(승인) → 반영중 → 완료. 진행대기로 올린 것만 개발에 들어갑니다. 문의는 답하고 완료로 닫으면 됩니다.",
+    "flowHintFollowup": "추가 문의는 원래 글의 단계를 따릅니다 — 개발이 필요하면 원래 글을 다시 열어 승인하세요.",
+    "transitionError": {
+      "review_required": "접수 건은 검토중을 먼저 거쳐야 진행대기로 올릴 수 있습니다.",
+      "invalid_transition": "지금 단계에서 그 단계로는 바꿀 수 없습니다.",
+      "approval_required": "진행대기(승인)를 거친 건만 반영중으로 바꿀 수 있습니다.",
+      "followup_follows_parent": "추가 문의는 진행대기·반영중으로 올릴 수 없습니다. 원래 글에서 승인하세요.",
+      "approver_required": "플랫폼 관리자만 승인할 수 있습니다.",
+      "unknown": "저장하지 못했습니다. 다시 시도해 주세요."
+    }
   },
   "qhelper": {
     "action": {
@@ -305,7 +319,9 @@
       "pending": "접수됨",
       "reviewing": "검토 중",
       "done": "완료",
-      "wontfix": "보류"
+      "wontfix": "보류",
+      "queued": "진행 예정",
+      "in_progress": "반영 중"
     },
     "fbThanks": "접수됐습니다 #{{id}} — 빠르게 검토할게요",
     "fbTitle": "제목",
@@ -1317,7 +1333,9 @@
       "pending": "접수됨",
       "reviewing": "검토 중",
       "done": "완료",
-      "wontfix": "보류"
+      "wontfix": "보류",
+      "queued": "진행 예정",
+      "in_progress": "반영 중"
     },
     "scopeNote": "PlanQ 운영팀에 보낸 솔루션 문의·피드백이에요. 워크스페이스 멤버나 고객에게는 보이지 않고 나만 봐요.",
     "compose": "+ 작성하기",

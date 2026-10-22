@@ -10,6 +10,9 @@
 // 무엇을 하는가
 //   커밋 메시지에서 `#숫자` 를 긁어 그 피드백을 done 으로 닫고 답글을 단다.
 //   답글은 사람이 쓴다 — 이 스크립트는 **답글이 이미 있는 건만** 닫는다.
+//   ★ 2026-10-22 승인 체계 — 닫는 판정은 services/feedbackStatus.deployCloseDecision 한 곳:
+//     반영중(in_progress ∧ 승인) 만 닫는다. 승인 전(접수·검토중)은 건너뛰고 «승인 전» 으로 보고한다.
+//     예외(시한부): 승인 체계 전에 «고쳤지만 배포 전» 으로 단 옛 검토중(답글 ∧ 승인 기록 없음 ∧ approval_since 이전)은 옛 규칙대로 닫는다.
 //   답글 없이 status 만 바꾸면 사용자는 여전히 "왜 닫혔는지" 를 모른다.
 //
 // 사용 — **2단**이다. 운영 서버엔 git 저장소가 없다(rsync 배포)이고, 장부는 운영 DB 에 있다.
@@ -65,21 +68,33 @@ async function main() {
   const fs = require('fs');
   const base = fs.existsSync('/opt/planq/backend/models') ? '/opt/planq/backend' : '/opt/planq/dev-backend';
   const { FeedbackItem } = require(`${base}/models`);
+  const { sequelize } = require(`${base}/config/database`);
+  const { deployCloseDecision, approvalSince } = require(`${base}/services/feedbackStatus`);
+  const since = await approvalSince(sequelize);
   const rows = await FeedbackItem.findAll({ where: { id: ids } });
   const byId = new Map(rows.map((r) => [r.id, r]));
 
   const toClose = [];
   const skipped = [];
+  const legacy = [];
   for (const id of ids) {
     const r = byId.get(id);
     if (!r) { skipped.push(`#${id} DB에 없음`); continue; }
-    if (r.status === 'done') { skipped.push(`#${id} 이미 done`); continue; }
-    // ★ 답글 없이 닫지 않는다. 닫힌 이유를 모르는 사용자에게는 무시당한 것과 같다.
-    if (!r.admin_response || !String(r.admin_response).trim()) { skipped.push(`#${id} 답글 없음 — 먼저 답글을 다세요`); continue; }
+    // ★ 답글 없이 닫지 않는다. 닫힌 이유를 모르는 사용자에게는 무시당한 것과 같다(판정 함수 안).
+    const d = deployCloseDecision(r, since);
+    if (!d.close) { skipped.push(`#${id} ${d.reason}`); continue; }
+    if (d.legacy) legacy.push(id);
     toClose.push(r);
   }
 
-  console.log(`\n닫을 건 ${toClose.length}: ${toClose.map((r) => '#' + r.id).join(' ') || '(없음)'}`);
+  console.log(`\n닫을 건 ${toClose.length}: ${toClose.map((r) => '#' + r.id + (legacy.includes(r.id) ? '(옛 규칙)' : '')).join(' ') || '(없음)'}`);
+  {
+    // 시한부 호환이 얼마나 남았나 — 0 이 되면 deployCloseDecision 의 옛 규칙 분기를 지운다
+    const [[n]] = await sequelize.query(`SELECT COUNT(*) n FROM feedback_items WHERE parent_id IS NULL AND status = 'reviewing'
+      AND approved_at IS NULL AND admin_response IS NOT NULL AND TRIM(admin_response) <> ''${since ? ' AND responded_at < :since' : ''}`,
+    { replacements: { since } });
+    console.log(`옛 규칙 대상(승인 체계 전 답글 달린 검토중) 남은 수: ${n.n}${since ? '' : ' (approval_since 없음 — 마이그레이션 전)'}`);
+  }
   if (skipped.length) console.log(`건너뜀 ${skipped.length}:\n  ${skipped.join('\n  ')}`);
 
   if (!APPLY) {

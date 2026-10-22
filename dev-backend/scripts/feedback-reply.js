@@ -4,8 +4,10 @@
 //
 // 관리자 화면의 [답변] 과 **같은 함수**(services/feedbackRespond)를 쓴다 — 상태·답글·보고자 알림이 같이 간다.
 //
-// 입력 JSON: [{ "id": 457, "status": "reviewing"|"done"|"wontfix", "response": "안내 문구" }, …]
-//   - status 는 사실대로: 운영에 **배포까지 끝난 것만 done**. 고쳤지만 배포 전이면 reviewing + "다음 배포에 반영".
+// 입력 JSON: [{ "id": 457, "status": "in_progress"|"done"|"wontfix"|…, "response": "안내 문구" }, …]
+//   - status 는 사실대로: 운영에 **배포까지 끝난 것만 done**. 고쳤지만 배포 전이면 in_progress(반영중) + "다음 배포에 반영".
+//   - 전이는 services/feedbackStatus 가 판정한다(2026-10-22 승인 체계) — 승인 안 된 건(접수·검토중)을 반영중으로 올리면
+//     거절하고 건너뛴다(«승인 전»). 문의 답변(접수·검토중 → done/wontfix)은 그대로 된다.
 //   - 이미 같은 답글이 달려 있으면 건너뛴다(멱등 — 두 번 돌려도 알림이 두 번 가지 않는다).
 //
 // 사용(운영 — 이 파일은 배포 rsync 로 /opt/planq/backend/scripts 에 있다. 배포 전이면 /tmp 로 복사):
@@ -41,7 +43,18 @@ if (!file) { console.error('사용: node scripts/feedback-reply.js <replies.json
     if (!item) { console.log(`#${id} 없음`); continue; }
     if (item.status === r.status && String(item.admin_response || '').trim() === response) { console.log(`#${id} 이미 같은 답글 — 건너뜀`); continue; }
     console.log(`#${id} [${item.status} → ${r.status}] ${item.title}\n    ↳ ${response.replace(/\n/g, ' ')}`);
-    if (APPLY) await respondToFeedback(item, { status: r.status, admin_response: response, actorUserId, waitNotify: true });
+    if (!APPLY) {
+      // dry-run 도 같은 판정을 미리 본다 — 적용 때 거절될 줄을 미리 알린다
+      try { require('../services/feedbackStatus').planTransition(item, r.status, { id: actorUserId, isPlatformAdmin: true }); }
+      catch (e) { console.log(`    ✗ 거절 예정 — ${e.code || e.message}`); }
+      continue;
+    }
+    try {
+      await respondToFeedback(item, { status: r.status, admin_response: response, actorUserId, waitNotify: true });
+    } catch (e) {
+      if (!e || !e.code) throw e;
+      console.log(`    ✗ 거절 — ${e.code} (승인 전이면 관리자 화면에서 검토중 → 진행대기 승인부터)`);
+    }
   }
   console.log(APPLY ? '적용 완료' : '(dry-run — --apply 를 주면 저장·알림)');
   process.exit(0);

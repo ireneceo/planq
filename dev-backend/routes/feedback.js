@@ -2,7 +2,7 @@
 //   POST   /api/feedback              (자기 제출)
 //   GET    /api/feedback/mine         (내 제출 이력)
 //   GET    /api/feedback/admin        (platform_admin 전체 — 상태/카테고리 필터)
-//   PATCH  /api/feedback/:id/respond  (platform_admin — 상태 변경 + 답변)
+//   PATCH  /api/feedback/:id/respond  (platform_admin — 상태 변경 + 답변 · 전이는 services/feedbackStatus)
 //   POST   /api/feedback/:id/seen     (보고자 — 그 스레드의 답을 읽음, 확인필요에서 빠진다)
 const express = require('express');
 const router = express.Router();
@@ -13,7 +13,7 @@ const { authenticateToken, requireRole } = require('../middleware/auth');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
 
 const ALLOWED_CATS = ['bug', 'improve', 'feature', 'other'];
-const ALLOWED_STATUS = ['pending', 'reviewing', 'done', 'wontfix'];
+const { FEEDBACK_STATUSES: ALLOWED_STATUS, initialFields, nextStatusesOf } = require('../services/feedbackStatus');
 const ALLOWED_PRIORITY = ['normal', 'high'];
 
 // 안 읽은 답 = 답 글이 있고 보고자가 아직 안 읽었다. SQL 쪽은 routes/dashboard.collectFeedbackReplies.
@@ -27,6 +27,10 @@ const hasUnreadReply = (o) => !!(o.admin_response && String(o.admin_response).tr
 //   ★ 개수도 정렬 쿼리 안에서 세지 않는다 — select 에 JSON_LENGTH(attachments) 를 두면 MySQL 이 그 칸을
 //     정렬 버퍼에 같이 실어 똑같이 터진다(실측). 정렬이 끝난 id 들로 따로 센다.
 const LIST_ATTRS = { exclude: ['attachments'] };
+// 사용자 본인 목록(/mine)에는 승인자·승인 시각을 싣지 않는다 — 운영 쪽 기록이다(Fable 판정 검증 12).
+const MINE_ATTRS = { exclude: ['attachments', 'approved_by', 'approved_at'] };
+// 관리자 화면이 상태 셀렉트·버튼을 그릴 때 — 갈 수 있는 상태는 서버가 정한다(전이 표를 화면에 베끼지 않는다).
+const withNextStatuses = (o) => ({ ...o, next_statuses: nextStatusesOf(o) });
 async function withAttachmentCounts(rows) {
   const out = rows.map((r) => (typeof r.toJSON === 'function' ? r.toJSON() : r));
   if (!out.length) return out;
@@ -140,7 +144,8 @@ router.post('/', authenticateToken, async (req, res, next) => {
       is_popout: !!is_popout,
       // 화면이 실어 보낸 사건 맥락. 사용자가 "어디서 뭐 하다가" 를 다시 쓰지 않아도 된다.
       error_context: sanitizeErrorContext(error_context),
-      status: 'pending',
+      // 처음 상태 — 플랫폼관리자가 쓴 최상위 건만 바로 «진행대기»(본인 승인). 나머지는 접수 → 검토중 → 승인을 거친다.
+      ...initialFields({ isPlatformAdmin: req.user.platform_role === 'platform_admin', userId: req.user.id, isFollowup: !!parent }),
     });
 
     // 플랫폼 관리자 알림 — fan-out 비동기 (추가 문의는 스레드 맥락 표기)
@@ -170,7 +175,7 @@ router.get('/mine', authenticateToken, async (req, res, next) => {
   try {
     const rows = await FeedbackItem.findAll({
       where: { user_id: req.user.id },
-      attributes: LIST_ATTRS, // 이 목록을 그리는 화면(개인 > 문의·피드백·도움말 내역)은 첨부를 안 쓴다
+      attributes: MINE_ATTRS, // 이 목록을 그리는 화면(개인 > 문의·피드백·도움말 내역)은 첨부를 안 쓴다
       order: [['created_at', 'ASC']],
       limit: 400,
     });
@@ -240,7 +245,7 @@ router.get('/admin', authenticateToken, requireRole('platform_admin'), async (re
           { model: User, as: 'responder', attributes: ['id', 'name'] },
         ],
       });
-      return successResponse(res, one ? [one] : []);
+      return successResponse(res, one ? [withNextStatuses(one.toJSON())] : []);
     }
     if (req.query.status && ALLOWED_STATUS.includes(req.query.status)) where.status = req.query.status;
     if (req.query.category && ALLOWED_CATS.includes(req.query.category)) where.category = req.query.category;
@@ -262,7 +267,7 @@ router.get('/admin', authenticateToken, requireRole('platform_admin'), async (re
       order: [['created_at', 'DESC']],
       limit: 200,
     });
-    return successResponse(res, await withAttachmentCounts(items));
+    return successResponse(res, (await withAttachmentCounts(items)).map(withNextStatuses));
   } catch (err) { next(err); }
 });
 
@@ -270,9 +275,9 @@ router.get('/admin', authenticateToken, requireRole('platform_admin'), async (re
 router.get('/admin/counts', authenticateToken, requireRole('platform_admin'), async (req, res, next) => {
   try {
     const counts = {};
-    for (const status of ALLOWED_STATUS) {
-      counts[status] = await FeedbackItem.count({ where: { status } });
-    }
+    for (const status of ALLOWED_STATUS) counts[status] = 0;
+    const rows = await FeedbackItem.findAll({ attributes: ['status', [sequelize.fn('COUNT', sequelize.col('id')), 'n']], group: ['status'], raw: true });
+    rows.forEach((r) => { if (r.status in counts) counts[r.status] = Number(r.n) || 0; });
     counts.total = Object.values(counts).reduce((a, b) => a + b, 0);
     return successResponse(res, counts);
   } catch (err) { next(err); }
@@ -286,10 +291,16 @@ router.patch('/:id/respond', authenticateToken, requireRole('platform_admin'), a
     if (!item) return errorResponse(res, 'not_found', 404);
     // 저장 + 보고자 알림 — services/feedbackRespond 한 곳(개발완료 회신 스크립트와 같은 함수).
     //   알림은 응답을 막지 않는다(옛 setImmediate 와 같은 동작).
+    //   상태 전이가 규칙 밖이면(접수→진행대기 등) 아무것도 안 바꾸고 409 + 코드(services/feedbackStatus).
     const { respondToFeedback } = require('../services/feedbackRespond');
-    await respondToFeedback(item, { status, admin_response, actorUserId: req.user.id, ioApp: req.app });
+    try {
+      await respondToFeedback(item, { status, admin_response, actorUserId: req.user.id, ioApp: req.app });
+    } catch (e) {
+      if (e && e.code && e.status) return errorResponse(res, e.code, e.status, e.code);
+      throw e;
+    }
 
-    return successResponse(res, item, 'Updated');
+    return successResponse(res, withNextStatuses(item.toJSON()), 'Updated');
   } catch (err) { next(err); }
 });
 

@@ -1,5 +1,9 @@
 # Fable 게이트 대기열 → **판정 기록 보관소** (2026-10-08 부터)
 
+## 2026-10-22 · 사용자 피드백 승인 체계 설계 (방 9fdd0593) — 판정 **PASS 조건부**(Fable design)
+- 상태 6값(접수·검토중·진행대기·반영중·완료·보류) · 승인 정본 = approved_at · 승인자 = platform_admin · 추가 문의는 개발 단계 불가 · 옛 reviewing 은 배포 닫기 시한부 호환(approval_since).
+- 완료 검증은 권한·배포 닫기 술어라 gate 1회 더(묶어서). 전문 docs/FEEDBACK_APPROVAL_DESIGN.md §8.
+
 ## 2026-10-22 · «답변 완료» 2회 학습이 아는 상대를 답장 불필요로 배우던 것 (방 da9f3688) — 판정 **PASS 안 A**(Fable)
 - 학습 시점에서 아는 상대(isKnownContact)면 배우지 않는다 · 판정 실패도 배우지 않는다. 분류 시점 무시(안 B)는 기각 — 보이는 규칙이 조용히 안 먹는 상태가 된다.
 - 기존 오학습 corkworld@naver.com(ws17)·mail@jisungtax.com(ws1)은 설정 UI 삭제(restoreThreadsForRule 복구 경로) — Irene 할 일. 설명 문구에 «아는 상대 제외».

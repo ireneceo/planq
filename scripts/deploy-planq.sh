@@ -611,6 +611,9 @@ sync_database() {
   # 2026-10-15 문의·피드백 답 읽음 — feedback_items.reply_seen_at DATETIME NULL(옛 답은 읽음으로 백필, 처음 만들 때만).
   #   신 코드(모델·확인필요 수집기)가 이 칸을 SELECT 하므로 PM2 reload 전.
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-feedback-reply-seen.js 2>&1 | tail -5"
+  # 2026-10-22 피드백 승인 체계 — feedback_items.status ENUM +queued·in_progress(끝 append) · approved_by/approved_at.
+  #   모델이 SELECT 하므로 PM2 reload 전. approved_at 칸 설명에 approval_since(배포 닫기 옛 reviewing 호환 기준) 를 남긴다.
+  prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-feedback-approval.js 2>&1 | tail -5"
   # 2026-10-15 Q talk «열어 봄 ≠ 참여» — conversation_participants.is_viewer TINYINT NOT NULL DEFAULT 0.
   #   모델 defaultScope 가 이 칸을 SELECT 하므로 PM2 reload 전(없으면 채팅 전부 500). 옛 행 정리는 backfill-conv-viewer.js(수동, dry-run 기본).
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-conv-viewer.js 2>&1 | tail -5"

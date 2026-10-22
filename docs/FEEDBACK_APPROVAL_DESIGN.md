@@ -1,4 +1,4 @@
-# 사용자 피드백 승인 체계 — «검토중 → 진행대기» (설계 초안 · 2026-10-21 · [Opus])
+# 사용자 피드백 승인 체계 — «검토중 → 진행대기» (설계 · 2026-10-21 초안 [Opus] · 2026-10-22 Fable 판정 PASS 조건부 → 구현)
 
 > Irene 원문: *"고객이나 멤버 요청이 무조건 반영되지 않고 플랫폼관리자로 지정된 멤버의 최종 승인에 따라 진행하게 해야 해.
 > 검토중을 무조건 거쳐야 해. 플랫폼관리자 피드백이 아니면. 이거 어떻게 체계 잡을까? 진행대기 단계가 있어야 할 것 같아.
@@ -78,3 +78,22 @@
 - 상태 이름·개수(특히 `in_progress` 를 둘지 — 없으면 «가져간 것»과 «승인만 된 것»을 상황판이 못 가른다)
 - 옛 `reviewing` 행 처리
 - 문의(kind inquiry)도 승인 절차를 거치나(답만 하는 문의는 개발이 아님 → `pending/reviewing → done` 허용으로 충분한가)
+
+## 8. Fable 판정 (2026-10-22 · PASS 조건부 — 구조 승인, 보정 반영해 구현)
+
+1. 상태 6값·`in_progress` 이름 그대로. **«승인됨» 의 정본 = `approved_at IS NOT NULL`** — 승인을 거두는 전이(진행대기→검토중, 완료·보류→검토중)는 approved_* 를 비운다.
+   `queued→in_progress` 는 회신 스크립트·관리자 화면만(상황판·1-B 는 읽기 전용). 상황판은 개발시작.md 1-B 절을 읽는다(확인 — projects.json `inquiries` = 절 제목).
+2. 옛 reviewing 은 기계가 가르지 않는다. 배포 닫기에 시한부 호환: reviewing ∧ 답글 ∧ 승인 기록 없음 ∧ `responded_at < approval_since` → 옛 규칙대로 done.
+   approval_since = 마이그레이션이 approved_at 칸 설명에 남긴 시각. 남은 수를 배포 닫기가 출력 — 0 이 되면 분기를 지운다.
+3. 승인 게이트는 개발 착수(→queued/in_progress)만 막는다. 문의는 답하고 done. 추가 문의는 자기 상태로 queued/in_progress 불가(409 followup_follows_parent).
+   플랫폼관리자 최상위 제출만 즉시 queued + 본인 승인.
+4. 승인자 = platform_role 'platform_admin'. 별도 지정 칸 없음 — approved_by + 감사 `feedback.approve`.
+5. 전이 판정 `services/feedbackStatus.js` 한 곳을 `respondToFeedback` 안에서 부른다 · ALLOWED_STATUS 한 export · ENUM 끝 append · 1-B 조회 `status='queued' AND approved_at IS NOT NULL AND parent_id IS NULL` · 라벨 ko/en.
+   추가 검증 7~12(추가 문의 409·재열기 approved_* NULL·배포 닫기 양쪽·문의 답변 통과·확인필요 최상위·/mine 에 approved_* 없음).
+
+## 9. 구현 메모 (2026-10-22 · [Opus])
+- 서버: `services/feedbackStatus`(전이·처음 상태·배포 닫기 판정) · `feedbackRespond`(판정 + 감사 writeAudit) · `routes/feedback`(처음 상태·409 코드·`next_statuses` 응답·counts 6값·/mine approved_* 제외) · `adminTodo`(접수·검토중 최상위) ·
+  `scripts/feedback-reply.js`(dry-run 도 같은 판정) · `scripts/close-deployed-feedback.js`(판정 함수 + 옛 규칙 남은 수) · `migrate-feedback-approval.js`(배포 슬롯).
+- 화면: 관리자 6탭 · 상태 셀렉트 = 지금 + 서버가 준 next_statuses · 검토중이면 [승인 — 진행대기로] · 거절 이유 문구 · 단계 안내 한 줄. 사용자 화면 «진행 예정 / 반영 중».
+- 같이 고친 것: 알림 링크(?id=)로 연 건이 늦게 온 «접수» 목록 응답에 덮여 상세가 안 열리던 경쟁(옛 응답 버림).
+- 문서: 개발시작.md 1-B(상황판이 읽는 조회) · 개발완료.md 7-B(배포 전 = in_progress).

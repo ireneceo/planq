@@ -8,6 +8,8 @@
 //     ① 첨부 큰 피드백 25건을 심은 상태에서 «접수» 목록 행 수 = 서버 pending 수(최대 200) · 첫 행이 가려지지 않고 보인다
 //     ② 첨부 있는 행을 누르면 상세에 첨부 이미지가 그려진다(목록엔 원본이 없고 상세가 따로 읽는다)
 //     ③ 음성 대조군: 목록 API 가 실패하면 «불러오지 못했습니다» + [다시 불러오기] 가 보인다(«없습니다» 가 아니다)
+//     ④ 승인 체계(2026-10-22) — 탭 6개 · 검토중 건 [승인 — 진행대기로] → DB queued + approved_at · 상태 셀렉트에 «진행대기» 가
+//        접수 건엔 없다 · 서버가 전이를 거절하면 이유가 화면에 보이고 창이 닫히지 않는다
 //
 //   ★ 임시 platform_admin 을 만들고 finally 에서 지운다. 심은 피드백도 지운다.
 require('/opt/planq/dev-backend/node_modules/dotenv').config({ path: '/opt/planq/dev-backend/.env' });
@@ -86,6 +88,50 @@ async function run() {
       await page.waitForSelector('[aria-modal="true"] img', { timeout: 15000 }).catch(() => null);
       const imgs = await page.evaluate(() => Array.from(document.querySelectorAll('[aria-modal="true"] img')).filter((i) => i.getBoundingClientRect().width > 0).length);
       push('첨부 있는 행을 열면 상세에 첨부 이미지 3장', clicked && imgs === 3, `행 ${clicked ? '누름' : '없음'} · 이미지 ${imgs}`);
+
+      // ④ 승인 체계
+      const [rv] = await sequelize.query(
+        `INSERT INTO feedback_items (user_id, kind, category, priority, title, body, status, is_popout, created_at, updated_at)
+         VALUES (?, 'feedback', 'improve', 'normal', ?, ?, 'reviewing', 0, NOW(), NOW())`,
+        { replacements: [uid, `${TAG} 검토중`, `${TAG} 검토중 본문`] });
+      await b.goto(page, `/admin/feedback?id=${rv}`);
+      await page.waitForSelector('[data-testid="admin-feedback-approve"]', { timeout: 15000 }).catch(() => null);
+      const tabs = await page.evaluate(() => document.querySelectorAll('[role="tab"], button').length && Array.from(document.querySelectorAll('button')).filter((x) => /진행대기|반영중|Approved|In progress/.test(x.textContent || '')).length);
+      push('탭에 «진행대기»·«반영중» 이 있다', tabs >= 2, `버튼 ${tabs}`);
+      const hasApprove = await page.$('[data-testid="admin-feedback-approve"]');
+      const where = await page.evaluate(() => ({ url: location.pathname + location.search, modal: !!document.querySelector('[aria-modal="true"]'),
+        btns: Array.from(document.querySelectorAll('[aria-modal="true"] button')).map((x) => (x.textContent || '').trim()).filter(Boolean) }));
+      if (hasApprove) await page.click('[data-testid="admin-feedback-approve"]');
+      await b.sleep(1500);
+      const [[after]] = await sequelize.query('SELECT status, approved_by, approved_at FROM feedback_items WHERE id = ?', { replacements: [rv] });
+      push('검토중 건 [승인] → DB 진행대기 + 승인자·시각', !!hasApprove && after.status === 'queued' && after.approved_by === uid && !!after.approved_at, JSON.stringify({ ...after, where }));
+      // 거절 이유가 보이는가 — 서버 409 를 흉내(전이 표 자체는 서버 검사에서 잰다)
+      await sequelize.query("UPDATE feedback_items SET status='reviewing', approved_by=NULL, approved_at=NULL WHERE id = ?", { replacements: [rv] });
+      await page.setRequestInterception(true);
+      const on409 = (req) => {
+        if (/\/api\/feedback\/\d+\/respond/.test(req.url())) req.respond({ status: 409, contentType: 'application/json', body: '{"success":false,"message":"review_required","code":"review_required"}' });
+        else req.continue();
+      };
+      page.on('request', on409);
+      await b.goto(page, `/admin/feedback?id=${rv}`);
+      await page.waitForSelector('[data-testid="admin-feedback-approve"]', { timeout: 15000 }).catch(() => null);
+      await page.click('[data-testid="admin-feedback-approve"]').catch(() => null);
+      await page.waitForSelector('[data-testid="admin-feedback-submit-error"]', { timeout: 5000 }).catch(() => null);
+      const errShown = await page.evaluate(() => {
+        const e = document.querySelector('[data-testid="admin-feedback-submit-error"]');
+        if (!e) return null;
+        const r = e.getBoundingClientRect(); const hit = document.elementFromPoint(r.left + 2, r.top + r.height / 2);
+        return { text: (e.textContent || '').trim(), visible: r.width > 0 && !!hit && e.contains(hit), open: !!document.querySelector('[aria-modal="true"]') };
+      });
+      page.off('request', on409);
+      await page.setRequestInterception(false);
+      push('서버가 거절하면 이유가 보이고 창은 열린 채', !!errShown && errShown.visible && errShown.open && /검토중/.test(errShown.text), JSON.stringify(errShown));
+      // 접수 건 상태 셀렉트에 «진행대기» 가 없다
+      const [[pend]] = await sequelize.query("SELECT id FROM feedback_items WHERE user_id = ? AND status = 'pending' ORDER BY id LIMIT 1", { replacements: [uid] });
+      await b.goto(page, `/admin/feedback?id=${pend.id}`);
+      await page.waitForSelector('[data-testid="admin-feedback-save"]', { timeout: 15000 }).catch(() => null);
+      const noApprove = await page.evaluate(() => !document.querySelector('[data-testid="admin-feedback-approve"]') && !!document.querySelector('[data-testid="admin-feedback-save"]'));
+      push('접수 건에는 [승인] 버튼이 없다(검토중을 먼저)', noApprove, noApprove ? 'ok' : '승인 버튼이 보인다');
 
       // ③ 음성 대조군 — 목록 API 실패 → «불러오지 못했습니다»
       await page.setRequestInterception(true);

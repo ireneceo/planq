@@ -164,7 +164,9 @@
       "pending": "New",
       "reviewing": "Reviewing",
       "done": "Done",
-      "wontfix": "Won't fix"
+      "wontfix": "Won't fix",
+      "queued": "Approved",
+      "in_progress": "In progress"
     },
     "kind": {
       "all": "All types",
@@ -173,7 +175,19 @@
     },
     "attachments": "Attached images",
     "loadError": "Couldn't load the list",
-    "retry": "Try again"
+    "retry": "Try again",
+    "approve": "Approve — queue for work",
+    "approvedAt": "Approved",
+    "flowHint": "New → Reviewing → Approved → In progress → Done. Only approved items go to development. Inquiries can simply be answered and closed as Done.",
+    "flowHintFollowup": "Follow-ups follow their original post — to start work, reopen and approve the original.",
+    "transitionError": {
+      "review_required": "New items must go through Reviewing before they can be approved.",
+      "invalid_transition": "This item can't move to that stage from here.",
+      "approval_required": "Only approved items can move to In progress.",
+      "followup_follows_parent": "Follow-ups can't be approved or put in progress. Approve the original post.",
+      "approver_required": "Only platform admins can approve.",
+      "unknown": "Couldn't save. Please try again."
+    }
   },
   "qhelper": {
     "action": {
@@ -305,7 +319,9 @@
       "pending": "Received",
       "reviewing": "Reviewing",
       "done": "Done",
-      "wontfix": "Won’t fix"
+      "wontfix": "Won’t fix",
+      "queued": "Scheduled",
+      "in_progress": "In progress"
     },
     "fbThanks": "Received #{{id}} — we'll review soon",
     "fbTitle": "Title",
@@ -1317,7 +1333,9 @@
       "pending": "Received",
       "reviewing": "Reviewing",
       "done": "Done",
-      "wontfix": "Won’t fix"
+      "wontfix": "Won’t fix",
+      "queued": "Scheduled",
+      "in_progress": "In progress"
     },
     "scopeNote": "Questions and feedback you sent to the PlanQ team about the product. Only you can see them — not your workspace members or clients.",
     "compose": "+ New",
