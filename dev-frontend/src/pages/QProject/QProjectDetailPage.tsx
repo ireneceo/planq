@@ -331,7 +331,7 @@ const QProjectDetailPage: React.FC = () => {
   const [mailCount, setMailCount] = useState<number | null>(null);
   const [tasks, setTasks] = useState<TaskRow[]>([]);
   const [bizMembers, setBizMembers] = useState<BizMember[]>([]);
-  const [bizClients, setBizClients] = useState<{ id: number; display_name: string | null; company_name: string | null; invite_email?: string | null; user?: { id: number; name: string; email: string } }[]>([]);
+  const [bizClients, setBizClients] = useState<{ id: number; display_name: string | null; company_name: string | null; invite_email?: string | null; status?: string | null; user?: { id: number; name: string; email: string } }[]>([]);
   const [addMemberOpen, setAddMemberOpen] = useState(false);
   const [closeModalOpen, setCloseModalOpen] = useState(false);
   // 상태 변경 사유 — 히스토리에서 가장 읽고 싶은 것이 "왜 바꿨나" 다.
@@ -1305,7 +1305,8 @@ const QProjectDetailPage: React.FC = () => {
             {/* 기존 워크스페이스 고객 연결 — **고객 id 로** 붙인다(이름·이메일로 다시 찾으면 계정 없는 고객이 한 줄 더 생겼다) */}
             {(() => {
               const joinedClientIds = new Set((project.projectClients || []).map((c) => c.client_id).filter(Boolean));
-              const candidates = bizClients.filter((b) => !joinedClientIds.has(b.id));
+              // 보관된 고객은 붙일 수 없다(서버 409 client_archived) — 목록에서 뺀다
+              const candidates = bizClients.filter((b) => !joinedClientIds.has(b.id) && b.status !== 'archived');
               if (candidates.length === 0) return null;
               return (
                 <LinkClientBar>

@@ -3393,6 +3393,8 @@ router.post('/:id/clients', authenticateToken, async (req, res, next) => {
       if (!Number.isInteger(cid) || cid <= 0) return errorResponse(res, 'invalid_client', 400);
       clientRow = await ClientM.findOne({ where: { id: cid, business_id: project.business_id } });
       if (!clientRow) return errorResponse(res, 'invalid_client', 400);
+      // 보관된 고객은 붙이지 않는다 — 먼저 보관 해제(고객 화면)를 거친다(설계 2-3)
+      if (clientRow.status === 'archived') return errorResponse(res, 'client_archived', 409, 'client_archived');
       // 이미 붙어 있으면 또 만들지 않는다 — 두 번 누르면 목록에 두 줄이 생긴다
       const dup = await ProjectClient.findOne({ where: { project_id: project.id, client_id: cid } });
       if (dup) return successResponse(res, { id: dup.id, client_id: cid, already: true });

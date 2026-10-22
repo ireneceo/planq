@@ -67,7 +67,7 @@ import { isEnterAction } from '../../utils/imeKey';
 import { onFlushPendingSaves } from '../../services/pendingSaves';
 import { keepaliveJson } from '../../services/keepaliveFetch';
 import { promoteInboxItem, promoteErrorKey } from '../../services/sale';
-import { tabStore } from '../../stores/tabStore';
+import { readComposeIntent, returnAfterCompose } from './composeReturn';
 
 import {
   AcctFilterRow,
@@ -190,8 +190,6 @@ import {
   ImpersonationBadge, SpamReasonBadge, ImpersonationNote,
 } from './MailPage.styles';
 
-// ?compose=1&to= 로 받는 주소 — 모양이 아니면 버린다(주소창으로 아무 글자나 받는 사람 칸에 심지 않는다)
-const COMPOSE_TO_RE = /^[^\s@,;<>]+@[^\s@,;<>]+\.[^\s@,;<>]+$/;
 
 type Folder = 'reply_needed' | 'uncertain' | 'all' | 'sent' | 'marketing' | 'following' | 'spam' | 'archived';
 
@@ -2198,10 +2196,12 @@ const MailPage: React.FC = () => {
     if (sp.get('compose') === '1') {
       const voice = (location.state as { voice?: VoiceHandoff } | null)?.voice ?? takeVoiceHandoff('mail');
       if (voice) pendingVoiceRef.current = voice;
-      const to = (sp.get('to') || '').trim();
-      composeBackRef.current = sp.get('back') || null;
-      if (to && COMPOSE_TO_RE.test(to) && !voice) addressActions.onCompose(to);
+      const intent = readComposeIntent(sp);
+      composeBackRef.current = intent.back;
+      if (intent.to && !voice) addressActions.onCompose(intent.to);
       else setComposeOpen(true);
+      // 좁은 폭은 목록 칸이 작성 패널을 덮는다 — [+ 새 메일] 과 같이 목록을 접는다(Fable 완료 검증 FAIL 1, 2026-10-22)
+      if (viewportNarrowRef.current) setSidebarCollapsed(true);
       const next = new URLSearchParams(sp); next.delete('compose'); next.delete('to'); next.delete('back'); setSp(next, { replace: true });
     }
   }, [sp, setSp, location.state, addressActions]);
@@ -2404,17 +2404,7 @@ const MailPage: React.FC = () => {
     // 사람 화면의 이메일로 열린 작성(back=1) — 보내거나 닫으면 보던 곳으로(Irene: "모바일은 보내고 뒤로가게").
     //   폰(미러) = 뒤로 · 탭 모드 = 이 작성 탭을 닫는다(EmailLink 가 새 탭으로 열었다). 메일 목록에 남겨 두지 않는다.
     const back = composeBackRef.current;
-    if (back) {
-      composeBackRef.current = null;
-      const snap = tabStore.getSnapshot();
-      if (snap.mirror) { if (window.history.length > 1) window.history.back(); }
-      else if (snap.activeId) {
-        const me = snap.activeId;
-        const opener = snap.tabs.some((x) => x.id === back && x.id !== me) ? back : null;
-        if (opener) tabStore.setActive(opener);
-        tabStore.closeTab(me);
-      }
-    }
+    if (back) { composeBackRef.current = null; returnAfterCompose(back); }
   };
   // 새 메일 열기 — [+ 새 메일]·빈 화면 CTA 가 같이 쓰는 문.
   //   ★ 2026-10-15 (Irene: "전달 눌렀다가 다시 새메일 쓰려고 + 누르면 리셋 안되고 전달한 내용이 남아있어")
