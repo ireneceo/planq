@@ -328,7 +328,8 @@
       "kbLabel": "대화 자료",
       "locked": "🔒 비번 보호",
       "previewLabel": "문서 미리보기",
-      "taskLabel": "업무"
+      "taskLabel": "업무",
+      "nameCardLabel": "명함"
     },
     "draft": {
       "title": "Cue 답변 대기",

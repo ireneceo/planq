@@ -360,7 +360,8 @@
       "kbLabel": "Shared material",
       "locked": "🔒 Password protected",
       "previewLabel": "Document preview",
-      "taskLabel": "Task"
+      "taskLabel": "Task",
+      "nameCardLabel": "Business card"
     },
     "draft": {
       "title": "Cue draft pending",

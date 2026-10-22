@@ -27,7 +27,7 @@ import {
   type MyCard, type SavedCard, type PrefillSource,
 } from '../../services/nameCards';
 import CardEditorDrawer from './CardEditorDrawer';
-import CardQrModal from './CardQrModal';
+import CardQrModal from '../../components/NameCard/CardQrModal';
 import CreateCardModal from './CreateCardModal';
 import SavedCardsPanel from './SavedCardsPanel';
 

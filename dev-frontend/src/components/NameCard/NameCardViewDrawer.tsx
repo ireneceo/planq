@@ -2,12 +2,15 @@
 //   드로어는 **하나** — 사람 팝오버 · 설정 > 멤버 상세 · 조직도가 같은 것을 연다(새로 그리지 않는다).
 //   내용 = 같은 CardFace(공개 페이지·내 명함 미리보기와 같은 모양) + [연락처에 저장 .vcf] + 링크가 열려 있을 때만 [명함 페이지 열기].
 //   기본 명함이 없으면 버튼을 그리지 않는 것은 부르는 쪽(useMemberCard 가 null) — 이 드로어는 열린 뒤 404 면 안내 문장만.
+//   v3 결정 4 — 동료 명함 대신 보내기: 링크가 열려 있을 때만 [링크 복사]·[QR](같은 CardQrModal). 꺼져 있으면 안내 한 줄
+//   (주인이 끈 명함을 남이 퍼뜨리지 않는다 — 판정은 서버가 준 url 하나).
 import React, { useEffect, useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import DetailDrawer from '../Common/DetailDrawer';
 import ActionButton from '../Common/ActionButton';
 import CardFace from './CardFace';
+import CardQrModal from './CardQrModal';
 import { useAuthedImageSrc } from '../../hooks/useAuthedImageSrc';
 import { fetchMemberCard, memberCardPhotoUrl, downloadMemberVcf, type MemberCard } from '../../services/nameCards';
 
@@ -17,6 +20,8 @@ const NameCardViewDrawer: React.FC<Props> = ({ businessId, userId, onClose }) =>
   const { t } = useTranslation('cards');
   const [data, setData] = useState<MemberCard | null | 'loading' | 'none'>('loading');
   const [busy, setBusy] = useState(false);
+  const [qrOpen, setQrOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
   useEffect(() => {
     if (!userId) return undefined;
     let alive = true;
@@ -34,6 +39,15 @@ const NameCardViewDrawer: React.FC<Props> = ({ businessId, userId, onClose }) =>
         {data === 'loading' && <Muted aria-busy="true">…</Muted>}
         {data === 'none' && <Muted data-testid="member-card-none">{t('memberCard.none')}</Muted>}
         {card && <CardFace view={card.card} photoSrc={photo} testId="member-card-face" />}
+        {card && (card.url ? (
+          <ShareRow>
+            <ActionButton tone="secondary" size="sm" data-testid="member-card-copy"
+              onClick={() => void navigator.clipboard.writeText(card.url as string).then(() => { setCopied(true); window.setTimeout(() => setCopied(false), 1800); }).catch(() => {})}>
+              {copied ? t('card.linkCopied') : t('memberCard.copyLink')}
+            </ActionButton>
+            <ActionButton tone="secondary" size="sm" data-testid="member-card-qr" onClick={() => setQrOpen(true)}>{t('memberCard.qr')}</ActionButton>
+          </ShareRow>
+        ) : <Muted data-testid="member-card-closed">{t('memberCard.linkClosed')}</Muted>)}
       </DetailDrawer.Body>
       {card && userId && (
         <DetailDrawer.Footer>
@@ -47,6 +61,9 @@ const NameCardViewDrawer: React.FC<Props> = ({ businessId, userId, onClose }) =>
           </ActionButton>
         </DetailDrawer.Footer>
       )}
+      <CardQrModal card={qrOpen && card && card.url ? { url: card.url, label: card.card.name } : null}
+        onClose={() => setQrOpen(false)} copied={copied}
+        onCopy={(c) => void navigator.clipboard.writeText(c.url).then(() => { setCopied(true); window.setTimeout(() => setCopied(false), 1800); }).catch(() => {})} />
     </DetailDrawer>
   );
 };
@@ -66,6 +83,7 @@ export function useHasMemberCard(businessId: number | null | undefined, userId: 
 
 const Title = styled.h2`margin: 0; font-size: 1rem; font-weight: 700; color: #0F172A; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;`;
 const Muted = styled.div`font-size: 0.875rem; color: #64748B; padding: 12px 0;`;
+const ShareRow = styled.div`display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px;`;
 
 /** [명함 보기] — 그 사람에게 기본 명함이 있을 때만 그린다(멤버 상세 드로어처럼 렌더 함수 안에서 훅을 못 쓰는 곳용) */
 export const MemberCardButton: React.FC<{ businessId: number; userId: number; onOpen: (userId: number) => void; known?: boolean }> = ({ businessId, userId, onOpen, known }) => {

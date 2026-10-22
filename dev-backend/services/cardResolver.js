@@ -38,6 +38,17 @@ const CARD_TARGETS = {
  */
 async function resolveCard(meta, { businessId, appUrl }) {
   const cardType = meta && meta.card_type;
+  // 명함 카드(docs/NAME_CARD_V3_STRATEGY.md 9절 결정 4) — 워크스페이스 자원이 아니라 사람의 공개 명함이다.
+  //   지금 공개 판정(nameCard.closedReason)을 통과할 때만 열린다. 주인이 링크를 끄면 share_revoked.
+  if (cardType === 'name_card') {
+    const { NameCard, User } = require('../models');
+    const nc = require('./nameCard');
+    const card = meta.name_card_id ? await NameCard.findByPk(meta.name_card_id) : null;
+    if (!card) return { state: 'not_available', url: null };
+    const owner = await User.findByPk(card.user_id, { attributes: nc.OWNER_ATTRS });
+    if (nc.closedReason(card, owner)) return { state: 'share_revoked', url: null };
+    return { state: 'ok', url: `${appUrl}/c/${card.public_token}` };
+  }
   const cfg = CARD_TARGETS[cardType];
   if (!cfg) return { state: 'unsupported', url: null };
 

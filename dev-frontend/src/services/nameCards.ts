@@ -176,3 +176,13 @@ export function triggerDownload(blob: Blob, filename: string) {
 export const publicCardUrl = (token: string) => `/api/name-cards/public/${encodeURIComponent(token)}`;
 export const publicPhotoUrl = (token: string, v: CardView) => (v.has_photo ? `${publicCardUrl(token)}/photo?v=${v.photo_ver}` : null);
 export const publicVcfUrl = (token: string) => `${publicCardUrl(token)}/vcf`;
+
+// 대화에 명함 카드 보내기(v3 결정 4) — 보낼 수 있는 것 = 내 명함 ∨ 동료 기본 명함, 링크가 열린 것만(서버가 보낼 때 다시 판정)
+export interface NameCardOptions {
+  mine: Array<{ id: number; label: string; name: string; job_title: string | null }>;
+  colleagues: Array<{ user_id: number; name: string; job_title: string | null }>;
+}
+export const listNameCardOptions = async (businessId: number) =>
+  json<NameCardOptions>(await apiFetch(`/api/businesses/${businessId}/name-card-options`));
+export const sendNameCardMessage = async (businessId: number, conversationId: number, target: { card_id: number } | { member_user_id: number }) =>
+  json<{ message_id: number }>(await apiFetch(`/api/businesses/${businessId}/name-card-messages`, body('POST', { conversation_id: conversationId, ...target })));

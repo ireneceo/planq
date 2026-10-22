@@ -21,6 +21,7 @@ import DetailFallback from '../../components/Common/DetailFallback';
 import PostPreviewModal from '../../components/Docs/PostPreviewModal';
 import SignatureLinkModal from '../../components/QTalk/SignatureLinkModal';
 import FilePicker, { type FilePickerResult } from '../../components/Common/FilePicker';
+import SendNameCardButton from '../../components/NameCard/SendNameCardButton';
 import UserInfoPopover from '../../components/Common/UserInfoPopover';
 import NameCardViewDrawer from '../../components/NameCard/NameCardViewDrawer';
 import { fetchWorkspaceFiles, uploadMyFile, isImage as isRenderableImage } from '../../services/files';
@@ -1875,6 +1876,24 @@ const ChatPanel: React.FC<Props> = ({
                     </SharedCard>
                   );
                 })()
+              ) : m.card?.card_type === 'name_card' ? (
+                (() => {
+                  const nc = m.card as import('./types').NameCardMeta;
+                  return (
+                    <SharedCard type="button" data-testid="chat-name-card" disabled={!nc.url} onClick={() => { if (nc.url) window.open(nc.url, '_blank', 'noopener'); }}>
+                      <SharedCardIcon $tone="file">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><circle cx="8" cy="12" r="2.2"/><path d="M13 10h5M13 14h4"/></svg>
+                      </SharedCardIcon>
+                      <DocCardBody>
+                        <DocCardTitle>{nc.title}</DocCardTitle>
+                        <DocCardLabel>{t('chat.card.nameCardLabel', { defaultValue: '명함' }) as string}{nc.subtitle && <> · {nc.subtitle}</>}</DocCardLabel>
+                      </DocCardBody>
+                      <DocCardArrow>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+                      </DocCardArrow>
+                    </SharedCard>
+                  );
+                })()
               ) : m.card ? (
                 <DocCard type="button" onClick={() => setPreviewCard(m.card as import('./types').PostCardMeta)}>
                   <DocCardIcon>
@@ -2350,6 +2369,8 @@ const ChatPanel: React.FC<Props> = ({
               <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
             </svg>
           </AttachBtn>
+          {/* 명함 보내기(멤버만) — docs/NAME_CARD_V3_STRATEGY.md 9절 결정 4 */}
+          {!isClient && businessId && activeConversationId && <SendNameCardButton businessId={Number(businessId)} conversationId={Number(activeConversationId)} />}
           {/* #380 — 입력창 이모지. 커서 위치에 삽입하고 draft·포커스를 그대로 유지한다. */}
           <EmojiPickerButton
             onPick={(emoji) => {

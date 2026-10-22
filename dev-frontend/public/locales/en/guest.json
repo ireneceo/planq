@@ -33,7 +33,8 @@
     "whyUnsupported": "This cannot be opened from this link. Please contact your contact.",
     "whyGone": "This cannot be opened right now. Please contact your contact.",
     "whyExpired": "The sharing period has ended. Please ask your contact to share it again.",
-    "whySignature": "Please continue from the signing link you received by email."
+    "whySignature": "Please continue from the signing link you received by email.",
+    "nameCard": "Business card"
   },
   "acct": {
     "lead": "This link shows only this conversation. To see projects and files you need an account.",

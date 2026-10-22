@@ -233,6 +233,19 @@
     "aria": "Business card",
     "title": "Business card",
     "none": "No default card set for this workspace.",
-    "open": "Card"
+    "open": "Card",
+    "copyLink": "Copy link",
+    "qr": "QR code",
+    "linkClosed": "This card’s link is turned off — only its owner can share it."
+  },
+  "sendCard": {
+    "button": "Send a business card",
+    "title": "Send a business card",
+    "hint": "Posts a card in this chat. Recipients can open it and save the contact. Only cards with an open link can be sent.",
+    "mine": "My cards",
+    "colleagues": "Colleagues' cards",
+    "empty": "No cards to send. Turn on a card link in My account > My cards.",
+    "failed": "Couldn't send. Please try again in a moment.",
+    "loadFailed": "Couldn't load your cards."
   }
 }

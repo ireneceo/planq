@@ -1,14 +1,15 @@
 // 명함 링크·QR — 명함마다 다른 QR(이 명함의 /c/<토큰>). 라이브러리는 동적 import(AppQrCode 와 같은 방식).
-import React, { useEffect, useState } from 'react';
+//   내 명함(MyCardsPage)과 동료 명함 창(NameCardViewDrawer — v3 결정 4)이 같은 창을 쓴다. 필요한 것은 주소·이름·열림 여부뿐.
+import { useEffect, useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
-import StandardModal from '../../components/Common/StandardModal';
-import ActionButton from '../../components/Common/ActionButton';
-import type { MyCard } from '../../services/nameCards';
+import StandardModal from '../Common/StandardModal';
+import ActionButton from '../Common/ActionButton';
 
-interface Props { card: MyCard | null; onClose: () => void; onCopy: (c: MyCard) => void; copied: boolean }
+export interface QrTarget { url: string; label: string; link_open?: boolean }
+interface Props<T extends QrTarget> { card: T | null; onClose: () => void; onCopy: (c: T) => void; copied: boolean }
 
-const CardQrModal: React.FC<Props> = ({ card, onClose, onCopy, copied }) => {
+function CardQrModal<T extends QrTarget>({ card, onClose, onCopy, copied }: Props<T>) {
   const { t } = useTranslation('cards');
   const [src, setSrc] = useState<string | null>(null);
   const url = card?.url || '';
@@ -49,12 +50,12 @@ const CardQrModal: React.FC<Props> = ({ card, onClose, onCopy, copied }) => {
           {src ? <QrImg src={src} alt={url} data-testid="card-qr" data-qr-url={url} /> : <QrHolder aria-busy="true" />}
           <Url data-testid="qr-url">{url}</Url>
           <Hint>{t('qr.hint')}</Hint>
-          {!card.link_open && <Warn>{t('qr.closedWarn')}</Warn>}
+          {card.link_open === false && <Warn>{t('qr.closedWarn')}</Warn>}
         </Body>
       )}
     </StandardModal>
   );
-};
+}
 export default CardQrModal;
 
 const Body = styled.div`display: flex; flex-direction: column; align-items: center; gap: 12px; text-align: center;`;

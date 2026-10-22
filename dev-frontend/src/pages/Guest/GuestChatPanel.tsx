@@ -88,6 +88,7 @@ export default function GuestChatPanel({ token, canWrite, active = true, onGone,
       case 'file': return t('card.file', { defaultValue: '파일' });
       case 'kb_document': return t('card.kb', { defaultValue: '자료' });
       case 'calendar_event': return t('card.event', { defaultValue: '일정' });
+      case 'name_card': return t('card.nameCard', { defaultValue: '명함' });
       // 모르는 종류를 "자료" 로 뭉뚱그리지 않는다 — 그러면 새 카드가 생겨도 아무도 모른다.
       default: return t('card.other', { defaultValue: '첨부' });
     }

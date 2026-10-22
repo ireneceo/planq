@@ -95,6 +95,17 @@ export interface CalendarEventCardMeta {
   has_password?: boolean;
 }
 
+/** 명함 카드(v3 결정 4) — 공개 명함 주소와 요약만. 주인이 링크를 끄면 주소가 닫힌다 */
+export interface NameCardMeta {
+  card_type: 'name_card';
+  name_card_id: number;
+  title: string;
+  /** 직함 · 회사 */
+  subtitle: string | null;
+  url?: string;
+  has_photo?: boolean;
+}
+
 export interface InvoiceCardMeta {
   card_type: 'invoice';
   invoice_id: number;
@@ -142,7 +153,7 @@ export interface MockMessage {
     file_id?: number | null; drive_editable?: boolean }[];
   // #138 — 이모지 리액션 (백엔드가 메시지에 동봉)
   reactions?: { id: number; user_id: number; emoji: string }[];
-  card?: PostCardMeta | SignatureCardMeta | InvoiceCardMeta | TaskCardMeta | FileCardMeta | KbDocCardMeta | CalendarEventCardMeta | null;
+  card?: PostCardMeta | SignatureCardMeta | InvoiceCardMeta | TaskCardMeta | FileCardMeta | KbDocCardMeta | CalendarEventCardMeta | NameCardMeta | null;
   translations?: Partial<Record<'ko'|'en'|'ja'|'zh'|'es', string>> | null;
   detected_language?: 'ko'|'en'|'ja'|'zh'|'es' | null;
   // 사이클 N+15-C — 읽음 표시. read_by_count = 본인 제외 참여자 중 읽은 수.
