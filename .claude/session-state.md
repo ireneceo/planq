@@ -426,9 +426,9 @@
 - 확인용 데이터: ws6 «[확인용] 퇴사 예정»(user 1015074 / member 17847) · 나만 보기 업무 4449.
 - 약관 공지 띠 + 약관 버전 1.2 는 배포 단계가 자동으로(scripts/migrate-terms-handover.js, deploy-planq.sh 슬롯) — Irene «너가 해» 10-22. 카드 todomvj4wnbd 뺌.
   배포가 10-26 보다 늦으면 스크립트가 바꾸지 않고 경고 → 시행일 이동(memberHandover HANDOVER_L1_EFFECTIVE_ON · legal.json terms.s10) 후 재배포.
-### 답 기다림: 약관 개정 회원 메일 고지 (방 75b90f45 · 2026-10-22)
-- 약관 13조 «시행 7일 전 서비스 공지 및 이메일로 안내 · 중요 변경 30일 전». 공지 띠·재동의 창은 자동. 메일은 외부 발송이라 Irene 확인 필요.
-- 답이 오면: 예 → send-policy-notice.js 와 같은 모양(미리보기 기본·confirm 수 일치 시만)으로 약관 고지 메일 스크립트를 만들고 배포 날 보낸다. 아니오 → 공지 띠·재동의만.
+### 완료: 약관 개정 회원 메일 고지 (방 75b90f45 · 2026-10-22) — Irene «권고대로»(예)
+- 배포 단계(migrate-terms-handover.js)가 약관 버전을 1.2 로 올리는 그 순간 활성 회원 전체에 고지 메일 1통(services/termsNotice · emailService.sendTermsNoticeEmail · template terms_notice_1_2, 이미 보낸 주소 건너뜀).
+- 끊기면 이어 보내기: node scripts/send-terms-notice.js(미리보기) → --send --confirm=<수>. dev 미리보기 보낼 사람 84 · 한 주소 발송 경로 확인(dev 는 skipped).
 
 ### 답 기다림 (이전): 조직 규모 검토 — Irene 결정 8건 → 10-19 «권고대로»
 - 원문: «10-20명 이상의 조직의 경우 우리 솔루션을 쓰면 부족하게 느낄 문제가 뭘까? 보완해야 할 기능이나 구조가 있어? … fable 토큰 생기면 진행하게 해줘.»

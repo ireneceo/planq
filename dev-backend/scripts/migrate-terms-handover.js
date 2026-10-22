@@ -1,4 +1,4 @@
-// 이용약관 개정(퇴사 시 업무 인수인계, 제10조) — 배포 때 공지 띠 + 약관 버전 1.2 를 한 번에 올린다.
+// 이용약관 개정(퇴사 시 업무 인수인계, 제10조) — 배포 때 공지 띠 + 약관 버전 1.2 + 회원 고지 메일을 한 번에.
 //   docs/ORG_STAGE0_DESIGN.md 9절 4 · Irene 2026-10-22 «너가 해»(관리자 화면 손작업을 배포 단계로 옮김).
 //
 //   ★ 약관 제13조 «중요 변경은 30일 전 공지» — 시행일(services/memberHandover HANDOVER_L1_EFFECTIVE_ON)이
@@ -69,9 +69,15 @@ function joinNotice(cur, add) {
     if (ko && !ps.announcement_text) { patch.announcement_dismissible = true; patch.announcement_severity = 'info'; }
     if (!ko || !en) console.warn('[terms-handover] ⚠️ 기존 공지가 길어 약관 공지를 붙이지 못함 — 관리자 화면에서 공지 띠를 확인하세요');
     console.log(`[terms-handover] ${DRY ? '(미리보기) ' : ''}바꿀 것: ${JSON.stringify(patch)}`);
+    // 고지 메일 — 버전을 올리는 이 순간 같이(약관 13조 «공지 및 이메일». Irene 2026-10-22 «권고대로»). 이미 보낸 주소는 건너뛴다.
+    const { collectTargets, sendAll } = require('../services/termsNotice');
+    const r = await collectTargets({ version: HANDOVER_TERMS_VERSION });
+    console.log(`[terms-handover] 고지 메일 ${DRY ? '(미리보기) ' : ''}보낼 사람 ${r.targets.length} · 이미 보냄 ${r.done} · 막힌 주소 ${r.blocked}`);
     if (!DRY) {
       await ps.update(patch);
       console.log('[terms-handover] ✅ 약관 버전·공지 띠 반영 — 다음 로그인부터 재동의 창');
+      const s = await sendAll({ version: HANDOVER_TERMS_VERSION, effectiveOn: HANDOVER_L1_EFFECTIVE_ON, targets: r.targets });
+      console.log(`[terms-handover] 고지 메일 성공 ${s.ok} · 실패/건너뜀 ${s.fail} (실패분은 scripts/send-terms-notice.js 로 이어 보내기)`);
     }
   } catch (e) {
     console.error('[terms-handover] 실패(배포는 계속):', e.message);

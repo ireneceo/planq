@@ -1454,6 +1454,61 @@ async function sendPolicyNoticeEmail({ to, name, lang, userId }) {
   });
 }
 
+// ═══════════════════════════════════════════════════════════════
+// 이용약관 개정 고지 (2026-10-22 — 조직 0단계, 제10조 «퇴사 시 업무 인수인계»)
+//   약관 제13조 «시행 7일 전 서비스 공지 및 이메일로 안내 · 중요 변경 30일 전». Irene 2026-10-22 «권고대로»(메일도 보냄).
+//   보내는 문은 services/termsNotice 하나 — 배포 때 약관 버전을 올리는 그 순간 같이 나간다(scripts/migrate-terms-handover.js).
+//   법령상 고지라 수신 동의와 무관하게 보낸다 — 본문이 그 사실을 말한다.
+// ═══════════════════════════════════════════════════════════════
+const TERMS_NOTICE = {
+  ko: {
+    subject: (d) => `[PlanQ] 이용약관 개정 안내 (${d} 시행)`,
+    hello: (n) => `${n}님, 안녕하세요.`,
+    lead: (d) => `PlanQ 이용약관이 ${d}부터 아래와 같이 바뀝니다.`,
+    items: [
+      '워크스페이스에서 제외되면(퇴사 등) 그 워크스페이스에서 맡고 있던 아직 끝나지 않은 업무(본인만 보기로 둔 업무 포함)는 워크스페이스 대표가 지정한 인수자에게 넘어갈 수 있습니다(제10조).',
+      '문서·파일·메모 등 그 밖의 자료는 넘기지 않습니다.',
+      '다음에 로그인하면 바뀐 약관에 동의하는 창이 한 번 뜹니다. 동의하지 않으면 이용을 중단할 수 있습니다(제13조).',
+    ],
+    cta: '바뀐 이용약관 보기',
+    legal: '이 메일은 이용약관 변경 고지로, 수신 동의 여부와 관계없이 보내드립니다.',
+  },
+  en: {
+    subject: (d) => `[PlanQ] Terms of Service update (effective ${d})`,
+    hello: (n) => `Hello ${n},`,
+    lead: (d) => `Our Terms of Service change as follows from ${d}.`,
+    items: [
+      'If you are removed from a workspace (for example, when you leave the team), your unfinished tasks in that workspace — including tasks set to “Only me” — may be handed over to a successor chosen by the workspace owner (Article 10).',
+      'Other materials such as documents, files and memos are not handed over.',
+      'The next time you log in, you will be asked once to agree to the updated Terms. If you do not agree, you may stop using the service (Article 13).',
+    ],
+    cta: 'Read the updated Terms',
+    legal: 'This is a notice of a change to our Terms of Service and is sent regardless of your email preferences.',
+  },
+};
+function termsNoticeEmailHtml({ name, lang, effectiveOn }) {
+  const c = TERMS_NOTICE[lang === 'en' ? 'en' : 'ko'];
+  const url = `${APP_URL}/terms`;
+  const body = `
+    <div style="font-size:16px;font-weight:700;color:#0F172A;line-height:1.5;">${escapeHtml(c.hello(name || (lang === 'en' ? 'there' : '회원')))}</div>
+    <div style="margin-top:12px;font-size:14px;color:#475569;line-height:1.7;">${escapeHtml(c.lead(effectiveOn))}</div>
+    <ul style="margin:12px 0 0;padding-left:18px;font-size:14px;color:#334155;line-height:1.7;">
+      ${c.items.map((it) => `<li style="margin-bottom:6px;">${escapeHtml(it)}</li>`).join('')}
+    </ul>
+    <div style="margin-top:20px;">${ctaButton(url, c.cta)}</div>
+    ${fallbackLink(url)}
+    <div style="margin-top:18px;font-size:12px;color:#94A3B8;line-height:1.6;">${escapeHtml(c.legal)}</div>`;
+  return emailWrap({ title: c.subject(effectiveOn), body });
+}
+async function sendTermsNoticeEmail({ to, name, lang, userId, effectiveOn, template }) {
+  if (!to) return false;
+  const c = TERMS_NOTICE[lang === 'en' ? 'en' : 'ko'];
+  return sendEmail({
+    to, subject: c.subject(effectiveOn), html: termsNoticeEmailHtml({ name, lang, effectiveOn }),
+    template, relatedEntityType: 'user', relatedEntityId: userId || null,
+  });
+}
+
 module.exports = {
   sendTrialRefundDoneEmail,
   MAIL_FONT_STACK,
@@ -1469,6 +1524,7 @@ module.exports = {
   sendNotificationEmail,
   sendPasswordResetEmail,
   sendPolicyNoticeEmail, policyNoticeEmailHtml,
+  sendTermsNoticeEmail, termsNoticeEmailHtml,
   sendSignupVerifyEmail,
   getPlanqBankInfo,
   invalidatePlatformCache,  // admin 라우트가 PUT 후 호출
