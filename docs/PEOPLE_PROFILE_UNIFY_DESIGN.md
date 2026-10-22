@@ -72,3 +72,15 @@
 - 화면 3폭: 설정 [멤버|고객] · 멤버 드로어 세 절 보임 · 이메일 링크 → 데스크탑 새 창에 받는사람 채워짐 / 폰 보내고 뒤로(원래 경로) · 권한 없으면 mailto.
 - 실시간: 두 브라우저 — Q sale 에서 고객 직책 수정 → 설정 고객 탭 ≤1초.
 - 가드 전체 · health-check · npm run build · e2e tenant.
+
+---
+## Fable 설계 판정 (2026-10-22) — VERDICT: PASS (수정 반영 조건)
+1. 사람 카드: 새 표·서버 personProfile.js 없음. `clients.job_title`·`department` 는 **이미 있다**(명함 v3-A) — 마이그레이션 안 함. 화면 어댑터 `components/People/personBasics.ts`(fromMember·fromClient) + `PersonBasics.tsx` 한 벌. 추가 담당자(client_contacts)는 그대로.
+2. 이메일: 별창 `/mail-compose` 기각(작성 폼이 MailPage 상태에 묶임). `EmailLink` = 탭 모드 `openInNewTab('/mail?compose=1&to=&back=1')`, 폰 같은 주소 이동. MailPage `compose=1` 효과가 `to` 를 `addressActions.onCompose` 와 같은 길(reset + fresh-to)로 · EMAIL_RE · 소비 뒤 URL 에서 지움. `back=1` 작성이 보내기/취소로 닫히면 폰 `history.back()`, 탭 모드 활성 탭 닫기. 메일 권한 없음·계정 0 → mailto · 고객 역할은 평문.
+3. 프로젝트 고객: `ClientAddDrawer` → `POST /projects/:id/clients {client_id}`. 행 `{client_id, contact_user_id: user_id||null, contact_name, contact_email: invite_email||null, invite_token NULL}`. **canInviteClient 가 아닌 행(managed 등)엔 토큰·메일·pending 알림 없음**(invited 만 지금처럼). resend-invite 는 토큰 없으면 400 not_invited. «기존 고객 연결» 은 `{client_id}` 만. [+ 고객 추가] 는 Q sale write 술어로만.
+4. 설정 고객 탭: 본체 하나 — `components/Clients/ClientList.tsx` 로 빼고 SalePage·WorkspaceSettingsPage 가 같이 마운트. `[멤버|고객]` segmentedToggle `?tab=clients`, 노출 술어 ClientList 가 들고 감. 메뉴 «구성원·고객». LegacyClientsRedirect 그대로.
+5. 멤버 overview: `routes/member_overview.js` `/:businessId/members/:userId/overview`(authenticateToken+checkBusinessAccess, 대상 비활성 404). 보는 사람 scope — 프로젝트 = 참여 ∩ projectScopeWhere · 업무 = (담당∨작성∨요청) ∩ taskListWhere **Op.and 안** · 히스토리 = 그 업무 task_status_history + project_members.created_at 최근 50. audit_logs 넣지 않음(owner/admin 에게 «활동 보기» 링크). MemberPanel 은 DetailDrawer 로.
+6. 이메일 일치 전환 같이(첫 단계). 집합 = users.email ∪ 확인된 secondary_email. 고객 행: 같은 ws · user_id NULL · 보관 아님 · LOWER(invite_email) ∈ 집합. project_clients: client_id ∈ 잡힌 고객 ∨ (contact_user_id NULL ∧ LOWER(contact_email) ∈ 집합) — 다른 계정 행은 안 건드림. 이름만 같은 행 = 자동 안 합침 + (여유 시) [멤버로 정리] 문. `/clients/:biz/managed` 에 활성 멤버 409 already_member.
+- 차단: ① managed 프로젝트 연결 외부 발송 ② 기존 고객 연결 중복 행 ③ `?to=` 는 onCompose 길 ④ managed 409 ⑤ overview Op.and ⑥ job_title 마이그레이션 금지 ⑦ personProfile.js·/mail-compose 금지.
+- 비차단: member:updated 신호 + 듣기 · 폰 EmailLink 글자 자체가 링크 · ClientList 필터 상태·`?client=` 유지.
+- 구현 순서: 1 이메일 일치 → 2 client_id 연결+managed 분기 → 3 프로젝트 탭 ClientAddDrawer+PersonRow → 4 EmailLink+MailPage → 5 PersonBasics 적용+member:updated → 6 ClientList+설정 탭 → 7 MemberPanel+overview → 8 (여유) 멤버로 정리.

@@ -1,5 +1,9 @@
 # Fable 게이트 대기열 → **판정 기록 보관소** (2026-10-08 부터)
 
+
+## 2026-10-22 · 멤버·고객 프로필 한 벌 + 이메일 일치 전환 (방 f9b7abaa) — 설계 **PASS**(Fable, 수정 반영 조건) · 결과 `docs/PEOPLE_PROFILE_UNIFY_DESIGN.md` «Fable 설계 판정» 절
+- 차단 7: managed 프로젝트 연결 외부 발송 · 기존 고객 연결 중복 행 · `?to=` 는 onCompose 길 · managed 409 already_member · overview Op.and · job_title 마이그레이션 금지(이미 있음) · personProfile.js·/mail-compose 금지.
+
 ## 2026-10-22 · 배포 직후 수정 c5704757(+1d0e4b96·1cf4858e) 사후 완료 검증 (배포 방 a462fbb2) — **PASS**(Fable, Irene 지시로 배포 뒤)
 - 메일 읽음 바닥: «처음 한 번» 을 칸 존재가 아니라 «채워진 행 0» 으로 — 배포가 sync-database 로 칸을 먼저 만들어 운영 안 읽음 5335/5379 였다. 17:14 재배포 로그 바닥 3694 · 안 읽음 1647/5385. 16:27~17:14 창은 옛 공용 읽음이 47분 더 적용된 것(새 메일은 unread_count+1 이라 안 잡힘) — 허용. 커서와 충돌 없음(GREATEST) · 멱등. 범위 migrate-*.js 9개 중 같은 패턴은 이것 하나.
 - can_edit = PUT 과 같은 assertMember ∧ canEditPost · 누수 없음. deploy-planq.sh 빌드 앞당김·heavy-task-gate·종료 코드·재시도 문제 없음.
