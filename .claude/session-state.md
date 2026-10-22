@@ -7,6 +7,7 @@
 ### 나중에 — Fable 대기: 서명 요청 뒤 문서 고치기 «회차 닫기» (방 1f0b2f16 · 2026-10-22 · [Opus]) · 한도가 풀리면(상황판 Fable 대기) · 그때 docs/SIGNATURE_REVISE_ROUND_DESIGN.md 2절 D1~D7 Fable 설계 판정 → 판정대로 구현(signatureCore.closeRound 한 문 · status ENUM superseded 마이그 · signRoundWhere·payrollContracts·projectStageEngine·projects 거래 탭·화면 visible 반영 · 문서 서명 진행 칸 «고쳐서 다시 보내기») → 3절 검증
 - Irene 답: «권고대로 진행해 줘»(② — 고객 수정 요청이 오면 같은 문서에서 고쳐 다시 보냄, 우리 서명도 다시).
 - 구현 0 — 서명 증빙 규칙 변경이라 설계 Fable 필수, Fable 429.
+- 10-22 Irene 추가: «수정요청도 들어오고 하게 잘 프로세스 점검해줘» → dev 실측(설계 1-b 절, 문서 4386 [확인용]): 거절 뒤 본문 409·우리 서명 취소 400 · 요청 보낸 본인 알림 0건 · 알림에 사유 없음 · 확인필요 owner 만 · 고객 화면에 «수정 요청» 길 없음 → D8~D10 으로 같은 판정에 묶음(상황판 fid fwmvitbh3l, 11:38 KL 뒤).
 
 ### 답 기다림 (이전): 서명 진행 중 문서 수정 규칙 (방 1f0b2f16 · 2026-10-22 · [Opus]) · 무엇·왜·답이 오면
 - 원문: «나만 서명했는데 고객이 수정요청하면 수정할 수 있어? 보내는 사람 서명 말고 다른 사람 서명 전에는 문서 서명 가능하지? 이후는 안되는 거고. 그치? 어떤 상태야?»
