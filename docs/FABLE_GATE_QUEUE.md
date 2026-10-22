@@ -1,5 +1,14 @@
 # Fable 게이트 대기열 → **판정 기록 보관소** (2026-10-08 부터)
 
+## 2026-10-22 · 배포 직후 수정 c5704757(+1d0e4b96·1cf4858e) 사후 완료 검증 (배포 방 a462fbb2) — **PASS**(Fable, Irene 지시로 배포 뒤)
+- 메일 읽음 바닥: «처음 한 번» 을 칸 존재가 아니라 «채워진 행 0» 으로 — 배포가 sync-database 로 칸을 먼저 만들어 운영 안 읽음 5335/5379 였다. 17:14 재배포 로그 바닥 3694 · 안 읽음 1647/5385. 16:27~17:14 창은 옛 공용 읽음이 47분 더 적용된 것(새 메일은 unread_count+1 이라 안 잡힘) — 허용. 커서와 충돌 없음(GREATEST) · 멱등. 범위 migrate-*.js 9개 중 같은 패턴은 이것 하나.
+- can_edit = PUT 과 같은 assertMember ∧ canEditPost · 누수 없음. deploy-planq.sh 빌드 앞당김·heavy-task-gate·종료 코드·재시도 문제 없음.
+- 비차단: N1 첫 실행 바닥 0행 환경은 다음 배포마다 다시 깐다(영속 표식 필요 — 운영·dev 해당 없음) · N2 can_edit 은 서명 잠금을 안 본다(의도) · N3 서명 패널 onOpenEditor 는 can_edit 미확인(서버가 막음) · N4 재시도 경고 문구.
+
+## 2026-10-22 · 휴가 종류 마이그레이션 17ea84a5 (배포 방 a462fbb2) — **PASS**(Fable)
+- sync-database 가 slot 보다 먼저 leave_grants.leave_type_id 를 NOT NULL+FK 로 추가(기존 2행 0) → 백필·검증 술어 UNFILLED(NULL 또는 이 워크스페이스 종류 아님). 재배포 정상(annual 2/3).
+- 비차단(반영): 주석 거짓 «순서 옮겼다» 정정 7a4ff0ef. 남김: 운영 leave_types FK 에 ON DELETE 절 없음(sync 생성 · 물리 삭제 경로 0이라 실해 없음) · sync-database 실패가 배포 출력 tail -20 에 가려진다.
+
 ## 2026-10-22 · 공용 메일 멤버별 읽음 · 답변 담당 → 업무 완료 검증 (방 255c2316) — **FAIL**(차단 2) → 재판정 **PASS**(Fable)
 - 1차 차단: C8 요청 답변 업무가 요청자 자동 컨펌 때문에 담당자 답장해도 안 닫힘 → 메일 답변 업무만 자동 컨펌자 없음(createTask opts.autoReviewer:false) · C9 주소 모드 목록(email_addresses.js)이 옛 공용 읽음 → unreadAttribute + 가드 mailread 보강.
 - 재판정 실측: 카나리 mailread 47/47 · 가드 양성 대조군 뒤집힘 · 독립 프로브(요청 업무 컨펌자 0 → 박개발 답장 → completed · 요청자 완료 알림 · 주소 모드 owner 1/member 0 = 전체 목록과 같음). 결정 2)~4) 맞음(발송 정지여도 훅 · 일괄 취소 · 업무 못 만들면 옛 알림).
