@@ -118,7 +118,8 @@ function normalizeFields(input) {
 
 // ─── ③ 응답 모양 ────────────────────────────────────────────────────────────
 /** 공개 응답 — 화이트리스트. id·user_id·출처·명함 이름(label)·순서·토큰은 싣지 않는다. 받은 명함 스냅샷도 이 출력이다. */
-function cardPublicView(card) {
+/** 공개 응답 — 화이트리스트. brands 는 services/brands.brandsForCard(s) 가 거른 공개 모양(id 없음)을 받는다(v2 결정 1). */
+function cardPublicView(card, brands = []) {
   const c = card.get ? card.get({ plain: true }) : card;
   return {
     name: c.name || '',
@@ -138,14 +139,21 @@ function cardPublicView(card) {
     has_photo: !!c.has_photo,
     photo_ver: c.photo_ver || 0,
     updated_at: c.updated_at || c.updatedAt || null,
+    brands: Array.isArray(brands) ? brands : [],
   };
 }
 
+/** 공개 응답 + 그 명함의 브랜드(지금 쓸 수 있는 것만) — 공개 GET·vcf·OG·보관이 같이 쓴다 */
+async function cardPublicViewWithBrands(card) {
+  const { brandsForCard } = require('./brands');
+  return cardPublicView(card, await brandsForCard(card));
+}
+
 /** 주인 응답 — 공개 응답 + 주인만 보는 것(토큰·이름·출처·공개 여부). 주인 라우트에서만. */
-function cardOwnerView(card, { linkOpen } = {}) {
+function cardOwnerView(card, { linkOpen, brands } = {}) {
   const c = card.get ? card.get({ plain: true }) : card;
   return {
-    ...cardPublicView(c),
+    ...cardPublicView(c, brands),
     id: c.id,
     label: c.label,
     source_business_id: c.source_business_id || null,
@@ -227,7 +235,7 @@ async function prefillValues(userId, businessId) {
   if (businessId) {
     member = await BusinessMember.findOne({ where: { user_id: userId, business_id: businessId, removed_at: null, role: PREFILL_ROLES } });
     if (!member) throw new CardError('not_member', 403);
-    biz = await Business.findByPk(businessId, { attributes: ['id', 'name', 'brand_name', 'address', 'phone', 'website'] });
+    biz = await Business.findByPk(businessId, { attributes: ['id', 'name', 'legal_name', 'address', 'phone', 'website'] });
     if (member.department_id && Department) dept = await Department.findOne({ where: { id: member.department_id, business_id: businessId }, attributes: ['name'] });
     if (!dept && member.team_id && Team) dept = await Team.findOne({ where: { id: member.team_id, business_id: businessId }, attributes: ['name'] });
   }
@@ -236,7 +244,8 @@ async function prefillValues(userId, businessId) {
     name_en: enOf(member && member.name_localized) || enOf(user.name_localized),
     job_title: (member && member.job_title) || user.job_title,
     department: dept ? dept.name : null,
-    company: biz ? (biz.brand_name || biz.name) : user.organization,
+    // 회사 칸 = 법인명(v2 결정 1 — 브랜드는 따로 고른다. 옛 brand_name 으로 채우던 것이 회사·브랜드가 섞이는 출발점이었다)
+    company: biz ? (biz.legal_name || biz.name) : user.organization,
     intro: (member && member.expertise) || user.expertise,
     mobile: user.phone,
     phone: biz ? biz.phone : null,
@@ -280,7 +289,9 @@ function toVcard(view, { photo, url } = {}) {
   // 한국어 이름은 성/이름을 가르지 않는다 — 통째로 FN·N 의 이름 칸
   const lines = ['BEGIN:VCARD', 'VERSION:3.0', `N:;${vEsc(name)};;;`, `FN:${vEsc(name)}`];
   if (v.name_en) lines.push(`X-PHONETIC-FIRST-NAME:${vEsc(v.name_en)}`, `NICKNAME:${vEsc(v.name_en)}`);
-  if (v.company || v.department) lines.push(`ORG:${vEsc(v.company || '')}${v.department ? `;${vEsc(v.department)}` : ''}`);
+  const firstBrand = Array.isArray(v.brands) && v.brands[0] ? v.brands[0].name : '';
+  const org = v.company || firstBrand;
+  if (org || v.department) lines.push(`ORG:${vEsc(org || '')}${v.department ? `;${vEsc(v.department)}` : ''}`);
   if (v.job_title) lines.push(`TITLE:${vEsc(v.job_title)}`);
   if (v.mobile) lines.push(`TEL;TYPE=CELL:${vEsc(v.mobile)}`);
   if (v.phone) lines.push(`TEL;TYPE=WORK,VOICE:${vEsc(v.phone)}`);
@@ -288,6 +299,7 @@ function toVcard(view, { photo, url } = {}) {
   if (v.email) lines.push(`EMAIL;TYPE=INTERNET:${vEsc(v.email)}`);
   if (v.website) lines.push(`URL:${vEsc(v.website)}`);
   for (const l of v.links || []) lines.push(`URL:${vEsc(l.url)}`);
+  for (const b of v.brands || []) for (const l of b.links || []) if (l.kind === 'website') lines.push(`URL:${vEsc(l.url)}`);
   if (url) lines.push(`URL;TYPE=PlanQ:${vEsc(url)}`);
   if (v.address) lines.push(`ADR;TYPE=WORK:;;${vEsc(v.address)};;;;`);
   if (v.intro) lines.push(`NOTE:${vEsc(v.intro)}`);
@@ -328,7 +340,7 @@ async function processPhoto(buf) {
 
 module.exports = {
   TOKEN_RE, MAX_CARDS, MAX_SAVED, CARD_DIR, SAVED_DIR, CONTENT_FIELDS,
-  CardError, newToken, normalizeFields, cardPublicView, cardOwnerView, closedReason, OWNER_ATTRS,
+  CardError, newToken, normalizeFields, cardPublicView, cardPublicViewWithBrands, cardOwnerView, closedReason, OWNER_ATTRS, oneLine, normUrl,
   resolvePublicCard, resolveOpenById, prefillSources, prefillValues,
   toVcard, vcardFilename, cardPhotoPath, savedPhotoPath, ensureDirs, readIfExists, unlinkQuiet, processPhoto,
 };

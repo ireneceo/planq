@@ -9,6 +9,7 @@
 //   - 클릭 → 패널 오픈 / 배경 클릭 또는 Esc 닫힘
 //   - portal 없이 anchor 옆 absolute (간단)
 //   - 모바일 (≤640): 화면 중앙 bottom sheet 형태
+import { useHasMemberCard } from '../NameCard/NameCardViewDrawer';
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
@@ -111,15 +112,18 @@ interface Props {
   businessId: number;
   anchorEl: HTMLElement | null;
   onClose: () => void;
+  /** 멤버의 «워크스페이스 기본 명함» 열기 — 있으면 [명함 보기] 를 그린다(드로어는 부르는 쪽이 들고 있다 — 팝오버는 닫히며 사라진다) */
+  onOpenCard?: (userId: number) => void;
 }
 
-const UserInfoPopover: React.FC<Props> = ({ open, userId, businessId, anchorEl, onClose }) => {
+const UserInfoPopover: React.FC<Props> = ({ open, userId, businessId, anchorEl, onClose, onOpenCard }) => {
   const { t, i18n } = useTranslation('qtalk');
   // D1 후속 — 부서/팀 이름 현지화 (en 이면 name_en, 없으면 name fallback)
   const orgName = (u?: OrgUnit | null) => u ? ((i18n.language?.startsWith('en') && u.name_en) ? u.name_en : u.name) : '';
   const [info, setInfo] = useState<UserInfo | null>(null);
   const [loading, setLoading] = useState(false);
   const popoverRef = useRef<HTMLDivElement | null>(null);
+  const hasCard = useHasMemberCard(businessId, userId, open && !!onOpenCard && info?.scope === 'member');
 
   useEffect(() => {
     if (!open) return;
@@ -255,6 +259,13 @@ const UserInfoPopover: React.FC<Props> = ({ open, userId, businessId, anchorEl, 
                 {info.scope === 'client'
                   ? t('userInfo.openClientProfile', '고객 프로필 열기')
                   : t('userInfo.openMemberProfile', '멤버 프로필 열기')}
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><polyline points="9 18 15 12 9 6" /></svg>
+              </ProfileLinkBtn>
+            )}
+            {/* 워크스페이스 기본 명함(docs/NAME_CARD_V2_DESIGN.md 결정 3) — 있을 때만 */}
+            {hasCard && onOpenCard && (
+              <ProfileLinkBtn type="button" data-testid="userinfo-open-card" onClick={() => { onOpenCard(userId); onClose(); }}>
+                {t('userInfo.openCard', '명함 보기')}
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><polyline points="9 18 15 12 9 6" /></svg>
               </ProfileLinkBtn>
             )}

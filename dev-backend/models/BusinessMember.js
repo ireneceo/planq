@@ -72,6 +72,9 @@ BusinessMember.init({
     allowNull: true,
     defaultValue: null,
   },
+  // 이 워크스페이스 기본 명함(내 명함 중 하나) — 동료가 사람 팝오버·멤버 상세·조직도에서 본다(docs/NAME_CARD_V2_DESIGN.md 결정 3).
+  //   운영 칸은 scripts/migrate-name-card-default.js(FK name_cards ON DELETE SET NULL). 모델이 SELECT 하므로 배포 슬롯이 먼저 돈다.
+  default_card_id: { type: DataTypes.INTEGER, allowNull: true },
   // 기본 역할 — 프로젝트에 넣을 때 미리 채워진다. 워크스페이스 역할 사전(member_roles)과 같은 목록(docs/MEMBER_ROLES_DESIGN.md)
   default_role: {
     type: DataTypes.STRING(50),

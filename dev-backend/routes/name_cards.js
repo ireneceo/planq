@@ -21,7 +21,7 @@ const photoUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize
 
 router.use(authenticateToken);
 
-const fail = (res, next, e) => (e instanceof nc.CardError ? errorResponse(res, e.code, e.status) : next(e));
+const fail = (res, next, e) => ((e instanceof nc.CardError || e instanceof require('../services/brands').BrandError) ? errorResponse(res, e.code, e.status) : next(e));
 
 function signal(req, kind) {
   try {
@@ -38,8 +38,28 @@ function logAudit(req, action, card, extra) {
 async function ownerRow(userId) {
   return User.findByPk(userId, { attributes: nc.OWNER_ATTRS });
 }
-function ownerView(card, owner) {
-  return { ...nc.cardOwnerView(card, { linkOpen: !nc.closedReason(card, owner) }), closed_reason: nc.closedReason(card, owner), url: `${APP_URL}/c/${card.public_token}` };
+function ownerView(card, owner, extra = {}) {
+  return {
+    ...nc.cardOwnerView(card, { linkOpen: !nc.closedReason(card, owner), brands: extra.brands || [] }),
+    closed_reason: nc.closedReason(card, owner), url: `${APP_URL}/c/${card.public_token}`,
+    brand_ids: extra.brand_ids || [],
+    // 이 명함을 «기본 명함» 으로 건 워크스페이스(v2 결정 3) — [{business_id}]
+    default_for: extra.default_for || [],
+  };
+}
+/** 내 기본 명함 지정 — Map<cardId, business_id[]> (활성 멤버십만) */
+async function defaultsOf(userId) {
+  const { BusinessMember } = require('../models');
+  const rows = await BusinessMember.findAll({ where: { user_id: userId, removed_at: null, role: ['owner', 'admin', 'member'] }, attributes: ['business_id', 'default_card_id'], raw: true });
+  const m = new Map();
+  for (const r of rows) if (r.default_card_id) { if (!m.has(r.default_card_id)) m.set(r.default_card_id, []); m.get(r.default_card_id).push(r.business_id); }
+  return m;
+}
+/** 한 장 — 브랜드(공개 모양)·고른 브랜드 id·기본 지정까지 */
+async function fullOwnerView(card, userId) {
+  const brandsSvc = require('../services/brands');
+  const [owner, brands, brandIds, defs] = await Promise.all([ownerRow(userId), brandsSvc.brandsForCard(card), brandsSvc.brandIdsForCard(card), defaultsOf(userId)]);
+  return ownerView(card, owner, { brands, brand_ids: brandIds, default_for: defs.get(card.id) || [] });
 }
 async function myCard(req, id) {
   const card = await NameCard.findOne({ where: { id: Number(id) || 0, user_id: req.user.id } });
@@ -53,10 +73,13 @@ async function myCard(req, id) {
 function fingerprint(view) {
   const v = { ...(view || {}) };
   delete v.updated_at;
+  // v2 이전 보관본에는 brands 칸이 없다 — 빈 목록과 같게 본다(안 그러면 옛 보관본이 전부 «바뀜» 으로 뜬다)
+  if (!Array.isArray(v.brands)) v.brands = [];
   const norm = (x) => (Array.isArray(x) ? x.map(norm)
     : (x && typeof x === 'object') ? Object.keys(x).sort().reduce((o, k) => { o[k] = norm(x[k]); return o; }, {}) : x);
   return JSON.stringify(norm(v));
 }
+/** source = 원본의 지금 공개 모양(브랜드 포함, 열려 있을 때만) — openSources·cardPublicViewWithBrands */
 function savedView(row, source) {
   const r = row.get ? row.get({ plain: true }) : row;
   const alive = !!source;
@@ -69,7 +92,7 @@ function savedView(row, source) {
     updated_at: r.updated_at || r.updatedAt,
     // 원본이 지금 열려 있는가 · 보관한 뒤 바뀌었는가 — 토큰은 싣지 않는다(Fable 차단2)
     source_alive: alive,
-    source_changed: alive && fingerprint(nc.cardPublicView(source)) !== fingerprint(r.snapshot),
+    source_changed: alive && fingerprint(source) !== fingerprint(r.snapshot),
   };
 }
 /** 보관 행들의 원본 중 지금 열린 것만 — 한 번에 읽는다(목록에서 N번 판정하지 않는다) */
@@ -80,7 +103,9 @@ async function openSources(rows) {
   const owners = await User.findAll({ where: { id: [...new Set(cards.map((c) => c.user_id))] }, attributes: nc.OWNER_ATTRS });
   const ownerById = new Map(owners.map((o) => [o.id, o]));
   const out = new Map();
-  for (const c of cards) if (!nc.closedReason(c, ownerById.get(c.user_id))) out.set(c.id, c);
+  const openCards = cards.filter((c) => !nc.closedReason(c, ownerById.get(c.user_id)));
+  const brandMap = await require('../services/brands').brandsForCards(openCards);
+  for (const c of openCards) out.set(c.id, nc.cardPublicView(c, brandMap.get(c.id) || []));
   return out;
 }
 async function writeSavedPhoto(savedId, sourceCard) {
@@ -110,7 +135,7 @@ router.post('/saved', ...perUserDaily('card-save', { perMin: 30, perDay: 500 }),
     if (!card) return errorResponse(res, 'not_found', 404);
     if (card.user_id === req.user.id) return errorResponse(res, 'own_card', 400);
     let row = await SavedNameCard.findOne({ where: { user_id: req.user.id, source_card_id: card.id } });
-    const snapshot = nc.cardPublicView(card);
+    const snapshot = await nc.cardPublicViewWithBrands(card);
     if (row) {
       await row.update({ snapshot, source_updated_at: card.updatedAt });
     } else {
@@ -121,7 +146,7 @@ router.post('/saved', ...perUserDaily('card-save', { perMin: 30, perDay: 500 }),
     const hasPhoto = await writeSavedPhoto(row.id, card);
     if (hasPhoto !== !!row.has_photo) await row.update({ has_photo: hasPhoto });
     signal(req, 'saved');
-    return successResponse(res, savedView(row, card));
+    return successResponse(res, savedView(row, snapshot));
   } catch (e) { return fail(res, next, e); }
 });
 
@@ -151,9 +176,10 @@ router.post('/saved/:sid/refresh', async (req, res, next) => {
     const card = await nc.resolveOpenById(row.source_card_id);
     if (!card) return errorResponse(res, 'source_closed', 409);
     const hasPhoto = await writeSavedPhoto(row.id, card);
-    await row.update({ snapshot: nc.cardPublicView(card), source_updated_at: card.updatedAt, has_photo: hasPhoto });
+    const view = await nc.cardPublicViewWithBrands(card);
+    await row.update({ snapshot: view, source_updated_at: card.updatedAt, has_photo: hasPhoto });
     signal(req, 'saved');
-    return successResponse(res, savedView(row, card));
+    return successResponse(res, savedView(row, view));
   } catch (e) { return fail(res, next, e); }
 });
 
@@ -217,7 +243,11 @@ router.get('/', async (req, res, next) => {
       NameCard.findAll({ where: { user_id: req.user.id }, order: [['sort_order', 'ASC'], ['id', 'ASC']] }),
       ownerRow(req.user.id),
     ]);
-    return successResponse(res, cards.map((c) => ownerView(c, owner)));
+    const brandsSvc = require('../services/brands');
+    const [brandMap, defs, idLists] = await Promise.all([
+      brandsSvc.brandsForCards(cards), defaultsOf(req.user.id), Promise.all(cards.map((c) => brandsSvc.brandIdsForCard(c))),
+    ]);
+    return successResponse(res, cards.map((c, i) => ownerView(c, owner, { brands: brandMap.get(c.id) || [], brand_ids: idLists[i], default_for: defs.get(c.id) || [] })));
   } catch (e) { return fail(res, next, e); }
 });
 
@@ -250,14 +280,19 @@ router.post('/', ...perUserDaily('card-create', { perMin: 20, perDay: 100 }), as
       public_token: nc.newToken(), is_public: true, sort_order: (Number.isFinite(maxOrder) ? maxOrder : -1) + 1,
     });
     signal(req, 'cards');
-    return successResponse(res, ownerView(card, await ownerRow(req.user.id)));
+    return successResponse(res, await fullOwnerView(card, req.user.id));
   } catch (e) { return fail(res, next, e); }
+});
+
+// 명함에 고를 수 있는 브랜드 — 개인 + 내가 멤버인 워크스페이스 것(v2 결정 1)
+router.get('/brand-options', async (req, res, next) => {
+  try { return successResponse(res, await require('../services/brands').usableBrandsFor(req.user.id)); } catch (e) { return fail(res, next, e); }
 });
 
 router.get('/:id', async (req, res, next) => {
   try {
     const card = await myCard(req, req.params.id);
-    return successResponse(res, ownerView(card, await ownerRow(req.user.id)));
+    return successResponse(res, await fullOwnerView(card, req.user.id));
   } catch (e) { return fail(res, next, e); }
 });
 
@@ -273,9 +308,40 @@ router.patch('/:id', async (req, res, next) => {
       if (v !== !!card.is_public) { patch.is_public = v; publishChanged = true; }
     }
     if (Object.keys(patch).length) await card.update(patch);
+    // 브랜드 고르기(v2 결정 1) — 순서 = 표시 순서. 남의 워크스페이스 brand_id 는 400(services/brands.canUseBrand)
+    if (req.body && Object.prototype.hasOwnProperty.call(req.body, 'brand_ids')) await require('../services/brands').setCardBrands(card, req.body.brand_ids);
     if (publishChanged) logAudit(req, card.is_public ? 'card.publish' : 'card.unpublish', card);
     signal(req, 'cards');
-    return successResponse(res, ownerView(card, await ownerRow(req.user.id)));
+    return successResponse(res, await fullOwnerView(card, req.user.id));
+  } catch (e) { return fail(res, next, e); }
+});
+
+// 워크스페이스 기본 명함(v2 결정 3) — 내 명함 ∧ 그 워크스페이스 활성 멤버(owner/admin/member)일 때만.
+//   기본 명함은 공개 스위치와 관계없이 그 워크스페이스 멤버에게 보인다(링크·QR 은 공개를 켠 명함만 열린다).
+async function myMembership(userId, businessId) {
+  const { BusinessMember } = require('../models');
+  const m = await BusinessMember.findOne({ where: { user_id: userId, business_id: Number(businessId) || 0, removed_at: null, role: ['owner', 'admin', 'member'] } });
+  if (!m) throw new nc.CardError('not_member', 403);
+  return m;
+}
+router.put('/:id/default', async (req, res, next) => {
+  try {
+    const card = await myCard(req, req.params.id);
+    const m = await myMembership(req.user.id, req.body && req.body.business_id);
+    await m.update({ default_card_id: card.id });
+    logAudit(req, 'card.set_default', card, { business_id: m.business_id });
+    signal(req, 'cards');
+    return successResponse(res, await fullOwnerView(card, req.user.id));
+  } catch (e) { return fail(res, next, e); }
+});
+router.delete('/:id/default', async (req, res, next) => {
+  try {
+    const card = await myCard(req, req.params.id);
+    const m = await myMembership(req.user.id, req.query.business_id);
+    if (Number(m.default_card_id) === card.id) await m.update({ default_card_id: null });
+    logAudit(req, 'card.unset_default', card, { business_id: m.business_id });
+    signal(req, 'cards');
+    return successResponse(res, await fullOwnerView(card, req.user.id));
   } catch (e) { return fail(res, next, e); }
 });
 
@@ -292,7 +358,7 @@ router.post('/:id/refill', async (req, res, next) => {
     patch.source_business_id = bizId;
     await card.update(patch);
     signal(req, 'cards');
-    return successResponse(res, ownerView(card, await ownerRow(req.user.id)));
+    return successResponse(res, await fullOwnerView(card, req.user.id));
   } catch (e) { return fail(res, next, e); }
 });
 
@@ -303,7 +369,7 @@ router.post('/:id/rotate-token', async (req, res, next) => {
     await card.update({ public_token: nc.newToken() });
     logAudit(req, 'card.rotate_token', card);
     signal(req, 'cards');
-    return successResponse(res, ownerView(card, await ownerRow(req.user.id)));
+    return successResponse(res, await fullOwnerView(card, req.user.id));
   } catch (e) { return fail(res, next, e); }
 });
 
@@ -330,8 +396,11 @@ router.post('/:id/duplicate', ...perUserDaily('card-create', { perMin: 20, perDa
       const buf = nc.readIfExists(nc.cardPhotoPath(plain.id));
       if (buf) { nc.ensureDirs(); fs.writeFileSync(nc.cardPhotoPath(card.id), buf); await card.update({ has_photo: true, photo_ver: 1 }); }
     }
+    // 고른 브랜드도 따라온다(지금 쓸 수 있는 것만 — 같은 판정)
+    const srcBrandIds = await require('../services/brands').brandIdsForCard(src);
+    if (srcBrandIds.length) await require('../services/brands').setCardBrands(card, srcBrandIds);
     signal(req, 'cards');
-    return successResponse(res, ownerView(card, await ownerRow(req.user.id)));
+    return successResponse(res, await fullOwnerView(card, req.user.id));
   } catch (e) { return fail(res, next, e); }
 });
 
@@ -366,7 +435,7 @@ router.post('/:id/photo', ...perUserDaily('card-photo', { perMin: 10, perDay: 10
       fs.writeFileSync(nc.cardPhotoPath(card.id), jpg);
       await card.update({ has_photo: true, photo_ver: (card.photo_ver || 0) + 1 });
       signal(req, 'cards');
-      return successResponse(res, ownerView(card, await ownerRow(req.user.id)));
+      return successResponse(res, await fullOwnerView(card, req.user.id));
     } catch (e) { return fail(res, next, e); }
   });
 
@@ -377,7 +446,7 @@ router.delete('/:id/photo', async (req, res, next) => {
     nc.unlinkQuiet(nc.cardPhotoPath(card.id));
     await card.update({ has_photo: false, photo_ver: (card.photo_ver || 0) + 1 });
     signal(req, 'cards');
-    return successResponse(res, ownerView(card, await ownerRow(req.user.id)));
+    return successResponse(res, await fullOwnerView(card, req.user.id));
   } catch (e) { return fail(res, next, e); }
 });
 

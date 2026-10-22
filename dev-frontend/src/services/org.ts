@@ -21,6 +21,8 @@ export interface OrgMemberRow {
   job_title: string | null;
   active: number;
   overdue: number;
+  /** 이 워크스페이스 기본 명함이 있나(docs/NAME_CARD_V2_DESIGN.md 결정 3) */
+  has_card?: boolean;
 }
 export interface OrgDeptStat { id: number | null; name: string | null; color: string | null; member_count: number; active: number; }
 export interface OrgOverview {

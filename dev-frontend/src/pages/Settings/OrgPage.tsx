@@ -1,5 +1,6 @@
 // Q조직 (Workspace Org) D1 — 조직 관리. 부서/팀 + 멤버 소속·직책 배정.
 //   owner/admin. 부서 카드(색·부서장·멤버수·팀) + 멤버 배정 테이블(AutoSave).
+import NameCardViewDrawer, { MemberCardButton } from '../../components/NameCard/NameCardViewDrawer';
 import { useCallback, useEffect, useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
@@ -37,6 +38,8 @@ const OrgPage = () => {
   const [teamDraft, setTeamDraft] = useState<Record<number, string>>({});
   const [jobDraft, setJobDraft] = useState<Record<number, string>>({});
   const [assign, setAssign] = useState<Record<number, { department_id: number | null; team_id: number | null; job_title: string | null }>>({});
+  const [hasCard, setHasCard] = useState<Record<number, boolean>>({});   // 기본 명함 있는 사람(조직도 [명함] 버튼)
+  const [cardUserId, setCardUserId] = useState<number | null>(null);
 
   const load = useCallback(() => {
     if (!bizId) return;
@@ -48,6 +51,7 @@ const OrgPage = () => {
         const a: Record<number, { department_id: number | null; team_id: number | null; job_title: string | null }> = {};
         (ov.byMember || []).forEach((bm) => { a[bm.user_id] = { department_id: bm.department_id, team_id: bm.team_id, job_title: bm.job_title }; });
         setAssign(a);
+        setHasCard(Object.fromEntries((ov.byMember || []).map((bm) => [bm.user_id, !!bm.has_card])));
       })
       .catch((e) => setErr(mapApiError(e, tErr)))
       .finally(() => setLoading(false));
@@ -254,6 +258,7 @@ const OrgPage = () => {
                     <MemberName>
                       {displayName(m.user, i18n.language) || `#${m.user_id}`}
                       {savedRows[m.user_id!] && <SavedBadge aria-live="polite">✓</SavedBadge>}
+                      {bizId && hasCard[m.user_id!] && <MemberCardButton businessId={bizId} userId={m.user_id!} known onOpen={setCardUserId} />}
                     </MemberName>
                     <PlanQSelect size="sm" isClearable={false} isSearchable={false}
                       value={deptOptions.find((o) => o.value === String(c.department_id || ''))}
@@ -276,6 +281,7 @@ const OrgPage = () => {
         </>
       )}
 
+      {bizId && cardUserId && <NameCardViewDrawer businessId={bizId} userId={cardUserId} onClose={() => setCardUserId(null)} />}
       <ConfirmDialog
         isOpen={!!confirmDeptDel}
         onClose={() => setConfirmDeptDel(null)}

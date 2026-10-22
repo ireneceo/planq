@@ -331,8 +331,9 @@ async function ogMetaMiddleware(req, res, next) {
       const nc = require('../services/nameCard');
       const card = await nc.resolvePublicCard(cm[1]);
       if (card) {
-        const v = nc.cardPublicView(card);
-        const title = [v.name, v.job_title, v.company].filter(Boolean).join(' · ');
+        const v = await nc.cardPublicViewWithBrands(card);
+        // 제목 «이름 · 직책 · 첫 브랜드(없으면 회사)» (v2 결정 1)
+        const title = [v.name, v.job_title, (v.brands[0] && v.brands[0].name) || v.company].filter(Boolean).join(' · ');
         const desc = (v.intro || '').replace(/\s+/g, ' ').trim().slice(0, 120);
         data = { title, description: desc || [v.department, v.company].filter(Boolean).join(' · '), image: ogImage(settings), siteName: settings?.brand || 'PlanQ' };
       }

@@ -1407,7 +1407,13 @@ function defineSecretTests() {
       if (raw.includes(label)) throw new Error('공개 응답에 명함 이름(주인만 보는 이름)이 있다');
       // 양성 대조군 — 보여야 할 값은 그대로 온다(빈 응답·404 로 거짓 통과하는 것을 막는다)
       if (!pub.data || pub.data.name !== '검사 명함' || pub.data.company !== '검사 회사') throw new Error('공개 응답에 이름·회사가 없다 — 응답이 비었을 가능성(거짓 통과)');
-      return '공개 응답 — 토큰·user_id·명함 이름 0 · 이름·회사 유지';
+      // v2 브랜드(docs/NAME_CARD_V2_DESIGN.md 결정 1) — 워크스페이스 기본 브랜드를 붙이고 다시 본다: 브랜드 id·워크스페이스 id·종류 칸 0
+      require('child_process').execSync(`node -e "require('dotenv').config();const M=require('./models');(async()=>{const b=await M.Brand.findOne({where:{owner_kind:'business',business_id:${Number(ctx.businessId)},is_default:true}});if(b)await M.NameCardBrand.create({card_id:${id},brand_id:b.id,sort_order:0});process.exit(0)})().catch(e=>{console.error(e.message);process.exit(1)});"`, { cwd: '/opt/planq/dev-backend', encoding: 'utf8', timeout: 30000 });
+      const pub2 = await http('GET', `${BACKEND}/api/name-cards/public/${tok}`);
+      const raw2 = JSON.stringify(pub2);
+      if (!pub2.data || !Array.isArray(pub2.data.brands) || pub2.data.brands.length !== 1) throw new Error('브랜드를 붙였는데 공개 응답 brands 가 1개가 아니다 — 대조군 실패');
+      if (/"(owner_kind|business_id|brand_id|is_default)"/.test(raw2) || /"id"\s*:/.test(JSON.stringify(pub2.data.brands))) throw new Error('공개 응답 brands 에 id·워크스페이스·종류 칸이 있다');
+      return '공개 응답 — 토큰·user_id·명함 이름 0 · 이름·회사 유지 · 브랜드 1(id 칸 0)';
     } finally {
       require('child_process').execSync(`node -e "require('dotenv').config();const {sequelize}=require('./config/database');(async()=>{await sequelize.query('DELETE FROM name_cards WHERE id=${id} AND label=\\'${label}\\'');${was ? '' : `await sequelize.query('UPDATE users SET email_verified_at=NULL WHERE id=${uid}');`}process.exit(0)})();"`, { cwd: '/opt/planq/dev-backend', encoding: 'utf8', timeout: 30000 });
     }

@@ -175,14 +175,19 @@ router.put('/:businessId', authenticateToken, checkBusinessAccess, async (req, r
     if (!business) return errorResponse(res, 'Workspace not found', 404);
 
     const updates = {};
-    const allowed = ['brand_name', 'brand_logo_url', 'brand_color', 'name', 'logo_url'];
+    const allowed = ['brand_color', 'logo_url'];
     for (const k of allowed) if (k in req.body) updates[k] = req.body[k];
-    // name 이 오면 brand_name 에도 반영 (legacy 호환)
-    if (updates.name && !updates.brand_name) updates.brand_name = updates.name;
+    // 이름·로고는 기본 브랜드의 것 — services/brands 가 브랜드 행과 옛 칸(사본)을 같이 쓴다(docs/NAME_CARD_V2_DESIGN.md 결정 2)
+    const legacy = {};
+    if ('brand_name' in req.body || 'name' in req.body) legacy.brand_name = req.body.brand_name || req.body.name;
+    if ('brand_logo_url' in req.body) legacy.brand_logo_url = req.body.brand_logo_url;
 
     const bizBefore = business.get({ plain: true, clone: true });
-    await business.update(updates);
-    const bizDiff = auditDiff(bizBefore, business.get({ plain: true }), Object.keys(updates));
+    try { if (Object.keys(legacy).length) await require('../services/brands').updateDefaultFromLegacy(business.id, legacy, { actorId: req.user.id }); }
+    catch (e) { if (e.code) return errorResponse(res, e.code, e.status || 400); throw e; }
+    if (Object.keys(updates).length) await business.update(updates);
+    await business.reload();
+    const bizDiff = auditDiff(bizBefore, business.get({ plain: true }), [...Object.keys(updates), 'brand_name', 'name', 'brand_logo_url']);
     if (bizDiff) logAudit(req, { action: 'business.update', targetType: 'business', targetId: business.id, businessId: business.id, ...bizDiff });
     successResponse(res, business);
   } catch (error) {
@@ -221,7 +226,8 @@ router.post('/:businessId/symbol',
           fs.promises.unlink(prevPath).catch(() => null);
         }
       }
-      await business.update({ brand_logo_url: url });
+      // 기본 브랜드 로고 바꾸기 — 브랜드 행과 옛 칸(사본)을 services/brands 가 같이 쓴다
+      await require('../services/brands').updateDefaultFromLegacy(business.id, { brand_logo_url: url }, { actorId: req.user.id });
       await createAuditLog({
         userId: req.user.id, businessId: business.id,
         action: 'business.symbol_upload',
@@ -277,26 +283,20 @@ router.put('/:businessId/brand', authenticateToken, checkBusinessAccess, async (
       brand_color: business.brand_color
     };
 
-    const updates = {};
+    // 이름·영문 이름·소개·로고 = 기본 브랜드(정본 brands) — services/brands 가 브랜드 행과 옛 칸(사본)을 같이 쓴다(결정 2).
+    //   색(brand_color)은 워크스페이스 테마라 브랜드 속성이 아니다 — 그대로 businesses 에.
+    const legacy = {};
     if (brand_name !== undefined) {
       if (!brand_name || String(brand_name).trim().length === 0) {
         return errorResponse(res, 'Brand name cannot be empty', 400);
       }
-      updates.brand_name = String(brand_name).trim().slice(0, 200);
-      updates.name = updates.brand_name; // legacy 동기
+      legacy.brand_name = brand_name;
     }
-    if (brand_name_en !== undefined) {
-      updates.brand_name_en = brand_name_en ? String(brand_name_en).trim().slice(0, 200) : null;
-    }
-    if (brand_tagline !== undefined) {
-      updates.brand_tagline = brand_tagline ? String(brand_tagline).slice(0, 500) : null;
-    }
-    if (brand_tagline_en !== undefined) {
-      updates.brand_tagline_en = brand_tagline_en ? String(brand_tagline_en).slice(0, 500) : null;
-    }
-    if (brand_logo_url !== undefined) {
-      updates.brand_logo_url = brand_logo_url ? String(brand_logo_url).slice(0, 500) : null;
-    }
+    if (brand_name_en !== undefined) legacy.brand_name_en = brand_name_en || null;
+    if (brand_tagline !== undefined) legacy.brand_tagline = brand_tagline || null;
+    if (brand_tagline_en !== undefined) legacy.brand_tagline_en = brand_tagline_en || null;
+    if (brand_logo_url !== undefined) legacy.brand_logo_url = brand_logo_url || null;
+    const updates = {};
     if (brand_color !== undefined) {
       if (brand_color && !/^#[0-9A-Fa-f]{3,8}$/.test(brand_color)) {
         return errorResponse(res, 'Invalid color hex', 400);
@@ -304,7 +304,11 @@ router.put('/:businessId/brand', authenticateToken, checkBusinessAccess, async (
       updates.brand_color = brand_color || null;
     }
 
-    await business.update(updates);
+    try { if (Object.keys(legacy).length) await require('../services/brands').updateDefaultFromLegacy(business.id, legacy, { actorId: req.user.id }); }
+    catch (e) { if (e.code) return errorResponse(res, e.code, e.status || 400); throw e; }
+    if (Object.keys(updates).length) await business.update(updates);
+    await business.reload();
+    Object.assign(updates, legacy);
 
     await createAuditLog({
       userId: req.user.id,

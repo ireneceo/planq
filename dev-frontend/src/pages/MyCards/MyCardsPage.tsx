@@ -23,6 +23,7 @@ import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
 import { onSocket } from '../../services/socket';
 import {
   listMyCards, listSavedCards, listPrefillSources, patchCard, deleteCard, rotateCardToken, duplicateCard, reorderCards, myCardPhotoUrl,
+  setDefaultCard, unsetDefaultCard,
   type MyCard, type SavedCard, type PrefillSource,
 } from '../../services/nameCards';
 import CardEditorDrawer from './CardEditorDrawer';
@@ -61,10 +62,16 @@ const MyCardsPage: React.FC = () => {
   useEffect(() => { listPrefillSources().then(setSources).catch(() => setSources([])); }, []);
   useVisibilityRefresh(load);
   const timer = useRef<number | null>(null);
-  useEffect(() => onSocket('namecard:changed', () => {
-    if (timer.current) window.clearTimeout(timer.current);
-    timer.current = window.setTimeout(() => { void load(); }, 250);
-  }), [load]);
+  useEffect(() => {
+    const kick = () => {
+      if (timer.current) window.clearTimeout(timer.current);
+      timer.current = window.setTimeout(() => { void load(); }, 250);
+    };
+    // 브랜드를 고치면(설정·개인) 명함에 실린 브랜드도 바뀐다 — 같이 다시 읽는다
+    const offA = onSocket('namecard:changed', kick);
+    const offB = onSocket('brand:updated', kick);
+    return () => { offA(); offB(); };
+  }, [load]);
 
   const setParam = (patch: Record<string, string | null>) => {
     const next = new URLSearchParams(params);
@@ -105,6 +112,10 @@ const MyCardsPage: React.FC = () => {
     { key: 'open', label: t('card.openPage'), onClick: () => window.open(c.url, '_blank', 'noopener'), disabled: !c.link_open },
     { key: 'pub', label: c.is_public ? t('card.turnOff') : t('card.turnOn'), onClick: () => void act(async () => upsert(await patchCard(c.id, { is_public: !c.is_public }))) },
     { key: 'rotate', label: t('card.rotate'), onClick: () => setAsk({ kind: 'rotate', card: c }) },
+    // 워크스페이스 기본 명함(v2 결정 3) — 그 워크스페이스 동료가 사람 팝오버·멤버 상세·조직도에서 이 명함을 본다
+    ...sources.map((w, i) => (c.default_for.includes(w.business_id)
+      ? { key: `undef-${w.business_id}`, label: t('defaultCard.unset', { name: w.name }), onClick: () => void act(async () => upsert(await unsetDefaultCard(c.id, w.business_id))), dividerBefore: i === 0, testId: `card-undefault-${c.id}-${w.business_id}` }
+      : { key: `def-${w.business_id}`, label: t('defaultCard.set', { name: w.name }), onClick: () => void act(async () => { await setDefaultCard(c.id, w.business_id); await load(); }), dividerBefore: i === 0, testId: `card-default-${c.id}-${w.business_id}` })),
     { key: 'dup', label: t('card.duplicate'), onClick: () => void act(async () => upsert(await duplicateCard(c.id))), dividerBefore: true },
     { key: 'up', label: t('card.moveUp'), onClick: () => void move(c, -1), disabled: idx === 0 },
     { key: 'down', label: t('card.moveDown'), onClick: () => void move(c, 1), disabled: !cards || idx === cards.length - 1 },
@@ -150,6 +161,7 @@ const MyCardsPage: React.FC = () => {
         <Grid data-testid="cards-grid">
           {(cards || []).map((c, idx) => (
             <CardTile key={c.id} card={c} active={c.id === editId} copied={copiedId === c.id}
+              defaultNames={c.default_for.map((id) => sources.find((w) => w.business_id === id)?.name).filter(Boolean) as string[]}
               onEdit={() => setParam({ card: c.id === editId ? null : String(c.id) })}
               onQr={() => setQrId(c.id)} onCopy={() => void copyLink(c)}
               menu={<OverflowMenu label={t('card.more') as string} items={menuFor(c, idx)} />} />
@@ -184,9 +196,9 @@ const MyCardsPage: React.FC = () => {
 export default MyCardsPage;
 
 const CardTile: React.FC<{
-  card: MyCard; active: boolean; copied: boolean; menu: React.ReactNode;
+  card: MyCard; active: boolean; copied: boolean; menu: React.ReactNode; defaultNames: string[];
   onEdit: () => void; onQr: () => void; onCopy: () => void;
-}> = ({ card, active, copied, menu, onEdit, onQr, onCopy }) => {
+}> = ({ card, active, copied, menu, defaultNames, onEdit, onQr, onCopy }) => {
   const { t } = useTranslation('cards');
   const photo = useAuthedImageSrc(myCardPhotoUrl(card));
   return (
@@ -196,6 +208,9 @@ const CardTile: React.FC<{
         {!card.link_open && <ClosedChip title={card.closed_reason ? (t(`card.closed.${card.closed_reason}`) as string) : undefined}>{t('card.publicOff')}</ClosedChip>}
         {menu}
       </TileHead>
+      {defaultNames.length > 0 && (
+        <DefaultChips>{defaultNames.map((n) => <DefaultChip key={n} data-testid={`card-default-chip-${card.id}`}>{t('defaultCard.chip', { name: n })}</DefaultChip>)}</DefaultChips>
+      )}
       <FaceBtn type="button" onClick={onEdit} aria-label={`${t('card.edit')} — ${card.label}`}>
         <CardFace view={card} photoSrc={photo} variant="compact" />
       </FaceBtn>
@@ -226,6 +241,11 @@ const TileLabel = styled.div`flex: 1; min-width: 0; font-size: 0.875rem; font-we
 const ClosedChip = styled.span`
   flex-shrink: 0; font-size: 0.6875rem; font-weight: 600; padding: 2px 8px; border-radius: 999px;
   background: #FFFBEB; color: #B45309; border: 1px solid #FDE68A;
+`;
+const DefaultChips = styled.div`display: flex; flex-wrap: wrap; gap: 4px; margin-top: -4px;`;
+const DefaultChip = styled.span`
+  font-size: 0.6875rem; font-weight: 600; padding: 2px 8px; border-radius: 999px;
+  background: #F0FDFA; color: #0F766E; border: 1px solid #99F6E4; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 `;
 const ClosedHint = styled.div`font-size: 0.75rem; color: #B45309;`;
 const FaceBtn = styled.button`

@@ -13,6 +13,7 @@ import ConfirmDialog from '../../components/Common/ConfirmDialog';
 import { Switch, SwitchKnob } from '../../components/Common/switchShell';
 import CardFace, { ACCENT_COLORS, DEFAULT_ACCENT } from '../../components/NameCard/CardFace';
 import { useAuthedImageSrc } from '../../hooks/useAuthedImageSrc';
+import CardBrandPicker from './CardBrandPicker';
 import {
   patchCard, uploadCardPhoto, deleteCardPhoto, refillCard, myCardPhotoUrl, CardApiError,
   type MyCard, type CardField, type CardLink, type PrefillSource,
@@ -98,6 +99,7 @@ const EditorBody: React.FC<Props & { card: MyCard }> = ({ card, sources, onClose
             <div>
               <FieldLabel as="div">{t('editor.public')}</FieldLabel>
               <Hint>{t('editor.publicHint')}</Hint>
+              {card.default_for && card.default_for.length > 0 && <Hint>{t('defaultCard.publicNote')}</Hint>}
             </div>
             <PublicToggle key={fk('pub')} on={card.is_public} label={t('editor.public') as string} onSave={(v) => save({ is_public: v })} />
           </ToggleLine>
@@ -112,6 +114,11 @@ const EditorBody: React.FC<Props & { card: MyCard }> = ({ card, sources, onClose
           <TextField key={fk('department')} label={t('editor.department')} value={card.department} max={100} onSave={(v) => save({ department: v })} />
           <TextField key={fk('company')} label={t('editor.company')} value={card.company} max={150} onSave={(v) => save({ company: v })} />
           <TextField key={fk('intro')} label={t('editor.intro')} value={card.intro} max={500} multiline placeholder={t('editor.introPlaceholder') as string} onSave={(v) => save({ intro: v })} testId="card-field-intro" />
+        </Section>
+
+        <Section>
+          <SectionTitle>{t('brand.cardSection')}</SectionTitle>
+          <CardBrandPicker key={fk('brands')} card={card} onChanged={onChanged} />
         </Section>
 
         <Section>

@@ -22,6 +22,7 @@ import PostPreviewModal from '../../components/Docs/PostPreviewModal';
 import SignatureLinkModal from '../../components/QTalk/SignatureLinkModal';
 import FilePicker, { type FilePickerResult } from '../../components/Common/FilePicker';
 import UserInfoPopover from '../../components/Common/UserInfoPopover';
+import NameCardViewDrawer from '../../components/NameCard/NameCardViewDrawer';
 import { fetchWorkspaceFiles, uploadMyFile, isImage as isRenderableImage } from '../../services/files';
 import AttachmentPreviewDrawer, { type PreviewAttachment } from '../../components/Common/AttachmentPreviewDrawer';
 import { DownloadAllButton } from '../../components/Common/AttachmentList';
@@ -496,6 +497,7 @@ const ChatPanel: React.FC<Props> = ({
   const [draftBody, setDraftBody] = useState('');
   // 사이클 N+15-E — 발신자 정보 popover. open 상태 + anchor + userId 저장.
   const [userPopover, setUserPopover] = useState<{ userId: number; anchorEl: HTMLElement } | null>(null);
+  const [cardUserId, setCardUserId] = useState<number | null>(null);   // 팝오버 [명함 보기] — 팝오버가 닫혀도 남는 드로어
 
   // 사이클 N+16-E — 메시지 액션 (수정 / 삭제 / 핀 / 묶음 선택).
   const [editingMsgId, setEditingMsgId] = useState<number | null>(null);
@@ -2471,8 +2473,10 @@ const ChatPanel: React.FC<Props> = ({
           businessId={Number(businessId)}
           anchorEl={userPopover.anchorEl}
           onClose={() => setUserPopover(null)}
+          onOpenCard={setCardUserId}
         />
       )}
+      {businessId && cardUserId && <NameCardViewDrawer businessId={Number(businessId)} userId={cardUserId} onClose={() => setCardUserId(null)} />}
       {/* 사이클 N+16-F — 더보기 메뉴 portal 렌더 (overflow 클립 회피, InputBar 위로 노출 보장).
           anchor 버튼 rect 기준 fixed 좌표. 아래 공간 부족하면 위로 flip. */}
       {reactionPicker && user && (() => {

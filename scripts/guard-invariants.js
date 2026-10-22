@@ -3606,6 +3606,33 @@ function checkAdminPredicate() {
 //   표가 «보이는가» 의 정본(visibleNavMenus — 역할 + 멤버 메뉴 권한)이다. 사이드바에만 있는 경로는 권한 숨김을 못 받고
 //   통합검색·탭 + 에도 안 나온다(실측 4곳 이탈: /attendance · 설정 근태 · 활동 기록 · 공지 앵커).
 //   MainLayout 의 표식 구간(nav-registry:workspace|secondary|admin)에서 to="…" 리터럴을 모아 해시·쿼리를 떼고 비교한다.
+// ─── brandwrite — 옛 businesses.brand_* 칸은 services/brands.js 만 쓴다 (2026-10-22, docs/NAME_CARD_V2_DESIGN.md 결정 2 · 하드) ───
+//   정본은 brands 표이고 옛 칸은 기본 브랜드의 사본(write-through)이다. 다른 곳이 옛 칸을 직접 고치면 사본과 정본이 갈라진다
+//   (브랜드 목록엔 A, 사이드바·영수증엔 B). 판정: routes/·services/ 의 `.update(…)` 인자 또는 `updates.brand_*` 대입·raw SQL `SET brand_*` 에
+//   brand_name|brand_tagline|brand_logo_url(_en 포함)이 키로 나오면 실패. 만들기(Business.create)는 afterCreate 훅이 기본 브랜드를 그 값으로 만들므로 허용.
+function checkBrandWrite() {
+  const files = [...walk(`${ROOT}/dev-backend/routes`, ['.js']), ...walk(`${ROOT}/dev-backend/services`, ['.js'])];
+  const KEY = /\b(brand_name|brand_name_en|brand_tagline|brand_tagline_en|brand_logo_url)\s*:/;
+  const fails = [];
+  for (const f of files) {
+    const r = rel(f);
+    if (r.endsWith('services/brands.js')) continue;
+    const src = read(f);
+    const lineOf = (i) => src.slice(0, i).split('\n').length;
+    const re = /\.update\s*\(/g;
+    let m;
+    while ((m = re.exec(src))) {
+      const snip = extractCallSnippet(src, re.lastIndex - 1);
+      if (KEY.test(snip)) fails.push(`${r}:${lineOf(m.index)}: .update(…) 가 옛 브랜드 칸을 쓴다 → services/brands.updateDefaultFromLegacy`);
+    }
+    const re2 = /\bupdates\.(brand_name|brand_name_en|brand_tagline|brand_tagline_en|brand_logo_url)\s*=(?!=)/g;
+    while ((m = re2.exec(src))) fails.push(`${r}:${lineOf(m.index)}: updates.${m[1]} 대입 → services/brands`);
+    const re3 = /SET\s+[^;`'"]*\bbrand_(name|tagline|logo_url)\b\s*=/gi;
+    while ((m = re3.exec(src))) fails.push(`${r}:${lineOf(m.index)}: SQL SET brand_* → services/brands`);
+  }
+  report('brandwrite', `옛 브랜드 칸 쓰기는 services/brands.js 한 곳 (하드 게이트 · ${files.length}개 파일)`, fails.length === 0, fails.slice(0, 12));
+}
+
 function checkNavRegistry() {
   const layoutPath = `${ROOT}/dev-frontend/src/components/Layout/MainLayout.tsx`;
   const navPath = `${ROOT}/dev-frontend/src/config/navMenus.ts`;
@@ -3763,6 +3790,7 @@ const CATEGORIES = {
   auditcover: checkAuditCover,
   adminpredicate: checkAdminPredicate,
   navregistry: checkNavRegistry,
+  brandwrite: checkBrandWrite,
   deadroute: checkDeadRoute,
 };
 

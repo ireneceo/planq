@@ -4,6 +4,28 @@ import { apiFetch, apiUpload } from '../contexts/AuthContext';
 
 export interface CardLink { label: string; url: string }
 
+/** 브랜드 공개 모양(명함에 실리는 것 — id 없음). 설계 docs/NAME_CARD_V2_DESIGN.md 결정 1 */
+export type BrandLinkKind = 'website' | 'instagram' | 'facebook' | 'x' | 'youtube' | 'linkedin' | 'threads' | 'tiktok' | 'blog' | 'kakao' | 'other';
+export interface BrandLink { kind: BrandLinkKind; label: string; url: string }
+export interface BrandView {
+  name: string;
+  name_en: string | null;
+  tagline: string | null;
+  tagline_en: string | null;
+  logo_url: string | null;
+  links: BrandLink[];
+}
+/** 관리 모양 — 고르기·설정 화면 */
+export interface BrandItem extends BrandView {
+  id: number;
+  owner_kind: 'business' | 'user';
+  is_default: boolean;
+  sort_order: number;
+  card_count?: number;
+  business_id?: number;
+  business_name?: string;
+}
+
 /** 공개로 보이는 명함 내용 (공개 페이지 · 받은 명함 스냅샷 · 내 명함 미리보기 공통) */
 export interface CardView {
   name: string;
@@ -23,6 +45,7 @@ export interface CardView {
   has_photo: boolean;
   photo_ver: number;
   updated_at: string | null;
+  brands?: BrandView[];
 }
 
 export type ClosedReason = 'not_public' | 'no_name' | 'email_unverified' | 'owner_inactive' | null;
@@ -38,6 +61,9 @@ export interface MyCard extends CardView {
   link_open: boolean;
   closed_reason: ClosedReason;
   url: string;
+  brand_ids: number[];
+  /** 이 명함을 기본 명함으로 건 워크스페이스 id */
+  default_for: number[];
 }
 
 export interface SavedCard {
@@ -54,7 +80,7 @@ export interface SavedCard {
 export interface PrefillSource { business_id: number; name: string }
 
 /** 칸 이름 — PATCH 로 보낼 수 있는 것 */
-export type CardField = 'label' | 'name' | 'name_en' | 'job_title' | 'department' | 'company' | 'intro'
+export type CardField = 'brand_ids' | 'label' | 'name' | 'name_en' | 'job_title' | 'department' | 'company' | 'intro'
   | 'mobile' | 'phone' | 'fax' | 'email' | 'website' | 'address' | 'links' | 'accent_color';
 
 export class CardApiError extends Error {
@@ -94,6 +120,28 @@ export const uploadCardPhoto = async (id: number, file: File) => {
 export const deleteCardPhoto = async (id: number) => json<MyCard>(await apiFetch(`/api/name-cards/${id}/photo`, { method: 'DELETE' }));
 export const myCardPhotoUrl = (c: { id: number; has_photo: boolean; photo_ver: number }) =>
   (c.has_photo ? `/api/name-cards/${c.id}/photo?v=${c.photo_ver}` : null);
+
+// 브랜드 고르기 · 기본 명함(v2)
+export const listBrandOptions = async () => json<BrandItem[]>(await apiFetch('/api/name-cards/brand-options'));
+export const setDefaultCard = async (id: number, businessId: number) =>
+  json<MyCard>(await apiFetch(`/api/name-cards/${id}/default`, body('PUT', { business_id: businessId })));
+export const unsetDefaultCard = async (id: number, businessId: number) =>
+  json<MyCard>(await apiFetch(`/api/name-cards/${id}/default?business_id=${businessId}`, { method: 'DELETE' }));
+
+// 동료의 기본 명함(같은 워크스페이스 멤버만) — 없으면 null
+export interface MemberCard { card: CardView; url: string | null }
+export async function fetchMemberCard(businessId: number, userId: number): Promise<MemberCard | null> {
+  const r = await apiFetch(`/api/businesses/${businessId}/members/${userId}/card`);
+  if (r.status === 404) return null;
+  return json<MemberCard>(r);
+}
+export const memberCardPhotoUrl = (businessId: number, userId: number, v: CardView) =>
+  (v.has_photo ? `/api/businesses/${businessId}/members/${userId}/card/photo?v=${v.photo_ver}` : null);
+export async function downloadMemberVcf(businessId: number, userId: number, name: string): Promise<void> {
+  const r = await apiFetch(`/api/businesses/${businessId}/members/${userId}/card/vcf`);
+  if (!r.ok) throw new CardApiError('generic', r.status);
+  triggerDownload(await r.blob(), `${(name || 'card').replace(/[\\/:*?"<>|]+/g, '')}.vcf`);
+}
 
 // 받은 명함
 export const listSavedCards = async () => json<SavedCard[]>(await apiFetch('/api/name-cards/saved'));

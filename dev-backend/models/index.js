@@ -78,6 +78,8 @@ const Post = require('./Post');
 const PostComment = require('./PostComment');
 const NameCard = require('./NameCard');
 const SavedNameCard = require('./SavedNameCard');
+const Brand = require('./Brand');
+const NameCardBrand = require('./NameCardBrand');
 const PostAttachment = require('./PostAttachment');
 const PostCategory = require('./PostCategory');
 // 급여·계약 (docs/PAYROLL_DESIGN.md)
@@ -366,6 +368,8 @@ PostComment.belongsTo(User, { as: 'author', foreignKey: 'user_id' });
 // 내 명함 — 계정 소유(docs/BUSINESS_CARD_DESIGN.md)
 NameCard.belongsTo(User, { as: 'owner', foreignKey: 'user_id' });
 SavedNameCard.belongsTo(NameCard, { as: 'source', foreignKey: 'source_card_id' });
+// 브랜드(docs/NAME_CARD_V2_DESIGN.md 6절) — 연결표만 관계로 둔다. 판정은 services/brands.js
+NameCardBrand.belongsTo(Brand, { as: 'brand', foreignKey: 'brand_id' });
 PostCategory.belongsTo(Business, { foreignKey: 'business_id' });
 // 급여·계약 — 사람 1:N 계약 1:N 금액줄 N:1 항목
 PayrollPerson.hasMany(EmploymentContract, { foreignKey: 'person_id', as: 'contracts' });
@@ -598,6 +602,10 @@ Business.addHook('afterCreate', 'seedMemberRoles', async (biz, options) => {
     lang: biz.default_language, userId: biz.owner_id || null, transaction: options?.transaction,
   });
 });
+// 브랜드 — 새 워크스페이스는 만들 때 기본 브랜드 1행(옛 brand_* 칸에서). 정본은 brands, 옛 칸은 사본(docs/NAME_CARD_V2_DESIGN.md 결정 2)
+Business.addHook('afterCreate', 'seedDefaultBrand', async (biz, options) => {
+  await require('../services/brands').seedDefaultBrand(biz, { transaction: options?.transaction });
+});
 
 // FeedbackItem (P6 — 사용자 → 운영팀 피드백)
 FeedbackItem.belongsTo(User, { as: 'user', foreignKey: 'user_id' });
@@ -699,7 +707,7 @@ module.exports = {
   BusinessPlanHistory,
   Post,
   PostComment,
-  NameCard, SavedNameCard,
+  NameCard, SavedNameCard, Brand, NameCardBrand,
   PostAttachment,
   PostCategory,
   // Q Bill Phase 0

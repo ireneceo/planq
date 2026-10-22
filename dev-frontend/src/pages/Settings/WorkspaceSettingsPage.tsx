@@ -55,6 +55,8 @@ import RoleManageModal from '../../components/MemberRole/RoleManageModal';
 import DefaultRoleField from '../../components/MemberRole/DefaultRoleField';
 import { useMemberRoleDict } from '../../components/MemberRole/useMemberRoleDict';
 import { onSocket } from '../../services/socket';
+import WorkspaceBrandsSection from '../../components/Brand/WorkspaceBrandsSection';
+import NameCardViewDrawer, { MemberCardButton } from '../../components/NameCard/NameCardViewDrawer';
 import { formatDay, formatDayTime } from '../../utils/dateFormat';
 
 type TabKey = 'payroll' | 'attendance' | 'brand' | 'legal' | 'language' | 'work-env' | 'storage' | 'plan' | 'permissions' | 'members' | 'cue' | 'billing' | 'email' | 'mail-accounts' | 'notifications' | 'work-flow' | 'data-export' | 'activity';   // activity — 팀원 활동 기록(owner 전용)
@@ -606,6 +608,7 @@ export default function WorkspaceSettingsPage() {
   const [inviteBusy, setInviteBusy] = useState(false);
   const [inviteError, setInviteError] = useState<string | null>(null);
   const [selectedMemberId, setSelectedMemberId] = useState<number | null>(null);
+  const [cardUserId, setCardUserId] = useState<number | null>(null);   // 멤버 상세 [명함 보기] — 그 사람의 이 워크스페이스 기본 명함
   // ★ 멤버 상세는 `?member=<user_id>` 로 URL 싱크한다 (CLAUDE.md "드로어 URL 싱크").
   //   여태 state 뿐이라 **바깥에서 이 사람을 가리킬 방법이 없었다** — 채팅 아바타 팝오버가
   //   "프로필 열기" 를 걸 곳이 없던 이유다. 키를 member.id 가 아니라 user_id 로 잡는 이유:
@@ -1139,6 +1142,11 @@ export default function WorkspaceSettingsPage() {
           </FieldGrid>
         </Card>
       )}
+      {/* 브랜드 목록(회사 하나 · 브랜드 여럿 — docs/NAME_CARD_V2_DESIGN.md). 기본 브랜드 = 위 칸들 — 바뀌면 위 칸을 다시 읽는다 */}
+      {(tab === 'brand' || tab === 'legal') && businessId && (
+        <WorkspaceBrandsSection businessId={businessId} canEdit={isAdmin || user?.business_role === 'admin'}
+          onDefaultChanged={() => { void getWorkspace(businessId).then((w) => { setWs(w); setBrandName(w.brand_name || w.name || ''); setBrandNameEn(w.brand_name_en || ''); setBrandTagline(w.brand_tagline || ''); setBrandTaglineEn(w.brand_tagline_en || ''); setBrandLogoUrl(w.brand_logo_url || ''); void refreshUser(); }).catch(() => undefined); }} />
+      )}
 
       {/* ─── LEGAL ─── */}
       {(tab === 'brand' || tab === 'legal') && (
@@ -1546,6 +1554,7 @@ export default function WorkspaceSettingsPage() {
                         {!isPending && u?.job_title && <DrawerSub>{u.job_title}{u.organization ? ` · ${u.organization}` : ''}</DrawerSub>}
                         {isPending && <DrawerPendingNote>{t('members.pendingNote', '초대 수락 후 프로필이 표시됩니다.')}</DrawerPendingNote>}
                       </DrawerHeadText>
+                      {!isPending && target.user_id && businessId && <MemberCardButton businessId={businessId} userId={Number(target.user_id)} onOpen={setCardUserId} />}
                       <RoleBadge $role={target.role}>
                         {target.role === 'owner' ? t('members.roleAdmin') : target.role === 'ai' ? t('members.roleAi') : t('members.roleMember')}
                       </RoleBadge>
@@ -1822,6 +1831,7 @@ export default function WorkspaceSettingsPage() {
               </>
             );
           })()}
+          {businessId && cardUserId && <NameCardViewDrawer businessId={businessId} userId={cardUserId} onClose={() => setCardUserId(null)} />}
         </>
       )}
 

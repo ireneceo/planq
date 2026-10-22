@@ -33,7 +33,7 @@ router.get('/:token',
       res.set('Cache-Control', 'no-store');
       const card = await nc.resolvePublicCard(req.params.token);
       if (!card) return errorResponse(res, 'not_found', 404);
-      return successResponse(res, nc.cardPublicView(card));
+      return successResponse(res, await nc.cardPublicViewWithBrands(card));
     } catch (e) { return next(e); }
   });
 
@@ -59,7 +59,7 @@ router.get('/:token/vcf',
       noIndex(res);
       const card = await nc.resolvePublicCard(req.params.token);
       if (!card) return errorResponse(res, 'not_found', 404);
-      const view = nc.cardPublicView(card);
+      const view = await nc.cardPublicViewWithBrands(card);
       const photo = card.has_photo ? nc.readIfExists(nc.cardPhotoPath(card.id)) : null;
       res.set({ 'Content-Type': 'text/vcard; charset=utf-8', 'Content-Disposition': nc.vcardFilename(view), 'Cache-Control': 'no-store' });
       return res.send(nc.toVcard(view, { photo, url: `${APP_URL}/c/${card.public_token}` }));

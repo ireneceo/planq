@@ -6,7 +6,7 @@
 import React, { useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
-import type { CardView } from '../../services/nameCards';
+import type { CardView, BrandView } from '../../services/nameCards';
 
 export const ACCENT_COLORS = ['#0F766E', '#2563EB', '#7C3AED', '#E11D48', '#EA580C', '#334155'] as const;
 export const DEFAULT_ACCENT = ACCENT_COLORS[0];
@@ -18,6 +18,11 @@ export function hostOf(url: string): string {
 }
 const telHref = (v: string) => `tel:${v.replace(/[^0-9+]/g, '')}`;
 const smsHref = (v: string) => `sms:${v.replace(/[^0-9+]/g, '')}`;
+// 회사명과 브랜드 이름이 «같은가» — NFC·공백·대소문자 무시(같으면 회사 줄을 따로 그리지 않는다, v2 결정 1)
+const sameName = (a: string, b: string) => {
+  const n = (x: string) => x.normalize('NFC').replace(/\s+/g, '').toLowerCase();
+  return n(a) === n(b);
+};
 const mapHref = (addr: string) => `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addr)}`;
 
 interface Props {
@@ -29,7 +34,14 @@ interface Props {
 }
 
 const CardFace: React.FC<Props> = ({ view, photoSrc, variant = 'full', className, testId }) => {
-  const { t } = useTranslation('cards');
+  const { t, i18n } = useTranslation('cards');
+  // 브랜드(v2 결정 1) — 첫 브랜드가 회사 자리, 나머지는 이름 칩 · 회사명은 모든 브랜드 이름과 다를 때만 작게
+  const isEn = (i18n.language || '').startsWith('en');
+  const brands: BrandView[] = view.brands || [];
+  const bName = (b: BrandView) => (isEn && b.name_en) || b.name;
+  const bTag = (b: BrandView) => (isEn && b.tagline_en) || b.tagline;
+  const first = brands[0] || null;
+  const showCompany = !!view.company && !brands.some((b) => sameName(view.company as string, b.name) || (!!b.name_en && sameName(view.company as string, b.name_en)));
   const [broken, setBroken] = useState<string | null>(null);
   const accent = view.accent_color || DEFAULT_ACCENT;
   const showPhoto = !!photoSrc && view.has_photo && broken !== photoSrc;
@@ -46,7 +58,21 @@ const CardFace: React.FC<Props> = ({ view, photoSrc, variant = 'full', className
           <Name as={compact ? 'div' : 'h1'} $compact={compact} data-testid="card-name">{view.name || '—'}</Name>
           {view.name_en && <NameEn>{view.name_en}</NameEn>}
           {role && <Role $compact={compact}>{role}</Role>}
-          {view.company && <Company $accent={accent} $compact={compact}>{view.company}</Company>}
+          {first ? (
+            <>
+              <BrandLine data-testid="card-brand">
+                {first.logo_url && !compact && <BrandLogo src={first.logo_url} alt="" />}
+                <Company $accent={accent} $compact={compact}>{bName(first)}</Company>
+              </BrandLine>
+              {!compact && bTag(first) && <BrandTag>{bTag(first)}</BrandTag>}
+              {!compact && brands.length > 1 && (
+                <BrandChips>{brands.slice(1).map((b, i) => <BrandChip key={`${b.name}-${i}`}>{bName(b)}</BrandChip>)}</BrandChips>
+              )}
+              {showCompany && <CompanySub $compact={compact} data-testid="card-company">{view.company}</CompanySub>}
+            </>
+          ) : (
+            view.company && <Company $accent={accent} $compact={compact} data-testid="card-company">{view.company}</Company>
+          )}
         </Names>
       </Head>
 
@@ -92,8 +118,14 @@ const CardFace: React.FC<Props> = ({ view, photoSrc, variant = 'full', className
             )}
           </Rows>
 
-          {view.links.length > 0 && (
+          {(view.links.length > 0 || brands.some((b) => b.links.length > 0)) && (
             <Links>
+              {brands.flatMap((b, bi) => b.links.map((l, i) => (
+                <LinkChip key={`b${bi}-${l.url}-${i}`} href={l.url} target="_blank" rel={EXT_REL} $accent={accent} data-testid="card-brand-link">
+                  <strong>{l.label || bName(b)}</strong>
+                  <span>{hostOf(l.url)}</span>
+                </LinkChip>
+              )))}
               {view.links.map((l, i) => (
                 <LinkChip key={`${l.url}-${i}`} href={l.url} target="_blank" rel={EXT_REL} $accent={accent}>
                   <strong>{l.label || hostOf(l.url)}</strong>
@@ -150,6 +182,17 @@ const Role = styled.div<{ $compact: boolean }>`
 `;
 const Company = styled.div<{ $accent: string; $compact: boolean }>`
   font-size: ${(p) => (p.$compact ? '0.8125rem' : '0.9375rem')}; font-weight: 600; color: ${(p) => p.$accent}; overflow-wrap: anywhere;
+`;
+const BrandLine = styled.div`display: flex; align-items: center; gap: 6px; min-width: 0;`;
+// 브랜드 로고 — 글자 줄 옆 작은 그림(컨트롤 아님). 정사각 비율로 둔다
+const BrandLogo = styled.img`width: 24px; aspect-ratio: 1; object-fit: contain; border-radius: 4px; flex-shrink: 0;`;
+const BrandTag = styled.div`font-size: 0.8125rem; color: #64748B; line-height: 1.4; overflow-wrap: anywhere;`;
+const BrandChips = styled.div`display: flex; flex-wrap: wrap; gap: 4px; margin-top: 2px;`;
+const BrandChip = styled.span`
+  font-size: 0.75rem; font-weight: 600; color: #475569; background: #F1F5F9; border-radius: 999px; padding: 2px 8px;
+`;
+const CompanySub = styled.div<{ $compact: boolean }>`
+  font-size: ${(p) => (p.$compact ? '0.75rem' : '0.8125rem')}; color: #94A3B8; overflow-wrap: anywhere;
 `;
 const CompactLine = styled.div`
   font-size: 0.75rem; color: #64748B; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;

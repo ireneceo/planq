@@ -517,7 +517,8 @@
     "openClientProfile": "Open client profile",
     "openMemberProfile": "Open member profile",
     "externalUser": "(External user)",
-    "noName": "(No name)"
+    "noName": "(No name)",
+    "openCard": "View card"
   },
   "popout": {
     "title": "PlanQ Chat"

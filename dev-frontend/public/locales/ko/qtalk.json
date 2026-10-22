@@ -517,7 +517,8 @@
     "openClientProfile": "고객 프로필 열기",
     "openMemberProfile": "멤버 프로필 열기",
     "externalUser": "(외부 사용자)",
-    "noName": "(이름 없음)"
+    "noName": "(이름 없음)",
+    "openCard": "명함 보기"
   },
   "popout": {
     "title": "PlanQ 채팅"

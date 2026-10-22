@@ -276,7 +276,7 @@ router.get('/:businessId/overview', authenticateToken, async (req, res, next) =>
     if (reqScope === 'personal') memberWhere.user_id = req.user.id;
     const members = await BusinessMember.findAll({
       where: memberWhere,
-      attributes: ['user_id', 'name', 'department_id', 'team_id', 'job_title'],
+      attributes: ['user_id', 'name', 'department_id', 'team_id', 'job_title', 'default_card_id'],
       include: [{ model: User, as: 'user', attributes: ['id', 'name'] }],
     });
     const memberIds = members.map((m) => m.user_id).filter(Boolean);
@@ -298,7 +298,8 @@ router.get('/:businessId/overview', authenticateToken, async (req, res, next) =>
       const mine = allForBreakdown.filter((t) => t.assignee_id === m.user_id);
       const active = mine.filter((t) => !['completed', 'canceled'].includes(t.status)).length;
       const od = mine.filter((t) => !['completed', 'canceled'].includes(t.status) && t.due_date && String(t.due_date).slice(0, 10) < todayStr).length;
-      return { user_id: m.user_id, name: m.name || m.user?.name || '—', department_id: m.department_id, team_id: m.team_id, job_title: m.job_title, active, overdue: od };
+      // has_card — 이 워크스페이스 기본 명함이 있나(조직도 [명함] 버튼을 그릴지 · 내용은 /members/:id/card 가 준다. docs/NAME_CARD_V2_DESIGN.md 결정 3)
+      return { user_id: m.user_id, name: m.name || m.user?.name || '—', department_id: m.department_id, team_id: m.team_id, job_title: m.job_title, has_card: !!m.default_card_id, active, overdue: od };
     });
 
     // 부서별 breakdown (company scope 에서만)

@@ -502,6 +502,9 @@ app.use('/api/businesses', require('./routes/customer_entry'));
 // #424 휴일·근무일 — `/:businessId/holiday…` 꼬리 경로만 둔다(위와 같은 패턴).
 app.use('/api/businesses', require('./routes/business_holidays'));
 app.use('/api/businesses', require('./routes/nav_prefs'));   // 사이드바 «메뉴 편집» (2026-10-16) — businesses.js 보다 앞
+app.use('/api/businesses', require('./routes/brands').businessBrands);   // 브랜드 목록·관리 (2026-10-22, docs/NAME_CARD_V2_DESIGN.md) — «/:businessId/brands…» 꼬리만, businesses.js 보다 앞
+app.use('/api/businesses', require('./routes/member_cards'));   // 동료의 기본 명함 보기 (2026-10-22) — «/:businessId/members/:userId/card…» 꼬리만, businesses.js 보다 앞
+app.use('/api/me/brands', require('./routes/brands').myBrands);            // 개인 브랜드(내 명함용, 본인 것만)
 app.use('/api/businesses', require('./routes/businesses'));
 // KNOWLEDGE_LOOP 축1 — Cue 워크스페이스 지식 카드
 app.use('/api/businesses', require('./routes/cue_knowledge'));

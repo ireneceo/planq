@@ -1,5 +1,5 @@
 {
-  "_generated": "2026-10-17",
+  "_generated": "2026-10-22",
   "_db": "planq_dev_db",
   "_note": "스키마 변경 후 `node scripts/dump-schema.js` 로 갱신할 것. guard-invariants schemacol 이 읽는다.",
   "tables": {
@@ -101,6 +101,23 @@
       "detail",
       "created_at"
     ],
+    "brands": [
+      "id",
+      "owner_kind",
+      "business_id",
+      "user_id",
+      "name",
+      "name_en",
+      "tagline",
+      "tagline_en",
+      "logo_url",
+      "links",
+      "is_default",
+      "sort_order",
+      "created_by",
+      "created_at",
+      "updated_at"
+    ],
     "business_cloud_tokens": [
       "id",
       "business_id",
@@ -175,7 +192,8 @@
       "team_id",
       "removed_reason",
       "onboarding_dismissed_at",
-      "nav_prefs"
+      "nav_prefs",
+      "default_card_id"
     ],
     "business_plan_history": [
       "id",
@@ -1604,6 +1622,11 @@
       "cue_rating",
       "cue_rating_at",
       "cue_rating_by_user_id"
+    ],
+    "name_card_brands": [
+      "card_id",
+      "brand_id",
+      "sort_order"
     ],
     "name_cards": [
       "id",

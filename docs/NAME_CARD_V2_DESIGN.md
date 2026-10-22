@@ -119,3 +119,10 @@
 
 ### 결정 5 — 위험
 - 새 무인증 라우트 0. 남의 brand_id·남의 멤버 기본 명함·고객의 `/members/:id/card` → 400/403/404 양성 대조군. card 응답 키 ⊆ 공개 화이트리스트 + brands.
+
+## 7. 1단계 구현 메모 (2026-10-22)
+- 서버: models Brand·NameCardBrand · BusinessMember.default_card_id · services/brands.js(정규화·canUseBrand·brandsForCards·writeThrough 유일) · routes/brands.js(/api/businesses/:biz/brands · /api/me/brands) · routes/member_cards.js(/:biz/members/:userId/card·photo·vcf) · name_cards.js(brand_ids·brand-options·기본 명함 PUT/DELETE) · 공개 응답·OG·vCard 브랜드. 운영: migrate-brands.js → migrate-name-card-default.js (배포 슬롯, sync-database 뒤 — 멱등).
+- 화면: 설정 > 워크스페이스 «브랜드» 목록(DetailDrawer + BrandForm) · 명함 편집 «브랜드» 고르기(최대 4, 개인 브랜드 창) · 기본 명함 메뉴·칩 · NameCardViewDrawer 를 사람 팝오버(Q talk)·멤버 상세·조직도에서.
+- writeThrough 의 name 동기는 «보이는 이름(brand_name||name)이 바뀔 때만»(Fable 완료 검증 비차단 1).
+- 가드 brandwrite(옛 칸 쓰기 = services/brands.js 한 곳) · health-check secrets 에 브랜드 칸.
+- 2단계(직무 ESCO)는 아직 — 데이터·번역·표본 검수(lua) 파이프라인부터.
