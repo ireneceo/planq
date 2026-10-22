@@ -311,8 +311,10 @@ const SearchKbd = styled.kbd`
 
 const NavSection = styled.div`
   margin-bottom: 0;
-  /* 메뉴 편집 연필 — 데스크탑은 칸에 마우스를 올릴 때만(평소엔 조용히). 태블릿·폰은 늘 보인다(올릴 마우스가 없다) */
-  @media (min-width: 1025px) {
+  /* 메뉴 편집 연필 — 데스크탑은 칸에 마우스를 올릴 때만(평소엔 조용히). 태블릿·폰은 늘 보인다(올릴 마우스가 없다).
+     ★ 터치 기기는 폭이 넓어도(iPad 가로 1180~1366) 뺀다 — 탭이 :hover 를 켜 연필이 나타나면 iPad Safari 는 그 탭을
+       «마우스 올림» 으로 먹고 click 을 안 보낸다(메뉴를 두 번 눌러야 이동, 2026-10-22). 술어는 ChatPanel 도구줄과 같은 뜻(Level 4 문법 — 못 읽는 옛 브라우저는 규칙을 버려 연필이 늘 보인다). */
+  @media (min-width: 1025px) and (not ((hover: none) and (pointer: coarse))) {
     .pq-nav-edit { opacity: 0; transition: opacity 0.15s; }
     &:hover .pq-nav-edit, &:focus-within .pq-nav-edit, .pq-nav-edit:focus-visible { opacity: 1; }
   }
@@ -358,14 +360,15 @@ const navItemCss = css<{ $active?: boolean; $isCollapsed?: boolean }>`
     background: #0F766E;
     font-weight: 600;
   `}
+  /* 손가락이 닿는 순간 눌린 티 — 회색 탭 번쩍임 대신 메뉴 색으로. 폭이 아니라 터치 기기로 가른다(iPad 가로는 1025px 이상) */
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  @media (hover: none) and (pointer: coarse) { &:active { background: rgba(255, 255, 255, 0.16); } }
   ${mediaTablet} {
     padding: 8px 16px;
     justify-content: flex-start;
     min-height: 44px;
     font-size: 0.875rem;
-    /* 손가락이 닿는 순간 눌린 티 — 회색 탭 번쩍임 대신 메뉴 색으로 */
-    -webkit-tap-highlight-color: transparent;
-    touch-action: manipulation;
     &:active { background: rgba(255, 255, 255, 0.16); }
   }
 `;

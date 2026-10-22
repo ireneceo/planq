@@ -140,7 +140,7 @@ export default function TabStrip({ leftOffset = 0, onMenu }: {
               data-ctx-tab-id={tab.id}
               data-ctx-tab-path={tab.path}
               title={label(tab)}
-              draggable={tabs.length > 1}
+              draggable={tabs.length > 1 && !isTouchDevice}
               onDragStart={(e) => { setDragId(tab.id); e.dataTransfer.effectAllowed = 'move'; }}
               onDragOver={(e) => { if (dragId) { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; if (overId !== tab.id) setOverId(tab.id); } }}
               onDrop={(e) => { e.preventDefault(); onDrop(tab.id); }}
@@ -195,8 +195,18 @@ export default function TabStrip({ leftOffset = 0, onMenu }: {
   );
 }
 
+// 탭 끌어 순서 바꾸기는 마우스 전용 — iPad 는 draggable 탭을 누르고 있으면 끌기를 시작해 click 이 안 나간다(2026-10-22).
+//   술어는 CSS 의 (hover: none) and (pointer: coarse) 와 같다(ChatPanel isTouchDevice 와 같은 판정).
+const isTouchDevice = typeof window !== 'undefined' && !!window.matchMedia?.('(hover: none) and (pointer: coarse)').matches;
+// 탭 줄 버튼 공통 — 두 번 탭 확대 대기 없이 바로, 회색 번쩍임 대신 눌린 배경(터치 기기만)
+const tapCss = `
+  -webkit-tap-highlight-color: transparent; touch-action: manipulation;
+  @media (hover: none) and (pointer: coarse) { &:active { background: rgba(255, 255, 255, 0.12); } }
+`;
+
 // ── styled (사이드바 토큰 수평 연장) ──
 const BackBtn = styled.button`
+  ${tapCss}
   flex-shrink: 0; width: 34px;
   display: inline-flex; align-items: center; justify-content: center;
   background: transparent; border: none; cursor: pointer;
@@ -220,6 +230,7 @@ const Strip = styled.div<{ $left: number }>`
   ${mediaTablet} { left: 0; }
 `;
 const MenuBtn = styled.button`
+  ${tapCss}
   flex-shrink: 0; display: none; align-items: center; justify-content: center;
   width: 44px; align-self: stretch; padding: 0;
   background: none; border: none; color: #CCFBF1; cursor: pointer;
@@ -234,6 +245,7 @@ const Scroll = styled.div`
   &::-webkit-scrollbar { display: none; }
 `;
 const Chip = styled.button<{ $active: boolean; $dragging?: boolean; $dropTarget?: boolean }>`
+  ${tapCss}
   display: inline-flex; align-items: center; gap: 6px; flex: 0 1 auto;
   max-width: 220px; min-width: 0; height: 40px; padding: 0 10px 0 14px;   /* 위아래 꽉 채움 */
   border: none; border-right: 1px solid rgba(255, 255, 255, 0.06); border-radius: 0;
@@ -256,6 +268,7 @@ const RecDot = styled.span`
   background: #F43F5E; border: 1.5px solid #115E59;
 `;
 const Close = styled.button`
+  ${tapCss}
   display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0;
   width: 20px; height: 20px; margin-right: -4px; border: none; background: transparent;
   color: inherit; border-radius: 4px; cursor: pointer; opacity: 0.75;
@@ -263,6 +276,7 @@ const Close = styled.button`
 `;
 // + 는 그냥 아이콘 (라운드 배경 없음). hover 시 색만 밝게.
 const NewBtn = styled.button`
+  ${tapCss}
   display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; align-self: center;
   width: 30px; height: 30px; margin: 0 4px; border: none; border-radius: 0; background: transparent; cursor: pointer;
   color: #99F6E4;
