@@ -166,6 +166,10 @@ router.post('/:businessId/managed', authenticateToken, checkBusinessAccess, requ
 
     const existing = await findExistingByContact(businessId, { email: seed.email, phone: seed.phone });
     if (existing) return res.status(409).json({ success: false, message: 'client_exists', existing_client_id: existing.id });
+    // 멤버 이메일로 고객을 만들면 «멤버가 이긴다»(clientToMember 이메일 일치)와 바로 모순 — 초대 문과 같은 409
+    if (seed.email && await require('../services/clientToMember').isWorkspaceMemberEmail(businessId, seed.email)) {
+      return errorResponse(res, 'already_member', 409, 'already_member');
+    }
 
     const planEngine = require('../services/plan');
     const planCan = await planEngine.can(businessId, 'add_client');

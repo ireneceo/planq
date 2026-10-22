@@ -12,6 +12,10 @@
 //   ① 행은 지우지 않는다 — 청구·상담 이력이 client_id 로 달려 있다. archived + member_converted_at.
 //   ② 행은 지우고 같은 프로젝트의 멤버로 넣는다 — 남겨 두면 멤버십이 끊기는 날 contact_user_id 로 고객 권한이 되살아난다.
 //   ③ role → member.
+//   ★ «같은 사람» = 같은 계정 id **또는 같은 이메일**(2026-10-22 Fable 판정 — docs/PEOPLE_PROFILE_UNIFY_DESIGN.md 6).
+//     계정 없이 이메일로 초대된 고객 행(user_id NULL · invite_email)과 프로젝트 고객 행(contact_user_id NULL · contact_email)이
+//     멤버가 된 뒤에도 고객 목록에 «초대 대기» 로 남았다. 이메일 집합 = 계정 이메일 ∪ **확인된** 보조 이메일(personEmails 한 곳).
+//     다른 계정이 붙은 행은 건드리지 않는다. 이름만 같은 행은 자동으로 합치지 않는다(동명이인).
 //   역방향(멤버 해제 → 고객 복귀)은 하지 않는다. 활성 멤버를 고객으로 붙이는 문은 assertNotWorkspaceMember 로 막는다.
 const { Op } = require('sequelize');
 const { sequelize } = require('../config/database');
@@ -27,6 +31,39 @@ async function isActiveWorkspaceMember(businessId, userId, opts = {}) {
   return !!bm;
 }
 
+/** 이 이메일이 이 워크스페이스 활성 멤버의 것인가(계정 이메일 ∪ 확인된 보조 이메일 — personEmails 와 같은 술어). */
+async function isWorkspaceMemberEmail(businessId, email, opts = {}) {
+  const e = String(email || '').trim().toLowerCase();
+  if (!businessId || !e) return false;
+  const [rows] = await sequelize.query(
+    `SELECT 1 FROM business_members bm JOIN users u ON u.id = bm.user_id
+      WHERE bm.business_id = :b AND bm.removed_at IS NULL AND bm.role IN ('owner','admin','member')
+        AND (LOWER(TRIM(u.email)) = :e OR (u.secondary_email_verified_at IS NOT NULL AND LOWER(TRIM(u.secondary_email)) = :e))
+      LIMIT 1`,
+    { replacements: { b: businessId, e }, transaction: opts.transaction },
+  );
+  return rows.length > 0;
+}
+
+/** 같은 사람으로 보는 이메일 집합(소문자·공백 제거) — 계정 이메일 + 확인된 보조 이메일. */
+async function personEmails(userId, opts = {}) {
+  const { User } = require('../models');
+  const u = await User.findByPk(userId, {
+    attributes: ['id', 'email', 'secondary_email', 'secondary_email_verified_at'], transaction: opts.transaction,
+  });
+  if (!u) return [];
+  const norm = (v) => String(v || '').trim().toLowerCase();
+  const set = new Set();
+  if (norm(u.email)) set.add(norm(u.email));
+  if (u.secondary_email_verified_at && norm(u.secondary_email)) set.add(norm(u.secondary_email));
+  return [...set];
+}
+
+/** 이메일 IN 비교 — LOWER(TRIM(col)) ∈ emails. */
+function emailIn(col, emails) {
+  return sequelize.where(sequelize.fn('LOWER', sequelize.fn('TRIM', sequelize.col(col))), { [Op.in]: emails });
+}
+
 /**
  * 고객 자국 → 멤버. 멱등(두 번째 호출은 바뀌는 것 0).
  * @returns {{ clients:number, projectClients:number, projectMembersAdded:number, participants:number, projectIds:number[], before:object }}
@@ -37,9 +74,13 @@ async function promoteClientToMember({ businessId, userId, transaction }) {
   const out = { clients: 0, projectClients: 0, projectMembersAdded: 0, participants: 0, projectIds: [], before: {} };
   if (!businessId || !userId) return out;
 
-  // ① 고객 행 — 보관(이력 유지)
+  const emails = await personEmails(userId, { transaction: t });
+
+  // ① 고객 행 — 보관(이력 유지). 같은 계정 ∨ (계정 없음 ∧ 같은 이메일)
+  const sameMe = [{ user_id: userId }];
+  if (emails.length) sameMe.push({ [Op.and]: [{ user_id: null }, emailIn('Client.invite_email', emails)] });
   const cls = await Client.findAll({
-    where: { business_id: businessId, user_id: userId, status: { [Op.ne]: 'archived' } },
+    where: { business_id: businessId, status: { [Op.ne]: 'archived' }, [Op.or]: sameMe },
     attributes: ['id', 'status'], transaction: t,
   });
   if (cls.length) {
@@ -51,9 +92,14 @@ async function promoteClientToMember({ businessId, userId, transaction }) {
     out.clients = cls.length;
   }
 
-  // ② 프로젝트 고객 행 → 같은 프로젝트 멤버
+  // ② 프로젝트 고객 행 → 같은 프로젝트 멤버. 같은 계정 ∨ (계정 없음 ∧ (잡힌 고객 ∨ 같은 이메일)) — 다른 계정 행은 안 건드린다
+  const pcOr = [{ contact_user_id: userId }];
+  const noAcct = [];
+  if (cls.length) noAcct.push({ client_id: { [Op.in]: cls.map((c) => c.id) } });
+  if (emails.length) noAcct.push(emailIn('ProjectClient.contact_email', emails));
+  if (noAcct.length) pcOr.push({ [Op.and]: [{ contact_user_id: null }, { [Op.or]: noAcct }] });
   const pcs = await ProjectClient.findAll({
-    where: { contact_user_id: userId },
+    where: { [Op.or]: pcOr },
     include: [{ model: Project, attributes: ['id'], where: { business_id: businessId }, required: true }],
     transaction: t,
   });
@@ -105,4 +151,4 @@ function afterPromote(r, { businessId, userId, actorUserId, io }) {
   } catch (e) { console.warn('[clientToMember emit]', e.message); }
 }
 
-module.exports = { promoteClientToMember, afterPromote, isActiveWorkspaceMember };
+module.exports = { promoteClientToMember, afterPromote, isActiveWorkspaceMember, isWorkspaceMemberEmail, personEmails };
