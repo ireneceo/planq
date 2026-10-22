@@ -37,6 +37,8 @@ async function hasIndex(t, name) {
 async function hasFk(t, name) {
   return Number((await one("SELECT COUNT(*) n FROM information_schema.TABLE_CONSTRAINTS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=? AND CONSTRAINT_NAME=? AND CONSTRAINT_TYPE='FOREIGN KEY'", [t, name]))[0].n) > 0;
 }
+/** 안 채워진 행 — NULL 이거나(새 칸) sync 가 먼저 만든 NOT NULL 칸의 0 처럼 이 워크스페이스 종류를 가리키지 않는 값 */
+const UNFILLED = (a) => `(${a}.leave_type_id IS NULL OR NOT EXISTS (SELECT 1 FROM leave_types u WHERE u.id = ${a}.leave_type_id AND u.business_id = ${a}.business_id))`;
 const dist = async (t, col) => Object.fromEntries((await one(`SELECT ${col} k, COUNT(*) n FROM \`${t}\` GROUP BY ${col}`)).map((r) => [String(r.k), Number(r.n)]));
 
 async function rollbackNullable() {
@@ -96,19 +98,24 @@ async function rollbackNullable() {
         seeded += Number(n) || 0;
       }
     }
-    // 4. 백필
+    // 4. 백필 — «안 채워진 행» = NULL **또는 이 워크스페이스의 종류를 가리키지 않는 값**.
+    //   ★ 2026-10-22 운영 실측: 배포가 sync-database(alter)를 이 슬롯보다 먼저 돌려, 모델대로
+    //   leave_grants.leave_type_id 를 NOT NULL 로 먼저 만들었다 → 기존 행이 0 으로 채워져
+    //   «IS NULL 만 채우기» 가 건너뛰고 검증이 «종류별 건수 불일치» 로 멈췄다. 순서는 배포 스크립트에서
+    //   sync 앞으로 옮겼고, 이미 그 상태가 된 DB 도 여기서 채운다(채워진 정상 행은 조건에 안 걸린다).
     let filled = 0;
     for (const t of TABLES) {
       const [, meta] = await sequelize.query(
         `UPDATE \`${t}\` x JOIN leave_types lt ON lt.business_id = x.business_id AND lt.code = x.category
-            SET x.leave_type_id = lt.id WHERE x.leave_type_id IS NULL`,
+            SET x.leave_type_id = lt.id
+          WHERE ${UNFILLED('x')}`,
       );
       filled += Number(meta?.affectedRows ?? meta) || 0;
     }
     // 5. 검증
     for (const t of TABLES) {
-      const nulls = Number((await one(`SELECT COUNT(*) n FROM \`${t}\` WHERE leave_type_id IS NULL`))[0].n);
-      if (nulls) throw new Error(`${t} 에 leave_type_id NULL ${nulls}건`);
+      const nulls = Number((await one(`SELECT COUNT(*) n FROM \`${t}\` x WHERE ${UNFILLED('x')}`))[0].n);
+      if (nulls) throw new Error(`${t} 에 leave_type_id 가 비었거나 이 워크스페이스 종류가 아닌 행 ${nulls}건`);
       // ★ 비교는 «옛 category 축» 으로 접어서 한다 — 새 코드는 커스텀(code NULL)·무급휴가(code unpaid) 행에
       //   category='other' 를 이중 기록한다(설계 §3.2). 글자 그대로 비교하면 그런 행이 한 건이라도 생긴 뒤
       //   **두 번째 배포부터** 이 검사가 거짓 실패해 배포가 멈춘다(Fable 2026-10-22 실측 SLOT EXIT 1).
