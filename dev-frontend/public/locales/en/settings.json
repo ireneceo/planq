@@ -539,7 +539,7 @@
       "rowInvalid": "not a valid email",
       "rowQuota": "no seat left",
       "rowInvited": "sent",
-      "rowOk": "will be sent",
+      "rowOk": "can be sent",
       "confirmTitle": "Send the invitations?",
       "confirmLead": "Invitations will be emailed to these {{n}} people.",
       "confirmSkipped": "Not sent: {{list}}",

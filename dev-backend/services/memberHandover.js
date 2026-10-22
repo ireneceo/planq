@@ -14,7 +14,8 @@ const {
 
 // 이용약관 제10조 «워크스페이스에서 제외되면 … 업무 기록이 인수자에게» 의 시행일 — legal.json 문구와 같은 날.
 //   배포가 늦어지면 이 값과 legal.json(ko/en terms.s10) 두 곳을 같이 옮긴다(공지 + 30일).
-const HANDOVER_L1_EFFECTIVE_AT = new Date('2026-11-25T00:00:00+09:00');
+const HANDOVER_L1_EFFECTIVE_ON = '2026-11-25';   // 화면에 보이는 날짜(시간대 없는 날) — 아래 시각과 같은 날
+const HANDOVER_L1_EFFECTIVE_AT = new Date(`${HANDOVER_L1_EFFECTIVE_ON}T00:00:00+09:00`);
 const OPEN = { [Op.notIn]: ['completed', 'canceled'] };
 
 // 그리고 그 조항을 담은 이용약관 버전이 이 서버에 올라가 있어야 한다(재동의 모달) — 날짜만 보면 공지·동의 없이 시행된다
@@ -110,6 +111,8 @@ async function summarize(businessId, userId) {
     private_total: privateTotal,
     l1_effective: await l1Effective(),
     l1_effective_at: HANDOVER_L1_EFFECTIVE_AT.toISOString(),
+    // 날짜만(YYYY-MM-DD) — 시각을 보는 사람 시간대로 바꾸면 서쪽에서는 하루 앞당겨 보인다(약관 시행일은 한국 날짜)
+    l1_effective_on: HANDOVER_L1_EFFECTIVE_ON,
   };
 }
 

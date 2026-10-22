@@ -539,7 +539,7 @@
       "rowInvalid": "이메일 형식이 아님",
       "rowQuota": "자리 없음",
       "rowInvited": "보냄",
-      "rowOk": "보낼 예정",
+      "rowOk": "보낼 수 있음",
       "confirmTitle": "초대 메일을 보낼까요?",
       "confirmLead": "아래 {{n}}명에게 초대 메일을 보냅니다.",
       "confirmSkipped": "보내지 않는 주소: {{list}}",

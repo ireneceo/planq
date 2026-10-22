@@ -17,7 +17,7 @@ interface Counts {
   unassigned_private: number; created_private_with_assignee: number;
   projects: number; clients: number; mail_assigned: number; booking_open: number;
 }
-interface Summary { counts: Counts; total: number; private_total: number; l1_effective: boolean; l1_effective_at: string }
+interface Summary { counts: Counts; total: number; private_total: number; l1_effective: boolean; l1_effective_at: string; l1_effective_on?: string }
 
 interface Props {
   businessId: number;
@@ -62,7 +62,7 @@ const MemberHandoverBox: React.FC<Props> = ({ businessId, memberId, fromUserId, 
   const c = sum?.counts;
   const hasWork = !!sum && (sum.total > 0 || sum.private_total > 0);
   const extras = c ? c.mail_assigned + c.booking_open : 0;
-  const effectiveDate = sum ? formatDay(sum.l1_effective_at, { year: 'always' }) : '';
+  const effectiveDate = sum ? formatDay(sum.l1_effective_on || sum.l1_effective_at, { year: 'always' }) : '';
 
   const doHandover = async () => {
     if (!toUserId) return;

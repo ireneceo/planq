@@ -795,7 +795,7 @@ export default function WorkspaceSettingsPage() {
       : r.status === 'already_invited' ? t('members.bulkInvite.rowAlreadyInvited', '이미 초대함')
         : r.status === 'invalid' ? t('members.bulkInvite.rowInvalid', '이메일 형식이 아님')
           : r.status === 'quota' ? t('members.bulkInvite.rowQuota', '자리 없음')
-            : r.status === 'invited' ? t('members.bulkInvite.rowInvited', '보냄') : t('members.bulkInvite.rowOk', '보낼 예정');
+            : r.status === 'invited' ? t('members.bulkInvite.rowInvited', '보냄') : t('members.bulkInvite.rowOk', '보낼 수 있음');
     return `${r.email} — ${reason}`;
   };
 
