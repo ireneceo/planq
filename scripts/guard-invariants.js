@@ -421,6 +421,8 @@ const NON_TENANT_MODELS = new Set([
   'DevStatusReport',
   // Cue 질문 분석(2026-10-07) — 원장에 business_id 가 **일부러 없다**(개인·워크스페이스 비식별). platform_admin 라우터 전역 가드.
   'CueQuestionTopic', 'CueQuestionRaw',
+  // SNS 발송(2026-10-22) — PlanQ 회사 마케팅 도구, business_id 없는 플랫폼 공통. routes/admin_social.js 가 platform_admin 으로 막는다.
+  'SocialAccount', 'SocialPost', 'SocialPostLog',
 ]);
 // 호출 스니펫 안에서 "테넌트 스코프 처리됨" 으로 인정하는 마커
 const TENANT_MARKERS = /business_id|businessId|listWhere|Where\(scope|scope\)|attachWorkspaceScope|canAccess|req\.workspace|findByPk/;

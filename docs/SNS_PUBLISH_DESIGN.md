@@ -49,6 +49,7 @@ draft →(승인) approved →(예약 시각 지정) scheduled →(cron 점유) 
 - **승인한 뒤 본문·이미지를 고치면 draft 로 돌아간다**(승인한 것과 나가는 것이 같아야 한다).
 - **이중 게시 방지**: cron 은 `UPDATE … SET status='sending' WHERE id=? AND status='scheduled'` 영향 1행일 때만 보낸다.
   `sending` 이 10분 넘게 남은 행은 자동 재시도하지 않고 failed(«결과 모름 — 채널에서 확인 후 다시 보내기») — 다시 보내 두 번 게시되는 것보다 사람이 보는 것이 낫다.
+- **단계 1 에서 쓰는 전이만**: draft →(승인) approved → (반자동 채널) [게시함 표시] sent · 승인 뒤 고치면 draft · draft/approved →(취소) canceled · canceled →(다시 살리기) draft. 자동 채널(LinkedIn·Facebook·Instagram·Threads)은 approved 에서 멈춘다 — 예약·발송은 단계 2. sent·canceled 는 본문 수정 409.
 - 한 계정 하루 상한(Instagram 공식 한도보다 낮게: 계정당 하루 5건) · 같은 글 같은 채널 3일 간격.
 
 ## 3. 채널 어댑터 (`services/social/<provider>.js` — 같은 모양)
@@ -74,9 +75,12 @@ draft →(승인) approved →(예약 시각 지정) scheduled →(cron 점유) 
 - 연결 해제 = 토큰 지움 + 공급자 revoke 호출(가능한 곳).
 
 ## 6. 소재 만들기
-- 본문: `services/llm.callLLM` 목적 `social_draft` — 글 본문 블록 → 채널별 본문·훅 5개·카드 문구 JSON. 비용은 플랫폼 몫(cue_usage 에 안 셈), 관리자 per-user 레이트리밋.
-- 카드 이미지: 템플릿 4종(문제제기·체크리스트·전후비교·숫자) HTML → `pdfService.getBrowser()` 재사용 screenshot(1080×1350 · 1200×630 · 1080×1920). 글자 넘침 검사(넘치면 생성 실패로 표시, 조용히 자르지 않음).
-- **글별 링크 미리보기 이미지(1단계)**: `help_articles.og_image_path`(새 칸) — 있으면 `middleware/ogMeta` 가 그 글 주소에 쓴다. 없으면 지금처럼 기본 이미지.
+- 본문: `services/llm.callLLM` 목적 `social_draft`(**`PURPOSES` 에 등록** — 미등록이면 generic 으로 조용히 떨어진다) — 글 본문 블록 → 채널별 본문·훅 5개·카드 문구 JSON. 비용은 플랫폼 몫(cue_usage 에 안 셈), 관리자 `costGuard.perUserLimiter`(분 3·일 40).
+- 카드 이미지: 템플릿 4종(문제제기·체크리스트·전후비교·숫자) HTML → `pdfService.getBrowser()` 재사용 screenshot(1080×1350 · 1200×630 · 1080×1920). **`retainBrowser` 를 newPage 앞에서 잡고 finally 에서 `releaseBrowser`**(wikiScreenshot 선례 — PDF 쪽 은퇴가 렌더 중 브라우저를 닫지 않게). 글자 넘침 검사(넘치면 생성 실패로 표시, 조용히 자르지 않음).
+- **글별 링크 미리보기 이미지(1단계)**: `help_articles.og_image_path`(새 칸, **모델에도 넣는다** — sync alter 가 모델 밖 칸을 지운다) — 있으면 `middleware/ogMeta` 가 그 글 주소에 쓴다. 없으면 지금처럼 기본 이미지.
+  - 공개 표면 **한 라우트**: `GET /api/insights/:slug/og.jpg`(`routes/insight_og.js`, `routes/insights` 보다 앞에 마운트 — 꼬리 `og.jpg` 만 둔다). 판정 `ogSources.publishedInsightWhere(slug)` ∧ `og_image_path` 있음 ∧ 파일 있음, 아니면 **404**(존재 여부 안 흘림). `Cache-Control: public, max-age=86400` · `sendFile` · 경로는 `uploads/social/og/` 밖이면 404. **uploads 디렉토리를 통째로 static 으로 열지 않는다.**
+  - ogMeta 의 인사이트 이미지 순서: **글 이미지(`/api/insights/<slug>/og.jpg?v=<updated_at 초>`) → `settings.og_image_url` → `/og-default.png`**. 검색용 정적 페이지(seoArtifacts)도 같은 주소를 쓴다(한 함수 `ogSources.insightOgImageUrl`).
+- **대상 글(설계 지적 11)**: `services/publicContent.BLOG_WHERE` — 랜딩 `/insights` 목록과 같은 술어(= `publishedInsightWhere` 조건 ∩ **how-to 제외**). how-to 는 도움말 글이라 인사이트가 아니다(2026-09-07 IA 결정). updates(제품 소식)·insights(칼럼)·미지정 포함. 화면에서 카테고리로 거를 수 있다.
 - 쇼츠(4단계): 카드 PNG → ffmpeg(장면 전환·자막) 1080×1920 mp4. ffmpeg 없으면 버튼 비활성 + 이유.
 
 ## 7. 화면 — 플랫폼 관리자 > «SNS 발송» (`/admin/social`, ADMIN_MENUS + 탭 라우트 3곳)
@@ -94,7 +98,7 @@ draft →(승인) approved →(예약 시각 지정) scheduled →(cron 점유) 
 - Irene 할 일(채널별 하나씩): Meta 비즈니스 인증·앱 만들기·권한 심사(pages_manage_posts · instagram_content_publish · threads_content_publish) · LinkedIn Community Management API 신청 · 각 앱 자격을 관리자 화면에 넣기 · (4단계) ffmpeg 설치.
 
 ## 9. 운영 적용
-- `scripts/migrate-social.js`(멱등: 표 3 · help_articles.og_image_path · platform_settings 자격 칸) — 배포 슬롯 등록, 코드 배포 전.
+- **`dev-backend/scripts/migrate-social.js`**(멱등: 표 3 · help_articles.og_image_path — 운영 rsync 는 dev-backend 만 보낸다) — 배포 슬롯 등록, 코드 배포 전(모델이 og_image_path 를 SELECT 한다). platform_settings 자격 칸은 단계 2 에 같은 스크립트로 더한다.
 - 끄는 스위치: `.env SOCIAL_PUBLISH_ENABLED=1` 없으면 cron·발송·공개 미디어 주소 404(화면은 «발송 꺼짐» 표시).
 
 ## 10. 검증 계획

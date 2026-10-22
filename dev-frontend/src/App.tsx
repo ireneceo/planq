@@ -110,6 +110,7 @@ const AdminBusinessesPage = lazy(() => import('./pages/Admin/AdminBusinessesPage
 const AdminFeedbackPage = lazy(() => import('./pages/Admin/AdminFeedbackPage'));
 const DevStatusPage = lazy(() => import('./pages/Admin/DevStatusPage'));
 const AdminLandingVisitsPage = lazy(() => import('./pages/Admin/AdminLandingVisitsPage'));
+const AdminSocialPage = lazy(() => import('./pages/Admin/AdminSocialPage'));
 const AdminCueQuestionsPage = lazy(() => import('./pages/Admin/AdminCueQuestionsPage'));
 const AdminWikiPage = lazy(() => import('./pages/Admin/AdminWikiPage'));
 const AdminEmailLogsPage = lazy(() => import('./pages/Admin/AdminEmailLogsPage'));
@@ -654,6 +655,11 @@ function ShellApp() {
           </ProtectedRoute>
         } />
         {/* 새소식·인사이트 — 도움말(자동 채움)과 성격이 달라 진입점을 나눈다. 화면은 같은 것을 재사용. */}
+        <Route path="/admin/social" element={
+          <ProtectedRoute requiredRole={['platform_admin']}>
+            <MainLayout><AdminSocialPage /></MainLayout>
+          </ProtectedRoute>
+        } />
         <Route path="/admin/updates" element={
           <ProtectedRoute requiredRole={['platform_admin']}>
             <MainLayout><AdminWikiPage mode="blog" /></MainLayout>

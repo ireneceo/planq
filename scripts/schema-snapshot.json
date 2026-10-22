@@ -1261,7 +1261,8 @@
       "origin",
       "origin_meta",
       "blog_published_at",
-      "blog_category"
+      "blog_category",
+      "og_image_path"
     ],
     "help_categories": [
       "id",
@@ -2575,6 +2576,58 @@
       "item_images",
       "superseded_at",
       "rejected_kind"
+    ],
+    "social_accounts": [
+      "id",
+      "provider",
+      "external_id",
+      "display_name",
+      "avatar_url",
+      "access_token_enc",
+      "refresh_token_enc",
+      "token_expires_at",
+      "status",
+      "last_error",
+      "connected_by",
+      "connected_at",
+      "created_at",
+      "updated_at"
+    ],
+    "social_post_logs": [
+      "id",
+      "post_id",
+      "from_status",
+      "to_status",
+      "action",
+      "status_code",
+      "message",
+      "user_id",
+      "created_at"
+    ],
+    "social_posts": [
+      "id",
+      "article_id",
+      "account_id",
+      "provider",
+      "angle",
+      "kind",
+      "body",
+      "first_comment",
+      "link_url",
+      "media",
+      "status",
+      "scheduled_at",
+      "sent_at",
+      "approved_by",
+      "approved_at",
+      "external_post_id",
+      "external_url",
+      "error_message",
+      "metrics",
+      "metrics_at",
+      "created_by",
+      "created_at",
+      "updated_at"
     ],
     "subscriptions": [
       "id",

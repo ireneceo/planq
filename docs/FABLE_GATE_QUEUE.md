@@ -2,6 +2,11 @@
 
 
 
+## 2026-10-22 · 인사이트 글 SNS 발송 단계 1 완료 검증 (방 d05ab1c8) — **PASS**(Fable, 차단 0)
+- 범위: 26c3c20e 이후 미커밋 전부(공개 OG 라우트 `/api/insights/:slug/og.jpg` · 관리자 «SNS 발송» · social_* 표 · og_image_path · 카드 렌더 · AI 초안). 외부 발송 없음.
+- 근거: OG 공개 200(public 1일 캐시)/미발행·비공개·경로 탈출 404(DB 심기 대조 원복) · 봇 og:image 글별 주소, 없으면 기본 · 관리자 API noauth 401·owner 403 · 전이 실호출 26건(동시 승인 하나만 성공) · 넘침 양성 대조 · 브라우저 누수 0 · secrets 14/14 · 가드 실패 0 · --suite socialadmin 실패 0.
+- 비차단: ①대상 글에 updates(제품 소식)도 들어간다(BLOG_WHERE = /insights 와 같음 — 화면 분류 필터로 좁힘 가능) ②OG 라우트 술어(publishedInsightWhere)가 BLOG_WHERE 보다 넓다(how-to 에 og 를 만들 문이 없어 실효 0, 다음에 한 벌로) ③og.jpg 하루 공개 캐시 — 비공개로 돌려도 캐시 하루 ④미발행 글 봇 요청은 기본 OG 200(이전부터).
+
 ## 2026-10-22 · 인사이트 글 SNS 발송 설계 (design) — PASS · 차단 0 · 비차단 15 (전문 docs/SNS_PUBLISH_DESIGN.md §11) · 단계 1(외부 발송 없음) 구현 가능, 조건 지적 1·11·12·14 먼저 반영
 
 ## 2026-10-22 · 고객행 메일 제목 접두어·표시 이름 (방 a6d11ff9) — 설계 **PASS**(Fable, (b) 채택) · 결과 `docs/MAIL_SUBJECT_PREFIX_REVIEW.md` §4

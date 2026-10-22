@@ -146,6 +146,9 @@ const HelpCategory = require('./HelpCategory');
 const HelpArticle = require('./HelpArticle');
 const LandingVisit = require('./LandingVisit');
 const LandingVisitor = require('./LandingVisitor');
+const SocialAccount = require('./SocialAccount');
+const SocialPost = require('./SocialPost');
+const SocialPostLog = require('./SocialPostLog');
 const HelpQuestionLog = require('./HelpQuestionLog');
 const CueQuestionTopic = require('./CueQuestionTopic');
 const CueQuestionRaw = require('./CueQuestionRaw');
@@ -639,6 +642,7 @@ module.exports = {
   PayrollPerson, EmploymentContract, PayItem, ContractPayLine,
   PayrollRun, PayrollEntry, PayrollEntryLine, PayrollStatusHistory,
   LandingVisit, LandingVisitor,
+  SocialAccount, SocialPost, SocialPostLog,
   ProjectHistoryEntry,
   ProviderCredit,
   AttendanceDay, AttendanceEvent, LeaveGrant, LeaveRequest, LeaveType, WorkspaceHoliday,
@@ -1086,3 +1090,8 @@ require('../services/task_snapshot').registerTaskSnapshotHook(Task);
 // ─── Q위키 (Q Wiki) — associations ──────────────────────────────────
 HelpArticle.belongsTo(HelpCategory, { as: 'category', foreignKey: 'category_id', onDelete: 'CASCADE' });
 HelpCategory.hasMany(HelpArticle, { as: 'articles', foreignKey: 'category_id', onDelete: 'CASCADE' });
+// SNS 발송 (2026-10-22) — 글 1 : 게시물 N · 계정 1 : 게시물 N · 게시물 1 : 원장 N
+SocialPost.belongsTo(HelpArticle, { as: 'article', foreignKey: 'article_id', onDelete: 'CASCADE' });
+HelpArticle.hasMany(SocialPost, { as: 'socialPosts', foreignKey: 'article_id', onDelete: 'CASCADE' });
+SocialPost.belongsTo(SocialAccount, { as: 'account', foreignKey: 'account_id', onDelete: 'SET NULL' });
+SocialPost.hasMany(SocialPostLog, { as: 'logs', foreignKey: 'post_id', onDelete: 'CASCADE' });

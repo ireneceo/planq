@@ -1472,6 +1472,34 @@ function defineSecretTests() {
       run(`require('dotenv').config();const M=require('./models');M.AgentGrant.destroy({where:{id:${Number(fx.id)},client_id:'health-secrets'}}).then(()=>process.exit(0));`);
     }
   });
+
+  // ★ 2026-10-22 SNS 발송(docs/SNS_PUBLISH_DESIGN.md §11 지적 13) — 연결 계정 응답에 채널 토큰이 실리면 안 된다.
+  //   토큰은 *_enc 암호문이고 전역 toJSON 이 내린다 — 보유 여부(token_set)는 서버가 인스턴스에서 만든다.
+  //   대조군: 넣은 display_name 은 그대로 오고 token_set 은 true 다(빈 응답으로 거짓 통과하지 않게).
+  test('secrets', 'SNS 연결 계정 응답에 채널 토큰이 실리지 않는다', async () => {
+    if (!BACKEND.startsWith('http://localhost')) return true;
+    const run = (code) => execSync(`node -e "${code}"`, { cwd: '/opt/planq/dev-backend', encoding: 'utf8', timeout: 30000 });
+    const plain = `hc-social-tok-${Date.now()}`;
+    const name = `hc-social-${Date.now()}`;
+    const made = run(`require('dotenv').config();const M=require('./models');const enc=require('./services/encryption');const jwt=require('jsonwebtoken');(async()=>{`
+      + `const u=await M.User.findOne({where:{platform_role:'platform_admin',status:'active'},order:[['id','ASC']]});`
+      + `const a=await M.SocialAccount.create({provider:'threads',external_id:'${name}',display_name:'${name}',access_token_enc:enc.encrypt('${plain}'),refresh_token_enc:enc.encrypt('${plain}-r'),status:'active'});`
+      + `process.stdout.write('<<'+JSON.stringify({id:a.id,t:jwt.sign({userId:u.id,id:u.id},process.env.JWT_SECRET,{expiresIn:'10m'})}));process.exit(0);})().catch(e=>{process.stdout.write('<<'+JSON.stringify({err:e.message}));process.exit(0);});`);
+    const fx = JSON.parse(made.slice(made.indexOf('<<') + 2));
+    if (fx.err) throw new Error(`계정 픽스처 실패: ${fx.err}`);
+    try {
+      const H = { Authorization: `Bearer ${fx.t}` };
+      const raw = JSON.stringify(await http('GET', `${BACKEND}/api/admin/social/accounts`, { headers: H }))
+        + JSON.stringify(await http('GET', `${BACKEND}/api/admin/social/overview`, { headers: H }));
+      if (raw.includes(plain)) throw new Error('계정 응답에 토큰 원문이 있다');
+      if (/_token_enc|access_token|refresh_token/.test(raw)) throw new Error('계정 응답에 토큰 칸이 실려 있다');
+      if (!raw.includes(name)) throw new Error('넣은 계정 이름이 응답에 없다 — 빈 응답으로 거짓 통과');
+      if (!raw.includes('"token_set":true')) throw new Error('token_set 이 true 가 아니다 — 보유 표시가 죽었다');
+      return '계정·개요 원문 — 토큰 0 · 이름·token_set 유지';
+    } finally {
+      run(`require('dotenv').config();const M=require('./models');M.SocialAccount.destroy({where:{id:${Number(fx.id)},external_id:'${name}'}}).then(()=>process.exit(0));`);
+    }
+  });
 }
 
 function defineDateOnlyTests() {

@@ -136,6 +136,7 @@ export const ADMIN_MENUS: NavMenuEntry[] = [
   // ★ 사이드바(MainLayout)에는 있는데 이 표에 없었다 — 표가 단일 원천이므로 빠지면
   //   탭 이름도 `+` 검색 목록도 같이 빠진다(2026-09-17 전수 검사로 발견).
   { key: 'admin-updates', to: '/admin/updates', labelKey: 'nav.updates', section: 'admin', roles: 'any' },
+  { key: 'admin-social', to: '/admin/social', labelKey: 'nav.social', section: 'admin', roles: 'any' },
   { key: 'admin-dev-status', to: '/admin/dev-status', labelKey: 'nav.devStatus', section: 'admin', roles: 'any' },
   { key: 'admin-landing-visits', to: '/admin/landing-visits', labelKey: 'nav.landingVisits', section: 'admin', roles: 'any' },
   { key: 'admin-cue-questions', to: '/admin/cue-questions', labelKey: 'nav.cueQuestions', section: 'admin', roles: 'any' },

@@ -18,6 +18,19 @@ function publishedInsightWhere(slug) {
 }
 
 /**
+ * 글별 링크 미리보기 이미지 주소 — 없으면 null(부르는 쪽이 플랫폼 기본 이미지로 떨어진다).
+ *   공개 문은 GET /api/insights/:slug/og.jpg 하나(routes/insight_og.js — 같은 publishedInsightWhere 로 판정).
+ *   ?v= 는 다시 만들 때 SNS·메신저 캐시를 넘기려는 것(updated_at 초). 봇 응답(ogMeta)과 정적 페이지(seoArtifacts)가 같이 쓴다.
+ */
+function insightOgImageUrl(a) {
+  if (!a || !a.og_image_path || !a.slug) return null;
+  const origin = String(process.env.APP_URL || 'https://planq.kr').replace(/\/+$/, '');
+  const at = a.updatedAt || a.updated_at;
+  const v = at ? Math.floor(new Date(at).getTime() / 1000) : 0;
+  return `${origin}/api/insights/${encodeURIComponent(a.slug)}/og.jpg${v ? `?v=${v}` : ''}`;
+}
+
+/**
  * slug → 미리보기에 쓸 제목·설명. 공개 대상이 아니면 null.
  *
  * ★ 노출 범위는 **제목과 요약까지**다. 본문을 넣지 않는 이유는 링크가 채팅방에 붙는 순간
@@ -28,7 +41,7 @@ async function resolveInsight(slug) {
     const HelpArticle = require('../models/HelpArticle');
     const a = await HelpArticle.findOne({
       where: publishedInsightWhere(slug),
-      attributes: ['slug', 'title_ko', 'title_en', 'summary_ko', 'summary_en'],
+      attributes: ['slug', 'title_ko', 'title_en', 'summary_ko', 'summary_en', 'og_image_path', 'updatedAt'],
     });
     if (!a) return null;
     const title = a.title_ko || a.title_en;
@@ -37,6 +50,7 @@ async function resolveInsight(slug) {
       slug: a.slug,
       title: String(title),
       description: String(a.summary_ko || a.summary_en || '') || null,
+      image: insightOgImageUrl(a),
     };
   } catch (e) {
     console.warn('[ogSources] resolveInsight', e.message);
@@ -44,4 +58,4 @@ async function resolveInsight(slug) {
   }
 }
 
-module.exports = { publishedInsightWhere, resolveInsight };
+module.exports = { publishedInsightWhere, resolveInsight, insightOgImageUrl };

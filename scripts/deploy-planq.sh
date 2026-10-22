@@ -657,6 +657,9 @@ sync_database() {
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-user-date-prefs.js 2>&1 | tail -5"
   # 2026-10-01 가입 출처 — users.signup_source VARCHAR(80) NULL. 모델이 선언하므로 PM2 reload 전(없으면 users 조회 500).
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-user-signup-source.js 2>&1 | tail -5"
+  # 2026-10-22 — 인사이트 글 SNS 발송 단계 1(docs/SNS_PUBLISH_DESIGN.md): help_articles.og_image_path + social_* 표 3. 멱등.
+  #   HelpArticle 모델이 og_image_path 를 SELECT 하므로 코드 reload 보다 먼저.
+  prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-social.js 2>&1 | tail -6"
   # 2026-10-12 내 순서(사람별 업무 순서) — task_user_orders 표(CREATE IF NOT EXISTS · 재조회 검증).
   #   ★ 순서: PM2 reload 전 — 신 코드의 /my-week 가 이 표를 SELECT 한다(없으면 팝아웃·주간 목록 500).
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-task-user-order.js 2>&1 | tail -3"

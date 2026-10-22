@@ -514,6 +514,8 @@ app.use('/api/landing-visits', require('./routes/landing_visits'));
 // #194 제품 공지/체인지로그 — 인앱 "새 소식" 패널 (updates 발행분 + 미읽음 워터마크)
 app.use('/api/whats-new', require('./routes/whats_new'));
 app.use('/api/org', require('./routes/org'));
+// 인사이트 글별 링크 미리보기 이미지(무인증, `/:slug/og.jpg` 꼬리 하나) — 로그인 Cue 카드 라우터보다 앞(2026-10-22 SNS 단계 1)
+app.use('/api/insights', require('./routes/insight_og'));
 app.use('/api/insights', require('./routes/insights'));
 app.use('/api/activity', require('./routes/activity'));
 app.use('/api/stats', require('./routes/stats'));
@@ -601,6 +603,8 @@ app.use('/api/admin', require('./routes/admin'));
 app.use('/api/admin', require('./routes/admin_credits'));
 // 배포별 개발 현황 — platform_admin 전용. 라우터 자체가 authenticateToken+requireRole 로 닫혀 있다.
 app.use('/api/admin', require('./routes/admin_dev_status'));
+// 인사이트 글 SNS 발송 — platform_admin 전용 (2026-10-22, docs/SNS_PUBLISH_DESIGN.md 단계 1: 외부 발송 없음)
+app.use('/api/admin/social', require('./routes/admin_social'));
 // 이력 라우터를 먼저 — /:id/revisions 가 /:id 패턴에 먹히지 않도록 순서를 명시한다.
 app.use('/api/posts', require('./routes/post_revisions'));
 app.use('/api/posts', require('./routes/post_comments'));   // 문서 댓글 — /:id/comments 꼬리만 (docs/DOC_COMMENTS_DESIGN.md)

@@ -625,6 +625,13 @@ dev 에만 있는 글이 운영에 샌다(그래서 배포 rsync 가 생성물�
 
 **휴가 종류 (1, 2026-10-22):** **leave_types** — 워크스페이스가 직접 등록·관리하는 휴가 종류(시스템 5종 code annual·sick·family·other·unpaid + 커스텀 · 이름 · 유급/무급 `pay` · 연간 기본 일수 = 부여 폼 기본값, 자동 부여 아님). 부여·신청은 `leave_type_id` 로 가리키고 **유급/무급은 종류가 정한다** — 신청 행 `leave_type` 은 신청 시점 박제라 잔여·통계·급여 무급 일할은 그 박제만 읽는다(종류를 고쳐도 옛 신청·잔여·급여 불변). 쓰인 종류는 pay 불변·삭제 불가(끄기만). 읽고 쓰는 문 `services/leaveTypes`(resolveType 이 business_id 를 건다) · 화면 설정 › 근태 관리 맨 위 «휴가 설정». 옛 `category` ENUM 은 한 릴리즈 동안 쓰기만(롤백용) — 가드 `--category=leavetypes` 가 목록 리터럴·옛 칸 읽기를 막는다. 운영 `migrate-leave-types.js`(배포 슬롯, 롤백 `--rollback-nullable`). 설계 docs/LEAVE_TYPES_DESIGN.md
 
+**SNS 발송 (3, 2026-10-22 · 플랫폼 마케팅 도구 — business_id 없음, platform_admin 전용):** social_accounts · social_posts · social_post_logs + `help_articles.og_image_path`. 설계 docs/SNS_PUBLISH_DESIGN.md
+- **대상 글 = `publicContent.BLOG_WHERE`**(랜딩 /insights 와 같은 술어 — how-to 제외). 화면 플랫폼 관리자 > SNS 발송(`/admin/social`, 서버 `routes/admin_social.js`).
+- **글별 링크 미리보기 이미지의 공개 문은 `GET /api/insights/:slug/og.jpg` 하나**(`routes/insight_og.js`, `publishedInsightWhere` 아니면 404 · uploads 를 통째로 열지 않는다). 주소는 `ogSources.insightOgImageUrl` 한 함수 — 봇 응답(ogMeta)·정적 페이지(seoArtifacts)가 같이 쓴다.
+- **게시물 상태를 바꾸는 문은 `services/social/socialTransition` 하나**(승인 뒤 고치면 draft · 게시함/취소는 수정 409 · 전이마다 social_post_logs + writeAudit). 채널 목록은 `services/social/channels` 한 벌(Threads 포함 · 네이버·카카오 = 반자동).
+- 카드 렌더는 PDF 브라우저를 빌린다(`retainBrowser` 를 newPage 앞에서) · 글자가 넘치면 저장하지 않고 422. AI 초안 목적 `social_draft`.
+- **단계 1 = 외부 발송 없음.** OAuth·예약 cron·공개 미디어 주소는 단계 2(설계 §3~5, Fable 지적 2~8). 운영 `migrate-social.js`(배포 슬롯, 코드보다 먼저). 회귀 `--suite socialadmin` · health-check secrets «SNS 연결 계정».
+
 **급여·계약 (8, 2026-10-15 · 기능 스위치 `businesses.modules.payroll` 기본 꺼짐):** payroll_people · employment_contracts · pay_items · contract_pay_lines · payroll_runs · payroll_entries · payroll_entry_lines · payroll_status_history. 설계 docs/PAYROLL_DESIGN.md(§13 구현 메모)
 - **PlanQ 는 급여를 «계산» 하지 않고 «정리·대조·확정» 한다** — 법정 공제는 세무사 대장 값이 정답(항목 calc `external`, 프리셋에 요율 숫자 없음). 금액 공식은 `services/payrollCalc` 한 벌(순수 함수, 검산 `node scripts/check-payroll-calc.js`).
 - 상태 전이는 `services/payrollTransition` 한 문(초안 → 대조 → 확정·잠금 → 지급완료, 정정은 정정 회차로만). 대장 읽기 `services/payrollStatement`(xlsx·csv 기계 · PDF 만 AI · 주민번호/계좌 모양 가림 `maskSensitive` 한 벌).

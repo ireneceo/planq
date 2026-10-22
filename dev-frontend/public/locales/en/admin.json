@@ -714,5 +714,123 @@
     "refundBank": "Bank transfer",
     "refundRequestedAt": "Refund requested {{date}}",
     "refundTaxIssued": "Tax invoice issued — an amended invoice is needed"
+  },
+  "social": {
+    "title": "Social publishing",
+    "tabArticles": "Articles",
+    "tabChannels": "Channels",
+    "stageNote": "This is stage 1 — for each article, create a link preview image and social assets (4 cards + per-channel copy), edit them and approve them. For Naver Blog and Kakao Channel, copy the text, post it yourself and mark it as posted. Automatic publishing to LinkedIn, Facebook, Instagram and Threads turns on after accounts are connected (next stage).",
+    "category": "Category",
+    "catAll": "All",
+    "cat": {
+      "insights": "Column",
+      "updates": "Product news",
+      "none": "Uncategorized"
+    },
+    "loading": "Loading…",
+    "emptyTitle": "No articles published to Insights",
+    "emptyDesc": "Publish an article to Insights from Help management and it will appear here.",
+    "ogMissing": "No preview image",
+    "count": {
+      "draft": "Draft {{count}}",
+      "approved": "Approved {{count}}",
+      "sent": "Posted {{count}}"
+    },
+    "noPosts": "No assets yet",
+    "openArticle": "View article",
+    "drawerLabel": "Social assets",
+    "og": {
+      "title": "Link preview image",
+      "desc": "The picture shown when this article's link is shared on KakaoTalk, Facebook or LinkedIn (1200×630). Without it, the default PlanQ image is used.",
+      "make": "Create",
+      "remake": "Recreate",
+      "alt": "Link preview of {{title}}"
+    },
+    "draft": {
+      "title": "Social assets",
+      "desc": "AI reads the article and writes 4 cards (problem, checklist, before/after, number) and copy for 6 channels. It is told not to invent numbers, but please read and edit before posting.",
+      "make": "Create assets",
+      "makeMore": "Create a new version",
+      "making": "Creating… (about 30 seconds)",
+      "version": "Version {{n}}",
+      "versionAxis": "Version",
+      "hooks": "Opening line ideas (this run)",
+      "cards": "Card images",
+      "cardAlt": "Card {{n}}",
+      "download": "Download",
+      "downloadAll": "Download all images"
+    },
+    "status": {
+      "draft": "Draft",
+      "approved": "Approved",
+      "scheduled": "Scheduled",
+      "sending": "Sending",
+      "sent": "Posted",
+      "failed": "Failed",
+      "canceled": "Canceled"
+    },
+    "mode": {
+      "auto": "Auto publish · next stage",
+      "semi": "Post yourself"
+    },
+    "provider": {
+      "linkedin": "LinkedIn",
+      "facebook": "Facebook",
+      "instagram": "Instagram",
+      "threads": "Threads",
+      "naver": "Naver Blog",
+      "kakao": "Kakao Channel",
+      "youtube": "YouTube"
+    },
+    "body": "Copy",
+    "firstComment": "First comment (link)",
+    "chars": "{{n}} / {{max}} chars",
+    "overLimit": "Over the channel limit — please shorten it",
+    "approve": "Approve",
+    "cancel": "Cancel",
+    "restore": "Restore",
+    "copy": "Copy text",
+    "copied": "Copied",
+    "markPosted": "Mark as posted",
+    "postedUrl": "Posted URL (optional)",
+    "postedAt": "Posted {{date}}",
+    "openPosted": "Open the post",
+    "autoWaiting": "Approved. This channel can be scheduled once its account is connected (next stage).",
+    "readOnly": "Posted or canceled assets can't be edited.",
+    "editUnapproves": "Editing after approval turns it back into a draft — please approve the edited version again.",
+    "confirmPostedTitle": "Mark as posted?",
+    "confirmPostedMsg": "This marks it as posted to {{channel}} by you.\nYou won't be able to edit it afterwards.",
+    "confirmPostedOk": "Mark as posted",
+    "confirmCancelTitle": "Cancel this asset?",
+    "confirmCancelMsg": "Cancels the {{channel}} asset. You can bring it back as a draft later with “Restore”.",
+    "confirmCancelOk": "Cancel it",
+    "close": "Close",
+    "err": {
+      "text_overflow": "The text didn't fit on a card, so nothing was created. Please try again.",
+      "llm_unavailable": "AI isn't available right now. Please try again shortly.",
+      "llm_bad_json": "Couldn't read the AI answer. Please try again.",
+      "llm_no_cards": "AI didn't produce card text. Please try again.",
+      "llm_no_channels": "AI didn't produce channel copy. Please try again.",
+      "empty_body": "The copy is empty, so it can't be approved.",
+      "bad_url": "The posted URL isn't a valid web address.",
+      "rate": "Please wait a moment (too many in a row).",
+      "generic": "Couldn't complete it ({{code}})"
+    },
+    "channels": {
+      "title": "Channels",
+      "notConnected": "Not connected",
+      "connected": "Connected",
+      "semiReady": "No connection needed — copy the text and post it yourself",
+      "autoLater": "Account connection opens in the next stage",
+      "howTo": "How to connect",
+      "guide": {
+        "linkedin": "You need an admin account for the LinkedIn company page. Create an app in the LinkedIn Developer portal and get the “Community Management API” approved to post on the company page.",
+        "facebook": "You need admin rights on the Facebook page and Meta business verification. Create an app in Meta for Developers and pass review for “pages_manage_posts”.",
+        "instagram": "Switch the Instagram account to “Business” and link it to the Facebook page. Pass review for “instagram_content_publish” in the same Meta app. Images are sent as JPEG.",
+        "threads": "Threads runs on the Instagram account. Add the Threads use case to the same Meta app and pass review for “threads_content_publish”. Posts are limited to 500 characters.",
+        "naver": "Naver Blog has no posting API, so it can't be automated. Use [Copy text] and [Download] to paste into the blog editor, then press [Mark as posted].",
+        "kakao": "Kakao Channel messages are sent from the Kakao admin center. Build the message with [Copy text] and [Download], then press [Mark as posted]."
+      }
+    }
   }
 }

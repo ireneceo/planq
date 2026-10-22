@@ -51,6 +51,7 @@ const AdminBusinessesPage = lazy(() => import('../pages/Admin/AdminBusinessesPag
 const AdminFeedbackPage = lazy(() => import('../pages/Admin/AdminFeedbackPage'));
 const DevStatusPage = lazy(() => import('../pages/Admin/DevStatusPage'));
 const AdminLandingVisitsPage = lazy(() => import('../pages/Admin/AdminLandingVisitsPage'));
+const AdminSocialPage = lazy(() => import('../pages/Admin/AdminSocialPage'));
 const AdminCueQuestionsPage = lazy(() => import('../pages/Admin/AdminCueQuestionsPage'));
 const AdminWikiPage = lazy(() => import('../pages/Admin/AdminWikiPage'));
 const AdminEmailLogsPage = lazy(() => import('../pages/Admin/AdminEmailLogsPage'));
@@ -136,6 +137,7 @@ export const APP_ROUTES: AppRouteDef[] = [
   // ★ 라우트 표는 두 벌이다(App.tsx = shell / 여기 = 탭 모드). 한쪽만 넣으면 탭에서 빈 화면이 된다
   //   (memory feedback_unwired_guard_is_no_guard).
   { path: '/admin/updates', roles: ['platform_admin'], element: <AdminWikiPage mode="blog" /> },
+  { path: '/admin/social', roles: ['platform_admin'], element: <AdminSocialPage /> },
   { path: '/admin/email-logs', roles: ['platform_admin'], element: <AdminEmailLogsPage /> },
   { path: '/admin/push-logs', roles: ['platform_admin'], element: <AdminPushLogsPage /> },
   { path: '/admin/platform-settings', roles: ['platform_admin'], element: <AdminPlatformSettingsPage /> },

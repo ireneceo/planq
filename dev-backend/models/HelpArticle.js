@@ -95,6 +95,12 @@ HelpArticle.init({
     allowNull: true,
     comment: '랜딩 블로그 카테고리 (guide-video/brand-video/how-to/insights/cases)',
   },
+  // 글별 링크 미리보기 이미지 (2026-10-22 SNS 발송 단계 1) — uploads 아래 상대 경로(social/og/…).
+  //   공개 문은 GET /api/insights/:slug/og.jpg 하나(routes/insight_og.js). 운영 칸은 scripts/migrate-social.js.
+  og_image_path: {
+    type: DataTypes.STRING(255),
+    allowNull: true,
+  },
   // KNOWLEDGE_LOOP 축2 — 자동 클러스터 제안 초안 구분
   origin: {
     type: DataTypes.ENUM('manual', 'auto_cluster'),

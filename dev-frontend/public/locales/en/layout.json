@@ -194,7 +194,8 @@
     "moreMenus": "More ({{count}})",
     "lessMenus": "Show less",
     "moreBadge": "{{count}} in hidden menus",
-    "payrollSettings": "Payroll settings"
+    "payrollSettings": "Payroll settings",
+    "social": "Social publishing"
   },
   "user": {
     "profile": "My Profile",

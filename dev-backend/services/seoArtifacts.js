@@ -17,6 +17,7 @@ const fs = require('fs');
 const path = require('path');
 const HelpArticle = require('../models/HelpArticle');
 const { BLOG_WHERE, WIKI_PUBLIC_WHERE } = require('./publicContent');
+const { insightOgImageUrl } = require('./ogSources');
 
 const MANIFEST = '.seo-generated.json';
 
@@ -137,6 +138,11 @@ function renderPage(template, p) {
   set(/<meta name="twitter:title" content="[^"]*"\s*\/?>/, `<meta name="twitter:title" content="${esc(p.title)}" />`);
   set(/<meta name="twitter:description" content="[^"]*"\s*\/?>/, `<meta name="twitter:description" content="${esc(p.description)}" />`);
   set(/<link rel="canonical" href="[^"]*"\s*\/?>/, `<link rel="canonical" href="${esc(p.canonical)}" />`);
+  // 글별 링크 미리보기 이미지(SNS 발송 단계 1) — 없으면 템플릿 기본 이미지 그대로
+  if (p.image) {
+    set(/<meta property="og:image" content="[^"]*"\s*\/?>/, `<meta property="og:image" content="${esc(p.image)}" />`);
+    set(/<meta name="twitter:image" content="[^"]*"\s*\/?>/, `<meta name="twitter:image" content="${esc(p.image)}" />`);
+  }
   set(/<meta property="og:locale" content="[^"]*"\s*\/?>/, `<meta property="og:locale" content="${lang === 'en' ? 'en_US' : 'ko_KR'}" />`);
   // 한국어 ↔ 영어 짝 페이지 (2026-10-04 GEO §7-⑤). x-default 는 한국어(대표 주소).
   if (p.alternates) {
@@ -269,7 +275,7 @@ async function generateSeoArtifacts({ dir = frontendDir(), log = console } = {})
   const urls = [];     // sitemap 항목
 
   // 글 목록은 목록 페이지(/insights/ · /guide/)의 본문 링크로도 쓴다 — 크롤러가 글로 따라 들어가게
-  const blog = await HelpArticle.findAll({ where: BLOG_WHERE, attributes: ['slug', 'title_ko', 'summary_ko', 'body_ko', 'blog_published_at', 'updatedAt'] });
+  const blog = await HelpArticle.findAll({ where: BLOG_WHERE, attributes: ['slug', 'title_ko', 'summary_ko', 'body_ko', 'blog_published_at', 'updatedAt', 'og_image_path'] });
   const wiki = await HelpArticle.findAll({ where: WIKI_PUBLIC_WHERE, attributes: ['slug', 'title_ko', 'summary_ko', 'body_ko', 'updatedAt'] });
   const blogSlugSet = new Set(blog.map((a) => a.slug));
   const listBlocks = (kind) => (kind === 'insights'
@@ -357,6 +363,7 @@ async function generateSeoArtifacts({ dir = frontendDir(), log = console } = {})
       rel: path.join('insights', a.slug, 'index.html'),
       html: renderPage(template, {
         title: `${a.title_ko} | PlanQ`, description: desc, url: loc, canonical: loc, ogType: 'article',
+        image: insightOgImageUrl(a),
         h1: a.title_ko, paragraphs: [a.summary_ko, ...blocksToParagraphs(a.body_ko)].filter(Boolean), nav,
         blocks: [...(a.summary_ko ? [{ tag: 'p', text: a.summary_ko }] : []), ...st.blocks],
         jsonld: { '@context': 'https://schema.org', '@graph': [

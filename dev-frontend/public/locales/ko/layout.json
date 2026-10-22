@@ -194,7 +194,8 @@
     "moreMenus": "더보기 ({{count}})",
     "lessMenus": "접기",
     "moreBadge": "숨긴 메뉴 {{count}}건",
-    "payrollSettings": "급여 설정"
+    "payrollSettings": "급여 설정",
+    "social": "SNS 발송"
   },
   "user": {
     "profile": "내 프로필",

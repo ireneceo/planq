@@ -391,7 +391,8 @@ async function ogMetaMiddleware(req, res, next) {
         description: article.description
           ? String(article.description).replace(/\s+/g, ' ').trim().slice(0, 200)
           : (settings && settings.seo_description) || undefined,
-        image: (settings && settings.og_image_url) || `${process.env.APP_URL || 'https://planq.kr'}/og-default.png`,
+        // 순서: 글 이미지 → 플랫폼 설정 이미지 → 기본 (SNS 발송 단계 1 · Fable 지적 1)
+        image: article.image || (settings && settings.og_image_url) || `${process.env.APP_URL || 'https://planq.kr'}/og-default.png`,
         siteName: (settings && settings.brand) || 'PlanQ',
       }));
     }

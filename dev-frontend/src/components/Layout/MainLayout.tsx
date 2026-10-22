@@ -1475,6 +1475,14 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
                   </NavIcon>
                   <NavLabel $isCollapsed={isCollapsed}>{t('nav.updates', '새소식·인사이트')}</NavLabel>
                 </NavItem>
+                {/* SNS 발송 — 인사이트 글을 채널별 소재로(2026-10-22, docs/SNS_PUBLISH_DESIGN.md 단계 1) */}
+                <NavItem to="/admin/social" $isCollapsed={isCollapsed} $active={isActive('/admin/social')}
+                  title={isCollapsed ? t('nav.social', 'SNS 발송') : undefined}>
+                  <NavIcon $isCollapsed={isCollapsed}>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+                  </NavIcon>
+                  <NavLabel $isCollapsed={isCollapsed}>{t('nav.social', 'SNS 발송')}</NavLabel>
+                </NavItem>
                 {/* 공지 배너 — 플랫폼 설정 안에 묻혀 있어 찾지 못했다(Irene). 진입점을 메뉴로 올린다. */}
                 <NavItem to="/admin/platform-settings#announcement" $isCollapsed={isCollapsed} $active={false}
                   title={isCollapsed ? t('nav.announcement', '공지 배너') : undefined}>

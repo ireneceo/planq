@@ -61,6 +61,10 @@ const PURPOSES = {
   // 명함 사진 읽기(docs/NAME_CARD_V3_STRATEGY.md 9절 결정 3) — 이미지 1장(≤1024px, detail low)에서 칸 10개만 뽑는다.
   //   추출이라 temperature 0 · 출력이 짧다. 글자 부분 상한(maxInputChars)은 callLLMImage 가 직접 본다.
   card_read:      { model: 'gpt-4o-mini', temperature: 0, maxTokens: 400, timeoutMs: 30_000, maxInputChars: 4_000 },
+  // 인사이트 글 SNS 소재(2026-10-22, docs/SNS_PUBLISH_DESIGN.md §6) — 채널 6곳 본문 + 훅 5개 + 카드 4장 문구 JSON.
+  //   Irene «마케팅 탁월하게» — 회피·밋밋한 문장이 곧 결함이라 Cue 답과 같은 gpt-5.1. 출력이 길어 상한 넉넉히.
+  //   비용은 플랫폼 몫(cue_usage 에 안 센다) · 관리자 perUserLimiter 가 막는다.
+  social_draft:   { model: 'gpt-5.1', temperature: 0.6, maxTokens: 6000, timeoutMs: 120_000, maxInputChars: 20_000 },
   translation:    { model: 'gpt-4o-mini', temperature: 0.1, maxTokens: 2000, timeoutMs: 20_000, maxInputChars: 16_000 },
   // 메일 본문 번역 — 채팅 한 줄과 달리 수천 자다. 20초/2000토큰이면 JSON 이 중간에서 잘려
   // 재시도까지 겹쳐 2분 대기 후 실패했다(#197). 다른 mail_* 와 같은 45초로 정렬.
