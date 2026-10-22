@@ -103,13 +103,16 @@ async function updateContact(contact, input) {
 }
 
 /**
- * 대표 담당자로 넣을지 — 고객 행에 사람 정보가 비어 있으면 대표(고객 행 칸을 채운다), 아니면 추가 담당자.
- *   대표 = display_name 없음 ∨ (phone·invite_email 모두 없음). 판정은 여기 한 곳(화면은 응답의 suggested_role 만 본다).
+ * 대표 담당자로 넣을지 — 고객 행이 **같은 사람이거나 비어 있을 때만** 대표(고객 행 칸을 채운다), 아니면 추가 담당자.
+ *   대표 = 계정 없음 ∧ (display_name 없음 ∨ display_name == 명함 이름). 이름이 다른 사람이면 연락처가 비어 있어도
+ *   추가 담당자다 — 대표 칸을 채우면 «이름은 원래 사람·연락처는 명함 사람» 으로 섞인다(Fable 2026-10-22 완료 검증 비차단 1).
+ *   판정은 여기 한 곳(화면은 응답의 suggested_role 만 본다).
  */
-function suggestRole(client) {
-  const noName = !client.display_name && !client.user_id;
-  const noReach = !client.phone && !client.invite_email && !client.user_id;
-  return noName || noReach ? 'primary' : 'extra';
+function suggestRole(client, cardName) {
+  if (client.user_id) return 'extra';
+  const norm = (v) => String(v || '').replace(/\s+/g, '').toLowerCase();
+  if (!client.display_name) return 'primary';
+  return cardName && norm(cardName) === norm(client.display_name) ? 'primary' : 'extra';
 }
 
 /**

@@ -99,3 +99,10 @@ B2B 에서 명함을 받는 순간 = 새 고객·새 담당자를 알게 된 순
 
 ### 완료 검증 때 볼 것
 남의 워크스페이스 담당자 POST 404 · 고객 역할 403 · 담당자 이메일 메일이 같은 client_id(양성 대조군) · 50 상한 · clientQuota 불변 · 멤버 명함에 [고객으로] 없음 · secrets(담당자·get_client) · 사진 EXIF·크기 · 고객 삭제 → 담당자 0 · 비공개 명함 카드 400 · 게스트 카드 보임 · 첫 사용 확인창 1회 · 처리방침 ko/en · i18n 가드.
+
+## 10. 구현 메모 (2026-10-22 · v3-A b4ab33fd · v3-B 4f71a3d9 · v3-C 1299b901 · Fable 완료 검증 PASS)
+- 서버: `client_contacts` + clients 직함·부서(`migrate-client-contacts.js` 배포 슬롯) · `services/clientContacts.js` 한 곳 · `routes/sale_contacts.js`(담당자 CRUD·card-intake·attach-card(saved_card_id | values)·card-read·card-photo) · mailLink 3순위 · findExistingByContact 담당자 전화 · `routes/member_cards.js` name-card-options·name-card-messages · cardResolver name_card · `services/llm.callLLMImage`(purpose card_read) · `services/cardRead.js`.
+- 화면: 받은 명함 [고객으로 추가](→ `/sale?new=1&card=<보관본>`) · ClientAddDrawer(fromCard·fromPhoto, 직접 관리 모드에 직함·부서) · ClientContactsSection(담당자 절·명함 사진) · CardPhotoButton(첫 사용 확인창 = 기기 localStorage, 사용자 id 키) · SendNameCardButton · NameCardViewDrawer 링크 복사·QR(CardQrModal 공용).
+- 설계와 다르게 한 것(Fable 승인): 처리방침·동의 문구는 «학습 안 함» 만(«보관 안 함» 은 API 단기 보관 때문에 거짓) · 명함 카드 부제는 `subtitle`(note 는 보낸 사람 메모 자리) · 받은 명함 → 고객 때 사진은 옮기지 않음.
+- 완료 검증 비차단 반영: `suggestRole` — 고객 행이 비었거나 **명함 이름과 같은 사람일 때만** 대표 칸, 아니면 추가 담당자(이름·연락처가 섞이던 것).
+- 다음 후보: 첨부 이미지 [명함으로 읽기] 진입점(AttachmentList) · 초대 모드에도 직함·부서 · 메일 서명 명함 링크 · 직무 ESCO(2단계).

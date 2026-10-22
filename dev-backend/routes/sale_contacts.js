@@ -53,7 +53,7 @@ router.get('/:businessId/card-intake/:savedId', ...readChain, async (req, res, n
     if (!got.colleague) {
       const { findExistingByContact } = require('../services/saleCommon');
       const hit = await findExistingByContact(businessId, { email: got.values.email, phone: got.values.mobile || got.values.phone });
-      if (hit) match = { id: hit.id, name: hit.display_name || hit.company_name || null, suggested_role: contacts.suggestRole(hit) };
+      if (hit) match = { id: hit.id, name: hit.display_name || hit.company_name || null, suggested_role: contacts.suggestRole(hit, got.values.name) };
     }
     return successResponse(res, { values: got.values, colleague: got.colleague, match });
   } catch (err) { next(err); }
@@ -73,7 +73,7 @@ router.post('/:businessId/card-read', ...writeChain, ...readLimit, photoUpload.s
     if (found) {
       const { findExistingByContact } = require('../services/saleCommon');
       const hit = await findExistingByContact(businessId, { email: values.email, phone: values.mobile || values.phone });
-      if (hit) match = { id: hit.id, name: hit.display_name || hit.company_name || null, suggested_role: contacts.suggestRole(hit) };
+      if (hit) match = { id: hit.id, name: hit.display_name || hit.company_name || null, suggested_role: contacts.suggestRole(hit, values.name) };
     }
     return successResponse(res, { values, found, match });
   } catch (err) { return fail(res, next, err); }
@@ -113,7 +113,7 @@ router.post('/:businessId/clients/:clientId/attach-card', ...writeChain, async (
       got = { saved: null, values: contacts.cardValues(b.values), colleague: false, source: 'photo' };
     } else return errorResponse(res, 'saved_card_not_found', 404);
     const want = (req.body || {}).as;
-    const role = want === 'primary' || want === 'extra' ? want : contacts.suggestRole(client);
+    const role = want === 'primary' || want === 'extra' ? want : contacts.suggestRole(client, got.values.name);
     if (role === 'primary') {
       const patch = contacts.primaryPatch(client, got.values);
       if (Object.keys(patch).length) {
