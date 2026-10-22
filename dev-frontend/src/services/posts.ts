@@ -14,6 +14,7 @@ export interface PostRow {
   visibility: 'internal' | 'public';
   // N+67 — 통합 visibility (L1-L4). 옛 internal/public 와 hook 양방향 동기.
   vlevel?: 'L1' | 'L2' | 'L3' | 'L4' | null;
+  target_member_ids?: number[] | null;
   security_level?: 'general' | 'internal' | 'confidential';  // D4 #62
   is_pinned: boolean;
   view_count: number;

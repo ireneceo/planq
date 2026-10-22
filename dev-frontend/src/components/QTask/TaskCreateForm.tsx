@@ -641,6 +641,8 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({
         <VisibilityChangeModal
           open={visOpen}
           current={vis.vlevel}
+          currentProjectId={projectId ?? null}
+          currentTargetMemberIds={vis.target_member_ids}
           canChooseL2
           // «특정 프로젝트» 는 이 업무가 들어갈 프로젝트다 — 프로젝트를 고른 뒤에만 고를 수 있다
           projects={projectId ? [{ id: projectId, name: (projects || []).find((p) => p.id === projectId)?.name || '-' }] : []}

@@ -3540,6 +3540,7 @@ const QNotePage = ({ scope, onRecordingChange }: QNotePageProps = {}) => {
         <VisibilityChangeModal
           open={visibilityModalOpen}
           current={(activeSession.visibility as VLevel) || 'L1'}
+          currentProjectId={activeSession.project_id ?? null}
           canChooseL2
           projects={visProjects}
           onConfirm={async ({ level, projectId }) => {

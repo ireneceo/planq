@@ -3010,6 +3010,8 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
       <VisibilityChangeModal
         open={visOpen}
         current={(detailTask.vlevel || 'L3') as 'L1' | 'L2' | 'L3' | 'L4'}
+        currentProjectId={detailTask.project_id ?? null}
+        currentTargetMemberIds={detailTask.target_member_ids ?? null}
         canChooseL2
         // «특정 프로젝트» 는 이 업무의 프로젝트다(업무를 다른 프로젝트로 옮기는 것은 프로젝트 칸이 한다)
         projects={detailTask.project_id ? [{ id: detailTask.project_id, name: detailTask.Project?.name || '-' }] : []}

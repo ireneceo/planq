@@ -23,17 +23,22 @@ interface Props {
   onOpenShare?: () => void;  // L4 → ShareModal 안내 (제공 시 L4 라디오 hide)
   /** 고를 수 없는 선택지 숨기기 — 예: 아직 만들지 않은 업무는 외부 공유(L4)를 고를 수 없다(링크는 만든 뒤 공유 창에서). */
   hide?: Partial<Record<VVariant, boolean>>;
+  /** 지금 연결된 프로젝트·특정 멤버 — 창을 열 때 그대로 미리 고른다(안 넘기면 «특정 프로젝트» 칸이 빈 채라 «연결 안 됨» 으로 보였다, 2026-10-22). */
+  currentProjectId?: number | null;
+  currentTargetMemberIds?: number[] | null;
 }
 
-const VisibilityChangeModal: React.FC<Props> = ({ open, current, canChooseL2 = true, projects = [], members = [], clients = [], onConfirm, onClose, onOpenShare, hide: hideProp }) => {
+const VisibilityChangeModal: React.FC<Props> = ({ open, current, canChooseL2 = true, projects = [], members = [], clients = [], onConfirm, onClose, onOpenShare, hide: hideProp, currentProjectId = null, currentTargetMemberIds = null }) => {
   const { t } = useTranslation('common');
   const cur = (current || 'L3') as string;
+  // L2 는 특정 멤버가 있으면 «특정 멤버», 아니면 «특정 프로젝트»(지금 연결된 프로젝트를 미리 고른다)
+  const curMembers = cur === 'L2' && Array.isArray(currentTargetMemberIds) ? currentTargetMemberIds : [];
   const initial: VisibilityValue = {
     vlevel: (['L1','L2','L3','L4'].includes(cur) ? cur : 'L3') as VisibilityValue['vlevel'],
-    variant: (['L1','L3','L4'].includes(cur) ? cur : 'L2_project') as VVariant,
-    project_id: null,
+    variant: (['L1','L3','L4'].includes(cur) ? cur : (curMembers.length > 0 ? 'L2_members' : 'L2_project')) as VVariant,
+    project_id: cur === 'L2' && curMembers.length === 0 ? (currentProjectId || null) : null,
     client_ids: [],
-    target_member_ids: [],
+    target_member_ids: curMembers,
   };
   const [vis, setVis] = useState<VisibilityValue>(initial);
   const [busy, setBusy] = useState(false);
@@ -41,7 +46,7 @@ const VisibilityChangeModal: React.FC<Props> = ({ open, current, canChooseL2 = t
   useEffect(() => {
     if (open) setVis(initial);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, current]);
+  }, [open, current, currentProjectId]);
 
   if (!open) return null;
 

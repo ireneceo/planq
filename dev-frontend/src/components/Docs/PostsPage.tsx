@@ -2859,6 +2859,8 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId }) => {
         <VisibilityChangeModal
           open={visModalOpen}
           current={(detail.vlevel as 'L1'|'L2'|'L3'|'L4') || 'L3'}
+          currentProjectId={detail.project_id ?? null}
+          currentTargetMemberIds={detail.target_member_ids ?? null}
           canChooseL2
           projects={visProjects.map(p => ({ id: p.id, name: p.name }))}
           members={visMembers}
