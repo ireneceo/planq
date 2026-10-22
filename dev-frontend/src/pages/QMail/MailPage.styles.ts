@@ -528,6 +528,8 @@ export const TransSelect = styled.select`
   height: 28px; padding: 0 6px; border: 1px solid #E2E8F0; border-radius: 6px;
   background: #FFF; color: #334155; font-size: 0.75rem; cursor: pointer;
   &:focus-visible { outline: 2px solid #14B8A6; outline-offset: -1px; }
+  /* 폰은 손가락 — 터치 40px (모양·색은 그대로) */
+  @media (max-width: 640px) { height: 40px; }
 `;
 export const TransBtn = styled.button`
   height: 28px; padding: 0 12px; border: 1px solid #14B8A6; border-radius: 6px;
@@ -535,8 +537,9 @@ export const TransBtn = styled.button`
   font-size: 0.75rem; font-weight: 600; cursor: pointer;
   &:hover:not(:disabled) { background: rgba(20, 184, 166, 0.16); }
   &:disabled { opacity: 0.6; cursor: default; }
+  @media (max-width: 640px) { height: 40px; }
 `;
-// 번역문 머리 — 무엇으로 번역했는지 + 닫기(번역문이 본문 위로 옮겨와 버튼과 떨어졌으므로 그 자리에서 닫는다)
+// 번역문 머리 — 무엇으로 번역했는지. 닫기는 바로 위 번역 줄의 [번역 닫기] 하나(2026-10-22 — 줄이 머리 밑으로 와 ✕ 는 두 벌이었다)
 export const TransHead = styled.div`
   display: flex; align-items: center; justify-content: space-between; gap: 8px;
   margin: -2px 0 6px; color: #0F766E; font-size: 0.75rem; font-weight: 600; white-space: normal;
@@ -819,10 +822,6 @@ export const MsgIconBtn = styled.button<{ $tone?: 'ok' | 'err' }>`
      누른 사람에게는 결과 색이 안 보인다(실측: 복사 직후 색이 hover 값으로 나왔다). */
   &:hover { background: #F1F5F9; color: ${p => (p.$tone === 'ok' ? '#0F766E' : p.$tone === 'err' ? '#DC2626' : '#0F172A')}; }
   &:focus-visible { outline: 2px solid #14B8A6; outline-offset: -2px; }
-`;
-// 머리줄 높이를 키우지 않게 위아래를 음수 여백으로 먹는다(메시지 머리의 36px 아이콘 버튼을 그대로 쓴다)
-export const TransCloseBtn = styled(MsgIconBtn)`
-  margin: -10px -10px -10px 0;
 `;
 export const MessageFrom = styled.div`
   font-size: 0.8125rem; font-weight: 600; color: #0F172A;

@@ -31,7 +31,7 @@ import { openMailWindow } from './openMailWindow';
 import {
   MessageCard, MessageHeader, MessageFrom, MessageTo, MsgHeaderRight, MsgCollapsedPreview, MsgChevron,
   MessageTime, MsgIconBtn, DeliveryChip, MessageBodyText,
-  TransBar, TransSelect, TransBtn, TransLoading, TransErr, TransBody, TransHead, TransCloseBtn,
+  TransBar, TransSelect, TransBtn, TransLoading, TransErr, TransBody, TransHead,
 } from './MailPage.styles';
 import { isEnterAction } from '../../utils/imeKey';
 
@@ -111,7 +111,17 @@ export default function ThreadMessages(p: Props) {
     transShownRef.current = now;
     if (fresh.length !== 1) return;   // 스레드 전환 등으로 한꺼번에 생긴 것은 사람이 누른 게 아니다
     const el = transBoxRefs.current.get(fresh[0]);
-    if (el) requestAnimationFrame(() => el.scrollIntoView({ block: 'start', behavior: 'smooth' }));
+    // ★ 2026-10-22 — scrollIntoView 는 **바깥 상자까지** 굴려 상세 머리 두 밴드가 117px 위로 밀려 사라졌다(3폭 실측).
+    //   번역 줄이 머리 밑으로 오면서 번역문은 대개 이미 보이는 자리에 뜬다 → 메시지 목록 상자만, 보이는 칸 밖일 때만 굴린다.
+    if (el) requestAnimationFrame(() => {
+      let sc: HTMLElement | null = el.parentElement;
+      while (sc && !/(auto|scroll)/.test(getComputedStyle(sc).overflowY)) sc = sc.parentElement;
+      if (!sc) return;
+      const box = sc.getBoundingClientRect();
+      const r = el.getBoundingClientRect();
+      if (r.top >= box.top && r.top <= box.bottom - 48) return;   // 머리가 이미 보인다
+      sc.scrollTo({ top: sc.scrollTop + (r.top - box.top) - 12, behavior: 'smooth' });
+    });
   }, [msgTrans]);
   React.useEffect(() => {
     // 스레드를 바꾸면 «이미 보이던 것» 기준을 새로 잡는다(돌아왔을 때 남아 있는 번역으로 튀지 않게).
@@ -178,6 +188,9 @@ export default function ThreadMessages(p: Props) {
         <MessageCard
           key={m.id}
           $outbound={m.direction === 'outbound'}
+          /* 카드 안 순서(번역 줄 → 본문 → 첨부)를 카드 단위로 재는 손잡이 — canary-mail-attach-order */
+          data-testid="mail-message-card"
+          data-message-id={m.id}
         >
           {/* 헤더 전체가 클릭 대상이지만 role/tabIndex 는 **발신자 영역에만** 둔다 —
               헤더 안에 전달 <button> 이 있어서, 헤더를 role="button" 으로 만들면 인터랙티브 중첩이 된다
@@ -347,61 +360,12 @@ export default function ThreadMessages(p: Props) {
             </MsgCollapsedPreview>
           )}
           {open && <>
-          {/* ★ 2026-10-12 (Irene: *"번역하면 번역한게 올라와서 바로 보이게 해야 하는데 버튼 아래로 생겨서
-              생긴걸 모르는 ui야"*) — 번역 버튼은 본문·첨부 **아래**에 있어서, 번역문을 그 밑에 붙이면
-              긴 메일에서는 화면 밖에 생겨 «아무 일도 안 일어남» 으로 읽혔다. 번역문은 **본문 위**(읽기 시작하는
-              자리)에 두고, 새로 펼쳐지는 순간 그 머리로 스크롤한다(transScrollRef). 원문은 그대로 아래에 남는다. */}
-          {msgTrans[m.id]?.showing && msgTrans[m.id]?.text && (
-            <TransBody data-testid="mail-trans-body"
-              ref={(el) => { if (el) transBoxRefs.current.set(m.id, el); else transBoxRefs.current.delete(m.id); }}>
-              <TransHead>
-                <span>{t('translate.resultLabel', {
-                  defaultValue: '번역 · {{lang}}',
-                  lang: t(`translate.lang.${msgTrans[m.id]!.lang}`, { defaultValue: msgTrans[m.id]!.lang }) as string,
-                }) as string}</span>
-                <TransCloseBtn type="button" data-testid="mail-trans-close"
-                  onClick={() => setMsgTrans(prev => ({ ...prev, [m.id]: { ...(prev[m.id] || { loading: false }), showing: false } }))}
-                  aria-label={t('translate.closeTranslation', { defaultValue: '번역 닫기' }) as string}
-                  title={t('translate.closeTranslation', { defaultValue: '번역 닫기' }) as string}>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
-                    <path d="M18 6 6 18" /><path d="m6 6 12 12" />
-                  </svg>
-                </TransCloseBtn>
-              </TransHead>
-              {msgTrans[m.id]!.text}
-            </TransBody>
-          )}
-          {/* 메일 본문은 원본 문서 그대로 보여준다 — 우리 CSS 를 덮어씌우면 가운데 정렬이 풀리고
-              배경이 사라지고 여백이 잘린다(메일 템플릿은 <style> + table + body bgcolor 로 짜여 있다).
-              sanitizeMailHtml 이 문서를 통째로 정화(script·on* 제거)하고, sandbox iframe
-              (allow-scripts 만, same-origin 없음)이 격리한다. 우리가 넣는 스크립트는 높이 보고 한 줄. */}
-          {m.body_html ? (
-            <MailMessageBody
-              id={m.id}
-              bodyHtml={m.body_html}
-              bodyText={m.body_text}
-              cidMap={msgCidData[m.id]}
-              measuredH={frameH[m.id]}
-              foldLabels={foldLabels}
-            />
-          ) : (
-            <MessageBodyText data-mail-body="1" data-testid="mail-body-block">
-              {/* ★ 2026-09-08 — 평문 메일(body_html 없음)은 여태 **URL 이 그냥 글자**였다.
-                  운영 실측: message #3517 은 body_html 이 NULL 이고 본문에 초대 링크가 있는데
-                  누를 수가 없었다(Irene 신고). HTML 메일에만 링크가 있어서 같은 메일함 안에서
-                  규칙이 갈렸다 → 채팅·댓글과 **같은 함수**(utils/linkify)를 쓴다. */}
-              {linksDisabled ? (m.body_text || '') : linkify(m.body_text || '')}
-            </MessageBodyText>
-          )}
-          {/* ★ 2026-09-18 (Irene: *"이메일 상세에 첨부파일 위치가 애매해. 내용에 바로 아래 첨부파일
-              있어야 할 것 같아. 이전 대화보기가 본문이라면 그 아래에 첨부파일 나와야지.
-              번역이랑 메일내용 요약정리 하는 것보다 첨부파일이 아래에 나와야 하지 않아?"*)
-              첨부는 **받은 메일에 딸려 온 것**이고 번역·요약은 우리가 덧붙이는 것이다.
-              받은 것이 먼저고 우리가 만든 것이 뒤다 — 그래서 본문 바로 아래로 옮겼다.
-              「이전 대화보기」는 본문(MailMessageBody) 안에 있으므로 자연히 그 아래가 된다.
-              여태는 번역문·요약 패널 뒤라 긴 메일에서 첨부를 찾으려면 한참 내려야 했다. */}
-          <MessageAttachments businessId={businessId} attachments={m.attachments} />
-          {/* #184 — 번역하기 / 원본 보기 토글 (언어 선택). 답장 원문 언어는 #153에서 처리됨. */}
+          {/* ★ 2026-10-22 (Irene: *"이메일에서 번역하기가 딱 방금 받은 내용 아래에 없어서 혼란스럽네 … 여러 번 대화한 경우
+              번역버튼 찾아가기 어렵고"*) — Fable 판정 A. 번역 줄(언어·번역·이 메일 확인)은 **메시지 머리 바로 아래**다.
+              본문 전체(이전 대화·서명)+첨부 뒤에 있어 최신 받은 메일 머리에서 1,662px(폰 1,932px) 떨어져 있었고,
+              다음 메일 머리 바로 위에 붙어 그 메일 것으로 읽혔다. 누르는 자리 = 결과가 뜨는 자리 = 읽기 시작하는 자리.
+              카드 순서: 머리 → 번역 줄 → 번역문 → 이 메일 확인 → 본문 → 첨부(카드 끝). 우리가 만든 것은 본문 위,
+              받은 것(본문·첨부)은 그 아래. 번역문 머리의 ✕ 는 바로 위 [번역 닫기] 와 같은 동작이라 뗐다. */}
           <TransBar data-testid="mail-trans-bar">
             <TransSelect value={transLangByMsg[m.id] ?? pickTranslateTarget(guessLangFromText(m.body_text, m.body_html), uiLang)}
               onChange={(e) => setTransLangByMsg((p) => ({ ...p, [m.id]: e.target.value }))}
@@ -462,7 +426,54 @@ export default function ThreadMessages(p: Props) {
             </TransBtn>
             {briefError && <TransErr>{t('brief.failed', { defaultValue: '지금은 확인할 수 없어요' }) as string}</TransErr>}
           </TransBar>
+          {/* ★ 2026-10-12 (Irene: *"번역하면 번역한게 올라와서 바로 보이게 해야 하는데 버튼 아래로 생겨서
+              생긴걸 모르는 ui야"*) — 번역 버튼은 본문·첨부 **아래**에 있어서, 번역문을 그 밑에 붙이면
+              긴 메일에서는 화면 밖에 생겨 «아무 일도 안 일어남» 으로 읽혔다. 번역문은 **본문 위**(읽기 시작하는
+              자리)에 두고, 새로 펼쳐지는 순간 그 머리로 스크롤한다(transScrollRef). 원문은 그대로 아래에 남는다.
+              (2026-10-22 부터 번역 줄도 위로 올라와 번역문은 그 줄 바로 밑이다.) */}
+          {msgTrans[m.id]?.showing && msgTrans[m.id]?.text && (
+            <TransBody data-testid="mail-trans-body"
+              ref={(el) => { if (el) transBoxRefs.current.set(m.id, el); else transBoxRefs.current.delete(m.id); }}>
+              <TransHead>
+                <span>{t('translate.resultLabel', {
+                  defaultValue: '번역 · {{lang}}',
+                  lang: t(`translate.lang.${msgTrans[m.id]!.lang}`, { defaultValue: msgTrans[m.id]!.lang }) as string,
+                }) as string}</span>
+              </TransHead>
+              {msgTrans[m.id]!.text}
+            </TransBody>
+          )}
           {briefOpenFor === m.id && brief && <MailBriefPanel brief={brief} />}
+          {/* 메일 본문은 원본 문서 그대로 보여준다 — 우리 CSS 를 덮어씌우면 가운데 정렬이 풀리고
+              배경이 사라지고 여백이 잘린다(메일 템플릿은 <style> + table + body bgcolor 로 짜여 있다).
+              sanitizeMailHtml 이 문서를 통째로 정화(script·on* 제거)하고, sandbox iframe
+              (allow-scripts 만, same-origin 없음)이 격리한다. 우리가 넣는 스크립트는 높이 보고 한 줄. */}
+          {m.body_html ? (
+            <MailMessageBody
+              id={m.id}
+              bodyHtml={m.body_html}
+              bodyText={m.body_text}
+              cidMap={msgCidData[m.id]}
+              measuredH={frameH[m.id]}
+              foldLabels={foldLabels}
+            />
+          ) : (
+            <MessageBodyText data-mail-body="1" data-testid="mail-body-block">
+              {/* ★ 2026-09-08 — 평문 메일(body_html 없음)은 여태 **URL 이 그냥 글자**였다.
+                  운영 실측: message #3517 은 body_html 이 NULL 이고 본문에 초대 링크가 있는데
+                  누를 수가 없었다(Irene 신고). HTML 메일에만 링크가 있어서 같은 메일함 안에서
+                  규칙이 갈렸다 → 채팅·댓글과 **같은 함수**(utils/linkify)를 쓴다. */}
+              {linksDisabled ? (m.body_text || '') : linkify(m.body_text || '')}
+            </MessageBodyText>
+          )}
+          {/* ★ 2026-09-18 (Irene: *"이메일 상세에 첨부파일 위치가 애매해. 내용에 바로 아래 첨부파일
+              있어야 할 것 같아. 이전 대화보기가 본문이라면 그 아래에 첨부파일 나와야지.
+              번역이랑 메일내용 요약정리 하는 것보다 첨부파일이 아래에 나와야 하지 않아?"*)
+              첨부는 **받은 메일에 딸려 온 것**이고 번역·요약은 우리가 덧붙이는 것이다.
+              본문 바로 아래 = 카드의 **끝**이다. 「이전 대화보기」는 본문(MailMessageBody) 안에 있으므로 자연히 그 아래가 된다.
+              (2026-10-22 Fable A — 번역 줄·번역문·이 메일 확인은 본문 **위**로 갔다. 우리가 만든 것은 본문 위,
+              받은 것은 본문·첨부 순으로 그 아래. 첨부 아래에 우리 블록을 다시 두지 않는다 — 카나리 mail-attach-order.) */}
+          <MessageAttachments businessId={businessId} attachments={m.attachments} />
           </>}
         </MessageCard>
         );
