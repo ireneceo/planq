@@ -100,3 +100,27 @@ draft →(승인) approved →(예약 시각 지정) scheduled →(cron 점유) 
 ## 10. 검증 계획
 - 단계 1: 글 3편으로 카드·OG 이미지 렌더(글자 넘침 0) · OG 메타가 글별 이미지를 가리키는가 · 관리자 아닌 계정 403 · 승인 후 수정 → draft · health-check secrets.
 - 단계 2: 각 채널 **시험 계정/비공개**로 실제 1건(외부 발송 — Irene 지시 뒤) · 이중 게시 방지(동시 cron 2개) · 공개 미디어 주소 기간 밖 404 · 토큰이 응답 원문에 0 · 만료 알림.
+
+## 11. Fable 설계 판정 (2026-10-22) — VERDICT: PASS · 차단 0
+저장소 확인: help_articles 에 og_image_path 없음 · 인사이트 OG 는 ogMeta.js:376-395 가 ogSources.resolveInsight(제목·요약만) · uploads 정적 서빙 없음 ·
+routes/admin.js:14 가 /api/admin/* 전체를 platform_admin 으로 선점 · OAuth state 선례 services/ephemeralStore · dev 블로그 발행 글 30편(how-to 15·insights 13·updates 2).
+
+**구현 전 설계에 반영할 비차단 지적(그대로 옮김):**
+1. 단계 1 의 숨은 공개 표면 — OG 이미지: `GET /api/insights/:slug/og.jpg` 한 라우트, 판정 `ogSources.publishedInsightWhere(slug)` 아니면 404, `Cache-Control: public, max-age=86400`, sendFile, 재생성 시 `?v=<updated_at>`. ogMeta image 순서 «글 이미지 → settings.og_image_url → 기본». uploads 디렉토리 통째 static 금지.
+2. OAuth 콜백을 `/api/admin/...` 에 두면 영영 401 → `/api/social-oauth/:provider/callback`(admin 밖) 또는 server.js:599 앞 마운트 중 하나 명시.
+3. state 는 서명값이 아니라 `services/ephemeralStore`(구글·애플과 같은 벌, 1회 소비).
+4. Instagram 은 JPEG 만 — sharp 로 JPEG 본도 만들어 media 에 두 경로, 공개 미디어 주소는 파일 그대로의 content-type.
+5. 보내기 직전 재검사 — sending 점유 뒤 ①글이 아직 publishedInsightWhere ②계정 active, 아니면 failed(article_unpublished·account_inactive). 토큰 오류(Meta 190·LinkedIn 401) → 계정 expired/revoked + platformNotify.
+6. scheduled 도 수정하면 scheduled_at 비우고 draft. sending·sent 수정은 409. 전이 함수가 막는다.
+7. «결과 모름» failed 의 [다시 보내기] 는 ConfirmDialog 에 «채널에서 게시되지 않았음을 확인했다» 체크 필수(일반 failed 와 문구 가름).
+8. 운영에서 fallback 암호키면 연결·앱 자격 저장 거절(routes/admin.js:692 선례, usingFallbackKey && production → 400).
+9. 연결·해제·승인·예약·취소·게시함 표시는 writeAudit — social_post_logs 는 외부 호출 원장.
+10. provider ENUM 에 naver·kakao 추가 + account_id NULL 허용.
+11. 대상 글 = publishedInsightWhere 술어로 고정 + blog_category 범위(how-to 포함 여부) 명시.
+12. 마이그레이션은 `dev-backend/scripts/migrate-social.js` · og_image_path 를 모델에 넣는다(sync alter 가 모델 밖 컬럼 DROP).
+13. health-check secrets 1건 — `GET /api/admin/social/accounts` 원문에 토큰 0 + display_name 그대로(대조군). 앱 자격 칸은 `*_enc`.
+14. callLLM purpose `social_draft` 를 PURPOSES 에 등록 + costGuard.perUserLimiter · 카드 렌더는 retainBrowser/releaseBrowser.
+15. 토큰 보유 표시(token_set)는 인스턴스에서 읽어 서버가 만든다.
+
+**단계 1(외부 발송 없음) 먼저 구현 — 된다.** 조건: 1·11·12·14 를 설계에 먼저 적고 시작. 단계 1 에 OAuth·cron·공개 미디어 주소·SOCIAL_PUBLISH_ENABLED 분기는 넣지 않는다(표 생성은 가능).
+단계 1 검증 = §10 + «OG 라우트: 비공개 글 404 · 공개 글 200 · ogMeta 봇 응답 og:image 가 그 주소».

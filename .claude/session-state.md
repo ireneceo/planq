@@ -252,10 +252,10 @@
 - 남은 것(같은 모양, 규모 작음): 다른 화면 소켓 리스너도 숨은 탭에서 다시 읽음(업무·확인필요 등) · 창 복귀 때 같은 API 2~4번. 공용으로 바꾸면 «숨은 탭은 실시간 아니어도 된다» 계약 변경이라 Fable 설계 필요.
 - Fable 안 씀 — 화면 갱신 시점·신호에 숫자 하나 추가(권한·쓰기 변경 없음).
 
-### 나중에 — Fable 대기: 인사이트 글 SNS 발송 설계 (방 42f22a17 · 2026-10-21 · [Opus]) · 한도가 풀리면(상황판이 깨움) · 그때 docs/SNS_PUBLISH_DESIGN.md 로 Fable 설계 판정 → 판정대로 단계 1(글별 미리보기 이미지·카드 템플릿·관리자 화면·승인·네이버/카카오 반자동, 외부 발송 없음)부터 구현
-- Irene 답(10-21): «어. 그렇게 하는데 스레드 꼭 넣어줘.» — 상의 권고안 승인 + Threads 필수(설계 1차 채널에 넣음).
-- 설계 초안 docs/SNS_PUBLISH_DESIGN.md · 상의 docs/SNS_PUBLISH_CONSULT.md. 구현 0 — 설계가 막혀 시작 안 함(공용 기준 5절). Fable 한도(429).
-- 판정 뒤 Irene 할 일(채널별 하나씩): Meta 비즈니스 인증·앱·권한 심사(Facebook·Instagram·Threads) · LinkedIn Community Management API 신청 · 앱 자격 입력.
+### 완료: 인사이트 글 SNS 발송 설계 Fable 판정 (방 42f22a17 · 2026-10-22 · [Opus]) — PASS · 차단 0 · 비차단 15
+- 판정 전문 docs/SNS_PUBLISH_DESIGN.md §11 · 기록 docs/FABLE_GATE_QUEUE.md 맨 위 · 상황판 Fable 대기 fwmvhtinwy 뺌.
+- 단계 1(외부 발송 없음) 구현 = 새 일로 대기열 앞에 올림(지적 1·11·12·14 를 설계에 먼저 반영하고 시작).
+- 단계 2(계정 연결·발송) 전에 Irene 할 일: Meta(Facebook·Instagram·Threads) 비즈니스 인증·앱·권한 심사 · LinkedIn Community Management API 신청 — 단계 2 방이 하나씩 올린다.
 
 ### 답 기다림 (이전): 인사이트 글 SNS 자동 발송 — 채널·방식 → 10-21 Irene 답 받음(위)
 
