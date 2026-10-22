@@ -1,5 +1,10 @@
 # Fable 게이트 대기열 → **판정 기록 보관소** (2026-10-08 부터)
 
+## 2026-10-22 · 조직 규모 0단계 구현 baecdbec (방 75b90f45) — 완료 검증 **PASS**(Fable, 차단 없음)
+- 실측: notify 직접 7·호출처 50파일 · 인수인계 실HTTP 38(권한·격리·수신자·컨펌 재계산·L1 시행 전 skip·멱등·알림 1통·감사) · 활동 기록 scope=admin 300건(제목 0·급여 담당만·남의 ws 이름 null) · 초대 배열(dry_run 쓰기 0·422 쓰기 0·21명 400·부서 격리·429) · done=recent 세 역할 ⊆ · 약관 문구 대조 · health 88/88 · guard 75/76.
+- 비차단 반영(같은 날): ①L1 넘기기는 날짜 + **이용약관 버전 ≥ 1.2** 일 때만(memberHandover.l1Effective) ②멤버 행 없는 대표(businesses.owner_id)도 알림 수신(notifyRecipient).
+- 남은 비차단: 배열 초대 레이트리밋은 요청 수(3/분·20/일) · 활성 멤버도 넘길 수 있음 · 약관 «대표가 지정» vs platform_admin · 새 라우트 회귀 스위트 없음 · ws3 contact_user_id 만 있는 옛 고객 2건 알림 차단 · members-departed 사람마다 집계 · 프론트 빌드 미측정(배포 전 EXIT 0 필수).
+
 ## 2026-10-22 · 조직 규모 0단계 설계 (방 75b90f45) — 설계 판정 1회 **FAIL(차단 4) → 반영하면 PASS** · 설계 `docs/ORG_STAGE0_DESIGN.md` 9절
 - 차단: ①해제된 멤버에게도 문(BusinessMember defaultScope removed_at NULL → unscoped, «나간 멤버 — 남은 것 N건» 줄) ②`notify()` 가 받는 사람의 멤버십을 안 봄 → 활성 멤버·활성 고객만(fail-closed `not_member`) ③컨펌자 교체·삭제는 `task_actions.handoverNamedRoles` 하나(재계산·자기 컨펌 금지·컨펌자 0 이면 in_progress) ④L1 업무 넘기기는 약관 버전 올리고 시행일(공지+30일) 뒤에만 — 그 전엔 세기만.
 - 답: 0-2 (A) 유지(담당 없는 L1 → 담당자=인수자, 요청자 NULL 채우기 금지) · 권한 owner·platform_admin(`canRemoveMember` 공유, admin 은 1-3 때) · 요청자 교체는 왜곡 아님·NULL 채우기는 왜곡 · 활동 기록은 명시 표(action→label·admin), 모르는 것 admin 범위 제외, 사람·부서 대상은 target_label · 초대 한도는 전부 거절(dry_run 확인창) · Q task done=recent 는 검색·칸반 완료 칸 안내, 서버 기본은 all, 기준 updated_at.

@@ -17,7 +17,25 @@ const {
 const HANDOVER_L1_EFFECTIVE_AT = new Date('2026-11-25T00:00:00+09:00');
 const OPEN = { [Op.notIn]: ['completed', 'canceled'] };
 
-function l1Effective(now = new Date()) { return now >= HANDOVER_L1_EFFECTIVE_AT; }
+// 그리고 그 조항을 담은 이용약관 버전이 이 서버에 올라가 있어야 한다(재동의 모달) — 날짜만 보면 공지·동의 없이 시행된다
+//   (Fable 2026-10-22 완료 검증 비차단 1). 운영은 관리자 화면에서 버전을 올려야 켜진다.
+const HANDOVER_TERMS_VERSION = '1.2';
+function versionGte(a, b) {
+  const pa = String(a || '0').split('.').map(Number); const pb = String(b).split('.').map(Number);
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+    const x = pa[i] || 0; const y = pb[i] || 0;
+    if (x !== y) return x > y;
+  }
+  return true;
+}
+async function l1Effective(now = new Date()) {
+  if (now < HANDOVER_L1_EFFECTIVE_AT) return false;
+  try {
+    const { PlatformSetting } = require('../models');
+    const ps = PlatformSetting ? await PlatformSetting.findOne({ attributes: ['terms_version'] }) : null;
+    return versionGte(ps?.terms_version, HANDOVER_TERMS_VERSION);
+  } catch { return false; }
+}
 
 /** 넘길 업무 id 들(열린 것) — 담당·요청·대기 컨펌·담당 없는 «나만 보기» 작성. */
 async function openTaskSets(businessId, userId) {
@@ -90,7 +108,7 @@ async function summarize(businessId, userId) {
     counts,
     total: movable,
     private_total: privateTotal,
-    l1_effective: l1Effective(),
+    l1_effective: await l1Effective(),
     l1_effective_at: HANDOVER_L1_EFFECTIVE_AT.toISOString(),
   };
 }
@@ -112,7 +130,7 @@ async function assertRecipient(businessId, fromUserId, toUserId) {
  * @returns {{ moved: { tasks, assigned, reviewing, requested, projects, clients }, skipped_private }}
  */
 async function apply({ businessId, fromUserId, toUserId, actor, io }) {
-  const effective = l1Effective();
+  const effective = await l1Effective();
   const s = await openTaskSets(businessId, fromUserId);
   const all = new Map();
   for (const r of [...s.assigned, ...s.requested, ...s.reviewing, ...s.unassignedPrivate]) all.set(r.id, r);
@@ -206,4 +224,4 @@ async function canManageMembership(req, businessId, transaction) {
   return !!me && me.role === 'owner';
 }
 
-module.exports = { summarize, apply, assertRecipient, canManageMembership, l1Effective, HANDOVER_L1_EFFECTIVE_AT };
+module.exports = { summarize, apply, assertRecipient, canManageMembership, l1Effective, HANDOVER_L1_EFFECTIVE_AT, HANDOVER_TERMS_VERSION };
