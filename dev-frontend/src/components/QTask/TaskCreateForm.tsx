@@ -458,7 +458,7 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({
           <rect x="11" y="6.5" width="2" height="7.5" rx="1" fill="#FFF" />
           <circle cx="12" cy="17" r="1.25" fill="#FFF" />
         </TitleHintMark>
-        <span>{t('add.titleHint', '끝나는 순간이 보이게 적어 주세요 — 예: «A사 견적서 보내기»')}</span>
+        <span>{t('add.titleHint', '끝나는 순간을 알 수 있게 적어주세요 — 예: «A사 견적서 보내기»')}</span>
         <HelpDot topic="task-title" placement="auto">
           {t('add.titleHintWhy', '')}
         </HelpDot>
