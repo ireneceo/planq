@@ -157,8 +157,8 @@ const TERMS = {
     //   «서명 완료» 같은 결과 통지는 넣지 않는다(automated_relevant 가 확인 권장으로 둔다).
 //   ★ Fable D2 — «please sign in/up» 은 피싱 모양이라 뺀다(뒤에 in·up·on·out 이 오면 안 걸린다) · «님이 서명 요청을 취소» 같은 통지도 뺀다.
     '\\[서명\\s*요청\\]', '서명할\\s*차례', '님이[\\s\\S]{0,60}서명을?\\s*요청(했|하였|하셨|드|합)',
-    '\\b(please|kindly) (review and )?(docu)?sign\\b(?!\\s*(in|up|on|out)\\b)', '\\b(waiting|awaiting) (for )?your signature\\b',
-    '\\b(invited|requested) you to (review and )?sign\\b(?!\\s*(in|up|on|out)\\b)', '\\bsent you a document to (review and )?sign\\b',
+    '\\b(please|kindly) (review and )?(docu)?sign\\b(?![-\\s]*(in|up|on|out)\\b)', '\\b(waiting|awaiting) (for )?your signature\\b',
+    '\\b(invited|requested) you to (review and )?sign\\b(?![-\\s]*(in|up|on|out)\\b)', '\\bsent you a document to (review and )?sign\\b',
     '\\byour signature is (requested|required)\\b',
   ],
   // 2026-10-16 — 일정이 잡혔다·바뀌었다는 안내(예약 확정·리마인더·변경·취소). 답장할 상대는 없지만 날짜가 박힌 약속이다.
