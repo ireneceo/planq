@@ -20,4 +20,7 @@ const arg = (k) => { const a = process.argv.find((x) => x.startsWith(`--${k}=`))
     console.log(`[terms-notice] 끝 — 성공 ${s.ok} · 실패/건너뜀 ${s.fail}`);
   } catch (e) { console.error('[terms-notice] 실패:', e.message); process.exitCode = 1; }
   finally { await sequelize.close().catch(() => {}); }
-})();
+})().then(() => {
+  // 메일 연결 풀이 열려 있으면 30초 더 산다(Fable 비차단 2) — 끝났으면 바로 나간다
+  process.exit(process.exitCode || 0);
+});

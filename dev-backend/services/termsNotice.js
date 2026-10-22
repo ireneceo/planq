@@ -8,6 +8,8 @@ const { User, EmailLog } = require('../models');
 const { sendTermsNoticeEmail, emailBlockReason } = require('./emailService');
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+// 시드·시험 계정 도메인 — 받는 서버가 없어 되돌아오면 발신 평판만 깎인다(Fable 2026-10-22 비차단 5. 출처 scripts/seed-*·create-test-accounts).
+const SEED_DOMAINS = new Set(['test.planq.kr', 'demo.planq.kr', 'planq-sample.kr', 'warpro-sample.kr']);
 const templateFor = (version) => `terms_notice_${String(version).replace(/\W/g, '_')}`;
 
 async function collectTargets({ version, only } = {}) {
@@ -20,7 +22,7 @@ async function collectTargets({ version, only } = {}) {
   for (const u of users) {
     const to = String(u.email).trim().toLowerCase();
     if (already.has(to)) { done += 1; continue; }
-    if (emailBlockReason(to)) { blocked += 1; continue; }
+    if (emailBlockReason(to) || SEED_DOMAINS.has(to.split('@')[1])) { blocked += 1; continue; }
     targets.push({ id: u.id, to, name: u.name, lang: (u.language && u.language !== 'ko') ? 'en' : 'ko' });
   }
   return { users: users.length, done, blocked, targets };

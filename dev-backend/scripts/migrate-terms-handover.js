@@ -84,4 +84,7 @@ function joinNotice(cur, add) {
   } finally {
     await sequelize.close().catch(() => {});
   }
-})();
+})().then(() => {
+  // 메일 연결 풀이 열려 있으면 30초 더 산다(Fable 비차단 2) — 끝났으면 바로 나간다
+  process.exit(process.exitCode || 0);
+});

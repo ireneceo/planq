@@ -821,10 +821,6 @@ sync_database() {
   # 2026-10-22 근태 자정 분할 — attendance_events.source ENUM 끝 'auto_midnight'(멱등). 분할 INSERT 가 이 값을 쓰므로 PM2 reload 전.
   #   백필 없음 · 롤백 코드만(docs/ATTENDANCE_MIDNIGHT_SPLIT_DESIGN.md §2-8).
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-attendance-midnight.js 2>&1 | tail -5"
-  # 2026-10-22 조직 0단계 — 이용약관 제10조 개정(퇴사 시 업무 인수인계) 공지 띠 + 약관 버전 1.2(재동의). Irene «너가 해».
-  #   시행일(memberHandover HANDOVER_L1_EFFECTIVE_ON)이 오늘+30일보다 이르면 바꾸지 않고 경고만(약관 13조 30일 공지) — 그땐 시행일을 옮겨 다시 배포.
-  #   멱등 · 배포를 막지 않는다(실패해도 exit 0 — 버전이 안 오르면 «나만 보기» 넘기기는 꺼진 채다). 순서 무관.
-  prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-terms-handover.js 2>&1 | tail -5"
 
   # 운영 #257 — 결과물 회차의 승인/수정요청이 **남의 라운드**에 붙어 있었다(버전 번호 ≠ 컨펌 라운드).
   #   제출 시점의 컨펌 라운드를 회차 행에 적어 두고(review_round), 백필로 옛 행도 잇는다.
@@ -1072,6 +1068,14 @@ post_restart_backfills() {
   log "Re-encoding all-day events as UTC dates..."
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-allday-utc-date.js 2>&1 | tail -8" \
     || warn "종일 재부호화 실패 — 새 코드는 옛 행도 맞게 읽는다. 원인 확인 후 수동 재실행"
+  # 2026-10-22 조직 0단계 — 이용약관 제10조 개정(퇴사 시 업무 인수인계): 약관 버전 1.2(재동의) + 공지 띠 + 활성 회원 고지 메일 1통.
+  #   Irene «너가 해» · 메일 «권고대로». ★ **프론트·서버가 새것으로 뜬 뒤**(여기) — 먼저 돌면 메일·재동의 창의 /terms 가 2~3분 옛 조항이다(Fable 비차단 1).
+  #   시행일(memberHandover HANDOVER_L1_EFFECTIVE_ON)이 오늘(KST)+30일보다 이르면 아무것도 안 하고 경고 → 시행일을 옮겨 재배포.
+  #   멱등 · 실패해도 배포 계속. ★ 메일이 중간에 끊기면 재배포로는 안 보낸다(버전이 이미 1.2) —
+  #   운영에서 `node scripts/send-terms-notice.js` 미리보기 → `--send --confirm=<수>` 로 남은 사람만.
+  log "Terms update notice (version 1.2 · banner · member mail)..."
+  prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-terms-handover.js 2>&1 | grep -E 'terms-handover' | tail -6" \
+    || warn "약관 개정 고지 단계 실패 — 출력 확인 후 수동 재실행"
   # 남은 옛 부호화 0건 단언 — 운영엔 health-check 가 없어 노란 줄 하나로 묻히지 않게 빨간 줄로(Fable 권고 ③).
   [ "$DRY_RUN" = true ] && return 0
   local LEFT
