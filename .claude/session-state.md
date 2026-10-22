@@ -14,7 +14,7 @@
 - 운영 nginx HTTP/2 켜기(운영은 HTTP/1.1, 개발은 HTTP/2 — 앱 첫 실행 250파일이 연결 6개로) — 상황판에 올림(tid todomvji7vn5). «했어요» 뒤: `curl -sI --http2 https://planq.kr/ | head -1` 이 HTTP/2 인지 확인.
 - 남은 큰 몫(제안만): 로그인 화면이 첫 로드에 모듈 84개를 미리 받는다(App 이 근태·달력 위젯 등을 정적 import) — 줄이려면 코드 분할 정리 별도 작업.
 
-### 나중에 — 문서 같이 편집 B: 빌드·Fable 재검증 (방 a0fa896b · 2026-10-22 · [Opus]) · 서버 메모리가 풀리면 · 그때 할 일
+### 완료 (이전 «나중에») — 문서 같이 편집 B: Fable 재검증 PASS (방 a0fa896b · 2026-10-22 · [Opus]) · 서버 메모리가 풀리면 · 그때 할 일
 - Irene 답 «Fable 권고대로. UI 는 아주 쉽고 바로 알고 심플하게 통일된 디자인만» → B 구현 3f3a6ec8 · Fable 검증 FAIL ①(서명 잠금 409 가 겹침 바로 보임) → 62b1aac2 고침.
 - 멈춘 곳: 62b1aac2 프론트 빌드가 서버 메모리 부족으로 강제 종료(다시 돌리지 않음). dev 화면은 아직 3f3a6ec8 빌드(서명 잠금 문서에서 겹침 바가 거짓으로 뜸).
 - 그때 할 일: `cd /opt/planq/dev-frontend && npm run build`(백그라운드) → `node $CLAUDE_JOB_DIR/tmp/e2e/signlock.js 4260`(1440·390 모두 «서명잠금줄=보임 겹침바=없음») + `node $CLAUDE_JOB_DIR/tmp/e2e/coedit-ui.js 4503`(12/12 유지) → /fable-검증 재검증(3f3a6ec8..62b1aac2) → PASS 면 마커 · 기록 FABLE_GATE_QUEUE.md 맨 위 갱신. (job tmp 가 지워졌으면 스크립트는 FABLE_GATE_QUEUE 기록대로 다시 만든다.)
