@@ -7,7 +7,7 @@ import { useTranslation } from 'react-i18next';
 import { apiFetch } from '../../contexts/AuthContext';
 import ActionButton from '../Common/ActionButton';
 import LetterAvatar from '../Common/LetterAvatar';
-import MemberHandoverBox, { HandoverCandidate } from './MemberHandoverBox';
+import MemberHandoverBox, { type HandoverCandidate } from './MemberHandoverBox';
 import { formatDay } from '../../utils/dateFormat';
 
 interface Row { member_id: number; user_id: number; removed_at: string; name: string | null; email: string | null; total: number; private_total: number }
