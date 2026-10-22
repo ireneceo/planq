@@ -202,7 +202,8 @@
       "ja": "日本語",
       "zh": "中文",
       "es": "Español"
-    }
+    },
+    "tools": "번역 · 이 메일 확인"
   },
   "uncertain": {
     "billing": "청구결제",

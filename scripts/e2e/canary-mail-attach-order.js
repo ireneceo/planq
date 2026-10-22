@@ -44,6 +44,24 @@ async function run() {
       await b.goto(page, `/mail?folder=all&thread=${threadId}`);
       await b.sleep(4500);
 
+      // 2026-10-22 — 내 언어 메일은 번역 줄이 접혀 있고 머리 아이콘(mail-tools-toggle)으로 연다.
+      //   접혀 있으면 «접힘» 을 기록하고 열어서 순서를 잰다. 다른 언어 메일이면 아이콘이 없고 줄이 이미 있다.
+      const pre = await page.evaluate(() => {
+        const card = [...document.querySelectorAll('[data-testid="mail-message-card"]')]
+          .find((c) => c.querySelector('[data-testid="mail-attachments"]') && c.querySelector('[data-testid="mail-message-header"]'));
+        if (!card) return null;
+        const toggle = card.querySelector('[data-testid="mail-tools-toggle"]');
+        const hadBar = !!card.querySelector('[data-testid="mail-trans-bar"]');
+        if (toggle) toggle.click();
+        return { toggle: !!toggle, hadBar };
+      });
+      if (pre && pre.toggle) {
+        push(`${vp.w} ⓪ 내 언어 메일은 번역 줄이 접혀 있다`, !pre.hadBar, `아이콘 있음 · 누르기 전 줄 ${pre.hadBar ? '있음 ← ❌' : '없음'}`);
+        await b.sleep(400);
+      } else if (pre) {
+        push(`${vp.w} ⓪ 다른 언어 메일은 번역 줄이 펼쳐져 있다`, pre.hadBar, `아이콘 없음 · 줄 ${pre.hadBar ? '있음' : '없음 ← ❌'}`);
+      }
+
       const m = await page.evaluate(() => {
         const rect = (el) => {
           if (!el) return null;

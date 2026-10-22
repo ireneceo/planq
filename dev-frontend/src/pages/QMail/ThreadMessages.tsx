@@ -102,6 +102,12 @@ export default function ThreadMessages(p: Props) {
   const fullMsg = messages.find((x) => x.id === fullMsgId) || null;
   // 번역문이 **새로 펼쳐지는 순간**(없음/닫힘 → 보임) 그 머리로 데려간다. 이미 떠 있던 것은 건드리지 않는다
   //   — 다른 메시지 번역·재렌더마다 화면이 튀면 읽던 자리를 잃는다.
+  // ★ 2026-10-22 (Irene: *"그럼 이메일 읽는데 방해되잖아. 프로필 선택 언어라면 숨김처리해서 필요할 때만 쓰게 하고
+  //   설정된 언어랑 다른 언어일 때만 보이게 하던지 해야지"*) — 번역 줄은 **내 언어가 아닌 메일**에만 펼쳐 둔다.
+  //   내 언어 메일은 머리 아이콘 하나로 필요할 때만 연다(같은 줄의 «이 메일 확인» 도 거기서). 연 것은 메시지별로 기억한다.
+  const [toolsOpenIds, setToolsOpenIds] = React.useState<ReadonlySet<number>>(() => new Set());
+  React.useEffect(() => { setToolsOpenIds(new Set()); }, [threadId]);
+  const uiBase = uiLang?.startsWith('en') ? 'en' : 'ko';
   const transBoxRefs = React.useRef<Map<number, HTMLElement>>(new Map());
   const transShownRef = React.useRef<Set<number>>(new Set());
   React.useEffect(() => {
@@ -183,6 +189,11 @@ export default function ThreadMessages(p: Props) {
           그 화면에서는 손잡이를 만들지 않는다(헤더 클릭도 끈다). */}
       {messages.map((m) => {
         const open = expandedMsgIds.has(m.id);
+        // 원문 언어 추정이 비면(본문 없음) 내 언어로 본다 — 번역할 것이 없는 메일에 줄을 펼치지 않는다.
+        const srcLang = guessLangFromText(m.body_text, m.body_html);
+        const foreign = !!srcLang && srcLang !== uiBase;
+        const toolsShown = foreign || toolsOpenIds.has(m.id)
+          || !!msgTrans[m.id]?.showing || !!msgTrans[m.id]?.loading || briefOpenFor === m.id;
         const collapsible = messages.length > 1;
         return (
         <MessageCard
@@ -276,6 +287,31 @@ export default function ThreadMessages(p: Props) {
                     아이콘으로 바꾸면서 그 피드백을 없애면 정확히 Irene 이 반복해 신고한
                     "눌러도 아무 일이 없는 컨트롤" 이 된다 → 글리프를 ✓ / ! 로 바꾸고
                     aria-live 로 읽어 준다. 자리는 안 먹고 결과는 남는다. */}
+              {/* 내 언어 메일 — 번역·이 메일 확인 줄을 여닫는 아이콘(다른 언어 메일은 줄이 늘 펼쳐져 있어 아이콘이 없다). */}
+              {open && !foreign && (
+                <MsgIconBtn type="button" data-testid="mail-tools-toggle"
+                  $tone={toolsShown ? 'ok' : undefined}
+                  aria-expanded={toolsShown}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (toolsShown) {
+                      // 닫으면 떠 있던 번역·확인도 같이 닫는다 — 줄만 숨기고 결과가 남으면 다시 줄이 열린다.
+                      setMsgTrans(prev => (prev[m.id] ? { ...prev, [m.id]: { ...prev[m.id]!, showing: false } } : prev));
+                      if (briefOpenFor === m.id) setBriefOpenFor(null);
+                      setToolsOpenIds((prev) => { const n = new Set(prev); n.delete(m.id); return n; });
+                    } else {
+                      setToolsOpenIds((prev) => new Set(prev).add(m.id));
+                    }
+                  }}
+                  title={t('translate.tools', { defaultValue: '번역 · 이 메일 확인' }) as string}
+                  aria-label={t('translate.tools', { defaultValue: '번역 · 이 메일 확인' }) as string}>
+                  {/* 글자 A + 다른 문자 = 번역의 정착된 아이콘 */}
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="m5 8 6 6" /><path d="m4 14 6-6 2-3" /><path d="M2 5h12" /><path d="M7 2h1" />
+                    <path d="m22 22-5-10-5 10" /><path d="M14 18h6" />
+                  </svg>
+                </MsgIconBtn>
+              )}
               <MsgIconBtn type="button"
                 data-testid="mail-copy-body"
                 $tone={copiedId === m.id ? 'ok' : copyFailedId === m.id ? 'err' : undefined}
@@ -366,6 +402,7 @@ export default function ThreadMessages(p: Props) {
               다음 메일 머리 바로 위에 붙어 그 메일 것으로 읽혔다. 누르는 자리 = 결과가 뜨는 자리 = 읽기 시작하는 자리.
               카드 순서: 머리 → 번역 줄 → 번역문 → 이 메일 확인 → 본문 → 첨부(카드 끝). 우리가 만든 것은 본문 위,
               받은 것(본문·첨부)은 그 아래. 번역문 머리의 ✕ 는 바로 위 [번역 닫기] 와 같은 동작이라 뗐다. */}
+          {toolsShown && (
           <TransBar data-testid="mail-trans-bar">
             <TransSelect value={transLangByMsg[m.id] ?? pickTranslateTarget(guessLangFromText(m.body_text, m.body_html), uiLang)}
               onChange={(e) => setTransLangByMsg((p) => ({ ...p, [m.id]: e.target.value }))}
@@ -426,6 +463,7 @@ export default function ThreadMessages(p: Props) {
             </TransBtn>
             {briefError && <TransErr>{t('brief.failed', { defaultValue: '지금은 확인할 수 없어요' }) as string}</TransErr>}
           </TransBar>
+          )}
           {/* ★ 2026-10-12 (Irene: *"번역하면 번역한게 올라와서 바로 보이게 해야 하는데 버튼 아래로 생겨서
               생긴걸 모르는 ui야"*) — 번역 버튼은 본문·첨부 **아래**에 있어서, 번역문을 그 밑에 붙이면
               긴 메일에서는 화면 밖에 생겨 «아무 일도 안 일어남» 으로 읽혔다. 번역문은 **본문 위**(읽기 시작하는
