@@ -350,13 +350,19 @@
 ### 나중에 — Fable 대기: 환불 요청 완료 검증 0eeeef09 (방 baa00446 · 2026-10-19) · 한도가 풀리면(상황판이 14:44 뒤 깨움) · 그때 /fable-검증 다시 → PASS 면 마커 by:fable · 운영 배포는 그 뒤
 - 상황판 Fable 대기 fid fwmvepn40a · 마커 by:"unavailable". 자체 검증 숫자는 위 절.
 
-### 나중에 — Fable 대기: 환불 → 구독 해지 설계 (방 baa00446 · 2026-10-19) · 한도가 풀리면(06:44 UTC 뒤) · 그때 docs/REFUND_CANCEL_DESIGN.md 로 Fable 설계 판정(0eeeef09 완료 검증과 묶어 한 번) → 판정대로 구현 → 검증
-- 설계 판정 전이라 구현 시작 안 함.
+### 나중에 — 환불 → 구독 해지 구현 (방 baa00446 · 2026-10-22) · 다른 방(f08b6db5, 명함 브랜드)이 /opt/planq 를 고치는 중이라 끝나면 · 그때 docs/REFUND_CANCEL_DESIGN.md §5(Fable DESIGN_OK) 그대로 구현 → §7 검증 → Fable 완료 검증 1회
+- Fable 판정(10-22): 0eeeef09 완료 검증 PASS(41/41) · 해지 설계 DESIGN_OK — 기록 cbabc57a · docs/FABLE_GATE_QUEUE.md 맨 위.
+- 게이트 마커는 쓰지 않음 — 지금 지문에 다른 방의 미커밋 변경이 섞여 있어 그것까지 «Fable 검증됨» 으로 찍힌다.
+- 다른 방이 끝나길 기다리던 배경 확인은 서버 메모리 부족으로 시스템이 멈췄다(10-22) — 자동으로 깨어나지 않는다. 이 방에 «시작해» 를 보내면 이어서 한다.
 
-### 나중에 — Fable 대기: 조직 규모 0단계 설계 판정 (방 75b90f45 · 2026-10-19 · [Opus])
-- Irene 10-19 «권고대로 진행해 줘»(ORG_SCALE_REVIEW 결정 8건). 0단계 설계 초안 docs/ORG_STAGE0_DESIGN.md — 0-1 퇴사 인수인계 · 0-2 퇴사자 L1 업무(권고 A: L1 유지·인수자를 이름 박힌 사람으로 — L2 로 바꾸면 owner 도 봄) · 0-3 이미 있는 활동 기록을 «관리 행위만»·읽히는 이름으로 · 0-4 여러 명 초대 · 0-5 all-tasks done=recent + 5,000건 표시.
-- Fable 설계 판정이 한도(429)로 막힘(10-18·10-19 재시도 네 번 다) → 상황판 Fable 대기 fwmvezqzws. 설계가 막혀 구현은 시작 안 함(코드 변경 0).
-- 한도가 풀리면: 설계 판정 1회 → 차단 반영 → 구현(0-1~0-5) → 자체 검증 → R1(0-2·0-3) 완료 검증 Fable 1회 → 보고.
+### 진행 중(멈춤): 조직 규모 0단계 구현 (방 75b90f45 · 2026-10-22 · [Opus] · 설계 Fable 판정 반영)
+- Fable 설계 판정 10-22(FAIL 차단 4 → 반영하면 PASS) — 기록 docs/FABLE_GATE_QUEUE.md · 반영 docs/ORG_STAGE0_DESIGN.md 9절. 대기 fwmvezqzws done.
+- 구현(커밋, 운영 미배포): 알림 받는 사람 확인(services/notifyRecipient — 나간 멤버에게 안 감) · task_actions.handoverNamedRoles · services/memberHandover + routes/member_handover(나간 멤버도) · services/memberInvite(여러 명·dry_run·한도 전부 거절·부서/팀) · services/activityLabels + /api/activity scope=admin · all-tasks done=recent · 약관 제10조 한 줄(2026-11-25 시행) · 화면: 멤버 제거 칸 «남은 일 넘기기»·«나간 멤버 — 남은 일»·초대 창(여러 명·확인창)·활동 기록(관리 행위/전체·사람)·Q task(최근 30일·5,000건 안내·칸반 제목).
+- 자체 검증: 서버 실호출 30건 중 29 ✅(남은 1건은 검사 쪽 — 감사가 많아 최근 200건이 전부 감사, 1,000건이면 다른 소스 나옴) · health-check 88/88 · guard 75/76(종전).
+- **멈춘 곳: 프론트 빌드 2회가 서버 메모리 부족으로 중단(시스템이 끔).** 화면 검증(3폭) 미측정 · Fable 완료 검증 미실행.
+- 다음: 메모리 여유 때 `cd dev-frontend && npm run build`(백그라운드) → 멤버 관리(ws6, 확인용 나간 멤버 user 1015074 / member 17847 · 나만 보기 업무 4449 남김)·초대 창·활동 기록·Q task 3폭 확인 → Fable 완료 검증 1회(gate: 권한·L1·알림) → 보고.
+- 남은 Irene 할 일(완료 뒤 올림): 배포 당일 약관 개정 공지(30일 전 — 시행 2026-11-25, 늦어지면 memberHandover.HANDOVER_L1_EFFECTIVE_AT·legal.json terms.s10 두 곳 이동) + 운영 관리자 화면 이용약관 버전 1.1→1.2.
+
 ### 답 기다림 (이전): 조직 규모 검토 — Irene 결정 8건 → 10-19 «권고대로»
 - 원문: «10-20명 이상의 조직의 경우 우리 솔루션을 쓰면 부족하게 느낄 문제가 뭘까? 보완해야 할 기능이나 구조가 있어? … fable 토큰 생기면 진행하게 해줘.»
 - Fable 판정 완료 → docs/ORG_SCALE_REVIEW.md (사실 묶음 docs/for-fable/ORG_SCALE_REVIEW_FACTS.md). 대기 fwmvdbmupa done.
@@ -412,12 +418,12 @@
 - 검증: --suite mailzoom 12/12(글자·그림 실제 화면 높이 1.5배 · 핀치 CDP 2점 → 300% · 한 손가락 음성 대조군 · 데스크탑 zoom 미설정) · 양성 대조군(frame-id 되돌림 → 높이 보고 35건 FAIL) · build EXIT 0 · guard 73/74(종전과 같음) · 머리줄 360/390/768 버튼 화면 안·눌림. Fable 안 씀 — 화면 기능, 기계 측정.
 - 실기기(앱) 두 손가락은 하니스로 못 잼 → Irene 할 일(check).
 
-### 나중에 — Fable 대기: 내 명함 v2 설계 (방 3b9480e1 · 2026-10-19) · 한도 풀리면(재시도 3회도 한도 — 상황판이 10-20 16:59 뒤 다시 깨움) · 그때 Fable 설계 판정 → 판정대로 구현
-- Irene(10-19): 회사·브랜드 분리(회사 하나·브랜드 여러 개 — 이름·간략 설명·사이트/SNS 여러 개 · 워크스페이스 기본 브랜드 · 개인 브랜드) · «이 워크스페이스 기본 명함» 설정과 보여 주는 곳(지금 없음) · 직무 체계(온세상 직무, 계정 언어 한글 + 영어 검색) · 조직에 멤버 추가할 때 직무/역할 선택과 연결 · «제대로 검토해야 하면 fable 기다려».
-- 초안 docs/NAME_CARD_V2_DESIGN.md(5절이 Fable 에 묻는 것). 조사: 한국표준직업분류 파일은 공공누리 4유형(상업 이용·변경 금지)이라 그대로 못 씀 → ESCO(EU, 영어 포함 28개 언어·ISCO-08 연결) + 한국어 자체 번역 안. ESCO 이용 조건은 확인 못 함(Fable 이 확인).
-- 직책(대표·팀장) / 역할(member_roles — 프로젝트에서 맡은 몫) / 직무(직업) 세 축을 섞지 않는 것이 초안 전제.
-- 설계 판정 전이라 구현 시작 안 함(공용 기준). 상황판 Fable 대기 fid fwmvg9wfug(옛 fwmvfrdpfu·fwmvf68euv·fwmveovitt).
-
+### 완료: 내 명함 v2 1단계 — 브랜드 여러 개·워크스페이스 기본 명함·동료 명함 보기 (방 3b9480e1 · 2026-10-22 · [Opus] · 설계·완료 검증 Fable PASS) — 운영 미배포
+- 설계 docs/NAME_CARD_V2_DESIGN.md 6·7절 · 판정 기록 docs/FABLE_GATE_QUEUE.md 맨 위.
+- 운영 적용: migrate-brands.js · migrate-name-card-default.js (배포 슬롯 등록, 멱등).
+- 검증: 실HTTP 42/43(판정식 오판 1) + Fable 86검사 · 실브라우저 3폭 37/37 · guard 75/76 · secrets 12/12 · vite build 0 + 범위 tsc 0(전체 tsc -b 는 메모리 게이트로 미완).
+- 확인용(ws6): 브랜드 137 «[확인용] 서브 브랜드» · member1 개인 브랜드 138 · 명함 13 = ws6 기본 명함(브랜드 137·기본).
+### 나중에 — 내 명함 v2 2단계(직무 ESCO) · Irene 가 시작하라고 하면 · ESCO 데이터·한국어 번역·표본 검수 150건(lua) 파이프라인부터
 ### 완료: 내 명함 — 여러 장·자동 채우기·공개 페이지·링크/QR·사진·받은 명함 보관 (방 3b9480e1 · 2026-10-17 · [Opus] · 설계·검증 Fable) — 운영 미배포
 - 원문: «내 계정에 내 명함 메뉴를 만들어줘 … 자동으로 불러올 거 불러오고 채울거 채워주고. 수정도 … 종류마다 다르게 … 웹페이지에 제대로 … 링크랑 큐알 … 명함마다 다르게. 사진도 넣으면 나오고 안넣으면 안나오고 … 받은 사람은 다운받아서 저장 … 명함 보관처럼. And나»(끝 «And나» 는 잘린 글로 보고 다루지 않음)
 - 설계 docs/BUSINESS_CARD_DESIGN.md(Fable 설계 FAIL 차단 3 → 반영). 명함은 **계정 소유**(name_cards · saved_name_cards), 칸 값은 명함 자신의 값(라이브 연결 아님).

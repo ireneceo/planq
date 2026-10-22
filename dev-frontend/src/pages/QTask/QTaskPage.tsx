@@ -81,6 +81,15 @@ const RIGHT_PANEL_INLINE_MIN = 1366;
 type Scope = 'mine' | 'workspace';
 type ListTab = 'today' | 'week' | 'all' | 'requested' | 'weekly-review' | 'workspace-tasks' | 'workspace-weekly' | 'workspace-monthly';
 type ViewMode = 'list' | 'kanban';
+// 목록 받는 상한 — 1,000건 × 5쪽. 상한 안내 문구도 이 두 값으로 센다(숫자를 두 곳에 적지 않는다).
+const TASK_LIST_PAGE = 1000;
+const TASK_LIST_PAGES = 5;
+const DONE_RECENT_DAYS = 30;
+/** 서버 done=recent 의 기준일(YYYY-MM-DD) — 기간 필터가 이보다 앞이면 끝난 업무를 전부 받는다 */
+function doneRecentFromStr(): string {
+  const d = new Date(Date.now() - DONE_RECENT_DAYS * 24 * 3600 * 1000);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
 interface OrgUnitLite { id: number; name: string; name_en?: string | null }
 interface MemberOption { user_id: number; name: string; is_ai?: boolean; department?: OrgUnitLite | null; team?: OrgUnitLite | null; }
 type SortKey = 'priority_order' | 'title' | 'status' | 'estimated_hours' | 'actual_hours' | 'progress_percent' | 'due_date';
@@ -280,6 +289,11 @@ const QTaskPage:React.FC=()=>{
   const[assigneeFilter,setAssigneeFilter]=useState<number|null>(null); // workspace mode 담당자 필터
   // ★ "못 불러옴" 과 "업무 없음" 은 다른 상태다(500 재현으로 실측 — 오류인데 빈 상태가 떴다).
   const[loadError,setLoadError]=useState(false);
+  // 끝난 업무는 처음엔 최근 30일만 받는다(조직 0단계 0-5, docs/ORG_STAGE0_DESIGN.md 9절 8).
+  //   완료 가리기를 끄거나·완료/취소로 거르거나·검색하거나·기간을 30일 앞으로 옮기면 전부 받는다(fullDone).
+  const[fullDone,setFullDone]=useState(false);
+  // 받을 수 있는 상한(TASK_LIST_PAGES × TASK_LIST_PAGE)에 닿았으면 화면이 말한다 — 조용히 잘리지 않게
+  const[listCapped,setListCapped]=useState(false);
   const[capacity,setCapacity]=useState<CapacityInfo>({daily:8,days:5,rate:1,weekly:40});
   const[issues,setIssues]=useState<IssueRow[]>([]);
   const[notes,setNotes]=useState<NoteRow[]>([]);
@@ -607,13 +621,16 @@ const QTaskPage:React.FC=()=>{
       // 사이클 N+55 — auto-paginate. 워크스페이스 task 1000+ 누적 시 5000 까지 자동 누적
       const allTasksCollected: unknown[] = [];
       let firstPageOk = false;
-      for (let page = 1; page <= 5; page++) {
-        const r = await(await apiFetch(`/api/projects/workspace/${bizId}/all-tasks?page=${page}&limit=1000`)).json();
+      let capped = false;
+      for (let page = 1; page <= TASK_LIST_PAGES; page++) {
+        const r = await(await apiFetch(`/api/projects/workspace/${bizId}/all-tasks?page=${page}&limit=${TASK_LIST_PAGE}${fullDone ? '' : '&done=recent'}`)).json();
         if (!r.success) break;
         if (page === 1) firstPageOk = true;
         allTasksCollected.push(...(r.data || []));
         if (!r.pagination || !r.pagination.has_more) break;
+        if (page === TASK_LIST_PAGES) capped = true;
       }
+      setListCapped(capped);
       // ★ 첫 페이지부터 실패하면 **빈 목록으로 바꾸지 않는다.** 옛 코드는 빈 배열을 상태에 넣고
       //   캐시에까지 써서, 서버 오류가 "업무가 하나도 없음" 으로 보였고 그 상태가 저장됐다.
       //   (2페이지 이후 실패는 부분 성공이라 있는 만큼 보여준다 — 종전 동작 유지)
@@ -646,9 +663,18 @@ const QTaskPage:React.FC=()=>{
       }catch{}
     }catch{}
     setLoading(false);
-  },[bizId,myId,taskCacheKey]);   // myId — members 매핑에서 내 member row id 를 잡는다
+  },[bizId,myId,taskCacheKey,fullDone]);   // myId — members 매핑에서 내 member row id 를 잡는다 · fullDone — 끝난 업무 전부
 
   useEffect(()=>{load();},[load]);
+  // 워크스페이스가 바뀌면 다시 «최근 30일» 부터
+  useEffect(()=>{ setFullDone(false); },[bizId]);
+  // 끝난 업무가 더 필요한 순간 — 한 번 전부 받으면 그 뒤로는 계속 전부(캐시)
+  const wantAllDone =
+    (hideCompleted === false && !(scope==='mine'&&(tab==='week'||tab==='today')))
+    || statusFilter==='completed' || statusFilter==='canceled'
+    || search.trim()!==''
+    || (!!periodFrom && periodFrom < doneRecentFromStr());
+  useEffect(()=>{ if(wantAllDone&&!fullDone) setFullDone(true); },[wantAllDone,fullDone]);
 
   // 가용시간 — 서버 정본(/api/tasks/my-week capacity). 근무일·공휴일·휴가 차감은 서버가 센다(#424).
   // ★ capacity 가 없으면 **넣지 않는다** — undefined 가 상태에 들어가면 화면 전체가 죽었다.
@@ -2433,6 +2459,11 @@ const QTaskPage:React.FC=()=>{
               기본 빈 상태만 두면 삭제된 줄 안다. */}
           {/* ★ 실패를 빈 상태로 위장하지 않는다. 아래 빈 상태들보다 **먼저** 판정한다 —
               순서가 뒤면 "업무를 시작해 보세요" 가 먼저 걸려 오류가 영영 안 보인다. */}
+          {listCapped&&!loadError&&(
+            <CapNotice data-testid="qtask-list-capped">
+              {t('list.capped','업무가 많아 최근 {{n}}건만 보여요. 검색이나 필터로 좁혀 보세요.',{n:(TASK_LIST_PAGE*TASK_LIST_PAGES).toLocaleString()})}
+            </CapNotice>
+          )}
           {loadError&&(
             <EmptyCenterWrap>
             <EmptyState
@@ -2540,7 +2571,7 @@ const QTaskPage:React.FC=()=>{
                       match:(x)=>x.status==='revision_requested' },
                     { key:'on_hold', title:t('columnGroup.on_hold','보류'), color:STATUS_COLOR.on_hold,
                       match:(x)=>x.status==='on_hold' },
-                    { key:'completed', title:t('columnGroup.completed','완료'), color:STATUS_COLOR.completed,
+                    { key:'completed', title:fullDone?t('columnGroup.completed','완료'):t('columnGroup.completedRecent','완료 · 최근 {{n}}일',{n:DONE_RECENT_DAYS}), color:STATUS_COLOR.completed,
                       match:(x)=>x.status==='completed' },
                   ];
                 } else {
@@ -2562,7 +2593,7 @@ const QTaskPage:React.FC=()=>{
                       match:(x)=>x.status==='revision_requested' },
                     { key:'on_hold', title:t('columnGroup.on_hold','보류'), color:STATUS_COLOR.on_hold,
                       match:(x)=>x.status==='on_hold' },
-                    { key:'completed', title:t('columnGroup.completed','완료'), color:STATUS_COLOR.completed,
+                    { key:'completed', title:fullDone?t('columnGroup.completed','완료'):t('columnGroup.completedRecent','완료 · 최근 {{n}}일',{n:DONE_RECENT_DAYS}), color:STATUS_COLOR.completed,
                       match:(x)=>x.status==='completed' },
                   ];
                 }
@@ -3536,6 +3567,7 @@ const EmptyFull=styled.div`display:flex;align-items:center;justify-content:cente
 // 반복 옵션 펼침 (inline 폼 전용 컴팩트 행)
 // 빈 상태 — 명시적으로 flex column 안에서 가운데 정렬. 부모(LeftPanel) 의 남은 공간 모두 차지.
 const EmptyCenterWrap=styled.div`flex:1;display:flex;align-items:center;justify-content:center;min-height:50vh;width:100%;`;
+const CapNotice=styled.div`margin:8px 12px;padding:8px 12px;border-radius:8px;background:#FFFBEB;border:1px solid #FDE68A;color:#92400E;font-size:0.75rem;line-height:1.5;`;
 /* 우측 패널 추가 폼 — 박스 없이 패널 padding 안에 직접 배치 (박스 안 박스 금지) */
 // 행별 그룹: row1=프로젝트/담당자, row2=기간/예측+AI. 모바일에서는 wrap.
 const RecurChip=styled.span<{$iconOnly?:boolean}>`display:inline-flex;align-items:center;gap:4px;padding:${p=>p.$iconOnly?'2px 4px':'2px 8px'};font-size:0.6875rem;font-weight:600;color:#0F766E;background:#CCFBF1;border-radius:10px;line-height:1.5;flex-shrink:0;`;

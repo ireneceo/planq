@@ -3317,6 +3317,17 @@ router.get('/workspace/:businessId/all-tasks', authenticateToken, async (req, re
     if (!where) return paginatedResponse(res, [], 0, { limit: 0, page: 1, offset: 0 });
 
     if (req.query.status) where.status = req.query.status;
+    // done=recent — 열린 업무 전부 + 끝난(완료·취소) 업무는 최근 30일 수정분만(조직 0단계 0-5, docs/ORG_STAGE0_DESIGN.md 9절 8).
+    //   생략 = 종전(전부). 기준은 updated_at 하나 — 취소는 completed_at 이 없다. 범위 조건(where)과는 Op.and 로 겹친다.
+    if (req.query.done === 'recent' && !req.query.status) {
+      const since = new Date(Date.now() - 30 * 24 * 3600 * 1000);
+      where[Op.and] = [...(where[Op.and] || []), {
+        [Op.or]: [
+          { status: { [Op.notIn]: ['completed', 'canceled'] } },
+          { updatedAt: { [Op.gte]: since } },
+        ],
+      }];
+    }
     if (req.query.project_id) where.project_id = Number(req.query.project_id);
     if (req.query.mine === '1') where.assignee_id = req.user.id;
     else if (req.query.assignee_id) where.assignee_id = Number(req.query.assignee_id);

@@ -23,6 +23,14 @@ const SOURCES = ['audit', 'task', 'invoice', 'project', 'bill', 'message'];
 
 const iso = (d) => (d ? new Date(d).toISOString() : null);
 
+// 감사 action 조건 — opts.actions(허용 목록) · opts.excludeActionPrefix(감출 접두어)
+function actionWhere(opts) {
+  const cond = {};
+  if (Array.isArray(opts.actions)) cond[Op.in] = opts.actions.length ? opts.actions : ['__none__'];
+  if (opts.excludeActionPrefix) cond[Op.notLike] = `${opts.excludeActionPrefix}%`;
+  return Object.getOwnPropertySymbols(cond).length ? { action: cond } : {};
+}
+
 // ─── 통합 스트림 ───
 //   opts: { since?: Date|ISO, actor?: userId, kinds?: string[], limit?: number }
 //   반환: [{ id, source, kind, at, actor_user_id, actor_name, actor_is_ai,
@@ -48,7 +56,11 @@ async function getWorkspaceStream(businessId, opts = {}) {
   // ── audit_logs (business_id 직접, actor=user_id) ──
   if (want('audit')) jobs.push(
     AuditLog.findAll({
-      where: { business_id: bizId, ...(actor ? { user_id: actor } : {}), ...timeWhere },
+      where: {
+        business_id: bizId, ...(actor ? { user_id: actor } : {}), ...timeWhere,
+        // 활동 기록 «관리 행위만»(routes/activity.js scope=admin) · 급여 감추기 — services/activityLabels 표에서 온다
+        ...actionWhere(opts),
+      },
       attributes: ['id', 'action', 'target_type', 'target_id', 'user_id', 'created_at'],
       order: [['created_at', 'DESC']], limit: perSource, raw: true,
     }).then((rows) => rows.map((r) => ({

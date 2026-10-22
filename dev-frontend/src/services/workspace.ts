@@ -134,6 +134,19 @@ export async function inviteMember(id: number, payload: { email: string; default
   }));
 }
 
+export interface BulkInviteRow { email: string; status: 'ok' | 'invalid' | 'already_member' | 'already_invited' | 'quota' | 'invited' }
+export interface BulkInvitePayload { emails: string[]; default_role?: string; department_id?: number | null; team_id?: number | null; dry_run?: boolean }
+/** 여러 명 초대 — dry_run 이면 줄별 판정만(발송 0). 실제 호출은 보낼 수 있는 사람 수가 남은 자리보다 많으면 422(한 통도 안 보냄). */
+export async function inviteMembersBulk(id: number, payload: BulkInvitePayload): Promise<{ status: number; results: BulkInviteRow[]; sendable?: number; remaining?: number | null; invited?: number }> {
+  const r = await apiFetch(`/api/businesses/${id}/members/invite`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+  });
+  const j = await r.json().catch(() => ({}));
+  if (r.status === 422) return { status: 422, results: [], remaining: j.remaining ?? 0, sendable: j.sendable };
+  if (!r.ok) throw new Error(j?.message || `HTTP ${r.status}`);
+  return { status: r.status, ...(j.data || {}), results: j.data?.results || [] };
+}
+
 export async function updateMemberRole(id: number, memberId: number, role: 'owner' | 'member'): Promise<WorkspaceMember> {
   return unwrap(await apiFetch(`/api/businesses/${id}/members/${memberId}/role`, {
     method: 'PATCH',

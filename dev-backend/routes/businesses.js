@@ -839,7 +839,13 @@ router.put('/:businessId/report-settings', authenticateToken, checkBusinessAcces
 
 // ─── 멤버 초대 (이메일 기반) ───
 // owner 만 초대 가능. 초대 토큰 발급 + 이메일 발송. accept 시 user_id/joined_at 채움.
-router.post('/:businessId/members/invite', authenticateToken, checkBusinessAccess, ...perUserDaily('invite-email', { perMin: 20, perDay: 200, message: '초대 발송이 너무 잦습니다. 잠시 후 다시 시도하세요.' }), async (req, res, next) => {
+// 여러 명 초대({ emails[] })는 따로 센다 — 배열 한 번이 20통일 수 있다(Fable 2026-10-22 비차단 5). 미리 보기(dry_run)는 세지 않는다.
+const bulkInviteLimit = perUserDaily('invite-email-bulk', {
+  perMin: 3, perDay: 20, message: '초대 발송이 너무 잦습니다. 잠시 후 다시 시도하세요.',
+  skip: (req) => !Array.isArray(req.body?.emails) || !!req.body?.dry_run,
+});
+// audit-exempt: 초대 한 건마다 services/memberInvite.createInvite 가 business_member.invite 를 남긴다
+router.post('/:businessId/members/invite', authenticateToken, checkBusinessAccess, ...perUserDaily('invite-email', { perMin: 20, perDay: 200, message: '초대 발송이 너무 잦습니다. 잠시 후 다시 시도하세요.' }), ...bulkInviteLimit, async (req, res, next) => {
   try {
     const businessId = Number(req.params.businessId);
     const myMember = await BusinessMember.findOne({ where: { business_id: businessId, user_id: req.user.id } });
@@ -847,86 +853,71 @@ router.post('/:businessId/members/invite', authenticateToken, checkBusinessAcces
     if (!isPlatformAdmin && (!myMember || myMember.role !== 'owner')) {
       return errorResponse(res, 'forbidden', 403);
     }
-    const { email, default_role } = req.body || {};
-    if (!email?.trim()) return errorResponse(res, 'email is required', 400);
+    const MI = require('../services/memberInvite');
+    const planEngine = require('../services/plan');
+    const { default_role } = req.body || {};
+    const org = await MI.resolveOrg(businessId, req.body || {});
+    if (org.error) return errorResponse(res, org.error, 400);
 
-    const crypto = require('crypto');
-    const existingUser = await User.findOne({ where: { email: email.trim() } });
+    // 역할은 워크스페이스 역할 사전을 거친다 — 여기서 새로 친 글자도 사전에 생긴다(services/memberRoles).
+    //   미리 보기(dry_run)에서는 사전에 쓰지 않는다.
+    const resolveRole = async () => {
+      try {
+        return { role: await require('../services/memberRoles').ensureRole(businessId, default_role, { userId: req.user.id }) };
+      } catch (e) {
+        if (e?.code && e.http) return { error: e };
+        throw e;
+      }
+    };
 
-    // 이미 멤버인지 확인
-    if (existingUser) {
-      const dup = await BusinessMember.findOne({ where: { business_id: businessId, user_id: existingUser.id } });
-      if (dup) return errorResponse(res, 'already_member', 409);
+    // ── 여러 명 (설계 docs/ORG_STAGE0_DESIGN.md 9절 7) ──
+    if (Array.isArray(req.body?.emails)) {
+      const emails = MI.normalizeEmails(req.body.emails);
+      if (!emails.length) return errorResponse(res, 'email is required', 400);
+      if (emails.length > MI.MAX_BULK) return errorResponse(res, 'too_many_emails', 400);
+      const results = [];
+      for (const e of emails) results.push(await MI.checkOne(businessId, e));
+      const sendable = results.filter((r) => r.status === 'ok');
+      const seats = await MI.seatsRemaining(businessId);
+      const remaining = Number.isFinite(seats.remaining) ? seats.remaining : null;   // null = 한도 없음
+      const strip = (r) => ({ email: r.email, status: r.status });
+      if (req.body.dry_run) {
+        return successResponse(res, { results: results.map(strip), sendable: sendable.length, remaining });
+      }
+      // 한 통도 안 보낸다 — 확인창이 말한 수와 실제가 같아야 한다
+      if (sendable.length > (remaining === null ? Infinity : remaining)) {
+        return res.status(422).json({ success: false, message: 'quota', code: 'members_quota_exceeded', remaining, sendable: sendable.length });
+      }
+      const rr = await resolveRole();
+      if (rr.error) return errorResponse(res, rr.error.code, rr.error.http);
+      const out = [];
+      for (const r of results) {
+        if (r.status !== 'ok') { out.push(strip(r)); continue; }
+        // 동시 요청이 자리를 채웠을 수 있다 — 한 명씩 게이트를 다시 본다(캐시 없이 직접 센다)
+        const can = await planEngine.can(businessId, 'add_member');
+        if (!can.ok) { out.push({ email: r.email, status: 'quota' }); continue; }
+        await MI.createInvite(req, businessId, { email: r.email, existingUserId: r.existingUserId, inviteRole: rr.role, org });
+        out.push({ email: r.email, status: 'invited' });
+      }
+      return successResponse(res, { results: out, invited: out.filter((r) => r.status === 'invited').length }, 'Members invited', 201);
     }
-    const dupByEmail = await BusinessMember.findOne({ where: { business_id: businessId, invite_email: email.trim() } });
-    if (dupByEmail) return errorResponse(res, 'already_invited', 409);
+
+    // ── 한 명 (종전 응답 그대로) ──
+    const { email } = req.body || {};
+    if (!email?.trim()) return errorResponse(res, 'email is required', 400);
+    const chk = await MI.checkOne(businessId, email);
+    if (chk.status === 'already_member') return errorResponse(res, 'already_member', 409);
+    if (chk.status === 'already_invited') return errorResponse(res, 'already_invited', 409);
+    if (chk.status === 'invalid') return errorResponse(res, 'invalid_email', 400);
 
     // 플랜 쿼터 — 멤버 수 한도 (초대 발행 시점에 검사)
-    const planEngine = require('../services/plan');
     const planCan = await planEngine.can(businessId, 'add_member');
     if (!planCan.ok) {
       return res.status(422).json(planEngine.buildQuotaError(planCan, businessId));
     }
-
-    // 역할은 워크스페이스 역할 사전을 거친다 — 여기서 새로 친 글자도 사전에 생긴다(services/memberRoles).
-    let inviteRole = null;
-    try {
-      inviteRole = await require('../services/memberRoles').ensureRole(businessId, default_role, { userId: req.user.id });
-    } catch (e) {
-      if (e?.code && e.http) return errorResponse(res, e.code, e.http);
-      throw e;
-    }
-
-    const token = crypto.randomBytes(24).toString('hex');
-    // ★ user_id 는 **수락할 때만** 채운다(services/invites.acceptInvite). 2026-10-15 Fable 판정 D1.
-    //   예전엔 기존 계정이면 여기서 채웠다 — 멤버십을 읽는 곳(access_scope.getUserScope·워크스페이스 전환기 등)은
-    //   joined_at 을 안 보고 user_id 로 찾으므로, 그 사람은 **수락 전부터 멤버**였다(거절 불가 · 만료 뒤에도 그대로).
-    //   계정 없는 초대가 이미 user_id NULL 행이라, 같은 모양으로 합치면 읽는 곳 86개를 하나도 안 고쳐도 닫힌다.
-    //   기존 행은 scripts/migrate-invite-prefill.js 가 되돌린다.
-    const created = await BusinessMember.create({
-      business_id: businessId,
-      user_id: null,
-      role: 'member',
-      default_role: inviteRole,
-      invited_by: req.user.id,
-      invited_at: new Date(),
-      invite_token: token,
-      invite_email: email.trim(),
-    });
-
-    // 초대 이메일 발송
-    try {
-      const { sendInviteEmail } = require('../services/emailService');
-      const biz = await Business.findByPk(businessId, { attributes: ['brand_name', 'name'] });
-      const inviter = await User.findByPk(req.user.id, { attributes: ['name'] });
-      await sendInviteEmail({
-        to: email.trim(),
-        workspaceName: biz?.brand_name || biz?.name || 'PlanQ',
-        inviterName: inviter?.name || '',
-        kind: 'workspace_member',
-        token,
-      });
-    } catch (e) { console.warn('member invite email failed:', e.message); }
-
-    // 이미 PlanQ 계정이면 앱 안에서도 알린다(메일만으로는 앱만 쓰는 사람이 모른다) — services/inviteNotify 한 벌
-    if (existingUser) {
-      await require('../services/inviteNotify').notifyExistingInvitee({
-        userId: existingUser.id, kind: 'workspace_member', businessId,
-        entityType: 'business_member', entityId: created.id, token,
-        actorUserId: req.user.id, io: req.app.get('io'),
-      });
-    }
-
-    // 사이클 N+21 — 인사 변경 audit log
-    require('../services/auditService').logAudit(req, {
-      action: 'business_member.invite',
-      targetType: 'business_member',
-      targetId: created.id,
-      newValue: { email: email.trim(), default_role: created.default_role || null },
-    });
-    // 초대 토큰은 계정을 «그 멤버로» 붙이는 열쇠다 — 응답에 싣지 않는다(메일·받는 사람 알림으로만 간다.
-    //   projects.js 프로젝트 고객 추가·clients.js stripClientSecrets 와 같은 이유).
-    const out = created.toJSON(); delete out.invite_token;
+    const rr = await resolveRole();
+    if (rr.error) return errorResponse(res, rr.error.code, rr.error.http);
+    const out = await MI.createInvite(req, businessId, { email: chk.email, existingUserId: chk.existingUserId, inviteRole: rr.role, org });
     successResponse(res, out, 'Member invited', 201);
   } catch (error) { next(error); }
 });
@@ -1504,7 +1495,6 @@ router.delete('/:id/members/:memberId', authenticateToken, async (req, res, next
   const t = await sequelize.transaction();
   try {
     const businessId = Number(req.params.id);
-    const isPlatformAdmin = req.user.platform_role === 'platform_admin';
     const member = await BusinessMember.findOne({
       where: { id: req.params.memberId, business_id: businessId },
       transaction: t, lock: t.LOCK.UPDATE,
@@ -1512,12 +1502,10 @@ router.delete('/:id/members/:memberId', authenticateToken, async (req, res, next
     if (!member) { await t.rollback(); return errorResponse(res, 'member_not_found', 404); }
     if (member.role === 'ai') { await t.rollback(); return errorResponse(res, 'ai_role_locked', 400); }
 
-    const reqMember = await BusinessMember.findOne({
-      where: { business_id: businessId, user_id: req.user.id }, transaction: t,
-    });
-    const isOwner = reqMember && reqMember.role === 'owner';
+    // 내보내기 = 오너·플랫폼 관리자(인수인계와 같은 술어 — services/memberHandover.canManageMembership) 또는 본인 탈퇴
+    const canManage = await require('../services/memberHandover').canManageMembership(req, businessId, t);
     const isSelf = member.user_id && member.user_id === req.user.id;
-    if (!isPlatformAdmin && !isOwner && !isSelf) {
+    if (!canManage && !isSelf) {
       await t.rollback();
       return errorResponse(res, 'forbidden', 403);
     }

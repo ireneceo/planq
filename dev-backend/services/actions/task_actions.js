@@ -1902,6 +1902,87 @@ async function removeReviewer(task, actor, { userId } = {}) {
   return done({ removed: true, user_id: Number(userId) });
 }
 
+/**
+ * 인수인계 — 나가는(또는 이미 나간) 멤버 `from` 의 이름 칸(담당·요청자·대기 컨펌자)을 `to` 로 바꾼다.
+ *   docs/ORG_STAGE0_DESIGN.md 9절(Fable 2026-10-22 차단 3). 업무를 «고치는» 행위가 아니라 «사람 교체» 라
+ *   FIELD_RULES·canAccessTask 를 타지 않는다 — 그 대신 바꾸는 칸을 셋으로 고정하고(제목·본문·범위·프로젝트는 안 건드린다)
+ *   호출 자격(owner·platform_admin ∧ from 이 해제 중·해제된 멤버)은 부르는 쪽(services/memberHandover)이 본다.
+ *   · 요청자: request_by = from 일 때만 교체. NULL 은 채우지 않는다(채우면 «요청을 확인하세요» 가 거짓으로 뜬다)
+ *   · 컨펌자: 대기(pending) 행만 → to. to 가 이 업무 담당자거나 이미 컨펌자면 from 행만 지운다(자기 컨펌 금지)
+ *   · 담당이 to 로 바뀌는데 to 가 컨펌자면 그 컨펌자 행을 지운다(같은 규칙)
+ *   · 컨펌 라운드면 재계산 — 컨펌자가 0 명이 되면 in_progress 로 되돌린다(아무도 컨펌할 수 없는 막다른 길)
+ *   · opts.assignUnassignedL1 — 담당 없는 «나만 보기» 업무를 to 담당으로(시행일 판단은 부르는 쪽)
+ * 알림은 보내지 않는다(인수자에게 한 통으로 묶는다 — 부르는 쪽). 반환 { changed, roles:[...] }
+ */
+async function handoverNamedRoles(task, actor, { from, to, assignUnassignedL1 = false } = {}) {
+  const fromId = Number(from); const toId = Number(to);
+  if (!Number.isInteger(fromId) || !Number.isInteger(toId) || fromId === toId) return fail('invalid_handover');
+  const roles = [];
+  const t = await sequelize.transaction();
+  try {
+    await task.reload({ transaction: t, lock: t.LOCK.UPDATE });
+    const prevAssignee = task.assignee_id;
+    let nextAssignee = prevAssignee;
+    if (prevAssignee === fromId) nextAssignee = toId;
+    else if (assignUnassignedL1 && prevAssignee == null && task.vlevel === 'L1' && task.created_by === fromId) nextAssignee = toId;
+    const patch = {};
+    if (nextAssignee !== prevAssignee) {
+      patch.assignee_id = nextAssignee;
+      const ev = await assigneeChangeEvent(prevAssignee, nextAssignee);
+      await TaskStatusHistory.create({ task_id: task.id, actor_user_id: actor.userId, ...ev, note: `${ev.note} (handover)` }, { transaction: t });
+      roles.push('assignee');
+    }
+    if (task.request_by_user_id === fromId) {
+      patch.request_by_user_id = toId;
+      const ev = await assigneeChangeEvent(fromId, toId);
+      await logHistory({ taskId: task.id, eventType: 'requester_change', actorUserId: actor.userId, targetUserId: toId, note: `${ev.note} (handover)`, transaction: t });
+      roles.push('requester');
+    }
+    if (Object.keys(patch).length) await task.update(patch, { transaction: t });
+
+    const reviewers = await TaskReviewer.findAll({ where: { task_id: task.id }, transaction: t });
+    const toIsReviewer = reviewers.some((r) => r.user_id === toId);
+    let reviewerChanged = false;
+    for (const r of reviewers) {
+      if (r.user_id === fromId && r.state === 'pending') {
+        if (toIsReviewer || nextAssignee === toId) {
+          await r.destroy({ transaction: t });
+          await logHistory({ taskId: task.id, eventType: 'reviewer_remove', actorUserId: actor.userId, targetUserId: fromId, note: 'handover', transaction: t });
+        } else {
+          await r.update({ user_id: toId }, { transaction: t });
+          await logHistory({ taskId: task.id, eventType: 'reviewer_add', actorUserId: actor.userId, targetUserId: toId, note: 'handover', transaction: t });
+        }
+        reviewerChanged = true;
+      } else if (r.user_id === toId && nextAssignee === toId && prevAssignee !== toId) {
+        // 담당이 된 사람은 자기 업무를 컨펌하지 않는다
+        await r.destroy({ transaction: t });
+        await logHistory({ taskId: task.id, eventType: 'reviewer_remove', actorUserId: actor.userId, targetUserId: toId, note: 'handover', transaction: t });
+        reviewerChanged = true;
+      }
+    }
+    if (reviewerChanged) roles.push('reviewer');
+    if (reviewerChanged && inReviewRound(task)) {
+      const left = await TaskReviewer.count({ where: { task_id: task.id }, transaction: t });
+      if (left === 0) {
+        const fromStatus = task.status;
+        await task.update({ status: 'in_progress' }, { transaction: t });
+        await logHistory({ taskId: task.id, eventType: 'status_change', fromStatus, toStatus: 'in_progress', actorUserId: actor.userId, note: 'handover: no reviewers left', transaction: t });
+      } else {
+        await recalcStatusFromReviewers(task, t);
+      }
+    }
+    await t.commit();
+  } catch (e) { await t.rollback(); throw e; }
+  if (!roles.length) return done({ changed: false, roles });
+  await task.reload();
+  broadcastTask(task, 'task:updated', actor.userId);
+  audit(actor, {
+    action: 'task.handover', targetType: 'task', targetId: task.id, businessId: task.business_id,
+    oldValue: { user_id: fromId }, newValue: { user_id: toId, roles },
+  });
+  return done({ changed: true, roles });
+}
+
 /** 컨펌 정책 변경 (all ↔ any) — 통과 기준이 바뀌므로 진행 중이면 재계산 */
 async function setPolicy(task, actor, { policy } = {}) {
   if (!(await canManageReviewers(task, actor.userId))) return fail('forbidden', 403);
@@ -2076,6 +2157,8 @@ module.exports = {
   ack, submitReview, cancelReview, complete,
   approve, requestRevision, revertReviewerState,
   revertStatus, addReviewer, removeReviewer, setPolicy,
+  // 행동 — 인수인계(사람 교체, docs/ORG_STAGE0_DESIGN.md 9절)
+  handoverNamedRoles,
   // 행동 — 결과물 회차 되돌리기 (#271·#307)
   restoreDeliverable,
   // 행동 — 보류 / 외부컨펌 (#206)

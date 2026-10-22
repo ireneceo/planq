@@ -121,6 +121,13 @@ async function notify({ userId, businessId, eventKind, title, titleSpec, body, l
       const alive = await Business.findOne({ where: { id: businessId, deleted_at: null }, attributes: ['id'] });
       if (!alive) return { inbox: false, email: false, push: false, skipped: 'workspace_deleted' };
     } catch (e) { console.warn('[notify workspace check]', e.message); }
+    // ★ 받는 사람이 **지금** 그 워크스페이스 사람인가 (2026-10-22 Fable 조직 0단계 차단 2).
+    //   업무 사건 수신자는 request_by_user_id || created_by 라, 나간 멤버가 만든 업무의 상태 변경·댓글·컨펌 알림
+    //   (제목 포함)이 그 사람 인박스·푸시·메일로 계속 갔다(dev 실측: 해제 멤버에게 간 알림 138건).
+    //   활성 멤버(removed_at NULL) 또는 계정이 붙은 고객(보관 아님)만 통과 — 확인 실패도 막는다(fail-closed).
+    if (!(await require('../services/notifyRecipient').isWorkspaceRecipient(userId, businessId))) {
+      return { inbox: false, email: false, push: false, skipped: 'not_member' };
+    }
   }
   const results = { inbox: false, email: false, push: false };
   // #259 — 게스트 그림자 계정에는 **어느 채널로도 보내지 않는다.**

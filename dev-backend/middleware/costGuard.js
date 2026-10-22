@@ -12,10 +12,11 @@ const { ipKeyGenerator } = require('express-rate-limit');
 const DEFAULT_MSG = { success: false, message: '요청이 너무 잦습니다. 잠시 후 다시 시도하세요.' };
 
 /** per-user(폴백 IP) 단일 윈도우 rate-limiter. */
-function perUserLimiter(name, { windowMs, max, message } = {}) {
+function perUserLimiter(name, { windowMs, max, message, skip } = {}) {
   return rateLimit({
     windowMs,
     max,
+    ...(skip ? { skip } : {}),
     keyGenerator: (req) => (req.user?.id ? `${name}-u${req.user.id}` : `${name}-ip${ipKeyGenerator(req.ip)}`),
     standardHeaders: true,
     legacyHeaders: false,
@@ -24,10 +25,11 @@ function perUserLimiter(name, { windowMs, max, message } = {}) {
 }
 
 /** 분당 + 일당 이중 윈도우 (둘 다 통과해야 함). 미들웨어 배열 반환 → 스프레드로 라우트에 적용. */
-function perUserDaily(name, { perMin, perDay, message } = {}) {
+//   skip(req) 가 참이면 그 요청은 세지 않는다(예: 여러 명 초대 한도는 배열 요청만 센다).
+function perUserDaily(name, { perMin, perDay, message, skip } = {}) {
   const out = [];
-  if (perMin) out.push(perUserLimiter(`${name}-m`, { windowMs: 60 * 1000, max: perMin, message }));
-  if (perDay) out.push(perUserLimiter(`${name}-d`, { windowMs: 24 * 60 * 60 * 1000, max: perDay, message }));
+  if (perMin) out.push(perUserLimiter(`${name}-m`, { windowMs: 60 * 1000, max: perMin, message, skip }));
+  if (perDay) out.push(perUserLimiter(`${name}-d`, { windowMs: 24 * 60 * 60 * 1000, max: perDay, message, skip }));
   return out;
 }
 

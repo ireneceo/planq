@@ -133,7 +133,8 @@
     "rev_revision": "I requested revision",
     "rev_approved": "I approved",
     "on_hold": "On hold",
-    "external_review": "External review"
+    "external_review": "External review",
+    "completedRecent": "Done · last {{n}} days"
   },
   "scope": {
     "mine": "My tasks",
@@ -447,7 +448,8 @@
     },
     "datesReadOnly": "Only the requester, assignee, or an admin can change the dates",
     "checkLocked": "Completed via approval — revert from the detail panel",
-    "hasUnread": "New activity (comments · changes) — clears when opened"
+    "hasUnread": "New activity (comments · changes) — clears when opened",
+    "capped": "There are many tasks — showing the latest {{n}}. Narrow it down with search or filters."
   },
   "empty": {
     "title": "Start your first task",
@@ -696,7 +698,8 @@
         "assignee_change": "changed assignee",
         "due_change": "changed schedule",
         "title_change": "renamed task",
-        "project_change": "moved project"
+        "project_change": "moved project",
+        "requester_change": "Requester changed"
       }
     },
     "revert": {

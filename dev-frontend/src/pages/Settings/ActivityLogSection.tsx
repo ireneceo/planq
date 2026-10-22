@@ -16,6 +16,8 @@ import { apiFetch } from '../../contexts/AuthContext';
 import ActionButton from '../../components/Common/ActionButton';
 import EmptyState from '../../components/Common/EmptyState';
 import { formatDayTime } from '../../utils/dateFormat';
+import { SegmentedToggle, SegmentedBtn } from '../../components/Common/segmentedToggle';
+import PlanQSelect from '../../components/Common/PlanQSelect';
 
 interface ActivityEvent {
   id: string;
@@ -28,10 +30,16 @@ interface ActivityEvent {
   entity_type: string | null;
   entity_id: number | null;
   summary: string | null;
+  /** 관리 행위 라벨 키(서버 services/activityLabels) — 없으면 코드 그대로 */
+  label_key?: string | null;
+  /** 사람·부서·팀 대상의 이름(항목 이름은 싣지 않는다 — «나만 보기» 제목 보호) */
+  target_label?: string | null;
 }
 
 /** 삭제·영구삭제는 책임 소재가 걸린 행이라 눈에 띄게 둔다 */
 const isDestructive = (kind: string) => /delete|purge|remove|삭제/i.test(kind || '');
+
+type Scope = 'admin' | 'all';
 
 const PAGE = 100;
 
@@ -42,12 +50,34 @@ const ActivityLogSection: React.FC<{ businessId: number | null }> = ({ businessI
   const [error, setError] = useState<string | null>(null);
   const [onlyDestructive, setOnlyDestructive] = useState(false);
   const [limit, setLimit] = useState(PAGE);
+  // 관리 행위만(기본) / 전체 — 조직 0단계 0-3. 메시지·상태 변경이 관리 행위를 덮지 않게
+  const [scope, setScope] = useState<Scope>('admin');
+  const [actor, setActor] = useState<number | null>(null);
+  const [actorOptions, setActorOptions] = useState<{ value: number; label: string }[]>([]);
+  useEffect(() => {
+    if (!businessId) return;
+    let alive = true;
+    (async () => {
+      try {
+        const r = await apiFetch(`/api/businesses/${businessId}/members`);
+        if (!r.ok) return;
+        const j = await r.json();
+        const opts = ((j.data || []) as { user_id: number | null; role?: string; user?: { name?: string; display_name?: string; is_ai?: boolean } }[])
+          .filter((m) => m.user_id && m.role !== 'ai')
+          .map((m) => ({ value: m.user_id as number, label: m.user?.display_name || m.user?.name || `#${m.user_id}` }));
+        if (alive) setActorOptions(opts);
+      } catch { /* 사람 고르기 없이 본다 */ }
+    })();
+    return () => { alive = false; };
+  }, [businessId]);
 
   const load = useCallback(async () => {
     if (!businessId) return;
     setLoading(true); setError(null);
     try {
-      const r = await apiFetch(`/api/activity/${businessId}?limit=${limit}`);
+      const qs = new URLSearchParams({ limit: String(limit), scope });
+      if (actor) qs.set('actor', String(actor));
+      const r = await apiFetch(`/api/activity/${businessId}?${qs.toString()}`);
       if (!r.ok) {
         const j = await r.json().catch(() => null);
         // owner/admin 전용 — 권한이 없으면 그 사실을 그대로 말한다(빈 화면으로 두지 않는다)
@@ -60,7 +90,7 @@ const ActivityLogSection: React.FC<{ businessId: number | null }> = ({ businessI
       const j = await r.json();
       setRows(j.success ? (j.data as ActivityEvent[]) : []);
     } finally { setLoading(false); }
-  }, [businessId, limit, t]);
+  }, [businessId, limit, scope, actor, t]);
 
   useEffect(() => { void load(); }, [load]);
 
@@ -74,6 +104,26 @@ const ActivityLogSection: React.FC<{ businessId: number | null }> = ({ businessI
           <Hint>{t('activity.hint', { defaultValue: '누가 언제 무엇을 했는지 남습니다. 삭제도 기록됩니다.' })}</Hint>
         </div>
         <HeadRight>
+          <SegmentedToggle role="tablist" data-testid="activity-scope">
+            <SegmentedBtn type="button" $active={scope === 'admin'} aria-pressed={scope === 'admin'} onClick={() => { setScope('admin'); setLimit(PAGE); }}>
+              {t('activity.scopeAdmin', { defaultValue: '관리 행위' })}
+            </SegmentedBtn>
+            <SegmentedBtn type="button" $active={scope === 'all'} aria-pressed={scope === 'all'} onClick={() => { setScope('all'); setLimit(PAGE); }}>
+              {t('activity.scopeAll', { defaultValue: '전체' })}
+            </SegmentedBtn>
+          </SegmentedToggle>
+          {actorOptions.length > 0 && (
+            <ActorSlot data-testid="activity-actor">
+              <PlanQSelect
+                value={actorOptions.find((o) => o.value === actor) || null}
+                onChange={(opt) => { setActor(((opt as { value: number } | null)?.value) ?? null); setLimit(PAGE); }}
+                options={actorOptions}
+                isClearable
+                placeholder={t('activity.actorAll', { defaultValue: '모든 사람' }) as string}
+                size="sm"
+              />
+            </ActorSlot>
+          )}
           <Check>
             <input type="checkbox" checked={onlyDestructive}
               onChange={(e) => setOnlyDestructive(e.target.checked)} />
@@ -96,8 +146,15 @@ const ActivityLogSection: React.FC<{ businessId: number | null }> = ({ businessI
             <Row key={e.id} $danger={isDestructive(e.kind)}>
               <When>{formatDayTime(e.at, { year: 'always' })}</When>
               <Who>{e.actor_name || t('activity.unknownActor', { defaultValue: '알 수 없음' })}</Who>
-              <What $danger={isDestructive(e.kind)}>{e.summary || e.kind}</What>
-              <Where>{e.entity_type ? `${e.entity_type}${e.entity_id ? ` #${e.entity_id}` : ''}` : ''}</Where>
+              <What $danger={isDestructive(e.kind)} title={e.kind}>
+                {e.label_key ? t(`activity.label.${e.label_key}`, { defaultValue: e.kind }) : (e.summary || e.kind)}
+              </What>
+              <Where>
+                {e.target_label
+                  || (e.entity_type
+                    ? `${t(`activity.target.${e.entity_type}`, { defaultValue: e.entity_type })}${e.entity_id ? ` #${e.entity_id}` : ''}`
+                    : '')}
+              </Where>
             </Row>
           ))}
         </List>
@@ -120,7 +177,8 @@ const Wrap = styled.div`display: flex; flex-direction: column; gap: 12px;`;
 const Head = styled.div`
   display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; flex-wrap: wrap;
 `;
-const HeadRight = styled.div`display: flex; align-items: center; gap: 10px;`;
+const HeadRight = styled.div`display: flex; align-items: center; gap: 10px; flex-wrap: wrap;`;
+const ActorSlot = styled.div`width: 180px; max-width: 100%;`;
 const Title = styled.div`font-size: 0.9375rem; font-weight: 700; color: #0F172A;`;
 const Hint = styled.div`font-size: 0.75rem; color: #64748B; margin-top: 2px;`;
 const Check = styled.label`
