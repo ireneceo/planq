@@ -13,7 +13,8 @@
 ## 2. 결정 (Fable)
 1. **«아직 일하고 있다» 술어** `stillWorkingAcrossMidnight({businessId,userId,midnight,now})` =
    ① 같은 ws·사람의 `FocusSession state='active' ∧ last_activity_at ≥ now − GRACE_SEC(300)` 존재 **그리고**
-   ② 같은 ws·사람의 세션이 자정을 걸쳤다: `started_at < midnight ∧ (ended_at IS NULL ∨ ended_at ≥ midnight)`.
+   ② 같은 ws·사람의 세션이 자정을 걸쳤다: `started_at < midnight ∧ (ended_at IS NULL ∨ ended_at ≥ midnight) ∧ last_activity_at ≥ midnight − GRACE_SEC`.
+     (마지막 조건은 구현 때 더함 — Fable 완료 검증 채택: 어제 낮에 멈춘 좀비 세션(ended_at NULL)이 «걸침» 으로 잡혀 00:02 새 시작이 분할되던 것)
    `GRACE_SEC` 은 `FocusSession.computeActualSeconds` 와 같은 상수. paused 는 살아 있지 않다. 측정 없이 출근 버튼만 누른 사람은 퇴근 누락과 구별 불가 → 종전 auto_close.
 2. **source `auto_midnight`**(ENUM 끝 append) — 어제 clock_out·오늘 clock_in 둘 다. `auto_closed`·`admin_fixed` 안 켠다. 화면은 i18n `fix.source.auto_midnight` 만(ko «자정 이어서» / en «Continued past midnight»). `autoClockInNotice` 는 auto_focus 만 보므로 자정 행에 되돌리기 모달이 뜨지 않는다(검증으로 못 박음).
 3. **휴게 중 자정** — 분할 안 함(`day.state==='working'` 일 때만). 종전 auto_close.

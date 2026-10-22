@@ -1456,7 +1456,7 @@ function defineSecretTests() {
 function defineDateOnlyTests() {
   // 근태 자정 분할 — 살아 있는 측정이 자정을 걸치면 어제 24:00 퇴근 + 오늘 00:00 출근(측정 유지),
   //   죽은 세션은 분할하지 않는다(대조군). 지난 날짜·주입한 «지금» 으로 서비스 함수를 직접 부르고 행은 지운다.
-  test('attnmidnight', '자정을 넘겨 일하면 어제 24:00 퇴근 + 오늘 00:00 출근으로 이어진다 (①·④ 대조군)', async () => {
+  test('attnmidnight', '자정을 넘겨 일하면 어제 24:00 퇴근 + 오늘 00:00 출근으로 이어진다 (①·④·좀비 대조군)', async () => {
     const { execSync } = require('child_process');
     if (!ctx.token) await setup();
     if (!ctx.businessId || !ctx.userId) throw new Error('health-check 계정 컨텍스트 없음');

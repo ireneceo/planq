@@ -1,8 +1,11 @@
 # Fable 게이트 대기열 → **판정 기록 보관소** (2026-10-08 부터)
 
-## 2026-10-22 · 근태 자정 분할(12시 퇴근 → 0시 재출근) 설계 (방 fced25bd) — 설계 **DESIGN-READY**(Fable)
+## 2026-10-22 · 근태 자정 분할(12시 퇴근 → 0시 재출근) (방 fced25bd) — 설계 **DESIGN-READY** · 완료 검증 efaaf4f5 **PASS**(Fable, 차단 없음)
 - Irene: «12시가 지나면 미출근 상태가 되는 거야? 그냥 12시에 퇴근 찍히고 다시 출근하는 걸로 기록할 수 없어?» · 한도로 두 번 미뤄졌다가 세 번째에 받음.
 - 결정: 술어 = 살아 있는 세션(last_activity ≥ now−300s) ∧ 자정을 걸친 세션(같은 ws) · working 만(휴게 중은 종전 auto_close) · source auto_midnight(auto_closed 안 켬) · ensureMidnightSplit 한 함수(/today·autoClockInOnFocus·cron) · clockOut 안 거침(측정 유지) · auto_close 가 오늘 세션 끊던 구멍(startedBefore)·guessCloseAt 캡 · startOfDayInTz · 통계 work_days/avg 표본에서 자정 이벤트 제외. 전문 docs/ATTENDANCE_MIDNIGHT_SPLIT_DESIGN.md §2.
+- 완료 검증 실측: attnmidnight 통과 · guard 76/77(무관 경고 1) · startOfDayInTz 10 tz(DST·자정 없는 날·+12:45) · 시나리오 16/16(전환·좀비 대조·오늘 행 있음) · 실제 cron 옛 코드 대조군(퇴근 다음 자정 캡·다음날 00:02 세션 생존) · 배포 순서(마이그레이션 → 코드).
+- 설계와 다른 점(«걸친 세션» 에 자정 무렵 활동 조건) 채택. 비차단 반영(같은 날): 설계 문서 §2-1 갱신 · 회귀에 좀비 대조군(무력화 시 실패 확인) · clockOut 의 tz 를 트랜잭션 전에 읽음.
+- 남은 비차단: 00:03 에 멈추고 간 사람은 00:05 cron 에서 종전 자동 마감(퇴근 24:00 캡, 오늘 3분 미기록) · 야간 고정 근무는 평균 퇴근 표본이 매일 빠진다(설계 최소 범위).
 
 ## 2026-10-22 · 휴가 종류 직접 관리 leave_types (방 44657160) — 설계 DESIGN_READY · 완료 검증 **FAIL(차단 1) → 고친 뒤 PASS**
 - 설계 `docs/LEAVE_TYPES_DESIGN.md`. 완료 검증 실측: API 60/62(실패 2 = 검증자 스크립트 오류, 재실행 통과) · 박제 불변(이름 변경·끄기 뒤 잔여·급여 동일) · 급여 무급 2일 = 276,923 · 테넌트 격리(대조군 201) · 권한 · 롤백 --rollback-nullable 왕복 · guard 76/77 · health 88/88 · 카나리 leavetypes 0.

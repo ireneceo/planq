@@ -235,6 +235,10 @@ async function breakEnd({ businessId, userId, actorUserId, source = 'user', at =
 
 async function clockOut({ businessId, userId, actorUserId, source = 'user', at = new Date(), workDate: forcedDate }) {
   const workDate = forcedDate || await todayFor(businessId, at);
+  // 자동 마감이 끊을 세션의 경계(다음 자정) — 트랜잭션 전에 읽는다(commit 뒤에 실패하면 닫힌 것을 «실패» 로 센다).
+  const nextMidnight = source === 'auto_close'
+    ? startOfDayInTz(addDaysStr(workDate, 1), await workspaceTz(businessId))
+    : null;
   const t = await sequelize.transaction();
   try {
     const day = await lockDay({ businessId, userId, workDate }, t);
@@ -251,9 +255,7 @@ async function clockOut({ businessId, userId, actorUserId, source = 'user', at =
     // ★ 자동 마감(cron)은 **그 날에 시작한 세션만** 끊는다(2026-10-22 Fable 자정 분할 판정).
     //   범위 없이 끊으면 00:05 cron 이 어제를 닫으며 00:02 에 새로 시작한 오늘 세션까지 죽였다.
     //   사람이 누른 퇴근은 종전대로 전부.
-    const stopOpts = source === 'auto_close'
-      ? { businessId, startedBefore: startOfDayInTz(addDaysStr(workDate, 1), await workspaceTz(businessId)) }
-      : {};
+    const stopOpts = nextMidnight ? { businessId, startedBefore: nextMidnight } : {};
     await stopActiveFocus(userId, 'clock_out', stopOpts).catch(() => null);
     return day;
   } catch (err) { await t.rollback(); throw err; }
