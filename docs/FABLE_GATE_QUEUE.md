@@ -1,5 +1,12 @@
 # Fable 게이트 대기열 → **판정 기록 보관소** (2026-10-08 부터)
 
+
+## 2026-10-22 · 문서 같이 편집 B (방 a0fa896b) — 방향 **DESIGN_READY**(B 먼저) · 완료 검증 3f3a6ec8 **FAIL**(차단 1) → 62b1aac2 고침, 재검증 대기
+- Irene: «같은 문서를 같이 편집하고 싶으면 어떻게 해? 히스토리 남기고 공동작업 할 수 없어?» → «Fable 권고대로. UI 는 아주 쉽고 바로 알고 심플하게 통일된 디자인만». 설계 docs/DOC_COEDIT_DESIGN.md.
+- Fable 실측: 서버 소켓 26/26 · 회수·재확인 17/17(canEditPost 양성 대조군 뒤집힘) · 실브라우저 33/35(빨강 2 = 검사 조건 오류, 재측정 통과) · 치는 중 글 손실 0(양성 대조군) · drafts·leavesave 카나리 실패 0 · guard 76/77.
+- 차단 ①: 서명 잠금 409 가 «다른 사람이 먼저 저장했어요 … 덮어쓰기» 겹침 바로 둔갑(문서 4260 실측). → 62b1aac2 에서 SignLockedBar 로 분리. **빌드가 서버 메모리 부족으로 멈춰 재측정·재검증 전.**
+- 비차단: «새 버전 있음» 표시·문단 비교는 설계와 다르게(설계 5절에 적음) · 탭 둘(보기+편집) 같은 소켓 · 보기만 하는 소켓 재확인 없음 · 서명 잠긴 문서 [편집] 버튼 열림(기존).
+
 ## 2026-10-22 · 근태 자정 분할(12시 퇴근 → 0시 재출근) (방 fced25bd) — 설계 **DESIGN-READY** · 완료 검증 efaaf4f5 **PASS**(Fable, 차단 없음)
 - Irene: «12시가 지나면 미출근 상태가 되는 거야? 그냥 12시에 퇴근 찍히고 다시 출근하는 걸로 기록할 수 없어?» · 한도로 두 번 미뤄졌다가 세 번째에 받음.
 - 결정: 술어 = 살아 있는 세션(last_activity ≥ now−300s) ∧ 자정을 걸친 세션(같은 ws) · working 만(휴게 중은 종전 auto_close) · source auto_midnight(auto_closed 안 켬) · ensureMidnightSplit 한 함수(/today·autoClockInOnFocus·cron) · clockOut 안 거침(측정 유지) · auto_close 가 오늘 세션 끊던 구멍(startedBefore)·guessCloseAt 캡 · startOfDayInTz · 통계 work_days/avg 표본에서 자정 이벤트 제외. 전문 docs/ATTENDANCE_MIDNIGHT_SPLIT_DESIGN.md §2.
