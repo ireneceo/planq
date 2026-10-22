@@ -367,7 +367,13 @@ router.put('/:businessId/mail', authenticateToken, checkBusinessAccess, async (r
       updates.mail_signature_html_en = mail_signature_html_en ? String(mail_signature_html_en).slice(0, 20000) : null;
     }
     if (mail_from_name !== undefined) {
-      updates.mail_from_name = mail_from_name ? String(mail_from_name).trim().slice(0, 100) : null;
+      const name = mail_from_name ? String(mail_from_name).trim().slice(0, 100) : null;
+      // 고객에게 가는 메일의 보낸 사람 이름이 된다(services/workspaceSender, 2026-10-22 Fable) —
+      //   플랫폼 이름(PlanQ)이나 주소 모양(@ · < >)을 넣으면 받는 사람이 다른 곳에서 온 메일로 읽는다.
+      if (name && (/[@<>"]/.test(name) || name.replace(/\s+/g, '').toLowerCase() === 'planq')) {
+        return errorResponse(res, 'invalid_from_name', 400);
+      }
+      updates.mail_from_name = name;
     }
     if (mail_reply_to !== undefined) {
       const v = mail_reply_to ? String(mail_reply_to).trim().slice(0, 200) : null;

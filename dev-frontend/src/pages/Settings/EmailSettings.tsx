@@ -113,7 +113,7 @@ const EmailSettings: React.FC<Props> = ({ businessId, isOwner }) => {
               disabled={!isOwner}
             />
           </AutoSaveField>
-          <Hint>{t('email.identity.fromNameHint', '비워두면 워크스페이스 브랜드명이 사용됩니다')}</Hint>
+          <Hint>{t('email.identity.fromNameHint')}</Hint>
           <Preview>
             <PreviewLabel>{t('email.identity.preview', '미리보기')}</PreviewLabel>
             <PreviewBox>

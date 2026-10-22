@@ -202,15 +202,13 @@ async function billOneProject(project, today = new Date()) {
           currency: invoice.currency,
           dueDate: invoice.due_date,
           senderName: business.brand_name || business.name || '',
-          workspaceName: business.brand_name || business.name || '',
+          ...require('./workspaceSender').workspaceSender(business),
           // 첨부 유무에 따라 문구 분기 — 첨부가 없는데 "첨부된 청구서를 참고" 라고 하면 고객에게 거짓 안내.
           message: attachments
             ? '정기 자동 청구 메일입니다. 결제 안내는 본 메일에 첨부된 청구서를 참고해주세요.'
             : '정기 자동 청구 메일입니다. 아래 버튼으로 청구서를 확인하고 결제 안내를 참고해주세요.',
           shareUrl,
           attachments,
-          fromName: business.mail_from_name || business.brand_name || business.name || null,
-          replyTo: business.mail_reply_to || null,
         });
       } catch (e) {
         console.warn('[recurring_invoice email async] proj', project.id, e.message);

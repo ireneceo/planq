@@ -257,14 +257,12 @@ async function billOneSubscription(sub, today = new Date()) {
         await sendInvoiceEmail({
           to: recipient, invoiceNumber, title, total: grandTotal, currency: invoice.currency,
           dueDate: invoice.due_date, senderName: business.brand_name || business.name || '',
-          workspaceName: business.brand_name || business.name || '',
+          ...require('./workspaceSender').workspaceSender(business),
           // 첨부 유무 분기 — 첨부 없이 "첨부된 청구서" 라고 안내하면 거짓.
           message: attachments
             ? '정기 구독 자동 청구 메일입니다. 결제 안내는 첨부된 청구서를 참고해주세요.'
             : '정기 구독 자동 청구 메일입니다. 아래 버튼으로 청구서를 확인하고 결제 안내를 참고해주세요.',
           shareUrl, attachments,
-          fromName: business.mail_from_name || business.brand_name || business.name || null,
-          replyTo: business.mail_reply_to || null,
         });
       } catch (e) { console.warn('[clientSub email async] sub', sub.id, e.message); }
     });

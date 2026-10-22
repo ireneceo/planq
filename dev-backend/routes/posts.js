@@ -1621,13 +1621,14 @@ router.post('/:id/share/email', authenticateToken, ...postShareEmailLimiter, asy
     const { getMemberDisplayName } = require('../services/displayName');
     const senderDisp = await getMemberDisplayName(post.business_id, req.user.id, sender?.name);
 
+    const wsSender = await require('../services/workspaceSender').loadWorkspaceSender(post.business_id);
     const results = [];
     for (const email of recipients) {
       const ok = await sendPostShareEmail({
         to: email,
         docTitle: post.title,
         senderName: senderDisp.name || '',
-        workspaceName: post.Business?.name || '',
+        ...wsSender,
         message: message ? String(message).slice(0, 1000) : null,
         shareUrl,
       });

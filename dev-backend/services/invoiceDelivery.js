@@ -215,12 +215,10 @@ async function deliverEmail({ invoice, actorUserId, message, shareUrl, to: force
     currency: invoice.currency,
     dueDate: invoice.due_date,
     senderName: senderDisp.name || '',
-    workspaceName: business?.brand_name || business?.name || '',
+    ...require('./workspaceSender').workspaceSender(business),
     message: String(message || '').slice(0, 1000) || null,
     shareUrl,
     attachments,
-    fromName: business?.mail_from_name || business?.brand_name || business?.name || null,
-    replyTo: business?.mail_reply_to || null,
   });
   // 실패에도 pdf_attached 를 남긴다 — "메일이 안 갔다" 와 "PDF 를 못 만들었다" 는 다른 사고다.
   return ok

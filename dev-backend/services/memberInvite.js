@@ -72,7 +72,7 @@ async function createInvite(req, businessId, { email, existingUserId, inviteRole
     const inviter = await User.findByPk(req.user.id, { attributes: ['name'] });
     await sendInviteEmail({
       to: email,
-      workspaceName: biz?.brand_name || biz?.name || 'PlanQ',
+      workspaceName: biz?.brand_name || biz?.name || '',
       inviterName: inviter?.name || '',
       kind: 'workspace_member',
       token,

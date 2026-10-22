@@ -253,13 +253,13 @@ router.post('/sign/request-link', linkLimiter, async (req, res, next) => { // au
 async function sendLinkAgain(sr) {
   const { User, Business } = require('../models');
   const entity = await loadEntity(sr.entity_type, sr.entity_id);
-  const business = await Business.findByPk(sr.business_id, { attributes: ['name'] });
+  const wsSender = await require('../services/workspaceSender').loadWorkspaceSender(sr.business_id);
   const sender = await User.findByPk(sr.requester_user_id, { attributes: ['name'] });
   await require('../services/emailService').sendSignatureRequestEmail({
     to: sr.signer_email,
     docTitle: sr.title_snapshot || entity?.title || '문서',
     senderName: sender?.name || '',
-    workspaceName: business?.name || '',
+    ...wsSender,
     signerName: sr.signer_name,
     message: sr.note,
     signUrl: `${process.env.APP_URL || 'https://dev.planq.kr'}/sign/${sr.token}`,

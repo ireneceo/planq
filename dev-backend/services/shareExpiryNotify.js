@@ -72,7 +72,7 @@ async function runShareExpiryNotify(ioApp) {
           eventKind: 'share_expiry',  // N+74-B 신규 event_kind — NotificationPref 매트릭스에서 사용자가 별도 토글 가능
           // #281 — 제목 규약(`Q docs · 공유 링크 만료 임박 · {제목}`). 수신자 언어 해석은 notify() 가.
           titleSpec: { feature: 'docs', action: 'share_expiry_soon', subject: row[titleField] || '(제목 없음)' },
-          // #214 — 워크스페이스 자원 알림이므로 발송처는 [워크스페이스명]. 미전달 시 [PlanQ] 로 떨어진다.
+          // #214 — 워크스페이스 자원 알림(멤버행)이므로 제목에 [워크스페이스명]. 미전달이면 접두어 없음(#425).
           workspaceName: wsNameById.get(row.business_id) || null,
           body: `외부 공유 링크가 ${daysLeft}일 후 만료됩니다. 갱신하려면 다시 공유해주세요.`,
           entityType: entity_type,

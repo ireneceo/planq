@@ -71,6 +71,7 @@ async function notifyGuestsOfReply(message) {
     const appUrl = process.env.APP_URL || 'https://dev.planq.kr';
 
     const { sendGuestReplyNotifyEmail } = require('./emailService');
+    const { fromName, replyTo } = await require('./workspaceSender').loadWorkspaceSender(conversation.business_id);
     let sent = 0;
     for (const link of links) {
       // 부모가 닫혔으면 자식도 닫힌 것이다 — 읽는 문과 같은 규칙(resolveGuestToken).
@@ -91,7 +92,7 @@ async function notifyGuestsOfReply(message) {
       const openUrl = `${appUrl}/g/${token}`;
       const ok = await sendGuestReplyNotifyEmail({
         to: link.contact_email,
-        workspaceName: wsName,
+        workspaceName: wsName, fromName, replyTo,
         openUrl,
         unsubscribeUrl: `${openUrl}?unsub=1`,
         businessId: conversation.business_id,

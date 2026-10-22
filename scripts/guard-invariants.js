@@ -623,6 +623,42 @@ function checkPayrollRoom() {
   report('broadcast', `급여 신호는 개인 방으로만 (${n}곳 · 위반 ${bad.length})`, bad.length === 0 && n > 0, n === 0 ? ['급여 신호 발신 지점을 하나도 못 찾았다 — 검사가 아무것도 안 재고 있다'] : bad);
 }
 
+// 6-b. mailsender — 고객행 메일은 보낸 사람 = 워크스페이스 · 제목 접두어 없음 (2026-10-22 Fable, docs/MAIL_SUBJECT_PREFIX_REVIEW.md)
+//   ① subjectPrefix([워크스페이스명]) 는 멤버행 함수에서만 ② 고객행 함수는 fromName 을 sendEmail 에 넘긴다
+//   ③ 호출부가 workspaceName 인자를 'PlanQ' 로 채우지 않는다(푸터에 «PlanQ 에서 보낸 메일입니다» 거짓 줄).
+const MAIL_MEMBER_FNS = ['sendInviteEmail', 'sendBillingInstructionEmail', 'sendTrialRefundDoneEmail', 'sendNotificationEmail', 'sendUnreadNotificationEmail'];
+const MAIL_CUSTOMER_FNS = ['sendInviteEmail', 'sendPostShareEmail', 'sendEntityShareEmail', 'sendSignatureRequestEmail', 'sendSignatureOtpEmail',
+  'sendGuestReplyNotifyEmail', 'sendGuestBookingEmail', 'sendSurveyInviteEmail', 'sendInvoiceEmail', 'sendPaymentReminderEmail',
+  'sendReceiptIssuedEmail', 'sendReceiptCorrectionEmail'];
+function checkMailSender() {
+  const src = read(`${ROOT}/dev-backend/services/emailService.js`);
+  const bad = [];
+  // 함수 단위로 자른다 — 최상위 «(async) function 이름(» 부터 다음 것까지
+  const body = {};
+  for (const part of src.split(/\n(?=(?:async )?function \w+\()/)) { const m = part.match(/^(?:async )?function (\w+)\(/); if (m) body[m[1]] = part; }
+  const code = (t) => t.split('\n').filter((l) => !/^\s*(\/\/|\*|\/\*)/.test(l)).join('\n');
+  let prefixUses = 0;
+  for (const [name, b] of Object.entries(body)) {
+    if (name === 'subjectPrefix') continue;
+    if (/subjectPrefix\(/.test(code(b))) { prefixUses += 1; if (!MAIL_MEMBER_FNS.includes(name)) bad.push(`emailService.${name}: 고객행·플랫폼 메일에 [워크스페이스] 접두어(subjectPrefix)`); }
+  }
+  for (const name of MAIL_CUSTOMER_FNS) {
+    if (!body[name]) { bad.push(`emailService.${name}: 함수를 못 찾았다 — 목록을 고친다`); continue; }
+    if (!/fromName/.test(code(body[name]))) bad.push(`emailService.${name}: 고객행인데 fromName(워크스페이스 보낸 사람)을 안 넘긴다`);
+  }
+  const files = [...walk(`${ROOT}/dev-backend/routes`, ['.js']), ...walk(`${ROOT}/dev-backend/services`, ['.js'])];
+  for (const f of files) {
+    read(f).split('\n').forEach((l, i) => {
+      const t = l.trim();
+      if (t.startsWith('//') || t.startsWith('*')) return;
+      if (/workspaceName:\s*[^,}]*\|\|\s*['"]PlanQ['"]/.test(l)) bad.push(`${rel(f)}:${i + 1}: workspaceName 을 'PlanQ' 로 채운다 — services/workspaceSender 를 쓴다`);
+      if (!rel(f).endsWith('services/emailService.js') && /\bsubjectPrefix\(/.test(l)) bad.push(`${rel(f)}:${i + 1}: emailService 밖 subjectPrefix 호출`);
+    });
+  }
+  report('mailsender', `고객행 메일 보낸 사람·제목 접두어 (접두어 쓰는 함수 ${prefixUses} · 고객행 ${MAIL_CUSTOMER_FNS.length} · 위반 ${bad.length})`, bad.length === 0 && prefixUses > 0,
+    prefixUses === 0 ? ['subjectPrefix 사용 지점을 하나도 못 찾았다 — 검사가 아무것도 안 재고 있다', ...bad] : bad);
+}
+
 // 6-a''''. payrollsurface — 통합검색·Cue 문맥·AI 코드에 급여가 들어가지 않는다 (docs/PAYROLL_DESIGN.md §7.4)
 function checkPayrollSurface() {
   const dirs = [`${ROOT}/dev-backend/services`, `${ROOT}/dev-backend/routes`];
@@ -3846,6 +3882,7 @@ const CATEGORIES = {
   fontpx: checkFontPx,
   iosstack: checkIosStack,
   popuptop: checkPopupTop,
+  mailsender: checkMailSender,
   tenant: checkTenant,
   pagination: checkPagination,
   notify: checkNotify,

@@ -49,7 +49,7 @@
 
 1. «[PlanQ] 이런거» = 리터럴이 아니라 **고객 받은편지함에 남는 PlanQ 흔적** — ① 보낸 사람이 «PlanQ» 인 고객행 메일(서명 요청·공유·고객 초대·증빙) ② 보낸 사람이 이미 워크스페이스인데 제목에 또 붙는 `[워크스페이스명]`.
 2. **고객행(외부 — 고객·게스트·서명자·설문 응답자·예약자) 메일 전부**: 표시 이름 = 워크스페이스 사슬(mail_from_name → brand_name → name) · Reply-To = mail_reply_to · **제목 접두어 없음**. 대상: 청구서(수동·정기·고객 구독)·결제 안내/독촉·증빙 발행·정정·설문·상담 예약 5종·서명 요청·**서명 인증 코드**·문서/항목 공유·고객 초대·프로젝트 고객 초대·게스트 답글 알림.
-   **내부 멤버 알림(notify·다이제스트·멤버 초대)은 그대로** — 표시 이름 PlanQ · `[ws]` 유지 · «Q Task · / Q Mail · / Q Talk ·» 기능명 유지(#281 답 · 앱 알림·푸시·메일이 같은 제목 정본 · 고객에게 안 감). Irene ② «메시지·메일 왔다 알림에 PlanQ 표시» 는 이미 충족(제목에 PlanQ 리터럴 없음).
+   **내부 멤버 알림(notify·다이제스트·멤버 초대)은 그대로** — 표시 이름 PlanQ · `[ws]` 유지 · «Q Task · / Q Mail · / Q Talk ·» 기능명 유지(#281 답 · 앱 알림·푸시·메일이 같은 제목 정본). ★ 정정(Fable 완료 검증): «고객에게 안 감» 은 거짓 — `notifyRecipient.isWorkspaceRecipient` 가 계정이 붙은 고객도 통과시켜 계정 고객은 notify 메일(PlanQ · `[ws] Q Talk · 새 메시지`)을 받는다. 이번 변경으로 나빠진 것은 없고, 이 메일을 워크스페이스 이름으로 보낼지는 **다음 설계 질문**이다. Irene ② «메시지·메일 왔다 알림에 PlanQ 표시» 는 이미 충족(제목에 PlanQ 리터럴 없음).
 3. 표시 이름이 PlanQ 였던 고객행은 2번으로 해소 + replyTo 를 같이 넘긴다(푸터 «문의·회신» 줄).
 4. 'PlanQ' 폴백 제거 — 이름이 비면 접두어 '' · fromName 없음 → sendEmail 한 곳의 PLATFORM.brand 만. 사슬은 헬퍼 한 벌(workspaceSender). 플랫폼 법적 고지 `[PlanQ]` 리터럴도 #425 대로 제거(낮은 우선순위).
 5. 본문 PlanQ 로고 헤더·푸터 «PlanQ 로 발송됨» — 이번 범위 밖(유지).
@@ -61,3 +61,7 @@
 > «플랜큐로 표시되서 알림표시 나가는 거 제목에 붙이는 건 워크스페이스들이 자기 고객에게 보내는 서명 청구 같은 거에 표시하지 말라고.
 > 그리고 메시지가 왔다 메일왔다. 다 플랜큐라고 제목에 표시 안해도 되지 않냐 한건데.»
 - 뜻: ① 워크스페이스가 자기 고객에게 보내는 메일(서명 요청·청구 등)은 제목에 PlanQ 표시를 붙이지 않는다 ② «새 메시지·메일 도착» 같은 알림 메일도 제목에 PlanQ 를 굳이 붙이지 않는다.
+
+## 5. 구현·완료 검증 (2026-10-22, 방 a6d11ff9)
+- 헬퍼 `services/workspaceSender`(workspaceSender · loadWorkspaceSender) · 고객행 호출 지점 15곳 · 고객행 함수 12개 접두어 제거·fromName/replyTo·푸터 회신 줄 · 법적 고지 `[PlanQ]` 제거 · 설정 PUT 사칭 이름 400 · 설정 힌트 ko/en · 가드 `--category=mailsender`.
+- Fable 완료 검증 **PASS**(차단 0). 비차단: ① 위 정정 ② 가드는 함수 본문만 본다(호출부 fromName 누락은 못 막음) ③ 운영 `businesses.mail_from_name` 에 이미 PlanQ·@·< 가 든 행은 배포 때 읽기 전용으로 확인(`SELECT id,name,mail_from_name FROM businesses WHERE mail_from_name REGEXP '[@<>"]' OR REPLACE(LOWER(mail_from_name),' ','')='planq'`) — 있으면 NULL 로 돌릴지 Irene 에게 묻는다(dev 0건) ④ 게스트 확인 코드는 의도적으로 PlanQ 발신(#259).

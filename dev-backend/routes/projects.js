@@ -3488,11 +3488,11 @@ router.post('/:id/clients', authenticateToken, async (req, res, next) => {
     if (row.contact_email && !quiet) {
       try {
         const { sendInviteEmail } = require('../services/emailService');
-        const biz = await Business.findByPk(project.business_id, { attributes: ['brand_name', 'name'] });
+        const sender = await require('../services/workspaceSender').loadWorkspaceSender(project.business_id);
         const inviter = await User.findByPk(req.user.id, { attributes: ['name'] });
         await sendInviteEmail({
           to: row.contact_email,
-          workspaceName: biz?.brand_name || biz?.name || 'PlanQ',
+          ...sender,
           inviterName: inviter?.name || '',
           targetName: row.contact_name,
           kind: 'project',
@@ -3534,11 +3534,11 @@ router.post('/:id/clients/:clientId/resend-invite', authenticateToken, async (re
     await row.update({ invited_at: new Date() });
     try {
       const { sendInviteEmail } = require('../services/emailService');
-      const biz = await Business.findByPk(project.business_id, { attributes: ['brand_name', 'name'] });
+      const sender = await require('../services/workspaceSender').loadWorkspaceSender(project.business_id);
       const inviter = await User.findByPk(req.user.id, { attributes: ['name'] });
       await sendInviteEmail({
         to: row.contact_email,
-        workspaceName: biz?.brand_name || biz?.name || 'PlanQ',
+        ...sender,
         inviterName: inviter?.name || '',
         targetName: row.contact_name,
         kind: 'project',

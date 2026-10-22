@@ -66,10 +66,9 @@
 - Fable 판정 DESIGN_READY 대로 구현(서버 목록 규칙·40개 초과 사전 거절·그룹 힌트 정리 / 화면 문구·«나 (기본)»·중요도 글자·중복 줄 제거). 추가로 목록 항목 모호 경고 끔(15개 전부 ⚠ 였음).
 - 자체 검증 숫자: 목록 5/15/25 → 200 후보=항목 수, 제목 일치, «완료» 0, 선후 0 · 41 → 400 · 한 줄 목표 8건 · 25건 저장 200 · 가드 i18n/parity 통과 · 범위 tsc 0(전체 tsc -b 는 earlyoom 143) · vite 0. 운영 로그는 이 방 권한으로 못 읽음(운영에서 Irene 가 본 오류가 같은 것인지 확인 못 함).
 
-### 나중에 — 한글 첨부(#467) 운영 반영 + 고객 답변 (방 657ad10d · 2026-10-22 · [Opus]) · 다음 운영 배포(정기 점검·수동 배포) 때 · 그때 할 일
-- 상태: Irene ① 선택 → 운영 백엔드 파일 백업(20261022_035541)으로 되돌림 확인(파일 md5 = b25f3949 · PM2 재시작 없음 · health 200). DB 는 ca26ba1b 명함 v2 스키마가 이미 들어가 있음(추가만, 다음 배포 마이그 멱등).
-- 조건: 조직 규모 0단계(baecdbec·37a7d24d·빌드 수리 0aba527d)의 «빌드·화면 확인» 끝난 뒤. 그 사이 휴가 종류(7e708f4f)·근태 자정(efaaf4f5) 도 main 에 들어옴 — 배포 방이 전체 확인.
-- 배포 뒤 할 일(배포 방이): 운영에 hwp 첨부 되는지 확인 → #467 답변 `scp /opt/planq/.claude/plans/feedback-467-reply.json irene@87.106.78.146:/tmp/replies-467.json && ssh irene@87.106.78.146 "cd /opt/planq/backend && node scripts/feedback-reply.js /tmp/replies-467.json --apply"`(status done · «바로 반영했습니다» 문구). 이 방은 운영 쓰기 권한이 막혀 있었다.
+### 완료: 한글 첨부(#467) 운영 반영 + 고객 답변 (방 657ad10d · 2026-10-22 · [Opus])
+- 운영 배포 1d0e4b96(16:27, b7b9a678 포함)로 나감 — 운영 uploadPolicy·driveImport 에 hwp/hwpx 확인 · PM2 16:27 재시작 · planq.kr 200. #467 은 아직 pending(답변 없음).
+- 답변: Irene 가 방에서 명령 실행 → #467 pending → done, 답글 적용 완료(알림 발송).
 
 ### 답 기다림 (이전): 운영 배포 중단 — 운영 서버 파일 되돌릴지 (방 657ad10d · 2026-10-22 · [Opus]) — Irene ① 실행·확인 완료
 - 무엇: Irene «배포하고 고객에게 답변해야지» → /배포 --auto 실행. 시작 때 HEAD 가 baecdbec(다른 방 «조직 규모 0단계 — 빌드·화면·완료 검증 전»)라 그게 실렸고, 그 커밋 TS 오류(DepartedMembersSection.tsx:10 type-only import)로 프론트 빌드에서 멈춤.
@@ -85,7 +84,6 @@
 - 앱 안 한글 본문 미리보기는 없음(별도 기능).
 - 프론트 빌드 3회 모두 tsc 중 약 100초에 SIGTERM(143)으로 끊김 — 누가 끊는지 못 찾음(OOM 기록 없음). 프론트 변경은 아이콘 색 한 줄뿐이라 다음 빌드 때 반영. 핵심 수정(서버)은 dev 반영·실측 끝.
 ### Irene 할 일
-- #467 답변 달기(운영 쓰기라 이 방 권한으로 막힘) — 상황판에 올림. 문구 .claude/plans/feedback-467-reply.json, 상태 reviewing. 배포 뒤 done 으로.
 
 
 
@@ -114,6 +112,12 @@
 ### Irene 할 일
 - 기율법률 메일 규칙에 «scourt.go.kr → 항상 답변 필요» 넣기(법원 송달 주소가 법원마다 달라 도메인 규칙).
 
+### 완료: 정기 점검 10/23 00:15 — 배포 나갈 것 없음 (방 49723e23 · 2026-10-23 · [Claude Code] Opus 5.5)
+- 개발완료: 건너뜀 — 같은 폴더에서 일하는 방 2곳(afbf466c 화상 업무설계·사용안내 신청 · f9b7abaa 고객·멤버 통합 정리) + 657ad10d(한글 첨부) 프로세스 살아 있음. 미커밋은 session-state.md 1개(다른 방 것, 손대지 않음).
+- 배포: 나갈 것 없음 — 운영 .last-deployed-commit c5704757 뒤 커밋은 01820c94(docs/FABLE_GATE_QUEUE.md 판정 기록) 1개뿐, 운영에 나가는 코드 0. 상황판 PlanQ Fable 대기 4건(SNS 발송·고객 목록 멤버 이메일 판정·메일 제목 접두어·사람 프로필 통합)은 모두 설계·구현 0.
+- 개발시작: 운영 피드백 진행대기(승인됨) 0 · 반영중 0 · 승인 기다림 10(접수 3 · 검토중 7 — 관리자 > 사용자 피드백). 승인 체계 운영 반영됨(조회 정상). #467 done 확인.
+- 밤 검사 10-22: 순찰 FATAL Connection closed(exit=2, 16:00→16:58 UTC, 결과 없음 — 10-20 과 같은 모양, 하루 걸러 죽음) · 전체 검사 점검 시각에 도는 중(지금까지 31개 중 실패 2: crosscut «/sale?tab=clients 누출 — 게스트 문의 행에 Health Check Bot 계정명» · mailrt reorder·reconnect). 둘 다 10-16/10-17 부터 계속 빨강 — 10-21 결과 148 중 실패 11(crosscut·mailrt·mobileboot·consultlinks·tablefit·tablestyle·taskaddparity·mobilesweep·clientlink·salelayout·headerrow). 고치는 방 몫(mailrt 는 카나리가 낡음 — 위 255c2316 절 메모).
+
 ### 완료: 정기 점검 10/22 00:15 — 운영 배포 b25f3949 (방 40af8206 · 2026-10-22 · [Claude Code] Opus 5.5)
 - 개발완료: 건너뜀 — 같은 폴더에서 일하는 방 3곳(baa00446 환불 메일 · 671b6a35 급여·휴가 · fced25bd 자정 근태). 작업 트리는 깨끗했음.
 - 배포 b25f3949(--routine, 528초) — eb9ad962..b25f3949 33커밋(업무 컨펌자 칸·하단 고정 줄 · 긴급 알림 두 번 · 메일 보낸 사람 이름 · AI 앱 재연결 안내 · 관리자 피드백 목록 · 일정 장소 토글 · 서명 3건 등). planq.kr/api/health 200 · pm2 backend·qnote·mcp online · .last-deployed-commit b25f3949 · PDF OK · 마이그 멱등 skip · 운영 CSP MISMATCH(종전 nginx sudo Irene 할 일). 백업 /opt/planq/backups/20261021_161654(운영).
@@ -121,12 +125,22 @@
 - 개발시작: 운영 피드백 새 1건 **#466**(수정요청 때 사유 필수 — 댓글로 이미 적었는데 또 써야 함). 아직 그대로: 화면(TaskDetailDrawer submitRevision)·서버(task_actions.requestRevision note_required_for_revision) 둘 다 필수. 업무 상태 전이 규칙 변경이라 다음 방에서 판단. 열린 #463·#464 답글 없음(초안 docs/feedback-replies-2026-10-08.json), 나머지 7건 reviewing(답글 있음).
 - 밤 검사: 순찰 10-20 은 브라우저 연결 끊김(FATAL Connection closed, exit=2)으로 결과 없음 · 10-21 순찰은 이 점검과 같은 시각에 도는 중 · 전체 검사 10-20: 144 중 실패 14 + 하니스 죽음 1(mobilepanels — health-check 계정 로그인 실패) — crosscut·mailrt·docsheader·mobileboot·consultlinks·tablefit·tablestyle·taskaddparity·dupname·guestentry·sharereceive·booking·salelayout·headerrow.
 
-### 나중에 — Fable 대기: 멤버·고객 프로필 통합 (방 f9b7abaa · 2026-10-21 · [Opus]) · 한도가 풀리면(상황판 fid fwmvhx2ksv, 20:35 KL 뒤 깨움) · 그때 docs/PEOPLE_PROFILE_UNIFY_DESIGN.md «판정 받을 것» 6개를 Fable 설계 판정(docs/CLIENT_MEMBER_EMAIL_MATCH_DESIGN.md 같이 묶음) → 판정대로 구현(사람 카드 components/People · clients.job_title · 이메일 작성 창/폰 보내고 뒤로 · 프로젝트>고객 ClientAddDrawer · 설정 구성원 [멤버|고객] · 멤버 overview API) → 문서 4절 검증
+### ✅ 멤버·고객 프로필 통합 (방 f9b7abaa · 2026-10-22 · [Opus]) — 운영 반영: 다음 배포 때
 - 원문: «모든 고객과 멤버를 넣으면 기본 정보가 나오고 회사 직책 … 이메일은 클릭하면 우리 이메일 작성이 새창으로 … 모바일은 보내고 뒤로 … 프로젝트>고객에서도 Q sales>고객탭처럼 입력도 … 멤버프로필, 고객 프로필도 통합 … 설정/구성원에 고객리스트도 … 멤버도 연결된 프로젝트랑 업무리스트, 히스토리 … 이거 중요하니까 fable 로 해줘.»
-- 조사 사실은 설계 문서 1절(고객 직책 칸 없음 · 메일 작성은 받는사람 인자 없음·따로 창 없음 · 프로젝트 고객 탭 «기존 고객 연결» 이 client_id 를 안 보냄 · 멤버별 프로젝트/업무/활동 API 없음).
-- 구현 0 — Irene 가 Fable 을 지정했고 Fable 429.
+- Fable 설계 PASS(docs/PEOPLE_PROFILE_UNIFY_DESIGN.md 맨 아래) → 구현 커밋 a7853c5d·49be196f·672876d6·ba596d30 → Fable 완료 검증 FAIL(폰·태블릿 작성 창이 목록 뒤) → 고침, 재판정 없음(2회 한도) · 자체 검증.
+- 한 것: 같은 이메일(계정+확인된 보조)이면 고객 자국을 멤버로 전환(대기 중이던 CLIENT_MEMBER_EMAIL_MATCH 포함) · 멤버 이메일로 직접 관리 고객 409 · 프로젝트 > 고객 [+ 고객 추가](초대/직접 관리 — 직접 관리는 메일·알림·토큰 없음, 재발송 없음, 보관 고객 409) · 기존 고객 연결은 client_id · 사람 카드 components/People(회사·부서·직책·이메일·전화) · 이메일 누르면 Q mail 작성(새 탭/폰은 같은 창, 닫거나 보내면 연 곳으로) · 설정 › 멤버·고객 [멤버|고객](고객 = Q sale 본체 embedded) · 멤버 상세 DetailDrawer + 연결 프로젝트·업무·히스토리(보는 사람 기준 overview API) · member:updated 신호.
+- 검증: 이메일 전환 롤백 12/12 · 프로젝트 직접 관리 연결 9/9 + 보관 409 · overview 11/11 · Fable 서버 61/61 · 실브라우저 사람 34/34 + 작성 3폭 6/6 · 초안 있어도 받는 사람 유지 · 가드 77/78 · health 90/90 · e2e tenant 0 · 범위 tsc 0 · vite 0(전체 tsc -b 는 earlyoom 143).
+- 안 한 것: «이름만 같은 고객 → [멤버로 정리]» 버튼(Fable 8단계 «여유 시») · 멤버 상세 파일 분리(껍데기만 DetailDrawer).
+- 확인용 데이터: 프로젝트 857 «[확인용] 고객 직접 입력 확인» · 고객 2566 «[확인용] 직접관리 확인».
 
-### 나중에 — Fable 대기: 고객에게 가는 메일 제목 접두어 (방 a6d11ff9 · 2026-10-21 · [Opus]) · 한도가 풀리면(상황판 fid fwmvhwv6v8, 20:29 KL 뒤 깨움) · 그때 docs/MAIL_SUBJECT_PREFIX_REVIEW.md 로 Fable 설계 판정 → 판정대로 services/emailService.js subjectPrefix(고객행/내부행) + 표시 이름 사슬 한 벌 + 검증
+### ✅ 고객에게 가는 메일 — 보낸 사람 = 워크스페이스 · 제목 [ ] 꼬리표 없음 (방 a6d11ff9 · 2026-10-22 · [Opus]) — 운영 반영: 다음 배포 때
+- 원문: «워크스페이스 이메일 발신자로 가는 메일에는 제목부터 굳이 [PlanQ] 이런거 넣지 말자 … 이건 fable 이 검토해.» + 10-22 추가 «서명 청구 같은 거에 표시하지 말라고 … 메시지가 왔다 메일왔다 다 플랜큐라고 제목에 표시 안해도».
+- Fable 설계 PASS (b): 고객행 메일(청구·독촉·증빙 2·설문·상담 예약 5·서명 요청·서명 인증 코드·문서/항목 공유·고객/프로젝트 고객 초대·게스트 답글) = 보낸 사람 이름 워크스페이스(mail_from_name → brand_name → name) · 회신 mail_reply_to · 제목 접두어 없음. 보내는 주소는 noreply 그대로. 팀원 알림(«[워크스페이스] Q Task · …»)·멤버 초대는 그대로. 로고 헤더는 범위 밖.
+- 고침: 헬퍼 services/workspaceSender 한 벌(호출 지점 15곳) · emailService 고객행 12함수 · 'PlanQ' 대체 이름 제거 · 법적 고지 [PlanQ] 제거 · 설정 «발신 표시이름» 에 PlanQ·@·< > 400 + 안내 문구 ko/en · 가드 --category=mailsender.
+- 검증: 시험 서버(발송기만 가짜) 실호출 86/87(남은 1 은 픽스처 — 주소 넣고 5/5) · 대조군 3 · 가드 반증 3방향 · 전체 가드 78/79(docfresh 경고) · health 90/90 · 빌드 EXIT 0 · 설정 화면 문구 3폭 보임. **Fable 완료 검증 PASS(차단 0)** — 직접 15곳·13종 확인.
+- 남은 것: 계정 고객이 받는 팀 알림 메일(PlanQ · [워크스페이스])을 워크스페이스 이름으로 보낼지는 다음 설계 질문 · 운영에 이미 사칭 이름이 든 워크스페이스는 배포 때 읽기 전용 확인(SQL 은 docs/MAIL_SUBJECT_PREFIX_REVIEW.md §5).
+
+### 나중에 (이전·끝남) — Fable 대기: 고객에게 가는 메일 제목 접두어 (방 a6d11ff9 · 2026-10-21 · [Opus]) · 한도가 풀리면(상황판 fid fwmvhwv6v8, 20:29 KL 뒤 깨움) · 그때 docs/MAIL_SUBJECT_PREFIX_REVIEW.md 로 Fable 설계 판정 → 판정대로 services/emailService.js subjectPrefix(고객행/내부행) + 표시 이름 사슬 한 벌 + 검증
 - 원문: «워크스페이스 이메일 발신자로 가는 메일에는 제목부터 굳이 [PlanQ] 이런거 넣지 말자. 고객사들에게 안좋은 것 같아. … 이건 fable 이 검토해.»
 - 사실(운영 30일 실측): 리터럴 [PlanQ] 는 09-23 이후 안 나간다. 대신 고객행 메일 제목에 [워크스페이스명] — 청구서·결제 안내·설문·상담 예약은 표시 이름도 워크스페이스라 받은편지함에 «워프로랩 | [워프로랩] 청구서» 로 두 번. 서명 요청·공유·초대는 표시 이름 PlanQ. 상담·초대에 'PlanQ' 폴백 코드 남음.
 - 구현 0 — Irene 가 Fable 검토를 지정했고 Fable 429.
@@ -139,7 +153,7 @@
 - 확인 못 함: 실제 ChatGPT·Claude 가 대화에서 정말 한 번 말하는지(실기기 — Irene 할 일로 올림) · ChatGPT 가 도구 목록을 캐시하는지.
 - 확인용 데이터: agent_grants #902(owner@test · ws 6 · client_id check-reconnect-confirm, 낡은 ChatGPT 연결 — 토큰 없음). 다 보면 프로필에서 «연결 끊기» 로 지워도 된다.
 
-### 나중에 — Fable 대기: Q sale 고객 목록에 멤버가 남는 것 (방 c9d2c55c · 2026-10-21 · [Opus]) · 한도가 풀리면(상황판 fid fwmvhw138n, 20:06 KL 뒤 깨움) · 그때 docs/CLIENT_MEMBER_EMAIL_MATCH_DESIGN.md 로 Fable 설계 판정 → 판정대로 services/clientToMember 이메일 일치 확장 + migrate-client-to-member 탐지 + 검증
+### ✅ (해소) Q sale 고객 목록에 멤버가 남는 것 — 방 f9b7abaa 가 Fable 설계 PASS(판정 6, docs/PEOPLE_PROFILE_UNIFY_DESIGN.md) 받아 a7853c5d 로 구현·검증. 이 대기는 2026-10-22 상황판에서 뺐다 (방 c9d2c55c · 2026-10-21 · [Opus]) — 아래는 당시 기록 · 한도가 풀리면(상황판 fid fwmvhw138n, 20:06 KL 뒤 깨움) · 그때 docs/CLIENT_MEMBER_EMAIL_MATCH_DESIGN.md 로 Fable 설계 판정 → 판정대로 services/clientToMember 이메일 일치 확장 + migrate-client-to-member 탐지 + 검증
 - 원문: «고객에 왜 멤버 정보를 안걸러주고 들어가? 정보가 매칭되면 멤버인건데.» (송형섭 두 줄 — 이메일 없음 / hssong992@naver.com, 둘 다 초대 대기)
 - 원인(코드): 멤버 전환이 계정 id 로만 고객 자국을 찾는데, 계정 없이 이메일·이름으로 초대된 프로젝트 고객 행은 user_id 가 비어 있어 안 걸린다. 운영 행은 읽기 권한 거절로 확인 못 함.
 - 구현 0 — 같은 사람 판정 기준 변경(10-16 Fable 설계 확장)이라 설계가 막혀 시작하지 않음. 이름만 같은 행 처리도 판정 받을 것.

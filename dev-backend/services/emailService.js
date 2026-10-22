@@ -252,10 +252,22 @@ function plainPreheader(text, max = 140) {
  *
  * 주의: Subject 는 plain-text 헤더다. escapeHtml 을 적용하면 안 된다 —
  *       워크스페이스명이 'A&B' 면 제목이 '[A&amp;B]' 로 나간다 (옛 코드의 실제 버그).
+ *
+ * ★ 2026-10-22 개정 (Fable 판정, docs/MAIL_SUBJECT_PREFIX_REVIEW.md) — Irene: "워크스페이스 이메일 발신자로 가는 메일에는
+ *   제목부터 굳이 [PlanQ] 이런거 넣지 말자. 고객사들에게 안좋은 것 같아."
+ *   이 접두어는 **멤버행 메일(알림·다이제스트·멤버 초대)만** 쓴다. 워크스페이스가 자기 고객에게 보내는 메일은
+ *   보낸 사람 이름이 이미 워크스페이스라(services/workspaceSender) 제목에 또 붙이면 «워프로랩 | [워프로랩] 청구서» 가 된다 —
+ *   고객행 함수(청구·독촉·증빙·설문·상담 예약·서명 요청·인증 코드·공유·고객 초대·게스트 답글)는 접두어 없이 보낸다.
  */
 function subjectPrefix(workspaceName) {
   const ws = String(workspaceName || '').trim();
   return ws ? `[${ws}]` : '';
+}
+
+// 고객행 메일 푸터의 «문의·회신» 줄 — 워크스페이스 회신 주소가 올바를 때만.
+function contactOf(replyTo) {
+  const v = String(replyTo || '').trim();
+  return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v) ? v : null;
 }
 
 // ─── 공통 layout — 헤더 + body + 푸터 ───
@@ -473,15 +485,18 @@ function inviteEmailHtml({ workspaceName, inviterName, targetName, kind, context
   return emailWrap({ title: 'PlanQ 초대', body, preheader: `${inviterName || ''}님이 ${workspaceName}${contextName ? ` · ${contextName}` : ''}에 초대했습니다`, footerOptions: { workspaceName } });
 }
 
-async function sendInviteEmail({ to, workspaceName, inviterName, targetName, kind, contextName, token }) {
+async function sendInviteEmail({ to, workspaceName, inviterName, targetName, kind, contextName, token, fromName, replyTo }) {
   if (!to) return false;
   const inviteUrl = `${APP_URL}/invite/${token}`;
-  const subject = kind === 'workspace_member'
+  // 멤버 초대는 멤버행(보낸 사람 PlanQ · [워크스페이스] 접두어), 고객·프로젝트 고객 초대는 고객행(보낸 사람 워크스페이스 · 접두어 없음).
+  const member = kind === 'workspace_member';
+  const subject = member
     ? `${subjectPrefix(workspaceName)} ${inviterName || ''}님이 팀에 초대했습니다`
-    : `${subjectPrefix(workspaceName)} ${inviterName || ''}님이 ${contextName ? `${contextName} 에 ` : ''}초대했습니다`;
+    : `${inviterName || ''}님이 ${contextName ? `${contextName} 에 ` : ''}초대했습니다`;
   return sendEmail({
     to, subject,
     html: inviteEmailHtml({ workspaceName, inviterName, targetName, kind, contextName, inviteUrl }),
+    ...(member ? {} : { fromName, replyTo }),
     template: 'invite', relatedEntityType: 'invite_token',
   });
 }
@@ -489,7 +504,7 @@ async function sendInviteEmail({ to, workspaceName, inviterName, targetName, kin
 // ═══════════════════════════════════════════════════════════════
 // 2. 문서 공유
 // ═══════════════════════════════════════════════════════════════
-function postShareEmailHtml({ docTitle, senderName, workspaceName, message, shareUrl }) {
+function postShareEmailHtml({ docTitle, senderName, workspaceName, message, shareUrl, workspaceContact }) {
   const body = `
     <div style="font-size:14px;color:#64748B;margin-bottom:6px;">
       <b>${escapeHtml(senderName || '')}</b>${workspaceName ? ` · ${escapeHtml(workspaceName)}` : ''} 님이 문서를 공유했습니다.
@@ -500,15 +515,16 @@ function postShareEmailHtml({ docTitle, senderName, workspaceName, message, shar
       ${ctaButton(shareUrl, '문서 보기')}
     </div>
     ${fallbackLink(shareUrl)}`;
-  return emailWrap({ title: docTitle, body, preheader: `문서 "${docTitle}" — ${senderName || ''}님이 공유했습니다`, footerOptions: { workspaceName } });
+  return emailWrap({ title: docTitle, body, preheader: `문서 "${docTitle}" — ${senderName || ''}님이 공유했습니다`, footerOptions: { workspaceName, workspaceContact } });
 }
 
-async function sendPostShareEmail({ to, docTitle, senderName, workspaceName, message, shareUrl }) {
+async function sendPostShareEmail({ to, docTitle, senderName, workspaceName, message, shareUrl, fromName, replyTo }) {
   if (!to) return false;
-  const subject = `${subjectPrefix(workspaceName)} ${senderName || ''}님이 "${docTitle}" 문서를 공유했습니다`;
+  const subject = `${senderName || ''}님이 "${docTitle}" 문서를 공유했습니다`;
   return sendEmail({
     to, subject,
-    html: postShareEmailHtml({ docTitle, senderName, workspaceName, message, shareUrl }),
+    html: postShareEmailHtml({ docTitle, senderName, workspaceName, message, shareUrl, workspaceContact: contactOf(replyTo) }),
+    fromName, replyTo,
     template: 'post_share', relatedEntityType: 'post',
   });
 }
@@ -521,7 +537,7 @@ const ENTITY_LABEL = {
   calendar_event: { ko: '일정',     cta: '일정 보기',     password_hint_ko: '일정을 보려면 비밀번호를 입력하세요.' },
 };
 
-function entityShareEmailHtml({ entityType, entityTitle, senderName, workspaceName, message, shareUrl, hasPassword }) {
+function entityShareEmailHtml({ entityType, entityTitle, senderName, workspaceName, message, shareUrl, hasPassword, workspaceContact }) {
   const label = ENTITY_LABEL[entityType] || { ko: '항목', cta: '열기' };
   const body = `
     <div style="font-size:14px;color:#64748B;margin-bottom:6px;">
@@ -534,16 +550,17 @@ function entityShareEmailHtml({ entityType, entityTitle, senderName, workspaceNa
     </div>
     ${hasPassword ? `<div style="margin-top:14px;padding:10px 14px;background:#F0FDFA;border-left:3px solid #14B8A6;font-size:12px;color:#0F766E;border-radius:4px;">${escapeHtml(label.password_hint_ko)}</div>` : ''}
     ${fallbackLink(shareUrl)}`;
-  return emailWrap({ title: entityTitle, body, preheader: `${label.ko} "${entityTitle}" — ${senderName || ''}님이 공유했습니다`, footerOptions: { workspaceName } });
+  return emailWrap({ title: entityTitle, body, preheader: `${label.ko} "${entityTitle}" — ${senderName || ''}님이 공유했습니다`, footerOptions: { workspaceName, workspaceContact } });
 }
 
-async function sendEntityShareEmail({ to, entityType, entityTitle, senderName, workspaceName, message, shareUrl, hasPassword }) {
+async function sendEntityShareEmail({ to, entityType, entityTitle, senderName, workspaceName, message, shareUrl, hasPassword, fromName, replyTo }) {
   if (!to) return false;
   const label = ENTITY_LABEL[entityType] || { ko: '항목' };
-  const subject = `${subjectPrefix(workspaceName)} ${senderName || ''}님이 "${entityTitle}" ${label.ko}을 공유했습니다`;
+  const subject = `${senderName || ''}님이 "${entityTitle}" ${label.ko}을 공유했습니다`;
   return sendEmail({
     to, subject,
-    html: entityShareEmailHtml({ entityType, entityTitle, senderName, workspaceName, message, shareUrl, hasPassword }),
+    html: entityShareEmailHtml({ entityType, entityTitle, senderName, workspaceName, message, shareUrl, hasPassword, workspaceContact: contactOf(replyTo) }),
+    fromName, replyTo,
     template: 'entity_share', relatedEntityType: entityType,
   });
 }
@@ -551,7 +568,7 @@ async function sendEntityShareEmail({ to, entityType, entityTitle, senderName, w
 // ═══════════════════════════════════════════════════════════════
 // 3. 서명 요청 (외부 서명자)
 // ═══════════════════════════════════════════════════════════════
-function signatureRequestEmailHtml({ docTitle, senderName, workspaceName, signerName, message, signUrl, expiresAt }) {
+function signatureRequestEmailHtml({ docTitle, senderName, workspaceName, signerName, message, signUrl, expiresAt, workspaceContact }) {
   const expireStr = expiresAt ? new Date(expiresAt).toLocaleDateString('ko-KR') : '';
   const body = `
     <div style="font-size:14px;color:#64748B;margin-bottom:6px;">
@@ -568,15 +585,16 @@ function signatureRequestEmailHtml({ docTitle, senderName, workspaceName, signer
       ${expireStr ? `<br>이 요청은 <b>${expireStr}</b>까지 유효합니다.` : ''}
     </div>
     ${fallbackLink(signUrl)}`;
-  return emailWrap({ title: `서명 요청 — ${docTitle}`, body, preheader: `서명 요청 — "${docTitle}"${expiresAt ? ` (기한 ${String(expiresAt).slice(0, 10)})` : ''}`, footerOptions: { workspaceName } });
+  return emailWrap({ title: `서명 요청 — ${docTitle}`, body, preheader: `서명 요청 — "${docTitle}"${expiresAt ? ` (기한 ${String(expiresAt).slice(0, 10)})` : ''}`, footerOptions: { workspaceName, workspaceContact } });
 }
 
-async function sendSignatureRequestEmail({ to, docTitle, senderName, workspaceName, signerName, message, signUrl, expiresAt }) {
+async function sendSignatureRequestEmail({ to, docTitle, senderName, workspaceName, signerName, message, signUrl, expiresAt, fromName, replyTo }) {
   if (!to) return false;
-  const subject = `${subjectPrefix(workspaceName)} 서명 요청 — "${docTitle}"`;
+  const subject = `서명 요청 — "${docTitle}"`;
   return sendEmail({
     to, subject,
-    html: signatureRequestEmailHtml({ docTitle, senderName, workspaceName, signerName, message, signUrl, expiresAt }),
+    html: signatureRequestEmailHtml({ docTitle, senderName, workspaceName, signerName, message, signUrl, expiresAt, workspaceContact: contactOf(replyTo) }),
+    fromName, replyTo,
     template: 'signature_request', relatedEntityType: 'signature',
   });
 }
@@ -599,11 +617,13 @@ function otpEmailHtml({ docTitle, code }) {
   return emailWrap({ title: `${PLATFORM.brand} 서명 인증`, body });
 }
 
-async function sendSignatureOtpEmail({ to, docTitle, code }) {
+async function sendSignatureOtpEmail({ to, docTitle, code, fromName, replyTo }) {
   if (!to) return false;
   const subject = `서명 인증 코드 ${code}`;
+  // 보낸 사람 = 서명을 요청한 워크스페이스 — 요청은 «워프로랩», 코드는 «PlanQ» 로 오면 피싱처럼 보인다(Fable 2026-10-22).
   return sendEmail({
     to, subject, html: otpEmailHtml({ docTitle, code }),
+    fromName, replyTo,
     template: 'signature_otp', relatedEntityType: 'signature',
   });
 }
@@ -709,12 +729,13 @@ function guestReplyNotifyEmailHtml({ workspaceName, openUrl, unsubscribeUrl, loc
   });
 }
 
-async function sendGuestReplyNotifyEmail({ to, workspaceName, openUrl, unsubscribeUrl, businessId, conversationId, locale }) {
+async function sendGuestReplyNotifyEmail({ to, workspaceName, openUrl, unsubscribeUrl, businessId, conversationId, locale, fromName, replyTo }) {
   if (!to || !openUrl) return false;
   const T = guestText(locale);
   return sendEmail({
     to,
     subject: T.replySubject,
+    fromName, replyTo,
     html: guestReplyNotifyEmailHtml({ workspaceName, openUrl, unsubscribeUrl, locale }),
     template: 'guest_reply_notify',
     businessId: businessId || null,
@@ -731,11 +752,11 @@ async function sendGuestReplyNotifyEmail({ to, workspaceName, openUrl, unsubscri
 const BOOKING_MAIL_TEXT = {
   ko: {
     subject: {
-      requested: (ws) => `[${ws}] 상담 신청을 받았습니다`,
-      confirmed: (ws) => `[${ws}] 상담이 확정되었습니다`,
-      proposed: (ws) => `[${ws}] 상담 시간 변경을 제안했습니다`,
-      declined: (ws) => `[${ws}] 상담 신청이 성사되지 않았습니다`,
-      canceled: (ws) => `[${ws}] 상담이 취소되었습니다`,
+      requested: () => `상담 신청을 받았습니다`,
+      confirmed: () => `상담이 확정되었습니다`,
+      proposed: () => `상담 시간 변경을 제안했습니다`,
+      declined: () => `상담 신청이 성사되지 않았습니다`,
+      canceled: () => `상담이 취소되었습니다`,
     },
     lead: {
       requested: '상담 신청을 받았습니다. 담당자가 확인하면 다시 알려 드립니다.',
@@ -751,11 +772,11 @@ const BOOKING_MAIL_TEXT = {
   },
   en: {
     subject: {
-      requested: (ws) => `[${ws}] We received your consultation request`,
-      confirmed: (ws) => `[${ws}] Your consultation is confirmed`,
-      proposed: (ws) => `[${ws}] A new time was proposed for your consultation`,
-      declined: (ws) => `[${ws}] Your consultation request could not be accepted`,
-      canceled: (ws) => `[${ws}] Your consultation was canceled`,
+      requested: () => `We received your consultation request`,
+      confirmed: () => `Your consultation is confirmed`,
+      proposed: () => `A new time was proposed for your consultation`,
+      declined: () => `Your consultation request could not be accepted`,
+      canceled: () => `Your consultation was canceled`,
     },
     lead: {
       requested: "We received your request. We'll let you know once it's reviewed.",
@@ -779,7 +800,6 @@ const bookingText = (locale) => BOOKING_MAIL_TEXT[String(locale || 'ko').slice(0
 async function sendGuestBookingEmail(p) {
   if (!p || !p.to || !p.openUrl || !BOOKING_MAIL_TEXT.ko.lead[p.kind]) return false;
   const T = bookingText(p.locale);
-  const ws = p.workspaceName || PLATFORM.brand;
   // 화상 회의 주소는 https 만 싣는다 — 메일 본문에 임의 스킴을 그리지 않는다.
   let meet = null;
   try { if (p.meetingUrl && new URL(p.meetingUrl).protocol === 'https:') meet = p.meetingUrl; } catch { meet = null; }
@@ -796,8 +816,9 @@ async function sendGuestBookingEmail(p) {
     : undefined;
   return sendEmail({
     to: p.to,
-    subject: T.subject[p.kind](ws),
-    html: emailWrap({ title: T.subject[p.kind](ws), body, preheader: T.pre, footerOptions: { workspaceName: p.workspaceName } }),
+    subject: T.subject[p.kind](),
+    html: emailWrap({ title: T.subject[p.kind](), body, preheader: T.pre, footerOptions: { workspaceName: p.workspaceName, workspaceContact: contactOf(p.replyTo) } }),
+    fromName: p.fromName, replyTo: p.replyTo,
     attachments,
     template: `guest_booking_${p.kind}`,
     businessId: p.businessId || null,
@@ -809,7 +830,7 @@ async function sendGuestBookingEmail(p) {
 // ═══════════════════════════════════════════════════════════════
 // 설문 요청 (survey v2 — docs/SURVEY_V2_DESIGN.md §5.1) — 받는 사람마다 개인 링크(응답 1회)
 // ═══════════════════════════════════════════════════════════════
-function surveyInviteEmailHtml({ surveyTitle, workspaceName, recipientName, message, respondUrl, closesAt }) {
+function surveyInviteEmailHtml({ surveyTitle, workspaceName, recipientName, message, respondUrl, closesAt, workspaceContact }) {
   const closesStr = closesAt ? new Date(closesAt).toISOString().slice(0, 10) : '';
   const body = `
     <div style="font-size:14px;color:#64748B;margin-bottom:6px;">
@@ -823,15 +844,15 @@ function surveyInviteEmailHtml({ surveyTitle, workspaceName, recipientName, mess
     </div>
     <div style="margin-top:12px;font-size:12px;color:#64748B;line-height:1.6;text-align:center;">로그인 없이 한 번 응답할 수 있습니다. 이 링크는 받으신 분 전용입니다.</div>
     ${fallbackLink(respondUrl)}`;
-  return emailWrap({ title: `설문 — ${surveyTitle}`, body, preheader: `${workspaceName || ''} 설문 — "${surveyTitle}"${closesStr ? ` (마감 ${closesStr})` : ''}`, footerOptions: { workspaceName } });
+  return emailWrap({ title: `설문 — ${surveyTitle}`, body, preheader: `${workspaceName || ''} 설문 — "${surveyTitle}"${closesStr ? ` (마감 ${closesStr})` : ''}`, footerOptions: { workspaceName, workspaceContact } });
 }
 
 async function sendSurveyInviteEmail({ to, subject: subjectOverride, surveyTitle, workspaceName, recipientName, message, respondUrl, closesAt, fromName, replyTo, businessId, recipientId, initiatedBy }) {
   if (!to) return false;
-  const subject = subjectOverride || `${subjectPrefix(workspaceName)} 설문 — ${surveyTitle}`;
+  const subject = subjectOverride || `설문 — ${surveyTitle}`;
   return sendEmail({
     to, subject,
-    html: surveyInviteEmailHtml({ surveyTitle, workspaceName, recipientName, message, respondUrl, closesAt }),
+    html: surveyInviteEmailHtml({ surveyTitle, workspaceName, recipientName, message, respondUrl, closesAt, workspaceContact: contactOf(replyTo) }),
     fromName, replyTo,
     template: 'survey_invite', relatedEntityType: 'survey_recipient', relatedEntityId: recipientId || null,
     businessId, initiatedBy,
@@ -869,9 +890,9 @@ function invoiceEmailHtml({ invoiceNumber, title, total, currency, dueDate, send
 
 async function sendInvoiceEmail({ to, invoiceNumber, title, total, currency, dueDate, senderName, workspaceName, message, shareUrl, attachments, fromName, replyTo, payerCode, willIssueTax }) {
   if (!to) return false;
-  const subject = `${subjectPrefix(workspaceName)} 청구서 — ${invoiceNumber} ${title}`;
+  const subject = `청구서 — ${invoiceNumber} ${title}`;
   // 워크스페이스 회신처(mail_reply_to) 가 있으면 푸터에 "문의·회신" 으로 노출 — 보낸 주체의 기본 연락처
-  const workspaceContact = replyTo && /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(String(replyTo).trim()) ? String(replyTo).trim() : null;
+  const workspaceContact = contactOf(replyTo);
   return sendEmail({
     to, subject,
     html: invoiceEmailHtml({ invoiceNumber, title, total, currency, dueDate, senderName, workspaceName, workspaceContact, message, shareUrl, payerCode, willIssueTax }),
@@ -881,7 +902,7 @@ async function sendInvoiceEmail({ to, invoiceNumber, title, total, currency, due
 }
 
 // 결제 독촉(리마인더) — 운영자가 미결제 청구서에 수동으로 발송. overdue_handler 자동 단계와 별개.
-function paymentReminderEmailHtml({ invoiceNumber, title, total, currency, dueDate, daysOverdue, workspaceName, message, shareUrl, payerCode }) {
+function paymentReminderEmailHtml({ invoiceNumber, title, total, currency, dueDate, daysOverdue, workspaceName, message, shareUrl, payerCode, workspaceContact }) {
   const totalStr = currency === 'KRW'
     ? `${Number(total).toLocaleString('ko-KR')}원`
     : `${currency} ${Number(total).toLocaleString('en-US')}`;
@@ -909,16 +930,16 @@ function paymentReminderEmailHtml({ invoiceNumber, title, total, currency, dueDa
       ${ctaButton(shareUrl, '청구서 보기 · 입금하기')}
     </div>
     ${fallbackLink(shareUrl)}`;
-  return emailWrap({ title: `결제 안내 — ${title}`, body, preheader: `청구서 ${invoiceNumber} — ${totalStr}${daysOverdue > 0 ? `, ${daysOverdue}일 연체` : dueStr ? `, 결제 기한 ${dueStr}` : ''}`, footerOptions: { workspaceName } });
+  return emailWrap({ title: `결제 안내 — ${title}`, body, preheader: `청구서 ${invoiceNumber} — ${totalStr}${daysOverdue > 0 ? `, ${daysOverdue}일 연체` : dueStr ? `, 결제 기한 ${dueStr}` : ''}`, footerOptions: { workspaceName, workspaceContact } });
 }
 
 async function sendPaymentReminderEmail({ to, invoiceNumber, title, total, currency, dueDate, daysOverdue, workspaceName, message, shareUrl, fromName, replyTo, businessId, invoiceId, payerCode }) {
   if (!to) return false;
   const overdue = Number(daysOverdue) > 0;
-  const subject = `${subjectPrefix(workspaceName)} ${overdue ? '결제 기한 안내' : '결제 안내'} — ${invoiceNumber} ${title}`;
+  const subject = `${overdue ? '결제 기한 안내' : '결제 안내'} — ${invoiceNumber} ${title}`;
   return sendEmail({
     to, subject,
-    html: paymentReminderEmailHtml({ invoiceNumber, title, total, currency, dueDate, daysOverdue, workspaceName, message, shareUrl, payerCode }),
+    html: paymentReminderEmailHtml({ invoiceNumber, title, total, currency, dueDate, daysOverdue, workspaceName, message, shareUrl, payerCode, workspaceContact: contactOf(replyTo) }),
     fromName, replyTo,
     template: 'payment_reminder', relatedEntityType: 'invoice', relatedEntityId: invoiceId,
     businessId,
@@ -927,7 +948,7 @@ async function sendPaymentReminderEmail({ to, invoiceNumber, title, total, curre
 
 // 증빙(세금계산서/현금영수증) 발행 완료 — 고객 통지. 발행자가 외부 발행 후 마킹하면 고객에게 자동 안내.
 //   고객 신뢰 루프 완성 (이전에는 공개 링크 재방문해야만 확인 가능했음).
-function receiptIssuedEmailHtml({ kind, invoiceNumber, title, receiptNo, issuedAt, workspaceName, shareUrl }) {
+function receiptIssuedEmailHtml({ kind, invoiceNumber, title, receiptNo, issuedAt, workspaceName, shareUrl, workspaceContact }) {
   const isCash = kind === 'cash';
   const kindLabel = isCash ? '현금영수증' : '세금계산서';
   const noLabel = isCash ? '승인번호' : '발행번호';
@@ -943,16 +964,16 @@ function receiptIssuedEmailHtml({ kind, invoiceNumber, title, receiptNo, issuedA
       ${issuedStr ? `<div style="font-size:12px;color:#0F766E;margin-top:6px;font-weight:500;">발행일 ${issuedStr}</div>` : ''}
     </div>
     ${shareUrl ? `<div style="margin-top:20px;text-align:center;">${ctaButton(shareUrl, '청구서·증빙 확인')}</div>${fallbackLink(shareUrl)}` : ''}`;
-  return emailWrap({ title: `${kindLabel} 발행 완료 — ${title}`, body, preheader: `${kindLabel} 발행 — ${invoiceNumber}${receiptNo ? ` (승인번호 ${receiptNo})` : ''}`, footerOptions: { workspaceName } });
+  return emailWrap({ title: `${kindLabel} 발행 완료 — ${title}`, body, preheader: `${kindLabel} 발행 — ${invoiceNumber}${receiptNo ? ` (승인번호 ${receiptNo})` : ''}`, footerOptions: { workspaceName, workspaceContact } });
 }
 
 async function sendReceiptIssuedEmail({ to, kind, invoiceNumber, title, receiptNo, issuedAt, workspaceName, shareUrl, fromName, replyTo, businessId, invoiceId }) {
   if (!to) return false;
   const kindLabel = kind === 'cash' ? '현금영수증' : '세금계산서';
-  const subject = `${subjectPrefix(workspaceName)} ${kindLabel} 발행 완료 — ${invoiceNumber} ${title}`;
+  const subject = `${kindLabel} 발행 완료 — ${invoiceNumber} ${title}`;
   return sendEmail({
     to, subject,
-    html: receiptIssuedEmailHtml({ kind, invoiceNumber, title, receiptNo, issuedAt, workspaceName, shareUrl }),
+    html: receiptIssuedEmailHtml({ kind, invoiceNumber, title, receiptNo, issuedAt, workspaceName, shareUrl, workspaceContact: contactOf(replyTo) }),
     fromName, replyTo,
     template: 'receipt_issued', relatedEntityType: 'invoice', relatedEntityId: invoiceId,
     businessId,
@@ -960,7 +981,7 @@ async function sendReceiptIssuedEmail({ to, kind, invoiceNumber, title, receiptN
 }
 
 // 증빙 수정·취소 통지 (수정세금계산서 발행 / 현금영수증 취소) — 고객 통지.
-function receiptCorrectionEmailHtml({ kind, reason, invoiceNumber, title, correctedNo, writtenAt, workspaceName, shareUrl, customerNote }) {
+function receiptCorrectionEmailHtml({ kind, reason, invoiceNumber, title, correctedNo, writtenAt, workspaceName, shareUrl, customerNote, workspaceContact }) {
   const isCash = kind === 'cash';
   const isCancel = reason === 'cancel' || reason === 'duplicate';
   const headline = isCash
@@ -980,16 +1001,16 @@ function receiptCorrectionEmailHtml({ kind, reason, invoiceNumber, title, correc
     </div>
     ${customerNote ? quoteBlock(customerNote) : ''}
     ${shareUrl ? `<div style="margin-top:20px;text-align:center;">${ctaButton(shareUrl, '청구서·증빙 확인')}</div>${fallbackLink(shareUrl)}` : ''}`;
-  return emailWrap({ title: `증빙 정정 — ${title}`, body, preheader: `증빙 정정 — ${invoiceNumber}${correctedNo ? ` (${correctedNo})` : ''}`, footerOptions: { workspaceName } });
+  return emailWrap({ title: `증빙 정정 — ${title}`, body, preheader: `증빙 정정 — ${invoiceNumber}${correctedNo ? ` (${correctedNo})` : ''}`, footerOptions: { workspaceName, workspaceContact } });
 }
 
 async function sendReceiptCorrectionEmail({ to, kind, reason, invoiceNumber, title, correctedNo, writtenAt, workspaceName, shareUrl, customerNote, fromName, replyTo, businessId, invoiceId }) {
   if (!to) return false;
   const isCash = kind === 'cash';
-  const subject = `${subjectPrefix(workspaceName)} ${isCash ? '현금영수증 취소' : '증빙 정정(수정세금계산서)'} — ${invoiceNumber} ${title}`;
+  const subject = `${isCash ? '현금영수증 취소' : '증빙 정정(수정세금계산서)'} — ${invoiceNumber} ${title}`;
   return sendEmail({
     to, subject,
-    html: receiptCorrectionEmailHtml({ kind, reason, invoiceNumber, title, correctedNo, writtenAt, workspaceName, shareUrl, customerNote }),
+    html: receiptCorrectionEmailHtml({ kind, reason, invoiceNumber, title, correctedNo, writtenAt, workspaceName, shareUrl, customerNote, workspaceContact: contactOf(replyTo) }),
     fromName, replyTo,
     template: 'receipt_correction', relatedEntityType: 'invoice', relatedEntityId: invoiceId,
     businessId,
@@ -1409,7 +1430,7 @@ async function sendUnreadNotificationEmail({ to, name, items, count, workspaceNa
 // ═══════════════════════════════════════════════════════════════
 const POLICY_NOTICE = {
   ko: {
-    subject: '[PlanQ] 개인정보처리방침 개정 안내 (2026년 10월 28일 시행)',
+    subject: '개인정보처리방침 개정 안내 (2026년 10월 28일 시행)',
     hello: (n) => `${n}님, 안녕하세요.`,
     lead: 'PlanQ 개인정보처리방침이 2026년 10월 28일부터 아래와 같이 바뀝니다.',
     items: [
@@ -1422,7 +1443,7 @@ const POLICY_NOTICE = {
     legal: '이 메일은 개인정보 보호법에 따른 처리방침 변경 고지로, 수신 동의 여부와 관계없이 보내드립니다.',
   },
   en: {
-    subject: '[PlanQ] Privacy Policy update (effective October 28, 2026)',
+    subject: 'Privacy Policy update (effective October 28, 2026)',
     hello: (n) => `Hello ${n},`,
     lead: 'Our Privacy Policy changes as follows from October 28, 2026.',
     items: [
@@ -1466,7 +1487,7 @@ async function sendPolicyNoticeEmail({ to, name, lang, userId }) {
 // ═══════════════════════════════════════════════════════════════
 const TERMS_NOTICE = {
   ko: {
-    subject: (d) => `[PlanQ] 이용약관 개정 안내 (${d} 시행)`,
+    subject: (d) => `이용약관 개정 안내 (${d} 시행)`,
     hello: (n) => `${n}님, 안녕하세요.`,
     lead: (d) => `PlanQ 이용약관이 ${d}부터 아래와 같이 바뀝니다.`,
     items: [
@@ -1478,7 +1499,7 @@ const TERMS_NOTICE = {
     legal: '이 메일은 이용약관 변경 고지로, 수신 동의 여부와 관계없이 보내드립니다.',
   },
   en: {
-    subject: (d) => `[PlanQ] Terms of Service update (effective ${d})`,
+    subject: (d) => `Terms of Service update (effective ${d})`,
     hello: (n) => `Hello ${n},`,
     lead: (d) => `Our Terms of Service change as follows from ${d}.`,
     items: [

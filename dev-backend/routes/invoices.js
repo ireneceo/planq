@@ -1591,7 +1591,7 @@ router.post('/:businessId/:id/send-reminder', authenticateToken, reminderLimiter
     }
 
     const business = await Business.findByPk(businessId);
-    const wsName = business?.brand_name || business?.name || 'PlanQ';
+    const wsSender = require('../services/workspaceSender').workspaceSender(business);
     const daysOverdue = invoice.due_date
       ? Math.max(0, Math.floor((Date.now() - new Date(invoice.due_date).getTime()) / 86400000))
       : 0;
@@ -1610,11 +1610,9 @@ router.post('/:businessId/:id/send-reminder', authenticateToken, reminderLimiter
       currency: invoice.currency || 'KRW',
       dueDate: invoice.due_date,
       daysOverdue,
-      workspaceName: wsName,
+      ...wsSender,
       message: customMsg,
       shareUrl,
-      fromName: business?.mail_from_name || business?.brand_name || business?.name || null,
-      replyTo: business?.mail_reply_to || null,
       businessId,
       invoiceId: invoice.id,
     });
@@ -2008,10 +2006,8 @@ async function notifyCustomerReceiptIssued(req, invoice, kind, no, issuedAt) {
       title: invoice.title || '',
       receiptNo: no,
       issuedAt: issuedAt || new Date(),
-      workspaceName: biz?.brand_name || biz?.name || null,
+      ...require('../services/workspaceSender').workspaceSender(biz),
       shareUrl,
-      fromName: biz?.mail_from_name || undefined,
-      replyTo: biz?.mail_reply_to || undefined,
       businessId: invoice.business_id,
       invoiceId: invoice.id,
     });
@@ -2119,9 +2115,8 @@ async function notifyCustomerReceiptCorrected(req, invoice, corr) {
       to, kind: corr.kind, reason: corr.reason,
       invoiceNumber: invoice.invoice_number, title: invoice.title || '',
       correctedNo: corr.corrected_no, writtenAt: corr.written_at,
-      workspaceName: biz?.brand_name || biz?.name || null,
+      ...require('../services/workspaceSender').workspaceSender(biz),
       shareUrl, customerNote: corr.customer_note || null,
-      fromName: biz?.mail_from_name || undefined, replyTo: biz?.mail_reply_to || undefined,
       businessId: invoice.business_id, invoiceId: invoice.id,
     });
     await corr.update({ customer_notified_at: new Date() }).catch(() => {});

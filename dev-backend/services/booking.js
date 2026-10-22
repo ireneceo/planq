@@ -394,8 +394,9 @@ async function mailGuest(ev, kind, { biz, byTeam = false }) {
     const wsName = biz.brand_name || biz.name || null;
     const meetingUrl = kind === 'confirmed' ? ev.meeting_url : null;
     const { sendGuestBookingEmail } = require('./emailService');
+    const { fromName, replyTo } = await require('./workspaceSender').loadWorkspaceSender(ev.business_id);
     return await sendGuestBookingEmail({
-      to: to.email, kind, workspaceName: wsName,
+      to: to.email, kind, workspaceName: wsName, fromName, replyTo,
       whenText: whenText(ev, tz, locale),
       meetingUrl,
       openUrl: to.openUrl,

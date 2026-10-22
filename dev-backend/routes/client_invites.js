@@ -16,11 +16,11 @@ const { broadcastClient, stripClientSecrets } = require('../services/clientRespo
 async function sendClientInviteMail(req, { to, targetName, token }) {
   try {
     const { sendInviteEmail } = require('../services/emailService');
-    const biz = await require('../models').Business.findByPk(req.params.businessId, { attributes: ['brand_name', 'name'] });
+    const sender = await require('../services/workspaceSender').loadWorkspaceSender(req.params.businessId);
     const inviter = await User.findByPk(req.user.id, { attributes: ['name'] });
     const sent = await sendInviteEmail({
       to,
-      workspaceName: biz?.brand_name || biz?.name || 'PlanQ',
+      ...sender,
       inviterName: inviter?.name || '',
       targetName,
       kind: 'workspace_client',
@@ -244,11 +244,11 @@ router.post('/:businessId/:id/resend-invite', authenticateToken, checkBusinessAc
 
     try {
       const { sendInviteEmail } = require('../services/emailService');
-      const biz = await require('../models').Business.findByPk(req.params.businessId, { attributes: ['brand_name', 'name'] });
+      const sender = await require('../services/workspaceSender').loadWorkspaceSender(req.params.businessId);
       const inviter = await User.findByPk(req.user.id, { attributes: ['name'] });
       await sendInviteEmail({
         to: client.invite_email,
-        workspaceName: biz?.brand_name || biz?.name || 'PlanQ',
+        ...sender,
         inviterName: inviter?.name || '',
         targetName: client.display_name || '',
         kind: 'workspace_client',

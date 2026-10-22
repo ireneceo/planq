@@ -220,6 +220,7 @@ router.post('/posts/:id/signatures', authenticateToken, async (req, res, next) =
 
     // 트랜잭션 커밋 후 외부 호출 (이메일·채팅)
     const docTitle = post.title;
+    const wsSender = await require('../services/workspaceSender').loadWorkspaceSender(post.business_id);
     for (const row of created) {
       // 보내는 쪽(우리 멤버)에게는 서명 링크 메일 대신 앱 알림 — 앱 안에서 서명한다(services/signatureCore 한 곳)
       if (row.party === 'us') { require('../services/signatureCore').notifyUsSigners([row], { post, docTitle, senderName: sender?.name || '', business, actorUserId: req.user.id }); continue; }
@@ -228,7 +229,7 @@ router.post('/posts/:id/signatures', authenticateToken, async (req, res, next) =
         to: row.signer_email,
         docTitle,
         senderName: sender?.name || '',
-        workspaceName: business?.name || '',
+        ...wsSender,
         signerName: row.signer_name,
         message: row.note,
         signUrl,
@@ -358,12 +359,12 @@ router.post('/signatures/:id/reminder', authenticateToken, async (req, res, next
     }
     const post = await Post.findByPk(sr.entity_id);
     const sender = await User.findByPk(req.user.id, { attributes: ['name'] });
-    const business = await Business.findByPk(sr.business_id, { attributes: ['name'] });
+    const wsSender = await require('../services/workspaceSender').loadWorkspaceSender(sr.business_id);
     const signUrl = `${APP_URL}/sign/${sr.token}`;
     await sendSignatureRequestEmail({
       to: sr.signer_email,
       docTitle: post?.title || '문서',
-      senderName: sender?.name || '', workspaceName: business?.name || '',
+      senderName: sender?.name || '', ...wsSender,
       signerName: sr.signer_name, message: sr.note,
       signUrl, expiresAt: sr.expires_at,
     }).catch(() => null);
@@ -504,7 +505,8 @@ router.post('/sign/:token/otp', otpSendLimiter, async (req, res, next) => {
     const post = await Post.findByPk(sr.entity_id);
     // 발송 실패를 삼키고 sent:true 반환하면 사용자는 오지 않는 코드를 무한정 기다린다(거짓 전송).
     //   운영(SMTP 有)에서 실패 시 502 로 알려 재시도/문의 유도. dev(SMTP 無)는 콘솔 코드로 대체.
-    const otpSent = await sendSignatureOtpEmail({ to: sr.signer_email, docTitle: post?.title || '문서', code })
+    const { fromName: otpFrom, replyTo: otpReply } = await require('../services/workspaceSender').loadWorkspaceSender(sr.business_id);
+    const otpSent = await sendSignatureOtpEmail({ to: sr.signer_email, docTitle: post?.title || '문서', code, fromName: otpFrom, replyTo: otpReply })
       .then(() => true).catch((e) => { console.error('[sig-otp] send failed:', e?.message); return false; });
     if (!process.env.SMTP_HOST) console.log(`[DEV-OTP] token=${sr.token.slice(0,8)}.. code=${code} email=${sr.signer_email}`);
     if (!otpSent && process.env.SMTP_HOST) return errorResponse(res, 'otp_send_failed', 502);

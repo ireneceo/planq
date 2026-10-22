@@ -115,7 +115,7 @@
       "title": "Sender identity",
       "desc": "The sender name and reply-to address shown on outgoing emails",
       "fromName": "Sender display name",
-      "fromNameHint": "Workspace brand name is used if blank",
+      "fromNameHint": "The sender name your clients see on invoices, signature requests and shared items. Leave blank to use the workspace brand name. PlanQ, @ and < > are not allowed",
       "preview": "Preview",
       "replyTo": "Reply-To address (optional)",
       "replyToHint": "Customer replies land here. If blank, replies are not possible."
