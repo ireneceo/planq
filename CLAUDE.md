@@ -796,7 +796,7 @@ dev 에만 있는 글이 운영에 샌다(그래서 배포 rsync 가 생성물�
 - 파일명: UUID로 변환 (원본 파일명은 DB에 저장)
 - **파일당 용량 제한:** Free 10MB, Basic 30MB, Pro 50MB
 - **플랜별 총 스토리지 쿼터:** Free 1GB / Basic 50GB / Pro 500GB (운영 기준)
-- 허용 확장자: jpg, jpeg, png, gif, pdf, doc, docx, xls, xlsx, ppt, pptx, zip, txt
+- 허용 확장자: jpg, jpeg, png, gif, pdf, doc, docx, xls, xlsx, ppt, pptx, **hwp, hwpx**(한글, 2026-10-22), zip, txt
 
 ### SHA-256 dedup
 - 업로드 시 `content_hash` 계산 → 동일 해시 존재하면 물리 파일 1개만 보관, `ref_count` 증가

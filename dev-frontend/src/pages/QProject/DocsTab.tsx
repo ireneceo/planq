@@ -2532,7 +2532,7 @@ type ExtPalette = { bg: string; fg: string };
 function extPalette(ext: string): ExtPalette {
   const e = ext.toLowerCase();
   if (['pdf'].includes(e)) return { bg: '#FEE2E2', fg: '#B91C1C' };
-  if (['doc', 'docx'].includes(e)) return { bg: '#DBEAFE', fg: '#1D4ED8' };
+  if (['doc', 'docx', 'hwp', 'hwpx'].includes(e)) return { bg: '#DBEAFE', fg: '#1D4ED8' };
   if (['xls', 'xlsx', 'csv'].includes(e)) return { bg: '#D1FAE5', fg: '#047857' };
   if (['ppt', 'pptx'].includes(e)) return { bg: '#FED7AA', fg: '#C2410C' };
   if (['zip', 'rar', '7z', 'tar', 'gz'].includes(e)) return { bg: '#F0FDFA', fg: '#0F766E' };

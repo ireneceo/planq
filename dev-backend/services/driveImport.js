@@ -21,7 +21,7 @@ const { sha256OfFile } = require('../utils/fileHash');   // 해시 규칙 단일
 //   같은 파일이 경로에 따라 되기도 하고 안 되기도 한다.
 const ALLOWED_EXT = new Set([
   'jpg', 'jpeg', 'png', 'gif', 'pdf', 'doc', 'docx', 'xls', 'xlsx',
-  'ppt', 'pptx', 'zip', 'txt',
+  'ppt', 'pptx', 'hwp', 'hwpx', 'zip', 'txt',
 ]);
 const GOOGLE_NATIVE_PREFIX = 'application/vnd.google-apps.';
 

@@ -15,6 +15,7 @@ const ATTACHMENT_EXT = new Set([
   '.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg', '.heic', '.heif',
   // 문서
   '.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx',
+  '.hwp', '.hwpx',   // 한글(한컴오피스) — 2026-10-22 신고: 업무 첨부에서 «허용되지 않는 파일 형식» 으로 막혔다
   '.zip', '.txt', '.md', '.csv',
   // 영상 — Drive 연동 시 5GB 까지, 자체 스토리지 시 플랜의 파일당 한도까지
   //   (거절되면 형식이 아니라 **용량** 이 이유다 — plan.js 가 숫자를 적어 안내한다)
