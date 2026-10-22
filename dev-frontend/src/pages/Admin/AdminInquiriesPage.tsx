@@ -17,7 +17,18 @@ import { useTimeFormat } from '../../hooks/useTimeFormat';
 import { formatDateTime } from '../../utils/dateFormat';
 
 type Status = 'new' | 'in_progress' | 'resolved' | 'spam';
-type Kind = 'enterprise' | 'general' | 'landing' | 'diagnosis';
+type Kind = 'enterprise' | 'general' | 'landing' | 'diagnosis' | 'onboarding_call';
+
+// 화상 업무설계·사용안내 신청(kind onboarding_call)의 구조 칸 — 서버 services/onboardingCall.normalizeDetails 가 만든 모양.
+interface CallDetails {
+  slots?: { date: string; part: 'morning' | 'afternoon' | 'evening' }[];
+  team_size?: string | null;
+  current_tools?: string | null;
+  focus?: string | null;
+  timezone?: string | null;
+  plan?: string | null;
+  trial_ends_at?: string | null;
+}
 
 interface InquiryItem {
   id: number;
@@ -30,6 +41,7 @@ interface InquiryItem {
   from_company: string | null;
   from_phone: string | null;
   message: string;
+  details?: CallDetails | null;
   from_user_timezone: string | null;
   status: Status;
   reply_note: string | null;
@@ -117,6 +129,7 @@ const AdminInquiriesPage = () => {
     { value: 'landing', label: t('adminInq.kindLanding', '랜딩 페이지') as string },
     { value: 'enterprise', label: t('adminInq.kindEnterprise', '기업 문의') as string },
     { value: 'diagnosis', label: t('adminInq.kindDiagnosis') as string },
+    { value: 'onboarding_call', label: t('adminInq.kindOnboardingCall', '화상 안내 신청') as string },
   ], [t]);
 
   return (
@@ -212,6 +225,38 @@ const AdminInquiriesPage = () => {
               </DValue>
             </DSection>
 
+            {detail.kind === 'onboarding_call' && detail.details && (
+              <DSection data-testid="admin-inq-call-details">
+                <DLabel>{t('adminInq.call.title', '화상 안내 신청 내용')}</DLabel>
+                <CallTable>
+                  <tbody>
+                    <tr>
+                      <th>{t('adminInq.call.slots', '희망 시간')}</th>
+                      <td>
+                        {(detail.details.slots || []).map((sl, i) => (
+                          <div key={i}>{i + 1}. {sl.date} {t(`onboardingCall.part.${sl.part}`)}</div>
+                        ))}
+                        {detail.details.timezone && <TzTag>{detail.details.timezone}</TzTag>}
+                      </td>
+                    </tr>
+                    <tr><th>{t('adminInq.call.team', '인원')}</th><td>{detail.details.team_size ? t(`onboardingCall.team.${detail.details.team_size}`) : '—'}</td></tr>
+                    <tr><th>{t('adminInq.call.tools', '지금 쓰는 도구')}</th><td>{detail.details.current_tools || '—'}</td></tr>
+                    <tr><th>{t('adminInq.call.focus', '먼저 맞추고 싶은 일')}</th><td>{detail.details.focus || '—'}</td></tr>
+                    <tr>
+                      <th>{t('adminInq.call.workspace', '워크스페이스')}</th>
+                      <td>{detail.Business ? (detail.Business.brand_name || detail.Business.name) : t('adminInq.call.noWorkspace', '가입 전(랜딩)')}</td>
+                    </tr>
+                    {detail.details.plan && (
+                      <tr><th>{t('adminInq.call.plan', '체험 플랜')}</th><td>{detail.details.plan}</td></tr>
+                    )}
+                    {detail.details.trial_ends_at && (
+                      <tr><th>{t('adminInq.call.trialEnds', '체험 종료')}</th><td>{tf.formatDateTime(detail.details.trial_ends_at)}</td></tr>
+                    )}
+                  </tbody>
+                </CallTable>
+              </DSection>
+            )}
+
             <DSection>
               <DLabel>{t('adminInq.dMessage', '문의 내용')}</DLabel>
               <DMessage>{detail.message}</DMessage>
@@ -261,12 +306,20 @@ const AdminInquiriesPage = () => {
   );
 };
 
+const CallTable = styled.table`
+  width: 100%; border-collapse: collapse; font-size: 0.8125rem; color: #334155;
+  th { text-align: left; font-weight: 600; color: #64748B; padding: 6px 12px 6px 0; width: 112px; vertical-align: top; white-space: nowrap; }
+  td { padding: 6px 0; vertical-align: top; word-break: break-word; }
+  tr + tr th, tr + tr td { border-top: 1px solid #F1F5F9; }
+`;
+
 function statusLabel(s: Status): string {
   return s === 'new' ? '신규' : s === 'in_progress' ? '처리중' : s === 'resolved' ? '완료' : '스팸';
 }
 
 function kindLabel(k: Kind, t: (key: string, fallback: string) => string): string {
   return k === 'enterprise' ? t('adminInq.kindEnterprise', '기업')
+    : k === 'onboarding_call' ? t('adminInq.kindOnboardingCallShort', '화상 안내')
     : k === 'diagnosis' ? t('adminInq.kindDiagnosisShort', '자가진단')
     : k === 'landing' ? t('adminInq.kindLanding', '랜딩')
     : t('adminInq.kindGeneral', '일반');

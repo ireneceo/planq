@@ -783,6 +783,12 @@ sync_database() {
   log "Creating diagnosis_responses (#426)..."
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-diagnosis.js 2>&1 | tail -5"
 
+  # 2026-10-22 — 화상 업무설계·사용안내 신청(docs/ONBOARDING_CALL_DESIGN.md · Fable 설계 PASS):
+  #   contact_inquiries.kind 'onboarding_call' append + details JSON + (business_id,kind,status) 인덱스.
+  #   ★ **코드보다 먼저 돈다** — 모델이 details 를 SELECT 하므로 없으면 문의 접수·관리자 문의 화면이 500 이다. 멱등.
+  log "Adding onboarding call inquiry schema..."
+  prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-onboarding-call.js 2>&1 | tail -5"
+
   # 2026-10-07 — Q mail 업체 보낸편지함·스팸함 가져오기(docs/MAIL_SENT_SPAM_SYNC_DESIGN.md · Fable 판정 수정 후 PASS):
   #   email_account_folders(계정×역할 폴더 커서) + email_messages.source_folder·internal_only + email_threads.spam_origin·spam_since.
   #   ★ **코드보다 먼저 돈다** — 모델이 새 컬럼을 선언하므로 없으면 메일 조회가 500 이다. 멱등.

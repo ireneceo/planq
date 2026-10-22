@@ -54,3 +54,23 @@
 - /status.onboarding_call 전후 · 관리자 목록 필터·상세.
 - 화면 1440·834·390: 랜딩 폼 모드·앱 카드·드로어·제출 후 «신청됨».
 - 가드 i18n·parity·secrets · build.
+
+---
+
+## Fable 설계 판정 (2026-10-22) — **PASS** (반영 조건 8)
+결정: ① 대상 그대로(랜딩 + 체험 중 오너·관리자, 유예 기간은 신청량 보고 2단계) ② A안 ③ 아래 반영 ④ 구현 가능.
+꼭 고칠 것(모두 반영):
+1. kind 값 `onboarding_call`(기존 «온보딩» 체크리스트와 이름이 겹치지 않게).
+2. 비로그인 «같은 이메일 열린 신청 있으면 조용히 버림» 삭제 — 남의 이메일 선점으로 진짜 신청이 버려진다. 비로그인은 항상 행 생성 + 관리자 알림에 «같은 이메일 열린 신청 N건». 409 는 로그인+멤버십 확인된 워크스페이스만.
+3. 노출·접수 판정 한 함수 `services/onboardingCall.availability` = in_trial ∧ ¬exempt ∧ owner/admin ∧ 열린 신청 0 — /status 와 POST 가 같이 쓴다(역할 아님 403·열린 건 409).
+4. details 화이트리스트(문자열 ≤200·슬롯 ≤3·part 3값·신청자 시간대 기준 내일 이후·TZ Intl 검사) + 신청 당시 plan·trial_ends_at 박제 · 요약 message 는 서버가 만든다.
+5. 메일: locale 을 넘긴다(옛 누락) · 24시간 1통 키 = (이메일, 종류) · 지킬 수 없는 «N시간 내» 약속 대신 «희망 시간 확인 후 메일로 안내».
+6. 관리자 화면 Kind·필터·라벨 + details 표 · 알림 본문은 신청자 시간대(한국 아니면 표시).
+7. `migrate-onboarding-call.js`(멱등, 코드보다 먼저, 배포 슬롯) · 종류 목록은 모델 `ContactInquiry.KINDS` 한 곳에서 라우트가 고른다.
+8. i18n ko/en(common·landing·errors, 메일은 서버 ko/en) · 카드에 결제·가격 언급 없음.
+비차단: optionalAuth(옛 손수 디코드 유지 — 동작 같음) · apiFetch JSON 헤더 명시(반영) · (business_id,kind,status) 인덱스(반영) · from_user_timezone 주석 갱신(반영).
+
+### 구현 메모
+- 서버: `services/onboardingCall.js`(판정·정규화) · `routes/inquiries.js`(종류·검증·409/403·알림·메일) · `routes/plan.js` `/status.onboarding_call` · `models/ContactInquiry.js`(KINDS·details) · `services/emailService.js`(화상 안내 문구).
+- 화면: `components/Common/OnboardingCallFields.tsx`(칸 한 벌) · `OnboardingCallCard.tsx`(대시보드 카드 + CreateDrawer) · 랜딩 `/contact?type=onboarding` · 홈·요금제 CTA 아래 링크 · 관리자 문의 화면.
+- 확인 메일은 (이메일, 종류) 24시간 1통이라, 비로그인 선점이 있으면 실제 신청자의 확인 메일이 생략될 수 있다(행·관리자 알림은 남는다 — 스팸 릴레이 방지 우선).

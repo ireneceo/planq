@@ -147,6 +147,11 @@ router.get('/:businessId/status', authenticateToken, checkBusinessAccess, async 
       //   화면이 결제 이력을 보고 스스로 판정하면 서버 자격 규칙과 갈라진다.
       // 체험 중 결제 «해지하고 환불 요청» — 자격은 billing.trialRefundability 한 함수(docs/TRIAL_REFUND_DESIGN.md §1).
       trial_refund: await billing.trialRefundStatus(businessId),
+      // 화상 업무설계·사용안내 신청 카드 — 판정은 접수(POST /api/inquiries)와 같은 함수(services/onboardingCall.availability).
+      onboarding_call: await (async () => {
+        const av = await require('../services/onboardingCall').availability(businessId, req.user.id);
+        return { available: av.available, requested_at: av.requested_at };
+      })(),
       prepay_bonus: {
         available: await billing.isFirstPlanPayment(businessId),
         months: bonusMonthsForTrialOption('prepay_1m_bonus'),

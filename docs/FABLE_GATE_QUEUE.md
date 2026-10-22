@@ -2,6 +2,13 @@
 
 
 
+## 2026-10-22 · 화상 업무설계·사용안내 신청 완료 검증 (방 afbf466c) — **PASS**(Fable, 차단 0)
+- 반영 조건 8 전부 실행 대조 · 실HTTP 45/46(FAIL 1 = 기존 결함) · 단위 31/32 · 실브라우저 3폭 재측정 통과(UI 제출 → DB 행 · 유료 ws 대조군 카드 없음) · guard 78/79 · health 91/91 · 시험 데이터 원복.
+- 비차단: ①POST /api/inquiries 응답 submitted_at 빠짐(created_at → createdAt, HEAD 부터 있던 결함) ②availability 의 exempt 분기는 닿지 않음(면제는 inTrial false 로 먼저 거절 — 결과 같음) ③requested_at 이 역할 무관이라 체험 ws 멤버도 «신청을 받았어요» 카드를 본다 · 유료 전환 뒤 열린 신청 남으면 카드도 남음 ④로그인이어도 business_id 없이 보내면 비로그인 경로 ⑤2027-02-30 같은 날짜가 느슨한 파서로 통과(화면 선택기는 못 만듦).
+
+## 2026-10-22 · 화상 업무설계·사용안내 신청 설계 (방 afbf466c) — **PASS**(Fable, 반영 조건 8) · 전문 docs/ONBOARDING_CALL_DESIGN.md «Fable 설계 판정»
+- 대상 = 랜딩 + 체험 중 오너·관리자 그대로 · A안(contact_inquiries) · kind `onboarding_call` · 비로그인 중복 버리기 삭제(항상 행 생성) · 판정 한 함수 onboardingCall.availability(¬exempt 포함) · details 화이트리스트+plan·trial_ends_at 박제 · 확인 메일 locale·(email,kind) · 관리자 details 표 · migrate 코드보다 먼저 · i18n 4 ns · 카드에 결제 언급 금지.
+
 ## 2026-10-22 · 인사이트 글 SNS 발송 단계 1 완료 검증 (방 d05ab1c8) — **PASS**(Fable, 차단 0)
 - 범위: 26c3c20e 이후 미커밋 전부(공개 OG 라우트 `/api/insights/:slug/og.jpg` · 관리자 «SNS 발송» · social_* 표 · og_image_path · 카드 렌더 · AI 초안). 외부 발송 없음.
 - 근거: OG 공개 200(public 1일 캐시)/미발행·비공개·경로 탈출 404(DB 심기 대조 원복) · 봇 og:image 글별 주소, 없으면 기본 · 관리자 API noauth 401·owner 403 · 전이 실호출 26건(동시 승인 하나만 성공) · 넘침 양성 대조 · 브라우저 누수 0 · secrets 14/14 · 가드 실패 0 · --suite socialadmin 실패 0.

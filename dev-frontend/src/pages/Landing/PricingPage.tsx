@@ -100,6 +100,7 @@ const PricingPage: React.FC = () => {
           <CtaTitle>{t('pricingPage.cta.title', '14일 무료 체험으로 시작하세요')}</CtaTitle>
           <CtaSub>{t('pricingPage.cta.sub', '신용카드 정보 없이 가입하고, 마음에 들면 그때 결제하세요.')}</CtaSub>
           <CtaBtn to="/register">{t('pricingPage.cta.btn', '무료로 시작하기')}</CtaBtn>
+          <CtaCallLink to="/contact?type=onboarding" data-testid="pricing-call-link">{t('pricingPage.cta.call', '화상으로 업무 설계·사용 안내 받기 →')}</CtaCallLink>
         </Container>
       </CtaBand>
     </LandingLayout>
@@ -269,6 +270,10 @@ const CtaBand = styled.section`
 `;
 const CtaTitle = styled.h2`font-size: 2rem; font-weight: 700; line-height: 1.4; margin: 0; word-break: keep-all; @media (max-width: 768px) { font-size: 1.5rem; }`;
 const CtaSub = styled.p`font-size: 0.9375rem; color: #94A3B8; font-weight: 300; margin: 0;`;
+const CtaCallLink = styled(Link)`
+  font-size: 0.9375rem; color: #5EEAD4; text-decoration: none;
+  &:hover { text-decoration: underline; }
+`;
 const CtaBtn = styled(Link)`
   margin-top: 12px;
   padding: 16px 48px; border-radius: 999px;

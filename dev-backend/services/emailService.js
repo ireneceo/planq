@@ -1197,9 +1197,21 @@ async function sendTrialRefundDoneEmail({ to, workspaceName, amount, currency = 
 // ═══════════════════════════════════════════════════════════════
 // ★ 문의자 언어로 보낸다 (2026-08-25). 여태 한국어 고정이라 영어로 문의한 사람도 한국어 안내를 받았다.
 //   locale 은 contact_inquiries.locale 에 기록된다(폼이 보낸 브라우저/앱 언어).
-function inquiryReceivedEmailHtml({ name, message, inquiryId, locale }) {
+function inquiryReceivedEmailHtml({ name, message, inquiryId, locale, kind }) {
   const en = String(locale || '').toLowerCase().startsWith('en');
-  const t = en ? {
+  // 화상 업무설계·사용안내 신청 — 시간 확정은 사람이 메일로 한다(자동 예약 아님). 지킬 수 없는 «N시간 내» 약속은 쓰지 않는다.
+  const call = kind === 'onboarding_call';
+  const t = call ? (en ? {
+    title: 'Video onboarding request received',
+    head: `${escapeHtml(name || 'Hello')}, we received your video onboarding request`,
+    lead: `We'll check your preferred times and email you the schedule and meeting link. Reference <b>#${inquiryId}</b>.`,
+    foot: 'This email was sent automatically. Reply to this message if you need to change your preferred times.',
+  } : {
+    title: '화상 안내 신청 접수',
+    head: `${escapeHtml(name || '안녕하세요')}님, 화상 업무설계·사용안내 신청이 접수됐습니다`,
+    lead: `희망 시간을 확인한 뒤 일정과 회의 링크를 메일로 안내드릴게요. 접수 번호 <b>#${inquiryId}</b>.`,
+    foot: '이 메일은 자동 발송됐습니다. 희망 시간을 바꾸려면 본 메일에 회신해 주세요.',
+  }) : en ? {
     title: 'We received your inquiry',
     head: `${escapeHtml(name || 'Hello')}, we received your inquiry`,
     lead: `The PlanQ team will get back to you within <b>24 business hours</b>. Reference <b>#${inquiryId}</b>.`,
@@ -1220,15 +1232,18 @@ function inquiryReceivedEmailHtml({ name, message, inquiryId, locale }) {
   return emailWrap({ title: t.title, body });
 }
 
-async function sendInquiryReceivedEmail({ to, name, message, inquiryId, locale }) {
+async function sendInquiryReceivedEmail({ to, name, message, inquiryId, locale, kind }) {
   if (!to) return false;
   const en = String(locale || '').toLowerCase().startsWith('en');
-  const subject = en
+  const call = kind === 'onboarding_call';
+  const subject = call
+    ? (en ? `Video onboarding request received #${inquiryId}` : `화상 안내 신청이 접수됐습니다 #${inquiryId}`)
+    : en
     ? `We received your inquiry #${inquiryId}`
     : `문의가 접수됐습니다 #${inquiryId}`;
   return sendEmail({
     to, subject,
-    html: inquiryReceivedEmailHtml({ name, message, inquiryId, locale }),
+    html: inquiryReceivedEmailHtml({ name, message, inquiryId, locale, kind }),
     template: 'inquiry_received', relatedEntityType: 'inquiry', relatedEntityId: inquiryId,
   });
 }

@@ -61,5 +61,12 @@
   "self_or_admin_only": "Only you (leaving) or a workspace admin can remove a member.",
   "email_taken": "This email is already registered. Please sign in.",
   "rate_limit_register": "Too many sign-up attempts. Try again in an hour.",
-  "rate_limit_reset": "Too many reset requests. Try again later."
+  "rate_limit_reset": "Too many reset requests. Try again later.",
+  "already_requested": "You've already requested a video session. We'll email you the schedule.",
+  "onboarding_not_available": "Video sessions can't be requested for this workspace right now.",
+  "onboarding_slots_required": "Pick at least one preferred time.",
+  "onboarding_slots_too_many": "You can pick up to 3 preferred times.",
+  "onboarding_slot_invalid": "Please pick the preferred time again.",
+  "onboarding_slot_past": "Pick a date from tomorrow onward.",
+  "onboarding_slot_duplicate": "The same preferred time was entered twice."
 }

@@ -61,5 +61,12 @@
   "self_or_admin_only": "본인이 나가거나 워크스페이스 관리자만 내보낼 수 있습니다.",
   "email_taken": "이미 가입된 이메일이에요. 로그인해 주세요.",
   "rate_limit_register": "가입 시도가 많아요. 1시간 뒤 다시 해 주세요.",
-  "rate_limit_reset": "재설정 요청이 많아요. 잠시 뒤 다시 해 주세요."
+  "rate_limit_reset": "재설정 요청이 많아요. 잠시 뒤 다시 해 주세요.",
+  "already_requested": "이미 신청한 화상 안내가 있어요. 메일로 일정을 안내해 드릴게요.",
+  "onboarding_not_available": "이 워크스페이스에서는 지금 화상 안내를 신청할 수 없어요.",
+  "onboarding_slots_required": "희망 시간을 하나 이상 골라 주세요.",
+  "onboarding_slots_too_many": "희망 시간은 3개까지 고를 수 있어요.",
+  "onboarding_slot_invalid": "희망 시간을 다시 골라 주세요.",
+  "onboarding_slot_past": "희망 날짜는 내일 이후로 골라 주세요.",
+  "onboarding_slot_duplicate": "같은 희망 시간이 두 번 들어갔어요."
 }

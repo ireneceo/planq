@@ -247,6 +247,7 @@ const HomePage: React.FC = () => {
             <CtaPrimary to="/register">{t('finalCta.primary', '무료로 시작하기')}</CtaPrimary>
             <CtaSecondary to="/features">{t('finalCta.secondary', '기능 둘러보기')}</CtaSecondary>
           </CtaButtons>
+          <CtaCallLink to="/contact?type=onboarding" data-testid="home-call-link">{t('finalCta.call', '화상으로 업무 설계·사용 안내 받기 →')}</CtaCallLink>
         </CtaInner>
       </CtaSection>
     </LandingLayout>
@@ -661,6 +662,11 @@ const CtaSub = styled.div`
 `;
 const CtaButtons = styled.div`
   display: flex; gap: 16px; justify-content: center; flex-wrap: wrap;
+`;
+const CtaCallLink = styled(Link)`
+  display: inline-block; margin-top: 20px;
+  font-size: 0.9375rem; color: #5EEAD4; text-decoration: none;
+  &:hover { text-decoration: underline; }
 `;
 const CtaPrimary = styled(Link)`
   padding: 16px 48px; border-radius: 999px;

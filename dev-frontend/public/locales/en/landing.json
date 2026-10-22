@@ -213,7 +213,8 @@
     "head": "Stop letting work feel like a job — PlanQ",
     "sub": "No install. Start in your browser.",
     "primary": "Start free",
-    "secondary": "Explore features"
+    "secondary": "Explore features",
+    "call": "Get a video onboarding session →"
   },
   "footer": {
     "tagline": "Don't let work become work. PlanQ",
@@ -713,7 +714,8 @@
     "cta": {
       "title": "Start your 14-day free trial",
       "sub": "No credit card to sign up. Pay only when you decide.",
-      "btn": "Start free"
+      "btn": "Start free",
+      "call": "Get a video onboarding session →"
     },
     "consulting": {
       "text": "Need help setting it up? Experts can design and build your operating system with you (WOR-PRO Lab Studio)",
@@ -879,7 +881,18 @@
     "quoteMessage": "Your situation and what you want",
     "quotePlaceholder": "Team size, the tools you use today, and the biggest pain point — the more you tell us, the more accurate the quote.",
     "quoteSubmit": "Send quote request",
-    "scopeLine": "Scope of interest"
+    "scopeLine": "Scope of interest",
+    "call": {
+      "title": "Get a video session on work setup and how to use PlanQ",
+      "sub": "In a 30-minute video call we learn how you work today and show you how to organize and use it in PlanQ.",
+      "formTitle": "Request form",
+      "company": "Company or team (optional)",
+      "note": "Anything else (optional)",
+      "submit": "Request a video session",
+      "ok": "Request received. We'll check your preferred times and email you the schedule and meeting link.",
+      "errRequired": "Enter your name and email, and pick at least one preferred time.",
+      "link": "Get a video onboarding session →"
+    }
   },
   "blogPost": {
     "back": "Back to insights",

@@ -9,7 +9,9 @@ const { authenticateToken, requireRole } = require('../middleware/auth');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
 const { perUserLimiter } = require('../middleware/costGuard');
 
-const VALID_KINDS = ['enterprise', 'general', 'landing'];
+// 공개 폼이 보낼 수 있는 종류 — 모델 목록(ContactInquiry.KINDS)에서 고른다. diagnosis 는 자가진단 라우트만 만든다.
+const VALID_KINDS = ContactInquiry.KINDS.filter(k => k !== 'diagnosis');
+const onboardingCall = require('../services/onboardingCall');
 
 // 비용폭탄 C3 — 공개 문의폼이 임의 from_email 로 Irene SMTP 자동회신을 발송 → 스팸 릴레이·발신평판 파괴.
 //   전역 600/분(IP) 위에 전용 엄격 limiter: IP당 3/시간 + 10/일. 익명 접수는 유지.
@@ -32,10 +34,23 @@ router.post('/', inquiryHourLimiter, inquiryDayLimiter, async (req, res, next) =
     // 검증
     if (!from_name || !String(from_name).trim()) return errorResponse(res, 'name_required', 400);
     if (!isValidEmail(from_email)) return errorResponse(res, 'valid_email_required', 400);
-    if (!message || !String(message).trim()) return errorResponse(res, 'message_required', 400);
-    if (String(message).length > 5000) return errorResponse(res, 'message_too_long', 400);
-
     const normalizedKind = VALID_KINDS.includes(kind) ? kind : 'general';
+    const isCall = normalizedKind === onboardingCall.KIND;
+    // 화상 안내 신청은 본문 대신 희망 시간 등 구조 칸을 받는다(본문은 서버가 요약해 만든다).
+    if (!isCall && (!message || !String(message).trim())) return errorResponse(res, 'message_required', 400);
+    if (message && String(message).length > 5000) return errorResponse(res, 'message_too_long', 400);
+    let callDetails = null;
+    let callTimezone = null;
+    if (isCall) {
+      try {
+        const n = onboardingCall.normalizeDetails(req.body.details, req.body.timezone);
+        callDetails = n.details;
+        callTimezone = n.timezone;
+      } catch (e) {
+        if (e instanceof onboardingCall.OnboardingCallError) return errorResponse(res, e.code, e.status);
+        throw e;
+      }
+    }
 
     // 선택적 인증 (토큰 있으면 연결, 없거나 유효하지 않아도 통과)
     let fromUserId = null;
@@ -69,6 +84,25 @@ router.post('/', inquiryHourLimiter, inquiryDayLimiter, async (req, res, next) =
       } catch { /* 토큰 무효는 무시하고 익명 접수 */ }
     }
 
+    // 화상 안내 신청 — 로그인 + 멤버십 확인된 워크스페이스일 때만 «한 워크스페이스 한 건» 을 막는다.
+    //   비로그인은 항상 행을 만든다(Fable: 남의 이메일로 먼저 넣어 진짜 신청을 버리게 하는 길을 막는다 · IP 한도는 위에 있다).
+    //   판정은 노출(/status.onboarding_call)과 같은 함수(onboardingCall.availability).
+    if (isCall) {
+      if (businessId) {
+        const av = await onboardingCall.availability(businessId, fromUserId);
+        if (!av.available) {
+          if (av.reason === 'already_requested') return errorResponse(res, 'already_requested', 409);
+          return errorResponse(res, 'onboarding_not_available', 403);
+        }
+        callDetails.plan = av.plan;
+        callDetails.trial_ends_at = av.trial_ends_at;
+      } else {
+        // 비로그인은 브라우저 시간대가 곧 신청자 시간대다(로그인 사용자는 위에서 워크스페이스 시간대).
+        fromUserTimezone = callTimezone;
+      }
+      callDetails.timezone = callTimezone;
+    }
+
     const inquiry = await ContactInquiry.create({
       kind: normalizedKind,
       source: source ? String(source).slice(0, 50) : null,
@@ -78,7 +112,8 @@ router.post('/', inquiryHourLimiter, inquiryDayLimiter, async (req, res, next) =
       from_email: String(from_email).trim().toLowerCase().slice(0, 200),
       from_company: from_company ? String(from_company).trim().slice(0, 200) : null,
       from_phone: from_phone ? String(from_phone).trim().slice(0, 50) : null,
-      message: String(message).trim(),
+      message: isCall ? onboardingCall.summaryMessage(callDetails, callTimezone, message) : String(message).trim(),
+      details: isCall ? callDetails : null,
       from_user_timezone: fromUserTimezone,
       // 문의자 언어 — 폼이 보낸 값(브라우저/앱 언어)만 신뢰 범위로 좁혀 저장한다.
       //   접수 확인 메일·답변을 이 언어로 보내기 위한 것. 없으면 ko 로 본다.
@@ -107,7 +142,8 @@ async function sendInquiryNotifications(inquiry) {
   //    비용폭탄 C3: 임의 주소 반복 접수로 Irene 발신주소가 백스캐터 스팸 릴레이가 되는 것 차단.
   const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000);
   const priorSameEmail = await ContactInquiry.count({
-    where: { from_email: inquiry.from_email, id: { [Op.ne]: inquiry.id }, created_at: { [Op.gte]: since24h } },
+    // 키는 (이메일, 종류) — 자가진단 → 화상 안내 신청을 하루에 하면 일정 요청의 확인 메일이 안 갔다(Fable 2026-10-22).
+    where: { from_email: inquiry.from_email, kind: inquiry.kind, id: { [Op.ne]: inquiry.id }, created_at: { [Op.gte]: since24h } },
   }).catch(() => 0);
   if (priorSameEmail === 0) {
     await emailService.sendInquiryReceivedEmail({
@@ -115,15 +151,29 @@ async function sendInquiryNotifications(inquiry) {
       name: inquiry.from_name,
       message: inquiry.message,
       inquiryId: inquiry.id,
+      // 언어 칸은 2026-08-25 에 만들었는데 여기서 안 넘겨 영어 신청자도 한국어 메일을 받았다.
+      locale: inquiry.locale,
+      kind: inquiry.kind,
     }).catch(() => null);
   }
 
   // 2) platform_admin 알림 — 표준 헬퍼 경유 (relatedEntityId 추적·EmailLog 일관성)
+  // 화상 안내 신청 — 제목이 종류를 말하고, 본문에 «같은 이메일 열린 신청 N건»(비로그인은 중복을 막지 않으므로 관리자가 본다)
+  //   과 시간대(한국 시간이 아니면 그 사실)를 싣는다. 알림 본문은 관리자 전원이 같으므로 «관리자 시간대» 는 쓰지 않는다.
+  let callNote = '';
+  if (inquiry.kind === onboardingCall.KIND) {
+    const sameOpen = await ContactInquiry.count({
+      where: { from_email: inquiry.from_email, kind: inquiry.kind, id: { [Op.ne]: inquiry.id }, status: { [Op.in]: onboardingCall.OPEN_STATUSES } },
+    }).catch(() => 0);
+    const tz = inquiry.details && inquiry.details.timezone;
+    if (tz && tz !== 'Asia/Seoul') callNote += `\n※ 신청자 시간대 ${tz} (한국 시간 아님)`;
+    if (sameOpen > 0) callNote += `\n※ 같은 이메일의 열린 화상 안내 신청 ${sameOpen}건 더 있음`;
+  }
   await notifyPlatformAdmins({
     eventKind: 'inquiry',
     // 옛 화면(요금제 «환불 요청» 이 문의 창이던 번들)에서 온 것은 제목이 말하게 — 지금은 결제에 묶인 요청(routes/plan_refund)으로 받는다.
-    title: `${inquiry.source === 'plan_refund' ? '[환불 요청] ' : ''}새 문의 #${inquiry.id} — ${inquiry.from_name}`,
-    body: `${inquiry.from_company ? `[${inquiry.from_company}] ` : ''}${inquiry.from_email}\n\n${(inquiry.message || '').slice(0, 400)}${(inquiry.message || '').length > 400 ? '…' : ''}`,
+    title: `${inquiry.source === 'plan_refund' ? '[환불 요청] ' : ''}${inquiry.kind === onboardingCall.KIND ? '[화상 안내 신청] ' : ''}새 문의 #${inquiry.id} — ${inquiry.from_name}`,
+    body: `${inquiry.from_company ? `[${inquiry.from_company}] ` : ''}${inquiry.from_email}\n\n${(inquiry.message || '').slice(0, 400)}${(inquiry.message || '').length > 400 ? '…' : ''}${callNote}`,
     link: `${APP_URL}/admin/inquiries?inquiry=${inquiry.id}`,
     ctaLabel: '문의 보기',
     relatedEntityId: inquiry.id,

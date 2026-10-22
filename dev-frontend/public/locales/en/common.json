@@ -1716,7 +1716,20 @@
     "kindGeneral": "General inquiry",
     "kindLanding": "Landing page",
     "mailSubject": "PlanQ inquiry",
-    "title": "Inquiry inbox"
+    "title": "Inquiry inbox",
+    "kindOnboardingCall": "Video onboarding request",
+    "kindOnboardingCallShort": "Video onboarding",
+    "call": {
+      "title": "Video onboarding request",
+      "slots": "Preferred times",
+      "team": "Team size",
+      "tools": "Current tools",
+      "focus": "Set up first",
+      "workspace": "Workspace",
+      "noWorkspace": "Not signed up (landing)",
+      "plan": "Trial plan",
+      "trialEnds": "Trial ends"
+    }
   },
   "downloadTray": {
     "aria": "Download progress",
@@ -1853,5 +1866,43 @@
   },
   "people": {
     "composeTo": "Write an email to {{email}}"
+  },
+  "onboardingCall": {
+    "slotsLabel": "Preferred times (up to 3)",
+    "slotsHint": "Takes about 30 minutes. Time zone: {{tz}}",
+    "datePlaceholder": "Date",
+    "partLabel": "Time of day",
+    "part": {
+      "morning": "Morning",
+      "afternoon": "Afternoon",
+      "evening": "Evening"
+    },
+    "removeSlot": "Remove this time",
+    "addSlot": "+ Add another time",
+    "teamLabel": "Team size",
+    "team": {
+      "solo": "Just me",
+      "2_5": "2–5",
+      "6_20": "6–20",
+      "21_plus": "21+"
+    },
+    "toolsLabel": "Tools you use now (optional)",
+    "toolsPlaceholder": "e.g. Excel, Slack, Notion",
+    "focusLabel": "What to set up first (optional)",
+    "focusPlaceholder": "e.g. turning client requests into tasks",
+    "errSlot": "Pick at least one preferred time.",
+    "card": {
+      "title": "Get a video session on work setup and how to use PlanQ",
+      "desc": "In a 30-minute video call we learn how you work today and show you how to set up and use this workspace.",
+      "requestedTitle": "We received your video session request",
+      "requestedDesc": "We'll check your preferred times and email you the schedule and meeting link.",
+      "cta": "Request",
+      "dismiss": "Close"
+    },
+    "drawerTitle": "Request a video onboarding session",
+    "submit": "Send request",
+    "lead": "Pick your preferred times and the PlanQ team will email you the schedule and meeting link. The time is confirmed by email.",
+    "who": "We'll email: {{email}}",
+    "noteLabel": "Anything else (optional)"
   }
 }
