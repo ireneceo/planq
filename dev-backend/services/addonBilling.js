@@ -224,15 +224,24 @@ async function markAddonPaid({ paymentId, markedByUserId, payerName, payerMemo, 
 }
 
 // 사용자가 add-on 해지 — 한도 즉시 차감. 환불 X (이미 결제한 부분은 그대로).
+// 애드온 한도 회수 — 해지(cancelAddon)와 환불(refund.refundPayment, docs/REFUND_CANCEL_DESIGN.md §5-1)이 같은 산식을 쓴다.
+//   0 아래로 내려가지 않는다. t 가 있으면 그 트랜잭션 안에서(biz 는 호출부가 잡아 넘긴다).
+async function revokeUnitsInTx({ biz, addonCode, quantity, t }) {
+  const addon = getAddon(addonCode);
+  if (!addon) throw new Error('invalid_addon_code');
+  const removed = addon.unit * Math.max(1, Number(quantity) || 1);
+  const previous = Number(biz[addon.field] || 0);
+  const current = Math.max(0, previous - removed);
+  await biz.update({ [addon.field]: current }, t ? { transaction: t } : undefined);
+  return { field: addon.field, previous, current, removed };
+}
+
 async function cancelAddon({ businessId, addonCode, quantity, userId }) {
   const addon = getAddon(addonCode);
   if (!addon) throw new Error('invalid_addon_code');
   const biz = await Business.findByPk(businessId);
   if (!biz) throw new Error('business_not_found');
-  const unitsRemoved = addon.unit * Math.max(1, Number(quantity) || 1);
-  const current = Number(biz[addon.field] || 0);
-  const next = Math.max(0, current - unitsRemoved);
-  await biz.update({ [addon.field]: next });
+  const { previous: current, current: next, removed: unitsRemoved } = await revokeUnitsInTx({ biz, addonCode, quantity, t: null });
   try { planEngine.invalidateBusinessCache(businessId); } catch { /* noop */ }
 
   await writeAudit({
@@ -277,6 +286,7 @@ async function safeSendInstructionEmail({ biz, payment, addon, quantity, daysRem
 }
 
 module.exports = {
+  revokeUnitsInTx,
   requestAddon,
   markAddonPaid,
   cancelAddon,

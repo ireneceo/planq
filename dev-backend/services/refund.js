@@ -2,7 +2,11 @@
 //
 //   mode 'trial'  : 체험 중 결제를 «해지하고 환불 요청» 한 건. 결제 → refunded, 구독 → canceled('trial_refund'),
 //                   워크스페이스 → 체험(trialing, 종료일 불변) 또는 이미 체험이 끝났으면 past_due + 유예 7일.
-//   mode 'manual' : 종전 관리자 [환불] 그대로 — 결제만 refunded, 구독·워크스페이스 불변.
+//   mode 'manual' : 관리자 [환불]·고객 요청 환불. docs/REFUND_CANCEL_DESIGN.md §5 (Fable DESIGN_OK 2026-10-22):
+//                   · 플랜 결제가 그 구독의 마지막 유료 결제(billing.refundCancelsSubscription)면 구독 canceled('refund') + 즉시 무료
+//                   · 애드온 결제면 그만큼 한도 회수(addonBilling.revokeUnitsInTx)
+//                   · 그 밖(지난 기간 결제 등)·keepSubscription(보상성 환불)이면 결제만 refunded
+//                   판정은 트랜잭션 안에서 다시 본다(밖에서 본 값으로 쓰지 않는다).
 //
 //   ★ 돈 먼저, 장부 나중 — 카드 환불(Stripe)은 트랜잭션 **밖에서** 먼저 하고(idempotencyKey), 실패하면 DB 를 건드리지 않는다.
 //     재시도는 같은 키라 Stripe 가 같은 환불을 돌려준다(두 번 나가지 않는다).
@@ -29,9 +33,9 @@ async function stripeRefund(payment) {
 }
 
 /**
- * @returns {{ payment, alreadyRefunded?: boolean, restoredTo?: 'trialing'|'past_due'|null, stripeRefundId?: string|null }}
+ * @returns {{ payment, alreadyRefunded?: boolean, restoredTo?: 'trialing'|'past_due'|'free'|null, stripeRefundId?: string|null, addonUnitsRemoved?: number|null }}
  */
-async function refundPayment({ paymentId, mode = 'manual', reason, viaStripe = false, adminUserId = null, actor = null, _stripeRefund = stripeRefund }) {
+async function refundPayment({ paymentId, mode = 'manual', reason, viaStripe = false, keepSubscription = false, adminUserId = null, actor = null, _stripeRefund = stripeRefund }) {
   if (mode !== 'trial' && mode !== 'manual') throw err('invalid_mode', 400);
   const pre = await Payment.findByPk(paymentId);
   if (!pre) throw err('payment_not_found', 404);
@@ -57,6 +61,7 @@ async function refundPayment({ paymentId, mode = 'manual', reason, viaStripe = f
     const refundReason = reason ? String(reason).slice(0, 255) : (mode === 'trial' ? '체험 중 환불' : '관리자 환불');
     let restoredTo = null;
     let audit = {};
+    let addonUnitsRemoved = null;
 
     if (mode === 'trial') {
       const sub = pay.subscription_id ? await Subscription.findByPk(pay.subscription_id, { transaction: t, lock: t.LOCK.UPDATE }) : null;
@@ -89,6 +94,33 @@ async function refundPayment({ paymentId, mode = 'manual', reason, viaStripe = f
         requested_at: pay.refund_requested_at ? new Date(pay.refund_requested_at).toISOString() : null, requested_by: pay.refund_requested_by,
         restored_to: restoredTo, tax_invoice_status: pay.tax_invoice_status || null,
       };
+    }
+
+    if (mode === 'manual') {
+      const biz = await Business.findByPk(pay.business_id, { transaction: t, lock: t.LOCK.UPDATE });
+      if (pay.kind === 'addon') {
+        // 돈을 돌려줬는데 한도가 열려 있으면 어긋난다 — 보상성 환불(keepSubscription)이면 그대로 둔다.
+        if (!keepSubscription && biz && pay.addon_code) {
+          const r = await require('./addonBilling').revokeUnitsInTx({ biz, addonCode: pay.addon_code, quantity: pay.addon_quantity, t });
+          addonUnitsRemoved = r.removed;
+          audit = { addon_code: pay.addon_code, addon_field: r.field, addon_units_removed: r.removed, addon_before: r.previous, addon_after: r.current };
+        }
+      } else {
+        const sub = pay.subscription_id ? await Subscription.findByPk(pay.subscription_id, { transaction: t, lock: t.LOCK.UPDATE }) : null;
+        const laterPaidCount = await billing.countLaterPaid(pay, t);
+        const cancels = billing.refundCancelsSubscription({ payment: pay, sub, biz, laterPaidCount });
+        if (cancels && !keepSubscription) {
+          const c = await billing.cancelToFreeInTx({
+            biz, sub, t, cancelReason: 'refund', historyReason: 'refund',
+            changedBy: adminUserId, note: `Payment #${pay.id} 환불 해지`,
+          });
+          await billing.closeDeadPendingPayments(pay.business_id, t);
+          restoredTo = 'free';
+          audit = { canceled_subscription_id: sub.id, from_plan: c.fromPlan, to_plan: 'free' };
+        }
+        if (cancels) audit.keep_subscription = !!keepSubscription;
+      }
+      if (keepSubscription) audit.keep_subscription = true;
     }
 
     await pay.update({
@@ -131,7 +163,7 @@ async function refundPayment({ paymentId, mode = 'manual', reason, viaStripe = f
         } catch (e) { console.warn('[refund notify]', e.message); }
       });
     }
-    return { payment: pay, alreadyRefunded: false, restoredTo, stripeRefundId };
+    return { payment: pay, alreadyRefunded: false, restoredTo, stripeRefundId, addonUnitsRemoved };
   } catch (e) {
     try { await t.rollback(); } catch { /* already finished */ }
     throw e;

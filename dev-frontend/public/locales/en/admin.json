@@ -174,10 +174,16 @@
     "back": "Back",
     "declineSubmit": "Decline request",
     "decline": "Decline",
-    "requestRefundLead": "{{biz}} requested a refund of the {{amount}} payment. Check it against Terms §4 (full refund within 7 days for monthly / 14 days for yearly, pro-rated after), then refund or decline. Refunding records this payment as refunded; the subscription status does not change.",
+    "requestRefundLead": "{{biz}} requested a refund of the {{amount}} payment. Check it against Terms §4 (full refund within 7 days for monthly / 14 days for yearly, pro-rated after), then refund or decline.",
     "requestReason": "Customer reason: {{note}}",
     "declineReason": "Reason for declining (sent to the owner as a notification)",
-    "requestRefundOpen": "Handle refund request"
+    "requestRefundOpen": "Handle refund request",
+    "refundEffectCancel": "Refunding returns the full amount and switches the workspace to the Free plan (subscription canceled).",
+    "refundEffectAddon": "The add-on allowance of {{units}} will be removed.",
+    "refundEffectKeep": "This is not the current subscription's payment, so the subscription stays as it is.",
+    "refundEffectKept": "Only the payment is recorded as refunded; the subscription stays (goodwill refund).",
+    "refundKeepSub": "Keep the subscription — goodwill refund",
+    "declineReasonPh": "e.g. More than 7 days have passed since payment, so a full refund doesn't apply. We'll explain pro-rated refunds by support email."
   },
   "subs": {
     "title": "Subscriptions",

@@ -28,6 +28,10 @@ export interface TrialRefundTarget {
   taxIssued: boolean;
   /** 서버 판정 — 체험 중 결제 환불이면 true */
   trial: boolean;
+  /** 서버 판정 — 일반 환불이 구독 해지(무료 전환)를 부르는가 (docs/REFUND_CANCEL_DESIGN.md §5-1) */
+  cancelsSubscription?: boolean;
+  /** 애드온 결제면 돌아가는 한도 수 */
+  addonUnits?: number | null;
 }
 
 interface Props {
@@ -49,10 +53,11 @@ const TrialRefundModal: React.FC<Props> = ({ target, onClose, onDone, fmtMoney, 
   const [error, setError] = useState<string | null>(null);
   const [declining, setDeclining] = useState(false);
   const [declineReason, setDeclineReason] = useState('');
+  const [keepSubscription, setKeepSubscription] = useState(false);
 
   useEffect(() => {
     setViaStripe(true); setTransferred(false); setAccount(null); setAccountLoaded(false); setError(null);
-    setDeclining(false); setDeclineReason('');
+    setDeclining(false); setDeclineReason(''); setKeepSubscription(false);
     if (!target || isCard) return;
     let alive = true;
     (async () => {
@@ -95,6 +100,7 @@ const TrialRefundModal: React.FC<Props> = ({ target, onClose, onDone, fmtMoney, 
         body: JSON.stringify({
           mode: trial ? 'trial' : 'manual',
           via_stripe: isCard && target.hasStripeIntent ? viaStripe : false,
+          ...(trial ? {} : { keep_subscription: keepSubscription }),
           reason: trial ? t('payments.trialRefundReason', '체험 중 환불') : t('payments.requestRefundReason', '고객 요청 환불'),
         }),
       });
@@ -135,9 +141,24 @@ const TrialRefundModal: React.FC<Props> = ({ target, onClose, onDone, fmtMoney, 
           defaultValue: '{{biz}} 의 {{amount}} 결제를 전액 환불합니다. 처리하면 구독이 체험 상태로 돌아갑니다(체험 종료일은 그대로).',
         }) as string : t('payments.requestRefundLead', {
           biz: target.businessName || '', amount: fmtMoney(target.amount, target.currency),
-          defaultValue: '{{biz}} 가 {{amount}} 결제의 환불을 요청했습니다. 약관 제4조(월간 7일·연간 14일 이내 전액, 그 뒤 일할)로 확인한 뒤 처리하거나 반려하세요. 처리하면 이 결제가 «환불» 로 기록되고 구독 상태는 바뀌지 않습니다.',
+          defaultValue: '{{biz}} 가 {{amount}} 결제의 환불을 요청했습니다. 약관 제4조(월간 7일·연간 14일 이내 전액, 그 뒤 일할)로 확인한 뒤 처리하거나 반려하세요.',
         }) as string}
       </Lead>
+      {!trial && (
+        <Effect data-testid="admin-refund-effect">
+          {target.cancelsSubscription
+            ? (keepSubscription ? t('payments.refundEffectKept', '결제만 환불로 기록되고 구독은 그대로입니다(보상성 환불).') : t('payments.refundEffectCancel', '처리하면 전액 환불되고 워크스페이스가 무료 플랜으로 바뀝니다(구독 해지).'))
+            : target.addonUnits != null
+              ? (keepSubscription ? t('payments.refundEffectKept', '결제만 환불로 기록되고 구독은 그대로입니다(보상성 환불).') : t('payments.refundEffectAddon', { units: target.addonUnits, defaultValue: '애드온 한도 {{units}} 이 돌아갑니다(줄어듭니다).' }))
+              : t('payments.refundEffectKeep', '지금 구독의 결제가 아니라 구독은 그대로입니다.')}
+        </Effect>
+      )}
+      {!trial && !declining && (target.cancelsSubscription || target.addonUnits != null) && (
+        <Check>
+          <input type="checkbox" checked={keepSubscription} onChange={(e) => setKeepSubscription(e.target.checked)} data-testid="admin-refund-keep" />
+          <span>{t('payments.refundKeepSub', '구독은 유지 — 보상성 환불') as string}</span>
+        </Check>
+      )}
       <Meta>
         <span>{isCard ? t('payments.method.card', '카드') : t('payments.method.bank_transfer', '계좌이체')}</span>
         <span>{t('payments.trialRefundRequested', { date: fmtDate(target.requestedAt), defaultValue: '{{date}} 요청' }) as string}</span>
@@ -147,7 +168,8 @@ const TrialRefundModal: React.FC<Props> = ({ target, onClose, onDone, fmtMoney, 
         <DeclineBox>
           <label htmlFor="rf-decline">{t('payments.declineReason', '반려 사유 (대표에게 알림으로 갑니다)') as string}</label>
           {/* draft-exempt: 창 안에서 바로 보내는 짧은 사유 */}
-          <textarea id="rf-decline" rows={3} maxLength={255} value={declineReason} onChange={(e) => setDeclineReason(e.target.value)} data-testid="admin-refund-decline-reason" />
+          <textarea id="rf-decline" rows={3} maxLength={255} value={declineReason} onChange={(e) => setDeclineReason(e.target.value)} data-testid="admin-refund-decline-reason"
+            placeholder={t('payments.declineReasonPh', '예: 결제일로부터 7일이 지나 전액 환불 대상이 아닙니다. 일할 환불은 고객 지원 이메일로 안내드립니다.') as string} />
           {error && <Err role="alert">{error}</Err>}
         </DeclineBox>
       ) : (<>
@@ -195,4 +217,5 @@ const DeclineBox = styled.div`display: flex; flex-direction: column; gap: 6px;
   label { font-size: 0.75rem; font-weight: 600; color: #334155; }
   textarea { padding: 8px 12px; border: 1px solid #E2E8F0; border-radius: 8px; font-size: 0.875rem; font-family: inherit; resize: vertical; }
   textarea:focus { outline: none; border-color: #14B8A6; box-shadow: 0 0 0 3px rgba(20,184,166,0.12); }`;
+const Effect = styled.div`font-size: 0.8125rem; font-weight: 600; color: #BE123C; background: #FFF1F2; border: 1px solid #FECDD3; border-radius: 8px; padding: 8px 10px; line-height: 1.5;`;
 const Err = styled.div`font-size: 0.8125rem; color: #DC2626;`;

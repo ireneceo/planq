@@ -174,10 +174,16 @@
     "back": "돌아가기",
     "declineSubmit": "요청 반려",
     "decline": "반려",
-    "requestRefundLead": "{{biz}} 가 {{amount}} 결제의 환불을 요청했습니다. 약관 제4조(월간 7일·연간 14일 이내 전액, 그 뒤 일할)로 확인한 뒤 처리하거나 반려하세요. 처리하면 이 결제가 «환불» 로 기록되고 구독 상태는 바뀌지 않습니다.",
+    "requestRefundLead": "{{biz}} 가 {{amount}} 결제의 환불을 요청했습니다. 약관 제4조(월간 7일·연간 14일 이내 전액, 그 뒤 일할)로 확인한 뒤 처리하거나 반려하세요.",
     "requestReason": "고객 사유: {{note}}",
     "declineReason": "반려 사유 (대표에게 알림으로 갑니다)",
-    "requestRefundOpen": "환불 요청 처리"
+    "requestRefundOpen": "환불 요청 처리",
+    "refundEffectCancel": "처리하면 전액 환불되고 워크스페이스가 무료 플랜으로 바뀝니다(구독 해지).",
+    "refundEffectAddon": "애드온 한도 {{units}} 이 돌아갑니다(줄어듭니다).",
+    "refundEffectKeep": "지금 구독의 결제가 아니라 구독은 그대로입니다.",
+    "refundEffectKept": "결제만 환불로 기록되고 구독은 그대로입니다(보상성 환불).",
+    "refundKeepSub": "구독은 유지 — 보상성 환불",
+    "declineReasonPh": "예: 결제일로부터 7일이 지나 전액 환불 대상이 아닙니다. 일할 환불은 고객 지원 이메일로 안내드립니다."
   },
   "subs": {
     "title": "구독 관리",

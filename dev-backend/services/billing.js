@@ -281,6 +281,49 @@ function trialRefundability({ payment, sub, biz, at = new Date(), trialRefundsUs
   return { eligible: true, reason: null };
 }
 
+// 고객 요청(일반) 전액 환불이 구독 해지를 부르는가 — docs/REFUND_CANCEL_DESIGN.md §5-1 (Fable DESIGN_OK 2026-10-22)
+//   «이 결제가 지금 열린 유료 기능의 값인가» = 그 구독의 마지막 유료 결제 ∧ 구독이 살아 있음 ∧ 유료 플랜.
+//   시계를 쓰지 않는다. laterPaidCount(같은 구독에 이 결제보다 뒤의 paid 결제 수)는 호출부가 센다(countLaterPaid).
+//   관리자 목록(refund_cancels_subscription)·처리(refund.refundPayment manual, 트랜잭션 안 재판정)가 같이 쓴다.
+const LIVE_SUB_STATUSES = ['active', 'past_due', 'grace'];
+function refundCancelsSubscription({ payment, sub, biz, laterPaidCount }) {
+  if (!payment || payment.kind !== 'plan' || payment.status !== 'paid') return false;
+  if (!sub || sub.id !== payment.subscription_id || !LIVE_SUB_STATUSES.includes(sub.status)) return false;
+  if (!biz || biz.plan === 'free') return false;
+  return Number(laterPaidCount) === 0;
+}
+
+// 같은 구독에서 이 결제보다 뒤(paid_at 이 늦거나, 같으면 id 가 큰)의 paid 결제 수.
+async function countLaterPaid(payment, transaction = null) {
+  if (!payment || !payment.subscription_id) return 0;
+  const paidAt = payment.paid_at ? new Date(payment.paid_at) : null;
+  const later = paidAt
+    ? { [Op.or]: [{ paid_at: { [Op.gt]: paidAt } }, { paid_at: paidAt, id: { [Op.gt]: payment.id } }] }
+    : { id: { [Op.gt]: payment.id } };
+  return Payment.count({
+    where: { subscription_id: payment.subscription_id, status: 'paid', id: { [Op.ne]: payment.id }, ...later },
+    transaction,
+  });
+}
+
+// 구독 해지 + 즉시 무료 — 호출부의 트랜잭션 안에서(biz·sub 는 FOR UPDATE 로 잡아 넘긴다). §5-2
+//   downgradeToFree 와 같은 워크스페이스 칸을 쓰되 자기 트랜잭션을 열지 않고, 구독은 demoted 가 아니라 canceled.
+async function cancelToFreeInTx({ biz, sub, t, cancelReason, historyReason, changedBy, note }) {
+  const now = new Date();
+  const fromPlan = biz.plan;
+  if (sub) await sub.update({ status: 'canceled', canceled_at: now, cancel_reason: cancelReason }, { transaction: t });
+  await biz.update({
+    plan: 'free', subscription_status: 'active', plan_expires_at: null, grace_ends_at: null, scheduled_plan: null,
+  }, { transaction: t });
+  if (fromPlan !== 'free') {
+    await BusinessPlanHistory.create({
+      business_id: biz.id, from_plan: fromPlan, to_plan: 'free', reason: historyReason,
+      changed_by: changedBy || null, note: note || null,
+    }, { transaction: t });
+  }
+  return { fromPlan, toPlan: 'free' };
+}
+
 // 그 워크스페이스의 «체험 환불 후보» — 가장 최근에 확정된 플랜 결제 + 그 구독 + 워크스페이스 + 체험 환불 사용 횟수.
 async function loadTrialRefundContext(businessId, { paymentId = null, transaction = null } = {}) {
   const where = { business_id: businessId, kind: 'plan', status: 'paid' };
@@ -1024,6 +1067,10 @@ module.exports = {
   computePeriodEnd,
   isFirstPlanPayment,
   trialRefundability,
+  refundCancelsSubscription,
+  countLaterPaid,
+  cancelToFreeInTx,
+  closeDeadPendingPayments,
   loadTrialRefundContext,
   trialRefundStatus,
   markPaymentPaid,

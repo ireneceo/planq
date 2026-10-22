@@ -54,7 +54,7 @@ async function notifyRefundRequested({ payment: p, biz, isTrial, note, requester
     note ? `사유: ${note}` : null,
     isTrial
       ? '체험 중 결제입니다 — 환불 처리하면 결제 금액 전액이 돌아가고 구독이 체험 상태로 돌아갑니다.'
-      : '약관 제4조 기준(월간 7일·연간 14일 이내 전액, 그 뒤 일할)으로 확인한 뒤 관리자 결제 관리에서 [환불 처리] 또는 [반려] 하세요.',
+      : '약관 제4조 기준(월간 7일·연간 14일 이내 전액, 그 뒤 일할)으로 확인한 뒤 관리자 결제 관리에서 [환불 처리] 또는 [반려] 하세요. 지금 구독의 결제를 환불 처리하면 워크스페이스는 무료로 전환됩니다.',
   ].filter(Boolean);
   await notifyPlatformAdmins({
     eventKind: 'payment',

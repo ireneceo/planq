@@ -157,7 +157,8 @@
         "Monthly plan: no refund after 7 days",
         "Yearly plan: 100% refund within 14 days of payment",
         "Yearly plan: after 14 days, prorated refund of unused period",
-        "Refund requests: use the [Cancel & request refund] button in Settings > Plan (payments made during the trial), or email support ({{operatorEmail}})"
+        "Refund requests: use [Request refund] in Settings > Plan > Payment history, or email support ({{operatorEmail}})",
+        "Once a full refund is processed, the subscription is canceled and the workspace switches to the Free plan"
       ]
     },
     "s5": {

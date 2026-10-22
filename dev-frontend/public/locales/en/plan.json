@@ -364,7 +364,7 @@
     "ownerOnly": "Only the workspace owner can request a refund.",
     "prefill": "Refund request — paid on {{date}} · {{amount}}\nReason: ",
     "submit": "Send refund request",
-    "subtitle2": "We review the request against our refund policy (Terms §4) and let you know the result. Requesting alone does not change your payment or subscription.",
+    "subtitle2": "We review the request against our refund policy (Terms §4) and let you know the result. Requesting alone does not change your payment or subscription. Once a full refund is processed, the workspace switches to the Free plan.",
     "pickPayment": "Payment to refund",
     "reason": "Reason",
     "reasonPh": "Tell us why you'd like a refund.",

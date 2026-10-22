@@ -273,6 +273,8 @@ router.get('/payments', async (req, res, next) => {
 
     // 환불 요청 행이 «체험 중 결제» 인지 — 처리 모드(trial/manual)를 화면이 고르지 않게 서버가 판정한다(처리와 같은 술어).
     const trialReq = await require('../services/refundRequest').trialRequestIds(rows);
+    // 환불하면 무엇이 같이 바뀌는가(구독 해지·애드온 한도) — 처리와 같은 술어, 결제 완료 행만(docs/REFUND_CANCEL_DESIGN.md §5-1)
+    const effects = await require('../services/refundRequest').refundEffects(rows);
 
     res.set('X-Total-Count', String(count));
     return successResponse(res, rows.map((p) => ({
@@ -319,6 +321,8 @@ router.get('/payments', async (req, res, next) => {
       refund_requested_at: p.refund_requested_at,
       refund_request_note: p.refund_request_note,
       refund_request_trial: trialReq.has(p.id),
+      refund_cancels_subscription: !!(effects.get(p.id) || {}).cancels,
+      refund_addon_units: (effects.get(p.id) || {}).addonUnits || null,
       has_refund_account: !!p.refund_account_enc,
       refund_kind: p.refund_kind,
       stripe_refund_id: p.stripe_refund_id,
@@ -370,18 +374,13 @@ router.post('/payments/:id/refund', async (req, res, next) => {
     const r = await require('../services/refund').refundPayment({
       paymentId: Number(req.params.id), mode,
       reason: req.body?.reason, viaStripe: req.body?.via_stripe === true,
+      keepSubscription: mode === 'manual' && req.body?.keep_subscription === true,
       adminUserId: req.user.id, actor: { userId: req.user.id, ip: req.ip },
     });
-    // 고객이 요청한 일반 환불을 처리했으면 대표에게 알린다(체험 환불은 서비스가 전용 메일·알림을 보낸다).
-    if (mode === 'manual' && !r.alreadyRefunded && r.payment.refund_requested_at) {
-      setImmediate(() => require('../services/refundRequest').notifyRefundOwner(r.payment, {
-        title: '환불이 처리됐습니다',
-        body: `${require('../services/refundRequest').moneyStr(r.payment)} 결제의 환불 요청이 처리됐습니다. 돌려받는 데 카드사·은행 사정으로 며칠 걸릴 수 있습니다.`,
-      }));
-    }
+    if (mode === 'manual') require('../services/refundRequest').notifyAfterManualRefund(r);   // 대표 알림(§5-6)
     return successResponse(res, {
       refunded: true, already_refunded: !!r.alreadyRefunded, refunded_at: r.payment.refunded_at,
-      restored_to: r.restoredTo || null, stripe_refund_id: r.stripeRefundId || null,
+      restored_to: r.restoredTo || null, stripe_refund_id: r.stripeRefundId || null, addon_units_removed: r.addonUnitsRemoved ?? null,
     }, 'refunded');
   } catch (err) {
     if (err.statusCode) return errorResponse(res, err.code || err.message, err.statusCode);

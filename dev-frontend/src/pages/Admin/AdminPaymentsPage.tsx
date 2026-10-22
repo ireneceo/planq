@@ -55,6 +55,9 @@ interface PaymentRow {
   refund_requested_at?: string | null;
   refund_request_note?: string | null;
   refund_request_trial?: boolean;
+  // 환불하면 같이 바뀌는 것 — 서버 판정(docs/REFUND_CANCEL_DESIGN.md §5-1)
+  refund_cancels_subscription?: boolean;
+  refund_addon_units?: number | null;
   has_refund_account?: boolean;
   refund_kind?: 'trial' | 'manual' | null;
   stripe_refund_id?: string | null;
@@ -129,6 +132,7 @@ const AdminPaymentsPage = () => {
       businessName: p.business?.name || null, requestedAt: p.refund_requested_at || null,
       note: p.refund_request_note || null, hasStripeIntent: !!p.has_stripe_intent,
       taxIssued: p.tax_invoice_status === 'issued', trial: !!p.refund_request_trial,
+      cancelsSubscription: !!p.refund_cancels_subscription, addonUnits: p.refund_addon_units ?? null,
     });
   }, [focusId, loading, items]);
 
@@ -343,6 +347,7 @@ const AdminPaymentsPage = () => {
                           businessName: p.business?.name || null, requestedAt: p.refund_requested_at || null,
                           note: p.refund_request_note || null, hasStripeIntent: !!p.has_stripe_intent,
                           taxIssued: p.tax_invoice_status === 'issued', trial: !!p.refund_request_trial,
+      cancelsSubscription: !!p.refund_cancels_subscription, addonUnits: p.refund_addon_units ?? null,
                         })}>
                         {p.refund_request_trial ? t('payments.trialRefundOpen', '체험 환불 처리') : t('payments.requestRefundOpen', '환불 요청 처리')}
                       </DangerBtn>
@@ -367,7 +372,12 @@ const AdminPaymentsPage = () => {
           <ConfirmDialog
             isOpen
             title={t('payments.confirmRefundTitle', '환불 처리') as string}
-            message={t('payments.confirmRefundMsg', { amount: `${confirm.currency} ${fmtKRW(confirm.amount)}`, biz: confirm.business?.name, defaultValue: '{{biz}} 의 {{amount}} 결제를 환불 처리합니다.' }) as string}
+            message={`${t('payments.confirmRefundMsg', { amount: `${confirm.currency} ${fmtKRW(confirm.amount)}`, biz: confirm.business?.name, defaultValue: '{{biz}} 의 {{amount}} 결제를 환불 처리합니다.' })} ${
+              // 환불하면 같이 바뀌는 것을 같은 규칙으로 말한다(처리 창과 같은 문구 — 모르고 해지하지 않게)
+              confirm.refund_cancels_subscription ? t('payments.refundEffectCancel', '처리하면 전액 환불되고 워크스페이스가 무료 플랜으로 바뀝니다(구독 해지).')
+                : confirm.kind === 'addon' ? t('payments.refundEffectAddon', { units: confirm.refund_addon_units ?? '', defaultValue: '애드온 한도 {{units}} 이 돌아갑니다(줄어듭니다).' })
+                  : t('payments.refundEffectKeep', '지금 구독의 결제가 아니라 구독은 그대로입니다.')
+            }`}
             confirmText={t('payments.refund', '환불') as string}
             variant="danger"
             onConfirm={() => handleRefund(confirm)}
