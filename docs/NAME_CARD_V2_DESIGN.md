@@ -73,3 +73,49 @@
 3. 워크스페이스 기본 명함: 표시 범위(동료에게 공개 꺼진 명함도 보이나) · 보여 주는 곳 우선순위 · 고객에게 보여 줄지.
 4. 직무: 출처(ESCO+자체 번역)·라이선스 판단 · 플랫폼 사전 모델 · 역할과 분리 · 멤버/초대 연결 범위 · 1·2단계 나눔.
 5. 빠진 위험(개인정보·공개 표면 확장·검색 성능·번역 품질 검증 방법).
+
+---
+
+## 6. Fable 설계 판정 (2026-10-22) — **VERDICT: DESIGN-OK** · Irene 에게 물을 것 없음
+
+### 확인한 사실
+- **ESCO 상업 이용 가능**(Commission 재사용 결정 — «any purpose … free of charge»). 조건 둘: ① 서비스에 *"This service uses the ESCO classification of the European Commission."* 표기 ② 번안본은 그렇다고 표시 → 한국어 이름은 «PlanQ 번역(ESCO 공식 번역 아님)»(`ko_status`). v1.2.1, 한국어 없음. **KSCO 는 어디에도 적재하지 않는다**.
+- `GET /api/businesses/:biz/members` 가 이미 전 멤버에게 email·phone·job_title 을 준다 → 동료에게 기본 명함을 보여도 넓어지지 않는다.
+- `businesses.brand_*` 읽는 곳 BE 268·FE 32 — 거의 `brand_name || name`(워크스페이스 표시명). 심볼 업로드(`POST /:biz/symbol`)가 이미 있다 → 브랜드 로고는 그것을 재사용.
+- 고객 포털에 «담당 멤버» 칸이 없다 → 고객에게 명함을 보일 자리 없음(v2 범위 밖).
+
+### 결정 1 — 브랜드: 안 A(표 + 연결)
+- `brands`(owner_kind business|user · business_id/user_id · name·name_en · tagline·tagline_en · logo_url(심볼 경로) · links JSON [{kind,label,url}] ≤8(kind 화이트리스트) · is_default(워크스페이스당 정확히 1) · sort_order · created_by). brand_color 는 넣지 않는다. 한도 워크스페이스 20·개인 10.
+- 연결표 `name_card_brands`(card_id·brand_id·sort_order, PK 둘, 둘 다 CASCADE) — 명함당 최대 4.
+- `services/brands.js` 한 벌: `canUseBrand(userId, brand)`(고를 때·그릴 때 같은 함수) · `brandsForCard(card)` 읽을 때 거름(fail-closed — 멤버 이탈·삭제 훅 불필요).
+- `cardPublicView` 가 `brands:[{name,name_en,tagline,tagline_en,logo_url,links}]` 를 싣는다(id·business_id 없음 — secrets 검사 추가). 보관 스냅샷·«바뀜» 지문에 자동 포함.
+- 명함 `company` = «회사(법인명)» 라벨, prefill `legal_name || name`. `PATCH … {brand_ids}`(순서=표시, 남의 brand_id 400 — 양성 대조군).
+- CardFace: 브랜드 0 → v1 그대로 · ≥1 → 첫 브랜드(로고 24px·이름·tagline)가 회사 자리, 나머지 칩 · 회사명은 모든 브랜드 이름과 다를 때만 작게(NFC·공백·대소문자 무시) · 브랜드 링크 «브랜드명 · 호스트» · 영문 보기 name_en/tagline_en · vCard ORG = company ‖ 첫 브랜드 · OG 제목 «이름 · 직책 · 첫 브랜드(없으면 회사)».
+- 라우트 `/api/businesses/:biz/brands`(GET 멤버 이상 / 쓰기·로고·정렬·기본 owner/admin / 고객 403) · `/api/me/brands`(본인). 삭제 확인 «명함 n장에서 빠져요». 실시간 `brand:updated {id}` 신호.
+- 화면: 설정 > 회사 정보의 «브랜드» 칸을 브랜드 목록으로(DetailDrawer + AutoSaveField) · 명함 편집 드로어에 «브랜드» 칸.
+
+### 결정 2 — 옛 businesses.brand_*: 정본은 brands, 옛 칸은 기본 브랜드의 사본(write-through)
+- 기본 브랜드를 만들거나 고치거나 바꿀 때 같은 트랜잭션에서 `brand_name/_en/brand_tagline/_en/brand_logo_url` 을 덮어쓴다. 읽는 곳 268 은 안 고친다.
+- 옛 쓰기 문(`PUT /:biz/brand` · `PUT /:biz` 의 brand 칸)은 서비스 경유로 바꾸거나 지운다. 심볼 업로드 = «기본 브랜드 로고 바꾸기» 로 서비스 경유.
+- 가드 `--category=brandwrite`(하드): brand_name|brand_tagline|brand_logo_url 쓰기가 services/brands.js 밖이면 실패.
+- `migrate-brands.js`(멱등, 배포 슬롯 sync-database 앞): 표 2 CREATE → 워크스페이스마다 brands 0건이면 `brand_name || name` 으로 기본 브랜드 1행.
+
+### 결정 3 — 워크스페이스 기본 명함
+- `business_members.default_card_id`(FK name_cards SET NULL) · `PUT/DELETE /api/name-cards/:id/default {business_id}`(내 명함 ∧ 활성 멤버). 카드 ⋯ «기본 명함으로» + «○○ 기본» 칩.
+- **동료에게는 공개 스위치와 무관하게 보인다**(이름 비면 안 보임). 문구: «기본 명함은 공개 설정과 관계없이 이 워크스페이스 멤버에게 보여요. 링크·QR 은 공개를 켠 명함만 열려요.»
+- 읽는 문 `GET /api/businesses/:biz/members/:userId/card`(+`/photo`·`/vcf`, checkBusinessAccess=멤버만, 없으면 404) → `{card, has_photo, url(열린 때만)}`.
+- 보여 주는 곳: 드로어 하나 `components/NameCard/NameCardViewDrawer` — ① UserInfoPopover [명함 보기] ② 설정>멤버 상세 ③ 조직도 멤버 행. 없으면 버튼을 그리지 않는다. 고객·게스트는 범위 밖(칸이 생기면 «공개 켜진 명함의 /c/ 링크만»).
+
+### 결정 4 — 직무(2단계)
+- 출처 ESCO v1.2.1 occupations(en) + ISCO-08 그룹. 표 `occupations`(플랫폼 공통: esco_uri UNIQUE · isco_code · name_en · name_ko · alt_en/alt_ko JSON · description_en · ko_status none/mt/reviewed · esco_version · is_active) · `occupation_groups`(code·level·parent·name_en·name_ko).
+- 파이프라인(dev 1회 → 결과 커밋, 운영 LLM 0): `scripts/occupations/import-esco.js` → `translate-ko.js`(LLM, 산출 `dev-backend/data/occupations/esco-1.2.1.ko.json`) → 자동 검사 → **표본 검수 150건**(대분류 10×15, 사람 — lua 가능) → `load-occupations.js`(멱등 upsert, 배포 슬롯).
+- 검색 `GET /api/occupations?q=`(인증, 60/분) — 메모리 인덱스·utils/searchMatch 규칙, 한 검색창에서 ko·en·대체 이름 동시(계정 언어 우선, 접두 > 포함). FULLTEXT 안 씀.
+- 칸 `occupation_id`·`occupation_custom` 을 name_cards·business_members 둘에(정규화 `services/occupations.normalizeOccupation` — 둘 중 하나만). 연결: 명함 편집·워크스페이스 프로필·설정>멤버/조직도 배정·초대 폼(0-4 여러 명 초대와 같은 폼 — 먼저 들어가는 쪽이 칸을 만든다). CardFace 직무 줄 · vCard ROLE. 역할 사전과 분리 유지, 직무→역할 제안 안 함.
+- 표기: 피커 하단·설정 «오픈 데이터 출처» 에 ESCO 문장. 관리자용 name_ko 수정 `PUT /api/admin/occupations/:id`(감사). health-check 에 ESCO 문장 존재 1건.
+
+### 단계
+- **1단계**(v1 과 같이 배포 가능): 결정 1·2·3 전부 · 마이그 `migrate-brands.js`·`migrate-name-card-default.js`.
+- **2단계**: 결정 4(사람 검수 150건이 들어간다).
+
+### 결정 5 — 위험
+- 새 무인증 라우트 0. 남의 brand_id·남의 멤버 기본 명함·고객의 `/members/:id/card` → 400/403/404 양성 대조군. card 응답 키 ⊆ 공개 화이트리스트 + brands.
