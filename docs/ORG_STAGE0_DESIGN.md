@@ -84,3 +84,16 @@
 4. 0-3 화이트리스트 범위 · 이름을 싣지 않는 것으로 충분한가.
 5. 0-4 부분 발송(한도 넘는 사람만 거절)이 맞나, 전부 거절이 맞나.
 6. 0-5 30일 기준·다시 받는 조건에 빠진 경로가 있나.
+
+## 9. Fable 설계 판정 반영 (2026-10-22, 1회 — FAIL 차단 4 → 반영하면 PASS)
+판정 원문 요지는 `docs/FABLE_GATE_QUEUE.md` 2026-10-22 항목. 위 본문과 다르면 **이 절이 정본**이다.
+
+1. **해제된 멤버에게도 인수인계 문** — handover 두 라우트는 `BusinessMember.unscoped()` 로 찾는다(워크스페이스 일치·role≠ai). 집계 `summarize` = «해제됐든 아니든 그 user_id 로 남은 열린 것». 멤버 관리 화면에 «나간 멤버 — 남은 것 N건» 줄(남은 것 >0 인 해제 멤버만) → 같은 패널.
+2. **`notify()` 수신자 멤버십** — `businessId` 가 있으면 받는 사람이 그 워크스페이스 활성 멤버(removed_at NULL) 또는 활성 고객(clients.user_id·status active)이 아니면 `skipped:'not_member'`(fail-closed). 해제된 멤버에게 이미 나가던 누출도 같이 닫힌다.
+3. **업무 쪽 교체는 `task_actions.handoverNamedRoles(task, actor, {from, to})` 하나** — 검사는 «actor 가 owner/platform_admin ∧ from 이 해제 중·해제된 멤버» 만(FIELD_RULES 안 탐). 담당(이력 assignee_change) · 요청자(request_by = from 일 때만 교체, note «인수인계», NULL 은 채우지 않는다) · 컨펌자(pending 행 → 인수자, 인수자가 담당자면 넣지 않음 = 자기 컨펌 금지, 이미 컨펌자면 퇴사자 행만 지움) → `recalcStatusFromReviewers` → 컨펌 라운드인데 컨펌자 0 이면 `in_progress` + 이력 note · `broadcastTask` · 감사. `memberHandover.js` 는 집계·순회·한 통 알림·`business_member.handover` 감사만.
+4. **L1 업무**: 담당이 퇴사자인 L1 은 담당 교체로 인수자에게 보인다(이름 박힌 사람). 담당 없는 L1 → 담당자 = 인수자. 담당이 다른 사람인 L1 은 그대로(패널에 수만). 단 **L1 분기는 `HANDOVER_L1_EFFECTIVE_AT` 이전엔 세기만 하고 넘기지 않는다** — 이용약관 버전을 올리고(재동의) 시행일 = 공지 + 30일(약관 제13조).
+5. 권한 `canRemoveMember(req, member)` 한 함수를 DELETE·handover 가 같이 쓴다(owner·platform_admin). admin 은 1-3 때.
+6. 활동 기록 `services/activityLabels.js` = action → {label_key, admin} 명시 표. `scope=admin` 은 표에서 admin:true 인 감사만(모르는 것 제외), `all` 은 종전. 사람·부서 대상은 `target_label`. 급여 행위는 보는 사람이 급여 담당일 때만.
+7. 초대 배열: `dry_run:true` 로 줄별 판정만 → 확인창이 보낼 주소 k개·남은 자리를 적고 → 실제 호출은 k > 남은 자리면 422 `quota {remaining}` 로 **한 통도 안 보냄**. invalid·already_* 는 줄별. 레이트리밋은 사람 수만큼. `team_id` 가 오면 `department_id := team.department_id`.
+8. Q task: 서버 `done` 생략 = all(종전), `recent` = 열린 것 + `updated_at` 30일 안 완료·취소. 화면은 완료 가리기 끔·상태 필터 완료/취소·기간 30일 앞·**검색어 있음** 이면 `done=all`. 칸반 완료 칸 제목에 «최근 30일». 5,000 상한은 상수 하나에서 문구 보간.
+9. 비차단: 담당 메일·상담 예약은 패널에 수만 · 반복 업무 승계·project_members 해제 거르기 검증 · 고객 담당 교체는 Q sale 담당 변경과 같은 문.

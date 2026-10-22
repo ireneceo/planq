@@ -1,5 +1,10 @@
 # Fable 게이트 대기열 → **판정 기록 보관소** (2026-10-08 부터)
 
+## 2026-10-22 · 조직 규모 0단계 설계 (방 75b90f45) — 설계 판정 1회 **FAIL(차단 4) → 반영하면 PASS** · 설계 `docs/ORG_STAGE0_DESIGN.md` 9절
+- 차단: ①해제된 멤버에게도 문(BusinessMember defaultScope removed_at NULL → unscoped, «나간 멤버 — 남은 것 N건» 줄) ②`notify()` 가 받는 사람의 멤버십을 안 봄 → 활성 멤버·활성 고객만(fail-closed `not_member`) ③컨펌자 교체·삭제는 `task_actions.handoverNamedRoles` 하나(재계산·자기 컨펌 금지·컨펌자 0 이면 in_progress) ④L1 업무 넘기기는 약관 버전 올리고 시행일(공지+30일) 뒤에만 — 그 전엔 세기만.
+- 답: 0-2 (A) 유지(담당 없는 L1 → 담당자=인수자, 요청자 NULL 채우기 금지) · 권한 owner·platform_admin(`canRemoveMember` 공유, admin 은 1-3 때) · 요청자 교체는 왜곡 아님·NULL 채우기는 왜곡 · 활동 기록은 명시 표(action→label·admin), 모르는 것 admin 범위 제외, 사람·부서 대상은 target_label · 초대 한도는 전부 거절(dry_run 확인창) · Q task done=recent 는 검색·칸반 완료 칸 안내, 서버 기본은 all, 기준 updated_at.
+- 비차단 8: 담당 메일·상담 예약은 수만 · 반복 업무 승계 확인 · project_members 해제 멤버 거르기 확인 · 고객 담당은 Q sale 문으로 · 배열 초대 레이트리밋 사람 수만큼 · team→department · 활동 기록 kinds/actor 이미 있음 · 5,000 숫자 상수 보간.
+
 ## 2026-10-22 · 내 명함 v2 1단계 — 브랜드 표+연결·옛 칸 사본·워크스페이스 기본 명함 (방 3b9480e1) — 완료 검증 **PASS**(Fable)
 - Irene: «회사는 하나지만 브랜드는 여러개 … 이 워크스페이스의 기본명함 … 지금은 보는 곳 없지?» · 설계 docs/NAME_CARD_V2_DESIGN.md 6절(DESIGN-OK 같은 날).
 - Fable 실호출 86검사(판정식 오류 2 제외 전부 PASS): 브랜드 읽기·쓰기 권한(고객·비멤버 403 · 멤버 쓰기 403) · 옛 칸 write-through 4문(브랜드 라우트·PUT /:biz·PUT /:biz/brand·afterCreate) 바이트 원복 · canUseBrand 쓰기·읽기 양쪽 fail-closed(해제 멤버십·남의 개인 브랜드) · 공개 응답 brands 에 id 0 · 동료 명함 권한(고객 403·비공개도 동료엔 보임+url null) · 마이그 멱등 + sync(alter) 뒤 순서 모사 오류 0 · guard brandwrite 양성 대조 뒤집힘. 차단 없음.
