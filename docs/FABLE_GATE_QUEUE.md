@@ -1,5 +1,10 @@
 # Fable 게이트 대기열 → **판정 기록 보관소** (2026-10-08 부터)
 
+## 2026-10-22 · 서명 회차 닫기·수정 요청 완료 검증 2f07a161 (방 1f0b2f16) — **FAIL**(차단 1) → 고침
+- 실측: 실HTTP 57/58(1 = 판정기 오류) · R2 경합 양방향(닫기 커밋 중 서명 → 409 state_changed, 서명 이미지 안 덮임) · 거래 단계 «서명 대기 1명» → 닫기 → «서명 요청 보내기» · e2e signature·signflow·signitems 실패 0 · health 89/89 · 화면 3폭.
+- 차단: 공개 서명 화면 영어 폰(360~414)에서 [Sign] 버튼이 12~66px 화면 밖(라벨 «Request changes / Decline» 이 길어짐). → 폰 버튼 줄 wrap + 글자 폭 기준(flex 1 1 auto). 자체 재측정 en/ko × 360·375·390·414·820·1440 넘침 0·두 버튼 보임, 고치기 전 배치 대조군 4폭 실패로 뒤집힘.
+- 비차단: 계약 단계 다음 행동이 수정 요청도 «서명 거절됨» → «수정 요청 받음» 고침. 자체 검증에 영어 축이 없었다(공개 화면은 수신자 브라우저 언어).
+
 ## 2026-10-22 · 서명 요청 뒤 문서 고치기 — 회차 닫기 + 고객 «수정 요청» D1~D10 (방 1f0b2f16) — 설계 판정 **PASS**(Fable)
 - 근거 docs/SIGNATURE_REVISE_ROUND_DESIGN.md «Fable 판정» 절. D1 + `rejected_kind` 칸 · D3 CHANGE(회차 모든 행 → superseded, 같은 superseded_at = 회차 키, FOR UPDATE 재검사) · D8 CHANGE(버튼 하나·창 안에서 수정 요청(사유 필수)/거절 선택, 상태 rejected + rejected_kind) · 나머지 그대로.
 - 차단 조건(구현에 넣을 것): R1 status 읽는 곳 7곳 · R2 sign/reject/sign-internal 조건부 UPDATE(409 state_changed) · R3 reject 는 sent·viewed 만 · R4 옛 링크 410 superseded · R6 멱등 마이그레이션 배포 슬롯.
