@@ -110,7 +110,7 @@
     "dev-backend/routes/weekly_reviews.js": 570,
     "dev-frontend/src/components/Common/CueHelpDrawer.tsx": 1321,
     "dev-frontend/src/components/Docs/PostTableGrid.tsx": 1151,
-    "dev-frontend/src/components/Docs/PostsPage.tsx": 3318,
+    "dev-frontend/src/components/Docs/PostsPage.tsx": 3049,
     "dev-frontend/src/components/Layout/MainLayout.tsx": 2301,
     "dev-frontend/src/components/QTask/TaskDetailDrawer.tsx": 3438,
     "dev-frontend/src/components/QTask/TemplateSelectModal.tsx": 837,
@@ -268,7 +268,7 @@
     "dev-frontend/src/components/Settings/WorkManagementSettings.tsx": 3
   },
   "listrowtitle": {
-    "dev-frontend/src/components/Docs/PostsPage.tsx": 1,
+    "dev-frontend/src/components/Docs/PostsPage.styles.tsx": 1,
     "dev-frontend/src/components/QTalk/GuestLinkButton.tsx": 1,
     "dev-frontend/src/pages/Landing/BlogPage.tsx": 1,
     "dev-frontend/src/pages/Public/PublicKbBundlePage.tsx": 1
