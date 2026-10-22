@@ -42,10 +42,15 @@ function fmtDate(s) {
 }
 
 const BASE_CSS = `
-  @page { margin: 0; }
+  /* 쪽 여백은 @page 가 준다 — body padding 의 위아래는 첫 쪽 위·마지막 쪽 아래에만 그려져 2쪽부터 글이 종이 가장자리에 붙었다
+     (2026-10-22 «서명 PDF 페이지마다 위아래 여백»). CSS @page 가 있으면 Chromium 은 puppeteer margin 대신 이것을 쓴다. */
+  @page { size: A4; margin: 14mm 0; }
   * { box-sizing: border-box; }
+  /* 쪽 경계에서 표 줄·그림·인용·제목 뒤가 갈리지 않게 */
+  .body-content tr, .body-content img, .body-content pre, .body-content blockquote, .items tr, .installments tr { break-inside: avoid; }
+  .body-content h1, .body-content h2, .body-content h3 { break-after: avoid; }
   /* 'Noto Sans CJK KR' 이 서버에 실제로 설치된 이름 — 맨 앞에 둬야 폴백에 기대지 않는다(2026-08-27). */
-  body { font-family: 'Noto Sans CJK KR', 'Noto Sans KR', 'Pretendard', -apple-system, sans-serif; color: #0F172A; margin: 0; padding: 36px 40px; font-size: 12px; line-height: 1.55; }
+  body { font-family: 'Noto Sans CJK KR', 'Noto Sans KR', 'Pretendard', -apple-system, sans-serif; color: #0F172A; margin: 0; padding: 0 40px; font-size: 12px; line-height: 1.55; }
   h1 { font-size: 24px; font-weight: 800; margin: 0 0 8px 0; letter-spacing: -0.5px; }
   h2 { font-size: 14px; font-weight: 700; margin: 22px 0 8px 0; color: #0F766E; text-transform: uppercase; letter-spacing: 0.6px; }
   table { width: 100%; border-collapse: collapse; }

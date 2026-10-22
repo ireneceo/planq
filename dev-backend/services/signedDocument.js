@@ -95,7 +95,7 @@ function nameItemHtml(sr, L, slot) {
 }
 
 const SIGNED_CSS = `
-.pq-sig { border: 1px solid #CBD5E1; border-radius: 8px; padding: 10px 12px; margin: 10px 0; min-height: 64px; }
+.pq-sig { border: 1px solid #CBD5E1; border-radius: 8px; padding: 10px 12px; margin: 10px 0; min-height: 64px; break-inside: avoid; }
 .pq-sig-cap { font-size: 11px; font-weight: 700; color: #64748B; margin-bottom: 4px; }
 .pq-sig-empty { color: #94A3B8; font-size: 12px; border-bottom: 1px dashed #CBD5E1; padding-bottom: 14px; }
 .pq-sig-done { border-color: #14B8A6; background: #F0FDFA; }
@@ -170,7 +170,7 @@ function certificateHtml(doc, reqs, labels) {
 }
 
 const CERT_CSS = `
-.pq-cert { page-break-before: always; margin-top: 24px; border-top: 2px solid #0F766E; padding-top: 16px; }
+.pq-cert { page-break-before: always; margin-top: 0; border-top: 2px solid #0F766E; padding-top: 16px; }
 .pq-cert h2 { font-size: 15px; margin: 0 0 8px; }
 .pq-cert-meta { font-size: 11px; color: #475569; margin-bottom: 4px; word-break: break-all; }
 .pq-cert-table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 11px; }
