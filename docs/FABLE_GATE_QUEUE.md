@@ -136,6 +136,11 @@
 - Fable 실호출 86검사(판정식 오류 2 제외 전부 PASS): 브랜드 읽기·쓰기 권한(고객·비멤버 403 · 멤버 쓰기 403) · 옛 칸 write-through 4문(브랜드 라우트·PUT /:biz·PUT /:biz/brand·afterCreate) 바이트 원복 · canUseBrand 쓰기·읽기 양쪽 fail-closed(해제 멤버십·남의 개인 브랜드) · 공개 응답 brands 에 id 0 · 동료 명함 권한(고객 403·비공개도 동료엔 보임+url null) · 마이그 멱등 + sync(alter) 뒤 순서 모사 오류 0 · guard brandwrite 양성 대조 뒤집힘. 차단 없음.
 - 비차단 1 반영: writeThrough 가 소개·로고만 고쳐도 businesses.name 을 덮던 것 → «보이는 이름이 바뀔 때만» (실HTTP 4/4). 남은 비차단: BM 행 없는 owner(owner_id 폴백)는 브랜드·기본 명함 못 씀(v1 prefill 선례) · reorder 트랜잭션 없음 · 전체 tsc -b 메모리 게이트로 미완(배포 빌드에서 소리 내며 멈춤).
 
+## 2026-10-22 · 환불 → 구독 해지 구현(e425cdb3) 완료 검증 **PASS** (방 baa00446)
+- 설계 docs/REFUND_CANCEL_DESIGN.md §5 대조 일치(술어 한 함수·트랜잭션 안 재판정·canceled 'refund'·free/active·대기 청구 닫기·애드온 회수·keep·알림 메일 조건). 마이그레이션 없음.
+- 실측 38/38(픽스처 원복 same:true·잔여 0) · 동시 2회 POST 이력 +1 · 대표 토큰 403 · Stripe 실패 DB 불변 · 체험 회귀 0 · secrets 14/14 · guard 78/79 · 약관 ko/en 91/91. 자체: API 23/23 · 화면 3폭 18/18.
+- 비차단(후속): ① 체험 중 결제를 관리자가 manual 로 환불하면 체험이 즉시 끝난다(요청 경로 trial 모드와 비대칭) — trialing 복귀로 두거나 문구에 «체험도 끝남» ② 잠금 순서 manual pay→biz→sub vs markPaymentPaid pay→sub→biz — 동시 시 데드락 500 가능(낮음), sub→biz 로 맞추면 사라짐 ③ dev 메일 발송 꺼짐 — 실제 수신은 운영에서만 ④ 화면은 자체 검증(빌드 산출물 문자열만 확인).
+
 ## 2026-10-22 · 환불 요청을 결제에 묶음(0eeeef09) 완료 검증 **PASS** + 환불 → 구독 해지 설계 **DESIGN_OK** (방 baa00446)
 - Irene: «새문의에 환불요청인지도 제목에 없고 … 어떻게 환불처리를 해? 링크가 그냥 문의보기야» → 해지 A «권고대로».
 - A 실측 41/41(dev 실호출, 픽스처 원복): 권한·입력 400/403/404/409 · 일반·애드온·체험 분기 · 관리자 알림 제목·링크 · 목록 refund_request_trial · 확인필요 kind 필터 제거 · 반려·처리·대표 알림 · 계좌번호 응답·감사 0 · secrets 12/12 · guard 74/75. 차단 없음.
