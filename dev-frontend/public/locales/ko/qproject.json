@@ -402,7 +402,11 @@
     "invitedAtTitle": "초대 발송 시각",
     "resend": "재발송",
     "resending": "발송 중…",
-    "resent": "발송됨"
+    "resent": "발송됨",
+    "managed": "직접 관리",
+    "managedTitle": "가입·초대 없이 정보만 관리하는 고객",
+    "addClient": "+ 고객 추가",
+    "openProfile": "고객 프로필 열기"
   },
   "edit": {
     "projectName": "프로젝트명",

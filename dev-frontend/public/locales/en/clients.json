@@ -276,7 +276,9 @@
     "errExists": "A client with the same email or phone already exists.",
     "openExisting": "Open that client",
     "errInvalidEmail": "Invalid email address",
-    "inviteThisTitle": "Invite this client"
+    "inviteThisTitle": "Invite this client",
+    "errAlreadyMember": "This email belongs to a member of this workspace — add them as a project member instead of a client.",
+    "errLinkProject": "The client was created but could not be added to the project. Add it again from \"Link existing client\"."
   },
   "managed": {
     "title": "Managed client",

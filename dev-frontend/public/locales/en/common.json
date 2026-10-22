@@ -1850,5 +1850,8 @@
   "editorToolbar": {
     "scrollLeft": "Show earlier tools",
     "scrollRight": "Show more tools"
+  },
+  "people": {
+    "composeTo": "Write an email to {{email}}"
   }
 }

@@ -41,9 +41,12 @@ interface Props {
   onDone?: (clientId: number | null) => void;
   /** 409 «이미 있는 고객» 에서 [그 고객 열기] */
   onOpenExisting?: (clientId: number) => void;
+  /** 프로젝트 > 고객 탭에서 열 때 — 만든 고객을 이 프로젝트에 붙인다(2026-10-22 Fable 판정 3).
+   *  직접 관리 = 만든 뒤 {client_id} 로 붙임(초대 메일 없음) · 초대 = 프로젝트 초대 문 하나(메일 한 통) */
+  projectId?: number | null;
 }
 
-export default function ClientAddDrawer({ open, onClose, businessId, prefill, fromCard, fromPhoto, inviteFor, onDone, onOpenExisting }: Props) {
+export default function ClientAddDrawer({ open, onClose, businessId, prefill, fromCard, fromPhoto, inviteFor, onDone, onOpenExisting, projectId }: Props) {
   const { t } = useTranslation('clients');
   const kindLabel = usePartnerKindLabel();
   const kindOptions = useMemo(() => (['customer', 'vendor', 'freelancer', 'other'] as Kind[]).map((k) => ({ value: k, label: kindLabel(k) })), [kindLabel]);
@@ -136,15 +139,38 @@ export default function ClientAddDrawer({ open, onClose, businessId, prefill, fr
       return;
     }
     if (!res.ok || !j?.success) {
-      throw new Error(j?.message === 'invalid_email' ? t('addModal.errInvalidEmail') : (j?.message || t('inviteModal.errFailed')));
+      throw new Error(j?.message === 'invalid_email' ? t('addModal.errInvalidEmail') : j?.message === 'already_member' ? t('addModal.errAlreadyMember') : (j?.message || t('inviteModal.errFailed')));
     }
     if (j.data?.id) await keepPhoto(Number(j.data.id));
+    if (projectId && j.data?.id) await linkToProject(Number(j.data.id));
     onClose();
     onDone?.(j.data?.id ?? null);
   };
 
+  // 프로젝트에 붙이기 — 서버가 직접 관리 고객이면 토큰·메일·알림 없이 붙인다
+  const linkToProject = async (clientId: number) => {
+    const r = await apiFetch(`/api/projects/${projectId}/clients`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ client_id: clientId }),
+    });
+    const j = await r.json().catch(() => null);
+    if (!r.ok || !j?.success) throw new Error(j?.message === 'already_member' ? t('addModal.errAlreadyMember') : t('addModal.errLinkProject'));
+  };
+
   const submitInvite = async () => {
     if (!name.trim() || !email.trim()) { setError(t('inviteModal.errRequired')); return; }
+    if (projectId && !inviteFor) {
+      // 프로젝트 초대 문 하나 — 워크스페이스 고객 행도 거기서 만든다(초대 메일 한 통). 워크스페이스 초대를 따로 부르면 두 통이 된다.
+      const r = await apiFetch(`/api/projects/${projectId}/clients`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: name.trim(), email: email.trim(), company_name: company.trim() || null, kind }),
+      });
+      const pj = await r.json().catch(() => null);
+      if (!r.ok || !pj?.success) throw new Error(pj?.message === 'already_member' ? t('addModal.errAlreadyMember') : (pj?.message || t('inviteModal.errFailed')));
+      onClose();
+      onDone?.((pj.data?.client_id as number | undefined) ?? null);
+      return;
+    }
     const res = await apiFetch(`/api/clients/${businessId}/invite`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({

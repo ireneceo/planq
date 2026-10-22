@@ -276,7 +276,9 @@
     "errExists": "같은 이메일·전화의 고객이 이미 있습니다.",
     "openExisting": "그 고객 열기",
     "errInvalidEmail": "이메일 형식이 맞지 않습니다",
-    "inviteThisTitle": "이 고객 초대"
+    "inviteThisTitle": "이 고객 초대",
+    "errAlreadyMember": "이 이메일은 이 워크스페이스 멤버입니다 — 고객으로 넣지 않고 프로젝트 멤버로 추가하세요.",
+    "errLinkProject": "고객은 만들었지만 프로젝트에 붙이지 못했습니다. «기존 고객 연결» 에서 다시 붙여 주세요."
   },
   "managed": {
     "title": "직접 관리 고객",

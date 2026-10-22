@@ -1,7 +1,8 @@
 // pages/QSale/SalePage.tsx — Q sale 목록 (docs/Q_SALE_DESIGN.md §5.2)
 //   관리 리스트 패턴(PageShell) — 고객 관리 목록과 같은 규격.
 //   ★ 접근 종류·한도 포함 여부는 서버가 준 값만 쓴다(화면이 user_id 로 판정하지 않는다).
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { canManageClients } from '../../components/Clients/clientPermissions';
 import { BetaNotice } from '../../components/Common/BetaChip';   // #449
 import { openFeedback } from '../../utils/feedbackOpen';
 import { useNavigate, useSearchParams } from 'react-router-dom';
@@ -45,7 +46,9 @@ import { getCardIntake, type CardIntake } from '../../services/sale';
 
 const PAGE = 50;
 
-export default function SalePage() {
+// embedded — 설정 › 구성원·고객 의 [고객] 탭이 **이 본체를 그대로** 얹는다(2026-10-22 Fable 판정 4 «본체가 하나»).
+//   고객 탭만 · 머리줄 없이(설정 화면의 머리줄이 있다) · 상담·Cue·상담 진행은 뺀다. 목록·필터·패널(?client=)·고객 추가는 같은 것.
+export default function SalePage({ embedded = false }: { embedded?: boolean } = {}) {
   const { t } = useTranslation('qsale');
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -62,7 +65,7 @@ export default function SalePage() {
 
   const [q, setQ] = useState('');
   // 입구는 상담(고객 미등록 문의)이다 — 고객 목록은 옆 탭. Irene 2026-09-12
-  const [tab, setTab] = useState<'inbox' | 'clients'>('inbox');
+  const [tab, setTab] = useState<'inbox' | 'clients'>(embedded ? 'clients' : 'inbox');
   const [stage, setStage] = useState<string>('');
   const [access, setAccess] = useState<string>('');
   const [assignee, setAssignee] = useState<string>('');
@@ -78,7 +81,7 @@ export default function SalePage() {
   const [addOpen, setAddOpen] = useState(false);
   // 고객 탭 [+ 고객 추가](초대 / 직접 관리) — 2026-10-16 설정 > 고객 을 Q sale 로 합치며 옮겼다.
   //   관리 행위라 대표·플랫폼 관리자에게만(옛 설정 화면과 같은 선). 멤버는 고객 탭에서도 [응대 추가] 를 본다.
-  const canManage = user?.business_role === 'owner' || user?.platform_role === 'platform_admin';
+  const canManage = canManageClients(user);   // 프로젝트 > 고객 · 설정 > 구성원·고객 과 같은 술어
   const [clientAddOpen, setClientAddOpen] = useState(false);
   const [clientAddPrefill, setClientAddPrefill] = useState<{ name?: string; email?: string; company?: string; phone?: string; job_title?: string; department?: string } | null>(null);
   // 받은 명함에서 왔을 때(내 명함 > 받은 명함 [고객으로 추가] → ?new=1&card=<보관본 id>) — 서버 판정을 드로어에 넘긴다
@@ -124,10 +127,11 @@ export default function SalePage() {
   const urlQ = searchParams.get('q') || '';
   const urlTab = searchParams.get('tab');
   useEffect(() => {
+    if (embedded) return;   // 설정에 얹힌 고객 목록 — ?tab= 은 설정 화면의 것이다
     if (!urlQ && !urlTab) return;
     if (urlQ) setQ(urlQ);
     setTab(urlTab === 'clients' ? 'clients' : 'inbox');
-  }, [urlQ, urlTab]);
+  }, [urlQ, urlTab, embedded]);
 
   // `?new=1&email=&name=` — 메일 «고객으로 저장»·옛 설정 > 고객 주소가 보낸다. 고객 탭에서 고객 추가를 **채워서** 연다.
   //   한 번 쓰고 지운다(새로고침·공유 때 다시 열리지 않게). keep-alive 탭이라 초기값이 아니라 주소를 따라간다.
@@ -256,8 +260,9 @@ export default function SalePage() {
     ];
   }, [items, t]);
 
+  const Shell = embedded ? EmbeddedShell : PageShell;
   return (
-    <PageShell
+    <Shell
       title={t('page.title') as string}
       count={summary ? summary.in_progress : undefined}
       actions={(
@@ -270,7 +275,7 @@ export default function SalePage() {
               ★ 2026-09-14 2차 → 3차로 **한 번 더 바뀌었다.** 2차에는 검색까지 머리줄로 올렸는데
                 Irene 이 되돌렸다(*"검색창 왜 위에 있어? 필터들 맨 앞에 둬."*).
                 지금 자리 — 머리줄: [상담|고객] [+ 고객응대 내역 추가] / 필터줄: [검색] [단계] [접근] … */}
-          <SegmentedToggle role="tablist">
+          {!embedded && <SegmentedToggle role="tablist">
             <SegmentedBtn type="button" role="tab" aria-selected={tab === 'inbox'} data-testid="sale-tab-inbox"
               $active={tab === 'inbox'} onClick={() => setTab('inbox')}>
               {t('list.tabInbox') as string}
@@ -279,7 +284,7 @@ export default function SalePage() {
               $active={tab === 'clients'} onClick={() => setTab('clients')}>
               {t('list.tabClients') as string}
             </SegmentedBtn>
-          </SegmentedToggle>
+          </SegmentedToggle>}
           {/* ★ 2026-09-14 3차 (Irene: *"+고객응대 내역 추가 버튼은 Q task 에 +업무추가랑 같은
               버튼으로 해. 활성화 버튼."* · *"프로젝트 헤더처럼."*)
               머리줄 주 액션은 **공용 `HeaderCta` 한 곳**에서 온다 — 프로젝트 [+ 새 프로젝트] ·
@@ -305,7 +310,7 @@ export default function SalePage() {
               <LongLabel>{t('clients:addClient') as string}</LongLabel>
               <ShortLabel>{t('clients:addClient') as string}</ShortLabel>
             </HeaderCta>
-          ) : (
+          ) : embedded ? null : (
             <HeaderCta data-testid="sale-add-inquiry" onClick={() => setAddOpen(true)}>
               <PlusIcon aria-hidden />
               {/* 폰은 짧은 이름 — 세 컨트롤이 한 줄(폭 365)을 넘어 버튼이 화면 끝에 붙었다(#445) */}
@@ -318,7 +323,7 @@ export default function SalePage() {
               상담을 **지금 진행**하는 문 — 메뉴는 Q note 사이드바의 ＋ 와 **같은 한 벌**이다
               (`components/QNote/newNoteMenu`). 여기서 다시 그리면 항목이 갈라진다.
               고르면 Q note 를 **새 탭**으로 연다 — 보던 상담 목록을 덮지 않는다. */}
-          <NewSessionWrap ref={noteAnchor.wrapRef}>
+          {!embedded && <NewSessionWrap ref={noteAnchor.wrapRef}>
             <ProceedBtn
               type="button"
               data-testid="sale-proceed-consult"
@@ -339,7 +344,7 @@ export default function SalePage() {
                 onPick={(kind) => { noteAnchor.close(); openQNoteWithKind(kind); }}
               />
             )}
-          </NewSessionWrap>
+          </NewSessionWrap>}
         </Actions>
       )}
     >
@@ -347,7 +352,7 @@ export default function SalePage() {
           어차피 같은 맥락으로 추가되는 거니까 상위가 맞아").
           두 탭 어디서 말하든 같은 곳(상담)에 들어가므로 탭에 종속된 자리가 아니다 —
           탭 아래에 두면 "이 탭에만 해당하는 입력" 으로 읽힌다. */}
-      {businessId && (
+      {businessId && !embedded && (
         <SaleCueBar businessId={businessId}
           onCreated={() => {
             // ★ 등록했으면 **그 자리(상담 탭)** 에서 보인다 — 고객 탭으로 튕기지 않는다.
@@ -366,7 +371,7 @@ export default function SalePage() {
           · 대응 필요만 = 알약(지금 이것만 본다) / 종료 가리기 = 체크박스(늘 이렇게 본다). 쓰임이 다르다.
           · 좁아지면 가로로 숨기지 않고 **줄이 바뀐다**. */}
       {/* #449 — 다듬는 중인 메뉴라는 것을 화면이 말한다(베타 여부는 navMenus 한 곳). */}
-      <BetaNotice path="/sale" onFeedback={() => openFeedback()} />
+      {!embedded && <BetaNotice path="/sale" onFeedback={() => openFeedback()} />}
       <FilterBar data-testid="sale-filter-row">
         {/* ★ 2026-09-14 3차 (Irene: *"Q sale 에서 검색창 왜 위에 있어? 필터들 맨 앞에 둬.
             단계 셀렉트 앞에."*) — 오전에 헤더로 올렸던 검색을 **필터줄 맨 앞**으로 되돌렸다.
@@ -619,7 +624,17 @@ export default function SalePage() {
         onClose={() => setPanelClientId(null)}
         onChanged={() => load({ silent: true })}
       />
-    </PageShell>
+    </Shell>
+  );
+}
+
+// 설정 화면 안에 얹힐 때의 껍데기 — 머리줄(PageShell)은 바깥 화면의 것이다. 액션만 목록 위 오른쪽에.
+function EmbeddedShell({ actions, children }: { title?: string; count?: number; actions?: React.ReactNode; children?: React.ReactNode }) {
+  return (
+    <EmbedWrap data-testid="sale-embedded">
+      {actions && <EmbedHead>{actions}</EmbedHead>}
+      {children}
+    </EmbedWrap>
   );
 }
 
@@ -627,6 +642,8 @@ export default function SalePage() {
 /* 폰에서는 액션 줄이 가로로 스크롤된다(PageShell). 그대로 두면 **주 액션이 화면 밖 오른쪽**에 있어
    스크롤해야 닿는다(실측 390px: 앞의 컨트롤이 자리를 다 먹고 "+ 고객응대 내역 추가" 가 뷰포트 밖).
    → 폰에서는 주 액션을 맨 앞으로 돌린다. 탭은 오른쪽으로 흘러도 스크롤로 닿는다. */
+const EmbedWrap = styled.div`display:flex;flex-direction:column;gap:12px;min-width:0;`;
+const EmbedHead = styled.div`display:flex;justify-content:flex-end;`;
 const LongLabel = styled.span`@media (max-width: 640px) { display: none; }`;
 const ShortLabel = styled.span`display: none; @media (max-width: 640px) { display: inline; }`;
 const Actions = styled.div`

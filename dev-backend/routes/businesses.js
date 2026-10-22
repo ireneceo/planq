@@ -1465,6 +1465,7 @@ router.patch('/:id/members/:memberId/role', authenticateToken, async (req, res, 
       oldValue: { role: prevRole, user_id: member.user_id }, newValue: { role: nextRole },
     }, { transaction: t });
     await t.commit();
+    try { req.app.get('io')?.to(`business:${businessId}`).emit('member:updated', { user_id: member.user_id, business_id: businessId }); } catch { /* 신호는 부가 */ }
     return successResponse(res, member.toJSON());
   } catch (err) { await t.rollback().catch(() => {}); next(err); }
 });
@@ -1883,6 +1884,8 @@ router.put('/:businessId/me/profile', authenticateToken, checkBusinessAccess, as
       if ('name' in updates) clUpdates.display_name = updates.name;
       if ('name_localized' in updates) clUpdates.display_name_localized = updates.name_localized;
       await cl.update(clUpdates);
+      // 신호만 — 고객 목록·패널·팝오버가 다시 읽는다(2026-10-22 사람 카드 동기화)
+      try { req.app.get('io')?.to(`business:${businessId}`).emit('client:updated', { id: cl.id, business_id: businessId }); } catch { /* 신호는 부가 */ }
       return successResponse(res, {
         scope: 'client',
         name: cl.display_name,
@@ -1893,6 +1896,8 @@ router.put('/:businessId/me/profile', authenticateToken, checkBusinessAccess, as
     const bm = await BusinessMember.findOne({ where: { user_id: req.user.id, business_id: businessId } });
     if (!bm) return errorResponse(res, 'forbidden', 403);
     await bm.update(updates);
+    // 신호만 — 설정 멤버 목록·멤버 상세·대화 팝오버가 다시 읽는다(2026-10-22 사람 카드 동기화, clientToMember 와 같은 모양)
+    try { req.app.get('io')?.to(`business:${businessId}`).emit('member:updated', { user_id: req.user.id, business_id: businessId }); } catch { /* 신호는 부가 */ }
     return successResponse(res, {
       scope: 'member',
       name: bm.name,

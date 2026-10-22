@@ -27,6 +27,7 @@ import DetailDrawer from '../Common/DetailDrawer';
 import ActionButton from '../Common/ActionButton';
 import OverflowMenu, { type OverflowItem } from '../Common/OverflowMenu';
 import LetterAvatar from '../Common/LetterAvatar';
+import PersonBasics, { EmailLink, fromClient } from '../People/PersonBasics';
 import { useChromeNav } from '../../hooks/useChromeNav';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
 import {
@@ -410,7 +411,7 @@ const ClientPanel: React.FC<Props> = ({
           <TopText>
             {cid && data ? (
               <>
-                {data.company_name && data.display_name && <TopSub>{data.company_name}</TopSub>}
+                <PersonBasics person={fromClient(data)} orgOnly />
                 {/* 단계는 **여기서 바꾼다**. 전체 프로필과 같은 ChipPopover 다 — 새로 그리면 두 화면이 갈라진다.
                     'lost' 를 고르면 changeStage 가 사유 모달로 보낸다(왜 깨졌는지가 원장에 남아야 한다). */}
                 <ChipPopover
@@ -521,11 +522,11 @@ const ClientPanel: React.FC<Props> = ({
                     청구·세금계산서 주소는 값이 있을 때만 나온다(Row 가 빈 값을 안 그린다). */}
               <Section>
                 {sameEmail ? (
-                  <Row label={t('panel.email') as string} value={data.contact?.account_email || data.contact?.invite_email} />
+                  <Row email label={t('panel.email') as string} value={data.contact?.account_email || data.contact?.invite_email} />
                 ) : (
                   <>
-                    <Row label={t('panel.accountEmail') as string} value={data.contact?.account_email} />
-                    <Row label={t('panel.inviteEmail') as string} value={data.contact?.invite_email} />
+                    <Row email label={t('panel.accountEmail') as string} value={data.contact?.account_email} />
+                    <Row email label={t('panel.inviteEmail') as string} value={data.contact?.invite_email} />
                   </>
                 )}
               </Section>
@@ -709,9 +710,8 @@ const ClientPanel: React.FC<Props> = ({
   );
 };
 
-const Row: React.FC<{ label: string; value?: string | null }> = ({ label, value }) => (
-  value ? <FieldRow><FieldLabel>{label}</FieldLabel><FieldValue>{value}</FieldValue></FieldRow> : null
-);
+const Row: React.FC<{ label: string; value?: string | null; email?: boolean }> = ({ label, value, email }) => (value
+  ? <FieldRow><FieldLabel>{label}</FieldLabel><FieldValue>{email ? <EmailLink email={value} /> : value}</FieldValue></FieldRow> : null);
 
 export default ClientPanel;
 

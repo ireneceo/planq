@@ -9,6 +9,7 @@
 //
 // 스트림은 services/event_stream 이 감사로그·업무·청구·메시지를 시간순으로 병합해 준다.
 // 여기서는 그것을 그대로 보여주고 **누가·언제·무엇을** 만 분명히 한다.
+import { useLocation } from 'react-router-dom';
 import React, { useCallback, useEffect, useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
@@ -54,6 +55,13 @@ const ActivityLogSection: React.FC<{ businessId: number | null }> = ({ businessI
   const [scope, setScope] = useState<Scope>('admin');
   const [actor, setActor] = useState<number | null>(null);
   const [actorOptions, setActorOptions] = useState<{ value: number; label: string }[]>([]);
+  // 멤버 상세 «활동 보기»(components/People/MemberLinks)가 ?actor=<user_id> 로 연다 — 주소가 바뀔 때마다 읽는다
+  //   (useState 초기값으로만 읽으면 살아 있는 탭에서 두 번째 사람부터 안 걸린다). 그 사람의 기록은 «전체» 로 본다.
+  const location = useLocation();
+  useEffect(() => {
+    const a = Number(new URLSearchParams(location.search).get('actor'));
+    if (Number.isInteger(a) && a > 0) { setActor(a); setScope('all'); }
+  }, [location.search]);
   useEffect(() => {
     if (!businessId) return;
     let alive = true;

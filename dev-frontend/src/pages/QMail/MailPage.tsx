@@ -67,6 +67,8 @@ import { isEnterAction } from '../../utils/imeKey';
 import { onFlushPendingSaves } from '../../services/pendingSaves';
 import { keepaliveJson } from '../../services/keepaliveFetch';
 import { promoteInboxItem, promoteErrorKey } from '../../services/sale';
+import { tabStore } from '../../stores/tabStore';
+
 import {
   AcctFilterRow,
   FilterToggleRow,
@@ -187,6 +189,9 @@ import {
   LearnBar, LearnText, LearnLink, LearnClose,
   ImpersonationBadge, SpamReasonBadge, ImpersonationNote,
 } from './MailPage.styles';
+
+// ?compose=1&to= 로 받는 주소 — 모양이 아니면 버린다(주소창으로 아무 글자나 받는 사람 칸에 심지 않는다)
+const COMPOSE_TO_RE = /^[^\s@,;<>]+@[^\s@,;<>]+\.[^\s@,;<>]+$/;
 
 type Folder = 'reply_needed' | 'uncertain' | 'all' | 'sent' | 'marketing' | 'following' | 'spam' | 'archived';
 
@@ -2077,6 +2082,9 @@ const MailPage: React.FC = () => {
   // "이 주소로 새 메일" 로 열렸는지. 열릴 때 한 번만 쓰이고 닫히면 비워진다.
   //   ref 인 이유: addressActions 는 [businessId] 로만 메모돼 있어 state 를 읽으면 낡은 값을 본다.
   const composeFreshToRef = useRef<string | null>(null);
+  // 사람 화면의 이메일로 열린 작성인가(?back=1) — 닫힐 때 보던 곳으로 돌아간다(closeCompose)
+  //   값: '1' = 뒤로(폰) · 그 밖 = 연 탭의 id(탭 모드 — 작성 탭을 닫고 그 탭으로)
+  const composeBackRef = useRef<string | null>(null);
   // 그 경로에서 **건드리지 않고 남겨 둔** 초안이 있으면 화면이 그렇게 말한다 —
   //   말하지 않으면 사용자는 "내가 쓰던 메일이 날아갔나" 로 읽는다.
   const [keptDraftNotice, setKeptDraftNotice] = useState(false);
@@ -2183,14 +2191,20 @@ const MailPage: React.FC = () => {
   //   서버의 단일 초안 row 를 음성 내용으로 영구 재작성한다 (되돌릴 수 없음).
   const composeVoiceUntouched = useRef(false);
   // #80 — 퀵메뉴 '+메일' 진입 시 작성 모달 자동 오픈
+  //   ★ 2026-10-22 사람 화면의 이메일(components/People/EmailLink)이 `&to=<주소>&back=1` 을 붙여 연다
+  //     (Fable 판정 2). 받는 사람은 «이 주소로 새 메일» 과 **같은 길**(onCompose — 빈 폼 + 그 주소, 서버 초안이 덮지 않음)로.
+  //     back=1 이면 보내거나 닫을 때 보던 곳으로 돌아간다(closeCompose). 소비한 인자는 주소에서 지운다.
   useEffect(() => {
     if (sp.get('compose') === '1') {
       const voice = (location.state as { voice?: VoiceHandoff } | null)?.voice ?? takeVoiceHandoff('mail');
       if (voice) pendingVoiceRef.current = voice;
-      setComposeOpen(true);
-      const next = new URLSearchParams(sp); next.delete('compose'); setSp(next, { replace: true });
+      const to = (sp.get('to') || '').trim();
+      composeBackRef.current = sp.get('back') || null;
+      if (to && COMPOSE_TO_RE.test(to) && !voice) addressActions.onCompose(to);
+      else setComposeOpen(true);
+      const next = new URLSearchParams(sp); next.delete('compose'); next.delete('to'); next.delete('back'); setSp(next, { replace: true });
     }
-  }, [sp, setSp, location.state]);
+  }, [sp, setSp, location.state, addressActions]);
   // ── 전달(forward) 초안 — **이 브라우저에 보존** ──
   //   서버 초안(email_drafts)에는 "어느 메일을 전달 중인지" 를 담을 자리가 없다(in_reply_to 만 있다).
   //   그래서 전달은 초안 저장에서 통째로 빠져 있었고, 쓴 게 있으면 **이동 자체를 막았다**
@@ -2387,6 +2401,20 @@ const MailPage: React.FC = () => {
   const closeCompose = (reason: 'user' | 'sent') => {
     if (reason === 'user') void sendPendingDraft(composePendingRef); else composePendingRef.current = null;
     setComposeOpen(false); resetComposeFields();
+    // 사람 화면의 이메일로 열린 작성(back=1) — 보내거나 닫으면 보던 곳으로(Irene: "모바일은 보내고 뒤로가게").
+    //   폰(미러) = 뒤로 · 탭 모드 = 이 작성 탭을 닫는다(EmailLink 가 새 탭으로 열었다). 메일 목록에 남겨 두지 않는다.
+    const back = composeBackRef.current;
+    if (back) {
+      composeBackRef.current = null;
+      const snap = tabStore.getSnapshot();
+      if (snap.mirror) { if (window.history.length > 1) window.history.back(); }
+      else if (snap.activeId) {
+        const me = snap.activeId;
+        const opener = snap.tabs.some((x) => x.id === back && x.id !== me) ? back : null;
+        if (opener) tabStore.setActive(opener);
+        tabStore.closeTab(me);
+      }
+    }
   };
   // 새 메일 열기 — [+ 새 메일]·빈 화면 CTA 가 같이 쓰는 문.
   //   ★ 2026-10-15 (Irene: "전달 눌렀다가 다시 새메일 쓰려고 + 누르면 리셋 안되고 전달한 내용이 남아있어")

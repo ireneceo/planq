@@ -4,8 +4,10 @@
     "subtitle": "Manage brand, legal info, language, and timezone"
   },
   "membersPage": {
-    "title": "Members",
-    "subtitle": "Manage teammates and the AI teammate (Cue)"
+    "title": "Members & clients",
+    "subtitle": "Manage teammates, the AI teammate (Cue) and clients in one place",
+    "tabMembers": "Members",
+    "tabClients": "Clients"
   },
   "tabs": {
     "brand": "Brand",
@@ -495,7 +497,8 @@
       "deptLead": "Department head",
       "unassigned": "Unassigned",
       "teamLead": "Team lead",
-      "payrollContracts": "View contract history"
+      "payrollContracts": "View contract history",
+      "title": "Member details"
     },
     "roleAdmin": "Admin",
     "roleMember": "Member",
@@ -554,6 +557,48 @@
       "confirmSkipped": "Not sent: {{list}}",
       "confirmSeats": "Seats left after sending: {{n}}",
       "confirmSend": "Send"
+    },
+    "links": {
+      "projects": "Projects",
+      "tasks": "Tasks",
+      "doneCount": "{{n}} done",
+      "history": "History",
+      "loading": "Loading…",
+      "loadFailed": "Could not load.",
+      "noProjects": "Not in any project.",
+      "noTasks": "No tasks in progress.",
+      "noHistory": "No recent activity.",
+      "recentDone": "Recently completed",
+      "more": "Show {{n}} more",
+      "less": "Show less",
+      "activity": "See full activity log →",
+      "role": {
+        "assignee": "Assignee",
+        "requester": "Requester",
+        "creator": "Creator"
+      },
+      "projectStatus": {
+        "paused": "Paused",
+        "closed": "Closed"
+      },
+      "event": {
+        "created": "Created task",
+        "status_change": "Changed status",
+        "ack": "Acknowledged request",
+        "review_submit": "Requested review",
+        "review_cancel": "Canceled review request",
+        "approve": "Approved",
+        "revision": "Requested changes",
+        "revert": "Undid decision",
+        "reviewer_add": "Added reviewer",
+        "reviewer_remove": "Removed reviewer",
+        "policy_change": "Changed review policy",
+        "done_feedback": "Approved (final pending)",
+        "completed": "Completed",
+        "hold": "Put on hold",
+        "resume": "Resumed",
+        "external_review": "External review"
+      }
     }
   },
   "cue": {

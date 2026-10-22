@@ -15,7 +15,9 @@ import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { apiFetch } from '../../contexts/AuthContext';
 import LetterAvatar from './LetterAvatar';
+import EmailLink from '../People/EmailLink';
 import { tabStore } from '../../stores/tabStore';
+import { onSocket } from '../../services/socket';
 
 interface OrgUnit { id: number; name: string; name_en?: string | null }
 interface MemberRow {
@@ -35,6 +37,11 @@ interface ClientRow {
   user_id: number | null;
   display_name: string | null;
   company_name: string | null;
+  job_title?: string | null;
+  department?: string | null;
+  phone?: string | null;
+  invite_email?: string | null;
+  user?: { email?: string | null } | null;
 }
 
 interface UserInfo {
@@ -56,9 +63,18 @@ interface UserInfo {
 
 // 워크스페이스별 캐시 — 첫 열림 시 1회 fetch, 이후 popover 재오픈 빠름
 const memberCache = new Map<number, { ts: number; members: MemberRow[]; clients: ClientRow[] }>();
+// 프로필이 바뀌면 캐시를 버린다 — 다음에 열 때 새로 읽는다(2026-10-22 사람 카드 동기화)
+let cacheWired = false;
+function wireCacheInvalidation() {
+  if (cacheWired) return;
+  cacheWired = true;
+  const drop = (p?: { business_id?: number }) => { if (p?.business_id) memberCache.delete(Number(p.business_id)); else memberCache.clear(); };
+  ['member:updated', 'client:updated', 'client:new', 'member_role:updated'].forEach((ev) => onSocket<{ business_id?: number }>(ev, drop));
+}
 const CACHE_TTL = 60 * 1000;
 
 async function fetchAndResolve(businessId: number, userId: number): Promise<UserInfo | null> {
+  wireCacheInvalidation();
   const cached = memberCache.get(businessId);
   const fresh = cached && Date.now() - cached.ts < CACHE_TTL;
   let members: MemberRow[] = [];
@@ -101,6 +117,10 @@ async function fetchAndResolve(businessId: number, userId: number): Promise<User
       name: client.display_name || '',
       company_name: client.company_name || null,
       client_id: client.id,
+      // 멤버와 같은 칸(사람 카드 한 모양 — components/People): 직책·이메일·전화
+      job_title: client.job_title || null,
+      email: client.user?.email || client.invite_email || null,
+      phone: client.phone || null,
     };
   }
   return { scope: 'unknown', name: '' };
@@ -198,7 +218,7 @@ const UserInfoPopover: React.FC<Props> = ({ open, userId, businessId, anchorEl, 
               {info.email && (
                 <Field>
                   <FieldLabel>{t('userInfo.email', '이메일')}</FieldLabel>
-                  <FieldValue><a href={`mailto:${info.email}`}>{info.email}</a></FieldValue>
+                  <FieldValue><EmailLink email={info.email} /></FieldValue>
                 </Field>
               )}
               {info.job_title && (

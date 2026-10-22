@@ -1,6 +1,5 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import styled from 'styled-components';
-import { backButtonLook, BackChevron } from '../../components/Layout/PanelHeader';
 import { tabStore } from '../../stores/tabStore';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
@@ -50,7 +49,11 @@ import {
   type BulkInviteRow,
 } from '../../services/workspace';
 import ConfirmDialog from '../../components/Common/ConfirmDialog';
-import { belowTabs } from '../../theme/layout';
+import DetailDrawer from '../../components/Common/DetailDrawer';
+import SalePage from '../QSale/SalePage';
+import { SegmentedToggle, SegmentedBtn } from '../../components/Common/segmentedToggle';
+import MemberLinks from '../../components/People/MemberLinks';
+import EmailLink from '../../components/People/EmailLink';
 import ModulesSection from '../../components/Settings/ModulesSection';
 import PayrollManagersSection from '../../components/Permissions/PayrollManagersSection';
 import RolePicker from '../../components/MemberRole/RolePicker';
@@ -422,40 +425,9 @@ const RoleBadge = styled.span<{ $role?: string }>`
 `;
 
 
-// ─── 멤버 상세 드로어 ───
-const MemberDrawerBackdrop = styled.div`
-  position: fixed; left: 0; right: 0; bottom: 0; ${belowTabs}
-  background: rgba(15,23,42,0.2); z-index: 90;
-`;
-const MemberDrawer = styled.aside`
-  position: fixed; right: 0; bottom: 0; width: 440px; max-width: 100vw;
-  /* 기준선은 theme/layout 의 조각 하나로 — 각자 쓰면 갈라진다(2026-09-06 전수조사). */
-  ${belowTabs}
-  background: #FFFFFF; border-left: 1px solid #E2E8F0; box-shadow: -4px 0 16px rgba(0,0,0,0.06);
-  z-index: 100; display: flex; flex-direction: column;
-  @media (max-width: 1024px) { width: min(560px, 90vw); }
-  @media (max-width: 640px) { width: 100vw; border-left: none; box-shadow: none; }
-`;
-const MemberDrawerHeader = styled.div`
-  display: flex; align-items: center; justify-content: space-between;
-  min-height: 60px; padding: 14px 20px; border-bottom: 1px solid #E2E8F0;
-  @media (max-width: 640px) { padding-left: 14px; padding-right: 14px; }
-`;
-/* 2026-10-19 — 다른 상세(공용 우측 패널)와 같은 규칙: 폰·태블릿은 왼쪽 ‹ (공용 모양), 폰은 ✕ 를 숨긴다.
-   옛 «‹ 목록» 글자 버튼은 이 패널에만 있던 모양이었다. */
-const MemberDrawerBack = styled.button`
-  ${backButtonLook}
-  display: none;
-  @media (max-width: 1024px) { display: inline-flex; }
-`;
-const MemberDrawerClose = styled.button`
-  width: 28px; height: 28px; display: flex; align-items: center; justify-content: center;
-  margin-left: auto;
-  background: transparent; border: none; border-radius: 6px; color: #64748B; cursor: pointer;
-  &:hover { background: #F1F5F9; color: #0F172A; }
-  @media (max-width: 640px) { display: none; }
-`;
-const MemberDrawerScroll = styled.div`flex: 1; overflow: auto; padding: 20px;`;
+// ─── 멤버 상세 — 껍데기는 공용 DetailDrawer(2026-10-22). 여기는 본문 모양만 ───
+const PeopleToggleRow = styled.div`display:flex;margin-bottom:12px;`;
+const MemberPanelTitle = styled.span`font-size:0.9375rem;font-weight:700;color:#0F172A;`;
 const DrawerHeadRow = styled.div`display: flex; align-items: center; gap: 14px; padding-bottom: 20px; border-bottom: 1px solid #F1F5F9;`;
 const DrawerHeadText = styled.div`flex: 1; min-width: 0;`;
 const DrawerName = styled.div`font-size: 1.125rem; font-weight: 700; color: #0F172A;`;
@@ -602,12 +574,14 @@ export default function WorkspaceSettingsPage() {
   useEffect(() => {
     if (!businessId) return undefined;
     let timer: number | null = null;
-    const off = onSocket<{ business_id?: number }>('member_role:updated', (p) => {
+    // member:updated — 프로필·역할 변경·고객→멤버 전환(2026-10-22 사람 카드 동기화). 신호만 받고 다시 읽는다.
+    const reload = (p?: { business_id?: number }) => {
       if (p?.business_id && Number(p.business_id) !== Number(businessId)) return;
       if (timer) window.clearTimeout(timer);
       timer = window.setTimeout(() => { void listMembers(businessId).then(setMembers).catch(() => {}); }, 300);
-    });
-    return () => { off(); if (timer) window.clearTimeout(timer); };
+    };
+    const offs = ['member_role:updated', 'member:updated'].map((ev) => onSocket<{ business_id?: number }>(ev, reload));
+    return () => { offs.forEach((off) => off()); if (timer) window.clearTimeout(timer); };
   }, [businessId]);
   const [inviteOpen, setInviteOpen] = useState(false);
   const [inviteEmail, setInviteEmail] = useState('');
@@ -625,6 +599,18 @@ export default function WorkspaceSettingsPage() {
   //   여태 state 뿐이라 **바깥에서 이 사람을 가리킬 방법이 없었다** — 채팅 아바타 팝오버가
   //   "프로필 열기" 를 걸 곳이 없던 이유다. 키를 member.id 가 아니라 user_id 로 잡는 이유:
   //   부르는 쪽(채팅·업무·메일)이 아는 것은 사람의 id 이지 워크스페이스 멤버 행 번호가 아니다.
+  // 설정 › 멤버·고객 — [멤버 | 고객] 알약(2026-10-22 Fable 판정 4). 고객 쪽은 Q sale 고객 목록 **본체**(SalePage embedded)다.
+  //   주소 ?tab=clients 가 정본(새로고침·공유에 남는다). 바꾸면 열린 상세(?member=/?client=)는 닫는다.
+  const peopleView: 'members' | 'clients' = isMembersMode && searchParams.get('tab') === 'clients' ? 'clients' : 'members';
+  const canSeeClientList = !!user && user.business_role !== 'client' && user.menu_levels?.qsale !== 'none';
+  const setPeopleView = (v: 'members' | 'clients') => {
+    setSearchParams((sp) => {
+      const out = new URLSearchParams(sp);
+      if (v === 'clients') out.set('tab', 'clients'); else out.delete('tab');
+      out.delete('member'); out.delete('client');
+      return out;
+    }, { replace: true });
+  };
   const memberParam = searchParams.get('member');
   useEffect(() => {
     if (!memberParam) { setSelectedMemberId(null); return; }
@@ -1508,7 +1494,22 @@ export default function WorkspaceSettingsPage() {
       )}
 
       {/* ─── MEMBERS ─── */}
-      {tab === 'members' && (
+      {tab === 'members' && canSeeClientList && (
+        <PeopleToggleRow>
+          <SegmentedToggle role="tablist" aria-label={t('membersPage.title') as string}>
+            <SegmentedBtn type="button" role="tab" aria-selected={peopleView === 'members'} $active={peopleView === 'members'}
+              data-testid="people-tab-members" onClick={() => setPeopleView('members')}>
+              {t('membersPage.tabMembers', '멤버')}
+            </SegmentedBtn>
+            <SegmentedBtn type="button" role="tab" aria-selected={peopleView === 'clients'} $active={peopleView === 'clients'}
+              data-testid="people-tab-clients" onClick={() => setPeopleView('clients')}>
+              {t('membersPage.tabClients', '고객')}
+            </SegmentedBtn>
+          </SegmentedToggle>
+        </PeopleToggleRow>
+      )}
+      {tab === 'members' && peopleView === 'clients' && canSeeClientList && <SalePage embedded />}
+      {tab === 'members' && (peopleView === 'members' || !canSeeClientList) && (
         <>
           <Card>
             <SectionHeaderRow>
@@ -1648,6 +1649,10 @@ export default function WorkspaceSettingsPage() {
             onChanged={() => { void roleDict.reload(); void listMembers(businessId).then(setMembers).catch(() => {}); }} />
 
           {/* 멤버 상세 드로어 */}
+          {/* ★ 2026-10-22 — 우측 패널 표준(DetailDrawer: 480 폭·폰 규칙·뒤로 가기=닫기)으로 올렸다(Fable 판정 5).
+              전엔 styled.aside 를 직접 그려 그 계약 밖이었다. 늘 마운트하고 open 으로 여닫는다(뒤로 가기 칸이 엇갈리지 않게). */}
+          <DetailDrawer open={selectedMemberId != null && members.some((m) => m.id === selectedMemberId)}
+            onClose={() => openMember(null)} ariaLabel={t('members.drawer.title', '멤버 상세') as string}>
           {selectedMemberId != null && (() => {
             const target = members.find((m) => m.id === selectedMemberId);
             if (!target) return null;
@@ -1661,19 +1666,10 @@ export default function WorkspaceSettingsPage() {
             const fmtLastLogin = u?.last_login_at ? formatDayTime(u.last_login_at, { year: 'always' }) : '—';
             return (
               <>
-                <MemberDrawerBackdrop onClick={() => openMember(null)} />
-                <MemberDrawer role="dialog" aria-modal="true" aria-label={targetName || 'member'}>
-                  <MemberDrawerHeader>
-                    <MemberDrawerBack type="button" onClick={() => openMember(null)}
-                      aria-label={t('members.drawer.back', '목록') as string} title={t('members.drawer.back', '목록') as string}>
-                      <BackChevron />
-                    </MemberDrawerBack>
-                    <MemberDrawerClose type="button" onClick={() => openMember(null)} aria-label={t('members.drawer.close', '닫기') as string}>
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-                    </MemberDrawerClose>
-                  </MemberDrawerHeader>
-
-                  <MemberDrawerScroll>
+                <DetailDrawer.Header onClose={() => openMember(null)}>
+                  <MemberPanelTitle>{t('members.drawer.title', '멤버 상세')}</MemberPanelTitle>
+                </DetailDrawer.Header>
+                <DetailDrawer.Body>
                     <DrawerHeadRow>
                       <Avatar $ai={false} style={{ width: 56, height: 56, fontSize: '1.375rem' }}>
                         {(targetName || '?').charAt(0).toUpperCase()}
@@ -1696,7 +1692,7 @@ export default function WorkspaceSettingsPage() {
                           <DrawerSectionHint>{t('members.drawer.profileHint', '본인만 수정 가능합니다.')}</DrawerSectionHint>
                           <DrawerInfoGrid>
                             <DrawerInfoLabel>{t('members.drawer.email', '이메일')}</DrawerInfoLabel>
-                            <DrawerInfoValue>{u?.email || '—'}</DrawerInfoValue>
+                            <DrawerInfoValue><EmailLink email={u?.email} empty="—" /></DrawerInfoValue>
                             <DrawerInfoLabel>{t('members.drawer.phone', '전화')}</DrawerInfoLabel>
                             <DrawerInfoValue>{u?.phone || '—'}</DrawerInfoValue>
                             <DrawerInfoLabel>{t('members.drawer.jobTitle', '직책')}</DrawerInfoLabel>
@@ -1762,6 +1758,12 @@ export default function WorkspaceSettingsPage() {
                             <DrawerInfoValue>{fmtLastLogin}</DrawerInfoValue>
                           </DrawerInfoGrid>
                         </DrawerSection>
+
+                        {/* 연결 프로젝트 · 업무 · 히스토리 — 보는 사람이 볼 수 있는 것만(서버 overview, Fable 판정 5) */}
+                        {businessId && target.user_id && (
+                          <MemberLinks key={`member-links-${target.user_id}`} businessId={businessId} userId={Number(target.user_id)}
+                            canSeeActivity={isAdmin} />
+                        )}
 
                         <DrawerSection>
                           <DrawerSectionTitle>{t('members.drawer.workHours', '가용시간')}</DrawerSectionTitle>
@@ -1964,11 +1966,11 @@ export default function WorkspaceSettingsPage() {
                         )}
                       </DrawerSection>
                     )}
-                  </MemberDrawerScroll>
-                </MemberDrawer>
+                </DetailDrawer.Body>
               </>
             );
           })()}
+          </DetailDrawer>
           {businessId && cardUserId && <NameCardViewDrawer businessId={businessId} userId={cardUserId} onClose={() => setCardUserId(null)} />}
         </>
       )}

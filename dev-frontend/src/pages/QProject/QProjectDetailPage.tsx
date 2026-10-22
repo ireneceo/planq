@@ -5,6 +5,11 @@ import { CONNECT_PROMPT } from '../../components/Common/connectPrompts';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { apiFetch, useAuth } from '../../contexts/AuthContext';
+import ClientAddDrawer from '../../components/Clients/ClientAddDrawer';
+import ClientPanel from '../../components/QSale/ClientPanel';
+import PersonBasics from '../../components/People/PersonBasics';
+import { fromProjectClient } from '../../components/People/personBasics';
+import { canManageClients } from '../../components/Clients/clientPermissions';
 import { isOtherWorkspace } from '../../utils/workspaceMatch';
 import { joinRoom, leaveRoom, onSocket } from '../../services/socket';
 import DetailFallback from '../../components/Common/DetailFallback';
@@ -104,8 +109,9 @@ import {
   StatusNoteHint,
   LinkClientBar,
   LinkClientLabel,
-  AddClientForm,
-  ClientInput,
+  AddClientRow,
+  ClientMain,
+  ClientNameBtn,
   AddClientBtn,
   Dim,
   MemberList,
@@ -173,7 +179,7 @@ interface ProjectDetail {
   my_role_in_project?: 'owner' | 'admin' | 'member' | 'client' | string;
   Business?: { id: number; name: string; brand_name?: string };
   projectMembers?: { user_id: number; role: string | null; is_pm?: boolean; User?: { id: number; name: string; display_name?: string | null }}[];
-  projectClients?: { id: number; client_id?: number | null; contact_name: string; contact_email: string | null; contact_user_id?: number | null; invite_token?: string | null; invited_at?: string | null }[];
+  projectClients?: { id: number; client_id?: number | null; contact_name: string; contact_email: string | null; contact_user_id?: number | null; invite_token?: string | null; invited_at?: string | null; client_status?: string | null; company_name?: string | null; job_title?: string | null; department?: string | null }[];
 }
 interface Conv {
   id: number;
@@ -283,8 +289,9 @@ const QProjectDetailPage: React.FC = () => {
     if (initialTab !== tab) setTabState(initialTab);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialTab]);
-  const [newClientName, setNewClientName] = useState('');
-  const [newClientEmail, setNewClientEmail] = useState('');
+  // 프로젝트 > 고객 [+ 고객 추가] — Q sale 과 같은 «초대 / 직접 관리» 폼(ClientAddDrawer, Fable 판정 3)
+  const [clientAddOpen, setClientAddOpen] = useState(false);
+  const [panelClientId, setPanelClientId] = useState<number | null>(null);
   const [issues, setIssues] = useState<{ id: number; body: string; author?: { name: string }; created_at: string }[]>([]);
   const [notes, setNotes] = useState<{ id: number; body: string; visibility: string; author?: { name: string }; created_at: string }[]>([]);
   const [newIssue, setNewIssue] = useState('');
@@ -1249,19 +1256,32 @@ const QProjectDetailPage: React.FC = () => {
               <ClientList>
                 {(project.projectClients || []).map(c => {
                   const joined = !!c.contact_user_id;
+                  // 직접 관리(초대 없이 정보만) — 초대를 보낸 적이 없으니 «초대 대기»·재발송이 아니다
+                  const managedOnly = !joined && (c.client_status === 'managed' || c.client_status === 'prospect');
+                  const person = fromProjectClient(c);
                   return (
-                    <ClientRow key={c.id}>
-                      <strong>{c.contact_name}</strong>
-                      <span>{c.contact_email || t('info.noValue', '—')}</span>
-                      {!joined && c.invited_at && (
+                    <ClientRow key={c.id} data-testid="project-client-row">
+                      <ClientMain>
+                        {c.client_id ? (
+                          <ClientNameBtn type="button" onClick={() => setPanelClientId(Number(c.client_id))}
+                            title={t('clients.openProfile', '고객 프로필 열기') as string}>
+                            {c.contact_name}
+                          </ClientNameBtn>
+                        ) : <strong>{c.contact_name}</strong>}
+                        <PersonBasics person={person} inline />
+                      </ClientMain>
+                      {!joined && !managedOnly && c.invited_at && (
                         <InviteSentAt title={t('clients.invitedAtTitle', '초대 발송 시각') as string}>
                           {t('clients.invitedAt', { defaultValue: '{{date}} 발송', date: formatDateTime(c.invited_at) })}
                         </InviteSentAt>
                       )}
-                      <ClientStatusPill $joined={joined} title={joined ? t('clients.joinedTitle', '워크스페이스 사용자로 참여 중') as string : t('clients.pendingTitle', '초대 발송 — 수락 대기 중') as string}>
-                        {joined ? t('clients.joined', '참여 중') : t('clients.pending', '초대 대기')}
+                      <ClientStatusPill $joined={joined}
+                        title={(joined ? t('clients.joinedTitle', '워크스페이스 사용자로 참여 중')
+                          : managedOnly ? t('clients.managedTitle', '가입·초대 없이 정보만 관리하는 고객')
+                          : t('clients.pendingTitle', '초대 발송 — 수락 대기 중')) as string}>
+                        {joined ? t('clients.joined', '참여 중') : managedOnly ? t('clients.managed', '직접 관리') : t('clients.pending', '초대 대기')}
                       </ClientStatusPill>
-                      {!joined && c.contact_email && (
+                      {!joined && !managedOnly && c.contact_email && (
                         <ResendBtn type="button" disabled={resendingIds.has(c.id)}
                           onClick={() => resendProjectInvite(c.id)}>
                           {resentIds.has(c.id)
@@ -1282,18 +1302,10 @@ const QProjectDetailPage: React.FC = () => {
                 })}
               </ClientList>
             )}
-            {/* 기존 워크스페이스 고객 연결 */}
+            {/* 기존 워크스페이스 고객 연결 — **고객 id 로** 붙인다(이름·이메일로 다시 찾으면 계정 없는 고객이 한 줄 더 생겼다) */}
             {(() => {
-              // 이미 이 프로젝트에 참여 중인 고객은 제외 — client_id 우선(견고), 이메일 보조.
-              //  (옛 버그: contact_email vs display_name 키 불일치로 미가입 초대고객이 또 노출)
               const joinedClientIds = new Set((project.projectClients || []).map((c) => c.client_id).filter(Boolean));
-              const joinedEmails = new Set((project.projectClients || []).map((c) => c.contact_email).filter(Boolean));
-              const candidates = bizClients.filter((b) => {
-                if (joinedClientIds.has(b.id)) return false;
-                const email = b.user?.email || b.invite_email;
-                if (email && joinedEmails.has(email)) return false;
-                return true;
-              });
+              const candidates = bizClients.filter((b) => !joinedClientIds.has(b.id));
               if (candidates.length === 0) return null;
               return (
                 <LinkClientBar>
@@ -1306,22 +1318,16 @@ const QProjectDetailPage: React.FC = () => {
                     onChange={async (opt) => {
                       const v = (opt as { value?: string } | null)?.value;
                       if (!v) return;
-                      const c = bizClients.find((x) => String(x.id) === v);
-                      if (!c) return;
-                      const name = c.display_name || c.user?.name || '';
-                      const email = c.user?.email || null;
                       const r = await apiFetch(`/api/projects/${projectId}/clients`, {
                         method: 'POST', headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ name, email }),
+                        body: JSON.stringify({ client_id: Number(v) }),
                       });
-                      const j = await r.json();
-                      if (j.success) {
-                        setProject((prev) => prev ? { ...prev, projectClients: [...(prev.projectClients || []), j.data] } : prev);
-                      }
+                      const j = await r.json().catch(() => null);
+                      if (j?.success) void load({ silent: true });
                     }}
                     options={candidates.map((c) => ({
                       value: String(c.id),
-                      label: `${c.display_name || c.user?.name}${c.company_name ? ' · ' + c.company_name : ''}${c.user?.email ? ' (' + c.user.email + ')' : ''}`,
+                      label: `${c.display_name || c.user?.name || c.company_name || ''}${c.company_name && c.display_name ? ' · ' + c.company_name : ''}${(c.user?.email || c.invite_email) ? ' (' + (c.user?.email || c.invite_email) + ')' : ''}`,
                     }))}
                   />
                   </div>
@@ -1329,26 +1335,29 @@ const QProjectDetailPage: React.FC = () => {
               );
             })()}
 
-            {/* 새 고객 초대 — 이메일로 초대 토큰 발급, 워크스페이스 고객은 나중에 수락 시 생성 */}
-            <AddClientForm onSubmit={async (e) => {
-              e.preventDefault();
-              const name = newClientName.trim();
-              if (!name) return;
-              const r = await apiFetch(`/api/projects/${projectId}/clients`, {
-                method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name, email: newClientEmail.trim() || null }),
-              });
-              const j = await r.json();
-              if (j.success) {
-                setProject(prev => prev ? { ...prev, projectClients: [...(prev.projectClients || []), j.data] } : prev);
-                setNewClientName(''); setNewClientEmail('');
-              }
-            }}>
-              <ClientInput placeholder={t('clients.newNamePlaceholder', '새 고객 이름') as string} value={newClientName} onChange={e => setNewClientName(e.target.value)} />
-              <ClientInput placeholder={t('clients.newEmailPlaceholder', '이메일 (선택, 초대 발송)') as string} type="email" value={newClientEmail} onChange={e => setNewClientEmail(e.target.value)} />
-              <AddClientBtn type="submit" disabled={!newClientName.trim()}>{t('clients.newInviteBtn', '+ 새로 초대')}</AddClientBtn>
-            </AddClientForm>
+            {/* 새 고객 — Q sale 고객 탭과 같은 폼(초대 / 직접 관리). 고객을 관리하는 손이 있는 사람에게만 */}
+            {canManageClients(authUser) && (
+              <AddClientRow>
+                <AddClientBtn type="button" data-testid="project-client-add" onClick={() => setClientAddOpen(true)}>
+                  {t('clients.addClient', '+ 고객 추가')}
+                </AddClientBtn>
+              </AddClientRow>
+            )}
           </Card>
+          <ClientAddDrawer
+            open={clientAddOpen}
+            onClose={() => setClientAddOpen(false)}
+            businessId={project.business_id}
+            projectId={projectId}
+            onDone={() => { void load({ silent: true }); }}
+            onOpenExisting={(id) => setPanelClientId(id)}
+          />
+          <ClientPanel
+            businessId={project.business_id}
+            clientId={panelClientId}
+            onClose={() => setPanelClientId(null)}
+            onChanged={() => { void load({ silent: true }); }}
+          />
         </ClientsBody>
       )}
       {tab === 'transactions' && <ProjectTabPane data-testid="project-tab-body-transactions"><TransactionsTab projectId={projectId} /></ProjectTabPane>}

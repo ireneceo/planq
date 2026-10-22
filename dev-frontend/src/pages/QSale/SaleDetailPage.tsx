@@ -7,6 +7,7 @@
 //   (같은 인스턴스를 다른 고객에 재사용하면 떠난 고객의 마지막 입력이 새 고객으로 저장된다).
 // ★ 다른 워크스페이스 고객 id 는 404 로 온다 — findOtherWorkspaceOf 로 물어 "전환 안내" 를 그린다.
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { fromClient, orgLine } from '../../components/People/personBasics';
 import { tabStore } from '../../stores/tabStore';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import styled from 'styled-components';
@@ -205,7 +206,8 @@ export default function SaleDetailPage() {
       <PanelHeader onBack={() => navigate('/sale')} backLabel={t('page.detailBack') as string} backOnDesktop>
         <TitleSlot>
           <PanelSubTitle>{title}</PanelSubTitle>
-          {client.company_name && client.display_name && <HeaderSub>{client.company_name}</HeaderSub>}
+          {/* 회사·부서·직책 — 사람 카드와 같은 한 줄(components/People/personBasics.orgLine) */}
+          {client.display_name && orgLine(fromClient(client)) && <HeaderSub>{orgLine(fromClient(client))}</HeaderSub>}
         </TitleSlot>
         <ActionSlot>
           <ActionButton tone="primary" size="sm" data-testid="sale-add-record" onClick={() => setRecordOpen(true)}>

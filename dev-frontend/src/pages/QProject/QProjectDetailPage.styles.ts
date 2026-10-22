@@ -249,7 +249,7 @@ export const ConvTitle = styled.span`flex:1;font-size:0.8125rem;color:#0F172A;`;
 
 
 export const ClientList = styled.div`display:flex;flex-direction:column;gap:6px;margin-bottom:12px;`;
-export const ClientRow = styled.div`display:flex;align-items:center;gap:10px;padding:8px 12px;border:1px solid #E2E8F0;border-radius:6px;strong{flex:1;font-size:0.8125rem;color:#0F172A;}span{font-size:0.75rem;color:#64748B;}`;
+export const ClientRow = styled.div`display:flex;flex-wrap:wrap;align-items:center;gap:10px;padding:8px 12px;border:1px solid #E2E8F0;border-radius:6px;strong{flex:1;font-size:0.8125rem;color:#0F172A;}span{font-size:0.75rem;color:#64748B;}`;
 export const ClientStatusPill = styled.span<{ $joined: boolean }>`
   flex-shrink:0;padding:2px 8px;border-radius:8px;font-size:0.625rem;font-weight:600;white-space:nowrap;
   ${p=>p.$joined?'background:#CCFBF1;color:#0F766E;':'background:#FEF3C7;color:#92400E;'}
@@ -278,9 +278,11 @@ export const CFConfirmBtn = styled.button`height:40px;padding:0 20px;background:
 
 export const LinkClientBar = styled.div`display:flex;gap:10px;align-items:center;padding:10px 12px;background:#F0FDFA;border:1px solid #CCFBF1;border-radius:8px;margin-bottom:8px;`;
 export const LinkClientLabel = styled.span`font-size:0.75rem;font-weight:600;color:#0F766E;flex-shrink:0;`;
-export const AddClientForm = styled.form`display:flex;gap:6px;align-items:center;padding:10px;background:#F8FAFC;border-radius:8px;border:1px dashed #E2E8F0;margin-top:4px;`;
-export const ClientInput = styled.input`flex:1;padding:6px 10px;border:1px solid #E2E8F0;border-radius:6px;font-size:0.75rem;font-family:inherit;&:focus{outline:none;border-color:#14B8A6;}`;
-export const AddClientBtn = styled.button`padding:6px 12px;background:#14B8A6;color:#FFF;border:none;border-radius:6px;font-size:0.75rem;font-weight:600;cursor:pointer;&:hover:not(:disabled){background:#0D9488;}&:disabled{background:#CBD5E1;cursor:not-allowed;}`;
+export const AddClientRow = styled.div`display:flex;justify-content:flex-end;margin-top:4px;`;
+// 이름 + 사람 카드(회사·직책·이메일) — 이름을 누르면 고객 패널(Q sale 과 같은 것)
+export const ClientMain = styled.div`flex:1;min-width:0;display:flex;flex-direction:column;gap:2px;`;
+export const ClientNameBtn = styled.button`align-self:flex-start;padding:0;border:none;background:none;font-size:0.8125rem;font-weight:700;color:#0F172A;cursor:pointer;text-align:left;font-family:inherit;&:hover{color:#0F766E;text-decoration:underline;}&:focus-visible{outline:2px solid #14B8A6;outline-offset:2px;border-radius:4px;}`;
+export const AddClientBtn = styled.button`min-height:36px;padding:6px 12px;background:#14B8A6;color:#FFF;border:none;border-radius:6px;font-size:0.75rem;font-weight:600;cursor:pointer;&:hover:not(:disabled){background:#0D9488;}&:disabled{background:#CBD5E1;cursor:not-allowed;}`;
 
 export const Dim = styled.div`padding:16px;text-align:center;font-size:0.75rem;color:#94A3B8;`;
 

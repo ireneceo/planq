@@ -402,7 +402,11 @@
     "invitedAtTitle": "Invite sent at",
     "resend": "Resend",
     "resending": "Sending…",
-    "resent": "Sent"
+    "resent": "Sent",
+    "managed": "Managed",
+    "managedTitle": "A client managed by your team without signing up or an invitation",
+    "addClient": "+ Add client",
+    "openProfile": "Open client profile"
   },
   "edit": {
     "projectName": "Project name",

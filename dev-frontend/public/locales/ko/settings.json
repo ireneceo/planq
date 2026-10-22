@@ -4,8 +4,10 @@
     "subtitle": "브랜드·법인 정보·언어·타임존을 관리합니다"
   },
   "membersPage": {
-    "title": "멤버 관리",
-    "subtitle": "팀원과 AI 팀원(Cue)을 관리합니다"
+    "title": "멤버·고객 관리",
+    "subtitle": "팀원·AI 팀원(Cue)과 고객을 한곳에서 관리합니다",
+    "tabMembers": "멤버",
+    "tabClients": "고객"
   },
   "tabs": {
     "brand": "브랜드",
@@ -495,7 +497,8 @@
       "deptLead": "부서장",
       "unassigned": "미배정",
       "teamLead": "팀장",
-      "payrollContracts": "계약 이력 보기"
+      "payrollContracts": "계약 이력 보기",
+      "title": "멤버 상세"
     },
     "roleAdmin": "관리자",
     "roleMember": "멤버",
@@ -554,6 +557,48 @@
       "confirmSkipped": "보내지 않는 주소: {{list}}",
       "confirmSeats": "보낸 뒤 남는 자리 {{n}}명",
       "confirmSend": "보내기"
+    },
+    "links": {
+      "projects": "연결 프로젝트",
+      "tasks": "업무",
+      "doneCount": "완료 {{n}}",
+      "history": "히스토리",
+      "loading": "불러오는 중…",
+      "loadFailed": "불러오지 못했습니다.",
+      "noProjects": "참여한 프로젝트가 없습니다.",
+      "noTasks": "진행 중인 업무가 없습니다.",
+      "noHistory": "최근 기록이 없습니다.",
+      "recentDone": "최근 완료",
+      "more": "{{n}}개 더 보기",
+      "less": "접기",
+      "activity": "활동 기록 전체 보기 →",
+      "role": {
+        "assignee": "담당",
+        "requester": "요청",
+        "creator": "작성"
+      },
+      "projectStatus": {
+        "paused": "일시중지",
+        "closed": "종료"
+      },
+      "event": {
+        "created": "업무 생성",
+        "status_change": "상태 변경",
+        "ack": "요청 확인",
+        "review_submit": "확인 요청",
+        "review_cancel": "확인 요청 취소",
+        "approve": "승인",
+        "revision": "수정 요청",
+        "revert": "결정 취소",
+        "reviewer_add": "컨펌자 추가",
+        "reviewer_remove": "컨펌자 제거",
+        "policy_change": "컨펌 정책 변경",
+        "done_feedback": "승인 완료",
+        "completed": "완료",
+        "hold": "보류",
+        "resume": "보류 해제",
+        "external_review": "외부 컨펌"
+      }
     }
   },
   "cue": {

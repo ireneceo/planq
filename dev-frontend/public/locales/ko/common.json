@@ -1850,5 +1850,8 @@
   "editorToolbar": {
     "scrollLeft": "앞 도구 보기",
     "scrollRight": "뒤 도구 보기"
+  },
+  "people": {
+    "composeTo": "{{email}} 에게 메일 쓰기"
   }
 }
