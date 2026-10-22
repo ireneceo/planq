@@ -1,7 +1,7 @@
 // DrawerFooter — PlanQ 우측 패널/모달 공용 푸터 (사이클 N+19)
 //
 // 30년차 UI/UX 디자이너 표준:
-//   위치  : sticky bottom (스크롤 시 액션 항상 보임)
+//   위치  : sticky bottom (스크롤 시 액션 항상 보임) — ★ 폰(≤640)은 고정 안 함(내용 끝에 온다, 2026-10-22)
 //   배경  : #FFFFFF (#F8FAFC body 와 대비)
 //   상단선: 1px solid #E2E8F0
 //   패딩  : 14px 20px (모바일 12px 16px)
@@ -59,6 +59,9 @@ const Wrap = styled.div<{ $sticky: boolean; $size: 'sm' | 'md' }>`
   flex-shrink: 0;
   z-index: 2;
   @media (max-width: 640px) {
+    /* ★ 폰에서는 화면에 고정하지 않는다(2026-10-22 — 키보드 위에 떠서 입력을 덮었다). 담는 상자가 내용과
+       함께 굴리고, 버튼 줄은 내용 끝(짧으면 바닥)에 온다 — DetailDrawer Panel 머리말. */
+    position: static;
     padding: 12px 14px;   /* 폰 좌우 = 페이지·드로어 본문과 같은 14px (#446) */
     padding-bottom: calc(12px + var(--pq-safe-bottom, 0px));
   }

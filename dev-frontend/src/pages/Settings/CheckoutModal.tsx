@@ -10,7 +10,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import styled from 'styled-components';
-import { modalFooterRadius } from '../../components/Common/modalShell';
+import { modalFooterRadius, phoneSheetFlow } from '../../components/Common/modalShell';
 import { useTranslation } from 'react-i18next';
 import { billingEntityVars } from '../../config/legalEntities';
 import { checkout, notifyPaymentPaid, startStripeCheckout, type PlanCode, type BillingCycle, type PlanDef, type TaxInvoiceInput } from '../../services/plan';
@@ -463,6 +463,8 @@ const Dialog = styled.div`
   @media (max-width: 640px) {
     width: 100%; max-height: none; border-radius: 0;
     height: calc(var(--vvh, 100vh) - var(--pq-popup-top, 0px));
+    /* 폰 전면 — 버튼 줄을 화면에 고정하지 않는다(modalShell phoneSheetFlow, 2026-10-22). */
+    ${() => phoneSheetFlow(ModalHeader, Body)}
   }
 `;
 const ModalHeader = styled.div`

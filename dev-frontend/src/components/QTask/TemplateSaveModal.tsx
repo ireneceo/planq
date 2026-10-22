@@ -2,7 +2,7 @@
 // 디자인: /docs PostAiModal 패턴 1:1 동일.
 import { useEffect, useState } from 'react';
 import styled from 'styled-components';
-import { modalFooterRadius } from '../Common/modalShell';
+import { modalFooterRadius, phoneSheetFlow } from '../Common/modalShell';
 import { useTranslation } from 'react-i18next';
 import ModalActionButton from '../Common/ModalActionButton';
 import { apiFetch } from '../../contexts/AuthContext';
@@ -142,6 +142,8 @@ const Dialog = styled.div`
   @media (max-width: 640px) {
     max-width: none; max-height: none; border-radius: 0;
     height: calc(100vh - var(--pq-popup-top, 0px)); height: calc(var(--vvh, 100dvh) - var(--pq-popup-top, 0px));
+    /* 폰 전면 — 버튼 줄을 화면에 고정하지 않는다(modalShell phoneSheetFlow, 2026-10-22). */
+    ${() => phoneSheetFlow(Header, Body)}
   }
 `;
 const Header = styled.div`

@@ -1770,6 +1770,12 @@ useBodyScrollLock(open);                 // ★ **가운데 모달에만.** 우�
 - **641~1024px:** `width: min(560px, 90vw)`
 - **≤640px:** `width: 100vw` 풀스크린, border-left·box-shadow 제거, `padding-bottom: env(safe-area-inset-bottom)`
 
+**폰(≤640)에서는 버튼 줄(취소·저장)을 화면에 고정하지 않는다** (2026-10-22, Irene: *"일정 추가할 때 모바일에서 푸터가 이상하게 높게 나오고 아래 뚫려서 뒤 내용 … 모바일에서는 모든 고정푸터 다 고정 안해야 하는 거 아니야?"*) —
+껍데기(DetailDrawer Panel · StandardModal 전면 Dialog · 전면 자체 모달)가 **본문+버튼 줄을 한 상자로** 굴리고, 머리(뒤로·제목·닫기)만 위에 붙는다. 버튼 줄은 내용 끝(짧으면 바닥).
+키보드가 뜰 때 고정 줄이 키보드 위 — 화면 가운데 — 에 떠서 입력·날짜 고르기를 덮던 것이다. 껍데기 아래 틈(보이는 높이 < 화면)은 흰색으로 잇는다(그림자).
+자체 모달은 `components/Common/modalShell.phoneSheetFlow(Header, Body)` 한 줄(폰 media 안, 함수로 감싸서). `DrawerFooter` 는 폰에서 `position: static`. 태블릿·데스크탑은 종전대로 바닥 고정.
+터치 기기에서는 열자마자 입력칸에 커서를 넣지 않는다(일정 추가 — 키보드가 바로 올라와 폼 절반을 덮는다, `enterSends()` 로 가른다).
+
 공통 규칙:
 - **배경 스크롤은 잠그지 않는다** (2026-09-13) — 우측 곁패널은 목록과 **함께** 보는 것이 용도다.
   `useBodyScrollLock` 은 가운데 모달의 것이다. 위 "배경 스크롤" 절 참조

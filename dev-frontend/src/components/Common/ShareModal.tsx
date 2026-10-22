@@ -15,6 +15,7 @@ import { useEscapeStack } from '../../hooks/useEscapeStack';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
 import { isEnterAction } from '../../utils/imeKey';
 import { formatDay } from '../../utils/dateFormat';
+import { phoneSheetFlow } from './modalShell';
 
 // N+44 — ShareModal 실 사용 5 entity 만 유지. document/invoice/quote/report 는 별도 UI 흐름
 // (PostSignatureModal, Invoice send 라우트 자체 발급) 사용 — ShareModal 통한 호출 dead code 였음.
@@ -492,6 +493,8 @@ const Dialog = styled.div`
      키보드를 무시해서 그 아래를 키보드가 덮는다. StandardModal 과 같은 계약. */
   @media (max-width: 640px) {
     max-height: 100%; height: 100%;  /* 감싼 막이 vvh − 머리줄 높이를 이미 가진다 (2026-10-19) */ border-radius: 0;
+    /* 폰 전면 — 버튼 줄을 화면에 고정하지 않는다(modalShell phoneSheetFlow, 2026-10-22). */
+    ${() => phoneSheetFlow(Header, Body)}
   }
 `;
 const Header = styled.div`display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; border-bottom: 1px solid #F1F5F9;`;

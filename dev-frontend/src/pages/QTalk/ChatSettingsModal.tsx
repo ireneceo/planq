@@ -6,6 +6,7 @@ import PlanQSelect, { type PlanQSelectOption } from '../../components/Common/Pla
 import { useEscapeStack } from '../../hooks/useEscapeStack';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import { useAuth } from '../../contexts/AuthContext';
+import { phoneSheetFlow } from '../../components/Common/modalShell';
 import {
   updateConversation,
   addConversationParticipant, removeConversationParticipant,
@@ -297,6 +298,8 @@ const Dialog = styled.div`
   @media (max-width: 640px) {
     max-width: none; max-height: none; border-radius: 0;
     height: calc(var(--vvh, 100vh) - var(--pq-popup-top, 0px));
+    /* 폰 전면 — 버튼 줄을 화면에 고정하지 않는다(modalShell phoneSheetFlow, 2026-10-22). */
+    ${() => phoneSheetFlow(Header, Body)}
   }
 `;
 const Header = styled.div`

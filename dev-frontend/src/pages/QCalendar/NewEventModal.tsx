@@ -24,7 +24,7 @@ import AttachmentField from '../../components/Common/AttachmentField';
 import { uploadMaterialFiles } from './EventMaterials';
 import VisibilityField, { serializeVisibility, type VisibilityValue } from '../../components/Common/VisibilityField';
 import { listWorkspaceClients, type WorkspaceClientRow } from '../../services/qtalk';
-import { isEnterAction } from '../../utils/imeKey';
+import { isEnterAction, enterSends } from '../../utils/imeKey';
 import { formatDay } from '../../utils/dateFormat';
 import EventPlaceField from './EventPlaceField';
 import { Field, Label, AttachToggle, CheckboxLabel } from './eventFormStyles';
@@ -292,7 +292,9 @@ const NewEventModal: React.FC<Props> = ({ initialStart, initialTitle, initialDes
   const dateTriggerRef = useRef<HTMLButtonElement>(null);
   const titleRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => { titleRef.current?.focus(); }, []);
+  // ★ 터치 기기에서는 열자마자 커서를 넣지 않는다(2026-10-22) — 키보드가 바로 올라와 폼 절반을 덮고,
+  //   날짜·시간을 먼저 고르려는 사람에게 방해가 됐다. 데스크탑은 종전대로 제목에 바로 입력.
+  useEffect(() => { if (enterSends()) titleRef.current?.focus(); }, []);
   // Esc 는 공용 스택 — 이 창 위에 뜬 것(이미지 보기·확인창)이 먼저 닫힌다(2026-10-02)
   useEscapeStack(true, onClose);
 

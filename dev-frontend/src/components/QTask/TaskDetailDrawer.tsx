@@ -3612,7 +3612,7 @@ const WarnBody = styled.div`font-size:0.6875rem;color:#7F1D1D;line-height:1.5;`;
 const WarnRow = styled.div`display:flex;gap:6px;justify-content:flex-end;`;
 
 // 업무 삭제 (위험 영역)
-// 하단 고정 줄 — 공용 DrawerFooter(sticky). 스크롤 상자(Scroll) 맨 끝 자식이라 상자 바닥에 붙는다.
+// 하단 줄 — 공용 DrawerFooter(sticky). 스크롤 상자(Scroll) 맨 끝 자식이라 상자 바닥에 붙는다(폰은 고정 안 함 — 내용 끝).
 const TaskFooter = styled(DrawerFooter)`margin-top:16px;`;
 // N+63 — DangerConfirm / DangerTitle / DangerBody / DangerRow 제거 (ConfirmDialog modal 로 대체)
 

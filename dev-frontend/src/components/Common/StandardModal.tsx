@@ -154,7 +154,14 @@ const Dialog = styled.div<{ $maxWidth: string; $compact?: boolean; $full?: boole
   @media (max-width: 640px) {
     ${p => p.$compact
       ? 'max-height: 100%;'
-      : 'max-height: 100%; height: 100%; border-radius: 0;'}
+      /* ★ 2026-10-22 — 전면이면 버튼 줄을 화면에 고정하지 않는다(DetailDrawer Panel 머리말과 같은 규칙).
+         Dialog 가 스크롤 상자 · 머리만 위에 붙고 · 버튼 줄은 내용 끝(짧으면 바닥). 아래 틈은 흰색으로 잇는다
+         (Backdrop 이 보이는 높이(--vvh)까지라 그 아래가 비면 뒤 화면이 그대로 보였다). */
+      : `max-height: 100%; height: 100%; border-radius: 0;
+         overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain;
+         box-shadow: 0 100vh 0 100vh #fff;
+         & > ${Header} { position: sticky; top: 0; z-index: 3; background: #fff; }
+         & > ${Body} { flex: 1 0 auto; overflow: visible; }`}
   }
 `;
 const Header = styled.div`

@@ -139,11 +139,15 @@ const Body = styled.div`
   &:last-child { padding-bottom: calc(18px + var(--pq-safe-bottom, 0px)); }
   /* ★ 폰 좌우 여백은 페이지 본문(PageShell 폰 14px)과 같은 값 — 패널만 넓으면 화면을 오갈 때 튄다(#446). */
   @media (max-width: 640px) { padding-left: 14px; padding-right: 14px; }
+  /* ★ 폰 — 본문은 스스로 굴리지 않는다. 패널(Panel)이 본문+버튼 줄을 **한 상자로** 굴린다(아래 Panel 머리말).
+     flex 1 0 auto: 내용이 짧으면 버튼 줄을 화면 바닥으로 밀고, 길면 내용 뒤에 버튼 줄이 온다. */
+  ${mediaPhone} { flex: 1 0 auto; overflow: visible; }
 `;
 
 const Footer = styled.div`
   padding: 12px 18px; border-top: 1px solid #E2E8F0;
   display: flex; justify-content: flex-end; gap: 8px; align-items: center;
+  flex-shrink: 0; background: #fff;
   padding-bottom: calc(12px + var(--pq-safe-bottom, 0px));  @media (max-width: 640px) { padding-left: 14px; padding-right: 14px; }
 `;
 
@@ -270,7 +274,18 @@ const Panel = styled.aside<{ $width: number }>`
   ${mediaPhone} {
     width: 100vw;
     border-left: none;
-    box-shadow: none;
+    /* ★ 2026-10-22 — 폰에서 버튼 줄(취소·저장)을 **화면에 고정하지 않는다.**
+       Irene: *"일정 추가할 때 모바일에서 푸터가 이상하게 높게 나오고 아래 뚫려서 뒤 내용 스크롤 하면 다 보여서
+       에러같고 날짜지정이나 다른 거 입력하려는데도 방해 … 모바일에서는 모든 고정푸터 다 고정 안해야 하는 거 아니야?"*
+       키보드가 뜨면 패널이 보이는 높이(--vvh)로 줄고, 고정된 버튼 줄이 키보드 바로 위 — 화면 한가운데 — 에 떠서
+       입력 칸·날짜 고르기를 덮었다. 이제 패널 자신이 스크롤 상자이고 버튼 줄은 내용 끝(짧으면 바닥)에 온다.
+       머리(뒤로·제목)만 위에 붙는다(HeaderWrap sticky).
+       ★ 아래 «뚫림» — 패널 바닥(= 보이는 높이)과 실제 화면 바닥 사이가 비면(키보드가 내려가는 중 · iOS 가 보이는
+       영역을 미는 동안 · 브라우저 하단 막대) 거의 투명한 덮개 너머로 뒤 화면이 보이고 굴렀다. 흰색을 아래로
+       이어 그려 그 틈을 막는다(스크롤 상자라 ::after 는 잘리므로 그림자로 — 옆으로 번지는 쪽은 화면 밖). */
+    overflow-y: auto; overflow-x: hidden;
+    overscroll-behavior: contain;
+    box-shadow: 0 100vh 0 100vh #fff;
   }
   @media (prefers-reduced-motion: reduce) { animation: none; }
 `;
@@ -288,6 +303,8 @@ const HeaderWrap = styled.div`
        (넓은 폭 미러 모드 = chrome-bottom 0)만 상태바 자리를 비운다. */
   padding-top: calc(16px + max(0px, var(--pq-safe-top, 0px) - var(--pq-panel-top, 0px)));
   @media (max-width: 640px) { padding-left: 14px; padding-right: 14px; }
+  /* 폰 — 패널이 통째로 구르므로 머리(뒤로·제목·닫기)만 위에 붙인다(Panel 머리말 2026-10-22). */
+  ${mediaPhone} { position: sticky; top: 0; z-index: 3; background: #fff; }
 `;
 
 const HeaderContent = styled.div` flex: 1; min-width: 0; `;

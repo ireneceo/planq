@@ -5,7 +5,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 // 연결 입력 문구는 한 곳에서 온다 (화면마다 적으면 갈라진다)
 import { CONNECT_PROMPT } from '../../components/Common/connectPrompts';
 import styled from 'styled-components';
-import { modalFooterRadius } from '../Common/modalShell';
+import { modalFooterRadius, phoneSheetFlow } from '../Common/modalShell';
 import { useTranslation } from 'react-i18next';
 import ModalActionButton from '../Common/ModalActionButton';
 import PlanQSelect from '../Common/PlanQSelect';
@@ -540,6 +540,8 @@ const Dialog = styled.div`
   @media (max-width: 640px) {
     max-width: none; max-height: none; border-radius: 0;
     height: calc(100vh - var(--pq-popup-top, 0px)); height: calc(var(--vvh, 100dvh) - var(--pq-popup-top, 0px));
+    /* 폰 전면 — 버튼 줄을 화면에 고정하지 않는다(modalShell phoneSheetFlow, 2026-10-22). */
+    ${() => phoneSheetFlow(Header, Body)}
   }
 `;
 const Header = styled.div`

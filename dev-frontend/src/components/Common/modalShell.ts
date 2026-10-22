@@ -23,3 +23,26 @@ export const modalFooterRadius = css`
   border-radius: 0 0 ${MODAL_RADIUS} ${MODAL_RADIUS};
   @media (max-width: 640px) { border-radius: 0; }
 `;
+
+/**
+ * ★ 폰 전면 팝업의 **버튼 줄은 화면에 고정하지 않는다** (2026-10-22 — 전 팝업·우측 패널 공통).
+ *   Irene: "일정 추가할 때 모바일에서 푸터가 이상하게 높게 나오고 아래 뚫려서 뒤 내용 스크롤 하면 다 보여서
+ *   에러같고 날짜지정이나 다른 거 입력하려는데도 방해 … 모바일에서는 모든 고정푸터 다 고정 안해야 하는 거 아니야?"
+ *   본문만 굴리고 버튼 줄을 형제로 두면, 키보드가 뜰 때 껍데기가 보이는 높이(--vvh)로 줄며 버튼 줄이 키보드
+ *   바로 위 — 화면 한가운데 — 에 떠서 입력 칸·날짜 고르기를 덮는다. 그래서 폰 전면에서는
+ *     · 껍데기 자신이 스크롤 상자(본문 + 버튼 줄을 한 번에 굴린다)
+ *     · 머리(제목·닫기)만 위에 붙는다
+ *     · 본문은 flex 1 0 auto — 짧으면 버튼 줄이 바닥, 길면 내용 뒤
+ *     · 껍데기 아래 틈(보이는 높이 < 실제 화면)은 흰색으로 잇는다(그림자 — 스크롤 상자라 ::after 는 잘린다)
+ *   같은 규칙: DetailDrawer(Panel) · StandardModal(Dialog 전면) · DrawerFooter(폰 static).
+ *   쓰는 법: 껍데기의 `@media (max-width: 640px)` 안에서 `${() => phoneSheetFlow(Header, Body)}`
+ *   (함수로 감싼다 — Header·Body 가 껍데기보다 뒤에 선언돼도 렌더 때 읽는다).
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export const phoneSheetFlow = (head: any, body: any) => css`
+  overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain;
+  box-shadow: 0 100vh 0 100vh #fff;
+  & > * { flex-shrink: 0; }
+  & > ${head} { position: sticky; top: 0; z-index: 3; background: #fff; }
+  & > ${body} { flex: 1 0 auto; overflow: visible; min-height: auto; }
+`;
