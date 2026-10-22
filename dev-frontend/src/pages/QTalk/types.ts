@@ -104,6 +104,8 @@ export interface NameCardMeta {
   subtitle: string | null;
   url?: string;
   has_photo?: boolean;
+  /** 다른 카드처럼 덧붙인 말 — 명함 카드는 보내는 쪽이 안 실을 수 있어 선택 */
+  note?: string | null;
 }
 
 export interface InvoiceCardMeta {
