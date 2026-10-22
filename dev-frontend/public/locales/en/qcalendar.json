@@ -132,6 +132,8 @@
     "gcalTarget": "Google “{{name}}” · {{email}}",
     "gcalTargetNoEmail": "Google “{{name}}”",
     "gcalTargetChange": "Change",
+    "gcalTargetWherePersonal": "Change it in My profile › Integrations",
+    "gcalTargetWhereTeam": "Change it in Workspace settings › Files & integrations",
     "reminder": "Reminder",
     "reminderSameDay": "Morning of the event (9 AM)",
     "reminderNone": "No reminder",

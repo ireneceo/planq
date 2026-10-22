@@ -132,6 +132,8 @@
     "gcalTarget": "Google 「{{name}}」 · {{email}}",
     "gcalTargetNoEmail": "Google 「{{name}}」",
     "gcalTargetChange": "바꾸기",
+    "gcalTargetWherePersonal": "바꾸는 곳: 내 프로필 › 외부 연동",
+    "gcalTargetWhereTeam": "바꾸는 곳: 워크스페이스 설정 › 파일·외부 연동",
     "reminder": "알림",
     "reminderSameDay": "당일 아침 (오전 9시)",
     "reminderNone": "알림 없음",

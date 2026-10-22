@@ -45,6 +45,9 @@ export function useToolbarHScroll() {
     const onWheel = (e: WheelEvent) => {
       if (el.scrollWidth <= el.clientWidth) return;
       if (Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return;
+      // 끝에 닿았으면 휠을 문서에 돌려준다 — 툴바가 sticky 라 그 위에 커서가 있으면 문서를 영영 못 내린다(Fable 2026-10-22)
+      const max = el.scrollWidth - el.clientWidth;
+      if ((e.deltaY > 0 && el.scrollLeft >= max - 1) || (e.deltaY < 0 && el.scrollLeft <= 0)) return;
       e.preventDefault();
       el.scrollLeft += e.deltaY;
     };
