@@ -888,6 +888,25 @@ sync_database() {
 # ──────────────────────────────────────────
 # Build frontend (dev 서버에서)
 # ──────────────────────────────────────────
+# 서버 공용 무거운 작업 게이트(/var/www/scripts/heavy-task-gate.sh) — 열릴 때까지 기다린다(우회 안 함, 최대 30분).
+wait_heavy_gate() {
+  local GATE=/var/www/scripts/heavy-task-gate.sh waited=0
+  [ -x "$GATE" ] || return 0
+  until "$GATE" build > "/tmp/planq-deploy-gate.$$" 2>&1; do
+    if [ $waited -eq 0 ]; then warn "메모리 게이트 대기 — 다른 무거운 작업이 끝나면 빌드한다:"; sed 's/^/     /' "/tmp/planq-deploy-gate.$$"; fi
+    waited=$((waited + 15))
+    if [ $waited -ge 1800 ]; then
+      rm -f "/tmp/planq-deploy-gate.$$"
+      error "메모리 게이트가 30분 동안 안 열렸다 — 운영은 아직 안 바꿨다. 무거운 작업을 확인하고 다시 배포"
+      exit 1
+    fi
+    sleep 15
+  done
+  rm -f "/tmp/planq-deploy-gate.$$"
+  if [ $waited -gt 0 ]; then success "메모리 게이트 열림 (${waited}초 기다림)"; fi
+  return 0
+}
+
 build_frontend() {
   if [ "$SKIP_BUILD" = true ]; then
     dim "▶ build 스킵 (--skip-build)"
@@ -902,6 +921,7 @@ build_frontend() {
     return 0
   fi
 
+  # (빌드가 운영 단계 앞으로 왔다 — 뒤 단계는 전부 절대 경로·prod_run 이라 이 cd 의 영향을 받지 않는다. 2026-10-22 확인)
   cd "$DEV_FE"
   rm -rf node_modules/.cache 2>/dev/null || true
 
@@ -913,8 +933,20 @@ build_frontend() {
 
   # heap 4096 — dev 는 7.7GB 머신이라 8192 는 OOM 으로 Terminated 된다(2026-07-24 부분배포 실사고).
   #   package.json build 도 인라인 4096 이라 여기 환경변수는 정합용. 8192 로 올리지 말 것.
-  NODE_OPTIONS='--max-old-space-size=4096' npm run build > "$BUILD_LOG" 2>&1
-  BUILD_EXIT=$?
+  # ★ 2026-10-22 — 빌드가 두 번 «Terminated»(메모리 보호 earlyoom)로 죽었다. 같은 박스의 다른 무거운 작업과 겹쳤고,
+  #   이 스크립트는 서버 공용 게이트(heavy-task-gate)를 거치지 않았다. 게다가 `cmd; BUILD_EXIT=$?` 는 set -e 아래에서
+  #   실패 순간 스크립트를 **말없이** 끝내 아래 오류 문구가 한 번도 안 나왔다. → 게이트가 열릴 때까지 기다리고(최대 30분),
+  #   if 로 종료 코드를 받고, 죽은 것(137·143)이면 게이트를 다시 기다려 한 번만 다시 짓는다.
+  BUILD_EXIT=0
+  for BUILD_TRY in 1 2; do
+    wait_heavy_gate
+    if NODE_OPTIONS='--max-old-space-size=4096' npm run build > "$BUILD_LOG" 2>&1; then BUILD_EXIT=0; else BUILD_EXIT=$?; fi
+    if [ "$BUILD_EXIT" -eq 137 ] || [ "$BUILD_EXIT" -eq 143 ] || { [ "$BUILD_EXIT" -ne 0 ] && grep -qE '^(Terminated|Killed)' "$BUILD_LOG"; }; then
+      warn "프론트 빌드가 메모리 부족으로 끊겼다(exit $BUILD_EXIT, 시도 $BUILD_TRY/2) — 다른 무거운 작업이 끝나길 기다렸다 다시 짓는다"
+      continue
+    fi
+    break
+  done
   tail -8 "$BUILD_LOG"
 
   if [ $BUILD_EXIT -ne 0 ]; then
@@ -1547,11 +1579,13 @@ main() {
 
   echo ""
 
+  # ★ 화면 빌드는 운영을 건드리기 **전**에 — 사본 안에서만 돌므로 운영과 무관하다. 2026-10-22 에 빌드가 백엔드 올리기·DB
+  #   단계 **뒤에서** 죽어 운영이 «새 백엔드 파일 + 옛 화면 + 재시작 전» 반쪽 상태로 두 번 남았다. 먼저 지으면 실패해도 운영은 그대로다.
+  build_frontend
   create_backup
   sync_backend
   install_deps
   sync_database
-  build_frontend
   deploy_frontend
   sync_qnote
   restart_server

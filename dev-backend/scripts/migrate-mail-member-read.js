@@ -59,12 +59,17 @@ async function hasIdx(name) {
     }
     console.log(TAG, `last_inbound 채움 ${filled}`);
 
-    // 바닥 — 칸을 이번에 만들었을 때만(배포 1회). 다시 돌려도 새로 읽은 것을 «모두 읽음» 으로 만들지 않는다.
-    if (!hadFloor) {
+    // 바닥 — 아직 한 번도 안 채웠을 때만(배포 1회). 다시 돌려도 새로 읽은 것을 «모두 읽음» 으로 만들지 않는다.
+    //   ★ «한 번도 안 채웠다» 를 칸이 있는지로 가르지 않는다 — 배포는 sync-database(alter)를 이 슬롯보다 먼저 돌려
+    //   모델에 선언된 이 칸을 먼저 만든다. 2026-10-22 운영: 칸이 «이미 있음» 이라 바닥을 건너뛰어 스레드 5,335/5,379 가
+    //   모든 멤버에게 안 읽음이 됐다. 그래서 «채워진 행이 하나라도 있는가» 로 본다.
+    const [[fl]] = await sequelize.query('SELECT COUNT(*) n FROM email_threads WHERE read_floor_message_id IS NOT NULL');
+    const floorPending = !hadFloor || Number(fl.n) === 0;
+    if (floorPending) {
       const [r] = await sequelize.query(`UPDATE email_threads SET read_floor_message_id = last_inbound_message_id
         WHERE unread_count = 0 AND last_inbound_message_id IS NOT NULL`);
       console.log(TAG, `바닥 채운 수 ${r.affectedRows ?? r.changedRows ?? '?'}`);
-    } else console.log(TAG, '바닥 칸 이미 있음 — 다시 채우지 않음');
+    } else console.log(TAG, `바닥 이미 채움(${fl.n}행) — 다시 채우지 않음`);
 
     const [[s]] = await sequelize.query(`SELECT
         SUM(last_inbound_message_id IS NOT NULL AND (read_floor_message_id IS NULL OR last_inbound_message_id > read_floor_message_id)) AS unread_left,

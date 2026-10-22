@@ -460,6 +460,10 @@ router.get('/:id', authenticateToken, async (req, res, next) => {
     // 이 문서를 결과물·액션으로 건 업무 — 보는 사람 기준(services/taskActionItems.linkedTasksOf 한 곳)
     result.linked_tasks = await require('../services/taskActionItems').linkedTasksOf('post', post.id, { id: req.user.id, platform_role: req.user.platform_role }, post.business_id);
     await applyMemberDisplayNameOne(result, post.business_id, ['author', 'editor']);
+    // 이 사람이 고칠 수 있는가 — PUT 과 같은 두 판정(멤버 이상 ∧ canEditPost). 화면은 이 값만 보고 [편집]·[AI 수정] 을
+    //   낸다. 없으면 고객에게도 [편집] 이 보여 누르면 자동저장이 403 으로 막혔다(2026-10-22 Irene).
+    result.can_edit = !!(await assertMember(req.user.id, post.business_id, req.user.platform_role === 'platform_admin'))
+      && !!(await canEditPost(req.user.id, post, req.user.platform_role));
     successResponse(res, result);
   } catch (err) { next(err); }
 });

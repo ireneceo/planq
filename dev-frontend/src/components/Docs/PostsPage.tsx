@@ -2562,17 +2562,20 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId }) => {
                       {t('survey.send', '보내기')}
                     </EditBtn>
                   )
-                ) : (
+                ) : detail.can_edit !== false && (
                 <AiActionButton size="filter" testId="post-ai-edit"
                   onClick={() => setAiEditOpen(true)}
                   label={t('aiEdit.btn', 'AI 수정') as string}
                   title={t('aiEdit.btnHint', 'AI 에게 고칠 것을 말하면 수정안을 만들어 수정 전·후를 먼저 보여 줘요') as string} />
                 )}
+                {/* 고칠 수 없는 사람(고객 등)에게는 [편집] 을 내지 않는다 — 판정은 서버 can_edit(PUT 과 같은 술어) */}
+                {detail.can_edit !== false && (
                 <EditBtn type="button" data-testid="post-edit" onClick={startEdit}
                   title={t('edit', '편집') as string} aria-label={t('edit', '편집') as string}>
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 4 }}><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
                   {t('edit', '편집')}
                 </EditBtn>
+                )}
                 {/* 복사 — **아이콘만**(Irene). 밴드2 액션 3개 계약을 지키려고 글자를 빼고 title·aria 로 말한다. */}
                 <IconActionBtn
                   type="button"

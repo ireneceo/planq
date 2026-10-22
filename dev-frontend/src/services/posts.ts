@@ -76,6 +76,8 @@ export interface PostDetail extends PostRow {
   linked_tasks?: Array<{ id: number; title: string; status: string; project_id: number | null; via?: string; attachment_id?: number; can_unlink?: boolean }>;
   // 만들기 응답의 부수 경고(예: 업무 «결과물 액션» 연결 실패 'action_link_failed')
   warnings?: string[];
+  // 보는 사람이 고칠 수 있는가 — 서버 PUT 과 같은 판정(상세 GET 이 준다). false 면 [편집]·[AI 수정] 을 내지 않는다
+  can_edit?: boolean;
 }
 
 export interface PostListFilter {
