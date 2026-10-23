@@ -16,7 +16,8 @@
 /** 정확히 일치해야 하는 마케팅 경로 */
 //   ★ '/service' 는 2026-10-02 에 들어왔다 — 빠져 있어 로그인 데스크탑이 서비스 페이지에서 워크스페이스 크롬을 볼 수 있었다.
 //     그 아래 무료 자가진단(#426)도 공개다.
-const EXACT = ['/', '/en', '/features', '/details', '/start', '/pricing', '/insights', '/blog', '/about', '/contact', '/service', '/service/diagnosis'];
+//   ★ '/security' 는 2026-10-23(보안·데이터 정책) — 빠지면 로그인 사용자가 열 때 워크스페이스 탭 셸이 가로채 빈 화면이 된다.
+const EXACT = ['/', '/en', '/features', '/details', '/security', '/start', '/pricing', '/insights', '/blog', '/about', '/contact', '/service', '/service/diagnosis'];
 
 /** 하위 경로까지 포함하는 prefix */
 //   ★ '/g/' — #259 무로그인 게스트 링크. 고객이 카톡·메일로 받은 링크로 들어오는 자리라

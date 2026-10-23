@@ -21,7 +21,7 @@ export interface Consent { v: 1; analytics: boolean; ads: boolean; at: number }
 // ── 범위 ─────────────────────────────────────────────────────────────────────
 // 랜딩 방문 집계(dev-backend/routes/landing_visits.js · public/seo-pages.json)와 같은 목록 + 가입 화면.
 const LANDING_PAGES: Record<string, string> = {
-  '/': 'home', '/features': 'features', '/details': 'details', '/start': 'start', '/pricing': 'pricing',
+  '/': 'home', '/features': 'features', '/details': 'details', '/security': 'security', '/start': 'start', '/pricing': 'pricing',
   '/service': 'service', '/service/diagnosis': 'diagnosis', '/insights': 'insights_list', '/guide': 'wiki',
   '/about': 'about', '/contact': 'contact', '/app': 'app', '/privacy': 'legal', '/terms': 'legal',
   '/register': 'register',
