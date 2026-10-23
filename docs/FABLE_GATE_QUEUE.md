@@ -2,6 +2,11 @@
 
 
 
+### 2026-10-23 방 eab3807b — 청구서 번호 무작위 꼬리(INV-2026-XXXX, 커밋 1b46ca81) — 설계 **DESIGN-CHANGE**(6건) · 완료 **VERDICT: PASS** (차단 0)
+- 설계 지시: ① 중복 검사 = 잠그지 않는 SELECT ② 생성·복사 라우트도 withInvoiceNumber ③ 자릿수 = last_no(4500→5·45000→6) · 30회 소진 시 +1 ④ 시드 MAX «순번형만» 세 곳 같은 술어 ⑤ m8 pick 주입 결정적 대조군 ⑥ 주석·설계 문서.
+- Fable 직접 실행: health money 10/10 · 실HTTP ws6 생성·복사·동시 10건 전부 201 · 형식 `^INV-2026-[1-9][0-9]{3}$` · 중복 0 · 카운터 +12 · payer_code = 꼬리 · UNIQUE 는 (business_id, invoice_number) 뿐 · 트랜잭션 READ_COMMITTED · 번호 정렬·파싱 화면 0곳.
+- 비차단: ① 생성 응답(201)엔 payer_code 없음(상세에만, 기존 동작) ② 옛 순번이 1000 을 넘긴 워크스페이스는 시드 술어 밖이라 last_no 가 작게 잡힘 — 자릿수 시점만 영향, dev 0건 ③ SettingsTab.tsx:401 한글 하드코딩(기존 부채).
+
 ### 2026-10-23 방 ba27eb61 — 큰 PDF 첫 쪽 미리보기(인증 라우트 `GET /api/files/:biz/:id/pdf-page` + PreviewArea) — 설계 **DESIGN-CHANGE** · 완료 1차 **FAIL** → 고침 → 2차 **VERDICT: PASS** (차단 0)
 - 설계 지시 ①~⑤(1쪽 고정 · 쪽수 헤더 없음 · effectiveMimeType · download 와 같은 캐시 헤더 · snapPreviewWidth 공용) + 안 B(≤3MB 바로 원본) · 안 C(빠른 보기 = 그림 먼저 + 원본 받아 교체) · AbortController 금지.
 - 1차 FAIL: DocsTab 상세 칸이 PreviewArea 를 key 없이 재사용 → 큰 PDF A 돋보기 뒤 B 전환 시 B 원본을 바로 받음. 고침: PDF 상태를 파일 키에 묶음(양성 대조군 6/12 실패로 뒤집힘 확인).
