@@ -111,7 +111,7 @@
       "split": "Split ×{{count}}"
     },
     "list": {
-      "vatLabel": "+ VAT",
+      "vatNone": "No VAT",
       "vatIncluded": "incl. VAT",
       "progress": "{{done}}/{{total}}",
       "overdueDays": "{{days}}d overdue"

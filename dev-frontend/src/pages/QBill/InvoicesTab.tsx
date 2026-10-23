@@ -273,7 +273,7 @@ export default function InvoicesTab() {
               </ColTitle>
               <ColAmt>
                 <Amt>{formatMoney(inv.grand_total, inv.currency)}</Amt>
-                <VatHint>{inv.currency === 'KRW' ? t('invoices.list.vatLabel') : ''}</VatHint>
+                <VatHint>{Number(inv.tax_amount) > 0 ? t('invoices.list.vatIncluded') : t('invoices.list.vatNone')}</VatHint>
               </ColAmt>
               <ColMode>
                 {inv.installment_mode === 'split' ? (

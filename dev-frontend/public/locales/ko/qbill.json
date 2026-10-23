@@ -111,7 +111,7 @@
       "split": "분할 {{count}}회"
     },
     "list": {
-      "vatLabel": "VAT 별도",
+      "vatNone": "VAT 없음",
       "vatIncluded": "VAT 포함",
       "progress": "{{done}}/{{total}}",
       "overdueDays": "{{days}}일 경과"
