@@ -9,6 +9,11 @@ D=$(date -u +%F)
 # 다른 순찰이 아직 돌고 있으면 겹치지 않는다
 exec 9>/opt/planq/logs/patrol/patrol-lock.log
 flock -n 9 || { echo "$(date -u +%FT%TZ) skip: previous patrol still running" >> logs/patrol/cron.log; exit 0; }
+# 운영 배포가 도는 중이면 끝날 때까지 기다린다(최대 90분) — 배포 빌드가 4.7GB 까지 커져 브라우저 검사와 겹치면
+#   earlyoom 이 빌드를 죽인다(2026-10-22 16:00 실측). 90분이 지나도 배포 중이면 오늘 밤은 건너뛴다.
+if ! /opt/planq/scripts/deploy-busy.sh --wait 5400 nightly-patrol 2>> logs/patrol/cron.log; then
+  echo "$(date -u +%FT%TZ) skip: deploy still running after 90min" >> logs/patrol/cron.log; exit 0
+fi
 timeout 9000 node scripts/e2e/run.js --suite patrol > "logs/patrol/run-$D.log" 2>&1
 RC=$?
 echo "$(date -u +%FT%TZ) exit=$RC $(grep -a '총 실패' "logs/patrol/run-$D.log" | tail -1)" >> logs/patrol/cron.log

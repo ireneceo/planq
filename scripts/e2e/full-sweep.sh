@@ -51,6 +51,11 @@ wait_mem() {   # 쓸 수 있는 메모리가 1.6GB 넘을 때까지 (최대 20�
 
 : > "$OUT/progress.txt"
 for k in $LIST; do
+  # 운영 배포가 도는 동안은 다음 스위트를 띄우지 않는다(배포 빌드와 겹치면 earlyoom 이 빌드를 죽인다 — 2026-10-22).
+  #   시작 때만 보면 검사 도중 시작한 배포를 못 본다 → 스위트마다 본다. 90분 넘게 배포 중이면 나머지는 건너뛴다.
+  if ! /opt/planq/scripts/deploy-busy.sh --wait 5400 "sweep:$k" 2>> "$OUT/progress.txt"; then
+    echo "$k deploy-wait-timeout (나머지 건너뜀)" >> "$OUT/progress.txt"; break
+  fi
   wait_mem || echo "$k mem-wait-timeout" >> "$OUT/progress.txt"
   t0=$(date +%s)
   timeout ${SWEEP_TIMEOUT:-1200} node scripts/e2e/run.js --suite "$k" > "$OUT/$k.log" 2>&1

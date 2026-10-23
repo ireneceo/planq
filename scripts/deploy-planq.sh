@@ -129,8 +129,23 @@ for f in $SELF_FILES; do
     echo "[ERROR] 도는 배포 절차($f)가 커밋 ${DEPLOY_PIN:0:8} 의 것과 다름 — 배포 중단"; exit 1
   fi
 done
-cleanup_self() { rm -rf "$SELF_DIR"; }
+# 배포가 도는 동안의 표시 — 밤 검사·전체 검사·e2e 러너가 scripts/deploy-busy.sh 로 보고 배포가 끝날 때까지 기다린다
+#   (2026-10-22 배포 빌드가 도중에 시작한 밤 검사와 겹쳐 earlyoom 에 죽었다). 같은 표시로 배포 두 개가 겹치는 것도 막는다.
+#   exec 뒤라 $$ 는 바깥에서 부른 그 프로세스 그대로다.
+DEPLOY_PIDFILE=/opt/planq/logs/deploy-running.pid
+OTHER_DEPLOY=$(cat "$DEPLOY_PIDFILE" 2>/dev/null || true)
+if [ -n "$OTHER_DEPLOY" ] && [ "$OTHER_DEPLOY" != "$$" ] && tr '\0' ' ' < "/proc/$OTHER_DEPLOY/cmdline" 2>/dev/null | grep -q 'deploy-planq\.sh'; then
+  echo "[ERROR] 다른 배포가 이미 돌고 있다 (pid $OTHER_DEPLOY) — 끝난 뒤 다시"; rm -rf "$SELF_DIR"; exit 1
+fi
+echo $$ > "$DEPLOY_PIDFILE" 2>/dev/null || echo "[WARN] 배포 표시($DEPLOY_PIDFILE)를 못 남김 — 밤 검사가 이 배포를 못 본다"
+cleanup_self() {
+  rm -rf "$SELF_DIR"
+  if [ "$(cat "$DEPLOY_PIDFILE" 2>/dev/null)" = "$$" ]; then rm -f "$DEPLOY_PIDFILE"; fi
+}
 trap cleanup_self EXIT
+# 강제 종료(timeout·Ctrl+C)에도 EXIT 정리가 돌게 — 안 그러면 배포 표시·절차 폴더가 남는다(표시는 pid 확인이라 남아도 오판은 없다).
+trap 'exit 143' TERM
+trap 'exit 130' INT
 
 # ─── 색상 ───
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; BLUE='\033[0;34m'; GRAY='\033[90m'; NC='\033[0m'

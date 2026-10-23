@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "prebuild": "[ -n \"$PLANQ_DEPLOY_PIN\" ] || bash ../scripts/deploy-busy.sh --wait 5400 dev-build",
     "build": "NODE_OPTIONS='--max-old-space-size=6144' tsc -b && NODE_OPTIONS='--max-old-space-size=4096' vite build",
     "lint": "eslint .",
     "preview": "vite preview",

@@ -379,6 +379,15 @@ async function restoreAccountState(key, before) {
   return printSuite(`state:${key}`, [{ name: `검사 계정 현재 워크스페이스를 바꿔 놓고 안 되돌림 (${before.active_business_id} → ${after.active_business_id}) — 되돌림`, fail: 1 }]);
 }
 
+// 운영 배포가 도는 동안은 스위트를 띄우지 않는다(2026-10-22 — 배포 빌드가 4.7GB 까지 커져 브라우저 검사와 겹치면
+//   earlyoom 이 빌드를 죽였다). 시작 때만 보면 도중에 시작한 배포를 못 보므로 스위트마다 본다. 판정은 scripts/deploy-busy.sh 한 곳.
+//   배포가 90분 넘게 안 끝나면 러너를 멈춘다(겹쳐 돌리지 않는다).
+function waitDeployIdle(key) {
+  const { spawnSync } = require('child_process');
+  const r = spawnSync('/opt/planq/scripts/deploy-busy.sh', ['--wait', '5400', `e2e:${key}`], { stdio: ['ignore', 'ignore', 'inherit'] });
+  if (r.status === 2) { console.log(`⛔ 운영 배포가 90분 넘게 안 끝나 ${key} 부터 돌리지 않는다`); process.exit(3); }
+}
+
 async function main() {
   const arg = (process.argv.find((s) => s.startsWith('--suite=')) || '').split('=')[1]
     || (process.argv.includes('--suite') ? process.argv[process.argv.indexOf('--suite') + 1] : '')
@@ -388,6 +397,7 @@ async function main() {
   for (const key of want) {
     const load = SUITES[key];
     if (!load) { console.log(`⚠️ 알 수 없는 스위트: ${key} (가능: ${Object.keys(SUITES).join(', ')})`); continue; }
+    waitDeployIdle(key);
     const before = await accountState();
     const suite = load();
     const results = await suite.run();

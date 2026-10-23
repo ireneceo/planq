@@ -242,6 +242,8 @@ memory `feedback_unwired_guard_is_no_guard` 와 같은 계열이다.
 - **반드시 `run_in_background: true`로 실행** (포그라운드 시 Claude Code가 not responding됨)
 - **빌드 실행 후 "빌드 진행 중입니다" 안내** → 완료 알림 오면 결과 보고
 - **이전 빌드가 실행 중이면 kill 후 새 빌드 시작**
+- **운영 배포가 도는 동안은 빌드·Fable 검증·브라우저 시험을 띄우지 않는다** (2026-10-23) — 겹치면 배포 빌드가 메모리 보호에 죽는다(10-22 세 번).
+  `npm run build` 의 prebuild 와 e2e 러너가 `scripts/deploy-busy.sh` 로 배포가 끝날 때까지 기다린다(우회 금지). 절차 `.claude/commands/배포.md` 2단계.
 
 ```bash
 # 프론트엔드 빌드
