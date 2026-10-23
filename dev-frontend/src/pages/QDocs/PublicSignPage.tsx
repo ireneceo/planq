@@ -34,6 +34,8 @@ import {
   NoticeBox, NoticeRow, NoticeText, NoticeSlot, NoticeActionBtn, NoticeMemo, NoticeMemoLabel,
 } from './PublicSignPage.styles';
 import SignLinkedDocs from './SignLinkedDocs';
+import SignBillingTerms from './SignBillingTerms';
+import type { PublicBillingTerms } from '../../services/billingTerms';
 import SignRejectDialog from './SignRejectDialog';
 import { PublicToolbar, PublicBtn } from '../../components/Layout/PublicPageShell';
 import StandardModal from '../../components/Common/StandardModal';
@@ -68,6 +70,8 @@ interface PublicSignData {
   required_items?: { sign: number; date: boolean; name: boolean; captions?: (string | null)[] } | null;
   // 본문 이미지 문맥 — 서명자(익명)에게 고정본 이미지를 여는 증명(utils/imageCtx)
   image_ctx?: string | null;
+  /** 청구 조건(2026-10-23) — 서명이 모두 끝나면 이 금액으로 청구서 초안이 만들어진다. 서명 요청에만 온다 */
+  billing_terms?: PublicBillingTerms | null;
   entity: {
     type: 'post' | 'document';
     id: number;
@@ -621,6 +625,7 @@ const PublicSignPage: React.FC = () => {
                 </AttachBox>
               )}
               <SignLinkedDocs token={token as string} docs={doc.entity.linked_docs || []} imageCtx={doc.image_ctx} />
+              <SignBillingTerms terms={doc.billing_terms} />
             </Section>
 
             {/* #239 확인 요청 — OTP·서명 캔버스를 타지 않는다. 확인 버튼 + 의견 두 가지뿐. */}

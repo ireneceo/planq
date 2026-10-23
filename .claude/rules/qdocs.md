@@ -54,3 +54,6 @@ paths:
   party·kind 불문 · 살아 있음 = `SIGNATURE_ACTIVE_STATUSES`(서명 잠금과 같은 상수). 보낼 때 같은 트랜잭션에서 L2 로 올린다(프로젝트 문서 = 프로젝트, 없으면 특정 멤버 = 작성자 ∪ 우리 쪽 서명자) ·
   보낸 뒤 L1 로 좁히기는 **누구도** 못 한다(두 문 모두 409 `signature_visibility_floor`). 판정 `services/signatureCore.signatureVisibilityFloor` 한 곳 — 공개 범위를 바꾸는 새 문은 `blockIfBelowSignatureFloor` 를 부른다.
   옛 행 `scripts/migrate-signature-visibility-floor.js`(기본 읽기만). 회귀 `--suite sigfloor`. 설계 `docs/SIGNATURE_VISIBILITY_FLOOR_DESIGN.md`.
+- **서명 완료 계약서 → 청구서 초안은 «청구 조건» 이 있을 때만** (2026-10-23, Irene «매번 ai가 살펴보지 않고» · Fable 설계 A+D) — 본문을 읽지 않는다. 문서 `post_billing_terms`(고객·항목·VAT·통화·분할)를 서명 요청 전에 적고,
+  회차(signRoundWhere)가 전부 signed 가 되는 순간 `services/contractBilling.createFromTerms` 가 **초안 1건**(문서당 평생 1건, `idempotency_key 'post-terms:<post_id>'`)을 만든다. 발송 0.
+  조건 잠금 = 본문 잠금(`isPostSignatureLocked`) · 서명 화면에 조건이 보인다(`publicView`) · 급여 계약서 제외 · 금액 계산은 `services/invoiceCreate.computeAmounts` 한 곳(손으로 만드는 청구서와 같다). 설계 `docs/CONTRACT_AUTO_INVOICE_DESIGN.md`.

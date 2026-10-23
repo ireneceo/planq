@@ -613,6 +613,7 @@ app.use('/api/admin/social', require('./routes/admin_social'));
 app.use('/api/posts', require('./routes/post_revisions'));
 app.use('/api/posts', require('./routes/post_comments'));   // 문서 댓글 — /:id/comments 꼬리만 (docs/DOC_COMMENTS_DESIGN.md)
 app.use('/api/posts', require('./routes/post_editors'));   // 문서 공동 편집자 — /:id/editors 꼬리만 (docs/DOC_COEDITORS_DESIGN.md)
+app.use('/api/posts', require('./routes/post_billing_terms'));   // 문서 «청구 조건» — /:id/billing-terms 꼬리만 (docs/CONTRACT_AUTO_INVOICE_DESIGN.md)
 app.use('/api/posts', require('./routes/post_ai_edit'));   // 문서 AI 수정 — 제안·반영 (docs/DOC_AI_EDIT_DESIGN.md)
 app.use('/api/posts', require('./routes/posts'));
 app.use('/api/records', require('./routes/records'));
@@ -728,6 +729,11 @@ function scheduleNextMidnight() {
       const r = await recurringInvoice.runDailyRecurringBilling();
       console.log('[recurring-invoice]', { ok: r.ok, skip: r.skip, fail: r.fail });
     } catch (e) { console.warn('[recurring-invoice] failed', e.message); }
+    try {
+      // 서명 완료 계약서 → 청구서 초안 — 훅을 놓친 것(실패·재시작) 재시도. 멱등(문서당 1건, services/contractBilling).
+      const r = await require('./services/contractBilling').runContractBillingRetry();
+      if (r.created || r.errors) console.log('[contract-billing]', r);
+    } catch (e) { console.warn('[contract-billing] failed', e.message); }
     try {
       // N+83 — 고객 정기 구독청구 (프로젝트 무관). next_billing_at 도달분 Invoice 자동 발행.
       const r = await require('./services/clientSubscriptionBilling').runClientSubscriptionBilling();

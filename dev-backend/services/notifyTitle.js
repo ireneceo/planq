@@ -116,6 +116,9 @@ const ACTIONS = {
   bill_invoice_sent: { ko: '청구서 도착', en: 'Invoice received' },
   bill_paid: { ko: '결제 완료', en: 'Payment received' },
   bill_recurring_review: { ko: '정기 청구서 검토', en: 'Recurring invoice review' },
+  // 서명 완료 계약서 → 청구서 초안(2026-10-23 services/contractBilling)
+  bill_contract_draft: { ko: '계약 청구서 초안', en: 'Contract invoice draft' },
+  bill_contract_draft_failed: { ko: '계약 청구서 초안 실패', en: 'Contract invoice draft failed' },
   // Q sales
   sale_account_request: { ko: '계정 요청', en: 'Account requested' },
   sale_unanswered: { ko: '답 안 한 문의', en: 'Unanswered inquiry' },

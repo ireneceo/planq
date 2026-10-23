@@ -111,13 +111,8 @@ const { isBotOrScanner } = require('../utils/botUa');   // 공개 링크 «열�
 
 // 청구서 번호는 services/invoiceNumber.js 한 곳에서 뽑는다(연도 + 무작위 꼬리, B-② · 2026-10-23).
 
-// 품목 금액 입력 검증 — unit_price·quantity 가 (있으면) 유한수·≥0 이어야 한다(B-①). 없으면 기본값(1·0)을 쓰므로 통과.
-function itemsAmountsValid(items) {
-  if (items == null) return true;
-  if (!Array.isArray(items)) return false;
-  const ok = (v) => v === undefined || v === null || v === '' || (Number.isFinite(Number(v)) && Number(v) >= 0);
-  return items.every((it) => it && ok(it.unit_price) && ok(it.quantity));
-}
+// 품목 금액 입력 검증·분할 회차 검증·초안 만들기 — services/invoiceCreate 한 곳(서명 완료 자동 초안과 같은 계산).
+const { itemsAmountsValid, installmentsError, insertDraftInvoice } = require('../services/invoiceCreate');
 
 // ─── 공개 결제 페이지 (인증 없음 — share_token 기반) ───
 // /:businessId 매칭보다 먼저 와야 함
@@ -874,29 +869,8 @@ router.post('/:businessId', authenticateToken, checkBusinessAccess, requireMenu(
 
     // 분할 모드 검증
     const mode = installment_mode === 'split' ? 'split' : 'single';
-    if (mode === 'split') {
-      if (!Array.isArray(installments) || installments.length === 0) {
-        await t.rollback(); return errorResponse(res, 'installments required for split mode', 400);
-      }
-      const sum = installments.reduce((s, x) => s + Number(x.percent || 0), 0);
-      if (Math.abs(sum - 100) > 0.01) {
-        await t.rollback(); return errorResponse(res, `installment percent sum must be 100 (got ${sum})`, 400);
-      }
-      for (const inst of installments) {
-        if (!inst.label || !Number.isFinite(Number(inst.percent))) {
-          await t.rollback(); return errorResponse(res, 'each installment requires label and percent', 400);
-        }
-      }
-      if (installments.length > 12) {
-        await t.rollback(); return errorResponse(res, 'too many installments (max 12)', 400);
-      }
-    }
-
-    // 발행 시점 워크스페이스 계좌 정보 스냅샷
-    const business = await Business.findByPk(req.params.businessId, { transaction: t });
-    const bank_snapshot = business
-      ? { bank_name: business.bank_name || null, account_number: business.bank_account_number || null, account_holder: business.bank_account_name || business.name || null }
-      : null;
+    const instErr = installmentsError(mode, installments);
+    if (instErr) { await t.rollback(); return errorResponse(res, instErr, 400); }
 
     // 참조 칸은 이 워크스페이스의 것만 — 남의 client_id 를 넣으면 그 고객 정보가 응답·메일로 나간다(B-③)
     const clientIdChecked = await assertClientInBusiness(client_id, req.params.businessId, { transaction: t });
@@ -907,89 +881,15 @@ router.post('/:businessId', authenticateToken, checkBusinessAccess, requireMenu(
     const projectIdChecked = await assertProjectInBusiness(project_id || derivedProjectId, req.params.businessId, { transaction: t });
     await assertClientInProject(clientIdChecked, projectIdChecked, req.params.businessId, { transaction: t });
 
-    // 번호는 아래 Invoice.create 를 withInvoiceNumber 로 감싸 뽑는다(충돌 시 SAVEPOINT 재시도).
-    const vatRateNum = vat_rate !== undefined ? Number(vat_rate) : 0.1;
-    const cur = currency || 'KRW';
-
-    const invoice = await withInvoiceNumber(Number(req.params.businessId), t, (invoice_number, sp) => Invoice.create({
-      business_id: req.params.businessId,
-      client_id: clientIdChecked,
-      invoice_number,
-      title,
-      due_date: due_date || null,
-      recipient_email: recipient_email || null,
-      recipient_business_name: recipient_business_name || null,
-      recipient_business_number: recipient_business_number || null,
-      notes: notes || null,
-      created_by: req.user.id,
-      owner_user_id: req.user.id,  // 담당자 default = 생성자. 발행 모달에서 변경 가능 (사이클 N+9)
-      installment_mode: mode,
-      bank_snapshot,
-      vat_rate: vatRateNum,
-      source_post_id: sourcePostId,
-      project_id: projectIdChecked,
-      currency: cur,
-      receipt_type: receiptType,
-      // 발행 의향이 있으면 결제 후 큐에 'pending' 으로 잡히도록 상태 선설정 (고객 제출 시 갱신)
-      ...(receiptType === 'tax_invoice' ? { tax_invoice_status: 'pending' } : {}),
-      ...(receiptType === 'cash_receipt' ? { cash_receipt_status: 'pending' } : {}),
-    }, { transaction: sp }));
-
-    let grandTotal = 0;
-    if (items && items.length > 0) {
-      let subtotal = 0;
-      const itemRows = [];
-      for (let i = 0; i < items.length; i++) {
-        const item = items[i];
-        const unitPrice = roundMoney(item.unit_price || 0, cur);
-        const amount = roundMoney(Number(item.quantity || 1) * unitPrice, cur);
-        subtotal = roundMoney(subtotal + amount, cur);
-        itemRows.push({
-          invoice_id: invoice.id,
-          description: item.description,
-          detail: (item.detail && String(item.detail).trim()) || null,
-          quantity: item.quantity || 1,
-          unit_price: unitPrice,
-          amount,
-          sort_order: i,
-        });
-      }
-      await InvoiceItem.bulkCreate(itemRows, { transaction: t });
-      const taxAmount = roundMoney(subtotal * vatRateNum, cur);
-      grandTotal = roundMoney(subtotal + taxAmount, cur);
-      await invoice.update({
-        total_amount: subtotal,
-        subtotal,
-        tax_amount: taxAmount,
-        grand_total: grandTotal,
-      }, { transaction: t });
-    }
-
-    // 분할 일정 생성 — amount = grand_total * percent / 100 (정수 반올림, 마지막 row 가 잔여 흡수)
-    if (mode === 'split') {
-      const insts = installments.map((inst, idx) => ({
-        invoice_id: invoice.id,
-        installment_no: idx + 1,
-        label: String(inst.label).slice(0, 40),
-        percent: Number(inst.percent),
-        amount: 0,  // 아래서 재계산
-        due_date: inst.due_date || null,
-        milestone_ref: inst.milestone_ref ? String(inst.milestone_ref).slice(0, 100) : null,
-        status: 'pending',
-      }));
-      // 분배: 마지막 row 가 (grand_total - sum(이전)) 으로 잔여 흡수 — 통화별 반올림(B-①)
-      let allocated = 0;
-      for (let i = 0; i < insts.length; i++) {
-        if (i < insts.length - 1) {
-          const a = roundMoney(grandTotal * (insts[i].percent / 100), cur);
-          insts[i].amount = a;
-          allocated = roundMoney(allocated + a, cur);
-        } else {
-          insts[i].amount = roundMoney(grandTotal - allocated, cur);
-        }
-      }
-      await InvoiceInstallment.bulkCreate(insts, { transaction: t });
-    }
+    // 초안·항목·분할 회차·번호 — services/invoiceCreate 한 곳(계좌 스냅샷·통화별 반올림·잔여 흡수 포함)
+    const invoice = await insertDraftInvoice({
+      businessId: req.params.businessId, actorUserId: req.user.id,
+      title, clientId: clientIdChecked, projectId: projectIdChecked, sourcePostId,
+      dueDate: due_date, recipientEmail: recipient_email,
+      recipientBusinessName: recipient_business_name, recipientBusinessNumber: recipient_business_number,
+      notes, vatRate: vat_rate, currency, receiptType,
+      installmentMode: mode, installments, items,
+    }, { transaction: t });
 
     await t.commit();
 

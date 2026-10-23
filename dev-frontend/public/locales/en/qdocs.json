@@ -439,7 +439,14 @@
     "revisedTitle": "Changes requested",
     "revisedHint": "The sender has been notified. You'll receive the revised document as a new email link.",
     "errSuperseded": "This document has been replaced by a newer version",
-    "errSupersededHint": "Please open the link in your most recent email."
+    "errSupersededHint": "Please open the link in your most recent email.",
+    "billing": {
+      "title": "Billing terms — you'll be invoiced these amounts once everyone signs",
+      "subtotal": "Net",
+      "vat": "VAT {{p}}%",
+      "total": "Total",
+      "split": "Billed in parts"
+    }
   },
   "sign": {
     "button": "Get signatures",
@@ -1375,5 +1382,57 @@
     "cancelFailed": "Couldn't cancel. The request may already be finished.",
     "cancelMessage": "Cancel the request to \"{{email}}\". The link stops working right away; the record (who sent it and when) is kept.",
     "manageLead": "All signature and confirmation requests sent from this workspace. See who sent each one and whether it was signed, then resend or cancel. To change a document, use [Revise and resend] on it. Signature records are evidence and are never deleted; requests on documents you cannot read (e.g. \"Only me\") are shown without details."
+  },
+  "billingTerms": {
+    "title": "Billing terms",
+    "modalTitle": "Billing terms",
+    "save": "Save",
+    "lead": "When everyone has signed, a draft invoice is created exactly from these terms. Nothing is sent to the client — review the draft and send it yourself. Signers see these amounts on the signing page.",
+    "client": "Bill to",
+    "clientPh": "Choose a client",
+    "titleLabel": "Invoice title",
+    "splitDesc": "Bill in parts, e.g. deposit · interim · balance. Leave due dates empty to set them on the invoice.",
+    "taxDesc": "Marked for a tax invoice once paid.",
+    "taxForeign": "Korean tax invoices can't be issued for foreign-currency billing.",
+    "notes": "Invoice note (optional)",
+    "notesPh": "Shown on the invoice — not on the signing page",
+    "err": {
+      "client": "Choose who to bill",
+      "items": "Add at least one line item",
+      "amount": "Check quantity and unit price (0 or more)",
+      "split": "Split percentages must add up to 100%",
+      "splitCount": "A split needs at least two parts",
+      "locked": "Signing is in progress — terms can't be changed",
+      "invoiced": "An invoice was already created — terms can't be changed",
+      "clientWs": "This client isn't in this workspace",
+      "save": "Couldn't save"
+    },
+    "chip": {
+      "signed": "Fully signed",
+      "locked": "Signing · locked",
+      "open": "Before signing · editable",
+      "invoiced": "Draft invoice created"
+    },
+    "emptyHint": "If this contract gets paid, add the amounts, items and split. The moment everyone signs, a draft invoice is created from these terms (never sent automatically).",
+    "add": "+ Add billing terms",
+    "signedNoTerms": "Everyone has signed. No billing terms were added, so no invoice was created automatically.",
+    "newInvoice": "Create invoice",
+    "total": "Total (incl. VAT)",
+    "vatLine": "Net {{sub}} + VAT {{vat}}",
+    "invoicedText": "Signing is complete — draft invoice {{no}} was created. Review and send it.",
+    "openInvoice": "Open invoice",
+    "errNoClient": "No client to bill, so the draft invoice wasn't created.",
+    "errCreate": "Couldn't create the draft invoice. It will retry tonight.",
+    "retry": "Create now",
+    "pendingCreate": "Everyone has signed — creating the draft invoice.",
+    "lockedText": "When everyone signs, a draft invoice is created from these terms. They can't be changed while signing is in progress.",
+    "openText": "Once you request signatures, signers see these amounts on the signing page. When everyone signs, a draft invoice is created from them.",
+    "edit": "Edit",
+    "delete": "Delete",
+    "deleteTitle": "Delete billing terms?",
+    "deleteMessage": "Without terms, no draft invoice is created when signing completes.",
+    "createFailed": "Couldn't create the draft invoice. Try again shortly or create the invoice yourself.",
+    "deleteFailed": "Couldn't delete",
+    "invoiceDeleted": "The auto-created draft invoice was deleted. It won't be created again automatically — create the invoice yourself if needed."
   }
 }

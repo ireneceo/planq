@@ -1,4 +1,4 @@
-# 서명 완료 계약서 → 청구서 초안 자동 생성 — 설계 (2026-10-23 · Fable 설계 판정 · Irene 선택 대기)
+# 서명 완료 계약서 → 청구서 초안 자동 생성 — 설계 (2026-10-23 · Fable 설계 판정 · Irene «권고대로» A+D)
 
 > Irene: «서명을 완료한 계약서 기반으로 청구서를 자동생성 해줘. 워크스페이스가 결제를 받을 내용이 있으면. 이거 매번 ai가 살펴보지 않고 가능하게 구현돼?»
 > 방 4534d85e [Opus] 조사 → Fable 설계 판정 `NEEDS-IRENE`.
@@ -30,3 +30,20 @@
 
 ## C 를 고르면
 대기 중인 «청구서 AI 작성» 일과 같은 엔진 — 그 설계와 합쳐 Fable 설계를 다시 받는다(이 문서의 b·c·d·g·h·i 는 그대로 쓸 수 있다).
+
+## 구현 (2026-10-23, 방 4534d85e [Opus])
+| 자리 | 파일 |
+|---|---|
+| 표 | `post_billing_terms` — `models/PostBillingTerms.js` · `scripts/migrate-post-billing-terms.js`(배포 슬롯, 멱등) |
+| 계산 한 곳 | `services/invoiceCreate.js` — `computeAmounts`·`insertDraftInvoice`. 손으로 만드는 `POST /api/invoices/:biz` 도 이 함수(동작 불변 옮김) |
+| 판정·생성 | `services/contractBilling.js` — `normalizeTerms` · `isRoundFullySigned`(signRoundWhere ≥1 ∧ 전부 signed) · `createFromTerms`(행 잠금 + 청구서 `idempotency_key 'post-terms:<post_id>'` UNIQUE) · `runContractBillingRetry`(00시, `no_client` 제외) |
+| 훅 | `services/signatureHooks.afterSignatureChange` ③ |
+| API | `routes/post_billing_terms.js` — GET·PUT·DELETE `/api/posts/:id/billing-terms` · POST `…/create-invoice`(실패 뒤 지금 다시) |
+| 서명 화면 | `routes/signature_public.js` `billing_terms`(sign 만, `publicView` — 고객·메모·번호 없음) · 화면 `pages/QDocs/SignBillingTerms.tsx` |
+| 문서 칸 | `components/Docs/BillingTermsSection.tsx`(보기 모드, 서명 진행 아래) · 입력 `BillingTermsModal.tsx` — 칸은 `pages/QBill/InvoiceLinesEditor.tsx`(발행 창에서 빼낸 공용) |
+
+설계와 다르게 한 것(자체 판단, Fable 완료 검증 때 볼 것):
+- **잠금 칸(locked_at) 대신 본문 잠금 술어를 그대로 쓴다** — `signatureCore.isPostSignatureLocked`. 서명 요청이 살아 있는 동안 본문과 조건이 같이 잠기고, 회차 닫기(받는 쪽 서명 전)로 같이 풀린다. 잠금 기준이 두 벌이면 갈라진다.
+- **고객은 조건 저장 때 필수** — 프로젝트 고객 추정(설계 (e))을 생성 시점이 아니라 **적을 때 미리 고르기**로 옮겼다(프로젝트에 연결 고객이 하나면 미리 골라 둔다). 생성 때 고객이 지워졌으면 `no_client` → «청구서 만들기» 카드.
+- **«isFullySigned» 를 급여·거래 단계와 합치지 않았다** — 급여(payrollContracts)는 거절 행을 빼고 «나머지 전부 signed» 로 보는 다른 뜻이라, 합치면 급여 계약 signed_at 동작이 바뀐다. 새 술어는 회차(signRoundWhere) 기준으로 contractBilling 에만 둔다.
+- 알림 — 청구 담당(billingRecipients) 앱 알림, 메일·미읽음 재알림 메일 끔. 실패는 회차 요청자에게.

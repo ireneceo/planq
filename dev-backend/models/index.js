@@ -79,6 +79,7 @@ const BusinessPlanHistory = require('./BusinessPlanHistory');
 const Post = require('./Post');
 const PostComment = require('./PostComment');
 const PostEditor = require('./PostEditor');
+const PostBillingTerms = require('./PostBillingTerms');
 const NameCard = require('./NameCard');
 const SavedNameCard = require('./SavedNameCard');
 const Brand = require('./Brand');
@@ -377,6 +378,9 @@ PostComment.belongsTo(User, { as: 'author', foreignKey: 'user_id' });
 Post.hasMany(PostEditor, { as: 'coEditors', foreignKey: 'post_id' });
 PostEditor.belongsTo(Post, { foreignKey: 'post_id' });
 PostEditor.belongsTo(User, { as: 'user', foreignKey: 'user_id' });
+// 문서 «청구 조건»(2026-10-23) — 서명이 끝나면 이대로 청구서 초안(services/contractBilling)
+Post.hasOne(PostBillingTerms, { as: 'billingTerms', foreignKey: 'post_id' });
+PostBillingTerms.belongsTo(Post, { foreignKey: 'post_id' });
 // 내 명함 — 계정 소유(docs/BUSINESS_CARD_DESIGN.md)
 NameCard.belongsTo(User, { as: 'owner', foreignKey: 'user_id' });
 SavedNameCard.belongsTo(NameCard, { as: 'source', foreignKey: 'source_card_id' });
@@ -730,6 +734,7 @@ module.exports = {
   Post,
   PostComment,
   PostEditor,
+  PostBillingTerms,
   NameCard, SavedNameCard, Brand, NameCardBrand, ClientContact,
   PostAttachment,
   PostCategory,

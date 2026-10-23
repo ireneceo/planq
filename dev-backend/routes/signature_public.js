@@ -105,6 +105,12 @@ router.get('/sign/:token', async (req, res, next) => {
         signed_html: signedHtml,
         project: entity.Project ? { id: entity.Project.id, name: entity.Project.name } : null,
       },
+      // 청구 조건(2026-10-23) — 서명이 끝나면 이대로 청구서 초안이 만들어진다. 서명자가 무엇에 동의하는지 보이게 한다
+      //   (서명자가 본 금액 = 청구될 금액, docs/CONTRACT_AUTO_INVOICE_DESIGN.md (a)). 조건은 서명 잠금 동안 고칠 수 없다.
+      //   서명 요청(kind sign)에만 · 고객 이름·메모·만든 사람·청구서 번호는 싣지 않는다(contractBilling.publicView).
+      billing_terms: (sr.entity_type === 'post' && (sr.kind || 'sign') === 'sign')
+        ? require('../services/contractBilling').publicView(await require('../models').PostBillingTerms.findOne({ where: { post_id: sr.entity_id } }))
+        : null,
     });
   } catch (err) { next(err); }
 });

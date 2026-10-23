@@ -215,6 +215,9 @@ const SUITES = {
   bookingapi: () => require('./canary-booking-api'),
   // 문서 공동 편집자 (2026-10-23, docs/DOC_COEDITORS_DESIGN.md) — 작성자만 편집이 기본 · 지정·해제 · 같은 술어 전수 · 금지 행위 · 내보내기 정리(실 HTTP)
   coeditors: () => require('./canary-doc-coeditors'),
+  // 서명 완료 계약서 → 청구서 초안 (2026-10-23, docs/CONTRACT_AUTO_INVOICE_DESIGN.md) — 문서 «청구 조건» 칸·창 · 서명 완료 [청구서 열기] ·
+  //   서명 화면 청구 조건(메모 없음) · 발행 창 공용 항목 칸 합계 · 3폭 가로 넘침. 대조: 조건 없는 문서엔 [청구서 열기] 없음.
+  contractbilling: () => require('./canary-contract-billing'),
   // 로그인 고객 홈 /home (2026-09-25, CLIENT_ENTRY P3) — 고객만 200 · 계정 고객 예약(같은 함수) → 팀 승인 → 앱 알림 ·
   //   로그인 착지 /home · 3폭 탭 · 사이드바 «홈» · 오너는 /dashboard(음성) · 예약 끄면 탭 없음(음성).
   clienthome: () => require('./canary-client-home'),

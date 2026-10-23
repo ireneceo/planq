@@ -67,6 +67,7 @@ import PostAiModal from './PostAiModal';
 import { ProjBrowse, Split as AtSplit, FolderTreePanel as AtPanel, FilesArea as AtArea, TreeRoot as AtTree, FolderRow as AtRow, FolderName as AtName, FolderCount as AtCount, Grid as AtGrid, Card as AtCard, CardName as AtCardName, CardMeta as AtCardMeta, Toolbar as AtToolbar, ToolbarRight as AtToolbarRight, SortWrap as AtSortWrap } from './assetTabLayout';
 import PostSignatureModal from './PostSignatureModal';
 import SignatureProgressSection from './SignatureProgressSection';
+import BillingTermsSection from './BillingTermsSection';
 import PlanQSelect, { type PlanQSelectOption } from '../Common/PlanQSelect';
 import ListSortSelect, { sortRows, LIST_SORT_DEFAULT, type ListSortKey } from '../Common/ListSortSelect';
 import SecurityLevelBadge, { useSecurityLevelLabel } from '../Common/SecurityLevelBadge';
@@ -2741,6 +2742,17 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId }) => {
                   startEdit();
                 }}
               />
+              {/* 청구 조건(2026-10-23) — 서명이 모두 끝나면 이대로 청구서 초안. 표·설문 문서에는 없다(계약서는 일반 문서다) */}
+              {detail.kind !== 'table' && detail.kind !== 'survey' && (
+                <BillingTermsSection
+                  key={`bt-${detail.id}`}
+                  postId={detail.id}
+                  businessId={detail.business_id ?? scope.businessId}
+                  postTitle={detail.title}
+                  projectId={detail.project_id ?? null}
+                  reloadTrigger={signReloadKey}
+                />
+              )}
               {/* 보안등급 상시노출 SecurityRow 제거 — 뷰는 MetaBar chip(일반 자동숨김), 변경은 편집 모드 메타에서(Irene) */}
               {/* 운영 #338 — 긴 문서의 목차. 본문에서 파생하므로 옛 문서에서도 바로 뜬다.
                   제목이 2개 미만이면 스스로 아무것도 그리지 않는다. 인쇄에는 넣지 않는다
