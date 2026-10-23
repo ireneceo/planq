@@ -2,6 +2,11 @@
 
 
 
+## 2026-10-23 신뢰·도입 — 워크스페이스 백업 확장·서명 공개 라우트 (3441773c·e862902e·91cfd868) — **PASS** (1차 FAIL → 수리 → 재검증 PASS)
+- 1차 FAIL 차단 1: 강등된 관리자가 워크스페이스 백업 ZIP 을 30일간 계속 받음 → 91cfd868 `canHoldWorkspaceExport`(발급과 같은 술어)로 목록·상세·내려받기 판정. 재측정 admin 200 → 강등 403·목록 0 → owner 200(대조군) · 개인 산출물은 강등 뒤에도 200.
+- 1차에서 통과: 백업 권한·409·화이트리스트·L1/사적 대화/개인 메모/비밀 칸 제외(업무 95=95·사적 0·토큰 0) · 서명 지운 ws 6경로 404 · reject 429 · topics · /security 사실·금지문구 0 · 유료 비노출 · csv 가드 · tenant 0.
+- 비차단: 대표가 관리자 백업 작업을 보거나 지울 길 없음(알림만) · 백엔드 알림 문구 한글 하드코딩(기존 수준) · 무인증 토큰 다운로드 문을 만들지 않는 것이 전제.
+
 ## 2026-10-23 · 문서 공동 편집자(작성자 지정형) (방 09b096e1) — 설계 **DESIGN-OK** · 완료 **FAIL → PASS**(Fable, 차단 0)
 - 설계 docs/DOC_COEDITORS_DESIGN.md. 완료 1차 FAIL ①: 공동 편집자가 PUT 본문 `vlevel` 로 공개 범위를 바꿈(L4·L1 200) → vlevel 분기에 canMovePostProject(=/visibility 와 같은 사람) 가드 · 카나리 4건 추가 · 대조군(가드 끔 → 9 빨강) → 재검증 PASS(실측 403·값 불변·같은 값 200).
 - 근거: `--suite coeditors` 68/0 · 옛 규칙 대조군 8+ 빨강 · 마이그레이션 멱등(dev 백필 13행) · guard duproute·broadcast·parity·i18n · secrets 16/16 · tenant 0.
