@@ -61,6 +61,8 @@ export interface WorkspaceMember {
     avatar_url: string | null;
     is_ai: boolean | number;
     last_login_at?: string | null;
+    /** 로그인 ∨ 세션 갱신 중 늦은 쪽 (서버 services/lastActive) */
+    last_active_at?: string | null;
     phone?: string | null;
     job_title?: string | null;
     organization?: string | null;

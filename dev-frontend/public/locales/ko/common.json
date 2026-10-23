@@ -1595,6 +1595,8 @@
       "created": "가입",
       "email": "이메일",
       "lastLogin": "최근 로그인",
+      "lastActive": "최근 접속",
+      "lastActiveTip": "마지막으로 PlanQ 를 쓴 때 — 로그인한 날과 로그인 유지로 이어 쓴 날 중 늦은 쪽",
       "name": "이름",
       "role": "역할",
       "verified": "인증"
@@ -1608,7 +1610,8 @@
     "roleUser": "사용자",
     "searchPh": "이메일·이름 검색",
     "title": "사용자 관리",
-    "unverified": "미인증"
+    "unverified": "미인증",
+    "lastLoginAt": "마지막 로그인 {{date}}"
   },
   "draft": {
     "restored": "임시저장된 내용을 불러왔어요",

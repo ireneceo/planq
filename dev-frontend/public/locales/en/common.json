@@ -1595,6 +1595,8 @@
       "created": "Joined",
       "email": "Email",
       "lastLogin": "Last login",
+      "lastActive": "Last active",
+      "lastActiveTip": "Last time they used PlanQ — the later of their last sign-in and their last session refresh",
       "name": "Name",
       "role": "Role",
       "verified": "Verified"
@@ -1608,7 +1610,8 @@
     "roleUser": "User",
     "searchPh": "Search email or name",
     "title": "User management",
-    "unverified": "Unverified"
+    "unverified": "Unverified",
+    "lastLoginAt": "Last sign-in {{date}}"
   },
   "draft": {
     "restored": "Restored your unsent text",

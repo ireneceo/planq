@@ -1670,7 +1670,8 @@ export default function WorkspaceSettingsPage() {
             // 드로어도 리스트와 같은 워크스페이스 표시명을 쓴다 — 한 화면에서 리스트는 표시명,
             //   드로어는 계정명이면 같은 사람이 두 이름으로 보인다 (계정 이메일·최근 로그인은 아래 별도 표시).
             const targetName = isPending ? (target.invite_email || '') : memberDisplayName(u, i18n.language);
-            const fmtLastLogin = u?.last_login_at ? formatDayTime(u.last_login_at, { year: 'always' }) : '—';
+            const lastActive = u?.last_active_at || u?.last_login_at;
+            const fmtLastLogin = lastActive ? formatDayTime(lastActive, { year: 'always' }) : '—';
             return (
               <>
                 <DetailDrawer.Header onClose={() => openMember(null)}>

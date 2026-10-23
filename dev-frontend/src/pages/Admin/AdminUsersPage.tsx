@@ -26,6 +26,8 @@ interface UserRow {
   is_guest?: boolean;
   created_at: string;
   last_login_at: string | null;
+  /** 로그인 ∨ 세션 갱신 중 늦은 쪽 — 서버 services/lastActive. last_login_at 은 로그인 순간에만 찍혀 몇 주 전에 멈춘다 */
+  last_active_at?: string | null;
 }
 
 const AdminUsersPage = () => {
@@ -102,7 +104,9 @@ const AdminUsersPage = () => {
                 {t('adminUsers.col.verified', '인증')}
               </Th>
               <Th>{t('adminUsers.col.created', '가입')}</Th>
-              <Th>{t('adminUsers.col.lastLogin', '최근 로그인')}</Th>
+              <Th title={t('adminUsers.col.lastActiveTip', '마지막으로 PlanQ 를 쓴 때 — 로그인한 날과 로그인 유지로 이어 쓴 날 중 늦은 쪽') as string}>
+                {t('adminUsers.col.lastActive', '최근 접속')}
+              </Th>
               <Th>{t('adminUsers.col.actions', '액션')}</Th>
             </tr>
           </thead>
@@ -137,7 +141,9 @@ const AdminUsersPage = () => {
                       : <UnverifiedTag>{t('adminUsers.unverified', '미인증')}</UnverifiedTag>}
                 </Td>
                 <Td>{tf.formatDate(u.created_at)}</Td>
-                <Td>{u.last_login_at ? tf.formatDate(u.last_login_at) : '—'}</Td>
+                <Td title={u.last_login_at ? t('adminUsers.lastLoginAt', { date: tf.formatDate(u.last_login_at), defaultValue: '마지막 로그인 {{date}}' }) as string : undefined}>
+                  {(u.last_active_at || u.last_login_at) ? tf.formatDate((u.last_active_at || u.last_login_at) as string) : '—'}
+                </Td>
                 <Td>
                   <ActionRow>
                     {String(u.id) !== String(currentUser?.id) && u.status === 'active' && (

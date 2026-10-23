@@ -839,7 +839,10 @@ router.get('/users', async (req, res, next) => {
       attributes: ['id', 'email', 'name', 'username', 'platform_role', 'status', 'email_verified_at', 'created_at', 'last_login_at', 'is_ai', 'is_guest'],
       order: [['created_at', 'DESC']],
     });
-    return successResponse(res, rows.map(r => r.toJSON()));
+    // «최근 접속» = 로그인 ∨ 세션 갱신 중 늦은 쪽 (services/lastActive — last_login_at 만 보면 몇 주 전에 멈춘다)
+    const out = rows.map(r => r.toJSON());
+    await require('../services/lastActive').attachLastActive(out);
+    return successResponse(res, out);
   } catch (err) { next(err); }
 });
 

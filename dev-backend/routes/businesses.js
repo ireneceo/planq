@@ -1082,6 +1082,8 @@ router.get('/:businessId/members', authenticateToken, checkBusinessAccess, async
       if (o.user) { o.user.display_name = m.name || null; o.user.display_name_localized = m.name_localized || null; }
       return o;
     });
+    // 드로어 «마지막 활동» — 로그인 ∨ 세션 갱신 중 늦은 쪽(services/lastActive)
+    await require('../services/lastActive').attachLastActive(out.map((o) => o.user));
     successResponse(res, out);
   } catch (error) {
     next(error);
