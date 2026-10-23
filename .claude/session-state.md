@@ -62,7 +62,7 @@
 - 고침: services/lastActive(로그인 ∨ refresh_tokens.last_used_at 최댓값 중 늦은 쪽 = last_active_at) — 관리자 사용자 목록 + 멤버 목록(설정 › 멤버 드로어 «마지막 활동» 도 같은 버그). 열 이름 «최근 접속», 셀 툴팁 «마지막 로그인 날짜». 대리 로그인은 refresh 를 안 타 세지 않는다.
 - 검증(dev): 관리자 목록 500행 기대값 불일치 0 · 로그인보다 늦은 접속 48명 · 비관리자 403 · 멤버 목록 200.
 
-### 답 기다림: /개발완료 가 god-file 래칫에 막힘 (방 85736009 · 2026-10-23)
+### ✅ (이전) 답 기다림: /개발완료 가 god-file 래칫에 막힘 (방 85736009 · 2026-10-23) — Irene «권고대로» → 파일별 나누기 4건 대기열에 넣음(export.js · NotificationToaster · MailPage · DocsTab, 마지막 방이 /개발완료 이어서)
 - 무엇: guard-invariants god-file 4건(dev-backend/routes/export.js 507줄 · NotificationToaster.tsx 801줄 · MailPage.tsx +15% · DocsTab.tsx +16%) — 모두 다른 방이 키운 파일. 마지막 /개발완료 = 10-21.
 - 왜: 개발완료 0단계는 가드 3축 통과가 조건. 기준선 올리기는 «의도된 부채 감소» 가 아니라 숨기기라 안 함.
 - 답이 오면: 나누기면 파일별 분리 일을 대기열에 · 기준선이면 전체 실행 --update-baseline 후 /개발완료 이어서.
