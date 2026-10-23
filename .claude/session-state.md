@@ -3,6 +3,11 @@
 **작업 상태:** 일정 추가 장소 토글 완료(방 3404829e, 운영 미배포) · 1건 완료(운영 미배포) · SNS 발송 단계 1 완료(운영 미배포).
 
 
+### ✅ 아이폰 상단 가려짐(잠시) — 유령 스크롤 되돌리기 보강 (방 5f3f846e · 2026-10-23 · [Opus]) — 운영 반영: 다음 배포 때
+- 원문: «아이폰에서 상단 서브페이지들이 다 가려져. 메인헤더에 가려졌어» → «지금 또 괜찮아. 잠시 오류였나. 확인해줘»
+- 원인(코드로 추정 — 실기기 재현은 못 함): main.tsx maybeFixPhantomScroll 이 손가락이 닿아 있으면 건너뛰고 다시 안 불려 문서가 밀린 채 남음.
+- 고침: touchend/touchcancel·window scroll 때 다시 되돌림. 흉내 실측 옛 80→80 / 새 80→0. 운영 최근 배포(c5704757)에는 상단 계산 회귀 없음(폰 13화면·앱 흉내 측정).
+
 ### ✅ Cue 답 흘려 보내기(스트리밍) — 2단계 (방 11546c7d · 2026-10-23 · [Opus] + Fable 설계 OK-WITH-CHANGES) — 운영 반영: 다음 배포 때(마이그레이션·nginx 변경 없음)
 - 원문: «Cue를 검색창에서 쓰니 너무 오래 걸려. 속도 당길 수 없어?» · 설계 docs/CUE_STREAMING_DESIGN.md
 - 서버: llm.js callLLM 선택 인자 onDelta(readSseBody — 다른 용도 무변경) · cue_tools.converse onEvent(읽기 도구면 reset+찾는 중) · services/cueStream(SSE 한 벌) · 분류 꼬리표 붙잡기 cueQuestionAnalysis.createTagHoldback(TAG_RE 옆) · /help 는 Accept: text/event-stream 일 때만, 옛 JSON 그대로 · compression 이 event-stream 제외 · routes/cue.js 500줄 안으로(위키 근거 찾기 → wikiSearch.retrieveForAnswer).
