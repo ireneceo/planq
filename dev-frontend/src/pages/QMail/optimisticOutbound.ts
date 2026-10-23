@@ -8,7 +8,7 @@
 //
 // ★ 임시 id 는 **음수**다. 서버 id 와 절대 겹치지 않아야 치환/롤백 대상을 틀리지 않는다.
 // ★ 실패하면 임시 카드를 걷어내고 작성 내용을 그대로 돌려준다 — 사용자가 쓴 글을 잃지 않는다.
-import type { Message } from './MailPage';
+import type { Message } from './mailTypes';
 
 /** 낙관 카드의 발송 상태. 서버 ENUM('pending'|'sent'|...) 과 겹치지 않는 화면 전용 값. */
 export const SENDING = 'sending';

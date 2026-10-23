@@ -10,7 +10,7 @@
 import React from 'react';
 import type { TFunction } from 'i18next';
 // 타입 정본은 MailPage — type-only import 라 런타임 순환이 생기지 않는다
-import type { Message, toAddrList as ToAddrList } from './MailPage';
+import type { Message, toAddrList as ToAddrList } from './mailTypes';
 import MailBodyFullscreen from './MailBodyFullscreen';
 
 // 전달 기능 스위치 — 2026-08-24 차단(원문이 리치 에디터를 통과해 표·이미지가 깨졌다) →

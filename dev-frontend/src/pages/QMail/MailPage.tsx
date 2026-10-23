@@ -25,7 +25,7 @@ import OverflowMenu, { type OverflowItem } from '../../components/Common/Overflo
 import MailAttachmentsMenu from './MailAttachmentsMenu';
 import ChipPopover from '../../components/Common/ChipPopover';
 import MailReplyOwnerChip from './MailReplyOwnerChip';
-import MailReadStatusChip, { type ReadStatus } from './MailReadStatusChip';
+import MailReadStatusChip from './MailReadStatusChip';
 import DetailFallback from '../../components/Common/DetailFallback';
 import type { DetailStatus } from '../../hooks/useDetailResource';
 import { findOtherWorkspaceOf } from '../../utils/workspaceMatch';
@@ -45,9 +45,6 @@ import MailContextPanel, { requestExtractTasks, requestCueAdvice } from './MailC
 import RecipientInput, { type RecipientSuggestion } from './RecipientInput';
 import { useInlineCidImages } from './useInlineCidImages';
 import { displayName, type NameLocalizable } from '../../utils/displayName';
-import HighlightText from '../../components/Common/HighlightText';
-import MatchReason from '../../components/Common/MatchReason';
-import type { SearchMatchInfo } from '../../utils/searchMatch';
 import { useLocalDraft, useDraftKey } from '../../hooks/useLocalDraft';
 import { migrateLegacyDraft } from '../../services/draftStore';
 import PanelResizeHandle, { usePanelWidth } from '../../components/Layout/PanelResizeHandle';
@@ -71,6 +68,8 @@ import { promoteInboxItem, promoteErrorKey } from '../../services/sale';
 import { readComposeIntent, returnAfterCompose } from './composeReturn';
 import { useMailClientAdd, openClientTab } from './useMailClientAdd';
 import { guessLangFromText, pickTranslateTarget } from './mailLang';
+import MailThreadRow from './MailThreadRow';
+import { toAddrList, type Folder, type MailAccount, type Thread, type Message, type ThreadDetail, type MailLabel, type MailMember } from './mailTypes';
 
 import {
   AcctFilterRow,
@@ -95,8 +94,6 @@ import {
   Composer,
   ComposerActions,
   KeepNeededRow,
-  InquiryBadge,
-  HoldingBadge,
   ComposerError, AiWorkingLine, AiDot,
   ComposerFrom,
   ComposerHint,
@@ -137,7 +134,6 @@ import {
   FromManage,
   FromSelect,
   FwdAttachHint,
-  HandledBadge,
   LabelChip,
   ListMoreRow,
   Loading,
@@ -147,18 +143,10 @@ import {
   MessagesScroll,
   DetailScroll,
   MetaChip,
-  FollowUpChip,
   NewLabelInput,
   NoAcctBtn,
   NoAcctHint,
-  OverdueChip,
   ReplyBar,
-  ReplyRow,
-  RowBtn,
-  SendArrow,
-  RowLabels,
-  FolderChip,
-  RuleBadge,
   SearchClear,
   SearchIcon,
   SearchInput,
@@ -166,20 +154,7 @@ import {
   ListControls,
   Spinner,
   TabCount,
-  ThreadItem,
   ThreadList,
-  ThreadPreview,
-  ThreadRow1,
-  ThreadRow1Right,
-  ListClip,
-  ThreadSender,
-  ThreadSubject,
-  ThreadTime,
-  UncertainBadge,
-  ReplyNeededBadge,
-  SentTag,
-  UncertainInline,
-  UnreadDot,
   HeaderActions,
   AcctManageIcon,
   BulkAction,
@@ -190,129 +165,10 @@ import {
   ComposeDraftStatus,
   PromoteErrTag, InquiryFilterBar, InquiryFilterClear, SentViaBar, SentViaHint,
   LearnBar, LearnText, LearnLink, LearnClose,
-  ImpersonationBadge, SpamReasonBadge, ImpersonationNote,
+  ImpersonationNote,
 } from './MailPage.styles';
 
 
-type Folder = 'reply_needed' | 'uncertain' | 'all' | 'sent' | 'marketing' | 'following' | 'spam' | 'archived';
-
-// 메일 계정 (회사 공용 / 개인) — 폴더트리 그룹 (외부 연동 Phase 3)
-interface MailAccount {
-  id: number;
-  email: string;
-  display_name: string | null;
-  is_personal: boolean;
-  unread: number;
-}
-
-// 답변 대기 일수 — 3일 넘으면 목록에서 강조 (고객 문의를 묵히지 않게)
-function waitingDays(iso?: string | null): number {
-  if (!iso) return 0;
-  const ms = Date.now() - new Date(iso).getTime();
-  return ms > 0 ? Math.floor(ms / 86400000) : 0;
-}
-
-interface Thread {
-  id: number;
-  subject: string | null;
-  last_message_preview: string | null;
-  last_message_at: string;
-  sent_via?: 'planq' | 'other' | null;   // 보낸메일함 행만 — 마지막 보낸 메일이 PlanQ 에서 나갔나(서버 sent_by_user_id)
-  last_message_direction?: 'inbound' | 'outbound' | null;  // #186 — 마지막 메시지 방향(받은/보낸 구분)
-  // 읽음 추적 대신 쓰는 결정론적 신호 — 보낸 뒤 답이 없거나, 애초에 발송이 안 됐거나.
-  //   서버 판정(services/mailFollowUp) 단일 원천. 프론트에서 날짜를 다시 계산하지 말 것.
-  follow_up?: { kind: 'awaiting_reply'; days: number } | { kind: 'delivery_problem'; delivery_status: string } | null;
-  // #384 — 이 대화의 후속 알림 기간. null=기본(3일) · 0=끔 · N=N일
-  follow_up_days?: number | null;
-  /** 'provider' = 업체(Gmail·네이버) 스팸함에서 가져온 스레드 — 30일 뒤 자동 삭제, 스팸 해제는 업체 쪽에도 따로 해야 한다 */
-  spam_origin?: 'provider' | 'impersonation' | null;
-  /** 이 폴더를 정한 기준 id(services/mailCriteriaCatalog) — 스팸 폴더 행의 «왜» */
-  triage_criterion?: string | null;
-  /** 사칭 판정(services/mailImpersonation.rowView) — 있으면 행에 «사칭 의심» 배지 */
-  //   목록은 codes, 상세는 signals(신호별 코드·호스트·코드포인트 — 원문 없음)를 싣는다.
-  impersonation?: {
-    level: 'warn' | 'quarantine'; codes?: string[]; released?: boolean; known?: boolean;
-    signals?: { code: string; level: 'strong' | 'weak'; detail: string }[];
-  } | null;
-  status: string;
-  reply_needed: boolean;
-  reply_needed_at?: string | null;
-  /** 'holding' = 임시 답변을 보내고 답변 필요에 남겨 둔 것 (2026-09-10) */
-  reply_needed_reason?: string | null;
-  /** 답변 필요인데 마지막이 우리 메일(임시 답변)일 때 — 기다리는 **마지막 받은 메일** 미리보기 (#438) */
-  reply_preview?: string | null;
-  /** 이 스레드가 Q sale 의 «상담» 기준에 드는가 — 서버가 `saleInbox.classifyMailThreads`
-   *  **한 함수**로 판정해 내려준다(#421). 판정을 못 했으면 필드가 아예 없다
-   *  (false 를 붙이면 "문의가 아니다" 라고 단언하는 것이라 거짓이 된다). */
-  is_inquiry?: boolean;
-  /** #449 — 수동 모드에서 자동 기준에만 드는 메일(「문의 후보」) */
-  is_inquiry_candidate?: boolean;
-  rule_id?: number | null;        // 학습 규칙으로 분류된 스레드 (몰래 걸러지지 않도록 화면에 표시)
-  is_starred: boolean;
-  unread_count: number;
-  message_count: number;
-  attachment_count?: number;      // #215-I — 열기 전 첨부 유무 인지 (0 = 없음)
-  labels: string[];
-  // 2026-09-11 — 검색 중일 때만 서버가 채운다: 어디서 맞았나(field) + 행에 안 보이면 주변 문장(snippet).
-  //   서버 정본 services/mailSearchMatch.js
-  match?: SearchMatchInfo | null;
-  //   owner_user_id: 이 스레드가 붙은 계정의 주인. null 이면 워크스페이스 공용, 값이 있으면 개인메일.
-  //   본문 인라인 이미지 등급을 계정 목록 조회 없이 정하기 위해 서버가 같이 내려준다(#378 후속).
-  account: { id: number; email: string; display_name?: string | null; owner_user_id?: number | null } | null;
-  // 상대방(발신자) — 목록의 "보낸 사람" 자리. 내 메일함 이름(account.display_name)이 아니다.
-  counterpart?: { name: string | null; email: string | null } | null;
-  // 2026-09-15 — 검색은 폴더를 넘는다(서버 searchFolderWhere). 그래서 행이 **자기 자리**를 말한다.
-  //   판정 정본은 서버 services/mailFolders.folderOf — 화면이 다시 계산하지 않는다.
-  folder?: string | null;
-  client: { id: number; display_name?: string; company_name?: string } | null;
-  project?: { id: number; name?: string; color?: string } | null;
-  uncertain_reason?: string | null;
-  triage?: string | null; // human / automated / marketing / spam / unknown (N+83)
-}
-
-export interface Message {
-  id: number;
-  direction: 'inbound' | 'outbound';
-  from_email: string | null;
-  from_name: string | null;
-  to_emails: Array<string | { name?: string; email: string }>;   // 백엔드는 [{name,email}] 로 준다
-  cc_emails?: Array<string | { name?: string; email: string }> | null;
-  subject: string | null;
-  body_html: string | null;
-  body_text: string | null;
-  sent_at: string;
-  is_read: boolean;
-  // outbound 만 채워진다. 'delivered' 는 DSN 없이는 알 수 없어 서버가 만들지 않는다.
-  // 서버 ENUM + 'sending' — 'sending' 은 **화면 전용**(2R-2 낙관 카드)이라 DB 에 저장되지 않는다.
-  //   서버 ENUM 에 넣지 않는 이유: 저장된 적 없는 상태가 통계·필터에 섞이면 그 자체가 오염이다.
-  delivery_status?: 'pending' | 'sent' | 'delivered' | 'bounced' | 'failed' | 'suppressed' | 'sending' | null;
-  // 운영 #220 — 팀메일함에서 이 메일을 실제로 보낸 사람. inbound 면 null.
-  sent_by_user_id?: number | null;
-  sent_by_name?: string | null;
-  // 2026-10-21 — 표시용 «보낸 멤버»(서버 services/mailSender). IMAP 으로 가져온 보낸 메일도 보낸 주소로 멤버를 찾는다. 모르면 null.
-  sender_user_id?: number | null;
-  sender_name?: string | null;
-  sender_source?: 'planq' | 'address' | null;
-  delivery_error?: string | null;
-  attachments: Array<{ id: number; file_id: number | null; file_name: string; file_size: number; mime_type: string }>;
-  // #215-H — 본문이 cid: 로 참조하는 이미지. 본문은 sandbox iframe srcDoc 이라 cid 를 해석할 수 없어
-  //   인증 다운로드 → data: URI 치환 재료로 서버가 따로 내려준다.
-  // file_id 는 첨부 기반, embedded_index 는 본문에서 떼어낸 base64 이미지 (둘 중 하나만 채워진다)
-  inline_images?: Array<{ file_id: number | null; embedded_index?: number; content_id: string | null; mime_type: string; size_bytes: number | null }>;
-}
-
-interface ThreadDetail extends Thread {
-  messages: Message[];
-  assignee_user_id?: number | null;
-  assignee_name?: string | null;
-  my_following?: boolean;
-  // 2026-10-22 — 누가 읽고 답했나(공용 메일함만) · 답변 업무(services/mailReplyTask)
-  read_status?: ReadStatus | null;
-  reply_task?: { id: number; status: string; assignee_id: number | null } | null;
-}
-
-interface MailLabel { name: string; color: string }
-interface MailMember { user_id: number; name: string }
 
 // 탭 순서 (Irene 확정 2026-07-12): 할 일 → 애매한 것 → 나머지.
 //   '내 담당' 제거 — 이름이 들어갔다는 이유로 따로 뺄 근거가 약하고, 그런 메일은 어차피 답변 필요다.
@@ -339,11 +195,6 @@ const FOLDERS: Array<{ key: Folder; defaultLabel: string }> = [
 // 메일 본문 문서 만들기 — 정화된 원본 문서에 높이 보고 스크립트만 덧붙인다.
 //   원본에 <html>/<body> 가 있으면 그대로 쓰고(배경·정렬·템플릿 CSS 보존), 조각 HTML 이면 최소 골격만 씌운다.
 //   우리 폰트·여백을 강제하지 않는다 — 강제하면 발신자가 만든 레이아웃이 깨진다.
-// 수신 주소 정규화 — 백엔드는 [{name, email}] 로 준다. 문자열로 다루면 "[object Object]" 가 된다.
-export function toAddrList(list: Array<string | { name?: string; email: string }> | undefined | null): string[] {
-  if (!Array.isArray(list)) return [];
-  return list.map((x) => (typeof x === 'string' ? x : x?.email)).filter(Boolean) as string[];
-}
 
 
 // #384 — 후속 알림 기간 프리셋. 백엔드는 1~365 를 받지만 화면은 자주 쓰는 값만 준다.
@@ -2712,293 +2563,26 @@ const MailPage: React.FC = () => {
               if (hasMore && !loadingMore && el.scrollHeight - el.scrollTop - el.clientHeight < 300) loadMore();
             }}>
               {threads.map(mt => (
-                <ThreadItem
+                <MailThreadRow
                   key={mt.id}
-                  type="button"
-                  data-testid="mail-thread-row"
-                  data-thread-id={mt.id}
-                  $active={activeId === mt.id}
-                  $unread={mt.unread_count > 0}
-                  $handled={handledIds.has(mt.id)}
-                  onClick={() => setActive(mt.id)}
-                  // ★ 2026-09-16 (Irene: "메일목록에서 … 상담리스트로 보내기 기능이 있어야 할 것 같아.")
-                  //   행 자체가 <button> 이라 안에 메뉴 버튼을 넣을 수 없다(중첩 button = 유효하지 않은 HTML).
-                  //   그래서 **우클릭 메뉴 한 곳**(AppContextMenu)에 동작을 선언한다.
-                  //   이미 고객에 연결된 스레드는 상담이 아니라 그 고객의 이력이므로 내지 않는다.
-                  {...(mt.client ? {} : {
-                    'data-pq-context': 'sale-promote',
-                    'data-pq-context-label-sale-promote': t('actions.promoteToSale', { defaultValue: '상담으로 보내기' }) as string,
-                    'data-ctx-thread-id': String(mt.id),
-                  })}
-                >
-                  <ThreadRow1>
-                    <ThreadSender>
-                      {/* 보낸 사람 = 실제 발신자(메일 헤더의 이름). 여태 내 메일함 이름
-                          (account.display_name)을 그려서 PlanQ 알림이 내 계정명으로 보였다.
-                          연결된 고객 이름도 발신자를 가리면 안 된다 — 고객 연결은 별도 칩으로 표시된다. */}
-                      {/* #164 — 이름이 없을 땐 전체 이메일 주소 대신 @ 앞 로컬 파트만 축약 표시(리스트 노이즈 감소). */}
-                      <HighlightText
-                        query={qDebounced}
-                        text={mt.counterpart?.name || mt.client?.display_name || mt.client?.company_name
-                          || (mt.counterpart?.email || mt.account?.email || '').split('@')[0]
-                          || '(unknown)'}
-                      />
-                    </ThreadSender>
-                    <ThreadRow1Right>
-                      {/* #215-I — 첨부 유무. 개수는 그리지 않고 aria/title 로만 (좁은 행 — Gmail 관례) */}
-                      {(mt.attachment_count || 0) > 0 && (
-                        <ListClip role="img" data-testid="mail-thread-attach"
-                          aria-label={t('thread.attachments', { count: mt.attachment_count }) as string}
-                          title={t('thread.attachments', { count: mt.attachment_count }) as string}>
-                          <ClipIcon viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></ClipIcon>
-                        </ListClip>
-                      )}
-                      <ThreadTime>{formatTimeAgo(mt.last_message_at)}</ThreadTime>
-                    </ThreadRow1Right>
-                  </ThreadRow1>
-                  <ThreadSubject $unread={mt.unread_count > 0}>
-                    {mt.unread_count > 0 && <UnreadDot />}
-                    {/* #186 — 내가 마지막으로 보낸 스레드는 '보낸' 태그로 받은 메일과 구분.
-                        ★ #272 — 보낸메일함에서는 숨긴다. 이 폴더는 **메시지 단위**로 정의돼(outbound 가
-                        1건이라도 있으면 포함) 상대가 답장한 스레드도 들어오는데, 태그는 *마지막* 메시지
-                        방향을 보므로 같은 폴더 안에서 태그가 붙었다 안 붙었다 했다
-                        (Irene: "왜 [보낸]이란 표시가 있고 없고 달라?"). 전부 보낸 메일인 폴더라 정보량도 0. */}
-                    {/* #438 — 답을 기다리는 스레드는 고객 메일을 미리보기로 보여주므로 「보낸」 태그를 달지 않는다
-                        (태그와 미리보기가 서로 다른 메일을 가리키게 된다). */}
-                    {folder !== 'sent' && mt.last_message_direction === 'outbound' && !mt.reply_preview && (
-                      <SentTag>{t('thread.sent', { defaultValue: '보낸' }) as string}</SentTag>
-                    )}
-                    {/* 보낸메일함 — PlanQ 에서 보낸 메일은 표시를 단다(Gmail·다른 앱·AI 에서 보낸 것과 가른다). 기준은 서버 sent_via. */}
-                    {folder === 'sent' && mt.sent_via === 'planq' && (
-                      <SentTag data-testid="mail-sent-via-planq-tag">{t('sentVia.tag', { defaultValue: 'PlanQ 발송' }) as string}</SentTag>
-                    )}
-                    {/* 보냈다는 것은 **행에 조용히** 남긴다 — 성공 토스트는 쓰지 않는다(운영 규칙). */}
-                    {promoteDone === mt.id && (
-                      <SentTag data-testid="mail-promoted-mark">
-                        {t('actions.promotedToSale', { defaultValue: '상담으로 보냄' }) as string}
-                      </SentTag>
-                    )}
-                    {promoteErr && promoteErr.id === mt.id && (
-                      <PromoteErrTag data-testid="mail-promote-error" role="status">
-                        {tSale(`promoteError.${promoteErr.key}`) as string}
-                      </PromoteErrTag>
-                    )}
-                    <HighlightText text={mt.subject || '(no subject)'} query={qDebounced} />
-                  </ThreadSubject>
-                  {(mt.reply_preview || mt.last_message_preview) && (
-                    <ThreadPreview data-testid="mail-thread-preview">
-                      <HighlightText text={(mt.reply_preview || mt.last_message_preview) as string} query={qDebounced} />
-                    </ThreadPreview>
-                  )}
-                  {/* 2026-09-11 — 검색은 스레드의 **모든 메시지**(본문·제목·보낸 사람)를 본다. 행에 안 보이는 곳에서
-                      맞았으면 서버가 준 주변 문장을 한 줄로 보여 "왜 떴는지" 를 알린다(services/mailSearchMatch). */}
-                  {qDebounced && mt.match?.snippet && (
-                    <MatchReason field={mt.match.field} snippet={mt.match.snippet} query={qDebounced} />
-                  )}
-                  {/* 후속 조치 신호 — "봤나" 대신 "움직여야 하나" 에 답한다. 발송 실패는 별개로 구분. */}
-                  {mt.follow_up && (
-                    mt.follow_up.kind === 'delivery_problem' ? (
-                      <FollowUpChip $tone="err">
-                        {t(`delivery.${mt.follow_up.delivery_status}`) as string}
-                      </FollowUpChip>
-                    ) : (
-                      <FollowUpChip $tone="warn">
-                        {t('thread.awaitingReply', { count: mt.follow_up.days }) as string}
-                      </FollowUpChip>
-                    )
-                  )}
-                  {/* 사칭 의심 — 서버 판정(services/mailImpersonation) 그대로. 격리된 것은 «격리» 까지 말한다. */}
-                  {mt.impersonation && (
-                    <ImpersonationBadge data-testid="mail-row-impersonation" title={t('impersonation.rowHint') as string}>
-                      ⚠ {t(mt.status === 'spam' && mt.spam_origin === 'impersonation' ? 'impersonation.rowQuarantined' : 'impersonation.row') as string}
-                    </ImpersonationBadge>
-                  )}
-                  {/* 스팸 폴더 — 왜 스팸인가(업체 스팸함 / 규칙 / 직접 표시 / 자체 판정). 사칭은 위 배지가 말한다. */}
-                  {folder === 'spam' && mt.status === 'spam' && mt.spam_origin !== 'impersonation' && (
-                    <SpamReasonBadge data-testid="mail-row-spam-reason">
-                      {t(`spamFolder.reason.${mt.spam_origin === 'provider' ? 'provider' : mt.rule_id ? 'rule' : mt.triage_criterion === 'spam_filter' ? 'filter' : 'manual'}`) as string}
-                    </SpamReasonBadge>
-                  )}
-                  {/* 확인 권장 뱃지는 처리 버튼과 같은 줄에 둔다 — 따로 두면 빈 줄이 생기고 행이 길어진다.
-                      확인 권장 폴더가 아닐 때만 단독 표시(그 폴더에선 아래 처리 줄에 함께 나온다). */}
-                  {mt.status === 'uncertain' && folder !== 'uncertain' && (
-                    <UncertainBadge>
-                      ⚠ {t(`uncertain.${mt.uncertain_reason || 'review'}`, { defaultValue: t('uncertain.review', { defaultValue: '확인 권장' }) }) as string}
-                    </UncertainBadge>
-                  )}
-                  {/* #221 — 답변 필요도 표시한다. 여태 확인 권장만 뱃지가 있어서 다른 탭에서는
-                      그 메일이 답변 대기 중인지 알 수 없었다. 답변 필요 폴더 안에서는 아래 처리 줄이
-                      이미 그 맥락을 주므로 중복 표시하지 않는다 (확인 권장 뱃지와 같은 규칙). */}
-                  {mt.reply_needed && folder !== 'reply_needed' && (
-                    <ReplyNeededBadge>
-                      {t('replyNeededBadge', { defaultValue: '답변 필요' }) as string}
-                    </ReplyNeededBadge>
-                  )}
-                  {/* 「문의」 — Q sale 의 상담 기준(`saleInbox.classifyMailThreads`)에 드는 메일.
-                      ★ 상태를 말하는 **명사**다(누르는 버튼이 아니다). 같은 글자를 상태와 행위에
-                        같이 쓰지 않는다 — 2026-09-17 에 그 때문에 목록이 "같은 표시가 두 번" 으로 읽혔다.
-                      ★ 서버가 판정을 못 했으면 필드가 없고, 그때는 **아무 것도 그리지 않는다.** */}
-                  {mt.is_inquiry === true && (
-                    <InquiryBadge title={t('inquiryBadgeHint', { defaultValue: 'Q sales 상담 목록에 들어오는 메일입니다' }) as string}>
-                      {t('inquiryBadge', { defaultValue: '문의' }) as string}
-                    </InquiryBadge>
-                  )}
-                  {/* #449 — 수동 모드에서 자동 기준에만 드는 메일. 상태 명사다(누르는 버튼이 아니다). */}
-                  {mt.is_inquiry !== true && mt.is_inquiry_candidate === true && (
-                    <InquiryBadge $candidate data-testid="mail-inquiry-candidate"
-                      title={t('inquiryBadgeCandidateHint') as string}>
-                      {t('inquiryBadgeCandidate') as string}
-                    </InquiryBadge>
-                  )}
-                  {/* ★ 2026-09-10 — **임시 답변**으로 남겨둔 것. 목록이 "왜 아직 여기 있는지" 를 말해야 한다.
-                      이 표시가 없으면 다음 날 그 메일을 보고 답장을 했는지 안 했는지 또 알 수 없다. */}
-                  {mt.reply_needed && mt.reply_needed_reason === 'holding' && (
-                    <HoldingBadge title={t('thread.holdingHint', { defaultValue: '임시 답변을 보냈고, 아직 본 답변이 남아 있습니다' }) as string}>
-                      {t('thread.holding', { defaultValue: '임시답변' }) as string}
-                    </HoldingBadge>
-                  )}
-                  {/* 학습된 규칙으로 자동 분류된 메일임을 밝힌다 — 사용자 모르게 걸러지면 안 된다.
-                      규칙은 설정 > 메일 계정 > 메일 분류 규칙에서 확인·삭제할 수 있다. */}
-                  {mt.rule_id && (
-                    <RuleBadge title={t('rules.appliedHint', { defaultValue: '설정에서 이 규칙을 확인하고 지울 수 있습니다' }) as string}>
-                      {t('rules.applied', { defaultValue: '규칙으로 자동 분류됨' })}
-                    </RuleBadge>
-                  )}
-                  {/* 답변 필요 폴더 — 오래 방치된 문의를 눈에 띄게 하고, 밖(Gmail 등)에서 이미 답장한
-                      메일을 사람이 직접 끌 수 있게 한다. 안 그러면 플래그가 영영 안 꺼져 지표가 죽는다. */}
-                  {folder === 'reply_needed' && handledIds.has(mt.id) && (
-                    <ReplyRow>
-                      <HandledBadge>{t('actions.handledDone', { defaultValue: '처리됨' }) as string}</HandledBadge>
-                    </ReplyRow>
-                  )}
-                  {folder === 'reply_needed' && !handledIds.has(mt.id) && (
-                    <ReplyRow>
-                      {waitingDays(mt.reply_needed_at) >= 3 && (
-                        <OverdueChip>
-                          {t('reply.waitingDays', {
-                            defaultValue: '{{n}}일 경과',
-                            n: waitingDays(mt.reply_needed_at),
-                          }) as string}
-                        </OverdueChip>
-                      )}
-                      {/* 답장을 보내면 reply_needed 는 서버가 알아서 끈다 (email_threads.js 답장 라우트).
-                          그래서 여기 남는 문은 하나뿐 — 답하지 않아도 되는 메일을 내리는 문. */}
-                      <RowBtn
-                        type="button"
-                        disabled={dismissingId === mt.id}
-                        title={t('reply.dismissHint', { defaultValue: '답장하지 않아도 되는 메일입니다. 확인 권장으로 내려갑니다.' }) as string}
-                        onClick={(e) => dismissReply(e, mt.id)}
-                      >
-                        {t('reply.dismiss', { defaultValue: '답변 불필요' }) as string}
-                      </RowBtn>
-                    </ReplyRow>
-                  )}
-                  {/* 확인 권장 — 판단이 끝난 메일을 여기서 바로 내린다. 못 내리면 이 폴더는 영영 안 줄고
-                      관리 자산이 아니라 쓰레기통이 된다. 원본은 그대로(전체 탭에 남는다). */}
-                  {folder === 'uncertain' && handledIds.has(mt.id) && (
-                    <ReplyRow>
-                      <HandledBadge>{t('actions.handledDone', { defaultValue: '처리됨' }) as string}</HandledBadge>
-                    </ReplyRow>
-                  )}
-                  {folder === 'uncertain' && !handledIds.has(mt.id) && (
-                    <ReplyRow>
-                      {/* ★ 2026-09-19 (Irene #421: *"이건 확인이 필요하면 확인권장탭으로 가면 되는 건데
-                          왜 체크가 나와? 이건 필요없는 표시 같은데?"*) — **탭 이름이 이미 그 말을 하고 있다.**
-                          일반 사유(unclear_intent·review)는 «확인이 필요하다» 는 뜻뿐이라 이 탭에서는
-                          같은 말을 두 번 하는 것이다. 정보를 더하는 사유(자동업무·청구결제·견적계약)만 남긴다.
-                          다른 탭에서는 맥락이 없으므로 종전대로 전부 보여준다(위 UncertainBadge). */}
-                      {mt.status === 'uncertain'
-                        && !!mt.uncertain_reason
-                        && !['unclear_intent', 'review'].includes(mt.uncertain_reason) && (
-                        <UncertainInline>
-                          ⚠ {t(`uncertain.${mt.uncertain_reason}`, { defaultValue: t('uncertain.review', { defaultValue: '확인권장' }) }) as string}
-                        </UncertainInline>
-                      )}
-                      <RowBtn
-                        type="button"
-                        data-testid="mail-row-handled"
-                        disabled={dismissingId === mt.id}
-                        onClick={(e) => markHandled(e, mt.id)}
-                      >
-                        {t('actions.markHandled', { defaultValue: '확인 완료' }) as string}
-                      </RowBtn>
-                      {/* 운영 #314 — 확인 권장에서 "이건 나중에 답해야 한다" 로 올리는 문 */}
-                      <RowBtn
-                        type="button"
-                        data-testid="mail-row-reply-needed"
-                        disabled={dismissingId === mt.id}
-                        title={t('actions.markReplyNeededHint', { defaultValue: '이 메일을 «답변 필요» 로 올립니다. 답변 필요 탭에서 이어서 처리할 수 있습니다.' }) as string}
-                        onClick={(e) => markReplyNeeded(e, mt.id)}
-                      >
-                        {t('actions.markReplyNeeded', { defaultValue: '답변 필요로' }) as string}
-                        {/* 「표시」를 아이콘으로 — 방향형 어미(…로)는 남긴다. 상태 뱃지(빨간 「답변 필요」)와
-                            글자가 같아지면 목록이 «같은 표시가 두 번» 으로 읽힌다(CLAUDE.md Q mail 계약 ②). */}
-                        <SendArrow aria-hidden viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
-                          <line x1="5" y1="12" x2="19" y2="12" /><polyline points="13 6 19 12 13 18" />
-                        </SendArrow>
-                      </RowBtn>
-                      <RowBtn
-                        type="button"
-                        $danger
-                        disabled={dismissingId === mt.id}
-                        onClick={(e) => markSpamRow(e, mt.id)}
-                      >
-                        {t('actions.markSpam', { defaultValue: '스팸' }) as string}
-                      </RowBtn>
-                    </ReplyRow>
-                  )}
-                  {/* ★ 2026-09-17 — **버튼 문구는 뱃지와 달라야 한다.**
-                      Irene: *"전체 메일에 답변필요 표시가 두번 나와. 빨간거 회색."*
-                      실측(전체 30행): 빨간 `ReplyNeededBadge`(상태 = 이 메일은 답변 대기 중)와
-                      회색 `RowBtn`(행위 = 눌러서 올려라)이 **글자가 똑같아서** 한 목록에 같은 표시가
-                      두 번 있는 것으로 읽혔다. 한 행에 둘이 같이 뜨지는 않지만(조건이 배타적),
-                      목록을 훑는 사람에게는 **행이 아니라 목록 전체가 한 장면**이다.
-                      → 상태는 명사(「답변 필요」), 행위는 동사를 붙인다(「답변 필요로 표시」).
-                      회귀: `node scripts/e2e/run.js --suite maillabel`
-                      운영 #314 — 확인 권장·답변 필요 말고 **어느 탭에서도** 답변 필요로 올릴 수 있어야 한다.
-                      (전체·자동/마케팅·보관·보낸메일·스팸 …) 이미 답변 필요인 건 다시 올릴 이유가 없다. */}
-                  {folder !== 'uncertain' && folder !== 'reply_needed' && !mt.reply_needed && !handledIds.has(mt.id) && (
-                    <ReplyRow>
-                      {/* 2026-10-15 — 자동·마케팅 폴더에서만: «확인 권장으로» (상태 뱃지 «확인 권장» 과 글자가 다르다 — Q mail 계약 ②) */}
-                      {folder === 'marketing' && (
-                        <RowBtn
-                          type="button"
-                          data-testid="mail-row-review"
-                          disabled={dismissingId === mt.id}
-                          title={t('actions.markReviewHint', { defaultValue: '이 메일을 «확인 권장» 으로 올립니다.' }) as string}
-                          onClick={(e) => markReviewRow(e, mt.id)}
-                        >
-                          {t('actions.markReview', { defaultValue: '확인 권장으로' }) as string}
-                        </RowBtn>
-                      )}
-                      <RowBtn
-                        type="button"
-                        data-testid="mail-row-reply-needed"
-                        disabled={dismissingId === mt.id}
-                        title={t('actions.markReplyNeededHint', { defaultValue: '이 메일을 «답변 필요» 로 올립니다. 답변 필요 탭에서 이어서 처리할 수 있습니다.' }) as string}
-                        onClick={(e) => markReplyNeeded(e, mt.id)}
-                      >
-                        {t('actions.markReplyNeeded', { defaultValue: '답변 필요로' }) as string}
-                        {/* 「표시」를 아이콘으로 — 방향형 어미(…로)는 남긴다. 상태 뱃지(빨간 「답변 필요」)와
-                            글자가 같아지면 목록이 «같은 표시가 두 번» 으로 읽힌다(CLAUDE.md Q mail 계약 ②). */}
-                        <SendArrow aria-hidden viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
-                          <line x1="5" y1="12" x2="19" y2="12" /><polyline points="13 6 19 12 13 18" />
-                        </SendArrow>
-                      </RowBtn>
-                    </ReplyRow>
-                  )}
-                  {/* 검색은 폴더를 넘으므로, 지금 보고 있는 폴더가 아닌 곳에서 온 결과는 어디 것인지 말한다.
-                      같은 폴더면 붙이지 않는다 — 모든 행에 같은 칩이 붙으면 읽히지 않는다. */}
-                  {(mt.labels && mt.labels.length > 0) || ((qDebounced || addressMode) && mt.folder && mt.folder !== folder) ? (
-                    <RowLabels>
-                      {/* 주소 보기(«이 주소와 오간 메일», 보관 포함)도 폴더를 넘는다 — 검색과 같이 자리를 말한다 */}
-                      {(qDebounced || addressMode) && mt.folder && mt.folder !== folder && (
-                        <FolderChip $color="#64748B">{t(`folders.${mt.folder}`, { defaultValue: mt.folder }) as string}</FolderChip>
-                      )}
-                      {(mt.labels || []).map(l => <LabelChip key={l} $color={labelColor(l)}><HighlightText text={l} query={qDebounced} /></LabelChip>)}
-                    </RowLabels>
-                  ) : null}
-                </ThreadItem>
+                  mt={mt}
+                  active={activeId === mt.id}
+                  handled={handledIds.has(mt.id)}
+                  promoted={promoteDone === mt.id}
+                  promoteErr={promoteErr}
+                  folder={folder}
+                  qDebounced={qDebounced}
+                  addressMode={addressMode}
+                  dismissingId={dismissingId}
+                  onOpen={setActive}
+                  dismissReply={dismissReply}
+                  markHandled={markHandled}
+                  markReplyNeeded={markReplyNeeded}
+                  markReviewRow={markReviewRow}
+                  markSpamRow={markSpamRow}
+                  labelColor={labelColor}
+                  formatTimeAgo={formatTimeAgo}
+                />
               ))}
               {loadingMore && <ListMoreRow><Spinner /></ListMoreRow>}
             </ThreadList>
