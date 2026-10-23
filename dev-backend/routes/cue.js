@@ -193,6 +193,7 @@ router.post('/help', authenticateToken, ...helpLimiter, async (req, res, next) =
       return errorResponse(res, 'question_required', 400);
     }
     const q = question.trim().slice(0, 1000);
+    const reqStarted = Date.now();
     // 앞선 대화(본인이 본 것, 크기만 묶음) — 없으면 자기가 단 "2번" 도 못 알아듣는다(2026-10-06). 짧은 후속은 직전 질문을 붙여 찾는다.
     const history = normalizeHistory(req.body?.history);
     const retrievalQuery = history.length ? `${history[history.length - 1].q}\n${q}` : q;
@@ -224,6 +225,34 @@ router.post('/help', authenticateToken, ...helpLimiter, async (req, res, next) =
     // 사이클 P7 — 모드 분리 (qhelper / workspace)
     const finalMode = mode === 'workspace' ? 'workspace' : 'qhelper';
     const systemPrompt = finalMode === 'workspace' ? SYSTEM_PROMPT_WORKSPACE : SYSTEM_PROMPT_QHELPER;
+
+    // Q위키 RAG → sources[]. ★ Cue 모드에도(여태 qhelper 만 → 제품 질문에 일반론, 2026-10-06) · 4건(3건이면 정답 글 4위가 빠졌다).
+    //   ★ 2026-10-23 «검색창 Cue 가 너무 오래 걸려» — 문맥 수집(아래)과 서로 기대는 것이 없는데 그 **뒤에** 순서대로 돌아
+    //     임베딩 왕복(0.15~0.6초)만큼 더 기다렸다. 먼저 띄우고 문맥을 붙인 뒤에 받는다(실패는 안에서 삼켜 빈 결과).
+    const wikiP = (async () => {
+      const out = { wikiSources: [], wikiTopArticleId: null, docBlocks: [] };
+      try {
+        const { searchArticleIds, blocksToText } = require('../services/wikiSearch');
+        const HelpArticle = require('../models/HelpArticle');
+        const ids = await searchArticleIds(retrievalQuery, { onlyPublic: false, limit: 4 });
+        if (ids.length) {
+          const arts = await HelpArticle.findAll({ where: { id: ids, is_published: true } });
+          const orderMap = new Map(ids.map((id, i) => [id, i]));
+          arts.sort((a, b) => (orderMap.get(a.id) ?? 9) - (orderMap.get(b.id) ?? 9));
+          out.wikiTopArticleId = arts[0]?.id || null;
+          for (const a of arts.slice(0, 4)) {
+            const title = a.title_ko || a.title_en || '';
+            const summary = a.summary_ko || a.summary_en || '';
+            const body = blocksToText(a.body_ko, 'ko') || blocksToText(a.body_en, 'en') || '';
+            out.docBlocks.push(`## ${title}\n${summary}\n${body}`.slice(0, 1500));
+            out.wikiSources.push({ slug: a.slug, title });
+          }
+        }
+      } catch (e) {
+        console.warn('[cue/help] wiki retrieval failed:', e.message);
+      }
+      return out;
+    })();
 
     // 페이지 컨텍스트는 두 모드 모두 공유 (현재 보고 있는 화면)
     let ctxBlock = '';
@@ -340,37 +369,14 @@ router.post('/help', authenticateToken, ...helpLimiter, async (req, res, next) =
       }
     }
 
-    // Q위키 RAG → sources[]. ★ Cue 모드에도(여태 qhelper 만 → 제품 질문에 일반론, 2026-10-06) · 4건(3건이면 정답 글 4위가 빠졌다).
-    let wikiSources = [];
-    let wikiTopArticleId = null;
-    {
-      try {
-        const { searchArticleIds, blocksToText } = require('../services/wikiSearch');
-        const HelpArticle = require('../models/HelpArticle');
-        const ids = await searchArticleIds(retrievalQuery, { onlyPublic: false, limit: 4 });
-        if (ids.length) {
-          const arts = await HelpArticle.findAll({ where: { id: ids, is_published: true } });
-          const orderMap = new Map(ids.map((id, i) => [id, i]));
-          arts.sort((a, b) => (orderMap.get(a.id) ?? 9) - (orderMap.get(b.id) ?? 9));
-          wikiTopArticleId = arts[0]?.id || null;
-          const docBlocks = [];
-          for (const a of arts.slice(0, 4)) {
-            const title = a.title_ko || a.title_en || '';
-            const summary = a.summary_ko || a.summary_en || '';
-            const body = blocksToText(a.body_ko, 'ko') || blocksToText(a.body_en, 'en') || '';
-            docBlocks.push(`## ${title}\n${summary}\n${body}`.slice(0, 1500));
-            wikiSources.push({ slug: a.slug, title });
-          }
-          if (docBlocks.length) {
-            ctxBlock += finalMode === 'qhelper'
-              ? `\n\n# 도움말 문서 (이 내용만 근거로 답변)\n${docBlocks.join('\n\n')}`
-              : `\n\n# PlanQ 도움말 문서 (PlanQ 사용법·연동·설정 질문일 때의 근거 — 관련 없으면 무시)\n${docBlocks.join('\n\n')}`;
-          }
-        }
-      } catch (e) {
-        console.warn('[cue/help] wiki retrieval failed:', e.message);
-      }
+    // Q위키 검색은 위에서 문맥 수집과 **함께** 띄웠다 — 붙이는 자리(순서)는 종전 그대로 여기다.
+    const { wikiSources, wikiTopArticleId, docBlocks: wikiDocBlocks } = await wikiP;
+    if (wikiDocBlocks.length) {
+      ctxBlock += finalMode === 'qhelper'
+        ? `\n\n# 도움말 문서 (이 내용만 근거로 답변)\n${wikiDocBlocks.join('\n\n')}`
+        : `\n\n# PlanQ 도움말 문서 (PlanQ 사용법·연동·설정 질문일 때의 근거 — 관련 없으면 무시)\n${wikiDocBlocks.join('\n\n')}`;
     }
+    const ctxMs = Date.now() - reqStarted;
 
     // ★ 고정 지시문 / 매번 바뀌는 컨텍스트를 두 메시지로 — 캐시는 같은 앞부분만 적중하고 도구 목록(≈8.2천 토큰)은 첫 system 뒤에 붙는다(실측 1,408 → 9,728 적중).
     const messages = [
@@ -389,7 +395,7 @@ router.post('/help', authenticateToken, ...helpLimiter, async (req, res, next) =
       const conv = await cueTools.converse({ p: await cueTools.principalOf(req.user.id, workspaceBizId, req.user.platform_role), messages, callLLM, llmOpts });
       ({ content = '', fallback = false } = conv); proposedAction = conv.proposal || null; proposedActions = conv.proposals || (proposedAction ? [proposedAction] : []);
       ({ model: usedModel, input_tokens, output_tokens, cached_tokens = 0 } = conv.usage || {});
-      console.info(`[cue/help usage] rounds=${conv.usage?.rounds || 0} in=${input_tokens || 0} cached=${conv.usage?.cached_tokens || 0} out=${output_tokens || 0} reads=${conv.reads?.length || 0} cards=${proposedActions.length}`);
+      console.info(`[cue/help usage] rounds=${conv.usage?.rounds || 0} in=${input_tokens || 0} cached=${conv.usage?.cached_tokens || 0} out=${output_tokens || 0} reads=${conv.reads?.length || 0} cards=${proposedActions.length} ctx_ms=${ctxMs} round_ms=${(conv.usage?.round_ms || []).join('/')} total_ms=${Date.now() - reqStarted}`);
       if (conv.reads?.length) require('../services/auditService').logAudit(req, { action: 'cue.help_reads', targetType: 'business', targetId: workspaceBizId, businessId: workspaceBizId, newValue: { reads: conv.reads } });
     } else {
       ({ content, fallback, model: usedModel, input_tokens, output_tokens, cached_tokens = 0 } = await callLLM({ ...llmOpts, messages }));

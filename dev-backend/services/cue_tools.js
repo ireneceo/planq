@@ -449,7 +449,8 @@ async function converse({ p, messages, callLLM, llmOpts = {} }) {
   const reads = [];
   const accepted = [];            // 이 답에 낼 카드(제안) — 라운드를 건너 모인다
   const seen = new Set();
-  let usage = { input_tokens: 0, cached_tokens: 0, output_tokens: 0, model: null, rounds: 0 };
+  // round_ms — 라운드(LLM 왕복)마다 걸린 시간. 로그에만 쓴다(운영에서 «어디가 느린지» 를 재는 유일한 숫자).
+  let usage = { input_tokens: 0, cached_tokens: 0, output_tokens: 0, model: null, rounds: 0, round_ms: [] };
   let last = null;
   const done = async (content) => {
     const out = accepted.length ? await finalizeProposals(p, accepted) : [];
@@ -460,10 +461,12 @@ async function converse({ p, messages, callLLM, llmOpts = {} }) {
     // 예산이 끝나면 쓰기 도구만 허용한다 — 더 찾지 말고 지금 아는 것으로 답하거나 제안하게.
     //   ★ 도구 **목록**은 바꾸지 않고 tool_choice(allowed_tools)로 좁힌다 — 목록이 달라지면 그 라운드는 프롬프트 캐시를
     //     전부 놓친다(도구 설명만 ≈8.2천 토큰, 2026-10-12 실측: 목록 유지 시 9,728 적중).
+    const roundStarted = Date.now();
     const r = await callLLM({ ...llmOpts, messages: msgs, tools: TOOL_SCHEMAS, ...(overBudget ? { toolChoice: WRITE_ONLY_CHOICE } : {}) });
     last = r;
     usage = { input_tokens: usage.input_tokens + (r.input_tokens || 0), cached_tokens: usage.cached_tokens + (r.cached_tokens || 0),
-      output_tokens: usage.output_tokens + (r.output_tokens || 0), model: r.model || usage.model, rounds: usage.rounds + 1 };
+      output_tokens: usage.output_tokens + (r.output_tokens || 0), model: r.model || usage.model, rounds: usage.rounds + 1,
+      round_ms: [...usage.round_ms, Date.now() - roundStarted] };
     if (r.fallback) return accepted.length ? await done(r.content) : { fallback: true, usage, reads };
     const calls = Array.isArray(r.tool_calls) ? r.tool_calls : [];
     if (!calls.length) return await done(r.content);
