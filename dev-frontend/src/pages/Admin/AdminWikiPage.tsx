@@ -546,6 +546,7 @@ const Grid3 = styled.div`display: grid; grid-template-columns: 1fr 1fr 1fr; gap:
 const Field = styled.div`display: flex; flex-direction: column; gap: 6px; min-width: 0;`;
 const Label = styled.label`font-size: 0.75rem; font-weight: 700; color: #475569;`;
 const Input = styled.input`
+  width: 100%; box-sizing: border-box;
   padding: 9px 12px; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 0.8125rem; color: #0f172a; font-family: inherit;
   &:focus { outline: none; border-color: #14b8a6; box-shadow: 0 0 0 3px rgba(20,184,166,0.15); }
 `;

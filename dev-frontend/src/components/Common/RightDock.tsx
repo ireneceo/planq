@@ -15,7 +15,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { isPublicSurfacePath } from '../../utils/publicSurface';
 import { isPopoutWindow, canOpenSeparateWindow } from '../../utils/popout';
 import { openPopout, type PinTool } from '../../utils/pinHost';
-import { tabStore } from '../../stores/tabStore';
+import { tabStore, isAdminContext } from '../../stores/tabStore';
 import VoiceCaptureSheet from './VoiceCaptureSheet';
 
 /** 여기서 여는 도구 = 핀 가능한 도구. 두 곳에 따로 적으면 갈라진다(경로·크기 원천은 pinHost). */
@@ -58,6 +58,10 @@ const RightDock: React.FC = () => {
     || (typeof document !== 'undefined' && document.body.dataset.popout === '1')
     || isPopoutWindow() // #84 — 팝아웃 창 내부 이동에도 FAB 숨김 유지
     || isPublicSurfacePath(location.pathname) // 공개 표면 심층방어
+    // ★ 2026-10-22 — 플랫폼 관리자 범위에는 워크스페이스 도구가 없다. 여기서 열면 그 사람의 워크스페이스
+    //   (Q talk·Q task·메모)가 섞여 나왔다(Irene: "왜 내 다른 워크스페이스 내용이 나와? … 지워").
+    //   관리자 범위 판정은 탭 범위와 같은 함수 한 곳(tabStore.isAdminContext).
+    || isAdminContext(location.pathname)
     // ★ 2026-09-17 (#416) — **내 문의·피드백 상세**에서는 폭과 무관하게 숨긴다. Irene:
     //   *"우측 하단 버튼이 채팅창이랑 겹쳐. 문의 상세도 열면 우측 하단 채팅버튼 없어야 할 듯 해."*
     //   그 화면 자체가 «운영팀에게 말을 거는 곳» 이라 같은 일을 하는 버튼이 그 위에 떠 있을 이유가 없고,

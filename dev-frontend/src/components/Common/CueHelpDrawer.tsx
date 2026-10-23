@@ -26,6 +26,7 @@ import { useCueChat, cueActionDeepLink } from '../../hooks/useCueChat';
 import { startQhelperHeartbeat, CUE_ASK_EVENT, type CueAskMsg } from '../../utils/cueAsk';
 import { POPOUT_CHANNEL, requestMainNavigate } from './PopoutBridge';
 import { isEnterAction } from '../../utils/imeKey';
+import { isAdminContext } from '../../stores/tabStore';
 
 // 사이클 P7d — 채팅 모드 분리: qhelper(PlanQ 매뉴얼) / workspace(Cue, 워크스페이스 데이터)
 // 'feedback' / 'inquiry' 는 별도 view (채팅 아닌 폼)
@@ -536,7 +537,9 @@ const CueHelpDrawer: React.FC<{
   // 옛 정책은 Q Talk 채팅 InputBar 위 입력 도구 충돌 우려였으나, FAB 가 우하단 (메모: bottom 16px, 헬프: bottom 80px)
   // 이라 채팅 입력란과 분리. 표시 유지.
   const FAB_HIDDEN_PATHS: string[] = [];
-  const fabHidden = FAB_HIDDEN_PATHS.some(p => location.pathname === p || location.pathname.startsWith(`${p}/`));
+  // 플랫폼 관리자 범위에는 띄우지 않는다 — RightDock 과 같은 판정(2026-10-22).
+  const fabHidden = FAB_HIDDEN_PATHS.some(p => location.pathname === p || location.pathname.startsWith(`${p}/`))
+    || isAdminContext(location.pathname);
 
   return (
     <>

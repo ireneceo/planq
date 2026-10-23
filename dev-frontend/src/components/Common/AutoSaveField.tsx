@@ -17,7 +17,9 @@ interface AutoSaveFieldProps {
   style?: React.CSSProperties;
 }
 
-const fadeIn = keyframes`from { opacity: 0; transform: scale(0.85); } to { opacity: 1; transform: scale(1); }`;
+// ★ transform 이 아니라 scale 속성(2026-10-22) — 배지 자리는 transform: translateY(-50%) 로 세로 가운데를 잡는데,
+//   애니메이션의 transform 이 그것을 덮어 나타나는 0.2초 동안 배지가 입력란 아래로 처졌다(플랫폼 설정 실측: 11px 아래, 2px 밖).
+const fadeIn = keyframes`from { opacity: 0; scale: 0.85; } to { opacity: 1; scale: 1; }`;
 const fadeOut = keyframes`from { opacity: 1; } to { opacity: 0; }`;
 const spin = keyframes`to { transform: rotate(360deg); }`;
 

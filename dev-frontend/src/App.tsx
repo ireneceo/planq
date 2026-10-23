@@ -35,7 +35,6 @@ const DownloadTray = lazy(() => import('./components/Common/DownloadTray'));
 const AppContextMenu = lazy(() => import('./components/Common/AppContextMenu'));
 const PopoutBridge = lazy(() => import('./components/Common/PopoutBridge'));
 const LimitReachedDialog = lazy(() => import('./components/Common/LimitReachedDialog'));
-const AnnouncementBanner = lazy(() => import('./components/Common/AnnouncementBanner'));
 const TermsReacceptModal = lazy(() => import('./components/Common/TermsReacceptModal'));
 const ImpersonateBanner = lazy(() => import('./components/Common/ImpersonateBanner'));
 const CueHelpDrawer = lazy(() => import('./components/Common/CueHelpDrawer'));
@@ -795,7 +794,7 @@ function ShellApp() {
           Q helper 만 hideAppChrome 의 예외 — 공개 표면에서도 마운트한다.
           마케팅 경로에서 통째로 언마운트돼 게스트 퀵메뉴가 소멸했던 회귀(#71 부작용) 복구.
           publicSurface 일 때는 게스트 프레젠테이션(Q위키+문의 2탭) + RR navigate 주입.
-          나머지 chrome(TabMirror·MemoFab·RightDock·Toaster·AnnouncementBanner)은 숨김 유지.
+          나머지 chrome(TabMirror·MemoFab·RightDock·Toaster)은 숨김 유지. 공지 배너는 MainLayout 안(본문 위).
         */}
         {/* ★ #259 — 게스트 대화(`/g/`)에는 이것도 띄우지 않는다.
             폰에서 FAB 이 "보내기" 버튼을 58% 덮어 **고객이 답을 못 보낸다**(Fable 실측 1672px²).
@@ -826,8 +825,6 @@ function ShellApp() {
         <BuildVersionGuard />
         {/* WorkspaceSyncGuard 는 여기가 아니라 App 루트(ModeGate 옆)에 있다 — 탭 모드 트리에도 걸려야 한다 */}
         <LimitReachedDialog />
-        {/* #71 — 공지 배너는 워크스페이스 작업 화면에서만. 랜딩·미리보기·팝아웃 제외 */}
-        {!hideAppChrome && <AnnouncementBanner />}
         <TermsReacceptModal />
         <ImpersonateBanner />
       </Suspense>

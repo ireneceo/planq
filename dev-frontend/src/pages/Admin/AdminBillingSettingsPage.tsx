@@ -623,9 +623,10 @@ const ClearBtn = styled.button`
 const Input = styled.input`
   /* width 없으면 브라우저 기본 폭(size=20, ~177px)으로 렌더돼 720px 카드 안에서 제각각으로 보인다.
      AutoSaveField Wrapper 는 이미 width:100% 라 여기만 채우면 모든 입력란이 같은 폭으로 정렬된다. */
+  display: block;   /* inline 이면 줄 높이 여백만큼 감싸는 칸이 입력란보다 커져 배지가 아래로 처진다 */
   width: 100%;
   box-sizing: border-box;
-  height: 38px; padding: 0 12px;
+  height: 38px; padding: 0 40px 0 12px;  /* 오른쪽 40px = AutoSaveField 배지 자리 */
   font-size: 0.875rem; color: #0F172A;
   border: 1px solid #E2E8F0; border-radius: 8px; background: #FFFFFF;
   font-family: inherit;

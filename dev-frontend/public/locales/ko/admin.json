@@ -271,7 +271,7 @@
     "announcement_text_en": "공지 내용 (English)",
     "announcement_text_en_ph": "Leave empty to reuse the Korean text",
     "announcement_textPh": "예: 5월 6일 22~23시 점검 예정",
-    "announcementHint": "입력하면 모든 사용자 사이드바 상단에 노출됩니다. 비우면 숨김.",
+    "announcementHint": "입력하면 모든 사용자 화면 상단(본문 위)에 노출됩니다. 비우면 숨김.",
     "announcementSection": "공지 배너",
     "app_android_url": "앱 다운로드 — Android (Play Store / APK URL)",
     "app_ios_url": "앱 다운로드 — iOS (App Store / TestFlight URL)",

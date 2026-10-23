@@ -1,4 +1,4 @@
-// 운영 공지 배너 — 사이드바 상단 또는 메인 영역 상단. /me 의 platform.announcement_text 사용.
+// 운영 공지 배너 — 본문 영역 맨 위(MainLayout, 결제 안내 줄 아래). /me 의 platform.announcement_text 사용.
 // 점검 모드 알림은 별도 미들웨어가 503 응답 → 점검 시 사용자는 페이지에 못 들어옴, 이 배너는 평시 공지용.
 import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
@@ -64,6 +64,7 @@ export default AnnouncementBanner;
 
 const Banner = styled.div<{ $sev: 'info'|'warn'|'critical' }>`
   display: flex; align-items: center; gap: 10px;
+  flex-shrink: 0;   /* 앱 셸 flex column — 본문(PageScroll)이 줄어들고 배너는 제 높이를 지킨다 */
   padding: 10px 16px;
   background: ${p => p.$sev === 'critical' ? '#FEF2F2' : p.$sev === 'warn' ? '#FEF3C7' : '#F0FDFA'};
   border-bottom: 1px solid ${p => p.$sev === 'critical' ? '#FECACA' : p.$sev === 'warn' ? '#FDE68A' : '#99F6E4'};

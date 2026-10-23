@@ -271,7 +271,7 @@
     "announcement_text_en": "Announcement text (English)",
     "announcement_text_en_ph": "Leave empty to reuse the Korean text",
     "announcement_textPh": "e.g. Maintenance on May 6, 22:00–23:00",
-    "announcementHint": "Shown at the top of every user's sidebar. Leave empty to hide.",
+    "announcementHint": "Shown at the top of every user's screen (above the content). Leave empty to hide.",
     "announcementSection": "Announcement banner",
     "app_android_url": "App download — Android (Play Store / APK URL)",
     "app_ios_url": "App download — iOS (App Store / TestFlight URL)",

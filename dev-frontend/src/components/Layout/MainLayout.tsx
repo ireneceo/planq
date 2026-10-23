@@ -20,6 +20,7 @@ import { launchDockTool } from '../Common/RightDock';
 import SidebarStatusSummary from './SidebarStatusSummary';
 import TeamPresenceRow from './TeamPresenceRow';
 import WorkspaceBillingBanner from './WorkspaceBillingBanner';
+import AnnouncementBanner from '../Common/AnnouncementBanner';
 import SidebarClock from './SidebarClock';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
 import { useAuthedImageSrc } from '../../hooks/useAuthedImageSrc';
@@ -2525,6 +2526,10 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
       {/* nav-registry:secondary:end */}
       <MainContent $marginLeft={mainMarginLeft} $tabMode={tabMode}>
         <WorkspaceBillingBanner />
+        {/* 운영 공지 — 본문 **위**(2026-10-22). 여태 화면 맨 아래 줄이라 닫기(×)가 우하단 도크 버튼 밑에 깔렸다
+            (Irene: "공지배너가 사용자가 직접 닫을 수 있는 기능을 넣어두고는 우측 하단 채팅아이콘으로 가려버리는데").
+            ChromeOverlays·App.tsx 에서는 뺐다 — 두 곳에 두면 두 번 뜬다. */}
+        <AnnouncementBanner />
         {/* N+72-6 — 알림 안내 모든 페이지 mount (옛: TodoPage 만). granted-off 자동 silent re-subscribe + iOS 비-PWA 안내 */}
         {/* ★ 안내 배너는 콘텐츠 흐름 안에 둔다 — 화면에 떠 있으면 목록의 마지막 항목을 덮는다
             (2026-08-25: "말풍선 옆이 하얗게 가려진다" 의 정체가 하단 플로팅 설치 배너였다).

@@ -285,7 +285,7 @@ const AdminPlatformSettingsPage = () => {
       <Card>
         {/* 운영 #289 — 대시보드 빠른 이동(#announcement)의 착지점. */}
         <SectionTitle id="announcement">{t('platform.announcementSection', '공지 배너')}</SectionTitle>
-        <SectionHint>{t('platform.announcementHint', '입력하면 모든 사용자 사이드바 상단에 노출됩니다. 비우면 숨김.')}</SectionHint>
+        <SectionHint>{t('platform.announcementHint', '입력하면 모든 사용자 화면 상단(본문 위)에 노출됩니다. 비우면 숨김.')}</SectionHint>
         <Field>
           <Label>{t('platform.announcement_text', '공지 내용')}</Label>
           <AutoSaveField type="input" onSave={async () => save({ announcement_text: data.announcement_text })}>
@@ -578,8 +578,14 @@ const Label = styled.label`
   color: #334155;
 `;
 const Input = styled.input`
+  /* 2026-10-22 — width 가 없어 브라우저 기본 폭(~177px)이었고, AutoSaveField 배지(Wrapper 오른쪽 8px)는
+     카드 끝에서 돌았다(Irene: "저장아이콘도 입력란 안에서 도는게 기본"). AdminBillingSettingsPage 와 같은 수리 —
+     입력란이 Wrapper 폭을 채우면 배지가 입력란 안 오른쪽에 온다. 오른쪽 40px 은 배지 자리(글자가 밑에 깔리지 않게). */
+  display: block;   /* inline 이면 줄 높이 여백만큼 감싸는 칸이 입력란보다 커져 배지가 아래로 처진다 */
+  width: 100%;
+  box-sizing: border-box;
   height: 38px;
-  padding: 0 12px;
+  padding: 0 40px 0 12px;
   font-size: 0.875rem;
   color: #0F172A;
   border: 1px solid #E2E8F0;

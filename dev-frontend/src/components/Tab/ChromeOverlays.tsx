@@ -15,7 +15,6 @@ const PwaInstallBanner = lazy(() => import('../Common/PwaInstallBanner'));
 const OpenInAppBanner = lazy(() => import('../Common/OpenInAppBanner'));
 const BuildVersionGuard = lazy(() => import('../Common/BuildVersionGuard'));
 const LimitReachedDialog = lazy(() => import('../Common/LimitReachedDialog'));
-const AnnouncementBanner = lazy(() => import('../Common/AnnouncementBanner'));
 const TermsReacceptModal = lazy(() => import('../Common/TermsReacceptModal'));
 const ImpersonateBanner = lazy(() => import('../Common/ImpersonateBanner'));
 // #258 — 팝아웃/PiP 요청 수신자. 트리 스왑이 데스크탑 기본 경로라 여기 없으면 실사용자에게 수신자가 0 이다.
@@ -36,7 +35,6 @@ export default function ChromeOverlays() {
       <PopoutBridgeChrome />
       <BuildVersionGuard />
       <LimitReachedDialog />
-      <AnnouncementBanner />
       <TermsReacceptModal />
       <ImpersonateBanner />
     </Suspense>
