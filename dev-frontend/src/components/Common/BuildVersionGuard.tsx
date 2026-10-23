@@ -10,6 +10,7 @@ import styled, { keyframes } from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { useChromeLocation } from '../../hooks/useChromeNav';
 import { useActiveTab } from '../../hooks/useTabStore';
+import { postWindowSync, onWindowSync } from '../../services/windowSync';
 
 const POLL_MS = 5 * 60 * 1000;  // 5분
 
@@ -34,6 +35,8 @@ const BuildVersionGuard: React.FC = () => {
   const activeTab = useActiveTab();
   const initialRef = useRef<string | null>(null);
   const pendingReloadRef = useRef(false);
+  // 감지한 새 버전 — 다른 창의 [×] 신호가 같은 버전을 말하는지 비교한다.
+  const latestRef = useRef<string | null>(null);
   // ★ 2026-08-24 (Irene: "새로고침하면 알아서 반영되게 업데이트 해야지. 고객이면 어쩌려고")
   //   여태 이 컴포넌트는 새 빌드를 감지하고도 **화면에 아무것도 띄우지 않았다**(return null).
   //   reload 는 ①탭이 숨겨졌을 때 ②앱 안에서 화면을 이동할 때만 일어난다 —
@@ -52,8 +55,14 @@ const BuildVersionGuard: React.FC = () => {
         if (!mounted || !j?.success) return;
         const v: string | null = j.data?.version || null;
         if (!v) return;
-        if (initialRef.current == null) { initialRef.current = v; return; }
+        if (initialRef.current == null) {
+          initialRef.current = v;
+          // 이 창이 이 버전으로 부팅했다 — 옛 번들로 남은 다른 창(팝아웃 등)이 따라 새로고침한다.
+          postWindowSync({ type: 'build:loaded', version: v });
+          return;
+        }
         if (initialRef.current !== v) {
+          latestRef.current = v;
           pendingReloadRef.current = true;
           setUpdateReady(true);
           // 새 빌드 → 옛 SW 잔존 차단 위해 강제 최신화 (sw.js no-cache + skipWaiting → 즉시 새 SW)
@@ -76,6 +85,25 @@ const BuildVersionGuard: React.FC = () => {
       document.removeEventListener('visibilitychange', onVisible);
     };
   }, []);
+
+  // ★ 2026-10-22 — 한 창에서 처리하면 모든 창에서 사라진다(Irene: "왜 모든 팝업을 각각 해야 없어져?").
+  //   다른 창이 새 번들로 부팅했다 = 이 창은 옛 번들 확정. 입력 중이 아니면 바로 새로고침, 입력 중이면 종전 보류 경로(안내줄).
+  useEffect(() => onWindowSync((m) => {
+    if (m.type === 'build:loaded') {
+      if (!initialRef.current || initialRef.current === m.version) return;   // 아직 모름 · 자기 수신 · 이미 최신
+      latestRef.current = m.version;
+      pendingReloadRef.current = true;
+      if (isReloadSafe()) {
+        noteReload('build_peer');
+        void forceSwUpdate().finally(() => window.location.reload());
+      } else {
+        setUpdateReady(true);
+      }
+    } else if (m.type === 'build:dismissed') {
+      // 안내줄만 내린다 — 보류된 새로고침은 그대로(다음 이동 때 조용히 적용되는 종전 동작).
+      if (latestRef.current && latestRef.current === m.version) setUpdateReady(false);
+    }
+  }), []);
 
   // 새 빌드 감지됐는데 입력 중이라 보류된 경우 → 다음 navigation 시점에 안전하게 reload.
   //
@@ -107,7 +135,10 @@ const BuildVersionGuard: React.FC = () => {
       <ReloadBtn type="button" onClick={() => { void forceSwUpdate().finally(() => window.location.reload()); }}>
         {t('update.reload', { defaultValue: '지금 새로고침' }) as string}
       </ReloadBtn>
-      <CloseBtn type="button" onClick={() => setUpdateReady(false)}
+      <CloseBtn type="button" onClick={() => {
+        setUpdateReady(false);
+        if (latestRef.current) postWindowSync({ type: 'build:dismissed', version: latestRef.current });
+      }}
         aria-label={t('update.later', { defaultValue: '나중에' }) as string}
         title={t('update.later', { defaultValue: '나중에' }) as string}>×</CloseBtn>
     </Bar>
