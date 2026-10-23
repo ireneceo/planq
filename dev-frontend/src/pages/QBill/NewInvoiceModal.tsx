@@ -142,8 +142,8 @@ export default function NewInvoiceModal({ open, onClose, prefillSplit, prefillPo
 
   const [taxOn, setTaxOn] = useState(false);
 
-  // 발송 옵션
-  const [sendChat, setSendChat] = useState(true);
+  // 발송 옵션 — 채팅은 기본 꺼짐(2026-10-23 Irene: 채팅방이 있는 고객은 «확인 필요» 로 청구서가 온 걸 안다)
+  const [sendChat, setSendChat] = useState(false);
   const [sendEmail, setSendEmail] = useState(true);
   const [includePdf, setIncludePdf] = useState(true);
 
@@ -389,7 +389,7 @@ export default function NewInvoiceModal({ open, onClose, prefillSplit, prefillPo
       setTaxOn(false);
       setOverrideBiz({}); setSaveOnClient(true);
       setErrors([]);
-      setSendChat(true); setSendEmail(true); setIncludePdf(true);
+      setSendChat(false); setSendEmail(true); setIncludePdf(true);
       setSourceCandidates([]); setConvFound(null);
     }
   }, [open]);

@@ -375,7 +375,8 @@ export default function InvoiceDetailDrawer({ invoice: initialInvoice, onClose, 
     if (sendBusy) return;
     setSendBusy(true); setRemindNote(null);
     try {
-      await sendInvoice(invoice.business_id, invoice.id, { send_email: true, send_chat: true });
+      // 채팅으로는 보내지 않는다 — 대화방이 없으면 «채팅 · 실패» 만 남고, 있으면 고객은 «확인 필요» 로 안다(2026-10-23)
+      await sendInvoice(invoice.business_id, invoice.id, { send_email: true, send_chat: false });
       await refresh();
       onChanged?.();
     }
