@@ -878,7 +878,7 @@ function invoiceEmailHtml({ invoiceNumber, title, total, currency, dueDate, send
       <div style="font-size:24px;font-weight:800;color:#0F172A;letter-spacing:-0.3px;margin-top:2px;">${totalStr}</div>
       ${dueStr ? `<div style="font-size:12px;color:#92400E;margin-top:6px;font-weight:500;">결제 기한 ${dueStr}</div>` : ''}
     </div>
-    ${payerCode ? `<div style="margin-top:10px;font-size:13px;color:#334155;line-height:1.6;">입금자명(보내는 분 표시)에 <b style="font-family:ui-monospace,monospace;">${escapeHtml(payerCode)}</b> 를 적어 주시면 확인이 빠릅니다.<br><span style="font-size:12px;color:#64748B;">은행에 따라 글자 수가 제한되어 짧게 만들었습니다.</span></div>` : ''}
+    ${payerCode ? `<div style="margin-top:10px;font-size:13px;color:#334155;line-height:1.6;">입금자명(보내는 분 표시)에 <b style="font-family:ui-monospace,monospace;">${escapeHtml(payerCode)}</b> 를 적어 주시면 확인이 빠릅니다.<br><span style="font-size:12px;color:#64748B;">은행에 따라 글자 수가 제한되어 짧게 만들었습니다. 번호만 그대로면 이름은 보내는 분 이름으로 바꿔 써도 됩니다.</span></div>` : ''}
     ${willIssueTax ? `<div style="margin-top:8px;font-size:12px;color:#64748B;line-height:1.6;">입금이 확인되면 세금계산서를 발행해 드립니다.</div>` : ''}
     ${quoteBlock(message)}
     <div style="margin-top:20px;text-align:center;">
@@ -924,7 +924,7 @@ function paymentReminderEmailHtml({ invoiceNumber, title, total, currency, dueDa
       <div style="font-size:24px;font-weight:800;color:#0F172A;letter-spacing:-0.3px;margin-top:2px;">${totalStr}</div>
       ${dueLine}
     </div>
-    ${payerCode ? `<div style="margin-top:10px;font-size:13px;color:#334155;line-height:1.6;">입금자명(보내는 분 표시)에 <b style="font-family:ui-monospace,monospace;">${escapeHtml(payerCode)}</b> 를 적어 주시면 확인이 빠릅니다.<br><span style="font-size:12px;color:#64748B;">은행에 따라 글자 수가 제한되어 짧게 만들었습니다.</span></div>` : ''}
+    ${payerCode ? `<div style="margin-top:10px;font-size:13px;color:#334155;line-height:1.6;">입금자명(보내는 분 표시)에 <b style="font-family:ui-monospace,monospace;">${escapeHtml(payerCode)}</b> 를 적어 주시면 확인이 빠릅니다.<br><span style="font-size:12px;color:#64748B;">은행에 따라 글자 수가 제한되어 짧게 만들었습니다. 번호만 그대로면 이름은 보내는 분 이름으로 바꿔 써도 됩니다.</span></div>` : ''}
     ${quoteBlock(message)}
     <div style="margin-top:20px;text-align:center;">
       ${ctaButton(shareUrl, '청구서 보기 · 입금하기')}

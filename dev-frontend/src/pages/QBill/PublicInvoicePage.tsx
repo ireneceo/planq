@@ -589,6 +589,7 @@ const PublicInvoicePage: React.FC = () => {
               {copyHit === 'payer' ? t('public.copied', '복사됨') : t('public.copy', '복사')}
             </CopyBtn>
           </PayerGuideRow>
+          <PayerGuideFree>{t('public.payerGuideFree', '번호만 그대로면 이름 부분은 보내는 분(회사·담당자) 이름으로 바꿔 써도 됩니다.')}</PayerGuideFree>
         </Section>
 
         {/* 메모 */}
@@ -1066,6 +1067,7 @@ const CopyBtn = styled.button`
   background: #fff; border: 1px solid #E2E8F0; border-radius: 6px; cursor: pointer;
   &:hover { background: #F0FDFA; border-color: #14B8A6; }
 `;
+const PayerGuideFree = styled(SectionDesc)`margin-top: 6px;`;
 const PayerGuideRow = styled.div`
   display: flex; gap: 8px; align-items: center;
   background: #F0FDFA; border: 1px dashed #5EEAD4; border-radius: 8px; padding: 12px 14px; margin-top: 4px;

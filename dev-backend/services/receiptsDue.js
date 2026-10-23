@@ -304,7 +304,7 @@ module.exports = {
 //   이미 서로 달랐다(공개 페이지만 수신처 라벨이 하나 더 붙었다). 같은 값의 공식이 여러 벌이면
 //   반드시 갈라진다 — 서버가 한 번 계산해 내려주고 세 표면이 그대로 쓴다.
 //
-// 형식 `7351홍길동` (번호 숫자 꼬리 — 2026-10-23 부터 무작위 4자리, 옛 번호는 순번 — + 고객 표시명, 분할이면 `0042-2홍길동`):
+// 형식 `7351퍼플히어` (번호 숫자 꼬리 — 2026-10-23 부터 무작위 4자리, 옛 번호는 순번 — + 이름(아래 «이름 꼬리»), 분할이면 `0042-2퍼플히어`):
 //   국내 은행 "받는 분 통장 표시" 는 통상 한글 5~8자에서 **뒷부분이 잘린다**.
 //   현행 `INV-2026-0042 상호명` 은 번호만 13자라 **이름이 나오기도 전에 잘렸다**.
 //   절단이 꼬리에서 일어나므로 식별번호를 **선두**에 둔다 — 한글 7자로 잘려도 `0042홍길` 까지 남아
@@ -312,6 +312,42 @@ module.exports = {
 //   입금 코드는 그 워크스페이스 계좌로 들어오므로 축이 맞다, FIX_0AB B-②).
 //   정확 매칭의 정본은 어차피 '송금 완료 알림' 이며 문구가 그 채널을 함께 안내한다.
 // ─────────────────────────────────────────────
+//
+// 이름 꼬리 (2026-10-23 Irene «회사이름이 있으면 회사이름 … 사장이 자기 이름 꼭 넣어서 경리직원에게
+//   돈을 보내라고 시키게 만드는 일» 이 없게):
+//   ① 발행자가 그 청구서에서 직접 고친 이름(invoice.meta.payer_label) ② 회사 이름(주식회사·(주) 등 법인 표기 뺌)
+//   ③ 사람 이름. 송금은 경리 직원이 하는 일이 많다 — 담당자 개인 이름을 먼저 쓰지 않는다.
+// ─────────────────────────────────────────────
+// 앞·뒤에 붙는 법인 형태 표기. 은행 표시 글자 수를 먹고 식별에 보탬이 없다.
+const CORP_MARKS = [
+  '주식회사', '유한회사', '유한책임회사', '합자회사', '합명회사', '사단법인', '재단법인', '농업회사법인', '협동조합',
+  '\\(\\s*주\\s*\\)', '\\(\\s*유\\s*\\)', '\\(\\s*사\\s*\\)', '\\(\\s*재\\s*\\)', '\\(\\s*합\\s*\\)', '㈜', '㈔', '㈕',
+];
+const CORP_HEAD = new RegExp(`^(?:\\s*(?:${CORP_MARKS.join('|')})\\s*)+`);
+const CORP_TAIL = new RegExp(`(?:\\s*(?:${CORP_MARKS.join('|')})\\s*)+$`);
+const CORP_TAIL_EN = /[\s,]+(?:co\.?,?\s*ltd\.?|inc\.?|corp\.?|corporation|ltd\.?|llc\.?|limited)$/i;
+
+function stripCorpMarks(name) {
+  let s = String(name || '').trim().replace(/\s+/g, ' ');
+  for (let i = 0; i < 2; i++) {   // «(주) 퍼플 주식회사» 같은 겹침까지
+    s = s.replace(CORP_HEAD, '').replace(CORP_TAIL, '').replace(CORP_TAIL_EN, '').trim();
+  }
+  return s;
+}
+
+const PAYER_LABEL_MAX = 20;
+function normalizePayerLabel(v) {
+  return String(v == null ? '' : v).replace(/\s+/g, ' ').trim().slice(0, PAYER_LABEL_MAX);
+}
+
+function payerNameOf(invoice, client) {
+  const custom = normalizePayerLabel(invoice?.meta?.payer_label);
+  if (custom) return custom;
+  const company = stripCorpMarks(client?.biz_name || client?.company_name || (client ? '' : invoice?.recipient_business_name));
+  if (company) return company;
+  return String(client?.display_name || '').trim();
+}
+
 function payerCodeOf(invoice, client, installmentNo = null) {
   if (!invoice) return '';
   const num = String(invoice.invoice_number || '');
@@ -319,13 +355,13 @@ function payerCodeOf(invoice, client, installmentNo = null) {
   const m = /-(\d+)$/.exec(num);
   const seq = m ? m[1] : num.replace(/\D/g, '').slice(-4);
   const head = installmentNo ? `${seq}-${installmentNo}` : seq;
-  const name = String(
-    client?.display_name || client?.company_name || client?.biz_name || ''
-  ).trim();
-  return `${head}${name}`;
+  return `${head}${payerNameOf(invoice, client)}`;
 }
 
 module.exports.payerCodeOf = payerCodeOf;
+module.exports.stripCorpMarks = stripCorpMarks;
+module.exports.normalizePayerLabel = normalizePayerLabel;
+module.exports.PAYER_LABEL_MAX = PAYER_LABEL_MAX;
 
 /**
  * 증빙 정보(공급받는자) 단일 resolve — **표시·발행에 쓰는 값은 여기 하나에서 나온다.**

@@ -10,7 +10,7 @@ import { backButtonLook, BackChevron } from '../../components/Layout/PanelHeader
 import DetailDrawer from '../../components/Common/DetailDrawer';
 import ConfirmDialog from '../../components/Common/ConfirmDialog';
 import { apiFetch, useAuth } from '../../contexts/AuthContext';
-import { invoiceViewerOf, invoiceCapsOf, payerCodeOf } from './invoiceCaps';
+import { invoiceViewerOf, invoiceCapsOf } from './invoiceCaps';
 import { invoiceErrorText } from './invoiceErrors';
 import { CheckIcon } from '../../components/Common/Icons';
 import {
@@ -26,6 +26,7 @@ import {
 } from '../../services/invoices';
 import RecurringBillingNote from '../../components/QBill/RecurringBillingNote';
 import CardPayLinkSection, { cardPayLinkVisible } from './CardPayLinkSection';
+import PayerCodeEditor from './PayerCodeEditor';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
 import { isEnterAction } from '../../utils/imeKey';
 
@@ -917,9 +918,19 @@ export default function InvoiceDetailDrawer({ invoice: initialInvoice, onClose, 
                 — 드로어·공개페이지·메일이 각자 조립하면 갈라진다. */}
             <PayerHint>
               <PayerHintTitle>{t('detail.bank.payerMemoHelp', { defaultValue: '입금자명(보내는 분 표시)에 아래 코드를 넣어 주세요. 은행에 따라 글자 수가 제한되어 짧게 만들었습니다.' }) as string}</PayerHintTitle>
-              <PayerCode>
-                <code>{payerCodeOf(invoice, client?.display_name || client?.company_name || client?.biz_name || '')}</code>
-              </PayerCode>
+              <PayerCodeEditor
+                key={invoice.id}
+                invoice={invoice}
+                fallbackName={client?.biz_name || client?.company_name || client?.display_name || ''}
+                canEdit={caps.showIssuerActions}
+                onSaved={(payer_code, label) => setInvoice((prev) => (prev ? {
+                  ...prev, payer_code,
+                  meta: { ...(prev.meta || {}), payer_label: label || undefined },
+                } : prev))}
+              />
+              {caps.showIssuerActions && invoice.status !== 'canceled' && (
+                <PayerHintNote>{t('detail.bank.payerEditNote', { defaultValue: '번호 뒤 이름은 눌러서 바꿀 수 있습니다(예: 경리 담당·약칭).' }) as string}</PayerHintNote>
+              )}
               <PayerHintNote>{t('detail.bank.payerMemoNote', { defaultValue: '입금 후 결제 안내 페이지에서 \'송금 완료 알림\'을 보내면 더 빨리 확인됩니다.' }) as string}</PayerHintNote>
             </PayerHint>
           </BankCard>
@@ -1784,15 +1795,6 @@ const PayerHintTitle = styled.div`
 // #274 — 입금자명을 못 바꾸는 은행도 있다. 그 경우의 대안을 같이 말해준다.
 const PayerHintNote = styled.div`
   margin-top: 6px; font-size: 0.6875rem; line-height: 1.5; color: #A16207;
-`;
-const PayerCode = styled.div`
-  display: flex; align-items: center; gap: 8px; justify-content: space-between;
-  code {
-    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-    font-size: 0.75rem; color: #0F172A; font-weight: 600;
-    background: #fff; padding: 4px 8px; border-radius: 4px;
-    border: 1px solid #FDE68A;
-  }
 `;
 const TaxBox = styled.div<{ $status: string }>`
   display: flex; align-items: center; gap: 12px; padding: 12px 14px;

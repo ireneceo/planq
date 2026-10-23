@@ -2249,6 +2249,40 @@ router.delete('/:businessId/:id/installments/:installId', authenticateToken, che
   } catch (error) { next(error); }
 });
 
+// ─── 입금자명 이름 꼬리 직접 고치기 (2026-10-23) ───
+// PATCH /:businessId/:id/payer-label  body: { label }
+//   입금 코드 `0009퍼플히어` 의 번호 뒤 이름을 이 청구서에서만 바꾼다(invoice.meta.payer_label).
+//   번호(식별)는 그대로 — 고객이 실제로 쓸 이름(경리 담당·약칭)에 맞추려는 것. 빈 값 = 자동(회사 이름 → 사람 이름).
+//   계산은 receiptsDue.payerCodeOf 한 곳 — 드로어·공개 페이지·메일이 같은 값을 받는다.
+router.patch('/:businessId/:id/payer-label', authenticateToken, checkBusinessAccess, requireMenu('qbill', 'write'), async (req, res, next) => {
+  try {
+    const invoice = await Invoice.findOne({
+      where: { id: req.params.id, business_id: req.params.businessId },
+      include: [{ model: Client, attributes: ['id', 'display_name', 'company_name', 'biz_name'] }],
+    });
+    if (!invoice) return errorResponse(res, 'Invoice not found', 404);
+    if (invoice.status === 'canceled') return errorResponse(res, 'invoice_closed', 400);
+    const { normalizePayerLabel } = require('../services/receiptsDue');
+    const label = normalizePayerLabel(req.body ? req.body.label : '');
+    const prev = (invoice.meta && invoice.meta.payer_label) || null;
+    if ((prev || null) !== (label || null)) {
+      const meta = { ...(invoice.meta || {}) };
+      if (label) meta.payer_label = label; else delete meta.payer_label;
+      await invoice.update({ meta });
+      require('../services/auditService').logAudit(req, {
+        action: 'invoice.payer_label',
+        targetType: 'invoice',
+        targetId: invoice.id,
+        businessId: invoice.business_id,
+        oldValue: { payer_label: prev },
+        newValue: { payer_label: label || null },
+      });
+      broadcastInvoice(req, invoice);
+    }
+    return successResponse(res, { payer_label: label || null, payer_code: payerCodeOf(invoice, invoice.Client || null) });
+  } catch (error) { next(error); }
+});
+
 // ─── 외부 카드 결제 링크 (2026-10-15) ───
 // PATCH /:businessId/:id/card-pay-link  body: { url, installment_id? }
 //   국내 결제 대행사(토스페이먼츠 링크페이·페이앱 등)에서 만든 주소를 청구서(단일) 또는 회차(분할)에 건다.

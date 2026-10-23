@@ -263,7 +263,13 @@
       "copied": "Copied",
       "payerMemo": "Payer memo",
       "payerMemoHelp": "Use the short code below as the sender name — banks truncate long names, so we kept it short.",
-      "payerMemoNote": "After transferring, tap 'I've sent the payment' on the payment page so we can confirm faster."
+      "payerMemoNote": "After transferring, tap 'I've sent the payment' on the payment page so we can confirm faster.",
+      "payerEditHint": "Click the name after the number to change it",
+      "payerNameEmpty": "Add name",
+      "payerReset": "Auto",
+      "payerNamePlaceholder": "Leave empty for company name",
+      "payerNameLabel": "Name after the payment code number",
+      "payerEditNote": "Click the name after the number to change it (e.g. accounts staff, short name)."
     },
     "events": {
       "title": "Activity",
@@ -1043,7 +1049,8 @@
       "regNo": "Reg. no.",
       "stripe": "Payee for international card payments (Stripe)",
       "link": "Payee for Korean card payments"
-    }
+    },
+    "payerGuideFree": "As long as the number stays, you may replace the name part with the sender’s (company or staff) name."
   },
   "kind": {
     "contract": "Contract",

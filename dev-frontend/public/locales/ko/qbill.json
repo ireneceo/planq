@@ -263,7 +263,13 @@
       "copied": "복사됨",
       "payerMemo": "입금자명",
       "payerMemoHelp": "입금자명(보내는 분 표시)에 아래 코드를 넣어 주세요. 은행에 따라 글자 수가 제한되어 짧게 만들었습니다.",
-      "payerMemoNote": "입금 후 결제 안내 페이지에서 '송금 완료 알림'을 보내면 더 빨리 확인됩니다."
+      "payerMemoNote": "입금 후 결제 안내 페이지에서 '송금 완료 알림'을 보내면 더 빨리 확인됩니다.",
+      "payerEditHint": "번호 뒤 이름을 눌러 바꿀 수 있습니다",
+      "payerNameEmpty": "이름 넣기",
+      "payerReset": "자동으로",
+      "payerNamePlaceholder": "비우면 회사 이름",
+      "payerNameLabel": "입금자명 번호 뒤 이름",
+      "payerEditNote": "번호 뒤 이름은 눌러서 바꿀 수 있습니다(예: 경리 담당·약칭)."
     },
     "events": {
       "title": "활동",
@@ -1043,7 +1049,8 @@
       "regNo": "등록번호",
       "stripe": "해외 카드 결제(Stripe) 대금 받는 곳",
       "link": "국내 카드 결제 대금 받는 곳"
-    }
+    },
+    "payerGuideFree": "번호만 그대로면 이름 부분은 보내는 분(회사·담당자) 이름으로 바꿔 써도 됩니다."
   },
   "kind": {
     "contract": "계약서",

@@ -87,6 +87,7 @@ export interface ApiInvoice {
   id: number;
   business_id: number;
   card_pay_url?: string | null;   // 외부 카드 결제 링크(단일 발행)
+  payer_code?: string | null;     // 입금 코드 — 서버 receiptsDue.payerCodeOf 계산값(#274)
   recurring?: InvoiceRecurring | null;
   client_id: number | null;
   invoice_number: string;
@@ -113,6 +114,8 @@ export interface ApiInvoice {
     last_reminder_at?: string; reminder_count?: number;
     last_overdue_notify_stage?: string; last_overdue_notify_at?: string; overdue_notify_count?: number;
     overdue_notify_off?: boolean;
+    /** 입금 코드 번호 뒤 이름을 발행자가 직접 고친 값(빈 값 = 자동: 회사 이름 → 사람 이름) */
+    payer_label?: string;
     last_resent_at?: string; resend_count?: number;
     /** 발송 진행 상태 — 서버가 백그라운드로 보내면서 갱신하고 socket 으로 밀어준다.
      *  값 목록은 services/invoiceDelivery.js 의 DELIVERY_STATUSES 와 **같아야 한다**. */
@@ -306,6 +309,18 @@ export async function setCardPayLink(
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ url, installment_id: installmentId }),
+  });
+  return expectOk(r);
+}
+
+// 입금 코드(0009퍼플히어)의 번호 뒤 이름만 이 청구서에서 바꾼다. 빈 값 = 자동.
+export async function setPayerLabel(
+  businessId: number, invoiceId: number, label: string,
+): Promise<{ payer_label: string | null; payer_code: string }> {
+  const r = await apiFetch(`/api/invoices/${businessId}/${invoiceId}/payer-label`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ label }),
   });
   return expectOk(r);
 }
