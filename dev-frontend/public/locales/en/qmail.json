@@ -616,6 +616,7 @@
     "suggestClient": "Client"
   },
   "attachment": {
+    "menu": "Attachments ({{n}})",
     "preview": "Preview",
     "download": "Download",
     "fallback": "Attachment",

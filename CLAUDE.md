@@ -988,6 +988,8 @@ import PanelHeader, { PanelSubTitle, DetailMetaBar, DetailMetaLeft, DetailMetaRi
 
 > Irene 2026-09-06: *"노트는 틀어지네. 모든 상세 헤더영역 다 검토해줘."*
 
+**예외(Irene 지시 2026-10-23)**: Q mail 상세 밴드1 은 ⋯ 앞에 **첨부 메뉴(클립)** 를 둔다(`pages/QMail/MailAttachmentsMenu` — 첨부 0개면 안 보임, 액션 칸 안).
+
 **밴드1 안에는 자식을 정확히 둘(제목 칸 / 액션 칸)만 둔다.** 셋째를 넣으면 `:last-child`
 계약이 그쪽으로 옮겨가 액션 칸이 줄어든다 — `position:absolute` 인 장식이라도 선택자에는
 걸린다. 그런 것은 밴드 **밖**(감싸는 `position:relative` 요소)에 둔다.

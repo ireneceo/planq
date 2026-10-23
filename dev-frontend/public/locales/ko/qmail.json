@@ -616,6 +616,7 @@
     "suggestClient": "고객"
   },
   "attachment": {
+    "menu": "첨부 {{n}}개",
     "preview": "미리보기",
     "download": "내려받기",
     "fallback": "첨부파일",

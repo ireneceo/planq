@@ -22,6 +22,7 @@ import { takeVoiceHandoff, type VoiceHandoff } from '../../utils/voiceHandoff';
 import PageShell from '../../components/Layout/PageShell';
 import PanelHeader, { PanelTitle, PanelSubTitle, PanelMetaTitle, DetailMetaBar, DetailMetaLeft, DetailMetaRight } from '../../components/Layout/PanelHeader';
 import OverflowMenu, { type OverflowItem } from '../../components/Common/OverflowMenu';
+import MailAttachmentsMenu from './MailAttachmentsMenu';
 import ChipPopover from '../../components/Common/ChipPopover';
 import MailReplyOwnerChip from './MailReplyOwnerChip';
 import MailReadStatusChip, { type ReadStatus } from './MailReadStatusChip';
@@ -3316,6 +3317,8 @@ const MailPage: React.FC = () => {
                   <PanelSubTitle data-testid="mail-detail-subject">{detail.subject || '(no subject)'}</PanelSubTitle>
                 </DetailHeaderLeft>
                 <DetailHeaderRight>
+                  {/* 첨부 모아 보기 — ⋯ 앞(Irene 지시, 밴드1 «⋯ 하나만» 의 예외). 첨부 0개면 그리지 않는다 */}
+                  {businessId && <MailAttachmentsMenu businessId={businessId} messages={displayMessages} />}
                   <OverflowMenu
                     label={t('actions.more', { defaultValue: '더보기' }) as string}
                     data-testid="mail-detail-more"
