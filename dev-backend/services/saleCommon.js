@@ -8,6 +8,7 @@ const { authenticateToken, checkBusinessAccess } = require('../middleware/auth')
 const { requireMenu } = require('../middleware/menu_permission');
 const { errorResponse } = require('../middleware/errorHandler');
 const { withAccess } = require('./clientAccess');
+const { applyMemberDisplayName } = require('./displayName');
 
 const IN_PROGRESS = ['inquiry', 'consulting', 'proposal', 'negotiation'];
 const SOURCES = ['guest_link', 'email', 'phone', 'referral', 'web', 'event', 'manual', 'other'];
@@ -168,7 +169,7 @@ async function serializeClients(businessId, rows) {
   // 연결 프로젝트 수 — 상세와 같은 술어(services/clientAccess.projectsByClient), 한 번의 조회
   const { projectsByClient } = require('./clientAccess');
   const linked = await projectsByClient(businessId, rows || []);
-  return withA.map((c) => ({
+  const out = withA.map((c) => ({
     id: c.id,
     display_name: c.display_name || c.user?.name || null,
     company_name: c.company_name,
@@ -199,6 +200,10 @@ async function serializeClients(businessId, rows) {
     created_at: c.createdAt || c.created_at,
     updated_at: c.updatedAt || c.updated_at,
   }));
+  // 담당자 이름은 워크스페이스 표시명(business_members.name)이 정본 — 계정 이름(users.name)을 그대로 내보내지 않는다.
+  // 회귀: health-check --category=displayname (응답 원문에 계정 이름 0)
+  await applyMemberDisplayName(out, businessId, ['assigned_member']);
+  return out;
 }
 
 /**

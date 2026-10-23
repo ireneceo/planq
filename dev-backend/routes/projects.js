@@ -3861,6 +3861,9 @@ async function loadProjectDetail(projectId) {
     json.projectMembers = json.projectMembers.map(m => {
       const bm = bmMap.get(m.user_id);
       if (m.User && bm) {
+        // name 도 덮는다 — display_name 을 안 보는 화면이 하나라도 있으면 계정 이름이 샌다(health-check displayname)
+        if (bm.name) m.User.name = bm.name;
+        if (bm.name_localized) m.User.name_localized = bm.name_localized;
         m.User.display_name = bm.name || null;
         m.User.display_name_localized = bm.name_localized || null;
         m.User.workspace_role = bm.role;

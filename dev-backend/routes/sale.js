@@ -15,6 +15,7 @@ const {
 const { successResponse, errorResponse, parsePagination, paginatedResponse } = require('../middleware/errorHandler');
 const { createAuditLog } = require('../services/auditService');
 const { accessWhere } = require('../services/clientAccess');
+const { applyMemberDisplayName, applyMemberDisplayNameOne } = require('../services/displayName');
 const { setStage, StageError, STAGES } = require('../services/salesStage');
 const planEngine = require('../services/plan');
 const {
@@ -174,6 +175,9 @@ router.get('/:businessId/clients/:clientId', ...readChain, async (req, res, next
     });
     out.registered_by = firstStage?.changer ? { id: firstStage.changer.id, name: firstStage.changer.name } : null;
     out.registered_at = firstStage ? firstStage.createdAt : (client.createdAt || null);
+    // 사람 이름은 워크스페이스 표시명 — 계정 이름을 그대로 내보내지 않는다(health-check displayname)
+    await applyMemberDisplayName(out.stage_history, businessId, ['changed_by']);
+    await applyMemberDisplayNameOne(out, businessId, ['registered_by']);
 
     const [conversations, threads, guestLinks] = await Promise.all([
       Conversation.count({ where: { business_id: businessId, client_id: client.id } }),

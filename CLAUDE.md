@@ -462,6 +462,10 @@ router.get('/', authenticateToken, async (req, res, next) => {
 - **고객이 같은 계정으로 멤버가 되면 «멤버가 이긴다»** (2026-10-16, Irene *"고객이었는데 … 멤버 가입했는데 그대로 고객이야"*) — `services/clientToMember.promoteClientToMember` 한 곳
   (멤버 초대 수락이 부른다): 고객 행 보관(`archived`+`member_converted_at`, 이력 유지) · 프로젝트 고객 행 → 같은 프로젝트 멤버 · 대화 역할 client→member.
   멤버 해제는 고객으로 되돌리지 않는다. 활성 멤버를 고객으로 붙이는 문(프로젝트 고객 추가·고객 초대 수락)은 409 `already_member`. 옛 데이터 `migrate-client-to-member.js`(기본 읽기만, `--apply`).
+- **사람 이름은 워크스페이스 표시명이다**(2026-10-23, Irene *"Q sales 고객탭 담당이 실명이 나와 … 다시는 이런 요청 안하게"*) — 응답에 사람을 실을 때
+  `users.name`(계정 이름)을 그대로 내보내지 않는다. `services/displayName.applyMemberDisplayName` 으로 덮거나 `display_name` 을 같이 싣는다.
+  dev 시험 워크스페이스는 표시명이 비어 있어 **화면으로는 안 보인다** — 판정은 `health-check --category=displayname`(계정 이름·표시명을 서로 다른 고유 문자열로 두고
+  응답 원문으로 · 대조군 = 표시명이 실렸는가). 사람이 실리는 새 화면 API 는 `scripts/health-access.js displayname_wide` 의 목록에 한 줄 더한다.
 - **관리자는 남의 개인 메일 계정을 끄기만 한다**(공용 전환은 주인만, 2026-10-09 D4).
 - **멤버 초대는 수락할 때만 계정을 붙인다** (2026-10-15 Fable D1) — 멤버십을 읽는 곳은 `user_id` 로 찾고 `joined_at` 을 안 보므로,
   초대 순간 `business_members.user_id` 를 채우면 **수락 전부터 멤버**다(거절 불가·만료 뒤에도). 초대 행은 `user_id NULL` 로 만들고

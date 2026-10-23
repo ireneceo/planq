@@ -638,6 +638,78 @@ const cases = {
       return '보내지 못함 → invite_email_sent:false (201, 토큰 없음) · 보냄 → true(대조군)';
     } finally { emailService.sendInviteEmail = orig; srv.close(); }
   },
+
+  // ★ 2026-10-23 Q sale 고객 탭 «담당» 칸이 계정 이름(users.name)으로 나왔다 — 워크스페이스 표시명
+  //   (business_members.name)이 정본이다. dev 시험 워크스페이스는 표시명이 비어 있어 화면으로는 안 보였다.
+  //   그래서 계정 이름·표시명을 **서로 다른 고유 문자열**로 두고 응답 원문으로 판정한다(키 이름이 아니라 원문 —
+  //   새 칸·새 경로가 생겨도 잡힌다). 대조군: 표시명이 실제로 실렸는가(사람이 빠져서 거짓 통과하지 않게).
+  async displayname() {
+    const w = await makeWorld();
+    const acctA = `ACCT${stamp}a`; const wsA = `WSN${stamp}a`;
+    const acctO = `ACCT${stamp}o`; const wsO = `WSN${stamp}o`;
+    await M.User.update({ name: acctA }, { where: { id: w.A.id }, hooks: false });
+    await M.User.update({ name: acctO }, { where: { id: w.O.id }, hooks: false });
+    await M.BusinessMember.update({ name: wsA }, { where: { business_id: w.biz.id, user_id: w.A.id } });
+    await M.BusinessMember.update({ name: wsO }, { where: { business_id: w.biz.id, user_id: w.O.id } });
+    const cl = await M.Client.create({
+      business_id: w.biz.id, display_name: `[ha] 표시명 ${stamp}`, status: 'managed', sales_stage: 'inquiry', assigned_member_id: w.A.id,
+    }, { hooks: false });
+    await M.ClientStageHistory.create({ business_id: w.biz.id, client_id: cl.id, from_stage: null, to_stage: 'inquiry', origin: 'manual', changed_by: w.O.id });
+    await M.ClientStageHistory.create({ business_id: w.biz.id, client_id: cl.id, from_stage: 'inquiry', to_stage: 'consulting', origin: 'manual', changed_by: w.A.id });
+    const reqs = [
+      ['Q sale 고객 목록', `/api/sale/${w.biz.id}/clients`],
+      ['Q sale 고객 상세', `/api/sale/${w.biz.id}/clients/${cl.id}`],
+    ];
+    const seen = [];
+    for (const [label, path] of reqs) {
+      const r = await call(w.O, 'GET', path);
+      expect(r, 200, label);
+      assert(!r.raw.includes(`ACCT${stamp}`), `${label} 응답에 계정 이름(users.name)이 실렸다 — 워크스페이스 표시명을 써야 한다 (${path})`);
+      seen.push(label);
+    }
+    const list = await call(w.O, 'GET', `/api/sale/${w.biz.id}/clients`);
+    const row = (list.data.data || []).find((c) => c.id === cl.id);
+    assert(row && row.assigned_member && row.assigned_member.name === wsA, `목록 담당자가 표시명이 아니다: ${JSON.stringify(row && row.assigned_member)}`);
+    const det = await call(w.O, 'GET', `/api/sale/${w.biz.id}/clients/${cl.id}`);
+    const d = det.data.data || {};
+    assert(d.registered_by && d.registered_by.name === wsO, `등록자가 표시명이 아니다: ${JSON.stringify(d.registered_by)}`);
+    const names = (d.stage_history || []).map((h) => h.changed_by && h.changed_by.name);
+    assert(names.includes(wsA) && names.includes(wsO), `단계 이력 변경자가 표시명이 아니다: ${JSON.stringify(names)}`);
+    return `${seen.join(' · ')} — 계정 이름 0 · 담당·등록자·단계 변경자 = 표시명(대조군)`;
+  },
+
+  // 같은 판정을 Q sale 밖 멤버 화면에도 — 사람이 실리는 대표 응답(프로젝트·업무·문서·확인 필요)
+  //   제외: 멤버 관리 목록(/businesses/:id/members) — 계정 이름(user.name)과 표시명(display_name)을 **따로** 보여 주는 관리 화면이다.
+  async displayname_wide() {
+    const w = await makeWorld();
+    await M.User.update({ name: `ACCT${stamp}a` }, { where: { id: w.A.id }, hooks: false });
+    await M.User.update({ name: `ACCT${stamp}o` }, { where: { id: w.O.id }, hooks: false });
+    await M.BusinessMember.update({ name: `WSN${stamp}a` }, { where: { business_id: w.biz.id, user_id: w.A.id } });
+    await M.BusinessMember.update({ name: `WSN${stamp}o` }, { where: { business_id: w.biz.id, user_id: w.O.id } });
+    const proj = await M.Project.create({ business_id: w.biz.id, name: `[ha] p ${stamp}`, owner_user_id: w.O.id, visibility: 'workspace' }, { hooks: false });
+    await M.ProjectMember.create({ project_id: proj.id, user_id: w.A.id, role: 'member' });
+    const task = await M.Task.create({ business_id: w.biz.id, project_id: proj.id, title: `[ha] t ${stamp}`, created_by: w.O.id, assignee_id: w.A.id, request_by_user_id: w.O.id, status: 'in_progress' }, { hooks: false });
+    await makePost(w.biz, w.A, 'L4');
+    const reqs = [
+      ['프로젝트 상세', `/api/projects/${proj.id}`],
+      ['프로젝트 업무', `/api/projects/${proj.id}/tasks`],
+      ['업무 목록', `/api/tasks/by-business/${w.biz.id}`],
+      ['업무 상세', `/api/tasks/${task.id}/detail`],
+      ['문서 목록', `/api/posts?business_id=${w.biz.id}`],
+    ];
+    const seen = [];
+    for (const [label, path] of reqs) {
+      const r = await call(w.O, 'GET', path);
+      expect(r, 200, label);
+      const at = r.raw.indexOf(`ACCT${stamp}`);
+      assert(at < 0, `${label} 응답에 계정 이름이 실렸다 — …${r.raw.slice(Math.max(0, at - 120), at + 24)}… (${path})`);
+      // 대조군 — 그 사람이 실제로 실렸는가(빠져서 거짓 통과하지 않게)
+      assert(r.raw.includes(`WSN${stamp}`), `${label} 응답에 표시명도 없다 — 사람이 안 실려 판정 불가 (${path})`);
+      seen.push(label);
+    }
+    return `${seen.join(' · ')} — 계정 이름 0 · 표시명 실림(대조군)`;
+  },
+
 };
 
 (async () => {

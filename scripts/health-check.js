@@ -76,6 +76,8 @@ const CATEGORIES = [
   'signauth', 'kbauth', 'folderauth', 'mailscope', 'clientsmenu', 'invite',
   // 2026-10-22 근태 자정 분할 (docs/ATTENDANCE_MIDNIGHT_SPLIT_DESIGN.md)
   'attnmidnight',
+  // 2026-10-23 사람 이름 = 워크스페이스 표시명(계정 이름이 응답에 실리면 실패) — 픽스처 health-access.js displayname
+  'displayname',
 ];
 
 const args = process.argv.slice(2);
@@ -1722,6 +1724,8 @@ function defineAccessTests() {
     ['invite', 'invite_oauth', '초대 모드 OAuth 신규 가입은 워크스페이스를 만들지 않는다 (0-F F-2)'],
     ['invite', 'invite_state', 'OAuth state 가 redirect 를 나른다 · 열린 리다이렉트 차단 (0-F F-2)'],
     ['invite', 'invite_mail', '초대 메일 실패가 응답에 보인다 (0-F)'],
+    ['displayname', 'displayname', 'Q sale 담당·등록자·단계 변경자 = 워크스페이스 표시명 · 응답 원문에 계정 이름 0 (2026-10-23)'],
+    ['displayname', 'displayname_wide', '프로젝트·업무·문서 응답 원문에 계정 이름 0 · 표시명 실림 (2026-10-23)'],
     ['retention', 'content_purge', '문서·정보 휴지통 회차가 만료 행만 지운다 · 리포트 모드 기본 · 라우트와 같은 함수 (0-D)'],
   ];
   let swept = false;
