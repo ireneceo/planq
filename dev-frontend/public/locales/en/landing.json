@@ -1751,6 +1751,10 @@
       "title": "Let's start by moving your data together",
       "sub": "In a free «30-minute kickoff» we plan your workflow and the order to move your data.",
       "btn": "Book the 30-minute kickoff"
+    },
+    "hosting": {
+      "name": "Where your data lives",
+      "lead": "Service data is stored on IONOS SE cloud servers in Germany, with a daily database backup copy on a separate server. This overseas transfer is listed in Section 3 of our Privacy Policy."
     }
   }
 }

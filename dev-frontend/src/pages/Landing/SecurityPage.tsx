@@ -1,7 +1,8 @@
 // 보안·데이터 정책 — 공개 페이지 /security/ (2026-10-23, Fable 설계 docs/TRUST_SERVICES_DESIGN.md D2).
 //
 // ★ 코드·설정으로 확인되는 장치만 싣는다(설계 §1-4). «아직 없는 것» 절은 지우지 않는다 — 신뢰 페이지의 신뢰는 거기서 나온다.
-// ★ 금지 문구: 서버 위치(처리방침 개정 전) · 침입 탐지 · 정기 점검·직원 교육 · 외부 인증 «준비 중» · «100%».
+// ★ 서버 위치는 처리방침 1.5(2026-11-03 시행, 제3조 IONOS 독일)와 같은 날 실었다 — 처리방침과 어긋나게 쓰지 않는다.
+// ★ 금지 문구: 침입 탐지 · 정기 점검·직원 교육 · 외부 인증 «준비 중» · «100%».
 // ★ «백업에 들어가는 것» 목록은 서버 manifest.coverage 와 같은 원천(services/exportSerializers INCLUDED_KEYS·EXCLUDED
 //   ↔ i18n common.trust.backupAreas·backupExcluded). 영역을 더하면 서버 목록과 i18n 을 같이 고친다.
 // ★ 껍데기는 기능 페이지와 공용(components/Landing/landingSections) — 새 디자인을 만들지 않는다.
@@ -13,7 +14,7 @@ import { Container, SubHero, Eyebrow, Title, Sub, Group, GroupTitle, GroupDesc, 
 
 const PROMISES = ['export', 'keep', 'delete'] as const;
 const MEASURES = ['transport', 'login', 'isolation', 'encryption', 'visibility', 'links', 'audit'] as const;
-const MORE = ['ai', 'backup', 'payment'] as const;
+const MORE = ['hosting', 'ai', 'backup', 'payment'] as const;
 // 서버 services/exportSerializers.js 의 INCLUDED_KEYS · EXCLUDED area 와 같은 순서
 const BACKUP_AREAS = ['files', 'documents', 'tasks', 'projects', 'clients', 'conversations', 'calendar', 'invoices', 'knowledge', 'tables'] as const;
 const BACKUP_EXCLUDED = ['private', 'drive_files', 'secret_fields', 'mail', 'qnote', 'attendance_payroll', 'audit_logs'] as const;
@@ -77,14 +78,14 @@ const SecurityPage: React.FC = () => {
 
       <Group>
         <Container>
-          <Grid3>
+          <Grid2>
             {MORE.map((k) => (
               <SmallCard key={k}>
                 <SmallName>{t(`securityPage.${k}.name`)}</SmallName>
                 <SmallLead>{t(`securityPage.${k}.lead`)}</SmallLead>
               </SmallCard>
             ))}
-          </Grid3>
+          </Grid2>
           <NotYet data-testid="security-not-yet">
             <SmallName>{t('securityPage.notYet.name')}</SmallName>
             <SmallLead>{t('securityPage.notYet.lead')}</SmallLead>
@@ -115,6 +116,11 @@ export default SecurityPage;
 const Grid3 = styled.div`
   display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin-top: 24px;
   @media (max-width: 1024px) { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  @media (max-width: 640px) { grid-template-columns: minmax(0, 1fr); }
+`;
+// 서버 위치·AI·백업·결제 네 장은 2×2(3열이면 한 장이 홀로 남는다)
+const Grid2 = styled.div`
+  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin-top: 24px;
   @media (max-width: 640px) { grid-template-columns: minmax(0, 1fr); }
 `;
 const Coverage = styled.div`

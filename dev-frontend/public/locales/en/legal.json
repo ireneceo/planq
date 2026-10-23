@@ -34,8 +34,9 @@
     },
     "s3": {
       "title": "3. Third-Party Sharing and International Transfers",
-      "intro": "The Company does not share personal data with third parties without user consent. The following transfers occur only when the user opts in:",
+      "intro": "The Company does not share personal data with third parties without user consent. The transfers below happen either to operate the service (storage outsourcing) or only when the user opts in:",
       "items": [
+        "IONOS SE (Germany, Elgendorfer Str. 57, 56410 Montabaur) — service servers (cloud hosting) and database backups: all information created while using the service (account information, workspace content, access logs). Purpose: storing and processing data to provide the service (storage outsourcing). Timing and method: transmitted over an encrypted network (HTTPS) as you use the service. Retention: until you delete your account or the outsourcing contract ends (per Section 4 retention periods). This transfer is required to provide the service, so if you refuse it you cannot use the service.",
         "Google LLC (USA) — when you connect Google Drive: email, OAuth token. Purpose: storing and managing files created by PlanQ (drive.file scope). Retention: until disconnection.",
         "Google LLC (USA) — when you connect Google Calendar: email, calendar events (read and write — calendar.events scope), the list of calendars you subscribe to (read only — calendar.calendarlist.readonly scope; only calendar names and colors, used to let you choose which calendar PlanQ adds events to and which of your calendars are shown in PlanQ — we store only the chosen calendar IDs), OAuth token. Purpose: showing your events inside PlanQ Calendar, syncing events created in PlanQ to the Google calendar you choose, and generating Google Meet links. Retention: until disconnection.",
         "Google LLC (USA) — when you connect a Gmail account (Q Mail): email address, mail contents and attachments, access credentials (app passwords stored encrypted; OAuth tokens when connected via OAuth). Purpose: receiving, displaying, and sending your mail inside the PlanQ inbox. Retention: until disconnection.",
@@ -82,11 +83,12 @@
     "s7": {
       "title": "7. Security Measures",
       "items": [
-        "Encryption (HTTPS in transit, bcrypt password hashing)",
-        "Minimum access privileges and access logging",
-        "Security systems against hacking (firewall, intrusion detection)",
-        "Regular security audits and staff training",
-        "Multi-tenant isolation — complete separation between workspaces"
+        "Encryption in transit (HTTPS) and one-way password hashing (bcrypt) — plain-text passwords are never stored",
+        "Encrypted storage (AES-256) of credentials such as mail app passwords, connection tokens for external services and payment integration secrets",
+        "Separation of data between workspaces (multi-tenant isolation), checked automatically every day",
+        "Minimum access privileges (roles, menu permissions, per-item visibility and security levels) and retention of change records (audit logs)",
+        "Blocking abnormal access, such as limits on login attempts",
+        "Daily database backups with a copy kept on a separate server"
       ]
     },
     "s8": {
@@ -106,7 +108,7 @@
     },
     "s10": {
       "title": "10. Changes to This Policy",
-      "content": "Material changes will be announced via a service notice (a banner in the app and this page) at least 7 days before taking effect. Significant changes may require re-consent. Change history: 2026-10-28 — added visit statistics and ad measurement tools on our public pages (Sections 8 and 3)."
+      "content": "Material changes will be announced via a service notice (a banner in the app and this page) at least 7 days before taking effect. Significant changes may require re-consent. Change history: 2026-10-28 — added visit statistics and ad measurement tools on our public pages (Sections 8 and 3). · 2026-11-03 — listed the overseas transfer to our service hosting provider (IONOS SE, Germany) in Section 3, and updated the security measures in Section 7 to the measures actually in operation."
     },
     "s11": {
       "title": "11. Contact",
