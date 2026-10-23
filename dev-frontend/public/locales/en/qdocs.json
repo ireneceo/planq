@@ -544,7 +544,11 @@
     "slotPickPh": "Search members or clients — or type below",
     "doneInApp": "{{n}} signer(s) on your side sign in this document without email (also listed in Inbox)",
     "resendPrefilled": "We filled in last time's recipients. Change only what you need.",
-    "resendNoteDefault": "I've made the changes you requested."
+    "resendNoteDefault": "I've made the changes you requested.",
+    "floor": {
+      "project": "A document with a signature or confirmation request can't stay Private. Sending makes it visible to the project members and the project's client.",
+      "members": "A document with a signature or confirmation request can't stay Private. Sending makes it visible to the signers and the workspace owners and admins."
+    }
   },
   "ai": {
     "btn": "AI",
@@ -649,7 +653,8 @@
     "button": "Visibility",
     "change": "Change visibility",
     "changeHint": "Change visibility — Private / Team (project members) / Workspace / External",
-    "label": "Visibility"
+    "label": "Visibility",
+    "signatureFloor": "A document with a signature or confirmation request is a company record, so it can't be set to Private. Cancel all requests to choose it again."
   },
   "share": {
     "button": "Share",

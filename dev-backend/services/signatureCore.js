@@ -152,17 +152,96 @@ function notifyUsSigners(rows, { post, docTitle, senderName, business, actorUser
 //   - 여태 routes/posts.js 에는 SignatureRequest 참조가 **한 건도 없었다** — 자동저장이 서명된
 //     계약서를 조용히 덮어쓸 수 있었다(운영 첫 실사용 직전 발견).
 
+// 살아 있는 서명 요청 — 잠금과 공개 범위 바닥이 **같은 집합**을 쓴다(canceled·rejected·superseded·expired 만 남으면 풀린다).
+const SIGNATURE_ACTIVE_STATUSES = ['pending', 'sent', 'viewed', 'signed'];
+
 /** 이 post 가 서명으로 잠겼는가 (완료된 서명이 1건이라도 있는가) */
 async function isPostSignatureLocked(postId, opts = {}) {
   const { Op } = require('sequelize');
   const n = await SignatureRequest.count({
     where: {
       entity_type: 'post', entity_id: Number(postId), kind: 'sign',
-      status: { [Op.in]: ['pending', 'sent', 'viewed', 'signed'] },
+      status: { [Op.in]: SIGNATURE_ACTIVE_STATUSES },
     },
     ...(opts.transaction ? { transaction: opts.transaction } : {}),
   });
   return n > 0;
+}
+
+// ── 서명 문서의 공개 범위 바닥 (2026-10-23, Fable 설계 DESIGN-CHANGE) ──────────────
+//   Irene: «팀 계약인데 나만이라고 공개가 나오는게 맞아? 서명을 회사이름으로 하면 개인이 마음대로 나만으로 하면 안되는 것 같은데.»
+//   서명·확인 요청이 살아 있는 문서(party·kind 불문)는 회사 이름으로 나가는 회사 기록이다 → **L1(나만 보기) 금지, 바닥 L2.**
+//   L1 이면 우리 쪽 서명자도 문서를 못 열고, 설정 › 서명 관리에서 대표에게 «비공개 문서» 로 가려진다.
+//   · 보낼 때: 막지 않고 같은 트랜잭션에서 L2 로 올린다(raisePostToSignatureFloor). 소속(project_id)은 그대로 —
+//     프로젝트 문서 = 프로젝트 멤버(+그 프로젝트 고객) / 프로젝트 없음 = 특정 멤버(작성자 ∪ 우리 쪽 서명자, owner/admin 은 L2 를 다 본다).
+//   · 보낸 뒤: L1 로 좁히기는 누구도 못 한다(작성자·owner·admin·platform_admin 모두 409 signature_visibility_floor).
+//   · 판정은 이 함수 하나 — 보내기·PUT /posts/:id/visibility·PUT /posts/:id vlevel·GET 상세·옛 행 스크립트가 같이 쓴다.
+async function signatureVisibilityFloor(post, opts = {}) {
+  const { Op } = require('sequelize');
+  const rows = await SignatureRequest.findAll({
+    where: { entity_type: 'post', entity_id: Number(post.id), status: { [Op.in]: SIGNATURE_ACTIVE_STATUSES } },
+    attributes: ['party', 'signer_user_id'],
+    ...(opts.transaction ? { transaction: opts.transaction } : {}),
+  });
+  if (rows.length === 0) return { floor: null, audience: null, requiredTargetIds: [], activeCount: 0 };
+  const ids = new Set([Number(post.author_id)].filter(Boolean));
+  for (const r of rows) if (r.party === 'us' && r.signer_user_id) ids.add(Number(r.signer_user_id));
+  return { floor: 'L2', audience: post.project_id ? 'project' : 'members', requiredTargetIds: [...ids], activeCount: rows.length };
+}
+
+/** 바닥 아래로 내리는가 — 지금 바닥은 L2 하나라 L1 만 아래다. */
+function belowSignatureFloor(level, floor) { return !!floor && level === 'L1'; }
+
+/**
+ * 보내기 직후(같은 트랜잭션) — 바닥 아래면 L2 로 올리고, 프로젝트 없는 L2 «특정 멤버» 문서면 우리 쪽 서명자를 명단에 합친다.
+ * 돌려주는 값: 올렸으면 { from, to, audience } (감사·응답용), 아니면 null.
+ */
+async function raisePostToSignatureFloor(post, opts = {}) {
+  const f = await signatureVisibilityFloor(post, opts);
+  if (!f.floor) return null;
+  const from = post.vlevel || null;
+  const patch = {};
+  if (belowSignatureFloor(post.vlevel, f.floor)) patch.vlevel = 'L2';
+  const level = patch.vlevel || post.vlevel;
+  if (level === 'L2' && !post.project_id) {
+    const cur = Array.isArray(post.target_member_ids) ? post.target_member_ids.map(Number) : [];
+    // 옛 L2(명단 없음 = 워크스페이스 전체)는 이미 더 넓다 — 명단을 새로 만들어 좁히지 않는다.
+    if (patch.vlevel || cur.length > 0) {
+      const merged = [...new Set([...cur, ...f.requiredTargetIds])];
+      if (merged.length !== cur.length) patch.target_member_ids = merged;
+    }
+  }
+  if (Object.keys(patch).length === 0) return null;
+  // silent — 본문 저장이 아니다(공개 범위 라우트와 같은 이유: 편집 중인 사람의 낙관적 잠금을 건드리지 않는다).
+  await post.update(patch, { silent: true, ...(opts.transaction ? { transaction: opts.transaction } : {}) });
+  return patch.vlevel ? { from, to: patch.vlevel, audience: f.audience } : null;
+}
+
+/**
+ * 문서 L2 «특정 멤버» 명단 — 프로젝트 없는 문서만(프로젝트 문서의 L2 는 프로젝트가 청중이라 명단을 안 본다).
+ *   2026-10-23 전엔 공개 범위 창이 «특정 멤버» 를 내놓고 서버가 project_id_required 400 으로 거절했다.
+ *   이 워크스페이스 멤버 이상(내보낸 사람·고객·AI 제외)만 · 서명 바닥이면 작성자·우리 쪽 서명자를 합친다(거절하지 않음).
+ *   돌려주는 값: 명단 배열, 잘못된 id 가 있으면 null.
+ */
+async function planPostL2Members(post, rawIds) {
+  const ids = [...new Set((rawIds || []).map(Number).filter((n) => Number.isInteger(n) && n > 0))].slice(0, 200);
+  if (ids.length === 0) return null;
+  const n = await BusinessMember.count({ where: { business_id: post.business_id, user_id: ids, role: ['owner', 'admin', 'member'] } });
+  if (n !== ids.length) return null;
+  const f = await signatureVisibilityFloor(post);
+  return [...new Set([...ids, ...f.requiredTargetIds])];
+}
+
+/** 좁히기 가드 — 바닥 아래면 409 를 응답하고 true(호출부는 즉시 return). */
+async function blockIfBelowSignatureFloor(res, post, level) {
+  if (level !== 'L1') return false;
+  const f = await signatureVisibilityFloor(post);
+  if (!belowSignatureFloor(level, f.floor)) return false;
+  res.status(409).json({
+    success: false, code: 'signature_visibility_floor', floor: f.floor, active_requests: f.activeCount,
+    message: 'signature_visibility_floor',
+  });
+  return true;
 }
 
 /**
@@ -302,7 +381,8 @@ async function assertMember(userId, businessId, isPlatformAdmin) {
 module.exports = {
   assertMember,
   canReadPostFn, canEditPostFn, postOfRequest, canManageRequest,
-  isPostSignatureLocked, blockIfSigned, parseMaybeJson, buildEntitySnapshot, planOutboundScope, loadEntity, maybeUpdateEntityStatus,
+  isPostSignatureLocked, blockIfSigned, SIGNATURE_ACTIVE_STATUSES,
+  signatureVisibilityFloor, belowSignatureFloor, raisePostToSignatureFloor, blockIfBelowSignatureFloor, planPostL2Members, parseMaybeJson, buildEntitySnapshot, planOutboundScope, loadEntity, maybeUpdateEntityStatus,
   loadByToken, confirmLimiter, docConfirmEnabled, assertKind,
   isExpiredNow, SIGNATURE_EVENT_COPY, notifyWorkspaceMembersOnSignature, notifyUsSigners, rejectEventOf, reasonLine,
 };

@@ -84,6 +84,8 @@ const SUITES = {
   signitems: () => require('./canary-signature-items'),
   // 확인필요 «서명» 항목 → 서명 화면에 문서가 보인다 · 웹(새 창) + 앱 흉내(아이패드 탭 모드 · 폰) (2026-10-09)
   signinbox: () => require('./canary-sign-inbox-open'),
+  // 서명 문서 공개 범위 바닥(2026-10-23 Fable) — 서명·확인 요청이 살아 있으면 «나만 보기» 금지 · 보낼 때 L2 로 올림 · 좁히기 409 · 실 HTTP(화면 없음)
+  sigfloor: () => require('./canary-signature-visibility-floor'),
   // 앱 구글 로그인 창(2026-10-16) — 새 앱: iOS 로그인 창 · 취소 시 묻지 않음 / 옛 앱: 전체 화면 · 로그인 전 닫으면 코드 입력창 안 뜸(+양성 대조군)
   nativelogin: () => require('./canary-native-login'),
   // 문서 복사 + 상단 버튼 정리 (2026-09-22). 복사본에 서명·공유 링크가 따라가면 원본인 척하게 된다.

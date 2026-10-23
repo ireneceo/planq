@@ -221,8 +221,15 @@ router.post('/posts/:id/signatures', authenticateToken, async (req, res, next) =
     }
 
     const promoted = await require('../services/actions/post_actions').publishDraftOnRequest(post, t);   // draft 면 발행(상태만)
+    // 공개 범위 바닥(2026-10-23 Fable) — 서명·확인 요청이 걸린 문서는 «나만 보기» 로 둘 수 없다. 같은 트랜잭션에서 L2 로 올린다.
+    const visibilityRaised = await require('../services/signatureCore').raisePostToSignatureFloor(post, { transaction: t });
     // 이메일 발송 (rollback 가능 — sendEmail 실패해도 DB rollback 안 함; 단 OTP 와 다르게 sign 요청 자체는 idempotent)
     await t.commit(); if (promoted) require('../services/actions/post_actions').afterDraftPublishedOnRequest(req, post, `signature.${kind}`);
+    if (visibilityRaised) {
+      require('../services/auditService').logAudit(req, { action: 'post.visibility_change', targetType: 'post', targetId: post.id, businessId: post.business_id,
+        oldValue: { vlevel: visibilityRaised.from }, newValue: { vlevel: visibilityRaised.to, project_id: post.project_id, reason: 'signature_floor' } });
+      if (!promoted) { try { require('./posts').broadcastPost(req, post, 'post:updated'); } catch (e) { console.warn('[signatures] floor broadcast', e.message); } }
+    }
 
     // 트랜잭션 커밋 후 외부 호출 (이메일·채팅)
     const docTitle = post.title;
@@ -290,6 +297,7 @@ router.post('/posts/:id/signatures', authenticateToken, async (req, res, next) =
     return successResponse(res, {
       signatures: created.map((c) => serialize(c)),
       chat_message_id: chatMessageId,
+      visibility_raised: visibilityRaised,
     }, 'Signature requests sent');
   } catch (err) {
     try { await t.rollback(); } catch { /* */ }

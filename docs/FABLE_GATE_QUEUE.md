@@ -2,6 +2,11 @@
 
 
 
+### 2026-10-23 방 bc7fd063 — 서명 문서 공개 범위 바닥(«나만 보기» 금지 · 보낼 때 L2 · 좁히기 409 · 문서 L2 특정 멤버 입력) — 설계 **DESIGN-CHANGE** · 완료 **VERDICT: PASS** (차단 0)
+- Fable 직접 실행: sigfloor 29/29 · coeditors 0 실패 · 가장자리 26/26(명단: 없는 id·AI·내보낸·다른 ws·고객·음수 400 / 옛 L2 명단 없음은 안 좁힘 / L2 명단에 서명자 합침·목록에도 보임 / platform_admin L1 409 / signed 만 남아도 409 · 전부 canceled 면 200 / draft → published+L2) · i18n·parity · 마이그레이션 멱등 0건.
+- 비차단: ① 프로젝트 L2 문서의 프로젝트 밖 우리 쪽 서명자는 받은 서명함에서도 문서를 못 연다(변경 전보다 좁아지진 않음) → 다음 설계 ② 프로젝트 문서에서 «특정 멤버» 를 보내면 서버가 project_id 우선·명단 무시(기존) ③ 명단만 합친 보내기는 감사·visibility_raised 없음 — 화면 명단은 다음 GET 까지 옛 값 ④ 게이트 지문에 다른 방 커밋 5건(1ee8be57·c44ac650·ff3fe3e4·26a16170·ee1f47c4)이 같이 들어간다 — **이 PASS 는 그 5건을 검증한 것이 아니다** ⑤ dev-backend/test-*.js 4개 남음(다른 방 것).
+- 운영: 옛 행 `migrate-signature-visibility-floor.js --apply` 는 Irene 답 뒤 배포 방에서만.
+
 ### 2026-10-23 방 8ea3ac54 — 서명 관리(받은·보낸 서명 + 설정 서명 관리 · canManageRows 권한 확대) — **VERDICT: PASS** (차단 0)
 - 설계 DESIGN-CHANGE ①~⑤ 반영 확인. 자체 33/33 재실행 · 독립 API 프로브(L1 가림 원문 0·검색 0·페이지·만료·LIKE 메타문자·소켓 신호만) · 실브라우저 21/21 · secrets 17/17 · displayname 2/2 · signauth · e2e signature·tenant 0 실패.
 - 비차단: ① 가린 행 signer_name 원문 → 가리거나 이유 적기 ② 요청자 ∧ 읽을 수 없는 문서 — 목록 can_manage false 인데 DELETE 200(종전 동작) → 한쪽으로 맞추기 ③ 지운 문서의 요청 행이 «비공개 문서» 로 보임 → «지운 문서» 구분 ④ 설계 문서 «business_id 없으면 400» 문구 → requestScope 옛 번들 동작과 맞추기.

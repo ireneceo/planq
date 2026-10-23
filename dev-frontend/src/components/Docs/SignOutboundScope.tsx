@@ -8,9 +8,11 @@ import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { fetchSignatureScope, type SignatureScope } from '../../services/posts';
 
-interface Props { postId: number; open: boolean; }
+// vlevel·projectId — 서명 문서 공개 범위 바닥(2026-10-23 Fable): «나만 보기» 문서는 보내는 순간 서버가 L2 로 올린다.
+//   창이 미리 말한다(계산은 서버 signatureCore.raisePostToSignatureFloor — 여기선 지금 값이 L1 인지만 본다).
+interface Props { postId: number; open: boolean; vlevel?: string | null; projectId?: number | null; }
 
-const SignOutboundScope: React.FC<Props> = ({ postId, open }) => {
+const SignOutboundScope: React.FC<Props> = ({ postId, open, vlevel, projectId }) => {
   const { t } = useTranslation('qdocs');
   const [scope, setScope] = useState<SignatureScope | null>(null);
   useEffect(() => {
@@ -20,16 +22,25 @@ const SignOutboundScope: React.FC<Props> = ({ postId, open }) => {
     return () => { alive = false; };
   }, [open, postId]);
 
-  if (!scope) return null;
+  const floorNote = vlevel === 'L1' ? (
+    <FloorNote data-testid="sign-visibility-floor">
+      {projectId
+        ? t('sign.floor.project', { defaultValue: '서명·확인 요청을 보내면 이 문서는 «나만 보기» 로 둘 수 없습니다. 보내는 순간 프로젝트 멤버와 그 프로젝트 고객에게 보입니다.' })
+        : t('sign.floor.members', { defaultValue: '서명·확인 요청을 보내면 이 문서는 «나만 보기» 로 둘 수 없습니다. 보내는 순간 서명자와 워크스페이스 대표·관리자에게 보입니다.' })}
+    </FloorNote>
+  ) : null;
+  if (!scope) return floorNote;
   const sentFiles = scope.files.filter(f => f.included);
   const sentDocs = scope.docs.filter(d => d.included);
   const held = [
     ...scope.files.filter(f => !f.included).map(f => f.name || `#${f.file_id}`),
     ...scope.docs.filter(d => !d.included).map(d => d.title || `#${d.post_id}`),
   ];
-  if (!sentFiles.length && !sentDocs.length && !held.length) return null;
+  if (!sentFiles.length && !sentDocs.length && !held.length) return floorNote;
 
   return (
+    <>
+    {floorNote}
     <Wrap data-testid="sign-outbound-scope">
       <Label>{t('sign.scope.label', { defaultValue: '받는 분에게 함께 공개되는 것' })}</Label>
       <Line>{t('sign.scope.counts', { defaultValue: '첨부 파일 {{files}}건 · 연결 문서 {{docs}}건', files: sentFiles.length, docs: sentDocs.length })}</Line>
@@ -41,6 +52,7 @@ const SignOutboundScope: React.FC<Props> = ({ postId, open }) => {
       )}
       <Hint>{t('sign.scope.hint', { defaultValue: '지금 내용으로 고정되어 서명 링크에서 열립니다. 이후 원본을 고쳐도 받는 분이 보는 것은 바뀌지 않습니다.' })}</Hint>
     </Wrap>
+    </>
   );
 };
 
@@ -52,4 +64,5 @@ const Label = styled.div`font-size: 0.75rem; font-weight: 600; color: #0F172A; m
 const Line = styled.div`font-size: 0.8125rem; color: #0F172A; line-height: 1.5;`;
 const Names = styled.div`font-size: 0.75rem; color: #475569; line-height: 1.5; word-break: break-word;`;
 const Held = styled.div`font-size: 0.75rem; color: #B45309; background: #FFFBEB; border-radius: 6px; padding: 6px 8px; margin-top: 4px; line-height: 1.5; word-break: break-word;`;
+const FloorNote = styled.div`font-size: 0.75rem; color: #B45309; background: #FFFBEB; border-radius: 6px; padding: 8px 10px; margin-bottom: 14px; line-height: 1.5; word-break: break-word;`;
 const Hint = styled.div`font-size: 0.6875rem; color: #94A3B8; line-height: 1.5; margin-top: 4px;`;

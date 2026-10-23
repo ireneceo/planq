@@ -464,6 +464,7 @@ router.get('/:id', authenticateToken, async (req, res, next) => {
       const { listFor } = require('../services/postEditors');
       result.co_editors = await listFor(post);
       result.can_manage_editors = !!(await require('../services/postAccess').canManagePostEditors(req.user.id, post, req.user.platform_role));
+      result.signature_visibility_floor = (await require('../services/signatureCore').signatureVisibilityFloor(post)).floor;   // 서명 바닥 — 화면은 이 값으로 «나만 보기» 를 숨긴다
     }
     successResponse(res, result);
   } catch (err) { next(err); }
@@ -988,6 +989,7 @@ router.put('/:id', authenticateToken, async (req, res, next) => {
       if (req.body.vlevel !== post.vlevel && !(await canMovePostProject(req.user.id, post, req.user.platform_role))) {
         return errorResponse(res, 'post_visibility_forbidden', 403, 'post_visibility_forbidden');
       }
+      if (req.body.vlevel !== post.vlevel && await require('../services/signatureCore').blockIfBelowSignatureFloor(res, post, req.body.vlevel)) return;   // 서명 바닥
       // 외부 공개(L4)는 보안등급을 본다 — /visibility 라우트와 같은 게이트(이 문으로는 우회됐다).
       if (req.body.vlevel === 'L4' && blocksExternalShare(post)) {
         return errorResponse(res, 'security_level_blocks_share', 403, 'security_level_blocks_share');
@@ -1099,7 +1101,7 @@ router.put('/:id', authenticateToken, async (req, res, next) => {
 // L2 → project_id 필수. L4 → share_token 자동 발급 (없으면). 권한: author 본인 또는 workspace owner/admin
 router.put('/:id/visibility', authenticateToken, async (req, res, next) => {
   try {
-    const { level, project_id } = req.body || {};
+    const { level, project_id, target_member_ids } = req.body || {};
     if (!['L1', 'L2', 'L3', 'L4'].includes(level)) return errorResponse(res, 'invalid_level', 400);
     const post = await Post.findByPk(req.params.id);
     if (!post) return errorResponse(res, 'not_found', 404);
@@ -1118,19 +1120,20 @@ router.put('/:id/visibility', authenticateToken, async (req, res, next) => {
     //   공개 범위를 좁힌다고 소속이 사라질 이유가 없다. 소속은 유지하고 범위만 바꾼다.
     //   L2 만 예외로 project_id 가 **필수**다 — 그때는 프로젝트가 곧 청중이기 때문이다.
     //   (목록에는 이미 RowVisChip 으로 공개 범위가 표시된다 = "보기표시 하고 나오긴 해야지")
-    let nextProjectId = post.project_id;
+    let nextProjectId = post.project_id, nextTargets;   // nextTargets undefined = 명단 안 바꿈
     if (level === 'L2') {
       if (project_id) nextProjectId = Number(project_id);
-      if (!nextProjectId) return errorResponse(res, 'project_id_required_for_L2', 400);
+      if (!nextProjectId && Array.isArray(target_member_ids) && target_member_ids.length > 0) {   // L2 «특정 멤버» — 프로젝트 없는 문서만(signatureCore.planPostL2Members, 서명자는 서버가 합친다)
+        if (!(nextTargets = await require('../services/signatureCore').planPostL2Members(post, target_member_ids))) return errorResponse(res, 'invalid_target_members', 400);
+      } else if (!nextProjectId) return errorResponse(res, 'project_id_required_for_L2', 400);
     } else if (project_id !== undefined) {
       // 호출자가 명시적으로 넘긴 경우만 소속 변경 (null 을 주면 '프로젝트에서 빼기')
       nextProjectId = project_id === null ? null : Number(project_id);
     }
+    if (await require('../services/signatureCore').blockIfBelowSignatureFloor(res, post, level)) return;   // 서명 바닥 — 누구도 L1 로 못 좁힌다
     // D4 #62 — 보안등급 게이트: 일반 외 문서는 L4(외부 공개) 전환 차단
-    if (level === 'L4' && blocksExternalShare(post)) {
-      return errorResponse(res, 'security_level_blocks_share', 403, 'security_level_blocks_share');
-    }
-    const patch = { vlevel: level, project_id: nextProjectId };
+    if (level === 'L4' && blocksExternalShare(post)) return errorResponse(res, 'security_level_blocks_share', 403, 'security_level_blocks_share');
+    const patch = { vlevel: level, project_id: nextProjectId, ...(nextTargets ? { target_member_ids: nextTargets } : {}) };
     // 좁히면(L1·L2) 이미 나간 링크를 끊는다 — 달력과 같은 규칙(services/share_helper.shareOffPatch).
     {
       const sh = require('../services/share_helper');
@@ -1150,8 +1153,8 @@ router.put('/:id/visibility', authenticateToken, async (req, res, next) => {
     broadcastPost(req, post, 'post:updated');
     // 감사 — 공개 범위가 바뀐다(L4 면 공유 토큰이 자동 발급된다, AUDIT_GAPS 1순위). 토큰은 싣지 않는다.
     require('../services/auditService').logAudit(req, { action: 'post.visibility_change', targetType: 'post', targetId: post.id, businessId: post.business_id,
-      oldValue: { vlevel: prevVlevel }, newValue: { vlevel: level, project_id: nextProjectId, shared: !!post.share_token } });
-    successResponse(res, { id: post.id, vlevel: level, project_id: nextProjectId, share_token: post.share_token });
+      oldValue: { vlevel: prevVlevel }, newValue: { vlevel: level, project_id: nextProjectId, shared: !!post.share_token, ...(nextTargets ? { target_member_ids: nextTargets } : {}) } });
+    successResponse(res, { id: post.id, vlevel: level, project_id: nextProjectId, share_token: post.share_token, target_member_ids: Array.isArray(post.target_member_ids) ? post.target_member_ids : null });
   } catch (err) { next(err); }
 });
 

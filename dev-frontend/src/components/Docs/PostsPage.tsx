@@ -2952,16 +2952,21 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId }) => {
           currentProjectId={detail.project_id ?? null}
           currentTargetMemberIds={detail.target_member_ids ?? null}
           canChooseL2
+          // 서명 바닥 — 서명·확인 요청이 살아 있으면 «나만 보기» 를 고를 수 없다(서버도 409 signature_visibility_floor)
+          hide={detail.signature_visibility_floor ? { L1: true } : undefined}
+          notice={detail.signature_visibility_floor ? t('visibility.signatureFloor', { defaultValue: '서명·확인 요청을 보낸 문서는 회사 기록이라 «나만 보기» 로 바꿀 수 없습니다. 요청을 모두 취소하면 다시 고를 수 있습니다.' }) as string : undefined}
           projects={visProjects.map(p => ({ id: p.id, name: p.name }))}
           members={visMembers}
           clients={visClients.map(c => ({ id: c.id, display_name: c.display_name, biz_name: c.biz_name, company_name: c.company_name }))}
-          onConfirm={async ({ level, projectId }) => {
+          onConfirm={async ({ level, projectId, targetMemberIds }) => {
             try {
               const r = await updatePostVisibility(detail.id, {
                 level,
                 ...(projectId ? { project_id: projectId } : {}),
+                // L2 «특정 멤버» — 프로젝트 없는 문서만 서버가 받는다(서명 문서면 서명자를 서버가 명단에 합친다)
+                ...(targetMemberIds && targetMemberIds.length ? { target_member_ids: targetMemberIds } : {}),
               });
-              setDetail(prev => prev ? { ...prev, vlevel: r.vlevel as 'L1'|'L2'|'L3'|'L4', project_id: r.project_id, share_token: r.share_token ?? prev.share_token } : prev);
+              setDetail(prev => prev ? { ...prev, vlevel: r.vlevel as 'L1'|'L2'|'L3'|'L4', project_id: r.project_id, share_token: r.share_token ?? prev.share_token, ...(r.target_member_ids !== undefined ? { target_member_ids: r.target_member_ids } : {}) } : prev);
             } catch (e) { /* keep modal open on error */ throw e; }
           }}
           onClose={() => setVisModalOpen(false)}
@@ -3002,7 +3007,12 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId }) => {
           open={signOpen}
           onClose={() => setSignOpen(false)}
           post={detail}
-          onSent={() => setSignReloadKey(k => k + 1)}
+          onSent={(_sigs, raised) => {
+            setSignReloadKey(k => k + 1);
+            // 서명 바닥 — 서버가 «나만 보기» 를 L2 로 올렸으면 칩·공개 범위 창이 바로 따라간다
+            if (raised) setDetail(prev => prev ? { ...prev, vlevel: raised.to as 'L1' | 'L2' | 'L3' | 'L4', signature_visibility_floor: 'L2' } : prev);
+            else setDetail(prev => prev ? { ...prev, signature_visibility_floor: 'L2' } : prev);
+          }}
           // 저장 응답에는 linked_posts·표시명(author/editor)이 없다(GET 에만 있다) — 통째로 대입하면 상세의 연결 문서 칩이
           //   사라지고 이름이 원이름으로 떨어진다(Fable 2026-10-05). 같은 파일의 다른 저장처럼 덧입힌다.
           onPostUpdated={(saved) => setDetail((prev) => (prev ? {

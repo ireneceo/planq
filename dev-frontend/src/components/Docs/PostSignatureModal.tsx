@@ -31,7 +31,7 @@ interface Props {
   open: boolean;
   onClose: () => void;
   post: PostDetail;
-  onSent: (signatures: SignatureRequest[]) => void;
+  onSent: (signatures: SignatureRequest[], visibilityRaised?: { from: string | null; to: string; audience: 'project' | 'members' } | null) => void;
   /** 이 창에서 문서에 서명란을 넣었을 때 — 상위가 상세를 새로 고친다 */
   onPostUpdated?: (post: PostDetail) => void;
   /** 1단계에서 [편집에서 직접 넣기] — 창을 닫고 편집으로 */
@@ -290,7 +290,7 @@ const PostSignatureModal: React.FC<Props> = ({ open, onClose, post, onSent, onPo
       // 메일이 나가는 것은 받는 쪽뿐이다 — 보내는 쪽(우리)은 앱 안에서 서명한다. 전체 수로 세면 «3명에게 메일» 이 거짓이 된다(2026-10-05 실측).
       const inApp = r.signatures.filter(sg => sg.party === 'us').length;
       setDone({ count: r.signatures.length - inApp, inApp, viaChat: !!r.chat_message_id, convId: sendChat && convId ? convId : null });
-      onSent(r.signatures);
+      onSent(r.signatures, r.visibility_raised);
     } catch (e) {
       setError(((e as Error).message) || (t('sign.failed', '서명 요청 실패') as string));
     } finally {
@@ -488,7 +488,7 @@ const PostSignatureModal: React.FC<Props> = ({ open, onClose, post, onSent, onPo
                 })
                 : validSigners.map((v) => ({ key: String(v.id), label: null, party: 'them' as const, name: v.name, email: v.email }))} />
             )}
-            <SignOutboundScope postId={post.id} open={open} />
+            <SignOutboundScope postId={post.id} open={open} vlevel={post.vlevel} projectId={post.project_id ?? null} />
             <Section>
               <SectionLabel>{t('sign.message', '메모 (선택)')}</SectionLabel>
               <Textarea rows={2} value={note} onChange={e => setNote(e.target.value)} placeholder={t('sign.messagePh', '검토 부탁드립니다.') as string} disabled={busy} />

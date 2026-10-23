@@ -119,7 +119,8 @@ async function run() {
     const aiM1 = await pa.checkEditable({ kind: 'user', userId: M1, platformRole: null }, { businessId: BIZ, postId: d1 });
     ok(aiM1.ok, 'AI 쓰기 판정: 공동 편집자 통과', aiM1);
     // 회차 닫기 (요청 없음 → 판정 통과하면 403 아님)
-    ok((await call(OWNER, 'POST', `/api/posts/${d1}/signatures/close-round`, {})).s === 403, '회차 닫기: 비지정 403');
+    // 회차 닫기는 편집이 아니라 서명 관리 축(services/signatureList.canManageRows — 요청자 ∨ 편집자 ∨ owner/admin ∧ 읽기, b8f52f57 Fable PASS) — owner 는 통과
+    ok((await call(OWNER, 'POST', `/api/posts/${d1}/signatures/close-round`, {})).s !== 403, '회차 닫기: owner(서명 관리) 통과');
     ok((await call(M1, 'POST', `/api/posts/${d1}/signatures/close-round`, {})).s !== 403, '회차 닫기: 공동 편집자 판정 통과');
     // 서명 요청 만들기 — 비지정 403 만(만들면 문서가 잠긴다). 공동 편집자는 별도 문서로.
     ok((await call(OWNER, 'POST', `/api/posts/${d1}/signatures`, { signers: [{ slot: 1, party: 'us', user_id: OWNER }] })).s === 403, '서명 요청: 비지정 403');

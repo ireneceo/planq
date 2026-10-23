@@ -50,4 +50,7 @@ paths:
   설정 › 서명 관리(`/business/settings/signatures`, owner/admin). 응답 모양 `services/signatureList`(serialize·docAccessMap·hiddenRow) · API `routes/signatures_sent.js`.
   취소·재알림·회차 닫기 권한은 **`canManageRows` 한 술어**(요청자 ∨ 편집자 ∨ owner/admin ∧ 읽기 가능) — 읽을 수 없는 문서의 행은 가린다(제목·이메일·IP 없음, 검색도 읽을 수 있는 문서 안에서만).
   하드 삭제 없음(«삭제» = 요청 취소). 설계 `docs/SIGNATURE_MANAGE_DESIGN.md`.
-
+- **서명·확인 요청이 살아 있는 문서는 «나만 보기»(L1) 가 될 수 없다 — 바닥 L2**(2026-10-23, Irene «서명을 회사이름으로 하면 개인이 마음대로 나만으로 하면 안되는 것 같은데» · Fable 설계 DESIGN-CHANGE) —
+  party·kind 불문 · 살아 있음 = `SIGNATURE_ACTIVE_STATUSES`(서명 잠금과 같은 상수). 보낼 때 같은 트랜잭션에서 L2 로 올린다(프로젝트 문서 = 프로젝트, 없으면 특정 멤버 = 작성자 ∪ 우리 쪽 서명자) ·
+  보낸 뒤 L1 로 좁히기는 **누구도** 못 한다(두 문 모두 409 `signature_visibility_floor`). 판정 `services/signatureCore.signatureVisibilityFloor` 한 곳 — 공개 범위를 바꾸는 새 문은 `blockIfBelowSignatureFloor` 를 부른다.
+  옛 행 `scripts/migrate-signature-visibility-floor.js`(기본 읽기만). 회귀 `--suite sigfloor`. 설계 `docs/SIGNATURE_VISIBILITY_FLOOR_DESIGN.md`.

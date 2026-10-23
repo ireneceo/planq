@@ -26,9 +26,11 @@ interface Props {
   /** 지금 연결된 프로젝트·특정 멤버 — 창을 열 때 그대로 미리 고른다(안 넘기면 «특정 프로젝트» 칸이 빈 채라 «연결 안 됨» 으로 보였다, 2026-10-22). */
   currentProjectId?: number | null;
   currentTargetMemberIds?: number[] | null;
+  /** 고를 수 없는 이유 한 줄 — 예: 서명 요청이 걸린 문서는 «나만 보기» 를 숨기고 왜인지 말한다 */
+  notice?: string;
 }
 
-const VisibilityChangeModal: React.FC<Props> = ({ open, current, canChooseL2 = true, projects = [], members = [], clients = [], onConfirm, onClose, onOpenShare, hide: hideProp, currentProjectId = null, currentTargetMemberIds = null }) => {
+const VisibilityChangeModal: React.FC<Props> = ({ open, current, canChooseL2 = true, projects = [], members = [], clients = [], onConfirm, onClose, onOpenShare, hide: hideProp, currentProjectId = null, currentTargetMemberIds = null, notice }) => {
   const { t } = useTranslation('common');
   const cur = (current || 'L3') as string;
   // L2 는 특정 멤버가 있으면 «특정 멤버», 아니면 «특정 프로젝트»(지금 연결된 프로젝트를 미리 고른다)
@@ -79,6 +81,7 @@ const VisibilityChangeModal: React.FC<Props> = ({ open, current, canChooseL2 = t
       <Card onClick={(e) => e.stopPropagation()}>
         <Title>{t('vault.changeVis.title', { defaultValue: '공개 범위 변경' }) as string}</Title>
         <Hint>{t('vault.changeVis.hint', { defaultValue: '누가 이 자료를 볼 수 있는지 선택하세요.' }) as string}</Hint>
+        {notice && <Notice data-testid="vis-change-notice">{notice}</Notice>}
 
         {/* N+66 — 공통 VisibilityField 사용 (등록/상세 패널과 동일 UI) */}
         <VisibilityField
@@ -129,6 +132,7 @@ const Card = styled.div`
 `;
 const Title = styled.h2` margin: 0; font-size: 1rem; font-weight: 700; color: #0F172A; `;
 const Hint = styled.p` margin: 0; font-size: 0.75rem; color: #64748B; line-height: 1.5; `;
+const Notice = styled.p` margin: 0; font-size: 0.75rem; color: #B45309; background: #FFFBEB; border-radius: 6px; padding: 8px 10px; line-height: 1.5; `;
 const ExternalLink = styled.button`
   align-self: flex-start; background: none; border: 0; padding: 4px 0;
   color: #C2410C; font-size: 0.75rem; font-weight: 600; cursor: pointer; text-decoration: underline;

@@ -86,6 +86,8 @@ export interface PostDetail extends PostRow {
   co_editors?: PostCoEditor[];
   // 공동 편집자를 넣고 뺄 수 있는가 — 작성자 · 오너 · 관리자(서버 canManagePostEditors)
   can_manage_editors?: boolean;
+  // 서명 문서 공개 범위 바닥 — 살아 있는 서명·확인 요청이 있으면 'L2'(«나만 보기» 로 못 좁힌다). 서버 signatureCore 한 술어
+  signature_visibility_floor?: 'L2' | null;
 }
 
 export interface PostCoEditor {
@@ -328,8 +330,8 @@ export async function fetchSignatureScope(postId: number): Promise<SignatureScop
 
 export async function updatePostVisibility(
   postId: number,
-  body: { level: 'L1' | 'L2' | 'L3' | 'L4'; project_id?: number }
-): Promise<{ id: number; vlevel: string; project_id: number | null; share_token?: string | null }> {
+  body: { level: 'L1' | 'L2' | 'L3' | 'L4'; project_id?: number; target_member_ids?: number[] }
+): Promise<{ id: number; vlevel: string; project_id: number | null; share_token?: string | null; target_member_ids?: number[] | null }> {
   const r = await apiFetch(`/api/posts/${postId}/visibility`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
@@ -600,7 +602,7 @@ export async function requestSignatures(postId: number, payload: {
   expires_in_days?: number;
   send_chat?: boolean;
   conversation_id?: number;
-}): Promise<{ signatures: SignatureRequest[]; chat_message_id: number | null }> {
+}): Promise<{ signatures: SignatureRequest[]; chat_message_id: number | null; visibility_raised?: { from: string | null; to: string; audience: 'project' | 'members' } | null }> {
   const r = await apiFetch(`/api/posts/${postId}/signatures`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
