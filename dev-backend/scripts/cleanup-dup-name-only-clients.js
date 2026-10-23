@@ -15,7 +15,9 @@
 'use strict';
 require('dotenv').config({ quiet: true });
 const { sequelize } = require('../config/database');
-const { Client, AuditLog } = require('../models');
+const { Client } = require('../models');
+// 감사는 표준 문(writeAudit) — AuditLog.create 를 직접 부르면 보관 스탬프(retain_until)·마스킹이 빠진다(health retention 이 잡았다)
+const { writeAudit } = require('../services/auditService');
 
 const APPLY = process.argv.includes('--apply');
 const bizArg = (process.argv.find((a) => a.startsWith('--business=')) || '').split('=')[1];
@@ -53,7 +55,7 @@ const norm = (s) => String(s || '').normalize('NFC').trim();
     if (refTotal || ownData.length) { withRefs += 1; continue; }
     if (APPLY) {
       await c.destroy();
-      await AuditLog.create({
+      await writeAudit({
         user_id: null, business_id: c.business_id, action: 'client.dedup_removed', target_type: 'client', target_id: c.id,
         old_value: { display_name: c.display_name, original_ids: originals.map((o) => o.id), reason: 'name_only_invited_duplicate' }, new_value: null,
       }).catch((e) => console.warn('  감사 실패', e.message));
