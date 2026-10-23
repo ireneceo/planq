@@ -312,7 +312,8 @@ export default function SalePage({ embedded = false }: { embedded?: boolean } = 
             <HeaderCta data-testid="sale-add-client" onClick={() => { setClientAddPrefill(null); setClientAddFromCard(null); setClientAddFromMail(null); setClientAddFromPhoto(null); setClientAddOpen(true); }}>
               <PlusIcon aria-hidden />
               <LongLabel>{t('clients:addClient') as string}</LongLabel>
-              <ShortLabel>{t('clients:addClient') as string}</ShortLabel>
+              {/* 폰은 짧은 이름 — 긴 이름과 같은 글자라 360 폭에서 버튼이 28px 화면 밖으로 나갔다(2026-10-23, 상담 탭 #445 와 같은 방식) */}
+              <ShortLabel>{t('clients:addClientShort', { defaultValue: '추가' }) as string}</ShortLabel>
             </HeaderCta>
           ) : embedded ? null : (
             <HeaderCta data-testid="sale-add-inquiry" onClick={() => setAddOpen(true)}>
@@ -652,7 +653,7 @@ const LongLabel = styled.span`@media (max-width: 640px) { display: none; }`;
 const ShortLabel = styled.span`display: none; @media (max-width: 640px) { display: inline; }`;
 const Actions = styled.div`
   display: flex; align-items: center; gap: 8px;
-  @media (max-width: 640px) { > *:last-child { order: -1; } }
+  @media (max-width: 640px) { gap: 6px; > *:last-child { order: -1; } }
 `;
 const PlusIcon = styled.span.attrs({
   children: (

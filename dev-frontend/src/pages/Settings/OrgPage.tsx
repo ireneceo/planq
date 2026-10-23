@@ -309,8 +309,14 @@ const OrgPage = () => {
 export default OrgPage;
 
 // ─── styled ───
-const AddRow = styled.div`display: flex; align-items: center; gap: 8px;`;
+// 폰 — PageShell 이 이 줄을 머리줄 아래 한 줄(자식 flex-shrink:0)로 내린다. 입력칸이 제 글자 폭을 고집해 «부서 추가» 가
+//   화면 밖으로 나갔다(360 폭 385px, 2026-10-23) → 줄 폭에 맞추고 입력칸이 줄어든다. 높이는 그대로.
+const AddRow = styled.div`
+  display: flex; align-items: center; gap: 8px;
+  @media (max-width: 640px) { width: 100%; }
+`;
 const AddInput = styled.input`
+  flex: 1 1 auto;
   padding: 8px 12px; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 0.8125rem; color: #0f172a; font-family: inherit; min-width: 0;
   &:focus { outline: none; border-color: #14b8a6; box-shadow: 0 0 0 3px rgba(20,184,166,0.15); }
 `;

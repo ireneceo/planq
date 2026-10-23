@@ -22,7 +22,8 @@
     "allClients": "All clients",
     "tagFilter": "Tag",
     "clearTag": "Clear tag filter",
-    "aiIngestHint": "AI organizes pasted content or a text file into topics and adds them"
+    "aiIngestHint": "AI organizes pasted content or a text file into topics and adds them",
+    "csvMenu": "CSV import/export"
   },
   "help": {
     "body": "Q info is your workspace information DB — information the team keeps reusing, stored item by item.\n\n• What: accounts and logins, vendors and contacts, price lists, policies and procedures, checklists and required documents, FAQs\n• How: a title plus named fields (URL, email, secret fields…) so items line up like a table · import and export with CSV · secret fields stay masked\n• Who sees it: only me / workspace / a project / a client (your team and that client — clients read it under Home › Info, secret fields hidden · Cue may use it when answering that client)\n• Cue and AI replies use what is here as their source\n\nDocuments to read (contracts, reports, minutes) go in Q docs, meeting recordings and personal memos in Q note, original files in Q file.",

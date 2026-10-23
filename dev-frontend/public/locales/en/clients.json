@@ -263,6 +263,7 @@
   "emptyHowto": "How to",
   "emptyWikiQuery": "Invite a client",
   "addClient": "Add client",
+  "addClientShort": "Add",
   "addModal": {
     "titleManaged": "Add client",
     "modeInvite": "Send invitation",

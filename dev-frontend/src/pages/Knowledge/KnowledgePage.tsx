@@ -57,6 +57,8 @@ import { fetchWorkspaceFiles, uploadMyFile, formatBytes, type ProjectFile } from
 import { fetchPosts, type PostRow } from '../../services/posts';
 import VisibilityField, { serializeVisibility, parseVisibility, type VisibilityValue } from '../../components/Common/VisibilityField';
 import AiActionButton from '../../components/Common/AiActionButton';
+import OverflowMenu from '../../components/Common/OverflowMenu';
+import { useMediaQuery } from '../../hooks/useMediaQuery';
 import TrashDrawer from '../../components/Trash/TrashDrawer';
 import TrashButton from '../../components/Trash/TrashButton';
 import { isEnterAction } from '../../utils/imeKey';
@@ -155,6 +157,7 @@ function collectRemovedCols(
 
 const KnowledgePage: React.FC<KnowledgePageProps> = ({ embedded = false, mode = 'workspace' }) => {
   const { t } = useTranslation('knowledge');
+  const isPhone = useMediaQuery('(max-width: 640px)');   // PageShell 이 액션을 머리줄 아래로 내리는 폭과 같은 질의
   const { t: tErr } = useTranslation('errors');
   const secLabel = useSecurityLevelLabel();  // D4 #62 보안등급 라벨
   const { user } = useAuth();
@@ -731,22 +734,55 @@ const KnowledgePage: React.FC<KnowledgePageProps> = ({ embedded = false, mode = 
       }
       actions={
         <>
-          <CsvUploadBtn type="button" onClick={() => setCsvIngestOpen(true)} title={t('page.csvUpload') as string}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-              <polyline points="17 8 12 3 7 8"/>
-              <line x1="12" y1="3" x2="12" y2="15"/>
-            </svg>
-            {t('page.csvUpload')}
-          </CsvUploadBtn>
-          <CsvBtn type="button" onClick={handleExportCsv} disabled={!filtered.length} title={t('page.exportCsv') as string}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-              <polyline points="7 10 12 15 17 10"/>
-              <line x1="12" y1="15" x2="12" y2="3"/>
-            </svg>
-            {t('page.exportCsv')}
-          </CsvBtn>
+          {/* 폰(≤640) — 머리줄 아래 한 줄에 버튼 4개(414px)가 안 들어가 «+ 새 정보» 가 화면 밖으로 나갔다(2026-10-23).
+              가끔 쓰는 CSV 둘을 글자 메뉴 «CSV» 하나로 접는다(⋯ 금지 — 뜻이 안 보인다). 높이는 줄의 다른 버튼과 같은 36.
+              DOM 은 한쪽만 그린다(CSS 로 숨기면 유령 버튼 — PageShell 주석). 태블릿·데스크탑은 그대로. */}
+          {isPhone ? (
+            <CsvMenu
+              label={t('page.csvMenu') as string}
+              triggerLabel="CSV"
+              data-testid="info-csv-menu"
+              items={[
+                { key: 'csv-upload', label: t('page.csvUpload') as string, testId: 'info-csv-upload',
+                  icon: (
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                      <polyline points="17 8 12 3 7 8"/>
+                      <line x1="12" y1="3" x2="12" y2="15"/>
+                    </svg>
+                  ),
+                  onClick: () => setCsvIngestOpen(true) },
+                { key: 'csv-export', label: t('page.exportCsv') as string, testId: 'info-csv-export', disabled: !filtered.length,
+                  icon: (
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                      <polyline points="7 10 12 15 17 10"/>
+                      <line x1="12" y1="15" x2="12" y2="3"/>
+                    </svg>
+                  ),
+                  onClick: handleExportCsv },
+              ]}
+            />
+          ) : (
+            <>
+              <CsvUploadBtn type="button" onClick={() => setCsvIngestOpen(true)} title={t('page.csvUpload') as string}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                  <polyline points="17 8 12 3 7 8"/>
+                  <line x1="12" y1="3" x2="12" y2="15"/>
+                </svg>
+                {t('page.csvUpload')}
+              </CsvUploadBtn>
+              <CsvBtn type="button" onClick={handleExportCsv} disabled={!filtered.length} title={t('page.exportCsv') as string}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                  <polyline points="7 10 12 15 17 10"/>
+                  <line x1="12" y1="15" x2="12" y2="3"/>
+                </svg>
+                {t('page.exportCsv')}
+              </CsvBtn>
+            </>
+          )}
           <AiActionButton
             onClick={() => setAiIngestOpen(true)}
             label={t('page.aiIngest') as string}
@@ -2406,6 +2442,13 @@ const CsvBtn = styled.button`
   @media (max-width: 640px) { height: 36px; font-size: 0.75rem; padding: 0 10px; gap: 4px; }
 `;
 // AI 자동 추가 버튼 — 별 아이콘 + teal accent. Q docs PostAiModal "AI 로 시작" 패턴 카피.
+// 폰 «CSV» 메뉴 — 트리거를 옆 글자 버튼(CsvBtn)과 같은 32px·테두리로 맞춘다. 공용 트리거의 폰 44px 은
+//   이 줄에서만 줄 높이를 키워(Irene «높이값 키우지 않는 방법으로») 여기서만 누른다 — 줄의 다른 버튼이 전부 32다.
+const CsvMenu = styled(OverflowMenu)`
+  & > button {
+    height: 32px; min-width: 0; border-radius: 6px; border-color: #CBD5E1; color: #475569;
+  }
+`;
 const CsvUploadBtn = styled.button`
   display: inline-flex; align-items: center; gap: 6px;
   height: 32px; padding: 0 12px;
