@@ -51,6 +51,10 @@ paths:
     후보로 떨어져 되돌리기의 뜻이 사라진다(실측으로 잡았다).
   - **목록과 집계는 `classifyMailThreads` 한 번**을 읽는다. 각자 세면 같은 술어가 두 벌이 된다
     (memory `feedback_same_value_multiple_formulas`). 회귀: `node scripts/e2e/run.js --suite salecriteria`.
+  - **미등록 메일은 사람(바깥 주소) 한 줄이다** (2026-10-23, Irene *"같은 고객인데 메일이 여러 개 … 그룹핑"* · Fable 설계) —
+    `services/saleMailBundle` 한 벌이 목록·숫자(email·needs_reply)·보관함을 묶는다(대표 = 최신 스레드, 답할 차례 = 하나라도,
+    `meta.thread_ids`). 등록 뒤 고객 한 줄과 같은 단위다. 줄 단위 동작(✕·되돌리기·영구 빼기)은 `forEachInboxThread` 로 묶음 전부.
+    «대응 끝» 상태는 두지 않는다 — 아래 09-18 절 그대로.
 
 ## 상담은 «고객에 달리는 기록» 이다 — 업무가 아니다 (2026-09-18 박제)
 
