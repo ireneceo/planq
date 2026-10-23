@@ -625,6 +625,7 @@ export default function SalePage({ embedded = false }: { embedded?: boolean } = 
       <ClientPanel
         businessId={businessId as number}
         clientId={panelClientId}
+        previewName={(() => { const r = panelClientId ? items.find((c) => c.id === panelClientId) : null; return r ? (r.display_name || r.company_name || r.email || '') : ''; })()}
         onClose={() => setPanelClientId(null)}
         onChanged={() => load({ silent: true })}
       />
