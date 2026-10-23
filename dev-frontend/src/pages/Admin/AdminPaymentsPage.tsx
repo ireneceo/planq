@@ -17,8 +17,11 @@ import { useSearchParams } from 'react-router-dom';
 import { refreshAdminTodo } from '../../hooks/useAdminInboxCounts';
 import TrialRefundModal, { type TrialRefundTarget } from '../../components/Admin/TrialRefundModal';
 
-// tax = 세금계산서 발행 필요(결제 완료 + 요청됨/실패) — 상태가 아니라 할 일 필터라 서버엔 ?tax=pending 으로 간다
-type PayStatus = 'all' | 'paid' | 'pending' | 'failed' | 'refunded' | 'canceled' | 'tax';
+// 할 일 탭 — 상태가 아니라 할 일 필터라 서버엔 따로 간다. 술어는 사이드바 배지와 같은 한 곳(services/adminTodo.paymentBucketWhere).
+//   todo = 처리 필요(= 사이드바 «결제 이력» 배지: 애드온 입금 통보 + 세금계산서 + 환불 요청) → ?todo=1
+//   refund_request = 환불 요청 → ?refund=requested · tax = 세금계산서 발행 필요(환불 요청 중인 건 제외) → ?tax=pending
+//   «대기» 는 상태 탭이다 — 고객이 아직 입금 통보를 안 한 미결제까지 전부라 배지와 다르다.
+type PayStatus = 'all' | 'todo' | 'paid' | 'pending' | 'failed' | 'refunded' | 'canceled' | 'tax' | 'refund_request';
 
 interface PaymentRow {
   id: number;
@@ -85,9 +88,11 @@ interface Summary {
   month_nonrevenue?: number;
   nonrevenue_paid?: number;
   tax_pending?: number;
+  todo?: number;
+  refund_requested?: number;
 }
 
-const STATUS_TABS: PayStatus[] = ['all', 'paid', 'pending', 'tax', 'failed', 'refunded'];
+const STATUS_TABS: PayStatus[] = ['all', 'todo', 'refund_request', 'tax', 'paid', 'pending', 'failed', 'refunded'];
 
 const AdminPaymentsPage = () => {
   const { t, i18n } = useTranslation('admin');
@@ -109,6 +114,8 @@ const AdminPaymentsPage = () => {
     try {
       const sp = new URLSearchParams();
       if (activeStatus === 'tax') sp.set('tax', 'pending');
+      else if (activeStatus === 'todo') sp.set('todo', '1');
+      else if (activeStatus === 'refund_request') sp.set('refund', 'requested');
       else if (activeStatus !== 'all') sp.set('status', activeStatus);
       if (search.trim()) sp.set('q', search.trim());
       const r = await apiFetch(`/api/admin/payments?${sp.toString()}`);
@@ -131,6 +138,8 @@ const AdminPaymentsPage = () => {
   const focusId = Number(params.get('payment')) || null;
   useEffect(() => {
     if (params.get('tax') === 'pending') { setActiveStatus('tax'); return; }
+    if (params.get('todo') === '1') { setActiveStatus('todo'); return; }
+    if (params.get('refund') === 'requested') { setActiveStatus('refund_request'); return; }
     const st = params.get('status') as PayStatus | null;
     if (st && (STATUS_TABS as string[]).includes(st)) setActiveStatus(st);
   }, [params]);
@@ -285,10 +294,12 @@ const AdminPaymentsPage = () => {
         <TabBar role="tablist">
           {STATUS_TABS.map((s) => {
             const tabFb: Record<PayStatus, string> = {
-              all: '전체', paid: '완료', pending: '대기', failed: '실패', refunded: '환불', canceled: '취소', tax: '세금계산서 발행 필요',
+              all: '전체', todo: '처리 필요', paid: '완료', pending: '입금 대기', failed: '실패', refunded: '환불', canceled: '취소', tax: '세금계산서 발행 필요', refund_request: '환불 요청',
             };
             const cnt = s === 'all' ? (summary?.total || 0)
               : s === 'tax' ? (summary?.tax_pending || 0)
+              : s === 'todo' ? (summary?.todo || 0)
+              : s === 'refund_request' ? (summary?.refund_requested || 0)
               : (summary as unknown as Record<string, number>)?.[s] || 0;
             return (
               <TabBtn key={s} role="tab" type="button" $active={activeStatus === s}
@@ -334,6 +345,10 @@ const AdminPaymentsPage = () => {
                       )}
                       {p.status === 'paid' && p.tax_invoice_status === 'failed' && (
                         <StatusBadge $bg="#FEE2E2" $fg="#B91C1C">{t('payments.taxFailed', '세금계산서 발행 실패')}</StatusBadge>
+                      )}
+                      {/* 처리 필요 탭에서 왜 들어왔는지 보이게 — 요청된 세금계산서는 버튼만 있고 표시가 없었다 */}
+                      {p.status === 'paid' && p.tax_invoice_status === 'requested' && !p.refund_requested_at && (
+                        <StatusBadge $bg="#E0F2FE" $fg="#0369A1">{t('payments.taxRequestedBadge', '세금계산서 요청')}</StatusBadge>
                       )}
                       {p.status === 'paid' && p.refund_requested_at && (
                         <StatusBadge $bg="#FFE4E6" $fg="#BE123C">{t('payments.refundRequestedBadge', '환불 요청')}</StatusBadge>

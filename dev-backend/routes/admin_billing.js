@@ -13,6 +13,7 @@ const { createdAtOf, OWNER_ATTRS, ownerOf, businessSearchOr, workspacesWithoutSu
 const { paymentOrigins, businessInfo } = require('../services/adminPaymentView');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
 const { isExemptNow, exemptBusinessIds, liveBusinessIds } = require('../services/billingExemptView');
+const { paymentBucketWhere, paymentBucketCounts, LIVE_BIZ_WHERE } = require('../services/adminTodo');
 
 // ============================================
 // Subscriptions (플랫폼 → 워크스페이스 PlanQ 구독)
@@ -248,10 +249,13 @@ router.get('/payments', async (req, res, next) => {
     const where = {};
     if (status !== 'all') where.status = status;
     if (method !== 'all') where.method = method;
-    // ?tax=pending — 세금계산서 발행 필요(결제 완료 + 요청됨/실패). 확인 필요(services/adminTodo)와 같은 술어.
-    if (req.query.tax === 'pending') {
-      where.status = 'paid';
-      where.tax_invoice_status = { [Op.in]: ['requested', 'failed'] };
+    // 할 일 탭(?todo=1 처리 필요 = 결제 이력 배지 · ?refund=requested · ?tax=pending) — 배지와 같은 술어(adminTodo)·지운 워크스페이스 제외
+    const bucket = req.query.todo === '1' ? 'payments'
+      : req.query.refund === 'requested' ? 'refund_request'
+        : req.query.tax === 'pending' ? 'tax_invoice' : null;
+    if (bucket) {
+      delete where.status;
+      Object.assign(where, paymentBucketWhere(bucket));
     }
 
     // 검색 = 워크스페이스 이름·slug + 주인 이름·이메일(구독 관리와 같은 함수)
@@ -260,8 +264,8 @@ router.get('/payments', async (req, res, next) => {
       {
         model: Business,
         attributes: ['id', 'name', 'brand_name', 'slug', 'created_at', 'trial_ends_at', 'subscription_status'],
-        ...(bizOr ? { where: { [Op.or]: bizOr } } : {}),
-        required: !!q,
+        ...(bizOr || bucket ? { where: { ...(bizOr ? { [Op.or]: bizOr } : {}), ...(bucket ? LIVE_BIZ_WHERE : {}) } } : {}),
+        required: !!q || !!bucket,
         include: [{ model: User, as: 'owner', attributes: OWNER_ATTRS, required: false }],
       },
       { model: Subscription, attributes: ['id', 'plan_code', 'cycle', 'status'] },
@@ -346,10 +350,10 @@ router.get('/payments/summary', async (req, res, next) => {
       out[c.status] = Number(c.count);
       out.total += Number(c.count);
     }
+    // 할 일 탭 숫자(todo·refund_requested·tax_pending) — 목록 필터·사이드바 배지와 같은 술어
+    Object.assign(out, await paymentBucketCounts());
     // 비매출(내부·테스터) 결제 건수 — 위 status 카운트에 섞여 있으므로 따로 노출한다.
     // 숨기지 않고 분리한다: admin 이 합계와 목록을 대조할 때 숫자가 안 맞아 보이면 안 된다.
-    // 세금계산서 발행 필요 — ?tax=pending 과 같은 술어
-    out.tax_pending = Number(await Payment.count({ where: { status: 'paid', tax_invoice_status: { [Op.in]: ['requested', 'failed'] } } }));
     out.nonrevenue_paid = Number(await Payment.count({ where: { status: 'paid', is_revenue: false } }));
 
     // 이번 달 수익 (paid 중 실매출만) + 비매출 분리 (운영 #275)

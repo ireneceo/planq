@@ -116,8 +116,10 @@
     "confirmRefundMsg": "Refund {{amount}} payment for {{biz}}.",
     "tab": {
       "all": "All",
+      "todo": "Needs action",
+      "refund_request": "Refund requests",
       "paid": "Paid",
-      "pending": "Pending",
+      "pending": "Awaiting payment",
       "failed": "Failed",
       "refunded": "Refunded",
       "canceled": "Canceled",
@@ -196,7 +198,8 @@
       "addon": "Add-on requested: {{at}} · {{who}}",
       "unknownBy": "Bill created: {{at}} · {{who}}",
       "unknown": "Bill created: {{at}}"
-    }
+    },
+    "taxRequestedBadge": "Tax invoice requested"
   },
   "subs": {
     "title": "Subscriptions",

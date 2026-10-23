@@ -25,17 +25,50 @@ function bizName(b) {
   return b ? (b.brand_name || b.name || null) : null;
 }
 
+// 결제 버킷 술어 — 확인 필요·사이드바 배지·결제 이력 탭(«처리 필요»·«환불 요청»·«세금계산서 발행 필요»)이 **이 함수 하나**를 쓴다.
+//   2026-10-23 Irene: *"결제이력이 1개 알림이 표시되는데 왜지? … 환불요청이 대기업무에 같이 들어가던지 따로 나와야지"* —
+//   배지는 여기서 셌는데 결제 이력 화면엔 그 행만 모아 보는 탭이 없었고(«대기» 탭 = 통보 안 한 미결제까지 전부),
+//   «세금계산서 발행 필요» 탭 숫자는 환불 요청 중인 건까지 세는 다른 술어였다.
+//   bucket: deposit_plan · deposit_addon · tax_invoice · refund_request · payments(= 결제 이력 배지 = 애드온 통보 + 세금계산서 + 환불 요청)
+function paymentBucketWhere(bucket) {
+  const deposit = { status: 'pending', notify_paid_at: { [Op.ne]: null } };
+  const tax = { status: 'paid', tax_invoice_status: { [Op.in]: ['requested', 'failed'] }, refund_requested_at: null };
+  const refund = { status: 'paid', refund_requested_at: { [Op.ne]: null } };   // 체험 중·일반 환불 요청 둘 다(routes/plan_refund)
+  switch (bucket) {
+    case 'deposit': return deposit;
+    case 'deposit_plan': return { ...deposit, kind: { [Op.ne]: 'addon' } };
+    case 'deposit_addon': return { ...deposit, kind: 'addon' };
+    case 'tax_invoice': return tax;
+    case 'refund_request': return refund;
+    case 'payments': return { [Op.or]: [{ ...deposit, kind: 'addon' }, tax, refund] };
+    default: throw new Error(`unknown payment bucket: ${bucket}`);
+  }
+}
+
+// 지운 워크스페이스의 결제는 할 일이 아니다 — 목록·배지가 같은 조건을 건다.
+const LIVE_BIZ_WHERE = { deleted_at: null };
+
+// 결제 이력 할 일 탭 숫자 — 목록 필터(routes/admin_billing ?todo·?refund·?tax)와 같은 술어·같은 워크스페이스 조건.
+async function paymentBucketCounts() {
+  const count = (b) => Payment.count({
+    where: paymentBucketWhere(b),
+    include: [{ model: Business, attributes: [], required: true, where: LIVE_BIZ_WHERE }],
+  });
+  const [todo, refund, tax] = await Promise.all([count('payments'), count('refund_request'), count('tax_invoice')]);
+  return { todo, refund_requested: refund, tax_pending: tax };
+}
+
 async function collectAdminTodo() {
   const liveBiz = {
     model: Business,
     required: true,
     attributes: ['id', 'name', 'brand_name'],
-    where: { deleted_at: null },
+    where: LIVE_BIZ_WHERE,
   };
 
-  const depositWhere = { status: 'pending', notify_paid_at: { [Op.ne]: null } };
-  const taxWhere = { status: 'paid', tax_invoice_status: { [Op.in]: ['requested', 'failed'] }, refund_requested_at: null };
-  const refundWhere = { status: 'paid', refund_requested_at: { [Op.ne]: null } };   // 체험 중·일반 환불 요청 둘 다(routes/plan_refund)
+  const depositWhere = paymentBucketWhere('deposit');
+  const taxWhere = paymentBucketWhere('tax_invoice');
+  const refundWhere = paymentBucketWhere('refund_request');
   const inquiryWhere = { status: { [Op.in]: ['new', 'in_progress'] } };
   // 관리자가 처리할 것 = 접수·검토중(승인 전) 최상위 건 — 진행대기·반영중은 개발 쪽 일이다(2026-10-22 승인 체계, Fable 판정 검증 10).
   //   추가 문의는 부모 스레드 하나로 본다(알림은 부모 링크로 간다).
@@ -117,7 +150,7 @@ async function collectAdminTodo() {
       // 세금계산서가 이미 나갔으면 수정세금계산서를 따로 발행해야 한다 — 막지 않고 알린다(설계 §3-9).
       tax_status: p.tax_invoice_status || null,
       at: p.refund_requested_at,
-      link: `/admin/payments?payment=${p.id}`,
+      link: `/admin/payments?refund=requested&payment=${p.id}`,
     });
   }
   for (const q of inquiries) {
@@ -156,4 +189,4 @@ async function collectAdminTodo() {
   return { total, counts, items };
 }
 
-module.exports = { collectAdminTodo };
+module.exports = { collectAdminTodo, paymentBucketWhere, paymentBucketCounts, LIVE_BIZ_WHERE };

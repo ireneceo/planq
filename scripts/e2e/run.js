@@ -269,6 +269,7 @@ const SUITES = {
   admincrawl: () => require('./canary-admin-crawl'),
   // 관리자 «확인 필요»·메뉴 배지 — 입금 통보가 보이는가 (2026-10-08 신고: "입금확인해야 하는거 알림이 안떠")
   admininbox: () => require('./canary-admin-inbox'),
+  adminpaybadge: () => require('./canary-admin-pay-badge'),
   // 관리자 «사용자 피드백» 목록이 보이는가 (2026-10-21 신고: "리스트가 안나와" — 첨부 큰 행 정렬 500 을 화면이 «없습니다» 로 삼켰다)
   adminfeedback: () => require('./canary-admin-feedback-list'),
   socialadmin: () => require('./canary-social-admin'),          // SNS 발송 단계 1 — 목록·패널·채널 3폭 + 자동저장·승인·게시함 표시 전이

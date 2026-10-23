@@ -60,7 +60,7 @@ async function notifyRefundRequested({ payment: p, biz, isTrial, note, requester
     eventKind: 'payment',
     title: `[환불 요청] ${ws} — ${amountStr}${isTrial ? ' (체험 중 결제)' : ''}`,
     body: lines.join('\n'),
-    link: `${APP_URL}/admin/payments?payment=${p.id}`,
+    link: `${APP_URL}/admin/payments?refund=requested&payment=${p.id}`,
     ctaLabel: '환불 요청 처리하기',
     relatedEntityId: p.id,
   });

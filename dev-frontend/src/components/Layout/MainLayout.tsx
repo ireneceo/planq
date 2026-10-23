@@ -1403,7 +1403,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
                   </NavIcon>
                   <NavLabel $isCollapsed={isCollapsed}>{t('nav.inquiries', '문의 인박스')}</NavLabel>
                   {adminCounts.inquiriesPending > 0 && (
-                    <InboxBadge $collapsed={isCollapsed} aria-label={`${t('nav.inquiries', '문의 인박스')} ${adminCounts.inquiriesPending}`}>
+                    <InboxBadge $collapsed={isCollapsed} data-testid="nav-badge-admin-inquiries" aria-label={`${t('nav.inquiries', '문의 인박스')} ${adminCounts.inquiriesPending}`}>
                       {adminCounts.inquiriesPending > 99 ? '99+' : adminCounts.inquiriesPending}
                     </InboxBadge>
                   )}
@@ -1415,7 +1415,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
                   </NavIcon>
                   <NavLabel $isCollapsed={isCollapsed}>{t('nav.feedback', '사용자 피드백')}</NavLabel>
                   {adminCounts.feedbackPending > 0 && (
-                    <InboxBadge $collapsed={isCollapsed} aria-label={`${t('nav.feedback', '사용자 피드백')} ${adminCounts.feedbackPending}`}>
+                    <InboxBadge $collapsed={isCollapsed} data-testid="nav-badge-admin-feedback" aria-label={`${t('nav.feedback', '사용자 피드백')} ${adminCounts.feedbackPending}`}>
                       {adminCounts.feedbackPending > 99 ? '99+' : adminCounts.feedbackPending}
                     </InboxBadge>
                   )}
@@ -1435,7 +1435,8 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
                     </InboxBadge>
                   )}
                 </NavItem>
-                <NavItem to="/admin/payments" $isCollapsed={isCollapsed} $active={isActive('/admin/payments')}
+                {/* 배지가 있으면 그 배지의 행만 모은 «처리 필요» 탭으로 연다 — 전체 목록에선 무엇이 1건인지 찾을 수 없었다(2026-10-23) */}
+                <NavItem to={adminCounts.payments > 0 ? '/admin/payments?todo=1' : '/admin/payments'} $isCollapsed={isCollapsed} $active={isActive('/admin/payments')}
                   title={isCollapsed ? `${t('nav.payments', '결제 이력')}${adminCounts.payments > 0 ? ` (${adminCounts.payments})` : ''}` : undefined}>
                   <NavIcon $isCollapsed={isCollapsed}>
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>

@@ -116,8 +116,10 @@
     "confirmRefundMsg": "{{biz}} 의 {{amount}} 결제를 환불 처리합니다.",
     "tab": {
       "all": "전체",
+      "todo": "처리 필요",
+      "refund_request": "환불 요청",
       "paid": "완료",
-      "pending": "대기",
+      "pending": "입금 대기",
       "failed": "실패",
       "refunded": "환불",
       "canceled": "취소",
@@ -196,7 +198,8 @@
       "addon": "애드온 신청: {{at}} · {{who}}",
       "unknownBy": "청구 생성: {{at}} · {{who}}",
       "unknown": "청구 생성: {{at}}"
-    }
+    },
+    "taxRequestedBadge": "세금계산서 요청"
   },
   "subs": {
     "title": "구독 관리",
