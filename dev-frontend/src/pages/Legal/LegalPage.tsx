@@ -18,12 +18,13 @@ interface SectionDef {
 interface Props {
   doc: 'privacy' | 'terms' | 'deletion';
   effectiveDate: string;           // '2026-04-22'
+  lastUpdated?: string;            // 개정을 미리 고지할 때 — 시행일보다 앞선 실제 수정일(없으면 시행일). 미래 날짜를 «최종 수정» 으로 보이지 않게.
 }
 
 /** t(...,{returnObjects:true}) 는 리소스 미도착 시 키 문자열을 준다 — 배열일 때만 통과시킨다(공용 utils/i18nArray). */
 const asItems = (v: unknown): string[] => i18nArray<string>(v);
 
-const LegalPage: React.FC<Props> = ({ doc, effectiveDate }) => {
+const LegalPage: React.FC<Props> = ({ doc, effectiveDate, lastUpdated }) => {
   const [hasTags, setHasTags] = useState(false);
   useEffect(() => { let alive = true; void loadContainerId().then((id) => { if (alive) setHasTags(!!id); }); return () => { alive = false; }; }, []);
   const { t, i18n, ready } = useTranslation('legal');
@@ -120,7 +121,7 @@ const LegalPage: React.FC<Props> = ({ doc, effectiveDate }) => {
 
         <Title>{t(`${rootKey}.title`)}</Title>
         <Meta>
-          {t('common.effective')}: {effectiveDate} · {t('common.lastUpdated')}: {effectiveDate}
+          {t('common.effective')}: {effectiveDate} · {t('common.lastUpdated')}: {lastUpdated || effectiveDate}
         </Meta>
 
         <Intro>{t(`${rootKey}.intro`, vars)}</Intro>

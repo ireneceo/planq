@@ -1702,7 +1702,7 @@
       },
       "login": {
         "name": "Login protection",
-        "lead": "Passwords are stored only as bcrypt hashes, never in plain text, and login tokens rotate every 15 minutes. Login attempts are limited to 5 per 15 minutes, and resetting your password signs you out of every device."
+        "lead": "Passwords are stored only as bcrypt hashes, never in plain text, and login tokens rotate every 15 minutes. Eight failed logins from the same place within 15 minutes are temporarily blocked, and resetting your password signs you out of every device."
       },
       "isolation": {
         "name": "Workspaces fully separated",
