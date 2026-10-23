@@ -31,7 +31,7 @@ const norm = (s) => String(s || '').normalize('NFC').trim();
 (async () => {
   const where = { status: 'invited', user_id: null, invite_email: null, invite_token: null };
   if (bizArg) where.business_id = Number(bizArg);
-  const cands = await Client.findAll({ where, attributes: ['id', 'business_id', 'display_name', 'created_at'] });
+  const cands = await Client.findAll({ where, attributes: ['id', 'business_id', 'display_name', 'created_at', 'company_name', 'biz_name', 'biz_tax_id', 'phone', 'notes'] });
   let found = 0; let removed = 0; let withRefs = 0;
   for (const c of cands) {
     const name = norm(c.display_name);
@@ -47,7 +47,10 @@ const norm = (s) => String(s || '').normalize('NFC').trim();
     }
     const refTotal = Object.values(refs).reduce((a, b) => a + b, 0);
     console.log(`[ws ${c.business_id}] 중복 #${c.id} «${name}» → 원본 후보 ${originals.map((o) => `#${o.id}(${o.status}${o.company_name ? ' ' + o.company_name : ''})`).join(', ')} · 참조 ${refTotal ? JSON.stringify(refs) : '0'}`);
-    if (refTotal) { withRefs += 1; continue; }
+    // 사람이 이 행에 따로 적은 값(회사·사업자·전화·메모)이 있으면 지우지 않는다 — 감사에는 이름·원본 id 만 남기 때문이다
+    const ownData = ['company_name', 'biz_name', 'biz_tax_id', 'phone', 'notes'].filter((k) => c[k]);
+    if (ownData.length) console.log(`  └ 이 행에 따로 적은 값이 있어 남김: ${ownData.join(', ')}`);
+    if (refTotal || ownData.length) { withRefs += 1; continue; }
     if (APPLY) {
       await c.destroy();
       await AuditLog.create({
@@ -57,6 +60,6 @@ const norm = (s) => String(s || '').normalize('NFC').trim();
       removed += 1;
     }
   }
-  console.log(`\n중복 ${found}건 · 참조 있어 남김 ${withRefs}건 · ${APPLY ? `지움 ${removed}건` : '읽기만(--apply 로 참조 0건만 지움)'}`);
+  console.log(`\n중복 ${found}건 · 참조·자체 값 있어 남김 ${withRefs}건 · ${APPLY ? `지움 ${removed}건` : '읽기만(--apply 로 참조 0건만 지움)'}`);
   process.exit(0);
 })().catch((e) => { console.error(e); process.exit(1); });

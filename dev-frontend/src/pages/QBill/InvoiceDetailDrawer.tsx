@@ -1800,7 +1800,7 @@ const SourceKindBadge = styled.span<{ $kind: string }>`
 const SourceText = styled.div`display: flex; flex-direction: column; gap: 2px; min-width: 0;`;
 const SourceSigned = styled.span`
   display: inline-block; margin-top: 2px; padding: 1px 8px; border-radius: 999px;
-  font-size: 11px; font-weight: 600; color: #047857; background: #ECFDF5;
+  font-size: 0.6875rem; font-weight: 600; color: #047857; background: #ECFDF5;
 `;
 const SourceTitle = styled.div`
   font-size: 0.8125rem; font-weight: 700; color: #0F172A;
