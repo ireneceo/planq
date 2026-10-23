@@ -2,6 +2,11 @@
 
 
 
+## 2026-10-23 서명 요청 시 임시저장 문서 발행 · 목록 서명 칩 · 백필 (eb9769e1, 방 afd6ca8f) — **PASS** (차단 0)
+- 실HTTP 30/30: draft→요청→published·L1 유지 · 거절된 요청(403)은 발행 안 함 · 요청 뒤 PUT 409 유지 · 감사 post.create via signature.sign/confirm · 목록 sign in_progress→completed·expired·rejected·canceled 만이면 없음 · 응답에 토큰·이메일 0 · published 문서 이중 발행 0.
+- 백필: dry-run 1건(canceled 만인 문서 제외 — 음성 대조군) → --apply 1 · 남은 0 → 재실행 0.
+- 비차단: ① health signauth 기대값이 1a4715df(작성자만 편집) 뒤 빨강 → c979c280 에서 고침(편집자 아님 403·공동 편집자 200) ② draft 를 L2+ 로 넓혀 둔 문서는 요청 순간 그 범위에 보인다(실측) — **배포 방은 fix-signed-drafts.js --apply 전 dry-run 의 L2+ 행 수를 Irene 에게 한 줄** ③ confirm 요청 발행은 projectStageEngine 을 다음 사건 때 따라잡음(사소) ④ 백필 감사 user_id NULL.
+
 ## 2026-10-23 처리방침 1.5 — IONOS(독일) 국외 이전 · 제7조 실제 조치 · 2026-11-03 시행 · 재동의 (85cf6287) — **PASS** (차단 0)
 - 법정 고지 항목 핵심 충족 · 제7조 6항목 코드로 사실 확인(침입 탐지·직원 교육·방화벽 삭제 정당) · ko/en 일치 · 배포 순서(문구 → 버전 올림 → 재동의) 맞음.
 - 비차단 반영(다음 커밋): IONOS 연락처(www.ionos.de)·거부 절차 · «최종 수정» 미래 날짜 → lastUpdated · /security 로그인 한도 5→8(실제 값).
