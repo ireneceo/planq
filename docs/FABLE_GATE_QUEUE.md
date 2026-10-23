@@ -2,6 +2,10 @@
 
 
 
+### 2026-10-23 방 162d2b2b — 청구서 출처·고객 정보(a76b58b9) · 고객 중복·삭제 범위(2247c655) · 표시명(e9da84cb) — VERDICT: FAIL → 차단 1건 수정(8984e9ac)
+- 서버 판정 전부 통과(자체 API 49건 중 47 PASS, 2건 검사기 오탐). 차단: 새 칩 `font-size: 11px` 가 fontpx 하드 가드 위반 → 0.6875rem 로 고침, fontpx·uispec 초록, 재빌드 EXIT 0. Fable: «그 뒤 Fable 재호출 불필요(자체 검증으로 닫아도 됨)».
+- 비차단: ① 정리 스크립트가 자체 값 있는 중복을 지울 수 있음 → 8984e9ac 에서 건너뛰게 함 ② createProject `contacts`(이름만 새 연락처)가 client 없는 토큰 줄을 만든다 — 다음 묶음 ③ source-candidates extra limit 300 ④ 상세 sourcePost 에 vlevel 등 칸(비밀 아님).
+
 ## 2026-10-23 서명 요청 시 임시저장 문서 발행 · 목록 서명 칩 · 백필 (eb9769e1, 방 afd6ca8f) — **PASS** (차단 0)
 - 실HTTP 30/30: draft→요청→published·L1 유지 · 거절된 요청(403)은 발행 안 함 · 요청 뒤 PUT 409 유지 · 감사 post.create via signature.sign/confirm · 목록 sign in_progress→completed·expired·rejected·canceled 만이면 없음 · 응답에 토큰·이메일 0 · published 문서 이중 발행 0.
 - 백필: dry-run 1건(canceled 만인 문서 제외 — 음성 대조군) → --apply 1 · 남은 0 → 재실행 0.
