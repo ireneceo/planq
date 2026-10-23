@@ -185,6 +185,8 @@ async function movePostToProject(actor, params = {}) {
   const businessId = Number(params.businessId);
   const { post, fail: f } = await loadEditable(actor, subj, Number(params.postId), businessId);
   if (f) return f;
+  // 프로젝트 옮기기 = 공개 범위 축 — 공동 편집자는 고칠 수 있어도 옮기지 못한다(화면 PUT 과 같은 함수).
+  if (!(await require('../postAccess').canMovePostProject(subj.subjectId, post, subj.platformRole))) return fail('post_move_forbidden', 403);
   let projectId = null;
   if (params.projectId) {
     const p = await Project.findOne({ where: { id: Number(params.projectId), business_id: businessId }, attributes: ['id'] });
@@ -216,7 +218,7 @@ async function checkEditable(actor, params = {}) {
 
 /**
  * 이미 있는 파일을 문서 첨부로 붙인다 — 화면 `POST /api/posts/:id/attachments` 와 같은 판정:
- *   서명 잠금 · 워크스페이스 멤버 · **읽을 수 있는 문서** · **볼 수 있는 파일**만(남의 L1 이 첨부로 퍼지지 않게).
+ *   서명 잠금 · 워크스페이스 멤버 · **고칠 수 있는 문서**(canEditPost) · **볼 수 있는 파일**만(남의 L1 이 첨부로 퍼지지 않게).
  */
 async function attachFiles(actor, params = {}) {
   const subj = await resolveSubject(actor);
@@ -228,8 +230,9 @@ async function attachFiles(actor, params = {}) {
   if (await isPostSignatureLocked(post.id)) return fail('post_locked_by_signature', 409);
   const { assertMemberOrAbove } = require('../../middleware/access_scope');
   if (!(await assertMemberOrAbove(subj.subjectId, post.business_id, subj.platformRole === 'platform_admin' ? 'platform_admin' : null))) return fail('forbidden', 403);
-  const { canReadPost } = postsRoute();
-  if (!(await canReadPost({ id: subj.subjectId, platform_role: subj.platformRole }, post))) return fail('forbidden', 403);
+  // 첨부는 문서의 일부 — 붙이는 것도 편집이다(2026-10-23 공동 편집자 설계, 전엔 읽을 수만 있어도 붙였다).
+  const { canEditPost } = require('../postAccess');
+  if (!(await canEditPost(subj.subjectId, post, subj.platformRole))) return fail('post_edit_forbidden', 403);
   const fileIds = (params.fileIds || []).map(Number).filter(Boolean);
   if (!fileIds.length) return fail('file_ids required', 400);
   const files = await File.findAll({ where: { id: fileIds, business_id: post.business_id, deleted_at: null } });

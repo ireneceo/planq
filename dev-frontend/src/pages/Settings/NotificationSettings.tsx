@@ -19,7 +19,7 @@ interface Props {
 
 // 사이클 N+16-C — 'message' (채팅 일반) + 'comment_mention' (업무 댓글 멘션) 신규 토글.
 // 옛 'mention' 은 채팅 @멘션 전용으로 의미 정정. 댓글 멘션은 별도 row.
-type EventKind = 'message' | 'mention' | 'comment_mention' | 'signature' | 'invoice' | 'tax_invoice' | 'task' | 'event' | 'invite' | 'mail' | 'sale' | 'share_expiry' | 'push_fallback' | 'leave' | 'survey' | 'doc_comment' | 'payroll';
+type EventKind = 'message' | 'mention' | 'comment_mention' | 'signature' | 'invoice' | 'tax_invoice' | 'task' | 'event' | 'invite' | 'mail' | 'sale' | 'share_expiry' | 'push_fallback' | 'leave' | 'survey' | 'doc_comment' | 'payroll' | 'doc_editor';
 // 4 채널 — 인박스(영구) / 인앱(우측 상단 토스트) / 디바이스(OS push) / 이메일
 type Channel = 'inbox' | 'chat' | 'push' | 'email';
 type Matrix = Record<EventKind, Record<Channel, boolean>>;
@@ -29,6 +29,7 @@ const EVENTS: EventKind[] = [
   'message', 'mention',          // 채팅 (일반 메시지 / @멘션)
   'comment_mention',              // 업무·문서 댓글 @멘션
   'doc_comment',                 // 문서 새 댓글 (2026-10-15 — «업무» 와 따로 끈다)
+  'doc_editor',                  // 문서 공동 편집자로 지정됨 (2026-10-23 — 앱 알림만, 메일 없음)
   'task', 'event', 'invite',     // 업무·일정·초대
   'signature', 'invoice', 'tax_invoice', // 청구·서명
   'sale',                        // Q sale — 계정 요청·답 안 한 문의(이후 통화 전사·자동 단계 변경)

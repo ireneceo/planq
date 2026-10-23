@@ -79,6 +79,19 @@ export interface PostDetail extends PostRow {
   warnings?: string[];
   // 보는 사람이 고칠 수 있는가 — 서버 PUT 과 같은 판정(상세 GET 이 준다). false 면 [편집]·[AI 수정] 을 내지 않는다
   can_edit?: boolean;
+  // 공동 편집자 — 작성자가 지정한 사람만 작성자와 함께 고친다(docs/DOC_COEDITORS_DESIGN.md). 멤버에게만 온다.
+  //   readable=false = 공개 범위가 좁아져 지금은 못 고친다(지정은 남아 있다).
+  co_editors?: PostCoEditor[];
+  // 공동 편집자를 넣고 뺄 수 있는가 — 작성자 · 오너 · 관리자(서버 canManagePostEditors)
+  can_manage_editors?: boolean;
+}
+
+export interface PostCoEditor {
+  user_id: number;
+  name: string;
+  added_by: number | null;
+  created_at: string;
+  readable: boolean;
 }
 
 export interface PostListFilter {
@@ -335,6 +348,23 @@ export async function updatePostSecurityLevel(
   });
   const j = await r.json();
   if (!j.success) throw new Error(j.message || 'security_level_change_failed');
+  return j.data;
+}
+
+// 공동 편집자 넣기·빼기 — 응답은 바뀐 뒤 목록. 실패는 서버 코드(widen_visibility_first 등)를 그대로 던진다.
+export async function addPostEditor(postId: number, userId: number): Promise<PostCoEditor[]> {
+  const r = await apiFetch(`/api/posts/${postId}/editors`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user_id: userId }),
+  });
+  const j = await r.json();
+  if (!j.success) throw new Error(j.code || j.message || 'editor_add_failed');
+  return j.data;
+}
+
+export async function removePostEditor(postId: number, userId: number): Promise<PostCoEditor[]> {
+  const r = await apiFetch(`/api/posts/${postId}/editors/${userId}`, { method: 'DELETE' });
+  const j = await r.json();
+  if (!j.success) throw new Error(j.code || j.message || 'editor_remove_failed');
   return j.data;
 }
 

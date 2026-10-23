@@ -171,7 +171,8 @@
       "leave": "Leave",
       "survey": "Survey responses",
       "doc_comment": "Document comments",
-      "payroll": "Payroll"
+      "payroll": "Payroll",
+      "doc_editor": "Document co-editor"
     },
     "eventDesc": {
       "message": "New message arrives in a chat room · email is sent as one digest if unread for 5 minutes",
@@ -190,7 +191,8 @@
       "leave": "Leave requests, approvals and rejections",
       "survey": "A new response arrives on a survey you opened",
       "doc_comment": "A new comment on a document you wrote or commented on",
-      "payroll": "When a payslip is ready or payroll is confirmed (never by email)"
+      "payroll": "When a payslip is ready or payroll is confirmed (never by email)",
+      "doc_editor": "Someone adds you as a co-editor of a document"
     },
     "footerNote": "Inbox is the in-app notification area. Chat / Email go to external channels.",
     "policy": {

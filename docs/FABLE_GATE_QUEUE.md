@@ -2,6 +2,11 @@
 
 
 
+## 2026-10-23 · 문서 공동 편집자(작성자 지정형) (방 09b096e1) — 설계 **DESIGN-OK** · 완료 **FAIL → PASS**(Fable, 차단 0)
+- 설계 docs/DOC_COEDITORS_DESIGN.md. 완료 1차 FAIL ①: 공동 편집자가 PUT 본문 `vlevel` 로 공개 범위를 바꿈(L4·L1 200) → vlevel 분기에 canMovePostProject(=/visibility 와 같은 사람) 가드 · 카나리 4건 추가 · 대조군(가드 끔 → 9 빨강) → 재검증 PASS(실측 403·값 불변·같은 값 200).
+- 근거: `--suite coeditors` 68/0 · 옛 규칙 대조군 8+ 빨강 · 마이그레이션 멱등(dev 백필 13행) · guard duproute·broadcast·parity·i18n · secrets 16/16 · tenant 0.
+- 비차단: a 공동 편집자 is_pinned 200(설계 밖 — 허용/제한 미정) · b PUT project_id:'abc'·status:'archived' 500(이 일 전부터) · c postEditors.listFor N+1 · d 알림 설정 doc_editor 메일 토글(서버는 메일 안 보냄, doc_comment·payroll 와 같은 상태) · e 화면 빌드·실측 미완(서버 메모리 부족으로 빌드 3회 끊김).
+
 ## 2026-10-23 · 멤버 권한 보완 — 알림 받는 사람 · 멤버 기본값 · 멤버 상세 권한 (방 94ba604d) — 설계 **OK-WITH-CHANGES**(전부 반영) · 완료 **PASS**(Fable, 차단 0)
 - 설계 docs/MEMBER_PERMISSION_GAPS_DESIGN.md §1-F. Fable 재실행: 실HTTP 54/54(기본값×행×역할 · 재로그인 menu_levels · billing 후보 · 감사 3종 · JSON 다른 키 보존) · 받는 사람 16/16 + 끝까지 8/8(실제 서명 알림 행 = 관련자 1건, 일반 멤버 0) · menudefault 양성 대조 · health 92/92 · tenant 0 · guard godfile(MailPage, 이전부터)만 · 화면 25/26(390 1건 = 고정 머리줄 측정 문제).
 - 비차단: ①ConfirmDialog 취소 키 settings 네임스페이스에 없음 → common:cancel 로 고침(옛 권한 표도) ②requireMenu 요청마다 Business 1회 더 읽음 — 캐시 후보 ③requireMenu 멤버 조회에 removed_at 없음(이전부터, checkBusinessAccess 가 막음) ④PATCH 서버는 member→owner 받음(화면만 뺌, 오너 전용) ⑤ws6 플랫폼관리자가 일반 member 라 서명 알림 빠짐 — 설계대로.

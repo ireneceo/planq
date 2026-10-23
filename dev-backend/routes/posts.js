@@ -83,8 +83,8 @@ async function assertWorkspaceOrClient(userId, businessId, platformRole) {
   return { ok: false, scope: null };
 }
 
-// 문서 편집 권한 — services/postAccess.canEditPost 한 벌(2026-10-23 옮김, 동작 무변경 — 받은 서명 화면도 같은 판정을 쓴다).
-const { canEditPost } = require('../services/postAccess');
+// 문서 편집 권한 — services/postAccess.canEditPost 한 벌(작성자 + 공동 편집자, docs/DOC_COEDITORS_DESIGN.md). 프로젝트 옮기기는 canMovePostProject.
+const { canEditPost, canMovePostProject } = require('../services/postAccess');
 
 // Plain text 추출 — Tiptap JSON → 검색/프리뷰용 plain string
 function extractText(json) {
@@ -446,6 +446,13 @@ router.get('/:id', authenticateToken, async (req, res, next) => {
     //   낸다. 없으면 고객에게도 [편집] 이 보여 누르면 자동저장이 403 으로 막혔다(2026-10-22 Irene).
     result.can_edit = !!(await assertMember(req.user.id, post.business_id, req.user.platform_role === 'platform_admin'))
       && !!(await canEditPost(req.user.id, post, req.user.platform_role));
+    // 누가 고칠 수 있나 — 작성자 + 공동 편집자(docs/DOC_COEDITORS_DESIGN.md). 이름·id 만. 넣고 빼는 문은 routes/post_editors.
+    //   고객에게는 싣지 않는다(우리 쪽 편집 체계) — 고객은 can_edit=false 하나면 된다.
+    if (await assertMember(req.user.id, post.business_id, req.user.platform_role === 'platform_admin')) {
+      const { listFor } = require('../services/postEditors');
+      result.co_editors = await listFor(post);
+      result.can_manage_editors = !!(await require('../services/postAccess').canManagePostEditors(req.user.id, post, req.user.platform_role));
+    }
     successResponse(res, result);
   } catch (err) { next(err); }
 });
@@ -964,6 +971,11 @@ router.put('/:id', authenticateToken, async (req, res, next) => {
     }
     // 공개 범위 변경 (visibility — vlevel)
     if (req.body.vlevel !== undefined && ['L1', 'L2', 'L3', 'L4'].includes(req.body.vlevel)) {
+      // 공개 범위 = /:id/visibility 와 같은 사람(작성자 ∨ owner ∨ platform_admin) — 공동 편집자는 고칠 수 있어도 범위는 못 바꾼다
+      //   (2026-10-23 Fable 완료 검증 FAIL ①: 이 문으로 공동 편집자가 L4 로 넓히고 L1 로 닫았다). 저장 때 같은 값을 다시 싣는 것은 통과.
+      if (req.body.vlevel !== post.vlevel && !(await canMovePostProject(req.user.id, post, req.user.platform_role))) {
+        return errorResponse(res, 'post_visibility_forbidden', 403, 'post_visibility_forbidden');
+      }
       // 외부 공개(L4)는 보안등급을 본다 — /visibility 라우트와 같은 게이트(이 문으로는 우회됐다).
       if (req.body.vlevel === 'L4' && blocksExternalShare(post)) {
         return errorResponse(res, 'security_level_blocks_share', 403, 'security_level_blocks_share');
@@ -985,6 +997,13 @@ router.put('/:id', authenticateToken, async (req, res, next) => {
     }
     if (req.body.project_id !== undefined) {
       const pid = req.body.project_id;
+      // 프로젝트 옮기기 = 공개 범위 축(작성자 ∨ owner ∨ platform_admin) — 공동 편집자에게 주지 않는다(옮기면 그 프로젝트 사람들에게 보인다).
+      //   편집 화면은 저장 때 지금 값을 그대로 다시 싣으므로 **값이 바뀔 때만** 본다.
+      const nextPid = (pid === null || pid === '') ? null : Number(pid);
+      if ((nextPid || null) !== (post.project_id ? Number(post.project_id) : null)
+        && !(await canMovePostProject(req.user.id, post, req.user.platform_role))) {
+        return errorResponse(res, 'post_move_forbidden', 403);
+      }
       if (pid === null || pid === '') {
         patch.project_id = null;
       } else {
@@ -1200,6 +1219,8 @@ router.delete('/:id/attachments/:attId', authenticateToken, async (req, res, nex
     if (!(await assertMember(req.user.id, post.business_id, req.user.platform_role === 'platform_admin'))) {
       return errorResponse(res, 'forbidden', 403);
     }
+    // 첨부는 문서의 일부 — 떼는 것도 편집이다(2026-10-23 공동 편집자 설계. 전엔 멤버이기만 하면 남의 문서 첨부를 뗄 수 있었다).
+    if (!(await canEditPost(req.user.id, post, req.user.platform_role))) return errorResponse(res, 'post_edit_forbidden', 403);
     await att.destroy();
     require('../services/auditService').logAudit(req, { action: 'post.attachment_remove', targetType: 'post', targetId: post.id, businessId: post.business_id, oldValue: { attachment_id: att.id, file_id: att.file_id } });
     broadcastPost(req, post, 'post:updated');

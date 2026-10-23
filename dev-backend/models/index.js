@@ -77,6 +77,7 @@ const ProviderCredit = require('./ProviderCredit');   // 외부 API 선불 크�
 const BusinessPlanHistory = require('./BusinessPlanHistory');
 const Post = require('./Post');
 const PostComment = require('./PostComment');
+const PostEditor = require('./PostEditor');
 const NameCard = require('./NameCard');
 const SavedNameCard = require('./SavedNameCard');
 const Brand = require('./Brand');
@@ -371,6 +372,10 @@ Post.hasMany(PostAttachment, { as: 'attachments', foreignKey: 'post_id' });
 Post.hasMany(PostComment, { as: 'comments', foreignKey: 'post_id' });
 PostComment.belongsTo(Post, { foreignKey: 'post_id' });
 PostComment.belongsTo(User, { as: 'author', foreignKey: 'user_id' });
+// 문서 공동 편집자 (2026-10-23, docs/DOC_COEDITORS_DESIGN.md)
+Post.hasMany(PostEditor, { as: 'coEditors', foreignKey: 'post_id' });
+PostEditor.belongsTo(Post, { foreignKey: 'post_id' });
+PostEditor.belongsTo(User, { as: 'user', foreignKey: 'user_id' });
 // 내 명함 — 계정 소유(docs/BUSINESS_CARD_DESIGN.md)
 NameCard.belongsTo(User, { as: 'owner', foreignKey: 'user_id' });
 SavedNameCard.belongsTo(NameCard, { as: 'source', foreignKey: 'source_card_id' });
@@ -722,6 +727,7 @@ module.exports = {
   BusinessPlanHistory,
   Post,
   PostComment,
+  PostEditor,
   NameCard, SavedNameCard, Brand, NameCardBrand, ClientContact,
   PostAttachment,
   PostCategory,

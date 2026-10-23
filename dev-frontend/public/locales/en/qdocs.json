@@ -1298,5 +1298,32 @@
     "stashTitle": "What you were writing",
     "stashHint": "This is your unsaved text. Copy what you need and paste it into the document.",
     "close": "Close"
+  },
+  "editors": {
+    "prefix": "Edit",
+    "authorOnly": "Author only",
+    "authorPlus": "Author +{{count}}",
+    "aria": "Who can edit this document",
+    "intro": "Only the author and co-editors can change this document. Others can read and comment.",
+    "readOnly": "Only {{name}} can edit this document. Ask the author if you need to edit it.",
+    "readOnlyWith": "Only {{name}} and the co-editors can edit this document. Ask the author if you need to edit it.",
+    "author": "Author",
+    "coEditor": "Co-editor",
+    "outOfScope": "Out of scope now",
+    "outOfScopeHint": "The visibility was narrowed, so this person can’t see or edit the document right now. Widen it again and they’re back.",
+    "remove": "Remove",
+    "removeAria": "Remove {{name}} as co-editor",
+    "add": "Add co-editor",
+    "addShort": "+ Add",
+    "search": "Find by name",
+    "noCandidates": "No more members to add.",
+    "privateNote": "“Only me” documents can’t have co-editors. Widen the visibility first.",
+    "lostEdit": "You can no longer edit this document (you were removed as co-editor or the visibility changed). What you were writing is kept below.",
+    "err": {
+      "widen": "This person can’t see this document right now. Include them in the visibility first.",
+      "notMember": "Only workspace members can be co-editors.",
+      "forbidden": "Only the author, owners and admins can choose co-editors.",
+      "generic": "Couldn’t change it. Please try again shortly."
+    }
   }
 }

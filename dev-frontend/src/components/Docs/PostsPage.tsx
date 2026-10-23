@@ -58,6 +58,7 @@ import type { DetailStatus } from '../../hooks/useDetailResource';
 import { listProjects, listWorkspaceClients, type ApiProject, type WorkspaceClientRow } from '../../services/qtalk';
 import { listTemplates, aiGenerateDoc, type DocTemplate, type DocKind, KIND_LABELS_KO } from '../../services/docs';
 import AiRegenerateBar from '../Common/AiRegenerateBar';
+import PostEditorsChip from './PostEditorsChip';
 import KindIcon from './KindIcon';
 import PostShareModal from './PostShareModal';
 import KbAiIngestModal from '../../pages/Knowledge/KbAiIngestModal';
@@ -417,6 +418,8 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId }) => {
   presencePingRef.current = presence.ping;
   const lastInputAtRef = useRef(0);
   const remoteSavedRef = useRef<((postId: number) => Promise<void>) | null>(null);
+  // 편집 중에 고칠 권한이 사라졌다(공동 편집자에서 빠짐·공개 범위 좁힘) — 쓰던 글은 따로 남기고 보기로 내린다(docs/DOC_COEDITORS_DESIGN.md §8)
+  const lostEditRef = useRef<((latest: PostDetail) => void) | null>(null);
   const conflict = useConflictStash(detail?.id ?? null, scope.businessId ?? null);
 
   // N+30 — personal 도 scope.businessId 우선 사용 (multi-workspace 사용자 시 user.business_id fallback 잘못된 bizId 회귀 차단)
@@ -566,7 +569,12 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId }) => {
         //   ★ 2026-10-22 — 단, **안 치고 있으면** 바로 최신으로 맞춘다(remoteSavedRef). 치는 중이면 그대로 두고
         //   다음 자동저장이 409 로 «고르기» 바를 띄운다.
         if (modeRef.current === 'new') return;
-        if (modeRef.current === 'edit') { await remoteSavedRef.current?.(postId); return; }
+        if (modeRef.current === 'edit') {
+          // 고칠 권한이 사라졌는지 먼저 본다 — 사라졌으면 저장은 어차피 403 이다. 글을 버리지 않고 보기로 내린다.
+          const latest = await fetchPost(postId);
+          if (latest && latest.id === postId && latest.can_edit === false) { lostEditRef.current?.(latest); return; }
+          await remoteSavedRef.current?.(postId); return;
+        }
         const d = await fetchPost(postId);
         setDetail(d);
       } catch (_) { /* skip */ }
@@ -582,10 +590,14 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId }) => {
       if (id) void refetchOpenDetail(id);
     });
     const offDel = onSocket('post:deleted', debouncedReload);
+    // 나를 공동 편집자에서 뺐다 — 내 개인 방(user:)으로만 오는 신호. 열린 문서면 다시 읽는다.
+    const offRemoved = onSocket('post:editor_removed', (payload: { id: number }) => {
+      if (payload?.id) void refetchOpenDetail(payload.id);
+    });
     return () => {
       if (pending) window.clearTimeout(pending);
       leaveRoom(`business:${scope.businessId}`);
-      offNew(); offUpd(); offDel();
+      offNew(); offUpd(); offDel(); offRemoved();
     };
   }, [scope.businessId, load, loadMeta, activeId]);
 
@@ -1074,6 +1086,19 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId }) => {
     setAutoState('idle');
     setLeaveBlocked(false);
   }, [detail?.id, conflict.save, titleDraft, contentDraft, applyLatestPost]);
+
+  lostEditRef.current = (latest: PostDetail) => {
+    if (autoTimerRef.current) clearTimeout(autoTimerRef.current);
+    if (titleDraft !== latest.title || JSON.stringify(contentDraft ?? null) !== JSON.stringify(latest.content_json ?? null)) {
+      conflict.save({ title: titleDraft, content: contentDraft });
+    }
+    applyLatestPost(latest);
+    setAutoErr(null);
+    setAutoState('idle');
+    setLeaveBlocked(false);
+    setMode('view');
+    setError(t('editors.lostEdit', { defaultValue: '이 문서를 더는 편집할 수 없어요(공동 편집자에서 빠졌거나 공개 범위가 바뀌었어요). 쓰던 내용은 아래에 따로 남겨 두었어요.' }) as string);
+  };
 
   const resolveStaleOverwrite = useCallback(async () => {
     if (!detail?.id) return;
@@ -2282,6 +2307,12 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId }) => {
                   <VisibilityChip type="button" onClick={() => setVisModalOpen(true)} title={t('visibility.change', { defaultValue: '공개 범위 변경' }) as string}>
                     {t('visibility.label', { defaultValue: '공개' }) as string}: {visLabel(detail.vlevel)}
                   </VisibilityChip>
+                  {detail.co_editors && (
+                    <PostEditorsChip postId={detail.id} authorId={detail.author?.id} authorName={detail.author?.name || ''}
+                      vlevel={detail.vlevel} coEditors={detail.co_editors} canManage={!!detail.can_manage_editors}
+                      canEdit={detail.can_edit !== false} members={visMembers}
+                      onChanged={(list) => setDetail(prev => prev && prev.id === detail.id ? { ...prev, co_editors: list } : prev)} />
+                  )}
                   <MetaField $basis={160}>
                     <PlanQSelect
                       size="sm" isClearable={false} isSearchable={false}
@@ -2566,6 +2597,13 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId }) => {
               >
                 {t('visibility.label', { defaultValue: '공개' }) as string}: {visLabel(detail.vlevel)}
               </VisibilityChip>
+              {/* 누가 고칠 수 있나 — «공개»(누가 보나) 바로 옆. 멤버에게만 온다(고객은 co_editors 없음) */}
+              {detail.co_editors && (
+                <PostEditorsChip postId={detail.id} authorId={detail.author?.id} authorName={detail.author?.name || ''}
+                  vlevel={detail.vlevel} coEditors={detail.co_editors} canManage={!!detail.can_manage_editors}
+                  canEdit={detail.can_edit !== false} members={visMembers}
+                  onChanged={(list) => setDetail(prev => prev && prev.id === detail.id ? { ...prev, co_editors: list } : prev)} />
+              )}
               {/* ★ 2026-09-10 (Irene): "공유 중 이런 표시도 왼쪽으로 공개: 팀 옆으로 가야지.
                   왜 오른쪽에 붙어있어?" — 공개 범위 칩을 좌측으로 옮긴 2026-09-06 과 **같은 이유**다.
                   우측은 36px 액션 버튼 줄이고 이건 22px 상태 칩이라 혼자 높이가 어긋난다.

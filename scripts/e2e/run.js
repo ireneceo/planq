@@ -211,6 +211,8 @@ const SUITES = {
   booking: () => require('./canary-booking'),
   // 같은 기능의 **서버 판정** 실 HTTP 검사(화면 없음) — 슬롯 모양·한도·전이·한 건=한 버킷·메일 시도·수정/삭제 409.
   bookingapi: () => require('./canary-booking-api'),
+  // 문서 공동 편집자 (2026-10-23, docs/DOC_COEDITORS_DESIGN.md) — 작성자만 편집이 기본 · 지정·해제 · 같은 술어 전수 · 금지 행위 · 내보내기 정리(실 HTTP)
+  coeditors: () => require('./canary-doc-coeditors'),
   // 로그인 고객 홈 /home (2026-09-25, CLIENT_ENTRY P3) — 고객만 200 · 계정 고객 예약(같은 함수) → 팀 승인 → 앱 알림 ·
   //   로그인 착지 /home · 3폭 탭 · 사이드바 «홈» · 오너는 /dashboard(음성) · 예약 끄면 탭 없음(음성).
   clienthome: () => require('./canary-client-home'),

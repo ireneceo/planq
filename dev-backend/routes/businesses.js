@@ -1338,6 +1338,8 @@ router.delete('/:id/members/:memberId', authenticateToken, async (req, res, next
       const { Client } = require('../models');
       await Client.update({ assigned_member_id: null },
         { where: { business_id: businessId, assigned_member_id: member.user_id }, transaction: t });
+      // 문서 공동 편집자 — 내보낸 사람의 행을 지운다(다시 초대해도 자동으로 돌아오지 않는다, docs/DOC_COEDITORS_DESIGN.md).
+      await require('../services/postEditors').removeUserFromBusiness(member.user_id, businessId, t);
     }
     await t.commit();
     // 멤버 수가 바뀌었다 — 사용량 캐시(30초)를 비운다. 안 비우면 내보낸 직후 «체험 플랜 내리기»(trial-plan)가

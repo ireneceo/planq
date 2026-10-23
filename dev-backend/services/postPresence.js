@@ -150,4 +150,23 @@ async function dropUserFromBusiness(io, userId, businessId) {
   }
 }
 
-module.exports = { join, typing, leave, leaveAll, dropUserFromBusiness, snapshot, TYPING_FRESH_MS, _rooms: rooms };
+// 공동 편집자에서 뺀 사람 — 그 문서 방에서 뺀다(services/postEditors.remove 가 부른다). PUT 은 어차피 403 이다.
+async function dropUserFromPost(io, userId, postId) {
+  if (!io) return;
+  const room = rooms.get(Number(postId));
+  if (!room) return;
+  const sockets = await io.in(`user:${userId}`).fetchSockets();
+  let changed = false;
+  for (const [sid, e] of [...room]) {
+    if (e.userId !== Number(userId)) continue;
+    clearTimeout(e.cool);
+    room.delete(sid);
+    changed = true;
+    const s = sockets.find((x) => x.id === sid);
+    if (s) { s.leave(roomName(Number(postId))); if (s.data?.presencePosts) s.data.presencePosts.delete(Number(postId)); }
+  }
+  if (room.size === 0) rooms.delete(Number(postId));
+  if (changed) broadcast(io, Number(postId));
+}
+
+module.exports = { join, typing, leave, leaveAll, dropUserFromBusiness, dropUserFromPost, snapshot, TYPING_FRESH_MS, _rooms: rooms };

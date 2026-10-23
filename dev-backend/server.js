@@ -612,6 +612,7 @@ app.use('/api/admin/social', require('./routes/admin_social'));
 // 이력 라우터를 먼저 — /:id/revisions 가 /:id 패턴에 먹히지 않도록 순서를 명시한다.
 app.use('/api/posts', require('./routes/post_revisions'));
 app.use('/api/posts', require('./routes/post_comments'));   // 문서 댓글 — /:id/comments 꼬리만 (docs/DOC_COMMENTS_DESIGN.md)
+app.use('/api/posts', require('./routes/post_editors'));   // 문서 공동 편집자 — /:id/editors 꼬리만 (docs/DOC_COEDITORS_DESIGN.md)
 app.use('/api/posts', require('./routes/post_ai_edit'));   // 문서 AI 수정 — 제안·반영 (docs/DOC_AI_EDIT_DESIGN.md)
 app.use('/api/posts', require('./routes/posts'));
 app.use('/api/records', require('./routes/records'));

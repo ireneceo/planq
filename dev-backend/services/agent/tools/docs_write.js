@@ -18,6 +18,7 @@ const actions = () => require('../../actions/post_actions');
 function failOf(r) {
   if (r.code === 'post_locked_by_signature') return err('CONFLICT', 'locked_by_signature', { hint: 'This document has a signature request in progress or completed, so its content cannot change. Create a new document instead.' });
   if (r.code === 'post_edit_forbidden') return err('PERMISSION_DENIED', 'cannot_edit_document');
+  if (r.code === 'post_move_forbidden') return err('PERMISSION_DENIED', 'cannot_move_document', { hint: 'Only the author or a workspace owner can move this document to another project.' });
   if (r.code === 'not_found') return err('NOT_FOUND', 'document_not_found');
   if (r.code === 'invalid project_id') return err('NOT_FOUND', 'project_not_found');   // 남의 워크스페이스 프로젝트의 존재를 흘리지 않는다
   return fromActionFailure(r);
@@ -113,6 +114,8 @@ async function previewMove(p, a) {
   const chk = await actions().checkEditable({ kind: 'user', userId: p.userId, platformRole: p.platformRole }, { businessId: p.businessId, postId: a.document_id });
   if (!chk.ok) throw failOf(chk);
   const post = chk.data.post;
+  // 실행(movePostToProject)과 같은 판정을 미리 본다 — 공동 편집자는 고칠 수 있어도 옮기지 못한다.
+  if (!(await require('../../postAccess').canMovePostProject(p.userId, post, p.platformRole))) throw failOf({ ok: false, code: 'post_move_forbidden', status: 403 });
   const to = await projectName(p, a.project_id || null);
   const from = post.project_id ? await projectName(p, post.project_id).catch(() => null) : null;
   return {
