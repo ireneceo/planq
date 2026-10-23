@@ -26,6 +26,7 @@ import ClientAddDrawer from '../Clients/ClientAddDrawer';
 import { tabStore } from '../../stores/tabStore';
 import TaskCreateForm from '../QTask/TaskCreateForm';
 import ClientPanel from './ClientPanel';
+import { usePersonRemove } from './inboxPersonRemove';
 // 상담 한 줄 → 패널이 그리는 값. 확인 필요(Todo)도 **같은 변환**을 쓴다(베끼면 갈라진다)
 import { inquiryViewOf } from '../../utils/saleInquiryView';
 // 등록(+초대)도 한 벌 — 확인 필요(Todo)의 같은 버튼이 같은 함수를 부른다
@@ -237,6 +238,11 @@ const SaleInboxList: React.FC<Props> = ({
     [rows],
   );
   const selectedId = selected?.id ?? null;
+  // ✕ — 같은 고객의 상담이 더 있으면 «모두 치울까요?» 를 먼저 묻는다(없으면 종전 확인창)
+  const { askRemove, personDialog } = usePersonRemove({
+    businessId, rows, busyId, setBusyId, setActionError, errorText: t('error.saveFailed') as string,
+    selectedId: selected?.id ?? null, clearSelected: () => setSelected(null), reload: () => load({ silent: true }),
+  });
 
   // 업무 추가 — **기존 업무 추가 폼 그대로**(components/QTask/TaskCreateForm).
   //   Irene 2026-09-12: *"업무추가 팝업이 왜 새거야? 기존 업무추가 항목들하고 기능하고 다르고?"*
@@ -339,8 +345,11 @@ const SaleInboxList: React.FC<Props> = ({
                         제목이 있을 때만 제목 줄을 그린다. 없으면 내용이 그 자리를 대신한다.
                         둘 다 없을 때만 "내용 없음" — 빈 줄로 두면 무엇이 없는 건지 알 수 없다. */}
                     {it.title && <Title><HighlightText text={it.title} query={q} /></Title>}
+                    {/* 메일 미리보기는 스레드의 **마지막 메일**이다 — 우리가 답했으면 우리 답장. 누가 쓴 것인지 앞에 적는다(2026-10-23 Irene) */}
                     {it.preview
-                      ? <Preview $lead={!it.title}><HighlightText text={it.preview} query={q} /></Preview>
+                      ? <Preview $lead={!it.title}>{it.ref.kind === 'email_thread' && (it.meta?.direction === 'outbound' || it.meta?.direction === 'inbound') && (
+                        <DirMark $out={it.meta?.direction === 'outbound'}>{t(it.meta?.direction === 'outbound' ? 'inbox.dirOut' : 'inbox.dirIn') as string}</DirMark>
+                      )}<HighlightText text={it.preview} query={q} /></Preview>
                       : !it.title && <Preview $muted>{t('inbox.noBody') as string}</Preview>}
                   </RowBody>
                 </RowMain>
@@ -439,7 +448,7 @@ const SaleInboxList: React.FC<Props> = ({
                         data-testid={`sale-inbox-purge-${it.id}`}
                         aria-label={t('action.purgeFromInbox', { defaultValue: '상담에서 영구히 빼기' }) as string}
                         title={t('action.purgeFromInbox', { defaultValue: '상담에서 영구히 빼기' }) as string}
-                        onClick={() => setPurgeAsk(it)}>
+                        onClick={() => askRemove(it, () => setPurgeAsk(it))}>
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                           strokeWidth="2.4" strokeLinecap="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>
                       </IconX>
@@ -447,7 +456,7 @@ const SaleInboxList: React.FC<Props> = ({
                   ) : it.ref.kind === 'conversation' && it.meta?.promoted ? (
                     <IconX type="button" disabled={busy} data-testid={`sale-inbox-demote-${it.id}`}
                       aria-label={t('inbox.removeFromSales') as string} title={t('inbox.removeFromSales') as string}
-                      onClick={() => setDismissAsk(it)}>{/* #449 D4 올린 채팅 빼기 */}
+                      onClick={() => askRemove(it, () => setDismissAsk(it))}>{/* #449 D4 올린 채팅 빼기 */}
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                         strokeWidth="2.4" strokeLinecap="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>
                     </IconX>
@@ -460,7 +469,7 @@ const SaleInboxList: React.FC<Props> = ({
                       data-testid={`sale-inbox-clear-${it.id}`}
                       aria-label={t('action.removeFromInbox') as string}
                       title={t('action.removeFromInbox') as string}
-                      onClick={() => setClearStageAsk(it)}>
+                      onClick={() => askRemove(it, () => setClearStageAsk(it))}>
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                         strokeWidth="2.4" strokeLinecap="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>
                     </IconX>
@@ -469,7 +478,7 @@ const SaleInboxList: React.FC<Props> = ({
                       data-testid={`sale-inbox-dismiss-${it.id}`}
                       aria-label={t('action.removeFromInbox') as string}
                       title={t('action.removeFromInbox') as string}
-                      onClick={() => setDismissAsk(it)}>
+                      onClick={() => askRemove(it, () => setDismissAsk(it))}>
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                         strokeWidth="2.4" strokeLinecap="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>
                     </IconX>
@@ -570,6 +579,7 @@ const SaleInboxList: React.FC<Props> = ({
         onClose={() => setStageAsk(null)}
         onConfirm={() => { const a = stageAsk; setStageAsk(null); if (a) { if (a.to === 'lost') setLostAsk(a.it); else void applyStage(a.it, a.to); } }}
       />
+      {personDialog}
       <LostAskModal item={lostAsk} businessId={businessId} onClose={() => setLostAsk(null)} onConfirm={(it, extra) => applyStage(it, 'lost', extra)} />
       {/* 미등록 문의도 **같은 패널**에서 본다 — 고객이면 ClientPanel, 문의면 inquiry 분기.
           화면을 따로 만들면 필드가 갈라진다(2026-09-12 박제). */}
@@ -777,4 +787,10 @@ const MemoCount = styled.span<{ $on: boolean; $ch: number }>`
 const MemoPane = styled.div`
   width: 100%; margin: 4px 0 2px; padding: 12px 14px; box-sizing: border-box;
   background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 10px;
+`;
+// 미리보기 앞 «보냄/받음» — 히스토리 메일 배지와 같은 색(받은 파랑 · 보낸 청록)
+const DirMark = styled.span<{ $out: boolean }>`
+  display: inline-block; margin-right: 6px; padding: 0 6px; border-radius: 4px;
+  font-size: 0.6875rem; font-weight: 700; line-height: 1.5;
+  background: ${(p) => (p.$out ? '#F0FDFA' : '#EFF6FF')}; color: ${(p) => (p.$out ? '#0F766E' : '#1D4ED8')};
 `;

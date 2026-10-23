@@ -124,7 +124,11 @@
       "go": "Open & manage"
     },
     "openOriginalMail": "Open in mail",
-    "openOriginal": "Open original"
+    "openOriginal": "Open original",
+    "tabConsult": "Consultation",
+    "tabClient": "Client info",
+    "mailHistory": "Mail history",
+    "mailHistoryOlder": "Only the latest 50 messages are shown — open the thread in mail to see older ones."
   },
   "action": {
     "addInquiry": "+ Add inquiry",
@@ -263,7 +267,9 @@
     "projectsEmpty": "No linked projects",
     "emailLocked": "Email can't be changed here once an invitation was sent",
     "jobTitle": "Job title",
-    "department": "Department"
+    "department": "Department",
+    "tabActivity": "Activity",
+    "tabHistory": "History"
   },
   "summary": {
     "title": "History summary",
@@ -400,7 +406,16 @@
     "removeFromSales": "Remove from Sales",
     "demoteTitle": "Remove this chat from Sales?",
     "demoteBody": "It only leaves the Sales list. The chat stays in Q talk and you can send it again with [Send to Sales].",
-    "relayUseManual": "Web-form inquiries can't be registered directly because the sender isn't a person. The message has been put into the inquiry box at the top of Q sales — check the name and contact, then add it."
+    "relayUseManual": "Web-form inquiries can't be registered directly because the sender isn't a person. The message has been put into the inquiry box at the top of Q sales — check the name and contact, then add it.",
+    "dirOut": "Sent",
+    "dirIn": "Received",
+    "personRemoveTitle": "Clear all {{n}} consultations from {{who}}?",
+    "personRemoveBody": "There are more consultations from the same client (same email address) in this list. Mails move to the archive and the client's sales stage becomes \"None\". The mails and client details stay, and you can restore them from the archive.",
+    "personRemoveAll": "Clear all ({{n}})",
+    "personRemoveOnly": "Just this one",
+    "personPurgeTitle": "Permanently remove all {{n}} archived items from {{who}}?",
+    "personPurgeBody": "These will never appear in consultations or the archive again. The mails themselves stay in Q mail.",
+    "personPurgeAll": "Remove all permanently ({{n}})"
   },
   "cuebar": {
     "placeholder": "Paste the conversation — \"Call from GreenTech, Seojun Park, quote request, 010-2345-6789\" (Ctrl+Enter)",

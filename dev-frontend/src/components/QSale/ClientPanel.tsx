@@ -47,6 +47,8 @@ import ClientLinksSection from './ClientLinksSection';
 import ClientProfileForm from './ClientProfileForm';
 import { useClientRelationActions } from './useClientRelationActions'; // 초대·직접 관리·보관 · 상태 배너/사업자·메모/이력은 ../Clients
 import { loadClientOrFallback, type ClientLoadResult } from './clientDetailLoad';
+import InquiryInfoBox from './InquiryInfoBox';
+import { SegmentedToggle, SegmentedBtn } from '../Common/segmentedToggle';
 import DetailFallback from '../Common/DetailFallback';
 import ClientStatusBanner from '../Clients/ClientStatusBanner';
 import ClientRecordSections from '../Clients/ClientRecordSections';
@@ -55,7 +57,6 @@ import ClientAddDrawer from '../Clients/ClientAddDrawer';
 import { putClientFields } from '../../services/sale';
 import { useAuth } from '../../contexts/AuthContext';
 import { openSaleTimelineItem } from '../../utils/saleTimelineTarget';
-import { tabStore } from '../../stores/tabStore';
 // 불발 사유 창은 **공용**(상세 페이지와 같은 것) — 여기서 단계만 넘기면 왜 깨졌는지가 원장에 안 남는다
 import LostReasonModal from './LostReasonModal';
 // 단계 칩은 전체 프로필과 **같은 것**을 쓴다 — 화면마다 따로 그리면 동작이 갈라진다.
@@ -103,6 +104,8 @@ interface Props {
   /** 액션 결과(등록 실패·초대 실패 등) — 부르는 쪽이 자기 문구로 번역해 넘긴다.
    *  ★ 패널 안에서 일어난 일은 패널 안에서 말한다. 목록 바닥에만 적으면 패널에 가려 안 보인다. */
   notice?: string | null;
+  /** 목록 행이 이미 아는 이름 — 상세를 읽는 동안 머리줄이 «—» 로 비지 않게 */
+  previewName?: string;
   /** 등록 진행 중 — 버튼 중복 제출 가드 */
   registerBusy?: boolean;
 }
@@ -112,7 +115,7 @@ const HISTORY_CHANNELS: TimelineType[] = ['chat', 'email', 'task', 'invoice', 'i
 
 const ClientPanel: React.FC<Props> = ({
   businessId, clientId, inquiry = null, onClose, onChanged, onRegister, registerBusy = false,
-  notice = null,
+  notice = null, previewName = '',
 }) => {
   const { t } = useTranslation('qsale');
   const navigate = useChromeNav();
@@ -130,9 +133,17 @@ const ClientPanel: React.FC<Props> = ({
   const inquiryKey = inquiry ? `${inquiry.ref.kind}:${inquiry.ref.id}` : '';
   useEffect(() => { setAutoId(null); }, [clientId, inquiryKey]);
   const cid = clientId ?? autoId;
+  // 위쪽 탭 — 상담에서 열면 «상담 내용», 고객 목록에서 열면 «고객 정보» 가 먼저. 대상이 바뀌면 그 기본값으로.
+  const [ptab, setPtab] = useState<'consult' | 'client'>(inquiry ? 'consult' : 'client');
+  const hasInquiry = !!inquiry;
+  useEffect(() => { setPtab(hasInquiry ? 'consult' : 'client'); }, [clientId, inquiryKey, hasInquiry]);
 
-  const [data, setData] = useState<SaleClientDetail | null>(null);
-  const [loading, setLoading] = useState(false);
+  // ★ 읽어 온 값은 **그 고객 id 와 짝**으로만 쓴다(2026-10-23, Irene «고객 누르면 우측 패널이 너무 늦게 나와. 꼬인 것 같아»).
+  //   옛: 고객 A 를 보다 B 를 누르면 B 응답이 올 때까지 A 의 이름·프로필 폼·히스토리가 B 패널에 그대로 떠 있었다
+  //   (사용자에게는 «엉뚱한 게 떠 있다가 한참 뒤에 바뀐다»). 폼이 그 사이 B 로 저장할 수도 있었다.
+  const [rawData, setData] = useState<SaleClientDetail | null>(null);
+  const data = rawData && cid != null && rawData.id === cid ? rawData : null;
+
   const [error, setError] = useState(false);
   const [busy, setBusy] = useState(false);
   const [localNotice, setLocalNotice] = useState<string | null>(null);
@@ -141,12 +152,16 @@ const ClientPanel: React.FC<Props> = ({
   // 히스토리 — **패널에서 전체를 본다**(Irene: "전체 히스토리보기는 뭐야. 다 나오는데").
   //   그래서 balanced(채널 쿼터)를 쓰지 않는다 — 커서 페이지네이션에서는 건너뛴 항목이 커서를 거짓으로 만든다.
   const [items, setItems] = useState<TimelineItem[]>([]);
+  const itemsCidRef = useRef<number | null>(null);
   const [histLoading, setHistLoading] = useState(false);
   const [histMore, setHistMore] = useState(false);
   const beforeRef = useRef<string | null>(null);
 
   const loadHistory = useCallback(async (opts: { more?: boolean } = {}) => {
-    if (!cid) { setItems([]); setHistMore(false); beforeRef.current = null; return; }
+    if (!cid) { setItems([]); setHistMore(false); beforeRef.current = null; itemsCidRef.current = null; return; }
+    // 대상이 바뀌었으면 앞 고객의 히스토리를 먼저 치운다(응답을 기다리는 동안 남의 기록을 보여 주지 않게)
+    if (!opts.more && itemsCidRef.current !== cid) { setItems([]); setHistMore(false); beforeRef.current = null; }
+    itemsCidRef.current = cid;
     setHistLoading(true);
     try {
       // ★ 채널을 **명시**한다 — 안 넘기면 서버 기본값이 적용돼 `note`(메모 모아보기)가 빠진다.
@@ -155,6 +170,7 @@ const ClientPanel: React.FC<Props> = ({
         before: opts.more ? beforeRef.current : null,
         channels: HISTORY_CHANNELS,
       });
+      if (itemsCidRef.current !== cid) return; // 그 사이 다른 고객으로 넘어갔다 — 늦게 온 응답은 버린다
       setItems((prev) => (opts.more ? [...prev, ...(out.items || [])] : (out.items || [])));
       setHistMore(!!out.has_more);
       beforeRef.current = out.next_before || null;
@@ -165,7 +181,7 @@ const ClientPanel: React.FC<Props> = ({
   // 액션(메모·다음 연락·업무 추가) 뒤에 다시 읽는 길 — 프로필과 히스토리를 **같이** 되읽는다
   const reload = useCallback(async () => {
     if (!cid) return;
-    try { setData(await getSaleClient(businessId, cid)); onChanged?.(); }
+    try { const d = await getSaleClient(businessId, cid); setData((prev) => (d.id === cid ? d : prev)); onChanged?.(); }
     catch { setError(true); }
     void loadHistory();
   }, [businessId, cid, onChanged, loadHistory]);
@@ -198,11 +214,10 @@ const ClientPanel: React.FC<Props> = ({
   useEffect(() => {
     if (!cid) { setData(null); return; }
     let alive = true;
-    setLoading(true); setError(false); setFallback(null);
+    setError(false); setFallback(null);
     void loadClientOrFallback(businessId, cid).then((r) => {
       if (!alive) return;
       if (r.data) setData(r.data); else { setError(true); setFallback(r); }
-      setLoading(false);
     });
     return () => { alive = false; };
   }, [businessId, cid]);
@@ -320,7 +335,7 @@ const ClientPanel: React.FC<Props> = ({
   }, [businessId, data, inquiry, busy, navigate, t]);
 
   // 이름 — 고객이 있으면 고객 이름, 아니면 문의의 이름. **헤더에만 둔다**(본문 중복 제거).
-  const name = (cid ? (data?.display_name || data?.company_name || '') : '') || inquiry?.who || '';
+  const name = (cid ? (data?.display_name || data?.company_name || '') : '') || (cid && !data ? previewName : '') || inquiry?.who || '';
 
   // ── 가끔 쓰는 액션은 ⋯ 로 접는다 ──────────────────────────────
   //   Irene: *"우측 패널 액션버튼들 정리 안되서 다 레이아웃 나가는 것도 그렇고."*
@@ -435,7 +450,7 @@ const ClientPanel: React.FC<Props> = ({
                   )}
                 </ChipPopover>
               </>
-            ) : (
+            ) : cid ? null : (
               <>
                 {inquiry?.company && (
                   <TopSub>
@@ -449,52 +464,63 @@ const ClientPanel: React.FC<Props> = ({
           </TopText>
         </Top>
 
-        {/* ── 문의 정보 박스 — 상담/확인 필요에서 열었을 때 **그 건** ──────────
-            Irene: *"상담탭에서 열면 해당 내용을 문의정보로 상단에 다른 박스로 표시를 해줘.
-            아래 히스토리 중 내용이 위에 클릭한 내용을 보여주는 거지."* */}
-        {inquiry && (
-          <InquiryBox data-testid="client-panel-inquiry-box">
-            <InquiryHead>
-              <SectionTitle>{t('panel.inquiry') as string}</SectionTitle>
-              <InquiryTags>
-                <SourceTag>{t(`inbox.source.${inquiry.source}`, { defaultValue: inquiry.source }) as string}</SourceTag>
-                {inquiry.needsReply && <ReplyTag>{t('inbox.needsReply') as string}</ReplyTag>}
-              </InquiryTags>
-            </InquiryHead>
-            {inquiry.title && <InquiryTitle>{inquiry.title}</InquiryTitle>}
-            {inquiry.preview && <PreviewBox>{inquiry.preview}</PreviewBox>}
-            <InquiryMeta>
-              {inquiry.email && (
-                <span>
-                  {inquiry.email}
-                  {inquiry.emailVerified && ` (${t('panel.emailVerified') as string})`}
-                </span>
-              )}
-              {inquiry.at && <span>{formatDateTime(inquiry.at)}</span>}
-            </InquiryMeta>
-            {/* 9/13 뜻 없는 [보기] 낱말은 뺐고(Irene), #448(10/2) 로 «어디로 들어왔는지» 줄 자체가
-                원본(서버 open_path)으로 가는 링크다 — 원본으로 가는 길까지 없애면 결손이다. 새 탭. */}
-            {inquiry.openPath ? (
-              <InquiryViaLink type="button" data-testid="client-panel-inquiry-via"
-                onClick={() => tabStore.openInNewTab(inquiry.openPath)}>
-                {t('panel.cameVia', { via: t(`inbox.source.${inquiry.source}`, { defaultValue: inquiry.source }) as string }) as string}
-                <span aria-hidden> · </span>
-                {(inquiry.source === 'email'
-                  ? t('panel.openOriginalMail', { defaultValue: '메일에서 보기' })
-                  : t('panel.openOriginal', { defaultValue: '원본 보기' })) as string}
-                <span aria-hidden> →</span>
-              </InquiryViaLink>
-            ) : (
-              <InquiryVia data-testid="client-panel-inquiry-via">
-                {t('panel.cameVia', { via: t(`inbox.source.${inquiry.source}`, { defaultValue: inquiry.source }) as string }) as string}
-              </InquiryVia>
-            )}
-          </InquiryBox>
-        )}
+        {/* ── 위쪽 탭 — «상담 내용» / «고객 정보» (2026-10-23, Irene «상단 탭만들어서 거기에 고객정보 있으면 바로 바로
+            보게 해줘. 우측 패널이 각각 상담내용용이랑 고객용이랑 따로 있으니 돌아다니는 경로가 힘들어»).
+            ★ 탭 껍데기는 Q sale 상단과 같은 공용 알약(segmentedToggle) — 새로 그리지 않는다.
+            ★ 숨긴 탭도 **언마운트하지 않는다**(display:none) — 프로필 폼의 대기 중 자동저장이 탭 전환으로 끊기지 않게. */}
+        <PanelTabs role="tablist" data-testid="client-panel-tabs">
+          <SegmentedBtn type="button" role="tab" aria-selected={ptab === 'consult'} $active={ptab === 'consult'}
+            data-testid="client-panel-tab-consult" onClick={() => setPtab('consult')}>
+            {t('panel.tabConsult') as string}
+          </SegmentedBtn>
+          <SegmentedBtn type="button" role="tab" aria-selected={ptab === 'client'} $active={ptab === 'client'}
+            data-testid="client-panel-tab-client" onClick={() => setPtab('client')}>
+            {t('panel.tabClient') as string}
+          </SegmentedBtn>
+        </PanelTabs>
+
+        <TabPane $hidden={ptab !== 'consult'} role="tabpanel" data-testid="client-panel-pane-consult">
+        {inquiry && <InquiryInfoBox businessId={businessId} inquiry={inquiry} />}
+        {cid ? (
+          data ? (
+            <>
+              <Section>
+                <NextContactLine next={data.next_contact} onPlan={() => setNextOpen(true)} />
+              </Section>
+              {/* 히스토리 — 상세와 같은 컴포넌트. **전체를 여기서 본다**(더 보기). */}
+              <Section>
+                <SectionTitle>{t('panel.history') as string}</SectionTitle>
+                {histLoading && items.length === 0 ? (
+                  <Dim>{t('timeline.loading', { defaultValue: '불러오는 중…' }) as string}</Dim>
+                ) : items.length === 0 ? (
+                  <Dim>{t('timeline.empty') as string}</Dim>
+                ) : (
+                  <>
+                    {/* 히스토리 항목은 **새 탭**으로 (Irene: "아예 나가버리면 안될 것 같아") */}
+                    <ClientTimeline items={items} onOpen={(it) => openSaleTimelineItem(it, navigate)} />
+                    {histMore && (
+                      <MoreLink type="button" data-testid="panel-history-more" disabled={histLoading}
+                        onClick={() => { void loadHistory({ more: true }); }}>
+                        {t('timeline.more') as string}
+                      </MoreLink>
+                    )}
+                  </>
+                )}
+              </Section>
+            </>
+          ) : !error ? (
+            <Dim>{t('timeline.loading', { defaultValue: '불러오는 중…' }) as string}</Dim>
+          ) : null
+        ) : !inquiry ? (
+          <Section><Dim>{t('timeline.empty') as string}</Dim></Section>
+        ) : null}
+        </TabPane>
+
+        <TabPane $hidden={ptab !== 'client'} role="tabpanel" data-testid="client-panel-pane-client">
 
         {/* ── 아래는 **고객 패널 그대로** ───────────────────────────── */}
         {cid ? (
-          loading && !data ? (
+          !data && !error ? (
             <Dim>{t('timeline.loading', { defaultValue: '불러오는 중…' }) as string}</Dim>
           ) : error || !data ? (
             <DetailFallback status={fallback?.status || 'error'} businessId={fallback?.otherBiz ?? null} />
@@ -540,7 +566,6 @@ const ClientPanel: React.FC<Props> = ({
                 <Row label={t('panel.registeredBy') as string} value={data.registered_by?.name || null} />
                 <Row label={t('panel.registeredAt') as string}
                   value={data.registered_at ? formatDateTime(data.registered_at) : null} />
-                <NextContactLine next={data.next_contact} onPlan={() => setNextOpen(true)} />
               </Section>
 
               <Section>
@@ -575,26 +600,6 @@ const ClientPanel: React.FC<Props> = ({
                 />
               </Section>
 
-              {/* 히스토리 — 상세와 같은 컴포넌트. **전체를 여기서 본다**(더 보기). */}
-              <Section>
-                <SectionTitle>{t('panel.history') as string}</SectionTitle>
-                {histLoading && items.length === 0 ? (
-                  <Dim>{t('timeline.loading', { defaultValue: '불러오는 중…' }) as string}</Dim>
-                ) : items.length === 0 ? (
-                  <Dim>{t('timeline.empty') as string}</Dim>
-                ) : (
-                  <>
-                    {/* 히스토리 항목은 **새 탭**으로 (Irene: "아예 나가버리면 안될 것 같아") */}
-                    <ClientTimeline items={items} onOpen={(it) => openSaleTimelineItem(it, navigate)} />
-                    {histMore && (
-                      <MoreLink type="button" data-testid="panel-history-more" disabled={histLoading}
-                        onClick={() => { void loadHistory({ more: true }); }}>
-                        {t('timeline.more') as string}
-                      </MoreLink>
-                    )}
-                  </>
-                )}
-              </Section>
 
               {/* 변경 이력(감사 — 누가 초대·보관·수정했나). 2026-10-16 설정 > 고객 을 합치며 옮겼다. 보관·삭제는 ⋯ */}
               <ClientAuditHistory businessId={businessId} clientId={cid} />
@@ -606,6 +611,7 @@ const ClientPanel: React.FC<Props> = ({
             <Dim data-testid="client-panel-not-client">{t('panel.notClientHint') as string}</Dim>
           </Section>
         )}
+        </TabPane>
       </DetailDrawer.Body>
 
       {/* ★ 2026-09-13 (Irene: *"하단에 고객응대 내역 추가 다음연락 정하기 업무추가 버튼은
@@ -727,35 +733,9 @@ const Section = styled.section<{ $first?: boolean }>`
   ${(p) => (p.$first ? 'padding-top: 4px;' : '')}
 `;
 const SectionTitle = styled.h3`margin: 0 0 8px; font-size: 0.8125rem; font-weight: 700; color: #475569;`;
-/** 문의 정보 — 고객 정보와 **성격이 다른 박스**다. 배경으로 구분해 "이건 지금 누른 그 건" 임을 말한다. */
-const InquiryBox = styled.section`
-  margin: 0 0 4px; padding: 12px; border-radius: 10px;
-  background: #F8FAFC; border: 1px solid #E2E8F0;
-  display: flex; flex-direction: column; gap: 8px; align-items: flex-start;
-  ${SectionTitle} { margin: 0; }
-`;
-const InquiryHead = styled.div`display: flex; align-items: center; gap: 8px; width: 100%; flex-wrap: wrap;`;
-const InquiryTags = styled.div`display: flex; align-items: center; gap: 6px; margin-left: auto;`;
-const SourceTag = styled.span`
-  padding: 2px 8px; border-radius: 999px; background: #EEF2FF; color: #4338CA;
-  font-size: 0.6875rem; font-weight: 700;
-`;
-const ReplyTag = styled.span`
-  padding: 2px 8px; border-radius: 999px; background: #FFF1F2; color: #BE123C;
-  font-size: 0.6875rem; font-weight: 700;
-`;
-const InquiryTitle = styled.div`font-size: 0.8125rem; font-weight: 600; color: #0F172A; word-break: break-word;`;
-const InquiryMeta = styled.div`
-  display: flex; flex-wrap: wrap; gap: 4px 10px; font-size: 0.75rem; color: #64748B; word-break: break-all;
-`;
 const FieldRow = styled.div`display: flex; gap: 10px; padding: 4px 0; font-size: 0.8125rem;`;
 const FieldLabel = styled.span`min-width: 92px; color: #94A3B8; flex-shrink: 0;`;
 const FieldValue = styled.span`color: #0F172A; word-break: break-all;`;
-const PreviewBox = styled.div`
-  width: 100%; padding: 10px 12px; background: #FFFFFF; border: 1px solid #F1F5F9;
-  border-radius: 8px; font-size: 0.8125rem; color: #334155; line-height: 1.5;
-  white-space: pre-wrap; word-break: break-word; max-height: 180px; overflow-y: auto;
-`;
 const LinkRow = styled.div`display: flex; align-items: center; gap: 10px; padding: 4px 0; font-size: 0.8125rem;`;
 const CountLink = styled.button`
   padding: 2px 10px; border-radius: 999px; border: 1px solid #E2E8F0; background: #FFFFFF;
@@ -771,12 +751,12 @@ const MoreLink = styled.button`
 `;
 const Dim = styled.div`padding: 32px 0; text-align: center; color: #94A3B8; font-size: 0.8125rem;`;
 
-/** 문의가 **어디로 들어왔는지** — [보기] 를 뺀 자리를 이것이 대신한다(2026-09-13 Irene) */
-const InquiryVia = styled.div`
-  font-size: 0.75rem; font-weight: 600; color: #4338CA;
-  background: #EEF2FF; border-radius: 999px; padding: 3px 10px; align-self: flex-start;
+
+// 위쪽 탭 — 패널 폭을 다 쓰는 두 칸(알약 껍데기는 공용 그대로, 칸만 반씩)
+const PanelTabs = styled(SegmentedToggle)`
+  display: flex; width: 100%; margin: 4px 0 14px;
+  & > button { flex: 1 1 0; }
 `;
-const InquiryViaLink = styled(InquiryVia).attrs({ as: 'button' })`
-  border: none; cursor: pointer; font-family: inherit; text-align: left;
-  &:hover { background: #E0E7FF; } &:focus-visible { outline: 2px solid rgba(67,56,202,0.5); outline-offset: 2px; }
+const TabPane = styled.div<{ $hidden: boolean }>`
+  display: ${(p) => (p.$hidden ? 'none' : 'block')};
 `;

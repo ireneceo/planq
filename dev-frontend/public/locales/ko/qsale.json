@@ -124,7 +124,11 @@
       "go": "이동·관리"
     },
     "openOriginalMail": "메일에서 보기",
-    "openOriginal": "원본 보기"
+    "openOriginal": "원본 보기",
+    "tabConsult": "상담 내용",
+    "tabClient": "고객 정보",
+    "mailHistory": "메일 이력",
+    "mailHistoryOlder": "최근 50통만 보입니다 — 더 오래된 메일은 «메일에서 보기»에서 확인하세요."
   },
   "action": {
     "addInquiry": "+ 문의 추가",
@@ -263,7 +267,9 @@
     "links": "연결",
     "emailLocked": "초대를 보낸 뒤에는 이메일을 여기서 바꿀 수 없어요",
     "jobTitle": "직함",
-    "department": "부서"
+    "department": "부서",
+    "tabActivity": "활동",
+    "tabHistory": "이력"
   },
   "summary": {
     "title": "히스토리 요약",
@@ -400,7 +406,16 @@
     "removeFromSales": "상담에서 빼기",
     "demoteTitle": "이 채팅을 상담에서 뺄까요?",
     "demoteBody": "상담 목록에서만 빠집니다. 대화는 Q talk 에 그대로 있고, 다시 [상담으로 보내기]로 올릴 수 있습니다.",
-    "relayUseManual": "웹폼으로 들어온 문의는 보낸 주소가 사람이 아니라 바로 등록할 수 없습니다. Q sales 위 문의 추가 칸에 본문을 넣고 정리했습니다 — 이름·연락처를 확인하고 추가하세요."
+    "relayUseManual": "웹폼으로 들어온 문의는 보낸 주소가 사람이 아니라 바로 등록할 수 없습니다. Q sales 위 문의 추가 칸에 본문을 넣고 정리했습니다 — 이름·연락처를 확인하고 추가하세요.",
+    "dirOut": "보냄",
+    "dirIn": "받음",
+    "personRemoveTitle": "{{who}} 님의 상담 {{n}}건을 모두 치울까요?",
+    "personRemoveBody": "같은 고객(같은 이메일 주소)의 상담이 목록에 더 있습니다. 메일은 보관함으로 옮기고, 고객은 영업 단계만 «없음» 이 됩니다. 메일 자체와 고객 정보는 그대로 남고, 보관함에서 되돌릴 수 있습니다.",
+    "personRemoveAll": "모두 치우기 ({{n}})",
+    "personRemoveOnly": "이것만",
+    "personPurgeTitle": "{{who}} 님의 보관함 {{n}}건을 모두 영구히 뺄까요?",
+    "personPurgeBody": "이 건들은 다시는 상담 목록과 보관함에 나타나지 않습니다. 메일 자체는 Q mail 에 그대로 남습니다.",
+    "personPurgeAll": "모두 영구히 빼기 ({{n}})"
   },
   "cuebar": {
     "placeholder": "상담 내용을 그대로 붙여넣으세요 — \"오늘 전화로 (주)그린테크 박서준 팀장이 견적 문의. 010-2345-6789\" (Ctrl+Enter)",

@@ -18,6 +18,8 @@ type Props = {
   /** 항목 우측에 붙는 버튼 등 (예: 자동 기록 "확인함", 상담 기록 삭제) */
   renderActions?: (item: TimelineItem) => React.ReactNode;
   emptyText?: string;
+  /** 항목 본문 아래에 펼쳐 보이는 것(예: 상담 메일 이력의 전체 본문) — 없으면 한 줄 미리보기만 */
+  renderBelow?: (item: TimelineItem) => React.ReactNode;
 };
 
 const TYPE_COLOR: Record<TimelineType, { bg: string; fg: string }> = {
@@ -35,7 +37,7 @@ const FALLBACK_COLOR = { bg: '#F1F5F9', fg: '#475569' };
 // 보낸 메일(우리 → 고객) — 받은 메일과 한눈에 갈리게 다른 색(청록 = 우리 쪽 브랜드 색)
 const EMAIL_OUT_COLOR = { bg: '#F0FDFA', fg: '#0F766E' };
 
-export default function ClientTimeline({ items, onOpen, renderActions, emptyText }: Props) {
+export default function ClientTimeline({ items, onOpen, renderActions, emptyText, renderBelow }: Props) {
   const { t } = useTranslation('qsale');
   const { formatTimeAgo, formatDateTime } = useTimeFormat();
   // i18n 호출을 좁은 모양으로 감싼다 — TFunction 타입을 그대로 넘기면 헬퍼 시그니처와 안 맞는다
@@ -95,6 +97,7 @@ export default function ClientTimeline({ items, onOpen, renderActions, emptyText
                   <Meta>{t('timeline.emailFrom', { from: meta.from_email }) as string}</Meta>
                 )}
               </Metas>
+              {renderBelow?.(it)}
             </Body>
             <Right>
               <TimeCell title={formatDateTime(it.at)}>{formatTimeAgo(it.at)}</TimeCell>

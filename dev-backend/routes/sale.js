@@ -370,6 +370,45 @@ router.get('/:businessId/clients/:clientId/timeline', ...readChain, async (req, 
   } catch (err) { next(err); }
 });
 
+// 상담 메일 한 스레드의 **이력 전부** — 우측 패널 «상담 내용» 탭(2026-10-23, Irene
+//   «메일이면 내가 보낸 메일 내용이 라스트로 보이는데? 보낸 건지 받은 건지 표시되고 모든 메일이력이 나와야지»).
+//   목록 미리보기는 스레드의 마지막 메일(방향 무관)이라 우리가 답장하면 우리 답장이 «문의» 로 보였다.
+//   ★ Q mail 상세(GET /businesses/:biz/email-threads/:id)를 쓰지 않는다 — 그 문은 qmail 메뉴 권한이라
+//     영업 멤버가 403 이다. 볼 수 있는 메일함 판정은 상담 목록·웹폼 본문과 **같은 함수**(accessibleAccountIds).
+//   모양은 히스토리(clientTimeline) 메일 행과 같게(type 'email' · meta.direction) — 화면이 같은 행을 그린다.
+router.get('/:businessId/inbox/thread/:threadId/messages', ...readChain, async (req, res, next) => {
+  try {
+    const businessId = Number(req.params.businessId);
+    const id = Number(req.params.threadId) || 0;
+    const { accessibleAccountIds } = require('../services/clientTimeline');
+    const acctIds = await accessibleAccountIds(businessId, req.user.id);
+    const thread = await EmailThread.findOne({
+      where: { id, business_id: businessId, account_id: { [Op.in]: acctIds.length ? acctIds : [0] }, status: { [Op.ne]: 'spam' } },
+      attributes: ['id', 'subject'],
+    });
+    if (!thread) return errorResponse(res, 'thread_not_found', 404);
+    const { EmailMessage } = require('../models');
+    const LIMIT = 50;
+    // 최신 50통을 시간 오름차순으로 — 아주 긴 스레드는 오래된 쪽이 잘린다(has_more 로 말한다)
+    const rows = await EmailMessage.findAll({
+      where: { business_id: businessId, thread_id: thread.id },
+      attributes: ['id', 'subject', 'direction', 'from_email', 'from_name', 'body_text', 'body_html', 'sent_at', 'createdAt'],
+      order: [['sent_at', 'DESC'], ['id', 'DESC']], limit: LIMIT + 1,
+    });
+    const has_more = rows.length > LIMIT;
+    const items = rows.slice(0, LIMIT).reverse().map((m) => {
+      const raw = m.body_text || String(m.body_html || '').replace(/<style[\s\S]*?<\/style>/gi, ' ').replace(/<[^>]+>/g, ' ');
+      const body = String(raw).replace(/\r/g, '').replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim().slice(0, 4000);
+      return {
+        id: `email:${m.id}`, type: 'email', at: m.sent_at || m.createdAt,
+        title: m.subject || thread.subject || '', preview: body.replace(/\s+/g, ' ').slice(0, 200), body,
+        meta: { direction: m.direction, from_email: m.from_email, from_name: m.from_name || null },
+      };
+    });
+    return successResponse(res, { thread_id: thread.id, subject: thread.subject || null, items, has_more });
+  } catch (err) { next(err); }
+});
+
 // 한도 두 줄 — 초대 모달·고객 관리 화면이 같은 값을 쓴다(화면이 직접 세지 않는다)
 router.get('/:businessId/quota', ...readChain, async (req, res, next) => {
   try {

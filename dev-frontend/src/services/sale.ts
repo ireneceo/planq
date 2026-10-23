@@ -452,6 +452,12 @@ export const restoreInboxItem = (businessId: number, kind: 'email_thread', id: n
 
 /** 보관함에서 **영구히 빼기** — 다시는 상담·보관함에 나타나지 않는다.
  *  ★ 메일 자체는 지우지 않는다(Q mail 에 그대로 있다). 지우는 것은 상담 목록에서의 자리다. */
+/** 상담 메일 한 스레드의 이력 전부(보냄/받음) — 우측 패널 «상담 내용» 탭. 모양은 히스토리 메일 행과 같다. */
+export interface InboxThreadMessage extends TimelineItem { body: string }
+export const getInboxThreadMessages = async (businessId: number, threadId: number) =>
+  jx<{ thread_id: number; subject: string | null; items: InboxThreadMessage[]; has_more: boolean }>(
+    await apiFetch(`/api/sale/${businessId}/inbox/thread/${threadId}/messages`));
+
 export const purgeInboxItem = (businessId: number, kind: 'email_thread', id: number) =>
   apiFetch(`/api/sale/${businessId}/inbox/purge`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ kind, id }),
