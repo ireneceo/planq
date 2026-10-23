@@ -10,6 +10,7 @@
 //   - 백엔드의 task:new, task:updated, inbox:refresh, message:new 모두 listen
 //   - 'chat' (인앱) channel ON 일 때만 표시 (notification_prefs 매트릭스)
 import { useEffect, useRef, useState, useCallback } from 'react';
+import { chatAttachLine } from '../../utils/chatAttachLine';
 import { joinRoom, leaveRoom, onSocket } from '../../services/socket';
 import { useChromeLocation } from '../../hooks/useChromeNav';
 import styled from 'styled-components';
@@ -444,7 +445,7 @@ export default function NotificationToaster() {
     });
 
     // 채팅 메시지 — 본인이 보낸 건 제외 (sender_id !== userId)
-    const offMsg = onSocket('message:new', (msg: { id: number; conversation_id: number; sender_id: number; content?: string; sender?: { name?: string; display_name?: string | null } }) => {
+    const offMsg = onSocket('message:new', (msg: { id: number; conversation_id: number; sender_id: number; content?: string; attachment_hint?: { kind: 'image' | 'file'; count: number }; sender?: { name?: string; display_name?: string | null } }) => {
       if (msg.sender_id === Number(user.id)) return;
       // 중복 차단 — 같은 메시지가 conv room + business room 양쪽으로 도착 (백엔드 2회 emit). msg.id 로 1회만 처리.
       if (msg.id) {
@@ -459,7 +460,7 @@ export default function NotificationToaster() {
       add({
         type: 'message',
         title: t('toaster.newMessage', '{{sender}} 의 메시지', { sender: senderName, defaultValue: `${senderName} 의 메시지` }) as string,
-        body: preview || (t('toaster.attachmentOnly', '(첨부파일)') as string),
+        body: preview || chatAttachLine(t, msg.attachment_hint),
         link: `/talk?conv=${msg.conversation_id}`,
         contextKey: `conv:${msg.conversation_id}`,
       });

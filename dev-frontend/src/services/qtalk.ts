@@ -484,11 +484,15 @@ export async function addConvIssue(convId: number, body: string): Promise<ApiIss
 // ─────────────────────────────────────────────
 // 쓰기 엔드포인트 — 청크 2: 메시지 전송 + 채널 설정
 // ─────────────────────────────────────────────
-export async function sendMessage(conversationId: number, content: string, replyTo?: number): Promise<ApiMessage> {
+// attach — 첨부만 보낼 때 알림 문구(«이미지가 첨부되었습니다»)용 종류·개수. 첨부는 메시지를 만든 뒤에 올라가서 서버가 미리 모른다.
+export async function sendMessage(conversationId: number, content: string, replyTo?: number, attach?: { kind: 'image' | 'file'; count: number }): Promise<ApiMessage> {
   const res = await apiFetch(`/api/projects/conversations/${conversationId}/messages`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ content, reply_to_message_id: replyTo || null }),
+    body: JSON.stringify({
+      content, reply_to_message_id: replyTo || null,
+      ...(attach ? { attachment_kind: attach.kind, attachment_count: attach.count } : {}),
+    }),
   });
   return handle<ApiMessage>(res);
 }

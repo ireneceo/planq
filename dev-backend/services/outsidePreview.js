@@ -20,6 +20,32 @@ const NEUTRAL = {
   en: 'Open PlanQ to read it.',
 };
 
+// 글이 빈 채팅 메시지의 폴백 — 첨부 종류를 알면 attachmentBody 가 먼저 쓰인다.
+const EMPTY_MESSAGE = {
+  ko: '새 메시지가 도착했습니다',
+  en: 'New message',
+};
+
+/**
+ * 첨부만 보낸 채팅의 알림 본문 — «이미지가 첨부되었습니다» / «파일 3개가 첨부되었습니다».
+ *   첨부는 메시지를 만든 **뒤에** 올라가서 알림 순간 서버는 첨부를 모른다 → 보내는 화면이 종류·개수를 같이 싣는다.
+ *   kind 는 image|file 만, count 는 1~50 으로 자른다. 모르는 kind 면 null(호출부가 폴백을 쓴다).
+ * @returns {string|null}
+ */
+function attachmentBody(kind, count, lang) {
+  if (kind !== 'image' && kind !== 'file') return null;
+  let n = Math.floor(Number(count));
+  if (!Number.isFinite(n) || n < 1) n = 1;
+  if (n > 50) n = 50;
+  const en = lang === 'en';
+  if (kind === 'image') {
+    if (n === 1) return en ? 'An image was attached' : '이미지가 첨부되었습니다';
+    return en ? `${n} images were attached` : `이미지 ${n}개가 첨부되었습니다`;
+  }
+  if (n === 1) return en ? 'A file was attached' : '파일이 첨부되었습니다';
+  return en ? `${n} files were attached` : `파일 ${n}개가 첨부되었습니다`;
+}
+
 /**
  * @param {string} body 인앱에 남는 원문
  * @param {'internal_only'|'excerpt'|undefined} policy
@@ -27,15 +53,18 @@ const NEUTRAL = {
  * @returns {string} 밖으로 나갈 본문
  */
 function outsideBodyFor(body, policy, lang) {
-  const neutral = NEUTRAL[lang === 'en' ? 'en' : 'ko'];
+  const L = lang === 'en' ? 'en' : 'ko';
+  const neutral = NEUTRAL[L];
   if (policy === 'internal_only') return neutral;
   if (policy === 'excerpt') {
     // ★ 줄바꿈을 공백으로 눕힌다 — 잠금화면은 한 줄이라 개행이 있으면 뒤가 통째로 안 보인다.
     const flat = String(body || '').replace(/\s+/g, ' ').trim();
-    if (!flat) return neutral;                       // 첨부만 있는 메시지 등
+    // 글 없는 메시지(첨부 힌트를 못 받은 옛 번들 등) — «무엇을 확인하라는지» 모르는 중립 문구 대신 무엇이 왔는지 말한다
+    //   (Irene 2026-10-23: «PlanQ에서 확인하세요 … 뭘 확인하라는 건지 인지가 안되니 나쁜 멘트»).
+    if (!flat) return EMPTY_MESSAGE[L];
     return flat.length > EXCERPT_LEN ? flat.slice(0, EXCERPT_LEN) + '…' : flat;
   }
   return body;
 }
 
-module.exports = { outsideBodyFor, EXCERPT_LEN, NEUTRAL };
+module.exports = { outsideBodyFor, attachmentBody, EXCERPT_LEN, NEUTRAL, EMPTY_MESSAGE };

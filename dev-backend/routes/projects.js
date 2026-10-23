@@ -1438,6 +1438,9 @@ router.post('/conversations/:id/messages', authenticateToken, async (req, res, n
     // content 빈 값 허용 — 이미지/파일만 첨부한 메시지 (post-link 형태) 가능.
     // 단, content 와 첨부가 모두 비어 있으면 useless 이지만 그건 클라이언트 책임.
     const cleaned = content ? String(content).trim() : '';
+    // 첨부만 보낼 때 화면이 싣는 힌트(알림 문구용, 저장하지 않는다) — 화이트리스트·범위는 outsidePreview.attachmentBody 가 정한다.
+    const attachKind = req.body?.attachment_kind === 'image' || req.body?.attachment_kind === 'file' ? req.body.attachment_kind : null;
+    const attachCount = Math.min(50, Math.max(1, Math.floor(Number(req.body?.attachment_count)) || 1));
 
     const msg = await Message.create({
       conversation_id: conv.id,
@@ -1464,6 +1467,8 @@ router.post('/conversations/:id/messages', authenticateToken, async (req, res, n
 
     // Socket.IO broadcast — 메시지 즉시 발송 (번역 기다리지 않음)
     // N+71 fix — conv room + business room 둘 다 emit (Q Talk 리스트 실시간 갱신 회귀 fix)
+    // 토스터가 «(첨부파일)» 대신 «이미지가 첨부되었습니다» 를 말하도록 힌트만 싣는다(첨부는 이 뒤에 올라온다).
+    if (!cleaned && attachKind) fullJson.attachment_hint = { kind: attachKind, count: attachCount };
     const io = req.app.get('io');
     if (io) {
       io.to(`conv:${conv.id}`).emit('message:new', fullJson);
@@ -1484,7 +1489,12 @@ router.post('/conversations/:id/messages', authenticateToken, async (req, res, n
       const { notifyMany } = require('./notifications');
       const biz = await Business.findByPk(conv.business_id, { attributes: ['name', 'brand_name'] });
       const wsName = biz?.brand_name || biz?.name || null;
-      const previewBody = cleaned.length > 140 ? cleaned.slice(0, 140) + '…' : cleaned;
+      // 첨부만 보낸 메시지 — 첨부는 이 응답 뒤에 올라온다. 화면이 실어 보낸 종류·개수로 «이미지가 첨부되었습니다» (받는 사람 언어로).
+      const { attachmentBody } = require('../services/outsidePreview');
+      const attachHint = (!cleaned && attachmentBody(attachKind, attachCount, 'ko')) ? { kind: attachKind, count: attachCount } : null;
+      const previewBody = attachHint
+        ? (lang) => attachmentBody(attachHint.kind, attachHint.count, lang)
+        : (cleaned.length > 140 ? cleaned.slice(0, 140) + '…' : cleaned);
       const link = `${process.env.APP_URL || 'https://dev.planq.kr'}/talk?conv=${conv.id}`;
       // #132 — 알림 표시명은 워크스페이스 표시명 우선(계정명 노출 금지).
       const senderUser = await User.findByPk(req.user.id, { attributes: ['name'] });

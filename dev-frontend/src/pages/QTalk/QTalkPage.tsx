@@ -1434,7 +1434,11 @@ const QTalkPage: React.FC<QTalkPageProps> = ({ embedded = false, initialConvId =
     }
     try {
       const created = (content || hasAttachments)
-        ? await qtalkApi.sendMessage(convId, content)
+        ? await qtalkApi.sendMessage(convId, content, undefined, hasAttachments ? {
+          // 새로 올리는 것이 전부 이미지면 «이미지», 기존 파일(종류 모름)이 섞이거나 다른 파일이면 «파일»
+          kind: (!existingFileIds?.length && (files || []).every((f) => f.type.startsWith('image/'))) ? 'image' : 'file',
+          count: (files?.length || 0) + (existingFileIds?.length || 0),
+        } : undefined)
         : { id: 0 } as Awaited<ReturnType<typeof qtalkApi.sendMessage>>;
       const attachmentResults: qtalkApi.ApiMessageAttachment[] = [];
       if (files && files.length > 0) {
