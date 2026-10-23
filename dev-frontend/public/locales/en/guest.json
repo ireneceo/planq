@@ -313,5 +313,14 @@
     "status": "Status",
     "period": "Period",
     "progress": "Progress"
+  },
+  "kb": {
+    "tab": "Info",
+    "title": "Info",
+    "empty": "Nothing has been shared with you yet.",
+    "failed": "Couldn't load the info.",
+    "items_one": "{{count}} field",
+    "items_other": "{{count}} fields",
+    "gone": "This item is no longer available."
   }
 }

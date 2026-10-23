@@ -214,6 +214,9 @@ const SUITES = {
   // 로그인 고객 홈 /home (2026-09-25, CLIENT_ENTRY P3) — 고객만 200 · 계정 고객 예약(같은 함수) → 팀 승인 → 앱 알림 ·
   //   로그인 착지 /home · 3폭 탭 · 사이드바 «홈» · 오너는 /dashboard(음성) · 예약 끄면 탭 없음(음성).
   clienthome: () => require('./canary-client-home'),
+  // 고객 홈 «자료» 칸 (2026-10-23, CLIENT_QINFO_VIEW ⑦) — 0건 탭 없음 · 3폭 탭·카드·시트 · 비밀 칸 값 화면 0 ·
+  //   링크 새 탭 · 버튼은 닫기뿐 · 실시간(이 고객 자료 +1 / 다른 고객 불변 / 내부용이면 사라짐) · 오너 /home 음성.
+  clientinfo: () => require('./canary-client-info'),
   // 고객용 프로젝트 링크의 탭·카드·필터·등록 문 (2026-09-24, GUEST_PROJECT_VIEW §C~G · §H 가 요구).
   //   다섯 탭 기둥 left 3폭 · 카드 열 · preview_url 4케이스 · 필터 중 요청 0 · 개요 파생 · 시트·redirect 착지.
   guestproject: () => require('./canary-guest-project'),

@@ -313,5 +313,14 @@
     "status": "상태",
     "period": "기간",
     "progress": "진행률"
+  },
+  "kb": {
+    "tab": "자료",
+    "title": "자료",
+    "empty": "아직 공유된 자료가 없어요.",
+    "failed": "자료를 불러오지 못했습니다.",
+    "items_one": "항목 {{count}}",
+    "items_other": "항목 {{count}}",
+    "gone": "이 자료는 더 이상 볼 수 없어요."
   }
 }

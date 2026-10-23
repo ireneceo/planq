@@ -10,10 +10,12 @@
 const express = require('express');
 const router = express.Router();
 const { sequelize } = require('../config/database');
-const { Conversation } = require('../models');
+const { Conversation, KbDocument } = require('../models');
+const { getUserScope, kbClientReadableWhere, canClientReadKb } = require('../middleware/access_scope');
+const { kbClientListRow, kbClientDetail, CLIENT_LIST_ATTRIBUTES } = require('../services/kbClientView');
 const { authenticateToken } = require('../middleware/auth');
 const { perUserLimiter } = require('../middleware/costGuard');
-const { successResponse, errorResponse } = require('../middleware/errorHandler');
+const { successResponse, errorResponse, parsePagination, paginatedResponse } = require('../middleware/errorHandler');
 const booking = require('../services/booking');
 const { entryOf, workspaceOf } = require('./guest');
 
@@ -42,13 +44,50 @@ router.get('/:businessId', authenticateToken, async (req, res, next) => {
       `SELECT COUNT(DISTINCT pc.project_id) n FROM project_clients pc JOIN projects p ON p.id = pc.project_id
         WHERE p.business_id = ? AND (pc.client_id = ? OR pc.contact_user_id = ?)`,
       { replacements: [actor.businessId, actor.client.id, req.user.id] });
+    // 자료(Q info 고객 범위) 수 — 탭 라벨 «자료 N», 0 이면 탭 없음. 목록과 같은 술어(kbWhereFor).
+    const infoCount = await KbDocument.count({ where: await kbWhereFor(req, actor) });
     return successResponse(res, {
+      info_count: infoCount,
       workspace: workspaceOf(biz),
       entry: entryOf(biz),
       client: { id: actor.client.id, name: actor.client.display_name || actor.client.company_name || null },
       conversation: conv ? { id: conv.id, title: conv.title || null } : null,
       projects_count: Number(pc.n) || 0,
     });
+  } catch (e) { return fail(res, next, e); }
+});
+
+// ── 자료 — 이 고객 범위의 Q info, 읽기 전용 (docs/CLIENT_QINFO_VIEW_DESIGN.md ③) ─────────
+//   술어는 access_scope 한 벌(kbClientReadableWhere / canClientReadKb — Cue 고객 답변 재료와 같다),
+//   모양은 services/kbClientView 한 벌(비밀 칸·작성자·범위 칸 없음). routes/kb.js 의 고객 403 은 그대로 둔다.
+//   clientIds 는 getUserScope(active 고객 행) — Cue 와 같은 출처.
+async function kbWhereFor(req, actor) {
+  const scope = await getUserScope(req.user.id, actor.businessId, req.user.platform_role);
+  return kbClientReadableWhere(actor.businessId, scope.clientIds);
+}
+router.get('/:businessId/info', authenticateToken, async (req, res, next) => {
+  try {
+    const actor = await actorOf(req);
+    const { limit, page, offset } = parsePagination(req, { defaultLimit: 100, maxLimit: 200 });
+    const { rows, count } = await KbDocument.findAndCountAll({
+      where: await kbWhereFor(req, actor),
+      attributes: CLIENT_LIST_ATTRIBUTES,
+      order: [['created_at', 'DESC'], ['id', 'DESC']],
+      limit, offset,
+    });
+    return paginatedResponse(res, rows.map((d) => kbClientListRow(d.get({ plain: true }))), count, { limit, page, offset });
+  } catch (e) { return fail(res, next, e); }
+});
+router.get('/:businessId/info/:id', authenticateToken, async (req, res, next) => {
+  try {
+    const actor = await actorOf(req);
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id <= 0) return errorResponse(res, 'not_found', 404);
+    const scope = await getUserScope(req.user.id, actor.businessId, req.user.platform_role);
+    const doc = await KbDocument.findOne({ where: { ...kbClientReadableWhere(actor.businessId, scope.clientIds), id } });
+    // 없으면 404(403 아님 — 있는지조차 알리지 않는다). 목록 where 와 함수 판정이 같은지 한 번 더 본다.
+    if (!doc || !canClientReadKb(doc, scope.clientIds)) return errorResponse(res, 'not_found', 404);
+    return successResponse(res, kbClientDetail(doc.get({ plain: true })));
   } catch (e) { return fail(res, next, e); }
 });
 

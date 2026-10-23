@@ -1500,6 +1500,37 @@ function defineSecretTests() {
       run(`require('dotenv').config();const M=require('./models');M.SocialAccount.destroy({where:{id:${Number(fx.id)},external_id:'${name}'}}).then(()=>process.exit(0));`);
     }
   });
+
+  // 고객 홈 «자료» 칸 · Q info 공개 링크 — 비밀(secret) 칸 값이 나가지 않는다(2026-10-23, docs/CLIENT_QINFO_VIEW_DESIGN.md ②).
+  //   대조군: 같은 자료의 text 칸 값은 그대로 온다(통째로 빈 응답의 거짓 통과 차단).
+  test('secrets', '고객 홈 자료·Q info 공개 링크에 비밀 칸 값·작성자·범위 칸이 실리지 않는다', async () => {
+    if (!BACKEND.startsWith('http://localhost')) return true;
+    const run = (code) => execSync(`node -e "${code}"`, { cwd: '/opt/planq/dev-backend', encoding: 'utf8', timeout: 30000 });
+    const stamp = Date.now();
+    const secret = `hc-kbsecret-${stamp}`;
+    const plain = `hc-kbplain-${stamp}`;
+    const tok = `hckbshare${stamp}`;
+    const made = run(`require('dotenv').config();const M=require('./models');const jwt=require('jsonwebtoken');(async()=>{`
+      + `const c=await M.Client.findOne({where:{business_id:6,status:'active',user_id:{[require('sequelize').Op.ne]:null}},order:[['id','ASC']]});`
+      + `const d=await M.KbDocument.create({business_id:6,title:'hc-kb-${stamp}',source_type:'manual',body:'<p>x</p>',status:'ready',uploaded_by:c.user_id,scope:'client',client_id:c.id,vlevel:'L4',security_level:'general',`
+      + `custom_columns:[{id:'s1',name:'pw',type:'secret'},{id:'t1',name:'memo',type:'text'}],custom_values:{s1:'${secret}',t1:'${plain}'},share_token:'${tok}',shared_at:new Date()});`
+      + `process.stdout.write('<<'+JSON.stringify({id:d.id,t:jwt.sign({userId:c.user_id},process.env.JWT_SECRET,{expiresIn:'10m'})}));process.exit(0);})().catch(e=>{process.stdout.write('<<'+JSON.stringify({err:e.message}));process.exit(0);});`);
+    const fx = JSON.parse(made.slice(made.indexOf('<<') + 2));
+    if (fx.err) throw new Error(`자료 픽스처 실패: ${fx.err}`);
+    try {
+      const H = { Authorization: `Bearer ${fx.t}`, 'X-Workspace-Id': '6' };
+      const home = JSON.stringify(await http('GET', `${BACKEND}/api/client-home/6/info/${fx.id}`, { headers: H }))
+        + JSON.stringify(await http('GET', `${BACKEND}/api/client-home/6/info`, { headers: H }));
+      const pub = JSON.stringify(await http('GET', `${BACKEND}/api/kb-documents/public/by-token/${tok}`));
+      if (home.includes(secret)) throw new Error('고객 홈 자료 응답에 비밀 칸 값이 있다');
+      if (/uploaded_by|client_ids|"vlevel"|"tags"/.test(home)) throw new Error('고객 홈 자료 응답에 작성자·범위 칸이 있다');
+      if (pub.includes(secret)) throw new Error('공개 링크 응답에 비밀 칸 값이 있다');
+      if (!home.includes(plain) || !pub.includes(plain)) throw new Error('text 칸 값이 응답에 없다 — 빈 응답으로 거짓 통과');
+      return '고객 홈·공개 링크 원문 — 비밀 값 0 · 범위 칸 0 · text 값 유지';
+    } finally {
+      run(`require('dotenv').config();const M=require('./models');M.KbDocument.destroy({where:{id:${Number(fx.id)},title:'hc-kb-${stamp}'},force:true}).then(()=>process.exit(0));`);
+    }
+  });
 }
 
 function defineDateOnlyTests() {

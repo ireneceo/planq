@@ -419,6 +419,10 @@ router.get('/', authenticateToken, async (req, res, next) => {
 - **Cue 가 고객 대화방에 답할 때 재료는 «그 고객에 연결된 것» 뿐** (2026-10-16, Irene *"고객은 연결된 곳만 보이는 거야"* · Fable 판정) —
   Q info 는 `access_scope.canClientReadKb`/`kbClientReadableWhere` 한 벌(scope client · client_id/client_ids · 보안등급 일반 — 전체 공개 L3/L4 워크스페이스·프로젝트 자료도 빠진다).
   지식 카드(CueKnowledge)는 내부 화면(audience internal)만. 고객에게 답할 재료는 고정 FAQ 로 넣는다. 회귀 health-check kbauth `cue_client_kb`.
+- **고객은 자기 범위 Q info 를 고객 홈 «자료» 칸에서 읽기 전용으로 본다** (2026-10-23, Irene «권고대로» · Fable 설계 `docs/CLIENT_QINFO_VIEW_DESIGN.md`) —
+  술어는 위 한 벌 + `vlevel L4·NULL`(나만 보기로 바뀐 고객 범위 행은 빠진다) · 모양은 `services/kbClientView` 한 벌(비밀 칸·작성자·범위 칸·첨부 없음 — 공개 링크 by-token 도 같은 칸 함수) ·
+  API `routes/client_home.js` `/info`·`/info/:id`(없으면 404) · 실시간 `services/kbSignal.emitKb` 한 문(고객 범위면 연결 고객 `user:` 방에도 신호). `routes/kb.js` 의 고객 403 은 그대로.
+  회귀 `--suite clientinfo` · health-check secrets «고객 홈 자료·공개 링크».
 - **고객이 볼 프로젝트는 `project_clients.contact_user_id = 나` 하나로 판정한다**(프로젝트 목록·access_scope·참여자 추가 등 10곳).
   고객에 계정이 붙는 문(초대 수락)은 반드시 `services/clientOnboarding.linkClientToProjects` 를 부른다 — 2026-10-06 워크스페이스 고객
   수락이 이 값을 안 채워 **고객 화면에서 프로젝트·채팅방이 통째로 사라졌다**(프로젝트 상세는 표시용으로만 메워 «참여 중» 이라 우리 쪽에선

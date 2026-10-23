@@ -23,14 +23,9 @@ const { isValidLevel, blocksExternalShare } = require('../services/securityLevel
 const { applyMemberDisplayNameOne, getMemberDisplayName } = require('../services/displayName');
 
 // N+38 — 실시간 동기화 (CLAUDE.md 운영 안정성 16번 박제).
-function broadcastKb(req, doc, event = 'kb:updated') {
-  const io = req.app.get('io');
-  if (!io) return;
-  // 신호만(id·소속) — 행 전체를 뿌리면 «나만 보기» 문서 본문이 멤버 전원·프로젝트 고객에게 갔다(2026-09-27 점검).
-  //   받는 화면(KnowledgePage)은 id 도 안 보고 다시 읽는다.
-  const data = { id: doc.id, business_id: doc.business_id, project_id: doc.project_id || null };
-  if (doc.business_id) io.to(`business:${doc.business_id}`).emit(event, data);
-  if (doc.project_id) require('../services/projectRoom').emitProject(io, doc.project_id, event, data);
+function broadcastKb(req, doc, event = 'kb:updated', prev = null) {
+  // 몸통은 services/kbSignal 한 문(신호만 · 고객 범위면 연결 고객 개인 방까지)
+  require('../services/kbSignal').emitKb(req.app.get('io'), doc, event, prev);
 }
 const { decodeOriginalName } = require('../services/filename');
 const { createAuditLog } = require('../middleware/audit');
@@ -523,6 +518,7 @@ router.put('/businesses/:businessId/kb/documents/:docId', authenticateToken, che
       const kbScope = await getUserScope(req.user.id, doc.business_id, req.user.platform_role);
       if (!(await canAccessKbDocumentByLevel(req.user.id, doc, kbScope))) return errorResponse(res, 'Document not found', 404);
     }
+    const prevClientScope = require('../services/kbSignal').clientScopeSnap(doc);   // 범위가 좁아지면 빠진 고객 화면도 지운다
 
     const patch = {};
     if (req.body.title !== undefined) patch.title = String(req.body.title).slice(0, 300);
@@ -656,7 +652,7 @@ router.put('/businesses/:businessId/kb/documents/:docId', authenticateToken, che
       targetType: 'KbDocument', targetId: doc.id,
       newValue: { fields: Object.keys(patch) }
     });
-    broadcastKb(req, doc, 'kb:updated');
+    broadcastKb(req, doc, 'kb:updated', prevClientScope);
     successResponse(res, doc);
   } catch (err) { next(err); }
 });
@@ -686,7 +682,7 @@ router.delete('/businesses/:businessId/kb/documents/:docId', authenticateToken, 
       const pa = await stampFor(doc.business_id, 'trash');
       if (pa) await doc.update({ purge_after: pa });
     } catch { /* 스탬프 실패가 삭제를 막지 않는다 */ }
-    const snapForBroadcast = { id: doc.id, business_id: doc.business_id, project_id: doc.project_id };
+    const snapForBroadcast = { id: doc.id, business_id: doc.business_id, project_id: doc.project_id, scope: doc.scope, client_id: doc.client_id, client_ids: doc.client_ids };
     await doc.destroy();
 
     await createAuditLog({
@@ -1544,12 +1540,11 @@ router.get('/kb-documents/public/by-token/:token', async (req, res, next) => {
     //   보이지 않는 것과 나가지 않는 것은 다르다.
     //   ★ 가릴 때는 지울 것을 열거하지 말고 남길 것만 남긴다(화이트리스트).
     //     예약키(auto_indexed 등)와 고아 값이 자동으로 빠진다.
-    const pubCols = Array.isArray(doc.custom_columns) ? doc.custom_columns : [];
-    const rawVals = (doc.custom_values && typeof doc.custom_values === 'object') ? doc.custom_values : {};
-    const pubVals = {};
-    for (const c of pubCols) {
-      if (c && c.id && Object.prototype.hasOwnProperty.call(rawVals, c.id)) pubVals[c.id] = rawVals[c.id];
-    }
+    //   ★ 2026-10-23 — 비밀(secret) 칸은 값·라벨 모두 뺀다(고객 홈과 같은 함수 services/kbClientView).
+    //     전에는 살아 있는 칸이면 secret 값도 그대로 실렸다(CSV·색인·Cue 는 이미 빼고 있었다).
+    const { publicColumns, publicValues } = require('../services/kbClientView');
+    const pubCols = publicColumns(doc);
+    const pubVals = publicValues(doc, pubCols);
     const payload = {
       id: doc.id,
       title: doc.title,

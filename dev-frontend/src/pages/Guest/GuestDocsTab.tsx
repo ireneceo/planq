@@ -195,22 +195,23 @@ export default function GuestDocsTab({ token, onGone, onNeedLogin }: Props) {
   );
 }
 
-const DocBox = styled.div`
+// 읽기 시트 껍데기 — 로그인 고객 홈 «자료» 칸(ClientHome/ClientInfoTab)도 같은 것을 쓴다(베끼면 갈라진다).
+export const DocBox = styled.div`
   display:flex;flex-direction:column;width:100%;max-width:720px;max-height:88dvh;
   background:#fff;border-radius:16px 16px 0 0;overflow:hidden;
   @media (min-width:641px){border-radius:16px;margin:0 16px;}
 `;
-const DocHead = styled.div`
+export const DocHead = styled.div`
   position:relative;padding:16px 48px 12px 20px;border-bottom:1px solid #e2e8f0;flex-shrink:0;
 `;
-const DocTitle = styled.div`font-size:1rem;font-weight:700;color:#0f172a;`;
-const DocMeta = styled.div`display:flex;gap:8px;margin-top:3px;font-size:0.75rem;color:#64748b;`;
-const CloseBtn = styled.button`
+export const DocTitle = styled.div`font-size:1rem;font-weight:700;color:#0f172a;`;
+export const DocMeta = styled.div`display:flex;gap:8px;margin-top:3px;font-size:0.75rem;color:#64748b;`;
+export const CloseBtn = styled.button`
   position:absolute;top:10px;right:10px;width:2.25rem;height:2.25rem;
   border:none;background:none;font-size:1.375rem;line-height:1;color:#64748b;cursor:pointer;
   &:focus-visible{outline:2px solid #0d9488;outline-offset:2px;}
 `;
-const DocBody = styled.div`
+export const DocBody = styled.div`
   flex:1;min-height:0;overflow-y:auto;padding:16px 20px calc(20px + env(safe-area-inset-bottom));
   font-size:0.875rem;line-height:1.7;color:#0f172a;
   img{max-width:100%;height:auto;}

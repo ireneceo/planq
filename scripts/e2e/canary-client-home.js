@@ -18,7 +18,7 @@ const VIEWPORTS = [
   { w: 768, h: 1024, mobile: false },
   { w: 1440, h: 900, mobile: false },
 ];
-const HOME_KEYS = 'client,conversation,entry,projects_count,workspace';
+const HOME_KEYS = 'client,conversation,entry,info_count,projects_count,workspace';
 
 let _seq = null;
 async function sql(q, replacements) {

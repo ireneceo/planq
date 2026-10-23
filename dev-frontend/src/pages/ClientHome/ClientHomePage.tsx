@@ -6,7 +6,7 @@
 // ★ 대화는 여기서 그리지 않는다 — 앱에는 Q Talk 가 있다. [문의하기] 는 내 대화방으로 간다.
 // ★ 프로젝트·청구는 앱의 제 화면으로 간다(게스트 화면 안에 프로젝트 내용을 그리지 않는 것과 같은 규칙).
 // ★ 고객이 아닌 사람(멤버·오너)은 대시보드로 보낸다 — 서버도 403 이다(accountActor).
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import styled from 'styled-components';
@@ -19,6 +19,8 @@ import GuestBookingList from '../Guest/GuestBookingList';
 import { TabBar, Tab, Count } from '../Guest/guestShell';
 import type { EntryInfo } from '../Guest/GuestWorkspacePage';
 import VoiceProfileSection from '../../components/Profile/VoiceProfileSection';
+import ClientInfoTab from './ClientInfoTab';
+import { onSocket } from '../../services/socket';
 
 type Home = {
   workspace: { name: string | null; logo_url: string | null } | null;
@@ -26,9 +28,11 @@ type Home = {
   client: { id: number; name: string | null };
   conversation: { id: number; title: string | null } | null;
   projects_count: number;
+  /** 이 고객 범위 Q info 수 — «자료 N» 탭, 0 이면 탭 없음(docs/CLIENT_QINFO_VIEW_DESIGN.md ④) */
+  info_count?: number;
 };
 
-const TAB_KEYS = ['info', 'book', 'mine'] as const;
+const TAB_KEYS = ['info', 'kb', 'book', 'mine'] as const;
 type TabKey = typeof TAB_KEYS[number];
 
 export default function ClientHomePage() {
@@ -55,16 +59,29 @@ export default function ClientHomePage() {
     try { const td = await fetchTodo(bizId); setTodoTotal(td.total || 0); } catch { /* 줄만 안 뜬다 */ }
   }, [bizId]);
   useEffect(() => { void load(); }, [load]);
+  // 자료 수(«자료 N» 탭)는 팀이 고객 범위 자료를 만들거나 범위를 바꾸면 달라진다 — 서버가 이 고객 user: 방으로 신호만 보낸다.
+  //   탭이 0 이라 숨어 있어도 들어야 첫 자료가 생기는 순간 탭이 나타난다.
+  const kbTimer = useRef<number | null>(null);
+  useEffect(() => {
+    const again = () => {
+      if (kbTimer.current) window.clearTimeout(kbTimer.current);
+      kbTimer.current = window.setTimeout(() => { void load(); }, 250);
+    };
+    const offs = [onSocket('kb:new', again), onSocket('kb:updated', again), onSocket('kb:deleted', again)];
+    return () => { offs.forEach((off) => off()); if (kbTimer.current) window.clearTimeout(kbTimer.current); };
+  }, [load]);
 
   if (user && user.business_role !== 'client') return <Navigate to="/dashboard" replace />;
 
   const bookingOn = !!home?.entry?.booking?.enabled;
   const raw = sp.get('tab');
-  const tab: TabKey = (TAB_KEYS as readonly string[]).includes(raw || '') && (raw !== 'book' || bookingOn)
+  const infoCount = home?.info_count || 0;
+  const tab: TabKey = (TAB_KEYS as readonly string[]).includes(raw || '') && (raw !== 'book' || bookingOn) && (raw !== 'kb' || infoCount > 0)
     ? (raw as TabKey) : 'info';
   const go = (k: TabKey) => {
     const n = new URLSearchParams(sp);
     if (k === 'info') n.delete('tab'); else n.set('tab', k);
+    n.delete('doc');
     setSp(n, { replace: true });
   };
   const openChat = () => navigate(home?.conversation ? `/talk?conv=${home.conversation.id}` : '/talk');
@@ -86,6 +103,13 @@ export default function ClientHomePage() {
             data-testid="home-tab-info" onClick={() => go('info')}>
             {t('entry.tabInfo', { defaultValue: '안내' })}
           </Tab>
+          {infoCount > 0 && (
+            <Tab type="button" role="tab" aria-selected={tab === 'kb'} $on={tab === 'kb'}
+              data-testid="home-tab-kb" onClick={() => go('kb')}>
+              {t('kb.tab', { defaultValue: '자료' })}
+              <Count>{infoCount}</Count>
+            </Tab>
+          )}
           {bookingOn && (
             <Tab type="button" role="tab" aria-selected={tab === 'book'} $on={tab === 'book'}
               data-testid="home-tab-book" onClick={() => { setReschedule(null); go('book'); }}>
@@ -117,6 +141,8 @@ export default function ClientHomePage() {
             </VoiceCard>
           </Pane>
         )}
+
+        {tab === 'kb' && apiBase && <ClientInfoTab apiBase={apiBase} />}
 
         {tab === 'book' && bookingOn && apiBase && (
           // 로그인 고객은 이미 신원이 있다 — 이메일 확인 단계가 없다(verified).

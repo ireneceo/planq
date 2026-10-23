@@ -17,11 +17,7 @@ function getIO() { return global.__planqIo || null; }
 
 // 실시간 — 신호만(id·소속). 행 전체를 뿌리면 «나만 보기» 본문이 멤버 전원·프로젝트 고객에게 간다(2026-09-27 점검).
 function signalKb(doc, event) {
-  const io = getIO();
-  if (!io || !doc) return;
-  const data = { id: doc.id, business_id: doc.business_id, project_id: doc.project_id || null };
-  if (doc.business_id) io.to(`business:${doc.business_id}`).emit(event, data);
-  if (doc.project_id) require('../projectRoom').emitProject(io, doc.project_id, event, data);
+  require('../kbSignal').emitKb(getIO(), doc, event);
 }
 
 const TEXT_EXT = ['.txt', '.md', '.markdown', '.html', '.htm', '.json', '.csv', '.log'];

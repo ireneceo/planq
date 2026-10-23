@@ -951,9 +951,12 @@ async function canAccessKbDocumentByLevel(userId, doc, scope) {
 //   Irene: «보안단위가 전체워크스페이스여도 고객에게는 안보이는 거 맞지? 고객은 연결된 곳만 보이는 거야.»
 //   = 그 고객에 연결된 자료(scope 'client' · client_id 또는 client_ids) ∧ 보안등급 일반.
 //   워크스페이스·프로젝트 범위 자료는 «팀» 자료라 고객 연결 프로젝트여도 빠진다. 고객에게 답할 재료는 고정 FAQ 로 넣는다.
+//   ★ 2026-10-23 (Fable 설계 docs/CLIENT_QINFO_VIEW_DESIGN.md ①) — 공개 범위도 본다: L4(전체 공개) 또는 옛 자료(vlevel 없음)만.
+//     옛 단일 PATCH 가 scope 만 바꿀 수 있어 «scope client + L1 나만 보기» 행이 생길 수 있다 — 그건 고객에게 안 간다.
 function canClientReadKb(doc, clientIds) {
   if (!doc || doc.scope !== 'client') return false;
   if ((doc.security_level || 'general') !== 'general') return false;
+  if (doc.vlevel != null && doc.vlevel !== 'L4') return false;
   const mine = (clientIds || []).map(Number);
   if (doc.client_id != null && mine.includes(Number(doc.client_id))) return true;
   const multi = Array.isArray(doc.client_ids) ? doc.client_ids.map(Number) : [];
@@ -967,6 +970,7 @@ function kbClientReadableWhere(businessId, clientIds) {
     business_id: businessId,
     scope: 'client',
     security_level: 'general',
+    [Op.and]: [{ [Op.or]: [{ vlevel: 'L4' }, { vlevel: null }] }],
     [Op.or]: [
       { client_id: { [Op.in]: ids } },
       // 숫자만 들어가므로 literal 안전
