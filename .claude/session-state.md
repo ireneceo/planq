@@ -4,6 +4,13 @@
 
 
 
+
+### ✅ 처리방침 개정 공지 띠 자동화 (방 6941735d · 2026-10-24 · [Opus]) — 운영 반영: 다음 배포 때
+- 원문: «이걸 왜 나한테 시켜? 이런 건 자동화도 되어야 하는 거 아니야??» — 관리자 화면 공지 넣기 할 일 카드(todomvkmmxl1) 뺌.
+- `config/policyNotices.ts` 한 줄(privacy_1_5 · 시행 2026-11-03) → `AnnouncementBanner` 가 운영 공지가 없을 때 저절로 띄우고 시행일 다음 날 0시에 사라짐 · 닫기 기억(공지 id) · 문구 common.policyNotice ko/en.
+  다음 개정부터: 약관·처리방침을 고치는 커밋에서 이 목록에 한 줄. 시행일을 미루면 legal.json·PrivacyPolicy.tsx·이 줄을 같이.
+- 검증: build EXIT 0·error TS 0 · 3폭 ko 띠 보임·가로넘침 0 · en 계정 3폭 영어 문구 · 닫기 → 새로고침 뒤에도 닫힘 · 시계 흉내 11-03 22시 보임 / 11-04 09시 안 보임 · i18n·parity 통과. Fable 안 씀 — 화면 공지 띠(서버·DB 무관).
+
 ### ✅ 정기 점검 10/24 00:15 (방 0b0cda9a · [Opus]) — god-file 4건 나누기 → 개발완료 · 개발시작 읽기
 - Irene «왜 이러는 거야. 단 한번도 정기점검을 제대로 하고 배포되는 일이 없잖아» → 처음엔 0단계 god-file 4건으로 멈췄다가, 넘친 양이 1~16줄뿐이라 이 방에서 바로 나눔(2de9c3d6, 동작 그대로):
   export.js 506→466(services/exportRender.js) · NotificationToaster 800→671(notificationSound.ts) · MailPage 3768→3688(mailLang.ts) · DocsTab 2959→2930(FileExtIcon.tsx).
@@ -13,14 +20,6 @@
 - 7-B 운영 피드백 답글: 운영 접속이 막혀 못 함(아래 1-B 와 같은 거절).
 - 1-B 운영 피드백: **읽지 못함** — 운영 읽기 권한 거부. Irene 할 일(todomvl88xvf)로 올림 — 명령 `! bash /home/irene/.claude/jobs/0b0cda9a/tmp/prod-feedback.sh`.
 - 1-C 밤 검사: 순찰 10-22 «FATAL Connection closed»(exit=2, 결과 없음 — 10-20 도 같음) · 마지막 정상 순찰 10-21 실패 5(/me/work-settings «브라우저 기준(UTC)» user_timezone_update_failed ×5환경 — 10-19 부터 반복 · 알림 «설문 새 응답» → 지운 health 문서 찾을 수 없음 · /records/194 견적서 찾을 수 없음). 전체 검사 10-22: 151 중 실패 16 · 죽음 2 · 시간초과 1(crosscut 누출 · mailrt · signflow · taskfooter · headerrow · sharereceive · tablestyle 등). 다음 순찰은 02:00 MYT(cron 이동 첫 회).
-
-### 나중에 — 일시정지로 멈춤 (방 6941735d · 2026-10-23) · 다시 시작하면 · 이어갈 지점
-- 무엇: 처리방침 개정 공지 띠 **자동화**(Irene «이런 건 자동화도 되어야 하는 거 아니야?») — 관리자 화면 할 일 카드(todomvkmmxl1)는 뺐다.
-- 어디까지(미커밋 4파일, 코드는 다 씀): `dev-frontend/src/config/policyNotices.ts`(신규 — 개정 공지 목록, privacy_1_5 · 시행 2026-11-03 다음 날 자동으로 사라짐) ·
-  `components/Common/AnnouncementBanner.tsx`(운영 공지가 비면 개정 공지 띠, 닫기 기억 `planq_announce_dismissed:policy:<id>`) · common.json ko/en `policyNotice.*`.
-- 못 한 것: 빌드 — 메모리·다른 방 빌드와 겹쳐 3번 «Terminated», 4번째(메모리 게이트 대기 후)는 일시정지로 내가 멈춤. 화면 실측 0.
-- 다시 시작하면: ① 게이트(/var/www/scripts/heavy-task-gate.sh build) 지나 `npm run build`(EXIT 0·error TS 0) ② owner 로그인 3폭×ko/en 띠 보임·닫으면 새로고침 뒤에도 닫힘·시계 흉내 11-03 22시 보임 / 11-04 안 보임
-  ③ guard i18n·parity ④ 커밋(Fable 안 씀 — 화면 공지 띠, 서버·DB 무관) ⑤ 보고: 할 일 카드 뺀 이유 «개정 공지는 배포와 함께 저절로 뜨고 시행일 다음 날 저절로 꺼짐».
 
 ### ✅ 큰 PDF 첫 쪽 미리보기 (방 ba27eb61 · 2026-10-23 · [Opus] + Fable 설계 DESIGN-CHANGE · 완료 검증 FAIL 1건 → 고침 → 재검증 PASS) — 운영 반영: 다음 배포 때(스키마 변경 없음 · 운영 poppler 는 배포 스크립트가 이미 점검)
 - 원문: «용량 큰 파일이 있어도 미리보기나 클릭해서 볼 때 굳이 늦게 뜰 이유가 없지 않아?» (이미지 쪽은 a07ef7ad)

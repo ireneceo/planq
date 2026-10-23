@@ -1,6 +1,8 @@
 // 운영 공지 배너 — 본문 영역 맨 위(MainLayout, 결제 안내 줄 아래). /me 의 platform.announcement_text 사용.
 // 점검 모드 알림은 별도 미들웨어가 503 응답 → 점검 시 사용자는 페이지에 못 들어옴, 이 배너는 평시 공지용.
+// ★ 운영 공지가 비어 있으면 약관·처리방침 개정 공지(config/policyNotices)를 저절로 띄운다 — 시행일 다음 날 사라진다.
 import React, { useState, useEffect } from 'react';
+import { activePolicyNotice } from '../../config/policyNotices';
 import styled from 'styled-components';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTranslation } from 'react-i18next';
@@ -8,7 +10,7 @@ import { useTranslation } from 'react-i18next';
 const DISMISS_KEY_PREFIX = 'planq_announce_dismissed:';
 
 const AnnouncementBanner: React.FC = () => {
-  const { i18n } = useTranslation();
+  const { i18n, t } = useTranslation('common');
   // 사용자 언어로 공지를 고른다 — 영어 공지가 비어 있으면 한국어로 폴백한다(빈 배너 방지).
   //   여태 한 언어만 있어서 영어권 사용자도 한국어 배너를 봤다(2026-08-25 Irene).
   const pickText = (a: { announcement_text: string | null; announcement_text_en?: string | null } | null | undefined) => {
@@ -19,6 +21,12 @@ const AnnouncementBanner: React.FC = () => {
   const { user } = useAuth();
   const ann = user?.platform;
   const [dismissed, setDismissed] = useState(false);
+  // 개정 공지(자동) — 운영 공지가 없을 때만. 닫기는 공지 id 로 기억한다.
+  const policy = activePolicyNotice();
+  const policyKey = policy ? `${DISMISS_KEY_PREFIX}policy:${policy.id}` : '';
+  const [policyDismissed, setPolicyDismissed] = useState(() => {
+    try { return !!policyKey && window.localStorage.getItem(policyKey) === '1'; } catch { return false; }
+  });
 
   useEffect(() => {
     if (!pickText(ann)) { setDismissed(false); return; }
@@ -36,6 +44,24 @@ const AnnouncementBanner: React.FC = () => {
   };
 
   const text = pickText(ann);
+  if (!text && policy && user && !policyDismissed) {
+    const dismissPolicy = () => {
+      try { window.localStorage.setItem(policyKey, '1'); } catch { /* 저장 안 돼도 이번 화면에선 닫는다 */ }
+      setPolicyDismissed(true);
+    };
+    return (
+      <Banner $sev="info" data-testid="policy-notice-banner">
+        <BannerIcon $sev="info">ⓘ</BannerIcon>
+        <BannerText>
+          {t(`policyNotice.${policy.id}`)}{' '}
+          <PolicyLink href={policy.path} target="_blank" rel="noopener noreferrer">{t('policyNotice.details', '자세히 보기')}</PolicyLink>
+        </BannerText>
+        <DismissBtn type="button" onClick={dismissPolicy} aria-label={t('policyNotice.dismiss', '닫기') as string}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+        </DismissBtn>
+      </Banner>
+    );
+  }
   // ★ text 가 있으면 ann 도 있다는 걸 타입이 모른다 — 두 조건을 함께 좁혀 준다.
   if (!ann || !text || dismissed) return null;
 
@@ -78,6 +104,7 @@ const BannerIcon = styled.span<{ $sev: 'info'|'warn'|'critical' }>`
   border-radius: 50%; font-weight: 700; font-size: 0.75rem;
 `;
 const BannerText = styled.span`flex: 1; font-weight: 500;`;
+const PolicyLink = styled.a`color: inherit; font-weight: 700; text-decoration: underline; white-space: nowrap;`;
 const DismissBtn = styled.button`
   display: inline-flex; align-items: center; justify-content: center;
   width: 24px; height: 24px;

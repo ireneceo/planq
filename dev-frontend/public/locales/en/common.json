@@ -1949,5 +1949,10 @@
     "integrations": "Connection tokens are stored encrypted, and you can disconnect at any time. Google Drive only sees files PlanQ created or that you picked (it does not read your whole Drive).",
     "clientInvite": "Clients only see the projects, chats and files they are linked to. Internal messages, «team only» items and internal notes stay hidden.",
     "memberRemove": "Removing someone signs them out right away (including any open live connection), and the tasks and files they worked on stay in the workspace."
+  },
+  "policyNotice": {
+    "privacy_1_5": "Our Privacy Policy changes on November 3, 2026 — it now lists our hosting provider (IONOS, Germany) and the security measures actually in place.",
+    "details": "Details",
+    "dismiss": "Dismiss"
   }
 }
