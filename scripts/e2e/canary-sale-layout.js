@@ -442,6 +442,12 @@ async function run() {
 
       // ⑬ 메모를 열면 — 카드는 안 움직이고, 회색 판이 좌우 풀폭
       const target = R[0];
+      // ★ 먼저 화면 안으로 — 행이 화면 아래(폰 667 에서 top 780)면 page.click 이 스크롤해 «카드가 움직였다» 로 오판했다
+      //   (2026-10-23 공지 띠가 위에 붙어 행이 밀려난 날부터). 재는 것은 «메모를 열어서» 움직였는가다.
+      await page.evaluate((id) => {
+        document.querySelector(`[data-testid="sale-inbox-row-${id}"]`).scrollIntoView({ block: 'center' });
+      }, target.id);
+      await sleep(300);
       const before = await page.evaluate((id) => {
         const row = document.querySelector(`[data-testid="sale-inbox-row-${id}"]`);
         const r = row.getBoundingClientRect();

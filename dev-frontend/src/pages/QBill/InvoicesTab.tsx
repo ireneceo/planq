@@ -111,12 +111,14 @@ export default function InvoicesTab() {
     joinRoom(`business:${businessId}`);
     const offNew = onSocket('invoice:new', debouncedReload);
     const offUpdated = onSocket('invoice:updated', debouncedReload);
+    // 고객 정보(상호·메일)는 청구서가 지금 고객 값으로 그린다 — Q sale·고객 상세에서 고치면 여기도 다시 읽는다
+    const offClient = onSocket('client:updated', debouncedReload);
     const offDeleted = onSocket('invoice:deleted', debouncedReload);
     const offInbox = onSocket('inbox:refresh', debouncedReload);  // 기존 invoice 의 6 라우트 inbox:refresh 도 catch
     return () => {
       if (pending) window.clearTimeout(pending);
       leaveRoom(`business:${businessId}`);
-      offNew(); offUpdated(); offDeleted(); offInbox();
+      offNew(); offUpdated(); offDeleted(); offInbox(); offClient();
     };
   }, [businessId, reload]);
 
@@ -256,10 +258,10 @@ export default function InvoicesTab() {
               </ColNum>
               <ColClient>
                 {client ? (
-                  <ClientName><HighlightText text={client.display_name || client.biz_name || client.company_name || '—'} query={query} /></ClientName>
+                  <ClientName><ClientNameText><HighlightText text={client.display_name || client.biz_name || client.company_name || '—'} query={query} /></ClientNameText></ClientName>
                 ) : (
                   <ClientName>
-                    {inv.recipient_business_name || inv.recipient_email || '—'}
+                    <ClientNameText>{inv.recipient_business_name || inv.recipient_email || '—'}</ClientNameText>
                     <ExternalBadge title={t('invoices.externalHint', { defaultValue: '내부 고객과 연동되지 않은 외부 청구' }) as string}>
                       {t('invoices.external', { defaultValue: '외부' }) as string}
                     </ExternalBadge>
@@ -442,7 +444,8 @@ const Row = styled.div<{ $active: boolean }>`
     grid-template-columns: 130px 160px minmax(0, 1fr) 110px 90px 130px 100px;
   }
   @media (max-width: 900px) {
-    grid-template-columns: 1fr 1fr;
+    /* minmax(0,…) — 그냥 1fr 은 최소 폭이 글자 폭이라 긴 고객 이름이 카드 밖으로 밀려 잘렸다(폰 375 실측) */
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     gap: 8px;
   }
 `;
@@ -490,6 +493,10 @@ const ClientName = styled.div`
   font-size: 0.8125rem; font-weight: 600; color: #0F172A;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   display: flex; align-items: center; gap: 6px;
+`;
+// 이름 글자 — ClientName 이 flex 라 «…» 는 글자를 감싼 이 칸이 맡는다(글자 그대로 두면 잘리기만 하고 … 가 안 붙는다)
+const ClientNameText = styled.span`
+  min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 `;
 // 외부(미연동) 청구 배지 (운영 #11)
 const ExternalBadge = styled.span`

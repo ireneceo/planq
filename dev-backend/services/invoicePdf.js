@@ -10,13 +10,14 @@
 
 const { Invoice, InvoiceItem, InvoiceInstallment, Client, Business } = require('../models');
 const { SENDER_ATTRIBUTES } = require('./invoiceSender');
+const { recipientOf, RECIPIENT_CLIENT_ATTRS } = require('./invoiceRecipient');
 
 async function buildInvoicePdf(invoiceId) {
   const invoice = await Invoice.findByPk(invoiceId, {
     include: [
       { model: InvoiceItem, as: 'items' },
       { model: InvoiceInstallment, as: 'installments', separate: true, order: [['installment_no', 'ASC']] },
-      { model: Client, attributes: ['display_name', 'company_name', 'biz_name', 'biz_tax_id', 'biz_ceo', 'biz_address', 'biz_address_en'] },
+      { model: Client, attributes: [...RECIPIENT_CLIENT_ATTRS, 'biz_type', 'biz_item'] },
     ],
   });
   if (!invoice) throw new Error('not_found');
@@ -27,7 +28,11 @@ async function buildInvoicePdf(invoiceId) {
   });
   const { invoicePdfHtml } = require('./pdfTemplates');
   const { renderPdfFromHtml } = require('./pdfService');
-  const html = invoicePdfHtml(invoice.toJSON(), business?.toJSON() || {}, invoice.Client?.toJSON() || {});
+  // 받는 쪽은 상세 화면·발송과 같은 값(services/invoiceRecipient) — 외부 수신이면 청구서에 적힌 상호·번호가 «—» 대신 나온다.
+  const c = invoice.Client?.toJSON() || {};
+  const r = recipientOf(invoice, invoice.Client || null);
+  const recipient = { ...c, biz_name: r.name, biz_tax_id: r.tax_id, biz_ceo: r.ceo, biz_address: r.address };
+  const html = invoicePdfHtml(invoice.toJSON(), business?.toJSON() || {}, recipient);
   return { pdf: await renderPdfFromHtml(html), invoice };
 }
 

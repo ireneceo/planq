@@ -162,9 +162,16 @@ export default function InvoiceDetailDrawer({ invoice: initialInvoice, onClose, 
         .then((fresh) => setInvoice((prev) => (prev && prev.id === fresh.id ? { ...prev, ...fresh } : prev)))
         .catch(() => { /* 보던 내용 유지 */ });
     });
-    return off;
-    // invoice.id 만 의존한다 — invoice 전체를 넣으면 setInvoice 마다 구독이 재생성된다
-  }, [invoice?.id]);
+    // 이 청구서 고객을 Q sale·고객 상세에서 고치면 받는 쪽 칸(상호·번호·대표·주소·발송 메일)을 다시 읽는다
+    const offClient = onSocket<{ id?: number }>('client:updated', (data) => {
+      if (!data || !invoice || !invoice.client_id || Number(data.id) !== Number(invoice.client_id)) return;
+      getInvoice(invoice.business_id, invoice.id)
+        .then((fresh) => setInvoice((prev) => (prev && prev.id === fresh.id ? { ...prev, ...fresh } : prev)))
+        .catch(() => { /* 보던 내용 유지 */ });
+    });
+    return () => { off(); offClient(); };
+    // invoice.id·client_id 만 의존한다 — invoice 전체를 넣으면 setInvoice 마다 구독이 재생성된다
+  }, [invoice?.id, invoice?.client_id]);
 
   // 발송(draft → sent) 중복 제출 가드. ★ 훅은 반드시 early return(`if (!invoice) return null`) **위**에
   //   선언한다 — 이 드로어는 InvoicesTab 에서 invoice={selected|null} 로 **항상 mount** 되므로,
@@ -225,13 +232,20 @@ export default function InvoiceDetailDrawer({ invoice: initialInvoice, onClose, 
 
   if (!invoice) return null;
   const client = invoice.Client || invoice.client;
-  // 실제 발송 대상 이메일 — 백엔드 발송 우선순위와 동일
-  // (invoice.recipient_email → client.tax_invoice_email → billing_contact_email → invite_email)
-  const sendEmail = invoice.recipient_email
-    || client?.tax_invoice_email
-    || client?.billing_contact_email
-    || (client as { invite_email?: string } | null)?.invite_email
-    || null;
+  // 받는 쪽 — 서버 services/invoiceRecipient 가 계산한 값(발송·PDF 와 같은 함수)을 그대로 그린다.
+  //   목록 행으로 먼저 그릴 때(상세 응답 전)는 같은 순서로 임시 계산 — 등록 고객이면 지금 고객 값이 먼저,
+  //   청구서에 적힌 값은 빈자리만. 옛 화면은 청구서 값을 먼저 읽어 Q sale 에서 고친 상호가 여기만 옛 값이었다.
+  const rcp = invoice.recipient || (client ? {
+    name: client.biz_name || invoice.recipient_business_name || client.company_name || client.display_name || null,
+    tax_id: client.biz_tax_id || invoice.recipient_business_number || null,
+    ceo: client.biz_ceo || null,
+    address: client.biz_address || client.biz_address_en || null,
+    email: client.tax_invoice_email || client.billing_contact_email || (client as { invite_email?: string }).invite_email || invoice.recipient_email || null,
+  } : {
+    name: invoice.recipient_business_name || null, tax_id: invoice.recipient_business_number || null,
+    ceo: null, address: null, email: invoice.recipient_email || null,
+  });
+  const sendEmail = rcp.email;
   const sc = invoiceStatusColor(invoice.status);
   const grandTotal = Number(invoice.grand_total || 0);
   const paidAmount = Number(invoice.paid_amount || 0);
@@ -747,13 +761,12 @@ export default function InvoiceDetailDrawer({ invoice: initialInvoice, onClose, 
               <MetaRow><MetaKey>{t('detail.parties.bank', { defaultValue: '은행' })}</MetaKey><MetaVal>{bank.bank_name || '—'}</MetaVal></MetaRow>
             </PartyMeta>
           </PartyCard>
-          <PartyArrow>→</PartyArrow>
           <PartyCard>
             <PartyLabel>
               {t('detail.parties.to')}
               {!client && <ExtBadge title={t('detail.parties.externalHint', { defaultValue: '내부 고객과 연동되지 않은 외부 청구' }) as string}>{t('detail.parties.external', { defaultValue: '외부' }) as string}</ExtBadge>}
             </PartyLabel>
-            <PartyName>{invoice.recipient_business_name || client?.biz_name || client?.display_name || client?.company_name || '—'}</PartyName>
+            <PartyName>{rcp.name || '—'}</PartyName>
             <PartyMeta>
               <MetaRow>
                 <MetaKey>{t('detail.parties.sendEmail', { defaultValue: '발송 이메일' }) as string}</MetaKey>
@@ -763,15 +776,15 @@ export default function InvoiceDetailDrawer({ invoice: initialInvoice, onClose, 
                 <>
                   <MetaRow>
                     <MetaKey>{t('detail.parties.taxId')}</MetaKey>
-                    <MetaVal>{invoice.recipient_business_number || client?.biz_tax_id || <Missing>{t('detail.parties.missingInfo')}</Missing>}</MetaVal>
+                    <MetaVal>{rcp.tax_id || <Missing>{t('detail.parties.missingInfo')}</Missing>}</MetaVal>
                   </MetaRow>
                   <MetaRow>
                     <MetaKey>{t('detail.parties.rep')}</MetaKey>
-                    <MetaVal>{client?.biz_ceo || '—'}</MetaVal>
+                    <MetaVal>{rcp.ceo || '—'}</MetaVal>
                   </MetaRow>
                   <MetaRow>
                     <MetaKey>{t('detail.parties.address')}</MetaKey>
-                    <MetaVal>{client?.biz_address || client?.biz_address_en || '—'}</MetaVal>
+                    <MetaVal>{rcp.address || '—'}</MetaVal>
                   </MetaRow>
                 </>
               ) : (
@@ -786,22 +799,24 @@ export default function InvoiceDetailDrawer({ invoice: initialInvoice, onClose, 
           <SectionTitle>{t('detail.items.title')}</SectionTitle>
           <ItemTable>
             <ItemHead>
-              <ItemHeadCell style={{ width: 28 }}>#</ItemHeadCell>
-              <ItemHeadCell>{t('detail.items.description')}</ItemHeadCell>
-              <ItemHeadCell style={{ width: 50, textAlign: 'right' }}>{t('detail.items.qty')}</ItemHeadCell>
-              <ItemHeadCell style={{ width: 100, textAlign: 'right' }}>{t('detail.items.unitPrice')}</ItemHeadCell>
-              <ItemHeadCell style={{ width: 110, textAlign: 'right' }}>{t('detail.items.subtotal')}</ItemHeadCell>
+              <ItemHeadCell $col="no">#</ItemHeadCell>
+              <ItemHeadCell $col="desc">{t('detail.items.description')}</ItemHeadCell>
+              <ItemHeadCell $col="qty">{t('detail.items.qty')}</ItemHeadCell>
+              <ItemHeadCell $col="unit">{t('detail.items.unitPrice')}</ItemHeadCell>
+              <ItemHeadCell $col="sub">{t('detail.items.subtotal')}</ItemHeadCell>
             </ItemHead>
             {items.map((it, idx) => (
               <ItemRow key={it.id}>
-                <ItemCell style={{ width: 28, color: '#94A3B8' }}>{idx + 1}</ItemCell>
-                <ItemCell>
+                <ItemCell $col="no">{idx + 1}</ItemCell>
+                <ItemCell $col="desc">
                   {it.description}
                   {it.detail && <ItemDetailText>{it.detail}</ItemDetailText>}
+                  {/* 폰에서는 단가 칸을 접고 여기 한 줄로 — 칸 다섯을 유지하면 금액이 «100,000 / 원» 두 줄로 깨졌다 */}
+                  <ItemUnitLine>{it.quantity} × {formatMoney(it.unit_price, invoice.currency)}</ItemUnitLine>
                 </ItemCell>
-                <ItemCell style={{ width: 50, textAlign: 'right' }}>{it.quantity}</ItemCell>
-                <ItemCell style={{ width: 100, textAlign: 'right' }}>{formatMoney(it.unit_price, invoice.currency)}</ItemCell>
-                <ItemCell style={{ width: 110, textAlign: 'right', fontWeight: 700 }}>{formatMoney(it.amount, invoice.currency)}</ItemCell>
+                <ItemCell $col="qty">{it.quantity}</ItemCell>
+                <ItemCell $col="unit">{formatMoney(it.unit_price, invoice.currency)}</ItemCell>
+                <ItemCell $col="sub">{formatMoney(it.amount, invoice.currency)}</ItemCell>
               </ItemRow>
             ))}
           </ItemTable>
@@ -1241,37 +1256,42 @@ function InstallmentRow({ ins, currency, busy, onMarkPaid, onUnmarkPaid, onMarkT
 // ─── Stepper ───
 function ProgressStepper({ status }: { status: ApiInvoice['status'] }) {
   const { t } = useTranslation('qbill');
+  // 마지막 칸은 일부 결제면 «일부 결제» 로 — 결제 칸이 비어 보이면 받은 돈이 없는 것처럼 읽힌다.
   const steps = [
     { key: 'issued', label: t('detail.progress.issued') },
     { key: 'sent', label: t('detail.progress.sent') },
-    { key: 'paid', label: t('detail.progress.paid') },
+    { key: 'paid', label: status === 'partially_paid' ? t('detail.progress.partiallyPaid') : t('detail.progress.paid') },
   ];
+  // 끝낸 칸 수(체크) · 지금 칸. 작성중(draft)은 아직 발행 전이라 체크 없이 첫 칸만 «지금».
+  const doneCount = status === 'draft' ? 0 :
+    (status === 'sent' || status === 'partially_paid' || status === 'overdue') ? 2 :
+    status === 'paid' ? 3 : 0;
   const currentIdx = status === 'draft' ? 0 :
-    status === 'sent' ? 1 :
-    status === 'partially_paid' ? 1 :
-    status === 'paid' ? 2 :
-    status === 'overdue' ? 1 :
-    -1;
+    (status === 'sent' || status === 'overdue') ? 1 :
+    status === 'partially_paid' ? 2 :
+    status === 'paid' ? 2 : -1;
 
   return (
     <Stepper>
-      {steps.map((s, i) => {
-        const reached = i <= currentIdx;
-        const active = i === currentIdx;
-        return (
-          <StepWrap key={s.key}>
-            <StepNode $active={active} $reached={reached}>
-              {reached ? (
-                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-              ) : (
-                i + 1
-              )}
-            </StepNode>
-            <StepLabel $active={active} $reached={reached}>{s.label}</StepLabel>
-            {i < steps.length - 1 && <StepLine $reached={i < currentIdx} />}
-          </StepWrap>
-        );
-      })}
+      <StepsRow>
+        {steps.map((s, i) => {
+          const reached = i < doneCount;
+          const active = i === currentIdx;
+          return (
+            <StepWrap key={s.key}>
+              <StepNode $active={active} $reached={reached}>
+                {reached ? (
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                ) : (
+                  i + 1
+                )}
+              </StepNode>
+              <StepLabel $active={active} $reached={reached || active} title={s.label}>{s.label}</StepLabel>
+              {i < steps.length - 1 && <StepLine $reached={i + 1 < doneCount} />}
+            </StepWrap>
+          );
+        })}
+      </StepsRow>
       {status === 'overdue' && (
         <OverdueChip>⚠ {t('detail.progress.overdue')}</OverdueChip>
       )}
@@ -1456,45 +1476,50 @@ const Body = styled.div`
   display: flex; flex-direction: column; gap: 22px;
   background: #FAFBFC;
 `;
+// 세 칸이 상자 안에 들어가야 한다 — 옛 마지막 칸 `flex: 0` 이 0px 로 줄어 «결제 완료» 가 상자 밖으로 한 글자씩 넘쳤다(375·820·1440 모두).
 const Stepper = styled.div`
-  display: flex; align-items: center; padding: 14px 18px;
+  display: flex; flex-direction: column; gap: 8px; padding: 14px 18px;
   background: #fff; border: 1px solid #E2E8F0; border-radius: 10px;
-  position: relative;
+  min-width: 0;
+  @media (max-width: 480px) { padding: 12px; }
+`;
+const StepsRow = styled.div`
+  display: flex; align-items: center; min-width: 0;
 `;
 const StepWrap = styled.div`
-  display: flex; align-items: center; flex: 1; min-width: 0; position: relative;
-  &:last-child { flex: 0; }
+  display: flex; align-items: center; flex: 1 1 0; min-width: 0;
+  &:last-child { flex: 0 1 auto; }
 `;
 const StepNode = styled.div<{ $active: boolean; $reached: boolean }>`
   width: 22px; height: 22px; border-radius: 50%; flex-shrink: 0;
   display: inline-flex; align-items: center; justify-content: center;
   background: ${p => p.$reached ? '#14B8A6' : '#fff'};
-  color: ${p => p.$reached ? '#fff' : '#94A3B8'};
-  border: 2px solid ${p => p.$reached ? '#14B8A6' : '#E2E8F0'};
+  color: ${p => p.$reached ? '#fff' : p.$active ? '#0F766E' : '#94A3B8'};
+  border: 2px solid ${p => p.$reached || p.$active ? '#14B8A6' : '#E2E8F0'};
   font-size: 0.6875rem; font-weight: 700;
   ${p => p.$active && `box-shadow: 0 0 0 4px rgba(20, 184, 166, 0.15);`}
 `;
 const StepLabel = styled.span<{ $active: boolean; $reached: boolean }>`
   font-size: 0.75rem; font-weight: ${p => p.$active ? 700 : 500};
   color: ${p => p.$reached ? '#0F766E' : '#94A3B8'};
-  margin-left: 8px;
+  margin-left: 8px; white-space: nowrap; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis;
+  @media (max-width: 480px) { margin-left: 6px; }
 `;
 const StepLine = styled.div<{ $reached: boolean }>`
-  flex: 1; height: 2px; min-width: 24px;
+  flex: 1 1 0; height: 2px; min-width: 12px;
   background: ${p => p.$reached ? '#14B8A6' : '#E2E8F0'}; margin: 0 10px;
+  @media (max-width: 480px) { margin: 0 6px; }
 `;
 const OverdueChip = styled.span`
-  position: absolute; right: 14px; top: 14px;
+  align-self: flex-start;
   font-size: 0.6875rem; font-weight: 700; color: #991B1B; background: #FEE2E2;
   padding: 3px 8px; border-radius: 999px;
 `;
+// 발신·수신은 위아래로 — 이 패널은 어느 폭에서도 480~560px 이라 옆으로 두면 수신 칸이 200px 남짓으로 줄어
+//   상호·메일이 한 글자씩 끊겼다(데스크탑 1440 실측). 옛 기준 «화면 720px 이하» 는 패널 폭이 아니라 화면 폭이었다.
 const Parties = styled.div`
-  display: grid; grid-template-columns: 1fr 24px 1fr; gap: 8px; align-items: center;
-  @media (max-width: 720px) { grid-template-columns: 1fr; gap: 12px; }
-`;
-const PartyArrow = styled.div`
-  text-align: center; color: #CBD5E1; font-size: 1.125rem; font-weight: 300;
-  @media (max-width: 720px) { display: none; }
+  display: grid; grid-template-columns: 1fr; gap: 12px;
 `;
 const PartyCard = styled.div`
   background: #fff; border: 1px solid #E2E8F0; border-radius: 10px; padding: 12px 14px;
@@ -1509,7 +1534,7 @@ const ExtBadge = styled.span`
   background: #FEF3C7; border-radius: 999px; padding: 1px 7px;
 `;
 const PartyName = styled.div`
-  font-size: 0.875rem; font-weight: 700; color: #0F172A; margin-bottom: 8px;
+  font-size: 0.875rem; font-weight: 700; color: #0F172A; margin-bottom: 8px; overflow-wrap: anywhere;
 `;
 const PartyMeta = styled.div`
   display: flex; flex-direction: column; gap: 4px;
@@ -1521,7 +1546,7 @@ const MetaKey = styled.span`
   color: #94A3B8; min-width: 60px; flex-shrink: 0;
 `;
 const MetaVal = styled.span`
-  color: #334155; flex: 1; min-width: 0;
+  color: #334155; flex: 1; min-width: 0; overflow-wrap: anywhere;
 `;
 const Missing = styled.span`
   color: #DC2626; font-weight: 500; font-size: 0.6875rem;
@@ -1548,8 +1573,23 @@ const ItemHead = styled.div`
   border-bottom: 1px solid #F1F5F9;
   font-size: 0.6875rem; font-weight: 600; color: #64748B;
 `;
-const ItemHeadCell = styled.div`
-  flex: 1; min-width: 0;
+// 항목 칸 — 숫자 칸은 글자 폭만큼(줄바꿈 없음), 내역 칸이 남는 폭을 다 쓴다. 폰(≤480)은 # · 단가 칸을 접는다.
+type ItemCol = 'no' | 'desc' | 'qty' | 'unit' | 'sub';
+const itemColCss = (c: ItemCol) => c === 'desc'
+  ? 'flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere;'
+  : `flex: 0 0 auto; white-space: nowrap; text-align: right;
+     min-width: ${c === 'no' ? 20 : c === 'qty' ? 36 : c === 'unit' ? 84 : 92}px;
+     ${c === 'no' ? 'text-align: left; color: #94A3B8;' : ''}
+     ${c === 'sub' ? 'font-weight: 700;' : ''}
+     ${c === 'no' || c === 'unit' ? '@media (max-width: 480px) { display: none; }' : ''}`;
+const ItemHeadCell = styled.div<{ $col: ItemCol }>`
+  ${p => itemColCss(p.$col)}
+  ${p => p.$col === 'sub' ? 'font-weight: 600;' : ''}
+`;
+const ItemUnitLine = styled.div`
+  display: none; margin-top: 2px; font-size: 0.6875rem; color: #94A3B8;
+  font-variant-numeric: tabular-nums;
+  @media (max-width: 480px) { display: block; }
 `;
 const ItemRow = styled.div`
   display: flex; gap: 8px; padding: 10px 12px;
@@ -1557,8 +1597,8 @@ const ItemRow = styled.div`
   font-size: 0.8125rem; color: #0F172A;
   &:last-child { border-bottom: none; }
 `;
-const ItemCell = styled.div`
-  flex: 1; min-width: 0;
+const ItemCell = styled.div<{ $col: ItemCol }>`
+  ${p => itemColCss(p.$col)}
   font-variant-numeric: tabular-nums;
 `;
 // 항목 상세내용 (운영 #2)

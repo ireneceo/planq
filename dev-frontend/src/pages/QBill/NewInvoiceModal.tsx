@@ -24,6 +24,7 @@ import PlanQSelect, { type PlanQSelectOption } from '../../components/Common/Pla
 import { invoiceCapsOf, invoiceViewerOf } from './invoiceCaps';
 import { invoiceErrorText } from './invoiceErrors';
 import { putClientFields } from '../../services/sale';
+import { onSocket } from '../../services/socket';
 import {
   InvoiceItemsTable, InvoiceTotals, InvoiceSplitArea, invoiceTotalsOf, Input, AddRow, type InvoiceLineItem, type InvoiceRound,
   Section, SectionLabel, SectionLabelRow, FieldGrid, Field, FieldLabel, Textarea,
@@ -191,6 +192,20 @@ export default function NewInvoiceModal({ open, onClose, prefillSplit, prefillPo
     if (!sourcePost) return;
     if (sourcePost.title) setTitle(sourcePost.title);
   }, [sourcePost]);
+
+  // 창이 열린 동안 Q sale·고객 상세에서 고객을 고치면 고객 목록(받는 쪽 카드·누락 칸)을 다시 읽는다 — 신호만 오므로 다시 받는다
+  useEffect(() => {
+    if (!open || !businessId) return;
+    let pending: number | null = null;
+    const off = onSocket('client:updated', () => {
+      if (pending) return;
+      pending = window.setTimeout(() => {
+        pending = null;
+        listClientOptionsForInvoice(businessId).then(setClients).catch(() => { /* 보던 목록 유지 */ });
+      }, 250);
+    });
+    return () => { if (pending) window.clearTimeout(pending); off(); };
+  }, [open, businessId]);
 
   // ─── 모달 open 시 발신자/클라이언트 fetch + 워크스페이스 기본값 적용 ───
   useEffect(() => {
@@ -541,15 +556,18 @@ export default function NewInvoiceModal({ open, onClose, prefillSplit, prefillPo
         currency,
         vat_rate: vatRate,
         due_date: dueDate || null,
+        // ★ 등록 고객이면 고객 값을 청구서에 **복사하지 않는다** — 받는 쪽은 서버(services/invoiceRecipient)가 지금 고객 값으로 그린다.
+        //   복사해 두면 Q sale 에서 상호·메일을 고쳐도 청구서 상세·발송이 옛 값을 썼다(2026-10-23 신고).
+        //   남기는 것은 고객에게 **없는 칸**에 넣은 보완 값뿐(고객에 저장을 끈 경우의 이 청구서 몫).
         recipient_email: recipientMode === 'external'
           ? (extEmail.trim() || null)
-          : (client?.tax_invoice_email || client?.billing_contact_email || client?.invite_email || null),
+          : null,
         recipient_business_name: recipientMode === 'external'
           ? (extName.trim() || null)
-          : (overrideBiz.biz_name || client?.biz_name || null),
+          : (client?.biz_name ? null : (overrideBiz.biz_name?.trim() || null)),
         recipient_business_number: recipientMode === 'external'
           ? (extBizNumber.trim() || null)
-          : (overrideBiz.biz_tax_id || client?.biz_tax_id || null),
+          : (client?.biz_tax_id ? null : (overrideBiz.biz_tax_id?.trim() || null)),
         // 세금계산서 발행 의향 — 토글 ON + 발행 가능(canTax) 일 때만 'tax_invoice'.
         // 결제 완료 후 증빙 발행 큐(receiptsDue)에 자동 편입. 고객이 공개 페이지에서 증빙정보 제출/변경 가능.
         receipt_type: ((taxOn && canTax) ? 'tax_invoice' : 'none') as 'tax_invoice' | 'none',
@@ -739,7 +757,7 @@ export default function NewInvoiceModal({ open, onClose, prefillSplit, prefillPo
                 <ToCard>
                   {client.is_business ? (
                     <>
-                      <ToName>{(overrideBiz.biz_name || client.biz_name) || '—'}</ToName>
+                      <ToName>{(client.biz_name || overrideBiz.biz_name) || '—'}</ToName>
                       <FromMeta>
                         <FromMetaRow>
                           <FromKey>{t('newInvoice.to.fields.biz_tax_id')}</FromKey>

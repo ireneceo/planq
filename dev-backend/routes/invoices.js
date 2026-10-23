@@ -1211,6 +1211,8 @@ router.get('/:businessId/:id', authenticateToken, attachWorkspaceScope(), requir
     const rpDetail = resolveReceiptProfile(invoice, invoice.Client || null, priorDetail(invoice));
     payload.receipt_profile_effective = rpDetail.profile;
     payload.receipt_profile_source = rpDetail.source;
+    // 받는 쪽 표시값 — 발송·PDF 와 같은 함수(등록 고객이면 지금 고객 값이 먼저). 화면은 이것을 그대로 그린다.
+    payload.recipient = require('../services/invoiceRecipient').recipientOf(invoice, invoice.Client || null);
     // 출처 문서 — 보여줄 때 보는 사람 기준(공유 규칙 5): 못 읽는 문서는 카드째 뺀다. 서명 상태는 문서 목록과 같은 함수.
     if (payload.sourcePost && invoice.sourcePost) {
       const readable = await require('../services/postAccess').canReadPost(req.user, { ...invoice.sourcePost.toJSON(), business_id: invoice.business_id });
@@ -1529,8 +1531,8 @@ router.post('/:businessId/:id/send-reminder', authenticateToken, reminderLimiter
       return errorResponse(res, 'not_remindable', 400);
     }
     if (!invoice.client_id) return errorResponse(res, 'no_client', 400);
-    const client = await Client.findByPk(invoice.client_id);
-    const recipient = client && (client.tax_invoice_email || client.billing_contact_email || client.invite_email);
+    // 받는 주소 — 발송·재발송과 같은 함수(services/invoiceRecipient)
+    const recipient = await require('../services/invoiceRecipient').recipientEmailOf(invoice);
     if (!recipient) return errorResponse(res, 'no_recipient', 400);
 
     // 같은 청구서 도배 방지 — 6시간 쿨다운
@@ -1635,12 +1637,8 @@ router.post('/:businessId/:id/resend', authenticateToken, reminderLimiter, check
     const invoice = await Invoice.findOne({ where: { id: req.params.id, business_id: businessId } });
     if (!invoice) return errorResponse(res, 'Invoice not found', 404);
     if (invoice.status === 'draft' || invoice.status === 'canceled') return errorResponse(res, 'not_resendable', 400);
-    // 수신자: recipient_email → client tax/billing/invite (발송 라우트와 동일 우선순위)
-    let recipient = invoice.recipient_email;
-    if (!recipient && invoice.client_id) {
-      const cl = await Client.findByPk(invoice.client_id, { attributes: ['tax_invoice_email', 'billing_contact_email', 'invite_email'] });
-      recipient = cl?.tax_invoice_email || cl?.billing_contact_email || cl?.invite_email || null;
-    }
+    // 수신자 — 발송 라우트와 같은 함수(services/invoiceRecipient: 등록 고객이면 지금 고객 주소가 먼저)
+    const recipient = await require('../services/invoiceRecipient').recipientEmailOf(invoice);
     if (!recipient) return errorResponse(res, 'no_recipient', 400);
     // share_token 보장
     let shareToken = invoice.share_token;

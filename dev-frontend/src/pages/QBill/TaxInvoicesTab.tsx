@@ -59,11 +59,13 @@ export default function TaxInvoicesTab() {
     };
     joinRoom(`business:${businessId}`);
     const offUpdated = onSocket('invoice:updated', debouncedReload);
+    // 고객 정보(상호·메일)는 청구서가 지금 고객 값으로 그린다 — Q sale·고객 상세에서 고치면 여기도 다시 읽는다
+    const offClient = onSocket('client:updated', debouncedReload);
     const offInbox = onSocket('inbox:refresh', debouncedReload);
     return () => {
       if (pending) window.clearTimeout(pending);
       leaveRoom(`business:${businessId}`);
-      offUpdated(); offInbox();
+      offUpdated(); offInbox(); offClient();
     };
   }, [businessId, reload]);
 

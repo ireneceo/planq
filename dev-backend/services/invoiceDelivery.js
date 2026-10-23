@@ -42,14 +42,10 @@ async function broadcast(io, invoiceId) {
   } catch (e) { console.warn('[invoiceDelivery broadcast]', e.message); }
 }
 
-// 받는 사람 결정 — 청구서에 적힌 주소가 먼저, 없으면 고객의 세금계산서 > 청구 담당 > 초대 주소
+// 받는 사람 결정 — services/invoiceRecipient 한 벌(등록 고객이면 지금 고객 주소가 먼저, 청구서에 적힌 주소는 빈자리만).
+//   옛 순서(청구서 주소 먼저)는 발행 창이 고객 주소를 복사해 둔 탓에, Q sale 에서 메일을 고쳐도 옛 주소로 갔다.
 async function resolveRecipient(invoice) {
-  if (invoice.recipient_email) return invoice.recipient_email;
-  if (!invoice.client_id) return null;
-  const cl = await Client.findByPk(invoice.client_id, {
-    attributes: ['tax_invoice_email', 'billing_contact_email', 'invite_email'],
-  });
-  return cl?.tax_invoice_email || cl?.billing_contact_email || cl?.invite_email || null;
+  return require('./invoiceRecipient').recipientEmailOf(invoice);
 }
 
 // ── 채팅 카드 ────────────────────────────────────────────────────────

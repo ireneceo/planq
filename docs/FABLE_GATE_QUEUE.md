@@ -2,6 +2,11 @@
 
 
 
+### 2026-10-23 방 a8e14252 — 청구서 받는 쪽 단일 정본(services/invoiceRecipient · 발송 주소 «고객 주소 먼저») + 우측 패널 단계 표시 — 완료 **VERDICT: PASS** (차단 0)
+- 실HTTP 18/19(1건은 검증관 대조군 가정 오류 — 8697 recipient_email 은 원래 null) · 타 테넌트 고객 안 읽음 · 고객 메일 전부 비면 청구서 주소 · 외부 수신 그대로 · PDF 200 · 고객 계정 403 · 화면 18/18 · 실시간 104ms · guard 80/81 · health 96/96 · e2e salelayout·tenant 0.
+- 판정: 발행 시점 고정은 지금 불필요(공개 페이지·증빙이 이미 지금 고객 값, 세금계산서는 receipt_profile 별도 원천) · «고객 주소 먼저» 안전(등록 고객에 다른 주소 칸 없었음 · dev 에 의도적으로 다른 주소 0건).
+- 비차단: ① recipientEmailOf 가 business_id 없는 부분 행에 throw — 방어 권고 ② 상세 첫 그림용 우선순위 사본(FE) ③ 새 건 recipient_business_name null → 고객 인박스 subject·CSV 칸 빔 ④ 보고 대조군 문구(옛 주소 남음)는 8697 에선 재현 안 됨.
+
 ### 2026-10-23 방 0ab5745a — 알림 메뉴 거름(services/notifyMenuGate · notify() 1줄) — 완료 **VERDICT: PASS** (차단 0)
 - 실HTTP: member2 qtask none → 업무 배정 알림 0·푸시 0 / read → 1 / 워크스페이스 기본값 none → 0 / 복구 → 1 · notify 직접: qmail none skipped · owner·member1·고객·메뉴 밖(/projects·/sign)·businessId 없음 통과 · 가드 전체 ✓ · health EXIT 0.
 - 설계 판정: 링크가 여는 화면 기준 맞다(화면 menuHidden 과 같은 축). 권고 반영: 판정 실패 = 막음(fail-closed).

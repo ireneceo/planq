@@ -147,6 +147,8 @@ export interface ApiInvoice {
   //   화면은 이것을 쓴다. receipt_profile 만 보면 계좌이체 정기 구독 고객은 영영 빈칸이다 (2026-09-01).
   receipt_profile_effective?: ApiInvoice['receipt_profile'];
   receipt_profile_source?: 'customer' | 'history' | 'client' | 'recipient' | null;
+  /** 받는 쪽 표시값 — 서버 services/invoiceRecipient 한 벌(상세 GET 만). 등록 고객이면 지금 고객 값이 먼저. 발송·PDF 와 같은 값 */
+  recipient?: { name: string | null; tax_id: string | null; ceo: string | null; address: string | null; email: string | null };
   receipt_requested_at?: string | null;
   cash_receipt_status?: 'none' | 'pending' | 'issued' | 'failed' | 'canceled';
   cash_receipt_no?: string | null;
