@@ -2,6 +2,12 @@
 
 
 
+### 2026-10-23 방 0ab5745a — 알림 메뉴 거름(services/notifyMenuGate · notify() 1줄) — 완료 **VERDICT: PASS** (차단 0)
+- 실HTTP: member2 qtask none → 업무 배정 알림 0·푸시 0 / read → 1 / 워크스페이스 기본값 none → 0 / 복구 → 1 · notify 직접: qmail none skipped · owner·member1·고객·메뉴 밖(/projects·/sign)·businessId 없음 통과 · 가드 전체 ✓ · health EXIT 0.
+- 설계 판정: 링크가 여는 화면 기준 맞다(화면 menuHidden 과 같은 축). 권고 반영: 판정 실패 = 막음(fail-closed).
+- 남은 비차단: notifyMany 기본값 한 번 구하기 · PATH_MENUS ⊂ navMenus 가드 · notifications.js 정확히 500줄(다음 추가 전 notify 분리) · qtalk·qnote·qdocs·qinfo·qfile 서버 requireMenu 0(별건).
+
+
 ### 2026-10-23 방 4534d85e — 서명 완료 계약서 → 청구서 초안 자동 생성(문서 «청구 조건» post_billing_terms) — 설계 **A+D**(Irene «권고대로») · 완료 1차 **FAIL** → 고침 → 2차 **VERDICT: PASS** (차단 0)
 - 설계와 다르게 한 3가지 Fable 판정 «맞다»: ① 잠금 칸 대신 isPostSignatureLocked 재사용(보낸 직후·서명 완료·회차 닫기·거절·만료 실측 일치) ② 고객 저장 때 필수 ③ 회차 기준 전부 signed(거절·만료 행이 생성을 막음 — 설계 (b) 문자 그대로보다 안전).
 - Fable 직접 실행: 실HTTP 66검사(수동 POST 동작 불변·400 문구 그대로 · 공개 서명 응답 키 8개만·메모/고객 없음 · 멱등 HTTP 동시 5·서비스 동시 6 → 1건 · no_client 경로 · 급여 제외) · money 10/10 · secrets 17/17 · signauth 2/2.

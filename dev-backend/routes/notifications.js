@@ -218,7 +218,7 @@ async function notify({ userId, businessId, eventKind, title, titleSpec, body, l
   const { buildLink, normalizeLink, withWorkspace } = require('../services/notification_link');
   const normalizedFromCaller = normalizeLink(link);
   const resolvedLink = normalizedFromCaller || buildLink({ entity_type: entityType, entity_id: entityId, event_kind: eventKind });
-
+  if (businessId) { const hid = await require('../services/notifyMenuGate').menuSkip(userId, businessId, resolvedLink); if (hid) return hid; }   // ★ 그 화면 메뉴가 숨김인 멤버에겐 안 보냄(2026-10-23)
   // 앱 안 알림 행 번호 — 푸시에도 싣는다. 데스크탑에서 PlanQ 창을 보고 있으면 앱 안 카드가 이미 같은 알림을
   //   띄웠으므로 sw.js 가 이 번호로 창에 물어 OS 알림을 한 번 더 띄우지 않는다(2026-10-21 «긴급 알림이 두 번»).
   let inboxRowId = null;

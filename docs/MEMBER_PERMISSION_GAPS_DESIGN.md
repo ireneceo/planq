@@ -70,6 +70,14 @@
 - D3: 상세의 소유자 임명 방향은 없애고, 오너가 공동 오너를 «멤버로» 내리는 길은 남김(PATCH 그대로). 역할 글자 오너/관리자/멤버 통일
   (`members.roleOwner` 신설, admin 배지 색 추가, 프런트 타입에 admin 추가).
 
+## 1-G. 후속 (2026-10-23) — 알림 전반으로 넓힘
+- Irene: *"멤버 기본 권한이 없는 곳들의 워크스페이스 알림은 각 권한에 맞게 제한해야 해. 되고 있어?"* → 서명·청구 말고는 안 되고 있었다
+  (회사 메일함 알림 = 멤버 전원, 업무·일정·채팅·문서 댓글·설문·Q sale 담당도 메뉴 무시).
+- `services/notifyMenuGate` — `notify()` 한 곳에서 **알림 링크가 여는 화면의 메뉴**(navMenus permKeyForPath 와 같은 표)가 그 사람에게 `none` 이면
+  모든 채널 생략(`skipped menu_none:<menu>`). 개인 칸·워크스페이스 기본값 둘 다(같은 getMemberMenuLevels). owner/admin·고객·메뉴 밖 화면(프로젝트·서명 링크·근태·급여)은 그대로. 판정 실패 = 막음.
+- Fable 완료 PASS. 남김(비차단): notifyMany 에서 기본값 한 번 구해 넘기기 · PATH_MENUS ⊂ navMenus 가드 · notifications.js 정확히 500줄(다음 추가 전 notify 분리) ·
+  qtalk·qnote·qdocs·qinfo·qfile 은 서버 requireMenu 0 — 숨김이 화면에서만 막힌다(별건).
+
 ## 2. 하지 않는 것
 - 알림 개인 설정 화면의 기본 ON/OFF 를 역할별로 갈라 놓기(D1 로 받는 사람이 좁아지면 필요 없다).
 - 운영 데이터 백필 — 새 컬럼·행 없음. 기본값 없음 = 지금 동작.
