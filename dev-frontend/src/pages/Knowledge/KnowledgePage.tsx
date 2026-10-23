@@ -1449,6 +1449,7 @@ const KnowledgePage: React.FC<KnowledgePageProps> = ({ embedded = false, mode = 
                   <MetaLabel>{t('drawer.visibility', { defaultValue: '공개' }) as string}</MetaLabel>
                   <MetaEditWrap style={{ gridColumn: '1 / -1' }}>
                     <VisibilityField
+                      labels={{ L4: { hint: t('modal.vClientHint') as string } }}  /* Q info 고객 범위 = 고객 홈 › 자료에서 읽기 전용(CLIENT_QINFO_VIEW) */
                       value={parseVisibility({
                         vlevel: detail.vlevel ?? null,
                         scope: detail.scope ?? null,
@@ -1803,6 +1804,7 @@ const KnowledgePage: React.FC<KnowledgePageProps> = ({ embedded = false, mode = 
               <Field>
                 <Label>{t('modal.readPolicy', { defaultValue: '공개' }) as string}</Label>
                 <VisibilityField
+                  labels={{ L4: { hint: t('modal.vClientHint') as string } }}
                   value={{
                     vlevel: draft.vlevel,
                     variant: draft.vlevel === 'L2'

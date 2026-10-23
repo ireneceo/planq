@@ -8,6 +8,7 @@
 // ★ 멤버·오너는 여기로 오지 않는다 — 고객 행이 없으면 403(accountActor). 팀은 팀 문을 쓴다.
 // ★ «내 문의» 의 축은 client_id 다 — 게스트로 신청한 건도 같은 고객이면 여기서 보인다(§4.4).
 const express = require('express');
+const { Op } = require('sequelize');
 const router = express.Router();
 const { sequelize } = require('../config/database');
 const { Conversation, KbDocument } = require('../models');
@@ -84,7 +85,10 @@ router.get('/:businessId/info/:id', authenticateToken, async (req, res, next) =>
     const id = Number(req.params.id);
     if (!Number.isInteger(id) || id <= 0) return errorResponse(res, 'not_found', 404);
     const scope = await getUserScope(req.user.id, actor.businessId, req.user.platform_role);
-    const doc = await KbDocument.findOne({ where: { ...kbClientReadableWhere(actor.businessId, scope.clientIds), id } });
+    // ★ 연결 고객이 0명이면 kbClientReadableWhere 가 id:-1(0건) 을 돌려준다 — 그 위에 id 를 덮으면 0건 보장이 풀리므로
+    //   여기서 먼저 끊는다(아래 canClientReadKb 재확인과 이중으로).
+    if (!(scope.clientIds || []).length) return errorResponse(res, 'not_found', 404);
+    const doc = await KbDocument.findOne({ where: { [Op.and]: [kbClientReadableWhere(actor.businessId, scope.clientIds), { id }] } });
     // 없으면 404(403 아님 — 있는지조차 알리지 않는다). 목록 where 와 함수 판정이 같은지 한 번 더 본다.
     if (!doc || !canClientReadKb(doc, scope.clientIds)) return errorResponse(res, 'not_found', 404);
     return successResponse(res, kbClientDetail(doc.get({ plain: true })));
