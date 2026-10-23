@@ -171,4 +171,14 @@ async function resizedBuffer(absPath, mimeType, width) {
   }
 }
 
-module.exports = { maybeServeResized, serveCachedIfPresent, resizeStreamAndServe, resizedBuffer, ALLOWED_WIDTHS, CACHE_ROOT };
+/**
+ * 미리보기 폭 — 요청 값을 허용 폭(ALLOWED_WIDTHS) 중 가장 가까운 것으로. 없거나 틀리면 400.
+ * 고객 링크 미리보기(guest_project)와 멤버 PDF 첫 쪽(files pdf-page)이 같이 쓴다 — 복사하면 허용 폭이 바뀔 때 한쪽만 바뀐다.
+ */
+function snapPreviewWidth(raw) {
+  const n = parseInt(raw, 10);
+  if (!n || n <= 0) return 400;
+  return ALLOWED_WIDTHS.reduce((best, a) => (Math.abs(a - n) < Math.abs(best - n) ? a : best), ALLOWED_WIDTHS[0]);
+}
+
+module.exports = { snapPreviewWidth, maybeServeResized, serveCachedIfPresent, resizeStreamAndServe, resizedBuffer, ALLOWED_WIDTHS, CACHE_ROOT };

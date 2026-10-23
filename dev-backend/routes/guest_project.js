@@ -313,12 +313,7 @@ router.get('/:token/files/:fileId/open',
 //     PDF 는 한 쪽을 png 로 그린 것. 리사이즈가 실패하면 원본으로 떨어지지 않고 404 다.
 //   ★ 판정이 캐시보다 **먼저** 선다 — 캐시본이 있어도 링크·파일 판정을 통과해야 내보낸다.
 const PREVIEW_CACHE_OPTS = { cacheControl: 'private, max-age=3600', disposition: 'inline; filename="preview"' };
-function snapPreviewWidth(raw) {
-  const { ALLOWED_WIDTHS } = require('../services/imageResize');
-  const n = parseInt(raw, 10);
-  if (!n || n <= 0) return 400;
-  return ALLOWED_WIDTHS.reduce((best, a) => (Math.abs(a - n) < Math.abs(best - n) ? a : best), ALLOWED_WIDTHS[0]);
-}
+const { snapPreviewWidth } = require('../services/imageResize');
 router.get('/:token/files/:fileId/preview',
   // 카드 수십 장이 한 번에 뜬다 — 30 이면 그리드가 깨진다(Fable §I-3).
   guestLimiter('guest-file-preview', { windowMs: 60 * 1000, max: 120 }), attachGuest, async (req, res, next) => {

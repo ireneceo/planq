@@ -1700,6 +1700,43 @@ router.get('/:businessId/:id/download', authenticateToken, attachWorkspaceScope(
   }
 });
 
+// ─── 큰 PDF 미리보기 — 첫 쪽 그림 (2026-10-23, Fable 설계 판정 DESIGN-CHANGE) ───
+// GET /api/files/:businessId/:id/pdf-page?w=  →  image/png (1쪽만)
+// Irene: «용량 큰 파일이 있어도 미리보기나 클릭해서 볼 때 굳이 늦게 뜰 이유가 없지 않아?»
+//   멤버 미리보기가 50MB PDF 를 통째로 받은 뒤 그렸다. 큰 PDF 는 이 그림을 먼저 보이고, 넘기기·크게 보기 때만 원본(download).
+// ★ 권한은 download 와 **같은 미들웨어·같은 조회·같은 술어**(canDownloadFile). 캐시는 renderPdfPage 안에서만 읽는다 —
+//   이 라우트에 사전 캐시 조회를 두지 않는다(판정 앞에 캐시가 서면 회수된 사람에게 나간다).
+// ★ page 를 받지 않는다 — 넘기기는 원본 iframe 이다. 쪽마다 그리는 표면을 열어 두면 렌더 슬롯(동시 2)만 먹힌다.
+//   쪽수 헤더도 없다 — renderPdfPage 의 pages 는 상한(20) 적용값이라 35쪽짜리에 «20쪽» 이 된다.
+// ★ 실패(PDF 아님·도구 없음·50MB 초과·암호화·S3)는 전부 404 → 화면이 원본 받기로 떨어진다.
+router.get('/:businessId/:id/pdf-page', authenticateToken, attachWorkspaceScope(), async (req, res, next) => {
+  try {
+    const file = await File.findOne({
+      where: { id: req.params.id, business_id: req.params.businessId, deleted_at: null }
+    });
+    if (!file) return errorResponse(res, 'File not found', 404);
+    if (!(await canDownloadFile(req.scope, req.user.id, file))) return errorResponse(res, 'forbidden', 403);
+    const { effectiveMimeType } = require('../services/filePreview');
+    if (String(effectiveMimeType(file.mime_type, file.file_name) || '').toLowerCase() !== 'application/pdf') {
+      return errorResponse(res, 'not_found', 404);
+    }
+    const { snapPreviewWidth } = require('../services/imageResize');
+    const out = await require('../services/pdfPagePreview').renderPdfPage(file, 1, snapPreviewWidth(req.query.w));
+    if (!out.ok) return errorResponse(res, 'not_found', 404);
+    // download 와 같은 손질 — security.js 가 /api/* 에 박은 no-store·Pragma·Expires 를 걷어 304 가 되게.
+    //   max-age 는 주지 않는다(회수 즉시 403).
+    res.setHeader('Cache-Control', 'private, no-cache');
+    res.removeHeader('Pragma');
+    res.removeHeader('Expires');
+    res.setHeader('Content-Type', 'image/png');
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Content-Disposition', 'inline; filename="preview"');
+    return res.sendFile(out.path, { dotfiles: 'allow' });
+  } catch (error) {
+    next(error);
+  }
+});
+
 // ─── #228 드래그 아웃 서명 URL 발급 ───
 // POST /api/files/:businessId/:id/drag-url  →  { url, expires_at }
 // 인증 필수. 다운로드와 **같은 권한 술어**(canDownloadFile)를 통과해야만 발급한다.

@@ -2,6 +2,12 @@
 
 
 
+### 2026-10-23 방 ba27eb61 — 큰 PDF 첫 쪽 미리보기(인증 라우트 `GET /api/files/:biz/:id/pdf-page` + PreviewArea) — 설계 **DESIGN-CHANGE** · 완료 1차 **FAIL** → 고침 → 2차 **VERDICT: PASS** (차단 0)
+- 설계 지시 ①~⑤(1쪽 고정 · 쪽수 헤더 없음 · effectiveMimeType · download 와 같은 캐시 헤더 · snapPreviewWidth 공용) + 안 B(≤3MB 바로 원본) · 안 C(빠른 보기 = 그림 먼저 + 원본 받아 교체) · AbortController 금지.
+- 1차 FAIL: DocsTab 상세 칸이 PreviewArea 를 key 없이 재사용 → 큰 PDF A 돋보기 뒤 B 전환 시 B 원본을 바로 받음. 고침: PDF 상태를 파일 키에 묶음(양성 대조군 6/12 실패로 뒤집힘 확인).
+- 2차: Fable 독립 하니스 3폭 14/14(전 시나리오 요청 5건·중복 0) · 권한 4역할 + 플랫폼 관리자 download 와 판정 일치 · e2e filepreview·guestproject·chatpreview 0 실패 · health 96/96.
+- 비차단: ① B 돋보기 뒤 A 복귀 시 A 는 첫 쪽 그림(origWantedFor 가 파일 하나만 기억, 네트워크 낭비 없음) ② 멤버 pdf-page 라우트별 한도 없음 ③ `uploads/.cache/pdf` 청소 없음 ④ god-file 래칫 빨강은 다른 방 파일 ⑤ 50MB·Drive 첫 열람·동시 4개 미측정.
+
 ### 2026-10-23 방 bc7fd063 — 서명 문서 공개 범위 바닥(«나만 보기» 금지 · 보낼 때 L2 · 좁히기 409 · 문서 L2 특정 멤버 입력) — 설계 **DESIGN-CHANGE** · 완료 **VERDICT: PASS** (차단 0)
 - Fable 직접 실행: sigfloor 29/29 · coeditors 0 실패 · 가장자리 26/26(명단: 없는 id·AI·내보낸·다른 ws·고객·음수 400 / 옛 L2 명단 없음은 안 좁힘 / L2 명단에 서명자 합침·목록에도 보임 / platform_admin L1 409 / signed 만 남아도 409 · 전부 canceled 면 200 / draft → published+L2) · i18n·parity · 마이그레이션 멱등 0건.
 - 비차단: ① 프로젝트 L2 문서의 프로젝트 밖 우리 쪽 서명자는 받은 서명함에서도 문서를 못 연다(변경 전보다 좁아지진 않음) → 다음 설계 ② 프로젝트 문서에서 «특정 멤버» 를 보내면 서버가 project_id 우선·명단 무시(기존) ③ 명단만 합친 보내기는 감사·visibility_raised 없음 — 화면 명단은 다음 GET 까지 옛 값 ④ 게이트 지문에 다른 방 커밋 5건(1ee8be57·c44ac650·ff3fe3e4·26a16170·ee1f47c4)이 같이 들어간다 — **이 PASS 는 그 5건을 검증한 것이 아니다** ⑤ dev-backend/test-*.js 4개 남음(다른 방 것).

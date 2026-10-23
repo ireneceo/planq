@@ -5,7 +5,8 @@ import styled from 'styled-components';
 import { postContentTableCss } from '../../../styles/postContentView';
 import { useTranslation } from 'react-i18next';
 import { useImageLightbox } from '../../../components/Common/ImageLightbox';
-import { extOf, isImage, isVideo, isAudio, requestMediaUrl, isGoogleShortcut, type ProjectFile } from '../../../services/files';
+import { extOf, isImage, isVideo, isAudio, requestMediaUrl, isGoogleShortcut, formatBytes, type ProjectFile } from '../../../services/files';
+import ActionButton from '../../../components/Common/ActionButton';
 import { loadFileBlob, loadFileObjectUrl, isCachedObjectUrl } from '../../../utils/fileBlobCache';
 import { marked } from 'marked';
 import { listZip, type ZipEntry } from '../../../utils/zipList';
@@ -74,22 +75,57 @@ export const PreviewArea: React.FC<{
     })();
     return () => { alive = false; };
   }, [isZip, file.download_url, file.file_size]);
-  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
-  const [pdfFailed, setPdfFailed] = useState(false);
+  // ★ PDF 상태는 «어느 파일 것인지» 를 같이 든다(Fable 2026-10-23 완료 검증 FAIL) — 상세 칸(DocsTab)은 이 컴포넌트를
+  //   key 없이 다음 파일에 재사용한다. 값만 들고 있으면 파일을 바꾼 첫 렌더가 앞 파일의 값(원본을 원했다·받은 원본·실패)을
+  //   보고 새 큰 PDF 의 원본을 묻지 않고 받았다. 초기화 이펙트는 같은 커밋의 다른 이펙트보다 늦게 반영돼 막지 못한다.
+  const pdfKey = file.download_url || '';
+  const [pdfLoaded, setPdfLoaded] = useState<{ for: string; url: string } | null>(null);
+  const pdfUrl = pdfLoaded && pdfLoaded.for === pdfKey ? pdfLoaded.url : null;
+  const [pdfFailedFor, setPdfFailedFor] = useState<string | null>(null);
+  const pdfFailed = pdfFailedFor === pdfKey;
+  // ── 큰 PDF 는 첫 쪽 그림 먼저 (2026-10-23 · Fable 설계 판정 DESIGN-CHANGE)
+  //   Irene: «용량 큰 파일이 있어도 미리보기나 클릭해서 볼 때 굳이 늦게 뜰 이유가 없지 않아?»
+  //   50MB PDF 를 통째로 받은 뒤에야 그렸다. 서버가 그린 1쪽 그림(`/pdf-page`)을 먼저 보이고,
+  //   원본은 «PDF 전체 보기»·돋보기·빠른 보기(=크게 보기) 때만 받는다. 넘기기는 원본 iframe 이다.
+  //   작은 PDF(≤ PDF_DIRECT_MAX)·크기 모름·업무/채팅 첨부 주소는 지금처럼 바로 원본 — 스크롤·글자 선택을 뺏지 않는다.
+  //   그림이 실패(PDF 도구 없음·암호화·50MB 초과 등 서버 404)하면 원본 받기로 떨어진다.
+  const pdfPageUrl = isPdf && (file.file_size || 0) > PDF_DIRECT_MAX ? pdfPageUrlOf(file.download_url) : null;
+  const [pageImgState, setPageImgState] = useState<{ for: string; url: string | null; failed: boolean } | null>(null);
+  const pageImg = pageImgState && pageImgState.for === pdfPageUrl ? pageImgState.url : null;
+  const pageImgFailed = !!pageImgState && pageImgState.for === pdfPageUrl && pageImgState.failed;
+  // 한 번 원본을 받기 시작하면 돋보기 창을 닫아도 계속 받는다(닫았다 다시 열 때 처음부터가 아니게) — 그 파일에 한해.
+  const [origWantedFor, setOrigWantedFor] = useState<string | null>(null);
+  const origWanted = origWantedFor === pdfKey;
+  const [pdfFrameReady, setPdfFrameReady] = useState(false);
+  useEffect(() => {
+    if (!pdfPageUrl) return;
+    const key = pdfPageUrl;
+    let alive = true;
+    // ★ 캐시(fileBlobCache)로 받는다 — 동시 요청 합치기·blob 주인·«주소+크기» 키가 원본과 같은 계약.
+    //   AbortController 를 쓰지 않는다: 한 promise 를 여러 곳이 나눠 쓰므로 한 곳이 끊으면 다른 곳이 깨진다.
+    loadFileObjectUrl(pdfPageUrl, { size: file.file_size })
+      .then(u => { if (alive) setPageImgState({ for: key, url: u, failed: false }); })
+      .catch(() => { if (alive) setPageImgState({ for: key, url: null, failed: true }); });
+    return () => { alive = false; };
+  }, [pdfPageUrl, file.file_size]);
   // 받는 동안 몇 % 인지 — 진행이 안 보이면 «멈췄다» 로 읽힌다(Irene 2026-10-22 "재생 준비 중…").
   const [pdfPct, setPdfPct] = useState<number | null>(null);
   const [imgFailed, setImgFailed] = useState(false);
   // 크게 보기 — 모든 미리보기에 돋보기(2026-10-07 Irene: «모든 미리보기는 확대해서 전체보기 가능하게»)
   const [expanded, setExpanded] = useState(false);
+  const wantPdfOriginal = !pdfPageUrl || pageImgFailed || mode === 'full' || expanded || origWanted;
   // 이미지가 실제로 그려졌는가 — 받는 동안 상자가 0 으로 접혀 «아무것도 안 나오고 아래 내용이 올라온» 것을 막는다
   //   (운영 front_v4.jpg — Drive 저장 이미지는 처음 받을 때 Drive 를 다녀오고, 목록 썸네일들과 연결을 나눠 쓴다).
   const [imgLoaded, setImgLoaded] = useState(false);
   useEffect(() => { setImgLoaded(false); }, [file.id, file.preview_url]);
   useEffect(() => {
-    if (!isPdf || !file.download_url || file.download_url === '#') { setPdfUrl(null); return; }
+    if (!isPdf || !file.download_url || file.download_url === '#') return;
+    if (!wantPdfOriginal) return;
+    const key = file.download_url;
+    if (pdfPageUrl) setOrigWantedFor(key);
     let alive = true;
     let made: string | null = null;
-    setPdfUrl(null); setPdfFailed(false); setPdfPct(null);
+    setPdfPct(null);
     // ★ 한 번 받은 PDF 는 기억한다(utils/fileBlobCache — 닫았다 다시 열기·돋보기·빠른 보기가 같은 것을 쓴다).
     //   blob URL 의 주인은 캐시다. 너무 커서 기억하지 않은 것만 여기서 회수한다.
     loadFileObjectUrl(file.download_url, {
@@ -98,11 +134,22 @@ export const PreviewArea: React.FC<{
     })
       .then(u => {
         const own = !isCachedObjectUrl(u);
-        if (alive) { if (own) made = u; setPdfUrl(u); } else if (own) URL.revokeObjectURL(u);
+        if (alive) { if (own) made = u; setPdfLoaded({ for: key, url: u }); } else if (own) URL.revokeObjectURL(u);
       })
-      .catch(() => { if (alive) setPdfFailed(true); });
-    return () => { alive = false; if (made) URL.revokeObjectURL(made); };
-  }, [isPdf, file.download_url, file.file_size]);
+      .catch(() => { if (alive) setPdfFailedFor(key); });
+    return () => {
+      alive = false;
+      // 캐시가 안 받은(너무 큰) 것만 여기서 회수한다 — 회수한 주소를 들고 있지 않게 같이 비운다.
+      if (made) { const gone = made; URL.revokeObjectURL(gone); setPdfLoaded(cur => (cur && cur.url === gone ? null : cur)); }
+    };
+  }, [isPdf, file.download_url, file.file_size, wantPdfOriginal, pdfPageUrl]);
+  useEffect(() => { setPdfFrameReady(false); }, [pdfUrl]);
+  // iframe 의 load 가 안 오는 브라우저(내장 PDF 보기 차이)에서 첫 쪽 그림이 원본을 영영 가리지 않게.
+  useEffect(() => {
+    if (!pdfUrl || pdfFrameReady) return;
+    const tm = window.setTimeout(() => setPdfFrameReady(true), 4000);
+    return () => window.clearTimeout(tm);
+  }, [pdfUrl, pdfFrameReady]);
   useEffect(() => {
     if (!video && !audio) { setMediaUrl(null); setMediaFailed(false); return; }
     let alive = true;
@@ -238,6 +285,48 @@ const FullImage = styled.img`max-width:100%;max-height:100%;width:auto;height:au
     );
     return expandable(zipView(false), () => zipView(true));
   }
+  if (isPdf && hasValidUrl(file.download_url) && !pdfFailed && pdfPageUrl && !pageImgFailed) {
+    const pctLabel = pdfPct !== null && pdfPct > 0
+      ? (t('docs.preview.loadingPdfPct', { pct: pdfPct, defaultValue: 'PDF 여는 중… {{pct}}%' }) as string)
+      : (t('docs.preview.loadingPdf', { defaultValue: 'PDF 여는 중…' }) as string);
+    const firstAlt = t('docs.preview.pdfFirstPageAlt', { name: file.file_name, defaultValue: '{{name}} 첫 쪽' }) as string;
+    // 크게 보기(돋보기 창·목록 빠른 보기) — 첫 쪽 그림을 그대로 둔 채 원본을 받고, iframe 이 그려진 뒤에 걷는다
+    //   (먼저 걷으면 흰 상자가 뜬다). 그림과 iframe 은 같은 상자를 채워 바뀔 때 자리가 움직이지 않는다.
+    const big = () => (
+      <PdfBigWrap data-testid="file-preview-pdf-big">
+        {pdfUrl && <PreviewIframe $full src={pdfUrl} title={file.file_name} onLoad={() => setPdfFrameReady(true)} />}
+        {!(pdfUrl && pdfFrameReady) && (
+          <PdfCover data-testid="file-preview-pdf-cover">
+            {pageImg && <PdfCoverImg src={pageImg} alt={firstAlt} />}
+            <PdfCoverPct>{pctLabel}</PdfCoverPct>
+          </PdfCover>
+        )}
+      </PdfBigWrap>
+    );
+    if (mode === 'full') return big();
+    // 인라인 — 원본을 이미 받았으면(돋보기로 한 번 연 뒤) 그대로 iframe, 아니면 첫 쪽 그림.
+    if (pdfUrl) return expandable(<PreviewIframe src={pdfUrl} title={file.file_name} />, big);
+    if (!pageImg) {
+      return (
+        <PreviewLoading data-testid="file-preview-pdf-loading">
+          {t('docs.preview.loadingPdfFirst', { defaultValue: 'PDF 첫 쪽 불러오는 중…' }) as string}
+        </PreviewLoading>
+      );
+    }
+    const openFull = () => setExpanded(true);
+    return expandable(
+      <PdfFirstWrap>
+        <PreviewImageBtn type="button" data-testid="file-preview-pdf-first" onClick={openFull}
+          title={t('docs.preview.zoom', '클릭하여 확대') as string}>
+          <PreviewImage src={pageImg} alt={firstAlt} />
+        </PreviewImageBtn>
+        <ActionButton tone="secondary" size="sm" data-testid="file-preview-pdf-open" onClick={openFull}>
+          {t('docs.preview.pdfOpenFull', { size: formatBytes(file.file_size || 0), defaultValue: 'PDF 전체 보기 · {{size}}' }) as string}
+        </ActionButton>
+      </PdfFirstWrap>,
+      big,
+    );
+  }
   if (isPdf && hasValidUrl(file.download_url) && !pdfFailed) {
     // ★ 여기는 «재생 준비 중»(영상·음성 문구)을 쓰고 있었다 — PDF 를 여는 것이다.
     if (!pdfUrl) {
@@ -345,6 +434,16 @@ const PreviewIframe = styled.iframe<{ $full?: boolean }>`
   ${(p) => (p.$full ? 'flex:1 1 auto;height:auto;min-height:0;' : '')}
   border:1px solid #E2E8F0;border-radius:10px;background:#F8FAFC;
 `;
+const PdfFirstWrap = styled.div`display:flex;flex-direction:column;align-items:center;gap:10px;`;
+const PdfBigWrap = styled.div`
+  position:relative;flex:1 1 auto;min-height:min(70vh, 720px);display:flex;flex-direction:column;
+`;
+const PdfCover = styled.div`
+  position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;
+  padding:12px;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:10px;overflow:hidden;
+`;
+const PdfCoverImg = styled.img`flex:1 1 auto;min-height:0;max-width:100%;object-fit:contain;display:block;`;
+const PdfCoverPct = styled.div`flex:0 0 auto;font-size:0.8125rem;color:#64748B;`;
 const PreviewVideo = styled.video<{ $full?: boolean }>`
   width:100%;max-height:56vh;background:#000;border-radius:10px;display:block;
   ${(p) => (p.$full ? 'flex:1 1 auto;max-height:none;min-height:0;' : '')}
@@ -382,6 +481,14 @@ function viewerKindOf(mime: string | null, ext: string): 'html' | 'markdown' | '
   // mime 이 text/* 면 확장자를 몰라도 텍스트로 연다 (log 등 임의 확장자 구제)
   if (m.startsWith('text/')) return 'text';
   return null;
+}
+
+// 이보다 큰 PDF 는 첫 쪽 그림을 먼저 보인다(Fable 판정 — 작은 것은 바로 원본: 스크롤·글자 선택 유지, 서버 렌더 슬롯 보호).
+const PDF_DIRECT_MAX = 3 * 1024 * 1024;
+/** 워크스페이스 파일(`/api/files/:biz/:id/download`)만 첫 쪽 그림 주소가 있다. 업무·채팅 첨부 주소는 null(지금 동작). */
+function pdfPageUrlOf(downloadUrl: string | undefined): string | null {
+  const m = /^\/api\/files\/(\d+)\/(\d+)\/download(?:\?|$)/.exec(downloadUrl || '');
+  return m ? `/api/files/${m[1]}/${m[2]}/pdf-page?w=1024` : null;
 }
 
 // zip 목록을 읽기 위해 받아올 최대 크기 — 중앙 디렉터리가 파일 끝이라 통째로 받아야 한다.
