@@ -81,7 +81,7 @@ async function getAdoptionStages({ businessId, userId, role }) {
   const levels = await getMemberMenuLevels(biz, me);
   const menus = (levels && levels.menus) || {};
 
-  const visible = STEPS.filter((s) => (!s.manager || isManager) && (!s.menu || (menus[s.menu] || 'write') !== 'none'));
+  const visible = STEPS.filter((s) => (!s.manager || isManager) && (!s.menu || menus[s.menu] !== 'none'));
   const want = new Set(visible.map((s) => s.key));
   const R = { biz, me, humans: HUMAN_ROLES };
 

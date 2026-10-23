@@ -2910,6 +2910,37 @@ function checkTrialPlan() {
 }
 
 // ═══════════════════════════════════════════════
+// menudefault — **멤버 메뉴 기본값은 menu_permission 한 곳** (2026-10-23 신설 · Fable D2)
+//
+//   «행 없음 = write» 가 requireMenu·getMemberMenuLevels·청구 담당 후보·주간보고에 네 벌로 있었고 표가 거짓을 말했다
+//   (weekly_team 서버 none / 표 write). 기본값은 resolveMemberLevels(개인 행 > 워크스페이스 기본값 > 시스템 기본값) 하나.
+//   메뉴 수준을 읽고 `|| 'write'` 로 메우거나 BusinessMemberPermission 을 직접 읽어 판정하면 다시 갈라진다.
+function checkMenuDefault() {
+  const roots = ['routes', 'services', 'middleware'].map((d) => `${ROOT}/dev-backend/${d}`);
+  const bad = [];
+  let files = 0;
+  const OWN = `${ROOT}/dev-backend/middleware/menu_permission.js`;
+  const walk = (dir) => {
+    for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+      const fp = `${dir}/${e.name}`;
+      if (e.isDirectory()) { if (e.name !== 'node_modules') walk(fp); continue; }
+      if (!e.name.endsWith('.js') || fp === OWN) continue;
+      files += 1;
+      read(fp).split('\n').forEach((l, i) => {
+        const t = l.trim();
+        if (t.startsWith('//') || t.startsWith('*') || t.startsWith('/*')) return;
+        if (l.includes('menudefault-exempt')) return;
+        if (/(level|menus\b[^|]*)\s*\|\|\s*'write'/.test(l) || /BusinessMemberPermission\.findOne\(/.test(l)) {
+          bad.push(`${fp.replace(`${ROOT}/`, '')}:${i + 1} — 메뉴 수준을 직접 판정. menu_permission.resolveMemberLevels / getMemberMenuLevels 를 쓴다`);
+        }
+      });
+    }
+  };
+  roots.forEach((r) => { if (fs.existsSync(r)) walk(r); });
+  report('menudefault', `멤버 메뉴 기본값은 menu_permission 한 곳 (${files}개 파일)`, bad.length === 0, bad);
+}
+
+// ═══════════════════════════════════════════════
 // mailread — **메일 읽음은 «사람 × 스레드» 한 곳(services/mailRead)** (2026-10-22 신설 · Fable N1)
 //
 //   Irene: "그냥 읽음 표시는 누구 기준이야? … 내가 읽은 건지 아닌지 기준이고"
@@ -3876,6 +3907,7 @@ const CATEGORIES = {
   modulegate: checkModuleGate,
   convparticipants: checkConvParticipants,
   trialplan: checkTrialPlan,
+  menudefault: checkMenuDefault,
   mailread: checkMailRead,
   leavetypes: checkLeaveTypes,
   navmenu: checkNavMenu,

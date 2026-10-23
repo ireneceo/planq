@@ -318,12 +318,9 @@ async function assertWorkspaceWeeklyTeam(userId, businessId) {
   });
   if (!member) return { ok: false, code: 'not_member' };
   if (['owner', 'admin'].includes(member.role)) return { ok: true, role: member.role };
-  const { BusinessMemberPermission } = require('../models');
-  const perm = await BusinessMemberPermission.findOne({
-    where: { user_id: userId, business_id: businessId, menu_key: 'weekly_team' },
-    attributes: ['level'],
-  });
-  if (!perm || perm.level === 'none') return { ok: false, code: 'weekly_team_not_granted' };
+  // 기본값(시스템 none · 워크스페이스 기본 권한)까지 requireMenu 와 같은 함수로 본다(2026-10-23 D2)
+  const levels = await require('../middleware/menu_permission').resolveMemberLevels(businessId, userId);
+  if (levels.weekly_team === 'none') return { ok: false, code: 'weekly_team_not_granted' };
   return { ok: true, role: member.role };
 }
 

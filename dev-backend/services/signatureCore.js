@@ -78,7 +78,7 @@ async function notifyWorkspaceMembersOnSignature(sr, event, signerName, opts = {
   const copy = SIGNATURE_EVENT_COPY[event];
   // 모르는 사건에 아무 문구나 붙이지 않는다. 틀린 알림은 알림 없음보다 나쁘다.
   if (!copy) { console.warn('[notify signature] 미정의 event:', event); return; }
-  const { Business, BusinessMember, Post } = require('../models');
+  const { Business, Post } = require('../models');
   // ★ routes/ 에서 옮겨온 코드다. 상대경로가 그대로면 services/ 기준으로 어긋난다.
   //   호출부가 fire-and-forget(.catch)라 이 실패는 200 뒤에 조용히 묻힌다 — 실제로 그렇게 묻혔다.
   const { notifyMany } = require('../routes/notifications');
@@ -89,11 +89,10 @@ async function notifyWorkspaceMembersOnSignature(sr, event, signerName, opts = {
     const p = await Post.findByPk(sr.entity_id, { attributes: ['title'] });
     entityTitle = p?.title || '';
   }
-  const members = await BusinessMember.findAll({
-    where: { business_id: sr.business_id, removed_at: null, role: { [require('sequelize').Op.in]: ['owner', 'admin', 'member'] } },
-    attributes: ['user_id'],
-  });
-  const userIds = members.map((m) => m.user_id);
+  // ★ 2026-10-23 — 받는 사람은 «관련자 + 관리자» 이고 문서를 읽을 수 있는 사람만(services/notifyAudience 한 곳).
+  //   옛 코드는 활성 멤버 전원이었다(Irene: "그냥 멤버인데 알림이 온대" — 읽을 수 없는 문서 제목까지 갔다).
+  const userIds = await require('./notifyAudience').signatureAudience(sr);
+  if (!userIds.length) return;
   const who = signerName || sr.signer_email;
   const reason = (event === 'rejected' || event === 'revised') ? reasonLine(sr.rejected_reason) : null;
   const L = (lang) => (lang === 'en' ? copy.en : copy.ko);

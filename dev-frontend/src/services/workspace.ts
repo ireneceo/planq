@@ -38,7 +38,7 @@ export interface WorkspaceMember {
   id: number;
   business_id: number;
   user_id: number | null;
-  role: 'owner' | 'member' | 'ai';
+  role: 'owner' | 'admin' | 'member' | 'ai';   // admin — 서버가 보내는 값(2026-10-23: 타입에 없어 화면이 관리자를 멤버로 그렸다)
   default_role?: string | null;
   daily_work_hours?: number | string | null;
   weekly_work_days?: number | null;

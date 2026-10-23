@@ -480,6 +480,7 @@ app.use('/api/businesses', require('./routes/brands').businessBrands);   // 브�
 app.use('/api/businesses', require('./routes/member_cards'));
 app.use('/api/businesses', require('./routes/member_overview'));   // 멤버 상세의 연결 프로젝트·업무·히스토리 (2026-10-22) — «/:businessId/members/:userId/overview» 꼬리만, businesses.js 보다 앞   // 동료의 기본 명함 보기 (2026-10-22) — «/:businessId/members/:userId/card…» 꼬리만, businesses.js 보다 앞
 app.use('/api/businesses', require('./routes/member_handover'));   // 퇴사 인수인계 (2026-10-22, docs/ORG_STAGE0_DESIGN.md) — «/:businessId/members/:memberId/handover»·«/members-departed» 꼬리만, businesses.js 보다 앞
+app.use('/api/businesses', require('./routes/member_permissions'));   // 멤버 메뉴 권한·역할·멤버 기본 권한 (2026-10-23 businesses.js 에서 옮김) — 꼬리 경로만, businesses.js 보다 앞
 app.use('/api/me/brands', require('./routes/brands').myBrands);            // 개인 브랜드(내 명함용, 본인 것만)
 app.use('/api/businesses', require('./routes/businesses'));
 // KNOWLEDGE_LOOP 축1 — Cue 워크스페이스 지식 카드

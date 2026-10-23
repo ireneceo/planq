@@ -79,7 +79,7 @@ async function principalOf(userId, businessId, platformRole = null) {
     const { workspaceMailAllowed } = require('./agent_oauth/grants');
     const { getMemberMenuLevels } = require('../middleware/menu_permission');
     const lv = await getMemberMenuLevels(businessId, userId);
-    const mailMenu = !lv || lv.role === 'owner' || lv.role === 'admin' || (lv.menus?.qmail || 'write') !== 'none';
+    const mailMenu = !lv || lv.role === 'owner' || lv.role === 'admin' || lv.menus?.qmail !== 'none';
     if (biz && workspaceMailAllowed(biz.permissions) && mailMenu) scopes.push(...cfg.OPT_IN_SCOPES);
   } catch (e) { console.warn('[cue principal mail]', e.message); }
   return { userId, businessId, platformRole: platformRole || null, provider: 'cue', grantId: `cue:${userId}:${businessId}`, clientId: null, scopes };

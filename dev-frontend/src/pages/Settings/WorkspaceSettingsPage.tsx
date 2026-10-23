@@ -14,6 +14,7 @@ import AiAgentPolicySection from './AiAgentPolicySection';
 import CueAnalysisPolicySection from './CueAnalysisPolicySection';
 import PlanSettings from './PlanSettings';
 import PermissionsSettings from './PermissionsSettings';
+import MemberPermissionPanel from '../../components/Permissions/MemberPermissionPanel';
 import ActivityLogSection from './ActivityLogSection';
 import AttendanceAdminSettings from './AttendanceAdminSettings';   // #208 근태 팀 관리
 import BillingSettings from './BillingSettings';
@@ -39,7 +40,6 @@ import {
   updateSettings,
   listMembers,
   inviteMembersBulk,
-  updateMemberRole,
   removeMember,
   getCueInfo,
   updateCue,
@@ -421,8 +421,8 @@ const RoleBadge = styled.span<{ $role?: string }>`
   padding: 0 10px;
   font-size: 0.6875rem;
   font-weight: 700;
-  color: ${(p) => (p.$role === 'owner' ? '#0f766e' : p.$role === 'ai' ? '#9f1239' : '#475569')};
-  background: ${(p) => (p.$role === 'owner' ? '#ccfbf1' : p.$role === 'ai' ? '#ffe4e6' : '#f1f5f9')};
+  color: ${(p) => (p.$role === 'owner' ? '#0f766e' : p.$role === 'admin' ? '#1E40AF' : p.$role === 'ai' ? '#9f1239' : '#475569')};
+  background: ${(p) => (p.$role === 'owner' ? '#ccfbf1' : p.$role === 'admin' ? '#DBEAFE' : p.$role === 'ai' ? '#ffe4e6' : '#f1f5f9')};
   border-radius: 10px;
   flex-shrink: 0;
 `;
@@ -438,6 +438,10 @@ const DrawerSub = styled.div`font-size: 0.8125rem; color: #64748B; margin-top: 4
 const DrawerPendingNote = styled.div`font-size: 0.75rem; color: #92400E; background: #FEF3C7; padding: 6px 10px; border-radius: 6px; margin-top: 6px; display: inline-block;`;
 const DrawerSection = styled.section`padding: 20px 0; border-bottom: 1px solid #F1F5F9;`;
 const DrawerSectionTitle = styled.h3`font-size: 0.8125rem; font-weight: 700; color: #0F172A; margin: 0 0 4px; text-transform: uppercase; letter-spacing: 0.3px;`;
+const PermTableLink = styled.button`
+  margin-top: 12px; min-height: 32px; padding: 0; border: none; background: none; cursor: pointer;
+  font-size: 0.75rem; font-weight: 600; color: #0F766E; &:hover { text-decoration: underline; }
+`;
 const DrawerSectionHint = styled.p`font-size: 0.6875rem; color: #94A3B8; margin: 0 0 12px;`;
 const DrawerInfoGrid = styled.div`
   display: grid; grid-template-columns: 90px 1fr; gap: 8px 14px; align-items: center;
@@ -464,7 +468,6 @@ const DangerRow = styled.div`
   padding: 10px 0;
 `;
 const DangerRowLabel = styled.span`font-size: 0.8125rem; color: #334155; font-weight: 600;`;
-const RoleSelectWrap = styled.div`min-width: 140px;`;
 const DangerBtn = styled.button`
   padding: 7px 14px; background: #FFFFFF; color: #DC2626;
   border: 1px solid #FECACA; border-radius: 8px; font-size: 0.75rem; font-weight: 600; cursor: pointer;
@@ -659,20 +662,6 @@ export default function WorkspaceSettingsPage() {
       openMember(null);
     } catch (err: unknown) {
       setMemberError(mapApiError(err, tErr));
-    } finally { setMemberBusy(false); }
-  };
-
-  const handleRoleChange = async (memberId: number, nextRole: 'owner' | 'member') => {
-    if (!businessId) return;
-    setMemberBusy(true); setMemberError(null);
-    try {
-      await updateMemberRole(businessId, memberId, nextRole);
-      const fresh = await listMembers(businessId);
-      setMembers(fresh);
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      if (msg.includes('last_owner_protection')) setMemberError(t('members.drawer.errLastOwner', '마지막 관리자는 강등할 수 없습니다.') as string);
-      else setMemberError(mapApiError(err, tErr));
     } finally { setMemberBusy(false); }
   };
 
@@ -1616,11 +1605,14 @@ export default function WorkspaceSettingsPage() {
               //   (memory feedback_member_display_name_on_lists · 백엔드가 user.display_name 을 채워 내려준다)
               const shownName = isPending ? (m.invite_email || '') : memberDisplayName(m.user, i18n.language);
               const firstLetter = (shownName || '?').charAt(0).toUpperCase();
+              // 역할 글자는 권한 표와 한 벌 — 오너 / 관리자 / 멤버 (2026-10-23: 옛 글자는 owner 를 «관리자», admin 을 «멤버» 로 보였다)
               const roleLabel = m.role === 'owner'
-                ? t('members.roleAdmin')
-                : m.role === 'ai'
-                  ? t('members.roleAi')
-                  : t('members.roleMember');
+                ? t('members.roleOwner', '오너')
+                : m.role === 'admin'
+                  ? t('members.roleAdmin')
+                  : m.role === 'ai'
+                    ? t('members.roleAi')
+                    : t('members.roleMember');
               const subLine = isAi
                 ? t('members.cueCardDesc')
                 : isPending
@@ -1684,7 +1676,7 @@ export default function WorkspaceSettingsPage() {
                       </DrawerHeadText>
                       {!isPending && target.user_id && businessId && <MemberCardButton businessId={businessId} userId={Number(target.user_id)} onOpen={setCardUserId} />}
                       <RoleBadge $role={target.role}>
-                        {target.role === 'owner' ? t('members.roleAdmin') : target.role === 'ai' ? t('members.roleAi') : t('members.roleMember')}
+                        {target.role === 'owner' ? t('members.roleOwner', '오너') : target.role === 'admin' ? t('members.roleAdmin') : target.role === 'ai' ? t('members.roleAi') : t('members.roleMember')}
                       </RoleBadge>
                     </DrawerHeadRow>
 
@@ -1859,35 +1851,25 @@ export default function WorkspaceSettingsPage() {
                       </>
                     )}
 
+                    {/* 권한 — 설정 > 권한 표의 이 사람 한 줄(같은 칸·같은 API, 바꾸면 표도 따라온다). owner·admin 은 고치고 본인은 읽기로 본다 */}
+                    {!isPending && target.user_id && target.role !== 'ai' && businessId && (isWsAdmin || isSelf) && (
+                      <DrawerSection>
+                        <DrawerSectionTitle>{t('memberPerm.sectionTitle', '권한')}</DrawerSectionTitle>
+                        <MemberPermissionPanel key={target.id} businessId={businessId} userId={Number(target.user_id)} memberRowId={target.id}
+                          name={targetName} canEdit={isWsAdmin} actorIsOwner={user?.business_role === 'owner'} isSelf={isSelf}
+                          onRoleChanged={async () => { setMembers(await listMembers(businessId)); }} />
+                        {isWsAdmin && (
+                          <PermTableLink type="button" onClick={() => navigate('/business/settings/permissions')}>
+                            {t('memberPerm.openTable', '전체 권한 표')} →
+                          </PermTableLink>
+                        )}
+                      </DrawerSection>
+                    )}
+
                     {/* Danger Zone */}
                     {(isAdmin || isSelf) && target.role !== 'ai' && (
                       <DrawerSection>
                         <DrawerSectionTitle>{t('members.drawer.danger', 'Danger Zone')}</DrawerSectionTitle>
-
-                        {/* 역할 변경 — 오너만, 본인은 강등 시 경고 */}
-                        {isAdmin && !isPending && (() => {
-                          const roleOpts = [
-                            { value: 'member', label: t('members.roleMember') as string },
-                            { value: 'owner', label: t('members.roleAdmin') as string },
-                          ];
-                          return (
-                            <DangerRow>
-                              <DangerRowLabel>{t('members.drawer.role', '역할')}</DangerRowLabel>
-                              <RoleSelectWrap>
-                                <PlanQSelect
-                                  value={roleOpts.find((o) => o.value === target.role) || null}
-                                  onChange={(opt) => {
-                                    const v = (opt as { value: string } | null)?.value;
-                                    if (v === 'owner' || v === 'member') handleRoleChange(target.id, v);
-                                  }}
-                                  options={roleOpts}
-                                  isDisabled={memberBusy}
-                                  size="sm"
-                                />
-                              </RoleSelectWrap>
-                            </DangerRow>
-                          );
-                        })()}
 
                         {memberError && <DangerError>{memberError}</DangerError>}
 

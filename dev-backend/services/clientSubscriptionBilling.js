@@ -269,10 +269,9 @@ async function billOneSubscription(sub, today = new Date()) {
   } else {
     setImmediate(async () => {
       try {
-        const members = await BusinessMember.findAll({
-          where: { business_id: sub.business_id, removed_at: null, role: { [Op.in]: ['owner', 'admin', 'member'] } },
-          attributes: ['user_id'],
-        });
+        // 받는 사람 = 청구를 처리할 수 있는 사람(owner/admin·청구 담당) — 일반 멤버 전원이 아니다(2026-10-23 D1)
+        const { userIds: billIds } = await require('./billingRecipients').resolveBillingRecipients(invoice);
+        const members = billIds.map((user_id) => ({ user_id }));
         const { notifyMany } = require('../routes/notifications');
         await notifyMany({
           userIds: members.map((m) => m.user_id), businessId: sub.business_id, eventKind: 'invoice',

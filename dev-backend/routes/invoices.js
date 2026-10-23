@@ -574,10 +574,9 @@ router.post('/public/:token/receipt-request', publicReceiptLimiter, async (req, 
       const { BusinessMember, Business } = require('../models');
       const { notifyMany } = require('./notifications');
       const biz = await Business.findByPk(invoice.business_id, { attributes: ['name', 'brand_name'] });
-      const members = await BusinessMember.findAll({
-        where: { business_id: invoice.business_id, removed_at: null, role: { [Op.in]: ['owner', 'admin', 'member'] } },
-        attributes: ['user_id'],
-      });
+      // 받는 사람 = 청구를 처리할 수 있는 사람(owner/admin·청구 담당) — 일반 멤버 전원이 아니다(2026-10-23 D1)
+      const { userIds: billIds } = await require('../services/billingRecipients').resolveBillingRecipients(invoice);
+      const members = billIds.map((user_id) => ({ user_id }));
       const kindLabel = receiptType === 'tax_invoice' ? '세금계산서' : '현금영수증';
       notifyMany({
         userIds: members.map((m) => m.user_id),
@@ -1880,10 +1879,9 @@ router.post('/:businessId/:id/installments/:installId/mark-tax-invoice', authent
       const { BusinessMember, Business } = require('../models');
       const { notifyMany } = require('./notifications');
       const biz = await Business.findByPk(invoice.business_id, { attributes: ['name', 'brand_name'] });
-      const members = await BusinessMember.findAll({
-        where: { business_id: invoice.business_id, removed_at: null, role: { [Op.in]: ['owner', 'admin', 'member'] } },
-        attributes: ['user_id'],
-      });
+      // 받는 사람 = 청구를 처리할 수 있는 사람(owner/admin·청구 담당) — 일반 멤버 전원이 아니다(2026-10-23 D1)
+      const { userIds: billIds } = await require('../services/billingRecipients').resolveBillingRecipients(invoice);
+      const members = billIds.map((user_id) => ({ user_id }));
       notifyMany({
         userIds: members.map((m) => m.user_id),
         businessId: invoice.business_id, eventKind: 'tax_invoice',
@@ -1931,10 +1929,9 @@ router.post('/:businessId/:id/installments/:installId/mark-cash-receipt', authen
       const { BusinessMember, Business } = require('../models');
       const { notifyMany } = require('./notifications');
       const biz = await Business.findByPk(invoice.business_id, { attributes: ['name', 'brand_name'] });
-      const members = await BusinessMember.findAll({
-        where: { business_id: invoice.business_id, removed_at: null, role: { [Op.in]: ['owner', 'admin', 'member'] } },
-        attributes: ['user_id'],
-      });
+      // 받는 사람 = 청구를 처리할 수 있는 사람(owner/admin·청구 담당) — 일반 멤버 전원이 아니다(2026-10-23 D1)
+      const { userIds: billIds } = await require('../services/billingRecipients').resolveBillingRecipients(invoice);
+      const members = billIds.map((user_id) => ({ user_id }));
       notifyMany({
         userIds: members.map((m) => m.user_id),
         businessId: invoice.business_id, eventKind: 'tax_invoice',
@@ -1962,10 +1959,9 @@ async function notifyReceiptIssued(req, invoice, kindLabel, no) {
     const { BusinessMember, Business } = require('../models');
     const { notifyMany } = require('./notifications');
     const biz = await Business.findByPk(invoice.business_id, { attributes: ['name', 'brand_name'] });
-    const members = await BusinessMember.findAll({
-      where: { business_id: invoice.business_id, removed_at: null, role: { [Op.in]: ['owner', 'admin', 'member'] } },
-      attributes: ['user_id'],
-    });
+    // 받는 사람 = 청구를 처리할 수 있는 사람(owner/admin·청구 담당) — 일반 멤버 전원이 아니다(2026-10-23 D1)
+    const { userIds: billIds } = await require('../services/billingRecipients').resolveBillingRecipients(invoice);
+    const members = billIds.map((user_id) => ({ user_id }));
     notifyMany({
       userIds: members.map((m) => m.user_id),
       businessId: invoice.business_id, eventKind: 'tax_invoice',
@@ -2130,10 +2126,9 @@ async function notifyMembersReceiptCorrected(req, invoice, corr) {
     const { BusinessMember, Business } = require('../models');
     const { notifyMany } = require('./notifications');
     const biz = await Business.findByPk(invoice.business_id, { attributes: ['name', 'brand_name'] });
-    const members = await BusinessMember.findAll({
-      where: { business_id: invoice.business_id, removed_at: null, role: { [Op.in]: ['owner', 'admin', 'member'] } },
-      attributes: ['user_id'],
-    });
+    // 받는 사람 = 청구를 처리할 수 있는 사람(owner/admin·청구 담당) — 일반 멤버 전원이 아니다(2026-10-23 D1)
+    const { userIds: billIds } = await require('../services/billingRecipients').resolveBillingRecipients(invoice);
+    const members = billIds.map((user_id) => ({ user_id }));
     const kindLabel = corr.kind === 'cash' ? '현금영수증' : '세금계산서';
     const verb = (corr.reason === 'cancel' || corr.reason === 'duplicate') ? '취소' : '수정';
     await notifyMany({

@@ -14,12 +14,17 @@ export interface MemberPermissionRow {
   email: string;
   role: MemberRole;
   menus: Record<MenuKey, PermissionLevel>;
+  /** 따로 정한 칸(행이 있는 칸). 나머지는 워크스페이스 «멤버 기본 권한» 을 따른다 (2026-10-23) */
+  explicit?: Partial<Record<MenuKey, boolean>>;
 }
 
 export interface MembersPermissionsResponse {
   members: MemberPermissionRow[];
   valid_menus: MenuKey[];
   valid_levels: PermissionLevel[];
+  /** 워크스페이스 «멤버 기본 권한» — 시스템 기본값 위에 워크스페이스가 정한 값을 얹은 전체 표 */
+  member_defaults: Record<MenuKey, PermissionLevel>;
+  system_defaults: Record<MenuKey, PermissionLevel>;
 }
 
 export interface BillingOwnerCandidate {
@@ -37,7 +42,8 @@ export async function listMembersPermissions(businessId: number): Promise<Member
   return j(await apiFetch(`/api/businesses/${businessId}/members-permissions`));
 }
 
-export async function updateMemberPermission(businessId: number, userId: number, menu_key: MenuKey, level: PermissionLevel) {
+/** level 'default' = 따로 정한 칸을 지워 워크스페이스 기본값을 따르게 한다 */
+export async function updateMemberPermission(businessId: number, userId: number, menu_key: MenuKey, level: PermissionLevel | 'default') {
   return j(await apiFetch(`/api/businesses/${businessId}/members/${userId}/permissions`, {
     method: 'PUT', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ menu_key, level }),
@@ -49,6 +55,20 @@ export async function updateMemberRole(businessId: number, userId: number, role:
     method: 'PUT', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ role }),
   }));
+}
+
+/** 워크스페이스 «멤버 기본 권한» 한 칸 — 따로 정하지 않은 멤버 전원에게 즉시 적용. 'default' = 시스템 기본값으로 */
+export async function updateMemberDefault(businessId: number, menu_key: MenuKey, level: PermissionLevel | 'default'): Promise<{ member_defaults: Record<MenuKey, PermissionLevel> }> {
+  return j(await apiFetch(`/api/businesses/${businessId}/member-defaults`, {
+    method: 'PUT', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ menu_key, level }),
+  }));
+}
+
+// 같은 창 안의 권한 표·멤버 상세가 서로를 따라가게 — 저장한 쪽이 쏘고 다른 쪽이 다시 읽는다(다른 사람 창은 소켓 permissions:updated)
+export const PERMISSIONS_CHANGED_EVENT = 'planq:permissions-changed';
+export function emitPermissionsChanged(businessId: number) {
+  try { window.dispatchEvent(new CustomEvent(PERMISSIONS_CHANGED_EVENT, { detail: { business_id: businessId } })); } catch { /* noop */ }
 }
 
 export async function listBillingOwnerCandidates(businessId: number): Promise<BillingOwnerCandidate[]> {

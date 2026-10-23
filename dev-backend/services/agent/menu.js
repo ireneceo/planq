@@ -13,7 +13,7 @@ async function assertMenu(p, menu, level = 'read') {
   const lv = await getMemberMenuLevels(p.businessId, p.userId);
   if (!lv) throw err('PERMISSION_DENIED', 'members_only');
   if (lv.role === 'owner' || lv.role === 'admin') return;
-  const v = lv.menus[menu] || 'write';
+  const v = lv.menus[menu];   // 전 키를 돌려준다 — 기본값 판정은 menu_permission 한 곳
   if (v === 'none') throw err('PERMISSION_DENIED', `menu_hidden:${menu}`);
   if (level === 'write' && v !== 'write') throw err('PERMISSION_DENIED', `menu_read_only:${menu}`);
 }

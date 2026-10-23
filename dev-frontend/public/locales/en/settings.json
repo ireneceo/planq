@@ -513,6 +513,7 @@
       "payrollContracts": "View contract history",
       "title": "Member details"
     },
+    "roleOwner": "Owner",
     "roleAdmin": "Admin",
     "roleMember": "Member",
     "roleAi": "Cue",
@@ -730,7 +731,7 @@
   },
   "matrix": {
     "title": "Member menu permissions",
-    "desc": "Adjust read/write per menu per member. Default is full write — restrict only if needed. Owners and admins always have full access.",
+    "desc": "Set hidden/read/write per menu. The «Member default» row at the top applies right away to every member without their own setting; changing a cell sets it for that member only. Owners and admins always have full access.",
     "loading": "Loading...",
     "ownerOnlyHint": "Only owners and admins can change permissions.",
     "col": {
@@ -738,7 +739,13 @@
       "role": "Role"
     },
     "writableCount": "Writable members",
-    "warnNoQbillWrite": "⚠ No member has Q Bill write access — invoices cannot be issued. At least 1 recommended."
+    "warnNoQbillWrite": "⚠ No member has Q Bill write access — invoices cannot be issued. At least 1 recommended.",
+    "defaultsRow": "Member default",
+    "defaultsRowHint": "Applies right away to members without their own setting",
+    "defaultTag": "Default",
+    "defaultTagHint": "No setting of their own — follows the workspace default",
+    "resetToDefault": "Back to default ({{level}})",
+    "lockedHint": "Owners and admins always have full access"
   },
   "role": {
     "owner": "Owner",
@@ -1087,5 +1094,14 @@
       "invalid_days": "Days must be in 0.5 steps, above 0 and up to 366",
       "invalid_pay": "Invalid paid/unpaid value"
     }
+  },
+  "memberPerm": {
+    "fullAccess": "Owners and admins can use every menu. Per-menu access applies only to the Member role.",
+    "hint": "«Default» cells follow the member default in Settings > Permissions. Changing one sets it for this member only.",
+    "selfHint": "Your menu access, set by an admin.",
+    "demoteOwnerTitle": "Make co-owner a member",
+    "demoteOwner": "Remove owner rights from {{name}} and make them a member? They will no longer be able to do owner-only work such as finance or deletion.",
+    "sectionTitle": "Permissions",
+    "openTable": "Full permission table"
   }
 }

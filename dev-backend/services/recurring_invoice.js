@@ -217,11 +217,8 @@ async function billOneProject(project, today = new Date()) {
   } else {
     setImmediate(async () => {
       try {
-        const members = await BusinessMember.findAll({
-          where: { business_id: project.business_id, removed_at: null, role: { [Op.in]: ['owner', 'admin', 'member'] } },
-          attributes: ['user_id'],
-        });
-        const userIds = members.map((m) => m.user_id);
+        // 받는 사람 = 청구를 처리할 수 있는 사람(owner/admin·청구 담당) — 일반 멤버 전원이 아니다(2026-10-23 D1)
+        const { userIds } = await require('./billingRecipients').resolveBillingRecipients(invoice);
         const { notifyMany } = require('../routes/notifications');
         await notifyMany({
           userIds,

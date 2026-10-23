@@ -87,7 +87,8 @@
     "dev-backend/routes/task_attachments.js": 1,
     "dev-backend/routes/task_templates.js": 1,
     "dev-backend/routes/task_workflow.js": 1,
-    "dev-backend/routes/users.js": 1
+    "dev-backend/routes/users.js": 1,
+    "dev-backend/routes/member_permissions.js": 1
   },
   "godfile": {
     "dev-backend/routes/admin.js": 899,
@@ -340,7 +341,7 @@
   },
   "adminpredicate": {
     "dev-backend/routes/activity.js": 1,
-    "dev-backend/routes/businesses.js": 5,
+    "dev-backend/routes/businesses.js": 4,
     "dev-backend/routes/calendar.js": 1,
     "dev-backend/routes/client_subscriptions.js": 1,
     "dev-backend/routes/cloud_root_folder.js": 1,
@@ -354,7 +355,8 @@
     "dev-backend/routes/invoices.js": 1,
     "dev-backend/routes/posts.js": 1,
     "dev-backend/services/gdrive.js": 1,
-    "dev-backend/services/memberHandover.js": 1
+    "dev-backend/services/memberHandover.js": 1,
+    "dev-backend/routes/member_permissions.js": 1
   },
   "deadroute": {
     "dev-backend/routes/admin_billing.js": 2,

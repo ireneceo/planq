@@ -27,8 +27,10 @@ async function resolveBillingRecipients(invoice) {
   if (invoice.owner_user_id) ids.add(invoice.owner_user_id);
   if (business?.default_billing_owner_id) ids.add(business.default_billing_owner_id);
 
+  // 마지막 거름 — Q bill 이 «숨김» 인 멤버(예: 담당으로 지정된 뒤 권한이 내려간 사람)는 빼낸다(services/notifyAudience 한 벌)
+  const userIds = await require('./notifyAudience').dropMenuNone([...ids], invoice.business_id, 'qbill');
   return {
-    userIds: [...ids],
+    userIds,
     business,
     workspaceName: business?.brand_name || business?.name || null,
   };

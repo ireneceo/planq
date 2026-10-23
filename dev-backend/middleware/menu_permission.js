@@ -91,12 +91,8 @@ function requireMenu(menuKey, requiredLevel = 'read', opts = {}) {
       // admin = owner_only 메뉴 외 전권 (현재 owner_only 메뉴 없음 — 결제 설정 같은 건 별도 라우트 권한)
       if (member.role === 'admin') return next();
 
-      // member — BusinessMemberPermission 평가
-      const perm = await BusinessMemberPermission.findOne({
-        where: { business_id: bizId, user_id: req.user.id, menu_key: menuKey },
-        attributes: ['level'],
-      });
-      const level = perm?.level || 'write';  // row 없음 = 열린 문화 기본 write
+      // member — 개인 행 > 워크스페이스 기본값 > 시스템 기본값 (resolveMemberLevels 한 곳)
+      const level = (await resolveMemberLevels(bizId, req.user.id))[menuKey];
 
       if (level === 'none') {
         return res.status(403).json({
@@ -119,29 +115,67 @@ function requireMenu(menuKey, requiredLevel = 'read', opts = {}) {
   };
 }
 
-// 멤버 권한 평가 헬퍼 (라우트 외부에서 사용 — 예: UI 응답에 권한 정보 첨부)
-async function getMemberMenuLevels(businessId, userId) {
-  const member = await BusinessMember.findOne({
+// ─── 멤버 메뉴 수준 = 개인 행 > 워크스페이스 기본값 > 시스템 기본값 (2026-10-23, docs/MEMBER_PERMISSION_GAPS_DESIGN.md D2) ───
+// ★ «행 없음 = write» 가 requireMenu·getMemberMenuLevels·청구 담당 후보·주간보고에 네 벌로 있었고
+//   weekly_team(서버 none)·insights(조회 전용) 는 표가 «write» 로 거짓말했다. 기본값 판정은 여기 하나 —
+//   `|| 'write'` 같은 폴백을 이 파일 밖에서 쓰지 않는다(가드 --category=menudefault).
+const SYSTEM_DEFAULTS = Object.freeze(Object.fromEntries(Array.from(VALID_MENUS).map((m) => [
+  m, m === 'weekly_team' ? 'none' : (READ_ONLY_MENUS.has(m) ? 'read' : 'write'),
+])));
+
+/** 입력 정규화 — 아는 메뉴·아는 값만, 조회 전용 메뉴의 write 는 read 로(표와 같은 규칙) */
+function normalizeLevel(menu, level) {
+  if (!VALID_MENUS.has(menu) || !VALID_LEVELS.has(level)) return null;
+  return (READ_ONLY_MENUS.has(menu) && level === 'write') ? 'read' : level;
+}
+function normalizeDefaults(raw) {
+  const out = {};
+  if (!raw || typeof raw !== 'object') return out;
+  for (const [m, v] of Object.entries(raw)) { const n = normalizeLevel(m, v); if (n) out[m] = n; }
+  return out;
+}
+
+/** 워크스페이스 «멤버 기본 권한» — 시스템 기본값 위에 워크스페이스가 정한 값을 얹은 전체 표 */
+async function getWorkspaceMemberDefaults(businessId, business = null) {
+  const { Business } = require('../models');
+  const biz = business || await Business.findByPk(businessId, { attributes: ['id', 'permissions'] });
+  const custom = normalizeDefaults(biz?.permissions?.member_defaults);
+  return { levels: { ...SYSTEM_DEFAULTS, ...custom }, custom };
+}
+
+/** member 한 사람의 메뉴별 수준 + 어느 칸이 «따로 정함» 인지 */
+async function resolveMemberLevels(businessId, userId, opts = {}) {
+  const defaults = opts.defaults || (await getWorkspaceMemberDefaults(businessId)).levels;
+  const perms = await BusinessMemberPermission.findAll({
     where: { business_id: businessId, user_id: userId },
+    attributes: ['menu_key', 'level'],
+  });
+  const map = { ...defaults };
+  const explicit = {};
+  // 폐지된 키(옛 'clients' 행 등)는 내보내지 않는다 — 화면이 없는 메뉴의 권한을 그리게 된다
+  for (const p of perms) {
+    const n = normalizeLevel(p.menu_key, p.level);
+    if (n) { map[p.menu_key] = n; explicit[p.menu_key] = true; }
+  }
+  if (opts.withExplicit) return { menus: map, explicit };
+  return map;
+}
+
+// 멤버 권한 평가 헬퍼 (라우트 외부에서 사용 — 예: UI 응답에 권한 정보 첨부). menus 는 VALID_MENUS 전 키를 갖는다.
+async function getMemberMenuLevels(businessId, userId, opts = {}) {
+  const member = await BusinessMember.findOne({
+    where: { business_id: businessId, user_id: userId, removed_at: null },
     attributes: ['role'],
   });
   if (!member) return null;
   if (member.role === 'owner' || member.role === 'admin') {
     const all = {};
     for (const m of VALID_MENUS) all[m] = 'write';
-    return { role: member.role, menus: all };
+    return { role: member.role, menus: all, explicit: {} };
   }
-  if (member.role === 'ai') return { role: 'ai', menus: {} };
-
-  const perms = await BusinessMemberPermission.findAll({
-    where: { business_id: businessId, user_id: userId },
-    attributes: ['menu_key', 'level'],
-  });
-  const map = {};
-  for (const m of VALID_MENUS) map[m] = 'write';  // default
-  // 폐지된 키(옛 'clients' 행 등)는 내보내지 않는다 — 화면이 없는 메뉴의 권한을 그리게 된다
-  for (const p of perms) if (VALID_MENUS.has(p.menu_key)) map[p.menu_key] = p.level;
-  return { role: 'member', menus: map };
+  if (member.role === 'ai') return { role: 'ai', menus: {}, explicit: {} };
+  const r = await resolveMemberLevels(businessId, userId, { withExplicit: true, defaults: opts.defaults });
+  return { role: 'member', menus: r.menus, explicit: r.explicit };
 }
 
 module.exports = {
@@ -150,4 +184,9 @@ module.exports = {
   VALID_MENUS: Array.from(VALID_MENUS),
   VALID_LEVELS: Array.from(VALID_LEVELS),
   READ_ONLY_MENUS: Array.from(READ_ONLY_MENUS),
+  SYSTEM_DEFAULTS,
+  normalizeLevel,
+  normalizeDefaults,
+  getWorkspaceMemberDefaults,
+  resolveMemberLevels,
 };

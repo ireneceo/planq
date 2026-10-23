@@ -2,6 +2,10 @@
 
 
 
+## 2026-10-23 · 멤버 권한 보완 — 알림 받는 사람 · 멤버 기본값 · 멤버 상세 권한 (방 94ba604d) — 설계 **OK-WITH-CHANGES**(전부 반영) · 완료 **PASS**(Fable, 차단 0)
+- 설계 docs/MEMBER_PERMISSION_GAPS_DESIGN.md §1-F. Fable 재실행: 실HTTP 54/54(기본값×행×역할 · 재로그인 menu_levels · billing 후보 · 감사 3종 · JSON 다른 키 보존) · 받는 사람 16/16 + 끝까지 8/8(실제 서명 알림 행 = 관련자 1건, 일반 멤버 0) · menudefault 양성 대조 · health 92/92 · tenant 0 · guard godfile(MailPage, 이전부터)만 · 화면 25/26(390 1건 = 고정 머리줄 측정 문제).
+- 비차단: ①ConfirmDialog 취소 키 settings 네임스페이스에 없음 → common:cancel 로 고침(옛 권한 표도) ②requireMenu 요청마다 Business 1회 더 읽음 — 캐시 후보 ③requireMenu 멤버 조회에 removed_at 없음(이전부터, checkBusinessAccess 가 막음) ④PATCH 서버는 member→owner 받음(화면만 뺌, 오너 전용) ⑤ws6 플랫폼관리자가 일반 member 라 서명 알림 빠짐 — 설계대로.
+
 ## 2026-10-23 · Cue 답 흘려 보내기(스트리밍) 설계 (방 11546c7d) — 설계 **OK-WITH-CHANGES**(고칠 것 9 → 전부 반영) · 완료 = 자체 검증(Fable 권고: 과금·카드 코드 무변경이 전제, diff 로 확인)
 - 설계 docs/CUE_STREAMING_DESIGN.md §8. 결정: reset 방식(도구 이름으로 읽기/쓰기 가름) · 게이트웨이에 signal 안 넘김(끊어도 그 라운드는 끝까지 받아 실제 토큰 기록) · callLLM 선택 인자 onDelta(분기 한 줄).
 - 자체 검증: 꼬리표 붙잡기 160/0(대조군 3 누출) · 조립 단위 8/8(tool_calls 합치기·cached) · 실HTTP JSON 대 흘림 4질문(첫 글자 1.3~4.5초 · 카드·출처·log_id 같음 · `[[cue` 0 · 원장 +6/6 · 끊은 턴 토큰 기록) · 거절 400·409 는 JSON · 헤더 뒤 예외 error 이벤트 · nginx 경유 비압축·비버퍼 · 검색창 3폭 글 보임 1.25~1.6초(대조군 Accept 없앰 → 흘림 0·JSON 정상) · 드로어 «찾는 중» 표시.

@@ -5,26 +5,21 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
-import PlanQSelect, { type PlanQSelectOption } from '../Common/PlanQSelect';
 import ConfirmDialog from '../Common/ConfirmDialog';
 import {
-  listMembersPermissions, updateMemberPermission, updateMemberRole,
+  listMembersPermissions, updateMemberPermission, updateMemberRole, updateMemberDefault,
+  emitPermissionsChanged, PERMISSIONS_CHANGED_EVENT,
   type MemberPermissionRow, type MenuKey, type PermissionLevel,
 } from '../../services/permissions';
-
-// 사이드바 순서 그대로 (talk → mail → task → calendar → note → docs → info → file → bill → clients → insights)
-// + weekly_team (사이클 N+26) — 워크스페이스 통합 주간보고 보기 권한 (default 'none')
-const MENU_LIST: MenuKey[] = ['qtalk', 'qmail', 'qsale', 'qtask', 'qcalendar', 'qnote', 'qdocs', 'qinfo', 'qfile', 'qbill', 'insights', 'weekly_team'];  // 'clients' 폐지 2026-10-16 — 고객 관리는 qsale
-const LEVEL_LIST: PermissionLevel[] = ['write', 'read', 'none'];
-// insights / weekly_team 은 조회 전용 — write 옵션 X
-const READ_ONLY_MENUS = new Set<MenuKey>(['insights', 'weekly_team']);
-const levelOptionsFor = (m: MenuKey): PermissionLevel[] => READ_ONLY_MENUS.has(m) ? ['read', 'none'] : LEVEL_LIST;
+// 칸·메뉴 목록은 멤버 상세 «권한» 절과 한 벌(2026-10-23)
+import MenuLevelPicker, { MENU_LIST } from './MenuLevelPicker';
 
 interface Props { businessId: number; isOwner: boolean; onChanged?: () => void; }
 
 const MemberPermissionMatrix: React.FC<Props> = ({ businessId, isOwner, onChanged }) => {
   const { t } = useTranslation('settings');
   const [rows, setRows] = useState<MemberPermissionRow[]>([]);
+  const [defaults, setDefaults] = useState<Record<MenuKey, PermissionLevel> | null>(null);
   const [loading, setLoading] = useState(true);
   const [savedKey, setSavedKey] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -37,17 +32,26 @@ const MemberPermissionMatrix: React.FC<Props> = ({ businessId, isOwner, onChange
     setTimeout(() => setSavedKey((cur) => cur === k ? null : cur), 1500);
   }, []);
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  const load = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
     setError(null);
     try {
       const r = await listMembersPermissions(businessId);
       setRows(r.members);
+      setDefaults(r.member_defaults || null);
     } catch (e) { setError((e as Error).message); }
-    finally { setLoading(false); }
+    finally { if (!silent) setLoading(false); }
   }, [businessId]);
 
   useEffect(() => { load(); }, [load]);
+  // 멤버 상세에서 바꾸면 표도 따라온다(같은 창). 내가 쏜 신호에도 다시 읽는다 — 서버 값이 정본
+  useEffect(() => {
+    const on = (ev: Event) => {
+      if (Number((ev as CustomEvent<{ business_id?: number }>).detail?.business_id) === businessId) void load(true);
+    };
+    window.addEventListener(PERMISSIONS_CHANGED_EVENT, on);
+    return () => window.removeEventListener(PERMISSIONS_CHANGED_EVENT, on);
+  }, [businessId, load]);
 
   const writeCounts = useMemo(() => {
     const c: Record<string, number> = {};
@@ -57,11 +61,25 @@ const MemberPermissionMatrix: React.FC<Props> = ({ businessId, isOwner, onChange
     return c;
   }, [rows]);
 
-  const onLevel = async (uid: number, menu: MenuKey, level: PermissionLevel) => {
+  const onLevel = async (uid: number, menu: MenuKey, level: PermissionLevel | 'default') => {
     try {
-      await updateMemberPermission(businessId, uid, menu, level);
-      setRows(prev => prev.map(r => r.user_id === uid ? { ...r, menus: { ...r.menus, [menu]: level } } : r));
+      const r = await updateMemberPermission(businessId, uid, menu, level) as { level: PermissionLevel; explicit: boolean };
+      setRows(prev => prev.map(x => x.user_id === uid
+        ? { ...x, menus: { ...x.menus, [menu]: r.level }, explicit: { ...(x.explicit || {}), [menu]: r.explicit } } : x));
       flash(`${uid}:${menu}`);
+      emitPermissionsChanged(businessId);
+      onChanged?.();
+    } catch (e) { setError((e as Error).message); }
+  };
+
+  // 워크스페이스 «멤버 기본 권한» — 따로 정하지 않은 멤버 칸이 같이 바뀐다(서버가 정본이라 다시 읽는다)
+  const onDefault = async (menu: MenuKey, level: PermissionLevel | 'default') => {
+    try {
+      const r = await updateMemberDefault(businessId, menu, level);
+      setDefaults(r.member_defaults);
+      flash(`default:${menu}`);
+      await load(true);
+      emitPermissionsChanged(businessId);
       onChanged?.();
     } catch (e) { setError((e as Error).message); }
   };
@@ -85,6 +103,7 @@ const MemberPermissionMatrix: React.FC<Props> = ({ businessId, isOwner, onChange
     try {
       await updateMemberRole(businessId, target.user_id, 'member');
       await load();
+      emitPermissionsChanged(businessId);
       onChanged?.();
     } catch (e) { setError((e as Error).message); }
   };
@@ -95,6 +114,7 @@ const MemberPermissionMatrix: React.FC<Props> = ({ businessId, isOwner, onChange
       await updateMemberRole(businessId, promoteTarget.user_id, 'admin');
       setPromoteTarget(null);
       await load();
+      emitPermissionsChanged(businessId);
       onChanged?.();
     } catch (e) {
       setError((e as Error).message);
@@ -129,6 +149,21 @@ const MemberPermissionMatrix: React.FC<Props> = ({ businessId, isOwner, onChange
             </tr>
           </thead>
           <tbody>
+            {defaults && (
+              <DefaultsTr data-testid="perm-defaults-row">
+                <Td $sticky $tint>
+                  <MemberName>{t('matrix.defaultsRow', '멤버 기본값')}</MemberName>
+                  <MemberEmail>{t('matrix.defaultsRowHint', '따로 정하지 않은 멤버에게 바로 적용')}</MemberEmail>
+                </Td>
+                <Td $tint><RoleBadge $kind="member">{t('role.member', '멤버')}</RoleBadge></Td>
+                {MENU_LIST.map(m => (
+                  <Td key={m} $tint>
+                    <MenuLevelPicker menu={m} value={defaults[m]} disabled={!isOwner}
+                      saved={savedKey === `default:${m}`} onChange={(v) => onDefault(m, v)} testId={`perm-default-${m}`} />
+                  </Td>
+                ))}
+              </DefaultsTr>
+            )}
             {rows.map(r => (
               <tr key={r.user_id}>
                 <Td $sticky>
@@ -156,20 +191,11 @@ const MemberPermissionMatrix: React.FC<Props> = ({ businessId, isOwner, onChange
                   return (
                     <Td key={m}>
                       {lockedFull ? (
-                        <LevelLocked>write</LevelLocked>
+                        <LevelLocked title={t('matrix.lockedHint', '오너·관리자는 항상 전권입니다') as string}>{t('level.write', '쓰기')}</LevelLocked>
                       ) : (
-                        <LevelPickerCell $saved={savedKey === cellKey}>
-                          <PlanQSelect
-                            size="sm"
-                            isDisabled={!isOwner}
-                            value={{ value: r.menus[m] || 'write', label: t(`level.${r.menus[m] || 'write'}`, r.menus[m] || 'write') as string }}
-                            options={levelOptionsFor(m).map(l => ({ value: l, label: t(`level.${l}`, l) as string }))}
-                            onChange={(opt) => {
-                              const v = (opt as PlanQSelectOption)?.value as PermissionLevel;
-                              if (v && v !== r.menus[m]) onLevel(r.user_id, m, v);
-                            }}
-                          />
-                        </LevelPickerCell>
+                        <MenuLevelPicker menu={m} value={r.menus[m]} explicit={!!r.explicit?.[m]}
+                          defaultLevel={defaults?.[m]} disabled={!isOwner} saved={savedKey === cellKey}
+                          onChange={(v) => onLevel(r.user_id, m, v)} />
                       )}
                     </Td>
                   );
@@ -189,7 +215,7 @@ const MemberPermissionMatrix: React.FC<Props> = ({ businessId, isOwner, onChange
         title={t('confirm.promoteAdminTitle', '관리자 임명') as string}
         message={t('confirm.promoteAdmin', { name: promoteTarget?.name || '', defaultValue: `${promoteTarget?.name || ''} 을(를) 관리자로 임명할까요? 관리자는 인사·결제·세금계산서 외 거의 모든 권한을 가집니다.` }) as string}
         confirmText={t('role.promote', '관리자로') as string}
-        cancelText={t('common.cancel', '취소') as string}
+        cancelText={t('common:cancel', '취소') as string}
         variant="warning"
       />
       <ConfirmDialog
@@ -199,7 +225,7 @@ const MemberPermissionMatrix: React.FC<Props> = ({ businessId, isOwner, onChange
         title={t('confirm.demoteAdminTitle', '멤버로 변경') as string}
         message={t('confirm.demoteAdmin', { name: demoteTarget?.name || '', defaultValue: '{{name}} 의 관리자 권한을 거둘까요? 메뉴 권한은 이 표의 설정을 따르게 됩니다.' }) as string}
         confirmText={t('role.demote', '멤버로') as string}
-        cancelText={t('common.cancel', '취소') as string}
+        cancelText={t('common:cancel', '취소') as string}
         variant="warning"
       />
     </Card>
@@ -245,10 +271,11 @@ const ThStack = styled.div`
   display: inline-flex; align-items: center; gap: 6px;
   white-space: nowrap;
 `;
-const Td = styled.td<{ $sticky?: boolean }>`
+const Td = styled.td<{ $sticky?: boolean; $tint?: boolean }>`
   padding: 12px 14px; border-bottom: 1px solid #F1F5F9; vertical-align: middle;
   white-space: nowrap;
-  ${p => p.$sticky && 'position: sticky; left: 0; background: #FFFFFF; z-index: 1; min-width: 160px;'}
+  ${p => p.$tint && 'background: #F8FAFC; border-bottom-color: #E2E8F0;'}
+  ${p => p.$sticky && `position: sticky; left: 0; background: ${p.$tint ? '#F8FAFC' : '#FFFFFF'}; z-index: 1; min-width: 160px;`}
 `;
 const MemberName = styled.div`
   font-size: 0.8125rem; font-weight: 600; color: #0F172A;
@@ -284,19 +311,9 @@ const CountChip = styled.span`
   display: inline-block; background: #E0E7FF; color: #3730A3;
   font-size: 0.625rem; font-weight: 700; padding: 1px 6px; border-radius: 999px;
 `;
-const LevelLocked = styled.span` font-size: 0.6875rem; color: #94A3B8; font-style: italic; `;
-const LevelPickerCell = styled.div<{ $saved: boolean }>`
-  position: relative; min-width: 96px;
-  ${p => p.$saved && `
-    &::after {
-      content: '✓'; position: absolute; right: -18px; top: 50%;
-      transform: translateY(-50%);
-      color: #14B8A6; font-weight: 700;
-      animation: pqFadeSaved 1.5s ease forwards;
-    }
-    @keyframes pqFadeSaved { 0% { opacity: 1; } 75% { opacity: 1; } 100% { opacity: 0; } }
-  `}
-`;
+const LevelLocked = styled.span` font-size: 0.75rem; color: #94A3B8; `;
+// 기본값 줄 — 멤버 줄과 같은 칸 모양에 옅은 바탕만(표 맨 위 고정이 아니라 첫 줄)
+const DefaultsTr = styled.tr``;
 const Warn = styled.div`
   margin-top: 12px;
   background: #FEF2F2; border: 1px solid #FECACA; color: #991B1B;
