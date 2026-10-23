@@ -193,11 +193,15 @@ const cases = {
     expect(await call(B, 'POST', `/api/signatures/${sr.id}/reminder`), 403, 'B → A 의 L1 요청 재발송');
     // 대조군 — 같은 B 가 L3 에는 연다
     expect(await call(B, 'GET', `/api/posts/${l3.id}/signatures`), 200, 'B → L3 진행표(대조군)');
+    // ★ 2026-10-23 — 요청 생성은 «편집» 술어다(canEditPost). 문서 공동 편집자(1a4715df)부터 작성자 외에는
+    //   공동 편집자만 편집한다 — 읽을 수 있는 L3 라도 편집자가 아니면 403, 지정되면 200(양성 대조군).
+    expect(await call(B, 'POST', `/api/posts/${l3.id}/signatures`, { signers: [{ email: `s3-${stamp}@hm.invalid`, slot: 1 }] }), 403, 'B(편집자 아님) → L3 요청 생성');
+    expect(await call(A, 'POST', `/api/posts/${l3.id}/editors`, { user_id: B.id }), 200, 'A 가 B 를 공동 편집자로');
     const mk3 = await call(B, 'POST', `/api/posts/${l3.id}/signatures`, { signers: [{ email: `s3-${stamp}@hm.invalid`, slot: 1 }] });
-    expect(mk3, 200, 'B → L3 요청 생성(대조군)');
+    expect(mk3, 200, 'B(공동 편집자) → L3 요청 생성(대조군)');
     const left = await M.SignatureRequest.findByPk(sr.id);
     assert(left.status !== 'canceled', 'B 의 403 취소가 실제로는 요청을 취소했다');
-    return 'B→A의 L1: 목록·생성·범위·취소·재발송 403 · B→L3: 목록·생성 200';
+    return 'B→A의 L1: 목록·생성·범위·취소·재발송 403 · B→L3: 목록 200 · 생성 403 → 공동 편집자 지정 뒤 200';
   },
 
   // ─── C-6: 옛 Document 공개 서명 라우트 없음 · 공개 보기는 그대로 ───
