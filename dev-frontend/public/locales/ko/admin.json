@@ -99,7 +99,7 @@
   },
   "payments": {
     "title": "결제 이력",
-    "searchPh": "워크스페이스명",
+    "searchPh": "워크스페이스·주인 이름·이메일",
     "loadFailed": "목록을 불러오지 못했습니다",
     "empty": "결제 이력이 없습니다",
     "emptyDesc": "필터를 바꿔서 확인해 보세요.",
@@ -134,7 +134,8 @@
       "bank_transfer": "계좌이체",
       "card": "카드",
       "portone": "PortOne",
-      "manual_adjust": "수기 조정"
+      "manual_adjust": "수기 조정",
+      "stripe": "카드(Stripe)"
     },
     "nonRevenue": "비매출(내부·테스터) {{amount}}",
     "nonRevenueCount": "중 비매출 {{n}}건",
@@ -183,7 +184,19 @@
     "refundEffectKeep": "지금 구독의 결제가 아니라 구독은 그대로입니다.",
     "refundEffectKept": "결제만 환불로 기록되고 구독은 그대로입니다(보상성 환불).",
     "refundKeepSub": "구독은 유지 — 보상성 환불",
-    "declineReasonPh": "예: 결제일로부터 7일이 지나 전액 환불 대상이 아닙니다. 일할 환불은 고객 지원 이메일로 안내드립니다."
+    "declineReasonPh": "예: 결제일로부터 7일이 지나 전액 환불 대상이 아닙니다. 일할 환불은 고객 지원 이메일로 안내드립니다.",
+    "noOwner": "주인 정보 없음",
+    "joinedAt": "가입",
+    "trialEndsAt": "체험 종료",
+    "bonusMonths": "선결제 +{{n}}개월",
+    "origin": {
+      "checkout": "결제 선택: {{at}} · {{who}}",
+      "trialPrebill": "자동 청구(체험 종료 전): {{at}}",
+      "renewal": "갱신 자동 청구: {{at}}",
+      "addon": "애드온 신청: {{at}} · {{who}}",
+      "unknownBy": "청구 생성: {{at}} · {{who}}",
+      "unknown": "청구 생성: {{at}}"
+    }
   },
   "subs": {
     "title": "구독 관리",

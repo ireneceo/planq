@@ -12,7 +12,7 @@ import HighlightText from '../../components/Common/HighlightText';
 import MatchReason from '../../components/Common/MatchReason';
 import { pickMatch } from '../../utils/searchMatch';
 import { apiFetch } from '../../contexts/AuthContext';
-import { formatDay } from '../../utils/dateFormat';
+import { formatDay, formatDayTime } from '../../utils/dateFormat';
 import { useSearchParams } from 'react-router-dom';
 import { refreshAdminTodo } from '../../hooks/useAdminInboxCounts';
 import TrialRefundModal, { type TrialRefundTarget } from '../../components/Admin/TrialRefundModal';
@@ -22,9 +22,23 @@ type PayStatus = 'all' | 'paid' | 'pending' | 'failed' | 'refunded' | 'canceled'
 
 interface PaymentRow {
   id: number;
-  business: { id: number; name: string; slug: string } | null;
+  business: {
+    id: number; name: string; slug: string;
+    created_at: string | null;           // 가입일 = 워크스페이스를 만든 날
+    trial_ends_at: string | null;
+    subscription_status: string | null;
+    owner: { id: number; name: string | null; email: string } | null;
+  } | null;
+  // 이 청구가 생긴 길 — 서버 파생(services/adminPaymentView). 사용자가 고른 것과 자동 청구를 가른다.
+  origin: {
+    kind: 'checkout' | 'trial_prebill' | 'renewal' | 'addon' | 'unknown';
+    at: string | null;
+    by: { id: number; name: string | null; email: string } | null;
+    trial_option?: string | null;
+    bonus_months?: number;
+  } | null;
   subscription: { id: number; plan_code: string; cycle: string; status: string } | null;
-  method: 'bank_transfer' | 'card' | 'portone' | 'manual_adjust';
+  method: 'bank_transfer' | 'card' | 'portone' | 'stripe' | 'manual_adjust';
   status: 'pending' | 'paid' | 'failed' | 'refunded' | 'canceled';
   amount: number;
   currency: string;
@@ -87,7 +101,10 @@ const AdminPaymentsPage = () => {
   const [trialRefund, setTrialRefund] = useState<TrialRefundTarget | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // 늦게 온 옛 응답이 새 탭 목록을 덮지 않게 — 첫 «전체» 요청이 주소의 ?status 요청보다 늦게 오면 대기 탭에 환불 행이 섞였다
+  const loadSeq = useRef(0);
   const load = useCallback(async () => {
+    const seq = ++loadSeq.current;
     setLoading(true);
     try {
       const sp = new URLSearchParams();
@@ -96,13 +113,15 @@ const AdminPaymentsPage = () => {
       if (search.trim()) sp.set('q', search.trim());
       const r = await apiFetch(`/api/admin/payments?${sp.toString()}`);
       const j = await r.json();
+      if (seq !== loadSeq.current) return;
       if (j.success) setItems(j.data || []);
       const s = await apiFetch('/api/admin/payments/summary');
       const sj = await s.json();
+      if (seq !== loadSeq.current) return;
       if (sj.success) setSummary(sj.data);
     } catch (e) {
       setError(t('payments.loadFailed', '목록을 불러오지 못했습니다') as string);
-    } finally { setLoading(false); }
+    } finally { if (seq === loadSeq.current) setLoading(false); }
   }, [activeStatus, search, t]);
 
   useEffect(() => { load(); }, [load]);
@@ -140,6 +159,25 @@ const AdminPaymentsPage = () => {
   const fmtDate = (s: string | null) =>
     s ? formatDay(s, { locale: i18n.language === 'ko' ? 'ko-KR' : 'en-US', tz: 'Asia/Seoul', year: 'always' }) : '—';
 
+  const fmtDateTime = (s: string | null | undefined) =>
+    s ? formatDayTime(s, { locale: i18n.language === 'ko' ? 'ko-KR' : 'en-US', tz: 'Asia/Seoul', year: 'always' }) : '—';
+  const personOf = (u: { name: string | null; email: string } | null | undefined) => (u ? (u.name || u.email) : '');
+
+  // 청구가 생긴 길 한 줄 — «결제 선택» 은 사람이 [결제하기] 를 누른 것만이다(체험 종료 전 자동 청구와 가른다)
+  const originLine = (p: PaymentRow) => {
+    const o = p.origin;
+    const at = fmtDateTime(o?.at || p.created_at);
+    const who = personOf(o?.by);
+    switch (o?.kind) {
+      case 'checkout': return t('payments.origin.checkout', { at, who, defaultValue: '결제 선택: {{at}} · {{who}}' });
+      case 'trial_prebill': return t('payments.origin.trialPrebill', { at, defaultValue: '자동 청구(체험 종료 전): {{at}}' });
+      case 'renewal': return t('payments.origin.renewal', { at, defaultValue: '갱신 자동 청구: {{at}}' });
+      case 'addon': return t('payments.origin.addon', { at, who, defaultValue: '애드온 신청: {{at}} · {{who}}' });
+      default: return who ? t('payments.origin.unknownBy', { at, who, defaultValue: '청구 생성: {{at}} · {{who}}' })
+        : t('payments.origin.unknown', { at, defaultValue: '청구 생성: {{at}}' });
+    }
+  };
+
   const statusColor = (s: PaymentRow['status']) => {
     switch (s) {
       case 'paid': return { bg: '#CCFBF1', fg: '#0F766E' };
@@ -159,7 +197,7 @@ const AdminPaymentsPage = () => {
 
   const methodLabel = (m: PaymentRow['method']) => {
     const fb: Record<PaymentRow['method'], string> = {
-      bank_transfer: '계좌이체', card: '카드', portone: 'PortOne', manual_adjust: '수기 조정',
+      bank_transfer: '계좌이체', card: '카드', portone: 'PortOne', stripe: '카드(Stripe)', manual_adjust: '수기 조정',
     };
     return t(`payments.method.${m}`, fb[m]) as string;
   };
@@ -217,7 +255,7 @@ const AdminPaymentsPage = () => {
     <PageShell
       title={t('payments.title', '결제 이력')}
       count={items.length}
-      actions={<SearchBox value={search} onChange={setSearch} placeholder={t('payments.searchPh', '워크스페이스명') as string} />}
+      actions={<SearchBox value={search} onChange={setSearch} placeholder={t('payments.searchPh', '워크스페이스·주인 이름·이메일') as string} />}
     >
       <Wrap>
         {/* 이번 달 수익 카드 */}
@@ -276,9 +314,12 @@ const AdminPaymentsPage = () => {
           <List>
             {items.map((p) => {
               const c = statusColor(p.status);
-              // 서버 검색은 워크스페이스 name·brand_name(= 표시 이름)·slug — slug 는 행에 없다
+              // 서버 검색은 워크스페이스 name·brand_name(= 표시 이름)·slug + 주인 이름·이메일 — slug 는 행에 없다
+              const owner = p.business?.owner;
               const hit = pickMatch([
                 { field: 'name', text: p.business?.name, shown: true },
+                { field: 'email', text: owner?.email, shown: true },
+                { field: 'name', text: owner?.name, shown: true },
                 { field: 'url', text: p.business?.slug },
               ], search);
               return (
@@ -305,13 +346,34 @@ const AdminPaymentsPage = () => {
                       )}
                     </RowTop>
                     {hit && !hit.shown && <MatchReason field={hit.field} snippet={hit.snippet} query={search} />}
+                    {/* 누구 · 언제 가입 · 체험 끝 — 구독 관리와 같은 주인 표시 */}
+                    <WhoLine data-testid={`admin-pay-who-${p.id}`}>
+                      <span>
+                        {owner ? (
+                          <>
+                            {owner.name && <><HighlightText text={owner.name} query={search} /> · </>}
+                            <HighlightText text={owner.email} query={search} />
+                          </>
+                        ) : t('payments.noOwner', '주인 정보 없음')}
+                      </span>
+                      <span>{t('payments.joinedAt', '가입')}: {fmtDate(p.business?.created_at ?? null)}</span>
+                      {p.business?.subscription_status === 'trialing' && p.business.trial_ends_at && (
+                        <span>{t('payments.trialEndsAt', '체험 종료')}: {fmtDate(p.business.trial_ends_at)}</span>
+                      )}
+                    </WhoLine>
                     <RowMeta>
                       <Tag>{p.subscription?.plan_code} · {p.cycle === 'monthly' ? t('subs.monthly', '월간') : t('subs.yearly', '연간')}</Tag>
                       <Tag>{methodLabel(p.method)}</Tag>
                       <Amount>{p.currency} {fmtKRW(p.amount)}</Amount>
+                      {p.origin?.kind === 'checkout' && (p.origin.bonus_months || 0) > 0 && (
+                        <Tag>{t('payments.bonusMonths', { n: p.origin.bonus_months, defaultValue: '선결제 +{{n}}개월' })}</Tag>
+                      )}
                     </RowMeta>
                     <RowDates>
-                      <span>{t('payments.created', '발행')}: {fmtDate(p.created_at)}</span>
+                      <OriginText $auto={p.origin?.kind === 'trial_prebill' || p.origin?.kind === 'renewal'}
+                        data-testid={`admin-pay-origin-${p.id}`} data-origin={p.origin?.kind || ''}>
+                        {originLine(p)}
+                      </OriginText>
                       {p.paid_at && <span>{t('payments.paid', '결제 완료')}: {fmtDate(p.paid_at)}</span>}
                       {p.refunded_at && <span>{t('payments.refunded', '환불')}: {fmtDate(p.refunded_at)}</span>}
                       {p.status === 'pending' && p.notify_paid_at && (
@@ -455,6 +517,15 @@ const Tag = styled.span`
   background: #F0FDFA; color: #0F766E; border-radius: 4px;
 `;
 const Amount = styled.span`font-size: 0.8125rem; color: #0F172A; font-weight: 700;`;
+// 누구·가입일 줄 — 구독 관리 OwnerLine 과 같은 크기(이름이 길면 줄바꿈)
+const WhoLine = styled.div`
+  display: flex; gap: 12px; flex-wrap: wrap;
+  font-size: 0.75rem; color: #475569; min-width: 0; overflow-wrap: anywhere;
+`;
+// 사람이 고른 청구는 진하게, 자동 청구는 기본 회색 — 같은 «대기» 라도 무게가 다르다
+const OriginText = styled.span<{ $auto: boolean }>`
+  color: ${p => p.$auto ? '#94A3B8' : '#0F766E'}; font-weight: ${p => p.$auto ? 400 : 600};
+`;
 const RowDates = styled.div`
   display: flex; gap: 12px; flex-wrap: wrap;
   font-size: 0.6875rem; color: #94A3B8;

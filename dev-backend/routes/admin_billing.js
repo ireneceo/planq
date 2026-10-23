@@ -10,6 +10,7 @@ const router = express.Router();
 const { Op } = require('sequelize');
 const { Business, Subscription, Payment, User } = require('../models');
 const { createdAtOf, OWNER_ATTRS, ownerOf, businessSearchOr, workspacesWithoutSubscription, workspaceRow } = require('../services/adminSubscriptionView');
+const { paymentOrigins, businessInfo } = require('../services/adminPaymentView');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
 const { isExemptNow, exemptBusinessIds, liveBusinessIds } = require('../services/billingExemptView');
 
@@ -253,15 +254,15 @@ router.get('/payments', async (req, res, next) => {
       where.tax_invoice_status = { [Op.in]: ['requested', 'failed'] };
     }
 
+    // 검색 = 워크스페이스 이름·slug + 주인 이름·이메일(구독 관리와 같은 함수)
+    const bizOr = q ? await businessSearchOr(q) : null;
     const include = [
       {
         model: Business,
-        attributes: ['id', 'name', 'brand_name', 'slug'],
-        ...(q ? { where: { [Op.or]: [
-          { name: { [Op.like]: `%${q}%` } },
-          { brand_name: { [Op.like]: `%${q}%` } },
-        ] } } : {}),
+        attributes: ['id', 'name', 'brand_name', 'slug', 'created_at', 'trial_ends_at', 'subscription_status'],
+        ...(bizOr ? { where: { [Op.or]: bizOr } } : {}),
         required: !!q,
+        include: [{ model: User, as: 'owner', attributes: OWNER_ATTRS, required: false }],
       },
       { model: Subscription, attributes: ['id', 'plan_code', 'cycle', 'status'] },
     ];
@@ -276,14 +277,14 @@ router.get('/payments', async (req, res, next) => {
     // 환불하면 무엇이 같이 바뀌는가(구독 해지·애드온 한도) — 처리와 같은 술어, 결제 완료 행만(docs/REFUND_CANCEL_DESIGN.md §5-1)
     const effects = await require('../services/refundRequest').refundEffects(rows);
 
+    // 누가·언제 가입·어떻게 생긴 청구인가(사용자 선택 / 체험 종료 전 자동 / 갱신 / 애드온)
+    const origins = await paymentOrigins(rows);
+
     res.set('X-Total-Count', String(count));
     return successResponse(res, rows.map((p) => ({
       id: p.id,
-      business: p.Business ? {
-        id: p.Business.id,
-        name: p.Business.brand_name || p.Business.name,
-        slug: p.Business.slug,
-      } : null,
+      business: businessInfo(p.Business),
+      origin: origins.get(p.id) || null,
       subscription: p.Subscription ? {
         id: p.Subscription.id,
         plan_code: p.Subscription.plan_code,
@@ -308,7 +309,8 @@ router.get('/payments', async (req, res, next) => {
       cancel_reason: p.cancel_reason,
       // 매출 계상 여부 (운영 #275) — 행 단위로도 식별 가능해야 합계와 목록이 대조된다.
       is_revenue: p.is_revenue !== false,
-      created_at: p.created_at,
+      // Payment 는 timestamps 속성이 createdAt 이라 p.created_at 은 비어 있다(화면이 «발행: —» 였다)
+      created_at: createdAtOf(p),
       // Day 8 — addon / 세금계산서 신규 필드
       kind: p.kind,
       addon_code: p.addon_code,

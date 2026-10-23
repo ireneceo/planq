@@ -99,7 +99,7 @@
   },
   "payments": {
     "title": "Payment history",
-    "searchPh": "Workspace name",
+    "searchPh": "Workspace, owner name or email",
     "loadFailed": "Failed to load",
     "empty": "No payment history",
     "emptyDesc": "Try a different filter.",
@@ -134,7 +134,8 @@
       "bank_transfer": "Bank transfer",
       "card": "Card",
       "portone": "PortOne",
-      "manual_adjust": "Manual"
+      "manual_adjust": "Manual",
+      "stripe": "Card (Stripe)"
     },
     "nonRevenue": "Non-revenue (internal/tester) {{amount}}",
     "nonRevenueCount": "{{n}} non-revenue",
@@ -183,7 +184,19 @@
     "refundEffectKeep": "This is not the current subscription's payment, so the subscription stays as it is.",
     "refundEffectKept": "Only the payment is recorded as refunded; the subscription stays (goodwill refund).",
     "refundKeepSub": "Keep the subscription — goodwill refund",
-    "declineReasonPh": "e.g. More than 7 days have passed since payment, so a full refund doesn't apply. We'll explain pro-rated refunds by support email."
+    "declineReasonPh": "e.g. More than 7 days have passed since payment, so a full refund doesn't apply. We'll explain pro-rated refunds by support email.",
+    "noOwner": "No owner info",
+    "joinedAt": "Joined",
+    "trialEndsAt": "Trial ends",
+    "bonusMonths": "Prepaid +{{n}} mo",
+    "origin": {
+      "checkout": "Chose to pay: {{at}} · {{who}}",
+      "trialPrebill": "Auto-billed (before trial end): {{at}}",
+      "renewal": "Auto renewal bill: {{at}}",
+      "addon": "Add-on requested: {{at}} · {{who}}",
+      "unknownBy": "Bill created: {{at}} · {{who}}",
+      "unknown": "Bill created: {{at}}"
+    }
   },
   "subs": {
     "title": "Subscriptions",
