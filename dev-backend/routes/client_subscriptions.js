@@ -16,6 +16,8 @@ const { requireMenu } = require('../middleware/menu_permission');
 const { successResponse, errorResponse, parsePagination, paginatedResponse } = require('../middleware/errorHandler');
 const { assertClientInBusiness } = require('../services/tenantRef');
 const { createAuditLog } = require('../middleware/audit');
+const { dateOnlyOf } = require('../utils/dateOnly');
+const { billRecipientOf } = require('../services/clientSubscriptionBilling');
 
 // 재무 mutation 은 워크스페이스 owner 또는 platform_admin 만 (invoices.js assertInvoiceMutationOwner 와 동일 경계).
 function requireBillingOwner(req, res, next) {
@@ -33,12 +35,16 @@ function serialize(s) {
     id: o.id, client_id: o.client_id, plan_name: o.plan_name,
     amount: Number(o.amount), currency: o.currency, interval: o.interval,
     vat_rate: Number(o.vat_rate), auto_mode: o.auto_mode, due_days: o.due_days,
-    status: o.status, start_date: o.start_date, next_billing_at: o.next_billing_at,
+    status: o.status,
+    // DATEONLY 는 드라이버 설정에 따라 Date 로 온다 — 그대로 실으면 화면에 «2026-12-12T00:00:00.000Z» 가 뜬다(2026-10-23 신고)
+    start_date: dateOnlyOf(o.start_date), next_billing_at: dateOnlyOf(o.next_billing_at),
     last_invoiced_at: o.last_invoiced_at, notes: o.notes,
     // 운영 — 회차 자동 종료
     end_mode: o.end_mode || 'never', max_occurrences: o.max_occurrences != null ? Number(o.max_occurrences) : null,
-    occurrences_count: Number(o.occurrences_count || 0), end_date: o.end_date,
+    occurrences_count: Number(o.occurrences_count || 0), end_date: dateOnlyOf(o.end_date),
     client: o.Client ? { id: o.Client.id, display_name: o.Client.display_name, company_name: o.Client.company_name } : null,
+    // [지금 청구] 확인창에 적을 받는 주소 — 실제 발송(billOneSubscription)과 **같은 함수**. 목록에 고객이 실려 올 때만.
+    bill_recipient: o.Client ? billRecipientOf(o.Client) : undefined,
   };
 }
 
@@ -73,7 +79,7 @@ router.get('/:businessId', authenticateToken, checkBusinessAccess, requireMenu('
     if (req.query.status) where.status = String(req.query.status);
     const { rows, count } = await ClientSubscription.findAndCountAll({
       where,
-      include: [{ model: Client, attributes: ['id', 'display_name', 'company_name'], required: false }],
+      include: [{ model: Client, attributes: ['id', 'display_name', 'company_name', 'tax_invoice_email', 'billing_contact_email', 'invite_email'], required: false }],
       order: [['status', 'ASC'], ['next_billing_at', 'ASC']],
       limit, offset, distinct: true,
     });
@@ -197,7 +203,7 @@ router.post('/:businessId/:id/bill-now', authenticateToken, checkBusinessAccess,
       userId: req.user.id, businessId, action: 'client_subscription.bill_now',
       targetType: 'client_subscription', targetId: sub.id, newValue: { invoice_id: r.invoice_id },
     });
-    return successResponse(res, { subscription_id: sub.id, invoice_id: r.invoice_id, next_billing_at: r.next_billing_at }, 'invoiced', 201);
+    return successResponse(res, { subscription_id: sub.id, invoice_id: r.invoice_id, next_billing_at: dateOnlyOf(r.next_billing_at) }, 'invoiced', 201);
   } catch (err) { next(err); }
 });
 

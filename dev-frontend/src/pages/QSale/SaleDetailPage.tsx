@@ -32,6 +32,7 @@ import ClientProfileForm from '../../components/QSale/ClientProfileForm';
 import ClientStatusBanner from '../../components/Clients/ClientStatusBanner';
 import ClientRecordSections from '../../components/Clients/ClientRecordSections';
 import ClientAuditHistory from '../../components/Clients/ClientAuditHistory';
+import { SegmentedToggle, SegmentedBtn } from '../../components/Common/segmentedToggle';
 import ClientAddDrawer from '../../components/Clients/ClientAddDrawer';
 import { findOtherWorkspaceOf } from '../../utils/workspaceMatch';
 // 불발 사유 창은 **공용**이다 — 우측 패널도 같은 것을 쓴다(자리마다 다른 동작을 만들지 않는다)
@@ -72,6 +73,8 @@ export default function SaleDetailPage() {
   const [otherBiz, setOtherBiz] = useState<number | null>(null);
   const [client, setClient] = useState<SaleClientDetail | null>(null);
   const [items, setItems] = useState<TimelineItem[]>([]);
+  // 우측 칸 — 활동(타임라인) / 이력(단계 이력·변경 이력)
+  const [rightView, setRightView] = useState<'activity' | 'history'>('activity');
   // ★ 패널의 연결 숫자가 `?channel=chat|email` 로 보낸다 — 받는 쪽이 읽지 않으면 숫자는 죽은 링크다
   //   ★ 쿼리를 useState 초기값으로만 읽으면 **keep-alive 탭에서 안 걸린다** — 이미 살아 있는 탭으로
   //     `?channel=email` 이 다시 들어와도 초기화 함수는 두 번 돌지 않는다
@@ -287,7 +290,7 @@ export default function SaleDetailPage() {
             key={`summary-${client.id}`}
             businessId={businessId}
             clientId={cid}
-            onFilterRefs={(refs) => setRefFilter(refs)}
+            onFilterRefs={(refs) => { setRefFilter(refs); setRightView('activity'); }}
             refFilterActive={!!refFilter}
             onClearFilter={() => setRefFilter(null)}
           />
@@ -306,30 +309,6 @@ export default function SaleDetailPage() {
                 silentReload();
               } : undefined}
             />
-          </Card>
-
-          <Card>
-            <CardTitle>{t('stage.history') as string}</CardTitle>
-            {client.stage_history.length === 0 ? (
-              <Dim>{t('stage.historyEmpty') as string}</Dim>
-            ) : (
-              <HistoryList>
-                {client.stage_history.map((h) => (
-                  <HistoryRow key={h.id}>
-                    <HistoryText>
-                      {t('timeline.stageChanged', {
-                        from: h.from ? (t(`stage.${h.from}`) as string) : '—',
-                        to: t(`stage.${h.to}`) as string,
-                      }) as string}
-                      {h.origin === 'auto' && <TagDim>{t('record.auto') as string}</TagDim>}
-                    </HistoryText>
-                    <HistoryMeta title={formatDateTime(h.at)}>
-                      {h.changed_by?.name || (t('stage.changed_manual') as string)}
-                    </HistoryMeta>
-                  </HistoryRow>
-                ))}
-              </HistoryList>
-            )}
           </Card>
 
           <Card>
@@ -361,15 +340,56 @@ export default function SaleDetailPage() {
                 onSaved={() => silentReload()} />
             </RecordStack>
           </Card>
-          <Card>
-            <ClientAuditHistory businessId={businessId as number} clientId={client.id} />
-          </Card>
           <ClientAddDrawer open={inviteFormOpen} onClose={() => setInviteFormOpen(false)} businessId={businessId as number}
             inviteFor={{ ...client, invite_email: client.contact?.invite_email || null }}
             onDone={() => silentReload()} />
         </LeftCol>
 
         <RightCol>
+          {/* ★ 2026-10-23 (Irene «좌측에 모든 내용이 이렇게 몰려있는게 맞아? 히스토리라도 우측으로 넘어가야 하는 거 아닐까?»)
+              단계 이력·변경 이력을 좌측 맨 아래에서 우측으로 옮겼다. 타임라인 길이와 상관없이 바로 보이게 탭으로 가른다.
+              탭 껍데기는 Q sale 상단과 같은 공용 알약. */}
+          <RightTabs role="tablist" data-testid="sale-detail-right-tabs">
+            <SegmentedBtn type="button" role="tab" aria-selected={rightView === 'activity'} $active={rightView === 'activity'}
+              data-testid="sale-detail-tab-activity" onClick={() => setRightView('activity')}>
+              {t('detail.tabActivity') as string}
+            </SegmentedBtn>
+            <SegmentedBtn type="button" role="tab" aria-selected={rightView === 'history'} $active={rightView === 'history'}
+              data-testid="sale-detail-tab-history" onClick={() => setRightView('history')}>
+              {t('detail.tabHistory') as string}
+            </SegmentedBtn>
+          </RightTabs>
+          {rightView === 'history' ? (
+            <HistoryStack data-testid="sale-detail-history-pane">
+              <Card>
+                <CardTitle>{t('stage.history') as string}</CardTitle>
+                {client.stage_history.length === 0 ? (
+                  <Dim>{t('stage.historyEmpty') as string}</Dim>
+                ) : (
+                  <HistoryList>
+                    {client.stage_history.map((h) => (
+                      <HistoryRow key={h.id}>
+                        <HistoryText>
+                          {t('timeline.stageChanged', {
+                            from: h.from ? (t(`stage.${h.from}`) as string) : '—',
+                            to: t(`stage.${h.to}`) as string,
+                          }) as string}
+                          {h.origin === 'auto' && <TagDim>{t('record.auto') as string}</TagDim>}
+                        </HistoryText>
+                        <HistoryMeta title={formatDateTime(h.at)}>
+                          {h.changed_by?.name || (t('stage.changed_manual') as string)}
+                        </HistoryMeta>
+                      </HistoryRow>
+                    ))}
+                  </HistoryList>
+                )}
+              </Card>
+
+              <Card>
+                <ClientAuditHistory businessId={businessId as number} clientId={client.id} />
+              </Card>
+            </HistoryStack>
+          ) : (<>
           <FilterRow role="tablist">
             <FilterChip type="button" role="tab" aria-selected={filter === 'all'} $on={filter === 'all'}
               onClick={() => setFilter('all')}>{t('timeline.all') as string}</FilterChip>
@@ -429,6 +449,7 @@ export default function SaleDetailPage() {
               </ActionButton>
             </MoreRow>
           )}
+          </>)}
         </RightCol>
       </Body>
 
@@ -507,6 +528,8 @@ const Body = styled.div`
 const LeftCol = styled.div`display: flex; flex-direction: column; gap: 12px; min-width: 0;`;
 const RecordStack = styled.div`display: flex; flex-direction: column; gap: 20px;`;
 const RightCol = styled.div`display: flex; flex-direction: column; gap: 10px; min-width: 0;`;
+const RightTabs = styled(SegmentedToggle)`align-self: flex-start;`;
+const HistoryStack = styled.div`display: flex; flex-direction: column; gap: 12px;`;
 const Card = styled.section`background: #fff; border: 1px solid #E2E8F0; border-radius: 12px; padding: 14px;`;
 const CardTitle = styled.h2`margin: 0 0 10px; font-size: 0.8125rem; font-weight: 700; color: #334155;`;
 const Dim = styled.span`font-size: 0.8125rem; color: #64748B;`;

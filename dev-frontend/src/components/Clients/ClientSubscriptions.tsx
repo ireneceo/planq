@@ -9,6 +9,9 @@ import { apiFetch } from '../../contexts/AuthContext';
 import PlanQSelect from '../Common/PlanQSelect';
 import SingleDateField from '../Common/SingleDateField';
 import ActionButton from '../Common/ActionButton';
+import OverflowMenu from '../Common/OverflowMenu';
+import ConfirmDialog from '../Common/ConfirmDialog';
+import { onSocket } from '../../services/socket';
 
 type Interval = 'weekly' | 'biweekly' | 'monthly' | 'quarterly' | 'semiannual' | 'yearly';
 type EndMode = 'never' | 'after_count' | 'until_date';
@@ -18,6 +21,8 @@ interface Sub {
   auto_mode: 'auto' | 'draft_review'; due_days: number; status: 'active' | 'paused' | 'canceled' | 'completed';
   start_date: string; next_billing_at: string; last_invoiced_at: string | null; notes: string | null;
   end_mode?: EndMode; max_occurrences?: number | null; occurrences_count?: number; end_date?: string | null;
+  /** [지금 청구] 가 자동 발송일 때 메일이 갈 주소 — 서버가 실제 발송과 같은 함수로 계산해 준다 */
+  bill_recipient?: string | null;
 }
 
 interface Props { businessId: number; clientId: number; canWrite: boolean }
@@ -31,6 +36,10 @@ const ClientSubscriptions: React.FC<Props> = ({ businessId, clientId, canWrite }
   const [formOpen, setFormOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [busyId, setBusyId] = useState<number | null>(null);
+  // 되돌릴 수 없는 일(해지)·밖으로 나가는 일(지금 청구 = 자동 발송이면 고객 메일)은 묻는다
+  const [ask, setAsk] = useState<{ kind: 'cancel' | 'bill'; sub: Sub } | null>(null);
+  // 실패는 카드 아래에 말한다 — 삼키면 «눌렀는데 아무 일도 없음» 이 된다
+  const [actErr, setActErr] = useState<{ id: number; msg: string } | null>(null);
 
   // 폼 상태
   const [plan, setPlan] = useState('');
@@ -77,31 +86,25 @@ const ClientSubscriptions: React.FC<Props> = ({ businessId, clientId, canWrite }
     } finally { setSubmitting(false); }
   };
 
-  const setStatus = async (id: number, status: 'active' | 'paused') => {
-    setBusyId(id);
+  // 버튼 셋이 같은 껍데기 — 잠금·실패 표시·다시 읽기
+  const act = async (id: number, path: string, init: RequestInit) => {
+    setBusyId(id); setActErr(null);
     try {
-      const r = await apiFetch(`/api/client-subscriptions/${businessId}/${id}`, {
-        method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }),
-      });
-      if ((await r.json()).success) await load();
-    } finally { setBusyId(null); }
+      const r = await apiFetch(`/api/client-subscriptions/${businessId}/${path}`, init);
+      const j = await r.json().catch(() => ({}));
+      if (j.success) await load();
+      else setActErr({ id, msg: r.status === 403 ? (t('subscription.errOwnerOnly') as string) : (j.message || (t('subscription.errAction') as string)) });
+    } catch { setActErr({ id, msg: t('subscription.errAction') as string }); }
+    finally { setBusyId(null); }
   };
+  const setStatus = (id: number, status: 'active' | 'paused') => act(id, String(id), {
+    method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }),
+  });
+  const cancel = (id: number) => act(id, String(id), { method: 'DELETE' });
+  const billNow = (id: number) => act(id, `${id}/bill-now`, { method: 'POST' });
 
-  const cancel = async (id: number) => {
-    setBusyId(id);
-    try {
-      const r = await apiFetch(`/api/client-subscriptions/${businessId}/${id}`, { method: 'DELETE' });
-      if ((await r.json()).success) await load();
-    } finally { setBusyId(null); }
-  };
-
-  const billNow = async (id: number) => {
-    setBusyId(id);
-    try {
-      const r = await apiFetch(`/api/client-subscriptions/${businessId}/${id}/bill-now`, { method: 'POST' });
-      if ((await r.json()).success) await load();
-    } finally { setBusyId(null); }
-  };
+  // 실시간 — 다른 사람·자동 청구가 구독을 바꾸면 따라간다(서버가 이미 쏘던 신호, 듣는 곳이 없었다)
+  useEffect(() => onSocket('client_subscription:changed', () => { void load(); }), [load]);
 
   const intervalLabel = (iv: Sub['interval']) => t(`subscription.interval.${iv}`, iv) as string;
   const fmtAmount = (a: number, cur: string) => `${Number(a).toLocaleString()} ${cur}`;
@@ -195,39 +198,76 @@ const ClientSubscriptions: React.FC<Props> = ({ businessId, clientId, canWrite }
         <Empty>{t('subscription.empty', '아직 정기 구독이 없어요. "구독 시작"으로 월/주 단위 자동 청구를 걸 수 있어요.')}</Empty>
       ) : (
         <List>
-          {subs.map((s) => (
-            <Card key={s.id} $paused={s.status === 'paused'}>
-              <CardMain>
-                <CardName>{s.plan_name}</CardName>
-                <CardMeta>
+          {/* ★ 2026-10-23 (Irene «구독청구 부분이 정돈이 너무 안되고 버튼이랑 엉망이야») — 좁은 칸(상세 좌측 ~300px·우측 패널)에서
+              본문과 버튼이 한 줄을 다투며 둘 다 여러 줄로 깨졌다. 세로 카드로: 이름·상태 / 금액·주기 / 메타 한 줄 / 버튼 줄. */}
+          {subs.map((s) => {
+            const metas: string[] = [];
+            if (s.status === 'active' && s.next_billing_at) metas.push(`${t('subscription.next', '다음 청구')} ${s.next_billing_at}`);
+            if (s.end_mode === 'after_count' && s.max_occurrences) metas.push(t('subscription.occCount', { n: s.occurrences_count || 0, m: s.max_occurrences }) as string);
+            else if (s.occurrences_count) metas.push(t('subscription.occDone', { n: s.occurrences_count }) as string);
+            if (s.end_mode === 'until_date' && s.end_date) metas.push(t('subscription.untilBadge', { d: s.end_date }) as string);
+            const busy = busyId === s.id;
+            return (
+              <Card key={s.id} $paused={s.status !== 'active'} data-testid={`client-sub-${s.id}`}>
+                <CardTop>
+                  <CardName>{s.plan_name}</CardName>
+                  <StatusBadge $s={s.status}>{t(`subscription.status.${s.status}`, s.status) as string}</StatusBadge>
+                </CardTop>
+                <CardAmount>
                   <strong>{fmtAmount(s.amount, s.currency)}</strong> · {intervalLabel(s.interval)}
-                  {s.status === 'active' && <NextBadge>{t('subscription.next', '다음 청구')} {s.next_billing_at}</NextBadge>}
-                  {s.status === 'paused' && <PausedBadge>{t('subscription.paused', '일시정지')}</PausedBadge>}
-                  {s.status === 'completed' && <PausedBadge>{t('subscription.completed', '종료됨')}</PausedBadge>}
-                  {/* 운영 — 회차 진행/종료 조건 표시 */}
-                  {s.end_mode === 'after_count' && s.max_occurrences
-                    ? <OccBadge>{t('subscription.occCount', { n: s.occurrences_count || 0, m: s.max_occurrences, defaultValue: `${s.occurrences_count || 0}/${s.max_occurrences}회` }) as string}</OccBadge>
-                    : (s.occurrences_count ? <OccBadge>{t('subscription.occDone', { n: s.occurrences_count, defaultValue: `${s.occurrences_count}회 발행` }) as string}</OccBadge> : null)}
-                  {s.end_mode === 'until_date' && s.end_date && <OccBadge>{t('subscription.untilBadge', { d: s.end_date, defaultValue: `${s.end_date}까지` }) as string}</OccBadge>}
-                </CardMeta>
-              </CardMain>
-              {canWrite && (
-                <CardActions>
-                  {s.status === 'active' ? (
-                    <>
-                      <MiniBtn type="button" onClick={() => billNow(s.id)} disabled={busyId === s.id}>{t('subscription.billNow', '지금 청구')}</MiniBtn>
-                      <MiniBtn type="button" onClick={() => setStatus(s.id, 'paused')} disabled={busyId === s.id}>{t('subscription.pause', '일시정지')}</MiniBtn>
-                    </>
-                  ) : (
-                    <MiniBtn type="button" onClick={() => setStatus(s.id, 'active')} disabled={busyId === s.id}>{t('subscription.resume', '재개')}</MiniBtn>
-                  )}
-                  <MiniBtn type="button" $danger onClick={() => cancel(s.id)} disabled={busyId === s.id}>{t('subscription.cancel', '해지')}</MiniBtn>
-                </CardActions>
-              )}
-            </Card>
-          ))}
+                  <Sub2> · {t(s.auto_mode === 'auto' ? 'subscription.modeAuto' : 'subscription.modeDraft') as string}</Sub2>
+                </CardAmount>
+                {metas.length > 0 && <CardMeta>{metas.join(' · ')}</CardMeta>}
+                {canWrite && s.status !== 'completed' && (
+                  <CardActions>
+                    {s.status === 'active' ? (
+                      <>
+                        <ActionButton tone="secondary" size="sm" disabled={busy || (s.auto_mode === 'auto' && !s.bill_recipient)}
+                          title={s.auto_mode === 'auto' && !s.bill_recipient ? t('subscription.noRecipient') as string : undefined}
+                          data-testid={`client-sub-bill-${s.id}`} onClick={() => setAsk({ kind: 'bill', sub: s })}>
+                          {t('subscription.billNow', '지금 청구')}
+                        </ActionButton>
+                        <ActionButton tone="secondary" size="sm" disabled={busy}
+                          data-testid={`client-sub-pause-${s.id}`} onClick={() => setStatus(s.id, 'paused')}>
+                          {t('subscription.pause', '일시정지')}
+                        </ActionButton>
+                      </>
+                    ) : (
+                      <ActionButton tone="secondary" size="sm" disabled={busy}
+                        data-testid={`client-sub-resume-${s.id}`} onClick={() => setStatus(s.id, 'active')}>
+                        {t('subscription.resume', '재개')}
+                      </ActionButton>
+                    )}
+                    <MoreSlot>
+                      <OverflowMenu label={t('subscription.more') as string} data-testid={`client-sub-more-${s.id}`}
+                        items={[{ key: 'cancel', label: t('subscription.cancel', '해지') as string, danger: true, disabled: busy,
+                          testId: `client-sub-cancel-${s.id}`, onClick: () => setAsk({ kind: 'cancel', sub: s }) }]} />
+                    </MoreSlot>
+                  </CardActions>
+                )}
+                {s.auto_mode === 'auto' && !s.bill_recipient && canWrite && s.status === 'active' && (
+                  <Hint>{t('subscription.noRecipient') as string}</Hint>
+                )}
+                {actErr && actErr.id === s.id && <Err role="alert">{actErr.msg}</Err>}
+              </Card>
+            );
+          })}
         </List>
       )}
+      <ConfirmDialog
+        isOpen={!!ask}
+        title={(ask?.kind === 'cancel' ? t('subscription.cancelTitle', { name: ask.sub.plan_name }) : t('subscription.billTitle', { name: ask?.sub.plan_name || '' })) as string}
+        message={(ask?.kind === 'cancel'
+          ? t('subscription.cancelBody')
+          : ask?.sub.auto_mode === 'auto'
+            ? t('subscription.billBodyAuto', { to: ask.sub.bill_recipient || '—' })
+            : t('subscription.billBodyDraft')) as string}
+        confirmText={(ask?.kind === 'cancel' ? t('subscription.cancel', '해지') : t('subscription.billNow', '지금 청구')) as string}
+        cancelText={t('subscription.formCancel', '취소') as string}
+        variant={ask?.kind === 'cancel' ? 'danger' : 'info'}
+        onClose={() => setAsk(null)}
+        onConfirm={() => { const a = ask; setAsk(null); if (!a) return; if (a.kind === 'cancel') void cancel(a.sub.id); else void billNow(a.sub.id); }}
+      />
     </Wrap>
   );
 };
@@ -248,18 +288,19 @@ const Helper = styled.div`font-size:0.6875rem;color:#94A3B8;`;
 const Err = styled.div`font-size:0.75rem;color:#EF4444;`;
 const FormActions = styled.div`display:flex;justify-content:flex-end;gap:8px;`;
 const List = styled.div`display:flex;flex-direction:column;gap:8px;`;
-const Card = styled.div<{ $paused?: boolean }>`display:flex;align-items:center;justify-content:space-between;gap:10px;
-  padding:12px 14px;border:1px solid #E2E8F0;border-radius:12px;background:#fff;opacity:${(p) => (p.$paused ? 0.7 : 1)};`;
-const CardMain = styled.div`display:flex;flex-direction:column;gap:4px;min-width:0;`;
-const CardName = styled.div`font-size:0.8125rem;font-weight:600;color:#0F172A;`;
-const CardMeta = styled.div`font-size:0.75rem;color:#64748B;display:flex;align-items:center;gap:6px;flex-wrap:wrap;strong{color:#0F172A;font-weight:700;}`;
-const NextBadge = styled.span`font-size:0.6875rem;color:#0F766E;background:#F0FDFA;border-radius:999px;padding:1px 8px;`;
-const PausedBadge = styled.span`font-size:0.6875rem;color:#92400E;background:#FEF3C7;border-radius:999px;padding:1px 8px;`;
-const OccBadge = styled.span`font-size:0.6875rem;color:#475569;background:#F1F5F9;border-radius:999px;padding:1px 8px;`;
-const CardActions = styled.div`display:flex;align-items:center;gap:6px;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end;`;
-const MiniBtn = styled.button<{ $danger?: boolean }>`height:30px;padding:0 10px;border-radius:8px;font-size:0.75rem;font-weight:600;cursor:pointer;
-  background:#fff;border:1px solid ${(p) => (p.$danger ? '#FCA5A5' : '#CBD5E1')};color:${(p) => (p.$danger ? '#DC2626' : '#334155')};
-  &:hover:not(:disabled){background:${(p) => (p.$danger ? '#FEF2F2' : '#F1F5F9')};}
-  &:disabled{opacity:0.5;cursor:default;}`;
+const Card = styled.div<{ $paused?: boolean }>`display:flex;flex-direction:column;gap:6px;
+  padding:12px 14px;border:1px solid #E2E8F0;border-radius:12px;background:${(p) => (p.$paused ? '#F8FAFC' : '#fff')};`;
+const CardTop = styled.div`display:flex;align-items:flex-start;justify-content:space-between;gap:8px;`;
+const CardName = styled.div`font-size:0.8125rem;font-weight:600;color:#0F172A;min-width:0;word-break:break-word;`;
+const StatusBadge = styled.span<{ $s: Sub['status'] }>`flex-shrink:0;font-size:0.6875rem;font-weight:600;border-radius:999px;padding:1px 8px;white-space:nowrap;
+  color:${(p) => (p.$s === 'active' ? '#0F766E' : p.$s === 'paused' ? '#92400E' : '#475569')};
+  background:${(p) => (p.$s === 'active' ? '#F0FDFA' : p.$s === 'paused' ? '#FEF3C7' : '#F1F5F9')};`;
+const CardAmount = styled.div`font-size:0.8125rem;color:#334155;strong{color:#0F172A;font-weight:700;}`;
+const Sub2 = styled.span`color:#94A3B8;font-size:0.75rem;`;
+const CardMeta = styled.div`font-size:0.75rem;color:#64748B;line-height:1.5;`;
+const CardActions = styled.div`display:flex;align-items:center;gap:6px;flex-wrap:wrap;
+  margin-top:4px;padding-top:10px;border-top:1px solid #F1F5F9;`;
+const MoreSlot = styled.div`margin-left:auto;`;
+const Hint = styled.div`font-size:0.6875rem;color:#94A3B8;`;
 const Dim = styled.div`font-size:0.75rem;color:#94A3B8;`;
 const Empty = styled.div`font-size:0.75rem;color:#94A3B8;line-height:1.5;padding:8px 0;`;

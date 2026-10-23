@@ -234,7 +234,7 @@ async function billOneSubscription(sub, today = new Date()) {
     setImmediate(async () => {
       try {
         const { sendInvoiceEmail } = require('./emailService');
-        const recipient = client.tax_invoice_email || client.billing_contact_email || client.invite_email;
+        const recipient = billRecipientOf(client);
         if (!recipient) { console.warn('[clientSub email] sub', sub.id, 'no recipient'); return; }
         const shareUrl = `${process.env.APP_URL || 'https://dev.planq.kr'}/public/invoices/${shareToken}`;
         // PDF 첨부 — 실패해도 메일은 발송(수동 발송 라우트와 동일 정책). 조용히 넘어가지 않는다.
@@ -305,4 +305,10 @@ async function runClientSubscriptionBilling(today = new Date()) {
   return { due: due.length, billed, skipped, results };
 }
 
-module.exports = { runClientSubscriptionBilling, billOneSubscription, advanceDate };
+/** 정기 구독 청구 메일의 받는 주소 — 발송과 확인창이 같이 쓴다(확인한 주소 = 실제 보낸 주소) */
+function billRecipientOf(client) {
+  if (!client) return null;
+  return client.tax_invoice_email || client.billing_contact_email || client.invite_email || null;
+}
+
+module.exports = { runClientSubscriptionBilling, billOneSubscription, advanceDate, billRecipientOf };

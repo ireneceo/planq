@@ -201,7 +201,22 @@
     "errEndDate": "Pick an end date",
     "occCount": "{{n}}/{{m}} issued",
     "occDone": "{{n}} issued",
-    "untilBadge": "Until {{d}}"
+    "untilBadge": "Until {{d}}",
+    "status": {
+      "active": "Active",
+      "paused": "Paused",
+      "completed": "Ended",
+      "canceled": "Canceled"
+    },
+    "more": "More subscription actions",
+    "cancelTitle": "Cancel the subscription '{{name}}'?",
+    "cancelBody": "Automatic billing stops after canceling. Invoices already issued stay. This cannot be undone.",
+    "billTitle": "Bill '{{name}}' once now?",
+    "billBodyAuto": "An invoice is created and the billing email is sent right away to {{to}}.",
+    "billBodyDraft": "An invoice is created as a draft. Review it in Q bill and send it from there (no email goes to the client yet).",
+    "noRecipient": "Auto-send is on but there is no recipient — add a tax invoice or billing contact email under business details.",
+    "errOwnerOnly": "Only the workspace owner can change subscriptions.",
+    "errAction": "Could not complete this. Please try again shortly."
   },
   "timeline": {
     "title": "Customer Timeline",
