@@ -89,6 +89,22 @@ export function usePopoverAnchor({ placement = 'down', align = 'end' }: AnchorOp
     if (pos.left !== undefined && pos.left > maxEdge) setPos({ ...pos, left: maxEdge });
   }, [open, pos]);
 
+  // ★ **아래가 모자라면 위로 뒤집는다** (2026-10-23, Irene «우측 하단에 ... 버튼 있는데 이게 뭐야? 아무것도 없는데?»).
+  //   우측 패널 하단 줄의 ⋯ 는 화면 맨 아래에 있어 기본(아래로 펴기)이면 패널이 통째로 화면 밖이었다
+  //   (실측 1440×900: 메뉴 top 892 · 보이는 항목 0 — 누르면 aria-expanded 만 true 인 죽은 컨트롤).
+  //   쓰는 곳마다 placement 를 기억하게 두지 않고 여기서 잰다 — 아래 칸이 모자라고 위가 더 넓을 때만 뒤집는다.
+  useLayoutEffect(() => {
+    if (!open || !pos || pos.top === undefined) return;
+    const p = panelRef.current?.getBoundingClientRect();
+    const r = wrapRef.current?.getBoundingClientRect();
+    if (!p || !r || !p.height) return;
+    const below = window.innerHeight - r.bottom - 8;
+    const above = r.top - 8;
+    if (p.height > below && above > below) {
+      setPos({ right: pos.right, left: pos.left, bottom: window.innerHeight - r.top + 6 });
+    }
+  }, [open, pos]);
+
   const toggle = useCallback(() => setOpen(o => !o), []);
 
   // ★ 포커스 — 열면 패널 안 첫 컨트롤로 넣고, 닫으면 트리거로 되돌린다.

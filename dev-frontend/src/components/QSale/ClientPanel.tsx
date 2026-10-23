@@ -343,19 +343,22 @@ const ClientPanel: React.FC<Props> = ({
   //   상세 밴드 계약과 같은 원칙 — 자주 쓰는 3개만 두고 나머지는 메뉴로.
   const overflowItems = useMemo<OverflowItem[]>(() => {
     const out: OverflowItem[] = [];
+    // ★ 만들기 셋은 고객이 있거나 **만들 수 있을 때만** 둔다(2026-10-23, Irene «상황마다 나오는게 있고 안나오는 게 있으면 맞춰서»).
+    //   등록할 수 없는 문의(웹폼 중계·링크 없는 대화)에서는 withClient 가 조용히 돌아가 눌러도 아무 일이 없었다.
+    const canMake = !!cid || !!inquiry?.canRegister;
     // ★ 2026-09-13 (Irene: *"... 이 메뉴에 뭐가 들은지는 안나와."*) — 그룹 제목을 붙여
     //   열기 전에도 무엇이 들었는지 짐작되게 하고, 항목마다 글자 라벨을 준다(아이콘만 두지 않는다).
-    out.push({
+    if (canMake) out.push({
       key: 'invoice', label: t('action.createInvoice') as string, testId: 'client-panel-invoice',
       groupLabel: t('panel.menuGroup.make') as string,
       // ★ 경로는 **/bills** 다(`/bill` 은 라우트가 없다 — 가드 `--category=routelink` 가 잡았다).
       onClick: () => withClient((id) => navigate(`/bills?tab=invoices&new=1&client=${id}`)),
     });
-    out.push({
+    if (canMake) out.push({
       key: 'project', label: t('action.createProject') as string, testId: 'client-panel-project',
       onClick: () => withClient((id) => navigate(`/projects?new=1&client=${id}`)),
     });
-    out.push({
+    if (canMake) out.push({
       key: 'contract', label: t('action.createContract') as string, testId: 'client-panel-contract',
       disabled: busy,
       onClick: () => withClient((id) => { void createContract(id); }),
@@ -389,7 +392,7 @@ const ClientPanel: React.FC<Props> = ({
       });
     }
     return out;
-  }, [t, withClient, navigate, busy, createContract, cid, relation.canRegisterManaged, relation.askManaged,
+  }, [t, withClient, navigate, busy, createContract, cid, inquiry?.canRegister, relation.canRegisterManaged, relation.askManaged,
     relation.canArchive, relation.archived, relation.toggleArchive, canManage]);
 
 
