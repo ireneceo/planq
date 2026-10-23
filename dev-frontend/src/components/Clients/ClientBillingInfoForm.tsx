@@ -4,7 +4,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import AutoSaveField from '../Common/AutoSaveField';
-import { putClientFields, type ClientBilling } from '../../services/sale';
+import styled from 'styled-components';
+import { putClientFields, type BizRegRead, type ClientBilling } from '../../services/sale';
+import BizRegReadButton from './BizRegReadButton';
+import BizRegApplyModal from './BizRegApplyModal';
 import {
   Section, SectionTitle, Helper, BizToggleRow, BizRow, BizLabel, BizReadVal, BizTwoCol, BizInput,
   SwitchWrap, SwitchInput, SwitchTrack, SwitchLabel,
@@ -59,9 +62,24 @@ export default function ClientBillingInfoForm({ businessId, clientId, billing, c
     onSaved?.();
   };
   const disabled = !canEdit;
+  // 사업자등록증 읽기 → 확인 표(BizRegApplyModal). 못 읽으면 이유 한 줄만 — 칸은 그대로 직접 입력
+  const [bizReg, setBizReg] = useState<{ read: BizRegRead; file: File } | null>(null);
+  const [bizRegMsg, setBizRegMsg] = useState<string | null>(null);
   return (
     <Section data-testid="client-billing-section">
-      <SectionTitle>{t('section.billing', { defaultValue: '사업자·증빙 정보' }) as string}</SectionTitle>
+      <TitleRow>
+        <SectionTitle>{t('section.billing', { defaultValue: '사업자·증빙 정보' }) as string}</SectionTitle>
+        {canEdit && (
+          <BizRegReadButton businessId={businessId} door="sale" testId="client-bizreg-read"
+            onRead={(r, file, error) => { setBizRegMsg(error); setBizReg(r && r.found ? { read: r, file } : null); }} />
+        )}
+      </TitleRow>
+      {bizRegMsg && <Helper role="status" data-testid="client-bizreg-msg">{bizRegMsg}</Helper>}
+      {bizReg && (
+        <BizRegApplyModal businessId={businessId} clientId={clientId} billing={billing} read={bizReg.read} file={bizReg.file}
+          onClose={() => setBizReg(null)}
+          onSaved={() => { setIsBiz(true); onSaved?.(); }} />
+      )}
       <BizToggleRow>
         <AutoSaveField type="toggle" onSave={async () => { await save({ is_business: isBizRef.current }); }}>
           <SwitchWrap title={t('billing.typeTip', { defaultValue: '사업자면 세금계산서, 개인이면 현금영수증 정보로 발행됩니다.' }) as string}>
@@ -94,3 +112,5 @@ export default function ClientBillingInfoForm({ businessId, clientId, billing, c
     </Section>
   );
 }
+
+const TitleRow = styled.div`display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap;`;

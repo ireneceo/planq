@@ -606,6 +606,24 @@ export async function readCardPhoto(businessId: number, file: File): Promise<Car
   fd.append('file', file);
   return jx<CardPhotoRead>(await apiUpload(`/api/sale/${businessId}/card-read`, fd));
 }
+/** 사업자등록증 읽기 — 저장하지 않고 칸 값만 돌려준다. 문은 둘(고객 정보 = qsale 쓰기 · 청구서 발행 = qbill 쓰기), 서버 본문·한도는 한 벌 */
+export interface BizRegValues {
+  biz_name: string | null; biz_tax_id: string | null; biz_ceo: string | null;
+  biz_type: string | null; biz_item: string | null; biz_address: string | null;
+}
+export interface BizRegRead { values: BizRegValues; found: boolean; warnings: string[] }
+export async function readBizReg(businessId: number, file: File, door: 'sale' | 'invoice'): Promise<BizRegRead> {
+  const fd = new FormData();
+  fd.append('file', file);
+  const path = door === 'sale' ? `/api/sale/${businessId}/bizreg-read` : `/api/invoices/${businessId}/bizreg-read`;
+  return jx<BizRegRead>(await apiUpload(path, fd));
+}
+/** 등록증 원본을 그 고객의 파일로 남긴다 — 확인 표에서 [적용] 한 뒤에만 */
+export async function saveBizRegFile(businessId: number, clientId: number, file: File): Promise<{ file_id: number }> {
+  const fd = new FormData();
+  fd.append('file', file);
+  return jx<{ file_id: number }>(await apiUpload(`/api/sale/${businessId}/clients/${clientId}/bizreg-file`, fd));
+}
 export async function saveCardPhoto(businessId: number, clientId: number, file: File, contactId?: number | null): Promise<{ file_id: number }> {
   const fd = new FormData();
   fd.append('file', file);

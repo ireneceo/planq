@@ -68,7 +68,8 @@
       "docs_edit": "Doc AI edit",
       "payroll_preset": "Payroll item suggestions",
       "payroll_extract": "Payroll register (PDF)",
-      "card_read": "Card photo reading"
+      "card_read": "Card photo reading",
+      "bizreg_read": "Business registration reading"
     },
     "prospects": "Prospects"
   },

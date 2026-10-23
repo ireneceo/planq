@@ -15,9 +15,10 @@ interface Props {
   onRead: (r: CardPhotoRead | null, file: File, error: string | null) => void;
 }
 
+// 동의는 «사진을 OpenAI(국외)로 보낸다» 하나 — 사업자등록증 읽기(BizRegReadButton)도 같은 키를 쓴다(Fable 2026-10-23)
 const consentKey = (uid: number | string | undefined) => `planq:card-read-consent:${uid ?? 'anon'}`;
-function hasConsent(uid: number | string | undefined) { try { return localStorage.getItem(consentKey(uid)) === '1'; } catch { return false; } }
-function rememberConsent(uid: number | string | undefined) { try { localStorage.setItem(consentKey(uid), '1'); } catch { /* 기억 못 하면 다음에 다시 묻는다 */ } }
+export function hasConsent(uid: number | string | undefined) { try { return localStorage.getItem(consentKey(uid)) === '1'; } catch { return false; } }
+export function rememberConsent(uid: number | string | undefined) { try { localStorage.setItem(consentKey(uid), '1'); } catch { /* 기억 못 하면 다음에 다시 묻는다 */ } }
 
 const KNOWN = ['usage_limit', 'ai_unavailable', 'image_unreadable', 'image_required'];
 

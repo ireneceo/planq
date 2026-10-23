@@ -45,18 +45,7 @@ const reminderLimiter = rateLimit({
 });
 const REMINDER_COOLDOWN_MS = 6 * 60 * 60 * 1000; // 같은 청구서 6시간 쿨다운
 
-// 한국 사업자등록번호 체크섬 검증 — 형식(10자리)만으로는 오타를 못 잡아 owner 가 홈택스 헛걸음.
-// 가중치 [1,3,7,1,3,7,1,3,5] + 9번째 자리 보정. 발행 전 단계에서 오타 차단.
-function isValidKrBizNo(taxId) {
-  const d = String(taxId || '').replace(/[^0-9]/g, '');
-  if (d.length !== 10) return false;
-  const w = [1, 3, 7, 1, 3, 7, 1, 3, 5];
-  let sum = 0;
-  for (let i = 0; i < 9; i++) sum += Number(d[i]) * w[i];
-  sum += Math.floor((Number(d[8]) * 5) / 10);
-  const check = (10 - (sum % 10)) % 10;
-  return check === Number(d[9]);
-}
+const { isValidKrBizNo } = require('../utils/bizNo'); // 사업자등록번호 10자리 + 체크섬 — 사업자등록증 읽기와 한 벌
 
 // N+38 — 실시간 동기화 (CLAUDE.md 운영 안정성 16번 박제).
 function broadcastInvoice(req, invoice, event = 'invoice:updated') {
@@ -709,6 +698,11 @@ router.get('/:businessId', authenticateToken, attachWorkspaceScope(), requireMen
 // ★ 번호를 그대로 복사하면 **같은 번호의 청구서가 둘**이 된다 — 회계에서 그건 중복 발행이다.
 // ★ 회차의 «계획»(몇 회에 얼마)은 내용이고, 회차의 «결제·증빙 마킹»은 이력이다. 계획만 가져온다.
 // ★ 복사본은 항상 `draft` 로 시작한다. 발행은 사람이 다시 누른다(증빙·메일이 나가는 행위다).
+// 사업자등록증 읽기 — 청구서 발행 창의 «누락 보완»·외부 수신 칸을 채운다(저장 없음). 본문·한도는 services/bizRegRead 한 벌
+//   (고객 정보 문 POST /api/sale/:biz/bizreg-read 와 같은 하루 몫). 권한은 청구서 쓰기 — qsale 쓰기와 포함 관계가 아니라 문이 둘이다.
+// audit-exempt: 읽기만 한다 — 등록증을 AI 로 읽어 값을 돌려줄 뿐 저장·변경이 없다
+router.post('/:businessId/bizreg-read', authenticateToken, checkBusinessAccess, requireMenu('qbill', 'write'), ...require('../services/bizRegRead').readMiddlewares);
+
 router.post('/:businessId/:id/duplicate', authenticateToken, checkBusinessAccess, requireMenu('qbill', 'write'), async (req, res, next) => {
   const t = await sequelize.transaction();
   try {

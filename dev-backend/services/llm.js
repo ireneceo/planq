@@ -61,6 +61,10 @@ const PURPOSES = {
   // 명함 사진 읽기(docs/NAME_CARD_V3_STRATEGY.md 9절 결정 3) — 이미지 1장(≤1024px, detail low)에서 칸 10개만 뽑는다.
   //   추출이라 temperature 0 · 출력이 짧다. 글자 부분 상한(maxInputChars)은 callLLMImage 가 직접 본다.
   card_read:      { model: 'gpt-4o-mini', temperature: 0, maxTokens: 400, timeoutMs: 30_000, maxInputChars: 4_000 },
+  // 사업자등록증 읽기(2026-10-23 Fable 설계) — 이미지 1장(≤1600px, detail high)에서 사업자 칸 6개 + 문서 종류만.
+  //   모델은 실측으로 4.1-mini — 같은 합성 등록증에서 4o-mini 는 주소를 틀리고(월드컵북로→월드컵로) 입력 25,545 토큰,
+  //   4.1-mini 는 정확 + 3,122 토큰(≈$0.0013/장), 4o 는 정확 + 809 토큰(≈$0.002/장).
+  bizreg_read:    { model: 'gpt-4.1-mini', temperature: 0, maxTokens: 400, timeoutMs: 45_000, maxInputChars: 4_000 },
   // 인사이트 글 SNS 소재(2026-10-22, docs/SNS_PUBLISH_DESIGN.md §6) — 채널 6곳 본문 + 훅 5개 + 카드 4장 문구 JSON.
   //   Irene «마케팅 탁월하게» — 회피·밋밋한 문장이 곧 결함이라 Cue 답과 같은 gpt-5.1. 출력이 길어 상한 넉넉히.
   //   비용은 플랫폼 몫(cue_usage 에 안 센다) · 관리자 perUserLimiter 가 막는다.
@@ -372,9 +376,10 @@ async function readSseBody(r, { onDelta, onToolStart } = {}) {
 /**
  * 이미지 1장 + 지시문 — 명함 읽기 전용 경로(Fable 2026-10-22: capMessages 를 고치지 말고 따로 둔다).
  *   글자 부분만 상한을 직접 본다(넘으면 부르지 않는다). 이미지는 data URL(JPEG) 로 싣고 detail 은 low(비용 고정).
+ *   detail 기본 low — 사업자등록증(글자가 작다)만 'high'(bizRegRead, Fable 2026-10-23).
  *   그 뒤는 callLLM 그대로(재시도·통계·fallback) — 배열 content 는 capMessages 가 길이를 세지 못해 건드리지 않는다.
  */
-async function callLLMImage({ purpose = 'card_read', system, text = '', imageJpegBuf, json = true, fallback = '' }) {
+async function callLLMImage({ purpose = 'card_read', system, text = '', imageJpegBuf, json = true, fallback = '', detail = 'low' }) {
   const cfg = resolve(purpose);
   if (String(system || '').length + String(text || '').length > cfg.maxInputChars) {
     return { content: fallback, tool_calls: [], input_tokens: 0, output_tokens: 0, fallback: true, model: cfg.model, ms: 0, attempts: 0, truncated: true };
@@ -384,7 +389,7 @@ async function callLLMImage({ purpose = 'card_read', system, text = '', imageJpe
   }
   const content = [
     ...(text ? [{ type: 'text', text: String(text) }] : []),
-    { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${imageJpegBuf.toString('base64')}`, detail: 'low' } },
+    { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${imageJpegBuf.toString('base64')}`, detail: detail === 'high' ? 'high' : 'low' } },
   ];
   return callLLM({ purpose, json, fallback, messages: [{ role: 'system', content: String(system || '') }, { role: 'user', content }] });
 }

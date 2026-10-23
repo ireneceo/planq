@@ -26,6 +26,8 @@ const PRICING = {
   'gpt-4.1-nano': { input: 0.10, output: 0.40 },
   'gpt-4o-mini': { input: 0.15, output: 0.60 },
   'gpt-4o': { input: 2.50, output: 10.00 },
+  // 사업자등록증 읽기(bizreg_read, 2026-10-23) — 4o-mini 는 high 이미지를 토큰 ~33배로 세서 4.1-mini 가 더 싸고 더 정확했다(실측)
+  'gpt-4.1-mini': { input: 0.40, output: 1.60, cachedInput: 0.10 },
   // Cue 답변 계열 (2026-09-03 승격). 4o-mini 대비 입력 8.3배 · 출력 16.7배 —
   //   답 한 건(입력 ~6K · 출력 ~200 토큰) 기준 약 $0.001 → $0.0095.
   'gpt-5.1': { input: 1.25, output: 10.00, cachedInput: 0.125 },

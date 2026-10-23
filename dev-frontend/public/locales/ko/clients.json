@@ -380,5 +380,36 @@
       "image_required": "사진을 골라 주세요.",
       "generic": "사진을 읽지 못했어요. 직접 입력해 주세요."
     }
+  },
+  "bizReg": {
+    "button": "사업자등록증으로 채우기",
+    "reading": "읽는 중…",
+    "consentTitle": "사업자등록증을 AI 로 읽어요",
+    "consentMsg": "글자를 읽기 위해 사진·PDF 를 OpenAI(미국)로 보냅니다. 학습에는 쓰이지 않아요(OpenAI API 약관). 읽은 값은 저장 전에 직접 확인하고 고칠 수 있어요.",
+    "notFound": "사업자등록증 글자를 찾지 못했어요. 직접 입력해 주세요.",
+    "taxIdUnreadable": "사업자등록번호는 정확히 읽지 못했어요 — 번호는 직접 입력해 주세요.",
+    "applyTitle": "사업자등록증에서 읽은 값",
+    "applyHint": "등록증과 대조해 넣을 칸을 고르세요. 이미 값이 있는 칸은 바꾸기 전에 꺼 두었어요.",
+    "colField": "칸",
+    "colRead": "등록증",
+    "colCurrent": "지금",
+    "colApply": "적용",
+    "empty": "비어 있음",
+    "same": "같음",
+    "fill": "채우기",
+    "replace": "바꾸기",
+    "apply": "{{n}}칸 적용",
+    "applyFailed": "저장하지 못했어요(고객 수정 권한이 필요해요). 다시 시도해 주세요.",
+    "fileFailed": "값은 저장했지만 등록증 파일은 남기지 못했어요.",
+    "fileNote": "적용하면 등록증은 이 고객의 파일로 남아요(멤버만 보기).",
+    "errors": {
+      "usage_limit": "이번 달 AI 사용량을 다 썼어요. 직접 입력해 주세요.",
+      "ai_unavailable": "지금은 등록증을 읽지 못해요. 직접 입력해 주세요.",
+      "image_unreadable": "이 파일은 열 수 없어요. JPG·PNG 사진이나 PDF 로 다시 시도해 주세요.",
+      "image_required": "사진이나 PDF 를 골라 주세요.",
+      "pdf_unsupported": "지금은 PDF 를 읽지 못해요. 사진(JPG·PNG)으로 올려 주세요.",
+      "file_too_large": "10MB 이하 파일만 읽을 수 있어요.",
+      "generic": "등록증을 읽지 못했어요. 직접 입력해 주세요."
+    }
   }
 }

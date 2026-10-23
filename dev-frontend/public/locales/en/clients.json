@@ -380,5 +380,36 @@
       "image_required": "Please choose a photo.",
       "generic": "Couldn't read the photo. Please enter the details yourself."
     }
+  },
+  "bizReg": {
+    "button": "Fill from business registration",
+    "reading": "Reading…",
+    "consentTitle": "Read the business registration with AI",
+    "consentMsg": "To read the text, the photo or PDF is sent to OpenAI (USA). It is not used for training (OpenAI API terms). You can check and edit the values before saving.",
+    "notFound": "Couldn't find business registration text. Please enter it manually.",
+    "taxIdUnreadable": "The registration number couldn't be read reliably — please enter it manually.",
+    "applyTitle": "Values read from the business registration",
+    "applyHint": "Check against the certificate and choose which fields to fill. Fields that already have a value are unchecked.",
+    "colField": "Field",
+    "colRead": "Certificate",
+    "colCurrent": "Current",
+    "colApply": "Apply",
+    "empty": "Empty",
+    "same": "Same",
+    "fill": "Fill",
+    "replace": "Replace",
+    "apply": "Apply {{n}} fields",
+    "applyFailed": "Couldn't save (client edit permission required). Please try again.",
+    "fileFailed": "Values were saved, but the certificate file couldn't be kept.",
+    "fileNote": "When applied, the certificate is kept as this client's file (members only).",
+    "errors": {
+      "usage_limit": "This month's AI usage is used up. Please enter it manually.",
+      "ai_unavailable": "Can't read the certificate right now. Please enter it manually.",
+      "image_unreadable": "This file can't be opened. Try a JPG/PNG photo or a PDF.",
+      "image_required": "Choose a photo or PDF.",
+      "pdf_unsupported": "PDFs can't be read right now. Please upload a photo (JPG/PNG).",
+      "file_too_large": "Only files up to 10MB can be read.",
+      "generic": "Couldn't read the certificate. Please enter it manually."
+    }
   }
 }

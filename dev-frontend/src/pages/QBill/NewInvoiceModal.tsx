@@ -23,7 +23,8 @@ import {
 import PlanQSelect, { type PlanQSelectOption } from '../../components/Common/PlanQSelect';
 import { invoiceCapsOf, invoiceViewerOf } from './invoiceCaps';
 import { invoiceErrorText } from './invoiceErrors';
-import { putClientFields } from '../../services/sale';
+import { putClientFields, type BizRegRead } from '../../services/sale';
+import BizRegReadButton from '../../components/Clients/BizRegReadButton';
 import { onSocket } from '../../services/socket';
 import {
   InvoiceItemsTable, InvoiceTotals, InvoiceSplitArea, invoiceTotalsOf, Input, AddRow, type InvoiceLineItem, type InvoiceRound,
@@ -155,6 +156,27 @@ export default function NewInvoiceModal({ open, onClose, prefillSplit, prefillPo
   }>({});
   // «고객 정보에 저장» — 체크돼 있으면 발행·임시저장 뒤 고객에 **비어 있던 칸만** 채운다(PUT /api/clients/:biz/:id, 감사 포함)
   const [saveOnClient, setSaveOnClient] = useState(true);
+  // 사업자등록증 읽기(Fable 2026-10-23 판정 5) — 비어 있는 칸만 채운다(사람이 쓴 값은 덮지 않는다).
+  //   등록 고객이면 위 «고객 정보에 저장»(기본 켬)이 발행 때 고객의 빈 칸에도 넣는다. 외부 수신은 이름·번호 두 칸.
+  const [bizRegMsg, setBizRegMsg] = useState<string | null>(null);
+  const applyBizReg = (r: BizRegRead | null, _file: File, error: string | null) => {
+    const warn = r && r.warnings.includes('tax_id_checksum') ? t('bizReg.taxIdUnreadable', { ns: 'clients' }) as string : null;
+    setBizRegMsg(error || warn);
+    if (!r || !r.found) return;
+    const v = r.values;
+    if (recipientMode === 'external') {
+      if (v.biz_name) setExtName(cur => cur.trim() ? cur : v.biz_name!);
+      if (v.biz_tax_id) setExtBizNumber(cur => cur.trim() ? cur : v.biz_tax_id!);
+      return;
+    }
+    setOverrideBiz(o => {
+      const next = { ...o };
+      for (const k of ['biz_name', 'biz_tax_id', 'biz_ceo', 'biz_address'] as const) {
+        if (v[k] && missing.includes(k) && !(o[k] || '').trim()) next[k] = v[k]!;
+      }
+      return next;
+    });
+  };
 
   const [errors, setErrors] = useState<string[]>([]);
 
@@ -749,6 +771,10 @@ export default function NewInvoiceModal({ open, onClose, prefillSplit, prefillPo
                     <MissingInput value={extBizNumber} onChange={e => setExtBizNumber(e.target.value)}
                       placeholder="000-00-00000" />
                   </ExtField>
+                  <BizRegRow>
+                    {businessId && <BizRegReadButton businessId={businessId} door="invoice" testId="invoice-ext-bizreg-read" onRead={applyBizReg} />}
+                    {bizRegMsg && <BizRegMsg role="status">{bizRegMsg}</BizRegMsg>}
+                  </BizRegRow>
                   <ExtHint>{t('newInvoice.to.extHint', { defaultValue: '초대 없이 입력한 이메일로 청구서를 발송합니다. 공개 결제 링크로 결제·확인이 가능합니다.' }) as string}</ExtHint>
                 </ExtRecipientCard>
               )}
@@ -780,6 +806,10 @@ export default function NewInvoiceModal({ open, onClose, prefillSplit, prefillPo
                             <MissingTitle>{t('newInvoice.to.missingTitle')}</MissingTitle>
                           </MissingHead>
                           <MissingDesc>{t('newInvoice.to.missingDesc')}</MissingDesc>
+                          <BizRegRow>
+                            {businessId && <BizRegReadButton businessId={businessId} door="invoice" testId="invoice-bizreg-read" onRead={applyBizReg} />}
+                            {bizRegMsg && <BizRegMsg role="status">{bizRegMsg}</BizRegMsg>}
+                          </BizRegRow>
                           <MissingFields>
                             {missing.includes('biz_name') && (
                               <MissingField>
@@ -1387,3 +1417,6 @@ const PdfToggle = styled.label`
   font-size: 0.6875rem; color: #475569; margin-top: 4px;
   input { accent-color: #14B8A6; }
 `;
+
+const BizRegRow = styled.div`display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 4px 0 8px;`;
+const BizRegMsg = styled.span`font-size: 0.75rem; color: #B45309;`;

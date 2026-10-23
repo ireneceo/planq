@@ -79,6 +79,26 @@ router.post('/:businessId/card-read', ...writeChain, ...readLimit, photoUpload.s
   } catch (err) { return fail(res, next, err); }
 });
 
+// ─── 사업자등록증 읽기 (2026-10-23 Fable 설계) ─────────────────────────────
+//   이미지·PDF(1쪽) → AI 가 사업자 칸을 읽는다(저장 없음). 고객 «사업자·증빙 정보» 확인 표가 이 값을 보여 주고 사람이 적용한다.
+//   본문·한도는 services/bizRegRead 한 벌(청구서 발행 창 문 POST /api/invoices/:biz/bizreg-read 과 한도 공유).
+// audit-exempt: 읽기만 한다 — 등록증을 AI 로 읽어 값을 돌려줄 뿐 저장·변경이 없다(적용은 PUT /api/clients 가 감사)
+router.post('/:businessId/bizreg-read', ...writeChain, ...require('../services/bizRegRead').readMiddlewares);
+
+// 등록증을 그 고객의 파일로 남긴다 — 확인 표에서 [적용] 한 뒤에만 부른다(명함 사진 보관과 같은 규칙)
+router.post('/:businessId/clients/:clientId/bizreg-file', ...writeChain, ...photoLimit, require('../services/bizRegRead').uploadOne, async (req, res, next) => {
+  try {
+    const ctx = await loadClient(req, res); if (!ctx) return;
+    const { businessId, client } = ctx;
+    if (!req.file) return errorResponse(res, 'image_required', 400);
+    const { saveBizRegFile } = require('../services/bizRegRead');
+    const file = await saveBizRegFile({ businessId, uploaderId: req.user.id, clientId: client.id, buf: req.file.buffer, mime: req.file.mimetype, label: client.biz_name || client.company_name || client.display_name });
+    createAuditLog({ userId: req.user.id, businessId, action: 'client.biz_registration_saved', targetType: 'client', targetId: client.id, newValue: { file_id: file.id } });
+    signal(req, businessId, client.id);
+    return successResponse(res, { file_id: file.id }, 'saved', 201);
+  } catch (err) { return fail(res, next, err); }
+});
+
 // ─── 메일 서명 → 고객 추가 폼 (2026-10-22) ─────────────────────────────
 //   Irene: *"메일에서 고객을 추가하거나 초대할 수 있게 하면, 기본 정보를 메일 서명 같은 곳에서 가져와야 해"*
 //   메일 «고객으로 저장» 이 연 고객 추가 폼을 서명 값(회사·직함·부서·전화)으로 채운다. **저장하지 않는다**.
