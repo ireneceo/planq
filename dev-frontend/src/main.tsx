@@ -149,8 +149,14 @@ if (typeof window !== 'undefined' && window.visualViewport) {
   let lastVvTop = -1;
   let touching = false;
   window.addEventListener('touchstart', () => { touching = true; }, { passive: true });
-  window.addEventListener('touchend', () => { touching = false; }, { passive: true });
-  window.addEventListener('touchcancel', () => { touching = false; }, { passive: true });
+  // ★ 2026-10-23 — 손을 뗀 순간 **한 번 더** 되돌린다 (Irene: "아이폰에서 상단 서브페이지들이 다 가려져.
+  //   메인헤더에 가려졌어" → 잠시 뒤 "지금 또 괜찮아").
+  //   iOS 가 문서를 밀어 올리는(유령 스크롤) 순간 손가락이 화면에 닿아 있으면 아래 보정은 건너뛰고,
+  //   다시 부를 사건(visualViewport scroll/resize)이 올 때까지 **문서가 밀린 채** 남았다 — 고정된 앱 머리줄 밑으로
+  //   페이지 머리줄·서브헤더가 들어가 가려진다. 다음 키보드·스크롤 사건에 저절로 풀려 «잠시 오류» 로 보였다.
+  const settleAfterTouch = () => { touching = false; requestAnimationFrame(() => maybeFixPhantomScroll()); };
+  window.addEventListener('touchend', settleAfterTouch, { passive: true });
+  window.addEventListener('touchcancel', settleAfterTouch, { passive: true });
 
   // ★ 2026-08-27 — **IME 조합 중에는 뷰포트를 건드리지 않는다.** (운영 #299 · #389)
   //   증상: 한글을 치면 자모가 따로 찍힌다 — "노션이나 슬랙" → "ㄴㅗㅅㅕㄴㅇㅣㄴㅏ ㅅㅡㄹㄹㅐㄱ".
@@ -226,6 +232,9 @@ if (typeof window !== 'undefined' && window.visualViewport) {
   update();
   vv.addEventListener('resize', update);
   vv.addEventListener('scroll', update);
+  // 문서 자체가 밀린 것(window.scrollY)도 듣는다 — visualViewport 사건 없이 문서만 밀리는 경우가 있다(위 settleAfterTouch 주석).
+  //   앱 셸은 문서가 스크롤하지 않으므로(목록은 안쪽 상자가 스크롤) 평소엔 불리지 않는다.
+  window.addEventListener('scroll', () => { if (window.scrollY !== 0) requestAnimationFrame(() => maybeFixPhantomScroll()); }, { passive: true });
   window.addEventListener('orientationchange', () => { fullH = window.innerHeight; requestAnimationFrame(update); });
   // focusin/focusout — textarea/input focus 가 visualViewport.resize 보다 늦게 fire 되는 iOS 케이스 보정
   // #79 — 모바일에서 focus 된 입력이 키보드에 가리지 않게, 스크롤 컨테이너(모달 body 등) 안에서
