@@ -57,7 +57,8 @@
       "recent": "Recent",
       "name": "Name",
       "progress": "Progress",
-      "deadline": "Deadline"
+      "deadline": "Deadline",
+      "manual": "Custom order"
     },
     "groupLabel": "Group",
     "group": {
@@ -90,7 +91,10 @@
     "noTeam": "No team",
     "duplicate": "Duplicate",
     "duplicateHint": "Creates a new project with the settings only (tasks, documents and conversations are not copied)",
-    "workspaceVisible": "Visible to all"
+    "workspaceVisible": "Visible to all",
+    "moveTop": "Move to top",
+    "moveUp": "Move up",
+    "moveDown": "Move down"
   },
   "common": {
     "cancel": "Cancel",
@@ -626,7 +630,8 @@
       "deleteOnlyFolder": "Delete folder only",
       "deleteWithFilesAction": "Delete files too",
       "deleteBlocked": "{{n}} file(s) in this folder can’t be deleted by you. You can move the files to the parent folder and delete only the folder.",
-      "deleteChoiceTrashWithDays": "“Delete files too” sends the files to the trash. You can restore them within {{days}} days."
+      "deleteChoiceTrashWithDays": "“Delete files too” sends the files to the trash. You can restore them within {{days}} days.",
+      "starred": "Favorite"
     },
     "up": {
       "aria": "Upload progress",
@@ -977,5 +982,20 @@
     "hoursAgo": "{{count}}h ago",
     "justNow": "Just now",
     "minutesAgo": "{{count}}m ago"
+  },
+  "star": {
+    "on": "Add to favorites",
+    "off": "Remove from favorites",
+    "failed": "Couldn’t save the favorite. Please try again."
+  },
+  "order": {
+    "reset": "Reset order",
+    "resetHint": "Clear your custom order and go back to most recent",
+    "resetTitle": "Clear your custom order?",
+    "resetBody": "The order you arranged by dragging will be cleared and the list goes back to most recent. Favorites (stars) stay.",
+    "resetConfirm": "Reset order",
+    "failed": "Couldn’t save the order. Please move it again.",
+    "errorTitle": "Couldn’t save",
+    "ok": "OK"
   }
 }

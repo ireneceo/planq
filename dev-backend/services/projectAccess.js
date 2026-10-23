@@ -40,6 +40,32 @@ async function loadProjectOrForbidden(projectId, userId) {
   return { error: { code: 403, message: 'not_project_member' } };
 }
 
+// 이 사람이 이 워크스페이스에서 볼 수 있는 프로젝트 id — 프로젝트 목록(GET /api/projects)과 **같은 술어 한 벌**.
+//   멤버 이상: access_scope.projectScopeWhere(owner/admin 은 제한 없음) · 고객: project_clients.contact_user_id = 나.
+//   돌려주는 것: { where, isMember } — where 는 Project.findAll 에 그대로 쓴다(business_id 포함).
+//   ★ 직접 정렬 PUT 이 받은 id 를 이 집합으로 좁힌다(넓히는 인자 금지 — 2026-10-23).
+async function visibleProjectWhere(userId, businessId, platformRole) {
+  const { Op } = require('sequelize');
+  const bm = await requireBusinessMember(userId, businessId);
+  const where = { business_id: businessId };
+  if (bm) {
+    const { getUserScope, projectScopeWhere } = require('../middleware/access_scope');
+    const scope = await getUserScope(userId, businessId, platformRole);
+    const ps = projectScopeWhere(scope, 'id');
+    if (ps) where[Op.and] = [ps];
+    return { where, isMember: true };
+  }
+  const myClientRows = await ProjectClient.findAll({
+    where: { contact_user_id: userId },
+    attributes: ['project_id'],
+    include: [{ model: Project, attributes: ['id'], where: { business_id: businessId } }],
+  });
+  const ids = myClientRows.map((r) => r.project_id);
+  if (!ids.length) return { where: null, isMember: false };
+  where.id = { [Op.in]: ids };
+  return { where, isMember: false };
+}
+
 // 고객에게 보내는 프로젝트 — 내부 운영 칸(계약 금액·청구 설정·전략·성과지표·드라이브 폴더)과
 //   다른 사람의 연락처를 뺀다(2026-10-09 보안점검: 상세·목록이 행을 통째로 보냈다. 캔버스 라우트는 이미
 //   member_only 였는데 같은 값이 여기로 나가고 있었다). 화이트리스트가 아니라 블랙리스트인 이유:
@@ -72,4 +98,4 @@ function projectForClient(json, viewerUserId) {
   return out;
 }
 
-module.exports = { loadProjectOrForbidden, requireBusinessMember, projectForClient, PROJECT_CLIENT_HIDDEN };
+module.exports = { loadProjectOrForbidden, requireBusinessMember, visibleProjectWhere, projectForClient, PROJECT_CLIENT_HIDDEN };

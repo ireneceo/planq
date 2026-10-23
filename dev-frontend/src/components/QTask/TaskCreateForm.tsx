@@ -40,9 +40,11 @@ import { SegmentedToggle, SegmentedBtn } from '../Common/segmentedToggle';
 import { useDraftKey, useDraftText } from '../../hooks/useDraftText';
 import { todayInTz } from '../../utils/timezones';
 import type { DraftKind } from '../../hooks/draftKinds';
+import { orderProjectsForMe } from '../../utils/projectOrder';
+import { StarGlyph } from '../../components/Common/StarToggle';
 
 export interface TaskFormMember { user_id: number; name: string }
-export interface TaskFormProject { id: number; name: string }
+export interface TaskFormProject { id: number; name: string; my_pinned_at?: string | null }
 
 /** 바깥에서 채워 넣는 첫 값 (공유 타깃·음성 캡처 등). 바뀔 때마다 initialNonce 를 올린다. */
 export interface TaskCreateInitial {
@@ -230,12 +232,12 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({
       if (!r.ok) return;
       const j = await r.json().catch(() => null);
       if (!alive || !j?.success || !Array.isArray(j.data)) return;
-      setProjectsSelf(j.data.map((p: { id: number; name: string }) => ({ id: p.id, name: p.name })));
+      setProjectsSelf(orderProjectsForMe(j.data as Array<{ id: number; name: string; my_pinned_at?: string | null; my_sort_order?: number | null }>).map((p) => ({ id: p.id, name: p.name, my_pinned_at: p.my_pinned_at ?? null })));
     })();
     return () => { alive = false; };
   }, [projectsProp, bizId]);
   const projects = projectsProp ?? projectsSelf;
-  const projectOptions = useMemo(() => projects.map((p) => ({ value: String(p.id), label: p.name })), [projects]);
+  const projectOptions = useMemo(() => projects.map((p) => ({ value: String(p.id), label: p.name, icon: p.my_pinned_at ? <StarGlyph /> : undefined })), [projects]);
 
   const selfTags = useTaskTagDict(tagDictProp ? null : (bizId || null));
   const tagDict = tagDictProp ?? selfTags.dict;

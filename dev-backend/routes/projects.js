@@ -14,7 +14,7 @@ const {
   ProjectStatusOption, ProjectProcessColumn, ProjectProcessPart,
   File, FileFolder, MessageAttachment, TaskAttachment,
   ProjectWorkstream, Post, Document, Department, Team, TaskLink, ProjectStage, ProjectLink,
-  GuestLink, PlatformSetting, ProjectPinnedDoc,
+  GuestLink, PlatformSetting, ProjectPinnedDoc, UserEntityPref,
 } = require('../models');
 const { successResponse, errorResponse, parsePagination, paginatedResponse } = require('../middleware/errorHandler');
 // 같은 실제 파일이 direct·chat 두 줄로 보이던 것을 접는다(2026-09-04). 술어는 한 곳.
@@ -51,7 +51,7 @@ const { fetchProjectStats } = require('../services/weeklyReviewSnapshot');
 // 접근 판정은 services/projectAccess.js **한 곳**이다 — 여기 지역 선언으로 두었더니
 //   새 라우트가 export 를 못 써서 손으로 다시 쓸 수밖에 없는 상태였다(2026-09-10).
 //   호출부 64곳은 그대로 이 이름을 쓴다.
-const { loadProjectOrForbidden, requireBusinessMember, projectForClient } = require('../services/projectAccess');
+const { loadProjectOrForbidden, requireBusinessMember, visibleProjectWhere, projectForClient } = require('../services/projectAccess');
 const { serializeTasksForClient } = require('../utils/taskClientView');
 // 고객용 업무 목록 — 내부 칸·공유 열쇠는 taskClientView 한 곳이 뺀다.
 const clientTasks = (rows) => serializeTasksForClient(rows);
@@ -327,32 +327,13 @@ router.get('/', authenticateToken, async (req, res, next) => {
     const businessId = Number(req.query.business_id);
     if (!businessId) return errorResponse(res, 'business_id required', 400);
 
-    const bm = await requireBusinessMember(req.user.id, businessId);
-
-    const where = { business_id: businessId };
+    // 볼 수 있는 범위 — 직접 정렬 PUT 과 같은 술어 한 벌(services/projectAccess.visibleProjectWhere).
+    //   멤버는 참여 ∪ 전체 공개만(2026-10-16) · owner/admin 제한 없음 · 고객은 본인 참여 프로젝트만.
+    const { where: scopeWhere, isMember } = await visibleProjectWhere(req.user.id, businessId, req.user.platform_role);
+    const bm = isMember;
+    if (!scopeWhere) return successResponse(res, []);
+    const where = { ...scopeWhere };
     if (req.query.status) where.status = req.query.status;
-
-    // 멤버는 참여 ∪ 전체 공개 프로젝트만(2026-10-16, Irene «관리자 아닌데 모든 프로젝트가 나오고 있어»).
-    //   판정은 access_scope 한 곳 — owner/admin 은 제한 없음(null). Op.and 안에 둔다(최상위 키는 덮인다).
-    if (bm) {
-      const { getUserScope, projectScopeWhere } = require('../middleware/access_scope');
-      const scope = await getUserScope(req.user.id, businessId, req.user.platform_role);
-      const ps = projectScopeWhere(scope, 'id');
-      if (ps) where[Op.and] = [ps];
-    }
-
-    // 고객이면 본인 참여 프로젝트만
-    let projectIdFilter = null;
-    if (!bm) {
-      const myClientRows = await ProjectClient.findAll({
-        where: { contact_user_id: req.user.id },
-        attributes: ['project_id'],
-        include: [{ model: Project, attributes: ['id'], where: { business_id: businessId } }],
-      });
-      projectIdFilter = myClientRows.map(r => r.project_id);
-      if (projectIdFilter.length === 0) return successResponse(res, []);
-      where.id = { [Op.in]: projectIdFilter };
-    }
 
     const projects = await Project.findAll({
       where,
@@ -390,8 +371,18 @@ router.get('/', authenticateToken, async (req, res, next) => {
     const deptMap = new Map(depts.map(d => [d.id, d.name]));
     const teamMap = new Map(teams.map(t => [t.id, t.name]));
 
+    // 내 별·직접 정렬 순서(사람 단위, 2026-10-23) — 대화방 my_pinned_at 과 같은 이름. 고객도 싣는다(비밀 아님).
+    const prefRows = await UserEntityPref.findAll({
+      where: { user_id: req.user.id, business_id: businessId, entity_type: 'project' },
+      attributes: ['entity_id', 'pinned_at', 'sort_order'],
+    });
+    const prefMap = new Map(prefRows.map((r) => [r.entity_id, r]));
+
     const result = projects.map(p => {
       const json = p.toJSON();
+      const pref = prefMap.get(json.id);
+      json.my_pinned_at = pref?.pinned_at || null;
+      json.my_sort_order = pref?.sort_order ?? null;
       // owner 소속 부서/팀 (그룹핑용)
       const ownerBm = bmMap.get(json.owner_user_id);
       json.owner_department = ownerBm?.department_id ? (deptMap.get(ownerBm.department_id) || null) : null;
@@ -412,6 +403,108 @@ router.get('/', authenticateToken, async (req, res, next) => {
 
     // 고객은 내부 운영 칸·남의 연락처를 받지 않는다(상세와 같은 함수).
     return successResponse(res, bm ? result : result.map((j) => projectForClient(j, req.user.id)));
+  } catch (err) { next(err); }
+});
+
+// ============================================
+// 내 즐겨찾기(별)·직접 정렬 — 사람 단위 개인 화면 상태 (2026-10-23, docs/PROJECT_PREFS_DESIGN.md · Fable DESIGN-OK)
+//   Irene: *"직접정렬도 … 드래그 드롭 … 즐겨찾기 … 채팅방에 이미 있는 디자인이랑 기능 형태 통일해서"*
+//   ★ 동사·신호는 Q talk 대화방 별과 같다(POST/DELETE …/pin · user:<id> 방 신호).
+//   ★ `/order` 두 라우트는 `/:id` 라우트들보다 **위에** 둔다 — Express 는 '/order' 를 '/:id' 로도 받는다
+//     (duproute 가드는 같은 경로 문자열만 센다).
+//   실시간은 신호만 — 받는 화면이 다시 읽는다(규칙 16).
+// ============================================
+function emitProjectPref(req, businessId, projectId) {
+  const io = req.app.get('io');
+  if (io) io.to(`user:${req.user.id}`).emit('project:pref', { business_id: businessId, project_id: projectId ?? null });
+}
+
+// PUT /api/projects/order { business_id, ids:[표시 순서] } — 직접 정렬 저장
+//   ★ 받은 ids 는 «내가 볼 수 있는 프로젝트» 와 교집합만 쓴다(목록과 같은 술어 — 넓히는 인자 금지).
+//   ★ 절대 번호가 아니라 «자리 바꾸기»: 화면은 필터 안의 것만 보낸다(기본 상태 필터 = 진행 중). 받은 것만 0..k 로
+//     덮으면 숨은 프로젝트의 옛 번호와 뒤섞인다 → 내 기존 순서에서 받은 id 들이 차지하던 자리에 받은 순서대로 다시 넣는다.
+router.put('/order', authenticateToken, async (req, res, next) => { // audit-exempt: 본인 표시 순서(개인 화면 상태) — 프로젝트·권한 무변경
+  try {
+    const businessId = Number(req.body?.business_id);
+    if (!businessId) return errorResponse(res, 'business_id required', 400);
+    const raw = Array.isArray(req.body?.ids) ? req.body.ids : null;
+    if (!raw) return errorResponse(res, 'ids required', 400);
+    const asked = [...new Set(raw.map(Number).filter((n) => Number.isInteger(n) && n > 0))].slice(0, 2000);
+    const { where } = await visibleProjectWhere(req.user.id, businessId, req.user.platform_role);
+    if (!where || !asked.length) return successResponse(res, { applied: [] });
+    const visibleRows = await Project.findAll({ where: { [Op.and]: [where, { id: { [Op.in]: asked } }] }, attributes: ['id'] });
+    const visible = new Set(visibleRows.map((r) => r.id));
+    const ids = asked.filter((id) => visible.has(id));
+    if (!ids.length) return successResponse(res, { applied: [] });
+
+    await sequelize.transaction(async (transaction) => {
+      const mine = await UserEntityPref.findAll({
+        where: { user_id: req.user.id, business_id: businessId, entity_type: 'project', sort_order: { [Op.ne]: null } },
+        order: [['sort_order', 'ASC'], ['id', 'ASC']],
+        transaction, lock: transaction.LOCK.UPDATE,
+      });
+      const full = mine.map((r) => r.entity_id);
+      const inFull = new Set(full);
+      for (const id of ids) if (!inFull.has(id)) full.push(id);
+      const moving = new Set(ids);
+      const slots = [];
+      full.forEach((id, i) => { if (moving.has(id)) slots.push(i); });
+      slots.forEach((slot, k) => { full[slot] = ids[k]; });
+      const existing = await UserEntityPref.findAll({
+        where: { user_id: req.user.id, entity_type: 'project', entity_id: { [Op.in]: full } },
+        transaction,
+      });
+      const byId = new Map(existing.map((r) => [r.entity_id, r]));
+      for (let i = 0; i < full.length; i += 1) {
+        const row = byId.get(full[i]);
+        if (row) { if (row.sort_order !== i) await row.update({ sort_order: i }, { transaction }); }
+        else await UserEntityPref.create({ user_id: req.user.id, business_id: businessId, entity_type: 'project', entity_id: full[i], sort_order: i }, { transaction });
+      }
+    });
+    emitProjectPref(req, businessId, null);
+    return successResponse(res, { applied: ids });
+  } catch (err) { next(err); }
+});
+
+// DELETE /api/projects/order?business_id= — 순서 초기화(별은 그대로). 기본 정렬이 최근순으로 돌아간다.
+router.delete('/order', authenticateToken, async (req, res, next) => { // audit-exempt: 본인 표시 순서 초기화(개인 화면 상태)
+  try {
+    const businessId = Number(req.query.business_id);
+    if (!businessId) return errorResponse(res, 'business_id required', 400);
+    const [cleared] = await UserEntityPref.update(
+      { sort_order: null },
+      { where: { user_id: req.user.id, business_id: businessId, entity_type: 'project', sort_order: { [Op.ne]: null } } },
+    );
+    emitProjectPref(req, businessId, null);
+    return successResponse(res, { cleared });
+  } catch (err) { next(err); }
+});
+
+// POST /api/projects/:id/pin · DELETE /api/projects/:id/pin — 내 즐겨찾기(별)
+//   판정은 읽기와 같은 술어(loadProjectOrForbidden) — 참여 고객도 된다(개인 화면 상태지 프로젝트 쓰기가 아니다).
+router.post('/:id/pin', authenticateToken, async (req, res, next) => { // audit-exempt: 본인 즐겨찾기(개인 화면 상태) — 프로젝트·권한 무변경
+  try {
+    const { project, error } = await loadProjectOrForbidden(Number(req.params.id), req.user.id);
+    if (error) return errorResponse(res, error.message, error.code);
+    const [row] = await UserEntityPref.findOrCreate({
+      where: { user_id: req.user.id, entity_type: 'project', entity_id: project.id },
+      defaults: { business_id: project.business_id, pinned_at: new Date() },
+    });
+    if (!row.pinned_at) await row.update({ pinned_at: new Date() });
+    emitProjectPref(req, project.business_id, project.id);
+    return successResponse(res, { pinned_at: row.pinned_at });
+  } catch (err) { next(err); }
+});
+router.delete('/:id/pin', authenticateToken, async (req, res, next) => { // audit-exempt: 본인 즐겨찾기 해제(개인 화면 상태)
+  try {
+    const { project, error } = await loadProjectOrForbidden(Number(req.params.id), req.user.id);
+    if (error) return errorResponse(res, error.message, error.code);
+    await UserEntityPref.update(
+      { pinned_at: null },
+      { where: { user_id: req.user.id, entity_type: 'project', entity_id: project.id } },
+    );
+    emitProjectPref(req, project.business_id, project.id);
+    return successResponse(res, { pinned_at: null });
   } catch (err) { next(err); }
 });
 
@@ -553,9 +646,15 @@ router.get('/:id', authenticateToken, async (req, res, next) => {
       });
       resolvedName = bm?.name || u?.name || null;   // 워크스페이스 표시명 우선
     }
+    // 내 즐겨찾기(별) — 상세 머리줄 별이 읽는다(사람 단위, 2026-10-23).
+    const myPref = await UserEntityPref.findOne({
+      where: { user_id: req.user.id, entity_type: 'project', entity_id: project.id },
+      attributes: ['pinned_at'],
+    });
     return successResponse(res, {
       ...(role === 'client' ? projectForClient(detail, req.user.id) : detail),
       my_role_in_project: role,
+      my_pinned_at: myPref?.pinned_at || null,
       resolved_default_assignee: {
         user_id: resolvedUserId,
         name: resolvedName,

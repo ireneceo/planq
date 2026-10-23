@@ -143,6 +143,8 @@ import {
 } from './QProjectDetailPage.styles';
 import { formatDay } from '../../utils/dateFormat';
 import RolePicker from '../../components/MemberRole/RolePicker';
+import StarToggle from '../../components/Common/StarToggle';
+import { setProjectPinned, PROJECT_PREF_EVENT } from '../../services/projectPrefs';
 import RoleManageModal from '../../components/MemberRole/RoleManageModal';
 import { useMemberRoleDict } from '../../components/MemberRole/useMemberRoleDict';
 
@@ -178,6 +180,8 @@ interface ProjectDetail {
   color?: string | null;
   owner_user_id: number;
   my_role_in_project?: 'owner' | 'admin' | 'member' | 'client' | string;
+  /** 내 즐겨찾기(별) — 사람 단위(2026-10-23) */
+  my_pinned_at?: string | null;
   Business?: { id: number; name: string; brand_name?: string };
   projectMembers?: { user_id: number; role: string | null; is_pm?: boolean; User?: { id: number; name: string; display_name?: string | null }}[];
   projectClients?: { id: number; client_id?: number | null; contact_name: string; contact_email: string | null; contact_user_id?: number | null; invite_token?: string | null; invited_at?: string | null; client_status?: string | null; company_name?: string | null; job_title?: string | null; department?: string | null }[];
@@ -514,6 +518,25 @@ const QProjectDetailPage: React.FC = () => {
 
   useEffect(() => { load(); }, [load]);
 
+  // 내 즐겨찾기(별) — 대화방 별과 같은 방식: 낙관 반영 → 저장 → 실패면 되돌린다.
+  const togglePin = useCallback(async (next: boolean) => {
+    const prevVal = project?.my_pinned_at ?? null;
+    setProject((prev) => (prev ? { ...prev, my_pinned_at: next ? new Date().toISOString() : null } : prev));
+    const ok = await setProjectPinned(Number(projectId), next);
+    if (!ok) setProject((prev) => (prev ? { ...prev, my_pinned_at: prevVal } : prev));
+  }, [project?.my_pinned_at, projectId]);
+  // 내 다른 기기·탭에서 이 프로젝트 별이 바뀌면 별만 다시 읽는다(서버는 신호만 — user:<id> 방).
+  useEffect(() => {
+    if (!projectId) return undefined;
+    return onSocket<{ project_id: number | null }>(PROJECT_PREF_EVENT, async (d) => {
+      if (d?.project_id == null || Number(d.project_id) !== Number(projectId)) return;   // 순서 신호(null)는 별과 무관
+      try {
+        const j = await (await apiFetch(`/api/projects/${projectId}`)).json();
+        if (j?.success) setProject((prev) => (prev ? { ...prev, my_pinned_at: j.data.my_pinned_at ?? null } : prev));
+      } catch { /* 다음 신호·탭 복귀 때 다시 읽는다 */ }
+    });
+  }, [projectId]);
+
   // N+39-2 — 실시간 동기화 (CLAUDE.md 16번) + PWA visibility 안전망
   const projectBizId = project?.business_id;
   useVisibilityRefresh(useCallback(() => { void load({ silent: true }); }, [load]));
@@ -718,6 +741,10 @@ const QProjectDetailPage: React.FC = () => {
       title={project.name}
       actions={
         <HeaderActions>
+          {/* 내 즐겨찾기(별) — 목록 카드·Q talk 대화방과 같은 별(공용 StarToggle). 켜면 프로젝트 목록·고르는 칸에서 맨 위. */}
+          <StarToggle pinned={!!project.my_pinned_at} onToggle={(next) => { void togglePin(next); }}
+            data-testid="project-detail-star"
+            labelOn={t('star.on', '즐겨찾기') as string} labelOff={t('star.off', '즐겨찾기 해제') as string} />
           {/* 소통 창구로 바로 — 채팅과 메일이 PlanQ 의 두 창구다. 프로젝트에서 한 번에 건너간다. */}
           {/* ★ 없는 곳으로 보내지 않는다 (Irene 2026-08-31):
               "채팅방이 없다면서 프로젝트 채팅 누르면 채팅 메뉴로 가서 없는 건지 아닌지 알수없게 해.

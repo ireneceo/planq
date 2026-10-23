@@ -20,10 +20,12 @@ import { modalFooterRadius } from '../../components/Common/modalShell';
 import { useTranslation } from 'react-i18next';
 import { apiFetch } from '../../contexts/AuthContext';
 import PlanQSelect, { type PlanQSelectOption } from '../../components/Common/PlanQSelect';
+import { orderProjectsForMe } from '../../utils/projectOrder';
+import { StarGlyph } from '../../components/Common/StarToggle';
 
 export type NewNoteKind = 'memo' | 'voice';
 
-interface ProjectOpt { id: number; name: string }
+interface ProjectOpt { id: number; name: string; my_pinned_at?: string | null }
 interface ClientOpt { id: number; name: string }
 
 interface Props {
@@ -52,14 +54,14 @@ const NewNoteModal: React.FC<Props> = ({ open, onClose, businessId, onStart }) =
       apiFetch(`/api/projects?business_id=${businessId}&limit=200`).then(r => r.json()).catch(() => null),
       apiFetch(`/api/clients?business_id=${businessId}&limit=200`).then(r => r.json()).catch(() => null),
     ]).then(([pj, cl]) => {
-      if (pj?.success) setProjects((pj.data || []).map((p: any) => ({ id: p.id, name: p.name })));
+      if (pj?.success) setProjects(orderProjectsForMe((pj.data || []) as Array<{ id: number; name: string; my_pinned_at?: string | null }>).map((p) => ({ id: p.id, name: p.name, my_pinned_at: p.my_pinned_at ?? null })));
       if (cl?.success) setClients((cl.data || []).map((c: any) => ({ id: c.id, name: c.company_name || c.contact_name || `#${c.id}` })));
     });
   }, [open, businessId]);
 
   if (!open) return null;
 
-  const projectOptions: PlanQSelectOption[] = projects.map(p => ({ value: p.id, label: p.name }));
+  const projectOptions: PlanQSelectOption[] = projects.map(p => ({ value: p.id, label: p.name, icon: p.my_pinned_at ? <StarGlyph /> : undefined }));
   const clientOptions: PlanQSelectOption[] = clients.map(c => ({ value: c.id, label: c.name }));
 
   const submit = () => {

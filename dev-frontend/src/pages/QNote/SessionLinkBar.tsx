@@ -16,6 +16,8 @@ import { apiFetch } from '../../contexts/AuthContext';
 import { linkSessionEntities, type QNoteSession } from '../../services/qnote';
 // 고객 이름 정본 — `clients` 응답에 `name` 은 없다(display_name). 손으로 읽으면 라벨이 빈다.
 import { displayName, type NameLocalizable } from '../../utils/displayName';
+import { orderProjectsForMe } from '../../utils/projectOrder';
+import { StarGlyph } from '../../components/Common/StarToggle';
 
 interface Props {
   session: QNoteSession;
@@ -24,7 +26,7 @@ interface Props {
   onChange: (updated: QNoteSession) => void;
 }
 
-interface Opt { id: number; name: string }
+interface Opt { id: number; name: string; my_pinned_at?: string | null }
 
 export default function SessionLinkBar({ session, businessId, editable, onChange }: Props) {
   const { t, i18n } = useTranslation('qnote');
@@ -40,7 +42,7 @@ export default function SessionLinkBar({ session, businessId, editable, onChange
     let alive = true;
     apiFetch(`/api/projects?business_id=${businessId}&limit=200`)
       .then((r) => r.json())
-      .then((j) => { if (alive && j?.success) setProjects((j.data || []).map((p: Opt) => ({ id: p.id, name: p.name }))); })
+      .then((j) => { if (alive && j?.success) setProjects(orderProjectsForMe((j.data || []) as Array<Opt & { my_pinned_at?: string | null }>).map((p) => ({ id: p.id, name: p.name, my_pinned_at: p.my_pinned_at ?? null }))); })
       .catch(() => { /* 목록이 비면 고를 수 없다 — 아래 안내 문구가 그 사실을 말한다 */ });
     // ★ 고객 목록은 **경로 파라미터**다(`/api/clients/:businessId`). 쿼리로 부르면 404 HTML 이
     //   돌아와 목록이 조용히 빈다 — 셀렉트는 열리는데 고를 것이 없는 상태가 된다.
@@ -81,7 +83,7 @@ export default function SessionLinkBar({ session, businessId, editable, onChange
   const NONE = -1;
   const projOpts: PlanQSelectOption[] = [
     { value: NONE, label: tc(CONNECT_PROMPT.projectNone) as string },
-    ...projects.map((p) => ({ value: p.id, label: p.name })),
+    ...projects.map((p) => ({ value: p.id, label: p.name, icon: p.my_pinned_at ? <StarGlyph /> : undefined })),
   ];
   const clientOpts: PlanQSelectOption[] = [
     { value: NONE, label: tc(CONNECT_PROMPT.clientNone) as string },

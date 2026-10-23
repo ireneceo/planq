@@ -19,6 +19,9 @@ import { pickMatch } from '../../utils/searchMatch';
 import PlanQSelect from '../../components/Common/PlanQSelect';
 import { isEnterAction } from '../../utils/imeKey';
 import { formatDay } from '../../utils/dateFormat';
+import StarToggle from '../../components/Common/StarToggle';
+import { starFirst, compareManual, compareRecent, hasManualOrder, moveWithin, moveBy, canMove, isStarred } from '../../utils/projectOrder';
+import { useProjectPrefs, type SortBy } from './useProjectPrefs';
 
 // ─── Types ───
 type ViewMode = 'list' | 'timeline' | 'calendar';
@@ -62,7 +65,11 @@ interface ProjectRow {
   createdAt?: string | null;
   projectMembers?: ProjectMemberRow[];
   projectClients?: ProjectClientRow[];
+  /** 내 즐겨찾기·직접 정렬 순서(사람 단위, 2026-10-23) — 서버가 싣는다 */
+  my_pinned_at?: string | null;
+  my_sort_order?: number | null;
 }
+
 
 interface TaskRow {
   id: number;
@@ -131,7 +138,6 @@ const QProjectPage: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('active');
   // #99 — 구분(고객/내부) 필터 + 정렬
   const [kindFilter, setKindFilter] = useState<'all' | 'client' | 'internal'>('all');
-  const [sortBy, setSortBy] = useState<'recent' | 'name' | 'progress' | 'deadline'>('recent');
   const [groupBy, setGroupBy] = useState<'none' | 'kind' | 'status' | 'client' | 'department' | 'team'>('none');
   const handleCreateProject = useCallback(async (data: ProjectFormData & { project_type?: 'fixed' | 'ongoing' }) => {
     if (!user?.business_id) return;
@@ -198,6 +204,11 @@ const QProjectPage: React.FC = () => {
   }, [bizId, projKey]);
 
   useEffect(() => { load(); }, [load]);
+  // 내 별·직접 정렬(정렬 선택 파생·저장·초기화·실시간) — useProjectPrefs 한 곳.
+  const { sortBy, setSortBy, togglePin, applyOrder, openReset, dialogs: prefDialogs } = useProjectPrefs<ProjectRow>({
+    bizId, projects, initialProjects: readCache<ProjectRow[]>(projKey) ?? [], setProjects, load,
+    t: (k, fb) => t(k, fb ?? '') as string,
+  });
 
   const enriched: ProjectWithStats[] = useMemo(() => {
     return projects.map((p) => {
@@ -244,26 +255,33 @@ const QProjectPage: React.FC = () => {
     });
   }, [enriched, statusFilter, kindFilter, query]);
 
-  // #99 — 정렬 (최근/이름/진행률/마감임박). 모든 뷰에 적용.
-  const sortedProjects = useMemo(() => {
-    const arr = [...visibleProjects];
-    arr.sort((a, b) => {
-      switch (sortBy) {
-        case 'name': return (a.name || '').localeCompare(b.name || '');
-        case 'progress': return (b.progressPercent || 0) - (a.progressPercent || 0);
-        case 'deadline': {
-          // 마감(end_date) 임박 오름차순, 없는 것은 맨 뒤
-          const ad = a.end_date || '9999-12-31'; const bd = b.end_date || '9999-12-31';
-          return ad.localeCompare(bd);
-        }
-        default: { // recent — 최근 수정(없으면 생성) 내림차순
-          const at = a.updatedAt || a.createdAt || ''; const bt = b.updatedAt || b.createdAt || '';
-          return bt.localeCompare(at);
-        }
+  // #99 — 정렬 (직접/최근/이름/진행률/마감임박). 모든 뷰에 적용.
+  //   ★ 별 먼저는 모든 정렬 공통(Q talk 대화방과 같은 규칙) — 술어는 utils/projectOrder 한 벌.
+  const sortedProjects = useMemo(() => starFirst(visibleProjects, (a, b) => {
+    switch (sortBy) {
+      case 'manual': return compareManual(a, b);
+      case 'name': return (a.name || '').localeCompare(b.name || '');
+      case 'progress': return (b.progressPercent || 0) - (a.progressPercent || 0);
+      case 'deadline': {
+        // 마감(end_date) 임박 오름차순, 없는 것은 맨 뒤
+        const ad = a.end_date || '9999-12-31'; const bd = b.end_date || '9999-12-31';
+        return ad.localeCompare(bd);
       }
-    });
-    return arr;
-  }, [visibleProjects, sortBy]);
+      default: return compareRecent(a, b); // recent — 최근 수정(없으면 생성) 내림차순
+    }
+  }), [visibleProjects, sortBy]);
+
+  // 끌기·⋯ 위/아래는 목록 보기 + 그룹 없음일 때만(그룹 안 순서는 뜻이 없다). 검색·필터 중에는 된다.
+  const reorderEnabled = view === 'list' && groupBy === 'none';
+  const onDropCard = useCallback((dragId: number, targetId: number, after: boolean) => {
+    const ids = moveWithin(sortedProjects, dragId, targetId, after);
+    if (ids) void applyOrder(ids);
+  }, [sortedProjects, applyOrder]);
+  const onMoveCard = useCallback((id: number, how: 'top' | 'up' | 'down') => {
+    const ids = moveBy(sortedProjects, id, how);
+    if (ids) void applyOrder(ids);
+  }, [sortedProjects, applyOrder]);
+
 
   const filterActive = query.trim().length > 0 || statusFilter !== 'active' || kindFilter !== 'all';
   const clearFilters = () => { setQuery(''); setStatusFilter('active'); setKindFilter('all'); };
@@ -383,13 +401,21 @@ const QProjectPage: React.FC = () => {
             aria-label={t('filter.sortLabel', '정렬') as string}
             value={{ value: sortBy, label: t(`filter.sort.${sortBy}`) }}
             options={[
+              { value: 'manual', label: t('filter.sort.manual', '직접 정렬') },
               { value: 'recent', label: t('filter.sort.recent', '최근순') },
               { value: 'name', label: t('filter.sort.name', '이름순') },
               { value: 'progress', label: t('filter.sort.progress', '진행률순') },
               { value: 'deadline', label: t('filter.sort.deadline', '마감임박순') },
             ]}
-            onChange={(opt) => opt && setSortBy((opt as { value: string }).value as typeof sortBy)} />
+            onChange={(opt) => opt && setSortBy((opt as { value: string }).value as SortBy)} />
         </SelectWrap>
+        {/* 직접 정렬 되돌리기 — 순서는 복구할 수 없으니 묻는다. 별은 그대로 둔다. */}
+        {sortBy === 'manual' && hasManualOrder(projects) && (
+          <ResetOrderBtn type="button" data-testid="project-order-reset" onClick={openReset}
+            title={t('order.resetHint', '내가 정한 순서를 지우고 최근순으로 돌아갑니다') as string}>
+            {t('order.reset', '순서 초기화')}
+          </ResetOrderBtn>
+        )}
         {/* #99 — 그룹 (list 뷰) */}
         {view === 'list' && (
           <SelectWrap>
@@ -459,12 +485,14 @@ const QProjectPage: React.FC = () => {
           )}
         </EmptyState>
       ) : view === 'list' ? (
-        <ListView projects={sortedProjects} query={query} groupBy={groupBy} formatDate={formatDate} t={t} onOpen={(id) => navigate(`/projects/p/${id}`)} onStatusChange={changeProjectStatus} onDuplicate={duplicateProject} />
+        <ListView projects={sortedProjects} query={query} groupBy={groupBy} formatDate={formatDate} t={t} onOpen={(id) => navigate(`/projects/p/${id}`)} onStatusChange={changeProjectStatus} onDuplicate={duplicateProject}
+          onTogglePin={togglePin} reorderEnabled={reorderEnabled} onDropCard={onDropCard} onMoveCard={onMoveCard} />
       ) : view === 'timeline' ? (
         <TimelineView projects={sortedProjects} query={query} todayStr={todayStr} t={t} onOpen={(id) => navigate(`/projects/p/${id}`)} />
       ) : (
         <CalendarView projects={sortedProjects} todayStr={todayStr} t={t} />
       )}
+      {prefDialogs}
     </PageShell>
   );
 };
@@ -497,11 +525,30 @@ const ListView: React.FC<{
   onDuplicate?: (id: number) => Promise<void>;
   /** 검색어 — 카드 하이라이트·매칭 이유 줄에만 쓴다(필터는 부모 visibleProjects 가 이미 했다) */
   query?: string;
-}> = ({ projects, groupBy = 'none', formatDate, t, onOpen, onStatusChange, onDuplicate, query = '' }) => {
+  /** 내 즐겨찾기(별) 켜고 끄기 */
+  onTogglePin: (id: number, next: boolean) => void;
+  /** 끌기·⋯ 위/아래 허용(목록 + 그룹 없음) */
+  reorderEnabled: boolean;
+  onDropCard: (dragId: number, targetId: number, after: boolean) => void;
+  onMoveCard: (id: number, how: 'top' | 'up' | 'down') => void;
+}> = ({ projects, groupBy = 'none', formatDate, t, onOpen, onStatusChange, onDuplicate, query = '', onTogglePin, reorderEnabled, onDropCard, onMoveCard }) => {
   const { t: tl, i18n } = useTranslation('qproject');
   const lang = i18n.language;
   const [menuOpen, setMenuOpen] = useState<number | null>(null);
   const [confirmCloseId, setConfirmCloseId] = useState<number | null>(null);
+  // 끌어 놓기 — EditableNavSection 과 같은 네이티브 HTML5 draggable(라이브러리 없음).
+  //   같은 별 묶음 안에서만 놓을 수 있다(가로지르면 별 먼저가 이겨 «아무 일 없음» 이 된다 — 표식도 안 낸다).
+  const [dragId, setDragId] = useState<number | null>(null);
+  const [dropAt, setDropAt] = useState<{ id: number; after: boolean } | null>(null);
+  const dragStarred = dragId != null ? isStarred(projects.find((p) => p.id === dragId) || { id: 0 }) : null;
+  // 격자 열 수 — 한 열이면 위/아래 절반, 여러 열이면 왼/오른 절반으로 «뒤에 놓기» 를 가른다.
+  const afterOf = (e: React.DragEvent<HTMLElement>) => {
+    const el = e.currentTarget as HTMLElement;
+    const rect = el.getBoundingClientRect();
+    const grid = el.parentElement;
+    const cols = grid ? getComputedStyle(grid).gridTemplateColumns.split(' ').filter(Boolean).length : 1;
+    return cols <= 1 ? e.clientY > rect.top + rect.height / 2 : e.clientX > rect.left + rect.width / 2;
+  };
 
   useEffect(() => {
     if (menuOpen == null) return;
@@ -549,10 +596,37 @@ const ListView: React.FC<{
     { field: 'client', text: (p.projectClients || []).map((c) => c.contact_name) },
   ], query) : null);
 
-  const renderCard = (p: ProjectWithStats) => (
+  const renderCard = (p: ProjectWithStats) => {
+    const sameGroup = dragStarred != null && dragStarred === isStarred(p);
+    const moves = reorderEnabled ? canMove(projects, p.id) : { up: false, down: false };
+    return (
       <ProjectCard key={p.id} data-testid={`project-card-${p.id}`} onClick={() => onOpen(p.id)} role="button" tabIndex={0}
         onKeyDown={(e) => { if (isEnterAction(e)) onOpen(p.id); }}
-        style={{ borderLeft: `4px solid ${colorForProject(p)}` }}>
+        style={{ borderLeft: `4px solid ${colorForProject(p)}` }}
+        draggable={reorderEnabled}
+        data-dragging={dragId === p.id ? '1' : undefined}
+        data-drop={dropAt?.id === p.id && dragId !== p.id ? (dropAt.after ? 'after' : 'before') : undefined}
+        onDragStart={reorderEnabled ? (e) => {
+          setDragId(p.id); setMenuOpen(null);
+          e.dataTransfer.effectAllowed = 'move';
+          try { e.dataTransfer.setData('application/x-planq-project', String(p.id)); } catch { /* 일부 브라우저 */ }
+        } : undefined}
+        onDragEnd={reorderEnabled ? () => { setDragId(null); setDropAt(null); } : undefined}
+        onDragOver={reorderEnabled ? (e) => {
+          if (dragId == null) return;
+          if (!sameGroup || dragId === p.id) { e.dataTransfer.dropEffect = 'none'; if (dropAt) setDropAt(null); return; }
+          e.preventDefault();
+          e.dataTransfer.dropEffect = 'move';
+          const after = afterOf(e);
+          if (dropAt?.id !== p.id || dropAt.after !== after) setDropAt({ id: p.id, after });
+        } : undefined}
+        onDrop={reorderEnabled ? (e) => {
+          e.preventDefault();
+          const from = dragId;
+          setDragId(null); setDropAt(null);
+          if (from == null || from === p.id || !sameGroup) return;
+          onDropCard(from, p.id, afterOf(e));
+        } : undefined}>
         <CardHead>
           <CardTitle><HighlightText text={p.name} query={query} /></CardTitle>
           <CardHeadRight>
@@ -563,6 +637,9 @@ const ListView: React.FC<{
             <StatusBadge $bg={STATUS_COLOR[p.status]?.bg} $fg={STATUS_COLOR[p.status]?.fg}>
               {t(`status.${p.status}`)}
             </StatusBadge>
+            <StarToggle pinned={isStarred(p)} onToggle={(next) => onTogglePin(p.id, next)}
+              data-testid={`project-star-${p.id}`}
+              labelOn={tl('star.on', '즐겨찾기') as string} labelOff={tl('star.off', '즐겨찾기 해제') as string} />
             <MenuWrap data-project-menu>
               <MenuBtn type="button" aria-label={tl('card.menu', '프로젝트 메뉴') as string}
                 onClick={(e) => { e.stopPropagation(); setMenuOpen((cur) => cur === p.id ? null : p.id); }}>
@@ -570,6 +647,27 @@ const ListView: React.FC<{
               </MenuBtn>
               {menuOpen === p.id && (
                 <MenuDropdown onClick={(e) => e.stopPropagation()}>
+                  {/* 순서 옮기기 — 폰(터치는 끌기가 안 된다)·키보드에서도 같은 결과. 끌기와 같은 저장·같은 «직접 정렬» 전환. */}
+                  {reorderEnabled && (moves.up || moves.down) && (
+                    <>
+                      {moves.up && (
+                        <MenuItem type="button" data-testid={`project-move-top-${p.id}`} onClick={() => { setMenuOpen(null); onMoveCard(p.id, 'top'); }}>
+                          {tl('card.moveTop', '맨 위로')}
+                        </MenuItem>
+                      )}
+                      {moves.up && (
+                        <MenuItem type="button" data-testid={`project-move-up-${p.id}`} onClick={() => { setMenuOpen(null); onMoveCard(p.id, 'up'); }}>
+                          {tl('card.moveUp', '위로')}
+                        </MenuItem>
+                      )}
+                      {moves.down && (
+                        <MenuItem type="button" data-testid={`project-move-down-${p.id}`} onClick={() => { setMenuOpen(null); onMoveCard(p.id, 'down'); }}>
+                          {tl('card.moveDown', '아래로')}
+                        </MenuItem>
+                      )}
+                      <MenuSep />
+                    </>
+                  )}
                   {onDuplicate && (
                     <MenuItem
                       type="button"
@@ -697,7 +795,8 @@ const ListView: React.FC<{
         )}
         </BottomStack>
       </ProjectCard>
-  );
+    );
+  };
 
   return (<>
   {groupBy === 'none'
@@ -1077,6 +1176,20 @@ const ProjectCard = styled.div`
      같은 row 의 옆 카드와는 grid stretch (default) 로 상하단 자동 정렬됨. */
   display: flex;
   flex-direction: column;
+  position: relative;
+  /* 끌어 놓기 — 끌리는 카드는 흐리게, 놓일 자리는 민트 막대(여러 열이면 앞뒤 세로, 한 열이면 위아래 가로) */
+  &[data-dragging='1'] { opacity: 0.45; }
+  &[data-drop]::after {
+    content: ''; position: absolute; pointer-events: none; background: #14B8A6; border-radius: 2px;
+    top: -2px; bottom: -2px; width: 3px;
+  }
+  &[data-drop='before']::after { left: -10px; }
+  &[data-drop='after']::after { right: -10px; }
+  @media (max-width: 768px) {
+    &[data-drop]::after { top: auto; bottom: auto; width: auto; left: 0; right: 0; height: 3px; }
+    &[data-drop='before']::after { top: -8px; }
+    &[data-drop='after']::after { bottom: -8px; }
+  }
   &:hover {
     box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
     border-color: #CBD5E1;
@@ -1193,6 +1306,14 @@ const ProgressFill = styled.div<{ $pct: number }>`height: 100%; width: ${p => p.
 
 // ─── Card 액션 메뉴 ───
 const CardHeadRight = styled.div`display:flex; align-items:center; gap:6px; flex-shrink:0;`;
+const MenuSep = styled.div`height:1px; background:#F1F5F9; margin:4px 2px;`;
+// 직접 정렬 «순서 초기화» — 필터 줄의 보조 글자 버튼(셀렉트와 같은 높이 36px).
+const ResetOrderBtn = styled.button`
+  height:36px; padding:0 10px; background:transparent; border:none; border-radius:8px;
+  font-size:0.8125rem; font-weight:500; color:#64748B; cursor:pointer; white-space:nowrap;
+  &:hover{ background:#F1F5F9; color:#0F172A; }
+  &:focus-visible{ outline:2px solid #14B8A6; outline-offset:1px; }
+`;
 const MenuWrap = styled.div`position:relative;`;
 const MenuBtn = styled.button`
   width:24px; height:24px; display:flex; align-items:center; justify-content:center;

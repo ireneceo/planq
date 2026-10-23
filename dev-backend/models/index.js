@@ -59,6 +59,7 @@ const MemberRole = require('./MemberRole');
 const ProjectStatusOption = require('./ProjectStatusOption');
 const ProjectStage = require('./ProjectStage');
 const ProjectPinnedDoc = require('./ProjectPinnedDoc');
+const UserEntityPref = require('./UserEntityPref');
 const ProjectWorkstream = require('./ProjectWorkstream');
 const ProjectLink = require('./ProjectLink');
 const ProjectProcessColumn = require('./ProjectProcessColumn');
@@ -710,6 +711,7 @@ module.exports = {
   ProjectStatusOption,
   ProjectStage,
   ProjectPinnedDoc,
+  UserEntityPref,
   ProjectWorkstream,
   ProjectLink,
   ProjectProcessColumn,

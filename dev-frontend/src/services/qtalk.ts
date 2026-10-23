@@ -1,3 +1,4 @@
+import { orderProjectsForMe } from '../utils/projectOrder';
 import { apiFetch } from '../contexts/AuthContext';
 
 /**
@@ -32,6 +33,9 @@ export interface ApiProjectClient {
 export interface ApiProject {
   id: number;
   business_id: number;
+  /** 내 즐겨찾기·직접 정렬 순서(사람 단위, 2026-10-23) — 서버 GET /api/projects 가 싣는다 */
+  my_pinned_at?: string | null;
+  my_sort_order?: number | null;
   name: string;
   description: string | null;
   client_company: string | null;
@@ -92,7 +96,8 @@ export async function listProjects(businessId: number, status?: ProjectStatus): 
   const qs = new URLSearchParams({ business_id: String(businessId) });
   if (status) qs.set('status', status);
   const res = await apiFetch(`/api/projects?${qs.toString()}`);
-  return handle<ApiProject[]>(res);
+  // 프로젝트를 고르는 칸·목록은 «별 먼저 → 내 직접 정렬» 로 받는다(utils/projectOrder 한 벌, 2026-10-23).
+  return orderProjectsForMe(await handle<ApiProject[]>(res));
 }
 
 export async function getProject(id: number): Promise<ApiProject> {

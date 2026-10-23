@@ -27,6 +27,7 @@ import { useTranslation } from 'react-i18next';
 import { apiFetch } from '../../contexts/AuthContext';
 import { fetchClientFiles, updateFileMeta, type ClientFileRow } from '../../services/files';
 import { tabStore } from '../../stores/tabStore';
+import { orderProjectsForMe } from '../../utils/projectOrder';
 
 type ProjectRow = { id: number; name: string; status?: string; link_id?: number };
 type TaskRow = { id: number; title: string; status?: string };
@@ -133,7 +134,7 @@ export default function ClientLinksSection({
       }
       const r = await apiFetch(`/api/projects?business_id=${businessId}`);
       const j = r.ok ? await r.json().catch(() => null) : null;
-      const rows = Array.isArray(j?.data) ? j.data : [];
+      const rows = Array.isArray(j?.data) ? orderProjectsForMe(j.data as Array<{ id: number; name?: string }>) : [];   // 별 먼저(2026-10-23)
       const needle = query.trim().toLowerCase();
       const have = new Set(projects.map((p) => p.id));
       setCands(rows

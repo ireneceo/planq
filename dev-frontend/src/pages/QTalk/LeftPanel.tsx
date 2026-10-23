@@ -9,6 +9,7 @@ import { type MockProject, type MockConversation } from './types';
 import { useAuth } from '../../contexts/AuthContext';
 import HelpDot from '../../components/Common/HelpDot';
 import LetterAvatar from '../../components/Common/LetterAvatar';
+import StarToggle from '../../components/Common/StarToggle';
 import SearchBoxCommon from '../../components/Common/SearchBox';
 import { useListKeyboardNav } from '../../hooks/useListKeyboardNav';
 import { mediaTablet } from '../../theme/breakpoints';
@@ -261,18 +262,12 @@ const LeftPanel: React.FC<Props> = ({
               </ChatBody>
               {!isActive && c.unread_count > 0 && <Unread>{c.unread_count}</Unread>}
               {onTogglePin && (
-                <PinBtn
-                  type="button"
-                  $pinned={isPinned}
-                  onClick={(e) => { e.stopPropagation(); onTogglePin(c.id, !isPinned); }}
-                  aria-label={isPinned ? (t('left.unpin', '핀 해제') as string) : (t('left.pin', '핀 고정') as string)}
-                  title={isPinned ? (t('left.unpin', '핀 해제') as string) : (t('left.pin', '핀 고정') as string)}
-                >
-                  {/* 별 아이콘 — pinned 면 채워짐, 아니면 윤곽 */}
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill={isPinned ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                    <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
-                  </svg>
-                </PinBtn>
+                <StarToggle
+                  pinned={isPinned}
+                  onToggle={(next) => onTogglePin(c.id, next)}
+                  labelOn={t('left.pin', '핀 고정') as string}
+                  labelOff={t('left.unpin', '핀 해제') as string}
+                />
               )}
               {/* ⋮ 채팅방 관리 메뉴 — workspace owner / project owner / platform admin 만 노출.
                   옵션: 프로젝트에서 분리 (project_id 있을 때) / 채팅방 보관 (Danger). ConfirmDialog 후 실행. */}
@@ -622,7 +617,7 @@ const PreviewSenderTag = styled.span`
 `;
 const PreviewText = styled.span``;
 
-// 읽지 않은 메시지 수 — ChatBody 옆, PinBtn 좌측. ChatRow 의 직접 자식이라
+// 읽지 않은 메시지 수 — ChatBody 옆, 별(StarToggle) 좌측. ChatRow 의 직접 자식이라
 // ChatName flex:1 에 squeeze 되지 않고 항상 우측에 명확히 표시. 데스크탑·모바일 일관.
 // 모바일에선 살짝 더 크게 (가시성 강화).
 const Unread = styled.div`
@@ -644,32 +639,10 @@ const Unread = styled.div`
   }
 `;
 
-// 핀(즐겨찾기) 토글 — 사이클 N+15-E: 상시 노출 (hover-only 폐지).
-// 옛 hover 노출은 "다른 row 호버할 때 별이 깜빡거리는" 인상을 유발 → 사용자가 의도와 무관해 보임.
-// 항상 28x28 자리 차지, 색상으로만 상태 구분.
-//   pinned=true: amber 채움 / pinned=false: 연회색 outline
-// 사이클 N+22: 별·⋮ 사이 거리 = 별이 끝나면 바로 ⋮. 옛 4px+2px 빈 공간 제거. row 우측 핸들 묶음 효과.
-const PinBtn = styled.button<{ $pinned: boolean }>`
-  flex-shrink: 0;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  margin: 0;
-  padding: 0;
-  background: transparent;
-  border: none;
-  border-radius: 6px;
-  cursor: pointer;
-  color: ${(p) => (p.$pinned ? '#F59E0B' : '#CBD5E1')};
-  transition: background 0.15s, color 0.15s;
-  &:hover { background: ${(p) => (p.$pinned ? '#FEF3C7' : '#F1F5F9')}; color: ${(p) => (p.$pinned ? '#D97706' : '#94A3B8')}; }
-  &:focus-visible { outline: 2px solid #14B8A6; outline-offset: 1px; }
-`;
+// 핀(즐겨찾기) 토글은 공용 components/Common/StarToggle (2026-10-23 — 프로젝트 별과 한 벌).
 
 // ⋮ 채팅방 관리 메뉴 — workspace owner / project owner / platform admin 만 노출.
-// 데스크탑: hover-only 노이즈 최소. 모바일: 상시 노출 (PinBtn 패턴 일치).
+// 데스크탑: hover-only 노이즈 최소. 모바일: 상시 노출 (별 버튼 패턴 일치).
 // 사이클 N+22: 별 옆에 바짝 붙임 — 옛 ChatRow gap:10px 만큼 떨어져있던 거리를 -6px negative margin 으로 보정.
 const MenuRoot = styled.div`
   position: relative;

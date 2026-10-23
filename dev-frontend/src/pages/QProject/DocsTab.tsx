@@ -12,6 +12,9 @@ import {
   TreeRoot, TreeDivider, FolderRow, FolderIconWrap, SectionRow, FolderSectionLabel, EmptyHint, RowPlusBtn, FolderNewBtn, RenameInput
 } from './docs/treeStyles';
 import TreeRow from './docs/TreeRow';
+import { FolderName } from './docs/treeStyles';
+import { StarGlyph } from '../../components/Common/StarToggle';
+import { starFirst } from '../../utils/projectOrder';
 import { useFileOpen } from './docs/useFileOpen';
 import { srcsOf, homeSrcOf, sourceShortLabel, srcStyle } from './docs/fileSource';
 import { useFolderDrop, isExternalFileDrag, type FolderDropFn } from './docs/folderDrop';
@@ -442,6 +445,9 @@ const DocsTab: React.FC<Props> = (props) => {
     }
     return files.filter(f => f.source === 'direct' && f.folder_id === folderSel);
   }, [files, folderSel]);
+
+  // 내 즐겨찾기(별) 프로젝트 — 좌측 트리에서 위로 올리고 이름 옆에 작은 별(표시만, 2026-10-23).
+  const pinnedProjectIds = useMemo(() => new Set(projects.filter(p => p.my_pinned_at).map(p => p.id)), [projects]);
 
   // 워크스페이스 모드: 프로젝트별 집계
   const projectGroups = useMemo(() => {
@@ -1293,6 +1299,7 @@ const DocsTab: React.FC<Props> = (props) => {
             <>
               <ProjectGroups
                 projectGroups={projectGroups}
+                pinnedIds={pinnedProjectIds}
                 counts={counts}
                 total={counts.total}
                 selected={folderSel}
@@ -2120,6 +2127,8 @@ export default DocsTab;
 //     아무 텍스트나 "파일 이동" 으로 읽힌다.
 interface ProjectGroupsProps {
   projectGroups: Array<{ id: number; name: string; color?: string | null; count: number }>;
+  /** 내 즐겨찾기 프로젝트 — 별 먼저(그 안은 파일 수) · 이름 옆 작은 별 */
+  pinnedIds?: Set<number>;
   /** 이 워크스페이스에 보이는 **프로젝트 폴더**(하위 포함). 프로젝트 행 아래로 펼쳐진다.
    *  ★ 2026-09-20 (Irene: *"좌측 카테고리에 왜 K-DINE이 두번 나오냐고"*) —
    *    처음엔 「폴더」 섹션에 프로젝트 묶음을 **따로** 그렸다. 그러면 프로젝트 목록에 한 번,
@@ -2147,7 +2156,7 @@ interface ProjectGroupsProps {
   tr: (k: string, fb?: string) => string;
 }
 
-const ProjectGroups: React.FC<ProjectGroupsProps> = ({ projectGroups, counts, total, selected, onSelect, tr, folders = [], folderCounts = {}, onSelectFolder, onCreateFolder, folderDrop, onRenameFolder, onDeleteFolder, onDownloadFolder, countDeep }) => {
+const ProjectGroups: React.FC<ProjectGroupsProps> = ({ projectGroups, pinnedIds, counts, total, selected, onSelect, tr, folders = [], folderCounts = {}, onSelectFolder, onCreateFolder, folderDrop, onRenameFolder, onDeleteFolder, onDownloadFolder, countDeep }) => {
   const [open, setOpen] = useState<Set<number>>(new Set());
   const { renamingId, startRename, renderName, setDeleteTarget, deleteModal } = useFolderEditing({ onRename: onRenameFolder, onDelete: onDeleteFolder, counts, countDeep, tr });
   const toggle = (id: number) => setOpen(prev => { const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n; });
@@ -2164,8 +2173,10 @@ const ProjectGroups: React.FC<ProjectGroupsProps> = ({ projectGroups, counts, to
       seen.add(f.project_id);
       extra.push({ id: f.project_id, name: f.project_name, color: null, count: 0 });
     }
-    return extra.length ? [...projectGroups, ...extra] : projectGroups;
-  }, [projectGroups, folders]);
+    const all = extra.length ? [...projectGroups, ...extra] : projectGroups;
+    // 별 먼저 — 술어는 utils/projectOrder 한 벌(그 안은 지금 순서 = 파일 수)
+    return starFirst(all.map(p => ({ ...p, my_pinned_at: pinnedIds?.has(p.id) ? 'y' : null })));
+  }, [projectGroups, folders, pinnedIds]);
   const renderSub = (f: FileFolder, depth: number): React.ReactNode => (
     <React.Fragment key={f.id}>
       <TreeRow
@@ -2245,7 +2256,9 @@ const ProjectGroups: React.FC<ProjectGroupsProps> = ({ projectGroups, counts, to
                   {roots.length > 0 && expanded ? <FolderOpenSvg /> : <FolderSvg />}
                 </FolderIconWrap>
               )}
-              name={p.name}
+              name={p.my_pinned_at
+                ? <FolderName title={p.name}><span style={{ display: 'inline-flex', verticalAlign: '-1px', marginRight: 4 }}><StarGlyph size={11} title={tr('docs.folder.starred', '즐겨찾기')} /></span>{p.name}</FolderName>
+                : p.name}
               count={p.count}
               /* 프로젝트 **안**에 폴더를 만드는 문. 아래 「워크스페이스 폴더」 [+] 는 프로젝트에
                  속하지 않은 것만 만든다 — Q file 에는 이 문이 없었다(프로젝트 상세 탭에만 있었다). */

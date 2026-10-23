@@ -69,6 +69,7 @@ import { inReviewStage } from '../../utils/reviewStage';
 import { SegmentedToggle, SegmentedBtn } from '../../components/Common/segmentedToggle';
 import { HeaderCta, CtaPlus } from '../../components/Common/headerCta';
 import { useRevealRow } from '../../hooks/useRevealRow';
+import { orderProjectsForMe } from '../../utils/projectOrder';
 
 // #249 — 우측 패널을 인라인으로 붙여둘 최소 뷰포트 폭.
 //   이보다 좁으면 overlay(기본 닫힘 + 떠 있는 토글 + ⌘/·Ctrl+\)로 전환해 리스트가 전폭을 쓴다.
@@ -940,7 +941,7 @@ const QTaskPage:React.FC=()=>{
 
   // 프로젝트 옵션 — 워크스페이스 전체 프로젝트 (active) 직접 fetch.
   // 이전 구현: allTasks 에서 distinct → 업무 없는 신규 프로젝트가 드롭다운에 안 떠 검색 불가능.
-  const [projects, setProjects] = useState<{ id: number; name: string }[]>([]);
+  const [projects, setProjects] = useState<{ id: number; name: string; my_pinned_at?: string | null }[]>([]);
   useEffect(() => {
     if (!bizId) return;
     let cancelled = false;
@@ -949,7 +950,7 @@ const QTaskPage:React.FC=()=>{
         const r = await apiFetch(`/api/projects?business_id=${bizId}&status=active`);
         const j = await r.json();
         if (!cancelled && j.success && Array.isArray(j.data)) {
-          setProjects(j.data.map((p: { id: number; name: string }) => ({ id: p.id, name: p.name })));
+          setProjects(orderProjectsForMe(j.data as Array<{ id: number; name: string; my_pinned_at?: string | null; my_sort_order?: number | null }>).map((p) => ({ id: p.id, name: p.name, my_pinned_at: p.my_pinned_at ?? null })));
         }
       } catch { /* skip */ }
     })();

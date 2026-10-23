@@ -1,4 +1,5 @@
 // 프로젝트 보고서뷰 (#64) — Live 파생 상태 보고서 API 클라이언트.
+import { orderProjectsForMe } from '../utils/projectOrder';
 import { apiFetch } from '../contexts/AuthContext';
 
 export interface ReportTaskBrief { id: number; title: string; status: string; due_date: string | null; assignee_name: string | null; workstream_id: number | null; }
@@ -19,7 +20,7 @@ export interface ProjectReport {
   team: { user_id: number; name: string; dept: string | null; active: number; completed: number }[];
 }
 
-export interface ProjectLite { id: number; name: string; status: string; }
+export interface ProjectLite { id: number; name: string; status: string; my_pinned_at?: string | null; }
 
 async function jsonOf(r: Response) { const j = await r.json(); if (!j.success) throw new Error(j.message || 'failed'); return j.data; }
 
@@ -31,7 +32,11 @@ export async function getProjectReport(projectId: number, weekStart?: string): P
 export async function listActiveProjects(businessId: number): Promise<ProjectLite[]> {
   const r = await apiFetch(`/api/projects?business_id=${businessId}&status=active`);
   const j = await r.json();
-  return j.success && Array.isArray(j.data) ? j.data.map((p: { id: number; name: string; status: string }) => ({ id: p.id, name: p.name, status: p.status })) : [];
+  // 별 먼저 → 내 직접 정렬(utils/projectOrder 한 벌, 2026-10-23)
+  return j.success && Array.isArray(j.data)
+    ? orderProjectsForMe(j.data as Array<{ id: number; name: string; status: string; my_pinned_at?: string | null; my_sort_order?: number | null }>)
+        .map((p) => ({ id: p.id, name: p.name, status: p.status, my_pinned_at: p.my_pinned_at ?? null }))
+    : [];
 }
 
 export const HEALTH_META: Record<string, { bg: string; fg: string; label: string }> = {

@@ -10,6 +10,7 @@ import HighlightText from '../../../components/Common/HighlightText';
 import {
   getRelatedProjects, linkProject, unlinkProject, type RelatedProject,
 } from '../../../services/projectTimeline';
+import { orderProjectsForMe } from '../../../utils/projectOrder';
 
 interface Props { projectId: number; businessId: number; refreshSignal?: number; readOnly?: boolean; }
 
@@ -39,7 +40,7 @@ export default function RelatedProjects({ projectId, businessId, refreshSignal, 
       const r = await apiFetch(`/api/projects?business_id=${businessId}&status=active`);
       const j = await r.json();
       setCandidates(j.success && Array.isArray(j.data)
-        ? j.data.map((p: { id: number; name: string; status: string }) => ({ id: p.id, name: p.name, status: p.status }))
+        ? orderProjectsForMe(j.data as Array<{ id: number; name: string; status: string }>).map((p) => ({ id: p.id, name: p.name, status: p.status }))
         : []);
     } catch { setCandidates([]); }
   }, [businessId]);

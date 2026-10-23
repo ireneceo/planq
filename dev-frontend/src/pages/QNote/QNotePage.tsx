@@ -91,6 +91,7 @@ import { ProjBrowse, Toolbar as AtToolbar, ToolbarRight as AtToolbarRight, Grid 
 import { PanelBackButton, PanelHeaderBar, DetailMetaBar } from '../../components/Layout/PanelHeader';
 import { isEnterAction } from '../../utils/imeKey';
 import { formatDayTime } from '../../utils/dateFormat';
+import { orderProjectsForMe } from '../../utils/projectOrder';
 
 /**
  * Q Note 페이지
@@ -400,7 +401,7 @@ const QNotePage = ({ scope, onRecordingChange }: QNotePageProps = {}) => {
     let alive = true;
     apiFetch(`/api/projects?business_id=${businessId}&limit=200`)
       .then((r) => r.json())
-      .then((j) => { if (alive && j?.success) setVisProjects((j.data || []).map((p: { id: number; name: string }) => ({ id: p.id, name: p.name }))); })
+      .then((j) => { if (alive && j?.success) setVisProjects(orderProjectsForMe((j.data || []) as Array<{ id: number; name: string }>).map((p) => ({ id: p.id, name: p.name }))); })
       .catch(() => { /* 실패하면 목록이 빈 채로 — L2 는 못 고르지만 나머지 범위는 바꿀 수 있다 */ });
     return () => { alive = false; };
   }, [visibilityModalOpen, businessId]);

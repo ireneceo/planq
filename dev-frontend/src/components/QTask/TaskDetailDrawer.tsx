@@ -68,6 +68,8 @@ import { useBackToClose } from '../../hooks/useBackToClose';
 import SeriesScopeDialog, { type SeriesScope } from './SeriesScopeDialog';
 import { isSeriesTask, needsSeriesScope } from '../../utils/taskSeries';
 import { isEnterAction } from '../../utils/imeKey';
+import { orderProjectsForMe } from '../../utils/projectOrder';
+import { StarGlyph } from '../../components/Common/StarToggle';
 
 export interface DrawerTaskPatch {
   id: number;
@@ -190,7 +192,7 @@ interface TaskDetail {
   series_miss_policy?: 'carry' | 'auto_skip' | null;
 }
 
-export interface DrawerProjectOption { id: number; name: string; }
+export interface DrawerProjectOption { id: number; name: string; my_pinned_at?: string | null; }
 
 export interface TaskDetailDrawerProps {
   taskId: number;
@@ -235,7 +237,7 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
         const r = await apiFetch(`/api/projects?business_id=${bizId}&status=active`);
         const j = await r.json();
         if (!cancelled && j.success && Array.isArray(j.data)) {
-          setProjectsFetched(j.data.map((p: { id: number; name: string }) => ({ id: p.id, name: p.name })));
+          setProjectsFetched(orderProjectsForMe(j.data as Array<{ id: number; name: string; my_pinned_at?: string | null; my_sort_order?: number | null }>).map((p) => ({ id: p.id, name: p.name, my_pinned_at: p.my_pinned_at ?? null })));
         }
       } catch { /* ignore — 프로젝트 변경 셀이 비어 있을 뿐 */ }
     })();
@@ -1943,7 +1945,7 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                         setActionError(t(`detail.moveProjectFailed.${reason}`) as string);
                       }
                     }}
-                    options={projects.map(p => ({ value: String(p.id), label: p.name }))} />
+                    options={projects.map(p => ({ value: String(p.id), label: p.name, icon: p.my_pinned_at ? <StarGlyph /> : undefined }))} />
                 </MetaCell>
                 {/* #353 ⑤ 중요도 — AI 가 판단하거나 사람이 고른다.
                     ★ 왼쪽의 "우선순위 N"(주간 랭킹, priority_order)과 **다른 것**이라
