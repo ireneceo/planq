@@ -21,7 +21,7 @@ import { NewNoteMenu, NewSessionWrap, openQNoteWithKind } from '../../components
 import { usePopoverAnchor } from '../../components/Common/popoverAnchor';
 import { FilterBar, FilterSlot, FilterSearchSlot, ToggleFilter, CheckFilter, axisOption, FilterCollapsible, FilterMoreToggle } from '../../components/Common/filterBar';
 import SearchBox from '../../components/Common/SearchBox';
-import { HeaderCta } from '../../components/Common/headerCta';
+import { HeaderCta, CtaPlus } from '../../components/Common/headerCta';
 import { ChipRow, FilterChip, ChipDivider, ChipRight } from '../../components/Common/filterChip';
 import { SegmentedToggle, SegmentedBtn } from '../../components/Common/segmentedToggle';
 import ActionButton from '../../components/Common/ActionButton';
@@ -309,18 +309,17 @@ export default function SalePage({ embedded = false }: { embedded?: boolean } = 
             }} />
           )}
           {tab === 'clients' && canManage ? (
-            <HeaderCta data-testid="sale-add-client" onClick={() => { setClientAddPrefill(null); setClientAddFromCard(null); setClientAddFromMail(null); setClientAddFromPhoto(null); setClientAddOpen(true); }}>
-              <PlusIcon aria-hidden />
-              <LongLabel>{t('clients:addClient') as string}</LongLabel>
-              {/* 폰은 짧은 이름 — 긴 이름과 같은 글자라 360 폭에서 버튼이 28px 화면 밖으로 나갔다(2026-10-23, 상담 탭 #445 와 같은 방식) */}
-              <ShortLabel>{t('clients:addClientShort', { defaultValue: '추가' }) as string}</ShortLabel>
+            <HeaderCta data-testid="sale-add-client" $collapseOnPhone
+              aria-label={t('clients:addClient') as string} title={t('clients:addClient') as string} onClick={() => { setClientAddPrefill(null); setClientAddFromCard(null); setClientAddFromMail(null); setClientAddFromPhoto(null); setClientAddOpen(true); }}>
+              <CtaPlus />
+              {/* 폰은 + 아이콘만(phoneIconOnly) — 짧은 이름으로도 360 폭에서 줄이 넘쳤다(#445 · 2026-10-23) */}
+              <span data-cta-label>{t('clients:addClient') as string}</span>
             </HeaderCta>
           ) : embedded ? null : (
-            <HeaderCta data-testid="sale-add-inquiry" onClick={() => setAddOpen(true)}>
-              <PlusIcon aria-hidden />
-              {/* 폰은 짧은 이름 — 세 컨트롤이 한 줄(폭 365)을 넘어 버튼이 화면 끝에 붙었다(#445) */}
-              <LongLabel>{t('action.addRecord') as string}</LongLabel>
-              <ShortLabel>{t('action.addRecordShort', { defaultValue: '응대 추가' }) as string}</ShortLabel>
+            <HeaderCta data-testid="sale-add-inquiry" $collapseOnPhone
+              aria-label={t('action.addRecord') as string} title={t('action.addRecord') as string} onClick={() => setAddOpen(true)}>
+              <CtaPlus />
+              <span data-cta-label>{t('action.addRecord') as string}</span>
             </HeaderCta>
           )}
           {/* ★ 2026-09-18 (Irene: *"Q sale에 상 진행 이라고 버튼 넣고 고객응대 내역 추가 뒤에 넣어줘.
@@ -649,20 +648,10 @@ function EmbeddedShell({ actions, children }: { title?: string; count?: number; 
    → 폰에서는 주 액션을 맨 앞으로 돌린다. 탭은 오른쪽으로 흘러도 스크롤로 닿는다. */
 const EmbedWrap = styled.div`display:flex;flex-direction:column;gap:12px;min-width:0;`;
 const EmbedHead = styled.div`display:flex;justify-content:flex-end;`;
-const LongLabel = styled.span`@media (max-width: 640px) { display: none; }`;
-const ShortLabel = styled.span`display: none; @media (max-width: 640px) { display: inline; }`;
 const Actions = styled.div`
   display: flex; align-items: center; gap: 8px;
   @media (max-width: 640px) { gap: 6px; > *:last-child { order: -1; } }
 `;
-const PlusIcon = styled.span.attrs({
-  children: (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
-      strokeWidth="2.4" strokeLinecap="round" aria-hidden>
-      <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
-    </svg>
-  ),
-})`display: inline-flex; align-items: center;`;
 // 현황 표시 — 누르는 것이 아니다. 늘리는 길은 안쪽의 작은 버튼이 따로 갖는다.
 const QuotaBox = styled.div`
   display: inline-flex; align-items: center; gap: 8px;

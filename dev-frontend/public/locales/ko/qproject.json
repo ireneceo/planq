@@ -121,6 +121,7 @@
   },
   "addTask": {
     "add": "+ 업무 추가",
+    "addLabel": "업무 추가",
     "cancel": "취소",
     "drawerTitle": "+ 업무 추가"
   },

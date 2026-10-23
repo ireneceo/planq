@@ -1341,7 +1341,7 @@
     "scopeNote": "Questions and feedback you sent to the PlanQ team about the product. Only you can see them — not your workspace members or clients.",
     "compose": "+ New",
     "emptyTitle": "No questions or feedback yet",
-    "composeInquiry": "+ Ask a question",
+    "composeInquiry": "Ask a question",
     "composeFeedback": "Send feedback",
     "kind": {
       "inquiry": "Question",

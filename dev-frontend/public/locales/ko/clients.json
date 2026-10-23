@@ -263,7 +263,6 @@
   "emptyHowto": "사용법",
   "emptyWikiQuery": "고객 초대하기",
   "addClient": "고객 추가",
-  "addClientShort": "추가",
   "addModal": {
     "titleManaged": "고객 추가",
     "modeInvite": "초대 보내기",

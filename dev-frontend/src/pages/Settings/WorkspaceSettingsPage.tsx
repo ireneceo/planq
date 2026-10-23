@@ -31,6 +31,7 @@ import PageShell from '../../components/Layout/PageShell';
 import OnboardingChecklist from '../../components/Onboarding/OnboardingChecklist';
 import ActionButton from '../../components/Common/ActionButton';
 import { SettingsHeaderActionProvider, type SettingsHeaderAction } from './settingsHeaderAction';
+import { AddActionButton, CtaPlus } from '../../components/Common/headerCta';
 import { useTimezones } from '../../hooks/useTimezones';
 import { cityFromTz, offsetFromTz, formatTimeInTz } from '../../utils/timezones';
 import {
@@ -986,16 +987,23 @@ export default function WorkspaceSettingsPage() {
   //   새로 만들 때마다 부모가 재렌더되고 자식이 다시 등록해 순환이 생긴다.
   const headerActionRef = useRef<(() => void) | null>(null);
   const [headerActionLabel, setHeaderActionLabel] = useState<string | null>(null);
+  const [headerActionAdd, setHeaderActionAdd] = useState(false);
   const publishHeaderAction = useCallback((a: SettingsHeaderAction | null) => {
     headerActionRef.current = a ? a.onClick : null;
     const next = a ? a.label : null;
     setHeaderActionLabel((prev) => (prev === next ? prev : next));
+    setHeaderActionAdd(!!a?.add);
   }, []);
-  const headerActions = headerActionLabel ? (
+  const headerActions = headerActionLabel ? (headerActionAdd ? (
+    <AddActionButton tone="primary" size="sm" aria-label={headerActionLabel} title={headerActionLabel}
+      onClick={() => headerActionRef.current?.()}>
+      <CtaPlus /><span data-cta-label>{headerActionLabel}</span>
+    </AddActionButton>
+  ) : (
     <ActionButton tone="primary" size="sm" onClick={() => headerActionRef.current?.()}>
       {headerActionLabel}
     </ActionButton>
-  ) : undefined;
+  )) : undefined;
   const pageTitle = useMemo<string>(() => {
     if (isMembersMode) return t('membersPage.title') as string;
     switch (tab) {

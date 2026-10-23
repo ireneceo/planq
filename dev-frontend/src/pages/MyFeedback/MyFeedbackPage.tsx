@@ -17,7 +17,7 @@ import ActionButton from '../../components/Common/ActionButton';
 import { formatDate } from '../../utils/dateFormat';
 import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
 import { openFeedback } from '../../utils/feedbackOpen';
-import { HeaderCta } from '../../components/Common/headerCta';
+import { HeaderCta, CtaPlus } from '../../components/Common/headerCta';
 import EmptyState from '../../components/Common/EmptyState';
 import { mapApiError } from '../../utils/apiError';
 import { isEnterAction } from '../../utils/imeKey';
@@ -250,9 +250,10 @@ const MyFeedbackPage = () => {
             onClick={() => openFeedback({ kind: 'feedback', category: 'improve' })}>
             {t('myFeedback.composeFeedback') as string}
           </HeaderCtaSecondary>
-          <HeaderCta type="button" data-testid="myfeedback-compose"
+          <HeaderCta type="button" data-testid="myfeedback-compose" $collapseOnPhone
+            aria-label={t('myFeedback.composeInquiry') as string} title={t('myFeedback.composeInquiry') as string}
             onClick={() => openFeedback({ kind: 'inquiry' })}>
-            {t('myFeedback.composeInquiry') as string}
+            <CtaPlus /><span data-cta-label>{t('myFeedback.composeInquiry') as string}</span>
           </HeaderCta>
         </Filters>
       )}

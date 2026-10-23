@@ -10,7 +10,7 @@ import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router-dom';
 import PageShell from '../../components/Layout/PageShell';
-import ActionButton from '../../components/Common/ActionButton';
+import { AddActionButton, CtaPlus } from '../../components/Common/headerCta';
 import { SegmentedToggle, SegmentedBtn } from '../../components/Common/segmentedToggle';
 import PeopleTab from './PeopleTab';
 import RunsTab from './RunsTab';
@@ -44,10 +44,10 @@ export default function PayrollPage() {
   };
 
   const action = tab === 'mine' ? null : tab === 'runs'
-    ? <ActionButton data-testid="payroll-run-new" onClick={() => setRunCreate(true)}>+ {t('runs.add')}</ActionButton>
+    ? <AddActionButton data-testid="payroll-run-new" aria-label={t('runs.add') as string} title={t('runs.add') as string} onClick={() => setRunCreate(true)}><CtaPlus /><span data-cta-label>{t('runs.add')}</span></AddActionButton>
     : tab === 'people'
-      ? <ActionButton data-testid="payroll-person-new" onClick={() => setPersonCreate(true)}>+ {t('people.add')}</ActionButton>
-      : <ActionButton data-testid="payroll-item-new" onClick={() => setItemCreate(true)}>+ {t('items.add')}</ActionButton>;
+      ? <AddActionButton data-testid="payroll-person-new" aria-label={t('people.add') as string} title={t('people.add') as string} onClick={() => setPersonCreate(true)}><CtaPlus /><span data-cta-label>{t('people.add')}</span></AddActionButton>
+      : <AddActionButton data-testid="payroll-item-new" aria-label={t('items.add') as string} title={t('items.add') as string} onClick={() => setItemCreate(true)}><CtaPlus /><span data-cta-label>{t('items.add')}</span></AddActionButton>;
 
   return (
     <PageShell

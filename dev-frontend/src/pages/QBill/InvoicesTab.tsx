@@ -16,6 +16,7 @@ import { useDirectDetail } from '../../hooks/useDirectDetail';
 import NewInvoiceModal from './NewInvoiceModal';
 import { ChipBar, Chip, ChipCount } from '../../components/QBill/FilterChips';
 import HighlightText from '../../components/Common/HighlightText';
+import { phoneIconOnly } from '../../components/Common/headerCta';
 
 type Filter = InvoiceStatus | 'all';
 
@@ -184,9 +185,10 @@ export default function InvoicesTab() {
           )}
         </SearchInputWrap>
         {!isClient && (
-          <NewBtn data-testid="bill-new-invoice" onClick={() => { setEditInvoiceId(null); setShowNew(true); }}>
+          <NewBtn data-testid="bill-new-invoice" $phoneIcon aria-label={t('invoices.newInvoice') as string} title={t('invoices.newInvoice') as string}
+            onClick={() => { setEditInvoiceId(null); setShowNew(true); }}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-            {t('invoices.newInvoice')}
+            <span data-cta-label>{t('invoices.newInvoice')}</span>
           </NewBtn>
         )}
       </Toolbar>
@@ -391,14 +393,16 @@ const ClearBtn = styled.button`
   color: #94A3B8; cursor: pointer; border-radius: 4px;
   &:hover { color: #0F172A; background: #F1F5F9; }
 `;
-const NewBtn = styled.button`
-  display: inline-flex; align-items: center; gap: 6px;
+// 머리줄 것만 폰에서 + 아이콘으로 접는다($phoneIcon) — 빈 화면 안내 버튼은 글자가 곧 안내라 그대로.
+const NewBtn = styled.button<{ $phoneIcon?: boolean }>`
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
   height: 36px; padding: 0 14px; background: #14B8A6; color: #fff;
   font-size: 0.8125rem; font-weight: 700; line-height: 1;
   border: none; border-radius: 8px; cursor: pointer; white-space: nowrap;
   transition: background 0.15s;
   & > svg { display: block; flex-shrink: 0; }
   &:hover { background: #0D9488; }
+  ${p => p.$phoneIcon ? phoneIconOnly(36) : ''}
 `;
 const Empty = styled.div`
   display: flex; flex-direction: column; align-items: center; justify-content: center;

@@ -12,6 +12,7 @@ import AiTaskCreateModal from '../../components/QTask/AiTaskCreateModal';
 import TemplateSelectModal from '../../components/QTask/TemplateSelectModal';
 import TemplateSaveModal from '../../components/QTask/TemplateSaveModal';
 import AiActionButton from '../../components/Common/AiActionButton';
+import { CtaPlus, phoneIconOnly } from '../../components/Common/headerCta';
 import { todayInTz, detectBrowserTz } from '../../utils/timezones';
 import { GanttHeader, GanttRowTrack, GanttBar, useGanttScrollSync } from '../../components/Common/GanttTrack';
 import { STATUS_COLOR, displayStatus, getStatusLabel, type StatusCode } from '../../utils/taskLabel';
@@ -188,7 +189,13 @@ const TasksTab: React.FC<Props> = ({ projectId, businessId, projectName, tasks, 
           <TemplateBtn type="button" onClick={() => setTplSaveOpen(true)} title={tp('tpl.saveHint', '현재 프로젝트의 일정을 템플릿으로 저장') as string}>
             {tp('tpl.saveBtn', '템플릿으로 저장')}
           </TemplateBtn>
-          <AddTaskBtn type="button" data-testid="project-task-add-btn" onClick={() => setAdding(adding === 'top' ? null : 'top')}>{adding === 'top' ? tp('addTask.cancel', '취소') : tp('addTask.add', '+ 업무 추가')}</AddTaskBtn>
+          {/* 폰에서 «업무 추가» 는 + 아이콘만(phoneIconOnly) — «취소» 는 뜻이 달라 글자 그대로 둔다 */}
+          <AddTaskBtn type="button" data-testid="project-task-add-btn" $phoneIcon={adding !== 'top'}
+            aria-label={(adding === 'top' ? tp('addTask.cancel', '취소') : tp('addTask.addLabel', '업무 추가')) as string}
+            title={(adding === 'top' ? tp('addTask.cancel', '취소') : tp('addTask.addLabel', '업무 추가')) as string}
+            onClick={() => setAdding(adding === 'top' ? null : 'top')}>
+            {adding === 'top' ? tp('addTask.cancel', '취소') : <><CtaPlus /><span data-cta-label>{tp('addTask.addLabel', '업무 추가')}</span></>}
+          </AddTaskBtn>
         </ToolbarRight>
       </Toolbar>
 
@@ -402,7 +409,7 @@ const TemplateBtn = styled.button`
   &:hover{background:#14B8A6;color:#FFF;}
 `;
 // 헤더 생성 버튼 규격 = ActionButton sm (h36)
-const AddTaskBtn = styled.button`display:inline-flex;align-items:center;gap:6px;height:36px;padding:0 14px;background:#14B8A6;color:#FFF;border:none;border-radius:8px;font-size:0.8125rem;font-weight:700;cursor:pointer;white-space:nowrap;&:hover{background:#0D9488;}`;
+const AddTaskBtn = styled.button<{ $phoneIcon?: boolean }>`display:inline-flex;align-items:center;justify-content:center;gap:6px;flex-shrink:0;height:36px;padding:0 14px;background:#14B8A6;color:#FFF;border:none;border-radius:8px;font-size:0.8125rem;font-weight:700;cursor:pointer;white-space:nowrap;&:hover{background:#0D9488;} svg{width:14px;flex-shrink:0;} ${p => p.$phoneIcon ? phoneIconOnly(36) : ''}`;
 
 // 반복 선택기는 자체 배경 카드를 갖고 있어 폼 폭을 통째로 쓴다(행 안에 끼우면 눌린다)
 

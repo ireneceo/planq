@@ -121,6 +121,7 @@
   },
   "addTask": {
     "add": "+ Add Task",
+    "addLabel": "Add Task",
     "cancel": "Cancel",
     "drawerTitle": "+ Add Task"
   },

@@ -43,8 +43,8 @@ const EmailAccountSettings: React.FC = () => {
   //     'admin' 역할이 빠져 있어 부모가 그리면 워크스페이스 admin 이 버튼을 못 본다.
   const openNewAccount = useCallback(() => setEditing('new'), []);
   const canAddAccount = personalView || isAdmin;
-  const addLabel = `+ ${t('settings.add', '계정 추가') as string}`;
-  useSettingsHeaderAction(canAddAccount ? { label: addLabel, onClick: openNewAccount } : null);
+  const addLabel = t('settings.add', '계정 추가') as string;
+  useSettingsHeaderAction(canAddAccount ? { label: addLabel, onClick: openNewAccount, add: true } : null);
   // Gmail OAuth 콜백 실패 (?gmail_error=) — 심사 전 거부를 사용자가 인지하게 배너 표시
   const gmailError = searchParams.get('gmail_error');
   const dismissGmailError = () => setSearchParams((prev) => {

@@ -8,7 +8,7 @@
   "page": {
     "title": "Q info",
     "searchPh": "Search by title...",
-    "new": "+ New info",
+    "new": "New info",
     "fromFile": "+ From file",
     "fromFileNoExisting": "Please pick at least one existing file",
     "fromFileResult": "{{ok}} added, {{skip}} skipped",

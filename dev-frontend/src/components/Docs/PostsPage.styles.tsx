@@ -4,6 +4,7 @@ import { listRowTitleCss } from '../../theme/tokens';
 import styled from 'styled-components';
 import PanelHeader, { DetailMetaBar, DetailMetaLeft, DetailMetaRight, backButtonLook } from '../Layout/PanelHeader';
 import { FolderRow as AtRow } from './assetTabLayout';
+import { phoneIconOnly } from '../Common/headerCta';
 
 // ─── styled ─── (Q Note 패턴 — Sidebar + Content 2컬럼 + PanelHeader)
 export const PrintOnlyTitle = styled.h1`
@@ -66,6 +67,7 @@ export const NewBtn = styled.button`
   transition: background 0.15s;
   &:hover { background: #0D9488; }
   &:focus-visible { outline: 2px solid #0D9488; outline-offset: 2px; }
+  ${phoneIconOnly(36)}
 `;
 // 사이클 N+22 — + 드롭다운 (빈 문서 / 표)
 export const NewBtnWrap = styled.div`position: relative;`;

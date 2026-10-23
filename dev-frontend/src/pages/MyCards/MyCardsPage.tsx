@@ -11,7 +11,7 @@ import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import PageShell from '../../components/Layout/PageShell';
 import { SegmentedToggle, SegmentedBtn } from '../../components/Common/segmentedToggle';
-import { HeaderCta } from '../../components/Common/headerCta';
+import { HeaderCta, CtaPlus } from '../../components/Common/headerCta';
 import EmptyState from '../../components/Common/EmptyState';
 import OverflowMenu, { type OverflowItem } from '../../components/Common/OverflowMenu';
 import ConfirmDialog from '../../components/Common/ConfirmDialog';
@@ -142,7 +142,8 @@ const MyCardsPage: React.FC = () => {
           </SegmentedToggle>
           {tab === 'mine' && (
             <HeaderCta type="button" $collapseOnPhone aria-label={t('page.add') as string} data-testid="cards-add"
-              onClick={() => setCreateOpen(true)}>+ <span>{t('page.add')}</span></HeaderCta>
+              title={t('page.add') as string}
+              onClick={() => setCreateOpen(true)}><CtaPlus /><span data-cta-label>{t('page.add')}</span></HeaderCta>
           )}
         </>
       )}

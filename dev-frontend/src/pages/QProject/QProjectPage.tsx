@@ -6,7 +6,7 @@ import { displayName } from '../../utils/displayName';
 import { apiFetch, useAuth } from '../../contexts/AuthContext';
 import { cacheKey, readCache, hasCache, writeCache } from '../../lib/pageCache';
 import PageShell from '../../components/Layout/PageShell';
-import { HeaderCta } from '../../components/Common/headerCta';
+import { HeaderCta, CtaPlus } from '../../components/Common/headerCta';
 import { SegmentedToggle, SegmentedBtn } from '../../components/Common/segmentedToggle';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
 import { todayInTz, addDaysStr, detectBrowserTz } from '../../utils/timezones';
@@ -329,7 +329,8 @@ const QProjectPage: React.FC = () => {
                 고객이 누르면 창을 다 채운 뒤 403 이었다. 서버와 같은 술어(고객이 아닌 워크스페이스 사람). */}
           {user?.business_role !== 'client' && (
             <HeaderCta type="button" $collapseOnPhone aria-label={t('newProject', '새 프로젝트') as string}
-              onClick={() => setNewProjectOpen(true)}>+ <span>{t('newProject', '새 프로젝트')}</span></HeaderCta>
+              title={t('newProject', '새 프로젝트') as string}
+              onClick={() => setNewProjectOpen(true)}><CtaPlus /><span data-cta-label>{t('newProject', '새 프로젝트')}</span></HeaderCta>
           )}
         </>
       }

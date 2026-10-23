@@ -29,7 +29,26 @@
 //   (36 은 **필터줄**(`filterBar.tsx`) 의 값이다. 두 줄은 계약이 다르다.
 //    AI 버튼 sm 을 36 으로 올려 보는 길도 쟀는데 /docs·/knowledge 데스크탑이 깨진다.)
 //   memory `feedback_comment_lies_predicate_drifts` — 주석은 사실을 보증하지 않는다.
-import styled from 'styled-components';
+import styled, { css } from 'styled-components';
+import ActionButton from './ActionButton';
+
+// ★ 폰(≤640)에서는 «+ 무엇 추가» 주 액션을 **+ 아이콘 하나(정사각)** 로 접는다 (2026-10-23, Irene:
+//   *"모바일에서는 + 업무추가. 이런 버튼을 다 +버튼으로만 아이콘 하나 써서 공간을 확보하자. 딱 이 버튼만 다 통일하자."*)
+//   규칙은 이 조각 하나 — 화면마다 다시 적지 않는다. 높이는 각 버튼 그대로(머리줄 32 / 필터줄 36 / ActionButton 폰 44), 색·톤 불변.
+//   글자는 data-cta-label 이 붙은 칸만 숨긴다(아이콘 span 까지 숨기지 않게). 접은 버튼은 aria-label·title 이 뜻을 말한다.
+export const phoneIconOnly = (size: 32 | 36 | 44) => css`
+  @media (max-width: 640px) {
+    width: ${size}px; min-width: ${size}px; padding: 0; gap: 0;
+    [data-cta-label] { display: none; }
+  }
+`;
+
+// + 아이콘 한 벌 — 머리줄 주 액션이 같이 쓴다(글자 «+ » 를 문자로 붙이지 않는다: 폰에서 접을 때 글자와 함께 사라진다).
+export const CtaPlus = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" aria-hidden="true">
+    <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
+  </svg>
+);
 
 export const HeaderCta = styled.button<{ $collapseOnPhone?: boolean }>`
   display: inline-flex; align-items: center; justify-content: center; gap: 6px;
@@ -46,9 +65,10 @@ export const HeaderCta = styled.button<{ $collapseOnPhone?: boolean }>`
      (주석 안에 백틱을 쓰지 않는다 — styled 템플릿이 거기서 끊긴다. memory
       feedback_styled_comment_backtick) */
   svg { width: 14px; flex-shrink: 0; }
-  ${p => p.$collapseOnPhone ? `
-  @media (max-width: 640px) { width: 32px; padding: 0; span { display: none; } }
-  ` : ''}
+  ${p => p.$collapseOnPhone ? phoneIconOnly(32) : ''}
 `;
+
+// ActionButton(sm — 폰에서 44) 으로 그린 «+ 무엇 추가» 머리줄 버튼(급여·설정 메일함). 폰에서 44 정사각 + 아이콘.
+export const AddActionButton = styled(ActionButton)`svg { width: 14px; flex-shrink: 0; } ${phoneIconOnly(44)}`;
 
 export default HeaderCta;

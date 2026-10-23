@@ -17,6 +17,8 @@ export interface SettingsHeaderAction {
   /** 버튼에 보일 문구 (i18n 적용된 완성 문자열) */
   label: string;
   onClick: () => void;
+  /** «+ 무엇 추가» 버튼이면 true — + 아이콘을 붙이고 폰에서 아이콘만 남긴다(label 에 «+ » 를 넣지 않는다) */
+  add?: boolean;
 }
 
 type Publish = (action: SettingsHeaderAction | null) => void;
@@ -32,9 +34,10 @@ export function useSettingsHeaderAction(action: SettingsHeaderAction | null): vo
   const publish = useContext(Ctx);
   const label = action ? action.label : null;
   const onClick = action ? action.onClick : null;
+  const add = !!action?.add;
   useEffect(() => {
     if (!publish) return undefined;
-    publish(label && onClick ? { label, onClick } : null);
+    publish(label && onClick ? { label, onClick, add } : null);
     return () => publish(null);
-  }, [publish, label, onClick]);
+  }, [publish, label, onClick, add]);
 }

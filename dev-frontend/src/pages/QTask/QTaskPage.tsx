@@ -67,7 +67,7 @@ import { needsSeriesScope } from '../../utils/taskSeries';
 import { belowTabs } from '../../theme/layout';
 import { inReviewStage } from '../../utils/reviewStage';
 import { SegmentedToggle, SegmentedBtn } from '../../components/Common/segmentedToggle';
-import { HeaderCta } from '../../components/Common/headerCta';
+import { HeaderCta, CtaPlus } from '../../components/Common/headerCta';
 import { useRevealRow } from '../../hooks/useRevealRow';
 
 // #249 — 우측 패널을 인라인으로 붙여둘 최소 뷰포트 폭.
@@ -2057,10 +2057,13 @@ const QTaskPage:React.FC=()=>{
               label={t('ai.btnShort','AI')}
               title={t('ai.btnHint','자연어 한 줄로 여러 업무 자동 생성') as string}
             />
-            <HeaderCta type="button" data-testid="task-add-btn" onClick={()=>{
+            <HeaderCta type="button" data-testid="task-add-btn" $collapseOnPhone
+              aria-label={(scope==='mine'&&tab==='requested'?t('add.reqBtn','요청 추가'):t('add.btn','업무 추가')) as string}
+              title={(scope==='mine'&&tab==='requested'?t('add.reqBtn','요청 추가'):t('add.btn','업무 추가')) as string}
+              onClick={()=>{
               // 우측 상단 = panel(드로어) 모드
               openAddForm(false,{assigneeId:tab==='requested'?null:myId});
-            }}>+ {scope==='mine'&&tab==='requested'?t('add.reqBtn','요청 추가'):t('add.btn','업무 추가')}</HeaderCta>
+            }}><CtaPlus /><span data-cta-label>{scope==='mine'&&tab==='requested'?t('add.reqBtn','요청 추가'):t('add.btn','업무 추가')}</span></HeaderCta>
           </FilterBar>
 
           {/* ★ P0-1 — 저장 실패를 여기서 말한다. 침묵하면 사용자는 "저장됨" 으로 읽는다(#228). */}

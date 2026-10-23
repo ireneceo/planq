@@ -1710,7 +1710,7 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId }) => {
             <NewBtnWrap>
               <NewBtn type="button" data-testid="docs-new" onClick={() => setNewDropdownOpen(v => !v)} title={t('btn.new') as string} aria-label={t('btn.new') as string} aria-expanded={newDropdownOpen}>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                {t('btn.new', '새 문서') as string}
+                <span data-cta-label>{t('btn.new', '새 문서') as string}</span>
               </NewBtn>
               {newDropdownOpen && (
                 <NewDropdown onMouseLeave={() => setNewDropdownOpen(false)}>

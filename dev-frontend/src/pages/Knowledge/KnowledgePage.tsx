@@ -63,6 +63,7 @@ import TrashDrawer from '../../components/Trash/TrashDrawer';
 import TrashButton from '../../components/Trash/TrashButton';
 import { isEnterAction } from '../../utils/imeKey';
 import { formatDay, formatDayTime } from '../../utils/dateFormat';
+import { CtaPlus, phoneIconOnly } from '../../components/Common/headerCta';
 
 // N+64 — 옛 ENUM 6 (i18n cat.{key} 라벨 보유, fallback 표시용). 자유 카테고리는 string 그대로.
 const CATEGORIES: KbCategory[] = [...LEGACY_KB_CATEGORIES];
@@ -790,7 +791,9 @@ const KnowledgePage: React.FC<KnowledgePageProps> = ({ embedded = false, mode = 
                문구가 없는 기능을 약속하면 사용자는 "되는데 안 먹는다" 로 읽는다. 되는 것만 적는다. */
             title={t('page.aiIngestHint', { defaultValue: '붙여넣은 내용이나 텍스트 파일을 AI 가 토픽별로 정리해 추가합니다' }) as string}
           />
-          <NewBtn type="button" onClick={() => setModalOpen(true)}>{t('page.new')}</NewBtn>
+          <NewBtn type="button" aria-label={t('page.new') as string} title={t('page.new') as string} onClick={() => setModalOpen(true)}>
+            <CtaPlus /><span data-cta-label>{t('page.new')}</span>
+          </NewBtn>
         </>
       }
     >
@@ -2421,13 +2424,16 @@ const InlineInput = styled.input<{ $err?: boolean }>`
 
 // ─── styled ───
 const NewBtn = styled.button`
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px; flex-shrink: 0;
   height: 32px; padding: 0 14px;
   background: #14B8A6; color: #FFFFFF;
   border: none; border-radius: 6px;
   font-size: 0.8125rem; font-weight: 600; cursor: pointer;
   white-space: nowrap;
   &:hover { background: #0D9488; }
+  svg { width: 14px; flex-shrink: 0; }
   @media (max-width: 640px) { height: 36px; font-size: 0.75rem; padding: 0 12px; }
+  ${phoneIconOnly(36)}
 `;
 const CsvBtn = styled.button`
   display: inline-flex; align-items: center; gap: 6px;
