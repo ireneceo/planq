@@ -15,6 +15,7 @@
 //
 // 모양은 두 가지(`layout`) — 'rows'(결과물: 한 줄에 하나) / 'chips'(의뢰 명세·댓글: 촘촘히). 동작은 같다.
 import React, { useMemo, useState } from 'react';
+import { withW } from '../../utils/imageWidth';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../contexts/AuthContext';
@@ -127,7 +128,8 @@ export default function AttachmentList({ items, businessId, layout = 'rows', onR
     if (it.postId) { setDocPreview({ id: it.postId, title: it.name }); return; }
     if (isImage(it)) {
       const idx = images.findIndex((x) => x.id === it.id);
-      openLightbox(images.map((x) => ({ src: x.previewUrl as string, alt: x.name })), idx < 0 ? 0 : idx);
+      // 확대 보기 첫 화면은 리사이즈본(1600) — 원본은 라이트박스 «원본 보기»(fullSrc) 를 누를 때만 받는다.
+      openLightbox(images.map((x) => ({ src: withW(x.previewUrl, 1600) as string, fullSrc: x.previewUrl as string, alt: x.name })), idx < 0 ? 0 : idx);
       return;
     }
     setFilePreview({
@@ -168,7 +170,7 @@ export default function AttachmentList({ items, businessId, layout = 'rows', onR
           {items.map((it) => (
             <Row key={it.id} data-attach-row>
               <ThumbBtn type="button" onClick={() => open(it)} aria-label={it.name}>
-                {isImage(it) ? <Thumb src={it.previewUrl as string} alt="" loading="lazy" />
+                {isImage(it) ? <Thumb src={withW(it.previewUrl, 200) as string} alt="" loading="lazy" />
                   : <Ext>{it.postId ? (t('attachList.doc', { defaultValue: '문서' }) as string) : extOf(it.name)}</Ext>}
               </ThumbBtn>
               <Meta type="button" onClick={() => open(it)} title={it.name}>
@@ -189,7 +191,7 @@ export default function AttachmentList({ items, businessId, layout = 'rows', onR
           {items.map((it) => isImage(it) ? (
             <ImgChip key={it.id} data-attach-row>
               <ImgBtn type="button" onClick={() => open(it)} aria-label={it.name} title={it.name}>
-                <Thumb src={it.previewUrl as string} alt="" loading="lazy" />
+                <Thumb src={withW(it.previewUrl, 200) as string} alt="" loading="lazy" />
               </ImgBtn>
               <ImgTools>
                 {it.downloadUrl && (

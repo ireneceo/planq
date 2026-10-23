@@ -321,6 +321,11 @@ router.get('/public/:storedName', async (req, res, next) => {
       if (!conv) return errorResponse(res, 'conversation_not_found', 404);
       businessId = conv.business_id;
     }
+    // ★ 2026-10-23 — Drive 저장분도 ?w= 리사이즈본(files/public-image 와 같은 캐시 키). 판정 **뒤**, 바이트 가지러 가기 **전**.
+    const resize = require('../services/imageResize');
+    const driveId = att.storage_provider === 'gdrive' ? (att.external_id || att.file_path) : null;
+    const cacheId = driveId ? `drive:${driveId}` : null;
+    if (cacheId && resize.serveCachedIfPresent(req, res, serveMime, cacheId)) return;
     const body = await require('../services/attachmentStorage').readAttachmentBody({
       storage_provider: att.storage_provider,
       file_path: att.file_path,
@@ -330,8 +335,10 @@ router.get('/public/:storedName', async (req, res, next) => {
     });
     if (!body.ok) return errorResponse(res, body.msg, body.code);
     if (body.redirect) return res.redirect(body.redirect);
-    // ?w= 리사이즈는 로컬 파일일 때만 (Drive 스트림은 원본 그대로)
-    if (body.abs && await require('../services/imageResize').maybeServeResized(req, res, body.abs, serveMime)) return;
+    // ?w= 리사이즈 — 로컬은 경로로, Drive 는 스트림으로(둘 다 디스크 캐시). ?w= 없으면 원본 그대로.
+    if (body.abs && await resize.maybeServeResized(req, res, body.abs, serveMime)) return;
+    if (!body.abs && body.stream && cacheId
+        && await resize.resizeStreamAndServe(req, res, body.stream, serveMime, cacheId)) return;
 
     require('../services/fileServing').applyFileResponseHeaders(res, { mime_type: serveMime, file_name: att.file_name || att.original_name }, { inline: true });
     res.setHeader('Cache-Control', 'private, max-age=3600');

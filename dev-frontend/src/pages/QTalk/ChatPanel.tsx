@@ -1,4 +1,5 @@
 import { openPopout } from '../../utils/pinHost';
+import { withW } from '../../utils/imageWidth';
 import { canOpenSeparateWindow } from '../../utils/popout';
 import React, { useMemo, useState, useEffect, useRef, useCallback } from 'react';
 import { downloadFromApi } from '../../utils/download';
@@ -1943,7 +1944,8 @@ const ChatPanel: React.FC<Props> = ({
                 //   무인증 + 순차 정수 id 라 번호만 바꾸면 타 워크스페이스 이미지가 열렸다(삭제됨).
                 const lightboxItems = imgAttachs
                   .filter(a => !!a.preview_url)
-                  .map(a => ({ src: a.preview_url as string, alt: a.file_name }));
+                  // 확대 보기 첫 화면은 리사이즈본(1600), 원본은 «원본 보기» 때만(Irene 2026-10-23 — 옛 «라이트박스는 원본» 을 뒤집음)
+                  .map(a => ({ src: withW(a.preview_url, 1600) as string, fullSrc: a.preview_url as string, alt: a.file_name }));
                 return (
                 <AttachRow>
                   {m.attachments.map((a) => {
@@ -1951,7 +1953,7 @@ const ChatPanel: React.FC<Props> = ({
                     //   → 파일 카드. 깨진 이미지 아이콘 노출 차단. <img onError> 도 같은 fallback.
                     // preview_url 이 없으면(비이미지·서빙 불가) 파일 카드로 떨어진다.
                     const isImg = isRenderableImage(a.mime_type || '', a.file_name) && !!a.preview_url;
-                    const imgSrc = `${a.preview_url}?w=800`; // #97 — 채팅 표시는 리사이즈본, 라이트박스는 원본
+                    const imgSrc = `${a.preview_url}?w=800`; // #97 — 채팅 표시는 리사이즈본(라이트박스는 1600 + 원본 보기)
                     return isImg ? (
                       <AttachImageBtn
                         key={a.id}

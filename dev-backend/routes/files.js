@@ -1656,9 +1656,16 @@ router.get('/:businessId/:id/download', authenticateToken, attachWorkspaceScope(
     // ★ 인앱 다운로드도 같다 — 여기서 Drive 로 리다이렉트하면 프론트의 fetch 기반 다운로드
     //   (useFileDownload → downloadFromApi)가 CORS 없는 401 을 만나 "다운로드 실패" 로 떨어진다.
     //   **오너 본인도** 실패한다. 서버가 바이트를 받아 흘려준다.
+    // ★ 2026-10-23 — ?w= 미리보기(메일 첨부·인라인 이미지·연락처 사진)는 Drive **첫 열람**에도 리사이즈본.
+    //   여태 첫 요청은 원본 스트림이 통째로 나갔다. ?w= 없는 내려받기는 아래 그대로(원본·길이·Range).
+    const resize = require('../services/imageResize');
+    const driveCacheId = file.storage_provider === 'gdrive' && file.external_id ? `drive:${file.external_id}` : null;
+    if (driveCacheId && resize.serveCachedIfPresent(req, res, file.mime_type, driveCacheId)) return;
     const bodyIn = await require('../services/attachmentStorage').readAttachmentBody(file);
     if (!bodyIn.ok) return errorResponse(res, bodyIn.msg, bodyIn.code);
     if (bodyIn.redirect) return res.redirect(bodyIn.redirect);
+    if (!bodyIn.abs && bodyIn.stream && driveCacheId
+        && await resize.resizeStreamAndServe(req, res, bodyIn.stream, file.mime_type, driveCacheId)) return;
     if (!bodyIn.abs) {
       // Drive 첫 다운로드 — 길이(Content-Length)를 실은 스트림. 받는 길에 디스크 캐시에도 쓴다
       //   (services/driveCache). 두 번째부터는 캐시본이 abs 로 와서 아래 로컬 갈래(sendFile)를 탄다.

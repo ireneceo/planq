@@ -1,5 +1,6 @@
 // 파일 미리보기 — 영상·음성(서명 URL 재생) / 이미지(라이트박스) / PDF / 그 외 폴백.
 import React, { useEffect, useState } from 'react';
+import { withW } from '../../../utils/imageWidth';
 import styled from 'styled-components';
 import { postContentTableCss } from '../../../styles/postContentView';
 import { useTranslation } from 'react-i18next';
@@ -12,8 +13,6 @@ import DOMPurify from 'dompurify';
 import StandardModal from '../../../components/Common/StandardModal';
 
 // 이미지 리사이즈 파라미터 — DocsTab 과 같은 규칙(원본 URL 에 ?w= 를 덧붙인다).
-const withW = (u: string | undefined | null, w: number): string | undefined =>
-  u && u !== '#' ? `${u}${u.includes('?') ? '&' : '?'}w=${w}` : undefined;
 
 export const PreviewArea: React.FC<{
   file: ProjectFile; businessId: number; shortcutUrl?: string | null;

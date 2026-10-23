@@ -29,13 +29,20 @@ router.get('/public/attach/:storedName', async (req, res, next) => {
       return errorResponse(res, 'not_public_image', 403);
     }
     if (await require('../middleware/imageViewer').denyPrivateCopy(req, res, { externalId: att.storage_provider === 'gdrive' ? att.external_id : null, storedName: att.stored_name }, 'tasks/public/attach')) return; // ★ 원본 File 등급으로 판정(IMAGE_STAGE2B §0)
+    // ★ 2026-10-23 (Irene: "미리보기나 클릭해서 볼 때 굳이 늦게 뜰 이유가 없지 않아?") — Drive 저장분도 ?w= 리사이즈본.
+    //   files/public-image 와 같은 키(drive:<id>)라 같은 파일이면 캐시를 나눠 쓴다. 판정(denyPrivateCopy) **뒤에** 캐시를 본다.
+    const resize = require('../services/imageResize');
+    const cacheId = att.storage_provider === 'gdrive' && att.external_id ? `drive:${att.external_id}` : null;
+    if (cacheId && resize.serveCachedIfPresent(req, res, serveMime, cacheId)) return;
     // #134 — 여기가 <img> 가 실제로 부르는 경로. Drive 저장분은 로컬 파일이 없어 410 이었다.
     const body = await readAttachmentBody(att);
     if (!body.ok) return errorResponse(res, body.msg, body.code);
     if (body.redirect) return res.redirect(body.redirect);
 
-    // ?w= 리사이즈는 로컬 파일일 때만 (Drive 스트림은 원본 그대로)
-    if (body.abs && await require('../services/imageResize').maybeServeResized(req, res, body.abs, serveMime)) return;
+    // ?w= 리사이즈 — 로컬은 경로로, Drive 는 스트림으로(둘 다 디스크 캐시). ?w= 없으면 원본 그대로.
+    if (body.abs && await resize.maybeServeResized(req, res, body.abs, serveMime)) return;
+    if (!body.abs && body.stream && cacheId
+        && await resize.resizeStreamAndServe(req, res, body.stream, serveMime, cacheId)) return;
 
     require('../services/fileServing').applyFileResponseHeaders(res, { mime_type: serveMime, file_name: att.file_name || att.original_name }, { inline: true });
     res.setHeader('Cache-Control', 'private, max-age=3600');
