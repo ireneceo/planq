@@ -28,13 +28,16 @@ const {
   PostAttachment, File,
 } = require('../models');
 const { sequelize } = require('../config/database');
-const { parseMaybeJson, buildEntitySnapshot, loadEntity, maybeUpdateEntityStatus } = require('../services/signatureCore');
+const { parseMaybeJson, buildEntitySnapshot, loadEntity, maybeUpdateEntityStatus, isPostSignatureLocked } = require('../services/signatureCore');
 const { authenticateToken } = require('../middleware/auth');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
 const { createAuditLog } = require('../middleware/audit');
 const { sendSignatureRequestEmail, sendSignatureOtpEmail } = require('../services/emailService');
 const { signedImagesOf } = require('../services/signatureItems');   // serialize 의 signature_image_count
 const { signProgressByEntities } = require('../services/signedDocument');   // 받은 서명 «N명 중 M명»
+const { canReadPost, canEditPost } = require('../services/postAccess');     // 받은 서명 [문서 보기]·[문서에서 수정]
+const { assertMemberOrAbove } = require('../middleware/access_scope');
+const { roundRows, canCloseRows } = require('../services/signatureRound');
 // 서명·확인 공용 조각 (services/signatureCore.js). 판정을 두 벌로 두지 않기 위해 여기서만 가져온다.
 const {
   loadByToken, confirmLimiter, docConfirmEnabled, assertKind,
@@ -406,9 +409,28 @@ router.get('/signatures/received', authenticateToken, async (req, res, next) => 
     // entity title 보강 (Post 위주)
     const postIds = rows.filter(r => r.entity_type === 'post').map(r => r.entity_id);
     const posts = postIds.length > 0
-      ? await Post.findAll({ where: { id: postIds }, attributes: ['id', 'title'] })
+      ? await Post.findAll({ where: { id: postIds } })   // 읽기·편집 판정이 범위 칸(vlevel·project_id·…)을 쓴다
       : [];
     const titleMap = new Map(posts.map(p => [p.id, p.title]));
+
+    // 문서로 가는 문(2026-10-23 Irene «받은서명 메뉴에서 문서 보기 … 수정 안되면 안된다고 하고 되면 되게») —
+    //   보는 사람 기준 불리언만 싣는다. 읽기 = 본문과 같은 canReadPost, 편집 = 문서 상세 can_edit 와 같은 두 판정
+    //   (멤버 이상 ∧ canEditPost) + 서명 잠금. 읽을 수 없으면 편집 칸은 계산하지 않는다(그 문서 정보를 더 내지 않는다).
+    //   edit_block: null(바로 편집) · signature_locked(문서의 [고쳐서 다시 보내기] 로 풀 수 있다) ·
+    //               signature_signed(받는 분이 이미 서명 — 복사해 새로) · no_permission.
+    const isAdminUser = req.user.platform_role === 'platform_admin';
+    const docMap = new Map();
+    for (const p of posts) {
+      const can_read = !!(await canReadPost(req.user, p));
+      if (!can_read) { docMap.set(p.id, { can_read: false }); continue; }
+      const can_edit = !!(await assertMemberOrAbove(req.user.id, p.business_id, isAdminUser ? 'platform_admin' : null))
+        && !!(await canEditPost(req.user.id, p, req.user.platform_role));
+      let edit_block = can_edit ? null : 'no_permission';
+      if (can_edit && await isPostSignatureLocked(p.id)) {
+        edit_block = canCloseRows(await roundRows(p.id)) ? 'signature_locked' : 'signature_signed';
+      }
+      docMap.set(p.id, { can_read: true, can_edit, edit_block });
+    }
 
     // workspace 라벨 보강 (cross-workspace 구분용)
     const bizIds = Array.from(new Set(rows.map(r => r.business_id)));
@@ -421,6 +443,7 @@ router.get('/signatures/received', authenticateToken, async (req, res, next) => 
     let items = rows.map(s => ({
       ...serialize(s, { withLink: true }),
       entity_title: s.entity_type === 'post' ? (titleMap.get(s.entity_id) || '문서') : '문서',
+      doc: s.entity_type === 'post' ? (docMap.get(s.entity_id) || null) : null,
       workspace: bizMap.get(s.business_id) ? {
         business_id: s.business_id,
         brand_name: bizMap.get(s.business_id).brand_name || bizMap.get(s.business_id).name,

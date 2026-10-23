@@ -83,26 +83,8 @@ async function assertWorkspaceOrClient(userId, businessId, platformRole) {
   return { ok: false, scope: null };
 }
 
-// 문서 편집 권한 — **공개 범위와 같은 축**을 쓴다 (2026-08-21).
-//
-//   여태 편집은 작성자·owner·platform_admin 만이었다. 공개 범위를 워크스페이스로 열어도
-//   **읽기만 열리고 편집은 안 열려서**, 같이 문서를 만들어가는 것이 불가능했다
-//   (운영: "내가 작성한 문서는 다른 직원이 수정 못해? 같이 화이트보드처럼 업데이트해야 하는데").
-//
-//   새 규칙: **볼 수 있으면 고칠 수 있다.** 단 아래는 그대로 둔다.
-//     · L1(개인) 문서 — 작성자만. 공개하지 않은 글을 남이 고치면 안 된다.
-//     · 고객(Client) — assertMember 에서 이미 막힌다. 읽기·컨펌만.
-//     · 삭제 — 편집과 다른 축이다. 파괴적이고 되돌릴 수 없어 작성자·owner 로 유지한다.
-async function canEditPost(userId, post, platformRole) {
-  if (platformRole === 'platform_admin') return true;
-  if (post.author_id === userId) return true;
-  // L1 = 개인 문서. 작성자 외에는 owner/admin 도 편집하지 않는다(읽기도 안 되는 등급이다).
-  //   ★ 2026-10-07 — 이 분기가 주석과 반대로 owner/admin 에게 true 를 줘서, **읽으면 403 인 남의 L1 문서를
-  //   PUT 으로는 고칠 수 있었다**(Fable 행 5 D3 실측). 이 함수의 규칙은 «볼 수 있으면 고칠 수 있다»(1cf7eb0d).
-  if (post.vlevel === 'L1') return false;
-  const scope = await getUserScope(userId, post.business_id, platformRole);
-  return canAccessPostByLevel(userId, post, scope);
-}
+// 문서 편집 권한 — services/postAccess.canEditPost 한 벌(2026-10-23 옮김, 동작 무변경 — 받은 서명 화면도 같은 판정을 쓴다).
+const { canEditPost } = require('../services/postAccess');
 
 // Plain text 추출 — Tiptap JSON → 검색/프리뷰용 plain string
 function extractText(json) {

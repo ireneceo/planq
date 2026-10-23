@@ -17,6 +17,7 @@ import HighlightText from '../../components/Common/HighlightText';
 import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
 import { onSocket } from '../../services/socket';
 import { downloadFromApi } from '../../utils/download';
+import { tabStore } from '../../stores/tabStore';
 
 interface ReceivedSignature {
   id: number;
@@ -43,6 +44,14 @@ interface ReceivedSignature {
   kind?: 'sign' | 'confirm';
   /** 같은 문서의 서명 진행 — 서명 요청일 때만. others 는 나 말고 나머지(칸·쪽·상태만) */
   progress?: { total: number; signed: number; others: Array<{ party: 'us' | 'them'; slot: number | null; status: string }> };
+  /** 보는 사람 기준 문서 문 — 서버가 본문 읽기·편집과 같은 판정으로 채운다. 문서가 지워졌으면 null */
+  doc?: { can_read: boolean; can_edit?: boolean; edit_block?: EditBlock | null } | null;
+}
+type EditBlock = 'signature_locked' | 'signature_signed' | 'no_permission';
+
+/** 문서 화면을 새 탭으로 — 다른 워크스페이스 문서면 문서 화면이 전환 안내를 한다 */
+function openDoc(it: ReceivedSignature, edit = false) {
+  tabStore.openInNewTab(`/docs?post=${it.entity_id}${edit ? '&edit=1' : ''}`);
 }
 
 /** 내가 서명했는데 남은 사람이 있으면 누구를 기다리는지 — 쪽으로 말한다(이름은 싣지 않는다) */
@@ -260,6 +269,11 @@ export default function ReceivedSignaturesTab() {
                       {t('received.action.pdf', 'PDF')}
                     </SecondaryBtn>
                   )}
+                  {it.doc?.can_read && (
+                    <SecondaryBtn type="button" data-testid={`received-open-doc-${it.id}`} onClick={() => openDoc(it)}>
+                      {t('received.action.openDoc', '문서 보기')}
+                    </SecondaryBtn>
+                  )}
                 </CardRight>
               </Card>
             );
@@ -370,7 +384,27 @@ function Detail({ signature: s, onClose, onSign, onPdf, pdfBusy }: {
             </>
           )}
         </DialogBody>
+        {s.doc?.can_read && s.doc.edit_block && (
+          <EditReason data-testid="received-edit-reason">{t(`received.editBlock.${s.doc.edit_block}`)}</EditReason>
+        )}
+        {s.entity_type === 'post' && !s.doc?.can_read && (
+          <EditReason data-testid="received-edit-reason">{t('received.editBlock.no_read')}</EditReason>
+        )}
         <DialogFooter>
+          {s.doc?.can_read && (
+            <SecondaryBtn type="button" data-testid="received-detail-open-doc" onClick={() => { onClose(); openDoc(s); }}>
+              {t('received.action.openDoc', '문서 보기')}
+            </SecondaryBtn>
+          )}
+          {/* 고칠 수 있으면 바로 편집으로 · 서명 진행 중(받는 분 서명 전)이면 문서로 — 거기 [고쳐서 다시 보내기] 가 있다 ·
+              받는 분이 이미 서명했거나 권한이 없으면 누를 수 없고 이유를 위 줄이 글자로 말한다(터치 기기엔 title 이 안 뜬다) */}
+          {s.doc?.can_read && (
+            <SecondaryBtn type="button" data-testid="received-edit-doc"
+              disabled={s.doc.edit_block === 'signature_signed' || s.doc.edit_block === 'no_permission'}
+              onClick={() => { onClose(); openDoc(s, !s.doc?.edit_block); }}>
+              {t('received.action.editDoc', '문서에서 수정')}
+            </SecondaryBtn>
+          )}
           {(s.status === 'sent' || s.status === 'viewed' || s.status === 'pending') && (
             <PrimaryBtn type="button" onClick={() => onSign(s)}>
               {t('received.action.signOpen', 'Open signing page')}
@@ -391,6 +425,10 @@ function Detail({ signature: s, onClose, onSign, onPdf, pdfBusy }: {
 // ─────────────────────────────────────────────
 // styled
 // ─────────────────────────────────────────────
+const EditReason = styled.p`
+  margin: 0; padding: 10px 20px; font-size: 0.78125rem; line-height: 1.5; color: #475569;
+  background: #f8fafc; border-top: 1px solid #e2e8f0;
+`;
 const Container = styled.div`
   display: flex; flex-direction: column; gap: 12px;
   /* #422 — 여백은 PageShell Body(20 / 폰 14) 하나가 준다. 여기서 또 주면 폰 34px 로 넓어진다 */
@@ -525,7 +563,7 @@ const CloseBtn = styled.button`
 `;
 const DialogBody = styled.div`padding: 20px; display: flex; flex-direction: column; gap: 14px;`;
 const DialogFooter = styled.div`
-  display: flex; justify-content: flex-end; gap: 8px;
+  display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap;
   padding: 14px 20px; border-top: 1px solid #F1F5F9;
 `;
 const Field = styled.div`display: flex; flex-direction: column; gap: 4px;`;

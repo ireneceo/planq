@@ -102,7 +102,9 @@
       "sign": "Sign",
       "signOpen": "Open signing page",
       "pdf": "PDF",
-      "close": "Close"
+      "close": "Close",
+      "openDoc": "View document",
+      "editDoc": "Edit in document"
     },
     "detail": {
       "status": "Status",
@@ -124,7 +126,13 @@
     "progress": "Signed {{signed}}/{{total}}",
     "waitingUs": "Waiting for sender",
     "waitingThem": "Waiting for other party",
-    "allSigned": "All signed"
+    "allSigned": "All signed",
+    "editBlock": {
+      "signature_locked": "This document is out for signature, so it can't be edited directly. Use [Edit and resend] in the document's signature section to edit it.",
+      "signature_signed": "A recipient has already signed, so this document can't be edited. Copy the document and send a new one if it needs changes.",
+      "no_permission": "You don't have permission to edit this document. You can still view it.",
+      "no_read": "You don't have access to this document in the workspace. Check what you signed on the signing page or in the PDF."
+    }
   },
   "section": {
     "library": "Template library",

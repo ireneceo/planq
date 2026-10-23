@@ -460,13 +460,15 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId }) => {
   //   서명 진행이 바뀌면(요청·서명 완료) 같이 다시 읽는다 — signReloadKey 가 그 신호다.
   const [signedDoc, setSignedDoc] = useState<SignedDocView | null>(null);
   const signedDocIdRef = useRef<number | null>(null);
+  // 서명본을 **이 문서 것으로** 읽었는가 — 문서를 옮긴 직후 한 렌더는 앞 문서의 signedDoc 이 남아 있다(?edit=1 판정용)
+  const signedDocLoadedForRef = useRef<number | null>(null);
   useEffect(() => {
     const id = detail?.id;
     if (!id) { setSignedDoc(null); signedDocIdRef.current = null; return undefined; }
     // 다른 문서로 옮기면 앞 문서의 값(잠금 포함)을 들고 있지 않는다 — 같은 문서를 다시 읽을 때는 그대로 둔다(본문이 깜빡이지 않게)
     if (signedDocIdRef.current !== id) { setSignedDoc(null); signedDocIdRef.current = id; }
     let alive = true;
-    void getSignedHtml(id).then((v) => { if (alive) setSignedDoc(v); });
+    void getSignedHtml(id).then((v) => { if (alive) { signedDocLoadedForRef.current = id; setSignedDoc(v); } });
     return () => { alive = false; };
   }, [detail?.id, signReloadKey]);
   // 지금 본문을 고칠 수 있나 — 권한(can_edit) ∧ 서명 잠금 아님. 서명본을 아직 못 읽었으면 내지 않는다
@@ -859,6 +861,26 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId }) => {
     setTableDescOpen(docHasContent(detail.content_json));   // 빈 설명이면 접어 둔다(옛 «길이 > 30» 은 빈 문서도 참이었다)
     setError(null);
   };
+
+  // 받은 서명 [문서에서 수정] → /docs?post=<id>&edit=1 (2026-10-23). 1회성 신호 — 주소에서 바로 지우고 ref 로 들고 있다가,
+  //   문서와 그 문서의 서명본(잠금)을 읽은 뒤 **고칠 수 있을 때만** 편집으로 연다. 못 고치면 보기 그대로(서명 진행 절이 길을 말한다).
+  //   ★ 마운트 때 한 번만 읽지 않는다 — 문서 탭이 이미 열려 있으면 같은 탭에 주소만 바뀌어 들어온다(keep-alive).
+  const pendingEditRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (searchParams.get('edit') !== '1') return;
+    const v = Number(searchParams.get('post'));
+    pendingEditRef.current = Number.isFinite(v) && v > 0 ? v : null;
+    const np = new URLSearchParams(searchParams);
+    np.delete('edit');
+    setSearchParams(np, { replace: true });
+  }, [searchParams]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    const want = pendingEditRef.current;
+    if (!want || !detail || detail.id !== want) return;
+    if (signedDoc == null || signedDocLoadedForRef.current !== want) return;
+    pendingEditRef.current = null;
+    if (canEditNow && mode === 'view') startEdit();
+  }, [detail, signedDoc, canEditNow]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 사이클 O3 — 포스트를 Q info 로 보내기 (인덱싱 후 Cue 답변에 활용)
   // N+72-7 — 문서 ↔ 표 타입 변경 (편집 모드).

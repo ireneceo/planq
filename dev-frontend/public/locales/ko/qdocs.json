@@ -102,7 +102,9 @@
       "sign": "서명하기",
       "signOpen": "서명 페이지 열기",
       "pdf": "PDF 다운",
-      "close": "닫기"
+      "close": "닫기",
+      "openDoc": "문서 보기",
+      "editDoc": "문서에서 수정"
     },
     "detail": {
       "status": "상태",
@@ -124,7 +126,13 @@
     "progress": "서명 {{signed}}/{{total}}명",
     "waitingUs": "보내는 쪽 서명 대기",
     "waitingThem": "상대 서명 대기",
-    "allSigned": "모두 서명 완료"
+    "allSigned": "모두 서명 완료",
+    "editBlock": {
+      "signature_locked": "서명 진행 중이라 바로 고칠 수 없어요. 문서의 서명 진행에서 [고쳐서 다시 보내기] 를 누르면 고칠 수 있어요.",
+      "signature_signed": "받는 분이 이미 서명해 이 문서는 고칠 수 없어요. 고쳐야 하면 문서를 복사해 새로 보내 주세요.",
+      "no_permission": "이 문서를 고칠 권한이 없어요. 내용은 볼 수 있어요.",
+      "no_read": "이 문서를 워크스페이스 안에서 볼 권한이 없어요. 서명한 내용은 서명 페이지나 PDF 로 확인하세요."
+    }
   },
   "section": {
     "library": "템플릿 라이브러리",
