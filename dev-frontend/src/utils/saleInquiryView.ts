@@ -28,6 +28,8 @@ export function inquiryViewOf(it: SaleInboxItem): InquiryView {
     canRegister: it.ref.kind !== 'conversation',
     emailVerified: !!(it.meta as { email_verified?: boolean })?.email_verified,
     openPath: it.open_path,
+    threads: Array.isArray((it.meta as { threads?: unknown })?.threads)
+      ? (it.meta as { threads: InquiryView['threads'] }).threads : undefined,
   };
 }
 

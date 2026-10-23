@@ -51,6 +51,14 @@ export const InboxWhyTag: React.FC<{ it: SaleInboxItem }> = ({ it }) => {
   );
 };
 
+/** 같은 사람의 메일이 한 줄로 묶였으면 몇 건인지(2건 이상일 때만) — 서버 services/saleMailBundle 이 센 값 그대로 */
+export const ThreadCountTag: React.FC<{ it: SaleInboxItem }> = ({ it }) => {
+  const { t } = useTranslation('qsale');
+  const n = Number((it.meta as { thread_count?: number } | undefined)?.thread_count || 0);
+  if (n < 2) return null;
+  return <WhyTag data-testid={`sale-inbox-threads-${it.id}`}>{t('inbox.threadCount', { n }) as string}</WhyTag>;
+};
+
 /** 수동 모드인데 자동 기준에 드는 메일이 있으면 «어디서 보는지» 를 한 줄로(닫으면 이 기기에서 안 띄운다).
  *  이 줄이 없으면 모드가 바뀐 순간 목록이 줄어든 것이 «사라졌다» 로 읽힌다. 브라우저 저장은 편의일 뿐이다. */
 export const IntakeNoteLine: React.FC<{ businessId: number; counts: SaleInboxCounts; onOpenMail: () => void; onOpenSettings: () => void }> = ({ businessId, counts, onOpenMail, onOpenSettings }) => {

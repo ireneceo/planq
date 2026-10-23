@@ -33,7 +33,7 @@ import { useTimeFormat } from '../../hooks/useTimeFormat';
 import {
   getSaleClient, setSaleStage, getSaleTimeline, patchSaleClient,
   type SaleClientDetail, type LostReason, type TimelineItem, type TimelineType,
-  type SaleInboxItem,
+  type SaleInboxItem, type InboxThreadSummary,
 } from '../../services/sale';
 import { createPost } from '../../services/posts';
 import { apiFetch } from '../../contexts/AuthContext';
@@ -89,6 +89,8 @@ export interface InquiryView {
   emailVerified?: boolean;
   /** 원본 화면 경로 — [보기] 가 목록과 **같은 곳**으로 간다(경로를 화면마다 조립하지 않는다) */
   openPath: string;
+  /** 같은 사람의 메일이 한 줄로 묶였으면 그 스레드들(최신순) — 2026-10-23 services/saleMailBundle */
+  threads?: InboxThreadSummary[];
 }
 
 interface Props {

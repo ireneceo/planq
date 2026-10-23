@@ -463,6 +463,22 @@ export const purgeInboxItem = (businessId: number, kind: 'email_thread', id: num
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ kind, id }),
   }).then(j<{ id: number }>);
 
+/** 묶인 한 줄 안의 스레드(최신순) — 서버 services/saleMailBundle 이 행에 실어 보낸다 */
+export interface InboxThreadSummary {
+  id: number; title: string | null; at: string | null; direction: string | null; handled: boolean; needs_reply: boolean;
+}
+/** 상담 한 줄이 가리키는 메일 스레드 전부 (2026-10-23 — 미등록 메일은 사람(주소) 한 줄로 묶인다).
+ *  ✕·되돌리기·영구 빼기는 줄 단위라 이 목록 전부에 기존 문을 부른다(새 일괄 문 없음). */
+export const inboxThreadIdsOf = (it: SaleInboxItem): number[] => {
+  const ids = (it.meta as { thread_ids?: number[] } | undefined)?.thread_ids;
+  return it.ref.kind === 'email_thread' && Array.isArray(ids) && ids.length ? ids : [it.ref.id];
+};
+export async function forEachInboxThread(it: SaleInboxItem, fn: (threadId: number) => Promise<unknown>): Promise<void> {
+  let failed = 0;
+  for (const id of inboxThreadIdsOf(it)) { try { await fn(id); } catch { failed += 1; } }
+  if (failed) throw new Error(`thread_action_failed:${failed}`);   // 삼키지 않는다 — 부르는 쪽이 실패 문구를 띄운다
+}
+
 // ─── 상담 메모 = 댓글 (공개범위 그대로) ────────────────────────────────────
 //   Irene 2026-09-14: *"메모라는 액션버튼은 그대로 메모를 남기는 역할만 … 댓글처럼 …
 //   어떤 문의를 기준으로 저장된건지 남기게."*

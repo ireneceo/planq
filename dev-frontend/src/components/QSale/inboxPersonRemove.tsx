@@ -10,7 +10,7 @@
 import React, { useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import ConfirmDialog from '../Common/ConfirmDialog';
-import { dismissInboxItem, purgeInboxItem, setSaleStage, type SaleInboxItem } from '../../services/sale';
+import { dismissInboxItem, purgeInboxItem, setSaleStage, forEachInboxThread, type SaleInboxItem } from '../../services/sale';
 
 export type RemovalKind = 'purge' | 'demote_chat' | 'dismiss_mail' | 'clear_stage';
 
@@ -47,9 +47,10 @@ export function siblingsOf(it: SaleInboxItem, rows: SaleInboxItem[]): SaleInboxI
 /** 한 행 치우기 — 단건 ✕ 확인창이 부르던 것과 같은 문 */
 export async function removeOne(businessId: number, it: SaleInboxItem): Promise<void> {
   const kind = removalOf(it);
-  if (kind === 'purge') await purgeInboxItem(businessId, 'email_thread', it.ref.id);
+  // 메일 줄은 그 사람의 스레드 묶음이다 — 묶음 전부에 같은 문(services/sale.forEachInboxThread)
+  if (kind === 'purge') await forEachInboxThread(it, (id) => purgeInboxItem(businessId, 'email_thread', id));
   else if (kind === 'demote_chat') await dismissInboxItem(businessId, 'conversation', it.ref.id);
-  else if (kind === 'dismiss_mail') await dismissInboxItem(businessId, 'email_thread', it.ref.id);
+  else if (kind === 'dismiss_mail') await forEachInboxThread(it, (id) => dismissInboxItem(businessId, 'email_thread', id));
   else if (kind === 'clear_stage') {
     const cid = clientIdOf(it) as number;
     await setSaleStage(businessId, cid, { to: 'none', source_ref: { kind: it.ref.kind, id: it.ref.id, title: it.title || it.preview || null } });

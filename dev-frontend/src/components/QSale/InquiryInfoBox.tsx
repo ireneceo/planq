@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
 import { tabStore } from '../../stores/tabStore';
 import InquiryMailHistory from './InquiryMailHistory';
+import InquiryThreadList from './InquiryThreadList';
 import type { InquiryView } from './ClientPanel';
 
 const InquiryInfoBox: React.FC<{ businessId: number; inquiry: InquiryView }> = ({ businessId, inquiry }) => {
@@ -53,7 +54,11 @@ const InquiryInfoBox: React.FC<{ businessId: number; inquiry: InquiryView }> = (
           </InquiryVia>
         )}
       </InquiryBox>
-      {inquiry.ref.kind === 'email_thread' && (
+      {/* 같은 사람 메일이 묶인 줄이면 스레드 목록 → 고른 것의 이력(2026-10-23), 한 건이면 종전대로 */}
+      {inquiry.ref.kind === 'email_thread' && inquiry.threads && inquiry.threads.length > 1 && (
+        <InquiryThreadList businessId={businessId} threads={inquiry.threads} />
+      )}
+      {inquiry.ref.kind === 'email_thread' && !(inquiry.threads && inquiry.threads.length > 1) && (
         <InquiryMailHistory key={`mail-${inquiry.ref.id}`} businessId={businessId} threadId={inquiry.ref.id} />
       )}
     </>

@@ -6,7 +6,7 @@
 import { useCallback, useState } from 'react';
 import type { SaleInboxItem, SaleStage, LostReason } from '../../services/sale';
 import {
-  dismissInboxItem, restoreInboxItem, purgeInboxItem, promoteInboxItem, setSaleStage,
+  dismissInboxItem, restoreInboxItem, purgeInboxItem, promoteInboxItem, setSaleStage, forEachInboxThread,
 } from '../../services/sale';
 // 등록은 별도 모듈이 정본이다(TodoPage 도 같은 함수를 쓴다 — 베끼지 않는다)
 import { registerInquiryAsClient } from '../../services/saleRegister';
@@ -51,19 +51,19 @@ export function useInboxItemActions({ businessId, busyId, setBusyId, setActionEr
   /** 보관함에서 되돌리기 — 되돌리면 보관함에서 빠지고 상담으로 돌아간다. */
   const restoreItem = useCallback((it: SaleInboxItem) => (
     it.ref.kind !== 'email_thread' ? undefined
-      : run(it, () => restoreInboxItem(businessId, 'email_thread', it.ref.id))
+      : run(it, () => forEachInboxThread(it, (id) => restoreInboxItem(businessId, 'email_thread', id)))
   ), [run, businessId]);
 
   /** [문의 아님] — 상담에서 내려 보관함으로. Q mail 의 분류도 같이 고쳐진다. */
   const dismissItem = useCallback((it: SaleInboxItem) => (
     it.ref.kind !== 'email_thread' ? undefined
-      : run(it, () => dismissInboxItem(businessId, 'email_thread', it.ref.id))
+      : run(it, () => forEachInboxThread(it, (id) => dismissInboxItem(businessId, 'email_thread', id)))
   ), [run, businessId]);
 
   /** 보관함에서 영구히 빼기 — **메일 자체는 지우지 않는다**(Q mail 에 그대로 있다). */
   const purgeItem = useCallback((it: SaleInboxItem) => (
     it.ref.kind !== 'email_thread' ? undefined
-      : run(it, () => purgeInboxItem(businessId, 'email_thread', it.ref.id))
+      : run(it, () => forEachInboxThread(it, (id) => purgeInboxItem(businessId, 'email_thread', id)))
   ), [run, businessId]);
 
   /** 아직 고객이 아닌 행에 **고객 기준 동작**(단계·메모·일정)을 걸려면 먼저 등록해야 한다.

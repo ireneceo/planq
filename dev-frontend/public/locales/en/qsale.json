@@ -128,7 +128,8 @@
     "tabConsult": "Consultation",
     "tabClient": "Client info",
     "mailHistory": "Mail history",
-    "mailHistoryOlder": "Only the latest 50 messages are shown — open the thread in mail to see older ones."
+    "mailHistoryOlder": "Only the latest 50 messages are shown — open the thread in mail to see older ones.",
+    "mailThreads": "{{n}} mails from this person — tap to see the history"
   },
   "action": {
     "addInquiry": "+ Add inquiry",
@@ -409,6 +410,7 @@
     "relayUseManual": "Web-form inquiries can't be registered directly because the sender isn't a person. The message has been put into the inquiry box at the top of Q sales — check the name and contact, then add it.",
     "dirOut": "Sent",
     "dirIn": "Received",
+    "threadCount": "{{n}} mails",
     "personRemoveTitle": "Clear all {{n}} consultations from {{who}}?",
     "personRemoveBody": "There are more consultations from the same client (same email address) in this list. Mails move to the archive and the client's sales stage becomes \"None\". The mails and client details stay, and you can restore them from the archive.",
     "personRemoveAll": "Clear all ({{n}})",

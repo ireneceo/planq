@@ -200,6 +200,8 @@ async function classifyMailThreads(businessId, { userId = null, like = null, jud
 //   보관함(dismissed)과 같은 성격이다 — 목록엔 기본으로 안 넣고, 숫자는 늘 센다.
 const SOURCES = ['guest_link', 'email', 'chat', 'dismissed'];
 
+const { bundleItems, countBundles } = require('./saleMailBundle');
+
 const clean = (s, n = 140) => String(s || '').replace(/\s+/g, ' ').trim().slice(0, n);
 
 /** 이메일 도메인으로 회사를 **추정**한다 — 무료메일은 제외(그건 개인 주소지 회사가 아니다).
@@ -324,13 +326,14 @@ async function listUnlinkedTouchpoints(businessId, opts = {}) {
           'last_message_direction', (userId ? require('./mailRead').unreadAttribute(userId) : [require('../config/database').sequelize.literal('0'), 'unread_count']), 'reply_needed', 'reply_needed_reason', 'created_at'],
       });
       const { isAutomatedSenderAddress } = require('./emailTriage');
+      const mailRows = [];   // 스레드 한 줄씩 만든 뒤 사람 한 줄로 묶는다(services/saleMailBundle)
       for (const t of threads) {
         const m = mailClass.meta.get(t.id);
         // ★ #449 D5 — 웹폼 릴레이(no-reply@…)로 온 문의를 올리면 **상대 = 릴레이 주소**로 보였다.
         //   릴레이는 사람이 아니다 — 이름·주소를 비우고 «(웹폼) 제목» 으로 보인다. 등록은 문의 추가 폼으로.
         const relay = !!(m && m.outside && m.outside.email && isAutomatedSenderAddress(m.outside.email));
         const outside = relay ? null : (m ? m.outside : null);
-        items.push({
+        mailRows.push({
           source: asCandidate ? 'candidate' : 'email',
           id: `${asCandidate ? 'candidate' : 'email'}:${t.id}`,
           ref: { kind: 'email_thread', id: t.id },
@@ -356,6 +359,7 @@ async function listUnlinkedTouchpoints(businessId, opts = {}) {
           open_path: `/mail?thread=${t.id}`,
         });
       }
+      items.push(...bundleItems(mailRows));
     }
   }
 
@@ -391,11 +395,22 @@ async function listUnlinkedTouchpoints(businessId, opts = {}) {
       });
       // ★ counts 는 **아래(386줄)에서 선언**된다 — 여기서 쓰면 선언 전 참조다.
       //   누적만 해두고 숫자는 그 뒤에 옮긴다(2026-09-12 qualifiedIds 와 같은 사고를 되풀이하지 않는다).
-      qDismissed += rows.length;
-      for (const t of wantDismissedItems ? rows : []) {
-        const outside = (Array.isArray(t.participants) ? t.participants : []).find((p) => p && !p.is_internal);
+      const dismissedRows = [];
+      // 바깥 주소가 participants 에 없으면 첫 **수신** 메일의 보낸 주소로 — classifyMailThreads 와 같은 보충
+      //   (없으면 묶음 키가 비어 같은 사람이 보관함에서만 여러 줄이 된다 — 2026-10-23 실측)
+      const noWho = rows.filter((t) => !(Array.isArray(t.participants) ? t.participants : []).some((p) => p && !p.is_internal)).map((t) => t.id);
+      const firstIn = new Map();
+      if (noWho.length) {
+        const ems = await require('../models').EmailMessage.findAll({
+          where: { business_id: businessId, thread_id: { [Op.in]: noWho }, direction: 'inbound' },
+          order: [['sent_at', 'ASC']], attributes: ['thread_id', 'from_name', 'from_email'], raw: true,
+        });
+        for (const e of ems) if (!firstIn.has(e.thread_id)) firstIn.set(e.thread_id, { name: e.from_name, email: e.from_email });
+      }
+      for (const t of rows) {
+        const outside = (Array.isArray(t.participants) ? t.participants : []).find((p) => p && !p.is_internal) || firstIn.get(t.id);
         const l = byThread.get(t.id);
-        items.push({
+        dismissedRows.push({
           source: 'dismissed',
           id: `dismissed:${t.id}`,
           ref: { kind: 'email_thread', id: t.id },
@@ -410,6 +425,10 @@ async function listUnlinkedTouchpoints(businessId, opts = {}) {
           open_path: `/mail?thread=${t.id}`,
         });
       }
+      // 보관함도 사람 한 줄 — 상담과 같은 단위여야 «모두 치우기 (N)» 의 N 과 보관함 숫자가 같은 것을 센다
+      const dismissedBundles = bundleItems(dismissedRows);
+      qDismissed += dismissedBundles.length;
+      if (wantDismissedItems) items.push(...dismissedBundles);
     }
   }
 
@@ -581,11 +600,18 @@ async function listUnlinkedTouchpoints(businessId, opts = {}) {
   // ★ 메일 숫자는 위 분류(classifyMailThreads)가 이미 **전부** 센 값이다 — 여기서 다시 세지 않는다.
   //   여태는 목록과 집계가 각자 같은 술어를 적어 두 벌이었다. 한 벌로 줄이면 갈라질 수가 없다.
   //   칩 선택과 무관하게 옮긴다 — 보관함에서 "칩엔 1건인데 숫자는 0" 이 났던 것과 같은 계열이다.
-  counts.email = mailClass.inquiryIds.length;
+  // ★ 2026-10-23 — 스레드 수가 아니라 **사람(묶음) 수**다. 목록 한 줄 = 한 사람이므로 칩 숫자도 같은 단위(수는 약속).
+  const mailEmailOf = (id) => {
+    const m = mailClass.meta.get(id);
+    const e = m && m.outside && m.outside.email;
+    return e && !require('./emailTriage').isAutomatedSenderAddress(e) ? e : null;
+  };
+  const mailBundles = countBundles(mailClass.inquiryIds, mailClass.meta, mailEmailOf);
+  counts.email = mailBundles.bundles;
   // #449 — 수동 모드에서 자동 기준에만 드는 메일 수(Q mail 「문의 후보」). 화면의 전환 안내 줄이 이 숫자를 쓴다.
   counts.auto_candidates = mailClass.mode === 'manual' ? mailClass.autoIds.length : 0;
   counts.intake_mode = mailClass.mode;
-  counts.needs_reply += mailClass.inquiryIds.filter((id) => mailClass.meta.get(id)?.reply_needed).length;
+  counts.needs_reply += mailBundles.needsReply;   // 답할 차례도 사람 단위(묶음 중 하나라도)
   if (wantChat || wantGuest) {
     // ★ 자격(외부 발화)을 통과한 것만 센다. 목록을 만들며 함께 세었으므로 두 숫자가 갈라지지 않는다.
     //   칩 선택과 무관하게 세므로 전체와 칩이 항상 일치한다.

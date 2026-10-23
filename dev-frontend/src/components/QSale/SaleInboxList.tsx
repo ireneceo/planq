@@ -11,7 +11,7 @@
 //   그 대화에 링크가 붙고, 서버는 그 링크로 등록할 수 있다(2026-09-12 Irene: "채팅할 때 고객이 이메일 넣으면?").
 //   링크가 없는 순수 대화방(`ref.kind === 'conversation'`)에만 버튼을 숨긴다.
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { InboxWhyTag, IntakeNoteLine, LostAskModal } from './SaleInboxBits';   // #449·#450 이유 칩 · 수동 모드 안내
+import { InboxWhyTag, IntakeNoteLine, LostAskModal, ThreadCountTag } from './SaleInboxBits';   // #449·#450 이유 칩 · 수동 모드 안내
 import styled from 'styled-components';
 import { useInboxItemActions } from './useInboxItemActions';
 import { useTranslation } from 'react-i18next';
@@ -33,7 +33,7 @@ import { inquiryViewOf } from '../../utils/saleInquiryView';
 import LetterAvatar from '../Common/LetterAvatar';
 import HighlightText from '../Common/HighlightText';
 import {
-  listSaleInbox, dismissInboxItem, purgeInboxItem,
+  listSaleInbox, dismissInboxItem, purgeInboxItem, forEachInboxThread,
   SALE_STAGES, type SaleInboxItem, type SaleInboxCounts, type SaleInboxSource,
   type SaleStage,
 } from '../../services/sale';
@@ -337,7 +337,7 @@ const SaleInboxList: React.FC<Props> = ({
                           안 그러면 처리한 것과 안 한 것이 같은 모양이라 왜 여기 있는지 알 수 없다
                           (memory feedback_backend_done_ui_missing — 서버만 넣고 화면을 안 붙이면 안 고친 것이다). */}
                       {it.handled && <HandledTag>{t('inbox.handled', { defaultValue: '확인완료' }) as string}</HandledTag>}
-                      <InboxWhyTag it={it} />{/* #450 왜 여기 있는지(SaleInboxBits) */}
+                      <InboxWhyTag it={it} /><ThreadCountTag it={it} />{/* #450 이유 · 묶인 메일 수(SaleInboxBits) */}
                       <At title={it.at ? formatDateTime(it.at) : ''}>{it.at ? formatTimeAgo(it.at) : '—'}</At>
                     </RowTop>
                     {/* ★ 2026-09-13 (Irene: "전화나 채팅은 제목 없는데 제목 내용 분리하면 안되는 거 아니야?
@@ -526,7 +526,7 @@ const SaleInboxList: React.FC<Props> = ({
           if (!it || busyId) return;
           setBusyId(it.id); setActionError(null);
           try {
-            await dismissInboxItem(businessId, it.ref.kind === 'conversation' ? 'conversation' : 'email_thread', it.ref.id);
+            await forEachInboxThread(it, (id) => dismissInboxItem(businessId, it.ref.kind === 'conversation' ? 'conversation' : 'email_thread', id));
             if (selected?.id === it.id) setSelected(null);
             await load({ silent: true });
           } catch { setActionError(t('error.saveFailed') as string); }
@@ -548,7 +548,7 @@ const SaleInboxList: React.FC<Props> = ({
           if (!it || busyId) return;
           setBusyId(it.id); setActionError(null);
           try {
-            await purgeInboxItem(businessId, 'email_thread', it.ref.id);
+            await forEachInboxThread(it, (id) => purgeInboxItem(businessId, 'email_thread', id));
             if (selected?.id === it.id) setSelected(null);
             await load({ silent: true });
           } catch { setActionError(t('error.saveFailed') as string); }
