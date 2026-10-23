@@ -1,4 +1,4 @@
-// 화상 업무설계·사용안내 신청 — 입력 칸 한 벌 (docs/ONBOARDING_CALL_DESIGN.md).
+// 시작 안내 30분(화상 업무설계·자료 옮기기) 신청 — 입력 칸 한 벌 (docs/ONBOARDING_CALL_DESIGN.md).
 //   랜딩 문의 페이지(/contact?type=onboarding)와 앱 대시보드 신청 창이 같은 칸을 쓴다 — 두 곳이 갈라지면
 //   한쪽에서만 받는 값이 생긴다. 서버 정규화는 dev-backend/services/onboardingCall.normalizeDetails 한 곳.
 import React from 'react';
@@ -8,8 +8,12 @@ import SingleDateField from './SingleDateField';
 
 export type CallPart = 'morning' | 'afternoon' | 'evening';
 export type TeamSize = 'solo' | '2_5' | '6_20' | '21_plus';
+// 무엇을 도와드릴까요 — 업무 설계 / 자료 옮기기(무료 이전 연결). 서버 onboardingCall.TOPICS 와 같은 목록.
+export type CallTopic = 'workflow' | 'migration';
+export const TOPICS: CallTopic[] = ['workflow', 'migration'];
 export interface CallSlot { date: string; part: CallPart | '' }
 export interface OnboardingCallValue {
+  topics: CallTopic[];
   slots: CallSlot[];
   team_size: TeamSize | '';
   current_tools: string;
@@ -20,7 +24,8 @@ export const PARTS: CallPart[] = ['morning', 'afternoon', 'evening'];
 export const TEAM_SIZES: TeamSize[] = ['solo', '2_5', '6_20', '21_plus'];
 export const MAX_SLOTS = 3;
 
-export const emptyOnboardingCall = (): OnboardingCallValue => ({
+export const emptyOnboardingCall = (topics: CallTopic[] = ['workflow', 'migration']): OnboardingCallValue => ({
+  topics,
   slots: [{ date: '', part: '' }], team_size: '', current_tools: '', focus: '',
 });
 
@@ -39,6 +44,7 @@ export function tomorrowLocal(): string {
 /** 서버로 보낼 details — 다 채운 희망 시간만 싣는다. */
 export function toDetails(v: OnboardingCallValue) {
   return {
+    topics: v.topics,
     slots: v.slots.filter(s => s.date && s.part).map(s => ({ date: s.date, part: s.part })),
     team_size: v.team_size || null,
     current_tools: v.current_tools.trim() || null,
@@ -46,7 +52,7 @@ export function toDetails(v: OnboardingCallValue) {
   };
 }
 
-export const hasValidSlot = (v: OnboardingCallValue) => v.slots.some(s => s.date && s.part);
+export const hasValidSlot = (v: OnboardingCallValue) => v.slots.some(s => s.date && s.part) && v.topics.length > 0;
 
 interface Props {
   value: OnboardingCallValue;
@@ -60,8 +66,25 @@ const OnboardingCallFields: React.FC<Props> = ({ value, onChange, idPrefix }) =>
   const setSlot = (i: number, patch: Partial<CallSlot>) =>
     onChange({ ...value, slots: value.slots.map((s, k) => (k === i ? { ...s, ...patch } : s)) });
 
+  const toggleTopic = (k: CallTopic) => {
+    const next = value.topics.includes(k) ? value.topics.filter(x => x !== k) : TOPICS.filter(x => x === k || value.topics.includes(x));
+    if (next.length) onChange({ ...value, topics: next });   // 하나는 남긴다 — 서버도 1개 이상만 받는다
+  };
+
   return (
     <>
+      <Field>
+        <Label>{t('onboardingCall.topicsLabel', '무엇을 도와드릴까요')}</Label>
+        <Chips role="group" aria-label={t('onboardingCall.topicsLabel', '무엇을 도와드릴까요') as string}>
+          {TOPICS.map(k => (
+            <Chip key={k} type="button" role="checkbox" aria-checked={value.topics.includes(k)} $active={value.topics.includes(k)}
+              data-testid={`${idPrefix}-topic-${k}`} onClick={() => toggleTopic(k)}>
+              {t(`onboardingCall.topic.${k}`)}
+            </Chip>
+          ))}
+        </Chips>
+        <Hint>{t('onboardingCall.topicsHint', '자료 옮기기를 고르시면 지금 쓰는 도구와 자료 양을 보고 옮기는 순서·방법을 같이 잡아 드려요(무료).')}</Hint>
+      </Field>
       <Field>
         <Label>{t('onboardingCall.slotsLabel', '희망 시간 (최대 3개)')}</Label>
         <Hint>{t('onboardingCall.slotsHint', { tz: browserTimezone(), defaultValue: '30분 정도 걸려요. 시간대: {{tz}}' })}</Hint>
@@ -104,10 +127,10 @@ const OnboardingCallFields: React.FC<Props> = ({ value, onChange, idPrefix }) =>
         </Chips>
       </Field>
       <Field>
-        <Label htmlFor={`${idPrefix}-tools`}>{t('onboardingCall.toolsLabel', '지금 쓰는 도구 (선택)')}</Label>
+        <Label htmlFor={`${idPrefix}-tools`}>{t('onboardingCall.toolsLabel', '지금 쓰는 도구·자료 양 (선택)')}</Label>
         {/* draft-exempt: 200자 이하 짧은 신청 칸 — 랜딩(비로그인)에서도 쓰여 초안 키가 없고, 칸 값은 부모 폼이 들고 있다 */}
         <Input id={`${idPrefix}-tools`} type="text" maxLength={200} value={value.current_tools}
-          placeholder={t('onboardingCall.toolsPlaceholder', '예: 엑셀, 카카오톡, 노션') as string}
+          placeholder={t('onboardingCall.toolsPlaceholder', '예: 노션 문서 200개, 엑셀 고객 명단, 카톡방 5개') as string}
           onChange={e => onChange({ ...value, current_tools: e.target.value })} />
       </Field>
       <Field>

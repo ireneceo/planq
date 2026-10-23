@@ -22,11 +22,12 @@ const Reveal: React.FC<{ children: React.ReactNode; as?: React.ElementType }> = 
 };
 
 const LAYERS = ['structure', 'workflow', 'information', 'decision', 'automation', 'platform'] as const;
-const SERVICES = ['audit', 'design', 'automation', 'build', 'improve'] as const;
+// migration = 대량 자료 이전(2026-10-23, docs/TRUST_SERVICES_DESIGN.md D4) — 견적 문의 scope 와 같은 키
+const SERVICES = ['audit', 'design', 'automation', 'build', 'improve', 'migration'] as const;
 const STEPS = ['s0', 's1', 's2', 's3', 's4'] as const;
 const OUTPUTS = ['o0', 'o1', 'o2', 'o3', 'o4', 'o5', 'o6', 'o7', 'o8', 'o9', 'o10', 'o11'] as const;
 const FITS = ['f0', 'f1', 'f2', 'f3', 'f4', 'f5', 'f6'] as const;
-const FAQS = [0, 1, 2, 3] as const;
+const FAQS = [0, 1, 2, 3, 4] as const;
 
 // 견적 문의 진입점 — 문의 페이지의 견적 모드. scope 를 넘기면 해당 범위가 미리 선택된다.
 const QUOTE_URL = '/contact?type=quote';

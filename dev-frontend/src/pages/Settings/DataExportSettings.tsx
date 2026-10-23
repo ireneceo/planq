@@ -7,9 +7,10 @@ import ActionButton from '../../components/Common/ActionButton';
 import { formatBytes } from '../../services/files';
 import PlanQSelect from '../../components/Common/PlanQSelect';
 import ConfirmDialog from '../../components/Common/ConfirmDialog';
+import TrustNote from '../../components/Common/TrustNote';
 import {
   fetchMyExportPreview, fetchWorkspaceExportPreview,
-  exportMyData, exportWorkspaceData,
+  exportMyData, createWorkspaceExportJob,
   fetchTransferTargets, type ExportPreview, type TransferTarget,
   createTransferJob, createExportJob, fetchExportJobs, downloadExportJob, deleteExportJob, type ExportJob,
 } from '../../services/export';
@@ -38,6 +39,7 @@ const IconClock = () => (
 
 const DataExportSettings: React.FC<Props> = ({ businessId, isOwner }) => {
   const { t } = useTranslation('settings');
+  const { t: tc } = useTranslation('common');
   const tr = (k: string, fb?: string) => t(k, (fb ?? '') as string) as unknown as string;
   // 스코프 뷰 — ?scope=personal (내 데이터) vs 워크스페이스 백업
   const [searchParams] = useSearchParams();
@@ -151,11 +153,17 @@ const DataExportSettings: React.FC<Props> = ({ businessId, isOwner }) => {
     }
   };
 
+  // 워크스페이스 백업 = 백그라운드 작업(2026-10-23). 끝나면 알림 + 아래 작업 내역에서 받는다.
   const onExportWs = async () => {
     setBusyWs(true); setErrWs('');
     try {
-      const res = await exportWorkspaceData(businessId);
-      if (!res.ok) setErrWs(errMessage(res.message));
+      const res = await createWorkspaceExportJob(businessId);
+      if (!res.ok) {
+        setErrWs(res.message === 'already_running'
+          ? tr('dataExport.wsRunning', '백업을 만드는 중이에요. 끝나면 알림으로 알려 드려요.')
+          : errMessage(res.message));
+      }
+      await Promise.all([loadJobs(), load()]);
     } catch {
       setErrWs(errMessage());
     } finally {
@@ -240,22 +248,45 @@ const DataExportSettings: React.FC<Props> = ({ businessId, isOwner }) => {
                 <Stat label={tr('dataExport.size', '용량')} value={formatBytes(wsPreview?.total_bytes ?? 0)} />
               </StatRow>
             )}
+            {!loading && wsPreview?.coverage && (
+              <Coverage data-testid="export-ws-coverage">
+                <CoverageLabel>{tr('dataExport.wsIncluded', '백업에 들어가는 것')}</CoverageLabel>
+                <AreaList>
+                  {wsPreview.coverage.included.map((k) => (
+                    <AreaChip key={k}>
+                      {tc(`trust.backupAreas.${k}`, k)}
+                      {wsPreview.data && typeof wsPreview.data[k] === 'number' && <AreaCount>{wsPreview.data[k]}</AreaCount>}
+                    </AreaChip>
+                  ))}
+                </AreaList>
+                <CoverageLabel>{tr('dataExport.wsExcluded', '들어가지 않는 것')}</CoverageLabel>
+                <ExcludedList>
+                  {wsPreview.coverage.excluded.map((x) => (
+                    <li key={x.area}>{tc(`trust.backupExcluded.${x.area}`, x.area)}</li>
+                  ))}
+                </ExcludedList>
+              </Coverage>
+            )}
             {(wsPreview?.confidential_count ?? 0) > 0 && (
               <Notice>
                 <NoticeIcon><IconShield /></NoticeIcon>
                 <NoticeText>{tr('dataExport.confidentialNote', '기밀 자료 {{n}}건이 포함됩니다. 관리자 권한으로 내보내며 감사 로그에 기록됩니다.').replace('{{n}}', String(wsPreview?.confidential_count ?? 0))}</NoticeText>
               </Notice>
             )}
+            <TrustRow><TrustNote spot="dataExport" /></TrustRow>
             {errWs && <ErrText role="alert">{errWs}</ErrText>}
           </CardBody>
           <CardActions>
             <ActionButton
               tone="secondary" size="md" loading={busyWs}
               onClick={onExportWs}
-              disabled={loading || ((wsPreview?.files ?? 0) === 0 && (wsPreview?.documents ?? 0) === 0)}
-              icon={<IconDownload />}
+              disabled={loading || !!wsPreview?.running_job_id}
+              icon={<IconClock />}
+              data-testid="export-ws-create"
             >
-              {tr('dataExport.downloadBackup', '백업 ZIP 다운로드')}
+              {wsPreview?.running_job_id
+                ? tr('dataExport.wsMaking', '백업 만드는 중…')
+                : tr('dataExport.wsCreate', '백업 만들기')}
             </ActionButton>
           </CardActions>
         </Card>
@@ -325,7 +356,7 @@ const DataExportSettings: React.FC<Props> = ({ businessId, isOwner }) => {
               {jobs.map((j) => (
                 <JobRow key={j.id}>
                   <JobMain>
-                    <JobKind>{j.kind === 'transfer' ? (j.mode === 'move' ? tr('dataExport.jobMove', '이동') : tr('dataExport.jobCopy', '복사')) : tr('dataExport.jobExport', '내보내기')}{j.include_qnote ? tr('dataExport.jobQnoteTag', ' · Q Note 포함') : ''}</JobKind>
+                    <JobKind>{j.kind === 'transfer' ? (j.mode === 'move' ? tr('dataExport.jobMove', '이동') : tr('dataExport.jobCopy', '복사')) : j.scope === 'workspace' ? tr('dataExport.jobWsBackup', '워크스페이스 백업') : tr('dataExport.jobExport', '내보내기')}{j.include_qnote ? tr('dataExport.jobQnoteTag', ' · Q Note 포함') : ''}</JobKind>
                     <JobMeta>{formatDayTime(j.created_at, { year: 'always' })}</JobMeta>
                   </JobMain>
                   <JobRight>
@@ -414,5 +445,13 @@ const JobStatus = styled.span<{ $s: string }>`
   color:${p => p.$s === 'done' ? '#0F766E' : p.$s === 'failed' ? '#EF4444' : '#64748B'};
 `;
 const JobDelBtn = styled.button`width:28px;height:28px;display:flex;align-items:center;justify-content:center;border:none;background:none;color:#94A3B8;border-radius:6px;cursor:pointer;flex-shrink:0;transition:all 0.15s;&:hover{background:#FEF2F2;color:#EF4444;}`;
+// 백업 포함·제외 목록 — 서버 manifest.coverage 와 같은 목록(신뢰 페이지 «포함 목록» 도 같은 i18n 키)
+const Coverage = styled.div`margin-top:14px;display:flex;flex-direction:column;gap:8px;`;
+const CoverageLabel = styled.div`font-size:0.75rem;font-weight:600;color:#475569;`;
+const AreaList = styled.div`display:flex;flex-wrap:wrap;gap:6px;`;
+const AreaChip = styled.span`display:inline-flex;align-items:center;gap:6px;font-size:0.75rem;color:#0F172A;background:#F0FDFA;border:1px solid #CCFBF1;border-radius:999px;padding:4px 10px;`;
+const AreaCount = styled.span`font-size:0.6875rem;color:#0F766E;font-weight:700;`;
+const ExcludedList = styled.ul`margin:0;padding-left:18px;font-size:0.75rem;color:#64748B;line-height:1.6;`;
+const TrustRow = styled.div`margin-top:12px;`;
 const SkRow = styled.div`display:flex;gap:12px;`;
 const Sk = styled.div`flex:1;height:62px;border-radius:10px;background:linear-gradient(90deg,#F1F5F9 0px,#E2E8F0 40px,#F1F5F9 80px);background-size:200px 100%;animation:dxsk 1.2s linear infinite;@keyframes dxsk{0%{background-position:-200px 0}100%{background-position:200px 0}}`;

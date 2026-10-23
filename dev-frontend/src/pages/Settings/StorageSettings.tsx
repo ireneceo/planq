@@ -1,5 +1,6 @@
 // 파일 저장소 연동 설정 — Google Drive / PlanQ 자체
 import React, { useEffect, useState, useCallback, useRef } from 'react';
+import TrustNote from '../../components/Common/TrustNote';
 import { startAuthPopup } from '../../services/oauth';
 import { isNativeApp } from '../../services/native';
 import styled from 'styled-components';
@@ -251,6 +252,7 @@ const StorageSettings: React.FC<Props> = ({ businessId }) => {
       {/* 외부 헤더 (WorkspaceSettingsPage 의 pageTitle) 가 이미 "파일·외부 연동" 표시.
           내부 제목 중복 노출 차단 — desc 만 유지. */}
       <SectionDesc>{tr('storage.desc', '워크스페이스 파일 보관 위치와 외부 연동을 설정합니다. 자체 스토리지 또는 Google Drive 중 선택, Google Calendar 연결 시 화상회의 자동 발급.')}</SectionDesc>
+      <TrustNote spot="integrations" />
 
       <Notice>
         <NoticeIcon aria-hidden>!</NoticeIcon>

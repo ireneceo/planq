@@ -15,6 +15,7 @@ import { useTranslation } from 'react-i18next';
 import ConfirmDialog from '../../components/Common/ConfirmDialog';
 import CalendarPicker from './CalendarPicker';
 import PageShell from '../../components/Layout/PageShell';
+import TrustNote from '../../components/Common/TrustNote';
 import { Section, SectionTitle, SectionSub, Empty, ConnList, ConnRow, ConnIcon, ConnInfo, ConnTitle, ConnSub, ConnMeta, ConnActions, DangerBtn } from './integrationStyles';
 import ConnectedAiAppsSection from './ConnectedAiAppsSection';
 import { useAuth, apiFetch } from '../../contexts/AuthContext';
@@ -311,6 +312,7 @@ const ProfileIntegrationsPage: React.FC = () => {
           <IntroDot $tone="team" />
           <span>{t('integrations.defTeam', { defaultValue: '회사가 함께 쓰는 공용 연동(회사 Google Drive·공용 캘린더·대표 메일)은 모든 멤버가 공유하며, 아래 회사 설정에서 관리해요.' }) as string}</span>
         </IntroLine>
+        <TrustNote spot="integrations" />
       </IntroCard>
       {errorMsg && <ErrorBanner>{errorMsg}</ErrorBanner>}
 

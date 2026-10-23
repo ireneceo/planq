@@ -172,7 +172,7 @@ async function sendInquiryNotifications(inquiry) {
   await notifyPlatformAdmins({
     eventKind: 'inquiry',
     // 옛 화면(요금제 «환불 요청» 이 문의 창이던 번들)에서 온 것은 제목이 말하게 — 지금은 결제에 묶인 요청(routes/plan_refund)으로 받는다.
-    title: `${inquiry.source === 'plan_refund' ? '[환불 요청] ' : ''}${inquiry.kind === onboardingCall.KIND ? '[화상 안내 신청] ' : ''}새 문의 #${inquiry.id} — ${inquiry.from_name}`,
+    title: `${inquiry.source === 'plan_refund' ? '[환불 요청] ' : ''}${inquiry.kind === onboardingCall.KIND ? '[시작 안내 30분] ' : ''}새 문의 #${inquiry.id} — ${inquiry.from_name}`,
     body: `${inquiry.from_company ? `[${inquiry.from_company}] ` : ''}${inquiry.from_email}\n\n${(inquiry.message || '').slice(0, 400)}${(inquiry.message || '').length > 400 ? '…' : ''}${callNote}`,
     link: `${APP_URL}/admin/inquiries?inquiry=${inquiry.id}`,
     ctaLabel: '문의 보기',

@@ -8,6 +8,10 @@ export interface ExportPreview {
   documents: number;
   total_bytes: number;
   confidential_count: number;
+  // 워크스페이스 백업 미리보기만 — 영역별 행 수 · 포함/제외 목록(서버 services/exportSerializers 한 원천)
+  data?: Record<string, number>;
+  coverage?: { included: string[]; excluded: { area: string; reason: string }[] };
+  running_job_id?: number | null;
 }
 
 export async function fetchMyExportPreview(businessId: number): Promise<ExportPreview> {
@@ -40,9 +44,12 @@ export function exportMyData(businessId: number) {
   return downloadZip(`/api/export/${businessId}/me`, `planq-export-me-${today}.zip`);
 }
 
-export function exportWorkspaceData(businessId: number) {
-  const today = new Date().toISOString().slice(0, 10);
-  return downloadZip(`/api/export/${businessId}/workspace`, `planq-export-workspace-${today}.zip`);
+// 워크스페이스 백업 — 2026-10-23 부터 백그라운드 작업(완료되면 알림 + 작업 내역에서 다운로드).
+export async function createWorkspaceExportJob(businessId: number): Promise<{ ok: boolean; message?: string }> {
+  const r = await apiFetch(`/api/export/${businessId}/workspace`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok || !j.success) return { ok: false, message: j.message || `http_${r.status}` };
+  return { ok: true };
 }
 
 // Phase 2 (#63) — 워크스페이스 간 이전 (복사, 원본 유지)
@@ -69,6 +76,7 @@ export async function transferMyData(businessId: number, targetBusinessId: numbe
 export interface ExportJob {
   id: number;
   kind: 'transfer' | 'export';
+  scope?: 'me' | 'workspace';
   mode: 'copy' | 'move' | null;
   status: 'queued' | 'running' | 'done' | 'failed';
   target_business_id: number | null;

@@ -34,11 +34,11 @@
     "payroll": "Payroll settings"
   },
   "dataExport": {
-    "intro": "Export your personal data or workspace data as a ZIP file. Files are kept as-is and documents are saved as HTML.",
+    "intro": "Export your personal items or the whole workspace as a ZIP. Files keep their originals, documents become HTML, and records such as tasks, chats, clients and invoices come as CSV (opens in Excel) plus JSON.",
     "myTitle": "Export My Data",
     "myDesc": "Download the personal (private) files you uploaded and the documents you created.",
     "wsTitle": "Workspace Data Backup",
-    "wsDesc": "Download shared workspace data (team, workspace, and external). Members' personal (private) data is not included.",
+    "wsDesc": "Download the workspace in one go — files and documents plus tasks, projects, clients, chats, events, invoices, Q info and tables. Members' private (only me) items are not included.",
     "files": "Files",
     "documents": "Documents",
     "size": "Size",
@@ -79,7 +79,13 @@
     "jobDownload": "Download",
     "moveConfirmTitle": "Move to workspace",
     "moveConfirmMsg": "Move your personal data to the selected workspace. Files are removed from here; documents are copied and the originals stay. Continue?",
-    "jobDelete": "Remove from list"
+    "jobDelete": "Remove from list",
+    "wsIncluded": "Included in the backup",
+    "wsExcluded": "Not included",
+    "wsCreate": "Create backup",
+    "wsMaking": "Creating backup…",
+    "wsRunning": "A backup is being created. We'll notify you when it's ready.",
+    "jobWsBackup": "Workspace backup"
   },
   "workManagement": {
     "autoFinalize": {

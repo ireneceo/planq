@@ -520,7 +520,8 @@
     "empty": {
       "title": "No files yet",
       "desc": "Drop files into the zone above, or attach them in chats, tasks, and meetings to collect them here",
-      "filtered": "No files match the current filter"
+      "filtered": "No files match the current filter",
+      "migrationHelp": "We can help you move your existing files (free, 30 min)"
     },
     "preview": {
       "aria": "File preview",

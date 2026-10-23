@@ -1721,15 +1721,16 @@
     "kindOnboardingCall": "화상 안내 신청",
     "kindOnboardingCallShort": "화상 안내",
     "call": {
-      "title": "화상 안내 신청 내용",
+      "title": "시작 안내 30분 신청 내용",
       "slots": "희망 시간",
       "team": "인원",
-      "tools": "지금 쓰는 도구",
+      "tools": "지금 쓰는 도구·자료 양",
       "focus": "먼저 맞추고 싶은 일",
       "workspace": "워크스페이스",
       "noWorkspace": "가입 전(랜딩)",
       "plan": "체험 플랜",
-      "trialEnds": "체험 종료"
+      "trialEnds": "체험 종료",
+      "topics": "주제"
     }
   },
   "downloadTray": {
@@ -1887,23 +1888,59 @@
       "6_20": "6~20명",
       "21_plus": "21명 이상"
     },
-    "toolsLabel": "지금 쓰는 도구 (선택)",
-    "toolsPlaceholder": "예: 엑셀, 카카오톡, 노션",
+    "toolsLabel": "지금 쓰는 도구·자료 양 (선택)",
+    "toolsPlaceholder": "예: 노션 문서 200개, 엑셀 고객 명단, 카톡방 5개",
     "focusLabel": "먼저 맞추고 싶은 일 (선택)",
     "focusPlaceholder": "예: 고객 요청을 업무로 나누는 흐름",
     "errSlot": "희망 시간을 하나 이상 골라 주세요.",
     "card": {
-      "title": "화상으로 업무 설계·사용 안내 받기",
-      "desc": "30분 화상 미팅으로 지금 일하는 방식을 듣고, 이 워크스페이스에 맞게 나누고 쓰는 법을 안내해 드려요.",
-      "requestedTitle": "화상 안내 신청을 받았어요",
+      "title": "시작 안내 30분 — 업무 설계·자료 옮기기 (무료)",
+      "desc": "30분 화상으로 지금 일하는 방식을 듣고, 이 워크스페이스에 맞게 업무를 나누는 법과 쓰던 자료를 옮기는 순서를 같이 잡아 드려요.",
+      "requestedTitle": "시작 안내 신청을 받았어요",
       "requestedDesc": "희망 시간을 확인하고 일정과 회의 링크를 메일로 보내 드릴게요.",
       "cta": "신청하기",
       "dismiss": "닫기"
     },
-    "drawerTitle": "화상 업무 설계·사용 안내 신청",
+    "drawerTitle": "시작 안내 30분 신청",
     "submit": "신청하기",
     "lead": "희망 시간을 골라 주시면 PlanQ 팀이 확인하고 일정과 회의 링크를 메일로 보내 드려요. 일정은 메일로 확정돼요.",
     "who": "안내 메일 받을 주소: {{email}}",
-    "noteLabel": "더 알려 주실 것 (선택)"
+    "noteLabel": "더 알려 주실 것 (선택)",
+    "topicsLabel": "무엇을 도와드릴까요",
+    "topic": {
+      "workflow": "업무 설계",
+      "migration": "자료 옮기기"
+    },
+    "topicsHint": "자료 옮기기를 고르시면 지금 쓰는 도구와 자료 양을 보고 옮기는 순서·방법을 같이 잡아 드려요(무료)."
+  },
+  "trust": {
+    "policyLink": "보안 정책 보기",
+    "backupAreas": {
+      "files": "파일",
+      "documents": "문서",
+      "tasks": "업무(댓글·이력·첨부 목록)",
+      "projects": "프로젝트(멤버·고객 연결)",
+      "clients": "고객·상담 기록",
+      "conversations": "Q talk 대화·메시지",
+      "calendar": "일정",
+      "invoices": "청구서(항목·회차)",
+      "knowledge": "Q info",
+      "tables": "표"
+    },
+    "backupExcluded": {
+      "private": "멤버 개인 자료 — «나만 보기» 항목, 프로젝트·고객 없는 팀원끼리 대화, 업무의 개인 메모(각자 «내 데이터 내보내기» 로 받습니다)",
+      "drive_files": "Google Drive 에 저장된 파일 — 원본이 Drive 에 있습니다",
+      "secret_fields": "Q info·표의 «비밀» 칸 값",
+      "mail": "Q mail 메일 — 메일함(Gmail 등)에 원본이 있습니다",
+      "qnote": "Q note 회의 기록 — 본인 것은 «내 데이터 내보내기» 에서 받습니다",
+      "attendance_payroll": "근태·급여",
+      "audit_logs": "감사 기록"
+    },
+    "dataExport": "백업은 대표·관리자만 만들 수 있고, 누가 언제 만들었는지 감사 기록에 남아요. 대표가 아닌 관리자가 만들면 대표에게 알림이 갑니다.",
+    "signup": "회사 자료는 워크스페이스마다 나뉘어 저장되고, 대표·관리자는 언제든 ZIP 으로 내려받을 수 있어요.",
+    "mailConnect": "메일 비밀번호(앱 비밀번호)와 연결 토큰은 암호화해 저장하고 화면에 다시 보여 주지 않아요. 연결은 언제든 끊을 수 있습니다.",
+    "integrations": "연결 토큰은 암호화해 저장하고, 연결은 언제든 끊을 수 있어요. Google Drive 는 PlanQ 가 만들었거나 직접 고른 파일만 봅니다(드라이브 전체를 읽지 않아요).",
+    "clientInvite": "고객은 연결된 프로젝트·대화·자료만 봐요. 내부 메시지·«팀만» 자료·내부 메모는 보이지 않습니다.",
+    "memberRemove": "내보내면 바로 접속이 끊기고(열려 있던 실시간 연결까지), 그 사람이 함께 만든 업무·자료는 워크스페이스에 남아요."
   }
 }

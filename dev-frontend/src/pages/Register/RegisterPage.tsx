@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import TrustNote from '../../components/Common/TrustNote';
 import { startAuthRedirect } from '../../services/oauth';
 import { finishSignup } from '../../services/marketingTags';
 import GoogleAuthButton from '../../components/Auth/GoogleAuthButton';
@@ -258,6 +259,8 @@ const Divider = styled.div`
   background: #E2E8F0;
   margin: 20px 0;
 `;
+
+const TrustWrap = styled.div`margin-top: 16px; display: flex; justify-content: center;`;
 
 const BottomLinks = styled.div`
   text-align: center;
@@ -541,6 +544,9 @@ const RegisterPage: React.FC = () => {
             redirect={redirectParam}
             plan={inviteToken ? null : trialPlan}
           />
+
+          {/* 안심 한 줄 — 문구 원천 common.trust 한 벌(docs/TRUST_SERVICES_DESIGN.md D2) */}
+          <TrustWrap><TrustNote spot="signup" /></TrustWrap>
 
           <Divider />
 

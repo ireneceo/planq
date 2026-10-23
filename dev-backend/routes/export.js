@@ -191,29 +191,65 @@ router.post('/:businessId/me', authenticateToken, checkBusinessAccess, async (re
 });
 
 // GET /api/export/:businessId/workspace/preview — 관리자 전체 export 미리보기
+//   files·documents·confidential 은 옛 모양 그대로 + data(영역별 행 수 — 백업에 들어가는 것과 같은 술어)
 router.get('/:businessId/workspace/preview', authenticateToken, checkBusinessAccess, async (req, res, next) => {
   try {
     const businessId = Number(req.params.businessId);
     const scope = await getUserScope(req.user.id, businessId, req.user.platform_role);
     if (!(scope.isOwner || scope.isAdmin || scope.isPlatformAdmin)) return errorResponse(res, 'admin_only', 403);
-    const { files, docs } = await collectWorkspace(businessId);
-    return successResponse(res, summarize(files, docs));
+    const serializers = require('../services/exportSerializers');
+    const [{ files, docs }, data] = await Promise.all([collectWorkspace(businessId), serializers.previewCounts(businessId)]);
+    const running = await ExportJob.findOne({
+      where: { business_id: businessId, kind: 'export', scope: 'workspace', status: { [Op.in]: ['queued', 'running'] } },
+      attributes: ['id'],
+    });
+    return successResponse(res, {
+      ...summarize(files, docs), data,
+      coverage: { included: serializers.INCLUDED_KEYS, excluded: serializers.EXCLUDED },
+      running_job_id: running ? running.id : null,
+    });
   } catch (err) { next(err); }
 });
 
-// POST /api/export/:businessId/workspace — 관리자 워크스페이스 자료 zip
+// POST /api/export/:businessId/workspace — 관리자 워크스페이스 백업 요청 (2026-10-23 — 백그라운드 작업으로)
+//   ★ 옛 동기 zip 스트리밍은 파일·문서만 담고 요청 하나가 수십 초 붙잡혔다. 구조 데이터(업무·대화·고객·청구…)까지
+//     담으면 더 길어지므로 개인 내보내기와 같은 ExportJob 로 돌린다(30일 보관·완료 알림·작업 내역).
+//   같은 워크스페이스에 대기·처리 중 백업이 있으면 409 already_running.
 router.post('/:businessId/workspace', authenticateToken, checkBusinessAccess, async (req, res, next) => {
   try {
     const businessId = Number(req.params.businessId);
     const scope = await getUserScope(req.user.id, businessId, req.user.platform_role);
     if (!(scope.isOwner || scope.isAdmin || scope.isPlatformAdmin)) return errorResponse(res, 'admin_only', 403);
-    const { files, docs } = await collectWorkspace(businessId);
-    if (files.length === 0 && docs.length === 0) return errorResponse(res, 'nothing_to_export', 404);
-    require('../services/auditService').logAudit(req, {
-      action: 'data.export.workspace', targetType: 'business', targetId: businessId, businessId,
-      newValue: { files: files.length, documents: docs.length },
+    const running = await ExportJob.findOne({
+      where: { business_id: businessId, kind: 'export', scope: 'workspace', status: { [Op.in]: ['queued', 'running'] } },
+      attributes: ['id'],
     });
-    await streamExport(res, 'workspace', files, docs);
+    if (running) return errorResponse(res, 'already_running', 409);
+    const job = await ExportJob.create({
+      user_id: req.user.id, business_id: businessId, kind: 'export', scope: 'workspace', status: 'queued',
+    });
+    require('../services/auditService').logAudit(req, {
+      action: 'data_export.workspace_request', targetType: 'export_job', targetId: job.id, businessId,
+    });
+    // 대표가 아닌 사람(관리자)이 백업을 받으면 대표에게 알린다 — 워크스페이스 전체가 밖으로 나가는 일이다.
+    if (!scope.isOwner) {
+      try {
+        const owners = await BusinessMember.findAll({ where: { business_id: businessId, role: 'owner' }, attributes: ['user_id'], raw: true });
+        const notifications = require('./notifications');
+        const me = await require('../models').User.findByPk(req.user.id, { attributes: ['name'] });
+        for (const o of owners) {
+          if (!o.user_id || o.user_id === req.user.id) continue;
+          await notifications.notify({
+            userId: o.user_id, businessId, eventKind: 'feedback',
+            title: '워크스페이스 백업 요청됨',
+            body: `${(me && me.name) || '관리자'} 님이 워크스페이스 백업(ZIP)을 요청했어요.`,
+            link: '/settings/data-export', tag: `exportjob-owner-${job.id}`, entityType: 'export_job', entityId: job.id,
+            ioApp: global.__io || null,
+          });
+        }
+      } catch (e) { console.warn('[export] owner notify', e.message); }
+    }
+    return successResponse(res, { job_id: job.id, status: job.status }, 'queued', 201);
   } catch (err) { next(err); }
 });
 
@@ -384,7 +420,7 @@ router.get('/:businessId/me/jobs', authenticateToken, checkBusinessAccess, async
     return successResponse(res, jobs.map(j => {
       const tj = j.toJSON();
       return {
-        id: tj.id, kind: tj.kind, mode: tj.mode, status: tj.status,
+        id: tj.id, kind: tj.kind, scope: tj.scope, mode: tj.mode, status: tj.status,
         target_business_id: tj.target_business_id, include_qnote: tj.include_qnote,
         result: tj.result, error: tj.error,
         has_download: tj.kind === 'export' && !!j.download_token && (!j.expires_at || new Date(j.expires_at) > new Date()),
@@ -453,6 +489,7 @@ router.delete('/:businessId/me/jobs/:jobId', authenticateToken, checkBusinessAcc
 module.exports = router;
 // #63 Phase 3 — 워커(services/exportJobWorker.js)가 재사용
 module.exports.collectSelf = collectSelf;
+module.exports.collectWorkspace = collectWorkspace;
 module.exports.streamExport = streamExport;
 module.exports.renderDocHtml = renderDocHtml;
 module.exports.UPLOAD_DIR = UPLOAD_DIR;

@@ -4,6 +4,7 @@
 //   ★ 엔티티 id(줄·사람줄)로 오는 라우트도 :businessId 와 함께 찾는다(남의 id 를 섞어 보내는 경로가 곧 누수다).
 //   ★ 응답에 계좌번호 0 — 사람줄은 은행 이름·끝 4자리 동결값만(확정 뒤).
 const express = require('express');
+const { csvLine, CSV_BOM } = require('../utils/csv');
 const fs = require('fs');
 const multer = require('multer');
 const { Op } = require('sequelize');
@@ -418,7 +419,6 @@ router.get('/:businessId/runs/:id/export.csv', ...manager, async (req, res, next
     const businessId = bizIdOf(req);
     const d = await runDetail(businessId, Number(req.params.id));
     if (!d) return errorResponse(res, 'run_not_found', 404);
-    const esc = (v) => { const s = v === null || v === undefined ? '' : String(v); return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
     const en = req.query.lang === 'en';
     const head = [en ? 'Name' : '성명', en ? 'Employee no.' : '사번', ...d.items.map((i) => (en && i.name_en) || i.name), en ? 'Gross' : '지급합계', en ? 'Deductions' : '공제합계', en ? 'Net pay' : '차인지급액'];
     const rows = d.entries.map((e) => {
@@ -427,7 +427,7 @@ router.get('/:businessId/runs/:id/export.csv', ...manager, async (req, res, next
     });
     logAudit(req, { action: 'payroll.run_export', targetType: 'payroll_run', targetId: d.run.id, businessId });
     res.set({ 'Content-Type': 'text/csv; charset=utf-8', 'Content-Disposition': `attachment; filename="payroll-${d.run.period_ym}-${d.run.seq}.csv"`, 'Cache-Control': 'no-store' });
-    return res.send(`﻿${[head, ...rows].map((r) => r.map(esc).join(',')).join('\n')}`);
+    return res.send(`${CSV_BOM}${[head, ...rows].map(csvLine).join('\n')}`);
   } catch (e) { next(e); }
 });
 

@@ -22,6 +22,7 @@ type Kind = 'enterprise' | 'general' | 'landing' | 'diagnosis' | 'onboarding_cal
 // 화상 업무설계·사용안내 신청(kind onboarding_call)의 구조 칸 — 서버 services/onboardingCall.normalizeDetails 가 만든 모양.
 interface CallDetails {
   slots?: { date: string; part: 'morning' | 'afternoon' | 'evening' }[];
+  topics?: ('workflow' | 'migration')[];   // 2026-10-23 — 무엇을 도와드릴까요(옛 신청은 없음 = 둘 다)
   team_size?: string | null;
   current_tools?: string | null;
   focus?: string | null;
@@ -227,9 +228,14 @@ const AdminInquiriesPage = () => {
 
             {detail.kind === 'onboarding_call' && detail.details && (
               <DSection data-testid="admin-inq-call-details">
-                <DLabel>{t('adminInq.call.title', '화상 안내 신청 내용')}</DLabel>
+                <DLabel>{t('adminInq.call.title', '시작 안내 30분 신청 내용')}</DLabel>
                 <CallTable>
                   <tbody>
+                    <tr>
+                      <th>{t('adminInq.call.topics', '주제')}</th>
+                      <td>{(detail.details.topics && detail.details.topics.length ? detail.details.topics : ['workflow', 'migration'])
+                        .map((k) => t(`onboardingCall.topic.${k}`)).join(' · ')}</td>
+                    </tr>
                     <tr>
                       <th>{t('adminInq.call.slots', '희망 시간')}</th>
                       <td>
@@ -240,7 +246,7 @@ const AdminInquiriesPage = () => {
                       </td>
                     </tr>
                     <tr><th>{t('adminInq.call.team', '인원')}</th><td>{detail.details.team_size ? t(`onboardingCall.team.${detail.details.team_size}`) : '—'}</td></tr>
-                    <tr><th>{t('adminInq.call.tools', '지금 쓰는 도구')}</th><td>{detail.details.current_tools || '—'}</td></tr>
+                    <tr><th>{t('adminInq.call.tools', '지금 쓰는 도구·자료 양')}</th><td>{detail.details.current_tools || '—'}</td></tr>
                     <tr><th>{t('adminInq.call.focus', '먼저 맞추고 싶은 일')}</th><td>{detail.details.focus || '—'}</td></tr>
                     <tr>
                       <th>{t('adminInq.call.workspace', '워크스페이스')}</th>

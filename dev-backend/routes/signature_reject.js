@@ -5,17 +5,23 @@
 //   옛 화면은 kind 를 안 보낸다 → decline(종전 «거절» 과 같다).
 const express = require('express');
 const router = express.Router();
+// 지운 워크스페이스의 서명 링크는 닫힌다(10-09 A5 의 공개 라우터 규칙 — 서명만 빠져 있었다, 2026-10-23 보안 재점검).
+router.param('token', (req, res, next, token) => {
+  const M = require('../models');
+  return require('../services/shareOpenable').workspaceAliveParam([[M.SignatureRequest, 'token']])(req, res, next, token);
+});
 const { SignatureRequest } = require('../models');
 const { sequelize } = require('../config/database');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
 const { createAuditLog } = require('../middleware/audit');
 const {
-  loadByToken, assertKind, isExpiredNow, maybeUpdateEntityStatus, notifyWorkspaceMembersOnSignature, rejectEventOf,
+  loadByToken, assertKind, isExpiredNow, maybeUpdateEntityStatus, notifyWorkspaceMembersOnSignature, rejectEventOf, confirmLimiter,
 } = require('../services/signatureCore');
 
 // POST /api/sign/:token/reject — 거절
 // body: { kind?: 'revise'|'decline', reason?, consent: true }
-router.post('/sign/:token/reject', async (req, res, next) => {
+// 라우트 한도 — 전역 /api 한도만 있었다(토큰 64자 + OTP 가 필요해 노출은 작지만 확인·의견과 같은 한도로 맞춘다).
+router.post('/sign/:token/reject', confirmLimiter, async (req, res, next) => {
   const t = await sequelize.transaction();
   try {
     const sr = await loadByToken(req.params.token);

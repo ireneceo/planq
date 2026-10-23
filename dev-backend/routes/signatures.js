@@ -19,6 +19,11 @@
 
 const express = require('express');
 const router = express.Router();
+// 지운 워크스페이스의 서명 링크는 닫힌다(10-09 A5 의 공개 라우터 규칙 — 서명만 빠져 있었다, 2026-10-23 보안 재점검).
+router.param('token', (req, res, next, token) => {
+  const M = require('../models');
+  return require('../services/shareOpenable').workspaceAliveParam([[M.SignatureRequest, 'token']])(req, res, next, token);
+});
 const crypto = require('crypto');
 const rateLimit = require('express-rate-limit');
 const { ipKeyGenerator } = require('express-rate-limit');

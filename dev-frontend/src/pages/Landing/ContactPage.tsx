@@ -32,11 +32,12 @@ type Reason = 'sales' | 'support' | 'partnership' | 'other';
 const REASONS: Reason[] = ['sales', 'support', 'partnership', 'other'];
 
 // 견적 문의에서 고르는 서비스 범위 — ServicePage 의 SERVICES 와 같은 축.
-const SCOPES = ['audit', 'design', 'automation', 'build', 'improve'] as const;
+// migration = 대량 자료 이전(워프로랩 스튜디오, 견적) — 2026-10-23 Fable D4. 무료 이전 연결은 «시작 안내 30분» 의 주제다.
+const SCOPES = ['audit', 'design', 'automation', 'build', 'improve', 'migration'] as const;
 type Scope = typeof SCOPES[number];
 const SCOPE_LABEL_KEY: Record<Scope, string> = {
   audit: 'scopeAudit', design: 'scopeDesign', automation: 'scopeAutomation',
-  build: 'scopeBuild', improve: 'scopeImprove',
+  build: 'scopeBuild', improve: 'scopeImprove', migration: 'scopeMigration',
 };
 
 const ContactPage: React.FC = () => {
@@ -46,7 +47,10 @@ const ContactPage: React.FC = () => {
   // 견적 문의 모드 — /service 의 CTA 가 이 쿼리로 들어온다.
   const isQuote = params.get('type') === 'quote';
   const isCall = params.get('type') === 'onboarding';
-  const [call, setCall] = useState<OnboardingCallValue>(emptyOnboardingCall);
+  // ?topic=migration 으로 들어오면(요금제 FAQ·Q file 안내) «자료 옮기기» 만 골라 둔다
+  const callTopicParam = params.get('topic');
+  const initialCall = () => emptyOnboardingCall(callTopicParam === 'migration' ? ['migration'] : callTopicParam === 'workflow' ? ['workflow'] : undefined);
+  const [call, setCall] = useState<OnboardingCallValue>(initialCall);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [company, setCompany] = useState('');
@@ -114,7 +118,7 @@ const ContactPage: React.FC = () => {
         ? { lead_type: 'onboarding_call' }
         : { lead_type: isQuote ? 'quote' : 'contact', contact_reason: isQuote ? 'quote' : reason });
       setName(''); setEmail(''); setMessage(''); setReason('sales');
-      setCompany(''); setPhone(''); setScopes([]); setCall(emptyOnboardingCall());
+      setCompany(''); setPhone(''); setScopes([]); setCall(initialCall());
     } catch (err) {
       setResult('err');
       setErrMsg(mapApiError(err, tErr));
@@ -192,6 +196,11 @@ const ContactPage: React.FC = () => {
                         onChange={e => setCompany(e.target.value)} maxLength={100} />
                     </Field>
                     <OnboardingCallFields value={call} onChange={setCall} idPrefix="contact-call" />
+                    {/* 양이 많아 대신 옮겨야 하면 — 유료 대량 이전(스튜디오, 견적)이 따로 있다 */}
+                    <ServiceHint data-testid="contact-call-bulk-hint">
+                      {t('contactPage.call.bulkHint', '자료가 많아 대신 옮겨 드려야 하나요?')}{' '}
+                      <ServiceHintLink to="/contact?type=quote&scope=migration">{t('contactPage.call.bulkLink', '대량 이전 견적 문의 →')}</ServiceHintLink>
+                    </ServiceHint>
                   </>
                 ) : isQuote ? (
                   <>
@@ -219,6 +228,11 @@ const ContactPage: React.FC = () => {
                         ))}
                       </ReasonGroup>
                     </Field>
+                    {/* 견적 전에 무료로 먼저 — 시작 안내 30분(업무 설계·자료 옮기기) */}
+                    <ServiceHint data-testid="contact-quote-free-hint">
+                      {t('contactPage.quoteFreeHint', '먼저 무료로 이야기해 보고 싶으신가요? 30분 화상으로 업무 설계와 자료 옮기는 순서를 같이 잡아 드려요.')}{' '}
+                      <ServiceHintLink to="/contact?type=onboarding">{t('contactPage.call.link', '시작 안내 30분 신청 →')}</ServiceHintLink>
+                    </ServiceHint>
                   </>
                 ) : (
                   <Field>
@@ -377,3 +391,13 @@ const SubmitBtn = styled.button`
 `;
 const ResultOk = styled.div`font-size: 0.8125rem; color: #0D9488; font-weight: 500;`;
 const ResultErr = styled.div`font-size: 0.8125rem; color: #B91C1C; font-weight: 500;`;
+
+// 의뢰할 때 다른 길(무료 30분 ↔ 유료 대량 이전)을 알려 주는 한 줄 (2026-10-23, docs/TRUST_SERVICES_DESIGN.md D4)
+const ServiceHint = styled.p`
+  margin: 0; font-size: 0.8125rem; color: #64748B; line-height: 1.6;
+  background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 10px; padding: 10px 12px;
+`;
+const ServiceHintLink = styled(Link)`
+  color: #0D9488; font-weight: 600; text-decoration: none; white-space: nowrap;
+  &:hover { text-decoration: underline; }
+`;

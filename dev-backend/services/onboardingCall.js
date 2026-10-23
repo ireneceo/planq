@@ -12,6 +12,8 @@ const KIND = 'onboarding_call';
 const OPEN_STATUSES = ['new', 'in_progress'];
 const PARTS = ['morning', 'afternoon', 'evening'];
 const TEAM_SIZES = ['solo', '2_5', '6_20', '21_plus'];
+// 무엇을 도와드릴까요 — 업무 설계 / 자료 옮기기(무료 이전 연결). 2026-10-23 Fable D4: 새 kind 없이 이 칸으로 가른다.
+const TOPICS = ['workflow', 'migration'];
 const MAX_SLOTS = 3;
 const MAX_TEXT = 200;
 
@@ -66,10 +68,15 @@ function normalizeDetails(raw, timezoneRaw) {
   });
 
   const teamSize = TEAM_SIZES.includes(d.team_size) ? d.team_size : null;
+  // 주제는 하나 이상 — 안 보냈으면(옛 화면) 둘 다로 본다. 모르는 값은 버린다.
+  const topicsIn = Array.isArray(d.topics) ? d.topics.filter((x) => TOPICS.includes(x)) : TOPICS.slice();
+  const topics = TOPICS.filter((x) => topicsIn.includes(x));
+  if (!topics.length) throw new OnboardingCallError('onboarding_topics_required');
   return {
     timezone,
     details: {
       slots,
+      topics,
       team_size: teamSize,
       current_tools: cleanText(d.current_tools),
       focus: cleanText(d.focus),
@@ -80,11 +87,12 @@ function normalizeDetails(raw, timezoneRaw) {
 /** 관리자 목록이 그대로 읽을 요약 본문 — 정규화한 값으로 서버가 만든다(화면이 보낸 message 를 믿지 않는다). */
 function summaryMessage(details, timezone, extra) {
   const lines = [
-    `[화상 안내 신청] 희망 시간 (${timezone})`,
+    `[시작 안내 30분] 주제: ${details.topics.map((x) => ({ workflow: '업무 설계', migration: '자료 옮기기' })[x]).join(' · ')}`,
+    `희망 시간 (${timezone})`,
     ...details.slots.map((s, i) => `  ${i + 1}. ${s.date} ${({ morning: '오전', afternoon: '오후', evening: '저녁' })[s.part]}`),
   ];
   if (details.team_size) lines.push(`인원: ${details.team_size}`);
-  if (details.current_tools) lines.push(`지금 쓰는 도구: ${details.current_tools}`);
+  if (details.current_tools) lines.push(`지금 쓰는 도구·자료 양: ${details.current_tools}`);
   if (details.focus) lines.push(`먼저 맞추고 싶은 일: ${details.focus}`);
   const note = cleanText(extra);
   if (note) lines.push(`메모: ${note}`);
@@ -125,6 +133,6 @@ async function availability(businessId, userId) {
 }
 
 module.exports = {
-  KIND, OPEN_STATUSES, PARTS, TEAM_SIZES, MAX_SLOTS,
+  KIND, OPEN_STATUSES, PARTS, TEAM_SIZES, TOPICS, MAX_SLOTS,
   OnboardingCallError, normalizeDetails, summaryMessage, availability, validTimezone, todayIn,
 };

@@ -1531,6 +1531,33 @@ function defineSecretTests() {
       run(`require('dotenv').config();const M=require('./models');M.KbDocument.destroy({where:{id:${Number(fx.id)},title:'hc-kb-${stamp}'},force:true}).then(()=>process.exit(0));`);
     }
   });
+
+  // 워크스페이스 백업 구조 데이터 — 토큰·비밀 칸 값·«나만 보기» 가 CSV/JSON 에 실리지 않는다(2026-10-23, docs/TRUST_SERVICES_DESIGN.md D3).
+  //   대조군: 같은 워크스페이스의 공개 업무 제목은 그대로 들어간다(통째로 빈 백업의 거짓 통과 차단).
+  test('secrets', '워크스페이스 백업(CSV·JSON)에 토큰·비밀 칸 값·나만 보기 항목이 실리지 않는다', async () => {
+    if (!BACKEND.startsWith('http://localhost')) return true;
+    const run = (code) => execSync(`node -e "${code}"`, { cwd: '/opt/planq/dev-backend', encoding: 'utf8', timeout: 120000 });
+    const stamp = Date.now();
+    const out = run(`require('dotenv').config();const M=require('./models');const fs=require('fs');const os=require('os');const path=require('path');(async()=>{`
+      + `const u=await M.BusinessMember.findOne({where:{business_id:6,role:'owner'}});const ids={};`
+      + `const t1=await M.Task.create({business_id:6,title:'hc-bk-plain-${stamp}',created_by:u.user_id,vlevel:'L3',status:'not_started',share_token:'hcbkshare${stamp}'});ids.t1=t1.id;`
+      + `const t2=await M.Task.create({business_id:6,title:'hc-bk-private-${stamp}',created_by:u.user_id,assignee_id:u.user_id,vlevel:'L1',status:'not_started'});ids.t2=t2.id;`
+      + `const c=await M.Client.create({business_id:6,display_name:'hc-bk-client-${stamp}',status:'prospect',invite_token:'hcbkinvite${stamp}'});ids.c=c.id;`
+      + `const d=await M.KbDocument.create({business_id:6,title:'hc-bk-kb-${stamp}',source_type:'manual',body:'x',status:'ready',uploaded_by:u.user_id,scope:'workspace',vlevel:'L3',security_level:'general',custom_columns:[{id:'s1',name:'pw',type:'secret'}],custom_values:{s1:'hcbksecret${stamp}'}});ids.d=d.id;`
+      + `const dir=fs.mkdtempSync(path.join(os.tmpdir(),'hcbk-'));let all='';let err=null;`
+      + `try{const tb=await require('./services/exportSerializers').writeWorkspaceData(6,dir);for(const t of tb){all+=fs.readFileSync(t.csvPath,'utf8')+fs.readFileSync(t.jsonPath,'utf8');}}catch(e){err=e.message;}`
+      + `fs.rmSync(dir,{recursive:true,force:true});`
+      + `await M.Task.destroy({where:{id:[ids.t1,ids.t2]},force:true});await M.Client.destroy({where:{id:ids.c},force:true});await M.KbDocument.destroy({where:{id:ids.d},force:true});`
+      + `process.stdout.write('<<'+JSON.stringify({err,plain:all.includes('hc-bk-plain-${stamp}'),priv:all.includes('hc-bk-private-${stamp}'),share:all.includes('hcbkshare${stamp}'),invite:all.includes('hcbkinvite${stamp}'),secret:all.includes('hcbksecret${stamp}'),kb:all.includes('hc-bk-kb-${stamp}')}));process.exit(0);`
+      + `})().catch(e=>{process.stdout.write('<<'+JSON.stringify({err:e.message}));process.exit(0);});`);
+    const r = JSON.parse(out.slice(out.lastIndexOf('<<') + 2));
+    if (r.err) throw new Error(`백업 픽스처 실패: ${r.err}`);
+    if (r.share || r.invite) throw new Error('백업에 공유·초대 토큰이 있다');
+    if (r.secret) throw new Error('백업에 Q info 비밀 칸 값이 있다');
+    if (r.priv) throw new Error('백업에 «나만 보기» 업무가 있다');
+    if (!r.plain || !r.kb) throw new Error('공개 업무·Q info 가 백업에 없다 — 빈 백업으로 거짓 통과');
+    return '백업 CSV·JSON — 토큰 0 · 비밀 값 0 · 나만 보기 0 · 공개 항목 유지';
+  });
 }
 
 function defineDateOnlyTests() {

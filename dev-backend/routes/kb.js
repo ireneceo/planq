@@ -934,6 +934,7 @@ router.delete('/businesses/:businessId/kb/pinned/:faqId', authenticateToken, che
 });
 
 // CSV template download
+// csv-exempt: 고정 예시 두 줄뿐 — 사용자 값이 칸이 되지 않는다
 router.get('/businesses/:businessId/kb/pinned/template.csv', authenticateToken, checkBusinessAccess, async (req, res) => {
   if (req.businessRole === 'client') return errorResponse(res, 'forbidden', 403);
   const csv = '\uFEFFquestion,answer,short_answer,keywords,category\n' +

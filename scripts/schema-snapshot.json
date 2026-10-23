@@ -1042,6 +1042,7 @@
       "user_id",
       "business_id",
       "kind",
+      "scope",
       "mode",
       "target_business_id",
       "include_qnote",

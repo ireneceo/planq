@@ -107,6 +107,27 @@
       ]
     },
     {
+      "path": "/security/",
+      "changefreq": "monthly",
+      "priority": "0.7",
+      "title": {
+        "ko": "보안·데이터 정책 — 언제든 내려받고, 요청하면 지웁니다 | PlanQ",
+        "en": "Security & data policy — download anytime, deleted on request | PlanQ"
+      },
+      "description": {
+        "ko": "PlanQ 가 실제로 갖춘 보안 장치(전송 암호화·워크스페이스 분리·민감 정보 암호화·공개 범위·감사 기록)와 데이터 정책. 워크스페이스 자료를 ZIP·CSV 로 내려받는 범위와 아직 없는 것까지 그대로 적었습니다.",
+        "en": "The security measures PlanQ actually has (encryption in transit, workspace isolation, encrypted secrets, visibility levels, audit logs) and its data policy — what the ZIP/CSV backup includes, and what we don't have yet."
+      },
+      "h1": {
+        "ko": "회사 자료를 맡기기 전에 먼저 확인하세요",
+        "en": "Before you trust us with your data, check for yourself"
+      },
+      "label": "보안",
+      "sections": [
+        "securityPage"
+      ]
+    },
+    {
       "path": "/start/",
       "changefreq": "monthly",
       "priority": "0.8",

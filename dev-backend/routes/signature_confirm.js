@@ -6,6 +6,11 @@
 // 공용 판정은 services/signatureCore.js 한 곳에서만 가져온다.
 const express = require('express');
 const router = express.Router();
+// 지운 워크스페이스의 서명 링크는 닫힌다(10-09 A5 의 공개 라우터 규칙 — 서명만 빠져 있었다, 2026-10-23 보안 재점검).
+router.param('token', (req, res, next, token) => {
+  const M = require('../models');
+  return require('../services/shareOpenable').workspaceAliveParam([[M.SignatureRequest, 'token']])(req, res, next, token);
+});
 const { sequelize } = require('../config/database');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
 const { createAuditLog } = require('../middleware/audit');

@@ -214,7 +214,7 @@
     "sub": "No install. Start in your browser.",
     "primary": "Start free",
     "secondary": "Explore features",
-    "call": "Get a video onboarding session →"
+    "call": "Free 30-minute kickoff — workflow setup and data move →"
   },
   "footer": {
     "tagline": "Don't let work become work. PlanQ",
@@ -237,7 +237,8 @@
       "krEntity": "Korea entity",
       "myEntity": "Malaysia entity"
     },
-    "cookieSettings": "Cookie settings"
+    "cookieSettings": "Cookie settings",
+    "security": "Security & data"
   },
   "featuresPage": {
     "eyebrow": "FEATURES",
@@ -415,7 +416,7 @@
     "foundation": {
       "tag": "FOUNDATION",
       "title": "Trustworthy foundation",
-      "desc": "Korean data centre and tenant isolation, org permissions, data export, mobile install — built to production standards from day one.",
+      "desc": "Tenant isolation, org permissions, data export, mobile install — built to production standards from day one.",
       "security": {
         "name": "Security · multi-tenant",
         "lead": "Secure sign-in (short-lived tokens) · complete data separation between workspaces · change history · abuse and attack protection."
@@ -438,7 +439,7 @@
       },
       "data": {
         "name": "Your data, yours",
-        "lead": "Export or delete your own data and the workspace data at any time."
+        "lead": "Download your workspace — tasks, chats, clients and invoices included — as a ZIP at any time, and have it deleted on request."
       },
       "mobile": {
         "name": "Mobile",
@@ -699,7 +700,11 @@
         },
         "data": {
           "q": "Can I bring over my existing files and email?",
-          "a": "Upload existing files to Q file or import them straight from Google Drive. Connect your mailbox to Q mail to bring in received email. Knowledge and FAQs can be uploaded to Q info in one CSV, and chat starts fresh in PlanQ."
+          "a": "Upload existing files to Q file or import them straight from Google Drive. Connect your mailbox to Q mail to bring in received email. Knowledge and FAQs can be uploaded to Q info in one CSV, and chat starts fresh in PlanQ. If you're not sure where to start, our free «30-minute kickoff» plans the order with you, and if there's too much to move yourself, WOR-PRO Lab Studio offers bulk migration (quoted)."
+        },
+        "ownership": {
+          "q": "Who owns the data? Can I take it with me later?",
+          "a": "Your workspace does. Owners and admins can download tasks, chats, clients, invoices, events, documents and files as a single ZIP from Settings > Data export, with records as CSV that opens in Excel. Cancelling doesn't delete your data right away, and if you ask us to delete it we remove everything within 60 days (except what the law requires us to keep). See «Security & data» for the full scope."
         },
         "addon": {
           "q": "When do Addons get charged?",
@@ -715,7 +720,7 @@
       "title": "Start your 14-day free trial",
       "sub": "No credit card to sign up. Pay only when you decide.",
       "btn": "Start free",
-      "call": "Get a video onboarding session →"
+      "call": "Free 30-minute kickoff — workflow setup and data move →"
     },
     "consulting": {
       "text": "Need help setting it up? Experts can design and build your operating system with you (WOR-PRO Lab Studio)",
@@ -883,16 +888,20 @@
     "quoteSubmit": "Send quote request",
     "scopeLine": "Scope of interest",
     "call": {
-      "title": "Get a video session on work setup and how to use PlanQ",
-      "sub": "In a 30-minute video call we learn how you work today and show you how to organize and use it in PlanQ.",
+      "title": "30-minute kickoff — workflow setup and data move",
+      "sub": "In a 30-minute video call we learn how you work today, then plan how to organize your work in PlanQ and in what order to move your existing data. It's free.",
       "formTitle": "Request form",
       "company": "Company or team (optional)",
       "note": "Anything else (optional)",
-      "submit": "Request a video session",
+      "submit": "Request the kickoff",
       "ok": "Request received. We'll check your preferred times and email you the schedule and meeting link.",
       "errRequired": "Enter your name and email, and pick at least one preferred time.",
-      "link": "Get a video onboarding session →"
-    }
+      "link": "Free 30-minute kickoff — workflow setup and data move →",
+      "bulkHint": "Too much data to move yourself?",
+      "bulkLink": "Ask for a bulk migration quote →"
+    },
+    "quoteFreeHint": "Want to talk it through for free first? In a 30-minute video call we plan your workflow and the order to move your data.",
+    "scopeMigration": "Bulk data migration"
   },
   "blogPost": {
     "back": "Back to insights",
@@ -993,7 +1002,14 @@
         "desc": "We watch real operating data, find the next bottleneck, and keep refining flow and automation.",
         "output": "Monthly operations support · Regular reviews · Improvement backlog"
       },
-      "outputLabel": "Deliverables"
+      "outputLabel": "Deliverables",
+      "migration": {
+        "name": "Data Migration (bulk)",
+        "en": "Data Migration",
+        "lead": "We organize the data in your old tools and move it into PlanQ for you.",
+        "desc": "Work, clients and documents scattered across Notion, Slack, KakaoTalk exports, Excel and Google Drive are organized by project and client and moved over. If there isn't much, the free «30-minute kickoff» is enough.",
+        "output": "Migration plan · reconciliation sheet of moved data · an organized PlanQ workspace"
+      }
     },
     "process": {
       "title": "How we work",
@@ -1095,7 +1111,9 @@
       "q2": "Do we have to throw away the systems we use now?",
       "a2": "No. We first look at connecting the ERP, groupware and accounting systems you already use. We propose replacement only when replacing is clearly better.",
       "q3": "What about cost and timeline?",
-      "a3": "We start with the work system audit. The design and build quote comes after the audit fixes the scope, so you never have to commit to a large amount up front. Work proceeds under a contract that states scope, schedule and deliverables."
+      "a3": "We start with the work system audit. The design and build quote comes after the audit fixes the scope, so you never have to commit to a large amount up front. Work proceeds under a contract that states scope, schedule and deliverables.",
+      "q4": "Do I have to start with a quote?",
+      "a4": "No. You can start with the free 5-minute self-check and, if you use PlanQ, the free «30-minute kickoff» (workflow setup and data move). We quote only the scope you need after that."
     },
     "why2": {
       "title": "Why WOR-PRO",
@@ -1653,5 +1671,86 @@
     "ads": "Ad measurement",
     "adsDesc": "Meta Pixel — whether an ad led to a sign-up or inquiry, and who to show ads to.",
     "privacyLink": "Read the privacy policy"
+  },
+  "securityPage": {
+    "eyebrow": "SECURITY",
+    "title": "Before you trust us with your data,\ncheck for yourself",
+    "sub": "The security measures and data policies PlanQ actually has in place. What we don't have yet is listed too.",
+    "promises": {
+      "title": "Three promises",
+      "export": {
+        "name": "Download anytime",
+        "lead": "Owners and admins download the workspace as a single ZIP from Settings > Data export. Records such as tasks, chats, clients and invoices come as CSV that opens in Excel, so you can move them to another tool."
+      },
+      "keep": {
+        "name": "Cancelling doesn't delete your data",
+        "lead": "If you cancel your subscription, your data stays, and you can pick up where you left off when you pay again."
+      },
+      "delete": {
+        "name": "Deleting really deletes",
+        "lead": "Permanently deleting from the trash removes it at once. If you ask us to delete your account or workspace, we delete everything within 60 days (records we must keep by law are kept only for that period)."
+      },
+      "coverageTitle": "What the backup ZIP includes",
+      "excludedTitle": "What it doesn't include"
+    },
+    "measures": {
+      "title": "Security measures",
+      "sub": "Only what can be verified in our code and configuration.",
+      "transport": {
+        "name": "Encrypted in transit",
+        "lead": "Every connection is encrypted with HTTPS."
+      },
+      "login": {
+        "name": "Login protection",
+        "lead": "Passwords are stored only as bcrypt hashes, never in plain text, and login tokens rotate every 15 minutes. Login attempts are limited to 5 per 15 minutes, and resetting your password signs you out of every device."
+      },
+      "isolation": {
+        "name": "Workspaces fully separated",
+        "lead": "Every query is scoped to one workspace. An automated check runs every night to confirm no data reaches another workspace."
+      },
+      "encryption": {
+        "name": "Sensitive data encrypted at rest",
+        "lead": "Mail app passwords, connection tokens, payment integration secrets and refund accounts are encrypted with AES-256 and never sent back to the screen or in responses."
+      },
+      "visibility": {
+        "name": "Visibility and security level per item",
+        "lead": "Each document, file, task, event and Q info item has a visibility (only me, project, team, everyone) and a level (general, internal, confidential). «Only me» stays closed even to the owner, and clients see only what is linked to them."
+      },
+      "links": {
+        "name": "Share links under control",
+        "lead": "Share links can carry a password (10 tries per 15 minutes), and narrowing visibility cuts links already sent. Internal and confidential items never go out through external links."
+      },
+      "audit": {
+        "name": "Audit trail and instant revocation",
+        "lead": "Changes are kept in an audit log (90 days to 7 years depending on plan). Removing a member or suspending an account drops their open live connections at once."
+      }
+    },
+    "ai": {
+      "name": "AI doesn't train on your data",
+      "lead": "Cue, meeting transcription and business-card reading run on the OpenAI and Deepgram APIs, whose API terms don't use submitted content for model training. External AI apps such as ChatGPT or Claude work only through tokens bound to a person, a workspace and the scopes you allowed, and deleting, billing and sending are never handed to AI."
+    },
+    "backup": {
+      "name": "Backups and retention",
+      "lead": "The production database is backed up daily (kept 7 days) and weekly (kept 4 weeks), with a copy on another server. Trash is kept 30–365 days depending on plan, then deleted permanently."
+    },
+    "payment": {
+      "name": "Payment information",
+      "lead": "Card details are handled directly by our payment processor Stripe; PlanQ never stores card numbers."
+    },
+    "notYet": {
+      "name": "What we don't have yet",
+      "lead": "Two-factor authentication (2FA), SSO and external certifications such as ISMS are not in place yet. If one of these is a must for you, let us know."
+    },
+    "docs": {
+      "title": "Related documents",
+      "privacy": "Privacy policy",
+      "terms": "Terms of service",
+      "contact": "Ask about security"
+    },
+    "cta": {
+      "title": "Let's start by moving your data together",
+      "sub": "In a free «30-minute kickoff» we plan your workflow and the order to move your data.",
+      "btn": "Book the 30-minute kickoff"
+    }
   }
 }

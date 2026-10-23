@@ -19,6 +19,8 @@ ExportJob.init({
   },
   // transfer = 다른 워크스페이스로 이동/복사 / export = 다운로드 zip 생성
   kind: { type: DataTypes.ENUM('transfer', 'export'), allowNull: false },
+  // export 전용: me(본인 개인 자료) / workspace(대표·관리자 워크스페이스 백업 — 2026-10-23 동기 라우트에서 옮김)
+  scope: { type: DataTypes.ENUM('me', 'workspace'), allowNull: false, defaultValue: 'me' },
   // transfer 전용: copy(원본 유지) / move(원본 soft delete)
   mode: { type: DataTypes.ENUM('copy', 'move'), allowNull: true },
   // transfer 전용: 도착 워크스페이스

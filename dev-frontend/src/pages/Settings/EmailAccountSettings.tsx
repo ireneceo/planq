@@ -7,6 +7,7 @@ import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { useSearchParams, Link } from 'react-router-dom';
 import DetailDrawer from '../../components/Common/DetailDrawer';
+import TrustNote from '../../components/Common/TrustNote';
 import PlanQSelect, { type PlanQSelectOption } from '../../components/Common/PlanQSelect';
 import { useAuth, apiFetch } from '../../contexts/AuthContext';
 import {
@@ -813,6 +814,7 @@ const AccountEditForm: React.FC<FormProps> = ({ initial, businessId, scope, onSa
             />
           </Field>
 
+          <TrustNote spot="mailConnect" />
           {error && <ErrorBox>{error}</ErrorBox>}
         </Form>
       </DetailDrawer.Body>

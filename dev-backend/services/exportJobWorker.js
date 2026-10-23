@@ -341,8 +341,69 @@ async function processTransfer(job) {
     files_removed: filesRemoved, documents_removed: docsRemoved, skipped, skipped_quota: skippedQuota, bytes: bytesAdded };
 }
 
+// ─── 워크스페이스 백업 (대표·관리자, 2026-10-23 — docs/TRUST_SERVICES_DESIGN.md D3) ───
+//   파일(L2~L4, PlanQ 저장분) + 문서(HTML) + 구조 데이터(data/<영역>/*.csv·json, services/exportSerializers).
+//   «나만 보기»·사적 대화·비밀 칸은 빠지고, 빠진 것은 manifest.coverage.excluded 에 이유와 함께 적는다.
+const WORKSPACE_MAX_FILES = 20000;
+async function processWorkspaceExport(job) {
+  const archiver = require('archiver');
+  const serializers = require('./exportSerializers');
+  const { files, docs } = await exportRoutes.collectWorkspace(job.business_id);
+  if (!fs.existsSync(EXPORT_DIR)) fs.mkdirSync(EXPORT_DIR, { recursive: true });
+  const workDir = path.join(EXPORT_DIR, `tmp-${job.id}-${crypto.randomBytes(6).toString('hex')}`);
+  fs.mkdirSync(workDir, { recursive: true });
+  const token = crypto.randomBytes(24).toString('hex');
+  const zipPath = path.join(EXPORT_DIR, `export-${job.id}-${token}.zip`);
+  try {
+    const tables = await serializers.writeWorkspaceData(job.business_id, workDir);
+    const fileList = files.slice(0, WORKSPACE_MAX_FILES);
+    await new Promise((resolve, reject) => {
+      const out = fs.createWriteStream(zipPath);
+      const archive = archiver('zip', { zlib: { level: 6 } });
+      out.on('close', resolve);
+      archive.on('error', reject);
+      archive.pipe(out);
+      const manifest = {
+        exported_at: new Date().toISOString(), scope: 'workspace', business_id: job.business_id,
+        coverage: { included: serializers.INCLUDED_KEYS, excluded: serializers.EXCLUDED },
+        data: tables.map((t) => ({ file: t.file, json: t.json, rows: t.rows })),
+        files: [], documents: [],
+        truncated: files.length > fileList.length ? { files_total: files.length, files_included: fileList.length } : null,
+      };
+      const used = new Map();
+      const uniq = (m, n) => { let x = n, i = 1; while (m.has(x)) { x = n.replace(/(\.[^.]+)?$/, `_${i++}$1`); } m.set(x, 1); return x; };
+      for (const f of fileList) {
+        if (!f.file_path || !fs.existsSync(f.file_path)) continue;
+        const name = uniq(used, safeArchiveName(f.file_name, `file-${f.id}`));
+        archive.file(f.file_path, { name: `files/${name}` });
+        manifest.files.push({ name, size: Number(f.file_size) || 0, security_level: f.security_level });
+      }
+      const usedDocs = new Map();
+      for (const d of docs) {
+        const name = uniq(usedDocs, `${safeArchiveName(d.title, 'untitled')}.html`);
+        archive.append(exportRoutes.renderDocHtml(d), { name: `documents/${name}` });
+        manifest.documents.push({ title: d.title, security_level: d.security_level });
+      }
+      for (const t of tables) {
+        archive.file(t.csvPath, { name: t.file });
+        archive.file(t.jsonPath, { name: t.json });
+      }
+      archive.append(JSON.stringify(manifest, null, 2), { name: 'manifest.json' });
+      archive.finalize();
+    });
+    const stat = fs.statSync(zipPath);
+    await job.update({ download_path: zipPath, download_token: token, expires_at: new Date(Date.now() + DOWNLOAD_TTL_MS) });
+    const rows = {};
+    for (const t of tables) rows[t.file] = t.rows;
+    return { files: Math.min(files.length, WORKSPACE_MAX_FILES), documents: docs.length, data_rows: rows, bytes: stat.size };
+  } finally {
+    try { fs.rmSync(workDir, { recursive: true, force: true }); } catch { /* best-effort */ }
+  }
+}
+
 // ─── export 처리 (다운로드 zip 생성 → 파일 저장 + 토큰) ───
 async function processExport(job) {
+  if (job.scope === 'workspace') return processWorkspaceExport(job);
   const archiver = require('archiver');
   const { files, docs } = await exportRoutes.collectSelf(job.business_id, job.user_id);
   let qnoteDocs = [];
@@ -403,7 +464,7 @@ async function notifyDone(job, ok) {
     } else {
       await notifications.notify({
         userId: job.user_id, businessId: job.business_id, eventKind: 'feedback',
-        title: ok ? '내보내기 준비 완료' : '내보내기 실패',
+        title: ok ? (job.scope === 'workspace' ? '워크스페이스 백업 준비 완료' : '내보내기 준비 완료') : '내보내기 실패',
         body: ok ? '설정 > 데이터 내보내기에서 다운로드하세요 (30일간 유효).' : '잠시 후 다시 시도해주세요.',
         link, tag: `exportjob-${job.id}`, entityType: 'export_job', entityId: job.id,
         ioApp: global.__io || null,

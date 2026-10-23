@@ -6,6 +6,11 @@
 // 서버 마운트: app.use('/api', require('./routes/signature_public'))  ← signatures 와 같은 base.
 const express = require('express');
 const router = express.Router();
+// 지운 워크스페이스의 서명 링크는 닫힌다(10-09 A5 의 공개 라우터 규칙 — 서명만 빠져 있었다, 2026-10-23 보안 재점검).
+router.param('token', (req, res, next, token) => {
+  const M = require('../models');
+  return require('../services/shareOpenable').workspaceAliveParam([[M.SignatureRequest, 'token']])(req, res, next, token);
+});
 const { errorResponse, successResponse } = require('../middleware/errorHandler');
 const { File } = require('../models');
 const { loadByToken, isExpiredNow, parseMaybeJson, loadEntity } = require('../services/signatureCore');

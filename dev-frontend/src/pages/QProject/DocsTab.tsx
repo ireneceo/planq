@@ -1485,10 +1485,16 @@ const DocsTab: React.FC<Props> = (props) => {
                 description={t('docs.loadError.desc', '잠시 후 다시 시도해 주세요. 계속 안 되면 네트워크 연결을 확인해 주세요.')}
               />
             ) : files.length === 0 ? (
+              // 쓰던 자료를 옮겨 와야 하는 첫 화면 — 워크스페이스 Q file 에서만 무료 «시작 안내 30분»(자료 옮기기)을 알린다.
+              //   유료 서비스(대량 이전)는 앱에 적지 않는다(docs/TRUST_SERVICES_DESIGN.md D4).
               <EmptyState
                 icon={<EmptyIcon />}
                 title={t('docs.empty.title', '아직 파일이 없어요')}
                 description={t('docs.empty.desc', '드롭존에 파일을 떨어뜨리거나, 채팅·업무·회의에 첨부하면 여기에 모입니다')}
+                {...(isWorkspace ? {
+                  secondaryCtaLabel: t('docs.empty.migrationHelp', '쓰던 자료 옮기는 걸 도와드려요 (무료 30분)') as string,
+                  onSecondaryCta: () => { window.open('/contact?type=onboarding&topic=migration', '_blank', 'noopener'); },
+                } : {})}
               />
             ) : (
               <Dim>{t('docs.empty.filtered', '조건에 맞는 파일이 없습니다')}</Dim>

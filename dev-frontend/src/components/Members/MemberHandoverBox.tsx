@@ -4,6 +4,7 @@
 //   ★ 새 패널을 띄우지 않는다 — 멤버 상세 드로어 안의 확인 자리(팝업 위 팝업 금지).
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import styled from 'styled-components';
+import TrustNote from '../Common/TrustNote';
 import { useTranslation } from 'react-i18next';
 import { apiFetch } from '../../contexts/AuthContext';
 import ActionButton from '../Common/ActionButton';
@@ -108,6 +109,7 @@ const MemberHandoverBox: React.FC<Props> = ({ businessId, memberId, fromUserId, 
     return (
       <Box data-testid="member-handover" $danger>
         <Text $danger>{t('members.drawer.removeConfirm', '이 멤버를 워크스페이스에서 제거합니다. 과거 업무 이력은 보존됩니다.')}</Text>
+        <TrustNote spot="memberRemove" />
         <Row>
           <ActionButton tone="secondary" size="sm" onClick={onCancel}>{t('members.inviteCancel', '취소')}</ActionButton>
           <ActionButton tone="danger" size="sm" loading={busy} onClick={() => void onRemove?.()} data-testid="member-remove-confirm">{t('members.drawer.remove', '제거')}</ActionButton>
@@ -143,6 +145,7 @@ const MemberHandoverBox: React.FC<Props> = ({ businessId, memberId, fromUserId, 
         <Hint>{t('members.handover.extras', '그 밖에 담당 메일 {{mail}}건 · 상담 예약 {{booking}}건은 직접 옮겨 주세요.', { mail: c.mail_assigned, booking: c.booking_open })}</Hint>
       )}
       <Hint>{t('members.handover.notMoved', '문서·파일·메모는 넘기지 않습니다(작성자 기록 그대로).')}</Hint>
+      {mode === 'remove' && <TrustNote spot="memberRemove" />}
 
       {sum.total > 0 && (
         <SelectWrap data-testid="member-handover-recipient">

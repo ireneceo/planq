@@ -14,9 +14,15 @@ export interface CsvColumn<T> {
   format?: (row: T) => string | number | null | undefined;
 }
 
+// ★ 수식 주입 가드 — 서버 utils/csv.js csvCell 과 같은 규칙. 엑셀은 `= + - @`·탭·CR 로 시작하는 칸을
+//   수식으로 실행한다. 사람이 쓴 이름·제목이 칸이 되므로 앞에 ' 를 붙인다(숫자·음수는 그대로).
+const FORMULA_START = /^[=+\-@\t\r]/;
+const PLAIN_NUMBER = /^-?\d+(\.\d+)?$/;
+
 function escape(v: unknown): string {
   if (v == null) return '';
-  const s = String(v);
+  let s = String(v);
+  if (typeof v !== 'number' && FORMULA_START.test(s) && !PLAIN_NUMBER.test(s)) s = `'${s}`;
   // CSV 표준: 콤마/줄바꿈/따옴표 포함 시 이중따옴표로 wrap + 안의 따옴표는 두 번
   if (/[",\n\r]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
   return s;

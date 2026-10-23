@@ -265,6 +265,7 @@ const LandingLayout: React.FC<Props> = ({ children, transparentTop = true }) => 
               <FooterTitle>{t('footer.legal', 'LEGAL')}</FooterTitle>
               <FooterLink to="/privacy">{t('footer.privacy', '개인정보처리방침')}</FooterLink>
               <FooterLink to="/terms">{t('footer.terms', '이용약관')}</FooterLink>
+              <FooterLink to="/security">{t('footer.security', '보안·데이터 정책')}</FooterLink>
               {/* 쿠키 설정 — 측정 태그가 켜진 서버에서만(services/marketingTags). 꺼져 있으면 고를 것이 없다. */}
               {company?.gtm_container_id && (
                 <FooterButton type="button" data-testid="footer-cookie-settings"

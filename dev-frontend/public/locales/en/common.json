@@ -1721,15 +1721,16 @@
     "kindOnboardingCall": "Video onboarding request",
     "kindOnboardingCallShort": "Video onboarding",
     "call": {
-      "title": "Video onboarding request",
+      "title": "30-minute kickoff request",
       "slots": "Preferred times",
       "team": "Team size",
-      "tools": "Current tools",
+      "tools": "Current tools and data volume",
       "focus": "Set up first",
       "workspace": "Workspace",
       "noWorkspace": "Not signed up (landing)",
       "plan": "Trial plan",
-      "trialEnds": "Trial ends"
+      "trialEnds": "Trial ends",
+      "topics": "Topics"
     }
   },
   "downloadTray": {
@@ -1887,23 +1888,59 @@
       "6_20": "6–20",
       "21_plus": "21+"
     },
-    "toolsLabel": "Tools you use now (optional)",
-    "toolsPlaceholder": "e.g. Excel, Slack, Notion",
+    "toolsLabel": "Current tools and data volume (optional)",
+    "toolsPlaceholder": "e.g. 200 Notion pages, a client list in Excel, 5 group chats",
     "focusLabel": "What to set up first (optional)",
     "focusPlaceholder": "e.g. turning client requests into tasks",
     "errSlot": "Pick at least one preferred time.",
     "card": {
-      "title": "Get a video session on work setup and how to use PlanQ",
-      "desc": "In a 30-minute video call we learn how you work today and show you how to set up and use this workspace.",
-      "requestedTitle": "We received your video session request",
+      "title": "30-minute kickoff — workflow setup and data move (free)",
+      "desc": "In a 30-minute video call we learn how you work today, then plan how to organize this workspace and in what order to move your existing data.",
+      "requestedTitle": "We got your kickoff request",
       "requestedDesc": "We'll check your preferred times and email you the schedule and meeting link.",
       "cta": "Request",
       "dismiss": "Close"
     },
-    "drawerTitle": "Request a video onboarding session",
+    "drawerTitle": "Request the 30-minute kickoff",
     "submit": "Send request",
     "lead": "Pick your preferred times and the PlanQ team will email you the schedule and meeting link. The time is confirmed by email.",
     "who": "We'll email: {{email}}",
-    "noteLabel": "Anything else (optional)"
+    "noteLabel": "Anything else (optional)",
+    "topicsLabel": "What can we help with?",
+    "topic": {
+      "workflow": "Workflow setup",
+      "migration": "Moving your data"
+    },
+    "topicsHint": "Pick «Moving your data» and we'll look at your current tools and data volume and plan the order and method with you (free)."
+  },
+  "trust": {
+    "policyLink": "See our security policy",
+    "backupAreas": {
+      "files": "Files",
+      "documents": "Documents",
+      "tasks": "Tasks (comments, history, attachment list)",
+      "projects": "Projects (members, linked clients)",
+      "clients": "Clients and consultation records",
+      "conversations": "Q talk chats and messages",
+      "calendar": "Events",
+      "invoices": "Invoices (items, installments)",
+      "knowledge": "Q info",
+      "tables": "Tables"
+    },
+    "backupExcluded": {
+      "private": "Members' private items — «only me» items, team chats with no project or client, personal notes on tasks (each person downloads these via «Export my data»)",
+      "drive_files": "Files stored in Google Drive — the originals stay in Drive",
+      "secret_fields": "Values of «secret» fields in Q info and tables",
+      "mail": "Q mail messages — the originals stay in your mailbox (Gmail etc.)",
+      "qnote": "Q note meeting records — download your own via «Export my data»",
+      "attendance_payroll": "Attendance and payroll",
+      "audit_logs": "Audit logs"
+    },
+    "dataExport": "Only owners and admins can create a backup, and the audit log records who made it and when. If an admin (not the owner) creates one, the owner is notified.",
+    "signup": "Each workspace's data is stored separately, and owners and admins can download it as a ZIP at any time.",
+    "mailConnect": "Your mail password (app password) and connection tokens are stored encrypted and never shown again. You can disconnect at any time.",
+    "integrations": "Connection tokens are stored encrypted, and you can disconnect at any time. Google Drive only sees files PlanQ created or that you picked (it does not read your whole Drive).",
+    "clientInvite": "Clients only see the projects, chats and files they are linked to. Internal messages, «team only» items and internal notes stay hidden.",
+    "memberRemove": "Removing someone signs them out right away (including any open live connection), and the tasks and files they worked on stay in the workspace."
   }
 }

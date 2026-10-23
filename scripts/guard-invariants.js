@@ -2910,6 +2910,37 @@ function checkTrialPlan() {
 }
 
 // ═══════════════════════════════════════════════
+// csv — **CSV 칸은 utils/csv.js csvCell 한 벌** (2026-10-23 신설 · Fable D6③)
+//
+//   엑셀은 `= + - @` 로 시작하는 칸을 수식으로 실행한다(CSV 수식 주입). 급여 대장 CSV 가 따옴표만 붙여
+//   사람 이름을 그대로 칸으로 냈다. `text/csv` 를 내보내거나 `.csv` 파일을 만드는 백엔드 파일은
+//   utils/csv(csvCell·csvLine) 를 써야 한다 — 손으로 따옴표만 붙이면 수식 가드가 빠진다.
+//   고정 문구 템플릿처럼 사용자 값이 없는 곳은 `// csv-exempt: <이유>` 한 줄로 선언한다.
+function checkCsv() {
+  const roots = ['routes', 'services'].map((d) => `${ROOT}/dev-backend/${d}`);
+  const bad = [];
+  let files = 0;
+  const walk = (dir) => {
+    for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+      const fp = `${dir}/${e.name}`;
+      if (e.isDirectory()) { if (e.name !== 'node_modules') walk(fp); continue; }
+      if (!e.name.endsWith('.js')) continue;
+      const src = read(fp);
+      // text/csv 를 «응답 형식» 으로 쓰는 줄(받는 형식 목록·확장자 판정 줄은 빼고)
+      const emitsCsv = src.split('\n').some((l) => /text\/csv/.test(l) && !/[mM]imes\b|ext ===|mime ===|accept/.test(l));
+      if (!emitsCsv) continue;
+      files += 1;
+      if (/csv-exempt:/.test(src)) continue;
+      if (!/require\(['"]\.\.\/(\.\.\/)?utils\/csv['"]\)/.test(src)) {
+        bad.push(`${fp.replace(`${ROOT}/`, '')} — CSV 를 내보내는데 utils/csv(csvCell·csvLine) 를 쓰지 않는다`);
+      }
+    }
+  };
+  roots.forEach((r) => { if (fs.existsSync(r)) walk(r); });
+  report('csv', `CSV 내보내기는 utils/csv 수식 가드 한 벌 (${files}개 파일)`, bad.length === 0, bad);
+}
+
+// ═══════════════════════════════════════════════
 // menudefault — **멤버 메뉴 기본값은 menu_permission 한 곳** (2026-10-23 신설 · Fable D2)
 //
 //   «행 없음 = write» 가 requireMenu·getMemberMenuLevels·청구 담당 후보·주간보고에 네 벌로 있었고 표가 거짓을 말했다
@@ -3907,6 +3938,7 @@ const CATEGORIES = {
   modulegate: checkModuleGate,
   convparticipants: checkConvParticipants,
   trialplan: checkTrialPlan,
+  csv: checkCsv,
   menudefault: checkMenuDefault,
   mailread: checkMailRead,
   leavetypes: checkLeaveTypes,

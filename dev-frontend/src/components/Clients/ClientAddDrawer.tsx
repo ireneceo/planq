@@ -12,6 +12,7 @@ import { apiFetch } from '../../contexts/AuthContext';
 import { attachCardToClient, attachValuesToClient, saveCardPhoto, readMailSignature, getWebformText, SALE_PREFILL_EVENT, type CardIntake, type SalePrefillDetail } from '../../services/sale';
 import ConfirmDialog from '../Common/ConfirmDialog';
 import CreateDrawer from '../Common/CreateDrawer';
+import TrustNote from '../Common/TrustNote';
 import PlanQSelect from '../Common/PlanQSelect';
 import { SegmentedToggle, SegmentedBtn } from '../Common/segmentedToggle';
 import { usePartnerKindLabel } from '../Common/PartnerKindBadge';
@@ -374,6 +375,7 @@ export default function ClientAddDrawer({ open, onClose, businessId, prefill, fr
           onChange={(o) => setKind((((o as { value?: string })?.value) as Kind) || 'customer')} />
       </Field>
       {!managed && <Helper>{t('inviteModal.helper')}</Helper>}
+      {!managed && <TrustNote spot="clientInvite" />}
       {error && (
         <WarnBlock role="alert" data-testid="clients-add-error">
           {error}

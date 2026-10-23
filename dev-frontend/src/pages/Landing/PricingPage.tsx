@@ -6,7 +6,7 @@ import LandingLayout from '../../components/Landing/LandingLayout';
 import { useReveal } from '../../hooks/useReveal';
 
 const PLANS = ['starter', 'basic', 'pro'] as const;
-const FAQ_KEYS = ['cancel', 'team', 'data', 'addon', 'enterprise'] as const;
+const FAQ_KEYS = ['cancel', 'team', 'data', 'ownership', 'addon', 'enterprise'] as const;
 
 const Reveal: React.FC<{ children: React.ReactNode; as?: React.ElementType }> = ({ children, as = 'div' }) => {
   const ref = useReveal<HTMLElement>();
