@@ -23,6 +23,8 @@ export interface CueTurn {
   feedback?: 'helpful' | 'not_helpful';               // 제출된 피드백 (재클릭 차단)
   /** #81 — Cue 실행 제안(확인 카드). 한 답에 최대 3장, 서로 독립 — 카드마다 상태·결과를 따로 든다(2026-10-12 Fable D2). */
   actions?: CueTurnAction[];
+  /** 흘려 받는 중 서버가 «워크스페이스에서 찾는 중» 이라 알렸다(docs/CUE_STREAMING_DESIGN.md). 글이 흐르기 시작하면 글이 보인다. */
+  phase?: 'searching';
 }
 export interface CueTurnAction {
   proposal: CueProposal;
@@ -46,6 +48,53 @@ export function cueActionDeepLink(r: CueActionResult): string {
     case 'mail_draft': return `/mail?thread=${id}&reply=1`;
     default: return '/dashboard';
   }
+}
+
+/** /api/cue/help 성공 응답의 data — JSON 과 흘려 받은 done 이 같은 칸이다. */
+interface CueHelpData {
+  answer?: string;
+  sources?: Array<{ slug: string; title: string }>;
+  log_id?: number | null;
+  proposed_action?: unknown;
+  proposed_actions?: unknown[];
+}
+
+/**
+ * 흘려 받는 /api/cue/help 본문(SSE) 읽기 — 이벤트: status{kind} · delta{t} · reset · done{…} · error{message}.
+ *   글은 한 프레임에 한 번만 화면에 넘긴다. done 없이 끝나면 오류다(조용히 빈 답으로 두지 않는다).
+ */
+async function readCueStream(body: ReadableStream<Uint8Array>, h: {
+  onText: (a: string) => void; onSearching: () => void; onDone: (d: CueHelpData) => void; onError: (code: string) => void;
+}) {
+  const reader = body.getReader();
+  const dec = new TextDecoder();
+  let buf = ''; let text = ''; let raf = 0; let finished = false;
+  const flushText = () => { raf = 0; h.onText(text); };
+  const schedule = () => { if (!raf) raf = requestAnimationFrame(flushText); };
+  const cancelRaf = () => { if (raf) { cancelAnimationFrame(raf); raf = 0; } };
+  const handle = (block: string) => {
+    let ev = 'message'; let data = '';
+    for (const line of block.split('\n')) {
+      if (line.startsWith('event:')) ev = line.slice(6).trim();
+      else if (line.startsWith('data:')) data += line.slice(5).trim();
+    }
+    let j: Record<string, unknown> = {};
+    try { j = data ? JSON.parse(data) : {}; } catch { return; }
+    if (ev === 'delta') { text += String(j.t ?? ''); schedule(); }
+    else if (ev === 'reset') { text = ''; cancelRaf(); h.onText(''); }
+    else if (ev === 'status') { if (j.kind === 'searching') { text = ''; cancelRaf(); h.onSearching(); } }
+    else if (ev === 'done') { finished = true; cancelRaf(); h.onDone(j as CueHelpData); }
+    else if (ev === 'error') { finished = true; cancelRaf(); if (text) h.onText(text); h.onError(String(j.message || 'llm_error')); }
+  };
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buf += dec.decode(value, { stream: true }).replace(/\r\n/g, '\n');
+    let i;
+    while ((i = buf.indexOf('\n\n')) >= 0) { handle(buf.slice(0, i)); buf = buf.slice(i + 2); }
+  }
+  if (buf.trim()) handle(buf);
+  if (!finished) { cancelRaf(); if (text) h.onText(text); h.onError('stream_interrupted'); }
 }
 
 interface Options {
@@ -134,32 +183,52 @@ export function useCueChat(opts: Options) {
       const fetcher = isGuest ? fetch : apiFetch;
       const res = await fetcher(url, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        // 로그인 사용자는 답을 흘려 받는다 — 서버가 거절(400·409·422·429)하거나 옛 서버면 JSON 이 온다(아래에서 Content-Type 으로 가른다).
+        headers: { 'Content-Type': 'application/json', ...(isGuest ? {} : { Accept: 'text/event-stream, application/json' }) },
         body: JSON.stringify(body),
       });
+      if (!isGuest && res.ok && /text\/event-stream/i.test(res.headers.get('content-type') || '') && res.body) {
+        await readCueStream(res.body, {
+          // 조각은 한 프레임에 한 번 모아 그린다(초당 수십 조각 — setState 폭주 방지)
+          onText: (a) => setTurns((prev) => prev.map((tn, i) => i === prev.length - 1 ? { ...tn, a, phase: a ? undefined : tn.phase } : tn)),
+          onSearching: () => setTurns((prev) => prev.map((tn, i) => i === prev.length - 1 ? { ...tn, a: '', phase: 'searching' } : tn)),
+          onDone: (data) => finishTurn(data),
+          onError: (code) => {
+            const msg = (translateError?.(code) || code) as string;   // JSON 경로(throw new Error(...))와 같은 해석
+            // 이미 흘린 글은 버리지 않는다 — 부분 글 + 오류 한 줄(Fable 2026-10-23)
+            setTurns((prev) => prev.map((tn, i) => i === prev.length - 1 ? { ...tn, error: mapApiError(new Error(msg), tErr as never), loading: false, phase: undefined } : tn));
+          },
+        });
+        return;
+      }
       const j = await res.json();
       if (!res.ok || !j.success) {
         throw new Error((translateError?.(j.message) || j.message || 'Q helper error') as string);
       }
-      const srcs = Array.isArray(j.data?.sources) ? j.data.sources : [];
+      finishTurn(j.data);
+    } catch (e) {
+      setTurns((prev) => prev.map((tn, i) => i === prev.length - 1
+        ? { ...tn, error: mapApiError(e, tErr as never), loading: false, phase: undefined }
+        : tn));
+    } finally {
+      setSubmitting(false);
+    }
+
+    // 답 한 건 마무리 — JSON 응답과 흘려 받은 done 이 **같은 함수**를 지난다(흘린 글은 여기서 정본 answer 로 덮인다).
+    function finishTurn(data: CueHelpData) {
+      const srcs = Array.isArray(data?.sources) ? data.sources : [];
       // 서버가 카탈로그로 검증·미리보기를 마친 제안만 온다(card 가 그 표시) — 화면이 도구 목록을 따로 들지 않는다
       //   proposed_actions(여러 장)가 정본, 없으면 옛 서버의 proposed_action 한 장.
-      const raw: unknown[] = Array.isArray(j.data?.proposed_actions) ? j.data.proposed_actions : (j.data?.proposed_action ? [j.data.proposed_action] : []);
+      const raw: unknown[] = Array.isArray(data?.proposed_actions) ? data.proposed_actions : (data?.proposed_action ? [data.proposed_action] : []);
       const actions: CueTurnAction[] = raw
         .filter((pa): pa is CueProposal => !!pa && typeof pa === 'object' && !!(pa as CueProposal).tool && !!(pa as CueProposal).card)
         .map((proposal) => ({ proposal, status: 'pending' as const }));
       setTurns((prev) => prev.map((tn, i) => i === prev.length - 1
         ? {
-            ...tn, a: j.data.answer || '', loading: false, sources: srcs, logId: j.data.log_id ?? null,
+            ...tn, a: data?.answer || '', loading: false, phase: undefined, sources: srcs, logId: data?.log_id ?? null,
             actions: actions.length ? actions : undefined,
           }
         : tn));
-    } catch (e) {
-      setTurns((prev) => prev.map((tn, i) => i === prev.length - 1
-        ? { ...tn, error: mapApiError(e, tErr as never), loading: false }
-        : tn));
-    } finally {
-      setSubmitting(false);
     }
   }, [input, submitting, location, isGuest, mode, translateError, tErr, onAfterSend, setTurns]);
 

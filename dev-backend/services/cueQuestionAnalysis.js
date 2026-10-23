@@ -42,6 +42,38 @@ const CLASSIFY_INSTRUCTION = `
 
 const TAG_RE = /\[\[\s*cue\s*:([^\]]*)\]\]/gi;
 
+// 흘려 보낼 때(docs/CUE_STREAMING_DESIGN.md §3) — TAG_RE 와 **같은 모양**(대소문자 무시·공백 허용)의 시작과 그 앞부분.
+//   두 곳에 따로 적으면 갈라진다(Fable 2026-10-23) — 태그 모양을 바꾸면 이 둘과 TAG_RE 를 같이 바꾼다.
+const TAG_START_RE = /\[\[\s*cue\s*:/i;
+const TAG_PREFIX_RE = /^\[(?:\[\s*(?:c(?:u(?:e\s*)?)?)?)?$/i;
+
+/**
+ * 흘리는 글에서 분류 태그를 붙잡는 필터. push(조각) 마다 «지금 내보내도 되는 글» 만 emit 으로 넘긴다.
+ *   - 태그가 시작되면 그 뒤는 끝까지 안 내보낸다(정본은 done 의 parseClassification(...).answer).
+ *   - 태그의 앞부분일 수 있는 꼬리(`[` `[[` `[[ cu` …)와 끝의 공백·줄바꿈은 다음 조각까지 잡아 둔다.
+ *   - reset() — 다음 라운드로 넘어가 흘린 글을 버릴 때.
+ */
+function createTagHoldback(emit) {
+  let acc = ''; let sent = 0; let closed = false;
+  const flush = () => {
+    if (closed) return;
+    let end = acc.length;
+    const m = acc.slice(sent).search(TAG_START_RE);
+    if (m >= 0) { end = sent + m; closed = true; }
+    else {
+      for (let k = acc.indexOf('[', sent); k >= 0; k = acc.indexOf('[', k + 1)) {
+        if (TAG_PREFIX_RE.test(acc.slice(k))) { end = k; break; }
+      }
+    }
+    while (end > sent && /\s/.test(acc[end - 1])) end -= 1;   // 끝 공백은 다음 글자와 같이
+    if (end > sent) { const out = acc.slice(sent, end); sent = end; emit(out); }
+  };
+  return {
+    push(t) { if (!t || closed) return; acc += String(t); flush(); },
+    reset() { acc = ''; sent = 0; closed = false; },
+  };
+}
+
 /**
  * 답변 끝의 분류 태그를 떼어 내고 해석한다. 태그가 없거나 값이 목록 밖이면 classified=false.
  * @returns {{ answer: string, topic: string, intent: string|null, ok: boolean|null, classified: boolean }}
@@ -217,6 +249,6 @@ async function pruneCueQuestionData(now = new Date()) {
 module.exports = {
   TOPICS, INTENTS, CLASSIFY_INSTRUCTION,
   TOPICS_RETENTION_DAYS, RAW_RETENTION_DAYS, HELP_LOG_RETENTION_DAYS,
-  parseClassification, analysisPrefs, workspaceDayHash, pseudonymize, namesForBusiness,
+  parseClassification, createTagHoldback, analysisPrefs, workspaceDayHash, pseudonymize, namesForBusiness,
   recordQuestion, pruneCueQuestionData, kstDate, logHelpQuestion,
 };

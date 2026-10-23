@@ -23,6 +23,7 @@ const CUE_TOOLS_ENABLED = process.env.CUE_TOOLS_ENABLED !== '0';
 const { SYSTEM_PROMPT_QHELPER, SYSTEM_PROMPT_WORKSPACE, SYSTEM_PROMPT_GUEST, normalizeHistory, historyAnswer } = require('../services/cuePrompts');
 // 질문 기록·주제 분석(Fable 판정 B5) — 답변 끝줄 분류 태그(추가 LLM 호출 0)·스위치·가명처리는 services/cueQuestionAnalysis.js 한 곳.
 const cueQA = require('../services/cueQuestionAnalysis');
+const cueStream = require('../services/cueStream');
 const { logHelpQuestion } = cueQA;
 
 // ─── 메모리 가드 (단일 프로세스) ───
@@ -229,30 +230,7 @@ router.post('/help', authenticateToken, ...helpLimiter, async (req, res, next) =
     // Q위키 RAG → sources[]. ★ Cue 모드에도(여태 qhelper 만 → 제품 질문에 일반론, 2026-10-06) · 4건(3건이면 정답 글 4위가 빠졌다).
     //   ★ 2026-10-23 «검색창 Cue 가 너무 오래 걸려» — 문맥 수집(아래)과 서로 기대는 것이 없는데 그 **뒤에** 순서대로 돌아
     //     임베딩 왕복(0.15~0.6초)만큼 더 기다렸다. 먼저 띄우고 문맥을 붙인 뒤에 받는다(실패는 안에서 삼켜 빈 결과).
-    const wikiP = (async () => {
-      const out = { wikiSources: [], wikiTopArticleId: null, docBlocks: [] };
-      try {
-        const { searchArticleIds, blocksToText } = require('../services/wikiSearch');
-        const HelpArticle = require('../models/HelpArticle');
-        const ids = await searchArticleIds(retrievalQuery, { onlyPublic: false, limit: 4 });
-        if (ids.length) {
-          const arts = await HelpArticle.findAll({ where: { id: ids, is_published: true } });
-          const orderMap = new Map(ids.map((id, i) => [id, i]));
-          arts.sort((a, b) => (orderMap.get(a.id) ?? 9) - (orderMap.get(b.id) ?? 9));
-          out.wikiTopArticleId = arts[0]?.id || null;
-          for (const a of arts.slice(0, 4)) {
-            const title = a.title_ko || a.title_en || '';
-            const summary = a.summary_ko || a.summary_en || '';
-            const body = blocksToText(a.body_ko, 'ko') || blocksToText(a.body_en, 'en') || '';
-            out.docBlocks.push(`## ${title}\n${summary}\n${body}`.slice(0, 1500));
-            out.wikiSources.push({ slug: a.slug, title });
-          }
-        }
-      } catch (e) {
-        console.warn('[cue/help] wiki retrieval failed:', e.message);
-      }
-      return out;
-    })();
+    const wikiP = require('../services/wikiSearch').retrieveForAnswer(retrievalQuery, { limit: 4 });
 
     // 페이지 컨텍스트는 두 모드 모두 공유 (현재 보고 있는 화면)
     let ctxBlock = '';
@@ -378,6 +356,10 @@ router.post('/help', authenticateToken, ...helpLimiter, async (req, res, next) =
     }
     const ctxMs = Date.now() - reqStarted;
 
+    // 흘려 보내기(SSE, docs/CUE_STREAMING_DESIGN.md) — 화면이 Accept: text/event-stream 을 실었을 때만. 위의 모든 거절(400·409·422·429)은
+    //   헤더 전이라 지금 JSON 그대로다. 헤더는 문맥을 다 모은 뒤(LLM 직전)에 보낸다.
+    const sse = cueStream.wantsStream(req) ? cueStream.openCueStream(res) : null;
+
     // ★ 고정 지시문 / 매번 바뀌는 컨텍스트를 두 메시지로 — 캐시는 같은 앞부분만 적중하고 도구 목록(≈8.2천 토큰)은 첫 system 뒤에 붙는다(실측 1,408 → 9,728 적중).
     const messages = [
       { role: 'system', content: systemPrompt + cueQA.CLASSIFY_INSTRUCTION },
@@ -392,15 +374,20 @@ router.post('/help', authenticateToken, ...helpLimiter, async (req, res, next) =
     const llmOpts = { purpose: 'kb_answer', temperature: 0.3, fallback: '', cacheKey: `planq-cue-${finalMode}` };   // maxTokens 는 덮지 않는다(services/llm.js kb_answer 단일 원천)
     let content; let fallback; let usedModel; let input_tokens; let output_tokens; let cached_tokens = 0; let proposedAction = null; let proposedActions = [];
     if (useTools) {
-      const conv = await cueTools.converse({ p: await cueTools.principalOf(req.user.id, workspaceBizId, req.user.platform_role), messages, callLLM, llmOpts });
+      const conv = await cueTools.converse({ p: await cueTools.principalOf(req.user.id, workspaceBizId, req.user.platform_role), messages, callLLM, llmOpts,
+        ...(sse ? { onEvent: sse.onEvent, isCanceled: sse.gone } : {}) });
       ({ content = '', fallback = false } = conv); proposedAction = conv.proposal || null; proposedActions = conv.proposals || (proposedAction ? [proposedAction] : []);
       ({ model: usedModel, input_tokens, output_tokens, cached_tokens = 0 } = conv.usage || {});
       console.info(`[cue/help usage] rounds=${conv.usage?.rounds || 0} in=${input_tokens || 0} cached=${conv.usage?.cached_tokens || 0} out=${output_tokens || 0} reads=${conv.reads?.length || 0} cards=${proposedActions.length} ctx_ms=${ctxMs} round_ms=${(conv.usage?.round_ms || []).join('/')} total_ms=${Date.now() - reqStarted}`);
       if (conv.reads?.length) require('../services/auditService').logAudit(req, { action: 'cue.help_reads', targetType: 'business', targetId: workspaceBizId, businessId: workspaceBizId, newValue: { reads: conv.reads } });
     } else {
-      ({ content, fallback, model: usedModel, input_tokens, output_tokens, cached_tokens = 0 } = await callLLM({ ...llmOpts, messages }));
+      ({ content, fallback, model: usedModel, input_tokens, output_tokens, cached_tokens = 0 } = await callLLM({ ...llmOpts, messages,
+        ...(sse ? { onDelta: (t) => sse.onEvent('delta', t) } : {}) }));
     }
-    if (fallback) return errorResponse(res, 'llm_error', 502);
+    if (fallback) {
+      if (sse) { sse.send('error', { message: 'llm_error' }); return res.end(); }
+      return errorResponse(res, 'llm_error', 502);
+    }
     const cls = cueQA.parseClassification(content); const answer = cls.answer;
 
     // ── 사용량 원장 (2026-09-03, Fable 판정) ────────────────────────────────
@@ -438,12 +425,18 @@ router.post('/help', authenticateToken, ...helpLimiter, async (req, res, next) =
     // 주제 분석 — 스위치(기본 켬)를 따르고 user/business id 는 저장 안 함. 원문은 qhelper + opt-in 만(함수 안에서 판정).
     cueQA.recordQuestion({ mode: finalMode, businessId: finalMode === 'workspace' ? workspaceBizId : (requestScope(req, undefined).businessId || null),
       question: q, cls, lang: String(req.body.lang || 'ko').slice(0, 5), answered: !!answer || !!proposedAction });
-    return successResponse(res, {
+    // 응답 칸은 한 벌 — JSON 이면 그대로, 흘려 보내는 중이면 done 이벤트로(화면은 흘린 글을 이 answer 로 덮는다).
+    const payload = {
       answer, mode: finalMode, sources: wikiSources, log_id: logId,
       // proposed_action = 첫 카드(옛 번들 호환) · proposed_actions = 한 답의 카드 전부(최대 3, 서로 독립 — Fable D2)
       ...(proposedAction ? { proposed_action: proposedAction, proposed_actions: proposedActions } : {}),
-    });
-  } catch (e) { next(e); }
+    };
+    if (sse) { sse.send('done', payload); return res.end(); }
+    return successResponse(res, payload);
+  } catch (e) {
+    if (cueStream.endStreamOnError(res, e)) return;
+    next(e);
+  }
 });
 
 // ═══════════════════════════════════════════════

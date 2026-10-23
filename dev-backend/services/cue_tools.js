@@ -443,7 +443,9 @@ function proposalKey(pr) {
   return `${pr.tool}|${JSON.stringify(sort(pr.params || {}))}`;
 }
 
-async function converse({ p, messages, callLLM, llmOpts = {} }) {
+// onEvent(type, arg) — 흘려 보낼 때만(docs/CUE_STREAMING_DESIGN.md §2): 'delta'(글 조각) · 'reset'(흘린 글 지움) · 'status'('searching').
+//   라운드 판정은 그대로이고 신호만 더한다. isCanceled() 가 참이면 다음 라운드를 시작하지 않는다(지금 라운드는 끝까지 받아 토큰을 센다).
+async function converse({ p, messages, callLLM, llmOpts = {}, onEvent = null, isCanceled = null }) {
   const started = Date.now();
   const msgs = [...messages];
   const reads = [];
@@ -461,8 +463,16 @@ async function converse({ p, messages, callLLM, llmOpts = {} }) {
     // 예산이 끝나면 쓰기 도구만 허용한다 — 더 찾지 말고 지금 아는 것으로 답하거나 제안하게.
     //   ★ 도구 **목록**은 바꾸지 않고 tool_choice(allowed_tools)로 좁힌다 — 목록이 달라지면 그 라운드는 프롬프트 캐시를
     //     전부 놓친다(도구 설명만 ≈8.2천 토큰, 2026-10-12 실측: 목록 유지 시 9,728 적중).
+    if (round > 1 && isCanceled?.()) return await done(last?.content);
     const roundStarted = Date.now();
-    const r = await callLLM({ ...llmOpts, messages: msgs, tools: TOOL_SCHEMAS, ...(overBudget ? { toolChoice: WRITE_ONLY_CHOICE } : {}) });
+    // 흘리기 — 읽기 도구가 보이면 곧바로 «찾는 중»(앞말은 지운다). 쓰기 도구면 글을 두고 라운드 끝에 판정(Fable 결정 1).
+    let streamed = false; let searching = false;
+    const toSearching = () => { if (searching) return; searching = true; if (streamed) onEvent('reset'); onEvent('status', 'searching'); };
+    const streamOpts = onEvent ? {
+      onDelta: (t) => { if (searching) return; streamed = true; onEvent('delta', t); },
+      onToolStart: (name) => { if (READ_TOOLS.has(name)) toSearching(); },
+    } : {};
+    const r = await callLLM({ ...llmOpts, ...streamOpts, messages: msgs, tools: TOOL_SCHEMAS, ...(overBudget ? { toolChoice: WRITE_ONLY_CHOICE } : {}) });
     last = r;
     usage = { input_tokens: usage.input_tokens + (r.input_tokens || 0), cached_tokens: usage.cached_tokens + (r.cached_tokens || 0),
       output_tokens: usage.output_tokens + (r.output_tokens || 0), model: r.model || usage.model, rounds: usage.rounds + 1,
@@ -505,10 +515,12 @@ async function converse({ p, messages, callLLM, llmOpts = {} }) {
       }
       // 모두 받아들였으면 끝 — 거절이 있으면 이유를 주고 한 번 더(설명하거나 고쳐서 다시 제안). 받아 둔 카드는 남는다.
       if (!rejected) return await done(r.content);
+      if (onEvent) { searching = false; toSearching(); }
       msgs.push({ role: 'assistant', content: r.content || null, tool_calls: writes });
       for (const x of replies) msgs.push({ role: 'tool', tool_call_id: x.id, content: JSON.stringify(x.out).slice(0, RESULT_CHARS) });
       continue;
     }
+    if (onEvent) toSearching();
     msgs.push({ role: 'assistant', content: r.content || null, tool_calls: calls });
     for (const c of calls) {
       let out;

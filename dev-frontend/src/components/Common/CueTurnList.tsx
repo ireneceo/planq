@@ -43,8 +43,13 @@ export default function CueTurnList({
             <ALabel $variant="qhelper">
               {mode === 'workspace' ? t('qhelper.cueLabel', 'Cue') : t('qhelper.guideLabel', 'Q helper')}
             </ALabel>
+            {/* 답이 흘러오는 중이면 글을 바로 그린다(docs/CUE_STREAMING_DESIGN.md) — 카드·출처·피드백은 끝난 뒤에만.
+                오류가 글 뒤에 오면 흘린 글은 남기고 오류 한 줄을 붙인다. */}
+            {tn.a && (tn.loading || tn.error) && <Answer data-testid="cue-answer-streaming">{tn.a}</Answer>}
             {tn.loading
-              ? <Loading>{t('qhelper.thinking', '생각 중…')}</Loading>
+              ? (!tn.a && <Loading>{tn.phase === 'searching'
+                  ? t('qhelper.searching', '워크스페이스에서 찾는 중…')
+                  : t('qhelper.thinking', '생각 중…')}</Loading>)
               : tn.error
                 ? <ErrorText>{tn.error}</ErrorText>
                 : <Answer>{tn.a}</Answer>}

@@ -353,7 +353,9 @@ app.use(compression({
   // 작은 응답은 압축 비용이 이득보다 크다. 1KB 미만은 그대로 보낸다.
   threshold: 1024,
   // 클라이언트가 명시적으로 원치 않으면(x-no-compression) 건너뛴다 — 디버깅용 탈출구.
-  filter: (req, res) => (req.headers['x-no-compression'] ? false : compression.filter(req, res)),
+  //   흘려 보내는 응답(text/event-stream — Cue 답)은 압축하지 않는다 — 압축은 조각을 모아 보내 첫 글자가 늦어진다.
+  filter: (req, res) => (req.headers['x-no-compression'] || /event-stream/i.test(String(res.getHeader('Content-Type') || ''))
+    ? false : compression.filter(req, res)),
 }));
 
 // Body parser + Cookie parser — rate limiter skip 함수가 req.body 에 접근하므로 security 보다 먼저 파싱되어야 함

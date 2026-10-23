@@ -199,7 +199,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
  * @param {*} [p.fallback]     실패 시 content 로 돌려줄 값 (LLM 은 없으면 못 쓰는 게 아니라 덜 똑똑해질 뿐)
  * @returns {{content, tool_calls, input_tokens, output_tokens, fallback, model, ms, attempts, truncated}}
  */
-async function callLLM({ purpose = 'generic', messages, json = false, tools = null, toolChoice = undefined, cacheKey = null, fallback = '', ...opts }) {
+async function callLLM({ purpose = 'generic', messages, json = false, tools = null, toolChoice = undefined, cacheKey = null, fallback = '', onDelta = null, onToolStart = null, ...opts }) {
   const cfg = resolve(purpose, opts);
   const started = Date.now();
   stats.calls++; bump(purpose, 'calls');
@@ -232,6 +232,8 @@ async function callLLM({ purpose = 'generic', messages, json = false, tools = nu
           ...(tools && tools.length ? { tools, ...(toolChoice ? { tool_choice: toolChoice } : {}) } : {}),
           // 프롬프트 캐시 — 같은 앞부분(고정 지시문 + 도구 목록)을 쓰는 호출을 한 키로 묶는다. 캐시 적중분은 입력 단가 1/10.
           ...(cacheKey ? { prompt_cache_key: String(cacheKey).slice(0, 64), ...(caps.longCache ? { prompt_cache_retention: '24h' } : {}) } : {}),
+          // 흘려 받기 — onDelta 를 준 호출만(Cue 답, docs/CUE_STREAMING_DESIGN.md). 마지막 조각에 usage 가 온다.
+          ...(onDelta ? { stream: true, stream_options: { include_usage: true } } : {}),
         }),
         signal: AbortSignal.timeout(cfg.timeoutMs),
       });
@@ -251,7 +253,8 @@ async function callLLM({ purpose = 'generic', messages, json = false, tools = nu
         break;
       }
 
-      const data = await r.json();
+      // ★ 분기는 이 한 줄 — readSseBody 는 r.json() 과 같은 모양을 돌려줘 아래 통계·경고·반환이 그대로다.
+      const data = onDelta ? await readSseBody(r, { onDelta, onToolStart }) : await r.json();
       const ms = Date.now() - started;
       const inTok = data.usage?.prompt_tokens || 0;
       const outTok = data.usage?.completion_tokens || 0;
@@ -290,6 +293,8 @@ async function callLLM({ purpose = 'generic', messages, json = false, tools = nu
       };
     } catch (err) {
       lastMessage = err.message || String(err);
+      // 조각을 이미 화면에 흘렸으면 다시 보내지 않는다 — 같은 글이 두 번 흐른다.
+      if (err.streamed) break;
       const timedOut = err.name === 'TimeoutError' || /abort/i.test(lastMessage);
       if (timedOut && attempt < MAX_ATTEMPTS) {
         stats.retries++;
@@ -306,6 +311,62 @@ async function callLLM({ purpose = 'generic', messages, json = false, tools = nu
   stats.last_error = { at: new Date().toISOString(), purpose, status: lastStatus, message: lastMessage.slice(0, 200) };
   console.warn(`[llm] ${purpose} 실패 (${lastStatus || 'exception'}): ${lastMessage.slice(0, 200)}`);
   return { content: fallback, tool_calls: [], input_tokens: 0, output_tokens: 0, fallback: true, model: cfg.model, ms, attempts: MAX_ATTEMPTS, truncated: capped.truncated };
+}
+
+/**
+ * 흘려 받은 본문(SSE) → chat completions 응답과 **같은 모양** `{ choices:[{ message:{content, tool_calls}, finish_reason }], usage }`.
+ *   content 조각마다 onDelta(text) · 도구 조각이 처음 보일 때 도구마다 onToolStart(name) 한 번.
+ *   tool_calls 는 index 별로 모은다(id·name 은 첫 조각에만, arguments 는 이어 붙인다).
+ *   조각을 하나라도 내보낸 뒤 끊기면 err.streamed=true 로 던진다(호출부가 재시도하지 않게).
+ */
+async function readSseBody(r, { onDelta, onToolStart } = {}) {
+  let content = ''; let finish = null; let usage = null; let emitted = false;
+  const tools = [];
+  const started = new Set();
+  const handle = (line) => {
+    if (!line.startsWith('data:')) return;
+    const payload = line.slice(5).trim();
+    if (!payload || payload === '[DONE]') return;
+    let j; try { j = JSON.parse(payload); } catch { return; }
+    if (j.usage) usage = j.usage;
+    const ch = j.choices?.[0];
+    if (!ch) return;
+    if (ch.finish_reason) finish = ch.finish_reason;
+    const d = ch.delta || {};
+    if (typeof d.content === 'string' && d.content) {
+      content += d.content; emitted = true;
+      try { onDelta?.(d.content); } catch (e) { console.warn('[llm] onDelta', e.message); }
+    }
+    for (const tc of (Array.isArray(d.tool_calls) ? d.tool_calls : [])) {
+      const i = Number.isInteger(tc.index) ? tc.index : tools.length;
+      const cur = tools[i] || (tools[i] = { id: '', type: 'function', function: { name: '', arguments: '' } });
+      if (tc.id) cur.id = tc.id;
+      if (tc.function?.name) cur.function.name += tc.function.name;
+      if (tc.function?.arguments) cur.function.arguments += tc.function.arguments;
+      if (cur.function.name && !started.has(i)) {
+        started.add(i); emitted = true;
+        try { onToolStart?.(cur.function.name); } catch (e) { console.warn('[llm] onToolStart', e.message); }
+      }
+    }
+  };
+  try {
+    const decoder = new TextDecoder();
+    let buf = '';
+    for await (const chunk of r.body) {
+      buf += decoder.decode(chunk, { stream: true });
+      let nl;
+      while ((nl = buf.indexOf('\n')) >= 0) { handle(buf.slice(0, nl).replace(/\r$/, '')); buf = buf.slice(nl + 1); }
+    }
+    if (buf) handle(buf.trim());
+  } catch (err) {
+    if (emitted) err.streamed = true;
+    throw err;
+  }
+  const toolCalls = tools.filter(Boolean);
+  return {
+    choices: [{ message: { content, ...(toolCalls.length ? { tool_calls: toolCalls } : {}) }, finish_reason: finish }],
+    usage: usage || {},
+  };
 }
 
 /**
@@ -355,7 +416,8 @@ async function embed(text, { model = EMBED_MODEL } = {}) {
         console.warn('[llm] embed 실패', r.status, body);
         return null;
       }
-      const data = await r.json();
+      // ★ 분기는 이 한 줄 — readSseBody 는 r.json() 과 같은 모양을 돌려줘 아래 통계·경고·반환이 그대로다.
+      const data = onDelta ? await readSseBody(r, { onDelta, onToolStart }) : await r.json();
       const ms = Date.now() - started;
       stats.ok++; stats.total_ms += ms;
       stats.input_tokens += data.usage?.prompt_tokens || 0;
@@ -390,4 +452,4 @@ function getStats() {
 /** 이 용도가 실제로 쓰는 모델 이름 (env override 반영) — 응답에 모델을 표기하는 호출부용 */
 function modelFor(purpose) { return resolve(purpose).model; }
 
-module.exports = { callLLM, callLLMImage, embed, getStats, isEnabled, modelFor, PURPOSES, EMBED_MODEL };
+module.exports = { callLLM, callLLMImage, readSseBody, embed, getStats, isEnabled, modelFor, PURPOSES, EMBED_MODEL };

@@ -365,6 +365,7 @@
     "send": "보내기",
     "sending": "전송 중…",
     "thinking": "생각 중…",
+    "searching": "워크스페이스에서 찾는 중…",
     "title": "Q helper",
     "toggleHint": "로 언제든 열고 닫기",
     "workspaceFallback": "워크스페이스",

@@ -162,7 +162,35 @@ async function searchArticleIds(query, { onlyPublic = false, limit = 20 } = {}) 
   return scored.slice(0, limit).map((s) => s.id);
 }
 
+/**
+ * Cue 답의 근거 — 질문으로 Q위키 글 4건까지 찾아 { wikiSources, wikiTopArticleId, docBlocks } (routes/cue.js /help 에서 옮김).
+ *   실패는 삼켜 빈 결과(답이 덜 똑똑해질 뿐 막히지 않는다).
+ */
+async function retrieveForAnswer(query, { limit = 4 } = {}) {
+  const out = { wikiSources: [], wikiTopArticleId: null, docBlocks: [] };
+  try {
+    const ids = await searchArticleIds(query, { onlyPublic: false, limit });
+    if (ids.length) {
+      const arts = await HelpArticle.findAll({ where: { id: ids, is_published: true } });
+      const orderMap = new Map(ids.map((id, i) => [id, i]));
+      arts.sort((a, b) => (orderMap.get(a.id) ?? 9) - (orderMap.get(b.id) ?? 9));
+      out.wikiTopArticleId = arts[0]?.id || null;
+      for (const a of arts.slice(0, limit)) {
+        const title = a.title_ko || a.title_en || '';
+        const summary = a.summary_ko || a.summary_en || '';
+        const body = blocksToText(a.body_ko, 'ko') || blocksToText(a.body_en, 'en') || '';
+        out.docBlocks.push(`## ${title}\n${summary}\n${body}`.slice(0, 1500));
+        out.wikiSources.push({ slug: a.slug, title });
+      }
+    }
+  } catch (e) {
+    console.warn('[cue/help] wiki retrieval failed:', e.message);
+  }
+  return out;
+}
+
 module.exports = {
+  retrieveForAnswer,
   blocksToText,
   articleSearchText,
   indexArticle,

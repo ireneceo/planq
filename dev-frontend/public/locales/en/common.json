@@ -365,6 +365,7 @@
     "send": "Send",
     "sending": "Sending…",
     "thinking": "Thinking…",
+    "searching": "Searching your workspace…",
     "title": "Q helper",
     "toggleHint": "to toggle anytime",
     "workspaceFallback": "Workspace",

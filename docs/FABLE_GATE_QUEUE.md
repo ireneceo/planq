@@ -2,6 +2,10 @@
 
 
 
+## 2026-10-23 · Cue 답 흘려 보내기(스트리밍) 설계 (방 11546c7d) — 설계 **OK-WITH-CHANGES**(고칠 것 9 → 전부 반영) · 완료 = 자체 검증(Fable 권고: 과금·카드 코드 무변경이 전제, diff 로 확인)
+- 설계 docs/CUE_STREAMING_DESIGN.md §8. 결정: reset 방식(도구 이름으로 읽기/쓰기 가름) · 게이트웨이에 signal 안 넘김(끊어도 그 라운드는 끝까지 받아 실제 토큰 기록) · callLLM 선택 인자 onDelta(분기 한 줄).
+- 자체 검증: 꼬리표 붙잡기 160/0(대조군 3 누출) · 조립 단위 8/8(tool_calls 합치기·cached) · 실HTTP JSON 대 흘림 4질문(첫 글자 1.3~4.5초 · 카드·출처·log_id 같음 · `[[cue` 0 · 원장 +6/6 · 끊은 턴 토큰 기록) · 거절 400·409 는 JSON · 헤더 뒤 예외 error 이벤트 · nginx 경유 비압축·비버퍼 · 검색창 3폭 글 보임 1.25~1.6초(대조군 Accept 없앰 → 흘림 0·JSON 정상) · 드로어 «찾는 중» 표시.
+
 ## 2026-10-23 · 고객 «추가» vs «초대» 분리 · 그 자리에서 추가하고 연결 (방 ccabdb0a) — 설계 **PASS** · 완료 **PASS**(Fable, 차단 0)
 - 설계 docs/CLIENT_ADD_INVITE_DESIGN.md. Fable 재실행: API 46/0 · Fable 프로브 26/0(남의 ws 스레드 404·팀 대화 400·잘못된 id 400·없는 링크 404 — 모두 행 +0·메일 0 · 고객 대화 출처 연결·409·no-op 초대 메일 1 · access 4값 DB 대조 2/8/3/7 · client 403·member 201) · 화면 3폭 80/0 · secrets·clientlink 15/15 · e2e salecriteria·clientlink 0 · guard godfile(MailPage, 이전부터 초과·이번 −2)만.
 - 비차단: ①useBackToClose backPending 은 popstate 출처 무관하게 1 내린다(30ms 안 사용자 뒤로 = 옛 경합 1회, 1.5초 상한) ②/invite 연결 단계가 던지면 invited 인데 메일 미발송 500(기존 부수효과와 같은 모양) ③mobilepanels ③ 기대값(sticky)이 e3b219eb 로 낡음 — 다음 사이클 ④미측정: 멤버→남의 개인 계정 스레드(같은 resolveSource 함수).
