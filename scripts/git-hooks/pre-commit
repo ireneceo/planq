@@ -1,0 +1,20 @@
+#!/bin/bash
+# god-file 래칫을 «키운 방» 의 커밋에서 막는다 (2026-10-24 정기 점검 — Irene «단 한번도 정기점검을 제대로 하고 배포되는 일이 없잖아»).
+# 전에는 한 방이 파일을 한도 넘게 키워도 커밋이 되고, 그 뒤 방들은 «이미 빨간불 · 다른 방 것» 으로 넘겨
+# /개발완료 0단계와 배포 게이트가 며칠씩 막혔다. 이번 커밋에 올린 파일이 걸릴 때만 멈춘다(남의 파일로는 안 막는다).
+# 설치: ln -sf ../../scripts/git-hooks/pre-commit .git/hooks/pre-commit
+REPO=$(git rev-parse --show-toplevel)
+STAGED=$(git diff --cached --name-only --diff-filter=ACMR)
+[ -z "$STAGED" ] && exit 0
+OUT=$(node "$REPO/scripts/guard-invariants.js" --category=godfile 2>&1 | sed 's/\x1b\[[0-9;]*m//g')
+HIT=""
+while IFS= read -r f; do
+  [ -z "$f" ] && continue
+  L=$(printf '%s\n' "$OUT" | grep -F "$f:" )
+  [ -n "$L" ] && HIT="$HIT$L"$'\n'
+done <<< "$STAGED"
+[ -z "$HIT" ] && exit 0
+echo "⛔ god-file 래칫 — 이번 커밋이 키운 파일이 한도를 넘었습니다:" >&2
+printf '%s' "$HIT" >&2
+echo "   → 그 파일에서 함수·조각을 다른 파일로 나눈 뒤 다시 커밋하세요(동작 그대로). 기준선 올리기(--update-baseline)는 숨기기라 하지 않습니다." >&2
+exit 1

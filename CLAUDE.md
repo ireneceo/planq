@@ -171,6 +171,7 @@ memory `feedback_unwired_guard_is_no_guard` 와 같은 계열이다.
 
 ### 이 저장소의 검사 도구 (Fable·자체 검증이 같이 쓴다 — 체크리스트로 내려보내지 않는다)
 - 범위: `git diff` / 마지막 마커 커밋 이후 `git log` (설계 외 변경 0)
+- 커밋 훅 `scripts/git-hooks/pre-commit`(→ `.git/hooks/pre-commit`) — **이번 커밋에 올린 파일**이 god-file 래칫에 걸리면 커밋을 막는다(2026-10-24). 키운 방이 그 자리에서 나눈다 — «다른 방 것» 으로 넘겨 /개발완료·배포가 며칠씩 막히던 것(10-21~10-24). `--no-verify` 로 넘기지 않는다
 - 가드: `node scripts/health-check.js` · `npm run build`(EXIT 0 + `error TS` 0) · `node scripts/guard-invariants.js` · `node scripts/e2e/run.js --suite tenant`
 - 실호출: 실제 HTTP(포트 3003) login → CUD → 재조회 일치 · 권한별 403 · 운영 옛 데이터 1건
 - 배포 안전성: 마이그레이션 멱등 · 배포 슬롯 등록 · 청크 해시 · 롤백 경로
