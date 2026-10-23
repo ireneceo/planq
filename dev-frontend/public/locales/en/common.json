@@ -1140,6 +1140,7 @@
     }
   },
   "toaster": {
+    "otherWorkspace": "Another workspace",
     "taskAssigned": "New task assigned",
     "taskCompletedRequester": "Your requested task is done",
     "taskCompletedReviewer": "Reviewed task is now complete",

@@ -2038,7 +2038,10 @@ import DetailDrawer from 'components/Common/DetailDrawer';
    200 을 곧 누수로 단정하지 말고 응답 id 를 DB 와 대조한다(today-review 비소속 200 은 빈 응답이었다).
 7. **알림(종)은 현재 워크스페이스 + 플랫폼 공지만** (Q7, 2026-09-11) — `/api/notifications{,/unread-count,/read-all}?business_id=` 세 라우트가
    `notificationScope` **한 함수**를 쓴다(수와 목록이 갈라지지 않게). 인자가 없으면 **플랫폼 공지만** — 가장 좁은 쪽으로 떨어진다.
-   화면은 `hooks/useNotifications` 한 곳에서 범위를 붙이고, 토스터는 남의 워크스페이스 `notification:new` 를 띄우지 않는다.
+   화면은 `hooks/useNotifications` 한 곳에서 범위를 붙인다.
+   ★ **도착 카드(토스터)는 범위가 아니다** (2026-10-23, Irene «데스크탑앱에는 안 왔어 … 지금 보는 워크스페이스가 아닌 경우만 표시») —
+   내가 멤버인 다른 워크스페이스의 `notification:new` 도 띄우고(채팅류 포함 — 그 대화방엔 join 안 해 두 번이 안 된다) 제목 위에 워크스페이스 이름,
+   누르면 `utils/workspaceLink.enterWorkspaceLink` 로 전환해 연다. 종 목록·숫자는 그대로 현재 범위.
    ★ 모두 읽음 소켓은 범위를 싣는다 — 받는 창은 0 으로 덮지 말고 자기 범위로 다시 센다.
 
 ### 같은 날 박제한 술어 단일 원천

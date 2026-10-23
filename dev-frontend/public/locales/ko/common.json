@@ -1140,6 +1140,7 @@
     }
   },
   "toaster": {
+    "otherWorkspace": "다른 워크스페이스",
     "taskAssigned": "새 업무가 배정됐어요",
     "taskCompletedRequester": "요청한 업무가 완료됐어요",
     "taskCompletedReviewer": "검토한 업무가 완료 처리됐어요",

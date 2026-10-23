@@ -15,6 +15,7 @@ import { useChromeLocation } from '../../hooks/useChromeNav';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { useAuth, apiFetch } from '../../contexts/AuthContext';
+import { enterWorkspaceLink, WS_PARAM } from '../../utils/workspaceLink';
 import { notificationRowToToastLink, openNotificationTarget, type NotificationFullRow } from '../../utils/notificationLink';
 import NotificationTypeIcon from './NotificationTypeIcon';
 
@@ -31,6 +32,8 @@ interface Toast {
   contextKey?: string;      // 활성 페이지 매칭용 (예: conv:123, task:45)
   notificationId?: number;  // N+73 — DB Notification.id (있으면 닫기/클릭 시 mark-read 호출)
   urgent?: boolean;         // 긴급 업무요청(notification:new 의 urgent) — 빨간 띠로 강조
+  // 지금 보는 곳이 아닌 워크스페이스의 알림 — 제목 위 이름 줄, 누르면 그 워크스페이스로 전환해 연다(2026-10-23)
+  foreignBusinessId?: number; workspaceName?: string;
   ts: number;
 }
 
@@ -173,7 +176,7 @@ function playSynth() {
 }
 
 export default function NotificationToaster() {
-  const { user } = useAuth();
+  const { user, switchWorkspace } = useAuth();
   const { t, i18n } = useTranslation('common');
   const location = useChromeLocation();
   const [toasts, setToasts] = useState<Toast[]>([]);
@@ -300,11 +303,12 @@ export default function NotificationToaster() {
     //   토스트는 활성 conv / 같은 페이지면 skip (이미 보고 있어서 시각 노이즈).
     //   사이클 N+16-C — 추가로 chat channel pref OFF 면 skip (전수조사 fix).
     let skipToast = false;
-    if (toast.contextKey?.startsWith('conv:')) {
+    // 다른 워크스페이스 알림은 «지금 보는 대화·화면» 과 같을 수 없다(id·경로가 이 워크스페이스 것이 아니다)
+    if (!toast.foreignBusinessId && toast.contextKey?.startsWith('conv:')) {
       const cid = Number(toast.contextKey.slice(5));
       if (cid && cid === activeConvIdRef.current) skipToast = true;
     }
-    if (toast.link && activePathRef.current === toast.link.split('?')[0]) {
+    if (!toast.foreignBusinessId && toast.link && activePathRef.current === toast.link.split('?')[0]) {
       if (!toast.link.includes('?')) skipToast = true;
     }
     // 사용자가 이 종류의 «앱 안 알림(chat 열)» 을 끈 것 — 토스트도 소리도 내지 않는다(2026-10-08 0-H).
@@ -360,6 +364,7 @@ export default function NotificationToaster() {
     // 공유 소켓 (services/socket). 워크스페이스 룸 + 참여 conversation 룸 join.
     //   join 은 공유 소켓이 reconnect 시 roomRefs 로 자동 재join.
     const joinedConvRooms: string[] = [];
+    const isForeign = (b?: number | null) => b != null && Number(b) !== bizId;
     joinRoom(`business:${bizId}`);
     // 사용자가 참여한 모든 conversation 룸 — message:new 받기 위해
     apiFetch(`/api/conversations/${bizId}`).then(r => r.json()).then(j => {
@@ -379,12 +384,12 @@ export default function NotificationToaster() {
     //   → contextKey 또는 notificationId 로 dedup. notificationId 우선.
     //   장점: notification_id 가 있으면 닫기 시 mark-read 호출 가능 → 좌측 BellDropdown 즉시 동기화.
     const offNotif = onSocket('notification:new', (row: NotificationFullRow) => {
-      // 배너 2번 방지: 채팅류(message/mention)는 message:new(socket) 가 토스트 담당.
-      //   notification:new 까지 토스트하면 같은 채팅이 2번 뜸 → 여기선 채팅류 skip (비채팅만 토스트).
-      if (row.event_kind === 'message' || row.event_kind === 'mention' || row.event_kind === 'comment_mention') return;
-      // ★ Q7 — 다른 워크스페이스 알림은 이 창에 띄우지 않는다(종 목록과 같은 범위). 플랫폼 공지(null)는 통과.
-      //   raw 이벤트(task:*, message:new)는 이미 현재 워크스페이스 룸만 join 해서 오므로, 새는 문은 이것 하나다.
-      if (row.business_id != null && Number(row.business_id) !== bizId) return;
+      // ★ 다른 워크스페이스 알림도 띄운다(이름 줄 + 누르면 전환) — 2026-10-23 Irene «데스크탑앱에는 안 왔어». 옛 Q7 은 여기서 버렸다.
+      //   종 목록·숫자는 그대로 지금 워크스페이스 범위(CLAUDE.md 워크스페이스 계약 7). 플랫폼 공지(null)는 종전대로.
+      const foreign = isForeign(row.business_id) ? Number(row.business_id) : undefined;
+      // 배너 2번 방지: 채팅류는 message:new 가 토스트 담당 → 여기선 skip. 단 다른 워크스페이스 채팅은 그 방에 join 안 해 여기서만 뜬다.
+      const chatKind = row.event_kind === 'message' || row.event_kind === 'mention' || row.event_kind === 'comment_mention';
+      if (chatKind && !foreign) return;
       const link = notificationRowToToastLink(row);
       const typeMap: Record<string, Toast['type']> = {
         message: 'message', mention: 'message', comment_mention: 'message',
@@ -430,6 +435,10 @@ export default function NotificationToaster() {
           contextKey,
           notificationId: row.id,
           urgent: !!row.urgent,
+          ...(foreign ? {
+            foreignBusinessId: foreign,
+            workspaceName: (user.workspaces || []).find((w) => Number(w.business_id) === foreign)?.brand_name || undefined,
+          } : {}),
         });
       }
     });
@@ -457,8 +466,8 @@ export default function NotificationToaster() {
     });
 
     // 새 업무 — 본인이 만든/액션한 건 skip
-    const offTaskNew = onSocket('task:new', (task: { id: number; title: string; assignee_id?: number; created_by?: number; project_id?: number | null; actor_user_id?: number }) => {
-      const me = Number(user.id);
+    const offTaskNew = onSocket('task:new', (task: { id: number; title: string; business_id?: number | null; assignee_id?: number; created_by?: number; project_id?: number | null; actor_user_id?: number }) => {
+      const me = Number(user.id); if (isForeign(task.business_id)) return;   // 다른 워크스페이스 업무는 notification:new 카드(이름 줄)가 맡는다
       // 본인 액션 (방금 자기가 만든 건) skip — actor 또는 created_by
       if (task.actor_user_id === me || task.created_by === me) return;
       // 나에게 배정된 업무
@@ -479,11 +488,11 @@ export default function NotificationToaster() {
     //   1. actor === me → skip (본인이 누른 액션을 본인 토스터에 띄우지 않음)
     //   2. 받는 사람이 어떤 역할인지에 따라 메시지 차별화 (요청자 vs 검토자 vs 담당자)
     const offTaskUpd = onSocket('task:updated', (task: {
-      id: number; title: string; status?: string;
+      id: number; title: string; status?: string; business_id?: number | null;
       assignee_id?: number; created_by?: number;
       reviewer_user_ids?: number[]; actor_user_id?: number;
     }) => {
-      const me = Number(user.id);
+      const me = Number(user.id); if (isForeign(task.business_id)) return;
       // 직전 상태는 **본인 액션까지 포함해** 기록한다 — 아래 전이 판정(entered)의 기준선이다.
       const prevStatus = prevTaskStatusRef.current.get(task.id);
       if (task.status) prevTaskStatusRef.current.set(task.id, task.status);
@@ -615,8 +624,16 @@ export default function NotificationToaster() {
             // N+73 — toast.link 가 항상 정확 (Toaster 자체 link OR notification:new full row OR resolveNotificationLink fallback)
             // ★ 하던 일 위에 얹히는 진입점은 새 탭 — 드롭다운·알림 페이지와 같은 규칙(2026-10-08 0-H).
             //   옛: navigate 로 보던 탭을 덮어써 쓰던 글을 잃었다. 미러 모드(폰)는 tabStore 가 종전대로 이동한다.
-            openNotificationTarget(toast.link || '/notifications');
+            const target = toast.link || '/notifications';
             dismiss(toast.id);  // dismiss 가 mark-read 까지 처리
+            // 다른 워크스페이스 — 전환하고 연다(푸시·앱 알림과 같은 문). 전환 실패면 종전대로 연다.
+            if (toast.foreignBusinessId) {
+              const sep = target.includes('?') ? '&' : '?';
+              void enterWorkspaceLink(`${target}${sep}${WS_PARAM}=${toast.foreignBusinessId}`, user, switchWorkspace)
+                .then((reloading) => { if (!reloading) openNotificationTarget(target); });
+              return;
+            }
+            openNotificationTarget(target);
           }}
           role="alert"
         >
@@ -624,6 +641,11 @@ export default function NotificationToaster() {
             <NotificationTypeIcon kind={toast.kind || TYPE_FALLBACK_KIND[toast.type]} size={16} />
           </ToastIcon>
           <ToastBody>
+            {toast.foreignBusinessId && (
+              <ToastWorkspace data-testid="toast-workspace">
+                {toast.workspaceName || t('toaster.otherWorkspace', '다른 워크스페이스')}
+              </ToastWorkspace>
+            )}
             <ToastTitle>{toast.title}</ToastTitle>
             {toast.body && <ToastDesc>{toast.body}</ToastDesc>}
           </ToastBody>
@@ -710,6 +732,16 @@ const ToastBody = styled.div`
   display: flex;
   flex-direction: column;
   gap: 2px;
+`;
+
+const ToastWorkspace = styled.div`
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: #0F766E;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.3;
 `;
 
 const ToastTitle = styled.div`
