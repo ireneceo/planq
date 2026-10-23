@@ -31,7 +31,8 @@
     "notificationSettings": "Notification settings",
     "workEnv": "Work environment",
     "wsBackup": "Workspace backup",
-    "payroll": "Payroll settings"
+    "payroll": "Payroll settings",
+    "signatures": "Signature management"
   },
   "dataExport": {
     "intro": "Export your personal items or the whole workspace as a ZIP. Files keep their originals, documents become HTML, and records such as tasks, chats, clients and invoices come as CSV (opens in Excel) plus JSON.",

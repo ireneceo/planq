@@ -2,6 +2,10 @@
 
 
 
+### 2026-10-23 방 8ea3ac54 — 서명 관리(받은·보낸 서명 + 설정 서명 관리 · canManageRows 권한 확대) — **VERDICT: PASS** (차단 0)
+- 설계 DESIGN-CHANGE ①~⑤ 반영 확인. 자체 33/33 재실행 · 독립 API 프로브(L1 가림 원문 0·검색 0·페이지·만료·LIKE 메타문자·소켓 신호만) · 실브라우저 21/21 · secrets 17/17 · displayname 2/2 · signauth · e2e signature·tenant 0 실패.
+- 비차단: ① 가린 행 signer_name 원문 → 가리거나 이유 적기 ② 요청자 ∧ 읽을 수 없는 문서 — 목록 can_manage false 인데 DELETE 200(종전 동작) → 한쪽으로 맞추기 ③ 지운 문서의 요청 행이 «비공개 문서» 로 보임 → «지운 문서» 구분 ④ 설계 문서 «business_id 없으면 400» 문구 → requestScope 옛 번들 동작과 맞추기.
+
 ### 2026-10-23 방 162d2b2b — 청구서 출처·고객 정보(a76b58b9) · 고객 중복·삭제 범위(2247c655) · 표시명(e9da84cb) — VERDICT: FAIL → 차단 1건 수정(8984e9ac)
 - 서버 판정 전부 통과(자체 API 49건 중 47 PASS, 2건 검사기 오탐). 차단: 새 칩 `font-size: 11px` 가 fontpx 하드 가드 위반 → 0.6875rem 로 고침, fontpx·uispec 초록, 재빌드 EXIT 0. Fable: «그 뒤 Fable 재호출 불필요(자체 검증으로 닫아도 됨)».
 - 비차단: ① 정리 스크립트가 자체 값 있는 중복을 지울 수 있음 → 8984e9ac 에서 건너뛰게 함 ② createProject `contacts`(이름만 새 연락처)가 client 없는 토큰 줄을 만든다 — 다음 묶음 ③ source-candidates extra limit 300 ④ 상세 sourcePost 에 vlevel 등 칸(비밀 아님).

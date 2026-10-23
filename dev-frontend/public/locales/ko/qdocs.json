@@ -24,7 +24,10 @@
   },
   "receivedSignatures": {
     "pageTitle": "받은 서명",
-    "backToInbox": "인박스로"
+    "backToInbox": "인박스로",
+    "pageTitle2": "받은·보낸 서명",
+    "tabReceived": "받은 서명",
+    "tabSent": "보낸 서명"
   },
   "brief": {
     "loading": "불러오는 중...",
@@ -96,7 +99,9 @@
       "rejected": "거절",
       "expired": "만료",
       "canceled": "취소됨",
-      "superseded": "새 버전으로 대체"
+      "superseded": "새 버전으로 대체",
+      "confirmed": "확인 완료",
+      "commented": "의견 남김"
     },
     "action": {
       "sign": "서명하기",
@@ -1331,5 +1336,39 @@
     "rejected": "서명 거절",
     "expired": "서명 만료",
     "progress": "서명 {{signed}}/{{total}}"
+  },
+  "sigManage": {
+    "filter": {
+      "open": "진행 중",
+      "all": "전체",
+      "signed": "서명 완료",
+      "rejected": "거절",
+      "canceled": "취소됨",
+      "expired": "만료"
+    },
+    "statusAxis": "상태",
+    "requester": "요청자",
+    "formerMember": "내보낸 멤버",
+    "includePast": "이전 회차 포함",
+    "searchPh": "문서 제목·받는 사람 검색",
+    "loadFailed": "목록을 불러오지 못했어요.",
+    "emptySent": "보낸 서명 요청이 없어요. 문서에서 [서명 받기] 로 보낼 수 있어요.",
+    "emptyManage": "조건에 맞는 서명 요청이 없어요.",
+    "hiddenDoc": "비공개 문서",
+    "hiddenHint": "읽을 수 없는 문서라 내용과 관리 버튼을 가렸어요",
+    "untitled": "제목 없음",
+    "kindSign": "서명 요청",
+    "kindConfirm": "확인 요청",
+    "requestedAt": "요청 {{date}}",
+    "closedRound": "닫힌 회차 · {{date}}",
+    "requestedBy": "요청 {{name}}",
+    "revise": "고쳐서 다시 보내기",
+    "reviseHint": "문서에서 [고쳐서 다시 보내기] 로 고칩니다",
+    "remind": "다시 보내기",
+    "cancel": "요청 취소",
+    "remindFailed": "다시 보내지 못했어요. 잠시 뒤 다시 시도해 주세요.",
+    "cancelFailed": "요청을 취소하지 못했어요. 이미 끝난 요청일 수 있어요.",
+    "cancelMessage": "«{{email}}» 의 요청을 취소합니다. 보낸 링크는 바로 닫히고, 요청 기록(보낸 사람·시각)은 남습니다.",
+    "manageLead": "이 워크스페이스에서 보낸 서명·확인 요청 전체예요. 누가 보냈는지, 받는 분이 서명했는지 보고 다시 보내거나 취소할 수 있어요. 고치려면 문서에서 [고쳐서 다시 보내기] 를 누르세요. 서명 기록은 증빙이라 지우지 않고, 볼 수 없는 문서(나만 보기 등)는 내용을 가립니다."
   }
 }

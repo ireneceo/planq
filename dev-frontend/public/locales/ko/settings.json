@@ -31,7 +31,8 @@
     "notificationSettings": "알림 설정",
     "workEnv": "업무 환경",
     "wsBackup": "워크스페이스 백업",
-    "payroll": "급여 설정"
+    "payroll": "급여 설정",
+    "signatures": "서명 관리"
   },
   "dataExport": {
     "intro": "내 개인 자료 또는 워크스페이스 자료를 ZIP 파일로 내보냅니다. 파일은 원본 그대로, 문서는 HTML로, 업무·대화·고객·청구 같은 기록은 엑셀에서 바로 열리는 CSV(와 JSON)로 저장됩니다.",

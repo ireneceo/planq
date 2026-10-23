@@ -1765,14 +1765,14 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
                     /* ★ 2026-09-21 (#423) — 새 소식·알림을 개인 메뉴에서 **뺐다.** Irene: *"개인 메뉴에서
                         새소식 알림 그냥 빼. 이상해."* 둘은 헤더의 스피커·종 아이콘이 여는 화면이다.
                         탭 이름은 config/navMenus.ts EXTRA_PAGE_LABELS 가 계속 준다. */
-                    { key: 'received-signatures', label: t('nav.receivedSignatures', '받은 서명') as string, count: signMenuCount, active: isActive('/signatures/received'), node: show('/signatures/received') && (
-                      <NavItem to="/signatures/received" $isCollapsed={isCollapsed} $active={isActive('/signatures/received')}
-                        title={isCollapsed ? t('nav.receivedSignatures', '받은 서명') : undefined}>
+                    { key: 'received-signatures', label: t('nav.signatures', '받은·보낸 서명') as string, count: signMenuCount, active: isActive('/signatures/received') || isActive('/signatures/sent'), node: show('/signatures/received') && (
+                      <NavItem to="/signatures/received" $isCollapsed={isCollapsed} $active={isActive('/signatures/received') || isActive('/signatures/sent')}
+                        title={isCollapsed ? t('nav.signatures', '받은·보낸 서명') : undefined}>
                         <NavIcon $isCollapsed={isCollapsed}>
                           {/* pen/signature icon */}
                           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/><path d="M2 2l7.586 7.586"/><circle cx="11" cy="11" r="2"/></svg>
                         </NavIcon>
-                        <NavLabel $isCollapsed={isCollapsed}>{t('nav.receivedSignatures', '받은 서명')}</NavLabel>
+                        <NavLabel $isCollapsed={isCollapsed}>{t('nav.signatures', '받은·보낸 서명')}</NavLabel>
                         {signMenuCount > 0 && (
                           <InboxBadge $collapsed={isCollapsed} data-testid="nav-badge-sign-received"
                             aria-label={`${t('nav.receivedSignatures', '받은 서명')} ${signMenuCount}`}>
@@ -1954,6 +1954,9 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
                           {t('nav.activityLog', { defaultValue: '활동 기록' })}
                         </AccordionItem>
                       )}
+                      {/* 서명 관리 — 워크스페이스의 서명·확인 요청 전체(요청자·상태). owner/admin(2026-10-23) */}
+                      {show('/business/settings/signatures') && (<AccordionItem to="/business/settings/signatures" data-testid="nav-signature-manage"
+                        $active={location.pathname.includes('/business/settings/signatures')}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/><path d="M2 2l7.586 7.586"/><circle cx="11" cy="11" r="2"/></svg>{t('nav.signatureManage', { defaultValue: '서명 관리' })}</AccordionItem>)}
                       {show('/business/settings/work-env') && (
                         <AccordionItem
                           to="/business/settings/work-env"
@@ -2365,6 +2368,8 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
                 {t('nav.activityLog', { defaultValue: '활동 기록' })}
               </SecondaryNavItem>
             )}
+            {show('/business/settings/signatures') && (<SecondaryNavItem $collapsed={secondaryCollapsed} to="/business/settings/signatures"
+              $active={location.pathname.includes('/business/settings/signatures')}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/><path d="M2 2l7.586 7.586"/><circle cx="11" cy="11" r="2"/></svg>{t('nav.signatureManage', { defaultValue: '서명 관리' })}</SecondaryNavItem>)}
             {show('/business/settings/work-env') && (
               <SecondaryNavItem $collapsed={secondaryCollapsed}
                 to="/business/settings/work-env"

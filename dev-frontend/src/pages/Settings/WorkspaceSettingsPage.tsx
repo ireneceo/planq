@@ -16,6 +16,7 @@ import PlanSettings from './PlanSettings';
 import PermissionsSettings from './PermissionsSettings';
 import MemberPermissionPanel from '../../components/Permissions/MemberPermissionPanel';
 import ActivityLogSection from './ActivityLogSection';
+import SignatureManageSection from './SignatureManageSection';
 import AttendanceAdminSettings from './AttendanceAdminSettings';   // #208 근태 팀 관리
 import BillingSettings from './BillingSettings';
 import EmailSettings from './EmailSettings';
@@ -66,7 +67,7 @@ import WorkspaceBrandsSection from '../../components/Brand/WorkspaceBrandsSectio
 import NameCardViewDrawer, { MemberCardButton } from '../../components/NameCard/NameCardViewDrawer';
 import { formatDay, formatDayTime } from '../../utils/dateFormat';
 
-type TabKey = 'payroll' | 'attendance' | 'brand' | 'legal' | 'language' | 'work-env' | 'storage' | 'plan' | 'permissions' | 'members' | 'cue' | 'billing' | 'email' | 'mail-accounts' | 'notifications' | 'work-flow' | 'data-export' | 'activity';   // activity — 팀원 활동 기록(owner 전용)
+type TabKey = 'payroll' | 'attendance' | 'brand' | 'legal' | 'language' | 'work-env' | 'storage' | 'plan' | 'permissions' | 'members' | 'cue' | 'billing' | 'email' | 'mail-accounts' | 'notifications' | 'work-flow' | 'data-export' | 'activity' | 'signatures';   // signatures — 서명 관리(owner/admin, 2026-10-23) · activity — 팀원 활동 기록(owner 전용)
 
 // ─────────────────────────────────────────────
 // Styled
@@ -533,7 +534,7 @@ export default function WorkspaceSettingsPage() {
     // ★ 새 탭을 만들면 **이 목록에도 넣어야 한다.** 여기 없으면 URL 이 맞아도
     //   아래 fallback 이 visibleTabs[0] 로 떨어뜨려 첫 탭이 열린다 — 화면은 멀쩡한데
     //   내가 만든 섹션만 영영 안 보인다(실측: activity 탭이 그렇게 죽어 있었다).
-    isMembersMode ? ['members'] : ['brand', 'legal', 'work-env', 'attendance', 'payroll', 'plan', 'permissions', 'billing', 'mail-accounts', 'email', 'storage', 'cue', 'notifications', 'data-export', 'activity']
+    isMembersMode ? ['members'] : ['brand', 'legal', 'work-env', 'attendance', 'payroll', 'plan', 'permissions', 'billing', 'mail-accounts', 'email', 'storage', 'cue', 'notifications', 'data-export', 'activity', 'signatures']
   ), [isMembersMode]);
 
   const tabFromUrl = useMemo<TabKey>(() => {
@@ -1010,6 +1011,7 @@ export default function WorkspaceSettingsPage() {
       case 'work-env':    return t('tabs.workEnv', '업무 환경') as string;
       case 'attendance':  return t('tabs.attendance', '근태 관리') as string;
       case 'payroll':     return t('tabs.payroll', '급여 설정') as string;
+      case 'signatures':  return t('tabs.signatures', '서명 관리') as string;
       case 'storage':     return t('tabs.storage') as string;
       case 'plan':        return t('tabs.plan') as string;
       case 'permissions': return t('tabs.permissions') as string;
@@ -1056,7 +1058,7 @@ export default function WorkspaceSettingsPage() {
       {error && <ErrorBanner>{error}</ErrorBanner>}
       {/* mail-accounts 탭은 멤버도 개인 메일을 관리할 수 있어 admin 안내 배너 숨김 */}
       {/* 근태 관리·활동 기록은 owner/admin 이 관리한다(서버 isManager) — admin 에게 «관리자만» 배너를 띄우면 거짓이다(#424). */}
-      {!isAdmin && tab !== 'mail-accounts' && !(isWsAdmin && (tab === 'attendance' || tab === 'activity' || tab === 'permissions'))
+      {!isAdmin && tab !== 'mail-accounts' && !(isWsAdmin && (tab === 'attendance' || tab === 'activity' || tab === 'signatures' || tab === 'permissions'))
         && <InfoBanner>{t('messages.adminRequired')}</InfoBanner>}
 
       {/* 탭 UI 완전 제거 — 사이드바 설정 Secondary 에서 직접 섹션 접근.
@@ -1370,6 +1372,8 @@ export default function WorkspaceSettingsPage() {
           <ActivityLogSection businessId={businessId} />
         </Card>
       )}
+      {/* 서명 관리 — 워크스페이스의 받은·보낸 서명 요청 전체(요청자·상태·회차). owner/admin(서버 owner_only 와 같은 술어) */}
+      {tab === 'signatures' && businessId && isWsAdmin && <SignatureManageSection businessId={businessId} />}
       {/* 급여 설정 — 기능 켜기·끄기 + 급여 담당자 한 곳(2026-10-20 Irene «관리자가 설정하고 관리하는 메뉴는 왜 없어?»).
           예전엔 업무 환경(켜기)과 권한(담당자)에 흩어져 찾을 수 없었다. 켜고 끄기·지정은 owner 만(docs/PAYROLL_DESIGN.md §2.1). */}
       {tab === 'payroll' && businessId && (

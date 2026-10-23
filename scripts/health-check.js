@@ -1330,6 +1330,32 @@ function defineSecretTests() {
     }
   });
 
+  // ★ 2026-10-23 서명 관리(docs/SIGNATURE_MANAGE_DESIGN.md) — 보낸 서명·서명 관리 목록은 멤버·관리자가 보는 응답이다.
+  //   서명 링크(token)는 «받는 사람으로 서명하는» 자격증명이라 받는 본인 응답(/received)에만 실린다. 새 두 목록에 실리면 안 된다.
+  test('secrets', '보낸 서명·서명 관리 목록에 서명 링크(token)가 실리지 않는다', async () => {
+    await setup();
+    const H = { Authorization: `Bearer ${ctx.token}`, 'X-Workspace-Id': String(ctx.businessId) };
+    const tok = require('crypto').randomBytes(32).toString('hex');
+    const db = (js) => require('child_process').execFileSync('node', ['-e', `require('dotenv').config();const {sequelize}=require('./config/database');(async()=>{${js};process.exit(0)})().catch(e=>{console.error(e.message);process.exit(1)});`], { cwd: '/opt/planq/dev-backend', encoding: 'utf8', timeout: 30000 });
+    const out = db(`const [r]=await sequelize.query("INSERT INTO posts (business_id,author_id,title,vlevel,status,kind,visibility,created_at,updated_at) VALUES (${ctx.businessId},${ctx.userId},'[health] sig secret','L3','published','doc','internal',NOW(),NOW())");`
+      + `const [s]=await sequelize.query("INSERT INTO signature_requests (entity_type,entity_id,kind,business_id,requester_user_id,party,signer_email,signer_name,token,status,expires_at,otp_attempts,signed_consent,reminder_count,created_at,updated_at) VALUES ('post',"+r+",'sign',${ctx.businessId},${ctx.userId},'them','health-sig@check-test.example.com','health','${tok}','sent',DATE_ADD(NOW(),INTERVAL 1 DAY),0,0,0,NOW(),NOW())");console.log(r+':'+s)`);
+    const [pid, sid] = out.trim().split('\n').pop().split(':').map(Number);
+    try {
+      const sent = await http('GET', `${BACKEND}/api/signatures/sent?business_id=${ctx.businessId}&limit=200`, { headers: H });
+      const man = await http('GET', `${BACKEND}/api/signatures/manage/${ctx.businessId}?limit=200`, { headers: H });
+      const raw = JSON.stringify(sent) + JSON.stringify(man);
+      if (raw.includes(tok)) throw new Error('보낸 서명·서명 관리 응답에 서명 링크 원문이 있다 — 멤버·관리자가 받는 사람으로 서명할 수 있다');
+      if (/"sign_url"|"token"/.test(raw)) throw new Error('응답에 token·sign_url 칸이 있다');
+      // 양성 대조군 — 그 행이 두 목록에 실제로 실렸는가(비어서 거짓 통과하지 않게)
+      const has = (r) => Array.isArray(r.data) && r.data.some((x) => x.id === sid);
+      if (!has(sent)) throw new Error('보낸 서명 목록에 시험 행이 없다 — 판정 불가');
+      if (!has(man)) throw new Error(`서명 관리 목록에 시험 행이 없다 — 판정 불가(${man.message || ''})`);
+      return '보낸 서명·서명 관리 — 서명 링크 0 · 시험 행 실림(대조군)';
+    } finally {
+      db(`await sequelize.query('DELETE FROM signature_requests WHERE id=${Number(sid) || 0}');await sequelize.query('DELETE FROM posts WHERE id=${Number(pid) || 0}')`);
+    }
+  });
+
   // ★ 2026-10-12 설문 v2(docs/SURVEY_V2_DESIGN.md §7) — 받는 사람의 개인 열쇠(survey_recipients.token)는 «고객으로 응답하는» 자격증명이다.
   //   회차 목록·응답 줄(표 상세) 어디에도 실리면 안 된다(담당자가 쥐면 «고객인 척 응답» 이 된다). SurveyRecipient.toJSON + serializeIssue 가 내린다.
   test('secrets', '설문 회차 목록·응답 줄에 개인 열쇠가 실리지 않는다', async () => {

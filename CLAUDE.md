@@ -1203,6 +1203,10 @@ Capacitor 가 `errorPath`(번들 안 로컬 파일)로 갈아끼우기 때문이
   [서명하기] 는 본인 이메일로 보낸다(`POST /api/sign/request-link`, 무인증 · 10분 5회 ·
   명단에 없어도 **같은 응답**). 옛 카드에 남은 `sign_url` 도 화면이 읽지 않는다.
 - 회귀: `node scripts/e2e/run.js --suite signature` (16검사 · 반증으로 5건 뒤집힘 확인).
+- **서명 목록은 세 벌이 한 조각을 쓴다**(2026-10-23, Irene «보낸서명 리스트는 어딨어? … 설정에서 받은/보낸서명 관리 … 보낸담당자») — 개인 «받은·보낸 서명»(`/signatures/received`·`/sent`) ·
+  설정 › 서명 관리(`/business/settings/signatures`, owner/admin). 응답 모양 `services/signatureList`(serialize·docAccessMap·hiddenRow) · API `routes/signatures_sent.js`.
+  취소·재알림·회차 닫기 권한은 **`canManageRows` 한 술어**(요청자 ∨ 편집자 ∨ owner/admin ∧ 읽기 가능) — 읽을 수 없는 문서의 행은 가린다(제목·이메일·IP 없음, 검색도 읽을 수 있는 문서 안에서만).
+  하드 삭제 없음(«삭제» = 요청 취소). 설계 `docs/SIGNATURE_MANAGE_DESIGN.md`.
 
 ## 복사(복제)는 **내용만 가져오고 이력은 두고 온다** (2026-09-22 박제)
 

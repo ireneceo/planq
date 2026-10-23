@@ -556,6 +556,12 @@ function ShellApp() {
             <MainLayout><ReceivedSignaturesPage /></MainLayout>
           </ProtectedRoute>
         } />
+        {/* 보낸 서명 — 같은 화면의 둘째 탭(2026-10-23, docs/SIGNATURE_MANAGE_DESIGN.md) */}
+        <Route path="/signatures/sent" element={
+          <ProtectedRoute>
+            <MainLayout><ReceivedSignaturesPage /></MainLayout>
+          </ProtectedRoute>
+        } />
 
         <Route path="/profile" element={
           <ProtectedRoute>

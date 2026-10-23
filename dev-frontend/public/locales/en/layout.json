@@ -195,7 +195,9 @@
     "lessMenus": "Show less",
     "moreBadge": "{{count}} in hidden menus",
     "payrollSettings": "Payroll settings",
-    "social": "Social publishing"
+    "social": "Social publishing",
+    "signatures": "Signatures",
+    "signatureManage": "Signature management"
   },
   "user": {
     "profile": "My Profile",

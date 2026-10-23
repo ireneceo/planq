@@ -282,11 +282,11 @@ function canReadPostFn() { return require('./postAccess').canReadPost; }
 function canEditPostFn() { return require('./postAccess').canEditPost; }
 /** sr → 그 문서. entity_type 이 'post' 가 아니면 null(옛 Document 서명은 멤버 라우트에서 404). */
 async function postOfRequest(sr) { return sr.entity_type === 'post' ? Post.findByPk(sr.entity_id) : null; }
-/** 취소·재발송 — 요청한 본인이거나 그 문서를 고칠 수 있는 사람. */
+/** 취소·재발송 — 판정은 services/signatureList.canManageRows 한 곳(회차 닫기도 같은 함수, 2026-10-23 Fable).
+ *  요청자 ∨ 문서를 고칠 수 있는 사람 ∨ (owner/admin ∧ 그 문서를 읽을 수 있음). */
 async function canManageRequest(req, sr) {
-  if (sr.requester_user_id === req.user.id) return true;
   const post = await postOfRequest(sr);
-  return !!post && canEditPostFn()(req.user.id, post, req.user.platform_role);
+  return require('./signatureList').canManageRows(req.user, post, [sr]);
 }
 
 /** 같은 워크스페이스 멤버(또는 소유자·플랫폼 관리자). 서명 멤버 라우트들이 같이 쓴다 —

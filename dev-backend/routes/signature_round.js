@@ -2,14 +2,16 @@
 //
 // 서버 마운트: app.use('/api', require('./routes/signature_round'))  ← signatures 와 같은 base. 꼬리 경로 고유(close-round).
 // 판정·처리는 services/signatureRound 한 곳. 여기는 권한(D6)만 본다:
-//   회차 어느 행의 요청자 ∨ 그 문서를 고칠 수 있는 사람(canEditPost) — 둘 다 그 워크스페이스 멤버 이상.
+//   그 워크스페이스 멤버 이상 ∧ services/signatureList.canManageRows(취소·재알림과 같은 한 술어 —
+//   회차 어느 행의 요청자 ∨ 문서를 고칠 수 있는 사람 ∨ owner/admin ∧ 문서를 읽을 수 있음).
 const express = require('express');
 const router = express.Router();
 const { Post } = require('../models');
 const { sequelize } = require('../config/database');
 const { authenticateToken } = require('../middleware/auth');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
-const { assertMember, canEditPostFn } = require('../services/signatureCore');
+const { assertMember } = require('../services/signatureCore');
+const { canManageRows } = require('../services/signatureList');
 const round = require('../services/signatureRound');
 
 // POST /api/posts/:id/signatures/close-round  body: { reason? }
@@ -22,8 +24,7 @@ router.post('/posts/:id/signatures/close-round', authenticateToken, async (req, 
       await t.rollback(); return errorResponse(res, 'forbidden', 403);
     }
     const rows = await round.roundRows(post.id, { transaction: t });
-    const isRequester = rows.some((r) => Number(r.requester_user_id) === Number(req.user.id));
-    if (!isRequester && !(await canEditPostFn()(req.user.id, post, req.user.platform_role))) {
+    if (!(await canManageRows(req.user, post, rows))) {
       await t.rollback(); return errorResponse(res, 'forbidden', 403);
     }
     const out = await round.closeRound({

@@ -76,7 +76,7 @@ export const WORKSPACE_MENUS: NavMenuEntry[] = [
   //   ★ 표에 올렸으니 EXTRA_PAGE_LABELS 에서는 뺀다 — 같은 값을 두 곳에 두면 갈라진다.
   // ★ 2026-09-21 (#423) — 위 두 줄(새 소식·알림)을 사이드바와 **같이** 뺐다. Irene: "개인 메뉴에서 새소식 알림 그냥 빼."
   //   헤더 아이콘으로만 연다. 탭 이름은 EXTRA_PAGE_LABELS 로 옮겼다(안 옮기면 탭이 «설정» 으로 떨어진다 — #414).
-  { key: 'received-signatures', to: '/signatures/received', labelKey: 'nav.receivedSignatures', section: 'personal', roles: ['owner', 'member'] },
+  { key: 'received-signatures', to: '/signatures/received', labelKey: 'nav.signatures', section: 'personal', roles: ['owner', 'member'] },
   { key: 'my-feedback', to: '/me/feedback', labelKey: 'nav.myFeedback', section: 'personal', roles: ['owner', 'member'] },
   // 0-E — 사이드바에 있는데 표에 없던 것(가드 navregistry 가 막는다)
   { key: 'attendance', to: '/attendance', labelKey: 'nav.attendance', section: 'personal', roles: ['owner', 'member'] },
@@ -94,6 +94,7 @@ export const WORKSPACE_MENUS: NavMenuEntry[] = [
   { key: 'ws-plan', to: '/business/settings/plan', labelKey: 'nav.plan', section: 'settings', roles: ['owner'] },
   { key: 'ws-attendance-admin', to: '/business/settings/attendance', labelKey: 'nav.attendanceAdmin', section: 'settings', roles: ['owner', 'admin'] },
   { key: 'ws-activity', to: '/business/settings/activity', labelKey: 'nav.activityLog', section: 'settings', roles: ['owner', 'admin'] },
+  { key: 'ws-signatures', to: '/business/settings/signatures', labelKey: 'nav.signatureManage', section: 'settings', roles: ['owner', 'admin'] },
   { key: 'ws-work-env', to: '/business/settings/work-env', labelKey: 'nav.workEnv', section: 'settings', roles: ['owner', 'member'] },
   { key: 'ws-permissions', to: '/business/settings/permissions', labelKey: 'nav.permissions', section: 'settings', roles: ['owner', 'member'] },
   { key: 'ws-billing', to: '/business/settings/billing', labelKey: 'nav.billing', section: 'settings', roles: ['owner'] },
@@ -214,7 +215,8 @@ const EXTRA_PAGE_LABELS: Array<[string, string]> = [
   ['/whats-new', 'nav.whatsNew'],
   ['/notifications', 'nav.notifications'],
   ['/me/work-settings', 'nav.myWorkEnv'],
-  ['/signatures/received', 'nav.receivedSignatures'],
+  ['/signatures/received', 'nav.signatures'],
+  ['/signatures/sent', 'nav.signatures'],
   // 인덱스 경로 — 하위로 리다이렉트되지만 탭은 이 경로로 먼저 만들어진다(짧은 순간 "설정" 이 보인다).
   ['/stats', 'nav.statsOverview'],
   ['/admin', 'nav.sectionAdmin'],

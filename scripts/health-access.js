@@ -689,8 +689,12 @@ const cases = {
     const proj = await M.Project.create({ business_id: w.biz.id, name: `[ha] p ${stamp}`, owner_user_id: w.O.id, visibility: 'workspace' }, { hooks: false });
     await M.ProjectMember.create({ project_id: proj.id, user_id: w.A.id, role: 'member' });
     const task = await M.Task.create({ business_id: w.biz.id, project_id: proj.id, title: `[ha] t ${stamp}`, created_by: w.O.id, assignee_id: w.A.id, request_by_user_id: w.O.id, status: 'in_progress' }, { hooks: false });
-    await makePost(w.biz, w.A, 'L4');
+    const sigPost = await makePost(w.biz, w.A, 'L4');
+    // 서명 관리 — 요청자 이름(2026-10-23). 사람(A)이 보낸 요청 한 건
+    await M.SignatureRequest.create({ entity_type: 'post', entity_id: sigPost.id, business_id: w.biz.id, requester_user_id: w.A.id,
+      signer_email: `ha-sig-${stamp}@check-test.example.com`, token: require('crypto').randomBytes(32).toString('hex'), status: 'sent', expires_at: new Date(Date.now() + 864e5) });
     const reqs = [
+      ['서명 관리', `/api/signatures/manage/${w.biz.id}`],
       ['프로젝트 상세', `/api/projects/${proj.id}`],
       ['프로젝트 업무', `/api/projects/${proj.id}/tasks`],
       ['업무 목록', `/api/tasks/by-business/${w.biz.id}`],

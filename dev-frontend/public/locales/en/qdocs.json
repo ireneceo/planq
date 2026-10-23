@@ -24,7 +24,10 @@
   },
   "receivedSignatures": {
     "pageTitle": "Received signatures",
-    "backToInbox": "Back to inbox"
+    "backToInbox": "Back to inbox",
+    "pageTitle2": "Signatures",
+    "tabReceived": "Received",
+    "tabSent": "Sent"
   },
   "brief": {
     "loading": "Loading...",
@@ -96,7 +99,9 @@
       "rejected": "Rejected",
       "expired": "Expired",
       "canceled": "Canceled",
-      "superseded": "Replaced by a newer version"
+      "superseded": "Replaced by a newer version",
+      "confirmed": "Confirmed",
+      "commented": "Commented"
     },
     "action": {
       "sign": "Sign",
@@ -1331,5 +1336,39 @@
     "rejected": "Signature declined",
     "expired": "Signature expired",
     "progress": "Signed {{signed}}/{{total}}"
+  },
+  "sigManage": {
+    "filter": {
+      "open": "In progress",
+      "all": "All",
+      "signed": "Signed",
+      "rejected": "Rejected",
+      "canceled": "Canceled",
+      "expired": "Expired"
+    },
+    "statusAxis": "Status",
+    "requester": "Requester",
+    "formerMember": "former member",
+    "includePast": "Include past rounds",
+    "searchPh": "Search document title or recipient",
+    "loadFailed": "Couldn't load the list.",
+    "emptySent": "No signature requests sent yet. Use [Request signature] on a document.",
+    "emptyManage": "No signature requests match.",
+    "hiddenDoc": "Private document",
+    "hiddenHint": "You can't read this document, so its details and actions are hidden",
+    "untitled": "Untitled",
+    "kindSign": "Signature",
+    "kindConfirm": "Confirmation",
+    "requestedAt": "Requested {{date}}",
+    "closedRound": "Closed round · {{date}}",
+    "requestedBy": "By {{name}}",
+    "revise": "Revise and resend",
+    "reviseHint": "Use [Revise and resend] on the document",
+    "remind": "Resend",
+    "cancel": "Cancel request",
+    "remindFailed": "Couldn't resend. Please try again shortly.",
+    "cancelFailed": "Couldn't cancel. The request may already be finished.",
+    "cancelMessage": "Cancel the request to \"{{email}}\". The link stops working right away; the record (who sent it and when) is kept.",
+    "manageLead": "All signature and confirmation requests sent from this workspace. See who sent each one and whether it was signed, then resend or cancel. To change a document, use [Revise and resend] on it. Signature records are evidence and are never deleted; requests on documents you cannot read (e.g. \"Only me\") are shown without details."
   }
 }

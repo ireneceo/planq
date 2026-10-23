@@ -33,16 +33,13 @@ const {
   PostAttachment, File,
 } = require('../models');
 const { sequelize } = require('../config/database');
-const { parseMaybeJson, buildEntitySnapshot, loadEntity, maybeUpdateEntityStatus, isPostSignatureLocked } = require('../services/signatureCore');
+const { parseMaybeJson, buildEntitySnapshot, loadEntity, maybeUpdateEntityStatus } = require('../services/signatureCore');
 const { authenticateToken } = require('../middleware/auth');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
 const { createAuditLog } = require('../middleware/audit');
 const { sendSignatureRequestEmail, sendSignatureOtpEmail } = require('../services/emailService');
-const { signedImagesOf } = require('../services/signatureItems');   // serialize 의 signature_image_count
+const { serialize, docAccessMap } = require('../services/signatureList');   // 서명 목록 세 벌이 같이 쓰는 응답 모양·문서 문
 const { signProgressByEntities } = require('../services/signedDocument');   // 받은 서명 «N명 중 M명»
-const { canReadPost, canEditPost } = require('../services/postAccess');     // 받은 서명 [문서 보기]·[문서에서 수정]
-const { assertMemberOrAbove } = require('../middleware/access_scope');
-const { roundRows, canCloseRows } = require('../services/signatureRound');
 // 서명·확인 공용 조각 (services/signatureCore.js). 판정을 두 벌로 두지 않기 위해 여기서만 가져온다.
 const {
   loadByToken, confirmLimiter, docConfirmEnabled, assertKind,
@@ -350,6 +347,9 @@ router.delete('/signatures/:id', authenticateToken, async (req, res, next) => {
       userId: req.user.id, businessId: sr.business_id, action: 'signature.cancel',
       targetType: 'SignatureRequest', targetId: sr.id,
     });
+    // 보낸 서명·서명 관리 목록이 취소를 바로 보도록(2026-10-23 — 생성·서명·거절·회차 닫기는 이미 쏜다)
+    const io = req.app.get('io');
+    if (io) io.to(`business:${sr.business_id}`).emit('inbox:refresh', { reason: 'signature_canceled', entity_type: sr.entity_type, entity_id: sr.entity_id });
     return successResponse(res, { canceled: true });
   } catch (err) { next(err); }
 });
@@ -382,6 +382,8 @@ router.post('/signatures/:id/reminder', authenticateToken, async (req, res, next
     createAuditLog({ userId: req.user.id, businessId: sr.business_id, action: 'signature.reminder', targetType: 'SignatureRequest', targetId: sr.id,
       newValue: { signer_email: sr.signer_email, entity_type: sr.entity_type, entity_id: sr.entity_id, reminder_count: sr.reminder_count } });
     if (!process.env.SMTP_HOST) console.log(`[DEV-SIGN-REMIND] ${sr.signer_email} ${signUrl}`);
+    const io = req.app.get('io');
+    if (io) io.to(`business:${sr.business_id}`).emit('inbox:refresh', { reason: 'signature_reminded', entity_type: sr.entity_type, entity_id: sr.entity_id });
     return successResponse(res, { sent: true, reminder_count: sr.reminder_count });
   } catch (err) { next(err); }
 });
@@ -424,19 +426,7 @@ router.get('/signatures/received', authenticateToken, async (req, res, next) => 
     //   (멤버 이상 ∧ canEditPost) + 서명 잠금. 읽을 수 없으면 편집 칸은 계산하지 않는다(그 문서 정보를 더 내지 않는다).
     //   edit_block: null(바로 편집) · signature_locked(문서의 [고쳐서 다시 보내기] 로 풀 수 있다) ·
     //               signature_signed(받는 분이 이미 서명 — 복사해 새로) · no_permission.
-    const isAdminUser = req.user.platform_role === 'platform_admin';
-    const docMap = new Map();
-    for (const p of posts) {
-      const can_read = !!(await canReadPost(req.user, p));
-      if (!can_read) { docMap.set(p.id, { can_read: false }); continue; }
-      const can_edit = !!(await assertMemberOrAbove(req.user.id, p.business_id, isAdminUser ? 'platform_admin' : null))
-        && !!(await canEditPost(req.user.id, p, req.user.platform_role));
-      let edit_block = can_edit ? null : 'no_permission';
-      if (can_edit && await isPostSignatureLocked(p.id)) {
-        edit_block = canCloseRows(await roundRows(p.id)) ? 'signature_locked' : 'signature_signed';
-      }
-      docMap.set(p.id, { can_read: true, can_edit, edit_block });
-    }
+    const docMap = await docAccessMap(req.user, posts);
 
     // workspace 라벨 보강 (cross-workspace 구분용)
     const bizIds = Array.from(new Set(rows.map(r => r.business_id)));
@@ -657,39 +647,4 @@ router.post('/sign/:token/sign', async (req, res, next) => {
 });
 
 // POST /api/sign/:token/reject — routes/signature_reject.js 로 옮겼다(2026-10-22 «수정 요청» 추가 · god-file 래칫)
-function serialize(sr, { withLink = false } = {}) {   // ★ token·sign_url 은 받는 사람 본인(received)만 — 진행표·생성 응답은 멤버 전원이 받는다 (0-C C-1)
-  return {
-    id: sr.id,
-    entity_type: sr.entity_type, entity_id: sr.entity_id,
-    kind: sr.kind || 'sign',   // #239 — 화면이 "서명 요청" vs "확인 요청" 을 구분하는 근거
-    business_id: sr.business_id,
-    requester_user_id: sr.requester_user_id,
-    signer_email: sr.signer_email, signer_name: sr.signer_name,
-    // 서명란 — 화면이 «몇 번 칸 · 보내는/받는 쪽» 을 그리고, 내 칸이면 [서명하기] 를 띄운다
-    slot: sr.slot ?? null, party: sr.party || 'them', signer_user_id: sr.signer_user_id ?? null,
-    ...(withLink ? { token: sr.token, sign_url: `${APP_URL}/sign/${sr.token}` } : {}),
-    status: sr.status,
-    viewed_at: sr.viewed_at,
-    confirmed_at: sr.confirmed_at,
-    comment: sr.comment,
-    comment_at: sr.comment_at,
-    otp_verified: !!sr.otp_verified_at,
-    signed_at: sr.signed_at,
-    signed_ip: sr.signed_ip,
-    signature_image_b64: sr.signature_image_b64 ? '(present)' : null,  // 진행 표 응답에서 이미지 본문 노출 X (대신 별도 GET)
-    // 채운 서명 칸 수 — 사인 + 회사 스탬프면 2. 화면이 GET …/image?i=0..n-1 로 다 그린다(첫 장만 그리면 «2개 했는데 1개»)
-    signature_image_count: signedImagesOf(sr).length,
-    // 서명 항목 — 앱 안 서명 창이 «칸 몇 개를 채울지» 를 안다. 채운 이미지(item_images)는 싣지 않는다(위와 같은 이유)
-    required_items: require('../services/signatureItems').publicRequiredItems(sr.required_items),
-    rejected_at: sr.rejected_at, rejected_reason: sr.rejected_reason,
-    rejected_kind: sr.rejected_kind || null,
-    superseded_at: sr.superseded_at || null,
-    note: sr.note,
-    expires_at: sr.expires_at,
-    reminder_count: sr.reminder_count,
-    last_reminder_at: sr.last_reminder_at,
-    created_at: sr.created_at,
-  };
-}
-
 module.exports = router;

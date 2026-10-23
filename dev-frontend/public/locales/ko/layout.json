@@ -195,7 +195,9 @@
     "lessMenus": "접기",
     "moreBadge": "숨긴 메뉴 {{count}}건",
     "payrollSettings": "급여 설정",
-    "social": "SNS 발송"
+    "social": "SNS 발송",
+    "signatures": "받은·보낸 서명",
+    "signatureManage": "서명 관리"
   },
   "user": {
     "profile": "내 프로필",

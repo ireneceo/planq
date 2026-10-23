@@ -116,6 +116,7 @@ export const APP_ROUTES: AppRouteDef[] = [
   { path: '/docs', element: <QDocsPage /> },
   { path: '/docs/brief/:id', element: <BriefViewerPage /> },
   { path: '/signatures/received', element: <ReceivedSignaturesPage /> },
+  { path: '/signatures/sent', element: <ReceivedSignaturesPage /> },
   { path: '/profile', element: <ProfilePage /> },
   { path: '/profile/integrations', element: <ProfileIntegrationsPage /> },
   { path: '/me/work-settings', element: <MyWorkSettingsPage /> },

@@ -625,6 +625,8 @@ app.use('/api/docs', require('./routes/docs'));
 app.use('/api/api-tokens', require('./routes/api_tokens'));   // #D-4 — MCP 외부 토큰 관리
 app.use('/api/agent', require('./routes/agent_oauth'));   // #439 AI 에이전트 연동 — 동의 화면·연결 목록/해제
 // 서명 — /api/posts/:id/signatures, /api/signatures/:id, /api/sign/:token/* (공개)
+// 보낸 서명·서명 관리 목록 — /api/signatures/sent · /api/signatures/manage/:businessId (2026-10-23, 꼬리 경로 고유 · signatures 보다 앞)
+app.use('/api', require('./routes/signatures_sent'));
 app.use('/api', require('./routes/signatures'));
 // 문서 외부 확인 — /api/sign/:token/confirm · /comment (공개). #239 로 signatures.js 에서 분리.
 app.use('/api', require('./routes/signature_confirm'));
