@@ -162,7 +162,8 @@
     "source": {
       "note": "본 청구서는 위 문서에 따른 청구입니다",
       "sharedPrefix": "공유",
-      "viewDoc": "문서 보기"
+      "viewDoc": "문서 보기",
+      "signed": "서명 완료"
     },
     "parties": {
       "from": "발신",
@@ -432,6 +433,7 @@
         "biz_address": "주소"
       },
       "saveOnClient": "고객 정보에 저장",
+      "saveOnClientFailed": "고객 정보에 저장하지 못했습니다(고객 수정 권한 필요). «고객 정보에 저장» 을 끄면 이 청구서에만 남깁니다.",
       "skip": "다음에 입력",
       "modeClient": "기존 고객",
       "modeExternal": "외부 직접 입력",
@@ -590,7 +592,9 @@
       "title": "출처 문서 (선택)",
       "empty": "이 고객의 체결된 계약/견적이 없습니다. 출처 없이 발행합니다.",
       "hint": "출처 선택 시 본문 항목·금액·분할 일정이 자동으로 채워집니다.",
-      "sharedOn": "공유 {{date}}"
+      "sharedOn": "공유 {{date}}",
+      "signedTag": "서명 완료",
+      "signingTag": "서명 {{signed}}/{{total}}"
     },
     "deliverOpts": {
       "title": "발송",

@@ -23,6 +23,7 @@ import {
 import PlanQSelect, { type PlanQSelectOption } from '../../components/Common/PlanQSelect';
 import { invoiceCapsOf, invoiceViewerOf } from './invoiceCaps';
 import { invoiceErrorText } from './invoiceErrors';
+import { putClientFields } from '../../services/sale';
 
 interface Props {
   open: boolean;
@@ -141,9 +142,13 @@ export default function NewInvoiceModal({ open, onClose, prefillSplit, prefillPo
   const [includePdf, setIncludePdf] = useState(true);
 
   // 누락 인라인 보완
+  //   ★ 키는 고객 칸 이름 그대로(biz_ceo) — missingClientBizFields 가 'biz_ceo' 를 내는데 화면이 'biz_representative' 를 찾아
+  //     대표자 칸이 한 번도 안 떴다(2026-10-23 «아무리 저장해도 저장 안 돼»).
   const [overrideBiz, setOverrideBiz] = useState<{
-    biz_name?: string; biz_tax_id?: string; biz_representative?: string; biz_address?: string;
+    biz_name?: string; biz_tax_id?: string; biz_ceo?: string; biz_address?: string;
   }>({});
+  // «고객 정보에 저장» — 체크돼 있으면 발행·임시저장 뒤 고객에 **비어 있던 칸만** 채운다(PUT /api/clients/:biz/:id, 감사 포함)
+  const [saveOnClient, setSaveOnClient] = useState(true);
 
   const [errors, setErrors] = useState<string[]>([]);
 
@@ -152,8 +157,8 @@ export default function NewInvoiceModal({ open, onClose, prefillSplit, prefillPo
     () => clientId ? clients.find(c => c.id === clientId) || null : null,
     [clientId, clients]
   );
+  // 고객에 비어 있는 칸 — 입력 칸은 이 목록으로 그린다(입력한 값으로 거르면 한 글자 치는 순간 칸이 사라진다)
   const missing = missingClientBizFields(client as any);
-  const missingAfterOverride = missing.filter(k => !(overrideBiz as any)[k]);
 
   const sourcePost = useMemo(
     () => sourcePostId ? sourceCandidates.find(p => p.id === sourcePostId) || null : null,
@@ -225,6 +230,11 @@ export default function NewInvoiceModal({ open, onClose, prefillSplit, prefillPo
         if (inv.client_id) {
           setRecipientMode('client');
           setClientId(inv.client_id);
+          // 청구서에 박아 둔 상호·사업자번호를 다시 보인다(안 채우면 다시 열 때 칸이 비어 «저장 안 됨» 으로 보인다)
+          setOverrideBiz({
+            ...(inv.recipient_business_name ? { biz_name: inv.recipient_business_name } : {}),
+            ...(inv.recipient_business_number ? { biz_tax_id: inv.recipient_business_number } : {}),
+          });
         } else {
           setRecipientMode('external');
           setExtName(inv.recipient_business_name || '');
@@ -359,7 +369,7 @@ export default function NewInvoiceModal({ open, onClose, prefillSplit, prefillPo
       setItems([{ id: 1, description: '', detail: '', quantity: 1, unit_price: 0 }]);
       setSplitOn(false);
       setTaxOn(false);
-      setOverrideBiz({});
+      setOverrideBiz({}); setSaveOnClient(true);
       setErrors([]);
       setSendChat(true); setSendEmail(true); setIncludePdf(true);
       setSourceCandidates([]); setConvFound(null);
@@ -405,10 +415,16 @@ export default function NewInvoiceModal({ open, onClose, prefillSplit, prefillPo
     if (projectId && next && !(next.projects || []).some(p => p.id === projectId)) { setProjectId(null); setProjectName(''); }
   };
 
-  const sourceOptions: PlanQSelectOption[] = useMemo(() => sourceCandidates.map(p => ({
-    value: p.id,
-    label: `[${p.category ? t(`kind.${p.category}`, { defaultValue: p.category }) : t('kind.document', { defaultValue: '문서' })}] ${p.title}`,
-  })), [sourceCandidates]);
+  // 서명 상태를 라벨에 붙인다 — 없으면 서명한 계약서가 복사본·초안과 구별되지 않아 «서명한 것이 없다» 로 보였다(2026-10-23)
+  const sourceOptions: PlanQSelectOption[] = useMemo(() => sourceCandidates.map(p => {
+    const signTag = !p.sign ? ''
+      : p.sign.state === 'completed' ? ` · ${t('newInvoice.source.signedTag', { defaultValue: '서명 완료' }) as string}`
+        : ` · ${t('newInvoice.source.signingTag', { defaultValue: '서명 {{signed}}/{{total}}', signed: p.sign.signed, total: p.sign.total }) as string}`;
+    return {
+      value: p.id,
+      label: `[${p.category ? t(`kind.${p.category}`, { defaultValue: p.category }) : t('kind.document', { defaultValue: '문서' })}] ${p.title}${signTag}`,
+    };
+  }), [sourceCandidates, t]);
 
   // ─── 액션 ───
   // 프로젝트가 정해지면 초안 재료를 가져온다. 실패는 조용히 무시 — 없으면 안 보여주면 그만이다.
@@ -541,6 +557,25 @@ export default function NewInvoiceModal({ open, onClose, prefillSplit, prefillPo
         })) : undefined,
         items: items.filter(it => it.description.trim()).map(it => ({ description: it.description, detail: it.detail.trim() || null, quantity: it.quantity, unit_price: it.unit_price })),
       };
+      // 누락 보완 값 → 고객 정보(비어 있던 칸만) — 청구서보다 **먼저** 저장한다.
+      //   실패하면 여기서 멈추고 알린다(뒤에 하면 청구서는 이미 생겨 다시 누르면 두 장이 된다). 체크를 끄면 청구서에만 남는다.
+      if (recipientMode === 'client' && clientId && client && saveOnClient) {
+        const patch: Record<string, string> = {};
+        for (const k of ['biz_name', 'biz_tax_id', 'biz_ceo', 'biz_address'] as const) {
+          const v = (overrideBiz[k] || '').trim();
+          if (v && missing.includes(k)) patch[k] = v;
+        }
+        if (Object.keys(patch).length) {
+          try {
+            await putClientFields(businessId, clientId, patch);
+          } catch {
+            setErrors([t('newInvoice.to.saveOnClientFailed', { defaultValue: '고객 정보에 저장하지 못했습니다(고객 수정 권한 필요). «고객 정보에 저장» 을 끄면 이 청구서에만 남깁니다.' }) as string]);
+            return;
+          }
+          setClients(prev => prev.map(c => c.id === clientId ? { ...c, ...patch } : c));
+          setOverrideBiz(o => ({ ...o, ...patch }));
+        }
+      }
       // 편집 모드 = draft 재저장(PUT), 신규 = 생성(POST)
       const created = isEdit
         ? await updateInvoice(businessId, editInvoiceId!, payload)
@@ -709,7 +744,7 @@ export default function NewInvoiceModal({ open, onClose, prefillSplit, prefillPo
                         </FromMetaRow>
                         <FromMetaRow>
                           <FromKey>{t('newInvoice.to.fields.biz_representative')}</FromKey>
-                          <FromVal>{overrideBiz.biz_representative || client.biz_ceo || <FieldHole>{t('newInvoice.misc.none')}</FieldHole>}</FromVal>
+                          <FromVal>{overrideBiz.biz_ceo || client.biz_ceo || <FieldHole>{t('newInvoice.misc.none')}</FieldHole>}</FromVal>
                         </FromMetaRow>
                         <FromMetaRow>
                           <FromKey>{t('newInvoice.to.fields.biz_address')}</FromKey>
@@ -717,7 +752,7 @@ export default function NewInvoiceModal({ open, onClose, prefillSplit, prefillPo
                         </FromMetaRow>
                       </FromMeta>
 
-                      {missingAfterOverride.length > 0 && (
+                      {missing.length > 0 && (
                         <MissingPanel>
                           <MissingHead>
                             <MissingIcon>!</MissingIcon>
@@ -725,25 +760,25 @@ export default function NewInvoiceModal({ open, onClose, prefillSplit, prefillPo
                           </MissingHead>
                           <MissingDesc>{t('newInvoice.to.missingDesc')}</MissingDesc>
                           <MissingFields>
-                            {missingAfterOverride.includes('biz_name') && (
+                            {missing.includes('biz_name') && (
                               <MissingField>
                                 <MissingLabel>{t('newInvoice.to.fields.biz_name')}</MissingLabel>
                                 <MissingInput value={overrideBiz.biz_name || ''} onChange={e => setOverrideBiz(o => ({ ...o, biz_name: e.target.value }))} />
                               </MissingField>
                             )}
-                            {missingAfterOverride.includes('biz_tax_id') && (
+                            {missing.includes('biz_tax_id') && (
                               <MissingField>
                                 <MissingLabel>{t('newInvoice.to.fields.biz_tax_id')}</MissingLabel>
                                 <MissingInput placeholder="000-00-00000" value={overrideBiz.biz_tax_id || ''} onChange={e => setOverrideBiz(o => ({ ...o, biz_tax_id: e.target.value }))} />
                               </MissingField>
                             )}
-                            {missingAfterOverride.includes('biz_representative') && (
+                            {missing.includes('biz_ceo') && (
                               <MissingField>
                                 <MissingLabel>{t('newInvoice.to.fields.biz_representative')}</MissingLabel>
-                                <MissingInput value={overrideBiz.biz_representative || ''} onChange={e => setOverrideBiz(o => ({ ...o, biz_representative: e.target.value }))} />
+                                <MissingInput value={overrideBiz.biz_ceo || ''} onChange={e => setOverrideBiz(o => ({ ...o, biz_ceo: e.target.value }))} />
                               </MissingField>
                             )}
-                            {missingAfterOverride.includes('biz_address') && (
+                            {missing.includes('biz_address') && (
                               <MissingField>
                                 <MissingLabel>{t('newInvoice.to.fields.biz_address')}</MissingLabel>
                                 <MissingInput value={overrideBiz.biz_address || ''} onChange={e => setOverrideBiz(o => ({ ...o, biz_address: e.target.value }))} />
@@ -751,7 +786,7 @@ export default function NewInvoiceModal({ open, onClose, prefillSplit, prefillPo
                             )}
                           </MissingFields>
                           <SaveOnClient>
-                            <SaveOnClientCheck type="checkbox" defaultChecked /> {t('newInvoice.to.saveOnClient')}
+                            <SaveOnClientCheck type="checkbox" checked={saveOnClient} onChange={e => setSaveOnClient(e.target.checked)} /> {t('newInvoice.to.saveOnClient')}
                           </SaveOnClient>
                         </MissingPanel>
                       )}

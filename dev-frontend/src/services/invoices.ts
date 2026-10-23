@@ -49,6 +49,10 @@ export interface ApiSourcePost {
   share_token: string | null;
   project_id: number | null;
   shared_at: string | null;
+  /** 서명 진행 — 서버 signProgressByEntities 한 벌(문서 목록과 같은 값). 서명 요청이 없으면 null */
+  sign?: { total: number; signed: number; state: 'completed' | 'in_progress' | 'rejected' | 'expired' } | null;
+  /** 고른 고객의 프로젝트 문서인가(출처 후보에서 먼저 나온다) */
+  for_client?: boolean;
 }
 
 export interface ApiClient {

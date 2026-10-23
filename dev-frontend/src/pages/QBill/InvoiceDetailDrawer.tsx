@@ -719,6 +719,9 @@ export default function InvoiceDetailDrawer({ invoice: initialInvoice, onClose, 
               </SourceKindBadge>
               <SourceText>
                 <SourceTitle>{sourcePost.title}</SourceTitle>
+                {sourcePost.sign?.state === 'completed' && (
+                  <SourceSigned>{t('detail.source.signed', { defaultValue: '서명 완료' })}</SourceSigned>
+                )}
                 <SourceMeta>
                   {t('detail.source.note', { defaultValue: '본 청구서는 위 문서에 따른 청구입니다' })}
                   {sourcePost.shared_at && ` · ${t('detail.source.sharedPrefix', { defaultValue: '공유' })} ${sourcePost.shared_at.split('T')[0]}`}
@@ -750,7 +753,7 @@ export default function InvoiceDetailDrawer({ invoice: initialInvoice, onClose, 
               {t('detail.parties.to')}
               {!client && <ExtBadge title={t('detail.parties.externalHint', { defaultValue: '내부 고객과 연동되지 않은 외부 청구' }) as string}>{t('detail.parties.external', { defaultValue: '외부' }) as string}</ExtBadge>}
             </PartyLabel>
-            <PartyName>{client?.biz_name || client?.display_name || client?.company_name || invoice.recipient_business_name || '—'}</PartyName>
+            <PartyName>{invoice.recipient_business_name || client?.biz_name || client?.display_name || client?.company_name || '—'}</PartyName>
             <PartyMeta>
               <MetaRow>
                 <MetaKey>{t('detail.parties.sendEmail', { defaultValue: '발송 이메일' }) as string}</MetaKey>
@@ -760,7 +763,7 @@ export default function InvoiceDetailDrawer({ invoice: initialInvoice, onClose, 
                 <>
                   <MetaRow>
                     <MetaKey>{t('detail.parties.taxId')}</MetaKey>
-                    <MetaVal>{client?.biz_tax_id || invoice.recipient_business_number || <Missing>{t('detail.parties.missingInfo')}</Missing>}</MetaVal>
+                    <MetaVal>{invoice.recipient_business_number || client?.biz_tax_id || <Missing>{t('detail.parties.missingInfo')}</Missing>}</MetaVal>
                   </MetaRow>
                   <MetaRow>
                     <MetaKey>{t('detail.parties.rep')}</MetaKey>
@@ -1795,6 +1798,10 @@ const SourceKindBadge = styled.span<{ $kind: string }>`
     '#991B1B'};
 `;
 const SourceText = styled.div`display: flex; flex-direction: column; gap: 2px; min-width: 0;`;
+const SourceSigned = styled.span`
+  display: inline-block; margin-top: 2px; padding: 1px 8px; border-radius: 999px;
+  font-size: 11px; font-weight: 600; color: #047857; background: #ECFDF5;
+`;
 const SourceTitle = styled.div`
   font-size: 0.8125rem; font-weight: 700; color: #0F172A;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;

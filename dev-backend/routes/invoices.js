@@ -862,7 +862,8 @@ router.post('/:businessId', authenticateToken, checkBusinessAccess, requireMenu(
         where: { id: Number(source_post_id), business_id: req.params.businessId },
         transaction: t,
       });
-      if (!sp) { await t.rollback(); return errorResponse(res, 'invalid source_post_id', 400); }
+      // 붙일 때 원본 읽기 권한(공유 규칙 5) — 못 읽는 문서(남의 «나만 보기» 등)는 없는 것과 같다
+      if (!sp || !(await require('../services/postAccess').canReadPost(req.user, sp))) { await t.rollback(); return errorResponse(res, 'invalid source_post_id', 400); }
       if (sp.status !== 'published') {
         await t.rollback();
         return errorResponse(res, 'source post must be published', 400);
@@ -1033,15 +1034,62 @@ router.post('/:businessId', authenticateToken, checkBusinessAccess, requireMenu(
 // /:id 라우트보다 위에 정의해야 매칭됨 (Express 등록 순서)
 router.get('/:businessId/source-candidates', authenticateToken, checkBusinessAccess, requireMenu('qbill', 'read'), async (req, res, next) => {
   try {
-    const where = { business_id: req.params.businessId, status: 'published' };
-    if (req.query.category) where.category = req.query.category;
-    const posts = await Post.findAll({
-      where,
-      attributes: ['id', 'category', 'title', 'status', 'project_id', 'created_at', 'shared_at'],
-      order: [['created_at', 'DESC']],
-      limit: 50,
-    });
-    successResponse(res, posts);
+    // ★ 2026-10-23 (Irene «출처문서에서 서명을 한 파일이 안 나와») — 옛 코드는 워크스페이스 최근 게시 50개만 줬다.
+    //   ① 서명한 문서가 50개 밖이면 못 골랐고 ② 고른 고객(client_id)을 무시했고 ③ 서명 여부가 없어 구별이 안 됐고
+    //   ④ 읽기 술어가 없어 남의 «나만 보기» 문서 제목이 나왔다(공유 규칙 5 «참조는 붙일 때 원본 읽기 권한»).
+    //   이제: 문서 목록과 같은 술어(postListWhereByLevel) · 서명 요청이 있는 문서는 개수 제한 없이 · 그 고객 프로젝트 문서 먼저 ·
+    //   서명 상태(sign)를 싣는다(문서 목록과 같은 signProgressByEntities).
+    if (req.businessRole === 'client') return errorResponse(res, 'forbidden', 403);
+    const businessId = Number(req.params.businessId);
+    const { getUserScope, postListWhereByLevel } = require('../middleware/access_scope');
+    const scope = await getUserScope(req.user.id, businessId, req.user.platform_role);
+    const base = { [Op.and]: [postListWhereByLevel(scope), { business_id: businessId, status: 'published' }] };
+    if (req.query.category) base[Op.and].push({ category: String(req.query.category) });
+    const attrs = ['id', 'business_id', 'category', 'title', 'status', 'project_id', 'created_at', 'shared_at'];
+    const { SignatureRequest } = require('../models');
+    const signedIds = (await SignatureRequest.findAll({
+      where: { business_id: businessId, entity_type: 'post' }, attributes: ['entity_id'], group: ['entity_id'], raw: true,
+    })).map((r) => r.entity_id);
+    // 고른 고객에 연결된 프로젝트 — Q sale 과 같은 술어(clientAccess.projectsByClient)
+    let clientProjectIds = [];
+    const clientId = Number(req.query.client_id || 0);
+    if (clientId) {
+      const cl = await Client.findOne({ where: { id: clientId, business_id: businessId }, attributes: ['id', 'user_id'] });
+      if (cl) {
+        const linked = await require('../services/clientAccess').projectsByClient(businessId, [cl]);
+        clientProjectIds = (linked.get(cl.id) || []).map((p) => p.id);
+      }
+    }
+    const extraOr = [
+      ...(signedIds.length ? [{ id: { [Op.in]: signedIds } }] : []),
+      ...(clientProjectIds.length ? [{ project_id: { [Op.in]: clientProjectIds } }] : []),
+    ];
+    const [recent, extra] = await Promise.all([
+      Post.findAll({ where: base, attributes: attrs, order: [['created_at', 'DESC']], limit: 50 }),
+      extraOr.length
+        ? Post.findAll({ where: { [Op.and]: [base, { [Op.or]: extraOr }] }, attributes: attrs, order: [['created_at', 'DESC']], limit: 300 })
+        : [],
+    ]);
+    const byId = new Map();
+    for (const p of [...extra, ...recent]) if (!byId.has(p.id)) byId.set(p.id, p.toJSON());
+    const items = [...byId.values()];
+    const sign = await require('../services/signedDocument').signProgressByEntities('post', items.map((p) => p.id));
+    for (const it of items) {
+      const reqs = sign.get(`${it.business_id}:${it.id}`);
+      if (reqs && reqs.length) {
+        const signed = reqs.filter((r) => r.status === 'signed').length;
+        const state = signed === reqs.length ? 'completed'
+          : reqs.some((r) => r.status === 'rejected') ? 'rejected'
+            : reqs.some((r) => r.status === 'expired') ? 'expired' : 'in_progress';
+        it.sign = { total: reqs.length, signed, state };
+      } else it.sign = null;
+      it.for_client = clientProjectIds.includes(it.project_id);
+      delete it.business_id;
+    }
+    // 그 고객 프로젝트 문서 → 서명 완료 → 나머지, 같은 묶음 안에서는 최신순
+    const rank = (it) => (it.for_client ? 0 : 2) + (it.sign && it.sign.state === 'completed' ? 0 : 1);
+    items.sort((x, y) => rank(x) - rank(y) || new Date(y.created_at) - new Date(x.created_at));
+    successResponse(res, items);
   } catch (error) { next(error); }
 });
 
@@ -1244,7 +1292,7 @@ router.get('/:businessId/:id', authenticateToken, attachWorkspaceScope(), requir
         { model: InvoiceInstallment, as: 'installments', separate: true, order: [['installment_no', 'ASC']] },
         { model: Client, attributes: ['id', 'display_name', 'company_name', 'biz_name', 'biz_tax_id', 'biz_ceo', 'biz_address', 'biz_address_en', 'biz_type', 'biz_item', 'is_business', 'country', 'tax_invoice_email', 'billing_contact_email', 'invite_email'] },
         { model: User, as: 'creator', attributes: ['id', 'name', 'name_localized'] },
-        { model: Post, as: 'sourcePost', attributes: ['id', 'category', 'title', 'status', 'share_token', 'project_id', 'shared_at'], required: false },
+        { model: Post, as: 'sourcePost', attributes: ['id', 'category', 'title', 'status', 'share_token', 'project_id', 'shared_at', 'vlevel', 'author_id', 'target_member_ids', 'security_level'], required: false },
       ]
     });
     if (!invoice) return errorResponse(res, 'Invoice not found', 404);
@@ -1263,6 +1311,17 @@ router.get('/:businessId/:id', authenticateToken, attachWorkspaceScope(), requir
     const rpDetail = resolveReceiptProfile(invoice, invoice.Client || null, priorDetail(invoice));
     payload.receipt_profile_effective = rpDetail.profile;
     payload.receipt_profile_source = rpDetail.source;
+    // 출처 문서 — 보여줄 때 보는 사람 기준(공유 규칙 5): 못 읽는 문서는 카드째 뺀다. 서명 상태는 문서 목록과 같은 함수.
+    if (payload.sourcePost && invoice.sourcePost) {
+      const readable = await require('../services/postAccess').canReadPost(req.user, { ...invoice.sourcePost.toJSON(), business_id: invoice.business_id });
+      if (!readable) payload.sourcePost = null;
+      else {
+        const reqs = (await require('../services/signedDocument').signProgressByEntities('post', [invoice.sourcePost.id]))
+          .get(`${invoice.business_id}:${invoice.sourcePost.id}`) || [];
+        const signed = reqs.filter((r) => r.status === 'signed').length;
+        payload.sourcePost.sign = reqs.length ? { total: reqs.length, signed, state: signed === reqs.length ? 'completed' : 'in_progress' } : null;
+      }
+    }
     successResponse(res, payload);
   } catch (error) {
     next(error);
@@ -1303,7 +1362,8 @@ router.put('/:businessId/:id', authenticateToken, checkBusinessAccess, requireMe
         where: { id: Number(source_post_id), business_id: req.params.businessId },
         transaction: t,
       });
-      if (!sp) { await t.rollback(); return errorResponse(res, 'invalid source_post_id', 400); }
+      // 붙일 때 원본 읽기 권한(공유 규칙 5) — 못 읽는 문서(남의 «나만 보기» 등)는 없는 것과 같다
+      if (!sp || !(await require('../services/postAccess').canReadPost(req.user, sp))) { await t.rollback(); return errorResponse(res, 'invalid source_post_id', 400); }
       if (sp.status !== 'published') { await t.rollback(); return errorResponse(res, 'source post must be published', 400); }
       sourcePostId = sp.id;
     }

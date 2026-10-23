@@ -162,7 +162,8 @@
     "source": {
       "note": "This invoice is billed per the document above",
       "sharedPrefix": "Shared",
-      "viewDoc": "View document"
+      "viewDoc": "View document",
+      "signed": "Signed"
     },
     "parties": {
       "from": "From",
@@ -432,6 +433,7 @@
         "biz_address": "Address"
       },
       "saveOnClient": "Save on client",
+      "saveOnClientFailed": "Couldn't save to the client (you need permission to edit clients). Turn off «Save on client» to keep it on this invoice only.",
       "skip": "Skip for now",
       "modeClient": "Existing client",
       "modeExternal": "External (direct)",
@@ -590,7 +592,9 @@
       "title": "Source document (optional)",
       "empty": "This client has no signed contract or quote. The invoice will be issued without a source.",
       "hint": "Choosing a source fills in the items, amounts and installment schedule.",
-      "sharedOn": "Shared {{date}}"
+      "sharedOn": "Shared {{date}}",
+      "signedTag": "Signed",
+      "signingTag": "Signed {{signed}}/{{total}}"
     },
     "deliverOpts": {
       "title": "Delivery",
