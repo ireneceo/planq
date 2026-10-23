@@ -2282,12 +2282,20 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId }) => {
               {/* 서명 잠금이면 [고쳐서 다시 보내기] 가 있는 서명 진행을 편집 화면에도 꺼낸다 — 안내가 «아래 서명 진행» 을
                   가리키는데 그 칸이 보기 화면에만 있어 편집 중에는 누를 곳이 없었다(2026-10-22 Irene). 닫으면 잠금이 풀려
                   쓰던 글을 바로 저장한다. */}
-              {signLocked && detail && (
+              {/* 잠금이 아니어도 «다시 보내기» 차례면(회차를 닫고 고치는 중) 같은 칸이 [다시 보내기] 로 보인다 — 고친 뒤 무엇을
+                  누를지 화면이 말한다(2026-10-23). 누르면 쓰던 글을 저장하고 보기로 나가 서명 받기 창을 연다(편집기 내용과
+                  창이 읽는 문서가 엇갈리지 않게). */}
+              {detail && (
                 <SignatureProgressSection
                   postId={detail.id}
                   inferredKind={inferKindFromTitle(detail.title, detail.category)}
                   reloadTrigger={signReloadKey}
-                  onAddMore={() => setSignOpen(true)}
+                  onlyResend={!signLocked}
+                  onAddMore={() => {
+                    // 잠금 중(서명 추가)은 종전대로 창만 연다 — 잠긴 동안 쓴 글은 저장되지 않으므로 편집을 나가면 사라진다
+                    if (signLocked) { setSignOpen(true); return; }
+                    void (async () => { if (await leaveEditSession()) setSignOpen(true); })();
+                  }}
                   onChanged={() => setSignReloadKey(k => k + 1)}
                   onRoundClosed={() => {
                     setSignReloadKey(k => k + 1);

@@ -314,7 +314,12 @@
     },
     "expand": "서명 진행 펼치기",
     "collapse": "서명 진행 접기",
-    "summary": "{{signed}}/{{total}} 서명"
+    "summary": "{{signed}}/{{total}} 서명",
+    "resendRound": {
+      "button": "다시 보내기",
+      "title": "고친 문서를 다시 보내세요",
+      "desc": "누르면 지난번 받는 분 정보({{names}})가 그대로 들어간 서명 받기 창이 열려요. 바꿀 것만 고치면 됩니다."
+    }
   },
   "publicSign": {
     "loading": "문서 로드 중...",
@@ -524,7 +529,9 @@
       "hint": "지금 내용으로 고정되어 서명 링크에서 열립니다. 이후 원본을 고쳐도 받는 분이 보는 것은 바뀌지 않습니다."
     },
     "slotPickPh": "멤버·고객 검색해 선택 — 또는 아래에 직접 입력",
-    "doneInApp": "보내는 쪽 {{n}}명은 메일 없이 이 문서에서 서명합니다(확인 필요에도 뜹니다)"
+    "doneInApp": "보내는 쪽 {{n}}명은 메일 없이 이 문서에서 서명합니다(확인 필요에도 뜹니다)",
+    "resendPrefilled": "지난번 받는 분 정보를 그대로 넣었어요. 바꿀 것만 고치세요.",
+    "resendNoteDefault": "요청하신 수정 사항을 반영했습니다."
   },
   "ai": {
     "btn": "AI",
@@ -1093,7 +1100,12 @@
     "replace": "다른 이미지로",
     "pick": "이미지 고르기",
     "nthShort": "{{n}} / {{total}}",
-    "dropHint": "이미지를 여기로 끌어다 놓거나 눌러서 고르세요"
+    "dropHint": "이미지를 여기로 끌어다 놓거나 눌러서 고르세요",
+    "fromFiles": "PlanQ 파일에서 고르기",
+    "fromFilesPh": "이미지 파일 이름으로 검색",
+    "fromFilesLoading": "불러오는 중…",
+    "fromFilesEmpty": "PNG·JPG·WEBP 이미지 파일이 없어요.",
+    "fileFetchFailed": "파일을 가져오지 못했어요. 다시 해 보세요."
   },
   "links": {
     "saveFailed": "문서는 저장했지만 연결 문서를 저장하지 못했습니다. 다시 시도해 주세요."

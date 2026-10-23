@@ -15,6 +15,7 @@ import ConfirmDialog from '../Common/ConfirmDialog';
 import ImageLightbox from '../Common/ImageLightbox';
 import { apiFetch, useAuth } from '../../contexts/AuthContext';
 import InternalSignModal from './InternalSignModal';
+import { currentSignatureRows, pastSignatureRounds, resendSourceRound } from '../../utils/signatureRounds';
 
 interface Props {
   postId: number;
@@ -28,9 +29,11 @@ interface Props {
   onRoundClosed?: () => void;
   /** 취소·모두 취소·우리 쪽 서명·새로고침 — 잠금(편집 가능 여부)이 바뀔 수 있다. 부르는 쪽이 서명본을 다시 읽는다 */
   onChanged?: () => void;
+  /** 편집 화면 — 잠금이 아니면 «다시 보내기» 차례(지금 회차 0 · 닫힌 회차 있음)일 때만 보인다 */
+  onlyResend?: boolean;
 }
 
-const SignatureProgressSection: React.FC<Props> = ({ postId, inferredKind, reloadTrigger, onAddMore, onRoundClosed, onChanged }) => {
+const SignatureProgressSection: React.FC<Props> = ({ postId, inferredKind, reloadTrigger, onAddMore, onRoundClosed, onChanged, onlyResend }) => {
   const { t } = useTranslation('qdocs');
   const { formatDateTime, formatTimeAgo } = useTimeFormat();
   const navigate = useNavigate();
@@ -134,18 +137,9 @@ const SignatureProgressSection: React.FC<Props> = ({ postId, inferredKind, reloa
   }, [actionMenuId]);
 
   // 지금 회차만 — 취소·닫힌 회차(superseded)는 표에서 뺀다(닫힌 회차는 아래 «이전 회차» 에 묶어 보인다)
-  const visible = useMemo(() => (list || []).filter(s => s.status !== 'canceled' && s.status !== 'superseded'), [list]);
-  // 이전 회차 — 같은 superseded_at = 같은 회차(서버가 한 번에 같은 시각으로 닫는다). 최근 회차가 위
-  const pastRounds = useMemo(() => {
-    const m = new Map<string, SignatureRequest[]>();
-    for (const sr of list || []) {
-      if (sr.status !== 'superseded') continue;
-      const k = sr.superseded_at || '';
-      if (!m.has(k)) m.set(k, []);
-      m.get(k)!.push(sr);
-    }
-    return [...m.entries()].sort((a, b) => (a[0] < b[0] ? 1 : -1));
-  }, [list]);
+  const visible = useMemo(() => currentSignatureRows(list), [list]);
+  // 이전 회차 — 같은 superseded_at = 같은 회차(utils/signatureRounds 한 벌 — 다시 보내기 프리필도 같은 묶음). 최근 회차가 위
+  const pastRounds = useMemo(() => pastSignatureRounds(list), [list]);
   // 닫을 수 있는가 — 서버 canCloseRows 와 같은 판정(서명 요청 행 ≥1 ∧ 받는 쪽 서명 0). 확인 요청은 회차 밖
   const roundRows = useMemo(() => visible.filter(s => (s.kind || 'sign') === 'sign'), [visible]);
   const canCloseRound = roundRows.length > 0 && !roundRows.some(s => (s.party || 'them') === 'them' && s.status === 'signed');
@@ -161,7 +155,10 @@ const SignatureProgressSection: React.FC<Props> = ({ postId, inferredKind, reloa
   const anyRejected = visible.some(s => s.status === 'rejected');
   const allFinal = visible.length > 0 && visible.every(s => s.status === 'signed' || s.status === 'rejected' || s.status === 'expired');
   const signedCount = visible.filter(s => s.status === 'signed').length;
-  const expanded = userExpanded ?? (!!revision || !!closeErr || visible.some(canSignNow));
+  // 고쳐서 다시 보낼 차례 — 회차를 닫았고 아직 새로 안 보냈다. 서명 받기 창이 이 회차의 받는 분을 그대로 채운다(같은 함수).
+  //   2026-10-23 Irene «UI/UX 순서가 아예 잘못 … 수정 후 재발송이면 정보 넣었던 거 그대로 있어야»
+  const resendRound = useMemo(() => resendSourceRound(list), [list]);
+  const expanded = userExpanded ?? (!!revision || !!closeErr || !!resendRound || visible.some(canSignNow));
   // 잠금이 바뀔 수 있는 동작 뒤 — 부르는 쪽이 있으면 그쪽이 reloadTrigger 로 표까지 다시 읽게 한다(두 번 읽지 않게)
   const afterChange = async () => { if (onChanged) onChanged(); else await reload(); };
 
@@ -237,6 +234,7 @@ const SignatureProgressSection: React.FC<Props> = ({ postId, inferredKind, reloa
   if (loading && !list) return null;
 
   if (!list || list.length === 0) return null; // 발급 전: 표시 X (헤더 "서명 받기" 버튼만)
+  if (onlyResend && !resendRound) return null;
 
   return (
     <Section>
@@ -262,9 +260,11 @@ const SignatureProgressSection: React.FC<Props> = ({ postId, inferredKind, reloa
           <ReloadBtn type="button" onClick={() => { void afterChange(); }} title={t('signProgress.reload', '새로고침') as string} aria-label={t('signProgress.reload', '새로고침') as string}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
           </ReloadBtn>
-          <AddMoreBtn type="button" onClick={onAddMore}>
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><path d="M12 5v14M5 12h14"/></svg>
-            {t('signProgress.addMore', '서명 추가')}
+          <AddMoreBtn type="button" onClick={onAddMore} data-testid={resendRound ? 'sign-resend' : 'sign-add-more'}>
+            {resendRound
+              ? <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+              : <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><path d="M12 5v14M5 12h14"/></svg>}
+            {resendRound ? t('signProgress.resendRound.button', '다시 보내기') : t('signProgress.addMore', '서명 추가')}
           </AddMoreBtn>
         </HeaderActions>
       </SectionHeader>
@@ -285,6 +285,24 @@ const SignatureProgressSection: React.FC<Props> = ({ postId, inferredKind, reloa
                 ? t('signProgress.followup.toInvoice', '이 견적으로 청구서를 발행하세요')
                 : t('signProgress.followup.toSplit', '계약 금액 기반 분할 청구 일정을 만들어보세요')}
             </FollowupDesc>
+          </FollowupBody>
+          <FollowupArrow>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+          </FollowupArrow>
+        </FollowupCard>
+      )}
+
+      {/* 다시 보내기 카드 (2026-10-23) — 회차를 닫은 뒤 다음 할 일. 누르면 지난번 받는 분이 채워진 서명 받기 창 */}
+      {resendRound && (
+        <FollowupCard $tone="ok" type="button" onClick={onAddMore} data-testid="sign-resend-card">
+          <FollowupIcon $tone="ok">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+          </FollowupIcon>
+          <FollowupBody>
+            <FollowupTitle>{t('signProgress.resendRound.title', '고친 문서를 다시 보내세요')}</FollowupTitle>
+            <FollowupDesc>{t('signProgress.resendRound.desc', '누르면 지난번 받는 분 정보({{names}})가 그대로 들어간 서명 받기 창이 열려요. 바꿀 것만 고치면 됩니다.', {
+              names: resendRound.filter(r => (r.party || 'them') === 'them').map(r => r.signer_name || r.signer_email).join(', ') || '-',
+            })}</FollowupDesc>
           </FollowupBody>
           <FollowupArrow>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
@@ -322,7 +340,7 @@ const SignatureProgressSection: React.FC<Props> = ({ postId, inferredKind, reloa
       )}
 
       {/* 진행 표 */}
-      <Table>
+      {visible.length > 0 && <Table>
         <THead>
           <Th style={{ width: '36%' }}>{t('signProgress.col.signer', '서명자')}</Th>
           <Th style={{ width: '18%' }}>{t('signProgress.col.status', '상태')}</Th>
@@ -426,7 +444,7 @@ const SignatureProgressSection: React.FC<Props> = ({ postId, inferredKind, reloa
             </Tr>
           ))}
         </TBody>
-      </Table>
+      </Table>}
 
       {/* 이전 회차 (D7) — 닫힌 회차는 기록으로만. 누가·언제·무엇(서명/수정 요청/거절)·사유 */}
       {pastRounds.length > 0 && (

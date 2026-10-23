@@ -7,6 +7,9 @@ import React, { useCallback, useEffect, useImperativeHandle, useRef, useState } 
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import SignaturePad, { type SignaturePadHandle } from './SignaturePad';
+import PlanQSelect, { type PlanQSelectOption } from './PlanQSelect';
+import { apiFetch } from '../../contexts/AuthContext';
+import { fetchWorkspaceFiles, formatBytes, type ProjectFile } from '../../services/files';
 
 export interface SignatureItemValue { mode: 'draw' | 'image'; b64: string }
 export interface SignatureItemsHandle { getItems: () => SignatureItemValue[] | null }
@@ -17,6 +20,9 @@ interface Props {
   captions?: (string | null)[] | null;
   disabled?: boolean;
   onReadyChange?: (ready: boolean) => void;
+  /** 있으면 «PlanQ 파일에서 고르기» 를 보인다(2026-10-23 Irene «우리 플랜큐 파일에서는 왜 검색 못해?»).
+   *  로그인한 멤버의 앱 안 서명만 넘긴다 — 공개 서명 페이지(무인증 외부 서명자)는 워크스페이스 파일을 볼 수 없다. */
+  businessId?: number | null;
 }
 
 // 2026-10-21 Irene «서명 이미지 넣는게 너무 느려 … 큰 이미지를 누가 넣어도 제대로 줄여줘»
@@ -81,7 +87,7 @@ async function readImage(file: File): Promise<string> {
 
 interface ItemState { mode: 'draw' | 'image'; drawn: boolean; image: string | null; error: string | null; reading?: boolean }
 
-const SignatureItemsInput = React.forwardRef<SignatureItemsHandle, Props>(({ count, captions, disabled, onReadyChange }, ref) => {
+const SignatureItemsInput = React.forwardRef<SignatureItemsHandle, Props>(({ count, captions, disabled, onReadyChange, businessId }, ref) => {
   const { t } = useTranslation('qdocs');
   const n = Math.max(1, count || 1);
   const [items, setItems] = useState<ItemState[]>(() => Array.from({ length: n }, () => ({ mode: 'draw', drawn: false, image: null, error: null })));
@@ -143,6 +149,38 @@ const SignatureItemsInput = React.forwardRef<SignatureItemsHandle, Props>(({ cou
     },
   });
 
+  // PlanQ 파일 — 처음 열 때 한 번 받는다. 첨부 칸(AttachmentField)과 같은 목록(direct 행 = 같은 다운로드 문·같은 읽기 권한)에서
+  //   서명에 쓸 수 있는 이미지 형식만. 고른 파일은 내려받아 pick() 에 그대로 넣는다(형식·크기·축소 검사 한 벌).
+  //   서명은 이미지 바이트를 복사해 올라간다 — 원본 파일과 연결되지 않는다.
+  const [wsOpen, setWsOpen] = useState<number | null>(null);
+  const [wsFiles, setWsFiles] = useState<ProjectFile[] | null>(null);
+  const wsLoading = useRef(false);
+  const openWs = (i: number) => {
+    setWsOpen((v) => (v === i ? null : i));
+    if (wsFiles || wsLoading.current || !businessId) return;
+    wsLoading.current = true;
+    fetchWorkspaceFiles(businessId)
+      .then((fs) => setWsFiles(fs.filter((f) => f.source === 'direct' && ACCEPT.split(',').includes(String(f.mime_type || '')))))
+      .catch(() => setWsFiles([]))
+      .finally(() => { wsLoading.current = false; });
+  };
+  const wsOptions: PlanQSelectOption[] = (wsFiles || []).map((f) => ({ value: f.id, label: `${f.file_name} (${formatBytes(f.file_size)})` }));
+  const pickWs = async (i: number, id: string) => {
+    const f = (wsFiles || []).find((x) => x.id === id);
+    if (!f) return;
+    setWsOpen(null);
+    patch(i, { mode: 'image', reading: true, error: null });
+    try {
+      const r = await apiFetch(f.download_url);
+      if (!r.ok) throw new Error('fetch_failed');
+      const blob = await r.blob();
+      patch(i, { reading: false });
+      await pick(i, new File([blob], f.file_name, { type: f.mime_type || blob.type }));
+    } catch {
+      patch(i, { reading: false, error: t('signItems.fileFetchFailed', { defaultValue: '파일을 가져오지 못했어요. 다시 해 보세요.' }) as string });
+    }
+  };
+
   const pick = async (i: number, file: File | undefined) => {
     if (!file) return;
     if (!ACCEPT.split(',').includes(file.type)) { patch(i, { error: t('signItems.badType', { defaultValue: 'PNG·JPG·WEBP 이미지만 올릴 수 있어요.' }) as string }); return; }
@@ -203,9 +241,33 @@ const SignatureItemsInput = React.forwardRef<SignatureItemsHandle, Props>(({ cou
               <input ref={(el) => { files.current[i] = el; }} type="file" accept={ACCEPT} hidden
                 data-testid={`sign-item-${i}-file`}
                 onChange={(e) => { void pick(i, e.target.files?.[0]); e.target.value = ''; }} />
-              <PickBtn type="button" disabled={disabled || it.reading} onClick={() => files.current[i]?.click()}>
-                {it.image ? t('signItems.replace', { defaultValue: '다른 이미지로' }) : t('signItems.pick', { defaultValue: '이미지 고르기' })}
-              </PickBtn>
+              <BtnRow>
+                <PickBtn type="button" disabled={disabled || it.reading} onClick={() => files.current[i]?.click()}>
+                  {it.image ? t('signItems.replace', { defaultValue: '다른 이미지로' }) : t('signItems.pick', { defaultValue: '이미지 고르기' })}
+                </PickBtn>
+                {businessId ? (
+                  <PickBtn type="button" disabled={disabled || it.reading} aria-expanded={wsOpen === i}
+                    data-testid={`sign-item-${i}-from-files`} onClick={() => openWs(i)}>
+                    {t('signItems.fromFiles', { defaultValue: 'PlanQ 파일에서 고르기' })}
+                  </PickBtn>
+                ) : null}
+              </BtnRow>
+              {businessId && wsOpen === i && (
+                <WsBox data-testid={`sign-item-${i}-files`}>
+                  <PlanQSelect
+                    inputId={`sign-item-${i}-file-search`}
+                    size="sm" isSearchable autoFocus openMenuOnFocus
+                    isLoading={wsFiles === null}
+                    placeholder={t('signItems.fromFilesPh', { defaultValue: '이미지 파일 이름으로 검색' }) as string}
+                    noOptionsMessage={() => (wsFiles === null
+                      ? t('signItems.fromFilesLoading', { defaultValue: '불러오는 중…' })
+                      : t('signItems.fromFilesEmpty', { defaultValue: 'PNG·JPG·WEBP 이미지 파일이 없어요.' })) as string}
+                    options={wsOptions}
+                    value={null}
+                    onChange={(o) => { if (o) void pickWs(i, String((o as PlanQSelectOption).value)); }}
+                  />
+                </WsBox>
+              )}
             </ImageBox>
           )}
           {it.error && <Err role="alert">{it.error}</Err>}
@@ -258,6 +320,8 @@ const DropZone = styled.div<{ $drag: boolean }>`
   /* 폰에는 끌어다 놓기가 없다 — 고르기 버튼만 남긴다(폭으로 가른다: 헤드리스는 hover:none 이라 그 분기는 못 잰다) */
   @media (max-width: 640px) { display: none; }
 `;
+const BtnRow = styled.div`display: flex; flex-wrap: wrap; gap: 8px;`;
+const WsBox = styled.div`width: min(100%, 420px);`;
 const PickBtn = styled.button`
   height: 36px; padding: 0 14px; border: 1px solid #CBD5E1; border-radius: 8px; background: #fff; color: #0F172A;
   font-size: 0.8125rem; font-weight: 600; cursor: pointer;

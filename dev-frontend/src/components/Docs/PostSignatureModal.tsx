@@ -9,6 +9,7 @@ import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { requestSignatures, type PostDetail, type SignatureRequest } from '../../services/posts';
+import { useResendPrefill } from './useResendPrefill';
 import SingleDateField from '../Common/SingleDateField';
 import { listProjectConversations, listBusinessConversations, listBusinessMembers, type ApiConversation } from '../../services/qtalk';
 import { listClientsForBilling, type ApiClientLite } from '../../services/invoices';
@@ -97,6 +98,13 @@ const PostSignatureModal: React.FC<Props> = ({ open, onClose, post, onSent, onPo
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<{ count: number; inApp: number; viaChat: boolean; convId: number | null } | null>(null);
   const firstEmailRef = useRef<HTMLInputElement | null>(null);
+  // 고쳐서 다시 보내기 — 지난 회차 받는 분을 그대로 채운다(useResendPrefill, 2026-10-23)
+  const [resendRows, setResendRows] = useResendPrefill({
+    open, postId: post.id,
+    defaultNote: t('sign.resendNoteDefault', { defaultValue: '요청하신 수정 사항을 반영했습니다.' }) as string,
+    setKind, setNote, setSlotMap,
+    setSigners: (rows) => setSigners(rows.map((r) => ({ id: nextRowId++, ...r }))),
+  });
 
   useBodyScrollLock(open);
   useEscapeStack(open && !busy, onClose);
@@ -293,7 +301,7 @@ const PostSignatureModal: React.FC<Props> = ({ open, onClose, post, onSent, onPo
   const reset = () => {
     setSigners([{ id: nextRowId++, email: '', name: '' }]);
     setNote(''); setExpiryPick(14); setCustomExpiry('');
-    setError(null); setDone(null); setStep(1);
+    setError(null); setDone(null); setStep(1); setResendRows(null);
   };
 
   const closeAll = () => { reset(); onClose(); };
@@ -339,6 +347,11 @@ const PostSignatureModal: React.FC<Props> = ({ open, onClose, post, onSent, onPo
           </DoneBody>
         ) : (
           <Body>
+            {resendRows && (
+              <ResendNote role="status" data-testid="sign-resend-prefilled">
+                {t('sign.resendPrefilled', { defaultValue: '지난번 받는 분 정보를 그대로 넣었어요. 바꿀 것만 고치세요.' })}
+              </ResendNote>
+            )}
             <Section>
               {/* #239 — 요청 종류. 라벨이 아래 섹션 문구까지 바꾼다(서명자 vs 확인 요청 대상). */}
               {(!stepped || step === 1) && <>
@@ -599,6 +612,10 @@ const CloseBtn = styled.button`
 `;
 const Body = styled.div`padding: 16px 22px 8px;`;
 const Section = styled.section`margin-bottom: 14px;`;
+const ResendNote = styled.div`
+  margin-bottom: 12px; padding: 8px 12px; border-radius: 8px;
+  background: #F0FDFA; border: 1px solid #99F6E4; color: #0F766E; font-size: 0.75rem; line-height: 1.5;
+`;
 const SectionTwoCol = styled.section`
   display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px;
   @media (max-width: 540px) { grid-template-columns: 1fr; }

@@ -314,7 +314,12 @@
     },
     "expand": "Expand signing progress",
     "collapse": "Collapse signing progress",
-    "summary": "{{signed}}/{{total}} signed"
+    "summary": "{{signed}}/{{total}} signed",
+    "resendRound": {
+      "button": "Send again",
+      "title": "Send the revised document again",
+      "desc": "Opens the signature request with last time's recipients ({{names}}) already filled in. Change only what you need."
+    }
   },
   "publicSign": {
     "loading": "Loading document...",
@@ -524,7 +529,9 @@
       "hint": "Frozen as of now and opened from the signing link. Later edits to the originals do not change what the recipient sees."
     },
     "slotPickPh": "Search members or clients — or type below",
-    "doneInApp": "{{n}} signer(s) on your side sign in this document without email (also listed in Inbox)"
+    "doneInApp": "{{n}} signer(s) on your side sign in this document without email (also listed in Inbox)",
+    "resendPrefilled": "We filled in last time's recipients. Change only what you need.",
+    "resendNoteDefault": "I've made the changes you requested."
   },
   "ai": {
     "btn": "AI",
@@ -1093,7 +1100,12 @@
     "replace": "Use another image",
     "pick": "Choose image",
     "nthShort": "{{n}} / {{total}}",
-    "dropHint": "Drag an image here, or click to choose"
+    "dropHint": "Drag an image here, or click to choose",
+    "fromFiles": "Choose from PlanQ files",
+    "fromFilesPh": "Search image files by name",
+    "fromFilesLoading": "Loading…",
+    "fromFilesEmpty": "No PNG, JPG or WEBP image files.",
+    "fileFetchFailed": "Couldn't get the file. Please try again."
   },
   "links": {
     "saveFailed": "The document was saved, but its linked documents were not. Please try again."
