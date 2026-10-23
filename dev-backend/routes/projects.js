@@ -205,14 +205,15 @@ router.post('/:id/duplicate', authenticateToken, async (req, res, next) => {
     const joinAfter = [];
     for (const c of clients) {
       const cl = c.client_id
-        ? await Client.findOne({ where: { id: c.client_id, business_id: src.business_id }, attributes: ['id', 'user_id'], transaction: t })
+        ? await Client.findOne({ where: { id: c.client_id, business_id: src.business_id }, attributes: ['id', 'user_id', 'status'], transaction: t })
         : null;
       const contactUserId = cl?.user_id || null;
       await ProjectClient.create({
         project_id: copy.id, client_id: c.client_id,
         contact_user_id: contactUserId,
         contact_name: c.contact_name, contact_email: c.contact_email,
-        invite_token: crypto.randomBytes(24).toString('hex'),   // 새 열쇠
+        // 새 열쇠 — 단 초대하지 않은 고객(직접 관리·문의)에게는 만들지 않는다(고객 추가 라우트와 같은 판정)
+        invite_token: cl && require('../services/clientAccess').projectInviteQuiet(cl) ? null : crypto.randomBytes(24).toString('hex'),
       }, { transaction: t });
       if (contactUserId) joinAfter.push({ userId: contactUserId, clientId: cl.id });
       counts.clients += 1;
@@ -3522,6 +3523,7 @@ router.post('/:id/clients', authenticateToken, async (req, res, next) => {
     }
 
     if (!clientRow && (!name || !String(name).trim())) return errorResponse(res, 'name is required', 400);
+    let nameOnly = false;
     const emailTrim = email && email.trim() ? email.trim() : null;
     if (clientRow) {
       // 기존 고객을 붙이는 길 — 새로 만들지 않는다
@@ -3552,12 +3554,14 @@ router.post('/:id/clients', authenticateToken, async (req, res, next) => {
       }
     } else {
       // 이메일 없이 이름만 — 워크스페이스 Client 로 편입 (수동 청구 대상으로 노출)
+      //   ★ 2026-10-23 — 받을 주소가 없으니 초대가 아니다: «직접 관리» 고객으로 만든다(옛 코드는 status 'invited' 로 만들어
+      //     고객 목록에 «초대 대기» 줄이 생겼다 — 운영 신고 «초대 안 할 건데 초대가 가버려», 옛 화면이 직접 관리 고객을 이름만 보냈다).
+      nameOnly = true;
       clientRow = await ClientM.create({
         business_id: project.business_id,
         user_id: null,
         display_name: String(name).trim(),
-        status: 'invited',
-        invited_by: req.user.id, invited_at: new Date(),
+        status: 'managed',
       });
     }
     // 기존 고객을 붙이는 길에는 name 이 없다 — 그 고객의 표시명으로 떨어뜨린다
@@ -3572,8 +3576,9 @@ router.post('/:id/clients', authenticateToken, async (req, res, next) => {
     // ★ 2026-10-22 (Fable 판정 3) — 초대하지 않은 고객(직접 관리·문의 = canInviteClient)을 붙일 때는
     //   토큰·초대 메일·«초대 대기» 알림을 만들지 않는다. 정보만 관리하는 고객에게 메일이 나가면 외부 발송이고,
     //   «직접 관리» 가 «초대 대기» 로 바뀐다. 뒤에 그 고객을 초대·수락하면 linkClientToProjects 가 contact_user_id 를 채운다.
-    const quiet = !!(clientRow && client_id !== undefined && client_id !== null && client_id !== ''
-      && require('../services/clientAccess').canInviteClient(clientRow));
+    //   이름만으로 붙인 고객(받을 주소 없음)도 같다.
+    const quiet = !!(clientRow && (nameOnly || (client_id !== undefined && client_id !== null && client_id !== ''))
+      && require('../services/clientAccess').projectInviteQuiet(clientRow));
     const row = await ProjectClient.create({
       project_id: project.id,
       client_id: clientRow ? clientRow.id : null,
@@ -3684,17 +3689,15 @@ router.delete('/:id/clients/:clientId', authenticateToken, async (req, res, next
     const row = await ProjectClient.findOne({ where: { id: req.params.clientId, project_id: project.id } });
     if (!row) return errorResponse(res, 'not_found', 404);
     // client_id 매칭 — 같은 워크스페이스의 Client row 를 같은 email/user 로 찾음
-    let clientId = null;
-    try {
-      const { Client: ClientM } = require('../models');
-      const cl = await ClientM.findOne({
-        where: {
-          business_id: project.business_id,
-          ...(row.contact_user_id ? { user_id: row.contact_user_id } : {}),
-        },
-      });
-      clientId = cl?.id || null;
-    } catch { /* ignore */ }
+    //   ★ 연결 줄의 client_id 가 정본이다 — 옛 코드는 계정이 없으면 where 가 business_id 뿐이라 **아무 첫 고객 id** 를 감사에 적었다.
+    let clientId = row.client_id || null;
+    if (!clientId && row.contact_user_id) {
+      try {
+        const { Client: ClientM } = require('../models');
+        const cl = await ClientM.findOne({ where: { business_id: project.business_id, user_id: row.contact_user_id }, attributes: ['id'] });
+        clientId = cl?.id || null;
+      } catch { /* ignore */ }
+    }
     await require('../services/inviteNotify').dismissInviteNotice('project_client', row.id);
     await row.destroy();
     await createAuditLog({

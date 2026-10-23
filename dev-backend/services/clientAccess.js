@@ -66,6 +66,14 @@ function canInviteClient(client) {
   return !client.user_id && (client.status === 'prospect' || client.status === 'managed');
 }
 
+/**
+ * 이미 있는 고객을 프로젝트에 붙일 때 초대(토큰·메일·«초대 대기» 알림)를 만들지 않는가 — 초대하지 않은 고객(직접 관리·문의).
+ * 프로젝트 고객 추가·프로젝트 만들기·프로젝트 복사가 같이 쓴다(Fable 2026-10-22 판정 3). 베끼면 한 문만 «초대 중» 이 된다.
+ */
+function projectInviteQuiet(client) {
+  return canInviteClient(client);
+}
+
 /** 받는 주소(invite_email)를 고칠 수 있는가 — 초대 토큰이 나가면 토큰과 받는 주소가 갈라지므로 잠근다. */
 function emailEditable(client) {
   if (!client) return false;
@@ -159,6 +167,6 @@ async function projectsByClient(businessId, clients) {
 }
 
 module.exports = {
-  accessKindOf, accessWhere, withAccess, canInviteClient, emailEditable, reactivatedStatusOf,
+  accessKindOf, accessWhere, withAccess, canInviteClient, projectInviteQuiet, emailEditable, reactivatedStatusOf,
   projectLinkWhere, projectsByClient,
 };

@@ -11,6 +11,7 @@
 //      ★ 초대 메일은 보내지 않는다 — 외부 발송은 이 문의 일이 아니다(화면의 «이름·이메일로 초대» 는 contacts 로 남는다).
 //   ② 생성 직후 `project:new` 신호 — 복사 라우트는 이미 쏘는데 생성만 안 쏴서 다른 창 목록이 안 늘었다.
 const crypto = require('crypto');
+const { projectInviteQuiet } = require('../clientAccess');
 const { sequelize } = require('../../config/database');
 const {
   Project, ProjectMember, ProjectClient, ProjectStatusOption,
@@ -147,7 +148,8 @@ async function createProject(actor, params = {}, opts = {}) {
         contact_user_id: cl.user_id || null,   // POST /:id/clients 의 client_id 분기와 같은 규칙
         contact_name: String(cl.display_name || cl.company_name || cl.invite_email || '').trim().slice(0, 100) || null,
         contact_email: cl.invite_email || null,
-        invite_token: crypto.randomBytes(24).toString('hex'),
+        // 초대하지 않은 고객(직접 관리·문의)에게는 열쇠를 만들지 않는다 — 프로젝트 고객 줄이 «초대 중» 이 된다
+        invite_token: projectInviteQuiet(cl) ? null : crypto.randomBytes(24).toString('hex'),
         invited_by: userId,
       });
     }

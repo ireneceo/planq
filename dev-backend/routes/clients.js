@@ -306,13 +306,17 @@ router.delete('/:businessId/:id', authenticateToken, checkBusinessAccess, requir
     });
     if (!client) return errorResponse(res, 'Client not found', 404);
 
-    // 같은 워크스페이스 프로젝트의 ProjectClient 중 동일 이메일/이름 전부 제거
-    const email = client.user?.email || null;
-    const name = client.display_name || client.user?.name || null;
+    // 이 고객의 프로젝트 연결만 지운다 — 연결 판정은 화면과 같은 술어(clientAccess.projectLinkWhere: client_id 또는 계정 contact_user_id).
+    //   ★ 2026-10-23 전엔 contact_name(이름)으로도 찾았다 — 이름이 같은 중복 행(옛 «이름만» 초대)을 지우면
+    //     **진짜 고객의 프로젝트 연결까지** 같이 지워졌다. 이름은 사람을 가리키지 않는다.
+    //   옛 행(client_id 없이 이메일로만 붙은 줄)은 이메일이 정확히 같고 다른 고객·계정에 안 묶인 것만.
+    const { Op } = require('sequelize');
+    const { projectLinkWhere } = require('../services/clientAccess');
+    const email = client.user?.email || client.invite_email || null;
     const pcWhere = {
-      [require('sequelize').Op.or]: [
-        ...(email ? [{ contact_email: email }] : []),
-        ...(name ? [{ contact_name: name }] : []),
+      [Op.or]: [
+        projectLinkWhere(client),
+        ...(email ? [{ client_id: null, contact_user_id: null, contact_email: email }] : []),
       ],
     };
     const pcRows = await ProjectClient.findAll({
