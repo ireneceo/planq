@@ -311,7 +311,10 @@
       "toggle": "이전 회차 {{n}}건",
       "closedAt": "{{at}} 에 닫음",
       "noAnswer": "응답 없음"
-    }
+    },
+    "expand": "서명 진행 펼치기",
+    "collapse": "서명 진행 접기",
+    "summary": "{{signed}}/{{total}} 서명"
   },
   "publicSign": {
     "loading": "문서 로드 중...",

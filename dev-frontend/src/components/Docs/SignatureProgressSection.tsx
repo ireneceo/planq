@@ -26,9 +26,11 @@ interface Props {
   onAddMore: () => void;
   /** [고쳐서 다시 보내기] 로 회차를 닫은 뒤 — 편집 화면은 잠금을 풀고 쓰던 글을 저장한다 */
   onRoundClosed?: () => void;
+  /** 취소·모두 취소·우리 쪽 서명·새로고침 — 잠금(편집 가능 여부)이 바뀔 수 있다. 부르는 쪽이 서명본을 다시 읽는다 */
+  onChanged?: () => void;
 }
 
-const SignatureProgressSection: React.FC<Props> = ({ postId, inferredKind, reloadTrigger, onAddMore, onRoundClosed }) => {
+const SignatureProgressSection: React.FC<Props> = ({ postId, inferredKind, reloadTrigger, onAddMore, onRoundClosed, onChanged }) => {
   const { t } = useTranslation('qdocs');
   const { formatDateTime, formatTimeAgo } = useTimeFormat();
   const navigate = useNavigate();
@@ -94,6 +96,11 @@ const SignatureProgressSection: React.FC<Props> = ({ postId, inferredKind, reloa
   const [closeOpen, setCloseOpen] = useState(false);
   const [closeErr, setCloseErr] = useState<string | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
+  // 접기 (2026-10-22, Irene: "서명진행관련 안내랑 고쳐서다시보내기 서명추가 이게 맨 위로 붙어서 나오고 접었다 폈다 하게") —
+  //   본문 맨 위에 서므로 긴 표가 본문을 밀어내지 않게 접는다. 접혀도 머리줄(요약·[고쳐서 다시 보내기]·[서명 추가])은 보인다.
+  //   null = 자동(할 일이 있으면 펼침). 사람이 누르면 그 값. 문서가 바뀌면 자동으로 돌아간다.
+  const [userExpanded, setUserExpanded] = useState<boolean | null>(null);
+  useEffect(() => { setUserExpanded(null); }, [postId]);
   const menuRef = useRef<HTMLDivElement | null>(null);
 
   const wantSign = Number(searchParams.get('sign')) || null;
@@ -153,6 +160,10 @@ const SignatureProgressSection: React.FC<Props> = ({ postId, inferredKind, reloa
   const allSigned = visible.length > 0 && visible.every(s => s.status === 'signed');
   const anyRejected = visible.some(s => s.status === 'rejected');
   const allFinal = visible.length > 0 && visible.every(s => s.status === 'signed' || s.status === 'rejected' || s.status === 'expired');
+  const signedCount = visible.filter(s => s.status === 'signed').length;
+  const expanded = userExpanded ?? (!!revision || !!closeErr || visible.some(canSignNow));
+  // 잠금이 바뀔 수 있는 동작 뒤 — 부르는 쪽이 있으면 그쪽이 reloadTrigger 로 표까지 다시 읽게 한다(두 번 읽지 않게)
+  const afterChange = async () => { if (onChanged) onChanged(); else await reload(); };
 
   const onRemind = (sr: SignatureRequest) => {
     setRemindTarget(sr);
@@ -180,7 +191,7 @@ const SignatureProgressSection: React.FC<Props> = ({ postId, inferredKind, reloa
     try {
       await cancelSignature(cancelTarget.id);
       setCancelTarget(null);
-      await reload();
+      await afterChange();
     } finally { setBusyId(null); }
   };
 
@@ -193,7 +204,7 @@ const SignatureProgressSection: React.FC<Props> = ({ postId, inferredKind, reloa
         try { await cancelSignature(sr.id); } catch { /* 그 건만 남는다 — 재조회로 보인다 */ }
       }
       setCancelAllOpen(false);
-      await reload();
+      await afterChange();
     } finally { setBusyId(null); }
   };
 
@@ -221,26 +232,22 @@ const SignatureProgressSection: React.FC<Props> = ({ postId, inferredKind, reloa
 
   // ─── 렌더 ───
 
-  if (loading && !list) {
-    return (
-      <Section>
-        <SectionHeader>
-          <Title>{t('signProgress.title', '서명 진행')}</Title>
-        </SectionHeader>
-        <SkeletonRow /><SkeletonRow /><SkeletonRow />
-      </Section>
-    );
-  }
+  // 처음 읽는 동안은 자리를 잡지 않는다 — 본문 **위**에 서므로 뼈대를 그리면 서명 요청이 없는 문서도
+  //   열 때마다 맨 위가 잠깐 밀렸다 돌아온다.
+  if (loading && !list) return null;
 
   if (!list || list.length === 0) return null; // 발급 전: 표시 X (헤더 "서명 받기" 버튼만)
 
   return (
     <Section>
       <SectionHeader>
-        <Title>
+        <TitleToggle type="button" data-testid="sign-progress-toggle" aria-expanded={expanded}
+          aria-label={(expanded ? t('signProgress.collapse', '서명 진행 접기') : t('signProgress.expand', '서명 진행 펼치기')) as string}
+          onClick={() => setUserExpanded(!expanded)}>
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" style={{ transform: expanded ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s' }}><polyline points="9 18 15 12 9 6"/></svg>
           {t('signProgress.title', '서명 진행')}
-          <Count>{visible.length}</Count>
-        </Title>
+          <Count>{t('signProgress.summary', '{{signed}}/{{total}} 서명', { signed: signedCount, total: visible.length })}</Count>
+        </TitleToggle>
         <HeaderActions>
           {canCloseRound && (
             <CloseRoundBtn type="button" data-testid="sign-close-round" disabled={busyId !== null} onClick={() => setCloseOpen(true)}>
@@ -252,7 +259,7 @@ const SignatureProgressSection: React.FC<Props> = ({ postId, inferredKind, reloa
               {t('signProgress.cancelAll', '모두 취소')}
             </CancelAllBtn>
           )}
-          <ReloadBtn type="button" onClick={reload} title={t('signProgress.reload', '새로고침') as string} aria-label={t('signProgress.reload', '새로고침') as string}>
+          <ReloadBtn type="button" onClick={() => { void afterChange(); }} title={t('signProgress.reload', '새로고침') as string} aria-label={t('signProgress.reload', '새로고침') as string}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
           </ReloadBtn>
           <AddMoreBtn type="button" onClick={onAddMore}>
@@ -262,6 +269,9 @@ const SignatureProgressSection: React.FC<Props> = ({ postId, inferredKind, reloa
         </HeaderActions>
       </SectionHeader>
 
+      {closeErr && <CloseErr role="alert">{closeErr}</CloseErr>}
+
+      {expanded && (<>
       {/* 후속 액션 카드 — 양사 모두 signed */}
       {allSigned && (
         <FollowupCard $tone="ok" onClick={onFollowupClick} role="button" tabIndex={0}>
@@ -281,8 +291,6 @@ const SignatureProgressSection: React.FC<Props> = ({ postId, inferredKind, reloa
           </FollowupArrow>
         </FollowupCard>
       )}
-
-      {closeErr && <CloseErr role="alert">{closeErr}</CloseErr>}
 
       {/* 수정 요청 카드 (2026-10-22) — 받는 쪽이 고쳐서 다시 보내 달라고 했다. 사유를 보이고, 닫을 수 있으면 바로 버튼 */}
       {revision && (
@@ -440,6 +448,7 @@ const SignatureProgressSection: React.FC<Props> = ({ postId, inferredKind, reloa
           ))}
         </History>
       )}
+      </>)}
 
       <ConfirmDialog
         isOpen={closeOpen}
@@ -491,7 +500,7 @@ const SignatureProgressSection: React.FC<Props> = ({ postId, inferredKind, reloa
         open={!!signTarget}
         request={signTarget}
         onClose={() => setSignTarget(null)}
-        onSigned={() => { setSignTarget(null); void reload(); }}
+        onSigned={() => { setSignTarget(null); void afterChange(); }}
       />
 
       {/* 서명 이미지 라이트박스 — 공통 ImageLightbox */}
@@ -530,17 +539,23 @@ function statusLabel(s: SignatureStatus, t: (k: string, fb?: string) => string):
 // ─── styled ───
 // 아웃 라운드박스 제거 — 안에 서명자 카드가 이미 박스라 이중이었다. border-top 구분선만(AttachSection 정합, Irene).
 // 좌우 여백은 부모 Body 규칙(.pq 24px)이 제공하므로 여기선 상하만.
+// 본문 **위**에 선다(2026-10-22 — 보기·편집 모두). 아래 배치일 때의 위 선을 아래 선으로 바꿨다.
 const Section = styled.section`
-  margin-top: 12px; padding-top: 16px;
-  border-top: 1px solid #E2E8F0;
+  margin-bottom: 20px; padding-bottom: 12px;
+  border-bottom: 1px solid #E2E8F0;
 `;
 const SectionHeader = styled.div`
   display: flex; align-items: center; justify-content: space-between;
+  flex-wrap: wrap; gap: 8px;
   margin-bottom: 12px;
 `;
-const Title = styled.h3`
+const TitleToggle = styled.button`
   display: inline-flex; align-items: center; gap: 8px;
-  font-size: 0.875rem; font-weight: 700; color: #0F172A; margin: 0;
+  min-height: 32px; padding: 0 4px 0 0;
+  background: none; border: none; cursor: pointer; font-family: inherit;
+  font-size: 0.875rem; font-weight: 700; color: #0F172A;
+  & > svg { color: #64748B; flex-shrink: 0; }
+  &:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(20,184,166,0.35); border-radius: 6px; }
 `;
 const Count = styled.span`
   display: inline-flex; align-items: center; justify-content: center;
@@ -548,7 +563,7 @@ const Count = styled.span`
   font-size: 0.6875rem; font-weight: 700; color: #0F766E;
   background: #CCFBF1; border-radius: 999px;
 `;
-const HeaderActions = styled.div`display:flex;align-items:center;gap:6px;`;
+const HeaderActions = styled.div`display:flex;align-items:center;gap:6px;flex-wrap:wrap;`;
 const CancelAllBtn = styled.button`
   height: 32px; padding: 0 10px;
   font-size: 0.75rem; font-weight: 600; color: #B91C1C;
@@ -746,17 +761,6 @@ const MenuItem = styled.button<{ $danger?: boolean }>`
   transition: background 0.15s;
   &:hover:not(:disabled) { background: ${p => p.$danger ? '#FEF2F2' : '#F1F5F9'}; }
   &:disabled { opacity: 0.5; cursor: not-allowed; }
-`;
-
-// 스켈레톤
-const SkeletonRow = styled.div`
-  height: 56px;
-  margin-bottom: 8px;
-  background: linear-gradient(90deg, #F1F5F9 0%, #F8FAFC 50%, #F1F5F9 100%);
-  background-size: 200% 100%;
-  border-radius: 8px;
-  animation: shimmer 1.4s infinite ease-in-out;
-  @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
 `;
 
 // 서명란 — 칸 번호 · 구분 (2026-09-22)

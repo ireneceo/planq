@@ -118,7 +118,11 @@ async function run() {
     await b.sleep(2500); await b.dismissBlockers(page).catch(() => {});
     const dup = await page.evaluate(`(() => {
       const el = document.querySelector('[data-testid="post-duplicate"]');
-      const edit = document.querySelector('[data-testid="post-edit"]');
+      // 이 픽스처는 서명 요청이 살아 있어 [편집] 이 숨는다(2026-10-22 — 잠긴 문서는 [고쳐서 다시 보내기] 로만 고친다).
+      //   그때 같은 액션 줄의 기준은 [공유]다. 편집이 있으면 종전대로 편집 기준(복사는 그 오른쪽).
+      const editEl = document.querySelector('[data-testid="post-edit"]');
+      const edit = editEl || document.querySelector('[data-testid="post-share"]');
+      const anchorIsEdit = !!editEl;
       if (!el) return { found: false };
       const v = (${VISIBLE})(el);
       const er = edit ? edit.getBoundingClientRect() : null;
@@ -127,11 +131,11 @@ async function run() {
         label: (el.getAttribute('aria-label') || ''),
         hasText: (el.innerText || '').trim().length > 0,
         sameRowAsEdit: !!(er && Math.abs(er.top - r.top) < 6),
-        rightOfEdit: !!(er && r.left > er.left) };
+        rightOfEdit: !!(er && (anchorIsEdit ? r.left > er.left : r.left < er.left)), anchor: anchorIsEdit ? 'edit' : 'share' };
     })()`);
     P('③ 편집 옆에 **아이콘만** 복사 버튼이 있다 (같은 줄 · 글자 없음)',
       dup.found && dup.v.painted && dup.v.mine && !dup.hasText && dup.sameRowAsEdit && dup.rightOfEdit,
-      dup.found ? `${dup.v.w}×${dup.v.h} 그려짐 · 글자 ${dup.hasText ? '있음(아이콘만이어야)' : '없음'} · 편집과 같은 줄=${dup.sameRowAsEdit} · aria="${dup.label}"`
+      dup.found ? `${dup.v.w}×${dup.v.h} 그려짐 · 글자 ${dup.hasText ? '있음(아이콘만이어야)' : '없음'} · ${dup.anchor === 'edit' ? '편집' : '공유(편집 숨음)'}과 같은 줄=${dup.sameRowAsEdit} · aria="${dup.label}"`
         : '🔴 복사 버튼이 없다');
 
     // ── ④ 눌러 보면 복사본이 만들어지고 그 문서가 열린다 ─────────

@@ -459,13 +459,19 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId }) => {
   // 서명본 — 서명 요청이 하나라도 있으면 본문 자리에 «고정본 + 서명» 을 그린다.
   //   서명 진행이 바뀌면(요청·서명 완료) 같이 다시 읽는다 — signReloadKey 가 그 신호다.
   const [signedDoc, setSignedDoc] = useState<SignedDocView | null>(null);
+  const signedDocIdRef = useRef<number | null>(null);
   useEffect(() => {
     const id = detail?.id;
-    if (!id) { setSignedDoc(null); return undefined; }
+    if (!id) { setSignedDoc(null); signedDocIdRef.current = null; return undefined; }
+    // 다른 문서로 옮기면 앞 문서의 값(잠금 포함)을 들고 있지 않는다 — 같은 문서를 다시 읽을 때는 그대로 둔다(본문이 깜빡이지 않게)
+    if (signedDocIdRef.current !== id) { setSignedDoc(null); signedDocIdRef.current = id; }
     let alive = true;
     void getSignedHtml(id).then((v) => { if (alive) setSignedDoc(v); });
     return () => { alive = false; };
   }, [detail?.id, signReloadKey]);
+  // 지금 본문을 고칠 수 있나 — 권한(can_edit) ∧ 서명 잠금 아님. 서명본을 아직 못 읽었으면 내지 않는다
+  //   (앞 문서 값으로 [편집] 이 잠깐 떴다 사라지지 않게).
+  const canEditNow = !!detail && detail.can_edit !== false && signedDoc != null && !signedDoc.edit_locked;
 
   const filteredTemplates = useMemo(() => {
     const q = tplSearch.trim().toLowerCase();
@@ -2282,7 +2288,9 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId }) => {
                   inferredKind={inferKindFromTitle(detail.title, detail.category)}
                   reloadTrigger={signReloadKey}
                   onAddMore={() => setSignOpen(true)}
+                  onChanged={() => setSignReloadKey(k => k + 1)}
                   onRoundClosed={() => {
+                    setSignReloadKey(k => k + 1);
                     setSignLocked(false);
                     setAutoErr(null);
                     setAutoState('idle');
@@ -2562,14 +2570,16 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId }) => {
                       {t('survey.send', '보내기')}
                     </EditBtn>
                   )
-                ) : detail.can_edit !== false && (
+                ) : canEditNow && (
                 <AiActionButton size="filter" testId="post-ai-edit"
                   onClick={() => setAiEditOpen(true)}
                   label={t('aiEdit.btn', 'AI 수정') as string}
                   title={t('aiEdit.btnHint', 'AI 에게 고칠 것을 말하면 수정안을 만들어 수정 전·후를 먼저 보여 줘요') as string} />
                 )}
-                {/* 고칠 수 없는 사람(고객 등)에게는 [편집] 을 내지 않는다 — 판정은 서버 can_edit(PUT 과 같은 술어) */}
-                {detail.can_edit !== false && (
+                {/* 고칠 수 없는 사람(고객 등)에게는 [편집] 을 내지 않는다 — 판정은 서버 can_edit(PUT 과 같은 술어).
+                    서명 요청이 살아 있어 잠긴 문서도 같다 — 고치는 문은 서명 진행의 [고쳐서 다시 보내기] 하나다(2026-10-22, Irene:
+                    "고쳐서 다시보내기를 눌러야 하면 위에 편집버튼이 없어야지"). 잠금은 서버 edit_locked(PUT 409 와 같은 함수) */}
+                {canEditNow && (
                 <EditBtn type="button" data-testid="post-edit" onClick={startEdit}
                   title={t('edit', '편집') as string} aria-label={t('edit', '편집') as string}>
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 4 }}><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
@@ -2645,6 +2655,20 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId }) => {
                   <AiEditCloseBtn type="button" aria-label={t('close', '닫기') as string} onClick={() => setAiEditDone(null)}>✕</AiEditCloseBtn>
                 </AiEditDoneBar>
               )}
+              {/* 서명 진행 — 본문 **위**(2026-10-22). 아래에 있으면 긴 계약서에서 [고쳐서 다시 보내기]·[서명 추가] 를 찾으러
+                  맨 끝까지 내려가야 했다. 셋째 밴드(고정)로 올리지 않는다 — 상세는 두 밴드 계약. 대신 접힌다. */}
+              <SignatureProgressSection
+                postId={detail.id}
+                inferredKind={inferKindFromTitle(detail.title, detail.category)}
+                reloadTrigger={signReloadKey}
+                onAddMore={() => setSignOpen(true)}
+                onChanged={() => setSignReloadKey(k => k + 1)}
+                onRoundClosed={() => {
+                  // 확인창 버튼이 «닫고 고치기» — 닫았으면 바로 편집으로 간다([편집] 은 잠금 동안 숨어 있다)
+                  setSignReloadKey(k => k + 1);
+                  startEdit();
+                }}
+              />
               {/* 보안등급 상시노출 SecurityRow 제거 — 뷰는 MetaBar chip(일반 자동숨김), 변경은 편집 모드 메타에서(Irene) */}
               {/* 운영 #338 — 긴 문서의 목차. 본문에서 파생하므로 옛 문서에서도 바로 뜬다.
                   제목이 2개 미만이면 스스로 아무것도 그리지 않는다. 인쇄에는 넣지 않는다
@@ -2683,12 +2707,6 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId }) => {
                 )}
               </div>
 
-              <SignatureProgressSection
-                postId={detail.id}
-                inferredKind={inferKindFromTitle(detail.title, detail.category)}
-                reloadTrigger={signReloadKey}
-                onAddMore={() => setSignOpen(true)}
-              />
 
               {/* 보기 모드 — 첨부도 연결도 없으면 섹션 자체 숨김 */}
               {(detail.attachments.length > 0 || (detail.linked_posts && detail.linked_posts.length > 0)) && (

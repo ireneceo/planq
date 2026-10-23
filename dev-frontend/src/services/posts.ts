@@ -583,6 +583,8 @@ export interface SignedDocView {
   has_signatures: boolean;
   html?: string; css?: string; title?: string;
   total?: number; signed?: number; complete?: boolean; frozen?: boolean;
+  /** 서명 요청이 살아 있어 본문을 고칠 수 없다(서버 isPostSignatureLocked 그대로) — 화면은 [편집] 을 숨긴다 */
+  edit_locked?: boolean;
 }
 /**
  * 서명본 — **서버가 조립한다**(services/signedDocument). 화면이 서명을 직접 끼우면

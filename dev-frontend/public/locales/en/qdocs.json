@@ -311,7 +311,10 @@
       "toggle": "Previous rounds ({{n}})",
       "closedAt": "Closed {{at}}",
       "noAnswer": "No response"
-    }
+    },
+    "expand": "Expand signing progress",
+    "collapse": "Collapse signing progress",
+    "summary": "{{signed}}/{{total}} signed"
   },
   "publicSign": {
     "loading": "Loading document...",

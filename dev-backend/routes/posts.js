@@ -8,7 +8,7 @@ router.param('token', (req, res, next, token) => {
   const M = require('../models');
   return require('../services/shareOpenable').workspaceAliveParam([[M.Post, 'share_token']])(req, res, next, token);
 });
-const { blockIfSigned } = require('../services/signatureCore');
+const { blockIfSigned, isPostSignatureLocked } = require('../services/signatureCore');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
@@ -1746,7 +1746,9 @@ router.get('/:id/signed-html', authenticateToken, async (req, res, next) => {
     }
     const sd = require('../services/signedDocument');
     const { view, doc, labels } = await postSignedView(post, req);
-    if (!view) return successResponse(res, { has_signatures: false });
+    // 서명 잠금(PUT·AI 적용이 409 로 막는 상태) — 화면이 [편집] 을 내지 않게 같은 술어 한 곳을 그대로 싣는다(2026-10-22).
+    const edit_locked = await isPostSignatureLocked(post.id);
+    if (!view) return successResponse(res, { has_signatures: false, edit_locked });
     const { richBodyToHtml, browserAssetHtml } = require('../services/pdfTemplates');
     // 화면으로 나가는 조립 — PDF 용 서버 자기 주소를 걷어낸다(안 걷으면 이미지가 전부 깨진다).
     const body = browserAssetHtml(richBodyToHtml(doc.content_json, doc.content_html, doc.content_text));
@@ -1757,6 +1759,7 @@ router.get('/:id/signed-html', authenticateToken, async (req, res, next) => {
       title: doc.title,
       total: view.total, signed: view.signed, complete: view.complete,
       frozen: !!view.frozen,
+      edit_locked,
     });
   } catch (err) { next(err); }
 });
