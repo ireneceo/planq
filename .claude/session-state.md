@@ -686,6 +686,7 @@
 - 반영: ②③④ 웹 배포 때(옛 앱도 하얀 팝오버·엉뚱한 코드창 해소) · ① 새 앱 빌드(Codemagic) + App Store 심사 필요 — GitHub 푸시함.
 ### Irene 할 일
 - iOS 새 앱 빌드(Codemagic «PlanQ iOS — TestFlight»)·실기기 확인 — 상황판에 올림. iOS 확인창 «로그인을 위해 planq.kr 사용» 1회는 iOS 것이라 끌 수 없음.
+- 10-23 Irene: «이미 했어(실기기 확인), 애플이랑 구글 다시 업로드하자» → 할 일 todomvbezw7s 를 «Codemagic iOS·안드로이드 새 빌드 → App Store 심사 제출·Play 새 버전» 으로 고쳐 다시 올림(방 55d1cade). 앱 파일은 GitHub 과 같음(버전 1.70.1, iOS MARKETING_VERSION 1.0.1 — 이미 출시된 번호면 올려야 함).
 
 ### 완료: Cue 고객 자동답변 재료 = 그 고객에 연결된 것만 (방 81843b55 · 2026-10-16 · [Opus] · 설계 Fable) — 운영 미배포 · a0b42a7b
 - 원문: «워크스페이스 내용들 중 보안단위가 전체워크스페이스여도 고객에게는 안보이는 거 맞지? 고객은 연결된 곳만 보이는 거야.»
