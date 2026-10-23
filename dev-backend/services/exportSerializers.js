@@ -127,7 +127,7 @@ async function exportTasks(ctx) {
     }
     const ids = rows.map((r) => r.id);
     for (const c of await childrenOf(m.TaskComment, 'task_id', ids,
-      { [Op.and]: [{ visibility: { [Op.ne]: 'personal' } }, notPrivate] },
+      { [Op.and]: [{ [Op.or]: [{ visibility: { [Op.ne]: 'personal' } }, { visibility: null }] }, notPrivate] },
       ['id', 'task_id', 'user_id', 'visibility', 'kind', 'content', 'createdAt'])) {
       await tComments.write({ id: c.id, task_id: c.task_id, author: ctx.who(c.user_id), visibility: c.visibility, kind: c.kind,
         content: ctx.text(c.content), created_at: ts(c, 'created_at') });

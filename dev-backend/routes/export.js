@@ -409,6 +409,14 @@ router.post('/:businessId/me/export-job', authenticateToken, checkBusinessAccess
   } catch (err) { next(err); }
 });
 
+
+// 워크스페이스 백업 산출물은 «지금» 대표·관리자인 사람만 본다(2026-10-23 Fable 완료 검증 FAIL 수리).
+//   job.user_id === 나 만 보면 관리자에서 멤버로 강등돼도 30일짜리 ZIP 을 계속 받는다 — 옛 동기 백업엔 없던 구멍.
+async function canHoldWorkspaceExport(req, businessId) {
+  const scope = await getUserScope(req.user.id, businessId, req.user.platform_role);
+  return !!(scope && (scope.isOwner || scope.isAdmin || scope.isPlatformAdmin));
+}
+
 // GET /:businessId/me/jobs — 본인 job 목록 (최근 20)
 router.get('/:businessId/me/jobs', authenticateToken, checkBusinessAccess, async (req, res, next) => {
   try {
@@ -417,7 +425,8 @@ router.get('/:businessId/me/jobs', authenticateToken, checkBusinessAccess, async
       where: { business_id: businessId, user_id: req.user.id },
       order: [['id', 'DESC']], limit: 20,
     });
-    return successResponse(res, jobs.map(j => {
+    const holdsWs = jobs.some((j) => j.scope === 'workspace') ? await canHoldWorkspaceExport(req, businessId) : false;
+    return successResponse(res, jobs.filter((j) => j.scope !== 'workspace' || holdsWs).map(j => {
       const tj = j.toJSON();
       return {
         id: tj.id, kind: tj.kind, scope: tj.scope, mode: tj.mode, status: tj.status,
@@ -439,6 +448,7 @@ router.get('/:businessId/me/jobs/:jobId', authenticateToken, checkBusinessAccess
     });
     if (!job) return errorResponse(res, 'not_found', 404);
     if (job.user_id !== req.user.id) return errorResponse(res, 'forbidden', 403);
+    if (job.scope === 'workspace' && !(await canHoldWorkspaceExport(req, job.business_id))) return errorResponse(res, 'admin_only', 403);
     const tj = job.toJSON();
     return successResponse(res, {
       id: tj.id, kind: tj.kind, mode: tj.mode, status: tj.status,
@@ -458,6 +468,7 @@ router.get('/:businessId/me/jobs/:jobId/download', authenticateToken, checkBusin
     });
     if (!job) return errorResponse(res, 'not_found', 404);
     if (job.user_id !== req.user.id) return errorResponse(res, 'forbidden', 403);
+    if (job.scope === 'workspace' && !(await canHoldWorkspaceExport(req, job.business_id))) return errorResponse(res, 'admin_only', 403);
     if (job.kind !== 'export' || !job.download_token) return errorResponse(res, 'not_ready', 404);
     if (req.query.token !== job.download_token) return errorResponse(res, 'invalid_token', 403);
     if (job.expires_at && new Date(job.expires_at) < new Date()) return errorResponse(res, 'expired', 410);
