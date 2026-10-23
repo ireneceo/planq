@@ -50,7 +50,7 @@ async function main() {
   // ④
   const seedSql = "INSERT INTO `invoice_number_counters` (business_id, year, last_no) "
     + "SELECT business_id, CAST(SUBSTRING(invoice_number,5,4) AS UNSIGNED), MAX(CAST(SUBSTRING_INDEX(invoice_number,'-',-1) AS UNSIGNED)) "
-    + "FROM invoices WHERE invoice_number REGEXP '^INV-[0-9]{4}-[0-9]+$' GROUP BY 1,2 "
+    + "FROM invoices WHERE invoice_number REGEXP '^INV-[0-9]{4}-0[0-9]{3}$' GROUP BY 1,2 "  // 순번형만(무작위 꼬리 ≥1000 은 MAX 에 넣지 않는다 — invoiceNumber.js 시드와 같은 술어, 2026-10-23)
     + 'ON DUPLICATE KEY UPDATE last_no = GREATEST(last_no, VALUES(last_no))';
   if (DRY && !t.length) console.log(`${TAG} (dry) ${seedSql}`);
   else await run(seedSql, '카운터 시드(GREATEST)');
@@ -88,7 +88,7 @@ async function main() {
     const [[cnt]] = await sequelize.query('SELECT COUNT(*) n FROM invoice_number_counters');
     const [[grp]] = await sequelize.query("SELECT COUNT(*) n FROM (SELECT business_id, SUBSTRING(invoice_number,5,4) y FROM invoices WHERE invoice_number REGEXP '^INV-[0-9]{4}-[0-9]+$' GROUP BY 1,2) z");
     console.log(`${TAG} [verify] 카운터 행 ${cnt.n} · 워크스페이스×연도 ${grp.n}`);
-    const [bad] = await sequelize.query("SELECT c.business_id, c.year, c.last_no, MAX(CAST(SUBSTRING_INDEX(i.invoice_number,'-',-1) AS UNSIGNED)) mx FROM invoice_number_counters c JOIN invoices i ON i.business_id=c.business_id AND i.invoice_number LIKE CONCAT('INV-', c.year, '-%') GROUP BY c.business_id, c.year, c.last_no HAVING c.last_no < mx");
+    const [bad] = await sequelize.query("SELECT c.business_id, c.year, c.last_no, MAX(CAST(SUBSTRING_INDEX(i.invoice_number,'-',-1) AS UNSIGNED)) mx FROM invoice_number_counters c JOIN invoices i ON i.business_id=c.business_id AND i.invoice_number REGEXP CONCAT('^INV-', c.year, '-0[0-9]{3}$') GROUP BY c.business_id, c.year, c.last_no HAVING c.last_no < mx");
     console.log(`${TAG} [verify] 카운터 < 실제 MAX: ${bad.length}건`);
   }
   idx = await indexNames('invoices');

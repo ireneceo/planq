@@ -418,27 +418,67 @@ const cases = {
     return `USD 99.99 → 합계 109.99 · VAT 10.00 · 회차 합 109.99 · Stripe 10999 · KRW 9999.4 → 9999 · 음수 400 (옛 공식 ${oldTotal})`;
   },
 
-  // ─── money-8: 번호 — 워크스페이스 축 + 동시성 (B-②) ───
+  // ─── money-8: 번호 — 워크스페이스 축 + 동시성 + 무작위 꼬리 (B-② · 2026-10-23 개정) ───
   async m8() {
     const fs = require('fs');
     const path = require('path');
+    const { sequelize } = require(`${BE}/config/database`);
+    const { nextInvoiceNumber, withInvoiceNumber, isInvoiceNumberConflict } = require(`${BE}/services/invoiceNumber`);
     const year = new Date().getFullYear();
+    const shape = new RegExp(`^INV-${year}-([0-9]{4})$`);
+    const tailOf = (n) => { const m = shape.exec(n || ''); return m ? Number(m[1]) : null; };
+    const counter = async (bizId) => { const [[r]] = await sequelize.query('SELECT last_no FROM invoice_number_counters WHERE business_id = ? AND year = ?', { replacements: [bizId, year] }); return r ? Number(r.last_no) : 0; };
+    // 첫 번호 — 형식 · 꼬리 ≥ 1000(옛 순번 0001~0999 와 안 겹친다)
     const a = await makeBiz(); const b = await makeBiz();
     const ra = await api('POST', `/api/invoices/${a.id}`, { title: '[hm] a' });
     const rb = await api('POST', `/api/invoices/${b.id}`, { title: '[hm] b' });
     assert(ra.status === 201 && rb.status === 201, `첫 생성 ${ra.status}/${rb.status}`);
-    assert(ra.data.data.invoice_number === `INV-${year}-0001` && rb.data.data.invoice_number === `INV-${year}-0001`, `첫 번호 ${ra.data.data.invoice_number} / ${rb.data.data.invoice_number}`);
+    for (const r of [ra, rb]) { const tl = tailOf(r.data.data.invoice_number); assert(tl !== null && tl >= 1000, `첫 번호 형식 ${r.data.data.invoice_number}`); }
+    // 동시 6건 — 전부 201 · 중복 0 · 카운터(올해 발행 수) +6
     const many = await Promise.all(Array.from({ length: 6 }, (_, i) => api('POST', `/api/invoices/${a.id}`, { title: `[hm] c${i}` })));
     assert(many.every((r) => r.status === 201), `동시 6건 상태 ${many.map((r) => r.status).join(',')}`);
-    const nums = many.map((r) => Number(r.data.data.invoice_number.split('-').pop())).sort((x, y) => x - y);
-    assert(new Set(nums).size === 6 && nums[0] === 2 && nums[5] === 7, `동시 6건 번호 ${nums.join(',')}`);
-    // 기존 번호가 있는 워크스페이스(카운터 없음) → MAX+1
+    const nums = [ra, ...many].map((r) => r.data.data.invoice_number);
+    assert(nums.every((n) => tailOf(n) >= 1000) && new Set(nums).size === 7, `동시 6건 번호 ${nums.join(',')}`);
+    assert(await counter(a.id) === 7, `카운터 ${await counter(a.id)} ≠ 7`);
+    // 복사도 같은 함수 · 같은 형식
+    const cp = await api('POST', `/api/invoices/${a.id}/${ra.data.data.id}/duplicate`);
+    assert(cp.status === 201 && tailOf(cp.data.data.invoice_number) >= 1000 && !nums.includes(cp.data.data.invoice_number), `복사 ${cp.status} ${cp.data.data && cp.data.data.invoice_number}`);
+    // 옛 순번 0042 가 있는 워크스페이스 — 시드는 순번형만 본다(last_no 42 → 43), 새 번호는 무작위 꼬리
     const c = await makeBiz();
     await M.Invoice.create({ business_id: c.id, invoice_number: `INV-${year}-0042`, title: '[hm] legacy', created_by: userId });
+    await M.Invoice.create({ business_id: c.id, invoice_number: `INV-${year}-8888`, title: '[hm] legacy-rand', created_by: userId });
     const rc = await api('POST', `/api/invoices/${c.id}`, { title: '[hm] next' });
-    assert(rc.status === 201 && rc.data.data.invoice_number === `INV-${year}-0043`, `이어가기 ${rc.status} ${rc.data.data && rc.data.data.invoice_number}`);
-    // 소스 — 'INV-${' 번호 생성이 services/invoiceNumber.js 밖에 0곳
-    const roots = [`${BE}/routes`, `${BE}/services`];
+    assert(rc.status === 201 && tailOf(rc.data.data.invoice_number) >= 1000 && rc.data.data.invoice_number !== `INV-${year}-8888`, `옛 번호 뒤 ${rc.status} ${rc.data.data && rc.data.data.invoice_number}`);
+    assert(await counter(c.id) === 43, `시드가 무작위 꼬리를 MAX 로 읽었다 — last_no ${await counter(c.id)}`);
+    // 결정적 재현 — pick 을 주입해 이미 있는 꼬리를 먼저 돌려준다(트랜잭션 끝에 롤백)
+    const taken = tailOf(rc.data.data.invoice_number);
+    let redraw = null; let conflict = false;
+    const t1 = await sequelize.transaction();
+    try {
+      const seq = [taken, 8888, 4321];
+      redraw = await nextInvoiceNumber(c.id, { transaction: t1, pick: () => seq.shift() });
+    } finally { await t1.rollback(); }
+    assert(redraw === `INV-${year}-4321`, `다시 뽑기 ${redraw}`);
+    // 양성 대조군 — 중복 검사를 건너뛰면(tries 0 → 같은 꼬리 고정) UNIQUE 충돌이 난다 = 위 검사가 판정을 가른다
+    const t2 = await sequelize.transaction();
+    try {
+      await M.Invoice.create({ business_id: c.id, invoice_number: `INV-${year}-${taken}`, title: '[hm] dup', created_by: userId }, { transaction: t2 });
+    } catch (e) { conflict = isInvoiceNumberConflict(e); } finally { await t2.rollback(); }
+    assert(conflict, '양성 대조군 실패 — 같은 번호가 UNIQUE 에 안 걸렸다');
+    // 30회 다 겹치면 실패하지 않고 한 자리 늘린다
+    let widened = null;
+    const t3 = await sequelize.transaction();
+    try { widened = await nextInvoiceNumber(c.id, { transaction: t3, tries: 2, pick: (d) => (d === 4 ? 8888 : 54321) }); } finally { await t3.rollback(); }
+    assert(widened === `INV-${year}-54321`, `자릿수 늘리기 ${widened}`);
+    // 벨트 — 스냅샷 밖 충돌이면 withInvoiceNumber 가 새 번호로 다시
+    let tries = 0;
+    const t4 = await sequelize.transaction();
+    try {
+      const inv = await withInvoiceNumber(c.id, t4, (num, sp) => { tries += 1; return M.Invoice.create({ business_id: c.id, invoice_number: tries === 1 ? `INV-${year}-8888` : num, title: '[hm] belt', created_by: userId }, { transaction: sp }); });
+      assert(inv && inv.invoice_number !== `INV-${year}-8888` && tries === 2, `벨트 ${tries} ${inv && inv.invoice_number}`);
+    } finally { await t4.rollback(); }
+    // 소스 — 'INV-${' 번호 조립이 services/invoiceNumber.js 밖에 0곳
+    const roots = [`${BE}/routes`, `${BE}/services`, `${BE}/scripts`];
     const hits = [];
     for (const r of roots) {
       for (const f of fs.readdirSync(r, { recursive: true })) {
@@ -449,21 +489,7 @@ const cases = {
       }
     }
     assert(!hits.length, `번호 생성이 한 곳 밖에 있다: ${hits.join(', ')}`);
-    // 양성 대조군 — 카운터 없이(옛 방식: MAX 스캔 후 INSERT) 동시 6건을 만들면 충돌·중복이 난다
-    let reproduced = false;
-    for (let round = 0; round < 3 && !reproduced; round += 1) {
-      const d = await makeBiz({}, { member: false });
-      const oldWay = async (i) => {
-        const rows = await M.Invoice.findAll({ where: { business_id: d.id, invoice_number: { [Op.like]: `INV-${year}-%` } }, attributes: ['invoice_number'] });
-        let max = 0; for (const r of rows) { const m = /-(\d+)$/.exec(r.invoice_number); if (m) max = Math.max(max, Number(m[1])); }
-        await new Promise((res) => setTimeout(res, 5));
-        return M.Invoice.create({ business_id: d.id, invoice_number: `INV-${year}-${String(max + 1).padStart(4, '0')}`, title: `[hm] old${i}`, created_by: userId });
-      };
-      const rs = await Promise.allSettled(Array.from({ length: 6 }, (_, i) => oldWay(i)));
-      reproduced = rs.some((r) => r.status === 'rejected');
-    }
-    assert(reproduced, '양성 대조군 실패 — 카운터 없는 동시 생성이 충돌을 재현하지 못했다');
-    return `두 워크스페이스 첫 번호 둘 다 0001 · 동시 6건 0002~0007 · 기존 0042 → 0043 · 생성 지점 1곳 · 옛 방식은 동시 충돌(대조군)`;
+    return `첫 번호·동시 6건·복사 모두 INV-${year}-XXXX(≥1000) · 중복 0 · last_no 7 · 옛 0042+무작위 8888 → last_no 43(순번형만) · 다시 뽑기 4321 · 30회 소진 → 5자리 · 벨트 재시도 · 같은 번호 UNIQUE 충돌(대조군) · 생성 지점 1곳`;
   },
 
   // ─── money-9: client_id · project_id 테넌트 검증 (B-③) ───

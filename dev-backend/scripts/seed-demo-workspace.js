@@ -19,6 +19,7 @@ const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
 const { sequelize } = require('../config/database');
 const { Op } = require('sequelize');
+const { withInvoiceNumber } = require('../services/invoiceNumber');
 const {
   User, Business, BusinessMember, Client,
   Conversation, ConversationParticipant, Message,
@@ -615,16 +616,7 @@ async function seed() {
   console.log(`파일 ${fileSpecs.length}건 (${(totalBytes / 1024 / 1024).toFixed(1)} MB) · 폴더 ${CLIENTS.length}개`);
 
   // 9) Q bill — 청구서 3건
-  const year = new Date().getFullYear();
-  const allNums = await Invoice.findAll({
-    where: { invoice_number: { [Op.like]: `INV-${year}-%` } }, attributes: ['invoice_number'],
-  });
-  let maxSeq = 0;
-  for (const r of allNums) {
-    const m = /-(\d+)$/.exec(r.invoice_number || '');
-    if (m) { const v = parseInt(m[1], 10); if (Number.isFinite(v) && v > maxSeq) maxSeq = v; }
-  }
-  const nextNumber = () => `INV-${year}-${String(++maxSeq).padStart(4, '0')}`;
+  // 번호는 services/invoiceNumber 한 곳에서(무작위 꼬리) — 손으로 순번을 조립하지 않는다.
 
   const invoiceSpecs = [
     {
@@ -660,11 +652,11 @@ async function seed() {
   for (const spec of invoiceSpecs) {
     const subtotal = spec.items.reduce((s, i) => s + i.quantity * i.unit_price, 0);
     const tax = Math.round(subtotal * 0.1);
-    const inv = await Invoice.create({
+    const inv = await withInvoiceNumber(biz.id, null, (number, t) => Invoice.create({
       business_id: biz.id,
       client_id: clients[spec.client].id,
       project_id: projects[spec.client].id,
-      invoice_number: nextNumber(),
+      invoice_number: number,
       title: spec.title,
       subtotal,
       total_amount: subtotal,
@@ -685,7 +677,7 @@ async function seed() {
       owner_user_id: owner.id,
       createdAt: spec.issued || daysAgo(1),
       updatedAt: spec.paid || spec.issued || daysAgo(1),
-    }, { silent: true });
+    }, { silent: true, transaction: t }));
     for (const [i, it] of spec.items.entries()) {
       await InvoiceItem.create({
         invoice_id: inv.id,

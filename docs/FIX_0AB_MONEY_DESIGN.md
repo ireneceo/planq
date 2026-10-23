@@ -303,6 +303,15 @@ function previewPeriod({ sub, biz, now = new Date() }) {
 
 ### B-② 청구서 번호 — 워크스페이스 축 + 동시성 + 한 함수
 
+> **2026-10-23 개정 — 꼬리를 무작위로** (Irene: «INV-2026-0009 면 올해 9건인 게 보인다» → 안 A «권고대로» · Fable 설계 DESIGN-CHANGE).
+> 형식 `INV-YYYY-XXXX`, 꼬리 = `crypto.randomInt` 1000~9999(옛 순번 0001~0999 와 구조적으로 안 겹친다). 아래 판정 중 «순번·빈 번호 없음» 은 이 날로 바뀌었고
+> 나머지(워크스페이스 축·카운터 행 락·UNIQUE·벨트·한 함수)는 그대로다.
+> - 카운터 `last_no` = «올해 발행 수». 자릿수는 그것으로 정한다(<4500 → 4자리 · <45000 → 5 · 그 위 6). 30회 다 겹치면 한 자리 늘려 계속(실패 없음).
+> - 중복 검사는 잠그지 않는 SELECT(FOR UPDATE 는 갭 락 교착). 스냅샷 밖 충돌은 UNIQUE + `withInvoiceNumber` — **생성·복사 라우트도 벨트 안**.
+> - 시드 MAX 는 **순번형만**(`^INV-YYYY-0[0-9]{3}$`) — invoiceNumber.js 시드 · migrate 시드 INSERT · migrate verify 세 곳 같은 술어.
+> - 입금 코드 `payerCodeOf` 무변경(숫자 꼬리 → `7351홍길동`). 기존 발행 번호 그대로. 스키마 변경 없음 · 롤백 = 코드만.
+> - 회귀 health-money m8(형식·동시 6건·last_no·pick 주입 결정적 대조군).
+
 **현재** 네 생성 경로가 각자 전역 `INV-YYYY-%` 최대값 스캔: `routes/invoices.js:107-120`(POST `:899`·복사 `:748`) · `recurring_invoice.js:20-37` · `clientSubscriptionBilling.js:11-27`. 테넌트끼리 번호가 섞이고(dev biz 5·105·122 실측), 락 없음(csb 만 UNIQUE 충돌 재시도 5회). UNIQUE 는 `invoice_number` 단일 — 같은 이름의 인덱스가 **두 개**(`invoice_number`·`invoices_invoice_number_unique`).
 
 **판정**

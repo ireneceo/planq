@@ -414,7 +414,7 @@ CREATE TABLE invoices (
   INDEX idx_invoice_number (invoice_number)
 );
 ```
-- invoice_number 형식: INV-2025-0001 (연도-순번, 자동생성)
+- invoice_number 형식: INV-2026-7351 (연도-무작위 4자리, 자동생성 · 2026-10-23 전 발행분은 연도-순번 그대로)
 - 금액은 원(KRW) 단위, 소수점 없음
 
 ### 2.12 InvoiceItem (청구서 항목)

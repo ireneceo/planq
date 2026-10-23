@@ -27,7 +27,7 @@ const { successResponse, errorResponse } = require('../middleware/errorHandler')
 const { sequelize } = require('../config/database');
 // 금액 반올림(통화별) · 청구서 번호 · 테넌트 참조 검증 — 각각 한 곳 (docs/FIX_0AB_MONEY_DESIGN.md B-①②③)
 const { roundMoney } = require('../services/money');
-const { nextInvoiceNumber } = require('../services/invoiceNumber');
+const { withInvoiceNumber } = require('../services/invoiceNumber');
 const { assertClientInBusiness, assertProjectInBusiness, assertClientInProject, isClientInProject } = require('../services/tenantRef');
 const { Op } = require('sequelize');
 const rateLimit = require('express-rate-limit');
@@ -109,7 +109,7 @@ const { isBotOrScanner } = require('../utils/botUa');   // 공개 링크 «열�
 // invoice 상태가 바뀔 때 채팅방의 카드도 함께 갱신해서 새로고침 / Socket.IO 동기.
 // (updateInvoiceChatCards 는 services/invoicePayments.js 로 이관 — 상단에서 import)
 
-// 청구서 번호는 services/invoiceNumber.js nextInvoiceNumber 한 곳에서 뽑는다(워크스페이스×연도 카운터, B-②).
+// 청구서 번호는 services/invoiceNumber.js 한 곳에서 뽑는다(연도 + 무작위 꼬리, B-② · 2026-10-23).
 
 // 품목 금액 입력 검증 — unit_price·quantity 가 (있으면) 유한수·≥0 이어야 한다(B-①). 없으면 기본값(1·0)을 쓰므로 통과.
 function itemsAmountsValid(items) {
@@ -733,8 +733,8 @@ router.post('/:businessId/:id/duplicate', authenticateToken, checkBusinessAccess
       account_holder: business.bank_account_name || business.name,
     } : src.bank_snapshot;
 
-    const invoice_number = await nextInvoiceNumber(Number(req.params.businessId), { transaction: t });
-    const copy = await Invoice.create({
+    // 번호 충돌(스냅샷 밖에서 같은 꼬리가 커밋된 희귀한 경우)은 SAVEPOINT 로 새 번호 재시도 — 500 이 아니다(Fable 2026-10-23).
+    const copy = await withInvoiceNumber(Number(req.params.businessId), t, (invoice_number, sp) => Invoice.create({
       business_id: src.business_id,
       client_id: src.client_id,
       invoice_number,                      // ★ 새 번호
@@ -763,7 +763,7 @@ router.post('/:businessId/:id/duplicate', authenticateToken, checkBusinessAccess
       paid_amount: 0,
       ...(src.receipt_type === 'tax_invoice' ? { tax_invoice_status: 'pending' } : {}),
       ...(src.receipt_type === 'cash_receipt' ? { cash_receipt_status: 'pending' } : {}),
-    }, { transaction: t });
+    }, { transaction: sp }));
 
     // 품목 — 내용이므로 그대로. 금액은 생성 라우트와 **같은 공식**으로 다시 센다.
     const items = src.items || [];
@@ -907,11 +907,11 @@ router.post('/:businessId', authenticateToken, checkBusinessAccess, requireMenu(
     const projectIdChecked = await assertProjectInBusiness(project_id || derivedProjectId, req.params.businessId, { transaction: t });
     await assertClientInProject(clientIdChecked, projectIdChecked, req.params.businessId, { transaction: t });
 
-    const invoice_number = await nextInvoiceNumber(Number(req.params.businessId), { transaction: t });
+    // 번호는 아래 Invoice.create 를 withInvoiceNumber 로 감싸 뽑는다(충돌 시 SAVEPOINT 재시도).
     const vatRateNum = vat_rate !== undefined ? Number(vat_rate) : 0.1;
     const cur = currency || 'KRW';
 
-    const invoice = await Invoice.create({
+    const invoice = await withInvoiceNumber(Number(req.params.businessId), t, (invoice_number, sp) => Invoice.create({
       business_id: req.params.businessId,
       client_id: clientIdChecked,
       invoice_number,
@@ -933,7 +933,7 @@ router.post('/:businessId', authenticateToken, checkBusinessAccess, requireMenu(
       // 발행 의향이 있으면 결제 후 큐에 'pending' 으로 잡히도록 상태 선설정 (고객 제출 시 갱신)
       ...(receiptType === 'tax_invoice' ? { tax_invoice_status: 'pending' } : {}),
       ...(receiptType === 'cash_receipt' ? { cash_receipt_status: 'pending' } : {}),
-    }, { transaction: t });
+    }, { transaction: sp }));
 
     let grandTotal = 0;
     if (items && items.length > 0) {
