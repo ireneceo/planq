@@ -1325,5 +1325,11 @@
       "forbidden": "작성자·오너·관리자만 공동 편집자를 정할 수 있어요.",
       "generic": "바꾸지 못했어요. 잠시 뒤 다시 해 주세요."
     }
+  },
+  "signChip": {
+    "completed": "서명 완료",
+    "rejected": "서명 거절",
+    "expired": "서명 만료",
+    "progress": "서명 {{signed}}/{{total}}"
   }
 }

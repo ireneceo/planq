@@ -302,6 +302,18 @@ router.get('/', authenticateToken, async (req, res, next) => {
         ], qStr);
       });
     }
+    // 서명 진행 요약 — 목록 행 칩 «서명 완료 / 서명 2/3» (2026-10-23, Irene «서명완료라고 하거나 그런 걸 표시해야지»).
+    //   지금 회차(signRoundWhere — 취소·닫힌 회차 제외)의 수만 싣는다. 이메일·이름·토큰은 읽지 않는다(signProgressByEntities).
+    const sign = await require('../services/signedDocument').signProgressByEntities('post', rows.map((r) => r.id));
+    for (const it of items) {
+      const reqs = sign.get(`${it.business_id}:${it.id}`);
+      if (!reqs || !reqs.length) continue;
+      const signed = reqs.filter((r) => r.status === 'signed').length;
+      const state = signed === reqs.length ? 'completed'
+        : reqs.some((r) => r.status === 'rejected') ? 'rejected'
+          : reqs.some((r) => r.status === 'expired') ? 'expired' : 'in_progress';
+      it.sign = { total: reqs.length, signed, state };
+    }
     await applyMemberDisplayName(items, businessId, ['author', 'editor']);
     return paginatedResponse(res, items, count, { limit, page, offset });
   } catch (err) { next(err); }

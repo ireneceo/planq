@@ -443,6 +443,15 @@ export const DraftTag = styled.span`
   background: #FFF7ED; color: #C2410C; border: 1px solid #FED7AA;
   border-radius: 999px; font-size: 0.625rem; font-weight: 700; line-height: 16px;
 `;
+// 목록 행의 서명 진행 칩 — «서명 완료» 민트 · 진행 회색 · 거절/만료 빨강 (2026-10-23)
+export const SignTag = styled.span<{ $state: 'completed' | 'in_progress' | 'rejected' | 'expired' }>`
+  display: inline-flex; align-items: center; flex-shrink: 0;
+  margin-right: 6px; padding: 1px 6px;
+  background: ${p => (p.$state === 'completed' ? '#F0FDFA' : p.$state === 'in_progress' ? '#F8FAFC' : '#FEF2F2')};
+  color: ${p => (p.$state === 'completed' ? '#0F766E' : p.$state === 'in_progress' ? '#475569' : '#B91C1C')};
+  border: 1px solid ${p => (p.$state === 'completed' ? '#99F6E4' : p.$state === 'in_progress' ? '#E2E8F0' : '#FECACA')};
+  border-radius: 999px; font-size: 0.625rem; font-weight: 700; line-height: 1.6;
+`;
 // 상세 메타 — 헤더 아래 한 줄 MetaBar. 좌(작성자·날짜·분류·프로젝트) ↔ 우(공개·공유·보안). (Irene)
 // 구분선은 좌우 끝까지(풀폭), 글자만 좌우 24px 안쪽.
 // 상세 밴드2 — 좌(작성자·날짜·분류·프로젝트) / 우(공개·공유·보안 + 액션 3).

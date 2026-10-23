@@ -28,6 +28,8 @@ export interface PostRow {
   content_preview: string;
   // 2026-09-11 — `?q=` 검색일 때만 서버가 채운다: 어디서 맞았나 + 안 보이는 곳이면 주변 문장. (routes/posts.js)
   match?: SearchMatchInfo | null;
+  // 목록에서만 — 지금 회차 서명 진행(서명 요청이 있는 문서만). routes/posts.js GET /
+  sign?: { total: number; signed: number; state: 'completed' | 'in_progress' | 'rejected' | 'expired' } | null;
   // 양방향 링크: 자료정리(brief) post 가 만든 후속 문서면 parent_post_id 가짐
   parent_post_id: number | null;
   // brief_meta 는 category='brief' 인 post 만. 일반 post 는 null

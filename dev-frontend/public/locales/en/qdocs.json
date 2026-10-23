@@ -1325,5 +1325,11 @@
       "forbidden": "Only the author, owners and admins can choose co-editors.",
       "generic": "Couldn’t change it. Please try again shortly."
     }
+  },
+  "signChip": {
+    "completed": "Signed",
+    "rejected": "Signature declined",
+    "expired": "Signature expired",
+    "progress": "Signed {{signed}}/{{total}}"
   }
 }

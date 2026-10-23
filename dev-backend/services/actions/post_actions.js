@@ -489,4 +489,23 @@ async function notifyComment({ post, comment, subjectId, actor }) {
   }
 }
 
-module.exports = { createComment, deleteComment, applyAiEdit, aiEditTarget, createPost, updatePostContent, setPostLinks, movePostToProject, checkEditable, attachFiles };
+// ★ 서명·확인 요청을 보내는 순간 임시저장(draft) 문서는 발행된다 (2026-10-23, Irene «서명이 다 완료된 이 파일이 왜
+//   [임시저장]이라고 리스트에 나와?»). 자동저장 draft 그대로 보내면 요청이 문서를 잠가(signatureCore.isPostSignatureLocked)
+//   명시 저장(승격 PUT)마저 409 라 **영영 draft** 였다 — 목록 [임시저장], 작성자 외 목록에서 안 보임.
+//   **상태만** 바꾼다. 공개 범위(vlevel)는 건드리지 않는다(넓히지 않는다). 옛 행은 scripts/fix-signed-drafts.js.
+//   트랜잭션 안에서 publishDraftOnRequest → 커밋 뒤 afterDraftPublishedOnRequest(감사·신호·업무 액션 — 명시 저장 승격과 같은 것).
+async function publishDraftOnRequest(post, transaction) {
+  if (post.status !== 'draft') return false;
+  await post.update({ status: 'published' }, { transaction });
+  return true;
+}
+function afterDraftPublishedOnRequest(req, post, via) {
+  require('../auditService').logAudit(req, {
+    action: 'post.create', targetType: 'post', targetId: post.id, businessId: post.business_id,
+    oldValue: { status: 'draft' }, newValue: { status: 'published', via },
+  });
+  try { require('../../routes/posts').broadcastPost(req, post, 'post:updated'); } catch (e) { console.warn('[post_actions] publish broadcast', e.message); }
+  require('../taskActionItems').onPostPublished(post, req.user.id).catch((e) => console.warn('[post_actions] onPostPublished', e.message));
+}
+
+module.exports = { publishDraftOnRequest, afterDraftPublishedOnRequest, createComment, deleteComment, applyAiEdit, aiEditTarget, createPost, updatePostContent, setPostLinks, movePostToProject, checkEditable, attachFiles };

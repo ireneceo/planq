@@ -81,7 +81,7 @@ import PostAiEditDrawer from './PostAiEditDrawer';
 import { isEnterAction } from '../../utils/imeKey';
 import { uploadErrorText } from '../../utils/uploadError';
 import {
-  PrintOnlyTitle, Layout, Sidebar, TitleGroup, HeaderBtnRow, NewBtn, NewBtnWrap, NewDropdown, NewItem, NewItemTitle, NewItemDesc, ModalBackdrop, ModalDialog, ModalHead, ModalTitle, ModalClose, ModalBody, ModalSub, TplGrid, TplCard, TplCardIcon, TplBadgeSys, TplSearchInput, PinDot, ParentLink, SaveTplField, SaveTplLabel, SaveTplError, ModalFooter, TplCardBody, TplCardName, TplCardDesc, Empty, SearchWrap, FilterSection, FilterGroupLabel, Chip, Count, ColorDot, AddCatBtn, NewCatInput, RowList, RowItem, RowPinBtn, RowTitle, RowPreview, CardPreview, CardAuthor, RowVisChip, SectionGap, AiRegenRow, KindToggle, KindBtn, ShareMini, RowMeta, Dim, Content, StickyBands, StickyPanelHeader, Body, EditBody, TitleInput, AutoSaveMark, WideOnly, PhoneOnly, AutoSaveText, DraftTag, ViewMeta, MetaLeft, MetaRight, AiEditDoneBar, AiEditUndoBtn, AiEditCloseBtn, MetaActions, HeaderActions, PinTag, ProjectTag, CategoryTag, MetaField, MetaRow, MetaSummaryBtn, MetaSummaryLabel, MetaSummaryValue, MetaSummaryChevron, VisibilityChip, ShareTag, CategoryMini, AttachSection, AttachTitle, AttachScopeHint, AttachList, AttachRow, AttachName, RemoveBtn, CatActions, CatIconBtn, ErrorBar, DescAddBtn, DescToggleHeader, DescBoxLabel, DescChevron, PrimaryBtn, EditBtn, IconActionBtn, SignBtn, LeaveBlockedNote, SecondaryBtn, TitleRow, MobileBackBtn, KnowledgeToast, SignedBody,
+  PrintOnlyTitle, Layout, Sidebar, TitleGroup, HeaderBtnRow, NewBtn, NewBtnWrap, NewDropdown, NewItem, NewItemTitle, NewItemDesc, ModalBackdrop, ModalDialog, ModalHead, ModalTitle, ModalClose, ModalBody, ModalSub, TplGrid, TplCard, TplCardIcon, TplBadgeSys, TplSearchInput, PinDot, ParentLink, SaveTplField, SaveTplLabel, SaveTplError, ModalFooter, TplCardBody, TplCardName, TplCardDesc, Empty, SearchWrap, FilterSection, FilterGroupLabel, Chip, Count, ColorDot, AddCatBtn, NewCatInput, RowList, RowItem, RowPinBtn, RowTitle, RowPreview, CardPreview, CardAuthor, RowVisChip, SectionGap, AiRegenRow, KindToggle, KindBtn, ShareMini, RowMeta, Dim, Content, StickyBands, StickyPanelHeader, Body, EditBody, TitleInput, AutoSaveMark, WideOnly, PhoneOnly, AutoSaveText, DraftTag, SignTag, ViewMeta, MetaLeft, MetaRight, AiEditDoneBar, AiEditUndoBtn, AiEditCloseBtn, MetaActions, HeaderActions, PinTag, ProjectTag, CategoryTag, MetaField, MetaRow, MetaSummaryBtn, MetaSummaryLabel, MetaSummaryValue, MetaSummaryChevron, VisibilityChip, ShareTag, CategoryMini, AttachSection, AttachTitle, AttachScopeHint, AttachList, AttachRow, AttachName, RemoveBtn, CatActions, CatIconBtn, ErrorBar, DescAddBtn, DescToggleHeader, DescBoxLabel, DescChevron, PrimaryBtn, EditBtn, IconActionBtn, SignBtn, LeaveBlockedNote, SecondaryBtn, TitleRow, MobileBackBtn, KnowledgeToast, SignedBody,
 } from './PostsPage.styles';
 
 // 좌측 필터: 전체(기본) / 프로젝트 그룹 / 카테고리
@@ -1859,11 +1859,12 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId }) => {
                         aria-label={(pinnedIds.includes(r.id) ? t('project.docs.removeFromMenu', '상단 메뉴에서 제거') : t('project.docs.addToMenu', '상단 메뉴에 추가')) as string}
                         title={(pinnedIds.includes(r.id) ? t('project.docs.removeFromMenu', '상단 메뉴에서 제거') : t('project.docs.addToMenu', '상단 메뉴에 추가')) as string}><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><line x1="12" y1="17" x2="12" y2="22"/><path d="M5 17h14l-1.7-2.6a2 2 0 0 1-.3-1.1V7a2 2 0 0 1 2-2H5a2 2 0 0 1 2 2v6.3a2 2 0 0 1-.3 1.1L5 17z"/></svg></RowPinBtn>
                       <AtCardName>
-                        {r.status === 'draft' && (
+                        {r.status === 'draft' && !r.sign && (
                           <DraftTag title={t('autosave.draftBadgeHint', '아직 나만 보이는 임시저장 문서입니다. 열어서 저장하면 정식 등록됩니다.') as string}>
                             {t('autosave.draftBadge', '임시저장')}
                           </DraftTag>
                         )}
+                        {r.sign && <SignChip sign={r.sign} />}
                         <HighlightText text={r.title} query={query} />
                       </AtCardName>
                       {/* 운영 (Irene 2026-08-28): "리스트에 나오는 내용이 제목만나오면 다인가?
@@ -2125,11 +2126,14 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId }) => {
                 <RowTitle>
                   {r.is_pinned && <PinTag aria-hidden="true"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><line x1="12" y1="17" x2="12" y2="22"/><path d="M5 17h14l-1.7-2.6a2 2 0 0 1-.3-1.1V7a2 2 0 0 1 2-2H5a2 2 0 0 1 2 2v6.3a2 2 0 0 1-.3 1.1L5 17z"/></svg></PinTag>}
                   {/* #252 — 임시저장 행은 나만 보인다. 표시가 없으면 "저장했는데 팀이 못 본다" 가 된다. */}
-                  {r.status === 'draft' && (
+                  {/* 서명 요청이 나간 문서는 [임시저장] 대신 서명 진행 — 요청을 보내는 순간 발행된다(routes/signatures.js).
+                      옛 문서(그 전에 draft 로 보내 잠긴 것)도 같은 칩을 본다. */}
+                  {r.status === 'draft' && !r.sign && (
                     <DraftTag title={t('autosave.draftBadgeHint', '아직 나만 보이는 임시저장 문서입니다. 열어서 저장하면 정식 등록됩니다.') as string}>
                       {t('autosave.draftBadge', '임시저장')}
                     </DraftTag>
                   )}
+                  {r.sign && <SignChip sign={r.sign} />}
                   <HighlightText text={r.title} query={query} />
                 </RowTitle>
                 {/* 2026-09-11 — 검색 중 본문에서 맞았으면 미리보기 자리에 **매칭 주변 문장**을 그린다.
@@ -3153,3 +3157,13 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId }) => {
 };
 
 export default PostsPage;
+
+// 목록 행의 서명 진행 칩 — 카드·행 두 곳이 같은 것을 쓴다
+function SignChip({ sign }: { sign: NonNullable<PostRow['sign']> }) {
+  const { t } = useTranslation('qdocs');
+  const label = sign.state === 'completed' ? t('signChip.completed', '서명 완료')
+    : sign.state === 'rejected' ? t('signChip.rejected', '서명 거절')
+      : sign.state === 'expired' ? t('signChip.expired', '서명 만료')
+        : t('signChip.progress', '서명 {{signed}}/{{total}}', { signed: sign.signed, total: sign.total });
+  return <SignTag $state={sign.state} data-testid="docs-sign-chip">{label}</SignTag>;
+}

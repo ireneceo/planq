@@ -223,8 +223,9 @@ router.post('/posts/:id/signatures', authenticateToken, async (req, res, next) =
       created.push(row);
     }
 
+    const promoted = await require('../services/actions/post_actions').publishDraftOnRequest(post, t);   // draft 면 발행(상태만)
     // 이메일 발송 (rollback 가능 — sendEmail 실패해도 DB rollback 안 함; 단 OTP 와 다르게 sign 요청 자체는 idempotent)
-    await t.commit();
+    await t.commit(); if (promoted) require('../services/actions/post_actions').afterDraftPublishedOnRequest(req, post, `signature.${kind}`);
 
     // 트랜잭션 커밋 후 외부 호출 (이메일·채팅)
     const docTitle = post.title;
