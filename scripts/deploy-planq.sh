@@ -1165,6 +1165,16 @@ post_restart_backfills() {
   log "Terms update notice (version 1.2 · banner · member mail)..."
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-terms-handover.js 2>&1 | grep -E 'terms-handover' | tail -6" \
     || warn "약관 개정 고지 단계 실패 — 출력 확인 후 수동 재실행"
+  # 2026-10-23 서명 문서 공개 범위 바닥 — 서명·확인 요청이 살아 있는 «나만 보기»(L1) 옛 문서를 L2 로(docs/SIGNATURE_VISIBILITY_FLOOR_DESIGN.md).
+  #   Irene «권고대로»(= A 일괄 올림, 2026-10-23 상황판 답). 대상 목록(읽기만)을 먼저 로그에 남기고 --apply · 감사 reason signature_floor.backfill · 멱등(다시 돌리면 0건).
+  #   ★ 재시작 뒤 — 새 코드가 떠 있어야 올린 뒤 바로 «나만 보기» 로 되돌리는 문이 닫혀 있다. 실패해도 배포 계속(수동 재실행).
+  log "Signature visibility floor (L1 signed docs → L2)..."
+  prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-signature-visibility-floor.js 2>&1 | grep -E 'sig-vis-floor|^  #' | tail -15" \
+    || warn "서명 공개 범위 바닥 대상 조회 실패 — 원인 확인 후 수동 재실행"
+  if [ "$DRY_RUN" != true ]; then
+    prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-signature-visibility-floor.js --apply 2>&1 | grep -E 'sig-vis-floor' | tail -4" \
+      || warn "서명 공개 범위 바닥 적용 실패(남은 L1 있음) — node scripts/migrate-signature-visibility-floor.js --apply 수동 재실행"
+  fi
   # 남은 옛 부호화 0건 단언 — 운영엔 health-check 가 없어 노란 줄 하나로 묻히지 않게 빨간 줄로(Fable 권고 ③).
   [ "$DRY_RUN" = true ] && return 0
   local LEFT
