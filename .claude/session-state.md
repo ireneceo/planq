@@ -11,6 +11,10 @@
 - 검증: 실HTTP 22/22(숨김 0건 · 읽기 1건 · 기본값 숨김 0건 · 복구 1건 · notify 직접 4) · 양성 대조군(거름 끔 → 3건 뒤집힘) · guard 80/81 ✓ · health 96/96. Fable PASS(docs/FABLE_GATE_QUEUE.md 맨 위).
 - 남김(비차단): notifyMany 기본값 한 번 · PATH_MENUS⊂navMenus 가드 · notifications.js 정확히 500줄(다음에 notify 분리) · qtalk·qnote·qdocs·qinfo·qfile 은 서버 requireMenu 0 — 숨김이 화면에서만 막힌다(별건).
 
+### ✅ 묶음 2건 (방 5305b395 · 2026-10-23 · [Opus]) — 운영 반영: 다음 배포 때
+- 1) DocsTab 나누기(c9c14e7f): 10-24 정기 점검(2de9c3d6)이 이미 2959→2930 으로 래칫을 통과시켜 둔 상태였으나 통과선 2944까지 13줄뿐 → 좌측 트리 `docs/ProjectGroups.tsx`·`docs/FolderTree.tsx`·`docs/folderSel.ts` 로 옮김(동작 그대로) · 2930→2523줄. 검증: build EXIT 0·error TS 0 · godfile 에서 DocsTab 없음 · i18n·parity 통과 · e2e filetree·filemarquee·filesrc·docscollapse 0 실패(단 filemarquee «로컬 파일 드롭 폴더» 6회 중 1회 folder_id null — 같은 빌드 5회 통과, 타이밍성) · 3폭(390·820·1440) /files·프로젝트 파일 탭 트리 보임·가로넘침 0·화면 오류 0. Fable 미검증(자체 검증) — 동작 불변 리팩터링.
+- 2) 정기구독 세금 설정·표기: 청구 금액 공식·정기청구 엔진·새 DB 칸 = Fable 설계 대상이라 손대지 않고 대기열 앞으로 되돌림(정찰 계획 .claude/plans/qmvkqa1g7.md 유효).
+
 ### ✅ 처리방침 개정 공지 띠 자동화 (방 6941735d · 2026-10-24 · [Opus]) — 운영 반영: 다음 배포 때
 - 원문: «이걸 왜 나한테 시켜? 이런 건 자동화도 되어야 하는 거 아니야??» — 관리자 화면 공지 넣기 할 일 카드(todomvkmmxl1) 뺌.
 - `config/policyNotices.ts` 한 줄(privacy_1_5 · 시행 2026-11-03) → `AnnouncementBanner` 가 운영 공지가 없을 때 저절로 띄우고 시행일 다음 날 0시에 사라짐 · 닫기 기억(공지 id) · 문구 common.policyNotice ko/en.
