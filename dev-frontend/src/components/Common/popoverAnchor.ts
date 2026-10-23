@@ -8,9 +8,13 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useEscapeStack } from '../../hooks/useEscapeStack';
 
-export type AnchorPos = { top: number; right: number };
+// ★ 기본은 «트리거 아래 · 오른쪽 끝 맞춤» — 쓰는 곳 대부분이 이것이다.
+//   placement 'up' = 트리거 **위로** 편다(화면 맨 아래 입력줄 — 아래로 펴면 화면 밖이다, 2026-10-23 채팅 + 메뉴).
+//   align 'start' = 트리거 **왼쪽 끝**에 맞춘다(트리거가 줄 왼쪽에 있을 때 — 오른쪽 맞춤이면 옆 패널을 덮는다).
+export type AnchorPos = { top?: number; bottom?: number; right?: number; left?: number };
+export type AnchorOptions = { placement?: 'down' | 'up'; align?: 'end' | 'start' };
 
-export function usePopoverAnchor() {
+export function usePopoverAnchor({ placement = 'down', align = 'end' }: AnchorOptions = {}) {
   const [open, setOpen] = useState(false);
   const [pos, setPos] = useState<AnchorPos | null>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -65,8 +69,10 @@ export function usePopoverAnchor() {
     if (!open) { setPos(null); return; }
     const r = wrapRef.current?.getBoundingClientRect();
     if (!r) return;
-    setPos({ top: r.bottom + 6, right: Math.max(8, window.innerWidth - r.right) });
-  }, [open]);
+    const v = placement === 'up' ? { bottom: window.innerHeight - r.top + 6 } : { top: r.bottom + 6 };
+    const h = align === 'start' ? { left: Math.max(8, r.left) } : { right: Math.max(8, window.innerWidth - r.right) };
+    setPos({ ...v, ...h });
+  }, [open, placement, align]);
 
   // ★ **왼쪽 클램프** (2026-09-18). 위 계산은 트리거의 오른쪽 끝에만 맞춘다 — 트리거가 화면
   //   **왼쪽**에 있으면 패널이 화면 밖으로 나간다. 실측: 폰 390 에서 트리거 오른쪽 끝 109px →
@@ -77,8 +83,10 @@ export function usePopoverAnchor() {
     if (!open || !pos) return;
     const w = panelRef.current?.getBoundingClientRect().width;
     if (!w) return;
-    const maxRight = Math.max(8, window.innerWidth - w - 8);
-    if (pos.right > maxRight) setPos({ top: pos.top, right: maxRight });
+    const maxEdge = Math.max(8, window.innerWidth - w - 8);
+    // 왼쪽 맞춤이면 같은 이유로 **오른쪽**으로 넘친다 — 같은 식으로 접는다.
+    if (pos.right !== undefined && pos.right > maxEdge) setPos({ ...pos, right: maxEdge });
+    if (pos.left !== undefined && pos.left > maxEdge) setPos({ ...pos, left: maxEdge });
   }, [open, pos]);
 
   const toggle = useCallback(() => setOpen(o => !o), []);

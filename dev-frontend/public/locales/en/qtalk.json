@@ -391,6 +391,7 @@
       "extracting": "Extracting...",
       "extractNow": "Extract tasks",
       "attach": "Attach file",
+      "more": "Add file or card",
       "attachExisting": "Existing file (no re-upload)",
       "placeholder": "Type a message",
       "hint": "Enter to send · Shift+Enter for newline",

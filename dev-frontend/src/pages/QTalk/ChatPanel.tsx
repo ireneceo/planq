@@ -21,7 +21,8 @@ import DetailFallback from '../../components/Common/DetailFallback';
 import PostPreviewModal from '../../components/Docs/PostPreviewModal';
 import SignatureLinkModal from '../../components/QTalk/SignatureLinkModal';
 import FilePicker, { type FilePickerResult } from '../../components/Common/FilePicker';
-import SendNameCardButton from '../../components/NameCard/SendNameCardButton';
+import SendNameCardModal from '../../components/NameCard/SendNameCardModal';
+import OverflowMenu, { type OverflowItem } from '../../components/Common/OverflowMenu';
 import UserInfoPopover from '../../components/Common/UserInfoPopover';
 import NameCardViewDrawer from '../../components/NameCard/NameCardViewDrawer';
 import { fetchWorkspaceFiles, uploadMyFile, isImage as isRenderableImage } from '../../services/files';
@@ -709,6 +710,7 @@ const ChatPanel: React.FC<Props> = ({
   const [stagedPostIds, setStagedPostIds] = useState<number[]>([]);
   const [stagedPostMeta, setStagedPostMeta] = useState<Record<number, { title: string }>>({});
   const [filePickerOpen, setFilePickerOpen] = useState(false);
+  const [nameCardOpen, setNameCardOpen] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   // 드래그 enter/leave 깊이 카운터 — 자식 요소 경계마다 leave 가 fire 돼도 0 일 때만 해제.
   const dragDepthRef = useRef(0);
@@ -2364,13 +2366,45 @@ const ChatPanel: React.FC<Props> = ({
           handleKeyDown 가 Enter 시 handleSend 호출하므로 form submit 의존 없음. SendBtn 도 type="button".
         */}
         <InputWrap>
-          <AttachBtn type="button" onClick={() => setFilePickerOpen(true)} title={t('chat.input.attach', '파일 첨부') as string}>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
-            </svg>
-          </AttachBtn>
-          {/* 명함 보내기(멤버만) — docs/NAME_CARD_V3_STRATEGY.md 9절 결정 4 */}
-          {!isClient && businessId && activeConversationId && <SendNameCardButton businessId={Number(businessId)} conversationId={Number(activeConversationId)} />}
+          {/* «+» 하나에 파일·명함(앞으로 생길 것도)을 모은다 — 이모지만 따로 (2026-10-23, Irene «왓츠앱에서 + 누르면 나오는 것처럼»).
+              명함 보내기는 멤버만(docs/NAME_CARD_V3_STRATEGY.md 9절 결정 4). 고객은 «파일» 하나뿐이지만 같은 + 로 둔다 —
+              자리마다 모양이 다르면 고장으로 읽힌다. 입력줄은 화면 맨 아래라 메뉴는 위로, 트리거가 왼쪽이라 왼쪽 맞춤. */}
+          <OverflowMenu
+            data-testid="chat-plus"
+            placement="up"
+            align="start"
+            triggerVariant="ghost"
+            label={t('chat.input.more', '파일·명함 보내기') as string}
+            triggerIcon={(
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden>
+                <path d="M12 5v14M5 12h14" />
+              </svg>
+            )}
+            items={([
+              {
+                key: 'file',
+                label: t('chat.input.attach', '파일 첨부') as string,
+                testId: 'chat-plus-file',
+                icon: (
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+                    <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
+                  </svg>
+                ),
+                onClick: () => setFilePickerOpen(true),
+              },
+              ...(!isClient && businessId && activeConversationId ? [{
+                key: 'card',
+                label: t('cards:sendCard.button') as string,
+                testId: 'chat-send-name-card',
+                icon: (
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                    <rect x="2" y="5" width="20" height="14" rx="2" /><circle cx="8" cy="12" r="2.2" /><path d="M13 10h5M13 14h4" />
+                  </svg>
+                ),
+                onClick: () => setNameCardOpen(true),
+              }] : []),
+            ] as OverflowItem[])}
+          />
           {/* #380 — 입력창 이모지. 커서 위치에 삽입하고 draft·포커스를 그대로 유지한다. */}
           <EmojiPickerButton
             onPick={(emoji) => {
@@ -2485,6 +2519,14 @@ const ChatPanel: React.FC<Props> = ({
           variant="modal"
           multiple
           includePosts
+        />
+      )}
+      {!isClient && businessId && activeConversationId && (
+        <SendNameCardModal
+          open={nameCardOpen}
+          onClose={() => setNameCardOpen(false)}
+          businessId={Number(businessId)}
+          conversationId={Number(activeConversationId)}
         />
       )}
       {businessId && userPopover && (
@@ -3909,8 +3951,9 @@ const InputWrap = styled.div`
   align-items: flex-end;
   gap: 8px;
   padding: 8px 10px;
-  /* 폰 — 버튼 3개(44×3=132)가 이미 폭을 크게 쓴다. 실측 입력칸이 181px(화면의 48%)이었다.
-     여백을 줄여 그만큼 입력칸에 돌려준다(버튼 크기는 터치 타겟이라 줄이지 않는다). */
+  /* 폰 — 버튼 3개(+ · 😊 · 보내기, 44×3=132)가 이미 폭을 크게 쓴다. 실측 입력칸이 181px(화면의 48%)이었다.
+     여백을 줄여 그만큼 입력칸에 돌려준다(버튼 크기는 터치 타겟이라 줄이지 않는다).
+     파일·명함 등 기능이 늘어도 버튼은 늘리지 않는다 — + 메뉴에 항목으로 넣는다(2026-10-23). */
   @media (max-width: 640px) { gap: 4px; padding: 6px 8px; }
   background: #F8FAFC;
   border: 1px solid #E2E8F0;
@@ -3969,15 +4012,6 @@ const SendBtn = styled.button`
 `;
 
 // ─── 첨부 UI ───
-const AttachBtn = styled.button`
-  width: 36px; height: 36px; border-radius: 8px;
-  background: transparent; color: #64748B; border: none;
-  display: flex; align-items: center; justify-content: center; cursor: pointer;
-  flex-shrink: 0;
-  touch-action: manipulation;
-  @media (max-width: 1024px) { width: 44px; height: 44px; }
-  &:hover { background: #F1F5F9; color: #0F172A; }
-`;
 const StagedRow = styled.div`
   display: flex; flex-wrap: wrap; gap: 6px;
   justify-content: flex-start;

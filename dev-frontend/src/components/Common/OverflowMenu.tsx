@@ -49,18 +49,25 @@ type Props = {
   triggerIcon?: React.ReactNode;
   /** 기본값이 아닌 값이 골라져 있다 — 아이콘만인 트리거는 지금 값이 안 보이므로 민트 점으로 «바뀜» 을 알린다 */
   triggerActive?: boolean;
+  /** 'up' = 트리거 위로 편다(화면 맨 아래 입력줄). 기본 'down' */
+  placement?: 'down' | 'up';
+  /** 'start' = 트리거 왼쪽 끝에 맞춘다(줄 왼쪽의 트리거). 기본 'end' */
+  align?: 'end' | 'start';
+  /** 'ghost' = 테두리·배경 없는 회색 아이콘 — 입력줄의 📎·😊 같은 줄에 설 때(크기도 입력줄 버튼 규격 36 / ≤1024 44). 기본 'outline' */
+  triggerVariant?: 'outline' | 'ghost';
   className?: string;
   'data-testid'?: string;
 };
 
-export default function OverflowMenu({ items, label, triggerLabel, triggerIcon, triggerActive, className, ...rest }: Props) {
-  const { open, toggle, close, pos, wrapRef, panelRef } = usePopoverAnchor();
+export default function OverflowMenu({ items, label, triggerLabel, triggerIcon, triggerActive, placement, align, triggerVariant = 'outline', className, ...rest }: Props) {
+  const { open, toggle, close, pos, wrapRef, panelRef } = usePopoverAnchor({ placement, align });
+  const T = triggerVariant === 'ghost' ? GhostTrigger : Trigger;
 
   if (items.length === 0) return null;
 
   return (
     <Wrap ref={wrapRef} className={className}>
-      <Trigger
+      <T
         type="button"
         {...rest}
         $open={open}
@@ -80,9 +87,9 @@ export default function OverflowMenu({ items, label, triggerLabel, triggerIcon, 
             <circle cx="5" cy="12" r="1.7" /><circle cx="12" cy="12" r="1.7" /><circle cx="19" cy="12" r="1.7" />
           </svg>
         )}
-      </Trigger>
+      </T>
       {open && pos && createPortal(
-        <Menu ref={panelRef} role="menu" style={{ top: pos.top, right: pos.right }}>
+        <Menu ref={panelRef} role="menu" style={{ top: pos.top, bottom: pos.bottom, right: pos.right, left: pos.left }}>
           {items.map(it => (
             <React.Fragment key={it.key}>
               {it.dividerBefore && <MenuDivider />}
@@ -133,6 +140,17 @@ const Trigger = styled.button<{ $open: boolean; $active: boolean }>`
   &:hover{border-color:#14B8A6;color:#0F766E;}
   &:focus-visible{outline:2px solid #14B8A6;outline-offset:2px;}
   @media (max-width: 640px){ min-width:44px;height:44px; }
+`;
+// 입력줄 아이콘 버튼과 같은 모양 — ChatPanel 의 이모지 버튼 줄(36 / ≤1024 44, 테두리 없음)
+const GhostTrigger = styled.button<{ $open: boolean; $active: boolean }>`
+  position:relative;width:36px;height:36px;flex-shrink:0;padding:0;
+  display:inline-flex;align-items:center;justify-content:center;
+  border:none;border-radius:8px;cursor:pointer;touch-action:manipulation;
+  background:${p => (p.$open ? '#F1F5F9' : 'transparent')};
+  color:${p => (p.$open ? '#0F172A' : '#64748B')};
+  &:hover{background:#F1F5F9;color:#0F172A;}
+  &:focus-visible{outline:2px solid #14B8A6;outline-offset:2px;}
+  @media (max-width: 1024px){ width:44px;height:44px; }
 `;
 // 기본값이 아닌 값이 골라져 있음 — 아이콘 오른쪽 위 점
 const TriggerDot = styled.span`
