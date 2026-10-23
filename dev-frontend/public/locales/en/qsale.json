@@ -28,21 +28,23 @@
   },
   "access": {
     "label": "Access",
-    "guest": "Guest",
-    "guest_hint": "Saved details only · no login",
+    "prospect": "Inquiry",
+    "prospect_hint": "Consultation contact · not registered yet · not counted",
+    "managed": "Added",
+    "managed_hint": "Added by us · no account",
     "invited": "Invited",
-    "invited_hint": "Invitation sent, not accepted yet",
-    "member": "Member",
-    "member_hint": "Logs in to PlanQ",
-    "requires_member": "Available after formal invitation"
+    "invited_hint": "Invitation sent · not accepted",
+    "member": "Joined",
+    "member_hint": "Signs in to PlanQ",
+    "requires_member": "Available once they join"
   },
   "quota": {
     "counted": "Counts toward plan limit",
-    "not_counted": "Not counted · counts once invited",
-    "header": "Members {{clients}}/{{clients_max}} · Inquiries {{prospects}}/{{prospects_max}}",
+    "not_counted": "Not counted · counts once added or invited",
+    "header": "Clients {{clients}}/{{clients_max}} · Inquiries {{prospects}}/{{prospects_max}}",
     "unlimited": "Unlimited",
-    "invite_notice": "Inviting counts toward your member limit (now {{clients}} / {{clients_max}})",
-    "tip": "Registered = customers with an account · Inquiries = people you have not invited yet. The numbers are current / plan limit.",
+    "invite_notice": "Adding or inviting counts toward your client limit (now {{clients}} / {{clients_max}})",
+    "tip": "Clients = clients you added or invited (with or without an account) · Inquiries = contacts not registered yet. The numbers are current / plan limit.",
     "raise": "Raise the limit"
   },
   "source": {
@@ -153,9 +155,6 @@
       "guest": "Open guest chat"
     },
     "restore": "Restore",
-    "registerConfirmTitle": "Register as a client and send the invitation?",
-    "registerConfirmBody": "An invitation email will be sent to {{email}}. A sent email cannot be taken back.",
-    "registerConfirmNoEmail": "This only registers the client. There is no email address, so no invitation will be sent.",
     "more": "More",
     "restoreToInbox": "Move back to inbox",
     "ensureClientTitle": "Register as a client and continue?",
@@ -181,9 +180,9 @@
     "promoteToInbox": "Send to consults",
     "proceedConsult": "Start consult",
     "addRecordShort": "Add",
-    "registerManaged": "Make a client without account",
-    "registerManagedTitle": "Make this a client without an account?",
-    "registerManagedBody": "No email is sent. They become a managed client counted in your client limit, ready for invoices and projects. The sales stage stays as is.",
+    "registerManaged": "Add as client",
+    "registerManagedTitle": "Add as a client?",
+    "registerManagedBody": "No email is sent. They become an «Added» client you manage yourselves, counted in your client limit and ready for invoices and projects. The sales stage stays as is.",
     "archiveClient": "Archive",
     "restoreClient": "Restore",
     "archiveError": {
@@ -378,8 +377,6 @@
       "body": "Guest link conversations and emails or chats not linked to a client appear here."
     },
     "noBody": "No content",
-    "inviteFailed": "Registered as a customer, but the invitation email failed. You can resend it from the panel.",
-    "inviteNoEmail": "Registered as a customer. No email address, so no invitation was sent.",
     "stageAll": "All stages",
     "hideClosed": "Hide closed",
     "handled": "Handled",

@@ -37,7 +37,7 @@ const quotaOf = async (businessId) => {
 };
 
 // ─── 목록 ─────────────────────────────────────────────────────────
-// ?q= ?stage=(in_progress|none|<stage>) ?access=(guest|invited|member) ?assignee=(<userId>|none) ?limit ?page
+// ?q= ?stage=(in_progress|none|<stage>) ?access=(prospect|managed|invited|member) ?assignee=(<userId>|none) ?limit ?page
 router.get('/:businessId/clients', ...readChain, async (req, res, next) => {
   try {
     const businessId = Number(req.params.businessId);
@@ -103,7 +103,7 @@ router.get('/:businessId/inbox', ...readChain, async (req, res, next) => {
       stage: STAGES.includes(String(req.query.stage || "")) ? String(req.query.stage) : null,
       includeClosed: String(req.query.include_closed || '') === 'true',
       // 고객 목록과 **같은 축**을 상담 목록에도 (2026-09-14)
-      access: ['guest', 'invited', 'member'].includes(String(req.query.access || '')) ? String(req.query.access) : null,
+      access: ['prospect', 'managed', 'invited', 'member'].includes(String(req.query.access || '')) ? String(req.query.access) : null,
       assignee: /^(none|\d+)$/.test(String(req.query.assignee || '')) ? String(req.query.assignee) : null,
       limit: Math.min(Math.max(Number(req.query.limit) || 100, 1), 300),
     });

@@ -69,6 +69,10 @@ if (typeof window !== 'undefined' && window.history) {
 //   그런데 걷어 내려가 닿는 아래 칸은 여전히 «열린 주소» 일 수 있다(처음부터 `?task=` 로 들어온 경우).
 //   거기 닿으면 화면이 주소를 읽어 **패널이 다시 열린다.** 그래서 닿기 직전에 닫힌 주소로 바꿔 둔다.
 let pendingFixUrl: string | null = null;
+// 버튼으로 닫으며 부른 back() 이 아직 도착하지 않았다 — 그 사이 새 패널이 칸을 쌓으면 그 back 이 **새 칸을 걷어**
+//   방금 연 패널이 바로 닫힌다(2026-10-23 실측: 폰 Q talk 새 대화 창을 닫고 고객 추가 드로어를 열면 드로어가 즉시 닫혔다).
+//   새 칸은 그 back 이 도착한 뒤에 쌓는다.
+let backPending = 0;
 
 const attachOnce = (() => {
   let attached = false;
@@ -78,6 +82,7 @@ const attachOnce = (() => {
     // ★ capture — 창(window)이 대상일 때 capture 리스너가 먼저 돈다. 라우터가 주소를 읽기 **전에**
     //   위 «씌울 주소» 를 적용해야 라우터가 옛 주소(`?task=`)로 한 번 그렸다가 되돌아가지 않는다.
     window.addEventListener('popstate', () => {
+      if (backPending > 0) backPending -= 1;
       if (pendingFixUrl) {
         const url = pendingFixUrl; pendingFixUrl = null;
         ownPush = true;
@@ -112,8 +117,12 @@ export function useBackToClose(active: boolean, onClose: () => void): void {
     let pushed = false;
     let here = '';
     const entry: Entry = { token: ++seq, close: () => closeRef.current() };
-    const timer = window.setTimeout(() => {
+    let tries = 0;
+    let timer = 0;
+    const tryPush = () => {
       if (cancelled) return;
+      // 앞 패널을 닫는 back() 이 진행 중이면 기다린다(상한 약 1.5초 — 도착 못 해도 결국 쌓는다)
+      if ((backPending > 0 || closing.size > 0) && tries < 50) { tries += 1; timer = window.setTimeout(tryPush, 30); return; }
       // 주소 이동(새 칸)과 함께 열렸다 → 주소가 이미 뒤로를 맡는다.
       if (Date.now() - lastNavAt < NAV_WINDOW_MS) return;
       attachOnce();
@@ -132,7 +141,8 @@ export function useBackToClose(active: boolean, onClose: () => void): void {
       } finally { ownPush = false; }
       stack.push(entry);
       pushed = true;
-    }, 0);
+    };
+    timer = window.setTimeout(tryPush, 0);
 
     return () => {
       cancelled = true;
@@ -149,6 +159,7 @@ export function useBackToClose(active: boolean, onClose: () => void): void {
         if (currentMark() !== entry.token) return;
         // 닫으며 주소가 바뀌었으면(`?task=` 제거) 내려가 닿는 칸에도 그 주소를 씌운다.
         if (window.location.href !== here) pendingFixUrl = window.location.href;
+        backPending += 1;
         window.history.back();
       }, 0);
     };

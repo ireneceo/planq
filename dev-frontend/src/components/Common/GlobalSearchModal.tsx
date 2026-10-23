@@ -205,8 +205,8 @@ const GlobalSearchModal: React.FC<Props> = ({ open, onClose, businessId, onNavig
       // 영업 축이 있으면 단계·문의 여부를 보조줄 앞에 붙인다 — 목적지도 Q sale 상세다(같은 고객의 영업 뷰).
       const stage = x.sales_stage && x.sales_stage !== 'none'
         ? t(`qsale:stage.${x.sales_stage}`, { defaultValue: x.sales_stage }) as string
-        : (x.status === 'prospect' ? t('clients:status.prospect', { defaultValue: '문의 고객' }) as string
-          : x.status === 'managed' ? t('clients:status.managed', { defaultValue: '직접 관리' }) as string : null);
+        : (x.status === 'prospect' ? t('clients:status.prospect', { defaultValue: '문의' }) as string
+          : x.status === 'managed' ? t('clients:status.managed', { defaultValue: '추가한 고객' }) as string : null);
       const sub = [stage, email].filter(Boolean).join(' · ') || undefined;
       h.push({ id: x.id, title: x.display_name || x.company_name || `#${x.id}`, sub, to: `/sale/${x.id}`, type: 'clients', match: x.match });
     });

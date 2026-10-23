@@ -68,6 +68,7 @@ import { onFlushPendingSaves } from '../../services/pendingSaves';
 import { keepaliveJson } from '../../services/keepaliveFetch';
 import { promoteInboxItem, promoteErrorKey } from '../../services/sale';
 import { readComposeIntent, returnAfterCompose } from './composeReturn';
+import { useMailClientAdd, openClientTab } from './useMailClientAdd';
 
 import {
   AcctFilterRow,
@@ -2094,6 +2095,8 @@ const MailPage: React.FC = () => {
   // 주소 메뉴 «고객으로 저장» 이 열린 메일 번호를 읽는다 — addressActions 는 businessId 로만 다시 만든다(ref 로 최신값)
   const detailIdRef = useRef<number | null>(null);
   detailIdRef.current = detail?.id ?? null;
+
+  const clientAdd = useMailClientAdd(businessId, (id) => { void loadDetail(id); }); const clientAddOpenRef = useRef(clientAdd.open); clientAddOpenRef.current = clientAdd.open;
   const addressActions = React.useMemo(() => ({
     onViewMail: (email: string) => {
       const nsp = new URLSearchParams(window.location.search);
@@ -2116,17 +2119,10 @@ const MailPage: React.FC = () => {
       setComposeOpen(true);
     },
     onSaveClient: (email: string, name?: string | null) => {
-      // 고객 등록 화면으로 넘긴다 — 여기서 조용히 만들지 않는다.
-      //   고객은 청구·프로젝트가 붙는 자산이라 사용자가 내용을 보고 확정해야 한다.
-      // ★ 경로가 `/clients` 로 틀려 있었다 (2026-09-09). 실제 라우트는 `/business/clients` 라
-      //   폴백(`path="*"`)에 걸려 **받은메일함으로 튕겼다** — 사용자에게는 "눌러도 아무 일이 없다".
-      //   받는 쪽(ClientsPage)이 new·email·name 을 읽어 등록 폼을 채워 여는 것도 같이 넣었다.
-      //   2026-10-16 고객 관리는 Q sale > 고객 탭 하나다 — 그 탭의 [고객 추가] 를 채워 연다(옛 /business/clients 는 넘겨줄 뿐).
-      //   2026-10-22 — 열린 메일 번호(`thread`)를 같이 넘긴다. 받는 쪽이 그 메일의 **서명**으로 회사·직함·전화를 채운다
-      //   (Irene: "기본 정보를 메일 서명 같은 곳에서 가져와야 해"). 서명 값은 주소에 싣지 않는다 — 서버가 다시 읽는다.
-      const tid = detailIdRef.current;
-      navigate(`/sale?tab=clients&new=1&email=${encodeURIComponent(email)}${name ? `&name=${encodeURIComponent(name)}` : ''}${tid ? `&thread=${tid}` : ''}`);
+      // 2026-10-23 — 메일을 떠나지 않고 이 자리에서 고객 추가 드로어를 연다(useMailClientAdd)
+      clientAddOpenRef.current(email, name || null, detailIdRef.current);
     },
+    onViewClient: openClientTab,
     onBlock: async (email: string) => {
       if (!businessId) return;
       const r = await apiFetch(`/api/businesses/${businessId}/mail-rules`, {
@@ -3467,6 +3463,7 @@ const MailPage: React.FC = () => {
                   myUserId={user ? Number(user.id) : null}
                   businessId={businessId as number}
                   addressActions={addressActions}
+                  linkedClientId={detail.client?.id ?? null}
                   expandedMsgIds={expandedMsgIds}
                   toggleMsg={toggleMsg}
                   frameH={frameH}
@@ -3747,9 +3744,10 @@ const MailPage: React.FC = () => {
               <PanelMetaTitle>{t('context.panelTitle', { defaultValue: '맥락' }) as string}</PanelMetaTitle>
             </PanelHeader>
             <MailContextPanel businessId={businessId} thread={detail} members={members} myUserId={myUserId} onLinked={() => loadDetail(detail.id)}
-              counterpartEmail={peerEmail} onOpenThread={(id) => setActive(id)} onViewAddress={addressActions.onViewMail} />
+              counterpartEmail={peerEmail} onOpenThread={(id) => setActive(id)} onViewAddress={addressActions.onViewMail} onAddClient={() => addressActions.onSaveClient(peerEmail || '', null)} />
           </Panel>
         )}
+      {clientAdd.node}
 
     </PanelGridLayout>
   );

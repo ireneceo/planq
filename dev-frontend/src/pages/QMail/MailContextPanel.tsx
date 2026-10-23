@@ -18,6 +18,7 @@ import CueTaskBar from '../../components/QTask/CueTaskBar';
 import CuePanelSection from '../../components/Common/CuePanelSection';
 import { useChromeLocation } from '../../hooks/useChromeNav';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
+import { clientOptionLabel } from '../../utils/clientLabel';
 
 interface ThreadLite {
   id: number;
@@ -49,6 +50,8 @@ interface Props {
   counterpartEmail?: string | null;
   onOpenThread?: (id: number) => void;
   onViewAddress?: (email: string) => void;
+  /** 고객 칸이 비었을 때 [+ 고객 추가] — 상위(MailPage)가 고객 추가 드로어를 이 메일로 연다 */
+  onAddClient?: () => void;
 }
 // «이 사람과 오간 메일» 한 줄 — 서버 GET /email-addresses/:email/threads 가 목록과 같은 행을 준다(services/mailThreadRows)
 interface PeerThread { id: number; subject?: string | null; last_message_at?: string | null; last_message_direction?: 'inbound' | 'outbound' | null; folder?: string | null }
@@ -89,8 +92,9 @@ export function requestCueAdvice(threadId: number) {
   window.dispatchEvent(new CustomEvent('qmail:cue-advice', { detail: { threadId } }));
 }
 
-const MailContextPanel: React.FC<Props> = ({ businessId, thread, members, myUserId, onLinked, counterpartEmail, onOpenThread, onViewAddress }) => {
+const MailContextPanel: React.FC<Props> = ({ businessId, thread, members, myUserId, onLinked, counterpartEmail, onOpenThread, onViewAddress, onAddClient }) => {
   const { t } = useTranslation('qmail');
+  const { t: tAll } = useTranslation('qsale');
   const { formatTimeAgo } = useTimeFormat();
   const navigate = useNavigate();
   // ★ early return 위. 아래에 두면 훅 개수가 갈려 React #310 이 난다.
@@ -179,12 +183,13 @@ const MailContextPanel: React.FC<Props> = ({ businessId, thread, members, myUser
         ]);
         const jc = await rc.json(); const jp = await rp.json();
         if (!alive) return;
-        if (jc.success) setClients((jc.data || []).map((c: { id: number; display_name?: string; company_name?: string }) => ({ id: c.id, label: c.display_name || c.company_name || `#${c.id}` })));
+        // 옵션 글자 = «이름 · 추가한 고객/초대 중/참여 중» (utils/clientLabel 한 벌 — 관계 값은 서버 access_kind)
+        if (jc.success) setClients((jc.data || []).map((c: { id: number; display_name?: string; company_name?: string; access_kind?: string }) => ({ id: c.id, label: clientOptionLabel(c.display_name || c.company_name || `#${c.id}`, c, tAll) })));
         if (jp.success) setProjects((jp.data || []).map((p: { id: number; name?: string }) => ({ id: p.id, label: p.name || `#${p.id}` })));
       } catch { /* */ }
     })();
     return () => { alive = false; };
-  }, [businessId]);
+  }, [businessId, tAll]);
 
   // 이 고객 cross-channel 요약
   const loadSummary = useCallback(async (cid: number) => {
@@ -614,6 +619,12 @@ const MailContextPanel: React.FC<Props> = ({ businessId, thread, members, myUser
             onChange={(opt: unknown) => { const v = (opt as { value?: number } | null)?.value || 0; stageLink({ client_id: v > 0 ? v : null }); }}
             options={clientOptions} menuPlacement="top" />
         </AutoSaveField>
+        {/* 2026-10-23 — 목록에 없으면 이 자리에서 추가하고 바로 이 메일에 붙인다(셀렉트 안에 넣지 않는다 — PlanQSelect 포털) */}
+        {!clientId && onAddClient && (
+          <AddClientBtn type="button" onClick={onAddClient} data-testid="mail-context-add-client">
+            {t('context.addClient') as string}
+          </AddClientBtn>
+        )}
         {clientId && (
           sumLoading ? (
             <WorkbenchEmptyRow>{t('context.loading', { defaultValue: '불러오는 중…' }) as string}</WorkbenchEmptyRow>
@@ -662,6 +673,12 @@ const MailContextPanel: React.FC<Props> = ({ businessId, thread, members, myUser
 export default MailContextPanel;
 
 const Wrap = styled.div`flex:1; min-height:0; overflow-y:auto;`;
+const AddClientBtn = styled.button`
+  align-self:flex-start; margin-top:6px; min-height:32px; padding:0 10px; border-radius:8px;
+  border:1px dashed #CBD5E1; background:#FFF; color:#0F766E; font-size:0.75rem; font-weight:600; cursor:pointer;
+  &:hover{ border-color:#14B8A6; background:#F0FDFA; }
+  &:focus-visible{ outline:none; box-shadow:0 0 0 3px rgba(20,184,166,0.2); }
+`;
 // Q Talk ChatPanel:3430 과 동일 — 같은 기능은 어느 화면에서든 같은 모양 (teal + 체크박스 아이콘)
 const CandList = styled.div`display:flex; flex-direction:column; gap:8px;`;
 const SummaryBox = styled.div`font-size:0.75rem; color:#334155; line-height:1.6; white-space:pre-wrap; background:#F8FAFC; border:1px solid #E2E8F0; border-radius:10px; padding:10px 12px;`;

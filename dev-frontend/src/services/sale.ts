@@ -6,7 +6,8 @@
 import { apiFetch, apiUpload } from '../contexts/AuthContext';
 
 export type SaleStage = 'none' | 'inquiry' | 'consulting' | 'proposal' | 'negotiation' | 'won' | 'lost';
-export type AccessKind = 'guest' | 'invited' | 'member';
+export type { AccessKind } from '../utils/clientLabel';
+import type { AccessKind } from '../utils/clientLabel';
 export type SaleSource = 'guest_link' | 'email' | 'phone' | 'referral' | 'web' | 'event' | 'manual' | 'other';
 export type LostReason = 'price' | 'timing' | 'competitor' | 'no_response' | 'fit' | 'other';
 export type InteractionKind = 'call' | 'meeting' | 'visit' | 'memo' | 'other';

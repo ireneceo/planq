@@ -30,11 +30,11 @@
     "archived": "비활성"
   },
   "status": {
-    "active": "활성",
+    "active": "참여 중",
     "archived": "비활성",
-    "invited": "초대됨",
-    "prospect": "문의 고객",
-    "managed": "직접 관리"
+    "invited": "초대 중",
+    "prospect": "문의",
+    "managed": "추가한 고객"
   },
   "quota": {
     "counted": "한도: 포함",
@@ -116,7 +116,7 @@
     "helper": "이메일이 이미 사용자로 있으면 그 계정에 워크스페이스 고객으로 추가됩니다. 없으면 새 계정을 자동 생성하고 초대장을 보냅니다 (추후).",
     "cancel": "취소",
     "submitting": "초대 중…",
-    "submit": "초대",
+    "submit": "초대 보내기",
     "errRequired": "이름과 이메일은 필수입니다",
     "errFailed": "초대 실패",
     "emailFailed": "초대는 만들어졌지만 메일을 보내지 못했습니다. 메일 설정을 확인한 뒤 [초대 재발송] 을 눌러 주세요."
@@ -264,21 +264,31 @@
   "emptyWikiQuery": "고객 초대하기",
   "addClient": "고객 추가",
   "addModal": {
-    "titleManaged": "고객 추가 — 직접 관리",
+    "titleManaged": "고객 추가",
     "modeInvite": "초대 보내기",
-    "modeManaged": "직접 관리로 등록",
+    "modeManaged": "추가",
     "modeInviteHelp": "초대 메일을 보냅니다. 고객이 가입하면 대화·자료·청구서를 직접 봅니다.",
-    "modeManagedHelp": "메일을 보내지 않습니다. 고객 정보만 넣고 청구서·프로젝트·증빙에 씁니다. 나중에 언제든 초대할 수 있어요.",
+    "modeManagedHelp": "메일을 보내지 않습니다. 우리가 정보를 넣어 관리하는 고객(계정 없음) — 청구서·프로젝트·증빙에 씁니다. 나중에 언제든 초대할 수 있어요.",
     "phone": "전화",
     "emailOptional": "이메일 (선택)",
-    "submitManaged": "등록",
+    "submitManaged": "추가",
     "errNameOrCompany": "이름이나 회사명 중 하나는 넣어 주세요",
     "errExists": "같은 이메일·전화의 고객이 이미 있습니다.",
     "openExisting": "그 고객 열기",
     "errInvalidEmail": "이메일 형식이 맞지 않습니다",
     "inviteThisTitle": "이 고객 초대",
     "errAlreadyMember": "이 이메일은 이 워크스페이스 멤버입니다 — 고객으로 넣지 않고 프로젝트 멤버로 추가하세요.",
-    "errLinkProject": "고객은 만들었지만 프로젝트에 붙이지 못했습니다. «기존 고객 연결» 에서 다시 붙여 주세요."
+    "errLinkProject": "고객은 만들었지만 프로젝트에 붙이지 못했습니다. «기존 고객 연결» 에서 다시 붙여 주세요.",
+    "inviteConfirmTitle": "초대 메일을 보낼까요?",
+    "inviteConfirmBody": "{{email}} 으로 초대 메일이 나갑니다. 보낸 메일은 되돌릴 수 없습니다.",
+    "inviteConfirm": "초대 보내기",
+    "errAlreadyClient": "이 메일은 이미 다른 고객에 연결되어 있습니다.",
+    "linkThisMail": "그 고객에 이 메일 연결",
+    "errLinkMail": "메일을 그 고객에 연결하지 못했습니다.",
+    "sourceMail": "저장하면 이 메일과 같은 주소에서 온 메일이 이 고객에 연결됩니다.",
+    "sourceChat": "저장하면 이 대화가 이 고객에 연결됩니다.",
+    "relayUseManual": "웹폼으로 들어온 문의라 보낸 주소가 사람이 아닙니다. 본문에 적힌 이름·연락처로 넣어 주세요.",
+    "readFromBody": "본문에서 연락처 읽기"
   },
   "managed": {
     "title": "직접 관리 고객",

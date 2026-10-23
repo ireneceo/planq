@@ -12,6 +12,7 @@ import { useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
 import { modalFooterRadius } from '../Common/modalShell';
 import { useTranslation } from 'react-i18next';
+import { clientOptionLabel } from '../../utils/clientLabel';
 import { aiGenerateDoc, KIND_LABELS_KO, KIND_LABEL_KEYS, type DocKind } from '../../services/docs';
 import { createBrief } from '../../services/posts';
 import { listClientsForBilling, type ApiClientLite } from '../../services/invoices';
@@ -54,7 +55,7 @@ type Mode = 'blank' | 'new' | 'brief' | 'table' | 'survey';
 type QuestionSet = 'blank' | 'project_review' | 'new_client' | 'periodic';
 
 const PostAiModal: React.FC<Props> = ({ open, onClose, businessId, projectId: pageProjectId, clientId: pageClientId, onGenerate, onBlank, intent = 'manual', defaultMode: defaultModeProp, initialBriefTitle, initialBriefText, onTableCreated }) => {
-  const { t } = useTranslation('qdocs');
+  const { t } = useTranslation(['qdocs', 'qsale']);   // qsale = 고객 관계 글자(utils/clientLabel)
   const { t: tc } = useTranslation('common');   // 연결 문구 정본
   const KIND_OPTIONS: PlanQSelectOption[] = useMemo(
     () => KIND_OPTION_VALUES.map(v => ({ value: v, label: t(KIND_LABEL_KEYS[v], { defaultValue: KIND_LABELS_KO[v] }) as string })),
@@ -138,9 +139,7 @@ const PostAiModal: React.FC<Props> = ({ open, onClose, businessId, projectId: pa
     if (pc?.client_id) setPickedClientId(pc.client_id);
   }, [pickedProjectId, projects, pickedClientId]);
 
-  const clientOptions: PlanQSelectOption[] = useMemo(() => clients.map(c => ({
-    value: c.id, label: c.display_name || c.company_name || `Client ${c.id}`,
-  })), [clients]);
+  const clientOptions: PlanQSelectOption[] = useMemo(() => clients.map(c => ({ value: c.id, label: clientOptionLabel(c.display_name || c.company_name || `Client ${c.id}`, c, t) })), [clients, t]);
   const projectOptions: PlanQSelectOption[] = useMemo(() => projects.map(p => ({
     value: p.id, label: p.name,
   })), [projects]);

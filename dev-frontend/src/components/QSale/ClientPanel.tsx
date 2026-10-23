@@ -226,10 +226,10 @@ const ClientPanel: React.FC<Props> = ({
     if (!inquiry || ensuring) return;
     setEnsuring(true); setLocalNotice(null);
     try {
-      // ★ invite: false — 원장만 만든다. 초대 메일은 [초대] 버튼에서 확인을 받고 보낸다.
+      // ★ 원장(문의)만 만든다. 초대 메일은 [초대] 버튼에서 확인을 받고 보낸다.
       const out = await registerInquiryAsClient(businessId, {
         ref: inquiry.ref, who: inquiry.who, email: inquiry.email, company: inquiry.company,
-      }, { invite: false });
+      });
       if (!out.ok || !out.clientId) {
         setLocalNotice(out.message === 'relay_sender_use_manual' ? t('inbox.relayUseManual') as string : (out.message || (t('error.saveFailed') as string)));
         return;
@@ -247,7 +247,6 @@ const ClientPanel: React.FC<Props> = ({
   // 다음 액션 — 기록(상담) · 다음 연락(일정) · 업무 추가. 청구·프로젝트는 그 화면으로 넘긴다.
   const [recordOpen, setRecordOpen] = useState(false);
   const [nextOpen, setNextOpen] = useState(false);
-  const [registerAsk, setRegisterAsk] = useState(false);
   const [deleteAsk, setDeleteAsk] = useState(false);
   const [taskOpen, setTaskOpen] = useState(false);
 
@@ -622,7 +621,7 @@ const ClientPanel: React.FC<Props> = ({
         )}
         {!cid && inquiry?.canRegister && onRegister && (
           <ActionButton tone="primary" size="md" loading={registerBusy}
-            data-testid="inquiry-panel-register" onClick={() => setRegisterAsk(true)}>
+            data-testid="inquiry-panel-register" onClick={onRegister}>
             {t('action.registerClient') as string}
           </ActionButton>
         )}
@@ -643,22 +642,6 @@ const ClientPanel: React.FC<Props> = ({
           variant="info"
           onClose={() => { setEnsureAsk(false); pendingRef.current = null; }}
           onConfirm={() => { setEnsureAsk(false); void ensureClient(); }}
-        />
-      )}
-
-      {/* 명시적 등록(+초대) — 주소를 **보여주고** 묻는다 */}
-      {inquiry && onRegister && (
-        <ConfirmDialog
-          isOpen={registerAsk}
-          title={t('action.registerConfirmTitle') as string}
-          message={inquiry.email
-            ? (t('action.registerConfirmBody', { email: inquiry.email }) as string)
-            : (t('action.registerConfirmNoEmail') as string)}
-          confirmText={t('action.registerClient') as string}
-          cancelText={t('inquiry.cancel') as string}
-          variant="info"
-          onClose={() => setRegisterAsk(false)}
-          onConfirm={() => { setRegisterAsk(false); onRegister(); }}
         />
       )}
 

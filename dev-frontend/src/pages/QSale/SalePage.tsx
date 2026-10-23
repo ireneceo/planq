@@ -43,6 +43,7 @@ import {
   type SaleClient, type SaleSummary, type SaleStage, type AccessKind,
 } from '../../services/sale';
 import { getCardIntake, type CardIntake } from '../../services/sale';
+import { ACCESS_KINDS, ACCESS_STYLE } from '../../utils/clientLabel';
 
 const PAGE = 50;
 
@@ -251,9 +252,7 @@ export default function SalePage({ embedded = false }: { embedded?: boolean } = 
   ]), [t]);
   const accessOptions = useMemo(() => ([
     axisOption(t('access.label') as string),
-    { value: 'guest', label: t('access.guest') as string },
-    { value: 'invited', label: t('access.invited') as string },
-    { value: 'member', label: t('access.member') as string },
+    ...ACCESS_KINDS.map((k) => ({ value: k, label: t(`access.${k}`) as string })),
   ]), [t]);
   const assigneeOptions = useMemo(() => {
     const names = new Map<number, string>();
@@ -695,11 +694,6 @@ const NameCell = styled.div`display: flex; flex-direction: column; gap: 2px; min
   strong { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }`;
 const CompanySub = styled.span`font-size: 0.75rem; color: #94A3B8;`;
 const Dim = styled.span`font-size: 0.75rem; color: #64748B;`;
-const ACCESS_STYLE: Record<AccessKind, { bg: string; fg: string }> = {
-  guest: { bg: '#F1F5F9', fg: '#475569' },
-  invited: { bg: '#FEF9C3', fg: '#854D0E' },
-  member: { bg: '#DBEAFE', fg: '#1D4ED8' },
-};
 /* 배지는 컨트롤이 아니다 — 높이를 고정하지 않고 padding 으로 키운다(글자 배율을 따라가야 한다) */
 const AccessBadge = styled.span<{ $kind: AccessKind }>`
   display: inline-flex; align-items: center; padding: 3px 8px; border-radius: 999px; line-height: 1.3;

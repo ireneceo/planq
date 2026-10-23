@@ -28,21 +28,23 @@
   },
   "access": {
     "label": "접근",
-    "guest": "게스트",
-    "guest_hint": "정보만 저장됨 · 로그인 없음",
-    "invited": "초대 대기",
-    "invited_hint": "초대 메일을 보냈고 아직 수락 전",
-    "member": "정식 고객",
-    "member_hint": "로그인하는 고객",
-    "requires_member": "정식 초대 후 가능"
+    "prospect": "문의",
+    "prospect_hint": "상담 상대 · 아직 고객으로 등록 안 함 · 한도 미포함",
+    "managed": "추가한 고객",
+    "managed_hint": "우리가 등록해 관리 · 계정 없음",
+    "invited": "초대 중",
+    "invited_hint": "초대 메일을 보냈고 수락 전",
+    "member": "참여 중",
+    "member_hint": "계정으로 PlanQ 에 들어오는 고객",
+    "requires_member": "초대해 참여한 뒤 가능"
   },
   "quota": {
     "counted": "한도: 포함",
-    "not_counted": "한도: 미포함 · 초대하면 포함",
-    "header": "정식 {{clients}}/{{clients_max}} · 문의 {{prospects}}/{{prospects_max}}",
+    "not_counted": "한도: 미포함 · 추가하거나 초대하면 포함",
+    "header": "고객 {{clients}}/{{clients_max}} · 문의 {{prospects}}/{{prospects_max}}",
     "unlimited": "무제한",
-    "invite_notice": "초대하면 정식 고객 한도에 포함됩니다 (지금 {{clients}} / {{clients_max}})",
-    "tip": "정식 = 계정을 만들어 드린 고객 · 문의 = 아직 초대하지 않은 상담 상대. 숫자는 현재 / 플랜 한도입니다.",
+    "invite_notice": "추가하거나 초대하면 고객 한도에 포함됩니다 (지금 {{clients}} / {{clients_max}})",
+    "tip": "고객 = 추가했거나 초대한 고객(계정 유무 무관) · 문의 = 아직 등록하지 않은 상담 상대. 숫자는 현재 / 플랜 한도입니다.",
     "raise": "한도 늘리기"
   },
   "source": {
@@ -153,9 +155,6 @@
       "guest": "게스트 대화 보기"
     },
     "restore": "되돌리기",
-    "registerConfirmTitle": "고객으로 등록하고 초대를 보낼까요?",
-    "registerConfirmBody": "{{email}} 으로 초대 메일이 나갑니다. 보낸 메일은 되돌릴 수 없습니다.",
-    "registerConfirmNoEmail": "고객으로 등록만 합니다. 이메일 주소가 없어 초대 메일은 나가지 않습니다.",
     "more": "더보기",
     "restoreToInbox": "상담으로 되돌리기",
     "ensureClientTitle": "고객으로 등록하고 계속할까요?",
@@ -181,9 +180,9 @@
     "promoteToInbox": "상담으로 보내기",
     "proceedConsult": "상담 진행",
     "addRecordShort": "응대 추가",
-    "registerManaged": "계정 없이 정식 고객으로",
-    "registerManagedTitle": "계정 없이 정식 고객으로 둘까요?",
-    "registerManagedBody": "메일은 보내지 않습니다. 직접 관리 고객이 되어 정식 고객 한도에 들어가고, 청구서·프로젝트에 씁니다. 영업 단계는 그대로입니다.",
+    "registerManaged": "고객으로 추가",
+    "registerManagedTitle": "고객으로 추가할까요?",
+    "registerManagedBody": "메일은 보내지 않습니다. 우리가 정보를 넣어 관리하는 «추가한 고객» 이 되어 고객 한도에 들어가고, 청구서·프로젝트에 씁니다. 영업 단계는 그대로입니다.",
     "archiveClient": "보관",
     "restoreClient": "되살리기",
     "archiveError": {
@@ -378,8 +377,6 @@
       "body": "게스트 링크로 온 대화, 고객에 연결되지 않은 메일·채팅이 여기 모입니다."
     },
     "noBody": "내용 없음",
-    "inviteFailed": "고객으로 등록했지만 초대 메일 발송에 실패했습니다. 패널에서 다시 보낼 수 있어요.",
-    "inviteNoEmail": "고객으로 등록했습니다. 이메일 주소가 없어 초대는 보내지 못했어요.",
     "stageAll": "단계 전체",
     "hideClosed": "종료 가리기",
     "handled": "확인완료",

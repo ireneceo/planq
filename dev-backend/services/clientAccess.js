@@ -1,7 +1,10 @@
 // services/clientAccess.js — 고객의 **접근 종류** 술어 단일 원천 (docs/Q_SALE_DESIGN.md §4.1·§4.2)
 //
-//   guest   — 정보만 저장됨 · 로그인 없음 (Q sale 문의 고객 status='prospect' · 직접 관리 고객 status='managed')
-//   invited — 초대 메일을 보냈고 아직 수락 전
+//   prospect — 문의(상담 상대) · 아직 고객으로 등록 안 함 · 정식 한도 밖
+//   managed  — 추가한 고객(우리가 등록해 관리) · 계정 없음 (계정·초대 흔적 없는 archived 행도 여기)
+//   invited  — 초대 메일을 보냈고 아직 수락 전
+//   ★ 2026-10-23 옛 `guest`(prospect+managed 한 칩)를 둘로 갈랐다 — 한도 축이 달라 한 칩이면 숫자와 말이 어긋난다
+//     (docs/CLIENT_ADD_INVITE_DESIGN.md §1). 옛 `?access=guest` 는 필터 없음으로 떨어진다.
 //   member  — 로그인하는 고객 (middleware/access_scope.js 의 isClient 와 같은 조건: user_id + status 'active')
 //
 // ★ 컬럼이 아니다 — 기존 컬럼(user_id · status · invited_at)에서 파생한다. 새 컬럼을 두면
@@ -11,13 +14,13 @@
 const { Op } = require('sequelize');
 
 function accessKindOf(client) {
-  if (!client) return 'guest';
+  if (!client) return 'managed';
   if (client.user_id && client.status === 'active') return 'member';
-  // prospect(문의) · managed(직접 관리 — 계정 없이 정보만 관리하는 정식 고객) 는 둘 다 «정보만·로그인 없음»
-  if (client.status === 'prospect' || client.status === 'managed') return 'guest';
+  if (client.status === 'prospect') return 'prospect';
+  if (client.status === 'managed') return 'managed';
   if (client.invited_at || client.status === 'invited') return 'invited';
-  // archived 이면서 계정·초대 흔적이 없는 행 — 정보만 있는 고객이다
-  return 'guest';
+  // archived 이면서 계정·초대 흔적이 없는 행 — 정보만 있는 고객이다(reactivatedStatusOf 와 같은 결론)
+  return 'managed';
 }
 
 /**
@@ -37,12 +40,15 @@ function accessWhere(kind) {
       ],
     };
   }
-  if (kind === 'guest') {
+  if (kind === 'prospect') return { [Op.and]: [notMember, { status: 'prospect' }] };
+  if (kind === 'managed') {
+    // 옛 guest 술어에서 prospect 만 뺀 것
     return {
       [Op.and]: [
         notMember,
+        { [Op.or]: [{ status: null }, { status: { [Op.ne]: 'prospect' } }] },
         { [Op.or]: [
-          { status: { [Op.in]: ['prospect', 'managed'] } },
+          { status: 'managed' },
           { [Op.and]: [{ invited_at: null }, { [Op.or]: [{ status: null }, { status: { [Op.ne]: 'invited' } }] }] },
         ] },
       ],

@@ -402,31 +402,14 @@ router.post('/:businessId/save-as-client', ...writeChain, async (req, res, next)
       linkedExisting = false;
     }
 
-    // 부수효과 — 비어 있는 연결만 채운다(사람이 이미 건 연결을 덮지 않는다)
-    if (link) {
-      if (!link.client_id) await link.update({ client_id: client.id });
-      if (link.kind === 'personal' && link.parent_link_id) {
-        await GuestLink.update({ client_id: client.id },
-          { where: { id: link.parent_link_id, business_id: businessId, client_id: null } });
-      }
-      await Conversation.update({ client_id: client.id },
-        { where: { id: link.conversation_id, business_id: businessId, client_id: null } });
-    }
-    if (thread) {
-      if (!thread.client_id) await thread.update({ client_id: client.id });
-      // 같은 발신 주소의 미연결 스레드도 붙인다 — 과거 메일이 타임라인에 즉시 보이도록
-      if (seed.email) {
-        const msgs = await EmailMessage.findAll({
-          where: { business_id: businessId, direction: 'inbound', from_email: seed.email },
-          attributes: ['thread_id'], group: ['thread_id'], limit: 500, raw: true,
-        });
-        const ids = msgs.map((m) => m.thread_id).filter((id) => id !== thread.id);
-        if (ids.length) {
-          await EmailThread.update({ client_id: client.id },
-            { where: { id: { [Op.in]: ids }, business_id: businessId, client_id: null } });
-        }
-      }
-    }
+    // 부수효과 — 비어 있는 연결만 채운다(사람이 이미 건 연결을 덮지 않는다).
+    //   2026-10-23 연결 코드는 services/clientLinkSource 한 벌 — /managed·/invite 도 같은 함수를 쓴다(docs/CLIENT_ADD_INVITE_DESIGN.md §3).
+    const resolvedSource = link ? { kind: 'guest_link', link }
+      : thread ? { kind: 'email_thread', thread, senderEmail: null }
+        : null;
+    await require('../services/clientLinkSource').attachSourceToClient({
+      businessId, actorUserId: req.user.id, client, resolved: resolvedSource, req, email: seed.email,
+    });
     if (seed.touchAt) await touchClient(client, seed.touchAt);
 
     // 첫 상담 기록 — 전화·방문 내용은 문의를 **등록하는 그 순간**에만 손에 있다.

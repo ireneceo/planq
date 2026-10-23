@@ -4,6 +4,7 @@ import React, { Suspense, useCallback, useEffect, useMemo, useRef, useState } fr
 import { CONNECT_PROMPT } from '../../components/Common/connectPrompts';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { clientOptionLabel } from '../../utils/clientLabel';
 import { apiFetch, useAuth } from '../../contexts/AuthContext';
 import ClientAddDrawer from '../../components/Clients/ClientAddDrawer';
 import ClientPanel from '../../components/QSale/ClientPanel';
@@ -241,6 +242,7 @@ const ProjectDescriptionEditor = ({ projectId, initial, onSave }: {
 const QProjectDetailPage: React.FC = () => {
   const { t } = useTranslation('qproject');
   const { t: tc } = useTranslation('common');   // 연결 문구 정본
+  const { t: tSale } = useTranslation('qsale');   // 고객 관계 글자(utils/clientLabel)
   const { formatDateTime } = useTimeFormat();
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
@@ -1279,7 +1281,7 @@ const QProjectDetailPage: React.FC = () => {
                         title={(joined ? t('clients.joinedTitle', '워크스페이스 사용자로 참여 중')
                           : managedOnly ? t('clients.managedTitle', '가입·초대 없이 정보만 관리하는 고객')
                           : t('clients.pendingTitle', '초대 발송 — 수락 대기 중')) as string}>
-                        {joined ? t('clients.joined', '참여 중') : managedOnly ? t('clients.managed', '직접 관리') : t('clients.pending', '초대 대기')}
+                        {joined ? t('clients.joined', '참여 중') : managedOnly ? t('clients.managed', '추가한 고객') : t('clients.pending', '초대 중')}
                       </ClientStatusPill>
                       {!joined && !managedOnly && c.contact_email && (
                         <ResendBtn type="button" disabled={resendingIds.has(c.id)}
@@ -1328,7 +1330,7 @@ const QProjectDetailPage: React.FC = () => {
                     }}
                     options={candidates.map((c) => ({
                       value: String(c.id),
-                      label: `${c.display_name || c.user?.name || c.company_name || ''}${c.company_name && c.display_name ? ' · ' + c.company_name : ''}${(c.user?.email || c.invite_email) ? ' (' + (c.user?.email || c.invite_email) + ')' : ''}`,
+                      label: clientOptionLabel(`${c.display_name || c.user?.name || c.company_name || ''}${c.company_name && c.display_name ? ' · ' + c.company_name : ''}${(c.user?.email || c.invite_email) ? ' (' + (c.user?.email || c.invite_email) + ')' : ''}`, c, tSale),
                     }))}
                   />
                   </div>

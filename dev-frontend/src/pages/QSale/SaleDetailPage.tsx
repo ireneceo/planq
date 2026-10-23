@@ -42,6 +42,7 @@ import TaskCreateForm from '../../components/QTask/TaskCreateForm';
 import AiTaskCreateModal from '../../components/QTask/AiTaskCreateModal';
 import { listMembers } from '../../services/workspace';
 import { openSaleTimelineItem } from '../../utils/saleTimelineTarget';
+import { ACCESS_STYLE, type AccessKind } from '../../utils/clientLabel';
 import {
   getSaleClient, patchSaleClient, putClientFields, setSaleStage, getSaleTimeline, deleteInteraction, reviewInteraction,
   SALE_STAGES,
@@ -539,13 +540,8 @@ const MiniBtn = styled.button`
   background: #fff; border: 1px solid #E2E8F0;
   &:hover { background: #F8FAFC; }
 `;
-const ACCESS_STYLE = {
-  guest: { bg: '#F1F5F9', fg: '#475569' },
-  invited: { bg: '#FEF9C3', fg: '#854D0E' },
-  member: { bg: '#DBEAFE', fg: '#1D4ED8' },
-} as const;
 /* 배지·칩은 컨트롤 높이 토큰(36/40/44) 대상이 아니다 — padding 으로 키워 글자 배율을 따라가게 한다 */
-const AccessPill = styled.span<{ $kind: keyof typeof ACCESS_STYLE }>`
+const AccessPill = styled.span<{ $kind: AccessKind }>`
   display: inline-flex; align-items: center; padding: 4px 10px; border-radius: 999px; line-height: 1.3;
   font-size: 0.6875rem; font-weight: 700; white-space: nowrap;
   background: ${(p) => ACCESS_STYLE[p.$kind].bg}; color: ${(p) => ACCESS_STYLE[p.$kind].fg};

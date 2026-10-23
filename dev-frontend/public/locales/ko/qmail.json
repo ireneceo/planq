@@ -371,7 +371,8 @@
     "peerReceived": "받은",
     "peerNoSubject": "(제목 없음)",
     "peerAll": "모두 보기 ({{count}})",
-    "peerEmpty": "이 메일 말고는 오간 메일이 없어요."
+    "peerEmpty": "이 메일 말고는 오간 메일이 없어요.",
+    "addClient": "+ 고객 추가"
   },
   "accounts": {
     "all": "메일 전체",
@@ -675,12 +676,13 @@
     "copy": "주소 복사",
     "copied": "복사됨",
     "compose": "이 주소로 새 메일",
-    "saveClient": "고객으로 저장",
+    "saveClient": "고객 추가…",
     "block": "스팸으로 분류",
     "blockHint": "원본은 남습니다. 규칙 설정에서 되돌릴 수 있어요.",
     "viewing": "{{email}} 와(과) 오간 메일",
     "includesArchived": "보관한 메일도 함께 보입니다",
-    "exit": "나가기"
+    "exit": "나가기",
+    "viewClient": "고객 보기"
   },
   "list": {
     "backToList": "목록으로"

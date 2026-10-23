@@ -68,11 +68,11 @@ export function useInboxItemActions({ businessId, busyId, setBusyId, setActionEr
 
   /** 아직 고객이 아닌 행에 **고객 기준 동작**(단계·메모·일정)을 걸려면 먼저 등록해야 한다.
    *  ★ 우측 패널의 `withClient` 와 같은 뜻 — 여는 것만으로는 아무것도 만들지 않고, 저장이 필요한
-   *    첫 액션에서 한 번 묻는다. 초대 메일은 보내지 않는다(`invite: false`). */
+   *    첫 액션에서 한 번 묻는다. 초대 메일은 보내지 않는다. */
   const ensureClient = useCallback(async (it: SaleInboxItem): Promise<number | null> => {
     if (it.client_id) return it.client_id;
     if (it.ref.kind === 'client') return it.ref.id;
-    const out = await registerInquiryAsClient(businessId, it, { invite: false });
+    const out = await registerInquiryAsClient(businessId, it);
     if (!out.ok || !out.clientId) {
       // 서버 코드는 화면 문장으로(#449 D5 웹폼 릴레이) — 모르는 코드는 일반 실패 문구
       setActionError((out.message && codeText?.(out.message)) || saveErrorText);

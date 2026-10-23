@@ -8,7 +8,8 @@ import ArchivedChatsModal from './ArchivedChatsModal';
 import ChatPanel from './ChatPanel';
 import RightPanel from './RightPanel';
 import NewProjectModal, { type ProjectFormData } from './NewProjectModal';
-import NewChatModal, { type NewChatFormData } from './NewChatModal';
+import NewChatModal, { type NewChatFormData, type NewChatDraft } from './NewChatModal';
+import ClientAddDrawer from '../../components/Clients/ClientAddDrawer';
 import ConfirmDialog from '../../components/Common/ConfirmDialog';
 import DetailFallback from '../../components/Common/DetailFallback';
 import { isOtherWorkspace } from '../../utils/workspaceMatch';
@@ -467,6 +468,9 @@ const QTalkPage: React.FC<QTalkPageProps> = ({ embedded = false, initialConvId =
 
   const [modalOpen, setModalOpen] = useState(false);
   const [chatModalOpen, setChatModalOpen] = useState(false);
+  // 새 대화 창 ↔ 고객 추가 드로어 넘나들기 — 창의 입력값과 방금 추가한 고객
+  const [chatRestore, setChatRestore] = useState<{ draft: NewChatDraft; clientId: number | null } | null>(null);
+  const [chatClientAddOpen, setChatClientAddOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   // raw API 응답 캐시 — translation_* 같은 필드는 mock 에 안 들어가서 모달 등에서 필요
   const [convsRaw, setConvsRaw] = useState<Record<number, qtalkApi.ApiConversation>>({});
@@ -1916,9 +1920,22 @@ const QTalkPage: React.FC<QTalkPageProps> = ({ embedded = false, initialConvId =
       <NewChatModal
         businessId={businessId || 0}
         open={chatModalOpen && !!businessId}
-        onClose={() => setChatModalOpen(false)}
-        onCreate={handleCreateChat}
+        onClose={() => { setChatModalOpen(false); setChatRestore(null); }}
+        onCreate={async (d) => { await handleCreateChat(d); setChatRestore(null); }}
+        restore={chatRestore}
+        // 2026-10-23 — 고객이 목록에 없으면 이 창을 잠깐 닫고 고객 추가 드로어를 연다(팝업 위 팝업 금지).
+        //   드로어가 닫히면 같은 입력값으로 다시 열고, 추가했으면 그 고객을 고른다(docs/CLIENT_ADD_INVITE_DESIGN.md §5).
+        onAddClient={(draft) => { setChatRestore({ draft, clientId: null }); setChatModalOpen(false); setChatClientAddOpen(true); }}
       />
+      {businessId && (
+        <ClientAddDrawer
+          open={chatClientAddOpen}
+          onClose={() => { setChatClientAddOpen(false); setChatModalOpen(true); }}
+          businessId={businessId}
+          onDone={(cid) => { if (cid) setChatRestore((r) => (r ? { ...r, clientId: cid } : r)); }}
+          onOpenExisting={(cid) => setChatRestore((r) => (r ? { ...r, clientId: cid } : r))}
+        />
+      )}
 
       {settingsOpen && activeConversationId && convsRaw[activeConversationId] && businessId && (
         <ChatSettingsModal

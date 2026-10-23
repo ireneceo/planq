@@ -7,6 +7,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
+import { accessLabel } from '../../utils/clientLabel';
 import { useNavigate } from 'react-router-dom';
 import SingleDateField from '../../components/Common/SingleDateField';
 import { todayInTz } from '../../utils/timezones';
@@ -60,6 +61,7 @@ const VAT_OPTIONS: PlanQSelectOption[] = [
 export default function NewInvoiceModal({ open, onClose, prefillSplit, prefillPostId, prefillProjectId, editInvoiceId, prefillClientId }: Props) {
   const isEdit = !!editInvoiceId;
   const { t } = useTranslation('qbill');
+  const { t: tSale } = useTranslation('qsale');   // 고객 관계 글자(utils/clientLabel)
   const { user } = useAuth();
   const navigate = useNavigate();
   const businessId = user?.business_id ? Number(user.business_id) : null;
@@ -380,10 +382,12 @@ export default function NewInvoiceModal({ open, onClose, prefillSplit, prefillPo
     // 초대 수락 전 고객도 청구 가능 — 식별되도록 "초대중" 표시
     //   Q sale 문의 고객(prospect)도 공개 결제 링크로 청구할 수 있다. 정식 고객과 구별되게 따로 표시한다
     //   (라벨이 없으면 "초대중" 도 아니고 아무 표시도 없어 정식 고객처럼 보인다 — 상태값 규약).
-    const tag = c.status === 'invited' ? ` · ${t('newInvoice.to.invitedTag', { defaultValue: '초대중' }) as string}`
+    //   2026-10-23 — 관계 글자는 한 벌(utils/clientLabel · 서버 access_kind). 응답에 없을 때만 옛 태그.
+    const rel = accessLabel(c.access_kind, tSale);
+    const tag = rel ? ` · ${rel}` : c.status === 'invited' ? ` · ${t('newInvoice.to.invitedTag', { defaultValue: '초대중' }) as string}`
       : c.status === 'prospect' ? ` · ${t('newInvoice.to.prospectTag', { defaultValue: '문의 고객' }) as string}` : '';
     return { value: c.id, label: `${base}${tag}` };
-  }), [clients, t]);
+  }), [clients, t, tSale]);
 
   // 프로젝트 고르기 — 고른 고객이 연결된 프로젝트만(서버 client-options 가 Q sale 과 같은 술어로 싣는다).
   //   지금 값이 목록에 없으면(프로젝트에서 열었는데 아직 목록이 안 왔다 등) 그 값을 지우지 않고 보여 준다.

@@ -30,11 +30,11 @@
     "archived": "Inactive"
   },
   "status": {
-    "active": "Active",
+    "active": "Joined",
     "archived": "Inactive",
     "invited": "Invited",
     "prospect": "Inquiry",
-    "managed": "Managed"
+    "managed": "Added"
   },
   "quota": {
     "counted": "Counts toward plan limit",
@@ -116,7 +116,7 @@
     "helper": "If the email matches an existing user, they'll be added as a client to this workspace. Otherwise a new account will be auto-created and an invite sent (later).",
     "cancel": "Cancel",
     "submitting": "Inviting…",
-    "submit": "Invite",
+    "submit": "Send invitation",
     "errRequired": "Name and email are required",
     "errFailed": "Invite failed",
     "emailFailed": "The invite was created but the email couldn’t be sent. Check mail settings and use “Resend invite”."
@@ -264,11 +264,11 @@
   "emptyWikiQuery": "Invite a client",
   "addClient": "Add client",
   "addModal": {
-    "titleManaged": "Add client — managed",
-    "modeInvite": "Send invite",
-    "modeManaged": "Manage without account",
+    "titleManaged": "Add client",
+    "modeInvite": "Send invitation",
+    "modeManaged": "Add",
     "modeInviteHelp": "Sends an invite email. Once they sign up, the client sees chats, files and invoices themselves.",
-    "modeManagedHelp": "No email is sent. Keep the client's details for invoices, projects and receipts. You can invite them any time later.",
+    "modeManagedHelp": "No email is sent. A client you keep and manage yourselves (no account) — for invoices, projects and receipts. You can invite them any time later.",
     "phone": "Phone",
     "emailOptional": "Email (optional)",
     "submitManaged": "Add",
@@ -278,7 +278,17 @@
     "errInvalidEmail": "Invalid email address",
     "inviteThisTitle": "Invite this client",
     "errAlreadyMember": "This email belongs to a member of this workspace — add them as a project member instead of a client.",
-    "errLinkProject": "The client was created but could not be added to the project. Add it again from \"Link existing client\"."
+    "errLinkProject": "The client was created but could not be added to the project. Add it again from \"Link existing client\".",
+    "inviteConfirmTitle": "Send the invitation?",
+    "inviteConfirmBody": "An invitation email will be sent to {{email}}. A sent email cannot be taken back.",
+    "inviteConfirm": "Send invitation",
+    "errAlreadyClient": "This mail is already linked to another client.",
+    "linkThisMail": "Link this mail to that client",
+    "errLinkMail": "Could not link the mail to that client.",
+    "sourceMail": "Saving links this mail, and mail from the same address, to this client.",
+    "sourceChat": "Saving links this chat to this client.",
+    "relayUseManual": "This inquiry came through a web form, so the sender is not a person. Enter the name and contact written in the message.",
+    "readFromBody": "Read contact from the message"
   },
   "managed": {
     "title": "Managed client",

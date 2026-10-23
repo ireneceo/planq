@@ -17,7 +17,8 @@ import EventDrawer from '../../pages/QCalendar/EventDrawer';
 import ClientPanel from '../../components/QSale/ClientPanel';
 // 상담 목록과 **같은 변환·같은 등록 함수**를 쓴다 — 베끼면 두 화면이 갈라진다
 import { inquiryItemOfDrawer, inquiryViewOf } from '../../utils/saleInquiryView';
-import { registerInquiryAsClient } from '../../services/saleRegister';
+import ClientAddDrawer from '../../components/Clients/ClientAddDrawer';
+import { tabStore } from '../../stores/tabStore';
 import type { SaleInboxItem } from '../../services/sale';
 import { fetchTodo } from '../../services/dashboard';
 import type { TodoItem, TodoResponse } from '../../services/dashboard';
@@ -58,8 +59,6 @@ const TAB_LIST: InboxTab[] = ['all', 'work', 'mail', 'sale', 'chat', 'signature'
 
 const TodoPage: React.FC = () => {
   const { t } = useTranslation('dashboard');
-  // 상담 패널의 문구는 Q sale 것이다 — 같은 문장을 dashboard 에 복사하지 않는다
-  const { t: tSale } = useTranslation('qsale');
   const { user } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
@@ -104,7 +103,6 @@ const TodoPage: React.FC = () => {
   //     [고객으로 등록] 이 ref·이메일을 쓰기 때문이다. 그릴 때만 같은 변환을 통과시킨다.
   const [selectedInquiry, setSelectedInquiry] = useState<SaleInboxItem | null>(null);
   const [selectedInquiryBizId, setSelectedInquiryBizId] = useState<number | null>(null);
-  const [inquiryBusy, setInquiryBusy] = useState(false);
   // 등록·초대 실패는 패널 안에서 말한다(눌렀는데 아무 일도 없는 버튼을 만들지 않는다)
   const [panelNotice, setPanelNotice] = useState<string | null>(null);
   // 인박스 task_candidate 카드 클릭 시 inline 모달 (사이클 N+26)
@@ -257,32 +255,20 @@ const TodoPage: React.FC = () => {
     }
   };
 
-  // 문의를 고객으로 등록 — 상담 목록과 **같은 함수**를 부른다(routes 를 화면마다 다시 쓰지 않는다).
-  const handleInquiryRegister = async () => {
-    const it = selectedInquiry;
+  // 문의를 고객으로 등록 — 상담 목록과 **같은 드로어**(고객 추가 · 기본 «추가», «초대» 는 받는 주소 확인 뒤).
+  //   2026-10-23 옛 «문의 행 + 곧바로 초대 메일» 을 바꿨다(docs/CLIENT_ADD_INVITE_DESIGN.md §4).
+  const [registerOpen, setRegisterOpen] = useState(false);
+  const handleInquiryRegister = () => { setPanelNotice(null); setRegisterOpen(true); };
+  const onInquiryRegistered = (clientId: number | null) => {
     const biz = selectedInquiryBizId ?? bizId;
-    if (!it || !biz || inquiryBusy) return;
-    setInquiryBusy(true);
-    setPanelNotice(null);
-    try {
-      const res = await registerInquiryAsClient(biz, it);
-      if (!res.ok) { setPanelNotice(res.message || (tSale('error.loadFailed') as string)); return; }
-      if (res.warn === 'invite_failed') setPanelNotice(res.message || (tSale('inbox.inviteFailed') as string));
-      else if (res.warn === 'invite_no_email') setPanelNotice(tSale('inbox.inviteNoEmail') as string);
-      // 등록되면 더는 문의가 아니다 — 확인 필요 목록에서도 빠진다
-      silentLoad();
-      // ★ 페이지로 튕기지 않는다. 방금 만든 고객을 **같은 자리**의 패널로 이어 보여준다.
-      //   경고(초대 실패 등)는 그 패널에 그대로 남는다 — 화면이 바뀐다고 사라지면 못 읽는다.
-      if (res.clientId) {
-        setSelectedInquiry(null);
-        setSelectedInquiryBizId(null);
-        setSelectedClientId(res.clientId);
-        setSelectedClientBizId(biz);
-      }
-    } catch {
-      setPanelNotice(tSale('error.loadFailed') as string);
-    } finally {
-      setInquiryBusy(false);
+    // 등록되면 더는 문의가 아니다 — 확인 필요 목록에서도 빠진다
+    silentLoad();
+    // ★ 페이지로 튕기지 않는다. 방금 만든 고객을 **같은 자리**의 패널로 이어 보여준다.
+    if (clientId && biz) {
+      setSelectedInquiry(null);
+      setSelectedInquiryBizId(null);
+      setSelectedClientId(clientId);
+      setSelectedClientBizId(biz);
     }
   };
 
@@ -453,12 +439,22 @@ const TodoPage: React.FC = () => {
           clientId={null}
           inquiry={inquiryViewOf(selectedInquiry)}
           notice={panelNotice}
-          registerBusy={inquiryBusy}
           onClose={() => { setSelectedInquiry(null); setSelectedInquiryBizId(null); setPanelNotice(null); }}
           /* 패널 안에서 **첫 액션 자동 등록**이 일어나면 이 목록도 따라가야 한다 —
              안 붙이면 등록·기록을 했는데 확인 필요 숫자와 행이 그대로다 */
           onChanged={silentLoad}
-          onRegister={() => { void handleInquiryRegister(); }}
+          onRegister={handleInquiryRegister}
+        />
+      )}
+      {selectedInquiry !== null && (selectedInquiryBizId ?? bizId) !== null && (
+        <ClientAddDrawer
+          open={registerOpen}
+          onClose={() => setRegisterOpen(false)}
+          businessId={(selectedInquiryBizId ?? bizId) as number}
+          prefill={{ name: selectedInquiry.who || undefined, email: selectedInquiry.email || undefined, company: selectedInquiry.company?.name || undefined }}
+          source={selectedInquiry.ref.kind !== 'client' ? { kind: selectedInquiry.ref.kind, id: selectedInquiry.ref.id } : null}
+          onDone={onInquiryRegistered}
+          onOpenExisting={(cid) => tabStore.openInNewTab(`/sale/${cid}`)}
         />
       )}
 

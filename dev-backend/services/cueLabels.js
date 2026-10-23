@@ -29,12 +29,14 @@ const LABELS = {
   // 휴가 신청 상태 (leave_requests.status)
   leave: { pending: '승인 대기', approved: '승인됨', rejected: '반려됨', canceled: '취소됨' },
   // clients.json status.*
+  //   2026-10-23 문의 · 추가한 고객 · 초대 중 · 참여 중 (docs/CLIENT_ADD_INVITE_DESIGN.md §1)
   client: {
-    active: '활성',
-    invited: '초대됨',
+    active: '참여 중',
+    invited: '초대 중',
     archived: '비활성',
-    // Q sale 문의 고객 — 게스트로 정보만 저장, 초대 전 (docs/Q_SALE_DESIGN.md §3.1)
-    prospect: '문의 고객',
+    // Q sale 문의 고객 — 아직 고객으로 등록 안 한 상담 상대 (docs/Q_SALE_DESIGN.md §3.1)
+    prospect: '문의',
+    managed: '추가한 고객',
   },
   // clients.json projectStatus.*
   project: {

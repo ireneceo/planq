@@ -19,13 +19,16 @@ export interface AddressMenuProps {
   onViewMail: (email: string) => void;
   /** 이 주소로 새 메일 쓰기 */
   onCompose: (email: string) => void;
-  /** 고객으로 저장 (없을 때만 노출) */
+  /** 고객 추가 — 이 메일에 고객이 아직 없을 때 */
   onSaveClient: (email: string, name?: string | null) => void;
+  /** 이 메일에 이미 붙은 고객 — 있으면 «고객 추가» 대신 «고객 보기» */
+  clientId?: number | null;
+  onViewClient?: (clientId: number) => void;
   /** 이 발신자를 스팸으로 분류 */
   onBlock: (email: string) => void;
 }
 
-const AddressMenu: React.FC<AddressMenuProps> = ({ email, name, onViewMail, onCompose, onSaveClient, onBlock }) => {
+const AddressMenu: React.FC<AddressMenuProps> = ({ email, name, onViewMail, onCompose, onSaveClient, clientId, onViewClient, onBlock }) => {
   const { t } = useTranslation('qmail');
   const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -76,9 +79,15 @@ const AddressMenu: React.FC<AddressMenuProps> = ({ email, name, onViewMail, onCo
           <Item role="menuitem" type="button" onClick={() => pick(() => onCompose(email))}>
             {t('address.compose', { defaultValue: '이 주소로 새 메일' }) as string}
           </Item>
-          <Item role="menuitem" type="button" onClick={() => pick(() => onSaveClient(email, name))}>
-            {t('address.saveClient', { defaultValue: '고객으로 저장' }) as string}
+          {clientId && onViewClient ? (
+            <Item role="menuitem" type="button" data-testid="mail-address-view-client" onClick={() => pick(() => onViewClient(clientId))}>
+              {t('address.viewClient') as string}
+            </Item>
+          ) : (
+          <Item role="menuitem" type="button" data-testid="mail-address-add-client" onClick={() => pick(() => onSaveClient(email, name))}>
+            {t('address.saveClient') as string}
           </Item>
+          )}
           <Divider />
           {/* 차단은 원본을 지우지 않는다 — 분류만 바꾼다. 규칙 화면에서 언제든 되돌릴 수 있다. */}
           <Item role="menuitem" type="button" $danger onClick={() => pick(() => onBlock(email))}>

@@ -2,6 +2,10 @@
 
 
 
+## 2026-10-23 · 고객 «추가» vs «초대» 분리 · 그 자리에서 추가하고 연결 (방 ccabdb0a) — 설계 **PASS** · 완료 **PASS**(Fable, 차단 0)
+- 설계 docs/CLIENT_ADD_INVITE_DESIGN.md. Fable 재실행: API 46/0 · Fable 프로브 26/0(남의 ws 스레드 404·팀 대화 400·잘못된 id 400·없는 링크 404 — 모두 행 +0·메일 0 · 고객 대화 출처 연결·409·no-op 초대 메일 1 · access 4값 DB 대조 2/8/3/7 · client 403·member 201) · 화면 3폭 80/0 · secrets·clientlink 15/15 · e2e salecriteria·clientlink 0 · guard godfile(MailPage, 이전부터 초과·이번 −2)만.
+- 비차단: ①useBackToClose backPending 은 popstate 출처 무관하게 1 내린다(30ms 안 사용자 뒤로 = 옛 경합 1회, 1.5초 상한) ②/invite 연결 단계가 던지면 invited 인데 메일 미발송 500(기존 부수효과와 같은 모양) ③mobilepanels ③ 기대값(sticky)이 e3b219eb 로 낡음 — 다음 사이클 ④미측정: 멤버→남의 개인 계정 스레드(같은 resolveSource 함수).
+
 ## 2026-10-22 · 메일 알림 주소별·사람별 설계 + 완료 검증 (방 94ab422c) — 설계 **PASS** · 완료 **PASS**(Fable, 차단 0)
 - 설계 docs/MAIL_NOTIFY_PER_ADDRESS_DESIGN.md · 커밋 9429333b + fc02d9b9. Fable 재실행: 사례 1~13 17/17 · 옛 순서 대조군 뒤집힘 · bump 미소진 probe · 추가 HTTP(다른 ws 경로 404·대문자 400·401·옛 PUT 403) · 마이그레이션 dry/본/빈 표 경로 · 3폭 화면 PUT 1건 12/12 · guard 78/79 · health 91/91 · tenant 0.
 - 비차단: ①pref 조회에 business_id 없음 → fc02d9b9 에서 반영 ②시험 스크립트 잔존 → 삭제함 ③platform_admin(비멤버)도 GET/PUT 200 — 설계 D4 «무해» 그대로.

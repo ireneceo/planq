@@ -72,14 +72,17 @@ interface Props {
     onViewMail: (email: string) => void;
     onCompose: (email: string) => void;
     onSaveClient: (email: string, name?: string | null) => void;
+    onViewClient?: (clientId: number) => void;
     onBlock: (email: string) => void;
   };
+  /** 이 메일에 이미 붙은 고객 — 있으면 주소 메뉴가 «고객 추가» 대신 «고객 보기» */
+  linkedClientId?: number | null;
   t: TFunction;
 }
 
 export default function ThreadMessages(p: Props) {
   const {
-    addressActions,
+    addressActions, linkedClientId,
     messages, threadId, linksDisabled, accountEmail, subject, myUserId, businessId, expandedMsgIds, toggleMsg,
     frameH, msgCidData, msgTrans, setMsgTrans,
     translateMsg, cancelTranslate, startForward, foldLabels, toAddrList, formatTimeAgo, t,
@@ -238,6 +241,8 @@ export default function ThreadMessages(p: Props) {
                           onViewMail={addressActions.onViewMail}
                           onCompose={addressActions.onCompose}
                           onSaveClient={addressActions.onSaveClient}
+                          clientId={linkedClientId ?? null}
+                          onViewClient={addressActions.onViewClient}
                           onBlock={addressActions.onBlock}
                         />
                         {'>'}

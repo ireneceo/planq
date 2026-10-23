@@ -1,4 +1,4 @@
-// services/saleRegister — 미등록 문의를 **고객으로 등록(+초대)** 하는 한 벌
+// services/saleRegister — 미등록 문의를 **문의 고객 원장으로** 남기는 한 벌(첫 액션 자동 등록)
 //
 // ★ 같은 버튼을 두 화면이 갖는다: Q sale 상담 목록과 확인 필요(Todo)의 우측 패널.
 //   각자 구현하면 반드시 갈라진다 — 한쪽만 초대 메일을 보내거나, 한쪽만 실패를 삼킨다
@@ -11,34 +11,21 @@ import type { SaleInboxItem } from './sale';
 /** 등록에 필요한 것만 — 상담 목록 행이든 확인 필요 payload 든 이 모양이면 된다 */
 export type SaleRegisterInput = Pick<SaleInboxItem, 'ref' | 'who' | 'email' | 'company'>;
 
-/** 등록은 됐지만 **초대는 못 간** 경우 — 조용히 넘어가지 않게 부르는 쪽에 돌려준다 */
-export type SaleRegisterWarn = 'invite_failed' | 'invite_no_email';
-
 export interface SaleRegisterResult {
   /** 등록(원장 생성) 자체의 성공 여부 */
   ok: boolean;
   clientId: number | null;
-  /** ok=false 면 없음, ok=true 면 초대 단계의 경고 */
-  warn?: SaleRegisterWarn;
   /** 서버가 준 문구 — 있으면 그대로 보여준다(우리가 지어내지 않는다) */
   message?: string | null;
 }
 
-/** 등록의 두 가지 쓰임 — **초대를 보내는가**가 갈린다.
- *  · `invite: true`  명시적 [고객으로 등록] 버튼. 사람이 확인창에서 주소를 보고 눌렀다.
- *  · `invite: false` 우측 패널의 **첫 액션 자동 등록**(기록 추가·업무 추가 등).
- *    ★ 여기서 메일을 보내면 "기록을 남겼을 뿐인데 고객에게 초대가 나갔다" 가 된다 —
- *      외부 발송은 그 자체로 확인을 받아야 하는 일이다(CLAUDE.md "외부 발송은 확인을 받는다").
- *      원장만 만들고, 초대는 패널의 [초대] 버튼에 남긴다. */
-export interface SaleRegisterOptions {
-  /** 기본 true — 옛 호출부(명시적 등록 버튼)의 동작을 바꾸지 않는다 */
-  invite?: boolean;
-}
-
+/** 첫 액션 자동 등록 — 우측 패널에서 기록·업무를 처음 남길 때 **문의 고객(prospect) 원장만** 만든다. 메일은 보내지 않는다.
+ *  ★ 2026-10-23 명시적 [고객으로 등록] 은 여기를 지나지 않는다 — 고객 추가 드로어(추가/초대)를 연다
+ *    (docs/CLIENT_ADD_INVITE_DESIGN.md §4). 옛 «등록 = 문의 행 + 곧바로 초대 메일» 은 지웠다:
+ *    «등록» 버튼이 사실상 «초대» 였고, 메일이 없으면 «등록했다» 고 믿는 문의 고객만 남았다. */
 export async function registerInquiryAsClient(
   businessId: number,
   it: SaleRegisterInput,
-  opts: SaleRegisterOptions = {},
 ): Promise<SaleRegisterResult> {
   // 기존 라우트를 그대로 부른다(서버가 중복 연결·한도까지 판정한다)
   const body = it.ref.kind === 'guest_link'
@@ -50,8 +37,7 @@ export async function registerInquiryAsClient(
   const j = await r.json().catch(() => null);
   if (!r.ok || j?.success === false) {
     // #449 D5 — 웹폼 릴레이(no-reply@…)는 서버 코드 `relay_sender_use_manual` 로 온다. 화면이 번역한다(위 머리말).
-    //   등록 자체는 막되 **다음 행동을 대신 준비한다** — 마지막 수신 본문을 Q sales 문의 추가(Cue 바)로 넘겨
-    //   이름·연락처를 뽑고 사람이 확인해 등록한다(그 스레드도 같이 붙는다). 세 진입점이 이 함수 하나를 지난다.
+    //   등록 자체는 막되 **다음 행동을 대신 준비한다** — 마지막 수신 본문을 Q sales 문의 추가(Cue 바)로 넘긴다.
     if (j?.message === 'relay_sender_use_manual' && it.ref.kind === 'email_thread') {
       try {
         const w = await getWebformText(businessId, it.ref.id);
@@ -60,26 +46,5 @@ export async function registerInquiryAsClient(
     }
     return { ok: false, clientId: null, message: j?.message || `HTTP ${r.status}` };
   }
-  const clientId = j?.data?.client?.id ?? j?.data?.id ?? null;
-
-  // ★ 2026-09-13 (Irene: "고객으로 등록 버튼 누르면 초대메일 보내져야지 왜 고객페이지로 가?")
-  //   등록은 원장을 만드는 것이고, **초대는 그 사람에게 문을 여는 것**이다. 둘을 잇는다.
-  //   ☐ 이메일이 없으면 보낼 수 없다 — 초대 라우트가 name·email 을 필수로 받는다.
-  //     그때는 등록만 하고 패널의 [초대 보내기] 로 남긴다(경고로 알린다).
-  const invitee = it.email;
-  if (!clientId) return { ok: true, clientId: null };
-  // 자동 등록(첫 액션)은 여기서 멈춘다 — 원장만 만들고 **메일은 보내지 않는다**
-  if (opts.invite === false) return { ok: true, clientId };
-  if (!invitee) return { ok: true, clientId, warn: 'invite_no_email' };
-
-  const inv = await apiFetch(`/api/clients/${businessId}/invite`, {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name: it.who || invitee, email: invitee, company_name: it.company?.name || null }),
-  });
-  if (!inv.ok) {
-    const ij = await inv.json().catch(() => null);
-    // 등록 자체는 성공했다 — 초대만 실패했음을 분명히 말한다(실패를 삼키지 않는다)
-    return { ok: true, clientId, warn: 'invite_failed', message: ij?.message || null };
-  }
-  return { ok: true, clientId };
+  return { ok: true, clientId: j?.data?.client?.id ?? j?.data?.id ?? null };
 }

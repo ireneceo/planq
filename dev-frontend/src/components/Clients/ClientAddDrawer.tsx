@@ -1,13 +1,16 @@
-// 고객 추가 — «초대 보내기 / 직접 관리로 등록» 한 폼(같은 CreateDrawer). 드로어 «이 고객 초대» 도 같은 폼을 그 고객으로 연다.
+// 고객 추가 — «추가(우리가 관리) / 초대 보내기» 한 폼(같은 CreateDrawer). 드로어 «이 고객 초대» 도 같은 폼을 그 고객으로 연다.
 //   2026-10-16 설정 > 고객 화면에서 **빼서** Q sale > 고객 탭이 쓴다(docs/CLIENT_SCREENS_MERGE_DESIGN.md).
 //   서버: POST /api/clients/:biz/invite (client_id 가 있으면 같은 행 승격) · POST /api/clients/:biz/managed (메일 없음).
 //   2026-10-22 받은 명함 → 고객(docs/NAME_CARD_V3_STRATEGY.md 9절 결정 1): 명함 값으로 채워 «직접 관리» 로 열고,
 //   이미 있는 고객이면 [그 고객의 담당자로 붙이기] 를 먼저 보인다. 같은 워크스페이스 멤버의 명함은 고객으로 넣지 않는다.
+//   2026-10-23 «추가» 와 «초대» 를 가른다(docs/CLIENT_ADD_INVITE_DESIGN.md, Fable): 기본은 **추가**(메일 없음) ·
+//   초대는 받는 주소를 적은 확인창을 거친다 · `source`(메일·게스트 링크·고객 대화)를 주면 서버가 만든 고객에 그 자리를 붙인다.
 import { useEffect, useMemo, useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { apiFetch } from '../../contexts/AuthContext';
-import { attachCardToClient, attachValuesToClient, saveCardPhoto, readMailSignature, type CardIntake } from '../../services/sale';
+import { attachCardToClient, attachValuesToClient, saveCardPhoto, readMailSignature, getWebformText, SALE_PREFILL_EVENT, type CardIntake, type SalePrefillDetail } from '../../services/sale';
+import ConfirmDialog from '../Common/ConfirmDialog';
 import CreateDrawer from '../Common/CreateDrawer';
 import PlanQSelect from '../Common/PlanQSelect';
 import { SegmentedToggle, SegmentedBtn } from '../Common/segmentedToggle';
@@ -15,6 +18,9 @@ import { usePartnerKindLabel } from '../Common/PartnerKindBadge';
 import { Helper } from './clientDetailStyles';
 
 type Kind = 'customer' | 'vendor' | 'freelancer' | 'other';
+
+/** 만든 고객에 붙일 «그 자리» — 서버 services/clientLinkSource 와 같은 세 종류 */
+export interface ClientSource { kind: 'email_thread' | 'guest_link' | 'conversation'; id: number }
 
 export interface InviteTarget {
   id: number;
@@ -37,6 +43,8 @@ interface Props {
   fromPhoto?: { file: File; match: CardIntake['match']; notice: string | null } | null;
   /** 메일 «고객으로 저장» 에서 왔을 때 — 그 메일의 서명으로 빈 칸(회사·직함·부서·전화)을 채운다(2026-10-22) */
   fromMail?: { threadId: number } | null;
+  /** 이 자리(메일·게스트 링크·고객 대화)에서 열었을 때 — 만든 고객에 이것을 붙인다(그 메일과 같은 주소의 메일도) */
+  source?: ClientSource | null;
   /** 있으면 «이 고객 초대» — 그 행을 승격한다(새 행 X). 모드는 초대로 고정 */
   inviteFor?: InviteTarget | null;
   /** 끝난 뒤 — 새로 만든 고객 id(직접 관리) 또는 승격한 고객 id */
@@ -48,12 +56,12 @@ interface Props {
   projectId?: number | null;
 }
 
-export default function ClientAddDrawer({ open, onClose, businessId, prefill, fromCard, fromPhoto, fromMail, inviteFor, onDone, onOpenExisting, projectId }: Props) {
+export default function ClientAddDrawer({ open, onClose, businessId, prefill, fromCard, fromPhoto, fromMail, source, inviteFor, onDone, onOpenExisting, projectId }: Props) {
   const { t } = useTranslation('clients');
   const kindLabel = usePartnerKindLabel();
   const kindOptions = useMemo(() => (['customer', 'vendor', 'freelancer', 'other'] as Kind[]).map((k) => ({ value: k, label: kindLabel(k) })), [kindLabel]);
 
-  const [mode, setMode] = useState<'invite' | 'managed'>('invite');
+  const [mode, setMode] = useState<'invite' | 'managed'>('managed');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [company, setCompany] = useState('');
@@ -67,13 +75,19 @@ export default function ClientAddDrawer({ open, onClose, businessId, prefill, fr
   const [existingId, setExistingId] = useState<number | null>(null);
   // 초대는 만들어졌지만 메일이 안 나간 경우(0-F) — 닫지 않고 이유와 다음 행동을 말한다
   const [mailWarn, setMailWarn] = useState(false);
+  // 초대 확인창(받는 주소를 적는다 — 외부 발송은 확인을 받는다)
+  const [confirmInvite, setConfirmInvite] = useState(false);
+  // 이 자리가 이미 다른 고객에 붙어 있을 때(409 already_client) · 웹폼 릴레이 발신자(400 relay_sender_use_manual)
+  const [boundId, setBoundId] = useState<number | null>(null);
+  const [relay, setRelay] = useState(false);
 
   // 열릴 때마다 처음부터 — 대상(inviteFor)·채움값(prefill)을 반영한다
   useEffect(() => {
     if (!open) return;
     // 명함에서 왔으면 «직접 관리» 로 연다 — 받은 명함은 아직 초대할 사이가 아닌 경우가 대부분이다
     //   메일 서명에서 왔을 때도 «직접 관리» — 서명이 주는 전화·직함·부서 칸이 그 모드에만 있다(초대로 바꿀 수 있다)
-    setMode(fromCard || fromPhoto || fromMail ? 'managed' : 'invite'); setError(null); setExistingId(null); setMailWarn(false);
+    //   2026-10-23 — 기본은 언제나 «추가»(메일이 안 나가는 쪽). 초대는 사람이 고른다.
+    setMode('managed'); setError(null); setExistingId(null); setMailWarn(false); setBoundId(null); setRelay(false); setConfirmInvite(false);
     setPhone(prefill?.phone || ''); setJobTitle(prefill?.job_title || ''); setDepartment(prefill?.department || '');
     if (inviteFor) {
       setName(inviteFor.display_name || inviteFor.company_name || '');
@@ -162,9 +176,11 @@ export default function ClientAddDrawer({ open, onClose, businessId, prefill, fr
         name: name.trim() || null, company_name: company.trim() || null,
         email: email.trim() || null, phone: phone.trim() || null, kind,
         job_title: jobTitle.trim() || null, department: department.trim() || null,
+        ...(source ? { source } : {}),
       }),
     });
     const j = await res.json().catch(() => null);
+    if (sourceRefused(res.status, j)) return;
     if (res.status === 409 && j?.existing_client_id) {
       setExistingId(Number(j.existing_client_id));
       setError(t('addModal.errExists'));
@@ -189,6 +205,47 @@ export default function ClientAddDrawer({ open, onClose, businessId, prefill, fr
     if (!r.ok || !j?.success) throw new Error(j?.message === 'already_member' ? t('addModal.errAlreadyMember') : t('addModal.errLinkProject'));
   };
 
+  // 출처를 붙일 수 없을 때 — 이미 다른 고객 / 웹폼 릴레이. 처리했으면 true
+  const sourceRefused = (status: number, j: { message?: string; existing_client_id?: number } | null): boolean => {
+    if (status === 409 && j?.message === 'already_client' && j.existing_client_id) {
+      setBoundId(Number(j.existing_client_id));
+      setError(t('addModal.errAlreadyClient'));
+      return true;
+    }
+    if (status === 400 && j?.message === 'relay_sender_use_manual') {
+      setRelay(true);
+      setError(t('addModal.relayUseManual'));
+      return true;
+    }
+    return false;
+  };
+
+  // 409 «이미 있는 고객» 에서 — 이 메일을 그 고객에 붙인다(우측 패널 고객 칸과 같은 연결 API)
+  // autosave-exempt: 액션 버튼(그 고객에 이 메일 연결) — 입력란이 아니다
+  const linkMailTo = async (clientId: number) => {
+    if (source?.kind !== 'email_thread' || attaching) return;
+    setAttaching(true); setError(null);
+    try {
+      const r = await apiFetch(`/api/businesses/${businessId}/email-threads/${source.id}`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ client_id: clientId }),
+      });
+      const j = await r.json().catch(() => null);
+      if (!r.ok || !j?.success) throw new Error('link_failed');
+      onClose();
+      onDone?.(clientId);
+    } catch { setError(t('addModal.errLinkMail')); } finally { setAttaching(false); }
+  };
+
+  // 웹폼 릴레이 — 본문을 Q sale 문의 추가 칸으로 넘겨 이름·연락처를 뽑게 한다(옛 [고객으로 등록] 의 동작 그대로)
+  const readFromBody = async () => {
+    if (source?.kind !== 'email_thread') return;
+    try {
+      const w = await getWebformText(businessId, source.id);
+      window.dispatchEvent(new CustomEvent<SalePrefillDetail>(SALE_PREFILL_EVENT, { detail: { text: w.text, emailThreadId: source.id } }));
+      onClose();
+    } catch { setError(t('inviteModal.errFailed')); }
+  };
+
   const submitInvite = async () => {
     if (!name.trim() || !email.trim()) { setError(t('inviteModal.errRequired')); return; }
     if (projectId && !inviteFor) {
@@ -208,25 +265,32 @@ export default function ClientAddDrawer({ open, onClose, businessId, prefill, fr
       body: JSON.stringify({
         name: name.trim(), email: email.trim(), company_name: company.trim() || null, kind,
         ...(inviteFor ? { client_id: inviteFor.id } : {}),
+        ...(source ? { source } : {}),
       }),
     });
     const j = await res.json().catch(() => null);
-    if (!res.ok || !j?.success) throw new Error(j?.message || t('inviteModal.errFailed'));
+    if (sourceRefused(res.status, j)) return;
+    if (res.status === 409 && j?.message === 'Client already exists') throw new Error(t('addModal.errExists'));
+    if (!res.ok || !j?.success) throw new Error(j?.message === 'already_member' ? t('addModal.errAlreadyMember') : (j?.message || t('inviteModal.errFailed')));
     const id = (j.data?.id as number | undefined) ?? null;
     if (j.data && j.data.invite_email_sent === false) { setMailWarn(true); onDone?.(id); return; }
     onClose();
     onDone?.(id);
   };
 
-  const submit = async () => {
-    if (submitting) return;
-    setError(null); setExistingId(null); setMailWarn(false);
+  const run = async (fn: () => Promise<void>) => {
+    setError(null); setExistingId(null); setMailWarn(false); setBoundId(null); setRelay(false);
     setSubmitting(true);
-    try {
-      if (managed) await submitManaged(); else await submitInvite();
-    } catch (e) {
+    try { await fn(); } catch (e) {
       setError((e as Error).message);
     } finally { setSubmitting(false); }
+  };
+  const submit = async () => {
+    if (submitting) return;
+    if (managed) { await run(submitManaged); return; }
+    // 초대 — 메일이 나가는 버튼이라 보낼 주소를 적어 먼저 묻는다
+    if (!name.trim() || !email.trim()) { setError(t('inviteModal.errRequired')); return; }
+    setConfirmInvite(true);
   };
 
   return (
@@ -238,6 +302,7 @@ export default function ClientAddDrawer({ open, onClose, businessId, prefill, fr
       submitting={submitting}
       submitLabel={managed ? t('addModal.submitManaged') : t('inviteModal.submit')}
       submitDisabled={disabled}
+      submitTestId="clients-add-submit"
     >
       {photoUrl && <PhotoPreview src={photoUrl} alt={t('cardPhoto.previewAlt') as string} data-testid="clients-add-card-photo" />}
       {fromPhoto?.notice && <WarnBlock role="status" data-testid="clients-add-photo-notice">{fromPhoto.notice}</WarnBlock>}
@@ -278,18 +343,19 @@ export default function ClientAddDrawer({ open, onClose, businessId, prefill, fr
       {!inviteFor && (
         <ModeRow>
           <SegmentedToggle role="tablist" aria-label={t('addClient') as string}>
-            <SegmentedBtn type="button" role="tab" aria-selected={mode === 'invite'} $active={mode === 'invite'}
-              data-testid="clients-add-mode-invite" onClick={() => { setMode('invite'); setError(null); setExistingId(null); }}>
-              {t('addModal.modeInvite')}
-            </SegmentedBtn>
             <SegmentedBtn type="button" role="tab" aria-selected={mode === 'managed'} $active={mode === 'managed'}
               data-testid="clients-add-mode-managed" onClick={() => { setMode('managed'); setError(null); setExistingId(null); }}>
               {t('addModal.modeManaged')}
+            </SegmentedBtn>
+            <SegmentedBtn type="button" role="tab" aria-selected={mode === 'invite'} $active={mode === 'invite'}
+              data-testid="clients-add-mode-invite" onClick={() => { setMode('invite'); setError(null); setExistingId(null); }}>
+              {t('addModal.modeInvite')}
             </SegmentedBtn>
           </SegmentedToggle>
           <Helper>{managed ? t('addModal.modeManagedHelp') : t('addModal.modeInviteHelp')}</Helper>
         </ModeRow>
       )}
+      {source && <Helper data-testid="clients-add-source-hint">{t(source.kind === 'email_thread' ? 'addModal.sourceMail' : 'addModal.sourceChat')}</Helper>}
       <Field><FieldLabel>{t('inviteModal.name')} {!managed && <Req>*</Req>}</FieldLabel><FieldInput autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder={t('inviteModal.namePlaceholder') as string} /></Field>
       <Field><FieldLabel>{managed ? t('addModal.emailOptional') : <>{t('inviteModal.email')} <Req>*</Req></>}</FieldLabel><FieldInput value={email} onChange={(e) => setEmail(e.target.value)} placeholder="client@example.com" type="email" /></Field>
       {managed && (
@@ -321,9 +387,33 @@ export default function ClientAddDrawer({ open, onClose, businessId, prefill, fr
               {t('addModal.openExisting')}
             </ExistingLink>
           )}
+          {existingId != null && source?.kind === 'email_thread' && (
+            <ExistingLink type="button" disabled={attaching} onClick={() => void linkMailTo(existingId)} data-testid="clients-add-link-mail">
+              {t('addModal.linkThisMail')}
+            </ExistingLink>
+          )}
+          {boundId != null && onOpenExisting && (
+            <ExistingLink type="button" onClick={() => { const id = boundId; onClose(); onOpenExisting(id); }} data-testid="clients-add-open-bound">
+              {t('addModal.openExisting')}
+            </ExistingLink>
+          )}
+          {relay && source?.kind === 'email_thread' && (
+            <ExistingLink type="button" onClick={() => void readFromBody()} data-testid="clients-add-read-body">
+              {t('addModal.readFromBody')}
+            </ExistingLink>
+          )}
         </WarnBlock>
       )}
       {mailWarn && <WarnBlock role="alert" data-testid="clients-invite-mail-failed">{t('inviteModal.emailFailed')}</WarnBlock>}
+      <ConfirmDialog
+        isOpen={confirmInvite}
+        onClose={() => setConfirmInvite(false)}
+        onConfirm={() => { setConfirmInvite(false); void run(submitInvite); }}
+        title={t('addModal.inviteConfirmTitle')}
+        message={t('addModal.inviteConfirmBody', { email: email.trim() })}
+        confirmText={t('addModal.inviteConfirm')}
+        variant="info"
+      />
     </CreateDrawer>
   );
 }

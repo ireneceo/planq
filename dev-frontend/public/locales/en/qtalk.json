@@ -187,7 +187,8 @@
     "clientFallback": "Client #{{id}}",
     "newProject": "+ Create new project",
     "newProjectPh": "New project name",
-    "privateNote": "Chats not linked to a project or client are visible to participants only — owners and admins included."
+    "privateNote": "Chats not linked to a project or client are visible to participants only — owners and admins included.",
+    "addClient": "+ Add client"
   },
   "common": {
     "cancel": "Cancel",

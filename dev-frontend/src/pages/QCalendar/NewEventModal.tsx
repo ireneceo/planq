@@ -8,6 +8,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { CONNECT_PROMPT } from '../../components/Common/connectPrompts';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
+import { clientOptionLabel } from '../../utils/clientLabel';
 import { useAuth, apiFetch } from '../../contexts/AuthContext';
 import type { CalendarEvent, EventCategory, EventVisibility } from './types';
 import { CATEGORY_OPTIONS } from './categoryColors';
@@ -61,6 +62,7 @@ const TIME_OPTIONS = (() => {
 
 const NewEventModal: React.FC<Props> = ({ initialStart, initialTitle, initialDescription, initialAllDay, projects, initialProjectId, businessId, onClose, onCreate, fromTask }) => {
   const { t, i18n } = useTranslation('qcalendar');
+  const { t: tSale } = useTranslation('qsale');   // 고객 관계 글자(utils/clientLabel)
   const { t: tc } = useTranslation('common');   // 연결 문구 정본
   const { user } = useAuth();
   const bizId = user?.business_id || null;
@@ -201,7 +203,8 @@ const NewEventModal: React.FC<Props> = ({ initialStart, initialTitle, initialDes
       .filter((c) => !projScope || projScope.clients.has(Number(c.id)))
       .map((c) => ({
         value: `c:${c.id}`,
-        label: `${c.display_name || c.company_name || c.biz_name || `#${c.id}`} · ${t('form.attendeeClientTag', { defaultValue: '고객' })}`,
+        // 고객임을 알리는 꼬리 + 관계(추가한 고객·초대 중·참여 중 — utils/clientLabel)
+        label: clientOptionLabel(`${c.display_name || c.company_name || c.biz_name || `#${c.id}`} · ${t('form.attendeeClientTag', { defaultValue: '고객' })}`, c, tSale),
       }));
     return [...mem, ...cli];
   }, [members, clientsList, projScope, t, user?.id]);

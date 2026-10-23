@@ -13,6 +13,7 @@ import LetterAvatar from '../../components/Common/LetterAvatar';
 import { useAuth } from '../../contexts/AuthContext';
 import { listBusinessMembers, listProjects, listWorkspaceClients, type WorkspaceMemberRow, type WorkspaceClientRow, type ApiProject, type SupportedLang } from '../../services/qtalk';
 import { isEnterAction } from '../../utils/imeKey';
+import { clientOptionLabel } from '../../utils/clientLabel';
 
 export interface NewChatFormData {
   title: string;
@@ -40,16 +41,27 @@ const LANG_OPTIONS: { value: SupportedLang; label: string }[] = [
   { value: 'es', label: 'Español' },
 ];
 
+/** [+ 고객 추가] 로 잠깐 닫을 때 들고 나가는 입력값 — 다시 열 때 그대로 채운다(팝업 위 팝업 금지 — 2026-10-23) */
+export interface NewChatDraft {
+  title: string; projectId: number | null; newProjectName: string; participantIds: number[]; guestLinkRoom: boolean;
+  autoExtract: boolean; translationOn: boolean; langA: SupportedLang; langB: SupportedLang;
+}
+
 interface Props {
   businessId: number;
   open: boolean;
+  /** 고객 칸 아래 [+ 고객 추가] — 호스트가 이 창을 닫고 고객 추가 드로어를 연다 */
+  onAddClient?: (draft: NewChatDraft) => void;
+  /** 다시 열 때 채울 입력값 + 방금 추가한 고객 */
+  restore?: { draft: NewChatDraft; clientId: number | null } | null;
   preselectedProjectId?: number | null; // 특정 프로젝트 컨텍스트에서 열 때 기본 연결
   onClose: () => void;
   onCreate: (data: NewChatFormData) => void | Promise<void>;
 }
 
-const NewChatModal: React.FC<Props> = ({ businessId, open, preselectedProjectId, onClose, onCreate }) => {
-  const { t } = useTranslation('qtalk');
+const NewChatModal: React.FC<Props> = ({ businessId, open, preselectedProjectId, onClose, onCreate, onAddClient, restore }) => {
+  // qsale = 고객 관계 글자(utils/clientLabel)
+  const { t } = useTranslation(['qtalk', 'qsale']);
   const { user } = useAuth();
   const myId = user ? Number(user.id) : -1;
 
@@ -74,16 +86,18 @@ const NewChatModal: React.FC<Props> = ({ businessId, open, preselectedProjectId,
 
   useEffect(() => {
     if (!open) return;
-    setTitle('');
-    setProjectId(null); // 항상 미연결로 초기화 (preselectedProjectId 무시)
-    setNewProjectName('');
-    setParticipantIds([]);
-    setClientId(null);
+    const d = restore?.draft;
+    setTitle(d?.title ?? '');
+    setProjectId(d?.projectId ?? null); // 항상 미연결로 초기화 (preselectedProjectId 무시)
+    setNewProjectName(d?.newProjectName ?? '');
+    setParticipantIds(d?.participantIds ?? []);
+    setClientId(restore?.clientId ?? null);
+    setGuestLinkRoom(d?.guestLinkRoom ?? false);
     setSubmitting(false);
-    setAutoExtract(false);
-    setTranslationOn(false);
-    setLangA('ko');
-    setLangB('en');
+    setAutoExtract(d?.autoExtract ?? false);
+    setTranslationOn(d?.translationOn ?? false);
+    setLangA(d?.langA ?? 'ko');
+    setLangB(d?.langB ?? 'en');
     (async () => {
       try {
         const [mem, projs, cls] = await Promise.all([
@@ -96,7 +110,12 @@ const NewChatModal: React.FC<Props> = ({ businessId, open, preselectedProjectId,
         setClients(cls.filter((c) => c.status !== 'archived'));
       } catch { /* ignore */ }
     })();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, businessId]);
+  // 고객 추가 드로어가 끝나면 그 고객을 고른다(드로어는 닫힌 뒤 id 를 알려 준다 — 창이 먼저 열린다)
+  useEffect(() => {
+    if (open && restore?.clientId) setClientId(restore.clientId);
+  }, [open, restore?.clientId]);
 
   // preselectedProjectId 는 더 이상 디폴트 prefill 에 사용 안 함.
   // 사용자가 좌측에서 프로젝트를 선택했더라도 새 채팅은 명시적 선택 필요.
@@ -118,7 +137,7 @@ const NewChatModal: React.FC<Props> = ({ businessId, open, preselectedProjectId,
     [projects, t],
   );
   // 고객 옵션 — display_name → biz_name → company_name 순 fallback
-  const clientName = (c: WorkspaceClientRow) => c.display_name || c.biz_name || c.company_name || t('newChat.clientFallback', { defaultValue: '고객 #{{id}}', id: c.id });
+  const clientName = (c: WorkspaceClientRow) => clientOptionLabel(c.display_name || c.biz_name || c.company_name || t('newChat.clientFallback', { defaultValue: '고객 #{{id}}', id: c.id }), c, t);
   const clientOptions = useMemo(
     () => [
       { value: '__none__', label: t('newChat.noClient', '고객 없음 (내부)') },
@@ -221,6 +240,12 @@ const NewChatModal: React.FC<Props> = ({ businessId, open, preselectedProjectId,
               }}
               options={clientOptions}
             />
+            {onAddClient && clientId == null && (
+              <AddClientLink type="button" data-testid="newchat-add-client"
+                onClick={() => onAddClient({ title, projectId, newProjectName, participantIds, guestLinkRoom, autoExtract, translationOn, langA, langB })}>
+                {t('newChat.addClient')}
+              </AddClientLink>
+            )}
           </Field>
 
           <Field>
@@ -332,6 +357,12 @@ export default NewChatModal;
 const Field = styled.div`display:flex;flex-direction:column;gap:6px;`;
 const Label = styled.label`font-size:0.8125rem;font-weight:600;color:#0F172A;`;
 const Req = styled.span`color:#F43F5E;margin-left:2px;`;
+const AddClientLink = styled.button`
+  align-self:flex-start;margin-top:6px;min-height:32px;padding:0 10px;border-radius:8px;
+  border:1px dashed #CBD5E1;background:#FFF;color:#0F766E;font-size:0.75rem;font-weight:600;cursor:pointer;font-family:inherit;
+  &:hover{border-color:#14B8A6;background:#F0FDFA;}
+  &:focus-visible{outline:none;box-shadow:0 0 0 3px rgba(20,184,166,0.2);}
+`;
 const Hint = styled.div`font-size:0.75rem;color:#94A3B8;line-height:1.5;margin-bottom:2px;`;
 const ToggleLine = styled.div`margin-top:4px;`;
 const ToggleSwitch = styled.label`

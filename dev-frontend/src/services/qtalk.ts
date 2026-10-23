@@ -143,6 +143,7 @@ export interface WorkspaceClientRow {
   company_name: string | null;
   status: string;
   user_id?: number | null;   // 계정이 붙은 고객만 — 앱 알림을 받을 수 있는가(#462)
+  access_kind?: string;      // 관계(문의·추가한 고객·초대 중·참여 중) — 서버 services/clientAccess 값
 }
 
 export async function listWorkspaceClients(businessId: number): Promise<WorkspaceClientRow[]> {

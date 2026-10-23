@@ -593,6 +593,8 @@ export interface ApiClientLite {
   //   정식 고객과 구별되게 라벨이 붙는다(상태값 규약: 새 값이 기본값으로 조용히 떨어지면 그게 버그다).
   //   'managed' = 직접 관리 고객(계정 없이 정보만 관리하는 정식 고객) — 정식 고객이라 태그 없이 고른다.
   status?: 'invited' | 'active' | 'archived' | 'prospect' | 'managed';
+  /** 관계(문의·추가한 고객·초대 중·참여 중) — 서버 services/clientAccess 값. 표시는 utils/clientLabel */
+  access_kind?: string;
   display_name: string | null;
   company_name: string | null;
   biz_name: string | null;

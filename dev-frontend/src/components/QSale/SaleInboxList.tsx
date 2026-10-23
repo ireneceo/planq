@@ -22,12 +22,13 @@ import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
 import ActionButton from '../Common/ActionButton';
 import { ChipRow, FilterChip, ChipRight } from '../Common/filterChip';
 import ConfirmDialog from '../Common/ConfirmDialog';
+import ClientAddDrawer from '../Clients/ClientAddDrawer';
+import { tabStore } from '../../stores/tabStore';
 import TaskCreateForm from '../QTask/TaskCreateForm';
 import ClientPanel from './ClientPanel';
 // 상담 한 줄 → 패널이 그리는 값. 확인 필요(Todo)도 **같은 변환**을 쓴다(베끼면 갈라진다)
 import { inquiryViewOf } from '../../utils/saleInquiryView';
 // 등록(+초대)도 한 벌 — 확인 필요(Todo)의 같은 버튼이 같은 함수를 부른다
-import { registerInquiryAsClient } from '../../services/saleRegister';
 import LetterAvatar from '../Common/LetterAvatar';
 import HighlightText from '../Common/HighlightText';
 import {
@@ -119,7 +120,6 @@ const SaleInboxList: React.FC<Props> = ({
   const [actionError, setActionError] = useState<string | null>(null);
   // ★ 외부 발송은 확인을 받는다 — 이 버튼은 등록만 하는 게 아니라 **그 주소로 초대 메일을 보낸다**.
   //   패널 쪽 [고객으로 등록]도 같은 확인을 거친다(ClientPanel). 두 문이 같은 문구를 쓴다.
-  const [registerAsk, setRegisterAsk] = useState<SaleInboxItem | null>(null);
 
   // 최신 값은 ref 로 — 리스너·타이머가 옛 값에 굳지 않게(배경 갱신 규칙)
   const argsRef = useRef({ source, replyOnly, q, stage, hideClosed, access, assignee });
@@ -204,35 +204,18 @@ const SaleInboxList: React.FC<Props> = ({
     return t(`action.viewIn.${key}`) as string;
   }, [t]);
 
-  // 고객으로 등록 — 기존 라우트를 그대로 부른다(서버가 중복 연결·한도까지 판정한다)
-  const registerClient = useCallback(async (it: SaleInboxItem) => {
-    if (busyId) return;
-    setBusyId(it.id);
-    setActionError(null);
-    try {
-      const res = await registerInquiryAsClient(businessId, it);
-      if (!res.ok) { setActionError(res.message === 'relay_sender_use_manual' ? t('inbox.relayUseManual') as string : (res.message || (t('error.loadFailed') as string))); return; }
-      // 등록은 됐고 초대만 어긋난 경우 — 조용히 넘어가지 않는다
-      if (res.warn === 'invite_failed') setActionError(res.message || (t('inbox.inviteFailed') as string));
-      else if (res.warn === 'invite_no_email') setActionError(t('inbox.inviteNoEmail') as string);
-      // 등록되면 원본의 client_id 가 채워져 이 목록에서 자연히 빠진다 — 다시 읽는다
-      await load({ silent: true });
-      onRegistered?.();
-      // ★ 페이지로 튕기지 않는다 — 맥락을 잃는다. 방금 만든 고객을 **우측 패널**로 이어 보여준다.
-      //   이때 문의 패널은 닫는다. 안 닫으면 고객 패널 위에 옛 문의 패널이 겹쳐 남는다.
-      // 등록되면 **같은 패널이 그 자리에서 고객 쪽으로 채워진다** — 닫았다 다시 열게 하지 않는다.
-      //   ★ 열려 있는 `selected` 는 등록 **전**의 행이다(client_id 가 비어 있다). 다시 읽은 목록으로
-      //     갈아끼우지 않으면 패널은 계속 "미등록 문의" 로 남는다 — 사용자에겐 "등록했는데 그대로" 다.
-      if (res.clientId) {
-        const newId = res.clientId;
-        setSelected((v) => (v && v.id === it.id ? { ...v, client_id: newId } : v));
-      }
-    } catch {
-      setActionError(t('error.loadFailed') as string);
-    } finally {
-      setBusyId(null);
-    }
-  }, [busyId, businessId, load, onRegistered, t]);
+  // 고객으로 등록 — 고객 추가 드로어를 문의 값으로 연다(기본 «추가», «초대» 는 받는 주소 확인 뒤).
+  //   ★ 2026-10-23 옛 «확인창 + 문의 행 + 곧바로 초대 메일» 을 바꿨다 — «등록» 이 사실상 «초대» 였다
+  //     (docs/CLIENT_ADD_INVITE_DESIGN.md §4). 서버가 그 메일·게스트 링크를 새 고객에 붙인다(source).
+  const [registerFor, setRegisterFor] = useState<SaleInboxItem | null>(null);
+  const registerClient = useCallback((it: SaleInboxItem) => { setActionError(null); setRegisterFor(it); }, []);
+  const onRegisterDone = useCallback(async (it: SaleInboxItem, clientId: number | null) => {
+    // 등록되면 원본의 client_id 가 채워져 이 목록에서 자연히 빠진다 — 다시 읽는다
+    await load({ silent: true });
+    onRegistered?.();
+    // ★ 페이지로 튕기지 않는다 — 같은 패널이 그 자리에서 고객 쪽으로 채워진다(열려 있는 selected 는 등록 전 행이다)
+    if (clientId) setSelected((v) => (v && v.id === it.id ? { ...v, client_id: clientId } : v));
+  }, [load, onRegistered]);
 
   // 행 액션(되돌리기·보관·영구삭제)은 한 벌로 묶여 있다 — useInboxItemActions.
   //   ★ `promoteItem`(상담으로 보내기)은 여기서 안 쓴다 — 그 문은 **Q mail** 에 있다
@@ -588,18 +571,6 @@ const SaleInboxList: React.FC<Props> = ({
         onConfirm={() => { const a = stageAsk; setStageAsk(null); if (a) { if (a.to === 'lost') setLostAsk(a.it); else void applyStage(a.it, a.to); } }}
       />
       <LostAskModal item={lostAsk} businessId={businessId} onClose={() => setLostAsk(null)} onConfirm={(it, extra) => applyStage(it, 'lost', extra)} />
-      <ConfirmDialog
-        isOpen={!!registerAsk}
-        title={t('action.registerConfirmTitle') as string}
-        message={registerAsk?.email
-          ? (t('action.registerConfirmBody', { email: registerAsk.email }) as string)
-          : (t('action.registerConfirmNoEmail') as string)}
-        confirmText={t('action.registerClient') as string}
-        cancelText={t('inquiry.cancel') as string}
-        variant="info"
-        onClose={() => setRegisterAsk(null)}
-        onConfirm={() => { const it = registerAsk; setRegisterAsk(null); if (it) void registerClient(it); }}
-      />
       {/* 미등록 문의도 **같은 패널**에서 본다 — 고객이면 ClientPanel, 문의면 inquiry 분기.
           화면을 따로 만들면 필드가 갈라진다(2026-09-12 박제). */}
       <ClientPanel
@@ -613,6 +584,16 @@ const SaleInboxList: React.FC<Props> = ({
         onClose={() => setSelected(null)}
         onChanged={() => { void load({ silent: true }); }}
         onRegister={() => { if (selected) void registerClient(selected); }}
+      />
+      {/* 등록 드로어는 패널 **뒤에** 그린다 — 같은 층(z)이라 DOM 순서가 위아래를 정한다(앞에 두면 패널 밑에 깔린다) */}
+      <ClientAddDrawer
+        open={!!registerFor}
+        onClose={() => setRegisterFor(null)}
+        businessId={businessId}
+        prefill={registerFor ? { name: registerFor.who || undefined, email: registerFor.email || undefined, company: registerFor.company?.name || undefined } : null}
+        source={registerFor && registerFor.ref.kind !== 'client' ? { kind: registerFor.ref.kind, id: registerFor.ref.id } : null}
+        onDone={(cid) => { const it = registerFor; if (it) void onRegisterDone(it, cid); }}
+        onOpenExisting={(cid) => tabStore.openInNewTab(`/sale/${cid}`)}
       />
     </>
   );

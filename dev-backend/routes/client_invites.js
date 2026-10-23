@@ -40,6 +40,17 @@ router.post('/:businessId/invite', authenticateToken, checkBusinessAccess, requi
     const crypto = require('crypto');
     const businessId = req.params.businessId;
 
+    // 출처(메일·게스트 링크·고객 대화) — **초대 메일을 보내기 전에** 검증한다(docs/CLIENT_ADD_INVITE_DESIGN.md §3)
+    const linkSrc = require('../services/clientLinkSource');
+    const source = linkSrc.parseSource((req.body || {}).source);
+    if (source?.error) return errorResponse(res, source.error, 400);
+    const resolved = source ? await linkSrc.resolveSource(Number(businessId), req.user.id, source, { email: email.trim() }) : null;
+    if (resolved && !resolved.ok) return errorResponse(res, resolved.code, resolved.http);
+    const sourceConflict = (targetId) => {
+      const c = linkSrc.sourceConflict(resolved, targetId);
+      return c ? res.status(c.http).json({ success: false, message: c.code, existing_client_id: c.existing_client_id }) : null;
+    };
+
     // 승격 대상 — **행 id 가 정본**(드로어 «이 고객 초대»), 없으면 같은 주소의 문의/직접 관리 행(docs/CLIENT_MANAGED_DESIGN.md §3).
     //   새 행을 만들지 않고 같은 행을 invited 로 올린다 — 상담 기록·청구서·타임라인이 그 행에 붙어 있다.
     let target = null;
@@ -73,6 +84,8 @@ router.post('/:businessId/invite', authenticateToken, checkBusinessAccess, requi
     }
 
     if (target) {
+      const blocked = sourceConflict(target.id);
+      if (blocked) return blocked;
       // 문의 고객은 초대하는 순간 정식 고객 한도에 들어간다 — 그때만 센다. 직접 관리 고객은 이미 세고 있다(+0).
       if (target.status === 'prospect') {
         const planCan = await planEngine.can(businessId, 'add_client');
@@ -93,6 +106,7 @@ router.post('/:businessId/invite', authenticateToken, checkBusinessAccess, requi
         action: 'client.invited', targetType: 'client', targetId: target.id,
         oldValue: before, newValue: { status: 'invited', invite_email: email.trim() },
       });
+      await linkSrc.attachSourceToClient({ businessId: Number(businessId), actorUserId: req.user.id, client: target, resolved, req, inquiryStage: true });
       const inviteEmailSent = await sendClientInviteMail(req, { to: email.trim(), targetName: target.display_name || name.trim(), token });
       await notifyClientInvitee(req, { email: email.trim(), entityId: target.id, token });
       // 문의 → 정식 고객으로 한도 계수가 바뀐다. 사용량 캐시(30초)를 비워야 플랜 화면이 바로 맞는다
@@ -105,6 +119,8 @@ router.post('/:businessId/invite', authenticateToken, checkBusinessAccess, requi
       return errorResponse(res, 'Client already exists', 409);
     }
 
+    const blockedNew = sourceConflict(null);
+    if (blockedNew) return blockedNew;
     // 플랜 쿼터 — 고객 수 한도
     const planCan = await planEngine.can(businessId, 'add_client');
     if (!planCan.ok) {
@@ -131,6 +147,7 @@ router.post('/:businessId/invite', authenticateToken, checkBusinessAccess, requi
       action: 'client.invited', targetType: 'client', targetId: created.id,
       newValue: { email: email.trim(), name: name.trim(), company_name: company_name || null },
     });
+    await linkSrc.attachSourceToClient({ businessId: Number(businessId), actorUserId: req.user.id, client: created, resolved, req, inquiryStage: true });
 
     // 초대 이메일 발송 (실패해도 초대 레코드는 유지) — 실패를 **응답에 싣는다**(0-F F-1).
     const inviteEmailSent = await sendClientInviteMail(req, { to: email.trim(), targetName: name.trim(), token });
@@ -164,8 +181,20 @@ router.post('/:businessId/managed', authenticateToken, checkBusinessAccess, requ
     if (seed.email && !EMAIL_RE.test(seed.email)) return errorResponse(res, 'invalid_email', 400);
     const finalKind = ['customer', 'vendor', 'freelancer', 'other'].includes(body.kind) ? body.kind : 'customer';
 
+    // 출처(메일·게스트 링크·고객 대화) — 행을 만들기 **전에** 검증한다(docs/CLIENT_ADD_INVITE_DESIGN.md §3)
+    const linkSrc = require('../services/clientLinkSource');
+    const source = linkSrc.parseSource(body.source);
+    if (source?.error) return errorResponse(res, source.error, 400);
+    const resolved = source ? await linkSrc.resolveSource(businessId, req.user.id, source, { email: seed.email }) : null;
+    if (resolved && !resolved.ok) return errorResponse(res, resolved.code, resolved.http);
+
     const existing = await findExistingByContact(businessId, { email: seed.email, phone: seed.phone });
-    if (existing) return res.status(409).json({ success: false, message: 'client_exists', existing_client_id: existing.id });
+    // 같은 연락처의 **문의 고객(계정 없음)** 이면 새 행을 만들지 않고 그 행을 «추가한 고객» 으로 올린다 —
+    //   상담 [고객으로 등록] 의 «추가» 가 이 길이다. 같은 사람이 두 행이 되지 않는다.
+    const upgrade = existing && existing.status === 'prospect' && !existing.user_id ? existing : null;
+    if (existing && !upgrade) return res.status(409).json({ success: false, message: 'client_exists', existing_client_id: existing.id });
+    const conflict = linkSrc.sourceConflict(resolved, upgrade?.id || null);
+    if (conflict) return res.status(conflict.http).json({ success: false, message: conflict.code, existing_client_id: conflict.existing_client_id });
     // 멤버 이메일로 고객을 만들면 «멤버가 이긴다»(clientToMember 이메일 일치)와 바로 모순 — 초대 문과 같은 409
     if (seed.email && await require('../services/clientToMember').isWorkspaceMemberEmail(businessId, seed.email)) {
       return errorResponse(res, 'already_member', 409, 'already_member');
@@ -174,6 +203,28 @@ router.post('/:businessId/managed', authenticateToken, checkBusinessAccess, requ
     const planEngine = require('../services/plan');
     const planCan = await planEngine.can(businessId, 'add_client');
     if (!planCan.ok) return res.status(422).json(planEngine.buildQuotaError(planCan, businessId));
+
+    if (upgrade) {
+      // 빈 칸만 채운다 — 사람이 이미 적은 값은 덮지 않는다(register-managed 와 같은 감사 이름)
+      const fill = {};
+      if (!upgrade.display_name && seed.display_name) fill.display_name = seed.display_name;
+      if (!upgrade.company_name && seed.company_name) fill.company_name = seed.company_name;
+      if (!upgrade.invite_email && seed.email) fill.invite_email = seed.email;
+      if (!upgrade.phone && seed.phone) fill.phone = seed.phone;
+      if (!upgrade.job_title && seed.job_title) fill.job_title = seed.job_title;
+      if (!upgrade.department && seed.department) fill.department = seed.department;
+      if (!upgrade.notes && seed.notes) fill.notes = seed.notes;
+      await upgrade.update({ ...fill, status: 'managed' });
+      await createAuditLog({
+        userId: req.user.id, businessId,
+        action: 'client.registered_managed', targetType: 'client', targetId: upgrade.id,
+        oldValue: { status: 'prospect' }, newValue: { status: 'managed', filled: Object.keys(fill) },
+      });
+      await linkSrc.attachSourceToClient({ businessId, actorUserId: req.user.id, client: upgrade, resolved, req, inquiryStage: true });
+      planEngine.invalidateBusinessCache(businessId);
+      broadcastClient(req, upgrade, 'client:updated');
+      return successResponse(res, { ...stripClientSecrets(upgrade.toJSON()), upgraded: true }, 'Client registered', 200);
+    }
 
     const created = await Client.create({
       business_id: businessId,
@@ -193,6 +244,7 @@ router.post('/:businessId/managed', authenticateToken, checkBusinessAccess, requ
       action: 'client.created_managed', targetType: 'client', targetId: created.id,
       newValue: { name: seed.display_name, company_name: seed.company_name, email: seed.email },
     });
+    await linkSrc.attachSourceToClient({ businessId, actorUserId: req.user.id, client: created, resolved, req, inquiryStage: true });
     planEngine.invalidateBusinessCache(businessId);
     broadcastClient(req, created, 'client:new');
     return successResponse(res, stripClientSecrets(created.toJSON()), 'Client created', 201);
