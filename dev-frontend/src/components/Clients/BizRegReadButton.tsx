@@ -37,7 +37,7 @@ const BizRegReadButton: React.FC<Props> = ({ businessId, door, onRead, testId = 
     setBusy(true);
     try {
       const r = await readBizReg(businessId, file, door);
-      onRead(r, file, r.found ? null : t('bizReg.notFound') as string);
+      onRead(r, file, r.found ? null : t(r.warnings.includes('tax_id_checksum') ? 'bizReg.numberUnreadable' : 'bizReg.notFound') as string);
     } catch (e) {
       const code = e instanceof Error ? e.message : '';
       onRead(null, file, t(`bizReg.errors.${KNOWN.includes(code) ? code : 'generic'}`) as string);

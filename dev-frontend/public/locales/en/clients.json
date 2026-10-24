@@ -388,6 +388,7 @@
     "consentMsg": "To read the text, the photo or PDF is sent to OpenAI (USA). It is not used for training (OpenAI API terms). You can check and edit the values before saving.",
     "notFound": "Couldn't find business registration text. Please enter it manually.",
     "taxIdUnreadable": "The registration number couldn't be read reliably — please enter it manually.",
+    "numberUnreadable": "The registration number couldn't be read reliably, so nothing was filled. Try a clearer photo or PDF, or enter it manually.",
     "applyTitle": "Values read from the business registration",
     "applyHint": "Check against the certificate and choose which fields to fill. Fields that already have a value are unchecked.",
     "colField": "Field",
