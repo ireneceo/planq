@@ -25,7 +25,7 @@ const SYSTEM = [
   ' "biz_type":string|null,"biz_item":string|null,"biz_address":string|null}',
   '- title_text: 문서 맨 위 제목 글자를 **보이는 그대로** 옮긴다(예: "사업자등록증"). 제목 글자가 안 보이면 null.',
   '- doc_type: 제목이 사업자등록증·사업자등록증명이면 "biz_registration", 아니면 "other". 글자가 없는 사진·다른 문서면 반드시 "other" 이고 나머지는 모두 null.',
-  '- biz_name: 상호(법인명). biz_tax_id: 등록번호(000-00-00000). 법인등록번호·주민등록번호는 넣지 않는다.',
+  '- biz_name: 상호(법인명). biz_tax_id: 등록번호(숫자 10자리, 3-2-5 로 끊어 씀). 법인등록번호·주민등록번호는 넣지 않는다.',
   '- biz_ceo: 대표자 성명. biz_address: 사업장 소재지(본점 소재지가 아니라 사업장).',
   '- biz_type: 업태, biz_item: 종목 — 여러 개면 쉼표로 잇는다. 칸 이름(«업태»·«종목»·«상호» 같은 머리글)은 값에 넣지 않는다.',
 ].join('\n');
@@ -73,7 +73,7 @@ async function readBizRegImage(businessId, buf, mime) {
   const jpeg = await toJpeg(buf, mime);
   const usage = await checkUsageLimit(businessId);
   if (usage.over) throw new CardReadError('usage_limit', 429);
-  const r = await callLLMImage({ purpose: 'bizreg_read', system: SYSTEM, text: '이 사업자등록증의 글자를 칸에 나눠 주세요.', imageJpegBuf: jpeg, json: true, detail: 'high' });
+  const r = await callLLMImage({ purpose: 'bizreg_read', system: SYSTEM, text: '이 이미지의 글자를 읽어 칸에 나눠 주세요. 사업자등록증이 아니면 doc_type 은 "other" 입니다.', imageJpegBuf: jpeg, json: true, detail: 'high' });
   if (r.fallback || !r.content) throw new CardReadError('ai_unavailable', 503);
   let parsed = null;
   try { parsed = JSON.parse(r.content); } catch { parsed = null; }
@@ -92,7 +92,9 @@ async function readBizRegImage(businessId, buf, mime) {
   // 지시해도 머리글을 붙여 오는 일이 있다(2026-10-23 실측 «업태 정보통신업») — 맨 앞 머리글만 떼어 낸다
   for (const [k, re] of Object.entries(LABEL_PREFIX)) if (values[k]) values[k] = values[k].replace(re, '').trim() || null;
   // 틀리게 읽은(또는 지어낸) 번호면 전부 비운다 — 저장·발행이 400 을 내거나, 더 나쁘게 남의 번호·지어낸 상호로 발행된다
-  if (!values.biz_tax_id || !isValidKrBizNo(values.biz_tax_id)) return empty('tax_id_checksum');
+  //   000-00-00000 같은 자리표시 번호도 체크섬은 통과한다(Fable 2026-10-24 비차단) — 같은 숫자만·000 으로 시작하면 거른다
+  const taxDigits = String(values.biz_tax_id || '').replace(/\D/g, '');
+  if (!values.biz_tax_id || !isValidKrBizNo(values.biz_tax_id) || /^(\d)\1{9}$/.test(taxDigits) || taxDigits.startsWith('000')) return empty('tax_id_checksum');
   values.biz_tax_id = formatKrBizNo(values.biz_tax_id);
   return { values, found: true, warnings: [] };
 }
