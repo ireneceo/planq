@@ -1,5 +1,5 @@
 {
-  "_generated": "2026-10-23",
+  "_generated": "2026-10-24",
   "_db": "planq_dev_db",
   "_note": "스키마 변경 후 `node scripts/dump-schema.js` 로 갱신할 것. guard-invariants schemacol 이 읽는다.",
   "tables": {
@@ -324,7 +324,10 @@
       "onboarding_dismissed_at",
       "holiday_country",
       "modules",
-      "card_payees"
+      "card_payees",
+      "tax_enabled",
+      "tax_label",
+      "default_tax_mode"
     ],
     "calendar_event_attachments": [
       "id",
@@ -483,7 +486,8 @@
       "end_mode",
       "max_occurrences",
       "occurrences_count",
-      "end_date"
+      "end_date",
+      "tax_mode"
     ],
     "clients": [
       "id",
@@ -1433,7 +1437,8 @@
       "stripe_session_id",
       "stripe_payment_intent",
       "idempotency_key",
-      "card_pay_url"
+      "card_pay_url",
+      "tax_mode"
     ],
     "kb_categories": [
       "id",
@@ -2016,6 +2021,28 @@
       "created_at",
       "updated_at"
     ],
+    "post_billing_terms": [
+      "id",
+      "business_id",
+      "post_id",
+      "client_id",
+      "title",
+      "currency",
+      "vat_rate",
+      "receipt_type",
+      "items",
+      "installment_mode",
+      "installments",
+      "notes",
+      "invoice_id",
+      "auto_error",
+      "auto_attempted_at",
+      "created_by",
+      "updated_by",
+      "created_at",
+      "updated_at",
+      "tax_mode"
+    ],
     "post_categories": [
       "id",
       "business_id",
@@ -2287,7 +2314,9 @@
       "success_metrics",
       "timeline_key_only",
       "strategy_sources",
-      "visibility"
+      "visibility",
+      "monthly_vat_rate",
+      "monthly_tax_mode"
     ],
     "provider_credits": [
       "id",

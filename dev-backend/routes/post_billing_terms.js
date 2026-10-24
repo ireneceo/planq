@@ -84,7 +84,7 @@ router.get('/:id/billing-terms', authenticateToken, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// PUT /api/posts/:id/billing-terms  { client_id, title?, currency, vat_rate, receipt_type, items[], installment_mode, installments[], notes? }
+// PUT /api/posts/:id/billing-terms  { client_id, title?, currency, vat_rate, tax_mode, receipt_type, items[], installment_mode, installments[], notes? }
 router.put('/:id/billing-terms', authenticateToken, async (req, res, next) => {
   try {
     const g = await gate(req, 'write');
@@ -102,8 +102,8 @@ router.put('/:id/billing-terms', authenticateToken, async (req, res, next) => {
     else row = await PostBillingTerms.create({ ...n.value, business_id: post.business_id, post_id: post.id, created_by: req.user.id, updated_by: req.user.id });
     require('../services/auditService').logAudit(req, {
       action: prev ? 'post.billing_terms_update' : 'post.billing_terms_create', targetType: 'post', targetId: post.id, businessId: post.business_id,
-      oldValue: prev ? { client_id: prev.client_id, currency: prev.currency, vat_rate: prev.vat_rate, items: prev.items, installment_mode: prev.installment_mode, installments: prev.installments } : null,
-      newValue: { client_id: row.client_id, currency: row.currency, vat_rate: row.vat_rate, items: row.items, installment_mode: row.installment_mode, installments: row.installments },
+      oldValue: prev ? { client_id: prev.client_id, currency: prev.currency, vat_rate: prev.vat_rate, tax_mode: prev.tax_mode, items: prev.items, installment_mode: prev.installment_mode, installments: prev.installments } : null,
+      newValue: { client_id: row.client_id, currency: row.currency, vat_rate: row.vat_rate, tax_mode: row.tax_mode, items: row.items, installment_mode: row.installment_mode, installments: row.installments },
     });
     broadcast(req, post);
     successResponse(res, await stateOf(req, post, g.level));

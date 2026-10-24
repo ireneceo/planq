@@ -18,7 +18,7 @@ const { assertClientInBusiness } = require('../services/tenantRef');
 const { createAuditLog } = require('../middleware/audit');
 const { dateOnlyOf } = require('../utils/dateOnly');
 const { billRecipientOf } = require('../services/clientSubscriptionBilling');
-const { workspaceTaxDefaults, fractionToPercent } = require('../services/taxCalc');
+const { workspaceTaxDefaults, fractionToPercent, percentToFraction, splitTax, taxInputError } = require('../services/taxCalc');
 
 // 재무 mutation 은 워크스페이스 owner 또는 platform_admin 만 (invoices.js assertInvoiceMutationOwner 와 동일 경계).
 function requireBillingOwner(req, res, next) {
@@ -35,7 +35,9 @@ function serialize(s) {
   return {
     id: o.id, client_id: o.client_id, plan_name: o.plan_name,
     amount: Number(o.amount), currency: o.currency, interval: o.interval,
-    vat_rate: Number(o.vat_rate), auto_mode: o.auto_mode, due_days: o.due_days,
+    vat_rate: Number(o.vat_rate), tax_mode: o.tax_mode || 'exclusive', auto_mode: o.auto_mode, due_days: o.due_days,
+    // 한 회차 청구 금액 — 엔진과 같은 함수(services/taxCalc). 카드가 «공급가 + 세금 = 청구» 를 서버 값 그대로 그린다
+    charge: splitTax({ amount: Number(o.amount), rate: percentToFraction(o.vat_rate), mode: o.tax_mode, currency: o.currency }),
     status: o.status,
     // DATEONLY 는 드라이버 설정에 따라 Date 로 온다 — 그대로 실으면 화면에 «2026-12-12T00:00:00.000Z» 가 뜬다(2026-10-23 신고)
     start_date: dateOnlyOf(o.start_date), next_billing_at: dateOnlyOf(o.next_billing_at),
@@ -88,12 +90,27 @@ router.get('/:businessId', authenticateToken, checkBusinessAccess, requireMenu('
   } catch (err) { next(err); }
 });
 
+// GET 세금 설정을 끌 때 안내할 수 — «이미 있는 구독·월정액 N개는 지금 세율 그대로 청구»(스냅샷, Fable 결정 4)
+router.get('/:businessId/tax-usage', authenticateToken, checkBusinessAccess, requireMenu('qbill', 'read'), async (req, res, next) => {
+  try {
+    const businessId = Number(req.params.businessId);
+    const { Project } = require('../models');
+    const { Op } = require('sequelize');
+    const subscriptions = await ClientSubscription.count({ where: { business_id: businessId, status: { [Op.in]: ['active', 'paused'] }, vat_rate: { [Op.gt]: 0 } } });
+    const monthly = await Project.count({ where: { business_id: businessId, monthly_fee: { [Op.gt]: 0 }, monthly_vat_rate: { [Op.gt]: 0 } } });
+    return successResponse(res, { subscriptions, monthly });
+  } catch (err) { next(err); }
+});
+
 // POST create
 router.post('/:businessId', authenticateToken, checkBusinessAccess, requireMenu('qbill', 'write'), requireBillingOwner, async (req, res, next) => {
   try {
     const businessId = Number(req.params.businessId);
-    const { client_id, plan_name, amount, currency, interval, vat_rate, auto_mode, due_days, start_date, notes } = req.body || {};
+    const { client_id, plan_name, amount, currency, interval, vat_rate, tax_mode, auto_mode, due_days, start_date, notes } = req.body || {};
     if (!client_id) return errorResponse(res, 'client_id_required', 400);
+    // 구독 세율은 퍼센트(10) — 0~100·소수 2자리 · 기준 두 값 (services/taxCalc 한 검사)
+    const taxErr = taxInputError(req.body, 'percent');
+    if (taxErr) return errorResponse(res, taxErr, 400);
     if (!plan_name || !String(plan_name).trim()) return errorResponse(res, 'plan_name_required', 400);
     const amt = Number(amount);
     if (!(amt > 0)) return errorResponse(res, 'amount_must_be_positive', 400);
@@ -118,6 +135,7 @@ router.post('/:businessId', authenticateToken, checkBusinessAccess, requireMenu(
       interval: interval || 'monthly',
       // 세율을 안 보내면 워크스페이스 기본(퍼센트로 · 세금 끔이면 0) — 옛날엔 10 고정(Fable 고칠 점 3)
       vat_rate: vat_rate != null ? Number(vat_rate) : fractionToPercent(workspaceTaxDefaults(biz).rate),
+      tax_mode: tax_mode || 'exclusive',   // 안 보내면 세금 별도(옛 화면 기준)
       auto_mode: auto_mode === 'auto' ? 'auto' : 'draft_review',
       due_days: due_days != null ? Number(due_days) : (biz?.default_due_days || 14),
       status: 'active',
@@ -132,7 +150,7 @@ router.post('/:businessId', authenticateToken, checkBusinessAccess, requireMenu(
     await createAuditLog({
       userId: req.user.id, businessId, action: 'client_subscription.created',
       targetType: 'client_subscription', targetId: sub.id,
-      newValue: { client_id, plan_name, amount: amt, interval: sub.interval, auto_mode: sub.auto_mode },
+      newValue: { client_id, plan_name, amount: amt, interval: sub.interval, auto_mode: sub.auto_mode, vat_rate: Number(sub.vat_rate), tax_mode: sub.tax_mode },
     });
     broadcast(req, businessId, { id: sub.id, client_id: sub.client_id, status: 'active' });
     return successResponse(res, serialize(sub), 'created', 201);
@@ -146,11 +164,14 @@ router.put('/:businessId/:id', authenticateToken, checkBusinessAccess, requireMe
     const sub = await ClientSubscription.findOne({ where: { id: Number(req.params.id), business_id: businessId } });
     if (!sub) return errorResponse(res, 'not_found', 404);
     const b = req.body || {};
+    const taxErr = taxInputError(b, 'percent');
+    if (taxErr) return errorResponse(res, taxErr, 400);
     const patch = {};
     if (b.plan_name && String(b.plan_name).trim()) patch.plan_name = String(b.plan_name).trim().slice(0, 200);
     if (b.amount != null) { const a = Number(b.amount); if (a > 0) patch.amount = a; }
     if (b.interval && INTERVALS.includes(b.interval)) patch.interval = b.interval;
     if (b.vat_rate != null) patch.vat_rate = Number(b.vat_rate);
+    if (b.tax_mode != null) patch.tax_mode = b.tax_mode;
     if (b.auto_mode) patch.auto_mode = b.auto_mode === 'auto' ? 'auto' : 'draft_review';
     if (b.due_days != null) patch.due_days = Number(b.due_days);
     if (b.notes != null) patch.notes = b.notes ? String(b.notes).slice(0, 500) : null;

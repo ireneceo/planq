@@ -33,6 +33,21 @@ function fractionToPercent(f) { return Math.round(Number(f || 0) * 10000) / 100;
 /** 'exclusive' | 'inclusive' 이면 그 값, 아니면 null(→ 400) */
 function parseTaxMode(v) { return TAX_MODES.includes(v) ? v : null; }
 
+/**
+ * 요청 본문의 세율·기준 검사 — 라우트가 같은 문장으로 거절하게(Fable 고칠 점 4). 안 보낸 칸은 통과.
+ * @param {'fraction'|'percent'} unit 그 표의 세율 단위
+ * @returns {string|null} 에러 코드
+ */
+function taxInputError(body, unit = 'fraction') {
+  const b = body || {};
+  if (b.vat_rate !== undefined && b.vat_rate !== null) {
+    const ok = unit === 'percent' ? parseRatePercent(b.vat_rate) : parseRateFraction(b.vat_rate);
+    if (ok === null) return 'invalid_vat_rate';
+  }
+  if (b.tax_mode !== undefined && b.tax_mode !== null && !parseTaxMode(b.tax_mode)) return 'invalid_tax_mode';
+  return null;
+}
+
 /** 워크스페이스 기본 — 새로 만드는 구독·청구서·월정액·청구 조건의 세율(분수)·기준. 세금 끔이면 세율 0 */
 function workspaceTaxDefaults(business) {
   const enabled = !business || business.tax_enabled === undefined || business.tax_enabled === null ? true : !!business.tax_enabled;
@@ -60,6 +75,21 @@ function splitTax({ amount, rate, mode = 'exclusive', currency = 'KRW' }) {
 }
 
 /**
+ * 한 줄짜리 정기 청구(고객 구독·프로젝트 월정액)의 청구서 금액 칸 + 항목 한 줄 — 두 엔진이 같은 함수를 쓴다(Fable 고칠 점 7).
+ *   세금 포함이면 항목 단가·금액 = 합계(항목 합 = 합계 규칙), 별도면 = 공급가(옛 그대로).
+ * @param {{fee:number, rate:number, mode?:string, currency?:string}} a  rate 는 분수(0.1)
+ */
+function singleLineInvoice({ fee, rate, mode = 'exclusive', currency = 'KRW' }) {
+  const m = mode === 'inclusive' ? 'inclusive' : 'exclusive';
+  const s = splitTax({ amount: fee, rate, mode: m, currency });
+  const line = m === 'inclusive' ? s.total : s.subtotal;
+  return {
+    invoice: { vat_rate: Number(rate) || 0, tax_mode: m, subtotal: s.subtotal, tax_amount: s.tax, grand_total: s.total, total_amount: s.subtotal },
+    item: { quantity: 1, unit_price: line, amount: line },
+  };
+}
+
+/**
  * 합계(공급가·세액)를 항목·회차에 나눈다 — 큰 나머지 방식. 몫의 합이 정확히 total 과 같다.
  *   weights 는 항목 금액(같은 통화). 세금 포함 청구서의 «항목별 공급가·세액»(세금계산서 데이터)에 쓴다.
  */
@@ -80,5 +110,5 @@ function allocate(total, weights, currency = 'KRW') {
 
 module.exports = {
   TAX_MODES, parseRateFraction, parseRatePercent, percentToFraction, fractionToPercent, parseTaxMode,
-  workspaceTaxDefaults, splitTax, allocate,
+  workspaceTaxDefaults, splitTax, allocate, taxInputError, singleLineInvoice,
 };

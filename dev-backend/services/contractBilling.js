@@ -15,7 +15,7 @@ const {
 } = require('../models');
 const { insertDraftInvoice, itemsAmountsValid, installmentsError, computeAmounts, MAX_INSTALLMENTS } = require('./invoiceCreate');
 const { ZERO_DECIMAL } = require('./money');
-const { workspaceTaxDefaults } = require('./taxCalc');
+const { workspaceTaxDefaults, parseRateFraction, parseTaxMode } = require('./taxCalc');
 
 const CURRENCIES = ['KRW', 'USD', 'EUR', 'JPY', 'CNY'];   // 청구서 발행 창과 같은 다섯
 const MAX_ITEMS = 50;
@@ -44,8 +44,11 @@ async function normalizeTerms(businessId, input) {
   const vat = input.vat_rate === undefined || input.vat_rate === null || input.vat_rate === ''
     ? workspaceTaxDefaults(await Business.findByPk(Number(businessId), { attributes: ['default_vat_rate', 'tax_enabled', 'default_tax_mode'] })).rate
     : Number(input.vat_rate);
-  if (!Number.isFinite(vat) || vat < 0 || vat > 1) return fail('invalid_vat_rate');
-  out.vat_rate = vat;
+  if (parseRateFraction(vat) === null) return fail('invalid_vat_rate');   // 0~100%·소수 2자리 — 청구서와 같은 검사
+  out.vat_rate = parseRateFraction(vat);
+  // 금액 기준 — 서명자가 본 금액이 곧 청구 금액이어야 한다(Fable 결정 1). 안 보내면 세금 별도(옛 화면 기준)
+  if (input.tax_mode !== undefined && input.tax_mode !== null && !parseTaxMode(input.tax_mode)) return fail('invalid_tax_mode');
+  out.tax_mode = parseTaxMode(input.tax_mode) || 'exclusive';
   // 세금계산서 의향 — 원화만(발행 창 canTax 와 같은 판정)
   out.receipt_type = input.receipt_type === 'tax_invoice' && cur === 'KRW' ? 'tax_invoice' : 'none';
   // 항목 — 설명 있는 줄만, 1~50
@@ -99,7 +102,7 @@ async function isPayrollContract(postId) {
 function amountsOf(terms) {
   const vat = Number(terms.vat_rate);
   const a = computeAmounts({
-    items: terms.items || [], vatRate: vat, currency: terms.currency,
+    items: terms.items || [], vatRate: vat, taxMode: terms.tax_mode, currency: terms.currency,
     installmentMode: terms.installment_mode, installments: terms.installments || [],
   });
   return {
@@ -114,7 +117,7 @@ function publicView(terms) {
   if (!terms) return null;
   const a = amountsOf(terms);
   return {
-    currency: terms.currency, vat_rate: Number(terms.vat_rate), installment_mode: terms.installment_mode,
+    currency: terms.currency, vat_rate: Number(terms.vat_rate), tax_mode: terms.tax_mode || 'exclusive', installment_mode: terms.installment_mode,
     items: a.items, subtotal: a.subtotal, tax_amount: a.tax_amount, grand_total: a.grand_total, installments: a.installments,
   };
 }
@@ -124,7 +127,7 @@ function memberView(terms) {
   if (!terms) return null;
   return {
     id: terms.id, client_id: terms.client_id, title: terms.title, currency: terms.currency,
-    vat_rate: Number(terms.vat_rate), receipt_type: terms.receipt_type,
+    vat_rate: Number(terms.vat_rate), tax_mode: terms.tax_mode || 'exclusive', receipt_type: terms.receipt_type,
     installment_mode: terms.installment_mode, notes: terms.notes,
     raw_items: terms.items || [], raw_installments: terms.installments || [],
     ...amountsOf(terms),
@@ -207,7 +210,7 @@ async function createFromTerms(postId, { reason = 'signature' } = {}) {
       recipientEmail: client.tax_invoice_email || client.billing_contact_email || client.invite_email || null,
       recipientBusinessName: client.biz_name || null,
       recipientBusinessNumber: client.biz_tax_id || null,
-      notes: locked.notes, vatRate: Number(locked.vat_rate), currency: locked.currency, receiptType: locked.receipt_type,
+      notes: locked.notes, vatRate: Number(locked.vat_rate), taxMode: locked.tax_mode, currency: locked.currency, receiptType: locked.receipt_type,
       installmentMode: locked.installment_mode, installments: locked.installments || [], items: locked.items,
       idempotencyKey: idemKeyOf(post.id),
     }, { transaction: t });

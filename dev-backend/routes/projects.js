@@ -17,6 +17,7 @@ const {
   GuestLink, PlatformSetting, ProjectPinnedDoc, UserEntityPref,
 } = require('../models');
 const { successResponse, errorResponse, parsePagination, paginatedResponse } = require('../middleware/errorHandler');
+const { splitTax, taxInputError, parseRateFraction, workspaceTaxDefaults } = require('../services/taxCalc');
 // 같은 실제 파일이 direct·chat 두 줄로 보이던 것을 접는다(2026-09-04). 술어는 한 곳.
 const { dedupeFileRows } = require('../utils/dedupeFileRows');
 
@@ -158,6 +159,8 @@ router.post('/:id/duplicate', authenticateToken, async (req, res, next) => {
       contract_amount: src.contract_amount,
       billing_type: src.billing_type,
       monthly_fee: src.monthly_fee,
+      monthly_vat_rate: src.monthly_vat_rate,      // 세율·기준도 계약 구조(복사 계약)
+      monthly_tax_mode: src.monthly_tax_mode,
       invoice_billing_day: src.invoice_billing_day,
       // ★ 자동청구는 **끄고** 만든다. 켠 채로 복사하면 복사본이 고객에게 **자동으로 청구서를 보낸다**.
       auto_invoice_enabled: false,
@@ -898,8 +901,8 @@ router.put('/:id', authenticateToken, async (req, res, next) => {
     }
 
     // ─── 정기청구 설정 (재무) — owner/platform_admin 만. 자동발행 여부는 고객에게 자동 발송을 좌우하므로 invoice 정책과 동일하게 owner 전용. ───
-    const { billing_type, monthly_fee, invoice_billing_day, auto_invoice_enabled, auto_invoice_mode } = req.body || {};
-    const billingTouched = [billing_type, monthly_fee, invoice_billing_day, auto_invoice_enabled, auto_invoice_mode].some(v => v !== undefined);
+    const { billing_type, monthly_fee, invoice_billing_day, auto_invoice_enabled, auto_invoice_mode, monthly_vat_rate, monthly_tax_mode } = req.body || {};
+    const billingTouched = [billing_type, monthly_fee, invoice_billing_day, auto_invoice_enabled, auto_invoice_mode, monthly_vat_rate, monthly_tax_mode].some(v => v !== undefined);
     if (billingTouched) {
       const isPlatformAdmin = req.user.platform_role === 'platform_admin';
       if (!isPlatformAdmin && role !== 'owner') return errorResponse(res, 'owner_only — billing settings require workspace owner', 403);
@@ -908,6 +911,16 @@ router.put('/:id', authenticateToken, async (req, res, next) => {
       if (invoice_billing_day !== undefined) { const d = parseInt(invoice_billing_day, 10); if (d >= 1 && d <= 31) patch.invoice_billing_day = d; }
       if (auto_invoice_enabled !== undefined) patch.auto_invoice_enabled = !!auto_invoice_enabled;
       if (auto_invoice_mode !== undefined && ['auto', 'draft_review'].includes(auto_invoice_mode)) patch.auto_invoice_mode = auto_invoice_mode;
+      // 월정액 세율(분수)·기준 — 청구서와 같은 검사(services/taxCalc). 범위 밖이면 400(조용히 버리지 않는다)
+      const taxErr = taxInputError({ vat_rate: monthly_vat_rate, tax_mode: monthly_tax_mode });
+      if (taxErr) return errorResponse(res, taxErr, 400);
+      if (monthly_vat_rate !== undefined && monthly_vat_rate !== null) patch.monthly_vat_rate = parseRateFraction(monthly_vat_rate);
+      if (monthly_tax_mode !== undefined && monthly_tax_mode !== null) patch.monthly_tax_mode = monthly_tax_mode;
+      // 월정액을 처음 정하는데 세율이 비어 있으면 저장 시점 워크스페이스 기본으로 못 박는다(Fable 결정 4 — 이후 설정을 바꿔도 이 월정액은 그대로)
+      if (patch.monthly_vat_rate === undefined && project.monthly_vat_rate == null && (patch.monthly_fee > 0 || patch.billing_type === 'subscription')) {
+        const wsBiz = await Business.findByPk(project.business_id, { attributes: ['default_vat_rate', 'tax_enabled', 'default_tax_mode'] });
+        patch.monthly_vat_rate = workspaceTaxDefaults(wsBiz).rate;
+      }
     }
 
     const prevStatus = project.status;
@@ -2883,6 +2896,11 @@ router.get('/:id/transactions', authenticateToken, async (req, res, next) => {
 
     // ② 구독형 — 다음 청구 예정/월 금액/자동발행 상태 (recurring_invoice.js 스케줄 규칙 동일).
     //   엔진(recurring_invoice daily cron)이 invoice_billing_day 에 월 청구 자동 생성 — 그 스케줄을 표면화.
+    // 월정액 세율·기준 — 엔진(services/recurring_invoice)과 같은 값: 프로젝트 스냅샷, 없으면 워크스페이스 기본. 금액 나누기도 같은 함수
+    const taxBiz = await Business.findByPk(project.business_id, { attributes: ['default_vat_rate', 'tax_enabled', 'default_tax_mode', 'default_currency'] });
+    const monthlyRate = project.monthly_vat_rate != null ? Number(project.monthly_vat_rate) : Number(taxBiz?.default_vat_rate ?? 0.1);
+    const monthlyMode = project.monthly_tax_mode || 'exclusive';
+    const monthlyCharge = splitTax({ amount: Number(project.monthly_fee || 0), rate: monthlyRate, mode: monthlyMode, currency: taxBiz?.default_currency || 'KRW' });
     let subscription = null;
     if (project.billing_type === 'subscription') {
       const day = project.invoice_billing_day || null;
@@ -2904,6 +2922,7 @@ router.get('/:id/transactions', authenticateToken, async (req, res, next) => {
         last_billed_at: project.last_auto_invoice_at || null,
         next_due_at: nextDue,
         currency,
+        vat_rate: monthlyRate, tax_mode: monthlyMode, charge: monthlyCharge,
       };
     }
     // 정기청구 설정 편집용 현재값 — billing_type 무관하게 항상 반환 (구독 ON/OFF 토글 포함).
@@ -2914,6 +2933,8 @@ router.get('/:id/transactions', authenticateToken, async (req, res, next) => {
       auto_enabled: !!project.auto_invoice_enabled,
       mode: project.auto_invoice_mode || 'draft_review',
       currency,
+      vat_rate: monthlyRate, tax_mode: monthlyMode, charge: monthlyCharge,
+      tax_enabled: taxBiz ? taxBiz.tax_enabled !== false : true,
     };
 
     return successResponse(res, {

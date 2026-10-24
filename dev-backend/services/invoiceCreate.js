@@ -5,7 +5,7 @@
 //   두 벌로 두면 금액 공식이 갈라진다. 참조 검사(고객·프로젝트가 이 워크스페이스 것인지)·권한은 부르는 쪽이 먼저 본다.
 const { Invoice, InvoiceItem, InvoiceInstallment, Business } = require('../models');
 const { roundMoney } = require('./money');
-const { workspaceTaxDefaults } = require('./taxCalc');
+const { workspaceTaxDefaults, splitTax } = require('./taxCalc');
 const { withInvoiceNumber } = require('./invoiceNumber');
 
 const MAX_INSTALLMENTS = 12;
@@ -32,10 +32,12 @@ function installmentsError(mode, installments) {
 }
 
 /**
- * 금액 계산 — 항목(통화별 반올림)·부가세·합계·분할 회차. 초안 만들기와 서명 화면의 «청구 조건» 표시가 같은 함수를 쓴다
+ * 금액 계산 — 항목(통화별 반올림)·부가세·합계·분할 회차. 초안 만들기·수정·복사와 서명 화면의 «청구 조건» 표시가 같은 함수를 쓴다
  * (서명자가 본 금액 = 청구될 금액). 항목이 없으면 합계 0.
+ *   taxMode 'inclusive' — 항목 단가·금액은 적은 그대로(세금 포함가), 항목 합 = 합계, 공급가·세액은 합계에서 **한 번** 역산(services/taxCalc).
+ *   'exclusive'(기본) — 항목 합 = 공급가, 세액은 위에 더함(옛 식 그대로).
  */
-function computeAmounts({ items, vatRate, currency, installmentMode, installments }) {
+function computeAmounts({ items, vatRate, taxMode = 'exclusive', currency, installmentMode, installments }) {
   const cur = currency || 'KRW';
   const vatRateNum = Number(vatRate);
   const itemRows = [];
@@ -57,8 +59,10 @@ function computeAmounts({ items, vatRate, currency, installmentMode, installment
         sort_order: i,
       });
     }
-    taxAmount = roundMoney(subtotal * vatRateNum, cur);
-    grandTotal = roundMoney(subtotal + taxAmount, cur);
+    const split = splitTax({ amount: subtotal, rate: vatRateNum, mode: taxMode, currency: cur });
+    subtotal = split.subtotal;
+    taxAmount = split.tax;
+    grandTotal = split.total;
   }
   // 분할 일정 — amount = grand_total * percent / 100 (통화별 반올림, 마지막 row 가 잔여 흡수)
   const installmentRows = [];
@@ -89,7 +93,7 @@ function computeAmounts({ items, vatRate, currency, installmentMode, installment
 /**
  * 초안 청구서 + 항목 + 분할 회차를 트랜잭션 안에서 만든다. 검증·참조 검사는 끝난 값만 넘긴다.
  * @param {object} f businessId·actorUserId·title·clientId·projectId·sourcePostId·dueDate·recipient{Email,BusinessName,BusinessNumber}·
- *                   notes·vatRate·currency·receiptType·installmentMode·installments·items·idempotencyKey
+ *                   notes·vatRate·taxMode·currency·receiptType·installmentMode·installments·items·idempotencyKey
  * @returns {Promise<Invoice>}
  */
 async function insertDraftInvoice(f, { transaction }) {
@@ -103,6 +107,7 @@ async function insertDraftInvoice(f, { transaction }) {
   const mode = f.installmentMode === 'split' ? 'split' : 'single';
   // 세율을 안 보내면 워크스페이스 기본(세금 끔이면 0) — 옛날엔 0.1 고정이라 설정을 무시했다(Fable 고칠 점 3). null 은 0%(옛 그대로)
   const vatRateNum = f.vatRate !== undefined ? Number(f.vatRate) : workspaceTaxDefaults(business).rate;
+  const taxMode = f.taxMode === 'inclusive' ? 'inclusive' : 'exclusive';   // 안 보내면 세금 별도(옛 화면이 보던 기준)
   const cur = f.currency || 'KRW';
   const receiptType = ['tax_invoice', 'cash_receipt'].includes(f.receiptType) ? f.receiptType : 'none';
 
@@ -122,6 +127,7 @@ async function insertDraftInvoice(f, { transaction }) {
     installment_mode: mode,
     bank_snapshot,
     vat_rate: vatRateNum,
+    tax_mode: taxMode,
     source_post_id: f.sourcePostId || null,
     project_id: f.projectId || null,
     currency: cur,
@@ -132,7 +138,7 @@ async function insertDraftInvoice(f, { transaction }) {
     ...(receiptType === 'cash_receipt' ? { cash_receipt_status: 'pending' } : {}),
   }, { transaction: sp }));
 
-  const amt = computeAmounts({ items: f.items, vatRate: vatRateNum, currency: cur, installmentMode: mode, installments: f.installments });
+  const amt = computeAmounts({ items: f.items, vatRate: vatRateNum, taxMode, currency: cur, installmentMode: mode, installments: f.installments });
   if (amt.itemRows.length > 0) {
     await InvoiceItem.bulkCreate(amt.itemRows.map((r) => ({ ...r, invoice_id: invoice.id })), { transaction: t });
     await invoice.update({

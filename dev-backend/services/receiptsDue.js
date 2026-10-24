@@ -11,6 +11,8 @@
 
 const { Op } = require('sequelize');
 const { resolveReceiptNotifyEmailSync } = require('./receiptNotify');
+const { roundMoney } = require('./money');
+const { splitTax } = require('./taxCalc');
 
 /** 세금계산서 법정 기한: 결제일이 속한 달의 다음 달 10일 23:59:59 */
 function taxInvoiceDueDate(paidAt) {
@@ -106,6 +108,25 @@ function resolveRecipient(inv, client, kind) {
   return { recipient_name, tax_id };
 }
 
+/** 회차별 공급가 — 마지막 회차 이외는 회차 금액을 청구서 세율로 역산(services/taxCalc), 마지막이 나머지 */
+function installmentSupplies(inv, installments) {
+  const out = new Map();
+  if (!installments.length) return out;
+  const cur = inv.currency || 'KRW';
+  const rate = Number(inv.vat_rate ?? 0);
+  const total = Number(inv.subtotal ?? 0);
+  const sorted = [...installments].sort((a, b) => Number(a.installment_no) - Number(b.installment_no));
+  let used = 0;
+  sorted.forEach((ins, i) => {
+    const s = i < sorted.length - 1
+      ? splitTax({ amount: Number(ins.amount || 0), rate, mode: 'inclusive', currency: cur }).subtotal
+      : roundMoney(total - used, cur);
+    used = roundMoney(used + s, cur);
+    out.set(ins.id, s);
+  });
+  return out;
+}
+
 /**
  * 순수 builder — 이미 fetch 된 invoices(Client + installments include) → 증빙 행 배열.
  * 발행대기(pending) + 발행완료(issued) 모두 포함. 호출측이 tab 으로 필터.
@@ -138,6 +159,9 @@ function buildReceiptRows(invoices, corrections = {}) {
     };
 
     const installments = inv.installments || [];
+    // 증빙에 적을 공급가·세액 — 단건은 청구서 칸 그대로. 분할은 회차 금액(세금 포함)을 같은 세율로 역산하고
+    //   **마지막 회차가 청구서 공급가와의 차이를 흡수**한다(회차 공급가 합 = 청구서 공급가, Fable 고칠 점 9).
+    const supplyOf = installmentSupplies(inv, installments);
 
     if (installments.length > 0) {
       // 분할 — 회차별 (paid 회차 발행 대상 + 발행된 증빙은 취소건에서도 정정 추적용 노출).
@@ -150,7 +174,7 @@ function buildReceiptRows(invoices, corrections = {}) {
           rows.push({
             ...base,
             installment_id: ins.id, installment_no: ins.installment_no, installment_label: ins.label || null,
-            amount: Number(ins.amount || 0), paid_at: iso(ins.paid_at),
+            amount: Number(ins.amount || 0), supply: supplyOf.get(ins.id), vat: roundMoney(Number(ins.amount || 0) - supplyOf.get(ins.id), inv.currency), paid_at: iso(ins.paid_at),
             status: issued ? 'issued' : 'pending',
             issued_no: ins.tax_invoice_no || null, issued_at: iso(ins.tax_invoice_at),
             due_at: dueAt ? dueAt.toISOString() : null, due_kind: 'legal',
@@ -162,7 +186,7 @@ function buildReceiptRows(invoices, corrections = {}) {
           rows.push({
             ...base,
             installment_id: ins.id, installment_no: ins.installment_no, installment_label: ins.label || null,
-            amount: Number(ins.amount || 0), paid_at: iso(ins.paid_at),
+            amount: Number(ins.amount || 0), supply: supplyOf.get(ins.id), vat: roundMoney(Number(ins.amount || 0) - supplyOf.get(ins.id), inv.currency), paid_at: iso(ins.paid_at),
             status: issued ? 'issued' : 'pending',
             issued_no: ins.cash_receipt_no || null, issued_at: iso(ins.cash_receipt_at),
             due_at: dueAt ? dueAt.toISOString() : null, due_kind: 'recommended',
@@ -181,7 +205,7 @@ function buildReceiptRows(invoices, corrections = {}) {
         rows.push({
           ...base,
           installment_id: null, installment_no: null, installment_label: null,
-          amount, paid_at: iso(inv.paid_at),
+          amount, supply: Number(inv.subtotal ?? amount), vat: Number(inv.tax_amount ?? 0), paid_at: iso(inv.paid_at),
           status: issued ? 'issued' : 'pending',
           issued_no: inv.tax_invoice_external_id || null,
           issued_at: iso(inv.tax_invoice_issued_at),
@@ -195,7 +219,7 @@ function buildReceiptRows(invoices, corrections = {}) {
         rows.push({
           ...base,
           installment_id: null, installment_no: null, installment_label: null,
-          amount, paid_at: iso(inv.paid_at),
+          amount, supply: Number(inv.subtotal ?? amount), vat: Number(inv.tax_amount ?? 0), paid_at: iso(inv.paid_at),
           status: issued ? 'issued' : 'pending',
           issued_no: inv.cash_receipt_no || null,
           issued_at: iso(inv.cash_receipt_issued_at),

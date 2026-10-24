@@ -27,7 +27,7 @@ const { successResponse, errorResponse } = require('../middleware/errorHandler')
 const { sequelize } = require('../config/database');
 // 금액 반올림(통화별) · 청구서 번호 · 테넌트 참조 검증 — 각각 한 곳 (docs/FIX_0AB_MONEY_DESIGN.md B-①②③)
 const { roundMoney } = require('../services/money');
-const { splitTax } = require('../services/taxCalc');
+const { splitTax, taxInputError, allocate } = require('../services/taxCalc');
 const { withInvoiceNumber } = require('../services/invoiceNumber');
 const { assertClientInBusiness, assertProjectInBusiness, assertClientInProject, isClientInProject } = require('../services/tenantRef');
 const { Op } = require('sequelize');
@@ -102,7 +102,7 @@ const { isBotOrScanner } = require('../utils/botUa');   // 공개 링크 «열�
 // 청구서 번호는 services/invoiceNumber.js 한 곳에서 뽑는다(연도 + 무작위 꼬리, B-② · 2026-10-23).
 
 // 품목 금액 입력 검증·분할 회차 검증·초안 만들기 — services/invoiceCreate 한 곳(서명 완료 자동 초안과 같은 계산).
-const { itemsAmountsValid, installmentsError, insertDraftInvoice } = require('../services/invoiceCreate');
+const { itemsAmountsValid, installmentsError, insertDraftInvoice, computeAmounts } = require('../services/invoiceCreate');
 
 // ─── 공개 결제 페이지 (인증 없음 — share_token 기반) ───
 // /:businessId 매칭보다 먼저 와야 함
@@ -740,6 +740,7 @@ router.post('/:businessId/:id/duplicate', authenticateToken, checkBusinessAccess
       installment_mode: src.installment_mode,
       bank_snapshot,
       vat_rate: src.vat_rate,
+      tax_mode: src.tax_mode,              // ★ 기준도 옮긴다 — 안 옮기면 세금 포함 청구서가 별도로 복사돼 금액이 커진다(Fable 고칠 점 8)
       // 금액은 아래에서 품목으로 **재계산**해 덮어쓴다(생성 라우트와 같은 공식).
       //   원본 금액을 그대로 옮기면 원본이 어긋나 있을 때 그 오류까지 복사된다.
       subtotal: 0, total_amount: 0, tax_amount: 0, grand_total: 0,
@@ -771,8 +772,11 @@ router.post('/:businessId/:id/duplicate', authenticateToken, checkBusinessAccess
       }, { transaction: t });
     }
     const vatRateNum = Number(src.vat_rate ?? 0.1);
-    const taxAmount = roundMoney(subtotal * vatRateNum, cur);
-    const grandTotal = roundMoney(subtotal + taxAmount, cur);
+    // 항목 합 → 공급가·세액·합계 (services/taxCalc 한 함수 — 생성·수정과 같은 규칙)
+    const split = splitTax({ amount: subtotal, rate: vatRateNum, mode: src.tax_mode, currency: cur });
+    const taxAmount = split.tax;
+    const grandTotal = split.total;
+    subtotal = split.subtotal;
     await copy.update({ subtotal, total_amount: subtotal, tax_amount: taxAmount, grand_total: grandTotal }, { transaction: t });
 
     // 회차 — **계획만** 가져오고 결제·증빙 마킹은 두고 온다
@@ -835,10 +839,13 @@ router.post('/:businessId', authenticateToken, checkBusinessAccess, requireMenu(
   try {
     const {
       title, client_id, due_date, recipient_email, recipient_business_name, recipient_business_number,
-      notes, items, vat_rate, installment_mode, installments,
+      notes, items, vat_rate, tax_mode, installment_mode, installments,
       source_post_id, project_id, currency, receipt_type,
     } = req.body;
     if (!title) { await t.rollback(); return errorResponse(res, 'Title required', 400); }
+    // 세율 0~100%(소수 2자리)·기준 두 값 — 같은 검사 한 벌(services/taxCalc)
+    const taxErr = taxInputError(req.body);
+    if (taxErr) { await t.rollback(); return errorResponse(res, taxErr, 400); }
     // 금액 입력 검증 — 유한수·≥0 이 아니면 400 (Number(x)||0 으로 삼키지 않는다, B-①)
     if (!itemsAmountsValid(items)) { await t.rollback(); return errorResponse(res, 'invalid_amount', 400); }
     // 증빙 발행 의향 (선택) — 발행 모달 '세금계산서 발행' 토글. 결제 후 증빙 큐(receiptsDue) 편입.
@@ -882,7 +889,7 @@ router.post('/:businessId', authenticateToken, checkBusinessAccess, requireMenu(
       title, clientId: clientIdChecked, projectId: projectIdChecked, sourcePostId,
       dueDate: due_date, recipientEmail: recipient_email,
       recipientBusinessName: recipient_business_name, recipientBusinessNumber: recipient_business_number,
-      notes, vatRate: vat_rate, currency, receiptType,
+      notes, vatRate: vat_rate, taxMode: tax_mode, currency, receiptType,
       installmentMode: mode, installments, items,
     }, { transaction: t });
 
@@ -1110,12 +1117,22 @@ router.get('/:businessId/:id/tax-breakdown', authenticateToken, attachWorkspaceS
     // subtotal(공급가액) 우선 컬럼, 없으면 합계에서 역산(taxCalc 한 함수)
     const supply = inv.subtotal != null ? Number(inv.subtotal) : splitTax({ amount: grand, rate: vatRate, mode: 'inclusive', currency: inv.currency }).subtotal;
     const vat = inv.tax_amount != null ? Number(inv.tax_amount) : (grand - supply);
+    // 항목별 공급가·세액 — 홈택스·팝빌에 줄마다 넣는 값. 세금 포함 청구서는 항목 금액이 포함가라 «항목 합 = 합계 ≠ 공급가액».
+    //   공급가(포함가) 또는 세액(별도가)을 큰 나머지 방식으로 나눠 합이 정확히 맞게 한다(Fable 고칠 점 6).
+    const inclusive = inv.tax_mode === 'inclusive';
+    const weights = items.map((it) => it.amount);
+    const alloc = allocate(inclusive ? supply : vat, weights, inv.currency);
+    items.forEach((it, i) => {
+      it.supply = inclusive ? alloc[i] : it.amount;
+      it.vat = inclusive ? roundMoney(it.amount - alloc[i], inv.currency) : alloc[i];
+    });
     return successResponse(res, {
       invoice_number: inv.invoice_number,
       currency: inv.currency,
       supply_date: inv.issued_at || inv.created_at,
       supplier, recipient, items,
       amounts: { supply, vat, vat_rate: vatRate, total: grand },
+      tax_mode: inv.tax_mode || 'exclusive',   // inclusive 면 items[].amount·unit_price 는 세금 포함가 — 줄마다 supply·vat 를 쓴다
     });
   } catch (err) { next(err); }
 });
@@ -1244,12 +1261,14 @@ router.put('/:businessId/:id', authenticateToken, checkBusinessAccess, requireMe
 
     const {
       title, client_id, due_date, recipient_email, recipient_business_name, recipient_business_number,
-      notes, items, vat_rate, installment_mode, installments, source_post_id, currency, receipt_type,
+      notes, items, vat_rate, tax_mode, installment_mode, installments, source_post_id, currency, receipt_type,
     } = req.body;
     // project_id 는 보낸 경우에만 바꾼다(안 보낸 옛 화면이 연결을 지우지 않게) — 임시 저장본에서 프로젝트를 고칠 수 있게 2026-10-16 추가
     const hasProject = Object.prototype.hasOwnProperty.call(req.body, 'project_id');
     if (!title) { await t.rollback(); return errorResponse(res, 'Title required', 400); }
     if (!itemsAmountsValid(items)) { await t.rollback(); return errorResponse(res, 'invalid_amount', 400); }
+    const taxErr = taxInputError(req.body);
+    if (taxErr) { await t.rollback(); return errorResponse(res, taxErr, 400); }
     const receiptType = ['tax_invoice', 'cash_receipt'].includes(receipt_type) ? receipt_type : 'none';
 
     // 출처 post 검증 (생성과 동일)
@@ -1286,6 +1305,7 @@ router.put('/:businessId/:id', authenticateToken, checkBusinessAccess, requireMe
     }
 
     const vatRateNum = vat_rate !== undefined ? Number(vat_rate) : Number(invoice.vat_rate);
+    const taxModeNext = tax_mode !== undefined && tax_mode !== null ? tax_mode : invoice.tax_mode;   // 안 보내면 지금 기준 그대로
     const cur = currency || invoice.currency || 'KRW';
     // 참조 칸 테넌트 검증(B-③) — 생성 라우트와 같은 함수
     const clientIdChecked = await assertClientInBusiness(client_id, req.params.businessId, { transaction: t });
@@ -1305,6 +1325,7 @@ router.put('/:businessId/:id', authenticateToken, checkBusinessAccess, requireMe
       notes: notes || null,
       installment_mode: mode,
       vat_rate: vatRateNum,
+      tax_mode: taxModeNext,
       source_post_id: sourcePostId,
       currency: currency || invoice.currency,
       receipt_type: receiptType,
@@ -1314,30 +1335,13 @@ router.put('/:businessId/:id', authenticateToken, checkBusinessAccess, requireMe
       ...(wasCanceled ? { status: 'draft', sent_at: null, viewed_at: null } : {}),
     }, { transaction: t });
 
-    // 항목 전체 교체 + 합계 재계산
+    // 항목 전체 교체 + 합계 재계산 — 생성과 같은 함수(services/invoiceCreate.computeAmounts · 세금 기준 포함)
     await InvoiceItem.destroy({ where: { invoice_id: invoice.id }, transaction: t });
-    let subtotal = 0;
-    if (items && items.length > 0) {
-      const itemRows = [];
-      for (let i = 0; i < items.length; i++) {
-        const item = items[i];
-        const unitPrice = roundMoney(item.unit_price || 0, cur);
-        const amount = roundMoney(Number(item.quantity || 1) * unitPrice, cur);
-        subtotal = roundMoney(subtotal + amount, cur);
-        itemRows.push({
-          invoice_id: invoice.id,
-          description: item.description,
-          detail: (item.detail && String(item.detail).trim()) || null,
-          quantity: item.quantity || 1,
-          unit_price: unitPrice,
-          amount,
-          sort_order: i,
-        });
-      }
-      await InvoiceItem.bulkCreate(itemRows, { transaction: t });
+    const amt = computeAmounts({ items, vatRate: vatRateNum, taxMode: taxModeNext, currency: cur, installmentMode: 'single' });
+    if (amt.itemRows.length > 0) {
+      await InvoiceItem.bulkCreate(amt.itemRows.map((r) => ({ ...r, invoice_id: invoice.id })), { transaction: t });
     }
-    const taxAmount = roundMoney(subtotal * vatRateNum, cur);
-    const grandTotal = roundMoney(subtotal + taxAmount, cur);
+    const { subtotal, taxAmount, grandTotal } = amt;
     await invoice.update({
       total_amount: subtotal, subtotal, tax_amount: taxAmount, grand_total: grandTotal,
     }, { transaction: t });

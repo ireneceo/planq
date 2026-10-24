@@ -18,7 +18,7 @@ const { sequelize } = require('../config/database');
 const { recurringMetaForProject } = require('./invoiceRecurring');
 const { defaultReceiptTypeFor } = require('./receiptsDue');
 const { withInvoiceNumber } = require('./invoiceNumber');
-const { roundMoney } = require('./money');
+const { singleLineInvoice } = require('./taxCalc');
 
 // invoice_number 는 services/invoiceNumber.js 한 곳에서 뽑는다(워크스페이스×연도 카운터 — FIX_0AB B-②).
 
@@ -78,10 +78,11 @@ async function billOneProject(project, today = new Date()) {
 
   let invoiceNumber = null;
   const currencyForRound = business.default_currency || 'KRW';
-  const subtotal = roundMoney(fee, currencyForRound);
-  const vatRate = Number(business.default_vat_rate ?? 0.1);   // `||` 는 숫자 0 을 10% 로 바꾼다(Fable 고칠 점 1)
-  const taxAmount = roundMoney(subtotal * vatRate, currencyForRound);
-  const grandTotal = roundMoney(subtotal + taxAmount, currencyForRound);
+  // 세율·기준은 프로젝트 스냅샷(구독과 같다 — 워크스페이스 설정을 바꿔도 이미 정한 월정액은 그대로). 옛 행(NULL)만 워크스페이스 기본.
+  //   `||` 는 숫자 0 을 10% 로 바꾼다 → `??`(Fable 고칠 점 1). 금액 칸 + 항목 한 줄은 고객 구독 엔진과 같은 함수.
+  const vatRate = project.monthly_vat_rate != null ? Number(project.monthly_vat_rate) : Number(business.default_vat_rate ?? 0.1);
+  const line = singleLineInvoice({ fee, rate: vatRate, mode: project.monthly_tax_mode, currency: currencyForRound });
+  const grandTotal = line.invoice.grand_total;
 
   const shareToken = crypto.randomBytes(24).toString('hex');
 
@@ -116,12 +117,8 @@ async function billOneProject(project, today = new Date()) {
     installment_mode: 'single',
     bank_snapshot: bankSnapshot,
     meta: recurringMetaForProject(project),   // #92 — 정기 발송 기준 표시용 스냅샷
-    vat_rate: vatRate,
+    ...line.invoice,   // vat_rate·tax_mode·subtotal·tax_amount·grand_total·total_amount
     currency: business.default_currency || 'KRW',
-    subtotal,
-    tax_amount: taxAmount,
-    grand_total: grandTotal,
-    total_amount: subtotal,
     share_token: shareToken,
     // 증빙 의향 — 등록 고객이 한국 사업자면 세금계산서 대상으로 생성한다.
     //   여태 이 두 필드가 payload 에 아예 없어 모델 기본값 'none' 으로 떨어졌고, 고객의 사업자
@@ -154,9 +151,7 @@ async function billOneProject(project, today = new Date()) {
   await InvoiceItem.create({
     invoice_id: invoice.id,
     description: `${project.name} ${ym} 월 사용료`,
-    quantity: 1,
-    unit_price: subtotal,
-    amount: subtotal,
+    ...line.item,
     sort_order: 0,
   });
 

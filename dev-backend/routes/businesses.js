@@ -7,6 +7,7 @@ const multer = require('multer');
 const { Business, BusinessMember, User, CueUsage, Client, Department, Team } = require('../models');
 const { authenticateToken, checkBusinessAccess } = require('../middleware/auth');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
+const { parseRateFraction, parseTaxMode } = require('../services/taxCalc');
 const { createAuditLog } = require('../middleware/audit');
 const { logAudit, auditDiff } = require('../services/auditService');
 const { perUserDaily } = require('../middleware/costGuard');
@@ -566,7 +567,8 @@ router.put('/:businessId/billing', authenticateToken, checkBusinessAccess, async
     const { bank_name, bank_account_name, bank_account_number,
             swift_code, bank_name_en, bank_account_name_en,
             default_due_days, default_vat_rate, default_currency,
-            auto_invoice_default_mode, auto_invoice_default_billing_day, overdue_grace_days } = req.body;
+            auto_invoice_default_mode, auto_invoice_default_billing_day, overdue_grace_days,
+            tax_enabled, tax_label, default_tax_mode } = req.body;
     const updates = {};
 
     // 입금 계좌 = 돈이 실제로 들어오는 곳. 청구서 발행·결제 마킹이 owner 전용인데 계좌번호가
@@ -593,9 +595,17 @@ router.put('/:businessId/billing', authenticateToken, checkBusinessAccess, async
       updates.default_due_days = d;
     }
     if (default_vat_rate !== undefined) {
-      const v = Number(default_vat_rate);
-      if (!Number.isFinite(v) || v < 0 || v > 1) return errorResponse(res, 'VAT 은 0~1 범위 (10% = 0.1)', 400);
+      // 0~100%(분수 0~1)·% 소수 2자리 — 청구서·구독과 같은 검사(services/taxCalc). 2026-10-24 자유 입력 %
+      const v = parseRateFraction(default_vat_rate);
+      if (v === null) return errorResponse(res, 'VAT 은 0~1 범위·소수 4자리까지 (10% = 0.1)', 400);
       updates.default_vat_rate = v;
+    }
+    // 세금 설정 (2026-10-24, docs/TAX_SETTINGS_DESIGN.md) — 끄면 새로 만드는 것의 기본 세율 0. 이미 있는 구독·청구서·월정액은 그대로(스냅샷)
+    if (tax_enabled !== undefined) updates.tax_enabled = !!tax_enabled;
+    if (tax_label !== undefined) updates.tax_label = tax_label ? String(tax_label).trim().slice(0, 20) || null : null;
+    if (default_tax_mode !== undefined) {
+      if (!parseTaxMode(default_tax_mode)) return errorResponse(res, 'invalid_tax_mode', 400);
+      updates.default_tax_mode = default_tax_mode;
     }
     if (default_currency !== undefined) {
       const c = String(default_currency || '').toUpperCase();

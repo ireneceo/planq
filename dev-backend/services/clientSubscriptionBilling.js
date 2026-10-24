@@ -10,7 +10,7 @@ const { sequelize } = require('../config/database');
 
 // invoice_number 는 services/invoiceNumber.js 한 곳에서 뽑는다(워크스페이스×연도 카운터 — FIX_0AB B-②).
 const { withInvoiceNumber } = require('./invoiceNumber');
-const { roundMoney } = require('./money');
+const { singleLineInvoice, percentToFraction } = require('./taxCalc');
 
 // DATEONLY 값(Date | string) → 'YYYY-MM-DD' 문자열 정규화
 function toDateStr(v) {
@@ -120,12 +120,9 @@ async function billOneSubscription(sub, today = new Date()) {
   const isAuto = sub.auto_mode === 'auto';
   const fee = Number(sub.amount || 0);
   if (fee <= 0) return { subscription_id: sub.id, skipped: 'no_amount' };
-  const vatRate = Number(sub.vat_rate || 0);
-
   const curForRound = sub.currency || business.default_currency || 'KRW';
-  const subtotal = roundMoney(fee, curForRound);
-  const taxAmount = roundMoney(subtotal * (vatRate / 100), curForRound);
-  const grandTotal = roundMoney(subtotal + taxAmount, curForRound);
+  // 금액 칸 + 항목 한 줄 — 월정액 엔진과 같은 함수. 구독 세율은 퍼센트(10) → 분수로 바꿔 넘긴다(services/taxCalc)
+  const line = singleLineInvoice({ fee, rate: percentToFraction(sub.vat_rate), mode: sub.tax_mode, currency: curForRound });
   let invoiceNumber = null;
   const shareToken = crypto.randomBytes(24).toString('hex');
   const title = periodLabel(sub.plan_name, sub.next_billing_at, sub.interval);
@@ -166,12 +163,8 @@ async function billOneSubscription(sub, today = new Date()) {
     installment_mode: 'single',
     bank_snapshot: bankSnapshot,
     meta: recurringMetaForSub(sub),   // #92 — 정기 발송 기준 표시용 스냅샷
-    vat_rate: vatRate / 100, // ClientSubscription 은 %(10), Invoice.vat_rate 는 분수(0.1)
+    ...line.invoice,   // vat_rate(분수)·tax_mode·subtotal·tax_amount·grand_total·total_amount
     currency: sub.currency || business.default_currency || 'KRW',
-    subtotal,
-    tax_amount: taxAmount,
-    grand_total: grandTotal,
-    total_amount: subtotal,
     share_token: shareToken,
     // 증빙 의향 — 정기 청구 엔진과 동일. receiptsDue 단일 원천 술어.
     //   여태 이 두 필드가 없어 모델 기본값 'none' 으로 떨어졌다(정기청구와 같은 결손).
@@ -202,9 +195,7 @@ async function billOneSubscription(sub, today = new Date()) {
   await InvoiceItem.create({
     invoice_id: invoice.id,
     description: title,
-    quantity: 1,
-    unit_price: subtotal,
-    amount: subtotal,
+    ...line.item,
     sort_order: 0,
   });
 
@@ -255,7 +246,7 @@ async function billOneSubscription(sub, today = new Date()) {
           } catch { /* 알림 실패가 발송을 막지 않는다 */ }
         }
         await sendInvoiceEmail({
-          to: recipient, invoiceNumber, title, total: grandTotal, currency: invoice.currency,
+          to: recipient, invoiceNumber, title, total: line.invoice.grand_total, currency: invoice.currency,
           dueDate: invoice.due_date, senderName: business.brand_name || business.name || '',
           ...require('./workspaceSender').workspaceSender(business),
           // 첨부 유무 분기 — 첨부 없이 "첨부된 청구서" 라고 안내하면 거짓.
