@@ -21,6 +21,7 @@ import TableBubbleMenu from './TableBubbleMenu';   // 표 손잡이 → 행·열
 import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight';
 import TextAlign from '@tiptap/extension-text-align';
 import { handleMarkdownPaste } from '../../utils/markdownPaste';
+import { MarkdownShortcutFix } from './editorMarkdownShortcut';   // 모바일 한글 자판에서 «# »·«- » 변환(2026-10-24)
 import { createLowlight, common } from 'lowlight';
 import { apiFetch } from '../../contexts/AuthContext';
 import { LightboxWrapper } from '../Common/ImageLightbox';
@@ -123,7 +124,7 @@ const PostEditor: React.FC<Props> = ({ value, onChange, onReady, placeholder, ed
       Table.configure({ resizable: true, HTMLAttributes: { class: 'editor-table' } }),
       TableRow,
       PqTableHeader, PqTableCell, ...checklistExtensions,
-      FindReplace, ...textStyleExtensions,
+      FindReplace, ...textStyleExtensions, MarkdownShortcutFix,
     ],
     content: value as any,
     editable,

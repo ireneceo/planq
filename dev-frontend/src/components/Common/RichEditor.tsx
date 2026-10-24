@@ -18,6 +18,7 @@ import { TableRow } from '@tiptap/extension-table-row';
 import { TableCell } from '@tiptap/extension-table-cell';
 import { TableHeader } from '@tiptap/extension-table-header';
 import { handleMarkdownPaste } from '../../utils/markdownPaste';
+import { MarkdownShortcutFix } from '../Docs/editorMarkdownShortcut';   // 모바일 한글 자판에서 «# »·«- » 변환(2026-10-24)
 import { Selection } from '@tiptap/pm/state';
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -91,6 +92,7 @@ export default function RichEditor({
   const editor = useEditor({
     extensions: [
       StarterKit.configure({ heading: { levels: [1, 2, 3] }, link: false }),
+      MarkdownShortcutFix,
       // 링크는 editable/readOnly 무관하게 항상 클릭 시 새 탭 — 편집 권한 있어도 본문 링크는 외부 이동 우선.
       // 링크 텍스트 자체 편집은 bubble 메뉴(🔗) 로. 링크 옆 글자에 cursor 두고 selection 만들면 됨.
       Link.configure({ openOnClick: true, autolink: true, HTMLAttributes: { rel: 'noopener noreferrer', target: '_blank' } }),

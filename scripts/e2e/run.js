@@ -118,6 +118,7 @@ const SUITES = {
   tablefit: () => require('./canary-table-fit'),
   // 문서 편집기 찾기·바꾸기(⌘F·⌘⇧H) + 밑줄·구분선 — 3폭 · 서식 보존 · 실행 취소 한 번
   docfind: () => require('./canary-doc-find'),
+  docmd: () => require('./canary-doc-md-shortcut'),   // 모바일 «# » 변환·iOS 붙여넣기(2026-10-24)
   // 표 글자 서식(색·크기·굵게) + 행/열 끼워넣기 — 문서 안 표(편집기) 2폭 · 표 문서(그리드) 3폭
   tablestyle: () => require('./canary-table-style'),
   tablefill: () => require('./canary-table-fill'),
