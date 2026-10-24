@@ -1,5 +1,9 @@
 # Fable 게이트 대기열 → **판정 기록 보관소** (2026-10-08 부터)
 
+### 2026-10-24 방 57ac1643 — 청구서 AI 작성 설계 — **VERDICT: DESIGN-CHANGE** (정본 `docs/INVOICE_AI_DRAFT_DESIGN.md` §7)
+- 필수: 청구 조건(post_billing_terms) 문서로 폼을 채우지 않는다(서명 뒤 자동 초안과 두 번 청구) → terms 상태 경고만 · 급여 계약서 재료 제외.
+- 결정: 세금 안 C(tax_mode 만, 계산 0 · 섞이면 품목 vat_basis 경고 · 면세는 [세율 0%] 버튼만) · 상담 기록 = qsale 읽기(getMemberMenuLevels)·미확인 자동/삭제 제외 · 고객 결정론 매칭(NFKC·법인 꼬리 제거·번호>메일>이름 완전 일치·archived 자동 안 함·prefill 고정) · 합계 줄 거르기 · 같은 문서 기존 청구서 경고 · 못 읽는 재료 skipped `unavailable` 하나 · 전부 못 읽으면 422 LLM 0 · router.use 금지·server.js 마운트 · 이미지 파일 unsupported.
+
 
 
 ### 2026-10-24 방 2718f78c — 세금 설정·표기 완료 검증 — 1차 **FAIL** → 고침 e27f2ea7 → 2차 **VERDICT: PASS** (차단 0 · 비차단 0)
