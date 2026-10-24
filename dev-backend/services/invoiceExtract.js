@@ -54,7 +54,7 @@ const SYSTEM = [
 // ─── 고객 결정론 매칭 (§7-8) ───
 const CORP_KO_RE = /(주식회사|유한책임회사|유한회사|합자회사|합명회사|\(주\)|\(유\))/g;
 // 영문 법인 꼬리는 **낱말일 때만** 뺀다 — 경계가 없으면 «Incheon» 이 «heon», «Coltd Studio» 가 «studio» 가 된다(Fable 완료 검증)
-const CORP_EN_RE = /(^|[\s,(])(co(?:[.,\s]+)ltd\.?|inc\.?|ltd\.?|limited|corp\.?|corporation|llc)(?=$|[\s,.)])/g;
+const CORP_EN_RE = /(^|[\s,(])(co(?:[.,\s]+)ltd\.?|inc\.?|ltd\.?|limited|corp\.?|corporation|llc)(?=[\s,.)]*$)/g;   // 이름 **끝**에서만(«Inc Studio» 는 그대로)
 function normName(s) {
   // NFKC — ㈜ 가 (주) 로 펴진다(NFC 로는 안 펴진다)
   return String(s || '').normalize('NFKC').toLowerCase().replace(CORP_KO_RE, '').replace(CORP_EN_RE, '$1').replace(/[\s\p{P}\p{S}]/gu, '');
@@ -354,9 +354,14 @@ async function buildInvoiceDraft({ businessId, user, body }) {
   warnings.push(...out.warnings);
   // 세금 기준 안전장치(Fable 완료 검증 FAIL) — AI 가 «포함» 이라 해도 재료가 «품목 합 + 세금 = 합계» 모양이면
   //   품목 단가는 공급가다. 그대로 두면 청구액이 세금만큼 적게 나온다(돈 오류). 기준은 비우고(발행 창 기본) 말한다.
-  if (result.tax_mode === 'inclusive' && looksPreTax(result.items, material.join('\n'), body.vat_rate)) {
-    result.tax_mode = null;
+  //   기준은 «별도» 로 **정한다** — 비우면 발행 창이 워크스페이스 기본(포함일 수 있다)을 그대로 써 경고만 뜨고 덜 청구된다.
+  if (result.tax_mode === 'inclusive' && looksPreTax(result.items, material.join('\n'))) {
+    result.tax_mode = 'exclusive';
     warnings.push({ code: 'vat_total_pretax' });
+  } else if (result.tax_mode === 'inclusive' && result.items.some((i) => i.unit_price === null)) {
+    // 금액 없는 품목이 있으면 품목 합이 작아 위 판정을 할 수 없다 — 확신 없는 «포함» 은 비운다
+    result.tax_mode = null;
+    warnings.push({ code: 'vat_unsure' });
   }
   result.client.guess = out.guess;
 
@@ -378,16 +383,20 @@ async function buildInvoiceDraft({ businessId, user, body }) {
   return { status: 200, body: { success: true, data: result } };
 }
 
-/** 품목 합 S 에 대해 재료에 «S×(1+r)» 또는 «S + (적힌 세액)» 인 수가 있으면 품목 단가는 공급가다 */
-function looksPreTax(items, text, vatRate) {
+// 합계 계열 줄 — «합계(부가세 포함) 3,300,000» · «Total Due (incl. tax) $1,625.40» · «총 견적금액 …» (소계는 품목 합 자체라 빼도 같다)
+const TOTAL_SEG_RE = /(합계|총액|총계|총\s*견적|총\s*금액|(?:^|\s)총(?=\s*[\d₩$])|청구\s*금액|grand\s*total|total|amount\s*due|balance\s*due)/i;
+/** 품목이 진짜 포함가면 합계 줄 = 품목 합이다. 합계 계열 줄의 금액이 품목 합보다 크면(×1.3 이하) 품목 단가는 공급가다.
+ *  세율 목록으로 맞춰 보면 글에 세율이 없을 때 그대로 지나갔다(Fable 2차 FAIL) — 합계 줄 숫자만 본다(다른 숫자 우연 일치도 줄인다). */
+function looksPreTax(items, text) {
   const S = items.reduce((a, it) => a + (it.unit_price === null ? 0 : it.unit_price * it.quantity), 0);
   if (!(S > 0)) return false;
-  const nums = [...String(text).matchAll(/\d[\d,]*(\.\d+)?/g)].map((m) => Number(m[0].replace(/,/g, ''))).filter((n) => Number.isFinite(n) && n > 0);
-  const rates = new Set([0.1, Number(vatRate) > 0 && Number(vatRate) < 1 ? Number(vatRate) : 0.1,
-    ...[...String(text).matchAll(/(\d+(?:\.\d+)?)\s*%/g)].map((m) => Number(m[1]) / 100).filter((r) => r > 0 && r < 1)]);
-  const near = (a, b) => Math.abs(a - b) <= Math.max(1, b * 0.002);
-  const set = new Set(nums);
-  return nums.some((n) => n > S && ([...rates].some((r) => near(n, S * (1 + r))) || [...set].some((x) => x > 0 && x < S && near(n, S + x))));
+  const segs = String(text).split(/\n|\s\/\s|·|\||;|,\s/);
+  for (const seg of segs) {
+    if (!TOTAL_SEG_RE.test(seg) || /subtotal|소계/i.test(seg)) continue;
+    const nums = [...seg.matchAll(/\d[\d,]*(\.\d+)?/g)].map((m) => Number(m[0].replace(/,/g, ''))).filter((n) => Number.isFinite(n) && n > 0);
+    if (nums.some((n) => n > S + Math.max(1, S * 0.002) && n <= S * 1.3)) return true;
+  }
+  return false;
 }
 
 module.exports = { looksPreTax, buildInvoiceDraft, matchClients, normName, isTotalLine, cleanOutput, MAX_TEXT, MAX_HINT, MAX_IDS };
