@@ -601,6 +601,11 @@ router.put('/:businessId/billing', authenticateToken, checkBusinessAccess, async
       updates.default_vat_rate = v;
     }
     // 세금 설정 (2026-10-24, docs/TAX_SETTINGS_DESIGN.md) — 끄면 새로 만드는 것의 기본 세율 0. 이미 있는 구독·청구서·월정액은 그대로(스냅샷)
+    //   청구 금액·고객에게 나가는 PDF 를 바꾸는 값이라 계좌와 같은 owner/admin 게이트(Fable 완료 검증 권고)
+    const taxTouched = [tax_enabled, tax_label, default_tax_mode, default_vat_rate].some((v) => v !== undefined);
+    if (taxTouched && req.businessRole !== 'owner' && req.businessRole !== 'admin' && req.user.platform_role !== 'platform_admin') {
+      return errorResponse(res, 'owner_or_admin_only', 403);
+    }
     if (tax_enabled !== undefined) updates.tax_enabled = !!tax_enabled;
     if (tax_label !== undefined) updates.tax_label = tax_label ? String(tax_label).trim().slice(0, 20) || null : null;
     if (default_tax_mode !== undefined) {

@@ -112,8 +112,9 @@ function invoicePdfHtml(inv, sender, client) {
   const inclusive = inv.tax_mode === 'inclusive';
   const ratePct = Math.round(Number(inv.vat_rate || 0) * 10000) / 100;
   const taxName = (sender && sender.tax_label) || (isForeign ? 'VAT' : '부가세');
+  const taxNameHtml = escapeHtml(taxName);   // ★ 사용자 입력(워크스페이스 설정) — HTML 에 넣는 곳은 전부 거른다(Fable 완료 검증 FAIL: `<!--` 하나로 PDF 가 비었다)
   const basis = tax > 0
-    ? (isForeign ? (inclusive ? ` (incl. ${taxName})` : ` (excl. ${taxName})`) : (inclusive ? ` (${taxName} 포함)` : ` (${taxName} 별도)`))
+    ? (isForeign ? (inclusive ? ` (incl. ${taxNameHtml})` : ` (excl. ${taxNameHtml})`) : (inclusive ? ` (${taxNameHtml} 포함)` : ` (${taxNameHtml} 별도)`))
     : '';
 
   const senderName = isForeign ? (sender?.legal_name_en || sender?.brand_name || sender?.name || '—') : (sender?.legal_name || sender?.brand_name || sender?.name || '—');

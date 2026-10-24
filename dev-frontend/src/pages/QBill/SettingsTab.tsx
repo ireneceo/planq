@@ -381,6 +381,7 @@ export default function SettingsTab({ inWorkspaceSettings = false }: SettingsTab
           <div>
             <SectionTitle>{t('tax.settings.title')}</SectionTitle>
             <SectionDesc>{t('tax.settings.desc')}</SectionDesc>
+            {!canManageMoney && <SectionDesc data-testid="bill-settings-tax-owner-only">{t('tax.settings.ownerOnly')}</SectionDesc>}
           </div>
         </SectionHead>
         <EditGrid>
@@ -389,7 +390,7 @@ export default function SettingsTab({ inWorkspaceSettings = false }: SettingsTab
             <TaxToggleRow>
               <AutoSaveField type="toggle" onSave={async () => save({ tax_enabled: taxRef.current.on })}>
                 <Switch type="button" role="switch" aria-checked={taxOn} aria-label={t('tax.settings.enabled') as string} $on={taxOn}
-                  data-testid="bill-settings-tax-enabled"
+                  disabled={!canManageMoney} data-testid="bill-settings-tax-enabled"
                   onClick={() => { taxRef.current.on = !taxOn; setTaxOn(!taxOn); }}>
                   <Knob $on={taxOn} />
                 </Switch>
@@ -405,20 +406,20 @@ export default function SettingsTab({ inWorkspaceSettings = false }: SettingsTab
               <EditField>
                 <EditLabel htmlFor="bill-settings-tax-rate">{t('tax.settings.rate')}</EditLabel>
                 <AutoSaveField type="input" onSave={async () => save({ default_vat_rate: taxRef.current.rate })}>
-                  <TaxRateInput id="bill-settings-tax-rate" testId="bill-settings-tax-rate" value={vatRate}
+                  <TaxRateInput id="bill-settings-tax-rate" testId="bill-settings-tax-rate" value={vatRate} disabled={!canManageMoney}
                     onChange={(v) => { taxRef.current.rate = v; setVatRate(v); }} />
                 </AutoSaveField>
               </EditField>
               <EditField>
                 <EditLabel>{t('tax.settings.defaultMode')}</EditLabel>
                 <AutoSaveField type="select" debounceMs={300} onSave={async () => save({ default_tax_mode: taxRef.current.mode })}>
-                  <TaxModeSelect testId="bill-settings-tax-mode" value={taxMode} onChange={(m) => { taxRef.current.mode = m; setTaxMode(m); }} />
+                  <TaxModeSelect testId="bill-settings-tax-mode" disabled={!canManageMoney} value={taxMode} onChange={(m) => { taxRef.current.mode = m; setTaxMode(m); }} />
                 </AutoSaveField>
               </EditField>
               <EditField>
                 <EditLabel htmlFor="bill-settings-tax-label">{t('tax.settings.label')}</EditLabel>
                 <AutoSaveField type="input" onSave={async () => save({ tax_label: taxRef.current.label.trim() || null })}>
-                  <EditInput id="bill-settings-tax-label" data-testid="bill-settings-tax-label" maxLength={20} value={taxLabel}
+                  <EditInput id="bill-settings-tax-label" data-testid="bill-settings-tax-label" maxLength={20} value={taxLabel} disabled={!canManageMoney}
                     placeholder={t('tax.settings.labelPh') as string}
                     onChange={(e) => { taxRef.current.label = e.target.value; setTaxLabel(e.target.value); }} />
                 </AutoSaveField>

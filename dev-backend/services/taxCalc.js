@@ -11,7 +11,7 @@ const TAX_MODES = ['exclusive', 'inclusive'];
 
 /** 분수 세율 검사 — 0~1, 소수 4자리(= % 소수 2자리)까지. 통과면 숫자, 아니면 null */
 function parseRateFraction(v) {
-  if (v === null || v === undefined || v === '') return null;
+  if (v === null || v === undefined || v === '' || (typeof v !== 'number' && typeof v !== 'string')) return null;   // true → 1(100%) 로 받던 것(Fable 비차단 1)
   const n = Number(v);
   if (!Number.isFinite(n) || n < 0 || n > 1) return null;
   if (Math.abs(Math.round(n * 10000) - n * 10000) > 1e-6) return null;
@@ -20,7 +20,7 @@ function parseRateFraction(v) {
 
 /** 퍼센트 세율 검사 — 0~100, 소수 2자리까지 */
 function parseRatePercent(v) {
-  if (v === null || v === undefined || v === '') return null;
+  if (v === null || v === undefined || v === '' || (typeof v !== 'number' && typeof v !== 'string')) return null;
   const n = Number(v);
   if (!Number.isFinite(n) || n < 0 || n > 100) return null;
   if (Math.abs(Math.round(n * 100) - n * 100) > 1e-6) return null;

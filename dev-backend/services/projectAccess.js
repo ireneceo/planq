@@ -71,7 +71,7 @@ async function visibleProjectWhere(userId, businessId, platformRole) {
 //   member_only 였는데 같은 값이 여기로 나가고 있었다). 화이트리스트가 아니라 블랙리스트인 이유:
 //   고객 화면이 쓰는 칸(이름·기간·상태·색·종류·탭 이름…)이 많고 계속 는다 — 대신 **새 내부 칸은 여기에 같이 적는다.**
 const PROJECT_CLIENT_HIDDEN = [
-  'contract_amount', 'billing_type', 'monthly_fee', 'auto_invoice_enabled', 'auto_invoice_mode',
+  'contract_amount', 'billing_type', 'monthly_fee', 'monthly_vat_rate', 'monthly_tax_mode', 'auto_invoice_enabled', 'auto_invoice_mode',
   'invoice_billing_day', 'last_auto_invoice_at', 'gdrive_folder_id',
   'strategy_context', 'strategy_key_question', 'strategy_goal', 'strategy_governing_thought',
   'strategy_approach', 'success_metrics', 'strategy_sources',

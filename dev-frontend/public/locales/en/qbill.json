@@ -1126,7 +1126,8 @@
       "labelHint": "Shown next to amounts on invoices, PDFs and payment pages",
       "defaultMode": "Default amount basis",
       "offWarn": "{{subs}} existing subscriptions and {{monthly}} project monthly fees keep billing at their current rate. New ones start at 0%.",
-      "snapshotNote": "Changing this doesn't affect rates on existing subscriptions, monthly fees or invoices"
+      "snapshotNote": "Changing this doesn't affect rates on existing subscriptions, monthly fees or invoices",
+      "ownerOnly": "Only owners and admins can change tax settings — they change billed amounts and the invoices customers receive."
     }
   }
 }

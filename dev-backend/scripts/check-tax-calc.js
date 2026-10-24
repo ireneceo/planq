@@ -102,6 +102,8 @@ eq('분수 1.01 거절', S.parseRateFraction(1.01), null);
 eq('분수 0.08255 거절(8.255%)', S.parseRateFraction(0.08255), null);
 eq('분수 -0.1 거절', S.parseRateFraction(-0.1), null);
 eq('분수 "abc" 거절', S.parseRateFraction('abc'), null);
+eq('분수 true 거절(옛: 100%)', S.parseRateFraction(true), null);
+eq('퍼센트 [10] 거절', S.parseRatePercent([10]), null);
 eq('퍼센트 8.25 통과', S.parseRatePercent(8.25), 8.25);
 eq('퍼센트 101 거절', S.parseRatePercent(101), null);
 eq('퍼센트 8.255 거절', S.parseRatePercent(8.255), null);
