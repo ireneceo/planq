@@ -15,6 +15,7 @@ import { openExternalUrl } from '../../services/native';
 // 링크를 열어 둔 채 원본이 바뀌면 보이는 것도 바뀐다(공개 페이지 공통 계약)
 import { usePublicRevalidate } from '../../hooks/usePublicRevalidate';
 import i18next from 'i18next';
+import { formatRate, taxTagKey } from '../../utils/taxCalc';
 
 interface Installment {
   id: number;
@@ -40,6 +41,11 @@ interface PublicInvoice {
   status: 'sent' | 'partially_paid' | 'paid' | 'overdue' | 'canceled';
   installment_mode: 'single' | 'split';
   grand_total: number;
+  // 금액 표기 (2026-10-24) — 공급가·세액·세율·기준
+  subtotal?: number | string | null;
+  tax_amount?: number | string | null;
+  vat_rate?: number | string | null;
+  tax_mode?: 'exclusive' | 'inclusive';
   paid_amount: number;
   currency: string;
   issued_at: string | null;
@@ -59,6 +65,7 @@ interface PublicInvoice {
   recipient_business_name?: string | null;
   sender: {
     name?: string;
+    tax_label?: string | null;
     biz_name?: string;
     biz_name_en?: string;
     biz_ceo?: string;
@@ -229,6 +236,16 @@ const PublicInvoicePage: React.FC = () => {
   }, [notifyOpen, receiptOpen]);
 
   const isSplit = invoice?.installment_mode === 'split';
+  // 금액 내역 한 줄 + 꼬리표 — 서버 값 그대로(화면이 다시 계산하지 않는다). 세금 이름은 공급자 설정, 없으면 언어 기본
+  const taxName = (invoice?.sender?.tax_label && invoice.sender.tax_label.trim()) || (t('tax.defaultLabel') as string);
+  const taxAmt = Number(invoice?.tax_amount || 0);
+  const taxTag = t(`tax.tag.${taxTagKey(taxAmt, 'exclusive') === 'none' ? 'none' : 'included'}`, { label: taxName }) as string;
+  const taxBreakdownText = !invoice ? '' : taxAmt > 0
+    ? t('tax.formula', {
+      subtotal: formatMoney(Number(invoice.subtotal ?? Number(invoice.grand_total) - taxAmt), invoice.currency), label: taxName,
+      rate: formatRate(invoice.vat_rate), tax: formatMoney(taxAmt, invoice.currency), total: formatMoney(Number(invoice.grand_total), invoice.currency),
+    }) as string
+    : t('tax.formulaNoTax', { total: formatMoney(Number(invoice.grand_total), invoice.currency), label: taxName }) as string;
   const targetable = useMemo(() => {
     if (!invoice) return [];
     if (!isSplit) return [];
@@ -418,6 +435,8 @@ const PublicInvoicePage: React.FC = () => {
           {!isSplit && (
             <Total>{formatMoney(Number(invoice.grand_total), invoice.currency)}</Total>
           )}
+          {/* 금액 내역 — 받는 사람도 세금이 포함인지·얼마인지 본다(세액 0 이면 «VAT 없음»). 세율은 정수로 자르지 않는다 */}
+          <TaxBreakdown data-testid="public-invoice-tax">{taxBreakdownText}</TaxBreakdown>
           {!isSplit && invoice.due_date && (
             <DueRow>{t('public.due', '기한')}: {formatDate(invoice.due_date)}</DueRow>
           )}
@@ -795,7 +814,7 @@ const PublicInvoicePage: React.FC = () => {
               )}
               <RcAmountBox>
                 <span>{t('public.receipt.requestAmount', '신청 금액')}</span>
-                <strong>{formatMoney(invoice.grand_total, invoice.currency)} <em>({t('public.receipt.vatIncluded', 'VAT 포함')})</em></strong>
+                <strong>{formatMoney(invoice.grand_total, invoice.currency)} <em>({taxTag})</em></strong>
               </RcAmountBox>
               {rcMode === 'confirm' ? (
                 <>
@@ -965,6 +984,9 @@ const CardNumber = styled.div`
 const Total = styled.div`
   font-size: 2rem; font-weight: 700; color: #0F172A; margin-top: 8px; letter-spacing: -0.5px;
   font-variant-numeric: tabular-nums;
+`;
+const TaxBreakdown = styled.div`
+  font-size: 0.8125rem; color: #64748B; font-variant-numeric: tabular-nums; overflow-wrap: anywhere;
 `;
 const DueRow = styled.div`
   font-size: 0.8125rem; color: #64748B;

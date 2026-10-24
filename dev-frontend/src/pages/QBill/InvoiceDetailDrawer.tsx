@@ -24,6 +24,7 @@ import {
   listInvoiceCorrections, getInvoiceStatusHistory, getInvoiceTimeline,
   type ApiInvoice, type ApiInstallment, type ApiReceiptCorrection, type ApiInvoiceStatusEvent, type ApiBillEvent,
 } from '../../services/invoices';
+import { formatRate } from '../../utils/taxCalc';
 import RecurringBillingNote from '../../components/QBill/RecurringBillingNote';
 import CardPayLinkSection, { cardPayLinkVisible } from './CardPayLinkSection';
 import PayerCodeEditor from './PayerCodeEditor';
@@ -256,9 +257,12 @@ export default function InvoiceDetailDrawer({ invoice: initialInvoice, onClose, 
   const items = invoice.items || [];
   const installments = invoice.installments || [];
   const bank = invoice.bank_snapshot || {};
-  const subtotal = Number(invoice.subtotal || invoice.total_amount || 0);
+  const subtotal = Number(invoice.subtotal ?? invoice.total_amount ?? 0);
   const vatAmount = Number(invoice.tax_amount || 0);
   const vatRate = Number(invoice.vat_rate || 0);
+  // 세금 표기 — 항목 금액이 세금 포함가/별도가인지 표 머리에, 세율은 정수로 자르지 않는다(2026-10-24)
+  const taxLabel = (invoice.tax_label && invoice.tax_label.trim()) || (t('tax.defaultLabel') as string);   // 훅 아님 — 위에 이른 return 이 있다
+  const itemBasis = vatAmount > 0 ? ` (${t(invoice.tax_mode === 'inclusive' ? 'tax.tag.included' : 'tax.tag.excluded', { label: taxLabel })})` : '';
 
   const refresh = async () => {
     try {
@@ -804,8 +808,8 @@ export default function InvoiceDetailDrawer({ invoice: initialInvoice, onClose, 
               <ItemHeadCell $col="no">#</ItemHeadCell>
               <ItemHeadCell $col="desc">{t('detail.items.description')}</ItemHeadCell>
               <ItemHeadCell $col="qty">{t('detail.items.qty')}</ItemHeadCell>
-              <ItemHeadCell $col="unit">{t('detail.items.unitPrice')}</ItemHeadCell>
-              <ItemHeadCell $col="sub">{t('detail.items.subtotal')}</ItemHeadCell>
+              <ItemHeadCell $col="unit">{t('detail.items.unitPrice')}{itemBasis}</ItemHeadCell>
+              <ItemHeadCell $col="sub">{t('detail.items.subtotal')}{itemBasis}</ItemHeadCell>
             </ItemHead>
             {items.map((it, idx) => (
               <ItemRow key={it.id}>
@@ -825,18 +829,16 @@ export default function InvoiceDetailDrawer({ invoice: initialInvoice, onClose, 
 
           <Summary>
             <SummaryRow>
-              <SumKey>{t('detail.summary.subtotal')}</SumKey>
+              <SumKey>{t('tax.subtotal', { label: taxLabel })}</SumKey>
               <SumVal>{formatMoney(subtotal, invoice.currency)}</SumVal>
             </SummaryRow>
-            {vatRate > 0 && (
-              <SummaryRow>
-                <SumKey>{t('detail.summary.vat')} ({Math.round(vatRate * 100)}%)</SumKey>
-                <SumVal>{formatMoney(vatAmount, invoice.currency)}</SumVal>
-              </SummaryRow>
-            )}
+            <SummaryRow data-testid="invoice-detail-tax-line">
+              <SumKey>{vatAmount > 0 || vatRate > 0 ? t('tax.taxLine', { label: taxLabel, rate: formatRate(vatRate) }) : t('tax.noTax', { label: taxLabel })}</SumKey>
+              <SumVal>{formatMoney(vatAmount, invoice.currency)}</SumVal>
+            </SummaryRow>
             <SummaryDiv />
             <SummaryRow>
-              <SumKey style={{ fontWeight: 700, color: '#0F172A' }}>{t('detail.summary.total')}</SumKey>
+              <SumKey style={{ fontWeight: 700, color: '#0F172A' }}>{vatAmount > 0 ? t('tax.total', { label: taxLabel }) : t('tax.totalNoTax')}</SumKey>
               <SumVal style={{ fontSize: '1rem', fontWeight: 700 }}>{formatMoney(grandTotal, invoice.currency)}</SumVal>
             </SummaryRow>
             {paidAmount > 0 && (

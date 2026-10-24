@@ -5,14 +5,21 @@ import { useTranslation } from 'react-i18next';
 import styled from 'styled-components';
 import { formatMoney, type Currency } from '../../services/invoices';
 import type { PublicBillingTerms } from '../../services/billingTerms';
+import { formatRate } from '../../utils/taxCalc';
 
 export default function SignBillingTerms({ terms }: { terms: PublicBillingTerms | null | undefined }) {
   const { t } = useTranslation('qdocs');
+  const { t: tBill } = useTranslation('qbill');
   if (!terms || !terms.items?.length) return null;
   const cur = terms.currency as Currency;
+  // 세금 표기 — 항목 금액이 세금 포함가인지 별도가인지, 세율은 정수로 자르지 않는다(2026-10-24)
+  const label = tBill('tax.defaultLabel') as string;
+  const hasTax = Number(terms.tax_amount) > 0;
+  const basis = hasTax ? tBill(terms.tax_mode === 'inclusive' ? 'tax.tag.included' : 'tax.tag.excluded', { label }) as string : null;
   return (
     <Box data-testid="sign-billing-terms">
       <Title>{t('publicSign.billing.title', '청구 조건 — 서명이 모두 끝나면 이 금액으로 청구됩니다')}</Title>
+      {basis && <Basis data-testid="sign-billing-basis">{basis}</Basis>}
       <Table>
         <tbody>
           {terms.items.map((it, i) => (
@@ -28,11 +35,9 @@ export default function SignBillingTerms({ terms }: { terms: PublicBillingTerms 
         </tbody>
       </Table>
       <Sum>
-        <SumRow><span>{t('publicSign.billing.subtotal', '공급가')}</span><span>{formatMoney(terms.subtotal, cur)}</span></SumRow>
-        {terms.vat_rate > 0 && (
-          <SumRow><span>{t('publicSign.billing.vat', '부가세 {{p}}%', { p: Math.round(terms.vat_rate * 100) })}</span><span>{formatMoney(terms.tax_amount, cur)}</span></SumRow>
-        )}
-        <SumRow $strong><span>{t('publicSign.billing.total', '합계')}</span><span>{formatMoney(terms.grand_total, cur)}</span></SumRow>
+        <SumRow><span>{tBill('tax.subtotal', { label })}</span><span>{formatMoney(terms.subtotal, cur)}</span></SumRow>
+        <SumRow><span>{hasTax ? tBill('tax.taxLine', { label, rate: formatRate(terms.vat_rate) }) : tBill('tax.noTax', { label })}</span><span>{formatMoney(terms.tax_amount, cur)}</span></SumRow>
+        <SumRow $strong><span>{hasTax ? tBill('tax.total', { label }) : tBill('tax.totalNoTax')}</span><span>{formatMoney(terms.grand_total, cur)}</span></SumRow>
       </Sum>
       {terms.installment_mode === 'split' && terms.installments.length > 0 && (
         <Rounds>
@@ -54,6 +59,7 @@ const Box = styled.div`
   display: flex; flex-direction: column; gap: 10px;
 `;
 const Title = styled.div`font-size: 0.8125rem; font-weight: 700; color: #0F172A; line-height: 1.5;`;
+const Basis = styled.div`font-size: 0.75rem; color: #64748B; margin-top: -6px;`;
 const Table = styled.table`
   width: 100%; border-collapse: collapse; font-size: 0.8125rem;
   td { padding: 6px 0; border-bottom: 1px solid #E2E8F0; vertical-align: top; }

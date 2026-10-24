@@ -738,7 +738,9 @@
       "total": "합계",
       "notifyLabel": "고객에게 발행 알림 메일 보내기",
       "notifyTo": "받는 곳: {{email}}",
-      "notifyNone": "등록된 수신 주소가 없어 발송할 수 없어요. 고객 정보에 세금계산서 이메일을 등록해 주세요."
+      "notifyNone": "등록된 수신 주소가 없어 발송할 수 없어요. 고객 정보에 세금계산서 이메일을 등록해 주세요.",
+      "vatShort": "세액",
+      "inclusiveNote": "* 단가는 세금 포함가예요 — 줄마다 공급가액·세액을 옮겨 적으세요"
     },
     "empty": {
       "pending": "발행 대기 중인 증빙이 없습니다",
@@ -1088,5 +1090,43 @@
     "clientNotInProject": "고른 고객이 이 프로젝트에 연결돼 있지 않아요. 프로젝트를 바꾸거나 비워 주세요.",
     "projectNotInWorkspace": "이 워크스페이스의 프로젝트가 아니에요. 다시 골라 주세요.",
     "clientNotInWorkspace": "이 워크스페이스의 고객이 아니에요. 다시 골라 주세요."
+  },
+  "tax": {
+    "defaultLabel": "부가세",
+    "rate": "세율",
+    "rateSuffix": "%",
+    "rateInvalid": "0~100 사이 숫자, 소수 둘째 자리까지",
+    "mode": "금액 기준",
+    "mode_exclusive": "세금 별도",
+    "mode_inclusive": "세금 포함",
+    "modeHint_exclusive": "적은 금액에 세금을 더해 청구해요",
+    "modeHint_inclusive": "적은 금액이 세금까지 들어간 청구 금액이에요",
+    "tag": {
+      "included": "{{label}} 포함",
+      "excluded": "{{label}} 별도",
+      "none": "{{label}} 없음"
+    },
+    "subtotal": "공급가액 ({{label}} 별도)",
+    "taxLine": "{{label}} {{rate}}",
+    "total": "합계 ({{label}} 포함)",
+    "totalNoTax": "합계",
+    "noTax": "{{label}} 없음",
+    "formula": "공급가 {{subtotal}} + {{label}} {{rate}} {{tax}} = 청구 {{total}}",
+    "formulaNoTax": "청구 {{total}} ({{label}} 없음)",
+    "offNote": "세금을 받지 않도록 설정돼 있어요 — Q bill 설정에서 켤 수 있어요",
+    "receiptWarn": "세금을 받지 않는데 세금계산서를 고르셨어요 — 세액 0 세금계산서는 영세율·면세 대상인지 먼저 확인하세요",
+    "settings": {
+      "title": "세금",
+      "desc": "나라마다 세율과 이름이 달라요. 새로 만드는 청구서·정기 청구에 적용돼요",
+      "enabled": "세금 받기",
+      "enabledHint": "끄면 새 청구서·정기 청구의 기본 세율이 0% 가 돼요",
+      "rate": "기본 세율",
+      "label": "세금 이름",
+      "labelPh": "부가세 · VAT · GST",
+      "labelHint": "청구서·PDF·결제 페이지의 금액 옆에 이 이름으로 표시돼요",
+      "defaultMode": "금액 기본 기준",
+      "offWarn": "이미 있는 정기 구독 {{subs}}개 · 프로젝트 월정액 {{monthly}}개는 지금 세율 그대로 청구돼요. 새로 만드는 것부터 0% 예요.",
+      "snapshotNote": "바꿔도 이미 만든 구독·월정액·청구서의 세율은 그대로예요"
+    }
   }
 }

@@ -5,30 +5,34 @@ import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import SingleDateField from '../../components/Common/SingleDateField';
 import { formatMoney, roundMoney, currencyDecimals, type Currency } from '../../services/invoices';
+import { splitTax, formatRate, type TaxMode } from '../../utils/taxCalc';
 
 export interface InvoiceLineItem { id: number; description: string; detail: string; quantity: number; unit_price: number; }
 export interface InvoiceRound { id: number; label: string; milestone: string; rate: number; due_date: string; }
 
-/** 합계 — 화면 계산(서버와 같은 통화별 반올림) */
-export function invoiceTotalsOf(items: InvoiceLineItem[], vatRate: number, currency: Currency) {
-  const subtotal = roundMoney(items.reduce((s, it) => s + roundMoney(it.quantity * roundMoney(it.unit_price, currency), currency), 0), currency);
-  const vat = roundMoney(subtotal * vatRate, currency);
-  return { subtotal, vat, total: roundMoney(subtotal + vat, currency) };
+/** 합계 — 화면 계산(서버 services/invoiceCreate.computeAmounts 와 같은 규칙). 세금 포함이면 항목 합 = 합계, 공급가·세액은 합계에서 한 번 역산(utils/taxCalc) */
+export function invoiceTotalsOf(items: InvoiceLineItem[], vatRate: number, currency: Currency, taxMode: TaxMode = 'exclusive') {
+  const lines = roundMoney(items.reduce((s, it) => s + roundMoney(it.quantity * roundMoney(it.unit_price, currency), currency), 0), currency);
+  const r = splitTax({ amount: lines, rate: vatRate, mode: taxMode, currency });
+  return { subtotal: r.subtotal, vat: r.tax, total: r.total };
 }
 
-export function InvoiceItemsTable({ items, currency, onUpdate, onRemove }: {
+export function InvoiceItemsTable({ items, currency, onUpdate, onRemove, basis }: {
   items: InvoiceLineItem[]; currency: Currency;
   onUpdate: (id: number, patch: Partial<InvoiceLineItem>) => void; onRemove: (id: number) => void;
+  /** 단가·금액 머리에 붙일 기준 — «VAT 포함»/«VAT 별도» (세율 0 이면 안 붙인다) */
+  basis?: string | null;
 }) {
   const { t } = useTranslation('qbill');
+  const tail = basis ? ` (${basis})` : '';
   return (
     <ItemTable>
       <ItemHead>
         <ItemHeadCell style={{ width: 28 }}>#</ItemHeadCell>
         <ItemHeadCell>{t('newInvoice.items.description')}</ItemHeadCell>
         <ItemHeadCell style={{ width: 70 }}>{t('newInvoice.items.qty')}</ItemHeadCell>
-        <ItemHeadCell style={{ width: 110 }}>{t('newInvoice.items.unitPrice')}</ItemHeadCell>
-        <ItemHeadCell style={{ width: 110, textAlign: 'right' }}>{t('newInvoice.items.subtotal')}</ItemHeadCell>
+        <ItemHeadCell style={{ width: 110 }}>{t('newInvoice.items.unitPrice')}{tail}</ItemHeadCell>
+        <ItemHeadCell style={{ width: 110, textAlign: 'right' }}>{t('newInvoice.items.subtotal')}{tail}</ItemHeadCell>
         <ItemHeadCell style={{ width: 28 }}></ItemHeadCell>
       </ItemHead>
       {items.map((it, idx) => (
@@ -62,25 +66,27 @@ export function InvoiceItemsTable({ items, currency, onUpdate, onRemove }: {
   );
 }
 
-export function InvoiceTotals({ subtotal, vat, total, vatRate, currency }: {
+export function InvoiceTotals({ subtotal, vat, total, vatRate, currency, taxLabel }: {
   subtotal: number; vat: number; total: number; vatRate: number; currency: Currency;
+  /** 세금 이름(워크스페이스 설정) — 없으면 화면 언어 기본 */
+  taxLabel?: string | null;
 }) {
   const { t } = useTranslation('qbill');
+  const label = (taxLabel && taxLabel.trim()) || (t('tax.defaultLabel') as string);
   return (
-    <Summary>
+    <Summary data-testid="invoice-totals">
       <SumRow>
-        <SumKey>{t('newInvoice.summary.subtotal')}</SumKey>
+        <SumKey>{t('tax.subtotal', { label })}</SumKey>
         <SumVal>{formatMoney(subtotal, currency)}</SumVal>
       </SumRow>
-      {vatRate > 0 && (
-        <SumRow>
-          <SumKey>{t('newInvoice.summary.vat')} ({Math.round(vatRate * 100)}%)</SumKey>
-          <SumVal>{formatMoney(vat, currency)}</SumVal>
-        </SumRow>
-      )}
+      <SumRow>
+        {/* 세율은 정수로 자르지 않는다(8.25%) · 세액 0 이면 «VAT 없음» 을 적는다(빠뜨리면 별도인지 없는지 모른다) */}
+        <SumKey>{vat > 0 || vatRate > 0 ? t('tax.taxLine', { label, rate: formatRate(vatRate) }) : t('tax.noTax', { label })}</SumKey>
+        <SumVal>{formatMoney(vat, currency)}</SumVal>
+      </SumRow>
       <SumDiv />
       <SumRow>
-        <SumKey style={{ fontWeight: 700, color: '#0F172A' }}>{t('newInvoice.summary.total')}</SumKey>
+        <SumKey style={{ fontWeight: 700, color: '#0F172A' }}>{vat > 0 ? t('tax.total', { label }) : t('tax.totalNoTax')}</SumKey>
         <SumVal style={{ fontSize: '1rem', fontWeight: 700 }}>{formatMoney(total, currency)}</SumVal>
       </SumRow>
     </Summary>

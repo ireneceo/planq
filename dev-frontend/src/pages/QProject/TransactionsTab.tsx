@@ -9,6 +9,8 @@ import ConfirmDialog from '../../components/Common/ConfirmDialog';
 import { openPreviewWindow } from '../../utils/openPreviewWindow';
 import { isEnterAction } from '../../utils/imeKey';
 import { formatDay } from '../../utils/dateFormat';
+import { TaxRateInput, TaxFormula } from '../QBill/TaxFields';
+import { splitTax, type TaxMode } from '../../utils/taxCalc';
 
 interface Signer {
   id: number; signer_email: string; signer_name: string | null;
@@ -66,6 +68,8 @@ interface SubscriptionInfo {
   last_billed_at: string | null;
   next_due_at: string | null;
   currency: string;
+  // 세금 (2026-10-24) — 엔진과 같은 값: 세율(분수)·기준·한 달 청구 금액 나눔
+  vat_rate?: number; tax_mode?: TaxMode; charge?: { subtotal: number; tax: number; total: number };
 }
 interface BillingConfig {
   billing_type: string;
@@ -74,6 +78,9 @@ interface BillingConfig {
   auto_enabled: boolean;
   mode: 'auto' | 'draft_review';
   currency: string;
+  vat_rate?: number; tax_mode?: TaxMode; charge?: { subtotal: number; tax: number; total: number };
+  tax_enabled?: boolean;
+  tax_label?: string | null;
 }
 interface TransactionsResponse {
   project: { id: number; name: string; status: string };
@@ -110,6 +117,7 @@ interface Props { projectId: number; }
 
 const TransactionsTab: React.FC<Props> = ({ projectId }) => {
   const { t } = useTranslation('qproject');
+  const { t: tBill } = useTranslation('qbill');
   const navigate = useNavigate();
   const { user } = useAuth();
   const isClient = user?.business_role === 'client';
@@ -130,9 +138,10 @@ const TransactionsTab: React.FC<Props> = ({ projectId }) => {
   const [billOpen, setBillOpen] = useState(false);
   const [billSaving, setBillSaving] = useState(false);
   const [billNote, setBillNote] = useState<{ tone: 'ok' | 'warn'; text: string } | null>(null);
-  const [billDraft, setBillDraft] = useState<{ enabled: boolean; fee: string; day: string; mode: 'auto' | 'draft_review' }>({ enabled: false, fee: '', day: '1', mode: 'draft_review' });
+  const [billDraft, setBillDraft] = useState<{ enabled: boolean; fee: string; day: string; mode: 'auto' | 'draft_review'; vat: number; taxMode: TaxMode }>({ enabled: false, fee: '', day: '1', mode: 'draft_review', vat: 0.1, taxMode: 'exclusive' });
   const openBillEdit = (cfg: BillingConfig) => {
-    setBillDraft({ enabled: cfg.auto_enabled, fee: String(cfg.monthly_fee || ''), day: String(cfg.billing_day || 1), mode: cfg.mode || 'draft_review' });
+    setBillDraft({ enabled: cfg.auto_enabled, fee: String(cfg.monthly_fee || ''), day: String(cfg.billing_day || 1), mode: cfg.mode || 'draft_review',
+      vat: Number(cfg.vat_rate ?? 0.1), taxMode: cfg.tax_mode === 'inclusive' ? 'inclusive' : 'exclusive' });
     setBillNote(null);
     setBillOpen(true);
   };
@@ -148,7 +157,10 @@ const TransactionsTab: React.FC<Props> = ({ projectId }) => {
         auto_invoice_enabled: billDraft.enabled,
         auto_invoice_mode: billDraft.mode,
       };
-      if (billDraft.enabled) { body.billing_type = 'subscription'; body.monthly_fee = feeNum; body.invoice_billing_day = dayNum; }
+      if (billDraft.enabled) {
+        body.billing_type = 'subscription'; body.monthly_fee = feeNum; body.invoice_billing_day = dayNum;
+        body.monthly_vat_rate = billDraft.vat; body.monthly_tax_mode = billDraft.taxMode;   // 세율(분수)·기준 — 저장 시점 값으로 고정
+      }
       const r = await apiFetch(`/api/projects/${projectId}`, {
         method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
       });
@@ -328,6 +340,8 @@ const TransactionsTab: React.FC<Props> = ({ projectId }) => {
 
   const { summary, posts, invoices, stages, next_action, subscription, billingConfig } = data;
   const currencyDisp = summary.currency;
+  // 세금 이름 — 워크스페이스 설정(없으면 언어 기본). 훅 아님(위에 이른 return)
+  const taxName = (billingConfig?.tax_label && billingConfig.tax_label.trim()) || (tBill('tax.defaultLabel') as string);
   const fmtMoney = (n: number) => currencyDisp === 'KRW' ? `${n.toLocaleString()}${t('tx.sub.won', '원')}` : `${currencyDisp} ${n.toLocaleString()}`;
 
   const handleAction = () => {
@@ -405,10 +419,31 @@ const TransactionsTab: React.FC<Props> = ({ projectId }) => {
               {billDraft.enabled && (
                 <>
                   <BillRow>
-                    <BillLabel htmlFor="bill-fee">{t('tx.sub.monthly', '월 청구액')}</BillLabel>
+                    <BillLabel htmlFor="bill-fee">{t('tx.sub.monthly', '월 청구액')} ({tBill(billDraft.taxMode === 'inclusive' ? 'tax.mode_inclusive' : 'tax.mode_exclusive')})</BillLabel>
                     <BillInput id="bill-fee" type="number" inputMode="numeric" min={0} value={billDraft.fee}
                       onChange={(e) => setBillDraft(d => ({ ...d, fee: e.target.value }))} placeholder="0" />
                   </BillRow>
+                  <BillRow>
+                    <BillLabel htmlFor="bill-tax-rate">{tBill('tax.rate')}</BillLabel>
+                    <BillDayWrap>
+                      <TaxRateInput id="bill-tax-rate" testId="bill-tax-rate" value={billDraft.vat} onChange={(v) => setBillDraft(d => ({ ...d, vat: v }))} />
+                    </BillDayWrap>
+                  </BillRow>
+                  <BillRow>
+                    <BillLabel>{tBill('tax.mode')}</BillLabel>
+                    <BillModeWrap>
+                      <BillSeg type="button" data-testid="bill-tax-exclusive" $on={billDraft.taxMode === 'exclusive'} onClick={() => setBillDraft(d => ({ ...d, taxMode: 'exclusive' }))}>
+                        {tBill('tax.mode_exclusive')}
+                      </BillSeg>
+                      <BillSeg type="button" data-testid="bill-tax-inclusive" $on={billDraft.taxMode === 'inclusive'} onClick={() => setBillDraft(d => ({ ...d, taxMode: 'inclusive' }))}>
+                        {tBill('tax.mode_inclusive')}
+                      </BillSeg>
+                    </BillModeWrap>
+                  </BillRow>
+                  {Number(billDraft.fee) > 0 && (
+                    <TaxFormula testId="bill-tax-formula" charge={splitTax({ amount: Number(billDraft.fee), rate: billDraft.vat, mode: billDraft.taxMode, currency: currencyDisp })}
+                      rate={billDraft.vat} currency={currencyDisp} label={taxName} />
+                  )}
                   <BillRow>
                     <BillLabel htmlFor="bill-day">{t('tx.sub.day', '청구일')}</BillLabel>
                     <BillDayWrap>
@@ -443,7 +478,8 @@ const TransactionsTab: React.FC<Props> = ({ projectId }) => {
             </BillForm>
           ) : subscription && subscription.monthly_fee > 0 ? (
             <SubGrid>
-              <SubItem><SubK>{t('tx.sub.monthly', '월 청구액')}</SubK><SubV>{fmtMoney(subscription.monthly_fee)}</SubV></SubItem>
+              {/* 월 청구액 = 세금 반영한 실제 청구 금액 + 꼬리표 — 공급가만 보여 주면 별도인지 포함인지 몰랐다(2026-10-24) */}
+              <SubItem><SubK>{t('tx.sub.monthly', '월 청구액')}</SubK><SubV data-testid="tx-sub-monthly">{fmtMoney(subscription.charge?.total ?? subscription.monthly_fee)} <SubTag>({tBill(`tax.tag.${(subscription.charge?.tax ?? 0) > 0 ? 'included' : 'none'}`, { label: taxName })})</SubTag></SubV></SubItem>
               <SubItem><SubK>{t('tx.sub.day', '청구일')}</SubK><SubV>{subscription.billing_day ? t('tx.sub.dayVal', { defaultValue: '매월 {{d}}일', d: subscription.billing_day }) : '—'}</SubV></SubItem>
               <SubItem><SubK>{t('tx.sub.next', '다음 청구 예정')}</SubK><SubV>{subscription.next_due_at ? formatDate(subscription.next_due_at) : '—'}</SubV></SubItem>
               <SubItem><SubK>{t('tx.sub.last', '최근 청구')}</SubK><SubV>{subscription.last_billed_at ? formatDate(subscription.last_billed_at) : t('tx.sub.none', '없음')}</SubV></SubItem>
@@ -777,6 +813,7 @@ const SubGrid = styled.div`display:grid;grid-template-columns:repeat(4,1fr);gap:
 const SubItem = styled.div`display:flex;flex-direction:column;gap:3px;`;
 const SubK = styled.span`font-size:0.6875rem;color:#64748B;font-weight:500;`;
 const SubV = styled.span`font-size:0.875rem;color:#0F172A;font-weight:700;`;
+const SubTag = styled.span`font-size: 0.75rem; font-weight: 500; color: #64748B;`;
 const SubSetup = styled.p`margin:0;font-size:0.75rem;color:#64748B;line-height:1.5;`;
 const SubMode = styled.span`
   font-size:0.6875rem;font-weight:600;padding:2px 8px;border-radius:999px;color:#0284C7;background:#E0F2FE;

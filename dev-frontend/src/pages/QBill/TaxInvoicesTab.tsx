@@ -208,8 +208,10 @@ interface TaxParty { name: string | null; tax_id: string | null; ceo: string | n
 interface TaxBreakdown {
   invoice_number: string; currency: string; supply_date: string | null;
   supplier: TaxParty; recipient: TaxParty;
-  items: { description: string; detail: string | null; quantity: number; unit_price: number; amount: number }[];
+  // supply·vat = 줄마다 넣을 공급가액·세액(서버가 합이 맞게 나눠 준다). 세금 포함 청구서는 unit_price·amount 가 포함가
+  items: { description: string; detail: string | null; quantity: number; unit_price: number; amount: number; supply?: number; vat?: number }[];
   amounts: { supply: number; vat: number; vat_rate: number; total: number };
+  tax_mode?: 'exclusive' | 'inclusive';
 }
 
 function IssueModal({ row, onClose, onIssued }: { row: ReceiptDueRow; onClose: () => void; onIssued: () => void }) {
@@ -370,10 +372,12 @@ function IssueModal({ row, onClose, onIssued }: { row: ReceiptDueRow; onClose: (
                 </BdParty>
               </BdGrid>
               <BdItems>
-                <BdItemsHead><span>{t('taxInvoices.issueModal.item', { defaultValue: '품목' }) as string}</span><i>{t('taxInvoices.issueModal.qty', { defaultValue: '수량' }) as string}</i><i>{t('taxInvoices.issueModal.unit', { defaultValue: '단가' }) as string}</i><i>{t('taxInvoices.issueModal.amt', { defaultValue: '금액' }) as string}</i></BdItemsHead>
+                {/* 홈택스·팝빌 줄 입력 = 공급가액·세액 — 세금 포함 청구서는 항목 금액이 포함가라 그대로 옮기면 틀린다(2026-10-24) */}
+                <BdItemsHead><span>{t('taxInvoices.issueModal.item', { defaultValue: '품목' }) as string}</span><i>{t('taxInvoices.issueModal.qty', { defaultValue: '수량' }) as string}</i><i>{t('taxInvoices.issueModal.unit', { defaultValue: '단가' }) as string}{bd.tax_mode === 'inclusive' ? '*' : ''}</i><i>{t('taxInvoices.issueModal.supplyAmt', { defaultValue: '공급가액' }) as string}</i><i>{t('taxInvoices.issueModal.vatShort', { defaultValue: '세액' }) as string}</i></BdItemsHead>
                 {bd.items.map((it, idx) => (
-                  <BdItemRow key={idx}><span>{it.description}</span><i>{it.quantity}</i><i>{formatMoney(it.unit_price, row.currency)}</i><i>{formatMoney(it.amount, row.currency)}</i></BdItemRow>
+                  <BdItemRow key={idx}><span>{it.description}</span><i>{it.quantity}</i><i>{formatMoney(it.unit_price, row.currency)}</i><i>{formatMoney(it.supply ?? it.amount, row.currency)}</i><i>{formatMoney(it.vat ?? 0, row.currency)}</i></BdItemRow>
                 ))}
+                {bd.tax_mode === 'inclusive' && <BdNote>{t('taxInvoices.issueModal.inclusiveNote', { defaultValue: '* 단가는 세금 포함가예요 — 줄마다 공급가액·세액을 옮겨 적으세요' }) as string}</BdNote>}
               </BdItems>
               <BdAmt><span>{t('taxInvoices.issueModal.supplyAmt', { defaultValue: '공급가액' }) as string}</span><b>{formatMoney(bd.amounts.supply, row.currency)}</b></BdAmt>
               <BdAmt><span>{t('taxInvoices.issueModal.vat', { defaultValue: '세액 (VAT)' }) as string}</span><b>{formatMoney(bd.amounts.vat, row.currency)}</b></BdAmt>
@@ -387,6 +391,7 @@ function IssueModal({ row, onClose, onIssued }: { row: ReceiptDueRow; onClose: (
             {row.invoice_number}
             {row.installment_no ? ` · ${t('taxInvoices.misc.roundSuffix', { n: row.installment_no, defaultValue: '{{n}}차' })}${row.installment_label ? ` · ${row.installment_label}` : ''}` : ''}
             {' · '}{formatMoney(row.amount, row.currency)}
+            {row.supply != null && row.installment_no ? ` (${t('taxInvoices.issueModal.supplyAmt', { defaultValue: '공급가액' })} ${formatMoney(row.supply, row.currency)} · ${t('taxInvoices.issueModal.vatShort', { defaultValue: '세액' })} ${formatMoney(row.vat ?? 0, row.currency)})` : ''}
             {row.recipient_name ? ` · ${row.recipient_name}` : ''}
           </Hint>
           {err && <ErrLine>! {err}</ErrLine>}
@@ -678,8 +683,9 @@ const BdParty = styled.div`display: flex; flex-direction: column; gap: 3px; back
 const BdPartyLabel = styled.div`font-size: 0.6875rem; font-weight: 700; color: #475569; margin-bottom: 2px;`;
 const BdRow = styled.div`display: flex; gap: 6px; font-size: 0.6875rem; line-height: 1.5; span { color: #94A3B8; flex-shrink: 0; min-width: 56px; } b { color: #0F172A; font-weight: 600; word-break: break-all; }`;
 const BdItems = styled.div`display: flex; flex-direction: column; background: #fff; border: 1px solid #E2E8F0; border-radius: 8px; overflow: hidden;`;
-const BdItemsHead = styled.div`display: grid; grid-template-columns: 1fr 44px 88px 96px; gap: 6px; padding: 6px 10px; background: #F1F5F9; font-size: 0.625rem; font-weight: 700; color: #64748B; i { text-align: right; font-style: normal; }`;
-const BdItemRow = styled.div`display: grid; grid-template-columns: 1fr 44px 88px 96px; gap: 6px; padding: 6px 10px; border-top: 1px solid #F1F5F9; font-size: 0.6875rem; color: #0F172A; span { word-break: break-all; } i { text-align: right; font-style: normal; }`;
+const BdItemsHead = styled.div`display: grid; grid-template-columns: minmax(0, 1fr) 36px 80px 84px 72px; gap: 6px; padding: 6px 10px; background: #F1F5F9; font-size: 0.625rem; font-weight: 700; color: #64748B; i { text-align: right; font-style: normal; }`;
+const BdItemRow = styled.div`display: grid; grid-template-columns: minmax(0, 1fr) 36px 80px 84px 72px; gap: 6px; padding: 6px 10px; border-top: 1px solid #F1F5F9; font-size: 0.6875rem; color: #0F172A; span { word-break: break-all; } i { text-align: right; font-style: normal; }`;
+const BdNote = styled.div`padding: 6px 10px; border-top: 1px solid #F1F5F9; font-size: 0.625rem; color: #64748B;`;
 const BdAmt = styled.div<{ $total?: boolean }>`display: flex; justify-content: flex-end; gap: 12px; font-size: ${p => (p.$total ? '0.8125rem' : '0.6875rem')}; span { color: #64748B; } b { color: ${p => (p.$total ? '#0F766E' : '#0F172A')}; font-weight: ${p => (p.$total ? 700 : 600)}; min-width: 96px; text-align: right; }`;
 const ModalFooter = styled.div`
   display: flex; justify-content: flex-end; gap: 8px; padding: 12px 20px;

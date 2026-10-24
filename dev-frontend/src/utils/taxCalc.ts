@@ -59,3 +59,8 @@ export function taxTagKey(tax: number | string | null | undefined, mode: TaxMode
   if (!(Number(tax) > 0)) return 'none';
   return mode === 'inclusive' ? 'included' : 'excluded';
 }
+
+/** 워크스페이스 «세금 받기» — 값이 없으면 켬(옛 응답). 0/false 만 끔 */
+export function isTaxEnabled(v: boolean | number | null | undefined): boolean {
+  return !(v === false || v === 0);
+}

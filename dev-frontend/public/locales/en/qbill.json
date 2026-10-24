@@ -738,7 +738,9 @@
       "total": "Total",
       "notifyLabel": "Email the customer about this receipt",
       "notifyTo": "Sends to: {{email}}",
-      "notifyNone": "No registered recipient address, so nothing can be sent. Add a tax-invoice email to the client."
+      "notifyNone": "No registered recipient address, so nothing can be sent. Add a tax-invoice email to the client.",
+      "vatShort": "Tax",
+      "inclusiveNote": "* Unit prices include tax — copy each line’s supply value and tax"
     },
     "empty": {
       "pending": "No receipts pending",
@@ -1088,5 +1090,43 @@
     "clientNotInProject": "This client is not linked to the selected project. Choose another project or leave it empty.",
     "projectNotInWorkspace": "This project is not in this workspace. Please choose again.",
     "clientNotInWorkspace": "This client is not in this workspace. Please choose again."
+  },
+  "tax": {
+    "defaultLabel": "VAT",
+    "rate": "Tax rate",
+    "rateSuffix": "%",
+    "rateInvalid": "A number from 0 to 100, up to 2 decimals",
+    "mode": "Amounts are",
+    "mode_exclusive": "Tax excluded",
+    "mode_inclusive": "Tax included",
+    "modeHint_exclusive": "Tax is added on top of the amount you enter",
+    "modeHint_inclusive": "The amount you enter already includes tax",
+    "tag": {
+      "included": "incl. {{label}}",
+      "excluded": "excl. {{label}}",
+      "none": "No {{label}}"
+    },
+    "subtotal": "Subtotal (excl. {{label}})",
+    "taxLine": "{{label}} {{rate}}",
+    "total": "Total (incl. {{label}})",
+    "totalNoTax": "Total",
+    "noTax": "No {{label}}",
+    "formula": "Subtotal {{subtotal}} + {{label}} {{rate}} {{tax}} = Billed {{total}}",
+    "formulaNoTax": "Billed {{total}} (no {{label}})",
+    "offNote": "Tax collection is turned off — you can turn it on in Q bill settings",
+    "receiptWarn": "Tax is turned off but a tax invoice is selected — check zero-rate or exemption rules before issuing a tax invoice with no tax",
+    "settings": {
+      "title": "Tax",
+      "desc": "Rates and names differ by country. Applied to new invoices and recurring billing",
+      "enabled": "Collect tax",
+      "enabledHint": "When off, new invoices and recurring billing default to 0%",
+      "rate": "Default rate",
+      "label": "Tax name",
+      "labelPh": "VAT · GST · Sales tax",
+      "labelHint": "Shown next to amounts on invoices, PDFs and payment pages",
+      "defaultMode": "Default amount basis",
+      "offWarn": "{{subs}} existing subscriptions and {{monthly}} project monthly fees keep billing at their current rate. New ones start at 0%.",
+      "snapshotNote": "Changing this doesn't affect rates on existing subscriptions, monthly fees or invoices"
+    }
   }
 }

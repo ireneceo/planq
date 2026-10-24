@@ -12,12 +12,18 @@ import ActionButton from '../Common/ActionButton';
 import OverflowMenu from '../Common/OverflowMenu';
 import ConfirmDialog from '../Common/ConfirmDialog';
 import { onSocket } from '../../services/socket';
+import { getBusinessInfo } from '../../services/invoices';
+import { TaxRateInput, TaxModeSelect, TaxFormula, useTaxLabel } from '../../pages/QBill/TaxFields';
+import { splitTax, percentToFraction, isTaxEnabled, type TaxMode } from '../../utils/taxCalc';
 
 type Interval = 'weekly' | 'biweekly' | 'monthly' | 'quarterly' | 'semiannual' | 'yearly';
 type EndMode = 'never' | 'after_count' | 'until_date';
 interface Sub {
   id: number; plan_name: string; amount: number; currency: string;
-  interval: Interval; vat_rate: number;
+  interval: Interval; vat_rate: number;   // ★ 퍼센트(10) — 이 표만 그렇다(services/taxCalc)
+  tax_mode?: TaxMode;
+  /** 한 회차 청구 금액 — 서버가 엔진과 같은 함수로 나눠 준 값(공급가·세액·합계) */
+  charge?: { subtotal: number; tax: number; total: number };
   auto_mode: 'auto' | 'draft_review'; due_days: number; status: 'active' | 'paused' | 'canceled' | 'completed';
   start_date: string; next_billing_at: string; last_invoiced_at: string | null; notes: string | null;
   end_mode?: EndMode; max_occurrences?: number | null; occurrences_count?: number; end_date?: string | null;
@@ -31,6 +37,7 @@ const todayStr = () => new Date().toISOString().slice(0, 10);
 
 const ClientSubscriptions: React.FC<Props> = ({ businessId, clientId, canWrite }) => {
   const { t } = useTranslation('clients');
+  const { t: tBill } = useTranslation('qbill');
   const [subs, setSubs] = useState<Sub[]>([]);
   const [loading, setLoading] = useState(false);
   const [formOpen, setFormOpen] = useState(false);
@@ -47,6 +54,11 @@ const ClientSubscriptions: React.FC<Props> = ({ businessId, clientId, canWrite }
   const [interval, setIntervalV] = useState<Interval>('monthly');
   const [autoMode, setAutoMode] = useState<Sub['auto_mode']>('draft_review');
   const [startDate, setStartDate] = useState(todayStr());
+  // 세금 — 세율(분수로 들고 있다가 보낼 때 퍼센트로)·금액 기준. 기본은 워크스페이스 설정(끔이면 0%)
+  const [vatRate, setVatRate] = useState(0.1);
+  const [taxMode, setTaxMode] = useState<TaxMode>('exclusive');
+  const [wsTax, setWsTax] = useState<{ rate: number; mode: TaxMode; label: string | null; enabled: boolean; currency: string }>({ rate: 0.1, mode: 'exclusive', label: null, enabled: true, currency: 'KRW' });
+  const taxLabel = useTaxLabel(wsTax.label);
   // 회차 자동 종료
   const [endMode, setEndMode] = useState<EndMode>('never');
   const [maxOcc, setMaxOcc] = useState('');
@@ -63,8 +75,17 @@ const ClientSubscriptions: React.FC<Props> = ({ businessId, clientId, canWrite }
   }, [businessId, clientId]);
 
   useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    let alive = true;
+    getBusinessInfo(businessId).then((info) => {
+      if (!alive || !info) return;
+      const enabled = isTaxEnabled(info.tax_enabled);
+      setWsTax({ rate: enabled ? Number(info.default_vat_rate ?? 0.1) : 0, mode: info.default_tax_mode === 'inclusive' ? 'inclusive' : 'exclusive', label: info.tax_label ?? null, enabled, currency: info.default_currency || 'KRW' });
+    }).catch(() => { /* 기본값 그대로 */ });
+    return () => { alive = false; };
+  }, [businessId]);
 
-  const resetForm = () => { setPlan(''); setAmount(''); setIntervalV('monthly'); setAutoMode('draft_review'); setStartDate(todayStr()); setEndMode('never'); setMaxOcc(''); setEndDate(''); setFormErr(''); };
+  const resetForm = () => { setPlan(''); setAmount(''); setIntervalV('monthly'); setAutoMode('draft_review'); setStartDate(todayStr()); setEndMode('never'); setMaxOcc(''); setEndDate(''); setFormErr(''); setVatRate(wsTax.rate); setTaxMode(wsTax.mode); };
 
   const submit = async () => {
     if (submitting) return;
@@ -78,6 +99,7 @@ const ClientSubscriptions: React.FC<Props> = ({ businessId, clientId, canWrite }
       const r = await apiFetch(`/api/client-subscriptions/${businessId}`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ client_id: clientId, plan_name: plan.trim(), amount: amt, interval, auto_mode: autoMode, start_date: startDate,
+          vat_rate: Math.round(vatRate * 10000) / 100, tax_mode: taxMode,   // 구독 표는 퍼센트
           end_mode: endMode, max_occurrences: endMode === 'after_count' ? Number(maxOcc) : null, end_date: endMode === 'until_date' ? endDate : null }),
       });
       const j = await r.json();
@@ -139,7 +161,7 @@ const ClientSubscriptions: React.FC<Props> = ({ businessId, clientId, canWrite }
           </Field>
           <Row2>
             <Field>
-              <Lbl>{t('subscription.amount', '금액(공급가)')}</Lbl>
+              <Lbl>{t('subscription.amount', '금액')} ({tBill(taxMode === 'inclusive' ? 'tax.mode_inclusive' : 'tax.mode_exclusive')})</Lbl>
               <Inp type="number" inputMode="numeric" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="500000" />
             </Field>
             <Field>
@@ -179,7 +201,21 @@ const ClientSubscriptions: React.FC<Props> = ({ businessId, clientId, canWrite }
               </>)}
             </Field>
           </Row2>
-          <Helper>{t('subscription.vatNote', '부가세 10%가 자동으로 더해져 청구돼요.')}</Helper>
+          <Row2>
+            <Field>
+              <Lbl htmlFor="client-sub-tax-rate">{tBill('tax.rate')}</Lbl>
+              <TaxRateInput id="client-sub-tax-rate" testId="client-sub-tax-rate" value={vatRate} onChange={setVatRate} />
+            </Field>
+            <Field>
+              <Lbl>{tBill('tax.mode')}</Lbl>
+              <TaxModeSelect testId="client-sub-tax-mode" value={taxMode} onChange={setTaxMode} />
+            </Field>
+          </Row2>
+          {/* 한 회차 청구 금액 미리 보기 — 엔진과 같은 함수(utils/taxCalc). 세율이 글자에 박혀 있던 «부가세 10%» 안내를 대신한다 */}
+          {Number(amount) > 0
+            ? <TaxFormula testId="client-sub-formula" charge={splitTax({ amount: Number(amount), rate: vatRate, mode: taxMode, currency: wsTax.currency })} rate={vatRate} currency={wsTax.currency} label={taxLabel} />
+            : <Helper>{tBill(taxMode === 'inclusive' ? 'tax.modeHint_inclusive' : 'tax.modeHint_exclusive')}</Helper>}
+          {!wsTax.enabled && <Helper>{tBill('tax.offNote')}</Helper>}
           {formErr && <Err>{formErr}</Err>}
           <FormActions>
             <ActionButton tone="secondary" size="sm" onClick={() => { setFormOpen(false); resetForm(); }} disabled={submitting}>
@@ -214,9 +250,14 @@ const ClientSubscriptions: React.FC<Props> = ({ businessId, clientId, canWrite }
                   <StatusBadge $s={s.status}>{t(`subscription.status.${s.status}`, s.status) as string}</StatusBadge>
                 </CardTop>
                 <CardAmount>
-                  <strong>{fmtAmount(s.amount, s.currency)}</strong> · {intervalLabel(s.interval)}
+                  {/* 청구 금액(세금 반영) + 꼬리표 — 공급가만 보여 주면 실제로 얼마가 청구되는지 몰랐다(2026-10-24) */}
+                  <strong>{fmtAmount(s.charge?.total ?? s.amount, s.currency)}</strong>
+                  <Sub2> ({tBill(`tax.tag.${(s.charge?.tax ?? 0) > 0 ? 'included' : 'none'}`, { label: taxLabel })})</Sub2> · {intervalLabel(s.interval)}
                   <Sub2> · {t(s.auto_mode === 'auto' ? 'subscription.modeAuto' : 'subscription.modeDraft') as string}</Sub2>
                 </CardAmount>
+                {s.charge && s.charge.tax > 0 && (
+                  <TaxFormula testId={`client-sub-charge-${s.id}`} charge={s.charge} rate={percentToFraction(s.vat_rate)} currency={s.currency} label={taxLabel} />
+                )}
                 {metas.length > 0 && <CardMeta>{metas.join(' · ')}</CardMeta>}
                 {canWrite && s.status !== 'completed' && (
                   <CardActions>

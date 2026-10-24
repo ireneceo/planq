@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../../contexts/AuthContext';
+import { useAuth, apiFetch } from '../../contexts/AuthContext';
 import {
   getBusinessInfo, updateBusinessBilling,
   type ApiBusinessInfo, type BillingPatch,
@@ -11,6 +11,9 @@ import {
 import AutoSaveField from '../../components/Common/AutoSaveField';
 import { StripeSetupGuide, CardLinkSetupGuide } from './CardPaySetupGuide';
 import PlanQSelect, { type PlanQSelectOption } from '../../components/Common/PlanQSelect';
+import { TaxRateInput, TaxModeSelect } from './TaxFields';
+import { Switch, Knob } from './InvoiceLinesEditor';
+import { isTaxEnabled, type TaxMode } from '../../utils/taxCalc';
 
 // 통화: 한국 계좌 1개로 외화 송금받으면 은행에서 자동 KRW 환전. 견적/청구서는 해당 통화로 표기.
 // 해외 고객 송금에는 SWIFT 코드 + 영문 계좌 정보 필요 (그 입력 필드는 입금 계좌 섹션에서 추가 예정).
@@ -22,10 +25,6 @@ const CURRENCY_OPTIONS: PlanQSelectOption[] = [
   { value: 'CNY', label: 'CNY (¥)' },
 ];
 
-const VAT_OPTIONS: PlanQSelectOption[] = [
-  { value: '0', label: '0%' },
-  { value: '0.1', label: '10%' },
-];
 
 interface SettingsTabProps {
   /** /business/settings/billing 안에서 렌더될 때 true — "워크스페이스로 이동" 버튼 숨김 */
@@ -55,6 +54,13 @@ export default function SettingsTab({ inWorkspaceSettings = false }: SettingsTab
   const [acctHolderEn, setAcctHolderEn] = useState('');
   const [dueDays, setDueDays] = useState<number>(14);
   const [vatRate, setVatRate] = useState<number>(0.1);
+  // 세금 설정 (2026-10-24, docs/TAX_SETTINGS_DESIGN.md) — 저장은 AutoSaveField 가 한 번, 최신값은 ref 로 읽는다
+  const [taxOn, setTaxOn] = useState(true);
+  const [taxLabel, setTaxLabel] = useState('');
+  const [taxMode, setTaxMode] = useState<TaxMode>('exclusive');
+  const taxRef = useRef({ on: true, rate: 0.1, label: '', mode: 'exclusive' as TaxMode });
+  // 끌 때 안내 — 이미 있는 구독·월정액은 지금 세율 그대로(스냅샷)
+  const [taxUsage, setTaxUsage] = useState<{ subscriptions: number; monthly: number } | null>(null);
   const [currency, setCurrency] = useState('KRW');
   // 정기청구 + 연체
   const [autoMode, setAutoMode] = useState<'auto' | 'draft_review'>('draft_review');
@@ -89,6 +95,10 @@ export default function SettingsTab({ inWorkspaceSettings = false }: SettingsTab
         setAcctHolderEn(d.bank_account_name_en || '');
         setDueDays(d.default_due_days ?? 14);
         setVatRate(Number(d.default_vat_rate ?? 0.1));
+        setTaxOn(isTaxEnabled(d.tax_enabled));
+        setTaxLabel(d.tax_label || '');
+        setTaxMode(d.default_tax_mode === 'inclusive' ? 'inclusive' : 'exclusive');
+        taxRef.current = { on: isTaxEnabled(d.tax_enabled), rate: Number(d.default_vat_rate ?? 0.1), label: d.tax_label || '', mode: d.default_tax_mode === 'inclusive' ? 'inclusive' : 'exclusive' };
         setCurrency(d.default_currency || 'KRW');
         setAutoMode((d.auto_invoice_default_mode as 'auto' | 'draft_review') || 'draft_review');
         setBillingDay(d.auto_invoice_default_billing_day ?? 1);
@@ -103,6 +113,15 @@ export default function SettingsTab({ inWorkspaceSettings = false }: SettingsTab
       .catch(err => { if (!cancelled) setError(err.message || 'load failed'); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
+  }, [businessId]);
+
+  useEffect(() => {
+    if (!businessId) return;
+    let alive = true;
+    apiFetch(`/api/client-subscriptions/${businessId}/tax-usage`).then((r) => r.json()).then((j) => {
+      if (alive && j?.success) setTaxUsage(j.data);
+    }).catch(() => { /* 안내 숫자만 빠진다 */ });
+    return () => { alive = false; };
   }, [businessId]);
 
   const goWorkspace = () => navigate('/business/settings');
@@ -356,6 +375,63 @@ export default function SettingsTab({ inWorkspaceSettings = false }: SettingsTab
         </EditGrid>
       </Section>
 
+      {/* 세금 — 나라마다 세율·이름이 다르다. 새로 만드는 청구서·구독·월정액의 기본값(이미 만든 것은 그대로) */}
+      <Section data-testid="bill-settings-tax">
+        <SectionHead>
+          <div>
+            <SectionTitle>{t('tax.settings.title')}</SectionTitle>
+            <SectionDesc>{t('tax.settings.desc')}</SectionDesc>
+          </div>
+        </SectionHead>
+        <EditGrid>
+          <EditField $span={2}>
+            <EditLabel>{t('tax.settings.enabled')}</EditLabel>
+            <TaxToggleRow>
+              <AutoSaveField type="toggle" onSave={async () => save({ tax_enabled: taxRef.current.on })}>
+                <Switch type="button" role="switch" aria-checked={taxOn} aria-label={t('tax.settings.enabled') as string} $on={taxOn}
+                  data-testid="bill-settings-tax-enabled"
+                  onClick={() => { taxRef.current.on = !taxOn; setTaxOn(!taxOn); }}>
+                  <Knob $on={taxOn} />
+                </Switch>
+              </AutoSaveField>
+              <FieldHint>{t('tax.settings.enabledHint')}</FieldHint>
+            </TaxToggleRow>
+            {!taxOn && taxUsage && (taxUsage.subscriptions > 0 || taxUsage.monthly > 0) && (
+              <TaxWarn data-testid="bill-settings-tax-off-warn">{t('tax.settings.offWarn', { subs: taxUsage.subscriptions, monthly: taxUsage.monthly })}</TaxWarn>
+            )}
+          </EditField>
+          {taxOn && (
+            <>
+              <EditField>
+                <EditLabel htmlFor="bill-settings-tax-rate">{t('tax.settings.rate')}</EditLabel>
+                <AutoSaveField type="input" onSave={async () => save({ default_vat_rate: taxRef.current.rate })}>
+                  <TaxRateInput id="bill-settings-tax-rate" testId="bill-settings-tax-rate" value={vatRate}
+                    onChange={(v) => { taxRef.current.rate = v; setVatRate(v); }} />
+                </AutoSaveField>
+              </EditField>
+              <EditField>
+                <EditLabel>{t('tax.settings.defaultMode')}</EditLabel>
+                <AutoSaveField type="select" debounceMs={300} onSave={async () => save({ default_tax_mode: taxRef.current.mode })}>
+                  <TaxModeSelect testId="bill-settings-tax-mode" value={taxMode} onChange={(m) => { taxRef.current.mode = m; setTaxMode(m); }} />
+                </AutoSaveField>
+              </EditField>
+              <EditField>
+                <EditLabel htmlFor="bill-settings-tax-label">{t('tax.settings.label')}</EditLabel>
+                <AutoSaveField type="input" onSave={async () => save({ tax_label: taxRef.current.label.trim() || null })}>
+                  <EditInput id="bill-settings-tax-label" data-testid="bill-settings-tax-label" maxLength={20} value={taxLabel}
+                    placeholder={t('tax.settings.labelPh') as string}
+                    onChange={(e) => { taxRef.current.label = e.target.value; setTaxLabel(e.target.value); }} />
+                </AutoSaveField>
+                <FieldHint>{t('tax.settings.labelHint')}</FieldHint>
+              </EditField>
+              <EditField>
+                <FieldHint style={{ paddingTop: 22 }}>{t('tax.settings.snapshotNote')}</FieldHint>
+              </EditField>
+            </>
+          )}
+        </EditGrid>
+      </Section>
+
       {/* 청구서 기본값 (인라인 편집) */}
       <Section>
         <SectionHead>
@@ -370,17 +446,6 @@ export default function SettingsTab({ inWorkspaceSettings = false }: SettingsTab
             <AutoSaveField type="input" onSave={async () => save({ default_due_days: dueDays })}>
               <EditInput type="number" min={0} max={365} value={dueDays}
                 onChange={e => setDueDays(Number(e.target.value) || 0)} />
-            </AutoSaveField>
-          </EditField>
-          <EditField>
-            <EditLabel>{t('settings.defaults.vatRate')}</EditLabel>
-            <AutoSaveField type="select" debounceMs={300} onSave={async () => save({ default_vat_rate: vatRate })}>
-              <PlanQSelect
-                size="sm"
-                options={VAT_OPTIONS}
-                value={VAT_OPTIONS.find(o => o.value === String(vatRate)) || null}
-                onChange={(opt) => opt && setVatRate(parseFloat((opt as PlanQSelectOption).value as string))}
-              />
             </AutoSaveField>
           </EditField>
           <EditField>
@@ -493,6 +558,8 @@ const Field = styled.div<{ $span?: number }>`
 const FieldLabel = styled.div`font-size: 0.6875rem; font-weight: 600; color: #94A3B8; text-transform: uppercase; letter-spacing: 0.4px;`;
 const FieldVal = styled.div`font-size: 0.8125rem; color: #0F172A; font-weight: 500;`;
 const FieldHint = styled.div`font-size: 0.6875rem; color: #94A3B8;`;
+const TaxToggleRow = styled.div`display: flex; align-items: center; gap: 10px; flex-wrap: wrap;`;
+const TaxWarn = styled.div`font-size: 0.75rem; color: #B45309; background: #FFFBEB; border: 1px solid #FDE68A; border-radius: 8px; padding: 8px 10px; line-height: 1.5;`;
 const Hole = styled.span`color: #DC2626; font-size: 0.75rem; font-weight: 500;`;
 // 법인 정보 누락 경고 (통합 설정 안에서만)
 const IssuerWarn = styled.div`

@@ -11,6 +11,7 @@ export interface BillingTermsInput {
   title?: string | null;
   currency: Currency;
   vat_rate: number;
+  tax_mode?: 'exclusive' | 'inclusive';   // 금액 기준 (2026-10-24)
   receipt_type: 'none' | 'tax_invoice';
   items: BillingTermsItemInput[];
   installment_mode: 'single' | 'split';
@@ -24,6 +25,7 @@ export interface BillingTerms {
   title: string | null;
   currency: Currency;
   vat_rate: number;
+  tax_mode?: 'exclusive' | 'inclusive';   // 금액 기준 (2026-10-24)
   receipt_type: 'none' | 'tax_invoice';
   installment_mode: 'single' | 'split';
   notes: string | null;
@@ -56,6 +58,7 @@ export interface BillingTermsState {
 export interface PublicBillingTerms {
   currency: Currency;
   vat_rate: number;
+  tax_mode?: 'exclusive' | 'inclusive';   // 금액 기준 (2026-10-24)
   installment_mode: 'single' | 'split';
   items: { description: string; detail: string | null; quantity: number; unit_price: number; amount: number }[];
   subtotal: number;

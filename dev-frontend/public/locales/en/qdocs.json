@@ -442,9 +442,6 @@
     "errSupersededHint": "Please open the link in your most recent email.",
     "billing": {
       "title": "Billing terms — you'll be invoiced these amounts once everyone signs",
-      "subtotal": "Net",
-      "vat": "VAT {{p}}%",
-      "total": "Total",
       "split": "Billed in parts"
     }
   },
@@ -1417,8 +1414,6 @@
     "add": "+ Add billing terms",
     "signedNoTerms": "Everyone has signed. No billing terms were added, so no invoice was created automatically.",
     "newInvoice": "Create invoice",
-    "total": "Total (incl. VAT)",
-    "vatLine": "Net {{sub}} + VAT {{vat}}",
     "invoicedText": "Signing is complete — draft invoice {{no}} was created. Review and send it.",
     "openInvoice": "Open invoice",
     "errNoClient": "No client to bill, so the draft invoice wasn't created.",

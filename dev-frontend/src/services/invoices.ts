@@ -102,6 +102,10 @@ export interface ApiInvoice {
   total_amount: string | number;
   subtotal: string | number | null;
   vat_rate: string | number;
+  /** 금액 기준 — inclusive 면 항목 단가·금액이 세금 포함가 (2026-10-24) */
+  tax_mode?: 'exclusive' | 'inclusive';
+  /** 상세 응답만 — 워크스페이스 세금 이름 */
+  tax_label?: string | null;
   tax_amount: string | number;
   grand_total: string | number;
   paid_amount: string | number;
@@ -180,6 +184,7 @@ export interface CreateInvoicePayload {
   project_id?: number | null;
   currency?: Currency;
   vat_rate?: number;
+  tax_mode?: 'exclusive' | 'inclusive';
   due_date?: string | null;
   recipient_email?: string | null;
   recipient_business_name?: string | null;
@@ -415,6 +420,8 @@ export interface ReceiptDueRow {
   installment_no: number | null;
   installment_label: string | null;
   amount: number;
+  /** 증빙에 적을 공급가·세액 — 분할이면 회차 몫(마지막 회차가 차이 흡수, 서버 receiptsDue) */
+  supply?: number; vat?: number;
   paid_at: string | null;
   status: 'pending' | 'issued';
   issued_no: string | null;
@@ -662,6 +669,10 @@ export interface ApiBusinessInfo {
   bank_account_name_en: string | null;
   default_due_days: number | null;
   default_vat_rate: string | number | null;
+  // 세금 설정 (2026-10-24) — 끄면 새로 만드는 것의 기본 세율 0 · 이름은 금액 옆 표기 · 기본 기준
+  tax_enabled?: boolean | number | null;
+  tax_label?: string | null;
+  default_tax_mode?: 'exclusive' | 'inclusive' | null;
   default_currency: string | null;
   // 정기 청구 기본값 + 연체 정책
   auto_invoice_default_mode?: 'auto' | 'draft_review' | null;
@@ -694,6 +705,9 @@ export interface BillingPatch {
   bank_account_name_en?: string | null;
   default_due_days?: number;
   default_vat_rate?: number;
+  tax_enabled?: boolean;
+  tax_label?: string | null;
+  default_tax_mode?: 'exclusive' | 'inclusive';
   default_currency?: string;
   auto_invoice_default_mode?: 'auto' | 'draft_review';
   auto_invoice_default_billing_day?: number;

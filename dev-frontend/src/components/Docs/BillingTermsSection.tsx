@@ -15,6 +15,7 @@ import BillingTermsModal from './BillingTermsModal';
 import { onSocket } from '../../services/socket';
 import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
 import { formatMoney, type Currency } from '../../services/invoices';
+import { formatRate } from '../../utils/taxCalc';
 import {
   getBillingTerms, deleteBillingTerms, createInvoiceFromTerms, type BillingTermsState,
 } from '../../services/billingTerms';
@@ -30,6 +31,8 @@ interface Props {
 
 export default function BillingTermsSection({ postId, businessId, postTitle, projectId, reloadTrigger }: Props) {
   const { t } = useTranslation('qdocs');
+  const { t: tBill } = useTranslation('qbill');
+  const taxName = tBill('tax.defaultLabel') as string;
   const [state, setState] = useState<BillingTermsState | null>(null);
   const [editOpen, setEditOpen] = useState(false);
   const [delOpen, setDelOpen] = useState(false);
@@ -109,13 +112,17 @@ export default function BillingTermsSection({ postId, businessId, postTitle, pro
         <>
           <Summary>
             <SumLine>
-              <SumKey>{t('billingTerms.total', '합계(부가세 포함)')}</SumKey>
+              {/* 세액 0 이면 «부가세 포함» 이라 쓰지 않는다 — 세금 기준·세율은 아래 공식 줄(2026-10-24) */}
+              <SumKey>{Number(terms.tax_amount) > 0 ? tBill('tax.total', { label: taxName }) : tBill('tax.totalNoTax')}</SumKey>
               <SumVal data-testid="billing-terms-total">{formatMoney(terms.grand_total, cur)}</SumVal>
             </SumLine>
             <SumSub>
               {terms.items.map(it => it.description).join(' · ')}
               {' — '}
-              {t('billingTerms.vatLine', '공급가 {{sub}} + 부가세 {{vat}}', { sub: formatMoney(terms.subtotal, cur), vat: formatMoney(terms.tax_amount, cur) })}
+              {Number(terms.tax_amount) > 0
+                ? tBill('tax.formula', { subtotal: formatMoney(terms.subtotal, cur), label: taxName, rate: formatRate(terms.vat_rate), tax: formatMoney(terms.tax_amount, cur), total: formatMoney(terms.grand_total, cur) })
+                : tBill('tax.formulaNoTax', { total: formatMoney(terms.grand_total, cur), label: taxName })}
+              {terms.tax_mode === 'inclusive' && Number(terms.tax_amount) > 0 ? ` · ${tBill('tax.mode_inclusive')}` : ''}
             </SumSub>
             {terms.installment_mode === 'split' && terms.installments.length > 0 && (
               <SumSub>

@@ -9,7 +9,9 @@ import StandardModal from '../Common/StandardModal';
 import ActionButton from '../Common/ActionButton';
 import PlanQSelect, { type PlanQSelectOption } from '../Common/PlanQSelect';
 import { accessLabel } from '../../utils/clientLabel';
-import { listClientOptionsForInvoice, type ApiClientLite, type Currency } from '../../services/invoices';
+import { listClientOptionsForInvoice, getBusinessInfo, type ApiClientLite, type Currency } from '../../services/invoices';
+import { TaxRateInput, TaxModeSelect, useTaxLabel } from '../../pages/QBill/TaxFields';
+import { isTaxEnabled, type TaxMode } from '../../utils/taxCalc';
 import { saveBillingTerms, type BillingTerms, type BillingTermsState } from '../../services/billingTerms';
 import {
   InvoiceItemsTable, InvoiceTotals, InvoiceSplitArea, invoiceTotalsOf, Input, AddRow,
@@ -24,10 +26,6 @@ const CURRENCY_OPTIONS: PlanQSelectOption[] = [
   { value: 'EUR', label: 'EUR (€)' },
   { value: 'JPY', label: 'JPY (¥)' },
   { value: 'CNY', label: 'CNY (¥)' },
-];
-const VAT_OPTIONS: PlanQSelectOption[] = [
-  { value: '0', label: '0%' },
-  { value: '0.1', label: '10%' },
 ];
 
 interface Props {
@@ -54,6 +52,9 @@ export default function BillingTermsModal({ open, onClose, postId, businessId, p
   const [title, setTitle] = useState('');
   const [currency, setCurrency] = useState<Currency>('KRW');
   const [vatRate, setVatRate] = useState(0.1);
+  const [taxMode, setTaxMode] = useState<TaxMode>('exclusive');
+  const [taxLabelRaw, setTaxLabelRaw] = useState<string | null>(null);
+  const taxLabel = useTaxLabel(taxLabelRaw);
   const [taxOn, setTaxOn] = useState(false);
   const [items, setItems] = useState<InvoiceLineItem[]>([]);
   const [splitOn, setSplitOn] = useState(false);
@@ -70,6 +71,7 @@ export default function BillingTermsModal({ open, onClose, postId, businessId, p
     setTitle(initial?.title ?? '');
     setCurrency((initial?.currency as Currency) || 'KRW');
     setVatRate(initial ? Number(initial.vat_rate) : 0.1);
+    setTaxMode(initial?.tax_mode === 'inclusive' ? 'inclusive' : 'exclusive');
     setTaxOn(initial?.receipt_type === 'tax_invoice');
     setItems(initial?.raw_items?.length
       ? initial.raw_items.map(it => ({ id: nid(), description: it.description, detail: it.detail || '', quantity: Number(it.quantity) || 1, unit_price: Number(it.unit_price) || 0 }))
@@ -85,6 +87,21 @@ export default function BillingTermsModal({ open, onClose, postId, businessId, p
       ]);
     setNotes(initial?.notes ?? '');
   }, [open, initial, tBill]);
+
+  // 워크스페이스 세금 설정 — 처음 적을 때 기본 세율·기준, 언제나 세금 이름(청구서 발행 창과 같은 규칙)
+  useEffect(() => {
+    if (!open) return;
+    let alive = true;
+    getBusinessInfo(businessId).then((info) => {
+      if (!alive || !info) return;
+      setTaxLabelRaw(info.tax_label ?? null);
+      if (!initial) {
+        setVatRate(!isTaxEnabled(info.tax_enabled) ? 0 : Number(info.default_vat_rate ?? 0.1));
+        setTaxMode(info.default_tax_mode === 'inclusive' ? 'inclusive' : 'exclusive');
+      }
+    }).catch(() => { /* 기본값 그대로 */ });
+    return () => { alive = false; };
+  }, [open, businessId, initial]);
 
   // 고객 목록 — 청구서 발행 창과 같은 문(GET /api/invoices/:biz/client-options)
   useEffect(() => {
@@ -110,7 +127,7 @@ export default function BillingTermsModal({ open, onClose, postId, businessId, p
       return { value: c.id, label: `${base}${c.biz_name && c.biz_name !== base ? ` (${c.biz_name})` : ''}${rel ? ` · ${rel}` : ''}` };
     }), [clients, tSale]);
 
-  const { subtotal, vat, total } = invoiceTotalsOf(items, vatRate, currency);
+  const { subtotal, vat, total } = invoiceTotalsOf(items, vatRate, currency, taxMode);
   const sumPercent = rounds.reduce((s, r) => s + r.rate, 0);
   const sumOk = sumPercent === 100;
   const canTax = currency === 'KRW';
@@ -153,7 +170,7 @@ export default function BillingTermsModal({ open, onClose, postId, businessId, p
       const s = await saveBillingTerms(postId, {
         client_id: clientId,
         title: title.trim() || null,
-        currency, vat_rate: vatRate,
+        currency, vat_rate: vatRate, tax_mode: taxMode,
         receipt_type: taxOn && canTax ? 'tax_invoice' : 'none',
         items: items.filter(it => it.description.trim()).map(it => ({ description: it.description, detail: it.detail.trim() || null, quantity: it.quantity, unit_price: it.unit_price })),
         installment_mode: splitOn ? 'split' : 'single',
@@ -205,10 +222,12 @@ export default function BillingTermsModal({ open, onClose, postId, businessId, p
                 onChange={(opt) => opt && setCurrency((opt as PlanQSelectOption).value as Currency)} />
             </Field>
             <Field>
-              <FieldLabel>{tBill('newInvoice.compose.vatRate')}</FieldLabel>
-              <PlanQSelect size="sm" options={VAT_OPTIONS}
-                value={VAT_OPTIONS.find(o => o.value === String(vatRate)) || null}
-                onChange={(opt) => opt && setVatRate(parseFloat((opt as PlanQSelectOption).value as string))} />
+              <FieldLabel htmlFor="billing-terms-tax-rate">{tBill('newInvoice.compose.vatRate')}</FieldLabel>
+              <TaxRateInput id="billing-terms-tax-rate" testId="billing-terms-tax-rate" value={vatRate} onChange={setVatRate} />
+            </Field>
+            <Field>
+              <FieldLabel>{tBill('tax.mode')}</FieldLabel>
+              <TaxModeSelect testId="billing-terms-tax-mode" value={taxMode} onChange={setTaxMode} />
             </Field>
           </FieldGrid>
         </Section>
@@ -221,8 +240,9 @@ export default function BillingTermsModal({ open, onClose, postId, businessId, p
               {tBill('newInvoice.items.addRow')}
             </AddRow>
           </SectionLabelRow>
-          <InvoiceItemsTable items={items} currency={currency} onUpdate={updateItem} onRemove={removeItem} />
-          <InvoiceTotals subtotal={subtotal} vat={vat} total={total} vatRate={vatRate} currency={currency} />
+          <InvoiceItemsTable items={items} currency={currency} onUpdate={updateItem} onRemove={removeItem}
+            basis={vatRate > 0 ? tBill(taxMode === 'inclusive' ? 'tax.tag.included' : 'tax.tag.excluded', { label: taxLabel }) as string : null} />
+          <InvoiceTotals subtotal={subtotal} vat={vat} total={total} vatRate={vatRate} currency={currency} taxLabel={taxLabel} />
         </Section>
 
         <Section>

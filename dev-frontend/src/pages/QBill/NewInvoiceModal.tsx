@@ -31,6 +31,8 @@ import {
   Section, SectionLabel, SectionLabelRow, FieldGrid, Field, FieldLabel, Textarea,
   ToggleRow, ToggleLeft, Switch, Knob, ToggleText, ToggleTitle, ToggleDesc,
 } from './InvoiceLinesEditor';
+import { TaxRateInput, TaxModeSelect, useTaxLabel } from './TaxFields';
+import { isTaxEnabled, type TaxMode } from '../../utils/taxCalc';
 
 interface Props {
   open: boolean;
@@ -60,10 +62,6 @@ const CURRENCY_OPTIONS: PlanQSelectOption[] = [
   { value: 'EUR', label: 'EUR (€)' },
   { value: 'JPY', label: 'JPY (¥)' },
   { value: 'CNY', label: 'CNY (¥)' },
-];
-const VAT_OPTIONS: PlanQSelectOption[] = [
-  { value: '0', label: '0%' },
-  { value: '0.1', label: '10%' },
 ];
 
 export default function NewInvoiceModal({ open, onClose, prefillSplit, prefillPostId, prefillProjectId, editInvoiceId, prefillClientId }: Props) {
@@ -128,6 +126,8 @@ export default function NewInvoiceModal({ open, onClose, prefillSplit, prefillPo
   const [dueDate, setDueDate] = useState(addDays(todayStr, 14));
   const [currency, setCurrency] = useState<Currency>('KRW');
   const [vatRate, setVatRate] = useState<number>(0.10);
+  // 금액 기준 — 항목 단가를 세금 포함가로 적는지(2026-10-24, docs/TAX_SETTINGS_DESIGN.md). 기본은 워크스페이스 설정
+  const [taxMode, setTaxMode] = useState<TaxMode>('exclusive');
   const [notes, setNotes] = useState('');
 
   const [items, setItems] = useState<Item[]>([
@@ -195,7 +195,8 @@ export default function NewInvoiceModal({ open, onClose, prefillSplit, prefillPo
   const conversation = convFound?.conversation || null;
 
   // 서버와 같은 통화별 반올림(services/invoices.roundMoney ↔ dev-backend/services/money.js) — 문서 «청구 조건» 창과 같은 함수
-  const { subtotal, vat, total } = invoiceTotalsOf(items, vatRate, currency);
+  const { subtotal, vat, total } = invoiceTotalsOf(items, vatRate, currency, taxMode);
+  const taxLabel = useTaxLabel(businessInfo?.tax_label);
 
   const sumPercent = rounds.reduce((s, r) => s + r.rate, 0);
   const sumOk = sumPercent === 100;
@@ -242,7 +243,9 @@ export default function NewInvoiceModal({ open, onClose, prefillSplit, prefillPo
       if (info && !editInvoiceId) {
         const days = info.default_due_days ?? 14;
         setDueDate(addDays(todayStr, days));
-        setVatRate(Number(info.default_vat_rate ?? 0.1));
+        // 세금을 끈 워크스페이스는 0% — 서버 workspaceTaxDefaults 와 같은 규칙
+        setVatRate(!isTaxEnabled(info.tax_enabled) ? 0 : Number(info.default_vat_rate ?? 0.1));
+        setTaxMode(info.default_tax_mode === 'inclusive' ? 'inclusive' : 'exclusive');
         if (info.default_currency) setCurrency(info.default_currency as Currency);
       }
     });
@@ -262,6 +265,7 @@ export default function NewInvoiceModal({ open, onClose, prefillSplit, prefillPo
         setNotes(inv.notes || '');
         setCurrency((inv.currency || 'KRW') as Currency);
         setVatRate(Number(inv.vat_rate ?? 0.1));
+        setTaxMode(inv.tax_mode === 'inclusive' ? 'inclusive' : 'exclusive');
         if (inv.issued_at) setIssuedAt(inv.issued_at.split('T')[0]);
         if (inv.due_date) setDueDate(inv.due_date.split('T')[0]);
         setSourcePostId(inv.source_post_id ?? null);
@@ -577,6 +581,7 @@ export default function NewInvoiceModal({ open, onClose, prefillSplit, prefillPo
         source_post_id: recipientMode === 'external' ? null : sourcePostId,
         currency,
         vat_rate: vatRate,
+        tax_mode: taxMode,
         due_date: dueDate || null,
         // ★ 등록 고객이면 고객 값을 청구서에 **복사하지 않는다** — 받는 쪽은 서버(services/invoiceRecipient)가 지금 고객 값으로 그린다.
         //   복사해 두면 Q sale 에서 상호·메일을 고쳐도 청구서 상세·발송이 옛 값을 썼다(2026-10-23 신고).
@@ -947,13 +952,12 @@ export default function NewInvoiceModal({ open, onClose, prefillSplit, prefillPo
                 />
               </Field>
               <Field>
-                <FieldLabel>{t('newInvoice.compose.vatRate')}</FieldLabel>
-                <PlanQSelect
-                  size="sm"
-                  options={VAT_OPTIONS}
-                  value={VAT_OPTIONS.find(o => o.value === String(vatRate)) || null}
-                  onChange={(opt) => opt && setVatRate(parseFloat((opt as PlanQSelectOption).value as string))}
-                />
+                <FieldLabel htmlFor="new-invoice-tax-rate">{t('newInvoice.compose.vatRate')}</FieldLabel>
+                <TaxRateInput id="new-invoice-tax-rate" testId="new-invoice-tax-rate" value={vatRate} onChange={setVatRate} />
+              </Field>
+              <Field>
+                <FieldLabel>{t('tax.mode')}</FieldLabel>
+                <TaxModeSelect testId="new-invoice-tax-mode" value={taxMode} onChange={setTaxMode} />
               </Field>
             </FieldGrid>
           </Section>
@@ -994,8 +998,9 @@ export default function NewInvoiceModal({ open, onClose, prefillSplit, prefillPo
                 )}
               </DraftBar>
             )}
-            <InvoiceItemsTable items={items} currency={currency} onUpdate={updateItem} onRemove={removeItem} />
-            <InvoiceTotals subtotal={subtotal} vat={vat} total={total} vatRate={vatRate} currency={currency} />
+            <InvoiceItemsTable items={items} currency={currency} onUpdate={updateItem} onRemove={removeItem}
+              basis={vatRate > 0 ? (taxMode === 'inclusive' ? t('tax.tag.included', { label: taxLabel }) : t('tax.tag.excluded', { label: taxLabel })) as string : null} />
+            <InvoiceTotals subtotal={subtotal} vat={vat} total={total} vatRate={vatRate} currency={currency} taxLabel={taxLabel} />
           </Section>
 
           {/* ─── 분할 ─── */}
@@ -1051,6 +1056,10 @@ export default function NewInvoiceModal({ open, onClose, prefillSplit, prefillPo
                             : t('newInvoice.tax.toggleDescNeedClient', { defaultValue: '사업자정보(상호·사업자번호)는 결제 후 고객이 공개 결제페이지에서 입력합니다' }) as string)
                         : t('newInvoice.tax.toggleDescHint', { defaultValue: '켜면 결제 완료 후 세금계산서 발행 대기 큐에 자동 추가됩니다' }) as string}
                   </ToggleDesc>
+                  {/* 세금을 끈 워크스페이스에서 세금계산서 — 판정은 그대로, 경고 한 줄(Fable 고칠 점 10) */}
+                  {taxOn && canTax && !!businessInfo && !isTaxEnabled(businessInfo.tax_enabled) && (
+                    <ToggleDesc data-testid="new-invoice-tax-off-warn" style={{ color: '#B45309' }}>{t('tax.receiptWarn')}</ToggleDesc>
+                  )}
                 </ToggleText>
               </ToggleLeft>
             </ToggleRow>
