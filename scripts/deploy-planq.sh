@@ -7,7 +7,7 @@
 # 사용법:
 #   ./deploy-planq.sh              # 대화형 (확인 프롬프트 1회)
 #   ./deploy-planq.sh --auto       # 자동 모드 (CI/CD 또는 검증된 재배포)
-#   ./deploy-planq.sh --routine    # 정기 점검 배포 = --auto + 릴리즈노트(초안·발행) 안 함 (2026-10-12)
+#   ./deploy-planq.sh --routine    # 정기 점검 배포 = --auto (새 소식·버전은 --auto 와 똑같이 자동 — 2026-10-24)
 #   ./deploy-planq.sh --dry-run    # 미리보기 (rsync -n + 실제 명령 출력만)
 #   ./deploy-planq.sh --skip-build # 백엔드만 (긴급 hotfix) — 프론트는 빌드도 rsync 도 안 한다
 #   ./deploy-planq.sh --skip-qnote # Q Note 제외
@@ -72,7 +72,7 @@ DRY_RUN=false
 SKIP_BUILD=false
 SKIP_QNOTE=false
 SKIP_GATES=false
-ROUTINE=false   # 상황판 정기 점검 배포 — 버전·릴리즈노트·공지·메일 없음 (Irene 2026-10-11 «배포는 아침점검에서 자동으로»)
+ROUTINE=false   # 상황판 정기 점검 배포 표식 — 2026-10-24 부터 새 소식·버전도 자동(prepare_release_note). 공지 배너·메일은 안 함
 
 for arg in "$@"; do
   case "$arg" in
@@ -256,7 +256,7 @@ build_protect_list() {   # $1 = 저장소 안 하위 폴더(dev-backend|q-note) 
   local SUB="$1" OUTF
   OUTF=$(mktemp /tmp/planq-deploy-protect.XXXXXX)
   {
-    printf '%s\n' '.env' '.env.*' 'node_modules' 'uploads' '*.log' '.server.pid' '/.last-deployed-commit' \
+    printf '%s\n' '.env' '.env.*' 'node_modules' 'uploads' '*.log' '.server.pid' '/.last-deployed-commit' '/.last-announced-commit' \
       '/secrets/' '/backups/' '/.claude/' 'test-*.js' 'venv' '/data/' '*.db' '__pycache__' '*.pyc' \
       '/scripts/out/'
     (cd "$REPO" && git ls-files --others --ignored --exclude-standard --directory -- "$SUB" 2>/dev/null \
@@ -1378,53 +1378,95 @@ verify_deployment() {
 #   여태 이 단계가 배포 스크립트에 **아예 없었다.** 문서(스킬)에만 "버전 올릴까요?" 로 적혀 있어
 #   사람이 기억할 때만 나갔고, 그래서 대부분의 배포가 사용자에게 고지되지 않았다.
 #
-#   규칙:
-#   - 발행 대상은 `docs/release-notes/v<package.json version>.json` 하나뿐이다.
-#     버전을 올리면서 노트를 안 썼으면 **발행할 것이 없다** → 경고만 하고 배포는 계속한다
-#     (노트가 없다고 이미 끝난 배포를 실패시키면 안 된다).
-#   - `publish-release-note.js` 는 slug `update-<버전>` 으로 **upsert** 라 재배포해도 글이 하나다(멱등).
-#   - 이 단계는 verify 뒤에 둔다 — 서버가 실제로 살아난 뒤에 고지해야 사용자가 눌렀을 때 열린다.
-publish_release_note() {
-  if [ "$ROUTINE" = true ]; then
-    dim "▶ 릴리즈 노트 건너뜀 (--routine — 정기 점검 배포는 새 소식·초안을 만들지 않는다)"
-    return 0
+#   (옛 규칙 «노트 파일이 있어야만 발행» 은 2026-10-24 아래로 바뀌었다.)
+# ★ 2026-10-24 — 버전·새 소식을 **배포가 스스로** 한다 (Irene: "공지내용을 자동화해야지. 내가 뭘 해? 어떻게?
+#   너가 공지를 배포하면 해야지."). 10-11 부터 정기 점검·배포 버튼 둘 다 «버전·공지 안 함» 이라 v1.70.1(10-04)
+#   뒤로 새 소식이 0건이었다. 초안을 만들어 사람을 기다리는 방식(09-07)도 버전이 안 오르면 돌지 않았다.
+#   지금 규칙:
+#   - 범위 = 운영 `.last-announced-commit`(마지막으로 새 소식을 낸 배포 커밋) .. 이번 배포 커밋.
+#     없으면 마지막 발행 버전의 노트 파일을 더한 커밋, 그것도 없으면 지난 배포 커밋.
+#     → 노트 만들기가 실패하거나 고객용 변경이 없던 배포의 내용은 다음 새 소식에 같이 실린다(빠지지 않는다).
+#   - 버전 = 운영에 발행된 새 소식 중 가장 높은 버전의 patch+1. 사람이 package.json 을 더 높게(예: minor) 올려
+#     두었으면 그 버전. 같은 버전에 사람이 쓴 노트 파일이 커밋돼 있으면 그것을 그대로 쓴다(AI 안 부름).
+#   - 노트는 dev-backend/scripts/make-release-note.js 가 커밋 제목으로 ko/en 을 쓴다(금지어 검사 통과해야 함).
+#   - 버전은 **운영을 건드리기 전에** 사본 package.json 2개에 넣는다 — 운영 package.json·개발 현황 version 이 같아진다.
+#   - 발행은 verify 뒤(publish_release_note) — 서버가 살아난 뒤에 알려야 눌렀을 때 열린다.
+#   - 어느 단계가 실패해도 배포는 계속한다(경고). 새 소식만 이번에 안 나가고 다음 배포에 합쳐진다.
+#   - --routine(정기 점검)도 똑같이 한다.
+RN_VER=""; RN_NOTE=""; RN_FROM=""
+semver_max() { node -e 'const v=process.argv.slice(1).filter(x=>/^\d+\.\d+\.\d+$/.test(x));v.sort((a,b)=>{const p=a.split(".").map(Number),q=b.split(".").map(Number);return p[0]-q[0]||p[1]-q[1]||p[2]-q[2]});console.log(v.pop()||"")' "$@"; }
+prepare_release_note() {
+  log "새 소식(릴리즈 노트) 준비..."
+  cd "$REPO"
+  local PUB_LIST PUB_MAX PKG_VER FROM COUNT RC
+  PUB_LIST=$(curl -sf --max-time 20 "https://planq.kr/api/blog/posts?category=updates" \
+    | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{console.log(JSON.parse(s).data.map(p=>p.slug).filter(x=>/^update-\d+-\d+-\d+$/.test(x)).map(x=>x.slice(7).replace(/-/g,".")).join(" "))}catch{process.exit(1)}})') \
+    || { warn "  운영 새 소식 목록을 못 읽음 — 이번엔 새 소식·버전 건너뜀(다음 배포에 합쳐짐)"; return 0; }
+  # shellcheck disable=SC2086
+  PUB_MAX=$(semver_max $PUB_LIST)
+  PKG_VER=$(node -p "require('$SNAP/dev-backend/package.json').version" 2>/dev/null || echo "")
+  if [ -z "$PUB_MAX" ]; then warn "  발행된 새 소식 버전이 없음 — 건너뜀"; return 0; fi
+
+  FROM=$(ssh $SSH_OPTS "$PROD_HOST" "cat $PROD_BE/.last-announced-commit 2>/dev/null" || echo "")
+  if [ -z "$FROM" ] || ! git cat-file -e "${FROM}^{commit}" 2>/dev/null; then
+    FROM=$(git log --diff-filter=A -1 --format=%H "$DEPLOY_COMMIT" -- "docs/release-notes/v${PUB_MAX}.json" 2>/dev/null || echo "")
   fi
-  log "Publishing release note..."
-  local VER NOTE
-  VER=$(node -p "require('$SNAP/dev-backend/package.json').version" 2>/dev/null || echo "")
-  if [ -z "$VER" ]; then warn "  버전을 읽지 못함 — 릴리즈 노트 건너뜀"; return 0; fi
-  NOTE="$SNAP/docs/release-notes/v${VER}.json"
-  if [ ! -f "$NOTE" ]; then
-    # ★ 2026-09-07 — 여태 여기서 그냥 돌아갔다. 버전은 며칠씩 안 오르는데 배포는 하루 여러 번이라,
-    #   대부분의 배포가 **아무것도 남기지 않았다** — "새 소식" 이 8건에 멈춘 이유다
-    #   (Irene: "내용이 빈약한데 자동업데이트 배포하면서 하는 거 아니였어?").
-    #   → 커밋 범위에서 **미발행 초안**을 만들어 올린다. 발행은 사람이 문구를 다듬은 뒤에 한다
-    #     (커밋 제목은 개발자 언어다 — 그대로 사용자에게 내보내지 않는다).
-    local DRAFT="/tmp/rn-draft-v${VER}.json"
-    if node "$SNAP/dev-backend/scripts/make-release-note-draft.js" "${LAST_REMOTE:-}" "$DEPLOY_COMMIT" "$VER" --out "$DRAFT" 2>&1 | sed 's/^/    /'; then
-      if [ "$DRY_RUN" = true ]; then dim "  [dry] 초안 업로드 (미발행)"; return 0; fi
-      if scp $SSH_OPTS -q "$DRAFT" "$PROD_HOST:/tmp/rn-draft.json"          && prod_run "cd $PROD_BE && node scripts/publish-release-note.js /tmp/rn-draft.json"; then
-        success "릴리즈 노트 **초안** 생성 (미발행) — /admin 에서 다듬어 발행하세요"
-      else
-        warn "  초안 업로드 실패 — 배포 자체는 정상"
-      fi
-      prod_run "rm -f /tmp/rn-draft.json" > /dev/null 2>&1 || true
-      rm -f "$DRAFT"
-    else
-      dim "  사용자에게 보일 변경(feat/fix/perf)이 없어 초안 없음"
-    fi
-    return 0
-  fi
-  if [ "$DRY_RUN" = true ]; then dim "  [dry] scp $NOTE + publish-release-note.js --publish"; return 0; fi
-  scp $SSH_OPTS -q "$NOTE" "$PROD_HOST:/tmp/v${VER}.json" || { warn "  노트 전송 실패 — 건너뜀"; return 0; }
-  # 실패해도 배포를 되돌리지 않는다 — 코드는 이미 나갔고, 고지는 나중에 손으로도 할 수 있다.
-  if prod_run "cd $PROD_BE && node scripts/publish-release-note.js /tmp/v${VER}.json --publish"; then
-    success "릴리즈 노트 v${VER} 발행 완료 (새 소식에 노출)"
-    DEPLOY_RELEASE_NOTE_PUBLISHED=true
+  [ -n "$FROM" ] || FROM="${LAST_REMOTE:-}"
+  if [ -z "$FROM" ]; then warn "  새 소식 범위 시작점을 모름 — 건너뜀"; return 0; fi
+  COUNT=$(git log --no-merges --format=%s "$FROM..$DEPLOY_COMMIT" | grep -cE '^(feat|fix|perf)(\(|:|!)' || true)
+  if [ "${COUNT:-0}" -eq 0 ]; then dim "  고객에게 알릴 변경 없음 (${FROM:0:7}..${DEPLOY_COMMIT:0:7}) — 버전 그대로"; return 0; fi
+
+  if [ "$(semver_max "$PKG_VER" "$PUB_MAX")" = "$PKG_VER" ] && [ "$PKG_VER" != "$PUB_MAX" ]; then
+    RN_VER="$PKG_VER"
   else
-    warn "  릴리즈 노트 발행 실패 — 배포 자체는 정상. 수동 발행 필요"
+    RN_VER=$(node -e 'const [a,b,c]=process.argv[1].split(".").map(Number);console.log(`${a}.${b}.${c+1}`)' "$PUB_MAX")
   fi
-  prod_run "rm -f /tmp/v${VER}.json" || true
+  RN_NOTE="$SNAP/docs/release-notes/v${RN_VER}.json"
+  if [ -f "$RN_NOTE" ]; then
+    dim "  v${RN_VER} — 커밋된 노트를 그대로 씀"
+  else
+    mkdir -p "$SNAP/docs/release-notes"
+    set +e
+    (cd "$SNAP/dev-backend" && node scripts/make-release-note.js "$FROM" "$DEPLOY_COMMIT" "$RN_VER" --out "$RN_NOTE" --repo "$REPO" 2>&1 | grep -v 'injected env' | sed 's/^/    /'; exit "${PIPESTATUS[0]}")
+    RC=$?
+    set -e
+    if [ "$RC" -ne 0 ]; then
+      [ "$RC" -eq 3 ] || warn "  새 소식 만들기 실패 — 이번 배포는 버전 그대로, 내용은 다음 새 소식에 합쳐짐"
+      rm -f "$RN_NOTE"; RN_VER=""; RN_NOTE=""; return 0
+    fi
+  fi
+  RN_FROM="$FROM"
+  local F
+  for F in "$SNAP/dev-backend/package.json" "$SNAP/dev-frontend/package.json"; do
+    node -e 'const f=process.argv[1],v=process.argv[2],fs=require("fs");const j=fs.readFileSync(f,"utf8");fs.writeFileSync(f,j.replace(/("version":\s*")[^"]+(")/,`$1${v}$2`))' "$F" "$RN_VER" \
+      || { warn "  사본 $F 버전 못 바꿈 — 새 소식 건너뜀"; RN_VER=""; RN_NOTE=""; return 0; }
+  done
+  success "새 소식 v${RN_VER} 준비 (커밋 ${COUNT}개 · ${FROM:0:7}..${DEPLOY_COMMIT:0:7}) — 배포 뒤 발행"
+}
+
+publish_release_note() {
+  if [ -z "$RN_VER" ]; then dim "▶ 새 소식 발행할 것 없음"; return 0; fi
+  log "새 소식 v${RN_VER} 발행..."
+  if [ "$DRY_RUN" = true ]; then dim "  [dry] scp $RN_NOTE + publish-release-note.js --publish"; return 0; fi
+  scp $SSH_OPTS -q "$RN_NOTE" "$PROD_HOST:/tmp/v${RN_VER}.json" || { warn "  노트 전송 실패 — 다음 배포에 합쳐짐"; return 0; }
+  # 실패해도 배포를 되돌리지 않는다 — 코드는 이미 나갔고, 범위 시작점을 안 옮기므로 다음 배포가 다시 싣는다.
+  if prod_run "cd $PROD_BE && node scripts/publish-release-note.js /tmp/v${RN_VER}.json --publish"; then
+    success "새 소식 v${RN_VER} 발행 완료 (앱 스피커 아이콘 «새 소식»·/insights)"
+    DEPLOY_RELEASE_NOTE_PUBLISHED=true
+    ssh $SSH_OPTS "$PROD_HOST" "echo $DEPLOY_COMMIT > $PROD_BE/.last-announced-commit" || warn "  .last-announced-commit 기록 실패 — 다음 새 소식에 이번 내용이 겹칠 수 있음"
+    # 배포 방이 커밋할 산출물(작업 폴더) — 노트 파일 + 버전. package.json 은 다른 방이 고치는 중이면 손대지 않는다
+    #   (버전의 정본은 운영에 발행된 새 소식이라, 작업 폴더 버전이 늦어도 다음 배포가 맞게 센다).
+    #   ★ 여기서 실패해도 set -e 로 멈추면 안 된다 — 뒤에 장부 닫기·개발 현황·.last-deployed-commit 이 남았다.
+    cp "$RN_NOTE" "$REPO/docs/release-notes/v${RN_VER}.json" || warn "  노트 파일을 작업 폴더에 못 옮김"
+    local F
+    for F in dev-backend/package.json dev-frontend/package.json; do
+      if git -C "$REPO" diff --quiet HEAD -- "$F"; then cp "$SNAP/$F" "$REPO/$F" || warn "  $F 버전 못 옮김"; else warn "  $F 에 다른 방 미커밋 변경 — 버전 안 옮김"; fi
+    done
+    echo "  배포 방 커밋: git commit -m \"chore: v${RN_VER} 새 소식\" -- docs/release-notes/v${RN_VER}.json dev-backend/package.json dev-frontend/package.json"
+  else
+    warn "  새 소식 발행 실패 — 배포 자체는 정상, 다음 배포에 합쳐짐"
+  fi
+  prod_run "rm -f /tmp/v${RN_VER}.json" || true
 }
 
 close_feedback() {
@@ -1627,6 +1669,7 @@ main() {
   make_snapshot
   preflight_check
   show_changes
+  prepare_release_note
 
   if [ "$AUTO_MODE" = false ] && [ "$DRY_RUN" = false ]; then
     confirm "Continue with deployment?" || { echo "취소됨"; exit 0; }
