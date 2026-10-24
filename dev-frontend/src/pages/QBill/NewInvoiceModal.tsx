@@ -1261,7 +1261,7 @@ export default function NewInvoiceModal({ open, onClose, prefillSplit, prefillPo
       </Dialog>
       {businessId && (
         <InvoiceAiDraftModal open={aiOpen} onClose={() => setAiOpen(false)} businessId={businessId} clientOptions={clientOptions}
-          fixedClientId={recipientMode === 'client' ? clientId : null} currency={currency} onApply={applyAiDraft} />
+          fixedClientId={recipientMode === 'client' ? clientId : null} currency={currency} vatRate={vatRate} onApply={applyAiDraft} />
       )}
       <ConfirmDialog isOpen={!!aiConfirm} onClose={() => setAiConfirm(null)} onConfirm={() => aiConfirm?.run()}
         title={t('newInvoice.ai.confirmTitle') as string} message={t('newInvoice.ai.confirmMsg', { fields: aiConfirm?.fields || '' }) as string}

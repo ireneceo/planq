@@ -42,8 +42,9 @@ const SYSTEM = [
   '- items: 청구할 품목 한 줄씩. 소계·부가세·합계·총액 줄은 품목이 아니다(넣지 않는다). 금액이 없어도 청구할 일이 적혀 있으면 품목으로 넣고 unit_price 를 null 로.',
   '- unit_price: 한 단위 가격 숫자(쉼표·통화기호 없이, «330만» → 3300000). 재료에 금액이 없으면 null — 지어내지 않는다.',
   '- quantity: 개수·개월 수 등. 없으면 null. «월 30만 x 3개월» → quantity 3, unit_price 300000.',
-  '- vat: 금액이 부가세 포함이라고 적혀 있으면 included, 별도면 excluded, 면세·세금 없음이 명시되면 none, 품목마다 다르면 mixed, 단서 없으면 null.',
-  '- vat_basis: vat 가 mixed 일 때만 품목마다 채운다.',
+  '- vat: **품목 단가 기준**이다. 품목 단가가 부가세 포함 금액이면 included, 부가세 별도(공급가)면 excluded, 면세·세금 없음이 명시되면 none, 품목마다 다르면 mixed, 단서 없으면 null.',
+  '  «품목 합 + 부가세 = 합계» 처럼 합계 줄에만 «부가세 포함» 이 적혀 있으면 품목 단가는 공급가다 → excluded.',
+  '- vat_basis: **품목마다** 그 단가가 부가세 포함이면 included, 별도(공급가)면 excluded. 그 줄에 표기가 없으면 문서 전체 표기를 따른다(합계 줄의 «포함» 은 품목 기준이 아니다). 모르면 null.',
   '- title: 청구서 제목(예: «웹사이트 리뉴얼 1차»). 60자 이내.',
   '- client_guess: 청구 받을 회사·사람. 이메일 도메인으로 회사를 추측하지 않는다.',
   '- notes: 고객에게 보일 짧은 메모(입금 조건 등)가 재료에 있을 때만.',
@@ -51,10 +52,12 @@ const SYSTEM = [
 ].join('\n');
 
 // ─── 고객 결정론 매칭 (§7-8) ───
-const CORP_RE = /(주식회사|유한책임회사|유한회사|합자회사|합명회사|\(주\)|\(유\)|co\.?,?\s*ltd\.?|inc\.?|ltd\.?|corp\.?|llc)/gi;
+const CORP_KO_RE = /(주식회사|유한책임회사|유한회사|합자회사|합명회사|\(주\)|\(유\))/g;
+// 영문 법인 꼬리는 **낱말일 때만** 뺀다 — 경계가 없으면 «Incheon» 이 «heon», «Coltd Studio» 가 «studio» 가 된다(Fable 완료 검증)
+const CORP_EN_RE = /(^|[\s,(])(co(?:[.,\s]+)ltd\.?|inc\.?|ltd\.?|limited|corp\.?|corporation|llc)(?=$|[\s,.)])/g;
 function normName(s) {
   // NFKC — ㈜ 가 (주) 로 펴진다(NFC 로는 안 펴진다)
-  return String(s || '').normalize('NFKC').toLowerCase().replace(CORP_RE, '').replace(/[\s\p{P}\p{S}]/gu, '');
+  return String(s || '').normalize('NFKC').toLowerCase().replace(CORP_KO_RE, '').replace(CORP_EN_RE, '$1').replace(/[\s\p{P}\p{S}]/gu, '');
 }
 const digits = (s) => String(s || '').replace(/\D/g, '');
 const clientName = (c) => c.biz_name || c.company_name || c.display_name || '';
@@ -97,8 +100,14 @@ function hintTerms(hint) {
 }
 
 // ─── 출력 정리 (§7-4 · §7-5) ───
-const TOTAL_LINE_RE = /^(소계|합계|합계금액|총액|총계|총합계|총금액|공급가액|공급가액합계|부가세|부가가치세|세액|vat|tax|subtotal|total|grandtotal|totalamount)$/;
-const isTotalLine = (desc) => TOTAL_LINE_RE.test(normName(desc).replace(/\d+%?/g, ''));
+// 합계 줄 — 낱말이 합계 계열로만 이뤄졌거나(«부가세 포함 합계»·«Total Due (incl. tax)») 소계·합계로 끝나면(«디자인 소계»)
+const TOTAL_WORDS = '(소계|합계|합계금액|총액|총계|총합계|총금액|총견적금액|견적금액|견적합계|공급가액|공급가|부가세|부가가치세|세액|금액|vat|tax|salestax|subtotal|total|grandtotal|amount|sum)';
+const TOTAL_ONLY_RE = new RegExp(`^${TOTAL_WORDS}+$`);
+const TOTAL_TAIL_RE = /(소계|합계|총액|총계|subtotal|total)$/;
+function isTotalLine(desc) {
+  const n = normName(desc).replace(/\d+(\.\d+)?%?/g, '').replace(/(포함|별도|including|included|incl|excluding|excluded|excl|due)/g, '');
+  return !!n && (TOTAL_ONLY_RE.test(n) || TOTAL_TAIL_RE.test(n));
+}
 const trim = (v, max) => {
   if (v === null || v === undefined) return null;
   const s = String(v).trim();
@@ -115,7 +124,7 @@ function cleanOutput(parsed, fallbackCurrency) {
   const warnings = [];
   const currency = CURRENCIES.includes(parsed.currency) ? parsed.currency : null;
   const cur = currency || fallbackCurrency || 'KRW';
-  const vat = ['included', 'excluded', 'none', 'mixed'].includes(parsed.vat) ? parsed.vat : null;
+  const vatRaw = ['included', 'excluded', 'none', 'mixed'].includes(parsed.vat) ? parsed.vat : null;
   const raw = Array.isArray(parsed.items) ? parsed.items : [];
   let dropped = 0;
   const items = [];
@@ -128,12 +137,19 @@ function cleanOutput(parsed, fallbackCurrency) {
     items.push({
       description,
       detail: trim(it.detail, 200),
-      quantity: Number.isFinite(q) && q > 0 ? Math.round(q * 100) / 100 : 1,
+      quantity: Number.isFinite(q) && Math.round(q * 100) > 0 ? Math.round(q * 100) / 100 : 1,
       unit_price: money(it.unit_price, cur),
-      vat_basis: vat === 'mixed' && ['included', 'excluded'].includes(it.vat_basis) ? it.vat_basis : null,
+      vat_basis: ['included', 'excluded'].includes(it.vat_basis) ? it.vat_basis : null,
     });
     if (items.length >= MAX_ITEMS) break;
   }
+  // 세금 기준은 **품목별 표기에서** 서버가 정한다 — AI 의 문서 전체 판정(vat)은 합계 줄 표기에 끌려 흔들렸다(Fable 완료 검증)
+  const bases = new Set(items.map((i) => i.vat_basis).filter(Boolean));
+  const vat = vatRaw === 'none' ? 'none'
+    : bases.size === 2 ? 'mixed'
+      : bases.size === 1 ? [...bases][0]
+        : (vatRaw === 'mixed' ? null : vatRaw);
+  if (vat !== 'mixed') for (const i of items) i.vat_basis = null;   // 화면에는 섞였을 때만 품목별로 보인다
   if (dropped) warnings.push({ code: 'total_lines_dropped', count: dropped });
   if (items.some((i) => i.unit_price === null)) warnings.push({ code: 'price_missing' });
   if (vat === 'mixed') warnings.push({ code: 'vat_mixed' });
@@ -254,7 +270,9 @@ async function buildInvoiceDraft({ businessId, user, body }) {
     const bt = await PostBillingTerms.findOne({ where: { post_id: p.id, business_id: businessId }, attributes: ['id', 'invoice_id', 'auto_error'] });
     if (bt) {
       const inv = bt.invoice_id ? await Invoice.findOne({ where: { id: bt.invoice_id, business_id: businessId }, attributes: ['id', 'invoice_number'] }) : null;
-      terms.push({ post_id: p.id, title: p.title, invoice_id: inv?.id || null, invoice_number: inv?.invoice_number || null, state: inv ? 'invoiced' : (bt.auto_error ? 'error' : 'pending') });
+      // 만든 청구서가 지워졌으면 자동 생성은 다시 안 돈다(contractBilling) — «서명하면 만들어짐» 이라고 말하면 거짓이다
+      const state = inv ? 'invoiced' : bt.invoice_id ? 'removed' : (bt.auto_error ? 'error' : 'pending');
+      terms.push({ post_id: p.id, title: p.title, invoice_id: inv?.id || null, invoice_number: inv?.invoice_number || null, state });
       continue;
     }
     const prior = await Invoice.count({ where: { business_id: businessId, source_post_id: p.id } });
@@ -278,7 +296,7 @@ async function buildInvoiceDraft({ businessId, user, body }) {
   //   품목으로 더해 덜 청구한 것보다 나쁜 «더 청구» 가 된다(2026-10-24 실측: 프롬프트로 막아도 3회 중 2회 더함).
   if (consults.length) {
     if (sources.length) skipped.push({ kind: 'interactions', reason: 'other_material' });
-    else sources.push(...consults);
+    else { sources.push(...consults); warnings.push({ code: 'from_consults' }); }
   }
 
   const clientOut = (m) => ({ id: m.id, name: clientName(m), status: m.status });
@@ -334,13 +352,24 @@ async function buildInvoiceDraft({ businessId, user, body }) {
     items: out.items, notes: out.notes, due_days: out.due_days,
   });
   warnings.push(...out.warnings);
+  // 세금 기준 안전장치(Fable 완료 검증 FAIL) — AI 가 «포함» 이라 해도 재료가 «품목 합 + 세금 = 합계» 모양이면
+  //   품목 단가는 공급가다. 그대로 두면 청구액이 세금만큼 적게 나온다(돈 오류). 기준은 비우고(발행 창 기본) 말한다.
+  if (result.tax_mode === 'inclusive' && looksPreTax(result.items, material.join('\n'), body.vat_rate)) {
+    result.tax_mode = null;
+    warnings.push({ code: 'vat_total_pretax' });
+  }
   result.client.guess = out.guess;
 
   // 단서로 못 맞췄으면 AI 가 읽은 고객을 **검색어로만** 다시 맞춘다
   if (out.guess) {
     const m = matchClients(clients, [out.guess]);
     if (fixed) {
+      const gName = out.guess.company || out.guess.name;
+      const fixedKeys = [fixed.display_name, fixed.company_name, fixed.biz_name].map(normName).filter(Boolean);
+      const gk = normName(gName);
       if (m.match && m.match.id !== fixed.id) warnings.push({ code: 'client_differs', name: clientName(m.match) });
+      // 등록 고객으로 안 맞아도 글의 고객 이름이 고른 고객과 전혀 다르면 말한다
+      else if (!m.match && gk.length >= 2 && !fixedKeys.some((k) => k.includes(gk) || gk.includes(k))) warnings.push({ code: 'client_differs', name: gName });
     } else if (!result.client.match_id) {
       if (m.match) Object.assign(result.client, { match_id: m.match.id, match_name: clientName(m.match), by: m.by, candidates: [] });
       else if (!result.client.candidates.length) result.client.candidates = m.candidates.map(clientOut);
@@ -349,4 +378,16 @@ async function buildInvoiceDraft({ businessId, user, body }) {
   return { status: 200, body: { success: true, data: result } };
 }
 
-module.exports = { buildInvoiceDraft, matchClients, normName, isTotalLine, cleanOutput, MAX_TEXT, MAX_HINT, MAX_IDS };
+/** 품목 합 S 에 대해 재료에 «S×(1+r)» 또는 «S + (적힌 세액)» 인 수가 있으면 품목 단가는 공급가다 */
+function looksPreTax(items, text, vatRate) {
+  const S = items.reduce((a, it) => a + (it.unit_price === null ? 0 : it.unit_price * it.quantity), 0);
+  if (!(S > 0)) return false;
+  const nums = [...String(text).matchAll(/\d[\d,]*(\.\d+)?/g)].map((m) => Number(m[0].replace(/,/g, ''))).filter((n) => Number.isFinite(n) && n > 0);
+  const rates = new Set([0.1, Number(vatRate) > 0 && Number(vatRate) < 1 ? Number(vatRate) : 0.1,
+    ...[...String(text).matchAll(/(\d+(?:\.\d+)?)\s*%/g)].map((m) => Number(m[1]) / 100).filter((r) => r > 0 && r < 1)]);
+  const near = (a, b) => Math.abs(a - b) <= Math.max(1, b * 0.002);
+  const set = new Set(nums);
+  return nums.some((n) => n > S && ([...rates].some((r) => near(n, S * (1 + r))) || [...set].some((x) => x > 0 && x < S && near(n, S + x))));
+}
+
+module.exports = { looksPreTax, buildInvoiceDraft, matchClients, normName, isTotalLine, cleanOutput, MAX_TEXT, MAX_HINT, MAX_IDS };

@@ -632,7 +632,7 @@
       "text": "Paste (quote, email, notes)",
       "textPh": "e.g. Website renewal 3,300,000 KRW excl. VAT, maintenance 300,000/month x 3",
       "attach": "Link documents or files (up to {{max}} each)",
-      "attachHelp": "Reads quote/contract documents and PDF, Word, Excel and text files. Photos and scans are not read (use «Fill from business registration» for that).",
+      "attachHelp": "Reads quote/contract documents and PDF, Word, Excel and text files. Newly uploaded files stay in My files. Photos and scans are not read (use «Fill from business registration» for that).",
       "run": "Extract with AI",
       "rerun": "Extract again",
       "running": "Reading…",
@@ -658,7 +658,8 @@
       },
       "terms": {
         "invoiced": "«{{title}}» is a contract with billing terms, and its invoice ({{number}}) already exists — open that invoice. It is not filled here.",
-        "pending": "«{{title}}» is a contract with billing terms — an invoice is created automatically when signing completes. Creating one here would bill twice; use the billing terms card on the document."
+        "pending": "«{{title}}» is a contract with billing terms — an invoice is created automatically when signing completes. Creating one here would bill twice; use the billing terms card on the document.",
+        "removed": "«{{title}}» is a contract with billing terms, but its invoice was deleted, so it will not be created again automatically — use «Create invoice» on the document's billing terms card. It is not filled here."
       },
       "warn": {
         "total_lines_dropped": "Removed {{count}} subtotal/VAT/total lines from the items.",
@@ -667,7 +668,9 @@
         "post_has_invoices": "{{count}} invoice(s) already exist from «{{title}}».",
         "client_differs": "The materials seem to name «{{name}}» — your chosen client was kept.",
         "material_truncated": "Materials were long; only the beginning was read.",
-        "tax_exempt": "The materials say tax-exempt / no tax. The tax rate was not changed."
+        "tax_exempt": "The materials say tax-exempt / no tax. The tax rate was not changed.",
+        "from_consults": "Extracted from consultation notes — the same deal noted several times may be duplicated, so check the items and amounts.",
+        "vat_total_pretax": "Only the total line says «VAT included» and the item prices look pre-tax, so the tax basis was not changed (treating them as tax-included would under-bill by the tax)."
       },
       "kind": {
         "post": "document",
@@ -690,7 +693,8 @@
         "text_too_long": "The pasted text is too long (8,000 characters max).",
         "too_many_materials": "You can link up to 3 documents and 3 files.",
         "no_material": "Add a client or at least one material.",
-        "generic": "AI draft failed. Please try again shortly."
+        "generic": "AI draft failed. Please try again shortly.",
+        "rate": "AI draft was used too often (3 per minute, 30 per day). Please try again shortly."
       },
       "applyHelp": "You can edit everything in the form after filling. You'll be asked first if fields you already filled would change.",
       "field": {

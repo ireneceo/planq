@@ -21,11 +21,13 @@ interface Props {
   /** 발행 창에서 이미 고른 고객 — AI 가 바꾸지 않는다(§7-8 ②) */
   fixedClientId: number | null;
   currency: Currency;
+  /** 발행 창 지금 세율 — 서버가 «품목 합 + 세금 = 합계» 모양을 가릴 때 쓴다 */
+  vatRate: number;
   /** 고른 후보 고객 id(후보에서 사람이 고른 것) 와 함께 넘긴다 */
   onApply: (draft: InvoiceAiDraft, pickedClientId: number | null) => void;
 }
 
-export default function InvoiceAiDraftModal({ open, onClose, businessId, clientOptions, fixedClientId, currency, onApply }: Props) {
+export default function InvoiceAiDraftModal({ open, onClose, businessId, clientOptions, fixedClientId, currency, vatRate, onApply }: Props) {
   const { t } = useTranslation('qbill');
   const [hint, setHint] = useState('');
   const [clientId, setClientId] = useState<number | null>(fixedClientId);
@@ -60,10 +62,12 @@ export default function InvoiceAiDraftModal({ open, onClose, businessId, clientO
       if (uploaded.length) { setUploads([]); setFileIds((cur) => [...cur, ...uploaded]); }
       const r = await aiDraftInvoice(businessId, {
         text: text.trim() || undefined, client_hint: hint.trim() || undefined, client_id: clientId,
-        post_ids: postIds, file_ids: [...fileIds, ...uploaded], currency,
+        post_ids: postIds, file_ids: [...fileIds, ...uploaded], currency, vat_rate: vatRate,
       });
       if (r.data) { setResult(r.data); setPicked(null); }
-      if (!r.ok) setError(t(`newInvoice.ai.err.${r.message || 'generic'}`, { defaultValue: t('newInvoice.ai.err.generic') as string }) as string);
+      // 429 = 사용자당 분·일 한도(costGuard) — 몸통 문구는 서버 한국어라 키로 쓰지 않는다
+      if (!r.ok) setError(r.status === 429 ? t('newInvoice.ai.err.rate') as string
+        : t(`newInvoice.ai.err.${r.message || 'generic'}`, { defaultValue: t('newInvoice.ai.err.generic') as string }) as string);
     } catch {
       setError(t('newInvoice.ai.err.generic') as string);
     } finally { setBusy(false); }
@@ -159,9 +163,7 @@ export default function InvoiceAiDraftModal({ open, onClose, businessId, clientO
           {d.tax_mode && <Row><Key>{t('tax.mode')}</Key><Val>{t(`newInvoice.ai.taxMode.${d.tax_mode}`)}</Val></Row>}
           {d.terms.map((tm) => (
             <Notice key={tm.post_id} $tone="warn">
-              {tm.state === 'invoiced'
-                ? t('newInvoice.ai.terms.invoiced', { title: tm.title, number: tm.invoice_number || '' })
-                : t('newInvoice.ai.terms.pending', { title: tm.title })}
+              {t(`newInvoice.ai.terms.${tm.state === 'invoiced' || tm.state === 'removed' ? tm.state : 'pending'}`, { title: tm.title, number: tm.invoice_number || '' })}
             </Notice>
           ))}
           {d.warnings.map((w, i) => <Notice key={`w${i}`} $tone="warn">{warnText(w)}</Notice>)}

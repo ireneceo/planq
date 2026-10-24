@@ -624,14 +624,14 @@ export interface InvoiceAiDraft {
   title: string | null; currency: Currency | null; tax_mode: 'inclusive' | 'exclusive' | null; tax_exempt_hint: boolean;
   items: { description: string; detail: string | null; quantity: number; unit_price: number | null; vat_basis: 'included' | 'excluded' | null }[];
   notes: string | null; due_days: number | null; source_post_id: number | null;
-  terms: { post_id: number; title: string | null; invoice_id: number | null; invoice_number: string | null; state: 'invoiced' | 'pending' | 'error' }[];
+  terms: { post_id: number; title: string | null; invoice_id: number | null; invoice_number: string | null; state: 'invoiced' | 'pending' | 'error' | 'removed' }[];
   skipped: { kind: 'post' | 'file' | 'interactions'; id?: number; name?: string; reason: 'unavailable' | 'payroll' | 'unsupported' | 'no_permission' | 'other_material' }[];
   warnings: InvoiceAiWarning[];
   used_ai: boolean;
 }
 /** 실패도 몸통을 돌려준다 — 422 no_readable_material 에도 «청구 조건 문서»·«못 읽은 자료» 를 화면이 말해야 한다 */
 export async function aiDraftInvoice(businessId: number, body: {
-  text?: string; client_hint?: string; client_id?: number | null; post_ids?: number[]; file_ids?: number[]; currency?: Currency;
+  text?: string; client_hint?: string; client_id?: number | null; post_ids?: number[]; file_ids?: number[]; currency?: Currency; vat_rate?: number;
 }): Promise<{ ok: boolean; status: number; message: string | null; data: InvoiceAiDraft | null }> {
   const r = await apiFetch(`/api/invoices/${businessId}/ai-draft`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
