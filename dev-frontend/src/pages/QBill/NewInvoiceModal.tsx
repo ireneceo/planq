@@ -4,7 +4,7 @@
 // - 출처 문서 선택 (계약/견적/SOW/제안) — 본문·분할 일정 자동 흡수
 // - 항목 / 분할 / 세금계산서 / 입금 안내
 // - 발송 옵션 통합: 채팅방 (자동 표시) · 이메일 · 공개 링크 — 어디로 가는지 명시
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { accessLabel } from '../../utils/clientLabel';
@@ -32,6 +32,10 @@ import {
   ToggleRow, ToggleLeft, Switch, Knob, ToggleText, ToggleTitle, ToggleDesc,
 } from './InvoiceLinesEditor';
 import { TaxRateInput, TaxModeSelect, useTaxLabel } from './TaxFields';
+import AiActionButton from '../../components/Common/AiActionButton';
+import ConfirmDialog from '../../components/Common/ConfirmDialog';
+import InvoiceAiDraftModal from './InvoiceAiDraftModal';
+import type { InvoiceAiDraft } from '../../services/invoices';
 import { isTaxEnabled, type TaxMode } from '../../utils/taxCalc';
 
 interface Props {
@@ -180,6 +184,15 @@ export default function NewInvoiceModal({ open, onClose, prefillSplit, prefillPo
 
   const [errors, setErrors] = useState<string[]>([]);
 
+  // [AI 작성] (docs/INVOICE_AI_DRAFT_DESIGN.md §7) — 채운 칸은 «AI 가 채움» 으로 말하고 사람이 고치면 표시를 뗀다
+  const [aiOpen, setAiOpen] = useState(false);
+  const [aiFilled, setAiFilled] = useState<Set<string>>(new Set());
+  const [aiNotice, setAiNotice] = useState<{ noPrice: string[]; exempt: boolean; mixed: string[] } | null>(null);
+  const [aiConfirm, setAiConfirm] = useState<{ fields: string; run: () => void } | null>(null);
+  // AI 가 출처 문서를 붙일 때 «문서 제목을 청구서 제목으로» 효과가 AI 제목을 덮지 않게(그 문서 한 번만)
+  const aiSourceTitleSkip = useRef<number | null>(null);
+  const unmarkAi = (key: string) => setAiFilled(prev => { if (!prev.has(key)) return prev; const n = new Set(prev); n.delete(key); return n; });
+
   // ─── 파생값 ───
   const client = useMemo(
     () => clientId ? clients.find(c => c.id === clientId) || null : null,
@@ -213,6 +226,7 @@ export default function NewInvoiceModal({ open, onClose, prefillSplit, prefillPo
   // ─── 출처 선택 시 자동 흡수 (제목만) ───
   useEffect(() => {
     if (!sourcePost) return;
+    if (aiSourceTitleSkip.current === sourcePost.id) { aiSourceTitleSkip.current = null; return; }
     if (sourcePost.title) setTitle(sourcePost.title);
   }, [sourcePost]);
 
@@ -417,6 +431,7 @@ export default function NewInvoiceModal({ open, onClose, prefillSplit, prefillPo
       setErrors([]);
       setSendChat(false); setSendEmail(true); setIncludePdf(true);
       setSourceCandidates([]); setConvFound(null);
+      setAiFilled(new Set()); setAiNotice(null); setAiConfirm(null); setAiOpen(false);
     }
   }, [open]);
 
@@ -452,6 +467,7 @@ export default function NewInvoiceModal({ open, onClose, prefillSplit, prefillPo
   }, [client, projectId, projectName]);
   /** 사람이 고객을 바꾸면 — 새 고객이 연결 안 된 프로젝트는 비운다(서버가 client_not_in_project 로 거절한다) */
   const pickClient = (nextId: number | null) => {
+    unmarkAi('client');
     setClientId(nextId);
     setSourcePostId(null);
     setOverrideBiz({});
@@ -516,8 +532,61 @@ export default function NewInvoiceModal({ open, onClose, prefillSplit, prefillPo
   };
 
   const addItem = () => setItems(arr => [...arr, { id: Date.now(), description: '', detail: '', quantity: 1, unit_price: 0 }]);
-  const updateItem = (id: number, patch: Partial<Item>) =>
+  const updateItem = (id: number, patch: Partial<Item>) => {
+    unmarkAi('items');
     setItems(arr => arr.map(it => it.id === id ? { ...it, ...patch } : it));
+  };
+
+  /** [AI 작성] 결과를 폼에 넣는다 — 빈 칸은 그냥, 값이 있는 칸이 바뀌면 한 번 묻는다(§7-9).
+   *  순서: 고객 → 출처 문서 → 나머지(pickClient 가 출처·프로젝트를 비운다). 프로젝트는 AI 가 정하지 않는다. */
+  const applyAiDraft = (d: InvoiceAiDraft, pickedClientId: number | null) => {
+    const nextClientId = pickedClientId ?? d.client.match_id;
+    const guess = !nextClientId ? d.client.guess : null;
+    const guessName = guess ? (guess.company || guess.name || '') : '';
+    const hasItems = items.some(x => x.description.trim() || x.unit_price > 0);
+    const changed: string[] = [];
+    if (nextClientId && clientId && nextClientId !== clientId && recipientMode === 'client') changed.push(t('newInvoice.ai.field.client') as string);
+    if (guess && recipientMode === 'external' && extName.trim() && guessName && extName.trim() !== guessName) changed.push(t('newInvoice.ai.field.client') as string);
+    if (d.title && title.trim() && title.trim() !== d.title) changed.push(t('newInvoice.ai.field.title') as string);
+    if (d.items.length && hasItems) changed.push(t('newInvoice.ai.field.items', { count: d.items.length }) as string);
+    if (d.notes && notes.trim() && notes.trim() !== d.notes) changed.push(t('newInvoice.ai.field.notes') as string);
+    const run = () => {
+      const filled = new Set<string>();
+      if (nextClientId) {
+        setRecipientMode('client');
+        if (nextClientId !== clientId) pickClient(nextClientId);
+        filled.add('client');
+      } else if (guess) {
+        setRecipientMode('external');
+        if (guessName) setExtName(guessName);
+        if (guess.email) setExtEmail(guess.email);
+        if (guess.biz_tax_id) setExtBizNumber(guess.biz_tax_id);
+        filled.add('client');
+      }
+      if (d.source_post_id && (nextClientId || recipientMode === 'client') && !guess) {
+        aiSourceTitleSkip.current = d.title ? d.source_post_id : null;
+        setSourcePostId(d.source_post_id);
+      }
+      if (d.title) { setTitle(d.title); filled.add('title'); }
+      if (d.currency) setCurrency(d.currency);
+      if (d.tax_mode) { setTaxMode(d.tax_mode); filled.add('tax'); }
+      if (d.notes) { setNotes(d.notes); filled.add('notes'); }
+      if (d.due_days !== null) setDueDate(addDays(issuedAt, d.due_days));
+      if (d.items.length) {
+        const base = Date.now();
+        setItems(d.items.map((it, i) => ({ id: base + i, description: it.description, detail: it.detail || '', quantity: it.quantity, unit_price: it.unit_price ?? 0 })));
+        filled.add('items');
+      }
+      setAiFilled(filled);
+      const noPrice = d.items.filter(it => it.unit_price === null).map(it => it.description);
+      const mixed = d.items.filter(it => it.vat_basis).map(it => `${it.description} (${t(`newInvoice.ai.basis.${it.vat_basis}`)})`);
+      setAiNotice(noPrice.length || mixed.length || d.tax_exempt_hint ? { noPrice, exempt: d.tax_exempt_hint, mixed } : null);
+      setAiConfirm(null);
+      setAiOpen(false);
+    };
+    if (changed.length) setAiConfirm({ fields: changed.join(', '), run });
+    else run();
+  };
   const removeItem = (id: number) => setItems(arr => arr.length === 1 ? arr : arr.filter(it => it.id !== id));
 
   const addRound = () => {
@@ -714,12 +783,27 @@ export default function NewInvoiceModal({ open, onClose, prefillSplit, prefillPo
       <Dialog onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={t('newInvoice.title') as string}>
         <Head>
           <Title>{isEdit ? t('newInvoice.editTitle', { defaultValue: '청구서 편집' }) as string : t('newInvoice.title')}</Title>
+          {!isEdit && businessId && (
+            <HeadAi><AiActionButton onClick={() => setAiOpen(true)} label={t('newInvoice.ai.open') as string} testId="invoice-ai-draft" /></HeadAi>
+          )}
           <CloseBtn onClick={onClose} aria-label={t('common.close') as string}>
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><line x1="6" y1="6" x2="18" y2="18"/><line x1="6" y1="18" x2="18" y2="6"/></svg>
           </CloseBtn>
         </Head>
 
         <Body>
+          {aiFilled.size > 0 && (
+            <AiBanner data-testid="invoice-ai-banner">
+              <div>{t('newInvoice.ai.banner', { fields: [...aiFilled].map(k => t(`newInvoice.ai.field.${k}`, { count: items.length })).join(', ') })}</div>
+              {aiNotice?.noPrice.length ? <div>{t('newInvoice.ai.bannerNoPrice', { items: aiNotice.noPrice.join(', ') })}</div> : null}
+              {aiNotice?.mixed.length ? <div>{t('newInvoice.ai.bannerMixed', { items: aiNotice.mixed.join(', ') })}</div> : null}
+              {aiNotice?.exempt && vatRate > 0 && (
+                <div>{t('newInvoice.ai.warn.tax_exempt')}{' '}
+                  <AiBannerBtn type="button" data-testid="invoice-ai-zero-tax" onClick={() => setVatRate(0)}>{t('newInvoice.ai.zeroTax')}</AiBannerBtn>
+                </div>
+              )}
+            </AiBanner>
+          )}
           {/* ─── 발신 / 수신 ─── */}
           <SectionGrid>
             <Section>
@@ -932,7 +1016,7 @@ export default function NewInvoiceModal({ open, onClose, prefillSplit, prefillPo
             <FieldGrid>
               <Field $span={2}>
                 <FieldLabel>{t('newInvoice.compose.titleField')}</FieldLabel>
-                <Input value={title} onChange={e => setTitle(e.target.value)} placeholder={t('newInvoice.compose.titlePh') as string} />
+                <Input value={title} onChange={e => { unmarkAi('title'); setTitle(e.target.value); }} placeholder={t('newInvoice.compose.titlePh') as string} />
               </Field>
               <Field>
                 <FieldLabel>{t('newInvoice.compose.issuedAt')}</FieldLabel>
@@ -1175,11 +1259,26 @@ export default function NewInvoiceModal({ open, onClose, prefillSplit, prefillPo
           </FooterRight>
         </Footer>
       </Dialog>
+      {businessId && (
+        <InvoiceAiDraftModal open={aiOpen} onClose={() => setAiOpen(false)} businessId={businessId} clientOptions={clientOptions}
+          fixedClientId={recipientMode === 'client' ? clientId : null} currency={currency} onApply={applyAiDraft} />
+      )}
+      <ConfirmDialog isOpen={!!aiConfirm} onClose={() => setAiConfirm(null)} onConfirm={() => aiConfirm?.run()}
+        title={t('newInvoice.ai.confirmTitle') as string} message={t('newInvoice.ai.confirmMsg', { fields: aiConfirm?.fields || '' }) as string}
+        confirmText={t('newInvoice.ai.confirmOk') as string} cancelText={t('newInvoice.actions.cancel') as string} variant="warning" />
     </>
   );
 }
 
 // ─── styled ───
+const HeadAi = styled.div`margin-right: 8px; display: flex; align-items: center;`;
+const AiBanner = styled.div`
+  display: flex; flex-direction: column; gap: 4px; padding: 10px 12px; margin-bottom: 4px;
+  border-radius: 8px; background: #FFF7ED; border: 1px solid #FED7AA; font-size: 0.75rem; color: #9A3412; line-height: 1.5;
+`;
+const AiBannerBtn = styled.button`
+  border: 1px solid #FDBA74; background: #fff; color: #9A3412; border-radius: 6px; padding: 2px 8px; font-size: 0.75rem; cursor: pointer;
+`;
 const Backdrop = styled.div`
   position: fixed; inset: var(--pq-popup-top, 0px) 0 0; background: rgba(15, 23, 42, 0.08); z-index: 1000;
 `;

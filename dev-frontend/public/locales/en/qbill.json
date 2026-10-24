@@ -619,7 +619,95 @@
       "hint": "Only projects this client takes part in are listed. Linked invoices also appear in that project's Transactions tab.",
       "noProjects": "This client is not in any project."
     },
-    "ownerOnlyIssue": "Only the workspace owner can issue. Save it as a draft and the owner can review and issue it."
+    "ownerOnlyIssue": "Only the workspace owner can issue. Save it as a draft and the owner can review and issue it.",
+    "ai": {
+      "open": "AI draft",
+      "title": "Draft invoice with AI",
+      "intro": "Give a client and materials, and AI fills in items, amounts and a title in the invoice form. Nothing is saved or sent — review and issue it yourself.",
+      "hint": "Client (rough is fine)",
+      "hintPh": "e.g. Brand Partners, Acme Inc., business no. or email",
+      "client": "Existing or inquiry client",
+      "clientPh": "Choose a client",
+      "clientHelp": "If you choose a client and give no other materials, the client's consultation notes are used (when you can view Q sale). If no client matches, nothing is created — the form uses «Enter directly».",
+      "text": "Paste (quote, email, notes)",
+      "textPh": "e.g. Website renewal 3,300,000 KRW excl. VAT, maintenance 300,000/month x 3",
+      "attach": "Link documents or files (up to {{max}} each)",
+      "attachHelp": "Reads quote/contract documents and PDF, Word, Excel and text files. Photos and scans are not read (use «Fill from business registration» for that).",
+      "run": "Extract with AI",
+      "rerun": "Extract again",
+      "running": "Reading…",
+      "apply": "Fill the invoice form",
+      "resultTitle": "Extracted",
+      "pickCandidate": "Similar clients — pick one:",
+      "external": "Not a registered client — filled as «Enter directly»: {{name}}",
+      "noClient": "No client found — choose one in the form",
+      "noPrice": "no amount",
+      "by": {
+        "fixed": "chosen client",
+        "bizno": "business no. match",
+        "email": "email match",
+        "name": "name match"
+      },
+      "basis": {
+        "included": "VAT included",
+        "excluded": "VAT excluded"
+      },
+      "taxMode": {
+        "inclusive": "Amounts include VAT",
+        "exclusive": "Amounts exclude VAT"
+      },
+      "terms": {
+        "invoiced": "«{{title}}» is a contract with billing terms, and its invoice ({{number}}) already exists — open that invoice. It is not filled here.",
+        "pending": "«{{title}}» is a contract with billing terms — an invoice is created automatically when signing completes. Creating one here would bill twice; use the billing terms card on the document."
+      },
+      "warn": {
+        "total_lines_dropped": "Removed {{count}} subtotal/VAT/total lines from the items.",
+        "price_missing": "Some items have no amount — enter the unit price yourself.",
+        "vat_mixed": "Items differ in VAT basis — the tax basis was left as is, please check.",
+        "post_has_invoices": "{{count}} invoice(s) already exist from «{{title}}».",
+        "client_differs": "The materials seem to name «{{name}}» — your chosen client was kept.",
+        "material_truncated": "Materials were long; only the beginning was read.",
+        "tax_exempt": "The materials say tax-exempt / no tax. The tax rate was not changed."
+      },
+      "kind": {
+        "post": "document",
+        "file": "file",
+        "interactions": "consultation notes"
+      },
+      "skip": {
+        "unavailable": "A {{kind}} you cannot read was left out.",
+        "payroll": "Payroll contracts are not used for invoices.",
+        "unsupported": "{{name}} — this format cannot be read as text, so it was left out.",
+        "no_permission": "You cannot view Q sale, so consultation notes were not used.",
+        "other_material": "Other materials were given, so consultation notes were not used for items (so past amounts are not added)."
+      },
+      "err": {
+        "tooMany": "You can link up to {{max}} documents and {{max}} files.",
+        "no_readable_material": "Nothing readable — paste some text or add other materials.",
+        "usage_limit": "This month's Cue usage limit has been reached.",
+        "ai_unavailable": "AI is not responding right now. Please try again shortly.",
+        "ai_unparsable": "Could not read the AI result. Please try again.",
+        "text_too_long": "The pasted text is too long (8,000 characters max).",
+        "too_many_materials": "You can link up to 3 documents and 3 files.",
+        "no_material": "Add a client or at least one material.",
+        "generic": "AI draft failed. Please try again shortly."
+      },
+      "applyHelp": "You can edit everything in the form after filling. You'll be asked first if fields you already filled would change.",
+      "field": {
+        "client": "client",
+        "title": "title",
+        "items": "{{count}} item line(s)",
+        "tax": "tax basis",
+        "notes": "notes"
+      },
+      "banner": "Filled by AI: {{fields}} — review and edit.",
+      "bannerNoPrice": "Items without an amount (unit price 0): {{items}}",
+      "bannerMixed": "Items with a different VAT basis: {{items}}",
+      "zeroTax": "Set this invoice to 0%",
+      "confirmTitle": "Replace what you've entered?",
+      "confirmMsg": "Fields the AI result will change: {{fields}}",
+      "confirmOk": "Replace"
+    }
   },
   "payments": {
     "title": "Payments",
