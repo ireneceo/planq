@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next';
 import LetterAvatar from '../../components/Common/LetterAvatar';
 import { listBusinessMembers, type WorkspaceMemberRow } from '../../services/qtalk';
 import RolePicker from '../../components/MemberRole/RolePicker';
+import RoleManageModal from '../../components/MemberRole/RoleManageModal';
 import { useMemberRoleDict } from '../../components/MemberRole/useMemberRoleDict';
 import { useAuth } from '../../contexts/AuthContext';
 import { PROJECT_COLOR_PALETTE } from '../../utils/projectColors';
@@ -59,6 +60,10 @@ const NewProjectModal: React.FC<Props> = ({ businessId, open, onClose, onCreate,
   //   옛 하드코딩 목록(기획·디자인·개발…)은 2026-10-15 폐기 — docs/MEMBER_ROLES_DESIGN.md
   const roleDict = useMemberRoleDict(open ? businessId : null);
   const { user } = useAuth();
+  // 역할 이름 변경·삭제는 owner/admin (프로젝트 상세와 같은 식) — 추가는 RolePicker 에서 멤버도 된다
+  const myWsRole: string | undefined = (user?.workspaces || []).find((w) => w.business_id === businessId)?.role;
+  const canManageRoles = myWsRole === 'owner' || myWsRole === 'admin' || user?.platform_role === 'platform_admin';
+  const [roleManageOpen, setRoleManageOpen] = useState(false);
   const [availableMembers, setAvailableMembers] = useState<WorkspaceMemberRow[]>([]);
   const [name, setName] = useState('');
   const [clientCompany, setClientCompany] = useState('');
@@ -212,6 +217,7 @@ const NewProjectModal: React.FC<Props> = ({ businessId, open, onClose, onCreate,
   const availableToAdd = availableMembers.filter((m) => !members.find((x) => x.user_id === m.user_id));
 
   return (
+    <>
     <CreateDrawer
       open={open}
       onClose={onClose}
@@ -355,6 +361,14 @@ const NewProjectModal: React.FC<Props> = ({ businessId, open, onClose, onCreate,
           {/* 멤버 + 역할 */}
           <Field>
             <Label>{t('modal.members', '멤버 & 역할')}</Label>
+            <HelpText data-testid="newproject-roles-help">
+              {t('modal.rolesHelp', '역할은 눌러서 바꾸거나 새로 입력해 추가할 수 있어요. 추가한 역할은 워크스페이스 전체에서 같이 씁니다.')}
+              {canManageRoles && (
+                <>{' '}<ManageRolesBtn type="button" onClick={() => setRoleManageOpen(true)} data-testid="newproject-manage-roles">
+                  {t('modal.manageRoles', '역할 관리')}
+                </ManageRolesBtn></>
+              )}
+            </HelpText>
             <MemberList>
               {members.map((m) => {
                 return (
@@ -364,6 +378,7 @@ const NewProjectModal: React.FC<Props> = ({ businessId, open, onClose, onCreate,
                     <RoleSelectWrap>
                       <RolePicker bizId={businessId} dict={roleDict.dict} onDictAdd={roleDict.add}
                         value={m.role} onChange={(v) => updateMemberRole(m.user_id, v)}
+                        onManage={canManageRoles ? () => setRoleManageOpen(true) : undefined}
                         testId="newproject-role" />
                     </RoleSelectWrap>
                     <DefaultCheck>
@@ -399,7 +414,7 @@ const NewProjectModal: React.FC<Props> = ({ businessId, open, onClose, onCreate,
                 </AddMemberRow>
               )}
             </MemberList>
-            <HelpText>{t('modal.defaultHelp', '"기본" 체크 = 자동 업무 추출 시 담당자 매핑 실패하면 이 사람으로 fallback')}</HelpText>
+            <HelpText>{t('modal.defaultHelp', '“기본” = 회의·대화에서 업무를 자동으로 뽑을 때 담당자를 못 찾으면 이 사람에게 맡깁니다.')}</HelpText>
           </Field>
 
           {/* 고객 참여자 */}
@@ -494,6 +509,9 @@ const NewProjectModal: React.FC<Props> = ({ businessId, open, onClose, onCreate,
             })}
           </Field>
     </CreateDrawer>
+    <RoleManageModal open={roleManageOpen} onClose={() => setRoleManageOpen(false)}
+      bizId={businessId} dict={roleDict.dict} canManage={canManageRoles} onChanged={roleDict.reload} />
+    </>
   );
 };
 
@@ -582,6 +600,18 @@ const HelpText = styled.div`
   font-size: 0.6875rem;
   color: #94A3B8;
   margin-top: 2px;
+`;
+
+const ManageRolesBtn = styled.button`
+  border: none;
+  background: none;
+  padding: 0;
+  font: inherit;
+  font-weight: 600;
+  color: #0D9488;
+  text-decoration: underline;
+  cursor: pointer;
+  &:hover { color: #0F766E; }
 `;
 
 const MemberList = styled.div`

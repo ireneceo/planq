@@ -220,7 +220,7 @@
     "members": "멤버 & 역할",
     "default": "기본",
     "addMember": "멤버 추가",
-    "defaultHelp": "\"기본\" 체크 = 자동 업무 추출 시 담당자 매핑 실패하면 이 사람으로 fallback",
+    "defaultHelp": "“기본” = 회의·대화에서 업무를 자동으로 뽑을 때 담당자를 못 찾으면 이 사람에게 맡깁니다.",
     "clientContacts": "고객 참여자 (초대 링크 생성)",
     "clientNamePlaceholder": "이름",
     "clientEmailPlaceholder": "이메일",
@@ -240,7 +240,9 @@
     "creating": "생성 중...",
     "create": "프로젝트 생성",
     "disableChannel": "채널 끄기",
-    "enableChannel": "채널 켜기"
+    "enableChannel": "채널 켜기",
+    "rolesHelp": "역할은 눌러서 바꾸거나 새로 입력해 추가할 수 있어요. 추가한 역할은 워크스페이스 전체에서 같이 씁니다.",
+    "manageRoles": "역할 관리"
   },
   "chat": {
     "noProject": "대화를 시작해 보세요",

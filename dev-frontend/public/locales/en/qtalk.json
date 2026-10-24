@@ -252,7 +252,7 @@
     "members": "Members & roles",
     "default": "Default",
     "addMember": "Add member",
-    "defaultHelp": "\"Default\" = fallback assignee when auto-extraction can't map a name",
+    "defaultHelp": "“Default” = when tasks are auto-extracted and no assignee matches, they go to this person.",
     "clientContacts": "Client contacts (invite link)",
     "clientNamePlaceholder": "Name",
     "clientEmailPlaceholder": "Email",
@@ -272,7 +272,9 @@
     "creating": "Creating...",
     "create": "Create project",
     "disableChannel": "Turn off channel",
-    "enableChannel": "Turn on channel"
+    "enableChannel": "Turn on channel",
+    "rolesHelp": "Click a role to change it, or type a new one to add it. Roles are shared across the workspace.",
+    "manageRoles": "Manage roles"
   },
   "chat": {
     "noProject": "Start a conversation",
