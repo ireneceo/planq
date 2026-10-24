@@ -270,9 +270,22 @@ if (typeof window !== 'undefined' && window.visualViewport) {
         let rect = el.getBoundingClientRect();
         if (el.isContentEditable) {
           const sel = window.getSelection();
-          if (sel && sel.rangeCount > 0) {
-            const rects = sel.getRangeAt(0).getClientRects();
-            if (rects.length) rect = rects[rects.length - 1];
+          if (!sel || sel.rangeCount === 0) return;
+          const rects = sel.getRangeAt(0).getClientRects();
+          if (rects.length) rect = rects[rects.length - 1];
+          else {
+            // 빈 문단(엔터 직후)의 접힌 캐럿은 사각형이 0개다 — 편집기 전체 상자로 떨어지면 긴 문서에서
+            //   «가려졌다» 로 보고 문서 끝 쪽으로 튄다. 캐럿이 든 줄 상자를 쓰고, 그것도 못 구하면 스크롤하지 않는다.
+            const n = sel.focusNode;
+            let box: HTMLElement | null = null;
+            if (n && n.nodeType === 1) {
+              const child = n.childNodes[sel.focusOffset];
+              box = (child && child.nodeType === 1 ? child : n) as HTMLElement;
+            } else box = n?.parentElement || null;
+            if (box && !box.getBoundingClientRect().height) box = box.parentElement;
+            if (!box || box === el || !el.contains(box)) return;
+            rect = box.getBoundingClientRect();
+            if (!rect.height || rect.height > vv.height) return;
           }
         }
         const margin = 24;
