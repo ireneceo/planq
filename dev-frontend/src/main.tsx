@@ -283,9 +283,12 @@ if (typeof window !== 'undefined' && window.visualViewport) {
               box = (child && child.nodeType === 1 ? child : n) as HTMLElement;
             } else box = n?.parentElement || null;
             if (box && !box.getBoundingClientRect().height) box = box.parentElement;
-            if (!box || box === el || !el.contains(box)) return;
-            rect = box.getBoundingClientRect();
-            if (!rect.height || rect.height > vv.height) return;
+            // 편집기가 화면보다 작으면 종전대로 편집기 상자(빈 업무 설명칸 등 — 칸 전체가 보이게). 크면 줄 상자, 그것도 없으면 추측하지 않는다.
+            if (rect.height > vv.height) {
+              const boxRect = box && box !== el && el.contains(box) ? box.getBoundingClientRect() : null;
+              if (!boxRect || !boxRect.height || boxRect.height > vv.height) return;
+              rect = boxRect;
+            }
           }
         }
         const margin = 24;
