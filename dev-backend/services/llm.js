@@ -422,8 +422,8 @@ async function embed(text, { model = EMBED_MODEL } = {}) {
         console.warn('[llm] embed 실패', r.status, body);
         return null;
       }
-      // ★ 분기는 이 한 줄 — readSseBody 는 r.json() 과 같은 모양을 돌려줘 아래 통계·경고·반환이 그대로다.
-      const data = onDelta ? await readSseBody(r, { onDelta, onToolStart }) : await r.json();
+      // 임베딩은 흘려 받지 않는다 — 2026-10-23 callLLM 의 흘려 받기 분기가 여기에도 복사돼 onDelta 미정의로 모든 임베딩이 null 이었다.
+      const data = await r.json();
       const ms = Date.now() - started;
       stats.ok++; stats.total_ms += ms;
       stats.input_tokens += data.usage?.prompt_tokens || 0;
