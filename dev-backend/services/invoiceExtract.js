@@ -166,7 +166,11 @@ function cleanOutput(parsed, fallbackCurrency) {
     title: trim(parsed.title, 200),
     currency,
     // 세금은 기준만 말한다(§7-6) — 섞였거나 모르면 null(발행 창의 지금 값 그대로), 면세는 버튼으로만
-    tax_mode: vat === 'included' ? 'inclusive' : vat === 'excluded' ? 'exclusive' : null,
+    // «포함» 은 **채우지 않고 제안만** 한다(Fable 완료 검증 3회 FAIL) — 합계 줄에만 «포함» 이 있는 견적(만원·천원 단위·세율 없음…)을
+    //   AI 가 포함가로 읽어 세금만큼 덜 청구했고, 숫자 맞춰 보기 안전장치는 모양이 바뀔 때마다 새 구멍이 났다.
+    //   그래서 사람이 견적의 합계와 대 보고 버튼으로 정한다(면세와 같은 방식). «별도» 는 명시 표기라 채운다.
+    tax_mode: vat === 'excluded' ? 'exclusive' : null,
+    tax_inclusive_hint: vat === 'included',
     tax_exempt_hint: vat === 'none',
     items,
     notes: trim(parsed.notes, 1000),
@@ -308,7 +312,7 @@ async function buildInvoiceDraft({ businessId, user, body }) {
       candidates: fixed || hintMatch?.match ? [] : (hintMatch?.candidates || []).map(clientOut),
       guess: null,
     },
-    title: null, currency: null, tax_mode: null, tax_exempt_hint: false, items: [], notes: null, due_days: null,
+    title: null, currency: null, tax_mode: null, tax_inclusive_hint: false, tax_exempt_hint: false, items: [], notes: null, due_days: null,
     source_post_id: sourcePostId, terms, skipped, warnings, used_ai: false,
   };
 
@@ -348,21 +352,10 @@ async function buildInvoiceDraft({ businessId, user, body }) {
   const out = cleanOutput(parsed, body.currency);
   result.used_ai = true;
   Object.assign(result, {
-    title: out.title, currency: out.currency, tax_mode: out.tax_mode, tax_exempt_hint: out.tax_exempt_hint,
+    title: out.title, currency: out.currency, tax_mode: out.tax_mode, tax_inclusive_hint: out.tax_inclusive_hint, tax_exempt_hint: out.tax_exempt_hint,
     items: out.items, notes: out.notes, due_days: out.due_days,
   });
   warnings.push(...out.warnings);
-  // 세금 기준 안전장치(Fable 완료 검증 FAIL) — AI 가 «포함» 이라 해도 재료가 «품목 합 + 세금 = 합계» 모양이면
-  //   품목 단가는 공급가다. 그대로 두면 청구액이 세금만큼 적게 나온다(돈 오류). 기준은 비우고(발행 창 기본) 말한다.
-  //   기준은 «별도» 로 **정한다** — 비우면 발행 창이 워크스페이스 기본(포함일 수 있다)을 그대로 써 경고만 뜨고 덜 청구된다.
-  if (result.tax_mode === 'inclusive' && looksPreTax(result.items, material.join('\n'))) {
-    result.tax_mode = 'exclusive';
-    warnings.push({ code: 'vat_total_pretax' });
-  } else if (result.tax_mode === 'inclusive' && result.items.some((i) => i.unit_price === null)) {
-    // 금액 없는 품목이 있으면 품목 합이 작아 위 판정을 할 수 없다 — 확신 없는 «포함» 은 비운다
-    result.tax_mode = null;
-    warnings.push({ code: 'vat_unsure' });
-  }
   result.client.guess = out.guess;
 
   // 단서로 못 맞췄으면 AI 가 읽은 고객을 **검색어로만** 다시 맞춘다
@@ -383,20 +376,4 @@ async function buildInvoiceDraft({ businessId, user, body }) {
   return { status: 200, body: { success: true, data: result } };
 }
 
-// 합계 계열 줄 — «합계(부가세 포함) 3,300,000» · «Total Due (incl. tax) $1,625.40» · «총 견적금액 …» (소계는 품목 합 자체라 빼도 같다)
-const TOTAL_SEG_RE = /(합계|총액|총계|총\s*견적|총\s*금액|(?:^|\s)총(?=\s*[\d₩$])|청구\s*금액|grand\s*total|total|amount\s*due|balance\s*due)/i;
-/** 품목이 진짜 포함가면 합계 줄 = 품목 합이다. 합계 계열 줄의 금액이 품목 합보다 크면(×1.3 이하) 품목 단가는 공급가다.
- *  세율 목록으로 맞춰 보면 글에 세율이 없을 때 그대로 지나갔다(Fable 2차 FAIL) — 합계 줄 숫자만 본다(다른 숫자 우연 일치도 줄인다). */
-function looksPreTax(items, text) {
-  const S = items.reduce((a, it) => a + (it.unit_price === null ? 0 : it.unit_price * it.quantity), 0);
-  if (!(S > 0)) return false;
-  const segs = String(text).split(/\n|\s\/\s|·|\||;|,\s/);
-  for (const seg of segs) {
-    if (!TOTAL_SEG_RE.test(seg) || /subtotal|소계/i.test(seg)) continue;
-    const nums = [...seg.matchAll(/\d[\d,]*(\.\d+)?/g)].map((m) => Number(m[0].replace(/,/g, ''))).filter((n) => Number.isFinite(n) && n > 0);
-    if (nums.some((n) => n > S + Math.max(1, S * 0.002) && n <= S * 1.3)) return true;
-  }
-  return false;
-}
-
-module.exports = { looksPreTax, buildInvoiceDraft, matchClients, normName, isTotalLine, cleanOutput, MAX_TEXT, MAX_HINT, MAX_IDS };
+module.exports = { buildInvoiceDraft, matchClients, normName, isTotalLine, cleanOutput, MAX_TEXT, MAX_HINT, MAX_IDS };

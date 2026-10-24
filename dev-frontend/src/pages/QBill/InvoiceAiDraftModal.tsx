@@ -167,6 +167,7 @@ export default function InvoiceAiDraftModal({ open, onClose, businessId, clientO
             </Notice>
           ))}
           {d.warnings.map((w, i) => <Notice key={`w${i}`} $tone="warn">{warnText(w)}</Notice>)}
+          {d.tax_inclusive_hint && <Notice $tone="warn">{t('newInvoice.ai.warn.tax_inclusive')}</Notice>}
           {d.tax_exempt_hint && <Notice $tone="warn">{t('newInvoice.ai.warn.tax_exempt')}</Notice>}
           {d.skipped.map((s, i) => <Notice key={`s${i}`} $tone="muted">{skipText(s)}</Notice>)}
           <Hint>{t('newInvoice.ai.applyHelp')}</Hint>

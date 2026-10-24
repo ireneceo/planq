@@ -621,7 +621,7 @@ export interface InvoiceAiDraft {
     candidates: { id: number; name: string; status: string }[];
     guess: { name: string | null; company: string | null; email: string | null; biz_tax_id: string | null } | null;
   };
-  title: string | null; currency: Currency | null; tax_mode: 'inclusive' | 'exclusive' | null; tax_exempt_hint: boolean;
+  title: string | null; currency: Currency | null; tax_mode: 'inclusive' | 'exclusive' | null; tax_inclusive_hint: boolean; tax_exempt_hint: boolean;
   items: { description: string; detail: string | null; quantity: number; unit_price: number | null; vat_basis: 'included' | 'excluded' | null }[];
   notes: string | null; due_days: number | null; source_post_id: number | null;
   terms: { post_id: number; title: string | null; invoice_id: number | null; invoice_number: string | null; state: 'invoiced' | 'pending' | 'error' | 'removed' }[];

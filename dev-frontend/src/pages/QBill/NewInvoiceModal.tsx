@@ -187,7 +187,7 @@ export default function NewInvoiceModal({ open, onClose, prefillSplit, prefillPo
   // [AI 작성] (docs/INVOICE_AI_DRAFT_DESIGN.md §7) — 채운 칸은 «AI 가 채움» 으로 말하고 사람이 고치면 표시를 뗀다
   const [aiOpen, setAiOpen] = useState(false);
   const [aiFilled, setAiFilled] = useState<Set<string>>(new Set());
-  const [aiNotice, setAiNotice] = useState<{ noPrice: string[]; exempt: boolean; mixed: string[] } | null>(null);
+  const [aiNotice, setAiNotice] = useState<{ noPrice: string[]; exempt: boolean; inclusive: boolean; mixed: string[] } | null>(null);
   const [aiConfirm, setAiConfirm] = useState<{ fields: string; run: () => void } | null>(null);
   // AI 가 출처 문서를 붙일 때 «문서 제목을 청구서 제목으로» 효과가 AI 제목을 덮지 않게(그 문서 한 번만)
   const aiSourceTitleSkip = useRef<number | null>(null);
@@ -580,7 +580,8 @@ export default function NewInvoiceModal({ open, onClose, prefillSplit, prefillPo
       setAiFilled(filled);
       const noPrice = d.items.filter(it => it.unit_price === null).map(it => it.description);
       const mixed = d.items.filter(it => it.vat_basis).map(it => `${it.description} (${t(`newInvoice.ai.basis.${it.vat_basis}`)})`);
-      setAiNotice(noPrice.length || mixed.length || d.tax_exempt_hint ? { noPrice, exempt: d.tax_exempt_hint, mixed } : null);
+      setAiNotice(noPrice.length || mixed.length || d.tax_exempt_hint || d.tax_inclusive_hint
+        ? { noPrice, exempt: d.tax_exempt_hint, inclusive: d.tax_inclusive_hint, mixed } : null);
       setAiConfirm(null);
       setAiOpen(false);
     };
@@ -797,6 +798,11 @@ export default function NewInvoiceModal({ open, onClose, prefillSplit, prefillPo
               <div>{t('newInvoice.ai.banner', { fields: [...aiFilled].map(k => t(`newInvoice.ai.field.${k}`, { count: items.length })).join(', ') })}</div>
               {aiNotice?.noPrice.length ? <div>{t('newInvoice.ai.bannerNoPrice', { items: aiNotice.noPrice.join(', ') })}</div> : null}
               {aiNotice?.mixed.length ? <div>{t('newInvoice.ai.bannerMixed', { items: aiNotice.mixed.join(', ') })}</div> : null}
+              {aiNotice?.inclusive && taxMode !== 'inclusive' && (
+                <div>{t('newInvoice.ai.warn.tax_inclusive')}{' '}
+                  <AiBannerBtn type="button" data-testid="invoice-ai-inclusive" onClick={() => setTaxMode('inclusive')}>{t('newInvoice.ai.toInclusive')}</AiBannerBtn>
+                </div>
+              )}
               {aiNotice?.exempt && vatRate > 0 && (
                 <div>{t('newInvoice.ai.warn.tax_exempt')}{' '}
                   <AiBannerBtn type="button" data-testid="invoice-ai-zero-tax" onClick={() => setVatRate(0)}>{t('newInvoice.ai.zeroTax')}</AiBannerBtn>
