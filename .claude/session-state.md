@@ -933,7 +933,7 @@
 - 검증: Fable 완료 PASS(비차단 반영) · build EXIT 0 · guard 74/75 · e2e marketingtags 0 실패 · /privacy ko/en 3폭(8조 5항목·시행일·넘침 0) · 쿠키 설정 버튼 3폭 눌러 창 열림 · 메일 미리보기 대상 72.
 - ★ 배포가 10-19 보다 늦으면 시행일을 배포일+7 로(PrivacyPolicy.tsx · legal.json s10 · emailService POLICY_NOTICE 3곳).
 ### Irene 할 일 (마케팅 측정 — 상황판에 올림)
-- 공지 띠 켜기 — 회원 메일 안 보냄, 10-21 까지(todomvdbjkl4) · nginx CSP sudo(todomvdbjkw2) · GTM·GA4·Meta 계정·ID·가져오기(todomvdbjl6v) · 10-28 이후 GTM 게시 + 운영 ID 입력(todomvdbjlhb, check) — 10-21 점검: 넷 다 아직(운영 공지·GTM ID 비어 있음 · CSP 미적용)
+- 공지 띠 켜기 — 회원 메일 안 보냄, 10-21 까지(todomvdbjkl4) · nginx CSP sudo(todomvdbjkw2) · GTM·GA4·Meta 계정·ID·가져오기(todomvdbjl6v) · 11-03 이후 GTM 게시 + 운영 ID 입력(todomvdbjlhb, check) — 10-21 점검: 넷 다 아직(운영 공지·GTM ID 비어 있음 · CSP 미적용) · 10-24 점검: 처리방침 1.5(85cf6287)로 시행일 11-03 — 카드 todomvdbjl6v·todomvdbjlhb 날짜 고침(운영 화면은 다음 배포까지 10-28)
 ### 답 기다림 (이전): 마케팅 측정(GTM·GA4·Meta 픽셀) 게시 목록 승인 (방 d103516d · 2026-10-17 · [Opus] · 설계·검증 Fable)
 - 원문: «이거 해야 하는 거 안한거 있어? 메타 픽셀, 구글 서치콘솔, GA4, GTM 설정. 이벤트는 사이트 구조에 맞게 설계하고 설계서도 남기고 발행·게시 전에는 목록 보여주고 승인»
 - 실측: 서치콘솔만 돼 있었고(06-05 부터 sitemap) GTM·GA4·Meta 픽셀은 0 — 09-21 에 CSP·쿠키 동의 때문에 일부러 안 하고 자체 집계를 만들었었다.
