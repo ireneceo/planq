@@ -266,13 +266,18 @@ async function createTask(p, a, actor) {
   const src = await resolveSource(p, a.source, ['mail', 'chat']);
   const projectId = a.project_id || (src && src.kind === 'mail' ? src.thread.project_id : null) || null;
   const clientId = a.client_id || (src && src.kind === 'mail' ? src.thread.client_id : null) || null;
-  if (a.assignee_user_id) {
-    const { assertAssignable } = require('../../../middleware/access_scope');
-    const ok = await assertAssignable(a.assignee_user_id, p.businessId, projectId);
-    if (!ok.ok) throw err('PERMISSION_DENIED', `cannot_assign:${ok.reason}`);
+  // 담당자 생략 = 사용자 본인(2026-10-24 Fable 판정 A). 프로젝트 기본 담당자 체인은 AI 경로에 쓰지 않는다 —
+  //   화면은 저장 전에 «누구에게 갈지» 를 사람이 보지만 AI 경로엔 그 미리보기가 없어, 체인이 남을 고르면
+  //   사용자 모르게 알림·내부 요청이 생겼다(운영 #812). 체인 함수·화면 경로는 그대로. Cue 도 이 핸들러를 쓴다.
+  const { assertAssignable } = require('../../../middleware/access_scope');
+  const assigneeId = a.assignee_user_id || p.userId;
+  const chk = await assertAssignable(assigneeId, p.businessId, projectId);
+  if (!chk.ok) {
+    if (a.assignee_user_id) throw err('PERMISSION_DENIED', `cannot_assign:${chk.reason}`);
+    // 본인을 이 프로젝트에 배정할 수 없으면 다른 사람에게 조용히 넘기지 않는다
+    throw err('PERMISSION_DENIED', `cannot_assign_self:${chk.reason}`, { hint: 'The user cannot be the assignee here. Ask the user who should take this task, then pass assignee_user_id (from search_members).' });
   }
   // 예상 시간 — 담당자 본인만 정한다(PERMISSION_MATRIX §5.7). 남을 담당자로 지정하면서 넣으면 거절한다.
-  //   담당자를 비우면 프로젝트 기본 담당자 체인이 남을 고를 수 있다 — 그때 행동 계층이 값을 버리고, 응답이 그 사실을 말한다.
   if (a.estimated_hours !== undefined && a.assignee_user_id && a.assignee_user_id !== p.userId) {
     throw err('VALIDATION_ERROR', 'estimated_hours_only_for_own_task', { hint: 'Only the assignee sets the estimate. Omit estimated_hours when assigning the task to someone else.' });
   }
@@ -288,7 +293,7 @@ async function createTask(p, a, actor) {
     description: a.description ? markdownToHtml(a.description) : null,   // 업무 칸은 HTML — 마크다운을 서식으로(원시 HTML 은 글자 그대로)
     dueDate: a.due_date || null,
     startDate: a.start_date || null,
-    assigneeId: a.assignee_user_id || null,
+    assigneeId,
     projectId,
     clientId,
     priorityLevel: a.priority || null,
@@ -302,12 +307,7 @@ async function createTask(p, a, actor) {
   const [item] = await shapeTasks([t], p.businessId);
   const extras = await taskExtras(p, t, scope);
   const out = { task: { ...item, source: extras.source, tags: a.tag_names && a.tag_names.length ? await tagNamesOf(p, t.id) : undefined }, created: true };
-  // 담당자를 안 줬는데 프로젝트 기본 담당자 체인이 남을 골랐으면 말하게 한다(2026-10-24 — 아이린 업무가 말없이 루아에게 간 사고).
-  //   배정 규칙 자체는 그대로(바꿀지는 Fable 판정 대기) — 사용자가 모른 채 남에게 알림이 가는 것만 막는다.
-  if (!a.assignee_user_id && t.assignee_id && Number(t.assignee_id) !== Number(p.userId)) {
-    out.assigned_by = 'project_default';
-    out.assignment_note = `Assigned to ${await memberName(p, t.assignee_id)} by this project's default-assignee rule, not to the user (the user is the requester and that person was notified). Tell the user this. If they meant the task for themselves, call assign_task with assignee_user_id = ${p.userId} (get_context.user.user_id).`;
-  }
+  if (!a.assignee_user_id) out.assigned_to = 'user (default)';
   // 컨펌자 — 업무가 생긴 뒤 화면·add_task_reviewers 와 같은 addReviewer 로 한 명씩(자기 트랜잭션·알림·broadcast 를 가진다 —
   //   묶어 롤백해도 알림은 이미 나가므로 묶지 않는다). 실패는 업무를 되돌리지 않고 reviewers_failed 로 말한다.
   if (rv.reviewers.length || rv.skipped.length) {

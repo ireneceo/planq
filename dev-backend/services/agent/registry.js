@@ -63,7 +63,7 @@ const TOOLS = [
   },
   {
     name: 'create_task', risk: 'LOW', write: true, scopes: ['tasks:write'],
-    description: 'Create one new task in PlanQ. Only adds — never edits or deletes existing data. If no assignee is given, PlanQ assigns it by its normal rules: without a project it goes to the user; inside a project it may go to that project\'s default assignee (another person — the response then says so in assignment_note; tell the user). When the user wants the task for themselves ("me", "my task", or names no one), pass assignee_user_id = get_context.user.user_id. If the task comes from a mail thread or chat you read, pass source — the task is then linked to it (and inherits the thread\'s client/project when you give none).',
+    description: 'Create one new task in PlanQ. Only adds — never edits or deletes existing data. If assignee_user_id is omitted, the task is assigned to the user themselves (a project\'s default assignee is not applied). To give it to a colleague, pass their user_id from search_members. If the task comes from a mail thread or chat you read, pass source — the task is then linked to it (and inherits the thread\'s client/project when you give none).',
     input: {
       title: z.string().trim().min(1).max(300),
       description: z.string().max(5000).optional(),
@@ -75,7 +75,7 @@ const TOOLS = [
       tag_names: z.array(z.string().trim().min(1).max(30)).max(10).optional()
         .describe('Names of tags that already exist in this workspace. Unknown names are rejected with the list of available tags — PlanQ does not create new tags from here.'),
       estimated_hours: z.number().min(0).max(1000).optional()
-        .describe('Estimated hours. Only when the task is assigned to the user themselves (the assignee sets the estimate).'),
+        .describe('Estimated hours. Only when the task is assigned to the user themselves — omitted assignee counts (the assignee sets the estimate).'),
       source: z.union([mailSource, chatSource]).optional().describe(SOURCE_DESC),
       completed: z.boolean().optional().describe('true only when recording work that is ALREADY finished ("add it as done"). Completion only applies when the user is the assignee and no reviewer sign-off is needed; otherwise the task is just created. Cannot be combined with reviewer_user_ids.'),
       // 2026-10-12 (Fable 설계 D1) — 만들면서 컨펌자까지. 있으면 알림이 나가므로 MEDIUM(확인 2단계)
