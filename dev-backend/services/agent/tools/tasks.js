@@ -302,6 +302,12 @@ async function createTask(p, a, actor) {
   const [item] = await shapeTasks([t], p.businessId);
   const extras = await taskExtras(p, t, scope);
   const out = { task: { ...item, source: extras.source, tags: a.tag_names && a.tag_names.length ? await tagNamesOf(p, t.id) : undefined }, created: true };
+  // 담당자를 안 줬는데 프로젝트 기본 담당자 체인이 남을 골랐으면 말하게 한다(2026-10-24 — 아이린 업무가 말없이 루아에게 간 사고).
+  //   배정 규칙 자체는 그대로(바꿀지는 Fable 판정 대기) — 사용자가 모른 채 남에게 알림이 가는 것만 막는다.
+  if (!a.assignee_user_id && t.assignee_id && Number(t.assignee_id) !== Number(p.userId)) {
+    out.assigned_by = 'project_default';
+    out.assignment_note = `Assigned to ${await memberName(p, t.assignee_id)} by this project's default-assignee rule, not to the user (the user is the requester and that person was notified). Tell the user this. If they meant the task for themselves, call assign_task with assignee_user_id = ${p.userId} (get_context.user.user_id).`;
+  }
   // 컨펌자 — 업무가 생긴 뒤 화면·add_task_reviewers 와 같은 addReviewer 로 한 명씩(자기 트랜잭션·알림·broadcast 를 가진다 —
   //   묶어 롤백해도 알림은 이미 나가므로 묶지 않는다). 실패는 업무를 되돌리지 않고 reviewers_failed 로 말한다.
   if (rv.reviewers.length || rv.skipped.length) {

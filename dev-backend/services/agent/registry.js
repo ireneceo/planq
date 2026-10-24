@@ -28,7 +28,7 @@ const confirm = z.string().max(200).optional().describe('Leave empty on the firs
 const TOOLS = [
   {
     name: 'get_context', risk: 'LOW', write: false, scopes: [],
-    description: 'Who am I and which PlanQ workspace this call works in (workspaces.count > 1 means more are allowed — see list_workspaces), today\'s date/weekday/local time in my time zone, and what this connection may access (granted.mail, granted.write). connection.up_to_date=false means PlanQ added abilities this connection lacks — mention connection.new_abilities and how_to_reconnect to the user once. Call this first. Resolve relative dates ("next Friday") in user.timezone. Dates you pass to other tools are interpreted in that zone. Read-only.',
+    description: 'Who am I (user.user_id is the person you are talking to — use it whenever they say "me"/"my" or a task is for them) and which PlanQ workspace this call works in (workspaces.count > 1 means more are allowed — see list_workspaces), today\'s date/weekday/local time in my time zone, and what this connection may access (granted.mail, granted.write). connection.up_to_date=false means PlanQ added abilities this connection lacks — mention connection.new_abilities and how_to_reconnect to the user once. Call this first. Resolve relative dates ("next Friday") in user.timezone. Dates you pass to other tools are interpreted in that zone. Read-only.',
     input: {},
     handler: (p) => t.getContext(p),
   },
@@ -63,7 +63,7 @@ const TOOLS = [
   },
   {
     name: 'create_task', risk: 'LOW', write: true, scopes: ['tasks:write'],
-    description: 'Create one new task in PlanQ. Only adds — never edits or deletes existing data. If no assignee is given, PlanQ assigns it by its normal rules (project default or the user). If the task comes from a mail thread or chat you read, pass source — the task is then linked to it (and inherits the thread\'s client/project when you give none).',
+    description: 'Create one new task in PlanQ. Only adds — never edits or deletes existing data. If no assignee is given, PlanQ assigns it by its normal rules: without a project it goes to the user; inside a project it may go to that project\'s default assignee (another person — the response then says so in assignment_note; tell the user). When the user wants the task for themselves ("me", "my task", or names no one), pass assignee_user_id = get_context.user.user_id. If the task comes from a mail thread or chat you read, pass source — the task is then linked to it (and inherits the thread\'s client/project when you give none).',
     input: {
       title: z.string().trim().min(1).max(300),
       description: z.string().max(5000).optional(),
@@ -176,7 +176,7 @@ const TOOLS = [
   },
   {
     name: 'search_members', risk: 'LOW', write: false, scopes: ['tasks:read'], list: true,
-    description: 'List workspace members (to pick an assignee_user_id). Read-only.',
+    description: 'List workspace members (to pick an assignee_user_id). is_me marks the user you are talking to. Read-only.',
     input: { query: z.string().max(100).optional(), limit: z.number().int().min(1).max(50).optional(), ...pageInput },
     handler: (p, a) => dir.searchMembers(p, a),
   },
