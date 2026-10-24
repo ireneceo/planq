@@ -798,9 +798,15 @@ export default function NewInvoiceModal({ open, onClose, prefillSplit, prefillPo
               <div>{t('newInvoice.ai.banner', { fields: [...aiFilled].map(k => t(`newInvoice.ai.field.${k}`, { count: items.length })).join(', ') })}</div>
               {aiNotice?.noPrice.length ? <div>{t('newInvoice.ai.bannerNoPrice', { items: aiNotice.noPrice.join(', ') })}</div> : null}
               {aiNotice?.mixed.length ? <div>{t('newInvoice.ai.bannerMixed', { items: aiNotice.mixed.join(', ') })}</div> : null}
-              {aiNotice?.inclusive && taxMode !== 'inclusive' && (
-                <div>{t('newInvoice.ai.warn.tax_inclusive')}{' '}
-                  <AiBannerBtn type="button" data-testid="invoice-ai-inclusive" onClick={() => setTaxMode('inclusive')}>{t('newInvoice.ai.toInclusive')}</AiBannerBtn>
+              {/* AI 가 «포함» 으로 읽었으면 **지금 기준과 상관없이** 보인다 — 기본이 «포함» 인 워크스페이스에서 숨기면
+                  합계 줄에만 «포함» 인 견적이 말없이 덜 청구된다(Fable 완료 검증 4차). 문구·버튼은 지금 기준에 맞춘다. */}
+              {aiNotice?.inclusive && (
+                <div data-testid="invoice-ai-taxcheck">
+                  {taxMode === 'inclusive' ? t('newInvoice.ai.taxCheck.nowInclusive') : t('newInvoice.ai.taxCheck.nowExclusive')}{' '}
+                  <AiBannerBtn type="button" data-testid="invoice-ai-taxswitch"
+                    onClick={() => setTaxMode(taxMode === 'inclusive' ? 'exclusive' : 'inclusive')}>
+                    {taxMode === 'inclusive' ? t('newInvoice.ai.taxCheck.toExclusive') : t('newInvoice.ai.taxCheck.toInclusive')}
+                  </AiBannerBtn>
                 </div>
               )}
               {aiNotice?.exempt && vatRate > 0 && (

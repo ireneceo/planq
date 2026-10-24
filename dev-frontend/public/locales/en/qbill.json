@@ -670,7 +670,7 @@
         "material_truncated": "Materials were long; only the beginning was read.",
         "tax_exempt": "The materials say tax-exempt / no tax. The tax rate was not changed.",
         "from_consults": "Extracted from consultation notes — the same deal noted several times may be duplicated, so check the items and amounts.",
-        "tax_inclusive": "AI read the amounts as «VAT included», but the tax basis was not changed. If the quote total equals the sum of the items, press «Amounts include VAT»; if the total is larger (items + VAT), leave it."
+        "tax_inclusive": "AI read the amounts as «VAT included» — the tax basis was not changed; after filling, follow the note in the invoice form and compare with the quote total."
       },
       "kind": {
         "post": "document",
@@ -711,7 +711,12 @@
       "confirmTitle": "Replace what you've entered?",
       "confirmMsg": "Fields the AI result will change: {{fields}}",
       "confirmOk": "Replace",
-      "toInclusive": "Amounts include VAT"
+      "taxCheck": {
+        "nowExclusive": "AI read the amounts as «VAT included». The current tax basis is «VAT excluded» — if the quote total equals the sum of the items, press the button (if the total is items + VAT, leave it).",
+        "nowInclusive": "AI read the amounts as «VAT included». The current tax basis is «VAT included» — if the quote total is larger than the sum of the items (items + VAT), press the button.",
+        "toInclusive": "Amounts include VAT",
+        "toExclusive": "Amounts exclude VAT"
+      }
     }
   },
   "payments": {
