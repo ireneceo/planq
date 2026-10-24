@@ -2148,17 +2148,17 @@ const ChatPanel: React.FC<Props> = ({
                 </CueDraftCard>
               )}
               {/* 사이클 N+15-C — 읽음 표시. 내가 보낸 메시지만, 시스템 메시지/Cue 제외.
-                  1:1 (other_count <= 1): "읽음" / "전송됨" / (둘 다 아닐 때 nothing).
-                  그룹 (other_count >= 2): "읽음 N/M" (N==M 일 때 그냥 "전체 읽음"). */}
+                  1:1 (other_count <= 1): «읽음» / «안 읽음».
+                  그룹 (other_count >= 2): «N명 읽음» (모두면 «모두 읽음», 분모는 title). «전송됨» 은 읽음 0명인지 모호해서 뺐다. */}
               {!isDeleted && user && Number(m.sender_id) === Number(user.id) && m.sender_role !== 'cue' && typeof m.other_count === 'number' && m.other_count > 0 && (() => {
-                const read = m.read_by_count ?? 0;
+                const read = Math.min(m.read_by_count ?? 0, m.other_count);
                 const total = m.other_count;
                 if (total <= 1) {
-                  return <ReadMark $read={read >= 1}>{read >= 1 ? t('chat.read.read', '읽음') : t('chat.read.sent', '전송됨')}</ReadMark>;
+                  return <ReadMark $read={read >= 1} data-testid="chat-read-mark">{read >= 1 ? t('chat.read.read', '읽음') : t('chat.read.unread', '안 읽음')}</ReadMark>;
                 }
-                if (read >= total) return <ReadMark $read>{t('chat.read.allRead', '전체 읽음')}</ReadMark>;
-                if (read > 0) return <ReadMark $read>{t('chat.read.someRead', { read, total, defaultValue: '읽음 {{read}}/{{total}}' }) as string}</ReadMark>;
-                return <ReadMark $read={false}>{t('chat.read.sent', '전송됨')}</ReadMark>;
+                const ratio = t('chat.read.ratio', { read, total, defaultValue: '{{total}}명 중 {{read}}명 읽음' }) as string;
+                if (read >= total) return <ReadMark $read title={ratio} data-testid="chat-read-mark">{t('chat.read.allRead', '모두 읽음')}</ReadMark>;
+                return <ReadMark $read={read > 0} title={ratio} data-testid="chat-read-mark">{t('chat.read.countRead', { count: read, defaultValue: '{{count}}명 읽음' }) as string}</ReadMark>;
               })()}
               {promoteErr && promoteErr.id === m.id && (
                 <PromoteErrLine data-testid="chat-promote-error" role="status">
@@ -2955,7 +2955,7 @@ const UnreadDivider = styled.div`
 
 // 사이클 N+15-C — 읽음 표시 라벨.
 // 본인 메시지 우측 하단 작은 11px 톤. read=true 면 teal, false 면 회색 (Slack/iMessage 패턴).
-// 영문 노트: 상대 디바이스가 알림만 받고 conv 진입 전이면 last_read_at 갱신 안 됨 → '전송됨' 유지.
+// 영문 노트: 상대 디바이스가 알림만 받고 conv 진입 전이면 last_read_at 갱신 안 됨 → '안 읽음' 유지.
 const ReadMark = styled.div<{ $read: boolean }>`
   margin-top: 2px;
   align-self: flex-end;

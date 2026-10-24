@@ -255,10 +255,11 @@
     "loadingOlder": "이전 메시지 불러오는 중…",
     "unreadDivider": "여기까지 읽음",
     "read": {
-      "sent": "전송됨",
+      "unread": "안 읽음",
       "read": "읽음",
-      "allRead": "전체 읽음",
-      "someRead": "읽음 {{read}}/{{total}}"
+      "allRead": "모두 읽음",
+      "countRead": "{{count}}명 읽음",
+      "ratio": "{{total}}명 중 {{read}}명 읽음"
     },
     "expandLeft": "좌측 열기",
     "expandRight": "우측 열기",

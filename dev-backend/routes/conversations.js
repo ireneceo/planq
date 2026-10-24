@@ -10,7 +10,7 @@ const { serializeMessageAttachments } = require('../services/filePreview');
 const { maskDeletedMessages } = require('../utils/deletedMessage');
 const { CLIENT_VISIBLE_MESSAGE_WHERE, clientVisibleSql, isVisibleToClient } = require('../utils/messageVisibility');
 const { createAuditLog } = require('../middleware/audit');
-const { touchOwnRow, ownRows, joinParticipant, promoteSpeaker, removeRows } = require('../services/convParticipants');
+const { touchOwnRow, ownRows, joinParticipant, promoteSpeaker, removeRows, countOthers } = require('../services/convParticipants');
 const cueOrchestrator = require('../services/cue_orchestrator');
 const kbService = require('../services/kb_service');
 const { applyMemberDisplayName, applyMemberDisplayNameOne, getMemberNameMap, applyGuestDisplayName } = require('../services/displayName');
@@ -297,7 +297,13 @@ router.put('/:businessId/:id/read', authenticateToken, attachWorkspaceScope(), a
     }
     // ★ 열어 본 것은 참여가 아니다(2026-10-15 Fable A) — 참여자가 아니면 «보는 중»(is_viewer) 행에
     //   읽음 커서만 담는다. 예전엔 여기서 role member 참여자를 만들어 초대 안 한 사람이 참여자 목록·@·알림에 들어갔다.
-    const part = await touchOwnRow(convId, req.user.id, { last_read_at: new Date() });
+    // 읽음 숫자는 «이번에 새로 읽은 구간» 만 올린다 — 이전 커서를 같이 실어야 같은 사람이 머무는 동안
+    //   markRead 가 반복돼도 이미 센 메시지에 또 +1 하지 않는다. viewer 는 분모에 없으니 방송하지 않는다.
+    const [prevRow] = await ownRows(req.user.id, [convId], ['last_read_at', 'is_viewer']);
+    const prevLastReadAt = prevRow ? prevRow.last_read_at : null;
+    // 칸이 초 단위(MySQL 반올림)라 다음 정각 초로 올려 둔다 — 방송한 값 = 저장된 값(다음 방송의 prev)이 되고,
+    //   같은 초에 반올림돼 «읽은 시각보다 늦게» 찍힌 메시지가 안 읽음으로 남지 않는다.
+    const part = await touchOwnRow(convId, req.user.id, { last_read_at: new Date(Math.ceil(Date.now() / 1000) * 1000) });
     // 대화 진입 = 그 대화 관련 미읽음 알림도 읽은 것 → Notification.read_at 마킹.
     //   목적: 미읽음 이메일 에스컬레이션(unreadEscalationCron)이 자리에 있는 사용자에게 안 가게.
     //   (push 못 받아도 사용자가 대화를 직접 열어 봤으면 에스컬레이션 불필요)
@@ -315,11 +321,12 @@ router.put('/:businessId/:id/read', authenticateToken, attachWorkspaceScope(), a
     // 사이클 N+15-C — 같은 conv room 의 다른 참여자에게 "이 user 가 읽었음" broadcast.
     // 발송자는 자기 메시지의 read_by_count 를 실시간 +1.
     const io = req.app.get('io');
-    if (io) {
+    if (io && !part.is_viewer) {
       io.to(`conv:${convId}`).emit('conversation:read', {
         conversation_id: convId,
         user_id: req.user.id,
         last_read_at: part.last_read_at,
+        prev_last_read_at: prevLastReadAt,
       });
     }
     return successResponse(res, { last_read_at: part.last_read_at });
@@ -805,6 +812,9 @@ router.post('/:businessId/:id/messages', authenticateToken, attachWorkspaceScope
       serializeMessageAttachments(emitMsg);
       await applyMemberDisplayNameOne(emitMsg, Number(req.params.businessId), ['sender']);
       applyGuestDisplayName(emitMsg);
+      // 읽음 표시 분모 — 보내자마자 «0명 읽음» (projects.js 메시지 라우트와 같다)
+      emitMsg.other_count = await countOthers(conversation.id, req.user.id);
+      emitMsg.read_by_count = 0;
     }
     const io = req.app.get('io');
     if (io && emitMsg) {

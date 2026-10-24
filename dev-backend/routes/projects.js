@@ -1582,6 +1582,9 @@ router.post('/conversations/:id/messages', authenticateToken, async (req, res, n
     // N+71 fix — conv room + business room 둘 다 emit (Q Talk 리스트 실시간 갱신 회귀 fix)
     // 토스터가 «(첨부파일)» 대신 «이미지가 첨부되었습니다» 를 말하도록 힌트만 싣는다(첨부는 이 뒤에 올라온다).
     if (!cleaned && attachKind) fullJson.attachment_hint = { kind: attachKind, count: attachCount };
+    // 읽음 표시 분모 — 보내자마자 «0명 읽음» (목록 GET 과 같은 술어, 받는 사람과 무관한 값)
+    fullJson.other_count = await require('../services/convParticipants').countOthers(conv.id, req.user.id);
+    fullJson.read_by_count = 0;
     const io = req.app.get('io');
     if (io) {
       io.to(`conv:${conv.id}`).emit('message:new', fullJson);
@@ -1966,7 +1969,8 @@ router.get('/conversations/:id/messages', authenticateToken, async (req, res, ne
     // other_count: sender 외 참여자 총수 (1:1 ↔ 그룹 판별용).
     const result = msgs.map((m) => {
       const json = m.toJSON();
-      const createdMs = new Date(m.created_at).getTime();
+      // ★ 인스턴스에는 created_at 속성이 없다(createdAt) — m.created_at 으로 재면 NaN 이라 읽음이 늘 0명이었다. toJSON 값으로.
+      const createdMs = new Date(json.created_at || json.createdAt).getTime();
       let readBy = 0;
       let others = 0;
       for (const p of parts) {

@@ -125,4 +125,13 @@ async function changeRole(userId, conversationIds, fromRole, toRole, opts = {}) 
   return n || 0;
 }
 
-module.exports = { touchOwnRow, ownRows, joinParticipant, promoteSpeaker, removeRows, changeRole };
+/**
+ * 읽음 분모 — 보낸 사람을 뺀 참여자 수(viewer 제외, defaultScope). 메시지 목록 GET 의 other_count 와 같은 술어.
+ * 새 메시지 응답·방송에 실어 «0명 읽음» 이 보내자마자 보이게 한다. promoteSpeaker 뒤에 부른다.
+ */
+async function countOthers(conversationId, senderId) {
+  const { Op } = require('sequelize');
+  return model().count({ where: { conversation_id: conversationId, user_id: { [Op.ne]: senderId } } });
+}
+
+module.exports = { touchOwnRow, ownRows, joinParticipant, promoteSpeaker, removeRows, changeRole, countOthers };

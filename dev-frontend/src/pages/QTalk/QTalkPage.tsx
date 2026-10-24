@@ -530,6 +530,7 @@ const QTalkPage: React.FC<QTalkPageProps> = ({ embedded = false, initialConvId =
     // 프로젝트 rename → 좌측 목록·채팅방 제목 즉시 반영 (#150).
     //   여태 Q Talk 은 이 이벤트를 듣지 않아, 다른 화면에서 이름을 바꿔도 새로고침 전까지 옛 이름이었다.
     let renameTimer: number | null = null;
+    const readSyncTimers = new Map<number, number>();   // 대화별 읽음 숫자 서버 맞춤(conversation:read 묶기)
     const reloadSoon = () => {
       if (renameTimer) window.clearTimeout(renameTimer);
       renameTimer = window.setTimeout(() => { void silentReloadRef.current(); }, 250);   // 연속 신호 합치기
@@ -708,8 +709,11 @@ const QTalkPage: React.FC<QTalkPageProps> = ({ embedded = false, initialConvId =
 
     // 사이클 N+15-C — 다른 참여자가 대화방을 읽음 → 내 메시지의 read_by_count 실시간 갱신.
     // 같은 conv room 의 모든 socket 으로 broadcast 됨 (자기 자신 포함될 수 있어 sender_id 분기).
-    on('conversation:read', (data: { conversation_id: number; user_id: number; last_read_at: string }) => {
+    // ★ 이번에 새로 읽은 구간(prev_last_read_at < created_at <= last_read_at)만 +1 — 같은 사람이 대화를 보는 동안
+    //   읽음이 반복 방송돼도 이미 센 메시지는 다시 세지 않는다(1명만 읽었는데 «모두 읽음» 이 되던 것). 옛 서버는 하한 없음.
+    on('conversation:read', (data: { conversation_id: number; user_id: number; last_read_at: string; prev_last_read_at?: string | null }) => {
       const readerMs = new Date(data.last_read_at).getTime();
+      const prevMs = data.prev_last_read_at ? new Date(data.prev_last_read_at).getTime() : -Infinity;
       setMessages((prev) => {
         const arr = prev[data.conversation_id];
         if (!arr) return prev;
@@ -719,7 +723,8 @@ const QTalkPage: React.FC<QTalkPageProps> = ({ embedded = false, initialConvId =
           if (m.sender_id === data.user_id) return m;
           // 이 메시지 created_at 이 reader 의 last_read_at 이하면 읽힘 인정.
           // read_by_count 가 other_count 이상이면 더 늘리지 않음.
-          if (new Date(m.created_at).getTime() > readerMs) return m;
+          const createdMs = new Date(m.created_at).getTime();
+          if (createdMs > readerMs || createdMs <= prevMs) return m;
           const cur = m.read_by_count ?? 0;
           const cap = m.other_count ?? Infinity;
           if (cur >= cap) return m;
@@ -728,6 +733,30 @@ const QTalkPage: React.FC<QTalkPageProps> = ({ embedded = false, initialConvId =
         });
         return touched ? { ...prev, [data.conversation_id]: next } : prev;
       });
+      // ★ 위 +1 은 즉시 보이게 하는 몫이고, 맞는 숫자는 서버가 센다 — 커서가 초 단위라 읽음과 같은 초에 온 메시지는
+      //   구간 계산에서 빠질 수 있다(실측: 상대가 보고 있는데 마지막 두 통이 «0명 읽음»). 잠깐 뒤 서버 숫자로 맞춘다.
+      const convId = data.conversation_id;
+      const tm = readSyncTimers.get(convId);
+      if (tm) window.clearTimeout(tm);
+      readSyncTimers.set(convId, window.setTimeout(() => {
+        readSyncTimers.delete(convId);
+        qtalkApi.listConversationMessagesPaged(convId).then(({ messages: fresh }) => {
+          const byId = new Map(fresh.map((f) => [f.id, f]));
+          setMessages((prev) => {
+            const arr = prev[convId];
+            if (!arr) return prev;
+            let touched = false;
+            const next = arr.map((m) => {
+              const f = byId.get(Number(m.id));
+              if (!f || typeof f.read_by_count !== 'number') return m;
+              if (f.read_by_count === m.read_by_count && f.other_count === m.other_count) return m;
+              touched = true;
+              return { ...m, read_by_count: f.read_by_count, other_count: f.other_count };
+            });
+            return touched ? { ...prev, [convId]: next } : prev;
+          });
+        }).catch(() => null);
+      }, 700));
     });
 
     // 메시지 번역 완료 (비동기 LLM 결과 — 메시지 자체는 이미 발송됨)
@@ -760,6 +789,7 @@ const QTalkPage: React.FC<QTalkPageProps> = ({ embedded = false, initialConvId =
 
     return () => {
       if (businessId) leaveRoom(`business:${businessId}`);
+      readSyncTimers.forEach((tm) => window.clearTimeout(tm));
       offs.forEach((f) => f());
     };
   }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps

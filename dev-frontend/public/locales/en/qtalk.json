@@ -287,10 +287,11 @@
     "loadingOlder": "Loading earlier messages…",
     "unreadDivider": "Unread from here",
     "read": {
-      "sent": "Sent",
+      "unread": "Unread",
       "read": "Read",
       "allRead": "Read by all",
-      "someRead": "Read {{read}}/{{total}}"
+      "countRead": "Read by {{count}}",
+      "ratio": "Read by {{read}} of {{total}}"
     },
     "expandLeft": "Expand left panel",
     "expandRight": "Expand right panel",
