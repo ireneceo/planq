@@ -18,6 +18,7 @@ const { assertClientInBusiness } = require('../services/tenantRef');
 const { createAuditLog } = require('../middleware/audit');
 const { dateOnlyOf } = require('../utils/dateOnly');
 const { billRecipientOf } = require('../services/clientSubscriptionBilling');
+const { workspaceTaxDefaults, fractionToPercent } = require('../services/taxCalc');
 
 // 재무 mutation 은 워크스페이스 owner 또는 platform_admin 만 (invoices.js assertInvoiceMutationOwner 와 동일 경계).
 function requireBillingOwner(req, res, next) {
@@ -101,7 +102,7 @@ router.post('/:businessId', authenticateToken, checkBusinessAccess, requireMenu(
     // 고객 소유권 검증 (멀티테넌트) — 청구서와 같은 술어 한 벌(services/tenantRef, FIX_0AB B-③). 없으면 400 client_not_in_workspace
     await assertClientInBusiness(client_id, businessId);
 
-    const biz = await Business.findByPk(businessId, { attributes: ['default_currency', 'default_due_days'] });
+    const biz = await Business.findByPk(businessId, { attributes: ['default_currency', 'default_due_days', 'default_vat_rate', 'tax_enabled', 'default_tax_mode'] });
     const start = start_date && /^\d{4}-\d{2}-\d{2}$/.test(start_date) ? start_date : new Date().toISOString().slice(0, 10);
 
     // 운영 — 회차 자동 종료 조건
@@ -115,7 +116,8 @@ router.post('/:businessId', authenticateToken, checkBusinessAccess, requireMenu(
       amount: amt,
       currency: currency || biz?.default_currency || 'KRW',
       interval: interval || 'monthly',
-      vat_rate: vat_rate != null ? Number(vat_rate) : 10.0,
+      // 세율을 안 보내면 워크스페이스 기본(퍼센트로 · 세금 끔이면 0) — 옛날엔 10 고정(Fable 고칠 점 3)
+      vat_rate: vat_rate != null ? Number(vat_rate) : fractionToPercent(workspaceTaxDefaults(biz).rate),
       auto_mode: auto_mode === 'auto' ? 'auto' : 'draft_review',
       due_days: due_days != null ? Number(due_days) : (biz?.default_due_days || 14),
       status: 'active',

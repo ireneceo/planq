@@ -15,6 +15,7 @@ const {
 } = require('../models');
 const { insertDraftInvoice, itemsAmountsValid, installmentsError, computeAmounts, MAX_INSTALLMENTS } = require('./invoiceCreate');
 const { ZERO_DECIMAL } = require('./money');
+const { workspaceTaxDefaults } = require('./taxCalc');
 
 const CURRENCIES = ['KRW', 'USD', 'EUR', 'JPY', 'CNY'];   // 청구서 발행 창과 같은 다섯
 const MAX_ITEMS = 50;
@@ -39,7 +40,10 @@ async function normalizeTerms(businessId, input) {
   const cur = String(input.currency || 'KRW').toUpperCase();
   if (!CURRENCIES.includes(cur)) return fail('invalid_currency');
   out.currency = cur;
-  const vat = input.vat_rate === undefined || input.vat_rate === null || input.vat_rate === '' ? 0.1 : Number(input.vat_rate);
+  // 세율을 비우면 워크스페이스 기본(세금 끔이면 0) — 옛날엔 0.1 고정(Fable 고칠 점 3)
+  const vat = input.vat_rate === undefined || input.vat_rate === null || input.vat_rate === ''
+    ? workspaceTaxDefaults(await Business.findByPk(Number(businessId), { attributes: ['default_vat_rate', 'tax_enabled', 'default_tax_mode'] })).rate
+    : Number(input.vat_rate);
   if (!Number.isFinite(vat) || vat < 0 || vat > 1) return fail('invalid_vat_rate');
   out.vat_rate = vat;
   // 세금계산서 의향 — 원화만(발행 창 canTax 와 같은 판정)

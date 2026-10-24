@@ -5,6 +5,7 @@
 //   두 벌로 두면 금액 공식이 갈라진다. 참조 검사(고객·프로젝트가 이 워크스페이스 것인지)·권한은 부르는 쪽이 먼저 본다.
 const { Invoice, InvoiceItem, InvoiceInstallment, Business } = require('../models');
 const { roundMoney } = require('./money');
+const { workspaceTaxDefaults } = require('./taxCalc');
 const { withInvoiceNumber } = require('./invoiceNumber');
 
 const MAX_INSTALLMENTS = 12;
@@ -100,7 +101,8 @@ async function insertDraftInvoice(f, { transaction }) {
     ? { bank_name: business.bank_name || null, account_number: business.bank_account_number || null, account_holder: business.bank_account_name || business.name || null }
     : null;
   const mode = f.installmentMode === 'split' ? 'split' : 'single';
-  const vatRateNum = f.vatRate !== undefined ? Number(f.vatRate) : 0.1;   // 옛 라우트 그대로 — null 은 0%
+  // 세율을 안 보내면 워크스페이스 기본(세금 끔이면 0) — 옛날엔 0.1 고정이라 설정을 무시했다(Fable 고칠 점 3). null 은 0%(옛 그대로)
+  const vatRateNum = f.vatRate !== undefined ? Number(f.vatRate) : workspaceTaxDefaults(business).rate;
   const cur = f.currency || 'KRW';
   const receiptType = ['tax_invoice', 'cash_receipt'].includes(f.receiptType) ? f.receiptType : 'none';
 

@@ -27,6 +27,7 @@ const { successResponse, errorResponse } = require('../middleware/errorHandler')
 const { sequelize } = require('../config/database');
 // 금액 반올림(통화별) · 청구서 번호 · 테넌트 참조 검증 — 각각 한 곳 (docs/FIX_0AB_MONEY_DESIGN.md B-①②③)
 const { roundMoney } = require('../services/money');
+const { splitTax } = require('../services/taxCalc');
 const { withInvoiceNumber } = require('../services/invoiceNumber');
 const { assertClientInBusiness, assertProjectInBusiness, assertClientInProject, isClientInProject } = require('../services/tenantRef');
 const { Op } = require('sequelize');
@@ -1105,9 +1106,9 @@ router.get('/:businessId/:id/tax-breakdown', authenticateToken, attachWorkspaceS
       quantity: Number(it.quantity || 0), unit_price: Number(it.unit_price || 0), amount: Number(it.amount || 0),
     }));
     const grand = Number(inv.grand_total || 0);
-    const vatRate = Number(inv.vat_rate || 0.1);
-    // subtotal(공급가액) 우선 컬럼, 없으면 합계에서 역산
-    const supply = inv.subtotal != null ? Number(inv.subtotal) : roundMoney(grand / (1 + vatRate), inv.currency);
+    const vatRate = Number(inv.vat_rate ?? 0.1);   // `||` 는 0% 를 10% 로 보였다(Fable 고칠 점 2)
+    // subtotal(공급가액) 우선 컬럼, 없으면 합계에서 역산(taxCalc 한 함수)
+    const supply = inv.subtotal != null ? Number(inv.subtotal) : splitTax({ amount: grand, rate: vatRate, mode: 'inclusive', currency: inv.currency }).subtotal;
     const vat = inv.tax_amount != null ? Number(inv.tax_amount) : (grand - supply);
     return successResponse(res, {
       invoice_number: inv.invoice_number,

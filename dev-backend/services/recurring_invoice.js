@@ -79,7 +79,7 @@ async function billOneProject(project, today = new Date()) {
   let invoiceNumber = null;
   const currencyForRound = business.default_currency || 'KRW';
   const subtotal = roundMoney(fee, currencyForRound);
-  const vatRate = Number(business.default_vat_rate || 0.1);
+  const vatRate = Number(business.default_vat_rate ?? 0.1);   // `||` 는 숫자 0 을 10% 로 바꾼다(Fable 고칠 점 1)
   const taxAmount = roundMoney(subtotal * vatRate, currencyForRound);
   const grandTotal = roundMoney(subtotal + taxAmount, currencyForRound);
 
