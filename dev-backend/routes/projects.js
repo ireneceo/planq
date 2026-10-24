@@ -2897,8 +2897,8 @@ router.get('/:id/transactions', authenticateToken, async (req, res, next) => {
     // ② 구독형 — 다음 청구 예정/월 금액/자동발행 상태 (recurring_invoice.js 스케줄 규칙 동일).
     //   엔진(recurring_invoice daily cron)이 invoice_billing_day 에 월 청구 자동 생성 — 그 스케줄을 표면화.
     // 월정액 세율·기준 — 엔진(services/recurring_invoice)과 같은 값: 프로젝트 스냅샷, 없으면 워크스페이스 기본. 금액 나누기도 같은 함수
-    const taxBiz = await Business.findByPk(project.business_id, { attributes: ['default_vat_rate', 'tax_enabled', 'default_tax_mode', 'default_currency'] });
-    const monthlyRate = project.monthly_vat_rate != null ? Number(project.monthly_vat_rate) : Number(taxBiz?.default_vat_rate ?? 0.1);
+    const taxBiz = await Business.findByPk(project.business_id, { attributes: ['default_vat_rate', 'tax_enabled', 'default_tax_mode', 'default_currency', 'tax_label'] });
+    const monthlyRate = project.monthly_vat_rate != null ? Number(project.monthly_vat_rate) : workspaceTaxDefaults(taxBiz).rate;
     const monthlyMode = project.monthly_tax_mode || 'exclusive';
     const monthlyCharge = splitTax({ amount: Number(project.monthly_fee || 0), rate: monthlyRate, mode: monthlyMode, currency: taxBiz?.default_currency || 'KRW' });
     let subscription = null;
@@ -2935,6 +2935,7 @@ router.get('/:id/transactions', authenticateToken, async (req, res, next) => {
       currency,
       vat_rate: monthlyRate, tax_mode: monthlyMode, charge: monthlyCharge,
       tax_enabled: taxBiz ? taxBiz.tax_enabled !== false : true,
+      tax_label: taxBiz?.tax_label || null,
     };
 
     return successResponse(res, {

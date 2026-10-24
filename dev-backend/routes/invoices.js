@@ -187,6 +187,8 @@ router.get('/public/:token', optionalAuth, async (req, res, next) => {
       status: invoice.status,
       installment_mode: invoice.installment_mode,
       grand_total: invoice.grand_total,
+      // 금액 표기(세금 포함/별도·세율·공급가·세액) — 받는 사람도 같은 청구서 내역을 본다(2026-10-24, docs/TAX_SETTINGS_DESIGN.md)
+      subtotal: invoice.subtotal, tax_amount: invoice.tax_amount, vat_rate: invoice.vat_rate, tax_mode: invoice.tax_mode,
       paid_amount: invoice.paid_amount,
       currency: invoice.currency,
       issued_at: invoice.issued_at,
@@ -1225,6 +1227,8 @@ router.get('/:businessId/:id', authenticateToken, attachWorkspaceScope(), requir
     payload.receipt_profile_source = rpDetail.source;
     // 받는 쪽 표시값 — 발송·PDF 와 같은 함수(등록 고객이면 지금 고객 값이 먼저). 화면은 이것을 그대로 그린다.
     payload.recipient = require('../services/invoiceRecipient').recipientOf(invoice, invoice.Client || null);
+    // 세금 이름(워크스페이스 설정) — 금액 표기 «VAT 포함/별도» 에 쓴다(PDF·공개 페이지와 같은 값, 2026-10-24)
+    payload.tax_label = (await Business.findByPk(invoice.business_id, { attributes: ['tax_label'] }))?.tax_label || null;
     // 출처 문서 — 보여줄 때 보는 사람 기준(공유 규칙 5): 못 읽는 문서는 카드째 뺀다. 서명 상태는 문서 목록과 같은 함수.
     if (payload.sourcePost && invoice.sourcePost) {
       const readable = await require('../services/postAccess').canReadPost(req.user, { ...invoice.sourcePost.toJSON(), business_id: invoice.business_id });

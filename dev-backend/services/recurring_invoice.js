@@ -18,7 +18,7 @@ const { sequelize } = require('../config/database');
 const { recurringMetaForProject } = require('./invoiceRecurring');
 const { defaultReceiptTypeFor } = require('./receiptsDue');
 const { withInvoiceNumber } = require('./invoiceNumber');
-const { singleLineInvoice } = require('./taxCalc');
+const { singleLineInvoice, workspaceTaxDefaults } = require('./taxCalc');
 
 // invoice_number 는 services/invoiceNumber.js 한 곳에서 뽑는다(워크스페이스×연도 카운터 — FIX_0AB B-②).
 
@@ -80,7 +80,7 @@ async function billOneProject(project, today = new Date()) {
   const currencyForRound = business.default_currency || 'KRW';
   // 세율·기준은 프로젝트 스냅샷(구독과 같다 — 워크스페이스 설정을 바꿔도 이미 정한 월정액은 그대로). 옛 행(NULL)만 워크스페이스 기본.
   //   `||` 는 숫자 0 을 10% 로 바꾼다 → `??`(Fable 고칠 점 1). 금액 칸 + 항목 한 줄은 고객 구독 엔진과 같은 함수.
-  const vatRate = project.monthly_vat_rate != null ? Number(project.monthly_vat_rate) : Number(business.default_vat_rate ?? 0.1);
+  const vatRate = project.monthly_vat_rate != null ? Number(project.monthly_vat_rate) : workspaceTaxDefaults(business).rate;
   const line = singleLineInvoice({ fee, rate: vatRate, mode: project.monthly_tax_mode, currency: currencyForRound });
   const grandTotal = line.invoice.grand_total;
 

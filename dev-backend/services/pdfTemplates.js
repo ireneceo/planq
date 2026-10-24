@@ -104,9 +104,17 @@ const BASE_CSS = `
 function invoicePdfHtml(inv, sender, client) {
   const isForeign = inv.currency && inv.currency !== 'KRW';
   const isSplit = inv.installment_mode === 'split' && Array.isArray(inv.installments) && inv.installments.length > 0;
-  const subtotal = Number(inv.subtotal || 0) || (Number(inv.grand_total || 0) - Number(inv.tax_amount || 0));
   const tax = Number(inv.tax_amount || 0);
   const grand = Number(inv.grand_total || 0);
+  const subtotal = inv.subtotal != null ? Number(inv.subtotal) : grand - tax;
+  // 세금 표기 (2026-10-24, docs/TAX_SETTINGS_DESIGN.md) — 항목 금액이 세금 포함가인지 별도가인지 표 머리에, 세금 이름·세율은 합계 칸에.
+  //   세율 표시는 정수로 자르지 않는다(8.25%) · 세금 이름은 워크스페이스 설정(없으면 부가세/VAT)
+  const inclusive = inv.tax_mode === 'inclusive';
+  const ratePct = Math.round(Number(inv.vat_rate || 0) * 10000) / 100;
+  const taxName = (sender && sender.tax_label) || (isForeign ? 'VAT' : '부가세');
+  const basis = tax > 0
+    ? (isForeign ? (inclusive ? ` (incl. ${taxName})` : ` (excl. ${taxName})`) : (inclusive ? ` (${taxName} 포함)` : ` (${taxName} 별도)`))
+    : '';
 
   const senderName = isForeign ? (sender?.legal_name_en || sender?.brand_name || sender?.name || '—') : (sender?.legal_name || sender?.brand_name || sender?.name || '—');
   const clientName = isForeign ? (client?.biz_name || client?.company_name || client?.display_name || '—') : (client?.biz_name || client?.company_name || client?.display_name || '—');
@@ -206,16 +214,18 @@ function invoicePdfHtml(inv, sender, client) {
     <thead><tr>
       <th>${isForeign ? 'Description' : '품목'}</th>
       <th class="num">${isForeign ? 'Qty' : '수량'}</th>
-      <th class="num">${isForeign ? 'Unit price' : '단가'}</th>
-      <th class="num">${isForeign ? 'Amount' : '금액'}</th>
+      <th class="num">${isForeign ? 'Unit price' : '단가'}${basis}</th>
+      <th class="num">${isForeign ? 'Amount' : '금액'}${basis}</th>
     </tr></thead>
     <tbody>${itemsRows || `<tr><td colspan="4" style="text-align:center;color:#94A3B8;padding:18px;">${isForeign ? '(no items)' : '(항목 없음)'}</td></tr>`}</tbody>
   </table>
 
   <div class="totals">
-    <div class="row"><div class="label">${isForeign ? 'Subtotal' : '공급가액'}</div><div class="val">${formatMoney(subtotal, inv.currency)}</div></div>
-    ${tax > 0 ? `<div class="row"><div class="label">${isForeign ? 'VAT' : '부가세'}</div><div class="val">${formatMoney(tax, inv.currency)}</div></div>` : ''}
-    <div class="row grand"><div class="label">${isForeign ? 'Total Due' : '합계'}</div><div class="val">${formatMoney(grand, inv.currency)}</div></div>
+    <div class="row"><div class="label">${isForeign ? `Subtotal (excl. ${escapeHtml(taxName)})` : `공급가액 (${escapeHtml(taxName)} 별도)`}</div><div class="val">${formatMoney(subtotal, inv.currency)}</div></div>
+    ${tax > 0
+      ? `<div class="row"><div class="label">${escapeHtml(taxName)} ${ratePct}%</div><div class="val">${formatMoney(tax, inv.currency)}</div></div>`
+      : `<div class="row"><div class="label">${isForeign ? `No ${escapeHtml(taxName)}` : `${escapeHtml(taxName)} 없음`}</div><div class="val">${formatMoney(0, inv.currency)}</div></div>`}
+    <div class="row grand"><div class="label">${isForeign ? (tax > 0 ? `Total Due (incl. ${escapeHtml(taxName)})` : 'Total Due') : (tax > 0 ? `합계 (${escapeHtml(taxName)} 포함)` : '합계')}</div><div class="val">${formatMoney(grand, inv.currency)}</div></div>
   </div>
 
   ${installmentsBlock}

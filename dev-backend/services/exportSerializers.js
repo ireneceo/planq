@@ -147,16 +147,16 @@ async function exportTasks(ctx) {
 
 async function exportProjects(ctx) {
   const tP = ctx.table('projects/projects', ['id', 'name', 'status', 'kind', 'project_type', 'visibility', 'client_company', 'owner', 'start_date', 'end_date',
-    'contract_amount', 'billing_type', 'monthly_fee', 'description', 'strategy_goal', 'created_at', 'updated_at']);
+    'contract_amount', 'billing_type', 'monthly_fee', 'monthly_vat_rate', 'monthly_tax_mode', 'description', 'strategy_goal', 'created_at', 'updated_at']);
   const tM = ctx.table('projects/project_members', ['project_id', 'member', 'role', 'is_pm']);
   const tC = ctx.table('projects/project_clients', ['project_id', 'client_id', 'contact_name', 'contact_email', 'invited_at']);
   for await (const rows of chunks(m.Project, { business_id: ctx.businessId },
     ['id', 'name', 'status', 'kind', 'project_type', 'visibility', 'client_company', 'owner_user_id', 'start_date', 'end_date',
-      'contract_amount', 'billing_type', 'monthly_fee', 'description', 'strategy_goal', 'createdAt', 'updatedAt'])) {
+      'contract_amount', 'billing_type', 'monthly_fee', 'monthly_vat_rate', 'monthly_tax_mode', 'description', 'strategy_goal', 'createdAt', 'updatedAt'])) {
     for (const r of rows) {
       await tP.write({ id: r.id, name: r.name, status: r.status, kind: r.kind, project_type: r.project_type, visibility: r.visibility,
         client_company: r.client_company, owner: ctx.who(r.owner_user_id), start_date: r.start_date, end_date: r.end_date,
-        contract_amount: r.contract_amount, billing_type: r.billing_type, monthly_fee: r.monthly_fee, description: ctx.text(r.description),
+        contract_amount: r.contract_amount, billing_type: r.billing_type, monthly_fee: r.monthly_fee, monthly_vat_rate: r.monthly_vat_rate, monthly_tax_mode: r.monthly_tax_mode, description: ctx.text(r.description),
         strategy_goal: r.strategy_goal, created_at: ts(r, 'created_at'), updated_at: ts(r, 'updated_at') });
     }
     const ids = rows.map((r) => r.id);
@@ -243,7 +243,7 @@ async function exportCalendar(ctx) {
   }
 }
 
-const INVOICE_COLS = ['id', 'invoice_number', 'title', 'client_id', 'project_id', 'status', 'currency', 'subtotal', 'vat_rate', 'tax_amount', 'total_amount',
+const INVOICE_COLS = ['id', 'invoice_number', 'title', 'client_id', 'project_id', 'status', 'currency', 'subtotal', 'vat_rate', 'tax_mode', 'tax_amount', 'total_amount',
   'grand_total', 'paid_amount', 'installment_mode', 'payment_method', 'receipt_type', 'issued_at', 'due_date', 'paid_at', 'sent_at', 'recipient_email',
   'recipient_business_name', 'recipient_business_number', 'payment_terms', 'tax_invoice_status', 'tax_invoice_issued_at', 'cash_receipt_status',
   'cash_receipt_no', 'notes', 'createdAt'];

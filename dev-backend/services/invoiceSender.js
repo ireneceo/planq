@@ -28,6 +28,7 @@ const SENDER_ATTRIBUTES = [
   'phone', 'email',
   'bank_name', 'bank_account_number', 'bank_account_name',
   'swift_code', 'bank_name_en', 'bank_account_name_en',
+  'tax_label',   // 세금 이름(부가세·VAT·GST…) — 청구서·PDF·공개 페이지 금액 표기 (2026-10-24)
 ];
 
 /**
@@ -58,6 +59,7 @@ function senderBlockOf(business) {
     biz_item: b.biz_item || null,               // 종목
     phone: b.phone || null,
     email: b.email || null,
+    tax_label: b.tax_label || null,             // 세금 이름 — NULL 이면 화면 언어 기본(부가세/VAT)
   };
 }
 
