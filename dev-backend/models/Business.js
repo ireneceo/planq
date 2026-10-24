@@ -256,7 +256,11 @@ Business.init({
   popbill_link_id: { type: DataTypes.STRING(100), allowNull: true },
   popbill_secret_key: { type: DataTypes.STRING(500), allowNull: true },
   // 기본 부가세율 (국내 10%)
-  default_vat_rate: { type: DataTypes.DECIMAL(4, 3), defaultValue: 0.100 },
+  default_vat_rate: { type: DataTypes.DECIMAL(5, 4), defaultValue: 0.100 },   // 분수(0.0825 = 8.25%). 2026-10-24 4,3→5,4 (scripts/migrate-tax-mode.js)
+  // 세금 설정 (2026-10-24, docs/TAX_SETTINGS_DESIGN.md) — 끄면 새로 만드는 것의 기본 세율 0. 이미 있는 구독·청구서·월정액 세율은 안 바뀐다(스냅샷)
+  tax_enabled: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: true },
+  tax_label: { type: DataTypes.STRING(20), allowNull: true, comment: '세금 이름(부가세·VAT·GST…) — NULL 이면 화면 언어 기본' },
+  default_tax_mode: { type: DataTypes.ENUM('exclusive', 'inclusive'), allowNull: false, defaultValue: 'exclusive', comment: '금액을 적을 때 기본 기준 — 세금 별도/포함' },
   // 청구서 기본 결제 기한 (발행일 + N일)
   default_due_days: { type: DataTypes.INTEGER, defaultValue: 14, comment: '청구서 기본 결제 기한 (일)' },
   // 온보딩 안내 카드를 사용자가 직접 닫은 시각. NULL = 아직 안 닫음.

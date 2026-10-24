@@ -643,6 +643,10 @@ sync_database() {
   #   표는 앞의 sync-database(모델)가 먼저 만들 수 있다 — 그러면 «이미 있음 0» 으로 끝난다(멱등 확인용 슬롯).
   #   어느 쪽이든 PM2 reload 전에 표가 있어야 한다 — 문서 청구 조건 API·서명 완료 훅(services/contractBilling)이 읽는다.
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-post-billing-terms.js 2>&1 | tail -3"
+  # 2026-10-24 세금 설정·표기 — 칸 추가(tax_enabled·tax_label·default_tax_mode·tax_mode 4표·projects.monthly_vat_rate/monthly_tax_mode)
+  #   + 세율 칸 DECIMAL(4,3)→(5,4) 넓히기(따로) + 월정액 세율 백필(지금 청구되는 세율). 멱등. 청구서·회차 금액 해시 전후 같지 않으면 멈춘다.
+  #   ★ 코드보다 먼저 — 모델이 새 칸을 SELECT 한다(docs/TAX_SETTINGS_DESIGN.md §5).
+  prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-tax-mode.js 2>&1 | tail -8"
   # 2026-10-23 사람별 즐겨찾기·직접 정렬 — user_entity_prefs 표(멱등, 백필 없음, docs/PROJECT_PREFS_DESIGN.md).
   #   ★ 코드보다 먼저 — 프로젝트 목록(GET /api/projects)이 이 표를 읽는다(없으면 목록 500).
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-user-entity-prefs.js 2>&1 | tail -4"

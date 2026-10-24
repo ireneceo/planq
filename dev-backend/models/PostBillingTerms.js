@@ -18,7 +18,8 @@ PostBillingTerms.init({
   client_id: { type: DataTypes.INTEGER, allowNull: true },
   title: { type: DataTypes.STRING(200), allowNull: true },
   currency: { type: DataTypes.STRING(3), allowNull: false, defaultValue: 'KRW' },
-  vat_rate: { type: DataTypes.DECIMAL(4, 3), allowNull: false, defaultValue: 0.1 },
+  vat_rate: { type: DataTypes.DECIMAL(5, 4), allowNull: false, defaultValue: 0.1 },
+  tax_mode: { type: DataTypes.ENUM('exclusive', 'inclusive'), allowNull: false, defaultValue: 'exclusive' }, // 2026-10-24 — 서명자가 본 금액 = 청구 금액
   receipt_type: { type: DataTypes.ENUM('none', 'tax_invoice'), allowNull: false, defaultValue: 'none' },
   items: { type: DataTypes.JSON, allowNull: false },
   installment_mode: { type: DataTypes.ENUM('single', 'split'), allowNull: false, defaultValue: 'single' },

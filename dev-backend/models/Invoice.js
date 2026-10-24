@@ -146,7 +146,9 @@ Invoice.init({
   currency: { type: DataTypes.STRING(3), defaultValue: 'KRW' },
   // 세부 금액 (total_amount 는 legacy 유지, 신규 계산은 subtotal + vat)
   subtotal: { type: DataTypes.DECIMAL(14, 2), allowNull: true },
-  vat_rate: { type: DataTypes.DECIMAL(4, 3), defaultValue: 0.100 },
+  vat_rate: { type: DataTypes.DECIMAL(5, 4), defaultValue: 0.100 },
+  // 세금 기준 스냅샷 (2026-10-24) — inclusive 면 항목 금액·단가는 세금 포함가, 공급가·세액은 합계에서 한 번 역산(services/taxCalc)
+  tax_mode: { type: DataTypes.ENUM('exclusive', 'inclusive'), allowNull: false, defaultValue: 'exclusive' },
   // 누적 수금액 (부분결제 지원). paid_amount >= grand_total 이면 status='paid'.
   paid_amount: { type: DataTypes.DECIMAL(14, 2), defaultValue: 0 },
   payment_terms: { type: DataTypes.TEXT, allowNull: true },

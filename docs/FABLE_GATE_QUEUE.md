@@ -2,6 +2,10 @@
 
 
 
+### 2026-10-24 방 2718f78c — 세금 설정·표기(세율 %·켬/끔·포함/별도) 설계 — **VERDICT: APPROVE_WITH_CHANGES**
+- 정본 `docs/TAX_SETTINGS_DESIGN.md` §5. 결정: D1 승인(청구 조건 post_billing_terms 에도 tax_mode) · 단위 그대로 + 한 함수 · 포함가 합계 한 번 역산 · 스냅샷 불변(월정액 NULL 따라감은 반려 → 실제 청구 세율로 백필) · 검산 사례 보강.
+- 필수 11건: 0%→10% 버그 2곳(recurring_invoice:82 · invoices:1108) · 박힌 기본값 3곳 · DECIMAL(5,4) · 화면 % 잘림 3곳 · 항목 금액 읽는 곳(PDF·세금계산서 데이터·공개 페이지·서명·내보내기) · 엔진 항목 포함가 · 복사/PUT/프로젝트 복사 · 회차 증빙 마지막 흡수 · 끔+증빙 경고 · 마이그레이션 따로·해시.
+
 ### 2026-10-24 방 f36d98b5 — AI 앱 업무 담당자 기본값 = 사용자 본인(설계 판정 A · Gemini G2) — 완료 **VERDICT: PASS** (차단 0)
 - 설계: A — 에이전트 핸들러(services/agent/tools/tasks.js createTask)만 생략 시 본인 · 체인·화면 그대로 · 본인 배정 불가면 cannot_assign_self + 힌트 · 설명 = 서버 동작. Gemini = G2(계정 받고 실제 왕복 시험 뒤, 검증 안 된 redirect 추가·PKCE 완화 금지 · 고정 client 필요하면 design 1회 먼저).
 - 완료 검증: 작업방 스크립트 17/18(실패 1 = 스크립트 기대값 오류, 프로젝트 47 로 재측정 통과) · 검증관 추가 12/12(본인+예상시간 · 남+예상시간 거절 · 타 ws 사용자 · Cue 단건 · Cue 묶음 ai-create/confirm · 고객은 연결 자체 불가) · agentsurface 1/1 · guard 80/81 · health 96/96.

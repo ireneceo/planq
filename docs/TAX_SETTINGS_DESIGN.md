@@ -97,3 +97,33 @@ splitTax({ amount, rate /*분수*/, mode, currency }) → { subtotal, tax, total
 - `scripts/check-tax-calc.js`(서버·화면 함수 같은 사례): KRW excl 10,000@10% → 10,000/1,000/11,000 · KRW incl 11,000 → 10,000/1,000/11,000 · KRW incl 33,333 → 30,303/3,030/33,333 · KRW incl 1 → 1/0/1 · USD incl 99.99@8.25% → 92.37/7.62/99.99 · JPY incl 1,100@10% → 1,000/100/1,100 · 0% 두 방식 · exclusive 결과 = 옛 공식 결과(옛 식 1,000 무작위 사례 대조 — 회귀 0).
 - 실HTTP: 구독 생성(incl 11,000) → 엔진 수동 실행 → 청구서 10,000/1,000/11,000 · excl 10,000 → 11,000 · 끔 → 0 · 세율 150% 400 · 청구서 POST/PUT/복사 incl · 문서 청구 조건 → 초안 incl · 월정액 incl.
 - 옛 청구서 금액 해시 마이그레이션 전후 같음. 화면 3폭(설정·구독·월정액·새 청구서·목록·상세·공개·PDF).
+
+---
+
+## 5. Fable 설계 판정 (2026-10-24 · 방 2718f78c) — **VERDICT: APPROVE_WITH_CHANGES**
+
+### 결정
+1. **D1 승인.** 문서 청구 조건(`post_billing_terms` 테이블 — posts 메타 아님)에도 `tax_mode`. 초안 생성 때 `insertDraftInvoice` 로 넘긴다.
+2. **D2 확정** — 저장 단위 그대로, 변환 한 함수. 화면 % 표시(`Math.round(r*100)` 세 곳)도 같은 유틸로(8.25% 가 8% 로 보임).
+3. **D3 승인** — 합계 한 번 역산, 항목은 포함가 그대로. 세금 별도 쪽은 **지금 식 글자 그대로**(`roundMoney(sub*rate)`). 항목 금액을 읽는 모든 곳이 `tax_mode` 분기.
+4. **D5: 스냅샷 불변 승인 · «NULL 월정액은 따라감» 반려.** 마이그레이션에서 청구 켜진 월정액 프로젝트의 `monthly_vat_rate` 를 **지금 실제 청구되는 세율**로 채움(멱등, 0원 변화). 이후 NULL 은 저장 시점 워크스페이스 기본으로 채움. 끄기 안내 «기존 구독·월정액 N개는 지금 세율 그대로».
+5. 검산 사례 부족 → 아래 추가분 반영해야 승인.
+
+### 고칠 점(필수)
+1. `recurring_invoice.js:82` `default_vat_rate || 0.1` → 0% 가 10% 로 청구 → `??`. 운영에서 `default_vat_rate=0` + 월정액 워크스페이스 수를 마이그레이션 전에 세고, 1건 이상이면 백필 값(실제 청구 0.1 vs 의도 0)은 Irene 결정.
+2. `invoices.js:1108` 세금계산서 데이터 `vat_rate || 0.1` 및 역산 → `??` + taxCalc.
+3. 박힌 기본값 3곳(`invoiceCreate.js:103` · `contractBilling.js:42` · `client_subscriptions.js:118`) → 워크스페이스 기본(끔이면 0).
+4. 넓히기 대상 추가 `PostBillingTerms.vat_rate`. `Quote`·`PlatformSetting` 은 범위 밖 명시. 자릿수 **DECIMAL(5,4)**(분수 4자리). 범위검사 0~1 은 `businesses.js:597`·`admin.js:785` 에 있음 → 같은 함수로 구독·청구서·청구 조건.
+5. 화면 % 정수 잘림 — `InvoiceDetailDrawer.tsx:833` · `InvoiceLinesEditor.tsx:77` · `SignBillingTerms.tsx:33`.
+6. 항목 금액·공급가 읽는 곳 — PDF(`pdfTemplates.js:107,119,216`) · 세금계산서 데이터(`invoices.js:1099-1117`, 포함가면 항목별 공급가·세액 배분(큰 나머지) 또는 포함가 표식) · 공개 결제 `PublicInvoicePage.tsx:798`(세액 0 도 «VAT 포함») · 서명 화면·`BillingTermsSection`·`TransactionsTab`·내보내기 `exportSerializers.js:246`.
+7. 구독·월정액 엔진 항목이 공급가로 만들어짐(`clientSubscriptionBilling.js:202-208` · `recurring_invoice.js:154-160`) → 포함가면 `total`. 금액 + 청구서 행 + 항목 행을 한 함수로.
+8. 복사(`invoices.js:741`)가 `tax_mode` 를 옮겨야 · PUT 이 `tax_mode` 받고 검사 · 프로젝트 복사(`projects.js:160`)에 `monthly_vat_rate`·`tax_mode`.
+9. 분할 회차 금액 그대로. 회차별 증빙(`receiptsDue.js:153,165`) 공급가·세액은 회차 금액에 `splitTax(inclusive)`, 차이는 **마지막 회차가 흡수**. Stripe 는 grand_total·회차 금액만 써서 영향 없음.
+10. 세금 끔 + 한국 증빙 판정은 그대로(범위 밖), 화면 경고 한 줄.
+11. 마이그레이션: 칸 추가와 DECIMAL 넓히기 **따로**. `sync({alter})` 금지, 직접 ALTER(기본값·NULL 그대로). 해시 = invoices(id, subtotal, tax_amount, grand_total, vat_rate) + installments.amount 전후. 백필 전후 월정액 다음 청구 예상액 같음.
+
+### 검산 사례 추가
+.5 경계(KRW 끝자리 5 ×10%, USD 10.05·0.15 × 10%·8.25%, 세율 7%·8.25%·0.01%) 옛 식 대조 · 포함가 + 분할 33/33/34 · 포함가 + 항목 3,333×3 · `default_vat_rate=0` 월정액 → 세액 0(옛 코드 10% 양성 대조군) · 0% 청구서 세금계산서 데이터 vat_rate 0 · 포함가 복사 금액 같음 · 포함가→별도 PUT 재계산 · 100% 통과 / 101%·이상한 tax_mode·8.255% 400 · USD 99.99@8.25%·JPY 서버=화면 · 화면 «8.25%» · 마이그레이션 2회 같음.
+
+### 구현 순서
+1 taxCalc + 검산 + 고칠 점 1·2·3(따로 커밋) → 2 마이그레이션 → 3 F1~F5 한 함수(엔진은 청구서+항목 단위) → 4 API 검증·스냅샷 전달 → 5 항목 금액 읽는 곳 → 6 설정·폼·표기 ko/en → 7 실호출·3폭. 완료 후 Fable 검증 1회.

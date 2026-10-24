@@ -41,6 +41,9 @@ Project.init({
     comment: 'fixed=고정가, hourly=시간단가, subscription=월정액, milestone=마일스톤, internal=내부 프로젝트(비청구)',
   },
   monthly_fee: { type: DataTypes.DECIMAL(12, 2), allowNull: true, comment: 'subscription 전용' },
+  // 월정액 세율(분수)·기준 스냅샷 (2026-10-24). NULL 은 저장 전 옛 행 — 마이그레이션이 «지금 청구되는 세율» 로 채운다
+  monthly_vat_rate: { type: DataTypes.DECIMAL(5, 4), allowNull: true },
+  monthly_tax_mode: { type: DataTypes.ENUM('exclusive', 'inclusive'), allowNull: false, defaultValue: 'exclusive' },
   // ─── Q Bill 정기 청구 자동화 ───
   auto_invoice_enabled: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false, comment: '정기 청구 자동 발행 ON/OFF' },
   auto_invoice_mode: {

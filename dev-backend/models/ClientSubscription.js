@@ -15,7 +15,8 @@ ClientSubscription.init({
   currency: { type: DataTypes.STRING(3), allowNull: false, defaultValue: 'KRW' },
   // 청구 주기 (운영: biweekly 격주, semiannual 반기 추가)
   interval: { type: DataTypes.ENUM('weekly', 'biweekly', 'monthly', 'quarterly', 'semiannual', 'yearly'), allowNull: false, defaultValue: 'monthly' },
-  vat_rate: { type: DataTypes.DECIMAL(5, 2), allowNull: false, defaultValue: 10.0 }, // % (0 이면 면세)
+  vat_rate: { type: DataTypes.DECIMAL(5, 2), allowNull: false, defaultValue: 10.0 }, // % (0 이면 면세) — ★ 이 표만 퍼센트. 변환은 services/taxCalc
+  tax_mode: { type: DataTypes.ENUM('exclusive', 'inclusive'), allowNull: false, defaultValue: 'exclusive' }, // amount 가 세금 별도가/포함가 (2026-10-24)
   // 발행 방식 — auto: 즉시 sent + 메일 / draft_review: draft + 멤버 검토 알림
   auto_mode: { type: DataTypes.ENUM('auto', 'draft_review'), allowNull: false, defaultValue: 'draft_review' },
   due_days: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 14 },          // 청구서 결제 기한(일)
