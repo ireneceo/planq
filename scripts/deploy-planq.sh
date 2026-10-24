@@ -1457,12 +1457,16 @@ publish_release_note() {
     # 배포 방이 커밋할 산출물(작업 폴더) — 노트 파일 + 버전. package.json 은 다른 방이 고치는 중이면 손대지 않는다
     #   (버전의 정본은 운영에 발행된 새 소식이라, 작업 폴더 버전이 늦어도 다음 배포가 맞게 센다).
     #   ★ 여기서 실패해도 set -e 로 멈추면 안 된다 — 뒤에 장부 닫기·개발 현황·.last-deployed-commit 이 남았다.
-    cp "$RN_NOTE" "$REPO/docs/release-notes/v${RN_VER}.json" || warn "  노트 파일을 작업 폴더에 못 옮김"
-    local F
+    #   «배포 방 커밋» 줄에는 **실제로 옮긴 파일만** 적는다 — 다른 방 미커밋이 있는 package.json 을 적으면
+    #   그 줄대로 커밋할 때 남의 진행 중 변경(새 의존성 등)이 main 에 들어간다(Fable 비차단 1, 2026-10-24).
+    local F MOVED=""
+    if cp "$RN_NOTE" "$REPO/docs/release-notes/v${RN_VER}.json"; then MOVED="docs/release-notes/v${RN_VER}.json"; else warn "  노트 파일을 작업 폴더에 못 옮김"; fi
     for F in dev-backend/package.json dev-frontend/package.json; do
-      if git -C "$REPO" diff --quiet HEAD -- "$F"; then cp "$SNAP/$F" "$REPO/$F" || warn "  $F 버전 못 옮김"; else warn "  $F 에 다른 방 미커밋 변경 — 버전 안 옮김"; fi
+      if git -C "$REPO" diff --quiet HEAD -- "$F"; then
+        if cp "$SNAP/$F" "$REPO/$F"; then MOVED="$MOVED $F"; else warn "  $F 버전 못 옮김"; fi
+      else warn "  $F 에 다른 방 미커밋 변경 — 버전 안 옮김(다음 배포도 운영 발행 버전으로 세므로 괜찮다)"; fi
     done
-    echo "  배포 방 커밋: git commit -m \"chore: v${RN_VER} 새 소식\" -- docs/release-notes/v${RN_VER}.json dev-backend/package.json dev-frontend/package.json"
+    if [ -n "$MOVED" ]; then echo "  배포 방 커밋: git commit -m \"chore: v${RN_VER} 새 소식\" -- ${MOVED# }"; fi
   else
     warn "  새 소식 발행 실패 — 배포 자체는 정상, 다음 배포에 합쳐짐"
   fi
