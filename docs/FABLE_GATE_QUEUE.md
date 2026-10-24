@@ -2,6 +2,11 @@
 
 
 
+### 2026-10-24 방 f36d98b5 — AI 앱 업무 담당자 기본값 = 사용자 본인(설계 판정 A · Gemini G2) — 완료 **VERDICT: PASS** (차단 0)
+- 설계: A — 에이전트 핸들러(services/agent/tools/tasks.js createTask)만 생략 시 본인 · 체인·화면 그대로 · 본인 배정 불가면 cannot_assign_self + 힌트 · 설명 = 서버 동작. Gemini = G2(계정 받고 실제 왕복 시험 뒤, 검증 안 된 redirect 추가·PKCE 완화 금지 · 고정 client 필요하면 design 1회 먼저).
+- 완료 검증: 작업방 스크립트 17/18(실패 1 = 스크립트 기대값 오류, 프로젝트 47 로 재측정 통과) · 검증관 추가 12/12(본인+예상시간 · 남+예상시간 거절 · 타 ws 사용자 · Cue 단건 · Cue 묶음 ai-create/confirm · 고객은 연결 자체 불가) · agentsurface 1/1 · guard 80/81 · health 96/96.
+- 비차단: ① tools/tasks.js:228 주석 낡음(«프로젝트 기본 담당자가 고르는 경우») ② checkNewTaskReviewers 가 메일 출처 승계 projectId 를 안 봄(이전부터) ③ 고객에게 연결을 넓히는 날 고객 자기 프로젝트 생략 분기 재검토.
+
 ### 2026-10-24 방 defe2443 — 새 소식(릴리즈 노트)·버전 자동 발행(deploy-planq.sh prepare/publish_release_note · make-release-note.js) — 1차 FAIL → 수정 822c3b0a 뒤 **VERDICT: PASS**
 - 1차 FAIL: 보안 커밋 제목이 AI 를 거쳐 무인증 /insights 에 세부 내용으로 나감(대조군 12개 → 6항목) · 비차단: «배포 방 커밋» 줄이 다른 방 미커밋 package.json 까지 적음.
 - 수정: 보안 계열 커밋은 AI 에 안 넘기고 고정 «보안과 안정성 강화» 1항목 · 출력 금지어 보강 · 커밋 줄은 실제로 옮긴 파일만. 재판정: set -e 경로 0(19+6경우 EXIT_OK) · 범위·버전 빠짐 없음 · 실제 보안 커밋 22/22 거름.
