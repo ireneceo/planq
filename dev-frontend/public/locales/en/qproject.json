@@ -544,7 +544,7 @@
       "imageBlocked": "This format is not opened inside the app for safety. Download it to view.",
       "openInNewTab": "Open in new tab",
       "shortcutTitle": "Google Docs shortcut",
-      "shortcutHint": "This file is a link to a Google document, not the document itself. To keep the content in PlanQ, export it as PDF or Word from Google Docs and upload that.",
+      "shortcutHint": "This file is a link to a Google document, not the document itself. Click to open it in Google Docs.",
       "shortcutOpen": "Open in Google Docs",
       "shortcutUnresolved": "Could not read the link. The file may be damaged or you may not have access.",
       "clickToOpen": "Click to open — formats we cannot show are downloaded",

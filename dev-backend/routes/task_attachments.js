@@ -404,6 +404,27 @@ async function serveAttachment(req, res, next, asDownload) {
 //   미리보기는 응답의 `preview_url`(= /api/tasks/public/attach/:stored_name)만 쓴다.
 router.get('/attachments/:id/download', authenticateToken, (req, res, next) => serveAttachment(req, res, next, true));
 
+// GET /api/tasks/attachments/:id/shortcut — 구글 문서 바로가기(.gdoc 등) 안에 든 문서 주소.
+//   ★ 2026-10-25 (Irene: *"구글 문서 파일을 업무상세 파일추가에 넣었더니 … 링크로 연결해 줘야 하는데"*) —
+//   파일함 파일에만 있던 문을 업무 첨부에도 낸다. 권한은 내려받기와 **같은 술어**(아래 serveAttachment 와 같은 세 줄) —
+//   이 응답은 곧 그 문서로 가는 길이다. 주소는 서버가 문서 id 로 조립한다(services/googleShortcut).
+router.get('/attachments/:id/shortcut', authenticateToken, async (req, res, next) => {
+  try {
+    const att = await TaskAttachment.findByPk(req.params.id);
+    if (!att) return errorResponse(res, 'attachment_not_found', 404);
+    const task = await Task.findByPk(att.task_id);
+    if (!task) return errorResponse(res, 'task_not_found', 404);
+    const scope = await getUserScope(req.user.id, att.business_id, req.user.platform_role);
+    if (!(await canAccessTask(req.user.id, task, scope))) return errorResponse(res, 'forbidden', 403);
+    if (scope.isClient && att.comment_id && (await clientHiddenCommentIds(task.id)).has(att.comment_id)) {
+      return errorResponse(res, 'attachment_not_found', 404);
+    }
+    const parsed = await require('../services/googleShortcut').readShortcutFrom(att, att.original_name, att.file_size);
+    if (!parsed) return errorResponse(res, 'not_shortcut', 400, 'not_shortcut');
+    return successResponse(res, parsed);
+  } catch (err) { next(err); }
+});
+
 // ============================================
 // DELETE /api/tasks/attachments/:id — 첨부 삭제 (업로더 or 관리자)
 // ============================================

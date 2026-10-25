@@ -76,4 +76,32 @@ function parseShortcut(buf, name) {
   return { url: `https://docs.google.com/${spec.path}/d/${id}/edit`, docId: id, kind: spec.kind };
 }
 
-module.exports = { isShortcutName, looksLikeShortcut, parseShortcut, MAX_BYTES };
+/**
+ * 저장된 첨부(파일·업무 첨부·채팅 첨부)에서 바로가기 주소를 읽는다. 못 읽으면 null.
+ * 권한은 **호출부가 먼저** 본다 — 이 함수는 그 뒤에만 불린다(내려받기와 같은 술어).
+ *
+ * ★ 2026-10-25 (Irene: *"구글 문서 파일을 업무상세 파일추가에 넣었더니 … 링크를 읽지 못했습니다"*) —
+ *   읽는 길이 파일함 파일(`/api/files/:biz/:id/shortcut`)에만 있었고 업무·채팅 첨부에는 없었다.
+ *   세 라우트가 같은 함수를 쓴다(베끼면 크기 상한·id 검사가 한쪽에만 남는다).
+ * @param {object} storageRec readAttachmentBody 가 받는 모양(storage_provider·file_path·external_id·business_id·file_size)
+ * @returns {Promise<{url:string, docId:string, kind:string}|null>}
+ */
+async function readShortcutFrom(storageRec, name, size) {
+  if (!looksLikeShortcut(name, size)) return null;
+  const body = await require('./attachmentStorage').readAttachmentBody(storageRec);
+  if (!body.ok || body.redirect) return null;
+  const chunks = [];
+  let bytes = 0;
+  const buf = await new Promise((resolve, reject) => {
+    body.stream.on('data', (c) => {
+      bytes += c.length;
+      if (bytes > MAX_BYTES) { body.stream.destroy(); reject(new Error('too_large')); return; }
+      chunks.push(c);
+    });
+    body.stream.on('end', () => resolve(Buffer.concat(chunks)));
+    body.stream.on('error', reject);
+  }).catch(() => null);
+  return buf ? parseShortcut(buf, name) : null;
+}
+
+module.exports = { isShortcutName, looksLikeShortcut, parseShortcut, readShortcutFrom, MAX_BYTES };

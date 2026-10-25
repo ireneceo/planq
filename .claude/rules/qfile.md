@@ -136,6 +136,7 @@ Q file(`ProjectGroups`)과 프로젝트>파일(`FolderTree`)은 **같은 행**�
 - 여는 문은 **하나**다(`docs/useFileOpen.ts`) — 헤더 [새 탭에서 열기] 와 미리보기 영역 클릭이
   같은 함수를 쓴다. 따로 열면 «버튼은 문서로 가는데 영역은 Drive 로 간다» 가 된다.
 - "다운로드 후 확인" 은 여기서 **거짓말**이다(내려받아도 172바이트 JSON 이다).
+- **읽는 문은 셋이고 함수는 하나다** (2026-10-25) — 파일함 `/api/files/:biz/:id/shortcut` · 업무 첨부 `/api/tasks/attachments/:id/shortcut` · 채팅 첨부 `/api/message-attachments/:id/shortcut` 가 모두 `googleShortcut.readShortcutFrom`(권한은 각자 내려받기와 같은 술어). 화면은 `PreviewArea` 가 주소를 안 받으면 스스로 읽는다 — 첨부 미리보기·크게 보기는 **내려받기 주소로 출처를 가른다**(`shortcutEndpointOf`, 첨부 미리보기 id 는 업무·채팅 모두 `task-`). 업무·채팅 첨부 허용 확장자에 `.gdoc` 등 5종(`uploadPolicy`).
 
 ### 끌기 — **우리 파일을 끄는 것은 업로드가 아니다**
 페이지 껍데기가 **모든** 드래그에 업로드 오버레이를 띄우면, 오버레이가 안쪽을 덮어

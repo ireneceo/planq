@@ -544,7 +544,7 @@
       "imageBlocked": "이 형식은 안전을 위해 앱 안에서 열지 않습니다. 내려받아 확인해 주세요.",
       "openInNewTab": "새 탭에서 열기",
       "shortcutTitle": "구글 문서 바로가기",
-      "shortcutHint": "이 파일은 문서 본문이 아니라 구글 문서로 가는 링크입니다. 본문을 PlanQ에 두려면 구글 문서에서 PDF나 Word로 내보내 올려 주세요.",
+      "shortcutHint": "이 파일은 문서 본문이 아니라 구글 문서로 가는 링크입니다. 누르면 구글 문서에서 열립니다.",
       "shortcutOpen": "구글 문서 열기",
       "shortcutUnresolved": "링크를 읽지 못했습니다. 원본 파일이 손상되었거나 접근 권한이 없습니다.",
       "clickToOpen": "눌러서 열기 — 앱에서 못 여는 형식은 내려받습니다",

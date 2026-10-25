@@ -17,6 +17,10 @@ const ATTACHMENT_EXT = new Set([
   '.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx',
   '.hwp', '.hwpx',   // 한글(한컴오피스) — 2026-10-22 신고: 업무 첨부에서 «허용되지 않는 파일 형식» 으로 막혔다
   '.zip', '.txt', '.md', '.csv',
+  // 구글 문서 바로가기(드라이브 폴더에서 끌어온 .gdoc 등) — 본문이 아니라 수백 바이트짜리 링크다.
+  //   2026-10-25 (Irene: *"구글 문서 파일을 업무상세 파일추가에 넣었더니 … 링크로 연결해 줘야 하는데"*) —
+  //   올리면 미리보기가 안의 문서 id 로 구글 문서 주소를 만들어 연다(services/googleShortcut).
+  '.gdoc', '.gsheet', '.gslides', '.gdraw', '.gform',
   // 영상 — Drive 연동 시 5GB 까지, 자체 스토리지 시 플랜의 파일당 한도까지
   //   (거절되면 형식이 아니라 **용량** 이 이유다 — plan.js 가 숫자를 적어 안내한다)
   '.mp4', '.mov', '.webm', '.avi', '.mkv', '.m4v',

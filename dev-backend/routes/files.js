@@ -1613,22 +1613,7 @@ router.get('/:businessId/:id/shortcut', authenticateToken, attachWorkspaceScope(
     if (!gs.looksLikeShortcut(file.file_name, file.file_size)) {
       return errorResponse(res, 'not_shortcut', 400, 'not_shortcut');
     }
-    const body = await require('../services/attachmentStorage').readAttachmentBody(file);
-    if (!body.ok) return errorResponse(res, body.msg, body.code);
-    if (body.redirect) return errorResponse(res, 'not_shortcut', 400, 'not_shortcut');
-
-    const chunks = [];
-    let bytes = 0;
-    const buf = await new Promise((resolve, reject) => {
-      body.stream.on('data', (c) => {
-        bytes += c.length;
-        if (bytes > gs.MAX_BYTES) { body.stream.destroy(); reject(new Error('too_large')); return; }
-        chunks.push(c);
-      });
-      body.stream.on('end', () => resolve(Buffer.concat(chunks)));
-      body.stream.on('error', reject);
-    }).catch(() => null);
-    const parsed = buf ? gs.parseShortcut(buf, file.file_name) : null;
+    const parsed = await gs.readShortcutFrom(file, file.file_name, file.file_size);
     if (!parsed) return errorResponse(res, 'not_shortcut', 400, 'not_shortcut');
     return successResponse(res, parsed);
   } catch (err) { next(err); }

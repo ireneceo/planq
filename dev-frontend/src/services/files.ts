@@ -383,9 +383,30 @@ export function isGoogleShortcut(fileName: string | null | undefined): boolean {
  */
 export async function fetchShortcutUrl(businessId: number, fileId: string): Promise<string | null> {
   const parsed = parseFileId(fileId);
-  if (!parsed || parsed.source !== 'direct') return null;
+  if (!parsed) return null;
+  // 업무 첨부(task-)도 같은 문이 있다(2026-10-25) — Q file 목록의 업무 첨부·업무 상세 첨부가 이 길로 온다.
+  if (parsed.source === 'task') return fetchShortcutFrom(`/api/tasks/attachments/${parsed.id}/shortcut`);
+  if (parsed.source !== 'direct') return null;
+  return fetchShortcutFrom(`/api/files/${businessId}/${parsed.id}/shortcut`);
+}
+
+/** 첨부의 내려받기 주소 → 바로가기 주소를 묻는 곳. 모르는 모양이면 null(묻지 않는다).
+ *  ★ 2026-10-25 (Irene: *"구글 문서 파일을 업무상세 파일추가에 넣었더니 … 링크를 읽지 못했습니다"*) —
+ *    첨부 미리보기는 업무·채팅 첨부를 함께 그려 id 접두만으로는 출처를 가를 수 없다. 내려받기 주소가 출처다. */
+export function shortcutEndpointOf(downloadUrl: string | null | undefined): string | null {
+  const u = String(downloadUrl || '').split('?')[0];
+  let m = /^\/api\/tasks\/attachments\/(\d+)\/download$/.exec(u);
+  if (m) return `/api/tasks/attachments/${m[1]}/shortcut`;
+  m = /^\/api\/message-attachments\/(\d+)\/download$/.exec(u);
+  if (m) return `/api/message-attachments/${m[1]}/shortcut`;
+  m = /^\/api\/files\/(\d+)\/(\d+)\/download$/.exec(u);
+  if (m) return `/api/files/${m[1]}/${m[2]}/shortcut`;
+  return null;
+}
+
+export async function fetchShortcutFrom(endpoint: string): Promise<string | null> {
   try {
-    const r = await apiFetch(`/api/files/${businessId}/${parsed.id}/shortcut`);
+    const r = await apiFetch(endpoint);
     if (!r.ok) return null;
     const j = await r.json();
     const url = j?.data?.url;

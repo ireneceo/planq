@@ -5,7 +5,7 @@ import styled from 'styled-components';
 import { postContentTableCss } from '../../../styles/postContentView';
 import { useTranslation } from 'react-i18next';
 import { useImageLightbox } from '../../../components/Common/ImageLightbox';
-import { extOf, isImage, isVideo, isAudio, requestMediaUrl, isGoogleShortcut, formatBytes, type ProjectFile } from '../../../services/files';
+import { extOf, isImage, isVideo, isAudio, requestMediaUrl, isGoogleShortcut, fetchShortcutUrl, fetchShortcutFrom, shortcutEndpointOf, formatBytes, type ProjectFile } from '../../../services/files';
 import ActionButton from '../../../components/Common/ActionButton';
 import { loadFileBlob, loadFileObjectUrl, isCachedObjectUrl } from '../../../utils/fileBlobCache';
 import { marked } from 'marked';
@@ -21,7 +21,7 @@ export const PreviewArea: React.FC<{
   onOpen?: () => void;
   /** 'full' — 크게 보기 창 안에서 그린다(돋보기 없이 큰 것을 바로). 목록의 빠른 보기도 이것을 쓴다. */
   mode?: 'inline' | 'full';
-}> = ({ file, businessId, shortcutUrl, onOpen, mode = 'inline' }) => {
+}> = ({ file, businessId, shortcutUrl: shortcutUrlProp, onOpen, mode = 'inline' }) => {
   const { t } = useTranslation('qproject');
   const { open: openLightbox, lightbox } = useImageLightbox();
   // ★ 훅은 어떤 early return 보다 먼저 — 조건부 훅은 실브라우저에서만 터진다(React #310).
@@ -29,6 +29,23 @@ export const PreviewArea: React.FC<{
   const audio = isAudio(file.mime_type, file.file_name);
   const [mediaUrl, setMediaUrl] = useState<string | null>(null);
   const [mediaFailed, setMediaFailed] = useState(false);
+  /* 구글 바로가기 주소 — 부모가 이미 읽어 넘기면(Q file 의 useFileOpen) 그것을 쓰고, 안 넘기면 여기서 읽는다.
+     ★ 2026-10-25 (Irene: *"구글 문서 파일을 업무상세 파일추가에 넣었더니 … 링크로 연결해 줘야 하는데"*) —
+     업무·채팅 첨부 미리보기와 크게 보기는 주소를 넘기지 않아 **늘** «링크를 읽지 못했습니다» 였다.
+     출처는 내려받기 주소로 가른다(첨부 미리보기는 업무·채팅 첨부 모두 `task-` id 로 온다). */
+  const shortcut = isGoogleShortcut(file.file_name);
+  const [ownShortcut, setOwnShortcut] = useState<{ id: string; url: string | null } | null>(null);
+  useEffect(() => {
+    if (!shortcut || shortcutUrlProp !== undefined) return;
+    let alive = true;
+    const ep = shortcutEndpointOf(file.download_url);
+    void (ep ? fetchShortcutFrom(ep) : fetchShortcutUrl(businessId, file.id))
+      .then(u => { if (alive) setOwnShortcut({ id: file.id, url: u }); });
+    return () => { alive = false; };
+  }, [shortcut, shortcutUrlProp, file.id, file.download_url, businessId]);
+  const shortcutUrl = shortcutUrlProp !== undefined ? shortcutUrlProp
+    : (ownShortcut && ownShortcut.id === file.id ? ownShortcut.url : null);
+  const shortcutPending = shortcutUrlProp === undefined && !(ownShortcut && ownShortcut.id === file.id);
   // PDF — download_url 은 인증이 필요해 iframe src 로 넣으면 **401 빈 화면**이다(실측).
   //   인증 fetch 로 받아 blob URL 로 띄운다. 훅은 early return 보다 위 (React #310).
   const isPdf = file.mime_type === 'application/pdf' || extOf(file.file_name) === 'pdf';
@@ -347,7 +364,7 @@ const FullImage = styled.img`max-width:100%;max-height:100%;width:auto;height:au
      `.gdoc` 은 문서가 아니라 **172 바이트짜리 링크**다(운영 실측). 미리보기할 본문이 애초에 없다.
      "다운로드 후 확인" 은 여기서 **거짓말**이다 — 내려받아도 172 바이트 JSON 이 나온다.
      무엇인지 말해 주고 **문서로 가는 문**을 준다. 링크는 서버가 문서 id 로 조립한 것만 쓴다. */
-  if (isGoogleShortcut(file.file_name)) {
+  if (shortcut) {
     return (
       <PreviewFallback as={shortcutUrl ? 'a' : 'div'}
         {...(shortcutUrl ? { href: shortcutUrl, target: '_blank', rel: 'noopener noreferrer' } : {})}
@@ -360,6 +377,8 @@ const FullImage = styled.img`max-width:100%;max-height:100%;width:auto;height:au
             data-testid="file-preview-shortcut">
             {t('docs.preview.shortcutOpen', '구글 문서 열기') as string}
           </PvShortcutLink>
+        ) : shortcutPending ? (
+          <PvFallbackHint>{t('docs.preview.loadingText', '여는 중…') as string}</PvFallbackHint>
         ) : (
           <PvFallbackHint>{t('docs.preview.shortcutUnresolved') as string}</PvFallbackHint>
         )}

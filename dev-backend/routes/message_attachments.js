@@ -264,6 +264,30 @@ router.get('/:id/download', authenticateToken, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// GET /api/message-attachments/:id/shortcut — 구글 문서 바로가기(.gdoc 등) 안에 든 문서 주소.
+//   ★ 2026-10-25 — 업무 첨부와 같은 날 같은 이유로 연다(services/googleShortcut.readShortcutFrom 한 벌).
+//   권한은 바로 위 내려받기와 같은 술어(canAccessConversation).
+router.get('/:id/shortcut', authenticateToken, async (req, res, next) => {
+  try {
+    const att = await MessageAttachment.findByPk(req.params.id);
+    if (!att) return errorResponse(res, 'not_found', 404);
+    const msg = await Message.findByPk(att.message_id);
+    if (!msg) return errorResponse(res, 'not_found', 404);
+    const conv = await Conversation.findByPk(msg.conversation_id);
+    if (!conv) return errorResponse(res, 'not_found', 404);
+    if (!(await canAccessConversation(req.user.id, conv))) return errorResponse(res, 'forbidden', 403);
+    const parsed = await require('../services/googleShortcut').readShortcutFrom({
+      storage_provider: att.storage_provider,
+      file_path: att.file_path,
+      external_id: att.external_id || att.file_path,
+      business_id: conv.business_id,
+      file_size: att.file_size,
+    }, att.file_name, att.file_size);
+    if (!parsed) return errorResponse(res, 'not_shortcut', 400, 'not_shortcut');
+    return successResponse(res, parsed);
+  } catch (err) { next(err); }
+});
+
 // ─── GET /:id/raw — **삭제됨 (2026-08-20 보안)** ───
 //   무인증 + 순차 정수 id 라 1,2,3… 열거만으로 **타 워크스페이스 채팅 이미지**가 열렸다
 //   (Fable 이 통제 데이터로 크로스테넌트 실증: 다른 워크스페이스 대화방의 첨부를 토큰 없이 200 으로 획득).
