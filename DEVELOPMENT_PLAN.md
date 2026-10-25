@@ -1,5 +1,7 @@
 # PlanQ - 개발 진행 현황
 
+> **최종 업데이트:** 2026-10-25 ([Opus] Opus 5.5, 방 9b6e66c1 · 정기 점검 «배포 전 확인 완료» 답 처리 뒤) — 개발완료: 10/25 작업 기록(커밋 12건 — 크게 쓰기 FocusBlock · 문서 편집 머리 접기·전체 화면 · 문서 표 긴 링크·편집기 우클릭 메뉴 · 구글 문서 바로가기 첨부 · v1.70.2 새 소식). 운영 미배포분은 다음 배포 때(Irene 상황판 «배포» 버튼).
+> ── 이전 ──
 > **최종 업데이트:** 2026-10-24 밤 ([Opus] Opus 5.5, 방 a4f85adb · 정기 점검 10/25 00:15) — 개발완료: 10/23~10/24 작업 기록(커밋 53건 — 세금 설정·표기 · 청구서 AI 작성 · 사업자등록증 읽기 · 새 소식 자동 발행 · AI 앱 담당자 본인 · Q talk 읽음 인원 · 모바일 문서 제목·엔터 · 개정 공지 띠 자동 등) + 임베딩 전부 null 이던 회귀 수리(565f6038) + 도움말 2건(세금 설정 · 청구서 AI 작성). 운영 미배포분은 다음 배포 때.
 > ── 이전 ──
 > **최종 업데이트:** 2026-10-24 ([Opus] Opus 5.5, 방 0b0cda9a · 정기 점검 10/24 00:15) — 개발완료: 10/21~10/23 작업 기록(커밋 114건 — 서명·청구·Q sale·메일·명함 v3·조직 0단계·근태/휴가·플랫폼 관리자·미리보기 성능 등) + god-file 4건 나누기(10/21 부터 /개발완료·배포 게이트를 막던 것) + 커밋 훅(키운 방에서 막기). 운영 미배포분은 다음 배포 때.
@@ -60,6 +62,28 @@
 > 오전([Opus] Opus 5.5, 1M): **운영 배포 6회(v1.61.0 ~ v1.63.5).**
 > 게스트 진입(P0·A·B) · 이미지 보안 2a·2b(0~2단계) · 감사 1~3순위(328→98) · PDF 이미지 · **남의 워크스페이스에 쓰던 권한 결함 3건**.
 > ★ v1.63.3 의 PDF 수정이 이미지 많은 문서를 500 으로 만든 회귀를 **배포 후 운영 실측**으로 잡아 v1.63.4 로 되돌렸다.
+
+---
+
+## ✅ 완료: 2026-10-25 [Opus] — 상황판 방별 작업 묶음 (기록 9b6e66c1)
+
+| 작업 | 설명 | 상태 |
+|------|------|:----:|
+| 크게 쓰기 (bcab93d5) | 업무 설명·결과물 · Q note 메모 · 메일 답장 칸을 화면 가운데 판으로 — 공용 `FocusBlock` · 공용 `focusShell` | ✅ 완료 (자체 검증) |
+| 문서 편집 화면 (89ebeede) | 편집 중 프로젝트 머리 접기 + 전체 화면으로 쓰기 | ✅ 완료 (자체 검증) |
+| 문서 편집기 (a0aebd04) | 표 안 긴 링크 칸 안 줄바꿈 + 우클릭 메뉴(링크 넣기·고치기·열기·빼기·잘라내기·복사·붙여넣기) · 카나리 `canary-editor-ctx` | ✅ 완료 (자체 검증) |
+| 구글 문서 바로가기 첨부 (0411c947) | 업무·채팅 첨부의 .gdoc 등도 링크로 열기 — 파일함과 같은 술어 `services/googleShortcut.js` | ✅ 완료 (자체 검증) |
+| v1.70.2 새 소식 (f0d69118) | 배포 자동 새 소식 | ✅ 완료 |
+| 정기 점검 답 처리 (이 방) | «배포 전 확인 완료» 답(권고대로) — 질문 (이전) 으로, 배포는 Irene 상황판 버튼 | ✅ 완료 (코드 0줄) |
+
+상세는 `.claude/session-state.md` 방별 절. Fable 안 씀 — 마지막 판정 뒤 커밋은 화면·작은 버그·문서뿐.
+
+### 수정된 파일
+- `dev-frontend/src/components/Common/{FocusBlock,focusShell,AppContextMenu,RichEditor,PwaInstallBanner}.tsx`
+- `dev-frontend/src/components/Docs/{PostEditor,PostsPage,PostsPage.styles,docFocusMode}.tsx` · `docFocusStyles.ts`
+- `dev-frontend/src/pages/QProject/{ProjectHeadCollapse,QProjectDetailPage}.tsx` · `docs/PreviewArea.tsx` · `QMail/{MailPage,MailBodyFullscreen}.tsx` · `QNote/MemoView.tsx` · `QTask/TaskDetailDrawer.tsx`
+- `dev-backend/routes/{files,message_attachments,task_attachments}.js` · `services/{googleShortcut,uploadPolicy}.js`
+- locales ko/en common·qdocs·qmail·qproject · `scripts/e2e/canary-editor-ctx.js` · `docs/release-notes/v1.70.2.json`
 
 ---
 

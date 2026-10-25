@@ -68,6 +68,7 @@ paths:
 | 연회색 알약 탭 | `components/Common/segmentedToggle.tsx` | Q task(내 업무/전체) · Q sale(상담/고객) |
 | 검색 + 라벨 붙은 필터 한 줄 | `components/Common/filterBar.tsx` | Q sale(두 탭) · 신규 목록 화면 |
 | 목록 정렬(최신 작성·오래된·최근 수정·이름) + `sortRows` | `components/Common/ListSortSelect.tsx` | Q docs(워크스페이스·프로젝트) · Q info · 프로젝트>정보 |
+| 화면 가운데 판(막·판 머리) — 크게 보기·전체 화면·크게 쓰기 | `components/Common/focusShell.tsx` · 칸을 그 자리에서 띄우는 `FocusBlock.tsx` (2026-10-25) | 메일 크게 보기 · 문서 전체 화면 · 업무 설명·결과물 · Q note 메모 · 메일 답장 |
 
 - **목록 기본 정렬은 작성일 최신순이다**(2026-10-06 Irene: *"수정될 때 리스트 순서가 바뀌니까 이상해"*). 서버 order 도
   `created_at DESC` — 수정일 순은 사람이 «최근 수정순» 을 고를 때만. 새 목록 화면은 이 셀렉트를 쓴다(«최근 순» 이
