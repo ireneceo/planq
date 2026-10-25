@@ -304,7 +304,8 @@
     "cueAdvice": "Cue 의견 듣기",
     "cueAdviceHint": "Cue 가 이 메일을 보고 다음에 할 일을 정리해 줘요",
     "aiRequestPlaceholderEmpty": "AI 에게 어떤 답장을 쓸지 알려 주세요 · 비워 두고 Enter 면 알아서 작성",
-    "aiRefine": "AI 로 다듬기"
+    "aiRefine": "AI 로 다듬기",
+    "focusTitle": "답장 — {{subject}}"
   },
   "errors": {
     "loadList": "인박스 로딩 실패"

@@ -18,7 +18,7 @@ import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
-import { focusBackdropCss, focusSurfaceCss, useFocusShellExit } from '../../components/Common/focusShell';
+import { focusBackdropCss, focusSurfaceCss, useFocusShellExit, FocusHead as Head, FocusHeadText as HeadText, FocusHeadTitle as HeadTitle, FocusHeadSub as HeadSub, FocusCloseBtn as CloseBtn } from '../../components/Common/focusShell';
 import { PanelBackButton } from '../../components/Layout/PanelHeader';
 
 interface Props {
@@ -141,20 +141,6 @@ const Panel = styled.div`
   /* ★ 2026-09-07 (Irene: "전체보기 하면 모바일에서 상단 안나와서 닫을 수가없어") — 폰 위·아래 안전영역은
      focusSurfaceCss 가 토큰으로 준다(memory feedback_safe_area_token_not_raw_env). */
 `;
-const Head = styled.div`
-  display: flex; align-items: center; gap: 12px;
-  min-height: 60px; padding: 14px 20px;
-  background: #fff; border-bottom: 1px solid #e2e8f0;
-`;
-const HeadText = styled.div` flex: 1; min-width: 0; `;
-const HeadTitle = styled.div`
-  font-size: 1rem; font-weight: 700; letter-spacing: -0.2px; color: #0F172A;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-`;
-const HeadSub = styled.div`
-  margin-top: 2px; font-size: 0.75rem; color: #64748B;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-`;
 const ZoomGroup = styled.div`
   flex-shrink: 0; display: inline-flex; align-items: center; gap: 2px;
   background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 10px; padding: 2px;
@@ -177,18 +163,6 @@ const ZoomPct = styled.button`
   font-variant-numeric: tabular-nums; cursor: pointer;
   &:hover { background: #E2E8F0; }
   &:focus-visible { outline: 2px solid rgba(15,118,110,0.5); outline-offset: 1px; }
-`;
-const CloseBtn = styled.button`
-  /* touch-target-44: 폰 터치 타깃 (theme/tokens CONTROL.touchMin). 데스크탑 크기는 그대로. */
-  @media (max-width: 640px) { min-width: 44px; min-height: 44px; }
-
-  flex-shrink: 0; width: 36px; height: 36px;
-  display: inline-flex; align-items: center; justify-content: center;
-  background: transparent; border: none; border-radius: 8px;
-  color: #64748B; cursor: pointer;
-  &:hover { background: #F1F5F9; color: #0F172A; }
-  &:focus-visible { outline: 2px solid rgba(15,118,110,0.5); outline-offset: 2px; }
-  @media (max-width: 1024px) { display: none; }
 `;
 // 본문이 패널 가장자리에 붙지 않게 **바깥 컨테이너**가 여백을 준다.
 //   iframe 안(srcDoc 의 guard)은 건드리지 않는다 — 거기 margin:0 은 뉴스레터 템플릿 디자인을

@@ -1967,5 +1967,9 @@
     "privacy_1_5": "Our Privacy Policy changes on November 3, 2026 — it now lists our hosting provider (IONOS, Germany) and the security measures actually in place.",
     "details": "Details",
     "dismiss": "Dismiss"
+  },
+  "focusBlock": {
+    "enter": "Write larger",
+    "exit": "Exit larger view"
   }
 }

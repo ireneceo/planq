@@ -22,6 +22,7 @@ import TaskCandidateCard, { type CandidateData } from '../../components/Common/T
 import CueTaskBar from '../../components/QTask/CueTaskBar';
 import { parseBodyToDoc, deriveTitleFromDoc, isDocEmpty } from '../../utils/qnoteBody';
 import VisibilityChip from '../../components/Common/VisibilityChip';
+import FocusBlock, { useFocusBlock, FocusBlockToggle } from '../../components/Common/FocusBlock';
 import { PanelHeaderBar, DetailMetaBar, DetailMetaLeft, DetailMetaRight } from '../../components/Layout/PanelHeader';
 import AiAssistButton from '../../components/Common/AiAssistButton';
 import type { VLevel } from '../../components/Common/VisibilityBadge';
@@ -90,6 +91,8 @@ const MemoView: React.FC<Props> = ({ session, businessId, prefillProjectId, pref
   const [savedAt, setSavedAt] = useState<number | null>(session ? Date.now() : null);
   const [tick, setTick] = useState(0);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  // 메모 «크게 쓰기» — 본문만 화면 가운데 판으로(components/Common/FocusBlock). 메모마다 이 화면이 새로 그려진다(QNotePage key).
+  const memoFocus = useFocusBlock();
   const [shareOpen, setShareOpen] = useState(false);
 
   // ★ 메모를 쓰는 동안은 새 빌드 자동 새로고침을 막는다 (BuildVersionGuard 계약).
@@ -336,9 +339,10 @@ const MemoView: React.FC<Props> = ({ session, businessId, prefillProjectId, pref
             />
           )}
         </DetailMetaLeft>
-        {/* AI 도구 — 요약·업무를 버튼 두 개로 모았다. 저장된 메모일 때만(요약·추출은 세션에 붙는다). */}
-        {sessionId && (
+        {/* AI 도구 — 요약·업무를 버튼 두 개로 모았다. 저장된 메모일 때만(요약·추출은 세션에 붙는다).
+            크게 쓰기 — 메모 본문만 화면 가운데 판으로(FocusBlock). 새 메모에서도 쓴다. */}
           <DetailMetaRight>
+            {sessionId && (<>
             <AiAssistButton
               testId="memo-ai-summary"
               pressed={aiPanel === 'summary'}
@@ -361,8 +365,9 @@ const MemoView: React.FC<Props> = ({ session, businessId, prefillProjectId, pref
               count={noteTasks.candidates.length}
               title={t('memoAi.tasksHint', 'AI 업무 추출 · Cue 에게 업무 추가') as string}
             />
+            </>)}
+            <FocusBlockToggle on={memoFocus.on} onToggle={memoFocus.toggle} testId="memo-focus-toggle" />
           </DetailMetaRight>
-        )}
       </MetaBand>
 
       <Body>
@@ -482,6 +487,7 @@ const MemoView: React.FC<Props> = ({ session, businessId, prefillProjectId, pref
           )}
         <Suspense fallback={<EditorLoading>{t('memoPopup.searchLoading') as string}</EditorLoading>}>
           {/* #127 — 풀블리드: 외곽 박스 제거하고 편집기가 영역 전체를 차지 */}
+          <FocusBlock on={memoFocus.on} onExit={memoFocus.exit} testId="memo-focus" title={titleDisplay}>
           <PostEditor
             value={doc}
             /* ★ "사람이 친 것만" 을 포커스로 거르지 않는다 — TipTap 의 focus() 는 rAF 로 지연돼
@@ -494,6 +500,7 @@ const MemoView: React.FC<Props> = ({ session, businessId, prefillProjectId, pref
             businessId={businessId}
             borderless
           />
+          </FocusBlock>
         </Suspense>
       </Body>
 

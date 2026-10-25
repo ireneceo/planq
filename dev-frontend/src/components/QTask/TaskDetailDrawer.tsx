@@ -30,6 +30,7 @@ import IdentityContext from '../Common/IdentityContext';
 import PartnerKindBadge from '../Common/PartnerKindBadge';
 import { ProvenanceBadge } from '../Common/SourceHint';
 import RichEditor from '../Common/RichEditor';
+import FocusBlock, { useFocusBlock, FocusBlockToggle } from '../Common/FocusBlock';
 import ShareModal from '../Common/ShareModal';
 import VisibilityChip from '../Common/VisibilityChip';
 import VisibilityChangeModal from '../Common/VisibilityChangeModal';
@@ -264,6 +265,13 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
   const [detailStatus, setDetailStatus] = useState<DetailStatus>('idle');
   // 다른 워크스페이스 업무를 id 로 열었을 때 그 워크스페이스 — 내용 대신 전환 안내(DetailFallback other_workspace)
   const [otherWsBizId, setOtherWsBizId] = useState<number | null>(null);
+  // 업무 설명·결과물 «크게 쓰기» — 우측 480px 안에서 긴 글을 쓰기 답답한 칸만 화면 가운데 판으로(FocusBlock).
+  const descFocus = useFocusBlock();
+  const bodyFocus = useFocusBlock();
+  // 다른 업무로 옮기면 크게 쓰기를 닫는다 — 판이 새 업무 위에 떠 있으면 어느 업무 글인지 헷갈린다.
+  const detailIdForFocus = detailTask?.id;
+  const { exit: descFocusExit } = descFocus; const { exit: bodyFocusExit } = bodyFocus;
+  useEffect(() => { descFocusExit(); bodyFocusExit(); }, [detailIdForFocus, descFocusExit, bodyFocusExit]);
   const [weekFocusH, setWeekFocusH] = useState(0);  // WORK_FLOW §6-B — 이번 주 포커스 시간(이월 배너)
   // KNOWLEDGE_LOOP 축1 — 결과물 KB 저장 (Cue 리서치 결과 등 되먹임, 사람 게이트)
   const [kbSaving, setKbSaving] = useState(false);
@@ -2465,6 +2473,7 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                   ? t('detail.descriptionRequest', '요청 내용')
                   : t('detail.description', '업무 설명')}
                 {!canEditDescription && <ReadOnlyHint>{t('detail.readOnly', '읽기 전용')}</ReadOnlyHint>}
+                <FocusBlockToggle on={descFocus.on} onToggle={descFocus.toggle} testId="task-desc-focus-toggle" />
               </SectionTitle>
               {/* 운영 #352 — "지침은 설명, 결과물은 본문" 이 내부 규칙일 뿐 화면 어디에도 없었다.
                   본문(body)에 실행 지침을 쓰면 회차 생성 때 리셋되어 조용히 사라진다.
@@ -2475,6 +2484,7 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                 </RecurDescHint>
               )}
               <DescEditorWrap data-testid="task-desc-editor">
+                <FocusBlock on={descFocus.on} onExit={descFocus.exit} testId="task-desc-focus" title={detailTask.title}>
                 <RichEditor
                   // 업무마다 에디터 인스턴스를 가른다 — 같은 인스턴스를 재사용하면 옛 업무 글이 새 업무 화면·저장으로 섞일 수 있다
                   key={`desc-${detailTask.id}`}
@@ -2486,6 +2496,7 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                   minHeight={120}
                   readOnly={!canEditDescription}
                 />
+                </FocusBlock>
               </DescEditorWrap>
               {fieldDrafts.description && <DraftRestoredNote draft={fieldDraftNote('description')} />}
               {/* description 영역 첨부 (의뢰자 자료) — 결과물(body) 영역 첨부와 분리. 권한 = description 편집 권한. */}
@@ -2721,6 +2732,7 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                     {kbErr && <KbErrText>{t('detail.kbErr', '추가하지 못했습니다. 잠시 후 다시 시도해 주세요.')}</KbErrText>}
                   </>
                 )}
+                <FocusBlockToggle on={bodyFocus.on} onToggle={bodyFocus.toggle} testId="task-body-focus-toggle" />
               </SectionTitle>
               {/* 지금 이 칸이 무엇인지 한 줄로 말한다 — 규칙 설명이 아니라 **상태와 다음 동작**. */}
               {bodyEditable ? (
@@ -2769,6 +2781,7 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
               {/* 하니스가 **결과물 입력란만** 집어 보게 표식을 단다 — 같은 화면에 의뢰 명세
                   에디터가 하나 더 있어서, 표식 없이는 둘을 구별 못 해 잠금 검사가 거짓이 된다. */}
               <div data-testid="task-body-editor">
+              <FocusBlock on={bodyFocus.on} onExit={bodyFocus.exit} testId="task-body-focus" title={detailTask.title}>
               <RichEditor key={`body-${detailTask.id}`} value={fieldDrafts.body?.state === 'restored' ? fieldDrafts.body.value : (detailTask.body || '')}
                 onChange={(html) => { bodyDraftRef.current = html; debouncedSave('body', html, 2000); }}
                 onBlur={(html) => { bodyDraftRef.current = html; flushDebounced('body', html); }}
@@ -2776,6 +2789,7 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                 uploadUrl={`/api/tasks/${detailTask.id}/attachments?context=description`}
                 minHeight={260}
                 readOnly={!bodyEditable} />
+              </FocusBlock>
               </div>
               {fieldDrafts.body && <DraftRestoredNote draft={fieldDraftNote('body')} />}
               {/* #271·#307 — 회차 이력. 백엔드는 2026-08-22 부터 "확인 요청" 시점 결과물을 박제해

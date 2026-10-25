@@ -36,6 +36,7 @@ import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
 import { useReallyVisible } from '../../contexts/TabActiveContext';
 import { joinRoom, leaveRoom, onSocket, getSocket } from '../../services/socket';
 import RichEditor from '../../components/Common/RichEditor';
+import FocusBlock, { useFocusBlock, FocusBlockToggle } from '../../components/Common/FocusBlock';
 import AttachmentField from '../../components/Common/AttachmentField';
 import ActionButton from '../../components/Common/ActionButton';
 import PlanQSelect from '../../components/Common/PlanQSelect';
@@ -1405,6 +1406,9 @@ const MailPage: React.FC = () => {
 
   // ── 답장 컴포저 ──
   const [replyOpen, setReplyOpen] = useState(false);
+  // 답장 «크게 쓰기» — 본문 칸만 화면 가운데 판으로(components/Common/FocusBlock). 답장 창을 닫거나 다른 메일로 가면 닫는다.
+  const replyFocus = useFocusBlock();
+  const { exit: replyFocusExit } = replyFocus;
   // 답장창 안에서 초안이 들어간 자리(에디터 머리)로 스크롤하라는 신호 — AI 초안·Cue 초안을 채운 뒤 올린다.
   const [replyScrollTick, setReplyScrollTick] = useState(0);
   const replyComposerRef = useRef<HTMLDivElement>(null);
@@ -1628,6 +1632,8 @@ const MailPage: React.FC = () => {
   useEffect(() => {
     if (replyOpen && aiBarFocusPending.current) { aiBarFocusPending.current = false; aiInstructionRef.current?.focus(); }
   }, [replyOpen]);
+  useEffect(() => { if (!replyOpen) replyFocusExit(); }, [replyOpen, replyFocusExit]);
+  useEffect(() => { replyFocusExit(); }, [activeId, replyFocusExit]);
   const [aliases, setAliases] = useState<Array<{ id: number; email: string; display_name: string | null; is_default: boolean }>>([]);
   // 3상태: null = 미지정(서버가 "받은 주소로" 자동 결정) / 0 = 계정 주소 **명시 선택** / N = 별칭 명시.
   //   ★ 여태 미지정과 명시선택이 둘 다 0 이었다. 별칭 목록이 아직 안 실렸거나 매칭이 빗나가면 0 이 나갔고,
@@ -3103,6 +3109,7 @@ const MailPage: React.FC = () => {
                             {t('reply.addAlias', { defaultValue: '보내는 주소 추가' }) as string}
                           </FromManage>
                         ) : null}
+                        <FocusBlockToggle on={replyFocus.on} onToggle={replyFocus.toggle} testId="mail-reply-focus-toggle" />
                       </ComposerFrom>
                     )}
                     {replyToHint && (
@@ -3146,6 +3153,8 @@ const MailPage: React.FC = () => {
                           : (t('reply.aiWorking', { defaultValue: 'AI 가 답장 초안을 쓰는 중이에요…' }) as string)}
                       </AiWorkingLine>
                     )}
+                    <FocusBlock on={replyFocus.on} onExit={replyFocus.exit} testId="mail-reply-focus"
+                      title={t('reply.focusTitle', { defaultValue: '답장 — {{subject}}', subject: detail?.subject || '' }) as string}>
                     <RichEditor
                       value={replyHtml}
                       onChange={setReplyHtml}
@@ -3159,6 +3168,7 @@ const MailPage: React.FC = () => {
                       /* 본문에 올린 이미지 아닌 파일은 첨부 칸으로 */
                       onAttachFiles={(fs) => setReplyUploads((prev) => [...prev, ...fs])}
                     />
+                    </FocusBlock>
                     <AttachmentField
                       collapsible
                       businessId={businessId}

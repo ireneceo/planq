@@ -9,7 +9,7 @@
 //   · 닫는 문은 Esc 와 뒤로 가기 둘 다 — useFocusShellExit 한 줄.
 // 새로 «크게 보기/집중 편집» 을 붙이는 화면은 이 조각과 FocusModeIcon 을 쓴다.
 import { useEffect } from 'react';
-import { css } from 'styled-components';
+import styled, { css } from 'styled-components';
 import { useEscapeStack } from '../../hooks/useEscapeStack';
 import { useBackToClose } from '../../hooks/useBackToClose';
 
@@ -29,6 +29,47 @@ export const focusSurfaceCss = css`
     padding-top: var(--pq-popup-safe-pad, 0px);
     padding-bottom: var(--pq-safe-bottom, 0px);
   }
+`;
+
+/** 띄운 판 — 화면 가운데 1100px(폰·좁은 태블릿은 꽉 참). 그 자리의 상자를 그대로 띄울 때(편집기를 옮기지 않을 때) 쓴다. */
+export const focusFloatingCss = css`
+  ${focusSurfaceCss}
+  position: fixed;
+  top: calc(var(--pq-popup-top, 0px) + 24px); bottom: 24px;
+  left: 0; right: 0; margin: 0 auto;
+  width: min(1100px, calc(100% - 48px));
+  display: flex; flex-direction: column;
+  @media (max-width: 768px) {
+    top: var(--pq-popup-top, 0px); bottom: 0; width: 100%;
+  }
+`;
+
+/* 판 머리 — 메일 본문 크게 보기에서 옮겨 왔다(값 그대로). 폰·태블릿(≤1024)은 ‹ 뒤로 하나, 데스크탑은 ✕. */
+export const FocusHead = styled.div`
+  display: flex; align-items: center; gap: 12px;
+  min-height: 60px; padding: 14px 20px;
+  background: #fff; border-bottom: 1px solid #e2e8f0;
+`;
+export const FocusHeadText = styled.div` flex: 1; min-width: 0; `;
+export const FocusHeadTitle = styled.div`
+  font-size: 1rem; font-weight: 700; letter-spacing: -0.2px; color: #0F172A;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+`;
+export const FocusHeadSub = styled.div`
+  margin-top: 2px; font-size: 0.75rem; color: #64748B;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+`;
+export const FocusCloseBtn = styled.button`
+  /* touch-target-44: 폰 터치 타깃 (theme/tokens CONTROL.touchMin). 데스크탑 크기는 그대로. */
+  @media (max-width: 640px) { min-width: 44px; min-height: 44px; }
+
+  flex-shrink: 0; width: 36px; height: 36px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: transparent; border: none; border-radius: 8px;
+  color: #64748B; cursor: pointer;
+  &:hover { background: #F1F5F9; color: #0F172A; }
+  &:focus-visible { outline: 2px solid rgba(15,118,110,0.5); outline-offset: 2px; }
+  @media (max-width: 1024px) { display: none; }
 `;
 
 /** 여닫는 문 — Esc(가장 위 창만) · 폰 뒤로 가기. 열린 동안 body[data-focus-shell='1'] —

@@ -304,7 +304,8 @@
     "cueAdvice": "Ask Cue what's next",
     "cueAdviceHint": "Cue reads this email and suggests what to do next",
     "aiRequestPlaceholderEmpty": "Tell AI what reply to write · leave empty and press Enter to let it decide",
-    "aiRefine": "Refine with AI"
+    "aiRefine": "Refine with AI",
+    "focusTitle": "Reply — {{subject}}"
   },
   "errors": {
     "loadList": "Failed to load inbox"
