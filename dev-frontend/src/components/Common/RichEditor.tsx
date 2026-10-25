@@ -518,6 +518,9 @@ const EditorShell = styled.div<{ $mh: number; $ro?: boolean }>`
   & .pq-editor-body a{color:#0D9488;text-decoration:underline;text-decoration-color:#99F6E4;text-underline-offset:3px;}
   /* 표 (#151) — 문서 에디터(PostEditor)와 같은 시각. 넓은 표는 가로 스크롤로 가둔다(페이지가 밀리지 않게) */
   & .pq-editor-body .tableWrapper{overflow-x:auto;}
+  /* 표 안 긴 링크 — 폭을 안 정한 칸에서는 줄을 바꿔 열이 늘지 않게(PostEditor 에 같은 규칙·실측 주석, 2026-10-25) */
+  & .pq-editor-body table td:not([colwidth]) p:has(a[href]),& .pq-editor-body table th:not([colwidth]) p:has(a[href]){max-width:320px;}
+  & .pq-editor-body table td a[href],& .pq-editor-body table th a[href]{overflow-wrap:anywhere;word-break:break-all;}
   /* min-width 에 !important — prosemirror-tables 가 인라인 min-width 를 써서 여기 100% 를 덮는다.
      그러면 표가 max-content 에 머물러 "테두리가 내용까지만" 이 된다(PostEditor 에 같은 주석). */
   & .pq-editor-body table{

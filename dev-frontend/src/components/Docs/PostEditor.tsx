@@ -17,7 +17,8 @@ import { resizableImageCss } from './resizableImageStyles';
 import { Table } from '@tiptap/extension-table';
 import { TableRow } from '@tiptap/extension-table-row';
 import { PqTableCell, PqTableHeader } from './editorTableCellFill';   // 칸·열·행 채우기 색(2026-10-12)
-import TableBubbleMenu from './TableBubbleMenu';   // 표 손잡이 → 행·열·칸 색 메뉴(2026-10-12)
+import TableBubbleMenu from './TableBubbleMenu';
+import { openEditorLinkForm } from '../Common/AppContextMenu';   // 표 손잡이 → 행·열·칸 색 메뉴(2026-10-12)
 import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight';
 import TextAlign from '@tiptap/extension-text-align';
 import { handleMarkdownPaste } from '../../utils/markdownPaste';
@@ -379,13 +380,10 @@ const PostEditor: React.FC<Props> = ({ value, onChange, onReady, placeholder, ed
           </Group>
           <Sep />
           <Group>
-            <ToolBtn type="button" $active={isActive('link')} onClick={() => {
-              const prev = editor.getAttributes('link').href;
-              const url = window.prompt(t('editor.linkPrompt', { defaultValue: 'URL (비우면 링크 제거):' }), prev || '');
-              if (url === null) return;
-              if (url === '') editor.chain().focus().extendMarkRange('link').unsetLink().run();
-              else editor.chain().focus().extendMarkRange('link').setLink({ href: url }).run();
-            }} title={t('editor.link', { defaultValue: '링크' })}>🔗</ToolBtn>
+            {/* 링크 — window.prompt(금지) 대신 우클릭 «링크 넣기» 와 같은 입력 칸(AppContextMenu, 2026-10-25) */}
+            <ToolBtn type="button" data-testid="editor-link" $active={isActive('link')}
+              onMouseDown={(e) => { e.preventDefault(); openEditorLinkForm(editor); }}
+              title={t('editor.link', { defaultValue: '링크' })}>🔗</ToolBtn>
             <ToolBtn type="button" onClick={onPickImage} title={t('editor.insertImage', { defaultValue: '이미지 삽입 (또는 붙여넣기/드래그)' })} aria-label={t('editor.insertImageAria', { defaultValue: '이미지 삽입' })}>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
@@ -673,6 +671,16 @@ const Body = styled.div<{ $editable?: boolean; $borderless?: boolean; $compact?:
   & table:has(colgroup col:nth-child(9)) td,
   & table:has(colgroup col:nth-child(9)) th { min-width: 96px; }
   `}
+  ${p => p.$editable ? `
+  /* ★ 2026-10-25 (Irene: *"문서 테이블들이 열 안에 링크값 너무 길게 하지 말고 잘리게 하거나 엔터값 들어가게"*)
+     편집 표는 width:max-content 라 폭을 정하지 않은 열은 **글 한 줄 길이**까지 늘어난다 — 띄어쓰기 없는 긴 주소 한 줄에
+     실측 1068px 열(본문 872 → 표 1262, 가로 스크롤). 보기 화면은 이미 칸 안에서 줄바꿈한다.
+     고침: 폭을 안 정한 칸(colwidth 없음)의 **링크 든 문단**에 최대 폭을 둔다 — 블록의 max-width 는 표가 재는
+     내용 폭(max-content)도 같이 묶으므로 열이 그 이상 늘지 않고, 주소는 아무 글자에서나 줄을 바꾼다.
+     사용자가 손잡이로 넓힌 열(colwidth 있음)은 손대지 않는다. */
+  & table td:not([colwidth]) p:has(a[href]), & table th:not([colwidth]) p:has(a[href]) { max-width: 320px; }
+  & table td a[href], & table th a[href] { overflow-wrap: anywhere; word-break: break-all; }
+  ` : ''}
   /* 첫 행 좌상단·우상단 라운드 (border-radius 가 table 에만 적용되면 셀이 가려서 안 보임) */
   & table tr:first-child th:first-child, & table tr:first-child td:first-child {
     border-top-left-radius: 10px;

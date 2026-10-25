@@ -1663,7 +1663,20 @@
     "closeTab": "Close tab",
     "closeOthers": "Close other tabs",
     "back": "Back",
-    "forward": "Forward"
+    "forward": "Forward",
+    "editLink": "Edit link…",
+    "addLink": "Add link…",
+    "openLink": "Open link",
+    "removeLink": "Remove link",
+    "cut": "Cut",
+    "copy": "Copy",
+    "paste": "Paste",
+    "selectAll": "Select all",
+    "linkTitle": "Link",
+    "linkPlaceholder": "Paste a URL (https://…)",
+    "cancel": "Cancel",
+    "apply": "Apply",
+    "browserMenuHint": "Browser menu: Shift + right-click"
   },
   "connect": {
     "projectNone": "No project linked",

@@ -12,6 +12,12 @@
 //  · 입력칸(input·textarea·contenteditable)도 항상 브라우저 메뉴.
 //  · 미러 모드(모바일·단일 탭)에서는 탭 개념이 없으므로 "새 탭" 항목을 내지 않는다.
 //
+//  · ★ 2026-10-25 — **편집기(TipTap) 안은 예외로 우리 메뉴를 띄운다.**
+//    Irene: *"드래그해서 하이퍼링크 넣게 하는 우측 기능들 없는데 우리 솔루션 자체의 우측기능들을 구성해서
+//    여기저기 우측 기능 사용하게 못할까?"* — 편집기 위 우클릭 = 링크 넣기·고치기·열기·빼기 + 잘라내기·복사·붙여넣기·모두 선택.
+//    편집기는 `.ProseMirror` 요소에 TipTap 이 실어 둔 `dom.editor` 로 찾는다 — 문서·업무 설명·메모 등 TipTap 편집기 전부에 같이 먹는다.
+//    브라우저 메뉴(맞춤법 등)는 **Shift+우클릭**으로 그대로 쓸 수 있다(메뉴 아래 안내). 터치 길게 누르기는 손대지 않는다(폰의 선택 손잡이·붙여넣기).
+//
 // ★ 전역 컴포넌트는 **두 렌더 트리**에 모두 올라가야 한다(memory `feedback_two_render_trees_global_mount`).
 //   App 루트 한 곳에 두어 탭 모드·미러 모드 양쪽에서 돈다.
 import React, { useCallback, useEffect, useRef, useState } from 'react';
@@ -19,6 +25,7 @@ import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { tabStore } from '../../stores/tabStore';
 import { useTabState } from '../../hooks/useTabStore';
+import type { Editor } from '@tiptap/core';
 
 type MenuItem = {
   key: string;
@@ -28,13 +35,42 @@ type MenuItem = {
   danger?: boolean;
   /** 위에 구분선 */
   sep?: boolean;
+  /** 오른쪽 회색 단축키 안내 */
+  hint?: string;
 };
+
+/** 편집기 링크 입력 칸 — 우클릭 «링크 넣기» 와 도구줄 🔗 이 같은 칸을 쓴다 */
+type LinkForm = { editor: Editor; value: string; hadLink: boolean };
+
+/** 도구줄 🔗 등에서 링크 입력 칸을 연다 — 위치는 지금 커서(선택) 아래 */
+export function openEditorLinkForm(editor: Editor) {
+  let x = 0; let y = 0;
+  try {
+    const c = editor.view.coordsAtPos(editor.state.selection.from);
+    x = c.left; y = c.bottom + 4;
+  } catch { /* 좌표를 못 구하면 화면 왼쪽 위 */ }
+  window.dispatchEvent(new CustomEvent('pq:editor-link', { detail: { editor, x, y } }));
+}
+
+/** 링크 주소 다듬기 — «www.x.com»·«x.com/a» 처럼 앞이 빠진 주소는 https:// 를 붙인다 */
+function normalizeHref(raw: string): string {
+  const v = raw.trim();
+  if (!v) return '';
+  if (/^[a-z][a-z0-9+.-]*:/i.test(v) || v.startsWith('/') || v.startsWith('#')) return v;
+  if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) return `mailto:${v}`;
+  return `https://${v}`;
+}
+
+const IS_MAC = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
+const keyHint = (k: string) => (IS_MAC ? `⌘${k}` : `Ctrl+${k}`);
 
 type Target =
   | { kind: 'link'; path: string; absolute: string }
   | { kind: 'tab'; tabId: string; path: string; absolute: string }
   /** 화면이 직접 선언한 동작 — `data-pq-context="키,키"` 를 단 요소 위에서 (2026-09-16) */
   | { kind: 'custom'; el: HTMLElement; actions: string[] }
+  /** 편집 중인 TipTap 편집기 위 (2026-10-25) */
+  | { kind: 'editor'; editor: Editor }
   | null;
 
 const MENU_W = 216;
@@ -54,6 +90,16 @@ function internalPathOf(a: HTMLAnchorElement): string | null {
 function resolveTarget(e: MouseEvent): Target {
   const el = e.target as HTMLElement | null;
   if (!el) return null;
+
+  // 편집기 — Shift+우클릭은 브라우저 메뉴, 터치 길게 누르기도 브라우저(폰 선택 손잡이·붙여넣기)
+  const pm = el.closest<HTMLElement>('.ProseMirror');
+  const pmEditor = pm ? (pm as HTMLElement & { editor?: Editor }).editor : undefined;
+  if (pmEditor && pmEditor.isEditable && !pmEditor.isDestroyed) {
+    const touch = (e as PointerEvent).pointerType === 'touch'
+      || !!(e as MouseEvent & { sourceCapabilities?: { firesTouchEvents?: boolean } }).sourceCapabilities?.firesTouchEvents;
+    if (e.shiftKey || touch) return null;
+    return { kind: 'editor', editor: pmEditor };
+  }
 
   // 입력 중이거나 글자를 고른 상태 — 브라우저 메뉴가 맞다
   const editable = el.closest('input, textarea, select, [contenteditable="true"]');
@@ -98,19 +144,155 @@ async function copyText(text: string) {
   document.body.removeChild(ta);
 }
 
+/** 링크 열기 — 우리 주소는 새 탭(탭 모드) · 바깥 주소는 새 창 */
+function openHref(href: string, mirror: boolean) {
+  try {
+    const u = new URL(href, window.location.origin);
+    if (u.origin === window.location.origin && !mirror) {
+      tabStore.newTab(u.pathname + u.search + u.hash);
+      return;
+    }
+    window.open(u.href, '_blank', 'noopener,noreferrer');
+  } catch { /* 깨진 주소 — 열 것이 없다 */ }
+}
+
+/** 붙여넣기 — 클립보드를 읽어 편집기의 **붙여넣기 길 그대로**(표·마크다운·이미지 올리기 포함) 넣는다.
+ *  읽은 것을 DataTransfer 에 담아 편집기에 paste 이벤트로 보낸다 — 편집기마다 따로 넣는 길을 만들지 않는다. */
+async function pasteInto(ed: Editor) {
+  ed.view.focus();
+  let html = ''; let text = '';
+  const files: File[] = [];
+  try {
+    if (navigator.clipboard.read) {
+      for (const it of await navigator.clipboard.read()) {
+        for (const type of it.types) {
+          const blob = await it.getType(type);
+          if (type === 'text/html') html = await blob.text();
+          else if (type === 'text/plain') text = await blob.text();
+          else if (type.startsWith('image/')) files.push(new File([blob], `image.${type.split('/')[1] || 'png'}`, { type }));
+        }
+      }
+    } else {
+      text = await navigator.clipboard.readText();
+    }
+  } catch {
+    try { text = await navigator.clipboard.readText(); } catch { return; /* 브라우저가 막았다 — 메뉴에 단축키 안내가 있다 */ }
+  }
+  if (!html && !text && !files.length) return;
+  try {
+    const dt = new DataTransfer();
+    if (html) dt.setData('text/html', html);
+    if (text) dt.setData('text/plain', text);
+    files.forEach((f) => dt.items.add(f));
+    const ev = new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true });
+    if (ev.clipboardData) { ed.view.dom.dispatchEvent(ev); return; }
+  } catch { /* 이 브라우저는 이벤트에 클립보드를 못 싣는다 — 아래 길로 */ }
+  if (html) ed.view.pasteHTML(html);
+  else if (text) ed.view.pasteText(text);
+}
+
 const AppContextMenu: React.FC = () => {
   const { t } = useTranslation('common');
   const { tabs, mirror } = useTabState();
   const [open, setOpen] = useState(false);
   const [pos, setPos] = useState({ x: 0, y: 0 });
   const [items, setItems] = useState<MenuItem[]>([]);
+  const [linkForm, setLinkForm] = useState<LinkForm | null>(null);
+  const [isEditorMenu, setIsEditorMenu] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const linkInputRef = useRef<HTMLInputElement>(null);
 
-  const close = useCallback(() => setOpen(false), []);
+  const close = useCallback(() => { setOpen(false); setLinkForm(null); }, []);
+
+  // 링크 입력 칸 — 우클릭 «링크 넣기» · 도구줄 🔗 (openEditorLinkForm)
+  useEffect(() => {
+    const onLink = (e: Event) => {
+      const { editor, x, y } = (e as CustomEvent<{ editor: Editor; x: number; y: number }>).detail || ({} as never);
+      if (!editor || editor.isDestroyed) return;
+      const href: string = editor.getAttributes('link').href || '';
+      setLinkForm({ editor, value: href, hadLink: !!href });
+      const w = 320;
+      // 폰은 키보드가 화면을 줄이므로 보이는 영역(visualViewport) 기준으로 가둔다
+      const vh = window.visualViewport?.height ?? window.innerHeight;
+      setPos({
+        x: Math.max(8, Math.min(x, window.innerWidth - w - 8)),
+        y: Math.max(8, Math.min(y, vh - 110)),
+      });
+      setOpen(true);
+    };
+    window.addEventListener('pq:editor-link', onLink);
+    return () => window.removeEventListener('pq:editor-link', onLink);
+  }, []);
+  useEffect(() => { if (linkForm) setTimeout(() => linkInputRef.current?.focus(), 0); }, [linkForm]);
+
+  const applyLink = useCallback(() => {
+    if (!linkForm) return;
+    const ed = linkForm.editor;
+    const href = normalizeHref(linkForm.value);
+    close();
+    if (ed.isDestroyed) return;
+    if (!href) {
+      if (linkForm.hadLink) ed.chain().focus().extendMarkRange('link').unsetLink().run();
+      else ed.commands.focus();
+      return;
+    }
+    if (ed.state.selection.empty && !linkForm.hadLink) {
+      // 고른 글자가 없으면 주소 자체를 링크 글로 넣는다
+      ed.chain().focus().insertContent({ type: 'text', text: href, marks: [{ type: 'link', attrs: { href } }] }).run();
+      return;
+    }
+    ed.chain().focus().extendMarkRange('link').setLink({ href }).run();
+  }, [linkForm, close]);
 
   const buildItems = useCallback((target: Exclude<Target, null>): MenuItem[] => {
     const out: MenuItem[] = [];
     const canGoBack = window.history.length > 1;
+
+    if (target.kind === 'editor') {
+      const ed = target.editor;
+      const empty = ed.state.selection.empty;
+      const href: string | undefined = ed.getAttributes('link').href;
+      // 링크
+      out.push({
+        key: 'ed-link',
+        label: href
+          ? t('ctx.editLink', { defaultValue: '링크 고치기…' }) as string
+          : t('ctx.addLink', { defaultValue: '링크 넣기…' }) as string,
+        onSelect: () => openEditorLinkForm(ed),
+      });
+      if (href) {
+        out.push({ key: 'ed-link-open', label: t('ctx.openLink', { defaultValue: '링크 열기' }) as string, onSelect: () => openHref(href, mirror) });
+        out.push({ key: 'ed-link-copy', label: t('ctx.copyLink', { defaultValue: '링크 복사' }) as string, onSelect: () => copyText(href) });
+        out.push({
+          key: 'ed-link-remove',
+          label: t('ctx.removeLink', { defaultValue: '링크 빼기' }) as string,
+          onSelect: () => { ed.chain().focus().extendMarkRange('link').unsetLink().run(); },
+        });
+      }
+      // 클립보드 — execCommand 는 편집기에 포커스·선택이 그대로일 때 ProseMirror 의 복사·잘라내기 길을 탄다
+      out.push({
+        key: 'ed-cut', sep: true, hint: keyHint('X'), disabled: empty,
+        label: t('ctx.cut', { defaultValue: '잘라내기' }) as string,
+        onSelect: () => { ed.view.focus(); document.execCommand('cut'); },
+      });
+      out.push({
+        key: 'ed-copy', hint: keyHint('C'), disabled: empty,
+        label: t('ctx.copy', { defaultValue: '복사' }) as string,
+        onSelect: () => { ed.view.focus(); document.execCommand('copy'); },
+      });
+      const canRead = !!(navigator.clipboard && (navigator.clipboard.read || navigator.clipboard.readText));
+      out.push({
+        key: 'ed-paste', hint: keyHint('V'), disabled: !canRead,
+        label: t('ctx.paste', { defaultValue: '붙여넣기' }) as string,
+        onSelect: () => { void pasteInto(ed); },
+      });
+      out.push({
+        key: 'ed-select-all', hint: keyHint('A'),
+        label: t('ctx.selectAll', { defaultValue: '모두 선택' }) as string,
+        onSelect: () => { ed.chain().focus().selectAll().run(); },
+      });
+      return out;
+    }
 
     if (target.kind === 'link') {
       if (!mirror) {
@@ -197,10 +379,12 @@ const AppContextMenu: React.FC = () => {
       const next = buildItems(target);
       if (!next.length) { setOpen(false); return; }
       e.preventDefault();
+      setLinkForm(null);
+      setIsEditorMenu(target.kind === 'editor');
       setItems(next);
       // 화면 밖으로 나가면 뒤집는다
       const x = e.clientX + MENU_W > window.innerWidth ? Math.max(8, e.clientX - MENU_W) : e.clientX;
-      const h = next.length * 34 + 12;
+      const h = next.length * 34 + 12 + (target.kind === 'editor' ? 40 : 0);
       const y = e.clientY + h > window.innerHeight ? Math.max(8, e.clientY - h) : e.clientY;
       setPos({ x, y });
       setOpen(true);
@@ -213,12 +397,16 @@ const AppContextMenu: React.FC = () => {
     if (!open) return;
     const onDown = (e: MouseEvent) => { if (!ref.current?.contains(e.target as Node)) close(); };
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') close(); };
-    // 스크롤·리사이즈하면 좌표가 거짓이 된다 — 닫는다
+    // 스크롤·리사이즈하면 좌표가 거짓이 된다 — 닫는다.
+    // 링크 입력 칸은 예외 — 폰에서 칸을 누르면 키보드가 올라오며 resize 가 와서 쓰기도 전에 닫혔다.
+    const formOpen = !!linkForm;
     document.addEventListener('mousedown', onDown, true);
     document.addEventListener('keydown', onKey);
-    window.addEventListener('scroll', close, true);
-    window.addEventListener('resize', close);
-    window.addEventListener('blur', close);
+    if (!formOpen) {
+      window.addEventListener('scroll', close, true);
+      window.addEventListener('resize', close);
+      window.addEventListener('blur', close);
+    }
     return () => {
       document.removeEventListener('mousedown', onDown, true);
       document.removeEventListener('keydown', onKey);
@@ -226,9 +414,53 @@ const AppContextMenu: React.FC = () => {
       window.removeEventListener('resize', close);
       window.removeEventListener('blur', close);
     };
-  }, [open, close]);
+  }, [open, close, linkForm]);
 
   if (!open) return null;
+  if (linkForm) {
+    return (
+      <LinkBox
+        ref={ref}
+        role="dialog"
+        aria-label={t('ctx.linkTitle', { defaultValue: '링크' }) as string}
+        data-testid="app-ctx-link-form"
+        style={{ left: pos.x, top: pos.y }}
+        onContextMenu={(e) => e.preventDefault()}
+      >
+        <LinkInput
+          ref={linkInputRef}
+          type="url"
+          inputMode="url"
+          data-testid="app-ctx-link-input"
+          value={linkForm.value}
+          placeholder={t('ctx.linkPlaceholder', { defaultValue: 'https://… 주소를 넣으세요' }) as string}
+          onChange={(e) => setLinkForm({ ...linkForm, value: e.target.value })}
+          onKeyDown={(e) => {
+            // stopPropagation — 편집기가 모달 안이면 Esc 가 모달까지 닫는다(useEscapeStack 은 document 에서 듣는다)
+            if (e.key === 'Enter' && !e.nativeEvent.isComposing) { e.preventDefault(); e.stopPropagation(); applyLink(); }
+            if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); const ed = linkForm.editor; close(); if (!ed.isDestroyed) ed.commands.focus(); }
+          }}
+        />
+        <LinkActions>
+          {linkForm.hadLink && (
+            <LinkBtn
+              type="button"
+              data-testid="app-ctx-link-remove"
+              onClick={() => { const ed = linkForm.editor; close(); if (!ed.isDestroyed) ed.chain().focus().extendMarkRange('link').unsetLink().run(); }}
+            >
+              {t('ctx.removeLink', { defaultValue: '링크 빼기' })}
+            </LinkBtn>
+          )}
+          <LinkBtn type="button" onClick={() => { const ed = linkForm.editor; close(); if (!ed.isDestroyed) ed.commands.focus(); }}>
+            {t('ctx.cancel', { defaultValue: '취소' })}
+          </LinkBtn>
+          <LinkBtn type="button" $primary data-testid="app-ctx-link-apply" onClick={applyLink}>
+            {t('ctx.apply', { defaultValue: '적용' })}
+          </LinkBtn>
+        </LinkActions>
+      </LinkBox>
+    );
+  }
   return (
     <Menu
       ref={ref}
@@ -236,6 +468,8 @@ const AppContextMenu: React.FC = () => {
       data-testid="app-context-menu"
       style={{ left: pos.x, top: pos.y }}
       onContextMenu={(e) => e.preventDefault()}
+      // 편집기 메뉴는 누르는 동안 편집기 포커스·선택을 뺏지 않는다(잘라내기·복사가 그 선택에 걸린다)
+      onMouseDown={(e) => { if (isEditorMenu) e.preventDefault(); }}
     >
       {items.map((it) => (
         <React.Fragment key={it.key}>
@@ -248,10 +482,14 @@ const AppContextMenu: React.FC = () => {
             data-testid={`app-ctx-${it.key}`}
             onClick={() => { close(); it.onSelect(); }}
           >
-            {it.label}
+            <span>{it.label}</span>
+            {it.hint && <Hint>{it.hint}</Hint>}
           </Item>
         </React.Fragment>
       ))}
+      {isEditorMenu && (
+        <Foot>{t('ctx.browserMenuHint', { defaultValue: '브라우저 메뉴: Shift + 우클릭' })}</Foot>
+      )}
     </Menu>
   );
 };
@@ -270,7 +508,10 @@ const Menu = styled.div`
 `;
 
 const Item = styled.button<{ $danger?: boolean }>`
-  display: block;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
   width: 100%;
   height: 32px;
   padding: 0 10px;
@@ -291,4 +532,64 @@ const Sep = styled.div`
   height: 1px;
   margin: 4px 2px;
   background: #E2E8F0;
+`;
+
+const Hint = styled.span`
+  color: #94A3B8;
+  font-size: 0.75rem;
+`;
+
+const Foot = styled.div`
+  margin-top: 4px;
+  padding: 6px 10px 2px;
+  border-top: 1px solid #E2E8F0;
+  color: #94A3B8;
+  font-size: 0.6875rem;
+  white-space: nowrap;
+`;
+
+const LinkBox = styled.div`
+  position: fixed;
+  z-index: 10000;
+  width: min(320px, calc(100vw - 16px));
+  padding: 10px;
+  background: #FFFFFF;
+  border: 1px solid #E2E8F0;
+  border-radius: 10px;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.16);
+  box-sizing: border-box;
+`;
+
+const LinkInput = styled.input`
+  width: 100%;
+  height: 36px;
+  padding: 0 10px;
+  border: 1px solid #CBD5E1;
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: 0.8125rem;
+  color: #0F172A;
+  box-sizing: border-box;
+  &:focus { outline: none; border-color: #14B8A6; box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.15); }
+`;
+
+const LinkActions = styled.div`
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  margin-top: 8px;
+`;
+
+const LinkBtn = styled.button<{ $primary?: boolean }>`
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid ${(p) => (p.$primary ? '#14B8A6' : '#E2E8F0')};
+  background: ${(p) => (p.$primary ? '#14B8A6' : '#FFFFFF')};
+  color: ${(p) => (p.$primary ? '#FFFFFF' : '#334155')};
+  &:hover { background: ${(p) => (p.$primary ? '#0D9488' : '#F8FAFC')}; }
 `;
