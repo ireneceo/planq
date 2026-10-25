@@ -1,0 +1,122 @@
+{
+  "version": "1.70.2",
+  "date": "2026-10-25",
+  "_auto": true,
+  "_range": "646974b5..4988135e",
+  "summary": {
+    "ko": "청구·서명·메일·업무·캘린더까지 실무 흐름을 한 번에 잇고, 세금·급여·고객 관리 정확도를 크게 높였습니다.",
+    "en": "We’ve connected billing, e-signatures, mail, tasks and calendar more tightly, and made tax, payroll and customer management much more accurate."
+  },
+  "items": [
+    {
+      "ko": {
+        "title": "청구서 AI 작성·사업자등록증 인식으로 발행 시간 단축",
+        "body": "Q Bill 발행 창에서 [AI 작성]을 누르면 상담 기록·연결 문서·파일·붙여넣은 내용으로 품목·금액·제목·세금 기준을 자동 채웁니다. 고객·청구서 화면의 [사업자등록증으로 채우기]로 사진·PDF에서 상호·번호·대표·주소 등을 읽어와 저장 전 한 번에 확인할 수 있습니다."
+      },
+      "en": {
+        "title": "Faster invoicing with AI drafting and business registration OCR",
+        "body": "In Q Bill, [AI 작성] now fills items, amounts, title and tax basis from related conversations, linked docs, files and pasted text. On customer and invoice screens, [사업자등록증으로 채우기] reads business registration photos/PDFs to auto-fill name, registration number, CEO and address for you to review before saving."
+      }
+    },
+    {
+      "ko": {
+        "title": "세금 설정·표기 전면 개편: 포함/별도·기본 세율·표시 방식 통일",
+        "body": "Q Bill 설정의 «세금»에서 세금 사용 여부, 기본 세율(소수 둘째 자리까지), 포함/별도 기준과 이름을 정하면 청구서·구독·프로젝트 월정액·세금계산서·공개 결제 페이지까지 같은 기준으로 계산·표시됩니다. PDF·상세·거래 탭에 공급가액·세액·세율·세금 이름이 명확히 나뉘어 합계와 «단가 (부가세 포함/별도)»를 한눈에 볼 수 있습니다."
+      },
+      "en": {
+        "title": "Unified tax settings and display across all billing flows",
+        "body": "In Q Bill settings under “세금”, you can now control whether tax is used, set a default rate (up to 2 decimals), choose tax-inclusive or exclusive pricing, and name the tax. The same rules apply consistently to invoices, subscriptions, project retainers, tax invoices and public payment pages, with PDFs and details clearly showing net amount, tax amount, rate and tax label (e.g. “단가 (부가세 포함/별도)”)."
+      }
+    },
+    {
+      "ko": {
+        "title": "서명 흐름 개선: 수정 요청·되돌리기·받은 서명 바로 편집",
+        "body": "서명 요청 문서에서 고객의 «수정 요청»을 받으면 같은 문서를 고쳐 다시 보낼 수 있고, 우리 쪽 서명을 잘못 넣은 문서는 칸별·전체 되돌리기가 됩니다. 확인필요·받은 서명에서 [문서 보기]·[문서에서 수정]으로 바로 편집 가능 여부를 확인하고, 서명 화면은 단계 안내·빨간 칸 안내·[거절]/[확인했습니다 · 서명하기] 버튼이 상단에 고정된 웹·앱 공통 틀로 정리되었습니다."
+      },
+      "en": {
+        "title": "Smoother e-sign flows: change requests, undo and direct editing",
+        "body": "When a signer sends a “수정 요청”, you can now edit the same document and resend it, and you can undo our own signature fields individually or all at once. From “확인필요” and “받은 서명” you can jump with [문서 보기]/[문서에서 수정] to see if the doc is editable, while the signing screen now has a unified web/app layout with clear steps, red field guidance and top-fixed [거절] / [확인했습니다 · 서명하기] actions."
+      }
+    },
+    {
+      "ko": {
+        "title": "계약서·급여·직원 관리: Q docs·급여·계약을 한 흐름으로",
+        "body": "Q docs에 한국어·영어 직원 계약서 템플릿 3종과 칸 채우기 미리보기가 추가되고, 급여·계약 메뉴가 «급여·계약»으로 통합되어 급여 대상자·계약 이력·급여 담당자를 한 곳에서 관리합니다. 급여 회차 목록·명세서·정정 회차까지 화면이 갖춰져 계약 금액줄 여러 개와 세무사 대장 대조를 PlanQ 안에서 이어서 처리할 수 있습니다."
+      },
+      "en": {
+        "title": "Contracts and payroll now work together in one flow",
+        "body": "Q docs now offers three employee contract templates in Korean/English with fill-in previews, and the “급여·계약” menu unifies payroll targets, contract history and payroll managers. You can manage payroll runs, compare with your tax ledger, handle corrections and view payslips, including multiple contract amount lines, all within PlanQ."
+      }
+    },
+    {
+      "ko": {
+        "title": "고객·멤버·명함 통합: 한 사람을 끝까지 추적 관리",
+        "body": "같은 이메일이면 고객과 멤버를 한 사람으로 묶어, 계정이 없어도 프로젝트 고객·상담 고객을 멤버로 전환할 수 있습니다. 명함·명함 사진·메일 서명에서 회사·직함·연락처를 읽어 고객·담당자를 추가하고, «직접 관리 고객»으로 가입·초대 없이 정보만 관리하거나 프로젝트에 바로 붙일 수 있습니다."
+      },
+      "en": {
+        "title": "Unified people model: customers, members and business cards",
+        "body": "People with the same email are now treated as one person, so you can convert non-account customers and project contacts into members. Business cards, card photos and mail signatures are read to pre-fill company, title and contact info, and “managed customers” let you maintain full records and attach them to projects without requiring signup or invitations."
+      }
+    },
+    {
+      "ko": {
+        "title": "Q mail·Q sale 상담·자동 분류: 메일 기반 업무가 더 선명하게",
+        "body": "Q sale에서 같은 주소의 미등록 메일을 «메일 N건»으로 묶어 상담 스레드를 한눈에 보고, 상담 패널에서 메일 이력을 보냄/받음으로 구분해 확인합니다. Q mail은 공용 메일함 멤버별 읽음·답변 담당 지정, 일정·주문·문의·자동응답·중요 통지 메일 자동 분류, 주소 추천·PlanQ 발송 표시·대화 단위 묶기 등으로 «답변 필요» 메일을 놓치지 않게 도와줍니다."
+      },
+      "en": {
+        "title": "Clearer mail-based work with Q mail and Q sale conversations",
+        "body": "In Q sale, unregistered mails from the same address are grouped as “메일 N건” so you can see each person’s thread at a glance, with full sent/received history in the side panel. Q mail adds per-member read status on shared inboxes, assignee-based linking to tasks, smarter auto-categories for bookings, orders, inquiries and critical notices, plus address suggestions, PlanQ-sent markers and conversation threading so “needs reply” mails stay visible."
+      }
+    },
+    {
+      "ko": {
+        "title": "Q task·팝아웃·모바일 업무: 오늘 할 일이 더 잘 보이도록",
+        "body": "Q task에 긴급 요청·긴급 알림·컨펌자 칸·상태 꼬리표가 추가되고, 업무를 만들면 목록에서 그 자리로 스크롤되며 잠깐 강조됩니다. 팝아웃과 모바일에서는 «오늘 내 업무»식 얇은 행 보기, 보기별 «내 순서» 정렬, 빠른 추가·다음 할 일 버튼으로 오늘 할 일을 빠르게 정리할 수 있습니다."
+      },
+      "en": {
+        "title": "Q task, pop-outs and mobile: clearer view of today’s work",
+        "body": "Q task now supports urgent requests with highlighted alerts, a dedicated approver field and status labels on related comments, and new tasks briefly highlight in-place in the list. On pop-outs and mobile, a compact “today’s tasks” style view, per-view custom ordering and quick-add/next-action controls make it easier to organize what you need to do today."
+      }
+    },
+    {
+      "ko": {
+        "title": "Q calendar·Google 연동: 일정·업무·팀 캘린더를 한 화면에서",
+        "body": "캘린더 상단이 개인·팀·업무·Google 분류 버튼과 프로젝트·Google 캘린더 필터로 정리되고, 월·주/일·목록 보기에서 지난 일정은 흐리게, 겹치는 일정은 나란히 보입니다. 일정과 업무를 서로 연결해 캘린더에서 업무·프로젝트를 바로 확인하고, 팀·개인 Google 캘린더별 칩·이름·시간대 안내로 어떤 캘린더에 올리는지 명확히 알 수 있습니다."
+      },
+      "en": {
+        "title": "Q calendar + Google: one view for events, tasks and team calendars",
+        "body": "The calendar header now separates personal, team, task and Google views with project and Google-calendar filters, and past events appear faded while overlapping events are laid out side by side. You can link events and tasks so project and task info shows directly on the calendar, and chips, names and timezone hints per Google calendar make it clear where each event is being created."
+      }
+    },
+    {
+      "ko": {
+        "title": "Cue·음성·AI 에이전트: 업무·일정·문서까지 한 번에 생성·수정",
+        "body": "Cue와 음성 입력으로 업무·일정·문서·프로젝트·메모·상담·메일 초안까지 한 번에 만들고 고칠 수 있으며, 복합 요청은 한 답에 여러 카드로 나뉘어 나옵니다. 기존 일정 여러 건을 한 카드에서 옮기고, 화상회의 요청은 링크 생성·복사까지 이어지며, Q docs 문서는 AI 수정·되돌리기로 부분만 골라 반영할 수 있습니다."
+      },
+      "en": {
+        "title": "Cue, voice and AI agents: create and update work in one step",
+        "body": "With Cue and voice, you can create or update tasks, events, docs, projects, notes, consultations and mail drafts in one go, with complex requests returning multiple cards in a single answer. You can reschedule multiple events from one card, complete video-meeting requests with link creation and copy, and apply AI edits to Q docs selectively with full undo support."
+      }
+    },
+    {
+      "ko": {
+        "title": "그 밖의 개선: 성능·모바일·알림·PDF·파일·고객 링크",
+        "body": "업무·파일·PDF·이미지 미리보기 캐시로 로딩 속도를 높이고, 모바일 헤더·팝업·뒤로가기·편집기·앱 로그인 흐름을 정리했습니다. 알림·확인필요·메일·서명·고객 링크·Q talk·Q info·도움말·랜딩 등 전반의 문구·정렬·접근성을 다듬어, 같은 정보를 더 빠르고 정확하게 찾을 수 있습니다."
+      },
+      "en": {
+        "title": "Other improvements: performance, mobile UX, notifications and more",
+        "body": "We’ve sped up loading with smarter caching for tasks, files, PDFs and image previews, and refined mobile headers, pop-ups, back navigation, editors and app sign-in. Notifications, “확인필요”, mail, signatures, customer links, Q talk, Q info, help and landing pages have all been polished so key information is easier to see, navigate and act on."
+      }
+    },
+    {
+      "ko": {
+        "title": "보안과 안정성 강화",
+        "body": "데이터를 더 안전하게 지키도록 보안과 안정성을 강화했습니다."
+      },
+      "en": {
+        "title": "Security and stability improvements",
+        "body": "We strengthened security and stability to keep your data safer."
+      }
+    }
+  ]
+}
