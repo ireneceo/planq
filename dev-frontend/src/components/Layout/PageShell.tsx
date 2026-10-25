@@ -36,6 +36,8 @@ type Props = {
   backLabel?: string;
   children: ReactNode;
   bodyPadding?: string;             // 본문 padding 커스터마이즈가 필요할 때만
+  /** 머리줄(제목·액션)을 그리지 않는다 — 프로젝트 문서 편집 중 접기(2026-10-25). 본문은 그대로. */
+  hideHeader?: boolean;
   embedded?: boolean;               // N+30 — PageShell-in-PageShell 회귀 차단. true 면 헤더/Page wrap 없이 children 만 렌더. PersonalVaultPage 같은 부모 PageShell 안에서 KnowledgePage 등 자체 PageShell 컴포넌트 마운트 시 사용.
 };
 
@@ -48,6 +50,7 @@ export default function PageShell({
   backLabel,
   children,
   bodyPadding,
+  hideHeader,
   embedded,
 }: Props) {
   // 운영 #391 — "내 문의 및 피드백 모바일에서 상단 잘림."
@@ -80,7 +83,7 @@ export default function PageShell({
     <Page>
       {/* 검사 하니스 손잡이(CLAUDE.md §17) — 휴리스틱으로 머리줄을 찾으면 알림 배너를 집는다
           (2026-09-15 실측: "디바이스 알림이 차단되어 있습니다" 를 머리줄로 판정했다). */}
-      <Header data-testid="page-header">
+      {!hideHeader && <Header data-testid="page-header">
         <HeaderLeft>
           {onBack && (
             <BackArrow type="button" onClick={onBack}
@@ -99,8 +102,8 @@ export default function PageShell({
           {!isPhone && actions}
           <UserChip />
         </HeaderRight>
-      </Header>
-      {isPhone && actions && <PhoneActionRow>{actions}</PhoneActionRow>}
+      </Header>}
+      {!hideHeader && isPhone && actions && <PhoneActionRow>{actions}</PhoneActionRow>}
       <Body ref={bodyRef} data-testid="page-body" style={bodyPadding ? { padding: bodyPadding } : undefined}>
         {children}
       </Body>

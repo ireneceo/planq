@@ -81,6 +81,8 @@ import PostHistoryPanel from './PostHistoryPanel';
 import PostAiEditDrawer from './PostAiEditDrawer';
 import { isEnterAction } from '../../utils/imeKey';
 import { uploadErrorText } from '../../utils/uploadError';
+import { useDocFocusMode, DocFocusButton } from './docFocusMode';
+import { DocFocusBackdrop } from './docFocusStyles';
 import {
   PrintOnlyTitle, Layout, Sidebar, TitleGroup, HeaderBtnRow, NewBtn, NewBtnWrap, NewDropdown, NewItem, NewItemTitle, NewItemDesc, ModalBackdrop, ModalDialog, ModalHead, ModalTitle, ModalClose, ModalBody, ModalSub, TplGrid, TplCard, TplCardIcon, TplBadgeSys, TplSearchInput, PinDot, ParentLink, SaveTplField, SaveTplLabel, SaveTplError, ModalFooter, TplCardBody, TplCardName, TplCardDesc, Empty, SearchWrap, FilterSection, FilterGroupLabel, Chip, Count, ColorDot, AddCatBtn, NewCatInput, RowList, RowItem, RowPinBtn, RowTitle, RowPreview, CardPreview, CardAuthor, RowVisChip, SectionGap, AiRegenRow, KindToggle, KindBtn, ShareMini, RowMeta, Dim, Content, StickyBands, StickyPanelHeader, Body, EditBody, TitleInput, AutoSaveMark, WideOnly, PhoneOnly, AutoSaveText, DraftTag, SignTag, ViewMeta, MetaLeft, MetaRight, AiEditDoneBar, AiEditUndoBtn, AiEditCloseBtn, MetaActions, HeaderActions, PinTag, ProjectTag, CategoryTag, MetaField, MetaRow, MetaSummaryBtn, MetaSummaryLabel, MetaSummaryValue, MetaSummaryChevron, VisibilityChip, ShareTag, CategoryMini, AttachSection, AttachTitle, AttachScopeHint, AttachList, AttachRow, AttachName, RemoveBtn, CatActions, CatIconBtn, ErrorBar, DescAddBtn, DescToggleHeader, DescBoxLabel, DescChevron, PrimaryBtn, EditBtn, IconActionBtn, SignBtn, LeaveBlockedNote, SecondaryBtn, TitleRow, MobileBackBtn, KnowledgeToast, SignedBody,
 } from './PostsPage.styles';
@@ -111,6 +113,8 @@ interface Props {
    * 고정 모드에서는 목록으로 돌아가지 않고, 주소(?post)도 건드리지 않는다(주소는 탭 키 doc-:id 가 쥔다).
    */
   pinnedPostId?: number;
+  /** 편집 중인지 알린다 — 프로젝트 상세가 편집 동안 자기 머리줄을 접는다(2026-10-25). */
+  onEditingChange?: (editing: boolean) => void;
 }
 
 // 제목·카테고리에서 종류 추정 — 후속 액션 결정용
@@ -124,7 +128,7 @@ function inferKindFromTitle(title: string, category: string | null): 'contract' 
   return 'other';
 }
 
-const PostsPage: React.FC<Props> = ({ scope, pinnedPostId }) => {
+const PostsPage: React.FC<Props> = ({ scope, pinnedPostId, onEditingChange }) => {
   const { t } = useTranslation('qdocs');
   const { t: tc } = useTranslation('common');   // 연결 문구 정본
   const { t: tErr } = useTranslation('errors');
@@ -1667,6 +1671,11 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId }) => {
   }, [rows, listSort]);
 
   const isEditing = mode === 'new' || (mode === 'edit' && !!detail);
+  const focus = useDocFocusMode(isEditing, onEditingChange);
+  // 이 화면이 여는 곁패널·창(변경 기록 z 130 등)은 집중 편집 판(z 901) 뒤로 숨는다 — 열리면 집중 편집이 비킨다.
+  const sideOpen = historyOpen || aiEditOpen || visModalOpen || shareOpen || signOpen || aiOpen || surveySendOpen || surveyPreviewOpen || tplModalOpen || saveTplOpen || trashOpen;
+  const focusExit = focus.exit;
+  useEffect(() => { if (sideOpen) focusExit(); }, [sideOpen, focusExit]);
 
   const COLLAPSE_KEY = `qdocs-sidebar-collapsed-${scope.businessId}`;
   const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(() => {
@@ -2166,8 +2175,10 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId }) => {
       </Sidebar>
       )}
 
+      {focus.on && <DocFocusBackdrop data-testid="docs-focus-backdrop" onMouseDown={focus.exit} />}
       {(!isProject || pinned || detail || isEditing) && (
-      <Content $hasDetail={!!detail || isEditing} $projectFull={isProject} $editing={isEditing}>
+      <Content $hasDetail={!!detail || isEditing} $projectFull={isProject} $editing={isEditing} $focus={focus.on}
+        data-testid={focus.on ? 'docs-focus-surface' : undefined}>
         {isEditing ? (
           <>
             <StickyBands data-testid="docs-detail-bands">
@@ -2202,6 +2213,8 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId }) => {
                     (leaveEditSession). 저장 버튼을 남겨두면 "임시저장인데 왜 저장돼?" 라는
                     이중 상태 혼란이 그대로 남는다. 되돌리기는 변경 기록이 담당한다.
                     새 문서는 처음 공개되는 순간이 의도적이어야 하므로 버튼을 유지한다. */}
+                {/* 전체 화면으로 쓰기 — 위의 메뉴·탭·문서 정보 줄을 걷고 쓰는 칸만 남긴다(Esc·뒤로 가기로 끝). */}
+                <DocFocusButton on={focus.on} onToggle={focus.toggle} />
                 <SecondaryBtn type="button" disabled={saving} onClick={cancelEdit}>
                   {mode === 'new' ? t('cancel', '취소') : (
                     // 폰은 짧은 글자 — 긴 글자가 제목 칸을 92px 로 눌렀다(2026-10-20 실측)

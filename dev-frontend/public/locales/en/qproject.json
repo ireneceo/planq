@@ -1000,5 +1000,10 @@
     "failed": "Couldn’t save the order. Please move it again.",
     "errorTitle": "Couldn’t save",
     "ok": "OK"
+  },
+  "headCollapse": {
+    "expand": "Show project menu",
+    "collapse": "Hide project menu",
+    "editingNote": "Editing a document"
   }
 }

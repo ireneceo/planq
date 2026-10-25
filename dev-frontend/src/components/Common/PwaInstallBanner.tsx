@@ -67,6 +67,8 @@ const BannerRoot = styled.div`
   bottom: calc(80px + var(--pq-safe-bottom, 0px));
   right: 16px;
   z-index: 8500;
+  /* 크게 보기·집중 편집(components/Common/focusShell) 중에는 비킨다 — z 8500 이라 그 판 위에 앉아 글을 가렸다(2026-10-25 실측 1366). */
+  body[data-focus-shell='1'] & { display: none; }
   display: grid;
   grid-template-columns: 36px 1fr auto auto auto;
   gap: 8px;

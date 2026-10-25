@@ -5,6 +5,7 @@ import styled from 'styled-components';
 import PanelHeader, { DetailMetaBar, DetailMetaLeft, DetailMetaRight, backButtonLook } from '../Layout/PanelHeader';
 import { FolderRow as AtRow } from './assetTabLayout';
 import { phoneIconOnly } from '../Common/headerCta';
+import { docFocusSurface } from './docFocusStyles';
 
 // ─── styled ─── (Q Note 패턴 — Sidebar + Content 2컬럼 + PanelHeader)
 export const PrintOnlyTitle = styled.h1`
@@ -346,7 +347,7 @@ export const RowMeta = styled.div`
 `;
 export const Dim = styled.div`padding: 24px 16px; color: #94A3B8; font-size: 0.75rem; text-align: center;`;
 
-export const Content = styled.section<{ $hasDetail?: boolean; $projectFull?: boolean; $editing?: boolean }>`
+export const Content = styled.section<{ $hasDetail?: boolean; $projectFull?: boolean; $editing?: boolean; $focus?: boolean }>`
   display: flex; flex-direction: column;
   min-height: 0; overflow: hidden;
   background: #fff;
@@ -358,6 +359,8 @@ export const Content = styled.section<{ $hasDetail?: boolean; $projectFull?: boo
     /* 편집은 본문(EditBody)이 스크롤한다 — 아래 EditBody 설명 */
     overflow-y: ${p => p.$editing ? 'hidden' : 'auto'};
   }
+  /* 집중 편집(전체 화면으로 쓰기) — 켜졌을 때만 화면 위로 띄운다(components/Docs/docFocusMode). 맨 끝에 두어 위 폰 규칙을 덮는다. */
+  ${p => (p.$focus ? docFocusSurface : '')}
 `;
 // ★ 2026-09-08 (Irene: "문서 상세로 가면 스크롤이 서브헤더에도 적용돼.
 //   서브헤더 제목 나오는 곳 까지는 스티키되어 있어야 해.")

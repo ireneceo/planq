@@ -1429,5 +1429,9 @@
     "createFailed": "Couldn't create the draft invoice. Try again shortly or create the invoice yourself.",
     "deleteFailed": "Couldn't delete",
     "invoiceDeleted": "The auto-created draft invoice was deleted. It won't be created again automatically — create the invoice yourself if needed."
+  },
+  "focusMode": {
+    "enter": "Write in full screen",
+    "exit": "Exit full screen"
   }
 }

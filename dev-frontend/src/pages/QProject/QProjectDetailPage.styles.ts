@@ -46,6 +46,8 @@ export const Tab = styled.button<{$active:boolean}>`
 //   어긋나면 `node scripts/e2e/run.js --suite sticky` 가 "covered" 로 잡는다(그 검사가 이걸 찾아냈다).
 // 탭 막대 높이 — 아래 계산이 이 값에서 나온다. 따로 적으면 갈라진다.
 export const TABBAR_H = '46px';
+// 문서 편집 중 접힌 프로젝트 줄 높이(ProjectHeadCollapse) — 아래 ProjectTabFull 이 같은 값을 뺀다.
+export const HEAD_COLLAPSED_H = '36px';
 // ★ `tabStickyTop`(= TABBAR_H - 20 + 8) 은 **2026-09-14 에 없앴다.**
 //   그 값은 "탭 내용의 sticky 자식이 **바깥(PageShell Body)** 을 스크롤포트로 삼을 때" 의 보정이다.
 //   이제 얹는탭 3개가 모두 자기 상자 안에서 스크롤하므로 그 전제가 사라졌다 —
@@ -105,7 +107,7 @@ export const ProjectTabPane = styled.div`
   @media (max-width: 640px) { padding: 0 14px 14px; }
 `;
 
-export const ProjectTabFull = styled.div`
+export const ProjectTabFull = styled.div<{ $headCollapsed?: boolean }>`
   height: calc(100vh - 210px);
   /* ★ 2026-09-09 — 이 높이 공식이 **보이는 영역보다 커서** 바깥(PageShell Body)이 스크롤됐고,
      그 스크롤이 문서 탭 좌측 패널을 탭 막대 뒤로 끌고 들어갔다
@@ -149,6 +151,13 @@ export const ProjectTabFull = styled.div`
        탭 막대 아래라 폴백 8px 이 맞다(2026-09-09 문서 탭에서 같은 이유로 정정했다).
        34px 을 주면 sticky 자식이 붙을 때 26px 헛자리가 생긴다. */
   overflow-y: auto;
+  /* 문서 편집 중 프로젝트 머리를 접었을 때(ProjectHeadCollapse) — 머리줄(60)이 빠지고 탭 막대 자리에 접힌 줄(36)이 선다.
+     위 «100vh - 210px» 은 머리줄을 빼고 잰 값이라 그대로 두면 아래가 빈다 → 위 max-height 와 같은 공식을 접힌 줄 높이로. */
+  ${(p) => (p.$headCollapsed ? css`
+    height: calc(100% - ${HEAD_COLLAPSED_H} + 88px + 20px); max-height: none;
+    /* 폭 조건 규칙은 기본 규칙 뒤로 나가므로 위 폰 max-height 가 none 을 덮는다 — 여기서 다시 푼다(폰 6px 모자람 실측). */
+    @media (max-width: 640px) { height: calc(100% - ${HEAD_COLLAPSED_H} + 88px + 14px + var(--pq-safe-bottom, 0px)); max-height: none; }
+  ` : '')}
 `;
 // 일정 탭 (2026-10-15) — 높이는 얹는탭 껍데기(ProjectTabFull)를 쓰고 여백은 일반탭(ProjectTabPane)과 같은 숫자를 안쪽에 둔다.
 //   일반탭 껍데기에 얹었더니 캘린더 격자 높이(뷰포트 공식)가 슬롯을 넘어 바깥(PageShell Body)이 172~176px 스크롤했다(1440·1024 실측).

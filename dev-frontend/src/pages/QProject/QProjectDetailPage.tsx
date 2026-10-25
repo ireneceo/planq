@@ -141,6 +141,7 @@ import {
   HeaderBtn,
   BtnNone,
 } from './QProjectDetailPage.styles';
+import { useProjectHeadCollapse, ProjectHeadCollapsedBar, ProjectHeadCollapseBtn } from './ProjectHeadCollapse';
 import { formatDay } from '../../utils/dateFormat';
 import RolePicker from '../../components/MemberRole/RolePicker';
 import StarToggle from '../../components/Common/StarToggle';
@@ -269,6 +270,8 @@ const QProjectDetailPage: React.FC = () => {
   const [tab, setTabState] = useState<TabKey>(initialTab);
   // 노트 탭이 녹음 중이면 다른 탭으로 옮겨도 그 트리를 살려 둔다(언마운트 = 녹음 중단).
   const [notesRecording, setNotesRecording] = useState(false);
+  // 문서 편집 중 프로젝트 머리 접기 — 문서·메뉴에 추가한 문서 탭에서만(ProjectHeadCollapse 머리말)
+  const head = useProjectHeadCollapse(tab);
 
   // 메뉴에 추가한 문서(📌) 탭 — 상태·라벨 조회는 훅으로 분리
   const { pinnedDocIds, pinnedDocLabels } = usePinnedDocTabs(projectId);
@@ -787,7 +790,9 @@ const QProjectDetailPage: React.FC = () => {
          그 줄이 가로로 흘러 맨 끝(=뒤로가기)이 화면 밖에 남았다. 제목 왼쪽으로 옮긴다. */
       onBack={() => navigate('/projects')}
       backLabel={t('backToList', '목록') as string}
+      hideHeader={head.collapsed}
     >
+      {head.collapsed ? <ProjectHeadCollapsedBar projectName={project.name} onExpand={head.expand} /> : (
       <TabBar>
         {/* ★ 탭 순서 — Irene 2026-09-13 지시 그대로:
             개요 · 업무 · 문서 · 노트 · 파일 · 정보 · 보고서 · 히스토리 · 거래 · 고객 · 상세정보 · 설정
@@ -810,7 +815,9 @@ const QProjectDetailPage: React.FC = () => {
             </Tab>
           );
         })}
+        {head.canCollapse && <ProjectHeadCollapseBtn onCollapse={head.collapse} />}
       </TabBar>
+      )}
 
       <Suspense fallback={<TabFallback>{t('common.loading', '불러오는 중…')}</TabFallback>}>
       {/* #167 — 개요 탭은 보기 전용. 편집(전략·지표·추진과제·프로젝트 연결)은 상세정보 탭 한 곳. */}
@@ -1263,8 +1270,8 @@ const QProjectDetailPage: React.FC = () => {
         </ProjectTabFull>
       )}
       {tab === 'docs' && (
-        <ProjectTabFull data-testid="project-tab-body-docs">
-          <PostsPage scope={{ type: 'project', businessId: project.business_id, projectId }} />
+        <ProjectTabFull data-testid="project-tab-body-docs" $headCollapsed={head.collapsed}>
+          <PostsPage scope={{ type: 'project', businessId: project.business_id, projectId }} onEditingChange={head.onEditingChange} />
         </ProjectTabFull>
       )}
       {/* 노트 — 문서 탭과 같은 자리·같은 껍데기. Q Note 기능이 그대로 돈다.
@@ -1398,11 +1405,12 @@ const QProjectDetailPage: React.FC = () => {
           본문만 베낀 축소판이었을 때 표 설명·서명본·목차·첨부가 빠지고 [편집] 이 문서 목록으로 튕겼다(2026-10-06).
           key 로 문서마다 인스턴스를 가른다 — 편집 중 다른 핀 탭으로 가면 그 편집이 새 문서에 섞이면 안 된다. */}
       {isDocTabKey(tab) && (
-        <ProjectTabFull data-testid="project-tab-body-pinned-doc">
+        <ProjectTabFull data-testid="project-tab-body-pinned-doc" $headCollapsed={head.collapsed}>
           <PostsPage
             key={tab}
             scope={{ type: 'project', businessId: project.business_id, projectId }}
             pinnedPostId={Number(tab.replace('doc-', ''))}
+            onEditingChange={head.onEditingChange}
           />
         </ProjectTabFull>
       )}

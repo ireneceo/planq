@@ -17,9 +17,8 @@ import { createPortal } from 'react-dom';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
-import { useEscapeStack } from '../../hooks/useEscapeStack';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
-import { useBackToClose } from '../../hooks/useBackToClose';
+import { focusBackdropCss, focusSurfaceCss, useFocusShellExit } from '../../components/Common/focusShell';
 import { PanelBackButton } from '../../components/Layout/PanelHeader';
 
 interface Props {
@@ -71,10 +70,9 @@ const MailBodyFullscreen: React.FC<Props> = ({ open, onClose, title, subtitle, s
     return () => window.removeEventListener('message', onMsg);
   }, [open]);
   useBodyScrollLock(open);
-  useEscapeStack(open, onClose);
   useFocusTrap(ref, open);
-  // 폰은 전체 화면 = 새 화면이다 — 뒤로 가기(스와이프·안드로이드 버튼)가 이 창을 닫아야 한다.
-  useBackToClose(open, onClose);
+  // Esc · 폰 뒤로 가기(전체 화면 = 새 화면 — 스와이프·안드로이드 버튼이 이 창을 닫아야 한다). 문서 집중 편집과 같은 문.
+  useFocusShellExit(open, onClose);
   if (!open) return null;
 
   return createPortal(
@@ -127,30 +125,21 @@ const MailBodyFullscreen: React.FC<Props> = ({ open, onClose, title, subtitle, s
 
 export default MailBodyFullscreen;
 
+// 막·판 모양은 문서 집중 편집과 같은 조각(components/Common/focusShell) — 값을 여기 다시 적지 않는다.
 const Backdrop = styled.div`
-  position: fixed; inset: var(--pq-popup-top, 0px) 0 0; z-index: 1200;
-  background: rgba(15, 23, 42, 0.55);
+  ${focusBackdropCss}
+  z-index: 1200;
   display: flex; align-items: center; justify-content: center;
   padding: 24px;
   @media (max-width: 768px) { padding: 0; }
 `;
 const Panel = styled.div`
+  ${focusSurfaceCss}
   display: flex; flex-direction: column;
   width: min(1100px, 100%); height: min(92vh, 100%);
-  background: #fff; border-radius: 14px; overflow: hidden;
-  box-shadow: 0 24px 64px rgba(15, 23, 42, 0.28);
-  @media (max-width: 768px) {
-    width: 100%; height: 100%; border-radius: 0;
-    /* ★ 2026-09-07 (Irene: "전체보기 하면 모바일에서 상단 안나와서 닫을 수가없어")
-       백드롭이 inset:0 이라 이 패널은 **상태바 밑에서 시작**했다. 헤더가 60px 인데
-       상태바가 24~47px 을 먹으면 닫기 버튼(세로 중앙 y≈30)이 그 아래로 들어간다.
-       아래쪽만 safe 를 주고 위쪽을 뺀 탓 — 안전영역은 원시 env() 가 아니라
-       토큰으로, 그리고 **양쪽 다** 준다(memory feedback_safe_area_token_not_raw_env).
-       브라우저는 --pq-safe-top 이 0 이라 이 계열이 웹에서는 재현되지 않는다.
-       ★ 2026-10-18 — 백드롭이 앱 머리줄 아래(--pq-popup-top)에서 시작하므로 상태바는 그 머리줄이 이미 비웠다. */
-    padding-top: var(--pq-popup-safe-pad, 0px);
-    padding-bottom: var(--pq-safe-bottom, 0px);
-  }
+  @media (max-width: 768px) { width: 100%; height: 100%; }
+  /* ★ 2026-09-07 (Irene: "전체보기 하면 모바일에서 상단 안나와서 닫을 수가없어") — 폰 위·아래 안전영역은
+     focusSurfaceCss 가 토큰으로 준다(memory feedback_safe_area_token_not_raw_env). */
 `;
 const Head = styled.div`
   display: flex; align-items: center; gap: 12px;
