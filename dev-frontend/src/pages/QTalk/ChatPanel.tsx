@@ -184,6 +184,14 @@ const ChatPanel: React.FC<Props> = ({
     if (Number.isNaN(cur_t) || Number.isNaN(prev_t)) return false;
     return (cur_t - prev_t) <= GROUP_GAP_MS;
   };
+  // 읽음 표시 종류 — 내가 보낸 메시지만(삭제·Cue 제외). 이웃 메시지와 같은지 비교하려고 문자열로 돌려준다.
+  const readMarkOf = (m: MockMessage): string | null => {
+    if (m.is_deleted || !user || Number(m.sender_id) !== Number(user.id) || m.sender_role === 'cue') return null;
+    if (typeof m.other_count !== 'number' || m.other_count <= 0) return null;
+    const read = Math.min(m.read_by_count ?? 0, m.other_count);
+    if (m.other_count <= 1) return read >= 1 ? 'read' : 'unread';
+    return read >= m.other_count ? 'all' : `n${read}`;
+  };
   const [bannerDismissed, setBannerDismissed] = useState(false);
   const [previewCard, setPreviewCard] = useState<PostCardMeta | null>(null);
   // 서명 카드 — 링크를 방에 올리지 않고 본인 이메일로 보낸다(설계 §4)
@@ -1599,6 +1607,10 @@ const ChatPanel: React.FC<Props> = ({
           const prev = idx > 0 ? convMessages[idx - 1] : undefined;
           // #209 — 안읽음 구분선 바로 아래 메시지는 그룹을 끊는다 (구분선 뒤에 이름·시간 없는 행이 오면 발신자 불명)
           const continuation = m.id === unreadDividerBeforeId ? false : isContinuation(m, prev);
+          // 읽음 표시 묶기 — 다음 메시지가 이 묶음에 이어지고 표시가 같으면 여기는 숨긴다(문장마다 «읽음» 이 붙지 않게).
+          const nextMsg = convMessages[idx + 1];
+          const hideReadMark = !!nextMsg && nextMsg.id !== unreadDividerBeforeId && isContinuation(nextMsg, m)
+            && readMarkOf(nextMsg) !== null && readMarkOf(nextMsg) === readMarkOf(m);
           // 사이클 N+16-E — 메시지 액션 권한 + 상태
           const isSender = user && Number(m.sender_id) === Number(user.id);
           const isDeleted = !!m.is_deleted;
@@ -2149,10 +2161,11 @@ const ChatPanel: React.FC<Props> = ({
               )}
               {/* 사이클 N+15-C — 읽음 표시. 내가 보낸 메시지만, 시스템 메시지/Cue 제외.
                   1:1 (other_count <= 1): «읽음» / «안 읽음».
-                  그룹 (other_count >= 2): «N명 읽음» (모두면 «모두 읽음», 분모는 title). «전송됨» 은 읽음 0명인지 모호해서 뺐다. */}
-              {!isDeleted && user && Number(m.sender_id) === Number(user.id) && m.sender_role !== 'cue' && typeof m.other_count === 'number' && m.other_count > 0 && (() => {
-                const read = Math.min(m.read_by_count ?? 0, m.other_count);
-                const total = m.other_count;
+                  그룹 (other_count >= 2): «N명 읽음» (모두면 «모두 읽음», 분모는 title). «전송됨» 은 읽음 0명인지 모호해서 뺐다.
+                  시간 표시처럼 묶는다 — 이어지는 다음 메시지가 같은 표시면 그쪽에만 붙인다(hideReadMark). */}
+              {!hideReadMark && readMarkOf(m) && (() => {
+                const read = Math.min(m.read_by_count ?? 0, m.other_count ?? 0);
+                const total = m.other_count ?? 0;
                 if (total <= 1) {
                   return <ReadMark $read={read >= 1} data-testid="chat-read-mark">{read >= 1 ? t('chat.read.read', '읽음') : t('chat.read.unread', '안 읽음')}</ReadMark>;
                 }
