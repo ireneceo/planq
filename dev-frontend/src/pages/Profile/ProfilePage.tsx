@@ -20,6 +20,7 @@ import TimezoneSelector from '../../components/Common/TimezoneSelector';
 import PageShell from '../../components/Layout/PageShell';
 import { CheckIcon, XIcon } from '../../components/Common/Icons';
 import { useTimezones } from '../../hooks/useTimezones';
+import { InlineErrorBar } from '../../components/Common/ReportProblem';
 import EmailChangeModal from './EmailChangeModal';
 import { mapApiError } from '../../utils/apiError';
 import {
@@ -1319,6 +1320,12 @@ export function UserTimezoneSection() {
   const [pickerTz, setPickerTz] = useState<string>('');
   const browserTz = detectBrowserTz();
   const { hash } = useLocation();
+  // 저장 실패를 그 칸 아래에 알린다 — 전에는 실패해도 화면은 그대로(밤 순찰 pageerror user_timezone_update_failed).
+  const [saveErr, setSaveErr] = useState<'primary' | 'refs' | null>(null);
+  const save = async (patch: Parameters<typeof update>[0], where: 'primary' | 'refs') => {
+    setSaveErr(null);
+    try { await update(patch); } catch { setSaveErr(where); }
+  };
 
   // `#timezone` 해시로 들어오면 «주 시간대» 칸까지 스크롤 — 사이드바 시계의 착지점.
   //   탭 모드는 페이지가 MemoryRouter 라 창 주소 해시가 아니라 라우터 location 을 본다.
@@ -1338,11 +1345,11 @@ export function UserTimezoneSection() {
 
   const addRef = () => {
     if (!pickerTz) return;
-    update({ userRefs: Array.from(new Set([...userRefs, pickerTz])) });
+    void save({ userRefs: Array.from(new Set([...userRefs, pickerTz])) }, 'refs');
     setPickerTz('');
   };
   const removeRef = (tz: string) => {
-    update({ userRefs: userRefs.filter((r) => r !== tz) });
+    void save({ userRefs: userRefs.filter((r) => r !== tz) }, 'refs');
   };
 
   return (
@@ -1378,22 +1385,23 @@ export function UserTimezoneSection() {
           <FieldBody>
             <AutoSaveField
               type="select"
-              onSave={async () => { update({ userTz }); }}
+              onSave={async () => { await save({ userTz }, 'primary'); }}
             >
               <TimezoneSelector
                 value={userTzExplicit ? userTz : ''}
-                onChange={(tz) => update({ userTz: tz })}
+                onChange={(tz) => { void save({ userTz: tz }, 'primary'); }}
                 placeholder={t('timezone.primaryPlaceholder') || ''}
               />
             </AutoSaveField>
             {(!userTzExplicit || userTz !== browserTz) && (
               <BrowserHint
                 type="button"
-                onClick={() => update({ userTz: browserTz })}
+                onClick={() => { void save({ userTz: browserTz }, 'primary'); }}
               >
                 {t('timezone.useBrowser', { tz: browserTz })}
               </BrowserHint>
             )}
+            {saveErr === 'primary' && <InlineErrorBar message={t('timezone.saveFailed')} hideReport />}
           </FieldBody>
         </FieldRow>
       </Card>
@@ -1434,6 +1442,7 @@ export function UserTimezoneSection() {
             {t('timezone.addButton')}
           </UAddButton>
         </UAddRow>
+        {saveErr === 'refs' && <InlineErrorBar message={t('timezone.saveFailed')} hideReport />}
       </Card>
 
     </>

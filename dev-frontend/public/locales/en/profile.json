@@ -16,7 +16,8 @@
     "useBrowser": "Use browser timezone ({{tz}})",
     "notSet": "Not set",
     "notSetSub": "Until you pick one, times follow this device ({{tz}})",
-    "primaryPlaceholder": "Search and pick a time zone"
+    "primaryPlaceholder": "Search and pick a time zone",
+    "saveFailed": "Couldn't save the time zone. Please try again in a moment."
   },
   "basic": {
     "sectionTitle": "Basic Info",

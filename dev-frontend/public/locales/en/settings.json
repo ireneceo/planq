@@ -443,7 +443,8 @@
     "referenceDesc": "Additional timezones shown in the sidebar clock. Add zones your team frequently references.",
     "referenceEmpty": "No reference timezones added.",
     "addPlaceholder": "Search a timezone",
-    "addButton": "Add"
+    "addButton": "Add",
+    "saveFailed": "Couldn't save the time zone. Please try again in a moment."
   },
   "members": {
     "sectionTitle": "Members",

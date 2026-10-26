@@ -34,6 +34,7 @@ import ActionButton from '../../components/Common/ActionButton';
 import { SettingsHeaderActionProvider, type SettingsHeaderAction } from './settingsHeaderAction';
 import { AddActionButton, CtaPlus } from '../../components/Common/headerCta';
 import { useTimezones } from '../../hooks/useTimezones';
+import { InlineErrorBar } from '../../components/Common/ReportProblem';
 import { cityFromTz, offsetFromTz, formatTimeInTz } from '../../utils/timezones';
 import {
   getWorkspace,
@@ -2274,15 +2275,21 @@ function WorkspaceTimezoneSection({
     return () => window.clearInterval(id);
   }, []);
 
+  // 저장 실패를 목록 아래에 알린다 — 전에는 실패해도 화면은 그대로였다.
+  const [refsErr, setRefsErr] = useState(false);
+  const saveRefs = async (next: string[]) => {
+    setRefsErr(false);
+    try { await update({ workspaceRefs: next }); } catch { setRefsErr(true); }
+  };
+
   const addReference = () => {
     if (!pickerTz) return;
-    const next = Array.from(new Set([...workspaceRefs, pickerTz]));
-    update({ workspaceRefs: next });
+    void saveRefs(Array.from(new Set([...workspaceRefs, pickerTz])));
     setPickerTz('');
   };
 
   const removeReference = (tz: string) => {
-    update({ workspaceRefs: workspaceRefs.filter((r) => r !== tz) });
+    void saveRefs(workspaceRefs.filter((r) => r !== tz));
   };
 
   return (
@@ -2368,6 +2375,7 @@ function WorkspaceTimezoneSection({
             </AddButton>
           </AddRow>
         )}
+        {refsErr && <InlineErrorBar message={t('timezone.saveFailed')} hideReport />}
       </Card>
     </>
   );

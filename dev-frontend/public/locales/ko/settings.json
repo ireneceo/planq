@@ -443,7 +443,8 @@
     "referenceDesc": "사이드바 시계에 함께 표시되는 보조 타임존입니다. 팀이 자주 보는 지역을 추가하세요.",
     "referenceEmpty": "추가된 참조 타임존이 없습니다.",
     "addPlaceholder": "타임존을 검색해 선택",
-    "addButton": "추가"
+    "addButton": "추가",
+    "saveFailed": "시간대를 저장하지 못했어요. 잠시 후 다시 시도해 주세요."
   },
   "members": {
     "sectionTitle": "멤버",
