@@ -8,7 +8,7 @@
 - 실측 3폭(폰·태블릿·데스크탑) 5통: m1 - · m2 읽음 · m3 - · m4 안 읽음 · m5(새 묶음) 안 읽음 — 기대값 일치, 모두 그려짐. 빌드 EXIT 0 · error TS 0 · i18n 가드 통과. 시험 대화방은 지움.
 
 ### ✅ 시연 영상 샘플 1편 — 시각 품질 판정용 (방 752b7507 · 2026-10-26 · [Opus] · Fable 안 씀 — Irene 가 직접 보고 판정하는 샘플, 제품 코드 변경 0줄)
-- 결과물: https://dev.planq.kr/demo/planq-demo-sample.mp4 (1920×1080 · 30fps · 68.8초 · 11.3MB · 무음). dev-frontend-build 안이라 **다음 프론트 빌드 때 지워진다** — 원본은 `dev-backend/scripts/out/demo-video/planq-demo-sample.mp4`(git 제외), 다시 올리려면 그 파일을 `dev-frontend-build/demo/` 로 복사.
+- 결과물: **https://claude.ai/artifact/WxTUwMJrNgbbtzbfJJF42S** (비공개 페이지 · 영상 재생 + «mp4 받기») — 1920×1080 · 30fps · 68.8초 · 11.3MB · 무음. 처음 둔 dev.planq.kr/demo/… 는 10-26 05:17 프론트 빌드에 지워짐(Irene «링크가 안 돼») → 빌드에 안 지워지는 곳으로 옮김. 원본 `dev-backend/scripts/out/demo-video/planq-demo-sample.mp4`(git 제외).
 - 녹화기: `scripts/demo-video/record.js` + `overlay.js` — puppeteer(CDP 화면 녹화) · 자막·강조 단어·커서·클릭 물결·확대·스포트라이트는 화면에 주입한 HTML · 장면별 mp4 → ffmpeg xfade. ffmpeg 는 sudo 없이 `ffmpeg-static@5.2.0`(npm --no-save) 사용.
 - 소재: 데모 워크스페이스(온무늬, ws 105)에 메일 데이터가 없어 메일 대신 **대화 → AI 업무 후보 → 업무 → 회의 요약 → 청구 → 역할별 화면(대표/고객) → 고객 화면**. 인트로(«고객 요청, 아직도 카톡·메일에서 찾고 계세요?»)·아웃트로(«일을 일답게 하다» · planq.kr).
 - 데모 시드 `seed-demo-workspace.js` 를 한 번 다시 돌림(9월 날짜라 «52일 지연»·«매출 0원» 으로 보여서) — 같은 내용을 오늘 기준 날짜로 다시 만드는 기존 멱등 도구, 데이터 추가 없음. 녹화 중 쓰기 버튼은 누르지 않음(대화 열람으로 읽음 표시만 생김).
