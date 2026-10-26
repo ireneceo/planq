@@ -27,6 +27,9 @@ async function handleOf(p, sel) {
 async function typeAtEnd(p, sel, text) {
   const h = await handleOf(p, sel);
   if (!h) throw new Error(`입력란이 안 보인다: ${sel}`);
+  // 가운데로 굴린 뒤 누른다 — 칸이 화면 아래 끝에 걸리면 puppeteer 클릭이 고정 버튼 줄(task-detail-footer)을 눌러
+  //   글이 안 들어간 채 ⑧⑨ 가 빨개졌다(2026-10-25 · 반복 안내 + 크게 쓰기 버튼으로 칸이 몇 px 내려간 뒤).
+  await h.evaluate((e) => e.scrollIntoView({ block: 'center' }));
   await h.click();
   await p.keyboard.down('Control'); await p.keyboard.press('End'); await p.keyboard.up('Control');
   await p.keyboard.type(text);
