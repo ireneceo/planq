@@ -4,7 +4,11 @@
 
 ### ✅ 정기 점검 10/27 00:15 — 개발완료 + 개발시작 (방 6d4c7151 · 2026-10-26 · [Opus] · Fable 안 씀 — 마지막 개발완료 뒤 4커밋은 화면·내부 도구·문서)
 - 개발완료: 03d6b5a2 뒤 커밋 4건 기록(채팅 입력줄 간격 · 읽음 표시 묶기 · 시연 영상 녹화기·링크) · 가드 health 96/96 · guard 80/81 · e2e tenant 실패 0 · 위키 커버리지 통과.
-- 개발시작 결과는 이 방 보고 참고.
+- 개발시작 1-B 운영 피드백(직접 조회): 진행대기(승인) 0 · 반영중 0 · 승인 기다림 12(접수 5 · 검토중 7 — 관리자 > 사용자 피드백). 답글 단 것 없음.
+- 개발시작 1-C 밤 검사(10-25): 순찰 실패 10(5환경) · 전체 검사 159 중 실패 19(10-24 17 → 새로 docfind·leavesave).
+  - 고침 dc3693ea — 순찰 /me/work-settings «브라우저 기준(UTC)» pageerror user_timezone_update_failed(10-19부터 매일 ×5환경): 실결함(저장 실패를 삼키지도 알리지도 않음) → 칸 아래 오류 줄. 3폭 실패/성공 6/6. [Opus] · Fable 미검증(자체 검증) — 화면 오류 표시.
+  - 고침 0fef33cb — leavesave ⑧⑨ 8건: 검사기(반복 업무 설명 칸이 아래 고정 버튼 줄에 걸려 클릭이 푸터에 감). 제품은 직접 재현으로 정상 확인. 16/16.
+  - 남은 것(미판정): 순찰 — 알림 «설문 새 응답» → 지운 health 문서 5910 찾을 수 없음 ×2 · 메일 스레드 9949 행 두 개 찾을 수 없음 · /records/194 서명 완료 문서 49 찾을 수 없음. 전체 검사 — caret · tenantwrite(섞어 보내기, 10-23 부터 미판정 — 멀티테넌트라 Fable 판정 몫) · mailrt 2 · mobilechrome 3(재클릭 폼 닫힘) · docsheader 3 · mobileboot · leavetypes · consultlinks · tablefit · docfind ⑥(밑줄·구분선) · tablestyle 2 · taskaddparity · mobilepanels · mobilesweep · contractbilling · guestproject · taskfooter · headerrow 2.
 
 ### ✅ 채팅 입력줄 «+»·😊 간격 줄이기 (방 e08784be · 2026-10-26 · [Opus] · Fable 미검증(자체 검증) — 화면 간격) — 운영 반영: 다음 배포 때
 - Irene: «채팅에 나오는 좌측 아이콘 두개가 서로 너무 멀리있어 … 불필요한 공백차지가 너무 커».
