@@ -2381,6 +2381,7 @@ const ChatPanel: React.FC<Props> = ({
           handleKeyDown 가 Enter 시 handleSend 호출하므로 form submit 의존 없음. SendBtn 도 type="button".
         */}
         <InputWrap>
+          <InputTools>
           {/* «+» 하나에 파일·명함(앞으로 생길 것도)을 모은다 — 이모지만 따로 (2026-10-23, Irene «왓츠앱에서 + 누르면 나오는 것처럼»).
               명함 보내기는 멤버만(docs/NAME_CARD_V3_STRATEGY.md 9절 결정 4). 고객은 «파일» 하나뿐이지만 같은 + 로 둔다 —
               자리마다 모양이 다르면 고장으로 읽힌다. 입력줄은 화면 맨 아래라 메뉴는 위로, 트리거가 왼쪽이라 왼쪽 맞춤. */}
@@ -2441,6 +2442,7 @@ const ChatPanel: React.FC<Props> = ({
               });
             }}
           />
+          </InputTools>
           <TextInput
             ref={textInputRef}
             data-testid="qtalk-input"
@@ -3978,6 +3980,18 @@ const InputWrap = styled.div`
     background: #FFFFFF;
     box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.1);
   }
+`;
+
+/* «+»·😊 두 버튼 묶음 — 버튼 칸을 좁히고 서로 붙인다(2026-10-26, Irene «좌측 아이콘 두개가 서로 너무 멀리 …
+   불필요한 공백차지가 너무 커»). 36/44 정사각 칸 + 줄 간격이라 아이콘 사이가 25~33px 비어 보였다.
+   높이(터치 44)는 그대로 두고 폭만 줄인다 — 폭 36 은 반응형 원칙 2 의 최소 터치 타겟. */
+const InputTools = styled.div`
+  display: flex;
+  align-items: flex-end;
+  flex-shrink: 0;
+  gap: 0;
+  & > * > button { width: 30px; }
+  @media (max-width: 1024px) { & > * > button { width: 36px; } }
 `;
 
 const TextInput = styled.textarea`
