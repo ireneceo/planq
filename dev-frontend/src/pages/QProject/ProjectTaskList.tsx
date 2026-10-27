@@ -418,7 +418,7 @@ const ProjectTaskList: React.FC<Props> = ({
             ) : (<>
               <TaskTitle role="button" $done={task.status === 'completed'}
                 onClick={(e) => { e.stopPropagation(); setEditingTitle(task.id); setTitleDraft(task.title); }}
-                title={t('list.titleClickEdit', '클릭하여 업무명 수정') as string}>
+                title={`${task.title}\n${t('list.titleClickEdit', '클릭하여 업무명 수정')}`} data-testid="project-task-row-title">
                 {task.title}
               </TaskTitle>
               {/* #353 ⑤ 중요도 — Q Task 목록과 같은 칩. 폰은 둘째 줄(PhoneLine2)에 상태·마감·사람·지연을 모은다 — 상태·기간 칸이 폰에서 숨는다. */}

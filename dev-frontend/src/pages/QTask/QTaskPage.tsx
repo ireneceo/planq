@@ -2206,7 +2206,8 @@ const QTaskPage:React.FC=()=>{
                             같은 자리에서 어떤 때는 편집칸이 열리고 어떤 때는 상세가 열리면 무엇을 누른
                             것인지 알 수 없다. 제목 수정은 상세 한 곳에서 한다(그쪽이 권한 판정도 한다).
                             여기서 stopPropagation 을 하지 않는다 — 행의 onClick(openDetail)이 처리한다. */}
-                        <TaskTitle $done={task.status==='completed'}>
+                        {/* 잘린 제목은 올려 두면 전체가 보인다(Irene 2026-10-27 «제목이 잘려보이는게 제일 속터져»). */}
+                        <TaskTitle $done={task.status==='completed'} title={task.title} data-testid="task-row-title">
                           <HighlightText text={task.title} query={search} />
                         </TaskTitle>
                         {/* 폰에서만 여기서 줄을 끊는다 — 첫 줄은 ⋮·체크·제목, 둘째 줄은 태그·지연 칩(제목 밑으로 들여쓴다). */}

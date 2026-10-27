@@ -45,8 +45,11 @@ export default TagChips;
 
 // ★ overflow:hidden — 줄어들 수 있는데(min-width 0) 칩은 안 줄어서(flex-shrink 0), 업무 칸이 좁으면 칩이
 //   옆의 지연 배지 **밑으로 겹쳐** 그려졌다(2026-10-14 Q task 실측 «[확인용]» 이 «93일 지연» 뒤에). 넘치면 잘린다.
+// ★ flex-shrink 크게 — 칸이 모자라면 **칩이 먼저** 줄고 제목은 남는다(Irene 2026-10-27 «제목이 잘려보이는게 제일 속터져»).
+//   기본값 1 이면 긴 제목(기준 폭이 큼)이 줄어드는 몫을 거의 다 떠안아 칩 3개 옆에서 제목이 96px 까지 눌렸다.
+//   min-width 48px — 0 이면 긴 제목 옆에서 태그가 통째로 사라진다(실측). 첫 칩 앞부분은 남긴다.
 const Wrap = styled.span`
-  display: inline-flex; align-items: center; gap: 4px; min-width: 0; overflow: hidden;
+  display: inline-flex; align-items: center; gap: 4px; min-width: 48px; overflow: hidden; flex-shrink: 50;
 `;
 // 색은 태그 색의 연한 배경 + 진한 글자. 상태 배지와 구분되도록 사각(라운드 4px).
 const Chip = styled.span<{ $color: string }>`
