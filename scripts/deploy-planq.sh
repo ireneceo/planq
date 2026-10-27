@@ -553,6 +553,8 @@ sync_database() {
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-task-priority-level.js 2>&1 | tail -10"
   # 2026-10-27 업무 참조자 — task_watchers 테이블(멱등). ★ PM2 reload 앞 — 없으면 볼 권한 판정(isNamedOnTask)이 500.
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-task-watchers.js 2>&1 | tail -5"
+  # 2026-10-27 프로젝트 연결(문서·파일을 다른 프로젝트에도) — project_refs 테이블(멱등). ★ PM2 reload 앞 — 없으면 프로젝트 파일 탭·연결 칩이 500.
+  prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-project-refs.js 2>&1 | tail -5"
   # #259 게스트 링크 — clients.guest_user_id · users.is_guest · 킬스위치 2컬럼.
   #   ★ 순서: 이 ALTER 가 PM2 reload 보다 먼저. guest_links 테이블은 sync-database 가 만든다.
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-guest-links.js 2>&1 | tail -10"

@@ -30,6 +30,8 @@ export interface PostRow {
   match?: SearchMatchInfo | null;
   // 목록에서만 — 지금 회차 서명 진행(서명 요청이 있는 문서만). routes/posts.js GET /
   sign?: { total: number; signed: number; state: 'completed' | 'in_progress' | 'rejected' | 'expired' } | null;
+  /** 다른 프로젝트 소속인데 이 프로젝트에 «연결» 된 문서(프로젝트 문서 탭) — services/projectRefs.fetchLinkedPosts */
+  linked?: boolean;
   // 양방향 링크: 자료정리(brief) post 가 만든 후속 문서면 parent_post_id 가짐
   parent_post_id: number | null;
   // brief_meta 는 category='brief' 인 post 만. 일반 post 는 null

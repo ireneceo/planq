@@ -25,7 +25,7 @@ export function srcsOf(f: ProjectFile): FileSource[] {
  *   ★ 출처 칩(행에 붙는 태그)은 **그대로 전부** 보여 준다 — 어디서 왔는지는 여러 개일 수 있다.
  *     칩은 «어디서 왔나», 칸은 «어디에 사나» 다. 세는 것과 거르는 것은 **이 함수 하나**를 쓴다.
  */
-export const HOME_ORDER: FileSource[] = ['chat', 'task', 'meeting', 'post', 'mail'];
+export const HOME_ORDER: FileSource[] = ['chat', 'task', 'meeting', 'post', 'mail', 'linked'];
 export function homeSrcOf(f: ProjectFile): FileSource {
   const all = srcsOf(f);
   for (const s of HOME_ORDER) if (all.includes(s)) return s;
@@ -38,6 +38,7 @@ export function sourceShortLabel(s: FileSource, t: (k: string, fb?: string) => s
   if (s === 'meeting') return t('docs.source.meeting', '회의');
   if (s === 'post') return t('docs.source.post', '문서');
   if (s === 'mail') return t('docs.source.mail', '메일');
+  if (s === 'linked') return t('docs.source.linked', '연결됨');
   return t('docs.source.direct', '직접');
 }
 
@@ -49,6 +50,7 @@ export function srcStyle(s: FileSource): string {
     case 'task':    return 'background:#FEF3C7;color:#92400E;';
     case 'meeting': return 'background:#F0FDFA;color:#6B21A8;';
     case 'mail':    return 'background:#EDE9FE;color:#5B21B6;';
+    case 'linked':  return 'background:#F1F5F9;color:#475569;';
     default:        return 'background:#F0FDFA;color:#0F766E;';
   }
 }

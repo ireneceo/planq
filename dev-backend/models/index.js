@@ -60,6 +60,7 @@ const MemberRole = require('./MemberRole');
 const ProjectStatusOption = require('./ProjectStatusOption');
 const ProjectStage = require('./ProjectStage');
 const ProjectPinnedDoc = require('./ProjectPinnedDoc');
+const ProjectRef = require('./ProjectRef');
 const UserEntityPref = require('./UserEntityPref');
 const ProjectWorkstream = require('./ProjectWorkstream');
 const ProjectLink = require('./ProjectLink');
@@ -486,6 +487,20 @@ Project.hasMany(ProjectClient, { as: 'projectClients', foreignKey: 'project_id' 
 ProjectPinnedDoc.belongsTo(Project, { foreignKey: 'project_id', onDelete: 'CASCADE' });
 ProjectPinnedDoc.belongsTo(User, { foreignKey: 'user_id', onDelete: 'CASCADE' });
 ProjectPinnedDoc.belongsTo(Post, { as: 'post', foreignKey: 'post_id', onDelete: 'CASCADE' });
+// ProjectRef — 문서·파일을 다른 프로젝트에도 «연결»(소속은 그대로, 2026-10-27 docs/PROJECT_REFS_DESIGN.md)
+ProjectRef.belongsTo(Project, { foreignKey: 'project_id', onDelete: 'CASCADE' });
+//   소속을 옮기면 새 소속 프로젝트로 걸려 있던 연결은 지운다 — 같은 항목이 «소속» 과 «연결됨» 으로 두 번 서지 않게.
+//   옮기는 문(문서 PUT·공개 범위·파일 이동·AI move_document_to_project)이 모두 인스턴스 update 라 훅 한 곳이 다 받는다.
+//   (읽을 때도 소속 = 대상 프로젝트인 행은 빼므로, 훅이 빠지는 문이 생겨도 중복은 화면에 안 선다.)
+for (const [M, type] of [[Post, 'post'], [File, 'file']]) {
+  M.addHook('afterUpdate', (row, opts) => {
+    if (!row.changed || !row.changed('project_id') || !row.project_id) return null;
+    return ProjectRef.destroy({
+      where: { project_id: row.project_id, entity_type: type, entity_id: row.id },
+      transaction: opts && opts.transaction,
+    });
+  });
+}
 
 // ProjectStage — 거래 시퀀스 (Phase D+1)
 ProjectStage.belongsTo(Project, { foreignKey: 'project_id', onDelete: 'CASCADE' });
@@ -721,6 +736,7 @@ module.exports = {
   ProjectStatusOption,
   ProjectStage,
   ProjectPinnedDoc,
+  ProjectRef,
   UserEntityPref,
   ProjectWorkstream,
   ProjectLink,

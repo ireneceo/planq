@@ -4459,6 +4459,38 @@ router.get('/:id/files', authenticateToken, async (req, res, next) => {
       }
     }
 
+    // 4-b) 다른 프로젝트 소속인데 이 프로젝트에 «연결» 한 파일 (2026-10-27, docs/PROJECT_REFS_DESIGN.md)
+    //   원본 등급 술어(fileListWhereByLevel)로 거른다 — 연결은 볼 수 있는 사람을 넓히지 않는다. 원본은 소속 쪽에서 관리(deletable false).
+    {
+      const { rows: linkedFiles, homes } = await require('../services/projectRefs').linkedFilesForProject(
+        req.user, project, [{ model: User, as: 'uploader', attributes: ['id', 'name'] }]);
+      for (const f of linkedFiles) {
+        results.push({
+          id: `linked-${f.id}`,
+          source: 'linked',
+          file_path_key: f.file_path || null,
+          file_name: f.file_name,
+          file_size: Number(f.file_size),
+          mime_type: f.mime_type,
+          uploader_id: f.uploader_id,
+          uploader_name: f.uploader ? f.uploader.name : null,
+          uploaded_at: (f.createdAt || f.created_at || new Date()).toISOString(),
+          download_url: `/api/files/${bizId}/${f.id}/download`,
+          preview_url: previewUrlForFile(f),
+          external_id: f.external_id,
+          external_url: f.external_url,
+          linked_file_id: f.id,
+          home_project: homes.get(Number(f.project_id)) || null,
+          folder_id: null,
+          deletable: false,
+          storage_provider: f.storage_provider,
+          visibility: f.visibility,
+          project_id: f.project_id,
+          tags: f.tags || [],
+        });
+      }
+    }
+
     // 5) meeting (Q Note) 자료는 별도 스토리지 — 현재 연동 미구현, 빈 배열 (추후 확장)
 
     results.sort((a, b) => new Date(b.uploaded_at) - new Date(a.uploaded_at));

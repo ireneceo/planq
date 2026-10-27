@@ -465,6 +465,8 @@ app.use('/api/projects', require('./routes/projects'));
 // 일정 일괄 수정 — `/:id/schedule/*`. projects.js 의 `/:id` 핸들러보다 **경로가 깊어** 가려지지 않는다
 //   (Express 는 세그먼트 단위로 맞춘다). 순서를 바꿀 일이 생기면 router.stack 덤프로 확인할 것.
 app.use('/api/projects', require('./routes/schedule_edit'));
+// 프로젝트 연결(문서·파일을 다른 프로젝트에도) — `/projects/:id/refs…` · `/project-refs/:type/:id` (docs/PROJECT_REFS_DESIGN.md)
+app.use('/api', require('./routes/project_refs'));
 app.use('/api/users', require('./routes/users'));
 app.use('/api/users', require('./routes/account_deletion'));
 // ★ customer_entry 를 businesses.js **앞**에 마운트한다 — `/:businessId/customer-entry` 처럼

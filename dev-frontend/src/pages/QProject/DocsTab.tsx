@@ -33,6 +33,7 @@ import { pickMatch } from '../../utils/searchMatch';
 import { useUploadQueue, UploadQueuePanel } from './docs/UploadQueue';
 import { collectDropped, fromDirectoryInput, wasTruncated, DROP_MAX_FILES, type DroppedFile } from './docs/dropEntries';
 import FileMetaEditor from './docs/FileMetaEditor';
+import ProjectRefsField from '../../components/Common/ProjectRefsField';
 import PreviewArea from './docs/PreviewArea';
 import { QuickViewButton, QuickViewModal } from './docs/QuickView';
 import { LIST_COLS, ListRow, RowChk, RowName, RowNameText, RowNameStack, CardReason, UnmirrorTag, RowSrc, RowCtx, RowSize, RowUp, RowDate, RowAct, DlPct } from './docs/DocsTab.listStyles';
@@ -144,6 +145,7 @@ const DocsTab: React.FC<Props> = (props) => {
   // #228 — 파일을 OS 로 끌어내기 (자체 스토리지 일반등급 파일만)
   const { getDragProps } = useFileDragOut(businessId);
   const { t } = useTranslation('qproject');
+  const { t: tc } = useTranslation('common');
   const tr: (k: string, fb?: string) => string = (k, fb) => t(k, (fb ?? '') as string) as unknown as string;
   const { formatDate } = useTimeFormat();
 
@@ -367,7 +369,7 @@ const DocsTab: React.FC<Props> = (props) => {
     const byFolder: Record<number, number> = {};
     let directRoot = 0;
     let myFiles = 0;
-    const bySrc: Record<FileSource, number> = { direct: 0, chat: 0, task: 0, meeting: 0, post: 0, mail: 0 };
+    const bySrc: Record<FileSource, number> = { direct: 0, chat: 0, task: 0, meeting: 0, post: 0, mail: 0, linked: 0 };
     for (const f of files) {
       // ★ 한 파일은 **한 칸**에만 센다 — 그래야 칸들의 합이 «전체» 와 같다(homeSrcOf 참조).
       //   행에 붙는 출처 «칩» 은 종전대로 전부 보여 준다(어디서 왔나 ≠ 어디에 사나).
@@ -1865,6 +1867,20 @@ const DocsTab: React.FC<Props> = (props) => {
                   <CueReadVal $ok={preview.cue_read.ok}>{cueReadText(preview, t)}</CueReadVal>
                 </MetaItem>}
               </MetaList>
+              {/* 연결 프로젝트(2026-10-27) — 소속은 하나, 다른 프로젝트에도 «연결». 직접 올린 파일만 걸고 떼며, 연결로 들어온 행은 소속만 보인다 */}
+              {preview.source === 'direct' && parseFileId(preview.id) && (
+                <VisibilitySection data-testid="file-project-refs">
+                  <SectionLabel>{tc('projectRefs.label') as string}</SectionLabel>
+                  <ProjectRefsField key={`file-refs-${preview.id}`} entityType="file" entityId={parseFileId(preview.id)!.id}
+                    businessId={businessId} homeProjectId={preview.project_id ?? null} vlevel={preview.visibility ?? null} />
+                </VisibilitySection>
+              )}
+              {preview.source === 'linked' && (
+                <VisibilitySection data-testid="file-linked-home">
+                  <SectionLabel>{tc('projectRefs.linkedHint') as string}</SectionLabel>
+                  {preview.home_project && <MetaVal>{preview.home_project.name}</MetaVal>}
+                </VisibilitySection>
+              )}
               {/* N+67 — 공개 범위 변경 UI (source='direct' 인 파일만 변경 가능. 채팅/업무 첨부는 상위 visibility 따름) */}
               {preview.source === 'direct' && (
                 <VisibilitySection>

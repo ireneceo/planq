@@ -27,6 +27,9 @@ import { useFromActionHandoff, type FromActionHandoff } from '../../hooks/useFro
 import FromTaskBanner from '../Common/FromTaskBanner';
 import LinkedTaskChips, { type LinkedTaskRef } from '../Common/LinkedTaskChips';
 import DocTaskLinkField, { linkTask } from './DocTaskLinkField';
+import ProjectRefsField from '../Common/ProjectRefsField';
+import { LinkedMini, applyRefFilter, type RefFilter } from './linkedDocs';
+import { fetchLinkedPosts } from '../../services/projectRefs';
 import OverflowMenu from '../Common/OverflowMenu';
 import AttachmentField from '../Common/AttachmentField';
 import CategoryCombobox from '../Common/CategoryCombobox';
@@ -532,7 +535,15 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId, onEditingChange }) =>
       else if (filter.kind === 'tables') apiFilter.docKind = 'table';
       else if (filter.kind === 'surveys') apiFilter.docKind = 'survey';
 
-      const list = await fetchPosts(scope.businessId, apiFilter);
+      let list = await fetchPosts(scope.businessId, apiFilter);
+      // 다른 프로젝트 소속인데 이 프로젝트에 «연결» 한 문서(docs/PROJECT_REFS_DESIGN.md) — 서버가 보는 사람 권한으로 거른 것만 온다
+      if (scope.type === 'project' && filter.kind === 'all') {
+        const own = new Set(list.map((p) => p.id));
+        const q = (query || '').toLowerCase();
+        const linked = (await fetchLinkedPosts(scope.projectId).catch(() => []))
+          .filter((p) => !own.has(p.id) && (!q || (p.title || '').toLowerCase().includes(q)));
+        list = [...list, ...linked];
+      }
       setRows(list);
       if (plain) writeCache(postsKey, list);
     } finally { setLoading(false); }
@@ -599,12 +610,16 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId, onEditingChange }) =>
     const offRemoved = onSocket('post:editor_removed', (payload: { id: number }) => {
       if (payload?.id) void refetchOpenDetail(payload.id);
     });
+    // 이 프로젝트에 문서를 걸거나 뗐다(프로젝트 방 신호 — 프로젝트 상세가 join 한다)
+    const offRef = onSocket('project:ref_changed', (payload: { project_id: number }) => {
+      if (scopeProjectId && Number(payload?.project_id) === scopeProjectId) debouncedReload();
+    });
     return () => {
       if (pending) window.clearTimeout(pending);
       leaveRoom(`business:${scope.businessId}`);
-      offNew(); offUpd(); offDel(); offRemoved();
+      offNew(); offUpd(); offDel(); offRemoved(); offRef();
     };
-  }, [scope.businessId, load, loadMeta, activeId]);
+  }, [scope.businessId, scopeProjectId, load, loadMeta, activeId]);
 
   useEffect(() => {
     if (!activeId) {
@@ -1665,10 +1680,14 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId, onEditingChange }) =>
   };
 
   // 고정한 문서는 어떤 정렬에서도 위 — 서버 order 의 is_pinned 우선과 같은 규칙.
+  const [refFilter, setRefFilter] = useState<RefFilter>('all');
+  const hasLinked = scope.type === 'project' && rows.some((r) => r.linked);
+  // 다른 분류(표·설문·카테고리)를 고르면 연결 행은 안 불러온다 — «연결됨» 고른 상태도 푼다
+  useEffect(() => { if (filter.kind !== 'all') setRefFilter('all'); }, [filter.kind]);
   const filtered = useMemo(() => {
-    const sorted = sortRows(rows, listSort);
+    const sorted = sortRows(applyRefFilter(rows, hasLinked ? refFilter : 'all'), listSort);
     return [...sorted.filter(r => r.is_pinned), ...sorted.filter(r => !r.is_pinned)];
-  }, [rows, listSort]);
+  }, [rows, listSort, refFilter, hasLinked]);
 
   const isEditing = mode === 'new' || (mode === 'edit' && !!detail);
   const focus = useDocFocusMode(isEditing, onEditingChange);
@@ -1773,7 +1792,7 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId, onEditingChange }) =>
           <AtSplit>
             <AtPanel>
               <AtTree>
-                <AtRow $selected={filter.kind === 'all'} onClick={() => setFilter({ kind: 'all' })}>
+                <AtRow $selected={filter.kind === 'all' && refFilter !== 'linked'} onClick={() => { setFilter({ kind: 'all' }); setRefFilter('all'); }}>
                   <span />
                   <AtName>{t('filter.all', '전체') as string}</AtName>
                   <AtCount>{meta.total}</AtCount>
@@ -1795,6 +1814,16 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId, onEditingChange }) =>
                   <AtCount>{meta.surveyCount ?? ''}</AtCount>
                   <span />
                 </AtRow>
+                {/* 다른 프로젝트 소속인데 이 프로젝트에 «연결» 한 문서 — 있을 때만(파일 탭 «연결됨» 칸과 같은 자리, docs/PROJECT_REFS_DESIGN.md) */}
+                {hasLinked && (
+                  <AtRow $selected={filter.kind === 'all' && refFilter === 'linked'} data-testid="docs-filter-linked"
+                    onClick={() => { setFilter({ kind: 'all' }); setRefFilter(refFilter === 'linked' ? 'all' : 'linked'); }}>
+                    <span />
+                    <AtName>{tc('projectRefs.filterLinked') as string}</AtName>
+                    <AtCount>{rows.filter((r) => r.linked).length}</AtCount>
+                    <span />
+                  </AtRow>
+                )}
                 {meta.categories.map(c => (
                   <AtRow key={c.name} $selected={filter.kind === 'category' && filter.name === c.name}
                     onClick={() => { if (filter.kind === 'category' && filter.name === c.name) setFilter({ kind: 'all' }); else setFilter({ kind: 'category', name: c.name }); }}>
@@ -1893,6 +1922,7 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId, onEditingChange }) =>
                         <span>{listDate(r)}</span>
                         {r.author?.name && <CardAuthor>{r.author.name}</CardAuthor>}
                         {r.category && <CategoryMini>#{r.category}</CategoryMini>}
+                        {r.linked && <LinkedMini project={r.project} />}
                         <RowVisChip $level={(r.vlevel as string) || ''}>{visLabel(r.vlevel)}</RowVisChip>
                       </AtCardMeta>
                     </AtCard>
@@ -2086,7 +2116,6 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId, onEditingChange }) =>
           )}
         </FilterSection>
 
-
         <RowList>
           {/* data-testid — 하니스가 "재진입에 또 로딩되는가" 를 판정하는 신호(CLAUDE.md §17) */}
           {loading ? (
@@ -2156,6 +2185,7 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId, onEditingChange }) =>
                   <span>·</span>
                   <span>{listDate(r)}</span>
                   {r.category && <CategoryMini>#<HighlightText text={r.category} query={query} /></CategoryMini>}
+                  {r.linked && <LinkedMini /* 소속 이름은 바로 옆 ProjectTag 가 보인다 */ />}
                   {r.project && (
                     <ProjectTag $color={r.project.color || '#14B8A6'}><HighlightText text={r.project.name} query={query} /></ProjectTag>
                   )}
@@ -2300,6 +2330,11 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId, onEditingChange }) =>
                   fromTaskId={fromAction?.task.id ?? null}
                   onPendingChange={(ids) => { pendingTaskIdsRef.current = ids; setPendingTaskCount(ids.length); }}
                 />
+              )}
+              {/* 연결 프로젝트(2026-10-27) — 소속은 위 프로젝트 칸 하나, 연결은 여러 개(공개 범위는 그대로). 저장된 문서만 */}
+              {scope.type !== 'personal' && mode === 'edit' && detail && (
+                <ProjectRefsField key={`refs-${detail.id}`} entityType="post" entityId={detail.id} businessId={detail.business_id}
+                  homeProjectId={detail.project_id ?? null} vlevel={detail.vlevel} />
               )}
               {/* N+72-7 — 문서 ↔ 표 타입 toggle (편집 모드에서 변경 가능). 표→문서: 데이터 있으면 confirm 모달 */}
               {mode === 'edit' && detail && (
@@ -2637,6 +2672,8 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId, onEditingChange }) =>
               <SecurityLevelBadge level={detail.security_level} />
               {/* 이 문서를 결과물·액션으로 건 업무(보는 사람 기준) — docs/TASK_ACTIONS_DESIGN.md §4.2 */}
               <LinkedTaskChips tasks={detail.linked_tasks} />
+              <ProjectRefsField readOnly key={`refs-view-${detail.id}`} entityType="post" entityId={detail.id} businessId={detail.business_id}
+                homeProjectId={detail.project_id ?? null} vlevel={detail.vlevel} />
               </MetaLeft>
               <MetaRight>
               {/* ★ 액션을 **메타 줄 오른쪽**으로 (Irene 2026-09-05: "점점점 메뉴만 위로 올리면 어때?

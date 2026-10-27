@@ -498,7 +498,8 @@
       "task": "업무",
       "meeting": "회의",
       "post": "문서",
-      "mail": "메일"
+      "mail": "메일",
+      "linked": "연결됨"
     },
     "view": {
       "grid": "그리드",

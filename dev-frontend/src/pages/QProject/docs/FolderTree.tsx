@@ -234,7 +234,8 @@ const FolderTree: React.FC<FolderTreeProps> = ({ folders, counts, total, selecte
         <TreeDivider />
 
         {/* 자동으로 모이는 출처 — 프로젝트 행과 **같은 왼쪽 기준**이다(하위가 아니다). */}
-        {(['chat', 'task', 'meeting', 'post', 'mail'] as FileSource[]).map(src => (
+        {/* «연결됨» 은 다른 프로젝트 소속 파일을 이 프로젝트에 건 것 — 있을 때만 칸을 세운다(docs/PROJECT_REFS_DESIGN.md) */}
+        {(['chat', 'task', 'meeting', 'post', 'mail', 'linked'] as FileSource[]).filter(src => src !== 'linked' || counts.bySrc.linked > 0).map(src => (
           <TreeRow key={src} selected={selected === `src:${src}`} onClick={() => onSelect(`src:${src}`)}
             icon={<FolderIconWrap $sys={src} $selected={selected === `src:${src}`}><SystemFolderIcon src={src} /></FolderIconWrap>}
             name={sourceShortLabel(src, tr)} count={counts.bySrc[src]} />

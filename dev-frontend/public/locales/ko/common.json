@@ -1861,6 +1861,29 @@
     "addMore": "업무 연결 추가",
     "linkedCount": "연결 {{n}}"
   },
+  "projectRefs": {
+    "label": "연결 프로젝트",
+    "placeholder": "다른 프로젝트에 연결",
+    "empty": "연결할 수 있는 프로젝트가 없습니다",
+    "chipTitle": "«{{name}}» 프로젝트에도 연결됨 — 눌러서 열기",
+    "remove": "«{{name}}» 연결 해제",
+    "privateShort": "나만 보기는 연결 불가",
+    "privateHint": "나만 보기 문서·파일은 다른 프로젝트에 연결할 수 없습니다. 공개 범위를 넓힌 뒤 연결하세요.",
+    "scopeHintShort": "공개 범위는 그대로예요",
+    "scopeHint": "연결해도 공개 범위는 그대로입니다 — 연결한 프로젝트 멤버라도 이 자료를 볼 권한이 없으면 보이지 않습니다. 함께 보게 하려면 공개 범위를 «워크스페이스» 로 바꾸거나 지정 멤버를 추가하세요.",
+    "linkedBadge": "연결됨",
+    "linkedFrom": "연결됨 · {{name}}",
+    "linkedHint": "다른 프로젝트 소속 — 이 프로젝트에 연결해 둔 자료입니다",
+    "filterLinked": "연결됨",
+    "err": {
+      "default": "연결하지 못했습니다. 다시 시도해 주세요.",
+      "not_project_member": "그 프로젝트의 멤버만 연결할 수 있습니다.",
+      "private_not_linkable": "나만 보기는 연결할 수 없습니다.",
+      "already_home": "이미 이 프로젝트 소속입니다.",
+      "already_linked": "이미 연결되어 있습니다.",
+      "forbidden": "이 자료를 연결할 권한이 없습니다."
+    }
+  },
   "dict": {
     "create": "만들기",
     "creating": "만드는 중…",

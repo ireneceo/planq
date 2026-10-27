@@ -6,7 +6,8 @@ import type { UploadProgress } from '../contexts/AuthContext';
 import i18next from 'i18next';
 import { seedFileBlob } from '../utils/fileBlobCache';
 
-export type FileSource = 'direct' | 'chat' | 'task' | 'meeting' | 'post' | 'mail';
+// 'linked' = 다른 프로젝트 소속인데 이 프로젝트에 «연결» 한 파일(2026-10-27, docs/PROJECT_REFS_DESIGN.md) — 프로젝트 파일 탭만
+export type FileSource = 'direct' | 'chat' | 'task' | 'meeting' | 'post' | 'mail' | 'linked';
 export type StorageProvider = 'planq' | 'gdrive';
 
 export interface ProjectContext {
@@ -72,6 +73,9 @@ export interface ProjectFile {
   // 검색용 메타 — 파일명만으로 못 찾는 자료(영상·스캔본)를 위해
   description?: string | null;
   tags?: string[] | null;
+  /** source 'linked' — 원본 파일 id · 소속 프로젝트(보는 사람이 볼 수 있을 때만) */
+  linked_file_id?: number;
+  home_project?: { id: number; name: string; color: string | null } | null;
 }
 
 /** 파일 메타(이름·설명·태그·고객 연결) 편집. 권한은 삭제와 같은 술어(본인 업로드·오너·PM).

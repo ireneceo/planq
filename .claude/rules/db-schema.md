@@ -24,6 +24,8 @@ paths:
 
 **Q docs 댓글 (1):** **post_comments** (2026-10-15 — 문서에 시간순으로 쌓이는 댓글. visibility internal(팀만)/shared(고객도 봄). 읽기 = 문서와 같은 `canReadPost`, 고객은 shared 만·쓰면 shared 강제, 공개 링크·PDF·검색엔 안 나간다. 쓰는 문 `post_actions.createComment/deleteComment` 한 곳, 실시간 `post:comment` 신호만, 알림 `doc_comment`(ENUM append)·`comment_mention`, 메일 없음. 운영 `migrate-post-comments.js`(배포 슬롯). 설계 docs/DOC_COMMENTS_DESIGN.md)
 
+**프로젝트 연결 (1):** **project_refs** (2026-10-27 — 문서·파일을 소속 말고 다른 프로젝트에도 «연결». 소속(project_id)은 그대로 공개 범위 열쇠 · 연결은 보여 주는 자리만(원본 목록 술어로 거름) · entity_type 'post'|'file'(문자열, 다음 단계 'task') · 쓰는 문 `services/projectRefs.js` 한 곳 · 운영 `migrate-project-refs.js`(배포 슬롯). 설계 docs/PROJECT_REFS_DESIGN.md)
+
 **Q docs 청구 조건 (1):** **post_billing_terms** (2026-10-23 — 문서당 1행, 서명이 모두 끝나면 이대로 청구서 초안. invoice_id UNIQUE = 만든 청구서. 운영 `migrate-post-billing-terms.js`(배포 슬롯). 설계 docs/CONTRACT_AUTO_INVOICE_DESIGN.md)
 
 **Q docs 서명 (1):** **signature_requests** (2026-04-26 신규 — Phase A 서명 받기, polymorphic entity_type='post'|'document', OTP hash, 만료, audit)

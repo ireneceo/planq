@@ -1861,6 +1861,29 @@
     "addMore": "Link a task",
     "linkedCount": "Linked {{n}}"
   },
+  "projectRefs": {
+    "label": "Linked projects",
+    "placeholder": "Link to another project",
+    "empty": "No projects to link",
+    "chipTitle": "Also linked to «{{name}}» — click to open",
+    "remove": "Unlink «{{name}}»",
+    "privateShort": "Private items can't be linked",
+    "privateHint": "Private (only me) docs and files can't be linked to other projects. Widen the visibility first.",
+    "scopeHintShort": "Visibility unchanged",
+    "scopeHint": "Linking doesn't change visibility — members of the linked project who can't access this item won't see it. To share it, change visibility to «Workspace» or add specific members.",
+    "linkedBadge": "Linked",
+    "linkedFrom": "Linked · {{name}}",
+    "linkedHint": "Belongs to another project — linked to this project",
+    "filterLinked": "Linked",
+    "err": {
+      "default": "Couldn't link. Please try again.",
+      "not_project_member": "Only members of that project can link to it.",
+      "private_not_linkable": "Private items can't be linked.",
+      "already_home": "Already belongs to this project.",
+      "already_linked": "Already linked.",
+      "forbidden": "You don't have permission to link this item."
+    }
+  },
   "dict": {
     "create": "Create",
     "creating": "Creating…",

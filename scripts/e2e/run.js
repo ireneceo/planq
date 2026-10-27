@@ -109,6 +109,7 @@ const SUITES = {
   projecttabs: () => require('./canary-project-tabs'),
   // 업무 목록 열 좌우 이동·폭 조절 — 머리·행 정렬(양성 대조) · 끌기 · 폭 · 목록 폭 기준 자동 빠짐 · 폰 · 깨진 저장값 (2026-10-27)
   tablecols: () => require('./canary-table-columns'),
+  projectrefs: () => require('./canary-project-refs'),   // 문서·파일 다른 프로젝트 연결(2026-10-27, docs/PROJECT_REFS_DESIGN.md)
   // 프로젝트 «자료» 탭(문서·노트·파일)이 **같은 디자인**인가 — 바탕색·여백·시작점 3폭.
   //   2026-09-13 에 「했다」고 적어 두고 화면은 달랐다. 글이 아니라 기계가 센다.
   projtabstyle: () => require('./canary-project-tab-style'),

@@ -19,6 +19,8 @@ async function purgeContentRow(kind, row, { transaction } = {}) {
   const M = require('../models');
   if (kind === 'kb') await M.KbChunk.destroy({ where: { kb_document_id: row.id }, transaction });
   else await M.PostAttachment.destroy({ where: { post_id: row.id }, transaction });
+  // 다른 프로젝트에 걸어 둔 연결도 같이 지운다(휴지통 동안은 남겨 복원하면 다시 보인다 — docs/PROJECT_REFS_DESIGN.md)
+  if (kind === 'post') await require('./projectRefs').onEntityPurged('post', row.id, { transaction });
   await row.destroy({ force: true, transaction });
 }
 

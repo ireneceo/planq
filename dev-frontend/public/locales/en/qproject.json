@@ -498,7 +498,8 @@
       "task": "Task",
       "meeting": "Meeting",
       "post": "Docs",
-      "mail": "Mail"
+      "mail": "Mail",
+      "linked": "Linked"
     },
     "view": {
       "grid": "Grid",
