@@ -18,6 +18,7 @@ import MatchReason from '../Common/MatchReason';
 import { pickMatch } from '../../utils/searchMatch';
 import { apiFetch } from '../../contexts/AuthContext';
 import { mapApiError } from '../../utils/apiError';
+import type { AiSeed } from './AiTaskCreateModal';
 
 interface Member { user_id: number; name: string; }
 
@@ -53,6 +54,9 @@ interface Props {
   onApplied: (createdTasks: Array<{ id: number; title: string }>) => void;
   // AI 추천 "이 템플릿 쓰기" → 이 id 의 템플릿 상세(detail)로 바로 진입.
   initialTemplateId?: number | null;
+  /** 요청을 적어 «AI 로 고쳐 넣기» — 부모가 이 모달을 닫고 AI 업무추가 모달을 템플릿 항목으로 연다.
+   *  미제공이면 그 칸 자체를 숨긴다. 템플릿 원본은 바꾸지 않는다(이번에 넣을 업무만 고친다). */
+  onRefineWithAi?: (seed: AiSeed) => void;
 }
 
 type Stage = 'list' | 'detail' | 'edit';
@@ -65,7 +69,7 @@ const CATEGORY_LABELS: Record<string, string> = {
   custom: '기타',
 };
 
-export default function TemplateSelectModal({ open, onClose, businessId, projectId, members, onApplied, initialTemplateId }: Props) {
+export default function TemplateSelectModal({ open, onClose, businessId, projectId, members, onApplied, initialTemplateId, onRefineWithAi }: Props) {
   const { t } = useTranslation('qtask');
   const { t: tErr } = useTranslation('errors');
   const [stage, setStage] = useState<Stage>('list');
@@ -75,6 +79,7 @@ export default function TemplateSelectModal({ open, onClose, businessId, project
   const [items, setItems] = useState<TemplateItem[]>([]);
   const [startDate, setStartDate] = useState<string>(new Date().toISOString().slice(0, 10));
   const [assigneeMap, setAssigneeMap] = useState<Record<string, number | null>>({});
+  const [aiRequest, setAiRequest] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   // 편집 stage 용
@@ -92,6 +97,7 @@ export default function TemplateSelectModal({ open, onClose, businessId, project
     setItems([]);
     setError(null);
     setSubmitting(false);
+    setAiRequest('');
     setStartDate(new Date().toISOString().slice(0, 10));
     setAssigneeMap({});
     setLoading(true);
@@ -143,6 +149,7 @@ export default function TemplateSelectModal({ open, onClose, businessId, project
 
   const openDetail = async (tpl: Template) => {
     setSelected(tpl);
+    setAiRequest('');
     setStage('detail');
     setItems([]);
     setError(null);
@@ -307,6 +314,38 @@ export default function TemplateSelectModal({ open, onClose, businessId, project
   if (!open) return null;
 
   const roleHints = Object.keys(assigneeMap);
+
+  // 템플릿 항목 → AI 후보 모양(AiCandidateCard). 날짜는 /apply 와 같은 계산(마감 = 시작 + 기간, 기간 없으면 1일).
+  const refineWithAi = () => {
+    if (!selected || !onRefineWithAi || items.length === 0 || !aiRequest.trim()) return;
+    onRefineWithAi({
+      templateId: selected.id,
+      templateName: selected.name,
+      prompt: [selected.name, selected.description || ''].filter(Boolean).join('\n'),
+      baseDate: startDate,
+      instruction: aiRequest.trim(),
+      roleAssignees: assigneeMap,
+      candidates: items.map((it, i) => {
+        const start = it.start_offset_days || 0;
+        const dur = it.duration_days || 1;
+        return {
+          idx: i,
+          title: it.title,
+          description: it.description || undefined,
+          estimated_hours: it.estimated_hours ?? null,
+          duration_days: dur,
+          start_offset_days: start,
+          due_offset_days: start + dur,
+          priority: 'normal',
+          assignee_hint: it.role_hint || null,
+          assignee_user_id: it.role_hint ? (assigneeMap[it.role_hint] ?? null) : null,
+          depends_on_index: null,
+          vague: false,
+          selected: true,
+        };
+      }),
+    });
+  };
 
   return (
     <Backdrop onClick={onClose}>
@@ -518,6 +557,21 @@ export default function TemplateSelectModal({ open, onClose, businessId, project
                       </RoleRow>
                     ))}
                   </RoleGrid>
+                </FieldRow>
+              )}
+              {onRefineWithAi && (
+                <FieldRow data-testid="tpl-ai-refine">
+                  <FieldLabel htmlFor="tpl-ai-request">{t('tpl.aiRefineLabel', 'AI 에게 요청해서 고쳐 넣기 (선택)')}</FieldLabel>
+                  {/* draft-exempt: 한두 줄 지시 — 보내면 AI 미리보기로 넘어가 거기 누적된다(AiRegenerateBar 입력과 같은 성격) */}
+                  <AiRequestInput id="tpl-ai-request" rows={2} value={aiRequest}
+                    onChange={(e) => setAiRequest(e.target.value)}
+                    placeholder={t('tpl.aiRefinePh', '예) 디자인 검수 단계를 하나 추가하고, 개발 기간을 2일씩 늘려줘') as string} />
+                  <AiRefineRow>
+                    <Hint>{t('tpl.aiRefineHint', '이번에 넣을 업무만 고쳐요. 템플릿 원본은 그대로예요.')}</Hint>
+                    <ModalActionButton variant="ai" onClick={refineWithAi} disabled={!aiRequest.trim() || items.length === 0 || loading}>
+                      {t('tpl.aiRefineGo', 'AI 로 고쳐서 미리보기')}
+                    </ModalActionButton>
+                  </AiRefineRow>
                 </FieldRow>
               )}
               <PreviewBox>
@@ -814,6 +868,13 @@ const Desc = styled.div`
 const FieldRow = styled.div`display: flex; flex-direction: column; gap: 6px;`;
 const FieldLabel = styled.label`font-size: 0.75rem; font-weight: 600; color: #0F172A;`;
 const Hint = styled.div`font-size: 0.6875rem; color: #94A3B8;`;
+const AiRequestInput = styled.textarea`
+  width: 100%; box-sizing: border-box; resize: vertical; min-height: 56px;
+  padding: 8px 10px; border: 1px solid #E2E8F0; border-radius: 8px;
+  font: inherit; font-size: 0.8125rem; color: #0F172A; background: #FFF;
+  &:focus { outline: none; border-color: #14B8A6; box-shadow: 0 0 0 3px rgba(20,184,166,0.15); }
+`;
+const AiRefineRow = styled.div`display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap;`;
 const RoleGrid = styled.div`display: grid; gap: 6px; grid-template-columns: 1fr;`;
 const RoleRow = styled.div`display: grid; gap: 8px; grid-template-columns: 100px 1fr; align-items: center;`;
 const RoleTag = styled.span`

@@ -1167,7 +1167,11 @@
       "sales": "영업",
       "ops": "운영",
       "custom": "기타"
-    }
+    },
+    "aiRefineLabel": "AI 에게 요청해서 고쳐 넣기 (선택)",
+    "aiRefinePh": "예) 디자인 검수 단계를 하나 추가하고, 개발 기간을 2일씩 늘려줘",
+    "aiRefineHint": "이번에 넣을 업무만 고쳐요. 템플릿 원본은 그대로예요.",
+    "aiRefineGo": "AI 로 고쳐서 미리보기"
   },
   "ai": {
     "btn": "AI 로 만들기",
@@ -1303,7 +1307,8 @@
     "truncatedPartial": "결과가 길어 앞쪽 {{count}}개까지만 만들었어요. 빠진 업무는 따로 요청해 주세요.",
     "truncatedOneoff": "결과가 너무 길어 잘렸어요. 업무를 몇 묶음으로 나눠서 다시 요청해 주세요.",
     "tooManyItems": "한 번에 {{max}}개까지 추가할 수 있어요. {{got}}개를 적으셨어요 — 나눠서 추가해 주세요.",
-    "assigneeDefaultMe": "나 (기본)"
+    "assigneeDefaultMe": "나 (기본)",
+    "fromTemplate": "템플릿 «{{name}}» 에서 시작 — 아래 [다시 만들기] 에 요청을 적으면 고쳐서 다시 보여줘요. 템플릿 원본은 그대로예요."
   },
   "bar": {
     "resumeTitle": "이 업무 진행 중",

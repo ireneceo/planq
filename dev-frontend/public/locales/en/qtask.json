@@ -1167,7 +1167,11 @@
       "sales": "Sales",
       "ops": "Ops",
       "custom": "Other"
-    }
+    },
+    "aiRefineLabel": "Ask AI to adjust before adding (optional)",
+    "aiRefinePh": "e.g. Add a design review step and extend development by 2 days each",
+    "aiRefineHint": "Only the tasks you add now change. The template itself stays as is.",
+    "aiRefineGo": "Adjust with AI and preview"
   },
   "ai": {
     "btn": "Create with AI",
@@ -1303,7 +1307,8 @@
     "truncatedPartial": "The result was long, so only the first {{count}} tasks were made. Ask again for the rest.",
     "truncatedOneoff": "The result was too long and got cut off. Split the tasks into a few smaller requests.",
     "tooManyItems": "You can add up to {{max}} at once. You listed {{got}} — please add them in smaller batches.",
-    "assigneeDefaultMe": "Me (default)"
+    "assigneeDefaultMe": "Me (default)",
+    "fromTemplate": "Started from template \"{{name}}\" — type a request in [Regenerate] below to adjust it again. The template itself stays as is."
   },
   "bar": {
     "resumeTitle": "In progress",

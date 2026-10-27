@@ -495,7 +495,15 @@ async function planTasksFromPrompt({ prompt, businessId, projectContext, members
     const brief = baseCandidates.slice(0, 30).map((c, i) => {
       const t = String(c.title || '').slice(0, 120);
       const d = String(c.description || '').slice(0, 200);
-      return `${i + 1}. ${t}${d ? ` — ${d}` : ''}`;
+      // 2026-10-27 — 일정·역할도 같이 준다. 제목·설명만 주면 템플릿에서 시작한 목록의 D+ 일정·역할이 재생성 때 사라졌다.
+      const so = Number.isFinite(Number(c.start_offset_days)) ? Number(c.start_offset_days) : null;
+      const dd = Number.isFinite(Number(c.due_offset_days)) ? Number(c.due_offset_days) : null;
+      const extra = [
+        so != null && dd != null ? `D+${so}~D+${dd}` : null,
+        Number(c.estimated_hours) > 0 ? `${Number(c.estimated_hours)}h` : null,
+        c.assignee_hint ? `assignee_hint=${String(c.assignee_hint).slice(0, 40)}` : null,
+      ].filter(Boolean).join(', ');
+      return `${i + 1}. ${t}${d ? ` — ${d}` : ''}${extra ? ` [${extra}]` : ''}`;
     }).join('\n');
     userPrompt += (language === 'en'
       ? '\n\n[Current task list — revise THIS list. Keep items the instructions do not mention, unchanged]\n'

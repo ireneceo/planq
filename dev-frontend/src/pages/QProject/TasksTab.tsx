@@ -8,7 +8,7 @@ import TaskCreateForm from '../../components/QTask/TaskCreateForm';
 import ProjectTaskList from './ProjectTaskList';
 import TaskDetailDrawer from '../../components/QTask/TaskDetailDrawer';
 import { responsiveDrawerWidth } from '../../utils/responsiveDrawer';
-import AiTaskCreateModal from '../../components/QTask/AiTaskCreateModal';
+import AiTaskCreateModal, { type AiSeed } from '../../components/QTask/AiTaskCreateModal';
 import TemplateSelectModal from '../../components/QTask/TemplateSelectModal';
 import TemplateSaveModal from '../../components/QTask/TemplateSaveModal';
 import AiActionButton from '../../components/Common/AiActionButton';
@@ -97,6 +97,8 @@ const TasksTab: React.FC<Props> = ({ projectId, businessId, projectName, tasks, 
   };
   const [adding, setAdding] = useState<null | 'top' | 'bottom'>(null);
   const [aiOpen, setAiOpen] = useState(false);
+  // 템플릿 적용 화면에서 «AI 로 고쳐 넣기» — 템플릿 항목으로 AI 업무추가를 연다(닫으면 비운다).
+  const [aiSeed, setAiSeed] = useState<AiSeed | null>(null);
   const [tplOpen, setTplOpen] = useState(false);
   const [tplInitialId, setTplInitialId] = useState<number | null>(null);
   const [tplSaveOpen, setTplSaveOpen] = useState(false);
@@ -289,10 +291,11 @@ const TasksTab: React.FC<Props> = ({ projectId, businessId, projectName, tasks, 
       )}
       <AiTaskCreateModal
         open={aiOpen}
-        onClose={() => setAiOpen(false)}
+        onClose={() => { setAiOpen(false); setAiSeed(null); }}
         businessId={businessId}
         projectId={projectId}
         projectFixed
+        seed={aiSeed}
         members={members}
         onCreated={() => { onRefresh(); }}
         onUseTemplate={(id) => { setAiOpen(false); setTplInitialId(id); setTplOpen(true); }}
@@ -305,6 +308,7 @@ const TasksTab: React.FC<Props> = ({ projectId, businessId, projectName, tasks, 
         members={members}
         onApplied={() => { onRefresh(); }}
         initialTemplateId={tplInitialId}
+        onRefineWithAi={(seed) => { setTplOpen(false); setTplInitialId(null); setAiSeed(seed); setAiOpen(true); }}
       />
       <TemplateSaveModal
         open={tplSaveOpen}

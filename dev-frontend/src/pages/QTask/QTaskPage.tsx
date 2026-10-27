@@ -30,7 +30,7 @@ import { responsiveDrawerWidth } from '../../utils/responsiveDrawer';
 import { plainToHtml } from '../../utils/plainToHtml';
 import { takeVoiceHandoff, type VoiceHandoff } from '../../utils/voiceHandoff';
 import { identityText } from '../../components/Common/IdentityContext';
-import AiTaskCreateModal from '../../components/QTask/AiTaskCreateModal';
+import AiTaskCreateModal, { type AiSeed } from '../../components/QTask/AiTaskCreateModal';
 import TemplateSelectModal from '../../components/QTask/TemplateSelectModal';
 import CueTaskBar from '../../components/QTask/CueTaskBar';
 import AiActionButton from '../../components/Common/AiActionButton';
@@ -287,6 +287,8 @@ const QTaskPage:React.FC=()=>{
   const [seriesAsk, setSeriesAsk] = useState<{ taskId: number; patch: Record<string, unknown> } | null>(null);
   const[members,setMembers]=useState<MemberOption[]>(()=>readCache<MemberOption[]>(cacheKey('qtask-members',myId,bizId))??[]);
   const[aiOpen,setAiOpen]=useState(false);
+  // 템플릿 적용 화면에서 «AI 로 고쳐 넣기» — 템플릿 항목으로 AI 업무추가를 연다(닫으면 비운다).
+  const[aiSeed,setAiSeed]=useState<AiSeed|null>(null);
   const[tplSelOpen,setTplSelOpen]=useState(false);
   const[tplSelInitialId,setTplSelInitialId]=useState<number|null>(null);
   // 인라인 "아래에 업무 추가" — ProjectTaskList 와 동일 패턴
@@ -3295,8 +3297,9 @@ const QTaskPage:React.FC=()=>{
       {bizId && (
         <AiTaskCreateModal
           open={aiOpen}
-          onClose={()=>setAiOpen(false)}
+          onClose={()=>{ setAiOpen(false); setAiSeed(null); }}
           businessId={bizId}
+          seed={aiSeed}
           projectId={null}
           projects={projects}
           members={members.map(m=>({user_id:m.user_id,name:m.name}))}
@@ -3313,6 +3316,7 @@ const QTaskPage:React.FC=()=>{
           members={members.map(m=>({user_id:m.user_id,name:m.name}))}
           onApplied={()=>{ /* socket task:new 가 자동 반영 */ }}
           initialTemplateId={tplSelInitialId}
+          onRefineWithAi={(seed)=>{ setTplSelOpen(false); setTplSelInitialId(null); setAiSeed(seed); setAiOpen(true); }}
         />
       )}
     </PanelLayout>

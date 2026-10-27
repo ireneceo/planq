@@ -907,6 +907,24 @@ router.post('/ai-create/confirm', authenticateToken, async (req, res, next) => {
       }
     }
 
+    // 2026-10-27 — 템플릿에서 시작해 AI 로 고쳐 넣은 경우(템플릿 적용 → «AI 로 고쳐 넣기»). /apply 를 거치지 않으므로
+    //   사용 횟수(목록 정렬)·적용 감사를 여기서 남긴다. 이 워크스페이스 것이거나 시스템 템플릿일 때만.
+    const srcTplId = Number(req.body.source_template_id);
+    if (Number.isInteger(srcTplId) && srcTplId > 0 && created.length > 0) {
+      try {
+        const { TaskTemplate } = require('../models');
+        const tpl = await TaskTemplate.findByPk(srcTplId);
+        if (tpl && (tpl.is_system || Number(tpl.business_id) === Number(business_id))) {
+          await tpl.increment('usage_count', { by: 1 });
+          await writeAudit({
+            user_id: req.user.id, business_id,
+            action: 'task_template.apply', target_type: 'task_template', target_id: tpl.id,
+            new_value: { project_id: project_id || null, task_count: created.length, via: 'ai_refine' },
+          }).catch(() => null);
+        }
+      } catch (e) { console.warn('[ai-create/confirm] template usage', e.message); }
+    }
+
     // #354 — 착지 결과를 전부 실어 보낸다. 모달이 "영역 3개 만들고 2개는 기존 것 재사용, 업무 16건,
     //   링크 12건" 을 그대로 보여줄 수 있어야 부분 성공도 사용자가 읽을 수 있다.
     return successResponse(res, {

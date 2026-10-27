@@ -1,7 +1,7 @@
 // AI 업무 추가 모달 — /docs (PostAiModal) 와 1:1 동일 디자인.
 // Backdrop + Dialog + Header + Body + FormActions 전부 PostAiModal 패턴 복제.
 // 자연어 한 줄 → AI 가 다중 업무 분해 → 미리보기 → 일괄 확정.
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 // 연결 입력 문구는 한 곳에서 온다 (화면마다 적으면 갈라진다)
 import { CONNECT_PROMPT } from '../../components/Common/connectPrompts';
 import styled from 'styled-components';
@@ -40,6 +40,20 @@ interface Props {
   initialPrompt?: string;
   /** 만든 업무를 이 고객의 업무로(tasks.client_id). 서버가 이 워크스페이스 고객인지 다시 확인한다. */
   clientId?: number | null;
+  /** 템플릿에서 시작 — 템플릿 적용 화면의 «AI 로 고쳐 넣기»(2026-10-27). 열자마자 템플릿 항목을 미리보기로 놓고,
+   *  요청이 있으면 그 요청으로 한 번 고친다(기존 재생성 = 직전 후보 + 누적 지시). 템플릿 원본은 바꾸지 않는다. */
+  seed?: AiSeed | null;
+}
+
+export interface AiSeed {
+  templateId: number;
+  templateName: string;
+  prompt: string;
+  baseDate: string;
+  candidates: AiCandidate[];
+  instruction?: string;
+  /** 템플릿 화면에서 사람이 정한 «역할 → 담당자». AI 가 다시 만든 뒤에도 같은 역할이면 이 사람을 다시 앉힌다. */
+  roleAssignees?: Record<string, number | null>;
 }
 
 interface TemplateMatch {
@@ -53,7 +67,7 @@ interface TemplateMatch {
 
 type Stage = 'input' | 'loading' | 'preview';
 
-export default function AiTaskCreateModal({ open, onClose, businessId, projectId, projectFixed, projects = [], members, onCreated, onUseTemplate, initialPrompt, clientId }: Props) {
+export default function AiTaskCreateModal({ open, onClose, businessId, projectId, projectFixed, projects = [], members, onCreated, onUseTemplate, initialPrompt, clientId, seed }: Props) {
   const { t } = useTranslation('qtask');
   const { t: tc } = useTranslation('common');   // 연결 문구 정본
   const { t: tErr } = useTranslation('errors');
@@ -92,6 +106,9 @@ export default function AiTaskCreateModal({ open, onClose, businessId, projectId
   }, [selectedProjectId]);
 
   const [baseDate, setBaseDate] = useState<string>(new Date().toISOString().slice(0, 10));
+  // 템플릿에서 시작할 때 처음 한 번 보낼 요청 — generate 는 early return 아래 정의라 ref 로 부른다.
+  const seedInsRef = useRef<string | null>(null);
+  const generateRef = useRef<((ins?: string) => Promise<void>) | null>(null);
   // AI 템플릿 추천 — input 단계에서 prompt debounce 매칭
   const [recMatch, setRecMatch] = useState<TemplateMatch | null>(null);
   const [recDismissed, setRecDismissed] = useState(false);
@@ -114,9 +131,19 @@ export default function AiTaskCreateModal({ open, onClose, businessId, projectId
       // #312 누적 지시도 같이 초기화 — 안 하면 지난 번 프롬프트에 준 지시가 새 세션에 얹혀
       //   엉뚱한 결과가 나온다(모달이 언마운트되지 않고 open prop 으로만 여닫히기 때문).
       setAiInstructions([]);
+      // 템플릿에서 시작 — 입력 단계를 건너뛰고 템플릿 항목을 그대로 미리보기로. 요청은 아래 이펙트가 한 번 보낸다.
+      if (seed) {
+        setPrompt(seed.prompt);
+        setBaseDate(seed.baseDate);
+        setCandidates(seed.candidates.map(c => ({ ...c, selected: true })));
+        setStage('preview');
+        seedInsRef.current = seed.instruction?.trim() || null;
+      } else {
+        seedInsRef.current = null;
+      }
       // autoFocus 제거 — 모달이 길면 textarea 위치로 스크롤 점프해서 헤더/탭이 안 보임
     }
-  }, [open, projectId, initialPrompt]);
+  }, [open, projectId, initialPrompt, seed]);
 
   // 추천 매칭 — prompt 변경 시 600ms debounce + 이전 요청 취소(AbortController).
   // onUseTemplate 미제공이면 호출 안 함(배너 못 띄우므로 비용 0).
@@ -160,6 +187,14 @@ export default function AiTaskCreateModal({ open, onClose, businessId, projectId
   // 출력 상한에서 잘려 서버가 앞쪽 업무만 건졌다 — 조용히 일부만 보여주지 않는다.
   const [partial, setPartial] = useState(false);
 
+  // 템플릿 항목이 미리보기에 놓인 다음 렌더에서 요청을 보낸다(prompt·후보 state 가 반영된 뒤여야 base 로 실린다).
+  useEffect(() => {
+    if (!open || stage !== 'preview' || !seedInsRef.current) return;
+    const ins = seedInsRef.current;
+    seedInsRef.current = null;
+    void generateRef.current?.(ins);
+  }, [open, stage, candidates]);
+
   if (!open) return null;
 
   const generate = async (instruction?: string) => {
@@ -168,7 +203,12 @@ export default function AiTaskCreateModal({ open, onClose, businessId, projectId
     setError(null);
     setStage('loading');
     const nextInstructions = [...aiInstructions, ...(instruction ? [instruction] : [])];
-    const baseCandidates = candidates.map((c) => ({ title: c.title, description: c.description }));
+    // 일정·역할도 같이 — 템플릿에서 시작한 목록의 D+ 일정이 고치는 동안 사라지지 않게(서버 brief 가 읽는다).
+    const baseCandidates = candidates.map((c) => ({
+      title: c.title, description: c.description,
+      start_offset_days: c.start_offset_days, due_offset_days: c.due_offset_days,
+      estimated_hours: c.estimated_hours, assignee_hint: c.assignee_hint,
+    }));
     try {
       const r = await apiFetch('/api/tasks/ai-create', {
         method: 'POST',
@@ -218,8 +258,10 @@ export default function AiTaskCreateModal({ open, onClose, businessId, projectId
       // 힌트 이름이 기존 그룹과 맞으면 **미리 골라 둔다** — 사용자가 매번 같은 선택을 반복할 이유가 없다.
       //   비교 규칙은 서버(routes/tasks.js matchWorkstream)와 같다: 공백·대소문자만 무시.
       const wsNorm = new Map(workstreams.map((w) => [w.title.replace(/\s+/g, '').toLowerCase(), w.id]));
+      const roleMap = seed?.roleAssignees || {};
       const list: Candidate[] = (j.data?.candidates || []).map((c: Candidate) => ({
         ...c,
+        ...(c.assignee_hint && roleMap[c.assignee_hint] ? { assignee_user_id: roleMap[c.assignee_hint] } : {}),
         selected: true,
         workstream_id: c.workstream_hint
           ? (wsNorm.get(String(c.workstream_hint).replace(/\s+/g, '').toLowerCase()) ?? null)
@@ -250,6 +292,8 @@ export default function AiTaskCreateModal({ open, onClose, businessId, projectId
     }
   };
 
+  generateRef.current = generate;
+
   const updateCand = (idx: number, patch: Partial<Candidate>) => {
     setCandidates(prev => prev.map(c => c.idx === idx ? { ...c, ...patch } : c));
   };
@@ -270,6 +314,7 @@ export default function AiTaskCreateModal({ open, onClose, businessId, projectId
           candidates: selected,
           base_date: baseDate,
           ...(clientId ? { context: { client_id: clientId } } : {}),
+          ...(seed ? { source_template_id: seed.templateId } : {}),
           ...(routineMode ? {
             mode: 'routine',
             // 폐기한 영역은 adopted:false 로 그대로 보낸다 — 서버가 "안 만든다" 를 판단한다.
@@ -426,6 +471,11 @@ export default function AiTaskCreateModal({ open, onClose, businessId, projectId
 
           {stage === 'preview' && (
             <AIForm>
+              {seed && (
+                <SeedNote data-testid="ai-task-seed-template">
+                  {t('ai.fromTemplate', { name: seed.templateName, defaultValue: '템플릿 «{{name}}» 에서 시작 — 아래 [다시 만들기] 에 요청을 적으면 고쳐서 다시 보여줘요. 템플릿 원본은 그대로예요.' }) as string}
+                </SeedNote>
+              )}
               {reasoning && <ReasoningBox>{reasoning}</ReasoningBox>}
               {partial && (
                 <NoticeMsg role="status">
@@ -601,6 +651,7 @@ const FieldTextarea = styled.textarea`
 `;
 const ErrorMsg = styled.div`font-size:0.75rem;color:#DC2626;background:#FEF2F2;padding:8px 10px;border-radius:6px;`;
 // #237 — 실패가 아니라 안내(업무는 생성됨). 실패와 같은 빨강을 쓰지 않는다.
+const SeedNote = styled.div`font-size:0.75rem;color:#0F766E;background:#F0FDFA;border:1px solid #CCFBF1;padding:8px 10px;border-radius:6px;`;
 const NoticeMsg = styled.div`font-size:0.75rem;color:#B45309;background:#FFFBEB;padding:8px 10px;border-radius:6px;`;
 
 // AI 템플릿 추천 배너 — subtle info 톤 (memory feedback_ai_recommendation_threshold). 강제 아님.
