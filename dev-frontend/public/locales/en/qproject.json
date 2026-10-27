@@ -635,7 +635,8 @@
       "deleteWithFilesAction": "Delete files too",
       "deleteBlocked": "{{n}} file(s) in this folder can’t be deleted by you. You can move the files to the parent folder and delete only the folder.",
       "deleteChoiceTrashWithDays": "“Delete files too” sends the files to the trash. You can restore them within {{days}} days.",
-      "starred": "Favorite"
+      "starred": "Favorite",
+      "subfolders": "Subfolders"
     },
     "up": {
       "aria": "Upload progress",

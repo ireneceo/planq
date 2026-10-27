@@ -10,6 +10,7 @@ import { FolderSvg, FolderMoveSvg } from './docs/treeIcons';
 import { BulkBar, BulkBarLeft, BulkBarRight, BulkBtnSep, BulkBtn } from './docs/bulkBarStyles';
 import ProjectGroups from './docs/ProjectGroups';
 import FolderTree from './docs/FolderTree';
+import SubfolderStrip, { childFoldersOf } from './docs/SubfolderStrip';
 import type { FolderSel } from './docs/folderSel';
 import { useFileOpen } from './docs/useFileOpen';
 import { srcsOf, homeSrcOf, sourceShortLabel, srcStyle } from './docs/fileSource';
@@ -1458,6 +1459,11 @@ const DocsTab: React.FC<Props> = (props) => {
           )}
           <ShareRevokeDialog businessId={businessId} fileId={shareRevokeAsk} onClose={() => setShareRevokeAsk(null)} onDone={(fid) => setShareLinkInfo((cur) => (cur && cur.fileId === fid ? null : cur))} onError={setShareError} />
 
+          {/* 운영 #468 — 고른 폴더의 하위 폴더를 목록 위에(트리에만 있으면 «안 보인다» 가 된다) */}
+          {!loading && typeof folderSel === 'number' && (
+            <SubfolderStrip folders={folders} parentId={folderSel} counts={counts.byFolder} tr={tr}
+              onOpen={id => { setFolderSel(id); clearSelection(); }} />
+          )}
           {/* data-testid — 하니스가 "재진입에 또 로딩되는가" 를 판정하는 신호(CLAUDE.md §17) */}
           {loading ? (
             view === 'grid' ? (
@@ -1485,7 +1491,7 @@ const DocsTab: React.FC<Props> = (props) => {
                 title={t('docs.loadError.title', '파일을 불러오지 못했습니다')}
                 description={t('docs.loadError.desc', '잠시 후 다시 시도해 주세요. 계속 안 되면 네트워크 연결을 확인해 주세요.')}
               />
-            ) : files.length === 0 ? (
+            ) : files.length === 0 && !(typeof folderSel === 'number' && childFoldersOf(folders, folderSel).length) ? (
               // 쓰던 자료를 옮겨 와야 하는 첫 화면 — 워크스페이스 Q file 에서만 무료 «시작 안내 30분»(자료 옮기기)을 알린다.
               //   유료 서비스(대량 이전)는 앱에 적지 않는다(docs/TRUST_SERVICES_DESIGN.md D4).
               <EmptyState
