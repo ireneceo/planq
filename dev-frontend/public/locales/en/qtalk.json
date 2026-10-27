@@ -253,11 +253,11 @@
     "default": "Default",
     "addMember": "Add member",
     "defaultHelp": "“Default” = when tasks are auto-extracted and no assignee matches, they go to this person.",
-    "clientContacts": "Client contacts (invite link)",
+    "clientContacts": "Client contacts",
     "clientNamePlaceholder": "Name",
     "clientEmailPlaceholder": "Email",
     "addClient": "Add",
-    "clientHelp": "On save, the invite link is copied to clipboard. (Email sending coming soon.)",
+    "clientHelp": "Search to connect a client you already have. Adding a new name and email creates an invite link (no email is sent).",
     "channels": "Chat channels",
     "channelsHelp": "Two channels are created on project creation. Adjust names and participants.",
     "customerChannel": "Customer channel",
@@ -274,7 +274,10 @@
     "disableChannel": "Turn off channel",
     "enableChannel": "Turn on channel",
     "rolesHelp": "Click a role to change it, or type a new one to add it. Roles are shared across the workspace.",
-    "manageRoles": "Manage roles"
+    "manageRoles": "Manage roles",
+    "clientSearchPlaceholder": "Search existing clients",
+    "clientNewTag": "New invite",
+    "clientRemove": "Remove"
   },
   "chat": {
     "noProject": "Start a conversation",

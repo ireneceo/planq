@@ -10,6 +10,8 @@ import RoleManageModal from '../../components/MemberRole/RoleManageModal';
 import { useMemberRoleDict } from '../../components/MemberRole/useMemberRoleDict';
 import { useAuth } from '../../contexts/AuthContext';
 import { PROJECT_COLOR_PALETTE } from '../../utils/projectColors';
+import { Field, Label, Input, HelpText, RemoveBtn } from './newProjectFormStyles';
+import NewProjectClientsField, { type ClientInput } from './NewProjectClientsField';
 
 interface Props {
   businessId: number;
@@ -31,7 +33,10 @@ export interface ProjectFormData {
   project_type: 'fixed' | 'ongoing';
   kind?: 'client' | 'internal';
   members: MemberInput[];
-  clients: ClientInput[];
+  /** 새로 초대하는 연락처(이름·이메일) — 기존 고객은 client_ids 로 따로 */
+  clients: { name: string; email: string }[];
+  /** 검색해 고른 이 워크스페이스의 기존 고객 */
+  client_ids: number[];
   channels: ChannelInput[];
 }
 
@@ -46,11 +51,6 @@ interface MemberInput {
   name: string;
   role: string | null;
   is_default: boolean;
-}
-
-interface ClientInput {
-  name: string;
-  email: string;
 }
 
 
@@ -84,8 +84,6 @@ const NewProjectModal: React.FC<Props> = ({ businessId, open, onClose, onCreate,
     if (!nm) return;
     setClients((prev) => (prev.some((c) => c.name === nm) ? prev : [...prev, { name: nm, email: prefillClient.email || '' }]));
   }, [open, prefillClient]);
-  const [newClientName, setNewClientName] = useState('');
-  const [newClientEmail, setNewClientEmail] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [datePickerOpen, setDatePickerOpen] = useState(false);
   const dateAnchorRef = useRef<HTMLButtonElement>(null);
@@ -130,7 +128,6 @@ const NewProjectModal: React.FC<Props> = ({ businessId, open, onClose, onCreate,
       setName(''); setClientCompany(''); setClientEmail('');
       setDescription(''); setStartDate(''); setEndDate('');
       setMembers([]); setClients([]);
-      setNewClientName(''); setNewClientEmail('');
       setCustomerChatName(''); setInternalChatName('');
       setCustomerParticipants(new Set()); setInternalParticipants(new Set());
       // #95 — 채팅방 생성 토글도 기본값 복원. 옛 버그: 이전에 끈 상태가 남아 다음 생성 때 의도와 다르게 동작.
@@ -177,17 +174,6 @@ const NewProjectModal: React.FC<Props> = ({ businessId, open, onClose, onCreate,
     setMembers(members.map((m) => ({ ...m, is_default: m.user_id === userId })));
   };
 
-  const addClient = () => {
-    if (!newClientName.trim()) return;
-    setClients([...clients, { name: newClientName.trim(), email: newClientEmail.trim() }]);
-    setNewClientName('');
-    setNewClientEmail('');
-  };
-
-  const removeClient = (idx: number) => {
-    setClients(clients.filter((_, i) => i !== idx));
-  };
-
   const handleCreate = async () => {
     if (!name.trim() || submitting) return;
     setSubmitting(true);
@@ -203,7 +189,8 @@ const NewProjectModal: React.FC<Props> = ({ businessId, open, onClose, onCreate,
         project_type: projectType,
         kind: isInternal ? 'internal' : 'client',
         members,
-        clients,
+        clients: clients.filter((c) => !c.client_id).map((c) => ({ name: c.name, email: c.email })),
+        client_ids: clients.map((c) => c.client_id).filter((id): id is number => !!id),
         channels: [
           ...(createCustomerChannel ? [{ channel_type: 'customer' as const, name: customerChatName.trim() || t('newProject.customerChannelName', { defaultValue: '{{name}} 고객', name: name.trim() }), participant_user_ids: Array.from(customerParticipants) }] : []),
           ...(createInternalChannel ? [{ channel_type: 'internal' as const, name: internalChatName.trim() || t('newProject.internalChannelName', { defaultValue: '{{name}} 내부', name: name.trim() }), participant_user_ids: Array.from(internalParticipants) }] : []),
@@ -417,44 +404,8 @@ const NewProjectModal: React.FC<Props> = ({ businessId, open, onClose, onCreate,
             <HelpText>{t('modal.defaultHelp', '“기본” = 회의·대화에서 업무를 자동으로 뽑을 때 담당자를 못 찾으면 이 사람에게 맡깁니다.')}</HelpText>
           </Field>
 
-          {/* 고객 참여자 */}
-          <Field>
-            <Label>{t('modal.clientContacts', '고객 참여자 (초대 링크 생성)')}</Label>
-            <ClientList>
-              {clients.map((c, i) => (
-                <ClientRow key={i}>
-                  <LetterAvatar name={c.name} size={24} />
-                  <ClientName>{c.name}</ClientName>
-                  <ClientEmail>{c.email}</ClientEmail>
-                  <RemoveBtn onClick={() => removeClient(i)}>
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                      <line x1="18" y1="6" x2="6" y2="18" />
-                      <line x1="6" y1="6" x2="18" y2="18" />
-                    </svg>
-                  </RemoveBtn>
-                </ClientRow>
-              ))}
-              <NewClientRow>
-                <Input
-                  value={newClientName}
-                  onChange={(e) => setNewClientName(e.target.value)}
-                  placeholder={t('modal.clientNamePlaceholder', '이름')}
-                  style={{ flex: '0 0 120px' }}
-                />
-                <Input
-                  value={newClientEmail}
-                  onChange={(e) => setNewClientEmail(e.target.value)}
-                  placeholder={t('modal.clientEmailPlaceholder', '이메일') as string}
-                  type="email"
-                  style={{ flex: 1 }}
-                />
-                <AddClientBtn onClick={addClient} disabled={!newClientName.trim()}>
-                  {t('modal.addClient', '추가')}
-                </AddClientBtn>
-              </NewClientRow>
-            </ClientList>
-            <HelpText>{t('modal.clientHelp', '저장 시 초대 링크가 클립보드에 복사됩니다. (이메일 발송은 추후 지원)')}</HelpText>
-          </Field>
+          {/* 고객 참여자 — 기존 고객 검색·연결 + 새 연락처 초대 */}
+          <NewProjectClientsField businessId={businessId} open={open} clients={clients} onChange={setClients} />
 
           {/* Q Talk 채널 설정 — 채널 종류별 토글 + 이름·참여자 */}
           <Field>
@@ -518,11 +469,6 @@ const NewProjectModal: React.FC<Props> = ({ businessId, open, onClose, onCreate,
 export default NewProjectModal;
 
 // ─────────────────────────────────────────────
-const Field = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-`;
 
 const TypeRow = styled.div`display:flex;gap:8px;`;
 const KindCheckRow = styled.div`
@@ -548,11 +494,6 @@ const Row = styled.div`
   & > ${Field} { flex: 1; min-width: 0; }
 `;
 
-const Label = styled.label`
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: #475569;
-`;
 
 const Required = styled.span`
   color: #F43F5E;
@@ -560,23 +501,6 @@ const Required = styled.span`
 
 const DateTrigger = styled.button`width:100%;padding:8px 10px;border:1px solid #E2E8F0;border-radius:8px;font-size:0.8125rem;color:#0F172A;background:#FFF;font-family:inherit;text-align:left;cursor:pointer;&:hover{border-color:#14B8A6;}&:focus{outline:none;border-color:#14B8A6;box-shadow:0 0 0 2px rgba(20,184,166,0.15);}`;
 const DatePlaceholder = styled.span`color:#94A3B8;`;
-const Input = styled.input`
-  width: 100%; min-width: 0; box-sizing: border-box;
-  padding: 9px 12px;
-  background: #F8FAFC;
-  border: 1px solid #E2E8F0;
-  border-radius: 8px;
-  font-size: 0.8125rem;
-  color: #0F172A;
-  font-family: inherit;
-  &::placeholder { color: #94A3B8; }
-  &:focus {
-    outline: none;
-    border-color: #14B8A6;
-    background: #FFFFFF;
-    box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.1);
-  }
-`;
 
 const TextArea = styled.textarea`
   padding: 9px 12px;
@@ -596,11 +520,6 @@ const TextArea = styled.textarea`
   }
 `;
 
-const HelpText = styled.div`
-  font-size: 0.6875rem;
-  color: #94A3B8;
-  margin-top: 2px;
-`;
 
 const ManageRolesBtn = styled.button`
   border: none;
@@ -652,19 +571,6 @@ const DefaultCheck = styled.label`
   input { accent-color: #F43F5E; }
 `;
 
-const RemoveBtn = styled.button`
-  width: 22px;
-  height: 22px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: transparent;
-  border: none;
-  border-radius: 4px;
-  color: #94A3B8;
-  cursor: pointer;
-  &:hover { background: #FEE2E2; color: #DC2626; }
-`;
 
 const AddMemberRow = styled.div`
   display: flex;
@@ -697,39 +603,10 @@ const AddMemberChip = styled.button`
   &:hover { border-color: #14B8A6; color: #0F766E; }
 `;
 
-const ClientList = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-`;
 
-const ClientRow = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 10px;
-  background: #F8FAFC;
-  border: 1px solid #E2E8F0;
-  border-radius: 8px;
-`;
 
-const ClientName = styled.div`
-  font-size: 0.8125rem;
-  color: #0F172A;
-  font-weight: 500;
-`;
 
-const ClientEmail = styled.div`
-  flex: 1;
-  font-size: 0.6875rem;
-  color: #64748B;
-`;
 
-const NewClientRow = styled.div`
-  display: flex;
-  gap: 6px;
-  align-items: center;
-`;
 
 const ChannelCard = styled.div<{ $disabled?: boolean }>`padding:12px;border:1px solid ${p=>p.$disabled?'#E2E8F0':'#99F6E4'};border-radius:8px;margin-top:8px;display:flex;flex-direction:column;gap:8px;background:${p=>p.$disabled?'#FAFBFC':'#F0FDFA'};transition:background 0.15s,border-color 0.15s;`;
 const ChannelHeaderRow = styled.div`display:flex;align-items:center;justify-content:space-between;`;
@@ -744,19 +621,6 @@ const SwitchSlider = styled.span`position:absolute;inset:0;background:#CBD5E1;bo
 const ChannelMembers = styled.div`display:flex;flex-direction:column;gap:4px;`;
 const ChannelMembersList = styled.div`display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:4px;max-height:140px;overflow-y:auto;padding:4px;background:#F8FAFC;border-radius:6px;`;
 const ChannelMemberChk = styled.label`display:flex;align-items:center;gap:6px;font-size:0.6875rem;color:#0F172A;cursor:pointer;padding:2px 4px;border-radius:4px;&:hover{background:#F0FDFA;}input{accent-color:#14B8A6;cursor:pointer;}`;
-const AddClientBtn = styled.button`
-  padding: 8px 14px; flex-shrink: 0; white-space: nowrap;
-  background: #0D9488;
-  color: #FFFFFF;
-  border: none;
-  border-radius: 8px;
-  font-size: 0.75rem;
-  font-weight: 600;
-  cursor: pointer;
-  flex-shrink: 0;
-  &:hover:not(:disabled) { background: #0F766E; }
-  &:disabled { background: #CBD5E1; cursor: not-allowed; }
-`;
 
 
 const SwatchRow = styled.div`

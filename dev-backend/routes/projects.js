@@ -307,6 +307,7 @@ router.post('/', authenticateToken, async (req, res, next) => {
       kind,              // 내부/고객 구분 (client|internal)
       stage_template,    // Phase D+1: 거래 시퀀스 템플릿 (fixed/subscription/consulting/custom)
       members = [], clients = [], channels,
+      client_ids = [],   // 검색해 고른 기존 고객(이 워크스페이스) — 행동 계층 clientIds 와 같은 규칙(AI create_project 도 쓴다)
     } = req.body || {};
     if (!business_id || !name?.trim()) return errorResponse(res, 'business_id and name are required', 400);
     const { createProject } = require('../services/actions/project_actions');
@@ -314,6 +315,7 @@ router.post('/', authenticateToken, async (req, res, next) => {
       businessId: business_id, name, description, clientCompany: client_company, startDate: start_date, endDate: end_date,
       color, projectType: project_type, kind, stageTemplate: stage_template, visibility: req.body?.visibility,
       members: Array.isArray(members) ? members : [], contacts: Array.isArray(clients) ? clients : [], channels,
+      clientIds: Array.isArray(client_ids) ? client_ids : [],
     });
     if (!r.ok) {
       if (r.code === 'quota_exceeded') return res.status(422).json(require('../services/plan').buildQuotaError(r.planCan, business_id));

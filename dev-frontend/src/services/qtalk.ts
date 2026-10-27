@@ -77,8 +77,11 @@ export interface CreateProjectInput {
   end_date?: string;
   color?: string;
   kind?: 'client' | 'internal';
+  project_type?: 'fixed' | 'ongoing';
   members: Array<{ user_id: number; role: string | null; is_default: boolean }>;
   clients: Array<{ name: string; email?: string }>;
+  /** 검색해 고른 기존 고객 id — 이름·이메일로 다시 만들지 않고 그 고객을 붙인다 */
+  client_ids?: number[];
   // #95 — 채널 토글 결과. 비어있으면 백엔드가 대화방을 만들지 않음 (Q Talk·Q Project 경로 일관).
   channels?: Array<{ channel_type: 'customer' | 'internal'; name: string; participant_user_ids: number[] }>;
 }

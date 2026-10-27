@@ -153,8 +153,11 @@ const QProjectPage: React.FC = () => {
         end_date: data.end_date || undefined,
         color: data.color || undefined,
         project_type: data.project_type || 'fixed',
+        // ★ kind 를 안 보내 «내부 프로젝트» 를 체크해도 고객 프로젝트로 생겼다(Q Talk 경로는 보냈다) — 같은 드로어, 같은 값
+        kind: data.kind,
         members: data.members.map(m => ({ user_id: m.user_id, role: m.role, is_default: m.is_default })),
         clients: data.clients.map(c => ({ name: c.name, email: c.email })),
+        client_ids: data.client_ids,
         channels: data.channels,
       })
     });

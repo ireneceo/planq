@@ -1324,8 +1324,11 @@ const QTalkPage: React.FC<QTalkPageProps> = ({ embedded = false, initialConvId =
         end_date: data.end_date || undefined,
         color: data.color || undefined,
         kind: data.kind,
+        // ★ project_type 을 안 보내 «지속 구독» 을 골라도 일시 프로젝트로 생겼다(프로젝트 화면 경로는 보냈다)
+        project_type: data.project_type,
         members: data.members.map((m) => ({ user_id: m.user_id, role: m.role, is_default: m.is_default })),
         clients: data.clients.map((c) => ({ name: c.name, email: c.email })),
+        client_ids: data.client_ids,
         // #95 — 채널 토글 전달 (옛 버그: 누락돼 Q Talk 경로에서 토글 무시 + 항상 채널 0개). Q Project 경로와 일관.
         channels: data.channels,
       });
