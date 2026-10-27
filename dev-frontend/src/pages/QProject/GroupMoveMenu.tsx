@@ -11,8 +11,9 @@
 //      같은 셀 안의 TaskRowActionMenu 는 같은 이유로 이미 createPortal 을 쓴다.
 //   ③ 트리거는 RowMain(button) **밖 형제**여야 한다 — 안에 넣으면 button-in-button 이라
 //      브라우저가 클릭 타깃을 행 열기로 접는다(2026-08-23 실사고).
-import React from 'react';
+import React, { useRef } from 'react';
 import { createPortal } from 'react-dom';
+import { useFloatingPanel } from '../../components/Common/popoverAnchor';
 import { GroupMoveWrap, GroupMoveBtn, GroupMenu, GroupMenuItem, GroupDot } from './ProjectTaskList.styles';
 
 // ★ color 는 **선택이 아니다** — 호출부의 wsColor 가 `color: string | null` 을 요구한다.
@@ -23,9 +24,9 @@ interface Props {
   taskId: number;
   currentWorkstreamId: number | null;
   workstreams: GroupMoveWorkstream[];
-  /** 열려 있는 메뉴의 대상·좌표. 이 행의 것이 아니면 안 그린다. */
-  openAt: { taskId: number; top: number; left: number } | null;
-  onOpen: (at: { taskId: number; top: number; left: number } | null) => void;
+  /** 열려 있는 메뉴의 대상. 이 행의 것이 아니면 안 그린다. */
+  openAt: { taskId: number } | null;
+  onOpen: (at: { taskId: number } | null) => void;
   onAssign: (workstreamId: number | null) => void;
   colorOf: (w: GroupMoveWorkstream, index: number) => string;
   label: string;
@@ -36,26 +37,29 @@ const GroupMoveMenu: React.FC<Props> = ({
   taskId, currentWorkstreamId, workstreams, openAt, onOpen, onAssign, colorOf, label, noneLabel,
 }) => {
   const mine = openAt?.taskId === taskId ? openAt : null;
+  // ★ 자리는 공용 placeFloating (2026-10-27, Irene «업무가 가장 아래에 있으면 드롭다운이 잘려버려. 그룹이 많으면»).
+  //   전엔 늘 버튼 아래(top = 버튼 바닥 + 4)로만 폈다 — 맨 아래 행에서 그룹이 많으면 화면 밖으로 나갔다.
+  //   이제 아래가 모자라면 위로, 위아래 다 모자라면 넓은 쪽에 높이를 맞추고 메뉴 안에서 스크롤한다.
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const { ref: menuRef, style: menuStyle } = useFloatingPanel(mine ? btnRef.current : null, { onDismiss: () => onOpen(null) });
   return (
     <GroupMoveWrap>
       <GroupMoveBtn
+        ref={btnRef}
         data-dropdown
         aria-label={label}
         title={label}
         aria-expanded={!!mine}
         onClick={(e) => {
           e.stopPropagation();
-          if (mine) { onOpen(null); return; }
-          const r = e.currentTarget.getBoundingClientRect();
-          // 포털하면 조상 좌표계를 못 쓴다 — 트리거의 viewport 좌표로 세운다.
-          onOpen({ taskId, top: r.bottom + 4, left: r.left });
+          onOpen(mine ? null : { taskId });
         }}
       >
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /></svg>
         <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><polyline points="6 9 12 15 18 9" /></svg>
       </GroupMoveBtn>
       {mine && createPortal((
-        <GroupMenu data-dropdown $floating style={{ top: mine.top, left: mine.left }} onClick={(e) => e.stopPropagation()}>
+        <GroupMenu ref={menuRef} data-dropdown style={menuStyle} onClick={(e) => e.stopPropagation()}>
           {[...workstreams].sort((a, b) => a.order_index - b.order_index).map((w, i) => (
             <GroupMenuItem key={w.id} $active={currentWorkstreamId === w.id} onClick={() => onAssign(w.id)}>
               <GroupDot style={{ background: colorOf(w, i) }} />{w.title}

@@ -17,6 +17,7 @@ import * as qtalkApi from '../../services/qtalk';
 import { promoteInboxItem, promoteErrorKey } from '../../services/sale';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
 import LetterAvatar from '../../components/Common/LetterAvatar';
+import { placeFloating, anchorStyle } from '../../components/Common/popoverAnchor';
 import EmptyState from '../../components/Common/EmptyState';
 import DetailFallback from '../../components/Common/DetailFallback';
 import PostPreviewModal from '../../components/Docs/PostPreviewModal';
@@ -2583,12 +2584,10 @@ const ChatPanel: React.FC<Props> = ({
         const rect = moreMenu.anchorEl.getBoundingClientRect();
         const MENU_W = 200;
         const MENU_H_EST = canDeleteM ? 84 : 44; // 항목 수 * 42 + padding
-        const spaceBelow = window.innerHeight - rect.bottom;
-        const openUpward = spaceBelow < MENU_H_EST + 16;
-        const top = openUpward ? Math.max(8, rect.top - MENU_H_EST - 6) : rect.bottom + 6;
-        const left = Math.min(window.innerWidth - MENU_W - 8, Math.max(8, rect.right - MENU_W));
+        // 자리는 공용 placeFloating(아래가 모자라면 위로 · 보이는 화면 기준 — 2026-10-27 드롭다운 잘림 통합)
+        const place = placeFloating(rect, { width: MENU_W, height: MENU_H_EST }, { align: 'end', gap: 6 });
         return createPortal(
-          <ToolBarMore role="menu" data-more-menu-popover="1" style={{ position: 'fixed', top, left, right: 'auto' }}>
+          <ToolBarMore role="menu" data-more-menu-popover="1" style={anchorStyle(place)}>
             <ToolBarMoreItem type="button" onClick={(e) => { e.stopPropagation(); setMoreMenu(null); setSelectionMode(true); setSelectedMsgIds(new Set([m.id])); }}>
               {t('chat.action.selectMulti', '여러 메시지 선택')}
             </ToolBarMoreItem>

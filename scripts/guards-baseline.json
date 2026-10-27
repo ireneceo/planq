@@ -371,5 +371,18 @@
     "dev-backend/routes/kb.js": 1,
     "dev-backend/routes/plan.js": 3,
     "dev-backend/routes/schedule_edit.js": 4
+  },
+  "dropdownclip": {
+    "dev-frontend/src/components/Common/CueTip.tsx": 1,
+    "dev-frontend/src/components/Common/LanguageSelector.tsx": 2,
+    "dev-frontend/src/components/Common/SourceHint.tsx": 1,
+    "dev-frontend/src/components/Docs/PostsPage.styles.tsx": 1,
+    "dev-frontend/src/components/Landing/LandingLayout.tsx": 1,
+    "dev-frontend/src/components/Layout/MainLayout.tsx": 1,
+    "dev-frontend/src/components/Layout/WorkspaceSwitcher.tsx": 1,
+    "dev-frontend/src/components/Mail/AddressMenu.tsx": 1,
+    "dev-frontend/src/components/QNote/MemoPopup.tsx": 1,
+    "dev-frontend/src/pages/QTalk/ChatPanel.tsx": 1,
+    "dev-frontend/src/pages/QTalk/EmojiPickerButton.tsx": 1
   }
 }

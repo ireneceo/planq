@@ -25,7 +25,7 @@ interface Props {
 }
 
 const PopoutScopeTitle: React.FC<Props> = ({ value, onChange, labels, ariaLabel, hint }) => {
-  const { open, toggle, close, pos, wrapRef, panelRef } = usePopoverAnchor();
+  const { open, toggle, close, pos, style: menuStyle, wrapRef, panelRef } = usePopoverAnchor();
   const opts: PopoutScope[] = ['today', 'week'];
   return (
     <Wrap ref={wrapRef}>
@@ -38,7 +38,7 @@ const PopoutScopeTitle: React.FC<Props> = ({ value, onChange, labels, ariaLabel,
         </TitleBtn>
       </Title>
       {open && pos && createPortal(
-        <Menu ref={panelRef} role="menu" aria-label={ariaLabel} style={{ top: pos.top, right: pos.right }}>
+        <Menu ref={panelRef} role="menu" aria-label={ariaLabel} style={menuStyle}>
           {opts.map((o) => (
             <MenuItem key={o} type="button" role="menuitemradio" aria-checked={value === o}
               data-testid={`task-popout-tab-${o}`} onClick={() => { close(); onChange(o); }}>

@@ -237,7 +237,7 @@ export const ConvMoreBtn = styled.button.attrs({ className: 'conv-more-btn' })`
   &:focus-visible{opacity:1;outline:1px solid #14B8A6;}
 `;
 export const ConvMenu = styled.div`
-  position:absolute;right:6px;top:calc(100% - 4px);z-index:20;
+  /* 자리(fixed·위아래·높이)는 FloatingMenu(공용 placeFloating) 가 준다 — 2026-10-27 드롭다운 잘림 통합 */
   min-width:160px;padding:4px;background:#FFFFFF;
   border:1px solid #E2E8F0;border-radius:8px;
   box-shadow:0 4px 12px rgba(0,0,0,0.06);

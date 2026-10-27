@@ -67,6 +67,7 @@ import {
 
 import TaskRowActionMenu from '../../components/QTask/TaskRowActionMenu';
 import GroupMoveMenu from './GroupMoveMenu';
+import FloatingMenu from '../../components/Common/FloatingMenu';
 import { GanttHeader, GanttRowTrack, GanttBar, useGanttScrollSync, type GanttRange } from '../../components/Common/GanttTrack';
 import { STATUS_COLOR, displayStatus, getStatusLabel, statusOptionsFor, type StatusCode } from '../../utils/taskLabel';
 import { StatusGlyph } from '../../components/Common/Icons';
@@ -200,7 +201,7 @@ const ProjectTaskList: React.FC<Props> = ({
   //     사용자에게는 "눌러도 아무 일이 없다" 와 구별되지 않는다.
   //     같은 셀 안의 TaskRowActionMenu 는 이 사실을 알고 이미 createPortal 을 쓴다(그 파일 3행 주석).
   //     셀에 `overflow: visible` 을 주는 쪽은 제목 말줄임 계약(#236·#249)을 깨므로 쓰지 않는다.
-  const [groupMenu, setGroupMenu] = useState<{ taskId: number; top: number; left: number } | null>(null);
+  const [groupMenu, setGroupMenu] = useState<{ taskId: number } | null>(null);
   const dateRefs = useRef<Record<number, HTMLButtonElement | null>>({});
 
   // ─── 그룹(워크스트림) 모드 상태 ───
@@ -489,7 +490,7 @@ const ProjectTaskList: React.FC<Props> = ({
               {task.assignee?.name || <span style={{ color: '#CBD5E1' }}>{t('listRow.assigneePlaceholder', '담당자')}</span>}
             </AssigneeLabel>
             {assigneeOpenId === task.id && (
-              <AssigneeDropdown data-dropdown onClick={e => e.stopPropagation()}>
+              <FloatingMenu onDismiss={() => setAssigneeOpenId(null)}><AssigneeDropdown data-dropdown onClick={e => e.stopPropagation()}>
                 {members.length === 0 && <AssigneeOpt>{t('listRow.noMembers', '멤버 없음')}</AssigneeOpt>}
                 <AssigneeOpt $active={!task.assignee_id} onClick={() => { saveField(task.id, 'assignee_id', null); onLocalUpdate(task.id, { assignee: null }); setAssigneeOpenId(null); }}>{t('listRow.noAssignee', '— 없음 —')}</AssigneeOpt>
                 {members.map(m => (
@@ -504,7 +505,7 @@ const ProjectTaskList: React.FC<Props> = ({
                     <AssigneeOptInner><PartnerKindBadge kind={e.kind} size="xs" />{e.name}</AssigneeOptInner>
                   </AssigneeOpt>
                 ))}
-              </AssigneeDropdown>
+              </AssigneeDropdown></FloatingMenu>
             )}
           </TCell>
           <TCell $w={showTimeline ? '60px' : '100px'} $center $hideBelow={640} style={{ position: 'relative', overflow: 'visible' }}>
@@ -514,7 +515,7 @@ const ProjectTaskList: React.FC<Props> = ({
               <StatusGlyph code={task.status} /> {statusLabel}
             </StatusPill>
             {statusOpenId === task.id && (
-              <StatusDropdown data-dropdown>
+              <FloatingMenu align="center" onDismiss={() => setStatusOpenId(null)}><StatusDropdown data-dropdown>
                 {statusOptionsFor(task).map(s => {
                   const c = STATUS_COLOR[s as StatusCode] || STATUS_COLOR.not_started;
                   return (
@@ -524,7 +525,7 @@ const ProjectTaskList: React.FC<Props> = ({
                     </StatusOption>
                   );
                 })}
-              </StatusDropdown>
+              </StatusDropdown></FloatingMenu>
             )}
           </TCell>
           <TCell $w={showTimeline ? '110px' : '180px'} $center $hideBelow={1024}>
@@ -650,12 +651,12 @@ const ProjectTaskList: React.FC<Props> = ({
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg>
               </GroupIconBtn>
               {headerMenuGroupId === gid && (
-                <GroupMenu data-dropdown style={{ right: 0, left: 'auto' }}>
+                <FloatingMenu align="end" onDismiss={() => setHeaderMenuGroupId(null)}><GroupMenu data-dropdown>
                   <GroupMenuItem $danger onClick={() => removeGroup(gid as number)}>
                     {t('list.group.delete', '그룹 삭제')}
                   </GroupMenuItem>
                   <GroupMenuHint>{t('list.group.deleteHint', '소속 업무는 미분류로 이동됩니다')}</GroupMenuHint>
-                </GroupMenu>
+                </GroupMenu></FloatingMenu>
               )}
             </GroupMoveWrap>
           </GroupActions>

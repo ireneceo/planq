@@ -34,7 +34,7 @@ type Props = {
 export default function ChipPopover({
   label, active, prefix, ariaLabel, width = 240, className, children, ...rest
 }: Props) {
-  const { open, toggle, close, pos, wrapRef, panelRef } = usePopoverAnchor();
+  const { open, toggle, close, pos, style: panelStyle, wrapRef, panelRef } = usePopoverAnchor();
   return (
     <Wrap ref={wrapRef} className={className}>
       <Chip
@@ -54,7 +54,7 @@ export default function ChipPopover({
         </ChipCaret>
       </Chip>
       {open && pos && createPortal(
-        <Panel ref={panelRef} role="dialog" aria-label={ariaLabel || label} style={{ top: pos.top, right: pos.right, width }}>
+        <Panel ref={panelRef} role="dialog" aria-label={ariaLabel || label} style={{ ...panelStyle, width }}>
           {children(close)}
         </Panel>,
         document.body,

@@ -22,6 +22,7 @@ import { formatDay } from '../../utils/dateFormat';
 import StarToggle from '../../components/Common/StarToggle';
 import { starFirst, compareManual, compareRecent, hasManualOrder, moveWithin, moveBy, canMove, isStarred } from '../../utils/projectOrder';
 import { useProjectPrefs, type SortBy } from './useProjectPrefs';
+import FloatingMenu from '../../components/Common/FloatingMenu';
 
 // ─── Types ───
 type ViewMode = 'list' | 'timeline' | 'calendar';
@@ -646,7 +647,7 @@ const ListView: React.FC<{
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="19" r="1.5"/></svg>
               </MenuBtn>
               {menuOpen === p.id && (
-                <MenuDropdown onClick={(e) => e.stopPropagation()}>
+                <FloatingMenu align="end" onDismiss={() => setMenuOpen(null)}><MenuDropdown data-project-menu onClick={(e) => e.stopPropagation()}>
                   {/* 순서 옮기기 — 폰(터치는 끌기가 안 된다)·키보드에서도 같은 결과. 끌기와 같은 저장·같은 «직접 정렬» 전환. */}
                   {reorderEnabled && (moves.up || moves.down) && (
                     <>
@@ -693,7 +694,7 @@ const ListView: React.FC<{
                       {tl('card.close', '프로젝트 종료')}
                     </MenuItem>
                   )}
-                </MenuDropdown>
+                </MenuDropdown></FloatingMenu>
               )}
             </MenuWrap>
           </CardHeadRight>
@@ -1322,7 +1323,7 @@ const MenuBtn = styled.button`
   &:focus-visible{ outline:2px solid #14B8A6; outline-offset:-2px; }
 `;
 const MenuDropdown = styled.div`
-  position:absolute; top:calc(100% + 4px); right:0; z-index:20;
+  /* 자리(fixed·위아래·높이)는 FloatingMenu(공용 placeFloating) 가 준다 — 2026-10-27 드롭다운 잘림 통합 */
   min-width:160px; background:#FFFFFF; border:1px solid #E2E8F0; border-radius:8px;
   padding:4px; box-shadow:0 4px 12px rgba(0,0,0,0.08); display:flex; flex-direction:column;
 `;

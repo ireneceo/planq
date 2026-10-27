@@ -1,7 +1,8 @@
 // 업무 row 액션 메뉴 — Q Task / 프로젝트>업무 공통.
 // 사이클 N+22: 6 점 grip(드래그 연상) → 3 점 ⋮ (Q Talk 와 동일 표준). 동작은 동일 — 드롭다운(아래 추가 / 복제 / 삭제).
 // Menu 는 createPortal 로 document.body 에 띄워 부모 overflow:hidden 영향 X.
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { useFloatingPanel } from '../Common/popoverAnchor';
 import { createPortal } from 'react-dom';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
@@ -21,12 +22,10 @@ interface Props {
 export default function TaskRowActionMenu({ onAddBelow, onCopy, onDelete, busy, series }: Props) {
   const { t } = useTranslation('qtask');
   const [open, setOpen] = useState(false);
-  const [menuPos, setMenuPos] = useState<{ top: number; left: number } | null>(null);
   const [confirming, setConfirming] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [errMsg, setErrMsg] = useState<string | null>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
-  const menuRef = useRef<HTMLDivElement>(null);
 
   // 메뉴 닫힐 때 삭제 확인/에러 상태 초기화
   useEffect(() => {
@@ -71,13 +70,9 @@ export default function TaskRowActionMenu({ onAddBelow, onCopy, onDelete, busy, 
     return () => document.removeEventListener('keydown', handler);
   }, [open]);
 
-  // 좌표 계산 — handle 의 viewport 좌표 기준
-  useLayoutEffect(() => {
-    if (!open) { setMenuPos(null); return; }
-    const rect = wrapRef.current?.getBoundingClientRect();
-    if (!rect) return;
-    setMenuPos({ top: rect.bottom + 4, left: rect.left });
-  }, [open]);
+  // 자리 — 공용 placeFloating(아래가 모자라면 위로 · 둘 다 모자라면 높이를 맞춰 안에서 스크롤). 목록 맨 아래 행에서 잘리던 것(2026-10-27).
+  //   삭제 확인 줄이 펼쳐지면 메뉴가 길어지므로 다시 잰다.
+  const { ref: menuRef, style: menuStyle } = useFloatingPanel(open ? wrapRef.current : null, { contentKey: `${confirming}|${series}|${errMsg}` });
 
   return (
     <Wrap ref={wrapRef} className="task-row-action">
@@ -91,8 +86,8 @@ export default function TaskRowActionMenu({ onAddBelow, onCopy, onDelete, busy, 
       >
         <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="12" cy="19" r="1.6"/></svg>
       </Handle>
-      {open && menuPos && createPortal(
-        <Menu ref={menuRef} role="menu" style={{ top: menuPos.top, left: menuPos.left }}>
+      {open && createPortal(
+        <Menu ref={menuRef} role="menu" style={menuStyle}>
           <MenuItem type="button" role="menuitem" onClick={(e) => { e.stopPropagation(); setOpen(false); onAddBelow(); }}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
             {t('rowAction.addBelow', '아래에 업무 추가')}

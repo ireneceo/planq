@@ -60,7 +60,7 @@ type Props = {
 };
 
 export default function OverflowMenu({ items, label, triggerLabel, triggerIcon, triggerActive, placement, align, triggerVariant = 'outline', className, ...rest }: Props) {
-  const { open, toggle, close, pos, wrapRef, panelRef } = usePopoverAnchor({ placement, align });
+  const { open, toggle, close, pos, style: menuStyle, wrapRef, panelRef } = usePopoverAnchor({ placement, align });
   const T = triggerVariant === 'ghost' ? GhostTrigger : Trigger;
 
   if (items.length === 0) return null;
@@ -89,7 +89,7 @@ export default function OverflowMenu({ items, label, triggerLabel, triggerIcon, 
         )}
       </T>
       {open && pos && createPortal(
-        <Menu ref={panelRef} role="menu" style={{ top: pos.top, bottom: pos.bottom, right: pos.right, left: pos.left }}>
+        <Menu ref={panelRef} role="menu" style={menuStyle}>
           {items.map(it => (
             <React.Fragment key={it.key}>
               {it.dividerBefore && <MenuDivider />}

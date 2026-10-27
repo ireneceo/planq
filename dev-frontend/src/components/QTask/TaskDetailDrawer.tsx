@@ -13,6 +13,7 @@ import styled from 'styled-components';
 import { backButtonLook, BackChevron } from '../Layout/PanelHeader';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import FloatingMenu from '../Common/FloatingMenu';
 import { renderTextWithLinks as linkify } from '../../utils/linkify';
 import { apiFetch, useAuth, isImpersonatingNow } from '../../contexts/AuthContext';
 import { onFlushPendingSaves } from '../../services/pendingSaves';
@@ -1733,7 +1734,7 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                     (detailTask.status === 'reviewing' || detailTask.status === 'revision_requested') &&
                     <RoundBadge title={t('detail.reviewers.roundTip', 'Review round') as string}>R{detailTask.review_round}</RoundBadge>}
                   {statusOpen && (
-                    <StatusDropdown data-dropdown="status-detail">
+                    <FloatingMenu onDismiss={() => setStatusOpen(false)}><StatusDropdown data-dropdown="status-detail">
                       {/* reviewers 는 별도 로드된 state — detailTask.reviewers(stale/누락 가능) 대신 사용해야
                           리스트 드롭다운과 동일하게 '확인요청중(reviewing)' 등 컨펌 단계가 노출됨. */}
                       {statusOptionsFor({ ...detailTask, reviewers }).map(s => {
@@ -1745,7 +1746,7 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                           </StatusOption>
                         );
                       })}
-                    </StatusDropdown>
+                    </StatusDropdown></FloatingMenu>
                   )}
                   {/* Irene 2026-08-24 — 반복 표시는 혼자 한 줄을 쓰지 않고 **단계 배지 다음**에 붙인다
                       ("업무단계표시 진행대기, 진행중 같은 표시 다음에 나오게. 한 줄로 다 나올 수 있는데").
@@ -3296,8 +3297,8 @@ const RevertBtn = styled.button`
   &:disabled{ opacity:0.5; cursor:default; }
 `;
 const StatusDropdown = styled.div`
-  position:absolute;top:100%;left:0;z-index:100;background:#FFF;border:1px solid #E2E8F0;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,0.12);padding:4px;min-width:140px;margin-top:4px;
-`;
+  /* 자리(fixed·위아래·높이)는 FloatingMenu(공용 placeFloating) 가 준다 — 2026-10-27 드롭다운 잘림 통합 */
+  background:#FFF;border:1px solid #E2E8F0;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,0.12);padding:4px;min-width:140px;`;
 const StatusOption = styled.button<{ $bg: string; $fg: string; $active?: boolean }>`
   display:block;width:100%;padding:5px 10px;font-size:0.6875rem;font-weight:600;text-align:left;border:none;border-radius:6px;cursor:pointer;
   background:${p => p.$active ? p.$bg : 'transparent'};color:${p => p.$fg};&:hover{background:${p => p.$bg};}

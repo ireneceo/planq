@@ -79,14 +79,12 @@ export const NameChip = styled.span<{$type:'from'|'to'|'observer'}>`
 // 그룹 이동 (행별 드롭다운)
 export const GroupMoveWrap = styled.div`position:relative;flex-shrink:0;`;
 export const GroupMoveBtn = styled.button`display:inline-flex;align-items:center;gap:1px;height:24px;padding:0 5px;background:transparent;border:1px solid transparent;border-radius:6px;color:#94A3B8;cursor:pointer;&:hover{background:#F1F5F9;color:#0F766E;border-color:#E2E8F0;}`;
-// $floating — **body 로 포털될 때** 쓴다. 행의 업무명 셀은 overflow:hidden 이라
+// 그룹 메뉴는 늘 **body 로 포털**한다 — 행의 업무명 셀은 overflow:hidden 이라
 //   절대배치 메뉴가 통째로 잘린다(2026-09-10 "눌러도 반응이 없는데" 의 정체).
-//   그때는 조상 좌표계를 못 쓰므로 viewport 기준(fixed)으로 세운다.
-//   그룹 헤더의 ⋯ 메뉴는 자르는 조상이 없어 종전대로 absolute 를 쓴다.
-export const GroupMenu = styled.div<{ $floating?: boolean }>`
-  ${({ $floating }) => ($floating
-    ? 'position:fixed;z-index:9000;'
-    : 'position:absolute;top:100%;left:0;z-index:120;margin-top:4px;')}
+//   자리(fixed·위아래·높이)는 공용 placeFloating(FloatingMenu·useFloatingPanel) 이 인라인으로 준다.
+//   그룹 헤더의 ⋯ 메뉴도 2026-10-27 부터 포털한다 — 맨 아래 그룹에서 목록 끝에 잘렸다.
+//   상태·담당자 메뉴(StatusDropdown·AssigneeDropdown)도 FloatingMenu 로 꺼낸다 — 그래서 셋 다 position 을 선언하지 않는다.
+export const GroupMenu = styled.div`
   min-width:160px;max-height:240px;overflow-y:auto;background:#FFF;border:1px solid #E2E8F0;
   border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,0.12);padding:4px;
 `;
@@ -126,7 +124,8 @@ export const StatusPill = styled.span<{$bg:string;$fg:string;$clickable?:boolean
   padding:2px 8px;background:${p=>p.$bg};color:${p=>p.$fg};font-size:0.625rem;font-weight:600;
   border-radius:8px;white-space:nowrap;${p=>p.$clickable?'cursor:pointer;user-select:none;&:hover{filter:brightness(0.96);}':''}
 `;
-export const StatusDropdown = styled.div`position:absolute;top:100%;left:50%;transform:translateX(-50%);z-index:100;background:#FFF;border:1px solid #E2E8F0;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,0.12);padding:4px;min-width:100px;margin-top:4px;`;
+// 자리(fixed·위아래·높이)는 FloatingMenu(공용 placeFloating) 가 준다 — 2026-10-27 드롭다운 잘림 통합
+export const StatusDropdown = styled.div`background:#FFF;border:1px solid #E2E8F0;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,0.12);padding:4px;min-width:100px;`;
 export const StatusOption = styled.button<{$bg:string;$fg:string;$active?:boolean}>`
   display:block;width:100%;padding:5px 10px;font-size:0.6875rem;font-weight:600;text-align:left;border:none;border-radius:6px;cursor:pointer;
   background:${p=>p.$active?p.$bg:'transparent'};color:${p=>p.$fg};&:hover{background:${p=>p.$bg};}
@@ -143,7 +142,8 @@ export const DateTrigger = styled.button<{$color?:string;$empty?:boolean}>`
   &:hover{border-color:#14B8A6;color:#0F766E;}
 `;
 export const AssigneeLabel = styled.span`display:inline-block;font-size:0.75rem;color:#0F172A;cursor:pointer;padding:2px 6px;border-radius:4px;&:hover{background:#F1F5F9;}`;
-export const AssigneeDropdown = styled.div`position:absolute;top:100%;left:0;z-index:100;min-width:140px;max-height:220px;overflow-y:auto;background:#FFF;border:1px solid #E2E8F0;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,0.12);padding:4px;margin-top:4px;`;
+// 자리(fixed·위아래·높이)는 FloatingMenu(공용 placeFloating) 가 준다 — 2026-10-27 드롭다운 잘림 통합
+export const AssigneeDropdown = styled.div`min-width:140px;max-height:220px;overflow-y:auto;background:#FFF;border:1px solid #E2E8F0;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,0.12);padding:4px;`;
 export const AssigneeOpt = styled.button<{$active?:boolean}>`display:block;width:100%;padding:5px 10px;font-size:0.75rem;text-align:left;border:none;border-radius:6px;cursor:pointer;background:${p=>p.$active?'#F0FDFA':'transparent'};color:${p=>p.$active?'#0F766E':'#0F172A'};font-weight:${p=>p.$active?600:500};&:hover{background:#F0FDFA;color:#0F766E;}`;
 export const AssigneeOptInner = styled.span`display:inline-flex;align-items:center;gap:8px;`;
 export const EmptyMsg = styled.div`padding:32px;text-align:center;color:#94A3B8;font-size:0.8125rem;`;

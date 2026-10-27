@@ -307,6 +307,37 @@ function checkPopupTop() {
 }
 
 // ═══════════════════════════════════════════════
+// dropdownclip — 칸 안에 `position:absolute; top:100%` 로 붙인 메뉴 래칫 (2026-10-27)
+//   Irene: «추진과제 그룹 드롭다운이 업무가 가장 아래에 있으면 잘려버려 … 여기 저기 이런 같은 문제».
+//   목록·패널은 overflow 상자라 그 안에 절대배치로 편 메뉴는 상자 끝에서 잘린다(맨 아래 행·항목이 많을 때).
+//   새 메뉴는 components/Common/FloatingMenu(또는 usePopoverAnchor·useFloatingPanel) 로 body 에 띄운다 —
+//   자리(위로 뒤집기·높이 맞춤·가로 접기)는 popoverAnchor.placeFloating 한 함수.
+//   남은 것(헤더 메뉴처럼 자르는 상자가 없는 자리)은 베이스라인으로 동결. 정말 칸 안이어야 하면 블록 안에
+//   `/* dropdown-inline-ok: <이유> */` 를 적는다.
+// ═══════════════════════════════════════════════
+function checkDropdownClip() {
+  const files = walk(`${ROOT}/dev-frontend/src`, ['.ts', '.tsx']);
+  const current = {}; const samples = [];
+  const re = /(?:const|export const)\s+(\w+)\s*=\s*styled[^`]*`([^`]*)`/g;
+  for (const f of files) {
+    const s = read(f); const r = rel(f);
+    let m; re.lastIndex = 0; let n = 0;
+    while ((m = re.exec(s))) {
+      const body = m[2];
+      if (!/position:\s*absolute/.test(body)) continue;
+      if (!/(^|[;\s{'])(top|bottom):\s*(calc\(\s*)?100%/m.test(body)) continue;
+      if (/dropdown-inline-ok:/.test(body)) continue;
+      n++;
+      if (samples.length < 12) samples.push(`${r}:${s.slice(0, m.index).split('\n').length} ${m[1]}`);
+    }
+    if (n) current[r] = n;
+  }
+  const rt = ratchet('dropdownclip', current, samples);
+  report('dropdownclip', `칸 안 절대배치 메뉴 래칫 — 새 메뉴는 FloatingMenu (현재 ${rt.curTotal} / 베이스 ${rt.baseTotal})`,
+    rt.fails.length === 0, rt.fails.length ? [...rt.fails, ...samples] : (opts.verbose ? samples : []));
+}
+
+// ═══════════════════════════════════════════════
 // 2b. parity — locales ko/en 키 패리티 래칫 + i18n.ts ns 등록 하드 게이트
 //     "기획 단계부터 ko/en 동시 작성" (CLAUDE.md 다국어 필수) 자동 검출.
 // ═══════════════════════════════════════════════
@@ -3948,6 +3979,7 @@ const CATEGORIES = {
   fontpx: checkFontPx,
   iosstack: checkIosStack,
   popuptop: checkPopupTop,
+  dropdownclip: checkDropdownClip,
   mailsender: checkMailSender,
   tenant: checkTenant,
   pagination: checkPagination,

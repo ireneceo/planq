@@ -10,7 +10,7 @@
 import { createPortal } from 'react-dom';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
-import type { AnchorPos } from '../Common/popoverAnchor';
+import { anchorStyle, type AnchorPos } from '../Common/popoverAnchor';
 import { listRowTitleCss } from '../../theme/tokens';
 import { tabStore } from '../../stores/tabStore';
 
@@ -57,7 +57,7 @@ export function NewNoteMenu(
   const { t } = useTranslation('qnote');
   if (!pos) return null;
   return createPortal(
-    <NewNoteDropdown ref={panelRef} style={{ top: pos.top, right: pos.right }}
+    <NewNoteDropdown ref={panelRef} style={anchorStyle(pos)}
       onMouseLeave={onMouseLeave} data-testid="qnote-new-menu" role="menu">
       {NEW_NOTE_KINDS.map((it) => (
         <NewNoteItem key={it.kind} type="button" data-testid={it.testId} onClick={() => onPick(it.kind)}>

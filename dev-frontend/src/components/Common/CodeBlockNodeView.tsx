@@ -1,6 +1,7 @@
 // 사이클 N+16 — 노션 스타일 코드 블록 (회색 배경 + 우측 상단 복사 버튼 + 언어 선택).
 // CodeBlockLowlight extension 의 NodeView 로 사용. lowlight 가 highlight.js 색상 입혀줌.
 import React, { useRef, useState } from 'react';
+import FloatingMenu from './FloatingMenu';
 import { useTranslation } from 'react-i18next';
 import styled from 'styled-components';
 import { NodeViewContent, NodeViewWrapper, ReactNodeViewRenderer } from '@tiptap/react';
@@ -40,6 +41,8 @@ const CodeBlockComponent: React.FC<NodeViewProps> = ({ node, updateAttributes, e
   React.useEffect(() => {
     if (!langOpen) return;
     const onDown = (e: MouseEvent) => {
+      // 언어 목록은 body 로 포털된다(FloatingMenu) — 목록 안 누름도 «안» 이다
+      if ((e.target as HTMLElement | null)?.closest?.('[data-code-lang-pop]')) return;
       if (langRootRef.current && !langRootRef.current.contains(e.target as Node)) setLangOpen(false);
     };
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setLangOpen(false); };
@@ -114,7 +117,8 @@ const CodeBlockComponent: React.FC<NodeViewProps> = ({ node, updateAttributes, e
           </LangBtn>
           )}
           {langOpen && (
-            <LangPopover role="listbox">
+            // 문서 끝 코드 블록이면 언어 목록이 편집 영역 끝에 잘렸다 — body 로 꺼낸다(2026-10-27 드롭다운 잘림 통합)
+            <FloatingMenu onDismiss={() => setLangOpen(false)}><LangPopover role="listbox" data-code-lang-pop>
               {COMMON_LANGS.map(l => (
                 <LangOption
                   key={l}
@@ -130,7 +134,7 @@ const CodeBlockComponent: React.FC<NodeViewProps> = ({ node, updateAttributes, e
                   {l}
                 </LangOption>
               ))}
-            </LangPopover>
+            </LangPopover></FloatingMenu>
           )}
         </LangRoot>
         <CopyBtn type="button" onClick={copy} aria-label="copy code">
@@ -259,10 +263,7 @@ const LangLabel = styled.span`
   text-transform: lowercase;
 `;
 const LangPopover = styled.div`
-  position: absolute;
-  top: calc(100% + 4px);
-  left: 0;
-  z-index: 50;
+  /* 자리(fixed·위아래·높이)는 FloatingMenu(공용 placeFloating) 가 준다 — 2026-10-27 드롭다운 잘림 통합 */
   background: #0F172A;
   border: 1px solid #334155;
   border-radius: 8px;

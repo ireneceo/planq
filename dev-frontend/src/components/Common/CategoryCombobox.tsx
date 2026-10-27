@@ -3,6 +3,7 @@
 // - 클릭/키보드로 선택
 // - 새 값 입력 후 blur/enter 시 그 값으로 저장 (자유 입력)
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import FloatingMenu from './FloatingMenu';
 import { useTranslation } from 'react-i18next';
 import styled from 'styled-components';
 import { isEnterAction } from '../../utils/imeKey';
@@ -31,6 +32,8 @@ const CategoryCombobox: React.FC<Props> = ({ value, onChange, options, placehold
   useEffect(() => {
     if (!open) return;
     const handler = (e: MouseEvent) => {
+      // 후보 목록은 body 로 포털된다(FloatingMenu) — 목록 안 누름도 «안» 이다
+      if ((e.target as HTMLElement | null)?.closest?.('#category-combobox-list')) return;
       if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setOpen(false);
     };
     window.addEventListener('mousedown', handler);
@@ -86,7 +89,8 @@ const CategoryCombobox: React.FC<Props> = ({ value, onChange, options, placehold
         />
       </Row>
       {open && (filtered.length > 0 || showCreateHint || showEmptyHint) && (
-        <Menu id="category-combobox-list" role="listbox">
+        // 폼 맨 아래 칸이면 목록이 패널 끝에 잘렸다 — body 로 꺼내 공용 자리 계산(2026-10-27 드롭다운 잘림 통합)
+        <FloatingMenu matchWidth onDismiss={() => setOpen(false)}><Menu id="category-combobox-list" role="listbox">
           {filtered.map((o, i) => (
             <Item
               key={o}
@@ -106,7 +110,7 @@ const CategoryCombobox: React.FC<Props> = ({ value, onChange, options, placehold
             </CreateHint>
           )}
           {showEmptyHint && <EmptyHint>{t('combobox.noCategory')}</EmptyHint>}
-        </Menu>
+        </Menu></FloatingMenu>
       )}
     </Wrap>
   );
@@ -125,10 +129,10 @@ const Input = styled.input`
   &:focus { outline: none; border-color: #14B8A6; background: #fff; box-shadow: 0 0 0 2px rgba(20,184,166,0.15); }
 `;
 const Menu = styled.div.attrs<{ 'data-popover'?: string }>({ 'data-popover': 'true' })`
-  position: absolute; top: calc(100% + 4px); left: 16px; right: 0;
+  /* 자리(fixed·위아래·높이)는 FloatingMenu(공용 placeFloating) 가 준다 — 2026-10-27 드롭다운 잘림 통합 */
   background: #fff; border: 1px solid #E2E8F0; border-radius: 10px;
   box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
-  z-index: 50; padding: 4px; max-height: 240px; overflow-y: auto;
+  padding: 4px; max-height: 240px; overflow-y: auto;
 `;
 const Item = styled.div<{ $active: boolean }>`
   display: flex; align-items: center; justify-content: space-between;

@@ -25,6 +25,7 @@ import TaskDetailDrawer from '../../components/QTask/TaskDetailDrawer';
 import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
 import { cacheKey, readCache, hasCache, writeCache } from '../../lib/pageCache';
 import TaskRowActionMenu from '../../components/QTask/TaskRowActionMenu';
+import FloatingMenu from '../../components/Common/FloatingMenu';
 import { responsiveDrawerWidth } from '../../utils/responsiveDrawer';
 import { plainToHtml } from '../../utils/plainToHtml';
 import { takeVoiceHandoff, type VoiceHandoff } from '../../utils/voiceHandoff';
@@ -2292,11 +2293,11 @@ const QTaskPage:React.FC=()=>{
                                 {label}
                               </DelayBadge>
                               {dueEditable&&delayChipsForId===task.id&&(
-                                <DelayChipPopover onClick={e=>e.stopPropagation()}>
+                                <FloatingMenu onDismiss={()=>setDelayChipsForId(null)}><DelayChipPopover onClick={e=>e.stopPropagation()}>
                                   <DelayChip onClick={e=>{e.stopPropagation();extendDue(task.id,1);}}>{t('status.delayQuick.addDay','+1일')}</DelayChip>
                                   <DelayChip onClick={e=>{e.stopPropagation();extendDue(task.id,7);}}>{t('status.delayQuick.addWeek','+1주')}</DelayChip>
                                   <DelayChip onClick={e=>{e.stopPropagation();extendDue(task.id,0);}}>{t('status.delayQuick.today','오늘')}</DelayChip>
-                                </DelayChipPopover>
+                                </DelayChipPopover></FloatingMenu>
                               )}
                             </DelayBadgeWrap>
                           );
@@ -2377,13 +2378,13 @@ const QTaskPage:React.FC=()=>{
                         aria-haspopup="listbox" aria-expanded={statusDropdownId===task.id}
                       ><StatusGlyph code={task.status} /> {_statusLabel}</StatusPill>
                       {statusDropdownId===task.id&&(
-                        <StatusDropdown data-dropdown="status">
+                        <FloatingMenu align="center" onDismiss={()=>setStatusDropdownId(null)}><StatusDropdown data-dropdown="status">
                           {statusOptionsFor(task).map(s=>{const c=STATUS_COLOR[s as StatusCode]||STATUS_COLOR.not_started;return(
                             <StatusOption key={s} $bg={c.bg} $fg={c.fg} $active={task.status===s}
                               onClick={e=>{e.stopPropagation();changeStatus(task.id,s);setStatusDropdownId(null);}}
                             >{optionLabel(task,s,_role)}</StatusOption>
                           );})}
-                        </StatusDropdown>
+                        </StatusDropdown></FloatingMenu>
                       )}
                     </TCell>
                     {(() => {
@@ -3451,11 +3452,11 @@ const DelayBadge=styled.span<{$severe?:boolean}>`
 `;
 const DelayBadgeWrap=styled.span`position:relative;display:inline-flex;flex-shrink:0;`;
 const DelayChipPopover=styled.div`
-  position:absolute;top:calc(100% + 4px);left:0;
+  /* 자리(fixed·위아래·높이)는 FloatingMenu(공용 placeFloating) 가 준다 — 2026-10-27 드롭다운 잘림 통합 */
   display:flex;gap:4px;
   background:#fff;border:1px solid #E2E8F0;border-radius:6px;
   padding:4px;box-shadow:0 4px 12px rgba(15,23,42,0.08);
-  z-index:200;white-space:nowrap;
+  white-space:nowrap;
 `;
 const DelayChip=styled.button`
   padding:4px 10px;font-size:0.6875rem;font-weight:600;
@@ -3514,10 +3515,9 @@ const StatusPill=styled.span<{$bg:string;$fg:string;$clickable?:boolean}>`
   border-radius:8px;white-space:nowrap;${p=>p.$clickable?'cursor:pointer;user-select:none;&:hover{opacity:0.8;}':''}
 `;
 const StatusDropdown=styled.div`
-  position:absolute;top:100%;left:50%;transform:translateX(-50%);z-index:100;
+  /* 자리(fixed·위아래·높이)는 FloatingMenu(공용 placeFloating) 가 준다 — 2026-10-27 드롭다운 잘림 통합 */
   background:#FFF;border:1px solid #E2E8F0;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,0.12);
-  padding:4px;min-width:100px;margin-top:4px;
-`;
+  padding:4px;min-width:100px;`;
 const StatusOption=styled.button<{$bg:string;$fg:string;$active?:boolean}>`
   display:block;width:100%;padding:5px 10px;font-size:0.6875rem;font-weight:600;text-align:left;
   border:none;border-radius:6px;cursor:pointer;

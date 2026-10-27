@@ -7,6 +7,7 @@ import { createPortal } from 'react-dom';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { useEscapeStack } from '../../hooks/useEscapeStack';
+import { placeFloating, anchorStyle, type AnchorPos } from '../Common/popoverAnchor';
 import { CELL_FILLS, type PaletteItem } from './textStylePalette';
 import type { FillScope } from './editorTableCellFill';
 
@@ -43,18 +44,16 @@ export const CellFillButton: React.FC<{
   const { t } = useTranslation('qdocs');
   const [open, setOpen] = useState(false);
   const [scope, setScope] = useState<FillScope>('col');   // 요청이 «열 색» — 기본은 열 전체
-  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+  const [pos, setPos] = useState<AnchorPos | null>(null);
   const trigRef = useRef<HTMLButtonElement>(null);
   const popRef = useRef<HTMLDivElement>(null);
   const place = () => {
     const r = trigRef.current?.getBoundingClientRect();
     if (!r) return;
-    const W = 248;
-    // 아래 자리가 모자라면 버튼 위로 — 폰에서 표 버블이 화면 아래쪽이면 견본이 화면 밖으로 잘렸다(390 실측)
-    const H = popRef.current?.offsetHeight || 190;
-    const below = r.bottom + 8;
-    const top = below + H > window.innerHeight - 8 && r.top - 8 - H >= 8 ? r.top - 8 - H : below;
-    setPos({ top, left: Math.max(8, Math.min(r.left, window.innerWidth - W - 8)) });
+    // 아래 자리가 모자라면 버튼 위로 — 폰에서 표 버블이 화면 아래쪽이면 견본이 화면 밖으로 잘렸다(390 실측).
+    //   자리는 공용 placeFloating(둘 다 모자라면 높이를 맞춰 안에서 스크롤 — 2026-10-27 드롭다운 잘림 통합)
+    const el = popRef.current;
+    setPos(placeFloating(r, { width: el?.offsetWidth || 248, height: el?.scrollHeight || 190 }, { gap: 8 }));
   };
   // 처음 열 때는 높이를 모른다 — 그려진 뒤 실제 높이로 한 번 더 맞춘다
   useLayoutEffect(() => { if (open) place(); }, [open]);   // eslint-disable-line react-hooks/exhaustive-deps
@@ -86,7 +85,7 @@ export const CellFillButton: React.FC<{
         {label}
       </Trigger>
       {open && pos && createPortal(
-        <Pop ref={popRef} style={{ top: pos.top, left: pos.left }} role="dialog" aria-label={label} data-testid="editor-table-fill-pop">
+        <Pop ref={popRef} style={anchorStyle(pos)} role="dialog" aria-label={label} data-testid="editor-table-fill-pop">
           <Sect>{t('editor.table.fillScope', { defaultValue: '칠할 범위' })}</Sect>
           <Seg role="radiogroup" aria-label={t('editor.table.fillScope', { defaultValue: '칠할 범위' }) as string}>
             {SCOPES.map((s) => (

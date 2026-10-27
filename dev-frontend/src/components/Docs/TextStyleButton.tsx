@@ -3,11 +3,12 @@
 //   ★ 팝오버는 body 로 포털한다 — 편집기 툴바는 sticky + z-index 로 **층을 만든다.** 그 안에서는 z 를 아무리 올려도
 //     표 안 커서일 때 뜨는 검은 표 버블(--pq-z-editor-bubble)에 덮여, 색을 누르면 버블이 클릭을 먹었다(2026-10-11 실측).
 //     바깥 클릭 판정은 버튼(wrap)과 팝오버(pop) **둘 다**를 안쪽으로 본다.
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { useEscapeStack } from '../../hooks/useEscapeStack';
+import { placeFloating, anchorStyle, type AnchorPos } from '../Common/popoverAnchor';
 import { TEXT_COLORS, HIGHLIGHTS, FONT_SIZES, type PaletteItem } from './textStylePalette';
 
 export interface TextStyleKeys { color?: string | null; bg?: string | null; size?: string | null }
@@ -24,7 +25,7 @@ interface Props {
 const TextStyleButton: React.FC<Props> = ({ current, onPick, disabled, testid = 'text-style', size = 'sm' }) => {
   const { t } = useTranslation('qdocs');
   const [open, setOpen] = useState(false);
-  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+  const [pos, setPos] = useState<AnchorPos | null>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
   const trigRef = useRef<HTMLButtonElement>(null);
   const popRef = useRef<HTMLDivElement>(null);
@@ -33,9 +34,12 @@ const TextStyleButton: React.FC<Props> = ({ current, onPick, disabled, testid = 
   const place = () => {
     const r = trigRef.current?.getBoundingClientRect();
     if (!r) return;
-    const W = 256;
-    setPos({ top: r.bottom + 6, left: Math.max(8, Math.min(r.left, window.innerWidth - W - 8)) });
+    // 자리는 공용 placeFloating — 아래가 모자라면 위로, 둘 다 모자라면 높이를 맞춰 안에서 스크롤(2026-10-27 드롭다운 잘림 통합)
+    const el = popRef.current;
+    setPos(placeFloating(r, { width: el?.offsetWidth || 256, height: el?.scrollHeight || 220 }, { gap: 6 }));
   };
+  // 처음 열 때는 높이를 모른다 — 그려진 뒤 실제 높이로 한 번 더 맞춘다(CellFillButton 과 같은 방식)
+  useLayoutEffect(() => { if (open) place(); }, [open]);   // eslint-disable-line react-hooks/exhaustive-deps
   // 스크롤·크기 변경에는 닫지 말고 버튼을 따라간다 — 색을 고르면 편집기가 포커스를 받으며 스크롤해
   //   «색 고르고 이어서 크기» 를 하기도 전에 메뉴가 닫혔다(2026-10-11 실측)
   useEffect(() => {
@@ -71,7 +75,7 @@ const TextStyleButton: React.FC<Props> = ({ current, onPick, disabled, testid = 
         <ColorBar style={{ background: curColor }} aria-hidden="true" />
       </Trigger>
       {open && pos && createPortal(
-        <Pop ref={popRef} style={{ top: pos.top, left: pos.left }} role="dialog" aria-label={label} data-testid={`${testid}-pop`}>
+        <Pop ref={popRef} style={anchorStyle(pos)} role="dialog" aria-label={label} data-testid={`${testid}-pop`}>
           <Sect>{t('editor.style.colorLabel', { defaultValue: '글자색' })}</Sect>
           <Swatches>
             {TEXT_COLORS.map((c) => {

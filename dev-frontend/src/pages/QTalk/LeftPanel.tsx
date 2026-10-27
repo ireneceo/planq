@@ -14,6 +14,7 @@ import SearchBoxCommon from '../../components/Common/SearchBox';
 import { useListKeyboardNav } from '../../hooks/useListKeyboardNav';
 import { mediaTablet } from '../../theme/breakpoints';
 import PanelResizeHandle from '../../components/Layout/PanelResizeHandle';
+import FloatingMenu from '../../components/Common/FloatingMenu';
 
 interface Props {
   projects: MockProject[];
@@ -69,6 +70,8 @@ const LeftPanel: React.FC<Props> = ({
   useEffect(() => {
     if (menuOpenFor == null) return;
     const onDown = (e: MouseEvent) => {
+      // 메뉴는 body 로 포털된다(FloatingMenu) — 메뉴 안 누름도 «안» 이다. 안 그러면 항목을 누르는 mousedown 에 먼저 닫혀 클릭이 사라진다.
+      if ((e.target as HTMLElement | null)?.closest?.('[data-qtalk-row-menu]')) return;
       if (menuRootRef.current && !menuRootRef.current.contains(e.target as Node)) setMenuOpenFor(null);
     };
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setMenuOpenFor(null); };
@@ -287,7 +290,7 @@ const LeftPanel: React.FC<Props> = ({
                     </svg>
                   </MenuBtn>
                   {menuOpenFor === c.id && (
-                    <Popover role="menu" onClick={(e) => e.stopPropagation()}>
+                    <FloatingMenu align="end" onDismiss={() => setMenuOpenFor(null)}><Popover role="menu" data-qtalk-row-menu onClick={(e) => e.stopPropagation()}>
                       {c.project_id && onUnlink && (
                         <MenuItem
                           type="button" role="menuitem"
@@ -313,7 +316,7 @@ const LeftPanel: React.FC<Props> = ({
                           {t('left.menu.archive', '채팅방 보관')}
                         </MenuItem>
                       )}
-                    </Popover>
+                    </Popover></FloatingMenu>
                   )}
                 </MenuRoot>
               )}
@@ -673,16 +676,13 @@ const MenuBtn = styled.button<{ $open: boolean }>`
 
 // Popover — Linear/Slack 패턴. 우측 정렬해서 ⋮ 바로 아래 펼침.
 const Popover = styled.div`
-  position: absolute;
-  top: calc(100% + 4px);
-  right: 0;
+  /* 자리(fixed·위아래·높이)는 FloatingMenu(공용 placeFloating) 가 준다 — 2026-10-27 드롭다운 잘림 통합 */
   min-width: 200px;
   background: #FFFFFF;
   border: 1px solid #E2E8F0;
   border-radius: 8px;
   box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
   padding: 4px;
-  z-index: 100;
   animation: pq-popover-in 0.12s ease-out;
   @keyframes pq-popover-in {
     from { opacity: 0; transform: translateY(-4px); }

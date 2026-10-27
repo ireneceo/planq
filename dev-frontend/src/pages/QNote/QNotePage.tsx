@@ -22,6 +22,7 @@ import AiAssistButton from '../../components/Common/AiAssistButton';
 // 새 노트 메뉴·＋ 버튼은 Q sale 과 **같은 한 벌**이다 — 여기서 다시 그리지 않는다
 import { NewNoteMenu, NewSessionWrap, NewSessionBtn } from '../../components/QNote/newNoteMenu';
 import { usePopoverAnchor } from '../../components/Common/popoverAnchor';
+import FloatingMenu from '../../components/Common/FloatingMenu';
 import { getDefaultLanguageFromBrowser } from '../../constants/languages';
 import type { StartConfig } from './StartMeetingModal';
 import { getLanguageByCode } from '../../constants/languages';
@@ -3794,7 +3795,8 @@ const SpeakerPopover = ({ currentSpeakerName, currentIsSelf, participants, onClo
   const showSelfBtn = !currentIsSelf;
 
   return (
-    <PopoverWrap ref={ref} onClick={(e) => e.stopPropagation()}>
+    // 화자 목록 맨 아래 줄에서 열면 목록 끝에 잘렸다 — body 로 꺼내 공용 자리 계산(2026-10-27 드롭다운 잘림 통합)
+    <FloatingMenu><PopoverWrap ref={ref} onClick={(e) => e.stopPropagation()}>
       {onPickPerson && (
         <>
           <PopoverLabel>{t('page.speaker.wholeSpeaker', '이 화자 전체')}</PopoverLabel>
@@ -3865,15 +3867,12 @@ const SpeakerPopover = ({ currentSpeakerName, currentIsSelf, participants, onClo
           {t('page.popover.save')}
         </PopoverInputBtn>
       </PopoverInputRow>
-    </PopoverWrap>
+    </PopoverWrap></FloatingMenu>
   );
 };
 
 const PopoverWrap = styled.div`
-  position: absolute;
-  top: calc(100% + 6px);
-  left: 0;
-  z-index: 50;
+  /* 자리(fixed·위아래·높이)는 FloatingMenu(공용 placeFloating) 가 준다 — 2026-10-27 드롭다운 잘림 통합 */
   min-width: 200px;
   background: #fff;
   border: 1px solid #e2e8f0;

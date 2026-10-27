@@ -148,6 +148,7 @@ import StarToggle from '../../components/Common/StarToggle';
 import { setProjectPinned, PROJECT_PREF_EVENT } from '../../services/projectPrefs';
 import RoleManageModal from '../../components/MemberRole/RoleManageModal';
 import { useMemberRoleDict } from '../../components/MemberRole/useMemberRoleDict';
+import FloatingMenu from '../../components/Common/FloatingMenu';
 
 const PROJECT_COLORS = PROJECT_COLOR_PALETTE.map(p => p.value);
 
@@ -1141,14 +1142,14 @@ const QProjectDetailPage: React.FC = () => {
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><circle cx="12" cy="6" r="0.5"/><circle cx="12" cy="12" r="0.5"/><circle cx="12" cy="18" r="0.5"/></svg>
                     </ConvMoreBtn>
                     {convMenuFor === c.id && (
-                      <ConvMenu onClick={(e) => e.stopPropagation()}>
+                      <FloatingMenu align="end" onDismiss={() => setConvMenuFor(null)}><ConvMenu onClick={(e) => e.stopPropagation()}>
                         <ConvMenuBtn type="button" onClick={() => { setUnlinkConv(c); setConvMenuFor(null); }}>
                           {t('convs.unlink', { defaultValue: '프로젝트 연결 끊기' }) as string}
                         </ConvMenuBtn>
                         <ConvMenuBtn type="button" $danger onClick={() => { setArchiveConv(c); setConvMenuFor(null); }}>
                           {t('convs.archive', { defaultValue: '채팅방 삭제' }) as string}
                         </ConvMenuBtn>
-                      </ConvMenu>
+                      </ConvMenu></FloatingMenu>
                     )}
                   </ConvRow>
                 ))}
