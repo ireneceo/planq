@@ -65,18 +65,23 @@ export const POPOUT_SIZE: Record<PinTool, { width: number; height: number }> = {
 //   **크롬이** 놓는다(작업영역 우하단 16px 여백). 그리고 고정창은 스크립트로 못 옮긴다(실측 확정).
 //   → 그래서 **반대로** 맞춘다: 고정창이 뜨는 자리를 기준점으로 삼아 **일반 팝아웃을 거기서 연다.**
 //
-//   기준점(origin) 구하는 순서:
-//     ① 지난번 고정창이 실제로 떴던 좌표(localStorage 기억) — 가장 정확
-//     ② 없으면 크롬 기본 배치를 계산: 작업영역 **우하단 16px**
+//   기준점 = 크롬 기본 배치를 계산한 자리: 작업영역 **우하단 16px**. 고정창은 `preferInitialWindowPlacement`
+//   로 **늘 그 자리에** 뜨게 한다(pin 참조) — 두 쪽이 같은 계산이라 핀을 눌러도 제자리다.
+//   ★ 옛 방식(고정창이 떴던 좌표를 localStorage 에 기억해 다음 팝아웃을 거기서 열기)은 폐기했다
+//     (Irene 2026-10-27 신고: "핀으로 고정하면 갑자기 위치가 우측 하단으로 옮겨져").
+//     크롬의 고정창 자리 기억은 **크롬 안에만 있고 수명이 짧다**(브라우저 재시작·도구/창 크기별로 따로).
+//     우리 기억은 영구라 둘이 어긋나면 «기억한 자리에서 열린 팝아웃 → 핀 → 크롬 기본 자리(우하단)» 로 튄다.
+//     크롬 기억에 기대는 것은 **같은 창에서 방금 고정했다 푼 뒤 다시 고정할 때**뿐이다(그 기억은 확실히 산다).
 //   여러 창을 동시에 열면 그대로 포개지므로 **살아 있는 창 수만큼 28px 계단**으로 어긋뜨린다.
 //   (도구별 지정석은 폐기 — 지정석을 쓰면 핀을 누르는 순간 반드시 어긋난다. 겹침을 감수하더라도
 //    "핀 눌러도 안 움직인다" 를 택한 것이 Irene 의 결정이다.)
 const EDGE = 16;      // 크롬이 고정창을 놓을 때 쓰는 화면 가장자리 여백 (실측)
 const CASCADE = 28;   // 동시에 열린 창끼리 어긋나는 간격
-/** 고정창의 테두리·제목줄 두께(실측). 첫 고정 자리를 예측할 때만 쓰고, 이후는 실좌표를 학습한다. */
+/** 고정창의 테두리·제목줄 두께(실측) — 고정창이 뜰 기본 자리를 계산할 때 더한다. */
 const PIP_CHROME_W = 8;
 const PIP_CHROME_H = 38;
-const ORIGIN_KEY = 'planq:popout:origin';
+// 옛 위치 기억(폐기) — 남은 값을 한 번 치운다.
+try { if (typeof window !== 'undefined') localStorage.removeItem('planq:popout:origin'); } catch { /* 시크릿 모드 등 */ }
 
 /** 현재 모니터의 작업 영역(작업표시줄 제외). availLeft/availTop 은 비표준이라 없으면 0 으로 본다. */
 function workArea(): { left: number; top: number; width: number; height: number } {
@@ -106,42 +111,14 @@ export function clampToScreen(x: number, y: number, w: number, h: number): { x: 
   };
 }
 
-/** 지난번 고정창이 실제로 떴던 자리. 창 하나만 열었을 때 핀을 눌러도 안 움직이게 하는 근거. */
-function readOrigin(): { x: number; y: number } | null {
-  try {
-    const raw = localStorage.getItem(ORIGIN_KEY);
-    if (!raw) return null;
-    const v = JSON.parse(raw) as { x?: unknown; y?: unknown };
-    if (typeof v.x !== 'number' || typeof v.y !== 'number') return null;
-    return { x: v.x, y: v.y };
-  } catch { return null; }
-}
-/** 고정창이 뜬 좌표를 기억한다 — 다음부터 일반 팝아웃이 이 자리에서 열린다. */
-export function rememberOrigin(x: number, y: number) {
-  try { localStorage.setItem(ORIGIN_KEY, JSON.stringify({ x, y })); } catch { /* 시크릿 모드 등 */ }
-}
-
-/** 팝아웃 좌표. cascade > 0 이면 그만큼 왼쪽·아래로 계단식 이동. */
+/** 팝아웃 좌표 = 크롬이 고정창을 놓는 기본 자리. cascade > 0 이면 그만큼 왼쪽·아래로 계단식 이동. */
 export function popoutPosition(tool: PinTool, cascade = 0): { x: number; y: number } {
   const { width, height } = POPOUT_SIZE[tool];
   const a = workArea();
-  // ★ 기억한 자리는 **지금 쓰는 모니터 안일 때만** 쓴다.
-  //   고정창을 2번 모니터로 옮기면 그 좌표가 기억되는데, 그대로 쓰면 다음 팝아웃이 2번 모니터에서
-  //   멀리 열린다. 반면 고정창은 크롬이 자기 규칙대로(대개 1번 모니터에) 다시 놓기 때문에
-  //   **열 때와 고정할 때가 서로 다른 화면**이 된다 — Irene 2026-08-20: "다른 모니터에서 멀리
-  //   열리더니 고정하니까 기존 모니터 우측 상단, 이랬다 저랬다 해."
-  //   지금 화면 밖 좌표면 버리고 이 화면의 계산값으로 연다(그 화면에서 다시 고정하면 곧 재학습된다).
-  const remembered = readOrigin();
-  const learned = remembered
-    && remembered.x >= a.left - 1 && remembered.x < a.left + a.width
-    && remembered.y >= a.top - 1 && remembered.y < a.top + a.height
-    ? remembered : null;
-  // ② 폴백 — 크롬이 고정창을 놓는 방식과 **같은 계산**: 작업영역 우하단 EDGE(16) 여백.
-  //   ★ 기준이 **바깥(outer) 크기**다. 안쪽(inner) 크기로 계산하면 첫 고정 때 창이 (-8,-20) 만큼
-  //     튄다(Fable 실측: 예상 1384,266 vs 실제 1376,246). 고정창 테두리·제목줄 두께를 더해야 맞다.
-  //     실측값(528-520=8, 818-780=38)을 상수로 둔다 — 브라우저가 바뀌어 어긋나도 **첫 고정 직후
-  //     rememberOrigin 이 실좌표를 학습**해 다음부터는 정확해진다(이 상수는 첫 1회용 추정치다).
-  const base = learned || {
+  // ★ 기준이 **바깥(outer) 크기**다. 안쪽(inner) 크기로 계산하면 첫 고정 때 창이 (-8,-20) 만큼
+  //   튄다(Fable 실측: 예상 1384,266 vs 실제 1376,246). 고정창 테두리·제목줄 두께를 더해야 맞다.
+  //   ★ 지금 이 창이 있는 모니터 기준이다 — 고정창도 그 창의 모니터 기본 자리에 뜬다.
+  const base = {
     x: a.left + a.width - (width + PIP_CHROME_W) - EDGE,
     y: a.top + a.height - (height + PIP_CHROME_H) - EDGE,
   };
@@ -207,7 +184,8 @@ const POLL_MS = 120;
 const SETTLE_MS = 1500;
 
 interface PipApi {
-  requestWindow: (o: { width: number; height: number }) => Promise<Window>;
+  /** preferInitialWindowPlacement: true = 크롬의 지난 자리·크기 기억을 쓰지 않고 기본 자리에 연다(Chrome 130+, 그 전은 무시) */
+  requestWindow: (o: { width: number; height: number; preferInitialWindowPlacement?: boolean }) => Promise<Window>;
 }
 
 function pipApi(): PipApi | null {
@@ -312,6 +290,8 @@ export function usePinHost({ tool, title }: UsePinHostOptions): PinHost {
   const lastPipPosRef = useRef<{ x: number; y: number } | null>(null);
   /** 이번 고정에서 (0,0) 을 "아직 자리 안 잡음" 으로 봐줄 마감 시각. 지나면 진짜 좌표로 인정한다. */
   const settleUntilRef = useRef(0);
+  /** 이 창이 한 번이라도 고정했었나 — 그렇다면 크롬이 그 고정창 자리를 막 기억하고 있다(다시 고정 = 같은 자리). */
+  const pinnedBeforeRef = useRef(false);
 
   const stopPoll = useCallback(() => {
     if (pollRef.current != null) { clearInterval(pollRef.current); pollRef.current = null; }
@@ -396,7 +376,6 @@ export function usePinHost({ tool, title }: UsePinHostOptions): PinHost {
         const last = lastPipPosRef.current;
         if (last && last.x === m.x && last.y === m.y) return;
         lastPipPosRef.current = { x: m.x, y: m.y };
-        rememberOrigin(m.x, m.y);
         try {
           const at = clampToScreen(
             m.x + Math.round((m.w - HOLDER_W) / 2),
@@ -482,9 +461,6 @@ export function usePinHost({ tool, title }: UsePinHostOptions): PinHost {
       const last = lastPipPosRef.current;
       if (last && last.x === x && last.y === y) return;   // 안 움직였으면 건드리지 않는다(깜빡임 방지)
       lastPipPosRef.current = { x, y };
-      // ★ 고정창이 옮겨지면 **그 자리를 기준점으로 갱신**한다. 안 하면 다음에 여는 팝아웃이 옛 자리에서
-      //   열려 핀을 누를 때 창이 튄다(Irene: "핀을 눌렀다 취소했다 할 때 위치가 동일하지 않아").
-      rememberOrigin(x, y);
       const at = hideTarget(pip, x, y);
       window.moveTo(at.x, at.y);
     } catch { /* 좌표 접근 거부 — 숨기기는 포기하고 기능은 그대로 */ }
@@ -514,7 +490,12 @@ export function usePinHost({ tool, title }: UsePinHostOptions): PinHost {
 
     let win: Window;
     try {
-      win = await api.requestWindow({ width, height });
+      // ★ 자리 고르기 (Irene 2026-10-27 «핀 누르면 우측 하단으로 튐»):
+      //   처음 고정 = 크롬 기억을 **쓰지 않는다** → 팝아웃이 열린 자리(같은 계산의 기본 자리)에 그대로 뜬다.
+      //     크롬 기억은 브라우저 재시작·도구별 크기로 갈려 있어, 기대면 «엉뚱한 옛 자리/우하단» 으로 튄다.
+      //   이 창에서 고정했다 푼 뒤 다시 고정 = 크롬 기억을 **쓴다** → 고정창을 옮겨 둔 자리로 돌아간다
+      //     (해제하면 일반 창이 그 자리에 섰다 — backToNormal. 08-20 «눌렀다 취소했다 할 때 위치 동일»).
+      win = await api.requestWindow({ width, height, preferInitialWindowPlacement: !pinnedBeforeRef.current });
     } catch {
       return; // 사용자가 취소했거나 브라우저가 거부 → 이 창은 그대로 **일반 팝아웃으로 남는다**
     }
@@ -551,8 +532,8 @@ export function usePinHost({ tool, title }: UsePinHostOptions): PinHost {
     //      **창 종류(Document PiP)** 다. 손으로 끄는 것만 된다.)
     //   그래서 "팝아웃을 옮긴 자리에 고정창을 띄운다"(Irene 요구)는 **구조적으로 불가능**하다.
     //   시도 코드를 남기지 말 것 — 되는 것처럼 보이는 죽은 코드가 다음 사람을 또 헤매게 한다.
-    //   할 수 있는 최선은 반대 방향이다: 고정창이 뜬 자리를 학습해 **팝아웃을 그 자리에서 연다**
-    //   (rememberOrigin). 창을 옮기지 않으면 핀을 눌러도 그대로다.
+    //   할 수 있는 최선은 반대 방향이다: 팝아웃을 **고정창이 뜰 기본 자리에서 열고**(popoutPosition)
+    //   고정창도 그 기본 자리에 뜨게 한다(preferInitialWindowPlacement). 창을 옮기지 않으면 핀을 눌러도 그대로다.
     //   `win.moveTo(...)` 는 에러도 없이 무시된다 — 크롬이 PiP 창의 스크립트 이동을 차단한다
     //   (같은 환경에서 일반 window.open 팝업은 moveTo 가 정상 동작하는 것으로 대조 확인).
     //   그래서 "고정창을 팝아웃이 있던 자리에 띄운다" 는 어떤 코드로도 불가능하다. 시도하지 말 것.
@@ -560,9 +541,7 @@ export function usePinHost({ tool, title }: UsePinHostOptions): PinHost {
     //   정확히 읽힌다(실측 3회). 팝아웃 자리를 기준으로 잡으면 홀더가 옛 자리에 0.5초 노출됐다가
     //   폴링 첫 틱에 점프하는 것이 사용자에게 보인다.
     const anchor = pipAnchor(win);
-    // ★ 고정창이 실제로 뜬 자리를 기억한다 — 다음부터 **일반 팝아웃이 이 자리에서** 열려서
-    //   핀을 눌러도 창이 움직이지 않는다(Irene: "그 자리 그대로 고정팝아웃 생기게 해달라고 했잖아").
-    rememberOrigin(anchor.x, anchor.y);
+    pinnedBeforeRef.current = true;
 
     pipRef.current = win;
     markPipActive(true);
