@@ -524,6 +524,7 @@ router.post('/ai-create', authenticateToken, aiCreateModeLimiter, async (req, re
       routine_shortfall: result.routine_shortfall || null,
       // 2026-10-12 — 나열한 N개 중 M개만 나왔을 때(재요구 뒤에도). 화면이 «N개 중 M개» 를 말한다.
       enumerated_shortfall: result.enumerated_shortfall || null,
+      partial: !!result.partial,                       // 2026-10-27 — 출력 상한에서 잘려 앞쪽만 건졌다
       existing_recurring: existingRecurring,           // 부하 요약의 "이미 돌고 있는 것"
       reasoning: result.reasoning,
       fallback: result.fallback,

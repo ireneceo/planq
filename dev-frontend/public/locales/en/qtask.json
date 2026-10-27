@@ -1186,7 +1186,7 @@
     "submitHint": "Create with AI",
     "loadingTitle": "AI is decomposing tasks",
     "loadingSub": "Breaking into outcome-named steps...",
-    "loadingHint": "Usually about 10 seconds — up to 30 for a long list.",
+    "loadingHint": "Usually about 10 seconds — up to a minute for many tasks.",
     "noCandidates": "Could not extract tasks. Please be more specific.",
     "titlePlaceholder": "End with a deliverable (e.g. ... draft / report / launch)",
     "vagueHint": "Looks like a deliverable noun is missing. e.g. \"Design\" → \"Main page mockup draft\"",
@@ -1294,6 +1294,7 @@
     "workstreamCreate": "Create '{{name}}' as a new group",
     "baseHint": "Changing the start date recalculates every schedule automatically.",
     "startDate": "Start date",
+    "truncatedPartial": "The result was long, so only the first {{count}} tasks were made. Ask again for the rest.",
     "truncatedOneoff": "The result was too long and got cut off. Split the tasks into a few smaller requests.",
     "tooManyItems": "You can add up to {{max}} at once. You listed {{got}} — please add them in smaller batches.",
     "assigneeDefaultMe": "Me (default)"

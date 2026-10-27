@@ -20,6 +20,9 @@ const MODEL = modelFor('task_plan');
 const VAGUE_WORDS_KO = ['디자인', '개발', '시장조사', '조사', '회의', '미팅', '리뷰', '검토', '확인', '준비', '체크', '논의', '기획', '분석'];
 const VAGUE_WORDS_EN = ['design', 'develop', 'research', 'meeting', 'review', 'check', 'discuss', 'prepare', 'plan', 'analyze'];
 
+// AI 업무 확정 한 번에 만들 수 있는 업무 수 — 확정 라우트·Cue 업무 묶음·분해 프롬프트의 개수 상한이 같은 값을 쓴다(단일 원천)
+const MAX_CONFIRM_CANDIDATES = 40;
+
 function detectVague(title, language) {
   const t = String(title || '').trim();
   if (!t) return false;
@@ -214,6 +217,11 @@ Rules:
 ═══ DECOMPOSITION POLICY ═══
 
 - Output 5~15 tasks for normal scope. Minimum 3 even for "simple" requests (요구정의 → 실행 → 검수 발행).
+- If the user explicitly asks for "everything" / "all tasks" / "최대로" / "모든 업무" / "다 넣어", the 5~15 range does NOT apply:
+  cover every area they named plus the usual ones for that kind of work (permits, purchasing, inspection, opening prep …), typically 20~${MAX_CONFIRM_CANDIDATES} tasks.
+  Use the user's own domain — do not add unrelated generic steps (예: a shop opening has no "사이트맵/와이어프레임").
+- HARD CAP: never more than ${MAX_CONFIRM_CANDIDATES} tasks, even if the user asks for "everything" / "최대로" / "모든 업무". Group small steps instead of exceeding it.
+  When you output more than 20 tasks: "description" = ONE short sentence and "instruction" = null for every task (the answer must stay short enough to finish).
 - Single-task requests (예: "보고서 1장 작성") = 1-2 tasks OK, but verify the user explicitly stated "single".
 - estimated_hours: realistic 1~80 per task. If a task estimates >40h, SPLIT it into sub-tasks.
 - duration_days: working days (exclude weekends in your reasoning). Sequential dependency = next task starts after previous ends.
@@ -406,6 +414,42 @@ function countEnumeratedItems(prompt) {
   return run >= 2 ? run : 0;
 }
 
+// 잘린 JSON 에서 "tasks": [ … ] 안의 **완결된** 객체만 꺼낸다. 문자열 안의 괄호·이스케이프는 세지 않는다.
+//   반쪽 객체(마지막)는 버린다 — 제목만 있고 기한이 비는 후보를 내느니 없는 게 낫다.
+function salvageTruncatedTasks(content) {
+  const text = String(content || '');
+  const m = /"tasks"\s*:\s*\[/.exec(text);
+  if (!m) return [];
+  const out = [];
+  let depth = 0; let start = -1; let inStr = false; let esc = false;
+  for (let i = m.index + m[0].length; i < text.length; i += 1) {
+    const ch = text[i];
+    if (inStr) {
+      if (esc) esc = false;
+      else if (ch === '\\') esc = true;
+      else if (ch === '"') inStr = false;
+      continue;
+    }
+    if (ch === '"') { inStr = true; continue; }
+    if (ch === '{' || ch === '[') {
+      if (depth === 0 && ch === '{') start = i;
+      depth += 1;
+    } else if (ch === '}' || ch === ']') {
+      if (depth === 0) break;            // tasks 배열이 닫혔다(잘린 게 아니라 뒤쪽이 깨진 경우)
+      depth -= 1;
+      if (depth === 0 && ch === '}' && start >= 0) {
+        try { const o = JSON.parse(text.slice(start, i + 1)); if (o && typeof o === 'object') out.push(o); } catch { /* 깨진 한 건은 건너뛴다 */ }
+        start = -1;
+      }
+    }
+  }
+  return out;
+}
+
+// «모든 업무·최대로·다 넣어» — 개수를 넓히라는 명시 요구. 좁게 잡는다(«모든 사람에게 공유» 같은 문장은 개수와 무관).
+const EXHAUSTIVE = /(모든|전체|전부)\s*(업무|할\s*일|작업|단계)|최대(로|한)|빠짐없이|다\s*넣|\b(all|every)\s+(the\s+)?(tasks?|steps?)\b|as many as possible/i;
+function wantsExhaustive(prompt) { return EXHAUSTIVE.test(String(prompt || '')); }
+
 function rawTasksUsable(parsed) {
   return !!parsed && Array.isArray(parsed.tasks) && parsed.tasks.length > 0;
 }
@@ -438,6 +482,14 @@ async function planTasksFromPrompt({ prompt, businessId, projectContext, members
   let userPrompt = String(prompt).trim();
   const insList = (Array.isArray(instructions) ? instructions : (instruction ? [instruction] : []))
     .map(x => String(x || '').trim()).filter(Boolean).slice(-10).map(x => x.slice(0, 1000));
+  // 2026-10-27 — «모든 업무·최대로» 를 요구했는데 시스템 규칙(5~15)만 보고 15건 남짓에서 멈췄다. 요구를 사용자 문장 옆에 다시 박는다.
+  //   나열(enumerated)·루틴·재생성 지시가 있으면 걸지 않는다 — 그때 개수는 그쪽 규칙이 정한다.
+  const exhaustive = !isRoutine && enumerated < 2 && !insList.length && wantsExhaustive(prompt);
+  if (exhaustive) {
+    userPrompt += language === 'en'
+      ? `\n\n[Constraint] The user asked for ALL tasks. Output at least 20 and at most ${MAX_CONFIRM_CANDIDATES} tasks, covering every area named above. Keep each description to one sentence; instruction null.`
+      : `\n\n[제약] 사용자가 모든 업무를 요구했다. 20개 이상 ${MAX_CONFIRM_CANDIDATES}개 이하로, 위에 적은 영역을 빠짐없이 낸다. description 은 한 문장, instruction 은 null.`;
+  }
   if (Array.isArray(baseCandidates) && baseCandidates.length) {
     const brief = baseCandidates.slice(0, 30).map((c, i) => {
       const t = String(c.title || '').slice(0, 120);
@@ -466,13 +518,23 @@ async function planTasksFromPrompt({ prompt, businessId, projectContext, members
   }
   // 2026-10-12 — 나열 항목이 많으면 task_plan 의 출력 2,000토큰에서 JSON 이 잘린다(= 전량 유실·422).
   //   상한만 넓힌 task_plan_list 로 부른다(상한은 천장이라 짧은 답의 비용은 그대로).
-  const planPurpose = isRoutine ? 'routine_plan' : (enumerated >= 8 ? 'task_plan_list' : 'task_plan');
+  // 2026-10-27 — 나열이 없어도 «매장 오픈 업무 전부·최대로» 같은 큰 목표는 20~40건이 나와 2,000토큰에서 늘 잘렸다.
+  //   그래서 일회성 분해는 모두 task_plan_list(8,000) — 개수 상한(MAX_CONFIRM_CANDIDATES)은 프롬프트가 건다.
+  //   task_plan 자체는 voice.js 도 쓰므로 그대로 둔다.
+  const planPurpose = isRoutine ? 'routine_plan' : 'task_plan_list';
   const result = await callOpenAi(systemPrompt, userPrompt, planPurpose);
 
   let parsed;
   let parseFailed = false;
   try { parsed = JSON.parse(result.content); }
   catch { parsed = { tasks: [], reasoning: 'parse_error' }; parseFailed = true; }
+  // 2026-10-27 — 상한에서 잘렸으면 **이미 끝까지 나온 업무는 건진다**(전엔 10여 건을 통째로 버리고 422).
+  //   건진 것이 있으면 정상 응답 + partial 로 «여기까지만 만들었어요» 를 말한다. 루틴은 영역·지침이 한 몸이라 건지지 않는다.
+  let partial = false;
+  if (parseFailed && result.finish_reason === 'length' && !isRoutine) {
+    const salvaged = salvageTruncatedTasks(result.content);
+    if (salvaged.length) { parsed = { tasks: salvaged, reasoning: '' }; partial = true; }
+  }
 
   // ★ 조용한 0건 차단 — 응답이 **상한에서 잘렸는지**를 먼저 본다.
   //   잘린 JSON 은 파싱에 실패해 tasks 0건이 되는데, 그걸 "추출 못 함" 으로 내보내면
@@ -782,6 +844,26 @@ async function planTasksFromPrompt({ prompt, businessId, projectContext, members
     }
   }
 
+  // 2026-10-27 — «모든 업무·최대로» 인데 20건 미만이면 1회 보충 요구(직전 목록을 주고 빠진 영역만 더하게). 더 많은 쪽을 쓴다.
+  //   잘려서 건진 경우(partial)는 걸지 않는다 — 이미 상한이라 다시 불러도 또 잘린다.
+  if (exhaustive && !partial && !result.fallback && candidates.length && candidates.length < 20) {
+    const got = candidates.length;
+    const listed = candidates.map((c, i) => `${i + 1}. ${c.title}`).join('\n');
+    const note = language === 'en'
+      ? `\n\n[Constraint] Your previous answer had only ${got} tasks:\n${listed}\nKeep all of them and ADD what is missing — every area the user named must have its own task. Total 20~${MAX_CONFIRM_CANDIDATES}.`
+      : `\n\n[제약] 직전 답은 ${got}개뿐이었다:\n${listed}\n이것을 모두 유지하고 빠진 것을 **더한다** — 사용자가 적은 영역은 하나도 빠짐없이 자기 업무가 있어야 한다. 합계 20~${MAX_CONFIRM_CANDIDATES}개.`;
+    try {
+      const retry = await callOpenAi(systemPrompt, userPrompt + note, planPurpose);
+      const rp = JSON.parse(retry.content);
+      const retried = buildCandidates(Array.isArray(rp.tasks) ? rp.tasks : []);
+      if (retried.length > got) candidates = retried;
+      result.input_tokens += retry.input_tokens || 0;
+      result.output_tokens += retry.output_tokens || 0;
+    } catch (e) {
+      console.warn('[aiTaskPlanner] exhaustive retry failed', e.message);
+    }
+  }
+
   // #90 — 링크 유실 방지 안전망: 프롬프트의 URL 이 어떤 후보 description 에도 없으면 첫 후보에 보존.
   const urls = (String(prompt).match(/https?:\/\/[^\s<>"')]+/g) || []).slice(0, 3);
   if (urls.length && candidates.length) {
@@ -834,6 +916,8 @@ async function planTasksFromPrompt({ prompt, businessId, projectContext, members
     // #354 — 계약을 못 채운 항목. 화면이 "지침이 짧습니다" 를 말할 수 있어야 한다(조용한 손실 금지).
     routine_shortfall: routineShortfall,
     enumerated_shortfall: enumeratedShortfall,
+    // 2026-10-27 — 출력 상한에서 잘려 앞쪽 업무만 건졌다. 화면이 «여기까지만» 을 말한다(조용한 손실 금지).
+    partial,
     // 운영 #263 — "이런 긴 멘트가 필요해? 언제 읽어?"
     //   프롬프트는 "30자 이내 · 메타설명 금지" 를 요구하는데 여기 캡은 120자였다. 계약이 4배 어긋나
     //   장황한 첫 문장이 그대로 통과했다(Irene 실측: "사용자의 요청에 따라 … 단일 작업을 정의했습니다.").
@@ -854,8 +938,5 @@ async function planTasksFromPrompt({ prompt, businessId, projectContext, members
   };
 }
 
-// AI 업무 확정 한 번에 만들 수 있는 업무 수 — 확정 라우트·Cue 업무 묶음이 같은 값을 쓴다(단일 원천)
-const MAX_CONFIRM_CANDIDATES = 40;
-
 module.exports = {
-  MAX_CONFIRM_CANDIDATES, countEnumeratedItems, planTasksFromPrompt, detectVague, matchMemberByHint, matchMemberByName };
+  MAX_CONFIRM_CANDIDATES, countEnumeratedItems, planTasksFromPrompt, detectVague, matchMemberByHint, matchMemberByName, salvageTruncatedTasks };

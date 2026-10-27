@@ -1186,7 +1186,7 @@
     "submitHint": "AI 로 만들기",
     "loadingTitle": "AI 가 업무를 분해하고 있어요",
     "loadingSub": "결과물 중심으로 단계를 나누는 중...",
-    "loadingHint": "보통 10초 안팎, 목록이 길면 30초쯤 걸려요.",
+    "loadingHint": "보통 10초 안팎, 업무가 많으면 1분쯤 걸려요.",
     "noCandidates": "업무를 추출하지 못했어요. 더 구체적으로 입력해 주세요.",
     "titlePlaceholder": "결과물 명사로 끝나도록 (예: ... 작성/발행/제작)",
     "vagueHint": "결과물 명사가 빠진 것 같아요. 예: \"디자인\" → \"메인 시안 작성\"",
@@ -1294,6 +1294,7 @@
     "workstreamCreate": "'{{name}}' 새 그룹으로 만들기",
     "baseHint": "시작일을 바꾸면 모든 일정이 자동 재계산돼요.",
     "startDate": "시작일",
+    "truncatedPartial": "결과가 길어 앞쪽 {{count}}개까지만 만들었어요. 빠진 업무는 따로 요청해 주세요.",
     "truncatedOneoff": "결과가 너무 길어 잘렸어요. 업무를 몇 묶음으로 나눠서 다시 요청해 주세요.",
     "tooManyItems": "한 번에 {{max}}개까지 추가할 수 있어요. {{got}}개를 적으셨어요 — 나눠서 추가해 주세요.",
     "assigneeDefaultMe": "나 (기본)"

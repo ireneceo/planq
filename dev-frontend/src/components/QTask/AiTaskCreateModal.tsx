@@ -105,6 +105,7 @@ export default function AiTaskCreateModal({ open, onClose, businessId, projectId
       setError(null);
       setNotice(null);
       setListShortfall(null);
+      setPartial(false);
       setSubmitting(false);
       setSelectedProjectId(projectId || null);
       setBaseDate(new Date().toISOString().slice(0, 10));
@@ -156,6 +157,8 @@ export default function AiTaskCreateModal({ open, onClose, businessId, projectId
   type Shortfall = string | { code: string; n?: number; min?: number };
   const [shortfall, setShortfall] = useState<Shortfall[] | null>(null);
   const [listShortfall, setListShortfall] = useState<{ expected: number; got: number } | null>(null);
+  // 출력 상한에서 잘려 서버가 앞쪽 업무만 건졌다 — 조용히 일부만 보여주지 않는다.
+  const [partial, setPartial] = useState(false);
 
   if (!open) return null;
 
@@ -237,6 +240,7 @@ export default function AiTaskCreateModal({ open, onClose, businessId, projectId
       // 나열한 N개 중 M개만 정리됐으면 말한다(Cue 바와 같은 문구) — 확정은 막지 않는다.
       const enumShort = j.data?.enumerated_shortfall as { expected: number; got: number } | null;
       setListShortfall(enumShort && enumShort.got < enumShort.expected ? enumShort : null);
+      setPartial(!!j.data?.partial);
       setStage('preview');
     } catch (e) {
       setError(mapApiError(e, tErr));
@@ -416,13 +420,18 @@ export default function AiTaskCreateModal({ open, onClose, businessId, projectId
               <LoadingText>{t('ai.loadingTitle', 'AI 가 업무를 분해하고 있어요')}</LoadingText>
               <LoadingSub>{t('ai.loadingSub', '결과물 중심으로 단계를 나누는 중...')}</LoadingSub>
               <ProgressTrack><ProgressFill /></ProgressTrack>
-              <LoadingHint>{t('ai.loadingHint', '보통 10초 안팎, 목록이 길면 30초쯤 걸려요.')}</LoadingHint>
+              <LoadingHint>{t('ai.loadingHint', '보통 10초 안팎, 업무가 많으면 1분쯤 걸려요.')}</LoadingHint>
             </LoadingBox>
           )}
 
           {stage === 'preview' && (
             <AIForm>
               {reasoning && <ReasoningBox>{reasoning}</ReasoningBox>}
+              {partial && (
+                <NoticeMsg role="status">
+                  {t('ai.truncatedPartial', { count: candidates.length, defaultValue: '결과가 길어 앞쪽 {{count}}개까지만 만들었어요. 빠진 업무는 따로 요청해 주세요.' }) as string}
+                </NoticeMsg>
+              )}
               {listShortfall && (
                 <NoticeMsg role="status">
                   {t('ai.bar.shortfall', { expected: listShortfall.expected, got: listShortfall.got, defaultValue: '적어 주신 {{expected}}개 중 {{got}}개만 정리됐어요 — 빠진 항목은 다시 보내 주세요' }) as string}
