@@ -3489,6 +3489,7 @@ const QNotePage = ({ scope, onRecordingChange }: QNotePageProps = {}) => {
         open={audioUploadOpen}
         businessId={businessId ?? 0}
         projectId={embedProjectId}
+        userLanguage={user?.language ?? undefined}
         onClose={() => setAudioUploadOpen(false)}
         onUploaded={(sessionId) => {
           // ★ 올리자마자 그 노트를 연다. 목록만 갱신하면 사용자에겐 **아무 반응이 없는 것**으로

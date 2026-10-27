@@ -474,7 +474,8 @@
     "errUnavailable": "We cannot process this right now. Please try again shortly.",
     "errGeneric": "Upload failed.",
     "processingNotice": "Turning the recording into text. It will appear here automatically when it is done.",
-    "failedNotice": "Transcription failed. Please try uploading the file again."
+    "failedNotice": "Transcription failed. Please try uploading the file again.",
+    "translateHint": "When on, each line gets a translation in the chosen language after transcription. This can make the note take a little longer."
   },
   "link": {
     "project": "Project",

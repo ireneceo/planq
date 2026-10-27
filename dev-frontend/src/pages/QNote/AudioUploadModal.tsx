@@ -5,11 +5,13 @@
 // 서버는 접수 즉시 session_id 를 주고 STT 는 백그라운드로 돈다. 그래서 이 모달은
 // **기다리지 않는다** — 올리면 닫히고, 목록의 그 노트가 "처리 중" 으로 서 있다가 완성된다.
 // (2시간짜리 파일을 모달을 띄운 채 붙잡아 두는 것은 오답이다)
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { AUDIO_UPLOAD_EXT, AUDIO_UPLOAD_MAX_BYTES, uploadAudioForStt } from '../../services/qnote';
 import { CONTROL } from '../../theme/tokens';
+import PlanQSelect from '../../components/Common/PlanQSelect';
+import { LANGUAGES, getDefaultLanguageFromBrowser } from '../../constants/languages';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import { useEscapeStack } from '../../hooks/useEscapeStack';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
@@ -19,6 +21,8 @@ type Props = {
   businessId: number;
   /** 프로젝트 안에서 열렸으면 그 프로젝트 — 올린 노트가 그 프로젝트의 것이 된다 */
   projectId?: number | null;
+  /** 내 프로필 언어 — «번역 필요» 를 켰을 때 번역할 언어의 처음 값 (회의 시작 창과 같다) */
+  userLanguage?: string;
   onClose: () => void;
   onUploaded: (sessionId: number) => void;
 };
@@ -27,7 +31,7 @@ type Props = {
 //   고른 뒤 pick() 이 확장자를 다시 보므로 넓혀도 받는 형식은 그대로다.
 const ACCEPT = ['audio/*', ...AUDIO_UPLOAD_EXT.map((e) => `.${e}`)].join(',');
 
-export default function AudioUploadModal({ open, businessId, projectId = null, onClose, onUploaded }: Props) {
+export default function AudioUploadModal({ open, businessId, projectId = null, userLanguage, onClose, onUploaded }: Props) {
   const { t } = useTranslation('qnote');
   const ref = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -35,6 +39,13 @@ export default function AudioUploadModal({ open, businessId, projectId = null, o
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
+  // 고급 설정 — 실시간 노트 시작 창의 «번역 필요» 와 같은 두 칸 (Irene 2026-10-27)
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [translateEnabled, setTranslateEnabled] = useState(false);
+  const [translationLang, setTranslationLang] = useState<string>(userLanguage || getDefaultLanguageFromBrowser());
+  const langOptions = useMemo(() => LANGUAGES.filter((l) => l.deepgram).map((l) => ({
+    value: l.code, label: l.label, description: l.native !== l.label ? l.native : undefined,
+  })), []);
 
   useBodyScrollLock(open);
   useEscapeStack(open && !busy, onClose);
@@ -59,7 +70,10 @@ export default function AudioUploadModal({ open, businessId, projectId = null, o
     if (!file || busy) return;               // 중복 제출 가드
     setBusy(true); setError(null);
     try {
-      const r = await uploadAudioForStt(file, businessId, { projectId });
+      const r = await uploadAudioForStt(file, businessId, {
+        projectId,
+        translationLanguage: translateEnabled ? translationLang : '',
+      });
       onUploaded(r.session_id);
       setFile(null);
       onClose();
@@ -121,6 +135,30 @@ export default function AudioUploadModal({ open, businessId, projectId = null, o
             )}
           </Drop>
 
+          {showAdvanced ? (
+            <Advanced>
+              <AdvancedToggle type="button" onClick={() => setShowAdvanced(false)}>{t('startModal.advancedHide')}</AdvancedToggle>
+              <CheckboxLabel>
+                <input type="checkbox" checked={translateEnabled} onChange={(e) => setTranslateEnabled(e.target.checked)} data-testid="qnote-upload-translate" />
+                <span>{t('startModal.translateNeeded')}</span>
+              </CheckboxLabel>
+              <Hint>{t('audioUpload.translateHint')}</Hint>
+              {translateEnabled && (
+                <div>
+                  <Label>{t('startModal.translationLanguageLabel')}</Label>
+                  <PlanQSelect
+                    options={langOptions}
+                    value={langOptions.find((o) => o.value === translationLang) || null}
+                    onChange={(opt: any) => setTranslationLang(opt?.value || translationLang)}
+                    placeholder={t('startModal.translationLanguagePlaceholder')}
+                  />
+                </div>
+              )}
+            </Advanced>
+          ) : (
+            <AdvancedToggle type="button" onClick={() => setShowAdvanced(true)}>{t('startModal.advancedShow')}</AdvancedToggle>
+          )}
+
           {error && <ErrorMsg role="alert">{error}</ErrorMsg>}
           <Note>{t('audioUpload.note')}</Note>
         </Body>
@@ -178,6 +216,19 @@ const ErrorMsg = styled.div`
   font-size: 0.75rem; color: #B91C1C; background: #FEF2F2;
   border: 1px solid #FECACA; border-radius: 8px; padding: 8px 10px; line-height: 1.5;
 `;
+const Advanced = styled.div`display: flex; flex-direction: column; gap: 8px;`;
+const AdvancedToggle = styled.button`
+  align-self: flex-start; font-size: 0.75rem; font-weight: 500; color: #94a3b8;
+  background: none; border: none; cursor: pointer; padding: 4px 0;
+  &:hover { color: #64748b; }
+`;
+const CheckboxLabel = styled.label`
+  display: inline-flex; align-items: center; gap: 6px; cursor: pointer;
+  font-size: 0.8125rem; color: #334155;
+  input { accent-color: #14B8A6; cursor: pointer; }
+`;
+const Label = styled.div`font-size: 0.8125rem; font-weight: 600; color: #334155; margin-bottom: 6px;`;
+const Hint = styled.div`font-size: 0.75rem; color: #94a3b8; line-height: 1.5;`;
 const Note = styled.div`font-size: 0.6875rem; color: #94A3B8; line-height: 1.6;`;
 const Footer = styled.div`
   display: flex; justify-content: flex-end; gap: 8px;

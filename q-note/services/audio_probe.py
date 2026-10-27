@@ -29,7 +29,8 @@ logger = logging.getLogger(__name__)
 
 # 허용 확장자 — 아이폰 음성 메모(m4a·caf) 포함. raw .aac(ADTS, duration 헤더 없음)·
 #   동영상 컨테이너(mp4/mov)·webm 은 이번 절단면 밖.
-ALLOWED_AUDIO_EXT = {'m4a', 'mp3', 'wav', 'ogg', 'flac', 'aiff', 'aif', 'caf'}
+#   opus — 왓츠앱 음성 메시지(Ogg 안의 Opus). mutagen 이 길이를 읽고 Deepgram 이 그대로 받는다(2026-10-27).
+ALLOWED_AUDIO_EXT = {'m4a', 'mp3', 'wav', 'ogg', 'opus', 'flac', 'aiff', 'aif', 'caf'}
 
 
 def _try_mutagen(path: str) -> Optional[float]:

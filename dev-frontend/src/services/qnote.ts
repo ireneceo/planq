@@ -790,7 +790,8 @@ export function buildLiveSocketUrl(sessionId: number): string {
 //   ★ apiFetch 를 쓰지 않는다 — FormData 는 Content-Type 을 브라우저가 boundary 와 함께
 //     붙여야 하는데 apiFetch 가 JSON 헤더를 얹으면 multipart 파싱이 깨진다.
 // ─────────────────────────────────────────────────────────
-export const AUDIO_UPLOAD_EXT = ['m4a', 'mp3', 'wav', 'ogg', 'flac', 'aiff', 'aif', 'caf'] as const;
+// opus — 왓츠앱 음성 메시지 (2026-10-27). 서버 q-note audio_probe.ALLOWED_AUDIO_EXT 와 같은 목록이어야 한다.
+export const AUDIO_UPLOAD_EXT = ['m4a', 'mp3', 'wav', 'ogg', 'opus', 'flac', 'aiff', 'aif', 'caf'] as const;
 export const AUDIO_UPLOAD_MAX_BYTES = 200 * 1024 * 1024;
 
 export type AudioUploadResult = {
@@ -805,7 +806,8 @@ export async function uploadAudioForStt(
   businessId: number,
   // ★ projectId — 프로젝트 안에서 올린 녹음은 **그 프로젝트의 것**이다. 안 실으면 project_id=NULL 로
   //   생겨서 프로젝트 노트 목록(`?project_id=`)에 안 잡힌다 = 방금 올린 노트가 사라진다.
-  opts: { title?: string; language?: string; projectId?: number | null; clientId?: number | null } = {},
+  // translationLanguage — 비우면 번역 안 함. 채우면 세션에 «번역 필요» 로 저장되고 변환 뒤 발화마다 번역된다.
+  opts: { title?: string; language?: string; projectId?: number | null; clientId?: number | null; translationLanguage?: string } = {},
 ): Promise<AudioUploadResult> {
   const fd = new FormData();
   fd.append('file', file);
@@ -814,6 +816,10 @@ export async function uploadAudioForStt(
   fd.append('language', opts.language || 'multi');
   if (opts.projectId) fd.append('project_id', String(opts.projectId));
   if (opts.clientId) fd.append('client_id', String(opts.clientId));
+  if (opts.translationLanguage) {
+    fd.append('translate_enabled', 'true');
+    fd.append('translation_language', opts.translationLanguage);
+  }
 
   const res = await fetch(`${BASE}/sessions/upload-audio`, {
     method: 'POST',

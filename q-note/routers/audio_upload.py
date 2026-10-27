@@ -87,6 +87,10 @@ async def upload_audio(
   #   거르므로 탭을 나갔다 오면 **방금 올린 노트가 사라졌다**(Fable 실측).
   project_id: Optional[int] = Form(None),
   client_id: Optional[int] = Form(None),
+  # 2026-10-27 — 번역이 필요한 녹음(Irene «번역이 필요한 경우 고급설정 나와야»). 실시간 노트의 «번역 필요» 와
+  #   같은 두 칸을 세션에 그대로 저장한다 — 상세 화면이 같은 칸으로 번역 줄을 보여 준다.
+  translate_enabled: bool = Form(False),
+  translation_language: str = Form(''),
   user: dict = Depends(get_current_user),
 ):
   uid = int(user['user_id'])
@@ -158,6 +162,7 @@ async def upload_audio(
     }))
 
   # ── 세션 생성 (processing) — job_id 를 박아 둔다(과금 원장 stream_id) ──
+  trans_lang = (translation_language or '').strip()[:10] if translate_enabled else ''
   base = os.path.basename(file.filename or 'recording')
   auto_title = title.strip() or os.path.splitext(base)[0][:120] or 'recording'
   async with db_connect() as db:
@@ -165,15 +170,16 @@ async def upload_audio(
       '''INSERT INTO sessions
            (business_id, user_id, title, language, status, capture_mode, input_type,
             duration_seconds, utterance_count, upload_job_id, upload_source_name,
-            project_id, client_id)
-         VALUES (?, ?, ?, ?, 'processing', 'upload', 'voice', 0, 0, ?, ?, ?, ?)''',
-      (business_id, uid, auto_title, language, job_id, base[:200], project_id, client_id),
+            project_id, client_id, translate_enabled, translation_language)
+         VALUES (?, ?, ?, ?, 'processing', 'upload', 'voice', 0, 0, ?, ?, ?, ?, ?, ?)''',
+      (business_id, uid, auto_title, language, job_id, base[:200], project_id, client_id,
+       1 if trans_lang else 0, trans_lang or None),
     )
     session_id = cur.lastrowid
     await db.commit()
 
   _active_uploads.add(uid)
-  task = asyncio.create_task(_process(session_id, business_id, uid, dest, language, job_id))
+  task = asyncio.create_task(_process(session_id, business_id, uid, dest, language, job_id, trans_lang))
   task.add_done_callback(lambda t: _log_task_exception(t, session_id))
 
   logger.info('[upload-audio] 접수 session=%s job=%s %.1fs(%s) %.1fMB',
@@ -182,6 +188,31 @@ async def upload_audio(
     'session_id': session_id, 'status': 'processing',
     'duration_seconds': int(duration), 'measured_by': how,
   }}
+
+
+async def _translate_utterances(session_id: int, target: str, source_lang: Optional[str]) -> int:
+  """업로드 노트의 발화를 한꺼번에 번역해 translated_text 에 넣는다. 번역 여부는 실시간과 같은 술어(wants_translation)."""
+  from services.answer_service import wants_translation
+  from services.llm_service import translate_text
+  if not wants_translation(True, target, source_lang):
+    return 0
+  async with db_connect() as db:
+    rows = await (await db.execute(
+      "SELECT id, original_text FROM utterances WHERE session_id = ? AND TRIM(COALESCE(original_text, '')) != '' ORDER BY id",
+      (session_id,))).fetchall()
+  sem = asyncio.Semaphore(4)
+
+  async def one(row):
+    async with sem:
+      return row[0], await translate_text(row[1], target)
+
+  done = await asyncio.gather(*(one(r) for r in rows))
+  async with db_connect() as db:
+    for uid_, text in done:
+      if text:
+        await db.execute('UPDATE utterances SET translated_text = ? WHERE id = ?', (text, uid_))
+    await db.commit()
+  return sum(1 for _, text in done if text)
 
 
 def _log_task_exception(task: asyncio.Task, session_id: int) -> None:
@@ -201,7 +232,7 @@ async def _fail(session_id: int, message: str) -> None:
 
 
 async def _process(session_id: int, business_id: int, user_id: int,
-                   path: str, language: str, job_id: str) -> None:
+                   path: str, language: str, job_id: str, translation_language: str = '') -> None:
   """백그라운드 — STT → 적재 → 과금 → ended. 실패해도 과금하지 않는다."""
   try:
     try:
@@ -234,6 +265,18 @@ async def _process(session_id: int, business_id: int, user_id: int,
           (session_id, u['speaker'], u['text'], result.get('detected_language'),
            u['start'], u['end'], u['confidence'], _now(), speaker_rows[key]),
         )
+      await db.commit()
+
+    # 번역 — «완료» 로 바꾸기 전에 채운다(열었을 때 번역 줄이 비어 있지 않게). 실패해도 노트는 그대로 완성된다.
+    if translation_language:
+      try:
+        n = await _translate_utterances(session_id, translation_language,
+                                        result.get('detected_language') or (language if language != 'multi' else None))
+        logger.info('[upload-audio] 번역 session=%s → %s %d건', session_id, translation_language, n)
+      except Exception as e:
+        logger.warning('[upload-audio] 번역 실패 session=%s: %s', session_id, e)
+
+    async with db_connect() as db:
       # ★ 'completed' — 기존 음성 세션의 종료 상태값과 **같아야 한다**.
       #   'ended' 를 쓰면 목록 라벨 분기에도 없어 "대기" 로 보이고, 상세의 phase 판정에서도
       #   review 가 아니라 paused 로 떨어져 **"녹음 이어하기 / 음성 노트 종료" 버튼**이 뜬다
