@@ -12,11 +12,13 @@ interface Props {
   onAddBelow: () => void;
   onCopy: () => void;
   // 운영 #48 — 삭제 결과를 반환하면 실패(예: 권한 없음 403) 사유를 메뉴에 인라인 표시한다.
-  onDelete: () => Promise<DeleteResult> | DeleteResult;
+  // 반복 업무면 scope 를 넘긴다 — «이 업무만(single) / 이 업무와 이후 모두(future)» (2026-10-27, 상세의 삭제 물음과 같은 두 가지)
+  onDelete: (scope?: 'single' | 'future') => Promise<DeleteResult> | DeleteResult;
   busy?: boolean;
+  series?: boolean;
 }
 
-export default function TaskRowActionMenu({ onAddBelow, onCopy, onDelete, busy }: Props) {
+export default function TaskRowActionMenu({ onAddBelow, onCopy, onDelete, busy, series }: Props) {
   const { t } = useTranslation('qtask');
   const [open, setOpen] = useState(false);
   const [menuPos, setMenuPos] = useState<{ top: number; left: number } | null>(null);
@@ -31,10 +33,10 @@ export default function TaskRowActionMenu({ onAddBelow, onCopy, onDelete, busy }
     if (!open) { setConfirming(false); setDeleting(false); setErrMsg(null); }
   }, [open]);
 
-  const runDelete = async () => {
+  const runDelete = async (scope?: 'single' | 'future') => {
     setDeleting(true); setErrMsg(null);
     try {
-      const r = await onDelete();
+      const r = await onDelete(scope);
       if (r && r.ok === false) {
         setErrMsg(r.message || (t('rowAction.errGeneric', '삭제할 수 없습니다.') as string));
         setConfirming(false);
@@ -104,7 +106,20 @@ export default function TaskRowActionMenu({ onAddBelow, onCopy, onDelete, busy }
             <ErrBox role="alert">{errMsg}</ErrBox>
           ) : confirming ? (
             <ConfirmRow onClick={(e) => e.stopPropagation()}>
-              <ConfirmText>{t('rowAction.confirmDelete', '이 업무를 삭제할까요?')}</ConfirmText>
+              <ConfirmText>{series ? t('rowAction.confirmDeleteSeries', '반복 업무입니다. 어디까지 삭제할까요?') : t('rowAction.confirmDelete', '이 업무를 삭제할까요?')}</ConfirmText>
+              {series ? (
+                <SeriesBtns>
+                  <CBtn type="button" $danger disabled={deleting} data-testid="row-delete-single" onClick={(e) => { e.stopPropagation(); void runDelete('single'); }}>
+                    {deleting ? t('rowAction.deleting', '삭제 중…') : t('rowAction.deleteSingle', '이 업무만')}
+                  </CBtn>
+                  <CBtn type="button" $danger disabled={deleting} data-testid="row-delete-future" onClick={(e) => { e.stopPropagation(); void runDelete('future'); }}>
+                    {t('rowAction.deleteFuture', '이 업무와 이후 모두')}
+                  </CBtn>
+                  <CBtn type="button" disabled={deleting} onClick={(e) => { e.stopPropagation(); setConfirming(false); }}>
+                    {t('rowAction.confirmNo', '취소')}
+                  </CBtn>
+                </SeriesBtns>
+              ) : (
               <ConfirmBtns>
                 <CBtn type="button" $danger disabled={deleting} onClick={(e) => { e.stopPropagation(); void runDelete(); }}>
                   {deleting ? t('rowAction.deleting', '삭제 중…') : t('rowAction.confirmYes', '삭제')}
@@ -113,6 +128,7 @@ export default function TaskRowActionMenu({ onAddBelow, onCopy, onDelete, busy }
                   {t('rowAction.confirmNo', '취소')}
                 </CBtn>
               </ConfirmBtns>
+              )}
             </ConfirmRow>
           ) : (
             <MenuItem type="button" role="menuitem" $danger onClick={(e) => { e.stopPropagation(); setConfirming(true); }}>
@@ -189,6 +205,9 @@ const ConfirmText = styled.div`
 `;
 const ConfirmBtns = styled.div`
   display: flex; gap: 6px;
+`;
+const SeriesBtns = styled.div`
+  display: flex; flex-direction: column; gap: 6px;
 `;
 const CBtn = styled.button<{ $danger?: boolean }>`
   flex: 1; min-height: 32px; padding: 0 10px;

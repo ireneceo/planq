@@ -71,7 +71,7 @@ import { GanttHeader, GanttRowTrack, GanttBar, useGanttScrollSync, type GanttRan
 import { STATUS_COLOR, displayStatus, getStatusLabel, statusOptionsFor, type StatusCode } from '../../utils/taskLabel';
 import { StatusGlyph } from '../../components/Common/Icons';
 import { getRoles, primaryPerspective } from '../../utils/taskRoles';
-import { friendlyDeleteError } from '../../utils/taskDeleteError';
+import { deleteTaskRequest } from '../../utils/taskDeleteError';
 import {
   createWorkstream, updateWorkstream, deleteWorkstream, reorderWorkstreams, wsColor,
   type Workstream,
@@ -80,7 +80,7 @@ import { isEnterAction } from '../../utils/imeKey';
 import ImportanceChip from '../../components/QTask/ImportanceChip';
 import { DesktopOnly, PhoneStatus, PhoneMeta, fmtDueShort } from '../../components/QTask/phoneRow';
 import SeriesScopeDialog, { type SeriesScope } from '../../components/QTask/SeriesScopeDialog';
-import { needsSeriesScope } from '../../utils/taskSeries';
+import { needsSeriesScope, isSeriesTask } from '../../utils/taskSeries';
 import { formatDay } from '../../utils/dateFormat';
 
 export interface TaskRow {
@@ -431,15 +431,9 @@ const ProjectTaskList: React.FC<Props> = ({
                 if (!r.ok) { const j = await r.json().catch(() => ({})); return { ok: false, message: j?.message }; }
                 onRefresh?.(); return { ok: true };
               }}
-              onDelete={async () => {
-                const r = await apiFetch(`/api/tasks/by-business/${businessId}/${task.id}`, { method: 'DELETE' });
-                if (!r.ok) {
-                  const j = await r.json().catch(() => ({}));
-                  return { ok: false, message: friendlyDeleteError(j?.message, t) };
-                }
-                // 성공: 부모가 socket task:deleted 로 즉시 제거 (전체 reload 안 함 — 리프레시 제거)
-                return { ok: true };
-              }}
+              series={isSeriesTask(task as { recurrence_rule?: string | null; recurrence_parent_id?: number | null })}
+              // 성공: 부모가 socket task:deleted 로 즉시 제거 (전체 reload 안 함 — 리프레시 제거)
+              onDelete={(scope) => deleteTaskRequest(businessId, task.id, t, scope)}
             /></DesktopOnly>
             {/* #206 — 보류/외부컨펌 중 완료 우회 차단 (백엔드 가드와 미러) */}
             <TaskCheck type="checkbox" checked={task.status === 'completed'} disabled={holdBlocked}

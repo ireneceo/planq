@@ -1296,12 +1296,12 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
     await callAction('/policy', 'PATCH', { review_policy: p });
   };
 
-  const handleDelete = async () => {
+  const handleDelete = async (scope?: 'single' | 'future') => {
     if (!detailTask || deleting) return;
     setDeleting(true);
     setDeleteErr(null);
     try {
-      const r = await apiFetch(`/api/tasks/by-business/${bizId}/${detailTask.id}`, { method: 'DELETE' });
+      const r = await apiFetch(`/api/tasks/by-business/${bizId}/${detailTask.id}${scope ? `?series_scope=${scope}` : ''}`, { method: 'DELETE' });
       const j = await r.json();
       if (!j.success) {
         // N+93 — 구체 이유 표시 (confirm 다이얼로그 안에 유지). 조용한 실패 제거.
@@ -3053,10 +3053,19 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
     )}
     {/* N+63 — 삭제 confirm modal (drawer 위, zIndex 2100). 옛 inline DangerConfirm 은 drawer 끝에 펼쳐져
         사용자 스크롤 위치에 따라 안 보이는 회귀. 가운데 modal 로 항상 노출 보장. */}
-    <ConfirmDialog
-      isOpen={deleteConfirmOpen}
+    {/* 반복 업무 삭제 — «이 업무만 / 이 업무와 이후 모두» (2026-10-27 Irene, 구글 캘린더와 같은 두 가지) */}
+    <SeriesScopeDialog
+      open={deleteConfirmOpen && isSeries}
+      variant="delete"
+      busy={deleting}
+      error={deleteErr}
+      onPick={(scope) => { if (scope !== 'all') void handleDelete(scope); }}
       onClose={() => { if (!deleting) { setDeleteConfirmOpen(false); setDeleteErr(null); } }}
-      onConfirm={handleDelete}
+    />
+    <ConfirmDialog
+      isOpen={deleteConfirmOpen && !isSeries}
+      onClose={() => { if (!deleting) { setDeleteConfirmOpen(false); setDeleteErr(null); } }}
+      onConfirm={() => void handleDelete()}
       title={t('detail.delete.confirmTitle', '정말 삭제하시겠습니까?') as string}
       message={deleteErr || (t('detail.delete.confirmBody', '삭제된 업무는 복구할 수 없습니다. 댓글·첨부·이력도 함께 사라집니다.') as string)}
       confirmText={(deleting ? t('detail.delete.deleting', '삭제 중...') : t('detail.delete.confirm', '삭제')) as string}

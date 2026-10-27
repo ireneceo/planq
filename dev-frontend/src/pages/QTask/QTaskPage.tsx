@@ -46,7 +46,7 @@ import { useRevealSelectedRow } from '../../hooks/useRevealSelectedRow';
 import { formatHours, sameHours, utilizationPercent, utilizationStatus, UTIL_COLOR } from '../../utils/hours';
 import HelpDot from '../../components/Common/HelpDot';
 import { displayName } from '../../utils/displayName';
-import { friendlyDeleteError } from '../../utils/taskDeleteError';
+import { deleteTaskRequest } from '../../utils/taskDeleteError';
 import TaskCandidateCard from '../../components/Common/TaskCandidateCard';
 import i18nClient from '../../i18n';
 import { formatRRuleLabel } from '../../utils/recurrence';
@@ -63,7 +63,7 @@ import { askCue } from '../../utils/cueAsk';
 import { isEnterAction } from '../../utils/imeKey';
 import ImportanceChip from '../../components/QTask/ImportanceChip';
 import SeriesScopeDialog, { type SeriesScope } from '../../components/QTask/SeriesScopeDialog';
-import { needsSeriesScope } from '../../utils/taskSeries';
+import { needsSeriesScope, isSeriesTask } from '../../utils/taskSeries';
 import { belowTabs } from '../../theme/layout';
 import { inReviewStage } from '../../utils/reviewStage';
 import { SegmentedToggle, SegmentedBtn } from '../../components/Common/segmentedToggle';
@@ -2149,15 +2149,12 @@ const QTaskPage:React.FC=()=>{
                           if (!r.ok) { const j = await r.json().catch(() => ({})); return { ok: false, message: j?.message }; }  // 실패 표면화(onDelete 패턴)
                           return { ok: true };  // socket task:new 자동 반영
                         }}
-                        onDelete={async () => {
-                          const r = await apiFetch(`/api/tasks/by-business/${bizId}/${task.id}`, { method: 'DELETE' });
-                          if (!r.ok) {
-                            const j = await r.json().catch(() => ({}));
-                            return { ok: false, message: friendlyDeleteError(j?.message, t) };
-                          }
-                          // 성공: 즉시 제거(optimistic) — socket task:deleted 도 보정
-                          setAllTasks(prev => prev.filter(x => x.id !== task.id));
-                          return { ok: true };
+                        series={isSeriesTask(task)}
+                        onDelete={async (scope) => {
+                          const res = await deleteTaskRequest(bizId, task.id, t, scope);
+                          // 성공: 즉시 제거(optimistic) — 같이 지운 뒤 회차는 socket task:deleted 가 보정
+                          if (res.ok) setAllTasks(prev => prev.filter(x => x.id !== task.id));
+                          return res;
                         }}
                       />
                       </DesktopOnly>

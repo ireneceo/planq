@@ -1677,17 +1677,22 @@ router.delete('/by-business/:businessId/:id', authenticateToken, async (req, res
         if (biz && biz.owner_id === userId) isOwner = true;
       }
     }
-    if (!isPlatformAdmin && !isOwner) {
+    // 반복 업무 «이 업무와 이후 모두»(series_scope=future) — 같이 지울 뒤 미착수 회차. 권한은 회차마다 같은 선으로 본다.
+    const seriesDel = require('../services/taskSeriesDelete');
+    const seriesScope = seriesDel.normalizeDeleteScope(req.query.series_scope || (req.body && req.body.series_scope));
+    const extraTasks = await Task.findAll({ where: { id: { [Op.in]: await seriesDel.seriesDeleteExtras(task, seriesScope) }, business_id: businessId } });
+    for (const x of [task, ...extraTasks]) {
+      if (x !== task && !(await canAccessTask(userId, x))) return errorResponse(res, 'task_not_found', 404);
+      if (isPlatformAdmin || isOwner) continue;
       // 작성자 본인이 만든 task — "타인의 관여" 가 없을 때만 삭제 허용 (실수 정정용 안전핀).
-      const isCreator = task.created_by === userId;
-      if (!isCreator) return errorResponse(res, 'forbidden_delete — only workspace owner or task creator (untouched task) can delete', 403);
+      if (x.created_by !== userId) return errorResponse(res, 'forbidden_delete — only workspace owner or task creator (untouched task) can delete', 403);
       // 운영 #14 — 작성자 본인이 만든 status_history(자동 누적)·본인 댓글은 잠금 사유에서 제외.
       // 타인(다른 user)이 댓글·리뷰어·상태변경으로 관여한 경우에만 차단 → 책임선 보호는 유지하면서
       // 본인만 만진 test task 정리 가능.
       const [cmtCnt, histCnt, revCnt] = await Promise.all([
-        TaskComment.count({ where: { task_id: task.id, user_id: { [Op.ne]: userId } } }),
-        TaskStatusHistory.count({ where: { task_id: task.id, actor_user_id: { [Op.and]: [{ [Op.ne]: null }, { [Op.ne]: userId }] } } }),
-        TaskReviewer.count({ where: { task_id: task.id, user_id: { [Op.ne]: userId } } }),
+        TaskComment.count({ where: { task_id: x.id, user_id: { [Op.ne]: userId } } }),
+        TaskStatusHistory.count({ where: { task_id: x.id, actor_user_id: { [Op.and]: [{ [Op.ne]: null }, { [Op.ne]: userId }] } } }),
+        TaskReviewer.count({ where: { task_id: x.id, user_id: { [Op.ne]: userId } } }),
       ]);
       if (cmtCnt > 0 || histCnt > 0 || revCnt > 0) {
         return errorResponse(res, 'forbidden_delete — task has activity (comments/history/reviewers). Ask workspace owner.', 403);
@@ -1699,41 +1704,47 @@ router.delete('/by-business/:businessId/:id', authenticateToken, async (req, res
     // TaskReviewer/TaskAttachment/TaskStatusHistory 는 FK onDelete: CASCADE 설정됨.
     // TaskComment · TaskDailyProgress 는 cascade 없음 → 수동 삭제 + 원자화.
     //
-    // 정기업무 (N+40): tasks.recurrence_parent_id FK 가 DDL ON DELETE 미명시 (default RESTRICT).
-    // parent (recurrence_rule != null && recurrence_parent_id == null) 삭제 시 자식 인스턴스가
-    // 있으면 FK constraint 에러. 정책:
-    //   - 자식 인스턴스의 recurrence_parent_id = null 로 detach (인스턴스는 독립 task 로 남김 — 데이터 보존)
-    //   - parent 의 next_occurrence_at 도 어차피 같이 사라지므로 향후 자동 생성 중단
+    // 정기업무: tasks.recurrence_parent_id FK 는 RESTRICT. 시리즈 정리(부모의 규칙 넘기기·반복 끝내기)는
+    //   services/taskSeriesDelete 한 곳 — 남은 자식은 detach(독립 업무로 보존).
+    const io = req.app.get('io');
+    await seriesDel.ensureHeir(task, seriesScope, io);
     const { sequelize } = require('../config/database');
     const t = await sequelize.transaction();
+    let heirId = null;
     try {
-      const isRecurringParent = task.recurrence_rule && !task.recurrence_parent_id;
-      if (isRecurringParent) {
-        await Task.update(
-          { recurrence_parent_id: null },
-          { where: { recurrence_parent_id: task.id }, transaction: t },
-        );
+      heirId = (await seriesDel.prepareSeriesDelete(task, seriesScope, t)).heir_id;
+      for (const x of [task, ...extraTasks]) {
+        await Task.update({ recurrence_parent_id: null }, { where: { recurrence_parent_id: x.id }, transaction: t });
+        // 운영 #14 — documents.task_id 는 ON DELETE NO ACTION(RESTRICT). 연결 문서가 있으면 task.destroy 가
+        //   FK 제약으로 실패(500) → 사용자 "삭제 안 됨". task_id = null 로 detach 하여 문서는 독립 자료로 보존.
+        const { Document } = require('../models');
+        await Document.update({ task_id: null }, { where: { task_id: x.id }, transaction: t });
+        await TaskComment.destroy({ where: { task_id: x.id }, transaction: t });
+        await TaskDailyProgress.destroy({ where: { task_id: x.id }, transaction: t });
+        await x.destroy({ transaction: t });
       }
-      // 운영 #14 — documents.task_id 는 ON DELETE NO ACTION(RESTRICT). 연결 문서가 있으면 task.destroy 가
-      //   FK 제약으로 실패(500) → 사용자 "삭제 안 됨". task_id = null 로 detach 하여 문서는 독립 자료로 보존.
-      const { Document } = require('../models');
-      await Document.update({ task_id: null }, { where: { task_id: task.id }, transaction: t });
-      await TaskComment.destroy({ where: { task_id: task.id }, transaction: t });
-      await TaskDailyProgress.destroy({ where: { task_id: task.id }, transaction: t });
-      await task.destroy({ transaction: t });
       await t.commit();
     } catch (e) { await t.rollback(); throw e; }
 
     // Socket.IO
-    const io = req.app.get('io');
+    for (const x of [task, ...extraTasks]) {
+      const m = { id: x.id, project_id: x.project_id, business_id: x.business_id };
+      if (io) {
+        if (m.project_id) require('../services/projectRoom').emitProject(io, m.project_id, 'task:deleted', m);
+        io.to(`business:${m.business_id}`).emit('task:deleted', m);
+      }
+      require('../services/auditService').logAudit(req, { action: 'task.delete', targetType: 'task', targetId: m.id, businessId: m.business_id, oldValue: { title: x.title, project_id: m.project_id ?? null, ...(x !== task ? { series_of: task.id } : {}) } }); // 감사 — 되돌릴 수 없다(history 는 행과 함께 사라진다)
+    }
     if (io) {
-      if (meta.project_id) require('../services/projectRoom').emitProject(io, meta.project_id, 'task:deleted', meta);
-      io.to(`business:${meta.business_id}`).emit('task:deleted', meta);
+      // 규칙을 이어받은 회차 · 반복을 끝낸 부모도 화면이 다시 읽게 한다(반복 표시가 바뀐다).
+      const touched = heirId || (task.recurrence_parent_id && Number(task.recurrence_parent_id));
+      if (touched) {
+        const base = await require('../services/taskBroadcast').serializeTaskForBroadcast(touched, meta.business_id);
+        if (base) require('../services/taskRoom').emitTask(io, 'task:updated', { ...base, actor_user_id: userId }, { businessId: meta.business_id, projectId: base.project_id }).catch((e) => console.warn('[emitTask]', e.message));
+      }
       broadcastInboxRefresh(io, meta.business_id, meta.project_id, 'task_deleted', meta.id);
     }
-
-    require('../services/auditService').logAudit(req, { action: 'task.delete', targetType: 'task', targetId: meta.id, businessId: meta.business_id, oldValue: { title: task.title, project_id: meta.project_id ?? null } }); // 감사 — 되돌릴 수 없다(history 는 행과 함께 사라진다)
-    return successResponse(res, { id: meta.id, deleted: true });
+    return successResponse(res, { id: meta.id, deleted: true, series_deleted: extraTasks.map((x) => x.id), series_heir_id: heirId });
   } catch (err) { next(err); }
 });
 

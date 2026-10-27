@@ -1105,7 +1105,10 @@
     "deleting": "Deleting…",
     "errGeneric": "Couldn't delete this task.",
     "errForbidden": "You don't have permission to delete. Only the workspace owner/admin or the creator can.",
-    "errHasActivity": "This task has activity from others and can't be deleted. Ask the workspace owner."
+    "errHasActivity": "This task has activity from others and can't be deleted. Ask the workspace owner.",
+    "confirmDeleteSeries": "This task repeats. What should be deleted?",
+    "deleteSingle": "This task only",
+    "deleteFuture": "This and following"
   },
   "tpl": {
     "title": "Add tasks from template",
@@ -1467,7 +1470,14 @@
     "recurFutureHint": "Reschedules from this occurrence onward. Past occurrences stay as they are",
     "recurAll": "All upcoming",
     "recurAllHint": "Reschedules every not-yet-started occurrence from today onward",
-    "recurInstanceNote": "This occurrence was generated from a repeating task. Changing the repeat here applies to the whole series."
+    "recurInstanceNote": "This occurrence was generated from a repeating task. Changing the repeat here applies to the whole series.",
+    "deleteTitle": "Delete recurring task",
+    "deleteDesc": "This task repeats. What should be deleted? Deleted tasks cannot be restored.",
+    "deleteSingle": "Delete this task only",
+    "deleteSingleHint": "The series keeps repeating",
+    "deleteFuture": "Delete this and all following",
+    "deleteFutureHint": "The series ends here. Past and already-started tasks are kept",
+    "deleting": "Deleting…"
   },
   "deliv": {
     "loading": "Loading…",

@@ -1105,7 +1105,10 @@
     "deleting": "삭제 중…",
     "errGeneric": "삭제할 수 없습니다.",
     "errForbidden": "삭제 권한이 없어요. 워크스페이스 소유자·관리자 또는 작성자만 삭제할 수 있어요.",
-    "errHasActivity": "다른 사람이 참여한 업무라 삭제할 수 없어요. 워크스페이스 소유자에게 요청하세요."
+    "errHasActivity": "다른 사람이 참여한 업무라 삭제할 수 없어요. 워크스페이스 소유자에게 요청하세요.",
+    "confirmDeleteSeries": "반복 업무입니다. 어디까지 삭제할까요?",
+    "deleteSingle": "이 업무만",
+    "deleteFuture": "이 업무와 이후 모두"
   },
   "tpl": {
     "title": "템플릿으로 업무 추가",
@@ -1467,7 +1470,14 @@
     "recurFutureHint": "이 회차부터 새 주기로 다시 잡습니다. 지난 회차는 그대로 둡니다",
     "recurAll": "앞으로 전부",
     "recurAllHint": "오늘 이후의 아직 시작 안 한 회차를 모두 새 주기로 다시 잡습니다",
-    "recurInstanceNote": "이 회차는 반복 업무에서 자동으로 만들어졌어요. 여기서 반복 설정을 바꾸면 시리즈 전체에 적용됩니다."
+    "recurInstanceNote": "이 회차는 반복 업무에서 자동으로 만들어졌어요. 여기서 반복 설정을 바꾸면 시리즈 전체에 적용됩니다.",
+    "deleteTitle": "반복 업무 삭제",
+    "deleteDesc": "이 업무는 반복됩니다. 어디까지 삭제할까요? 삭제한 업무는 복구할 수 없습니다.",
+    "deleteSingle": "이 업무만 삭제",
+    "deleteSingleHint": "반복은 그대로 이어집니다",
+    "deleteFuture": "이 업무와 이후 반복 모두 삭제",
+    "deleteFutureHint": "반복이 여기서 끝납니다. 지난 업무와 이미 시작한 업무는 남깁니다",
+    "deleting": "삭제 중…"
   },
   "deliv": {
     "loading": "불러오는 중…",

@@ -22,15 +22,36 @@ interface Props {
    *  'recurrence' — 반복 주기 그 자체. "이 회차만 다른 주기" 는 성립하지 않고(한 번짜리엔 주기가 없다),
    *                 이미 지나간 회차의 날짜도 뒤로 옮길 수 없다. 그래서 **성립하는 것만** 묻는다 —
    *                 뜻이 없는 선택지를 띄워 놓고 눌러도 아무 일이 없게 두지 않는다. */
-  variant?: 'content' | 'recurrence';
+  variant?: 'content' | 'recurrence' | 'delete';
+  /** 'delete' 일 때 — 삭제 중 표시·실패 이유(창 안에 남긴다, 조용한 실패 금지). */
+  busy?: boolean;
+  error?: string | null;
 }
 
-const SeriesScopeDialog: React.FC<Props> = ({ open, onPick, onClose, variant = 'content' }) => {
+const SeriesScopeDialog: React.FC<Props> = ({ open, onPick, onClose, variant = 'content', busy, error }) => {
   const { t } = useTranslation('qtask');
   useBodyScrollLock(open);
   useEscapeStack(open, onClose);
   if (!open) return null;
   const isRecur = variant === 'recurrence';
+  // 삭제 — 구글 캘린더의 «이 일정 / 이 일정 및 향후 일정» 두 가지(2026-10-27 Irene). 지난 회차는 기록이라 지우지 않는다.
+  if (variant === 'delete') return (
+    <Backdrop role="dialog" aria-modal="true" aria-label={t('series.deleteTitle', '반복 업무 삭제') as string} onClick={busy ? undefined : onClose}>
+      <Card onClick={(e) => e.stopPropagation()}>
+        <Title>{t('series.deleteTitle', '반복 업무 삭제')}</Title>
+        <Desc>{error || t('series.deleteDesc', '이 업무는 반복됩니다. 어디까지 삭제할까요? 삭제한 업무는 복구할 수 없습니다.')}</Desc>
+        <Opt type="button" disabled={busy} onClick={() => onPick('single')} data-testid="series-delete-single">
+          <OptName $danger>{t('series.deleteSingle', '이 업무만 삭제')}</OptName>
+          <OptHint>{t('series.deleteSingleHint', '반복은 그대로 이어집니다')}</OptHint>
+        </Opt>
+        <Opt type="button" disabled={busy} onClick={() => onPick('future')} data-testid="series-delete-future">
+          <OptName $danger>{t('series.deleteFuture', '이 업무와 이후 반복 모두 삭제')}</OptName>
+          <OptHint>{t('series.deleteFutureHint', '반복이 여기서 끝납니다. 지난 업무와 이미 시작한 업무는 남깁니다')}</OptHint>
+        </Opt>
+        <Cancel type="button" disabled={busy} onClick={onClose} data-testid="series-scope-cancel">{busy ? t('series.deleting', '삭제 중…') : t('series.cancel', '취소')}</Cancel>
+      </Card>
+    </Backdrop>
+  );
   return (
     <Backdrop role="dialog" aria-modal="true" aria-label={(isRecur ? t('series.recurTitle', '반복 설정 변경') : t('series.title', '반복 업무 수정')) as string} onClick={onClose}>
       <Card onClick={(e) => e.stopPropagation()}>
@@ -84,9 +105,10 @@ const Opt = styled.button`
   width: 100%; padding: 11px 12px; min-height: 44px;
   background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 10px;
   cursor: pointer; text-align: left;
-  &:hover { background: #F0FDFA; border-color: #99F6E4; }
+  &:hover:not(:disabled) { background: #F0FDFA; border-color: #99F6E4; }
+  &:disabled { opacity: 0.5; cursor: not-allowed; }
 `;
-const OptName = styled.span`font-size: 0.84375rem; font-weight: 600; color: #0F172A;`;
+const OptName = styled.span<{ $danger?: boolean }>`font-size: 0.84375rem; font-weight: 600; color: ${p => p.$danger ? '#DC2626' : '#0F172A'};`;
 const OptHint = styled.span`font-size: 0.71875rem; color: #94A3B8;`;
 const Cancel = styled.button`
   align-self: flex-end; margin-top: 4px;
