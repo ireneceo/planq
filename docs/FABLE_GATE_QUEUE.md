@@ -1,5 +1,12 @@
 # Fable 게이트 대기열 → **판정 기록 보관소** (2026-10-08 부터)
 
+### 2026-10-27 방 648f3f12 — 업무 목록 열 좌우 이동·폭 조절(2단계) — 설계 **DESIGN: GO** (UX·공용 구조 1회)
+- Irene «모든 표들 다 열을 좌우로 이동할 수 있어야 하는 거 아니야? … 제목이 잘려보이는게 제일 속터져». 정찰 계획 `.claude/plans/qmvqb86r2.md` 2단계.
+- 판정: 새 라이브러리 없이 pointer 이벤트(HTML5 draggable 금지 — iPad click 사고·정렬 클릭 충돌) · 공용 열 정의 + `cellStyle()` 한 함수로 머리·행 폭(손 폭 prop 삭제) · 훅 `useTableColumns` + 저장 어댑터(이번엔 기기별 localStorage, 계정별은 Irene 결정 뒤 서버 어댑터만 추가) · 숨김은 **목록 폭 기준**(ResizeObserver, 진행→실제→예상→담당자 순 자동 빠짐 + 진행 46 축소 먼저) · 업무 칸 숨김 불가·최소폭 · 폰 ≤640 은 카드형 그대로(저장값 무시) · 제목 두 줄은 하지 않음 · 범위 = Q task 목록 + 프로젝트 업무 목록, 다른 표는 다음.
+- 설계와 다르게 한 것: 행 칸을 별도 파일 `QTaskRowCells.tsx` 로 옮기지 않고 행 안 `cells` 객체로 둠(QTaskPage 3842→3844줄, 래칫 한도 안 · 동작 변경 최소). 머리 칸 Alt+←/→ 는 머리 칸에 tabIndex 를 주지 않아 키보드 경로는 «열 설정» 팝오버(←/→·보이기·되돌리기)와 손잡이(←/→·Home).
+- 완료 검증: 자체 검증(Fable 미검증 — 기기별 저장이라 되돌리기 쉬움, 돈·권한·DB 변경 없음) — `node scripts/e2e/run.js --suite tablecols` 결과는 session-state 기록.
+- Fable 사용 횟수: 설계 1.
+
 ### 2026-10-27 방 58f5ead5 — 업무 참조자(task_watchers) — 설계 **PASS-WITH-CHANGES** → 완료 검증 **PASS**
 - 커밋 c1b7868c. 설계 바꿀 것(전부 반영): 고객·외부 파트너·AI 제외(멤버만) · 이름 축 `watcher` 하나 · 본인 빠지기 · 겹침 409 + 담당/컨펌자 되면 흡수(담당 변경 모든 경로) · 댓글 알림 포함·상태 전이 제외 · 업무 복제 안 따라감·반복 복사·인계 후임 · AI 쓰기 도구 1차 제외 · «이름 박힌 사람» 집합 access_scope 한 벌.
 - 설계와 다르게 한 5가지(완료 검증에서 모두 받아들임): «참조» 탭은 화면에서 all-tasks watchers 로 거름 · 프론트 역할 관점은 observer 와 같게 · get_task 에 참조자 안 실음 · 방송 행에 watchers(고객 직렬화가 지움) · pagination 베이스라인 task_deliverables.js 1줄(옮긴 라우트).

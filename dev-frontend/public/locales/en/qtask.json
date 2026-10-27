@@ -193,7 +193,9 @@
     "start": "Start",
     "due": "Due",
     "dates": "Period",
-    "desc": "Description"
+    "desc": "Description",
+    "priority": "Priority",
+    "timeline": "Timeline"
   },
   "listRow": {
     "detailTitle": "Open detail",

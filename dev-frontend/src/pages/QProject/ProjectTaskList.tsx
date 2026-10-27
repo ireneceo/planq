@@ -5,6 +5,10 @@
 //   + 행별 그룹 드롭다운 + 드래그 핸들. 캔버스↔업무리스트 단일 진실 원천(project_workstreams) 양방향 동기화.
 import React, { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useTableColumns } from '../../hooks/useTableColumns';
+import { cellStyle, localTablePrefsStore } from '../../components/Common/DataTable/columns';
+import { ColumnResizeHandle, ColumnSettingsButton } from '../../components/Common/DataTable/ColumnControls';
+import { projectTaskColumnDefs, PT_SORT, PT_CENTER, PT_CELL_STYLE, type PtColKey } from './projectTaskColumns';
 import CalendarPicker from '../../components/Common/CalendarPicker';
 import PartnerKindBadge from '../../components/Common/PartnerKindBadge';
 import { apiFetch, useAuth } from '../../contexts/AuthContext';
@@ -358,6 +362,11 @@ const ProjectTaskList: React.FC<Props> = ({
     return { from: s, to: e };
   }, [tasks, projectStart, projectEnd]);
 
+  // 열 순서·폭·숨김 — 타임라인을 펴면 다른 표로 저장(폭 기본값이 다르다). 행 padding 12×2 · gap 6.
+  const ptDefs = useMemo(() => projectTaskColumnDefs(!!showTimeline), [showTimeline]);
+  const ptActive = (k: PtColKey) => (k === 'desc' ? !showTimeline : k === 'gantt' ? !!(showTimeline && range) : true);
+  const ptColumns = useTableColumns(showTimeline ? 'project-tasks-timeline' : 'project-tasks', ptDefs, { titleMinW: 240, padX: 24, gap: 6, active: ptActive, store: localTablePrefsStore });
+
   // ─── 단일 업무 행 렌더 (그룹/플랫 공용) ───
   const renderTaskRow = (task: TaskRow) => {
     const isDelayed = !!(task.due_date && task.due_date.slice(0, 10) < today && task.status !== 'completed' && task.status !== 'canceled');
@@ -383,7 +392,10 @@ const ProjectTaskList: React.FC<Props> = ({
           {/* #236 — 업무명 셀은 $flex2(바닥 240px). $flex(100px)면 좁은 폭에서 제목이 먼저 뭉개진다
               ("업무명은 마지막까지 적절하게 제대로 보여야 해"). 폭이 모자라면 뒤쪽 메타가 크롭되고
               표 전체는 TableWrap 가로 스크롤로 도달한다 — Q Task 리스트(#249)와 같은 규칙. */}
-          <TCell $flex2>
+          {(() => {
+            // 열 순서·폭은 ptColumns(useTableColumns) 한 곳 — 칸 내용만 여기에 둔다(Q task 목록과 같은 방식).
+            const cells: Record<PtColKey, React.ReactNode> = {
+              title: (<>
             {grouped && (
               <DesktopOnly><DragHandle draggable role="button" aria-label={t('list.group.dragMove', '드래그하여 그룹 이동') as string}
                 title={t('list.group.dragMove', '드래그하여 그룹 이동') as string}
@@ -453,8 +465,8 @@ const ProjectTaskList: React.FC<Props> = ({
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="9 18 15 12 9 6" /></svg>
               </DetailBtn>
             </>)}
-          </TCell>
-          <TCell $w={showTimeline ? '90px' : '150px'} $center $hideBelow={900} style={{ position: 'relative', overflow: 'visible' }}>
+              </>),
+              assignee: (<>
             <AssigneeLabel data-dropdown onClick={e => { e.stopPropagation(); setAssigneeOpenId(assigneeOpenId === task.id ? null : task.id); }}>
               {task.assignee?.name || <span style={{ color: '#CBD5E1' }}>{t('listRow.assigneePlaceholder', '담당자')}</span>}
             </AssigneeLabel>
@@ -476,8 +488,8 @@ const ProjectTaskList: React.FC<Props> = ({
                 ))}
               </AssigneeDropdown></FloatingMenu>
             )}
-          </TCell>
-          <TCell $w={showTimeline ? '60px' : '100px'} $center $hideBelow={640} style={{ position: 'relative', overflow: 'visible' }}>
+              </>),
+              status: (<>
             <StatusPill data-dropdown $bg={sc.bg} $fg={sc.fg} $clickable
               onClick={e => { e.stopPropagation(); setStatusOpenId(statusOpenId === task.id ? null : task.id); }}
               aria-haspopup="listbox" aria-expanded={statusOpenId === task.id}>
@@ -496,8 +508,8 @@ const ProjectTaskList: React.FC<Props> = ({
                 })}
               </StatusDropdown></FloatingMenu>
             )}
-          </TCell>
-          <TCell $w={showTimeline ? '110px' : '180px'} $center $hideBelow={1024}>
+              </>),
+              progress: (<>
             <SliderWrap>
               <SliderTrack><SliderFill $w={prog} $color={sliderColor} /></SliderTrack>
               <SliderRange type="range" min="0" max="100" step="5" value={prog}
@@ -506,8 +518,8 @@ const ProjectTaskList: React.FC<Props> = ({
                 onMouseUp={e => saveField(task.id, 'progress_percent', Number((e.target as HTMLInputElement).value))} />
               <SliderPct>{prog}%</SliderPct>
             </SliderWrap>
-          </TCell>
-          <TCell $w="100px" $center $hideBelow={640}>
+              </>),
+              dates: (<>
             <DateTrigger ref={el => { dateRefs.current[task.id] = el; }}
               $color={isDelayed ? 'overdue' : (task.due_date?.slice(0, 10) === today ? 'today' : 'default')}
               $empty={!(task.start_date || task.due_date)}
@@ -529,23 +541,25 @@ const ProjectTaskList: React.FC<Props> = ({
                 onRangeSelect={(s, e) => { saveFields(task.id, { start_date: s || null, due_date: e || null }); }}
                 onClose={() => setDateOpenId(null)} />
             )}
-          </TCell>
-          {!showTimeline && (
-            <TCell $flex $hideBelow={768} style={{ padding: '0 8px' }}>
+              </>),
+              desc: (<>
               {/* 설명은 서식 있는 글(HTML)이다 — 그대로 그리면 «<p></p>» 가 글자로 보였다. 글자만 한 줄로. */}
               <DescText>{toPlainText(task.description) || <DescEmpty>{t('listRow.emptyDash', '—')}</DescEmpty>}</DescText>
-            </TCell>
-          )}
-          {showTimeline && range && (
-            <TCell $flex2 $hideBelow={640} style={{ overflow: 'visible' }}>
+              </>),
+              gantt: range && (<>
               <GanttRowTrack registry={gantt} range={range} todayStr={today} showGrid>
                 <GanttBar range={range} start={task.start_date} end={task.due_date}
                   bg={sc.bg} fg={sc.fg} label={task.assignee?.name || ''}
                   onClick={(e) => { e.stopPropagation(); onOpen(task.id); }}
                   title={`${formatDay(task.start_date?.slice(0,10))} ~ ${formatDay(task.due_date?.slice(0,10))}`} />
               </GanttRowTrack>
-            </TCell>
-          )}
+              </>),
+            };
+            return ptColumns.columns.map(c => (
+              <TCell key={c.key} $flex={!!c.flex} $center={PT_CENTER.has(c.key)} data-col={c.key}
+                style={{ ...cellStyle(c, { phone: ptColumns.phone, titleMinW: 240 }), ...PT_CELL_STYLE[c.key] }}>{cells[c.key]}</TCell>
+            ));
+          })()}
         </TRow>
         {addingBelowId === task.id && (
           <InlineAddRow>
@@ -636,26 +650,21 @@ const ProjectTaskList: React.FC<Props> = ({
   };
 
   const colRow = (
-    <ColRow>
-      {/* ★ 헤더 라벨과 본문 셀은 **같은 prop** 을 받아야 세로로 맞는다 (#236 후속).
-          styled 분기만 같게 맞추는 것으로는 부족했다 — 정렬을 정하는 건 각 컬럼에 넘기는
-          `$w`(뷰 의존 폭)와 `$hideBelow`(숨김 시점)다. 헤더는 64/52/72px 고정에 $hideBelow 도 없어서
-          고정폭 합이 본문과 240px 넘게 달랐고(288 vs 530), 남는 폭을 flexible 컬럼이 다르게 나눠 가져
-          전 컬럼이 밀렸다. 게다가 좁은 폭에서 본문 컬럼이 사라져도 헤더 라벨만 남았다.
-          아래 값들은 본문 TCell(446·469·489·499·521·526행)과 **글자 그대로 같아야 한다** — 한쪽만 고치지 말 것. */}
-      <Col $flex2 onClick={() => handleSort('title')}>{t('col.task', '업무')} {sortIcon('title')}</Col>
-      <Col $w={showTimeline ? '90px' : '150px'} $center $hideBelow={900}>{t('col.assignee', '담당자')}</Col>
-      <Col $w={showTimeline ? '60px' : '100px'} $center $hideBelow={640} onClick={() => handleSort('status')}>{t('col.status', '상태')} {sortIcon('status')}</Col>
-      <Col $w={showTimeline ? '110px' : '180px'} $center $hideBelow={1024} onClick={() => handleSort('progress_percent')}>{t('col.progressPercent', '진행률')} {sortIcon('progress_percent')}</Col>
-      <Col $w="100px" $center $hideBelow={640} onClick={() => handleSort('start_date')}>{t('col.dates', '기간')} {sortIcon('start_date')}</Col>
-      {showTimeline && range && (
-        <Col $flex2 $center style={{ position: 'relative', overflow: 'visible' }}>
-          <GanttHeader registry={gantt} range={range} tickMode="auto" />
-        </Col>
-      )}
-      {/* 본문 설명 셀(521행)의 `padding:0 8px` 를 헤더에도 준다 — border-box 에서 flex-basis:0 인
-          항목의 패딩은 **기본 크기 16px** 로 잡혀 남는 폭 배분이 2:1 에서 어긋난다(11px 밀림 실측). */}
-      {!showTimeline && <Col $flex $hideBelow={768} style={{ padding: '0 8px' }}>{t('col.desc', '설명')}</Col>}
+    <ColRow ref={ptColumns.containerRef}>
+      {/* ★ 머리 칸과 행 칸은 **같은 cellStyle()** 에서 폭을 받는다(#236·10-14 어긋남이 다시 못 생기게).
+          머리 칸을 끌면 좌우 이동, 칸 오른쪽 끝을 끌면 폭, 끝의 «열 설정» 에서 숨기기·되돌리기. */}
+      {ptColumns.columns.map(c => {
+        const sk = PT_SORT[c.key];
+        return (
+          <Col key={c.key} {...ptColumns.headerProps(c.key, { ...cellStyle(c, { phone: ptColumns.phone, titleMinW: 240 }), ...PT_CELL_STYLE[c.key] })}
+            $center={PT_CENTER.has(c.key) || c.key === 'gantt'} onClick={sk ? () => handleSort(sk as SortKey) : undefined}>
+            {c.key === 'gantt' && range ? <GanttHeader registry={gantt} range={range} tickMode="auto" />
+              : <>{t(c.labelKey.replace('qtask:', ''), c.defaultValue)}{sk ? <> {sortIcon(sk as SortKey)}</> : null}</>}
+            {!c.flex && <ColumnResizeHandle api={ptColumns} colKey={c.key} />}
+          </Col>
+        );
+      })}
+      <ColumnSettingsButton api={ptColumns} testId="project-task-columns" />
     </ColRow>
   );
 

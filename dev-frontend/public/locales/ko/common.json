@@ -1972,5 +1972,15 @@
   "focusBlock": {
     "enter": "크게 쓰기",
     "exit": "크게 쓰기 끝내기"
+  },
+  "tableColumns": {
+    "settings": "열 설정",
+    "hint": "머리 칸을 끌어 좌우로 옮기고, 칸 경계를 끌어 폭을 바꿔요",
+    "resize": "열 폭 조절",
+    "show": "{{name}} 보이기",
+    "autoHidden": "좁아서 숨겨짐",
+    "moveLeft": "왼쪽으로 이동",
+    "moveRight": "오른쪽으로 이동",
+    "reset": "기본으로 되돌리기"
   }
 }

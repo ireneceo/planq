@@ -107,6 +107,8 @@ const SUITES = {
   // 프로젝트 상세 탭 — 순서·노트 탭이 Q Note 본체인가·정보 탭이 Q info 규격인가·고객 프로필 연결.
   //   순서와 색은 **렌더 뒤에만 존재**한다(배열 grep 은 화면 순서를 증명하지 못한다).
   projecttabs: () => require('./canary-project-tabs'),
+  // 업무 목록 열 좌우 이동·폭 조절 — 머리·행 정렬(양성 대조) · 끌기 · 폭 · 목록 폭 기준 자동 빠짐 · 폰 · 깨진 저장값 (2026-10-27)
+  tablecols: () => require('./canary-table-columns'),
   // 프로젝트 «자료» 탭(문서·노트·파일)이 **같은 디자인**인가 — 바탕색·여백·시작점 3폭.
   //   2026-09-13 에 「했다」고 적어 두고 화면은 달랐다. 글이 아니라 기계가 센다.
   projtabstyle: () => require('./canary-project-tab-style'),

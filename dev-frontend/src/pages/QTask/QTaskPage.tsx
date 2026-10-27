@@ -1,4 +1,8 @@
 import React, { Fragment, useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useTableColumns } from '../../hooks/useTableColumns';
+import { cellStyle, localTablePrefsStore } from '../../components/Common/DataTable/columns';
+import { ColumnResizeHandle, ColumnSettingsButton } from '../../components/Common/DataTable/ColumnControls';
+import { qtaskColumnDefs, QT_SORT, QT_SORT_ICON, QT_CENTER, QT_CELL_STYLE, type QtColKey } from './qtaskColumns';
 import { SkeletonList } from '../../components/Common/Skeleton';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import styled from 'styled-components';
@@ -625,6 +629,10 @@ const QTaskPage:React.FC=()=>{
   //   · planned_week_start = 이번 주 월요일 → 이번 주 탭 술어 통과.
   // 시작/멈춤 칸은 «오늘·이번 주 나의 업무» 에만 — 다른 탭(남의 업무·전체)에서는 뜻이 흐려진다(Fable B).
   const showFocusCol=scope==='mine'&&(tab==='today'||tab==='week')&&!!focus.enabled;
+  // 열 순서·폭·숨김 — 목록 폭 기준 자동 빠짐(우측 패널이 열려도 업무 칸 최소폭 유지). 행 padding 14×2 · gap 6.
+  const qtDefs=useMemo(()=>qtaskColumnDefs(showFocusCol),[showFocusCol]);
+  const qtActive=useCallback((k:QtColKey)=>k==='prio'?(tab==='week'||tab==='today'):k==='assignee'?scope==='workspace':true,[tab,scope]);
+  const qtColumns=useTableColumns('qtask-list',qtDefs,{titleMinW,padX:28,gap:6,active:qtActive,store:localTablePrefsStore});
   const tabCreateDefaults=useMemo(
     ()=>(scope==='mine'&&(tab==='week'||tab==='today'))
       ? { due_date: todayStr, planned_week_start: thisMonday }
@@ -2101,23 +2109,20 @@ const QTaskPage:React.FC=()=>{
 
           {/* Column headers (sortable) */}
           {viewMode==='list'&&(
-          <TableHScroll>
-          <ColRow>
-            {(tab==='week'||tab==='today') && <Col $w="30px" $center onClick={()=>handleSort('priority_order')} data-tour="qtask-priority" title={t('tab.priorityWeeklyHint','주간 우선순위 번호 — 오늘 탭에서는 번호가 건너뛸 수 있어요') as string}>#{sortIcon('priority_order')}</Col>}
-            {/* ★ 여덟 열 중 이 둘만 좌측이었다(실측: 나머지는 전부 center) — Irene: "프로젝트랑
-                업무도 열의 중앙정렬 해줘". 헤더 라벨만 가운데다. 업무명 자체는 좌측 그대로. */}
-            <Col $w="64px" $center $hideBelow={640} onClick={()=>handleSort('title')}>{t('col.project','Project')}</Col>
-            <Col $flex $center $minW={titleMinW} onClick={()=>handleSort('title')}>{t('col.task','Task')} {sortIcon('title')}</Col>
-            {/* ★ 2026-10-14 (Irene «전체업무가 위아래 벙벙하고 스타일이 달라») — 머리줄 90px · 행 140px 로 달라
-                뒤 칸이 전부 50px 씩 밀렸고(실측 1440: 상태 머리 594 / 행 696), 행의 상자형 셀렉트가 행을
-                40 → 51px 로 키웠다. 폭은 ASSIGNEE_COL_W 한 값, 셀렉트는 표 칸용(variant="cell", 24px). */}
-            {scope==='workspace' && <Col $w={ASSIGNEE_COL_W} $center $hideBelow={768}>{t('col.assignee','담당자')}</Col>}
-            <Col $w={showFocusCol?'112px':'68px'} $center $hideBelow={640} onClick={()=>handleSort('status')}>{t('col.status','Status')} {sortIcon('status')}</Col>
-            <Col $w="62px" $center $hideBelow={900} onClick={()=>handleSort('estimated_hours')}>{t('col.est','Est(h)')} {sortIcon('estimated_hours')}</Col>
-            <Col $w="62px" $center $hideBelow={900} onClick={()=>handleSort('actual_hours')}>{t('col.act','Act(h)')} {sortIcon('actual_hours')}</Col>
-            <Col $w="96px" $center $hideBelow={1024} $compactBelow={1280} $wCompact="46px" onClick={()=>handleSort('progress_percent')}>{t('col.progress','Progress')} {sortIcon('progress_percent')}</Col>
-            <Col $w="100px" $center $hideBelow={640} onClick={()=>handleSort('due_date')}>{t('col.dates','기간')} {sortIcon('due_date')}</Col>
-          </ColRow>
+          <TableHScroll ref={qtColumns.containerRef}>
+            <ColRow>
+              {/* ★ 열 순서·폭·숨김은 qtColumns 한 벌(hooks/useTableColumns) — 머리 칸과 행 칸이 같은 cellStyle() 을 받는다.
+                  머리 칸을 끌면 좌우 이동, 칸 오른쪽 끝을 끌면 폭(Irene 2026-10-27 «열을 좌우로 이동할 수 있어야»). */}
+              {qtColumns.columns.map(c=>{const sk=QT_SORT[c.key];return(
+                <Col key={c.key} {...qtColumns.headerProps(c.key,cellStyle(c,{phone:qtColumns.phone,titleMinW}))} $center
+                  onClick={sk?()=>handleSort(sk as SortKey):undefined}
+                  data-tour={c.key==='prio'?'qtask-priority':undefined}
+                  title={c.key==='prio'?t('tab.priorityWeeklyHint','주간 우선순위 번호 — 오늘 탭에서는 번호가 건너뛸 수 있어요') as string:undefined}>
+                  {c.key==='prio'?'#':t(c.labelKey.replace('qtask:',''),c.defaultValue)}{sk&&QT_SORT_ICON.has(c.key)?<>{c.key==='prio'?'':' '}{sortIcon(sk as SortKey)}</>:null}
+                  {!c.flex&&c.minWidth<c.maxWidth&&<ColumnResizeHandle api={qtColumns} colKey={c.key} />}
+                </Col>);})}
+              <ColumnSettingsButton api={qtColumns} testId="qtask-columns" />
+            </ColRow>
 
           {/* Flat task list (no grouping) */}
           {visibleRows.map((task)=>{
@@ -2143,25 +2148,31 @@ const QTaskPage:React.FC=()=>{
                     }}
                     style={{cursor:'pointer'}}>
 
-                    {(tab==='week'||tab==='today') && (
+                    {(()=>{
+                      // 시간 컬럼 — task당 1쌍 (담당자 시간). 모든 사용자가 같은 값을 본다.
+                      // 편집은 담당자 본인만 가능. 다른 역할은 read-only (참고용).
+                      const e = Number(task.estimated_hours)||0;
+                      const a = Number(task.actual_hours)||0;
+                      const editable = task.assignee_id===myId;
+                      // 열 순서·폭은 qtColumns(useTableColumns) 한 곳에서 — 칸 내용만 여기에 둔다.
+                      const cells:Record<QtColKey,React.ReactNode>={
                       // 폰에서는 번호가 붙은 행만 칸을 둔다 — 빈 점 원이 행마다 30px 를 먹었다(번호 매기기는 데스크탑·팝아웃).
-                      <TCell $w="30px" $center $hideBelow={displayPriorityMap.get(task.id)?undefined:640}>
+                      prio:(<>
                         <PrioNum $active={!!task.priority_order} $disabled={task.status==='completed'||task.status==='canceled'}
                           disabled={prioBusy}
                           onClick={e=>{e.stopPropagation();if(task.status!=='completed'&&task.status!=='canceled')togglePriority(task.id);}}>
                           {displayPriorityMap.get(task.id)||<PrioEmpty />}
                         </PrioNum>
-                      </TCell>
-                    )}
-                    {/* ★ 2026-09-08 (Irene: "프로젝트 영역에 조금만 가로 열을 줄여줘 아주 조금.
+                      </>),
+                    /* ★ 2026-09-08 (Irene: "프로젝트 영역에 조금만 가로 열을 줄여줘 아주 조금.
                         그리고 업무 항목이 업무명 위에 나와야 하는데 왜 이상한 위치에 있어?")
                         헤더는 64px 인데 행은 80px 이었다 — 16px 차이가 뒤 열을 전부 밀어서
                         '업무' 헤더가 업무명 위에 안 왔다(실측 1440px: 헤더 340 / 업무명 356).
-                        좁은 쪽(헤더)에 맞춘다 — 줄이는 것과 줄 맞추는 것이 같은 수정이다. */}
-                    <TCell $w="64px" $hideBelow={640}>
+                        좁은 쪽(헤더)에 맞춘다 — 줄이는 것과 줄 맞추는 것이 같은 수정이다. */
+                      project:(<>
                       <ProjLabel>{task.Project?.name ? <HighlightText text={task.Project.name} query={search} /> : '-'}</ProjLabel>
-                    </TCell>
-                    <TCell $flex $minW={titleMinW}>
+                      </>),
+                      title:(<>
                       {/* 폰에서는 접는다 — 복사·삭제는 상세에서, 아래에 추가는 [+ 업무 추가] 로 */}
                       <DesktopOnly>
                       <TaskRowActionMenu
@@ -2342,19 +2353,18 @@ const QTaskPage:React.FC=()=>{
                         />
                         </DesktopOnly>
                       </>)}
-                    </TCell>
-                    {/* ★ 상세 열기 `>` — **자기 칸**을 갖는다 (Irene 2026-08-31
+                      </>),
+                    /* ★ 상세 열기 `>` — **자기 칸**을 갖는다 (Irene 2026-08-31
                         "가로 사이즈가 짧으면 이 화살표가 잘려. 마지막까지 잘리면 안되는 버튼 아니야?").
                         여태 업무명 셀(flex:1 1 0 · overflow:hidden) **안**에 있어서, 제목·뱃지가
                         셀 폭을 넘기면 맨 끝의 이 버튼부터 잘려 나갔다 — 상세를 여는 유일한 버튼인데
                         가로 스크롤로도 닿지 못했다(실측: 리스트 폭이 좁아지면 31px 밖으로 나감).
-                        고정폭 칸으로 빼면 업무명 셀이 대신 줄어들어 버튼은 항상 남는다. */}
-                    {/* ★ 2026-09-07 (Irene: "리스트에 > 이거 없어도 돼") — 행 끝 화살표를 없앴다.
+                        고정폭 칸으로 빼면 업무명 셀이 대신 줄어들어 버튼은 항상 남는다. */
+                    /* ★ 2026-09-07 (Irene: "리스트에 > 이거 없어도 돼") — 행 끝 화살표를 없앴다.
                         행 전체가 이미 상세를 여는 버튼이고(위 TRow onClick), 제목 클릭도 같은 일을 한다.
                         같은 일을 하는 세 번째 표적은 자리만 먹는다. 재클릭 토글(열린 행을 다시 눌러 닫기)은
-                        행 onClick 이 이어받는다. */}
-                    {scope==='workspace' && (
-                      <TCell $w={ASSIGNEE_COL_W} $hideBelow={768} style={{overflow:'visible'}}>
+                        행 onClick 이 이어받는다. */
+                      assignee:(<>
                         {/* D1 후속 — 담당자 소속(부서·팀)은 hover tooltip 으로 (행 밀집 노이즈 0) */}
                         <div onClick={e=>e.stopPropagation()} title={(()=>{const am=members.find(m=>m.user_id===task.assignee_id);return am?identityText({type:'member',department:am.department,team:am.team},i18nClient.language)||undefined:undefined;})()}>
                           <PlanQSelect size="sm" variant="cell" isClearable
@@ -2392,9 +2402,8 @@ const QTaskPage:React.FC=()=>{
                             }}
                             options={members.map(m=>({value:String(m.user_id),label:m.name+(m.user_id===myId?t('detail.meSuffix',' (나)'):'')}))} />
                         </div>
-                      </TCell>
-                    )}
-                    <TCell $w={showFocusCol?'112px':'68px'} $center $hideBelow={640} style={{position:'relative',overflow:'visible',gap:2}}>
+                      </>),
+                      status:(<>
                       {showFocusCol&&<TaskRowFocusButton focus={focus} task={task} />}
                       <StatusPill $bg={sc.bg} $fg={sc.fg} $clickable
                         onClick={e=>{e.stopPropagation();setStatusDropdownId(statusDropdownId===task.id?null:task.id);}}
@@ -2410,15 +2419,8 @@ const QTaskPage:React.FC=()=>{
                           );})}
                         </StatusDropdown></FloatingMenu>
                       )}
-                    </TCell>
-                    {(() => {
-                      // 시간 컬럼 — task당 1쌍 (담당자 시간). 모든 사용자가 같은 값을 본다.
-                      // 편집은 담당자 본인만 가능. 다른 역할은 read-only (참고용).
-                      const e = Number(task.estimated_hours)||0;
-                      const a = Number(task.actual_hours)||0;
-                      const editable = task.assignee_id===myId;
-                      return (<>
-                        <TCell $w="62px" $center $hideBelow={900}>
+                      </>),
+                      est:(<>
                           <EstWrap $flash={!!aiEstFlash[task.id]}>
                             <NumInput key={`e${task.id}-${e}`}
                               type="number" step="0.5" min="0"
@@ -2449,8 +2451,8 @@ const QTaskPage:React.FC=()=>{
                               </AiSparkBtn>
                             )}
                           </EstWrap>
-                        </TCell>
-                        <TCell $w="62px" $center $hideBelow={900}>
+                      </>),
+                      act:(<>
                           <ActWrap>
                             <NumInput key={`a${task.id}-${a}-${task.actual_source||'auto'}`}
                               type="number" step="0.5" min="0"
@@ -2471,10 +2473,8 @@ const QTaskPage:React.FC=()=>{
                                 aria-label={t('list.inProgressDot', { defaultValue: '진행 중 — 지금 이 업무의 시간이 쌓이고 있어요' }) as string} />
                             )}
                           </ActWrap>
-                        </TCell>
-                      </>);
-                    })()}
-                    <TCell $w="96px" $hideBelow={1024} $compactBelow={1280} $wCompact="46px">
+                      </>),
+                      progress:(<>
                       {(() => {
                         const progEditable = task.assignee_id===myId;
                         return (
@@ -2491,14 +2491,20 @@ const QTaskPage:React.FC=()=>{
                           </SliderWrap>
                         );
                       })()}
-                    </TCell>
-                    <TCell $w="100px" $center $hideBelow={640}>
+                      </>),
+                      dates:(<>
                       <DateRangeCell start={task.start_date} due={task.due_date}
                         dueColor={dColor}
                         readOnly={!canEditDatesFor(task)}
                         readOnlyHint={t('list.datesReadOnly','기간은 요청자·담당자·관리자만 변경할 수 있어요') as string}
                         onSave={(s,d)=>{ saveTaskFields(task.id,{start_date:s,due_date:d}); }} />
-                    </TCell>
+                      </>),
+                      };
+                      return qtColumns.columns.map(c=>(c.key==='prio'&&qtColumns.phone&&!displayPriorityMap.get(task.id))?null:(
+                        <TCell key={c.key} $flex={!!c.flex} $center={QT_CENTER.has(c.key)} data-col={c.key} data-compact={c.compact?'1':undefined}
+                          style={{...cellStyle(c,{phone:qtColumns.phone,titleMinW}),...QT_CELL_STYLE[c.key]}}>{cells[c.key]}</TCell>
+                      ));
+                    })()}
                   </TRow>
                   {addingBelowId === task.id && (
                     <QTaskInlineAddRow>
@@ -3429,23 +3435,18 @@ const TagManageBtn=styled.button`
 const TITLE_MIN_W=240;
 // 전체 업무(담당자 칸이 하나 더 있음)는 1440 + 우측 패널에서도 가로 스크롤 없이 들어가게 조금 좁힌다.
 const TITLE_MIN_W_WS=180;
-const ASSIGNEE_COL_W='90px';
-const Col=styled.span<{$w?:string;$flex?:boolean;$minW?:number;$center?:boolean;$hideBelow?:number;$compactBelow?:number;$wCompact?:string}>`
+// 폭·숨김은 cellStyle()(인라인)이 준다 — 여기에 폭 prop 을 되살리지 말 것(머리·행 폭 어긋남 #249·09-08·10-14).
+const Col=styled.span<{$center?:boolean}>`
   box-sizing:border-box;
-  ${p=>p.$flex
-    ? `flex:1 1 0;min-width:${p.$minW??TITLE_MIN_W}px;@media (max-width: 640px){min-width:0;}`
-    : `flex:0 0 ${p.$w||'auto'};width:${p.$w||'auto'};`}
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
   font-size:0.6875rem;font-weight:700;color:#94A3B8;cursor:pointer;user-select:none;
   ${p=>p.$center&&'display:inline-flex;justify-content:center;align-items:center;gap:4px;text-align:center;'}
   &:hover{color:#475569;}
-  ${p=>p.$hideBelow?`@media (max-width: ${p.$hideBelow}px){display:none;}`:''}
-  ${p=>p.$compactBelow&&p.$wCompact?`@media (max-width: ${p.$compactBelow}px){flex:0 0 ${p.$wCompact};width:${p.$wCompact};}`:''}
 `;
 
 
 const TRow=styled.div<{$done?:boolean;$delayed?:boolean;$selected?:boolean}>`display:flex;align-items:center;gap:6px;padding:7px 14px;border-bottom:1px solid #F8FAFC;min-width:520px;@media(max-width:640px){min-width:0;padding:8px 10px;}opacity:${p=>p.$done?0.45:1};${p=>p.$selected?'background:#F0FDFA;box-shadow:inset 3px 0 0 #14B8A6;':p.$delayed&&!p.$done?'box-shadow:inset 3px 0 0 #DC2626;':''}&:hover{background:${p=>p.$selected?'#CCFBF1':p.$delayed&&!p.$done?'#FEF2F2':'#FAFBFC'};}`;
-const TCell=styled.div<{$w?:string;$flex?:boolean;$minW?:number;$center?:boolean;$hideBelow?:number;$compactBelow?:number;$wCompact?:string}>`
+const TCell=styled.div<{$flex?:boolean;$center?:boolean}>`
   box-sizing:border-box;
   ${p=>p.$flex
     // #249 — 업무명 셀 최소폭 상향(180→240). 배지들이 shrink 불가라 180px 에서는
@@ -3458,11 +3459,9 @@ const TCell=styled.div<{$w?:string;$flex?:boolean;$minW?:number;$center?:boolean
     // ★ 2026-10-13 (Irene «모바일에서 너무 다 생략하고 리스트들이») — 폰(≤640)에서는 한 줄에 제목·태그·지연·+ 가
     //   다 들어가 제목이 «본인 task wit…» 열 글자 남짓으로 잘렸다(390 실측 제목 몫 ~100px).
     //   폰은 줄을 바꾼다: 첫 줄 = 제목(최대 2줄), 둘째 줄 = 태그·지연·요청자 칩. 데스크탑·태블릿은 그대로 한 줄.
-    ? `flex:1 1 0;min-width:${p.$minW??TITLE_MIN_W}px;display:flex;align-items:center;gap:4px;overflow:hidden;@media (max-width: 640px){min-width:0;flex-wrap:wrap;row-gap:4px;}`
-    : `flex:0 0 ${p.$w||'auto'};width:${p.$w||'auto'};overflow:hidden;`}
+    ? `display:flex;align-items:center;gap:4px;overflow:hidden;@media (max-width: 640px){flex-wrap:wrap;row-gap:4px;}`
+    : `overflow:hidden;`}
   ${p=>p.$center&&'display:flex;justify-content:center;align-items:center;'}
-  ${p=>p.$hideBelow?`@media (max-width: ${p.$hideBelow}px){display:none;}`:''}
-  ${p=>p.$compactBelow&&p.$wCompact?`@media (max-width: ${p.$compactBelow}px){flex:0 0 ${p.$wCompact};width:${p.$wCompact};}`:''}
 `;
 const ProjLabel=styled.span`font-size:0.6875rem;color:#94A3B8;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block;`;
 const DelayBadge=styled.span<{$severe?:boolean}>`
@@ -3636,11 +3635,12 @@ const SliderWrap=styled.div<{$disabled?:boolean}>`
   ${p=>p.$disabled && `opacity:0.5;cursor:not-allowed;`}
 `;
 // #78 — 좁은 화면(≤1280px)에선 가로 라인그래프·슬라이더 숨기고 % 만 남겨 업무명 공간 확보
-const SliderTrack=styled.div`flex:1;height:6px;background:#F1F5F9;border-radius:3px;overflow:hidden;@media (max-width:1280px){display:none;}`;
+// 진행 칸이 좁아지면(목록 폭 기준 compact — useTableColumns) 막대를 접고 % 만
+const SliderTrack=styled.div`flex:1;height:6px;background:#F1F5F9;border-radius:3px;overflow:hidden;[data-compact='1'] &{display:none;}`;
 const SliderFill=styled.div<{$w:number;$color:string}>`height:100%;width:${p=>p.$w}%;background:${p=>p.$color};border-radius:3px;`;
-const SliderRange=styled.input`position:absolute;left:0;top:-4px;width:calc(100% - 29px);height:18px;opacity:0;cursor:pointer;&:disabled{cursor:not-allowed;}@media (max-width:1280px){display:none;}`;
+const SliderRange=styled.input`position:absolute;left:0;top:-4px;width:calc(100% - 29px);height:18px;opacity:0;cursor:pointer;&:disabled{cursor:not-allowed;}[data-compact='1'] &{display:none;}`;
 // % 는 입력 필드가 아니라 표시값이라 작게 — 남는 폭은 업무명·담당자로 간다 (Irene 2026-08-24)
-const SliderPct=styled.span`font-size:0.6875rem;font-weight:700;color:#475569;min-width:26px;text-align:right;@media (max-width:1280px){min-width:0;width:100%;text-align:center;}`;
+const SliderPct=styled.span`font-size:0.6875rem;font-weight:700;color:#475569;min-width:26px;text-align:right;[data-compact='1'] &{min-width:0;width:100%;text-align:center;}`;
 
 const DateTrigger=styled.button<{$color?:string;$empty?:boolean}>`
   width:100%;padding:4px 6px;font-size:0.75rem;font-weight:600;

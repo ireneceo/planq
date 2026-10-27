@@ -1972,5 +1972,15 @@
   "focusBlock": {
     "enter": "Write larger",
     "exit": "Exit larger view"
+  },
+  "tableColumns": {
+    "settings": "Columns",
+    "hint": "Drag a header to move it left or right, drag a column edge to resize",
+    "resize": "Resize column",
+    "show": "Show {{name}}",
+    "autoHidden": "Hidden — too narrow",
+    "moveLeft": "Move left",
+    "moveRight": "Move right",
+    "reset": "Reset to default"
   }
 }

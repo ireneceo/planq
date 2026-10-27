@@ -95,7 +95,8 @@ const ChipCaret = styled.span<{ $open: boolean }>`
   transition:transform 0.18s ease;
   @media (prefers-reduced-motion: reduce){transition:none;}
 `;
-const Panel = styled.div`
+// 표 «열 설정»(DataTable/ColumnControls) 도 같은 판을 쓴다 — 베끼지 않게 내보낸다.
+export const Panel = styled.div`
   position:fixed;max-height:70vh;overflow-y:auto;
   background:#FFFFFF;border:1px solid #E2E8F0;border-radius:10px;
   box-shadow:0 8px 24px rgba(15,23,42,0.12);

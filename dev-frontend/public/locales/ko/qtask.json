@@ -241,7 +241,9 @@
     "start": "시작일",
     "due": "마감일",
     "dates": "기간",
-    "desc": "설명"
+    "desc": "설명",
+    "priority": "우선순위",
+    "timeline": "타임라인"
   },
   "listRow": {
     "detailTitle": "상세 보기",

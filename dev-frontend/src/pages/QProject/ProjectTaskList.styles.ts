@@ -4,20 +4,13 @@ import styled from 'styled-components';
 
 // 좌우 패딩은 TRow(본문 행)와 같아야 한다 — 2px 만 달라도 라벨이 컬럼과 어긋난다 (#236 후속)
 export const ColRow = styled.div`display:flex;align-items:center;gap:6px;padding:6px 12px;border-bottom:1px solid #E2E8F0;background:#F8FAFC;position:sticky;top:0;z-index:1;min-width:520px;@media(max-width:640px){display:none;}`;
-export const Col = styled.span<{$w?:string;$flex?:boolean;$flex2?:boolean;$center?:boolean;$hideBelow?:number}>`
+// 폭·숨김은 cellStyle()(인라인, projectTaskColumns + useTableColumns)이 머리·행에 같이 준다 — 여기에 폭 prop 을 되살리지 말 것.
+export const Col = styled.span<{$center?:boolean}>`
   box-sizing:border-box;min-width:0;
-  /* ★ 헤더(Col)와 본문(TCell)의 flex·min-width 는 **문자 그대로 같아야** 한다.
-     여태 헤더는 3:2.5, 본문은 1:2 라 비율이 갈려 있었고, #236 으로 본문 업무 셀을 넓히자
-     라벨이 본문 컬럼 대비 밀려 "상태" 가 아이콘 위에 뜨는 어긋남이 드러났다.
-     한쪽만 고치면 또 갈린다 — 값은 여기와 TCell 두 곳에서 같이 움직인다. */
-  ${p=>p.$flex2 ? 'flex:2 1 0;min-width:240px;'
-                : p.$flex ? 'flex:1 1 0;min-width:100px;'
-                : `flex:0 0 ${p.$w||'72px'};width:${p.$w||'72px'};`}
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
   font-size:0.6875rem;font-weight:700;color:#94A3B8;cursor:pointer;user-select:none;
   ${p=>p.$center&&'text-align:center;'}
   &:hover{color:#475569;}
-  ${p=>p.$hideBelow?`@media (max-width: ${p.$hideBelow}px){display:none;}`:''}
 `;
 export const TRow = styled.div<{$done?:boolean;$delayed?:boolean;$selected?:boolean;$dragging?:boolean}>`
   display:flex;align-items:center;gap:6px;padding:6px 12px;border-bottom:1px solid #F8FAFC;
@@ -29,11 +22,10 @@ export const TRow = styled.div<{$done?:boolean;$delayed?:boolean;$selected?:bool
   ${p=>p.$selected?'background:#FFF1F2;box-shadow:inset 3px 0 0 #F43F5E;':p.$delayed&&!p.$done?'box-shadow:inset 3px 0 0 #DC2626;':''}
   &:hover{background:${p=>p.$selected?'#FFE4E6':p.$delayed&&!p.$done?'#FEF2F2':'#FAFBFC'};}
 `;
-export const TCell = styled.div<{$w?:string;$flex?:boolean;$flex2?:boolean;$center?:boolean;$hideBelow?:number}>`
+export const TCell = styled.div<{$flex?:boolean;$center?:boolean}>`
   box-sizing:border-box;
-  ${p=>p.$flex2 ? 'flex:2 1 0;min-width:240px;display:flex;align-items:center;gap:6px;overflow:hidden;@media (max-width: 640px){min-width:0;flex-wrap:wrap;row-gap:4px;}' : p.$flex ? 'flex:1 1 0;min-width:100px;display:flex;align-items:center;gap:6px;overflow:hidden;' : `flex:0 0 ${p.$w||'auto'};width:${p.$w||'auto'};overflow:hidden;`}
+  ${p=>p.$flex ? 'display:flex;align-items:center;gap:6px;overflow:hidden;@media (max-width: 640px){flex-wrap:wrap;row-gap:4px;}' : 'overflow:hidden;'}
   ${p=>p.$center&&'display:flex;justify-content:center;align-items:center;'}
-  ${p=>p.$hideBelow?`@media (max-width: ${p.$hideBelow}px){display:none;}`:''}
 `;
 export const Spacer = styled.div`flex:1;min-width:8px;@media (max-width: 640px){display:none;}`;
 // 폰(≤640) 행 둘째 줄 — 데스크탑은 display:contents 라 칩 배치가 그대로다. 폰에서는 줄을 끊고(PhoneBreak)
