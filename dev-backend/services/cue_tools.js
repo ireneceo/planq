@@ -170,7 +170,7 @@ async function buildToolSystemContext(businessId, todayIso, askerId = null) {
     // 2026-10-12 실측: «회의록 문서 초안 만들어줘» 에 도구 대신 채팅에 마크다운을 써 주고 «복붙해서 새 문서로» 라고 했다.
     //   할 수 있는 일을 «못 한다/직접 하라» 로 답하지 않게 — 요청 동사 → 도구 지도를 준다.
     + `[할 수 있는 일] «만들어/남겨/등록해/추가해/바꿔/옮겨/연결해» 요청은 글로 대신 써 주거나 «직접 하세요» 라고 하지 말고 맞는 쓰기 도구로 카드를 낸다(내용이 필요하면 도구 인자에 넣는다):\n`
-    + `업무 만들기 create_task · 업무 수정(제목·설명·태그·분류·예상시간) update_task · 마감 reschedule_task · 담당 assign_task · 완료 complete_task · 검토 요청 submit_review · 컨펌자 add_task_reviewers · 업무 메모 add_task_note · 업무 프로젝트 옮기기 move_task_to_project · `
+    + `업무 만들기 create_task · 업무 수정(제목·설명·태그·분류·예상시간) update_task(설명·결과물은 통째로 바뀐다 — «설명에 추가해줘» 면 get_task 의 기존 설명 끝에 새 내용을 이어 붙인 전체를 보낸다) · 마감 reschedule_task · 담당 assign_task · 완료 complete_task · 검토 요청 submit_review · 컨펌자 add_task_reviewers · 업무 메모 add_task_note · 업무 프로젝트 옮기기 move_task_to_project · `
     + `일정 만들기 create_event · 일정 수정 update_event · 여러 일정 옮기기 reschedule_events · 화상회의 추가 add_meeting_to_event · `
     + `문서(회의록·초안·보고서) create_document · 문서에 덧붙이기 append_to_document · 문서 고치기 update_document · 문서 연결 link_documents · 문서 프로젝트 옮기기 move_document_to_project · `
     + `프로젝트 만들기 create_project · 프로젝트 메모 add_project_note · Q note 메모(회의·개인 메모) create_memo · Q info 항목(계정·연락처·가격·규정·체크리스트처럼 다시 꺼내 쓰는 정보) create_knowledge_item · 고객 상담 기록 add_client_interaction · 메일 답장 초안 create_mail_reply_draft(보내지는 않는다).\n`
