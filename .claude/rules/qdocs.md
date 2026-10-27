@@ -57,3 +57,5 @@ paths:
 - **서명 완료 계약서 → 청구서 초안은 «청구 조건» 이 있을 때만** (2026-10-23, Irene «매번 ai가 살펴보지 않고» · Fable 설계 A+D) — 본문을 읽지 않는다. 문서 `post_billing_terms`(고객·항목·VAT·통화·분할)를 서명 요청 전에 적고,
   회차(signRoundWhere)가 전부 signed 가 되는 순간 `services/contractBilling.createFromTerms` 가 **초안 1건**(문서당 평생 1건, `idempotency_key 'post-terms:<post_id>'`)을 만든다. 발송 0.
   조건 잠금 = 본문 잠금(`isPostSignatureLocked`) · 서명 화면에 조건이 보인다(`publicView`) · 급여 계약서 제외 · 금액 계산은 `services/invoiceCreate.computeAmounts` 한 곳(손으로 만드는 청구서와 같다). 설계 `docs/CONTRACT_AUTO_INVOICE_DESIGN.md`.
+  **빈 칸 안내(«+ 청구 조건 적기»)는 서명 요청 창 3단계에서만** 보인다(2026-10-27, Irene «서명을 할 때만 넣거나 따로 원해서 설정에서 넣고 싶은 사람에게만») — 문서 화면은 설정 › 기능 사용
+  «문서에 청구 조건 칸 보이기»(`modules.doc_billing_terms`, 기본 끔 · API 는 막지 않는다)를 켠 워크스페이스만. 적어 둔 조건·서명 뒤 «청구서 만들기» 는 늘 보인다. 칸은 같은 `BillingTermsSection`(`offerEmpty`).

@@ -59,6 +59,7 @@ export default function ModulesSection({ businessId }: { businessId: number }) {
           </Switch>
         </AutoSaveField>
       </Row>
+      <DocBillingTermsRow businessId={businessId} isOwner={isOwner} />
       {!isOwner && <Hint>{t('modules.ownerOnly')}</Hint>}
       {error && <Err role="alert">{error}</Err>}
       <ConfirmDialog isOpen={confirmOff} onClose={() => setConfirmOff(false)} variant="warning"
@@ -68,10 +69,53 @@ export default function ModulesSection({ businessId }: { businessId: number }) {
   );
 }
 
+// 문서 «청구 조건» 칸을 모든 문서에 보이기(2026-10-27) — 끄면(기본) 서명 요청 창에서만 적는다. 끄기에 확인이 없다(숨는 데이터가 없다 — 적어 둔 조건은 그대로 보인다).
+function DocBillingTermsRow({ businessId, isOwner }: { businessId: number; isOwner: boolean }) {
+  const { t } = useTranslation('payroll');
+  const { user, refreshUser } = useAuth();
+  const serverOn = !!user?.modules?.doc_billing_terms;
+  const [on, setOn] = useState(serverOn);
+  const wantRef = useRef(serverOn);
+  const serverRef = useRef(serverOn);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => { setOn(serverOn); wantRef.current = serverOn; serverRef.current = serverOn; }, [serverOn]);
+  return (
+    <>
+      <Row $gap>
+        <RowText>
+          <RowLabel id="modules-doc-billing-label">{t('modules.docBillingTerms')}</RowLabel>
+          <RowDesc>{t('modules.docBillingTermsDesc')}</RowDesc>
+        </RowText>
+        <AutoSaveField key={`modules-doc-billing-${businessId}`} type="toggle"
+          onSave={async () => {
+            if (wantRef.current === serverRef.current) return;
+            try {
+              await payrollApi.setModules(businessId, { doc_billing_terms: wantRef.current });
+              serverRef.current = wantRef.current; setError(null);
+              await refreshUser();
+            } catch (e) {
+              wantRef.current = serverRef.current; setOn(serverRef.current);
+              setError(t('error.generic') as string);
+              throw e;
+            }
+          }}>
+          <Switch type="button" role="switch" aria-checked={on} aria-labelledby="modules-doc-billing-label"
+            data-testid="modules-doc-billing-toggle" $on={on} disabled={!isOwner}
+            title={!isOwner ? (t('modules.ownerOnly') as string) : undefined}
+            onClick={() => { wantRef.current = !on; setOn(!on); }}>
+            <SwitchKnob $on={on} />
+          </Switch>
+        </AutoSaveField>
+      </Row>
+      {error && <Err role="alert">{error}</Err>}
+    </>
+  );
+}
+
 const Card = styled.section`background: #FFF; border: 1px solid #E2E8F0; border-radius: 12px; padding: 20px 24px; margin-bottom: 16px;`;
 const Title = styled.h3`margin: 0 0 4px; font-size: 1rem; font-weight: 700; color: #0F172A;`;
 const Desc = styled.p`margin: 0 0 14px; font-size: 0.8125rem; color: #64748B; line-height: 1.5;`;
-const Row = styled.div`display: flex; align-items: center; gap: 16px; justify-content: space-between;`;
+const Row = styled.div<{ $gap?: boolean }>`display: flex; align-items: center; gap: 16px; justify-content: space-between; ${p => p.$gap ? 'margin-top: 14px; padding-top: 14px; border-top: 1px solid #F1F5F9;' : ''}`;
 const RowText = styled.div`min-width: 0; display: flex; flex-direction: column; gap: 2px;`;
 const RowLabel = styled.div`font-size: 0.875rem; font-weight: 600; color: #0F172A; display: flex; align-items: center; gap: 6px;`;
 const RowDesc = styled.div`font-size: 0.75rem; color: #64748B; line-height: 1.5;`;

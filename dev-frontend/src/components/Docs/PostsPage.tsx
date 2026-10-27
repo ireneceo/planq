@@ -2755,7 +2755,8 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId, onEditingChange }) =>
                   startEdit();
                 }}
               />
-              {/* 청구 조건(2026-10-23) — 서명이 모두 끝나면 이대로 청구서 초안. 표·설문 문서에는 없다(계약서는 일반 문서다) */}
+              {/* 청구 조건(2026-10-23) — 서명이 모두 끝나면 이대로 청구서 초안. 표·설문 문서에는 없다(계약서는 일반 문서다).
+                  적어 둔 조건·서명 뒤 안내는 늘 보이고, 빈 칸 안내만 설정을 따른다(offerEmpty) */}
               {detail.kind !== 'table' && detail.kind !== 'survey' && (
                 <BillingTermsSection
                   key={`bt-${detail.id}`}
@@ -2764,6 +2765,8 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId, onEditingChange }) =>
                   postTitle={detail.title}
                   projectId={detail.project_id ?? null}
                   reloadTrigger={signReloadKey}
+                  // 빈 안내는 설정(기능 사용)을 켠 워크스페이스만 — 그 밖에는 서명 요청 창 3단계에서 적는다(2026-10-27)
+                  offerEmpty={!!user?.modules?.doc_billing_terms}
                 />
               )}
               {/* 보안등급 상시노출 SecurityRow 제거 — 뷰는 MetaBar chip(일반 자동숨김), 변경은 편집 모드 메타에서(Irene) */}

@@ -187,7 +187,9 @@
     "offConfirmTitle": "Turn off payroll & contracts?",
     "offConfirmMsg": "The payroll menu and contract history will be hidden. Records are kept and come back when you turn it on again. Labor cost in profitability falls back to member rate settings.",
     "offConfirm": "Turn off",
-    "planRequired": "Available on the Pro plan (or during a trial)."
+    "planRequired": "Available on the Pro plan (or during a trial).",
+    "docBillingTerms": "Show billing terms on documents",
+    "docBillingTermsDesc": "When on, every document shows the billing terms box. When off (default), you add terms only when sending a signature request; terms already added stay visible."
   },
   "managers": {
     "title": "Payroll managers",

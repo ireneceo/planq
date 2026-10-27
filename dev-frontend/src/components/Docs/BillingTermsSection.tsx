@@ -2,7 +2,7 @@
 //
 //   Irene: «서명을 완료한 계약서 기반으로 청구서를 자동생성 해줘 … 매번 ai가 살펴보지 않고»
 //   - 조건 있음: 금액 요약 + (서명 요청 전) [고치기][지우기] · (서명 진행 중) 잠김 · (서명 완료) 만든 청구서로 가는 길
-//   - 조건 없음: 고칠 수 있는 사람에게만 «+ 청구 조건 적기». 서명이 다 끝났는데 조건이 없으면 «청구서 만들기» 카드(D) —
+//   - 조건 없음: 고칠 수 있는 사람에게만 «+ 청구 조건 적기» — 서명 요청 창(3단계)에서, 문서 화면은 설정에서 켠 워크스페이스만(offerEmpty, 2026-10-27). 서명이 다 끝났는데 조건이 없으면 «청구서 만들기» 카드(D) —
 //     출처 문서를 채운 발행 창(/bills?tab=invoices&new=1&from_post=:id)으로 간다(금액은 사람이 적는다).
 //   - 자동 생성이 실패했으면 까닭 + [지금 만들기]. Q bill 권한이 없는 멤버·고객에게는 칸 자체가 없다(서버 403 → null).
 //   - 실시간: 서버가 post:billing_terms(신호만)·invoice:new 를 business 방에 쏜다 → 다시 읽는다. 탭 복귀에도 다시 읽는다.
@@ -27,9 +27,12 @@ interface Props {
   projectId?: number | null;
   /** 서명 진행이 바뀌면 부모가 올린다(잠금·서명 완료가 바뀐다) */
   reloadTrigger?: number;
+  /** 조건이 없을 때 «+ 청구 조건 적기» 안내를 보일까 — 서명 요청 창은 늘, 문서 화면은 설정(기능 사용 › doc_billing_terms)을 켠 워크스페이스만.
+   *  (2026-10-27 Irene «서명을 할 때만 넣거나 따로 원해서 설정에서 넣고 싶은 사람에게만 안내되어야지») 적어 둔 조건·서명 뒤 안내는 이 값과 무관하다 */
+  offerEmpty?: boolean;
 }
 
-export default function BillingTermsSection({ postId, businessId, postTitle, projectId, reloadTrigger }: Props) {
+export default function BillingTermsSection({ postId, businessId, postTitle, projectId, reloadTrigger, offerEmpty = true }: Props) {
   const { t } = useTranslation('qdocs');
   const { t: tBill } = useTranslation('qbill');
   const taxName = tBill('tax.defaultLabel') as string;
@@ -59,7 +62,8 @@ export default function BillingTermsSection({ postId, businessId, postTitle, pro
   if (!state || state.payroll_contract) return null;
   const { terms, invoice } = state;
   // 조건이 없고 적을 수도 없고 서명도 안 끝났으면 — 보여 줄 것이 없다
-  if (!terms && !state.can_edit && !(state.fully_signed && state.can_create_invoice)) return null;
+  const canOffer = state.can_edit && offerEmpty;
+  if (!terms && !canOffer && !(state.fully_signed && state.can_create_invoice)) return null;
 
   const cur = (terms?.currency || 'KRW') as Currency;
   const runCreate = async () => {
@@ -92,7 +96,7 @@ export default function BillingTermsSection({ postId, businessId, postTitle, pro
         {(invoice || state.invoice_deleted) && <StateChip $tone="done">{t('billingTerms.chip.invoiced', '청구서 초안 만듦')}</StateChip>}
       </Head>
 
-      {!terms && state.can_edit && (
+      {!terms && canOffer && (
         <Empty>
           <EmptyText>{t('billingTerms.emptyHint', '결제 받을 계약이면 금액·항목·분할을 적어 두세요. 서명이 모두 끝나는 순간 이 조건 그대로 청구서 초안을 만듭니다(고객에게 자동 발송하지 않음).')}</EmptyText>
           <ActionButton tone="secondary" size="sm" onClick={() => setEditOpen(true)} data-testid="billing-terms-open">
@@ -101,7 +105,7 @@ export default function BillingTermsSection({ postId, businessId, postTitle, pro
         </Empty>
       )}
 
-      {!terms && !state.can_edit && state.fully_signed && state.can_create_invoice && (
+      {!terms && !canOffer && state.fully_signed && state.can_create_invoice && (
         <Empty>
           <EmptyText>{t('billingTerms.signedNoTerms', '서명이 모두 끝났습니다. 청구 조건을 적지 않아 청구서는 자동으로 만들지 않았어요.')}</EmptyText>
           <ActionLink href={newInvoiceHref} data-testid="billing-terms-new-invoice">{t('billingTerms.newInvoice', '청구서 만들기')}</ActionLink>

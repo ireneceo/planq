@@ -150,7 +150,7 @@ export const payrollApi = {
   deleteContract: (biz: number, cid: number) => req<{ id: number }>('DELETE', `${base(biz)}/contracts/${cid}`),
   managers: (biz: number) => req<{ manager_user_ids: number[] }>('GET', `${base(biz)}/managers`),
   setManagers: (biz: number, ids: number[]) => req<{ manager_user_ids: number[] }>('PUT', `${base(biz)}/managers`, { manager_user_ids: ids }),
-  setModules: (biz: number, modules: { payroll?: boolean }) => req<{ modules: { payroll: boolean } }>('PUT', `/api/businesses/${biz}/modules`, modules),
+  setModules: (biz: number, modules: { payroll?: boolean; doc_billing_terms?: boolean }) => req<{ modules: { payroll: boolean; doc_billing_terms?: boolean } }>('PUT', `/api/businesses/${biz}/modules`, modules),
   // 항목
   items: (biz: number) => req<PayItem[]>('GET', `${base(biz)}/items`),
   createItem: (biz: number, body: Record<string, unknown>) => req<PayItem>('POST', `${base(biz)}/items`, body),

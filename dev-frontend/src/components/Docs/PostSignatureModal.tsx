@@ -21,6 +21,7 @@ import { readSignatureFields, readSignerItems, signersMissingCaptions, type DocS
 import SignatureSpotsStep from './SignatureSpotsStep';
 import { useSignDocSaver } from './useSignDocSaver';
 import SignOutboundScope from './SignOutboundScope';
+import BillingTermsSection from './BillingTermsSection';
 import SignSlotThemInput from './SignSlotThemInput';
 import { SignerFields, SignerEmailInput, SignerNameInput } from './signerInputs';
 import { SignStepsBar, SignRecipients, useSignatureLock } from './SignRequestSteps';
@@ -489,6 +490,12 @@ const PostSignatureModal: React.FC<Props> = ({ open, onClose, post, onSent, onPo
                 : validSigners.map((v) => ({ key: String(v.id), label: null, party: 'them' as const, name: v.name, email: v.email }))} />
             )}
             <SignOutboundScope postId={post.id} open={open} vlevel={post.vlevel} projectId={post.project_id ?? null} />
+            {/* 청구 조건(선택, 2026-10-27) — 결제 받을 계약이면 보내기 전에 여기서 적는다. 보내면 본문과 함께 잠긴다.
+                문서 화면의 같은 칸(BillingTermsSection)을 그대로 얹는다 — Q bill 권한이 없거나 급여 계약서·표·설문이면 칸이 없다 */}
+            {kind === 'sign' && post.kind !== 'table' && post.kind !== 'survey' && (
+              <BillingTermsSection key={`sign-bt-${post.id}`} postId={post.id} businessId={post.business_id}
+                postTitle={post.title} projectId={post.project_id ?? null} />
+            )}
             <Section>
               <SectionLabel>{t('sign.message', '메모 (선택)')}</SectionLabel>
               <Textarea rows={2} value={note} onChange={e => setNote(e.target.value)} placeholder={t('sign.messagePh', '검토 부탁드립니다.') as string} disabled={busy} />
