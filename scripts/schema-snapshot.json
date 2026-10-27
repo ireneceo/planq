@@ -1,5 +1,5 @@
 {
-  "_generated": "2026-10-24",
+  "_generated": "2026-10-27",
   "_db": "planq_dev_db",
   "_note": "스키마 변경 후 `node scripts/dump-schema.js` 로 갱신할 것. guard-invariants schemacol 이 읽는다.",
   "tables": {
@@ -193,7 +193,8 @@
       "removed_reason",
       "onboarding_dismissed_at",
       "nav_prefs",
-      "default_card_id"
+      "default_card_id",
+      "table_prefs"
     ],
     "business_plan_history": [
       "id",
@@ -2229,6 +2230,15 @@
       "created_at",
       "updated_at"
     ],
+    "project_refs": [
+      "id",
+      "business_id",
+      "project_id",
+      "entity_type",
+      "entity_id",
+      "created_by",
+      "created_at"
+    ],
     "project_stages": [
       "id",
       "project_id",
@@ -2926,7 +2936,8 @@
       "role_hint",
       "depends_on_indexes",
       "created_at",
-      "updated_at"
+      "updated_at",
+      "workstream_title"
     ],
     "task_templates": [
       "id",
@@ -2942,7 +2953,8 @@
       "created_by",
       "created_at",
       "updated_at",
-      "embedding"
+      "embedding",
+      "workstreams"
     ],
     "task_user_hours": [
       "id",
@@ -2961,6 +2973,14 @@
       "task_id",
       "view_key",
       "pos",
+      "created_at",
+      "updated_at"
+    ],
+    "task_watchers": [
+      "id",
+      "task_id",
+      "user_id",
+      "added_by_user_id",
       "created_at",
       "updated_at"
     ],

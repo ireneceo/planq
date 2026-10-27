@@ -1,6 +1,7 @@
 import React, { Fragment, useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useTableColumns } from '../../hooks/useTableColumns';
-import { cellStyle, localTablePrefsStore } from '../../components/Common/DataTable/columns';
+import { cellStyle } from '../../components/Common/DataTable/columns';
+import { useTablePrefsStore } from '../../hooks/useTablePrefsStore';
 import { ColumnResizeHandle, ColumnSettingsButton } from '../../components/Common/DataTable/ColumnControls';
 import { qtaskColumnDefs, QT_SORT, QT_SORT_ICON, QT_CENTER, QT_CELL_STYLE, type QtColKey } from './qtaskColumns';
 import { SkeletonList } from '../../components/Common/Skeleton';
@@ -632,7 +633,8 @@ const QTaskPage:React.FC=()=>{
   // 열 순서·폭·숨김 — 목록 폭 기준 자동 빠짐(우측 패널이 열려도 업무 칸 최소폭 유지). 행 padding 14×2 · gap 6.
   const qtDefs=useMemo(()=>qtaskColumnDefs(showFocusCol),[showFocusCol]);
   const qtActive=useCallback((k:QtColKey)=>k==='prio'?(tab==='week'||tab==='today'):k==='assignee'?scope==='workspace':true,[tab,scope]);
-  const qtColumns=useTableColumns('qtask-list',qtDefs,{titleMinW,padX:28,gap:6,active:qtActive,store:localTablePrefsStore});
+  const tablePrefsStore=useTablePrefsStore();   // 계정별 저장(사람 × 워크스페이스)
+  const qtColumns=useTableColumns('qtask-list',qtDefs,{titleMinW,padX:28,gap:6,active:qtActive,store:tablePrefsStore});
   const tabCreateDefaults=useMemo(
     ()=>(scope==='mine'&&(tab==='week'||tab==='today'))
       ? { due_date: todayStr, planned_week_start: thisMonday }

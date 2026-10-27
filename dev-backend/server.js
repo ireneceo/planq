@@ -478,6 +478,7 @@ app.use('/api/businesses', require('./routes/business_holidays'));
 // 휴가 종류 설정 — `/:businessId/leave-types…` 꼬리 경로만(docs/LEAVE_TYPES_DESIGN.md).
 app.use('/api/businesses', require('./routes/business_leave_types'));
 app.use('/api/businesses', require('./routes/nav_prefs'));   // 사이드바 «메뉴 편집» (2026-10-16) — businesses.js 보다 앞
+app.use('/api/businesses', require('./routes/table_prefs')); // 표 열 설정 계정별 (2026-10-27) — businesses.js 보다 앞
 app.use('/api/businesses', require('./routes/brands').businessBrands);   // 브랜드 목록·관리 (2026-10-22, docs/NAME_CARD_V2_DESIGN.md) — «/:businessId/brands…» 꼬리만, businesses.js 보다 앞
 app.use('/api/businesses', require('./routes/member_cards'));
 app.use('/api/businesses', require('./routes/member_overview'));   // 멤버 상세의 연결 프로젝트·업무·히스토리 (2026-10-22) — «/:businessId/members/:userId/overview» 꼬리만, businesses.js 보다 앞   // 동료의 기본 명함 보기 (2026-10-22) — «/:businessId/members/:userId/card…» 꼬리만, businesses.js 보다 앞

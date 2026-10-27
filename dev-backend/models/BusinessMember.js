@@ -72,6 +72,14 @@ BusinessMember.init({
     allowNull: true,
     defaultValue: null,
   },
+  // 표 열 설정 — 업무 목록 등에서 이 사람이 고른 열 순서·폭·숨김(2026-10-27, Irene «권고대로» 계정별).
+  //   { v:1, tables: { '<tableId>': { order:[key], widths:{key:px}, hidden:[key] } } } · NULL = 전부 기본.
+  //   검증·정규화는 services/tablePrefs 한 곳. 운영: scripts/migrate-table-prefs.js(배포 슬롯).
+  table_prefs: {
+    type: DataTypes.JSON,
+    allowNull: true,
+    defaultValue: null,
+  },
   // 이 워크스페이스 기본 명함(내 명함 중 하나) — 동료가 사람 팝오버·멤버 상세·조직도에서 본다(docs/NAME_CARD_V2_DESIGN.md 결정 3).
   //   운영 칸은 scripts/migrate-name-card-default.js(FK name_cards ON DELETE SET NULL). 모델이 SELECT 하므로 배포 슬롯이 먼저 돈다.
   default_card_id: { type: DataTypes.INTEGER, allowNull: true },

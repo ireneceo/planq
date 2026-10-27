@@ -39,14 +39,28 @@ export function useTableColumns<K extends string>(tableId: string, defs: ColumnD
   const [drag, setDrag] = useState<{ key: K; overKey: K | null; side: 'before' | 'after' } | null>(null);
   const suppressClick = useRef(false);
 
-  // 저장 — 기본과 같으면 지운다(새 기본값이 나중에 바뀌어도 따라가게)
+  // 저장 — 기본과 같으면 지운다(새 기본값이 나중에 바뀌어도 따라가게).
+  //   폭 손잡이를 끄는 동안 값이 계속 바뀌므로 손을 뗀 뒤 300ms 에 한 번만 보낸다(계정별 저장은 서버 왕복이다).
   const firstSave = useRef(true);
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
     if (firstSave.current) { firstSave.current = false; return; }
     const d = defaultPrefs(defs);
     const same = JSON.stringify(d.order) === JSON.stringify(prefs.order) && !prefs.hidden.length && !Object.keys(prefs.widths).length;
-    store.save(tableId, same ? null : prefs);
+    const id = tableId;
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(() => { saveTimer.current = null; store.save(id, same ? null : prefs); }, 300);
   }, [prefs]); // eslint-disable-line react-hooks/exhaustive-deps
+  // 화면을 떠나도 마지막 바꾼 값은 보낸다
+  const flushRef = useRef<() => void>(() => {});
+  flushRef.current = () => {
+    if (!saveTimer.current) return;
+    clearTimeout(saveTimer.current); saveTimer.current = null;
+    const d = defaultPrefs(defs);
+    const same = JSON.stringify(d.order) === JSON.stringify(prefs.order) && !prefs.hidden.length && !Object.keys(prefs.widths).length;
+    store.save(tableId, same ? null : prefs);
+  };
+  useEffect(() => () => flushRef.current(), []);
 
   useEffect(() => {
     let mq: MediaQueryList | null = null;
@@ -73,6 +87,7 @@ export function useTableColumns<K extends string>(tableId: string, defs: ColumnD
   const loadedId = useRef(tableId);
   useEffect(() => {
     if (loadedId.current === tableId) return;
+    flushRef.current();
     loadedId.current = tableId;
     firstSave.current = true;
     setPrefs(normalizeTablePrefs(defs, store.load(tableId)));

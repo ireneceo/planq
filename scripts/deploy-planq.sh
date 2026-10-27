@@ -610,6 +610,8 @@ sync_database() {
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-team-lead.js 2>&1 | tail -5"
   # 2026-10-16 사이드바 메뉴 편집 — business_members.nav_prefs JSON NULL. 모델이 SELECT 하므로 PM2 reload 전(없으면 멤버 조회 전부 500).
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-nav-prefs.js 2>&1 | tail -5"
+  # 2026-10-27 표 열 설정 계정별 — business_members.table_prefs JSON NULL. 모델이 SELECT 하므로 PM2 reload 전(없으면 멤버 조회 전부 500).
+  prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-table-prefs.js 2>&1 | tail -5"
   # 2026-10-16 멤버 프로젝트 가시성 — projects.visibility ENUM NOT NULL DEFAULT 'members'(기존 행 members, Fable 권고).
   #   모델이 SELECT 하므로 PM2 reload 전. 출력의 «숨겨지는 쌍» 수를 배포 보고에 적는다.
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-project-visibility.js 2>&1 | tail -5"

@@ -6,7 +6,8 @@
 import React, { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useTableColumns } from '../../hooks/useTableColumns';
-import { cellStyle, localTablePrefsStore } from '../../components/Common/DataTable/columns';
+import { cellStyle } from '../../components/Common/DataTable/columns';
+import { useTablePrefsStore } from '../../hooks/useTablePrefsStore';
 import { ColumnResizeHandle, ColumnSettingsButton } from '../../components/Common/DataTable/ColumnControls';
 import { projectTaskColumnDefs, PT_SORT, PT_CENTER, PT_CELL_STYLE, type PtColKey } from './projectTaskColumns';
 import CalendarPicker from '../../components/Common/CalendarPicker';
@@ -365,7 +366,8 @@ const ProjectTaskList: React.FC<Props> = ({
   // 열 순서·폭·숨김 — 타임라인을 펴면 다른 표로 저장(폭 기본값이 다르다). 행 padding 12×2 · gap 6.
   const ptDefs = useMemo(() => projectTaskColumnDefs(!!showTimeline), [showTimeline]);
   const ptActive = (k: PtColKey) => (k === 'desc' ? !showTimeline : k === 'gantt' ? !!(showTimeline && range) : true);
-  const ptColumns = useTableColumns(showTimeline ? 'project-tasks-timeline' : 'project-tasks', ptDefs, { titleMinW: 240, padX: 24, gap: 6, active: ptActive, store: localTablePrefsStore });
+  const tablePrefsStore = useTablePrefsStore();   // 계정별 저장(사람 × 워크스페이스)
+  const ptColumns = useTableColumns(showTimeline ? 'project-tasks-timeline' : 'project-tasks', ptDefs, { titleMinW: 240, padX: 24, gap: 6, active: ptActive, store: tablePrefsStore });
 
   // ─── 단일 업무 행 렌더 (그룹/플랫 공용) ───
   const renderTaskRow = (task: TaskRow) => {

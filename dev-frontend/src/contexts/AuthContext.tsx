@@ -69,6 +69,8 @@ export interface User {
   can_manage_payroll?: boolean;
   // 사이드바 «메뉴 편집» — 이 워크스페이스에서 내가 고른 순서·숨김(서버 services/navPrefs). null = 기본 그대로
   nav_prefs?: NavPrefs | null;
+  // 표 열 설정(순서·폭·숨김) — 사람 × 워크스페이스(서버 services/tablePrefs). null = 전부 기본
+  table_prefs?: { v: 1; tables: Record<string, unknown> } | null;
   workspaces?: WorkspaceMembership[];
   language?: string | null;
   // Q note 답변 생성용 프로필
@@ -683,6 +685,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     modules: (apiUser.modules as { payroll: boolean; doc_billing_terms?: boolean }) || null,
     can_manage_payroll: !!apiUser.can_manage_payroll,
     nav_prefs: (apiUser.nav_prefs as NavPrefs) || null,
+    table_prefs: (apiUser.table_prefs as User['table_prefs']) || null,
     workspaces: (apiUser.workspaces as WorkspaceMembership[]) || [],
     language: (apiUser.language as string) || null,
     bio: (apiUser.bio as string) || null,

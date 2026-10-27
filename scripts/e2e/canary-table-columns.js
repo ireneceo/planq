@@ -17,6 +17,18 @@ const PROJECT_ID = Number(process.env.E2E_TABLECOLS_PROJECT || 35); // ws6 업�
 const results = [];
 const push = (name, pass, detail) => { results.push({ name, fail: !pass, details: detail ? [detail] : [] }); if (require.main === module) console.log(`${pass ? "✅" : "❌"} ${name}${!pass && detail ? " — " + detail : ""}`); };
 
+// 계정별 저장(서버) — 검사 전후 표 값을 서버에서 바로 맞춘다(2026-10-27 Irene «권고대로» 계정별)
+let TOKEN = null;
+async function api(tableId, prefs) {
+  if (!TOKEN) {
+    const r = await fetch(`${b.BASE}/api/auth/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(OWNER) });
+    TOKEN = (await r.json())?.data?.token;
+  }
+  const r = await fetch(`${b.BASE}/api/businesses/6/me/table-prefs`, { method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${TOKEN}` }, body: JSON.stringify({ table_id: tableId, prefs }) });
+  return r.status;
+}
+const resetAll = async () => { for (const t of ['qtask-list', 'project-tasks', 'project-tasks-timeline']) await api(t, null); };
+
 async function openPage(width, height = 900) {
   const { browser } = await b.launch();
   const page = await browser.newPage();
@@ -28,6 +40,7 @@ async function openPage(width, height = 900) {
 async function go(page, path, clearPrefs = true) {
   await page.goto(`${b.BASE}${path}`, { waitUntil: 'domcontentloaded' });
   if (clearPrefs) {
+    await resetAll();
     await page.evaluate(() => { for (const k of Object.keys(localStorage)) if (k.startsWith('pq_table_')) localStorage.removeItem(k); });
     await page.reload({ waitUntil: 'domcontentloaded' });
   }
@@ -77,6 +90,7 @@ async function togglePanel(page) {
 }
 
 async function run() {
+  await resetAll();
   // ① 정렬 — Q task
   for (const w of [1440, 1280, 1024, 800]) {
     const { browser, page } = await openPage(w);
@@ -124,7 +138,7 @@ async function run() {
       await page.mouse.move(est.x + est.w / 2, est.y + est.h / 2);
       await page.mouse.down();
       for (let i = 1; i <= 10; i++) { await page.mouse.move(est.x + est.w / 2 + ((st.x + 4) - (est.x + est.w / 2)) * i / 10, est.y + est.h / 2); await sleep(30); }
-      await page.mouse.up(); await sleep(600);
+      await page.mouse.up(); await sleep(1800);   // 300ms 모음 + 400ms 모음 + 서버 왕복
       const o1 = await order(page);
       const iE = o1.h.indexOf('est'), iS = o1.h.indexOf('status');
       push(`② 끌기: «예측» 이 «상태» 앞으로 (머리 ${o1.h.join(',')})`, iE >= 0 && iE < iS, `전 ${o0.h.join(',')}`);
@@ -133,6 +147,16 @@ async function run() {
       await page.reload({ waitUntil: 'domcontentloaded' }); await page.waitForSelector('[data-col-key]'); await sleep(1500);
       const o2 = await order(page);
       push('② 새로 고침해도 순서 남음', JSON.stringify(o2.h) === JSON.stringify(o1.h), o2.h.join(','));
+      // 계정별: 이 브라우저 저장소를 비운 «다른 기기» 에서도 같은 순서
+      {
+        const other = await openPage(1440);
+        try {
+          await go(other.page, '/tasks?tab=all', false);
+          const local = await other.page.evaluate(() => Object.keys(localStorage).filter(k => k.startsWith('pq_table_')).length);
+          const oo = await order(other.page);
+          push(`② 다른 기기(새 브라우저 · 이 기기 저장 ${local}개)에서도 같은 순서`, local === 0 && JSON.stringify(oo.h) === JSON.stringify(o1.h), oo.h.join(','));
+        } finally { await other.browser.close().catch(() => {}); }
+      }
       await togglePanel(page);
       // 5px 미만 클릭 = 정렬(음성 대조)
       const before2 = await firstTitles(page);
@@ -189,7 +213,7 @@ async function run() {
     const { browser, page } = await openPage(1024);
     try {
       await go(page, '/tasks/workspace?tab=workspace-tasks');
-      await page.evaluate(() => localStorage.setItem('pq_table_qtask-list', JSON.stringify({ v: 1, order: [], hidden: [], widths: { project: 240, assignee: 200, status: 200, est: 120, act: 120, progress: 220, dates: 200 } })));
+      await api('qtask-list', { order: [], hidden: [], widths: { project: 240, assignee: 200, status: 200, est: 120, act: 120, progress: 220, dates: 200 } });
       await page.reload({ waitUntil: 'domcontentloaded' }); await page.waitForSelector('[data-col-key]'); await sleep(1800);
       const r = await page.evaluate(() => {
         const t = document.querySelector('[data-task-row] [data-col="title"]');
@@ -210,7 +234,7 @@ async function run() {
     const { browser, page } = await openPage(390, 844);
     try {
       await go(page, '/tasks?tab=all');
-      await page.evaluate(() => localStorage.setItem('pq_table_qtask-list', JSON.stringify({ v: 1, order: ['dates', 'title'], hidden: ['title'], widths: { dates: 99999 } })));
+      await api('qtask-list', { order: ['dates', 'title'], hidden: ['title'], widths: { dates: 99999 } });
       await page.reload({ waitUntil: 'domcontentloaded' }); await sleep(2500);
       const r = await page.evaluate(() => {
         const head = document.querySelector('[data-col-key]');
@@ -231,15 +255,25 @@ async function run() {
       await page.evaluate(() => localStorage.setItem('pq_table_qtask-list', '{not json'));
       await page.reload({ waitUntil: 'domcontentloaded' }); await page.waitForSelector('[data-col-key]', { timeout: 15000 }).catch(() => null); await sleep(1500);
       const a = await order(page);
-      await page.evaluate(() => localStorage.setItem('pq_table_qtask-list', JSON.stringify({ v: 1, order: ['zzz', 'dates', 'title'], hidden: ['title', 'nope'], widths: { dates: 99999, zzz: 5 } })));
+      await api('qtask-list', { order: ['zzz', 'dates', 'title'], hidden: ['title', 'nope'], widths: { dates: 99999, zzz: 5 } });
       await page.reload({ waitUntil: 'domcontentloaded' }); await page.waitForSelector('[data-col-key]', { timeout: 15000 }).catch(() => null); await sleep(1500);
       const o = await order(page);
       const dw = await rectOf(page, '[data-col-key="dates"]');
+      // 계정별 전환 전 이 브라우저 값 — 한 번 서버로 올라가고 지워진다
+      await resetAll();
+      await page.evaluate(() => localStorage.setItem('pq_table_qtask-list', JSON.stringify({ v: 1, order: ['dates', 'title'], hidden: [], widths: {} })));
+      await page.reload({ waitUntil: 'domcontentloaded' }); await page.waitForSelector('[data-col-key]', { timeout: 15000 }).catch(() => null); await sleep(2000);
+      const mig = await page.evaluate(() => localStorage.getItem('pq_table_qtask-list'));
+      const meR = await fetch(`${b.BASE}/api/auth/me`, { headers: { Authorization: `Bearer ${TOKEN}` } }); const meJ = await meR.json();
+      const up = meJ?.data?.table_prefs?.tables?.['qtask-list']?.order || [];
+      push(`⑦ 옛 기기 저장값 → 서버로 한 번 올라가고 이 브라우저에서 지워짐 (서버 ${up.join(',')} · 남은 값 ${mig ? '있음' : '없음'})`, !mig && up.indexOf('dates') >= 0 && up.indexOf('dates') < up.indexOf('title'));
       push(`⑥ 깨진 JSON → 기본 배치로 그림 (${a.h.join(',')})`, a.h.includes('title') && a.h.length >= 7);
       push(`⑥ 모르는 키·폭 99999·업무 숨김 → 업무 보임 · 기간 200 으로 자름 · 저장 순서(기간 → 업무) 유지 (${o.h.join(',')} · ${Math.round(dw?.w || 0)})`, o.h.includes('title') && !o.h.includes('zzz') && Math.round(dw?.w || 0) === 200 && o.h.indexOf('dates') < o.h.indexOf('title'));
       await page.evaluate(() => localStorage.removeItem('pq_table_qtask-list'));
+      await resetAll();
     } finally { await browser.close().catch(() => {}); }
   }
+  await resetAll();
   return results;
 }
 
