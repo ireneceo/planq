@@ -29,6 +29,19 @@ const { myWeekWhere } = require('../services/weekTaskSet');
 const { modelFor: llmModelFor } = require('../services/llm');
 
 // 행동의 주체 — 사람이 HTTP 로 들어온 경우. req 는 감사 로그의 IP 맥락에만 쓴다.
+// 템플릿 «AI 로 고쳐 넣기» 의 그룹 목록 — 이 워크스페이스·시스템 템플릿만. 없거나 못 읽으면 [].
+const normWsKey = (t) => require('../services/actions/workstream_actions').normalizeWorkstreamTitle(t);
+async function sourceTemplateGroups(rawId, businessId) {
+  const id = Number(rawId);
+  if (!Number.isInteger(id) || id <= 0) return [];
+  try {
+    const { TaskTemplate, TaskTemplateItem } = require('../models');
+    const tpl = await TaskTemplate.findByPk(id, { include: [{ model: TaskTemplateItem, as: 'items', attributes: ['workstream_title'] }] });
+    if (!tpl || !(tpl.is_system || Number(tpl.business_id) === Number(businessId))) return [];
+    return require('../services/templateWorkstreams').templateGroups(tpl, tpl.items || []);
+  } catch (e) { console.warn('[ai-create] template groups', e.message); return []; }
+}
+
 function actorFrom(req) {
   return {
     kind: 'user',
@@ -450,6 +463,10 @@ router.post('/ai-create', authenticateToken, aiCreateModeLimiter, async (req, re
         where: { project_id, business_id }, attributes: ['title'], order: [['order_index', 'ASC'], ['id', 'ASC']], limit: 30,
       });
       workstreamNames = wsRows.map((w) => w.title).filter(Boolean);
+      // 템플릿에서 «AI 로 고쳐 넣기» — 템플릿 그룹 이름도 고를 수 있게 붙인다(확정 때 없으면 만든다 — confirm 참조).
+      const tplGroups = await sourceTemplateGroups(req.body.source_template_id, business_id);
+      const have = new Set(workstreamNames.map(normWsKey));
+      for (const g of tplGroups) if (!have.has(normWsKey(g.title))) { workstreamNames.push(g.title); have.add(normWsKey(g.title)); }
     }
 
     // #354 — 루틴 설계는 "이미 돌고 있는 것" 을 알아야 한다.
@@ -667,6 +684,25 @@ router.post('/ai-create/confirm', authenticateToken, async (req, res, next) => {
     //     AI 경로만 이름 문자열(workstream_hint)에 기대고 있었다. 프로젝트에 그룹이 하나도 없으면
     //     LLM 에게 줄 이름 목록이 비어 힌트가 항상 null 이라 **100% 미배치**였다.
     //   반드시 이 프로젝트의 것이어야 한다 — 남의 프로젝트 id 를 꽂는 것을 여기서 끊는다.
+    // 템플릿에서 «AI 로 고쳐 넣기» — 후보가 가리키는 템플릿 그룹이 이 프로젝트에 없으면 템플릿 순서대로 만든다
+    //   (/apply 와 같은 함수 services/templateWorkstreams). 템플릿에 없는 이름(LLM 이 지어낸 것)은 만들지 않는다.
+    let templateGroupsCreated = 0;
+    if (project_id && !isRoutineConfirm) {
+      const tplGroups = await sourceTemplateGroups(req.body.source_template_id, business_id);
+      if (tplGroups.length) {
+        const tplKeys = new Set(tplGroups.map((g) => normalizeWorkstreamTitle(g.title)));
+        const wantedKeys = new Set((Array.isArray(candidates) ? candidates : [])
+          .filter((c) => c && c.selected !== false && !c.workstream_id && c.workstream_hint)
+          .map((c) => normalizeWorkstreamTitle(c.workstream_hint))
+          .filter((k) => tplKeys.has(k) && !wsByName.has(k)));
+        if (wantedKeys.size) {
+          const { ensureTemplateGroups } = require('../services/templateWorkstreams');
+          const r = await ensureTemplateGroups(actorFrom(req), { projectId: Number(project_id), businessId: Number(business_id), groups: tplGroups, wantedKeys });
+          for (const [k, id] of r.idByKey) wsByName.set(k, id);
+          templateGroupsCreated = r.created;
+        }
+      }
+    }
     const wsIdSet = new Set(wsByName.values());
     const pickedWorkstream = (raw) => {
       const id = Number(raw);
@@ -929,7 +965,7 @@ router.post('/ai-create/confirm', authenticateToken, async (req, res, next) => {
     //   링크 12건" 을 그대로 보여줄 수 있어야 부분 성공도 사용자가 읽을 수 있다.
     return successResponse(res, {
       created, count: created.length, linked,
-      workstreams_created: workstreamsCreated,
+      workstreams_created: workstreamsCreated + templateGroupsCreated,
       workstreams_matched: workstreamsMatched,
     });
   } catch (err) { next(err); }

@@ -4,6 +4,14 @@
 
 const { Task, TaskEstimation, TaskTemplate, TaskTemplateItem, BusinessMember, User } = require('../models');
 const { addDaysStr } = require('../utils/datetime');
+const { templateGroups, ensureTemplateGroups, normalizeWorkstreamTitle } = require('./templateWorkstreams');
+
+// 기간 — 마감 = 시작 + N일. 0 은 «시작일에 마감»(프로젝트에서 저장한 하루짜리 업무). 값이 없을 때만 1.
+//   예전 `duration_days || 1` 은 0 을 1 로 바꿔 하루짜리 업무가 적용할 때마다 마감이 하루 밀렸다.
+function itemDuration(item) {
+  const d = Number(item?.duration_days);
+  return Number.isInteger(d) && d >= 0 ? d : 1;
+}
 
 // 멤버 매핑 — role_hint → user_id (assignee_map 명시 우선, 없으면 fuzzy)
 function resolveAssignee(roleHint, assigneeMap, members) {
@@ -34,7 +42,7 @@ function resolveAssignee(roleHint, assigneeMap, members) {
  * @param {string} opts.startDate — YYYY-MM-DD (시작 기준일)
  * @param {Object} [opts.assigneeMap] — { roleHint: userId } 명시 매핑
  * @param {number} opts.actorUserId — 생성자
- * @returns {Promise<{ created: Task[], templateId: number }>}
+ * @returns {Promise<{ created: Task[], templateId: number, workstreamsCreated: number }>}
  */
 async function applyTemplate({ templateId, businessId, projectId = null, startDate, assigneeMap = {}, actorUserId }) {
   if (!templateId) throw new Error('templateId required');
@@ -71,12 +79,26 @@ async function applyTemplate({ templateId, businessId, projectId = null, startDa
     return { created: [], templateId: template.id };
   }
 
+  // 추진과제(그룹) — 프로젝트에 넣을 때만. 같은 이름 그룹이 있으면 그것, 없으면 템플릿 순서대로 만든다.
+  let workstreamsCreated = 0;
+  let wsIdByKey = new Map();
+  if (projectId) {
+    const wantedKeys = new Set(items.map((it) => normalizeWorkstreamTitle(it.workstream_title)).filter(Boolean));
+    if (wantedKeys.size) {
+      const r = await ensureTemplateGroups({ kind: 'user', userId: actorUserId }, {
+        projectId, businessId, groups: templateGroups(template, items), wantedKeys,
+      });
+      wsIdByKey = r.idByKey;
+      workstreamsCreated = r.created;
+    }
+  }
+
   const created = [];
   const indexToTaskId = {}; // order_index → 생성된 task.id (의존성 메타용)
 
   for (const item of items) {
     const start = addDaysStr(startDate, item.start_offset_days || 0);
-    const due = addDaysStr(startDate, (item.start_offset_days || 0) + (item.duration_days || 1));
+    const due = addDaysStr(startDate, (item.start_offset_days || 0) + itemDuration(item));
     const assigneeId = resolveAssignee(item.role_hint, assigneeMap, members) || actorUserId;
     const isInternalRequest = assigneeId !== actorUserId;
 
@@ -95,6 +117,7 @@ async function applyTemplate({ templateId, businessId, projectId = null, startDa
     const task = await Task.create({
       business_id: businessId,
       project_id: projectId,
+      workstream_id: item.workstream_title ? (wsIdByKey.get(normalizeWorkstreamTitle(item.workstream_title)) || null) : null,
       // #353 ⑤ — 템플릿 항목의 중요도(task_template_items.priority ENUM)도 여태 버려지고 있었다.
       //   같은 4값이라 그대로 옮긴다. 값이 없거나 모르는 값이면 미지정.
       priority_level: ['low', 'normal', 'high', 'urgent'].includes(item.priority) ? item.priority : null,
@@ -130,7 +153,7 @@ async function applyTemplate({ templateId, businessId, projectId = null, startDa
     await template.increment('usage_count', { by: 1 });
   } catch { /* ignore */ }
 
-  return { created, templateId: template.id };
+  return { created, templateId: template.id, workstreamsCreated };
 }
 
-module.exports = { applyTemplate, resolveAssignee };
+module.exports = { applyTemplate, resolveAssignee, itemDuration };

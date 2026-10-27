@@ -1,6 +1,6 @@
 // 현재 프로젝트 → 템플릿 저장 모달 (사이클 N+1 Phase 3)
 // 디자인: /docs PostAiModal 패턴 1:1 동일.
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import styled from 'styled-components';
 import { modalFooterRadius, phoneSheetFlow } from '../Common/modalShell';
 import { useTranslation } from 'react-i18next';
@@ -15,9 +15,14 @@ interface Props {
   projectId: number;
   projectName: string;
   onSaved: (templateId: number) => void;
+  /** 저장될 업무 미리 세기용(화면에 보이는 목록). 서버가 같은 규칙으로 다시 고른다(services/templateFromProject). */
+  tasks?: Array<{ status: string; start_date?: string | null; due_date?: string | null; workstream_id?: number | null }>;
 }
 
-export default function TemplateSaveModal({ open, onClose, businessId, projectId, projectName, onSaved }: Props) {
+// 화면 «완료 가리기»(ProjectTaskFilters)와 같은 술어 — 완료·취소.
+const isDone = (st: string) => st === 'completed' || st === 'canceled';
+
+export default function TemplateSaveModal({ open, onClose, businessId, projectId, projectName, onSaved, tasks = [] }: Props) {
   const { t } = useTranslation('qtask');
   const { t: tErr } = useTranslation('errors');
   const [name, setName] = useState('');
@@ -26,12 +31,22 @@ export default function TemplateSaveModal({ open, onClose, businessId, projectId
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [existingCats, setExistingCats] = useState<string[]>([]);
+  const [hideDone, setHideDone] = useState(false);
+
+  // 담길 업무·그룹 수 — 날짜(시작·마감 중 하나)가 있는 업무만 담긴다.
+  const summary = useMemo(() => {
+    const pool = hideDone ? tasks.filter(x => !isDone(x.status)) : tasks;
+    const dated = pool.filter(x => x.start_date || x.due_date);
+    const groups = new Set(dated.map(x => x.workstream_id).filter(Boolean));
+    return { count: dated.length, groups: groups.size, undated: pool.length - dated.length, done: tasks.filter(x => isDone(x.status)).length };
+  }, [tasks, hideDone]);
 
   useEffect(() => {
     if (open) {
       setName(projectName ? t('templateSave.defaultName', { defaultValue: '{{name}} 템플릿', name: projectName }) : '');
       setDescription('');
       setCategory('');
+      setHideDone(false);
       setError(null);
       setSubmitting(false);
       // 워크스페이스의 기존 카테고리 fetch (자동완성용)
@@ -61,6 +76,7 @@ export default function TemplateSaveModal({ open, onClose, businessId, projectId
           name: name.trim(),
           description: description.trim() || null,
           category: category.trim() || null,
+          exclude_done: hideDone,
         }),
       });
       const j = await r.json();
@@ -84,7 +100,18 @@ export default function TemplateSaveModal({ open, onClose, businessId, projectId
           </CloseBtn>
         </Header>
         <Body>
-          <Hint>{t('tplSave.hint', '현재 프로젝트의 업무 일정 (시작·마감 날짜 있는 것만) 을 템플릿으로 저장합니다. 시작일은 가장 빠른 업무 기준으로 자동 변환됩니다.')}</Hint>
+          <Hint>{t('tplSave.hint2', '현재 프로젝트의 업무 일정(시작·마감 날짜 중 하나라도 있는 것)과 추진과제(그룹)를 템플릿으로 저장합니다. 날짜는 가장 빠른 날을 기준으로 바뀌어, 적용할 때 고른 시작일부터 같은 간격으로 들어갑니다.')}</Hint>
+          <SummaryRow data-testid="tpl-save-summary">
+            <span>{t('tplSave.summary', '업무 {{n}}개 · 추진과제 {{g}}개', { n: summary.count, g: summary.groups })}</span>
+            {summary.undated > 0 && <Muted>{t('tplSave.undated', '날짜 없는 업무 {{n}}개는 빠져요', { n: summary.undated })}</Muted>}
+            {summary.done > 0 && (
+              <CheckLabel>
+                {/* autosave-exempt: 저장 버튼과 함께 보내는 선택 — 따로 저장하지 않는다 */}
+                <input type="checkbox" data-testid="tpl-save-hide-done" checked={hideDone} onChange={(e) => setHideDone(e.target.checked)} />
+                {t('tplSave.hideDone', '완료 가리기 (완료·취소 {{n}}개 빼기)', { n: summary.done })}
+              </CheckLabel>
+            )}
+          </SummaryRow>
           <FieldRow>
             <FieldLabel>{t('tplSave.name', '템플릿 이름')} *</FieldLabel>
             <FieldInput
@@ -119,7 +146,7 @@ export default function TemplateSaveModal({ open, onClose, businessId, projectId
         </Body>
         <Footer>
           <ModalActionButton variant="secondary" onClick={onClose}>{t('tplSave.cancel', '취소')}</ModalActionButton>
-          <ModalActionButton variant="primary" onClick={submit} disabled={!name.trim() || submitting}>
+          <ModalActionButton variant="primary" onClick={submit} disabled={!name.trim() || submitting || (tasks.length > 0 && summary.count === 0)}>
             {submitting ? t('tplSave.saving', '저장 중...') : t('tplSave.save', '저장')}
           </ModalActionButton>
         </Footer>
@@ -194,3 +221,13 @@ const Hint = styled.div`
   border-radius: 6px; font-size: 0.75rem; line-height: 1.5;
 `;
 const ErrorMsg = styled.div`font-size: 0.75rem; color: #DC2626; background: #FEF2F2; padding: 8px 10px; border-radius: 6px;`;
+const SummaryRow = styled.div`
+  display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px;
+  font-size: 0.75rem; font-weight: 600; color: #0F172A;
+`;
+const Muted = styled.span`font-weight: 400; color: #94A3B8;`;
+const CheckLabel = styled.label`
+  display: inline-flex; align-items: center; gap: 6px; margin-left: auto;
+  font-weight: 500; color: #334155; cursor: pointer;
+  input { width: 16px; height: 16px; accent-color: #14B8A6; cursor: pointer; }
+`;

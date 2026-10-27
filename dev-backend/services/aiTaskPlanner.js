@@ -502,6 +502,8 @@ async function planTasksFromPrompt({ prompt, businessId, projectContext, members
         so != null && dd != null ? `D+${so}~D+${dd}` : null,
         Number(c.estimated_hours) > 0 ? `${Number(c.estimated_hours)}h` : null,
         c.assignee_hint ? `assignee_hint=${String(c.assignee_hint).slice(0, 40)}` : null,
+        // 그룹도 넘긴다 — 템플릿 항목의 추진과제가 재생성 때 사라지지 않게(workstream_hint 그대로 유지).
+        c.workstream_hint ? `workstream_hint=${String(c.workstream_hint).slice(0, 60)}` : null,
       ].filter(Boolean).join(', ');
       return `${i + 1}. ${t}${d ? ` — ${d}` : ''}${extra ? ` [${extra}]` : ''}`;
     }).join('\n');

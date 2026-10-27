@@ -223,6 +223,8 @@ export default function AiTaskCreateModal({ open, onClose, businessId, projectId
           mode: routineMode ? 'routine' : undefined,
           instructions: nextInstructions.length ? nextInstructions : undefined,
           base_candidates: baseCandidates.length ? baseCandidates : undefined,
+          // 템플릿에서 왔으면 그 템플릿의 추진과제 이름도 AI 가 고를 수 있게(서버가 이 워크스페이스 템플릿인지 본다)
+          source_template_id: seed ? seed.templateId : undefined,
           // #354 — 재생성 때 영역도 원본으로 넘긴다. 안 넘기면 "영역을 5개로 줄여" 같은 지시가
           //   업무 목록만 보고 돌아 반쪽 재생성이 된다.
           base_areas: routineMode && areas.length ? areas.map(a => ({ title: a.title, description: a.description })) : undefined,

@@ -212,10 +212,10 @@ const TasksTab: React.FC<Props> = ({ projectId, businessId, projectName, tasks, 
             label={tp('ai.btnShort', 'AI')}
             title={tp('ai.btnHint', '자연어 한 줄로 여러 업무 자동 생성') as string}
           />
-          <TemplateBtn type="button" onClick={() => setTplOpen(true)} title={tp('tpl.btnHint', '시스템 preset 또는 워크스페이스 템플릿에서 시작') as string}>
+          <TemplateBtn type="button" data-testid="project-tpl-open" onClick={() => setTplOpen(true)} title={tp('tpl.btnHint', '시스템 preset 또는 워크스페이스 템플릿에서 시작') as string}>
             {tp('tpl.btn', '템플릿')}
           </TemplateBtn>
-          <TemplateBtn type="button" onClick={() => setTplSaveOpen(true)} title={tp('tpl.saveHint', '현재 프로젝트의 일정을 템플릿으로 저장') as string}>
+          <TemplateBtn type="button" data-testid="project-tpl-save" onClick={() => setTplSaveOpen(true)} title={tp('tpl.saveHint', '현재 프로젝트의 일정을 템플릿으로 저장') as string}>
             {tp('tpl.saveBtn', '템플릿으로 저장')}
           </TemplateBtn>
           {/* 폰에서 «업무 추가» 는 + 아이콘만(phoneIconOnly) — «취소» 는 뜻이 달라 글자 그대로 둔다 */}
@@ -316,6 +316,7 @@ const TasksTab: React.FC<Props> = ({ projectId, businessId, projectName, tasks, 
         businessId={businessId}
         projectId={projectId}
         projectName={projectName || ''}
+        tasks={localTasks}
         onSaved={() => { /* 저장만 — 페이지 reload 불필요 */ }}
       />
     </Wrap>

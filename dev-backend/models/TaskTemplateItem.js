@@ -30,7 +30,7 @@ TaskTemplateItem.init({
     type: DataTypes.INTEGER,
     allowNull: false,
     defaultValue: 1,
-    comment: '소요 일수',
+    comment: '마감 = 시작 + N일 (0 = 시작일에 마감)',
   },
   estimated_hours: {
     type: DataTypes.DECIMAL(6, 2),
@@ -44,6 +44,11 @@ TaskTemplateItem.init({
     type: DataTypes.STRING(100),
     allowNull: true,
     comment: '디자이너 / 백엔드 — 적용 시 멤버 매핑',
+  },
+  workstream_title: {
+    type: DataTypes.STRING(200),
+    allowNull: true,
+    comment: '추진과제(그룹) 이름 — 적용 시 같은 이름 그룹에 넣는다(없으면 만든다)',
   },
   depends_on_indexes: {
     type: DataTypes.JSON,

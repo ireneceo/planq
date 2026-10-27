@@ -169,6 +169,17 @@ router.post('/:id/apply', authenticateToken, async (req, res, next) => {
       return errorResponse(res, 'forbidden — members only', 403);
     }
 
+    // 프로젝트는 이 워크스페이스 것 + 내가 볼 수 있는 것만 — 남의 프로젝트에 업무·그룹을 꽂지 못하게.
+    if (project_id) {
+      const { Project } = require('../models');
+      const proj = await Project.findOne({ where: { id: project_id, business_id }, attributes: ['id'] });
+      if (!proj) return errorResponse(res, 'project_not_found', 404);
+      const { userCanSeeProject } = require('../middleware/access_scope');
+      if (!(await userCanSeeProject(req.user.id, Number(business_id), Number(project_id), req.user.platform_role))) {
+        return errorResponse(res, 'project_not_found', 404);
+      }
+    }
+
     const { applyTemplate } = require('../services/templateApply');
     const result = await applyTemplate({
       templateId: Number(req.params.id),
@@ -202,6 +213,7 @@ router.post('/:id/apply', authenticateToken, async (req, res, next) => {
       created: result.created.map(t => t.toJSON()),
       count: result.created.length,
       template_id: result.templateId,
+      workstreams_created: result.workstreamsCreated || 0,
     });
   } catch (err) {
     if (err.message === 'template_not_found') return errorResponse(res, 'template_not_found', 404);
@@ -254,7 +266,7 @@ router.put('/:id', authenticateToken, async (req, res, next) => {
 
 // ==========================================
 // PUT /api/task-templates/:id/items — items 일괄 교체 (전체 재생성)
-// body: { items: [{ title, description?, start_offset_days, duration_days, estimated_hours?, priority?, role_hint? }] }
+// body: { items: [{ title, description?, start_offset_days, duration_days, estimated_hours?, priority?, role_hint?, workstream_title? }] }
 // 시스템 preset 은 platform_admin 만, 워크스페이스 템플릿은 멤버.
 // ==========================================
 router.put('/:id/items', authenticateToken, async (req, res, next) => {
@@ -277,17 +289,20 @@ router.put('/:id/items', authenticateToken, async (req, res, next) => {
     await TaskTemplateItem.destroy({ where: { template_id: tpl.id } });
 
     let totalDur = 0;
+    let saved = 0;
+    const savedItems = [];
     for (let i = 0; i < items.length; i++) {
       const it = items[i] || {};
       const title = String(it.title || '').trim().slice(0, 500);
       if (!title) continue;
-      const off = Number.isInteger(it.start_offset_days) ? it.start_offset_days : 0;
-      const dur = Math.max(1, Number.isInteger(it.duration_days) ? it.duration_days : 1);
+      const off = Number.isInteger(it.start_offset_days) ? Math.max(0, it.start_offset_days) : 0;
+      // 0 = 시작일에 마감(하루짜리). 값이 없을 때만 1.
+      const dur = Number.isInteger(it.duration_days) ? Math.max(0, it.duration_days) : 1;
+      const workstreamTitle = String(it.workstream_title || '').trim().slice(0, 200) || null;
       const end = off + dur;
       if (end > totalDur) totalDur = end;
       await TaskTemplateItem.create({
         template_id: tpl.id,
-        order_index: i,
         title,
         description: it.description ? String(it.description).slice(0, 2000) : null,
         start_offset_days: off,
@@ -296,9 +311,16 @@ router.put('/:id/items', authenticateToken, async (req, res, next) => {
           ? Number(it.estimated_hours) : null,
         priority: ['urgent', 'high', 'normal', 'low'].includes(it.priority) ? it.priority : 'normal',
         role_hint: it.role_hint ? String(it.role_hint).slice(0, 100) : null,
+        workstream_title: workstreamTitle,
+        order_index: saved,
       });
+      saved += 1;
+      savedItems.push({ workstream_title: workstreamTitle });
     }
-    await tpl.update({ task_count: items.length, total_duration_days: totalDur });
+    // 그룹 목록 — 남아 있는 이름만, 옛 순서·색 유지(templateWorkstreams.groupsForItems).
+    const { groupsForItems } = require('../services/templateWorkstreams');
+    const groups = groupsForItems(tpl.workstreams, savedItems);
+    await tpl.update({ task_count: saved, total_duration_days: totalDur, workstreams: groups.length ? groups : null });
     // item title 들이 매칭 텍스트 핵심 → 임베딩 재계산 (background, best-effort)
     recomputeTemplateEmbedding(tpl.id).catch(() => null);
 
@@ -313,7 +335,7 @@ router.put('/:id/items', authenticateToken, async (req, res, next) => {
       targetType: 'task_template',
       targetId: tpl.id,
       businessId: tpl.business_id,
-      newValue: { task_count: items.length, total_duration_days: totalDur },
+      newValue: { task_count: saved, total_duration_days: totalDur },
     });
     return successResponse(res, data);
   } catch (err) { next(err); }
@@ -347,14 +369,17 @@ router.delete('/:id', authenticateToken, async (req, res, next) => {
 // ==========================================
 // POST /api/projects/:id/save-as-template — 기존 프로젝트 → 템플릿
 // body: { name, description?, category? }
-// 프로젝트의 모든 task 를 가장 빠른 start_date 기준 offset 으로 변환.
+// 날짜(시작·마감 중 하나라도) 있는 업무를 가장 이른 날짜 기준 offset 으로 변환 · 추진과제(그룹) 이름·순서도 옮긴다.
+// body.exclude_done=true 면 완료·취소 업무는 뺀다(화면 «완료 가리기»).
 // 워크스페이스 템플릿 (is_system=false) 으로 생성.
 // ==========================================
 router.post('/from-project/:projectId', authenticateToken, async (req, res, next) => {
   try {
-    const { Task, Project, BusinessMember } = require('../models');
+    const { Project } = require('../models');
     const projectId = Number(req.params.projectId);
     const { name, description, category } = req.body;
+    // 완료 가리기 — 화면 «완료 가리기»(ProjectTaskFilters)와 같은 술어: 완료·취소를 뺀다.
+    const excludeDone = req.body.exclude_done === true;
     if (!name || !String(name).trim()) return errorResponse(res, 'name required', 400);
 
     const project = await Project.findByPk(projectId);
@@ -364,72 +389,12 @@ router.post('/from-project/:projectId', authenticateToken, async (req, res, next
       return errorResponse(res, 'forbidden', 403);
     }
 
-    // 볼 수 있는 업무만 템플릿으로 옮긴다(공개 범위 — 남의 «나만 보기» 제목이 워크스페이스 템플릿으로 새지 않게)
-    const vis = (await require('../middleware/access_scope').taskListWhere(req.user.id, project.business_id)) || { id: -1 };
-    const tasks = await Task.findAll({
-      where: { project_id: projectId, business_id: project.business_id, [Op.and]: [vis] },
-      order: [['start_date', 'ASC'], ['created_at', 'ASC']],
+    const built = await require('../services/templateFromProject').buildTemplateFromProject({
+      project, userId: req.user.id, excludeDone,
+      name, description, category,
     });
-    const datedTasks = tasks.filter(t => t.start_date && t.due_date);
-    if (datedTasks.length === 0) {
-      return errorResponse(res, 'no_dated_tasks — 프로젝트에 시작/마감 날짜가 있는 업무가 없습니다.', 400);
-    }
-
-    // 가장 빠른 start_date 를 base 로
-    const baseStr = datedTasks.reduce((min, t) => {
-      const s = String(t.start_date).slice(0, 10);
-      return s < min ? s : min;
-    }, '9999-12-31');
-
-    const baseDate = new Date(baseStr + 'T00:00:00Z');
-    const dayMs = 86400000;
-    const calcOffset = (dateStr) => Math.round((new Date(String(dateStr).slice(0, 10) + 'T00:00:00Z') - baseDate) / dayMs);
-
-    // role_hint 자동 추출 — assignee 의 BusinessMember.job_title 사용
-    const assigneeIds = Array.from(new Set(datedTasks.map(t => t.assignee_id).filter(Boolean)));
-    const memberRows = assigneeIds.length > 0
-      ? await BusinessMember.findAll({ where: { user_id: assigneeIds, business_id: project.business_id } })
-      : [];
-    const userToHint = {};
-    memberRows.forEach(m => { userToHint[m.user_id] = m.job_title || null; });
-
-    let totalDur = 0;
-    const tpl = await TaskTemplate.create({
-      business_id: project.business_id,
-      name: String(name).trim().slice(0, 200),
-      description: description ? String(description).slice(0, 2000) : null,
-      category: category ? String(category).slice(0, 50) : 'custom',
-      is_system: false,
-      is_default: false,
-      task_count: datedTasks.length,
-      total_duration_days: 0, // 아래에서 갱신
-      created_by: req.user.id,
-    });
-
-    for (let i = 0; i < datedTasks.length; i++) {
-      const t = datedTasks[i];
-      const off = calcOffset(t.start_date);
-      const due = calcOffset(t.due_date);
-      const dur = Math.max(1, due - off);
-      const endOffset = off + dur;
-      if (endOffset > totalDur) totalDur = endOffset;
-
-      await TaskTemplateItem.create({
-        template_id: tpl.id,
-        order_index: i,
-        title: t.title,
-        description: t.description || null,
-        start_offset_days: off,
-        duration_days: dur,
-        estimated_hours: t.estimated_hours || null,
-        priority: 'normal',
-        role_hint: userToHint[t.assignee_id] || null,
-      });
-    }
-
-    await tpl.update({ total_duration_days: totalDur });
-    // 신규 템플릿 → AI 추천 매칭용 임베딩 생성 (background, best-effort)
-    recomputeTemplateEmbedding(tpl.id).catch(() => null);
+    if (built.error) return errorResponse(res, built.error, 400);
+    const { tpl, datedTasks, groups, undatedSkipped } = built;
 
     const full = await TaskTemplate.findByPk(tpl.id, {
       include: [{ model: TaskTemplateItem, as: 'items' }],
@@ -440,9 +405,14 @@ router.post('/from-project/:projectId', authenticateToken, async (req, res, next
       targetType: 'task_template',
       targetId: tpl.id,
       businessId: tpl.business_id,
-      newValue: { name: tpl.name, source_project_id: project.id, task_count: datedTasks.length },
+      newValue: {
+        name: tpl.name, source_project_id: project.id, task_count: datedTasks.length,
+        workstream_count: groups.length, undated_skipped: undatedSkipped, exclude_done: excludeDone,
+      },
     });
-    return successResponse(res, full.toJSON(), 'saved_as_template', 201);
+    const data = full.toJSON();
+    data.undated_skipped = undatedSkipped;
+    return successResponse(res, data, 'saved_as_template', 201);
   } catch (err) { next(err); }
 });
 

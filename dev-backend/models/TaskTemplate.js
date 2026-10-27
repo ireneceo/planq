@@ -52,6 +52,9 @@ TaskTemplate.init({
     allowNull: true,
     references: { model: 'users', key: 'id' },
   },
+  // 추진과제(그룹) 목록 — 프로젝트에서 저장할 때의 순서·색. 항목은 workstream_title 로 이 이름을 가리킨다.
+  //   적용하면 같은 이름 그룹을 찾아 쓰고 없으면 이 순서대로 만든다(services/templateApply). [{title, color, description}]
+  workstreams: { type: DataTypes.JSON, allowNull: true },
   embedding: {
     type: DataTypes.BLOB,
     allowNull: true,

@@ -19,6 +19,7 @@ import { pickMatch } from '../../utils/searchMatch';
 import { apiFetch } from '../../contexts/AuthContext';
 import { mapApiError } from '../../utils/apiError';
 import type { AiSeed } from './AiTaskCreateModal';
+import TemplateItemsPreview, { itemDuration, type TemplateGroup } from './TemplateItemsPreview';
 
 interface Member { user_id: number; name: string; }
 
@@ -32,6 +33,7 @@ interface Template {
   is_system: boolean;
   is_default: boolean;
   usage_count: number;
+  workstreams?: TemplateGroup[] | null;
 }
 
 interface TemplateItem {
@@ -43,6 +45,9 @@ interface TemplateItem {
   duration_days: number;
   estimated_hours: number | null;
   role_hint: string | null;
+  priority?: string | null;
+  /** 추진과제(그룹) 이름 — 적용하면 같은 이름 그룹에 넣는다(없으면 만든다). */
+  workstream_title?: string | null;
 }
 
 interface Props {
@@ -88,6 +93,8 @@ export default function TemplateSelectModal({ open, onClose, businessId, project
   const [editCategory, setEditCategory] = useState('custom');
   const [editItems, setEditItems] = useState<TemplateItem[]>([]);
   const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
+  // 편집 중 고를 수 있는 그룹 이름 — 이 템플릿에 이미 있는 이름(자유 입력도 된다)
+  const editGroupNames = useMemo(() => Array.from(new Set(editItems.map(it => it.workstream_title?.trim()).filter(Boolean) as string[])), [editItems]);
   const [search, setSearch] = useState('');
 
   useEffect(() => {
@@ -223,6 +230,9 @@ export default function TemplateSelectModal({ open, onClose, businessId, project
             duration_days: it.duration_days,
             estimated_hours: it.estimated_hours,
             role_hint: it.role_hint || null,
+            // 중요도·그룹도 그대로 보낸다 — 안 보내면 저장할 때마다 normal·그룹 없음으로 지워졌다.
+            priority: it.priority || null,
+            workstream_title: it.workstream_title?.trim() || null,
           })),
         }),
       });
@@ -327,7 +337,7 @@ export default function TemplateSelectModal({ open, onClose, businessId, project
       roleAssignees: assigneeMap,
       candidates: items.map((it, i) => {
         const start = it.start_offset_days || 0;
-        const dur = it.duration_days || 1;
+        const dur = itemDuration(it);
         return {
           idx: i,
           title: it.title,
@@ -336,8 +346,10 @@ export default function TemplateSelectModal({ open, onClose, businessId, project
           duration_days: dur,
           start_offset_days: start,
           due_offset_days: start + dur,
-          priority: 'normal',
+          priority: it.priority || 'normal',
           assignee_hint: it.role_hint || null,
+          // 템플릿 그룹 — 확정 때 프로젝트에 없으면 만든다(서버 ai-create/confirm · source_template_id).
+          workstream_hint: projectId ? (it.workstream_title || null) : null,
           assignee_user_id: it.role_hint ? (assigneeMap[it.role_hint] ?? null) : null,
           depends_on_index: null,
           vague: false,
@@ -472,6 +484,9 @@ export default function TemplateSelectModal({ open, onClose, businessId, project
                   <SmallBtn type="button" onClick={addItem}>+ {t('tpl.itemAdd', '항목 추가')}</SmallBtn>
                 </ItemsHead>
                 {loading && <Loading>{t('tpl.loading', '템플릿 불러오는 중...')}</Loading>}
+                <datalist id="tpl-group-list">
+                  {editGroupNames.map(g => <option key={g} value={g} />)}
+                </datalist>
                 <ItemsList>
                   {editItems.map((it, idx) => (
                     <ItemRow key={it.id ?? idx}>
@@ -495,8 +510,9 @@ export default function TemplateSelectModal({ open, onClose, businessId, project
                         </ItemField>
                         <ItemField>
                           <ItemMeta>{t('tpl.itemDur', '기간')}</ItemMeta>
-                          <ItemNumInput type="number" min={1} value={it.duration_days}
-                            onChange={e => updateItem(idx, { duration_days: Math.max(1, Number(e.target.value) || 1) })} />
+                          <ItemNumInput type="number" min={0} value={it.duration_days}
+                            title={t('tpl.itemDurHint', '0 = 시작일에 마감') as string}
+                            onChange={e => updateItem(idx, { duration_days: Math.max(0, Number(e.target.value) || 0) })} />
                           <ItemUnit>{t('tpl.itemDays', '일')}</ItemUnit>
                         </ItemField>
                         <ItemField>
@@ -512,6 +528,18 @@ export default function TemplateSelectModal({ open, onClose, businessId, project
                             value={it.role_hint || ''}
                             onChange={e => updateItem(idx, { role_hint: e.target.value || null })}
                             placeholder={t('tpl.itemRolePh', '예: 디자이너') as string}
+                          />
+                        </ItemField>
+                        <ItemField $flex>
+                          <ItemMeta>{t('tpl.itemGroup', '추진과제')}</ItemMeta>
+                          {/* draft-exempt: 템플릿 편집 폼의 짧은 이름 칸 — [저장] 으로 항목 전체와 함께 보낸다(역할 칸과 같은 성격) */}
+                          <ItemRoleInput
+                            type="text"
+                            list="tpl-group-list"
+                            value={it.workstream_title || ''}
+                            onChange={e => updateItem(idx, { workstream_title: e.target.value || null })}
+                            placeholder={t('tpl.itemGroupPh', '없음') as string}
+                            maxLength={200}
                           />
                         </ItemField>
                       </ItemBotRow>
@@ -574,21 +602,7 @@ export default function TemplateSelectModal({ open, onClose, businessId, project
                   </AiRefineRow>
                 </FieldRow>
               )}
-              <PreviewBox>
-                <PreviewTitle>{t('tpl.preview', '미리보기 ({{n}}개 업무)', { n: items.length, defaultValue: `미리보기 (${items.length}개 업무)` })}</PreviewTitle>
-                <PreviewList>
-                  {items.map(it => (
-                    <PreviewItem key={it.id}>
-                      <PrevTitle>{it.title}</PrevTitle>
-                      <PrevMeta>
-                        D+{it.start_offset_days}~{it.start_offset_days + it.duration_days}
-                        {it.estimated_hours ? ` · ${it.estimated_hours}h` : ''}
-                        {it.role_hint ? ` · ${it.role_hint}` : ''}
-                      </PrevMeta>
-                    </PreviewItem>
-                  ))}
-                </PreviewList>
-              </PreviewBox>
+              <TemplateItemsPreview items={items} groups={selected.workstreams || []} startDate={startDate} />
               {error && <ErrorMsg>{error}</ErrorMsg>}
             </>
           )}
@@ -882,18 +896,4 @@ const RoleTag = styled.span`
   background: #F0FDFA; border: 1px solid #CCFBF1;
   padding: 4px 8px; border-radius: 6px; text-align: center;
 `;
-const PreviewBox = styled.div`
-  background: #F8FAFC; border-radius: 8px;
-  padding: 10px 12px;
-  display: flex; flex-direction: column; gap: 6px;
-`;
-const PreviewTitle = styled.div`font-size: 0.75rem; font-weight: 700; color: #475569;`;
-const PreviewList = styled.div`display: flex; flex-direction: column; gap: 4px;`;
-const PreviewItem = styled.div`
-  display: flex; flex-direction: column; gap: 2px;
-  padding: 6px 8px;
-  background: #FFFFFF; border-radius: 6px;
-`;
-const PrevTitle = styled.div`font-size: 0.75rem; font-weight: 600; color: #0F172A;`;
-const PrevMeta = styled.div`font-size: 0.6875rem; color: #94A3B8;`;
 const ErrorMsg = styled.div`font-size: 0.75rem; color: #DC2626; background: #FEF2F2; padding: 8px 10px; border-radius: 6px;`;

@@ -1171,7 +1171,11 @@
     "aiRefineLabel": "Ask AI to adjust before adding (optional)",
     "aiRefinePh": "e.g. Add a design review step and extend development by 2 days each",
     "aiRefineHint": "Only the tasks you add now change. The template itself stays as is.",
-    "aiRefineGo": "Adjust with AI and preview"
+    "aiRefineGo": "Adjust with AI and preview",
+    "itemGroup": "Group",
+    "itemGroupPh": "None",
+    "itemDurHint": "0 = due on the start day",
+    "groupNone": "(No group)"
   },
   "ai": {
     "btn": "Create with AI",
@@ -1562,7 +1566,11 @@
     "namePh": "e.g. Standard WordPress site flow",
     "save": "Save",
     "saving": "Saving...",
-    "title": "Save as template"
+    "title": "Save as template",
+    "hint2": "Saves this project's task schedule (tasks with a start or due date) and its work groups as a template. Dates are converted relative to the earliest day, so applying it keeps the same spacing from the start date you pick.",
+    "summary": "{{n}} tasks · {{g}} work groups",
+    "undated": "{{n}} tasks without dates are left out",
+    "hideDone": "Hide completed (leave out {{n}} completed/canceled)"
   },
   "weekdayShort": {
     "0": "Sun",
