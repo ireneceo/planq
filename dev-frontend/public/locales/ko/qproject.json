@@ -1005,5 +1005,27 @@
     "expand": "프로젝트 메뉴 펼치기",
     "collapse": "프로젝트 메뉴 접기",
     "editingNote": "문서 편집 중"
+  },
+  "taskFilter": {
+    "searchPh": "업무 제목·설명 검색",
+    "status": "상태",
+    "assignee": "담당자",
+    "groupLabel": "묶기",
+    "groupByWs": "추진과제별",
+    "groupNone": "묶지 않음",
+    "sortLabel": "정렬",
+    "sort": {
+      "start_date": "시작일순",
+      "due_date": "마감일순",
+      "status": "상태순",
+      "title": "제목순",
+      "created_at": "최근 작성순",
+      "progress_percent": "진행률순",
+      "priority_order": "우선순위순"
+    },
+    "addGroupTop": "추진과제",
+    "noMatch": "조건에 맞는 업무가 없어요",
+    "clear": "필터 지우기",
+    "addGroupTopHint": "목록 맨 위에 추진과제를 추가해요 (걸어 둔 검색·필터는 풀려요)"
   }
 }

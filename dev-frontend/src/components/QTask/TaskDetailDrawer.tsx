@@ -29,7 +29,6 @@ import { isPopoutWindow } from '../../utils/popout';
 import TagPicker from './TagPicker';
 import IdentityContext from '../Common/IdentityContext';
 import PartnerKindBadge from '../Common/PartnerKindBadge';
-import { ProvenanceBadge } from '../Common/SourceHint';
 import RichEditor from '../Common/RichEditor';
 import FocusBlock, { useFocusBlock, FocusBlockToggle } from '../Common/FocusBlock';
 import ShareModal from '../Common/ShareModal';
@@ -72,6 +71,7 @@ import { isSeriesTask, needsSeriesScope } from '../../utils/taskSeries';
 import { isEnterAction } from '../../utils/imeKey';
 import { orderProjectsForMe } from '../../utils/projectOrder';
 import { StarGlyph } from '../../components/Common/StarToggle';
+import TaskWorkstreamSelect, { useProjectWorkstreams } from './TaskWorkstreamSelect';
 
 export interface DrawerTaskPatch {
   id: number;
@@ -169,6 +169,7 @@ interface TaskDetail {
   hold_reason?: string | null;
   review_round?: number | null; review_policy?: 'all'|'any';
   assignee_id: number | null; created_by: number; project_id: number | null;
+  workstream_id?: number | null;
   is_milestone?: boolean;
   cue_kind?: CueKind | null;
   cue_context_ref?: Record<string, unknown> | null;
@@ -300,6 +301,9 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
     })();
     return () => { cancelled = true; };
   }, [detailTask?.project_id, bizId]);
+
+  // 추진과제 칸 — 프로젝트 업무 탭·캔버스와 같은 정본(project_workstreams)
+  const projectWorkstreams = useProjectWorkstreams(detailTask?.project_id);
 
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState('');
@@ -1680,14 +1684,8 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                 </CarriedBanner>
               );
             })()}
-            {/* ⑤B — Cue 대화형 실행으로 추가된 업무: Cue 유래 정보성 배지(표시 전용) */}
-            {detailTask.created_via === 'cue' && (
-              <ProvenanceRow><ProvenanceBadge label={t('provenance.cue', { ns: 'common' })} /></ProvenanceRow>
-            )}
-            {/* 외부 AI 앱(ChatGPT·Claude 연동)으로 만든 업무 — 0-J */}
-            {detailTask.created_via === 'agent' && (
-              <ProvenanceRow><ProvenanceBadge label={t('provenance.agent', { ns: 'common' })} /></ProvenanceRow>
-            )}
+            {/* Cue·AI 앱으로 만든 업무 표시는 혼자 한 줄을 쓰지 않는다 — 아래 메타 줄의 작성 칩에 «AI 작성» 으로 들어간다
+                (2026-10-27 Irene «한줄을 차지하잖아 … 다음 줄 날짜 앞에 넣어. AI가 이 날짜에 만들었음으로»). */}
             {/* #90 — 자동추출 업무의 원본(출처) 링크: 어느 대화·메일에서 왔는지 돌아가기 */}
             {detailTask.source_ref && (
               <SourceRefLink
@@ -1798,32 +1796,35 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                       {t('detail.chip.mine', '내 업무')}
                     </DrawerNameChip>;
                   }
-                  // 타인 담당 (관찰자/컨펌자 관점) — N+34: 작성자 명시 추가 (사용자 호소: "작성자 꼭 표시")
-                  const creatorName = detailTask.creator?.name || detailTask.requester?.name || '';
+                  // 타인 담당 (관찰자/컨펌자 관점) — 작성자는 옆 작성 칩이 늘 보여 주므로 여기는 담당만(2026-10-27)
                   if (asgName) {
                     return <DrawerNameChip $type="observer" title={t('detail.chip.assignee', '담당자') as string}>
-                      {creatorName && creatorName !== asgName
-                        ? `${t('detail.chip.creatorPrefix', '작성')} · ${creatorName} → ${t('detail.chip.assigneePrefix', '담당')} · ${asgName}`
-                        : `${t('detail.chip.assigneePrefix', '담당')} · ${asgName}`}
-                    </DrawerNameChip>;
-                  }
-                  // 담당자 미지정 — 작성자만 표시
-                  if (creatorName) {
-                    return <DrawerNameChip $type="observer" title={t('detail.chip.creator', '작성자') as string}>
-                      {t('detail.chip.creatorPrefix', '작성')} · {creatorName}
+                      {`${t('detail.chip.assigneePrefix', '담당')} · ${asgName}`}
                     </DrawerNameChip>;
                   }
                   return null;
                 })()}
-                {/* 언제 등록한 업무인지 — 작성일(요청이면 요청일). 운영 피드백. */}
-                {detailTask.created_at && (
-                  <MetaDate title={formatDate(detailTask.created_at, tz)}>
-                    {((detailTask.source === 'internal_request' || detailTask.source === 'qtalk_extract')
-                      ? t('detail.meta.requestedOn', { defaultValue: '요청' })
-                      : t('detail.meta.createdOn', { defaultValue: '작성' })) as string}
-                    {' '}{formatDate(detailTask.created_at, tz)}
-                  </MetaDate>
-                )}
+                {/* 누가·언제·어떻게 만든 업무인지 — «{이름} · {작성|AI 작성|Cue 작성|요청|AI 요청} {날짜}» 한 칩(2026-10-27 Fable).
+                    Irene «기본적으로 현재 작성자 표시가 없네? 작성자이름이 나오고 AI작성, 아니면 작성자 이름». 내 업무여도 이름을 쓴다.
+                    요청이면 요청자(request_by_user_id → requester → creator). 줄이 감겨도 칩은 쪼개지지 않는다(nowrap). */}
+                {detailTask.created_at && (() => {
+                  const isReq = detailTask.source === 'internal_request' || detailTask.source === 'qtalk_extract';
+                  const who = (isReq ? (detailTask.requester?.name || detailTask.creator?.name) : detailTask.creator?.name) || '';
+                  const via = detailTask.created_via === 'agent' ? 'ai' : detailTask.created_via === 'cue' ? 'cue' : '';
+                  const verb = isReq
+                    ? (via === 'ai' ? t('detail.meta.aiRequestedOn', 'AI 요청') : t('detail.meta.requestedOn', '요청'))
+                    : via === 'ai' ? t('detail.meta.aiCreatedOn', 'AI 작성')
+                      : via === 'cue' ? t('detail.meta.cueCreatedOn', 'Cue 작성')
+                        : t('detail.meta.createdOn', '작성');
+                  const date = formatDate(detailTask.created_at, tz);
+                  const hint = via === 'ai' ? t('provenance.agentHint', { ns: 'common' })
+                    : via === 'cue' ? t('provenance.cue', { ns: 'common' }) : '';
+                  return (
+                    <MetaDate data-testid="task-detail-byline" title={hint ? `${date} · ${hint}` : date}>
+                      {who && <MetaByName>{who}</MetaByName>}{who && ' · '}{verb as string} {date}
+                    </MetaDate>
+                  );
+                })()}
               </Meta>
 
               {/* #206 — "왜 멈춰 있나"는 스크롤 없이 첫 화면에서 보여야 한다(설계 §2-3).
@@ -1935,7 +1936,7 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                     onChange={async (v) => {
                       if (!canEditProject) return;
                       const pid = (v as { value?: string })?.value ? Number((v as { value: string }).value) : null;
-                      const before = { project_id: detailTask.project_id, Project: detailTask.Project };
+                      const before = { project_id: detailTask.project_id, Project: detailTask.Project, workstream_id: detailTask.workstream_id ?? null };
                       setDetailTask(prev => {
                         if (!prev) return prev;
                         const p = projects.find(pp => pp.id === pid);
@@ -1943,6 +1944,7 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                           ...prev,
                           project_id: pid,
                           Project: pid != null ? { id: pid, name: p?.name || prev.Project?.name || '-' } : null,
+                          workstream_id: null,  // 서버도 프로젝트를 옮기면 추진과제를 비운다
                         } as TaskDetail;
                       });
                       // 서버가 거절하면 화면을 되돌리고 이유를 말한다(#463 — 외부 파트너 담당자·컨펌자는 새 프로젝트 참여자여야 한다)
@@ -1956,6 +1958,18 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                     }}
                     options={projects.map(p => ({ value: String(p.id), label: p.name, icon: p.my_pinned_at ? <StarGlyph /> : undefined }))} />
                 </MetaCell>
+                {/* 추진과제 — 프로젝트 다음. 그룹이 있는 프로젝트일 때만 · 팝아웃(오늘 내 업무 체크용 축약판)에는 넣지 않는다 */}
+                {!isPopout && detailTask.project_id != null && projectWorkstreams.length > 0 && (
+                  <MetaCell data-testid="task-detail-workstream">
+                    <MetaLabel>{t('detail.meta.workstream', '추진과제')}
+                      {!canEditProject && <MetaLock title={t('detail.readOnly', '읽기 전용') as string} aria-label={t('detail.readOnly', '읽기 전용') as string} />}
+                    </MetaLabel>
+                    <TaskWorkstreamSelect workstreams={projectWorkstreams} value={detailTask.workstream_id}
+                      disabled={!canEditProject /* 서버 FIELD_RULES.workstream_id = project_id 와 같은 집합(담당·작성·관리자) */}
+                      noneLabel={t('list.group.none', '(그룹 없음)') as string}
+                      onChange={(id) => { if (canEditProject && id !== (detailTask.workstream_id ?? null)) void saveField('workstream_id', id); }} />
+                  </MetaCell>
+                )}
                 {/* #353 ⑤ 중요도 — AI 가 판단하거나 사람이 고른다.
                     ★ 왼쪽의 "우선순위 N"(주간 랭킹, priority_order)과 **다른 것**이라
                       이름을 "중요도" 로 갈라 둔다. 값도 다른 컬럼(priority_level)이다.
@@ -3164,7 +3178,6 @@ const HeaderTitleSlot = styled.div`flex:1;min-width:0;display:flex;align-items:c
 const CarriedBanner = styled.div`display:flex;align-items:center;gap:8px;margin:12px 20px 0;padding:8px 12px;background:#F1F5F9;border:1px solid #E2E8F0;border-radius:10px;font-size:0.75rem;font-weight:600;color:#475569;line-height:1.4;`;
 const CarriedTag = styled.span`flex-shrink:0;padding:1px 8px;font-size:0.625rem;font-weight:700;color:#FFFFFF;background:#64748B;border-radius:10px;letter-spacing:-0.2px;`;
 // #90 — 원본 출처 링크 (대화/메일/노트). route 있으면 button(클릭→이동), 없으면 div(라벨만).
-const ProvenanceRow = styled.div`display:flex;margin:12px 20px 0;`;
 const SourceRefLink = styled.div<{ $clickable?: boolean }>`
   display:flex;align-items:center;gap:7px;margin:12px 20px 0;padding:7px 11px;width:calc(100% - 40px);
   background:#F8FAFC;border:1px solid #E2E8F0;border-radius:10px;
@@ -3262,7 +3275,8 @@ const RecurBadge = styled.span`
 `;
 const TitleInput = styled.input`flex:1;min-width:0;font-size:1rem;font-weight:700;color:#0F172A;line-height:1.35;width:100%;padding:4px 8px;border:1px solid #14B8A6;border-radius:6px;background:#FFF;font-family:inherit;&:focus{outline:none;box-shadow:0 0 0 2px rgba(20,184,166,0.15);}`;
 const Meta = styled.div`display:flex;align-items:center;gap:6px;font-size:0.6875rem;color:#64748B;flex-wrap:wrap;`;
-const MetaDate = styled.span`font-size:0.6875rem;color:#94A3B8;white-space:nowrap;`;
+const MetaDate = styled.span`font-size:0.6875rem;color:#94A3B8;white-space:nowrap;flex-shrink:0;`;
+const MetaByName = styled.span`color:#475569;font-weight:600;`;
 // #247 — 이 행도 Section 밖(Scroll 직속)이라 좌우 padding 0 이면 버튼이 드로어 **우측 테두리에
 //   딱 붙는다**. Section 과 같은 14px 인셋을 직접 준다 (보류 버튼과 같은 계열의 "틀어짐").
 const RevertRow = styled.div`display:flex;justify-content:flex-end;padding:4px 14px 2px;`;

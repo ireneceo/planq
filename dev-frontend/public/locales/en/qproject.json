@@ -1005,5 +1005,27 @@
     "expand": "Show project menu",
     "collapse": "Hide project menu",
     "editingNote": "Editing a document"
+  },
+  "taskFilter": {
+    "searchPh": "Search task title or description",
+    "status": "Status",
+    "assignee": "Assignee",
+    "groupLabel": "Group",
+    "groupByWs": "By workstream",
+    "groupNone": "No grouping",
+    "sortLabel": "Sort",
+    "sort": {
+      "start_date": "Start date",
+      "due_date": "Due date",
+      "status": "Status",
+      "title": "Title",
+      "created_at": "Newest first",
+      "progress_percent": "Progress",
+      "priority_order": "Priority"
+    },
+    "addGroupTop": "Workstream",
+    "noMatch": "No tasks match these filters",
+    "clear": "Clear filters",
+    "addGroupTopHint": "Add a workstream at the top of the list (active search and filters are cleared)"
   }
 }

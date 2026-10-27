@@ -74,7 +74,7 @@ import { StatusGlyph } from '../../components/Common/Icons';
 import { getRoles, primaryPerspective } from '../../utils/taskRoles';
 import { deleteTaskRequest } from '../../utils/taskDeleteError';
 import {
-  createWorkstream, updateWorkstream, deleteWorkstream, reorderWorkstreams, wsColor,
+  wsColor,
   type Workstream,
 } from '../../services/projectCanvas';
 import { isEnterAction } from '../../utils/imeKey';
@@ -83,6 +83,9 @@ import { DesktopOnly, PhoneStatus, PhoneMeta, fmtDueShort } from '../../componen
 import SeriesScopeDialog, { type SeriesScope } from '../../components/QTask/SeriesScopeDialog';
 import { needsSeriesScope, isSeriesTask } from '../../utils/taskSeries';
 import { formatDay } from '../../utils/dateFormat';
+import { toPlainText } from '../../utils/searchMatch';
+import useWorkstreamOps from './useWorkstreamOps';
+import { sortTaskRows, type TaskSortKey, type TaskSortDir, type TaskGroupMode } from './ProjectTaskFilters';
 
 export interface TaskRow {
   id: number; project_id: number | null; business_id: number;
@@ -101,9 +104,7 @@ export interface TaskRow {
   reviewers?: Array<{ id: number; user_id: number; state: 'pending'|'approved'|'revision'; is_client?: boolean }>;
 }
 
-// 업무 종류별 드롭다운 옵션 (Q Task 와 동일)
-type SortKey = 'priority_order' | 'title' | 'status' | 'progress_percent' | 'due_date' | 'start_date';
-type SortDir = 'asc' | 'desc';
+type SortKey = TaskSortKey;
 
 type Props = {
   tasks: TaskRow[];
@@ -121,20 +122,27 @@ type Props = {
   workstreams?: Workstream[];
   projectId?: number | null;
   onWorkstreamsChanged?: () => void;
+  // 2026-10-27 — 정렬·묶기·필터는 위(TasksTab)가 쥔다. tasks 는 걸러진 것, allTasks 는 거르기 전(그룹 진행률·전체 수).
+  sortKey: SortKey; sortDir: TaskSortDir; onSort: (k: SortKey) => void;
+  groupMode?: TaskGroupMode;
+  allTasks?: TaskRow[];
+  filterActive?: boolean;
+  /** 위 [+ 추진과제] 로 연 맨 위 입력줄 */
+  addGroupTop?: boolean; onAddGroupTopClose?: () => void;
 };
 
 const ProjectTaskList: React.FC<Props> = ({
   tasks, members, businessId, myId, selectedId, onOpen, onLocalUpdate, onRefresh,
   showTimeline, projectStart, projectEnd,
   workstreams, projectId: projectIdProp, onWorkstreamsChanged,
+  sortKey, sortDir, onSort, groupMode = 'workstream', allTasks, filterActive, addGroupTop, onAddGroupTopClose,
 }) => {
+  const { t } = useTranslation('qtask');
   // 운영 #279 — 기간 편집 권한 판정에 워크스페이스 역할이 필요하다(prop 에는 myId 만 온다).
   const { user } = useAuth();
   const myWsRole = (user?.workspaces || []).find((w) => w.business_id === businessId)?.role
     || (user?.business_id === businessId ? user?.business_role : null);
   const isOwnerOrAdmin = myWsRole === 'owner' || myWsRole === 'admin' || user?.platform_role === 'platform_admin';
-  const [sortKey, setSortKey] = useState<SortKey>('start_date');
-  const [sortDir, setSortDir] = useState<SortDir>('asc');
   const [editingTitle, setEditingTitle] = useState<number | null>(null);
   const [titleDraft, setTitleDraft] = useState('');
   const [addingBelowId, setAddingBelowId] = useState<number | null>(null);
@@ -205,7 +213,14 @@ const ProjectTaskList: React.FC<Props> = ({
   const dateRefs = useRef<Record<number, HTMLButtonElement | null>>({});
 
   // ─── 그룹(워크스트림) 모드 상태 ───
-  const grouped = Array.isArray(workstreams);
+  const grouped = Array.isArray(workstreams) && groupMode === 'workstream';
+  // 묶지 않음 보기의 행 칩 — 그룹이 1개 이상일 때만, 그룹 없는 업무는 칩 없이(Fable)
+  const chipFor = (tk: TaskRow) => {
+    if (grouped || !workstreams?.length || tk.workstream_id == null) return null;
+    const ordered = [...workstreams].sort((a, b) => a.order_index - b.order_index);
+    const i = ordered.findIndex(w => w.id === tk.workstream_id);
+    return i < 0 ? null : { title: ordered[i].title, color: wsColor(ordered[i], i) };
+  };
   const projectId = useMemo(
     () => projectIdProp ?? tasks.find(tk => tk.project_id != null)?.project_id ?? null,
     [projectIdProp, tasks],
@@ -213,12 +228,11 @@ const ProjectTaskList: React.FC<Props> = ({
   const [collapsed, setCollapsed] = useState<Set<number | 'none'>>(new Set());
   const [dragTaskId, setDragTaskId] = useState<number | null>(null);
   const [dragOverGroup, setDragOverGroup] = useState<number | 'none' | null>(null);
-  const [editingGroupId, setEditingGroupId] = useState<number | null>(null);
-  const [groupTitleDraft, setGroupTitleDraft] = useState('');
-  const [headerMenuGroupId, setHeaderMenuGroupId] = useState<number | null>(null);  // 그룹 헤더 ⋯ 메뉴
-  const [addingGroup, setAddingGroup] = useState(false);
-  const [newGroupTitle, setNewGroupTitle] = useState('');
-  const [groupBusy, setGroupBusy] = useState(false);
+  const {
+    editingGroupId, setEditingGroupId, groupTitleDraft, setGroupTitleDraft, headerMenuGroupId, setHeaderMenuGroupId,
+    addingGroup, setAddingGroup, newGroupTitle, setNewGroupTitle, groupErr,
+    submitNewGroup, renameGroup, removeGroup, moveGroup,
+  } = useWorkstreamOps({ projectId, workstreams, onWorkstreamsChanged, onAddGroupTopClose, addGroupTop, t });
 
   const toggleCollapse = (gid: number | 'none') => {
     setCollapsed(prev => { const n = new Set(prev); if (n.has(gid)) n.delete(gid); else n.add(gid); return n; });
@@ -259,7 +273,6 @@ const ProjectTaskList: React.FC<Props> = ({
 
   // 타임라인 가로 스크롤 동기화 — 공용 훅
   const gantt = useGanttScrollSync();
-  const { t } = useTranslation('qtask');
 
   // 상태 드롭다운 옵션 라벨 — not_started + 요청업무 + 미ack 면 task_requested 로 표시
   const optionLabel = (task: TaskRow, status: string, role: string): string => {
@@ -270,24 +283,11 @@ const ProjectTaskList: React.FC<Props> = ({
     return t(`status.${status}.${role}`, t(`status.${status}.observer`, status)) as string;
   };
 
-  const handleSort = (k: SortKey) => {
-    if (sortKey === k) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
-    else { setSortKey(k); setSortDir('asc'); }
-  };
+  const handleSort = onSort;
   const sortIcon = (k: SortKey) => sortKey === k ? (sortDir === 'asc' ? '↑' : '↓') : '';
 
   const today = new Date().toISOString().slice(0, 10);
-  const sortTasks = (arr: TaskRow[]) => [...arr].sort((a, b) => {
-    const va = a[sortKey] as unknown;
-    const vb = b[sortKey] as unknown;
-    const aNull = va == null || va === '';
-    const bNull = vb == null || vb === '';
-    if (aNull && bNull) return 0;
-    if (aNull) return 1;
-    if (bNull) return -1;
-    if (typeof va === 'string' && typeof vb === 'string') return sortDir === 'asc' ? va.localeCompare(vb) : vb.localeCompare(va);
-    return sortDir === 'asc' ? Number(va) - Number(vb) : Number(vb) - Number(va);
-  });
+  const sortTasks = (arr: TaskRow[]) => sortTaskRows(arr, sortKey, sortDir);
   const sorted = sortTasks(tasks);
 
   // #403 — 반복 시리즈가 공유하는 값을 목록에서 바로 고칠 때도 **적용 범위를 먼저 묻는다.**
@@ -344,38 +344,6 @@ const ProjectTaskList: React.FC<Props> = ({
       });
       if (!r.ok) onLocalUpdate(task.id, { workstream_id: prev });  // 권한 등 실패 시 복원
     } catch { onLocalUpdate(task.id, { workstream_id: prev }); }
-  };
-
-  // ─── 그룹(워크스트림) CRUD — 단일 진실 원천 project_workstreams. 변경 시 onWorkstreamsChanged 로 캔버스/타임라인 동기. ───
-  const submitNewGroup = async () => {
-    if (!projectId || !newGroupTitle.trim() || groupBusy) return;
-    setGroupBusy(true);
-    try {
-      await createWorkstream(projectId, { title: newGroupTitle.trim() });
-      setNewGroupTitle(''); setAddingGroup(false);
-      onWorkstreamsChanged?.();
-    } catch { /* ignore */ } finally { setGroupBusy(false); }
-  };
-  const renameGroup = async (wsId: number) => {
-    const ws = (workstreams || []).find(w => w.id === wsId);
-    setEditingGroupId(null);
-    if (!projectId || !ws || !groupTitleDraft.trim() || groupTitleDraft.trim() === ws.title) return;
-    try { await updateWorkstream(projectId, wsId, { title: groupTitleDraft.trim() }); onWorkstreamsChanged?.(); } catch { /* ignore */ }
-  };
-  const removeGroup = async (wsId: number) => {
-    setHeaderMenuGroupId(null);
-    if (!projectId || groupBusy) return;
-    setGroupBusy(true);
-    try { await deleteWorkstream(projectId, wsId); onWorkstreamsChanged?.(); } catch { /* ignore */ } finally { setGroupBusy(false); }
-  };
-  const moveGroup = async (wsId: number, dir: -1 | 1) => {
-    setHeaderMenuGroupId(null);
-    const ordered = [...(workstreams || [])].sort((a, b) => a.order_index - b.order_index);
-    const idx = ordered.findIndex(w => w.id === wsId);
-    const swap = idx + dir;
-    if (!projectId || idx < 0 || swap < 0 || swap >= ordered.length) return;
-    [ordered[idx], ordered[swap]] = [ordered[swap], ordered[idx]];
-    try { await reorderWorkstreams(projectId, ordered.map(w => w.id)); onWorkstreamsChanged?.(); } catch { /* ignore */ }
   };
 
   // 타임라인 범위 — GanttRange. 업무/프로젝트 일자 합쳐서 최소·최대.
@@ -467,8 +435,9 @@ const ProjectTaskList: React.FC<Props> = ({
               })()}
               {isDelayed && <DelayBadge>{t('status.delayed', '지연')}</DelayBadge>}</PhoneLine2>
               <Spacer />
-              {grouped && (
+              {(grouped || !!workstreams?.length) && (
                 <GroupMoveMenu
+                  chip={chipFor(task)}
                   taskId={task.id}
                   currentWorkstreamId={task.workstream_id ?? null}
                   workstreams={workstreams || []}
@@ -563,7 +532,8 @@ const ProjectTaskList: React.FC<Props> = ({
           </TCell>
           {!showTimeline && (
             <TCell $flex $hideBelow={768} style={{ padding: '0 8px' }}>
-              <DescText>{task.description || <DescEmpty>{t('listRow.emptyDash', '—')}</DescEmpty>}</DescText>
+              {/* 설명은 서식 있는 글(HTML)이다 — 그대로 그리면 «<p></p>» 가 글자로 보였다. 글자만 한 줄로. */}
+              <DescText>{toPlainText(task.description) || <DescEmpty>{t('listRow.emptyDash', '—')}</DescEmpty>}</DescText>
             </TCell>
           )}
           {showTimeline && range && (
@@ -597,7 +567,7 @@ const ProjectTaskList: React.FC<Props> = ({
   };
 
   // ─── 그룹 헤더 ───
-  const renderGroupHeader = (g: { id: number | 'none'; title: string; color: string; rollup?: { total: number; progress_pct: number } | null; idx: number; isFirst: boolean; isLast: boolean }, count: number, pct: number) => {
+  const renderGroupHeader = (g: { id: number | 'none'; title: string; color: string; rollup?: { total: number; progress_pct: number } | null; idx: number; isFirst: boolean; isLast: boolean }, count: number | string, pct: number) => {
     const gid = g.id;
     const isCollapsed = collapsed.has(gid);
     const editable = gid !== 'none';
@@ -690,6 +660,27 @@ const ProjectTaskList: React.FC<Props> = ({
   );
 
   // ─── 그룹 모드 렌더 ───
+  // 새 추진과제 입력줄 — 맨 위(atTop: 위 [+ 추진과제])와 아래(마지막 그룹 다음) 두 자리가 같은 입력줄을 쓴다
+  const newGroupInput = (atTop: boolean) => (
+    <AddGroupRow data-testid={atTop ? 'project-group-new-top' : 'project-group-new'}>
+      <GroupDot style={{ background: '#CBD5E1' }} />
+      <GroupTitleInput autoFocus value={newGroupTitle}
+        placeholder={t('list.group.newGroupPh', '그룹 이름 입력 (Enter 추가 / Esc 취소)') as string}
+        onChange={e => setNewGroupTitle(e.target.value)}
+        onKeyDown={e => {
+          if (isEnterAction(e)) submitNewGroup(atTop);
+          if (e.key === 'Escape') { setNewGroupTitle(''); if (atTop) onAddGroupTopClose?.(); else setAddingGroup(false); }
+        }}
+        onBlur={() => { if (!newGroupTitle.trim()) { if (atTop) onAddGroupTopClose?.(); else setAddingGroup(false); } }} />
+    </AddGroupRow>
+  );
+  const addGroupBottom = addingGroup && !addGroupTop ? newGroupInput(false) : (
+    projectId != null && <AddGroupBtn type="button" data-testid="project-group-add" onClick={() => { onAddGroupTopClose?.(); setNewGroupTitle(''); setAddingGroup(true); }}>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      {t('list.group.addGroup', '추진과제(그룹) 추가')}
+    </AddGroupBtn>
+  );
+
   if (grouped) {
     const ordered = [...(workstreams || [])].sort((a, b) => a.order_index - b.order_index);
     const groups: { id: number | 'none'; title: string; color: string }[] = [
@@ -708,15 +699,24 @@ const ProjectTaskList: React.FC<Props> = ({
     return (
       <>
         {colRow}
+        {addGroupTop && newGroupInput(true)}
+        {groupErr && <GroupMenuHint role="alert" style={{ padding: '6px 12px', color: '#B91C1C' }}>{groupErr}</GroupMenuHint>}
         {groups.map((g, gi) => {
           if (g.id === 'none' && noneTasks.length === 0) return null;  // 미분류 0건이면 헤더 숨김
           const gTasks = g.id === 'none' ? noneTasks : byGroup(g.id);
-          const count = gTasks.length;
+          // 거르는 중이면 걸러진 결과 0건인 그룹은 숨긴다. 진행률은 **거르기 전 전체**로(캔버스·서버 progress_pct 와 한 기준 · Fable),
+          //   개수는 «보이는 수 / 전체 수».
+          if (filterActive && gTasks.length === 0) return null;
+          const all = (allTasks || tasks).filter(tk => groupOf(tk) === g.id);
+          const count: number | string = filterActive ? `${gTasks.length} / ${all.length}` : gTasks.length;
           // 진행률 = 업무 progress_percent 평균 (백엔드 serializeWorkstream.progress_pct·캔버스와 동일 공식 — 단일 진실 원천).
-          const pct = count > 0 ? Math.round(gTasks.reduce((s, tk) => s + (tk.progress_percent || 0), 0) / count) : 0;
+          const pct = all.length > 0 ? Math.round(all.reduce((s, tk) => s + (tk.progress_percent || 0), 0) / all.length) : 0;
           const isCollapsed = collapsed.has(g.id);
           return (
             <Fragment key={String(g.id)}>
+              {/* 추가 버튼은 **마지막 그룹 바로 다음·«(그룹 없음)» 앞** — 새 그룹이 서버에서 맨 뒤(= 이 자리)에 생긴다.
+                  전엔 «(그룹 없음)» 아래 맨 끝에 있어서 누른 곳보다 위에 생겼다(Irene «위로 들어가서 헷갈려»). */}
+              {g.id === 'none' && !filterActive && addGroupBottom}
               {renderGroupHeader(
                 { id: g.id, title: g.title, color: g.color, idx: gi, isFirst: gi === 0, isLast: gi === ordered.length - 1 },
                 count, pct,
@@ -758,21 +758,7 @@ const ProjectTaskList: React.FC<Props> = ({
             </Fragment>
           );
         })}
-        {addingGroup ? (
-          <AddGroupRow>
-            <GroupDot style={{ background: '#CBD5E1' }} />
-            <GroupTitleInput autoFocus value={newGroupTitle}
-              placeholder={t('list.group.newGroupPh', '그룹 이름 입력 (Enter 추가 / Esc 취소)') as string}
-              onChange={e => setNewGroupTitle(e.target.value)}
-              onKeyDown={e => { if (isEnterAction(e)) submitNewGroup(); if (e.key === 'Escape') { setAddingGroup(false); setNewGroupTitle(''); } }}
-              onBlur={() => { if (!newGroupTitle.trim()) setAddingGroup(false); }} />
-          </AddGroupRow>
-        ) : (
-          projectId != null && <AddGroupBtn type="button" onClick={() => { setNewGroupTitle(''); setAddingGroup(true); }}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-            {t('list.group.addGroup', '추진과제(그룹) 추가')}
-          </AddGroupBtn>
-        )}
+        {noneTasks.length === 0 && !filterActive && addGroupBottom}
         {tasks.length === 0 && !addingGroup && <EmptyMsg>{t('list.empty', '업무가 없습니다')}</EmptyMsg>}
         {seriesDialog}
       </>

@@ -175,7 +175,9 @@
       "empty": "이 그룹에 업무가 없습니다 — 아래에서 추가하거나 드래그하세요",
       "addTask": "업무 추가",
       "addTaskPh": "업무 제목 입력 (Enter 추가 / Esc 취소)",
-      "addTaskGo": "추가"
+      "addTaskGo": "추가",
+      "topFailed": "맨 위로 옮기지 못해 맨 아래에 추가했어요",
+      "addFailed": "추진과제를 만들지 못했어요"
     },
     "datesReadOnly": "기간은 요청자·담당자·관리자만 변경할 수 있어요",
     "checkLocked": "컨펌으로 완료됨 — 되돌리기는 상세에서",
@@ -553,7 +555,11 @@
       "tags": "태그",
       "tagsPh": "태그 선택",
       "datesReadOnly": "기간은 요청자·담당자·관리자만 변경할 수 있어요",
-      "toggle": "상세 정보"
+      "toggle": "상세 정보",
+      "workstream": "추진과제",
+      "aiCreatedOn": "AI 작성",
+      "cueCreatedOn": "Cue 작성",
+      "aiRequestedOn": "AI 요청"
     },
     "description": "업무 설명",
     "descriptionSelf": "내가 적은 업무 메모",

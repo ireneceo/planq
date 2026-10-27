@@ -1504,7 +1504,8 @@
   },
   "provenance": {
     "cue": "Cue로 추가됨",
-    "agent": "AI 앱에서 만듦"
+    "agent": "AI 앱에서 만듦",
+    "agentHint": "ChatGPT·Claude 같은 AI 앱으로 만든 업무"
   },
   "popoutPin": {
     "pin": "항상 위로 고정",

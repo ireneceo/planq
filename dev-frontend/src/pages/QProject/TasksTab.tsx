@@ -20,6 +20,10 @@ import { getRoles, primaryPerspective } from '../../utils/taskRoles';
 import { listWorkstreams, type Workstream } from '../../services/projectCanvas';
 import { useTranslation } from 'react-i18next';
 import { formatDay } from '../../utils/dateFormat';
+import ProjectTaskFilters, {
+  EMPTY_FILTER, applyTaskFilter, filterActiveCount, sortTaskRows, defaultSortDir, readViewPrefs, writeViewPrefs,
+  type TaskFilterState, type TaskSortKey, type TaskSortDir, type TaskGroupMode,
+} from './ProjectTaskFilters';
 
 type ViewMode = 'split' | 'list' | 'timeline' | 'calendar';
 
@@ -32,6 +36,7 @@ export interface TaskRow {
   // actual_hours 출처 — 'auto' (status 전환 자동 누적) vs 'user' (직접 입력). 사이클 N+6.
   actual_source?: 'auto' | 'user' | null;
   workstream_id?: number | null;  // R1-C3 — 업무 그룹(워크스트림)
+  description?: string | null; created_at?: string | null;
   assignee_id: number | null; assignee?: { id: number; name: string } | null;
 }
 
@@ -152,11 +157,26 @@ const TasksTab: React.FC<Props> = ({ projectId, businessId, projectName, tasks, 
     };
   }, [businessId, projectId]);
 
-  const sorted = useMemo(() => [...localTasks].sort((a, b) => {
-    const as = a.start_date || a.due_date || '9999-12-31';
-    const bs = b.start_date || b.due_date || '9999-12-31';
-    return as.localeCompare(bs);
-  }), [localTasks]);
+  // 2026-10-27 — 검색·필터·묶기·정렬(Irene «보기탭이 있어도 소팅기능이 필요해 … 검색이랑 기본 필터들도 없다»).
+  //   네 보기가 같은 걸러진 배열을 받는다. 묶기·정렬은 프로젝트별로 이 브라우저에 기억한다.
+  const [filter, setFilter] = useState<TaskFilterState>(EMPTY_FILTER);
+  const [addGroupTop, setAddGroupTop] = useState(false);
+  const [prefs, setPrefs] = useState(() => readViewPrefs(projectId));
+  // 다른 프로젝트로 옮겨도 이 화면은 그대로 살아 있다(상세 페이지가 TasksTab 을 다시 만들지 않는다) —
+  //   거르기·맨 위 입력줄을 새 프로젝트로 끌고 가지 않는다. 안 그러면 옛 프로젝트 담당자로 걸린 채
+  //   셀렉트는 «담당자»(빈 상태)로 보여, 필터가 없어 보이는데 업무가 빠진다(Fable 완료 점검 B1).
+  useEffect(() => { setPrefs(readViewPrefs(projectId)); setFilter(EMPTY_FILTER); setAddGroupTop(false); }, [projectId]);
+  const updatePrefs = (patch: Partial<{ group: TaskGroupMode; sortKey: TaskSortKey; sortDir: TaskSortDir }>) => {
+    setPrefs(prev => { const next = { ...prev, ...patch }; writeViewPrefs(projectId, next); return next; });
+  };
+  // 열 머리 클릭 — 같은 열이면 방향 뒤집기, 다른 열이면 그 열의 기본 방향
+  const onHeaderSort = (k: TaskSortKey) => updatePrefs(prefs.sortKey === k
+    ? { sortDir: prefs.sortDir === 'asc' ? 'desc' : 'asc' }
+    : { sortKey: k, sortDir: defaultSortDir(k) });
+  const filtered = useMemo(() => applyTaskFilter(localTasks, filter), [localTasks, filter]);
+  const filterOn = filterActiveCount(filter) > 0;
+  const sorted = useMemo(() => sortTaskRows(filtered, prefs.sortKey, prefs.sortDir), [filtered, prefs.sortKey, prefs.sortDir]);
+  const isListView = view === 'split' || view === 'list';
 
   // 공용 폼에 넘기는 맥락 — 두 자리(하단 인라인 / 상단 드로어)가 같은 값을 받는다
   const addFormProps = {
@@ -166,6 +186,13 @@ const TasksTab: React.FC<Props> = ({ projectId, businessId, projectName, tasks, 
     members: members.map((m) => ({ user_id: m.user_id, name: m.name })),
     onClose: () => setAdding(null),
     onCreated: () => onRefresh(),
+  };
+
+  // 기본·리스트 두 보기가 같은 값을 받는다
+  const listViewProps = {
+    sortKey: prefs.sortKey, sortDir: prefs.sortDir, onSort: onHeaderSort,
+    groupMode: prefs.group, allTasks: localTasks, filterActive: filterOn,
+    addGroupTop, onAddGroupTopClose: () => setAddGroupTop(false),
   };
 
   return (
@@ -199,23 +226,39 @@ const TasksTab: React.FC<Props> = ({ projectId, businessId, projectName, tasks, 
         </ToolbarRight>
       </Toolbar>
 
+      <ProjectTaskFilters filter={filter} onFilter={setFilter} members={members}
+        showGroup={isListView} showSort={view !== 'calendar'}
+        group={prefs.group} onGroup={(g) => updatePrefs({ group: g })}
+        sortKey={prefs.sortKey} onSort={(k) => updatePrefs({ sortKey: k, sortDir: defaultSortDir(k) })}
+        onAddGroupTop={isListView && prefs.group === 'workstream' ? () => { setFilter(EMPTY_FILTER); setAddGroupTop(true); } : undefined} />
+
+      {/* 거른 결과가 0건 — «업무가 없습니다» 가 아니라 조건 탓임을 말하고 바로 풀 길을 준다(Fable) */}
+      {filterOn && filtered.length === 0 ? (
+        <EmptyBox data-testid="project-task-filter-empty">
+          {tp('taskFilter.noMatch', '조건에 맞는 업무가 없어요')}
+          {' · '}
+          <ClearFilterBtn type="button" onClick={() => setFilter(EMPTY_FILTER)}>{tp('taskFilter.clear', '필터 지우기')}</ClearFilterBtn>
+        </EmptyBox>
+      ) : (<>
       {view === 'split' && (
         <TableWrap>
-          <ProjectTaskList tasks={sorted} members={members} businessId={businessId} myId={myId}
+          <ProjectTaskList key={projectId} tasks={sorted} members={members} businessId={businessId} myId={myId}
             onOpen={openDetail} onLocalUpdate={onLocalUpdate} onRefresh={onRefresh}
             workstreams={workstreams} projectId={projectId} onWorkstreamsChanged={reloadWorkstreams}
-            showTimeline />
+            {...listViewProps} showTimeline />
         </TableWrap>
       )}
       {view === 'list' && (
         <TableWrap>
-          <ProjectTaskList tasks={sorted} members={members} businessId={businessId} myId={myId}
+          <ProjectTaskList key={projectId} tasks={sorted} members={members} businessId={businessId} myId={myId}
             onOpen={openDetail} onLocalUpdate={onLocalUpdate} onRefresh={onRefresh}
-            workstreams={workstreams} projectId={projectId} onWorkstreamsChanged={reloadWorkstreams} />
+            workstreams={workstreams} projectId={projectId} onWorkstreamsChanged={reloadWorkstreams}
+            {...listViewProps} />
         </TableWrap>
       )}
       {view === 'timeline' && <TimelineView tasks={sorted} onOpen={openDetail} todayStr={todayStr} myId={myId} />}
       {view === 'calendar' && <CalendarView tasks={sorted} onOpen={openDetail} todayStr={todayStr} myId={myId} />}
+      </>)}
 
       {/* 하단 간이 추가 — 글자만 좌측정렬. 클릭 시 하단에 폼이 뜸 (표와 간격 유지) */}
       {adding === 'bottom'
@@ -416,6 +459,7 @@ const AddTaskBtn = styled.button<{ $phoneIcon?: boolean }>`display:inline-flex;a
 // List — Q Task 스타일
 const TableWrap = styled.div`background:#FFF;border:1px solid #E2E8F0;border-radius:8px;overflow-x:auto;overflow-y:hidden;&::-webkit-scrollbar{height:6px;}&::-webkit-scrollbar-thumb{background:#E2E8F0;border-radius:3px;}`;
 const BottomAddLink = styled.button`margin-top:10px;padding:8px 14px;background:transparent;color:#94A3B8;border:none;font-size:0.8125rem;font-weight:500;cursor:pointer;text-align:left;display:block;font-family:inherit;&:hover{color:#0F766E;}`;
+const ClearFilterBtn = styled.button`background:none;border:none;padding:0;color:#0F766E;font:inherit;font-weight:600;cursor:pointer;text-decoration:underline;`;
 const EmptyBox = styled.div`padding:40px;text-align:center;color:#94A3B8;font-size:0.8125rem;background:#FFF;border:1px solid #E2E8F0;border-radius:8px;`;
 
 // Timeline

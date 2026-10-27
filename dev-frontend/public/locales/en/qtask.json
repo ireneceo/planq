@@ -444,7 +444,9 @@
       "empty": "No tasks in this group — add below or drag one in",
       "addTask": "Add task",
       "addTaskPh": "Task title (Enter to add / Esc to cancel)",
-      "addTaskGo": "Add"
+      "addTaskGo": "Add",
+      "topFailed": "Couldn't move it to the top, so it was added at the bottom",
+      "addFailed": "Couldn't create the workstream"
     },
     "datesReadOnly": "Only the requester, assignee, or an admin can change the dates",
     "checkLocked": "Completed via approval — revert from the detail panel",
@@ -553,7 +555,11 @@
       "tags": "Tags",
       "tagsPh": "Select tags",
       "datesReadOnly": "Only the requester, assignee, or an admin can change the dates",
-      "toggle": "Details"
+      "toggle": "Details",
+      "workstream": "Workstream",
+      "aiCreatedOn": "Created by AI",
+      "cueCreatedOn": "Created by Cue",
+      "aiRequestedOn": "Requested by AI"
     },
     "description": "Description",
     "descriptionSelf": "My work notes",

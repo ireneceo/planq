@@ -96,6 +96,8 @@ export const GroupMenuItem = styled.button<{$active?:boolean;$danger?:boolean}>`
 `;
 export const GroupMenuHint = styled.div`padding:4px 10px 2px;font-size:0.625rem;color:#94A3B8;`;
 export const GroupDot = styled.span`width:9px;height:9px;border-radius:50%;flex-shrink:0;`;
+// 묶지 않음 보기에서 행의 추진과제 표시(2026-10-27) — Q task 의 프로젝트 태그 자리. 눌러서 그룹을 바꾼다(같은 메뉴).
+export const GroupChipBtn = styled.button`display:inline-flex;align-items:center;gap:5px;max-width:140px;padding:3px 8px;line-height:1.4;flex-shrink:1;min-width:0;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:6px;color:#475569;font-family:inherit;font-size:0.6875rem;font-weight:600;cursor:pointer;white-space:nowrap;&:hover{border-color:#99F6E4;color:#0F766E;} > span:last-child{overflow:hidden;text-overflow:ellipsis;} @media(max-width:640px){max-width:96px;}`;
 // 그룹 헤더
 export const GroupHeader = styled.div<{$over?:boolean}>`
   display:flex;align-items:center;gap:8px;padding:8px 12px;min-width:520px;@media(max-width:640px){min-width:0;}

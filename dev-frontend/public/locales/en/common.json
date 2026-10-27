@@ -1504,7 +1504,8 @@
   },
   "provenance": {
     "cue": "Added via Cue",
-    "agent": "Created by an AI app"
+    "agent": "Created by an AI app",
+    "agentHint": "Created from an AI app such as ChatGPT or Claude"
   },
   "popoutPin": {
     "pin": "Keep on top",

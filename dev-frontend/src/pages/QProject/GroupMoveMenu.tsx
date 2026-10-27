@@ -14,7 +14,7 @@
 import React, { useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useFloatingPanel } from '../../components/Common/popoverAnchor';
-import { GroupMoveWrap, GroupMoveBtn, GroupMenu, GroupMenuItem, GroupDot } from './ProjectTaskList.styles';
+import { GroupMoveWrap, GroupMoveBtn, GroupChipBtn, GroupMenu, GroupMenuItem, GroupDot } from './ProjectTaskList.styles';
 
 // ★ color 는 **선택이 아니다** — 호출부의 wsColor 가 `color: string | null` 을 요구한다.
 //   `color?:` 로 두면 undefined 가 섞여 타입이 어긋난다(2026-09-10 분리 중 실제로 깨뜨렸다).
@@ -31,10 +31,12 @@ interface Props {
   colorOf: (w: GroupMoveWorkstream, index: number) => string;
   label: string;
   noneLabel: string;
+  /** 묶지 않음 보기 — 폴더 아이콘 대신 지금 그룹(색 점 + 이름)을 칩으로 보여 준다. 그룹이 없는 업무는 넘기지 않는다(폴더 아이콘). */
+  chip?: { title: string; color: string } | null;
 }
 
 const GroupMoveMenu: React.FC<Props> = ({
-  taskId, currentWorkstreamId, workstreams, openAt, onOpen, onAssign, colorOf, label, noneLabel,
+  taskId, currentWorkstreamId, workstreams, openAt, onOpen, onAssign, colorOf, label, noneLabel, chip,
 }) => {
   const mine = openAt?.taskId === taskId ? openAt : null;
   // ★ 자리는 공용 placeFloating (2026-10-27, Irene «업무가 가장 아래에 있으면 드롭다운이 잘려버려. 그룹이 많으면»).
@@ -44,20 +46,28 @@ const GroupMoveMenu: React.FC<Props> = ({
   const { ref: menuRef, style: menuStyle } = useFloatingPanel(mine ? btnRef.current : null, { onDismiss: () => onOpen(null) });
   return (
     <GroupMoveWrap>
-      <GroupMoveBtn
-        ref={btnRef}
-        data-dropdown
-        aria-label={label}
-        title={label}
-        aria-expanded={!!mine}
-        onClick={(e) => {
-          e.stopPropagation();
-          onOpen(mine ? null : { taskId });
-        }}
-      >
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /></svg>
-        <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><polyline points="6 9 12 15 18 9" /></svg>
-      </GroupMoveBtn>
+      {chip ? (
+        <GroupChipBtn ref={btnRef} data-dropdown aria-label={`${label}: ${chip.title}`} title={chip.title} aria-expanded={!!mine}
+          data-testid="project-task-group-chip"
+          onClick={(e) => { e.stopPropagation(); onOpen(mine ? null : { taskId }); }}>
+          <GroupDot style={{ background: chip.color }} /><span>{chip.title}</span>
+        </GroupChipBtn>
+      ) : (
+        <GroupMoveBtn
+          ref={btnRef}
+          data-dropdown
+          aria-label={label}
+          title={label}
+          aria-expanded={!!mine}
+          onClick={(e) => {
+            e.stopPropagation();
+            onOpen(mine ? null : { taskId });
+          }}
+        >
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /></svg>
+          <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><polyline points="6 9 12 15 18 9" /></svg>
+        </GroupMoveBtn>
+      )}
       {mine && createPortal((
         <GroupMenu ref={menuRef} data-dropdown style={menuStyle} onClick={(e) => e.stopPropagation()}>
           {[...workstreams].sort((a, b) => a.order_index - b.order_index).map((w, i) => (
