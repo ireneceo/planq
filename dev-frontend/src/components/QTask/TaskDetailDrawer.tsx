@@ -364,7 +364,6 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
   const [isPopout] = useState(() => isPopoutWindow());
   // 팝아웃에서 관리 필드 접힘 상태. 펼치면 그 창에서는 유지된다(매번 다시 펼치는 마찰 제거).
   const [metaOpen, setMetaOpen] = useState(false);
-  const [openReviewers, setOpenReviewers] = useState(false);
   const [openHistory, setOpenHistory] = useState(false);
   const [openDaily, setOpenDaily] = useState(false);
 
@@ -473,7 +472,6 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
   // ★ 이 드로어엔 오류 표시가 없었다 — callAction 이 실패해도 호출부가 그냥 return 해서
   //   "눌렀는데 아무 일도 안 일어남" 이 된다. 특히 첨부는 **댓글만 올라가고 파일이 조용히 사라졌다**.
   const [actionError, setActionError] = useState<string | null>(null);
-  const [addReviewerOpen, setAddReviewerOpen] = useState(false);
   const [pendingReviewerAdd, setPendingReviewerAdd] = useState<number | null>(null);
   const [actionBusy, setActionBusy] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
@@ -713,7 +711,7 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
     setDetailTask(null);
     setReviewers([]); setHistory([]);
     setEditingTitle(false); setStatusOpen(false);
-    setOpenReviewers(false); setOpenHistory(false); setOpenDaily(false);
+    setOpenHistory(false); setOpenDaily(false);
     // ★ 운영 #367 — 여기서 댓글 입력을 비우면 **떠나는 업무의 초안이 지워진다**.
     //   (이 시점의 초안 키는 아직 옛 업무 것이다) 초안 훅이 업무 전환을 스스로 처리한다 —
     //   옛 키로 확정 저장하고 새 키의 초안을 읽어 넣는다. 여기서 건드리지 않는다.
@@ -723,7 +721,7 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
     //   **떠나는 업무** 것이라 clear() 가 그 업무의 메모를 지웠다(드로어를 연 채 다른 업무를 누르면 쓰던 사유가 사라짐).
     //   폼은 `revisionOpen || revisionNote` 로 그려지므로 초안이 있는 업무로 돌아오면 열린 채 보인다.
     setRevisionOpen(false);
-    setAddReviewerOpen(false); setPendingReviewerAdd(null);
+    setPendingReviewerAdd(null);
     setDeleteConfirmOpen(false); setDeleting(false);
     setWeekFocusH(0);
     setKbSaving(false); setKbSaved(false);
@@ -1288,12 +1286,11 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
     const inActiveRound = detailTask && (detailTask.status === 'reviewing' || detailTask.status === 'revision_requested');
     if (inActiveRound) { setPendingReviewerAdd(userId); return; }
     await callAction('/reviewers', 'POST', { user_id: userId });
-    setAddReviewerOpen(false);
   };
   const confirmAddReviewer = async () => {
     if (!pendingReviewerAdd) return;
     await callAction('/reviewers', 'POST', { user_id: pendingReviewerAdd });
-    setPendingReviewerAdd(null); setAddReviewerOpen(false);
+    setPendingReviewerAdd(null);
   };
   const removeReviewer = async (userId: number) => { await callAction(`/reviewers/${userId}`, 'DELETE'); };
   const changePolicy = async (p: 'all'|'any') => {
@@ -1911,6 +1908,49 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                     return null;
                   })()}
                 </MetaCell>
+                {/* 2026-10-27 Irene «업무상세에도 컨펌자 선택하는게 위에 나와야 … 업무등록폼만 혼자 수정» —
+                    맨 아래 접힌 «컨펌자 (N)» 칸을 담당자 옆 속성 줄로. 업무 추가 폼(TaskCreateForm)과 같은 여러 명 고르기.
+                    서버에는 차이만 보낸다(추가 POST · 빼기 DELETE) — 확인 중 추가면 종전대로 «회차 초기화» 경고. */}
+                <MetaCell data-testid="task-detail-reviewers">
+                  <MetaLabel>{t('add.reviewers', '컨펌자')}
+                    {!canAddReviewer && <MetaLock title={t('detail.readOnly', '읽기 전용') as string} aria-label={t('detail.readOnly', '읽기 전용') as string} />}
+                  </MetaLabel>
+                  <PlanQSelect<true> size="sm" variant="inline" isMulti isClearable={false}
+                    isDisabled={!canAddReviewer || actionBusy}
+                    placeholder={(canAddReviewer ? t('add.reviewersPh', '선택 — 끝내기 전에 확인할 사람') : t('detail.reviewers.empty', 'No reviewers yet')) as string}
+                    value={reviewers.map(rv => {
+                      const ext = rv.is_client ? externalById.get(rv.user_id) : undefined;
+                      return {
+                        value: String(rv.user_id),
+                        label: (rv.user?.name || `user ${rv.user_id}`) + meSuffix(rv.user_id)
+                          + ' · ' + t(`detail.reviewers.state.${rv.state}`, rv.state),
+                        ...(ext ? { icon: <PartnerKindBadge kind={ext.kind} size="xs" /> } : {}),
+                      };
+                    })}
+                    onChange={(v) => {
+                      const next = new Set((v || []).map(o => Number(o.value)));
+                      const added = [...next].find(id => !reviewers.some(rv => rv.user_id === id));
+                      const removed = reviewers.find(rv => !next.has(rv.user_id));
+                      if (added != null) void addReviewer(added);
+                      else if (removed) void removeReviewer(removed.user_id);
+                    }}
+                    options={[
+                      ...memberOptions.map(m => ({ value: String(m.user_id), label: m.name + meSuffix(m.user_id) })),
+                      ...externalReviewerOptions.map(e => ({ value: String(e.user_id), label: e.name, icon: <PartnerKindBadge kind={e.kind} size="xs" /> })),
+                    ]} />
+                  {canAddReviewer && reviewers.length > 1 && <PolicySeg>
+                    <PolicySegBtn $active={reviewPolicy === 'all'} onClick={() => changePolicy('all')} disabled={actionBusy}>{t('detail.reviewers.policyAll', 'All must approve')}</PolicySegBtn>
+                    <PolicySegBtn $active={reviewPolicy === 'any'} onClick={() => changePolicy('any')} disabled={actionBusy}>{t('detail.reviewers.policyAny', 'Any one is enough')}</PolicySegBtn>
+                  </PolicySeg>}
+                </MetaCell>
+                {pendingReviewerAdd && <MetaWide><WarnDialog>
+                  <WarnTitle>{t('detail.reviewers.warnTitle', 'Reset current review round?')}</WarnTitle>
+                  <WarnBody>{t('detail.reviewers.warnBody', 'Adding a reviewer during an active round resets all reviewers to pending. Previous approvals will need to be re-confirmed.')}</WarnBody>
+                  <WarnRow>
+                    <ActionSecondary onClick={() => setPendingReviewerAdd(null)}>{t('common.cancel', 'Cancel')}</ActionSecondary>
+                    <ActionPrimary onClick={confirmAddReviewer} disabled={actionBusy}>{t('detail.reviewers.warnConfirm', 'Add and reset')}</ActionPrimary>
+                  </WarnRow>
+                </WarnDialog></MetaWide>}
                 <MetaCell>
                   <MetaLabel>{t('detail.meta.period', '기간')}
                     {!canEditDates && <MetaLock title={t('detail.readOnly', '읽기 전용') as string} aria-label={t('detail.readOnly', '읽기 전용') as string} />}
@@ -2821,58 +2861,6 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
 
             <TaskAttachments taskId={detailTask.id} businessId={bizId} onChangeCount={() => {}} />
 
-            <Collapsible>
-              <ColHeader onClick={() => setOpenReviewers(v => !v)}>
-                <ColArrow $open={openReviewers}>▸</ColArrow>
-                <span>{t('detail.reviewers.title', 'Reviewers')} ({reviewers.length})</span>
-              </ColHeader>
-              {openReviewers && <ColBody>
-                {canAddReviewer && reviewers.length > 1 && <PolicySeg>
-                  <PolicySegBtn $active={reviewPolicy === 'all'} onClick={() => changePolicy('all')} disabled={actionBusy}>{t('detail.reviewers.policyAll', 'All must approve')}</PolicySegBtn>
-                  <PolicySegBtn $active={reviewPolicy === 'any'} onClick={() => changePolicy('any')} disabled={actionBusy}>{t('detail.reviewers.policyAny', 'Any one is enough')}</PolicySegBtn>
-                </PolicySeg>}
-                {reviewers.length === 0 ? <Empty>{t('detail.reviewers.empty', 'No reviewers yet')}</Empty> : (
-                  <ReviewerList>
-                    {reviewers.map(rv => (
-                      <ReviewerRowE key={rv.id}>
-                        <ReviewerName>{rv.user?.name || `user ${rv.user_id}`}</ReviewerName>
-                        {rv.is_client && <PartnerKindBadge kind={externalById.get(rv.user_id)?.kind} size="xs"
-                          label={externalById.get(rv.user_id) ? undefined : (t('detail.reviewers.external', '외부') as string)} />}
-                        <ReviewerState $state={rv.state}>{t(`detail.reviewers.state.${rv.state}`, rv.state)}</ReviewerState>
-                        {canAddReviewer && <ReviewerRemove onClick={() => removeReviewer(rv.user_id)} disabled={actionBusy} title={t('detail.reviewers.remove', 'Remove') as string}>×</ReviewerRemove>}
-                      </ReviewerRowE>
-                    ))}
-                  </ReviewerList>
-                )}
-                {canAddReviewer && (addReviewerOpen ? (
-                  <AddReviewerBox>
-                    {memberOptions.length === 0 && externalReviewerOptions.length === 0 ? <MutedText>{t('detail.reviewers.noCandidates', 'No members to add')}</MutedText> : (
-                      <AddReviewerList>
-                        {memberOptions.map(m => (
-                          <AddReviewerItem key={`m-${m.user_id}`} onClick={() => addReviewer(m.user_id)} disabled={actionBusy}>{m.name}</AddReviewerItem>
-                        ))}
-                        {externalReviewerOptions.map(e => (
-                          <AddReviewerItem key={`e-${e.user_id}`} onClick={() => addReviewer(e.user_id)} disabled={actionBusy}>
-                            <ReviewerOptInner><PartnerKindBadge kind={e.kind} size="xs" />{e.name}</ReviewerOptInner>
-                          </AddReviewerItem>
-                        ))}
-                      </AddReviewerList>
-                    )}
-                    <ActionSecondary onClick={() => setAddReviewerOpen(false)}>{t('common.cancel', 'Cancel')}</ActionSecondary>
-                  </AddReviewerBox>
-                ) : (
-                  <ActionSecondary onClick={() => setAddReviewerOpen(true)} disabled={actionBusy}>+ {t('detail.reviewers.add', 'Add reviewer')}</ActionSecondary>
-                ))}
-                {pendingReviewerAdd && <WarnDialog>
-                  <WarnTitle>{t('detail.reviewers.warnTitle', 'Reset current review round?')}</WarnTitle>
-                  <WarnBody>{t('detail.reviewers.warnBody', 'Adding a reviewer during an active round resets all reviewers to pending. Previous approvals will need to be re-confirmed.')}</WarnBody>
-                  <WarnRow>
-                    <ActionSecondary onClick={() => setPendingReviewerAdd(null)}>{t('common.cancel', 'Cancel')}</ActionSecondary>
-                    <ActionPrimary onClick={confirmAddReviewer} disabled={actionBusy}>{t('detail.reviewers.warnConfirm', 'Add and reset')}</ActionPrimary>
-                  </WarnRow>
-                </WarnDialog>}
-              </ColBody>}
-            </Collapsible>
 
             <Collapsible>
               <ColHeader onClick={() => setOpenDaily(v => !v)}>
@@ -3637,17 +3625,10 @@ const Collapsible = styled.div`padding:10px 20px;border-bottom:1px solid #F1F5F9
 const ColHeader = styled.button`display:flex;align-items:center;gap:8px;width:100%;padding:6px 0;background:transparent;border:none;font-size:0.75rem;font-weight:700;color:#64748B;cursor:pointer;text-align:left;&:hover{color:#0F172A;}`;
 const ColArrow = styled.span<{ $open: boolean }>`display:inline-block;font-size:0.625rem;color:#94A3B8;transition:transform 0.15s;transform:rotate(${p => p.$open ? '90deg' : '0deg'});`;
 const ColBody = styled.div`padding:8px 0 4px 0;`;
-const PolicySeg = styled.div`display:inline-flex;background:#F1F5F9;border-radius:6px;padding:2px;margin-bottom:6px;`;
+const PolicySeg = styled.div`display:inline-flex;justify-self:start;background:#F1F5F9;border-radius:6px;padding:2px;margin:4px 0 6px;`;
 const PolicySegBtn = styled.button<{ $active: boolean }>`padding:3px 10px;font-size:0.6875rem;font-weight:600;border:none;border-radius:4px;cursor:pointer;background:${p => p.$active ? '#FFF' : 'transparent'};color:${p => p.$active ? '#0F766E' : '#64748B'};box-shadow:${p => p.$active ? '0 1px 2px rgba(0,0,0,0.06)' : 'none'};&:disabled{cursor:not-allowed;opacity:0.5;}`;
-const ReviewerList = styled.div`display:flex;flex-direction:column;gap:4px;margin-bottom:6px;`;
-const ReviewerRowE = styled.div`display:flex;align-items:center;gap:8px;padding:6px 8px;background:#FFF;border:1px solid #E2E8F0;border-radius:6px;`;
-const ReviewerName = styled.span`flex:1;font-size:0.75rem;color:#0F172A;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;`;
-const ReviewerState = styled.span<{ $state: string }>`padding:1px 6px;font-size:0.625rem;font-weight:700;border-radius:4px;${p => p.$state === 'approved' ? 'background:#D1FAE5;color:#065F46;' : ''}${p => p.$state === 'revision' ? 'background:#FCE7F3;color:#9F1239;' : ''}${p => p.$state === 'pending' ? 'background:#F1F5F9;color:#64748B;' : ''}`;
-const ReviewerRemove = styled.button`width:20px;height:20px;display:flex;align-items:center;justify-content:center;border:none;background:transparent;color:#94A3B8;border-radius:4px;cursor:pointer;font-size:0.875rem;&:hover:not(:disabled){background:#FEE2E2;color:#DC2626;}&:disabled{cursor:not-allowed;opacity:0.5;}`;
-const AddReviewerBox = styled.div`display:flex;flex-direction:column;gap:6px;padding:8px;background:#FFF;border:1px solid #E2E8F0;border-radius:8px;margin-top:6px;`;
-const AddReviewerList = styled.div`display:flex;flex-direction:column;gap:2px;max-height:160px;overflow:auto;`;
-const AddReviewerItem = styled.button`padding:6px 8px;text-align:left;background:transparent;border:none;border-radius:4px;font-size:0.75rem;color:#0F172A;cursor:pointer;&:hover:not(:disabled){background:#F0FDFA;color:#0F766E;}&:disabled{color:#CBD5E1;cursor:not-allowed;}`;
-const ReviewerOptInner = styled.span`display:inline-flex;align-items:center;gap:8px;`;
+// 확인 중 컨펌자 추가 경고 — 속성 줄 두 칸을 다 쓴다(한 칸 218px 에 문장이 안 들어간다).
+const MetaWide = styled.div`grid-column:1 / -1;`;
 const WarnDialog = styled.div`margin-top:8px;padding:10px;background:#FEF2F2;border:1px solid #FECACA;border-radius:8px;display:flex;flex-direction:column;gap:6px;`;
 const WarnTitle = styled.div`font-size:0.75rem;font-weight:700;color:#991B1B;`;
 const WarnBody = styled.div`font-size:0.6875rem;color:#7F1D1D;line-height:1.5;`;
