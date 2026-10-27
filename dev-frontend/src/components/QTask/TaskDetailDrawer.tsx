@@ -59,6 +59,8 @@ import TaskActionItemsSection from './TaskActionItemsSection';
 import CommentContextTag from './CommentContextTag';
 import DescriptionAttachments from './DescriptionAttachments';
 import { STATUS_COLOR, displayStatus, getStatusLabel, statusOptionsFor, type StatusCode } from '../../utils/taskLabel';
+import { useFocusControl } from '../../hooks/useFocusControl';
+import { LiveStatusText } from './TaskRowFocusCell';
 import { getRoles, primaryPerspective } from '../../utils/taskRoles';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import { CheckIcon } from '../Common/Icons';
@@ -227,6 +229,8 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
 }) => {
   const { t, i18n } = useTranslation('qtask');
   const { t: tc } = useTranslation('common');   // 연결 문구 정본
+  // «지금 작업중» 판정 — 목록·팝아웃과 같은 훅 하나(2026-10-27 Fable 설계 A). 칩 글자만 쓴다.
+  const focusLive = useFocusControl({ businessId: bizId, myId });
   // 댓글 첨부 이미지 라이트박스 — 한 댓글의 이미지들이 갤러리로 묶임
   // 문서 첨부 미리보기 — 화면 전체를 갈아끼우지 않고 그 문서만 연다.
   const [docPreview, setDocPreview] = useState<{ id: number; title: string } | null>(null);
@@ -1720,10 +1724,10 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                       onClick={e => { e.stopPropagation(); setStatusOpen(v => !v); }}
                       title={t('list.statusHint', 'Click to change status') as string}
                       aria-haspopup="listbox" aria-expanded={statusOpen}>
-                      <StatusGlyph code={dStatus} /> {statusLabel} ▾
+                      {focusLive.liveFor(detailTask) ? <LiveStatusText live>{statusLabel}</LiveStatusText> : <><StatusGlyph code={dStatus} /> {statusLabel}</>} ▾
                     </StatusBadge>
                   ) : (
-                    <StatusBadge as="span" $bg={sc.bg} $fg={sc.fg} title={statusLabel}><StatusGlyph code={dStatus} /> {statusLabel}</StatusBadge>
+                    <StatusBadge as="span" $bg={sc.bg} $fg={sc.fg} title={statusLabel}>{focusLive.liveFor(detailTask) ? <LiveStatusText live>{statusLabel}</LiveStatusText> : <><StatusGlyph code={dStatus} /> {statusLabel}</>}</StatusBadge>
                   )}
                   {detailTask.review_round != null && detailTask.review_round > 0 &&
                     (detailTask.status === 'reviewing' || detailTask.status === 'revision_requested') &&

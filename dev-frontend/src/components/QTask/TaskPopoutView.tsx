@@ -55,6 +55,7 @@ import { useAuth, apiFetch } from '../../contexts/AuthContext';
 import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
 import { useFocusControl } from '../../hooks/useFocusControl';
 import PopoutFocusButton from './PopoutFocusButton';
+import { LiveStatusText } from './TaskRowFocusCell';
 import PopoutQuickAction from './PopoutQuickAction';
 import { joinRoom, leaveRoom, onSocket, getSocket } from '../../services/socket';
 import { useVerticalReorder } from '../Common/useVerticalReorder';
@@ -133,7 +134,12 @@ const TaskPopoutView: React.FC<TaskPopoutViewProps> = ({ pinSlot }) => {
   //   여전히 안되는데"). 메인 리스트(canEditDatesFor)는 이미 owner/admin 을 포함하고 있었다.
   // 시작/중지 — 로직은 훅 하나로 뺐다(hooks/useFocusControl). 이 파일이 god-file 선(800줄)을 넘지 않게,
   //   그리고 나중에 다른 목록(대시보드 등)이 같은 컨트롤을 붙일 때 두 벌이 되지 않게.
-  const focus = useFocusControl({ businessId: bizId, myId, onTaskChanged: () => { void load(); } });
+  // ★ 시작 뒤 다시 읽기는 **조용히**(silentLoad) — load() 는 목록 전체를 «불러오는 중» 으로 갈아 끼워
+  //   누르는 순간 화면이 하얗게 비고, 그 한 번이 실패하면 «업무를 불러오지 못했습니다» 로 통째 바뀌었다(2026-10-27 Irene).
+  const focus = useFocusControl({ businessId: bizId, myId, onTaskChanged: (id, status) => {
+    setTasks((prev) => prev.map((x) => (x.id === id ? { ...x, status } : x)));
+    void silentLoad();
+  } });
 
   const canEditTagsFor = useCallback((t: { created_by?: number | null; assignee_id?: number | null }) => (
     t.created_by === myId || t.assignee_id === myId
@@ -636,8 +642,9 @@ const TaskPopoutView: React.FC<TaskPopoutViewProps> = ({ pinSlot }) => {
                       <RowTop>
                         {compact && !COMPACT_TEXT_CODES.has(code)
                           ? <StatusDot $bg={color.bg} $fg={color.fg} role="img" data-testid="task-popout-status-dot"
-                            aria-label={getStatusLabel(tk, role, todayStr, t as never)} title={getStatusLabel(tk, role, todayStr, t as never)} />
-                          : <Badge $bg={color.bg} $fg={color.fg}>{getStatusLabel(tk, role, todayStr, t as never)}</Badge>}
+                            aria-label={focus.liveFor(tk) ? t('popout.act.workingNow', '지금 작업중') as string : getStatusLabel(tk, role, todayStr, t as never)}
+                            title={focus.liveFor(tk) ? t('popout.act.workingNow', '지금 작업중') as string : getStatusLabel(tk, role, todayStr, t as never)} />
+                          : <Badge $bg={color.bg} $fg={color.fg}><LiveStatusText live={focus.liveFor(tk)}>{getStatusLabel(tk, role, todayStr, t as never)}</LiveStatusText></Badge>}
                         <RowTitle>{tk.title}</RowTitle>
                         {/* #353 ⑤ 중요도 — 목록·프로젝트 목록과 **같은 칩**을 쓴다(베끼면 갈라진다). */}
                         <ImportanceChip level={tk.priority_level} />

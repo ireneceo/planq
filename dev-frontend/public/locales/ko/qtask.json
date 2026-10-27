@@ -1394,7 +1394,9 @@
       "needSubmit": "확인 요청이 필요해요 — 눌러서 상세에서 보내기",
       "start": "업무 시작",
       "running": "{{n}}분",
-      "notStarted": "아직 시작 전"
+      "notStarted": "아직 시작 전",
+      "workingNow": "지금 작업중",
+      "workingNowTip": "지금 이 업무를 하고 있어요 — 시간이 재지고 있어요. 다른 업무를 시작하면 이 업무는 «진행중» 으로 남아요."
     },
     "priorityN": "우선순위 {{n}}",
     "prioritySet": "우선순위 지정",

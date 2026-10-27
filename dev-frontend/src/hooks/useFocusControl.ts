@@ -39,7 +39,7 @@ const CLOSED = ['completed', 'canceled'];
 
 export function useFocusControl({
   businessId, myId, onTaskChanged,
-}: { businessId: number | null; myId: number; onTaskChanged?: () => void }) {
+}: { businessId: number | null; myId: number; onTaskChanged?: (taskId: number, status: string) => void }) {
   const [enabled, setEnabled] = useState<boolean | null>(null);
   const [session, setSession] = useState<FocusSession | null>(null);
   const [busyTaskId, setBusyTaskId] = useState<number | null>(null);
@@ -102,6 +102,18 @@ export function useFocusControl({
     if (session && session.task_id === task.id) return session.state === 'active' ? 'active' : 'paused';
     return task.status === 'in_progress' ? 'paused' : 'idle';
   }, [session]);
+
+  /**
+   * «지금 작업중» — 내 **활성** 세션이 이 업무에 있는가 (2026-10-27 Fable 설계 A).
+   *   Irene: "ing 중인 건 [지금 작업중], 아닌 건 [진행중] 하다만거".
+   *   상태값(ENUM)이 아니라 **보이는 글자만** 덧입힌다 — 업무 상태는 요청자·컨펌자도 보는 값이고
+   *   포커스 기록은 나만 보는 것이라(관리자도 못 봄) 남에게는 언제나 그냥 «진행중» 이다.
+   *   멈춘 세션은 칩은 «진행중» 그대로, 차이는 버튼 색·title 로만 말한다.
+   */
+  const liveFor = useCallback((task: TaskLike) => (
+    !!enabled && !!session && session.task_id === task.id && session.state === 'active'
+    && task.assignee_id === myId && task.status === 'in_progress'
+  ), [enabled, session, myId]);
 
   /** 자리 비움으로 **자동** 멈춘 것인가 — 상세가 따로 말하는 상태라 목록도 말이 달라야 한다. */
   const autoPausedFor = useCallback((task: TaskLike) => (
@@ -169,11 +181,11 @@ export function useFocusControl({
         // autosave-exempt: 시작 버튼은 **액션**이다(입력값 저장이 아니다).
         //   ✓ 배지를 붙일 입력란이 없고, 결과는 행의 상태 칩과 타이머로 즉시 보인다.
         if (j.success && (task.status === 'not_started' || task.status === 'waiting') && businessId) {
-          await apiFetch(`/api/tasks/by-business/${businessId}/${task.id}`, {
+          const pr = await apiFetch(`/api/tasks/by-business/${businessId}/${task.id}`, {
             method: 'PUT', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ status: 'in_progress' }),
           }).catch(() => null);
-          onTaskChanged?.();
+          if (pr && pr.ok) onTaskChanged?.(task.id, 'in_progress');
         }
       }
       try { window.dispatchEvent(new CustomEvent('focus:refresh')); } catch { /* noop */ }
@@ -186,7 +198,7 @@ export function useFocusControl({
     !!enabled && task.assignee_id === myId && !CLOSED.includes(task.status) && task.status !== 'reviewing'
   ), [enabled, myId]);
 
-  return { enabled, runningTaskId, stateFor, autoPausedFor, minutesFor, busyTaskId, toggle, canFocus, reload };
+  return { enabled, runningTaskId, stateFor, liveFor, autoPausedFor, minutesFor, busyTaskId, toggle, canFocus, reload };
 }
 
 export default useFocusControl;

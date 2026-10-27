@@ -56,6 +56,8 @@ import WeeklyReviewTab from '../../components/QTask/WeeklyReviewTab';
 import { type TaskTagLite } from '../../components/QTask/TagChips';
 import RowTags from '../../components/QTask/RowTags';
 import { DesktopOnly, PhoneStatus, PhoneMeta, fmtDueShort } from '../../components/QTask/phoneRow';
+import { useFocusControl } from '../../hooks/useFocusControl';
+import { LiveStatusText, TaskRowFocusButton, PhoneFocusSlot } from '../../components/QTask/TaskRowFocusCell';
 import OpenTaskPopoutButton from '../../components/QTask/OpenTaskPopoutButton';
 import { useMenuReset } from '../../hooks/useMenuReset';
 import TagManageModal from '../../components/QTask/TagManageModal';
@@ -283,6 +285,11 @@ const QTaskPage:React.FC=()=>{
   //   서버 값이 오면 그대로 덮어쓴다. 캐시는 표시를 앞당길 뿐 진실의 원천이 아니다.
   const taskCacheKey=cacheKey('qtask',myId,bizId);
   const[allTasks,setAllTasks]=useState<TaskRow[]>(()=>readCache<TaskRow[]>(cacheKey('qtask',myId,bizId))??[]);
+  // 시작/멈춤 + «지금 작업중» (2026-10-27 Fable 설계 B) — 팝아웃과 **같은 훅·같은 버튼**. 훅은 페이지에 한 번.
+  //   시작이 상태를 옮기면 그 행만 고친다 — 목록 전체를 다시 받지 않는다(팝아웃 흰 화면과 같은 길).
+  const focus=useFocusControl({businessId:bizId?Number(bizId):null,myId,onTaskChanged:(id,status)=>{
+    setAllTasks(prev=>prev.map(x=>x.id===id?{...x,status}:x) as never[]);
+  }});
   // #403 — 목록에서 반복 시리즈의 공유 값을 바꿀 때 적용 범위를 묻는다 (업무 상세와 같은 규칙).
   const [seriesAsk, setSeriesAsk] = useState<{ taskId: number; patch: Record<string, unknown> } | null>(null);
   const[members,setMembers]=useState<MemberOption[]>(()=>readCache<MemberOption[]>(cacheKey('qtask-members',myId,bizId))??[]);
@@ -615,6 +622,8 @@ const QTaskPage:React.FC=()=>{
   //   방금 만든 업무가 즉시 사라졌다(Irene 신고). 정의를 여기 한 곳에 두고 전부 이걸 쓴다.
   //   · due_date = 오늘 → 오늘 탭 술어(due === today) 통과. 주간 술어도 함께 통과.
   //   · planned_week_start = 이번 주 월요일 → 이번 주 탭 술어 통과.
+  // 시작/멈춤 칸은 «오늘·이번 주 나의 업무» 에만 — 다른 탭(남의 업무·전체)에서는 뜻이 흐려진다(Fable B).
+  const showFocusCol=scope==='mine'&&(tab==='today'||tab==='week')&&!!focus.enabled;
   const tabCreateDefaults=useMemo(
     ()=>(scope==='mine'&&(tab==='week'||tab==='today'))
       ? { due_date: todayStr, planned_week_start: thisMonday }
@@ -2093,7 +2102,7 @@ const QTaskPage:React.FC=()=>{
                 뒤 칸이 전부 50px 씩 밀렸고(실측 1440: 상태 머리 594 / 행 696), 행의 상자형 셀렉트가 행을
                 40 → 51px 로 키웠다. 폭은 ASSIGNEE_COL_W 한 값, 셀렉트는 표 칸용(variant="cell", 24px). */}
             {scope==='workspace' && <Col $w={ASSIGNEE_COL_W} $center $hideBelow={768}>{t('col.assignee','담당자')}</Col>}
-            <Col $w="68px" $center $hideBelow={640} onClick={()=>handleSort('status')}>{t('col.status','Status')} {sortIcon('status')}</Col>
+            <Col $w={showFocusCol?'112px':'68px'} $center $hideBelow={640} onClick={()=>handleSort('status')}>{t('col.status','Status')} {sortIcon('status')}</Col>
             <Col $w="62px" $center $hideBelow={900} onClick={()=>handleSort('estimated_hours')}>{t('col.est','Est(h)')} {sortIcon('estimated_hours')}</Col>
             <Col $w="62px" $center $hideBelow={900} onClick={()=>handleSort('actual_hours')}>{t('col.act','Act(h)')} {sortIcon('actual_hours')}</Col>
             <Col $w="96px" $center $hideBelow={1024} $compactBelow={1280} $wCompact="46px" onClick={()=>handleSort('progress_percent')}>{t('col.progress','Progress')} {sortIcon('progress_percent')}</Col>
@@ -2200,7 +2209,7 @@ const QTaskPage:React.FC=()=>{
                           ? <UnreadDot title={t('list.hasUnread', { defaultValue: '새 활동(댓글·변경) — 열면 사라집니다' }) as string} />
                           : <UnreadDotSpacer aria-hidden="true" />}
                         {/* 폰 전용 상태 배지 — 상태 칸은 폰에서 숨으므로 제목 앞에 둔다(오늘 내 업무 팝아웃과 같은 자리) */}
-                        <PhoneStatus $bg={sc.bg} $fg={sc.fg} data-testid="qtask-phone-status">{_statusLabel}</PhoneStatus>
+                        <PhoneStatus $bg={sc.bg} $fg={sc.fg} data-testid="qtask-phone-status"><LiveStatusText live={focus.liveFor(task)}>{_statusLabel}</LiveStatusText></PhoneStatus>
                         {/* ★ 2026-09-07 (Irene: "Q task 리스트 모든 디바이스 모든 곳에서 제목 편집기능
                             없애고 클릭하면 다 업무상세 나오게 해줘.") — 제목 클릭은 **상세를 연다.**
                             같은 자리에서 어떤 때는 편집칸이 열리고 어떤 때는 상세가 열리면 무엇을 누른
@@ -2211,6 +2220,7 @@ const QTaskPage:React.FC=()=>{
                           <HighlightText text={task.title} query={search} />
                         </TaskTitle>
                         {/* 폰에서만 여기서 줄을 끊는다 — 첫 줄은 ⋮·체크·제목, 둘째 줄은 태그·지연 칩(제목 밑으로 들여쓴다). */}
+                        {showFocusCol&&<PhoneFocusSlot><TaskRowFocusButton focus={focus} task={task} /></PhoneFocusSlot>}
                         <RowBreak aria-hidden="true" data-row-break="" />
                         {/* 폰 전용 메타 — 프로젝트·마감·담당자(전체 업무). 표의 칸들이 폰에서 숨는 몫을 여기서 말한다. */}
                         {task.Project?.name && <PhoneMeta data-testid="qtask-phone-project">{task.Project.name}</PhoneMeta>}
@@ -2374,12 +2384,13 @@ const QTaskPage:React.FC=()=>{
                         </div>
                       </TCell>
                     )}
-                    <TCell $w="68px" $center $hideBelow={640} style={{position:'relative',overflow:'visible'}}>
+                    <TCell $w={showFocusCol?'112px':'68px'} $center $hideBelow={640} style={{position:'relative',overflow:'visible',gap:2}}>
+                      {showFocusCol&&<TaskRowFocusButton focus={focus} task={task} />}
                       <StatusPill $bg={sc.bg} $fg={sc.fg} $clickable
                         onClick={e=>{e.stopPropagation();setStatusDropdownId(statusDropdownId===task.id?null:task.id);}}
                         title={task.status==='on_hold'&&task.hold_reason ? task.hold_reason : t('list.statusHint','클릭하면 단계 선택')}
                         aria-haspopup="listbox" aria-expanded={statusDropdownId===task.id}
-                      ><StatusGlyph code={task.status} /> {_statusLabel}</StatusPill>
+                      >{focus.liveFor(task)?<LiveStatusText live>{_statusLabel}</LiveStatusText>:<><StatusGlyph code={task.status} /> {_statusLabel}</>}</StatusPill>
                       {statusDropdownId===task.id&&(
                         <FloatingMenu align="center" onDismiss={()=>setStatusDropdownId(null)}><StatusDropdown data-dropdown="status">
                           {statusOptionsFor(task).map(s=>{const c=STATUS_COLOR[s as StatusCode]||STATUS_COLOR.not_started;return(

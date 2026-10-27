@@ -1394,7 +1394,9 @@
       "needSubmit": "Needs a review request — tap to open details and send",
       "start": "Start work",
       "running": "{{n}}m",
-      "notStarted": "Not started yet"
+      "notStarted": "Not started yet",
+      "workingNow": "Working now",
+      "workingNowTip": "You are working on this now — time is being tracked. Starting another task leaves this one «In progress»."
     },
     "priorityN": "Priority {{n}}",
     "prioritySet": "Set priority",

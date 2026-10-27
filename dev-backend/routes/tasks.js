@@ -1504,7 +1504,13 @@ router.put('/by-business/:businessId/:id', authenticateToken, async (req, res, n
         const { FocusSession, User } = require('../models');
         const u = await User.findByPk(req.user.id, { attributes: ['focus_enabled'] });
         if (u && u.focus_enabled) {
-          if (updates.status === 'in_progress' && prev.status !== 'in_progress') {
+          // ★ 화면의 [업무 시작] 은 /focus/start 로 이 업무 세션을 먼저 연 뒤 이 PUT 을 보낸다.
+          //   이미 이 업무가 active 면 끊고 다시 만들지 않는다 — 시작 한 번에 길이 0 «전환» 행이
+          //   하나씩 쌓였다(2026-10-27 Fable 설계 D).
+          const liveSame = updates.status === 'in_progress' && prev.status !== 'in_progress'
+            ? await FocusSession.findOne({ where: { user_id: req.user.id, task_id: task.id, state: 'active' }, attributes: ['id'] })
+            : null;
+          if (updates.status === 'in_progress' && prev.status !== 'in_progress' && !liveSame) {
             await FocusSession.update(
               { state: 'stopped', ended_at: new Date(), end_reason: 'switch' },
               { where: { user_id: req.user.id, state: { [Op.in]: ['active', 'paused'] } } }
