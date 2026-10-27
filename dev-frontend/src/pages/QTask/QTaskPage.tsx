@@ -83,7 +83,7 @@ const RIGHT_PANEL_INLINE_MIN = 1366;
 
 // ─── Types ───
 type Scope = 'mine' | 'workspace';
-type ListTab = 'today' | 'week' | 'all' | 'requested' | 'weekly-review' | 'workspace-tasks' | 'workspace-weekly' | 'workspace-monthly';
+type ListTab = 'today' | 'week' | 'all' | 'requested' | 'watching' | 'weekly-review' | 'workspace-tasks' | 'workspace-weekly' | 'workspace-monthly';
 type ViewMode = 'list' | 'kanban';
 // 목록 받는 상한 — 1,000건 × 5쪽. 상한 안내 문구도 이 두 값으로 센다(숫자를 두 곳에 적지 않는다).
 const TASK_LIST_PAGE = 1000;
@@ -133,6 +133,7 @@ interface TaskRow {
   review_round?: number | null;
   review_policy?: 'all' | 'any';
   reviewers?: Array<{ id: number; user_id: number; state: 'pending'|'approved'|'revision'; is_client?: boolean }>;
+  watchers?: Array<{ id: number; user_id: number }>;
   Project?: { id: number; name: string } | null;
   assignee?: { id: number; name: string } | null;
   requester?: { id: number; name: string } | null;
@@ -239,7 +240,7 @@ const QTaskPage:React.FC=()=>{
   const[tab,_setTab]=useState<ListTab>(() => {
     const search = typeof window !== 'undefined' ? window.location.search : location.search;
     const v = new URLSearchParams(search).get('tab');
-    const mineTabs: ListTab[] = ['today', 'week', 'all', 'requested', 'weekly-review'];
+    const mineTabs: ListTab[] = ['today', 'week', 'all', 'requested', 'watching', 'weekly-review'];
     const wsTabs: ListTab[] = ['workspace-tasks', 'workspace-weekly', 'workspace-monthly'];
     const isWorkspace = (typeof window !== 'undefined' ? window.location.pathname : location.pathname).endsWith('/tasks/workspace');
     if (!isWorkspace && mineTabs.includes(v as ListTab)) return v as ListTab;
@@ -822,7 +823,11 @@ const QTaskPage:React.FC=()=>{
       });
     });
     const offUpd = onSocket('task:updated', (task: TaskRow) => {
-      setAllTasks((prev) => prev.map((t) => (t.id === task.id ? { ...t, ...task } : t)));
+      setAllTasks((prev) => {
+        // 참조로 막 추가돼 처음 보이는 업무 — 목록에 없으면 넣는다(그 밖의 낯선 행은 종전대로 무시)
+        if (!prev.some((t) => t.id === task.id)) return (task.watchers || []).some((w) => w.user_id === myId) ? [task, ...prev] : prev;
+        return prev.map((t) => (t.id === task.id ? { ...t, ...task } : t));
+      });
     });
     const offDel = onSocket('task:deleted', (meta: { id: number }) => {
       setAllTasks((prev) => prev.filter((t) => t.id !== meta.id));
@@ -1237,6 +1242,8 @@ const QTaskPage:React.FC=()=>{
       }
       if(tab==='all')list=list.filter(t=>t.assignee_id===myId||(t.reviewers||[]).some(rv=>rv.user_id===myId));
       if(tab==='requested')list=list.filter(t=>(t.request_by_user_id===myId)||(t.created_by===myId&&t.assignee_id!=null&&t.assignee_id!==myId));
+      // 참조(2026-10-27) — 내 할 일이 아니라 알아야 하는 업무. 오늘·이번 주·배지에는 넣지 않는다(Fable 설계 판정)
+      if(tab==='watching')list=list.filter(t=>(t.watchers||[]).some(w=>w.user_id===myId));
     }
     if(search){const q=search.toLowerCase();list=list.filter(t=>t.title.toLowerCase().includes(q)||(t.Project?.name||'').toLowerCase().includes(q));}
     if(statusFilter)list=list.filter(t=>t.status===statusFilter);
@@ -1880,6 +1887,9 @@ const QTaskPage:React.FC=()=>{
             <TabBtn type="button" data-testid="qtask-tab-requested" $active={tab==='requested'} onClick={()=>setTab('requested')}>
               {t('tab.requested','요청하기')}
               {badgeCounts.requested>0&&<TabBadge $active={tab==='requested'}>{badgeCounts.requested}</TabBadge>}
+            </TabBtn>
+            <TabBtn type="button" data-testid="qtask-tab-watching" $active={tab==='watching'} onClick={()=>setTab('watching')}>
+              {t('tab.watching','참조')}
             </TabBtn>
             <TabBtn type="button" $active={tab==='weekly-review'} onClick={()=>setTab('weekly-review')}>
               {t('tab.weeklyReviewMine', { defaultValue: '나의 보고서' }) as string}
@@ -2826,6 +2836,7 @@ const QTaskPage:React.FC=()=>{
                 : tab==='today' ? t('tab.today','오늘 나의 업무')
                 : tab==='week' ? t('tab.week','이번 주 내 업무')
                 : tab==='requested' ? t('tab.requested','요청하기')
+                : tab==='watching' ? t('tab.watching','참조')
                 : t('tab.all','내 전체업무')}
             </RightTitle>
           </RightHeader>

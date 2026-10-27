@@ -30,7 +30,7 @@
 
 const { Op } = require('sequelize');
 const { RRule } = require('rrule');
-const { Task, TaskReviewer, TaskTagLink, TaskStatusHistory, Business } = require('../models');
+const { Task, TaskReviewer, TaskWatcher, TaskTagLink, TaskStatusHistory, Business, BusinessMember } = require('../models');
 const { dateStrInTz } = require('../utils/datetime');
 const { syncFocusOnTaskStatus } = require('./focusSync');
 
@@ -173,6 +173,25 @@ async function createOccurrence(parent, nextDateStr, io = null, notifyBucket = n
       }
     } catch (e) {
       console.warn('[recurringTask] reviewer copy failed', inst.id, e.message);
+    }
+
+    // 참조자 복사(2026-10-27) — 시리즈의 성질. 퇴사자와 이 회차에 이미 이름 박힌 사람(담당·작성·요청·컨펌)은 뺀다.
+    try {
+      const parentWatchers = await TaskWatcher.findAll({ where: { task_id: parent.id }, attributes: ['user_id', 'added_by_user_id'] });
+      if (parentWatchers.length) {
+        const ids = parentWatchers.map((w) => Number(w.user_id));
+        const live = new Set((await BusinessMember.findAll({
+          where: { business_id: inst.business_id, user_id: ids, removed_at: null }, attributes: ['user_id'],
+        })).map((m) => Number(m.user_id)));
+        const named = new Set([inst.assignee_id, inst.created_by, inst.request_by_user_id].filter(Boolean).map(Number));
+        for (const r of await TaskReviewer.findAll({ where: { task_id: inst.id }, attributes: ['user_id'] })) named.add(Number(r.user_id));
+        const rows = parentWatchers
+          .filter((w) => live.has(Number(w.user_id)) && !named.has(Number(w.user_id)))
+          .map((w) => ({ task_id: inst.id, user_id: w.user_id, added_by_user_id: w.added_by_user_id }));
+        if (rows.length) await TaskWatcher.bulkCreate(rows, { ignoreDuplicates: true });
+      }
+    } catch (e) {
+      console.warn('[recurringTask] watcher copy failed', inst.id, e.message);
     }
 
     // #348 ② 태그(task_tag_links) 복사 — reviewer 복사와 동일 패턴.

@@ -86,6 +86,7 @@
     "dev-backend/routes/reports.js": 1,
     "dev-backend/routes/task_attachments.js": 1,
     "dev-backend/routes/task_templates.js": 1,
+    "dev-backend/routes/task_deliverables.js": 1,
     "dev-backend/routes/task_workflow.js": 1,
     "dev-backend/routes/users.js": 1,
     "dev-backend/routes/member_permissions.js": 1

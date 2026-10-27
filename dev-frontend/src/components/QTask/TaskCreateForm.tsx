@@ -27,6 +27,7 @@ import PlanQSelect from '../Common/PlanQSelect';
 import RichEditor from '../Common/RichEditor';
 import AttachmentField from '../Common/AttachmentField';
 import PartnerKindBadge from '../Common/PartnerKindBadge';
+import TaskWatcherSelect from './TaskWatcherSelect';
 import RecurrencePicker from '../Common/RecurrencePicker';
 import HelpDot from '../Common/HelpDot';
 import TagPicker from './TagPicker';
@@ -147,6 +148,8 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({
   // 컨펌자 — 담당자(일을 하는 사람)와 따로, 끝내기 전에 확인·승인할 사람. 내 업무·요청 둘 다 고른다(2026-10-21 Irene).
   //   저장은 만든 뒤 업무 상세와 같은 문(POST /api/tasks/:id/reviewers)으로 한 명씩 — 서버 canManageReviewers·알림이 그대로 탄다.
   const [reviewerPick, setReviewerIds] = useState<number[]>([]);
+  // 참조자(2026-10-27) — 알아야 하거나 일부 도울 사람. 만든 뒤 업무 상세와 같은 문(POST /api/tasks/:id/watchers)으로 한 명씩.
+  const [watcherPick, setWatcherIds] = useState<number[]>([]);
   const [uploads, setUploads] = useState<File[]>([]);
   const [existingFileIds, setExistingFileIds] = useState<number[]>(initial?.fileIds ?? []);
   const [existingPostIds, setExistingPostIds] = useState<number[]>([]);
@@ -317,6 +320,8 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({
   const invalid = !title.trim() || (isRequest && !assigneeId);
   // 담당자는 컨펌자가 될 수 없다(서버 assignee_cannot_be_reviewer) — 담당자를 바꾸면 그 사람은 컨펌자 칸에서 빠진다.
   const reviewerIds = reviewerPick.filter((id) => id !== assigneeId);
+  // 한 사람 한 역할 — 나(작성자)·담당자·컨펌자는 참조로 못 넣는다(서버 409 already_named)
+  const watcherIds = watcherPick.filter((id) => id !== assigneeId && id !== myId && !reviewerIds.includes(id));
 
   const submit = async () => {
     if (submitting || invalid || !bizId) return;
@@ -395,6 +400,16 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({
           });
           if (!rvRes.ok) console.warn('[task reviewers] HTTP', rvRes.status);
         } catch (err) { console.warn('[task reviewers]', err); }
+      }
+      // 3-b) 참조자 — 같은 행동(addWatcher: 게이트·감사·알림). 실패해도 업무는 되돌리지 않는다.
+      for (const uid of watcherIds) {
+        try {
+          const wRes = await apiFetch(`/api/tasks/${newTaskId}/watchers`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ user_id: uid }),
+          });
+          if (!wRes.ok) console.warn('[task watchers] HTTP', wRes.status);
+        } catch (err) { console.warn('[task watchers]', err); }
       }
       // 4) 태그 (#236/#250) — 실패해도 업무 생성은 이미 성공이라 되돌리지 않는다.
       if (tagIds.length > 0) {
@@ -508,6 +523,11 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({
               ...externals.filter((e) => e.user_id !== assigneeId && !members.some((m) => m.user_id === e.user_id))
                 .map((e) => ({ value: String(e.user_id), label: e.name, icon: <PartnerKindBadge kind={e.kind} size="xs" /> })),
             ]} />
+        </AddOptField>
+        <AddOptField data-field="watchers" data-testid="task-add-watchers" style={{ flex: '1 1 200px' }}>
+          <AddOptLabel>{t('watchers.label', '참조')}</AddOptLabel>
+          <TaskWatcherSelect businessId={bizId ? Number(bizId) : null} myId={myId} value={watcherIds}
+            excludeIds={[assigneeId, myId, ...reviewerIds]} onChange={setWatcherIds} />
         </AddOptField>
         {assignedToOther && (
           <AddOptField data-field="urgent" style={{ flex: '0 1 150px' }}>

@@ -42,6 +42,8 @@ const BLOCKED_FIELDS = [
   'share_token', 'share_password_set', 'share_password_hash', 'shared_at', 'share_expires_at', 'share_created_at',
   // «내부 업무» 표시는 멤버가 관리하는 것이다(고객은 일반 업무만, 또는 관계자로서 받는다).
   'security_level',
+  // 2026-10-27 참조자 — 내부 멤버 목록이다(1차는 고객 참조자 없음 · Fable 설계 판정).
+  'watchers',
 ];
 
 // 단일 task plain object 를 고객용으로 정제 (in-place 아님 — 얕은 복사 후 반환).

@@ -202,7 +202,8 @@
     "workspaceWeekly": "전체 주간보고",
     "workspaceMonthly": "전체 월간보고",
     "today": "오늘 나의 업무",
-    "priorityWeeklyHint": "주간 우선순위 번호 — 오늘 탭에서는 번호가 건너뛸 수 있어요"
+    "priorityWeeklyHint": "주간 우선순위 번호 — 오늘 탭에서는 번호가 건너뛸 수 있어요",
+    "watching": "참조"
   },
   "workspace": {
     "assignee": "담당자",
@@ -707,7 +708,9 @@
         "due_change": "일정 변경",
         "title_change": "업무명 변경",
         "project_change": "프로젝트 이관",
-        "requester_change": "요청자 변경"
+        "requester_change": "요청자 변경",
+        "watcher_add": "참조자 추가",
+        "watcher_remove": "참조자 제거"
       }
     },
     "revert": {
@@ -1659,5 +1662,11 @@
     "submit": "확인 요청",
     "approve": "승인",
     "revision": "수정 요청"
+  },
+  "watchers": {
+    "label": "참조",
+    "placeholder": "선택 — 알아야 하거나 일부 도울 사람",
+    "empty": "없음",
+    "leave": "참조에서 빠지기"
   }
 }

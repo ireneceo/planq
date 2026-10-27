@@ -20,10 +20,10 @@
 const { Op } = require('sequelize');
 const { sequelize } = require('../../config/database');
 const {
-  Task, TaskReviewer, TaskStatusHistory, TaskComment, TaskEstimation,
+  Task, TaskReviewer, TaskWatcher, TaskStatusHistory, TaskComment, TaskEstimation,
   User, BusinessMember, Business, Client, Project,
 } = require('../../models');
-const { assertAssignable, getUserScope, canAccessTask } = require('../../middleware/access_scope');
+const { assertAssignable, getUserScope, canAccessTask, isMemberOrAbove } = require('../../middleware/access_scope');
 const { syncFocusOnTaskStatus } = require('../focusSync');
 const {
   broadcastTask, canEnterStatus, submitForReview, cancelReview: cancelReviewTransition, getIO, canEditBodyInStatus,
@@ -266,6 +266,7 @@ async function reassign(task, actor, { assigneeId } = {}) {
   try {
     await task.update({ assignee_id: next }, { transaction: t });
     await TaskStatusHistory.create({ task_id: task.id, actor_user_id: subj.subjectId, ...ev }, { transaction: t });
+    if (next) await absorbWatchers(task.id, [next], t);
     await t.commit();
   } catch (e) { await t.rollback(); throw e; }
   await task.reload();
@@ -1167,13 +1168,14 @@ async function notifyComment({ task, comment, subjectId, actor, io }) {
     }).catch((e) => console.warn('[notify comment_mention task]', e.message));
   }
 
-  // (b) 일반 댓글 — 담당자 + 작성자 + 요청자 + 컨펌자 (본인·멘션됨 제외)
+  // (b) 일반 댓글 — 담당자 + 작성자 + 요청자 + 컨펌자 + 참조자 (본인·멘션됨 제외)
   const reviewers = await TaskReviewer.findAll({ where: { task_id: task.id }, attributes: ['user_id'] });
   const recipients = new Set();
   if (task.assignee_id) recipients.add(task.assignee_id);
   if (task.created_by) recipients.add(task.created_by);
   if (task.request_by_user_id) recipients.add(task.request_by_user_id);
   for (const r of reviewers) if (r.user_id) recipients.add(r.user_id);
+  for (const id of await activeWatcherIds(task)) recipients.add(id);   // 참조자 — 대화는 알아야 한다(상태 전이는 안 보낸다)
   recipients.delete(subjectId);
   for (const m of mentionedSet) recipients.delete(m);
   if (recipients.size === 0) return;
@@ -1428,12 +1430,14 @@ async function complete(task, actor) {
   await syncFocusOnTaskStatus(task, fromStatus, 'completed');
   broadcastTask(task, 'task:updated', actor.userId);
 
+  const wsNameDone = await workspaceName(task.business_id);
   notifyTask({
     userId: task.request_by_user_id || task.created_by,
-    task, wsName: await workspaceName(task.business_id), excludeUserId: actor.userId,
+    task, wsName: wsNameDone, excludeUserId: actor.userId,
     action: 'task_completed',
     ctaLabel: '결과 확인',
   });
+  notifyWatchersCompleted(task, actor.userId, wsNameDone);
   return done(task);
 }
 
@@ -1908,6 +1912,7 @@ async function addReviewer(task, actor, { userId } = {}) {
       task_id: task.id, user_id: userId,
       is_client: isClient, added_by_user_id: actor.userId,
     }, { transaction: t });
+    await absorbWatchers(task.id, [userId], t);   // 참조자 → 컨펌자: 높은 역할이 흡수(한 사람 한 역할)
     // 진행 중인 라운드에 추가되면 전체 리셋 (아직 안 본 사람이 생겼다)
     if (inReviewRound(task)) {
       await TaskReviewer.update(
@@ -2015,6 +2020,24 @@ async function handoverNamedRoles(task, actor, { from, to, assignUnassignedL1 = 
     }
     if (Object.keys(patch).length) await task.update(patch, { transaction: t });
 
+    // 참조자 — from 의 참조 행은 to 로. to 가 이미 이름 박힌 사람(담당·요청·작성·컨펌·참조)이면 from 행만 지운다.
+    //   담당/요청이 to 로 바뀌었으면 to 의 참조 행은 흡수(한 사람 한 역할).
+    const fromWatch = await TaskWatcher.findOne({ where: { task_id: task.id, user_id: fromId }, transaction: t });
+    if (patch.assignee_id === toId || patch.request_by_user_id === toId) await absorbWatchers(task.id, [toId], t);
+    if (fromWatch) {
+      const toNamed = nextAssignee === toId || task.request_by_user_id === toId || task.created_by === toId
+        || !!(await TaskReviewer.findOne({ where: { task_id: task.id, user_id: toId }, transaction: t }))
+        || !!(await TaskWatcher.findOne({ where: { task_id: task.id, user_id: toId }, transaction: t }));
+      if (toNamed) {
+        await fromWatch.destroy({ transaction: t });
+        await logHistory({ taskId: task.id, eventType: 'watcher_remove', actorUserId: actor.userId, targetUserId: fromId, note: 'handover', transaction: t });
+      } else {
+        await fromWatch.update({ user_id: toId }, { transaction: t });
+        await logHistory({ taskId: task.id, eventType: 'watcher_add', actorUserId: actor.userId, targetUserId: toId, note: 'handover', transaction: t });
+      }
+      roles.push('watcher');
+    }
+
     const reviewers = await TaskReviewer.findAll({ where: { task_id: task.id }, transaction: t });
     const toIsReviewer = reviewers.some((r) => r.user_id === toId);
     let reviewerChanged = false;
@@ -2026,6 +2049,7 @@ async function handoverNamedRoles(task, actor, { from, to, assignUnassignedL1 = 
         } else {
           await r.update({ user_id: toId }, { transaction: t });
           await logHistory({ taskId: task.id, eventType: 'reviewer_add', actorUserId: actor.userId, targetUserId: toId, note: 'handover', transaction: t });
+          await absorbWatchers(task.id, [toId], t);
         }
         reviewerChanged = true;
       } else if (r.user_id === toId && nextAssignee === toId && prevAssignee !== toId) {
@@ -2056,6 +2080,100 @@ async function handoverNamedRoles(task, actor, { from, to, assignUnassignedL1 = 
     oldValue: { user_id: fromId }, newValue: { user_id: toId, roles },
   });
   return done({ changed: true, roles });
+}
+
+// ─────────────────────────────────────────────
+// 참조자 (2026-10-27 Irene «컨펌은 아닌데 알아야 하거나 일부 도와줘야 하는 사람» · Fable 설계 판정)
+//   · 상태 없음 — 검토 라운드(review_policy·reviewing)에 섞이지 않는다
+//   · 볼 권한 = 이름 박힌 사람(access_scope.isNamedOnTask) · 할 수 있는 것 = 보기·댓글·첨부(FIELD_RULES 에 넣지 않는다)
+//   · 1차는 내부 멤버만 — 고객·외부 파트너·AI(Cue) 거절
+//   · 한 사람 한 역할 — 담당·작성·요청·컨펌자는 참조로 못 넣고(409), 참조자가 담당·컨펌자가 되면 참조 행을 흡수한다
+// ─────────────────────────────────────────────
+/** 참조 행 흡수 — 담당·컨펌자로 올라간 사람의 참조 행을 지운다(같은 트랜잭션). */
+async function absorbWatchers(taskId, userIds, transaction) {
+  const ids = (userIds || []).filter(Boolean).map(Number);
+  if (!ids.length) return 0;
+  return TaskWatcher.destroy({ where: { task_id: taskId, user_id: ids }, transaction });
+}
+
+/** 참조자 추가 — 관리 권한은 컨펌자와 같은 사람(canManageReviewers) */
+async function addWatcher(task, actor, { userId } = {}) {
+  if (!(await canManageReviewers(task, actor.userId))) return fail('forbidden', 403);
+  const uid = Number(userId);
+  if (!Number.isInteger(uid) || uid <= 0) return fail('user_id_required');
+  if (uid === task.assignee_id || uid === task.created_by || uid === task.request_by_user_id) return fail('already_named', 409);
+  if (await TaskReviewer.findOne({ where: { task_id: task.id, user_id: uid }, attributes: ['id'] })) return fail('already_named', 409);
+  if (await TaskWatcher.findOne({ where: { task_id: task.id, user_id: uid }, attributes: ['id'] })) return fail('already_watcher', 409);
+
+  // 내부 멤버만(AI·고객·외부 파트너·다른 워크스페이스 제외)
+  const target = await getUserScope(uid, task.business_id);
+  if (!isMemberOrAbove(target) || target.isAi) return fail('watcher_must_be_member', 400);
+
+  let row;
+  const t = await sequelize.transaction();
+  try {
+    row = await TaskWatcher.create({ task_id: task.id, user_id: uid, added_by_user_id: actor.userId }, { transaction: t });
+    await logHistory({ taskId: task.id, eventType: 'watcher_add', actorUserId: actor.userId, targetUserId: uid, transaction: t });
+    await t.commit();
+  } catch (e) {
+    await t.rollback();
+    if (e.name === 'SequelizeUniqueConstraintError') return fail('already_watcher', 409);
+    throw e;
+  }
+
+  broadcastTask(task, 'task:updated', actor.userId);
+  notifyTask({
+    userId: uid, task, wsName: await workspaceName(task.business_id), excludeUserId: actor.userId,
+    action: 'task_watcher_added', body: `"${task.title}"`, ctaLabel: '업무 보기',
+  });
+  audit(actor, {
+    action: 'task.watcher_add', targetType: 'task', targetId: task.id, businessId: task.business_id,
+    newValue: { task_title: task.title, watcher_user_id: uid },
+  });
+  return done({ id: row.id, task_id: task.id, user_id: uid });
+}
+
+/** 참조자 제거 — 관리 권한자 또는 참조자 본인(«빠지기»). 행을 지운 **뒤** 방송해야 볼 권한을 잃은 사람에게 회수 신호가 간다. */
+async function removeWatcher(task, actor, { userId } = {}) {
+  const uid = Number(userId);
+  const self = uid === Number(actor.userId);
+  if (!self && !(await canManageReviewers(task, actor.userId))) return fail('forbidden', 403);
+  const row = await TaskWatcher.findOne({ where: { task_id: task.id, user_id: uid } });
+  if (!row) return fail('watcher_not_found', 404);
+
+  const t = await sequelize.transaction();
+  try {
+    await row.destroy({ transaction: t });
+    await logHistory({ taskId: task.id, eventType: 'watcher_remove', actorUserId: actor.userId, targetUserId: uid, note: self ? 'self' : null, transaction: t });
+    await t.commit();
+  } catch (e) { await t.rollback(); throw e; }
+
+  broadcastTask(task, 'task:updated', actor.userId);
+  audit(actor, {
+    action: 'task.watcher_remove', targetType: 'task', targetId: task.id, businessId: task.business_id,
+    oldValue: { watcher_user_id: uid }, newValue: { task_title: task.title, self },
+  });
+  return done({ removed: true, user_id: uid });
+}
+
+/** 완료 — 참조자에게도(요청자·작성자와 겹치면 한 통). PUT 상태 변경 경로(routes/tasks.js)도 같은 함수. */
+async function notifyWatchersCompleted(task, actorUserId, wsName) {
+  try {
+    const skip = new Set([Number(actorUserId), Number(task.request_by_user_id || task.created_by)]);
+    const ids = (await activeWatcherIds(task)).filter((id) => !skip.has(id));
+    if (!ids.length) return;
+    const name = wsName === undefined ? await workspaceName(task.business_id) : wsName;
+    for (const id of ids) notifyTask({ userId: id, task, wsName: name, action: 'task_completed', ctaLabel: '결과 확인' });
+  } catch (e) { console.warn('[notify watchers completed]', e.message); }
+}
+
+/** 참조자 user_id 목록 — 현직 멤버만(퇴사자 행으로 알림이 가지 않게). 알림 수신자용. */
+async function activeWatcherIds(task) {
+  const rows = await TaskWatcher.findAll({ where: { task_id: task.id }, attributes: ['user_id'] });
+  const ids = rows.map((r) => Number(r.user_id));
+  if (!ids.length) return [];
+  const live = await BusinessMember.findAll({ where: { business_id: task.business_id, user_id: ids, removed_at: null }, attributes: ['user_id'] });
+  return live.map((m) => Number(m.user_id));
 }
 
 /** 컨펌 정책 변경 (all ↔ any) — 통과 기준이 바뀌므로 진행 중이면 재계산 */
@@ -2232,6 +2350,8 @@ module.exports = {
   ack, submitReview, cancelReview, complete, cancel,
   approve, requestRevision, revertReviewerState,
   revertStatus, addReviewer, removeReviewer, setPolicy,
+  // 행동 — 참조자(2026-10-27)
+  addWatcher, removeWatcher, absorbWatchers, activeWatcherIds, notifyWatchersCompleted,
   // 행동 — 인수인계(사람 교체, docs/ORG_STAGE0_DESIGN.md 9절)
   handoverNamedRoles,
   // 행동 — 결과물 회차 되돌리기 (#271·#307)

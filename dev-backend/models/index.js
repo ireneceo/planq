@@ -31,6 +31,7 @@ const TaskCandidate = require('./TaskCandidate');
 const TaskComment = require('./TaskComment');
 const TaskDailyProgress = require('./TaskDailyProgress');
 const TaskReviewer = require('./TaskReviewer');
+const TaskWatcher = require('./TaskWatcher');
 const TaskUserHours = require('./TaskUserHours');
 const TaskEstimation = require('./TaskEstimation');
 const TaskTemplate = require('./TaskTemplate');
@@ -535,6 +536,10 @@ Task.belongsTo(User, { as: 'requester', foreignKey: 'request_by_user_id' });
 TaskReviewer.belongsTo(Task, { foreignKey: 'task_id', onDelete: 'CASCADE' });
 TaskReviewer.belongsTo(User, { as: 'user', foreignKey: 'user_id' });
 Task.hasMany(TaskReviewer, { as: 'reviewers', foreignKey: 'task_id' });
+// TaskWatcher (참조자 — 상태 없음, 2026-10-27)
+TaskWatcher.belongsTo(Task, { foreignKey: 'task_id', onDelete: 'CASCADE' });
+TaskWatcher.belongsTo(User, { as: 'user', foreignKey: 'user_id' });
+Task.hasMany(TaskWatcher, { as: 'watchers', foreignKey: 'task_id' });
 
 // TaskUserHours (역할별 시간) — task당 (담당자/요청자/컨펌자 N) 각자의 예측·실제 시간
 TaskUserHours.belongsTo(Task, { foreignKey: 'task_id', onDelete: 'CASCADE' });
@@ -698,6 +703,7 @@ module.exports = {
   TaskComment,
   TaskDailyProgress,
   TaskReviewer,
+  TaskWatcher,
   TaskUserHours,
   TaskEstimation,
   TaskTemplate,

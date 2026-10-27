@@ -9,7 +9,7 @@
 //   ★ 문서·파일·Q note·Q info 는 넘기지 않는다(작성자 사실 · 공개 범위가 이미 정한다).
 const { Op } = require('sequelize');
 const {
-  Task, TaskReviewer, Project, ProjectMember, Client, BusinessMember, User,
+  Task, TaskReviewer, TaskWatcher, Project, ProjectMember, Client, BusinessMember, User,
 } = require('../models');
 
 // 이용약관 제10조 «워크스페이스에서 제외되면 … 업무 기록이 인수자에게» 의 시행일 — legal.json 문구와 같은 날.
@@ -41,7 +41,7 @@ async function l1Effective(now = new Date()) {
 /** 넘길 업무 id 들(열린 것) — 담당·요청·대기 컨펌·담당 없는 «나만 보기» 작성. */
 async function openTaskSets(businessId, userId) {
   const base = { business_id: businessId, status: OPEN };
-  const [assigned, requested, unassignedPrivate, createdPrivateOther, reviewRows] = await Promise.all([
+  const [assigned, requested, unassignedPrivate, createdPrivateOther, reviewRows, watchRows] = await Promise.all([
     Task.findAll({ where: { ...base, assignee_id: userId }, attributes: ['id', 'vlevel'], raw: true }),
     Task.findAll({ where: { ...base, request_by_user_id: userId }, attributes: ['id', 'vlevel'], raw: true }),
     Task.findAll({ where: { ...base, created_by: userId, assignee_id: null, vlevel: 'L1' }, attributes: ['id', 'vlevel'], raw: true }),
@@ -51,9 +51,16 @@ async function openTaskSets(businessId, userId) {
       include: [{ model: Task, attributes: ['id', 'vlevel'], where: base, required: true }],
       attributes: ['id'],
     }),
+    // 참조자(2026-10-27) — 컨펌자와 같은 방식으로 인수자에게(인수자가 이미 이름 박힌 사람이면 행만 지운다 — handoverNamedRoles)
+    TaskWatcher.findAll({
+      where: { user_id: userId },
+      include: [{ model: Task, attributes: ['id', 'vlevel'], where: base, required: true }],
+      attributes: ['id'],
+    }),
   ]);
   const reviewing = reviewRows.map((r) => ({ id: r.Task.id, vlevel: r.Task.vlevel }));
-  return { assigned, requested, unassignedPrivate, createdPrivateOther, reviewing };
+  const watching = watchRows.map((r) => ({ id: r.Task.id, vlevel: r.Task.vlevel }));
+  return { assigned, requested, unassignedPrivate, createdPrivateOther, reviewing, watching };
 }
 
 async function projectsOf(businessId, userId) {
@@ -136,9 +143,9 @@ async function apply({ businessId, fromUserId, toUserId, actor, io }) {
   const effective = await l1Effective();
   const s = await openTaskSets(businessId, fromUserId);
   const all = new Map();
-  for (const r of [...s.assigned, ...s.requested, ...s.reviewing, ...s.unassignedPrivate]) all.set(r.id, r);
+  for (const r of [...s.assigned, ...s.requested, ...s.reviewing, ...s.watching, ...s.unassignedPrivate]) all.set(r.id, r);
   const { handoverNamedRoles } = require('./actions/task_actions');
-  const moved = { tasks: 0, assigned: 0, reviewing: 0, requested: 0, projects: 0, clients: 0 };
+  const moved = { tasks: 0, assigned: 0, reviewing: 0, requested: 0, watching: 0, projects: 0, clients: 0 };
   let skippedPrivate = 0;
   for (const [id, meta] of all) {
     if (meta.vlevel === 'L1' && !effective) { skippedPrivate += 1; continue; }
@@ -150,6 +157,7 @@ async function apply({ businessId, fromUserId, toUserId, actor, io }) {
       if (r.data.roles.includes('assignee')) moved.assigned += 1;
       if (r.data.roles.includes('reviewer')) moved.reviewing += 1;
       if (r.data.roles.includes('requester')) moved.requested += 1;
+      if (r.data.roles.includes('watcher')) moved.watching += 1;
     }
   }
 

@@ -9,7 +9,7 @@ const { archivePatch, unarchivePatch } = require('../services/conversationLifecy
 const {
   Project, ProjectMember, ProjectClient, MemberRole,
   ProjectNote, ProjectIssue, TaskCandidate,
-  Conversation, ConversationParticipant, Message, Task, TaskReviewer,
+  Conversation, ConversationParticipant, Message, Task, TaskReviewer, TaskWatcher,
   BusinessMember, User, Business, Client,
   ProjectStatusOption, ProjectProcessColumn, ProjectProcessPart,
   File, FileFolder, MessageAttachment, TaskAttachment,
@@ -3018,6 +3018,7 @@ router.get('/:id/tasks', authenticateToken, async (req, res, next) => {
         { model: User, as: 'assignee', attributes: ['id', 'name', 'name_localized'], required: false },
         { model: User, as: 'requester', attributes: ['id', 'name', 'name_localized'], required: false },
         { model: TaskReviewer, as: 'reviewers', attributes: ['id', 'user_id', 'state', 'is_client'], required: false },
+        { model: TaskWatcher, as: 'watchers', attributes: ['id', 'user_id'], required: false },
       ],
       order: [['created_at', 'DESC']],
     });
@@ -3472,6 +3473,7 @@ router.get('/workspace/:businessId/all-tasks', authenticateToken, async (req, re
         { model: User, as: 'assignee', attributes: ['id', 'name', 'name_localized'], required: false },
         { model: User, as: 'requester', attributes: ['id', 'name', 'name_localized'], required: false },
         { model: TaskReviewer, as: 'reviewers', attributes: ['id', 'user_id', 'state', 'is_client'], required: false },
+        { model: TaskWatcher, as: 'watchers', attributes: ['id', 'user_id'], required: false },
       ],
       // id 로 순서를 못 박는다 — 같은 초에 만든 업무(일괄 생성·AI 분해)는 created_at 이 같아 쪽마다 순서가 달라지고,
       //   화면이 여러 쪽을 나눠 받을 때 같은 행이 두 번 오거나 빠졌다(dev 실측: 나눠 받은 순서 ≠ 한 번에 받은 순서).

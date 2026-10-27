@@ -564,6 +564,7 @@ app.use('/api/tasks', require('./routes/task_action_items'));
 app.use('/api/task-actions', require('./routes/task_action_items').handoffRouter);
 app.use('/api/tasks', require('./routes/tasks'));
 app.use('/api/tasks', require('./routes/task_workflow'));
+app.use('/api/tasks', require('./routes/task_deliverables'));   // 결과물 회차 /:id/deliverable-versions* — 고유 꼬리 경로라 순서 영향 없음
 app.use('/api/tasks', require('./routes/task_attachments'));
 app.use('/api/tasks', require('./routes/task_attachments_public'));   // 공개 이미지 서빙 — 위와 같은 순서(옮긴 것)
 // #259 무로그인 게스트 링크 — **인증 없는 공개 라우트**. 공개 라우트끼리 모아 둔다

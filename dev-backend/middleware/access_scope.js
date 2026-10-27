@@ -15,7 +15,7 @@ const { Op } = require('sequelize');
 const { sequelize } = require('../config/database');
 const {
   BusinessMember, Client, ProjectClient, ConversationParticipant,
-  Conversation, Project, ProjectMember, TaskReviewer, Business,
+  Conversation, Project, ProjectMember, TaskReviewer, TaskWatcher, Business,
   CalendarEventAttendee,
 } = require('../models');
 
@@ -369,6 +369,31 @@ function taskRelationOpenWhere() {
   };
 }
 
+// ─── «이름 박힌 사람» — 한 벌(2026-10-27 참조자, Fable 설계 판정) ───
+// 담당자·작성자·요청자·컨펌자·참조자. 볼 권한(canAccessTask ①·taskParticipantOr)과 실시간 청중
+// (taskRoom.viewerIds · emitTask 숨은 프로젝트 named)이 **이 함수들만** 부른다 — 손으로 복사하면
+// «보이는데 실시간이 안 옴»(또는 그 반대)이 생긴다. 검토 라운드(review_policy·pendingReviews)는 여기 쓰지 않는다.
+async function namedTaskUserIds(task) {
+  const ids = new Set([task.created_by, task.assignee_id, task.request_by_user_id].filter(Boolean).map(Number));
+  const [revs, wats] = await Promise.all([
+    TaskReviewer.findAll({ where: { task_id: task.id }, attributes: ['user_id'] }),
+    TaskWatcher.findAll({ where: { task_id: task.id }, attributes: ['user_id'] }),
+  ]);
+  for (const r of revs) ids.add(Number(r.user_id));
+  for (const w of wats) ids.add(Number(w.user_id));
+  return ids;
+}
+
+async function isNamedOnTask(userId, task) {
+  const uid = Number(userId);
+  if (task.assignee_id === uid || task.created_by === uid || task.request_by_user_id === uid) return true;
+  const [reviewer, watcher] = await Promise.all([
+    TaskReviewer.findOne({ where: { task_id: task.id, user_id: uid }, attributes: ['id'] }),
+    TaskWatcher.findOne({ where: { task_id: task.id, user_id: uid }, attributes: ['id'] }),
+  ]);
+  return !!(reviewer || watcher);
+}
+
 async function canAccessTask(userId, task, scope) {
   if (!task) return false;
   if (!scope) scope = await getUserScope(userId, task.business_id);
@@ -377,10 +402,8 @@ async function canAccessTask(userId, task, scope) {
   const memberish = isMemberOrAbove(scope);
   if (!memberish && !scope.isClient) return false;
 
-  // ① 이름이 박힌 사람
-  if (task.assignee_id === uid || task.created_by === uid || task.request_by_user_id === uid) return true;
-  const reviewer = await TaskReviewer.findOne({ where: { task_id: task.id, user_id: uid }, attributes: ['id'] });
-  if (reviewer) return true;
+  // ① 이름이 박힌 사람(참조자 포함)
+  if (await isNamedOnTask(uid, task)) return true;
 
   const v = taskVlevel(task);
   if (memberish) {
@@ -412,9 +435,13 @@ async function canAccessTask(userId, task, scope) {
 /** 이름이 박힌 사람 조건(목록용). */
 async function taskParticipantOr(userId) {
   const uid = Number(userId);
-  const reviewerRows = await TaskReviewer.findAll({ where: { user_id: uid }, attributes: ['task_id'] });
+  const [reviewerRows, watcherRows] = await Promise.all([
+    TaskReviewer.findAll({ where: { user_id: uid }, attributes: ['task_id'] }),
+    TaskWatcher.findAll({ where: { user_id: uid }, attributes: ['task_id'] }),
+  ]);
   const or = [{ assignee_id: uid }, { created_by: uid }, { request_by_user_id: uid }];
-  if (reviewerRows.length) or.push({ id: { [Op.in]: reviewerRows.map((r) => r.task_id) } });
+  const namedIds = [...reviewerRows, ...watcherRows].map((r) => r.task_id);
+  if (namedIds.length) or.push({ id: { [Op.in]: namedIds } });
   return or;
 }
 
@@ -1119,6 +1146,8 @@ module.exports = {
   canDownloadFile,
   conversationListWhere,
   canAccessTask,
+  namedTaskUserIds,
+  isNamedOnTask,
   clientTaskVisibleWhere,
   taskOpenToRelation,
   taskRelationOpenWhere,

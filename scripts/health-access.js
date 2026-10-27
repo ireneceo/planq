@@ -689,6 +689,9 @@ const cases = {
     const proj = await M.Project.create({ business_id: w.biz.id, name: `[ha] p ${stamp}`, owner_user_id: w.O.id, visibility: 'workspace' }, { hooks: false });
     await M.ProjectMember.create({ project_id: proj.id, user_id: w.A.id, role: 'member' });
     const task = await M.Task.create({ business_id: w.biz.id, project_id: proj.id, title: `[ha] t ${stamp}`, created_by: w.O.id, assignee_id: w.A.id, request_by_user_id: w.O.id, status: 'in_progress' }, { hooks: false });
+    // 참조자(2026-10-27) — 업무 워크플로 응답의 watchers[].user 도 표시명이어야 한다
+    const wtask = await M.Task.create({ business_id: w.biz.id, project_id: proj.id, title: `[ha] w ${stamp}`, created_by: w.O.id, assignee_id: w.O.id, status: 'in_progress' }, { hooks: false });
+    await M.TaskWatcher.create({ task_id: wtask.id, user_id: w.A.id, added_by_user_id: w.O.id });
     const sigPost = await makePost(w.biz, w.A, 'L4');
     // 서명 관리 — 요청자 이름(2026-10-23). 사람(A)이 보낸 요청 한 건
     await M.SignatureRequest.create({ entity_type: 'post', entity_id: sigPost.id, business_id: w.biz.id, requester_user_id: w.A.id,
@@ -699,6 +702,7 @@ const cases = {
       ['프로젝트 업무', `/api/projects/${proj.id}/tasks`],
       ['업무 목록', `/api/tasks/by-business/${w.biz.id}`],
       ['업무 상세', `/api/tasks/${task.id}/detail`],
+      ['업무 워크플로(참조자)', `/api/tasks/${wtask.id}/workflow`],
       ['문서 목록', `/api/posts?business_id=${w.biz.id}`],
     ];
     const seen = [];

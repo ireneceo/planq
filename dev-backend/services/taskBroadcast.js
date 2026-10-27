@@ -15,13 +15,15 @@
 //   - **부가 필드는 caller 가 spread 한다.** 헬퍼는 base 만 만든다
 //     (reviewer_user_ids · actor_user_id · latest_estimation_source · ai_estimate 등은 경로마다 다르다).
 
-const { Task, Project, User } = require('../models');
+const { Task, Project, User, TaskWatcher } = require('../models');
 const { applyMemberDisplayName } = require('./displayName');
 
 const PERSON_INCLUDE = [
   { model: Project, attributes: ['id', 'name'], required: false },
   { model: User, as: 'assignee', attributes: ['id', 'name', 'name_localized'], required: false },
   { model: User, as: 'requester', attributes: ['id', 'name', 'name_localized'], required: false },
+  // 참조자(2026-10-27) — 참조로 막 추가된 사람의 «참조» 탭이 새로고침 없이 그 행을 받게. 고객용 직렬화는 이 칸을 지운다(taskClientView).
+  { model: TaskWatcher, as: 'watchers', attributes: ['id', 'user_id'], required: false },
 ];
 
 // 이미 include 를 붙여 조회한 Sequelize 인스턴스(또는 plain object) 배열을 받아

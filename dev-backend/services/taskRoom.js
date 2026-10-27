@@ -28,10 +28,9 @@ function targetsOf(p) {
 
 /** 이 업무를 볼 수 있는 사람 — canAccessTask 와 같은 집합(L1·L2, 그리고 숨은 프로젝트의 L3·L4 — 아래 emitTask). */
 async function viewerIds(p, hidden = null) {
-  const { TaskReviewer, BusinessMember, ProjectMember } = require('../models');
-  const ids = new Set([p.created_by, p.assignee_id, p.request_by_user_id].filter(Boolean).map(Number));
-  const revs = await TaskReviewer.findAll({ where: { task_id: p.id }, attributes: ['user_id'] });
-  for (const r of revs) ids.add(Number(r.user_id));
+  const { BusinessMember, ProjectMember } = require('../models');
+  // 이름 박힌 사람(담당·작성·요청·컨펌·참조) — canAccessTask ① 과 같은 한 벌
+  const ids = await require('../middleware/access_scope').namedTaskUserIds(p);
   // 숨은 프로젝트(참여 멤버만)의 L3·L4 는 «프로젝트 L2» 와 같은 청중이다(관리자 + 프로젝트 멤버 + 관계 고객). 2026-10-16
   if (p.vlevel === 'L2' || (hidden && (OPEN.has(p.vlevel) || !p.vlevel))) {
     const admins = await BusinessMember.findAll({
@@ -92,9 +91,8 @@ async function emitTask(io, event, payload, opts = {}) {
   let ids = [...(await viewerIds({ ...payload, business_id: bizId, project_id: projectId }, hidden))];
   if (hidden) {
     // 숨은 프로젝트 — 직원은 «프로젝트를 볼 수 있는 사람 ∪ 이름이 박힌 사람» 만(canAccessTask 와 같은 선). 고객(비멤버)은 위 관계 판정 그대로.
-    const named = new Set([payload.created_by, payload.assignee_id, payload.request_by_user_id].filter(Boolean).map(Number));
-    const { TaskReviewer, BusinessMember: BM } = require('../models');
-    for (const r of await TaskReviewer.findAll({ where: { task_id: payload.id }, attributes: ['user_id'] })) named.add(Number(r.user_id));
+    const named = await require('../middleware/access_scope').namedTaskUserIds(payload);
+    const { BusinessMember: BM } = require('../models');
     const staff = new Set((await BM.findAll({ where: { business_id: bizId, user_id: ids, removed_at: null }, attributes: ['user_id'] })).map((m) => Number(m.user_id)));
     ids = ids.filter((id) => !staff.has(id) || hidden.has(id) || named.has(id));
   }

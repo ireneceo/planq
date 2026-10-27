@@ -154,7 +154,8 @@
     "workspaceWeekly": "Workspace Weekly",
     "workspaceMonthly": "Monthly (all)",
     "today": "Today",
-    "priorityWeeklyHint": "Weekly priority number — numbers may skip on the Today tab"
+    "priorityWeeklyHint": "Weekly priority number — numbers may skip on the Today tab",
+    "watching": "CC"
   },
   "workspace": {
     "assignee": "Assignee",
@@ -707,7 +708,9 @@
         "due_change": "changed schedule",
         "title_change": "renamed task",
         "project_change": "moved project",
-        "requester_change": "Requester changed"
+        "requester_change": "Requester changed",
+        "watcher_add": "CC added",
+        "watcher_remove": "CC removed"
       }
     },
     "revert": {
@@ -1659,5 +1662,11 @@
     "submit": "Review request",
     "approve": "Approved",
     "revision": "Revision request"
+  },
+  "watchers": {
+    "label": "CC",
+    "placeholder": "Optional — who should know or help",
+    "empty": "None",
+    "leave": "Leave CC"
   }
 }

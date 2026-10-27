@@ -74,6 +74,7 @@ import { isEnterAction } from '../../utils/imeKey';
 import { orderProjectsForMe } from '../../utils/projectOrder';
 import { StarGlyph } from '../../components/Common/StarToggle';
 import TaskWorkstreamSelect, { useProjectWorkstreams } from './TaskWorkstreamSelect';
+import TaskWatcherSelect from './TaskWatcherSelect';
 
 export interface DrawerTaskPatch {
   id: number;
@@ -127,6 +128,8 @@ interface ReviewerRow {
   is_client: boolean; reverted_once: boolean; action_at: string | null;
   user?: { id: number; name: string };
 }
+/** 참조자(2026-10-27) — 상태 없음. 보기·댓글·첨부만 */
+interface WatcherRow { id: number; user_id: number; user?: { id: number; name: string } }
 interface HistoryRow {
   id: number; event_type: string; from_status: string | null; to_status: string | null;
   actor_user_id: number | null; actor_role: string | null; target_user_id: number | null;
@@ -284,6 +287,7 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
   const [kbSaved, setKbSaved] = useState(false);
   const [kbErr, setKbErr] = useState(false);
   const [reviewers, setReviewers] = useState<ReviewerRow[]>([]);
+  const [watchers, setWatchers] = useState<WatcherRow[]>([]);
   const [history, setHistory] = useState<HistoryRow[]>([]);
   const [reviewPolicy, setReviewPolicy] = useState<'all'|'any'>('all');
 
@@ -593,7 +597,7 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
     try {
       const r = await (await apiFetch(`/api/tasks/${id}/workflow`)).json();
       if (r.success) {
-        setReviewers(r.data.reviewers || []);
+        setReviewers(r.data.reviewers || []); setWatchers(r.data.watchers || []);
         setHistory(r.data.history || []);
         setReviewPolicy(r.data.task?.review_policy || 'all');
       }
@@ -713,7 +717,7 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
     //   그 선택이 **새 업무**에 저장될 수 있었다(saveFields 가 지금 업무를 쓴다)
     parkSeriesRef.current(taskId);
     setDetailTask(null);
-    setReviewers([]); setHistory([]);
+    setReviewers([]); setWatchers([]); setHistory([]);
     setEditingTitle(false); setStatusOpen(false);
     setOpenHistory(false); setOpenDaily(false);
     // ★ 운영 #367 — 여기서 댓글 입력을 비우면 **떠나는 업무의 초안이 지워진다**.
@@ -1116,7 +1120,7 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
         apiFetch(`/api/tasks/${id}/detail`).then(r => r.json()),
       ]);
       if (wfR.success) {
-        setReviewers(wfR.data.reviewers || []);
+        setReviewers(wfR.data.reviewers || []); setWatchers(wfR.data.watchers || []);
         setHistory(wfR.data.history || []);
         setReviewPolicy(wfR.data.task?.review_policy || 'all');
       }
@@ -1137,7 +1141,7 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
     try {
       const wfR = await apiFetch(`/api/tasks/${id}/workflow`).then(r => r.json());
       if (wfR.success) {
-        setReviewers(wfR.data.reviewers || []);
+        setReviewers(wfR.data.reviewers || []); setWatchers(wfR.data.watchers || []);
         setHistory(wfR.data.history || []);
         setReviewPolicy(wfR.data.task?.review_policy || 'all');
       }
@@ -1297,6 +1301,13 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
     setPendingReviewerAdd(null);
   };
   const removeReviewer = async (userId: number) => { await callAction(`/reviewers/${userId}`, 'DELETE'); };
+  // 참조자 — 차이만 보낸다(추가 POST · 빼기 DELETE). 본인 빠지기도 같은 DELETE(서버가 본인이면 관리 권한 없이 허용)
+  const changeWatchers = (next: number[]) => {
+    const added = next.find(id => !watchers.some(w => w.user_id === id));
+    const removed = watchers.find(w => !next.includes(w.user_id));
+    if (added != null) void callAction('/watchers', 'POST', { user_id: added });
+    else if (removed) void callAction(`/watchers/${removed.user_id}`, 'DELETE');
+  };
   const changePolicy = async (p: 'all'|'any') => {
     if (p === reviewPolicy) return;
     await callAction('/policy', 'PATCH', { review_policy: p });
@@ -1946,6 +1957,21 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                     <PolicySegBtn $active={reviewPolicy === 'all'} onClick={() => changePolicy('all')} disabled={actionBusy}>{t('detail.reviewers.policyAll', 'All must approve')}</PolicySegBtn>
                     <PolicySegBtn $active={reviewPolicy === 'any'} onClick={() => changePolicy('any')} disabled={actionBusy}>{t('detail.reviewers.policyAny', 'Any one is enough')}</PolicySegBtn>
                   </PolicySeg>}
+                </MetaCell>
+                <MetaCell data-testid="task-detail-watchers">
+                  <MetaLabel>{t('watchers.label', '참조')}
+                    {!canAddReviewer && <MetaLock title={t('detail.readOnly', '읽기 전용') as string} aria-label={t('detail.readOnly', '읽기 전용') as string} />}
+                  </MetaLabel>
+                  <TaskWatcherSelect variant="inline" businessId={bizId} myId={myId} disabled={!canAddReviewer || actionBusy}
+                    placeholder={canAddReviewer ? undefined : t('watchers.empty', '없음') as string}
+                    value={watchers.map(w => w.user_id)} names={Object.fromEntries(watchers.map(w => [w.user_id, w.user?.name || '']))}
+                    excludeIds={[detailTask.assignee_id, detailTask.created_by, detailTask.request_by_user_id, ...reviewers.map(rv => rv.user_id)]}
+                    onChange={changeWatchers} />
+                  {!canAddReviewer && watchers.some(w => w.user_id === myId) && (
+                    <WatcherLeaveBtn type="button" data-testid="task-detail-watcher-leave" disabled={actionBusy}
+                      onClick={() => changeWatchers(watchers.filter(w => w.user_id !== myId).map(w => w.user_id))}>
+                      {t('watchers.leave', '참조에서 빠지기')}
+                    </WatcherLeaveBtn>)}
                 </MetaCell>
                 {pendingReviewerAdd && <MetaWide><WarnDialog>
                   <WarnTitle>{t('detail.reviewers.warnTitle', 'Reset current review round?')}</WarnTitle>
@@ -3633,6 +3659,8 @@ const PolicySeg = styled.div`display:inline-flex;justify-self:start;background:#
 const PolicySegBtn = styled.button<{ $active: boolean }>`padding:3px 10px;font-size:0.6875rem;font-weight:600;border:none;border-radius:4px;cursor:pointer;background:${p => p.$active ? '#FFF' : 'transparent'};color:${p => p.$active ? '#0F766E' : '#64748B'};box-shadow:${p => p.$active ? '0 1px 2px rgba(0,0,0,0.06)' : 'none'};&:disabled{cursor:not-allowed;opacity:0.5;}`;
 // 확인 중 컨펌자 추가 경고 — 속성 줄 두 칸을 다 쓴다(한 칸 218px 에 문장이 안 들어간다).
 const MetaWide = styled.div`grid-column:1 / -1;`;
+// 참조자 본인 빠지기 — 관리 권한이 없어 칸이 잠겨 있을 때만(관리자는 칸에서 바로 뺀다)
+const WatcherLeaveBtn = styled.button`justify-self:start;margin-top:4px;padding:0;border:none;background:none;font-size:0.6875rem;font-weight:600;color:#64748B;cursor:pointer;text-decoration:underline;&:hover{color:#0F766E;}&:disabled{cursor:not-allowed;opacity:0.5;}`;
 const WarnDialog = styled.div`margin-top:8px;padding:10px;background:#FEF2F2;border:1px solid #FECACA;border-radius:8px;display:flex;flex-direction:column;gap:6px;`;
 const WarnTitle = styled.div`font-size:0.75rem;font-weight:700;color:#991B1B;`;
 const WarnBody = styled.div`font-size:0.6875rem;color:#7F1D1D;line-height:1.5;`;
@@ -3653,7 +3681,7 @@ const TimelineDot = styled.div<{ $event: string }>`position:absolute;left:-13px;
   if (e === 'review_submit') return 'background:#92400E;';
   if (e === 'ack') return 'background:#3730A3;';
   if (e === 'revert' || e === 'review_cancel') return 'background:#94A3B8;';
-  if (e === 'reviewer_add' || e === 'reviewer_remove') return 'background:#1E40AF;';
+  if (e === 'reviewer_add' || e === 'reviewer_remove' || e === 'watcher_add' || e === 'watcher_remove') return 'background:#1E40AF;';
   return 'background:#CBD5E1;';
 }}`;
 const TimelineBody = styled.div`flex:1;font-size:0.75rem;color:#334155;`;

@@ -7,7 +7,7 @@ router.param('token', (req, res, next, token) => {
   const M = require('../models');
   return require('../services/shareOpenable').workspaceAliveParam([[M.Task, 'share_token']])(req, res, next, token);
 });
-const { Task, User, Project, BusinessMember, Business, TaskComment, TaskDailyProgress, TaskStatusHistory, TaskReviewer, TaskLink, Client, ProjectClient, AuditLog } = require('../models');
+const { Task, User, Project, BusinessMember, Business, TaskComment, TaskDailyProgress, TaskStatusHistory, TaskReviewer, TaskWatcher, TaskLink, Client, ProjectClient, AuditLog } = require('../models');
 const taskSnapshot = require('../services/task_snapshot');
 const { authenticateToken, checkBusinessAccess } = require('../middleware/auth');
 const { getUserScope, taskListWhere, canAccessTask, isMemberOrAbove, assertAssignable, assertMemberOrAbove } = require('../middleware/access_scope');
@@ -144,6 +144,7 @@ router.get('/my-week', authenticateToken, async (req, res, next) => {
         { model: User, as: 'assignee', attributes: ['id', 'name', 'name_localized'], required: false },
         // 관점별 라벨·퀵액션 분기가 all-tasks 와 같은 근거로 판정되게 reviewer row 를 같이 준다.
         { model: TaskReviewer, as: 'reviewers', attributes: ['id', 'user_id', 'state', 'is_client'], required: false },
+        { model: TaskWatcher, as: 'watchers', attributes: ['id', 'user_id'], required: false },
       ],
       order: [['due_date', 'ASC'], ['priority_order', 'ASC'], ['created_at', 'ASC']],
     });
@@ -1451,6 +1452,8 @@ router.put('/by-business/:businessId/:id', authenticateToken, async (req, res, n
 
     const taskBefore = task.get({ plain: true, clone: true });   // 감사 — 상태·제목·일정은 task_status_history 가 원장이라 뺀다
     await task.update(updates);
+    // 참조자가 담당자가 되면 참조 행을 흡수한다(한 사람 한 역할 — reassign 과 같은 규칙)
+    if (updates.assignee_id) await taskActions.absorbWatchers(task.id, [updates.assignee_id]);
 
     const ruleRes = await seriesRecur.applySeriesRuleChange({
       task, updates, businessId, seriesRuleChange,
@@ -1649,6 +1652,7 @@ router.put('/by-business/:businessId/:id', authenticateToken, async (req, res, n
               link: taskLink, ctaLabel: '결과 확인', workspaceName: wsName,
             }).catch((e) => console.warn('[notify completed]', e.message));
           }
+          taskActions.notifyWatchersCompleted(task, req.user.id, wsName);   // 참조자에게도(행동 계층 complete 와 같은 함수)
         }
         // reviewing → 리뷰어 전체에게
         if (newStatus === 'reviewing') {
