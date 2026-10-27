@@ -203,10 +203,6 @@ export const HexInput = styled.input`
    다른 탭과 갈라졌다. 그리드 규격은 그대로 두고 **여백 계약만** 일반탭에서 상속한다. */
 export const InfoBody = styled(ProjectTabPane)`display:grid;grid-template-columns:repeat(2, minmax(0, 1fr));gap:16px;@media (max-width:900px){grid-template-columns:1fr;}`;
 
-/* ★ 2026-09-15 — 껍데기를 **안 쓰고 있던** 탭이다(빈 styled). 그래서 풀블리드를 넣어도
-   고객 탭만 240~1420 으로 남았다(실측). 껍데기 2종 중 일반탭을 그대로 상속한다 —
-   "탭을 새로 만들면 둘 중 하나를 반드시 쓴다" 는 이 파일 머리말의 계약이 지켜지지 않았다. */
-export const ClientsBody = styled(ProjectTabPane)``;
 export const Card = styled.div`background:#FFF;border:1px solid #E2E8F0;border-radius:10px;padding:16px;`;
 export const CardTitle = styled.h3`margin:0 0 12px;font-size:0.875rem;font-weight:700;color:#0F172A;display:flex;align-items:center;gap:8px;small{font-size:0.6875rem;font-weight:600;color:#64748B;}`;
 

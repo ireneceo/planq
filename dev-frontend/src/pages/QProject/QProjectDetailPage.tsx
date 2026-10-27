@@ -68,7 +68,6 @@ import {
   HexPreview,
   HexNativePicker,
   HexInput,
-  ClientsBody,
   Card,
   CardTitle,
   ProjHistEmpty,
@@ -157,11 +156,11 @@ const PROJECT_COLORS = PROJECT_COLOR_PALETTE.map(p => p.value);
 // 사이클 N+14 — 'info' 의미 분리:
 //   'details' = 프로젝트 메타데이터 편집 (옛 'info' 폼). 라벨 "상세정보".
 //   'info'    = Q info (KbDocument scope='project'). 라벨 "정보". 문서 다음 위치.
-type TabKey = 'dashboard' | 'tasks' | 'calendar' | 'details' | 'settings' | 'info' | 'clients' | 'files' | 'docs' | 'notes' | 'transactions' | 'report' | 'history' | `doc-${number}`;
+type TabKey = 'dashboard' | 'tasks' | 'calendar' | 'details' | 'settings' | 'info' | 'files' | 'docs' | 'notes' | 'transactions' | 'report' | 'history' | `doc-${number}`;
 // 고객(client)에게 숨기는 탭 — 내부 캔버스(전략·403)·고객목록·거래(청구)·보고서·상세메타. 고객은 협업 탭(업무·파일·문서·정보)만.
 // 'info'(Q info) — 서버 kb 라우트가 워크스페이스 멤버만 받는다(middleware/permissions checkBusinessAccess). 고객에게 탭을 두면
 //   열자마자 403 + 처리 안 된 오류였다(2026-10-07 고객 순찰). 서버 술어와 같게 숨긴다.
-const CLIENT_HIDDEN_TABS: TabKey[] = ['dashboard', 'calendar', 'clients', 'transactions', 'report', 'details', 'settings', 'history', 'info'];
+const CLIENT_HIDDEN_TABS: TabKey[] = ['dashboard', 'calendar', 'transactions', 'report', 'details', 'settings', 'history', 'info'];
 
 interface BizMember { id: number; user_id: number; default_role?: string | null; user?: { id: number; name: string; email?: string; is_ai?: boolean; display_name?: string | null } }
 
@@ -259,13 +258,14 @@ const QProjectDetailPage: React.FC = () => {
      티가 안 났지만, 탭이 URL 을 따라가게 되자(뒤로가기 수정) 그 두 탭은 누르는 즉시
      `?tab=details` → 목록에 없음 → dashboard 로 되돌려져 **열 수 없는 탭**이 됐다.
      (`--suite projecttabs` 가 3폭 모두에서 잡았다 — 목록에 값을 더할 땐 이 배열을 같이 본다.) */
-  const validTabs: TabKey[] = ['dashboard', 'tasks', 'calendar', 'info', 'clients', 'files', 'docs', 'notes', 'transactions', 'report', 'history', 'details', 'settings'];
+  const validTabs: TabKey[] = ['dashboard', 'tasks', 'calendar', 'info', 'files', 'docs', 'notes', 'transactions', 'report', 'history', 'details', 'settings'];
   const rawTab = searchParams.get('tab');
-  // 이전 ?tab=process 진입 호환 — docs 로 fallback
+  // 이전 ?tab=process 진입 호환 — docs 로 fallback · ?tab=clients(옛 고객 탭) → 설정(2026-10-27 설정으로 합침)
   // doc-:id 도 허용 (사용자가 메뉴에 추가한 특정 문서)
   const isDocTabKey = (s: string): s is `doc-${number}` => /^doc-\d+$/.test(s);
   const initialTab: TabKey = (rawTab === 'process'
     ? 'docs'
+    : rawTab === 'clients' ? 'settings'
     : (rawTab && (validTabs.includes(rawTab as TabKey) || isDocTabKey(rawTab))) ? (rawTab as TabKey)
     : 'dashboard');
   const [tab, setTabState] = useState<TabKey>(initialTab);
@@ -798,9 +798,10 @@ const QProjectDetailPage: React.FC = () => {
         {/* ★ 탭 순서 — Irene 2026-09-13 지시 그대로:
             개요 · 업무 · 문서 · 노트 · 파일 · 정보 · 보고서 · 히스토리 · 거래 · 고객 · 상세정보 · 설정
             + 2026-10-07 #461 «일정» 을 업무 다음에(Irene: "프로젝트 탭에 일정도 나와야")
+            + 2026-10-27 «고객» 탭을 없애고 참여 고객 카드를 «설정» 의 프로젝트 멤버 옆으로(Irene: "멤버랑 같이 추가하게 … 따로 있는게 이상해")
             (만드는 것 → 쌓이는 것 → 보는 것 → 관리 순이다) */}
         {/* 고객(client)은 협업 탭만 — 캔버스(내부 전략·403)·고객목록·거래·보고서·상세는 숨김 (권한 매트릭스 detail-only) */}
-        {(['dashboard', 'tasks', 'calendar', 'docs', 'notes', 'files', 'info', 'report', 'history', 'transactions', 'clients', 'details', 'settings'] as TabKey[])
+        {(['dashboard', 'tasks', 'calendar', 'docs', 'notes', 'files', 'info', 'report', 'history', 'transactions', 'details', 'settings'] as TabKey[])
           .filter((k) => !(isClient && CLIENT_HIDDEN_TABS.includes(k)))
           .map((k) => (
           <Tab key={k} $active={tab === k} data-testid={`project-tab-${k}`} onClick={() => setTab(k)}>
@@ -851,6 +852,7 @@ const QProjectDetailPage: React.FC = () => {
       )}
 
       {tab === 'settings' && (
+        <>
         <InfoBody data-testid="project-tab-body-settings">
           <Card>
             <CardTitle>{t('section.editInfo', '기본 정보')}</CardTitle>
@@ -1128,6 +1130,102 @@ const QProjectDetailPage: React.FC = () => {
           </Card>
 
           <Card>
+            <CardTitle>{t('section.projClients', '참여 고객')} <small>{(project.projectClients || []).length}</small></CardTitle>
+            {(project.projectClients || []).length === 0 ? <Dim>{t('clients.empty', '고객이 없습니다')}</Dim> : (
+              <ClientList>
+                {(project.projectClients || []).map(c => {
+                  const joined = !!c.contact_user_id;
+                  // 직접 관리(초대 없이 정보만) — 초대를 보낸 적이 없으니 «초대 대기»·재발송이 아니다
+                  const managedOnly = !joined && (c.client_status === 'managed' || c.client_status === 'prospect');
+                  const person = fromProjectClient(c);
+                  return (
+                    <ClientRow key={c.id} data-testid="project-client-row">
+                      <ClientMain>
+                        {c.client_id ? (
+                          <ClientNameBtn type="button" onClick={() => setPanelClientId(Number(c.client_id))}
+                            title={t('clients.openProfile', '고객 프로필 열기') as string}>
+                            {c.contact_name}
+                          </ClientNameBtn>
+                        ) : <strong>{c.contact_name}</strong>}
+                        <PersonBasics person={person} inline />
+                      </ClientMain>
+                      {!joined && !managedOnly && c.invited_at && (
+                        <InviteSentAt title={t('clients.invitedAtTitle', '초대 발송 시각') as string}>
+                          {t('clients.invitedAt', { defaultValue: '{{date}} 발송', date: formatDateTime(c.invited_at) })}
+                        </InviteSentAt>
+                      )}
+                      <ClientStatusPill $joined={joined}
+                        title={(joined ? t('clients.joinedTitle', '워크스페이스 사용자로 참여 중')
+                          : managedOnly ? t('clients.managedTitle', '가입·초대 없이 정보만 관리하는 고객')
+                          : t('clients.pendingTitle', '초대 발송 — 수락 대기 중')) as string}>
+                        {joined ? t('clients.joined', '참여 중') : managedOnly ? t('clients.managed', '추가한 고객') : t('clients.pending', '초대 중')}
+                      </ClientStatusPill>
+                      {!joined && !managedOnly && c.contact_email && (
+                        <ResendBtn type="button" disabled={resendingIds.has(c.id)}
+                          onClick={() => resendProjectInvite(c.id)}>
+                          {resentIds.has(c.id)
+                            ? t('clients.resent', '발송됨')
+                            : resendingIds.has(c.id)
+                              ? t('clients.resending', '발송 중…')
+                              : t('clients.resend', '재발송')}
+                        </ResendBtn>
+                      )}
+                      <ClientDelBtn type="button" onClick={async () => {
+                        const r = await apiFetch(`/api/projects/${projectId}/clients/${c.id}`, { method: 'DELETE' });
+                        if ((await r.json()).success) {
+                          setProject(prev => prev ? { ...prev, projectClients: (prev.projectClients || []).filter(x => x.id !== c.id) } : prev);
+                        }
+                      }}>×</ClientDelBtn>
+                    </ClientRow>
+                  );
+                })}
+              </ClientList>
+            )}
+            {/* 기존 워크스페이스 고객 연결 — **고객 id 로** 붙인다(이름·이메일로 다시 찾으면 계정 없는 고객이 한 줄 더 생겼다) */}
+            {(() => {
+              const joinedClientIds = new Set((project.projectClients || []).map((c) => c.client_id).filter(Boolean));
+              // 보관된 고객은 붙일 수 없다(서버 409 client_archived) — 목록에서 뺀다
+              const candidates = bizClients.filter((b) => !joinedClientIds.has(b.id) && b.status !== 'archived');
+              if (candidates.length === 0) return null;
+              return (
+                <LinkClientBar>
+                  <LinkClientLabel>{t('clients.linkExisting', '기존 고객 연결')}</LinkClientLabel>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                  <PlanQSelect
+                    size="sm" isClearable
+                    placeholder={tc(CONNECT_PROMPT.clientPick) as string}
+                    value={null}
+                    onChange={async (opt) => {
+                      const v = (opt as { value?: string } | null)?.value;
+                      if (!v) return;
+                      const r = await apiFetch(`/api/projects/${projectId}/clients`, {
+                        method: 'POST', headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ client_id: Number(v) }),
+                      });
+                      const j = await r.json().catch(() => null);
+                      if (j?.success) void load({ silent: true });
+                    }}
+                    options={candidates.map((c) => ({
+                      value: String(c.id),
+                      label: clientOptionLabel(`${c.display_name || c.user?.name || c.company_name || ''}${c.company_name && c.display_name ? ' · ' + c.company_name : ''}${(c.user?.email || c.invite_email) ? ' (' + (c.user?.email || c.invite_email) + ')' : ''}`, c, tSale),
+                    }))}
+                  />
+                  </div>
+                </LinkClientBar>
+              );
+            })()}
+
+            {/* 새 고객 — Q sale 고객 탭과 같은 폼(초대 / 직접 관리). 고객을 관리하는 손이 있는 사람에게만 */}
+            {canManageClients(authUser) && (
+              <AddClientRow>
+                <AddClientBtn type="button" data-testid="project-client-add" onClick={() => setClientAddOpen(true)}>
+                  {t('clients.addClient', '+ 고객 추가')}
+                </AddClientBtn>
+              </AddClientRow>
+            )}
+          </Card>
+
+          <Card>
             <CardTitle>{t('section.chats', '연결된 채팅방')} <small>{convs.length}</small></CardTitle>
             {convs.length === 0 ? <Dim>{t('convs.empty', '없음')}</Dim> : (
               <ConvList>
@@ -1157,6 +1255,21 @@ const QProjectDetailPage: React.FC = () => {
             )}
           </Card>
         </InfoBody>
+          <ClientAddDrawer
+            open={clientAddOpen}
+            onClose={() => setClientAddOpen(false)}
+            businessId={project.business_id}
+            projectId={projectId}
+            onDone={() => { void load({ silent: true }); }}
+            onOpenExisting={(id) => setPanelClientId(id)}
+          />
+          <ClientPanel
+            businessId={project.business_id}
+            clientId={panelClientId}
+            onClose={() => setPanelClientId(null)}
+            onChanged={() => { void load({ silent: true }); }}
+          />
+        </>
       )}
 
       {/* #136 — 정보성(이슈·메모·이력·참여고객)과 설정성(기본정보 편집·멤버·채팅 연결)을 탭으로 분리.
@@ -1284,119 +1397,6 @@ const QProjectDetailPage: React.FC = () => {
             onRecordingChange={setNotesRecording}
           />
         </ProjectNotesWrap>
-      )}
-      {tab === 'clients' && (
-        <ClientsBody data-testid="project-tab-body-clients">
-          <Card>
-            <CardTitle>{t('section.projClients', '참여 고객')} <small>{(project.projectClients || []).length}</small></CardTitle>
-            {(project.projectClients || []).length === 0 ? <Dim>{t('clients.empty', '고객이 없습니다')}</Dim> : (
-              <ClientList>
-                {(project.projectClients || []).map(c => {
-                  const joined = !!c.contact_user_id;
-                  // 직접 관리(초대 없이 정보만) — 초대를 보낸 적이 없으니 «초대 대기»·재발송이 아니다
-                  const managedOnly = !joined && (c.client_status === 'managed' || c.client_status === 'prospect');
-                  const person = fromProjectClient(c);
-                  return (
-                    <ClientRow key={c.id} data-testid="project-client-row">
-                      <ClientMain>
-                        {c.client_id ? (
-                          <ClientNameBtn type="button" onClick={() => setPanelClientId(Number(c.client_id))}
-                            title={t('clients.openProfile', '고객 프로필 열기') as string}>
-                            {c.contact_name}
-                          </ClientNameBtn>
-                        ) : <strong>{c.contact_name}</strong>}
-                        <PersonBasics person={person} inline />
-                      </ClientMain>
-                      {!joined && !managedOnly && c.invited_at && (
-                        <InviteSentAt title={t('clients.invitedAtTitle', '초대 발송 시각') as string}>
-                          {t('clients.invitedAt', { defaultValue: '{{date}} 발송', date: formatDateTime(c.invited_at) })}
-                        </InviteSentAt>
-                      )}
-                      <ClientStatusPill $joined={joined}
-                        title={(joined ? t('clients.joinedTitle', '워크스페이스 사용자로 참여 중')
-                          : managedOnly ? t('clients.managedTitle', '가입·초대 없이 정보만 관리하는 고객')
-                          : t('clients.pendingTitle', '초대 발송 — 수락 대기 중')) as string}>
-                        {joined ? t('clients.joined', '참여 중') : managedOnly ? t('clients.managed', '추가한 고객') : t('clients.pending', '초대 중')}
-                      </ClientStatusPill>
-                      {!joined && !managedOnly && c.contact_email && (
-                        <ResendBtn type="button" disabled={resendingIds.has(c.id)}
-                          onClick={() => resendProjectInvite(c.id)}>
-                          {resentIds.has(c.id)
-                            ? t('clients.resent', '발송됨')
-                            : resendingIds.has(c.id)
-                              ? t('clients.resending', '발송 중…')
-                              : t('clients.resend', '재발송')}
-                        </ResendBtn>
-                      )}
-                      <ClientDelBtn type="button" onClick={async () => {
-                        const r = await apiFetch(`/api/projects/${projectId}/clients/${c.id}`, { method: 'DELETE' });
-                        if ((await r.json()).success) {
-                          setProject(prev => prev ? { ...prev, projectClients: (prev.projectClients || []).filter(x => x.id !== c.id) } : prev);
-                        }
-                      }}>×</ClientDelBtn>
-                    </ClientRow>
-                  );
-                })}
-              </ClientList>
-            )}
-            {/* 기존 워크스페이스 고객 연결 — **고객 id 로** 붙인다(이름·이메일로 다시 찾으면 계정 없는 고객이 한 줄 더 생겼다) */}
-            {(() => {
-              const joinedClientIds = new Set((project.projectClients || []).map((c) => c.client_id).filter(Boolean));
-              // 보관된 고객은 붙일 수 없다(서버 409 client_archived) — 목록에서 뺀다
-              const candidates = bizClients.filter((b) => !joinedClientIds.has(b.id) && b.status !== 'archived');
-              if (candidates.length === 0) return null;
-              return (
-                <LinkClientBar>
-                  <LinkClientLabel>{t('clients.linkExisting', '기존 고객 연결')}</LinkClientLabel>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                  <PlanQSelect
-                    size="sm" isClearable
-                    placeholder={tc(CONNECT_PROMPT.clientPick) as string}
-                    value={null}
-                    onChange={async (opt) => {
-                      const v = (opt as { value?: string } | null)?.value;
-                      if (!v) return;
-                      const r = await apiFetch(`/api/projects/${projectId}/clients`, {
-                        method: 'POST', headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ client_id: Number(v) }),
-                      });
-                      const j = await r.json().catch(() => null);
-                      if (j?.success) void load({ silent: true });
-                    }}
-                    options={candidates.map((c) => ({
-                      value: String(c.id),
-                      label: clientOptionLabel(`${c.display_name || c.user?.name || c.company_name || ''}${c.company_name && c.display_name ? ' · ' + c.company_name : ''}${(c.user?.email || c.invite_email) ? ' (' + (c.user?.email || c.invite_email) + ')' : ''}`, c, tSale),
-                    }))}
-                  />
-                  </div>
-                </LinkClientBar>
-              );
-            })()}
-
-            {/* 새 고객 — Q sale 고객 탭과 같은 폼(초대 / 직접 관리). 고객을 관리하는 손이 있는 사람에게만 */}
-            {canManageClients(authUser) && (
-              <AddClientRow>
-                <AddClientBtn type="button" data-testid="project-client-add" onClick={() => setClientAddOpen(true)}>
-                  {t('clients.addClient', '+ 고객 추가')}
-                </AddClientBtn>
-              </AddClientRow>
-            )}
-          </Card>
-          <ClientAddDrawer
-            open={clientAddOpen}
-            onClose={() => setClientAddOpen(false)}
-            businessId={project.business_id}
-            projectId={projectId}
-            onDone={() => { void load({ silent: true }); }}
-            onOpenExisting={(id) => setPanelClientId(id)}
-          />
-          <ClientPanel
-            businessId={project.business_id}
-            clientId={panelClientId}
-            onClose={() => setPanelClientId(null)}
-            onChanged={() => { void load({ silent: true }); }}
-          />
-        </ClientsBody>
       )}
       {tab === 'transactions' && <ProjectTabPane data-testid="project-tab-body-transactions"><TransactionsTab projectId={projectId} /></ProjectTabPane>}
       {tab === 'report' && <ProjectTabPane data-testid="project-tab-body-report"><ProjectReportTab businessId={project.business_id} projectId={projectId} /></ProjectTabPane>}

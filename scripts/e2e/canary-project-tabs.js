@@ -19,7 +19,7 @@ const push = (name, pass, detail) => results.push({ name, fail: !pass, details: 
 
 // 2026-10-07 #461 — «일정»(calendar) 탭을 업무 다음에 추가(Irene 요청 — 프로젝트 관련 일정 표시).
 const EXPECTED_TABS = ['dashboard', 'tasks', 'calendar', 'docs', 'notes', 'files', 'info',
-  'report', 'history', 'transactions', 'clients', 'details', 'settings'];
+  'report', 'history', 'transactions', 'details', 'settings'];
 
 // Node 쪽 로그인 — 화면이 아니라 API 로 대상 하나를 고른다.
 // 탭 클릭 — 셀렉터가 나타날 때까지 기다린 뒤 누른다(느린 렌더에서 FATAL 로 죽지 않게).
