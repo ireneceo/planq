@@ -1,5 +1,12 @@
 # Fable 게이트 대기열 → **판정 기록 보관소** (2026-10-08 부터)
 
+### 2026-10-27 방 015226ea — 프로젝트 > 업무 검색·필터·묶기·정렬 · 추진과제 추가 자리 · 상세 추진과제 칸 · 작성 칩 — 설계 PASS-WITH-CHANGES(필수 7) → 완료 점검 FAIL(B1·B2) → 고친 뒤 자체 재확인 → **PASS 처리**
+- 커밋 55a9aaa1. 설계 필수: ⋯ 메뉴 위/아래 추가 뺌 · 맨 위 추가 = 만들고 순서 저장(실패 시 다시 읽고 문구) · 칩은 묶지 않음+그룹≥1+그룹 있는 업무만 · 정렬 5개·캘린더 숨김 · 거르는 중 진행률 전체 기준·«보이는/전체»·0건 그룹 숨김·0건 문구 · 설명 평문 toPlainText 한 벌 · 상세 추진과제 칸 권한 = FIELD_RULES.workstream_id(=project_id 집합)·그룹 0개/팝아웃 숨김·프로젝트 바꾸면 비움 · 작성 칩 «이름 · 작성|AI 작성|Cue 작성|요청|AI 요청 날짜»·내 업무도 이름·nowrap.
+- 완료 점검 꼭 고칠 것: B1 다른 프로젝트로 옮기면 검색·필터·입력줄 상태가 따라감(담당자 필터가 «빈 셀렉트» 로 보이며 업무가 빠짐) → TasksTab projectId 바뀌면 초기화 + ProjectTaskList key=projectId · B2 그룹 오류 문구가 남음 → 6초·다시 열기·성공 시 지움. Fable 지시대로 «자체 검증으로 닫음».
+- 자체 재확인(07:02 빌드): B1 폰·데스크탑 — 대조(A 에서 검색이 실제로 걸림 7→2 · 10→5) 뒤 B 로 이동하면 검색칸 빈칸·업무 수 = 필터 없는 기준(13=13 · 16=16) · B2 연결 끊고 맨 위 추가 → «만들지 못했어요» 보임 → 6초 뒤 사라짐(폰·데스크탑) · 전체 화면 검사 폰 21/21 · 태블릿 21/21 · 데스크탑 23/23 · API 10/10 · build EXIT 0·error TS 0 · guard 81/82(기존 1) · e2e projecttabs 0.
+- 비차단(남김): 상세 칸의 빈 값 문구 «(그룹 없음)» 은 목록 머리와 맞춘 것 · 열 머리로 내림차순 바꿔도 정렬 셀렉트에 방향은 안 보임(열 머리 화살표로 보임).
+- Fable 사용 횟수: 설계 1 + 완료 점검 1.
+
 ### 2026-10-27 방 5753d937 — AI 앱 추진과제(그룹) 만들기·업무 배정 — 설계 PASS(필수 3건) → 완료 검증 **VERDICT: PASS** (차단 0)
 - 설계 `docs/AGENT_WORKSTREAM_DESIGN.md`. 필수 반영: 토큰 워크스페이스 묶음(businessId) · assertMenu(qtask, write) · updateFields 감사 before·신호에 workstream_id · 이름 정규화 한 함수.
 - 완료 근거: Fable 이 실제 MCP(:3005) 로 25/25 — tools/list 에 create_workstream·update_task workstream_id nullable · 만들기/같은 이름 재사용(DB 1행)/done 그룹 status 반환 · ws6 토큰 → ws3 프로젝트 NOT_FOUND·workspace_id:3 거절(ws3 0행) · 안 보이는 프로젝트 거절 · create/update 배정·null·남의 그룹 거절·권한 없는 업무 forbidden_fields · get_project task_count · 화면 POST 모양·color·400·404·403 2·고객 member_only · guard 80/81 · health 96/96.
