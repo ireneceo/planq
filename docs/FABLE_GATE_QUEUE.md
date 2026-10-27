@@ -1,5 +1,11 @@
 # Fable 게이트 대기열 → **판정 기록 보관소** (2026-10-08 부터)
 
+### 2026-10-27 방 5753d937 — AI 앱 추진과제(그룹) 만들기·업무 배정 — 설계 PASS(필수 3건) → 완료 검증 **VERDICT: PASS** (차단 0)
+- 설계 `docs/AGENT_WORKSTREAM_DESIGN.md`. 필수 반영: 토큰 워크스페이스 묶음(businessId) · assertMenu(qtask, write) · updateFields 감사 before·신호에 workstream_id · 이름 정규화 한 함수.
+- 완료 근거: Fable 이 실제 MCP(:3005) 로 25/25 — tools/list 에 create_workstream·update_task workstream_id nullable · 만들기/같은 이름 재사용(DB 1행)/done 그룹 status 반환 · ws6 토큰 → ws3 프로젝트 NOT_FOUND·workspace_id:3 거절(ws3 0행) · 안 보이는 프로젝트 거절 · create/update 배정·null·남의 그룹 거절·권한 없는 업무 forbidden_fields · get_project task_count · 화면 POST 모양·color·400·404·403 2·고객 member_only · guard 80/81 · health 96/96.
+- 비차단(남김): ① MCP 프로세스의 원격 소켓 대리자(services/remoteIo.js)에 .except() 가 없어 참여 멤버만 보는 프로젝트의 워크스페이스 단위 project:updated 한 줄이 조용히 빠짐(프로젝트 방·inbox:refresh 는 나감 — 기존 한계) ② updateFields 가 그룹 검증을 권한 판정보다 먼저(같은 프로젝트 그룹 id 존재 여부만 드러남) ③ 화면 GET /workstreams rollup 권한 조건 없이 셈(범위 밖).
+- Fable 사용 횟수: 설계 1 + 검증 1.
+
 ### 2026-10-27 방 af58471c — 반복 업무 삭제 «이 업무만 / 이 업무와 이후 모두» 완료 검증 — **VERDICT: PASS** (차단 0)
 - 커밋 6e858007. Fable 실호출 21/21(12회 반복 중간 회차 이 업무만 → COUNT 11·마지막 날 11/07 그대로·지운 날 재생성 0 / 완료된 둘째 회차가 부모 규칙 이어받음 / 이후 모두 → 뒤 미착수만 삭제·진행중 남음·UNTIL 전날·series_ended / 멤버 자기 시리즈인데 뒤 회차에 남의 댓글 → 403·0건 삭제 / 고객 404 / all → single 처리 / 회차 없는 월간 부모 → 다음 달 회차 생성 후 이어받음) · guard 80/81 · health 96/96.
 - 못 가른 세 가지 판정: COUNT 1 감소 = 구글 «그날만 빼기» 와 같은 결과 · 이어받은 회차 기준으로 편집 범위·주기 변경 정상 · 트랜잭션 밖 다음 회차 생성은 멱등이라 허용.

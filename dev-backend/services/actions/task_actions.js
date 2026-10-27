@@ -321,13 +321,26 @@ async function updateFields(task, actor, fields = {}) {
     if (h !== null && (!Number.isFinite(h) || h < 0 || h > 1000)) return fail('invalid_hours');
     patch.estimated_hours = h;
   }
+  // 추진과제(그룹) — 이 업무 프로젝트의 그룹만, null 이면 빼기(2026-10-27 AI 앱 그룹 배정 · 화면 PUT 1219 와 같은 규칙).
+  //   같은 프로젝트 안 정리라 보는 사람이 바뀌지 않는다. 누가 바꾸나는 FIELD_RULES.workstream_id.
+  if (fields.workstream_id !== undefined) {
+    if (fields.workstream_id === null) patch.workstream_id = null;
+    else {
+      const wsId = Number(fields.workstream_id);
+      if (!task.project_id || !Number.isInteger(wsId) || wsId <= 0) return fail('invalid_workstream', 400);
+      const { ProjectWorkstream } = require('../../models');
+      const ws = await ProjectWorkstream.findOne({ where: { id: wsId, project_id: task.project_id, business_id: task.business_id }, attributes: ['id'] });
+      if (!ws) return fail('invalid_workstream', 400);
+      patch.workstream_id = wsId;
+    }
+  }
   const keys = Object.keys(patch);
   if (!keys.length) return fail('no_fields');
   const ctx = await fieldContext(task, subj.subjectId, subj.platformRole);
   const denied = deniedFields(keys, ctx);
   if (denied.length) return fail(`forbidden_fields:${denied.join(',')}`, 403);
   if (patch.body !== undefined && !canEditBodyInStatus(task.status)) return fail(`body_locked:${task.status}`, 409);
-  const before = { title: task.title, priority_level: task.priority_level, category: task.category, estimated_hours: task.estimated_hours };
+  const before = { title: task.title, priority_level: task.priority_level, category: task.category, estimated_hours: task.estimated_hours, workstream_id: task.workstream_id ?? null };
   const t = await sequelize.transaction();
   try {
     await task.update(patch, { transaction: t });

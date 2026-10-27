@@ -647,17 +647,19 @@ router.post('/ai-create/confirm', authenticateToken, async (req, res, next) => {
     // #353 ② — 후보의 workstream_hint(이름) → 실제 workstream_id. **이 프로젝트 것만** 대조한다.
     //   매칭은 보수적으로: 공백·대소문자만 무시한 정확 일치. 부분 일치를 허용하면 "리서치" 가
     //   "리서치 운영" 에 붙는 식으로 조용히 오배치된다 — 못 찾으면 미배치가 옳다(담당자 매칭과 같은 규칙).
+    // 이름 키는 한 벌 — AI 앱 create_workstream 의 같은 이름 재사용과 같은 함수(어긋나면 같은 그룹이 두 벌 생긴다).
+    const { normalizeWorkstreamTitle } = require('../services/actions/workstream_actions');
     const wsByName = new Map();
     if (project_id) {
       const { ProjectWorkstream } = require('../models');
       const wsRows = await ProjectWorkstream.findAll({ where: { project_id, business_id }, attributes: ['id', 'title'] });
       for (const w of wsRows) {
-        if (w.title) wsByName.set(String(w.title).replace(/\s+/g, '').toLowerCase(), w.id);
+        if (w.title) wsByName.set(normalizeWorkstreamTitle(w.title), w.id);
       }
     }
     const matchWorkstream = (hint) => {
       if (!hint || !wsByName.size) return null;
-      return wsByName.get(String(hint).replace(/\s+/g, '').toLowerCase()) || null;
+      return wsByName.get(normalizeWorkstreamTitle(hint)) || null;
     };
     // 사용자가 미리보기에서 **직접 고른** 그룹 id. 이름 힌트보다 우선한다 — 사람 > AI.
     //   ★ 2026-09-10 (Irene: "AI로 업무추가 하면서 그룹도 정의되어야지. 빠졌어.")
@@ -692,7 +694,7 @@ router.post('/ai-create/confirm', authenticateToken, async (req, res, next) => {
       let orderBase = await ProjectWorkstream.count({ where: { project_id, business_id } });
       for (const a of adopted) {
         const title = String(a.title).trim().slice(0, 200);
-        const key = title.replace(/\s+/g, '').toLowerCase();
+        const key = normalizeWorkstreamTitle(title);
         const areaIdx = Number.isInteger(a.idx) ? a.idx : null;
         // 이미 있는 영역이면 **재사용**한다. 여기가 정규화를 planner 와 같게 유지해야 하는 이유다 —
         //   어긋나면 "Research" 가 두 벌 생긴다.

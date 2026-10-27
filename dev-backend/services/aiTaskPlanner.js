@@ -462,7 +462,8 @@ const MAX_AREAS = 12;
 const MIN_ROUTINE_INSTRUCTION = 300;
 // 영역 이름 정규화 — confirm 의 워크스트림 매칭과 **같은 규칙**이어야 한다(공백 제거 + 소문자).
 //   여기와 저기가 다르면 "기존 영역 재사용" 이 어긋나 같은 이름 워크스트림이 중복 생성된다.
-function normAreaKey(s) { return String(s || '').replace(/\s+/g, '').toLowerCase(); }
+// 영역 이름 키 — 확정 라우트·AI 앱 create_workstream 과 한 벌(services/actions/workstream_actions).
+function normAreaKey(s) { return require('./actions/workstream_actions').normalizeWorkstreamTitle(s); }
 
 async function planTasksFromPrompt({ prompt, businessId, projectContext, members = [], workstreams = [], targetDate = null, todayLocal, language = 'ko', mode = null, instruction = null, instructions = null, baseCandidates = null, strategy = null, existingRecurring = null, baseAreas = null }) {
   if (!prompt || !String(prompt).trim()) {

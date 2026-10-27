@@ -72,6 +72,8 @@ const TOOLS = [
       project_id: z.number().int().positive().optional(),
       client_id: z.number().int().positive().optional(),
       priority: z.enum(['low', 'normal', 'high', 'urgent']).optional(),
+      workstream_id: z.number().int().positive().optional()
+        .describe('Group (workstream, 추진과제) inside the project to put the task in — needs project_id. Get ids from get_project (workstreams) or create_workstream.'),
       tag_names: z.array(z.string().trim().min(1).max(30)).max(10).optional()
         .describe('Names of tags that already exist in this workspace. Unknown names are rejected with the list of available tags — PlanQ does not create new tags from here.'),
       estimated_hours: z.number().min(0).max(1000).optional()
@@ -528,6 +530,19 @@ const TOOLS = [
     preview: (p, a) => proj.previewCreateProject(p, a),
     handler: (p, a, actor) => proj.createProject(p, a, actor),
   },
+  // 2026-10-27 (Fable 설계 PASS — docs/AGENT_WORKSTREAM_DESIGN.md) — 추진과제(그룹). 같은 프로젝트 안 묶음이라 보는 사람·알림 없음 → LOW.
+  //   만드는 것은 프로젝트 구조라 scope 는 projects:write(업무에 그룹 지정은 tasks:write 그대로). 삭제·이름 바꾸기는 두지 않는다.
+  {
+    name: 'create_workstream', risk: 'LOW', write: true, scopes: ['projects:write'],
+    description: 'Create a group (workstream, 추진과제 / 그룹) inside a project, to organize its tasks. If the project already has a group with the same name (spaces and case ignored), that group is returned instead of a duplicate (matched_existing). Only adds — never renames, deletes or moves anything, and notifies no one. Then put tasks in it with create_task or update_task (workstream_id). Existing groups are listed by get_project.',
+    input: {
+      project_id: z.number().int().positive(),
+      title: z.string().trim().min(1).max(200),
+      description: z.string().max(2000).optional().describe('Scope or goal of this group (optional)'),
+      idempotency_key: idem,
+    },
+    handler: (p, a, actor) => proj.createWorkstream(p, a, actor),
+  },
   {
     name: 'create_memo', risk: 'LOW', write: true, scopes: ['notes:write'],
     description: 'Save a private text memo in PlanQ Q note (title + body in Markdown), optionally linked to a project or client. Only the user can see it until they share it in PlanQ. Only adds. Write what the user said — do not add follow-ups, advice or items they did not mention.',
@@ -599,7 +614,7 @@ const TOOLS = [
   },
   {
     name: 'update_task', risk: 'LOW', write: true, scopes: ['tasks:write'],
-    description: 'Edit a task\'s title, description, result, priority, category, estimated hours or tags. Only the fields you pass change. Never deletes. Write description and body in Markdown. By default (mode "append") the text is ADDED to the end of the existing description/body; appending to an empty field simply sets it. Use mode "replace" only to overwrite — that requires confirmation (the first call returns a preview). The description (the request) can only be edited by the person who created the task. The body (the result / deliverable) can only be edited by the assignee, and only while the task is being worked on (it is locked during review and after the task is closed). Estimated hours only by the assignee. If you may not edit a field, add the content as a note with add_task_note instead. Tags must already exist in the workspace (the list replaces the task\'s tags). For dates use reschedule_task.',
+    description: 'Edit a task\'s title, description, result, priority, category, estimated hours, tags or group (workstream). Only the fields you pass change. Never deletes. Write description and body in Markdown. By default (mode "append") the text is ADDED to the end of the existing description/body; appending to an empty field simply sets it. Use mode "replace" only to overwrite — that requires confirmation (the first call returns a preview). The description (the request) can only be edited by the person who created the task. The body (the result / deliverable) can only be edited by the assignee, and only while the task is being worked on (it is locked during review and after the task is closed). Estimated hours only by the assignee. If you may not edit a field, add the content as a note with add_task_note instead. Tags must already exist in the workspace (the list replaces the task\'s tags). For dates use reschedule_task.',
     input: {
       task_id: z.number().int().positive(),
       title: z.string().trim().min(1).max(300).optional(),
@@ -610,6 +625,8 @@ const TOOLS = [
       category: z.string().trim().max(100).optional(),
       estimated_hours: z.number().min(0).max(1000).optional(),
       tag_names: z.array(z.string().trim().min(1).max(30)).max(10).optional().describe('The full new tag list (existing tag names only)'),
+      workstream_id: z.number().int().positive().nullable().optional()
+        .describe('Put the task in a group (workstream, 추진과제) of its own project (ids from get_project), or null to take it out of its group. Same project only — to change project use move_task_to_project.'),
       confirmation_token: confirm, idempotency_key: idem,
     },
     // 덮어쓰기만 MEDIUM — 칸이 비었는지는 riskOf 가 모른다(인자만 본다, 동기). 덧붙이기는 지울 것이 없어 LOW.

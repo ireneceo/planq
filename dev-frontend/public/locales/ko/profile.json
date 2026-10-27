@@ -402,7 +402,7 @@
     "ability": {
       "docs_write": "문서 만들기·고치기",
       "files_write": "대화 속 파일을 PlanQ 에 올리기",
-      "projects_write": "프로젝트 만들기"
+      "projects_write": "프로젝트·추진과제 만들기"
     }
   },
   "agentConsent": {

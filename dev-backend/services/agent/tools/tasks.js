@@ -297,6 +297,7 @@ async function createTask(p, a, actor) {
     projectId,
     clientId,
     priorityLevel: a.priority || null,
+    workstreamId: a.workstream_id != null ? a.workstream_id : null,   // 추진과제 — 행동 계층이 «그 프로젝트 것» 인지 본다
     createdVia: viaOf(p),
     ...(src && src.kind === 'mail' ? { emailThreadId: src.thread.id, sourceEmailMessageId: src.messageId } : {}),
     ...(src && src.kind === 'chat' ? { conversationId: src.conversation.id } : {}),
@@ -503,6 +504,7 @@ async function updateTask(p, a, actor) {
     description: a.description !== undefined ? markdownToHtml(a.description) : undefined,
     body: a.body !== undefined ? markdownToHtml(a.body) : undefined,
     priority_level: a.priority, category: a.category, estimated_hours: a.estimated_hours,
+    workstream_id: a.workstream_id,
   };
   const hasFields = Object.values(fields).some((v) => v !== undefined);
   if (!hasFields && a.tag_names === undefined) throw err('VALIDATION_ERROR', 'no_fields');
@@ -522,7 +524,7 @@ async function updateTask(p, a, actor) {
   const b = clip(fresh.body, DESC_MAX);
   return { task: { ...item, description: fresh.description ? d.text : null, description_total_chars: d.total,
     body: fresh.body ? b.text : null, body_total_chars: b.total, category: fresh.category || null,
-    estimated_hours: fresh.estimated_hours != null ? Number(fresh.estimated_hours) : null, tags: await tagNamesOf(p, t.id) } };
+    estimated_hours: fresh.estimated_hours != null ? Number(fresh.estimated_hours) : null, workstream_id: fresh.workstream_id ?? null, tags: await tagNamesOf(p, t.id) } };
 }
 
 /** update_task 미리보기 — 실행과 같은 권한 판정(FIELD_RULES)을 먼저 본다. 거절될 칸이면 카드 대신 이유. */
@@ -530,7 +532,7 @@ async function previewUpdateTask(p, a) {
   await assertMenu(p, 'qtask', 'read');
   const t = await loadTask(p, a.task_id, await scopeOf(p));
   const taskActions = require('../../actions/task_actions');
-  const keys = [['title', a.title], ['description', a.description], ['body', a.body], ['priority_level', a.priority], ['category', a.category], ['estimated_hours', a.estimated_hours]]
+  const keys = [['title', a.title], ['description', a.description], ['body', a.body], ['priority_level', a.priority], ['category', a.category], ['estimated_hours', a.estimated_hours], ['workstream_id', a.workstream_id]]
     .filter(([, v]) => v !== undefined).map(([k]) => k);
   const ctx = await taskActions.fieldContext(t, p.userId, p.platformRole);
   const denied = taskActions.deniedFields(keys, ctx);
@@ -544,8 +546,8 @@ async function previewUpdateTask(p, a) {
   const PREVIEW_MAX = 2000;
   const cut = (v) => { const c = clip(v || '', PREVIEW_MAX); return v ? c.text : null; };
   const before = { title: t.title, description: cut(t.description), body: cut(t.body), priority: t.priority_level || null, category: t.category || null,
-    estimated_hours: t.estimated_hours != null ? Number(t.estimated_hours) : null, tag_names: await tagNamesOf(p, t.id) };
-  const asked = ['title', 'description', 'body', 'priority', 'category', 'estimated_hours', 'tag_names'].filter((k) => a[k] !== undefined);
+    estimated_hours: t.estimated_hours != null ? Number(t.estimated_hours) : null, tag_names: await tagNamesOf(p, t.id), workstream_id: t.workstream_id ?? null };
+  const asked = ['title', 'description', 'body', 'priority', 'category', 'estimated_hours', 'tag_names', 'workstream_id'].filter((k) => a[k] !== undefined);
   const totals = {};
   if (a.description !== undefined) totals.description_total_chars = (t.description || '').length;
   if (a.body !== undefined) totals.body_total_chars = (t.body || '').length;

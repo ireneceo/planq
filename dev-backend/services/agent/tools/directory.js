@@ -196,6 +196,14 @@ async function getProject(p, a) {
     ? await Post.count({ where: { [Op.and]: [postListWhereByLevel(scope), { business_id: p.businessId }, { project_id: pr.id }] } }) : null;
   const files = (await menuOk(p, 'qfile'))
     ? await File.count({ where: { [Op.and]: [fileListWhereByLevel(scope), { business_id: p.businessId }, { project_id: pr.id }, { deleted_at: null }] } }) : null;
+  // 추진과제(그룹) — 업무 수는 볼 수 있는 업무만 센다(taskListWhere · 2026-10-27 Fable 설계).
+  const { ProjectWorkstream } = require('../../../models');
+  const wsRows = await ProjectWorkstream.findAll({ where: { project_id: pr.id, business_id: p.businessId }, attributes: ['id', 'title', 'status'], order: [['order_index', 'ASC'], ['id', 'ASC']], limit: 100 });
+  const wsCounts = new Map();
+  if (base && wsRows.length) {
+    const rows = await Task.findAll({ where: { [Op.and]: [base, { project_id: pr.id }, { workstream_id: wsRows.map((w) => w.id) }] }, attributes: ['workstream_id', [Task.sequelize.fn('COUNT', Task.sequelize.col('id')), 'n']], group: ['workstream_id'], raw: true });
+    for (const r of rows) wsCounts.set(Number(r.workstream_id), Number(r.n));
+  }
   const { mailThreadCount } = require('./mail');
   const d = clip(pr.description, DESC_MAX);
   return {
@@ -206,6 +214,7 @@ async function getProject(p, a) {
       truncated_fields: d.cut ? ['description'] : [],
     },
     clients: pcs.map((x) => ({ client_id: x.Client.id, name: x.Client.display_name || x.Client.company_name || null, contact_email: x.contact_email || x.Client.invite_email || null, url: `${cfg.APP_URL}/sale/${x.Client.id}` })),
+    workstreams: wsRows.map((w) => ({ workstream_id: w.id, title: w.title, status: w.status, task_count: wsCounts.get(w.id) || 0 })),
     stages: stages.map((st) => ({ kind: st.kind, label: st.label || null, status: st.status, expected_due_date: st.expected_due_date ? String(st.expected_due_date).slice(0, 10) : null })),
     counts: {
       open_tasks: openCount,

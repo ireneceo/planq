@@ -2170,13 +2170,9 @@ function serializeWorkstream(ws, tasks) {
 }
 
 // 캔버스 mutation 후 실시간 broadcast (canvas 페이지가 project:updated listen)
+//   신호 모양은 행동 계층 한 곳(workstream_actions.signalCanvas) — AI 의 create_workstream 도 같은 함수.
 function broadcastCanvas(req, project, reason) {
-  const io = req.app.get('io');
-  if (!io) return;
-  const payload = { id: project.id, business_id: project.business_id, actor_user_id: req.user.id };
-  require('../services/projectRoom').emitBusinessForProject(io, project.business_id, project.id, 'project:updated', payload).catch(() => {});
-  require('../services/projectRoom').emitProject(io, project.id, 'project:updated', payload);
-  io.to(`business:${project.business_id}`).emit('inbox:refresh', { reason, project_id: project.id });
+  require('../services/actions/workstream_actions').signalCanvas(req.app.get('io'), project, req.user.id, reason);
 }
 
 // GET /:id/canvas — 캔버스 집계 (1콜)
@@ -2483,25 +2479,17 @@ router.get('/:id/workstreams', authenticateToken, async (req, res, next) => {
 });
 
 // POST /:id/workstreams — 생성
-router.post('/:id/workstreams', authenticateToken, async (req, res, next) => {
+router.post('/:id/workstreams', authenticateToken, async (req, res, next) => { // audit-exempt: 감사는 행동 계층이 쓴다(project.workstream_create)
   try {
-    const { project, role, error } = await loadProjectOrForbidden(Number(req.params.id), req.user.id);
-    if (error) return errorResponse(res, error.message, error.code);
-    if (role === 'client') return errorResponse(res, 'member_only', 403);
+    // 규칙은 행동 계층 한 곳(services/actions/workstream_actions.createWorkstream) — AI 의 create_workstream 과 같은 함수.
+    //   화면은 이름이 같아도 항상 새로 만든다(dedupeByName 은 AI 경로만).
     const { title, description, color } = req.body || {};
-    if (!title || !String(title).trim()) return errorResponse(res, 'title_required', 400);
-    const max = await ProjectWorkstream.max('order_index', { where: { project_id: project.id } });
-    const ws = await ProjectWorkstream.create({
-      business_id: project.business_id, project_id: project.id,
-      title: String(title).trim().slice(0, 200),
-      description: description ? String(description) : null,
-      color: color || null,
-      order_index: (Number.isFinite(max) ? max : -1) + 1,
-      created_by: req.user.id,
+    const { createWorkstream } = require('../services/actions/workstream_actions');
+    const r = await createWorkstream({ kind: 'user', userId: req.user.id, platformRole: req.user.platform_role || null, req }, {
+      projectId: Number(req.params.id), title, description, color,
     });
-    logAudit(req, { action: 'project.workstream_create', targetType: 'project_workstream', targetId: ws.id, businessId: project.business_id, newValue: { project_id: project.id, title: ws.title } });
-    broadcastCanvas(req, project, 'workstream_new');
-    return successResponse(res, serializeWorkstream(ws, []));
+    if (!r.ok) return errorResponse(res, r.code, r.http || 400);
+    return successResponse(res, serializeWorkstream(r.data.workstream, []));
   } catch (err) { next(err); }
 });
 

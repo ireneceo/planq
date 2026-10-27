@@ -33,6 +33,7 @@ function taskItem(t) {
     assignee: person(j.assignee),
     requester: person(j.requester),
     project: j.Project ? { project_id: j.Project.id, name: j.Project.name } : null,
+    workstream_id: j.workstream_id ?? null,   // 추진과제(그룹) — 이름은 get_project 의 workstreams
     client: j.Client ? { client_id: j.Client.id, name: j.Client.display_name || j.Client.company_name || null } : null,
     updated_at: iso(j.updated_at || j.updatedAt),
     url: `${cfg.APP_URL}/tasks?task=${j.id}`,

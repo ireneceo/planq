@@ -402,7 +402,7 @@
     "ability": {
       "docs_write": "create and edit documents",
       "files_write": "upload files from the chat to PlanQ",
-      "projects_write": "create projects"
+      "projects_write": "create projects and workstreams"
     }
   },
   "agentConsent": {

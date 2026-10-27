@@ -115,4 +115,27 @@ async function createProject(p, a, actor) {
   };
 }
 
-module.exports = { previewCreateProject, createProject };
+// ── 추진과제(그룹) 만들기 (2026-10-27 Fable 설계 PASS — docs/AGENT_WORKSTREAM_DESIGN.md) ──
+//   규칙은 행동 계층 workstream_actions.createWorkstream 한 곳(화면 POST /projects/:id/workstreams 도).
+//   워크스페이스 묶음(businessId) · 같은 이름이면 있는 그룹을 돌려준다(dedupeByName — 나눠 올려도 두 벌 안 생긴다).
+async function createWorkstream(p, a, actor) {
+  await assertMenu(p, 'qtask', 'write');
+  const actions = require('../../actions/workstream_actions');
+  const r = await actions.createWorkstream(actor, {
+    businessId: p.businessId, projectId: a.project_id,
+    title: a.title, description: a.description || null, dedupeByName: true,
+  });
+  if (!r.ok) {
+    if (r.code === 'not_project_member' || r.code === 'member_only') throw err('PERMISSION_DENIED', r.code);
+    throw fromActionFailure(r);
+  }
+  const ws = r.data.workstream;
+  return {
+    workstream: { workstream_id: ws.id, title: ws.title, status: ws.status, project_id: r.data.project.id, project_name: r.data.project.name },
+    created: r.data.created,
+    ...(r.data.matched ? { matched_existing: true, note: 'A group with this name already exists in the project — returned it instead of creating a duplicate.' } : {}),
+    url: `${cfg.APP_URL}/projects/p/${r.data.project.id}`,
+  };
+}
+
+module.exports = { previewCreateProject, createProject, createWorkstream };

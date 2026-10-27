@@ -33,7 +33,7 @@ const ALL_SCOPES = [...BUNDLE_SCOPES, ...OPT_IN_SCOPES];
 const SCOPE_ABILITIES = {
   'docs:write': { since: '2026-10-05', en: 'create and edit documents in Q docs' },
   'files:write': { since: '2026-10-05', en: 'upload files from the chat to PlanQ' },
-  'projects:write': { since: '2026-10-07', en: 'create projects' },
+  'projects:write': { since: '2026-10-07', en: 'create projects and their groups (workstreams)' },
 };
 
 // provider adapter — **인증 모양과 메타만** 다르다. 툴·정책은 services/agent 레지스트리 한 벌.

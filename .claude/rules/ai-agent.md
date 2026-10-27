@@ -40,6 +40,7 @@ paths:
   `estimated_hours`(담당자=본인일 때만). 프로젝트 생성은 **`services/actions/project_actions` 한 곳**(화면 `POST /api/projects` 도), Q info 생성은
   **`services/actions/kb_actions` 한 곳**(화면 라우트도 — 입력 정규화 헬퍼는 `services/kbFields`). MEDIUM 의 멱등 키는 확인 토큰 **+ 인자 지문**이다
   (쓴 토큰을 다른 인자로 보내면 앞 결과를 «replayed» 로 돌려주던 구멍을 막았다).
+- **추진과제(그룹)(2026-10-27, Fable 설계 PASS — `docs/AGENT_WORKSTREAM_DESIGN.md`)** — `create_workstream`(LOW · `projects:write` · 같은 이름이면 있는 그룹 반환) · `create_task`/`update_task` 의 `workstream_id`(같은 프로젝트만, null=빼기) · `get_project.workstreams`(업무 수는 `taskListWhere`). 만들기는 **`services/actions/workstream_actions` 한 곳**(화면 POST 도) — `loadProjectOrForbidden` 은 findByPk 라 **토큰 워크스페이스 묶음(`businessId`)을 꼭 준다**(같은 사람이 두 워크스페이스 멤버일 때 실측). 이름 키는 `normalizeWorkstreamTitle` 한 벌(AI 업무추가·루틴 확정도).
 - **HIGH(삭제·청구·발송·권한·대량)는 도구로 두지 않는다** — 가드 `--category=agentsurface` 가 막는다(도메인 모델 직접 쓰기 0 · 재무 참조 0 · 고위험 이름 0 · 쓰기 도구 scope·멱등 선언 · 워크스페이스 묶음).
 - **켜는 스위치**: `.env` `AGENT_ENABLED=1` + `AGENT_TOKEN_SECRET`(JWT_SECRET 과 **다른 값**, 32자 이상). 없으면 `/agent/*` 404. **쓰기 도구는 `AGENT_WRITE_ENABLED=1` 이 있어야 켜진다**(기본 꺼짐 — `config.writeEnabled`). 2026-10-04 운영에 셋 다 넣었다.
 - **nginx**: `location /agent/` · `location /.well-known/oauth-` → `127.0.0.1:3005`. 운영 스키마 `scripts/migrate-agent-oauth.js`(멱등, 배포 슬롯).
