@@ -57,7 +57,7 @@ const TOOLS = [
   },
   {
     name: 'get_task', risk: 'LOW', write: false, scopes: ['tasks:read'],
-    description: 'Get one task by task_id: full description, attachments (names only), where it came from (mail or chat), related tasks and the latest notes. Read-only.',
+    description: 'Get one task by task_id: full description (the request) and body (the result) as Markdown (description_format), attachments (names only), where it came from (mail or chat), related tasks and the latest notes. To edit, change this Markdown and send it back with update_task. description_lossy/body_lossy = the field has formatting Markdown cannot carry (e.g. tables), so it cannot be replaced. Read-only.',
     input: { task_id: z.number().int().positive() },
     handler: (p, a) => t.getTask(p, a),
   },
@@ -614,13 +614,13 @@ const TOOLS = [
   },
   {
     name: 'update_task', risk: 'LOW', write: true, scopes: ['tasks:write'],
-    description: 'Edit a task\'s title, description, result, priority, category, estimated hours, tags or group (workstream). Only the fields you pass change. Never deletes. Write description and body in Markdown. By default (mode "append") the text is ADDED to the end of the existing description/body; appending to an empty field simply sets it. Use mode "replace" only to overwrite — that requires confirmation (the first call returns a preview). The description (the request) can only be edited by the person who created the task. The body (the result / deliverable) can only be edited by the assignee, and only while the task is being worked on (it is locked during review and after the task is closed). Estimated hours only by the assignee. If you may not edit a field, add the content as a note with add_task_note instead. Tags must already exist in the workspace (the list replaces the task\'s tags). For dates use reschedule_task.',
+    description: 'Edit a task\'s title, description, result, priority, category, estimated hours, tags or group (workstream). Only the fields you pass change. description and body REPLACE the whole field with what you send: take the Markdown from get_task, edit it (delete, change or keep lines) and send the complete new text back — repeating the same call gives the same result. An empty string clears the field. Changing description or body requires confirmation (the first call returns a preview of what is replaced and which lines are removed). Send Markdown only — HTML is refused. To add to the end without replacing, use append_to_task. If get_task marked the field description_lossy/body_lossy (formatting Markdown cannot carry) or it was truncated, it cannot be replaced — use append_to_task or ask the user to edit it in PlanQ. The description (the request) can only be edited by the person who created the task. The body (the result / deliverable) can only be edited by the assignee, and only while the task is being worked on (it is locked during review and after the task is closed). Estimated hours only by the assignee. If you may not edit a field, add the content as a note with add_task_note instead. Tags must already exist in the workspace (the list replaces the task\'s tags). For dates use reschedule_task.',
     input: {
       task_id: z.number().int().positive(),
       title: z.string().trim().min(1).max(300).optional(),
-      description: z.string().max(20000).optional().describe('The request, in Markdown (creator only). Max 20000 characters.'),
-      body: z.string().max(20000).optional().describe('The result / deliverable, in Markdown (assignee only). Max 20000 characters.'),
-      mode: z.enum(['append', 'replace']).optional().describe('How description/body are written: "append" (default) adds to the end; "replace" overwrites and needs confirmation.'),
+      description: z.string().max(20000).optional().describe('The complete new request, in Markdown (creator only) — replaces the whole description. "" clears it. Max 20000 characters.'),
+      body: z.string().max(20000).optional().describe('The complete new result / deliverable, in Markdown (assignee only) — replaces the whole body. "" clears it. Max 20000 characters.'),
+      mode: z.enum(['append', 'replace']).optional().describe('Deprecated. description/body always replace; "append" is refused — use append_to_task.'),
       priority: z.enum(['low', 'normal', 'high', 'urgent']).optional(),
       category: z.string().trim().max(100).optional(),
       estimated_hours: z.number().min(0).max(1000).optional(),
@@ -629,10 +629,22 @@ const TOOLS = [
         .describe('Put the task in a group (workstream, 추진과제) of its own project (ids from get_project), or null to take it out of its group. Same project only — to change project use move_task_to_project.'),
       confirmation_token: confirm, idempotency_key: idem,
     },
-    // 덮어쓰기만 MEDIUM — 칸이 비었는지는 riskOf 가 모른다(인자만 본다, 동기). 덧붙이기는 지울 것이 없어 LOW.
-    riskOf: (a) => (a.mode === 'replace' && (a.description !== undefined || a.body !== undefined) ? 'MEDIUM' : 'LOW'),
+    // 설명·결과물은 늘 교체라 MEDIUM(2026-10-27 Fable — 업무엔 버전 이력이 없다, 옛 원문은 감사에 남긴다). 칸이 비었는지는 riskOf 가 모른다(인자만 본다, 동기).
+    riskOf: (a) => (a.description !== undefined || a.body !== undefined ? 'MEDIUM' : 'LOW'),
     preview: (p, a) => t.previewUpdateTask(p, a),
     handler: (p, a, actor) => t.updateTask(p, a, actor),
+  },
+  // 덧붙이기 — update_task 에서 뗐다(2026-10-27 Fable, Q docs append_to_document 와 같은 모양). 지우는 것이 없어 LOW.
+  {
+    name: 'append_to_task', risk: 'LOW', write: true, scopes: ['tasks:write'],
+    description: 'Add content (Markdown) to the END of a task\'s description (the request — creator only) and/or body (the result — assignee only, and only while the task is being worked on). Never removes or changes what is there. If the field already ends with exactly this content it is not added again (skipped_duplicate). Send Markdown only — HTML is refused. To change or delete existing text, use update_task. If you may not edit a field, add the content as a note with add_task_note instead.',
+    input: {
+      task_id: z.number().int().positive(),
+      description: z.string().min(1).max(20000).optional().describe('Markdown to add to the end of the description'),
+      body: z.string().min(1).max(20000).optional().describe('Markdown to add to the end of the result / deliverable'),
+      idempotency_key: idem,
+    },
+    handler: (p, a, actor) => t.appendToTask(p, a, actor),
   },
 ];
 

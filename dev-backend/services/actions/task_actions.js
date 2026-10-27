@@ -283,7 +283,8 @@ async function reassign(task, actor, { assigneeId } = {}) {
  * 제목·설명·결과물·중요도 수정 — PUT 과 같은 책임선(제목=작성자·담당자·owner/admin · 설명=**작성자만** ·
  *   결과물=**담당자만** · 중요도=제목과 같은 집합). 지금 부르는 곳은 AI 도구 update_task 하나다.
  *   결과물은 PUT 과 같은 잠금(편집 상태에서만 — canEditBodyInStatus)을 본다. 버전 박제는 명시 동작이라 여기서 하지 않는다.
- *   fields.mode — 'replace'(기본 · PUT 과 같은 뜻) | 'append'(설명·결과물 끝에 덧붙인다 · 옛 평문은 HTML 로 바꾼 뒤 잇는다).
+ *   fields.mode — 'replace'(기본 · PUT 과 같은 뜻) | 'append'(설명·결과물 끝에 덧붙인다 · 옛 평문은 HTML 로 바꾼 뒤 잇는다 ·
+ *   끝이 이미 같은 내용이면 건너뛰고 skipped_duplicate 에 칸 이름). 빈 값('' · null) = 비움(null 저장).
  *   설명·결과물 값은 **HTML** 로 받는다(마크다운 변환은 도구 쪽 — services/agent/markdown).
  */
 async function updateFields(task, actor, fields = {}) {
@@ -297,18 +298,25 @@ async function updateFields(task, actor, fields = {}) {
   }
   const mode = fields.mode === 'append' ? 'append' : 'replace';
   const { plainToHtml } = require('../agent/markdown');
-  const merged = (prev, next) => {
-    if (next === null) return null;
+  // 덧붙이기 중복 건너뛰기(2026-10-27 Fable) — 칸 끝이 이미 같은 내용이면 다시 붙이지 않는다(AI 재시도·같은 요청 반복).
+  const squash = (h) => String(h || '').replace(/\s+/g, ' ').trim();
+  const skipped = [];
+  const merged = (key, prev, next) => {
+    if (next === null || next === '') return null;   // 빈 값 = 비움(<p></p> 를 남기지 않는다)
     if (mode !== 'append') return String(next);
     const before = plainToHtml(prev || '').trim();
-    return (before && before !== '<p></p>') ? before + String(next) : String(next);
+    if (!before || before === '<p></p>') return String(next);
+    if (squash(before).endsWith(squash(next))) { skipped.push(key); return undefined; }
+    return before + String(next);
   };
   if (fields.description !== undefined) {
-    patch.description = merged(task.description, fields.description);
+    const v = merged('description', task.description, fields.description);
+    if (v !== undefined) patch.description = v;
     if (descriptionTooLong(patch.description)) return fail('description_too_long', 400);
   }
   if (fields.body !== undefined) {
-    patch.body = merged(task.body, fields.body);
+    const v = merged('body', task.body, fields.body);
+    if (v !== undefined) patch.body = v;
     if (patch.body != null && patch.body.length > BODY_MAX_CHARS) return fail('body_too_long', 400);
   }
   if (fields.priority_level !== undefined) {
@@ -336,12 +344,17 @@ async function updateFields(task, actor, fields = {}) {
     }
   }
   const keys = Object.keys(patch);
-  if (!keys.length) return fail('no_fields');
+  if (!keys.length && !skipped.length) return fail('no_fields');
+  // 권한·잠금은 건너뛴 칸까지 본다 — 못 쓰는 사람에게 «이미 있음» 으로 답하지 않는다
   const ctx = await fieldContext(task, subj.subjectId, subj.platformRole);
-  const denied = deniedFields(keys, ctx);
+  const denied = deniedFields([...keys, ...skipped], ctx);
   if (denied.length) return fail(`forbidden_fields:${denied.join(',')}`, 403);
-  if (patch.body !== undefined && !canEditBodyInStatus(task.status)) return fail(`body_locked:${task.status}`, 409);
+  if ((patch.body !== undefined || skipped.includes('body')) && !canEditBodyInStatus(task.status)) return fail(`body_locked:${task.status}`, 409);
+  if (!keys.length) return done({ task, changed: false, skipped_duplicate: skipped });
   const before = { title: task.title, priority_level: task.priority_level, category: task.category, estimated_hours: task.estimated_hours, workstream_id: task.workstream_id ?? null };
+  // 설명·결과물의 옛 원문을 감사에 통째로 남긴다 — 업무엔 버전 이력이 없어 교체·비움의 유일한 복구 경로다(Fable 2026-10-27, 자르지 않는다)
+  if (patch.description !== undefined) before.description = task.description ?? null;
+  if (patch.body !== undefined) before.body = task.body ?? null;
   const t = await sequelize.transaction();
   try {
     await task.update(patch, { transaction: t });
@@ -361,7 +374,7 @@ async function updateFields(task, actor, fields = {}) {
     action: 'task.update_fields', targetType: 'task', targetId: task.id, businessId: task.business_id,
     oldValue: before, newValue: { fields: keys, mode },
   });
-  return done({ task, changed: true });
+  return done({ task, changed: true, skipped_duplicate: skipped });
 }
 
 // ─────────────────────────────────────────────

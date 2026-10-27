@@ -27,7 +27,8 @@ async function scopeOf(p) {
 // 메뉴 Layer — 화면에서 안 보이는 메뉴를 AI 로 보면 안 된다(설계 §5.5). 판정은 services/agent/menu 한 벌.
 const { assertMenu } = require('../menu');
 const { parsePage, pageOf, clip } = require('../page');
-const { markdownToHtml } = require('../markdown');
+const { plainToHtml } = require('../markdown');
+const tmd = require('../taskMarkdown');
 const cfg = require('../../agent_oauth/config');
 
 const TASK_INCLUDE = () => {
@@ -170,7 +171,53 @@ async function searchTasks(p, a) {
 
 // ── get_task ────────────────────────────────────────────────
 //   M3-a(설계 §4.3) — 설명 전체(≤8,000 + truncated) · 첨부 메타 · 출처(메일·채팅) · 관련 업무 · 최근 메모 3 + 더 있나.
-const DESC_MAX = 8000;
+//   2026-10-27 Fable — 설명·결과물은 **Markdown** 으로 준다(쓰기와 같은 문법). 쓰기 한도(20000자)까지 자르지 않는다:
+//   잘린 것을 고쳐 교체하면 뒷부분이 소리 없이 사라진다. 더 긴 칸은 잘라 주고 교체를 거절한다(too_long_to_replace_use_app).
+const FIELD_MD_MAX = 20000;
+
+/** 업무 칸(HTML·옛 평문) → AI 에게 줄 Markdown + 못 옮긴 서식(lossy). 조회·수정·덧붙이기 응답이 같은 함수. */
+function fieldMd(html) {
+  if (!html) return { markdown: '', lossy: [] };
+  return tmd.fromHtml(plainToHtml(html));
+}
+/** 응답 칸 묶음 — { <key>, <key>_total_chars, <key>_lossy, <key>_lossy_reasons? } + description_format */
+function fieldsOut(t, keys) {
+  const out = { description_format: 'markdown' };
+  const truncated = [];
+  for (const k of keys) {
+    const { markdown, lossy } = fieldMd(t[k]);
+    const c = clip(markdown, FIELD_MD_MAX);
+    out[k] = markdown ? c.text : null;
+    out[`${k}_total_chars`] = c.total;
+    out[`${k}_lossy`] = lossy.length > 0;
+    if (lossy.length) out[`${k}_lossy_reasons`] = lossy;
+    if (c.cut) truncated.push(k);
+  }
+  return { out, truncated };
+}
+
+/** 쓰기 입력 공통 검사 — 원시 HTML 은 받지 않는다(update_task·append_to_task·create_task 한 함수). */
+function assertMarkdownInput(a, keys) {
+  for (const k of keys) {
+    if (a[k] !== undefined && a[k] !== null && tmd.looksLikeHtml(a[k])) {
+      throw err('VALIDATION_ERROR', 'html_not_accepted', { field: k, hint: `Send ${k} as Markdown (the format get_task returns), not HTML. Tags like <p> or <ul> would be saved as literal text. To write a literal "<", escape it as "\\<" or put it in \`code\`.` });
+    }
+  }
+}
+
+/** 교체 전 판정 — 실행·미리보기 같은 함수. 못 본 서식(lossy)·잘려서 다 못 본 칸은 교체하지 않는다. */
+function assertReplaceable(t, a) {
+  for (const k of ['description', 'body']) {
+    if (a[k] === undefined || !t[k]) continue;
+    const { markdown, lossy } = fieldMd(t[k]);
+    if (markdown.length > FIELD_MD_MAX) {
+      throw err('CONFLICT', 'too_long_to_replace_use_app', { field: k, hint: `This ${k} is longer than ${FIELD_MD_MAX} characters, so you could not have seen all of it. Nothing was changed. Use append_to_task to add, or ask the user to edit it in PlanQ.` });
+    }
+    if (lossy.length) {
+      throw err('CONFLICT', 'lossy_use_append_or_app', { field: k, lossy_reasons: lossy, hint: `This ${k} has formatting that Markdown cannot carry (${lossy.join(', ')}), so replacing it would erase that. Nothing was changed. Use append_to_task to add, or ask the user to edit it in PlanQ.` });
+    }
+  }
+}
 
 async function taskExtras(p, t, scope) {
   const { TaskAttachment, TaskLink, Task } = require('../../../models');
@@ -207,14 +254,13 @@ async function getTask(p, a) {
   const t = await loadTask(p, a.task_id, scope);
   const [item] = await shapeTasks([t], p.businessId);
   const notes = await listNotes(p, t, 3);
-  const d = clip(t.description, DESC_MAX);
+  const f = fieldsOut(t, ['description', 'body']);
   const extras = await taskExtras(p, t, scope);
   return {
     task: {
       ...item,
-      description: t.description ? d.text : null,
-      description_total_chars: d.total,
-      truncated_fields: d.cut ? ['description'] : [],
+      ...f.out,
+      truncated_fields: f.truncated,
       ...extras,
     },
     recent_notes: notes.items,
@@ -245,6 +291,7 @@ async function checkNewTaskReviewers(p, a) {
 
 /** create_task 미리보기 — 컨펌자가 있을 때만 MEDIUM(riskOf). 없는 태그는 카드 전에 거절한다(실행에서야 막히면 카드가 거짓말이 된다). */
 async function previewCreateTask(p, a) {
+  assertMarkdownInput(a, ['description']);
   if ((a.tag_names || []).length) await resolveTagNames(p, a.tag_names);
   if (!(a.reviewer_user_ids || []).length) return null;
   await assertMenu(p, 'qtask', 'write');
@@ -258,6 +305,7 @@ async function previewCreateTask(p, a) {
 }
 
 async function createTask(p, a, actor) {
+  assertMarkdownInput(a, ['description']);
   if (!validDate(a.due_date) || !validDate(a.start_date)) throw err('VALIDATION_ERROR', 'invalid_date', { fields: { due_date: a.due_date, start_date: a.start_date } });
   if (a.start_date && a.due_date && a.start_date > a.due_date) throw err('VALIDATION_ERROR', 'start_after_due');
   // M3-c 출처(설계 §6) — 읽을 수 있는 메일·채팅만 붙인다(services/agent/tools/sources). 메일이면 그 스레드에 PlanQ 가 건
@@ -290,7 +338,7 @@ async function createTask(p, a, actor) {
     title: a.title,
     estimatedHours: a.estimated_hours !== undefined ? a.estimated_hours : null,
     tagIds,
-    description: a.description ? markdownToHtml(a.description) : null,   // 업무 칸은 HTML — 마크다운을 서식으로(원시 HTML 은 글자 그대로)
+    description: a.description ? (tmd.toHtml(a.description) || null) : null,   // 업무 칸은 HTML — get_task 와 같은 Markdown 문법(원시 HTML 은 위에서 거절)
     dueDate: a.due_date || null,
     startDate: a.start_date || null,
     assigneeId,
@@ -494,24 +542,36 @@ async function assignTask(p, a, actor) {
   return { task: item, changed: r.data.changed };
 }
 
+// 2026-10-27 Fable 설계 — update_task 의 설명·결과물은 **항상 교체**(MEDIUM 확인 2단계), 덧붙이기는 append_to_task.
+//   옛 호출의 mode:'append' 는 조용히 교체로 바꾸지 않고 거절한다(무시하면 덧붙이려던 호출이 내용을 지운다).
+function assertNoAppendMode(a) {
+  if (a.mode === 'append') {
+    throw err('VALIDATION_ERROR', 'use_append_to_task', { hint: 'update_task now always replaces description/body with what you send. To add to the end without replacing, call append_to_task. Nothing was changed.' });
+  }
+}
+// 빈 문자열(공백뿐) = 칸 비우기 → null. 그 밖은 Markdown → HTML
+const mdToField = (v) => (v === undefined ? undefined : (String(v).trim() ? (tmd.toHtml(v) || null) : null));
+
 async function updateTask(p, a, actor) {
   await assertMenu(p, 'qtask', 'write');
+  assertNoAppendMode(a);
+  assertMarkdownInput(a, ['description', 'body']);
   const t = await loadTask(p, a.task_id, await scopeOf(p));
+  assertReplaceable(t, a);
   const taskActions = require('../../actions/task_actions');
-  // 설명·결과물은 마크다운 → HTML(업무 칸 저장 형식). 기본은 덧붙이기 — 덮어쓰기는 MEDIUM(확인 2단계)을 거쳐 온다.
   const fields = {
     title: a.title,
-    description: a.description !== undefined ? markdownToHtml(a.description) : undefined,
-    body: a.body !== undefined ? markdownToHtml(a.body) : undefined,
+    description: mdToField(a.description),
+    body: mdToField(a.body),
     priority_level: a.priority, category: a.category, estimated_hours: a.estimated_hours,
     workstream_id: a.workstream_id,
   };
-  const hasFields = Object.values(fields).some((v) => v !== undefined);
+  const hasFields = Object.entries(fields).some(([k, v]) => v !== undefined || (['description', 'body'].includes(k) && a[k] !== undefined));
   if (!hasFields && a.tag_names === undefined) throw err('VALIDATION_ERROR', 'no_fields');
   // 태그 — 있는 것만(만들지 않는다). 칸 수정과 태그 수정은 각자의 행동 계층 함수(화면도 두 요청이다).
   const tagIds = a.tag_names !== undefined ? await resolveTagNames(p, a.tag_names) : undefined;
   if (hasFields) {
-    const r = await taskActions.updateFields(t, actor, { ...fields, mode: a.mode || 'append' });
+    const r = await taskActions.updateFields(t, actor, { ...fields, mode: 'replace' });
     if (!r.ok) throw fromActionFailure(r);
   }
   if (tagIds !== undefined) {
@@ -520,16 +580,16 @@ async function updateTask(p, a, actor) {
   }
   const fresh = await loadTask(p, t.id, await scopeOf(p));
   const [item] = await shapeTasks([fresh], p.businessId);
-  const d = clip(fresh.description, DESC_MAX);
-  const b = clip(fresh.body, DESC_MAX);
-  return { task: { ...item, description: fresh.description ? d.text : null, description_total_chars: d.total,
-    body: fresh.body ? b.text : null, body_total_chars: b.total, category: fresh.category || null,
+  const f = fieldsOut(fresh, ['description', 'body']);
+  return { task: { ...item, ...f.out, truncated_fields: f.truncated, category: fresh.category || null,
     estimated_hours: fresh.estimated_hours != null ? Number(fresh.estimated_hours) : null, workstream_id: fresh.workstream_id ?? null, tags: await tagNamesOf(p, t.id) } };
 }
 
-/** update_task 미리보기 — 실행과 같은 권한 판정(FIELD_RULES)을 먼저 본다. 거절될 칸이면 카드 대신 이유. */
+/** update_task 미리보기 — 실행과 같은 권한 판정(FIELD_RULES)·형식·교체 가능 판정을 먼저 본다. 거절될 칸이면 카드 대신 이유. */
 async function previewUpdateTask(p, a) {
   await assertMenu(p, 'qtask', 'read');
+  assertNoAppendMode(a);
+  assertMarkdownInput(a, ['description', 'body']);
   const t = await loadTask(p, a.task_id, await scopeOf(p));
   const taskActions = require('../../actions/task_actions');
   const keys = [['title', a.title], ['description', a.description], ['body', a.body], ['priority_level', a.priority], ['category', a.category], ['estimated_hours', a.estimated_hours], ['workstream_id', a.workstream_id]]
@@ -539,20 +599,55 @@ async function previewUpdateTask(p, a) {
   if (denied.length) throw forbiddenFieldsError(`forbidden_fields:${denied.join(',')}`);
   // 결과물 잠금도 실행과 같은 판정 — 실패할 요청에 확인 토큰을 내주지 않는다
   if (a.body !== undefined && !require('../../taskTransition').canEditBodyInStatus(t.status)) throw bodyLockedError(`body_locked:${t.status}`);
+  assertReplaceable(t, a);
   if (a.tag_names !== undefined) {
     if (!(ctx.isCreator || ctx.isAssignee || ctx.isOwnerOrAdmin)) throw err('PERMISSION_DENIED', 'forbidden_field_tags');
     await resolveTagNames(p, a.tag_names);
   }
   const PREVIEW_MAX = 2000;
   const cut = (v) => { const c = clip(v || '', PREVIEW_MAX); return v ? c.text : null; };
-  const before = { title: t.title, description: cut(t.description), body: cut(t.body), priority: t.priority_level || null, category: t.category || null,
+  const md = { description: fieldMd(t.description).markdown, body: fieldMd(t.body).markdown };
+  const before = { title: t.title, description: cut(md.description), body: cut(md.body), priority: t.priority_level || null, category: t.category || null,
     estimated_hours: t.estimated_hours != null ? Number(t.estimated_hours) : null, tag_names: await tagNamesOf(p, t.id), workstream_id: t.workstream_id ?? null };
   const asked = ['title', 'description', 'body', 'priority', 'category', 'estimated_hours', 'tag_names', 'workstream_id'].filter((k) => a[k] !== undefined);
-  const totals = {};
-  if (a.description !== undefined) totals.description_total_chars = (t.description || '').length;
-  if (a.body !== undefined) totals.body_total_chars = (t.body || '').length;
-  return { task: { task_id: t.id, title: t.title }, mode: a.mode || 'append',
-    before: { ...Object.fromEntries(asked.map((k) => [k, before[k]])), ...totals }, after: Object.fromEntries(asked.map((k) => [k, a[k]])) };
+  // 교체로 잃는 것 — 전·후 글자 수와 «사라지는 줄»(Fable: 미리보기에 잃는 내용이 보여야 한다)
+  const changes = {};
+  for (const k of ['description', 'body']) {
+    if (a[k] === undefined) continue;
+    const after = mdToField(a[k]) ? fieldMd(mdToField(a[k])).markdown : '';
+    const keep = new Set(after.split('\n').map((l) => l.trim()).filter(Boolean));
+    const removed = md[k].split('\n').map((l) => l.trim()).filter((l) => l && !keep.has(l));
+    changes[k] = { before_total_chars: md[k].length, after_total_chars: after.length, clears_field: !after && !!md[k],
+      lines_removed: removed.slice(0, 30).map((l) => clip(l, 200).text), lines_removed_count: removed.length };
+  }
+  return { task: { task_id: t.id, title: t.title }, mode: 'replace', description_format: 'markdown',
+    before: Object.fromEntries(asked.map((k) => [k, before[k]])), after: Object.fromEntries(asked.map((k) => [k, a[k]])),
+    ...(Object.keys(changes).length ? { replaces: changes } : {}) };
+}
+
+// ── append_to_task (LOW, 2026-10-27 Fable) — 설명·결과물 끝에 덧붙이기. 지우는 것이 없다.
+//   권한·잠금은 행동 계층 updateFields 한 곳(설명=작성자 · 결과물=담당자+편집 상태). 끝이 이미 같은 내용이면 건너뛴다.
+async function appendToTask(p, a, actor) {
+  await assertMenu(p, 'qtask', 'write');
+  if (a.description === undefined && a.body === undefined) throw err('VALIDATION_ERROR', 'no_fields');
+  assertMarkdownInput(a, ['description', 'body']);
+  const fields = {};
+  for (const k of ['description', 'body']) {
+    if (a[k] === undefined) continue;
+    const html = String(a[k]).trim() ? tmd.toHtml(a[k]) : '';
+    if (!html) throw err('VALIDATION_ERROR', 'empty_content', { field: k, hint: 'append_to_task needs some content. To clear a field, call update_task with an empty string.' });
+    fields[k] = html;
+  }
+  const t = await loadTask(p, a.task_id, await scopeOf(p));
+  const taskActions = require('../../actions/task_actions');
+  const r = await taskActions.updateFields(t, actor, { ...fields, mode: 'append' });
+  if (!r.ok) throw fromActionFailure(r);
+  const fresh = await loadTask(p, t.id, await scopeOf(p));
+  const [item] = await shapeTasks([fresh], p.businessId);
+  const f = fieldsOut(fresh, Object.keys(fields));
+  const skipped = r.data.skipped_duplicate || [];
+  return { task: { ...item, ...f.out, truncated_fields: f.truncated }, appended: Object.keys(fields).filter((k) => !skipped.includes(k)),
+    ...(skipped.length ? { skipped_duplicate: true, skipped_fields: skipped, note: 'The end of the field already had this exact content, so it was not added again.' } : {}) };
 }
 
 // ── submit_review (MEDIUM — Cue 의 «검토 요청 보내줘», 2026-10-12) — 행동 계층 submitReview(담당자만·컨펌자 필요) ──
@@ -677,6 +772,6 @@ module.exports = {
   loadTaskForSource,
   dateOnly, getContext, searchTasks, getTask, createTask, getTaskNotes, addTaskNote, validDate,
   previewReschedule, rescheduleTask, previewComplete, completeTask,
-  previewAssign, assignTask, updateTask, previewUpdateTask, previewSubmitReview, submitReviewTool, memberName, previewMoveTask, moveTask,
+  previewAssign, assignTask, updateTask, previewUpdateTask, appendToTask, previewSubmitReview, submitReviewTool, memberName, previewMoveTask, moveTask,
   previewAddReviewers, addReviewers, previewCreateTask,
 };

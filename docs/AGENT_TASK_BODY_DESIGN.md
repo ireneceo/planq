@@ -36,3 +36,29 @@
 ① 담당자(비작성자) body → 성공·h2/목록 ② description → 거절+hint ③ 비담당자 body → 거절 ④ 덧붙이기 2번 순서대로 ⑤ 검토 중 실행·replace 미리보기 모두 CONFLICT(토큰 없음) · 보류 중 허용
 ⑥ 20001자 → VALIDATION_ERROR · 한글 2만 자 → description_too_long ⑦ replace 토큰 없음 → 미리보기(mode·전체 글자 수) · 토큰 → 덮어씀 · mode 없는 호출 → 덧붙임 ⑧ 옛 평문 줄바꿈 보존
 ⑨ `<script>`·javascript: 링크 → 글자 그대로 ⑩ 감사 mode 있음(판정 정규식이 띄어쓰기를 몰라 FAIL 로 찍힘 — 값 확인) · 잠금 대조군(검사 빼면 써짐 → 복원하면 거절) · 가드 76/77 · health-check 89/89.
+
+---
+
+## 2026-10-27 개정 — 설명·결과물 «교체 / 덧붙이기» 분리 + 조회 Markdown 통일 (Fable 설계 GO-WITH-CHANGES → 구현)
+
+> Irene: «추진과제 업무로 추가하면 생긴 이 내용들 다 지워야 해. 업무들에 이상하게 들어가. 이건 챗지피티가 수정요청 준거야.»
+> 증상: update_task 로 고친 설명을 보내면 교체 안 되고 뒤에 붙음 · get_task 가 준 HTML 을 돌려보내면 `<p>` 등이 글자로 저장 · 반복하면 또 붙음.
+> 원인: 위 10-22 판정의 «기본 append» 가 «받은 것(HTML) ≠ 보낼 것(Markdown)» 상태에서 정해졌다. 이번 개정이 그 판정을 뒤집는다(Fable 정당 판정).
+
+1. **update_task 의 description·body = 항상 교체**, 늘 MEDIUM(확인 2단계). `mode:'append'` 는 VALIDATION_ERROR `use_append_to_task`(조용히 교체로 바꾸지 않는다). 미리보기 `replaces.<칸>` = 전·후 글자 수 · `clears_field` · `lines_removed`(사라지는 줄).
+2. **append_to_task**(LOW, tasks:write) — 끝에 덧붙이기. 권한·잠금은 같은 `task_actions.updateFields`. 끝이 이미 같은 내용(공백 정리 HTML 비교)이면 `skipped_duplicate` — 권한·잠금은 그래도 본다.
+3. **조회 = Markdown** — `services/agent/taskMarkdown.js` 한 벌(내놓는 문법 = 읽는 문법, 같은 문서 모형을 거친다). get_task 가 description·body 를 `description_format:'markdown'` 으로, 쓰기 한도 20000자까지 자르지 않고 준다.
+   지원: 제목·문단(줄바꿈 = `<br>`)·글머리/번호/체크리스트(중첩)·인용·구분선·코드 블록·굵게·기울임·취소선·인라인 코드·링크(http(s)·mailto·앱 안 `/…`)·이미지(우리 업로드 주소만)·백슬래시 이스케이프.
+   표·밑줄·정렬·알 수 없는 태그·안전하지 않은 링크/이미지 = `<칸>_lossy:true` + `_lossy_reasons` → **교체 거절** CONFLICT `lossy_use_append_or_app`(덧붙이기는 허용). 20000자 넘는 칸 = 잘림 표시 + 교체 거절 `too_long_to_replace_use_app`.
+4. **원시 HTML 입력 거절** — `looksLikeHtml`(코드 블록·인라인 코드·`\<` 제외) → VALIDATION_ERROR `html_not_accepted`. update_task·append_to_task·create_task 한 함수.
+5. **빈 문자열 = 비움** → null 저장(`<p></p>` 남기지 않음, MEDIUM 확인).
+6. **감사에 옛 원문** — 설명·결과물을 바꾸면 `task.update_fields` old_value 에 옛 description/body 를 자르지 않고 남긴다(업무엔 버전 이력이 없어 유일한 복구 경로).
+- 앱 안 Cue: update_task 를 그대로 쓴다(카드 확인 = 교체 확인). append_to_task 는 Cue 허용목록에 넣지 않았다(카드 문구가 필요 — 다음 일).
+- 운영 업무 889·892·894·895·899·916(K-DINE IOI mall) 정리는 범위 밖(운영 쓰기 — Irene 지시 필요). 고친 기능이 나간 뒤 ChatGPT 가 get_task → 덩어리(`\<p>…`) 지운 Markdown 으로 update_task 하면 정리된다(dev 에서 같은 모양 재현·정리 확인).
+
+### 자체 검증 (2026-10-27 dev, 확인용 업무 6147 ws 6)
+- 도구 실호출 36/36 — 완료 기준(일부 줄 지워 교체 → 재조회 지운 것 0·남긴 것 1번, 3회 반복 동일) · 토큰 없는 교체 = 미리보기만(DB 불변) · mode:append 거절 · HTML 거절 3도구(DB 불변) · 코드 안 HTML 수용 ·
+  덧붙이기 중복 건너뜀 · 같은 키 재시도 1번 · 감사 old_value 원문 · "" → null · 체크리스트·취소선·이미지·인용·중첩 왕복 · 표·밑줄 lossy → 교체 거절·덧붙이기 허용 · 운영 사고 모양 재현 → 정리 ·
+  15388자 전체 · 26388자 잘림+교체 거절 · 비작성자 거절 · 결과물 교체/검토 중 잠금(덧붙이기·중복 끝도).
+- 양성 대조군: 교체를 append 로 되돌리면 4건 FAIL 로 뒤집힘 → 복원 36/36.
+- 왕복 고정점: dev 업무 설명·결과물 72/72(lossy 1 — 평문 `<deliverable>` 이 태그로 읽히는 옛 평문) · 무작위 Markdown 12000건 고정점 0 불일치.

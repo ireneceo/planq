@@ -23,6 +23,7 @@
     "express-validator": "^7.3.1",
     "googleapis": "^171.4.0",
     "helmet": "^8.1.0",
+    "htmlparser2": "^8.0.2",
     "imap-simple": "^5.1.0",
     "jsonwebtoken": "^9.0.2",
     "mailparser": "^3.9.8",
