@@ -9,6 +9,8 @@
 //   ⑤ 청구서 발행 창(공용으로 뺀 항목 칸) — 항목 표가 그려지고, 단가를 치면 합계가 바뀐다
 //   ⑥ 가로 넘침 0 (문서·서명 화면)
 //   양성 대조군: ③ 은 조건 없는 문서(①)에서 [청구서 열기] 가 **없음**을 같이 본다.
+//   ★ 2026-10-27(de11a753) 부터 빈 칸 안내 ①은 설정 «기능 사용» doc_billing_terms 를 켠 워크스페이스에서만 보인다(기본 끔) —
+//     검사 동안 ws6 을 켜고 끝나면 원래 값으로 되돌린다. 대조: 끈 상태에서는 ① 버튼이 **없다**(데스크탑 1회).
 require('/opt/planq/dev-backend/node_modules/dotenv').config({ path: '/opt/planq/dev-backend/.env', quiet: true });
 const crypto = require('crypto');
 const b = require('./lib/browser');
@@ -79,6 +81,12 @@ async function run() {
     return { name: 'contractbilling', results };
   }
 
+  const prevMod = (await sql('SELECT modules FROM businesses WHERE id=6'))[0]?.modules;
+  const prevOn = !!(prevMod && (typeof prevMod === 'string' ? JSON.parse(prevMod) : prevMod).doc_billing_terms === true);
+  const setMod = async (on) => (await api('/businesses/6/modules', { method: 'PUT', headers: H, body: JSON.stringify({ doc_billing_terms: on }) })).status;
+  const onSt = await setMod(true);
+  P('픽스처 — 문서 청구 조건 안내 켬(ws6)', onSt === 200, `status ${onSt}`);
+
   const VPS = [['phone', { width: 390, height: 844, isMobile: true, hasTouch: true }], ['tablet', { width: 820, height: 1180 }], ['desktop', { width: 1440, height: 900 }]];
   for (const [label, vp] of VPS) {
     const { browser, page } = await b.launch({});
@@ -126,16 +134,30 @@ async function run() {
       // ⑤ 청구서 발행 창 — 데스크탑만(공용 칸 회귀)
       if (label === 'desktop') {
         await page.goto(`${BASE}/bills?tab=invoices&new=1`, { waitUntil: 'domcontentloaded' }); await b.sleep(5000);
-        const before = await page.evaluate(`(() => { const d = document.querySelector('[aria-modal="true"]') || document; return (d.innerText.match(/총액[^\\n]*\\n?[^\\n]*/) || [''])[0]; })()`);
+        const before = await page.evaluate(`(() => { const d = document.querySelector('[aria-modal="true"]') || document; return (d.innerText.match(/(?:총액|합계)[^\\n]*\\n?[^\\n]*/) || [''])[0]; })()`);
         const priceSel = 'input[type="number"][min="0"]';
         const has = await page.$(priceSel);
         if (has) { await has.click({ clickCount: 3 }); await page.keyboard.type('12345'); await b.sleep(500); }
-        const after = await page.evaluate(`(() => { const d = document.querySelector('[aria-modal="true"]') || document; return (d.innerText.match(/총액[^\\n]*\\n?[^\\n]*/) || [''])[0]; })()`);
+        const after = await page.evaluate(`(() => { const d = document.querySelector('[aria-modal="true"]') || document; return (d.innerText.match(/(?:총액|합계)[^\\n]*\\n?[^\\n]*/) || [''])[0]; })()`);
         P('desktop ⑤ 발행 창 항목 칸 — 단가 입력 → 합계 바뀜(13,580원)', !!has && after.includes('13,580'), `before="${before}" after="${after}"`);
       }
     } catch (e) {
       P(`${label} 실행`, false, e.message);
     } finally { await browser.close().catch(() => {}); }
+  }
+  const offSt = await setMod(prevOn);
+  P('정리 — 문서 청구 조건 안내 원래 값으로', offSt === 200, `status ${offSt} → ${prevOn}`);
+  if (!prevOn) {
+    const { browser, page } = await b.launch({});
+    try {
+      await page.setViewport({ width: 1440, height: 900 });
+      await page.goto(`${BASE}/dev-login#code=${devCode('owner', `/docs?post=${ids.empty}`)}`, { waitUntil: 'domcontentloaded' });
+      await b.sleep(5000);
+      if (!/post=/.test(page.url())) { await page.goto(`${BASE}/docs?post=${ids.empty}`, { waitUntil: 'domcontentloaded' }); await b.sleep(4000); }
+      const shown = await page.evaluate(`!!document.querySelector('[data-testid="billing-terms-open"]')`);
+      const loaded = await page.evaluate(`document.body.innerText.includes('계약 본문')`);
+      P('desktop ①대조 — 끈 워크스페이스는 [+ 청구 조건 적기] 없음', loaded && !shown, `loaded=${loaded} shown=${shown}`);
+    } catch (e) { P('desktop ①대조 실행', false, e.message); } finally { await browser.close().catch(() => {}); }
   }
   return { name: 'contractbilling', results };
 }
