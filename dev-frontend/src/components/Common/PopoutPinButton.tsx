@@ -6,7 +6,8 @@
 //
 // ★ 반드시 클릭 핸들러 안에서 host.toggle() 을 부른다 — requestWindow 는 그 창의 사용자 조작을 요구한다.
 //   (setTimeout·await 뒤로 미루면 activation 이 끊겨 NotAllowedError 가 된다.)
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import ConfirmDialog from './ConfirmDialog';
@@ -25,6 +26,18 @@ function isRecording(): boolean {
 const PopoutPinButton: React.FC<Props> = ({ host }) => {
   const { t } = useTranslation('common');
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const btnRef = useRef<HTMLButtonElement>(null);
+  // 고정이 거절되면 버튼 아래에 «한 번 더 눌러 주세요» 를 잠깐 띄운다.
+  //   ★ 조용히 아무 일도 안 일어나면 사용자에게는 «고정이 안 된다» 다(Irene 2026-10-29). 첫 회는 창 관리
+  //     권한 창이 클릭을 써 버려 브라우저가 반드시 한 번 거절한다(코드로 못 피한다 — pinHost ensureWindowPlacement).
+  const [failAt, setFailAt] = useState<{ x: number; y: number } | null>(null);
+  useEffect(() => {
+    if (!host.pinFailedAt) { setFailAt(null); return; }
+    const r = btnRef.current?.getBoundingClientRect();
+    setFailAt(r ? { x: Math.max(8, r.right - 220), y: r.bottom + 6 } : { x: 8, y: 48 });
+    const tm = window.setTimeout(() => setFailAt(null), 5000);
+    return () => window.clearTimeout(tm);
+  }, [host.pinFailedAt]);
 
   if (!host.canPin || host.mode === 'holder') return null;
 
@@ -44,6 +57,7 @@ const PopoutPinButton: React.FC<Props> = ({ host }) => {
   return (
     <>
       <Btn
+        ref={btnRef}
         type="button"
         data-testid={pinned ? 'pip-unpin' : 'popout-pin-toggle'}
         aria-label={label}
@@ -54,6 +68,12 @@ const PopoutPinButton: React.FC<Props> = ({ host }) => {
       >
         <IconPin />
       </Btn>
+      {failAt && !pinned && createPortal(
+        <FailNote role="status" data-testid="popout-pin-failed" style={{ left: failAt.x, top: failAt.y }}>
+          {t('popoutPin.failed', '고정하지 못했어요. 핀을 한 번 더 눌러 주세요.')}
+        </FailNote>,
+        document.body,
+      )}
       <ConfirmDialog
         isOpen={confirmOpen}
         onClose={() => setConfirmOpen(false)}
@@ -94,4 +114,15 @@ const Btn = styled.button<{ $muted?: boolean }>`
   &:hover { ${p => p.$muted ? 'border-color:#94A3B8;color:#0F172A;' : 'filter: brightness(1.08);'} }
   &:focus-visible { outline: 2px solid rgba(15,118,110,0.5); outline-offset: 2px; }
   &:disabled { opacity: 0.45; cursor: not-allowed; }
+`;
+
+// 버튼 아래 잠깐 뜨는 한 줄 — 팝아웃 머리줄이 overflow 로 자를 수 있어 body 에 띄운다(fixed).
+const FailNote = styled.div`
+  position: fixed; z-index: 2500;
+  width: 220px; box-sizing: border-box;
+  padding: 8px 10px; border-radius: 8px;
+  background: #0F172A; color: #FFFFFF;
+  font-size: 0.75rem; line-height: 1.45;
+  box-shadow: 0 4px 12px rgba(15,23,42,0.18);
+  pointer-events: none;
 `;

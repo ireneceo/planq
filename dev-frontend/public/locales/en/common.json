@@ -1554,7 +1554,8 @@
     "holderNote": "Showing in the pinned window",
     "recordingTitle": "Recording in progress",
     "recordingMessage": "Unpinning now closes the pinned window and stops the recording. Continue?",
-    "recordingConfirm": "Stop recording and unpin"
+    "recordingConfirm": "Stop recording and unpin",
+    "failed": "Couldn't pin it. Please press the pin once more."
   },
   "update": {
     "ready": "A new version is ready",

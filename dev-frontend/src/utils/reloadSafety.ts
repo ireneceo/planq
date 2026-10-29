@@ -11,6 +11,8 @@
 //       (운영 신고 2026-08-21: "고치면 저장되어 버려 / 닫혀, 편집이")
 //   body[data-pip-active] — 핀(Document PiP) 창은 opener 문서에 종속, reload 하면 핀 창이 같이 죽는다
 //   body[data-recording-active] — Q Note 녹음 중 reload = 마이크 사망
+//   고정창(PiP) 안의 iframe — 표식(data-pip-active)은 **홀더 문서**에만 선다. iframe 이 혼자 다시 읽으면
+//     고정창이 1~2초 비어 뒤 창이 비친다(Irene 2026-10-29 «어쩔 때 투명해져» 후보). 홀더처럼 고정이 풀릴 때까지 보류.
 export function isReloadSafe(): boolean {
   try {
     const el = document.activeElement as HTMLElement | null;
@@ -21,6 +23,7 @@ export function isReloadSafe(): boolean {
     if (document.querySelector('[data-editing-active="1"]')) return false;
     if (document.body.dataset.pipActive === '1') return false;
     if (document.body.dataset.recordingActive === '1') return false;
+    if (window.parent !== window) return false;   // 앱을 iframe 으로 싣는 곳은 고정창뿐이다(pinHost isPipContent)
   } catch { /* noop */ }
   return true;
 }

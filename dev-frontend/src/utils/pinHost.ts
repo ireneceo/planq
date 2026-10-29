@@ -16,10 +16,13 @@
 //   옛 구현은 여기서 창을 닫아버렸다("취소했더니 창이 사라짐"). 어떤 경로로 고정이 풀리든
 //   — 핀 토글 · PiP 를 X 로 닫음 · 다른 도구가 자리를 가져감 — 착지점은 **언제나 일반 창**이다.
 //
-// PiP 는 전역 1개라 다른 도구를 고정하면 우리 것이 축출되는데 그 죽음에는 아무 신호가 없다.
-//   → 새로 고정하는 창이 BroadcastChannel 로 **선공지(pin-intent)** 하고, 붙잡고 있던 창이 스스로
-//     놓고(=일반 창 복귀) ack 한다. 그래서 사용자가 고를 것이 없다 — 먼저 고정돼 있던 도구는
-//     닫히지 않고 그냥 일반 창으로 돌아간다.
+// PiP 는 전역 1개라 다른 도구를 고정하면 우리 것이 축출된다. 축출과 «사용자가 X 로 닫음» 은 같은 신호다.
+//   → 새로 고정하는 창이 BroadcastChannel 로 **선공지(pin-intent)** 하고, 붙잡고 있던 창은 «곧 자리를
+//     뺏긴다» 고 표시만 한 채 ack 한다. 뺏기면(pin-taken 또는 고정창이 사라짐) 일반 창으로 돌아간다.
+//   ★ 선공지 때 **먼저 놓지 않는다** (Irene 2026-10-29 «다른 팝아웃 Pin 하면 … 제대로 고정이 안돼»).
+//     옛 순서는 선공지 → 붙잡던 창이 즉시 놓음 → requestWindow 였다. 새 고정이 실패하면(첫 회 창 관리
+//     권한 창이 클릭을 써 버림·거부) **앞 고정은 이미 풀렸고 새 고정은 없다** — 둘 다 잃었다.
+//     이제 새 고정이 실패하면(pin-abort) 앞 고정은 그대로 남는다.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 export type PinTool = 'qtalk' | 'qtask' | 'qnote' | 'qhelper';
@@ -162,8 +165,11 @@ export function openPopout(tool: PinTool, opts?: { url?: string; name?: string }
   return win;
 }
 
+/** 새로 고정하려는 창 → 모두: 곧 고정창 자리를 가져간다. 붙잡은 창은 **놓지 않고** 축출 대비만 한다. */
 export interface PinIntentMsg { type: 'pin-intent'; id: string; tool: PinTool }
 export interface PinAckMsg { type: 'pin-ack'; id: string }
+/** 새 고정 성사(pin-taken) / 실패(pin-abort) — 같은 id 의 선공지를 마무리한다 */
+export interface PinOutcomeMsg { type: 'pin-taken' | 'pin-abort'; id: string }
 /** PiP 안 iframe → **자기 홀더 창**: 이 핀을 놓아 달라 (iframe 은 자기를 담은 PiP 를 닫을 권한이 없다) */
 export interface UnpinRequestMsg { type: 'unpin-request'; tool: PinTool }
 /** 고정창 안 iframe → 자기 홀더: 고정창이 여기로 움직였다.
@@ -171,7 +177,7 @@ export interface UnpinRequestMsg { type: 'unpin-request'; tool: PinTool }
  *    아무리 주기를 줄여도 실제로는 늦게 돌아 움직일 때 삐져나온다(Irene: "움직일 때 보여").
  *    고정창은 항상 맨 위라 늦춰지지 않는다 — 그쪽에서 좌표를 밀어준다. 홀더 폴링은 backstop 으로만 남긴다. */
 export interface PipMovedMsg { type: 'pip-moved'; tool: PinTool; x: number; y: number; w: number; h: number }
-export type PinMsg = PinIntentMsg | PinAckMsg | UnpinRequestMsg | PipMovedMsg;
+export type PinMsg = PinIntentMsg | PinAckMsg | PinOutcomeMsg | UnpinRequestMsg | PipMovedMsg;
 
 /** 선공지 ack 대기 상한. transient activation(약 5초) 안이라 requestWindow 는 그대로 성립한다. */
 const ACK_TIMEOUT_MS = 250;
@@ -182,6 +188,9 @@ const ACK_TIMEOUT_MS = 250;
 const POLL_MS = 120;
 /** 고정창이 자리를 잡을 때까지 (0,0) 을 무시해 주는 시간. 이 뒤에는 (0,0) 도 진짜 좌표로 본다. */
 const SETTLE_MS = 1500;
+/** 선공지를 받은 뒤 고정창이 사라지면 «축출» 로 볼 시간. requestWindow 는 activation(≈5초) 안에서만 성립한다.
+ *  pin-taken/pin-abort 가 오면 그 전에 끝난다 — 이 값은 메시지를 못 받은 경우(옛 번들)의 상한이다. */
+const EVICT_GRACE_MS = 6000;
 
 interface PipApi {
   /** preferInitialWindowPlacement: true = 크롬의 지난 자리·크기 기억을 쓰지 않고 기본 자리에 연다(Chrome 130+, 그 전은 무시) */
@@ -233,11 +242,15 @@ function markPipActive(on: boolean) {
   } catch { /* noop */ }
 }
 
-/** 선공지 → ack 또는 250ms. 붙잡고 있는 창이 없으면 그냥 타임아웃으로 진행한다. */
-function announceIntent(ch: BroadcastChannel | null, tool: PinTool): Promise<void> {
+/** 선공지 → ack 또는 250ms. 붙잡고 있는 창이 없으면 그냥 타임아웃으로 진행한다. 결과 방송에 쓸 id 를 돌려준다. */
+function announceOutcome(ch: BroadcastChannel | null, id: string, ok: boolean) {
+  try { ch?.postMessage({ type: ok ? 'pin-taken' : 'pin-abort', id } as PinOutcomeMsg); } catch { /* noop */ }
+}
+
+function announceIntent(ch: BroadcastChannel | null, tool: PinTool): Promise<string> {
+  const id = `${tool}-${Math.random().toString(36).slice(2, 10)}`;
   return new Promise((resolve) => {
-    if (!ch) { resolve(); return; }
-    const id = `${tool}-${Math.random().toString(36).slice(2, 10)}`;
+    if (!ch) { resolve(id); return; }
     let done = false;
     let timer = 0;
     const finish = () => {
@@ -245,7 +258,7 @@ function announceIntent(ch: BroadcastChannel | null, tool: PinTool): Promise<voi
       done = true;
       clearTimeout(timer);
       try { ch.removeEventListener('message', onMsg); } catch { /* noop */ }
-      resolve();
+      resolve(id);
     };
     const onMsg = (ev: MessageEvent) => {
       const m = ev.data as PinMsg | null;
@@ -265,6 +278,8 @@ export interface PinHost {
   pin: () => Promise<void>;
   unpin: () => void;
   toggle: () => void;
+  /** 마지막 고정 시도가 브라우저에 거절된 시각(0 = 없음). 첫 회는 창 관리 권한 창이 클릭을 써 버려 늘 한 번 실패한다. */
+  pinFailedAt: number;
 }
 
 export interface UsePinHostOptions {
@@ -281,6 +296,8 @@ export function usePinHost({ tool, title }: UsePinHostOptions): PinHost {
   const pipContent = useMemo(() => isPipContent(), []);
   const canPin = useMemo(() => (pipContent ? true : supportsPin()), [pipContent]);
   const [mode, setMode] = useState<PinMode>(() => (pipContent ? 'pip-content' : 'normal'));
+  /** 마지막 고정 시도가 실패한 시각(0 = 없음) — 버튼이 «다시 눌러 주세요» 를 보여 준다 */
+  const [pinFailedAt, setPinFailedAt] = useState(0);
   const { width, height } = POPOUT_SIZE[tool];
 
   const pipRef = useRef<Window | null>(null);
@@ -292,6 +309,8 @@ export function usePinHost({ tool, title }: UsePinHostOptions): PinHost {
   const settleUntilRef = useRef(0);
   /** 이 창이 한 번이라도 고정했었나 — 그렇다면 크롬이 그 고정창 자리를 막 기억하고 있다(다시 고정 = 같은 자리). */
   const pinnedBeforeRef = useRef(false);
+  /** 다른 창이 고정하겠다고 선공지한 id 와 마감 — 그동안 고정창이 사라지면 X 가 아니라 축출이다(일반 창 복귀). */
+  const evictRef = useRef<{ id: string; until: number } | null>(null);
 
   const stopPoll = useCallback(() => {
     if (pollRef.current != null) { clearInterval(pollRef.current); pollRef.current = null; }
@@ -343,6 +362,15 @@ export function usePinHost({ tool, title }: UsePinHostOptions): PinHost {
    *  ★ close 가 거부되는 창(주소창에 직접 친 탭)도 있다 — 그때는 갇히지 않도록 일반 창으로 되돌린다. */
   const onPipGone = useCallback(() => {
     if (!pipRef.current) return;  // releasePip 이 이미 처리했다
+    const ev = evictRef.current;
+    evictRef.current = null;
+    if (ev && Date.now() < ev.until) {
+      // 다른 도구가 자리를 가져갔다(크롬이 우리 고정창을 닫음) — 도구는 닫지 않고 일반 창으로.
+      stopPoll();
+      pipRef.current = null;
+      backToNormal();
+      return;
+    }
     stopPoll();
     pipRef.current = null;
     markPipActive(false);
@@ -362,12 +390,21 @@ export function usePinHost({ tool, title }: UsePinHostOptions): PinHost {
       const m = ev.data as PinMsg | null;
       if (!m || typeof m !== 'object') return;
       if (m.type === 'pin-intent') {
-        // 다른 창이 자리를 가져간다. 붙잡고 있을 때만 놓고 ack 한다
+        // 다른 창이 자리를 가져가려 한다. 붙잡고 있을 때만 ack 한다
         // (아무나 ack 하면 요청자가 진짜 소유자보다 먼저 출발한다).
+        // ★ 여기서 놓지 않는다 — 저쪽 고정이 실패하면 우리 고정은 그대로 남아야 한다(파일 머리 주석).
         if (pipRef.current) {
-          releasePip();       // ← 우리 도구는 닫히지 않는다. 일반 창으로 돌아갈 뿐이다.
+          evictRef.current = { id: m.id, until: Date.now() + EVICT_GRACE_MS };
           try { ch?.postMessage({ type: 'pin-ack', id: m.id } as PinAckMsg); } catch { /* noop */ }
         }
+        return;
+      }
+      if (m.type === 'pin-taken' || m.type === 'pin-abort') {
+        const ev = evictRef.current;
+        if (!ev || ev.id !== m.id) return;
+        evictRef.current = null;
+        // 성사 = 크롬이 이미 우리 고정창을 닫았다(또는 곧 닫는다). 닫히는 것을 기다리지 않고 일반 창으로.
+        if (m.type === 'pin-taken' && pipRef.current) releasePip();
         return;
       }
       if (m.type === 'pip-moved' && m.tool === tool) {
@@ -485,8 +522,8 @@ export function usePinHost({ tool, title }: UsePinHostOptions): PinHost {
     //    ★ requestWindow 보다 **먼저** 부른다. 뒤에 두면 PiP 가 뜬 뒤 권한창이 겹쳐 뜬다.
     await ensureWindowPlacement();
 
-    // 1) 선공지 — 다른 창이 붙잡고 있으면 먼저 자리를 비우게 한다(축출은 감지 불가한 죽음이다).
-    await announceIntent(chanRef.current, tool);
+    // 1) 선공지 — 다른 창이 붙잡고 있으면 «곧 축출» 을 알려 둔다(축출과 X 닫기는 같은 신호라 미리 알아야 가른다).
+    const intentId = await announceIntent(chanRef.current, tool);
 
     let win: Window;
     try {
@@ -497,14 +534,23 @@ export function usePinHost({ tool, title }: UsePinHostOptions): PinHost {
       //     (해제하면 일반 창이 그 자리에 섰다 — backToNormal. 08-20 «눌렀다 취소했다 할 때 위치 동일»).
       win = await api.requestWindow({ width, height, preferInitialWindowPlacement: !pinnedBeforeRef.current });
     } catch {
-      return; // 사용자가 취소했거나 브라우저가 거부 → 이 창은 그대로 **일반 팝아웃으로 남는다**
+      // 사용자가 취소했거나 브라우저가 거부 → 이 창은 그대로 **일반 팝아웃으로 남고**, 앞 고정도 그대로다.
+      announceOutcome(chanRef.current, intentId, false);
+      setPinFailedAt(Date.now());
+      return;
     }
+    announceOutcome(chanRef.current, intentId, true);
+    setPinFailedAt(0);
 
     try {
       win.document.title = title;
       const body = win.document.body;
       body.style.margin = '0';
       body.style.overflow = 'hidden';
+      // ★ 바탕을 칠해 둔다. 안의 iframe 이 앱을 처음부터 띄우는 1~2초 동안 빈 고정창이 «투명» 하게
+      //   뒤 창을 비추지 않게(Irene 2026-10-29 «어쩔 때 갑자기 투명해져»).
+      win.document.documentElement.style.background = '#FFFFFF';
+      body.style.background = '#FFFFFF';
       const iframe = win.document.createElement('iframe');
       // ★ name 필수 — utils/popout.ts markPopoutWindow() 의 realPopout 가드가
       //   window.opener || /^pq-/.test(window.name) 를 요구한다. PiP iframe 은 opener 가 없어
@@ -619,5 +665,5 @@ export function usePinHost({ tool, title }: UsePinHostOptions): PinHost {
     unpin();
   }, [mode, pin, unpin]);
 
-  return { mode, canPin, pin, unpin, toggle };
+  return { mode, canPin, pin, unpin, toggle, pinFailedAt };
 }
