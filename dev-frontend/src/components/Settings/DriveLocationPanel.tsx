@@ -70,9 +70,11 @@ const DriveLocationPanel: React.FC<Props> = ({ businessId, folder, onChanged }) 
             ? tr('storage.gdriveFolder.errBadLink')
             : code.startsWith('folder_unusable')
               ? tr('storage.gdriveFolder.errUnusable')
-              : code.startsWith('workspace_drive_not_connected')
-                ? tr('storage.gdriveFolder.errNotConnected')
-                : tr('storage.gdriveFolder.errGeneric'),
+              : code.startsWith('folder_used_by_other_workspace')
+                ? tr('storage.gdriveFolder.errUsedByOther')
+                : code.startsWith('workspace_drive_not_connected')
+                  ? tr('storage.gdriveFolder.errNotConnected')
+                  : tr('storage.gdriveFolder.errGeneric'),
         });
         return;
       }

@@ -282,11 +282,18 @@ async function ensureRootFolder(drive, token, businessName) {
     try {
       const byName = await drive.files.list({
         q: `name='${escapeDriveQuery(name)}' and mimeType='application/vnd.google-apps.folder' and trashed=false`,
-        fields: 'files(id, name, createdTime)', orderBy: 'createdTime', pageSize: 10,
+        fields: 'files(id, name, createdTime, appProperties)', orderBy: 'createdTime', pageSize: 10,
         supportsAllDrives: true, includeItemsFromAllDrives: true, corpora: 'allDrives',
       });
       const claimed = await claimedRootFolderIds(token.business_id);
-      found = (byName.data.files || []).find((f) => !claimed.has(f.id)) || null;
+      // ★ **남의 표식이 찍힌 폴더는 연결이 끊긴 워크스페이스 것이어도 집지 않는다** (2026-10-29 Fable 게이트 FAIL).
+      //   연결 해제는 토큰 행을 지워 claimed 에서 빠진다 — 같은 계정·같은 이름으로 다른 워크스페이스를 붙이면
+      //   그 폴더를 집고 표식까지 덮어써 A 의 Drive 파일이 B 로 «이사» 했다. 표식 없는 옛 폴더만 이름으로 되찾는다.
+      found = (byName.data.files || []).find((f) => {
+        if (claimed.has(f.id)) return false;
+        const mark = f.appProperties && f.appProperties.planqBusinessId;
+        return !mark || String(mark) === bizId;
+      }) || null;
       searched = true;
     } catch (e) {
       console.warn('[gdrive] 이름 검색 실패:', e.message);
@@ -651,6 +658,7 @@ module.exports = {
   isConfigured,
   SCOPES,
   ensureRootFolder,
+  claimedRootFolderIds,
   listDriveFiles,
   grantFileAccess,
   canWriteInto,

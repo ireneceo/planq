@@ -340,6 +340,7 @@
       "relocating": "Changing...",
       "errBadLink": "Couldn't read that folder address. Open the folder in Drive and copy the address bar as-is.",
       "errUnusable": "PlanQ can't store files there. Check the address and that you can edit that folder.",
+      "errUsedByOther": "Another workspace already stores its files in that folder. Pick a different folder so the two don't mix.",
       "errNotConnected": "Google Drive isn't connected.",
       "errGeneric": "Couldn't change the location. Please try again.",
       "preview": "PlanQ uses the folder you give as its storage folder. It does not create another folder inside it.",

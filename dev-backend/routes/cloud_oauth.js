@@ -103,38 +103,17 @@ router.get('/callback/gdrive', async (req, res) => {
     record.connected_at = new Date();
 
     // 루트 폴더 확보 (없으면)
-    // 사이클 N+19 hotfix — disconnect→reconnect 시 Drive 에 옛 "PlanQ - {bizName}" 폴더가
-    // 남아 있으면 그것을 재사용. drive.file scope 라 PlanQ 가 직접 만든 폴더만 검색 가능.
-    // 같은 이름 폴더 2개 이상이면 createdTime ASC 첫 번째 (가장 오래된 — 진짜 옛 폴더).
+    // ★ 되찾기·새로 만들기는 `gdrive.ensureRootFolder` 한 곳에서 한다 (2026-10-29, Irene «여러 워크스페이스»).
+    //   여기 따로 있던 «같은 이름 첫 폴더 재사용» 은 표식도, 다른 워크스페이스 루트 제외도 없어서
+    //   같은 구글 계정 + 같은 워크스페이스 이름이면 B 를 연결하는 순간 A 의 루트를 집어 갔다
+    //   → Workspace Files·Conversations·Q Note 가 이름으로 찾아 두 워크스페이스 파일이 한 폴더에 섞였다.
+    //   ensureRootFolder 는 표식(planqBusinessId) → 이름(남이 쓰는 루트 제외) → 새로 만들기 + 표식 순이다.
+    //   행이 저장돼 있어야 그 안의 token.update 가 먹으므로 먼저 save 한다.
+    await record.save();
     if (!record.root_folder_id) {
       const biz = await Business.findByPk(parsed.businessId);
-      const bizName = biz ? biz.name : 'workspace';
-      const targetName = `PlanQ - ${bizName}`;
       const drive = await gdrive.getDriveClient(record);
-      let folderId = null;
-      try {
-        const list = await drive.files.list({
-          q: `name='${targetName.replace(/'/g, "\\'")}' and mimeType='application/vnd.google-apps.folder' and trashed=false`,
-          fields: 'files(id, name, createdTime)',
-          orderBy: 'createdTime',
-          pageSize: 1,
-          // 공유(팀) 드라이브로 옮겨진 옛 폴더도 찾아야 한다 — 없으면 404 라 매번 새로 만든다.
-          supportsAllDrives: true,
-          includeItemsFromAllDrives: true,
-          corpora: 'allDrives',
-        });
-        if (list.data.files && list.data.files.length > 0) {
-          folderId = list.data.files[0].id;
-          console.log('[gdrive callback] reusing existing root folder for biz=' + parsed.businessId + ' folder=' + folderId);
-        }
-      } catch (e) {
-        console.warn('[gdrive callback] root folder search failed:', e.message);
-      }
-      if (!folderId) {
-        const root = await gdrive.createRootFolder(drive, bizName);
-        folderId = root.id;
-      }
-      record.root_folder_id = folderId;
+      await gdrive.ensureRootFolder(drive, record, biz ? biz.name : 'workspace');
     }
     await record.save();
     // 감사 — 연결이 실제로 생기는 곳은 여기다(POST /connect/gdrive 는 동의 화면 주소만 만든다). 토큰 값은 싣지 않는다.

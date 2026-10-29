@@ -45,6 +45,13 @@ router.put('/gdrive/:businessId/root-folder', authenticateToken, checkBusinessAc
       if (!m) return errorResponse(res, 'invalid_folder_location', 400);
       const targetId = m[1];
 
+      // ★ 다른 워크스페이스가 저장 위치로 쓰는 폴더는 받지 않는다 (2026-10-29) — 받으면
+      //   두 워크스페이스의 Workspace Files·Conversations·Q Note 가 이름으로 같은 하위 폴더를 찾아 섞인다.
+      //   하위 폴더까지는 못 막는다(drive.file 로 남의 부모를 못 읽는 경우가 있다) — 루트 일치만.
+      if ((await gdrive.claimedRootFolderIds(businessId)).has(targetId)) {
+        return errorResponse(res, 'folder_used_by_other_workspace', 400);
+      }
+
       const token = await BusinessCloudToken.findOne({
         where: { business_id: businessId, provider: 'gdrive' },
       });
