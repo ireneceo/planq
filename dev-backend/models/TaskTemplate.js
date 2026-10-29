@@ -55,6 +55,8 @@ TaskTemplate.init({
   // 추진과제(그룹) 목록 — 프로젝트에서 저장할 때의 순서·색. 항목은 workstream_title 로 이 이름을 가리킨다.
   //   적용하면 같은 이름 그룹을 찾아 쓰고 없으면 이 순서대로 만든다(services/templateApply). [{title, color, description}]
   workstreams: { type: DataTypes.JSON, allowNull: true },
+  // 저장한 원본 프로젝트(옛 날짜 0 템플릿을 나중에 복구할 근거 — 2026-10-29, 지금은 저장만)
+  source_project_id: { type: DataTypes.INTEGER, allowNull: true },
   embedding: {
     type: DataTypes.BLOB,
     allowNull: true,

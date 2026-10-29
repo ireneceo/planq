@@ -1,5 +1,12 @@
 # Fable 게이트 대기열 → **판정 기록 보관소** (2026-10-08 부터)
 
+### 2026-10-29 방 e86c9c10 — 업무 템플릿 «기간 정본 · 디테일 전부 · 시작일/기간 맞춤 · AI 바꿀 것만» — 설계 **DESIGN-READY** → 완료 검증 1차 **FAIL** → 고친 뒤 2차 **VERDICT: PASS**
+- 설계 `docs/TASK_TEMPLATE_DETAIL_DESIGN.md`. 운영 스키마 `scripts/migrate-task-template-details.js`(배포 슬롯, PM2 reload 전 · 멱등 2회 실측).
+- 1차 FAIL(실 LLM 11회 재현): 프롬프트가 #0 부터 세어 «2번» 이 셋째를 바꿈 · «뒤로 미뤄» 를 앞당김으로 · 한 업무 이동에 뒤 업무까지 shift from · 하루짜리 «이틀 늘려» → +4. 자체 검증은 «바뀌었나» 만 재고 «어느 항목이» 를 안 쟀다.
+- 고침: 사람 번호 #1 + 서버 `fromHumanNumbers` · 시간 방향 부호 정의 · 한 업무 이동 = update 하나(from 은 «이후 전부» 때만) · 목록 줄에 duration 숫자 · 미리보기·후보 카드에 같은 번호 · 저장 정렬 = 계산된 시작 · PUT items body 200,000 상한·빈 제목 재매핑.
+- 2차 근거(Fable): 예시와 다른 문장 실 LLM 15회 전부 정확(번호·방향·from 범위·설명·중요도·추가·없는 번호 ops 0·삭제·누적 지시) · 단위 fromHumanNumbers+applyOps 전부 · 저장·적용·기간 맞춤(dry_run=실적용 전건)·권한·테넌트·confirm·일반 AI 회귀 전부 ✅ · guard 81/82 · health 97/97. 작업 모델: API 51/51 · 실 LLM 16/16 · 화면 3폭 33/33 · build EXIT 0.
+- 비차단: ① ai-refine 분 6회 한도 — 연달아 고치면 429(목록은 그대로). 운영 반응 보고 8~10 검토 ② UI 하니스는 Fable 미실행(작업 모델 33/33).
+
 ### 2026-10-29 방 7b648820 — Q file·프로젝트>파일 «Google Drive 에서» 가져오기(공개 범위·dedup 키) — 완료 검증 **VERDICT: PASS** (차단 0)
 - 계약: 같은 자리 = 업로드와 같은 범위(내 파일·프로젝트 없는 폴더 L1 · 프로젝트 폴더 L2) · 서버 `vlevel:'L1'` 좁히기만(프로젝트와 같이 400) · 폴더→프로젝트 추론 · `driveImport.matchPlacement` 는 사용자 route 만(미러 종전).
 - Fable 실측: 실HTTP 11/11 · 서비스 10/10(같은 자리 재사용·다른 자리 새 행·바이트 한 벌·남의 L1 재사용 안 함·휴지통 행 제외·미러 재사용) · 목록 범위 4/4 · 브라우저 1440·390 · 고객 버튼 0 · guard 81/82 · health 97/97. 커밋 9e9b32fe.

@@ -17,6 +17,7 @@ import AiCandidateCard, { type AiCandidate } from './AiCandidateCard';
 import AiRegenerateBar from '../Common/AiRegenerateBar';
 import AiAreaBlock, { type AiArea } from './AiAreaBlock';
 import AiLoadSummary from './AiLoadSummary';
+import { refineTemplateCandidates } from './templateRefine';
 import { isEnterAction } from '../../utils/imeKey';
 
 interface Member { user_id: number; name: string; }
@@ -68,7 +69,7 @@ interface TemplateMatch {
 type Stage = 'input' | 'loading' | 'preview';
 
 export default function AiTaskCreateModal({ open, onClose, businessId, projectId, projectFixed, projects = [], members, onCreated, onUseTemplate, initialPrompt, clientId, seed }: Props) {
-  const { t } = useTranslation('qtask');
+  const { t, i18n } = useTranslation('qtask');
   const { t: tc } = useTranslation('common');   // 연결 문구 정본
   const { t: tErr } = useTranslation('errors');
   const [stage, setStage] = useState<Stage>('input');
@@ -203,6 +204,25 @@ export default function AiTaskCreateModal({ open, onClose, businessId, projectId
     setError(null);
     setStage('loading');
     const nextInstructions = [...aiInstructions, ...(instruction ? [instruction] : [])];
+    // 템플릿에서 시작한 목록은 «바꿀 것만» 고친다(서버 ai-refine — AI 는 변경 목록만 내고 서버가 원본 위에 얹는다).
+    //   지시가 안 건드린 업무는 설명·본문·중요도·날짜가 그대로다(옛 방식은 목록 전체를 다시 써서 디테일이 줄었다).
+    if (seed) {
+      try {
+        const { list, note, rejected } = await refineTemplateCandidates({
+          templateId: seed.templateId, businessId, projectId: selectedProjectId, startDate: baseDate,
+          language: i18n.language, instructions: nextInstructions, candidates, workstreams, roleAssignees: seed.roleAssignees,
+        });
+        setCandidates(list);
+        setAiInstructions(nextInstructions);
+        setReasoning([note, rejected ? t('ai.refineRejected', { n: rejected, defaultValue: 'AI 가 낸 변경 중 {{n}}건은 맞지 않아 반영하지 않았어요.' }) as string : ''].filter(Boolean).join(' · '));
+      } catch (e) {
+        setError(mapApiError(e, tErr));   // 실패해도 목록은 그대로(원본을 지키는 것이 이 경로의 계약)
+      } finally {
+        setStage('preview');
+        setSubmitting(false);
+      }
+      return;
+    }
     // 일정·역할도 같이 — 템플릿에서 시작한 목록의 D+ 일정이 고치는 동안 사라지지 않게(서버 brief 가 읽는다).
     const baseCandidates = candidates.map((c) => ({
       title: c.title, description: c.description,
@@ -223,8 +243,6 @@ export default function AiTaskCreateModal({ open, onClose, businessId, projectId
           mode: routineMode ? 'routine' : undefined,
           instructions: nextInstructions.length ? nextInstructions : undefined,
           base_candidates: baseCandidates.length ? baseCandidates : undefined,
-          // 템플릿에서 왔으면 그 템플릿의 추진과제 이름도 AI 가 고를 수 있게(서버가 이 워크스페이스 템플릿인지 본다)
-          source_template_id: seed ? seed.templateId : undefined,
           // #354 — 재생성 때 영역도 원본으로 넘긴다. 안 넘기면 "영역을 5개로 줄여" 같은 지시가
           //   업무 목록만 보고 돌아 반쪽 재생성이 된다.
           base_areas: routineMode && areas.length ? areas.map(a => ({ title: a.title, description: a.description })) : undefined,
@@ -260,10 +278,8 @@ export default function AiTaskCreateModal({ open, onClose, businessId, projectId
       // 힌트 이름이 기존 그룹과 맞으면 **미리 골라 둔다** — 사용자가 매번 같은 선택을 반복할 이유가 없다.
       //   비교 규칙은 서버(routes/tasks.js matchWorkstream)와 같다: 공백·대소문자만 무시.
       const wsNorm = new Map(workstreams.map((w) => [w.title.replace(/\s+/g, '').toLowerCase(), w.id]));
-      const roleMap = seed?.roleAssignees || {};
       const list: Candidate[] = (j.data?.candidates || []).map((c: Candidate) => ({
         ...c,
-        ...(c.assignee_hint && roleMap[c.assignee_hint] ? { assignee_user_id: roleMap[c.assignee_hint] } : {}),
         selected: true,
         workstream_id: c.workstream_hint
           ? (wsNorm.get(String(c.workstream_hint).replace(/\s+/g, '').toLowerCase()) ?? null)
@@ -532,9 +548,10 @@ export default function AiTaskCreateModal({ open, onClose, businessId, projectId
                 </ShortfallBox>
               )}
               <CardList>
-                {candidates.map(c => (
+                {candidates.map((c, i) => (
                   <AiCandidateCard
                     key={c.idx}
+                    number={seed ? i + 1 : undefined}
                     candidate={c}
                     members={members}
                     baseDate={baseDate}

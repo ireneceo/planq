@@ -16,7 +16,7 @@ interface Props {
   projectName: string;
   onSaved: (templateId: number) => void;
   /** 저장될 업무 미리 세기용(화면에 보이는 목록). 서버가 같은 규칙으로 다시 고른다(services/templateFromProject). */
-  tasks?: Array<{ status: string; start_date?: string | null; due_date?: string | null; workstream_id?: number | null }>;
+  tasks?: Array<{ status: string; start_date?: string | null; due_date?: string | null; workstream_id?: number | null; vlevel?: string | null }>;
 }
 
 // 화면 «완료 가리기»(ProjectTaskFilters)와 같은 술어 — 완료·취소.
@@ -33,12 +33,13 @@ export default function TemplateSaveModal({ open, onClose, businessId, projectId
   const [existingCats, setExistingCats] = useState<string[]>([]);
   const [hideDone, setHideDone] = useState(false);
 
-  // 담길 업무·그룹 수 — 날짜(시작·마감 중 하나)가 있는 업무만 담긴다.
+  // 담길 업무·그룹 수 — 날짜 없는 업무도 날짜 없이 담긴다(2026-10-29). «나만 보기» 업무만 빠진다(템플릿은 전원에게 보인다).
   const summary = useMemo(() => {
-    const pool = hideDone ? tasks.filter(x => !isDone(x.status)) : tasks;
-    const dated = pool.filter(x => x.start_date || x.due_date);
-    const groups = new Set(dated.map(x => x.workstream_id).filter(Boolean));
-    return { count: dated.length, groups: groups.size, undated: pool.length - dated.length, done: tasks.filter(x => isDone(x.status)).length };
+    const visible = hideDone ? tasks.filter(x => !isDone(x.status)) : tasks;
+    const pool = visible.filter(x => x.vlevel !== 'L1');
+    const undated = pool.filter(x => !x.start_date && !x.due_date).length;
+    const groups = new Set(pool.map(x => x.workstream_id).filter(Boolean));
+    return { count: pool.length, groups: groups.size, undated, privateSkipped: visible.length - pool.length, done: tasks.filter(x => isDone(x.status)).length };
   }, [tasks, hideDone]);
 
   useEffect(() => {
@@ -100,10 +101,11 @@ export default function TemplateSaveModal({ open, onClose, businessId, projectId
           </CloseBtn>
         </Header>
         <Body>
-          <Hint>{t('tplSave.hint2', '현재 프로젝트의 업무 일정(시작·마감 날짜 중 하나라도 있는 것)과 추진과제(그룹)를 템플릿으로 저장합니다. 날짜는 가장 빠른 날을 기준으로 바뀌어, 적용할 때 고른 시작일부터 같은 간격으로 들어갑니다.')}</Hint>
+          <Hint>{t('tplSave.hint2', '현재 프로젝트의 업무와 추진과제(그룹)를 템플릿으로 저장합니다 — 설명·본문·중요도·주요 업무·분류·태그·결과물 액션·연결도 함께요. 날짜는 «첫날부터 며칠째»(기간)로 바뀌어, 적용할 때 고른 시작일(또는 기간)에 맞춰 들어갑니다.')}</Hint>
           <SummaryRow data-testid="tpl-save-summary">
             <span>{t('tplSave.summary', '업무 {{n}}개 · 추진과제 {{g}}개', { n: summary.count, g: summary.groups })}</span>
-            {summary.undated > 0 && <Muted>{t('tplSave.undated', '날짜 없는 업무 {{n}}개는 빠져요', { n: summary.undated })}</Muted>}
+            {summary.undated > 0 && <Muted>{t('tplSave.undated', '날짜 없는 업무 {{n}}개는 날짜 없이 담겨요', { n: summary.undated })}</Muted>}
+            {summary.privateSkipped > 0 && <Muted>{t('tplSave.privateSkipped', '«나만 보기» 업무 {{n}}개는 담지 않아요', { n: summary.privateSkipped })}</Muted>}
             {summary.done > 0 && (
               <CheckLabel>
                 {/* autosave-exempt: 저장 버튼과 함께 보내는 선택 — 따로 저장하지 않는다 */}

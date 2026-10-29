@@ -3,8 +3,9 @@
 //
 // 흐름:
 //   1) 템플릿 카드 리스트 (시스템 preset + 워크스페이스)
-//   2) 카드 클릭 → 시작일 + 담당자 매핑 입력 stage
+//   2) 카드 클릭 → 시작일(또는 시작일~끝날짜 기간 맞춤) + 담당자 매핑 입력 stage
 //   3) [적용] 클릭 → POST /api/task-templates/:id/apply → task 일괄 생성
+//   일정 계산은 서버 한 벌(dry_run) — 미리보기·적용·AI 시작점이 같은 날짜 (2026-10-29, docs/TASK_TEMPLATE_DETAIL_DESIGN.md)
 import { useEffect, useState, useMemo } from 'react';
 import styled from 'styled-components';
 import { modalFooterRadius, phoneSheetFlow } from '../Common/modalShell';
@@ -19,7 +20,11 @@ import { pickMatch } from '../../utils/searchMatch';
 import { apiFetch } from '../../contexts/AuthContext';
 import { mapApiError } from '../../utils/apiError';
 import type { AiSeed } from './AiTaskCreateModal';
-import TemplateItemsPreview, { itemDuration, type TemplateGroup } from './TemplateItemsPreview';
+import TemplateItemsPreview, { type TemplateGroup } from './TemplateItemsPreview';
+import TemplateEditItems from './TemplateEditItems';
+import { SegmentedToggle, SegmentedBtn } from '../Common/segmentedToggle';
+import { addDaysStr } from '../../utils/timezones';
+import { type TemplateItem, type ScheduleRow, normalizeOffsets } from './templateItem';
 
 interface Member { user_id: number; name: string; }
 
@@ -34,20 +39,6 @@ interface Template {
   is_default: boolean;
   usage_count: number;
   workstreams?: TemplateGroup[] | null;
-}
-
-interface TemplateItem {
-  id: number;
-  order_index: number;
-  title: string;
-  description?: string | null;
-  start_offset_days: number;
-  duration_days: number;
-  estimated_hours: number | null;
-  role_hint: string | null;
-  priority?: string | null;
-  /** 추진과제(그룹) 이름 — 적용하면 같은 이름 그룹에 넣는다(없으면 만든다). */
-  workstream_title?: string | null;
 }
 
 interface Props {
@@ -83,6 +74,13 @@ export default function TemplateSelectModal({ open, onClose, businessId, project
   const [selected, setSelected] = useState<Template | null>(null);
   const [items, setItems] = useState<TemplateItem[]>([]);
   const [startDate, setStartDate] = useState<string>(new Date().toISOString().slice(0, 10));
+  // 일정 넣는 방법 — 시작일만 / 시작일~끝날짜(기간 맞춤). 계산은 서버(dry_run) 한 벌.
+  const [schedMode, setSchedMode] = useState<'start' | 'range'>('start');
+  const [endDate, setEndDate] = useState<string>('');
+  const [schedule, setSchedule] = useState<ScheduleRow[] | null>(null);
+  const [spanDays, setSpanDays] = useState<number | null>(null);
+  const [scheduleMissing, setScheduleMissing] = useState(false);
+  const [schedError, setSchedError] = useState<string | null>(null);
   const [assigneeMap, setAssigneeMap] = useState<Record<string, number | null>>({});
   const [aiRequest, setAiRequest] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -160,6 +158,10 @@ export default function TemplateSelectModal({ open, onClose, businessId, project
     setStage('detail');
     setItems([]);
     setError(null);
+    setSchedMode('start');
+    setSchedule(null);
+    setSchedError(null);
+    setScheduleMissing(false);
     setLoading(true);
     try {
       const r = await apiFetch(`/api/task-templates/${tpl.id}`);
@@ -167,6 +169,9 @@ export default function TemplateSelectModal({ open, onClose, businessId, project
       if (!j.success) throw new Error(j.message || 'failed');
       const list: TemplateItem[] = j.data?.items || [];
       setItems(list);
+      setScheduleMissing(!!j.data?.schedule_missing);
+      // 끝날짜 기본값 = 저장된 기간 그대로(시작일 + 총 기간)
+      setEndDate(addDaysStr(startDate, Number(j.data?.total_duration_days) || 0));
       // 고유 role_hint 추출 → assigneeMap 초기화 (모두 null = fuzzy 자동)
       const roles = Array.from(new Set(list.map(i => i.role_hint).filter(Boolean))) as string[];
       const map: Record<string, number | null> = {};
@@ -178,6 +183,30 @@ export default function TemplateSelectModal({ open, onClose, businessId, project
       setLoading(false);
     }
   };
+
+  // 미리보기 일정 — 서버 dry_run 한 벌(적용·AI 시작점과 같은 계산). 날짜를 바꿀 때마다 다시 묻는다.
+  useEffect(() => {
+    if (!open || stage !== 'detail' || !selected || items.length === 0 || !startDate) return;
+    const useRange = schedMode === 'range' && !!endDate && !scheduleMissing;
+    let alive = true;
+    const timer = setTimeout(async () => {
+      try {
+        const r = await apiFetch(`/api/task-templates/${selected.id}/apply`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ business_id: businessId, start_date: startDate, ...(useRange ? { end_date: endDate } : {}), dry_run: true }),
+        });
+        const j = await r.json();
+        if (!alive) return;
+        if (!j.success) { setSchedule(null); setSchedError(mapApiError(new Error(j.message || 'failed'), tErr)); return; }
+        setSchedError(null);
+        setSchedule(j.data.items || []);
+        setSpanDays(typeof j.data.span_days === 'number' ? j.data.span_days : null);
+      } catch (e) { if (alive) setSchedError(mapApiError(e, tErr)); }
+    }, 250);
+    return () => { alive = false; clearTimeout(timer); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, stage, selected, items, startDate, endDate, schedMode, scheduleMissing, businessId]);
 
   const openEdit = async (tpl: Template, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -223,16 +252,25 @@ export default function TemplateSelectModal({ open, onClose, businessId, project
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          items: editItems.map(it => ({
+          // 가장 이른 날을 첫날(0)로 맞춰 보낸다. 디테일 칸은 전부 그대로 — 안 보내면 저장할 때마다 지워진다.
+          items: normalizeOffsets(editItems).map(it => ({
             title: it.title,
             description: it.description || null,
+            body: it.body || null,
             start_offset_days: it.start_offset_days,
             duration_days: it.duration_days,
             estimated_hours: it.estimated_hours,
             role_hint: it.role_hint || null,
-            // 중요도·그룹도 그대로 보낸다 — 안 보내면 저장할 때마다 normal·그룹 없음으로 지워졌다.
             priority: it.priority || null,
             workstream_title: it.workstream_title?.trim() || null,
+            is_milestone: !!it.is_milestone,
+            category: it.category || null,
+            vlevel: it.vlevel || null,
+            security_level: it.security_level || null,
+            recurrence_rule: it.recurrence_rule || null,
+            tag_names: it.tag_names || null,
+            action_items: it.action_items || null,
+            depends_on_indexes: it.depends_on_indexes || null,
           })),
         }),
       });
@@ -249,37 +287,6 @@ export default function TemplateSelectModal({ open, onClose, businessId, project
     } finally {
       setSubmitting(false);
     }
-  };
-
-  // items 편집 헬퍼
-  const updateItem = (idx: number, patch: Partial<TemplateItem>) => {
-    setEditItems(prev => prev.map((it, i) => i === idx ? { ...it, ...patch } : it));
-  };
-  const removeItem = (idx: number) => {
-    setEditItems(prev => prev.filter((_, i) => i !== idx));
-  };
-  const moveItem = (idx: number, dir: -1 | 1) => {
-    setEditItems(prev => {
-      const next = [...prev];
-      const target = idx + dir;
-      if (target < 0 || target >= next.length) return prev;
-      [next[idx], next[target]] = [next[target], next[idx]];
-      return next;
-    });
-  };
-  const addItem = () => {
-    const lastEnd = editItems.length > 0
-      ? Math.max(...editItems.map(it => it.start_offset_days + it.duration_days))
-      : 0;
-    setEditItems(prev => [...prev, {
-      id: -Date.now(),
-      order_index: prev.length,
-      title: '',
-      start_offset_days: lastEnd,
-      duration_days: 1,
-      estimated_hours: null,
-      role_hint: null,
-    }]);
   };
 
   const confirmDelete = async (tpl: Template, e: React.MouseEvent) => {
@@ -307,6 +314,7 @@ export default function TemplateSelectModal({ open, onClose, businessId, project
           business_id: businessId,
           project_id: projectId || null,
           start_date: startDate,
+          ...(schedMode === 'range' && endDate && !scheduleMissing ? { end_date: endDate } : {}),
           assignee_map: assigneeMap,
         }),
       });
@@ -325,9 +333,10 @@ export default function TemplateSelectModal({ open, onClose, businessId, project
 
   const roleHints = Object.keys(assigneeMap);
 
-  // 템플릿 항목 → AI 후보 모양(AiCandidateCard). 날짜는 /apply 와 같은 계산(마감 = 시작 + 기간, 기간 없으면 1일).
+  // 템플릿 항목 → AI 후보 모양(AiCandidateCard). 날짜는 미리보기와 같은 서버 계산(기간 맞춤 포함) — AI 를 눌러도 일정이 되돌아가지 않는다.
+  //   디테일(본문·주요·분류·공개 범위·태그·액션·연결)도 실어 보낸다 — AI 는 바꿀 것만 고치고(서버 ai-refine), 확정이 그대로 저장한다.
   const refineWithAi = () => {
-    if (!selected || !onRefineWithAi || items.length === 0 || !aiRequest.trim()) return;
+    if (!selected || !onRefineWithAi || items.length === 0 || !aiRequest.trim() || !schedule) return;
     onRefineWithAi({
       templateId: selected.id,
       templateName: selected.name,
@@ -336,22 +345,32 @@ export default function TemplateSelectModal({ open, onClose, businessId, project
       instruction: aiRequest.trim(),
       roleAssignees: assigneeMap,
       candidates: items.map((it, i) => {
-        const start = it.start_offset_days || 0;
-        const dur = itemDuration(it);
+        const row = schedule.find(r => r.order_index === it.order_index);
+        const start = row ? row.start_offset_days : it.start_offset_days;
+        const dur = row ? row.duration_days : it.duration_days;
         return {
           idx: i,
           title: it.title,
           description: it.description || undefined,
+          body: it.body || null,
           estimated_hours: it.estimated_hours ?? null,
-          duration_days: dur,
+          duration_days: dur ?? 0,
           start_offset_days: start,
-          due_offset_days: start + dur,
+          due_offset_days: start === null ? null : start + (dur ?? 0),
           priority: it.priority || 'normal',
           assignee_hint: it.role_hint || null,
           // 템플릿 그룹 — 확정 때 프로젝트에 없으면 만든다(서버 ai-create/confirm · source_template_id).
           workstream_hint: projectId ? (it.workstream_title || null) : null,
           assignee_user_id: it.role_hint ? (assigneeMap[it.role_hint] ?? null) : null,
           depends_on_index: null,
+          depends_on_indexes: it.depends_on_indexes || null,
+          is_milestone: !!it.is_milestone,
+          category: it.category || null,
+          vlevel: it.vlevel || null,
+          security_level: it.security_level || null,
+          recurrence_rule: it.recurrence_rule || null,
+          tag_names: it.tag_names || null,
+          action_items: it.action_items || null,
           vague: false,
           selected: true,
         };
@@ -478,88 +497,41 @@ export default function TemplateSelectModal({ open, onClose, businessId, project
                 <Hint>{t('tpl.categoryHint', '같은 카테고리끼리 자동으로 그룹됩니다. 새 카테고리를 입력하면 새 그룹이 만들어져요.')}</Hint>
               </FieldRow>
 
-              <FieldRow>
-                <ItemsHead>
-                  <FieldLabel>{t('tpl.itemsLabel', '일정 항목')} ({editItems.length})</FieldLabel>
-                  <SmallBtn type="button" onClick={addItem}>+ {t('tpl.itemAdd', '항목 추가')}</SmallBtn>
-                </ItemsHead>
-                {loading && <Loading>{t('tpl.loading', '템플릿 불러오는 중...')}</Loading>}
-                <datalist id="tpl-group-list">
-                  {editGroupNames.map(g => <option key={g} value={g} />)}
-                </datalist>
-                <ItemsList>
-                  {editItems.map((it, idx) => (
-                    <ItemRow key={it.id ?? idx}>
-                      <ItemTopRow>
-                        <ItemNum>{idx + 1}</ItemNum>
-                        <ItemTitleInput
-                          value={it.title}
-                          onChange={e => updateItem(idx, { title: e.target.value })}
-                          placeholder={t('tpl.itemTitlePh', '결과물 명사로 끝나도록 (예: 시안 작성)') as string}
-                        />
-                        <ItemMoveBtn type="button" onClick={() => moveItem(idx, -1)} disabled={idx === 0} title={t('tpl.itemUp', '위로') as string}>↑</ItemMoveBtn>
-                        <ItemMoveBtn type="button" onClick={() => moveItem(idx, 1)} disabled={idx === editItems.length - 1} title={t('tpl.itemDown', '아래로') as string}>↓</ItemMoveBtn>
-                        <ItemRemoveBtn type="button" onClick={() => removeItem(idx)} title={t('tpl.itemRemove', '삭제') as string}>✕</ItemRemoveBtn>
-                      </ItemTopRow>
-                      <ItemBotRow>
-                        <ItemField>
-                          <ItemMeta>{t('tpl.itemStart', '시작')}</ItemMeta>
-                          <ItemNumInput type="number" min={0} value={it.start_offset_days}
-                            onChange={e => updateItem(idx, { start_offset_days: Number(e.target.value) || 0 })} />
-                          <ItemUnit>D+</ItemUnit>
-                        </ItemField>
-                        <ItemField>
-                          <ItemMeta>{t('tpl.itemDur', '기간')}</ItemMeta>
-                          <ItemNumInput type="number" min={0} value={it.duration_days}
-                            title={t('tpl.itemDurHint', '0 = 시작일에 마감') as string}
-                            onChange={e => updateItem(idx, { duration_days: Math.max(0, Number(e.target.value) || 0) })} />
-                          <ItemUnit>{t('tpl.itemDays', '일')}</ItemUnit>
-                        </ItemField>
-                        <ItemField>
-                          <ItemMeta>{t('tpl.itemEst', '예상')}</ItemMeta>
-                          <ItemNumInput type="number" min={0} value={it.estimated_hours ?? ''}
-                            onChange={e => updateItem(idx, { estimated_hours: e.target.value ? Number(e.target.value) : null })} />
-                          <ItemUnit>h</ItemUnit>
-                        </ItemField>
-                        <ItemField $flex>
-                          <ItemMeta>{t('tpl.itemRole', '역할')}</ItemMeta>
-                          <ItemRoleInput
-                            type="text"
-                            value={it.role_hint || ''}
-                            onChange={e => updateItem(idx, { role_hint: e.target.value || null })}
-                            placeholder={t('tpl.itemRolePh', '예: 디자이너') as string}
-                          />
-                        </ItemField>
-                        <ItemField $flex>
-                          <ItemMeta>{t('tpl.itemGroup', '추진과제')}</ItemMeta>
-                          {/* draft-exempt: 템플릿 편집 폼의 짧은 이름 칸 — [저장] 으로 항목 전체와 함께 보낸다(역할 칸과 같은 성격) */}
-                          <ItemRoleInput
-                            type="text"
-                            list="tpl-group-list"
-                            value={it.workstream_title || ''}
-                            onChange={e => updateItem(idx, { workstream_title: e.target.value || null })}
-                            placeholder={t('tpl.itemGroupPh', '없음') as string}
-                            maxLength={200}
-                          />
-                        </ItemField>
-                      </ItemBotRow>
-                    </ItemRow>
-                  ))}
-                  {editItems.length === 0 && !loading && (
-                    <ItemsEmpty>{t('tpl.itemsEmpty', '항목이 없습니다. [+ 항목 추가] 버튼으로 추가하세요.')}</ItemsEmpty>
-                  )}
-                </ItemsList>
-              </FieldRow>
+              <TemplateEditItems items={editItems} onChange={setEditItems} groupNames={editGroupNames} loading={loading} />
               {error && <ErrorMsg>{error}</ErrorMsg>}
             </>
           )}
           {stage === 'detail' && selected && (
             <>
               {selected.description && <Desc>{selected.description}</Desc>}
+              {scheduleMissing && <WarnMsg data-testid="tpl-schedule-missing">{t('tpl.scheduleMissing', '이 템플릿에는 일정 정보가 없어요(예전에 저장된 템플릿). 지금 넣으면 모든 업무가 시작일 하루에 들어가요 — [수정]에서 날짜를 넣거나 프로젝트에서 다시 저장해 주세요.')}</WarnMsg>}
               <FieldRow>
-                <FieldLabel>{t('tpl.startDate', '시작일')} *</FieldLabel>
-                <SingleDateField value={startDate} onChange={(d) => setStartDate(d || new Date().toISOString().slice(0, 10))} size="sm" />
-                <Hint>{t('tpl.startHint', '시작일 기준으로 모든 업무의 일정이 계산됩니다.')}</Hint>
+                <FieldLabel>{t('tpl.modeLabel', '일정 넣는 방법')}</FieldLabel>
+                <SegmentedToggle role="tablist" data-testid="tpl-sched-mode">
+                  <SegmentedBtn type="button" $active={schedMode === 'start'} onClick={() => setSchedMode('start')}>{t('tpl.modeStart', '시작일만')}</SegmentedBtn>
+                  <SegmentedBtn type="button" $active={schedMode === 'range'} disabled={scheduleMissing}
+                    title={scheduleMissing ? t('tpl.rangeDisabled', '일정 정보가 없는 템플릿이라 기간 맞춤을 쓸 수 없어요.') as string : undefined}
+                    onClick={() => setSchedMode('range')}>{t('tpl.modeRange', '시작일~끝날짜 (기간 맞춤)')}</SegmentedBtn>
+                </SegmentedToggle>
+                <DateRow>
+                  <DateCol>
+                    <FieldLabel>{t('tpl.startDate', '시작일')} *</FieldLabel>
+                    <SingleDateField value={startDate} onChange={(d) => setStartDate(d || new Date().toISOString().slice(0, 10))} size="sm" />
+                  </DateCol>
+                  {schedMode === 'range' && !scheduleMissing && (
+                    <DateCol data-testid="tpl-end-date">
+                      <FieldLabel>{t('tpl.endDate', '끝날짜')} *</FieldLabel>
+                      <SingleDateField value={endDate} minDate={startDate} onChange={(d) => setEndDate(d || startDate)} size="sm" />
+                    </DateCol>
+                  )}
+                </DateRow>
+                <Hint>
+                  {schedMode === 'range' && !scheduleMissing
+                    ? t('tpl.rangeHint', '전체 일정을 이 기간에 맞게 늘이거나 줄여요. 업무 순서·간격 비율은 그대로이고 하루짜리는 하루짜리로 남아요.')
+                    : t('tpl.startOnlyHint', '템플릿에 저장된 간격 그대로, 시작일부터 들어가요.')}
+                  {spanDays !== null && !scheduleMissing ? ` · ${t('tpl.spanInfo', '전체 {{n}}일', { n: spanDays })}` : ''}
+                </Hint>
+                {schedError && <ErrorMsg>{schedError}</ErrorMsg>}
               </FieldRow>
               {roleHints.length > 0 && (
                 <FieldRow>
@@ -596,13 +568,13 @@ export default function TemplateSelectModal({ open, onClose, businessId, project
                     placeholder={t('tpl.aiRefinePh', '예) 디자인 검수 단계를 하나 추가하고, 개발 기간을 2일씩 늘려줘') as string} />
                   <AiRefineRow>
                     <Hint>{t('tpl.aiRefineHint', '이번에 넣을 업무만 고쳐요. 템플릿 원본은 그대로예요.')}</Hint>
-                    <ModalActionButton variant="ai" onClick={refineWithAi} disabled={!aiRequest.trim() || items.length === 0 || loading}>
+                    <ModalActionButton variant="ai" onClick={refineWithAi} disabled={!aiRequest.trim() || items.length === 0 || loading || !schedule}>
                       {t('tpl.aiRefineGo', 'AI 로 고쳐서 미리보기')}
                     </ModalActionButton>
                   </AiRefineRow>
                 </FieldRow>
               )}
-              <TemplateItemsPreview items={items} groups={selected.workstreams || []} startDate={startDate} />
+              <TemplateItemsPreview items={items} groups={selected.workstreams || []} startDate={startDate} rows={schedule} />
               {error && <ErrorMsg>{error}</ErrorMsg>}
             </>
           )}
@@ -624,7 +596,7 @@ export default function TemplateSelectModal({ open, onClose, businessId, project
             <>
               <ModalActionButton variant="secondary" onClick={() => setStage('list')}>{t('tpl.back', '뒤로')}</ModalActionButton>
               <ModalActionButton variant="secondary" onClick={onClose}>{t('tpl.cancel', '취소')}</ModalActionButton>
-              <ModalActionButton variant="primary" onClick={apply} disabled={!selected || items.length === 0 || submitting || !startDate}>
+              <ModalActionButton variant="primary" onClick={apply} disabled={!selected || items.length === 0 || submitting || !startDate || !!schedError}>
                 {submitting
                   ? t('tpl.applying', '적용 중...')
                   : t('tpl.applyN', '{{n}}개 추가', { n: items.length, defaultValue: `${items.length}개 추가` })}
@@ -757,75 +729,6 @@ const SmallBtn = styled.button<{ $danger?: boolean }>`
   border: 1px solid ${p => p.$danger ? '#DC2626' : '#E2E8F0'};
   &:hover { opacity: 0.85; }
 `;
-const ItemsHead = styled.div`
-  display: flex; align-items: center; justify-content: space-between; gap: 8px;
-`;
-const ItemsList = styled.div`
-  display: flex; flex-direction: column; gap: 6px;
-  max-height: 360px; overflow-y: auto;
-  padding: 4px;
-  background: #F8FAFC; border-radius: 8px;
-`;
-const ItemsEmpty = styled.div`
-  padding: 20px; text-align: center; color: #94A3B8; font-size: 0.75rem;
-`;
-const ItemRow = styled.div`
-  display: flex; flex-direction: column; gap: 6px;
-  padding: 8px 10px;
-  background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 6px;
-`;
-const ItemTopRow = styled.div`
-  display: flex; align-items: center; gap: 6px;
-`;
-const ItemNum = styled.div`
-  width: 22px; height: 22px;
-  display: inline-flex; align-items: center; justify-content: center;
-  background: #F0FDFA; color: #0F766E;
-  border-radius: 4px;
-  font-size: 0.6875rem; font-weight: 700;
-  flex-shrink: 0;
-`;
-const ItemTitleInput = styled.input`
-  flex: 1; min-width: 0;
-  padding: 5px 8px; font-size: 0.8125rem; font-weight: 600; color: #0F172A;
-  border: 1px solid transparent; border-radius: 4px;
-  background: transparent;
-  &:focus { outline: none; border-color: #14B8A6; background: #FFFFFF; }
-`;
-const ItemMoveBtn = styled.button`
-  width: 22px; height: 22px;
-  display: inline-flex; align-items: center; justify-content: center;
-  background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 4px;
-  color: #64748B; cursor: pointer; font-size: 0.6875rem;
-  &:hover:not(:disabled) { color: #0F766E; border-color: #14B8A6; }
-  &:disabled { opacity: 0.4; cursor: not-allowed; }
-`;
-const ItemRemoveBtn = styled(ItemMoveBtn)`
-  &:hover { color: #DC2626; border-color: #DC2626; }
-`;
-const ItemBotRow = styled.div`
-  display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
-  padding-left: 28px;
-`;
-const ItemField = styled.div<{ $flex?: boolean }>`
-  display: flex; align-items: center; gap: 4px;
-  ${p => p.$flex && 'flex: 1; min-width: 120px;'}
-`;
-const ItemMeta = styled.span`color: #64748B; font-size: 0.6875rem;`;
-const ItemUnit = styled.span`color: #94A3B8; font-size: 0.6875rem;`;
-const ItemNumInput = styled.input`
-  width: 44px; padding: 2px 4px;
-  border: 1px solid #E2E8F0; border-radius: 4px;
-  font-size: 0.75rem; text-align: right;
-  &:focus { outline: none; border-color: #14B8A6; }
-`;
-const ItemRoleInput = styled.input`
-  flex: 1; min-width: 0;
-  padding: 3px 6px;
-  border: 1px solid #E2E8F0; border-radius: 4px;
-  font-size: 0.75rem;
-  &:focus { outline: none; border-color: #14B8A6; }
-`;
 const EditInput = styled.input`
   width: 100%; padding: 8px 10px; font-size: 0.8125rem; color: #0F172A;
   border: 1px solid #E2E8F0; border-radius: 8px; background: #FFF;
@@ -896,4 +799,7 @@ const RoleTag = styled.span`
   background: #F0FDFA; border: 1px solid #CCFBF1;
   padding: 4px 8px; border-radius: 6px; text-align: center;
 `;
+const WarnMsg = styled.div`font-size: 0.75rem; color: #92400E; background: #FFFBEB; border: 1px solid #FDE68A; padding: 8px 10px; border-radius: 6px; line-height: 1.5;`;
+const DateRow = styled.div`display: flex; gap: 12px; flex-wrap: wrap;`;
+const DateCol = styled.div`display: flex; flex-direction: column; gap: 4px;`;
 const ErrorMsg = styled.div`font-size: 0.75rem; color: #DC2626; background: #FEF2F2; padding: 8px 10px; border-radius: 6px;`;

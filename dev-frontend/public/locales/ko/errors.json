@@ -68,5 +68,8 @@
   "onboarding_slots_too_many": "희망 시간은 3개까지 고를 수 있어요.",
   "onboarding_slot_invalid": "희망 시간을 다시 골라 주세요.",
   "onboarding_slot_past": "희망 날짜는 내일 이후로 골라 주세요.",
-  "onboarding_slot_duplicate": "같은 희망 시간이 두 번 들어갔어요."
+  "onboarding_slot_duplicate": "같은 희망 시간이 두 번 들어갔어요.",
+  "ai_patch_invalid": "AI 답을 읽지 못했어요. 목록은 그대로예요 — 요청을 조금 바꿔 다시 시도해 주세요.",
+  "end_before_start": "끝날짜가 시작일보다 앞이에요.",
+  "ai_unavailable": "지금은 AI 를 쓸 수 없어요. 잠시 후 다시 시도해 주세요."
 }

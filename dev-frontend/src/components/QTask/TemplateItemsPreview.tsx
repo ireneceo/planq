@@ -1,16 +1,21 @@
 // 템플릿 적용 미리보기 — 추진과제(그룹)별로 묶고, 고른 시작일로 실제 날짜를 보여 준다 (2026-10-27).
 //   Irene «업무 템플릿 저장할 때 추진과제(그룹)은 저장이 안되는데? … 일정을 임의로 짜면 잘 들어가는지 봐줘».
-//   날짜 계산은 서버 services/templateApply 와 같다: 시작 = 기준일 + start_offset · 마감 = 시작 + 기간(0 = 같은 날).
+//   날짜는 서버가 계산한 rows(/apply dry_run — 기간 맞춤 포함)를 그대로 쓴다(2026-10-29). rows 가 오기 전에만
+//   같은 규칙(시작 = 기준일 + start_offset · 마감 = 시작 + 기간)으로 잠깐 그린다. 날짜 없는 업무는 «날짜 없음».
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { addDaysStr } from '../../utils/timezones';
+import type { ScheduleRow } from './templateItem';
 
 export interface TemplateGroup { title: string; color?: string | null; description?: string | null; }
 interface PreviewItem {
   id: number;
+  order_index: number;
   title: string;
-  start_offset_days: number;
-  duration_days: number;
+  start_offset_days: number | null;
+  duration_days: number | null;
+  body?: string | null;
+  is_milestone?: boolean;
   estimated_hours: number | null;
   role_hint: string | null;
   workstream_title?: string | null;
@@ -25,7 +30,7 @@ export function itemDuration(it: { duration_days?: number | null }): number {
 const norm = (s: string) => s.replace(/\s+/g, '').toLowerCase();
 const md = (ymd: string) => `${Number(ymd.slice(5, 7))}/${Number(ymd.slice(8, 10))}`;
 
-export default function TemplateItemsPreview({ items, groups, startDate }: { items: PreviewItem[]; groups: TemplateGroup[]; startDate: string }) {
+export default function TemplateItemsPreview({ items, groups, startDate, rows }: { items: PreviewItem[]; groups: TemplateGroup[]; startDate: string; rows?: ScheduleRow[] | null }) {
   const { t } = useTranslation('qtask');
 
   // 그룹 순서 = 템플릿에 저장된 순서, 거기 없는 이름은 항목 순서로 뒤에. 그룹 없는 업무는 맨 끝.
@@ -58,15 +63,23 @@ export default function TemplateItemsPreview({ items, groups, startDate }: { ite
           )}
           <List>
             {sec.rows.map(it => {
+              const row = rows?.find(r => r.order_index === it.order_index);
+              const undated = row ? row.start_date === null : (it.start_offset_days === null || it.start_offset_days === undefined);
               const off = it.start_offset_days || 0;
               const dur = itemDuration(it);
-              const s = startDate ? addDaysStr(startDate, off) : null;
-              const d = startDate ? addDaysStr(startDate, off + dur) : null;
+              const s = row ? row.start_date : (startDate ? addDaysStr(startDate, off) : null);
+              const d = row ? row.due_date : (startDate ? addDaysStr(startDate, off + dur) : null);
               return (
                 <Row key={it.id}>
-                  <PrevTitle>{it.title}</PrevTitle>
+                  <PrevTitle>
+                    {/* 번호 = AI 에게 «2번» 이라고 말할 때의 번호(서버 ai-refine 과 같은 1부터) */}
+                    <Num>{items.indexOf(it) + 1}</Num>
+                    {it.title}
+                    {it.is_milestone && <Badge>{t('tpl.milestone', '주요')}</Badge>}
+                    {it.body && <Badge>{t('tpl.hasBody', '본문')}</Badge>}
+                  </PrevTitle>
                   <RowMeta>
-                    {s && d ? (s === d ? md(s) : `${md(s)} ~ ${md(d)}`) : `D+${off}~${off + dur}`}
+                    {undated ? t('tpl.noDate', '날짜 없음') : (s && d ? (s === d ? md(s) : `${md(s)} ~ ${md(d)}`) : `D+${off}~${off + dur}`)}
                     {it.estimated_hours ? ` · ${it.estimated_hours}h` : ''}
                     {it.role_hint ? ` · ${it.role_hint}` : ''}
                   </RowMeta>
@@ -98,5 +111,7 @@ const Row = styled.div`
   padding: 6px 8px;
   background: #FFFFFF; border-radius: 6px;
 `;
-const PrevTitle = styled.div`font-size: 0.75rem; font-weight: 600; color: #0F172A;`;
+const PrevTitle = styled.div`font-size: 0.75rem; font-weight: 600; color: #0F172A; display: flex; align-items: center; gap: 4px; flex-wrap: wrap;`;
+const Num = styled.span`font-size: 0.625rem; font-weight: 700; color: #0F766E; min-width: 14px;`;
+const Badge = styled.span`font-size: 0.625rem; font-weight: 600; color: #0F766E; background: #F0FDFA; border-radius: 4px; padding: 0 5px;`;
 const RowMeta = styled.div`font-size: 0.6875rem; color: #94A3B8;`;

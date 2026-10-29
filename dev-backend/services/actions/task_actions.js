@@ -925,6 +925,8 @@ async function createTask(actor, params = {}, opts = {}) {
       recurrence_rule: effectiveRecurrenceRule,
       recurrence_parent_id: null,
       next_occurrence_at: nextOccurrenceAt,
+      // 주요 업무 — 템플릿에서 옮겨 온 표시(docs/TASK_TEMPLATE_DETAIL_DESIGN.md). 안 넘기면 모델 기본값(false).
+      ...(params.isMilestone ? { is_milestone: true } : {}),
       ...visFields,   // 공개 범위·보안등급 — 위에서 검증(고객은 기본값)
     }, { transaction: t });
 

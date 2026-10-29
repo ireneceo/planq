@@ -783,6 +783,8 @@ router.post('/ai-create/confirm', authenticateToken, async (req, res, next) => {
     //   중간 실패 시 멈추는 부분 성공 계약과도 충돌한다.
     const idxToTaskId = new Map();
     const pendingLinks = [];
+    const extraPairs = [];
+    const templateDetails = require('../services/templateDetails');
 
     // 후보를 하나씩 실제 업무로 — 생성은 행동 계층 단일 착지점을 지난다.
     //   중간에 실패하면 그 지점에서 멈춘다(이미 만든 것은 남는다) — 프론트의 부분 성공 UX 계약이다.
@@ -865,6 +867,8 @@ router.post('/ai-create/confirm', authenticateToken, async (req, res, next) => {
         // 출처 표시 전용(권한·전이 무관) — «말하듯 써서 AI 로 등록» 했는지 팀 적응 단계가 읽는다
         //   (docs/TEAM_ADOPTION_STAGES_DESIGN.md). 화면 배지는 cue/agent 만 그려 이 값은 보이지 않는다.
         createdVia: 'ai_draft',
+        // 템플릿에서 온 디테일(본문·주요·분류·공개 범위) — 없으면 종전과 같다(templateDetails.candidateTaskFields).
+        ...templateDetails.candidateTaskFields(c, project_id),
       }, {
         // 이 경로의 고유 규칙 (통일 금지 — 프론트가 이 차이에 기대고 있다):
         keepEstimateForCue: true,          // 담당=Cue 면 요청 업무여도 예측시간을 남긴다
@@ -907,6 +911,9 @@ router.post('/ai-create/confirm', authenticateToken, async (req, res, next) => {
       if (Number.isInteger(c.depends_on_index) && c.depends_on_index !== selfIdx) {
         pendingLinks.push({ from: selfIdx, to: c.depends_on_index });
       }
+      // 템플릿 항목의 여러 선행 연결 · 태그 · 결과물 액션(/apply 와 같은 함수 — 태그·액션은 아래에서 한 번에)
+      for (const d of (Array.isArray(c.depends_on_indexes) ? c.depends_on_indexes : [])) if (Number.isInteger(d) && d !== selfIdx) pendingLinks.push({ from: selfIdx, to: d });
+      if (c.tag_names || c.action_items) extraPairs.push({ task: result.data.task, item: { tag_names: c.tag_names, action_items: c.action_items }, i: selfIdx });
       // #354 — 루틴 파이프라인(일간 → 주간 → 월간)은 단일 의존이 아니라 **여러 갈래**다.
       //   depends_on_index 하나로는 표현이 안 돼 pipeline_refs 배열을 같은 착지점으로 보낸다.
       if (isRoutineConfirm && Array.isArray(c.pipeline_refs)) {
@@ -943,6 +950,8 @@ router.post('/ai-create/confirm', authenticateToken, async (req, res, next) => {
         console.warn('[ai-create/confirm] task link failed', a, b, e.message);
       }
     }
+
+    if (extraPairs.length) await templateDetails.materializeItemExtras(extraPairs, { businessId: Number(business_id), actorUserId: req.user.id, indexOf: (it) => extraPairs.find((p) => p.item === it).i });
 
     // 2026-10-27 — 템플릿에서 시작해 AI 로 고쳐 넣은 경우(템플릿 적용 → «AI 로 고쳐 넣기»). /apply 를 거치지 않으므로
     //   사용 횟수(목록 정렬)·적용 감사를 여기서 남긴다. 이 워크스페이스 것이거나 시스템 템플릿일 때만.

@@ -592,6 +592,9 @@ sync_database() {
   # 2026-10-12 업무 «결과물 액션»(docs/TASK_ACTIONS_DESIGN.md) — task_action_items 표 신설. 멱등.
   #   ★ 순서: PM2 reload 보다 먼저 — 업무 상세·문서 상세가 이 표를 읽으므로 없으면 500.
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-task-action-items.js 2>&1 | tail -4"
+  # 2026-10-29 업무 템플릿 디테일(docs/TASK_TEMPLATE_DETAIL_DESIGN.md) — 항목 날짜 NULL 허용 + 본문·주요·분류·공개 범위·반복·태그·액션 칸. 멱등.
+  #   ★ 순서: PM2 reload 보다 먼저 — TaskTemplateItem 모델이 이 칸을 SELECT 하므로 없으면 템플릿 목록·적용이 500.
+  prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-task-template-details.js 2>&1 | tail -6"
   # 2026-10-12 팀 Google 캘린더 «올릴 캘린더»(docs/TEAM_CALENDAR_PICK_DESIGN.md) — business_cloud_tokens.gcal_calendar_id·summary. 멱등, 백필 없음(NULL = primary).
   #   ★ 순서: PM2 reload 보다 먼저 — 모델이 이 칸을 SELECT 하므로 없으면 클라우드 연동 조회·일정 동기화가 500.
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-gcal-team-calendar.js 2>&1 | tail -4"

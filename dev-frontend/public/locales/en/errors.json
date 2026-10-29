@@ -68,5 +68,8 @@
   "onboarding_slots_too_many": "You can pick up to 3 preferred times.",
   "onboarding_slot_invalid": "Please pick the preferred time again.",
   "onboarding_slot_past": "Pick a date from tomorrow onward.",
-  "onboarding_slot_duplicate": "The same preferred time was entered twice."
+  "onboarding_slot_duplicate": "The same preferred time was entered twice.",
+  "ai_patch_invalid": "Could not read the AI response. Your list is unchanged — rephrase and try again.",
+  "end_before_start": "The end date is before the start date.",
+  "ai_unavailable": "AI is unavailable right now. Please try again shortly."
 }

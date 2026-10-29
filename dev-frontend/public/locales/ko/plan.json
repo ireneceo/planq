@@ -69,7 +69,8 @@
       "payroll_preset": "급여 항목 틀 제안",
       "payroll_extract": "급여 대장 읽기(PDF)",
       "card_read": "명함 사진 읽기",
-      "bizreg_read": "사업자등록증 읽기"
+      "bizreg_read": "사업자등록증 읽기",
+      "ai_template_refine": "템플릿 AI 고쳐 넣기"
     },
     "prospects": "문의 고객"
   },

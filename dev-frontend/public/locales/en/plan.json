@@ -69,7 +69,8 @@
       "payroll_preset": "Payroll item suggestions",
       "payroll_extract": "Payroll register (PDF)",
       "card_read": "Card photo reading",
-      "bizreg_read": "Business registration reading"
+      "bizreg_read": "Business registration reading",
+      "ai_template_refine": "Template AI refine"
     },
     "prospects": "Prospects"
   },

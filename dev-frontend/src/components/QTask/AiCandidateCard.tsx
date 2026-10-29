@@ -16,7 +16,8 @@ export interface AiCandidate {
   /** null = 정하지 않음(Cue 대화 업무 묶음 — create_task 는 예상시간이 선택이다) */
   estimated_hours: number | null;
   duration_days: number;
-  start_offset_days: number;
+  /** null = 날짜 없음(템플릿의 «날짜 없는 업무» — 확정해도 날짜 없이 만든다) */
+  start_offset_days: number | null;
   /** null = 마감 없음(Cue 대화 업무 묶음 — 사용자가 마감을 말하지 않았으면 만들지 않는다) */
   due_offset_days: number | null;
   priority: string;
@@ -56,6 +57,16 @@ export interface AiCandidate {
   assignee_display_name?: string | null;
   assignee_user_id: number | null;
   depends_on_index: number | null;
+  // ─── 템플릿에서 온 디테일 (2026-10-29, docs/TASK_TEMPLATE_DETAIL_DESIGN.md) — 확정이 그대로 저장한다. AI 는 본문을 고치지 않는다.
+  body?: string | null;
+  is_milestone?: boolean;
+  category?: string | null;
+  vlevel?: string | null;
+  security_level?: string | null;
+  tag_names?: string[] | null;
+  action_items?: Array<{ kind: string; label: string; note?: string | null }> | null;
+  /** 같은 목록 안 선행 업무 번호(여러 개) — 확정 때 관련 업무 연결이 된다 */
+  depends_on_indexes?: number[] | null;
   vague: boolean;
   selected: boolean;
 }
@@ -90,12 +101,14 @@ interface Props {
   onCreateGroup?: (title: string) => Promise<AiCardWorkstream | null>;
   /** 반복 선택을 숨긴다 — 그 확정 경로가 반복을 저장하지 않을 때(Cue 대화 업무 묶음). 저장 안 될 값을 약속하지 않는다. */
   hideRecurrence?: boolean;
+  /** 사람이 «2번» 이라고 부를 번호(템플릿에서 고쳐 넣기 — AI 지시와 같은 번호, 1부터). 없으면 안 보인다. */
+  number?: number;
 }
 
 // 셀렉트에서 '새로 만들기' 를 나타내는 자리표 — 실제 id 와 섞이지 않게 숫자가 아닌 값을 쓴다.
 const NEW_GROUP = '__new__';
 
-export default function AiCandidateCard({ candidate: c, members, baseDate, onChange, hasProject = false, workstreams = [], onCreateGroup, hideRecurrence = false }: Props) {
+export default function AiCandidateCard({ candidate: c, members, baseDate, onChange, hasProject = false, workstreams = [], onCreateGroup, hideRecurrence = false, number }: Props) {
   const { t } = useTranslation('qtask');
   // 정기 루틴 선택지 — raw <select> 금지 규칙에 따라 PlanQSelect 로 그린다 (health-check 항목).
   // 운영 #263 — 담당자 이름 해석의 단일 규칙.
@@ -138,10 +151,12 @@ export default function AiCandidateCard({ candidate: c, members, baseDate, onCha
     { value: 'weekly', label: t('ai.recurWeekly', '매주') as string },
     { value: 'monthly', label: t('ai.recurMonthly', '매월') as string },
   ]), [t]);
-  const hasDue = c.due_offset_days != null;
+  const startOff = c.start_offset_days ?? 0;
+  const hasDue = c.due_offset_days != null && c.start_offset_days !== null;
   const dueOff = c.due_offset_days ?? 0;
-  const dur = Math.max(1, dueOff - c.start_offset_days);
-  const startDateStr = addDaysISO(baseDate, c.start_offset_days);
+  // 0 = 시작일에 마감(템플릿의 하루짜리) — 1 로 부풀리지 않는다
+  const dur = Math.max(0, dueOff - startOff);
+  const startDateStr = addDaysISO(baseDate, startOff);
   const dueDateStr = addDaysISO(baseDate, dueOff);
 
   return (
@@ -152,6 +167,7 @@ export default function AiCandidateCard({ candidate: c, members, baseDate, onCha
           checked={c.selected}
           onChange={e => onChange({ selected: e.target.checked })}
         />
+        {number !== undefined && <CardNumber data-testid="ai-card-number">{number}</CardNumber>}
         <TitleInput
           value={c.title}
           onChange={e => onChange({ title: e.target.value })}
@@ -196,17 +212,19 @@ export default function AiCandidateCard({ candidate: c, members, baseDate, onCha
         <MetaItem>
           <MetaIcon><CalendarIcon size={13} /></MetaIcon>
           {hasDue ? (<>
-          <DateRange>{fmtMd(startDateStr)} → {fmtMd(dueDateStr)}</DateRange>
+          <DateRange>{dur === 0 ? fmtMd(startDateStr) : `${fmtMd(startDateStr)} → ${fmtMd(dueDateStr)}`}</DateRange>
           <DurEdit>(
-            <DurInput type="number" min={1} max={90} value={dur}
+            <DurInput type="number" min={0} max={365} value={dur}
               onChange={e => {
-                const newDur = Math.max(1, Number(e.target.value) || 1);
-                onChange({ due_offset_days: c.start_offset_days + newDur });
+                const newDur = Math.max(0, Number(e.target.value) || 0);
+                onChange({ due_offset_days: startOff + newDur, duration_days: newDur });
               }} />
             {t('ai.itemDays', '일')})
           </DurEdit>
-          </>) : <DateRange>{t('ai.noDue', '마감 없음')}</DateRange>}
+          </>) : <DateRange>{c.start_offset_days === null ? t('ai.noDate', '날짜 없음') : t('ai.noDue', '마감 없음')}</DateRange>}
         </MetaItem>
+        {c.is_milestone && <MetaItem><DetailChip>{t('ai.milestone', '주요')}</DetailChip></MetaItem>}
+        {c.body && <MetaItem><DetailChip title={String(c.body).replace(/<[^>]*>/g, ' ').slice(0, 200)}>{t('ai.hasBody', '본문 있음')}</DetailChip></MetaItem>}
         <MetaItem>
           <MetaIcon><ClockIcon size={13} /></MetaIcon>
           <DurInput type="number" min={1} max={80} value={c.estimated_hours ?? ''}
@@ -397,3 +415,11 @@ const DurInput = styled.input`
   &:focus { outline: none; border-color: #14B8A6; }
 `;
 const Unit = styled.span`color: #94A3B8; font-size: 0.6875rem;`;
+const DetailChip = styled.span`
+  font-size: 0.6875rem; font-weight: 600; color: #0F766E; background: #F0FDFA;
+  border-radius: 4px; padding: 1px 6px;
+`;
+const CardNumber = styled.span`
+  flex-shrink: 0; min-width: 22px; padding: 0 4px; text-align: center;
+  font-size: 0.6875rem; font-weight: 700; color: #0F766E; background: #F0FDFA; border-radius: 4px;
+`;
