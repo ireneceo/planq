@@ -712,8 +712,7 @@ const Body = styled.div<{ $editable?: boolean; $borderless?: boolean; $compact?:
   & table .column-resize-handle:hover { opacity: 1; }
 
   .ProseMirror {
-    outline: none; font-size: 0.875rem; line-height: 1.55; color: #0F172A;
-    > * + * { margin-top: 0.5em; }
+    outline: none; font-size: 0.875rem; line-height: 1.65; color: #0F172A;
     h1 { font-size: 1.375rem; font-weight: 700; color: #0F172A; margin-top: 1.2em; line-height: 1.3; }
     h2 { font-size: 1.125rem; font-weight: 700; color: #0F172A; margin-top: 1em; line-height: 1.35; }
     h3 { font-size: 0.9375rem; font-weight: 700; color: #334155; margin-top: 0.8em; line-height: 1.4; }
@@ -722,6 +721,10 @@ const Body = styled.div<{ $editable?: boolean; $borderless?: boolean; $compact?:
     li { margin: 0; }
     li + li { margin-top: 0.2em; }
     li > p { margin: 0; }
+    /* 엔터(새 문단) 간격 — 위 p·ul·ol 의 margin:0 과 우선순위가 같아 **뒤에** 둔다.
+       앞에 두면 margin:0 이 이겨 문단 사이가 0px 였다(2026-10-29 실측, Irene «엔터값 다음은 더 넓어야»).
+       0.75em ≈ 10.5px > 한 문단 안 줄 사이 ≈ 9px — 공개 보기(PublicPostPage)와 같은 값. 제목은 자기 margin-top 을 쓴다. */
+    > * + *, > * + p, > * + ul, > * + ol { margin-top: 0.75em; }
     ul li::marker { color: #94A3B8; }
     ol li::marker { color: #94A3B8; font-weight: 600; }
     blockquote { border-left: 3px solid #14B8A6; padding: 4px 12px; background: #F0FDFA; color: #334155; border-radius: 0 6px 6px 0; }
