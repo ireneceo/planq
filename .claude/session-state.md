@@ -5,7 +5,8 @@
 ### ✅ 밤 순찰 e2e 에 상황판 관문 통과 표식 X-Board-Gate-Test (방 153be5dd · 2026-10-29 · [Opus] · Fable 안 씀 — 검사 도구만, 제품 코드·권한·공개 표면 변화 없음 · 자체 검증) — 운영 반영 없음(dev 검사 도구)
 - 서버 방 요청(SERVER_SETUP.md 2-5). 새 `scripts/e2e/lib/gate-header.js` — 값은 `~/dev-server/board/secrets/gate-test-token` 에서만(없으면 아무것도 안 함). **관문 뒤 호스트(dev.planq.kr + E2E_BASE·CANARY_FRONT)로 가는 요청에만** 붙인다: puppeteer 는 launch·connect 때 브라우저 전체 CDP Fetch 세션 하나(페이지·새 창 모두) · Node 쪽은 전역 fetch. `run.js`·`lib/browser.js` 가 불러 둔다(밤 순찰·full-sweep 모두 run.js 경유).
 - setExtraHTTPHeaders 를 안 쓴 이유: 모든 출처에 붙어 값이 바깥으로 새고 다른 출처 요청에 CORS 사전 확인을 일으킨다.
-- 검증: 로컬 시험 서버(가짜 값) — 같은 호스트 문서·fetch·새 창·Node fetch 전부 붙음 / 다른 호스트 0 / 카나리 자체 setRequestInterception 차단 그대로 / 쿠키·POST 본문 보존. 실제 dev: `--suite tenant,tabtitle` 총 실패 0 · 순찰(상세만) 결과는 보고 참조. 관문은 아직 nginx 에 안 들어가 «켠 상태 통과» 는 확인 못 함.
+- 검증: 로컬 시험 서버(가짜 값) — 같은 호스트 문서·fetch·새 창·Node fetch 전부 붙음 / 다른 호스트 0 / 카나리 자체 setRequestInterception 차단 그대로 / 쿠키·POST 본문 보존. 실제 dev: `--suite tenant,tabtitle` 총 실패 0. 오늘 full-sweep 중 이 변경 뒤(21:30Z~) 끝난 스위트 36개: 어제와 같음 32 · 나빠짐 2(detailopen·docfind) · 그 둘을 머리글 켬/끔으로 번갈아 돌리니 **양쪽 다 같은 모양으로 실패**(sweep 과 겹친 부하·429 — 머리글과 무관). 21:13~21:25 실패 증가는 내가 순찰을 sweep 과 겹쳐 돌린 탓(429).
+- 오늘 밤 순찰(18:03~20:33Z, 이 변경 전)은 «FATAL Connection closed» 로 timeout(exit 124) — 이 일과 무관한 기존 문제, 아침 /개발시작 이 볼 것. 관문은 아직 nginx 에 안 들어가 «켠 상태 통과» 는 확인 못 함.
 
 ### 답 기다림: PlanQ 안내방·워크스페이스 여정 기획 — Irene 결정 5개 (방 d12c74b3 · 2026-10-29 · [Opus] · Fable 안 씀 — 기획 설명 단계, 결정 뒤 Fable 설계 1회)
 - 무엇: **기획서 9절 결정 5개(안내방 워크스페이스당 하나 · Cue 비용 플랫폼 부담 · 사람 답만 푸시 · 제안은 검토 후 보내기 · 고객이 눌러야 피드백 저장)를 권고대로 정하고 Fable 설계로 넘어갈까요?**
