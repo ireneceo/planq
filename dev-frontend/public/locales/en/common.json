@@ -1577,7 +1577,7 @@
   },
   "popoutPin": {
     "pin": "Keep on top",
-    "pinHint": "Keeps this window on top of your other windows.",
+    "pinHint": "Keeps this window on top of your other windows. The browser places the pinned window at the bottom right of your screen — even if you moved this window first.",
     "unpin": "Unpin",
     "unpinHint": "Unpinning brings this back to a regular window.",
     "holderNote": "Showing in the pinned window",
