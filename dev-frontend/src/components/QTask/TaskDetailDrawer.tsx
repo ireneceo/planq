@@ -1920,7 +1920,8 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                     const am = members.find(mm => mm.user_id === detailTask.assignee_id);
                     if (am) return <IdentityContext person={{ type: 'member', department: am.department, team: am.team }} lang={i18n.language} />;
                     const ext = externalById.get(detailTask.assignee_id);
-                    if (ext) return <IdentityContext person={{ type: 'client', company_name: ext.company_name, kind: ext.kind }} lang={i18n.language} />;
+                    // 유형 배지(고객·파트너)는 위 셀렉트 값에 이미 붙어 있다 — 여기서 또 그리면 «고객 Kate 고객» 이 된다(Irene 10-29). 회사명만.
+                    if (ext) return <IdentityContext person={{ type: 'client', company_name: ext.company_name }} lang={i18n.language} />;
                     return null;
                   })()}
                 </MetaCell>
