@@ -35,6 +35,7 @@ import EditorOutlineButton from './EditorOutlineButton';   // 편집 중 목차�
 import EditorInsertDocButton from './EditorInsertDocButton';   // 다른 문서 복사해 넣기(2026-10-29)
 import { toolbarScrollCss, useToolbarHScroll, ToolbarEdgeArrow } from '../Common/editorToolbarScroll';   // 글자색·배경·크기(2026-10-11 — 문서 안 표 포함)
 import { textStyleExtensions, currentTextStyleKeys, applyTextStyle, stripForeignTextStyle } from './editorTextStyle';
+import { clipboardPlainText } from '../../utils/clipboardPlainText';
 
 // 사이클 N+16 — 노션 스타일 코드 블록. lowlight + common 언어팩 (30개+: js/ts/python/go/rust/sql/bash 등).
 const lowlight = createLowlight(common);
@@ -139,6 +140,7 @@ const PostEditor: React.FC<Props> = ({ value, onChange, onReady, placeholder, ed
     onUpdate: ({ editor }) => onChange(editor.getJSON()),
     editorProps: {
       transformPastedHTML: stripForeignTextStyle,   // 바깥 글의 색·크기는 걷는다(우리 문서끼리 복사는 유지)
+      clipboardTextSerializer: clipboardPlainText,   // 평문 복사 = 화면 줄 그대로(줄마다 빈 줄 끼지 않게)
       handlePaste: (view, event) => {
         // ★ #337 — 엑셀·구글시트·웹 표를 복사하면 클립보드에 **표(text/html)와 그림(image/png)이 같이** 담긴다.
         //   아래 이미지 분기가 무조건 먼저 돌아서, 표를 붙여넣으면 그림으로 박혀 편집이 불가능해졌다

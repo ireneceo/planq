@@ -32,6 +32,7 @@ import { plainTextToHtml } from '../../utils/sanitizeHtml';
 import { isEnterAction } from '../../utils/imeKey';
 import { ResizableImage } from '../Docs/ResizableImage';
 import { resizableImageCss } from '../Docs/resizableImageStyles';
+import { clipboardPlainText } from '../../utils/clipboardPlainText';
 
 // 본문 이미지 — **Q docs 와 같은 확장을 쓴다.**
 //   운영 #378 (Irene): "그냥 드래그로 넣으면 사이즈 조정도 안되네... 통일해서 맞춰서
@@ -139,6 +140,7 @@ export default function RichEditor({
     },
     editorProps: {
       attributes: { class: 'pq-editor-body' },
+      clipboardTextSerializer: clipboardPlainText,   // 평문 복사 = 화면 줄 그대로(줄마다 빈 줄 끼지 않게)
       handlePaste: (view, event) => {
         // 1) 파일 붙여넣기 — 이미지는 본문에(업로드 경로가 있을 때), 그 외 파일은 첨부 칸으로(onAttachFiles 가 있을 때).
         {
