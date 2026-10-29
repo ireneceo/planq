@@ -44,6 +44,8 @@ interface ProjectGroupsProps {
   /** 하위 폴더까지 합한 파일 수 — 확인창이 묻는 숫자. 서버가 재귀로 지우므로 세는 것도 재귀다. */
   countDeep?: (id: number) => number;
   onDownloadFolder?: (id: number) => void | Promise<void>;
+  /** 폴더 공유 링크(#469) — FolderTree 와 같은 처리기. 멤버에게만 넘긴다. */
+  onShareFolder?: (f: FileFolder) => void;
   counts: { total: number; bySrc: Record<FileSource, number>; byFolder: Record<number, number>; directRoot: number; myFiles: number };
   total: number;
   selected: FolderSel;
@@ -51,7 +53,7 @@ interface ProjectGroupsProps {
   tr: (k: string, fb?: string) => string;
 }
 
-const ProjectGroups: React.FC<ProjectGroupsProps> = ({ projectGroups, pinnedIds, counts, total, selected, onSelect, tr, folders = [], folderCounts = {}, onSelectFolder, onCreateFolder, folderDrop, onRenameFolder, onDeleteFolder, onDownloadFolder, countDeep }) => {
+const ProjectGroups: React.FC<ProjectGroupsProps> = ({ projectGroups, pinnedIds, counts, total, selected, onSelect, tr, folders = [], folderCounts = {}, onSelectFolder, onCreateFolder, folderDrop, onRenameFolder, onDeleteFolder, onDownloadFolder, onShareFolder, countDeep }) => {
   const [open, setOpen] = useState<Set<number>>(new Set());
   const { renamingId, startRename, renderName, setDeleteTarget, deleteModal } = useFolderEditing({ onRename: onRenameFolder, onDelete: onDeleteFolder, counts, countDeep, tr });
   const toggle = (id: number) => setOpen(prev => { const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n; });
@@ -96,7 +98,7 @@ const ProjectGroups: React.FC<ProjectGroupsProps> = ({ projectGroups, pinnedIds,
               </RowPlusBtn>
             )}
             {/* FolderTree 의 ⋯ 와 같은 항목·같은 순서(순서 바꾸기는 프로젝트 폴더 정렬 라우트가 달라 뺀다) */}
-            {(onRenameFolder || onDeleteFolder || onDownloadFolder) && (
+            {(onRenameFolder || onDeleteFolder || onDownloadFolder || onShareFolder) && (
               <OverflowMenu
                 label={tr('docs.folder.more')}
                 data-testid={`docs-subfolder-menu-${f.id}`}
@@ -106,6 +108,7 @@ const ProjectGroups: React.FC<ProjectGroupsProps> = ({ projectGroups, pinnedIds,
                   ...(onDownloadFolder && (folderCounts[f.id] || 0) > 0
                     ? [{ key: 'dl', label: tr('docs.folder.downloadAll'), onClick: () => { void onDownloadFolder(f.id); }, testId: 'docs-subfolder-download' }]
                     : []),
+                  ...(onShareFolder ? [{ key: 'share', label: tr('docs.folder.share'), onClick: () => onShareFolder(f), testId: 'docs-subfolder-share' }] : []),
                   ...(onDeleteFolder ? [{ key: 'del', label: tr('docs.folder.delete'), onClick: () => setDeleteTarget(f), danger: true, dividerBefore: true, testId: 'docs-subfolder-delete' }] : []),
                 ]}
               />

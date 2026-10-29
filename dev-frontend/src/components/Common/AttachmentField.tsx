@@ -20,7 +20,8 @@ import { useTranslation } from 'react-i18next';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
 import { postSubline } from '../../utils/postSubline';
 import PlanQSelect, { type PlanQSelectOption } from './PlanQSelect';
-import { fetchWorkspaceFiles, formatBytes, type ProjectFile } from '../../services/files';
+import { fetchWorkspaceFiles, fetchWorkspaceFolders, formatBytes, type ProjectFile, type FileFolder } from '../../services/files';
+import { buildFolderAttachOptions, FOLDER_ATTACH_MAX } from './attachFolders';
 import { fetchPosts, type PostRow } from '../../services/posts';
 import DriveImportSection from './DriveImportSection';
 
@@ -74,6 +75,9 @@ const AttachmentField: React.FC<Props> = ({
   const { formatDate } = useTimeFormat();
   const [internalFiles, setInternalFiles] = useState<ProjectFile[]>([]);
   const [posts, setPosts] = useState<PostRow[]>([]);
+  // 폴더째 첨부(#469) — 폴더를 고르면 그 순간의 파일 id 로 풀어 넣는다(attachFolders)
+  const [folders, setFolders] = useState<FileFolder[]>([]);
+  const [folderCapNote, setFolderCapNote] = useState<{ total: number } | null>(null);
   const [dragOver, setDragOver] = useState(false);
   // 접기 — 2026-10-11 Irene: *"메일 답변쓰기 할 때 … 파일첨부영역이 너무 넓어서 작성이 불편하네.
   // 파일첨부 열고 닫기 되게 하고 접어두자."* 드롭존(약 110px)+검색+Drive 가 본문 쓰는 자리를 먹었다.
@@ -99,6 +103,14 @@ const AttachmentField: React.FC<Props> = ({
       .catch(() => { /* skip */ });
     return () => { cancelled = true; };
   }, [businessId, providedFiles, hideExistingSearch]);
+
+  useEffect(() => {
+    if (hideExistingSearch) return;
+    let cancelled = false;
+    fetchWorkspaceFolders(businessId).then(fd => { if (!cancelled) setFolders(fd); }).catch(() => { /* skip */ });
+    return () => { cancelled = true; };
+  }, [businessId, hideExistingSearch]);
+  const folderOptions = useMemo(() => buildFolderAttachOptions(folders, wsFiles), [folders, wsFiles]);
 
   useEffect(() => {
     if (!includePosts || hideExistingSearch) return;
@@ -244,12 +256,20 @@ const AttachmentField: React.FC<Props> = ({
         onChange={(opts) => {
           const fileIds: number[] = [];
           const postIds: number[] = [];
+          setFolderCapNote(null);
           if (Array.isArray(opts)) {
             for (const o of opts) {
               const v = String((o as PlanQSelectOption).value);
-              if (v.startsWith('f:')) {
+              if (v.startsWith('d:')) {
+                // 폴더 → 그 순간의 파일들(앞 100개). 폴더 자체는 값에 남지 않는다 — 칩은 파일마다 생겨 하나씩 뺄 수 있다.
+                const fo = folderOptions.find(x => x.id === Number(v.slice(2)));
+                if (fo) {
+                  for (const id of fo.fileIds.slice(0, FOLDER_ATTACH_MAX)) if (!fileIds.includes(id)) fileIds.push(id);
+                  if (fo.fileIds.length > FOLDER_ATTACH_MAX) setFolderCapNote({ total: fo.fileIds.length });
+                }
+              } else if (v.startsWith('f:')) {
                 const n = Number(v.slice(2));
-                if (n) fileIds.push(n);
+                if (n && !fileIds.includes(n)) fileIds.push(n);   // 폴더로 이미 들어온 파일과 겹치면 한 번만
               } else if (v.startsWith('p:')) {
                 const n = Number(v.slice(2));
                 if (n) postIds.push(n);
@@ -260,6 +280,14 @@ const AttachmentField: React.FC<Props> = ({
           if (includePosts && onExistingPostIdsChange) onExistingPostIdsChange(postIds);
         }}
         options={[
+          // 폴더 먼저 — 빈 폴더는 흐리게(고를 수 없음)
+          ...folderOptions.map(fo => ({
+            value: `d:${fo.id}`,
+            label: `[${t('attach.typeFolder', '폴더')}] ${fo.path} (${fo.fileIds.length
+              ? t('attach.folderCount', { count: fo.fileIds.length, defaultValue: '{{count}}개' })
+              : t('attach.folderEmpty', '비어 있음')})`,
+            isDisabled: fo.fileIds.length === 0,
+          })),
           ...fileOptions.map(o => ({ value: `f:${o.value}`, label: `[${t('attach.typeFile', '파일')}] ${o.label}` })),
           ...(includePosts ? posts.map(p => ({
             value: `p:${p.id}`,
@@ -275,6 +303,12 @@ const AttachmentField: React.FC<Props> = ({
         }}
         noOptionsMessage={() => (t('attach.noResults', '결과 없음') as string)}
       />
+
+      {folderCapNote && (
+        <FolderCapNote data-testid="attach-folder-cap">
+          {t('attach.folderCapped', { total: folderCapNote.total, count: FOLDER_ATTACH_MAX, defaultValue: '폴더에 {{total}}개가 있어 앞의 {{count}}개만 넣었어요.' }) as string}
+        </FolderCapNote>
+      )}
 
       {/* ★ 2026-09-10 — Drive 를 **다시 넣었다.** 2026-09-07 에 뺀 이유가 해소됐다.
           그때 Irene: "팀 드라이브에서 가져오기는 무슨 말이야? … 누르면 또 Q file에 있는 것들이 나와?"
@@ -326,6 +360,8 @@ const UploadChipItem: React.FC<{ file: File; onRemove: () => void; disabled?: bo
     </Chip>
   );
 };
+
+const FolderCapNote = styled.div`margin-top: 6px; font-size: 0.75rem; color: #B45309;`;
 
 export default AttachmentField;
 

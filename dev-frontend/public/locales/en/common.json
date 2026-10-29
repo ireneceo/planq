@@ -832,7 +832,11 @@
       "pickerUnavailable": "Drive browsing is not configured on this server. The list below shows only files already opened with PlanQ.",
       "pickerCspBlocked": "A setting on this server is blocking the Drive picker. This is not something you can fix — please let an administrator know (security headers need updating).",
       "exportTooLarge": "The document is too large to convert (Google caps this at 10MB). Export it from Drive yourself and upload the file."
-    }
+    },
+    "typeFolder": "Folder",
+    "folderCount": "{{count}}",
+    "folderEmpty": "empty",
+    "folderCapped": "This folder has {{total}} files; only the first {{count}} were added."
   },
   "installPrompt": {
     "title": "Use PlanQ like an app",
@@ -1229,6 +1233,17 @@
       "chat": "Chat room",
       "email": "Email",
       "link": "Link"
+    },
+    "folder": {
+      "visible": "{{count}} files in this folder are visible through the link (subfolders included).",
+      "excludedBy": "{{count}} are left out — only-me {{priv}} · named members only {{targeted}} · confidential {{conf}}. Change a file's visibility to include it.",
+      "openMine": "Make my {{count}} files visible to the workspace",
+      "openMineFailed": "Couldn't change {{count}} files.",
+      "openMineTitle": "Make my files visible to the workspace",
+      "openMineMsg": "The {{count}} \"only me\" files you uploaded to this folder will become visible to all workspace members and to the folder link. Other people's files won't change.",
+      "openMineConfirm": "Change",
+      "truncated": "Only the first {{count}} files appear in the link.",
+      "live": "Files you add to this folder later will also appear in the link (including files coming in from Google Drive)."
     }
   },
   "candidate": {
@@ -1312,7 +1327,15 @@
       "checking": "Checking…",
       "submit": "Continue"
     },
-    "promoCopy": "A profitability engine that links work, projects, people, time, clients, and billing — turning time into revenue."
+    "promoCopy": "A profitability engine that links work, projects, people, time, clients, and billing — turning time into revenue.",
+    "folder": {
+      "count": "{{count}} files · {{size}}",
+      "empty": "There are no files to show in this folder.",
+      "subEmpty": "Empty",
+      "truncated": "Showing the first {{count}} of {{total}}.",
+      "zipTooBig": "The total size is over {{size}}, so it can't be downloaded at once. Please download files one by one.",
+      "downloadAll": "Download all (zip)"
+    }
   },
   "myFeedback": {
     "title": "Support & Feedback",

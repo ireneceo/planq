@@ -7,6 +7,7 @@ import DocsTab from '../QProject/DocsTab';
 import PersonalDriveTab from './PersonalDriveTab';
 import { useAuth } from '../../contexts/AuthContext';
 import { useDetailParam } from '../../hooks/useDetailParam';
+import { useSearchParams } from 'react-router-dom';
 
 type FileTab = 'workspace' | 'personal';
 
@@ -19,6 +20,9 @@ const QFilePage: React.FC = () => {
   //   임베드되므로 거기서 직접 읽으면 인스턴스들이 같은 파라미터를 두고 싸운다.
   const [openFileId, setOpenFileId] = useState<number | null>(null);
   useDetailParam('file', { activeId: openFileId, onOpen: (id) => { setTab('workspace'); setOpenFileId(id); } });
+  // `?folder=N` — 폴더 공유 링크 만료 알림·공개 페이지 «PlanQ 에서 보기»(#469). 고르기만 하고 주소는 건드리지 않는다.
+  const [params] = useSearchParams();
+  const openFolderId = Number(params.get('folder')) || null;
 
   if (!businessId) {
     return (
@@ -48,6 +52,7 @@ const QFilePage: React.FC = () => {
             scope={{ type: 'workspace', businessId }}
             openFileId={openFileId}
             onOpenFileChange={setOpenFileId}
+            openFolderId={openFolderId}
           />
         : <PersonalDriveTab businessId={Number(businessId)} />}
     </PageShell>

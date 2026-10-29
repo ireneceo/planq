@@ -149,6 +149,10 @@ export interface FileFolder {
    *    파일은 보이는데 그 폴더로 갈 수 없었다(#417). */
   project_id?: number | null;
   project_name?: string | null;
+  /** 폴더 공유 링크(#469)가 켜져 있나 — 멤버에게만 온다(고객 응답엔 없음). 토큰 자체는 응답에 싣지 않는다. */
+  share_on?: boolean;
+  share_expires_at?: string | null;
+  share_password_set?: boolean;
 }
 
 export interface StorageStatus {

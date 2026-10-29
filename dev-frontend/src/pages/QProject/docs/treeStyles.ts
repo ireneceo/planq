@@ -73,6 +73,10 @@ export const FolderName = styled.div`
   @media (max-width: 640px) { font-size: 0.875rem; }
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
 `;
+/** 공유 링크가 켜진 폴더 — 이름 **앞**에 둔다(뒤에 두면 긴 이름의 말줄임이 아이콘을 먼저 자른다). */
+export const SharedMark = styled.span`
+  display:inline-flex;vertical-align:-1px;margin-right:4px;color:#0D9488;
+`;
 export const FolderCount = styled.span`
   font-size:0.625rem;color:#94A3B8;font-weight:600;
   min-width:22px;padding:1px 6px;background:#F1F5F9;border-radius:999px;

@@ -80,3 +80,10 @@ export const FolderMoveSvg: React.FC<{ size?: number }> = ({ size = 14 }) => (
     <polyline points="11 11 14 14 11 17" /><line x1="14" y1="14" x2="8" y2="14" />
   </svg>
 );
+/** 공유 링크가 켜진 폴더 표시(#469) */
+export const LinkSvg: React.FC<{ size?: number }> = ({ size = 11 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+    <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+  </svg>
+);

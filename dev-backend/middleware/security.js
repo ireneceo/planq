@@ -265,6 +265,7 @@ const setupSecurity = (app) => {
     '/api/tasks/public/attach',
     '/api/posts/editor-image',
     '/api/message-attachments/public',
+    '/api/folders/public-thumb',   // 폴더 공유 링크 썸네일(#469) — 한 화면 수백 장
   ];
   const apiLimiter = rateLimit({
     windowMs: 1 * 60 * 1000, // 1분

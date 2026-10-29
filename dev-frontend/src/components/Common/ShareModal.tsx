@@ -16,11 +16,13 @@ import { useTimeFormat } from '../../hooks/useTimeFormat';
 import { isEnterAction } from '../../utils/imeKey';
 import { formatDay } from '../../utils/dateFormat';
 import { phoneSheetFlow } from './modalShell';
+import ConfirmDialog from './ConfirmDialog';
+import { updateFileVisibility } from '../../services/files';
 
 // N+44 — ShareModal 실 사용 5 entity 만 유지. document/invoice/quote/report 는 별도 UI 흐름
 // (PostSignatureModal, Invoice send 라우트 자체 발급) 사용 — ShareModal 통한 호출 dead code 였음.
 export type ShareEntityType =
-  | 'task' | 'file' | 'kb_document' | 'calendar_event' | 'post';
+  | 'task' | 'file' | 'kb_document' | 'calendar_event' | 'post' | 'file_folder';
 
 interface Props {
   open: boolean;
@@ -37,6 +39,7 @@ const PATH_MAP: Record<ShareEntityType, string> = {
   kb_document: 'kb-documents',
   calendar_event: 'calendar-events',
   post: 'posts',
+  file_folder: 'folders',   // 폴더 공유 링크(#469) — routes/folder_share.js
 };
 
 // 미리보기 URL 패턴 (frontend 라우트)
@@ -46,7 +49,16 @@ const PUBLIC_PATH_MAP: Record<ShareEntityType, string> = {
   kb_document: '/public/kb',
   calendar_event: '/public/calendar',
   post: '/public/posts',
+  file_folder: '/public/folders',
 };
+
+/** 폴더 링크에 실리는 것 — 서버(services/folderShare)가 센 숫자. 화면이 다시 세지 않는다. */
+interface FolderSummary {
+  visible: number; excluded: number; truncated: boolean; max_files: number; bytes: number;
+  reasons?: { private: number; targeted: number; confidential: number; no_access: number };
+  /** 창을 연 사람이 올린 «나만 보기» 파일 — [워크스페이스 공개로 바꾸기] 대상(링크를 넓히지 않고 내 파일을 연다) */
+  my_private_file_ids?: number[];
+}
 
 const ShareModal: React.FC<Props> = ({ open, entityType, entityId, entityTitle, onClose }) => {
   const { t } = useTranslation('common');
@@ -56,7 +68,12 @@ const ShareModal: React.FC<Props> = ({ open, entityType, entityId, entityTitle, 
   const [shareToken, setShareToken] = useState<string | null>(null);
   const [issueError, setIssueError] = useState<'blockedByAttachment' | 'blocked' | null>(null);
   const [shareUrl, setShareUrl] = useState<string>('');
-  const [expires, setExpires] = useState<7 | 30 | 90 | null>(null);
+  // undefined = 아직 모름(칩 하나도 안 켬). 첫 응답의 만료일로 맞춘다 — 서버 기본값(폴더 30일)과 칩이 어긋나지 않게.
+  const [expires, setExpires] = useState<7 | 30 | 90 | null | undefined>(undefined);
+  const [folderSummary, setFolderSummary] = useState<FolderSummary | null>(null);
+  const [openMineAsk, setOpenMineAsk] = useState(false);
+  const [openMineBusy, setOpenMineBusy] = useState(false);
+  const [openMineFailed, setOpenMineFailed] = useState(0);
   // 발급된 토큰의 실제 만료일 (백엔드 응답에서 받음). UI 표시용.
   const [shareExpiresAt, setShareExpiresAt] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -110,6 +127,13 @@ const ShareModal: React.FC<Props> = ({ open, entityType, entityId, entityTitle, 
         setShareUrl(j.data.share_url || `${window.location.origin}${PUBLIC_PATH_MAP[entityType]}/${j.data.share_token}`);
         setPasswordSet(!!j.data.password_set);
         setShareExpiresAt(j.data.share_expires_at || null);
+        if (j.data.folder_summary !== undefined) setFolderSummary(j.data.folder_summary || null);
+        setExpires(prev => {
+          if (prev !== undefined) return prev;
+          if (!j.data.share_expires_at) return null;
+          const days = Math.round((new Date(j.data.share_expires_at).getTime() - Date.now()) / 86400000);
+          return ([7, 30, 90] as const).find(d => d === days);
+        });
       } else if (j.code === 'security_level_blocks_share' || j.message === 'security_level_blocks_share') {
         // 왜 못 만드는지 말한다 — «발급 실패» 만으로는 무엇을 고쳐야 할지 모른다.
         setIssueError(entityType === 'task' ? 'blockedByAttachment' : 'blocked');
@@ -387,6 +411,33 @@ const ShareModal: React.FC<Props> = ({ open, entityType, entityId, entityTitle, 
                 </CopyBtn>
               </UrlRow>
               <Hint>{t('share.linkHint', { defaultValue: '링크를 가진 사람은 미리보기 페이지에서 항목을 볼 수 있습니다. PlanQ 멤버는 자동으로 앱 안에서 열립니다.' }) as string}</Hint>
+              {entityType === 'file_folder' && folderSummary && (
+                <FolderNote data-testid="share-folder-summary">
+                  <div>{t('share.folder.visible', { count: folderSummary.visible, defaultValue: '안에 든 파일 {{count}}개가 링크로 보여요 (하위 폴더 포함).' }) as string}</div>
+                  {folderSummary.excluded > 0 && (
+                    <div>{t('share.folder.excludedBy', {
+                      count: folderSummary.excluded,
+                      priv: folderSummary.reasons?.private ?? 0,
+                      targeted: folderSummary.reasons?.targeted ?? 0,
+                      conf: folderSummary.reasons?.confidential ?? 0,
+                      defaultValue: '{{count}}개는 빠져요 — 나만 보기 {{priv}} · 지정 멤버만 {{targeted}} · 대외비 {{conf}}. 넣으려면 그 파일의 공개 범위를 바꾸세요.',
+                    }) as string}</div>
+                  )}
+                  {(folderSummary.my_private_file_ids?.length ?? 0) > 0 && (
+                    <OpenMineBtn type="button" data-testid="share-folder-open-mine" disabled={openMineBusy}
+                      onClick={() => setOpenMineAsk(true)}>
+                      {t('share.folder.openMine', { count: folderSummary.my_private_file_ids!.length, defaultValue: '내 파일 {{count}}개를 워크스페이스 공개로 바꾸기' }) as string}
+                    </OpenMineBtn>
+                  )}
+                  {openMineFailed > 0 && (
+                    <ErrLine>{t('share.folder.openMineFailed', { count: openMineFailed, defaultValue: '{{count}}개는 바꾸지 못했어요.' }) as string}</ErrLine>
+                  )}
+                  {folderSummary.truncated && (
+                    <div>{t('share.folder.truncated', { count: folderSummary.max_files, defaultValue: '링크에는 앞의 {{count}}개만 보여요.' }) as string}</div>
+                  )}
+                  <div>{t('share.folder.live', { defaultValue: '앞으로 이 폴더에 넣는 파일도 링크로 보여요(구글 드라이브에서 들어오는 파일 포함).' }) as string}</div>
+                </FolderNote>
+              )}
 
               <SectionLabel>{t('share.expiry', { defaultValue: '만료' }) as string}</SectionLabel>
               <ChipRow>
@@ -399,6 +450,7 @@ const ShareModal: React.FC<Props> = ({ open, entityType, entityId, entityTitle, 
                   <Chip key={String(opt.v)} type="button"
                     $active={expires === opt.v}
                     onClick={() => setExpiry(opt.v as 7 | 30 | 90 | null)}
+                    aria-pressed={expires === opt.v}
                     disabled={busy}>
                     {opt.label}
                   </Chip>
@@ -469,6 +521,28 @@ const ShareModal: React.FC<Props> = ({ open, entityType, entityId, entityTitle, 
             <PrimaryBtn type="button" onClick={onClose}>{t('common.close', '닫기')}</PrimaryBtn>
           )}
         </Footer>
+        <ConfirmDialog
+          isOpen={openMineAsk}
+          onClose={() => setOpenMineAsk(false)}
+          variant="info"
+          title={t('share.folder.openMineTitle', { defaultValue: '내 파일을 워크스페이스 공개로' }) as string}
+          message={t('share.folder.openMineMsg', { count: folderSummary?.my_private_file_ids?.length ?? 0, defaultValue: '이 폴더에서 내가 올린 «나만 보기» 파일 {{count}}개를 워크스페이스 멤버 모두가 보도록 바꾸고, 폴더 링크에도 보이게 합니다. 다른 사람의 파일은 바뀌지 않아요.' }) as string}
+          confirmText={t('share.folder.openMineConfirm', { defaultValue: '바꾸기' }) as string}
+          cancelText={t('common.cancel', { defaultValue: '취소' }) as string}
+          onConfirm={async () => {
+            setOpenMineAsk(false);
+            const ids = folderSummary?.my_private_file_ids || [];
+            if (!user?.business_id || ids.length === 0) return;
+            setOpenMineBusy(true);
+            let failed = 0;
+            for (const id of ids) {
+              try { await updateFileVisibility(Number(user.business_id), id, { level: 'L3' }); } catch { failed += 1; }
+            }
+            setOpenMineFailed(failed);
+            setOpenMineBusy(false);
+            await issueToken({});   // 숫자는 서버가 다시 센다
+          }}
+        />
       </Dialog>
     </Backdrop>
   );
@@ -513,6 +587,17 @@ const Footer = styled.div`display: flex; justify-content: space-between; gap: 8p
 const EntityTitle = styled.div`font-size: 0.8125rem; font-weight: 600; color: #475569; padding: 8px 10px; background: #F8FAFC; border-radius: 6px; margin-bottom: 8px;`;
 const SectionLabel = styled.label`font-size: 0.6875rem; font-weight: 700; color: #64748B; text-transform: uppercase; letter-spacing: 0.05em; margin-top: 8px;`;
 const Hint = styled.div`font-size: 0.6875rem; color: #94A3B8; line-height: 1.5;`;
+const OpenMineBtn = styled.button`
+  align-self: flex-start; margin-top: 2px; padding: 6px 10px; font-size: 0.75rem; font-weight: 600;
+  color: #0F766E; background: #fff; border: 1px solid #99F6E4; border-radius: 6px; cursor: pointer;
+  &:hover:not(:disabled) { background: #F0FDFA; }
+  &:disabled { opacity: 0.5; cursor: default; }
+`;
+const FolderNote = styled.div`
+  display: flex; flex-direction: column; gap: 4px; padding: 8px 10px;
+  font-size: 0.75rem; color: #475569; line-height: 1.5;
+  background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 6px;
+`;
 const UrlRow = styled.div`display: flex; gap: 6px; align-items: center;`;
 const UrlInput = styled.input`
   flex: 1; padding: 8px 10px; font-size: 0.75rem; color: #0F172A;

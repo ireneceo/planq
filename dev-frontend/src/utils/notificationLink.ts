@@ -31,6 +31,7 @@ const ENTITY_LINK: Record<string, (id: string | number) => string> = {
   calendar_event: (id) => `/calendar?event=${id}`,
   event: (id) => `/calendar?event=${id}`,
   kb_document: (id) => `/info?doc=${id}`,
+  file_folder: (id) => `/files?folder=${id}`,   // 폴더 공유 링크 만료 알림(#469) — 서버 notification_link.js 와 같은 값
   // Q sale — 백엔드 services/notification_link.js 와 **같은 값**(두 벌이면 반드시 갈라진다)
   client: (id) => `/sale/${id}`,
   client_interaction: (id) => `/sale/${id}`,

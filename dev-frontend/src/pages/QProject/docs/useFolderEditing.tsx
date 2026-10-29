@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import type { FileFolder, FolderDeleteOutcome } from '../../../services/files';
 import { isEnterAction } from '../../../utils/imeKey';
-import { FolderName, RenameInput } from './treeStyles';
+import { FolderName, RenameInput, SharedMark } from './treeStyles';
+import { LinkSvg } from './treeIcons';
 import { Modal, Dialog, DTitle, DBody, DFooter, SecondaryBtn, DangerBtn } from './dialogStyles';
 
 /**
@@ -50,7 +51,11 @@ export function useFolderEditing({ onRename, onDelete, counts, countDeep, tr, tr
         if (e.key === 'Escape') setRenamingId(null);
       }} />
   ) : (
-    <FolderName onDoubleClick={e => { if (!onRename) return; e.stopPropagation(); startRename(f); }} title={f.name}>{f.name}</FolderName>
+    <FolderName onDoubleClick={e => { if (!onRename) return; e.stopPropagation(); startRename(f); }} title={f.name}>
+      {/* 공유 링크가 켜진 폴더 — 두 트리(Q file·프로젝트>파일)가 이 함수 하나로 이름을 그린다(#469) */}
+      {f.share_on && <SharedMark data-testid={`docs-folder-shared-${f.id}`} aria-label={tr('docs.folder.sharedMark')} role="img"><LinkSvg /></SharedMark>}
+      {f.name}
+    </FolderName>
   ));
   const fileCountInFolder = (folderId: number): number => (countDeep ? countDeep(folderId) : (counts.byFolder[folderId] || 0));
   // 삭제 확인 모달 — 두 트리가 같은 것을 쓴다.

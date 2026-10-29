@@ -38,6 +38,8 @@ interface FolderTreeProps {
   onReorder: (id: number, direction: 'up' | 'down') => Promise<void>;
   /** 폴더 통째 다운로드 (zip). 파일을 하나씩 고르지 않고 폴더째 받는다 — Irene #417. */
   onDownloadFolder?: (id: number) => void | Promise<void>;
+  /** 폴더 공유 링크(#469) — 멤버에게만 넘긴다(고객은 메뉴가 없다). */
+  onShareFolder?: (f: FileFolder) => void;
   /** 파일을 이 폴더로 끌어다 놓았을 때. 없으면 드롭 존 자체를 만들지 않는다. */
   onDropFiles?: (folderId: number | null, fileId: string) => void | Promise<void>;
   /** 바깥(OS)에서 끌어온 파일을 이 폴더로 올린다. */
@@ -47,7 +49,7 @@ interface FolderTreeProps {
   tr: (k: string, fb?: string) => string;
 }
 
-const FolderTree: React.FC<FolderTreeProps> = ({ folders, counts, total, selected, onSelect, onCreate, onRename, onDelete, onReorder, onDropFiles, onDropExternal, onDownloadFolder, folderDrop: folderDropProp, tr, foldersOnly, projectName, projectColor, countDeep, trashDays }) => {
+const FolderTree: React.FC<FolderTreeProps> = ({ folders, counts, total, selected, onSelect, onCreate, onRename, onDelete, onReorder, onDropFiles, onDropExternal, onDownloadFolder, onShareFolder, folderDrop: folderDropProp, tr, foldersOnly, projectName, projectColor, countDeep, trashDays }) => {
   const ownDrop = useFolderDrop(onDropFiles, onDropExternal);
   const folderDrop = folderDropProp || ownDrop;
   const [creatingParent, setCreatingParent] = useState<number | null | undefined>(undefined);
@@ -113,6 +115,7 @@ const FolderTree: React.FC<FolderTreeProps> = ({ folders, counts, total, selecte
                   ...(onDownloadFolder && count > 0
                     ? [{ key: 'dl', label: tr('docs.folder.downloadAll'), onClick: () => { void onDownloadFolder(f.id); }, testId: 'docs-folder-download' }]
                     : []),
+                  ...(onShareFolder ? [{ key: 'share', label: tr('docs.folder.share'), onClick: () => onShareFolder(f), testId: 'docs-folder-share' }] : []),
                   { key: 'up', label: tr('docs.folder.moveUp', '위로'), onClick: () => onReorder(f.id, 'up'), disabled: isFirst, dividerBefore: true },
                   { key: 'down', label: tr('docs.folder.moveDown', '아래로'), onClick: () => onReorder(f.id, 'down'), disabled: isLast },
                   { key: 'del', label: tr('docs.folder.delete', '삭제'), onClick: () => setDeleteTarget(f), danger: true, dividerBefore: true, testId: 'docs-folder-delete' },

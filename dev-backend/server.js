@@ -602,6 +602,8 @@ app.use('/api/files', require('./routes/file_trash'));
 app.use('/api/content-trash', require('./routes/content_trash'));
 app.use('/api/files', require('./routes/files'));
 app.use('/api/export', require('./routes/export'));
+// 폴더 공유 링크(#469) — 공개 무인증 경로를 품으므로 file_folders 보다 **앞**에(순서가 계약).
+app.use('/api/folders', require('./routes/folder_share'));
 app.use('/api/folders', require('./routes/file_folders'));
 app.use('/api/cloud', require('./routes/cloud'));
 app.use('/api/plan', require('./routes/plan'));

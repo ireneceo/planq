@@ -66,6 +66,37 @@ function isPublicFile(f) {
 }
 
 /**
+ * 폴더 공유 링크(#469)에서 이 파일이 **빠지는 이유** — null 이면 실린다. 발급자 기준
+ * (Fable 설계 판정 1 + 정정 2026-10-29, docs/FOLDER_SHARE_DESIGN.md §4).
+ *   'confidential' — 보안등급 internal·confidential(규칙 4).
+ *   'private'      — L1(나만 보기). 발급자 본인 것도 빠진다: «나만 보기는 owner/admin 에게도 닫힌다»(10-09 D2) 보다
+ *                    살아 있는 공개 링크가 넓어지면 안 된다 — 뒤에 L3→L1 로 좁혀도 링크에서 계속 보이게 된다.
+ *   'targeted'     — L2 중 **지정 멤버**(target_member_ids 있음). 사람이 일부러 좁힌 값이다 — 발급자가 그 목록에 있어도 빠진다.
+ *                    L2 중 **프로젝트 한정**(project_id 있음 ∧ 지정 멤버 없음)은 프로젝트 폴더 업로드의 기본값이라 실린다
+ *                    (그 프로젝트 고객은 이미 canDownloadFile 로 같은 파일을 받는다 — 고객 화면보다 넓어지지 않는다).
+ *                    프로젝트도 지정 멤버도 없는 L2 는 볼 사람이 정해지지 않은 값이라 같이 뺀다.
+ *   'no_access'    — 발급자가 지금 못 읽는다 — 단건 파일 공유 발급과 **같은 함수**(`canAccessFileByLevel`, 규칙 1).
+ *   ★ 위 `isPublicFile`(L4 만)과 폭이 다른 것은 의도다 — 그쪽은 문서·업무에 «딸려 가는» 첨부이고,
+ *     폴더 링크는 파일이 곧 내용이라 단건 파일 공유와 같은 선(L3)이 맞다. 두 술어를 섞지 않는다.
+ *   NULL 범위는 `fileListWhereByLevel` 이 멤버 전원에게 보이므로 L3 로 본다.
+ */
+async function folderLinkExcludeReason(f, issuerScope) {
+  if (!f || f.deleted_at) return 'no_access';
+  if (f.security_level && f.security_level !== 'general') return 'confidential';
+  const lv = f.vlevel || f.visibility || null;
+  if (lv === 'L1') return 'private';
+  if (lv === 'L2') {
+    const targets = Array.isArray(f.target_member_ids) ? f.target_member_ids : [];
+    if (targets.length > 0 || !f.project_id) return 'targeted';
+  }
+  const { canAccessFileByLevel } = require('../middleware/access_scope');
+  return (await canAccessFileByLevel(issuerScope.userId, f, issuerScope)) ? null : 'no_access';
+}
+async function isFolderLinkFile(f, issuerScope) {
+  return (await folderLinkExcludeReason(f, issuerScope)) === null;
+}
+
+/**
  * 공개 링크의 **워크스페이스가 살아 있는가** — router.param('token') 에 거는 문 (2026-10-09 보안점검).
  *
  *   왜: 워크스페이스가 지워져도(계정 탈퇴 → 혼자 쓰던 워크스페이스 삭제) 그 안의 공유 링크가 계속 열렸다.
@@ -94,4 +125,4 @@ function workspaceAliveParam(sources) {
   };
 }
 
-module.exports = { OPEN_RULES, shareOpenReason, isPublicFile, workspaceAliveParam };
+module.exports = { OPEN_RULES, shareOpenReason, isPublicFile, isFolderLinkFile, folderLinkExcludeReason, workspaceAliveParam };

@@ -7,6 +7,8 @@ const { authenticateToken, checkBusinessAccess } = require('../middleware/auth')
 const { getUserScope, canAccessProject, isMemberOrAbove } = require('../middleware/access_scope');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
 const { broadcastFile } = require('../services/fileBroadcast');   // 파일 실시간 반영 단일 원천
+// 폴더 응답은 화이트리스트 한 벌 — 행을 통째로 내보내면 공유 토큰(=공개 링크)이 같이 간다(#469)
+const { serializeFolder } = require('../services/folderResponse');
 
 async function requireProjectInBusiness(projectId, businessId) {
   const project = await Project.findOne({ where: { id: projectId, business_id: businessId } });
@@ -53,7 +55,7 @@ router.get('/projects/:projectId', authenticateToken, async (req, res, next) => 
       where: { business_id: project.business_id, project_id: project.id },
       order: [['parent_id', 'ASC'], ['sort_order', 'ASC'], ['created_at', 'ASC']]
     });
-    successResponse(res, folders);
+    successResponse(res, folders.map((f) => serializeFolder(f, { client: !isMemberOrAbove(scope) })));
   } catch (error) {
     next(error);
   }
@@ -86,12 +88,7 @@ router.get('/workspace/:businessId', authenticateToken, async (req, res, next) =
     });
     // 프로젝트 이름은 **폴더가 어느 프로젝트 것인지** 화면이 묶는 데 쓴다.
     //   이름을 화면이 따로 조회하면 목록이 프로젝트 수만큼 요청을 쏘고, 이름이 갈린다.
-    successResponse(res, folders.map((f) => {
-      const j = f.toJSON();
-      j.project_name = j.Project ? j.Project.name : null;
-      delete j.Project;
-      return j;
-    }));
+    successResponse(res, folders.map((f) => serializeFolder(f, { extra: { project_name: f.Project ? f.Project.name : null } })));
   } catch (error) { next(error); }
 });
 
@@ -115,14 +112,14 @@ router.post('/workspace/:businessId', authenticateToken, async (req, res, next) 
     const dup = await FileFolder.findOne({
       where: { business_id: businessId, project_id: null, parent_id: parentId, name },
     });
-    if (dup) return successResponse(res, dup);
+    if (dup) return successResponse(res, serializeFolder(dup));
 
     const row = await FileFolder.create({
       business_id: businessId, project_id: null, parent_id: parentId,
       name, sort_order: 0, created_by: req.user.id,
     });
     logFolderAudit(req, 'file_folder.create', row);
-    successResponse(res, row, 'Folder created', 201);
+    successResponse(res, serializeFolder(row), 'Folder created', 201);
   } catch (error) { next(error); }
 });
 
@@ -154,7 +151,7 @@ router.post('/projects/:projectId', authenticateToken, async (req, res, next) =>
       created_by: req.user.id
     });
     logFolderAudit(req, 'file_folder.create', folder);
-    successResponse(res, folder, 'Folder created', 201);
+    successResponse(res, serializeFolder(folder), 'Folder created', 201);
   } catch (error) {
     next(error);
   }
@@ -237,7 +234,7 @@ router.put('/:id', authenticateToken, async (req, res, next) => { // audit-exemp
         if (token) await gdrive.renameFile(await gdrive.getDriveClient(token), folder.gdrive_folder_id, name);
       } catch (e) { console.warn('[folder rename] Drive 반영 실패:', e.message); }
     }
-    successResponse(res, folder, 'Folder renamed');
+    successResponse(res, serializeFolder(folder), 'Folder renamed');
   } catch (error) {
     next(error);
   }

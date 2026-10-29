@@ -832,7 +832,11 @@
       "pickerUnavailable": "이 서버에는 Drive 찾아보기가 설정돼 있지 않습니다. 아래 목록에는 PlanQ 로 연 파일만 보입니다.",
       "pickerCspBlocked": "이 서버 설정 때문에 Drive 창을 열 수 없습니다. 사용자 문제가 아니니 관리자에게 알려 주세요 (보안 헤더 적용 필요).",
       "exportTooLarge": "문서가 너무 커서 변환할 수 없습니다(구글 제한 10MB). Drive 에서 직접 내보낸 뒤 올려 주세요."
-    }
+    },
+    "typeFolder": "폴더",
+    "folderCount": "{{count}}개",
+    "folderEmpty": "비어 있음",
+    "folderCapped": "폴더에 {{total}}개가 있어 앞의 {{count}}개만 넣었어요."
   },
   "installPrompt": {
     "title": "PlanQ 를 앱처럼 사용하기",
@@ -1229,6 +1233,17 @@
       "chat": "채팅방",
       "email": "이메일",
       "link": "링크"
+    },
+    "folder": {
+      "visible": "안에 든 파일 {{count}}개가 링크로 보여요 (하위 폴더 포함).",
+      "excludedBy": "{{count}}개는 빠져요 — 나만 보기 {{priv}} · 지정 멤버만 {{targeted}} · 대외비 {{conf}}. 넣으려면 그 파일의 공개 범위를 바꾸세요.",
+      "openMine": "내 파일 {{count}}개를 워크스페이스 공개로 바꾸기",
+      "openMineFailed": "{{count}}개는 바꾸지 못했어요.",
+      "openMineTitle": "내 파일을 워크스페이스 공개로",
+      "openMineMsg": "이 폴더에서 내가 올린 «나만 보기» 파일 {{count}}개를 워크스페이스 멤버 모두가 보도록 바꾸고, 폴더 링크에도 보이게 합니다. 다른 사람의 파일은 바뀌지 않아요.",
+      "openMineConfirm": "바꾸기",
+      "truncated": "링크에는 앞의 {{count}}개만 보여요.",
+      "live": "앞으로 이 폴더에 넣는 파일도 링크로 보여요(구글 드라이브에서 들어오는 파일 포함)."
     }
   },
   "candidate": {
@@ -1312,7 +1327,15 @@
       "checking": "확인 중...",
       "submit": "확인"
     },
-    "promoCopy": "업무, 프로젝트, 사람, 시간, 고객, 청구를 하나로 연결해 시간을 돈으로 바꾸는 수익성 엔진"
+    "promoCopy": "업무, 프로젝트, 사람, 시간, 고객, 청구를 하나로 연결해 시간을 돈으로 바꾸는 수익성 엔진",
+    "folder": {
+      "count": "파일 {{count}}개 · {{size}}",
+      "empty": "이 폴더에 보여 줄 파일이 없어요.",
+      "subEmpty": "비어 있어요",
+      "truncated": "{{total}}개 중 앞의 {{count}}개만 보여요.",
+      "zipTooBig": "전체 크기가 {{size}} 를 넘어 한 번에 받을 수 없어요. 파일을 하나씩 받아 주세요.",
+      "downloadAll": "전체 받기 (zip)"
+    }
   },
   "myFeedback": {
     "title": "문의·피드백",

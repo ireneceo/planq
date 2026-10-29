@@ -1330,6 +1330,32 @@ function defineSecretTests() {
     }
   });
 
+  // ★ 2026-10-29 #469 폴더 공유 링크(docs/FOLDER_SHARE_DESIGN.md §4 A) — file_folders.share_token 은 곧 공개 링크다.
+  //   폴더 응답은 services/folderResponse.serializeFolder 한 벌로 share_on 만 싣는다. f.toJSON() 통째 내보내기로 조용히 돌아온다.
+  test('secrets', '폴더 목록·생성·이름 변경 응답에 폴더 공유 토큰이 실리지 않는다', async () => {
+    await setup();
+    const H = { Authorization: `Bearer ${ctx.token}`, 'X-Workspace-Id': String(ctx.businessId) };
+    const cr = await http('POST', `${BACKEND}/api/folders/workspace/${ctx.businessId}`, { headers: H, body: { name: `[health] folder share ${Date.now()}` }, expectStatus: 201 });
+    const fid = cr.data && cr.data.id;
+    if (!fid) throw new Error('폴더를 만들지 못했다 — 검사 준비 실패');
+    try {
+      const sh = await http('POST', `${BACKEND}/api/folders/${fid}/share`, { headers: H, body: {} });
+      const tok = sh.data && sh.data.share_token;
+      if (!tok) throw new Error('공유 링크를 만들지 못했다 — 토큰이 없으면 "안 샌다" 를 증명할 수 없다');
+      const list = await http('GET', `${BACKEND}/api/folders/workspace/${ctx.businessId}`, { headers: H });
+      const rn = await http('PUT', `${BACKEND}/api/folders/${fid}`, { headers: H, body: { name: `[health] folder share renamed ${Date.now()}` } });
+      const raw = JSON.stringify(list) + JSON.stringify(rn) + JSON.stringify(cr);
+      if (raw.includes(tok)) throw new Error('폴더 응답에 공유 토큰 원문이 있다 — 폴더를 보는 사람이 공개 링크를 얻는다');
+      if (/"share_token"|"share_password_hash"/.test(raw)) throw new Error('폴더 응답에 share_token·share_password_hash 칸이 있다');
+      // 양성 대조군 — 공유 표시는 와야 한다(응답이 통째로 비어 거짓 통과하는 것을 막는다)
+      const row = Array.isArray(list.data) && list.data.find((f) => f.id === fid);
+      if (!(row && row.share_on === true)) throw new Error('목록에 share_on=true 가 없다 — 응답이 비었을 가능성(거짓 통과)');
+      return '목록·이름 변경 — 토큰 0 · share_on 유지';
+    } finally {
+      await http('DELETE', `${BACKEND}/api/folders/${fid}?contents=move`, { headers: H }).catch(() => {});
+    }
+  });
+
   // ★ 2026-10-23 서명 관리(docs/SIGNATURE_MANAGE_DESIGN.md) — 보낸 서명·서명 관리 목록은 멤버·관리자가 보는 응답이다.
   //   서명 링크(token)는 «받는 사람으로 서명하는» 자격증명이라 받는 본인 응답(/received)에만 실린다. 새 두 목록에 실리면 안 된다.
   test('secrets', '보낸 서명·서명 관리 목록에 서명 링크(token)가 실리지 않는다', async () => {

@@ -1357,6 +1357,12 @@ router.delete('/:id/members/:memberId', authenticateToken, async (req, res, next
         { where: { business_id: businessId, assigned_member_id: member.user_id }, transaction: t });
       // 문서 공동 편집자 — 내보낸 사람의 행을 지운다(다시 초대해도 자동으로 돌아오지 않는다, docs/DOC_COEDITORS_DESIGN.md).
       await require('../services/postEditors').removeUserFromBusiness(member.user_id, businessId, t);
+      // 이 사람이 연 폴더 공유 링크를 끈다(#469 Fable 판정 2) — 공개 판정도 발급자 멤버십을 보지만(services/folderShare),
+      //   행을 안 끄면 폴더 행의 🔗 가 죽은 링크를 가리킨다. owner 기준으로 이어 가지 않는다(떠난 사람이 연 통로).
+      const { FileFolder } = require('../models');
+      await FileFolder.update(
+        { share_token: null, shared_at: null, share_password_hash: null, share_expires_at: null, shared_by: null },
+        { where: { business_id: businessId, shared_by: member.user_id }, transaction: t });
     }
     await t.commit();
     // 멤버 수가 바뀌었다 — 사용량 캐시(30초)를 비운다. 안 비우면 내보낸 직후 «체험 플랜 내리기»(trial-plan)가

@@ -40,6 +40,7 @@ import { QuickViewButton, QuickViewModal } from './docs/QuickView';
 import { LIST_COLS, ListRow, RowChk, RowName, RowNameText, RowNameStack, CardReason, UnmirrorTag, RowSrc, RowCtx, RowSize, RowUp, RowDate, RowAct, DlPct } from './docs/DocsTab.listStyles';
 import CloudConnectNotice from '../../components/Common/CloudConnectNotice';
 import ShareRevokeDialog from './docs/ShareRevokeDialog';   // 공유 링크(B) 해제 — 0-J
+import { useFolderShare } from './docs/useFolderShare';   // 폴더 공유 링크(#469)
 import { Toolbar, ToolbarRight, SortWrap } from '../../components/Docs/assetTabLayout';
 import { Link } from 'react-router-dom';
 import {
@@ -95,6 +96,8 @@ interface Props {
   openFileId?: number | null;
   /** 상세가 열리고 닫힐 때 — 오너가 URL 을 맞춘다 */
   onOpenFileChange?: (id: number | null) => void;
+  /** 딥링크로 고를 폴더(`/files?folder=N` — 폴더 공유 링크 만료 알림·공개 페이지 «PlanQ 에서 보기») */
+  openFolderId?: number | null;
 }
 
 /** 업로드 큐 한 건 */
@@ -183,6 +186,8 @@ const DocsTab: React.FC<Props> = (props) => {
   //   목록이 로드된 뒤 그 id 를 찾아 상세를 연다. 목록에 없으면(삭제·권한) 그대로 둔다 —
   //   "없음" 안내는 다음 커밋의 공통 폴백이 담당한다.
   const openFileId = props.openFileId ?? null;
+  useEffect(() => { if (props.openFolderId) setFolderSel(props.openFolderId); }, [props.openFolderId]);
+  const { onShareFolder, shareFolderModal } = useFolderShare(!isPersonal && cacheUser?.business_role !== 'client');
   const openedFileRef = useRef<number | null>(null);
   // Q6 — 목록에 없는 ?file= 는 **이유를 말한다**(여태 "그대로 둔다" 로 미뤄져 아무 일도 안 일어났다).
   //   ① 내 다른 워크스페이스 파일이면 전환 안내 — 그러면 이 목록에는 영영 안 온다(바로 판정).
@@ -356,10 +361,11 @@ const DocsTab: React.FC<Props> = (props) => {
     //   서버가 `gdrive:changed` 를 쏘고 있었지만 **받는 곳이 한 군데도 없었다** —
     //   broadcast 는 수신부까지가 기능이다(CLAUDE.md 실시간 반영 규칙 16-c).
     const offGdrive = onSocket('gdrive:changed', triggerReload);
+    const offFolder = onSocket('folder:updated', triggerReload);   // 폴더 공유 켬/끔(#469) — 신호만 온다
     return () => {
       if (pending) window.clearTimeout(pending);
       leaveRoom(`business:${businessId}`);
-      offNew(); offUpdated(); offDeleted(); offGdrive();
+      offNew(); offUpdated(); offDeleted(); offGdrive(); offFolder();
     };
   }, [businessId, projectId, isWorkspace, isPersonal]);
 
@@ -1313,6 +1319,7 @@ const DocsTab: React.FC<Props> = (props) => {
                 trashDays={trashDays}
                 countDeep={folderFileCount}
                 onDownloadFolder={onDownloadFolder}
+                onShareFolder={onShareFolder}
               />
               {/* Irene 2026-08-31 — 워크스페이스 파일에도 폴더.
                   프로젝트 그룹(출처별 탐색)은 그대로 두고 **아래에** 폴더를 더한다 —
@@ -1344,6 +1351,7 @@ const DocsTab: React.FC<Props> = (props) => {
                 onDropExternal={(fid, fl) => handleFiles(fl, fid)}
                 folderDrop={treeDrop}
                 onDownloadFolder={onDownloadFolder}
+                onShareFolder={onShareFolder}
                 tr={tr}
               />
             </>
@@ -1386,6 +1394,7 @@ const DocsTab: React.FC<Props> = (props) => {
               onDropExternal={(fid, fl) => handleFiles(fl, fid)}
               folderDrop={treeDrop}
               onDownloadFolder={onDownloadFolder}
+              onShareFolder={onShareFolder}
               projectName={props.projectName}
               projectColor={props.projectColor}
               tr={tr}
@@ -1958,6 +1967,7 @@ const DocsTab: React.FC<Props> = (props) => {
         )}
       </DetailDrawer>
 
+      {shareFolderModal}
       {/* 공유 모달 */}
       {shareTarget && (
         <ShareModal

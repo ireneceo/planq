@@ -22,11 +22,11 @@ const { notify } = require('../routes/notifications');
 const WARN_DAYS = 3;
 
 async function runShareExpiryNotify(ioApp) {
-  const stats = { post: 0, file: 0, kb_document: 0, calendar_event: 0, skipped: 0 };
+  const stats = { post: 0, file: 0, kb_document: 0, calendar_event: 0, file_folder: 0, skipped: 0 };
   const now = new Date();
   const warnUntil = new Date(now.getTime() + WARN_DAYS * 86400 * 1000);
 
-  const { Post, File, KbDocument, CalendarEvent, Notification } = require('../models');
+  const { Post, File, KbDocument, CalendarEvent, FileFolder, Notification } = require('../models');
   // #214 — 발송처 표기용 워크스페이스명 캐시. 알림 1건마다 조회하면 cron 이 N+1 이 된다.
   const { Business } = require('../models');
   const wsNameById = new Map();
@@ -40,6 +40,8 @@ async function runShareExpiryNotify(ioApp) {
     { model: File, entity_type: 'file', authorField: 'uploader_id', titleField: 'file_name' },
     { model: KbDocument, entity_type: 'kb_document', authorField: 'uploaded_by', titleField: 'title' },
     { model: CalendarEvent, entity_type: 'calendar_event', authorField: 'created_by', titleField: 'title' },
+    // 폴더 공유 링크(#469) — 알림은 발급자에게(폴더를 만든 사람이 아니라 링크를 연 사람)
+    { model: FileFolder, entity_type: 'file_folder', authorField: 'shared_by', titleField: 'name' },
   ];
 
   for (const { model, entity_type, authorField, titleField } of targets) {

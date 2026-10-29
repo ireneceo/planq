@@ -33,6 +33,7 @@ const ENTITY_LINK = {
   calendar_event: (id) => `/calendar?event=${id}`,
   event: (id) => `/calendar?event=${id}`,
   kb_document: (id) => `/info?doc=${id}`,
+  file_folder: (id) => `/files?folder=${id}`,   // 폴더 공유 링크 만료 알림(#469) — QFilePage 가 ?folder 를 읽는다
   // Q sale — 고객의 영업 뷰. 고객 관리(/business/clients)가 아니라 여기로 보낸다(알림의 맥락이 영업이다).
   //   프론트 utils/notificationLink.ts 와 **같은 값**이어야 한다.
   client: (id) => `/sale/${id}`,
