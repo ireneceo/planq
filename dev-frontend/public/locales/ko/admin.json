@@ -170,7 +170,9 @@
       "period_started": "요청 시각에 이미 유료 기간이 시작된 결제입니다.",
       "trial_refund_used": "이 워크스페이스는 체험 중 환불을 이미 한 번 받았습니다.",
       "not_requested": "환불 요청이 없는 결제입니다.",
-      "not_trial_payment": "체험 중 결제가 아닙니다."
+      "not_trial_payment": "체험 중 결제가 아닙니다.",
+      "more_permissions_required": "Stripe 키에 환불 권한이 없어 카드 환불을 못 했습니다(아무것도 바뀌지 않음). Stripe 의 제한 키에 «Refunds 쓰기» 권한을 켜거나, Stripe 대시보드에서 직접 환불한 뒤 «Stripe 로 카드 환불 실행» 을 끄고 기록만 하세요.",
+      "charge_already_refunded": "Stripe 에서 이미 환불된 결제입니다. «Stripe 로 카드 환불 실행» 을 끄고 기록만 하세요."
     },
     "requestRefundReason": "고객 요청 환불",
     "requestRefundTitle": "환불 요청 처리",

@@ -170,7 +170,9 @@
       "period_started": "The paid period had already started when the refund was requested.",
       "trial_refund_used": "This workspace has already used its trial refund.",
       "not_requested": "No refund was requested for this payment.",
-      "not_trial_payment": "This is not a payment made during the trial."
+      "not_trial_payment": "This is not a payment made during the trial.",
+      "more_permissions_required": "The Stripe key has no refund permission, so the card was not refunded (nothing changed). Turn on «Refunds: Write» for the restricted key in Stripe, or refund it in the Stripe dashboard, then turn off «Refund the card through Stripe» and record only.",
+      "charge_already_refunded": "This payment was already refunded in Stripe. Turn off «Refund the card via Stripe» and record only."
     },
     "requestRefundReason": "Customer-requested refund",
     "requestRefundTitle": "Handle refund request",
