@@ -1,5 +1,10 @@
 # Fable 게이트 대기열 → **판정 기록 보관소** (2026-10-08 부터)
 
+### 2026-10-29 시연·홍보 영상 자동 생성 — 설계 판정 (방 b4b90288) · VERDICT: FAIL → 차단 3건 반영 → PASS
+- 문서 `docs/DEMO_VIDEO_DESIGN.md` §18. 서버 배치 B(공방 dev · 운영은 유튜브 링크·mp4 업로드만).
+- 차단: ① 드라이브 폴더를 워크스페이스 root 밖으로(gdriveIngest 가 root 하위를 들임) ② 조각 해시에 앞 장면·해석된 전환·startFrame·engineVersion + 길이 수정은 뒤 전부 재렌더 ③ dev nginx 50M → 앱 안 분할 업로드. 비차단 13건 설계 반영.
+- 같은 사안 A단계 UX 점검 1회(10-29) — 녹화 소재 검수·세로 프레이밍 등 9건 반영 후 재렌더.
+
 ### 2026-10-29 방 e86c9c10 — 업무 템플릿 «기간 정본 · 디테일 전부 · 시작일/기간 맞춤 · AI 바꿀 것만» — 설계 **DESIGN-READY** → 완료 검증 1차 **FAIL** → 고친 뒤 2차 **VERDICT: PASS**
 - 설계 `docs/TASK_TEMPLATE_DETAIL_DESIGN.md`. 운영 스키마 `scripts/migrate-task-template-details.js`(배포 슬롯, PM2 reload 전 · 멱등 2회 실측).
 - 1차 FAIL(실 LLM 11회 재현): 프롬프트가 #0 부터 세어 «2번» 이 셋째를 바꿈 · «뒤로 미뤄» 를 앞당김으로 · 한 업무 이동에 뒤 업무까지 shift from · 하루짜리 «이틀 늘려» → +4. 자체 검증은 «바뀌었나» 만 재고 «어느 항목이» 를 안 쟀다.
