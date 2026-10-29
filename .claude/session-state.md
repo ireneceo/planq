@@ -7,6 +7,12 @@
 - 개발시작 1-B 운영 피드백: 진행대기(승인) 0 · 반영중 0 · 승인 기다림 13(접수 5 · 검토중 8 — 관리자 > 사용자 피드백).
 - 1-C 밤 검사 10-28: 순찰 실패 3(알림 «설문 새 응답»·«서명 완료» → 지운 카나리 문서 6285·6275 찾을 수 없음 · /talk/369 오류 화면 · 메일 스레드 5936→10149 찾을 수 없음) · 전체 검사 161 중 실패 16 — 15건은 10-27 과 같은 미판정 목록(caret · tenantwrite · mailrt 2 · mobilechrome 3 · mobileboot · leavetypes · consultlinks · tablefit · tablestyle 2 · taskaddparity · mobilepanels · mobilesweep · guestproject · taskfooter · headerrow 2), contractbilling 은 2e725ed6 로 빠짐, **새 것 sharereceive 2(데스크탑 저장)** → 다시 돌려 0 실패 = 일시적.
 
+### 답 기다림: Gemini 연결 시험 — 유료 회사용으로 할지, 미룰지 (방 6b26f71f · 2026-10-29)
+- 무엇: **Gemini 연결 시험을 위해 회사용 Gemini Enterprise 를 결제할까요, 아니면 Gemini 는 미루고 ChatGPT·Claude 연결만 안내할까요?**
+- 왜: Irene 계정에 Gemini «맞춤 앱 추가» 메뉴가 없음(개인 계정 맞춤 앱 = 미국·Pro/Ultra 한정) → 할 일 카드 todomvly927b 뺌. 남은 길은 유료 회사용(1인 월 $21~30 · 결제·관리자 설정은 Irene)뿐.
+- 권고: 미루기(비용 0 · 계정 조건 문제라 우리 서버 고칠 일 없음).
+- 답이 오면: «결제» → Irene 할 일로 Enterprise 관리자 화면(팀 관리 › 연결된 앱 › MCP 서버 추가 › https://planq.kr/agent/mcp) 카드 올리고, 연결되면 G2 왕복 시험. «미루기» → 할 일 없음(관련 안내에서 Gemini 는 «준비 중» 그대로).
+
 ### 나중에 — 메일 «안전한 도메인» 화면 쪽 빌드·3폭 확인·커밋 (방 6b26f71f · 2026-10-29) · 서버 메모리가 넉넉할 때
 - 서버 쪽은 커밋됨(2c651e06 — 관계사 경고 원인 고침 + 등록 API · 실HTTP 27/27 · Fable PASS). 화면 쪽은 **미커밋**: dev-frontend/src/pages/QMail/{MailImpersonationNote.tsx,MailPage.tsx,mailTypes.ts} · pages/Settings/MailCriteriaSection.tsx · services/mail.ts · locales ko/en qmail.json. guard 81/82(가드 통과 — font-size·규격 고침 반영).
 - 왜 남았나: 프론트 빌드가 서버 메모리 부족으로 다섯 번 끊김(earlyoom EXIT 143 ×3 · Claude Code 메모리 보호가 대기 중 빌드 종료 ×1 · 일시정지 ×1). error TS 0(끊기기 전까지).
