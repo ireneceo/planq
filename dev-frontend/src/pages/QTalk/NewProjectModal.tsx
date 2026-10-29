@@ -242,7 +242,12 @@ const NewProjectModal: React.FC<Props> = ({ businessId, open, onClose, onCreate,
 
           <Field>
             <KindCheckRow>
-              <input type="checkbox" checked={isInternal} onChange={(e) => setIsInternal(e.target.checked)} id="np-internal" />
+              <input type="checkbox" checked={isInternal} id="np-internal"
+                onChange={(e) => {
+                  setIsInternal(e.target.checked);
+                  // 내부 프로젝트엔 고객 채팅을 기본으로 만들지 않는다 — 필요하면 아래 토글로 직접 켠다 (Irene 10-29)
+                  setCreateCustomerChannel(!e.target.checked);
+                }} />
               <label htmlFor="np-internal">
                 <strong>{t('modal.internalLabel', '내부 프로젝트')}</strong>
                 <small>{t('modal.internalDesc', '자체 투자(비청구) — 수익성 통계에서 제외되고 "내부 투자"로 별도 집계')}</small>

@@ -227,7 +227,7 @@
     "addClient": "추가",
     "clientHelp": "이미 등록된 고객은 검색해서 연결하세요. 새 고객은 이름·이메일로 추가하면 초대 링크가 만들어집니다(메일은 보내지 않습니다).",
     "channels": "채팅 채널",
-    "channelsHelp": "프로젝트 생성 시 2개 채널이 자동 생성됩니다. 이름과 참여자를 조정하세요.",
+    "channelsHelp": "켠 채팅방만 만들어집니다. 둘 다 끄면 채팅방 없이 프로젝트만 만들어집니다.",
     "customerChannel": "고객 채널",
     "internalChannel": "내부 채널",
     "customerChannelDefault": "{{project}} 고객",

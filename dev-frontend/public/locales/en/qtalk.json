@@ -259,7 +259,7 @@
     "addClient": "Add",
     "clientHelp": "Search to connect a client you already have. Adding a new name and email creates an invite link (no email is sent).",
     "channels": "Chat channels",
-    "channelsHelp": "Two channels are created on project creation. Adjust names and participants.",
+    "channelsHelp": "Only the chats you turn on are created. Turn both off to create the project without chats.",
     "customerChannel": "Customer channel",
     "internalChannel": "Internal channel",
     "customerChannelDefault": "{{project}} Customer",
