@@ -234,6 +234,13 @@ function queueDelivery({ invoiceId, actorUserId, sendChat, sendEmail, message, s
   const initial = {};
   if (sendChat) initial.chat_delivery = { status: 'queued', queued_at: now };
   if (sendEmail) initial.email_delivery = { status: 'queued', queued_at: now };
+  // 상세의 발송 칩은 «이번 발송» 을 보여 준다 — 고객에게 다시 보낼 때 이번에 안 쓰는 채널의 지난 결과는 지운다.
+  //   재발송(메일만)인데 첫 발송의 «채팅 · 실패 · 연결된 대화방이 없습니다» 가 그대로 남아 이번 일처럼 보였다(Irene 10-29).
+  //   지난 결과는 이력(billEvents 'delivered')에 남아 있다. 미리보기(self)는 고객 발송이 아니라 손대지 않는다.
+  if (audience === 'customer') {
+    if (!sendChat) initial.chat_delivery = null;
+    if (!sendEmail) initial.email_delivery = null;
+  }
   // 큐 표시는 응답 전에 남긴다 — 사용자가 즉시 "보내는 중" 을 본다
   const started = patchMeta(invoiceId, initial);
 
