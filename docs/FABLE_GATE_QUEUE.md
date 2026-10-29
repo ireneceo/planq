@@ -1,5 +1,9 @@
 # Fable 게이트 대기열 → **판정 기록 보관소** (2026-10-08 부터)
 
+### 2026-10-29 방 eea71a0b — 일정 «위치» 칸 장소 검색(자동완성) — 설계 **VERDICT: DESIGN-READY** → 완료는 자체 검증(Fable 판정: 기계 검사로 가름, 재호출 불필요)
+- 결정 D1~D8: 카카오 로컬 키워드 단일(구글 Places 범위 밖 — 결제 계정·과금은 수요 실측 뒤) · 프록시 `/api/places/search` 40/분·800/일·전역 30k·캐시 5분·응답 5칸·키 없음 disabled/오류 degraded 200 · 비공개 일정도 검색(검색어만, 로그 원문 금지) · 저장 «이름, 도로명주소» · AutoSaveField `hold`(목록 열림 동안 보류, 풀리면 즉시, 언마운트 무시) · FloatingMenu 포털·IME·Enter 전파 차단·Esc 스택 · 좌표·지도 링크·설정 범위 밖.
+- 자체 검증: 실HTTP(키 없음·잘못된 키·1자·401·429) · `--suite eventplacesearch` 3폭 18/18 + hold 뺀 대조군 ③ 3폭 실패 · build·guard 81/82·health 97/97. 커밋 bcea1519. 실검색은 카카오 키(Irene 할 일) 뒤.
+
 ### 2026-10-29 방 e2db7199 — #434·#456 아이폰 «공유» 확장(Share Extension) 상세 설계 — 설계 **VERDICT: DESIGN-FIX** 6건 → 문서에 반영(구현은 Apple 설정 뒤)
 - 설계 `docs/NATIVE_SHARE_RECEIVE.md` «iOS 상세 설계 + 일정». 받아들인 구조: 확장은 넘겨주기만(고르는 화면은 웹 /share-receive 하나) · 파일째 복사 · 한도 안드로이드와 같음 · 응답자 사슬 open + App Group 폴백.
 - 고친 6건: ① open 셀렉터 responds(to:) 확인·completeRequest 는 복사 뒤 open completion/2초·실패 화면 [PlanQ 열기]·정본은 takePending(이벤트는 신호)·주소 `planq://share`(끝 `/` 금지) ② 묶음 정리(확장 시작 때 10분 지난 것 삭제·최신 하나만·TTL=manifest ts) ③ 동영상 빼기(정본 목록에 없음)·UTType 대조로 skipped ④ agvtool 은 확장 타깃에 버전 설정이 있어야 — ios-beta-check 에 버전·App Group 일치 검사 ⑤ 확장 PrivacyInfo.xcprivacy·required-reason API 안 씀 ⑥ HEIC → JPEG 표현 우선.
