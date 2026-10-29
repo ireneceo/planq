@@ -1,10 +1,10 @@
 import React from 'react';
-import { AbsoluteFill, Audio, Sequence, interpolate, staticFile, useVideoConfig } from 'remotion';
+import { AbsoluteFill, Audio, OffthreadVideo, Sequence, interpolate, staticFile, useVideoConfig } from 'remotion';
 import type { Aspect, Scene, Storyboard } from './types';
 import { loadFonts } from './theme';
 import { Background, enterStyle, useT } from './fx/common';
 import { ScreenSceneView } from './scenes/ScreenScene';
-import { ChapterView, ConvergeView, KineticView, LogoView, MontageView, PointsView, StatView, TitleView } from './scenes/Cards';
+import { ChapterView, ConvergeView, FootageView, PhotoView, KineticView, LogoView, MontageView, PointsView, StatView, TitleView } from './scenes/Cards';
 
 loadFonts();
 
@@ -31,6 +31,8 @@ const SceneBody: React.FC<{ sc: Scene; sb: Storyboard; aspect: Aspect }> = ({ sc
     case 'logo': return <LogoView sc={sc} tpl={tpl} aspect={aspect} logoWhite={sb.brand.logoWhite} mark={sb.brand.mark} />;
     case 'montage': return <MontageView sc={sc} tpl={tpl} aspect={aspect} />;
     case 'kinetic': return <KineticView sc={sc} tpl={tpl} aspect={aspect} />;
+    case 'photo': return <PhotoView sc={sc} tpl={tpl} aspect={aspect} />;
+    case 'footage': return <FootageView sc={sc} tpl={tpl} aspect={aspect} />;
     case 'converge': return <ConvergeView sc={sc} tpl={tpl} aspect={aspect} mark={sb.brand.mark} />;
     default: return null;
   }
@@ -70,7 +72,7 @@ export const Video: React.FC<{ sb: Storyboard; aspect: Aspect }> = ({ sb, aspect
         const kind = sc.transKind || (tpl.transition === 'mixed' ? MIX[i % MIX.length] : tpl.transition);
         return (
           <Sequence key={sc.id} from={Math.round(start * fps)} durationInFrames={Math.max(1, Math.round(sc.dur * fps))}>
-            <Enter kind={kind} trans={trans} exitAt={sc.exitAt} textOnly={sc.kind !== 'screen' && sc.kind !== 'montage'}>
+            <Enter kind={kind} trans={trans} exitAt={sc.exitAt} textOnly={!['screen', 'montage', 'photo', 'footage'].includes(sc.kind)}>
               {sc.kind !== 'screen' && i > 0 && <Background tpl={tpl} strong />}
               <SceneBody sc={sc} sb={sb} aspect={aspect} />
             </Enter>
@@ -79,11 +81,29 @@ export const Video: React.FC<{ sb: Storyboard; aspect: Aspect }> = ({ sb, aspect
       })}
       {sb.music && <Audio src={sb.music.src.startsWith('http') ? sb.music.src : staticFile(sb.music.src)} startFrom={Math.round(sb.music.startAt * fps)} volume={musicVol} />}
       {sb.voice && <Audio src={sb.voice.src} volume={sb.voice.volume} />}
+      {sb.voice && sb.voice.face && <FaceCircle src={sb.voice.face} aspect={aspect} accent={tpl.palette.accent} />}
       {sb.sfx.map((x, i) => (
         <Sequence key={'sfx' + i} from={Math.max(0, Math.round(x.t * fps))} durationInFrames={Math.round(1.5 * fps)}>
           <Audio src={staticFile(`sfx/${x.kind}.wav`)} volume={(x.vol ?? 1) * ((tpl.sfx as Record<string, number>)[x.kind] ?? 0.6)} />
         </Sequence>
       ))}
     </AbsoluteFill>
+  );
+};
+
+// 얼굴 원 — 녹음과 같은 자르기를 거친 얼굴 영상(소리 없음)을 원 안에. 시각 축이 같아 입 모양이 맞는다.
+const FaceCircle: React.FC<{ src: string; aspect: Aspect; accent: string }> = ({ src, aspect, accent }) => {
+  const { width: W, height: H, fps } = useVideoConfig();
+  const t = useT();
+  const portrait = aspect === 'portrait';
+  const d = portrait ? W * 0.3 : W * 0.15;
+  const u = Math.min(1, t / 0.5);
+  const x = portrait ? W - d - W * 0.05 : W - d - W * 0.035;
+  const y = portrait ? H * 0.6 : H - d - H * 0.06;
+  return (
+    <div style={{ position: 'absolute', left: x, top: y, width: d, height: d, borderRadius: 999, overflow: 'hidden', opacity: u, transform: `scale(${0.85 + 0.15 * u})`,
+      boxShadow: `0 0 0 ${d * 0.025}px #fff, 0 0 0 ${d * 0.045}px ${accent}, 0 ${d * 0.08}px ${d * 0.3}px rgba(0,0,0,.4)`, background: '#000' }}>
+      <OffthreadVideo src={src} muted style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+    </div>
   );
 };

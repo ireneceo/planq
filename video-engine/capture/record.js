@@ -10,6 +10,7 @@ require('/opt/planq/dev-backend/node_modules/dotenv').config({ path: '/opt/planq
 const fs = require('fs');
 const path = require('path');
 const { ff, probe } = require('../lib/ffmpeg');
+const { checkPage } = require('./pagecheck');
 const { launch, login, goto, gotoSPA, sleep, dismissBlockers, BASE } = require('/opt/planq/scripts/e2e/lib/browser');
 
 const OUT = path.join(__dirname, '..', 'out', 'shots');
@@ -40,14 +41,16 @@ async function session(page, vp) {
     async start(id, meta = {}) {
       const dir = path.join(OUT, id);
       fs.rmSync(dir, { recursive: true, force: true }); fs.mkdirSync(path.join(dir, 'frames'), { recursive: true });
-      st = { id, dir, frames: [], events: [], on: true, t0: Date.now() / 1000, meta };
+      st = { id, dir, frames: [], events: [], on: true, t0: Date.now() / 1000, meta, pending: [] };
       await cdp.send('Page.startScreencast', { format: 'jpeg', quality: 93, maxWidth: vp.width * vp.deviceScaleFactor, maxHeight: vp.height * vp.deviceScaleFactor });
       await sleep(250);
       // 첫 프레임이 실제 시작점 — 그 전에 쌓인 이벤트 시각을 보정한다
       if (st.frames.length) { const shift = st.frames[0].t - st.t0; st.t0 = st.frames[0].t; st.events.forEach((e) => { e.t -= shift; }); }
     },
     ev(type, data = {}) { const e = { type, t: +now().toFixed(3), ...data }; st.events.push(e); return e; },
+    track(p) { st.pending.push(p); },
     async stop() {
+      await Promise.all(st.pending);
       const tEnd = Date.now() / 1000;
       await sleep(120); st.on = false;
       await cdp.send('Page.stopScreencast').catch(() => {});
@@ -72,7 +75,8 @@ async function session(page, vp) {
         pixels: { width: p.width, height: p.height }, recordedAt: new Date().toISOString(), ...st.meta, events: st.events,
       };
       fs.writeFileSync(path.join(dir, 'shot.json'), JSON.stringify(shot, null, 1));
-      console.log(`  ▸ ${st.id}: ${frames.length} 프레임 · ${shot.duration}s · ${p.width}×${p.height} · 이벤트 ${st.events.length}`);
+      const bad = st.events.filter((e) => e.type === 'beat' && e.issues && e.issues.length);
+      console.log(`  ▸ ${st.id}: ${frames.length} 프레임 · ${shot.duration}s · ${p.width}×${p.height} · 이벤트 ${st.events.length}${bad.length ? ' · ⚠ 검수: ' + bad.map((e) => `${e.key}(${e.issues.map((i) => i.kind + ':' + i.text).join(', ')})`).join(' / ') : ' · 검수 통과'}`);
       return shot;
     },
   };
@@ -146,7 +150,12 @@ function mk(page, rec, vp) {
     },
     unfocus() { return rec.ev('unfocus'); },
     // 대본이 자막을 붙일 수 있는 지점 표시(이 장면에서 무엇을 보여 주는지)
-    beat(key, text) { return rec.ev('beat', { key, text }); },
+    // beat = 자막 자리. 그 순간 화면을 검수 관문으로 묻고(로딩·빈 상태·공지·오류) 결과를 이벤트에 남긴다 — 빌더가 걸린 beat 에 자막을 달면 실패시킨다
+    beat(key, text) {
+      const e = rec.ev('beat', { key, text });
+      rec.track(checkPage(page).then((issues) => { e.issues = issues; }).catch(() => { e.issues = [{ kind: 'check_failed', text: 'DOM 검사 실패' }]; }));
+      return e;
+    },
     async scroll(dy, ms = 900, sel = null) {
       rec.ev('scroll', { dy, dur: ms / 1000 });
       const steps = Math.max(8, Math.round(ms / 40));
@@ -325,6 +334,35 @@ const SHOTS = [
         await h.move(chart.x + 420, chart.y + 160, 1000); await h.hold(2400); h.unfocus();
       }
       await h.hold(500);
+    },
+  },
+  {
+    id: 'project-d', device: 'desktop', who: 'owner', route: '/projects',
+    desc: 'Q project 데스크탑 — 진행 중인 프로젝트 카드(고객·진행률·기간)를 보고, 프로젝트 하나를 열어 대화·업무·문서가 모인 작업대를 본다.',
+    beats: { list: '프로젝트 카드 — 고객·진행률·기간', open: '프로젝트 상세(대화·업무·문서 한 곳)' },
+    async run(h) {
+      await h.hold(500);
+      const card = await h.blockOf('노들커머스 브랜드', { maxH: 260, maxW: 380 });
+      h.beat('list');
+      if (card) { h.focus(card, { label: '프로젝트', pad: 6 }); await h.moveTo(card, { dx: 0.5, dy: 0.7, ms: 900 }); await h.hold(2200); h.unfocus(); }
+      const t = await h.rectOf('노들커머스 브랜드');
+      if (t) { await h.click(t, { dx: 0.3 }); await h.waitFor(() => /\/projects\/p\//.test(location.pathname), null, { label: 'open' }); await h.wait(1200, 'load'); }
+      h.beat('open');
+      await h.move(1000, 420, 1000); await h.hold(2600);
+      await h.scroll(300, 1200); await h.hold(1200);
+    },
+  },
+  {
+    id: 'file-d', device: 'desktop', who: 'owner', route: '/files',
+    desc: 'Q file 데스크탑 — 프로젝트별로 정리된 자료(시안·가이드 PDF)를 한눈에. 고객별 폴더.',
+    beats: { files: '프로젝트별 자료 목록', folder: '고객별 폴더' },
+    async run(h) {
+      await h.hold(500);
+      h.beat('files');
+      const grid = await h.blockOf('랜딩_성능점검', { maxH: 600, maxW: 1400 });
+      if (grid) { h.focus({ x: grid.x - 10, y: grid.y - 10, w: Math.min(1100, h.vp.width - grid.x - 20), h: 420 }, { label: '자료', pad: 0 }); await h.move(grid.x + 500, grid.y + 120, 1000); await h.hold(2400); h.unfocus(); }
+      const f = await h.rectOf('노들커머스', { minX: 0, maxX: 500 });
+      if (f) { h.beat('folder'); await h.click(f, { dx: 0.4 }); await h.wait(1000, 'load'); await h.move(1100, 450, 900); await h.hold(2200); }
     },
   },
   {

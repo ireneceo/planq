@@ -116,7 +116,18 @@ function buildScreen(spec, tpl, aspectHints) {
 
   // 3) 자막 — beat 키에 붙인다. 다음 자막 시작(또는 장면 끝)까지
   const beatT = {};
-  for (const e of evs) if (e.type === 'beat' && beatT[e.key] == null) beatT[e.key] = map(e.t);
+  const beatIssues = {};
+  for (const e of evs) if (e.type === 'beat' && beatT[e.key] == null) { beatT[e.key] = map(e.t); beatIssues[e.key] = e.issues || null; }
+  // 소재 검수 관문(설계 §7): 자막을 다는 beat 에서 화면이 로딩·빈 상태·공지·오류면 멈춘다 — 사람이 «그대로 쓰기»(accept) 하면 통과
+  const gate = [];
+  // 녹음 기반(say)이면 말이 장면 전체를 덮으므로 모든 beat 를 본다
+  const gateKeys = spec.say ? Object.keys(beatIssues) : Object.keys(spec.captions || {});
+  for (const key of gateKeys) {
+    if (key === 'start') continue;
+    const iss = beatIssues[key];
+    if (iss == null && beatT[key] != null) gate.push({ shot: spec.shot, beat: key, kind: 'unchecked', text: '이 녹화는 검수 전 녹화기로 찍혔다 — 다시 녹화' });
+    else if (iss && iss.length && !(spec.accept || []).includes(key)) for (const i of iss) gate.push({ shot: spec.shot, beat: key, ...i });
+  }
   const caps = [];
   for (const [key, val] of Object.entries(spec.captions || {})) {
     const at = key === 'start' ? 0.2 : beatT[key];
@@ -139,7 +150,7 @@ function buildScreen(spec, tpl, aspectHints) {
     src: `media/shots/${spec.shot}/raw.mp4`,
     viewport: { width: vp.width, height: vp.height, dpr: vp.dpr },
     segments: segs, cam: { landscape: tidy(camL), portrait: tidy(camP) },
-    moves, clicks, spots, waits, captions: caps, dur: r3(dur), side: spec.side,
+    moves, clicks, spots, waits, captions: caps, dur: r3(dur), side: spec.side, _gate: gate,
     _clicks: clicks.map((c) => c.t),
   };
 }
@@ -152,6 +163,51 @@ function retimeScreen(sc, delta) {
   const nd = Math.max(0.3, g.dur + delta);
   g.rate = r3(span / nd); g.dur = r3(nd);
   sc.dur = r3(g.at + g.dur);
+}
+
+// 올린 소재 장면 — 분석 결과(lib/assets.js)가 먼저 있어야 한다. 사진은 피사체 쪽으로, 영상은 쓸 수 있는 구간만 1.2초 안팎 컷으로.
+//   (컷 경계를 음악 박자에 맞추는 것은 장면 경계 박자 맞춤과 같은 격자 — 컷 길이를 박 간격의 배수로 둔다)
+function buildAsset(spec) {
+  const file = path.join(ROOT, 'data', 'assets', spec.asset);
+  const af = file + '.analysis.json';
+  if (!fs.existsSync(file)) throw new Error(`소재 없음: ${spec.asset}`);
+  if (!fs.existsSync(af)) throw new Error(`소재 분석 먼저: node lib/assets.js data/assets/${spec.asset}`);
+  const a = loadJSON(af);
+  const src = `media/uploads/${spec.asset}`;
+  const base = { dur: spec.dur || 3.5, captions: spec.captions || [], title: spec.title };
+  if (spec.kind === 'photo') {
+    if (a.usable === false) throw new Error(`소재 «${spec.asset}» 는 쓰기 어렵다고 판독됨: ${a.issue || ''}`);
+    return { kind: 'photo', src, subject: a.subject, ...base };
+  }
+  const segs = (a.usable || []).map((u) => ({ a: u.a + 0.15, b: u.b - 0.15 })).filter((u) => u.b - u.a >= 1);
+  if (!segs.length) throw new Error(`소재 «${spec.asset}» 에 쓸 수 있는 구간(밝고 안 흔들린 1초 이상)이 없음`);
+  const cutLen = spec.cut || 1.25;
+  const cuts = []; let need = base.dur, k = 0, guard = 0;
+  while (need > 0.05 && guard++ < 200) {
+    const g = segs[k % segs.length];
+    const off = Math.floor(k / segs.length) * cutLen; // 같은 구간을 두 번 쓰면 다음 부분부터
+    const from = g.a + (off % Math.max(0.01, g.b - g.a - 0.5));
+    const d = Math.min(cutLen, need, g.b - from);
+    if (d > 0.3) { cuts.push({ src, from: r3(from), dur: r3(d) }); need -= d; }
+    k++;
+  }
+  return { kind: 'footage', cuts, ...base };
+}
+
+// 화면 장면을 목표 길이에 맞춘다(녹음 기반) — 모든 시각을 같은 비율로 늘이고 줄인다.
+//   너무 길면(2.5배 넘게 빨라져야 하면) 2.5배까지만 빨리 하고 뒤를 자른다 — UI 가 지나치게 빨라 보이지 않게.
+function retimeScreenTo(sc, target) {
+  let f = sc.dur / target; // >1 = 빨리
+  f = Math.max(0.6, Math.min(2.5, f));
+  const k = 1 / f;
+  for (const g of sc.segments) { g.at = r3(g.at * k); g.dur = r3(g.dur * k); g.rate = r3(g.rate * f); }
+  for (const key of ['landscape', 'portrait']) sc.cam[key].forEach((c) => { c.t = r3(c.t * k); });
+  sc.moves.forEach((m) => { m.t0 = r3(m.t0 * k); m.t1 = r3(m.t1 * k); });
+  sc.clicks.forEach((c) => { c.t = r3(c.t * k); });
+  sc.spots.forEach((x) => { x.t0 = r3(x.t0 * k); x.t1 = r3(x.t1 * k); });
+  sc.waits.forEach((x) => { x.t0 = r3(x.t0 * k); x.t1 = r3(x.t1 * k); x.rate = r3(x.rate * f); });
+  sc._clicks = sc.clicks.map((c) => c.t);
+  sc.dur = r3(target);
 }
 
 // 몽타주용 정지 화면 — 녹화 원본에서 한 장
@@ -191,8 +247,11 @@ function build(script, aspect = 'landscape') {
     else if (s.kind === 'montage') {
       const images = s.shots.map((x, k) => (aspect === 'portrait' ? stillCrop : still)(x.shot, x.t, `${x.shot}-${String(x.t).replace('.', '_')}-${k}`));
       scenes.push({ id, kind: 'montage', images, title: s.title, dur: s.dur, captions: s.captions || [], transKind: s.transKind, transIn: s.transIn });
-    } else scenes.push({ id, dur: s.dur, ...s, captions: s.captions || [] });
+    } else if (s.kind === 'photo' || s.kind === 'footage') scenes.push({ id, ...buildAsset(s), transKind: s.transKind, transIn: s.transIn });
+    else scenes.push({ id, dur: s.dur, ...s, captions: s.captions || [] });
   }
+  const gateIssues = scenes.flatMap((x) => x._gate || []);
+  scenes.forEach((x) => { delete x._gate; });
   // 챕터 카드 — 그 챕터 첫 화면 장면의 정지 화면을 흐리게 깔고 «01 / 04» 진행 표시(Fable A 6번)
   const chapters = scenes.filter((x) => x.kind === 'chapter');
   chapters.forEach((ch, k) => {
@@ -207,9 +266,35 @@ function build(script, aspect = 'landscape') {
     }
   });
 
-  // 음악 박자: 영상 0초 = 음악 startAt. 장면 경계를 박자에 붙인다
+  // 녹음 기반(①): 장면 길이를 말에 맞춘다 — 장면 k 의 시작 = 그 장면 첫 문장 시작(편집 축). 자막 = 녹음 단어 시각.
+  let voice = null;
+  if (script.voice) {
+    const vdir = path.join(ROOT, 'data', 'voice', script.voice.id);
+    const vj = loadJSON(path.join(vdir, 'voice.json'));
+    const S = vj.sentences;
+    const total = vj.report.edited;
+    // say 없는 장면(끝 로고)은 말이 끝난 뒤에 붙는다
+    const starts = list.map((sp, k) => (k === 0 ? 0 : sp.say ? S[sp.say[0]].t0 - 0.12 : null));
+    let tail = total + 0.4;
+    starts.forEach((v, k) => { if (v == null) { starts[k] = tail; tail += list[k].dur || 3.5; } });
+    scenes.forEach((sc, k) => {
+      const sp = list[k];
+      if (!sp.say) return; // 끝 로고 — 자기 dur 그대로
+      const nextStart = k + 1 < scenes.length ? starts[k + 1] : total + 0.8;
+      const nTrans = k + 1 < scenes.length ? (scenes[k + 1].transIn ?? tpl.transitionSec) : 0;
+      const target = Math.max(1.2, nextStart - starts[k] + nTrans);
+      if (sc.kind === 'screen') retimeScreenTo(sc, target); else sc.dur = r3(target);
+      // 이 장면이 말하는 문장 → 자막(문장마다 한 자막, 단어 시각 그대로)
+      const [a, b] = sp.say;
+      sc.captions = S.slice(a, b + 1).map((x) => ({ text: x.text, at: r3(Math.max(0, x.t0 - starts[k])), dur: r3(x.t1 - x.t0 + 0.25), words: x.words.map((w) => ({ w: w.w, t: r3(w.t - x.t0) })) }));
+    });
+    voice = { src: `media/voice/${script.voice.id}/voice.m4a`, volume: 1, spans: S.map((x) => ({ t0: x.t0, t1: x.t1 })),
+      face: script.voice.face && fs.existsSync(path.join(vdir, 'face.mp4')) ? `media/voice/${script.voice.id}/face.mp4` : null };
+  }
+
+  // 음악 박자: 영상 0초 = 음악 startAt. 장면 경계를 박자에 붙인다(녹음 기반은 말이 길이를 정하므로 안 붙인다)
   const startAt = mus ? (script.musicStart != null ? script.musicStart : mus.analysis.beats[0]) : 0;
-  const grid = !mus || tpl.beatSync === 'none' ? [] : (tpl.beatSync === 'downbeat' ? mus.analysis.downbeats : mus.analysis.beats).map((b) => b - startAt).filter((b) => b > 0);
+  const grid = !mus || tpl.beatSync === 'none' || voice ? [] : (tpl.beatSync === 'downbeat' ? mus.analysis.downbeats : mus.analysis.beats).map((b) => b - startAt).filter((b) => b > 0);
   let at = 0;
   scenes.forEach((sc, i) => {
     const trans = i === 0 ? 0 : (sc.transIn ?? tpl.transitionSec);
@@ -263,8 +348,9 @@ function build(script, aspect = 'landscape') {
     template: tpl, scenes,
     music: mus ? { src: `media/music/${mus.file ? path.basename(mus.file) : ''}`, volume: tpl.musicVolume, startAt: r3(startAt), fadeIn: 0.6, fadeOut: 2.2, credit: mus.credit } : undefined,
     sfx: sfx.filter((x) => x.t >= 0 && x.t < total),
+    voice: voice || undefined,
     brand: { logoWhite: 'brand/planQ_white_new.svg', logoColor: 'brand/planQ_color.svg', mark: 'brand/favicon.svg', url: 'planq.kr' },
-    _grid: grid.filter((b) => b < total), _total: r3(total),
+    _grid: grid.filter((b) => b < total), _total: r3(total), _gate: gateIssues,
     _beats: mus ? mus.analysis.beats.map((b) => r3(b - startAt)).filter((b) => b >= 0 && b < total) : [],
   };
 }
@@ -297,6 +383,11 @@ if (require.main === module) {
   // 가로·세로를 따로 만든다 — 세로는 장면 고르기(only)·몽타주 잘라 쓰기·카메라가 다르다
   for (const aspect of ['landscape', 'portrait']) {
     const sb = attachMontageBeats(build(script, aspect));
+    if (sb._gate.length && !process.argv.includes('--accept-all')) {
+      console.error(`✗ 소재 검수 관문: ${sb._gate.length}건 — 렌더하지 않는다(대본 screen 장면에 "accept": ["beat 키"] 로 «그대로 쓰기», 또는 다시 녹화)`);
+      for (const g of sb._gate) console.error(`  · ${g.shot} / ${g.beat}: ${g.kind} — ${g.text}`);
+      process.exit(2);
+    }
     const out = path.join(ROOT, 'out', 'storyboards', `${script.id}.${aspect}.json`);
     fs.mkdirSync(path.dirname(out), { recursive: true });
     fs.writeFileSync(out, JSON.stringify(sb, null, 1));

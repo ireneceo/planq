@@ -58,7 +58,9 @@ export type LogoScene = Base & { kind: 'logo'; slogan: string; cta?: string; url
 export type MontageScene = Base & { kind: 'montage'; images: string[]; title?: string; beats?: number[] };
 export type KineticScene = Base & { kind: 'kinetic'; lines: { text: string; at: number }[]; big?: boolean };
 export type ConvergeScene = Base & { kind: 'converge'; chips: { label: string; icon: 'chat' | 'mail' | 'sheet' | 'file' | 'calendar' }[]; at: number; line?: string };
-export type Scene = ConvergeScene | ScreenScene | TitleScene | ChapterScene | StatScene | PointsScene | LogoScene | MontageScene | KineticScene;
+export type PhotoScene = Base & { kind: 'photo'; src: string; subject?: { x: number; y: number; w: number; h: number }; title?: string };
+export type FootageScene = Base & { kind: 'footage'; cuts: { src: string; from: number; dur: number }[]; title?: string };
+export type Scene = PhotoScene | FootageScene | ConvergeScene | ScreenScene | TitleScene | ChapterScene | StatScene | PointsScene | LogoScene | MontageScene | KineticScene;
 
 export type Storyboard = {
   id: string; title: string; mode: 'recording' | 'instruction' | 'brand';
@@ -67,7 +69,7 @@ export type Storyboard = {
   scenes: Scene[];
   music?: { src: string; volume: number; startAt: number; fadeIn: number; fadeOut: number };
   sfx: { t: number; kind: 'click' | 'whoosh' | 'pop' | 'ding' | 'boom'; vol?: number }[];
-  voice?: { src: string; volume: number; spans: { t0: number; t1: number }[] };
+  voice?: { src: string; volume: number; spans: { t0: number; t1: number }[]; face?: string | null };
   brand: { logoWhite: string; logoColor: string; mark: string; url: string };
   aspect?: Aspect;
 };

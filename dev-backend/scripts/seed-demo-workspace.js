@@ -775,6 +775,17 @@ async function seed() {
     process.stdout.write(r.stdout);
   }
 
+  // 시연 영상 소재 다듬기(2026-10-29 · docs/DEMO_VIDEO_DESIGN.md §14 C) — 화면에 «처음 쓰는 워크스페이스» 티가 나지 않게.
+  //   ① 팀 적응 단계(온보딩 체크리스트) 닫기 — 데모 계정 전원 ② 오늘 근무 시작: 대표·디자인·개발(«팀 0명 근무 중» 대신)
+  //   기존 서비스 문만 쓴다(직접 행을 만들지 않는다). 이미 근무 중이면 서비스가 거절 → 무시(멱등).
+  const { setOnboardingDismissed } = require('../services/onboarding');
+  const A = require('../services/attendanceTransition');
+  for (const t of TEAM) {
+    const u = users[t.key];
+    await setOnboardingDismissed({ businessId: biz.id, userId: u.id, dismissed: true, scope: 'all' }).catch(() => {});
+    await A.clockIn({ businessId: biz.id, userId: u.id, actorUserId: u.id, source: 'user', at: new Date(Date.now() - (60 + Math.floor(Math.random() * 90)) * 60000) }).catch(() => {});
+  }
+
   console.log('\n─────────────────────────────────────');
   console.log('데모 워크스페이스 시드 완료');
   console.log(`  business_id : ${biz.id}`);

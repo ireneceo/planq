@@ -1,8 +1,8 @@
 import React from 'react';
-import { AbsoluteFill, Img, interpolate, spring, staticFile, useVideoConfig } from 'remotion';
+import { AbsoluteFill, Img, OffthreadVideo, Sequence, interpolate, spring, staticFile, useVideoConfig } from 'remotion';
 
 const asset = (src: string) => (/^(https?:|data:)/.test(src) ? src : staticFile(src));
-import type { Aspect, ChapterScene, ConvergeScene, KineticScene, LogoScene, MontageScene, PointsScene, StatScene, Template, TitleScene } from '../types';
+import type { Aspect, ChapterScene, ConvergeScene, FootageScene, PhotoScene, KineticScene, LogoScene, MontageScene, PointsScene, StatScene, Template, TitleScene } from '../types';
 import { FONT } from '../theme';
 import { Pill, clamp01, easeInOut, easeOut, lerp, splitWords, useT } from '../fx/common';
 import { Captions } from '../fx/Captions';
@@ -226,6 +226,48 @@ export const ConvergeView: React.FC<{ sc: ConvergeScene; tpl: Template; aspect: 
       <div style={{ position: 'absolute', left: cx, top: cy, width: 520 * s, height: 520 * s, transform: 'translate(-50%,-50%)', borderRadius: 999, background: `radial-gradient(circle, ${tpl.palette.accent}66, transparent 62%)`, opacity: markU }} />
       <Img src={staticFile(mark)} style={{ position: 'absolute', left: cx, top: cy, height: 200 * s, transform: `translate(-50%,-50%) scale(${lerp(0.3, 1, markU)})`, opacity: Math.min(1, markU * 1.5) }} />
       {sc.line && <div style={{ position: 'absolute', left: 0, right: 0, top: cy + 170 * s, textAlign: 'center', color: '#fff', fontWeight: 800, fontSize: 64 * s, letterSpacing: '-0.03em', opacity: easeOut(clamp01((t - sc.at - 0.8) / 0.5)) }}><Rich text={sc.line} tpl={tpl} /></div>}
+    </AbsoluteFill>
+  );
+};
+
+// 사진 — 화면 가득, 피사체 쪽으로 천천히 다가가는 확대·이동(켄 번즈). 위아래 어둡게 깔아 자막이 읽히게.
+export const PhotoView: React.FC<{ sc: PhotoScene; tpl: Template; aspect: Aspect }> = ({ sc, tpl, aspect }) => {
+  const t = useT(); const s = useS(aspect); const { width: W, height: H } = useVideoConfig();
+  const u = Math.min(1, t / Math.max(1, sc.dur));
+  const sub = sc.subject || { x: 0.3, y: 0.3, w: 0.4, h: 0.4 };
+  const cx = sub.x + sub.w / 2, cy = sub.y + sub.h / 2;
+  const z = lerp(1.04, 1.16, easeInOut(u));
+  const ox = (0.5 - cx) * (z - 1) * W * 1.6, oy = (0.5 - cy) * (z - 1) * H * 1.6;
+  return (
+    <AbsoluteFill style={{ overflow: 'hidden', background: '#000' }}>
+      <Img src={asset(sc.src)} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', transform: `translate(${ox}px, ${oy}px) scale(${z})`, filter: `saturate(${tpl.grade.saturate}) contrast(${tpl.grade.contrast})` }} />
+      <AbsoluteFill style={{ background: 'linear-gradient(to bottom, rgba(0,0,0,.35), transparent 30%, transparent 55%, rgba(0,0,0,.6))' }} />
+      {sc.title && <div style={{ position: 'absolute', left: 0, right: 0, top: H * 0.1, textAlign: 'center', fontFamily: FONT, color: '#fff', fontWeight: 900, fontSize: 72 * s, letterSpacing: '-0.035em', opacity: easeOut(clamp01(t / 0.6)), textShadow: '0 6px 30px rgba(0,0,0,.4)' }}><Rich text={sc.title} tpl={tpl} /></div>}
+      {sc.captions && <Captions caps={sc.captions} tpl={tpl} aspect={aspect} />}
+    </AbsoluteFill>
+  );
+};
+
+// 영상 소재 — 쓸 수 있는 구간만 음악 박자 길이로 잘라 차례로(빌더가 cuts 를 정한다)
+export const FootageView: React.FC<{ sc: FootageScene; tpl: Template; aspect: Aspect }> = ({ sc, tpl, aspect }) => {
+  const t = useT(); const s = useS(aspect); const { fps, height: H } = useVideoConfig();
+  let at = 0;
+  return (
+    <AbsoluteFill style={{ overflow: 'hidden', background: '#000' }}>
+      {sc.cuts.map((c, i) => {
+        const from = Math.round(at * fps); at += c.dur;
+        return (
+          // 마지막 컷은 장면 끝까지(박자 맞춤으로 장면이 조금 늘어도 검은 화면이 안 나오게)
+          <Sequence key={i} from={from} durationInFrames={i === sc.cuts.length - 1 ? Math.max(1, Math.round(sc.dur * fps) - from) : Math.max(1, Math.round(c.dur * fps))} layout="none">
+            <AbsoluteFill style={{ transform: `scale(${1.04 + 0.04 * ((t * fps - from) / Math.max(1, c.dur * fps))})` }}>
+              <OffthreadVideo src={asset(c.src)} startFrom={Math.round(c.from * fps)} muted style={{ width: '100%', height: '100%', objectFit: 'cover', filter: `saturate(${tpl.grade.saturate}) contrast(${tpl.grade.contrast})` }} />
+            </AbsoluteFill>
+          </Sequence>
+        );
+      })}
+      <AbsoluteFill style={{ background: 'linear-gradient(to bottom, rgba(0,0,0,.3), transparent 30%, transparent 55%, rgba(0,0,0,.6))' }} />
+      {sc.title && <div style={{ position: 'absolute', left: 0, right: 0, top: H * 0.1, textAlign: 'center', fontFamily: FONT, color: '#fff', fontWeight: 900, fontSize: 72 * s, letterSpacing: '-0.035em', opacity: easeOut(clamp01(t / 0.6)) }}><Rich text={sc.title} tpl={tpl} /></div>}
+      {sc.captions && <Captions caps={sc.captions} tpl={tpl} aspect={aspect} />}
     </AbsoluteFill>
   );
 };

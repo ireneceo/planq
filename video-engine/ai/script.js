@@ -33,6 +33,7 @@ const SCHEMA = `{
     // {"kind":"points","dur":초,"title":"제목 *강조*","points":["짧은 항목", ...]}
     // {"kind":"logo","dur":초,"slogan":"일을 *일답게* 하다","cta":"planq.kr 에서 시작하기"}
     // {"kind":"converge","dur":초,"at":모이는 시각,"chips":[{"label":"채팅","icon":"chat|mail|sheet|file|calendar"}],"line":"한 줄 *강조*"} — 흩어진 도구 칩이 PlanQ 마크로 모임(브랜드용)
+    // 녹음 기반(--voice)일 때: 모든 장면에 "say":[첫 문장 번호, 끝 문장 번호] — 문장 순서대로 빠짐없이 나눠 맡는다. 자막은 녹음에서 자동(captions 쓰지 않음)
     // screen 장면 선택 필드: "fromBeat":"beat 키"(그 순간부터 시작 — 쇼츠 첫 장면 콜드 오픈), "maxSec":원본 초 상한
   ]
 }`;
@@ -53,6 +54,28 @@ function system(mode, tpl, seconds) {
     '출력: 아래 형식의 JSON 하나만.',
     SCHEMA,
   ].join('\n');
+}
+
+// 녹음 기반: say 가 문장 0..N-1 을 순서대로 빠짐없이 덮게 고친다(겹침·빈틈은 앞 장면으로 흡수)
+function fixSay(script, n) {
+  const sc = script.scenes.filter((s) => Array.isArray(s.say));
+  if (!sc.length) return ['say 없음'];
+  const notes = [];
+  let next = 0;
+  sc.forEach((s, k) => {
+    let [a, b] = s.say.map(Number);
+    if (a !== next) { notes.push(`장면 ${k} say 시작 ${a}→${next}`); a = next; }
+    if (k === sc.length - 1) b = n - 1;
+    b = Math.max(a, Math.min(n - 1, b));
+    s.say = [a, b]; next = b + 1;
+  });
+  // 문장을 못 맡은 장면(say 없는 장면)은 버린다 — 말 없는 장면은 녹음 기반에서 시간 축이 없다
+  const before = script.scenes.length;
+  // 끝의 로고 장면은 말이 끝난 뒤 붙는다(say 없음 허용)
+  script.scenes = script.scenes.filter((s, i) => (Array.isArray(s.say) && s.say[0] <= s.say[1]) || (s.kind === 'logo' && i === script.scenes.length - 1));
+  if (script.scenes.length < before) notes.push(`say 없는 장면 ${before - script.scenes.length}개 버림`);
+  script.scenes.forEach((s) => { if (s.say) { delete s.captions; delete s.dur; } });
+  return notes;
 }
 
 function validate(script, catalog) {
@@ -85,13 +108,17 @@ async function main() {
   const seconds = +arg('seconds', mode === 'brand' ? 25 : 30);
   const id = arg('id', `${mode}-${Date.now()}`);
   const instruction = process.argv.filter((a) => !a.startsWith('--')).slice(2).join(' ');
-  if (!instruction) throw new Error('지시문이 없음');
+  const voiceId = arg('voice');
+  const voiceJ = voiceId ? JSON.parse(fs.readFileSync(path.join(ROOT, 'data', 'voice', voiceId, 'voice.json'), 'utf8')) : null;
+  if (!instruction && !voiceJ) throw new Error('지시문이 없음');
   const tpl = JSON.parse(fs.readFileSync(path.join(ROOT, 'templates', `${tplId}.json`), 'utf8'));
   const catalog = JSON.parse(fs.readFileSync(path.join(ROOT, 'capture', 'catalog.json'), 'utf8'));
   // 장면별 녹화 길이(배속 전) — 길이 감 잡게
   for (const c of catalog) { try { c.seconds = JSON.parse(fs.readFileSync(path.join(ROOT, 'out', 'shots', c.id, 'shot.json'), 'utf8')).duration; } catch { /* 녹화 전 */ } }
   const user = [
-    `지시: ${instruction}`,
+    `지시: ${instruction || '(녹음 내용에 맞는 화면을 골라라)'}`,
+    ...(voiceJ ? ['', `녹음 문장(${voiceJ.sentences.length}개, 번호·초·말) — 이 말이 영상의 목소리와 자막이 된다. 장면마다 say 로 맡을 문장 범위를 정하고, 말하는 내용이 보이는 화면을 고른다:`,
+      ...voiceJ.sentences.map((x, i) => `[${i}] ${x.t0.toFixed(1)}–${x.t1.toFixed(1)}초 ${x.text}`)] : []),
     '', '제품 사실:', ...facts().map((f) => `- ${f}`),
     '', '쓸 수 있는 녹화 장면(id · 장치 · 길이 · 내용 · beat 키):',
     ...catalog.map((c) => `- ${c.id} · ${c.device} · ${c.seconds || '?'}초 · ${c.desc} · beats: ${Object.entries(c.beats).map(([k, v]) => `${k}(${v})`).join(', ')}`),
@@ -101,9 +128,11 @@ async function main() {
   if (!r.content) throw new Error('AI 대본 실패: ' + JSON.stringify({ fallback: r.fallback, model: r.model }));
   const script = JSON.parse(r.content);
   const dropped = validate(script, catalog);
-  const out = { id, mode, template: tplId, music: arg('music') || undefined, instruction, ...script, _ai: { model: r.model, input_tokens: r.input_tokens, output_tokens: r.output_tokens, dropped } };
+  if (voiceJ) dropped.push(...fixSay(script, voiceJ.sentences.length));
+  const out = { id, mode: voiceJ ? 'recording' : mode, ...(voiceJ ? { voice: { id: voiceId, face: arg('face') === '1' } } : {}), template: tplId, music: arg('music') || undefined, instruction, ...script, _ai: { model: r.model, input_tokens: r.input_tokens, output_tokens: r.output_tokens, dropped } };
   const file = path.join(ROOT, 'storyboards', `${id}.json`);
   fs.writeFileSync(file, JSON.stringify(out, null, 2));
   console.log(`대본 ${file} · 장면 ${out.scenes.length} · 토큰 ${r.input_tokens}+${r.output_tokens}${dropped.length ? ' · 버림: ' + dropped.join(' / ') : ''}`);
 }
-main().catch((e) => { console.error(e.message || e); process.exit(1); });
+if (require.main === module) main().catch((e) => { console.error(e.message || e); process.exit(1); });
+module.exports = { facts, SCHEMA, validate, fixSay };
