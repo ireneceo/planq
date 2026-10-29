@@ -1,5 +1,8 @@
 # Fable 게이트 대기열 → **판정 기록 보관소** (2026-10-08 부터)
 
+### 2026-10-29 방 24747784 — 피드백 접수 즉시 AI 원인 조사 — 설계 **DESIGN-FIX**(6건 반영) → 완료 검증 **VERDICT: PASS**
+- 범위 bad7481f · 설계 docs/FEEDBACK_AI_TRIAGE_DESIGN.md §4. 차단 0. 상황판 주기 작업은 서버 방 몫(범위 밖).
+- 비차단: 이미 조사된 건은 검증 전에 건너뜀(exit 0) · 조사 저장이 updated_at 갱신 · 비밀값 무늬 영문만 · feedback.js 낡은 주석.
 ### 2026-10-29 방 15884e3b — 워크스페이스 삭제 — 설계 **DESIGN-FIX**(11건 반영) → 완료 검증 **VERDICT: PASS**
 - 설계·판정 원문 `docs/WORKSPACE_DELETION_DESIGN.md` §5 · 구현 §6. soft + 30일 유예 → 정리 cron(파일·연결·고객 연락처, 청구·감사·본문은 남김) · 대표만·비밀번호·이름 입력 · 사유 분리(account_deletion/owner_request) · cron 공용 술어 + 가드 `cronalive`.
 - Fable 실측: api 34/34 · cron 4/4 · purge 14/14 · 사칭 403·platform_admin owner_only 403 · 정기 청구 cron 실호출(지움 0 / 되살림 ≥1) · 소켓 수신·socketsLeave 증명 · 공개 링크 닫힘·복구 뒤 열림 · Q Note purge-business 키·외부 차단 · tenant,wssync 실패 0 · 마이그레이션 멱등.
