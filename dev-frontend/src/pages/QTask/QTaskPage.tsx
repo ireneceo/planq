@@ -616,8 +616,11 @@ const QTaskPage:React.FC=()=>{
   const[saveErr,setSaveErr]=useState<string|null>(null);
   const saveErrTimer=useRef<number|undefined>(undefined);
   const reportSaveFail=useCallback((what:string,status?:number)=>{
-    setSaveErr(status===401||status===403
+    // 401 만 «로그인 만료» 다 — 403(권한 없음)을 만료로 말하면 고객 담당자가 완료하다 엉뚱한 안내를 받는다(2026-10-29).
+    setSaveErr(status===401
       ? t('save.failAuth',{ defaultValue: '{{what}} 을(를) 저장하지 못했어요 — 로그인이 만료되었을 수 있어요. 새로고침 후 다시 시도해 주세요.', what })as string
+      : status===403
+      ? t('save.failForbidden',{ defaultValue: '{{what}} 을(를) 바꿀 권한이 없어 저장하지 못했어요.', what })as string
       : t('save.fail',{ defaultValue: '{{what}} 을(를) 저장하지 못했어요. 값이 서버에 반영되지 않았습니다.', what })as string);
     if(saveErrTimer.current)window.clearTimeout(saveErrTimer.current);
     saveErrTimer.current=window.setTimeout(()=>setSaveErr(null),8000);

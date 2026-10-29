@@ -1919,15 +1919,18 @@ router.post('/:businessId/bulk-download', authenticateToken, checkBusinessAccess
     if (chatIds.length > 0) {
       const chats = await MessageAttachment.findAll({
         where: { id: { [Op.in]: chatIds } },
-        include: [{ model: Message, attributes: ['id', 'conversation_id'],
+        include: [{ model: Message, attributes: ['id', 'conversation_id', 'is_deleted', 'is_internal', 'is_ai', 'ai_mode_used', 'ai_draft_approved'],
           include: [{ model: Conversation, where: { business_id: businessId } }] }],
       });
       const convOk = new Map();
+      const { isVisibleToClient } = require('../utils/messageVisibility');
       for (const a of chats) {
         const conv = a.Message && a.Message.Conversation;
         if (!conv) continue;
         if (!convOk.has(conv.id)) convOk.set(conv.id, await canAccessConversation(req.user.id, conv));
         if (!convOk.get(conv.id)) continue;
+        // 고객에게는 고객에게 보이는 메시지의 첨부만 — 단건 내려받기(message_attachments)와 같은 술어
+        if (dlScope.isClient && !isVisibleToClient(a.Message)) continue;
         items.push({ name: a.file_name, src: { storage_provider: a.storage_provider, file_path: a.file_path, external_id: a.external_id || a.file_path, business_id: businessId } });
       }
     }

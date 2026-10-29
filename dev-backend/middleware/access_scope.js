@@ -823,8 +823,41 @@ async function canAccessFileByLevel(userId, file, scope) {
   return fullView || scope.isMember;
 }
 
+// 고객(Client)이 볼 수 있는 파일 — 목록(fileListWhereByLevel)과 내려받기(canDownloadFile)가 같이 쓰는 **한 벌**.
+//   내가 참여 고객인 프로젝트 파일 중 남의 «나만 보기»(L1)가 아니고 보안등급 일반인 것 + 내가 올린 것.
+//   ★ 2026-10-29 Irene «고객화면에 우리가 올린 파일이 안나와» — 내려받기는 이 규칙으로 열렸는데 목록에는 고객 분기가
+//     없어 «내가 올린 것» 만 보였다(dev 실측: 프로젝트 35 의 L2 파일 9건 → 고객 목록 0건).
+//   ★ 보안등급 internal·confidential 은 고객에게 닫는다 — 고객은 바깥 사람이다(Q info 고객 술어 kbClientReadableWhere 와 같은 선).
+function clientFileReadable(scope, file) {
+  if (!file || !scope || !scope.isClient) return false;
+  if (file.uploader_id === scope.userId) return true;
+  const lv = file.vlevel || file.visibility;
+  if (lv === 'L1') return false;
+  if ((file.security_level || 'general') !== 'general') return false;
+  return !!file.project_id && (scope.projectClientProjectIds || []).includes(file.project_id);
+}
+function clientFileListWhere(scope) {
+  const pids = scope.projectClientProjectIds || [];
+  const conds = [{ uploader_id: scope.userId }];
+  if (pids.length > 0) {
+    conds.push({
+      [Op.and]: [
+        { project_id: { [Op.in]: pids } },
+        { security_level: 'general' },
+        { [Op.or]: [
+          { vlevel: { [Op.ne]: 'L1' } },
+          { vlevel: null, visibility: { [Op.ne]: 'L1' } },
+          { vlevel: null, visibility: null },
+        ] },
+      ],
+    });
+  }
+  return { business_id: scope.businessId, [Op.or]: conds };
+}
+
 function fileListWhereByLevel(scope) {
   if (scope.isPlatformAdmin) return { business_id: scope.businessId };
+  if (scope.isClient) return clientFileListWhere(scope);
   const fullView = scope.isOwner || scope.isAdmin;  // admin(N+21) = owner 급 가시성
   const conds = [];
   // ★ 내가 올린 파일은 등급과 무관하게 나에게 보인다 (#378).
@@ -1122,12 +1155,10 @@ function attachWorkspaceScope(opts = {}) {
 async function canDownloadFile(scope, userId, file) {
   if (!file) return false;
   if (scope && scope.isClient) {
-    if (file.uploader_id === userId) return true;
     // ★ 남의 «나만 보기»(L1)는 내 프로젝트 파일이어도 안 된다 — 비공개로 올린 본문 이미지(inline=private)가
-    //   L1 + project_id 로 저장돼 그 프로젝트 고객이 받을 수 있었다(2026-09-27 점검).
-    const lv = file.vlevel || file.visibility;
-    if (lv === 'L1') return false;
-    return !!file.project_id && (scope.projectClientProjectIds || []).includes(file.project_id);
+    //   L1 + project_id 로 저장돼 그 프로젝트 고객이 받을 수 있었다(2026-09-27 점검). 판정은 목록과 같은 clientFileReadable.
+    if (file.uploader_id === userId) return true;
+    return clientFileReadable(scope, file);
   }
   return await canAccessFileByLevel(userId, file, scope);
 }

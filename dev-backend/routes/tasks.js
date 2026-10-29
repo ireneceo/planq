@@ -241,19 +241,26 @@ router.patch('/:id/time', authenticateToken, async (req, res, next) => {
     if (!task) return errorResponse(res, 'task_not_found', 404);
 
     // 권한: 담당자 또는 업무 생성자 또는 워크스페이스 owner
+    // ★ 고객 담당자도 자기 업무의 진행률을 바꾼다(2026-10-29 Irene «고객이 업무완료해야 하는데 로그인이 만료라는 이상한 안내»).
+    //   고객은 business_members 행이 없어 여기서 403 이었고, 화면은 403 을 «로그인 만료» 로 읽어 완료 전에 멈췄다.
+    //   고객은 **담당자일 때만**, 진행률·시간만 — 주간 계획(planned_week_start)은 우리 쪽 계획이라 고객이 못 바꾼다.
     const bm = await BusinessMember.findOne({ where: { user_id: req.user.id, business_id: task.business_id } });
-    if (!bm) return errorResponse(res, 'forbidden', 403);
-    if (!(await canAccessTask(req.user.id, task))) return errorResponse(res, 'task_not_found', 404);   // 볼 수 없으면 못 고친다
-    if (bm.role !== 'owner' && task.assignee_id !== req.user.id && task.created_by !== req.user.id) {
+    const tScope = await getUserScope(req.user.id, task.business_id, req.user.platform_role);
+    const isClientAssignee = !bm && tScope.isClient && task.assignee_id === req.user.id;
+    if (!bm && !isClientAssignee) return errorResponse(res, 'forbidden', 403);
+    if (!(await canAccessTask(req.user.id, task, tScope))) return errorResponse(res, 'task_not_found', 404);   // 볼 수 없으면 못 고친다
+    const notOwner = !bm || bm.role !== 'owner';   // 옛 판정 그대로(owner 만) — 고객은 bm 이 없다
+    if (notOwner && task.assignee_id !== req.user.id && task.created_by !== req.user.id) {
       return errorResponse(res, 'forbidden', 403);
     }
+    if (isClientAssignee && req.body.planned_week_start !== undefined) return errorResponse(res, 'forbidden', 403);
 
     // 시간/진행율은 담당자만 수정 가능 (planned_week_start 는 누구나)
     const isAssignee = task.assignee_id === req.user.id;
     const wantsHourFields = req.body.estimated_hours !== undefined
       || req.body.actual_hours !== undefined
       || req.body.progress_percent !== undefined;
-    if (wantsHourFields && !isAssignee && bm.role !== 'owner') {
+    if (wantsHourFields && !isAssignee && notOwner) {
       return errorResponse(res, 'only_assignee_can_edit_hours', 403);
     }
 

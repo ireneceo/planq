@@ -483,6 +483,7 @@
   "save": {
     "fail": "Couldn’t save {{what}}. The value was not applied on the server.",
     "failAuth": "Couldn’t save {{what}} — your session may have expired. Refresh and try again.",
+    "failForbidden": "Couldn't save {{what}} — you don't have permission to change it.",
     "error": "Save failed",
     "saved": "Saved",
     "saving": "Saving"

@@ -16,7 +16,17 @@ const { Conversation, Message, MessageAttachment, File: FileModel } = require('.
 const { authenticateToken } = require('../middleware/auth');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
 const { serializeMessageAttachment, effectiveMimeType } = require('../services/filePreview');
-const { canAccessConversation } = require('../middleware/access_scope');
+const { canAccessConversation, getUserScope } = require('../middleware/access_scope');
+const { isVisibleToClient } = require('../utils/messageVisibility');
+
+// 대화방에 들어갈 수 있어도 고객에게는 **고객에게 보이는 메시지**의 첨부만 준다(내부 메모·삭제·미승인 초안 제외).
+//   2026-10-29 — 고객 방의 내부 메모 첨부가 id 로 내려받혔다. 프로젝트>파일 목록(routes/projects.js)과 같은 술어.
+async function canReadAttachment(userId, conv, msg) {
+  const scope = await getUserScope(userId, conv.business_id);
+  if (!(await canAccessConversation(userId, conv, scope))) return false;
+  if (scope.isClient && !isVisibleToClient(msg)) return false;
+  return true;
+}
 const { decodeOriginalName } = require('../services/filename');
 const { perUserLimiter } = require('../middleware/costGuard');
 
@@ -238,9 +248,8 @@ router.get('/:id/download', authenticateToken, async (req, res, next) => {
     const conv = await Conversation.findByPk(msg.conversation_id);
     if (!conv) return errorResponse(res, 'not_found', 404);
 
-    // 권한 검증 — access_scope 위임 (member OR participant OR matching client_id)
-    const allowed = await canAccessConversation(req.user.id, conv);
-    if (!allowed) return errorResponse(res, 'forbidden', 403);
+    // 권한 검증 — access_scope 위임 (member OR participant OR matching client_id) + 고객에게 보이는 메시지인가
+    if (!(await canReadAttachment(req.user.id, conv, msg))) return errorResponse(res, 'forbidden', 403);
 
     // ★ 2026-09-07 — 여기는 **로컬 디스크만** 봤다. 그런데 Drive 에 저장된 채팅 첨부는
     //   `file_path` 에 Drive 파일 ID 가 들어 있어서 `fs.existsSync` 가 항상 거짓이 되고
@@ -275,7 +284,7 @@ router.get('/:id/shortcut', authenticateToken, async (req, res, next) => {
     if (!msg) return errorResponse(res, 'not_found', 404);
     const conv = await Conversation.findByPk(msg.conversation_id);
     if (!conv) return errorResponse(res, 'not_found', 404);
-    if (!(await canAccessConversation(req.user.id, conv))) return errorResponse(res, 'forbidden', 403);
+    if (!(await canReadAttachment(req.user.id, conv, msg))) return errorResponse(res, 'forbidden', 403);
     const parsed = await require('../services/googleShortcut').readShortcutFrom({
       storage_provider: att.storage_provider,
       file_path: att.file_path,

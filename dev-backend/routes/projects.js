@@ -4327,8 +4327,14 @@ router.get('/:id/files', authenticateToken, async (req, res, next) => {
 
     // 2) chat 첨부 — 프로젝트 연결된 대화의 메시지 첨부
     //    프로젝트 비멤버에게는 대화 첨부를 노출하지 않는다 (대화 참여자 범위 밖)
-    const conversations = isProjectMember ? await Conversation.findAll({
-      where: { business_id: bizId, project_id: projId },
+    //    ★ 고객은 **자기가 볼 수 있는 대화방**(conversationListWhere — 참여 ∪ 내 고객 방)의 **고객에게 보이는 메시지**
+    //      (CLIENT_VISIBLE_MESSAGE_WHERE — 내부 메모·삭제·미승인 초안 제외) 첨부만. 2026-10-29 Irene «내부채팅에서 올린
+    //      파일이 고객에게 프로젝트>파일에 다 보여» — 프로젝트를 볼 수 있다는 이유로 내부 논의방 첨부까지 내려갔다.
+    //      내려받기(message_attachments)도 같은 두 술어를 본다.
+    const convScopeWhere = isProjectMember
+      ? await require('../middleware/access_scope').conversationListWhere(req.user.id, bizId, scope) : null;
+    const conversations = convScopeWhere ? await Conversation.findAll({
+      where: { [Op.and]: [convScopeWhere, { business_id: bizId, project_id: projId }] },
       attributes: ['id', 'title', 'channel_type']
     }) : [];
     const convMap = new Map(conversations.map(c => [c.id, c]));
@@ -4336,7 +4342,9 @@ router.get('/:id/files', authenticateToken, async (req, res, next) => {
       const chatFiles = await MessageAttachment.findAll({
         include: [{
           model: Message,
-          where: { conversation_id: { [Op.in]: conversations.map(c => c.id) } },
+          where: scope.isClient
+            ? { [Op.and]: [{ conversation_id: { [Op.in]: conversations.map(c => c.id) } }, CLIENT_VISIBLE_MESSAGE_WHERE] }
+            : { conversation_id: { [Op.in]: conversations.map(c => c.id) } },
           attributes: ['id', 'conversation_id', 'sender_id'],
           include: [{ model: User, as: 'sender', attributes: ['id', 'name', 'name_localized', 'is_guest'] }]
         }],
@@ -4380,7 +4388,14 @@ router.get('/:id/files', authenticateToken, async (req, res, next) => {
         include: [{ model: User, as: 'uploader', attributes: ['id', 'name'] }],
         order: [['created_at', 'DESC']]
       });
+      // 고객에게 숨긴 댓글의 첨부는 고객에게 안 보인다 — 업무 첨부 목록·내려받기(task_attachments)와 같은 술어.
+      const hiddenByTask = new Map();
+      const { clientHiddenCommentIds } = require('../services/taskAttachmentAccess');
       for (const a of taskFiles) {
+        if (scope.isClient && a.comment_id) {
+          if (!hiddenByTask.has(a.task_id)) hiddenByTask.set(a.task_id, await clientHiddenCommentIds(a.task_id));
+          if (hiddenByTask.get(a.task_id).has(a.comment_id)) continue;
+        }
         const task = taskMap.get(a.task_id);
         results.push({
           id: `task-${a.id}`,
