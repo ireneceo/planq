@@ -1839,23 +1839,27 @@ router.post('/:id/copy', authenticateToken, async (req, res, next) => {
     // 복제 제목 — "원제목 (복사)"
     const copyTitle = src.title + ' (복사)';
 
-    // N+63 — 사용자 요구 "담당자랑 날짜 리셋". body(결과물) 와 description(의뢰)·메타는 복사.
-    // 새 업무는 처음부터 시작 — assignee/due_date/start_date/planned_week_start 모두 null.
+    // ★ 2026-10-29 (Irene «복사가 안돼. 바로 아래 추가되어야지» · «그룹에 들어가있는 채로 그대로 아래에 복사 안되고 그룹없음으로»)
+    //   N+63 의 «담당자랑 날짜 리셋» 을 되돌렸다. 리셋하면 복사본이 ①내 업무(이번 주) 목록 조건에서 빠져 **아예 안 보이고**
+    //   ②프로젝트 목록(시작일 정렬)에선 빈 날짜라 맨 뒤로 가고 ③추진과제(workstream)도 빠져 «그룹 없음» 에 들어갔다.
+    //   원본 바로 아래에 같은 자리로 생겨야 «복사» 다 — 담당자·날짜·계획 주·추진과제를 그대로 가져온다.
+    //   진행 상태·진행률·실제 시간·완료 시각·주간 순위(priority_order — 쓰기 경로는 task_priority.js 하나)는 처음부터.
     const copy = await Task.create({
       business_id: src.business_id,
       project_id: src.project_id,
+      workstream_id: src.workstream_id,
       title: copyTitle.slice(0, 200),
       description: src.description,
       body: src.body,
-      assignee_id: null,
-      due_date: null,
-      start_date: null,
+      assignee_id: src.assignee_id,
+      due_date: src.due_date,
+      start_date: src.start_date,
       estimated_hours: src.estimated_hours,
       category: src.category,
       conversation_id: src.conversation_id,
       // 공개 범위·보안등급은 승계한다(넓히지 않는다 — 문서 복사 계약). 공유 토큰은 따라가지 않는다.
       vlevel: src.vlevel, target_member_ids: src.target_member_ids, security_level: src.security_level,
-      planned_week_start: null,
+      planned_week_start: src.planned_week_start,
       created_by: req.user.id,
       source: 'manual',
       // 새 task — 진행/완료 상태는 처음부터

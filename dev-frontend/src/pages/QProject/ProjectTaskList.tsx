@@ -91,6 +91,7 @@ import { formatDay } from '../../utils/dateFormat';
 import { toPlainText } from '../../utils/searchMatch';
 import useWorkstreamOps from './useWorkstreamOps';
 import { sortTaskRows, type TaskSortKey, type TaskSortDir, type TaskGroupMode } from './ProjectTaskFilters';
+import { placeCopiesBelow, copiedTask } from '../../utils/copyPlacement';
 
 export interface TaskRow {
   id: number; project_id: number | null; business_id: number;
@@ -150,6 +151,7 @@ const ProjectTaskList: React.FC<Props> = ({
   const isOwnerOrAdmin = myWsRole === 'owner' || myWsRole === 'admin' || user?.platform_role === 'platform_admin';
   const [editingTitle, setEditingTitle] = useState<number | null>(null);
   const [titleDraft, setTitleDraft] = useState('');
+  const [copyAnchors, setCopyAnchors] = useState<Map<number, number>>(() => new Map());  // 방금 복사한 업무 → 원본 id
   const [addingBelowId, setAddingBelowId] = useState<number | null>(null);
   const [newBelowTitle, setNewBelowTitle] = useState('');
   const [submittingBelow, setSubmittingBelow] = useState(false);
@@ -292,7 +294,8 @@ const ProjectTaskList: React.FC<Props> = ({
   const sortIcon = (k: SortKey) => sortKey === k ? (sortDir === 'asc' ? '↑' : '↓') : '';
 
   const today = new Date().toISOString().slice(0, 10);
-  const sortTasks = (arr: TaskRow[]) => sortTaskRows(arr, sortKey, sortDir);
+  // 방금 복사한 업무는 원본 바로 아래 — 그룹별로 나눈 뒤에도 같은 함수를 지나므로 그룹 안에서 붙는다(utils/copyPlacement).
+  const sortTasks = (arr: TaskRow[]) => placeCopiesBelow(sortTaskRows(arr, sortKey, sortDir), copyAnchors);
   const sorted = sortTasks(tasks);
 
   // #403 — 반복 시리즈가 공유하는 값을 목록에서 바로 고칠 때도 **적용 범위를 먼저 묻는다.**
@@ -412,6 +415,8 @@ const ProjectTaskList: React.FC<Props> = ({
               onCopy={async () => {  // 실패 표면화 (onDelete 패턴) — apiFetch throw 안 함
                 const r = await apiFetch(`/api/tasks/${task.id}/copy`, { method: 'POST' });
                 if (!r.ok) { const j = await r.json().catch(() => ({})); return { ok: false, message: j?.message }; }
+                const copy = await copiedTask<TaskRow>(r);  // 원본 바로 아래(같은 추진과제 안)에 보이게 자리를 기억
+                if (copy) setCopyAnchors(prev => new Map(prev).set(copy.id, task.id));
                 onRefresh?.(); return { ok: true };
               }}
               series={isSeriesTask(task as { recurrence_rule?: string | null; recurrence_parent_id?: number | null })}

@@ -53,6 +53,7 @@ import { formatHours, sameHours, utilizationPercent, utilizationStatus, UTIL_COL
 import HelpDot from '../../components/Common/HelpDot';
 import { displayName } from '../../utils/displayName';
 import { deleteTaskRequest } from '../../utils/taskDeleteError';
+import { placeCopiesBelow, copiedTask } from '../../utils/copyPlacement';
 import TaskCandidateCard from '../../components/Common/TaskCandidateCard';
 import i18nClient from '../../i18n';
 import { formatRRuleLabel } from '../../utils/recurrence';
@@ -291,6 +292,8 @@ const QTaskPage:React.FC=()=>{
   //   서버 값이 오면 그대로 덮어쓴다. 캐시는 표시를 앞당길 뿐 진실의 원천이 아니다.
   const taskCacheKey=cacheKey('qtask',myId,bizId);
   const[allTasks,setAllTasks]=useState<TaskRow[]>(()=>readCache<TaskRow[]>(cacheKey('qtask',myId,bizId))??[]);
+  // 방금 복사한 업무 → 원본 id (원본 바로 아래에 보이게 · utils/copyPlacement)
+  const[copyAnchors,setCopyAnchors]=useState<Map<number,number>>(()=>new Map());
   // 시작/멈춤 + «지금 작업중» (2026-10-27 Fable 설계 B) — 팝아웃과 **같은 훅·같은 버튼**. 훅은 페이지에 한 번.
   //   시작이 상태를 옮기면 그 행만 고친다 — 목록 전체를 다시 받지 않는다(팝아웃 흰 화면과 같은 길).
   const focus=useFocusControl({businessId:bizId?Number(bizId):null,myId,onTaskChanged:(id,status)=>{
@@ -1312,8 +1315,10 @@ const QTaskPage:React.FC=()=>{
       // 5) 끝 — id (제목까지 같으면 볼 때마다 순서가 바뀌지 않게)
       return a.id-b.id;
     });
-    return list;
-  },[allTasks,scope,tab,assigneeFilter,todayStr,myId,search,statusFilter,tagFilter,hideCompleted,effSortKey,hasPrioCol,sortDir,hideCompletedInWeek,periodFrom,periodTo]);
+    // 방금 복사한 업무는 원본 바로 아래(utils/copyPlacement). 완료가 맨 아래 규칙은 지킨다 — 완료 원본 밑으로 끌어내리지 않는다.
+    const isDoneRow=(x:TaskRow)=>x.status==='completed'||x.status==='canceled';
+    return placeCopiesBelow(list,copyAnchors,(src,copy)=>isDoneRow(src)===isDoneRow(copy));
+  },[allTasks,scope,tab,assigneeFilter,todayStr,myId,search,statusFilter,tagFilter,hideCompleted,effSortKey,hasPrioCol,sortDir,hideCompletedInWeek,periodFrom,periodTo,copyAnchors]);
 
   // (grouped removed — flat list with project column)
 
@@ -2187,7 +2192,13 @@ const QTaskPage:React.FC=()=>{
                         onCopy={async () => {
                           const r = await apiFetch(`/api/tasks/${task.id}/copy`, { method: 'POST' });
                           if (!r.ok) { const j = await r.json().catch(() => ({})); return { ok: false, message: j?.message }; }  // 실패 표면화(onDelete 패턴)
-                          return { ok: true };  // socket task:new 자동 반영
+                          // 원본 바로 아래에 — 응답으로 바로 넣고(소켓 task:new 는 중복이면 무시) 자리를 기억한다
+                          const copy = await copiedTask<TaskRow>(r);
+                          if (copy) {
+                            setAllTasks(prev => prev.some(x => x.id === copy.id) ? prev : [copy, ...prev]);
+                            setCopyAnchors(prev => new Map(prev).set(copy.id, task.id));
+                          }
+                          return { ok: true };
                         }}
                         series={isSeriesTask(task)}
                         onDelete={async (scope) => {
