@@ -17,6 +17,7 @@ import { useSearchParams } from 'react-router-dom';
 import { refreshAdminTodo } from '../../hooks/useAdminInboxCounts';
 import { apiFetch } from '../../contexts/AuthContext';
 import { onSocket } from '../../services/socket';
+import { useImageLightbox } from '../../components/Common/ImageLightbox';
 import { formatDay, formatDayTime } from '../../utils/dateFormat';
 
 // 접수 → 검토중 → 진행대기(플랫폼관리자 승인) → 반영중 → 완료/보류 — 전이 판정은 서버 services/feedbackStatus 한 곳(2026-10-22).
@@ -72,10 +73,13 @@ const AdminFeedbackPage = () => {
   const [detailId, setDetailId] = useState<number | null>(null);
   const [detail, setDetail] = useState<FeedbackItem | null>(null);
   const [response, setResponse] = useState('');
-  const [responseStatus, setResponseStatus] = useState<Status>('reviewing');
   const [submitting, setSubmitting] = useState(false);
   // 서버가 전이를 거절한 이유(접수 → 진행대기 바로 등) — 저장이 안 됐는데 창이 닫히면 «아무 일도 없음» 으로 보인다
   const [submitError, setSubmitError] = useState<string | null>(null);
+  // 방금 다른 단계로 옮긴 건 — 지금 탭에서 사라지므로 어디로 갔는지 한 줄로 남긴다(2026-10-29 Irene «보류로 바꿨더니 리스트에서 없어졌는데 보류에도 안나와»)
+  const [moved, setMoved] = useState<{ id: number; status: Status } | null>(null);
+  // 첨부 이미지 — data: 주소는 새 탭(최상위)으로 열리지 않는다(크롬·사파리가 막는다). 확대 보기로 연다.
+  const { open: openLightbox, lightbox } = useImageLightbox();
 
   // 늦게 온 옛 조건의 응답은 버린다 — 알림 링크(?id=)로 열면 «접수» 탭 요청이 먼저 나가고 그 건의 탭 요청이 뒤따르는데,
   //   접수 목록이 크면 나중에 도착해 목록을 덮어써 상세가 안 열렸다(2026-10-22 카나리 실측).
@@ -161,8 +165,6 @@ const AdminFeedbackPage = () => {
     const it = items.find(x => x.id === detailId);
     setDetail(it || null);
     setResponse(it?.admin_response || '');
-    // 접수 건은 «검토중» 이 기본 — 검토를 반드시 거친다. 나머지는 지금 상태 그대로(답글만 고치기).
-    setResponseStatus((it?.status === 'pending' ? 'reviewing' : it?.status) || 'reviewing');
     setSubmitError(null);
   }, [detailId, items]);
   const needAttachments = !!detail && (detail.attachment_count || 0) > 0 && !detail.attachments;
@@ -180,7 +182,10 @@ const AdminFeedbackPage = () => {
     return () => { alive = false; };
   }, [needAttachments, detailId]);
 
-  const submit = async (statusOverride?: Status) => {
+  // 단계 버튼 하나 = 그 단계 + 지금 적은 답글로 바로 저장. 인자 없음 = 답글만(상태 그대로).
+  //   ★ 옛 화면은 «상태» 셀렉트 + [승인 — 진행대기로] 였는데 승인 버튼이 셀렉트 값을 덮어써서
+  //     «보류» 를 고르고 초록 버튼을 누르면 진행대기로 갔다(= 승인 안 한 것이 개발 대기열에). 고른 것과 누른 것이 같은 버튼이게 했다.
+  const submit = async (nextStatus?: Status) => {
     if (!detail || submitting) return;
     setSubmitting(true);
     setSubmitError(null);
@@ -189,7 +194,7 @@ const AdminFeedbackPage = () => {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          status: statusOverride || responseStatus,
+          status: nextStatus || detail.status,
           admin_response: response.trim(),
         }),
       });
@@ -200,12 +205,18 @@ const AdminFeedbackPage = () => {
         return;
       }
       setDetailId(null);
+      setMoved(nextStatus && nextStatus !== detail.status ? { id: detail.id, status: nextStatus } : null);
       await Promise.all([load(), loadCounts()]);
       refreshAdminTodo();
     } finally { setSubmitting(false); }
   };
-  // 상태 셀렉트에는 지금 상태 + 서버가 허락한 다음 상태만
-  const statusChoices: Status[] = detail ? [detail.status, ...(detail.next_statuses || [])] : [];
+  // 갈 수 있는 단계는 서버가 준다(next_statuses — 전이 표를 화면에 베끼지 않는다). 첫 값이 앞으로 가는 단계라 주 버튼.
+  const nextChoices: Status[] = detail?.next_statuses || [];
+  const moveLabel = (from: Status, to: Status) => {
+    // 거꾸로 가는 전이(승인 취소·다시 열기)는 이름이 다르다
+    const back = (to === 'reviewing' && from !== 'pending') || (to === 'queued' && from === 'in_progress');
+    return t(back ? `adminFeedback.moveAction_back.${to}` : `adminFeedback.moveAction.${to}`) as string;
+  };
 
   const filtered = useMemo(() => items, [items]);
 
@@ -243,11 +254,21 @@ const AdminFeedbackPage = () => {
     >
       <Tabs>
         {STATUSES.map(s => (
-          <Tab key={s} active={activeStatus === s} onClick={() => setActiveStatus(s)}>
+          <Tab key={s} active={activeStatus === s} onClick={() => { setActiveStatus(s); setMoved(null); }}>
             {t(`adminFeedback.status.${s}`)} <Badge count={counts[s] || 0} showZero />
           </Tab>
         ))}
       </Tabs>
+
+      {moved && moved.status !== activeStatus && (
+        <MovedBar role="status" data-testid="admin-feedback-moved">
+          <span>{t('adminFeedback.movedNotice', { id: moved.id, status: t(`adminFeedback.status.${moved.status}`) })}</span>
+          <MovedLink type="button" onClick={() => {
+            setActiveCategory('all'); setActiveKind('all'); setSearch('');
+            setActiveStatus(moved.status); setDetailId(moved.id); setMoved(null);
+          }}>{t('adminFeedback.movedView')}</MovedLink>
+        </MovedBar>
+      )}
 
       {loading ? <Loading>{t('loading', '로딩 중…')}</Loading> :
        loadError ? (
@@ -341,8 +362,10 @@ const AdminFeedbackPage = () => {
                 <Section>
                   <SectionLabel>{t('adminFeedback.attachments', '첨부 이미지')} ({detail.attachments.length})</SectionLabel>
                   <AttachGrid>
-                    {detail.attachments.map((a, i) => (
-                      <AttachItem key={i} href={a.dataUrl} target="_blank" rel="noreferrer" title={a.name}>
+                    {detail.attachments.map((a, i, all) => (
+                      <AttachItem key={i} type="button" data-testid="admin-feedback-attach" title={a.name}
+                        aria-label={t('adminFeedback.attachOpen', { name: a.name }) as string}
+                        onClick={() => openLightbox(all.map(x => ({ src: x.dataUrl, alt: x.name })), i)}>
                         <AttachThumb src={a.dataUrl} alt={a.name} />
                         <AttachLabel>{a.name}</AttachLabel>
                       </AttachItem>
@@ -352,16 +375,6 @@ const AdminFeedbackPage = () => {
               )}
               <Section>
                 <SectionLabel>{t('adminFeedback.response', '운영팀 답변')}</SectionLabel>
-                <FieldRow>
-                  <FieldHalf>
-                    <FieldLabel>{t('adminFeedback.statusLabel', '상태')}</FieldLabel>
-                    <PlanQSelect size="sm" isSearchable={false}
-                      value={{ value: responseStatus, label: t(`adminFeedback.status.${responseStatus}`) as string }}
-                      onChange={(opt) => setResponseStatus(((opt as PlanQSelectOption | null)?.value as Status) || 'reviewing')}
-                      options={statusChoices.map(s => ({ value: s, label: t(`adminFeedback.status.${s}`) as string }))}
-                    />
-                  </FieldHalf>
-                </FieldRow>
                 <FlowHint>{t(detail.parent_id ? 'adminFeedback.flowHintFollowup' : 'adminFeedback.flowHint')}</FlowHint>
                 <ResponseArea
                   value={response}
@@ -375,23 +388,26 @@ const AdminFeedbackPage = () => {
         </DetailDrawer.Body>
         <DetailDrawer.Footer>
           {submitError && <SubmitError role="alert" data-testid="admin-feedback-submit-error">{submitError}</SubmitError>}
-          <Spacer />
-          {detail?.status === 'reviewing' && (detail.next_statuses || []).includes('queued') ? (
-            <>
-              <SecondaryBtn type="button" onClick={() => { void submit(); }} disabled={submitting}>
-                {t('adminFeedback.submit', '저장')}
+          {detail && (
+            <FooterActions>
+              <SecondaryBtn type="button" data-testid="admin-feedback-save" onClick={() => { void submit(); }} disabled={submitting}>
+                {t('adminFeedback.saveReply')}
               </SecondaryBtn>
-              <PrimaryBtn type="button" data-testid="admin-feedback-approve" onClick={() => { void submit('queued'); }} disabled={submitting}>
-                {submitting ? t('saving') : t('adminFeedback.approve')}
-              </PrimaryBtn>
-            </>
-          ) : (
-            <PrimaryBtn type="button" data-testid="admin-feedback-save" onClick={() => { void submit(); }} disabled={submitting}>
-              {submitting ? t('saving') : t('adminFeedback.submit', '저장')}
-            </PrimaryBtn>
+              {nextChoices.slice().reverse().map((s) => {
+                const primary = s === nextChoices[0];
+                const Btn = primary ? PrimaryBtn : SecondaryBtn;
+                return (
+                  <Btn key={s} type="button" data-testid={s === 'queued' ? 'admin-feedback-approve' : `admin-feedback-move-${s}`}
+                    onClick={() => { void submit(s); }} disabled={submitting}>
+                    {submitting && primary ? t('saving') : moveLabel(detail.status, s)}
+                  </Btn>
+                );
+              })}
+            </FooterActions>
           )}
         </DetailDrawer.Footer>
       </DetailDrawer>
+      {lightbox}
     </PageShell>
   );
 };
@@ -495,8 +511,9 @@ const AttachGrid = styled.div`
   grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
   gap: 8px;
 `;
-const AttachItem = styled.a`
-  display: flex; flex-direction: column; gap: 4px;
+const AttachItem = styled.button`
+  display: flex; flex-direction: column; gap: 4px; min-width: 0;
+  text-align: left; font: inherit; cursor: zoom-in;
   text-decoration: none; color: inherit;
   padding: 6px; border: 1px solid #E2E8F0; border-radius: 8px;
   background: #FFFFFF;
@@ -504,27 +521,37 @@ const AttachItem = styled.a`
   &:hover { border-color: #14B8A6; box-shadow: 0 0 0 3px rgba(20,184,166,0.1); }
 `;
 const AttachThumb = styled.img`
-  width: 100%; aspect-ratio: 1; object-fit: cover;
+  /* contain — 스크린샷 글씨가 잘리지 않게(cover 였을 때 가운데만 보였다) */
+  width: 100%; aspect-ratio: 1; object-fit: contain;
   border-radius: 6px; background: #F1F5F9;
 `;
 const AttachLabel = styled.div`
   font-size: 0.6875rem; color: #64748B;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 `;
-const FieldRow = styled.div`display: flex; gap: 12px;`;
-const FieldHalf = styled.div`flex: 1; display: flex; flex-direction: column; gap: 6px;`;
-const FieldLabel = styled.label`font-size: 0.75rem; font-weight: 600; color: #475569;`;
+const MovedBar = styled.div`
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  margin: 12px 0 0; padding: 8px 12px;
+  background: #F0FDFA; border: 1px solid #99F6E4; border-radius: 8px;
+  font-size: 0.8125rem; color: #0F766E;
+`;
+const MovedLink = styled.button`
+  background: none; border: none; padding: 0; cursor: pointer;
+  font: inherit; font-weight: 700; color: #0D9488; text-decoration: underline;
+`;
+const FooterActions = styled.div`
+  margin-left: auto; display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end;
+`;
 const ResponseArea = styled.textarea`
   width: 100%; padding: 10px 12px;
   border: 1px solid #E2E8F0; border-radius: 8px;
   font-size: 0.8125rem; color: #0F172A; font-family: inherit; resize: vertical;
   &:focus { outline: none; border-color: #14B8A6; box-shadow: 0 0 0 3px rgba(20,184,166,0.15); }
 `;
-const Spacer = styled.div`flex: 1;`;
 const FlowHint = styled.div`font-size: 0.75rem; color: #64748B; line-height: 1.5;`;
 const SubmitError = styled.div`font-size: 0.75rem; font-weight: 600; color: #B91C1C; min-width: 0;`;
 const SecondaryBtn = styled.button`
-  height: 36px; padding: 0 16px; margin-right: 8px;
+  height: 36px; padding: 0 16px;
   background: #FFFFFF; color: #334155;
   border: 1px solid #CBD5E1; border-radius: 8px;
   font-size: 0.8125rem; font-weight: 600; cursor: pointer;

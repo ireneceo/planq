@@ -360,7 +360,11 @@ const MyFeedbackPage = () => {
               <Composer>
                 {resultMsg && <ResultMsg>{resultMsg}</ResultMsg>}
                 {!threadAnswered(selected) ? (
-                  <LockedHint>{t('myFeedback.followup.locked') as string}</LockedHint>
+                  <LockedHint>
+                    {/* 아직 답이 없는 접수·검토중 — 언제 답이 오는지 알린다(답글 칸에 자동 답을 넣지 않는다: 그러면 «새 답변» 이 거짓으로 뜬다) */}
+                    {(selected.status === 'pending' || selected.status === 'reviewing') && <>{t('myFeedback.reviewEta') as string} </>}
+                    {t('myFeedback.followup.locked') as string}
+                  </LockedHint>
                 ) : !composeOpen ? (
                   <ComposerBar>
                     <ActionButton tone="secondary" size="sm" data-testid="myfeedback-followup-open"

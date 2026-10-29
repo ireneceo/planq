@@ -3225,7 +3225,8 @@ function checkAutoSave() {
     //     저장 버튼이 있는 화면(AdminFixDrawer·ProviderCreditCard)까지 위반으로 셌다.
     //     버튼이 부르는 **함수 이름**으로도 본다. 검사기 구멍은 예외 주석으로 덮지 않고 검사기를 고친다.
     if (/(저장하기|저장<\/|>\s*저장\s*<|'저장'|"저장"|Save<\/|>\s*Save\s*<|type="submit")/.test(src)) continue;
-    if (/onClick=\{\s*(?:\(\)\s*=>\s*)?(?:void\s+)?(submit|save|handleSave|handleSubmit|onSubmit)\b/.test(src)) continue;
+    //   (2026-10-29) 화살표 함수 본문을 중괄호로 감싼 `() => { void submit(); }` 도 같은 버튼이다 — 빠뜨려 단계 버튼 화면을 위반으로 셌다.
+    if (/onClick=\{\s*(?:\(\)\s*=>\s*)?\{?\s*(?:void\s+)?(submit|save|handleSave|handleSubmit|onSubmit)\b/.test(src)) continue;
     // 변경 즉시 저장인가 — 컨트롤의 change/click 이 저장 경로로 이어지는가
     const changeDriven =
       /on(Change|Blur)=\{/.test(src) ||

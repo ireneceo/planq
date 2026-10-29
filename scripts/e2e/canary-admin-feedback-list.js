@@ -11,6 +11,10 @@
 //     ④ 승인 체계(2026-10-22) — 탭 6개 · 검토중 건 [승인 — 진행대기로] → DB queued + approved_at · 상태 셀렉트에 «진행대기» 가
 //        접수 건엔 없다 · 서버가 전이를 거절하면 이유가 화면에 보이고 창이 닫히지 않는다
 //
+//     ⑤ (2026-10-29 Irene «보류로 바꿨더니 리스트에서 없어졌는데 보류에도 안나와 · 파일 넣었는데 제대로 볼 수가 없어»)
+//        검토중 건 [보류] 한 번 → DB wontfix(승인 없음) · «옮겼어요» 줄 → [보러 가기] 로 보류 탭에 그 건이 보인다
+//        첨부 썸네일을 누르면 확대 보기가 상세 창 **위에** 뜬다(elementFromPoint) · Esc 로 닫힌다
+//        (옛 화면: 승인 버튼이 고른 상태를 덮어써 진행대기로 갔고, 썸네일은 data: 주소 새 탭이라 막혔다)
 //   ★ 임시 platform_admin 을 만들고 finally 에서 지운다. 심은 피드백도 지운다.
 require('/opt/planq/dev-backend/node_modules/dotenv').config({ path: '/opt/planq/dev-backend/.env' });
 const { sequelize } = require('/opt/planq/dev-backend/config/database');
@@ -88,6 +92,33 @@ async function run() {
       await page.waitForSelector('[aria-modal="true"] img', { timeout: 15000 }).catch(() => null);
       const imgs = await page.evaluate(() => Array.from(document.querySelectorAll('[aria-modal="true"] img')).filter((i) => i.getBoundingClientRect().width > 0).length);
       push('첨부 있는 행을 열면 상세에 첨부 이미지 3장', clicked && imgs === 3, `행 ${clicked ? '누름' : '없음'} · 이미지 ${imgs}`);
+      // ⑤-b 썸네일 → 확대 보기가 맨 위
+      for (const vp of [WIDTHS[2], WIDTHS[0]]) {
+        await page.setViewport(vp);
+        await b.goto(page, '/admin/feedback');
+        await page.waitForSelector('[data-testid="admin-feedback-row"]', { timeout: 15000 }).catch(() => null);
+        await page.evaluate((tag) => {
+          const row = Array.from(document.querySelectorAll('[data-testid="admin-feedback-row"]')).find((r) => (r.textContent || '').includes(tag));
+          if (row) row.click();
+        }, TAG);
+        await page.waitForSelector('[data-testid="admin-feedback-attach"]', { timeout: 15000 }).catch(() => null);
+        await b.sleep(400);
+        const lb = await page.evaluate(async () => {
+          const th = document.querySelector('[data-testid="admin-feedback-attach"]');
+          if (!th) return { err: 'no thumb' };
+          th.scrollIntoView({ block: 'center' }); th.click();
+          await new Promise((r) => setTimeout(r, 500));
+          const dl = document.querySelector('[data-testid="lightbox-download"]');
+          if (!dl) return { err: 'no lightbox' };
+          const r = dl.getBoundingClientRect(); const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+          const top = !!hit && dl.contains(hit);
+          document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+          await new Promise((r2) => setTimeout(r2, 400));
+          return { top, closed: !document.querySelector('[data-testid="lightbox-download"]'), drawerOpen: !!document.querySelector('[data-testid="admin-feedback-attach"]') };
+        });
+        push(`${vp.name} · 첨부 누르면 확대 보기가 상세 위에 · Esc 닫힘`, !!lb.top && lb.closed && lb.drawerOpen, JSON.stringify(lb));
+      }
+      await page.setViewport(WIDTHS[2]);
 
       // ④ 승인 체계
       const [rv] = await sequelize.query(
@@ -105,6 +136,30 @@ async function run() {
       await b.sleep(1500);
       const [[after]] = await sequelize.query('SELECT status, approved_by, approved_at FROM feedback_items WHERE id = ?', { replacements: [rv] });
       push('검토중 건 [승인] → DB 진행대기 + 승인자·시각', !!hasApprove && after.status === 'queued' && after.approved_by === uid && !!after.approved_at, JSON.stringify({ ...after, where }));
+      // ⑤-a 검토중 → [보류] 한 번 → 보류 탭에 보인다
+      for (const vp of [WIDTHS[0], WIDTHS[2]]) {
+        await sequelize.query("UPDATE feedback_items SET status='reviewing', approved_by=NULL, approved_at=NULL WHERE id = ?", { replacements: [rv] });
+        await page.setViewport(vp);
+        await b.goto(page, `/admin/feedback?id=${rv}`);
+        await page.waitForSelector('[data-testid="admin-feedback-move-wontfix"]', { timeout: 15000 }).catch(() => null);
+        const btnVis = await page.evaluate(() => {
+          const e = document.querySelector('[data-testid="admin-feedback-move-wontfix"]'); if (!e) return false;
+          e.scrollIntoView({ block: 'center' }); const r = e.getBoundingClientRect(); const h = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+          return !!h && e.contains(h);
+        });
+        await page.click('[data-testid="admin-feedback-move-wontfix"]').catch(() => null);
+        await b.sleep(1500);
+        const [[w]] = await sequelize.query('SELECT status, approved_at FROM feedback_items WHERE id = ?', { replacements: [rv] });
+        const movedVis = await page.evaluate(() => { const e = document.querySelector('[data-testid="admin-feedback-moved"]'); return !!e && e.getBoundingClientRect().height > 0; });
+        await page.evaluate(() => { const e = document.querySelector('[data-testid="admin-feedback-moved"] button'); if (e) e.click(); });
+        await b.sleep(1500);
+        const inHold = await page.evaluate((id) => Array.from(document.querySelectorAll('[data-testid="admin-feedback-row"]')).length > 0
+          && !!document.querySelector('[aria-modal="true"]') && (document.querySelector('[aria-modal="true"]').textContent || '').includes('#' + id), rv);
+        push(`${vp.name} · 검토중 [보류] 한 번 → DB 보류 · «옮겼어요» · 보류 탭에서 그 건 열림`,
+          btnVis && w.status === 'wontfix' && !w.approved_at && movedVis && inHold, JSON.stringify({ btnVis, ...w, movedVis, inHold }));
+      }
+      await page.setViewport(WIDTHS[2]);
+      await sequelize.query("UPDATE feedback_items SET status='reviewing', approved_by=NULL, approved_at=NULL WHERE id = ?", { replacements: [rv] });
       // 거절 이유가 보이는가 — 서버 409 를 흉내(전이 표 자체는 서버 검사에서 잰다)
       await sequelize.query("UPDATE feedback_items SET status='reviewing', approved_by=NULL, approved_at=NULL WHERE id = ?", { replacements: [rv] });
       await page.setRequestInterception(true);

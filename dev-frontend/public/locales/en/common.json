@@ -187,7 +187,22 @@
       "followup_follows_parent": "Follow-ups can't be approved or put in progress. Approve the original post.",
       "approver_required": "Only platform admins can approve.",
       "unknown": "Couldn't save. Please try again."
-    }
+    },
+    "moveAction": {
+      "reviewing": "Start review",
+      "queued": "Approve — queue for work",
+      "in_progress": "Mark in progress",
+      "done": "Done",
+      "wontfix": "Won't fix"
+    },
+    "moveAction_back": {
+      "reviewing": "Reopen for review",
+      "queued": "Back to approved"
+    },
+    "saveReply": "Save reply only",
+    "movedNotice": "Moved #{{id}} to “{{status}}”",
+    "movedView": "View",
+    "attachOpen": "View {{name}} larger"
   },
   "qhelper": {
     "action": {
@@ -323,7 +338,7 @@
       "queued": "Scheduled",
       "in_progress": "In progress"
     },
-    "fbThanks": "Received #{{id}} — we'll review soon",
+    "fbThanks": "Received #{{id}} — we'll review and get back to you within 1–2 days",
     "fbTitle": "Title",
     "fbTitlePh": "One-line summary",
     "fbUrgent": "Urgent (service unusable, etc.)",
@@ -373,7 +388,7 @@
     "fbAttachNoWorkspace": "Join a workspace to attach images",
     "kindInquiry": "Question",
     "inqRequiredMember": "Please enter your question.",
-    "inqThanksMember": "Your question was received. See the reply under Personal > Support & feedback.",
+    "inqThanksMember": "Your question was received. We'll review it and reply within 1–2 days — see the reply under Personal > Support & feedback.",
     "inqMessagePhMember": "What would you like to ask? You can see the reply under Personal > Support & feedback.",
     "tool": {
       "task_batch": "Add several tasks",
@@ -1350,7 +1365,8 @@
     "kind": {
       "inquiry": "Question",
       "feedback": "Feedback"
-    }
+    },
+    "reviewEta": "Received. We'll review it and reply within 1–2 days."
   },
   "securityLevel": {
     "label": "Security level",
