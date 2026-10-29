@@ -222,6 +222,10 @@ router.put('/:businessId/:id', authenticateToken, checkBusinessAccess, requireMe
     //   그래서 다른 창의 고객 패널·목록이 사업자 정보 수정을 못 따라왔다. 바뀐 것이 없으면 조용히, 바뀌면 방송한다.
     if (Object.keys(patch).length === 0) return successResponse(res, stripClientSecrets(withRelation(client, client.toJSON())));
     await client.update(patch);
+    // 이름이 바뀌면 프로젝트 고객 행의 이름도 따라간다(#470 — Q sale PATCH 와 같은 함수)
+    if (patch.display_name !== undefined || patch.company_name !== undefined) {
+      await require('../services/clientAccess').syncProjectClientNames(client);
+    }
     await createAuditLog({
       userId: req.user.id, businessId: req.params.businessId,
       action: 'client.updated', targetType: 'client', targetId: client.id,

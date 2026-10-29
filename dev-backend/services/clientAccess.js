@@ -166,7 +166,27 @@ async function projectsByClient(businessId, clients) {
   return out;
 }
 
+/**
+ * 고객 이름을 바꾸면 프로젝트 고객 행의 이름(project_clients.contact_name)도 따라간다 (운영 피드백 #470, 2026-10-29).
+ *   그 칸은 고객을 프로젝트에 붙일 때 복사해 둔 이름이라, Q sale 에서 이름을 고쳐도 프로젝트 목록·상세·Q talk 이
+ *   옛 이름을 그대로 보였다. 고객 행(display_name → company_name)이 정본 — client_id 로 붙은 같은 워크스페이스 행만 고친다.
+ */
+async function syncProjectClientNames(client) {
+  if (!client || !client.id) return 0;
+  const name = String(client.display_name || client.company_name || '').trim().slice(0, 100);
+  if (!name) return 0;
+  const { ProjectClient, Project } = require('../models');
+  const rows = await ProjectClient.findAll({
+    where: { client_id: client.id, contact_name: { [Op.or]: [{ [Op.ne]: name }, { [Op.is]: null }] } },
+    include: [{ model: Project, attributes: ['id'], where: { business_id: client.business_id }, required: true }],
+    attributes: ['id'],
+  });
+  if (!rows.length) return 0;
+  const [n] = await ProjectClient.update({ contact_name: name }, { where: { id: rows.map((r) => r.id) } });
+  return n;
+}
+
 module.exports = {
   accessKindOf, accessWhere, withAccess, canInviteClient, projectInviteQuiet, emailEditable, reactivatedStatusOf,
-  projectLinkWhere, projectsByClient,
+  projectLinkWhere, projectsByClient, syncProjectClientNames,
 };

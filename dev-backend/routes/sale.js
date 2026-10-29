@@ -322,6 +322,10 @@ router.patch('/:businessId/clients/:clientId', ...writeChain, async (req, res, n
       userId: req.user.id, businessId, action: 'client.updated', targetType: 'client', targetId: client.id,
       oldValue: before, newValue: patch,
     });
+    // 이름이 바뀌면 프로젝트 고객 행의 이름도 따라간다(#470 — services/clientAccess 한 곳)
+    if (patch.display_name !== undefined || patch.company_name !== undefined) {
+      await require('../services/clientAccess').syncProjectClientNames(client);
+    }
     broadcast(req, businessId, 'client:updated', { id: client.id, business_id: businessId });
     const fresh = await loadClientWithIncludes(businessId, client.id);
     const [out] = await serializeClients(businessId, [fresh]);

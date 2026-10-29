@@ -384,8 +384,21 @@ router.get('/', authenticateToken, async (req, res, next) => {
     });
     const prefMap = new Map(prefRows.map((r) => [r.entity_id, r]));
 
+    // 고객 이름은 고객 행이 정본(#470 — 상세 enrichment 와 같은 순서). 프로젝트 행의 이름은 붙일 때 복사해 둔 것이다.
+    const linkedClientIds = [...new Set(projects.flatMap((p) => (p.projectClients || []).map((c) => c.client_id)).filter(Boolean))];
+    const clientNames = new Map(linkedClientIds.length
+      ? (await Client.findAll({ where: { id: linkedClientIds, business_id: businessId }, attributes: ['id', 'display_name', 'company_name', 'biz_name'] }))
+        .map((c) => [c.id, c.display_name || c.company_name || c.biz_name || null])
+      : []);
+
     const result = projects.map(p => {
       const json = p.toJSON();
+      if (Array.isArray(json.projectClients)) {
+        for (const pc of json.projectClients) {
+          const nm = pc.client_id ? clientNames.get(pc.client_id) : null;
+          if (nm) pc.contact_name = nm;
+        }
+      }
       const pref = prefMap.get(json.id);
       json.my_pinned_at = pref?.pinned_at || null;
       json.my_sort_order = pref?.sort_order ?? null;
@@ -3908,7 +3921,8 @@ async function loadProjectDetail(projectId) {
       json.projectClients = json.projectClients.map(pc => {
         const cli = pc.client_id ? cMap.get(pc.client_id) : null;
         if (cli) {
-          pc.contact_name = pc.contact_name || cli.display_name || cli.company_name || cli.biz_name || pc.contact_name;
+          // 이름은 고객 행이 정본(#470 — 프로젝트 행의 이름은 붙일 때 복사해 둔 것이라 고객 이름을 고쳐도 옛 이름이 남았다)
+          pc.contact_name = cli.display_name || cli.company_name || cli.biz_name || pc.contact_name;
           pc.contact_email = pc.contact_email || cli.tax_invoice_email || cli.billing_contact_email || cli.invite_email || null;
           // 연결된 Client 가 실제 사용자(user_id)면 '참여 중'. (contact_user_id 가 명단의 joined 판정 기준)
           if (!pc.contact_user_id && cli.user_id && cli.status === 'active') pc.contact_user_id = cli.user_id;
