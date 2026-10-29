@@ -128,7 +128,7 @@ router.post('/:id/reviewers/me/approve', authenticateToken, async (req, res, nex
 
 // ─────────────────────────────────────────────
 // POST /api/tasks/:id/reviewers/me/revision — 컨펌자 수정 요청
-// Body: { note: string (필수) }
+// Body: { note: string } — 필수. 단 이번 라운드에 내 댓글이 있으면 비워도 된다(#466, 그 댓글을 가리킨다)
 // ─────────────────────────────────────────────
 router.post('/:id/reviewers/me/revision', authenticateToken, async (req, res, next) => { // audit-exempt: 상태 전이는 task_status_history 가 원장이다(행동 계층 logHistory)
   try {
@@ -136,8 +136,8 @@ router.post('/:id/reviewers/me/revision', authenticateToken, async (req, res, ne
     if (!task) return;
     const result = await actions.requestRevision(task, actorFrom(req), { note: req.body?.note });
     // #112 — 프론트가 이 comment_id 로 참고 파일을 첨부한다 (context='comment')
-    return sendResult(res, result, ({ task: t, revisionCommentId }) =>
-      successResponse(res, { ...t.toJSON(), revision_comment_id: revisionCommentId }));
+    return sendResult(res, result, ({ task: t, revisionCommentId, revisionRefCommentId }) =>
+      successResponse(res, { ...t.toJSON(), revision_comment_id: revisionCommentId, revision_ref_comment_id: revisionRefCommentId }));
   } catch (err) { next(err); }
 });
 

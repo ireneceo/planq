@@ -596,6 +596,7 @@
       "approve": "Approve",
       "requestRevision": "Request revision → Revise",
       "revisionPlaceholder": "What needs to change? (required)",
+      "revisionPlaceholderOptional": "What needs to change? (Leave empty to point to your comment above)",
       "submitRevision": "Send revision",
       "youApproved": "You approved this round.",
       "youRequestedRevision": "You requested revision.",
@@ -1663,12 +1664,16 @@
   "commentContext": {
     "submit": "Review request",
     "approve": "Approved",
-    "revision": "Revision request"
+    "revision": "Revision request",
+    "revisionSeeAbove": "See comment above"
   },
   "watchers": {
     "label": "CC",
     "placeholder": "Optional — who should know or help",
     "empty": "None",
     "leave": "Leave CC"
+  },
+  "errors": {
+    "note_required_for_revision": "You haven't commented this round — write what needs to change"
   }
 }

@@ -1986,6 +1986,18 @@ router.get('/:id/detail', authenticateToken, async (req, res, next) => {
       }
     }
 
+    // #466 — 내가 이번 라운드 컨펌자이고 이미 댓글로 고칠 점을 적었으면, 수정 요청 사유를 비워도 된다.
+    //   화면은 이 값만 보고 버튼을 켠다(술어는 서버 taskCommentContext.findRevisionRef 한 곳).
+    json.my_revision_ref_comment_id = null;
+    if (task.status === 'reviewing' || task.status === 'revision_requested') {
+      const me = await TaskReviewer.findOne({ where: { task_id: task.id, user_id: req.user.id }, attributes: ['state', 'is_client'] });
+      if (me && me.state === 'pending') {
+        const { findRevisionRef } = require('../services/taskCommentContext');
+        const ref = await findRevisionRef({ taskId: task.id, reviewerUserId: req.user.id, clientReviewer: !!me.is_client });
+        json.my_revision_ref_comment_id = ref ? ref.id : null;
+      }
+    }
+
     // §8.5 — 고객에겐 내부 운영 데이터(공수 시간·예측 출처·일별 스냅샷·Cue 메타) 제거 + shared 댓글만
     if (scope.isClient) json = serializeTaskForClient(json);
 

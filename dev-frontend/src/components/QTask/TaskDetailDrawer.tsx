@@ -113,6 +113,9 @@ interface CommentRow {
   attachments?: CommentAttach[];
   /** 확인 요청·승인·수정 요청과 함께 남긴 글인지 — 서버 services/taskCommentContext 가 싣는다 */
   context?: string | null;
+  /** 사유를 비운 수정 요청이 가리키는 «위 댓글»(#466) — 서버 taskCommentContext 가 계산해 싣는다 */
+  ref_comment_id?: number | null;
+  kind?: string;
 }
 
 /** 행 시각을 **한 곳**에서 읽는다 — 이 저장소는 같은 값에 두 이름이 있다(중첩 조회는
@@ -173,6 +176,8 @@ interface TaskDetail {
   // #206 보류 — hold_prev_status 는 서버 내부 복귀용이라 UI 가 읽지 않는다. 사유만 배너에 표시.
   hold_reason?: string | null;
   review_round?: number | null; review_policy?: 'all'|'any';
+  /** #466 — 내가 사유를 비우면 가리킬 이번 라운드 내 댓글(없으면 null = 사유 필수). 서버 한 술어 */
+  my_revision_ref_comment_id?: number | null;
   assignee_id: number | null; created_by: number; project_id: number | null;
   workstream_id?: number | null;
   is_milestone?: boolean;
@@ -470,6 +475,13 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
   const actionSectionRef = useRef<HTMLDivElement>(null);
   const revealActions = () => {
     window.requestAnimationFrame(() => actionSectionRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }));
+  };
+  // #466 — 사유를 비운 수정 요청의 «위 댓글 참고» 를 누르면 그 댓글로 데려가 잠깐 테두리를 켠다
+  const [flashCommentId, setFlashCommentId] = useState<number | null>(null);
+  const jumpToComment = (id: number) => {
+    document.querySelector(`[data-testid="task-comment-${id}"]`)?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    setFlashCommentId(id);
+    window.setTimeout(() => setFlashCommentId((cur) => (cur === id ? null : cur)), 1200);
   };
   const submitDraft = useDraftText(useDraftKey('task-submit-note', detailTask?.id, bizId));
   const submitNote = submitDraft.text;
@@ -1259,9 +1271,13 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
   const submitRevision = async () => {
     if (!detailTask) return;
     const note = revisionNote.trim();
-    if (!note) return;
+    // 비워도 되는 것은 이번 라운드에 내 댓글이 있을 때뿐 — 서버가 다시 판정한다(#466)
+    if (!note && !detailTask.my_revision_ref_comment_id) return;
     const hasAttach = revisionFiles.length > 0 || revisionExistingFileIds.length > 0 || revisionExistingPostIds.length > 0;
     const r = await callAction('/reviewers/me/revision', 'POST', { note });
+    if (r && !r.success && r.message === 'note_required_for_revision') {
+      setActionError(t('errors.note_required_for_revision', '이번 라운드에 남긴 댓글이 없어요. 수정할 내용을 적어 주세요') as string);
+    }
     if (!r?.success) return;
     // #112 — 참고 파일을 수정요청 댓글(context='comment')에 연결. addComment 와 동일 인프라.
     const commentId = r.data?.revision_comment_id as number | undefined;
@@ -2458,7 +2474,9 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                   )}
                   {(revisionOpen || !!revisionNote) ? (
                     <RevisionForm>
-                      <RevisionInput data-testid="task-revision-note" placeholder={t('detail.actions.revisionPlaceholder', 'What needs to change? (required)')}
+                      <RevisionInput data-testid="task-revision-note" placeholder={detailTask.my_revision_ref_comment_id
+                        ? t('detail.actions.revisionPlaceholderOptional', '어떤 부분을 수정해야 하는지 적어주세요 (비워 두면 위 댓글 참고로 보냅니다)')
+                        : t('detail.actions.revisionPlaceholder', 'What needs to change? (required)')}
                         {...revisionDraft.bind} autoFocus />
                       <DraftRestoredNote draft={revisionDraft} />
                       {/* #112 — 참고 파일 첨부 (수정 방향을 파일로 전달). 인라인 picker, popup-on-popup 금지. */}
@@ -2491,7 +2509,7 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
                         </CmtAttachBtn>
                         <ActionSecondary onClick={() => { setRevisionOpen(false); revisionDraft.clear(); setRevisionFiles([]); setRevisionExistingFileIds([]); setRevisionExistingPostIds([]); setRevisionPickerOpen(false); }}>{t('common.cancel', 'Cancel')}</ActionSecondary>
-                        <ActionDanger onClick={submitRevision} disabled={actionBusy || !revisionNote.trim()}>{t('detail.actions.submitRevision', 'Send revision')}</ActionDanger>
+                        <ActionDanger onClick={submitRevision} data-testid="task-revision-send" disabled={actionBusy || (!revisionNote.trim() && !detailTask.my_revision_ref_comment_id)}>{t('detail.actions.submitRevision', 'Send revision')}</ActionDanger>
                       </RevisionRow>
                     </RevisionForm>
                   ) : (
@@ -2616,7 +2634,7 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                   <VersionEventTime>{node.ver.at.slice(5, 16).replace('T', ' ')}</VersionEventTime>
                 </VersionEventRow>
               ) : (((c: CommentRow) => (
-                <CommentItem key={c.id} data-testid={`task-comment-${c.id}`}>
+                <CommentItem key={c.id} data-testid={`task-comment-${c.id}`} $flash={flashCommentId === c.id}>
                   <CommentHead>
                     <strong>{c.author?.name}</strong>
                     <span>{rowAt(c).slice(5, 16).replace('T', ' ')}</span>
@@ -2662,7 +2680,17 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                       </CommentEditActions>
                     </CommentEditWrap>
                   ) : (
-                    c.content && c.content !== '(첨부파일)' && <CommentBody><CommentContextTag context={c.context} />{linkify(c.content)}</CommentBody>
+                    c.kind === 'system_revision' && !c.content?.trim() ? (
+                      // 사유를 비운 수정 요청(#466) — «위 댓글 참고». 가리킨 댓글이 스레드에 있으면 눌러서 간다.
+                      <CommentBody><CommentContextTag context={c.context} />
+                        {c.ref_comment_id && (detailTask.comments || []).some((x) => x.id === c.ref_comment_id) ? (
+                          <RevisionRefBtn type="button" data-testid="task-comment-revision-ref"
+                            onClick={() => jumpToComment(c.ref_comment_id as number)}>
+                            {t('commentContext.revisionSeeAbove', '위 댓글 참고')}
+                          </RevisionRefBtn>
+                        ) : <span data-testid="task-comment-revision-ref">{t('commentContext.revisionSeeAbove', '위 댓글 참고')}</span>}
+                      </CommentBody>
+                    ) : c.content && c.content !== '(첨부파일)' && <CommentBody><CommentContextTag context={c.context} />{linkify(c.content)}</CommentBody>
                   )}
                   {/* 댓글 첨부 — 결과물·의뢰 명세와 **같은 공용 목록**(2026-10-02). 여태 여기만 파일을 누르면
                       미리보기 없이 곧바로 내려받았다. 이미지는 한 댓글 안끼리 넘겨 본다. */}
@@ -2999,8 +3027,8 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                 <ActionPrimary key="final" onClick={actComplete} disabled={actionBusy} data-testid="task-footer-final">{t('detail.footer.final', '최종 완료하기')}</ActionPrimary>);
               if (reviewerPending) {
                 footerActions.push(
-                  <ActionDanger key="revision" disabled={actionBusy || ((revisionOpen || !!revisionNote) && !revisionNote.trim())} data-testid="task-footer-revision"
-                    onClick={() => { if (revisionOpen && revisionNote.trim()) void submitRevision(); else { setRevisionOpen(true); revealActions(); } }}>
+                  <ActionDanger key="revision" disabled={actionBusy || ((revisionOpen || !!revisionNote) && !revisionNote.trim() && !detailTask.my_revision_ref_comment_id)} data-testid="task-footer-revision"
+                    onClick={() => { if (revisionOpen && (revisionNote.trim() || detailTask.my_revision_ref_comment_id)) void submitRevision(); else { setRevisionOpen(true); revealActions(); } }}>
                     {t('detail.footer.revision', '수정 요청하기')}
                   </ActionDanger>);
                 footerActions.push(
@@ -3598,8 +3626,9 @@ const VersionEventTime = styled.span`
   color: #94A3B8; font-weight: 500;
 `;
 
-const CommentItem = styled.div`
+const CommentItem = styled.div<{ $flash?: boolean }>`
   position:relative;padding:8px 10px;background:#F8FAFC;border-radius:8px;
+  box-shadow:${p => (p.$flash ? 'inset 0 0 0 2px #14B8A6' : 'none')};transition:box-shadow .2s;
   & + &{margin-top:6px;}
   &:hover .comment-more-btn{opacity:1;}
 `;
@@ -3608,6 +3637,7 @@ const CommentHead = styled.div`
   & strong{color:#0F172A;font-weight:600;}
 `;
 // #270 — 긴 URL 이 드로어 폭을 넘어 레이아웃을 밀던 것. pre-wrap 만으로는 공백 없는 긴 문자열이 안 접힌다.
+const RevisionRefBtn = styled.button`background:transparent;border:none;padding:0;color:#0F766E;font-size:inherit;font-weight:600;cursor:pointer;text-decoration:underline;&:hover{color:#134E4A;}`;
 const CommentBody = styled.div`font-size:0.75rem;color:#1E293B;line-height:1.4;white-space:pre-wrap;word-break:break-word;overflow-wrap:anywhere;min-width:0;`;
 const CommentMoreBtn = styled.button.attrs({ className: 'comment-more-btn' })`
   margin-left:auto;width:22px;height:22px;background:transparent;border:none;border-radius:4px;

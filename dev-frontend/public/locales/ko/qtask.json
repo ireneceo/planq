@@ -596,6 +596,7 @@
       "approve": "승인",
       "requestRevision": "수정 요청 → 수정필요",
       "revisionPlaceholder": "어떤 부분을 수정해야 하는지 적어주세요 (필수)",
+      "revisionPlaceholderOptional": "어떤 부분을 수정해야 하는지 적어주세요 (비워 두면 위 댓글 참고로 보냅니다)",
       "submitRevision": "수정 요청 보내기",
       "youApproved": "이번 라운드에서 승인했습니다.",
       "youRequestedRevision": "수정 요청을 보냈습니다.",
@@ -1663,12 +1664,16 @@
   "commentContext": {
     "submit": "확인 요청",
     "approve": "승인",
-    "revision": "수정 요청"
+    "revision": "수정 요청",
+    "revisionSeeAbove": "위 댓글 참고"
   },
   "watchers": {
     "label": "참조",
     "placeholder": "선택 — 알아야 하거나 일부 도울 사람",
     "empty": "없음",
     "leave": "참조에서 빠지기"
+  },
+  "errors": {
+    "note_required_for_revision": "이번 라운드에 남긴 댓글이 없어요. 수정할 내용을 적어 주세요"
   }
 }

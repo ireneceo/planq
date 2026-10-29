@@ -1551,20 +1551,33 @@ async function approve(task, actor, { note = null } = {}) {
   return done({ task, newStatus });
 }
 
-/** 컨펌자 수정 요청 — 댓글 필수. Cue 가 담당자면 수정 노트를 물고 자동 재실행된다 */
+/**
+ * 컨펌자 수정 요청 — 사유 필수. 단 이번 라운드에 이미 댓글로 고칠 점을 적었으면 비워도 된다(#466) —
+ * 그때는 그 댓글(taskCommentContext.findRevisionRef 한 술어)을 사유로 삼는다: 알림 본문·Cue 재실행 노트가 그 댓글 본문.
+ * Cue 가 담당자면 수정 노트를 물고 자동 재실행된다.
+ */
 async function requestRevision(task, actor, { note } = {}) {
   const text = String(note || '').trim();
-  if (!text) return fail('note_required_for_revision');
 
   const reviewer = await loadReviewer(task, actor.userId);
   if (!reviewer) return fail('not_a_reviewer', 403);
   if (!inReviewRound(task)) return fail('not_reviewing');
 
+  let ref = null;
+  if (!text) {
+    const { findRevisionRef } = require('../taskCommentContext');
+    ref = await findRevisionRef({ taskId: task.id, reviewerUserId: actor.userId, clientReviewer: !!reviewer.is_client });
+    if (!ref) return fail('note_required_for_revision');
+  }
+  // 담당자에게 닿는 «고칠 점» — 적은 사유, 비웠으면 가리킨 댓글 본문
+  const feedback = text || String(ref.content).trim();
+
   let revisionComment = null;
   const t = await sequelize.transaction();
   try {
     await reviewer.update({ state: 'revision', action_at: new Date() }, { transaction: t });
-    // 수정 요청은 댓글을 반드시 남긴다 (#112 — 이 댓글에 참고 파일을 첨부한다)
+    // 수정 요청은 댓글을 반드시 남긴다 (#112 — 이 댓글에 참고 파일을 첨부한다).
+    //   사유를 비웠으면 본문도 비운다 — «위 댓글 참고» 는 화면이 언어별로 그린다(DB 에 문구를 넣지 않는다).
     revisionComment = await TaskComment.create({
       task_id: task.id, user_id: actor.userId,
       content: text, visibility: reviewer.is_client ? 'shared' : 'internal',
@@ -1573,7 +1586,7 @@ async function requestRevision(task, actor, { note } = {}) {
     await logHistory({
       taskId: task.id, eventType: 'revision',
       actorUserId: actor.userId, actorRole: 'reviewer',
-      round: task.review_round, note: text, transaction: t,
+      round: task.review_round, note: text || null, transaction: t,
     });
     await recalcStatusFromReviewers(task, t);
     await t.commit();
@@ -1586,7 +1599,7 @@ async function requestRevision(task, actor, { note } = {}) {
     userId: task.assignee_id,
     task, wsName: await workspaceName(task.business_id), excludeUserId: actor.userId,
     action: 'task_revision',
-    body: text.length > 140 ? text.slice(0, 140) + '…' : text,
+    body: feedback.length > 140 ? feedback.slice(0, 140) + '…' : feedback,
     // 2026-10-21 (Irene: *"Q task 알림 중 PlanQ에서 내용을 확인하세요 라고 오는게 있어 … 내용 요약이 나오는게 기본"*)
     //   — 댓글·채팅과 같은 «앞 40자»(services/outsidePreview). 옛 internal_only 는 중립 문구만 보냈다.
     previewPolicy: 'excerpt',
@@ -1602,14 +1615,14 @@ async function requestRevision(task, actor, { note } = {}) {
     if (biz?.cue_user_id && biz.cue_user_id === task.assignee_id && task.cue_kind) {
       const { executeForTask } = require('../cue_task_executor');
       setImmediate(() => {
-        executeForTask(task.id, { revisionNote: text, triggeredBy })
+        executeForTask(task.id, { revisionNote: feedback, triggeredBy })
           .then((r) => console.log('[cue_task_executor revision]', task.id, r.ok ? 'ok' : `skip: ${r.reason}`))
           .catch((e) => console.error('[cue_task_executor revision crash]', e.message));
       });
     }
   } catch (e) { console.warn('[task_actions revision cue check]', e.message); }
 
-  return done({ task, revisionCommentId: revisionComment?.id || null });
+  return done({ task, revisionCommentId: revisionComment?.id || null, revisionRefCommentId: ref?.id || null });
 }
 
 /** 컨펌자가 자기 판단을 되돌린다 (라운드당 1회) */
