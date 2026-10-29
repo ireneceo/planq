@@ -44,3 +44,12 @@ export const DBody = styled.div`
   p{margin:4px 0;}
 `;
 export const DFooter = styled.div`padding:12px 20px;border-top:1px solid #E2E8F0;display:flex;gap:8px;justify-content:flex-end;`;
+
+// 파일 목록 위 업로드 줄의 버튼 — [업로드]·[폴더 올리기]·[Google Drive 에서] 가 같은 규격(DocsTab 에서 옮김, 값 변경 없음).
+export const CompactUploadBtn = styled.button`
+  display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 14px;
+  background:#14B8A6;color:#fff;border:none;border-radius:8px;
+  font-size:0.75rem;font-weight:600;cursor:pointer;
+  &:hover{background:#0D9488;}
+  &:focus-visible{outline:2px solid #0D9488;outline-offset:2px;}
+`;

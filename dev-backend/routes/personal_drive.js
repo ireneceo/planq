@@ -14,7 +14,7 @@
 //   전체 열람(drive.readonly)은 제한 권한·유료 심사라 채택 안 함(Irene 결정 2026-06-01).
 const express = require('express');
 const router = express.Router();
-const { BusinessMember, ExternalConnection, BusinessCloudToken, Business } = require('../models');
+const { BusinessMember, ExternalConnection, BusinessCloudToken, Business, FileFolder } = require('../models');
 const { authenticateToken } = require('../middleware/auth');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
 const { perUserDaily } = require('../middleware/costGuard');
@@ -119,8 +119,18 @@ async function importHandler(req, res, next, forcedScope) {
     if (!(await assertBusinessMember(req, bizId))) return errorResponse(res, 'no_business_access', 403);
 
     const scope = forcedScope || parseScope(req.body.scope);
-    const projectId = req.body.project_id ? Number(req.body.project_id) : null;
+    let projectId = req.body.project_id ? Number(req.body.project_id) : null;
     const folderId = req.body.folder_id ? Number(req.body.folder_id) : null;
+    // ★ 2026-10-29 Q file·프로젝트>파일 «Google Drive 에서 가져오기» — **업로드와 같은 자리·같은 범위**.
+    //   폴더가 곧 소속이다(routes/files.js 업로드 결정 5-a 와 같은 규칙): 프로젝트 폴더를 주면 그 프로젝트 파일(L2).
+    //   `vlevel:'L1'` = «내 파일» 자리(나만 보기). **좁히기만** 받는다 — 다른 값은 무시하고, 프로젝트와는 같이 못 쓴다.
+    //   안 그러면 같은 «내 파일» 에 올린 것은 나만, 가져온 것은 워크스페이스 전체(L3)가 된다.
+    if (!projectId && folderId) {
+      const f = await FileFolder.findOne({ where: { id: folderId, business_id: bizId }, attributes: ['id', 'project_id'] });
+      if (f && f.project_id) projectId = Number(f.project_id);
+    }
+    const wantPrivate = req.body.vlevel === 'L1';
+    if (wantPrivate && projectId) return errorResponse(res, 'private_cannot_target_project', 400);
 
     // 개인 Drive 에서 가져온 것을 **프로젝트로** 넣지 않는다 — 개인 것은 개인 자리에만 둔다
     //   (memory project_gdrive_policy: 멤버 사적 파일이 워크스페이스에 섞이는 것을 막는 것이 정책의 이유).
@@ -155,8 +165,11 @@ async function importHandler(req, res, next, forcedScope) {
       {
         folderId,
         projectId,
-        // 개인 Drive 에서 온 것은 개인 등급(L1). 팀 Drive 는 프로젝트면 L2, 아니면 워크스페이스 공용(L3).
-        visibility: scope === 'personal' ? 'L1' : (projectId ? 'L2' : 'L3'),
+        // 개인 Drive 에서 온 것은 개인 등급(L1). 팀 Drive 는 프로젝트면 L2, «내 파일» 자리면 L1, 아니면 워크스페이스 공용(L3).
+        visibility: scope === 'personal' || wantPrivate ? 'L1' : (projectId ? 'L2' : 'L3'),
+        // 사용자가 고른 자리에 넣는다 — 같은 Drive 파일이 **다른 자리**에 있으면 그것을 돌려주지 않는다
+        //   (돌려주면 고른 폴더에 아무것도 안 생긴다). 바이트는 sha256 dedup 으로 한 벌만 남는다.
+        matchPlacement: true,
         actor: 'user',
       },
     );

@@ -46,16 +46,24 @@ interface Props {
   scope?: 'workspace' | 'personal';
   /** 프로젝트 첨부면 그 프로젝트로 들인다(노출 범위가 L2 가 된다). */
   projectId?: number | null;
+  /** Q file·프로젝트>파일에서 고른 폴더 — 서버가 폴더의 프로젝트를 소속으로 쓴다(업로드와 같은 규칙). */
+  folderId?: number | null;
+  /** «내 파일» 자리면 'L1'(나만 보기) — 업로드와 같은 범위. 서버는 좁히기만 받는다. */
+  vlevel?: 'L1';
+  /** 처음부터 펼쳐 둔다(전용 창 안에서 쓸 때). */
+  defaultOpen?: boolean;
   /** 들이기 성공 — 새로 만들어진 PlanQ File id */
   onImported: (fileId: number) => void;
   disabled?: boolean;
 }
 
-const DriveImportSection: React.FC<Props> = ({ businessId, scope = 'workspace', projectId, onImported, disabled }) => {
+const DriveImportSection: React.FC<Props> = ({
+  businessId, scope = 'workspace', projectId, folderId, vlevel, defaultOpen, onImported, disabled,
+}) => {
   const personal = scope === 'personal';
   const { t, i18n } = useTranslation('common');
   const [picking, setPicking] = useState(false);
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(!!defaultOpen);
   const [connected, setConnected] = useState<boolean | null>(null);
   const [files, setFiles] = useState<DriveFile[]>([]);
   const [q, setQ] = useState('');
@@ -117,6 +125,8 @@ const DriveImportSection: React.FC<Props> = ({ businessId, scope = 'workspace', 
         business_id: businessId, file_id: driveFileId, scope,
         // 개인 Drive 에서 온 것은 프로젝트로 못 넣는다(서버도 같은 술어로 막는다).
         project_id: personal ? undefined : (projectId || undefined),
+        folder_id: folderId || undefined,
+        vlevel,
       }),
     });
     const j = await r.json().catch(() => ({}));
@@ -127,7 +137,7 @@ const DriveImportSection: React.FC<Props> = ({ businessId, scope = 'workspace', 
     setDoneIds(prev => new Set(prev).add(driveFileId));
     onImported(fileId);
     return true;
-  }, [businessId, scope, personal, projectId, onImported, reasonText, t]);
+  }, [businessId, scope, personal, projectId, folderId, vlevel, onImported, reasonText, t]);
 
   const importOne = async (f: DriveFile) => {
     if (importingId || disabled) return;      // 중복 제출 가드 (UI_DESIGN_GUIDE §1.8)

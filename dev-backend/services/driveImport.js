@@ -104,7 +104,7 @@ function checkEligible(meta) {
  * Drive 파일 하나를 PlanQ 로 들인다.
  * @param ctx { drive, businessId, uploaderId }
  * @param meta Drive files.get 응답 (id·name·mimeType·size·webViewLink·md5Checksum)
- * @param opts { folderId, projectId, visibility }
+ * @param opts { folderId, projectId, visibility, matchPlacement }
  * @returns {{ ok:boolean, reason?:string, blocked?:boolean, file?:object }}
  *   blocked=true → 저장공간이 찼다. 배치라면 그 자리에서 멈춰야 한다.
  */
@@ -124,10 +124,15 @@ async function importDriveFile(ctx, meta, opts = {}) {
   //   ★ 개인(L1) 파일은 **업로더까지** 키에 넣는다. 안 그러면 같은 Drive 파일을 다른 사람이 들일 때
   //     남의 개인 파일 행을 그대로 돌려준다(Fable 사후 감사 2026-09-07 실측).
   //     공용(L2·L3)은 워크스페이스 자산이라 한 벌이면 된다 — 종전대로.
+  //   ★ `matchPlacement` (사용자가 Q file·프로젝트>파일에서 **자리를 골라** 가져올 때, 2026-10-29) —
+  //     같은 자리(프로젝트·폴더·범위)에 있을 때만 «이미 있음» 이다. 다른 자리의 행을 돌려주면 고른 폴더에
+  //     아무것도 안 생기고, 다른 프로젝트(L2)·남의 범위의 행이 첨부로 붙는다. 미러(gdriveIngest)는 안 켠다 —
+  //     사용자가 옮긴 미러 파일을 다시 들이면 안 되기 때문이다.
   const already = await File.findOne({
     where: {
       business_id: businessId, external_id: driveId, deleted_at: null,
       ...(visibility === 'L1' ? { uploader_id: uploaderId } : {}),
+      ...(opts.matchPlacement ? { project_id: projectId, folder_id: folderId, vlevel: visibility } : {}),
     },
   });
   if (already) return { ok: true, reason: 'already_ingested', file: already };

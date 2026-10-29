@@ -61,7 +61,8 @@ import { joinRoom, leaveRoom, onSocket } from '../../services/socket';
 import { useFileDragOut, isMovableInApp } from '../../hooks/useFileDragOut';
 import { isEnterAction } from '../../utils/imeKey';
 import { openDriveEditor } from '../../utils/driveEdit';
-import { SecondaryBtn, PrimaryBtn, DangerBtn, Modal, Dialog, DTitle, DBody, DFooter } from './docs/dialogStyles';
+import { SecondaryBtn, PrimaryBtn, DangerBtn, Modal, Dialog, DTitle, DBody, DFooter, CompactUploadBtn } from './docs/dialogStyles';
+import { useDriveImport } from './docs/useDriveImport';
 import { formatDay } from '../../utils/dateFormat';
 import { useTrashRetentionDays } from '../../hooks/useTrashRetentionDays';
 import { FileExtIcon } from './FileExtIcon';
@@ -462,6 +463,7 @@ const DocsTab: React.FC<Props> = (props) => {
     }
     return Array.from(map.values()).sort((a, b) => b.count - a.count);
   }, [files, isWorkspace]);
+  const { openDriveImport, driveImportModal } = useDriveImport({ enabled: cacheUser?.business_role !== 'client', businessId, mode: scope.type, projectId, projectName: props.projectName, folderSel, folders, projectGroups, onImported: reload });
 
   const visible = useMemo(() => {
     let r = filteredByFolder.slice();
@@ -1169,6 +1171,7 @@ const DocsTab: React.FC<Props> = (props) => {
               : t('docs.drop.hintPlain', '여러 파일이나 폴더를 한 번에 올릴 수 있습니다') as string}
           </DzHint>
           <DzHint><StorageLeft limits={uploadLimits} /></DzHint>
+          {openDriveImport && <CompactUploadBtn type="button" data-testid="docs-drive-import" onClick={e => { e.stopPropagation(); openDriveImport(); }}>{t('docs.driveImport.button')}</CompactUploadBtn>}
         </Dropzone>
       ) : (
         <CompactBar>
@@ -1190,6 +1193,7 @@ const DocsTab: React.FC<Props> = (props) => {
             </svg>
             {t('docs.drop.uploadFolder', '폴더 올리기')}
           </CompactUploadBtn>
+          {openDriveImport && <CompactUploadBtn type="button" data-testid="docs-drive-import" onClick={openDriveImport}>{t('docs.driveImport.button')}</CompactUploadBtn>}
           {/* ★ 한도는 **여기에도** 있어야 한다 — 드롭존은 워크스페이스가 완전히 빌 때만 나오고,
               파일이 하나라도 있으면 이 줄로 바뀐다. 즉 사용자가 실제로 보는 것은 거의 항상 이쪽인데
               여태 한도 얘기가 **아예 없었다**. "기준을 찾아"(#417) 라는 말이 나온 자리다. */}
@@ -1967,7 +1971,7 @@ const DocsTab: React.FC<Props> = (props) => {
         )}
       </DetailDrawer>
 
-      {shareFolderModal}
+      {shareFolderModal}{driveImportModal}
       {/* 공유 모달 */}
       {shareTarget && (
         <ShareModal
@@ -2242,13 +2246,6 @@ const StorageLeftText = styled.span<{ $warn: boolean }>`
 const CompactBar = styled.div`
   display:flex;align-items:center;gap:12px;flex-wrap:wrap;
   padding:8px 12px;background:#F8FAFC;border:1px dashed #CBD5E1;border-radius:10px;
-`;
-const CompactUploadBtn = styled.button`
-  display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 14px;
-  background:#14B8A6;color:#fff;border:none;border-radius:8px;
-  font-size:0.75rem;font-weight:600;cursor:pointer;
-  &:hover{background:#0D9488;}
-  &:focus-visible{outline:2px solid #0D9488;outline-offset:2px;}
 `;
 /* ★ 2026-09-14 — 좁은 폭에서 이 문구가 넘쳐 옆 것과 겹칠 수 있었다(말줄임이 없었다).
    ※ Irene 신고 "파일리스트 좌측 상단에 채팅/업로드 안내가 겹쳐" 는 **재현하지 못했다** —

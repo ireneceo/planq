@@ -735,7 +735,17 @@
       "overwrite": "덮어쓰기",
       "descOverwriteWithDays": "「덮어쓰기」는 새 파일을 올리고 이전 파일을 휴지통으로 보냅니다. {{days}}일 안에 되돌릴 수 있습니다."
     },
-    "visibility": "공개"
+    "visibility": "공개",
+    "driveImport": {
+      "button": "Google Drive 에서",
+      "title": "Google Drive 에서 가져오기",
+      "pickProject": "가져온 파일을 넣을 프로젝트를 선택하세요",
+      "destMine": "넣을 곳: 내 파일 · 나만 보기 (업로드와 같음)",
+      "destMineFolder": "넣을 곳: {{folder}} 폴더 · 나만 보기 (업로드와 같음)",
+      "destProject": "넣을 곳: {{project}} · 프로젝트 멤버 공개 (업로드와 같음)",
+      "destProjectFolder": "넣을 곳: {{project}} › {{folder}} · 프로젝트 멤버 공개 (업로드와 같음)",
+      "close": "닫기"
+    }
   },
   "canvas": {
     "tabLabel": "개요",

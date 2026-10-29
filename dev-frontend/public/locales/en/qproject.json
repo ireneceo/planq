@@ -735,7 +735,17 @@
       "overwrite": "Overwrite",
       "descOverwriteWithDays": "Overwrite uploads the new file and sends the previous one to the trash. You can restore it within {{days}} days."
     },
-    "visibility": "Visibility"
+    "visibility": "Visibility",
+    "driveImport": {
+      "button": "From Google Drive",
+      "title": "Import from Google Drive",
+      "pickProject": "Choose the project to put the imported files in",
+      "destMine": "Goes to: My files · Only me (same as upload)",
+      "destMineFolder": "Goes to: {{folder}} folder · Only me (same as upload)",
+      "destProject": "Goes to: {{project}} · Project members (same as upload)",
+      "destProjectFolder": "Goes to: {{project}} › {{folder}} · Project members (same as upload)",
+      "close": "Close"
+    }
   },
   "canvas": {
     "tabLabel": "Overview",
