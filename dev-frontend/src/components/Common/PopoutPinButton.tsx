@@ -47,7 +47,7 @@ const PopoutPinButton: React.FC<Props> = ({ host }) => {
     : (t('popoutPin.pin', '항상 위로 고정') as string);
   const hint = pinned
     ? (t('popoutPin.unpinHint', '고정을 풀면 원래 창으로 돌아옵니다.') as string)
-    : (t('popoutPin.pinHint', '다른 창 위에 항상 보이게 고정합니다. 고정창은 브라우저가 화면 오른쪽 아래에 띄워요 — 창을 옮긴 뒤 고정해도 그 자리로 갑니다.') as string);
+    : (t('popoutPin.pinHint', '다른 창 위에 항상 보이게 고정합니다. 고정창은 브라우저가 화면 오른쪽 위에 띄워요 — 창을 옮긴 뒤 고정해도 그 자리로 갑니다.') as string);
 
   const handleClick = () => {
     if (pinned && isRecording()) { setConfirmOpen(true); return; }
