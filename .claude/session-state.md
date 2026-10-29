@@ -175,7 +175,8 @@
 - 개발시작 1-B 운영 피드백: 진행대기(승인) 0 · 반영중 0 · 승인 기다림 13(접수 5 · 검토중 8 — 관리자 > 사용자 피드백).
 - 1-C 밤 검사 10-28: 순찰 실패 3(알림 «설문 새 응답»·«서명 완료» → 지운 카나리 문서 6285·6275 찾을 수 없음 · /talk/369 오류 화면 · 메일 스레드 5936→10149 찾을 수 없음) · 전체 검사 161 중 실패 16 — 15건은 10-27 과 같은 미판정 목록(caret · tenantwrite · mailrt 2 · mobilechrome 3 · mobileboot · leavetypes · consultlinks · tablefit · tablestyle 2 · taskaddparity · mobilepanels · mobilesweep · guestproject · taskfooter · headerrow 2), contractbilling 은 2e725ed6 로 빠짐, **새 것 sharereceive 2(데스크탑 저장)** → 다시 돌려 0 실패 = 일시적.
 
-### 답 기다림: Gemini 연결 시험 — 유료 회사용으로 할지, 미룰지 (방 6b26f71f · 2026-10-29)
+### ✅ 답 기다림 (이전): Gemini 연결 시험 — 유료 회사용으로 할지, 미룰지 (방 6b26f71f · 2026-10-29) → Irene «권고대로» = 미루기
+- 결과: Gemini 연결은 미룸(비용 0). 다시 열 조건 — Gemini 가 한국 개인 계정에 «맞춤 앱» 을 열거나 고객이 요청할 때. 위키·화면에 Gemini 안내 없음(고칠 문구 0). G2 메모(FABLE_GATE_QUEUE 10-24)는 그때 그대로 씀.
 - 무엇: **Gemini 연결 시험을 위해 회사용 Gemini Enterprise 를 결제할까요, 아니면 Gemini 는 미루고 ChatGPT·Claude 연결만 안내할까요?**
 - 왜: Irene 계정에 Gemini «맞춤 앱 추가» 메뉴가 없음(개인 계정 맞춤 앱 = 미국·Pro/Ultra 한정) → 할 일 카드 todomvly927b 뺌. 남은 길은 유료 회사용(1인 월 $21~30 · 결제·관리자 설정은 Irene)뿐.
 - 권고: 미루기(비용 0 · 계정 조건 문제라 우리 서버 고칠 일 없음).
