@@ -339,7 +339,7 @@ const SHOTS = [
   {
     id: 'project-d', device: 'desktop', who: 'owner', route: '/projects',
     desc: 'Q project 데스크탑 — 진행 중인 프로젝트 카드(고객·진행률·기간)를 보고, 프로젝트 하나를 열어 대화·업무·문서가 모인 작업대를 본다.',
-    beats: { list: '프로젝트 카드 — 고객·진행률·기간', open: '프로젝트 상세(대화·업무·문서 한 곳)' },
+    beats: { list: '프로젝트 카드 — 고객·진행률·기간', open: '프로젝트 안 업무 목록(담당·진행률)' },
     async run(h) {
       await h.hold(500);
       const card = await h.blockOf('노들커머스 브랜드', { maxH: 260, maxW: 380 });
@@ -347,9 +347,11 @@ const SHOTS = [
       if (card) { h.focus(card, { label: '프로젝트', pad: 6 }); await h.moveTo(card, { dx: 0.5, dy: 0.7, ms: 900 }); await h.hold(2200); h.unfocus(); }
       const t = await h.rectOf('노들커머스 브랜드');
       if (t) { await h.click(t, { dx: 0.3 }); await h.waitFor(() => /\/projects\/p\//.test(location.pathname), null, { label: 'open' }); await h.wait(1200, 'load'); }
+      // 개요 탭은 데모에서 비어 보인다(타임라인·관련 프로젝트 없음 — 검수 관문이 잡음) → «업무» 탭
+      const tab = await h.rectOf('업무', { exact: true, minX: 150 });
+      if (tab) { await h.click(tab, { dx: 0.5 }); await h.wait(1300, 'tab'); }
       h.beat('open');
       await h.move(1000, 420, 1000); await h.hold(2600);
-      await h.scroll(300, 1200); await h.hold(1200);
     },
   },
   {

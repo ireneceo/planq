@@ -18,6 +18,12 @@ function phrases() {
     if (s.length >= 6 && s.length <= 40) out.add(s);
   };
   for (const f of fs.readdirSync(LOCALES)) { try { walk(JSON.parse(fs.readFileSync(path.join(LOCALES, f), 'utf8')), f); } catch { /* 깨진 파일은 건너뜀 */ } }
+  // 빈 상태 키에서 왔지만 실제로는 늘 보이는 머리글·안내문이라 «빈 화면» 이 아닌 것(실측으로 하나씩 — 이유를 적는다)
+  const NOT_EMPTY = [
+    'Cue 에게 묻기',                                 // Q talk 작업대 접는 칸 제목(내용 유무와 무관)
+    '회의에서 실행할 업무를 AI가 찾아 후보로 제안합니다', // Q note 업무 칸 설명문(후보가 있어도 보인다)
+  ];
+  for (const x of NOT_EMPTY) for (const p of [...out]) if (p.startsWith(x) || x.startsWith(p)) out.delete(p);
   cache = [...out];
   return cache;
 }

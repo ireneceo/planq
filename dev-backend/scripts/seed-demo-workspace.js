@@ -778,6 +778,11 @@ async function seed() {
   // 시연 영상 소재 다듬기(2026-10-29 · docs/DEMO_VIDEO_DESIGN.md §14 C) — 화면에 «처음 쓰는 워크스페이스» 티가 나지 않게.
   //   ① 팀 적응 단계(온보딩 체크리스트) 닫기 — 데모 계정 전원 ② 오늘 근무 시작: 대표·디자인·개발(«팀 0명 근무 중» 대신)
   //   기존 서비스 문만 쓴다(직접 행을 만들지 않는다). 이미 근무 중이면 서비스가 거절 → 무시(멱등).
+  //   ③ 프로젝트 메모 한 줄(작업대 «아직 메모가 없습니다» 대신) — 생성은 행동 계층 한 문(createProjectNote)
+  const { createProjectNote } = require('../services/actions/project_note_actions');
+  const pn = await createProjectNote({ kind: 'user', userId: owner.id, platformRole: 'user', req: null },
+    { projectId: projects.haneul.id, body: '킥오프 합의 — 1차 로고 시안 3종 금요일 납품 · 컬러 시스템 제안 함께 · 임원 보고는 다음 주 화요일' }).catch((e) => ({ ok: false, code: e.message }));
+  if (!pn.ok) console.warn(`⚠️ 프로젝트 메모 시드 실패(스킵): ${pn.code}`);
   const { setOnboardingDismissed } = require('../services/onboarding');
   const A = require('../services/attendanceTransition');
   for (const t of TEAM) {

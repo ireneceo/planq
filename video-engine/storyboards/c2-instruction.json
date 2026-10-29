@@ -1,0 +1,129 @@
+{
+  "id": "c2-instruction",
+  "mode": "instruction",
+  "template": "fast-shorts",
+  "music": "Pamgaea",
+  "instruction": "프로젝트 하나에 업무·회의·자료·청구가 다 모이는 흐름을 35초 쇼츠로. 대상: 고객 일을 받는 작은 회사 대표. 업무가 엑셀·메신저에 흩어진 답답함에서 시작. 대화(Q talk) 화면은 쓰지 마라(지금 다시 찍는 중).",
+  "title": "프로젝트 하나로 끝나는 고객 일 흐름",
+  "concept": "고객 일을 여러 도구에 흩어 관리하던 소규모 회사 대표에게, 한 프로젝트 안에서 업무·회의·자료·청구까지 이어지는 흐름을 빠르게 보여준다.",
+  "hook": "엑셀이랑 메신저 *왔다갔다* 하시죠?",
+  "scenes": [
+    {
+      "kind": "screen",
+      "shot": "project-d",
+      "fromBeat": "open",
+      "maxSec": 2.5,
+      "side": {
+        "kicker": "흩어진 업무 시작",
+        "title": "프로젝트마다\n도구가 다 따로?"
+      },
+      "captions": {
+        "open": "고객 일, *한 화면*에서 끝내세요"
+      }
+    },
+    {
+      "kind": "kinetic",
+      "dur": 2.5,
+      "lines": [
+        {
+          "text": "프로젝트 *하나*에",
+          "at": 0
+        },
+        {
+          "text": "업무 흐름을 *모읍니다*",
+          "at": 1.2
+        }
+      ]
+    },
+    {
+      "kind": "screen",
+      "shot": "project-d",
+      "fromBeat": "list",
+      "maxSec": 6.5,
+      "side": {
+        "kicker": "Q project",
+        "title": "고객별 *프로젝트*로\n일을 받습니다"
+      },
+      "captions": {
+        "list": "고객·진행률·기간이 한눈에"
+      }
+    },
+    {
+      "kind": "screen",
+      "shot": "task-d",
+      "fromBeat": "list",
+      "maxSec": 6.5,
+      "side": {
+        "kicker": "Q task",
+        "title": "받은 요청을\n*할일*로 정리"
+      },
+      "captions": {
+        "list": "팀 업무를 한 곳에서 보고"
+      }
+    },
+    {
+      "kind": "screen",
+      "shot": "note-d",
+      "fromBeat": "summary",
+      "maxSec": 5.5,
+      "side": {
+        "kicker": "Q note",
+        "title": "회의가 끝나면\n기록과 *합의*가 남습니다"
+      },
+      "captions": {
+        "summary": "회의 요약이 자동으로 쌓이고"
+      }
+    },
+    {
+      "kind": "screen",
+      "shot": "file-d",
+      "fromBeat": "files",
+      "maxSec": 5.5,
+      "side": {
+        "kicker": "Q file",
+        "title": "프로젝트별 *자료*도\n같은 곳에"
+      },
+      "captions": {
+        "files": "시안·가이드를 프로젝트별로"
+      }
+    },
+    {
+      "kind": "screen",
+      "shot": "bill-d",
+      "fromBeat": "cards",
+      "maxSec": 6.5,
+      "side": {
+        "kicker": "Q bill",
+        "title": "일이 끝나면\n바로 *청구*까지"
+      },
+      "captions": {
+        "cards": "이번 달 청구·수금 현황을 보고"
+      }
+    },
+    {
+      "kind": "points",
+      "dur": 4.5,
+      "title": "이제 프로젝트 *하나*에서",
+      "points": [
+        "요청·업무·회의록·자료·청구까지",
+        "흩어진 일을 한 흐름으로 관리",
+        "어디서 뭘 봐야 할지 헷갈리지 않게"
+      ]
+    },
+    {
+      "kind": "logo",
+      "dur": 3.5,
+      "slogan": "일을 *일답게* 하다",
+      "cta": "planq.kr 에서 시작하기"
+    }
+  ],
+  "_ai": {
+    "model": "gpt-5.1",
+    "input_tokens": 2475,
+    "output_tokens": 986,
+    "dropped": []
+  },
+  "_review": [
+    "검토 수정 1줄: 첫 장면 자막 «업무·자료·대화가 *따로*면,» → «고객 일, *한 화면*에서 끝내세요»(모인 화면 위에서 «따로» 를 말하면 그림과 어긋남)"
+  ]
+}
