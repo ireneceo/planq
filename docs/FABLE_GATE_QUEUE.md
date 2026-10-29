@@ -187,6 +187,10 @@
 - 서버 판정 전부 통과(자체 API 49건 중 47 PASS, 2건 검사기 오탐). 차단: 새 칩 `font-size: 11px` 가 fontpx 하드 가드 위반 → 0.6875rem 로 고침, fontpx·uispec 초록, 재빌드 EXIT 0. Fable: «그 뒤 Fable 재호출 불필요(자체 검증으로 닫아도 됨)».
 - 비차단: ① 정리 스크립트가 자체 값 있는 중복을 지울 수 있음 → 8984e9ac 에서 건너뛰게 함 ② createProject `contacts`(이름만 새 연락처)가 client 없는 토큰 줄을 만든다 — 다음 묶음 ③ source-candidates extra limit 300 ④ 상세 sourcePost 에 vlevel 등 칸(비밀 아님).
 
+## ✅ PASS — 고객 파일 노출·내부채팅 첨부·고객 담당자 완료 (2026-10-29 · 방 a55ecdb8 · 커밋 6e1256fd · gate)
+- 근거: verify.js 22/22 재현 · 추가 프로브(파일 목록·검색·휴지통 403·바로가기·묶음 403·대조군 member1) 0 실패 · e2e tenant 0 실패 · i18n/parity 통과. 다른 호출처(searchScope·projectRefs·cue_context·agent tools) 고객 확대 없음, canDownloadFile 고객은 더 좁아짐.
+- 비차단: ① files.js 묶음 내려받기 고객 줄은 checkBusinessAccess 뒤라 도달 안 함 ② PATCH /time 에 PUT 의 보류·외부컨펌 자동전환 정지 가드 없음(기존, 멤버도 같음) ③ planned_week_start 규칙이 PUT(담당자 허용)·/time(고객 거절)로 갈림 ④ L2+project_id+target_member_ids 동시 설정 파일은 고객 목록에 새로 보임(내려받기는 전부터 열림) — 정의 박기 ⑤ is_internal NULL 해석 차이(dev NULL 행 0건 실측).
+
 ## 2026-10-23 서명 요청 시 임시저장 문서 발행 · 목록 서명 칩 · 백필 (eb9769e1, 방 afd6ca8f) — **PASS** (차단 0)
 - 실HTTP 30/30: draft→요청→published·L1 유지 · 거절된 요청(403)은 발행 안 함 · 요청 뒤 PUT 409 유지 · 감사 post.create via signature.sign/confirm · 목록 sign in_progress→completed·expired·rejected·canceled 만이면 없음 · 응답에 토큰·이메일 0 · published 문서 이중 발행 0.
 - 백필: dry-run 1건(canceled 만인 문서 제외 — 음성 대조군) → --apply 1 · 남은 0 → 재실행 0.
