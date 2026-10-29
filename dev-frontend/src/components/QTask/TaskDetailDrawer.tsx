@@ -477,6 +477,7 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
   const [revisionFiles, setRevisionFiles] = useState<File[]>([]);
   const [revisionPickerOpen, setRevisionPickerOpen] = useState(false);
   const [revisionExistingFileIds, setRevisionExistingFileIds] = useState<number[]>([]);
+  const [revisionExistingPostIds, setRevisionExistingPostIds] = useState<number[]>([]);
   // ★ 이 드로어엔 오류 표시가 없었다 — callAction 이 실패해도 호출부가 그냥 return 해서
   //   "눌렀는데 아무 일도 안 일어남" 이 된다. 특히 첨부는 **댓글만 올라가고 파일이 조용히 사라졌다**.
   const [actionError, setActionError] = useState<string | null>(null);
@@ -1259,7 +1260,7 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
     if (!detailTask) return;
     const note = revisionNote.trim();
     if (!note) return;
-    const hasAttach = revisionFiles.length > 0 || revisionExistingFileIds.length > 0;
+    const hasAttach = revisionFiles.length > 0 || revisionExistingFileIds.length > 0 || revisionExistingPostIds.length > 0;
     const r = await callAction('/reviewers/me/revision', 'POST', { note });
     if (!r?.success) return;
     // #112 — 참고 파일을 수정요청 댓글(context='comment')에 연결. addComment 와 동일 인프라.
@@ -1275,12 +1276,12 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
           const res = await apiFetch(`/api/tasks/${detailTask.id}/attachments?context=comment&commentId=${commentId}`, { method: 'POST', body: fd });
           if (!res.ok) failed += 1;
         }
-        if (revisionExistingFileIds.length > 0) {
+        if (revisionExistingFileIds.length > 0 || revisionExistingPostIds.length > 0) {
           const res = await apiFetch(`/api/tasks/${detailTask.id}/attachments/link`, {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ file_ids: revisionExistingFileIds, context: 'comment', comment_id: commentId }),
+            body: JSON.stringify({ file_ids: revisionExistingFileIds, post_ids: revisionExistingPostIds, context: 'comment', comment_id: commentId }),
           });
-          if (!res.ok) failed += revisionExistingFileIds.length;
+          if (!res.ok) failed += revisionExistingFileIds.length + revisionExistingPostIds.length;
         }
         // 수정요청 전이 자체는 이미 성립했다 — 되돌리지 않고 **무엇이 빠졌는지만** 알린다.
         if (failed > 0) setActionError(t('attach.partialFail', { n: failed, defaultValue: '수정요청은 보냈지만 첨부 {{n}}건이 올라가지 않았습니다. 댓글에서 다시 첨부해 주세요.' }) as string);
@@ -1288,7 +1289,7 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
       } catch { setActionError(t('attach.failed', '첨부를 올리지 못했습니다. 댓글에서 다시 첨부해 주세요.') as string); }
     }
     setRevisionOpen(false); revisionDraft.clear();
-    setRevisionFiles([]); setRevisionExistingFileIds([]); setRevisionPickerOpen(false);
+    setRevisionFiles([]); setRevisionExistingFileIds([]); setRevisionExistingPostIds([]); setRevisionPickerOpen(false);
   };
   const addReviewer = async (userId: number) => {
     const inActiveRound = detailTask && (detailTask.status === 'reviewing' || detailTask.status === 'revision_requested');
@@ -2468,6 +2469,9 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                             onUploadsChange={setRevisionFiles}
                             existingFileIds={revisionExistingFileIds}
                             onExistingFileIdsChange={setRevisionExistingFileIds}
+                            includePosts
+                            existingPostIds={revisionExistingPostIds}
+                            onExistingPostIdsChange={setRevisionExistingPostIds}
                           />
                         </CmtPickerInline>
                       )}
@@ -2485,7 +2489,7 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                           onClick={() => setRevisionPickerOpen(v => !v)}>
                           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
                         </CmtAttachBtn>
-                        <ActionSecondary onClick={() => { setRevisionOpen(false); revisionDraft.clear(); setRevisionFiles([]); setRevisionExistingFileIds([]); setRevisionPickerOpen(false); }}>{t('common.cancel', 'Cancel')}</ActionSecondary>
+                        <ActionSecondary onClick={() => { setRevisionOpen(false); revisionDraft.clear(); setRevisionFiles([]); setRevisionExistingFileIds([]); setRevisionExistingPostIds([]); setRevisionPickerOpen(false); }}>{t('common.cancel', 'Cancel')}</ActionSecondary>
                         <ActionDanger onClick={submitRevision} disabled={actionBusy || !revisionNote.trim()}>{t('detail.actions.submitRevision', 'Send revision')}</ActionDanger>
                       </RevisionRow>
                     </RevisionForm>
