@@ -10,6 +10,7 @@
 import { useCallback, useMemo, useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
+import LocationWithCopy from './LocationWithCopy';
 import DetailDrawer from '../../components/Common/DetailDrawer';
 import ActionButton from '../../components/Common/ActionButton';
 import AutoSaveField from '../../components/Common/AutoSaveField';
@@ -227,15 +228,17 @@ export default function PersonalEventDrawer({ event, businessId, onClose, onChan
             <Label>{t('personal.location', { defaultValue: '장소' }) as string}</Label>
             {canEdit ? (
               <Value>
-                <AutoSaveField onSave={async () => { await patch({ location }); }}>
-                  <TextInput
-                    value={location}
-                    onChange={(e) => setLocation(e.target.value)}
-                    placeholder={t('personal.locationPh', { defaultValue: '장소 (선택)' }) as string}
-                  />
-                </AutoSaveField>
+                <LocationWithCopy value={location}>
+                  <AutoSaveField onSave={async () => { await patch({ location }); }}>
+                    <TextInput
+                      value={location}
+                      onChange={(e) => setLocation(e.target.value)}
+                      placeholder={t('personal.locationPh', { defaultValue: '장소 (선택)' }) as string}
+                    />
+                  </AutoSaveField>
+                </LocationWithCopy>
               </Value>
-            ) : <Value>{event.location}</Value>}
+            ) : <Value><LocationWithCopy value={event.location}>{event.location}</LocationWithCopy></Value>}
           </Row>
         )}
 

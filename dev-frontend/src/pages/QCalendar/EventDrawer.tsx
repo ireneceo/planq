@@ -11,6 +11,7 @@ import { NewNoteMenu, NewSessionWrap, openQNoteWithKind } from '../../components
 import { usePopoverAnchor } from '../../components/Common/popoverAnchor';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
+import LocationWithCopy from './LocationWithCopy';
 import { useAuth, apiFetch } from '../../contexts/AuthContext';
 import type { CalendarEvent, EventCategory } from './types';
 import VisibilityField, { serializeVisibility, parseVisibility, type VisibilityValue } from '../../components/Common/VisibilityField';
@@ -707,6 +708,7 @@ const EventDrawer: React.FC<Props> = ({
           </SectionIcon>
           <SectionBody>
             <MutedSmall>{t('form.location', '위치')}</MutedSmall>
+            <LocationWithCopy value={canEdit ? location : event.location}>
             {canEdit ? (
               <AutoSaveField key={`ev${event.id}-6`} type="input" onSave={async () => {
                 const v = location.trim();
@@ -722,6 +724,7 @@ const EventDrawer: React.FC<Props> = ({
             ) : (
               <Plain>{event.location || <Muted>{t('drawer.noLocation', '위치 없음')}</Muted>}</Plain>
             )}
+            </LocationWithCopy>
           </SectionBody>
         </Section>
 

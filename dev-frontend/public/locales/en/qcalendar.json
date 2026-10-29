@@ -179,6 +179,8 @@
     "creating": "Creating...",
     "copyLink": "Copy link",
     "linkCopied": "Link copied",
+    "copyLocation": "Copy",
+    "locationCopied": "Copied",
     "project": "Project",
     "schedule": "Schedule",
     "readOnly": "Read only",

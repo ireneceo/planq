@@ -179,6 +179,8 @@
     "creating": "생성 중...",
     "copyLink": "링크 복사",
     "linkCopied": "링크 복사됨",
+    "copyLocation": "복사",
+    "locationCopied": "복사됨",
     "project": "프로젝트",
     "schedule": "일정",
     "readOnly": "읽기 전용",
