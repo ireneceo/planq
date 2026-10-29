@@ -1180,21 +1180,26 @@ const QTaskPage:React.FC=()=>{
     // 1) 기간/상태 검사 — "이번 주 나의 업무" canonical 규칙 (docs/WORK_FLOW_DESIGN.md §5).
     //  - 완료/취소: "완료시점"이 이번 주인 것만 (completed_at 이 기간 안). 마감 과거여도 이번 주에
     //    끝냈으면 이번 주 업무 (완료시점 기준). completed_at 없으면 제외(언제 끝났는지 모름).
-    //  - 미진행(not_started): "이번 주 것"만 — 이번 주 계획(planned_week_start) 또는 이번 주 마감(due).
+    //  - 미진행(not_started): "이번 주 것"만 — 이번 주 계획(planned_week_start) · 이번 주 마감(due) ·
+    //    시작~마감 기간이 이번 주와 겹침 · 마감 없이 이번 주 시작.
     //    옛/미래/날짜없는 미진행은 제외 (착수 안 한 backlog 가 이번 주로 쏟아지는 워프로랩 flood 차단).
     //  - 진행중·검토중·수정요청·대기: 날짜 무관 전부 표시. 한 번 착수한 내 업무는 마감/날짜 없어도
     //    끝까지 이번 주 책임선에 남는다 (요청받아 진행 중인 마감없는 업무 포함).
     const completedStr=(t.completed_at||'').slice(0,10);
     const dueStr=(t.due_date||'').slice(0,10);
     const plannedStr=(t.planned_week_start||'').slice(0,10);
+    const startStr=(t.start_date||'').slice(0,10);
     const isDone=t.status==='completed'||t.status==='canceled';
     const inPeriod=(()=>{
       if(isDone) return completedStr ? (completedStr>=periodFrom&&completedStr<=periodTo) : false;
       if(t.status==='not_started'){
         if(plannedStr===periodFrom) return true;            // 이번 주 계획
-        if(!dueStr) return false;                            // 마감 없는 backlog 제외 (flood 차단)
+        // 마감 없는 것은 이번 주 시작일 때만 (날짜 없음·시작만 지난 backlog 제외 — flood 차단)
+        if(!dueStr) return !!startStr&&startStr>=periodFrom&&startStr<=periodTo;
         if(dueStr<periodFrom) return true;                   // ★ 지연(마감 지난 미착수)도 이번 주 포함 — Irene 2026-07-05
-        return dueStr<=periodTo;                             // 이번 주 마감 (미래만 제외)
+        if(dueStr<=periodTo) return true;                    // 이번 주 마감
+        // ★ 2026-10-29 시작~마감 기간이 이번 주와 겹치면 포함 (마감 다음 주라도 — 서버 weekTaskSet 미러)
+        return !!startStr&&startStr<=periodTo;
       }
       // #206 R6 — 보류는 이번 주 무대에서 퇴장(전체 탭·보류 컬럼에만 주차). 서버 my-week 화이트리스트와 미러.
       //   external_review 는 잔류 — 외부를 채근할 책임이 담당자에게 남는다.

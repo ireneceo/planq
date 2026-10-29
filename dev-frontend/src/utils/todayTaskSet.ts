@@ -64,8 +64,8 @@ export function inTodaySet(t: TodayTaskLike, today: string, myId: number, tz: st
   if (due && due === today) return true;
   // ③ 기간이 오늘을 낌 — Irene "오늘이 낀 거"
   if (start && due && start <= today && today <= due) return true;
-  // ④ 오늘 시작 (마감 없음)
-  if (start && !due && start === today) return true;
+  // ④ 시작일이 지난(오늘 포함) 마감 없는 일 — 주간 집합이 «이번 주 시작» 만 들여오므로 flood 없음 (2026-10-29)
+  if (start && !due && start <= today) return true;
   // ⑤ 날짜가 없어도 지금 손에 잡고 있는 일은 오늘의 일이다
   if (!due && !start && (t.status === 'in_progress' || t.status === 'revision_requested')) return true;
 

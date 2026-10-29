@@ -20,7 +20,8 @@ const { Op, literal } = require('sequelize');
  * 담당자 관점 "그 주 무대에 오르는 업무" where 조각.
  *
  *   완료/취소 — completed_at 이 그 주
- *   미착수    — 계획 주간 · 그 주 마감 · 지연(마감 지남). **마감 없는 backlog 는 제외**(flood 차단)
+ *   미착수    — 계획 주간 · 그 주 마감 · 지연(마감 지남) · 시작~마감 기간이 그 주와 겹침 · 마감 없이 그 주 시작.
+ *               **날짜 없거나 시작만 지난 마감 없는 backlog 는 제외**(flood 차단)
  *   착수한 것 — in_progress·reviewing·revision_requested·waiting·external_review 는 날짜 무관
  *               (on_hold 는 의도적 제외 — 보류는 이번 주 무대에서 퇴장)
  *
@@ -64,6 +65,11 @@ function myAssignedWeekWhere(uid, monday, sunday, opts = {}) {
           // ★ 지연(마감 지난 미착수)도 포함 — Irene 2026-07-05.
           //   null 마감은 NULL 비교로 자동 제외 (backlog flood 차단 유지)
           { due_date: { [Op.lt]: monday } },
+          // ★ 2026-10-29 Irene «시작되는 일이면 리스트업은 그래야» (Fable 설계 GO-WITH-CHANGES) —
+          //   시작일~마감일 기간이 이 주와 겹치면 포함(마감 다음 주라도). 마감 없는 것은 이 주 시작일 때만
+          //   (시작만 과거인 마감 없는 미착수는 제외 유지 — flood 차단).
+          { start_date: { [Op.lte]: sunday }, due_date: { [Op.gte]: monday } },
+          { due_date: null, start_date: { [Op.between]: [monday, sunday] } },
         ],
       },
       // #206 external_review 는 이번 주에 남긴다 (외부를 채근할 책임이 담당자에게 있다).
