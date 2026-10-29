@@ -42,6 +42,29 @@ export const launchDockTool = (tool: DockTool) => {
 
 const FAB_HIDDEN_PREFIXES = ['/memo', '/talk-popout', '/task-popout', '/note-popout', '/help-popout'];
 
+// ★ 2026-10-29 Irene: *"우측하단 채팅버튼을 … 마우스로 여기저기 이동시키게 하면 어때? 모바일이랑 탭에서도 이동하게"*
+//   버튼을 끌어 옮긴다(데스크탑·태블릿·폰 같은 Pointer Events). 놓으면 가까운 좌/우 가장자리에 붙는다 —
+//   가운데 내용 위에 떠 있지 않게. 세로는 자유(화면 안으로 가둔다). 자리는 기기마다 다르니 브라우저에 둔다.
+//   기본 자리(우하단 16px)는 그대로다 — 다른 화면의 바닥 여백(--pq-fab-clearance 88px)이 이 자리에 맞춰져 있어
+//   기본을 올리면 목록 끝 줄이 오히려 버튼 밑에 깔린다.
+const DOCK_POS_KEY = 'pq-dock-pos';
+const DRAG_THRESHOLD = 6;      // 이만큼 움직여야 «끌기» — 그 아래는 지금처럼 클릭(펼침)
+const EDGE = 16;               // 가장자리·바닥 여백
+const TOP_GUARD = 72;          // 상단바 아래까지만 올라간다
+type DockPos = { side: 'left' | 'right'; bottom: number };
+const readDockPos = (): DockPos | null => {
+  try {
+    const v = JSON.parse(localStorage.getItem(DOCK_POS_KEY) || 'null');
+    if (v && (v.side === 'left' || v.side === 'right') && Number.isFinite(v.bottom)) return { side: v.side, bottom: v.bottom };
+  } catch { /* noop */ }
+  return null;
+};
+const writeDockPos = (p: DockPos | null) => {
+  try { if (p) localStorage.setItem(DOCK_POS_KEY, JSON.stringify(p)); else localStorage.removeItem(DOCK_POS_KEY); } catch { /* noop */ }
+};
+const clampBottom = (bottom: number, size: number) =>
+  Math.max(EDGE, Math.min(bottom, window.innerHeight - size - TOP_GUARD));
+
 const RightDock: React.FC = () => {
   const { t } = useTranslation('common');
   const [voiceOpen, setVoiceOpen] = useState(false);
@@ -50,6 +73,17 @@ const RightDock: React.FC = () => {
   const navigate = useChromeNav();
   const [expanded, setExpanded] = useState(false);
   const fabRef = useRef<HTMLDivElement>(null);
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const [pos, setPos] = useState<DockPos | null>(readDockPos);
+  const [drag, setDrag] = useState<{ x: number; y: number } | null>(null);   // 끄는 중 버튼 왼쪽 위
+  const dragRef = useRef<{ id: number; sx: number; sy: number; ox: number; oy: number; size: number; moved: boolean } | null>(null);
+  const suppressClickRef = useRef(false);
+  const [, setVh] = useState(0);   // 창 크기 바뀌면 다시 가두기·메뉴 방향 다시 계산
+  useEffect(() => {
+    const onResize = () => setVh(window.innerHeight);
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
   // ★ 여기서 여는 것은 **언제나 그냥 일반 창**이다 (Irene 지시 2026-08-20:
   //   "그냥 열리는 건 그냥 열리는 거야"). 자동 고정도, 확인 팝업도 없다.
   //   고정은 팝아웃 창 위의 핀 아이콘이 한다(utils/pinHost.usePinHost).
@@ -128,6 +162,60 @@ const RightDock: React.FC = () => {
     tabStore.newTab(path);
   };
 
+  const onFabPointerDown = (e: React.PointerEvent<HTMLButtonElement>) => {
+    if (e.button !== 0) return;
+    const r = e.currentTarget.getBoundingClientRect();
+    dragRef.current = { id: e.pointerId, sx: e.clientX, sy: e.clientY, ox: r.left, oy: r.top, size: r.width, moved: false };
+    // 누르자마자 붙잡는다 — 마우스는 버튼 밖으로 나가면 move 가 끊긴다(터치만 저절로 붙잡힘). click 은 그대로 온다.
+    try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* noop */ }
+  };
+  const onFabPointerMove = (e: React.PointerEvent<HTMLButtonElement>) => {
+    const d = dragRef.current;
+    if (!d || d.id !== e.pointerId) return;
+    const dx = e.clientX - d.sx, dy = e.clientY - d.sy;
+    if (!d.moved) {
+      if (Math.hypot(dx, dy) < DRAG_THRESHOLD) return;
+      d.moved = true;
+      setExpanded(false);
+    }
+    const x = Math.max(0, Math.min(d.ox + dx, window.innerWidth - d.size));
+    const y = Math.max(TOP_GUARD, Math.min(d.oy + dy, window.innerHeight - d.size));
+    setDrag({ x, y });
+  };
+  const onFabPointerEnd = (e: React.PointerEvent<HTMLButtonElement>) => {
+    const d = dragRef.current;
+    if (!d || d.id !== e.pointerId) return;
+    dragRef.current = null;
+    if (!d.moved) return;
+    suppressClickRef.current = true;   // 놓은 직후 오는 click 은 펼침이 아니다
+    // 마지막 move 가 아직 안 그려졌을 수 있다 — 화면 사각형 대신 포인터 좌표로 잰다
+    const x = Math.max(0, Math.min(d.ox + e.clientX - d.sx, window.innerWidth - d.size));
+    const y = Math.max(TOP_GUARD, Math.min(d.oy + e.clientY - d.sy, window.innerHeight - d.size));
+    const next: DockPos = {
+      side: x + d.size / 2 < window.innerWidth / 2 ? 'left' : 'right',
+      bottom: clampBottom(window.innerHeight - y - d.size, d.size),
+    };
+    setDrag(null); setPos(next); writeDockPos(next);
+  };
+  const resetPos = () => { setExpanded(false); setPos(null); writeDockPos(null); };
+
+  // 옮긴 자리 — 위쪽 절반이면 위에서 재고(메뉴가 아래로 펼침), 아래쪽이면 바닥에서 잰다(메뉴가 위로).
+  const fabSize = btnRef.current?.offsetWidth || (window.innerWidth <= 640 ? 48 : 52);   // 첫 그림엔 ref 가 없다 — CSS 와 같은 크기
+  let wrapStyle: React.CSSProperties | undefined;
+  let openDown = false;
+  let alignLeft = false;
+  if (drag) {
+    wrapStyle = { left: drag.x, top: drag.y, right: 'auto', bottom: 'auto' };
+  } else if (pos) {
+    const bottom = clampBottom(pos.bottom, fabSize);
+    const top = window.innerHeight - bottom - fabSize;
+    openDown = top + fabSize / 2 < window.innerHeight / 2;
+    alignLeft = pos.side === 'left';
+    const side = alignLeft ? { left: EDGE, right: 'auto' } : { right: EDGE, left: 'auto' };
+    const room = openDown ? window.innerHeight - top - fabSize - EDGE - 10 : top - TOP_GUARD - 10;
+    wrapStyle = { ...side, ...(openDown ? { top, bottom: 'auto' } : { bottom }), ['--dock-menu-max' as string]: `${Math.max(160, room)}px` };
+  }
+
   const handlePick = (tool: DockTool) => {
     setExpanded(false);
     // 나머지는 공용 진입점 — 데스크탑 팝아웃 / 모바일 in-app 분기가 그 안에 있다.
@@ -140,7 +228,7 @@ const RightDock: React.FC = () => {
     <>
     {/* #157 — 퀵메뉴 펼치면 뒷배경을 어둡게(글자 겹쳐 메뉴가 안 보이던 문제). 클릭 시 닫힘. */}
     {expanded && <DockBackdrop aria-hidden="true" onClick={() => setExpanded(false)} />}
-    <FabWrap ref={fabRef} $onBottomBar={onBottomBarScreen}>
+    <FabWrap ref={fabRef} $onBottomBar={onBottomBarScreen} $down={openDown} $left={alignLeft} style={wrapStyle} data-dock-moved={pos ? '1' : undefined}>
       {expanded && (
         <Menu role="menu" aria-label={t('dock.menuLabel', '바로 열기') as string}>
           {/* 말로 추가 — 이동 중·손이 바쁠 때. 모바일에서 제일 많이 쓴다(그래서 퀵버튼 최상단).
@@ -183,16 +271,33 @@ const RightDock: React.FC = () => {
               <span>{t(`dock.${tool}`, tool)}</span>
             </MenuItem>
           ))}
+          {pos && (
+            <>
+              <MenuDivider />
+              <ResetItem data-testid="dock-reset-pos" role="menuitem" type="button" onClick={resetPos}>
+                {t('dock.resetPos', '버튼 위치 처음대로')}
+              </ResetItem>
+            </>
+          )}
         </Menu>
       )}
       <Fab
+        ref={btnRef}
         data-testid="right-dock-fab"
         type="button"
         $expanded={expanded}
+        $dragging={!!drag}
         aria-expanded={expanded}
         aria-label={t('dock.toggle', '바로 열기 — Q talk · Q task · Q note · Q helper') as string}
-        title={t('dock.toggle', '바로 열기 — Q talk · Q task · Q note · Q helper') as string}
-        onClick={() => setExpanded((v) => !v)}
+        title={`${t('dock.toggle', '바로 열기 — Q talk · Q task · Q note · Q helper')} · ${t('dock.dragHint', '끌어서 옮길 수 있어요')}`}
+        onPointerDown={onFabPointerDown}
+        onPointerMove={onFabPointerMove}
+        onPointerUp={onFabPointerEnd}
+        onPointerCancel={onFabPointerEnd}
+        onClick={() => {
+          if (suppressClickRef.current) { suppressClickRef.current = false; return; }
+          setExpanded((v) => !v);
+        }}
       >
         {expanded ? <IconClose /> : <IconDock />}
       </Fab>
@@ -245,11 +350,12 @@ const DockBackdrop = styled.div`
   animation: dockBackdropIn 0.12s ease-out;
   @keyframes dockBackdropIn { from { opacity: 0; } to { opacity: 1; } }
 `;
-const FabWrap = styled.div<{ $onBottomBar?: boolean }>`
+const FabWrap = styled.div<{ $onBottomBar?: boolean; $down?: boolean; $left?: boolean }>`
   position: fixed; right: 20px; bottom: 16px;
   /* 모바일 상단바(z-index 99)·사이드바(100) 위로 떠야 펼친 메뉴가 안 가림 (#86). 모달(1000+)보다는 아래. */
   z-index: 120;
-  display: flex; flex-direction: column; align-items: flex-end; gap: 10px;
+  display: flex; flex-direction: ${p => (p.$down ? 'column-reverse' : 'column')}; align-items: ${p => (p.$left ? 'flex-start' : 'flex-end')}; gap: 10px;
+  /* 옮긴 자리는 style(left/right/top/bottom)로 덮는다 — 아래 폰 규칙보다 inline 이 이긴다. */
   /* iPhone 홈 인디케이터 회피 (#86) */
   /* 우측 여백과 아래 여백을 같은 값으로 본다 — 시각적으로 코너에 균등하게 앉는다.
      ★ env() 를 직접 쓰지 않고 --pq-safe-bottom 을 쓴다: 구버전 앱(WebView 가 이미 인셋됨)에서는
@@ -281,16 +387,19 @@ const FabWrap = styled.div<{ $onBottomBar?: boolean }>`
   ${p => p.$onBottomBar ? '@media (max-width: 1024px) { display: none; }' : ''}
 `;
 
-const Fab = styled.button<{ $expanded: boolean }>`
+const Fab = styled.button<{ $expanded: boolean; $dragging?: boolean }>`
   width: 52px; height: 52px;
   display: inline-flex; align-items: center; justify-content: center;
   background: ${({ $expanded }) => ($expanded ? '#0F172A' : '#0F766E')};
   color: #FFFFFF;
   border: none; border-radius: 50%;
   box-shadow: 0 4px 16px rgba(15,118,110,0.30);
-  cursor: pointer;
+  cursor: ${p => (p.$dragging ? 'grabbing' : 'pointer')};
+  /* 끄는 동안 화면이 같이 스크롤되지 않게 — 탭·폰에서 손가락으로 끈다 */
+  touch-action: none;
   transition: transform 0.15s, background 0.15s;
   &:hover { transform: translateY(-1px); }
+  ${p => (p.$dragging ? 'transform: scale(1.06); box-shadow: 0 8px 24px rgba(15,23,42,0.30);' : '')}
   &:focus-visible { outline: 2px solid rgba(15,118,110,0.5); outline-offset: 4px; }
   @media (max-width: 640px) { width: 48px; height: 48px; }
 `;
@@ -300,7 +409,7 @@ const Menu = styled.div`
   display: flex; flex-direction: column; align-items: stretch; gap: 8px;
   width: 188px;
   /* #86 — 짧은 화면(키보드/가로모드)에서 위로 넘쳐 상단바 뒤로 잘리지 않게: visual viewport 안에 가두고 스크롤 */
-  max-height: calc(var(--vvh, 100dvh) - 96px);
+  max-height: min(calc(var(--vvh, 100dvh) - 96px), var(--dock-menu-max, 100dvh));
   overflow-y: auto;
   padding: 2px;            /* 스크롤 시 버튼 그림자 잘림 방지 */
   scrollbar-width: none;
@@ -335,6 +444,13 @@ const ItemIcon = styled.span<{ $bg: string }>`
 const GroupLabel = styled.div`
   font-size: 0.625rem; font-weight: 700; color: #94A3B8; text-transform: uppercase; letter-spacing: 0.5px;
   padding: 2px 6px 0; align-self: flex-end; text-align: right; width: 100%;
+`;
+const ResetItem = styled.button`
+  width: 100%; padding: 6px 10px; border: none; background: transparent; cursor: pointer;
+  font-size: 0.75rem; font-weight: 600; color: #64748B; text-align: center;
+  border-radius: 8px;
+  &:hover { background: #F1F5F9; color: #0F172A; }
+  &:focus-visible { outline: 2px solid rgba(15,118,110,0.5); outline-offset: 2px; }
 `;
 const MenuDivider = styled.div`height: 1px; background: #E2E8F0; margin: 2px 4px;`;
 const PlusIcon = () => (

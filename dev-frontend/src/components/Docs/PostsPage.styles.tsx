@@ -393,7 +393,8 @@ export const Body = styled.div`
   /* 위 여백과 sticky 기준을 **한 변수에서** 파생시킨다 — 따로 적으면 언젠가 갈라져 툴바가 다시 뜬다 */
   --pq-body-pad-top: 20px;
   --pq-sticky-top: calc(var(--pq-body-pad-top) * -1);
-  padding: var(--pq-body-pad-top) 0 20px;
+  /* 바닥 = 우하단 버튼이 비켜 설 높이 — 문서 맨 끝 댓글 [보내기] 가 버튼 밑에 깔리지 않게(2026-10-29, PageShell 과 같은 값) */
+  padding: var(--pq-body-pad-top) 0 var(--pq-fab-clearance, 88px);
   overflow-y: auto;
   background: #fff;
   display: flex; flex-direction: column; gap: 16px;
@@ -402,7 +403,11 @@ export const Body = styled.div`
     /* 모바일: Content가 스크롤하므로 Body는 스크롤 안 함 */
     overflow-y: visible;
     padding: 16px 0;
+    /* 여기선 Body 가 아니라 바깥 Content 가 스크롤하고 내용은 Body 상자 밖으로 넘친다 — 바닥 여백은 넘친 내용 끝에
+       붙지 않는다. 그래서 마지막 자식으로 빈 자리를 둔다(gap 16 + 72 = 88, 우하단 버튼이 비켜 설 높이). */
+    &::after { content: ''; flex: 0 0 auto; height: 72px; padding: 0 !important; }
   }
+  @media (max-width: 640px) { &::after { height: calc(72px + var(--pq-safe-bottom, 0px)); } }
 `;
 // 편집 본문 — 좁은 폭에서도 **본문이** 스크롤한다(데스크탑과 같은 구조).
 //   ★ 2026-10-20 (Irene «에디터가 뒤로 숨고 에디터기능들만 위로 올라와서 에러 같아») — 좁은 폭은 Content 가 스크롤하고

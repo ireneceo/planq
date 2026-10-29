@@ -631,6 +631,8 @@
   "dock": {
     "toggle": "바로 열기 — Q talk · Q task · Q note · Q helper",
     "menuLabel": "바로 열기",
+    "resetPos": "버튼 위치 처음대로",
+    "dragHint": "끌어서 옮길 수 있어요",
     "qtalk": "Q talk",
     "qtask": "Q task",
     "qnote": "Q note",

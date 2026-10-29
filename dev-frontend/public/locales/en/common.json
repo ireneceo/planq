@@ -631,6 +631,8 @@
   "dock": {
     "toggle": "Quick open — Q talk · Q task · Q note · Q helper",
     "menuLabel": "Quick open",
+    "resetPos": "Reset button position",
+    "dragHint": "Drag to move",
     "qtalk": "Q talk",
     "qtask": "Q task",
     "qnote": "Q note",
