@@ -525,6 +525,7 @@ router.get('/:businessId/email-threads/:id',
         impersonation: tj.impersonation && tj.impersonation.level ? {
           level: tj.impersonation.level, signals: (tj.impersonation.signals || []).slice(0, 20),
           known: !!tj.impersonation.known, released: !!tj.impersonation.released_at,
+          trust_candidate: require('../services/mailTrustedDomains').candidateOf(tj.impersonation),
         } : null,
         // 보는 사람 기준(services/mailRead) — 옛 공용 칸을 읽지 않는다
         unread_count: mailRead.isUnreadFor(thread, myP ? myP.last_read_message_id : null) ? 1 : 0,

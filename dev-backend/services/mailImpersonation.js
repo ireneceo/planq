@@ -172,6 +172,11 @@ function assess({
     ...(bounce ? [] : linkHosts.slice(0, 50).map((h) => ['link', h])),
   ].filter(([, h]) => h);
   const known2 = knownDomains ? [...knownDomains].map(registrable).filter(Boolean) : [];
+  // ★ 아는 상대(정확히 같은 주소)의 발신 도메인은 정의상 «아는 도메인» 이다(설계 §1 «isKnownContact 와 같은 원천»).
+  //   빠지면 관계사 주소가 «아는 상대인데 한 글자 다른 도메인» 으로 계속 걸린다(Irene 2026-10-27 · Fable §10 A).
+  //   From 도메인만 — Reply-To·Return-Path 는 넓히지 않는다. 무료메일은 넣지 않는다.
+  const fromRegKnown = known ? registrable(domainOf(fromEmail)) : '';
+  if (fromRegKnown && fromRegKnown.includes('.') && !FREE_MAIL().test(fromRegKnown) && !known2.includes(fromRegKnown)) known2.push(fromRegKnown);
   const knownSet = new Set(known2);
   const knownSkel = new Map(known2.map((k) => [skeleton(url.domainToUnicode(k) || k), k]));
   for (const [where, host] of hosts) {
@@ -262,12 +267,28 @@ async function contextOf(businessId) {
        UNION SELECT u.email FROM business_members bm JOIN users u ON u.id = bm.user_id WHERE bm.business_id = ? AND bm.removed_at IS NULL`,
       { replacements: [businessId, businessId, businessId] });
     for (const r of cl) addEmail(known, r.e);
+    // 고객 담당자·고객 별칭 주소 — isKnownContact(matchClientByAddresses)와 같은 원천.
+    const [cc] = await sequelize.query(
+      `SELECT email e FROM client_contacts WHERE business_id = ? AND email IS NOT NULL`, { replacements: [businessId] }).catch(() => [[]]);
+    for (const r of cc) addEmail(known, r.e);
+    const [al] = await sequelize.query(
+      `SELECT email_aliases a FROM clients WHERE business_id = ? AND email_aliases IS NOT NULL`, { replacements: [businessId] }).catch(() => [[]]);
+    for (const r of al) {
+      let arr = r.a;
+      if (typeof arr === 'string') { try { arr = JSON.parse(arr); } catch { arr = []; } }
+      if (Array.isArray(arr)) for (const e of arr) addEmail(known, typeof e === 'string' ? e : e && e.email);
+    }
+    // 우리가 보낸 받는 사람 — 첫 칸만이 아니라 전부(isKnownContact 의 JSON_SEARCH 와 같은 범위 · Fable 2026-10-27 §10-1).
     const [sent] = await sequelize.query(
-      `SELECT DISTINCT LOWER(SUBSTRING_INDEX(JSON_UNQUOTE(JSON_EXTRACT(to_emails, '$[0].email')), '@', -1)) d
-         FROM email_messages WHERE business_id = ? AND direction = 'outbound' AND to_emails IS NOT NULL
+      `SELECT DISTINCT LOWER(SUBSTRING_INDEX(jt.email, '@', -1)) d
+         FROM email_messages m,
+              JSON_TABLE(m.to_emails, '$[*]' COLUMNS (email VARCHAR(320) PATH '$.email')) jt
+        WHERE m.business_id = ? AND m.direction = 'outbound' AND m.to_emails IS NOT NULL AND jt.email IS NOT NULL
         ORDER BY d LIMIT 2000`, { replacements: [businessId] });
     for (const r of sent) { const d = registrable(r.d); if (d && d.includes('.') && !free.test(d)) known.add(d); }
-    const biz = await Business.findByPk(businessId, { attributes: ['name', 'brand_name'] });
+    const biz = await Business.findByPk(businessId, { attributes: ['name', 'brand_name', 'permissions'] });
+    // 사람이 등록한 «안전한 도메인»(관계사) — 아는 도메인에만 더한다(우리 주소 범위는 그대로). services/mailTrustedDomains.
+    for (const d of require('./mailTrustedDomains').listOf(biz)) { const r = registrable(d); if (r) known.add(r); }
     const value = { knownDomains: known, ownDomains: own, workspaceName: String(biz?.brand_name || biz?.name || '') };
     _cache.set(businessId, { at: Date.now(), value });
     if (_cache.size > 500) _cache.clear();
@@ -360,4 +381,5 @@ module.exports = {
   // 검사용
   skeleton, hiddenInWord, registrable, linkHostsOf, damerau1,
   _clearCache: () => _cache.clear(),
+  invalidate: (businessId) => { _cache.delete(businessId); _cache.delete(Number(businessId)); },
 };

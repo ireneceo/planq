@@ -54,6 +54,8 @@ router.get('/:businessId/mail-criteria',
       return successResponse(res, {
         items,
         can_edit: await canEditCriteria(req, businessId),
+        // 사칭 검사의 «안전한 도메인»(관계사) — services/mailTrustedDomains
+        trusted_domains: require('../services/mailTrustedDomains').listOf(biz),
         rule_hits_30d: hits.rule || 0, manual_hits_30d: hits.manual || 0,
         learning: {
           dismiss: rules.DISMISS_THRESHOLD, spam: rules.SPAM_THRESHOLD, mark: rules.MARK_THRESHOLD,
@@ -127,6 +129,59 @@ router.put('/:businessId/mail-criteria/:id',
         if (io) io.to(`business:${businessId}`).emit('mail:updated', require('../services/mailBroadcast').mailSignal({ bulk: true }));
       }
       return successResponse(res, { id, enabled, off: after, applied });
+    } catch (err) { next(err); }
+  }
+);
+
+// ── 안전한 도메인(관계사) — docs/MAIL_IMPERSONATION_DESIGN.md §10 ─────────────────────────────
+//   POST   /:businessId/mail-trusted-domains {thread_id}  경고 스레드의 From 유사 도메인을 등록(도메인은 서버가 고른다)
+//   DELETE /:businessId/mail-trusted-domains/:domain      빼기
+//   owner/admin 만(기준 끄기와 같은 사람). 등록·빼기 뒤 사칭 판정이 있는 스레드를 다시 판정한다.
+const TRUST_ERR = { thread_not_found: 404, not_found: 404, business_not_found: 404 };
+router.post('/:businessId/mail-trusted-domains',
+  authenticateToken, checkBusinessAccess, requireMenu('qmail', 'read'),
+  async (req, res, next) => {
+    try {
+      const businessId = Number(req.params.businessId);
+      const threadId = Number(req.body?.thread_id);
+      if (!Number.isInteger(threadId) || threadId <= 0) return errorResponse(res, 'invalid_thread_id', 400);
+      if (!(await canEditCriteria(req, businessId))) return errorResponse(res, 'forbidden', 403);
+      // 볼 수 없는 메일함의 스레드는 없는 것과 같다
+      const { EmailThread } = require('../models');
+      const { accessibleAccountIds } = require('../services/mailIdentity');
+      const acctIds = await accessibleAccountIds(businessId, req.user.id);
+      const th = await EmailThread.findOne({ where: { id: threadId, business_id: businessId, account_id: { [Op.in]: acctIds.length ? acctIds : [0] } }, attributes: ['id'] });
+      if (!th) return errorResponse(res, 'thread_not_found', 404);
+      const r = await require('../services/mailTrustedDomains').add(businessId, threadId);
+      if (!r.ok) return errorResponse(res, r.code, TRUST_ERR[r.code] || 400);
+      if (r.before.length !== r.list.length) {
+        createAuditLog({
+          userId: req.user.id, businessId, action: 'mail.trusted_domain.add', targetType: 'business', targetId: businessId,
+          oldValue: { trusted_domains: r.before }, newValue: { trusted_domains: r.list, domain: r.domain, like: r.like, thread_id: threadId },
+        });
+      }
+      const io = req.app.get('io') || global.__planqIo;
+      if (io) io.to(`business:${businessId}`).emit('mail:updated', require('../services/mailBroadcast').mailSignal({ bulk: true }));
+      return successResponse(res, { domain: r.domain, trusted_domains: r.list, reassessed: r.reassessed, cleared: r.cleared, released: r.released });
+    } catch (err) { next(err); }
+  }
+);
+
+router.delete('/:businessId/mail-trusted-domains/:domain',
+  authenticateToken, checkBusinessAccess, requireMenu('qmail', 'read'),
+  async (req, res, next) => {
+    try {
+      const businessId = Number(req.params.businessId);
+      if (!(await canEditCriteria(req, businessId))) return errorResponse(res, 'forbidden', 403);
+      const r = await require('../services/mailTrustedDomains').remove(businessId, req.params.domain);
+      if (!r.ok) return errorResponse(res, r.code, TRUST_ERR[r.code] || 400);
+      createAuditLog({
+        userId: req.user.id, businessId, action: 'mail.trusted_domain.remove', targetType: 'business', targetId: businessId,
+        oldValue: { trusted_domains: r.before }, newValue: { trusted_domains: r.list },
+      });
+      const io = req.app.get('io') || global.__planqIo;
+      if (io) io.to(`business:${businessId}`).emit('mail:updated', require('../services/mailBroadcast').mailSignal({ bulk: true }));
+      return successResponse(res, { trusted_domains: r.list, reassessed: r.reassessed });
     } catch (err) { next(err); }
   }
 );
