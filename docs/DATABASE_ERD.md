@@ -1146,7 +1146,7 @@ ALTER TABLE invoices
 |---|---|---|
 | `platform_settings` (PlatformSetting) | 플랫폼 전역 설정 (단일 row — 회사 정보·계좌·약관 버전·점검모드·공지·SEO·결제 키) | brand, legal_entity, bank_*, stripe_*/portone_*, terms_version·privacy_version, maintenance_mode/message, announcement_* 3종, seo_*, app_ios/android_url |
 | `contact_inquiries` (ContactInquiry) | 플랫폼 문의 (Enterprise·랜딩·일반 통합) | kind, source, business_id, from_name/email/company/phone, message, from_user_timezone, status, replied_at/by, reply_note |
-| `feedback_items` (FeedbackItem) | 사용자 → 운영팀 피드백 위젯 (parent_id 스레드) | user_id, business_id, parent_id, category, priority, title, body, attachments, page_url, status, admin_response, responded_by/at |
+| `feedback_items` (FeedbackItem) | 사용자 → 운영팀 피드백 위젯 (parent_id 스레드) | user_id, business_id, parent_id, category, priority, title, body, attachments, page_url, status, admin_response, responded_by/at, approved_by/at, ai_triage(JSON)·ai_triage_verdict·ai_triage_at (AI 원인 조사 — 관리자 전용, 2026-10-29) |
 | `export_jobs` (ExportJob) | 데이터 내보내기/이전 비동기 작업 (cron 워커 드레인, 재시도 3회) | user_id, business_id, kind, mode, target_business_id, include_qnote, status, attempts, result, download_path·download_token, expires_at |
 
 #### 권한 (1)

@@ -1588,6 +1588,34 @@ function defineSecretTests() {
 
   // 워크스페이스 백업 구조 데이터 — 토큰·비밀 칸 값·«나만 보기» 가 CSV/JSON 에 실리지 않는다(2026-10-23, docs/TRUST_SERVICES_DESIGN.md D3).
   //   대조군: 같은 워크스페이스의 공개 업무 제목은 그대로 들어간다(통째로 빈 백업의 거짓 통과 차단).
+  // ★ 2026-10-29 피드백 AI 조사(docs/FEEDBACK_AI_TRIAGE_DESIGN.md) — ai_triage* 는 플랫폼관리자 전용.
+  //   보고자 /mine · 계정 내보내기(data-export) 에 실리면 고객이 우리 쪽 판단(원인·파일 경로)을 본다.
+  //   /mine 은 화이트리스트라 새 칸이 생겨도 안 새지만, 누가 exclude 로 되돌리면 조용히 샌다 — 응답 원문으로 판정.
+  test('secrets', '피드백 AI 조사 칸이 보고자·계정 내보내기에 실리지 않는다(관리자 상세엔 있음)', async () => {
+    if (!BACKEND.startsWith('http://localhost')) return true;
+    const run = (code) => execSync(`node -e "${code}"`, { cwd: '/opt/planq/dev-backend', encoding: 'utf8', timeout: 120000 });
+    const stamp = Date.now();
+    const out = run(`require('dotenv').config();const M=require('./models');const T=require('./services/authTokens');(async()=>{`
+      + `const c=await M.User.findOne({where:{email:'client@test.planq.kr'}});const a=await M.User.findOne({where:{email:'admin@test.planq.kr'}});`
+      + `const f=await M.FeedbackItem.create({user_id:c.id,business_id:6,kind:'feedback',category:'bug',title:'[health] triage ${stamp}',body:'x'});`
+      + `await f.update({ai_triage:{verdict:'needs_fix',summary:'hctriage${stamp}',head:'abcdef1'},ai_triage_verdict:'needs_fix',ai_triage_at:new Date()});`
+      + `console.log('OUT='+JSON.stringify({id:f.id,cid:c.id,ct:T.generateAccessToken(c),at:T.generateAccessToken(a)}));process.exit(0)})().catch(e=>{console.error(e.message);process.exit(1)})`);
+    const o = JSON.parse(out.split('\n').find((l) => l.startsWith('OUT=')).slice(4));
+    try {
+      const mine = await http('GET', `${BACKEND}/api/feedback/mine`, { headers: { Authorization: `Bearer ${o.ct}` } });
+      const exp = await http('GET', `${BACKEND}/api/admin/users/${o.cid}/data-export`, { headers: { Authorization: `Bearer ${o.at}` } });
+      const raw = JSON.stringify(mine) + JSON.stringify(exp);
+      if (raw.includes('ai_triage') || raw.includes(`hctriage${stamp}`)) throw new Error('보고자 /mine 또는 data-export 에 AI 조사 칸이 있다');
+      // 양성 대조군 — 그 건이 두 응답에 실제로 있고, 관리자 상세에는 조사 본문이 있다(빈 응답 거짓 통과 막기)
+      const inMine = JSON.stringify(mine).includes(`[health] triage ${stamp}`);
+      const inExp = JSON.stringify(exp).includes(`[health] triage ${stamp}`);
+      const det = await http('GET', `${BACKEND}/api/feedback/admin?id=${o.id}`, { headers: { Authorization: `Bearer ${o.at}` } });
+      const inDet = JSON.stringify(det).includes(`hctriage${stamp}`);
+      if (!inMine || !inExp || !inDet) throw new Error(`대조군 실패 — /mine ${inMine} · export ${inExp} · 관리자 상세 ${inDet}`);
+      return '/mine·data-export 조사 칸 0 · 관리자 상세엔 있음';
+    } finally { run(`require('dotenv').config();const M=require('./models');M.FeedbackItem.destroy({where:{id:${o.id}}}).then(()=>process.exit(0))`); }
+  });
+
   test('secrets', '워크스페이스 백업(CSV·JSON)에 토큰·비밀 칸 값·나만 보기 항목이 실리지 않는다', async () => {
     if (!BACKEND.startsWith('http://localhost')) return true;
     const run = (code) => execSync(`node -e "${code}"`, { cwd: '/opt/planq/dev-backend', encoding: 'utf8', timeout: 120000 });

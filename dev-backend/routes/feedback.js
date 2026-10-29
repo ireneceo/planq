@@ -26,9 +26,15 @@ const hasUnreadReply = (o) => !!(o.admin_response && String(o.admin_response).tr
 //   목록은 개수만, 원본은 한 건을 열 때(?id=) 읽는다.
 //   ★ 개수도 정렬 쿼리 안에서 세지 않는다 — select 에 JSON_LENGTH(attachments) 를 두면 MySQL 이 그 칸을
 //     정렬 버퍼에 같이 실어 똑같이 터진다(실측). 정렬이 끝난 id 들로 따로 센다.
-const LIST_ATTRS = { exclude: ['attachments'] };
+const LIST_ATTRS = { exclude: ['attachments', 'ai_triage'] }; // 조사 본문은 상세(?id=)에서 — 목록은 판단(ai_triage_verdict)·시각만
 // 사용자 본인 목록(/mine)에는 승인자·승인 시각을 싣지 않는다 — 운영 쪽 기록이다(Fable 판정 검증 12).
-const MINE_ATTRS = { exclude: ['attachments', 'approved_by', 'approved_at'] };
+// 보고자에게 내보낼 칸 — **남길 것만 적는다**(화이트리스트, 2026-10-29). 열거식(exclude)은 새 칸(ai_triage* 같은 관리자 전용)을 그대로 흘린다.
+//   첨부·승인(approved_*)·AI 조사(ai_triage*)는 빠진다. 새 칸을 보고자에게 보이려면 여기에 더한다.
+const MINE_FIELDS = ['id', 'user_id', 'business_id', 'parent_id', 'kind', 'category', 'priority', 'title', 'body',
+  'page_url', 'error_context', 'user_agent', 'client_env', 'is_popout', 'status', 'admin_response',
+  'responded_by', 'responded_at', 'reply_seen_at', 'created_at', 'updated_at'];
+const MINE_ATTRS = MINE_FIELDS;
+const pickMine = (row) => { const o = typeof row.toJSON === 'function' ? row.toJSON() : row; const out = {}; for (const k of MINE_FIELDS) if (k in o) out[k] = o[k]; return out; };
 // 관리자 화면이 상태 셀렉트·버튼을 그릴 때 — 갈 수 있는 상태는 서버가 정한다(전이 표를 화면에 베끼지 않는다).
 const withNextStatuses = (o) => ({ ...o, next_statuses: nextStatusesOf(o) });
 async function withAttachmentCounts(rows) {
@@ -164,7 +170,7 @@ router.post('/', authenticateToken, async (req, res, next) => {
       }).catch(() => null);
     });
 
-    return successResponse(res, item, 'Submitted', 201);
+    return successResponse(res, pickMine(item), 'Submitted', 201);
   } catch (err) { next(err); }
 });
 

@@ -19,6 +19,7 @@ import { apiFetch } from '../../contexts/AuthContext';
 import { onSocket } from '../../services/socket';
 import { useImageLightbox } from '../../components/Common/ImageLightbox';
 import { formatDay, formatDayTime } from '../../utils/dateFormat';
+import { TriageBox, TriageChip, type TriageVerdict, type TriageBody } from './AdminFeedbackTriage';
 
 // 접수 → 검토중 → 진행대기(플랫폼관리자 승인) → 반영중 → 완료/보류 — 전이 판정은 서버 services/feedbackStatus 한 곳(2026-10-22).
 type Status = 'pending' | 'reviewing' | 'queued' | 'in_progress' | 'done' | 'wontfix';
@@ -51,6 +52,10 @@ interface FeedbackItem {
   attachments?: Array<{ name: string; type: string; dataUrl: string }> | null;
   /** 목록 응답은 첨부 원본 대신 개수만 싣는다 — 원본은 한 건을 열 때(?id=) 읽는다 (routes/feedback.js LIST_ATTRS) */
   attachment_count?: number;
+  /** AI 원인 조사(읽기 전용 정찰) — 플랫폼관리자 전용. 목록은 판단·시각만, 본문은 한 건(?id=)에서 (docs/FEEDBACK_AI_TRIAGE_DESIGN.md) */
+  ai_triage_verdict?: TriageVerdict | null;
+  ai_triage_at?: string | null;
+  ai_triage?: TriageBody | null;
   user?: { id: number; name: string; email: string };
   responder?: { id: number; name: string };
 }
@@ -60,6 +65,7 @@ const CATEGORIES: Category[] = ['bug', 'improve', 'feature', 'other'];
 
 const AdminFeedbackPage = () => {
   const { t } = useTranslation('common');
+  const triageLabel = (v: TriageVerdict) => t(`adminFeedback.triage.verdict.${v}`);
   const [items, setItems] = useState<FeedbackItem[]>([]);
   const [counts, setCounts] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
@@ -167,20 +173,21 @@ const AdminFeedbackPage = () => {
     setResponse(it?.admin_response || '');
     setSubmitError(null);
   }, [detailId, items]);
-  const needAttachments = !!detail && (detail.attachment_count || 0) > 0 && !detail.attachments;
+  // 목록 행에 없는 것(첨부 원본·AI 조사 본문)은 그 한 건을 따로 읽어 채운다
+  const needFull = !!detail && (((detail.attachment_count || 0) > 0 && !detail.attachments) || (!!detail.ai_triage_at && detail.ai_triage === undefined));
   useEffect(() => {
-    if (!needAttachments || detailId == null) return;
+    if (!needFull || detailId == null) return;
     let alive = true;
     void (async () => {
       try {
         const r = await apiFetch(`/api/feedback/admin?id=${detailId}`);
         const j = await r.json();
         const one: FeedbackItem | undefined = j?.success ? j.data?.[0] : undefined;
-        if (alive && one) setDetail(prev => (prev && prev.id === one.id ? { ...prev, attachments: one.attachments } : prev));
+        if (alive && one) setDetail(prev => (prev && prev.id === one.id ? { ...prev, attachments: one.attachments, ai_triage: one.ai_triage ?? null } : prev));
       } catch { /* 첨부를 못 읽으면 첨부 칸만 비어 있다 */ }
     })();
     return () => { alive = false; };
-  }, [needAttachments, detailId]);
+  }, [needFull, detailId]);
 
   // 단계 버튼 하나 = 그 단계 + 지금 적은 답글로 바로 저장. 인자 없음 = 답글만(상태 그대로).
   //   ★ 옛 화면은 «상태» 셀렉트 + [승인 — 진행대기로] 였는데 승인 버튼이 셀렉트 값을 덮어써서
@@ -300,6 +307,7 @@ const AdminFeedbackPage = () => {
               <KindChip $inq={it.kind === 'inquiry'}>{t(`adminFeedback.kind.${it.kind === 'inquiry' ? 'inquiry' : 'feedback'}`)}</KindChip>
               {it.kind !== 'inquiry' && <CatChip $cat={it.category}>{t(`qhelper.fbCat.${it.category}`)}</CatChip>}
               {it.priority === 'high' && <UrgentChip>{t('adminFeedback.urgent', '긴급')}</UrgentChip>}
+              {it.ai_triage_verdict && <TriageChip $v={it.ai_triage_verdict} data-testid="admin-feedback-triage-chip">{triageLabel(it.ai_triage_verdict)}</TriageChip>}
               <RowTitle>
                 {shownBody ? <HighlightText text={shownBody} query={search} /> : `#${it.id}`}
                 {hit && !hit.shown && <MatchReason field={hit.field} snippet={hit.snippet} query={search} />}
@@ -357,6 +365,12 @@ const AdminFeedbackPage = () => {
                 <SectionLabel>{t('adminFeedback.body', '내용')}</SectionLabel>
                 <BodyBox>{detail.body}</BodyBox>
               </Section>
+              {detail.kind !== 'inquiry' && !detail.parent_id && (
+                <Section data-testid="admin-feedback-triage">
+                  <SectionLabel>{t('adminFeedback.triage.title', 'AI 원인 조사')}</SectionLabel>
+                  <TriageBox detail={detail} label={triageLabel} />
+                </Section>
+              )}
               {/* N+63 — 사용자 호소 #3c 피드백 이미지 첨부 표시. base64 dataUrl 직접 src. */}
               {Array.isArray(detail.attachments) && detail.attachments.length > 0 && (
                 <Section>

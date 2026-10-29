@@ -952,7 +952,8 @@ router.get('/users/:id/data-export', async (req, res, next) => {
       owned_businesses: owned.map(b => b.toJSON()),
       audit_logs: audits.map(a => a.toJSON()),
       contact_inquiries: inquiries.map(i => i.toJSON()),
-      feedback_items: feedbacks.map(f => f.toJSON()),
+      // 운영팀 내부 칸(승인·AI 조사)은 내보내지 않는다 — 본인 데이터가 아니라 우리 쪽 판단이다(2026-10-29)
+      feedback_items: feedbacks.map(f => { const o = f.toJSON(); for (const k of ['approved_by', 'approved_at', 'ai_triage', 'ai_triage_verdict', 'ai_triage_at']) delete o[k]; return o; }),
       name_cards: nameCards.map(c => c.toJSON()),
       saved_name_cards: savedNameCards.map(c => c.toJSON()),
     });

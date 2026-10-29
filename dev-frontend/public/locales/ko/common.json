@@ -202,7 +202,36 @@
     "saveReply": "답글만 저장",
     "movedNotice": "#{{id}} → «{{status}}» 로 옮겼어요",
     "movedView": "보러 가기",
-    "attachOpen": "{{name}} 크게 보기"
+    "attachOpen": "{{name}} 크게 보기",
+    "triage": {
+      "title": "AI 원인 조사",
+      "none": "아직 조사 전이에요 — 접수되면 AI 가 원인과 고칠 방법을 읽기 전용으로 조사해 여기에 붙여요(관리자만 보여요).",
+      "failed": "조사하지 못했어요",
+      "fixedHint": "코드에서는 고쳐진 것으로 보여요 — 운영 배포 여부는 따로 확인하세요",
+      "fableNeeded": "Fable 설계 필요",
+      "head": "조사 때 코드 {{head}}",
+      "room": "조사 방 {{room}}",
+      "verdict": {
+        "already_fixed": "이미 고쳐짐",
+        "needs_fix": "고칠 것",
+        "needs_decision": "결정 필요",
+        "not_dev": "개발 아님",
+        "unclear": "불분명",
+        "failed": "조사 실패"
+      },
+      "size": {
+        "small": "작음",
+        "medium": "보통",
+        "large": "큼"
+      },
+      "field": {
+        "summary": "요약",
+        "cause": "원인",
+        "fix": "고칠 방법",
+        "repro": "재현·확인",
+        "files": "관련 파일"
+      }
+    }
   },
   "qhelper": {
     "action": {

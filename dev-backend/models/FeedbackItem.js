@@ -86,6 +86,15 @@ FeedbackItem.init({
   //   보고자가 /me/feedback 에서 그 스레드를 열면 찍는다(POST /api/feedback/:id/seen).
   //   운영: scripts/migrate-feedback-reply-seen.js(멱등 · 옛 답변은 읽은 것으로 백필) — 코드보다 먼저.
   reply_seen_at: { type: DataTypes.DATE, allowNull: true },
+  // 접수 즉시 AI 원인 조사(읽기 전용 정찰)의 결과 — 플랫폼관리자만 본다 (2026-10-29 · docs/FEEDBACK_AI_TRIAGE_DESIGN.md).
+  //   쓰는 길은 scripts/feedback-triage.js 하나(검증 정본). 상태·답글·승인과 무관 — 조사는 개발 착수가 아니다.
+  //   ★ 보고자 응답(/mine)·계정 내보내기(data-export)·알림에 싣지 않는다.
+  ai_triage: { type: DataTypes.JSON, allowNull: true, defaultValue: null },
+  ai_triage_verdict: {
+    type: DataTypes.ENUM('already_fixed', 'needs_fix', 'needs_decision', 'not_dev', 'unclear', 'failed'),
+    allowNull: true, defaultValue: null,
+  },
+  ai_triage_at: { type: DataTypes.DATE, allowNull: true }, // «조사됨» 의 정본
 }, {
   sequelize,
   tableName: 'feedback_items',

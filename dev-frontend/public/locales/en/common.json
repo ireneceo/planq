@@ -202,7 +202,36 @@
     "saveReply": "Save reply only",
     "movedNotice": "Moved #{{id}} to “{{status}}”",
     "movedView": "View",
-    "attachOpen": "View {{name}} larger"
+    "attachOpen": "View {{name}} larger",
+    "triage": {
+      "title": "AI root-cause check",
+      "none": "Not checked yet — after receipt, AI investigates the cause and fix (read-only) and attaches it here (admins only).",
+      "failed": "The check could not be completed",
+      "fixedHint": "Looks fixed in the code — check separately whether it is deployed",
+      "fableNeeded": "Needs Fable design",
+      "head": "Code at check {{head}}",
+      "room": "Check session {{room}}",
+      "verdict": {
+        "already_fixed": "Already fixed",
+        "needs_fix": "Needs fix",
+        "needs_decision": "Needs decision",
+        "not_dev": "Not dev work",
+        "unclear": "Unclear",
+        "failed": "Check failed"
+      },
+      "size": {
+        "small": "Small",
+        "medium": "Medium",
+        "large": "Large"
+      },
+      "field": {
+        "summary": "Summary",
+        "cause": "Cause",
+        "fix": "How to fix",
+        "repro": "Repro / check",
+        "files": "Related files"
+      }
+    }
   },
   "qhelper": {
     "action": {
