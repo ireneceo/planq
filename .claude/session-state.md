@@ -11,6 +11,12 @@
 - Fable 비차단: ① 이미 조사된 건은 검증 전에 건너뛰어 틀린 입력도 exit 0 ② 조사 저장이 updated_at 을 바꿈 ③ 비밀값 무늬가 영문만(«비밀번호: …» 안 걸림) ④ feedback.js 낡은 주석.
 - 확인용: 피드백 #585(조사됨) · #588(조사 전) · #604(Fable 시험) — dev.
 - 미커밋 qmail·QTalk·문서 편집기 파일은 다른 방 것 — 손대지 않음.
+### ✅ 묶음 3건 (방 de785bc6 · 2026-10-29 · [Opus] · Fable 안 씀 — 화면 위치·끌기·복사 평문 버그, 되돌리기 쉬움 · 자체 검증) — 운영 반영: 다음 배포 때
+- ① GTM 번호 충돌 → 아래 «답 기다림» (카드 2장 멈춤 표시 · 질문 askmvtysvr4).
+- ② Q talk 붙여넣기 빈 줄(커밋 ccbfbe27): TipTap 기본 평문 복사가 블록마다 빈 줄(목록은 3줄). `utils/clipboardPlainText` 를 PostEditor·RichEditor 가 같이 씀 — 줄 하나 = 줄바꿈 하나, 빈 줄은 하나, 서식 복사(html)는 그대로. 실브라우저 복사 결과 = 기대 문자열 일치, 고치기 전 값은 불일치(양성 대조).
+- ③ 채팅 버튼(커밋 0e044b08): 끌어서 옮기기(마우스·손가락) → 가까운 좌/우 가장자리에 붙음 · 기기별 기억(localStorage pq-dock-pos) · 위쪽이면 메뉴가 아래로 · 메뉴 맨 아래 «버튼 위치 처음대로». 기본 자리는 그대로 둠 — 다른 화면 바닥 여백(88px)이 그 자리에 맞춰져 있어 올리면 목록 끝 줄이 버튼 밑에 깔림. 문서 화면 바닥 여백 20→88px(폰은 스크롤 상자가 달라 끝 빈 자리로).
+- 검증: 3폭 23항목 중 22 통과 — 남은 1건은 데스크탑 브라우저의 «PlanQ 앱으로 설치» 띠가 문서 끝 [보내기]를 덮는 것(채팅 버튼 겹침 0 · 설치된 앱에선 안 뜸 · 손대지 않음). canary-fab-reach 문제 0 · i18n·parity 통과 · build EXIT 0·error TS 0.
+
 ### 답 기다림: PlanQ GTM 번호가 PurpleHere 컨테이너와 같음 (방 de785bc6 · 2026-10-29 · [Opus] · Fable 안 씀 — 외부 서비스 설정 선택, 코드·DB 변경 없음, 컨테이너가 비어 있어 되돌리기 쉬움)
 - 무엇: **PlanQ 용 GTM 컨테이너(planq.kr)를 새로 만들어 PlanQ 관리자 설정 GTM 번호를 그걸로 바꿀까요, 아니면 지금 번호(GTM-5WQHW96L)를 두 사이트가 같이 쓰게 주소 조건을 붙일까요?** (상황판 askmvtysvr4)
 - 왜: 운영 /api/platform/info gtm_container_id = GTM-5WQHW96L(10-29 재조회) = PurpleHere tracking.ts·gtm-container-purplehere.json 의 번호. 공개 gtm.js 는 버전 1·G- ID 0 = 아직 빈 컨테이너(섞인 데이터 없음). 두 가져오기 파일의 GA4 구성 태그가 다 «모든 페이지» 트리거라 한 컨테이너에 넣으면 서로 상대 사이트 GA4·픽셀로 샌다. PurpleHere 카드 todomvjvib2x 는 «충돌 덮어쓰기» 라 같은 이름 태그를 지울 수 있음(PurpleHere 것이라 안 건드림 — 알릴지는 서버 방 몫).
