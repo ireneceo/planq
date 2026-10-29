@@ -501,6 +501,49 @@ async function completeTask(p, a, actor) {
   return { task: item };
 }
 
+// ── cancel_task (MEDIUM — #463, Fable 설계 2026-10-29) — 삭제가 아니라 «취소» 상태 전이. 화면 드롭다운·되돌리기와 같은 권한(canChangeStatus).
+async function previewCancel(p, a) {
+  await assertMenu(p, 'qtask', 'read');
+  const t = await loadTask(p, a.task_id, await scopeOf(p));
+  const taskActions = require('../../actions/task_actions');
+  // 실행(cancel)과 같은 판정을 먼저 — 거절될 요청에 확인 토큰을 내주지 않는다
+  if (!(await taskActions.canChangeStatus(t, previewActor(p)))) throw err('PERMISSION_DENIED', 'forbidden_fields:status');
+  if (['completed', 'canceled'].includes(t.status)) throw err('CONFLICT', 'task_closed', { status: t.status });
+  const { TaskReviewer } = require('../../../models');
+  const inRound = ['reviewing', 'revision_requested'].includes(t.status);
+  const reviewerIds = inRound ? (await TaskReviewer.findAll({ where: { task_id: t.id }, attributes: ['user_id'] })).map((r) => r.user_id) : [];
+  // 알림 받을 사람 — 행동 계층 notifyCanceled 와 같은 명단(담당자·의뢰자·라운드 중 컨펌자, 나 제외, 중복 1번)
+  const audience = [];
+  const seen = new Set();
+  const push = (userId, role) => { if (!userId || seen.has(userId)) return; seen.add(userId); if (userId !== p.userId) audience.push({ userId, role }); };
+  push(t.assignee_id, 'assignee');
+  push(t.request_by_user_id || t.created_by, 'requester');
+  for (const id of reviewerIds) push(id, 'reviewer');
+  const named = async (ids) => Promise.all(ids.map(async (x) => ({ user_id: x.userId, name: await memberName(p, x.userId), ...(x.role ? { role: x.role } : {}) })));
+  const isOrigin = !!t.recurrence_rule && (!t.recurrence_parent_id || t.recurrence_parent_id === t.id);
+  return {
+    task: { task_id: t.id, title: t.title },
+    before: { status: t.status }, after: { status: 'canceled' },
+    reason: a.reason || null,
+    will_notify: await named(audience),
+    reviewers_pending: await named(reviewerIds.map((userId) => ({ userId }))),
+    recurring: isOrigin ? { is_series_origin: true, next_occurrence_at: t.next_occurrence_at || null } : null,
+    reversible: true,
+    restore_hint: 'Restore in PlanQ: open the task → Revert (or change its status).',
+  };
+}
+
+async function cancelTask(p, a, actor) {
+  await assertMenu(p, 'qtask', 'write');
+  const t = await loadTask(p, a.task_id, await scopeOf(p));
+  const taskActions = require('../../actions/task_actions');
+  const r = await taskActions.cancel(t, actor, { reason: a.reason || null });
+  if (!r.ok) throw fromActionFailure(r);
+  const fresh = await loadTask(p, t.id, await scopeOf(p));
+  const [item] = await shapeTasks([fresh], p.businessId);
+  return { task: item, canceled: true, reversible: true };
+}
+
 // 미리보기는 실행 주체와 같은 모양의 actor 로 판정한다(채널은 감사용이라 미리보기엔 필요 없다)
 const previewActor = (p) => ({ kind: 'user', userId: p.userId, platformRole: p.platformRole, req: null });
 
@@ -771,7 +814,7 @@ async function loadTaskForSource(p, taskId) {
 module.exports = {
   loadTaskForSource,
   dateOnly, getContext, searchTasks, getTask, createTask, getTaskNotes, addTaskNote, validDate,
-  previewReschedule, rescheduleTask, previewComplete, completeTask,
+  previewReschedule, rescheduleTask, previewComplete, completeTask, previewCancel, cancelTask,
   previewAssign, assignTask, updateTask, previewUpdateTask, appendToTask, previewSubmitReview, submitReviewTool, memberName, previewMoveTask, moveTask,
   previewAddReviewers, addReviewers, previewCreateTask,
 };

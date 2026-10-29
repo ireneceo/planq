@@ -1455,6 +1455,33 @@ async function complete(task, actor) {
 }
 
 /**
+ * 취소 알림 — 담당자 + 의뢰자, 컨펌 라운드 중이었으면 컨펌자도(행위자 제외, 같은 사람 1통).
+ *   행동 계층 cancel() 과 화면 PUT status=canceled 가 같이 부른다(#463 Fable 설계 2026-10-29).
+ *   fromStatus 는 취소 **전** 상태 — 라운드 판정은 바뀌기 전 값으로 한다.
+ */
+async function notifyCanceled(task, actor, { fromStatus, reason = null, wsName } = {}) {
+  try {
+    const ids = [task.assignee_id, task.request_by_user_id || task.created_by];
+    if (['reviewing', 'revision_requested'].includes(fromStatus)) {
+      const reviewers = await TaskReviewer.findAll({ where: { task_id: task.id }, attributes: ['user_id'] });
+      ids.push(...reviewers.map((r) => r.user_id));
+    }
+    const name = wsName !== undefined ? wsName : await workspaceName(task.business_id);
+    const clean = reason ? String(reason).trim().slice(0, 500) : '';
+    const body = clean ? `"${task.title}" — ${clean}` : undefined;   // 보류 알림과 같은 모양
+    const seen = new Set();
+    for (const userId of ids) {
+      if (!userId || seen.has(userId)) continue;
+      seen.add(userId);
+      notifyTask({
+        userId, task, wsName: name, excludeUserId: actor.userId, action: 'task_canceled',
+        body, previewPolicy: body ? 'excerpt' : undefined,
+      });
+    }
+  } catch (e) { console.warn('[notifyCanceled]', e.message); }
+}
+
+/**
  * 취소 — 화면 PUT(status=canceled)과 같은 가드(FIELD_RULES.status · 닫힌 업무 거절 · 이력 · 방송).
  *   지금 부르는 곳은 메일 답변 업무(services/mailReplyTask — «답변 불필요»·«확인 완료»). completed_at 은 건드리지 않는다.
  */
@@ -1476,6 +1503,7 @@ async function cancel(task, actor, { reason = null } = {}) {
   } catch (e) { await t.rollback(); throw e; }
   await syncFocusOnTaskStatus(task, fromStatus, 'canceled');
   broadcastTask(task, 'task:updated', actor.userId);
+  await notifyCanceled(task, actor, { fromStatus, reason });
   audit(actor, {
     action: 'task.cancel', targetType: 'task', targetId: task.id, businessId: task.business_id,
     oldValue: { status: fromStatus }, newValue: { status: 'canceled', reason },
@@ -2373,7 +2401,7 @@ module.exports = {
   // 미리보기(에이전트 MEDIUM 확인 1단계)가 실행과 같은 판정을 먼저 보도록
   canChangeStatus,
   // 행동 — 전이
-  ack, submitReview, cancelReview, complete, cancel,
+  ack, submitReview, cancelReview, complete, cancel, notifyCanceled,
   approve, requestRevision, revertReviewerState,
   revertStatus, addReviewer, removeReviewer, setPolicy,
   // 행동 — 참조자(2026-10-27)

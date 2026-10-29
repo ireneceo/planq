@@ -59,6 +59,7 @@ const ACTIONS = {
   task_approved: { ko: '컨펌 승인', en: 'Approved' },
   task_revision: { ko: '수정 요청', en: 'Changes requested' },
   task_completed: { ko: '완료', en: 'Completed' },
+  task_canceled: { ko: '업무 취소', en: 'Task canceled' },
   task_due_changed: { ko: '마감일 변경', en: 'Due date changed' },
   // 무엇이 바뀌었는지대로 부른다(task_actions.notifyScheduleChange). 시작일만 바뀌었는데
   // "마감일 변경" 이라고 보내면 제목이 거짓이 된다(2026-09-11 Fable 게이트 W1).

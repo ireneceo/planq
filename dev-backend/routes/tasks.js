@@ -1699,6 +1699,10 @@ router.put('/by-business/:businessId/:id', authenticateToken, async (req, res, n
             excludeUserId: req.user.id,
           }).catch((e) => console.warn('[notify hold]', e.message));
         }
+        // 취소 → 담당자 + 의뢰자(+ 라운드 중 컨펌자) — 행동 계층 cancel()·AI cancel_task 와 같은 함수(#463)
+        if (newStatus === 'canceled') {
+          await taskActions.notifyCanceled(task, actorFrom(req), { fromStatus: prev.status, wsName });
+        }
       }
     } catch (e) { console.warn('[task PUT notify outer]', e.message); }
 

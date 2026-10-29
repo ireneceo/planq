@@ -589,6 +589,18 @@ const TOOLS = [
     preview: (p, a) => t.previewComplete(p, a),
     handler: (p, a, actor) => t.completeTask(p, a, actor),
   },
+  // #463 — 삭제 대신 «취소»(되돌릴 수 있음). 권한은 화면 상태 변경과 같다(Fable 설계 2026-10-29). 삭제 도구는 두지 않는다(HIGH)
+  {
+    name: 'cancel_task', risk: 'MEDIUM', write: true, scopes: ['tasks:write'],
+    description: 'Cancel a task — sets its status to "canceled". The task is NOT deleted: it stays in PlanQ with its full history and can be restored there (open the task → revert, or change its status). Allowed for the task\'s assignee, its creator (requester) or a workspace owner/admin; refused for completed or already-canceled tasks. The assignee and requester are notified (and the reviewers, if a review round is in progress). If the task is the origin of a recurring series, only this occurrence is canceled and the series keeps generating — to stop the series, change its recurrence in PlanQ. There is no delete tool: when the user asks to delete or remove a task, offer to cancel it with this tool and tell them permanent deletion is only possible in PlanQ. Requires confirmation: the first call only returns a preview (who will be notified, whether reviewers are waiting, whether it is a recurring origin).',
+    input: {
+      task_id: z.number().int().positive(),
+      reason: z.string().trim().max(500).optional().describe('Why it is canceled (optional) — shown in the task history and in the notification'),
+      confirmation_token: confirm, idempotency_key: idem,
+    },
+    preview: (p, a) => t.previewCancel(p, a),
+    handler: (p, a, actor) => t.cancelTask(p, a, actor),
+  },
   {
     name: 'submit_review', risk: 'MEDIUM', write: true, scopes: ['tasks:write'],
     description: 'Submit a task for review — sends it to its reviewers for sign-off (only the assignee, and only when reviewers are set). Requires confirmation: the first call only returns a preview.',

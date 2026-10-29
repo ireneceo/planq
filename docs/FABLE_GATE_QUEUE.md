@@ -1,5 +1,10 @@
 # Fable 게이트 대기열 → **판정 기록 보관소** (2026-10-08 부터)
 
+### 2026-10-29 방 700b3e97 — #463 AI 앱 업무 «취소» `cancel_task` (삭제 대신) — 설계 **VERDICT: DESIGN-READY** · 완료는 자체 검증(Fable 미검증)
+- Irene «권고대로»(A: 삭제 대신 취소만 AI 에 허용). 설계: 이름 cancel_task · MEDIUM · tasks:write 재사용 · 권한 FIELD_RULES.status(=canChangeStatus, 화면 삭제 규칙 아님 — 되돌릴 수 있는 상태 전이라 화면 드롭다운과 같은 집합) · 출발 상태 completed/canceled 만 거절 · 반복 원본은 이 회차만 · 알림은 행동 계층 cancel() 안(notifyCanceled, 화면 PUT 도) · 복구 도구는 안 만듦.
+- 자체 검증: 실호출(:3005 MCP · :3003 화면) 29/29 — 양성(담당자 취소·이력·감사 2줄·의뢰자 알림·행위자 0 · 컨펌 중 대표 취소 → 컨펌자·담당자 알림·컨펌자 행 유지 · 화면 되돌리기 → reviewing · 반복 원본 표시 · 사유 생략 note null · 같은 토큰 재시도 이력 1 · 화면 PUT 취소 알림) / 음성(명단 밖 멤버·토큰 없음 · 완료·이미 취소 task_closed · 다른 워크스페이스 NOT_FOUND · 대표가 남의 나만 보기 거절 · 읽기 전용 연결 거절 · 인자 바꾼 토큰 거절) · 가드 agentsurface 대조군(delete_task 로 바꾸면 FAIL) · guard 81/82 · health-check 96/96.
+- 확인 못 함: 메일 «답변 불필요» 경로의 새 알림(같은 cancel() 함수 — 담당자=행위자면 0통) · 실제 Claude/ChatGPT 앱 화면에서의 대화.
+
 ### 2026-10-29 방 9e833f65 — 구글 드라이브 여러 워크스페이스 연결 시 루트 폴더 섞임 — 완료 검증 1차 **FAIL** → 고침 → 2차 **VERDICT: PASS** (차단 0)
 - Irene «구글드라이브가 여러 워크스페이스에 연결되면 … 폴더가 워크스페이스별로 새로 생기는지 중요한데?». 정찰 `.claude/plans/qmvrvdv75.md`.
 - 변경: 연결 콜백의 «같은 이름 첫 폴더 재사용» → `gdrive.ensureRootFolder` 한 곳 · 저장 위치 지정에 다른 워크스페이스 루트 400 `folder_used_by_other_workspace`.
