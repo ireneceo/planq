@@ -143,13 +143,14 @@ router.post('/me/deletion-request', authenticateToken, async (req, res, next) =>
 
       // 4) 솔로 워크스페이스 동반 soft-delete + 그 Cue 계정도 deleted 마크(좀비 방지, 🔴A)
       for (const w of ev.soloToDelete) {
-        await Business.update({ deleted_at: now }, { where: { id: w.id }, transaction: t });
+        await Business.update({ deleted_at: now, deletion_reason: 'account_deletion', deleted_by: userId }, { where: { id: w.id }, transaction: t });
         if (w.cue_user_id) {
           await User.update({ status: 'deleted' }, { where: { id: w.cue_user_id, is_ai: true }, transaction: t });
         }
       }
       await t.commit();
     } catch (e) { await t.rollback().catch(() => {}); throw e; }
+    require('../middleware/workspaceAlive').invalidate();   // 동반 삭제한 워크스페이스를 바로 닫는다(30초 캐시)
 
     // 5) socket 강제 disconnect (모든 디바이스)
     try {

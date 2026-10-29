@@ -1114,5 +1114,29 @@
     "demoteOwner": "Remove owner rights from {{name}} and make them a member? They will no longer be able to do owner-only work such as finance or deletion.",
     "sectionTitle": "Permissions",
     "openTable": "Full permission table"
+  },
+  "wsDeletion": {
+    "title": "Delete workspace",
+    "desc": "Deleting this workspace locks out every member and client right away. For {{days}} days you can restore it from «Workspaces pending deletion» on your profile; after that, files and external connections (mail, Drive, AI apps) are removed.",
+    "oauthTitle": "This account can't delete the workspace yet",
+    "oauthBody": "This account signs in with Google or Apple only, so we can't confirm a password. Email code confirmation is coming — contact us if you need it deleted now.",
+    "deleteButton": "Delete workspace",
+    "confirmTitle": "Delete workspace",
+    "confirmWarn": "You are deleting «{{name}}». Members and clients lose access immediately; no email or push is sent. You can restore it within {{days}} days.",
+    "lossTitle": "Also closed",
+    "lossMembers": "{{count}} members",
+    "lossClients": "{{count}} clients",
+    "lossUnpaid": "{{count}} invoices with money still due ({{amount}})",
+    "lossSubscription": "{{days}} days left in your plan",
+    "kept": "Invoices, payments, tax invoices and records are kept for legal retention.",
+    "refundNote": "The remaining plan period is not refunded automatically. Contact us if you need a refund.",
+    "typeName": "To confirm, type the workspace name «{{name}}» exactly",
+    "password": "Password",
+    "cancel": "Cancel",
+    "confirmDelete": "Delete",
+    "errWrongPassword": "The password is incorrect.",
+    "errName": "The workspace name doesn't match.",
+    "errOauth": "Accounts that sign in with Google or Apple only can't delete a workspace yet. Please contact us.",
+    "errGeneric": "Couldn't delete the workspace. Please try again shortly."
   }
 }

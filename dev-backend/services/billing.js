@@ -887,6 +887,8 @@ async function notifyExemptExpiring() {
 
 // ─── 4. cron — 4단계 (active → past_due → grace → demoted) ───
 async function runDailyBillingCron() {
+  // 지운 워크스페이스(유예 중)는 건너뛴다 — 입금 안내 메일·강등을 만들지 않는다(WORKSPACE_DELETION ⑦). 복구하면 다음 날 날짜로 따라잡는다.
+  const { filterAliveRows: filterAlive } = require('./workspaceAlive');
   const now = new Date();
   const stats = {
     active_to_past_due: 0, past_due_to_grace: 0, grace_to_demoted: 0, renewal_payments_created: 0,
@@ -895,12 +897,12 @@ async function runDailyBillingCron() {
   };
 
   // 1) active 중 current_period_end 지나간 것 → past_due
-  const expiringActive = await Subscription.findAll({
+  const expiringActive = await filterAlive(await Subscription.findAll({
     where: {
       status: 'active',
       current_period_end: { [Op.lt]: now },
     },
-  });
+  }));
   for (const s of expiringActive) {
     // 면제 워크스페이스는 만료 전이 대신 무료 연장 — 안 하면 매일 만료 판정에 걸린다.
     if (await isBillingExempt(s.business_id)) {
@@ -917,9 +919,9 @@ async function runDailyBillingCron() {
   }
 
   // 2) past_due → grace (즉시 grace 진입, grace_ends_at = past_due_at + GRACE_DAYS)
-  const stalePastDue = await Subscription.findAll({
+  const stalePastDue = await filterAlive(await Subscription.findAll({
     where: { status: 'past_due' },
-  });
+  }));
   for (const s of stalePastDue) {
     // 면제면 grace 로 떨어뜨리지 않고 정상 복원 — 면제를 켠 순간 화면이 정상으로 돌아온다.
     if (await isBillingExempt(s.business_id)) {
@@ -945,12 +947,12 @@ async function runDailyBillingCron() {
   }
 
   // 3) grace 만료 → demoted (Free 강등)
-  const expiredGrace = await Subscription.findAll({
+  const expiredGrace = await filterAlive(await Subscription.findAll({
     where: {
       status: 'grace',
       grace_ends_at: { [Op.lt]: now },
     },
-  });
+  }));
   for (const s of expiredGrace) {
     // 면제 워크스페이스는 절대 강등하지 않는다 (운영 #275 — biz 2 가 이미 강등당한 사례).
     if (await isBillingExempt(s.business_id)) {
@@ -965,9 +967,9 @@ async function runDailyBillingCron() {
 
   // 4) 갱신 청구 백필 — 아직 강등 안 된 past_due/grace 구독 중 pending 결제가 없는 건에 갱신 청구 생성.
   //    이번 run 에서 막 전이된 건 + 배포 이전부터 grace 였던 레거시 건 모두 멱등 커버.
-  const overdueSubs = await Subscription.findAll({
+  const overdueSubs = await filterAlive(await Subscription.findAll({
     where: { status: { [Op.in]: ['past_due', 'grace'] } },
-  });
+  }));
   for (const s of overdueSubs) {
     const { created } = await ensureRenewalPayment(s);
     if (created) stats.renewal_payments_created += 1;

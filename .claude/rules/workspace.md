@@ -54,3 +54,9 @@ paths:
 
 ---
 
+### 워크스페이스 삭제 (2026-10-29 · 설계 `docs/WORKSPACE_DELETION_DESIGN.md` · Fable 설계 판정)
+- 대표(owner_id)만 · 비밀번호 + 이름 입력 · soft(`deleted_at`) + 30일 `purge_after` → `services/workspacePurge` 가 파일·연결·고객 연락처 정리(행·청구·감사는 남김).
+- **사유가 갈린다** — `deletion_reason` `account_deletion`(계정 탈퇴 동반) / `owner_request`(대표 삭제). 복구 문은 각자 자기 사유만 되살린다.
+- **cron 은 지운 워크스페이스를 건너뛴다** — `services/workspaceAlive`(filterAliveRows·aliveBusinessWhere). server.js 가 부르는 새 서비스가 여러 행을 고르면 그 술어를 쓰거나 `// cronalive-exempt: 이유` — 가드 `--category=cronalive`(HARD).
+- 삭제·복구는 `middleware/workspaceAlive.invalidate()` 를 부른다(30초 캐시). 열린 창은 소켓 `workspace:deleted` + 404 `workspace_deleted`(business_id 동봉) 두 길로 옮긴다(`WorkspaceSyncGuard` ⑥).
+

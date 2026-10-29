@@ -63,7 +63,8 @@ async function runUnreadEscalation() {
   const cutoff = new Date(now - ESCALATE_AFTER_MIN * 60 * 1000);
   const floor = new Date(now - MAX_AGE_HOURS * 3600 * 1000);
 
-  const rows = await Notification.findAll({
+  // 지운 워크스페이스(유예 중) 알림은 메일로 올리지 않는다(WORKSPACE_DELETION ⑦). 플랫폼 알림(business_id NULL)은 그대로.
+  const rows = await require('./workspaceAlive').filterAliveRows(await Notification.findAll({
     where: {
       read_at: null,
       email_escalated_at: null,
@@ -72,7 +73,7 @@ async function runUnreadEscalation() {
     },
     order: [['created_at', 'ASC']],
     limit: PER_RUN_LIMIT,
-  });
+  }));
   if (!rows.length) return { users: 0, emails: 0, marked: 0 };
 
   // 사용자 × 워크스페이스 그룹 — 한 통에 여러 워크스페이스가 섞이면 제목 접두어([워크스페이스명])를

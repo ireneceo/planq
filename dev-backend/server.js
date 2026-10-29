@@ -469,6 +469,7 @@ app.use('/api/projects', require('./routes/schedule_edit'));
 app.use('/api', require('./routes/project_refs'));
 app.use('/api/users', require('./routes/users'));
 app.use('/api/users', require('./routes/account_deletion'));
+app.use('/api/users', require('./routes/workspace_deletion').restoreRouter);   // 지운 워크스페이스 되살리기 — /me/deleted-workspaces
 // ★ customer_entry 를 businesses.js **앞**에 마운트한다 — `/:businessId/customer-entry` 처럼
 //   고유한 꼬리 경로만 들었다(client_links.js + clients.js 와 같은 패턴, CLAUDE.md 라우트 순서 절).
 //   businesses.js 에 `/:businessId/:xxx` 2-세그먼트 와일드카드가 없음을 실측으로 확인했다.
@@ -485,6 +486,7 @@ app.use('/api/businesses', require('./routes/member_overview'));   // 멤버 상
 app.use('/api/businesses', require('./routes/member_handover'));   // 퇴사 인수인계 (2026-10-22, docs/ORG_STAGE0_DESIGN.md) — «/:businessId/members/:memberId/handover»·«/members-departed» 꼬리만, businesses.js 보다 앞
 app.use('/api/businesses', require('./routes/member_permissions'));   // 멤버 메뉴 권한·역할·멤버 기본 권한 (2026-10-23 businesses.js 에서 옮김) — 꼬리 경로만, businesses.js 보다 앞
 app.use('/api/me/brands', require('./routes/brands').myBrands);            // 개인 브랜드(내 명함용, 본인 것만)
+app.use('/api/businesses', require('./routes/workspace_deletion').deleteRouter);   // 워크스페이스 삭제 (2026-10-29) — «/:id/delete»·«/:id/deletion-preflight» 꼬리만, businesses.js 보다 앞
 app.use('/api/businesses', require('./routes/businesses'));
 // KNOWLEDGE_LOOP 축1 — Cue 워크스페이스 지식 카드
 app.use('/api/businesses', require('./routes/cue_knowledge'));
@@ -753,6 +755,11 @@ function scheduleNextMidnight() {
       const r = await recurringTask.runDailyRecurringTaskGen(new Date(), io);
       console.log('[recurring-task]', { ok: r.ok, skip: r.skip, fail: r.fail });
     } catch (e) { console.warn('[recurring-task] failed', e.message); }
+    try {
+      // 지운 워크스페이스 정리 — 유예 30일이 끝난 곳의 파일·연결·고객 연락처 (docs/WORKSPACE_DELETION_DESIGN.md 2단계)
+      const r = await require('./services/workspacePurge').runWorkspacePurge();
+      if (r.due) console.log('[workspace-purge]', r);
+    } catch (e) { console.warn('[workspace-purge] failed', e.message); }
     try {
       const r = await uploadCleanup.runUploadCleanup();
       console.log('[upload-cleanup]', r);

@@ -170,11 +170,16 @@ const isSameOrigin = (url: string): boolean => {
 };
 // 서버가 "이 창은 옛 워크스페이스다"(409 workspace_stale)라고 하면 WorkspaceSyncGuard 가 전환을 따라간다.
 const signalWorkspaceStale = async (res: Response): Promise<void> => {
-  if (res.status !== 409) return;
+  if (res.status !== 409 && res.status !== 404) return;
   try {
     const j = await res.clone().json();
-    if (j?.code === 'workspace_stale' && Number(j.business_id) > 0) {
+    if (res.status === 409 && j?.code === 'workspace_stale' && Number(j.business_id) > 0) {
       window.dispatchEvent(new CustomEvent('planq:workspace-stale', { detail: { business_id: Number(j.business_id) } }));
+    }
+    // 404 workspace_deleted — 대표가 워크스페이스를 지웠는데 소켓 신호를 놓친 창(WORKSPACE_DELETION ④ 안전망).
+    //   WorkspaceSyncGuard 가 «지금 보는 곳» 일 때만 옮긴다(다른 워크스페이스 항목 링크의 404 는 무시).
+    if (res.status === 404 && j?.code === 'workspace_deleted' && Number(j.business_id) > 0) {
+      window.dispatchEvent(new CustomEvent('planq:workspace-deleted', { detail: { business_id: Number(j.business_id) } }));
     }
   } catch { /* 본문이 JSON 이 아니면 무시 */ }
 };

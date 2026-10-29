@@ -328,7 +328,11 @@
       "card_payees",
       "tax_enabled",
       "tax_label",
-      "default_tax_mode"
+      "default_tax_mode",
+      "deletion_reason",
+      "deleted_by",
+      "purge_after",
+      "purged_at"
     ],
     "calendar_event_attachments": [
       "id",
@@ -1131,7 +1135,10 @@
       "kind",
       "client_env",
       "is_popout",
-      "error_context"
+      "error_context",
+      "ai_triage",
+      "ai_triage_verdict",
+      "ai_triage_at"
     ],
     "file_folders": [
       "id",
@@ -2942,7 +2949,15 @@
       "depends_on_indexes",
       "created_at",
       "updated_at",
-      "workstream_title"
+      "workstream_title",
+      "body",
+      "is_milestone",
+      "category",
+      "vlevel",
+      "security_level",
+      "recurrence_rule",
+      "tag_names",
+      "action_items"
     ],
     "task_templates": [
       "id",
@@ -2959,7 +2974,8 @@
       "created_at",
       "updated_at",
       "embedding",
-      "workstreams"
+      "workstreams",
+      "source_project_id"
     ],
     "task_user_hours": [
       "id",

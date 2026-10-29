@@ -1,3 +1,4 @@
+// cronalive-exempt: Business deleted_at:null 로 고른다
 // services/emailImapCron.js — Q Mail M1 IMAP fetch cron (5분 주기)
 //
 // 작동 흐름 (CLAUDE.md §16 실시간 동기화 정합):

@@ -2879,6 +2879,33 @@ function checkDupRoute() {
 }
 
 // ═══════════════════════════════════════════════
+// cronalive — **자동 작업은 지운 워크스페이스를 건너뛴다** (2026-10-29 신설 · docs/WORKSPACE_DELETION_DESIGN.md ⑦) [HARD]
+//
+//   요청 경로는 middleware/workspaceAlive 가 닫지만 cron 은 요청이 아니라 그 문을 안 지난다 — 대표가 워크스페이스를
+//   지운 뒤에도 고객에게 정기 청구서·독촉, 대표에게 입금 안내 메일이 나갈 수 있었다(Fable 설계 판정에서 13곳 발견).
+//   server.js 가 부르는 services/* 중 여러 행을 고르는 파일(findAll·findAndCountAll·sequelize.query)은
+//   services/workspaceAlive 를 쓰거나 `// cronalive-exempt: <이유>` 를 적는다. 목록을 사람이 들고 있지 않게 한다.
+// ═══════════════════════════════════════════════
+function checkCronAlive() {
+  const server = read(`${ROOT}/dev-backend/server.js`);
+  const names = [...new Set([...server.matchAll(/require\('\.\/services\/([A-Za-z0-9_/]+)'\)/g)].map((m) => m[1]))];
+  const bad = [];
+  let scanned = 0;
+  for (const n of names) {
+    const fp = [`${ROOT}/dev-backend/services/${n}.js`, `${ROOT}/dev-backend/services/${n}/index.js`].find((x) => fs.existsSync(x));
+    if (!fp || n === 'workspaceAlive') continue;
+    const src = read(fp);
+    if (!/\.findAll\(|\.findAndCountAll\(|sequelize\.query\(/.test(src)) continue;
+    scanned += 1;
+    if (/require\(['"]\.\/workspaceAlive['"]\)/.test(src)) continue;
+    const ex = src.match(/\/\/\s*cronalive-exempt:\s*(\S.*)/);
+    if (ex) continue;
+    bad.push(`services/${n} — 여러 행을 고르는데 지운 워크스페이스를 거르지 않는다. services/workspaceAlive(filterAliveRows·aliveBusinessWhere)를 쓰거나 \`// cronalive-exempt: 이유\``);
+  }
+  report('cronalive', `cron 서비스는 지운 워크스페이스를 건너뛴다 (하드 게이트 · ${scanned}개 파일)`, bad.length === 0, bad);
+}
+
+// ═══════════════════════════════════════════════
 // modulegate — 급여 라우트는 전부 «기능 스위치» 를 지난다 (2026-10-15 신설, docs/PAYROLL_DESIGN.md §11) [HARD]
 //
 //   Irene: "사용할지 말지 정해서 사용하게 할 수 있어?" — 끈 워크스페이스에서 한 라우트라도 열리면 스위치는 거짓말이다.
@@ -3967,6 +3994,7 @@ const CATEGORIES = {
   capci: checkCapCi,
   savemerge: checkSaveMerge,
   duproute: checkDupRoute,
+  cronalive: checkCronAlive,
   modulegate: checkModuleGate,
   convparticipants: checkConvParticipants,
   trialplan: checkTrialPlan,

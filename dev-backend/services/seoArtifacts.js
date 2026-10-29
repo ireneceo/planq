@@ -1,3 +1,4 @@
+// cronalive-exempt: 플랫폼 위키·블로그 공개 페이지 — 워크스페이스 데이터 아님
 // 검색엔진용 공개 페이지 HTML + sitemap.xml 생성 (2026-09-21).
 //
 // 왜 필요한가 — PlanQ 는 SPA 라 모든 주소가 같은 index.html(제목 "PlanQ", 같은 설명, 빈 본문)을 받는다.

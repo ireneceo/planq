@@ -1,3 +1,4 @@
+// cronalive-exempt: Business deleted_at:null 로 고른다
 // 월간 보고서 자동 생성 (매월 1일).
 //
 // 왜 server.js 밖으로 뺐나 — 이 함수는 **한 달에 하루만** 돈다. server.js 안에 있고

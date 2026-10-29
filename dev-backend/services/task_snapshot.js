@@ -20,10 +20,11 @@ async function snapshotAllTasks(targetDate) {
   const businesses = await Business.findAll({ attributes: ['id', 'timezone'] });
   const tzByBiz = new Map(businesses.map(b => [b.id, b.timezone || 'Asia/Seoul']));
 
-  const tasks = await Task.findAll({
+  // 지운 워크스페이스(유예 중)는 스냅샷을 쌓지 않는다(WORKSPACE_DELETION ⑦)
+  const tasks = await require('./workspaceAlive').filterAliveRows(await Task.findAll({
     where: { status: { [Op.notIn]: ['canceled'] } },
     attributes: ['id', 'business_id', 'progress_percent', 'actual_hours', 'estimated_hours', 'status'],
-  });
+  }));
   let created = 0, updated = 0;
   const datesSeen = new Set();
   for (const t of tasks) {

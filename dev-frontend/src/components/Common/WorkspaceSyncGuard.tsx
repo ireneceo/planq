@@ -99,6 +99,26 @@ const WorkspaceSyncGuard: React.FC = () => {
     return () => window.removeEventListener('planq:workspace-stale', onStale);
   }, [user?.id, apply]);
 
+  // ⑥ 지금 보는 워크스페이스가 지워졌다(대표가 삭제) — 소켓 'workspace:deleted' 또는 API 404 workspace_deleted.
+  //   서버가 정본(active_business_id)을 이미 비웠다 → 다시 부팅하면 /me 가 남은 워크스페이스(없으면 «워크스페이스 없음»)로 착지한다.
+  //   하던 입력은 보류하지 않는다 — 그 워크스페이스는 이미 닫혀 저장할 곳이 없다(WORKSPACE_DELETION ④).
+  const deletedRef = useRef(false);
+  useEffect(() => {
+    if (!user?.id) return undefined;
+    const onDeleted = (bidRaw: unknown) => {
+      const bid = Number(bidRaw);
+      if (!bid || bid !== bizRef.current || deletedRef.current) return;
+      deletedRef.current = true;
+      clearPageCache();
+      if (isPopoutWindow()) window.location.reload();
+      else window.location.href = '/talk';
+    };
+    const off = onSocket<{ business_id?: number }>('workspace:deleted', (d) => onDeleted(d?.business_id));
+    const onEv = (ev: Event) => onDeleted((ev as CustomEvent<{ business_id?: number }>).detail?.business_id);
+    window.addEventListener('planq:workspace-deleted', onEv);
+    return () => { off(); window.removeEventListener('planq:workspace-deleted', onEv); };
+  }, [user?.id]);
+
   // ③ 사본이 조용히 바뀐 경우 — 첫 값은 기준선으로만 기억한다(부팅), 계정이 바뀌면 기준선을 새로 잡는다
   const seenRef = useRef<{ uid: number | null; biz: number | null }>({ uid: null, biz: null });
   useEffect(() => {

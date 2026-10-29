@@ -17,6 +17,7 @@ const reverseSync = require('./calendarReverseSync');
 let running = false;
 let appRef = null;
 
+// cronalive-exempt: 조회는 calendarReverseSync.runAll 안 — 거기서 aliveBusinessIds 로 거른다
 async function runCalendarReverseSyncCron() {
   if (running) {
     console.log('[calendarReverseSyncCron] 이전 회차 진행 중 — skip');

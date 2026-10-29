@@ -1,3 +1,4 @@
+// cronalive-exempt: Business deleted_at:null 로 고른다
 // KNOWLEDGE_LOOP 축1 — Cue 워크스페이스 지식 (docs/KNOWLEDGE_LOOP_DESIGN.md)
 //   - getActiveCards: active 카드 → buildCueContext 주입
 //   - getWorkPatternPromptBlock: 카테고리별 실측 소요시간 통계 → AI 업무 추가/시간 추정 프롬프트 주입

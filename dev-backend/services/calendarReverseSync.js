@@ -499,8 +499,11 @@ async function runAll({ io = null, force = false, filter = null } = {}) {
     console.error('[reverseSync] 소스 조회 실패:', e.message);
     return total;
   }
+  // 지운 워크스페이스(유예 중)의 연결은 구글을 부르지 않는다(WORKSPACE_DELETION ⑦). 워크스페이스 없는 개인 연결은 그대로.
+  const alive = await require('./workspaceAlive').aliveBusinessIds(sources.map((s) => s.businessId));
   for (const source of sources) {
     if (filter && !filter(source)) continue;
+    if (source.businessId && !alive.has(Number(source.businessId))) { total.deferred += 1; continue; }
     // 백오프 — 조용한 소스는 1분마다 부르지 않는다(구글 쿼터). 수동 호출은 force 로 건너뛴다.
     if (!force && !isDue(source)) { total.deferred += 1; continue; }
     if (force) markActive(source);

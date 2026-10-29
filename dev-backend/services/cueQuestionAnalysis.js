@@ -1,3 +1,4 @@
+// cronalive-exempt: 플랫폼 질문 로그 보존 정리 — 워크스페이스 단위 작업 아님
 // Cue 질문 분석 — «무엇을 많이 묻는가» 만 남긴다 (2026-10-07, Fable 판정 B5 · docs/IRENE_DECISIONS_2026-10-07.md §5).
 //
 //   ① 주제 통계 `cue_question_topics` — 주제 라벨·의도·답변 여부·모드·플랜·언어만. **user_id·business_id 없음.**

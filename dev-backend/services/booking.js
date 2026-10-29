@@ -1,3 +1,4 @@
+// cronalive-exempt: 워크스페이스를 deleted_at 로 직접 막는다
 // services/booking.js — 고객 창구 **상담 예약**의 유일한 문 (docs/CLIENT_ENTRY_DESIGN.md §4.3·§4.5·§4.6 · §5 P2)
 //
 // ★ `calendar_events.booking_status` 를 바꾸는 코드는 **이 파일에만** 있다.

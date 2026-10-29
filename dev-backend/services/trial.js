@@ -1,3 +1,4 @@
+// cronalive-exempt: Business deleted_at:null 로 고른다
 // Trial 만료 처리 cron — 신규 가입자(starter+trialing+14일) 흐름 전용.
 // 2026-05-05: Free 플랜 폐지 + Starter 14일 trial 정책으로 전환하면서 신설.
 //

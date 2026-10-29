@@ -1,3 +1,4 @@
+// cronalive-exempt: 사용자 축 익명화 — 워크스페이스 순회 아님
 // accountAnonymize.js — 탈퇴 유예(30일) 만료 계정 익명화 cron. ACCOUNT_DELETION_DESIGN v3.
 //   대상: status='deleted' AND deletion_scheduled_at<=NOW() AND anonymized_at IS NULL AND is_ai=false.
 //   PII 마스킹(users/business_members/clients/conversations) + 개인자산 L1 삭제 + 토큰 purge.

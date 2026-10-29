@@ -1,3 +1,4 @@
+// cronalive-exempt: 사용자가 건 반출 작업 — 요청 시점에 워크스페이스 권한을 이미 봤다
 // #63 Phase 3 — 자료 이동/내보내기 비동기 워커.
 // export_jobs 를 cron 으로 드레인: transfer(이동/복사) · export(다운로드 zip).
 // 본인 L1 파일 + 본인 문서 + (옵션) 본인 Q Note 세션(요약+전사 → 문서).

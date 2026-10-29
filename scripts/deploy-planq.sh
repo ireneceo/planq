@@ -557,6 +557,8 @@ sync_database() {
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-project-refs.js 2>&1 | tail -5"
   # 2026-10-29 폴더 공유 링크(#469) — file_folders 공유 칸 5개 + share_token unique(멱등). ★ PM2 reload 앞 — 없으면 폴더 목록이 500.
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-folder-share.js 2>&1 | tail -5"
+  # 2026-10-29 워크스페이스 삭제 — businesses 칸 4개 + 옛 삭제본 사유 백필(멱등). ★ PM2 reload 앞 — 없으면 워크스페이스 목록·로그인이 500.
+  prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-workspace-deletion.js 2>&1 | tail -5"
   # #259 게스트 링크 — clients.guest_user_id · users.is_guest · 킬스위치 2컬럼.
   #   ★ 순서: 이 ALTER 가 PM2 reload 보다 먼저. guest_links 테이블은 sync-database 가 만든다.
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-guest-links.js 2>&1 | tail -10"

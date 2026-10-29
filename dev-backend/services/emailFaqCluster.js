@@ -141,7 +141,9 @@ async function clusterForBusiness(businessId) {
 // 전 워크스페이스 (이메일 계정 보유) 클러스터링
 async function runFaqClustering() {
   const accounts = await EmailAccount.findAll({ attributes: ['business_id'], group: ['business_id'] });
-  const bizIds = [...new Set(accounts.map((a) => a.business_id).filter(Boolean))];
+  // 지운 워크스페이스(유예 중)는 LLM 을 부르지 않는다(WORKSPACE_DELETION ⑦)
+  const alive = await require('./workspaceAlive').aliveBusinessIds(accounts.map((a) => a.business_id));
+  const bizIds = [...new Set(accounts.map((a) => a.business_id).filter((id) => id && alive.has(Number(id))))];
   const results = [];
   for (const bizId of bizIds) {
     try { results.push(await clusterForBusiness(bizId)); }

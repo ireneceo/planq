@@ -29,6 +29,7 @@
 // 안전: 한 시리즈 실패해도 다른 시리즈 계속 (try/catch per parent)
 
 const { Op } = require('sequelize');
+const { filterAliveRows } = require('./workspaceAlive');
 const { RRule } = require('rrule');
 const { Task, TaskReviewer, TaskWatcher, TaskTagLink, TaskStatusHistory, Business, BusinessMember } = require('../models');
 const { dateStrInTz } = require('../utils/datetime');
@@ -508,13 +509,14 @@ async function runDailyRecurringTaskGen(today = new Date(), io = null) {
   const cutoffStr = toDateOnlyStr(cutoffDate);
 
   // parent: recurrence_rule != null AND recurrence_parent_id IS NULL
-  const parents = await Task.findAll({
+  // 지운 워크스페이스(유예 중)는 건너뛴다 — 반복 업무·알림을 만들지 않는다(WORKSPACE_DELETION ⑦)
+  const parents = await filterAliveRows(await Task.findAll({
     where: {
       recurrence_rule: { [Op.ne]: null },
       recurrence_parent_id: null,
       next_occurrence_at: { [Op.ne]: null, [Op.lte]: cutoffStr },
     },
-  });
+  }));
 
   // #350 — 실행 전체에서 알림을 모았다가 (사용자 × 워크스페이스) 당 1건만 보낸다.
   const notifyBucket = new Map();
@@ -543,14 +545,14 @@ async function runDailyRecurringTaskGen(today = new Date(), io = null) {
   //   종결된 시리즈(next_occurrence_at NULL)는 **영영** 안 돈다.
   //   → 정리는 생성과 독립된 일이므로 **대상도 독립으로 조회한다** (auto_skip 시리즈 전체).
   const handledIds = parents.map((p) => p.id);
-  const cleanupOnly = await Task.findAll({
+  const cleanupOnly = await filterAliveRows(await Task.findAll({
     where: {
       recurrence_rule: { [Op.ne]: null },
       recurrence_parent_id: null,
       miss_policy: 'auto_skip',
       ...(handledIds.length ? { id: { [Op.notIn]: handledIds } } : {}),
     },
-  });
+  }));
   for (const p of cleanupOnly) {
     try {
       const skippedIds = await skipMissedOccurrences(p, today, io);
@@ -576,13 +578,13 @@ async function runDailyRecurringTaskGen(today = new Date(), io = null) {
 //   하루 한 번(UTC 00시)으로는 서울 00~09시 동안 어제 회차가 지연으로 남는다.
 //   생성은 하지 않는다(7일 앞까지 미리 만들어 두므로 자정 배치로 충분하다).
 async function runMissedOccurrenceCleanup(now = new Date(), io = null) {
-  const parents = await Task.findAll({
+  const parents = await filterAliveRows(await Task.findAll({
     where: {
       recurrence_rule: { [Op.ne]: null },
       recurrence_parent_id: null,
       miss_policy: 'auto_skip',
     },
-  });
+  }));
   const tzCache = new Map();
   const out = { series: parents.length, skipped: 0, fail: 0 };
   for (const p of parents) {

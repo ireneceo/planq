@@ -1,3 +1,4 @@
+// cronalive-exempt: Business deleted_at:null 로 고른다
 // reportUnitCron.js — 단위 보고서 주/월 경계 자동확정 (R3, 마스터설계 §4.3·§4.5)
 //   직전(마감된) 기간의 프로젝트/부서 단위 보고서를 자동 초안 생성 + 미확정 자동확정(finalized_by='auto').
 //   멱등 — 직전 기간만 다루므로 시간당 재실행해도 현재 기간 무영향(확정본은 재확정 안 함).

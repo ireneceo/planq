@@ -65,6 +65,7 @@ import DefaultRoleField from '../../components/MemberRole/DefaultRoleField';
 import { useMemberRoleDict } from '../../components/MemberRole/useMemberRoleDict';
 import { onSocket } from '../../services/socket';
 import WorkspaceBrandsSection from '../../components/Brand/WorkspaceBrandsSection';
+import WorkspaceDeletionSection from './WorkspaceDeletionSection';
 import NameCardViewDrawer, { MemberCardButton } from '../../components/NameCard/NameCardViewDrawer';
 import { formatDay, formatDayTime } from '../../utils/dateFormat';
 
@@ -1364,6 +1365,11 @@ export default function WorkspaceSettingsPage() {
             </Field>
           </FieldGrid>
         </Card>
+      )}
+
+      {/* 워크스페이스 삭제 — 일반(브랜드) 탭 맨 아래 Danger Zone. 대표만(서버 preflight 403 이면 안 그린다) */}
+      {(tab === 'brand' || tab === 'legal') && businessId && user?.business_role === 'owner' && (
+        <WorkspaceDeletionSection businessId={businessId} />
       )}
 
       {/* ─── WORK ENV: 언어·타임존 + 업무 관리 통합 ─── */}

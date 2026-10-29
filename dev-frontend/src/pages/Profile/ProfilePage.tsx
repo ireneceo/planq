@@ -7,6 +7,7 @@ import FontScaleSection from '../../components/Common/FontScaleSection';
 import { useAuth, apiFetch, apiUpload } from '../../contexts/AuthContext';
 import type { LanguageLevels, LanguageSkillLevel, User } from '../../contexts/AuthContext';
 import AccountDeletionSection from './AccountDeletionSection';
+import DeletedWorkspacesSection from './DeletedWorkspacesSection';
 import VoiceProfileSection from '../../components/Profile/VoiceProfileSection';
 import { LANGUAGES, type LanguageOption } from '../../constants/languages';
 import PlanQSelect from '../../components/Common/PlanQSelect';
@@ -790,6 +791,9 @@ export default function ProfilePage() {
 
         {/* N+32 — UserTimezoneSection + FocusSettingsCard 는 /me/work-settings 페이지로 이동.
             ProfilePage 는 개인 정보 (이름/언어/약력 등) 중심. 업무 도구 설정은 별도 메뉴. */}
+
+        {/* 대표가 지운 워크스페이스 — 30일 안에 되살리기(있을 때만) */}
+        <DeletedWorkspacesSection />
 
         {/* 계정 삭제(회원 탈퇴) — 개인 설정 최하단 Danger Zone */}
         <AccountDeletionSection />

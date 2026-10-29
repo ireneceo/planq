@@ -123,13 +123,15 @@ async function handleOverdueInvoice(invoice, today = new Date(), ioApp = null) {
 // Cron 진입 — 모든 미결제 연체 invoice 처리
 async function runDailyOverdueCron(today = new Date(), ioApp = null) {
   const todayStr = today.toISOString().slice(0, 10);
-  const invoices = await Invoice.findAll({
+  // 지운 워크스페이스는 건너뛴다 — 독촉이 고객에게 나간다(WORKSPACE_DELETION ⑦)
+  const { filterAliveRows } = require('./workspaceAlive');
+  const invoices = await filterAliveRows(await Invoice.findAll({
     where: {
       status: { [Op.notIn]: ['paid', 'draft', 'canceled'] },
       due_date: { [Op.lt]: todayStr },
     },
     attributes: ['id', 'business_id', 'project_id', 'client_id', 'owner_user_id', 'invoice_number', 'title', 'due_date', 'grand_total', 'currency', 'share_token', 'status', 'meta'],
-  });
+  }));
 
   const out = { asked: 0, long_overdue: 0, skip: 0, fail: 0, total: invoices.length };
   for (const inv of invoices) {

@@ -1,3 +1,4 @@
+// cronalive-exempt: Business deleted_at:null 로 고른다
 // weeklyReviewCron.js — 주간 보고 자동 박제 cron
 //
 // 매시간 0분 트리거.

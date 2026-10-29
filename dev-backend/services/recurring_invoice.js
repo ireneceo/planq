@@ -252,7 +252,9 @@ async function runDailyRecurringBilling(today = new Date()) {
     for (let d = lastDayOfMonth; d <= 31; d++) eligibleDays.push(d);
   }
 
-  const projects = await Project.findAll({
+  // 지운 워크스페이스는 건너뛴다 — 고객에게 청구서 메일이 나간다(WORKSPACE_DELETION ⑦)
+  const { filterAliveRows } = require('./workspaceAlive');
+  const projects = await filterAliveRows(await Project.findAll({
     where: {
       status: 'active',
       billing_type: 'subscription',
@@ -261,7 +263,7 @@ async function runDailyRecurringBilling(today = new Date()) {
       monthly_fee: { [Op.gt]: 0 },
       invoice_billing_day: { [Op.in]: eligibleDays },
     },
-  });
+  }));
 
   const out = { ok: 0, skip: 0, fail: 0, results: [] };
   for (const p of projects) {

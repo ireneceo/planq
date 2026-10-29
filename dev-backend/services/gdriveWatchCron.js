@@ -41,7 +41,8 @@ async function runGdriveWatchCron() {
   // ★ 채널이 **없는** 연동도 대상이다. `startChangesWatch` 는 수동 엔드포인트(/watch/start)에서만
   //   불리고 OAuth 연결 콜백은 채널을 열지 않는다 — 즉 사용자가 Drive 를 연결해도
   //   **아무도 감시하지 않아 역방향 동기화가 시작조차 안 된다.** 크론이 그 자리를 메운다.
-  const rows = await BusinessCloudToken.findAll({
+  // 지운 워크스페이스(유예 중)는 감시 채널을 열거나 갱신하지 않는다(WORKSPACE_DELETION ⑦)
+  const rows = await require('./workspaceAlive').filterAliveRows(await BusinessCloudToken.findAll({
     where: {
       provider: 'gdrive',
       [Op.or]: [
@@ -50,7 +51,7 @@ async function runGdriveWatchCron() {
         { watch_expires_at: { [Op.lt]: soon } },                      // 곧 만료
       ],
     },
-  });
+  }));
   const out = { checked: rows.length, opened: 0, renewed: 0, caught: 0, failed: 0 };
   for (const token of rows) {
     try {

@@ -149,7 +149,8 @@ function initCronFallback() {
         attributes: ['id', 'business_id', 'last_extracted_message_id'],
         limit: 50,
       });
-      for (const c of targets) {
+      // 지운 워크스페이스(유예 중)는 LLM 을 부르지 않는다(WORKSPACE_DELETION ⑦)
+      for (const c of await require('./workspaceAlive').filterAliveRows(targets)) {
         // 이미 in-memory timer 있으면 skip
         if (timers.has(c.id)) continue;
         // 새 메시지 ≥ 3 이면 run (조건 미충족이면 runExtract 안에서 skip)

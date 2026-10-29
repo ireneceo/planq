@@ -1,3 +1,4 @@
+// cronalive-exempt: 청구 직전 business.deleted_at 이면 건너뛴다
 // 고객 정기 구독청구 엔진 (사이클 N+83) — ClientSubscription 이 next_billing_at 도달 시 Invoice 자동 생성.
 //   recurring_invoice(billOneProject) 패턴 재사용: Invoice+Item, share_token 공개결제, VAT, 이메일/PDF, auto/draft.
 //   멱등: 발행 후 next_billing_at 을 interval 만큼 전진 → 같은 날 재실행/과거 누적분도 1회만 발행하고 미래로 resync.

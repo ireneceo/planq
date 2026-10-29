@@ -1,3 +1,4 @@
+// cronalive-exempt: SQL 에서 businesses.deleted_at IS NULL 로 JOIN 한다
 // Cue 업무 자동실행 복구 스윕 — fire-and-forget 실행 유실로 갇힌 업무 재실행.
 //
 // 배경(실사례 task 785): createTask / PUT(담당자→Cue) 의 executeForTask 는 fire-and-forget 이다.

@@ -117,13 +117,15 @@ const authenticateToken = async (req, res, next) => {
     //   라우트를 하나씩 고치면 새 라우트마다 같은 구멍이 다시 나므로 여기서 한 번에 막는다.
     //   platform_admin 은 통과 — 복구·감사 목적(access_scope 설계와 동일).
     try {
-      const { workspaceAliveCheck } = require('./workspaceAlive');
+      const { workspaceAliveCheck, extractBusinessId } = require('./workspaceAlive');
       const blocked = await workspaceAliveCheck(req);
       if (blocked) {
+        // business_id — 소켓을 놓친 창이 «지금 보는 워크스페이스가 지워졌다» 를 알아채게(WORKSPACE_DELETION ④ 안전망)
         return res.status(404).json({
           success: false,
           message: 'Workspace not found',
           code: 'workspace_deleted',
+          business_id: extractBusinessId(req),
         });
       }
     } catch (e) {

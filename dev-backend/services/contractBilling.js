@@ -1,3 +1,4 @@
+// cronalive-exempt: 청구 초안 전에 Business deleted_at:null 로 고른다
 // 서명 완료 계약서 → 청구서 초안 자동 생성 (2026-10-23 · docs/CONTRACT_AUTO_INVOICE_DESIGN.md · Fable 설계 A+D, Irene «권고대로»)
 //
 //   Irene: «서명을 완료한 계약서 기반으로 청구서를 자동생성 해줘. 워크스페이스가 결제를 받을 내용이 있으면. 매번 ai가 살펴보지 않고»

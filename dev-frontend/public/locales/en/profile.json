@@ -441,5 +441,12 @@
     "defaultWorkspaceHint": "Unless you name another workspace, the AI app works in this one.",
     "extraTitle": "Also allow other workspaces (optional)",
     "extraBody": "You can use the workspaces you tick by naming them in the chat. Same access as above (read only / read + add & edit). Mail reading works only in the default workspace."
+  },
+  "deletedWorkspaces": {
+    "title": "Workspaces pending deletion",
+    "desc": "Workspaces you deleted. Restore one before its date and its members, clients and data come back as they were.",
+    "until": "Restorable until {{date}}",
+    "restore": "Restore",
+    "errRestore": "Couldn't restore. Please try again shortly."
   }
 }

@@ -139,7 +139,7 @@ async function applyCountryChange(businessId, nextCc, { transaction, tz, prevCc 
 /** 매일 cron — 국가를 켠 워크스페이스에 올해·(11월 이후면) 내년 행을 채운다. 데이터셋에 해가 없으면 0. */
 async function runHolidayYearCron(now = new Date()) {
   const bizs = await Business.findAll({
-    where: { holiday_country: { [Op.ne]: null } },
+    where: { ...require('./workspaceAlive').aliveBusinessWhere(), holiday_country: { [Op.ne]: null } },   // 지운 워크스페이스 제외(WORKSPACE_DELETION ⑦)
     attributes: ['id', 'holiday_country', 'timezone'],
   });
   let added = 0;

@@ -34,7 +34,8 @@ async function runMailFollowUpCron(now = new Date(), ioApp = null) {
   //     (좁은 창으로 자르면 7일·14일로 설정한 대화가 영영 안 걸린다)
   const from = new Date(now.getTime() - (MAX_DAYS + 1) * DAY_MS);
   const to = new Date(now.getTime() - 1 * DAY_MS);
-  const threads = await EmailThread.findAll({
+  // 지운 워크스페이스(유예 중)는 건너뛴다(WORKSPACE_DELETION ⑦)
+  const threads = await require('./workspaceAlive').filterAliveRows(await EmailThread.findAll({
     where: {
       last_message_direction: 'outbound',
       status: { [Op.notIn]: [...INACTIVE_STATUS] },
@@ -42,7 +43,7 @@ async function runMailFollowUpCron(now = new Date(), ioApp = null) {
     },
     attributes: ['id', 'business_id', 'account_id', 'subject', 'status',
       'last_message_direction', 'last_message_at', 'follow_up_days'],
-  });
+  }));
   summary.scanned = threads.length;
   if (threads.length === 0) return summary;
 

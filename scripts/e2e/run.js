@@ -227,6 +227,9 @@ const SUITES = {
   // 로그인 고객 홈 /home (2026-09-25, CLIENT_ENTRY P3) — 고객만 200 · 계정 고객 예약(같은 함수) → 팀 승인 → 앱 알림 ·
   //   로그인 착지 /home · 3폭 탭 · 사이드바 «홈» · 오너는 /dashboard(음성) · 예약 끄면 탭 없음(음성).
   clienthome: () => require('./canary-client-home'),
+  // 워크스페이스 삭제 (2026-10-29, WORKSPACE_DELETION) — 대표만 칸 보임(멤버 DOM 없음) · 이름 틀리면 비활성(음성) · 실제 삭제 →
+  //   대표 남는 곳 착지 · 멤버 창 소켓 재부팅 · 소켓 막힌 창 404 안전망 · 프로필 되살리기. 3폭.
+  wsdelete: () => require('./canary-workspace-delete'),
   // 고객 홈 «자료» 칸 (2026-10-23, CLIENT_QINFO_VIEW ⑦) — 0건 탭 없음 · 3폭 탭·카드·시트 · 비밀 칸 값 화면 0 ·
   //   링크 새 탭 · 버튼은 닫기뿐 · 실시간(이 고객 자료 +1 / 다른 고객 불변 / 내부용이면 사라짐) · 오너 /home 음성.
   clientinfo: () => require('./canary-client-info'),

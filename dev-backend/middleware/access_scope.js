@@ -1114,7 +1114,7 @@ function attachWorkspaceScope(opts = {}) {
       if (!req.user.platform_role || req.user.platform_role !== 'platform_admin') {
         const bizRow = await Business.findByPk(businessId, { attributes: ['id', 'deleted_at'] });
         if (bizRow && bizRow.deleted_at) {
-          return res.status(404).json({ success: false, message: 'Workspace not found', code: 'workspace_deleted' });
+          return res.status(404).json({ success: false, message: 'Workspace not found', code: 'workspace_deleted', business_id: businessId });
         }
       }
       const scope = await getUserScope(req.user.id, businessId, req.user.platform_role);

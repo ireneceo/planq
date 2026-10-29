@@ -500,6 +500,52 @@ async def internal_purge_user(
   return success({'purged': True, 'sessions': len(sids), 'documents': len(docids), 'file_dirs': files_removed})
 
 
+@router.post('/internal/purge-business')
+async def internal_purge_business(
+    payload: dict = Body(...),
+    x_internal_api_key: Optional[str] = Header(None),
+):
+  # 지운 워크스페이스의 유예(30일)가 끝났을 때 — 그 워크스페이스의 회의·문서·화자 전부 (docs/WORKSPACE_DELETION_DESIGN.md ①-2).
+  #   purge-user 와 같은 순서·같은 표. 음성 지문(voice_fingerprints)은 사람 축이라 여기서 지우지 않는다(그 사람의 다른 워크스페이스에서 쓴다).
+  #   멱등 — 두 번 불러도 0건으로 끝난다(Node 정리 cron 이 실패하면 다음 날 다시 부른다).
+  expected = os.environ.get('INTERNAL_API_KEY')
+  if not expected or not _hmac.compare_digest((x_internal_api_key or '').encode(), expected.encode()):
+    raise HTTPException(status_code=401, detail='invalid internal key')
+  try:
+    business_id = int(payload.get('business_id') or 0)
+  except (TypeError, ValueError):
+    business_id = 0
+  if business_id <= 0:
+    raise HTTPException(status_code=400, detail='business_id required')
+  async with db_connect() as db:
+    cur = await db.execute("SELECT id FROM sessions WHERE business_id = ?", (business_id,))
+    sids = [r[0] for r in await cur.fetchall()]
+    for sid in sids:
+      scur = await db.execute("SELECT id FROM speakers WHERE session_id = ?", (sid,))
+      spids = [r[0] for r in await scur.fetchall()]
+      for spid in spids:
+        await db.execute("DELETE FROM speaker_embeddings WHERE speaker_id = ?", (spid,))
+      await db.execute("DELETE FROM speakers WHERE session_id = ?", (sid,))
+      await db.execute("DELETE FROM utterances WHERE session_id = ?", (sid,))
+      await db.execute("DELETE FROM summaries WHERE session_id = ?", (sid,))
+      await db.execute("DELETE FROM qa_pairs WHERE session_id = ?", (sid,))
+      await db.execute("DELETE FROM detected_questions WHERE session_id = ?", (sid,))
+    dcur = await db.execute("SELECT id FROM documents WHERE business_id = ?", (business_id,))
+    docids = [r[0] for r in await dcur.fetchall()]
+    for did in docids:
+      await db.execute("DELETE FROM document_chunks WHERE document_id = ?", (did,))
+    await db.execute("DELETE FROM documents WHERE business_id = ?", (business_id,))
+    await db.execute("DELETE FROM sessions WHERE business_id = ?", (business_id,))
+    await db.commit()
+  import shutil
+  uploads_root = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data', 'uploads')
+  d = os.path.join(uploads_root, str(business_id))
+  removed = os.path.isdir(d)
+  if removed:
+    shutil.rmtree(d, ignore_errors=True)
+  return success({'purged': True, 'sessions': len(sids), 'documents': len(docids), 'file_dir': removed})
+
+
 UPLOADS_ROOT = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data', 'uploads')
 MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB per file
 MAX_URL_LIST = 20

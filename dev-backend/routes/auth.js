@@ -1152,11 +1152,12 @@ router.post('/deletion-recover', async (req, res, next) => {
       //   + 그 워크스페이스의 Cue 계정도 active 복원 (request 가 deleted 마크했으므로 — 🟠1).
       if (requestedAt) {
         const restoredWs = await Business.findAll({
-          where: { owner_id: user.id, deleted_at: { [require('sequelize').Op.gte]: requestedAt } },
+          // ★ 사유 'account_deletion' 만 — 대표가 따로 지운 워크스페이스(owner_request)는 계정 복구가 되살리지 않는다(WORKSPACE_DELETION ⑥)
+          where: { owner_id: user.id, deletion_reason: 'account_deletion', deleted_at: { [require('sequelize').Op.gte]: requestedAt } },
           attributes: ['cue_user_id'], transaction: t,
         });
-        await Business.update({ deleted_at: null },
-          { where: { owner_id: user.id, deleted_at: { [require('sequelize').Op.gte]: requestedAt } }, transaction: t });
+        await Business.update({ deleted_at: null, deletion_reason: null, deleted_by: null },
+          { where: { owner_id: user.id, deletion_reason: 'account_deletion', deleted_at: { [require('sequelize').Op.gte]: requestedAt } }, transaction: t });
         const cueIds = restoredWs.map((b) => b.cue_user_id).filter(Boolean);
         if (cueIds.length) {
           const { User: UserModel } = require('../models');
@@ -1166,6 +1167,7 @@ router.post('/deletion-recover', async (req, res, next) => {
       }
       await t.commit();
     } catch (e) { await t.rollback().catch(() => {}); throw e; }
+    require('../middleware/workspaceAlive').invalidate();   // 되살린 워크스페이스를 30초 캐시가 막지 않게
 
     require('../services/auditService').logAudit(req, {
       action: 'user.deletion_recover', targetType: 'user', targetId: user.id, newValue: { recovered: true },

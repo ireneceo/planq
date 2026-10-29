@@ -50,7 +50,8 @@ async function runRetentionPurge({
 
   try {
     const { Business, AuditLog } = require('../models');
-    const bizRows = await Business.findAll({ attributes: ['id'], paranoid: false });
+    // 지운 워크스페이스(유예 중)는 건너뛴다 — 지우면 복구가 불완전해진다. 정리는 workspacePurge 몫(WORKSPACE_DELETION ⑦)
+    const bizRows = await Business.findAll({ where: require('./workspaceAlive').aliveBusinessWhere(), attributes: ['id'], paranoid: false });
 
     for (const b of bizRows) {
       if (Date.now() - startedAt > budgetMs) { out.truncated = true; break; }

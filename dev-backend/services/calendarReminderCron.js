@@ -153,7 +153,7 @@ async function runCalendarReminderCron() {
   try {
     // 후보: 알림이 켜진 일정 전부. **`start_at > now` 로 거르지 않는다** —
     //   반복 마스터는 start_at 이 과거이면서도 다음 회차가 남아 있다(그래서 통째로 빠져 있었다).
-    const events = await CalendarEvent.findAll({
+    const eventsAll = await CalendarEvent.findAll({
       where: {
         reminder_minutes: { [Op.ne]: null },
         [Op.or]: [
@@ -172,6 +172,8 @@ async function runCalendarReminderCron() {
       }],
       limit: 500,
     });
+    // 지운 워크스페이스(유예 중)의 일정은 알리지 않는다(WORKSPACE_DELETION ⑦)
+    const events = await require('./workspaceAlive').filterAliveRows(eventsAll);
 
     let sent = 0;
     let skipped = 0;

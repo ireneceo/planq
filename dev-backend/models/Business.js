@@ -194,6 +194,11 @@ Business.init({
   },
   // 워크스페이스 soft-delete — 소유자 탈퇴 시 데이터 없는 솔로 워크스페이스 동반 삭제 (ACCOUNT_DELETION_DESIGN 🔴A).
   deleted_at: { type: DataTypes.DATE, allowNull: true },
+  // 워크스페이스 삭제(2026-10-29 WORKSPACE_DELETION_DESIGN ⑥) — 사유가 갈라야 계정 복구·워크스페이스 복구가 서로를 되살리지 않는다.
+  deletion_reason: { type: DataTypes.ENUM('account_deletion', 'owner_request'), allowNull: true },
+  deleted_by: { type: DataTypes.INTEGER, allowNull: true },
+  purge_after: { type: DataTypes.DATE, allowNull: true },   // 이 뒤 정리 cron 이 파일·연결을 지운다(owner_request 만 채운다)
+  purged_at: { type: DataTypes.DATE, allowNull: true },
   // ─── Cue 설정 ───
   cue_mode: {
     type: DataTypes.ENUM('smart', 'auto', 'draft'),

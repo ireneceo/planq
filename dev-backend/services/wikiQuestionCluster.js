@@ -1,3 +1,4 @@
+// cronalive-exempt: 플랫폼 Q위키 질문 로그 — 워크스페이스 데이터 아님
 // KNOWLEDGE_LOOP 축2 — Q위키 자기강화 루프 (docs/KNOWLEDGE_LOOP_DESIGN.md)
 //   미답변·불만족 Q helper 질문을 임베딩 클러스터링(≥0.85, ≥3건 — emailFaqCluster 와 동일 원리)
 //   → 클러스터별 위키 초안 자동 생성 (is_published=false, origin='auto_cluster')

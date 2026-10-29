@@ -55,7 +55,8 @@ async function runContentTrashPurge(today = new Date(), opts = {}) {
       limit: 2000,
       order: [['deleted_at', 'ASC']],
     });
-    for (const row of candidates) {
+    // 지운 워크스페이스(유예 중)의 휴지통은 비우지 않는다 — 복구하면 그대로 돌아와야 한다(WORKSPACE_DELETION ⑦)
+    for (const row of await require('./workspaceAlive').filterAliveRows(candidates)) {
       out.scanned += 1;
       const ret = await retFor(row.business_id);
       if (!ret.ok) { out.skipped[ret.reason] = (out.skipped[ret.reason] || 0) + 1; continue; }   // 못 읽으면 보존

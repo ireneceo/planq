@@ -29,9 +29,11 @@ async function runShareExpiryNotify(ioApp) {
   const { Post, File, KbDocument, CalendarEvent, FileFolder, Notification } = require('../models');
   // #214 — 발송처 표기용 워크스페이스명 캐시. 알림 1건마다 조회하면 cron 이 N+1 이 된다.
   const { Business } = require('../models');
+  // 지운 워크스페이스의 공유 링크는 이미 닫혀 있다 — 만료 안내 메일을 보내지 않는다(WORKSPACE_DELETION ⑦)
+  const { aliveBusinessWhere, filterAliveRows } = require('./workspaceAlive');
   const wsNameById = new Map();
   try {
-    const bizRows = await Business.findAll({ attributes: ['id', 'name', 'brand_name'] });
+    const bizRows = await Business.findAll({ where: aliveBusinessWhere(), attributes: ['id', 'name', 'brand_name'] });
     for (const b of bizRows) wsNameById.set(b.id, b.brand_name || b.name || null);
   } catch (e) { console.warn('[share-expiry-notify wsName]', e.message); }
 
@@ -53,7 +55,7 @@ async function runShareExpiryNotify(ioApp) {
         },
         attributes: ['id', 'business_id', authorField, titleField, 'share_expires_at'],
       });
-      for (const row of rows) {
+      for (const row of await filterAliveRows(rows)) {
         const authorId = row[authorField];
         if (!authorId) { stats.skipped += 1; continue; }
         // 이미 share_expiry warn 발송했으면 skip (event_kind + entity 정확 매칭)

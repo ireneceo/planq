@@ -1,5 +1,12 @@
 # Fable 게이트 대기열 → **판정 기록 보관소** (2026-10-08 부터)
 
+### 2026-10-29 방 15884e3b — 워크스페이스 삭제 — 설계 **DESIGN-FIX**(11건 반영) → 완료 검증 **VERDICT: PASS**
+- 설계·판정 원문 `docs/WORKSPACE_DELETION_DESIGN.md` §5 · 구현 §6. soft + 30일 유예 → 정리 cron(파일·연결·고객 연락처, 청구·감사·본문은 남김) · 대표만·비밀번호·이름 입력 · 사유 분리(account_deletion/owner_request) · cron 공용 술어 + 가드 `cronalive`.
+- Fable 실측: api 34/34 · cron 4/4 · purge 14/14 · 사칭 403·platform_admin owner_only 403 · 정기 청구 cron 실호출(지움 0 / 되살림 ≥1) · 소켓 수신·socketsLeave 증명 · 공개 링크 닫힘·복구 뒤 열림 · Q Note purge-business 키·외부 차단 · tenant,wssync 실패 0 · 마이그레이션 멱등.
+- 지적 1(커밋 전 고침): e2e 카나리가 러너 계약 위반(`{ok,results}` 반환·`ok` 만 실음·DB 닫음) → 행 배열 + `fail` 칸 + 닫지 않음으로 고침 · 러너 exit 0(49/49) · 한 줄 깨뜨린 양성 대조군 ❌·exit 1.
+- 비차단: ② 헤더만 싣는 라우트(my-week·dashboard/todo)는 지운 직후 404 가 아니라 400/빈 200 — 다른 워크스페이스 없는 멤버 + 소켓 끊긴 창 + 대시보드면 business_id 라우트를 칠 때까지 빈 화면(누수 없음, 3단계 후보) ③ cronalive 는 server.js 직접 require 만 훑는다 ④ (이 방 것 아님) QTalkPage.tsx 미커밋 변경 — 커밋에서 뺐다 ⑤ 3단계: 첨부 바이트·OAuth 전용 대표 삭제·구글 토큰 원격 revoke.
+- 운영: `migrate-workspace-deletion.js` 배포 슬롯(PM2 reload 앞). 첫 00시 정리 cron 은 주인 계정이 이미 익명화된 옛 탈퇴 동반 삭제본도 정리한다(설계 ⑥ 의도 — `[workspace-purge]` 로그 확인).
+
 ### 2026-10-29 시연·홍보 영상 자동 생성 — 설계 판정 (방 b4b90288) · VERDICT: FAIL → 차단 3건 반영 → PASS
 - 문서 `docs/DEMO_VIDEO_DESIGN.md` §18. 서버 배치 B(공방 dev · 운영은 유튜브 링크·mp4 업로드만).
 - 차단: ① 드라이브 폴더를 워크스페이스 root 밖으로(gdriveIngest 가 root 하위를 들임) ② 조각 해시에 앞 장면·해석된 전환·startFrame·engineVersion + 길이 수정은 뒤 전부 재렌더 ③ dev nginx 50M → 앱 안 분할 업로드. 비차단 13건 설계 반영.
