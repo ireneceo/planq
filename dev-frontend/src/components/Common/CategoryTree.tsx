@@ -1,4 +1,4 @@
-// 좌측 카테고리 트리 — Q info(KnowledgePage)와 프로젝트>정보(ProjectKnowledgeTab)가 **같은 한 벌**을 쓴다.
+// 좌측 카테고리 트리 — Q info(KnowledgePage)와 프로젝트>정보(KnowledgePage mode=project)가 **같은 한 벌**을 쓴다.
 //
 // 왜 뽑았나 (2026-09-03): Irene 이 프로젝트>정보에도 "카테고리를 좌측에" 요청했다.
 //   KnowledgePage 안의 styled 를 복사해 넣으면 당장은 같아 보이지만 반드시 갈라진다 —

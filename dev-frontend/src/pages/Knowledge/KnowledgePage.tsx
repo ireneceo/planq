@@ -97,9 +97,15 @@ const formatDateSafe = (input: string | number | Date | null | undefined, kind: 
 
 // N+30 — 개인 보관함 통합용 props. mode='personal' 시 fetchPersonalKb (본인 + scope='private') 호출
 // + PageShell wrapping 차단 (embedded). 옛 호출처 (Q info 메뉴) 는 props 안 전달 → workspace 모드 그대로.
+// mode='project' — 프로젝트>정보 탭이 이 본체를 얹는다(2026-10-29, Irene «프로젝트>정보 탭 기능이 왜 Q info 랑 달라?»).
+//   옛 ProjectKnowledgeTab 은 축소판을 베껴 그려 항목(링크·시크릿)·편집·CSV·휴지통이 없었다.
+//   바뀌는 것은 ①목록 범위(그 프로젝트) ②새로 만드는 것의 기본 공개 범위(이 프로젝트) ③범위 필터 숨김 ④URL(?doc·?prefill) 안 읽음.
 interface KnowledgePageProps {
   embedded?: boolean;
-  mode?: 'workspace' | 'personal';
+  mode?: 'workspace' | 'personal' | 'project';
+  projectId?: number;
+  /** project 모드 — 프로젝트의 워크스페이스. 없으면 로그인 창의 워크스페이스 */
+  businessIdOverride?: number;
 }
 
 
@@ -156,13 +162,18 @@ function collectRemovedCols(
     });
 }
 
-const KnowledgePage: React.FC<KnowledgePageProps> = ({ embedded = false, mode = 'workspace' }) => {
+const KnowledgePage: React.FC<KnowledgePageProps> = ({ embedded = false, mode = 'workspace', projectId, businessIdOverride }) => {
   const { t } = useTranslation('knowledge');
   const isPhone = useMediaQuery('(max-width: 640px)');   // PageShell 이 액션을 머리줄 아래로 내리는 폭과 같은 질의
   const { t: tErr } = useTranslation('errors');
   const secLabel = useSecurityLevelLabel();  // D4 #62 보안등급 라벨
   const { user } = useAuth();
-  const businessId = user?.business_id ? Number(user.business_id) : null;
+  const businessId = businessIdOverride ?? (user?.business_id ? Number(user.business_id) : null);
+  const projectMode = mode === 'project' && !!projectId;
+  // 등록 창 기본값 — 프로젝트 탭에서 만들면 «이 프로젝트» 공개(L2_project). 창 안에서 바꿀 수 있다(Q info 와 같은 창).
+  const projectDraftDefaults = projectMode
+    ? { scope: 'project' as KbScope, project_id: projectId as number | null, vlevel: 'L2' as KbVlevel }
+    : {};
 
   // ─── 리스트 + 필터 상태 ───
   // 원본·첨부 파일 다운로드 — 인증 fetch + 진행 표시 (링크 방식은 401)
@@ -170,7 +181,7 @@ const KnowledgePage: React.FC<KnowledgePageProps> = ({ embedded = false, mode = 
   const [docs, setDocs] = useState<KbDocumentRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeCat, setActiveCat] = useState<KbCategory | 'all'>('all');
-  const [activeScope, setActiveScope] = useState<KbScope | 'all'>('all');
+  const [activeScope, setActiveScope] = useState<KbScope | 'all'>(projectMode ? 'project' : 'all');
   const [activePolicy, setActivePolicy] = useState<'all' | 'all_members' | 'owner_only'>('all');
   // 기본 작성일 최신순 — 고친 글이 맨 위로 튀지 않게(2026-10-06). 규칙은 ListSortSelect 한 벌.
   const [sortKey, setSortKey] = useState<ListSortKey>(LIST_SORT_DEFAULT);
@@ -178,7 +189,7 @@ const KnowledgePage: React.FC<KnowledgePageProps> = ({ embedded = false, mode = 
   const [selectMode, setSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
-  const [activeProject, setActiveProject] = useState<number | null>(null);
+  const [activeProject, setActiveProject] = useState<number | null>(projectMode ? projectId! : null);
   const [activeClient, setActiveClient] = useState<number | null>(null);
   const [activeTag, setActiveTag] = useState<string | null>(null);
   const [search, setSearch] = useState('');
@@ -245,6 +256,7 @@ const KnowledgePage: React.FC<KnowledgePageProps> = ({ embedded = false, mode = 
     // N+64 — 통합 visibility (L3 default = 워크스페이스 전체)
     vlevel: 'L3' as KbVlevel,
     target_member_ids: [] as number[],
+    ...projectDraftDefaults,
   });
   // N+64 — 카테고리 마스터 (자유 추가/편집)
   const [catMaster, setCatMaster] = useState<KbCategoryRow[]>([]);
@@ -302,7 +314,7 @@ const KnowledgePage: React.FC<KnowledgePageProps> = ({ embedded = false, mode = 
 
   // N+42: Q Note 정리하기 → 지식 등록 prefill. 마운트 시 한 번만 적용 + URL 정리.
   useEffect(() => {
-    if (prefillAppliedRef.current) return;
+    if (prefillAppliedRef.current || projectMode) return;
     const prefill = searchParams.get('prefill');
     const prefillTitle = searchParams.get('prefill_title');
     if (!prefill && !prefillTitle) return;
@@ -328,14 +340,15 @@ const KnowledgePage: React.FC<KnowledgePageProps> = ({ embedded = false, mode = 
   //   같은 값으로 재적용되는 일은 없다(값이 그대로다).
   const docParamAppliedRef = useRef<string | null>(null);
   useEffect(() => {
-    const docParam = searchParams.get('doc');
+    // 프로젝트 탭 안에서는 주소의 ?doc 를 읽지 않는다 — 프로젝트 상세 주소와 섞이지 않게(상세는 내부 state 만)
+    const docParam = projectMode ? null : searchParams.get('doc');
     if (!docParam) { docParamAppliedRef.current = null; return; }
     if (docParamAppliedRef.current === docParam) return;
     const id = Number(docParam);
     if (!id) return;
     setDetailId(id);
     docParamAppliedRef.current = docParam;
-  }, [searchParams]);
+  }, [searchParams, projectMode]);
 
   // ─── 검색 디바운스 ───
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -501,7 +514,7 @@ const KnowledgePage: React.FC<KnowledgePageProps> = ({ embedded = false, mode = 
   }, [modalOpen, businessId, wsFilesLoaded, wsPostsLoaded]);
 
   const resetModal = () => {
-    setDraft({ title: '', body: '', category: 'manual', categories: ['manual'], scope: 'workspace', project_id: null, client_id: null, custom_columns: [], custom_values: {}, read_policy: 'all', client_ids: [], vlevel: 'L3', target_member_ids: [] });
+    setDraft({ title: '', body: '', category: 'manual', categories: ['manual'], scope: 'workspace', project_id: null, client_id: null, custom_columns: [], custom_values: {}, read_policy: 'all', client_ids: [], vlevel: 'L3', target_member_ids: [], ...projectDraftDefaults });
     setUploadFiles([]);
     setPickedFileIds(new Set());
     setPickedPostIds(new Set());
@@ -702,10 +715,11 @@ const KnowledgePage: React.FC<KnowledgePageProps> = ({ embedded = false, mode = 
   const renderRowMeta = (d: KbDocumentRow) => {
     // 카테고리는 별도 chip 으로 표시 — meta 텍스트에는 빼고 스코프·소속만
     const parts: string[] = [];
-    if (d.scope !== 'workspace') {
+    // 프로젝트 탭 안에서는 «프로젝트 · X» 를 또 적을 이유가 없다
+    if (d.scope !== 'workspace' && !(projectMode && d.scope === 'project')) {
       parts.push(t(`scope.${d.scope}`) as string);
     }
-    if (d.scope === 'project' && d.project_id) {
+    if (d.scope === 'project' && d.project_id && !projectMode) {
       const p = projects.find(x => x.id === d.project_id);
       if (p) parts.push(p.name);
     }
@@ -723,22 +737,22 @@ const KnowledgePage: React.FC<KnowledgePageProps> = ({ embedded = false, mode = 
     return parts.join(' · ');
   };
 
-  return (
-    <PageShell
-      embedded={embedded}
-      title={t('page.title') as string}
-      count={docs.length}
-      helpDot={
-        <HelpDot askCue={t('help.cuePrefill') as string} topic="qknowledge">
-          {t('help.body')}
-        </HelpDot>
-      }
-      actions={
+  const headerActions = (
         <>
           {/* 폰(≤640) — 머리줄 아래 한 줄에 버튼 4개(414px)가 안 들어가 «+ 새 정보» 가 화면 밖으로 나갔다(2026-10-23).
               가끔 쓰는 CSV 둘을 글자 메뉴 «CSV» 하나로 접는다(⋯ 금지 — 뜻이 안 보인다). 높이는 줄의 다른 버튼과 같은 36.
               DOM 은 한쪽만 그린다(CSS 로 숨기면 유령 버튼 — PageShell 주석). 태블릿·데스크탑은 그대로. */}
-          {isPhone ? (
+          {projectMode ? (
+            /* 프로젝트 탭 — CSV 올리기는 워크스페이스 범위로만 저장하므로 내보내기만 둔다 */
+            <CsvBtn type="button" onClick={handleExportCsv} disabled={!filtered.length} title={t('page.exportCsv') as string}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                <polyline points="7 10 12 15 17 10"/>
+                <line x1="12" y1="15" x2="12" y2="3"/>
+              </svg>
+              {t('page.exportCsv')}
+            </CsvBtn>
+          ) : isPhone ? (
             <CsvMenu
               label={t('page.csvMenu') as string}
               triggerLabel="CSV"
@@ -785,6 +799,7 @@ const KnowledgePage: React.FC<KnowledgePageProps> = ({ embedded = false, mode = 
             </>
           )}
           <AiActionButton
+            testId={projectMode ? 'projinfo-ai-add' : undefined}
             onClick={() => setAiIngestOpen(true)}
             label={t('page.aiIngest') as string}
             /* 운영 #315 — 옛 문구는 "문서·링크에서" 라고 했는데 링크 수집 기능은 없고 파일도 못 받았다.
@@ -795,7 +810,19 @@ const KnowledgePage: React.FC<KnowledgePageProps> = ({ embedded = false, mode = 
             <CtaPlus /><span data-cta-label>{t('page.new')}</span>
           </NewBtn>
         </>
+  );
+
+  return (
+    <PageShell
+      embedded={embedded}
+      title={t('page.title') as string}
+      count={docs.length}
+      helpDot={
+        <HelpDot askCue={t('help.cuePrefill') as string} topic="qknowledge">
+          {t('help.body')}
+        </HelpDot>
       }
+      actions={headerActions}
     >
 
       {actionError && (
@@ -812,7 +839,7 @@ const KnowledgePage: React.FC<KnowledgePageProps> = ({ embedded = false, mode = 
           placeholder={t('page.searchPh') as string}
           width={240}
         />
-        <ToolbarFilter>
+        {!projectMode && <ToolbarFilter>
           <PlanQSelect
             size="sm" isSearchable={false}
             value={{ value: activeScope, label: activeScope === 'all' ? (t('page.allScopes') as string) : (t(`scope.${activeScope}`) as string) }}
@@ -827,8 +854,8 @@ const KnowledgePage: React.FC<KnowledgePageProps> = ({ embedded = false, mode = 
               ...SCOPES.map(s => ({ value: s, label: t(`scope.${s}`) as string })),
             ]}
           />
-        </ToolbarFilter>
-        {activeScope === 'project' && (
+        </ToolbarFilter>}
+        {activeScope === 'project' && !projectMode && (
           <ToolbarFilter>
             <PlanQSelect
               size="sm" isSearchable
@@ -901,6 +928,8 @@ const KnowledgePage: React.FC<KnowledgePageProps> = ({ embedded = false, mode = 
         )}
         {/* 휴지통 — 필터줄 오른쪽 끝(Q file·Q docs 와 같은 자리·같은 버튼). 여기서 열면 «정보» 칸이 먼저. */}
         <TrashButton active={trashOpen} data-testid="info-trash-open" onClick={() => setTrashOpen(true)} />
+        {/* embedded 는 PageShell 머리줄이 없다 — 버튼을 필터줄 오른쪽 끝에 둔다(문서·파일 탭과 같은 자리) */}
+        {projectMode && <ToolbarActions data-testid="projinfo-actions">{headerActions}</ToolbarActions>}
       </Toolbar>
 
       {/* ─── 좌측 카테고리 트리 + 메인 영역 (Q file 과 같은 패턴) ─── */}
@@ -1899,7 +1928,7 @@ const KnowledgePage: React.FC<KnowledgePageProps> = ({ embedded = false, mode = 
       )}
 
       {aiIngestOpen && businessId && (
-        <KbAiIngestModal businessId={businessId} onClose={() => setAiIngestOpen(false)} onSaved={() => { setAiIngestOpen(false); load(); }} />
+        <KbAiIngestModal businessId={businessId} scope={projectMode ? 'project' : 'workspace'} projectId={projectMode ? projectId : undefined} onClose={() => setAiIngestOpen(false)} onSaved={() => { setAiIngestOpen(false); load(); }} />
       )}
       {csvIngestOpen && businessId && (
         <KbCsvIngestModal businessId={businessId} onClose={() => setCsvIngestOpen(false)} onSaved={() => { setCsvIngestOpen(false); load(); }} />
@@ -2534,6 +2563,7 @@ const Toolbar = styled.div`
 `;
 const ToolbarFilter = styled.div`min-width: 140px;`;
 const ToolbarSort = styled.div`width: 130px;`;
+const ToolbarActions = styled.div`display: flex; align-items: center; gap: 8px; margin-left: auto;`;
 // 선택 모드 토글 — Toolbar 표준 (36px, Q task 동일)
 const SelectToggle = styled.button<{ $on: boolean }>`
   height: 36px; padding: 0 14px;

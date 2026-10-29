@@ -36,7 +36,8 @@ const PostsPage = React.lazy(() => import('../../components/Docs/PostsPage'));
 const TransactionsTab = React.lazy(() => import('./TransactionsTab'));
 const ProjectReportTab = React.lazy(() => import('./ProjectReportTab'));
 const HistoryTab = React.lazy(() => import('./HistoryTab'));
-const ProjectKnowledgeTab = React.lazy(() => import('./ProjectKnowledgeTab'));
+// 정보 탭 = Q info 본체(KnowledgePage mode=project) — 축소판을 베끼지 않는다(2026-10-29, 항목·링크·편집이 빠져 있었다)
+const KnowledgePage = React.lazy(() => import('../Knowledge/KnowledgePage'));
 import PlanQSelect from '../../components/Common/PlanQSelect';
 import CalendarPicker from '../../components/Common/CalendarPicker';
 import { PROJECT_COLOR_PALETTE } from '../../utils/projectColors';
@@ -847,7 +848,7 @@ const QProjectDetailPage: React.FC = () => {
 
       {tab === 'info' && (
         <ProjectTabPane data-testid="project-tab-body-info">
-          <ProjectKnowledgeTab businessId={project.business_id} projectId={projectId} />
+          <KnowledgePage key={projectId} embedded mode="project" projectId={projectId} businessIdOverride={project.business_id} />
         </ProjectTabPane>
       )}
 
