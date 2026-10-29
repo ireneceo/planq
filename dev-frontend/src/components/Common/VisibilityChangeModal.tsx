@@ -28,9 +28,13 @@ interface Props {
   currentTargetMemberIds?: number[] | null;
   /** 고를 수 없는 이유 한 줄 — 예: 서명 요청이 걸린 문서는 «나만 보기» 를 숨기고 왜인지 말한다 */
   notice?: string;
+  /** 창 문구 바꾸기 — 예: Q note 요약을 문서로 «저장» 할 때는 «변경»·«적용» 이 아니다 */
+  title?: string;
+  hint?: string;
+  confirmLabel?: string;
 }
 
-const VisibilityChangeModal: React.FC<Props> = ({ open, current, canChooseL2 = true, projects = [], members = [], clients = [], onConfirm, onClose, onOpenShare, hide: hideProp, currentProjectId = null, currentTargetMemberIds = null, notice }) => {
+const VisibilityChangeModal: React.FC<Props> = ({ open, current, canChooseL2 = true, projects = [], members = [], clients = [], onConfirm, onClose, onOpenShare, hide: hideProp, currentProjectId = null, currentTargetMemberIds = null, notice, title, hint, confirmLabel }) => {
   const { t } = useTranslation('common');
   const cur = (current || 'L3') as string;
   // L2 는 특정 멤버가 있으면 «특정 멤버», 아니면 «특정 프로젝트»(지금 연결된 프로젝트를 미리 고른다)
@@ -79,8 +83,8 @@ const VisibilityChangeModal: React.FC<Props> = ({ open, current, canChooseL2 = t
   return (
     <Backdrop role="dialog" aria-modal="true" onClick={onClose}>
       <Card onClick={(e) => e.stopPropagation()}>
-        <Title>{t('vault.changeVis.title', { defaultValue: '공개 범위 변경' }) as string}</Title>
-        <Hint>{t('vault.changeVis.hint', { defaultValue: '누가 이 자료를 볼 수 있는지 선택하세요.' }) as string}</Hint>
+        <Title>{title || t('vault.changeVis.title', { defaultValue: '공개 범위 변경' }) as string}</Title>
+        <Hint>{hint || t('vault.changeVis.hint', { defaultValue: '누가 이 자료를 볼 수 있는지 선택하세요.' }) as string}</Hint>
         {notice && <Notice data-testid="vis-change-notice">{notice}</Notice>}
 
         {/* N+66 — 공통 VisibilityField 사용 (등록/상세 패널과 동일 UI) */}
@@ -107,7 +111,7 @@ const VisibilityChangeModal: React.FC<Props> = ({ open, current, canChooseL2 = t
               || (vis.variant === 'L2_members' && vis.target_member_ids.length === 0)
               || (vis.variant === 'L4' && vis.client_ids.length === 0)}
             onClick={submit}>
-            {busy ? t('vault.changeVis.saving', { defaultValue: '저장 중...' }) as string : t('vault.changeVis.save', { defaultValue: '적용' }) as string}
+            {busy ? t('vault.changeVis.saving', { defaultValue: '저장 중...' }) as string : (confirmLabel || t('vault.changeVis.save', { defaultValue: '적용' }) as string)}
           </Primary>
         </Actions>
       </Card>

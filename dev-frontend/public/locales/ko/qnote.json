@@ -107,6 +107,8 @@
       "savingDoc": "저장 중...",
       "savedDoc": "문서 저장됨",
       "saveDocFailed": "문서 저장 실패",
+      "saveDocVisTitle": "문서로 저장",
+      "saveDocVisHint": "저장한 문서를 누가 볼 수 있는지 고르세요. 업무·댓글 첨부에서 이 문서를 붙일 수 있습니다.",
       "viewDoc": "보기",
       "reInstructionPh": "어떻게 다시 요약할까요? (예: 더 짧게 · 결정사항 위주 · 액션 아이템 강조)",
       "reSubmit": "다시 요약",

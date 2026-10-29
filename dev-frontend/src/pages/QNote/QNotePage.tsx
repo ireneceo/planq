@@ -7,7 +7,7 @@ import VisibilityChip from '../../components/Common/VisibilityChip';
 import VisibilityChangeModal from '../../components/Common/VisibilityChangeModal';
 import { PanelGridLayout, CollapsibleSidebar, SidebarBackdrop, Panel } from '../../components/Layout/PanelLayout';
 import QNoteShareModal from '../../components/QNote/QNoteShareModal';
-import { saveSummaryAsDoc } from '../../utils/qnoteSummaryDoc';
+import SummaryDocSaveModal from './SummaryDocSaveModal';
 import { purchaseCopyKeys } from '../../utils/purchase';
 import TaskCandidateCard, { type CandidateData } from '../../components/Common/TaskCandidateCard';
 import { useNoteTaskExtraction } from '../../hooks/useNoteTaskExtraction';
@@ -397,15 +397,16 @@ const QNotePage = ({ scope, onRecordingChange }: QNotePageProps = {}) => {
   //   변경 기능이 제대로 작동 안해"). 여태 `projects={[]}` 로 **빈 배열이 하드코딩**돼 있어
   //   L2 를 고르려 해도 후보가 하나도 없었다. NewNoteModal 과 같은 엔드포인트를 쓴다.
   const [visProjects, setVisProjects] = useState<Array<{ id: number; name: string }>>([]);
+  const [docVisOpen, setDocVisOpen] = useState(false);  // 요약 → 문서 저장 창(공개 범위 고르기)
   useEffect(() => {
-    if (!visibilityModalOpen || !businessId) return;
+    if (!(visibilityModalOpen || docVisOpen) || !businessId) return;
     let alive = true;
     apiFetch(`/api/projects?business_id=${businessId}&limit=200`)
       .then((r) => r.json())
       .then((j) => { if (alive && j?.success) setVisProjects(orderProjectsForMe((j.data || []) as Array<{ id: number; name: string }>).map((p) => ({ id: p.id, name: p.name }))); })
       .catch(() => { /* 실패하면 목록이 빈 채로 — L2 는 못 고르지만 나머지 범위는 바꿀 수 있다 */ });
     return () => { alive = false; };
-  }, [visibilityModalOpen, businessId]);
+  }, [visibilityModalOpen, docVisOpen, businessId]);
   // 사이클 N+24 — review 모드 헤더 버튼 모달 state
   // N+88 — 인라인 영속 요약 (review 상시 표시). 생성/재요약 시 activeSession.summary_* 갱신.
   const [summarizing, setSummarizing] = useState(false);
@@ -435,7 +436,6 @@ const QNotePage = ({ scope, onRecordingChange }: QNotePageProps = {}) => {
     });
   }, []);
   const [reSummarizeInput, setReSummarizeInput] = useState('');
-  const [savingDoc, setSavingDoc] = useState(false);
   const [docSaved, setDocSaved] = useState(false);
   const [questionsModal, setQuestionsModal] = useState(false);
   const [settingsViewOpen, setSettingsViewOpen] = useState(false);
@@ -1562,27 +1562,6 @@ const QNotePage = ({ scope, onRecordingChange }: QNotePageProps = {}) => {
       setSummaryError((e as Error).message || (t('page.summary.failed') as string));
     } finally {
       setSummarizing(false);
-    }
-  };
-
-  // N+88 — 요약 → Q docs 문서 저장 (사적 L1). 저장 후 인라인 "보기" 링크.
-  const saveCurrentSummaryAsDoc = async () => {
-    if (!activeSession || !businessId || !activeSession.summary_full) return;
-    setSavingDoc(true);
-    setSummaryError(null);
-    try {
-      await saveSummaryAsDoc({
-        businessId: Number(businessId),
-        title: `${activeSession.title || 'Q Note'} — ${t('page.summary.title')}`,
-        keyPoints: activeSession.summary_key_points || [],
-        full: activeSession.summary_full || '',
-        labels: { keyPoints: t('page.summary.keyPointsLabel') as string, full: t('page.summary.fullLabel') as string },
-      });
-      setDocSaved(true);
-    } catch (e) {
-      setSummaryError((e as Error).message || (t('page.summary.saveDocFailed') as string));
-    } finally {
-      setSavingDoc(false);
     }
   };
 
@@ -3275,8 +3254,8 @@ const QNotePage = ({ scope, onRecordingChange }: QNotePageProps = {}) => {
                         <SummaryLink type="button" onClick={() => navigate('/docs')}>{t('page.summary.viewDoc', '보기')}</SummaryLink>
                       </SummarySavedRow>
                     ) : (
-                      <SummaryDocBtn type="button" onClick={saveCurrentSummaryAsDoc} disabled={savingDoc}>
-                        {savingDoc ? t('page.summary.savingDoc', '저장 중...') : t('page.summary.saveDoc', '문서로 저장')}
+                      <SummaryDocBtn type="button" data-testid="qnote-save-doc" onClick={() => { setSummaryError(null); setDocVisOpen(true); }}>
+                        {t('page.summary.saveDoc', '문서로 저장')}
                       </SummaryDocBtn>
                     )}
                     <SummaryRegenBtn type="button" onClick={() => setReSummarizeOpen((v) => !v)} disabled={summarizing}>
@@ -3568,6 +3547,10 @@ const QNotePage = ({ scope, onRecordingChange }: QNotePageProps = {}) => {
         />
       )}
 
+      {activeSession && businessId && (
+        <SummaryDocSaveModal open={docVisOpen} businessId={Number(businessId)} session={activeSession} projects={visProjects}
+          onSaved={() => setDocSaved(true)} onError={setSummaryError} onClose={() => setDocVisOpen(false)} />
+      )}
       {/* N+42 — 정리하기 분기 모달 (4 액션) */}
       {/* 사이클 N+25 — Q Note 공유 모달 (visibility + share_token 통합) */}
       {shareModalOpen && activeSession && (

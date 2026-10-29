@@ -107,6 +107,8 @@
       "savingDoc": "Saving...",
       "savedDoc": "Saved to docs",
       "saveDocFailed": "Failed to save document",
+      "saveDocVisTitle": "Save as document",
+      "saveDocVisHint": "Choose who can see the saved document. You can attach it in task and comment attachments.",
       "viewDoc": "View",
       "reInstructionPh": "How should it be re-summarized? (e.g., shorter · focus on decisions · highlight action items)",
       "reSubmit": "Re-summarize",

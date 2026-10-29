@@ -38,13 +38,18 @@ export async function saveSummaryAsDoc(opts: {
   keyPoints: string[];
   full: string;
   labels: SummaryDocLabels;
+  // 저장할 때 고른 공개 범위 — 안 주면 사적 기본(L1). L2 는 projectId 가 있어야 한다(서버가 프로젝트 확인).
+  vlevel?: 'L1' | 'L2' | 'L3';
+  projectId?: number | null;
 }): Promise<PostDetail> {
   const doc = buildSummaryDoc(opts.keyPoints, opts.full, opts.labels);
-  // 사적 기본 — Q Note 출력은 본인 것 (design §3 "사적 기본 유지")
+  // 사적 기본 — Q Note 출력은 본인 것 (design §3 "사적 기본 유지"). 넓히는 것은 저장하는 사람이 고를 때만.
+  const vlevel = opts.vlevel || 'L1';
   return createPost({
     business_id: opts.businessId,
     title: opts.title.slice(0, 200),
     content_json: doc as unknown as Parameters<typeof createPost>[0]['content_json'],
-    vlevel: 'L1',
+    vlevel,
+    ...(vlevel === 'L2' && opts.projectId ? { project_id: opts.projectId } : {}),
   });
 }
