@@ -27,3 +27,7 @@ paths:
   쓰는 문은 `scripts/feedback-triage.js` 하나(검증 정본 `services/feedbackTriage`, 조사 칸만 · 알림 0 · 감사 `feedback.triage`) — Irene 10-29 지시 = **이 칸에 한한 운영 쓰기 상시 승인**.
   일으키는 것은 상황판(서버 방, `projects.json feedbackTriage` → 개발시작.md 1-D 정찰 지시문). `kind='feedback'` 최상위만.
   ★ 관리자 전용 — 보고자 `/mine` 은 **남길 칸 목록(MINE_FIELDS)** 이고 계정 내보내기(data-export)도 뺀다. 회귀 health-check secrets «피드백 AI 조사 칸». 화면은 텍스트로만 그린다.
+- **관리자 답변 AI 초안 — 저장·알림·발송 없음** (2026-10-29, Irene «피드백이랑 문의 다») — 서비스 `services/adminReplyDraft` 한 벌(한도 `admin-reply-draft` 분 5·일 100 공유, LLM 용도 `admin_reply`, 비용 플랫폼 몫).
+  `POST /api/feedback/:id/ai-draft`(근거 = 같은 스레드 앞 대화 + 위키 + 피드백 AI 조사 요약) · `POST /api/inquiries/admin/:id/ai-draft`(손님 문의, 언어 = `locale`).
+  화면은 칸을 채우기만 한다(`pages/Admin/AdminReplyDraftButton`) — 피드백은 [답글 저장]·단계 버튼, 손님 문의는 «회신 초안» 칸(내부 노트와 별개, 초안 kind `admin-inquiry-reply` 범위 `'platform'`)을 [메일로 회신] 이 본문으로 싣는다.
+  근거에 없는 사실은 있다·없다 단정 금지(실측: «무료 체험 없음» 이라고 지어냈다 → 프롬프트로 막음). 자동 답변·PlanQ 직접 발송은 새 외부 발송 경로라 별도 설계(Fable).

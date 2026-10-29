@@ -610,6 +610,7 @@ module.exports = {
   generateClientSummary,
   generateDocumentDraft,
   generateEmailReplyDraft,
+  looksLikeEcho,
   generateEmailComposeDraft,
   summarizeThread,
   checkUsageLimit,

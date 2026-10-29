@@ -35,6 +35,8 @@ export function useDraftKey(kind: DraftKind, entityId: unknown, bizId?: unknown)
   if (!user?.id || isDraftsSuppressed() || isImpersonatingNow()) return null;
   if (entityId === null || entityId === undefined || entityId === '') return null;
   // 엔티티의 워크스페이스가 있으면 그것, 없을 때만 창의 워크스페이스
+  //   'platform' — 플랫폼 관리자 화면(워크스페이스 밖 자료 · 손님 문의 회신 초안). 관리자에게만 키를 준다.
+  if (bizId === 'platform') return user.platform_role === 'platform_admin' ? draftStorageKey(kind, user.id, 'platform', entityId) : null;
   const biz = bizId != null && bizId !== '' && Number(bizId) > 0 ? bizId : user.business_id;
   return draftStorageKey(kind, user.id, biz, entityId);
 }

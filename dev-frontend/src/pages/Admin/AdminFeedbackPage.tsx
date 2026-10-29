@@ -19,6 +19,7 @@ import { apiFetch } from '../../contexts/AuthContext';
 import { onSocket } from '../../services/socket';
 import { useImageLightbox } from '../../components/Common/ImageLightbox';
 import { formatDay, formatDayTime } from '../../utils/dateFormat';
+import AdminReplyDraftButton from './AdminReplyDraftButton';
 import { TriageBox, TriageChip, type TriageVerdict, type TriageBody } from './AdminFeedbackTriage';
 
 // 접수 → 검토중 → 진행대기(플랫폼관리자 승인) → 반영중 → 완료/보류 — 전이 판정은 서버 services/feedbackStatus 한 곳(2026-10-22).
@@ -396,6 +397,7 @@ const AdminFeedbackPage = () => {
                   placeholder={t('adminFeedback.responsePh', '사용자에게 보낼 답변을 작성하세요') as string}
                   rows={6}
                 />
+                <AdminReplyDraftButton key={detail.id} endpoint={`/api/feedback/${detail.id}/ai-draft`} value={response} onDraft={setResponse} />
               </Section>
             </DrawerSections>
           )}

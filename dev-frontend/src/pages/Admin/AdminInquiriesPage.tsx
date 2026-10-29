@@ -4,6 +4,8 @@
 import { useEffect, useMemo, useState, useCallback } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
+import AdminReplyDraftButton from './AdminReplyDraftButton';
+import { useDraftKey, useDraftText } from '../../hooks/useDraftText';
 import DiagnosisStatsCard from '../../components/Admin/DiagnosisStatsCard';
 import { useSearchParams } from 'react-router-dom';
 import { refreshAdminTodo } from '../../hooks/useAdminInboxCounts';
@@ -68,8 +70,19 @@ const AdminInquiriesPage = () => {
   const [detailId, setDetailId] = useState<number | null>(null);
   const [detail, setDetail] = useState<InquiryItem | null>(null);
   const [replyNote, setReplyNote] = useState('');
+  // 회신 초안 — 서버에 저장하지 않는다(내부 노트와 다르다). [메일로 회신] 이 본문으로 싣는다.
+  //   쓰다 닫아도 이 브라우저에 남는다(입력 초안 규칙) — 문의마다 따로, 처리 완료·스팸으로 저장하면 비운다.
+  const inqReplyDraft = useDraftText(useDraftKey('admin-inquiry-reply', detailId, 'platform'));
+  const replyDraft = inqReplyDraft.text;
+  const setReplyDraft = inqReplyDraft.setText;
+  const clearReplyDraft = inqReplyDraft.clear;
   const [nextStatus, setNextStatus] = useState<Status>('in_progress');
   const [submitting, setSubmitting] = useState(false);
+  const [copied, setCopied] = useState(false);
+  useEffect(() => { setCopied(false); }, [replyDraft]);
+  // 메일 앱 주소 길이 한도(≈2,000자) 안이면 초안을 본문으로 싣는다. 넘으면 [복사] 로.
+  const encodedDraft = replyDraft.trim() ? encodeURIComponent(replyDraft) : '';
+  const mailBody = encodedDraft && encodedDraft.length <= 1800 ? `&body=${encodedDraft}` : '';
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -117,12 +130,13 @@ const AdminInquiriesPage = () => {
       });
       const j = await r.json();
       if (j.success) {
+        if (nextStatus === 'resolved' || nextStatus === 'spam') clearReplyDraft();
         await load();
         refreshAdminTodo();
         closeDetail();
       }
     } finally { setSubmitting(false); }
-  }, [detail, submitting, nextStatus, replyNote, load, closeDetail]);
+  }, [detail, submitting, nextStatus, replyNote, load, closeDetail, clearReplyDraft]);
 
   const kindOptions: PlanQSelectOption[] = useMemo(() => [
     { value: 'all', label: t('adminInq.kindAll', '전체 종류') as string },
@@ -282,6 +296,25 @@ const AdminInquiriesPage = () => {
             </DSection>
 
             <DSection>
+              <DLabel>{t('adminInq.dReplyDraft')}</DLabel>
+              <ReplyTextarea
+                {...inqReplyDraft.bind}
+                rows={6}
+                placeholder={t('adminInq.dReplyDraftPh') as string}
+                data-testid="admin-inq-reply-draft"
+              />
+              <AdminReplyDraftButton key={detail.id} endpoint={`/api/inquiries/admin/${detail.id}/ai-draft`} value={replyDraft} onDraft={setReplyDraft} />
+              {replyDraft.trim() && (
+                <DraftActions>
+                  <DMeta>{t('adminInq.dReplyDraftHint')}</DMeta>
+                  <LinkBtn type="button" onClick={() => { void navigator.clipboard?.writeText(replyDraft).then(() => setCopied(true)).catch(() => {}); }}>
+                    {copied ? t('adminInq.dReplyCopied') : t('adminInq.dReplyCopy')}
+                  </LinkBtn>
+                </DraftActions>
+              )}
+            </DSection>
+
+            <DSection>
               <DLabel>{t('adminInq.dReplyNote', '답변 노트 (내부)')}</DLabel>
               <ReplyTextarea
                 value={replyNote}
@@ -298,7 +331,7 @@ const AdminInquiriesPage = () => {
           </DetailDrawer.Body>
           <DetailDrawer.Footer>
             <FooterRow>
-              <a href={`mailto:${detail.from_email}?subject=Re: ${encodeURIComponent(t('adminInq.mailSubject', 'PlanQ 문의'))} %23${detail.id}`} target="_blank" rel="noreferrer">
+              <a href={`mailto:${detail.from_email}?subject=Re: ${encodeURIComponent(t('adminInq.mailSubject', 'PlanQ 문의'))} %23${detail.id}${mailBody}`} target="_blank" rel="noreferrer">
                 <SecondaryBtn type="button">{t('adminInq.dReplyEmail', '메일로 회신')}</SecondaryBtn>
               </a>
               <PrimaryBtn type="button" onClick={submit} disabled={submitting}>
@@ -375,6 +408,8 @@ const ReplyTextarea = styled.textarea`
   font-family: inherit; resize: vertical;
   &:focus { outline: none; border-color: #14B8A6; box-shadow: 0 0 0 3px rgba(20,184,166,0.15); }
 `;
+const DraftActions = styled.div`display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 6px; & > div { margin-top: 0; }`;
+const LinkBtn = styled.button`border: none; background: none; padding: 0; color: #0D9488; font-size: 0.75rem; font-weight: 600; cursor: pointer; text-decoration: underline;`;
 const DMeta = styled.div`font-size: 0.6875rem; color: #94A3B8; margin-top: 6px;`;
 const TzTag = styled.span`
   display: inline-block; padding: 1px 6px; margin-left: 2px;

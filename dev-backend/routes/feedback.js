@@ -3,6 +3,7 @@
 //   GET    /api/feedback/mine         (내 제출 이력)
 //   GET    /api/feedback/admin        (platform_admin 전체 — 상태/카테고리 필터)
 //   PATCH  /api/feedback/:id/respond  (platform_admin — 상태 변경 + 답변 · 전이는 services/feedbackStatus)
+//   POST   /api/feedback/:id/ai-draft (platform_admin — 답변 AI 초안, 저장·알림 없음)
 //   POST   /api/feedback/:id/seen     (보고자 — 그 스레드의 답을 읽음, 확인필요에서 빠진다)
 const express = require('express');
 const router = express.Router();
@@ -286,6 +287,41 @@ router.get('/admin/counts', authenticateToken, requireRole('platform_admin'), as
     rows.forEach((r) => { if (r.status in counts) counts[r.status] = Number(r.n) || 0; });
     counts.total = Object.values(counts).reduce((a, b) => a + b, 0);
     return successResponse(res, counts);
+  } catch (err) { next(err); }
+});
+
+// POST /:id/ai-draft — 답변 AI 초안 (2026-10-29 Irene «피드백이랑 문의 다»)
+//   초안만 돌려준다. 저장·상태·보고자 알림은 지금처럼 PATCH /:id/respond 를 사람이 눌러야 일어난다.
+const { draftAdminReply, REASON_STATUS, adminReplyLimit, draftOpts } = require('../services/adminReplyDraft');
+router.post('/:id/ai-draft', authenticateToken, requireRole('platform_admin'), ...adminReplyLimit, async (req, res, next) => {
+  // audit-exempt: 초안을 돌려줄 뿐 저장하지 않는다
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id <= 0) return errorResponse(res, 'not_found', 404);
+    const item = await FeedbackItem.findByPk(id, {
+      attributes: { exclude: ['attachments'] },
+      include: [{ model: User, as: 'user', attributes: ['id', 'name'] }],
+    });
+    if (!item) return errorResponse(res, 'not_found', 404);
+    // 같은 스레드(최상위 + 추가 문의) 중 이 건보다 앞선 것 — 최근 6개 × 800자
+    const rootId = item.parent_id || item.id;
+    const prev = await FeedbackItem.findAll({
+      where: { [Op.or]: [{ id: rootId }, { parent_id: rootId }], id: { [Op.lt]: item.id } },
+      attributes: ['id', 'title', 'body', 'admin_response'],
+      order: [['id', 'DESC']], limit: 6,
+    });
+    const thread = prev.reverse().map((r) => [
+      `THEM: ${String(r.body || '').slice(0, 800)}`,
+      r.admin_response ? `US: ${String(r.admin_response).slice(0, 800)}` : '',
+    ].filter(Boolean).join('\n')).join('\n');
+    const tri = item.ai_triage && typeof item.ai_triage === 'object' ? item.ai_triage : null;
+    const notes = tri ? [`verdict: ${item.ai_triage_verdict || ''}`, tri.summary && `summary: ${tri.summary}`, tri.fix && `plan: ${tri.fix}`].filter(Boolean).join('\n') : '';
+    const r = await draftAdminReply({
+      source: 'feedback', subject: item.title, body: item.body, thread, notes,
+      recipientName: item.user?.name, ...draftOpts(req.body),
+    });
+    if (!r.ok) return errorResponse(res, r.reason, REASON_STATUS[r.reason] || 503, r.reason);
+    return successResponse(res, { draft: r.text, language: r.language });
   } catch (err) { next(err); }
 });
 

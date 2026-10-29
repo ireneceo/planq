@@ -1823,7 +1823,12 @@
       "plan": "Trial plan",
       "trialEnds": "Trial ends",
       "topics": "Topics"
-    }
+    },
+    "dReplyDraft": "Reply draft (to send to the sender)",
+    "dReplyDraftPh": "Write the reply to the sender or get an AI draft. This box is not saved.",
+    "dReplyDraftHint": "\"Reply by email\" puts this text in the email body (if it is long, copy and paste it).",
+    "dReplyCopy": "Copy",
+    "dReplyCopied": "Copied"
   },
   "downloadTray": {
     "aria": "Download progress",
@@ -2076,5 +2081,20 @@
     "moveLeft": "Move left",
     "moveRight": "Move right",
     "reset": "Reset to default"
+  },
+  "adminReplyDraft": {
+    "make": "AI reply draft",
+    "refine": "Refine with AI",
+    "busy": "Writing…",
+    "instrPh": "Anything to tell the AI (optional) — e.g. apologize first, keep it short",
+    "refinePh": "How should it change? (optional) — e.g. shorter, warmer tone",
+    "hint": "This only fills the box — you still send or save it yourself.",
+    "undo": "Undo",
+    "err": {
+      "ai_unavailable": "Couldn't make an AI draft. Please try again shortly.",
+      "ai_empty": "The AI returned an empty reply. Please try again.",
+      "ai_echoed_inbound": "The AI just copied the message. Add a note for the AI and try again.",
+      "limit": "You've used today's AI drafts. Please try again later."
+    }
   }
 }

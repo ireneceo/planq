@@ -240,4 +240,22 @@ router.patch('/admin/:id', authenticateToken, requireRole('platform_admin'), asy
   } catch (err) { next(err); }
 });
 
+// ─── POST /api/inquiries/admin/:id/ai-draft — 회신 AI 초안 (platform_admin) ───
+//   초안만 돌려준다 — reply_note(내부 노트)에 쓰지 않고 메일도 보내지 않는다. 회신은 관리자가 [메일로 회신] 으로.
+const { draftAdminReply, REASON_STATUS, adminReplyLimit, draftOpts } = require('../services/adminReplyDraft');
+router.post('/admin/:id/ai-draft', authenticateToken, requireRole('platform_admin'), ...adminReplyLimit, async (req, res, next) => {
+  // audit-exempt: 초안을 돌려줄 뿐 저장하지 않는다
+  try {
+    const inquiry = await ContactInquiry.findByPk(req.params.id);
+    if (!inquiry) return errorResponse(res, 'not_found', 404);
+    const d = inquiry.details && typeof inquiry.details === 'object' ? JSON.stringify(inquiry.details).slice(0, 1000) : '';
+    const r = await draftAdminReply({
+      source: 'contact', subject: inquiry.kind, body: `${inquiry.message}${d ? `\n\n(details) ${d}` : ''}`,
+      locale: inquiry.locale, recipientName: inquiry.from_name, ...draftOpts(req.body),
+    });
+    if (!r.ok) return errorResponse(res, r.reason, REASON_STATUS[r.reason] || 503, r.reason);
+    return successResponse(res, { draft: r.text, language: r.language });
+  } catch (err) { next(err); }
+});
+
 module.exports = router;

@@ -27,6 +27,8 @@ export const DRAFT_KINDS = {
   'task-body': { ttlMs: 7 * DAY, mode: 'edit', owners: ['components/QTask/TaskDetailDrawer.tsx'] },
   // Q sale — 상담 기록 메모(전화·미팅 내용은 길다)와 종결 사유 메모. 둘 다 모달 안에서 쓰다 닫으면 사라지던 값이다.
   'sale-interaction-body': { ttlMs: 7 * DAY, mode: 'append', owners: ['components/QSale/RecordModal.tsx'] },
+  // 플랫폼 관리자 손님 문의 회신 초안 — 서버에 저장하지 않고 메일 앱으로 넘기는 글. 문의마다 따로(2026-10-29).
+  'admin-inquiry-reply': { ttlMs: 7 * DAY, mode: 'append', owners: ['pages/Admin/AdminInquiriesPage.tsx'] },
   'sale-lost-note': { ttlMs: 7 * DAY, mode: 'append', owners: ['components/QSale/LostReasonModal.tsx'] },
   // 노트를 상담으로 저장할 때 쓰는 메모 — 요약을 손보다가 창을 닫으면 그대로 사라지던 값(2026-09-18).
   //   base = 요약 프리필. 요약이 다시 생성돼 원문이 바뀌면 옛 초안을 버린다(D-C1d).
