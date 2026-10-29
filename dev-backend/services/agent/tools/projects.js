@@ -1,6 +1,6 @@
 // AI 에이전트 도구 — 프로젝트 만들기 (2026-10-07, Fable B 판정 2 · Irene "fable 판정대로 해").
 //
-//   create_project 는 **MEDIUM(확인 2단계)** 다 — 계정 있는 고객을 붙이면 그 고객에게 프로젝트와 고객 채팅방이 바로
+//   create_project 는 **MEDIUM(확인 2단계)** 다 — 계정 있는 고객을 붙이면 그 고객에게 프로젝트(와 고객 채팅을 만들면 그 방)가 바로
 //   보인다(가시성 확대). 그래서 미리보기에 **연결될 고객·멤버 이름**을 적고, 요금제 한도는 미리보기에서 먼저 본다
 //   (거절될 요청에 확인 토큰을 내주지 않는다 — M2-b 규칙).
 //   ★ 고객은 **이미 있는** 이 워크스페이스 고객만, 멤버는 **이미 멤버인** 사람만. 새 고객·초대 메일·멤버 초대는 없다(HIGH·외부 발송).
@@ -43,9 +43,19 @@ async function resolveClients(p, ids) {
   if (rows === null) throw err('NOT_FOUND', 'client_not_found', { hint: 'Use search_clients to find client_id. Only existing clients of this workspace can be linked; PlanQ does not create or invite clients here.' });
   return rows.map((c) => ({
     client_id: c.id, name: c.display_name || c.company_name || null,
-    // 계정이 있으면 프로젝트·고객 채팅방이 그 고객에게 바로 보인다 — 미리보기에서 사람이 알아야 하는 사실
+    // 계정이 있으면 프로젝트(고객 채팅을 만들면 그 방도)가 그 고객에게 바로 보인다 — 미리보기에서 사람이 알아야 하는 사실
     has_planq_account: !!c.user_id,
   }));
+}
+
+/** 만들 채팅방 — 미리보기와 실행이 같은 계산을 쓴다(2026-10-29 Fable 설계). 명시한 chats 가 kind 보다 우선,
+ *  생략하면 지금 동작(고객 프로젝트 = 내부+고객, 내부 프로젝트 = 내부). 순서는 내부 → 고객. */
+function chatChannelsFor(kind, chats) {
+  const eff = chats || (kind === 'client' ? 'both' : 'internal');
+  const out = [];
+  if (eff === 'internal' || eff === 'both') out.push({ channel_type: 'internal' });
+  if (eff === 'client' || eff === 'both') out.push({ channel_type: 'customer' });
+  return { chats: eff, channels: out };
 }
 
 async function previewCreateProject(p, a) {
@@ -61,18 +71,21 @@ async function previewCreateProject(p, a) {
   const me = { user_id: p.userId, name: await memberName(p, p.userId) };
   const kind = a.kind === 'internal' ? 'internal' : 'client';
   const visibleTo = clients.filter((c) => c.has_planq_account).map((c) => c.name);
+  const chat = chatChannelsFor(kind, a.chats);
+  const hasClientChat = chat.channels.some((c) => c.channel_type === 'customer');
+  let note = 'No email or invitation is sent.';
+  if (visibleTo.length && hasClientChat) note = `These clients have a PlanQ account and will see this project and their client chat right away: ${visibleTo.join(', ')}. No email is sent.`;
+  else if (visibleTo.length) note = `These clients have a PlanQ account and will see this project right away: ${visibleTo.join(', ')}. No client chat is created (one can be opened later in PlanQ). No email is sent.`;
   return {
     project: {
-      name: a.name, kind, project_type: a.project_type || 'fixed',
+      name: a.name, kind, project_type: a.project_type || 'fixed', chats: chat.chats,
       start_date: a.start_date || null, end_date: a.end_date || null, stage_template: a.stage_template || null,
       description: a.description ? `${a.description.slice(0, 200)}${a.description.length > 200 ? '…' : ''}` : null,
     },
     members: [me, ...members.filter((m) => m.user_id !== p.userId)],
     clients,
-    channels: kind === 'client' ? ['internal chat', 'client chat'] : ['internal chat'],
-    note: visibleTo.length
-      ? `These clients have a PlanQ account and will see this project and their client chat right away: ${visibleTo.join(', ')}. No email is sent.`
-      : 'No email or invitation is sent.',
+    channels: chat.channels.map((c) => (c.channel_type === 'customer' ? 'client chat' : 'internal chat')),
+    note,
   };
 }
 
@@ -94,8 +107,8 @@ async function createProject(p, a, actor) {
     stageTemplate: a.stage_template,
     members: members.map((m) => ({ user_id: m.user_id })),
     clientIds: clients.map((c) => c.client_id),
-    // 채널 — 화면 기본값과 같다(내부 + 고객 프로젝트면 고객 채널). 참여자는 프로젝트 멤버 전원.
-    channels: [{ channel_type: 'internal' }, ...(kind === 'client' ? [{ channel_type: 'customer' }] : [])],
+    // 채널 — chats 인자대로(생략 = 화면 기본값: 내부 + 고객 프로젝트면 고객 채널). 참여자는 프로젝트 멤버 전원.
+    channels: chatChannelsFor(kind, a.chats).channels,
   });
   if (!r.ok) {
     if (r.code === 'quota_exceeded') throw err('QUOTA_EXCEEDED', r.planCan?.reason || 'project_limit', { limit: r.planCan?.limit ?? null, current: r.planCan?.current ?? null });

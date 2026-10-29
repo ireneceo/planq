@@ -515,7 +515,7 @@ const TOOLS = [
   // ── 2026-10-07 Fable B 판정 2·3 — 프로젝트 만들기(MEDIUM) · Q note 메모 · Q info 항목 ──
   {
     name: 'create_project', risk: 'MEDIUM', write: true, scopes: ['projects:write'],
-    description: 'Create a new project in PlanQ. You can add existing workspace members (member_user_ids from search_members) and link existing clients of this workspace (client_ids from search_clients). PlanQ does not create or invite new clients or members here and sends no email. Clients that have a PlanQ account will see the project and their client chat right away. An internal chat (and a client chat for client projects) is created. Requires confirmation: the first call only returns a preview with the names of the members and clients that will be connected.',
+    description: 'Create a new project in PlanQ. You can add existing workspace members (member_user_ids from search_members) and link existing clients of this workspace (client_ids from search_clients). PlanQ does not create or invite new clients or members here and sends no email. Clients that have a PlanQ account will see the project (and the client chat, if one is created) right away. By default an internal chat is created, plus a client chat for client projects; pass chats to change this — chats:"none" when the user does not want any chat rooms. Requires confirmation: the first call only returns a preview with the names of the members and clients that will be connected.',
     input: {
       name: z.string().trim().min(1).max(200),
       description: z.string().max(5000).optional(),
@@ -525,6 +525,7 @@ const TOOLS = [
       stage_template: z.enum(['fixed', 'subscription', 'consulting', 'custom']).optional().describe('Deal stage template (quote → contract → invoice …). Default follows project_type.'),
       client_ids: z.array(z.number().int().positive()).max(10).optional(),
       member_user_ids: z.array(z.number().int().positive()).max(30).optional(),
+      chats: z.enum(['none', 'internal', 'client', 'both']).optional().describe('Which chat rooms to create: "none" (no chats — use when the user says they do not want chats), "internal", "client" or "both". Default: "both" for client projects, "internal" for internal projects. Chats can also be opened later in PlanQ.'),
       confirmation_token: confirm, idempotency_key: idem,
     },
     preview: (p, a) => proj.previewCreateProject(p, a),
