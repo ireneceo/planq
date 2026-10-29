@@ -101,6 +101,7 @@
     "descriptionPlaceholder": "Details about this event",
     "location": "Location",
     "locationPlaceholder": "Room or address",
+    "placeSuggestions": "Place suggestions",
     "startAt": "Start",
     "endAt": "End",
     "allDay": "All day",

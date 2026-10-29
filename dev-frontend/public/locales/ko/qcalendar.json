@@ -101,6 +101,7 @@
     "descriptionPlaceholder": "일정에 대한 세부 내용",
     "location": "장소",
     "locationPlaceholder": "회의실·주소",
+    "placeSuggestions": "장소 후보",
     "startAt": "시작",
     "endAt": "종료",
     "allDay": "하루 종일",

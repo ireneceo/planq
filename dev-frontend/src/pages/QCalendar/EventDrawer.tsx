@@ -28,6 +28,7 @@ import EventMaterials from './EventMaterials';
 import BookingActions from './BookingActions';
 import { formatRRuleLabel } from '../../utils/recurrence';
 import { isEnterAction } from '../../utils/imeKey';
+import LocationAutocomplete from './LocationAutocomplete';
 import { reminderOptions, reminderLabel, REMINDER_NONE } from './reminderOptions';
 import { formatDay, formatClock, formatDayTime } from '../../utils/dateFormat';
 
@@ -150,6 +151,7 @@ const EventDrawer: React.FC<Props> = ({
   const [title, setTitle] = useState(event?.title || '');
   const [description, setDescription] = useState(event?.description || '');
   const [location, setLocation] = useState(event?.location || '');
+  const [placeListOpen, setPlaceListOpen] = useState(false);   // 장소 후보가 열린 동안 자동저장 보류(반쪽 입력 저장·알림 방지)
   const [startDate, setStartDate] = useState<string>(() => event ? toDateKey(wallOf(event, 'start_at', wsTz)) : '');
   const [endDate, setEndDate] = useState<string>(() => event ? toDateKey(wallOf(event, 'end_at', wsTz)) : '');
   const [startTime, setStartTime] = useState<string>(() => event ? formatTime(wallOf(event, 'start_at', wsTz)) : '00:00');
@@ -710,14 +712,16 @@ const EventDrawer: React.FC<Props> = ({
             <MutedSmall>{t('form.location', '위치')}</MutedSmall>
             <LocationWithCopy value={canEdit ? location : event.location}>
             {canEdit ? (
-              <AutoSaveField key={`ev${event.id}-6`} type="input" onSave={async () => {
+              <AutoSaveField key={`ev${event.id}-6`} type="input" hold={placeListOpen} onSave={async () => {
                 const v = location.trim();
                 if ((v || null) !== (event.location || null)) await saveWithNotify({ location: v || null });
               }}>
-                <Input
+                <LocationAutocomplete
+                  input={Input}
                   data-testid="event-location-input"
                   value={location}
-                  onChange={(e) => setLocation(e.target.value)}
+                  onChange={setLocation}
+                  onOpenChange={setPlaceListOpen}
                   placeholder={t('form.locationPlaceholder', '회의실, 주소 등') as string}
                 />
               </AutoSaveField>

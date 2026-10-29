@@ -15,6 +15,10 @@ interface AutoSaveFieldProps {
   type?: FieldType;
   debounceMs?: number;
   style?: React.CSSProperties;
+  /** true 인 동안은 debounce 가 터져도 저장하지 않고 들고 있다가, false 로 풀리는 순간 바로 보낸다.
+   *  (일정 위치 자동완성 — 후보를 읽느라 멈춘 사이 «스타벅스 강» 같은 반쪽 입력이 저장·알림되지 않게. 2026-10-29 Fable D5)
+   *  떠날 때(언마운트·pagehide·로그아웃) 확정 저장은 hold 를 보지 않는다. */
+  hold?: boolean;
 }
 
 // ★ transform 이 아니라 scale 속성(2026-10-22) — 배지 자리는 transform: translateY(-50%) 로 세로 가운데를 잡는데,
@@ -62,7 +66,7 @@ const ErrorPill = styled.span`
 `;
 
 const AutoSaveField = forwardRef<AutoSaveHandle, AutoSaveFieldProps>(({
-  children, onSave, type = 'input', debounceMs = 2000, style,
+  children, onSave, type = 'input', debounceMs = 2000, style, hold = false,
 }, ref) => {
   const [status, setStatus] = useState<SaveStatus>('idle');
   const [fading, setFading] = useState(false);
@@ -72,6 +76,8 @@ const AutoSaveField = forwardRef<AutoSaveHandle, AutoSaveFieldProps>(({
   const mountedRef = useRef(true);
   const saveRef = useRef(onSave);
   saveRef.current = onSave;
+  const holdRef = useRef(hold);
+  holdRef.current = hold;
   const wrapRef = useRef<HTMLDivElement>(null);
 
   // ★ 나갈 때 확정 저장 (docs/DRAFT_PERSISTENCE_DESIGN.md D-C3, 2026-09-11)
@@ -129,7 +135,7 @@ const AutoSaveField = forwardRef<AutoSaveHandle, AutoSaveFieldProps>(({
       markDirty();
       // 저장 중에 들어온 입력 — 그 debounce 가 이미 터졌거나(여기서 대기) 언마운트로 지워졌으면 지금 보낸다.
       //   아직 타이머가 살아 있으면 타이머에 맡긴다. 언마운트된 뒤에도 보낸다(마지막 입력이 서버에 가야 한다).
-      if (pendingRef.current && !debounceRef.current) void runSave();
+      if (pendingRef.current && !debounceRef.current && !(holdRef.current && mountedRef.current)) void runSave();
     });
     inflightRef.current = tracked;
     markDirty();
@@ -144,9 +150,17 @@ const AutoSaveField = forwardRef<AutoSaveHandle, AutoSaveFieldProps>(({
     debounceRef.current = setTimeout(() => {
       debounceRef.current = null;
       if (!mountedRef.current) return;
+      if (holdRef.current) return; // 들고 있다 — hold 가 풀리면 아래 이펙트가 보낸다
       void runSave();
     }, effectiveDebounce);
   }, [effectiveDebounce, clearTimers, markDirty, runSave]);
+
+  // hold 가 풀리는 순간 들고 있던 입력을 바로 보낸다(남은 debounce 를 다시 기다리지 않는다)
+  useEffect(() => {
+    if (hold || !pendingRef.current) return;
+    if (debounceRef.current) { clearTimeout(debounceRef.current); debounceRef.current = null; }
+    void runSave();
+  }, [hold, runSave]);
 
   // 남은 저장을 끝까지 보낸다 — 대기분은 즉시, 저장 중이면 끝나기를 기다렸다가 이어진 저장까지
   const flushNow = useCallback(async () => {

@@ -33,6 +33,7 @@ const dateKeyOf = (ev: { all_day?: boolean; start_at: string; end_at: string }, 
 import { personalToEvent } from './taskToEvent';
 import type { PersonalCalendarEvent } from './types';
 import { googleCalName } from './sourceLook';
+import LocationAutocomplete from './LocationAutocomplete';
 
 const TIME_OPTIONS = (() => {
   const arr: Array<{ value: string; label: string }> = [];
@@ -59,6 +60,7 @@ export default function PersonalEventDrawer({ event, businessId, onClose, onChan
 
   const [title, setTitle] = useState(event.title);
   const [location, setLocation] = useState(event.location || '');
+  const [placeListOpen, setPlaceListOpen] = useState(false);   // 장소 후보가 열린 동안 자동저장 보류
   const [description, setDescription] = useState(event.description || '');
   const [startDate, setStartDate] = useState(() => dateKeyOf(event, 'start_at'));
   const [endDate, setEndDate] = useState(() => dateKeyOf(event, 'end_at'));
@@ -229,10 +231,13 @@ export default function PersonalEventDrawer({ event, businessId, onClose, onChan
             {canEdit ? (
               <Value>
                 <LocationWithCopy value={location}>
-                  <AutoSaveField onSave={async () => { await patch({ location }); }}>
-                    <TextInput
+                  <AutoSaveField onSave={async () => { await patch({ location }); }} hold={placeListOpen}>
+                    <LocationAutocomplete
+                      input={TextInput}
+                      data-testid="personal-event-location-input"
                       value={location}
-                      onChange={(e) => setLocation(e.target.value)}
+                      onChange={setLocation}
+                      onOpenChange={setPlaceListOpen}
                       placeholder={t('personal.locationPh', { defaultValue: '장소 (선택)' }) as string}
                     />
                   </AutoSaveField>

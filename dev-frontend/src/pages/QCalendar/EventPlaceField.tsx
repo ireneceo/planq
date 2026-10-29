@@ -4,6 +4,7 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { SegmentedBtn } from '../../components/Common/segmentedToggle';
 import { Field, Label, AttachToggle, CheckboxLabel, Input, AutoMeetingRow, AutoMeetingText, PlaceToggle } from './eventFormStyles';
+import LocationAutocomplete from './LocationAutocomplete';
 
 export type PlaceMode = 'offline' | 'online';
 
@@ -41,9 +42,9 @@ const EventPlaceField: React.FC<Props> = ({
         </SegmentedBtn>
       </PlaceToggle>
       {showLocation && (
-        <Input
+        <LocationAutocomplete
           data-testid="new-event-location"
-          value={location} onChange={(e) => setLocation(e.target.value)}
+          value={location} onChange={setLocation}
           placeholder={t('form.locationPlaceholder')}
           aria-label={t('form.location') as string}
         />

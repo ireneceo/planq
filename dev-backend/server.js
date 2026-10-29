@@ -507,6 +507,7 @@ app.use('/api/auth', require('./routes/auth_oauth'));
 app.use('/api', require('./routes/oauth_popup'));            // OAuth 마지막 화면 스크립트(같은 출처 — CSP 가 인라인을 막는다)
 app.use('/api', require('./routes/external_connections'));
 app.use('/api', require('./routes/personal_calendar'));  // 개인 Google 캘린더 overlay·수정 (분리)
+app.use('/api/places', require('./routes/places'));   // 일정 «위치» 칸 장소 자동완성 프록시(카카오 로컬 · 2026-10-29 Fable 설계) — 고유 접두어
 app.use('/api/notifications', require('./routes/notifications'));
 app.use('/api/feedback', require('./routes/feedback'));
 app.use('/api/cue', require('./routes/cue'));
