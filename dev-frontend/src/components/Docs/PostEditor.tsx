@@ -31,6 +31,8 @@ import { checklistExtensions, checklistEditorCss } from './editorChecklist';   /
 import { FindReplace, findReplaceEditorCss } from './editorFindReplace';   // 찾기·바꾸기(2026-10-08)
 import FindReplaceBar from './FindReplaceBar';
 import TextStyleButton from './TextStyleButton';
+import EditorOutlineButton from './EditorOutlineButton';   // 편집 중 목차·글자 수(2026-10-29)
+import EditorInsertDocButton from './EditorInsertDocButton';   // 다른 문서 복사해 넣기(2026-10-29)
 import { toolbarScrollCss, useToolbarHScroll, ToolbarEdgeArrow } from '../Common/editorToolbarScroll';   // 글자색·배경·크기(2026-10-11 — 문서 안 표 포함)
 import { textStyleExtensions, currentTextStyleKeys, applyTextStyle, stripForeignTextStyle } from './editorTextStyle';
 
@@ -69,6 +71,7 @@ interface Props {
   projectId?: number;            // 운영 #378 — 프로젝트 문서면 그 이미지도 프로젝트 파일이어야 한다
   borderless?: boolean;          // 사이클 N+9 — 공유 미리보기 등에서 외곽 박스 제거 (이중 박스 회피)
   compact?: boolean;             // 사이클 N+17 — 메모 popup 같은 좁은 컨테이너 용. toolbar 한 줄 + 가로 스크롤 + min-height 축소.
+  longForm?: boolean;            // 2026-10-29 — 문서 본문 편집: 툴바 맨 앞 «목차» + «문서 넣기»(긴 글·여러 사람 글 합치기). 설명칸·메모에는 안 붙인다
 }
 
 async function uploadEditorImage(file: File, businessId?: number, projectId?: number): Promise<string | null> {
@@ -85,7 +88,7 @@ async function uploadEditorImage(file: File, businessId?: number, projectId?: nu
 
 
 
-const PostEditor: React.FC<Props> = ({ value, onChange, onReady, placeholder, editable = true, businessId, projectId, borderless = false, compact = false }) => {
+const PostEditor: React.FC<Props> = ({ value, onChange, onReady, placeholder, editable = true, businessId, projectId, borderless = false, compact = false, longForm = false }) => {
   const { t } = useTranslation('qdocs');
   const fileRef = useRef<HTMLInputElement>(null);
   const tbScroll = useToolbarHScroll();   // 툴바 한 줄 가로 밀기 — ‹ › 와 휠
@@ -321,6 +324,15 @@ const PostEditor: React.FC<Props> = ({ value, onChange, onReady, placeholder, ed
         <Head data-pq-editor-head="">
         <Toolbar ref={tbScroll.ref} $compact={compact}>
           <ToolbarEdgeArrow side="start" show={tbScroll.start} onStep={tbScroll.step} />
+          {longForm && (
+            <>
+              <Group>
+                <EditorOutlineButton editor={editor} buttonAs={ToolBtn} />
+                {businessId && <EditorInsertDocButton editor={editor} businessId={businessId} buttonAs={ToolBtn} />}
+              </Group>
+              <Sep />
+            </>
+          )}
           <Group>
             <ToolBtn type="button" $active={isActive('bold')} onClick={() => editor.chain().focus().toggleBold().run()} title={t('editor.bold', { defaultValue: '굵게' })}>B</ToolBtn>
             <ToolBtn type="button" $active={isActive('italic')} onClick={() => editor.chain().focus().toggleItalic().run()} title={t('editor.italic', { defaultValue: '기울임' })} style={{ fontStyle: 'italic' }}>I</ToolBtn>

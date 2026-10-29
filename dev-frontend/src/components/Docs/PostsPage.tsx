@@ -2469,7 +2469,7 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId, onEditingChange }) =>
                   )}
                   {/* 툴바를 위 MetaRow 회색 구분선에 바로 붙인다(Body gap 16 상쇄) — 편집 상단 여백 제거(Irene) */}
                   <div className="pq-fullbleed" style={{ marginTop: -16 }}>
-                    <PostEditor value={contentDraft} onChange={handleContentChange} businessId={scope.businessId} projectId={scopeProjectId} placeholder={t('contentPlaceholder', '본문을 작성하세요…') as string} borderless />
+                    <PostEditor value={contentDraft} onChange={handleContentChange} businessId={scope.businessId} projectId={scopeProjectId} placeholder={t('contentPlaceholder', '본문을 작성하세요…') as string} borderless longForm />
                   </div>
                 </>
               )}

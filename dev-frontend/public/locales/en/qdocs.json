@@ -879,6 +879,29 @@
         "purple": "Purple",
         "pink": "Pink"
       }
+    },
+    "outline": {
+      "open": "Outline — jump to a heading",
+      "aria": "Outline",
+      "label": "Outline",
+      "title": "Outline",
+      "empty": "Add headings (H1·H2·H3) and they will appear here.",
+      "stats": "{{chars}} characters (no spaces) · about {{minutes}} min read"
+    },
+    "insertDoc": {
+      "open": "Insert another document — copies its body at the cursor",
+      "aria": "Insert another document",
+      "label": "Insert doc",
+      "title": "Insert another document",
+      "submit": "Insert here",
+      "hint": "Copies the selected document's body at the cursor. Once inserted it is part of this document — edit it freely; later changes to the original won't follow.",
+      "searchPh": "Search documents by title…",
+      "none": "No documents to insert",
+      "withSource": "Add a «From: title · author» line on top",
+      "noSignature": "Signature fields are not copied.",
+      "sourceLine": "— From: {{title}}{{by}}",
+      "emptyBody": "This document has no body to insert.",
+      "failed": "Couldn't load the document. Please try again."
     }
   },
   "tab": {
