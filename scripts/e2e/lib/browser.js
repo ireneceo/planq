@@ -1,6 +1,7 @@
 // scripts/e2e/lib/browser.js — 하니스 공용: 브라우저 기동 · 로그인 · 모바일 키보드 판정
 //   puppeteer 는 dev-backend/node_modules 에 설치됨. 결정론적 exit-code 검사(health-check 계열).
 const puppeteer = require('/opt/planq/dev-backend/node_modules/puppeteer');
+require('./gate-header'); // 상황판 개발 사이트 관문 통과 표식 — 이 호스트로 가는 요청에만(값은 파일에서)
 
 const BASE = process.env.E2E_BASE || 'https://dev.planq.kr';
 const CREDS = {
