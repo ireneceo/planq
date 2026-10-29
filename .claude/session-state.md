@@ -8,7 +8,7 @@
 - 도구 `cancel_task`(MEDIUM 확인 2단계 · tasks:write 재사용 → 재연결 불필요). 권한 = 화면 상태 변경과 같은 `canChangeStatus`(담당자·작성자·owner/admin, 관리자는 볼 수 있는 업무만). 완료·이미 취소만 거절. 실행 `task_actions.cancel`.
 - 새 알림 `notifyCanceled`(제목 «업무 취소»): 담당자+의뢰자, 컨펌 중이면 컨펌자 · 행위자 제외. 화면 드롭다운 취소(PUT)도 같은 함수 → 이제 화면에서 취소해도 알림이 간다(전에는 0통).
 - 미리보기: 알림 받을 사람 · 기다리는 컨펌자 · 반복 원본(이 회차만, 시리즈 계속) · «삭제 아님, PlanQ 에서 되돌리기». 도구 설명이 «삭제해줘» 에 취소를 권한다. 복구 도구·앱 안 Cue 에는 안 넣음.
-- 검증: 실호출 29/29(MCP :3005 + 화면 :3003) · agentsurface 대조군(delete_task → FAIL) · guard 81/82 · health-check 96/96. 확인 못 함: 메일 «답변 불필요» 경로 새 알림 실측 · 실제 Claude/ChatGPT 앱 대화.
+- 검증: 실호출 29/29(MCP :3005 + 화면 :3003) · agentsurface 대조군(delete_task → FAIL) · guard 81/82 · health-check 96/96. Fable 완료 검증 FAIL 3건(의뢰자 권한 불일치 · 보류→취소 알림 두 통 · 메일 경로 코드값 노출) → 고침 → 재검 8/8(자체, Fable 2회 한도 소진). 확인 못 함: 실제 Claude/ChatGPT 앱 대화.
 - 시험 데이터: 업무 6339~ «[확인용] AI 취소 — …»(ws 6). 미커밋 qmail 6파일·MailImpersonationNote 는 다른 방 것 — 손대지 않음.
 
 ### ✅ 업무 수정요청 사유 비우기 «위 댓글 참고» #466 (방 73d4b70f · 2026-10-29 · [Opus] · Fable 설계 1회(DESIGN-READY) · 완료는 자체 검증 — ENUM·권한·공개 주소 변경 없음) — 운영 반영: 다음 배포 때(백엔드 재시작 + 프론트)

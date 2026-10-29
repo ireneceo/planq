@@ -1485,11 +1485,12 @@ async function notifyCanceled(task, actor, { fromStatus, reason = null, wsName }
  * 취소 — 화면 PUT(status=canceled)과 같은 가드(FIELD_RULES.status · 닫힌 업무 거절 · 이력 · 방송).
  *   지금 부르는 곳은 메일 답변 업무(services/mailReplyTask — «답변 불필요»·«확인 완료»). completed_at 은 건드리지 않는다.
  */
-async function cancel(task, actor, { reason = null } = {}) {
+async function cancel(task, actor, { reason = null, notifyReason } = {}) {
   const subj = await resolveSubject(actor);
   if (!subj.ok) return subj;
-  const ctx = await fieldContext(task, subj.subjectId, subj.platformRole);
-  if (deniedFields(['status'], ctx).length) return fail('forbidden_fields:status', 403);
+  // 판정은 canChangeStatus — AI 미리보기·보류·되돌리기와 같은 술어(취소할 수 있는 사람이 되돌릴 수도 있다).
+  //   FIELD_RULES.status 는 created_by 만 보고 request_by 를 안 봐서, 인수인계 뒤 미리보기는 토큰을 주고 실행은 403 이었다(Fable 검증 2026-10-29).
+  if (!(await canChangeStatus(task, { ...actor, userId: subj.subjectId, platformRole: subj.platformRole }))) return fail('forbidden_fields:status', 403);
   if (['completed', 'canceled'].includes(task.status)) return fail('task_closed');
   const fromStatus = task.status;
   const t = await sequelize.transaction();
@@ -1503,7 +1504,8 @@ async function cancel(task, actor, { reason = null } = {}) {
   } catch (e) { await t.rollback(); throw e; }
   await syncFocusOnTaskStatus(task, fromStatus, 'canceled');
   broadcastTask(task, 'task:updated', actor.userId);
-  await notifyCanceled(task, actor, { fromStatus, reason });
+  // 알림 본문의 사유는 사람이 쓴 글만 — 메일 경로의 코드값(mail_reply_not_needed)은 notifyReason:null 로 뺀다
+  await notifyCanceled(task, actor, { fromStatus, reason: notifyReason === undefined ? reason : notifyReason });
   audit(actor, {
     action: 'task.cancel', targetType: 'task', targetId: task.id, businessId: task.business_id,
     oldValue: { status: fromStatus }, newValue: { status: 'canceled', reason },

@@ -1680,8 +1680,9 @@ router.put('/by-business/:businessId/:id', authenticateToken, async (req, res, n
           on_hold: 'task_hold',
           external_review: 'task_external_review',
         };
+        // 보류·외부컨펌에서 바로 취소하면 «해제» 가 아니다 — 취소 알림 하나만(아래 notifyCanceled)
         const holdAction = HOLD_ACTIONS[newStatus]
-          || (['on_hold', 'external_review'].includes(prev.status)
+          || (newStatus !== 'canceled' && ['on_hold', 'external_review'].includes(prev.status)
             ? (prev.status === 'external_review' ? 'task_external_review_done' : 'task_resumed')
             : null);
         if (holdAction) {

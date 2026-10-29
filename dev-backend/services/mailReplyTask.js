@@ -162,7 +162,7 @@ async function onReplySent({ thread, senderUserId, sentAt = null, keepReplyNeede
 async function onReplyNotNeeded({ thread, actorUserId, platformRole = null, reason }) {
   const task = await openReplyTask(thread);
   if (!task) return null;
-  const r = await require('./actions/task_actions').cancel(task, userActor(actorUserId, platformRole), { reason });
+  const r = await require('./actions/task_actions').cancel(task, userActor(actorUserId, platformRole), { reason, notifyReason: null });   // reason 은 코드값 — 이력·감사에만
   return r.ok ? 'canceled' : null;
 }
 
