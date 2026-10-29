@@ -985,8 +985,9 @@
     "projectLink": "External view link",
     "projectLinkLead": "A link to view {{name}} progress and tasks — and ask questions — without signing in. Share it by chat or email.",
     "projectLinkLive": "External view link — currently open",
-    "pickClientTitle": "Which client is this link for?",
-    "pickClientLead": "This project has more than one client. Each client has their own chat, so each gets their own link.",
+    "pickClientTitle": "Who will chat through this link?",
+    "pickClientLead": "The overview, tasks and files are the same for every client — only the Chat tab opens the chat of the client you pick. Whoever opens the link chats as that client.",
+    "pickClientBoth": "To share with every client, make one link per client — they won't see each other's chats. Don't give it to someone who isn't a client (they'd see that client's chat).",
     "overviewThin": "Description and dates are empty, so the link overview looks thin — fill them in on the Details tab.",
     "filesNote": "On the link, images and PDFs can be viewed only · downloads are for externally shared (L4) files.",
     "historyNote": "Only key updates with “Visible to client” turned on in History appear on the link."

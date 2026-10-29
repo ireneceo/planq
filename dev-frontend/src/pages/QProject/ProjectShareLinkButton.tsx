@@ -80,6 +80,8 @@ export default function ProjectShareLinkButton({ projectId, projectName, busines
     {pickOpen && (
       <Modal isOpen onClose={() => setPickOpen(false)} title={t('share.pickClientTitle') as string} zIndex={2150}>
         <PickLead>{t('share.pickClientLead') as string}</PickLead>
+        {/* Irene 2026-10-29 «두 사람 다에게 주면? 다른 사람에게 주면?» — 고르는 이유와 함께 답을 창에 적는다 */}
+        <PickNote>{t('share.pickClientBoth') as string}</PickNote>
         <PickList data-testid="project-share-pick">
           {uniq.map((c) => (
             <PickBtn key={c.id} type="button" onClick={() => { setClientId(c.id); setPickOpen(false); setOpen(true); }}>{c.name}</PickBtn>
@@ -111,6 +113,7 @@ const LiveDot = styled.span`
   background:#14B8A6;box-shadow:0 0 0 2px #FFFFFF;
 `;
 const PickLead = styled.p`margin:0 0 12px;font-size:0.875rem;color:#475569;line-height:1.5;`;
+const PickNote = styled.p`margin:-4px 0 12px;font-size:0.8125rem;color:#64748B;line-height:1.5;`;
 const PickList = styled.div`display:flex;flex-direction:column;gap:8px;padding-bottom:4px;`;
 const PickBtn = styled.button`
   min-height:44px;padding:0 14px;text-align:left;border:1px solid #E2E8F0;border-radius:10px;background:#FFFFFF;
