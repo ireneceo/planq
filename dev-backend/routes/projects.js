@@ -4126,7 +4126,8 @@ router.get('/workspace/:bizId/all-files', authenticateToken, async (req, res, ne
           uploader_id: a.Message.sender_id,
           uploader_name: a.Message.sender ? a.Message.sender.name : null,
           uploaded_at: (a.createdAt || a.created_at || new Date()).toISOString ? (a.createdAt || a.created_at).toISOString() : new Date().toISOString(),
-          download_url: a.file_path ? `/uploads/${path.relative(path.join(__dirname, '..', 'uploads'), a.file_path)}` : null,
+          // download_url 은 인증 내려받기 라우트 — `/uploads/` 는 서빙되지 않는다(nginx 가 앱 index.html 을 줘 «열 수 없는 형식»·html 내려받기, Irene 10-29)
+          download_url: `/api/message-attachments/${a.id}/download`,
           preview_url: previewUrl,
           context: conv ? { kind: 'conversation', id: conv.id, label: conv.title || '대화방' } : undefined,
           project_context: proj ? { id: proj.id, name: proj.name, color: proj.color } : null,
@@ -4169,7 +4170,8 @@ router.get('/workspace/:bizId/all-files', authenticateToken, async (req, res, ne
           // 라우터 마운트 경로 포함 — `/public/attach/...` 는 존재하지 않는 경로라 404 였다
           // ★ /api/tasks/public/attach 는 이미 Drive 를 서버가 받아 흘려준다(readAttachmentBody).
           //   external_url 로 직행시키면 수신자가 구글 401 을 만난다 (2026-09-03).
-          download_url: `/api/tasks/public/attach/${a.stored_name}`,
+          // 공개 attach 문은 이미지 전용(403) — 문서·PDF 는 인증 라우트로. 문서 연결(post_id)은 내려받을 바이트가 없다
+          download_url: a.post_id ? null : `/api/tasks/attachments/${a.id}/download`,
           preview_url: previewUrl,
           external_id: a.external_id || null,
           external_url: a.external_url || null,
@@ -4338,7 +4340,8 @@ router.get('/:id/files', authenticateToken, async (req, res, next) => {
           uploader_id: a.Message.sender_id,
           uploader_name: a.Message.sender ? a.Message.sender.name : null,
           uploaded_at: (a.createdAt || a.created_at || new Date()).toISOString ? (a.createdAt || a.created_at).toISOString() : new Date().toISOString(),
-          download_url: a.file_path ? `/uploads/${path.relative(path.join(__dirname, '..', 'uploads'), a.file_path)}` : null,
+          // download_url 은 인증 내려받기 라우트 — `/uploads/` 는 서빙되지 않는다(nginx 가 앱 index.html 을 줘 «열 수 없는 형식»·html 내려받기, Irene 10-29)
+          download_url: `/api/message-attachments/${a.id}/download`,
           // 판정은 services/filePreview 단일 원천 — 파일명까지 본다(mime 을 모르고 올라온 PNG 구제).
           preview_url: (isRenderableImage(a.mime_type, a.file_name) && a.file_path)
             ? `/api/message-attachments/public/${a.storage_provider === 'gdrive' ? (a.external_id || a.file_path) : path.basename(a.file_path)}`
@@ -4377,7 +4380,8 @@ router.get('/:id/files', authenticateToken, async (req, res, next) => {
           // 라우터 마운트 경로 포함 — `/public/attach/...` 는 존재하지 않는 경로라 404 였다
           // ★ /api/tasks/public/attach 는 이미 Drive 를 서버가 받아 흘려준다(readAttachmentBody).
           //   external_url 로 직행시키면 수신자가 구글 401 을 만난다 (2026-09-03).
-          download_url: `/api/tasks/public/attach/${a.stored_name}`,
+          // 공개 attach 문은 이미지 전용(403) — 문서·PDF 는 인증 라우트로. 문서 연결(post_id)은 내려받을 바이트가 없다
+          download_url: a.post_id ? null : `/api/tasks/attachments/${a.id}/download`,
           preview_url: (isRenderableImage(a.mime_type, a.original_name) && a.stored_name)
             ? `/api/tasks/public/attach/${a.stored_name}`
             : undefined,

@@ -390,6 +390,8 @@ export async function fetchShortcutUrl(businessId: number, fileId: string): Prom
   if (!parsed) return null;
   // 업무 첨부(task-)도 같은 문이 있다(2026-10-25) — Q file 목록의 업무 첨부·업무 상세 첨부가 이 길로 온다.
   if (parsed.source === 'task') return fetchShortcutFrom(`/api/tasks/attachments/${parsed.id}/shortcut`);
+  // 채팅 첨부(chat-)도 — 프로젝트>파일·Q file 의 채팅 행 [새 탭에서 열기] (2026-10-29)
+  if (parsed.source === 'chat') return fetchShortcutFrom(`/api/message-attachments/${parsed.id}/shortcut`);
   if (parsed.source !== 'direct') return null;
   return fetchShortcutFrom(`/api/files/${businessId}/${parsed.id}/shortcut`);
 }
