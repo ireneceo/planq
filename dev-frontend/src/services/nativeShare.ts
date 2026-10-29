@@ -4,7 +4,6 @@
 // (`planq-share-v1` 의 /_share_payload + /_share_file_{i}, X-Filename 헤더)으로 옮기고 /share-receive?shared=1 로 보낸다.
 // 그러면 공유 받은 뒤 화면(대화방·업무·메모·문서·파일 폴더 고르기)과 그 검사(--suite sharereceive)를 그대로 쓴다.
 // ★ 형식을 바꾸면 sw.js 와 ShareReceivePage.loadSharePayload 를 같이 바꾼다 — 셋이 한 계약이다.
-import { registerPlugin } from '@capacitor/core';
 import { nativePlatform } from './native';
 
 const SHARE_CACHE = 'planq-share-v1';
@@ -16,7 +15,15 @@ interface ShareReceivePlugin {
   addListener(event: 'shareReceived', cb: () => void): Promise<{ remove: () => Promise<void> }>;
 }
 
-const ShareReceive = registerPlugin<ShareReceivePlugin>('ShareReceive');
+// @capacitor/core 는 native.ts 밖에서 static import 하지 않는다(guard-native-release) — oauth.ts 와 같은 지연 등록
+let plugin: ShareReceivePlugin | null = null;
+const getPlugin = async (): Promise<ShareReceivePlugin> => {
+  if (!plugin) {
+    const { registerPlugin } = await import('@capacitor/core');
+    plugin = registerPlugin<ShareReceivePlugin>('ShareReceive');
+  }
+  return plugin;
+};
 
 const b64ToBlob = (b64: string, type: string): Blob => {
   const bin = atob(b64);
@@ -28,7 +35,7 @@ const b64ToBlob = (b64: string, type: string): Blob => {
 /** 받은 공유가 있으면 캐시에 옮기고 이동할 경로를 돌려준다. 없으면 null. */
 export async function consumeNativeShare(): Promise<string | null> {
   let p: NativeSharePayload;
-  try { p = await ShareReceive.takePending(); } catch { return null; }   // 플러그인이 없는 옛 앱 빌드
+  try { p = await (await getPlugin()).takePending(); } catch { return null; }   // 플러그인이 없는 옛 앱 빌드
   const list = Array.isArray(p?.files) ? p.files : [];
   if (!p || (!list.length && !p.text && !p.title)) return null;
 
@@ -66,7 +73,7 @@ export async function bindNativeShare(go: (path: string) => void): Promise<() =>
   if (nativePlatform() !== 'android') return () => {};
   const run = async () => { const path = await consumeNativeShare(); if (path) go(path); };
   let handle: { remove: () => Promise<void> } | null = null;
-  try { handle = await ShareReceive.addListener('shareReceived', () => { run(); }); } catch { /* 옛 앱 빌드 */ }
+  try { handle = await (await getPlugin()).addListener('shareReceived', () => { run(); }); } catch { /* 옛 앱 빌드 */ }
   run();
   return () => { handle?.remove().catch(() => {}); };
 }

@@ -1,5 +1,10 @@
 # Fable 게이트 대기열 → **판정 기록 보관소** (2026-10-08 부터)
 
+### 2026-10-29 방 e2db7199 — #434·#456 아이폰 «공유» 확장(Share Extension) 상세 설계 — 설계 **VERDICT: DESIGN-FIX** 6건 → 문서에 반영(구현은 Apple 설정 뒤)
+- 설계 `docs/NATIVE_SHARE_RECEIVE.md` «iOS 상세 설계 + 일정». 받아들인 구조: 확장은 넘겨주기만(고르는 화면은 웹 /share-receive 하나) · 파일째 복사 · 한도 안드로이드와 같음 · 응답자 사슬 open + App Group 폴백.
+- 고친 6건: ① open 셀렉터 responds(to:) 확인·completeRequest 는 복사 뒤 open completion/2초·실패 화면 [PlanQ 열기]·정본은 takePending(이벤트는 신호)·주소 `planq://share`(끝 `/` 금지) ② 묶음 정리(확장 시작 때 10분 지난 것 삭제·최신 하나만·TTL=manifest ts) ③ 동영상 빼기(정본 목록에 없음)·UTType 대조로 skipped ④ agvtool 은 확장 타깃에 버전 설정이 있어야 — ios-beta-check 에 버전·App Group 일치 검사 ⑤ 확장 PrivacyInfo.xcprivacy·required-reason API 안 씀 ⑥ HEIC → JPEG 표현 우선.
+- 곁(작은 버그·자체 검증): `services/nativeShare.ts` @capacitor/core static import → 지연 등록 — guard-native-release 실패 1 → 21/21 · build EXIT 0·error TS 0 · `--suite sharereceive` 실패 0.
+
 ### 2026-10-29 방 e2c477b6 — #469 폴더 공유 링크(공개 무인증) + 폴더째 첨부 — 설계 **DESIGN-READY**(+판정 1 정정) → 완료 검증 **VERDICT: PASS** (차단 0)
 - Irene «권고대로». 설계 `docs/FOLDER_SHARE_DESIGN.md` §4·§4-1. 커밋 1474617a.
 - 설계 판정: 살아 있는 내용 + 발급자 기준(`canAccessFileByLevel(shared_by)`) · 하위 폴더 포함 · 빠짐 = L1(발급자 본인 것도)·지정 멤버 L2·대외비 · 프로젝트 한정 L2(프로젝트 폴더 업로드 기본값)는 실림(정정) · 발급자가 떠나면 닫힘(+멤버 내보내기 때 끔) · 만료 기본 30일 · 응답 화이트리스트(토큰 안 실음) · 썸네일 이미지 버킷 · 첨부는 그 순간 사본(서버 변경 0).
