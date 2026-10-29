@@ -1,0 +1,49 @@
+{
+  "id": "emotional-brand",
+  "name": "감성 브랜드형",
+  "caption": "cinema",
+  "captionScale": 1,
+  "wordStagger": 0.16,
+  "transition": "zoom",
+  "transitionSec": 0.7,
+  "camera": {
+    "maxZoom": 1.8,
+    "fill": 0.6,
+    "easeSec": 1.4,
+    "portraitFill": 0.9
+  },
+  "spotlight": 0.6,
+  "waitSpeed": 3,
+  "grade": {
+    "saturate": 0.96,
+    "contrast": 1.04,
+    "brightness": 0.98
+  },
+  "background": "aurora",
+  "palette": {
+    "bg1": "#071F1E",
+    "bg2": "#115E59",
+    "accent": "#5EEAD4",
+    "text": "#E6FFFB",
+    "highlight": "#5EEAD4",
+    "highlightText": "#062A28"
+  },
+  "musicVolume": 0.6,
+  "duck": 0.4,
+  "sfx": {
+    "click": 0.3,
+    "whoosh": 0.35,
+    "pop": 0.2,
+    "ding": 0.4,
+    "boom": 0.7
+  },
+  "chapterCards": false,
+  "speedBadge": false,
+  "beatSync": "downbeat",
+  "pace": 1.0,
+  "source": {
+    "kind": "house",
+    "notes": "참고 영상 받기 전 기본형 — 15~30초 브랜드. 흐림에서 또렷해지는 큰 글자, 박자마다 제품 화면, 로고 마무리."
+  },
+  "cursorSize": 44
+}

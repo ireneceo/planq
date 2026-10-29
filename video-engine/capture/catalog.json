@@ -1,0 +1,74 @@
+[
+ {
+  "id": "talk-d",
+  "device": "desktop",
+  "who": "owner",
+  "desc": "Q talk 데스크탑 — 고객(노들커머스) 대화방을 열고, 대화 속 고객 요청을 강조한 뒤, AI 가 대화에서 찾은 «업무 후보» 패널을 연다.",
+  "beats": {
+   "open": "고객 대화방 열기",
+   "request": "대화 속 고객 요청 강조",
+   "ai": "AI 업무 후보 패널",
+   "candidate": "후보 카드 하나 강조(등록 직전)"
+  }
+ },
+ {
+  "id": "task-d",
+  "device": "desktop",
+  "who": "owner",
+  "desc": "Q task 데스크탑 — 팀 전체 업무 목록(담당자·마감·진행률)을 훑고, 업무 하나를 눌러 오른쪽 상세(담당자·일정·진행률)를 연다.",
+  "beats": {
+   "list": "팀 업무 목록 — 담당·마감·진행률",
+   "open": "업무 상세 열기",
+   "detail": "상세의 담당자·진행률 강조"
+  }
+ },
+ {
+  "id": "note-d",
+  "device": "desktop",
+  "who": "owner",
+  "desc": "Q note 데스크탑 — 회의 기록을 열어 AI 요약과, 회의 중 받은 질문 표시를 보여 준다.",
+  "beats": {
+   "summary": "AI 회의 요약",
+   "question": "회의 중 받은 질문 표시"
+  }
+ },
+ {
+  "id": "bill-d",
+  "device": "desktop",
+  "who": "owner",
+  "desc": "Q bill 데스크탑 — 이번 달 청구·수금 요약 카드와 월별 매출 그래프.",
+  "beats": {
+   "cards": "이번 달 청구·수금·미수금 카드",
+   "chart": "월별 매출 그래프"
+  }
+ },
+ {
+  "id": "client-d",
+  "device": "desktop",
+  "who": "client",
+  "desc": "고객(정민아) 데스크탑 — 고객은 자기 프로젝트 대화만 보인다. 링크 하나로 들어와 바로 대화.",
+  "beats": {
+   "client": "고객 화면 — 자기 프로젝트만"
+  }
+ },
+ {
+  "id": "talk-m",
+  "device": "mobile",
+  "who": "client",
+  "desc": "Q talk 휴대폰(고객) — 고객이 휴대폰에서 대화방을 열어 우리 팀과 대화. 앱 설치 없이 링크로.",
+  "beats": {
+   "open": "고객이 휴대폰에서 연 대화방(대화 내용 보임)",
+   "read": "최근 대화 읽기"
+  }
+ },
+ {
+  "id": "task-m",
+  "device": "mobile",
+  "who": "owner",
+  "desc": "Q task 휴대폰(대표) — 이동 중에도 내 업무 목록과 진행 상황을 확인.",
+  "beats": {
+   "list": "휴대폰 내 업무 목록",
+   "open": "업무 하나 열기"
+  }
+ }
+]

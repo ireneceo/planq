@@ -1,0 +1,148 @@
+{
+  "id": "a1-feature",
+  "title": "PlanQ 기능 소개 — 대화에서 청구까지 (A단계 샘플 · 강의형)",
+  "mode": "instruction",
+  "template": "calm-lecture",
+  "music": "Wallpaper",
+  "scenes": [
+    {
+      "kind": "title",
+      "dur": 3.4,
+      "kicker": "1분 만에 보는 PlanQ",
+      "lines": [
+        "고객 요청, 아직도",
+        "*카톡·메일*에서 찾고 계세요?"
+      ],
+      "sub": "대화 → 업무 → 회의 → 청구, *한 곳에서*"
+    },
+    {
+      "kind": "chapter",
+      "dur": 2.2,
+      "num": "01",
+      "title": "고객 대화",
+      "sub": "Q talk"
+    },
+    {
+      "kind": "screen",
+      "shot": "talk-d",
+      "side": {
+        "kicker": "Q talk",
+        "title": "대화 속 요청이\n업무가 됩니다"
+      },
+      "captions": {
+        "open": "고객과의 대화는 *프로젝트 안에서*",
+        "request": "고객 요청이 *대화 속에 묻히지 않게*",
+        "ai": "AI가 대화에서 *할 일 후보*를 찾아 줍니다",
+        "candidate": "확인하고 누르면 *바로 업무로*"
+      }
+    },
+    {
+      "kind": "screen",
+      "shot": "talk-m",
+      "side": {
+        "kicker": "고객 화면",
+        "title": "고객은 링크 하나로\n바로 대화에",
+        "points": [
+          "앱 설치 없이",
+          "자기 프로젝트만 보여요"
+        ]
+      },
+      "captions": {
+        "open": "고객은 *휴대폰 링크 하나로* 들어옵니다",
+        "read": "자기 프로젝트 대화만 *안전하게*"
+      }
+    },
+    {
+      "kind": "chapter",
+      "dur": 2.2,
+      "num": "02",
+      "title": "업무 관리",
+      "sub": "Q task"
+    },
+    {
+      "kind": "screen",
+      "shot": "task-d",
+      "side": {
+        "kicker": "Q task",
+        "title": "누가·언제까지\n한눈에"
+      },
+      "captions": {
+        "list": "누가 · 언제까지 · 얼마나 했는지 *한눈에*",
+        "open": "업무를 누르면 *상세가 옆에서*",
+        "detail": "담당자 · 기간 · 진행률을 *바로 수정*"
+      }
+    },
+    {
+      "kind": "screen",
+      "shot": "task-m",
+      "side": {
+        "kicker": "휴대폰에서도",
+        "title": "이동 중에도\n내 업무 확인",
+        "points": [
+          "이번 주 내 업무",
+          "진행 중 업무 이어서 작업"
+        ]
+      },
+      "captions": {
+        "list": "이동 중에도 *내 업무*를 확인하고",
+        "open": "휴대폰에서 *바로 이어서 작업*"
+      }
+    },
+    {
+      "kind": "chapter",
+      "dur": 2.2,
+      "num": "03",
+      "title": "회의 기록",
+      "sub": "Q note"
+    },
+    {
+      "kind": "screen",
+      "shot": "note-d",
+      "side": {
+        "kicker": "Q note",
+        "title": "회의는 기록만,\n정리는 AI가"
+      },
+      "captions": {
+        "summary": "회의는 기록만, *요약은 AI가*",
+        "question": "회의 중 받은 질문도 *놓치지 않게*"
+      }
+    },
+    {
+      "kind": "chapter",
+      "dur": 2.2,
+      "num": "04",
+      "title": "청구 · 수금",
+      "sub": "Q bill"
+    },
+    {
+      "kind": "screen",
+      "shot": "bill-d",
+      "side": {
+        "kicker": "Q bill",
+        "title": "청구·수금까지\n같은 흐름으로"
+      },
+      "captions": {
+        "cards": "청구 · 수금 · 미수금을 *자동으로 집계*",
+        "chart": "월별 매출도 *한 화면에서*"
+      }
+    },
+    {
+      "kind": "points",
+      "dur": 4.8,
+      "title": "PlanQ 하나로 *일이 이어집니다*",
+      "points": [
+        "고객 대화에서 바로 업무로",
+        "회의 기록은 AI가 요약",
+        "청구·수금까지 같은 흐름",
+        "고객은 링크 하나로 참여"
+      ]
+    },
+    {
+      "kind": "logo",
+      "dur": 4.2,
+      "slogan": "일을 *일답게* 하다",
+      "cta": "planq.kr 에서 시작하기",
+      "transKind": "zoom"
+    }
+  ]
+}

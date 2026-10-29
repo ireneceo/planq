@@ -1,0 +1,49 @@
+{
+  "id": "calm-lecture",
+  "name": "차분한 강의형",
+  "caption": "lower",
+  "captionScale": 1,
+  "wordStagger": 0.11,
+  "transition": "fade",
+  "transitionSec": 0.6,
+  "camera": {
+    "maxZoom": 2.1,
+    "fill": 0.62,
+    "easeSec": 1.0,
+    "portraitFill": 0.9
+  },
+  "spotlight": 0.85,
+  "waitSpeed": 2.5,
+  "grade": {
+    "saturate": 1.04,
+    "contrast": 1.02,
+    "brightness": 1.0
+  },
+  "background": "aurora",
+  "palette": {
+    "bg1": "#0B3B38",
+    "bg2": "#0F766E",
+    "accent": "#5EEAD4",
+    "text": "#CCFBF1",
+    "highlight": "#5EEAD4",
+    "highlightText": "#0B2B29"
+  },
+  "musicVolume": 0.32,
+  "duck": 0.35,
+  "sfx": {
+    "click": 0.55,
+    "whoosh": 0.25,
+    "pop": 0.3,
+    "ding": 0.35,
+    "boom": 0.5
+  },
+  "chapterCards": true,
+  "speedBadge": true,
+  "beatSync": "downbeat",
+  "pace": 1.0,
+  "source": {
+    "kind": "house",
+    "notes": "참고 영상 받기 전 기본형 — 기능 소개·강의. 챕터 카드, 하단 자막 판, 천천히 확대."
+  },
+  "cursorSize": 44
+}

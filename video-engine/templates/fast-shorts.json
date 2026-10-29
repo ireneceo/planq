@@ -1,0 +1,49 @@
+{
+  "id": "fast-shorts",
+  "name": "빠른 쇼츠형",
+  "caption": "pop",
+  "captionScale": 1,
+  "wordStagger": 0.07,
+  "transition": "mixed",
+  "transitionSec": 0.32,
+  "camera": {
+    "maxZoom": 2.6,
+    "fill": 0.72,
+    "easeSec": 0.55,
+    "portraitFill": 0.96
+  },
+  "spotlight": 1.0,
+  "waitSpeed": 4,
+  "grade": {
+    "saturate": 1.12,
+    "contrast": 1.06,
+    "brightness": 1.02
+  },
+  "background": "mesh",
+  "palette": {
+    "bg1": "#062A28",
+    "bg2": "#0D9488",
+    "accent": "#5EEAD4",
+    "text": "#F0FDFA",
+    "highlight": "#FDE047",
+    "highlightText": "#1A1A1A"
+  },
+  "musicVolume": 0.45,
+  "duck": 0.3,
+  "sfx": {
+    "click": 0.7,
+    "whoosh": 0.5,
+    "pop": 0.45,
+    "ding": 0.45,
+    "boom": 0.6
+  },
+  "chapterCards": false,
+  "speedBadge": true,
+  "beatSync": "beat",
+  "pace": 1.45,
+  "source": {
+    "kind": "house",
+    "notes": "참고 영상 받기 전 기본형 — 30초 안팎 세로. 첫 1초 후킹, 큰 팝 자막, 박자 컷, 빠른 확대."
+  },
+  "cursorSize": 52
+}

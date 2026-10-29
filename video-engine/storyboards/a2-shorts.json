@@ -1,0 +1,86 @@
+{
+  "id": "a2-shorts",
+  "mode": "instruction",
+  "template": "fast-shorts",
+  "music": "Pamgaea",
+  "instruction": "고객 대화 속 요청을 AI가 업무 후보로 찾아 주고, 업무로 관리하는 기능을 30초 쇼츠로. 대상: 외주·에이전시 대표. 고객 요청을 카톡에서 놓쳐 본 경험을 건드려라.",
+  "title": "카톡 요청, AI가 바로 업무로",
+  "concept": "외주·에이전시 대표가 카톡 속 고객 요청을 놓치는 불안을, Q talk + Q task로 ‘대화=업무’ 흐름으로 보여주는 30초 쇼츠.",
+  "hook": "카톡에 *묻힌* 고객 요청, 또 찾고 계세요?",
+  "scenes": [
+    {
+      "kind": "screen",
+      "shot": "talk-d",
+      "fromBeat": "request",
+      "maxSec": 2.5,
+      "side": {
+        "kicker": "외주·에이전시 대표",
+        "title": "카톡 요청,\n놓친 적 *있죠*?"
+      },
+      "captions": {
+        "request": "이런 요청, 나중에 *어디서* 찾죠?"
+      }
+    },
+    {
+      "kind": "kinetic",
+      "dur": 2.2,
+      "lines": [
+        {
+          "text": "이제 대화가 곧 *업무*입니다",
+          "at": 0
+        }
+      ]
+    },
+    {
+      "kind": "screen",
+      "shot": "talk-d",
+      "fromBeat": "ai",
+      "maxSec": 6.5,
+      "side": {
+        "kicker": "Q talk",
+        "title": "대화 속 요청을\nAI가 *업무 후보*로"
+      },
+      "captions": {
+        "ai": "AI가 요청을 *업무 후보*로 모읍니다"
+      }
+    },
+    {
+      "kind": "screen",
+      "shot": "task-d",
+      "fromBeat": "list",
+      "maxSec": 6.5,
+      "side": {
+        "kicker": "Q task",
+        "title": "대화에서 나온 할일,\n한 곳에서 *관리*"
+      },
+      "captions": {
+        "list": "누가 · 언제까지 · 얼마나 *한눈에*"
+      }
+    },
+    {
+      "kind": "points",
+      "dur": 4.5,
+      "title": "카톡 요청, 이제 *이렇게*",
+      "points": [
+        "메시지에서 바로 할일 생성",
+        "누가 언제 뭘 요청했는지 *남김*",
+        "흩어진 업무를 한 흐름으로"
+      ]
+    },
+    {
+      "kind": "logo",
+      "dur": 3,
+      "slogan": "일을 *일답게* 하다",
+      "cta": "planq.kr 에서 시작하기"
+    }
+  ],
+  "_ai": {
+    "model": "gpt-5.1",
+    "input_tokens": 2244,
+    "output_tokens": 649,
+    "dropped": []
+  },
+  "_review": [
+    "검토 수정 1줄: task-d list 자막 «요청이 할일로 *정리*된 화면» → «누가 · 언제까지 · 얼마나 *한눈에*»(화면에 보이는 것만)"
+  ]
+}
