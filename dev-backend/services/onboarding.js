@@ -50,25 +50,10 @@ function summarize(scope, dismissed, steps) {
 }
 
 /**
- * @returns {Promise<null | {
- *   dismissed: boolean, done_count: number, total: number, steps: Array<{key:string, done:boolean}>,
- *   groups: Array<{scope:'workspace'|'me', dismissed:boolean, done_count:number, total:number, steps:Array<{key:string, done:boolean}>}>
- * }>}  자격이 없으면 null (화면은 아무것도 그리지 않는다).
+ * 개인 묶음(알림·캘린더·앱·AI 앱) — 사람 × 워크스페이스. 카드와 관리자 «여정»(routes/admin_journey.js)이 같이 쓴다.
+ * @returns {Promise<Array<{key:string, done:boolean}>>}
  */
-async function getOnboardingState({ businessId, userId }) {
-  const bizId = Number(businessId);
-  if (!bizId || !userId) return null;
-
-  const membership = await BusinessMember.findOne({
-    where: { business_id: bizId, user_id: userId, removed_at: null },
-    attributes: ['id', 'role', 'onboarding_dismissed_at'],
-  });
-  if (!membership || !PERSONAL_ROLES.has(membership.role)) return null;
-  const isManager = ELIGIBLE_ROLES.has(membership.role);
-
-  const business = await Business.findByPk(bizId, { attributes: ['id', 'onboarding_dismissed_at'] });
-  if (!business) return null;
-
+async function personalSetup(userId, bizId) {
   const now = new Date();
   const [pushSubs, calendars, appSubs, appSessions, aiGrants] = await Promise.all([
     // 알림은 워크스페이스가 아니라 **이 사람**의 기기 기준이다 — 기기 허용은 사람이 하는 일이다.
@@ -88,12 +73,35 @@ async function getOnboardingState({ businessId, userId }) {
     }),
   ]);
 
-  const meSteps = [
+  return [
     { key: 'enable_notifications', done: pushSubs > 0 },
     { key: 'connect_calendar', done: calendars > 0 },
     { key: 'install_app', done: appSubs + appSessions > 0 },
     { key: 'connect_ai_app', done: aiGrants > 0 },
   ];
+}
+
+/**
+ * @returns {Promise<null | {
+ *   dismissed: boolean, done_count: number, total: number, steps: Array<{key:string, done:boolean}>,
+ *   groups: Array<{scope:'workspace'|'me', dismissed:boolean, done_count:number, total:number, steps:Array<{key:string, done:boolean}>}>
+ * }>}  자격이 없으면 null (화면은 아무것도 그리지 않는다).
+ */
+async function getOnboardingState({ businessId, userId }) {
+  const bizId = Number(businessId);
+  if (!bizId || !userId) return null;
+
+  const membership = await BusinessMember.findOne({
+    where: { business_id: bizId, user_id: userId, removed_at: null },
+    attributes: ['id', 'role', 'onboarding_dismissed_at'],
+  });
+  if (!membership || !PERSONAL_ROLES.has(membership.role)) return null;
+  const isManager = ELIGIBLE_ROLES.has(membership.role);
+
+  const business = await Business.findByPk(bizId, { attributes: ['id', 'onboarding_dismissed_at'] });
+  if (!business) return null;
+
+  const meSteps = await personalSetup(userId, bizId);
   const groups = [];
   let legacySteps = [];
 
@@ -162,4 +170,4 @@ async function setOnboardingDismissed({ businessId, userId, dismissed, scope = '
   return true;
 }
 
-module.exports = { getOnboardingState, setOnboardingDismissed, ELIGIBLE_ROLES, PERSONAL_ROLES };
+module.exports = { getOnboardingState, setOnboardingDismissed, personalSetup, ELIGIBLE_ROLES, PERSONAL_ROLES };

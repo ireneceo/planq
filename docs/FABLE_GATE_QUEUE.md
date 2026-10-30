@@ -1,5 +1,9 @@
 # Fable 게이트 대기열 → **판정 기록 보관소** (2026-10-08 부터)
 
+### 2026-10-30 방 d12c74b3 — PlanQ 안내방·워크스페이스 여정 — 설계 **DESIGN-FIX**
+- 설계 정본 `docs/PLANQ_GUIDE_ROOM_DESIGN.md`(원문 그대로). 1안(conversations + channel_type platform) 채택 + `support_rooms` 상태 표 · 배제 술어 access_scope 한 곳 + 가드 `platformroom` · 관리자 `/api/admin/support/*` 만 · 피드백 창 글은 안내방에 안 남김(FIX).
+- 실측 지적: platform_admin 은 API 에서 모든 대화 통과(기획 문장 고침) · plan.js 대화 수·onboarding·adoption 이 channel_type 안 보고 셈 · 메시지 쓰기 라우트 둘 · owner DELETE 아무 방.
+
 ### 2026-10-29 방 24747784 — 피드백 접수 즉시 AI 원인 조사 — 설계 **DESIGN-FIX**(6건 반영) → 완료 검증 **VERDICT: PASS**
 - 범위 bad7481f · 설계 docs/FEEDBACK_AI_TRIAGE_DESIGN.md §4. 차단 0. 상황판 주기 작업은 서버 방 몫(범위 밖).
 - 비차단: 이미 조사된 건은 검증 전에 건너뜀(exit 0) · 조사 저장이 updated_at 갱신 · 비밀값 무늬 영문만 · feedback.js 낡은 주석.

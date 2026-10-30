@@ -856,5 +856,51 @@
         "kakao": "Kakao Channel messages are sent from the Kakao admin center. Build the message with [Copy text] and [Download], then press [Mark as posted]."
       }
     }
+  },
+  "journey": {
+    "title": "Journey",
+    "loadFailed": "Couldn't load the journey",
+    "stageDone": "All stages done",
+    "stageOf": "Stage {{cur}} of {{count}}",
+    "stage": "Current stage (owner)",
+    "lastSeen": "Last seen",
+    "never": "Never",
+    "setup": "Setup",
+    "trialLeft": "Trial left",
+    "days": "{{count}} days",
+    "mail": "Mail {{count}}",
+    "members": "{{count}} members",
+    "truncated": "Showing the first 50 only",
+    "timeline": "Timeline",
+    "setupKey": {
+      "install_app": "App",
+      "enable_notifications": "Notifications",
+      "connect_calendar": "Calendar",
+      "connect_ai_app": "AI app"
+    },
+    "role": {
+      "owner": "Owner",
+      "admin": "Admin",
+      "member": "Member"
+    },
+    "signal": {
+      "inactive": "No visits for {{days}} days",
+      "trial_ending": "{{days}} trial days left",
+      "solo": "Used alone for {{days}} days",
+      "mail_error": "{{count}} mail sync errors",
+      "stage_stalled": "Still on stage {{stage}} after {{days}} days"
+    },
+    "event": {
+      "workspace_created": "Workspace created",
+      "first_member_joined": "First member joined",
+      "first_client": "First client added",
+      "first_task": "First task",
+      "first_message": "First message",
+      "first_event": "First event",
+      "first_invoice": "First invoice",
+      "first_document": "First document",
+      "first_file": "First file",
+      "first_mail_account": "First mail connected"
+    }
   }
 }

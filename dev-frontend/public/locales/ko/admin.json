@@ -856,5 +856,51 @@
         "kakao": "카카오 채널 메시지는 관리자센터에서 직접 보냅니다. [원고 복사]·[이미지 내려받기] 로 메시지를 만들고, 보낸 뒤 [게시함 표시] 를 누릅니다."
       }
     }
+  },
+  "journey": {
+    "title": "여정",
+    "loadFailed": "여정을 불러오지 못했어요",
+    "stageDone": "모든 단계 완료",
+    "stageOf": "{{cur}} / {{count}} 단계",
+    "stage": "지금 단계(대표)",
+    "lastSeen": "마지막 접속",
+    "never": "없음",
+    "setup": "설정",
+    "trialLeft": "체험 남은 날",
+    "days": "{{count}}일",
+    "mail": "메일 {{count}}",
+    "members": "멤버 {{count}}명",
+    "truncated": "처음 50명만 보여요",
+    "timeline": "시간줄",
+    "setupKey": {
+      "install_app": "앱",
+      "enable_notifications": "알림",
+      "connect_calendar": "캘린더",
+      "connect_ai_app": "AI 앱"
+    },
+    "role": {
+      "owner": "대표",
+      "admin": "관리자",
+      "member": "멤버"
+    },
+    "signal": {
+      "inactive": "{{days}}일째 접속 없음",
+      "trial_ending": "체험 {{days}}일 남음",
+      "solo": "가입 {{days}}일째 혼자 사용",
+      "mail_error": "메일 동기화 오류 {{count}}개",
+      "stage_stalled": "가입 {{days}}일째 {{stage}}단계"
+    },
+    "event": {
+      "workspace_created": "워크스페이스 만듦",
+      "first_member_joined": "첫 멤버 합류",
+      "first_client": "첫 고객 등록",
+      "first_task": "첫 업무",
+      "first_message": "첫 대화",
+      "first_event": "첫 일정",
+      "first_invoice": "첫 청구서",
+      "first_document": "첫 문서",
+      "first_file": "첫 파일",
+      "first_mail_account": "첫 메일 연결"
+    }
   }
 }

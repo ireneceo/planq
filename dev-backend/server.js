@@ -614,6 +614,8 @@ app.use('/api/plan', require('./routes/plan_refund'));   // 체험 중 결제 �
 app.use('/api/admin', require('./routes/admin'));
 // 외부 API 선불 크레딧 — 같은 /api/admin 아래. admin.js god-file 분리본.
 app.use('/api/admin', require('./routes/admin_credits'));
+// 워크스페이스 «여정»(단계·개인 설정·앱·시간줄·막힘 신호) — 같은 /api/admin 아래. 라우터 자체가 platform_admin 으로 닫혀 있다.
+app.use('/api/admin', require('./routes/admin_journey'));
 // 배포별 개발 현황 — platform_admin 전용. 라우터 자체가 authenticateToken+requireRole 로 닫혀 있다.
 app.use('/api/admin', require('./routes/admin_dev_status'));
 // 인사이트 글 SNS 발송 — platform_admin 전용 (2026-10-22, docs/SNS_PUBLISH_DESIGN.md 단계 1: 외부 발송 없음)

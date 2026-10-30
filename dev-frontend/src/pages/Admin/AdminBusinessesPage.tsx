@@ -16,6 +16,7 @@ import SearchBox from '../../components/Common/SearchBox';
 import DetailDrawer from '../../components/Common/DetailDrawer';
 import CalendarPicker from '../../components/Common/CalendarPicker';
 import BillingExemptModal from './BillingExemptModal';
+import AdminBusinessJourney from './AdminBusinessJourney';
 import {
   ModalOverlay, Dialog, DTitle, DBody, DDesc, DFooter, DError, FSpacer,
   Field, FLabel, FValue, FHelp, PlanOptions, PlanOption,
@@ -314,6 +315,7 @@ export default function AdminBusinessesPage() {
             </DetailDrawer.Header>
 
             <DetailDrawer.Body>
+              <AdminBusinessJourney businessId={detail.id} />
               <Section>
                 <SectionHead>
                   <SectionTitle>{t('detail.planSection')}</SectionTitle>

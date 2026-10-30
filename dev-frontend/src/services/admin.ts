@@ -83,6 +83,38 @@ export async function fetchAdminBusinessHistory(id: number): Promise<AdminPlanHi
   return j.data;
 }
 
+// 워크스페이스 «여정» — 단계·개인 설정·앱·시간줄·막힘 신호 (사용 모양만 — 제목·본문 없음)
+export type JourneySetupKey = 'enable_notifications' | 'connect_calendar' | 'install_app' | 'connect_ai_app';
+export interface AdminJourneyMember {
+  user_id: number;
+  name: string;
+  role: 'owner' | 'admin' | 'member';
+  joined_at: string | null;
+  last_seen_at: string | null;
+  stage: { current: number | null; stage_count: number };
+  setup: Array<{ key: JourneySetupKey; done: boolean }>;
+}
+export interface AdminJourneySignal { key: string; days?: number; count?: number; stage?: number }
+export interface AdminJourney {
+  business_id: number;
+  summary: {
+    stage: number | null; stage_count: number | null; last_seen_at: string | null; created_at: string;
+    trial_days_left: number | null; members: number; members_truncated: boolean;
+    app_installed: boolean; notifications_on: boolean; calendar_connected: boolean; ai_app_connected: boolean;
+    mail_accounts: number; mail_errors: number;
+  };
+  members: AdminJourneyMember[];
+  timeline: Array<{ key: string; at: string }>;
+  signals: AdminJourneySignal[];
+}
+
+export async function fetchAdminBusinessJourney(id: number): Promise<AdminJourney> {
+  const r = await apiFetch(`/api/admin/businesses/${id}/journey`);
+  const j = await r.json();
+  if (!j.success) throw new Error(j.message || 'journey failed');
+  return j.data;
+}
+
 export async function adminChangePlan(
   id: number,
   payload: { to_plan: PlanCode; note?: string | null; plan_expires_at?: string | null; scheduled_plan?: PlanCode | null }
