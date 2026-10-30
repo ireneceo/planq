@@ -8,7 +8,14 @@
 - 검증: 로컬 시험 서버(가짜 값) — 같은 호스트 문서·fetch·새 창·Node fetch 전부 붙음 / 다른 호스트 0 / 카나리 자체 setRequestInterception 차단 그대로 / 쿠키·POST 본문 보존. 실제 dev: `--suite tenant,tabtitle` 총 실패 0. 오늘 full-sweep 중 이 변경 뒤(21:30Z~) 끝난 스위트 36개: 어제와 같음 32 · 나빠짐 2(detailopen·docfind) · 그 둘을 머리글 켬/끔으로 번갈아 돌리니 **양쪽 다 같은 모양으로 실패**(sweep 과 겹친 부하·429 — 머리글과 무관). 21:13~21:25 실패 증가는 내가 순찰을 sweep 과 겹쳐 돌린 탓(429).
 - 오늘 밤 순찰(18:03~20:33Z, 이 변경 전)은 «FATAL Connection closed» 로 timeout(exit 124) — 이 일과 무관한 기존 문제, 아침 /개발시작 이 볼 것. 관문은 아직 nginx 에 안 들어가 «켠 상태 통과» 는 확인 못 함.
 
-### 답 기다림: PlanQ 안내방·워크스페이스 여정 기획 — Irene 결정 5개 (방 d12c74b3 · 2026-10-29 · [Opus] · Fable 안 씀 — 기획 설명 단계, 결정 뒤 Fable 설계 1회)
+### ✅ PlanQ 안내방 — Fable 설계 DESIGN-FIX + 1단계 관리자 «여정» (방 d12c74b3 · 2026-10-30 · [Opus] · 1단계 Fable 미검증(자체 검증)) — 운영 반영: 다음 배포 때(백엔드 재시작 + 프론트, 스키마 변경 없음)
+- Irene 10-30 «권고대로 진행해 줘» → 결정 5개 확정 → Fable 설계 `docs/PLANQ_GUIDE_ROOM_DESIGN.md`(DESIGN-FIX: 1안 기존 대화 + platform 종류 · support_rooms 상태 표 · 배제 술어 한 곳 + 가드 platformroom · 관리자 /api/admin/support/* 만 · 피드백 창 글은 안내방에 안 남김).
+- 1단계(커밋 61266ec5): `/admin/businesses?workspace=<id>` 드로어 맨 위 «여정» — 대표 단계·마지막 접속·앱/알림/캘린더/AI 앱/메일·체험 남은 날·멤버별 단계와 설정·시간줄·막힘 신호. 제목·본문 0.
+- 검증: 실HTTP(200/403/404/400 · 이름 403개 누수 0 + 양성 대조 · 앱 세션 넣고 빼면 값 바뀜) · 화면 3폭 18/18 · build EXIT 0 · guard 82/83 · health 실패 1(clientlink #503 다른 방).
+- **다음: 2단계 발자국**(usage_footprints · POST /api/usage/footprint · 메뉴 지도·통계) → 3 안내방 → 4 피드백 다리 → 5 제안 메시지 → 6 보완 목록. 완료 조건은 설계 문서 «구현 단계별 완료 조건». 3·5단계는 끝나면 Fable 완료 검증.
+- 처리방침 «서비스 이용 기록(열어 본 메뉴)» 문구는 2단계 운영 반영 전 필수.
+
+### 답 기다림 (이전): PlanQ 안내방·워크스페이스 여정 기획 — Irene 결정 5개 (방 d12c74b3 · 2026-10-29 · [Opus] · Fable 안 씀 — 기획 설명 단계, 결정 뒤 Fable 설계 1회)
 - 무엇: **기획서 9절 결정 5개(안내방 워크스페이스당 하나 · Cue 비용 플랫폼 부담 · 사람 답만 푸시 · 제안은 검토 후 보내기 · 고객이 눌러야 피드백 저장)를 권고대로 정하고 Fable 설계로 넘어갈까요?**
 - 왜: 새 기능·새 표·플랫폼 관리자가 워크스페이스 방에 들어가는 권한·먼저 말 거는 발송 — 구현 전에 Irene 결정 + Fable 설계가 필요. Irene «구현 전에 기획·설명».
 - 기획서 `docs/PLANQ_GUIDE_ROOM_PLAN.md` (정찰 계획 qmvts36jn 이어받음, HEAD 87285add 에서 다시 확인 — 겹치는 변경 없음). 코드 변경 0.
