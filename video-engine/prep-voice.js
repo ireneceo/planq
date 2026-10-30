@@ -21,7 +21,7 @@ if (require.main === module) {
   const id = (process.argv.find((a) => a.startsWith('--id=')) || '').slice(5);
   if (!file || !id) { console.error('사용: node prep-voice.js <파일> --id=<이름> [--face]'); process.exit(1); }
   prepVoice({ file, id, face: process.argv.includes('--face') }).then((r) => {
-    console.log(`녹음 준비 ${r.dir} · 인식 ${r.sttSeconds}s · 원본 ${r.report.original}s → ${r.report.edited}s (잘라낸 ${r.report.removed}s · 채움말 ${r.report.fillers} · 구간 ${r.report.spans}) · 문장 ${r.sentences.length}${r.faceOut ? ' · 얼굴 영상' : ''}`);
+    console.log(`녹음 준비 ${r.dir} · 인식 ${r.sttSeconds}s · 원본 ${r.report.original}s → ${r.report.edited}s (잘라낸 ${r.report.removed}s · 채움말 ${r.report.fillers} · 다시 말한 시도 ${r.report.retakes} · 구간 ${r.report.spans}) · 문장 ${r.sentences.length}${r.faceOut ? ' · 얼굴 영상' : ''}`);
     r.sentences.forEach((s, i) => console.log(`  [${i}] ${s.t0.toFixed(1)}–${s.t1.toFixed(1)} ${s.text}`));
   }).catch((e) => { console.error(e.message); process.exit(1); });
 }

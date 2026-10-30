@@ -6,6 +6,7 @@ const fs = require('fs');
 const path = require('path');
 const { analyzeAudio } = require('../lib/beats');
 const { ff } = require('../lib/ffmpeg');
+const { captionChunks } = require('../lib/voice');
 
 const ROOT = path.join(__dirname, '..');
 const SHOTS = path.join(ROOT, 'out', 'shots');
@@ -284,9 +285,11 @@ function build(script, aspect = 'landscape') {
       const nTrans = k + 1 < scenes.length ? (scenes[k + 1].transIn ?? tpl.transitionSec) : 0;
       const target = Math.max(1.2, nextStart - starts[k] + nTrans);
       if (sc.kind === 'screen') retimeScreenTo(sc, target); else sc.dur = r3(target);
-      // 이 장면이 말하는 문장 → 자막(문장마다 한 자막, 단어 시각 그대로)
+      // 이 장면이 말하는 문장 → 자막(한 줄 16자·두 줄·7초 틀로 나눔, 단어 시각 그대로)
       const [a, b] = sp.say;
-      sc.captions = S.slice(a, b + 1).map((x) => ({ text: x.text, at: r3(Math.max(0, x.t0 - starts[k])), dur: r3(x.t1 - x.t0 + 0.25), words: x.words.map((w) => ({ w: w.w, t: r3(w.t - x.t0) })) }));
+      sc.captions = S.slice(a, b + 1).flatMap((x) => captionChunks(x.words)).map((x) => ({ text: x.text, at: r3(Math.max(0, x.t0 - starts[k])), dur: r3(x.t1 - x.t0 + 0.25), words: x.words.map((w) => ({ w: w.w, t: r3(w.t - x.t0) })) }));
+      // 한 문장을 나눈 자막끼리는 겹치지 않게(두 자막이 동시에 뜨지 않게)
+      sc.captions.forEach((c, i) => { const nx = sc.captions[i + 1]; if (nx && c.at + c.dur > nx.at) c.dur = r3(Math.max(0.3, nx.at - c.at)); });
     });
     voice = { src: `media/voice/${script.voice.id}/voice.m4a`, volume: 1, spans: S.map((x) => ({ t0: x.t0, t1: x.t1 })),
       face: script.voice.face && fs.existsSync(path.join(vdir, 'face.mp4')) ? `media/voice/${script.voice.id}/face.mp4` : null };
