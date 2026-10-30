@@ -2131,12 +2131,19 @@ router.post('/:businessId/email-threads/:id/extract-tasks', // audit-exempt: 대
       const businessId = Number(req.params.businessId);
       const thread = await accessibleThread(req);
       if (!thread) return errorResponse(res, 'thread_not_found', 404);
+      // 2026-10-30 (Irene «권고대로» — AI 다시 만들기 점검 ②) — 이미 뽑은 뒤로 새 메일이 없으면 AI 를 다시 안 부른다.
+      //   커서는 자동 추출(mailAutoExtract)과 같은 칸 last_extracted_email_message_id — 자동으로 뽑은 스레드도 다시 안 돈다.
+      const lastMsg = await EmailMessage.findOne({ where: { thread_id: thread.id, business_id: businessId }, order: [['id', 'DESC']], attributes: ['id'] });
+      if (lastMsg && thread.last_extracted_email_message_id >= lastMsg.id) {
+        return successResponse(res, { candidates: [], message_count: 0, reason: 'already_extracted' });
+      }
       const extractor = require('../services/task_extractor');
       const out = await extractor.extractEmailTaskCandidates({ emailThreadId: thread.id, userId: req.user.id, businessId });
       if (out.skipped === 'usage_limit_exceeded') return errorResponse(res, 'cue_usage_limit_exceeded', 429);
       // #179 — LLM 이 아예 안 돈 것(키 미설정·게이트웨이 폴백)을 "업무 없음"으로 위장하지 않는다.
       //   summarize 처럼 503 으로 표면화 → 프론트가 "AI 잠시 불가"로 구분 표시(무반응처럼 보이던 근본).
       if (out.fallback) return errorResponse(res, 'ai_unavailable', 503);
+      if (lastMsg) await thread.update({ last_extracted_email_message_id: lastMsg.id });
       if ((out.candidates || []).length) {
         broadcastMail(req, businessId, 'email_candidate:created', { thread_id: thread.id, count: out.candidates.length });
       }

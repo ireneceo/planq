@@ -715,7 +715,7 @@ sync_database() {
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-user-date-prefs.js 2>&1 | tail -5"
   # 2026-10-01 가입 출처 — users.signup_source VARCHAR(80) NULL. 모델이 선언하므로 PM2 reload 전(없으면 users 조회 500).
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-user-signup-source.js 2>&1 | tail -5"
-  # 2026-10-30 메일 번역 저장 — email_messages.translations JSON NULL. 모델이 선언하므로 PM2 reload 전(없으면 메일 조회 500).
+  # 2026-10-30 메일 번역·서명 읽기 저장 — email_messages.translations · signature_read JSON NULL. 모델이 선언하므로 PM2 reload 전(없으면 메일 조회 500).
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-mail-translations.js 2>&1 | tail -5"
   # 2026-10-22 — 인사이트 글 SNS 발송 단계 1(docs/SNS_PUBLISH_DESIGN.md): help_articles.og_image_path + social_* 표 3. 멱등.
   #   HelpArticle 모델이 og_image_path 를 SELECT 하므로 코드 reload 보다 먼저.

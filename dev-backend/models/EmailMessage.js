@@ -49,6 +49,9 @@ EmailMessage.init({
   // 저장된 본문 번역 { <lang>: { text, detected_language, at } } — 한 번 번역하면 다시 AI 를 부르지 않는다
   //   (services/mailTranslate 가 읽고 쓰는 유일한 곳). NULL = 번역한 적 없음.
   translations: { type: DataTypes.JSON, allowNull: true },
+  // 이 메일 서명에서 AI 로 읽은 연락처 { values, found } — Q sale 고객 추가 창이 열 때마다 다시 읽던 것(2026-10-30).
+  //   쓰는 곳은 routes/sale_contacts.js mail-signature-read 하나. 본문은 안 바뀌므로 한 번 읽으면 끝. NULL = 안 읽음.
+  signature_read: { type: DataTypes.JSON, allowNull: true },
   // 메타
   sent_at: { type: DataTypes.DATE, allowNull: false },
   // M4 FAQ 클러스터링 — inbound 질문 임베딩 캐시 (text-embedding-3-small 1536d BLOB).

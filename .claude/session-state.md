@@ -12,7 +12,8 @@
 - 번역: `email_messages.translations` JSON(언어별) · `services/mailTranslate`(저장본 있으면 AI 안 부름 · JSON_SET 으로 그 언어만) · 상세 응답 `translations` · 화면 버튼 «번역 보기»(접힌 채 시작). 
 - 요약: 브리프(«메일 내용 요약»)·우측 [요약] 이 `email_threads.ai_summary` 를 같이 쓴다 — 요약한 뒤로 새 메일(created_at)이 없으면 다시 안 만듦(`mailBrief.savedSummaryFresh`). 다른 언어 요청이면 새로.
 - 검증(dev 실HTTP): 번역 1회 2.4초 → 2회 0.02초 cached · 상세 응답 keys en · ja 더해도 en 유지 · xx 400 · 다른 워크스페이스 404. 요약 7/7(저장 없음→AI · [요약] 재사용 20ms · 브리프 재사용 · 새 메일 대조군 → 둘 다 AI · 되돌리면 재사용 · language=en 새로). 함정: attributes 로 고른 created_at 은 인스턴스 속성으로 안 붙는다(get() 필요) — 대조군이 잡음.
-- 점검에서 남은 «같은 입력인데 매번 AI» (안 고침): ① Q sale 고객 추가 창 열 때마다 메일 서명 읽기(sale_contacts mail-signature-read) ② 메일 [업무 뽑기] 버튼이 커서 없이 스레드 전체 재전송(자동 경로는 커서 있음) ③ 급여 항목 제안(국가×고용형태로 캐시 가능) ④ 위키 질문 묶기 주간 cron 이 같은 질문 임베딩 4번 ⑤ 보고서 요약·업무 시간 미리 추정·도움말 검색(작음). 메일 번역 라우트에 per-user 한도 없음(저장으로 반복 비용은 0).
+- (이어서, Irene «권고대로» ①②) ① Q sale 고객 추가 창 메일 서명 읽기 → 그 메일 `email_messages.signature_read` 에 저장, 다음부터 AI 없음(1.4초 → 0.03초, 값 11칸 같음 · 남의 스레드 404) ② 메일 [업무 추출] 버튼 → 자동 추출과 같은 커서(last_extracted_email_message_id) — 새 메일 없으면 AI 안 부르고 «이 메일은 이미 업무를 뽑았어요» (0.9초 → 0.02초 · 커서 뒤로 돌린 대조군은 다시 AI · 화면 1440·390 문구 보임). schema-snapshot 갱신(가드 schemacol).
+- 점검에서 남은 «같은 입력인데 매번 AI» (안 고침): ③ 급여 항목 제안(국가×고용형태로 캐시 가능) ④ 위키 질문 묶기 주간 cron 이 같은 질문 임베딩 4번 ⑤ 보고서 요약·업무 시간 미리 추정·도움말 검색(작음). 메일 번역 라우트에 per-user 한도 없음(저장으로 반복 비용은 0).
 
 ### ✅ 상황판 배포 실패 답 처리 — 다시 검사하니 새 빨강 1건(저장 용량 집계) → 맞춤 (방 c0f016f6 · 2026-10-30 · [Opus] · Fable 안 씀 — 개발 DB 집계 숫자 보정, 코드 변경 0) — 운영 반영 없음
 - 답 기다림 (이전): «상황판 배포 실패(10:15, health-check clientlink 1건)» → Irene «권고대로»(원인은 대기열에서 고치기). clientlink 는 아래 방 bc29190d 가 이미 고침(#503 연결) — 겹쳐서 다시 안 함.

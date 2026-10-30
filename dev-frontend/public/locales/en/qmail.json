@@ -337,6 +337,7 @@
     "tasksGated": "Tasks aren't extracted from automated · marketing mail.",
     "usageLimit": "AI usage limit for this month reached.",
     "noTasksFound": "No tasks found to extract.",
+    "alreadyExtracted": "Tasks were already extracted from this mail. You can extract again when a new message arrives.",
     "aiUnavailable": "The AI service is temporarily unavailable. Please try again shortly.",
     "register": "Add task",
     "reject": "Dismiss",

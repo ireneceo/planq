@@ -1,5 +1,5 @@
 {
-  "_generated": "2026-10-29",
+  "_generated": "2026-10-30",
   "_db": "planq_dev_db",
   "_note": "스키마 변경 후 `node scripts/dump-schema.js` 로 갱신할 것. guard-invariants schemacol 이 읽는다.",
   "tables": {
@@ -959,7 +959,9 @@
       "updated_at",
       "faq_embedding",
       "source_folder",
-      "internal_only"
+      "internal_only",
+      "translations",
+      "signature_read"
     ],
     "email_thread_participants": [
       "id",

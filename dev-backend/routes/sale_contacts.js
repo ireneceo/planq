@@ -123,13 +123,19 @@ router.post('/:businessId/mail-signature-read', ...writeChain, ...sigLimit, asyn
     if (!thread) return errorResponse(res, 'thread_not_found', 404);
     const last = await EmailMessage.findOne({
       where: { business_id: businessId, thread_id: thread.id, direction: 'inbound', from_email: email },
-      order: [['id', 'DESC']], attributes: ['body_text', 'body_html', 'from_name'],
+      order: [['id', 'DESC']], attributes: ['id', 'body_text', 'body_html', 'from_name', 'signature_read'],
     });
-    const { signatureTail } = require('../services/emailBodyClean');
-    const tail = last ? signatureTail(last.body_text, last.body_html) : '';
-    const fromName = last ? last.from_name : (req.body || {}).name;
-    const { readSignatureText } = require('../services/cardRead');
-    const { values, found } = await readSignatureText(businessId, { text: tail, fromName, fromEmail: email });
+    // 2026-10-30 (Irene «권고대로» — AI 다시 만들기 점검 ①) — 창을 열 때마다 같은 메일 서명을 AI 로 다시 읽었다.
+    //   읽은 결과는 그 메일에 남기고 다음부터 그대로 쓴다(메일 본문은 안 바뀐다). 기존 고객 찾기(match)는 매번 새로 — DB 라 공짜고 바뀔 수 있다.
+    let { values, found } = (last && last.signature_read && last.signature_read.values) ? last.signature_read : {};
+    if (!values) {
+      const { signatureTail } = require('../services/emailBodyClean');
+      const tail = last ? signatureTail(last.body_text, last.body_html) : '';
+      const fromName = last ? last.from_name : (req.body || {}).name;
+      const { readSignatureText } = require('../services/cardRead');
+      ({ values, found } = await readSignatureText(businessId, { text: tail, fromName, fromEmail: email }));
+      if (last) await last.update({ signature_read: { values, found } });
+    }
     let match = null;
     const { findExistingByContact } = require('../services/saleCommon');
     const hit = await findExistingByContact(businessId, { email: values.email, phone: values.mobile || values.phone });

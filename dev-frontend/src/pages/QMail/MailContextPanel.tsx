@@ -272,7 +272,9 @@ const MailContextPanel: React.FC<Props> = ({ businessId, thread, members, myUser
       if (j.success) {
         const got = j.data?.candidates || [];
         setCandidates((prev) => [...got, ...prev.filter(p => !got.some((g: Candidate) => g.id === p.id))]);
-        if (got.length === 0) setExtractMsg(t('context.noTasksFound', { defaultValue: '추출할 업무를 찾지 못했어요.' }) as string);
+        // 2026-10-30 — 뽑은 뒤로 새 메일이 없으면 서버가 AI 를 다시 부르지 않는다(같은 메일 = 같은 결과).
+        if (j.data?.reason === 'already_extracted') setExtractMsg(t('context.alreadyExtracted', { defaultValue: '이 메일은 이미 업무를 뽑았어요. 새 메일이 오면 다시 뽑을 수 있어요.' }) as string);
+        else if (got.length === 0) setExtractMsg(t('context.noTasksFound', { defaultValue: '추출할 업무를 찾지 못했어요.' }) as string);
       } else setExtractMsg(j.message || 'error');
     } finally { setExtractBusy(false); }
   }, [extractBusy, businessId, thread.id, t]);
