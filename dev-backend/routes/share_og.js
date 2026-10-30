@@ -10,6 +10,11 @@ const { fileShareOgEligible } = require('../services/ogSources');
 
 const router = express.Router();
 
+// 지운 워크스페이스의 공유 링크는 닫힌다 — 공개 다운로드 문(routes/files.js)과 같은 param 한 줄(Fable 2026-10-30 C1:
+//   이것이 없어서 같은 토큰에 다운로드는 404 인데 이 문만 200 으로 이미지를 냈다).
+router.param('token', (req, res, next, token) =>
+  require('../services/shareOpenable').workspaceAliveParam([[require('../models').File, 'share_token']])(req, res, next, token));
+
 // 크롤러가 한꺼번에 와도 넉넉히, 한 IP 가 긁어 가는 것만 막는다 (insight_og 와 같은 값)
 const limiter = rateLimit({ windowMs: 60_000, max: 120, standardHeaders: true, legacyHeaders: false });
 

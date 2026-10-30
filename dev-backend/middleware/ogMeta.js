@@ -121,6 +121,13 @@ function isShareExpired(row, field = 'share_expires_at') {
 //   «아는 사람만» 이라는 뜻이다 — 크롤러 캐시·AI 응답에 제목이 박제되는 것도 그 뜻에 어긋난다.
 const isLocked = (row) => !!(row && row.share_password_hash);
 
+// 지운 워크스페이스의 공유는 닫혔다 — 공개 API 의 workspaceAliveParam 과 같은 조건(Fable 2026-10-30 C1). 미리보기도 이름·이미지 0.
+async function workspaceAlive(businessId) {
+  if (!businessId) return true;
+  const { Business } = require('../models');
+  return !!(await Business.findOne({ where: { id: businessId, deleted_at: null }, attributes: ['id'] }));
+}
+
 // 라우트별 OG 컨텐츠 resolver — 자기 source 우선, 없으면 platform 기본.
 async function resolvePostShare(token, settings) {
   try {
@@ -218,7 +225,8 @@ async function resolveTypedShare(type, token, settings) {
       }
       case 'files': {
         // ★ deleted_at — 휴지통에 간 파일은 공개 API 가 404 인데 미리보기만 이름을 내보내고 있었다(by-token 과 같은 조건).
-        const r = await M.File.findOne({ where: { share_token: token, deleted_at: null }, attributes: ['file_name', 'mime_type', 'storage_provider', 'security_level', 'share_token', 'shared_at', 'share_expires_at', 'share_password_hash', 'deleted_at'] });
+        const r = await M.File.findOne({ where: { share_token: token, deleted_at: null }, attributes: ['business_id', 'file_name', 'mime_type', 'storage_provider', 'security_level', 'share_token', 'shared_at', 'share_expires_at', 'share_password_hash', 'deleted_at'] });
+        if (r && !(await workspaceAlive(r.business_id))) return null;
         if (r && !isShareExpired(r) && isLocked(r)) return ogPack(baseTitle, null, '파일', null, settings);
         if (!r || isShareExpired(r)) return null;
         const pack = ogPack(baseTitle, r.file_name, '파일', `PlanQ 에서 공유한 파일: ${r.file_name}`, settings);
@@ -229,7 +237,7 @@ async function resolveTypedShare(type, token, settings) {
       case 'folders': {
         // 판정은 공개 폴더 API 와 같은 함수(만료·발급자 권한 회수). 비밀번호면 종류만.
         const fr = await require('../services/folderShare').resolveFolderShare(token);
-        if (!fr.folder || fr.reason) return null;
+        if (!fr.folder || fr.reason || !(await workspaceAlive(fr.folder.business_id))) return null;
         if (isLocked(fr.folder)) return ogPack(baseTitle, null, '폴더', null, settings);
         return ogPack(baseTitle, fr.folder.name, '폴더', `PlanQ 에서 공유한 폴더: ${fr.folder.name}`, settings);
       }
