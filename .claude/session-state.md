@@ -41,7 +41,7 @@
 - ③ 채팅 버튼(커밋 0e044b08): 끌어서 옮기기(마우스·손가락) → 가까운 좌/우 가장자리에 붙음 · 기기별 기억(localStorage pq-dock-pos) · 위쪽이면 메뉴가 아래로 · 메뉴 맨 아래 «버튼 위치 처음대로». 기본 자리는 그대로 둠 — 다른 화면 바닥 여백(88px)이 그 자리에 맞춰져 있어 올리면 목록 끝 줄이 버튼 밑에 깔림. 문서 화면 바닥 여백 20→88px(폰은 스크롤 상자가 달라 끝 빈 자리로).
 - 검증: 3폭 23항목 중 22 통과 — 남은 1건은 데스크탑 브라우저의 «PlanQ 앱으로 설치» 띠가 문서 끝 [보내기]를 덮는 것(채팅 버튼 겹침 0 · 설치된 앱에선 안 뜸 · 손대지 않음). canary-fab-reach 문제 0 · i18n·parity 통과 · build EXIT 0·error TS 0.
 
-### 답 기다림: PlanQ GTM 번호가 PurpleHere 컨테이너와 같음 (방 de785bc6 · 2026-10-29 · [Opus] · Fable 안 씀 — 외부 서비스 설정 선택, 코드·DB 변경 없음, 컨테이너가 비어 있어 되돌리기 쉬움)
+### ✅ 답 기다림 (이전): PlanQ GTM 번호가 PurpleHere 컨테이너와 같음 → 10-30 Irene «권고대로»(A 새 컨테이너) · 카드 todomvdbjl6v(새 컨테이너 만들기·관리자 번호 바꾸기·가져오기)·todomvdbjlhb(새 컨테이너 게시, 앞 카드 뒤) 다시 씀 · 코드 0 (방 de785bc6 · 2026-10-29 · [Opus] · Fable 안 씀 — 외부 서비스 설정 선택, 코드·DB 변경 없음, 컨테이너가 비어 있어 되돌리기 쉬움)
 - 무엇: **PlanQ 용 GTM 컨테이너(planq.kr)를 새로 만들어 PlanQ 관리자 설정 GTM 번호를 그걸로 바꿀까요, 아니면 지금 번호(GTM-5WQHW96L)를 두 사이트가 같이 쓰게 주소 조건을 붙일까요?** (상황판 askmvtysvr4)
 - 왜: 운영 /api/platform/info gtm_container_id = GTM-5WQHW96L(10-29 재조회) = PurpleHere tracking.ts·gtm-container-purplehere.json 의 번호. 공개 gtm.js 는 버전 1·G- ID 0 = 아직 빈 컨테이너(섞인 데이터 없음). 두 가져오기 파일의 GA4 구성 태그가 다 «모든 페이지» 트리거라 한 컨테이너에 넣으면 서로 상대 사이트 GA4·픽셀로 샌다. PurpleHere 카드 todomvjvib2x 는 «충돌 덮어쓰기» 라 같은 이름 태그를 지울 수 있음(PurpleHere 것이라 안 건드림 — 알릴지는 서버 방 몫).
 - 지금: PlanQ 카드 todomvdbjl6v(가져오기 단계 앞)·todomvdbjlhb(게시 단계 앞)에 «⏸ 잠깐 멈춤 — 컨테이너 번호 확인 중» 넣어 같은 tid·recheck 로 다시 올림.
