@@ -22,14 +22,29 @@ const GRACE_DAYS = 7;
 function err(code, statusCode = 409) { const e = new Error(code); e.code = code; e.statusCode = statusCode; return e; }
 const isCard = (p) => (p.method === 'stripe' || p.method === 'card') && !!p.stripe_payment_intent;
 
+// Stripe 거절은 우리 코드(409)로 바꿔 던진다 — Stripe 의 statusCode 를 그대로 흘리면 401(키 오류)이
+//   화면의 «로그인 만료» 처리(토큰 갱신 → 같은 요청 재전송)로 빠지고, 404(다른 Stripe 계정의 결제)는
+//   «없음» 으로 읽힌다(2026-10-30 Stripe 키 교체 뒤 환불 실패 신고). 어느 경우든 DB 는 건드리기 전이다.
+function stripeRefundError(e) {
+  if (e && e.code === 'STRIPE_NOT_CONFIGURED') return err('stripe_not_configured', 409);
+  if (!e || typeof e.type !== 'string' || !e.type.startsWith('Stripe')) return e;
+  console.warn('[refund stripe]', e.type, e.statusCode, e.code || '', e.message);
+  if (e.type === 'StripeAuthenticationError') return err('stripe_auth_failed', 409);
+  if (e.code === 'resource_missing') return err('stripe_payment_not_found', 409);
+  if (e.code) return err(e.code, 409);   // more_permissions_required · charge_already_refunded 등 — 화면이 코드로 안내
+  return err(e.type === 'StripePermissionError' ? 'more_permissions_required' : 'stripe_error', 409);
+}
+
 async function stripeRefund(payment) {
-  const { getStripeForMerchant } = require('./stripeService');
-  const stripe = await getStripeForMerchant('platform');
-  const r = await stripe.refunds.create(
-    { payment_intent: payment.stripe_payment_intent },
-    { idempotencyKey: `planq-refund-${payment.id}` },
-  );
-  return r && r.id ? r.id : null;
+  try {
+    const { getStripeForMerchant } = require('./stripeService');
+    const stripe = await getStripeForMerchant('platform');
+    const r = await stripe.refunds.create(
+      { payment_intent: payment.stripe_payment_intent },
+      { idempotencyKey: `planq-refund-${payment.id}` },
+    );
+    return r && r.id ? r.id : null;
+  } catch (e) { throw stripeRefundError(e); }
 }
 
 /**

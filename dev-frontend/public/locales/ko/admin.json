@@ -172,7 +172,11 @@
       "not_requested": "환불 요청이 없는 결제입니다.",
       "not_trial_payment": "체험 중 결제가 아닙니다.",
       "more_permissions_required": "Stripe 키에 환불 권한이 없어 카드 환불을 못 했습니다(아무것도 바뀌지 않음). Stripe 의 제한 키에 «Refunds 쓰기» 권한을 켜거나, Stripe 대시보드에서 직접 환불한 뒤 «Stripe 로 카드 환불 실행» 을 끄고 기록만 하세요.",
-      "charge_already_refunded": "Stripe 에서 이미 환불된 결제입니다. «Stripe 로 카드 환불 실행» 을 끄고 기록만 하세요."
+      "charge_already_refunded": "Stripe 에서 이미 환불된 결제입니다. «Stripe 로 카드 환불 실행» 을 끄고 기록만 하세요.",
+      "stripe_payment_not_found": "지금 설정된 Stripe 계정에 이 결제가 없습니다(아무것도 바뀌지 않음). Stripe 키를 다른 계정 것으로 바꿨다면, 결제를 받은 옛 Stripe 계정 대시보드에서 직접 환불한 뒤 «Stripe 로 카드 환불 실행» 을 끄고 기록만 하세요.",
+      "stripe_auth_failed": "Stripe 키가 맞지 않아 카드 환불을 못 했습니다(아무것도 바뀌지 않음). 플랫폼 설정의 Stripe Secret Key 를 확인하세요.",
+      "stripe_not_configured": "Stripe 키가 설정돼 있지 않아 카드 환불을 못 했습니다(아무것도 바뀌지 않음).",
+      "stripe_error": "Stripe 가 환불을 거절했습니다(아무것도 바뀌지 않음). Stripe 대시보드에서 이 결제를 확인하세요."
     },
     "requestRefundReason": "고객 요청 환불",
     "requestRefundTitle": "환불 요청 처리",
