@@ -1,5 +1,10 @@
 # Fable 게이트 대기열 → **판정 기록 보관소** (2026-10-08 부터)
 
+
+### 2026-10-30 방 8c0ba8e6 — 공유 링크 미리보기(이미지 썸네일·폴더·설문) — 완료 검증 1차 **FAIL** → 2차 **PASS**
+- 1차(831d52da) 차단 C1: 새 공개 문 /api/share-og/files/:token/og.jpg 가 지운 워크스페이스에서 200(다운로드 문은 404). → ec0d6575 에서 workspaceAliveParam·workspaceAlive 로 닫음, 2차 실측 404·기본 OG, 차등 양성.
+- 경계(비밀번호·만료·회수·등급·svg/gif·S3 제외, 사용자가 공유한 그 파일 1200폭 JPEG) 수용. 비차단: N2 og 캐시 고아 · N3 nginx 스크립트 첫 `location /` 만 · N4 og.jpg 404 본문 차이.
+
 ### 2026-10-30 방 d12c74b3 — PlanQ 안내방·워크스페이스 여정 — 설계 **DESIGN-FIX**
 - 설계 정본 `docs/PLANQ_GUIDE_ROOM_DESIGN.md`(원문 그대로). 1안(conversations + channel_type platform) 채택 + `support_rooms` 상태 표 · 배제 술어 access_scope 한 곳 + 가드 `platformroom` · 관리자 `/api/admin/support/*` 만 · 피드백 창 글은 안내방에 안 남김(FIX).
 - 실측 지적: platform_admin 은 API 에서 모든 대화 통과(기획 문장 고침) · plan.js 대화 수·onboarding·adoption 이 channel_type 안 보고 셈 · 메시지 쓰기 라우트 둘 · owner DELETE 아무 방.
