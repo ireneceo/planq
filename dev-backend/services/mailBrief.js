@@ -257,12 +257,34 @@ function collectSituation(thread, messages, message) {
  * 브리프 한 건. LLM 이 안 되면 **요약만 비고 나머지는 그대로 준다** —
  * 검증·맥락은 LLM 없이 만들어지므로 AI 가 죽어도 이 기능은 죽지 않는다.
  */
-async function buildBrief({ businessId, thread, language = 'ko' }) {
+// 저장된 스레드 요약(email_threads.ai_summary)이 지금도 맞는가 — 요약한 뒤로 새 메시지가 안 들어왔으면 맞다.
+//   2026-10-30 (Irene: *"매번 ai 토큰 쓰는 거 아니야? … 매번 다시 생성하는 것 중 저장하면 되는 것"*) — 브리프·[요약] 이 같이 쓴다.
+//   messages 는 created_at 을 가진 행이어야 한다(가져온 시각 — 옛 날짜 메일이 늦게 들어와도 잡힌다).
+function savedSummaryFresh(thread, messages) {
+  if (!thread.ai_summary || !thread.ai_summary_at) return false;
+  const at = new Date(thread.ai_summary_at).getTime();
+  // ★ attributes 로 고른 created_at 은 인스턴스 속성으로 안 붙는다(m.created_at === undefined) — get() 으로 읽는다.
+  //   모르면 «새 메일 있음» 으로 본다(저장본을 잘못 다시 쓰는 것보다 한 번 더 요약하는 쪽이 안전).
+  return messages.every((m) => {
+    const c = typeof m.get === 'function' ? m.get('created_at') : m.created_at;
+    return c != null && new Date(c).getTime() <= at;
+  });
+}
+
+function summaryLines(content) {
+  const lines = String(content || '').split('\n').map((l) => l.replace(/^[-•]\s*/, '').trim()).filter(Boolean);
+  // 마지막 줄이 "다음 할 일" 성격이면 제안으로 옮긴다 — 요약과 행동을 화면에서 나눠 보여준다.
+  return { summary: lines.slice(0, 5), suggestions: lines.filter((l) => /다음|해야|필요|action|next|권장/i.test(l)).slice(0, 2) };
+}
+
+// reuse=false 면 저장된 요약을 무시한다(호출자가 다른 언어를 요청했을 때 — 저장본은 워크스페이스 기본 언어다).
+// 새로 만든 요약은 summary_content 로 돌려준다 — 저장은 라우트가 한다(실시간 알림과 함께).
+async function buildBrief({ businessId, thread, language = 'ko', reuse = true }) {
   const messages = await EmailMessage.findAll({
     where: { thread_id: thread.id, business_id: businessId },
     order: [['sent_at', 'ASC'], ['id', 'ASC']],
     attributes: ['id', 'direction', 'from_name', 'from_email', 'subject', 'body_text', 'body_html',
-      'sent_at', 'triage_headers'],
+      'sent_at', 'created_at', 'triage_headers'],
     include: [{ association: 'attachments', required: false, attributes: ['id', 'filename'] }],
   });
   if (!messages.length) return { error: 'no_messages' };
@@ -283,7 +305,10 @@ async function buildBrief({ businessId, thread, language = 'ko' }) {
   let summary = null;
   let suggestions = [];
   let ai_error = null;
-  try {
+  let summary_content = null;
+  const reused = reuse && savedSummaryFresh(thread, messages);
+  if (reused) ({ summary, suggestions } = summaryLines(thread.ai_summary));
+  else try {
     const threadText = messages.map((m) => {
       const who = m.direction === 'outbound' ? '우리 팀' : (m.from_name || m.from_email || '상대');
       return `${who}: ${(m.body_text || m.subject || '').replace(/\s+/g, ' ').trim().slice(0, 1500)}`;
@@ -293,12 +318,7 @@ async function buildBrief({ businessId, thread, language = 'ko' }) {
       subject: thread.subject, threadText, language,
     });
     if (out.error) ai_error = out.error;
-    else {
-      const lines = String(out.content || '').split('\n').map((l) => l.replace(/^[-•]\s*/, '').trim()).filter(Boolean);
-      // 마지막 줄이 "다음 할 일" 성격이면 제안으로 옮긴다 — 요약과 행동을 화면에서 나눠 보여준다.
-      summary = lines.slice(0, 5);
-      suggestions = lines.filter((l) => /다음|해야|필요|action|next|권장/i.test(l)).slice(0, 2);
-    }
+    else { ({ summary, suggestions } = summaryLines(out.content)); summary_content = out.content; }
   } catch (e) {
     ai_error = String(e.message || 'ai_failed').slice(0, 120);
   }
@@ -306,13 +326,13 @@ async function buildBrief({ businessId, thread, language = 'ko' }) {
   return {
     thread_id: thread.id,
     message_id: target.id,
-    summary, ai_error,
+    summary, ai_error, summary_reused: reused, summary_content,
     trust, situation, links, suggestions,
     generated_at: new Date().toISOString(),
   };
 }
 
 module.exports = {
-  buildBrief, collectTrustSignals, collectLinks, collectSituation,
+  buildBrief, savedSummaryFresh, collectTrustSignals, collectLinks, collectSituation,
   findLinkMismatches, readAuthResult, domainOf, RISKY_EXT,
 };

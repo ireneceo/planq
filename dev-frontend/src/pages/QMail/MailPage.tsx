@@ -398,7 +398,9 @@ const MailPage: React.FC = () => {
     transAbortRef.current = {};
   }, []);
   // ★ 2026-09-09 (Irene: "번역하기는 나갔다 들어오면 저장되어 있을 필요 없지 않아?")
-  //   번역은 **지금 이 메일을 읽기 위한 한 번짜리 보조**다. 스레드를 옮기면 버린다.
+  //   스레드를 옮기면 **펼침 상태**는 버린다 — 다시 들어오면 접혀 있다.
+  //   ★ 2026-10-30 번역문 자체는 서버가 저장한다(email_messages.translations) — 다시 들어오면 버튼이 «번역 보기» 이고
+  //   누르면 AI 없이 편다(Irene: "매번 ai 토큰 쓰는 거 아니야?").
   //   (요약은 반대다 — ThreadMessages 가 스레드별로 들고 있는다.)
   useEffect(() => {
     Object.values(transAbortRef.current).forEach(ac => ac.abort());

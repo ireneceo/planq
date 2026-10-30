@@ -103,6 +103,8 @@ export interface Message {
   sender_user_id?: number | null;
   sender_name?: string | null;
   sender_source?: 'planq' | 'address' | null;
+  // 2026-10-30 — 저장된 본문 번역 { ko: '…' }. 있으면 버튼이 «번역 보기» 이고 누르면 AI 없이 바로 편다.
+  translations?: Record<string, string>;
   delivery_error?: string | null;
   attachments: Array<{ id: number; file_id: number | null; file_name: string; file_size: number; mime_type: string }>;
   // #215-H — 본문이 cid: 로 참조하는 이미지. 본문은 sandbox iframe srcDoc 이라 cid 를 해석할 수 없어

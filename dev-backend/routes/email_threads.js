@@ -569,6 +569,8 @@ router.get('/:businessId/email-threads/:id',
             sender_user_id: (senderMap.get(mj.id) || {}).user_id || null,
             sender_name: (senderMap.get(mj.id) || {}).name || null,
             sender_source: (senderMap.get(mj.id) || {}).source || null,
+            // 저장된 번역 { ko: '…' } — 화면은 접어 두고 «번역 보기» 로 연다(AI 를 다시 부르지 않는다).
+            translations: require('../services/mailTranslate').savedTranslations(mj.translations),
             // 발송 상태 — outbound 만 의미 있다. 'sent' 는 SMTP 250 accept 까지이고
             //   수신자 메일함 도착 보증이 아니다. 'suppressed'(서버 발송 정지)를 'sent' 로 뭉개지 않는다.
             delivery_status: mj.direction === 'outbound' ? mj.delivery_status : null,
@@ -1824,9 +1826,9 @@ router.post('/:businessId/email-threads/ai-compose', // audit-exempt: 새 메일
 
 // ─────────────────────────────────────────────
 // #184 — 메일 본문 번역 (원본보기/번역하기 토글). 지정 언어로 번역, translateWithRetry 재사용(검출+재시도+한도).
-// POST /:biz/email-threads/:id/messages/:msgId/translate  { target_lang } → { detected_language, target_lang, translated }
+// POST /:biz/email-threads/:id/messages/:msgId/translate  { target_lang } → { detected_language, target_lang, translated, cached }
 // ─────────────────────────────────────────────
-router.post('/:businessId/email-threads/:id/messages/:msgId/translate', // audit-exempt: 번역 결과(파생값)만 돌려준다 — 원문 무변경
+router.post('/:businessId/email-threads/:id/messages/:msgId/translate', // audit-exempt: 번역 결과(파생값)를 저장·반환 — 원문 무변경
   authenticateToken, checkBusinessAccess, requireMenu('qmail', 'read'),
   async (req, res, next) => {
     try {
@@ -1839,24 +1841,11 @@ router.post('/:businessId/email-threads/:id/messages/:msgId/translate', // audit
       const msg = await EmailMessage.findOne({ where: { id: msgId, thread_id: threadId, business_id: businessId } });
       if (!msg) return errorResponse(res, 'message_not_found', 404);
 
-      const SUPPORTED = ['ko', 'en', 'ja', 'zh', 'es'];
+      // 2026-10-30 — 한 번 번역한 것은 저장하고 다시 쓴다(services/mailTranslate). cached=true 면 AI 를 안 불렀다.
       const target = String((req.body || {}).target_lang || 'ko');
-      if (!SUPPORTED.includes(target)) return errorResponse(res, 'unsupported_language', 400);
-
-      // 본문 텍스트 — 정리된 본문 우선(인용/전달/서명 제거), 없으면 원문 / HTML strip.
-      const { cleanVisibleBody } = require('../services/emailBodyClean');
-      const text = cleanVisibleBody(msg.body_text, msg.body_html) || msg.body_text
-        || String(msg.body_html || '').replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim();
-      if (!text || !text.trim()) return errorResponse(res, 'empty_body', 400);
-
-      // 단방향 번역 — 메일은 대상 언어 하나만 필요하다. 양방향(채팅용)을 쓰면 출력 토큰이 2배라
-      // 본문 1천 자만 넘어도 JSON 이 잘리고 재시도까지 겹쳐 2분 대기 후 실패했다(#197).
-      const { translateOneWithRetry } = require('../services/translation_service');
-      const r = await translateOneWithRetry(text, target, businessId);
-      if (r.fallback || !r.translated) {
-        return errorResponse(res, r.reason === 'usage_limit_exceeded' ? 'usage_limit_exceeded' : 'translation_unavailable', 503);
-      }
-      return successResponse(res, { detected_language: r.detected_language, target_lang: target, translated: r.translated });
+      const r = await require('../services/mailTranslate').translateMessage(msg, target, businessId);
+      if (!r.ok) return errorResponse(res, r.error, r.status);
+      return successResponse(res, { detected_language: r.detected_language, target_lang: target, translated: r.translated, cached: r.cached });
     } catch (err) { next(err); }
   }
 );
@@ -2234,9 +2223,13 @@ router.post('/:businessId/email-threads/:id/summarize', // audit-exempt: AI 요�
       const msgs = await EmailMessage.findAll({
         where: { thread_id: thread.id, business_id: businessId },
         order: [['sent_at', 'ASC'], ['id', 'ASC']],
-        attributes: ['from_name', 'from_email', 'direction', 'subject', 'body_text'],
+        attributes: ['from_name', 'from_email', 'direction', 'subject', 'body_text', 'created_at'],
       });
       if (!msgs.length) return errorResponse(res, 'no_messages', 400);
+      // 2026-10-30 — 요약한 뒤로 새 메일이 없으면 저장된 요약을 그대로 준다(AI 다시 안 부름).
+      if (!(req.body || {}).language && require('../services/mailBrief').savedSummaryFresh(thread, msgs)) {
+        return successResponse(res, { ai_summary: thread.ai_summary, ai_summary_at: thread.ai_summary_at, reused: true });
+      }
       const threadText = msgs.map((m) => {
         const who = m.direction === 'outbound' ? '우리 팀' : (m.from_name || m.from_email || '상대');
         return `${who}: ${(m.body_text || m.subject || '').replace(/\s+/g, ' ').trim().slice(0, 2000)}`;
@@ -2247,13 +2240,17 @@ router.post('/:businessId/email-threads/:id/summarize', // audit-exempt: AI 요�
       const out = await cueOrch.summarizeThread(businessId, { subject: thread.subject, threadText, language });
       if (out.error === 'usage_limit_exceeded') return errorResponse(res, 'cue_usage_limit_exceeded', 429);
       if (out.error === 'llm_unavailable') return errorResponse(res, 'ai_unavailable', 503);
-      const now = new Date();
-      await thread.update({ ai_summary: out.content, ai_summary_at: now, ai_summary_model: 'gpt-4o-mini' });
-      broadcastMail(req, businessId, 'mail:updated', { thread_id: thread.id, ai_summary: out.content, ai_summary_at: now });
+      const now = await saveThreadSummary(req, businessId, thread, out.content);
       return successResponse(res, { ai_summary: out.content, ai_summary_at: now });
     } catch (err) { next(err); }
   }
 );
+async function saveThreadSummary(req, businessId, thread, content) {
+  const now = new Date();
+  await thread.update({ ai_summary: content, ai_summary_at: now, ai_summary_model: 'gpt-4o-mini' });
+  broadcastMail(req, businessId, 'mail:updated', { thread_id: thread.id, ai_summary: content, ai_summary_at: now });
+  return now;
+}
 
 // ─── 메일 브리프 — 요약 + 검증 + 지금 어느 순간인가 ───
 //   Irene 2026-09-08: "번역 옆에 메일 요약 및 검증이 나와서 누르면 … 실제 메일이 어떤 상황인지
@@ -2271,8 +2268,10 @@ router.post('/:businessId/email-threads/:id/brief', // audit-exempt: 읽기(요�
       if (!thread) return errorResponse(res, 'thread_not_found', 404);
       const biz = await Business.findByPk(businessId, { attributes: ['default_language'] });
       const language = (req.body || {}).language || biz?.default_language || 'ko';
-      const brief = await require('../services/mailBrief').buildBrief({ businessId, thread, language });
+      // 2026-10-30 — 저장된 스레드 요약이 아직 맞으면 AI 를 다시 부르지 않는다. 새로 만든 요약은 [요약] 칸과 같이 쓰게 저장.
+      const { summary_content, ...brief } = await require('../services/mailBrief').buildBrief({ businessId, thread, language, reuse: !(req.body || {}).language });
       if (brief.error === 'no_messages') return errorResponse(res, 'no_messages', 400);
+      if (summary_content && !(req.body || {}).language) await saveThreadSummary(req, businessId, thread, summary_content);
       return successResponse(res, brief);
     } catch (err) { next(err); }
   }

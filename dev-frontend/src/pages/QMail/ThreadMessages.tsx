@@ -432,19 +432,26 @@ export default function ThreadMessages(p: Props) {
                 onClick={() => setMsgTrans(prev => ({ ...prev, [m.id]: { ...(prev[m.id] || { loading: false }), showing: false } }))}>
                 {t('translate.closeTranslation', { defaultValue: '번역 닫기' }) as string}
               </TransBtn>
-            ) : (
-              <TransBtn type="button"
-                onClick={() => {
-                  // 이 메시지의 실효 대상 언어 — 사용자가 고른 값이 없으면 원문에서 추정한 기본값.
-                  const target = transLangByMsg[m.id] ?? pickTranslateTarget(guessLangFromText(m.body_text, m.body_html), uiLang);
-                  const cached = msgTrans[m.id];
-                  if (cached?.text && cached.lang === target) {
-                    setMsgTrans(prev => ({ ...prev, [m.id]: { ...cached, showing: true } }));
-                  } else { translateMsg(m.id, threadId, target); }
-                }}>
-                {t('translate.translate', { defaultValue: '번역하기' }) as string}
-              </TransBtn>
-            )}
+            ) : (() => {
+              // 이 메시지의 실효 대상 언어 — 사용자가 고른 값이 없으면 원문에서 추정한 기본값.
+              const target = transLangByMsg[m.id] ?? pickTranslateTarget(guessLangFromText(m.body_text, m.body_html), uiLang);
+              const cached = msgTrans[m.id];
+              // 2026-10-30 (Irene: *"번역 한번 하면 그대로 저장하고 다음에 들어오면 접혀있다가 번역하기가 번역보기로 바뀐 후
+              //   열면 보이게"*) — 서버에 저장된 번역(m.translations) 또는 방금 받은 것이 이 언어면 «번역 보기», AI 를 부르지 않는다.
+              const savedText = cached?.text && cached.lang === target ? cached.text : m.translations?.[target];
+              return (
+                <TransBtn type="button" data-testid="mail-trans-btn"
+                  onClick={() => {
+                    if (savedText) {
+                      setMsgTrans(prev => ({ ...prev, [m.id]: { text: savedText, lang: target, showing: true, loading: false, error: false } }));
+                    } else { translateMsg(m.id, threadId, target); }
+                  }}>
+                  {savedText
+                    ? (t('translate.showSaved', { defaultValue: '번역 보기' }) as string)
+                    : (t('translate.translate', { defaultValue: '번역하기' }) as string)}
+                </TransBtn>
+              );
+            })()}
             {msgTrans[m.id]?.loading && (
               <TransLoading>{t('translate.loading', { defaultValue: '번역 중…' }) as string}</TransLoading>
             )}

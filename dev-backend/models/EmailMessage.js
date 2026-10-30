@@ -46,6 +46,9 @@ EmailMessage.init({
   ai_intent: { type: DataTypes.STRING(50), allowNull: true },
   ai_summary: { type: DataTypes.STRING(500), allowNull: true },
   ai_processed_at: { type: DataTypes.DATE, allowNull: true },
+  // 저장된 본문 번역 { <lang>: { text, detected_language, at } } — 한 번 번역하면 다시 AI 를 부르지 않는다
+  //   (services/mailTranslate 가 읽고 쓰는 유일한 곳). NULL = 번역한 적 없음.
+  translations: { type: DataTypes.JSON, allowNull: true },
   // 메타
   sent_at: { type: DataTypes.DATE, allowNull: false },
   // M4 FAQ 클러스터링 — inbound 질문 임베딩 캐시 (text-embedding-3-small 1536d BLOB).
