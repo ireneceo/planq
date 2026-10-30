@@ -31,6 +31,7 @@ import type { DetailStatus } from '../../hooks/useDetailResource';
 import { findOtherWorkspaceOf } from '../../utils/workspaceMatch';
 import { PanelGridLayout, CollapsibleSidebar, SidebarBackdrop, Panel } from '../../components/Layout/PanelLayout';
 import { useAuth, apiFetch } from '../../contexts/AuthContext';
+import MailImpersonationNote from './MailImpersonationNote';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
 import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
 import { useReallyVisible } from '../../contexts/TabActiveContext';
@@ -166,7 +167,6 @@ import {
   ComposeDraftStatus,
   PromoteErrTag, InquiryFilterBar, InquiryFilterClear, SentViaBar, SentViaHint,
   LearnBar, LearnText, LearnLink, LearnClose,
-  ImpersonationNote,
 } from './MailPage.styles';
 
 
@@ -2944,23 +2944,8 @@ const MailPage: React.FC = () => {
               <MessagesScroll ref={scrollRef}>
                 {/* 업체 스팸함에서 온 스레드 — 여기서 해제해도 업체 쪽 스팸 표시는 그대로다. 버튼을 누르는 화면에서 말한다(폰은 목록이 안 보인다). */}
                 {/* 사칭 의심 — 왜 그런지 신호별 한 줄(docs/MAIL_IMPERSONATION_DESIGN.md §3). 격리본은 링크가 꺼져 있다고 말한다. */}
-                {detail.impersonation && (
-                  <ImpersonationNote role="note" data-testid="mail-impersonation-note">
-                    <strong>
-                      {t(detail.status === 'spam' && detail.spam_origin === 'impersonation'
-                        ? 'impersonation.noteQuarantined' : detail.impersonation.released
-                          ? 'impersonation.noteReleased' : 'impersonation.noteWarn') as string}
-                    </strong>
-                    <ul>
-                      {[...new Set((detail.impersonation.signals || []).map((sg) => sg.code))].map((code) => (
-                        <li key={code}>{t(`impersonation.signal.${code}`) as string}</li>
-                      ))}
-                    </ul>
-                    {detail.impersonation.known && <span>{t('impersonation.knownHint') as string} </span>}
-                    <a href="/guide/a/qmail-spam-impersonation" target="_blank" rel="noopener noreferrer">
-                      {t('impersonation.learnMore') as string}
-                    </a>
-                  </ImpersonationNote>
+                {detail.impersonation && businessId && (
+                  <MailImpersonationNote thread={detail} businessId={businessId} onChanged={() => { loadDetail(detail.id); }} />
                 )}
                 {detail.status === 'spam' && detail.spam_origin === 'provider' && (
                   <SpamProviderNote role="note" data-testid="mail-spam-provider-note">

@@ -246,6 +246,8 @@ export interface MailCriteriaResponse {
   rule_hits_30d: number;
   manual_hits_30d: number;
   learning: { dismiss: number; spam: number; mark: number; domain_promote: number; recent: MailSenderRule[] };
+  /** 사칭 검사의 «안전한 도메인»(관계사) — 메일 상세 안내 줄에서 등록한다 */
+  trusted_domains?: string[];
 }
 export interface MailCriterionImpact {
   scanned: number; moved: number; capped: boolean;
@@ -263,6 +265,13 @@ export const previewMailCriterion = (businessId: number, id: string, enabled: bo
   apiFetch(`/api/businesses/${businessId}/mail-criteria/${id}/preview`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ enabled }),
   }).then((r) => okData<MailCriterionImpact & { id: string; enabled: boolean }>(r));
+export const trustMailDomain = (businessId: number, threadId: number) =>
+  apiFetch(`/api/businesses/${businessId}/mail-trusted-domains`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ thread_id: threadId }),
+  }).then((r) => okData<{ domain: string; trusted_domains: string[] }>(r));
+export const untrustMailDomain = (businessId: number, domain: string) =>
+  apiFetch(`/api/businesses/${businessId}/mail-trusted-domains/${encodeURIComponent(domain)}`, { method: 'DELETE' })
+    .then((r) => okData<{ trusted_domains: string[] }>(r));
 export const setMailCriterion = (businessId: number, id: string, enabled: boolean) =>
   apiFetch(`/api/businesses/${businessId}/mail-criteria/${id}`, {
     method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ enabled }),

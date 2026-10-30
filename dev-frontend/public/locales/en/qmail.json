@@ -958,6 +958,21 @@
       "lookalike_known_domain": "The domain differs by one character from a domain you know (a client, your own company).",
       "display_name_domain": "The sender name contains a different company or domain than the actual sending address.",
       "reply_to_divergent": "Replies are set to go to a free webmail address instead of the sending company."
+    },
+    "trust": {
+      "hint": "If {{domain}} is one of your affiliate or subsidiary domains, register it as a safe domain. This warning won't appear again.",
+      "button": "Register as safe domain",
+      "confirmTitle": "Register as a safe domain?",
+      "confirmMessage": "{{domain}} differs from {{like}} by one character. Once registered, the \"one character off\" warning stops for {{domain}}. Only register it if it really is your affiliate or subsidiary. Other impersonation signs, such as hidden characters, are still checked. You can remove it anytime in Settings › Mail sorting criteria.",
+      "confirm": "Register",
+      "failed": "Couldn't register. Please try again shortly.",
+      "listTitle": "Safe domains (affiliates & subsidiaries)",
+      "listHint": "Domains here don't get the \"one character off from a known domain\" warning. Owners and admins register them from the impersonation notice in a mail.",
+      "listEmpty": "No domains registered.",
+      "remove": "Remove {{domain}}",
+      "removeTitle": "Remove from safe domains?",
+      "removeMessage": "If you remove {{domain}}, mail from it may get the impersonation warning again.",
+      "removeConfirm": "Remove"
     }
   },
   "replyOwner": {

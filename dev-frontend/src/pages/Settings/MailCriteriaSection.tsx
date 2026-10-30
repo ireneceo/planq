@@ -11,7 +11,7 @@ import { useTranslation } from 'react-i18next';
 import CriteriaList, { type CriteriaGroup } from '../../components/Common/CriteriaList';
 import ConfirmDialog from '../../components/Common/ConfirmDialog';
 import {
-  getMailCriteria, previewMailCriterion, setMailCriterion,
+  getMailCriteria, previewMailCriterion, setMailCriterion, untrustMailDomain,
   type MailCriteriaResponse, type MailCriterionImpact, type MailCriterionFolder,
 } from '../../services/mail';
 
@@ -26,6 +26,7 @@ const MailCriteriaSection: React.FC<Props> = ({ businessId }) => {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [ask, setAsk] = useState<{ id: string; next: boolean; impact: MailCriterionImpact } | null>(null);
   const [done, setDone] = useState<{ id: string; next: boolean; moved: number } | null>(null);
+  const [untrust, setUntrust] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try { setData(await getMailCriteria(businessId)); setErr(null); }
@@ -101,6 +102,38 @@ const MailCriteriaSection: React.FC<Props> = ({ businessId }) => {
         </Result>
       )}
       {err && <Err>{err}</Err>}
+      {/* 사칭 검사의 «안전한 도메인»(관계사) — 등록은 메일 상세 «사칭 의심» 안내 줄에서(docs/MAIL_IMPERSONATION_DESIGN.md §10) */}
+      <Trusted data-testid="mail-trusted-domains">
+        <LearnTitle>{t('impersonation.trust.listTitle') as string}</LearnTitle>
+        <Muted>{t('impersonation.trust.listHint') as string}</Muted>
+        {(data.trusted_domains || []).length === 0
+          ? <Muted>{t('impersonation.trust.listEmpty') as string}</Muted>
+          : (
+            <TrustedList>
+              {(data.trusted_domains || []).map((d) => (
+                <li key={d}>
+                  <span>{d}</span>
+                  {data.can_edit && (
+                    <RemoveBtn type="button" data-testid="mail-trusted-remove" aria-label={t('impersonation.trust.remove', { domain: d }) as string}
+                      onClick={() => setUntrust(d)}>×</RemoveBtn>
+                  )}
+                </li>
+              ))}
+            </TrustedList>
+          )}
+      </Trusted>
+      <ConfirmDialog
+        isOpen={!!untrust}
+        title={t('impersonation.trust.removeTitle') as string}
+        message={(untrust ? t('impersonation.trust.removeMessage', { domain: untrust }) : '') as string}
+        confirmText={t('impersonation.trust.removeConfirm') as string}
+        cancelText={t('compose.cancel', { defaultValue: '취소' }) as string}
+        onClose={() => setUntrust(null)}
+        onConfirm={() => {
+          const d = untrust; setUntrust(null);
+          if (d) void untrustMailDomain(businessId, d).then(load).catch(() => setErr(t('criteria.saveFailed', { defaultValue: '저장하지 못했어요. 잠시 후 다시 시도해 주세요.' }) as string));
+        }}
+      />
       <ConfirmDialog
         isOpen={!!ask}
         title={(ask ? t(ask.next ? 'criteria.confirmOnTitle' : 'criteria.confirmOffTitle', { name: title(ask.id) }) : '') as string}
@@ -128,4 +161,20 @@ const Result = styled.div`
   background: #F0FDFA; border: 1px solid #99F6E4; color: #0F766E;
 `;
 const Err = styled.div`font-size: 0.75rem; font-weight: 600; color: #B45309;`;
+const Trusted = styled.div`
+  display: flex; flex-direction: column; gap: 6px; padding: 10px 12px;
+  border: 1px solid #E2E8F0; border-radius: 10px; background: #FFFFFF;
+  ${LearnTitle} { color: #0F172A; margin-bottom: 0; }
+`;
+const TrustedList = styled.ul`
+  list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px;
+  li { display: inline-flex; align-items: center; gap: 4px; padding: 2px 4px 2px 10px; min-height: 32px;
+    border-radius: 999px; background: #F1F5F9; font-size: 0.8125rem; color: #0F172A; max-width: 100%; }
+  li span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+`;
+const RemoveBtn = styled.button`
+  width: 32px; height: 32px; border: 0; border-radius: 999px; background: transparent; color: #64748B;
+  font-size: 1rem; line-height: 1; cursor: pointer;
+  &:hover { background: #E2E8F0; color: #0F172A; }
+`;
 const Muted = styled.div`font-size: 0.75rem; color: #94A3B8; line-height: 1.5;`;

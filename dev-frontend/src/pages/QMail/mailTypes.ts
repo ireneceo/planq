@@ -41,6 +41,8 @@ export interface Thread {
   impersonation?: {
     level: 'warn' | 'quarantine'; codes?: string[]; released?: boolean; known?: boolean;
     signals?: { code: string; level: 'strong' | 'weak'; detail: string }[];
+    /** 상세 — «안전한 도메인» 으로 등록할 수 있는 From 유사 도메인(services/mailTrustedDomains.candidateOf) */
+    trust_candidate?: { domain: string; like: string } | null;
   } | null;
   status: string;
   reply_needed: boolean;
