@@ -526,6 +526,8 @@ app.use('/api/whats-new', require('./routes/whats_new'));
 app.use('/api/org', require('./routes/org'));
 // 인사이트 글별 링크 미리보기 이미지(무인증, `/:slug/og.jpg` 꼬리 하나) — 로그인 Cue 카드 라우터보다 앞(2026-10-22 SNS 단계 1)
 app.use('/api/insights', require('./routes/insight_og'));
+// 공유 파일 링크 미리보기 이미지(무인증, `/files/:token/og.jpg` 하나) — 새 접두어라 다른 라우터와 안 겹친다(2026-10-30)
+app.use('/api/share-og', require('./routes/share_og'));
 app.use('/api/insights', require('./routes/insights'));
 app.use('/api/activity', require('./routes/activity'));
 app.use('/api/stats', require('./routes/stats'));

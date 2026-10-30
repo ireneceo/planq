@@ -181,4 +181,37 @@ function snapPreviewWidth(raw) {
   return ALLOWED_WIDTHS.reduce((best, a) => (Math.abs(a - n) < Math.abs(best - n) ? a : best), ALLOWED_WIDTHS[0]);
 }
 
-module.exports = { snapPreviewWidth, maybeServeResized, serveCachedIfPresent, resizeStreamAndServe, resizedBuffer, ALLOWED_WIDTHS, CACHE_ROOT };
+/**
+ * 링크 미리보기(OG)용 JPEG 경로 — 폭 1200(작으면 그대로) · 투명 배경은 흰색.
+ *   메신저 크롤러(카카오 등)는 WebP 를 못 읽는 곳이 있어 화면용 `?w=`(WebP) 캐시와 따로 둔다.
+ *   getInput = 캐시가 없을 때만 부르는 함수(로컬 경로 또는 Buffer 를 돌려준다 — Drive 를 다녀오는 시간을 캐시 적중 때 안 쓴다).
+ *   cacheId 는 파일 행 기준 불변 키. 실패면 null.
+ */
+async function ogJpegPath(getInput, cacheId) {
+  const hash = crypto.createHash('sha1').update(String(cacheId)).digest('hex');
+  const cacheDir = path.join(CACHE_ROOT, 'og');
+  const cachePath = path.join(cacheDir, `${hash}.jpg`);
+  try {
+    if (!fs.existsSync(cachePath)) {
+      const input = await getInput();
+      if (!input) return null;
+      await acquireEncode();
+      try {
+        if (!fs.existsSync(cachePath)) {
+          fs.mkdirSync(cacheDir, { recursive: true });
+          const sharp = require('sharp');
+          const tmp = `${cachePath}.tmp-${process.pid}-${Date.now()}`;
+          await sharp(input).rotate().resize({ width: 1200, withoutEnlargement: true })
+            .flatten({ background: '#ffffff' }).jpeg({ quality: 82 }).toFile(tmp);
+          fs.renameSync(tmp, cachePath);
+        }
+      } finally { releaseEncode(); }
+    }
+    return cachePath;
+  } catch (e) {
+    console.warn('[imageResize] ogJpegPath 실패:', e.message);
+    return null;
+  }
+}
+
+module.exports = { ogJpegPath, RESIZABLE, MAX_STREAM_BYTES, snapPreviewWidth, maybeServeResized, serveCachedIfPresent, resizeStreamAndServe, resizedBuffer, ALLOWED_WIDTHS, CACHE_ROOT };

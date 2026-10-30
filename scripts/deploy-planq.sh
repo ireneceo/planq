@@ -312,6 +312,14 @@ preflight_check() {
     warn "운영 /c/ 응답에 X-Robots-Tag noindex 없음 — 명함 연락처가 검색에 잡힐 수 있다. scripts/apply-nginx-name-card.sh 를 운영 서버에 복사해 sudo bash <파일> <운영 nginx 설정 경로> 로 적용(Irene)"
   fi
 
+  # 2c) 공유 링크 미리보기 — 봇 요청이 /public/files 에서도 백엔드(ogMeta)로 가는가(2026-10-30). 정적 index.html 은 4칸 들여쓰기,
+  #   백엔드 HTML 은 들여쓰기 없는 `<meta property="og:title"` 로 가른다. 경고만(nginx 는 sudo).
+  if curl -s --max-time 5 -A 'Kakaotalk-scrap/1.0' https://planq.kr/public/files/AAAAAAAAAAAAAAAAAAAAAAAA | grep -q '^<meta property="og:title"'; then
+    success "운영 공유 링크 미리보기(봇 → 백엔드) OK"
+  else
+    warn "운영 nginx 가 미리보기 봇을 백엔드로 안 넘김 — 파일·폴더·업무 공유 링크가 카톡·SNS 에서 기본 문구로 보인다. scripts/apply-nginx-share-bot.sh 를 운영에 복사해 sudo bash <파일> /etc/nginx/sites-enabled/planq.kr 3004 (Irene)"
+  fi
+
   # 3) 운영서버 SSH 도달
   if ssh $SSH_OPTS -o BatchMode=yes "$PROD_HOST" 'echo ok' > /dev/null 2>&1; then
     success "운영서버 SSH OK ($PROD_HOST)"

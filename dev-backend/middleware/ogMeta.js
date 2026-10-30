@@ -69,7 +69,8 @@ function escapeHtml(s) {
 // ★ 2026-09-10 — `updatedAt` 은 **제목이 바뀐 사실을 크롤러에 알리는 유일한 표준 신호**다.
 //   (SNS 미리보기 캐시는 우리가 못 지운다 — 링크 주소가 바뀌어야 다시 읽는다. 공유 모달의
 //    'SNS용 링크 복사' 가 그 일을 한다. 여기 시각은 다시 읽으러 온 크롤러에게 주는 근거다.)
-function buildHtml({ url, title, description, image, siteName, bodyParagraphs, indexable, updatedAt }) {
+// imageSize: 기본 이미지(1200×630)일 때만 크기를 적는다 — 공유한 파일 이미지는 비율이 제각각이라 틀린 크기를 주면 카드가 찌그러진다.
+function buildHtml({ url, title, description, image, imageSize = [1200, 630], siteName, bodyParagraphs, indexable, updatedAt }) {
   const t = escapeHtml(title || 'PlanQ');
   const d = escapeHtml(description || '');
   const img = escapeHtml(image || '');
@@ -87,9 +88,7 @@ function buildHtml({ url, title, description, image, siteName, bodyParagraphs, i
 <meta property="og:title" content="${t}">
 <meta property="og:description" content="${d}">
 <meta property="og:image" content="${img}">
-<meta property="og:image:width" content="1200">
-<meta property="og:image:height" content="630">
-<meta property="og:url" content="${u}">
+${imageSize ? `<meta property="og:image:width" content="${imageSize[0]}">\n<meta property="og:image:height" content="${imageSize[1]}">\n` : ''}<meta property="og:url" content="${u}">
 ${updatedAt ? `<meta property="og:updated_time" content="${escapeHtml(updatedAt)}">\n<meta property="article:modified_time" content="${escapeHtml(updatedAt)}">\n` : ''}
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="${t}">
@@ -218,9 +217,28 @@ async function resolveTypedShare(type, token, settings) {
         return ogPack(baseTitle, r.title, '업무', preview || `PlanQ 에서 공유한 업무: ${r.title}`, settings);
       }
       case 'files': {
-        const r = await M.File.findOne({ where: { share_token: token }, attributes: ['file_name', 'share_expires_at', 'share_password_hash'] });
+        // ★ deleted_at — 휴지통에 간 파일은 공개 API 가 404 인데 미리보기만 이름을 내보내고 있었다(by-token 과 같은 조건).
+        const r = await M.File.findOne({ where: { share_token: token, deleted_at: null }, attributes: ['file_name', 'mime_type', 'storage_provider', 'security_level', 'share_token', 'shared_at', 'share_expires_at', 'share_password_hash', 'deleted_at'] });
         if (r && !isShareExpired(r) && isLocked(r)) return ogPack(baseTitle, null, '파일', null, settings);
-        return (r && !isShareExpired(r)) ? ogPack(baseTitle, r.file_name, '파일', `PlanQ 에서 공유한 파일: ${r.file_name}`, settings) : null;
+        if (!r || isShareExpired(r)) return null;
+        const pack = ogPack(baseTitle, r.file_name, '파일', `PlanQ 에서 공유한 파일: ${r.file_name}`, settings);
+        // 이미지 파일이면 그 이미지를 미리보기로 (판정·주소는 services/ogSources 한 곳 — 이미지 문 routes/share_og.js 와 같은 함수)
+        const own = require('../services/ogSources').fileShareOgImageUrl(r);
+        return own ? { ...pack, image: own, imageSize: null } : pack;
+      }
+      case 'folders': {
+        // 판정은 공개 폴더 API 와 같은 함수(만료·발급자 권한 회수). 비밀번호면 종류만.
+        const fr = await require('../services/folderShare').resolveFolderShare(token);
+        if (!fr.folder || fr.reason) return null;
+        if (isLocked(fr.folder)) return ogPack(baseTitle, null, '폴더', null, settings);
+        return ogPack(baseTitle, fr.folder.name, '폴더', `PlanQ 에서 공유한 폴더: ${fr.folder.name}`, settings);
+      }
+      case 'survey': {
+        // 판정은 공개 설문 API 와 같은 함수 — 닫힘·응답 끝·외부 공유 막음이면 throw → 기본 OG. 열람 시각은 남기지 않는다(봇은 사람이 아니다).
+        try {
+          const ctx = await require('../services/survey').resolveSurveyToken(token);
+          return ogPack(baseTitle, ctx.post && ctx.post.title, '설문', 'PlanQ 에서 보낸 설문입니다.', settings);
+        } catch { return null; }
       }
       case 'kb': {
         const r = await M.KbDocument.findOne({ where: { share_token: token }, attributes: ['title', 'file_name', 'share_expires_at', 'share_password_hash'] });
@@ -363,7 +381,7 @@ async function ogMetaMiddleware(req, res, next) {
       return res.send(buildHtml({ url: `https://planq.kr${pathOnly}`, ...data }));
     }
   }
-  // 2b) 운영 #49 — 그 외 모든 공개 공유 타입 /public/:type/:token (docs·tasks·files·kb·kb-bundle·calendar·invoices·qnote-sessions)
+  // 2b) 운영 #49 — 그 외 모든 공개 공유 타입 /public/:type/:token (docs·tasks·files·folders·kb·kb-bundle·calendar·survey·invoices·report·qnote-sessions)
   m = pathOnly.match(/^\/public\/([a-z-]+)\/([A-Za-z0-9_-]+)$/);
   if (m && m[1] !== 'posts') {
     const data = await resolveTypedShare(m[1], m[2], settings);

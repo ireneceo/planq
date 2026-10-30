@@ -58,4 +58,32 @@ async function resolveInsight(slug) {
   }
 }
 
-module.exports = { publishedInsightWhere, resolveInsight, insightOgImageUrl };
+/**
+ * 공유한 **파일**의 미리보기 이미지로 그 파일 자신을 써도 되는가 — 봇 응답(ogMeta)과 이미지 문(routes/share_og.js)이 같이 쓴다.
+ *   (2026-10-30 Irene «썸네일도 해당 이미지가 잡혀서 나오거나 없으면 우리 메인 썸네일»)
+ *   열린 공유(토큰 있음·안 지움·안 만료) ∧ 비밀번호 없음(«아는 사람만» — ogMeta isLocked 와 같은 뜻) ∧ 일반 등급
+ *   ∧ 화면에 그릴 수 있고 줄일 수 있는 이미지(svg·gif 제외) ∧ 바이트를 우리가 읽는 저장소(planq·Drive — S3 는 외부 주소라 뺀다).
+ */
+function fileShareOgEligible(f) {
+  if (!f || !f.share_token || f.deleted_at) return false;
+  if (f.share_expires_at && new Date(f.share_expires_at) < new Date()) return false;
+  if (f.share_password_hash) return false;
+  if (f.security_level && f.security_level !== 'general') return false;
+  if (f.storage_provider && !['planq', 'gdrive'].includes(f.storage_provider)) return false;
+  const { isRenderableImage } = require('./filePreview');
+  const { RESIZABLE } = require('./imageResize');
+  if (!isRenderableImage(f.mime_type, f.file_name)) return false;
+  // mime 이 비어 있거나 generic 인 .png·.jpg 는 확장자로 본다(isRenderableImage 와 같은 너그러움)
+  const m = String(f.mime_type || '').toLowerCase();
+  if (m.startsWith('image/')) return RESIZABLE.test(m);
+  return /\.(jpe?g|png|webp|avif|tiff?)$/i.test(String(f.file_name || ''));
+}
+/** 위 조건이면 미리보기 이미지 주소, 아니면 null. ?v= 는 다시 공유(shared_at 바뀜)했을 때 크롤러 캐시를 넘기려는 것. */
+function fileShareOgImageUrl(f) {
+  if (!fileShareOgEligible(f)) return null;
+  const origin = String(process.env.APP_URL || 'https://planq.kr').replace(/\/+$/, '');
+  const v = f.shared_at ? Math.floor(new Date(f.shared_at).getTime() / 1000) : 0;
+  return `${origin}/api/share-og/files/${encodeURIComponent(f.share_token)}/og.jpg${v ? `?v=${v}` : ''}`;
+}
+
+module.exports = { publishedInsightWhere, resolveInsight, insightOgImageUrl, fileShareOgEligible, fileShareOgImageUrl };
