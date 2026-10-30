@@ -62,17 +62,33 @@ const ImageLightbox: React.FC<Props> = ({ items, initialIndex = 0, src, alt, onC
   const [scale, setScale] = useState(1);
   const [translate, setTranslate] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const dragRef = useRef<{ startX: number; startY: number; baseX: number; baseY: number } | null>(null);
-  const pinchRef = useRef<{ baseDist: number; baseScale: number } | null>(null);
 
   // 이미지 변경 시 zoom/pan 초기화
   useEffect(() => { setScale(1); setTranslate({ x: 0, y: 0 }); }, [idx, items, src]);
   // 원본으로 올라갔는지 — 항목을 넘기면 다시 리사이즈본부터 시작한다.
   const [showFull, setShowFull] = useState(false);
   useEffect(() => { setShowFull(false); }, [idx, items, src]);
+  const [fullReady, setFullReady] = useState<string | null>(null);
+  const wantFull = showFull || scale > 1.01;
+  const curFull = normalized?.[Math.max(0, Math.min(idx, (normalized?.length || 1) - 1))]?.fullSrc;
+  useEffect(() => {
+    if (!wantFull || !curFull || fullReady === curFull) return;
+    let alive = true;
+    const pre = new Image();
+    pre.onload = () => { if (alive) setFullReady(curFull); };
+    pre.src = curFull;
+    return () => { alive = false; };
+  }, [wantFull, curFull, fullReady]);
 
   const clampScale = (s: number) => Math.max(0.5, Math.min(s, 6));
   const zoomIn = useCallback(() => setScale(s => clampScale(s + 0.25)), []);
-  const zoomOut = useCallback(() => setScale(s => clampScale(s - 0.25)), []);
+  const zoomOut = useCallback(() => {
+    setScale(s => {
+      const n = clampScale(s - 0.25);
+      if (n <= 1.01) setTranslate({ x: 0, y: 0 });
+      return n;
+    });
+  }, []);
   const zoomReset = useCallback(() => { setScale(1); setTranslate({ x: 0, y: 0 }); }, []);
 
   // initialIndex 변경되면 따라가기 (open 재호출 시)
@@ -118,40 +134,158 @@ const ImageLightbox: React.FC<Props> = ({ items, initialIndex = 0, src, alt, onC
     };
   }, [normalized, onClose, prev, next, zoomIn, zoomOut, zoomReset]);
 
-  // 모바일 swipe-down 닫기 + 2-finger pinch zoom
-  const touchStart = useRef<{ x: number; y: number } | null>(null);
+  // ── 손가락 동작 (2026-10-30, Irene: "모바일에서 이미지 확대하면 잘 안되고 좌우위아래 이동도 안돼") ──
+  //   ① 두 손가락 = 손가락 사이 지점을 붙잡은 채 확대(가운데 기준이면 보려던 곳이 화면 밖으로 밀린다)
+  //   ② 확대된 상태 한 손가락 = 끌어서 이동(여태 마우스만 이동이 있었다)
+  //   ③ 두 번 탭 = 그 자리 2.5배 ↔ 원래대로
+  //   ④ 확대 안 된 상태 = 종전대로 아래로 쓸어 닫기 · 좌우로 쓸어 앞뒤 이미지
+  //   이동은 그림 끝이 화면 안쪽으로 들어오지 않게 묶는다 — 묶지 않으면 그림을 잃는다.
+  const imgRef = useRef<HTMLImageElement>(null);
+  const [gesturing, setGesturing] = useState(false);
+  const viewRef = useRef({ scale: 1, x: 0, y: 0 });
+  type Gesture =
+    | { mode: 'pinch'; dist: number; scale: number; tx: number; ty: number; mx: number; my: number; cx: number; cy: number }
+    | { mode: 'pan'; sx: number; sy: number; tx: number; ty: number; moved: boolean }
+    | { mode: 'swipe'; sx: number; sy: number };
+  const gestureRef = useRef<Gesture | null>(null);
+  // 손가락 동작 밖(버튼·휠·마우스)에서 바뀐 값을 따라간다. 동작 중에는 setView 가 정본이다.
+  if (!gestureRef.current) viewRef.current = { scale, x: translate.x, y: translate.y };
+  const lastTapRef = useRef<{ t: number; x: number; y: number } | null>(null);
+
+  /** 확대하지 않은 그림의 크기와 가운데(변환 전 자리). 변환과 무관한 레이아웃 값으로 잰다 —
+   *  화면에 아직 안 그려진 마지막 손가락 값과 어긋나지 않게(손을 뗄 때 끝 정리가 옛 값으로 계산됐다). */
+  const baseBox = () => {
+    const el = imgRef.current;
+    if (!el) return null;
+    const parent = el.offsetParent as HTMLElement | null;
+    const pr = parent ? parent.getBoundingClientRect() : { left: 0, top: 0 };
+    const w = el.offsetWidth, h = el.offsetHeight;
+    return { w, h, cx: pr.left + el.offsetLeft + w / 2, cy: pr.top + el.offsetTop + h / 2 };
+  };
+  /** 손가락 동작 중에는 그리기 전에 다음 이벤트가 온다 — 값을 ref 에도 바로 적는다. */
+  const setView = (s: number, x: number, y: number) => {
+    viewRef.current = { scale: s, x, y };
+    setScale(s);
+    setTranslate({ x, y });
+  };
+  /** 그림이 화면보다 크면 그 넘친 만큼만 움직일 수 있다. 작으면 가운데에 둔다. */
+  const clampPan = useCallback((s: number, x: number, y: number) => {
+    const b = baseBox();
+    if (!b || s <= 1.01) return { x: 0, y: 0 };
+    const vw = window.innerWidth, vh = window.innerHeight;
+    const limX = Math.max(0, (b.w * s - vw) / 2);
+    const limY = Math.max(0, (b.h * s - vh) / 2);
+    // 가운데가 화면 가운데와 다를 수 있다(여백) — 그 차이만큼 범위를 옮긴다.
+    const offX = vw / 2 - b.cx, offY = vh / 2 - b.cy;
+    const clamp = (v: number, off: number, lim: number) => lim === 0 ? 0 : Math.max(off - lim, Math.min(v, off + lim));
+    return { x: clamp(x, offX, limX), y: clamp(y, offY, limY) };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  /** (px,py) 화면 지점을 붙잡은 채 배율을 s 로. */
+  const zoomAt = useCallback((s: number, px: number, py: number) => {
+    const b = baseBox();
+    const cur = viewRef.current;
+    const next = clampScale(s);
+    if (!b || next <= 1.01) { setView(next, 0, 0); return; }
+    const qx = (px - b.cx - cur.x) / cur.scale;
+    const qy = (py - b.cy - cur.y) / cur.scale;
+    const p = clampPan(next, px - b.cx - next * qx, py - b.cy - next * qy);
+    setView(next, p.x, p.y);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clampPan]);
+
   const onTouchStart = (e: React.TouchEvent) => {
-    if (e.touches.length === 2) {
-      // pinch 시작
+    // 도구 버튼·이동 버튼 위 손가락은 동작으로 받지 않는다(두 번 누르면 확대가 같이 걸린다).
+    if ((e.target as HTMLElement).closest('button')) { gestureRef.current = null; return; }
+    const cur = viewRef.current;
+    if (e.touches.length >= 2) {
       const [a, b] = [e.touches[0], e.touches[1]];
-      const dist = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
-      pinchRef.current = { baseDist: dist, baseScale: scale };
+      const box = baseBox();
+      gestureRef.current = {
+        mode: 'pinch',
+        dist: Math.max(1, Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY)),
+        scale: cur.scale, tx: cur.x, ty: cur.y,
+        mx: (a.clientX + b.clientX) / 2, my: (a.clientY + b.clientY) / 2,
+        cx: box?.cx ?? window.innerWidth / 2, cy: box?.cy ?? window.innerHeight / 2,
+      };
+      lastTapRef.current = null;
+      setGesturing(true);
       return;
     }
     const t = e.touches[0];
-    touchStart.current = { x: t.clientX, y: t.clientY };
+    if (cur.scale > 1.01) {
+      gestureRef.current = { mode: 'pan', sx: t.clientX, sy: t.clientY, tx: cur.x, ty: cur.y, moved: false };
+      setGesturing(true);
+    } else {
+      gestureRef.current = { mode: 'swipe', sx: t.clientX, sy: t.clientY };
+    }
   };
   const onTouchMove = (e: React.TouchEvent) => {
-    if (e.touches.length === 2 && pinchRef.current) {
+    const g = gestureRef.current;
+    if (!g) return;
+    if (g.mode === 'pinch' && e.touches.length >= 2) {
       const [a, b] = [e.touches[0], e.touches[1]];
       const dist = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
-      const ratio = dist / pinchRef.current.baseDist;
-      setScale(clampScale(pinchRef.current.baseScale * ratio));
+      const mx = (a.clientX + b.clientX) / 2, my = (a.clientY + b.clientY) / 2;
+      // 손가락 사이 아래의 그림 지점(시작 때)이 지금 손가락 사이에 오도록. 손가락을 함께 옮기면 이동도 된다.
+      const s = Math.max(0.5, Math.min(g.scale * (dist / g.dist), 6));
+      const qx = (g.mx - g.cx - g.tx) / g.scale;
+      const qy = (g.my - g.cy - g.ty) / g.scale;
+      setView(s, mx - g.cx - s * qx, my - g.cy - s * qy);
+      return;
+    }
+    if (g.mode === 'pan' && e.touches.length === 1) {
+      const t = e.touches[0];
+      const dx = t.clientX - g.sx, dy = t.clientY - g.sy;
+      if (Math.abs(dx) + Math.abs(dy) > 4) g.moved = true;
+      const p = clampPan(viewRef.current.scale, g.tx + dx, g.ty + dy);
+      setView(viewRef.current.scale, p.x, p.y);
     }
   };
   const onTouchEnd = (e: React.TouchEvent) => {
-    if (pinchRef.current) {
-      pinchRef.current = null;
+    const g = gestureRef.current;
+    if (!g) return;
+    if (g.mode === 'pinch') {
+      // 한 손가락이 남으면 그 손가락으로 이어서 이동한다.
+      if (e.touches.length === 1 && viewRef.current.scale > 1.01) {
+        const t = e.touches[0];
+        gestureRef.current = { mode: 'pan', sx: t.clientX, sy: t.clientY, tx: viewRef.current.x, ty: viewRef.current.y, moved: true };
+        return;
+      }
+      if (e.touches.length > 0) return;
+      gestureRef.current = null;
+      setGesturing(false);
+      const { scale: s, x, y } = viewRef.current;
+      if (s <= 1.01) setView(1, 0, 0);
+      else { const p = clampPan(s, x, y); setView(s, p.x, p.y); }
       return;
     }
-    const start = touchStart.current;
-    if (!start) return;
+    if (e.touches.length > 0) return;
+    gestureRef.current = null;
+    setGesturing(false);
     const t = e.changedTouches[0];
-    const dx = t.clientX - start.x;
-    const dy = t.clientY - start.y;
-    touchStart.current = null;
-    // zoom > 1 시 swipe 닫기/이동 차단 (pan 영역)
-    if (scale > 1.01) return;
+    const sx = g.sx, sy = g.sy;
+    const dx = t.clientX - sx, dy = t.clientY - sy;
+    const isTap = Math.abs(dx) < 10 && Math.abs(dy) < 10;
+    // 두 손가락에서 넘어온 이동(moved)은 탭으로 세지 않는다 — 다음 탭과 묶여 엉뚱한 두 번 탭이 된다.
+    if (isTap && !(g.mode === 'pan' && g.moved) && (e.target as HTMLElement).tagName === 'IMG') {
+      const now = Date.now();
+      const last = lastTapRef.current;
+      if (last && now - last.t < 300 && Math.hypot(t.clientX - last.x, t.clientY - last.y) < 30) {
+        lastTapRef.current = null;
+        if (viewRef.current.scale > 1.01) setView(1, 0, 0);
+        else zoomAt(2.5, t.clientX, t.clientY);
+        return;
+      }
+      lastTapRef.current = { t: now, x: t.clientX, y: t.clientY };
+    }
+    if (g.mode === 'pan') {
+      // 두 손가락 중 하나가 먼저 떨어지면 여기로 넘어온다 — 그때 확대 끝의 위치를 아직 안 묶었다.
+      const { scale: s, x, y } = viewRef.current;
+      if (s <= 1.01) setView(1, 0, 0);
+      else { const p = clampPan(s, x, y); setView(s, p.x, p.y); }
+      return;
+    }
     // 세로 80px 이상 swipe-down 이고 가로 이동보다 크면 닫기
     if (dy > 80 && Math.abs(dy) > Math.abs(dx)) {
       onClose();
@@ -168,7 +302,7 @@ const ImageLightbox: React.FC<Props> = ({ items, initialIndex = 0, src, alt, onC
     e.preventDefault();
     e.stopPropagation();
     const delta = e.deltaY > 0 ? -0.15 : 0.15;
-    setScale(s => clampScale(s + delta));
+    zoomAt(viewRef.current.scale + delta, e.clientX, e.clientY);
   };
 
   // 마우스 drag pan (zoom > 1 일 때만)
@@ -182,7 +316,7 @@ const ImageLightbox: React.FC<Props> = ({ items, initialIndex = 0, src, alt, onC
     if (!dragRef.current) return;
     const dx = e.clientX - dragRef.current.startX;
     const dy = e.clientY - dragRef.current.startY;
-    setTranslate({ x: dragRef.current.baseX + dx, y: dragRef.current.baseY + dy });
+    setTranslate(clampPan(scale, dragRef.current.baseX + dx, dragRef.current.baseY + dy));
   };
   const onMouseUp = () => { dragRef.current = null; };
 
@@ -223,7 +357,8 @@ const ImageLightbox: React.FC<Props> = ({ items, initialIndex = 0, src, alt, onC
 
   const current = normalized[safeIdx];
   // 확대하면 원본으로 자동 승격 — 확대는 "자세히 보고 싶다" 는 뜻이라 리사이즈본으로는 뭉갠다.
-  const shownSrc = (showFull || scale > 1.01) && current.fullSrc ? current.fullSrc : current.src;
+  //   원본은 다 받은 뒤에 바꿔 끼운다(fullReady) — 받는 중에 바꾸면 손가락 아래 그림이 사라져 확대가 끊긴다.
+  const shownSrc = fullReady && fullReady === current.fullSrc ? current.fullSrc : current.src;
 
   const node = (
     <Backdrop
@@ -294,15 +429,17 @@ const ImageLightbox: React.FC<Props> = ({ items, initialIndex = 0, src, alt, onC
       )}
 
       <Img
-        key={shownSrc}
+        ref={imgRef}
+        key={safeIdx}
         src={shownSrc}
+        data-testid="lightbox-image"
         alt={current.alt || ''}
         onClick={(e) => e.stopPropagation()}
         onMouseDown={onMouseDown}
         $zoomed={scale > 1.01}
         style={{
           transform: `translate(${translate.x}px, ${translate.y}px) scale(${scale})`,
-          transition: dragRef.current ? 'none' : 'transform 0.12s ease-out',
+          transition: (gesturing || dragRef.current) ? 'none' : 'transform 0.12s ease-out',
         }}
       />
     </Backdrop>
