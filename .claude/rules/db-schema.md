@@ -70,6 +70,9 @@ paths:
 
 **기타 (2):** kb_chunks, kb_documents, kb_pinned_faqs, cue_usage
 
+> **2026-10-30 — `email_messages.translations` JSON NULL** — 메일 본문 번역 저장 `{ <lang>: { text, detected_language, at } }`. 읽고 쓰는 곳은 `services/mailTranslate` 하나(JSON_SET 으로 그 언어만). 운영 `migrate-mail-translations.js`(배포 슬롯, PM2 reload 전).
+>   ★ attributes 로 고른 `created_at` 은 인스턴스 속성으로 안 붙는다(`m.created_at === undefined`, `m.get('created_at')` 은 값) — 비교에 쓰면 «언제나 옛것» 으로 거짓 판정(메일 요약 재사용 대조군이 잡음).
+
 > **운영 라이브 풀세트 (2026-05-05):**
 > - `users` 6 컬럼 추가 — `password_reset_token`, `password_reset_expires`, `email_verify_token`, `email_verify_expires`, `terms_accepted_at`, `terms_version`, `privacy_accepted_at`, `privacy_version` (비밀번호 재설정 / signup 이메일 인증 / 약관 동의 시점·버전)
 > - `platform_settings` 7 컬럼 추가 — `terms_version`, `privacy_version` (현재 약관 버전 — 사용자가 다른 버전이면 재동의 모달), `maintenance_mode` BOOLEAN, `maintenance_message`, `announcement_text`, `announcement_dismissible`, `announcement_severity` ENUM('info','warn','critical')
