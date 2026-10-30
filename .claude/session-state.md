@@ -5,6 +5,11 @@
 ### ✅ 정기 점검 10/31 00:15 (방 d681866c · 2026-10-30 · [Opus] · Fable 미검증(자체 검증) — 기록·커밋만, 제품 코드 변경 0)
 - 개발완료: 3c8f94d3 뒤 커밋 6건 기록(음성 업무 제목·상세 ee2e8f33 · AI 다시 만들기 줄이기 ①② b75941e6 · v1.70.3 배포·새 소식 · 배포 실패 답 처리). 가드 health 98/98 · guard 82/83 통과 · e2e tenant 실패 0 · 위키 커버리지 통과.
 - 미커밋 QTalkPage.tsx 는 방 e6f1ecd8 의 미완 일(빌드 확인 전)이라 커밋에서 뺌.
+- 개발시작 1-B 운영 피드백(읽기만): 진행대기(승인) 0 · 반영중 0 · 승인 기다림 13(접수 4 · 검토중 9 — 관리자 > 사용자 피드백).
+- 1-C 밤 검사: **순찰 10-29 «FATAL Connection closed» timeout(exit 124, 결과 없음)** — 10-27·10-28 은 실패 3(지운 카나리 문서 알림 6285·6275 · /talk/369 · 메일 스레드 5936). **전체 검사 10-29 실패 32**(10-28 16 → 새 16: signature·signflow·signitems·signinbox·survey·prepay·docsdup·leavelink·leavesave·holidaycap·saleintake·menuhide·projecttabs·detailopen·docfind·landinggnb).
+  - 다시 돌림(10-30 16:3x UTC): signature·signflow·signinbox·survey·prepay·docsdup·leavelink **통과** — 그 밤의 429(요청 한도)·로그인 픽스처 실패로 판정 불가였던 것. signitems 는 다시 돌리면 [820] ③ 칸 0 또는 «로그인 못 함» 으로 흔들림(연달아 돌려 로그인 한도에 걸린 것으로 보임 — 확인 못 함).
+  - **landinggnb 는 다시 돌려도 실패 10~12** (10-29 밤엔 ①⑤⑦ 통과): 요금제·소개·메뉴 시트 «가로 넘침» 122~748px · /about 컨설팅 링크 안 보임. 직접 재면 넘침이 나왔다 안 나왔다 함(390 /pricing 한 번 583px · 한 번 0) · 1440 에서 영어 문구가 뜬 때도 있음. 원인 미확정 — 10-29 20:24 «우하단 채팅 버튼 끌어 옮기기»(0e044b08) 뒤로 생긴 것인지부터 볼 것.
+  - 남은 15건(caret·tenantwrite·mailrt·mobilechrome·mobileboot 등)은 10-26 부터 같은 미판정 목록.
 
 ### ✅ 모바일 음성 업무 — 제목 짧게 뽑고 말한 세부는 상세로 (방 317669a6 · 2026-10-30 · [Opus] · Fable 안 씀 — 음성 경로 프롬프트 문구만, 공용 cue_tools·registry 안 건드림 · 자체 검증) — 운영 반영: 다음 배포 때(백엔드만)
 - Irene «말하기로 업무 넣었는데 왜 제목에 다 들어가? 업무제목 뽑고 상세에 넣어야지». 원인: `routes/voice.js` proposeLikeCue 프롬프트에 제목/상세 나누는 규칙이 없었음. 커밋 ee2e8f33 — 제목 30자 안팎·말버릇·반복·«해줘» 꼬리 빼기·세부는 description/detail · 옛 분류 intentSystemPrompt 도 같은 문장.
