@@ -390,7 +390,7 @@
 - Irene «자회사 도메인에 메일알림 표시된다고 전에 요청했는데 해결이 안된거야? 아니면 배포를 해야 해?» → **배포가 필요한 상태**. 운영엔 고친 판정(2c651e06)이 아직 안 나갔다.
 - 개발 DB 실측: «아는 상대 + 한 글자 다른 도메인» 경고는 시험 ws6(10115 등 [확인용])뿐 — 워프로랩(ws3)·ws5 실제 메일엔 0건. 개발 미리보기 retriage --impersonation: 배지 쓸 것 5 · 격리 후보 1(9046 ws6 bidi 시험건).
 - 화면 쪽(방 6b26f71f «나중에») 마무리: 10-30 07:49 빌드에 이미 들어가 있었음 → 3폭 × 대표·멤버 22/22(버튼 elementFromPoint·확인창 두 도메인·멤버 버튼 없음·가로 넘침 0·설정 칸) · i18n·parity 통과 → 커밋 72f0bcdc(그 7파일만 · QTalkPage.tsx 는 영상 방 것이라 뺌).
-- 운영 옛 메일: 저장된 판정이라 배포만으로는 안 빠짐 → 배포 뒤 retriage 미리보기 → --apply. **Irene 할 일 todomvupiu0g**(배포 뒤 · 읽기만 1줄). 그 전에도 배포 뒤 메일 상세 [안전한 도메인으로 등록] 으로 그 도메인 경고는 바로 지울 수 있다.
+- 운영 옛 메일: 저장된 판정이라 배포만으로는 안 빠짐 → 배포 뒤 retriage 미리보기 → --apply. **Irene 할 일 todomvupiu0g**(배포 뒤 · 읽기만 1줄) — 11-01 점검: 배포 v1.70.3(10-30) 끝남 → 카드에서 «배포 기다리기» 단계 뺌, 미리보기 명령은 아직 남음. 그 전에도 배포 뒤 메일 상세 [안전한 도메인으로 등록] 으로 그 도메인 경고는 바로 지울 수 있다.
 
 ### ✅ (이전) 메일 «안전한 도메인» 화면 쪽 빌드·3폭 확인·커밋 (방 6b26f71f · 2026-10-29) — 방 eb325ad8 가 10-30 끝냄(72f0bcdc)
 - 서버 쪽은 커밋됨(2c651e06 — 관계사 경고 원인 고침 + 등록 API · 실HTTP 27/27 · Fable PASS). 화면 쪽은 **미커밋**: dev-frontend/src/pages/QMail/{MailImpersonationNote.tsx,MailPage.tsx,mailTypes.ts} · pages/Settings/MailCriteriaSection.tsx · services/mail.ts · locales ko/en qmail.json. guard 81/82(가드 통과 — font-size·규격 고침 반영).
