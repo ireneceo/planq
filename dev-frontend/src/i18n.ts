@@ -3,6 +3,20 @@ import { initReactI18next } from 'react-i18next';
 import HttpBackend from 'i18next-http-backend';
 import LanguageDetector from 'i18next-browser-languagedetector';
 
+const ALL_NS = ['common', 'auth', 'layout', 'profile', 'qnote', 'settings', 'qtalk', 'qtask', 'qproject', 'qdocs', 'qfile', 'clients', 'qcalendar', 'plan', 'legal', 'admin', 'dashboard', 'qbill', 'knowledge', 'insights', 'qtable', 'landing', 'errors', 'focus', 'qmail', 'qsale', 'wiki', 'org', 'appdownload', 'attendance', 'guest', 'payroll', 'cards'];
+
+// ★ 2026-11-01 — 첫 방문자(랜딩·로그인·가입)는 33개 1.2MB 를 다 받을 때까지 글자가 안 나왔다
+//   (그동안 «pricingPage.plans.basic.name» 같은 이름이 보였고, 고친 뒤엔 빈 화면 1~3초).
+//   공개 첫 화면에서는 그 화면이 쓰는 것만 먼저 받고 나머지는 준비된 뒤 뒤에서 받는다.
+//   앱 화면(로그인 뒤)은 종전대로 전부 먼저 — t('ns:key') 를 useTranslation 없이 쓰는 곳이 있어 줄이지 않는다.
+const PUBLIC_FIRST_NS = ['common', 'landing', 'auth', 'errors', 'legal', 'insights', 'appdownload'];
+const isPublicFirstPath = (() => {
+  try {
+    const p = typeof window !== 'undefined' ? window.location.pathname : '';
+    return /^\/(en(\/|$))?(pricing|features|about|service|security|start|insights|login|register|forgot-password|contact|details|diagnosis|blog|app|terms|privacy|legal)?(\/|$)/.test(p);
+  } catch { return false; }
+})();
+
 i18n
   .use(HttpBackend)
   .use(LanguageDetector)
@@ -11,7 +25,7 @@ i18n
     fallbackLng: 'en',
     supportedLngs: ['en', 'ko'],
 
-    ns: ['common', 'auth', 'layout', 'profile', 'qnote', 'settings', 'qtalk', 'qtask', 'qproject', 'qdocs', 'qfile', 'clients', 'qcalendar', 'plan', 'legal', 'admin', 'dashboard', 'qbill', 'knowledge', 'insights', 'qtable', 'landing', 'errors', 'focus', 'qmail', 'qsale', 'wiki', 'org', 'appdownload', 'attendance', 'guest', 'payroll', 'cards'],
+    ns: isPublicFirstPath ? PUBLIC_FIRST_NS : ALL_NS,
     defaultNS: 'common',
 
     backend: {
@@ -36,6 +50,13 @@ i18n
       useSuspense: false,
     },
   });
+
+// 공개 첫 화면이면 나머지 네임스페이스를 첫 글자가 나온 뒤 받는다(로그인 뒤 앱 화면이 기다리지 않게).
+if (isPublicFirstPath) {
+  const loadRest = () => { i18n.loadNamespaces(ALL_NS).catch(() => { /* 화면이 쓸 때 다시 받는다 */ }); };
+  if (i18n.isInitialized) setTimeout(loadRest, 1500);
+  else i18n.on('initialized', () => setTimeout(loadRest, 1500));
+}
 
 // ── 네이티브 앱 언어 보정 (2026-09-04) ──────────────────────────────────────────
 // Irene: "사인인은 로그인 아니잖아. 왜 로그인 안나오고 사인인만 나와? 앱이 왜 달라?"

@@ -106,7 +106,11 @@ const ResourceMenu: React.FC<{ light: boolean }> = ({ light }) => {
 };
 
 const LandingLayout: React.FC<Props> = ({ children, transparentTop = true }) => {
-  const { t, i18n } = useTranslation('landing');
+  // ★ 2026-11-01 — 첫 방문자에게 번역 이름(«pricingPage.plans.basic.name»·«nav.signup»)이 그대로 보였다.
+  //   i18n 은 네임스페이스 33개를 한꺼번에 받아서 landing.json 이 0.7~2.5초 늦게 온다(실측, 서버 옆에서도).
+  //   그동안 그린 긴 이름이 줄을 밀어 요금제 화면이 옆으로 748px 넘쳤다(--suite landinggnb ⑤).
+  //   landing·common 이 올 때까지는 빈 바탕만 그린다 — 이름이 보이는 것보다 1초 빈 화면이 낫다.
+  const { t, i18n, ready } = useTranslation(['landing', 'common']);
   const { user } = useAuth();
   const location = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -154,6 +158,8 @@ const LandingLayout: React.FC<Props> = ({ children, transparentTop = true }) => 
       <LangBtn $active={!isKo} $light={light} type="button" onClick={() => i18n.changeLanguage('en')}>EN</LangBtn>
     </Lang>
   );
+
+  if (!ready) return <Page data-testid="landing-i18n-wait" aria-busy="true" />;
 
   return (
     <Page>

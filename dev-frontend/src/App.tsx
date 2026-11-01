@@ -43,6 +43,7 @@ const RightDock = lazy(() => import('./components/Common/RightDock'));
 
 // Eager — 자주 진입하거나 첫 화면 (Login). 분리해도 의미 작음
 import LoginPage from './pages/Login/LoginPage';
+import I18nReady from './components/Common/I18nReady';
 import ModuleGate from './components/Common/ModuleGate';
 
 // Route-based code splitting — 페이지별 별도 chunk 로 첫 로드 번들 축소.
@@ -277,7 +278,7 @@ function ShellApp() {
       <Suspense fallback={<PageLoadingFallback />}>
       <Routes>
         {/* Public routes */}
-        <Route path="/login" element={<LoginPage />} />
+        <Route path="/login" element={<I18nReady ns={['auth', 'errors', 'common']}><LoginPage /></I18nReady>} />
         {/* 앱 복귀 착지 — App Link(https)가 앱에 안 잡혔을 때 여기로 떨어진다.
             이 라우트가 없으면 catch-all 이 잡아 랜딩으로 가고 일회용 code 가 사라진다. */}
         <Route path="/oauth/native-return" element={<NativeReturnPage />} />
@@ -286,7 +287,7 @@ function ShellApp() {
         <Route path="/oauth/callback" element={<OAuthCallbackPage />} />
         <Route path="/dev-login" element={<DevLoginPage />} />
         <Route path="/oauth/connect-confirm" element={<OauthConnectConfirmPage />} />
-        <Route path="/register" element={<RegisterPage />} />
+        <Route path="/register" element={<I18nReady ns={['auth', 'errors', 'common', 'landing']}><RegisterPage /></I18nReady>} />
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />
         <Route path="/reset-password/:token" element={<ResetPasswordPage />} />
         <Route path="/verify-email/:token" element={<VerifyEmailPage />} />
