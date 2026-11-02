@@ -5,7 +5,7 @@ import styled from 'styled-components';
 import PanelHeader, { DetailMetaBar, DetailMetaLeft, DetailMetaRight, backButtonLook } from '../Layout/PanelHeader';
 import { FolderRow as AtRow } from './assetTabLayout';
 import { phoneIconOnly } from '../Common/headerCta';
-import { docFocusSurface } from './docFocusStyles';
+import { docFocusSurface, docComposeSurface } from './docFocusStyles';
 
 // ─── styled ─── (Q Note 패턴 — Sidebar + Content 2컬럼 + PanelHeader)
 export const PrintOnlyTitle = styled.h1`
@@ -359,6 +359,8 @@ export const Content = styled.section<{ $hasDetail?: boolean; $projectFull?: boo
     /* 편집은 본문(EditBody)이 스크롤한다 — 아래 EditBody 설명 */
     overflow-y: ${p => p.$editing ? 'hidden' : 'auto'};
   }
+  /* 글 쓰는 중이면 편집 판을 화면 전체로(설명은 docFocusStyles.docComposeSurface) */
+  ${p => (p.$editing && !p.$focus ? docComposeSurface : '')}
   /* 집중 편집(전체 화면으로 쓰기) — 켜졌을 때만 화면 위로 띄운다(components/Docs/docFocusMode). 맨 끝에 두어 위 폰 규칙을 덮는다. */
   ${p => (p.$focus ? docFocusSurface : '')}
 `;

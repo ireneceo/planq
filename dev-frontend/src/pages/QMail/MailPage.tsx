@@ -2644,7 +2644,7 @@ const MailPage: React.FC = () => {
                   </KeptDraftNote>
                 )}
                 {composeFromOptions.length > 1 && (
-                  <ComposeField>
+                  <ComposeField data-pq-editor-hide="">
                     <ComposeLabel>{t('compose.fromAddress') as string}</ComposeLabel>
                     <PlanQSelect
                       size="sm"
@@ -2665,7 +2665,7 @@ const MailPage: React.FC = () => {
                     />
                   </ComposeField>
                 )}
-                <ComposeField>
+                <ComposeField data-pq-editor-hide="">
                   <ComposeLabel>{t('compose.to', { defaultValue: '받는 사람' }) as string}</ComposeLabel>
                   {/* 칩 입력 — 콤마·엔터로 하나씩 확정. 바깥 계약은 그대로 콤마 문자열이다
                       (cTo 를 읽는 6곳이 전부 split 으로 쓴다 — 배열로 바꾸면 한 곳만 놓쳐도 주소가 사라진다) */}
@@ -2677,7 +2677,7 @@ const MailPage: React.FC = () => {
                     suggestions={toSuggestions}
                   />
                 </ComposeField>
-                <ComposeField>
+                <ComposeField data-pq-editor-hide="">
                   <ComposeLabel>{t('compose.subject', { defaultValue: '제목' }) as string}</ComposeLabel>
                   <ComposeInput data-testid="mail-compose-subject" value={cSubject} onChange={(e) => { markComposeTouched(); setCSubject(e.target.value); }} placeholder={t('compose.subjectPh', { defaultValue: '제목을 입력하세요' }) as string} />
                 </ComposeField>

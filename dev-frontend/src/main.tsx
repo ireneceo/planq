@@ -176,6 +176,41 @@ if (typeof window !== 'undefined' && window.visualViewport) {
     // 조합 중 밀린 보정을 여기서 한 번 갚는다.
     requestAnimationFrame(() => { maybeFixPhantomScroll(); ensureFocusedVisible(); });
   }, true);
+  // ★ 2026-11-02 — «글 쓰는 중» 표식 <html data-pq-compose> (index.css «글 쓰는 중» 블록이 읽는다 · Fable 설계 판정).
+  //   Irene: "아이패드에서 가로사이즈로 보면 문서 편집을 할 수가 없어 … 헤더가 온갖게 다 있어서 편집화면이 너무 적어".
+  //   여태 «키보드가 뜨면 접기» 는 폰 폭(≤768) CSS 에만 있어 아이패드 가로(1180)는 보정만 받고 접기를 못 받았다 —
+  //   키보드 뒤 보이는 415px 를 탭줄·배너·제목·분류 줄·서식 도구가 다 먹어 글 쓰는 칸이 0 이었다(실측).
+  //   판정 = 화면 키보드가 떴다 ∧ 포커스가 편집기 안 ∧ (폰 폭 ∨ 보이는 높이 < 560). 폭·포인터로 태블릿을 가르지 않는다.
+  //   하드웨어 키보드(단축키 줄만)는 data-keyboard-up 이 안 켜지므로 그대로다. 채팅 입력줄은 편집기 표식이 없다.
+  //   값이 둘이다(Fable 완료 검증 FAIL 반영): 'editor' = 본문 편집기 안 · 'field' = 쓰기 영역의 다른 칸(메일 받는 사람·제목, 문서 제목).
+  //   메일 머리 칸은 'editor' 일 때만 접는다 — 받는 사람을 쓰는 중에 제목 칸이 사라지면 다음 칸으로 갈 수 없다.
+  const EDITOR_SEL = '[data-pq-editor-wrap], .pq-rich-editor, [data-pq-editor]';
+  const WRITING_SEL = '[data-pq-writing]';
+  const phoneW = window.matchMedia('(max-width: 768px)');
+  let kbUp = false;
+  let crampedRetries = 0;
+  let composeOn = '';
+  function syncCompose() {
+    const ae = document.activeElement as HTMLElement | null;
+    const canClosest = !!(ae && typeof ae.closest === 'function');
+    const kind = canClosest && ae!.closest(EDITOR_SEL) ? 'editor' : (canClosest && ae!.closest(WRITING_SEL) ? 'field' : '');
+    // 높이 문턱 640 — 아이패드 13″ 가로(키보드 뒤 약 590~600)도 들어오고, 세로(850 이상)는 그대로 둔다.
+    const on = (mq.matches && kbUp && kind && (phoneW.matches || vv.height < 640)) ? kind : '';
+    if (on === composeOn) return;
+    composeOn = on;
+    crampedRetries = 0;
+    if (on) document.documentElement.setAttribute('data-pq-compose', on);
+    else document.documentElement.removeAttribute('data-pq-compose');
+    // 접힌 뒤(또는 펴진 뒤) 레이아웃이 바뀌었으니 캐럿을 한 번 다시 본다.
+    requestAnimationFrame(() => requestAnimationFrame(() => ensureFocusedVisible(0)));
+  }
+  // 키보드 크기 변화가 멈춘 뒤 한 번 캐럿을 본다 — 여태 focusin·타이핑 때만 봐서, 키보드가 다 올라온 뒤
+  //   캐럿이 키보드 뒤에 있다가 첫 키 입력에 한꺼번에 ~360px 뛰었다(실측 «첫 Enter 점프»).
+  let settleTimer = 0;
+  const settleAfterResize = () => {
+    if (settleTimer) window.clearTimeout(settleTimer);
+    settleTimer = window.setTimeout(() => { settleTimer = 0; ensureFocusedVisible(0); }, 80);
+  };
   const update = () => {
     if (window.innerHeight > fullH) fullH = window.innerHeight;
     // 비율만 보면 큰 태블릿(아이패드 프로 세로 1366)은 키보드가 떠도 70% 를 안 넘는다 — 터치 기기는
@@ -183,6 +218,8 @@ if (typeof window !== 'undefined' && window.visualViewport) {
     const isUp = vv.height < fullH * 0.70 || (coarse.matches && fullH - vv.height > 150);
     if (isUp) document.body.setAttribute('data-keyboard-up', '1');
     else document.body.removeAttribute('data-keyboard-up');
+    kbUp = isUp;
+    syncCompose();
     // ★ iOS 는 키보드가 올라올 때 visual viewport 를 아래로 민다(offsetTop). position:fixed 요소는
     //   layout viewport 에 붙어 있으므로 그만큼 화면 **위로 밀려 나간다** — 드로어 헤더·제목이
     //   사라지는 정체다 (Irene: "업무추가버튼 누르면 상단 제목이 가려져").
@@ -203,6 +240,7 @@ if (typeof window !== 'undefined' && window.visualViewport) {
     }
     lastVvh = vv.height;
     document.documentElement.style.setProperty('--vvh', `${vv.height}px`);
+    settleAfterResize();
     // 키보드 높이 — fixed 바닥바/FAB 가 필요 시 이만큼 리프트하는 데 사용.
     const kb = Math.max(0, fullH - vv.height);
     if (kb !== lastKb) {
@@ -330,6 +368,17 @@ if (typeof window !== 'undefined' && window.visualViewport) {
           if (cover.top <= rect.top && cover.bottom < rect.bottom) visibleTop = Math.max(visibleTop, cover.bottom);
           else if (cover.top > rect.top) visibleBottom = Math.min(visibleBottom, cover.top);
         }
+        // ★ 2026-11-02 (Fable) — 보이는 칸이 캐럿 한 줄 + 여백보다 작으면 «보인다» 로 끝내지 않는다.
+        //   여태는 아래 끝만 맞춰서, 위쪽 줄이 화면을 다 먹은 아이패드 가로(보이는 칸 0)에서 캐럿을 분류 줄·버튼 줄
+        //   **뒤에** 두고 끝냈다. 이제는 스크롤하지 않고, «글 쓰는 중» 접기가 먹은 뒤(두 프레임) 다시 본다 — 두 번까지.
+        if (visibleBottom - visibleTop < Math.min(rect.height, 40) + 48) {
+          if (crampedRetries < 2) {
+            crampedRetries++;
+            requestAnimationFrame(() => requestAnimationFrame(() => ensureFocusedVisible(0)));
+          }
+          return;
+        }
+        crampedRetries = 0;
         if (rect.bottom > visibleBottom - margin) {
           // 가려짐 — 넘친 만큼만 스크롤 컨테이너를 내린다(과도한 center 점프 방지).
           const delta = rect.bottom - (visibleBottom - margin);
@@ -382,8 +431,8 @@ if (typeof window !== 'undefined' && window.visualViewport) {
   document.addEventListener('selectionchange', trackCaret);
   document.addEventListener('input', trackCaret, true);
 
-  window.addEventListener('focusin', () => { requestAnimationFrame(update); ensureFocusedVisible(); });
-  window.addEventListener('focusout', () => requestAnimationFrame(update));
+  window.addEventListener('focusin', () => { crampedRetries = 0; requestAnimationFrame(update); syncCompose(); ensureFocusedVisible(); });
+  window.addEventListener('focusout', () => requestAnimationFrame(() => { update(); syncCompose(); }));
 }
 
 // (제거) UpdateBanner 시스템 — version.json 폴링 + Socket build_id broadcast + 자동 reload.

@@ -2211,7 +2211,7 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId, onEditingChange }) =>
         data-testid={focus.on ? 'docs-focus-surface' : undefined}>
         {isEditing ? (
           <>
-            <StickyBands data-testid="docs-detail-bands">
+            <StickyBands data-testid="docs-detail-bands" data-pq-writing="">
             <PanelHeader>
               <TitleRow>
                 <MobileBackBtn $always={isProject} type="button" onClick={cancelEdit} aria-label={t('back', '뒤로') as string}>
@@ -2283,7 +2283,7 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId, onEditingChange }) =>
               if (taskN > 0) parts.push(t('metaSummary.tasks', { count: taskN, defaultValue: '업무 {{count}}' }) as string);
               if (mode === 'edit' && detail) parts.push(`${t('visibility.label', { defaultValue: '공개' }) as string}: ${visLabel(detail.vlevel)}`);
               return (
-                <MetaSummaryBtn type="button" data-testid="docs-meta-summary" aria-expanded={metaOpenPhone}
+                <MetaSummaryBtn type="button" data-testid="docs-meta-summary" data-pq-writing-hide="" aria-expanded={metaOpenPhone}
                   onClick={() => setMetaOpenPhone(v => !v)}>
                   <MetaSummaryLabel>{t('metaSummary.label', '분류·연결')}</MetaSummaryLabel>
                   <MetaSummaryValue>{parts.length ? parts.join(' · ') : t('metaSummary.empty', '없음')}</MetaSummaryValue>
@@ -2293,7 +2293,7 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId, onEditingChange }) =>
                 </MetaSummaryBtn>
               );
             })()}
-            <MetaRow $phoneOpen={metaOpenPhone} data-testid="docs-meta-row">
+            <MetaRow $phoneOpen={metaOpenPhone} data-testid="docs-meta-row" data-pq-writing-hide="">
               {/* ★ 카테고리 입력은 width:100% 라 행을 통째로 먹었고, 그래서 혼자 한 줄을 차지했다
                   (Irene: "카테고리 창이 너무 심하게 길어. 혼자 있을 이유가 없는데").
                   폭을 묶어 프로젝트·형태·공개·보안과 **한 줄**에 서게 한다. 좁아지면 자연히 접힌다. */}

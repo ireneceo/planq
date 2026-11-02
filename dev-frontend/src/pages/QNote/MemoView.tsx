@@ -319,7 +319,7 @@ const MemoView: React.FC<Props> = ({ session, businessId, prefillProjectId, pref
         </HeaderActions>
       </Header>
       {/* 밴드2 — 저장 상태와 분류/태그. 제목 줄에서 내려온 것들이다. */}
-      <MetaBand>
+      <MetaBand data-pq-writing-hide="">
         <DetailMetaLeft>
           <Status>
             <Dot $tone={saveState} />
@@ -373,7 +373,7 @@ const MemoView: React.FC<Props> = ({ session, businessId, prefillProjectId, pref
       <Body>
         {/* AI 칸은 본문 스크롤 **안** — 에디터 툴바(sticky)가 그 위로 붙고, 글을 쓰면 칸은 위로 밀려 사라진다. */}
           {aiPanel === 'summary' && (
-            <AiPanelSection data-testid="memo-ai-panel" aria-label={t('page.summary.title', '요약') as string}>
+            <AiPanelSection data-pq-writing-hide="" data-testid="memo-ai-panel" aria-label={t('page.summary.title', '요약') as string}>
               <MemoSummaryTop>
                 <MemoSummaryTitle>{t('page.summary.title', '요약')}</MemoSummaryTitle>
                 <MemoSummaryActions>
@@ -440,7 +440,7 @@ const MemoView: React.FC<Props> = ({ session, businessId, prefillProjectId, pref
 
           {/* N+88 — 메모 업무 추출 (음성 review 와 동일 TaskCandidateCard) */}
           {aiPanel === 'tasks' && (
-            <AiPanelSection data-testid="memo-ai-panel" aria-label={t('page.tasks.title', '업무') as string}>
+            <AiPanelSection data-pq-writing-hide="" data-testid="memo-ai-panel" aria-label={t('page.tasks.title', '업무') as string}>
               <MemoSummaryTop>
                 <MemoSummaryTitle>{t('page.tasks.title', '업무')}</MemoSummaryTitle>
                 <MemoSummaryActions>

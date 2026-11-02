@@ -52,6 +52,10 @@ export default DrawerFooter;
 // ────────────────────────────────────────────────
 const Wrap = styled.div<{ $sticky: boolean; $size: 'sm' | 'md' }>`
   ${(p) => p.$sticky && 'position: sticky; bottom: 0;'}
+  /* ★ 글 쓰는 중(화면 키보드 + 편집기 포커스, index.css «글 쓰는 중») 에는 붙여 두지 않는다 — 내용 끝에 놓인다
+     (2026-11-02 Fable 설계 · 폰의 10-22 규칙을 «키보드 중» 에 한해 모든 폭으로). 아이패드 가로에서 업무 설명을 쓰면
+     바닥에 붙은 [업무 삭제]·[승인] 줄이 캐럿을 덮어 치는 글자가 안 보였다(실측). 키보드를 내리면 다시 바닥에 붙는다. */
+  html[data-pq-compose] & { position: static; }
   background: #FFFFFF;
   border-top: 1px solid #E2E8F0;
   padding: ${(p) => p.$size === 'sm' ? '12px 16px' : '14px 20px'};

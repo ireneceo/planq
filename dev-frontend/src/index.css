@@ -289,27 +289,35 @@ html.pq-native body::after {
     touch-action: pan-y;
   }
 
-  /* ★ 쓰기 모드 (2026-09-29 #436 — Irene: "메일 답장하기를 모바일에서 했더니 수정하려고 키보드
-     올리면 내용이 아예 안보여. 헤더가 너무 많이 내려와 있기도 하고 … 내용을 보면서 메일 수정
-     가능하게").
-     키보드가 올라오면 보이는 높이가 절반이 된다(iPhone 844 → 약 500). 그 절반을 앱 헤더(56+상태바)·
-     메타 줄·버튼 줄이 나눠 먹어 정작 읽을 원문이 0 에 가깝게 눌렸다(실측 16px).
-     글을 쓰는 동안에는 **쓰는 것과 읽는 것만** 남긴다:
-       · 앱 헤더(햄버거·로고)를 접는다 — 상태바 자리만 칠한다(--pq-mobile-header 0 → 크롬 = safe-top).
-       · data-pq-writing-hide 가 붙은 줄(메타·칩)을 숨긴다.
-     발동 조건은 **키보드 up + 포커스가 data-pq-writing 안** 둘 다다. 표식을 단 화면만 바뀐다 —
-     채팅처럼 입력하면서 머리말을 봐야 하는 화면은 표식을 달지 않는다. 키보드를 내리면 즉시 원래대로. */
-  html:has(body[data-keyboard-up='1'] [data-pq-writing]:focus-within) {
-    --pq-mobile-header: 0px;
-  }
-  body[data-keyboard-up='1']:has([data-pq-writing]:focus-within) [data-pq-mobile-header] > * {
-    visibility: hidden;
-  }
-  body[data-keyboard-up='1']:has([data-pq-writing]:focus-within) [data-pq-writing-hide] {
-    display: none !important;
-  }
+  /* (쓰기 모드는 아래 «글 쓰는 중» 블록으로 옮겼다 — 폰 폭만이 아니라 화면 키보드 기기 전부, 2026-11-02) */
 
 }
+
+/* ★ 글 쓰는 중 (2026-11-02 — 폰 «쓰기 모드»(#436)를 화면 키보드 기기 전부로 넓힘 · Fable 설계 판정).
+   Irene: "아이패드에서 가로사이즈로 보면 문서 편집을 할 수가 없어. 키보드가 올라와도 헤더가 온갖게 다 있어서
+   편집화면이 너무 적어 … 모든 에디터 하는 것에서 모바일, 태블릿 키보드가 올라오는 경우의 UI가 지금 너무 부족해."
+   실측(아이패드 가로 1180, 키보드 뒤 보이는 높이 415): 탭줄·배너 2개·제목 줄·분류 줄·서식 도구가 425px 를 먹어
+   문서·업무 설명·메일 작성의 글 쓰는 칸이 0px 였다. 접는 규칙이 전부 (max-width:768px) 안에 있어 태블릿은 하나도 못 받았다.
+   발동은 main.tsx 가 정한다 — <html data-pq-compose> = 화면 키보드가 떴고 + 포커스가 편집기 안
+   ([data-pq-editor-wrap]·.pq-rich-editor·[data-pq-writing]·[data-pq-editor]) + (폰 폭이거나 보이는 높이 < 560).
+   폭·포인터로 가르지 않는다 · :has() 를 쓰지 않는다(구형 앱 안 브라우저). 채팅 입력줄은 편집기 표식이 없어 걸리지 않는다.
+   접는 것: 앱 머리줄(폰) · 탭줄(태블릿·데스크탑 탭 모드 — 토큰을 0 으로 내려 패널·사이드바 기준선이 함께 올라간다) ·
+   [data-pq-writing-hide] 를 단 줄(배너·문서 분류 줄·메일 받는사람/제목·업무 승인 칸 등 — 그 칸에서 입력 중이면 그대로).
+   언마운트하지 않는다(숨기기만) — 키보드를 내리면 즉시 돌아온다. */
+html[data-pq-compose] {
+  --pq-mobile-header: 0px;
+  --pq-tabstrip: 0px;
+}
+html[data-pq-compose] [data-pq-mobile-header] > *,
+html[data-pq-compose] [data-testid='tabstrip'] > * {
+  visibility: hidden;
+}
+html[data-pq-compose] [data-testid='tabstrip'] { overflow: hidden; border-bottom: 0; }
+html[data-pq-compose] [data-pq-writing-hide]:not(:focus-within),
+html[data-pq-compose='editor'] [data-pq-editor-hide]:not(:focus-within) {
+  display: none !important;
+}
+/* [data-pq-editor-hide] = 본문 편집기에서 쓸 때만 접는 칸(메일 보내는 주소·받는 사람·제목) — 그 칸들끼리 옮겨 다니는 동안은 다 보인다. */
 
 /* ★ 화면 키보드 기기 — 폰 + **터치 태블릿** (2026-10-12).
    Irene: "아이패드에서 수정/컨펌요청 입력하는데 키보드가 올라오고 이상한 공간이 키보드 위에 또 생겨서 입력할 수가

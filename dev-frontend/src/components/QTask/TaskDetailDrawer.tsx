@@ -2417,7 +2417,7 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
             {/* 액션 섹션 — 항상 마운트 유지 (상태 전환 시 섹션 자체가 사라지며 생기는 깜빡임 방지)
               * ★ 조건에 hold/external 을 반드시 포함한다. 빼면 워크플로 버튼이 없는 뷰어
               *   (owner·작성자)에게 보류 진입이 통째로 사라진다. */}
-            <Section ref={actionSectionRef} data-testid="task-action-section" style={{ display: (assigneeHasAction || reviewerCanAct || holdAvailable || externalAvailable || externalLocked) ? 'block' : 'none' }}>
+            <Section ref={actionSectionRef} data-testid="task-action-section" data-pq-writing-hide="" style={{ display: (assigneeHasAction || reviewerCanAct || holdAvailable || externalAvailable || externalLocked) ? 'block' : 'none' }}>
               {assigneeHasAction && <ActionCard>
                 <ActionCardTitle>{t('detail.actions.assigneeTitle', 'As assignee')}</ActionCardTitle>
                 {ackAvailable && <ActionPrimary onClick={actAck} disabled={actionBusy}>{t('detail.actions.ack', 'Acknowledge request')}</ActionPrimary>}

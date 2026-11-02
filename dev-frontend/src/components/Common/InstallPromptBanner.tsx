@@ -170,7 +170,7 @@ const InstallPromptBanner: React.FC = () => {
           : t('installPrompt.showSteps', '방법 보기');
 
     return (
-      <Banner role="complementary" aria-label={t('installPrompt.title', 'PlanQ 를 앱처럼 사용하기') as string}>
+      <Banner data-pq-writing-hide="" role="complementary" aria-label={t('installPrompt.title', 'PlanQ 를 앱처럼 사용하기') as string}>
         <BannerRow>
           <BannerIcon><img src="/favicon.svg" alt="PlanQ" width={36} height={36} /></BannerIcon>
           <BannerBody>
@@ -224,7 +224,7 @@ const InstallPromptBanner: React.FC = () => {
 
   // mode === 'notify'
   return (
-    <Banner role="complementary" aria-label={t('notifPrompt.title', '알림 받기') as string}>
+    <Banner data-pq-writing-hide="" role="complementary" aria-label={t('notifPrompt.title', '알림 받기') as string}>
       <BannerRow>
         <BannerIcon $bell>
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

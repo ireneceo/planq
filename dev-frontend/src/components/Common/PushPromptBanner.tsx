@@ -92,7 +92,7 @@ export default function PushPromptBanner() {
     if (nativeStatus === 'loading' || nativeStatus === 'granted') return null; // 허용됨/판정중 → 숨김
     const denied = nativeStatus === 'denied';
     return (
-      <Banner role="status">
+      <Banner role="status" data-pq-writing-hide="">
         <BellIcon>
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
             <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>
@@ -134,7 +134,7 @@ export default function PushPromptBanner() {
   if (iosNotPwa && status !== 'denied') {
     // iOS Safari (PWA 아님) — "홈 화면에 추가" 유도 banner
     return (
-      <Banner role="status">
+      <Banner role="status" data-pq-writing-hide="">
         <BellIcon>📱</BellIcon>
         <Body>
           <Title>{t('pushPrompt.iosTitle', { defaultValue: 'iPhone 알림은 PlanQ 앱 설치 후 가능' }) as string}</Title>
@@ -173,7 +173,7 @@ export default function PushPromptBanner() {
   const isDenied = status === 'denied';
 
   return (
-    <Banner role="status">
+    <Banner role="status" data-pq-writing-hide="">
       <BellIcon>
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
           <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>

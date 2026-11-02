@@ -50,7 +50,7 @@ const AnnouncementBanner: React.FC = () => {
       setPolicyDismissed(true);
     };
     return (
-      <Banner $sev="info" data-testid="policy-notice-banner">
+      <Banner $sev="info" data-testid="policy-notice-banner" data-pq-writing-hide="">
         <BannerIcon $sev="info">ⓘ</BannerIcon>
         <BannerText>
           {t(`policyNotice.${policy.id}`)}{' '}
@@ -66,7 +66,7 @@ const AnnouncementBanner: React.FC = () => {
   if (!ann || !text || dismissed) return null;
 
   return (
-    <Banner $sev={ann.announcement_severity}>
+    <Banner $sev={ann.announcement_severity} data-pq-writing-hide="">
       <BannerIcon $sev={ann.announcement_severity}>
         {ann.announcement_severity === 'critical' ? '⚠' : ann.announcement_severity === 'warn' ? '!' : 'ⓘ'}
       </BannerIcon>
