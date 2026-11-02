@@ -2096,5 +2096,8 @@
       "ai_echoed_inbound": "The AI just copied the message. Add a note for the AI and try again.",
       "limit": "You've used today's AI drafts. Please try again later."
     }
+  },
+  "keyboard": {
+    "hide": "Hide keyboard"
   }
 }

@@ -31,6 +31,7 @@ const WorkspaceSyncGuard = lazy(() => import('./components/Common/WorkspaceSyncG
 const SignupSourceReporter = lazy(() => import('./components/Common/SignupSourceReporter'));
 const MarketingTags = lazy(() => import('./components/Landing/MarketingTags'));
 const LeaveDecisionGuard = lazy(() => import('./components/Common/LeaveDecisionGuard'));
+const KeyboardDismissButton = lazy(() => import('./components/Common/KeyboardDismissButton'));
 const DownloadTray = lazy(() => import('./components/Common/DownloadTray'));
 const AppContextMenu = lazy(() => import('./components/Common/AppContextMenu'));
 const PopoutBridge = lazy(() => import('./components/Common/PopoutBridge'));
@@ -926,6 +927,8 @@ function App() {
       <Suspense fallback={null}><AppContextMenu /></Suspense>
       {/* 다운로드 진행 트레이 — 어느 화면에서 눌렀든 같은 카드·같은 숫자(services/downloadManager). 같은 이유로 **루트 한 곳** */}
       <Suspense fallback={null}><DownloadTray /></Suspense>
+      {/* 키보드 내리기 단추 — 앱(아이폰·아이패드·안드로이드)에서 화면 키보드가 떠 있을 때만. 같은 이유로 **루트 한 곳** (2026-11-02) */}
+      {isNativeApp() && <Suspense fallback={null}><KeyboardDismissButton /></Suspense>}
     </PwaInstallProvider>
     </AuthProvider>
     </ErrorBoundary>
