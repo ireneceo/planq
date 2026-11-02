@@ -136,10 +136,11 @@ const DELIVERY_EPOCH_MS = Date.parse('2026-08-11T00:00:00Z');
 
 function setRefreshCookies(res, rawToken, row, persist) {
   const secure = cookieSecure(res);
-  const opts = { httpOnly: true, secure, sameSite: 'lax', path: '/api/auth' };
-  if (persist) opts.maxAge = Math.max(0, new Date(row.expires_at).getTime() - Date.now());
-  res.cookie('refresh_token', rawToken, opts);
-  setSessionHint(res, { maxAge: opts.maxAge, secure });
+  const maxAge = persist ? Math.max(0, new Date(row.expires_at).getTime() - Date.now()) : undefined;
+  // 여러 계정(docs/MULTI_ACCOUNT_DESIGN.md 7절) — 계정마다 rt_<id> + 지금 계정 rt_last + 옛 refresh_token 이중 쓰기.
+  //   ★ 이 함수는 **지금 계정**의 세션을 세우는 자리에서만 부른다(refresh 는 rt_last 와 다른 계정이면 409 로 먼저 막는다).
+  require('./deviceAccounts').writeAccountCookie(res, row.user_id, rawToken, maxAge, { makeActive: true });
+  setSessionHint(res, { maxAge, secure });
   // 세션이 새로 서는 자리에서는 이미지 쿠키도 같이 준다 (heal · refresh 회전).
   setImageCookie(res, { id: row.user_id });
 }

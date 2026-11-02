@@ -5,6 +5,7 @@
 //   3) GET /api/push/vapid-public-key
 //   4) PushManager.subscribe({ applicationServerKey })
 //   5) POST /api/push/subscribe (endpoint, keys, user_agent)
+import { getDeviceProof } from './accounts';
 import { apiFetch, getAccessToken } from '../contexts/AuthContext';
 import { isNativeApp } from './native';
 import { registerNative, unregisterNative } from './nativePush';
@@ -135,6 +136,8 @@ export async function subscribe(): Promise<{ ok: boolean; reason?: string }> {
   }
 
   const json = sub.toJSON() as { endpoint?: string; keys?: { p256dh?: string; auth?: string } };
+  // 한 기기 여러 계정 — 이 기기 계정 묶음 증명(서버 서명). 없으면 서버가 종전처럼 다른 사람 구독을 만료한다.
+  const deviceProof = await getDeviceProof().catch(() => null);
   const post = await apiFetch('/api/push/subscribe', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -142,6 +145,7 @@ export async function subscribe(): Promise<{ ok: boolean; reason?: string }> {
       endpoint: json.endpoint,
       keys: { p256dh: json.keys?.p256dh, auth: json.keys?.auth },
       user_agent: navigator.userAgent,
+      ...(deviceProof ? { device_proof: deviceProof } : {}),
     }),
   });
   if (!post.ok) {
@@ -308,4 +312,19 @@ export function bindPermissionSync(): void {
   }
   // 첫 1회 — 앱 진입 시점
   setTimeout(handler, 2000);
+}
+
+/** 로그아웃할 때 서버에 «이 기기» 를 알려 그 계정 × 이 기기 푸시 행만 지우게 한다(다른 계정 푸시는 그대로). */
+export async function currentPushTarget(): Promise<{ endpoint?: string; native?: { kind: 'apns' | 'fcm'; token: string } }> {
+  try {
+    if (isNativeApp()) {
+      const n = await import('./nativePush');
+      const t = n.nativePushTarget();
+      return t ? { native: t } : {};
+    }
+    if (!('serviceWorker' in navigator)) return {};
+    const reg = await navigator.serviceWorker.getRegistration();
+    const sub = reg ? await reg.pushManager.getSubscription() : null;
+    return sub ? { endpoint: sub.endpoint } : {};
+  } catch { return {}; }
 }

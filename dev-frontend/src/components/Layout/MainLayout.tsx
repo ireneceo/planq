@@ -40,7 +40,7 @@ import { useWhatsNew } from '../../hooks/useWhatsNew';
 import WhatsNewDropdown from '../Common/WhatsNewDropdown';
 import { useUnreadTotal } from '../../hooks/useUnreadTotal';
 import { useGlobalBadge } from '../../hooks/useGlobalBadge';
-import { setTabScope, setTabScopeBusiness, tabScopeOf } from '../../stores/tabStore';
+import { setTabScope, setTabScopeBusiness, tabScopeOf } from '../../stores/tabStore'; import AccountSwitcher from './AccountSwitcher';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import { useEscapeStack } from '../../hooks/useEscapeStack';
 import { useAppShellLock } from '../../hooks/useAppShellLock';
@@ -2193,6 +2193,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
                       <UserMenuMetaRole>{getRoleLabel(user)}</UserMenuMetaRole>
                     </UserMenuMeta>
                     <UserMenuDivider />
+                    <AccountSwitcher onClose={() => setUserMenuOpen(false)} />{/* 한 기기 여러 계정 — 아래 구분선 포함(docs/MULTI_ACCOUNT_DESIGN.md) */}
                     <UserMenuLangRow>
                       <LanguageSelector variant="sidebar" />
                     </UserMenuLangRow>

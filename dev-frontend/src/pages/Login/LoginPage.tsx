@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { startAuthRedirect } from '../../services/oauth';
+import { useAddAccountMode, AddAccountCancel } from './addAccountMode';
 import GoogleAuthButton from '../../components/Auth/GoogleAuthButton';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -385,7 +386,9 @@ const LoginPage: React.FC = () => {
   const redirectParam = (() => { const q = new URLSearchParams(location.search); return q.get('redirect') || q.get('next') || null; })();
   const { login, logout, user, isAuthenticated, isLoading: authLoading, switchWorkspace } = useAuth();
   const wsSwitchingRef = React.useRef(false);   // 전환 뒤 다시 로드되기 전에 이 effect 가 또 이동하지 않게
-  const [email, setEmail] = useState('');
+  // 한 기기 여러 계정 — «계정 추가»(?add=1). 로그인된 채로 이 화면을 쓴다(기존 계정은 그대로 남는다).
+  const add = useAddAccountMode(user, isAuthenticated, authLoading);
+  const [email, setEmail] = useState(() => add.prefillEmail);
   const [password, setPassword] = useState('');
   // 로그인 상태 유지 — default ON (Slack/Google/GitHub 표준).
   // OFF 시 백엔드가 session cookie 발급 → 브라우저 닫으면 자동 로그아웃 (공용 PC 안전).
@@ -459,7 +462,8 @@ const LoginPage: React.FC = () => {
     setIsLoading(true);
     try {
       // 기존 세션이 남아있으면 선 제거 (쿠키/토큰 충돌 방지) — logout API 실패해도 진행
-      if (isAuthenticated) {
+      //   계정 추가(?add=1)에서는 지우지 않는다 — 지금 계정을 남긴 채 하나 더 넣는 화면이다.
+      if (isAuthenticated && !add.active) {
         try { await logout(); } catch { /* noop */ }
       }
       // 직접 fetch — AuthContext state 경합 피함
@@ -484,6 +488,7 @@ const LoginPage: React.FC = () => {
   };
 
   useEffect(() => {
+    if (add.active) return;   // 계정 추가 — 머무르고, 새 계정으로 들어오면 useAddAccountMode 가 다시 부팅한다
     if (!authLoading && isAuthenticated && user) {
       // 사이클 N+52 — state.from 의 pathname + search + hash 모두 보존.
       // PWA Share Target 시나리오: 미인증 사용자가 외부 앱에서 공유 → /share-receive?shared=1
@@ -515,7 +520,7 @@ const LoginPage: React.FC = () => {
         navigate(user.business_role === 'client' ? '/home' : '/dashboard', { replace: true });
       }
     }
-  }, [authLoading, isAuthenticated, user, navigate, location, switchWorkspace]);
+  }, [authLoading, isAuthenticated, user, navigate, location, switchWorkspace, add.active]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -579,8 +584,9 @@ const LoginPage: React.FC = () => {
         </LeftSection>
 
         <RightSection>
-          <FormTitle>{t('login.title')}</FormTitle>
-          <FormSubtitle>{t('login.subtitle')}</FormSubtitle>
+          <FormTitle>{add.active ? t('login.addTitle', '계정 추가') : t('login.title')}</FormTitle>
+          <FormSubtitle>{add.active ? t('login.addSubtitle', { name: add.fromName, defaultValue: '{{name}} 계정은 그대로 두고 다른 계정으로 로그인해요. 프로필 메뉴에서 눌러 바꿀 수 있어요.' }) : t('login.subtitle')}</FormSubtitle>
+          {add.active && <AddAccountCancel />}
 
           {recoverPending && (
             <RecoverBanner>

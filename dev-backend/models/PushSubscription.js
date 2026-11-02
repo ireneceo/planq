@@ -40,7 +40,8 @@ PushSubscription.init({
   indexes: [
     { fields: ['user_id'] },
     { fields: ['business_id'] },
-    { unique: true, fields: ['endpoint'], name: 'push_subscriptions_endpoint_unique' },
+    // 한 기기 × 여러 계정(2026-11-02, docs/MULTI_ACCOUNT_DESIGN.md) — 같은 기기 주소에 사람마다 한 행. 운영: scripts/migrate-push-multi-account.js(배포 슬롯)
+    { unique: true, fields: ['endpoint', 'user_id'], name: 'uq_push_endpoint_user' },
   ],
 });
 

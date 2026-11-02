@@ -109,15 +109,34 @@ async function sendPushToUser(userId, payload, opts = {}) {
   // ★ 2026-06-15 declarative 형식 revert — web_push:8030 payload 를 구버전 iOS 가
   //   시스템 레벨에서 가로채 버리고 SW 도 안 깨워 구버전까지 미표시되는 회귀 발생.
   //   검증된 classic 형식({title,body,link,tag,icon,badge})으로 복귀. sw.js 는 raw 직접 읽음.
-  const json = JSON.stringify(payload);
   // RFC 8030 옵션 — 모바일 도착률 안정성 (사이클 N+13)
   const sendOpts = { TTL: DEFAULT_TTL_SECONDS, urgency: DEFAULT_URGENCY };
+  // 한 기기 × 여러 계정(docs/MULTI_ACCOUNT_DESIGN.md 7절 5) — 같은 기기 주소에 다른 계정이 있으면
+  //   ①제목 앞에 받는 계정 표시 ②앱 숫자 = 이 기기 계정들 합(발송 때 계산) ③uid 로 SW 클릭이 그 계정으로 전환.
+  //   혼자 쓰는 기기는 payload 에 uid 만 더해진다(표시·숫자 그대로).
+  const coByEndpoint = await coAccountsOf(userId, subs);
+  let me = null;
   let sent = 0;
   for (const s of subs) {
+    const co = coByEndpoint.get(s.endpoint) || [];
+    let payloadFor = { ...payload, uid: Number(userId) };
+    if (co.length) {
+      if (!me) me = await accountLabelOf(userId, co);
+      let extra = 0;
+      for (const c of co) extra += await require('./accountUnread').unreadFor(c.user_id);
+      payloadFor = {
+        ...payloadFor,
+        title: me ? `[${me}] ${payload.title || 'PlanQ'}` : payload.title,
+        // 누르면 그 계정으로 먼저 전환(화면 AccountSyncGuard 가 pq_as 를 읽는다 — 다른 워크스페이스 ?ws= 와 같은 방식)
+        ...(payload.link ? { link: withAccount(payload.link, userId) } : {}),
+        ...(typeof payload.badge === 'number' ? { badge: payload.badge + extra } : {}),
+      };
+    }
+    const json = JSON.stringify(payloadFor);
     try {
       // ── 네이티브 APNs (iOS) ──
       if (s.kind === 'apns') {
-        const r = await sendApns(s.device_token, payload);
+        const r = await sendApns(s.device_token, payloadFor);
         if (r.reason === 'no_apns_key') {
           // APNs 키 미설정 — web push 의 no_vapid 와 동일 패턴. 실패로 카운트하지 않음.
           await logPush({ user_id: userId, subscription_id: s.id, endpoint_host: 'apns', status: 'skipped', error_message: 'no_apns_key', category, payload_title: payload.title });
@@ -137,7 +156,7 @@ async function sendPushToUser(userId, payload, opts = {}) {
       }
       // ── 네이티브 FCM (Android) ──
       if (s.kind === 'fcm') {
-        const r = await sendFcm(s.device_token, payload);
+        const r = await sendFcm(s.device_token, payloadFor);
         if (r.reason === 'no_fcm_key') {
           await logPush({ user_id: userId, subscription_id: s.id, endpoint_host: 'fcm', status: 'skipped', error_message: 'no_fcm_key', category, payload_title: payload.title });
         } else if (r.status === 404 || r.reason === 'unregistered') {
@@ -200,9 +219,46 @@ async function sendPushToUser(userId, payload, opts = {}) {
 }
 
 // 동시에 여러 user 에게 발송 (인박스 alert 등)
+function withAccount(link, userId) {
+  const str = String(link || '');
+  if (!str || /[?&]pq_as=/.test(str)) return str;
+  const hashAt = str.indexOf('#');
+  const base = hashAt >= 0 ? str.slice(0, hashAt) : str;
+  const hash = hashAt >= 0 ? str.slice(hashAt) : '';
+  return `${base}${base.includes('?') ? '&' : '?'}pq_as=${Number(userId)}${hash}`;
+}
+
+// 같은 기기 주소(endpoint)의 다른 활성 계정 — Map<endpoint, [{user_id}]>
+async function coAccountsOf(userId, subs) {
+  const out = new Map();
+  const eps = subs.map((x) => x.endpoint).filter(Boolean);
+  if (!eps.length) return out;
+  const { Op } = require('sequelize');
+  const rows = await PushSubscription.findAll({
+    where: { endpoint: eps, user_id: { [Op.ne]: userId }, expired_at: null },
+    attributes: ['endpoint', 'user_id'],
+  });
+  for (const r of rows) {
+    if (!out.has(r.endpoint)) out.set(r.endpoint, []);
+    out.get(r.endpoint).push({ user_id: r.user_id });
+  }
+  return out;
+}
+
+// 알림 제목 앞 계정 표시 — 이름이 다른 계정끼리면 이름, 같은 이름이면 이메일(같은 사람의 회사·개인 계정은 이름이 같다)
+async function accountLabelOf(userId, co) {
+  const { User } = require('../models');
+  const ids = [Number(userId), ...co.map((c) => c.user_id)];
+  const users = await User.findAll({ where: { id: ids }, attributes: ['id', 'name', 'email'] });
+  const mine = users.find((u) => u.id === Number(userId));
+  if (!mine) return null;
+  const sameName = users.some((u) => u.id !== mine.id && (u.name || '').trim() === (mine.name || '').trim());
+  return (sameName ? mine.email : mine.name) || mine.email || null;
+}
+
 async function sendPushToUsers(userIds, payload, opts = {}) {
   const results = await Promise.all(userIds.map(u => sendPushToUser(u, payload, opts)));
   return { totalSent: results.reduce((s, r) => s + (r.sent || 0), 0) };
 }
 
-module.exports = { sendPushToUser, sendPushToUsers, getPublicKey, ensureInit };
+module.exports = { sendPushToUser, sendPushToUsers, getPublicKey, ensureInit, _coAccountsOf: coAccountsOf, _accountLabelOf: accountLabelOf };

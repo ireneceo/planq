@@ -124,3 +124,16 @@ Fable 판정: D0 = A 안 맞음 · D1 = 기기 전체 전환·재부팅 맞음 �
 
 ### 증명할 것 (실 HTTP 3003 + 브라우저 3폭)
 ① A 로그인 → B add → `rt_A`·`rt_B`·`rt_last=B` · device-accounts 2건 valid ② switch A → 응답 A · `pq_img` A(이미지 200) ③ A 옛 쿠키 15분 안 재사용 200 · B 무영향 ④ refresh{A} 인데 rt_last=B → 409 ⑤ logout{A,endpoint} → A 만 사라짐 · B·has_session 그대로 · all → 0 ⑥ 양성 대조: add 없는 로그인 → 기존 rt_A 폐기 · add 무인증 401 · 묶음 밖 C 같은 endpoint → A·B 행 만료 ⑦ 옛 refresh_token 만 → 200 + 승격 · 롤백 뒤 200 ⑧ 발송 payload uid · 숫자 = 합 · 브라우저: 창 2 + 팝아웃 전환 → 셋 다 재부팅 · 전환 뒤 DOM·응답·새 저장소 키에 앞 계정 0건 · iOS PWA·앱 강제 종료 후 쿠키 2개 생존 · 애플 add 경로.
+
+## 8. 구현 (2026-11-02 · [Opus] 방 d5609fe9 — 단계 0~2 + 3 일부)
+- 서버: `services/deviceAccounts.js`(쿠키 묶음 단일 원천 — rt_<id>·rt_last·옛 refresh_token 이중 쓰기·rt_add 서명 10분·rt_solo 미룬 정리·device_proof 60초) ·
+  `services/authTokens.setRefreshCookies` 가 rt_<id>+rt_last+옛 쿠키를 같이 쓴다 · 로그인/가입/OAuth(`oauth/core.issueSessionCookie`)는 setRefreshCookies → `deviceAccounts.afterLogin` ·
+  `/refresh` = housekeep → 지금 계정 쿠키 · body.user_id ≠ 지금 계정이면 409 `account_stale` · `/logout {user_id|all, endpoint?, native?}` ·
+  `routes/auth_accounts.js` GET `/device-accounts` · POST `/switch` · POST `/accounts/add-intent`(접속 토큰 필요 · 5개 한도 409 `account_limit`) ·
+  `routes/push.js settleOtherUsers`(증명에 본인이 있어야 유효) · `services/push_service`(같은 기기 다른 계정 있으면 제목 앞 [이름/이메일] · badge 합 · 링크 `pq_as=`) · `services/accountUnread`(다른 계정 안읽음 = 안 읽은 알림 30일, 30초 캐시).
+- 운영 마이그레이션 `scripts/migrate-push-multi-account.js`(배포 슬롯 등록, dev 적용·멱등 확인).
+- 화면: `services/accounts.ts`(목록·전환·추가 의도·scopedStorage) · `components/Common/AccountSyncGuard`(App 루트 — 다른 창 전환·409·탭 복귀·pq_as) ·
+  `components/Layout/AccountSwitcher`(사용자 메뉴 — 다른 계정·계정 추가·모든 계정 로그아웃) · 로그인 `?add=1`(`pages/Login/addAccountMode.tsx`) ·
+  탭 저장 키 `u<id>::`(stores/tabStore — 도장은 그대로) · 메일 마지막 메일함·폴더 계정별 · 초안 정리가 이 기기 다른 계정 초안은 남김 · 앱 아이콘 숫자 합 ·
+  앱 알림 탭 `nativePush.hopAccountFor` · 가드 `--category=rawstorage`(localStorage 직접 사용 래칫, 양성 대조 확인).
+- 안 한 것: 폰 아바타 길게 누르기(메뉴로 대신) · 접힌 사이드바의 계정 목록.

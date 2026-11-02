@@ -19,6 +19,7 @@ const {
   setImageCookie, clearImageCookie, cookieSecure,
 } = require('../services/authTokens');
 const authAudit = require('../services/authAudit');
+const deviceAccounts = require('../services/deviceAccounts');
 
 // ============================================
 // Helper: slug 생성
@@ -442,7 +443,7 @@ router.post('/register', async (req, res, next) => {
     const refreshToken = generateRefreshToken(user, clientKind, remember);
 
     // 6. Save refresh token row (다중 디바이스 세션 — 신규 row, 기존 row 영향 X)
-    await createRefreshTokenRow(user, refreshToken, req, transaction, { clientKind });
+    const regRow = await createRefreshTokenRow(user, refreshToken, req, transaction, { clientKind });
 
     await transaction.commit();
     // 가입 = 곧 첫 로그인(세션을 준다). commit **뒤**에 쓴다 — 롤백된 가입에 로그인 기록이 남지 않게.
@@ -453,15 +454,9 @@ router.post('/register', async (req, res, next) => {
       } catch (e) { console.warn('[register invite accept]', e.code || e.message); }
     }
 
-    // 6. Set refresh token as HttpOnly cookie
-    const secure = cookieSecure(res);   // 실제 연결이 HTTPS 인가 (services/authTokens)
-    const cookieOpts = { httpOnly: true, secure, sameSite: 'lax', path: '/api/auth' };
-    if (remember) cookieOpts.maxAge = TTL_MS_BY_KIND[clientKind];
-    res.cookie('refresh_token', refreshToken, cookieOpts);
-    setSessionHint(res, { maxAge: cookieOpts.maxAge, secure });
-    // 보안 Stage 1 — <img> 는 인증 헤더를 못 실으므로 이미지 서빙용 신원을 쿠키로 준다.
-    //   ★ 발급 지점을 하나라도 빼면 그 로그인 방식 사용자 전원이 (Stage 2 게이트 후) 이미지를 잃는다.
-    setImageCookie(res, user);
+    // 6. 세션 쿠키 한 벌(rt_<id>·rt_last·옛 refresh_token·힌트·이미지) — setRefreshCookies 한 곳 + 기기 계정 묶음 정리
+    setRefreshCookies(res, refreshToken, regRow, remember);
+    await deviceAccounts.afterLogin(req, res, user.id, remember ? TTL_MS_BY_KIND[clientKind] : undefined);
 
     // ★ 2026-09-08 — 여기서 user 객체를 **손으로 다시 만들면서 workspaces 를 빼먹고 있었다.**
     //   WorkspaceSwitcher 는 /api/businesses 가 아니라 이 응답의 user.workspaces 를 렌더한다
@@ -529,18 +524,13 @@ async function issueLoginSession(req, res, user, { method = 'password' } = {}) {
   const refreshToken = generateRefreshToken(user, clientKind, remember);
 
   // 다중 디바이스 — 신규 row 추가 (기존 디바이스 row 들 영향 X)
-  await createRefreshTokenRow(user, refreshToken, req, null, { clientKind });
+  const row = await createRefreshTokenRow(user, refreshToken, req, null, { clientKind });
   await user.update({ last_login_at: new Date() });
 
-  // Set refresh token as HttpOnly cookie
-  const secure = cookieSecure(res);   // 실제 연결이 HTTPS 인가 (services/authTokens)
-  const cookieOpts = { httpOnly: true, secure, sameSite: 'lax', path: '/api/auth' };
-  if (remember) cookieOpts.maxAge = TTL_MS_BY_KIND[clientKind];
-  res.cookie('refresh_token', refreshToken, cookieOpts);
-  setSessionHint(res, { maxAge: cookieOpts.maxAge, secure });
-  // 보안 Stage 1 — <img> 는 인증 헤더를 못 실으므로 이미지 서빙용 신원을 쿠키로 준다.
-  //   ★ 발급 지점을 하나라도 빼면 그 로그인 방식 사용자 전원이 (Stage 2 게이트 후) 이미지를 잃는다.
-  setImageCookie(res, user);
+  // 세션 쿠키 한 벌(rt_<id>·rt_last·옛 refresh_token·힌트·이미지)은 setRefreshCookies 한 곳.
+  //   그 뒤 기기 계정 묶음 — «계정 추가» 의도가 없으면 이 기기의 다른 계정은 정리(공용 PC, MULTI_ACCOUNT_DESIGN 7절 2).
+  setRefreshCookies(res, refreshToken, row, remember);
+  await deviceAccounts.afterLogin(req, res, user.id, remember ? TTL_MS_BY_KIND[clientKind] : undefined);
 
   // Get user with business info
   const userData = await getUserWithBusiness(user.id);
@@ -620,7 +610,15 @@ router.post('/login', async (req, res, next) => {
 // ============================================
 router.post('/refresh', async (req, res, next) => {
   try {
-    const refreshToken = req.cookies?.refresh_token;
+    // 여러 계정(MULTI_ACCOUNT_DESIGN 7절 3) — 미뤄 둔 «보통 로그인» 정리 먼저, 그다음 지금 계정(rt_last) 쿠키를 고른다.
+    //   창이 자기 계정(user_id)을 실어 왔는데 기기의 지금 계정과 다르면 409 — 회전·이미지 쿠키 발급 없이(늦게 깬 창이 rt_last·pq_img 를 뒤집지 않게).
+    const bundle = await deviceAccounts.housekeep(req, res);
+    const activeId = deviceAccounts.activeUid(req, bundle);
+    const wantId = Number(req.body?.user_id || 0);
+    if (wantId && activeId && wantId !== activeId) {
+      return errorResponse(res, 'Account switched on this device', 409, 'account_stale');
+    }
+    const refreshToken = activeId ? bundle[activeId] : null;
     if (!refreshToken) {
       // #244 (D3) — 동반 쿠키로 "게스트 부팅"과 "refresh_token 표적 소실"을 갈라 기록한다.
       //   hint=1 인데 refresh_token 이 없다 = 세션이 있어야 정상인데 사라졌다 → 진짜 사고.
@@ -889,39 +887,56 @@ router.post('/session-diag', (req, res) => {
 // ============================================
 router.post('/logout', async (req, res, next) => {
   try {
-    const refreshToken = req.cookies?.refresh_token;
+    // 여러 계정(MULTI_ACCOUNT_DESIGN 7절 5) — body { user_id | all, endpoint?, native?{kind,token} }.
+    //   아무것도 없으면(옛 화면) 지금 계정 하나. 폐기하는 계정 × **이 기기** 푸시 행만 지운다 — 다른 계정 푸시·다른 기기 세션은 그대로.
+    const bundle = deviceAccounts.readBundle(req);
+    const activeId = deviceAccounts.activeUid(req, bundle);
+    const all = req.body?.all === true;
+    const want = Number(req.body?.user_id || 0) || activeId;
+    const targets = all ? Object.keys(bundle).map(Number) : (want && bundle[want] ? [want] : []);
+    const hadCookie = targets.length > 0;
 
     let revokedCount = 0;
-    if (refreshToken) {
-      // 이 디바이스의 row 만 revoke — 다른 디바이스 세션은 유지 (다중 디바이스 핵심 정책)
-      const tokenHash = hashRefreshToken(refreshToken);
-      // 누가 로그아웃했는가 — revoke **전에** 행에서 user_id 를 잡는다(쿠키가 없으면 감사하지 않는다).
-      const row = await RefreshToken.findOne({ where: { token_hash: tokenHash }, attributes: ['user_id'] });
-      if (row && row.user_id) authAudit.signOut(req, row.user_id);
-      const [n] = await RefreshToken.update(
-        { revoked_at: new Date(), revoked_reason: 'logout' },
-        { where: { token_hash: tokenHash, revoked_at: null } }
-      );
-      revokedCount = n || 0;
+    for (const uid of targets) {
+      authAudit.signOut(req, uid);
+      revokedCount += await deviceAccounts.revokeRaw(bundle[uid], 'logout');
+      deviceAccounts.clearAccountCookie(res, uid);
     }
+    // 이 기기의 그 계정 푸시 구독 — endpoint(웹) 또는 kind:token(앱)
+    const nat = req.body?.native;
+    const endpoint = typeof req.body?.endpoint === 'string' ? req.body.endpoint.slice(0, 500)
+      : (nat && ['apns', 'fcm'].includes(nat.kind) && nat.token ? `${nat.kind}:${String(nat.token).slice(0, 255)}` : null);
+    let pushRemoved = 0;
+    if (endpoint && targets.length) {
+      pushRemoved = await require('../models').PushSubscription.destroy({ where: { endpoint, user_id: targets } });
+    }
+    const remaining = Object.keys(bundle).map(Number).filter((id) => !targets.includes(id));
 
-    // #244 관측 — **이 라우트가 쿠키를 지우는 유일한 서버 경로인데 호출 기록이 없었다.**
-    //   그래서 `no_cookie` 로 세션이 끝났을 때 "브라우저가 쿠키를 버린 것" 인지
-    //   "누군가 로그아웃을 호출한 것" 인지 가릴 수단이 아예 없었다. 사실을 남긴다.
+    // #244 관측 — **이 라우트가 쿠키를 지우는 유일한 서버 경로인데 호출 기록이 없었다.** 사실을 남긴다.
     authWarn(
-      'logout called had_cookie=%s revoked=%d ua=%s ip=%s',
-      refreshToken ? 'yes' : 'no', revokedCount,
+      'logout called had_cookie=%s revoked=%d accounts=%d remaining=%d push_removed=%d ua=%s ip=%s',
+      hadCookie ? 'yes' : 'no', revokedCount, targets.length, remaining.length, pushRemoved,
       (req.headers['user-agent'] || '').slice(0, 80), req.ip
     );
 
-    // Clear cookie — path 정합성 (과거 path='/' 또는 다른 path 로 발급된 쿠키 잔존 방지)
-    res.clearCookie('refresh_token', { path: '/api/auth' });
-    clearImageCookie(res);   // 로그아웃하면 이미지 신원도 같이 사라져야 한다
-    res.clearCookie('refresh_token', { path: '/' });
-    // 동반 힌트도 같이 — 안 지우면 정상 로그아웃이 "세션 증발"로 오탐 기록된다 (#244 D3).
-    res.clearCookie(SESSION_HINT, { path: '/' });
-
-    successResponse(res, null, 'Logged out');
+    if (remaining.length === 0) {
+      // 기기의 마지막 계정 — 종전처럼 전부 지운다
+      deviceAccounts.clearAllCookies(req, res);
+      res.clearCookie('refresh_token', { path: '/api/auth' });
+      clearImageCookie(res);   // 로그아웃하면 이미지 신원도 같이 사라져야 한다
+      res.clearCookie('refresh_token', { path: '/' });
+      // 동반 힌트도 같이 — 안 지우면 정상 로그아웃이 "세션 증발"로 오탐 기록된다 (#244 D3).
+      res.clearCookie(SESSION_HINT, { path: '/' });
+      return successResponse(res, { remaining: [] }, 'Logged out');
+    }
+    // 남은 계정이 있다 — 지금 계정을 지웠으면 다음 계정을 지금 계정으로(옛 refresh_token 도 그 계정 것으로 · has_session 유지).
+    if (targets.includes(activeId)) {
+      const nextId = remaining[0];
+      deviceAccounts.setLast(res, nextId);
+      res.cookie('refresh_token', bundle[nextId], { httpOnly: true, secure: cookieSecure(res), sameSite: 'lax', path: '/api/auth' });
+      clearImageCookie(res);   // 다음 계정 이미지 쿠키는 그 계정 refresh 가 다시 준다
+    }
+    return successResponse(res, { remaining }, 'Logged out');
   } catch (error) {
     next(error);
   }

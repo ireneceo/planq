@@ -181,18 +181,21 @@ export function sweepExpiredDrafts(): void {
 }
 
 /** 정체 확정 — 현재 사용자가 아닌 사람의 초안(옛 키 포함)을 지운다. 공용 PC·다른 사람 로그인·세션 만료 경로. */
-export function purgeDraftsNotOwnedBy(userId: unknown): void {
+export function purgeDraftsNotOwnedBy(userId: unknown, keepUserIds: Array<string | number> = []): void {
   const me = String(userId ?? '');
+  // 한 기기 여러 계정(docs/MULTI_ACCOUNT_DESIGN.md) — 이 기기에 로그인해 둔 다른 계정의 초안은 남긴다(전환해 돌아오면 그대로).
+  //   그 밖의 사람(공용 PC 앞 사람) 초안만 지운다. 키에 사람 id 가 박혀 있어 다른 계정 화면에는 안 보인다.
+  const keep = new Set([me, ...keepUserIds.map(String)]);
   for (const k of allKeys()) {
     if (k === DRAFT_OWNER_KEY) continue;
     if (k === LEGACY_MEETING_KEY) { try { localStorage.removeItem(k); } catch { /* noop */ } continue; }
     if (k.startsWith(LEGACY_FORWARD_PREFIX)) {
       const uid = k.slice(LEGACY_FORWARD_PREFIX.length).split('-')[0];
-      if (uid !== me) { try { localStorage.removeItem(k); } catch { /* noop */ } }
+      if (!keep.has(uid)) { try { localStorage.removeItem(k); } catch { /* noop */ } }
       continue;
     }
     const p = parseDraftKey(k);
-    if (p && p.uid !== me) { try { localStorage.removeItem(k); } catch { /* noop */ } }
+    if (p && !keep.has(p.uid)) { try { localStorage.removeItem(k); } catch { /* noop */ } }
   }
 }
 

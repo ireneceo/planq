@@ -29,8 +29,10 @@ const snap = (page) => page.evaluate(() => {
   for (let i = 0; i < sessionStorage.length; i++) {
     const k = sessionStorage.key(i);
     if (k && k.startsWith('planq_tabs_v1')) {
-      try { store[k] = (JSON.parse(sessionStorage.getItem(k)).tabs || []).map((t) => t.path); }
-      catch { store[k] = ['<parse fail>']; }
+      // 2026-11-02 한 기기 여러 계정 — 저장 키에 사람(`::u<id>::`)이 끼었다. 범위 판정은 그대로라 사람 조각을 빼고 본다.
+      const nk = k.replace(/::u\d+::/, '::');
+      try { store[nk] = (JSON.parse(sessionStorage.getItem(k)).tabs || []).map((t) => t.path); }
+      catch { store[nk] = ['<parse fail>']; }
     }
   }
   return { url: location.pathname, tabs, store, body: (document.body.innerText || '').slice(0, 300) };
@@ -140,7 +142,13 @@ async function run() {
     //   사용자는 배포 뒤에도 같은 것을 본다("여전히 탭이 리셋 안돼"). 읽는 순간 버려야 한다.
     errs.length = 0; failed.length = 0;
     const seeded = await page.evaluate((biz) => {
-      const inject = (store, key, path) => {
+      const inject = (store, base, path) => {
+        // 실제 키를 찾는다 — 사람 조각(`::u<id>::`)이 낀 새 키 우선, 없으면 옛 키
+        let key = base;
+        for (let i = 0; i < store.length; i++) {
+          const k = store.key(i);
+          if (k && k.replace(/::u\d+::/, '::') === base && k !== base) { key = k; break; }
+        }
         const raw = store.getItem(key);
         if (!raw) return false;
         const j = JSON.parse(raw);

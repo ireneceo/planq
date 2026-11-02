@@ -3981,7 +3981,35 @@ function checkDeadRoute() {
     rt.fails.length === 0, rt.fails.length ? [...rt.fails, ...samples] : (opts.verbose ? samples : []));
 }
 
+// ═══════════════════════════════════════════════
+// rawstorage — localStorage 를 직접 쓰는 곳 래칫 (2026-11-02 · docs/MULTI_ACCOUNT_DESIGN.md 7절 6, Fable 설계 판정)
+//   한 기기에 계정이 여럿이면 «마지막 메일함»·«탭 목록» 같은 사람 뜻의 값이 앞 계정 것으로 남는다.
+//   사람 뜻이 있는 새 값은 services/accounts.scopedStorage(`u<id>::` 접두)로 쓴다. 지금 쓰는 곳은 동결.
+//   UI 취향처럼 사람과 무관한 값이면 그 줄에 `// storage-ok: <이유>` 를 적는다.
+// ═══════════════════════════════════════════════
+function checkRawStorage() {
+  const files = walk(`${ROOT}/dev-frontend/src`, ['.ts', '.tsx']);
+  const current = {}; const samples = [];
+  const re = /\blocalStorage\.(getItem|setItem|removeItem)\(/g;
+  for (const f of files) {
+    const r = rel(f);
+    if (/services\/accounts\.ts$/.test(r)) continue;   // 래퍼 자신
+    let n = 0;
+    read(f).split('\n').forEach((l, i) => {
+      const t = l.trim();
+      if (t.startsWith('//') || t.startsWith('*') || /storage-ok:/.test(l)) return;
+      const k = (l.match(re) || []).length;
+      if (k) { n += k; if (samples.length < 12) samples.push(`${r}:${i + 1}`); }
+    });
+    if (n) current[r] = n;
+  }
+  const rt = ratchet('rawstorage', current, samples);
+  report('rawstorage', `localStorage 직접 사용 래칫 — 사람 뜻 값은 scopedStorage (현재 ${rt.curTotal} / 베이스 ${rt.baseTotal})`,
+    rt.fails.length === 0, rt.fails.length ? [...rt.fails, ...samples] : (opts.verbose ? samples : []));
+}
+
 const CATEGORIES = {
+  rawstorage: checkRawStorage,
   datefmt: checkDateFmt,
   draft: checkDraft,
   wsscope: checkWsScope,

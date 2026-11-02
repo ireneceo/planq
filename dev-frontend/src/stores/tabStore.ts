@@ -7,6 +7,7 @@
 //   location 을 활성 탭 path 로 반영. chrome(사이드바·알림 등)이 이 store 를 소비하도록 하나씩 전환하면
 //   각 단계가 단일탭에서 무회귀 검증 가능. P1 트리 스왑 시 미러 어댑터를 끄고 탭별 MemoryRouter 로 승격.
 
+import { getCurrentAccountId, knownDeviceAccountIds } from '../services/accounts';
 import { isTabsSpike } from '../utils/tabsBeta';
 
 export type TabKind =
@@ -58,7 +59,13 @@ const STORAGE_KEY = 'planq_tabs_v1';
 //   연 탭이 뒤섞여 저장됐다.
 //   → 키를 워크스페이스별로 가른다. 전환 시 앞 것을 그 키에 저장하고 새 키를 불러온다.
 let tabScope: string | null = null;
-const scoped = (base: string) => (tabScope ? `${base}::${tabScope}` : base);
+// 한 기기 여러 계정(docs/MULTI_ACCOUNT_DESIGN.md 7절 6) — 탭 목록은 **사람 × 범위** 로 가른다.
+//   두 계정이 같은 워크스페이스(b5)에 있으면 범위만으로는 같은 통이라 앞 계정 탭 제목이 뒤 계정에 보인다.
+//   범위 문자열(tab.scope 도장)은 그대로 두고 **저장 키**에만 `u<id>::` 를 끼운다(옛 탭 도장과 비교가 안 깨지게).
+const uidPart = () => { const u = getCurrentAccountId(); return u ? `u${u}::` : ''; };
+// 옛 키(사람 없음)를 물려받아도 되는가 — 이 기기에 계정이 하나뿐일 때만(그 통의 주인이 지금 사람이다).
+const mayInheritUnscoped = () => knownDeviceAccountIds().length <= 1;
+const scoped = (base: string) => (tabScope ? `${base}::${uidPart()}${tabScope}` : base);
 
 // ★ 2026-09-08 (Irene: "플랫폼관리자랑 다른 워크스페이스 갈 때 … 상단 탭이 해당 워크스페이스나
 //   플랫폼관리자 기준으로 바뀌어야 해." / 앞서 "다른 워크스페이스 만들어서 갔는데도 워프로랩 탭
@@ -168,7 +175,8 @@ function lastScope(): string | null {
 }
 function rememberScope(v: string | null) {
   if (!v) return;
-  try { localStorage.setItem(LAST_SCOPE_KEY, v); } catch { /* 무시 */ }
+  // 사람까지 적는다 — 부팅(사람을 아직 모름) 복원이 그 사람의 스냅샷을 읽게. 계정 전환은 이 값을 지운다(services/accounts).
+  try { localStorage.setItem(LAST_SCOPE_KEY, `${uidPart()}${v}`); } catch { /* 무시 */ }
 }
 function legacyMigrated(): boolean {
   try { return localStorage.getItem(MIGRATED_KEY) === '1'; } catch { return true; }
@@ -272,7 +280,8 @@ function load(): TabState {
   //   ★ 범위를 모르면 읽지 않는다 — 무범위 키는 워크스페이스 공용이라 남의 탭이 섞여 있다.
   //     (아래 ② 복원은 lastScope 로 **범위를 특정해서** 읽으므로 그것만 예외다.)
   try {
-    const raw = tabScope ? sessionStorage.getItem(scoped(STORAGE_KEY)) : null;
+    let raw = tabScope ? sessionStorage.getItem(scoped(STORAGE_KEY)) : null;
+    if (!raw && tabScope && uidPart() && mayInheritUnscoped()) raw = sessionStorage.getItem(`${STORAGE_KEY}::${tabScope}`);
     if (raw) {
       const j = JSON.parse(raw);
       if (Array.isArray(j.tabs)) { const c = scrub(j.tabs, j.activeId ?? null); return { ...c, mirror: true }; }
@@ -284,9 +293,10 @@ function load(): TabState {
   try {
     // ★ 범위를 아직 모르는 **부팅 시점**에도 복원이 되어야 한다. 그때는 마지막으로 쓰던
     //   범위의 스냅샷을 읽는다(위 LAST_SCOPE_KEY 주석). 범위를 알면 종전대로 그 범위를 쓴다.
-    const restoreScope = tabScope || lastScope();
+    const restoreScope = tabScope ? `${uidPart()}${tabScope}` : lastScope();
     const restoreKey = restoreScope ? `${RESTORE_KEY}::${restoreScope}` : RESTORE_KEY;
-    const raw = isRestoreCapable() ? localStorage.getItem(restoreKey) : null;
+    let raw = isRestoreCapable() ? localStorage.getItem(restoreKey) : null;
+    if (!raw && tabScope && uidPart() && mayInheritUnscoped() && isRestoreCapable()) raw = localStorage.getItem(`${RESTORE_KEY}::${tabScope}`);
     if (raw) {
       const j = JSON.parse(raw);
       if (Array.isArray(j.tabs) && j.tabs.length) {

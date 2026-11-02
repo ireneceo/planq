@@ -31,3 +31,11 @@ paths:
   옛 구글 콜백이 그렇게 받아 **구글 신규 가입이 운영에서 한 번도 성공하지 못했다**(2026-08-27 로그 · OAuth 전용 가입자 0명).
 - 운영 스키마: `dev-backend/scripts/migrate-apple-login.js`(ENUM 끝 append 2 · 컬럼 4, 멱등) — 코드 배포 전(deploy 슬롯).
 
+
+## 한 기기 여러 계정 — 쿠키 묶음은 `services/deviceAccounts` 한 곳 (2026-11-02 · 설계 `docs/MULTI_ACCOUNT_DESIGN.md` · Fable 설계 판정)
+> Irene: *"인스타처럼 멀티로그인하고 바꿔가면서 사용하고 알림도 아이디들 다 받을 수 있을가?"*
+- 계정마다 `rt_<id>` · 지금 계정 `rt_last` · 옛 `refresh_token` 은 **한 배포 주기 이중 쓰기**(롤백 대비 — 다음 사이클에 읽기만 남기고 걷는다).
+- **세션을 세우는 새 문은 `setRefreshCookies` → `deviceAccounts.afterLogin`** 순서. 쿠키를 손으로 쓰면 묶음·공용 PC 정리가 빠진다.
+- 보통 로그인 = 이 기기 다른 계정 정리(공용 PC). 계정 추가는 `POST /api/auth/accounts/add-intent`(접속 토큰) 가 남긴 `rt_add` 가 있을 때만. 쿠키가 안 오는 콜백(애플 form_post)은 `rt_solo` 로 다음 요청에서 마저 판정.
+- `/refresh` 는 창이 실어 온 `user_id` 가 지금 계정과 다르면 409 `account_stale`(회전·이미지 쿠키 없음). 전환 문은 `/switch` 하나.
+- 푸시는 기기 주소 × 사람 UNIQUE — 다른 사람 행 유지 판정은 `device_proof`(본인 포함)만. 회귀: dev-backend 실호출 시험 37건(방 d5609fe9 기록).

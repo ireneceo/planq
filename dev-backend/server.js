@@ -447,6 +447,8 @@ require('./models');
 
 // Routes
 app.use('/api/auth', require('./routes/auth'));
+// 한 기기 여러 계정 — 목록·전환·추가 의도 (docs/MULTI_ACCOUNT_DESIGN.md · 쿠키 path /api/auth 안)
+app.use('/api/auth', require('./routes/auth_accounts'));
 // dev-login(상황판 «시험 계정으로 열기») — 개발서버에서만 마운트. 꺼지면 라우트가 없다(404). 계약 ~/dev-server/kit/DEV-LOGIN.md
 if (require('./services/devLogin/verify').devLoginEnabled()) {
   app.use('/api/auth', require('./routes/auth_dev_login'));

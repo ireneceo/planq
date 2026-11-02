@@ -11,6 +11,7 @@ import {
 } from '../services/draftStore';
 import { markSwitching, clearSwitching, broadcastWorkspaceSwitch } from '../services/workspaceSync';
 import { flushPendingSaves, LOGOUT_BLOCKED_EVENT } from '../services/pendingSaves';
+import { setCurrentAccountId, getCurrentAccountId, knownDeviceAccountIds, rebootForAccount, broadcastAccountSwitch } from '../services/accounts';
 
 // ⑥ 멀티탭 P1 선행(Fable BLOCKER #1) — AuthProvider 는 라우터 조상 위에 놓이므로 react-router 훅을
 //   쓰면 안 된다(트리 스왑 후 첫 렌더 크래시). 세션 종료(로그아웃·토큰만료) 이동은 window.location 로.
@@ -118,7 +119,7 @@ interface AuthContextType {
   register: (name: string, email: string, password: string, businessName: string, opts?: { terms_accepted?: boolean; privacy_accepted?: boolean; invite_token?: string; plan_code?: string }) => Promise<boolean>;
   /** flush:false — 계정 삭제 뒤처럼 대기 중인 자동저장을 보내면 안 되는 경우(확인도 건너뛴다)
    *  discardUnsaved — 로그아웃 확인창에서 "버리고 로그아웃" 을 고른 경우 */
-  logout: (opts?: { flush?: boolean; discardUnsaved?: boolean; next?: string }) => Promise<void>;
+  logout: (opts?: { flush?: boolean; discardUnsaved?: boolean; next?: string; all?: boolean }) => Promise<void>;
   updateUser: (userData: Partial<User>) => void;
   refreshUser: () => Promise<void>;
   hasRole: (...roles: string[]) => boolean;
@@ -279,8 +280,22 @@ const tryRefresh = (): Promise<RefreshResult> => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-Client-Kind': clientKind },
         credentials: 'include',
-        body: JSON.stringify({ client_kind: clientKind }),
+        // 한 기기 여러 계정 — 이 창이 쓰던 계정을 싣는다. 다른 창에서 계정을 바꿨으면 서버가 409 account_stale(회전 없음).
+        //   사칭 창은 싣지 않는다(액세스 토큰만 바꾼 창이라 기기의 지금 계정과 다르다).
+        body: JSON.stringify({
+          client_kind: clientKind,
+          ...(getCurrentAccountId() && !isImpersonatingNow() ? { user_id: getCurrentAccountId() } : {}),
+        }),
       });
+      if (res.status === 409) {
+        let code: string | undefined;
+        try { code = (await res.clone().json())?.code; } catch { /* 본문 없음 */ }
+        if (code === 'account_stale') {
+          // 세션 종결이 아니다 — 이 기기는 다른 계정으로 바뀌었다. AccountSyncGuard 가 안전할 때 다시 부팅한다.
+          try { window.dispatchEvent(new Event('planq:account-stale')); } catch { /* noop */ }
+          return { ok: false, reason: 'server', code };
+        }
+      }
       if (res.ok) {
         const data = await res.json();
         if (data.success && data.data?.token) {
@@ -664,6 +679,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   // 모든 user 갱신이 지나는 한 곳 — 요청 헤더 사본(requestWorkspaceId)을 **렌더보다 먼저** 맞춘다(위 C2 주석).
   const setUser = useCallback((next: User | null) => {
     requestWorkspaceId = next?.business_id ? Number(next.business_id) : null;
+    // 이 창의 계정 — refresh 가 «이 창은 누구» 를 실어 보내고(기기 계정이 바뀌었으면 409), 사람별 저장값 래퍼가 읽는다.
+    setCurrentAccountId(next?.id ? Number(next.id) : null);
     // 날짜 형식도 같은 이유로 모듈 사본 — 포맷터는 훅 밖(유틸·서비스)에서도 불린다. 렌더보다 먼저.
     setDatePrefs({ date_format: next?.date_format ?? null, time_format: next?.time_format ?? null, week_start: next?.week_start ?? null });
     setUserState(next);
@@ -919,7 +936,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   // 로그아웃은 한 번만 돈다 — 이중 클릭·여러 경로가 겹쳐도 저장·POST·삭제가 두 번 나가지 않게 (D-C3 I2)
   const logoutInFlightRef = useRef<Promise<void> | null>(null);
-  const logout = (opts?: { flush?: boolean; discardUnsaved?: boolean; next?: string }): Promise<void> => {
+  const logout = (opts?: { flush?: boolean; discardUnsaved?: boolean; next?: string; all?: boolean }): Promise<void> => {
     if (logoutInFlightRef.current) return logoutInFlightRef.current;
     const run = (async () => {
       const leavingUserId = user?.id;
@@ -935,18 +952,30 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           return;
         }
       }
+      // 한 기기 여러 계정 — 이 계정만 로그아웃(이 기기의 그 계정 푸시만 지움). 다른 계정이 남으면 그 계정으로 다시 부팅.
+      let remaining: number[] = [];
       try {
-        await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
+        const { currentPushTarget } = await import('../services/push');
+        const target = await currentPushTarget();
+        const r = await fetch('/api/auth/logout', {
+          method: 'POST', credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ...(opts?.all ? { all: true } : leavingUserId ? { user_id: Number(leavingUserId) } : {}), ...target }),
+        });
+        const j = await r.json().catch(() => null);
+        remaining = Array.isArray(j?.data?.remaining) ? j.data.remaining.map(Number) : [];
       } catch { /* ignore */ }
       // 초안 — 정지(이후 언마운트 flush 가 다시 쓰지 않게) → 그 사람 초안 삭제 → 센티널 비움(같은 사람의 옛 탭·팝아웃도 멈춤)
       //   docs/DRAFT_PERSISTENCE_DESIGN.md D-C5. 공용 PC 에서 다음 사람에게 쓰던 글이 남지 않게.
       setDraftsSuppressed(true);
       purgeDraftsOf(leavingUserId);
+      if (opts?.all) for (const id of knownDeviceAccountIds()) purgeDraftsOf(id);   // 모든 계정 로그아웃 — 이 기기의 다른 계정 초안도
       setDraftOwner('');
       clearPageCache();   // 다음 사용자에게 남의 목록이 한 프레임도 비치지 않게
       setUser(null);
       setAccessToken(null);
       if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
+      if (remaining.length) { broadcastAccountSwitch(remaining[0]); rebootForAccount(); return; }
       goLogin(opts?.next);
     })();
     logoutInFlightRef.current = run;
@@ -987,7 +1016,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     setDraftsSuppressed(false);
     if (draftPrevUserRef.current !== String(user.id)) {
       draftPrevUserRef.current = String(user.id);
-      purgeDraftsNotOwnedBy(user.id);
+      purgeDraftsNotOwnedBy(user.id, knownDeviceAccountIds());   // 이 기기의 다른 계정 초안은 남긴다(MULTI_ACCOUNT)
       setDraftOwner(user.id);
     }
   }, [user?.id]);

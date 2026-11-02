@@ -14,7 +14,8 @@
 // 백엔드 푸시 payload 의 badge 도 **같은 공식**이다 (routes/notifications.js).
 //   공식이 두 벌이면 이미 갈라져 있다 — 잠금화면 숫자와 앱 안 숫자가 달라진다.
 import { isNativeApp } from '../services/native';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { fetchDeviceAccounts } from '../services/accounts';
 
 interface NavigatorBadge {
   setAppBadge?: (n?: number) => Promise<void>;
@@ -73,17 +74,32 @@ export function useGlobalBadge(inboxCount: number, chatUnread: number, loaded: b
   const prevTotalRef = useRef<number | null>(null);
   const totalRef = useRef<number>(0);
   const loadedRef = useRef(false);
+  // 한 기기 여러 계정(docs/MULTI_ACCOUNT_DESIGN.md 7절 5) — 앱 아이콘은 기기에 하나다. 다른 계정 안읽음을 더한다
+  //   (서버 푸시 payload 의 badge 도 같은 합 — services/push_service). 계정이 하나면 0 이라 종전 그대로.
+  const [otherAccounts, setOtherAccounts] = useState(0);
+  useEffect(() => {
+    const load = () => {
+      if (document.visibilityState !== 'visible') return;
+      void fetchDeviceAccounts().then((d) => {
+        if (!d) return;
+        setOtherAccounts(d.accounts.filter((a) => !a.active && a.valid).reduce((n, a) => n + (a.unread_total || 0), 0));
+      });
+    };
+    load();
+    document.addEventListener('visibilitychange', load);
+    return () => document.removeEventListener('visibilitychange', load);
+  }, []);
 
   useEffect(() => {
     loadedRef.current = loaded;
     if (!loaded) return;               // 아직 모른다 — 푸시가 세운 배지를 그대로 둔다
-    const total = (inboxCount || 0) + (chatUnread || 0);
+    const total = (inboxCount || 0) + (chatUnread || 0) + otherAccounts;
     totalRef.current = total;
     if (prevTotalRef.current === total) return;
     // ★ **성공했을 때만** 기록한다. 실패(권한 미결정 등)를 성공으로 적으면 같은 값이 유지되는 한
     //   다시 시도하지 않아 배지가 영영 안 세워진다(applyBadge 주석 참조).
     void applyBadge(total).then((ok) => { if (ok) prevTotalRef.current = total; });
-  }, [inboxCount, chatUnread, loaded]);
+  }, [inboxCount, chatUnread, loaded, otherAccounts]);
 
   // visibility / focus 복귀 시 최신값으로 재적용 — SW push 가 background 에서 남긴 stale 배지 덮어쓰기
   //   (사이클 N+22). 단 값을 실제로 받은 뒤에만.

@@ -2113,5 +2113,15 @@
     "placeholder": "Note for this entry",
     "failed": "Couldn't save.",
     "clientSees": "Clients who can see this task will see this text too."
+  },
+  "accounts": {
+    "add": "Add account",
+    "logoutAll": "Log out of all accounts",
+    "reloginNeeded": "Sign in again",
+    "unread": "{{count}} unread notifications",
+    "limit": "You can keep up to 5 accounts on this device",
+    "failed": "Please try again in a moment",
+    "syncBanner": "The account was switched in another window",
+    "syncApply": "Switch now"
   }
 }

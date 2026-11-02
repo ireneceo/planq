@@ -2113,5 +2113,15 @@
     "placeholder": "이 줄에 남길 설명",
     "failed": "저장하지 못했어요.",
     "clientSees": "이 업무를 볼 수 있는 고객이 있으면 같은 글을 봅니다."
+  },
+  "accounts": {
+    "add": "계정 추가",
+    "logoutAll": "모든 계정 로그아웃",
+    "reloginNeeded": "다시 로그인 필요",
+    "unread": "안 읽은 알림 {{count}}개",
+    "limit": "이 기기에는 계정을 5개까지 둘 수 있어요",
+    "failed": "잠시 후 다시 해 주세요",
+    "syncBanner": "다른 창에서 계정이 바뀌었어요",
+    "syncApply": "지금 바꾸기"
   }
 }

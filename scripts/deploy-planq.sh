@@ -676,6 +676,9 @@ sync_database() {
   # 2026-10-23 사람별 즐겨찾기·직접 정렬 — user_entity_prefs 표(멱등, 백필 없음, docs/PROJECT_PREFS_DESIGN.md).
   #   ★ 코드보다 먼저 — 프로젝트 목록(GET /api/projects)이 이 표를 읽는다(없으면 목록 500).
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-user-entity-prefs.js 2>&1 | tail -4"
+  # 2026-11-02 한 기기 여러 계정 — push_subscriptions UNIQUE(endpoint) → (endpoint,user_id) (멱등, docs/MULTI_ACCOUNT_DESIGN.md 단계 0).
+  #   ★ 코드보다 먼저 — 새 구독 코드가 같은 기기 주소에 사람 둘을 넣는다. 옛 UNIQUE 가 남으면 두 번째 계정 구독이 중복 500.
+  prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-push-multi-account.js 2>&1 | tail -5"
   # 2026-10-22 — 메일 알림 주소별·사람별 (docs/MAIL_NOTIFY_PER_ADDRESS_DESIGN.md D1). 백필 없음.
   #   ★ 코드보다 먼저 — mailNotify 가 이 표를 SELECT 한다. 표가 없으면 cron 의 catch 가 삼켜 **메일 알림 전체가 조용히 0** 이 된다(#203 과 같은 모양).
   log "  Creating email_account_notify_prefs (메일 알림 주소별)..."

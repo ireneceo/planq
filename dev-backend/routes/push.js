@@ -80,6 +80,28 @@ const ALLOWED_PUSH_HOSTS = [
   'web.push.apple.com',
   'wns2-by3p.notify.windows.com', '*.notify.windows.com',
 ];
+// ── 한 기기 × 여러 계정 (docs/MULTI_ACCOUNT_DESIGN.md 7절 1) ──────────────────────────
+//   같은 기기 주소(endpoint)에 **다른 사람** 행이 있으면: 그 사람이 이 기기 계정 묶음에 있으면 둘 다 유지,
+//   아니면 종전대로 만료(기기 양도·공용 PC 보호). 묶음은 화면 말이 아니라 서버 서명 `device_proof`
+//   (GET /api/auth/device-accounts 가 검증한 계정 목록, 60초)로만 안다 — 계정 쿠키는 /api/auth 경로라 여기엔 안 온다.
+//   증명에 **요청한 본인이 없으면** 그 증명은 이 기기 것이 아니다 → 아무도 유지하지 않는다.
+async function settleOtherUsers(req, endpoint) {
+  const proof = require('../services/deviceAccounts').proofUids(req.body?.device_proof);
+  const keep = proof.has(req.user.id) ? proof : new Set();
+  // 범위: 워크스페이스가 아니라 **이 기기 주소** 하나(구독은 기기 단위 — business_id 는 비워 둔다, 2026-09-11)
+  const others = await PushSubscription.findAll({
+    where: { endpoint, user_id: { [Op.ne]: req.user.id }, expired_at: null },
+    limit: 20,
+  });
+  let expired = 0; let kept = 0;
+  for (const o of others) {
+    if (keep.has(o.user_id)) { kept++; continue; }
+    await o.update({ endpoint: `expired:${o.id}:${o.endpoint}`.slice(0, 500), expired_at: new Date() });
+    expired++;
+  }
+  return { expired, kept };
+}
+
 function isAllowedEndpoint(rawUrl) {
   try {
     const u = new URL(rawUrl);
@@ -132,31 +154,24 @@ router.post('/subscribe', authenticateToken, async (req, res, next) => {
     if (!isAllowedEndpoint(endpoint)) {
       return errorResponse(res, 'invalid_endpoint_host', 400);
     }
-    // 같은 endpoint 가 이미 있으면:
+    // 같은 endpoint:
     //   - 같은 user → 갱신 (디바이스 같은 사람, 토큰 갱신)
-    //   - 다른 user → 옛 row 명시적 expired 마크 후 신규 row 생성 (디바이스 양도/공용 PC 시나리오)
-    const existing = await PushSubscription.findOne({ where: { endpoint } });
+    //   - 다른 user → 이 기기 계정 묶음이면 유지, 아니면 expired 마크(기기 양도/공용 PC) — settleOtherUsers 한 곳
+    const others = await settleOtherUsers(req, endpoint);
+    const existing = await PushSubscription.findOne({ where: { endpoint, user_id: req.user.id } });
     if (existing) {
-      if (existing.user_id === req.user.id) {
-        await existing.update({
-          // ★ 2026-09-11 — 추측값(마지막 전환 워크스페이스)을 저장하지 않는다. 구독은 기기 단위이고 이 컬럼을 읽는 곳은 없다.
-          business_id: existing.business_id || null,
-          p256dh: keys.p256dh, auth: keys.auth,
-          user_agent: user_agent || existing.user_agent,
-          expired_at: null, last_used_at: new Date(),
-        });
-        // 같은 host 의 옛 active sub 들 (다른 endpoint) 자동 정리.
-        // 사이클 N+13 — iOS Safari endpoint 갱신 시 옛 sub 가 active 로 남아
-        //   같이 발송되고 OS 가 silent drop 하던 회귀 차단.
-        const zombies = await expireSameHostZombies(req.user.id, endpoint, existing.id);
-        return successResponse(res, { id: existing.id, updated: true, zombies_expired: zombies });
-      }
-      // 다른 user — 옛 row 는 expired 마크 (감사 기록 보존). PushSubscription endpoint unique 라
-      // 옛 row 의 endpoint 를 unique 해소 위해 prefix 변경.
       await existing.update({
-        endpoint: `expired:${existing.id}:${existing.endpoint}`.slice(0, 500),
-        expired_at: new Date(),
+        // ★ 2026-09-11 — 추측값(마지막 전환 워크스페이스)을 저장하지 않는다. 구독은 기기 단위이고 이 컬럼을 읽는 곳은 없다.
+        business_id: existing.business_id || null,
+        p256dh: keys.p256dh, auth: keys.auth,
+        user_agent: user_agent || existing.user_agent,
+        expired_at: null, last_used_at: new Date(),
       });
+      // 같은 host 의 옛 active sub 들 (다른 endpoint) 자동 정리.
+      // 사이클 N+13 — iOS Safari endpoint 갱신 시 옛 sub 가 active 로 남아
+      //   같이 발송되고 OS 가 silent drop 하던 회귀 차단.
+      const zombies = await expireSameHostZombies(req.user.id, endpoint, existing.id);
+      return successResponse(res, { id: existing.id, updated: true, zombies_expired: zombies, others });
     }
     const row = await PushSubscription.create({
       user_id: req.user.id,
@@ -168,7 +183,7 @@ router.post('/subscribe', authenticateToken, async (req, res, next) => {
     });
     // 새 sub 등록 — 같은 host 의 옛 active sub 들 자동 만료.
     const zombies = await expireSameHostZombies(req.user.id, endpoint, row.id);
-    return successResponse(res, { id: row.id, created: true, zombies_expired: zombies }, 'subscribed', 201);
+    return successResponse(res, { id: row.id, created: true, zombies_expired: zombies, others }, 'subscribed', 201);
   } catch (e) { next(e); }
 });
 
@@ -190,23 +205,18 @@ router.post('/subscribe-native', authenticateToken, async (req, res, next) => {
     const endpoint = `${kind}:${tok}`;
     const dname = (device_name || '').slice(0, 100) || null;
 
-    const existing = await PushSubscription.findOne({ where: { endpoint } });
+    // 같은 기기 토큰에 다른 사람 — 이 기기 계정 묶음이면 유지, 아니면 expired(기기 양도). settleOtherUsers 한 곳.
+    const others = await settleOtherUsers(req, endpoint);
+    const existing = await PushSubscription.findOne({ where: { endpoint, user_id: req.user.id } });
     if (existing) {
-      if (existing.user_id === req.user.id) {
-        await existing.update({
-          business_id: existing.business_id || null,
-          kind, device_token: tok, device_name: dname || existing.device_name,
-          user_agent: (req.headers['user-agent'] || '').slice(0, 500) || existing.user_agent,
-          expired_at: null, last_used_at: new Date(),
-        });
-        const zombies = await expireNativeSiblings(req.user.id, kind, dname || existing.device_name, existing.id);
-        return successResponse(res, { id: existing.id, updated: true, zombies_expired: zombies });
-      }
-      // 다른 user(기기 양도) — 옛 row expired 마크 (unique 해소 위해 endpoint prefix 변경).
       await existing.update({
-        endpoint: `expired:${existing.id}:${existing.endpoint}`.slice(0, 500),
-        expired_at: new Date(),
+        business_id: existing.business_id || null,
+        kind, device_token: tok, device_name: dname || existing.device_name,
+        user_agent: (req.headers['user-agent'] || '').slice(0, 500) || existing.user_agent,
+        expired_at: null, last_used_at: new Date(),
       });
+      const zombies = await expireNativeSiblings(req.user.id, kind, dname || existing.device_name, existing.id);
+      return successResponse(res, { id: existing.id, updated: true, zombies_expired: zombies, others });
     }
     const row = await PushSubscription.create({
       user_id: req.user.id,
@@ -216,7 +226,7 @@ router.post('/subscribe-native', authenticateToken, async (req, res, next) => {
       last_used_at: new Date(),
     });
     const zombies = await expireNativeSiblings(req.user.id, kind, dname, row.id);
-    return successResponse(res, { id: row.id, created: true, zombies_expired: zombies }, 'subscribed', 201);
+    return successResponse(res, { id: row.id, created: true, zombies_expired: zombies, others }, 'subscribed', 201);
   } catch (e) { next(e); }
 });
 

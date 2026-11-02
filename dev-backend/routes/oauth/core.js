@@ -11,10 +11,10 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { User, Business, BusinessMember } = require('../../models');
-const { cookieSecure } = require('../../services/authTokens');
+const { setRefreshCookies } = require('../../services/authTokens');
 // 옛 /login 의 refresh_token cookie 패턴 재사용 (다중 디바이스 + sliding renewal 정합)
 const { helpers } = require('../auth');
-const { createRefreshTokenRow, generateRefreshToken, resolveClientKind, TTL_MS_BY_KIND, setSessionHint } = helpers;
+const { createRefreshTokenRow, generateRefreshToken, resolveClientKind, TTL_MS_BY_KIND } = helpers;
 
 // connect-confirm token — "이 계정에 구글을 연결할까요?" 확인 사이를 잇는 5분짜리 토큰.
 //   ★ 2026-09-10 — 메모리 `Map`(confirmStash) 에서 `ephemeral_tokens`(kind='oauth_confirm') 로.
@@ -178,21 +178,13 @@ function buildRedirectTarget({ ok, error, redirect }) {
 async function issueSessionCookie(req, res, user, { method = 'oauth' } = {}) {
   const clientKind = resolveClientKind(req);
   const refreshToken = generateRefreshToken(user, clientKind);
-  await createRefreshTokenRow(user, refreshToken, req, null, { clientKind });
+  const row = await createRefreshTokenRow(user, refreshToken, req, null, { clientKind });
   await user.update({ last_login_at: new Date() });
-  const secure = cookieSecure(res);   // 실제 연결이 HTTPS 인가 (services/authTokens)
-  const cookieOpts = {
-    httpOnly: true,
-    secure,
-    sameSite: 'lax',
-    path: '/api/auth',
-    maxAge: TTL_MS_BY_KIND[clientKind],
-  };
-  res.cookie('refresh_token', refreshToken, cookieOpts);
-  // 보안 Stage 1 — 이 경로가 빠지면 **구글 로그인 사용자 전원**이 (Stage 2 후) 이미지를 잃는다.
-  helpers.setImageCookie(res, user);
-  // #244 — 동반 세션 힌트도 같은 수명으로 (OAuth 로그인 누락 시 그 사용자만 진단 사각지대가 된다).
-  setSessionHint(res, { maxAge: cookieOpts.maxAge, secure });
+  // 세션 쿠키 한 벌(rt_<id>·rt_last·옛 refresh_token·힌트·이미지)은 services/authTokens.setRefreshCookies 한 곳.
+  //   그 뒤 기기 계정 묶음 — «계정 추가» 의도가 안 보이면 다른 계정 정리. 애플 form_post 처럼 쿠키가 안 실려 오면
+  //   rt_solo 표식만 남기고 다음 /api/auth 요청(부팅 refresh)이 마저 판정한다(MULTI_ACCOUNT_DESIGN 7절 2).
+  setRefreshCookies(res, refreshToken, row, true);
+  await require('../../services/deviceAccounts').afterLogin(req, res, user.id, TTL_MS_BY_KIND[clientKind]);
   require('../../services/authAudit').signInOk(req, user, { method, clientKind });
 }
 

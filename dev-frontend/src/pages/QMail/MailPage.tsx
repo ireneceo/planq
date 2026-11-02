@@ -12,6 +12,7 @@
 // read-only: 답장/전송 X (M3 후속), 라벨/스타/할당 X (M3 후속)
 // 가능: 폴더 전환, 스레드 조회, 읽음 처리 (open 시 자동), 스팸 마킹
 
+import { scopedStorage } from '../../services/accounts';
 import { SegmentedToggle, SegmentedBtn } from '../../components/Common/segmentedToggle';
 import React, { useState, useEffect, useLayoutEffect, useCallback, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -225,7 +226,7 @@ const MailPage: React.FC = () => {
   // 탭·계정 선택은 방문 간 유지된다 (URL 파라미터 > 지난번 선택 > 기본값 '답변 필요').
   // 메일함의 첫 화면은 "인박스" 가 아니라 "내가 답해야 하는 메일" 이다.
   const savedFolder = (() => {
-    try { const v = localStorage.getItem('qmail_folder') as Folder | null; return v && FOLDERS.some(f => f.key === v) ? v : null; } catch { return null; }
+    try { const v = scopedStorage.get('qmail_folder') as Folder | null; return v && FOLDERS.some(f => f.key === v) ? v : null; } catch { return null; }
   })();
   const folderParam = (sp.get('folder') as Folder) || savedFolder || 'reply_needed';
   const folder: Folder = useMemo(
@@ -249,15 +250,16 @@ const MailPage: React.FC = () => {
   const navigate = useNavigate();
   // 계정(회사/개인) 필터 — null = 전체
   const savedAccount = (() => {
-    try { const v = localStorage.getItem('qmail_account'); return v ? Number(v) : null; } catch { return null; }
+    try { const v = scopedStorage.get('qmail_account'); return v ? Number(v) : null; } catch { return null; }
   })();
   const accountParam = sp.get('account');
   const accountFilter = sp.has('account') ? (Number(accountParam) || null) : savedAccount;
   useEffect(() => {
     try {
-      localStorage.setItem('qmail_folder', folder);
-      if (accountFilter) localStorage.setItem('qmail_account', String(accountFilter));
-      else localStorage.removeItem('qmail_account');
+      // 사람마다 다른 값(그 사람의 메일함 번호) — 계정별 키(services/accounts.scopedStorage)
+      scopedStorage.set('qmail_folder', folder);
+      if (accountFilter) scopedStorage.set('qmail_account', String(accountFilter));
+      else scopedStorage.remove('qmail_account');
     } catch { /* 사파리 프라이빗 모드 등 — 저장 실패해도 화면은 정상 */ }
   }, [folder, accountFilter]);
 
