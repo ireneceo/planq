@@ -1828,7 +1828,20 @@
     "dReplyDraftPh": "Write the reply to the sender or get an AI draft. This box is not saved.",
     "dReplyDraftHint": "\"Reply by email\" puts this text in the email body (if it is long, copy and paste it).",
     "dReplyCopy": "Copy",
-    "dReplyCopied": "Copied"
+    "dReplyCopied": "Copied",
+    "appGroup": "In-app inquiries {{count}}",
+    "webGroup": "Website inquiries {{count}}",
+    "appKind": "In-app",
+    "appFollowUp": "Follow-up",
+    "appAnswered": "Answered",
+    "appStatus": {
+      "pending": "Received",
+      "reviewing": "Reviewing",
+      "queued": "Queued",
+      "in_progress": "In progress",
+      "done": "Done",
+      "wontfix": "On hold"
+    }
   },
   "downloadTray": {
     "aria": "Download progress",

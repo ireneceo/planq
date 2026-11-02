@@ -7,7 +7,7 @@ import { useTranslation } from 'react-i18next';
 import AdminReplyDraftButton from './AdminReplyDraftButton';
 import { useDraftKey, useDraftText } from '../../hooks/useDraftText';
 import DiagnosisStatsCard from '../../components/Admin/DiagnosisStatsCard';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { refreshAdminTodo } from '../../hooks/useAdminInboxCounts';
 import PageShell from '../../components/Layout/PageShell';
 import { Tabs, Tab } from '../../components/Common/TabComponents';
@@ -58,12 +58,35 @@ interface InquiryItem {
 
 const STATUSES: Status[] = ['new', 'in_progress', 'resolved', 'spam'];
 
+// 앱 안 «문의하기» 는 이 표(contact_inquiries)가 아니라 사용자 피드백 원장(feedback_items kind='inquiry')에 쌓인다.
+//   (2026-11-02 Irene «문의 답변 완료한게 왜 문의인박스 완료탭에 안나와?») — 같은 탭에 같이 보여 주고, 누르면 그 원장의 상세로 간다.
+//   상태 대응은 여기 한 곳: 새 문의 = 접수·검토중 / 진행 중 = 진행대기·반영중 / 처리 완료 = 완료·보류 / 스팸 = 없음.
+type FbStatus = 'pending' | 'reviewing' | 'queued' | 'in_progress' | 'done' | 'wontfix';
+const APP_INQ_STATUSES: Record<Status, FbStatus[]> = {
+  new: ['pending', 'reviewing'],
+  in_progress: ['queued', 'in_progress'],
+  resolved: ['done', 'wontfix'],
+  spam: [],
+};
+interface AppInquiry {
+  id: number;
+  parent_id: number | null;
+  status: FbStatus;
+  title: string;
+  body: string;
+  admin_response: string | null;
+  created_at: string;
+  user?: { id: number; name: string; email: string } | null;
+}
+
 const AdminInquiriesPage = () => {
   const { t, i18n } = useTranslation('common');
   const tf = useTimeFormat();  // 관리자 본인 워크스페이스 tz
   const adminLocale = i18n.language?.startsWith('en') ? 'en-US' : 'ko-KR';
   const [params, setParams] = useSearchParams();
   const [items, setItems] = useState<InquiryItem[]>([]);
+  const [appItems, setAppItems] = useState<AppInquiry[]>([]);
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [activeStatus, setActiveStatus] = useState<Status>('new');
   const [kindFilter, setKindFilter] = useState<Kind | 'all'>('all');
@@ -90,9 +113,20 @@ const AdminInquiriesPage = () => {
       const sp = new URLSearchParams();
       sp.set('status', activeStatus);
       if (kindFilter !== 'all') sp.set('kind', kindFilter);
-      const r = await apiFetch(`/api/inquiries/admin?${sp.toString()}`);
+      const fbStatuses = kindFilter === 'all' ? APP_INQ_STATUSES[activeStatus] : [];
+      const [r, ...fb] = await Promise.all([
+        apiFetch(`/api/inquiries/admin?${sp.toString()}`),
+        ...fbStatuses.map((st) => apiFetch(`/api/feedback/admin?kind=inquiry&status=${st}`)),
+      ]);
       const j = await r.json();
       if (j.success) setItems(j.data || []);
+      const fbRows: AppInquiry[] = [];
+      for (const res of fb) {
+        const fj = await res.json().catch(() => null);
+        if (fj?.success && Array.isArray(fj.data)) fbRows.push(...fj.data);
+      }
+      fbRows.sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)));
+      setAppItems(fbRows);
     } finally { setLoading(false); }
   }, [activeStatus, kindFilter]);
 
@@ -150,7 +184,7 @@ const AdminInquiriesPage = () => {
   return (
     <PageShell
       title={t('adminInq.title', '문의 인박스') as string}
-      count={items.length}
+      count={items.length + appItems.length}
       actions={
         <PlanQSelect
           size="sm" isSearchable={false}
@@ -176,13 +210,39 @@ const AdminInquiriesPage = () => {
 
       {loading ? (
         <Loading>{t('common.loading', '불러오는 중...')}</Loading>
-      ) : items.length === 0 ? (
+      ) : items.length === 0 && appItems.length === 0 ? (
         <EmptyState
           icon={<svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg>}
           title={t('adminInq.empty', '이 상태의 문의가 없습니다') as string}
         />
       ) : (
+        <>
+        {appItems.length > 0 && (
+          <List data-testid="admin-inq-app-list">
+            <GroupLabel>{t('adminInq.appGroup', { count: appItems.length })}</GroupLabel>
+            {appItems.map(it => (
+              <Row key={`fb-${it.id}`} $active={false} data-testid="admin-inq-app-row"
+                onClick={() => navigate(`/admin/feedback?id=${it.id}`)}>
+                <RowHeader>
+                  <FromName>{it.user?.name || '—'}</FromName>
+                  <KindTag>{t('adminInq.appKind')}</KindTag>
+                  {it.parent_id ? <KindTag>{t('adminInq.appFollowUp')}</KindTag> : null}
+                  <Spacer />
+                  <CreatedAt>{tf.formatDateTime(it.created_at)}</CreatedAt>
+                </RowHeader>
+                <FromInfo>
+                  {it.user?.email || ''}
+                  <SourceTag>· {t(`adminInq.appStatus.${it.status}`)}</SourceTag>
+                  {it.admin_response ? <SourceTag>· {t('adminInq.appAnswered')}</SourceTag> : null}
+                </FromInfo>
+                <Preview>{it.title ? `${it.title} — ` : ''}{it.body.slice(0, 200)}{it.body.length > 200 ? '…' : ''}</Preview>
+              </Row>
+            ))}
+          </List>
+        )}
+        {items.length > 0 && (
         <List>
+          {appItems.length > 0 && <GroupLabel>{t('adminInq.webGroup', { count: items.length })}</GroupLabel>}
           {items.map(it => (
             <Row key={it.id} $active={detailId === it.id} onClick={() => setDetailId(it.id === detailId ? null : it.id)}>
               <RowHeader>
@@ -201,6 +261,8 @@ const AdminInquiriesPage = () => {
             </Row>
           ))}
         </List>
+        )}
+        </>
       )}
 
       {detail && (
@@ -369,6 +431,7 @@ export default AdminInquiriesPage;
 // ─── styled ───
 const Loading = styled.div`padding: 40px; text-align: center; color: #64748B; font-size: 0.875rem;`;
 const List = styled.div`display: flex; flex-direction: column; gap: 8px; padding: 16px 0;`;
+const GroupLabel = styled.div`font-size: 0.75rem; font-weight: 700; color: #64748B; padding: 0 2px;`;
 const Row = styled.div<{ $active: boolean }>`
   border: 1px solid ${p => p.$active ? '#14B8A6' : '#E2E8F0'};
   background: ${p => p.$active ? '#F0FDFA' : '#FFFFFF'};
