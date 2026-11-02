@@ -587,32 +587,19 @@ router.post('/:id/history-entries', authenticateToken, async (req, res, next) =>
   } catch (err) { next(err); }
 });
 
-// PATCH — 항목의 «고객 링크에 보이기» 만 바꾼다(GUEST_PROJECT_VIEW_DECISIONS §I-2).
-//   권한은 POST 와 같다(멤버 이상, 고객 403). 제목·본문 수정 문은 아니다 — 범위를 넓히지 않는다.
-router.patch('/:id/history-entries/:entryId', authenticateToken, async (req, res, next) => {
+// PATCH — 항목 고치기: «고객 링크에 보이기»(멤버) · 제목·본문·날짜(적은 사람 또는 관리자). 본체는 services/projectHistoryEntries.
+router.patch('/:id/history-entries/:entryId', authenticateToken, async (req, res, next) => { // audit-exempt: 감사는 services/projectHistoryEntries.updateEntry 가 남긴다(바뀐 칸만)
   try {
     const { project, role, error } = await loadProjectOrForbidden(Number(req.params.id), req.user.id);
     if (error) return errorResponse(res, error.message, error.code);
     if (role === 'client') return errorResponse(res, 'member_only', 403, 'member_only');
-    if (typeof req.body?.client_visible !== 'boolean') return errorResponse(res, 'client_visible_required', 400);
-    const { ProjectHistoryEntry } = require('../models');
-    const row = await ProjectHistoryEntry.findOne({
-      where: { id: Number(req.params.entryId), business_id: project.business_id, project_id: project.id, deleted_at: null },
+    const r = await require('../services/projectHistoryEntries').updateEntry({
+      project, role, user: req.user, entryId: req.params.entryId, body: req.body,
     });
-    if (!row) return errorResponse(res, 'not_found', 404);
-    const before = !!row.client_visible;
-    const want = req.body.client_visible;
-    if (before !== want) {
-      await row.update({ client_visible: want });
-      createAuditLog({
-        userId: req.user.id, businessId: project.business_id,
-        action: 'project.history_entry.client_visible', targetType: 'project', targetId: project.id,
-        oldValue: { id: row.id, client_visible: before }, newValue: { id: row.id, client_visible: want },
-      });
-      const io = req.app.get('io');
-      if (io) io.to(`business:${project.business_id}`).emit('project:updated', { id: project.id });
-    }
-    return successResponse(res, { id: row.id, client_visible: want });
+    if (!r.ok) return errorResponse(res, r.code, r.http, r.code);
+    const io = req.app.get('io');
+    if (r.changed && io) io.to(`business:${project.business_id}`).emit('project:updated', { id: project.id });
+    return successResponse(res, r.data);
   } catch (err) { next(err); }
 });
 
@@ -843,7 +830,7 @@ router.get('/:id/history', authenticateToken, async (req, res, next) => {
 
 router.get('/:id/status-history', authenticateToken, async (req, res, next) => {
   try {
-    const { project, error } = await loadProjectOrForbidden(Number(req.params.id), req.user.id);
+    const { project, role, error } = await loadProjectOrForbidden(Number(req.params.id), req.user.id);
     if (error) return errorResponse(res, error.message, error.code);
     const { ProjectStatusHistory, User } = require('../models');
     const { applyMemberDisplayName } = require('../services/displayName');
@@ -862,10 +849,15 @@ router.get('/:id/status-history', authenticateToken, async (req, res, next) => {
       changer: r.changer ? { id: r.changer.id, name: r.changer.name, name_localized: r.changer.name_localized } : null,
     }));
     await applyMemberDisplayName(data, project.business_id, ['changer']);
-    return successResponse(res, data.map((d) => ({
+    const out = data.map((d) => ({
       id: d.id, from_status: d.from_status, to_status: d.to_status, note: d.note,
       created_at: d.created_at, changed_by_name: d.changer ? (d.changer.name || null) : null,
-    })));
+    }));
+    // 사람이 고친 «설명 줄» — 히스토리 탭과 같은 글(docs/HISTORY_OVERRIDE_DESIGN.md)
+    await require('../services/historyOverrides').applyOverrides(project.business_id, out,
+      (d) => ({ source_table: 'project_status_history', source_id: d.id }),
+      { forClient: role === 'client', canEdit: role !== 'client' });
+    return successResponse(res, out);
   } catch (err) { next(err); }
 });
 

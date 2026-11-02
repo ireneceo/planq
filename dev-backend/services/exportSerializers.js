@@ -167,6 +167,37 @@ async function exportProjects(ctx) {
       await tC.write({ project_id: pc.project_id, client_id: pc.client_id, contact_name: pc.contact_name, contact_email: pc.contact_email, invited_at: pc.invited_at });
     }
   }
+  await exportHistoryOverrides(ctx);
+}
+
+// 자동 히스토리에 사람이 고친 «설명 줄» (2026-11-02 · docs/HISTORY_OVERRIDE_DESIGN.md) — 원장 표(task_status_history 등)는
+//   **원문 그대로** 내보내고, 고친 글은 이 표로 따로 싣는다(원장 변조 금지). 나만 보기 대상(L1 업무·문서·파일·개인 메모)의 줄은 뺀다.
+async function exportHistoryOverrides(ctx) {
+  const t = ctx.table('history/history_overrides', ['id', 'source_table', 'source_id', 'note', 'edited_by', 'updated_at']);
+  const PRIVATE_OF = {
+    task_status_history: async (ids) => {
+      const hs = await m.TaskStatusHistory.findAll({ where: { id: { [Op.in]: ids } }, attributes: ['id', 'task_id'], raw: true });
+      const priv = new Set((await m.Task.findAll({ where: { id: { [Op.in]: hs.map((h) => h.task_id) }, vlevel: 'L1' }, attributes: ['id'], raw: true })).map((x) => x.id));
+      return new Set(hs.filter((h) => priv.has(h.task_id)).map((h) => h.id));
+    },
+    task_created: async (ids) => new Set((await m.Task.findAll({ where: { id: { [Op.in]: ids }, vlevel: 'L1' }, attributes: ['id'], raw: true })).map((x) => x.id)),
+    post: async (ids) => new Set((await m.Post.findAll({ where: { id: { [Op.in]: ids }, vlevel: 'L1' }, attributes: ['id'], raw: true })).map((x) => x.id)),
+    file: async (ids) => new Set((await m.File.findAll({ where: { id: { [Op.in]: ids }, vlevel: 'L1' }, attributes: ['id'], raw: true })).map((x) => x.id)),
+    project_note: async (ids) => new Set((await m.ProjectNote.findAll({ where: { id: { [Op.in]: ids }, visibility: 'personal' }, attributes: ['id'], raw: true })).map((x) => x.id)),
+  };
+  for await (const rows of chunks(m.HistoryOverride, { business_id: ctx.businessId },
+    ['id', 'source_table', 'source_id', 'note', 'edited_by', 'updatedAt'])) {
+    const skip = new Map();
+    for (const [table, fn] of Object.entries(PRIVATE_OF)) {
+      const ids = rows.filter((r) => r.source_table === table).map((r) => r.source_id);
+      if (ids.length) skip.set(table, await fn(ids));
+    }
+    for (const r of rows) {
+      if (skip.get(r.source_table)?.has(Number(r.source_id))) continue;
+      await t.write({ id: r.id, source_table: r.source_table, source_id: r.source_id, note: ctx.text(r.note),
+        edited_by: ctx.who(r.edited_by), updated_at: ts(r, 'updated_at') });
+    }
+  }
 }
 
 const CLIENT_COLS = ['id', 'display_name', 'company_name', 'status', 'kind', 'sales_stage', 'sales_source', 'invite_email', 'phone', 'job_title', 'department',

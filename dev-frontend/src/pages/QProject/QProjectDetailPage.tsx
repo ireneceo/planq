@@ -1,5 +1,6 @@
 // /projects/p/:id — 프로젝트 허브 (대시보드/업무/문서/고객/프로세스 파트 5탭)
 import React, { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import HistoryNote, { type HistoryNoteFields } from '../../components/Common/HistoryNote';
 // 연결 입력 문구는 한 곳에서 온다 (화면마다 적으면 갈라진다)
 import { CONNECT_PROMPT } from '../../components/Common/connectPrompts';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
@@ -335,7 +336,7 @@ const QProjectDetailPage: React.FC = () => {
     if (isClient && CLIENT_HIDDEN_TABS.includes(tab)) setTab('docs');
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isClient, tab]);
-  const [statusHistory, setStatusHistory] = useState<{ id: number; from_status: string | null; to_status: string; note: string | null; created_at: string; changed_by_name: string | null }[]>([]);
+  const [statusHistory, setStatusHistory] = useState<(HistoryNoteFields & { id: number; from_status: string | null; to_status: string; created_at: string; changed_by_name: string | null })[]>([]);
   const [convs, setConvs] = useState<Conv[]>([]);
   // 이 프로젝트에 연결된 메일 스레드 수 — 0 이면 "프로젝트 메일" 버튼을 잠근다.
   //   (null = 아직 모름. 모르는 동안은 잠그지 않는다 — 있는데 못 누르는 게 더 나쁘다)
@@ -1343,7 +1344,7 @@ const QProjectDetailPage: React.FC = () => {
             ) : (
               <ProjHistList>
                 {statusHistory.map(ev => (
-                  <ProjHistRow key={ev.id}>
+                  <ProjHistRow key={ev.id} data-history-row>
                     <ProjHistDot />
                     <ProjHistBody>
                       <ProjHistMain>
@@ -1358,8 +1359,9 @@ const QProjectDetailPage: React.FC = () => {
                       <ProjHistMeta>
                         {formatDateTime(ev.created_at)}
                         {ev.changed_by_name && ` · ${ev.changed_by_name}`}
-                        {ev.note && ` · ${ev.note}`}
                       </ProjHistMeta>
+                      {/* 상태를 바꾸며 남긴 사유 — 히스토리 탭과 같은 글·같은 편집기(docs/HISTORY_OVERRIDE_DESIGN.md) */}
+                      <HistoryNote row={ev} variant="box" projectId={projectId} onChanged={loadStatusHistory} />
                     </ProjHistBody>
                   </ProjHistRow>
                 ))}

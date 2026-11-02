@@ -625,7 +625,7 @@ async function getProjectStream(project, viewerUserId, opts = {}) {
     });
     users.forEach((u) => actorMap.set(u.id, u));
   }
-  return top.map((e) => {
+  const out = top.map((e) => {
     const u = e.actor_user_id ? actorMap.get(e.actor_user_id) : null;
     const tg = e.target_user_id ? actorMap.get(e.target_user_id) : null;
     return {
@@ -635,6 +635,11 @@ async function getProjectStream(project, viewerUserId, opts = {}) {
       target_name: tg ? (tg.name || tg.username || null) : null,
     };
   });
+  // 사람이 고친 «설명 줄» 덧입힘 — 원장은 그대로, 읽기 마지막 단계에서 한 함수가 (docs/HISTORY_OVERRIDE_DESIGN.md).
+  //   이 스트림은 멤버만 받는다(라우트가 고객 403) → 고칠 수 있다는 표시(editable)도 싣는다.
+  const hov = require('./historyOverrides');
+  await hov.applyOverrides(bizId, out, (e) => hov.refOfEventId(e.id), { canEdit: true });
+  return out;
 }
 
 module.exports = { getWorkspaceStream, getProjectStream, SOURCES, PROJECT_SOURCES, looksLikeRawIdNote };

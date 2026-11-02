@@ -467,6 +467,8 @@ app.use('/api/projects', require('./routes/projects'));
 app.use('/api/projects', require('./routes/schedule_edit'));
 // 프로젝트 연결(문서·파일을 다른 프로젝트에도) — `/projects/:id/refs…` · `/project-refs/:type/:id` (docs/PROJECT_REFS_DESIGN.md)
 app.use('/api', require('./routes/project_refs'));
+// 자동 히스토리 «설명 줄» 고치기 — `/history-overrides/:source_table/:source_id` (docs/HISTORY_OVERRIDE_DESIGN.md)
+app.use('/api/history-overrides', require('./routes/history_overrides'));
 app.use('/api/users', require('./routes/users'));
 app.use('/api/users', require('./routes/account_deletion'));
 app.use('/api/users', require('./routes/workspace_deletion').restoreRouter);   // 지운 워크스페이스 되살리기 — /me/deleted-workspaces

@@ -2099,5 +2099,19 @@
   },
   "keyboard": {
     "hide": "키보드 내리기"
+  },
+  "historyNote": {
+    "add": "설명 남기기",
+    "edit": "설명 고치기",
+    "save": "저장",
+    "cancel": "취소",
+    "restore": "원래대로",
+    "edited": "수정됨",
+    "editedBy": "{{name}} · {{at}} 수정",
+    "original": "원래 글",
+    "originalEmpty": "원래 설명 없음",
+    "placeholder": "이 줄에 남길 설명",
+    "failed": "저장하지 못했어요.",
+    "clientSees": "이 업무를 볼 수 있는 고객이 있으면 같은 글을 봅니다."
   }
 }

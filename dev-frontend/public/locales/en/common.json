@@ -2099,5 +2099,19 @@
   },
   "keyboard": {
     "hide": "Hide keyboard"
+  },
+  "historyNote": {
+    "add": "Add a note",
+    "edit": "Edit note",
+    "save": "Save",
+    "cancel": "Cancel",
+    "restore": "Restore original",
+    "edited": "Edited",
+    "editedBy": "Edited by {{name}} · {{at}}",
+    "original": "Original",
+    "originalEmpty": "No original note",
+    "placeholder": "Note for this entry",
+    "failed": "Couldn't save.",
+    "clientSees": "Clients who can see this task will see this text too."
   }
 }

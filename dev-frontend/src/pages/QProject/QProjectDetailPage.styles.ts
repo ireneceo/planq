@@ -209,9 +209,9 @@ export const CardTitle = styled.h3`margin:0 0 12px;font-size:0.875rem;font-weigh
 // 상태 변경 이력 타임라인 (기본 히스토리)
 export const ProjHistEmpty = styled.div`font-size:0.75rem;color:#94A3B8;`;
 export const ProjHistList = styled.div`display:flex;flex-direction:column;gap:12px;`;
-export const ProjHistRow = styled.div`display:flex;gap:10px;align-items:flex-start;`;
+export const ProjHistRow = styled.div`position:relative;display:flex;gap:10px;align-items:flex-start;padding-right:36px;@media (max-width:640px){padding-right:44px;}`;   // 오른쪽 위 [설명 남기기] 자리(HistoryNote)
 export const ProjHistDot = styled.div`width:8px;height:8px;border-radius:999px;background:#14B8A6;margin-top:5px;flex-shrink:0;`;
-export const ProjHistBody = styled.div`display:flex;flex-direction:column;gap:2px;min-width:0;`;
+export const ProjHistBody = styled.div`flex:1;display:flex;flex-direction:column;gap:2px;min-width:0;`;
 export const ProjHistMain = styled.div`display:flex;align-items:center;gap:6px;flex-wrap:wrap;`;
 export const ProjHistChip = styled.span<{ $to?: boolean }>`font-size:0.75rem;font-weight:600;padding:2px 8px;border-radius:999px;background:${p => (p.$to ? '#F0FDFA' : '#F1F5F9')};color:${p => (p.$to ? '#0F766E' : '#64748B')};`;
 export const ProjHistArrow = styled.span`font-size:0.75rem;color:#94A3B8;`;

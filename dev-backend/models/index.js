@@ -27,6 +27,7 @@ const ProjectNote = require('./ProjectNote');
 const ProjectIssue = require('./ProjectIssue');
 // 사람이 직접 적는 프로젝트 히스토리(주요 이슈) — 2026-09-13
 const ProjectHistoryEntry = require('./ProjectHistoryEntry');
+const HistoryOverride = require('./HistoryOverride');
 const TaskCandidate = require('./TaskCandidate');
 const TaskComment = require('./TaskComment');
 const TaskDailyProgress = require('./TaskDailyProgress');
@@ -525,6 +526,7 @@ Project.hasMany(ProjectNote, { as: 'notes', foreignKey: 'project_id' });
 ProjectIssue.belongsTo(Project, { foreignKey: 'project_id', onDelete: 'CASCADE' });
 ProjectHistoryEntry.belongsTo(Project, { foreignKey: 'project_id', onDelete: 'CASCADE' });
 ProjectHistoryEntry.belongsTo(User, { as: 'author', foreignKey: 'created_by' });
+HistoryOverride.belongsTo(User, { as: 'editor', foreignKey: 'edited_by', constraints: false });
 ProjectIssue.belongsTo(User, { as: 'author', foreignKey: 'author_user_id' });
 Project.hasMany(ProjectIssue, { as: 'issues', foreignKey: 'project_id' });
 
@@ -676,6 +678,7 @@ module.exports = {
   LandingVisit, LandingVisitor,
   SocialAccount, SocialPost, SocialPostLog,
   ProjectHistoryEntry,
+  HistoryOverride,
   ProviderCredit,
   AttendanceDay, AttendanceEvent, LeaveGrant, LeaveRequest, LeaveType, WorkspaceHoliday,
   TaskDeliverableVersion,

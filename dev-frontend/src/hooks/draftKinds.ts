@@ -53,6 +53,10 @@ export const DRAFT_KINDS = {
   //   메일 내용을 베끼지 않고 사람이 직접 쓰는 글이라 더욱 지켜야 한다.
   // 프로젝트 히스토리에 직접 적는 주요 이슈 — 길게 쓰다 탭을 옮기면 날아가던 것(2026-09-13 가드가 잡음)
   'project-history-entry': { ttlMs: 7 * DAY, mode: 'append', owners: ['pages/QProject/HistoryTab.tsx'] },
+  // 자동 히스토리 한 줄의 설명 고치기 · 사람이 적은 항목 본문 고치기(2026-11-02 · docs/HISTORY_OVERRIDE_DESIGN.md).
+  //   원문(base)이 그 사이 바뀌면(다른 사람이 먼저 고침) 옛 초안을 버린다.
+  'history-note': { ttlMs: 7 * DAY, mode: 'edit', owners: ['components/Common/HistoryNote.tsx'] },
+  'project-history-entry-edit': { ttlMs: 7 * DAY, mode: 'edit', owners: ['pages/QProject/HistoryTab.tsx'] },
   'sale-task-add': { ttlMs: 7 * DAY, mode: 'append', owners: ['components/QSale/SaleInboxList.tsx', 'components/QTask/TaskCreateForm.tsx'] },
   // 문의 추가 모달 — 붙여넣은 원문과 첫 상담 메모. 둘 다 길고, 쓰다 닫으면 사라지던 값이다(2026-09-12).
   'sale-inquiry-add': { ttlMs: 7 * DAY, mode: 'append', owners: ['components/QSale/AddInquiryModal.tsx', 'components/QSale/SaleCueBar.tsx'] },

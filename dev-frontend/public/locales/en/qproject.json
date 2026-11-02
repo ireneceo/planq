@@ -970,6 +970,14 @@
       "add": "Show on the client project link",
       "label": "Visible to client",
       "aria": "Show on the client project link"
+    },
+    "edit": {
+      "open": "Edit",
+      "save": "Save",
+      "cancel": "Cancel",
+      "failed": "Couldn't save.",
+      "forbidden": "Only the author or an admin can edit this.",
+      "clientLinkSees": "This entry is shown on the client link — your changes will be visible to the client."
     }
   },
   "loadError": {

@@ -2,6 +2,7 @@
 // QTaskPage / QProjectDetailPage 양쪽에서 공용. 단일 taskId 를 받아 상세 + 워크플로우
 // (리뷰어/히스토리/댓글/첨부/리치 본문) 를 자체 로드·편집.
 import { sameHours } from '../../utils/hours';
+import HistoryNote, { type HistoryNoteFields } from '../Common/HistoryNote';   // 자동 기록 «설명 줄» 고치기(docs/HISTORY_OVERRIDE_DESIGN.md)
 import { useCloseOnTabStripClick } from '../../hooks/useCloseOnTabStripClick';
 // 연결 입력 문구는 한 곳에서 온다 (화면마다 적으면 갈라진다)
 import { CONNECT_PROMPT } from '../../components/Common/connectPrompts';
@@ -133,10 +134,10 @@ interface ReviewerRow {
 }
 /** 참조자(2026-10-27) — 상태 없음. 보기·댓글·첨부만 */
 interface WatcherRow { id: number; user_id: number; user?: { id: number; name: string } }
-interface HistoryRow {
+interface HistoryRow extends HistoryNoteFields {
   id: number; event_type: string; from_status: string | null; to_status: string | null;
   actor_user_id: number | null; actor_role: string | null; target_user_id: number | null;
-  round: number | null; note: string | null;
+  round: number | null;
   /** 서버는 `created_at` 으로 보낸다 — 둘 다 받는다 (rowAt) */
   createdAt?: string; created_at?: string;
   actor?: { id: number; name: string }; target?: { id: number; name: string };
@@ -2970,7 +2971,7 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                 ) : (
                   <Timeline>
                     {history.map(h => (
-                      <TimelineItem key={h.id}>
+                      <TimelineItem key={h.id} data-history-row>
                         <TimelineDot $event={h.event_type}/>
                         <TimelineBody>
                           <TimelineHead>
@@ -2988,7 +2989,7 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                             {h.target?.name && <TimelineTarget>→ {h.target.name}</TimelineTarget>}
                             {h.round != null && <TimelineRound>R{h.round}</TimelineRound>}
                           </TimelineHead>
-                          {h.note && <TimelineNote>{h.note}</TimelineNote>}
+                          <HistoryNote row={h} variant="box" clientSees onChanged={() => refreshWorkflowOnly(detailTask.id)} />
                           <TimelineTime data-testid="task-history-time">{rowAt(h).slice(5, 16).replace('T', ' ')}</TimelineTime>
                         </TimelineBody>
                       </TimelineItem>
@@ -3708,7 +3709,7 @@ const TaskFooter = styled(DrawerFooter)`margin-top:16px;`;
 
 // History
 const Timeline = styled.div`display:flex;flex-direction:column;gap:8px;padding-left:6px;border-left:2px solid #E2E8F0;margin-top:6px;`;
-const TimelineItem = styled.div`display:flex;gap:8px;position:relative;padding-left:6px;`;
+const TimelineItem = styled.div`display:flex;gap:8px;position:relative;padding-left:6px;padding-right:36px;@media (max-width:640px){padding-right:44px;}`;
 const TimelineDot = styled.div<{ $event: string }>`position:absolute;left:-13px;top:4px;width:10px;height:10px;border-radius:50%;border:2px solid #FFF;${p => {
   const e = p.$event;
   if (e === 'approve' || e === 'completed') return 'background:#14B8A6;';
@@ -3724,7 +3725,6 @@ const TimelineHead = styled.div`display:flex;flex-wrap:wrap;align-items:center;g
 const TimelineEvent = styled.span`color:#64748B;`;
 const TimelineTarget = styled.span`color:#64748B;`;
 const TimelineRound = styled.span`font-size:0.625rem;font-weight:700;color:#0F766E;background:#CCFBF1;padding:0 5px;border-radius:4px;margin-left:auto;`;
-const TimelineNote = styled.div`margin-top:2px;padding:4px 8px;background:#F8FAFC;border-radius:4px;font-size:0.6875rem;color:#475569;`;
 const TimelineTime = styled.div`margin-top:2px;font-size:0.625rem;color:#94A3B8;`;
 
 // Daily

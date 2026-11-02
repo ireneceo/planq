@@ -368,6 +368,11 @@ router.get('/:id/workflow', authenticateToken, async (req, res, next) => {
     for (const h of historyJson) {
       if (looksLikeRawIdNote(h.event_type, h.note)) h.note = null;
     }
+    // 사람이 고친 «설명 줄» 덧입힘 — 프로젝트 히스토리와 같은 함수(docs/HISTORY_OVERRIDE_DESIGN.md).
+    //   고객도 같은 글을 본다(진실은 한 벌) — 다만 «고쳐졌다»·원래 글·고칠 수 있음 표시는 싣지 않는다.
+    await require('../services/historyOverrides').applyOverrides(task.business_id, historyJson,
+      (h) => ({ source_table: 'task_status_history', source_id: h.id }),
+      { forClient: viewerIsClient, canEdit: !viewerIsClient });
     return successResponse(res, {
       task: (await isClientUser(task, req.user.id)) ? serializeTaskForClient(wfTaskJson) : wfTaskJson,
       reviewers: reviewersJson,

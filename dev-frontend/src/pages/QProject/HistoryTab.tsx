@@ -19,8 +19,11 @@ import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
 import { formatDay, formatDayTime } from '../../utils/dateFormat';
 import AutoSaveField from '../../components/Common/AutoSaveField';
 import { Switch, SwitchKnob } from '../../components/Common/switchShell';
+// 자동 기록 한 줄의 «설명 줄» 고치기 — 업무 상세·상태 이력 카드와 같은 컴포넌트(docs/HISTORY_OVERRIDE_DESIGN.md)
+import HistoryNote, { type HistoryNoteFields } from '../../components/Common/HistoryNote';
+import { useAuth } from '../../contexts/AuthContext';
 
-interface HistoryEvent {
+interface HistoryEvent extends HistoryNoteFields {
   id: string;
   // ★ 'note' 는 프로젝트 메모, 'qnote' 는 Q Note 회의록이다 — 다른 원장이다.
   //   같은 이름에 담으면 어느 쪽이 빠졌는지 알 수 없다(회의록이 여태 통째로 빠져 있었다).
@@ -38,11 +41,12 @@ interface HistoryEvent {
   // 사건을 문장으로 만드는 재료 (2026-08-25). 옛 응답엔 없어서 "라벨 + 엔티티 이름" 밖에 못 그렸다.
   target_name?: string | null;
   round?: number | null;
-  note?: string | null;
   /** 업무 추가처럼 낱개로는 의미가 옅어 접어야 하는 사건 */
   groupable?: boolean;
   /** 사람이 적은 주요 이슈(manual)만 — 고객 프로젝트 링크에 보이는가(GUEST_PROJECT_VIEW_DECISIONS §I-2) */
   client_visible?: boolean;
+  /** 사람이 적은 주요 이슈(manual) 본문 앞 120자 */
+  preview?: string | null;
 }
 
 /** 화면 한 줄 — 낱개 사건이거나, 접힌 업무 추가 묶음 */
@@ -67,6 +71,17 @@ const SOURCE_ICON: Record<string, string> = {
 
 export default function HistoryTab({ projectId }: Props) {
   const { t } = useTranslation('qproject');
+  const { user } = useAuth();
+  // 지금 글을 고치는 줄 — 그 줄은 링크를 끈다(입력칸이 링크 안이면 누르는 순간 이동한다)
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const onEditing = useCallback((id: string) => (v: boolean) => {
+    setEditingId((cur) => (v ? id : (cur === id ? null : cur)));
+  }, []);
+  // 사람이 적은 항목 고치기 — 제목·본문·날짜(적은 사람 또는 관리자, 서버와 같은 선)
+  const [manualEdit, setManualEdit] = useState<ManualEditTarget | null>(null);
+  const canEditManual = (e: HistoryEvent) => !!user && (
+    Number(e.actor_user_id) === Number(user.id)
+    || user.business_role === 'owner' || user.business_role === 'admin' || user.platform_role === 'platform_admin');
   const [events, setEvents] = useState<HistoryEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [more, setMore] = useState(false);
@@ -263,6 +278,22 @@ export default function HistoryTab({ projectId }: Props) {
     } finally { setAddBusy(false); }
   };
 
+  // 사람이 적은 항목 고치기 — 본문 전체는 목록 응답(앞 120자)에 없어서 열 때 한 번 읽는다
+  const openManualEdit = async (ev: React.SyntheticEvent, e: HistoryEvent) => {
+    ev.preventDefault(); ev.stopPropagation();
+    if (!e.entity_id) return;
+    let body = e.preview || '';
+    try {
+      const r = await apiFetch(`/api/projects/${projectId}/history-entries?limit=300`);
+      const j = await r.json().catch(() => null);
+      const row = Array.isArray(j?.data) ? j.data.find((x: { id: number }) => x.id === e.entity_id) : null;
+      if (row) body = row.body || '';
+    } catch { /* 앞 120자로 연다 */ }
+    const d = new Date(e.at);
+    const date = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    setManualEdit({ eventId: e.id, entryId: e.entity_id, date, title: e.title || '', body, clientVisible: !!e.client_visible });
+  };
+
   return (
     <Wrap>
       {/* ★ 2026-09-13 (Irene: *"프로젝트 히스토리 탭에 수동으로 히스토리 추가하는 기능이 없어.
@@ -329,13 +360,20 @@ export default function HistoryTab({ projectId }: Props) {
                       <Row2><span>{span}</span></Row2>
                     </Body>
                   </BundleHead>
-                  {on && en.items.map((e) => (
-                    <BundleItem key={e.id} to={linkFor(e) || '#'}>
-                      <BundleDot aria-hidden="true">·</BundleDot>
-                      <BundleTitle title={e.title || ''}>{e.title}</BundleTitle>
-                      <BundleWhen>{formatDay(e.at, { year: 'always' })}</BundleWhen>
-                    </BundleItem>
-                  ))}
+                  {on && en.items.map((e) => {
+                    const inner = (
+                      <>
+                        <BundleDot aria-hidden="true">·</BundleDot>
+                        <BundleTitle title={e.title || ''}>{e.title}</BundleTitle>
+                        <BundleWhen>{formatDay(e.at, { year: 'always' })}</BundleWhen>
+                        {/* 묶음 안 항목에도 설명을 남길 수 있다 — 남긴 줄은 서버가 묶음에서 빼 낱개로 보인다 */}
+                        <HistoryNote row={e} projectId={projectId} onChanged={() => load(true)} onEditingChange={onEditing(e.id)} editing={editingId === e.id} />
+                      </>
+                    );
+                    return editingId === e.id
+                      ? <BundleItemPlain key={e.id} data-history-row>{inner}</BundleItemPlain>
+                      : <BundleItem key={e.id} to={linkFor(e) || '#'} data-history-row>{inner}</BundleItem>;
+                  })}
                 </BundleWrap>
               );
             }
@@ -351,10 +389,24 @@ export default function HistoryTab({ projectId }: Props) {
                     {e.title && <Title title={e.title}>{e.title}</Title>}
                     {dt && <Detail>{dt}</Detail>}
                   </Row1>
-                  {e.note && <NoteLine>{e.note}</NoteLine>}
+                  {e.source !== 'manual' && (
+                    <HistoryNote row={e} projectId={projectId} onChanged={() => load(true)} onEditingChange={onEditing(e.id)} editing={editingId === e.id} />
+                  )}
+                  {e.source === 'manual' && e.preview && manualEdit?.eventId !== e.id && <ManualPreview>{e.preview}</ManualPreview>}
+                  {manualEdit?.eventId === e.id && (
+                    <ManualEditForm projectId={projectId} target={manualEdit}
+                      onCancel={() => setManualEdit(null)}
+                      onDone={async () => { setManualEdit(null); await load(true); }} />
+                  )}
                   <Row2>
                     <span>{formatDayTime(e.at, { year: 'always' })}</span>
                     {e.actor_name && <><Sep>·</Sep><span>{e.actor_name}{e.actor_is_ai ? ' (AI)' : ''}</span></>}
+                    {e.source === 'manual' && e.entity_id && canEditManual(e) && manualEdit?.eventId !== e.id && (
+                      <ManualEditBtn type="button" data-testid={`history-manual-edit-open-${e.entity_id}`}
+                        onClick={(ev) => openManualEdit(ev, e)}>
+                        {t('history.edit.open', '고치기') as string}
+                      </ManualEditBtn>
+                    )}
                     {e.source === 'manual' && e.entity_id && (
                       <VisibleSlot data-testid={`history-client-visible-${e.entity_id}`}>
                         <VisibleLabel>{t('history.clientVisible.label', '고객 공개') as string}</VisibleLabel>
@@ -371,9 +423,11 @@ export default function HistoryTab({ projectId }: Props) {
                 </Body>
               </>
             );
-            return href
-              ? <ItemLink key={e.id} to={href}>{body}</ItemLink>
-              : <Item key={e.id}>{body}</Item>;
+            // 글을 고치는 동안은 링크를 끈다
+            const linkOn = href && editingId !== e.id && manualEdit?.eventId !== e.id;
+            return linkOn
+              ? <ItemLink key={e.id} to={href} data-history-row>{body}</ItemLink>
+              : <Item key={e.id} data-history-row>{body}</Item>;
           })}
         </Group>
       ))}
@@ -388,6 +442,77 @@ export default function HistoryTab({ projectId }: Props) {
   );
 }
 
+
+interface ManualEditTarget { eventId: string; entryId: number; date: string; title: string; body: string; clientVisible: boolean; }
+
+/** 사람이 적은 항목 고치기 — 추가 폼과 같은 모양. 본문은 쓰다 나가도 남는다(초안 kind 'project-history-entry-edit') */
+function ManualEditForm({ projectId, target, onDone, onCancel }: {
+  projectId: number; target: ManualEditTarget; onDone: () => void | Promise<void>; onCancel: () => void;
+}) {
+  const { t } = useTranslation('qproject');
+  const [date, setDate] = useState(target.date);
+  const [title, setTitle] = useState(target.title);
+  const bodyDraft = useDraftText(useDraftKey('project-history-entry-edit', target.entryId, null), { base: target.body });
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  // 처음 열 때 — 남겨 둔 초안이 없으면 지금 본문에서 시작한다
+  useEffect(() => {
+    if (!bodyDraft.restored && !bodyDraft.text && target.body) bodyDraft.setText(target.body);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const save = async () => {
+    if (busy || !title.trim()) return;   // 중복 제출 가드
+    setBusy(true); setErr(null);
+    try {
+      const payload: Record<string, unknown> = { title: title.trim(), body: bodyDraft.text.trim() || null };
+      // 날짜를 바꿨을 때만 보낸다 — 같은 날이면 사람이 정한 시각을 정오로 덮지 않는다
+      if (date !== target.date) payload.occurred_at = new Date(`${date}T12:00:00`).toISOString();
+      const r = await apiFetch(`/api/projects/${projectId}/history-entries/${target.entryId}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+      });
+      const j = await r.json().catch(() => null);
+      if (!r.ok || !j?.success) {
+        setErr(j?.message === 'occurred_in_future'
+          ? (t('history.add.futureNotAllowed', '앞으로의 날짜는 넣을 수 없습니다.') as string)
+          : r.status === 403
+            ? (t('history.edit.forbidden', '적은 사람이나 관리자만 고칠 수 있어요.') as string)
+            : (t('history.edit.failed', '저장하지 못했어요.') as string));
+        return;
+      }
+      bodyDraft.clear();                     // 비우는 곳은 성공·명시 취소뿐
+      await onDone();
+    } catch {
+      setErr(t('history.edit.failed', '저장하지 못했어요.') as string);
+    } finally { setBusy(false); }
+  };
+
+  return (
+    <AddForm data-testid="history-manual-edit" onClick={(ev) => ev.stopPropagation()}>
+      <AddRow>
+        <SingleDateField value={date} onChange={setDate} size="md" />
+        {/* autosave-exempt: 항목 고치기 폼 — [저장] 을 누를 때 같이 보낸다(추가 폼과 같은 모양) */}
+        <AddInput value={title} data-testid="history-manual-edit-title" onChange={(ev) => setTitle(ev.target.value)}
+          placeholder={t('history.add.titlePlaceholder', '제목 — 무슨 일이 있었나') as string} />
+      </AddRow>
+      {/* autosave-exempt: 위와 같다 — 본문은 초안으로 남는다 */}
+      <AddArea rows={3} data-testid="history-manual-edit-body" data-draft-kind="project-history-entry-edit"
+        placeholder={t('history.add.bodyPlaceholder', '내용 (선택)') as string} {...bodyDraft.bind} />
+      {target.clientVisible && <AddHint>{t('history.edit.clientLinkSees', '고객 링크에 공개된 항목입니다 — 바뀐 글이 고객에게도 보입니다.') as string}</AddHint>}
+      {err && <AddErr role="alert">{err}</AddErr>}
+      <AddActions>
+        <ActionButton tone="secondary" size="sm" onClick={() => { bodyDraft.clear(); onCancel(); }}>
+          {t('history.edit.cancel', '취소') as string}
+        </ActionButton>
+        <ActionButton tone="primary" size="sm" loading={busy} disabled={!title.trim()}
+          data-testid="history-manual-edit-save" onClick={save}>
+          {t('history.edit.save', '저장') as string}
+        </ActionButton>
+      </AddActions>
+    </AddForm>
+  );
+}
+
 // 상단 4px 제거 (2026-09-14) — 이 탭만 내용이 4px 아래에서 시작했다. 하단 여백은 유지.
 const Wrap = styled.div`display: flex; flex-direction: column; gap: 18px; padding: 0 0 24px;`;
 const Dim = styled.div`padding: 40px 0; text-align: center; font-size: 0.8125rem; color: #94A3B8; line-height: 1.7;`;
@@ -398,19 +523,17 @@ const GroupHead = styled.div`
   font-size: 0.75rem; font-weight: 700; color: #64748B;
 `;
 const itemCss = `
+  position: relative;   /* 설명이 없는 줄의 [설명 남기기] 단추가 줄 오른쪽 위에 겹친다(HistoryNote) */
   display: flex; align-items: flex-start; gap: 10px;
-  padding: 10px 12px; border: 1px solid #E2E8F0; border-radius: 10px; background: #fff;
+  padding: 10px 44px 10px 12px; border: 1px solid #E2E8F0;   /* 오른쪽 44 — [설명 남기기] 단추 자리(글자와 안 겹친다) */
+  border-radius: 10px; background: #fff;
   text-decoration: none; color: inherit;
+  @media (max-width: 640px) { padding-right: 52px; }
 `;
 const Item = styled.div`${itemCss}`;
 /* 사건 부가 설명 — "기획 → 진행중", "→ 이수민", "R2" */
 const Detail = styled.span`
   font-size:0.78125rem;color:#0F766E;font-weight:600;white-space:nowrap;
-`;
-/* 상태를 바꾸며 남긴 사유 — 여태 응답에도 화면에도 없었다 */
-const NoteLine = styled.div`
-  margin-top:3px;padding:6px 10px;background:#F8FAFC;border-left:2px solid #CBD5E1;
-  border-radius:0 6px 6px 0;font-size:0.78125rem;color:#475569;line-height:1.5;
 `;
 /* 접힌 업무 추가 묶음 */
 const BundleWrap = styled.div`display:flex;flex-direction:column;`;
@@ -421,9 +544,13 @@ const BundleHead = styled.button`
   &:focus-visible{outline:2px solid #0D9488;outline-offset:-2px;}
 `;
 const BundleItem = styled(Link)`
-  display:flex;align-items:center;gap:8px;padding:5px 4px 5px 34px;
+  position:relative;display:flex;align-items:center;flex-wrap:wrap;gap:4px 8px;padding:5px 40px 5px 34px;
   text-decoration:none;color:inherit;
   &:hover{background:#F8FAFC;}
+`;
+/* 글을 고치는 동안의 묶음 안 항목 — 링크가 아니다 */
+const BundleItemPlain = styled.div`
+  position:relative;display:flex;align-items:center;flex-wrap:wrap;gap:4px 8px;padding:5px 40px 5px 34px;
 `;
 const BundleDot = styled.span`color:#CBD5E1;font-size:0.8125rem;`;
 const BundleTitle = styled.span`
@@ -478,5 +605,17 @@ const AddCheck = styled.label`
   input { width: 16px; height: 16px; accent-color: #14B8A6; cursor: pointer; }
 `;
 /* 주요 이슈 행의 «고객 공개» — 줄 오른쪽 끝(margin-left:auto) */
+/* 사람이 적은 항목의 본문 앞부분 */
+const ManualPreview = styled.div`
+  margin-top:3px;font-size:0.78125rem;color:#475569;line-height:1.5;white-space:pre-wrap;word-break:break-word;
+`;
+/* 사람이 적은 항목 [고치기] — 줄 아래 메타 줄의 작은 글자 단추 */
+const ManualEditBtn = styled.button`
+  margin-left: 6px; padding: 0 10px; height: 32px; border: 1px solid #E2E8F0; border-radius: 6px;
+  background: #fff; color: #475569; font-size: 0.6875rem; font-family: inherit; cursor: pointer;
+  &:hover { border-color: #5EEAD4; color: #0F766E; }
+  &:focus-visible { outline: 2px solid #0D9488; outline-offset: 1px; }
+  @media (max-width: 640px) { height: 40px; }
+`;
 const VisibleSlot = styled.span`margin-left: auto; display: inline-flex; align-items: center; gap: 6px;`;
 const VisibleLabel = styled.span`font-size: 0.6875rem; color: #64748B;`;
