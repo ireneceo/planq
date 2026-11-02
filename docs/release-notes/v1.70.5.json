@@ -1,0 +1,62 @@
+{
+  "version": "1.70.5",
+  "date": "2026-11-02",
+  "_auto": true,
+  "_range": "7b221478..2218c45d",
+  "summary": {
+    "ko": "여러 계정을 한 기기에서 편하게 전환하고, 메일·문의함·앱 속도가 더 좋아졌어요.",
+    "en": "Easily switch multiple accounts on one device, with improved mail replies, inquiry inbox, and app speed."
+  },
+  "items": [
+    {
+      "ko": {
+        "title": "한 기기에서 회사·개인 계정을 함께 사용",
+        "body": "이제 한 기기에 회사 계정과 개인 계정을 함께 로그인해 둘 수 있어요. 화면 상단에서 탭을 두 번만 눌러 계정을 빠르게 전환하고, 각 계정의 알림도 놓치지 않고 받을 수 있습니다."
+      },
+      "en": {
+        "title": "Use work and personal accounts together on one device",
+        "body": "You can now stay logged in with both work and personal accounts on a single device. Switch accounts quickly with two taps at the top of the screen, and keep receiving notifications from all your accounts."
+      }
+    },
+    {
+      "ko": {
+        "title": "Q mail 답장 주소를 보내기 전에 한 번 더 확인",
+        "body": "Q mail에서 받은 메일에 답장할 때, 별칭이 없는 주소로 온 메일은 실제 보내질 주소를 눈에 띄게 보여줘요. 보내기 전에 받은 주소로 보낼지, 기본 주소로 보낼지, 취소할지 선택해 실수 발송을 줄일 수 있습니다."
+      },
+      "en": {
+        "title": "Double-check reply address before sending in Q mail",
+        "body": "When replying in Q mail to messages sent to an address without an alias, the actual sending address is now clearly highlighted. Before sending, you can choose to send from the received address, use your main address, or cancel, helping prevent mistakes."
+      }
+    },
+    {
+      "ko": {
+        "title": "앱에서 보낸 문의도 인박스에서 함께 관리",
+        "body": "앱 안의 «문의하기»로 들어온 문의가 이제 문의 인박스에 같은 상태 탭 안에서 «앱 안에서 받은 문의»로 함께 보여요. 목록에서 눌러 바로 상세 내용을 확인하고 답변을 이어갈 수 있습니다."
+      },
+      "en": {
+        "title": "Manage in-app inquiries directly in your inbox",
+        "body": "Inquiries sent via the in-app “Contact us” form now appear in the inquiry inbox under the same status tab as “In-app inquiries.” Tap an item in the list to open its details and continue your response seamlessly."
+      }
+    },
+    {
+      "ko": {
+        "title": "관리자 답변 초안이 문의 답변에 제대로 반영",
+        "body": "문의 답변을 만들 때 관리자가 적어둔 지시나 초안이 이제 답변 맨 앞에 우선 반영돼요. 초안이 있는 경우 예전 조사 내용은 빼고, 관리자가 정리한 흐름대로 답변을 다듬을 수 있습니다."
+      },
+      "en": {
+        "title": "Admin reply drafts now applied first in responses",
+        "body": "When preparing replies to inquiries, any instructions or drafts written by admins are now applied first at the top of the response. If a draft exists, older investigation text is removed so you can refine the answer following the admin’s intended structure."
+      }
+    },
+    {
+      "ko": {
+        "title": "태블릿과 앱에서 첫 화면·메뉴 전환 속도 개선",
+        "body": "태블릿과 앱에서 PlanQ를 열 때 첫 화면이 더 빨리 뜨도록 가볍게 다듬었어요. 메뉴를 눌렀을 때 선택한 메뉴가 먼저 또렷이 표시돼, 이동 중에도 어떤 화면으로 들어가는지 바로 알 수 있습니다."
+      },
+      "en": {
+        "title": "Faster first screen and menu switching on tablets and app",
+        "body": "We’ve streamlined the first screen on tablets and the mobile app so PlanQ opens faster. When you tap a menu, the selected item is now highlighted immediately, making it clearer which screen you’re moving to, even on the go."
+      }
+    }
+  ]
+}
