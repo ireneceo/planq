@@ -23,6 +23,7 @@ import WorkspaceBillingBanner from './WorkspaceBillingBanner';
 import AnnouncementBanner from '../Common/AnnouncementBanner';
 import SidebarClock from './SidebarClock';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
+import { useNavPressFeedback } from '../../hooks/useNavPressFeedback';
 import { useAuthedImageSrc } from '../../hooks/useAuthedImageSrc';
 import FocusWidget from '../Focus/FocusWidget';
 import AttendanceWidget from '../Attendance/AttendanceWidget';   // #208 출퇴근
@@ -373,7 +374,7 @@ const navItemCss = css<{ $active?: boolean; $isCollapsed?: boolean }>`
     &:active { background: rgba(255, 255, 255, 0.16); }
   }
 `;
-const NavItem = styled(ChromeLink)<{ $active?: boolean; $isCollapsed?: boolean }>`${navItemCss}`;
+const NavItem = styled(ChromeLink).attrs({ paintFirst: true })<{ $active?: boolean; $isCollapsed?: boolean }>`${navItemCss}`;
 // «더보기 (n)» 줄 — 메뉴 줄과 같은 모양(같은 css 한 벌)의 버튼
 const NavMoreBtn = styled.button<{ $active?: boolean; $isCollapsed?: boolean }>`
   ${navItemCss}
@@ -975,9 +976,11 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
   //   닫기는 급한 업데이트라 먼저 그려지고, 새 화면은 그 뒤에 이어 그려진다.
   //   첫 누름이 «펼치기만» 인 메뉴(통계·설정·계정)는 열어 둔다(navStayRef). 포털로 뜬 드롭다운 안 링크는 건드리지 않는다.
   const navStayRef = useRef(false);
+  const { pressedPath, notePress } = useNavPressFeedback(location.pathname, user?.business_id ? Number(user.business_id) : null);   // 누른 메뉴 먼저 강조 · 실기기 측정
   const closeMenuOnNav = (e: React.MouseEvent<HTMLDivElement>) => {
     const stay = navStayRef.current;
     navStayRef.current = false;
+    if (!stay) notePress(e);
     if (!sidebarOpen || !isMobileNav || stay) return;
     if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
     const a = (e.target as Element | null)?.closest?.('a[href]');
@@ -1045,7 +1048,8 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
   //   CLAUDE.md 드로어 접근성은 Esc 닫기를 필수로 못 박고 있다. 표준 스택을 쓴다(중첩 안전).
   useEscapeStack(sidebarOpen, () => setSidebarOpen(false));
 
-  const isActive = (path: string) => location.pathname === path || location.pathname.startsWith(path + '/');
+  const activePath = pressedPath || location.pathname;
+  const isActive = (path: string) => activePath === path || activePath.startsWith(path + '/');
   // ★ 2026-09-13 — **경로만 보면 안 된다.** 여태 `/admin/*` 경로이기만 하면 관리자 사이드바를
   //   그렸다. 그래서 `platform_role='user'` 계정이 주소를 직접 치면 관리자 메뉴 17개가 그대로
   //   보였다(데이터는 서버가 403 으로 막았지만, 관리자 기능 목록은 노출됐고 "권한 없음" 안내는 없었다).
@@ -1264,7 +1268,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
 
       <Overlay $show={sidebarOpen} onClick={() => setSidebarOpen(false)} />
 
-      <Sidebar $isOpen={sidebarOpen} $isCollapsed={isCollapsed} $tabMode={tabMode} onClick={closeMenuOnNav}>
+      <Sidebar data-pq-sidebar="" $isOpen={sidebarOpen} $isCollapsed={isCollapsed} $tabMode={tabMode} onClick={closeMenuOnNav}>
         <SidebarHeader $isCollapsed={isCollapsed}>
           {isCollapsed ? (
             <SidebarToggleButton

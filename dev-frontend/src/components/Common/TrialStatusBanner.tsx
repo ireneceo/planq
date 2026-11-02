@@ -13,8 +13,9 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
-import { apiFetch, useAuth } from '../../contexts/AuthContext';
+import { useAuth } from '../../contexts/AuthContext';
 import { canPurchaseInApp } from '../../utils/purchase';
+import { fetchStatus } from '../../services/plan';
 
 interface PlanStatus {
   plan: { code: string; name?: string };
@@ -50,9 +51,8 @@ const TrialStatusBanner: React.FC<Props> = ({ businessId }) => {
 
   const load = useCallback(() => {
     if (!businessId) return;
-    apiFetch(`/api/plan/${businessId}/status`)
-      .then(r => r.json())
-      .then(j => { if (j?.success) setStatus(j.data); })
+    fetchStatus<PlanStatus>(businessId)
+      .then(d => { if (d) setStatus(d); })
       .catch(() => {});
   }, [businessId]);
 

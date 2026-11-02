@@ -6,7 +6,7 @@ import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
-import { apiFetch } from '../../contexts/AuthContext';
+import { fetchStatus } from '../../services/plan';
 import { canPurchaseInApp } from '../../utils/purchase';
 
 interface UsageBlock {
@@ -45,14 +45,13 @@ const UsageWarningCard: React.FC<Props> = ({ businessId }) => {
   useEffect(() => {
     if (!businessId) return;
     let mounted = true;
-    apiFetch(`/api/plan/${businessId}/status`)
-      .then(r => r.json())
-      .then(j => {
-        if (!mounted || !j?.success) return;
-        setUsage(j.data.usage);
+    fetchStatus<{ usage: UsageBlock; plan?: { limits?: PlanLimits }; effective_limits?: Partial<PlanLimits> | null; exempt?: boolean }>(businessId)
+      .then(d => {
+        if (!mounted || !d) return;
+        setUsage(d.usage);
         // 실제 적용 한도(체험 중 Cue·녹음 캡, add-on 포함) 우선 — 정가 한도로 경고하면 체험 중 50회 캡을 넘어도 조용하다
-        setLimits({ ...(j.data.plan?.limits || {}), ...(j.data.effective_limits || {}) });
-        setExempt(!!j.data.exempt);
+        setLimits({ ...(d.plan?.limits || {}), ...(d.effective_limits || {}) } as PlanLimits);
+        setExempt(!!d.exempt);
       })
       .catch(() => {});
     return () => { mounted = false; };

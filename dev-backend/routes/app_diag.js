@@ -37,9 +37,35 @@ function tapOf(t) {
   };
 }
 
+// 2026-11-02 — 태블릿·앱 «처음 열 때 느림 · 좌측 메뉴가 잘 안 눌림» 실기기 측정(services/perfDiag).
+//   로그 한 줄 `[app-perf]` (운영: pm2 logs planq-backend | grep app-perf). 숫자·경로만 받는다.
+//   ★ 빈 값은 0 이 아니라 null 로 남긴다 — click:null(«손가락은 닿았는데 click 이 안 옴») 이 이 측정의 핵심 신호다.
+const nnum = (v) => (v == null ? null : num(v));
+function perfOf(b, req) {
+  const boot = b.boot && typeof b.boot === 'object' ? b.boot : {};
+  return {
+    at: new Date().toISOString(),
+    user_id: req.user.id,
+    business_id: Number(b.business_id) || null,
+    native: bool(b.native),
+    vw: nnum(b.vw), vh: nnum(b.vh),
+    boot: { shell: nnum(boot.shell), content: nnum(boot.content), long_total: nnum(boot.longTotal), long_max: nnum(boot.longMax) },
+    taps: (Array.isArray(b.taps) ? b.taps : []).slice(0, 12).map((t) => (t && typeof t === 'object' ? {
+      href: cap(t.href, 80), at: nnum(t.at), click: nnum(t.click), url: nnum(t.url), paint: nnum(t.paint), repeat: bool(t.repeat),
+    } : null)).filter(Boolean),
+    conn: cap(b.conn, 12) || null,
+    build: cap(b.build, 60),
+    ua: cap(req.get('user-agent'), 200),
+  };
+}
+
 router.post('/', authenticateToken, ...limiter, async (req, res) => {
   // audit-exempt: 진단 로그 한 줄만 남긴다 — 데이터 변경 없음
   const b = req.body || {};
+  if (b.kind === 'perf') {
+    console.warn('[app-perf]', JSON.stringify(perfOf(b, req)));
+    return successResponse(res, { ok: true });
+  }
   const kind = b.kind === 'offline_return' ? 'offline_return' : 'push_nav_fail';
   let lastReload = null;
   if (b.last_reload && typeof b.last_reload === 'object') {

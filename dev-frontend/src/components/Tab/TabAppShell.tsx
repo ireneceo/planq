@@ -8,10 +8,14 @@ import TabPane from './TabPane';
 import PopstateBridge from './PopstateBridge';
 import ChromeOverlays from './ChromeOverlays';
 import { useTabs, useActiveTab } from '../../hooks/useTabStore';
+import { installRoutePrefetch } from '../../lib/routePrefetch';
 
 export default function TabAppShell() {
   const tabs = useTabs();
   const active = useActiveTab();
+  // 탭 모드(태블릿·데스크탑)에도 페이지 미리 받기를 건다 — 여태 ShellApp(폰)에만 있어서 태블릿은
+  //   메뉴를 처음 누를 때마다 그 페이지를 그 자리에서 받고 해석했다(2026-11-02).
+  useEffect(() => installRoutePrefetch(), []);
 
   // 활성 탭 변경 → 브라우저 주소창 replaceState(전환은 히스토리에 안 쌓음) + document.title.
   useEffect(() => {

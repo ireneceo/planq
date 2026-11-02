@@ -26,6 +26,8 @@ const ROUTE_PREFETCH: Record<string, () => Promise<unknown>> = {
   '/personal-vault': () => import('../pages/PersonalVault/PersonalVaultPage'),
   '/insights': () => import('../pages/Insights/InsightsPage'),
   '/profile': () => import('../pages/Profile/ProfilePage'),
+  // 경로가 아닌 큰 조각 — 링크로는 안 걸리고 idle 순서에만 쓴다(@ 로 시작)
+  '@task-drawer': () => import('../components/QTask/TaskDetailDrawer'),
 };
 
 // 이미 한 번이라도 prefetch 시도한 path — 동일 hover 반복 시 모듈 promise 재호출 비용 절감.
@@ -49,20 +51,52 @@ export function prefetchRoute(path: string): void {
   });
 }
 
-// 앱 mount 시 한 번 호출 — idle 시점에 핵심 페이지 prefetch + 전역 hover/focus listener 등록.
+// 앱 mount 시 한 번 호출 — 첫 화면이 자리 잡은 뒤 핵심 페이지를 **하나씩** prefetch + 전역 hover/focus/누름 listener 등록.
 // 반환값은 cleanup 함수 (StrictMode 더블 실행 안전).
+//
+// ★ 2026-11-02 (Irene «태블릿이랑 모바일앱에서 처음 열릴 때 너무 느리고 … 좌측메뉴 클릭할 때 제대로 안되고 여러 번 눌러도»)
+//   옛 동작: idle 한 번에 5개 페이지(대시보드·Q talk·Q task·캘린더·Q note)를 **한꺼번에** import.
+//   iOS Safari·아이폰/아이패드 앱(WKWebView)에는 requestIdleCallback 이 없어 **mount 2초 뒤 setTimeout** 으로 떨어졌고,
+//   그 순간 편집기·차트·코드 강조까지 약 2.5MB 를 한 번에 해석해 메인 스레드가 0.9~1.0초 통째로 막혔다
+//   (CPU ×4 실측 — 첫 화면이 막 뜬 뒤 사용자가 메뉴를 누르기 시작하는 바로 그때).
+//   새 동작: ①첫 화면이 뜬 뒤 3초 기다림 ②한 번에 하나, 앞 것이 끝나고 쉼을 둔 뒤 다음 것
+//   ③사용자가 최근 1.5초 안에 화면을 만졌으면 미룬다(누르는 동안 해석하지 않는다)
+//   ④메뉴를 **누르는 순간**(pointerdown) 그 페이지를 먼저 받기 시작한다 — 터치 기기에는 hover 가 없다.
 export function installRoutePrefetch(): () => void {
-  // 1) idle 시점에 핵심 페이지 prefetch
-  const idleTargets = ['/dashboard', '/talk', '/tasks', '/calendar', '/notes'];
+  // 업무 상세 패널을 맨 앞에 — 확인필요·업무·캘린더가 다 쓰는데 이제 열 때 받는다(첫 화면에서 뺐다)
+  const idleTargets = ['@task-drawer', '/dashboard', '/talk', '/tasks', '/calendar', '/notes'];
   type RIC = (cb: () => void, opts?: { timeout?: number }) => number;
-  type CIC = (id: number) => void;
   const ricFn = (window as unknown as { requestIdleCallback?: RIC }).requestIdleCallback;
-  const cicFn = (window as unknown as { cancelIdleCallback?: CIC }).cancelIdleCallback;
-  const ric: RIC = ricFn || ((cb) => window.setTimeout(cb, 2000) as unknown as number);
-  const cic: CIC = cicFn || ((id) => window.clearTimeout(id));
-  const idleId = ric(() => { for (const p of idleTargets) prefetchRoute(p); }, { timeout: 5000 });
+  let stopped = false;
+  let timer: number | undefined;
+  let lastInput = 0;
 
-  // 2) 전역 hover/focus delegation — 모든 internal link 에 자동 적용
+  const later = (fn: () => void, ms: number) => {
+    timer = window.setTimeout(() => {
+      if (stopped) return;
+      // 브라우저가 쉬는 틈을 알려주면 그때, 아니면(iOS) 그냥 지금
+      if (ricFn) ricFn(() => { if (!stopped) fn(); }, { timeout: 3000 });
+      else fn();
+    }, ms);
+  };
+  const next = (i: number) => {
+    if (stopped || i >= idleTargets.length) return;
+    const idleFor = Date.now() - lastInput;
+    if (idleFor < 1500) { later(() => next(i), 1500 - idleFor + 200); return; }
+    const key = normalize(idleTargets[i]);
+    if (!key || fetched.has(key)) { next(i + 1); return; }
+    fetched.add(key);
+    const p = ROUTE_PREFETCH[key]?.();
+    const go = () => later(() => next(i + 1), 800);
+    if (p) p.then(go, () => { fetched.delete(key); go(); }); else go();
+  };
+  // 첫 것(업무 상세)은 첫 화면이 뜬 직후 — 확인필요에서 뺀 조각이라 늦으면 첫 메뉴 누름(Q task)이 그것을 기다린다
+  //   (A/B 실측: 3초 뒤로 두었더니 첫 Q task 누름 0.29~0.39 → 0.41~0.80초). 나머지는 앞 것이 끝난 뒤 하나씩.
+  const begin = () => later(() => next(0), 600);
+  if (document.readyState === 'complete') begin();
+  else window.addEventListener('load', begin, { once: true });
+
+  // 전역 hover/focus/누름 delegation — 모든 internal link 에 자동 적용
   const handler = (e: Event) => {
     const target = e.target as HTMLElement | null;
     if (!target || !target.closest) return;
@@ -71,12 +105,17 @@ export function installRoutePrefetch(): () => void {
     const href = link.getAttribute('href') || '';
     if (href.startsWith('/') && !href.startsWith('//')) prefetchRoute(href);
   };
+  const onDown = (e: Event) => { lastInput = Date.now(); handler(e); };
   document.addEventListener('mouseover', handler, { passive: true, capture: true });
   document.addEventListener('focusin', handler, { passive: true, capture: true });
+  document.addEventListener('pointerdown', onDown, { passive: true, capture: true });
 
   return () => {
-    try { cic(idleId); } catch { /* noop */ }
+    stopped = true;
+    if (timer !== undefined) window.clearTimeout(timer);
+    window.removeEventListener('load', begin);
     document.removeEventListener('mouseover', handler, true);
     document.removeEventListener('focusin', handler, true);
+    document.removeEventListener('pointerdown', onDown, true);
   };
 }

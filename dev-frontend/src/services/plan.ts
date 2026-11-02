@@ -173,10 +173,25 @@ export async function fetchCatalog(): Promise<PlanDef[]> {
   return j.success ? (j.data as PlanDef[]) : [];
 }
 
-export async function fetchStatus(businessId: number): Promise<PlanStatus | null> {
-  const r = await apiFetch(`/api/plan/${businessId}/status`);
-  const j = await r.json();
-  return j.success ? (j.data as PlanStatus) : null;
+// ★ 2026-11-02 — 같은 순간에 부르는 곳은 **한 요청**을 나눠 쓴다. 앱 첫 화면에서 배너·사용량 카드·사용자 칩·
+//   청구 배너·휴지통 보관일 등이 각자 불러 같은 요청이 6번 나갔다(느린 회선의 첫 로딩을 같이 먹는다).
+//   끝난 응답은 남겨 두지 않는다 — 결제·입금 직후 다시 부르는 곳이 옛 값을 받으면 안 된다(진행 중인 것만 공유).
+//   T — 화면이 자기 쓰는 필드만 적은 좁은 모양으로 받을 때(응답은 같은 객체다).
+const statusInFlight = new Map<number, Promise<unknown>>();
+export async function fetchStatus<T = PlanStatus>(businessId: number): Promise<T | null> {
+  const cur = statusInFlight.get(businessId);
+  if (cur) return cur as Promise<T | null>;
+  const p = (async (): Promise<T | null> => {
+    try {
+      const r = await apiFetch(`/api/plan/${businessId}/status`);
+      const j = await r.json();
+      return j.success ? (j.data as T) : null;
+    } finally {
+      statusInFlight.delete(businessId);
+    }
+  })();
+  statusInFlight.set(businessId, p);
+  return p;
 }
 
 export async function startTrial(businessId: number, planCode: Exclude<PlanCode, 'free' | 'enterprise'>): Promise<boolean> {

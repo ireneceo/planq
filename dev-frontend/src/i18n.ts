@@ -10,7 +10,17 @@ const ALL_NS = ['common', 'auth', 'layout', 'profile', 'qnote', 'settings', 'qta
 //   공개 첫 화면에서는 그 화면이 쓰는 것만 먼저 받고 나머지는 준비된 뒤 뒤에서 받는다.
 //   앱 화면(로그인 뒤)은 종전대로 전부 먼저 — t('ns:key') 를 useTranslation 없이 쓰는 곳이 있어 줄이지 않는다.
 const PUBLIC_FIRST_NS = ['common', 'landing', 'auth', 'errors', 'legal', 'insights', 'appdownload'];
-const isPublicFirstPath = (() => {
+// ★ 2026-11-02 — 아이폰·아이패드·안드로이드 앱은 «/» 로 열리지만 랜딩을 보여 주지 않고 곧장 확인필요로 간다
+//   (App.tsx NativeMarketingRedirect). 그런데 «/» 가 공개 첫 화면으로 잡혀 앱 첫 실행마다 랜딩 번역부터 받고,
+//   앱 화면 번역 26개는 1.5초 뒤로 밀렸다. 앱 안에서는 공개 첫 화면 취급을 하지 않는다.
+//   (Capacitor 가 문서보다 먼저 심는 전역으로 가른다 — 여기서 @capacitor/core 를 끌어오지 않는다)
+const inNativeShell = (() => {
+  try {
+    const c = (window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor;
+    return !!c?.isNativePlatform?.();
+  } catch { return false; }
+})();
+const isPublicFirstPath = !inNativeShell && (() => {
   try {
     const p = typeof window !== 'undefined' ? window.location.pathname : '';
     return /^\/(en(\/|$))?(pricing|features|about|service|security|start|insights|login|register|forgot-password|contact|details|diagnosis|blog|app|terms|privacy|legal)?(\/|$)/.test(p);
@@ -22,7 +32,10 @@ i18n
   .use(LanguageDetector)
   .use(initReactI18next)
   .init({
-    fallbackLng: 'en',
+    // ★ 2026-11-02 — 한국어 사용자는 영어 번역을 받지 않는다. 여태 «모자라면 영어로» 때문에 33개 이름공간을
+    //   한국어·영어 두 벌(76개 요청) 받고 둘 다 해석했다(CPU ×4 실측 번역 처리 0.4초). ko/en 키는
+    //   가드 `--category=parity` 가 0 차이로 막고 있어 한국어에 없는 키가 없다. 다른 언어는 종전대로 영어로 떨어진다.
+    fallbackLng: (code: string) => (/^ko\b/.test(code) ? [] : ['en']),
     supportedLngs: ['en', 'ko'],
 
     ns: isPublicFirstPath ? PUBLIC_FIRST_NS : ALL_NS,

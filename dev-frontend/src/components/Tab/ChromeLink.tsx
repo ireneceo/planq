@@ -11,9 +11,12 @@ interface Props extends Omit<AnchorHTMLAttributes<HTMLAnchorElement>, 'href'> {
   /** 보던 탭을 덮지 않고 새 탭에서 연다(같은 화면이 열려 있으면 그 탭으로).
    *  알림·새 소식처럼 **하던 일 위에 얹히는** 진입점에서 켠다. */
   newTab?: boolean;
+  /** 누른 티(강조·메뉴 닫힘)를 **먼저 그리고** 한 프레임 뒤에 화면을 바꾼다 — 사이드바 메뉴용.
+   *  처음 여는 화면은 그리는 데 태블릿에서 0.4~1초가 걸려, 같이 그리면 그동안 «안 눌렸다» 로 보였다(2026-11-02). */
+  paintFirst?: boolean;
 }
 
-const ChromeLink = forwardRef<HTMLAnchorElement, Props>(function ChromeLink({ to, onClick, newTab, children, ...rest }, ref) {
+const ChromeLink = forwardRef<HTMLAnchorElement, Props>(function ChromeLink({ to, onClick, newTab, paintFirst, children, ...rest }, ref) {
   const handle = (e: MouseEvent<HTMLAnchorElement>) => {
     onClick?.(e);
     if (e.defaultPrevented) return;
@@ -37,8 +40,10 @@ const ChromeLink = forwardRef<HTMLAnchorElement, Props>(function ChromeLink({ to
     }
 
     // 기본은 현재 탭 경로 변경(새 탭 X). ⌘/Ctrl 클릭 시 위에서 브라우저 새 탭에 양보.
-    if (newTab) tabStore.openInNewTab(to);
-    else tabStore.navigateActive(to);
+    const go = () => { if (newTab) tabStore.openInNewTab(to); else tabStore.navigateActive(to); };
+    // rAF 는 다음 그림 직전, 그 안의 setTimeout 은 그림 직후 — 누른 티가 먼저 화면에 나온다.
+    if (paintFirst && typeof requestAnimationFrame === 'function') requestAnimationFrame(() => { window.setTimeout(go, 0); });
+    else go();
   };
   return <a href={to} ref={ref} onClick={handle} {...rest}>{children}</a>;
 });

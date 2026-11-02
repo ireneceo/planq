@@ -8,6 +8,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { apiFetch, useAuth } from '../../contexts/AuthContext';
+import { fetchStatus } from '../../services/plan';
 import { mapApiError } from '../../utils/apiError';
 import CreateDrawer from './CreateDrawer';
 import OnboardingCallFields, {
@@ -42,9 +43,8 @@ const OnboardingCallCard: React.FC<{ businessId: number | null | undefined }> = 
 
   const load = useCallback(() => {
     if (!businessId) return;
-    apiFetch(`/api/plan/${businessId}/status`)
-      .then(r => r.json())
-      .then(j => { if (j?.success) setStatus(j.data?.onboarding_call || null); })
+    fetchStatus<{ onboarding_call?: CallStatus | null }>(businessId)
+      .then(d => { if (d) setStatus(d.onboarding_call || null); })
       .catch(() => {});
   }, [businessId]);
 

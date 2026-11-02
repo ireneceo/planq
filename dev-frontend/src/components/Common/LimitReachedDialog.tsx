@@ -8,6 +8,7 @@ import { useTranslation } from 'react-i18next';
 import styled from 'styled-components';
 import { canPurchaseInApp, purchaseCopyKeys } from '../../utils/purchase';
 import { useAuth, apiFetch } from '../../contexts/AuthContext';
+import { fetchStatus } from '../../services/plan';
 
 interface LimitDetail {
   code?: string;
@@ -54,9 +55,7 @@ const LimitReachedDialog: React.FC = () => {
     let alive = true;
     (async () => {
       try {
-        const r = await apiFetch(`/api/plan/${bizId}/status`);
-        const j = await r.json();
-        const d = j?.data;
+        const d = await fetchStatus(bizId);
         if (!alive || !d?.trial_plan_switch?.available) return;
         const cur = d.plan?.code;
         if (cur === 'starter') setTrialSwitch({ next: 'basic' });

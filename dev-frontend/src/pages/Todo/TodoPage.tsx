@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import styled from 'styled-components';
@@ -10,14 +10,17 @@ import InsightCards from '../../components/Common/InsightCards';
 import TodoList from '../../components/Dashboard/TodoList';
 import TodayReview from '../../components/Dashboard/TodayReview';
 import OpenTaskPopoutButton from '../../components/QTask/OpenTaskPopoutButton';
-import TaskDetailDrawer from '../../components/QTask/TaskDetailDrawer';
 import DailyStartModal from '../../components/Focus/DailyStartModal';
 import CandidateActionModal from '../../components/Focus/CandidateActionModal';
-import EventDrawer from '../../pages/QCalendar/EventDrawer';
-import ClientPanel from '../../components/QSale/ClientPanel';
 // 상담 목록과 **같은 변환·같은 등록 함수**를 쓴다 — 베끼면 두 화면이 갈라진다
 import { inquiryItemOfDrawer, inquiryViewOf } from '../../utils/saleInquiryView';
-import ClientAddDrawer from '../../components/Clients/ClientAddDrawer';
+// ★ 2026-11-02 — 상세 패널 넷은 **열 때** 받는다. 확인필요는 앱이 처음 여는 화면인데, 닫혀 있는 업무 상세가
+//   편집기 엔진(tiptap·코드 강조)까지 끌고 와 첫 화면에서 약 0.8MB 를 더 받고 해석했다(태블릿·앱 첫 실행 느림).
+//   업무 상세는 첫 화면이 자리 잡은 뒤 lib/routePrefetch 가 쉬는 틈에 미리 받아 둔다.
+const TaskDetailDrawer = lazy(() => import('../../components/QTask/TaskDetailDrawer'));
+const EventDrawer = lazy(() => import('../../pages/QCalendar/EventDrawer'));
+const ClientPanel = lazy(() => import('../../components/QSale/ClientPanel'));
+const ClientAddDrawer = lazy(() => import('../../components/Clients/ClientAddDrawer'));
 import { tabStore } from '../../stores/tabStore';
 import type { SaleInboxItem } from '../../services/sale';
 import { fetchTodo } from '../../services/dashboard';
@@ -408,6 +411,7 @@ const TodoPage: React.FC = () => {
         );
       })()}
 
+      <Suspense fallback={null}>
       {selectedTaskId !== null && (selectedTaskBizId ?? bizId) !== null && (
         <TaskDetailDrawer
           taskId={selectedTaskId}
@@ -471,6 +475,7 @@ const TodoPage: React.FC = () => {
           workspaceCanWrite={false}
         />
       )}
+      </Suspense>
       {/* 업무 흐름 — 오늘 시작 안내 모달 (focus_enabled + daily_prompt true 일 때만) */}
       <DailyStartModal />
 
