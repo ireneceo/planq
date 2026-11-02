@@ -3,6 +3,12 @@
 **작업 상태:** 완료 — 진행 중 1건: 미커밋 `dev-frontend/src/pages/QTalk/QTalkPage.tsx`(방 e6f1ecd8, 대화 목록 미리보기·안읽음 — 빌드·3폭 실측·커밋 남음). 다음 할 일: Irene 아이패드 키보드 편집 확인 카드(todomvyln78s) 결과 → 괜찮으면 3단계 닫기 / 문제면 «어디서 어떻게» 로 3단계(네이티브 스크롤 공존) · 상황판 대기열 · 운영 미배포분은 상황판 «배포» 버튼.
 
 
+### 🕓 히스토리 수정 피드백 답글 (방 f15e7ec6 · 2026-11-02 · [Opus] · Fable 안 씀 — 답글 문구, 코드 변경 0)
+- Irene «고객이 히스토리 수정 안되냐고 물어본 피드백 … 보완했다고 확인해 보라고 답하자. 피드백 감사하다고 하고.»
+- 기능은 운영에 나감: v1.70.4(범위 ..7b221478, f1b74d41 포함) · 운영 PUT /api/history-overrides 401(없는 주소 404) · 운영 built_at 11-02 03:16Z.
+- 운영 피드백 읽기가 자동 권한 검사(Production Reads)에 막힘 — 우회 안 함. 기존 카드 todomvxbmmti 를 이 방으로 합쳐 다시 올림(열린 목록 + 히스토리 검색 `.claude/plans/fb-history-find.sql`, 읽기만).
+- 답글 초안 `.claude/plans/fb-history-reply-draft.md`(상태 done · ko/en). 결과가 오면 번호 골라 replies.json → feedback-reply.js dry-run → --apply 명령을 다시 Irene 할 일로(운영 쓰기도 막힘).
+
 ### ✅ 태블릿·앱 첫 로딩·좌측 메뉴 누름 (방 0a59c401 · 2026-11-02 · [Opus] · Fable 미검증(자체 검증) — 로딩 순서·화면 피드백, 돈·권한·공개 표면 변화 없음) — 커밋 c4683561 · 운영 반영: 다음 배포 때(웹만 — 앱 스토어 새 빌드·심사 불필요)
 - Irene «태블릿이랑 모바일앱에서 처음 열릴 때 너무 느리고 태블릿에서 좌측메뉴 클릭할 때 제대로 안되고 여러 번 눌러도 … 앱 배포나 심사해서 바꿔야 해결돼?»
 - 답: 앱은 planq.kr 를 그대로 불러온다(capacitor.config server.url) → 웹 배포로 앱에도 반영. 심사 불필요.
