@@ -8,6 +8,9 @@
 - 개발완료 함: 같은 폴더 working 방 f08b6db5·97e56472 는 pid 없음 = 옛 기록. 마지막 개발완료(0c887215) 뒤 제품 커밋 6건(f1b74d41·c4683561·6e4aae61·fb653ef0·59f8adb2·b6e7a1e3) 기록. 미커밋 `QTalkPage.tsx`(방 e6f1ecd8/b4b90288 진행 중)는 커밋에서 뺌.
 - 가드: health 98/98(첫 회 Deepgram 외부 408 → 재실행 통과) · guard 83/84 · tenant 실패 0 · Fable 게이트: 마커 6e4aae61 이후 커밋 3건(fb653ef0·59f8adb2·b6e7a1e3) = 화면·프롬프트 문구 — 공용 기준 대상 아님, 각 방 자체 검증(마커 안 씀).
 - Q위키 2건 추가(dev 시드 반영 · 커버리지 통과): `multiple-accounts`(한 기기 여러 계정) · `edit-history-note`(히스토리 설명 고치기). 운영 반영: 배포 뒤 seed-wiki-content.js.
+- 커밋 a11756ae(푸시) · 백업 backups/dev-daily/20261102 · [확인용] 7일 지난 것 정리 0건. 7-B 운영 피드백 답글: 이번 점검에서 다룬 피드백 없음(운영 읽기 막힘).
+- 개발시작 1-B 운영 피드백 읽기: 자동 권한 검사(Production Reads)에 또 막힘 — 우회 안 함. 열린 할 일 카드 todomvxbmmti(방 f15e7ec6 · 히스토리 문의 답글 + 열린 목록 읽기)가 같은 일이라 새로 안 올림.
+- 개발시작 1-C 밤 검사(11-01 18:00 UTC): 순찰 5환경 모두 실패 · 전체 검사 163 중 통과 1 · 실패 100 · 하니스 죽음 63 — **163개 로그 전부 이름 풀이 장애**(localhost·dev.planq.kr 모두 EAI_AGAIN/ERR_NAME_NOT_RESOLVED, 5분 만에 끝). 제품 결함 아님. 지금은 이름 풀이 정상 · 다시 돌린 tenant·mail·l1·crosscut 4스위트 실패 0. 오늘 밤(11-02 18:00 UTC) 순찰이 정상 숫자를 낼 것 — 또 같은 장애면 서버 방 몫(이 솔루션 밖).
 
 ### ✅ 메일 답장이 받은 주소 대신 본주소로 나감 — 워프로랩 help@wor-pro.com (방 387f820d · 2026-11-02 · [Opus] · Fable 안 씀 — 발신 규칙 그대로, 화면 경고·확인만 · 정찰 계획 qmvz16fc8)
 - Irene «help@wor-pro.com 으로 메일받아서 답장을 했는데 왜 메인 메일주소로 가? … 받은 주소로 보내게 해야지.»
