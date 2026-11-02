@@ -306,7 +306,15 @@
     "cueAdviceHint": "Cue 가 이 메일을 보고 다음에 할 일을 정리해 줘요",
     "aiRequestPlaceholderEmpty": "AI 에게 어떤 답장을 쓸지 알려 주세요 · 비워 두고 Enter 면 알아서 작성",
     "aiRefine": "AI 로 다듬기",
-    "focusTitle": "답장 — {{subject}}"
+    "focusTitle": "답장 — {{subject}}",
+    "receivedGuard": {
+      "miss": "{{addr}} 로 받은 메일인데, 지금은 {{from}} 주소로 나갑니다.",
+      "registerFailed": "보내는 주소로 등록하지 못했어요. 설정 > 메일 계정에서 추가해 주세요.",
+      "askTitle": "받은 주소로 보낼까요?",
+      "askMessage": "이 메일은 {{addr}} 로 받았습니다. 이대로 보내면 {{from}} 주소로 나갑니다. {{addr}} 를 이 메일함의 보내는 주소로 등록하고 그 주소로 보낼까요? (Gmail 등은 그 서비스 설정에서도 이 주소를 «보내는 주소»로 허용해 두어야 합니다.)",
+      "askRegister": "등록하고 {{addr}} 로 보내기",
+      "askAnyway": "{{from}} 로 그대로 보내기"
+    }
   },
   "errors": {
     "loadList": "인박스 로딩 실패"

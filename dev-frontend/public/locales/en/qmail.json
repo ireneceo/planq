@@ -306,7 +306,15 @@
     "cueAdviceHint": "Cue reads this email and suggests what to do next",
     "aiRequestPlaceholderEmpty": "Tell AI what reply to write · leave empty and press Enter to let it decide",
     "aiRefine": "Refine with AI",
-    "focusTitle": "Reply — {{subject}}"
+    "focusTitle": "Reply — {{subject}}",
+    "receivedGuard": {
+      "miss": "This email was received at {{addr}}, but your reply will currently go out from {{from}}.",
+      "registerFailed": "Couldn't add it as a send-as address. Please add it in Settings > Mail accounts.",
+      "askTitle": "Reply from the address it was sent to?",
+      "askMessage": "This email was received at {{addr}}. If you send now, it goes out from {{from}}. Add {{addr}} as a send-as address for this mailbox and send from it? (With Gmail and similar services, the address must also be allowed as a “Send mail as” address in that service's settings.)",
+      "askRegister": "Add and send from {{addr}}",
+      "askAnyway": "Send from {{from}} anyway"
+    }
   },
   "errors": {
     "loadList": "Failed to load inbox"

@@ -63,6 +63,7 @@ import FloatingPanelToggle from '../../components/Common/FloatingPanelToggle';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import { useBackToClose } from '../../hooks/useBackToClose';
 import HelpDot from '../../components/Common/HelpDot';
+import { useReceivedAddressGuard } from './MailReplyReceivedGuard';
 import MailMessageBody from './MailMessageBody';
 import { isEnterAction } from '../../utils/imeKey';
 import { onFlushPendingSaves } from '../../services/pendingSaves';
@@ -1682,21 +1683,9 @@ const MailPage: React.FC = () => {
     && receivedAt !== String(detail?.account?.email || '').toLowerCase()
     && !aliases.some(a => a.email.toLowerCase() === receivedAt);
 
-  const addReceivedAsAlias = useCallback(async () => {
-    const accId = detail?.account?.id;
-    if (!businessId || !accId || !receivedAt) return;
-    try {
-      const r = await apiFetch(`/api/businesses/${businessId}/email-accounts/${accId}/aliases`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: receivedAt }),
-      });
-      const j = await r.json();
-      if (j.success && j.data?.id) {
-        setAliases(prev => [...prev, j.data]);
-        setFromAliasId(j.data.id);
-      }
-    } catch { /* 실패해도 계정 주소로는 보낼 수 있다 */ }
-  }, [businessId, detail?.account?.id, receivedAt]);
+  // 미등록 받은 주소 — 경고 줄·보내기 전 확인·등록(MailReplyReceivedGuard). 발신 규칙은 서버(resolveSender) 그대로.
+  const recvGuard = useReceivedAddressGuard({ businessId, accountId: detail?.account?.id, accountEmail: String(detail?.account?.email || ''), messages: detail?.messages, receivedAt, unknownReceived, fromAliasId, outgoingFrom,
+    onAdded: (a) => { setAliases(prev => [...prev.filter(x => x.id !== a.id), a]); setFromAliasId(a.id); } });
 
   // 답장 기본 발신 주소 — 화면 **표시**용 계산. 못 찾으면 null(미지정)로 두어 서버가 결정하게 한다.
   //   0 으로 떨어뜨리면 그 순간 서버의 자동 선택이 죽는다.
@@ -1761,7 +1750,7 @@ const MailPage: React.FC = () => {
     return acc ? !!acc.is_personal : true;   // 모르면 개인
   };
 
-  const sendReply = async () => {
+  const sendReply = async (aliasOverride?: number) => {
     if (!detail || !businessId || sending) return;
     if (isEmptyHtml(replyHtml)) {
       setReplyError(t('reply.emptyBody', { defaultValue: '내용을 입력해 주세요' }) as string);
@@ -1799,7 +1788,7 @@ const MailPage: React.FC = () => {
         headers: { 'Content-Type': 'application/json' },
         // 3상태 — null 이면 **키를 생략**해 서버가 "받은 주소로" 결정하게 한다(JSON.stringify 가 undefined 키를 뺀다).
         //   0 은 사용자가 계정 주소를 직접 고른 경우에만 나간다.
-        body: JSON.stringify({ body_html: replyHtml, attachment_file_ids: fileIds, from_alias_id: fromAliasId === null ? undefined : fromAliasId, signature: replySignature, keep_reply_needed: keepReplyNeeded }),
+        body: JSON.stringify({ body_html: replyHtml, attachment_file_ids: fileIds, from_alias_id: typeof aliasOverride === 'number' ? aliasOverride : (fromAliasId === null ? undefined : fromAliasId), signature: replySignature, keep_reply_needed: keepReplyNeeded }),
       });
       const j = await r.json();
       if (!j.success) throw new Error(mailErrorText(j.message) || (t('reply.sendFailed', { defaultValue: '발송 실패' }) as string));
@@ -1832,7 +1821,7 @@ const MailPage: React.FC = () => {
   const onComposerKeyDown = (e: React.KeyboardEvent) => {
     if ((e.metaKey || e.ctrlKey) && isEnterAction(e)) {
       e.preventDefault();
-      sendReply();
+      recvGuard.guardSend(sendReply);
     }
   };
 
@@ -3075,25 +3064,10 @@ const MailPage: React.FC = () => {
                             menuPlacement="top"
                           />
                         </FromSelect>
-                        {receivedAt && receivedAt !== String(detail?.account?.email || '').toLowerCase() && (
-                          <HelpDot>
-                            {/* 등록 안 된 주소면 그 주소로 보낼 수 없다(계정 주소로 나간다) — «그 주소에서 발송» 은 거짓이 된다 */}
-                            {(unknownReceived
-                              ? t('reply.aliasHelpUnregistered', {
-                                defaultValue: '이 고객은 {{addr}} 주소로 메일을 보냈습니다. 이 주소를 별칭으로 등록하면 답장도 그 주소에서 발송됩니다.',
-                                addr: receivedAt,
-                              })
-                              : t('reply.aliasHelp', {
-                                defaultValue: '이 고객은 {{addr}} 주소로 메일을 보냈습니다. 답장도 그 주소에서 발송됩니다.',
-                                addr: receivedAt,
-                              })) as string}
-                          </HelpDot>
+                        {receivedAt && receivedAt !== String(detail?.account?.email || '').toLowerCase() && !unknownReceived && (
+                          <HelpDot>{t('reply.aliasHelp', { defaultValue: '이 고객은 {{addr}} 주소로 메일을 보냈습니다. 답장도 그 주소에서 발송됩니다.', addr: receivedAt }) as string}</HelpDot>
                         )}
-                        {unknownReceived ? (
-                          <FromManage type="button" onClick={addReceivedAsAlias}>
-                            {t('reply.useReceived', { defaultValue: '{{addr}} 로 보내기 (등록)', addr: receivedAt }) as string}
-                          </FromManage>
-                        ) : aliases.length === 0 ? (
+                        {unknownReceived ? (!recvGuard.willMiss && recvGuard.notice) : aliases.length === 0 ? (
                           <FromManage type="button" onClick={() => navigate('/business/settings/mail-accounts')}>
                             {t('reply.addAlias', { defaultValue: '보내는 주소 추가' }) as string}
                           </FromManage>
@@ -3101,6 +3075,8 @@ const MailPage: React.FC = () => {
                         <FocusBlockToggle on={replyFocus.on} onToggle={replyFocus.toggle} testId="mail-reply-focus-toggle" />
                       </ComposerFrom>
                     )}
+                    {recvGuard.willMiss && recvGuard.notice}
+                    {recvGuard.dialog}
                     {replyToHint && (
                       <ComposerTo>
                         {t('reply.to', { defaultValue: '받는 사람' }) as string}: <strong>{replyToHint}</strong>
@@ -3203,7 +3179,7 @@ const MailPage: React.FC = () => {
                       </label>
                     </KeepNeededRow>
                     <ComposerActions>
-                      <ActionButton tone="primary" size="md" loading={sending} onClick={sendReply}>
+                      <ActionButton tone="primary" size="md" loading={sending} onClick={() => recvGuard.guardSend(sendReply)}>
                         {t('reply.send', { defaultValue: '보내기' }) as string}
                       </ActionButton>
                       {/* [AI 초안 다시 생성] 은 여기서 뺐다 — 실행은 본문 위 AI 요청 바(Enter·화살표) 한 곳이다.
