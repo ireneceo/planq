@@ -53,7 +53,9 @@ const PURPOSES = {
   task_estimate:  { model: 'gpt-4o-mini', temperature: 0.2, maxTokens: 100,  timeoutMs: 20_000, maxInputChars: 12_000 },
   mail_reply:     { model: 'gpt-4o-mini', temperature: 0.3, maxTokens: 800,  timeoutMs: 45_000, maxInputChars: 24_000 },
   // 플랫폼 관리자 피드백·문의 답변 초안(services/adminReplyDraft) — 저장·발송 없음, 비용은 플랫폼 몫
-  admin_reply:    { model: 'gpt-4o-mini', temperature: 0.3, maxTokens: 900,  timeoutMs: 45_000, maxInputChars: 16_000 },
+  //   2026-11-02 gpt-4o-mini → gpt-5.1: mini 는 관리자 지시(«보완했으니 확인해 보라고»)를 무시하고 접수 때 조사(«기능 없음»)를
+  //   매번 같은 말로 따랐다(Irene «내가 입력한 거 참고도 안 하고 멋대로 같은 말»). 관리자 전용·하루 100회 한도라 비용은 작다.
+  admin_reply:    { model: 'gpt-5.1', temperature: 0.3, maxTokens: 1200, timeoutMs: 45_000, maxInputChars: 16_000 },
   mail_summary:   { model: 'gpt-4o-mini', temperature: 0.2, maxTokens: 500,  timeoutMs: 45_000, maxInputChars: 24_000 },
   // Q sale 히스토리 요약 (docs/Q_SALE_DESIGN.md §10) — 입력은 타임라인 전 채널이고 출력은
   //   문장마다 **근거 인덱스(refs)** 를 단 JSON 이다. 근거를 요구하면 답이 길어지므로 mail_summary 보다 넉넉히.
