@@ -169,6 +169,13 @@ import { mediaPhone, mediaTablet, BP } from 'theme/breakpoints';
   하단 버튼 줄 뒤면 안 보이는 것이다(청구서 발행·업무 추가 실측).
 - **입력 중에는 부가 카드·정보 밴드를 접는다** — `@media (max-width:768px) { body[data-keyboard-up='1'] & { display:none } }`.
   360px 채팅에서 «고객 링크 보내기» 카드가 남아 메시지 영역이 32px 이었다. 키보드를 내리면 돌아와야 한다(검사가 잰다).
+- **편집기에서 글을 쓰는 동안 접는 것은 «글 쓰는 중» 한 벌이다 — 폭으로 가르지 않는다** (2026-11-02, Irene *"아이패드에서 가로사이즈로 보면 문서 편집을 할 수가 없어 … 모든 에디터"* · Fable 설계).
+  폭 768 게이트 접기만 있어 아이패드 가로(1180)는 키보드 뒤 415px 를 탭줄·배너·분류 줄이 다 먹어 글 쓰는 칸이 **0px** 였다.
+  `main.tsx syncCompose` 가 `<html data-pq-compose="editor|field">`(화면 키보드 기기 ∧ 키보드 뜸 ∧ 편집기 `[data-pq-editor-wrap]`·`.pq-rich-editor`·`[data-pq-editor]` = editor /
+  쓰기 영역 `[data-pq-writing]` = field ∧ (폰 폭 ∨ 보이는 높이 < 640)) — CSS 는 index.css «글 쓰는 중» 블록 한 곳.
+  **새 편집 화면은 줄에 표식만 단다**: 글 쓰는 동안 접을 줄 `data-pq-writing-hide` · 본문 편집 때만 접을 칸(메일 받는 사람·제목처럼 칸끼리 옮겨 다니는 것) `data-pq-editor-hide`.
+  화면마다 `@media (max-width:768px) { body[data-keyboard-up] … }` 를 새로 쓰지 않는다. `:has()` 금지(구형 앱 브라우저). 채팅 입력줄에는 표식을 달지 않는다(머리말을 보며 친다).
+  바닥 버튼 줄(`DrawerFooter`)은 글 쓰는 중 static · 문서 편집 판은 글 쓰는 중 자동 전체 화면(`docComposeSurface`, 높이 `--vvh`).
 - **눌렀다 떼기(blur)만으로 저장하지 않는다** — 칸에 처음 보여준 값(`input.defaultValue`)과 같으면 건너뛴다
   (`utils/hours.sameHours`). 안 그러면 반복 업무 «어디까지 반영» 창이 까닭 없이 뜨고 실제 시간 자동 누적이 멈춘다.
 - **폰 밴드1 은 목록·상세 모두 56px** — 액션 칸·뒤로 버튼은 터치 44px 을 유지하되 줄 높이에는 34px 만 차지한다
