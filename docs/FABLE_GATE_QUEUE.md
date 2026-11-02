@@ -1,5 +1,7 @@
 # Fable 게이트 대기열 → **판정 기록 보관소** (2026-10-08 부터)
 
+- 2026-11-02 · 방 e251c22e · 자동 히스토리 설명 글 고치기(f1b74d41) — 설계 DESIGN-READY · 완료 검증 **PASS**(89/89 실HTTP). 비차단: 여백 보정 화면 미확인(빌드 메모리 중단) · qnote 좌표 존재 확인 불가·UNIQUE 전역 · 고객 /status-history changed_by_name(이전부터).
+
 
 ### 2026-10-30 방 8c0ba8e6 — 공유 링크 미리보기(이미지 썸네일·폴더·설문) — 완료 검증 1차 **FAIL** → 2차 **PASS**
 - 1차(831d52da) 차단 C1: 새 공개 문 /api/share-og/files/:token/og.jpg 가 지운 워크스페이스에서 200(다운로드 문은 404). → ec0d6575 에서 workspaceAliveParam·workspaceAlive 로 닫음, 2차 실측 404·기본 OG, 차등 양성.
