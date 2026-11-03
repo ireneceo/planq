@@ -1,0 +1,92 @@
+{
+  "version": "1.70.6",
+  "date": "2026-11-03",
+  "_auto": true,
+  "_range": "2218c45d..76a0e9f3",
+  "summary": {
+    "ko": "Stripe 환불·문서 공유·메일 답장 흐름이 더 정확하고 편해졌어요",
+    "en": "Stripe refunds, document sharing, and email replies are now more accurate and convenient"
+  },
+  "items": [
+    {
+      "ko": {
+        "title": "Stripe 카드 환불을 처리 창에서 단계별로 확인",
+        "body": "환불 처리 화면에서 해당 결제의 Stripe 화면으로 바로 이동하고, «환불됨/대기 중» 상태를 확인한 뒤 «Stripe 환불 완료»로 정리할 수 있어요. Stripe에서 환불이 거절되면 안내만 남기고 잘못된 카드 환불 기록은 되돌릴 수 있습니다."
+      },
+      "en": {
+        "title": "Handle Stripe card refunds step by step in the refund screen",
+        "body": "In the refund screen, you can jump directly to the payment’s Stripe page, check whether it is “refunded/pending,” and then mark it as “Stripe refund completed.” If Stripe rejects the refund, PlanQ only shows guidance and lets you revert incorrect card refund records."
+      }
+    },
+    {
+      "ko": {
+        "title": "Stripe 없이 적는 카드 환불을 더 안전하게 기록",
+        "body": "Stripe를 쓰지 않고 카드 결제를 «환불»로 적을 때, 이제 «이미 바깥에서 돌려줬다»는 확인이 있을 때만 기록돼요. 결제번호 없이 Stripe 환불을 요청하면 거절되고, Stripe 환불이 실패·취소되면 환불 기록이 남지 않습니다."
+      },
+      "en": {
+        "title": "Safer recording for card refunds made outside Stripe",
+        "body": "When you mark a card payment as “refunded” without using Stripe, it is now saved only after confirming that the refund was already processed outside PlanQ. Stripe refund requests without a payment ID are rejected, and failed or canceled Stripe refunds no longer leave refund records."
+      }
+    },
+    {
+      "ko": {
+        "title": "공유 링크에서도 연결 문서를 보고 PDF로 받기",
+        "body": "문서 공유 링크에서 열리는 연결 문서도 이제 PDF로 열기·받기가 가능해요. 공유 창과 문서 상세 화면에 연결 문서 카드와 «PDF 받기» 버튼이 함께 보여, 관련 문서를 한 번에 확인할 수 있습니다."
+      },
+      "en": {
+        "title": "View and download linked documents as PDF from share links",
+        "body": "Linked documents opened through a document share link can now be opened or downloaded as PDF. The share dialog and document detail view show linked document cards with a “Download PDF” option so you can review related documents in one place."
+      }
+    },
+    {
+      "ko": {
+        "title": "Q file 확인창이 미리보기 뒤에 가려지지 않도록 개선",
+        "body": "Q file에서 삭제·이동 같은 작업을 할 때 뜨는 확인창이 이제 미리보기 우측 패널보다 위에 보이도록 조정했어요. 중요한 확인창이 화면에 가려지지 않고 바로 보입니다."
+      },
+      "en": {
+        "title": "Q file confirmation dialogs no longer hide behind preview",
+        "body": "In Q file, confirmation dialogs for actions like delete or move now appear above the right-side preview panel. Important confirmations are no longer hidden behind the preview area."
+      }
+    },
+    {
+      "ko": {
+        "title": "여러 화면에서 변경 사항이 바로 반영되도록 동기화",
+        "body": "프로젝트 목록, Q talk, Q task, 캘린더, Q note, 프로젝트 상세에서 다른 경로로 바꾼 내용이 열린 화면에도 바로 반영되도록 맞췄어요. 여러 탭과 기능을 함께 써도 내용이 어긋나지 않습니다."
+      },
+      "en": {
+        "title": "Instant updates across project, Q talk, Q task, calendar, and notes",
+        "body": "Changes made from other paths are now reflected immediately in the project list, Q talk, Q task, calendar, Q note, and project detail views. Even when using multiple tabs and features together, you see up‑to‑date information on all open screens."
+      }
+    },
+    {
+      "ko": {
+        "title": "계약·청구에서 프로젝트 거래 단계 연동 보완",
+        "body": "계약·청구 화면에서 분류가 «계약서»인 템플릿 계약서도 프로젝트 거래 단계가 함께 움직이도록 손봤어요. 거래 탭, 다음 할 일 위치·버튼, 발송 확인창 주소, 고객 화면 버튼 동작도 함께 정리했습니다."
+      },
+      "en": {
+        "title": "Better linking between contracts/billing and project deal stages",
+        "body": "In contracts and billing, template contracts classified as “contract” now move the project’s deal stage correctly. The deal tab, next‑step position and buttons, send‑confirmation address, and customer‑side buttons have also been aligned with this behavior."
+      }
+    },
+    {
+      "ko": {
+        "title": "메일 답장 시 숨은참조(bcc) 메일 주소 정리",
+        "body": "숨은참조로 받은 메일에 답장할 때, 이제 보낸 사람과 같은 도메인 주소는 «받은 주소» 후보에서 빠집니다. 답장 주소 선택 문구도 «X 에서 보내기»로 정리해 헷갈리지 않게 했어요."
+      },
+      "en": {
+        "title": "Cleaner reply addresses for emails received via BCC",
+        "body": "When replying to emails received via BCC, sender and same‑domain addresses are now excluded from the “received address” candidates. The reply address label is unified as “Send from X” to make the choice clearer."
+      }
+    },
+    {
+      "ko": {
+        "title": "그 밖의 개선",
+        "body": "숨은참조로 온 견적 문의·회사 주소 메일이 «답변 필요»에서 빠지던 문제를 막았어요. 문서 공유 링크에서 연결 문서 표시와 동의 버튼도 더 자연스럽게 보이도록 다듬었습니다."
+      },
+      "en": {
+        "title": "Other improvements",
+        "body": "We fixed an issue where quote requests and short company‑address emails received via BCC were missing from “Needs reply.” The linked document display and consent button in document share links have also been polished for a smoother experience."
+      }
+    }
+  ]
+}
