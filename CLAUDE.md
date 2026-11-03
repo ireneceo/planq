@@ -292,7 +292,12 @@ DB 테이블 구조는 `.claude/rules/db-schema.md`(모델·마이그레이션�
 ### 빌드 실행 규칙 (절대 준수)
 - **반드시 `run_in_background: true`로 실행** (포그라운드 시 Claude Code가 not responding됨)
 - **빌드 실행 후 "빌드 진행 중입니다" 안내** → 완료 알림 오면 결과 보고
-- **이전 빌드가 실행 중이면 kill 후 새 빌드 시작**
+- **이전 빌드가 실행 중이면 — 이 방이 띄운 빌드만 멈추고 새로 시작한다. 다른 방·배포의 빌드는 절대 죽이지 않는다** (2026-11-03 고침)
+  옛 문구 «kill 후 새 빌드» 는 `pkill -f vite`·`pkill -f tsc` 처럼 남의 빌드(배포 사본 빌드 포함)까지 죽일 수 있었다. 내 백그라운드 빌드는 그 작업 번호로만 멈춘다.
+- **두 빌드는 겹치지 않는다 — 기계가 막는다** (2026-11-03) — 11-03 07:51·07:55 두 방의 빌드가 겹쳐 메모리 200MB·스왑 99% → dev 전부 522 → 재부팅.
+  `npm run build` 의 prebuild(`scripts/build-gate.sh`)가 ① 운영 배포 ② 다른 PlanQ 빌드(자리 표시 `logs/frontend-build.owner`) ③ 서버 공용 게이트
+  (`/var/www/scripts/heavy-task-gate.sh build` — 다른 제품 빌드·에뮬레이터·남은 메모리)가 열릴 때까지 30초마다 기다린다(최대 30분, 넘으면 빌드 안 함 exit 1).
+  `[build-gate] … 기다린다` 가 보이면 정상 — 우회(SKIP_MEMGATE·표시 파일 지우기·남의 빌드 kill)하지 않는다. 배포 빌드(`PLANQ_DEPLOY_PIN`)는 배포 스크립트가 직접 게이트를 기다린다.
 - **운영 배포가 도는 동안은 빌드·Fable 검증·브라우저 시험을 띄우지 않는다** (2026-10-23) — 겹치면 배포 빌드가 메모리 보호에 죽는다(10-22 세 번).
   `npm run build` 의 prebuild 와 e2e 러너가 `scripts/deploy-busy.sh` 로 배포가 끝날 때까지 기다린다(우회 금지). 절차 `.claude/commands/배포.md` 2단계.
 

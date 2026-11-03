@@ -4,6 +4,12 @@
 
 
 
+### ✅ PlanQ 프론트 빌드 두 개가 겹쳐 서버가 멈춤 — 빌드 대기 장치 (방 7677629b · 2026-11-03 · [Opus] · Fable 안 씀 — 내부 빌드 도구, 기계로 갈리는 확인) — 운영 반영: 해당 없음(개발 서버 도구)
+- 서버 방 실측: 11-03 07:51 방 710720df · 07:55 방 9f4c20b5 가 `npm run build` 를 겹쳐 돌려 메모리 200MB·스왑 99% → dev 전부 522 → 08:02 재부팅. prebuild 가 운영 배포만 기다리고 서버 공용 게이트를 안 거쳤다.
+- 고침: `scripts/build-gate.sh` 새로 — prebuild 가 ① 운영 배포(deploy-busy) ② 다른 PlanQ 빌드(자리 표시 `logs/frontend-build.owner` = npm 번호, flock 안에서 잡음 — tsc 가 1.5GB 차기 전 틈 막음) ③ `/var/www/scripts/heavy-task-gate.sh build`(SKIP_MEMGATE 무시) 를 30초마다 다시 봄, 최대 30분 → 넘으면 exit 1 빌드 안 함. 배포 빌드(PLANQ_DEPLOY_PIN)는 그대로 건너뜀(배포 스크립트 wait_heavy_gate 가 기다림).
+- CLAUDE.md «이전 빌드면 kill» → «이 방이 띄운 빌드만 멈춤, 다른 방·배포 빌드 절대 안 죽임» · 배포.md 한 줄.
+- 시험: 가짜 빌드 A·B 1초 차로 겹침 → B 가 «다른 PlanQ 프론트 빌드가 도는 중» 으로 기다리다 A 끝난 2초 뒤 시작 · 공용 게이트 막힘 4초 → exit 1 빌드 안 함 · PLANQ_DEPLOY_PIN → 바로 빌드 · 실제 dev-frontend `npm run build` + 1.7GB node 대역 → 실제 공용 게이트 문구로 기다림·15초 넘어 exit 1(index.html 08:02 그대로) · SKIP_MEMGATE=1 줘도 막힘.
+
 ### ✅ ChatGPT·다른 경로로 바꾼 것이 열린 화면에 바로 안 보임 — 프로젝트 추가해도 목록 그대로 (방 68b4293e · 2026-11-03 · [Opus] 구현 · Fable 완료 검증 1차 FAIL → 2차 PASS) — 커밋 9621b83f · 운영 반영: 다음 배포 때(마이그레이션 없음 · 백엔드 + MCP 프로세스 재시작 + 프론트)
 - 원인 ①: AI 앱 도구는 MCP 프로세스(:3005)에서 돌고 방송은 `services/remoteIo` 가 메인으로 넘긴다. 그런데 대리자가 `to([방 배열])`·`except()` 를 몰라 **숨은 프로젝트(기본 «참여 멤버만»)·L1/L2 업무 신호가 TypeError 로 조용히 사라졌다** → 배열·except 지원, `/api/internal/broadcast` 가 rooms·except 를 한 번에 emit(모양 틀린 줄·500개 초과는 줄 전체 버림).
 - 원인 ②: 서버는 `project:new` 를 보내는데 듣는 화면 0 · 프로젝트 목록 화면은 소켓을 아예 안 들었다 → 공용 훅 `hooks/useLiveReload`(방 참여·묶음 다시 읽기·재연결·탭 복귀) · 목록의 업무 신호는 그 프로젝트만(`QProject/useProjectTaskLive`). Q talk·Q task·캘린더 `project:new`, 상세 `project:updated`(같은 id).
