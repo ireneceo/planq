@@ -9,6 +9,8 @@ import TrialPlanPicker, { DEFAULT_TRIAL_PLAN, parseTrialPlan, type TrialPlanCode
 import styled from 'styled-components';
 import { useAuth } from '../../contexts/AuthContext';
 import { mapApiError } from '../../utils/apiError';
+import { useAddAccountMode, AddAccountCancel } from '../Login/addAccountMode';
+import { rebootForAccount, forgetBootScope } from '../../services/accounts';
 
 const Container = styled.div`
   min-height: 100vh;
@@ -281,6 +283,15 @@ const CheckIcon = () => (
   </svg>
 );
 
+// «로그인» 링크 — 계정 추가 중이면 로그인 화면도 계정 추가로(LoginPage registerHref 와 짝)
+function loginHref(redirect: string | null, adding: boolean): string {
+  const q = new URLSearchParams();
+  if (adding) q.set('add', '1');
+  if (redirect) q.set('redirect', redirect);
+  const qs = q.toString();
+  return qs ? `/login?${qs}` : '/login';
+}
+
 const RegisterPage: React.FC = () => {
   const { t } = useTranslation('auth');
   const { t: tErr } = useTranslation('errors');
@@ -304,6 +315,22 @@ const RegisterPage: React.FC = () => {
   const [privacyAgreed, setPrivacyAgreed] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [isLoading, setIsLoading] = useState(false);
+
+  // 한 기기 여러 계정 — «계정 추가» 중 새 계정 만들기(/register?add=1, 로그인 화면 «회원가입» 링크가 싣는다).
+  //   로그인된 채 머물고(아래 effect 가 대시보드로 돌려보내지 않는다), 가입되면 전환 측정 뒤 새 계정으로 다시 부팅.
+  //   서버는 가입도 afterLogin 을 거쳐 rt_add 가 있으면 지금 계정을 지우지 않는다(services/deviceAccounts).
+  const add = useAddAccountMode(user, isAuthenticated, authLoading, (newId) => {
+    if (finishingRef.current) return;
+    finishingRef.current = true;
+    if (!justRegisteredRef.current) {
+      // 초대·공유 링크에서 온 가입 — 돌아갈 곳으로(같은 출처 경로만 — rebootForAccount 가 다시 거른다)
+      const back = redirectParam && !redirectParam.startsWith('/login') && !redirectParam.startsWith('/register') ? redirectParam : undefined;
+      rebootForAccount(back);
+      return;
+    }
+    forgetBootScope();   // 측정 뒤 finishSignup 이 주소를 직접 바꿀 수도 있어 먼저 비운다
+    void finishSignup({ method: 'email', trial_plan: trialPlan }, newId, '/dashboard', (p) => rebootForAccount(p));
+  });
 
   // 돌아갈 곳(?redirect) — 구글·애플 가입과 «로그인» 링크에도 그대로 실어 보낸다(0-F F-2). 서버가 다시 거른다.
   const redirectParam = new URLSearchParams(location.search).get('redirect') || null;
@@ -333,6 +360,7 @@ const RegisterPage: React.FC = () => {
   }, [inviteToken]);
 
   useEffect(() => {
+    if (add.active) return;   // 계정 추가 — 머무른다. 새 계정으로 들어오면 useAddAccountMode 가 맡는다
     if (!authLoading && isAuthenticated) {
       // 가입 완료 — 이메일 가입이 방금 성공했거나 구글·애플 신규 가입 착지(/register?done=1, 서버 oauth/finish 가 붙인다).
       //   가입 전환을 한 번 재고 앱으로 간다(services/marketingTags.finishSignup — 측정이 꺼져 있으면 바로 이동).
@@ -354,7 +382,7 @@ const RegisterPage: React.FC = () => {
         navigate('/dashboard', { replace: true });
       }
     }
-  }, [authLoading, isAuthenticated, navigate, location, user?.id, trialPlan]);
+  }, [authLoading, isAuthenticated, navigate, location, user?.id, trialPlan, add.active]);
 
   const validate = (): boolean => {
     const errors: Record<string, string> = {};
@@ -427,14 +455,17 @@ const RegisterPage: React.FC = () => {
         </LeftSection>
 
         <RightSection>
-          <FormTitle>{t('register.title')}</FormTitle>
+          <FormTitle>{add.active ? t('register.addTitle', '새 계정 만들기') : t('register.title')}</FormTitle>
           <FormSubtitle>
-            {inviteToken
+            {add.active
+              ? t('register.addSubtitle', { name: add.fromName, defaultValue: '{{name}} 계정은 그대로 두고 새 계정을 만들어요. 프로필 메뉴에서 눌러 바꿀 수 있어요.' })
+              : inviteToken
               ? (inviteWorkspace
                 ? t('register.inviteSubtitle', { name: inviteWorkspace, defaultValue: '{{name}} 에 팀원으로 합류합니다. 계정만 만들면 바로 들어갑니다.' })
                 : t('register.inviteSubtitleNoName', '초대받은 워크스페이스에 합류합니다. 계정만 만들면 바로 들어갑니다.'))
               : t('register.subtitle')}
           </FormSubtitle>
+          {add.active && <AddAccountCancel />}
 
           <Form onSubmit={handleSubmit}>
             <InputGroup>
@@ -551,7 +582,7 @@ const RegisterPage: React.FC = () => {
           <Divider />
 
           <BottomLinks>
-            {t('register.hasAccount')} <Link data-testid="register-login-link" to={redirectParam ? `/login?redirect=${encodeURIComponent(redirectParam)}` : '/login'}>{t('register.signIn')}</Link>
+            {t('register.hasAccount')} <Link data-testid="register-login-link" to={loginHref(redirectParam, add.active)}>{t('register.signIn')}</Link>
             {/* 로그인 화면과 같은 이유 — 좁은 화면에서는 왼쪽 브랜드 패널이 숨어 홈으로 갈 길이 없다. */}
             <span style={{ marginLeft: 10 }}><Link to="/">{t('register.backHome', { defaultValue: '← PlanQ 홈으로' }) as string}</Link></span>
           </BottomLinks>

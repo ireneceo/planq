@@ -115,9 +115,13 @@ export async function beginAddAccount(token: string | null): Promise<'limit' | '
  * 다시 부팅 — 메인 창은 첫 화면(보던 주소의 id 는 앞 계정 것이다), 팝아웃·핀은 제자리.
  *   next 가 주어지면(알림 클릭) 그 같은 출처 경로로.
  */
-export function rebootForAccount(next?: string): void {
-  // 부팅 복원이 앞 계정의 탭 스냅샷을 읽지 않게(stores/tabStore LAST_SCOPE_KEY — 사람까지 적혀 있다)
+/** 부팅 복원이 앞 계정의 탭 스냅샷을 읽지 않게(stores/tabStore LAST_SCOPE_KEY — 사람까지 적혀 있다). */
+export function forgetBootScope(): void {
   try { localStorage.removeItem('planq_tabs_v1_lastscope'); } catch { /* noop */ }
+}
+
+export function rebootForAccount(next?: string): void {
+  forgetBootScope();
   let inFrame = false;
   try { inFrame = window.parent !== window; } catch { inFrame = true; }
   const popout = !!window.opener || inFrame || /[?&]popout=/.test(window.location.search);

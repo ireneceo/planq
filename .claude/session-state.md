@@ -4,6 +4,12 @@
 
 
 
+### ✅ 계정 추가에서 새 회원가입이 안 됨 (방 24d36df3 · 2026-11-03 · [Opus] · Fable 안 씀 — 화면 링크·이동 버그, 서버 인증 변경 없음 · 자체 검증) — 운영 반영: 다음 배포 때(프론트만)
+- 원인: 로그인 화면 «계정 추가»(?add=1)의 «회원가입» 링크가 그냥 `/register` — 가입 화면은 로그인된 사람을 바로 대시보드로 돌려보내 새 계정을 만들 길이 없었다. 서버(가입 → afterLogin → rt_add 면 지금 계정 유지)는 이미 맞았다.
+- 고침: 링크에 add=1 싣기(LoginPage registerHref · 가입 화면 «로그인» 링크도 짝) · RegisterPage 가 `useAddAccountMode` 를 같이 써서 머무름·제목 «새 계정 만들기»·취소 줄 · 가입되면 다른 창에 알리고 전환 측정 뒤 새 계정으로 다시 부팅(훅에 onSwitched) · accounts.ts `forgetBootScope` 로 뺌.
+- 검증: build EXIT 0·TS 0 · guard 83/84 · 실HTTP 가입: add-intent 있으면 쿠키 rt_15+새 계정 / 없으면 새 계정만(대조) · 실브라우저 3폭(390·820·1440): 링크 /register?add=1 → 가입 화면 머묾 → 가입 → /dashboard · 기기 계정 2개(김오너 + 새 계정) · 가로 넘침 0 · 대조군 옛 /register → /dashboard 튕김 재현.
+- 시험 데이터 [확인용]: «[확인용] 추가가입» 계정 5개(addreg…@test.planq.kr, 1025126~1025134).
+
 ### ✅ PlanQ 빌드·크롬 시험을 서버 «메모리 자리표» 안으로 (방 fbc8e4cb · 2026-11-03 · [Opus] · Fable 미검증(자체 검증) — 내부 빌드 도구)
 - 서버 방 21bf0969 요청 · Irene «같은 일 안생기게 메모리 나눠서 순서대로 쓰게 해야지» (11-03 빌드 둘 겹침 → 재부팅).
 - ① `dev-frontend/package.json` build = `mem-slot run planq-build|planq-deploy-build 3600 -- bash ../scripts/frontend-build.sh`(본체 tsc -b → vite build, 매번 `[build-mem]` 정점 찍음). prebuild build-gate.sh 그대로.

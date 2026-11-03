@@ -3,6 +3,8 @@
 //      이것이 있어야 이어지는 로그인(비밀번호·구글·애플)이 지금 계정을 지우지 않는다. 없으면 보통 로그인 = 기기 정리.
 //   ② 다른 계정으로 들어오면(창의 사람이 바뀜) 다른 창에 알리고 이 창을 새 계정으로 다시 부팅한다.
 //   ③ 로그인 안 된 채 ?add=1 로 오면 보통 로그인 화면이다(추가할 «지금 계정» 이 없다).
+//   ④ 회원가입 화면(/register?add=1)도 같은 훅을 쓴다 — 로그인된 채 머물고, 새로 만든 계정으로 들어오면 ② 를 한다.
+//      가입은 전환 측정 뒤 다시 부팅해야 해서 onSwitched 로 ② 의 다시 부팅을 맡을 수 있다(알림은 훅이 먼저 보낸다).
 import React, { useEffect, useRef } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
@@ -12,7 +14,10 @@ import { beginAddAccount, broadcastAccountSwitch, rebootForAccount } from '../..
 
 interface MinimalUser { id: number | string; name?: string | null }
 
-export function useAddAccountMode(user: MinimalUser | null, isAuthenticated: boolean, authLoading: boolean) {
+export function useAddAccountMode(
+  user: MinimalUser | null, isAuthenticated: boolean, authLoading: boolean,
+  onSwitched?: (newUserId: number) => void,
+) {
   const location = useLocation();
   const q = new URLSearchParams(location.search);
   const wanted = q.get('add') === '1';
@@ -30,13 +35,16 @@ export function useAddAccountMode(user: MinimalUser | null, isAuthenticated: boo
     void beginAddAccount(getAccessToken());
   }, [active]);
 
+  const onSwitchedRef = useRef(onSwitched);
+  onSwitchedRef.current = onSwitched;
   // ② 새 계정으로 들어왔다 → 다른 창에 알리고 다시 부팅(이 창의 화면 상태는 앞 계정 것이다)
   useEffect(() => {
     if (!active || authLoading || !user?.id) return;
     const now = Number(user.id);
     if (now === fromRef.current?.id) return;
     broadcastAccountSwitch(now);
-    rebootForAccount();
+    if (onSwitchedRef.current) onSwitchedRef.current(now);
+    else rebootForAccount();
   }, [active, authLoading, user?.id]);
 
   return {

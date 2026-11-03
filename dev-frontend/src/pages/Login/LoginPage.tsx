@@ -376,6 +376,16 @@ const BottomLinks = styled.div`
   }
 `;
 
+// «회원가입» 링크 — 계정 추가(?add=1) 중이면 가입 화면도 계정 추가로 연다(지금 계정을 남긴 채 새 계정을 만든다).
+//   빠뜨리면 가입 화면이 «이미 로그인됨» 으로 보고 대시보드로 돌려보내 새 계정을 만들 길이 없었다(2026-11-03).
+function registerHref(redirect: string | null, adding: boolean): string {
+  const q = new URLSearchParams();
+  if (adding) q.set('add', '1');
+  if (redirect) q.set('redirect', redirect);
+  const qs = q.toString();
+  return qs ? `/register?${qs}` : '/register';
+}
+
 const LoginPage: React.FC = () => {
   const { t } = useTranslation('auth');
   const { t: tErr } = useTranslation('errors');
@@ -686,7 +696,7 @@ const LoginPage: React.FC = () => {
           <Divider />
 
           <BottomLinks>
-            <span>{t('login.noAccount')} <Link data-testid="login-register-link" to={redirectParam ? `/register?redirect=${encodeURIComponent(redirectParam)}` : '/register'}>{t('login.signUp')}</Link></span>
+            <span>{t('login.noAccount')} <Link data-testid="login-register-link" to={registerHref(redirectParam, add.active)}>{t('login.signUp')}</Link></span>
             <span><Link to="/forgot-password">{t('login.forgotPassword', '비밀번호를 잊으셨나요?')}</Link></span>
             {/* 좁은 화면에서는 왼쪽 브랜드 패널이 숨는다 — 홈으로 가는 길을 여기에도 둔다. */}
             <span><Link to="/">{t('login.backHome', { defaultValue: '← PlanQ 홈으로' }) as string}</Link></span>
