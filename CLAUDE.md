@@ -298,6 +298,10 @@ DB 테이블 구조는 `.claude/rules/db-schema.md`(모델·마이그레이션�
   `npm run build` 의 prebuild(`scripts/build-gate.sh`)가 ① 운영 배포 ② 다른 PlanQ 빌드(자리 표시 `logs/frontend-build.owner`) ③ 서버 공용 게이트
   (`/var/www/scripts/heavy-task-gate.sh build` — 다른 제품 빌드·에뮬레이터·남은 메모리)가 열릴 때까지 30초마다 기다린다(최대 30분, 넘으면 빌드 안 함 exit 1).
   `[build-gate] … 기다린다` 가 보이면 정상 — 우회(SKIP_MEMGATE·표시 파일 지우기·남의 빌드 kill)하지 않는다. 배포 빌드(`PLANQ_DEPLOY_PIN`)는 배포 스크립트가 직접 게이트를 기다린다.
+- **빌드 본체는 서버 «메모리 자리표» 안에서 돈다** (2026-11-03, Irene «메모리 나눠서 순서대로 쓰게») — `npm run build` =
+  package.json 의 `mem-slot run planq-build|planq-deploy-build 3600 -- bash ../scripts/frontend-build.sh`(본체 tsc -b → vite build)(힙 둘 다 4096 · 6144 금지 — 상자에 걸려 죽는다). tsc 가 4096 안에 드는 것은 styled-components 6.6 덕(6.3 은 5GB+ 로 죽음) — 6.6 아래로 내리지 않는다.
+  `[mem-slot] … 차례를 기다린다` 도 정상(먼저 선 순서대로). 75 = 60분 안에 차례 안 옴(빌드 안 함) · 137 = 상자 넘어 죽음. 매 빌드 끝 `[build-mem]` 줄이 정점을 찍는다 — 정점+15% 가 몫을 넘으면 몫을 고친다.
+  크롬 시험(`scripts/e2e/run.js`·`lib/browser.js`·puppeteer 를 직접 여는 카나리)도 첫 줄 `require('./lib/mem-slot')` 로 `planq-chrome` 자리를 잡는다 — 새 카나리가 puppeteer 를 직접 열면 그 줄을 맨 위에 둔다.
 - **운영 배포가 도는 동안은 빌드·Fable 검증·브라우저 시험을 띄우지 않는다** (2026-10-23) — 겹치면 배포 빌드가 메모리 보호에 죽는다(10-22 세 번).
   `npm run build` 의 prebuild 와 e2e 러너가 `scripts/deploy-busy.sh` 로 배포가 끝날 때까지 기다린다(우회 금지). 절차 `.claude/commands/배포.md` 2단계.
 

@@ -6,6 +6,7 @@
 //   안되는데"). **눌러 봐야만 드러난다** — 그래서 이 카나리는 클릭까지 한다.
 //
 //   쓰기는 하지 않는다(메뉴가 열리는 것까지만 확인) — 게이트가 데이터를 건드리지 않게.
+require('./lib/mem-slot'); // 메모리 자리표(planq-chrome) 안에서 돈다 — 맨 처음에 둔다 (lib/mem-slot.js, 2026-11-03)
 require('/opt/planq/dev-backend/node_modules/dotenv').config({ path: '/opt/planq/dev-backend/.env', quiet: true });
 const puppeteer = require('/opt/planq/dev-backend/node_modules/puppeteer');
 

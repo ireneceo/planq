@@ -16,6 +16,7 @@
 //
 // 결과: run.js 계약(results 배열) + 사람이 읽는 보고서 /opt/planq/logs/patrol/patrol-YYYY-MM-DD.log
 //   ENV: PATROL_ENVS=phone-web,desktop-web (일부만) · PATROL_ROUTES=/tasks,/talk · PATROL_MAX=15(화면당 버튼 수)
+require('./lib/mem-slot'); // 메모리 자리표(planq-chrome) 안에서 돈다 — 맨 처음에 둔다 (lib/mem-slot.js, 2026-11-03)
 const fs = require('fs');
 const path = require('path');
 const puppeteer = require('/opt/planq/dev-backend/node_modules/puppeteer');

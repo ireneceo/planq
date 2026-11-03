@@ -13,6 +13,7 @@
 //   ② 그래도 폴백이 필요할 때 **여전히 살아 있는가** (양성 대조군: SPA 이동을 막는다)
 //   ③ 오프라인 폴백 화면이 **서버로 나가는가** — 사람이 눌렀을 때 · 가만히 둬도(앱이 앞에 나온 순간)
 //   ④ 그 URL 이 **그 플랫폼의 server.url 과 같은가** (dev 빌드가 운영을 가리키면 안 된다)
+require('./lib/mem-slot'); // 메모리 자리표(planq-chrome) 안에서 돈다 — 맨 처음에 둔다 (lib/mem-slot.js, 2026-11-03)
 const fs = require('fs');
 const path = require('path');
 const puppeteer = require('/opt/planq/dev-backend/node_modules/puppeteer');

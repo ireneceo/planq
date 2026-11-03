@@ -15,6 +15,7 @@
 //   ① 영어 브라우저 → 화면에 한글 0자 · `<html lang>` = en
 //   ② 한국어 브라우저 → 화면이 한국어 · `<html lang>` = ko   ← 음성 대조군 역할
 //   ③ 서버 코드(`not_found_or_expired` 같은)가 고객 화면에 그대로 노출되지 않는다
+require('./lib/mem-slot'); // 메모리 자리표(planq-chrome) 안에서 돈다 — 맨 처음에 둔다 (lib/mem-slot.js, 2026-11-03)
 const puppeteer = require('/opt/planq/dev-backend/node_modules/puppeteer');
 
 const BASE = process.env.E2E_BASE || 'https://dev.planq.kr';

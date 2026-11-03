@@ -1029,6 +1029,13 @@ build_frontend() {
   done
   tail -8 "$BUILD_LOG"
 
+  # 2026-11-03 — `npm run build` 는 scripts/frontend-build.sh 를 거쳐 서버 «메모리 자리표»(mem-slot, 이름 planq-deploy-build)
+  #   안에서 돈다. 위 wait_heavy_gate(공용 게이트)는 그대로 거치고, 자리표가 먼저 선 순서대로 메모리 몫을 나눠 준다.
+  #   75 = 자리표 차례가 60분 안에 안 왔다(빌드 안 함) — 운영은 아직 안 바꿨다.
+  if [ $BUILD_EXIT -eq 75 ]; then
+    error "메모리 자리표 차례가 60분 동안 안 왔다 — 빌드 안 함 · 운영은 아직 안 바꿨다. ~/dev-server/bin/mem-slot status 로 자리 잡은 일을 보고 다시 배포 (우회 금지)"
+    exit 1
+  fi
   if [ $BUILD_EXIT -ne 0 ]; then
     error "Frontend build 실패 (exit $BUILD_EXIT) — log: $BUILD_LOG"
     exit 1

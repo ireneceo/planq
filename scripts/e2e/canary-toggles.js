@@ -16,6 +16,7 @@
 //   그리고 **응답까지 기다린 뒤** 원복한다. 요청이 보이자마자 원복하면 서버에서 경합이 나
 //   화면의 PUT 이 나중에 처리돼 **dev 가 점검 모드(전 사용자 503)로 남은 채 EXIT 0** 이 된다
 //   (실측: 5회 중 3회 뒤집힌 채 남았다). 끝에서 설정을 스냅샷과 대조해 오염도 잡는다.
+require('./lib/mem-slot'); // 메모리 자리표(planq-chrome) 안에서 돈다 — 맨 처음에 둔다 (lib/mem-slot.js, 2026-11-03)
 require('/opt/planq/dev-backend/node_modules/dotenv').config({ path: '/opt/planq/dev-backend/.env', quiet: true });
 const puppeteer = require('/opt/planq/dev-backend/node_modules/puppeteer');
 

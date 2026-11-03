@@ -8,6 +8,7 @@
 //   `dev-backend/config/database.js` 가 스스로 process.exit(1) 한다 — 결과는 "총 실패: 0" 인데
 //   **종료코드 1**. 게이트는 종료코드를 보므로 초록 스위트가 빨간불로 읽힌다(2026-09-12 tabletchrome 실측).
 //   카나리마다 각자 dotenv 를 부르던 것을 여기 한 곳으로 올린다.
+require('./lib/mem-slot'); // 메모리 자리표(planq-chrome) 안에서 돈다 — 맨 처음에 둔다 (lib/mem-slot.js, 2026-11-03)
 require('/opt/planq/dev-backend/node_modules/dotenv').config({ path: '/opt/planq/dev-backend/.env' });
 // 상황판 «개발 사이트 로그인 관문» 통과 표식(X-Board-Gate-Test) — 모든 스위트의 브라우저·fetch 에 건다. lib/gate-header.js
 require('./lib/gate-header');

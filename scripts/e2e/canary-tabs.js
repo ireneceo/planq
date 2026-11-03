@@ -3,6 +3,7 @@
 //   매 게이트마다 실브라우저(puppeteer)로 증명. chrome zone 에 RR 잔재가 다시 들어오면(ErrorBoundary 가
 //   삼켜 pageerror=0 으로 안 보이는 크래시) 이 카나리가 잡는다.
 //   세션 = health-check 계정 login → refresh 쿠키 주입(세션 오염 0). spike 플래그 on 으로 tree-swap 진입.
+require('./lib/mem-slot'); // 메모리 자리표(planq-chrome) 안에서 돈다 — 맨 처음에 둔다 (lib/mem-slot.js, 2026-11-03)
 require('/opt/planq/dev-backend/node_modules/dotenv').config({ path: '/opt/planq/dev-backend/.env' });
 const puppeteer = require('/opt/planq/dev-backend/node_modules/puppeteer');
 
