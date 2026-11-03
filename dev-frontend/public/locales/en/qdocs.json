@@ -721,6 +721,13 @@
       "makePublic": "Let the link download these too",
       "applying": "Applying…",
       "failed": "{{n}} could not be changed. Please try again."
+    },
+    "linked": {
+      "title": "{{n}} linked document(s)",
+      "shared": "Viewable and downloadable via link",
+      "notShared": "Not included in link",
+      "makePublic": "Make linked documents viewable via link too",
+      "failed": "Couldn't open {{n}}. You may not have share permission, or the security level isn't General."
     }
   },
   "common": {
@@ -1107,7 +1114,9 @@
     "notFoundHint": "The document was deleted or sharing was stopped. Please ask the sender for a new link.",
     "openInApp": "Open in the PlanQ app",
     "downloadPdf": "Download PDF",
-    "signMoved": "This document is view-only. If a signature is needed, ask the sender for a signing link."
+    "signMoved": "This document is view-only. If a signature is needed, ask the sender for a signing link.",
+    "linkedDocs": "Linked documents",
+    "openDoc": "Open"
   },
   "internalSign": {
     "title": "Sign",
@@ -1153,7 +1162,9 @@
     "fileFetchFailed": "Couldn't get the file. Please try again."
   },
   "links": {
-    "saveFailed": "The document was saved, but its linked documents were not. Please try again."
+    "saveFailed": "The document was saved, but its linked documents were not. Please try again.",
+    "pdf": "Download PDF",
+    "pdfBusy": "Downloading…"
   },
   "cat": {
     "delete": "Delete",

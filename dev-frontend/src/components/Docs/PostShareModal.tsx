@@ -70,6 +70,28 @@ const PostShareModal: React.FC<Props> = ({ open, onClose, post, onChanged }) => 
     onChanged?.(post);
   };
 
+  // 연결 문서(2026-11-03) — 공개 링크에는 **자기 공유 링크가 열린 연결 문서만** 실린다(서버 services/postLinkedPublic).
+  //   첨부와 같은 방식: 알려 주고, 동의하면 그때 그 문서의 공유 링크를 연다(묻지 않고 열지 않는다).
+  const [linkedPublic, setLinkedPublic] = useState<Record<number, boolean>>({});
+  const [linkedBusy, setLinkedBusy] = useState(false);
+  const [linkedError, setLinkedError] = useState<string | null>(null);
+  const linkedDocs = useMemo(() => (post.linked_posts || []).map(lp => ({
+    id: lp.id, title: lp.title, isPublic: linkedPublic[lp.id] ?? !!lp.is_public,
+  })), [post.linked_posts, linkedPublic]);
+  const publishLinked = async () => {
+    if (linkedBusy) return;
+    setLinkedBusy(true); setLinkedError(null);
+    let failed = 0;
+    const done: Record<number, boolean> = {};
+    for (const d of linkedDocs.filter(x => !x.isPublic)) {
+      try { await sharePost(d.id); done[d.id] = true; }
+      catch { failed += 1; }
+    }
+    setLinkedPublic(m => ({ ...m, ...done }));
+    if (failed > 0) setLinkedError(t('share.linked.failed', { n: failed, defaultValue: '{{n}}건은 열지 못했어요. 그 문서의 공유 권한이 없거나 보안등급이 일반이 아닐 수 있어요.' }) as string);
+    setLinkedBusy(false);
+  };
+
   // Email
   const [emailTo, setEmailTo] = useState('');
   const [emailMsg, setEmailMsg] = useState('');
@@ -268,6 +290,33 @@ const PostShareModal: React.FC<Props> = ({ open, onClose, post, onChanged }) => 
                 </AttachScopeAction>
               )}
               {attachError && <AttachScopeError>{attachError}</AttachScopeError>}
+            </AttachScopeCard>
+          )}
+          {isPublic && linkedDocs.length > 0 && (
+            <AttachScopeCard data-testid="share-linked-docs">
+              <AttachScopeTitle>
+                {t('share.linked.title', { n: linkedDocs.length, defaultValue: '연결 문서 {{n}}건' }) as string}
+              </AttachScopeTitle>
+              <AttachScopeList>
+                {linkedDocs.map((d) => (
+                  <AttachScopeRow key={d.id}>
+                    <AttachScopeName title={d.title}>{d.title}</AttachScopeName>
+                    <AttachScopeTag $public={d.isPublic}>
+                      {d.isPublic
+                        ? (t('share.linked.shared', '링크로 보고 받을 수 있음') as string)
+                        : (t('share.linked.notShared', '링크로 안 나감') as string)}
+                    </AttachScopeTag>
+                  </AttachScopeRow>
+                ))}
+              </AttachScopeList>
+              {linkedDocs.some((d) => !d.isPublic) && (
+                <AttachScopeAction type="button" disabled={linkedBusy} onClick={publishLinked} data-testid="share-linked-publish">
+                  {linkedBusy
+                    ? (t('share.attach.applying', '바꾸는 중…') as string)
+                    : (t('share.linked.makePublic', '연결 문서도 링크로 보고 받을 수 있게 하기') as string)}
+                </AttachScopeAction>
+              )}
+              {linkedError && <AttachScopeError>{linkedError}</AttachScopeError>}
             </AttachScopeCard>
           )}
           {isPublic && (

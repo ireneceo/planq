@@ -35,6 +35,7 @@ import AttachmentField from '../Common/AttachmentField';
 import CategoryCombobox from '../Common/CategoryCombobox';
 import EmptyState from '../Common/EmptyState';
 import { uploadMyFile, uploadProjectFile, updateFileVisibility } from '../../services/files';
+import { LinkedPdfBtn } from './LinkedDocPdfBtn';
 import ConfirmDialog from '../Common/ConfirmDialog';
 import TrashDrawer from '../Trash/TrashDrawer';
 import TrashButton from '../Trash/TrashButton';
@@ -285,6 +286,7 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId, onEditingChange }) =>
   const [, setPendingExistingMeta] = useState<Record<number, { name: string; size: number }>>({});
   // 본문 하단 "관련 문서" 연결 — 다른 post(문서/표) 참조. 단방향 (저장 시 PUT linked_post_ids).
   const [pendingPostIds, setPendingPostIds] = useState<number[]>([]);
+  const [linkedPdfBusy, setLinkedPdfBusy] = useState<number | null>(null);   // 연결 문서 PDF 받기 중복 방지
   // 편집을 시작할 때 본 연결 목록 — 저장 때 `linked_base_ids` 로 보낸다. 서버는 이것과 비교해
   //   «더한 것·뺀 것» 만 반영한다(그 사이 상대 문서 쪽에서 걸린 연결을 화면이 몰랐다고 지우지 않는다).
   const linkBaseRef = useRef<number[]>([]);
@@ -2907,6 +2909,21 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId, onEditingChange }) =>
                           <AttachName as="a" href={`/docs?post=${lp.id}`}>
                             {lp.kind === 'table' ? '📊 ' : '📄 '}{lp.title}
                           </AttachName>
+                          {/* 연결 문서도 받는다(2026-11-03 Irene «그 문서 다운로드가 안나와») — 권한은 서버 PDF 라우트가 본다 */}
+                          <LinkedPdfBtn type="button" data-testid="linked-doc-pdf"
+                            disabled={linkedPdfBusy === lp.id}
+                            onClick={() => {
+                              if (linkedPdfBusy) return;
+                              setLinkedPdfBusy(lp.id); setError(null);
+                              void downloadPostPdf(lp.id, lp.title)
+                                .catch((e: unknown) => {
+                                  const msg = (e as Error)?.message;
+                                  setError(msg && !/^HTTP \d+$/.test(msg) ? msg : (t('actions.pdfError', 'PDF 생성 실패') as string));
+                                })
+                                .finally(() => setLinkedPdfBusy(null));
+                            }}>
+                            {linkedPdfBusy === lp.id ? (t('links.pdfBusy', '받는 중…') as string) : (t('links.pdf', 'PDF 받기') as string)}
+                          </LinkedPdfBtn>
                         </AttachRow>
                       ))}
                     </AttachList>

@@ -387,7 +387,8 @@ router.get('/:id', authenticateToken, async (req, res, next) => {
       // 보는 사람 기준 — 연결된 문서를 못 보면 제목도 내지 않는다(2026-09-27 점검).
       const linked = [];
       for (const lp of linkedAll) if (await canReadPost(req.user, lp)) linked.push(lp);
-      const linkedMap = new Map(linked.map(p => [p.id, { id: p.id, title: p.title, kind: p.kind }]));
+      const { isLinkPublic } = require('../services/postLinkedPublic');   // 공유 창 — «받는 사람에게도 보이나»
+      const linkedMap = new Map(linked.map(p => [p.id, { id: p.id, title: p.title, kind: p.kind, is_public: isLinkPublic(p) }]));
       result.linked_posts = linkedIds.map(id => linkedMap.get(id)).filter(Boolean);
     } else {
       result.linked_posts = [];
@@ -1867,6 +1868,8 @@ router.get('/public/:token', async (req, res, next) => {
     }
     // 이미지 문맥(2b 1단계) — 본문 이미지가 익명에게도 이 문서 안에서는 열리게 한다. 비밀번호를 통과한 응답에만 준다(위에서 걸렀다).
     safe.image_ctx = require('../services/imageCtx').issueImageCtx('post', { token, pwHash: post.share_password_hash });
+    // 연결 문서 — 자기 공유 링크로 이미 열리는 것만, 그 문서 자기 주소로(services/postLinkedPublic).
+    safe.linked_docs = await require('../services/postLinkedPublic').publicLinkedDocs(post, Post);
     // PDF 주소 — 비밀번호 걸린 문서는 서명을 붙여 준다(window.open 은 헤더를 못 싣는다).
     safe.pdf_url = `/api/posts/public/${token}/pdf${require('../services/share_helper').shareSubQuery(post, token, 'pdf')}`;
     delete safe.share_token;

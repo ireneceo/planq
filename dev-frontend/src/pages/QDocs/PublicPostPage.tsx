@@ -31,6 +31,8 @@ interface PublicPost {
   pdf_url?: string;
   author: { id: number; name: string } | null;
   created_at: string;
+  // 연결 문서 — 자기 공유 링크가 열린 것만 서버가 싣는다(services/postLinkedPublic). 비밀번호 문서는 pdf_url 이 null.
+  linked_docs?: Array<{ id: number; title: string; kind: string; url: string; pdf_url: string | null }>;
   attachments: Array<{
     id: number;
     file: { id: number; file_name: string; download_url: string } | null;
@@ -147,6 +149,14 @@ const PublicPostPage: React.FC = () => {
         <PublicAttachmentList
           title={t('attachments', '첨부 파일') as string}
           items={(post.attachments || []).filter((a) => a.file).map((a) => ({ id: a.id, name: a.file!.file_name, href: a.file!.download_url }))}
+        />
+        <PublicAttachmentList
+          title={t('public.linkedDocs', '연결 문서') as string}
+          testId="public-linked-docs"
+          items={(post.linked_docs || []).map((d) => ({
+            id: `lp-${d.id}`, name: d.title, href: d.pdf_url || d.url,
+            extra: d.pdf_url ? { label: t('public.openDoc', '열기') as string, href: d.url } : undefined,
+          }))}
         />
       </>
     </PublicPageShell>
