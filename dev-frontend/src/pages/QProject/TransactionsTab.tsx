@@ -331,7 +331,8 @@ const TransactionsTab: React.FC<Props> = ({ projectId }) => {
         });
       }
     }
-    return events.sort((a, b) => b.time.localeCompare(a.time));
+    // 시각이 비어 온 사건이 하나 있어도 탭 전체가 죽지 않게(2026-11-03 — 문서 작성일이 빠져 «Something went wrong»)
+    return events.filter(e => !!e.time).sort((a, b) => String(b.time).localeCompare(String(a.time)));
   }, [data, t]);
 
   if (loading) return <Loading>{t('common.loading', '불러오는 중...')}</Loading>;

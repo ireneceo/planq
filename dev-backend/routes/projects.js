@@ -2219,7 +2219,7 @@ router.get('/:id/canvas', authenticateToken, async (req, res, next) => {
     const [posts, documents] = await Promise.all([
       Post.findAll({
         where: { project_id: project.id, status: 'published' },
-        attributes: ['id', 'title', 'category', 'status', 'created_at', 'share_token'],
+        attributes: ['id', 'title', 'category', 'status', 'createdAt', 'share_token'],   // 작성일 속성 = createdAt
         order: [['created_at', 'DESC']], limit: 30,
       }),
       Document.findAll({
@@ -2231,7 +2231,7 @@ router.get('/:id/canvas', authenticateToken, async (req, res, next) => {
     // documents 는 전용 뷰어 라우트(/documents/:id)가 프론트에 없다 — 옛 링크는 catch-all 로
     //   대시보드에 튕겼다. 같은 프로젝트의 문서 탭으로 착지시킨다(#246 과 같은 계열).
     const deliverables = [
-      ...posts.map((p) => ({ kind: 'post', id: p.id, title: p.title, category: p.category, status: p.status, created_at: p.created_at, link: `/projects/p/${project.id}?tab=docs&post=${p.id}` })),
+      ...posts.map((p) => ({ kind: 'post', id: p.id, title: p.title, category: p.category, status: p.status, created_at: p.createdAt, link: `/projects/p/${project.id}?tab=docs&post=${p.id}` })),
       ...documents.map((d) => ({ kind: 'document', id: d.id, title: d.title, category: d.kind, status: d.status, created_at: d.created_at, link: `/projects/p/${project.id}?tab=docs` })),
     ].sort((a, b) => new Date(b.created_at) - new Date(a.created_at)).slice(0, 30);
 
@@ -2813,7 +2813,7 @@ router.get('/:id/transactions', authenticateToken, async (req, res, next) => {
     if (role === 'client') return errorResponse(res, 'member_only', 403, 'member_only');
 
     const { Post, Invoice, InvoiceInstallment, SignatureRequest, Client, ProjectStage } = require('../models');
-    const { progressProject, computeNextAction, seedStages } = require('../services/projectStageEngine');
+    const { progressProject, computeNextAction, seedStages, dealKindOf, categoriesFor } = require('../services/projectStageEngine');
     const { Op } = require('sequelize');
 
     // Phase D+1 — 레거시 프로젝트 (stage 없음) 에 대해 lazy 시드.
@@ -2831,9 +2831,11 @@ router.get('/:id/transactions', authenticateToken, async (req, res, next) => {
     const posts = await Post.findAll({
       where: {
         project_id: project.id,
-        category: { [Op.in]: ['contract', 'quote', 'sow', 'proposal'] },
+        // 분류는 자유 글자 — 템플릿 문서는 «계약서»·«견적서» 로 저장된다(판정은 엔진 dealKindOf 한 곳)
+        category: { [Op.in]: categoriesFor('contract', 'quote', 'sow', 'proposal') },
       },
-      attributes: ['id', 'title', 'category', 'status', 'created_at', 'shared_at', 'share_token'],
+      // ★ 작성일 속성 이름은 createdAt — 'created_at' 로 고르면 응답에서 빠져 화면 타임라인이 죽었다(2026-11-03)
+      attributes: ['id', 'title', 'category', 'status', 'createdAt', 'shared_at', 'share_token'],
       order: [['created_at', 'ASC']],
     });
     const postIds = posts.map(p => p.id);
@@ -2872,7 +2874,7 @@ router.get('/:id/transactions', authenticateToken, async (req, res, next) => {
 
     // 요약
     const totalContracted = posts
-      .filter(p => p.category === 'contract' || p.category === 'sow')
+      .filter(p => ['contract', 'sow'].includes(dealKindOf(p.category)))
       .length; // 계약 건수만 (금액은 invoices 기반)
     const totalInvoiced = invoices.reduce((s, i) => s + Number(i.grand_total || 0), 0);
     const totalPaid = invoices.reduce((s, i) => s + Number(i.paid_amount || 0), 0);
@@ -2961,9 +2963,9 @@ router.get('/:id/transactions', authenticateToken, async (req, res, next) => {
       posts: posts.map(p => ({
         id: p.id,
         title: p.title,
-        category: p.category,
+        category: dealKindOf(p.category) || p.category,
         status: p.status,
-        created_at: p.created_at,
+        created_at: p.createdAt,
         shared_at: p.shared_at,
         share_token: p.share_token,
         signatures: sigsByPost[p.id] || [],

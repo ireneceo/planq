@@ -13,7 +13,6 @@
 //   - 트랜잭션 외부에서 호출 (commit 후)
 
 const { Op } = require('sequelize');
-const { sequelize } = require('../config/database');
 const { Project, ProjectStage, Post, Invoice, InvoiceInstallment, SignatureRequest, Client } = require('../models');
 
 // ─── 템플릿 정의 ───
@@ -40,6 +39,29 @@ const STAGE_TEMPLATES = {
 };
 
 const STAGE_TEMPLATE_KEYS = Object.keys(STAGE_TEMPLATES);
+
+// ─── 거래 문서 종류 — 문서 «분류» 는 자유 글자다 ───
+// 템플릿으로 만든 문서는 분류가 화면 이름(«계약서»·«견적서» …)으로 저장된다(PostsPage KIND_LABELS_KO).
+// 예전엔 여기서 영어 값('contract')만 알아봐서, 템플릿으로 만든 계약서는 서명·청구가 끝나도
+// «계약 체결» 이 영영 대기였다(2026-11-03 실측). 거래 단계가 읽는 분류는 이 표 한 곳에서 판정한다.
+const DEAL_DOC_ALIASES = {
+  quote: ['quote', '견적서', '견적'],
+  proposal: ['proposal', '제안서', '제안'],
+  contract: ['contract', '계약서', '계약'],
+  sow: ['sow', '작업내역서', 'SOW'],
+};
+const ALIAS_TO_KIND = new Map();
+for (const [kind, names] of Object.entries(DEAL_DOC_ALIASES)) {
+  for (const n of names) ALIAS_TO_KIND.set(String(n).trim().toLowerCase(), kind);
+}
+function dealKindOf(category) {
+  if (!category) return null;
+  return ALIAS_TO_KIND.get(String(category).trim().toLowerCase()) || null;
+}
+// DB 조회용 — 이 종류에 해당하는 분류 글자 전부(대소문자 무시 비교는 MySQL 기본 정렬이 한다)
+function categoriesFor(...kinds) {
+  return kinds.flatMap((k) => DEAL_DOC_ALIASES[k] || []);
+}
 
 // ─── 시드: 프로젝트 생성 시 stage 자동 생성 ───
 async function seedStages(projectId, templateKey, transaction = null) {
@@ -75,9 +97,13 @@ async function progressProject(projectId) {
   const [posts, invoices] = await Promise.all([
     Post.findAll({
       where: { project_id: projectId },
-      attributes: ['id', 'category', 'status', 'shared_at', 'created_at'],
+      // ★ Post 모델의 작성일 속성 이름은 createdAt 이다 — 'created_at' 로 고르면 값이 비어 온다.
+      attributes: ['id', 'category', 'status', 'shared_at', 'createdAt'],
       order: [['created_at', 'ASC']],
-    }),
+    }).then((rows) => rows.map((p) => ({
+      id: p.id, status: p.status, shared_at: p.shared_at, created_at: p.createdAt,
+      category: dealKindOf(p.category) || p.category,
+    }))),
     Invoice.findAll({
       where: { project_id: projectId },
       attributes: ['id', 'status', 'paid_at', 'sent_at', 'paid_amount', 'grand_total', 'installment_mode'],
@@ -111,6 +137,11 @@ async function progressProject(projectId) {
   const results = [];
   // 직전 stage 완료 여부 — 다음 stage 의 active 여부 결정
   let prevCompleted = true;
+  // 견적·제안을 건너뛰고 계약(또는 바로 청구)부터 한 거래 — 그 앞 단계는 «진행 중» 이 아니라 «건너뜀» 이다.
+  //   예전엔 견적 단계가 영영 «진행 중» 이라 «다음 할 일» 이 결제가 끝난 뒤에도 «견적서 작성하기» 였다(2026-11-03 실측).
+  //   나중에 견적서를 발행하면 아래 평가가 다시 «완료» 로 돌린다(멱등). 사람이 직접 정한 단계(manual_locked)는 건드리지 않는다.
+  const movedPast = invoices.length > 0
+    || posts.some((p) => (p.category === 'contract' || p.category === 'sow') && p.status === 'published');
 
   for (const stage of stages) {
     // ① 수동 완료/건너뛰기(manual_locked)는 자동 평가 skip — 사용자 설정 존중(외부 체결 계약 등).
@@ -120,7 +151,7 @@ async function progressProject(projectId) {
       prevCompleted = stage.status === 'completed' || stage.status === 'skipped';
       continue;
     }
-    const evaluation = evaluateStage(stage, posts, invoices, sigsByPost, prevCompleted);
+    const evaluation = evaluateStage(stage, posts, invoices, sigsByPost, prevCompleted, movedPast);
     if (evaluation.changed) {
       await stage.update(evaluation.patch);
     }
@@ -132,7 +163,7 @@ async function progressProject(projectId) {
 }
 
 // stage 하나에 대해 entity 상태 평가
-function evaluateStage(stage, posts, invoices, sigsByPost, prevCompleted) {
+function evaluateStage(stage, posts, invoices, sigsByPost, prevCompleted, movedPast = false) {
   const now = new Date();
   let patch = {};
   let changed = false;
@@ -151,6 +182,9 @@ function evaluateStage(stage, posts, invoices, sigsByPost, prevCompleted) {
           };
           changed = true;
         }
+      } else if (movedPast && (stage.status === 'pending' || stage.status === 'active')) {
+        patch = { status: 'skipped', completed_at: now };
+        changed = true;
       } else if (stage.status === 'pending' && prevCompleted) {
         patch = { status: 'active', started_at: now };
         changed = true;
@@ -164,6 +198,9 @@ function evaluateStage(stage, posts, invoices, sigsByPost, prevCompleted) {
           patch = { status: 'completed', linked_entity_type: 'post', linked_entity_id: proposal.id, completed_at: proposal.shared_at || proposal.created_at || now };
           changed = true;
         }
+      } else if (movedPast && (stage.status === 'pending' || stage.status === 'active')) {
+        patch = { status: 'skipped', completed_at: now };
+        changed = true;
       } else if (stage.status === 'pending' && prevCompleted) {
         patch = { status: 'active', started_at: now };
         changed = true;
@@ -298,8 +335,12 @@ async function computeNextAction(projectId) {
   });
   if (stages.length === 0) return null;
 
-  // 첫 번째 active 또는 pending stage 의 액션
-  const target = stages.find(s => s.status === 'active') || stages.find(s => s.status === 'pending');
+  // 지금 거래가 와 있는 자리부터 본다 — 뒤 단계에 이미 문서·청구가 붙었으면(계약 없이 바로 청구 등)
+  //   그 앞의 빈 단계를 «다음 할 일» 로 내밀지 않는다. 앞 단계는 단계판에서 [완료 처리]·[건너뛰기] 로 정리할 수 있다.
+  let from = 0;
+  stages.forEach((s, i) => { if (s.linked_entity_id || s.status === 'completed') from = i; });
+  const rest = stages.slice(from);
+  const target = rest.find(s => s.status === 'active') || rest.find(s => s.status === 'pending');
   if (!target) return null;
 
   // entity 정보를 한 번 더 찾아 액션 컨텍스트 만들기
@@ -312,11 +353,11 @@ async function deriveActionForStage(stage, projectId) {
   switch (stage.kind) {
     case 'quote': {
       const quote = await Post.findOne({
-        where: { project_id: projectId, category: 'quote', status: 'published' },
+        where: { project_id: projectId, category: { [Op.in]: categoriesFor('quote') }, status: 'published' },
         order: [['created_at', 'DESC']],
       });
       const draftQuote = quote ? null : await Post.findOne({
-        where: { project_id: projectId, category: 'quote', status: 'draft' },
+        where: { project_id: projectId, category: { [Op.in]: categoriesFor('quote') }, status: 'draft' },
       });
       if (quote) {
         return { ...base, action_kind: 'wait_or_proceed', label: '견적 완료', hint: '계약 단계로 진행', link: null };
@@ -327,14 +368,14 @@ async function deriveActionForStage(stage, projectId) {
       return { ...base, action_kind: 'create_post', label: '견적서 작성하기', hint: '이 프로젝트의 문서 탭에서 새 견적서 작성', link: `/projects/p/${projectId}?tab=docs&new=1&category=quote` };
     }
     case 'proposal': {
-      const proposal = await Post.findOne({ where: { project_id: projectId, category: 'proposal', status: 'published' } });
+      const proposal = await Post.findOne({ where: { project_id: projectId, category: { [Op.in]: categoriesFor('proposal') }, status: 'published' } });
       if (proposal) return { ...base, action_kind: 'wait_or_proceed', label: '제안서 발행됨', hint: 'SOW 단계로 진행', link: null };
       return { ...base, action_kind: 'create_post', label: '제안서 작성하기', hint: '이 프로젝트의 문서 탭에서 새 제안서 작성', link: `/projects/p/${projectId}?tab=docs&new=1&category=proposal` };
     }
     case 'contract': {
       // contract / sow post 찾기
       const post = await Post.findOne({
-        where: { project_id: projectId, category: { [Op.in]: ['contract', 'sow'] } },
+        where: { project_id: projectId, category: { [Op.in]: categoriesFor('contract', 'sow') } },
         order: [['created_at', 'DESC']],
       });
       if (!post) {
@@ -417,16 +458,15 @@ async function deriveActionForStage(stage, projectId) {
 }
 
 async function findContractPostId(projectId) {
-  // 계약/SOW post 가 있으면 그 id, 없으면 견적이라도
-  const post = await Post.findOne({
-    where: { project_id: projectId, category: { [Op.in]: ['contract', 'sow', 'quote'] }, status: 'published' },
-    order: [
-      [sequelize.literal("FIELD(category, 'contract', 'sow', 'quote')"), 'ASC'],
-      ['created_at', 'DESC'],
-    ],
-    attributes: ['id'],
+  // 계약/SOW post 가 있으면 그 id, 없으면 견적이라도 (분류 글자는 dealKindOf 로 판정)
+  const rows = await Post.findAll({
+    where: { project_id: projectId, category: { [Op.in]: categoriesFor('contract', 'sow', 'quote') }, status: 'published' },
+    order: [['created_at', 'DESC']],
+    attributes: ['id', 'category'],
   });
-  return post ? post.id : null;
+  const rank = { contract: 0, sow: 1, quote: 2 };
+  const best = rows.slice().sort((a, b) => (rank[dealKindOf(a.category)] ?? 9) - (rank[dealKindOf(b.category)] ?? 9))[0];
+  return best ? best.id : null;
 }
 
 // ─── 외부 호출용: post 변경 시 trigger ───
@@ -459,6 +499,8 @@ async function onInvoiceChanged(invoiceId) {
 module.exports = {
   STAGE_TEMPLATES,
   STAGE_TEMPLATE_KEYS,
+  dealKindOf,
+  categoriesFor,
   seedStages,
   progressProject,
   computeNextAction,

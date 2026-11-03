@@ -393,9 +393,11 @@ export default function InvoiceDetailDrawer({ invoice: initialInvoice, onClose, 
     setConfirm({
       open: true,
       title: t('detail.confirm.sendTitle', { defaultValue: '청구서 발송' }) as string,
-      message: t('detail.confirm.sendMsg', {
-        defaultValue: '고객에게 청구서를 보냅니다. 보낸 뒤에는 되돌릴 수 없습니다. 계속할까요?',
-      }) as string,
+      // 외부 발송 확인은 보낼 주소를 적는다(CLAUDE.md «외부 발송은 확인을 받는다») — 주소가 없으면 메일이 안 나간다는 것을 미리 말한다.
+      //   예전엔 «고객에게 보냅니다» 뿐이라, 메일 없는 고객(계정만 연결)에게 누르면 메일이 조용히 실패로 남았다(2026-11-03 실측).
+      message: (sendEmail
+        ? t('detail.confirm.sendMsgTo', { email: sendEmail, defaultValue: '{{email}} 로 청구서 메일을 보냅니다. 보낸 뒤에는 되돌릴 수 없습니다. 계속할까요?' })
+        : t('detail.confirm.sendMsgNoEmail', { defaultValue: '이 고객은 이메일 주소가 없어 메일은 나가지 않습니다. 계속할까요?' })) as string,
       onConfirm: () => { setConfirm(null); doSendInvoice(); },
     });
   };
@@ -774,10 +776,13 @@ export default function InvoiceDetailDrawer({ invoice: initialInvoice, onClose, 
             </PartyLabel>
             <PartyName>{rcp.name || '—'}</PartyName>
             <PartyMeta>
-              <MetaRow>
-                <MetaKey>{t('detail.parties.sendEmail', { defaultValue: '발송 이메일' }) as string}</MetaKey>
-                <MetaVal>{sendEmail || <Missing>{t('detail.parties.noEmail', { defaultValue: '이메일 없음 · 발송 불가' })}</Missing>}</MetaVal>
-              </MetaRow>
+              {/* «발송 이메일» 은 보내는 쪽 안내다 — 청구서를 받은 고객에게 «이메일 없음 · 발송 불가» 를 보이면 뜻이 없다(2026-11-03) */}
+              {caps.showIssuerActions && (
+                <MetaRow>
+                  <MetaKey>{t('detail.parties.sendEmail', { defaultValue: '발송 이메일' }) as string}</MetaKey>
+                  <MetaVal>{sendEmail || <Missing>{t('detail.parties.noEmail', { defaultValue: '이메일 없음 · 발송 불가' })}</Missing>}</MetaVal>
+                </MetaRow>
+              )}
               {client?.is_business ? (
                 <>
                   <MetaRow>

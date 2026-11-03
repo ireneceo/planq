@@ -337,7 +337,9 @@
       "markPaidMsg": "If you've confirmed the payment, mark this invoice as paid. Continue?",
       "aria": "Invoice {{number}}",
       "sendTitle": "Send invoice",
-      "sendMsg": "This sends the invoice to your client. It cannot be undone. Continue?"
+      "sendMsg": "This sends the invoice to your client. It cannot be undone. Continue?",
+      "sendMsgTo": "This emails the invoice to {{email}}. It cannot be undone. Continue?",
+      "sendMsgNoEmail": "This client has no email address, so no email will go out. If they have a PlanQ account they will see it in their notifications and Received invoices; otherwise use [Copy link] after sending to share it yourself. Continue?"
     },
     "markPaid": {
       "action": "Mark paid",

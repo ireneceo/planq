@@ -755,6 +755,34 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId, onEditingChange }) =>
     } catch { /* ignore */ }
   };
 
+  // 프로젝트 «거래» 탭의 [다음 할 일] 딥링크 (2026-11-03) — ?new=1&category=quote|contract|… 는 그 종류의
+  //   템플릿을 골라 둔 템플릿 창을, ?post=…&action=sign 은 그 문서의 서명 요청 창을 바로 연다.
+  //   예전엔 두 값을 읽는 곳이 없어 [문서 작성]·[서명 요청] 을 눌러도 문서 목록만 열렸다.
+  const dealLinkRef = useRef(false);
+  useEffect(() => {
+    if (dealLinkRef.current || pinned || !businessId) return;
+    if (searchParams.get('new') !== '1') return;
+    dealLinkRef.current = true;
+    const kind = searchParams.get('category') as DocKind | null;
+    void openTemplateModal();
+    if (kind && KIND_LABELS_KO[kind]) setTplSearch(KIND_LABELS_KO[kind]);
+    const next = new URLSearchParams(searchParams);
+    next.delete('new'); next.delete('category');
+    setSearchParams(next, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [businessId, searchParams]);
+  const signLinkRef = useRef(false);
+  useEffect(() => {
+    if (signLinkRef.current || pinned) return;
+    if (searchParams.get('action') !== 'sign' || !detail || detail.id !== activeId) return;
+    signLinkRef.current = true;
+    setSignOpen(true);
+    const next = new URLSearchParams(searchParams);
+    next.delete('action');
+    setSearchParams(next, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [detail, activeId, searchParams]);
+
   // 클라이언트 사이드 mustache — business/today 만 치환 (Post 단계라 client/project 없음)
   const renderTemplateClient = (html: string): string => {
     const today = new Date().toISOString().slice(0, 10);
@@ -927,6 +955,8 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId, onEditingChange }) =>
   const [surveyPreviewOpen, setSurveyPreviewOpen] = useState(false);
   const [surveyPublishKey, setSurveyPublishKey] = useState(0);
   const surveyMemberUp = ['owner', 'admin', 'member'].includes(String(user?.business_role || ''));
+  // 고객은 문서를 복사·공유하거나 서명 요청을 보낼 수 없다(서버 403) — 눌러도 «권한 없음» 뿐인 버튼을 고객 화면에 두지 않는다(2026-11-03)
+  const isClientViewer = String(user?.business_role || '') === 'client';
   useEffect(() => { setSurveyTab('questions'); }, [detail?.id]);
 
   const doKindChange = async (newKind: 'doc' | 'table' | 'survey', force = false) => {
@@ -2710,6 +2740,7 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId, onEditingChange }) =>
                 </EditBtn>
                 )}
                 {/* 복사 — **아이콘만**(Irene). 밴드2 액션 3개 계약을 지키려고 글자를 빼고 title·aria 로 말한다. */}
+                {!isClientViewer && (<>
                 <IconActionBtn
                   type="button"
                   data-testid="post-duplicate"
@@ -2731,6 +2762,7 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId, onEditingChange }) =>
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 4 }}><path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/><path d="M2 2l7.586 7.586"/><circle cx="11" cy="11" r="2"/></svg>
                   {t('sign.button', '서명 받기')}
                 </SignBtn>
+                </>)}
                 </MetaActions>
             
               </MetaRight>
