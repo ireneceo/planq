@@ -30,17 +30,26 @@ async function run() {
     await b.sleep(2500);
 
     // 지금 이 창의 범위를 알아낸다 (도장 비교의 기준)
-    const scope = await page.evaluate(() => {
+    //   2026-11-02 한 기기 여러 계정(6e4aae61) — 저장 키가 `planq_tabs_v1::u<id>::<범위>` 로 바뀌었다.
+    //   탭 도장(scope)은 그대로 `<범위>` 이고 **저장 키 꼬리**만 `u<id>::<범위>` 다. 둘을 따로 잡는다
+    //   (옛 코드는 `u5` 를 범위로 읽어 앱이 안 읽는 키에 심었다 → ①②③ 가 헛통과, ④ 만 빨강 — 11-02 밤 검사).
+    const found = await page.evaluate(() => {
       try {
         for (let i = 0; i < sessionStorage.length; i += 1) {
           const k = sessionStorage.key(i);
-          if (k && k.startsWith('planq_tabs_v1::')) return k.split('::')[1];
+          if (k && k.startsWith('planq_tabs_v1::')) {
+            const tail = k.slice('planq_tabs_v1::'.length);
+            const parts = tail.split('::');
+            return { keyTail: tail, scope: parts[parts.length - 1] };
+          }
         }
       } catch { /* */ }
       return null;
     });
-    push('전제 — 이 창의 워크스페이스 범위를 알아냈다', !!scope, `scope=${scope}`);
-    if (!scope) return results;
+    const scope = found && found.scope;
+    const keyTail = found && found.keyTail;
+    push('전제 — 이 창의 워크스페이스 범위를 알아냈다', !!scope && !/^u\d+$/.test(scope), `scope=${scope} key=${keyTail}`);
+    if (!scope || /^u\d+$/.test(scope)) return results;
 
     const tabsOf = () => page.evaluate(() => {
       const bar = document.querySelector('[data-testid="tabstrip"]') || document.body;
@@ -66,7 +75,7 @@ async function run() {
       `탭 ${JSON.stringify(after1)}`);
 
     // ── ② 이 워크스페이스 키 안에 남의 도장 탭을 심는다 ────────────────────
-    await page.evaluate((sc, p, t) => {
+    await page.evaluate((sc, p, t, kt) => {
       const payload = JSON.stringify({
         tabs: [
           { id: 'mine_0', kind: 'task', title: '', path: '/tasks', alive: true, lastActiveAt: Date.now(), scope: sc },
@@ -74,9 +83,9 @@ async function run() {
         ],
         activeId: 'mine_0',
       });
-      try { sessionStorage.setItem(`planq_tabs_v1::${sc}`, payload); } catch { /* */ }
-      try { localStorage.setItem(`planq_tabs_v1_restore::${sc}`, payload); } catch { /* */ }
-    }, scope, FOREIGN_PATH, FOREIGN_TITLE);
+      try { sessionStorage.setItem(`planq_tabs_v1::${kt}`, payload); } catch { /* */ }
+      try { localStorage.setItem(`planq_tabs_v1_restore::${kt}`, payload); } catch { /* */ }
+    }, scope, FOREIGN_PATH, FOREIGN_TITLE, keyTail);
 
     await b.goto(page, '/tasks');
     await b.sleep(2500);
@@ -89,9 +98,9 @@ async function run() {
     // ── ③ 음성 대조군 — 내 탭까지 지워버리면 고친 게 아니다 ─────────────────
     push('③ 음성 대조군 — 내 워크스페이스 탭은 남아 있다', after2.length > 0, `탭 ${JSON.stringify(after2)}`);
 
-    const stored = await page.evaluate((sc) => {
-      try { return sessionStorage.getItem(`planq_tabs_v1::${sc}`) || ''; } catch { return ''; }
-    }, scope);
+    const stored = await page.evaluate((kt) => {
+      try { return sessionStorage.getItem(`planq_tabs_v1::${kt}`) || ''; } catch { return ''; }
+    }, keyTail);
     push('④ 저장소에도 남의 탭이 안 남는다', !stored.includes('b999'), stored.slice(0, 120));
   } catch (e) {
     results.push({ name: 'tab-foreign:하니스', error: true, fatal: 1, details: [e.message] });
