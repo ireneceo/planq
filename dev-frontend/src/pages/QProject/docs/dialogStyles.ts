@@ -1,5 +1,7 @@
 // Q file(DocsTab) 의 가운데 확인창·버튼 규격 — DocsTab 과 docs/useFolderEditing 이 같이 쓴다.
 //   DocsTab 에 있던 것을 그대로 옮겼다(값 변경 없음 — god-file 래칫, 2026-09-21).
+import React from 'react';
+import { createPortal } from 'react-dom';
 import styled from 'styled-components';
 
 export const SecondaryBtn = styled.button`
@@ -23,18 +25,29 @@ export const DangerBtn = styled.button`
 `;
 
 // Modals (단일/대량 삭제 / 이동)
-export const Modal = styled.div`
-  position:fixed;inset:0;z-index:80;background:rgba(15,23,42,.24);
+// ★ 2026-11-03 — 가운데 확인창은 **body 로 포털 + 1100 층**(StandardModal 과 같은 계약).
+//   옛 껍데기는 그 자리(z-index 80)에 그려져 미리보기 우측 패널(DetailDrawer 130) **뒤로** 떴다 —
+//   미리보기의 [삭제] 를 누르면 «파일을 삭제할까요?» 가 패널 뒤에 깔렸다.
+//   (Irene 2026-11-03: "이 팝업이 우측패널 뒤로 뜬다 … 모든 팝업은 최상단이야.")
+//   숫자만 올리면 조상이 만든 층(사이드바·transform)에 다시 갇힌다 — 층 밖(body)으로 나간다.
+//   폰 앱 머리줄은 가리지 않는다(--pq-popup-top, ui-overlays 규칙).
+const ModalBackdrop = styled.div`
+  position:fixed;inset:var(--pq-popup-top, 0px) 0 0;z-index:1100;background:rgba(15,23,42,.24);
   display:flex;align-items:center;justify-content:center;padding:20px;
   @media (max-width: 640px) { padding:0; align-items:stretch; }
 `;
+export const Modal = (props: React.ComponentProps<typeof ModalBackdrop>) => {
+  const tree = React.createElement(ModalBackdrop, props);
+  return typeof document === 'undefined' ? tree : createPortal(tree, document.body);
+};
 export const Dialog = styled.div`
   background:#fff;border-radius:14px;width:100%;max-width:460px;
   box-shadow:0 20px 50px rgba(15,23,42,.2);
   display:flex;flex-direction:column;overflow:hidden;max-height:80vh;
   @media (max-width: 640px) {
     max-width:none;max-height:none;border-radius:0;
-    margin-top:var(--pq-chrome-bottom, 60px);height:calc(100vh - var(--pq-chrome-bottom, 60px));height:calc(100dvh - var(--pq-chrome-bottom, 60px));
+    /* 막(Backdrop)이 이미 --pq-popup-top 에서 시작한다 — 여기서 또 빼면 머리줄만큼 두 번 내려간다. */
+    height:auto;
   }
 `;
 export const DTitle = styled.div`padding:18px 20px 10px;font-size:0.9375rem;font-weight:700;color:#0F172A;`;
