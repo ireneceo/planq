@@ -5,6 +5,7 @@
 //   사용:  node scripts/revert-card-refund-record.js --find=<이름·이메일·워크스페이스 일부>   (읽기만 — 후보 목록)
 //          node scripts/revert-card-refund-record.js --payment=<id>                        (읽기만 — 바뀔 내용)
 //          node scripts/revert-card-refund-record.js --payment=<id> --apply                (쓰기)
+//          (관리자가 «Stripe 에서 환불했다» 를 확인하고 적은 건은 --force 없이 거절 — 정당하게 끝난 환불을 되돌리지 않게)
 //
 //   되돌리는 것: 결제 status refunded → paid · refunded_at·refund_reason·refund_kind 비움. 환불 요청(refund_requested_at)은 그대로라
 //     요청이 있던 건은 «환불 요청» 탭에 다시 뜬다. 감사 payment.refund_record_reverted 에 옛 값을 남긴다.
@@ -18,6 +19,7 @@ const { Payment, Business, User, AuditLog } = require('../models');
 
 const arg = (k) => { const a = process.argv.find((x) => x.startsWith(`--${k}=`)); return a ? a.slice(k.length + 3) : null; };
 const APPLY = process.argv.includes('--apply');
+const FORCE = process.argv.includes('--force');
 const isCard = (p) => p.method === 'stripe' || p.method === 'card';
 const parse = (v) => { if (!v) return null; if (typeof v === 'object') return v; try { return JSON.parse(v); } catch { return null; } };
 
@@ -50,6 +52,8 @@ async function revert(id) {
   const au = await AuditLog.findOne({ where: { action: 'payment.refunded', target_type: 'payment', target_id: p.id }, order: [['id', 'DESC']] });
   const nv = parse(au && au.new_value) || {};
   console.log(`그때 기록: ${au ? new Date(au.created_at || au.createdAt).toISOString() : '감사 없음'} · 종류 ${p.refund_kind || '-'} · 사유 ${p.refund_reason || '-'}`);
+  // a74d5ef8 이후 처리 창은 «Stripe 에서 환불했고 상태를 확인했습니다» 를 받아야 기록한다 — 그렇게 적힌 건은 정당하게 끝난 환불일 수 있다(Fable 비차단 1)
+  if (nv.refunded_outside === true && !FORCE) throw new Error('관리자가 «Stripe 에서 환불했고 상태를 확인했습니다» 를 체크하고 기록한 건이다 — 정말 돈이 안 나갔으면 --force 를 붙인다');
   console.log(`지금 워크스페이스: 플랜 ${biz ? biz.plan : '-'} · 상태 ${biz ? biz.subscription_status : '-'}`);
   if (nv.canceled_subscription_id) console.log(`※ 그때 구독 #${nv.canceled_subscription_id} 이 해지·무료 전환됐다 — 되돌리지 않는다. 다시 처리해도 다시 해지되지 않는다(이미 해지됨).`);
   if (nv.restored_to) console.log(`※ 그때 워크스페이스가 ${nv.restored_to} 로 돌아갔다(체험 환불) — 되돌리지 않는다.`);
