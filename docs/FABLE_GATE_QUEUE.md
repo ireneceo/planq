@@ -210,6 +210,9 @@
 - 비차단: ① 정리 스크립트가 자체 값 있는 중복을 지울 수 있음 → 8984e9ac 에서 건너뛰게 함 ② createProject `contacts`(이름만 새 연락처)가 client 없는 토큰 줄을 만든다 — 다음 묶음 ③ source-candidates extra limit 300 ④ 상세 sourcePost 에 vlevel 등 칸(비밀 아님).
 
 
+## 2026-11-03 · 카드 환불 처리 창 Stripe 안내 + 기록 되돌리기 스크립트 (0ee550f6 · 방 b534f79f) — PASS
+- 스크립트 15/15 · 실브라우저 12/12. 비차단: 확인 받고 적은 건 구별(→ --force 로 고침) · 애드온 이중 회수는 «구독 유지» 체크에 기댐 · stripe_refund_failed 도 안내로 · portone·cs_·idempotency 24h.
+
 ## 2026-11-03 · 카드 환불 «기록만» 막기 (a74d5ef8 · 9ef4e3cb · 방 b534f79f) — 1차 FAIL → 2차 PASS
 - 1차 FAIL: 결제번호 있는 카드·요청 없음 건이 Stripe 거절 시 기록할 길 없음 → 카드 [환불] 을 처리 창으로.
 - 2차 PASS: 서버 23/23 · 실브라우저 16/16. 비차단: portone 확인 없이 기록 · 웹훅 cs_ 옛 행 · idempotency 24h.
