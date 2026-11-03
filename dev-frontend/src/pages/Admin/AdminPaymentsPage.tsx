@@ -211,12 +211,19 @@ const AdminPaymentsPage = () => {
     return t(`payments.method.${m}`, fb[m]) as string;
   };
 
+  // 카드 결제는 Stripe 결제 번호가 있으면 Stripe 로 실제 환불 · 없으면 확인창 문구가 «기록만» 이라고 말하고 그 확인을 싣는다
+  //   (옛 동작: 카드도 기록만 해서 우리 쪽은 «환불»·대표 알림인데 돈은 안 돌아갔다 — 2026-11-03 운영)
+  const isCardRow = (p: PaymentRow) => p.method === 'stripe' || p.method === 'card';
   const handleRefund = async (p: PaymentRow) => {
     setBusyId(p.id); setError(null);
     try {
+      const card = isCardRow(p);
       const r = await apiFetch(`/api/admin/payments/${p.id}/refund`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ reason: t('payments.refundReason', '관리자 환불') }),
+        body: JSON.stringify({
+          reason: t('payments.refundReason', '관리자 환불'),
+          ...(card ? (p.has_stripe_intent ? { via_stripe: true } : { refunded_outside: true }) : {}),
+        }),
       });
       const j = await r.json();
       if (!j.success) throw new Error(j.message || 'failed');
@@ -224,7 +231,11 @@ const AdminPaymentsPage = () => {
       refreshAdminTodo();
       setConfirm(null);
     } catch (e: unknown) {
-      setError((e as Error).message || (t('payments.refundFailed', '환불 처리 실패') as string));
+      const code = (e as Error).message;
+      setError(code ? t(`payments.trialRefundErr.${code}`, {
+        defaultValue: t('payments.trialRefundFailed', { code, defaultValue: '환불 처리 실패 ({{code}})' }) as string,
+      }) as string : (t('payments.refundFailed', '환불 처리 실패') as string));
+      setConfirm(null);
     } finally { setBusyId(null); }
   };
 
@@ -454,7 +465,9 @@ const AdminPaymentsPage = () => {
               confirm.refund_cancels_subscription ? t('payments.refundEffectCancel', '처리하면 전액 환불되고 워크스페이스가 무료 플랜으로 바뀝니다(구독 해지).')
                 : confirm.kind === 'addon' ? t('payments.refundEffectAddon', { units: confirm.refund_addon_units ?? '', defaultValue: '애드온 한도 {{units}} 이 돌아갑니다(줄어듭니다).' })
                   : t('payments.refundEffectKeep', '지금 구독의 결제가 아니라 구독은 그대로입니다.')
-            }`}
+            }${isCardRow(confirm) ? ` ${confirm.has_stripe_intent
+              ? t('payments.confirmRefundCardStripe', '카드 결제라 Stripe 로 실제 카드 환불을 실행합니다.')
+              : t('payments.confirmRefundCardOutside', 'Stripe 결제 번호가 없어 카드 환불은 하지 않고 «환불» 기록만 합니다 — 먼저 Stripe 대시보드에서 직접 환불하세요.')}` : ''}`}
             confirmText={t('payments.refund', '환불') as string}
             variant="danger"
             onConfirm={() => handleRefund(confirm)}

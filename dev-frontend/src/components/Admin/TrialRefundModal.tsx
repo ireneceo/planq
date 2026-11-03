@@ -47,6 +47,8 @@ const TrialRefundModal: React.FC<Props> = ({ target, onClose, onDone, fmtMoney, 
   const isCard = !!target && (target.method === 'stripe' || target.method === 'card');
   const [viaStripe, setViaStripe] = useState(true);
   const [transferred, setTransferred] = useState(false);
+  // 카드 결제를 Stripe 없이 기록할 때의 확인 — 없으면 «환불» 로 적히고 대표 알림까지 나가는데 돈은 안 돌아간다(2026-11-03 운영)
+  const [outsideDone, setOutsideDone] = useState(false);
   const [account, setAccount] = useState<{ bank: string; number: string; holder: string } | null>(null);
   const [accountLoaded, setAccountLoaded] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -56,7 +58,7 @@ const TrialRefundModal: React.FC<Props> = ({ target, onClose, onDone, fmtMoney, 
   const [keepSubscription, setKeepSubscription] = useState(false);
 
   useEffect(() => {
-    setViaStripe(true); setTransferred(false); setAccount(null); setAccountLoaded(false); setError(null);
+    setViaStripe(true); setTransferred(false); setOutsideDone(false); setAccount(null); setAccountLoaded(false); setError(null);
     setDeclining(false); setDeclineReason(''); setKeepSubscription(false);
     if (!target || isCard) return;
     let alive = true;
@@ -73,7 +75,8 @@ const TrialRefundModal: React.FC<Props> = ({ target, onClose, onDone, fmtMoney, 
 
   if (!target) return null;
   const trial = target.trial;
-  const canSubmit = declining ? !!declineReason.trim() : (isCard ? true : transferred);
+  const stripeRuns = isCard && target.hasStripeIntent && viaStripe;
+  const canSubmit = declining ? !!declineReason.trim() : (isCard ? (stripeRuns || outsideDone) : transferred);
 
   const decline = async () => {
     if (!declineReason.trim() || busy) return;
@@ -99,7 +102,8 @@ const TrialRefundModal: React.FC<Props> = ({ target, onClose, onDone, fmtMoney, 
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           mode: trial ? 'trial' : 'manual',
-          via_stripe: isCard && target.hasStripeIntent ? viaStripe : false,
+          via_stripe: stripeRuns,
+          ...(isCard && !stripeRuns ? { refunded_outside: outsideDone } : {}),
           ...(trial ? {} : { keep_subscription: keepSubscription }),
           reason: trial ? t('payments.trialRefundReason', '체험 중 환불') : t('payments.requestRefundReason', '고객 요청 환불'),
         }),
@@ -175,16 +179,22 @@ const TrialRefundModal: React.FC<Props> = ({ target, onClose, onDone, fmtMoney, 
       ) : (<>
       {target.taxIssued && <Warn>{t('payments.trialRefundTaxIssued', '세금계산서가 이미 발행됐습니다 — 수정세금계산서를 따로 발행하세요.') as string}</Warn>}
 
-      {isCard ? (
-        target.hasStripeIntent ? (
+      {isCard ? (<>
+        {target.hasStripeIntent ? (
           <Check>
             <input type="checkbox" checked={viaStripe} onChange={(e) => setViaStripe(e.target.checked)} data-testid="admin-trial-refund-stripe" />
-            <span>{t('payments.trialRefundViaStripe', 'Stripe 로 카드 환불 실행 (끄면 기록만 — 이미 Stripe 에서 돌려준 경우)') as string}</span>
+            <span>{t('payments.trialRefundViaStripe', 'Stripe 로 카드 환불 실행 (끄면 Stripe 에서는 아무것도 안 함 — 이미 돌려준 경우만)') as string}</span>
           </Check>
         ) : (
           <Hint>{t('payments.trialRefundNoIntent', '이 결제에는 Stripe 결제 번호가 없습니다 — 카드사·Stripe 에서 직접 환불한 뒤 처리하세요.') as string}</Hint>
-        )
-      ) : (
+        )}
+        {!stripeRuns && (
+          <Check>
+            <input type="checkbox" checked={outsideDone} onChange={(e) => setOutsideDone(e.target.checked)} data-testid="admin-trial-refund-outside" />
+            <span>{t('payments.trialRefundOutside', 'Stripe 대시보드(또는 카드사)에서 이 결제를 이미 환불했습니다 — 여기서는 기록만 합니다') as string}</span>
+          </Check>
+        )}
+      </>) : (
         <>
           <AccountBox data-testid="admin-trial-refund-account">
             {!accountLoaded ? t('payments.loading', '불러오는 중…') as string

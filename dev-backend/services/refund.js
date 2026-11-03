@@ -11,6 +11,9 @@
 //   ★ 돈 먼저, 장부 나중 — 카드 환불(Stripe)은 트랜잭션 **밖에서** 먼저 하고(idempotencyKey), 실패하면 DB 를 건드리지 않는다.
 //     재시도는 같은 키라 Stripe 가 같은 환불을 돌려준다(두 번 나가지 않는다).
 //   ★ Stripe 호출은 viaStripe:true 일 때만 — 기본으로 켜면 이미 Stripe 대시보드에서 손으로 돌려준 건을 두 번 환불한다.
+//   ★ 카드 결제를 Stripe 없이 «환불» 로 적는 것은 관리자가 «바깥에서 이미 돌려줬다»(refundedOutside) 고 확인할 때만.
+//     2026-11-03 운영: 카드 결제가 우리 쪽은 환불·대표 알림까지 나갔는데 돈은 안 돌아갔다 — [환불] 버튼·Stripe 끈 처리·
+//     결제 번호 없는 결제가 모두 확인 없이 기록만 했다. viaStripe 인데 결제 번호가 없으면 조용히 건너뛰지 않고 거절한다.
 //   ★ 감사는 트랜잭션 안 writeAudit(돈이다 — markPaymentPaid 와 같은 철학).
 const { sequelize } = require('../config/database');
 const { Payment, Subscription, Business, BusinessPlanHistory, User } = require('../models');
@@ -20,7 +23,8 @@ const PLANS = require('../config/plans');
 const GRACE_DAYS = 7;
 
 function err(code, statusCode = 409) { const e = new Error(code); e.code = code; e.statusCode = statusCode; return e; }
-const isCard = (p) => (p.method === 'stripe' || p.method === 'card') && !!p.stripe_payment_intent;
+const isCardMethod = (p) => p.method === 'stripe' || p.method === 'card';
+const isCard = (p) => isCardMethod(p) && !!p.stripe_payment_intent;
 
 // Stripe 거절은 우리 코드(409)로 바꿔 던진다 — Stripe 의 statusCode 를 그대로 흘리면 401(키 오류)이
 //   화면의 «로그인 만료» 처리(토큰 갱신 → 같은 요청 재전송)로 빠지고, 404(다른 Stripe 계정의 결제)는
@@ -43,14 +47,18 @@ async function stripeRefund(payment) {
       { payment_intent: payment.stripe_payment_intent },
       { idempotencyKey: `planq-refund-${payment.id}` },
     );
+    if (r && (r.status === 'failed' || r.status === 'canceled')) {
+      console.warn('[refund stripe] refund', r.id, r.status, r.failure_reason || '');
+      throw err('stripe_refund_failed', 409);
+    }
     return r && r.id ? r.id : null;
-  } catch (e) { throw stripeRefundError(e); }
+  } catch (e) { throw e.statusCode === 409 ? e : stripeRefundError(e); }
 }
 
 /**
  * @returns {{ payment, alreadyRefunded?: boolean, restoredTo?: 'trialing'|'past_due'|'free'|null, stripeRefundId?: string|null, addonUnitsRemoved?: number|null }}
  */
-async function refundPayment({ paymentId, mode = 'manual', reason, viaStripe = false, keepSubscription = false, adminUserId = null, actor = null, _stripeRefund = stripeRefund }) {
+async function refundPayment({ paymentId, mode = 'manual', reason, viaStripe = false, refundedOutside = false, keepSubscription = false, adminUserId = null, actor = null, _stripeRefund = stripeRefund }) {
   if (mode !== 'trial' && mode !== 'manual') throw err('invalid_mode', 400);
   const pre = await Payment.findByPk(paymentId);
   if (!pre) throw err('payment_not_found', 404);
@@ -62,6 +70,11 @@ async function refundPayment({ paymentId, mode = 'manual', reason, viaStripe = f
     const ctx = await billing.loadTrialRefundContext(pre.business_id, { paymentId: pre.id });
     const j = billing.trialRefundability({ ...ctx, stage: 'process' });
     if (!j.eligible) throw err(j.reason, 409);
+  }
+
+  if (isCardMethod(pre)) {
+    if (viaStripe && !pre.stripe_payment_intent) throw err('stripe_intent_missing', 409);
+    if (!viaStripe && !refundedOutside) throw err('card_refund_not_confirmed', 409);
   }
 
   let stripeRefundId = null;
@@ -152,6 +165,7 @@ async function refundPayment({ paymentId, mode = 'manual', reason, viaStripe = f
       newValue: {
         kind: mode, amount: Number(pay.amount), currency: pay.currency, method: pay.method,
         stripe_refund_id: stripeRefundId, via_stripe: !!stripeRefundId, reason: refundReason, ...audit,
+        ...(isCardMethod(pay) && !stripeRefundId ? { refunded_outside: true } : {}),
       },
     }, { transaction: t });
 

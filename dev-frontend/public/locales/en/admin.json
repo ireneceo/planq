@@ -158,7 +158,7 @@
     "trialRefundLead": "Refund the full {{amount}} payment of {{biz}}. The subscription goes back to the trial (the trial end date stays the same).",
     "trialRefundRequested": "Requested {{date}}",
     "trialRefundTaxIssued": "A tax invoice was already issued — issue an amended one separately.",
-    "trialRefundViaStripe": "Refund the card through Stripe (turn off to only record it — when already refunded in Stripe)",
+    "trialRefundViaStripe": "Run the card refund via Stripe (if off, nothing happens in Stripe — only when already refunded)",
     "trialRefundNoIntent": "This payment has no Stripe payment ID — refund it at the card issuer or in Stripe first, then process.",
     "trialRefundNoAccount": "No refund account was provided — contact the customer for one.",
     "trialRefundTransferred": "I have transferred the money to this account",
@@ -176,7 +176,10 @@
       "stripe_payment_not_found": "This payment does not exist in the Stripe account currently configured (nothing was changed). If you switched to a different Stripe account, refund it in the original account's dashboard, then turn off \"Refund via Stripe\" and just record it.",
       "stripe_auth_failed": "The Stripe key was rejected, so the card refund did not run (nothing was changed). Check the Stripe Secret Key in platform settings.",
       "stripe_not_configured": "No Stripe key is configured, so the card refund did not run (nothing was changed).",
-      "stripe_error": "Stripe declined the refund (nothing was changed). Check this payment in the Stripe dashboard."
+      "stripe_error": "Stripe declined the refund (nothing was changed). Check this payment in the Stripe dashboard.",
+      "stripe_intent_missing": "This payment has no Stripe payment ID, so it cannot be refunded via Stripe (nothing was changed). Refund it in the Stripe dashboard, then check \"already refunded\" and record it.",
+      "card_refund_not_confirmed": "A card payment is only recorded as refunded via Stripe or after you confirm it was already refunded in the Stripe dashboard (nothing was changed).",
+      "stripe_refund_failed": "Stripe created the refund but marked it failed (nothing was changed). Check this payment's refund in the Stripe dashboard."
     },
     "requestRefundReason": "Customer-requested refund",
     "requestRefundTitle": "Handle refund request",
@@ -205,7 +208,10 @@
       "unknownBy": "Bill created: {{at}} · {{who}}",
       "unknown": "Bill created: {{at}}"
     },
-    "taxRequestedBadge": "Tax invoice requested"
+    "taxRequestedBadge": "Tax invoice requested",
+    "trialRefundOutside": "I have already refunded this payment in the Stripe dashboard (or with the card company) — just record it here",
+    "confirmRefundCardStripe": "This is a card payment, so the card refund will run through Stripe.",
+    "confirmRefundCardOutside": "This payment has no Stripe payment ID, so no card refund will run — it is only recorded as refunded. Refund it in the Stripe dashboard first."
   },
   "subs": {
     "title": "Subscriptions",

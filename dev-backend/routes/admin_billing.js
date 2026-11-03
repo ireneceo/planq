@@ -372,14 +372,15 @@ router.get('/payments/summary', async (req, res, next) => {
 // POST /api/admin/payments/:id/refund — 환불 처리
 // 환불 — services/refund.refundPayment 한 함수, 두 모드(docs/TRIAL_REFUND_DESIGN.md §4).
 //   body { mode: 'manual'(기본 — 옛 호출 무변경: 결제만 refunded) | 'trial'(체험 중 결제 — 구독·워크스페이스를 체험으로 되돌림),
-//          via_stripe: boolean(기본 false — 켜면 Stripe 로 실제 카드 환불), reason }
+//          via_stripe: boolean(기본 false — 켜면 Stripe 로 실제 카드 환불), reason,
+//          refunded_outside: boolean — 카드 결제를 Stripe 없이 기록할 때 «이미 대시보드에서 돌려줬다» 확인(없으면 409) }
 // audit-exempt: 감사는 서비스 안 writeAudit(payment.refunded) 한 곳
 router.post('/payments/:id/refund', async (req, res, next) => {
   try {
     const mode = req.body?.mode === 'trial' ? 'trial' : 'manual';
     const r = await require('../services/refund').refundPayment({
       paymentId: Number(req.params.id), mode,
-      reason: req.body?.reason, viaStripe: req.body?.via_stripe === true,
+      reason: req.body?.reason, viaStripe: req.body?.via_stripe === true, refundedOutside: req.body?.refunded_outside === true,
       keepSubscription: mode === 'manual' && req.body?.keep_subscription === true,
       adminUserId: req.user.id, actor: { userId: req.user.id, ip: req.ip },
     });
