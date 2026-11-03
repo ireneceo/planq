@@ -204,6 +204,9 @@ const CATALOG = [
   { id: 'inbound_action', folder: 'reply', lockable: false, order: 30, terms: ['inbound_action'],
     examples: ['[With Min]: New order #3171', '[와디즈] 문의하신 내용에 답변이 도착했어요.', 'You have a new ticket 10050'] },
   { id: 'direct_request', folder: 'reply', lockable: false, order: 40, terms: ['direct_request'] },
+  // 2026-11-03 (Fable 판정) — 숨은참조로 받은 강한 요청. direct_request 를 끄면 이것도 꺼진다(상위 스위치).
+  { id: 'bcc_request', folder: 'reply', lockable: false, order: 45, terms: ['direct_request'],
+    examples: ['[에이비씨마트코리아] 워드프레스 사이트 이전 및 OS·PHP 업그레이드 견적 문의'] },
   // ── 확인 권장
   { id: 'spam_rescue', folder: 'review', lockable: false, order: 50 },
   { id: 'security_code', folder: 'review', lockable: false, order: 60, terms: ['security_code'] },

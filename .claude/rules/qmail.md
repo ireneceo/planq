@@ -72,6 +72,13 @@ paths:
 >   학습 확대: «답변 필요로» 2회 → 주소 `always_reply` · «확인 권장으로»(`POST …/mark-review`) 2회 → 주소 `review` · 반대 규칙은 갈아 끼운다.
 >   Q sale 도 같은 목록 컴포넌트 — `sales_intake.off`(replied·personal) · `domains.always/never`(키워드·자동 학습 없음).
 >   설계 `docs/MAIL_CRITERIA_DESIGN.md` · 운영 `migrate-mail-criteria.js`(배포 슬롯) · 옛 메일은 `retriage-mail.js --promote-only --promote-reply-criterion=inbound_action`(+ `--fill-criterion`) 수동.
+>   **모르는 상대 ④ 는 두 단이다** (2026-11-03, Irene *"이런 메일이 답변필요에 안갔어. 말이 돼?"* · Fable 판정) — 에이비씨마트 견적 문의가
+>   To=본인 · Cc=동료 · **우리는 숨은참조** + 한 토막 회사 주소(`kimsoryeong@`)라 두 문에 다 걸렸다.
+>   1단 To **또는 Cc** 에 우리 주소 → 요청·물음표(`direct_request`) · 2단 어디에도 없음(=숨은참조) → **분명한 요청만**(`bcc_request`, 끌 수 있음 · `direct_request` 를 끄면 같이 꺼짐).
+>   «사람인가» 는 `contactRelation.isPersonalSender(email, fromName)` 한 곳 — 한 토막 회사 주소도 **표시 이름과 주소가 같은 사람**이면 개인
+>   (한글 3음절 성씨+둘째 음절 초성 · 라틴 2~4토큰, 숫자·도메인 낱말이 든 이름은 브랜드). 이름 증거로만 사람이 된 주소는 **물음표로는 안 올린다**(실명 모양 영업 메일).
+>   남는 콜드메일(«견적» 을 말하며 우리에게 직접 온 영업 메일, dev 2769)은 낱말·이름 규칙을 깎지 말고 **발신 도메인 학습·대량 발송 신호** 축으로 거른다(Fable 완료 판정).
+>   `fromName` 을 안 넘기는 Q sales 는 종전 그대로(dev 발신 주소 591개 단일 인자 결과 HEAD 와 차이 0). 수집·재판정·스팸 해제 세 경로가 `fromName`·Cc 를 같이 넘긴다. 회귀 `--suite mail`(카나리 8검사).
 >
 > ⑧ **메일 알림 범위는 «메일함 기본값 + 사람별 덮어쓰기»** (2026-10-22, Irene *"회사 건 받고 개인 거 안 받거나 … 반대도"* · Fable 설계) —
 >   `email_account_notify_prefs`(사람 × 메일함, `off|reply_only|recommended|all`, **행 없음 = 메일함 기본값** — ENUM 에 default 없음).

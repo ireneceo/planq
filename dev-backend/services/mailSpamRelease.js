@@ -38,6 +38,7 @@ async function releaseQuarantined(thread) {
     subject: msg.subject || thread.subject,
     bodyText: T.triageBodyOf(msg.body_text, msg.body_html),
     fromEmail,
+    fromName: msg.from_name || '',
     headers,
     headersComplete: complete,
     ownEmails,

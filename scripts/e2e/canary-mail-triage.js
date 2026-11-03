@@ -144,9 +144,11 @@ async function run() {
     const raw = [...lines, 'Message-ID: <canary-x@qa.local>', 'MIME-Version: 1.0',
       'Content-Type: text/html; charset=utf-8', '', html].join('\r\n');
     const p = await simpleParser(raw);
-    const hdr = t.normalizeHeaders({ headers: p.headers, toEmails: p.to });
+    // 수집 경로(emailImapCron)와 같은 입력 — To·Cc·보낸 사람 이름(2026-11-03 숨은참조·이름 증거)
+    const hdr = t.normalizeHeaders({ headers: p.headers, toEmails: p.to, ccEmails: p.cc });
+    const fromName = (p.from && p.from.value && p.from.value[0] && p.from.value[0].name) || '';
     // extra.htmlOnly — 저장본처럼 text 가 없는 HTML 전용 메일(dev 실측 28%)의 경로를 잰다.
-    return t.triageInbound({ subject: p.subject, bodyText: t.triageBodyOf(extra.htmlOnly ? null : p.text, p.html), fromEmail: extra.from,
+    return t.triageInbound({ subject: p.subject, bodyText: t.triageBodyOf(extra.htmlOnly ? null : p.text, p.html), fromEmail: extra.from, fromName,
       headers: hdr, ownEmails: new Set(OWN), ownMatcher: { emails: OWN, domains: [] }, isKnownContact: !!extra.known, off: extra.off || null });
   };
   // ① 이번 신고 — SendGrid 헤더만 · HTML 전용 · 가입 완료 요청 → 확인 권장
@@ -306,9 +308,36 @@ async function run() {
     '<p>Sign in</p>', { from: 'no-reply@bank.example' });
   ok('«Please sign in …» → 답변 필요 아님(피싱 모양)', signIn.reply_needed !== true && signIn.criterion !== 'inbound_action', JSON.stringify(signIn));
 
+
+  // ── 2026-11-03 숨은참조 견적 문의 · 이름 증거 (Irene «이런 메일이 답변필요에 안갔어» · Fable 판정)
+  const bccRfq = await tri(['From: 김소령 <kimsoryeong@abcmart.example.co.kr>', 'To: 김소령 <kimsoryeong@abcmart.example.co.kr>',
+    'Cc: 김민수 <kim.minsu@abcmart.example.co.kr>', 'Subject: [에이비씨마트코리아] 워드프레스 사이트 이전 및 OS·PHP 업그레이드 견적 문의'],
+    '<p>안녕하세요, 호스팅 이전 지원 가능 여부와 견적을 문의드립니다. 회신 부탁드립니다.</p>', { from: 'kimsoryeong@abcmart.example.co.kr' });
+  ok('숨은참조 + 한 토막 회사 주소(이름 일치) + 견적 요청 → 답변 필요(bcc_request)', bccRfq.reply_needed === true && bccRfq.criterion === 'bcc_request', JSON.stringify(bccRfq));
+  const bccQuestion = await tri(['From: 김소령 <kimsoryeong@abcmart.example.co.kr>', 'To: kimsoryeong@abcmart.example.co.kr', 'Subject: 안녕하세요'],
+    '<p>잘 지내시죠? 저희 새 서비스 소개드려요.</p>', { from: 'kimsoryeong@abcmart.example.co.kr' });
+  ok('숨은참조 + 물음표만 → 확인 권장(물음표로는 안 올림)', bccQuestion.reply_needed !== true, JSON.stringify(bccQuestion));
+  const bccOff = await tri(['From: 김소령 <kimsoryeong@abcmart.example.co.kr>', 'To: kimsoryeong@abcmart.example.co.kr', 'Subject: 견적 문의드립니다'],
+    '<p>견적 문의드립니다.</p>', { from: 'kimsoryeong@abcmart.example.co.kr', off: ['bcc_request'] });
+  ok('bcc_request 끔 → 확인 권장', bccOff.reply_needed !== true, JSON.stringify(bccOff));
+  const nameColdQ = await tri(['From: Tim Nicholson <tim@vital.example.co>', 'To: help@irenewp.com', 'Subject: VINYL - quick question'],
+    '<p>Hi, are you open to a quick chat about growth?</p>', { from: 'tim@vital.example.co' });
+  ok('이름 증거로만 사람인 주소 + 물음표만(영업 메일 모양) → 확인 권장', nameColdQ.reply_needed !== true, JSON.stringify(nameColdQ));
+  const brandName = await tri(['From: Apple Developer <developer@email.apple.example>', 'To: help@irenewp.com', 'Subject: 등록을 검토해 주시기 바랍니다'],
+    '<p>등록을 검토해 주시기 바랍니다.</p>', { from: 'developer@email.apple.example' });
+  ok('표시 이름에 도메인 낱말(브랜드) → 이름 증거 아님 · 확인 권장', brandName.reply_needed !== true, JSON.stringify(brandName));
+  const CRel = require('/opt/planq/dev-backend/services/contactRelation');
+  const pairs = [['kimsoryeong@a.example.com', '김소령', true], ['suran@metes.example.io', 'Suran Kim', true],
+    ['hanamail@hanafn.example.com', '하나은행', false], ['hometaxadmin@hometax.example.kr', '국세청', false],
+    ['hana@hanabank.example.com', 'Hana Bank', false], ['marketing@foo.example.com', 'Marketing Team', false],
+    ['info@foo.example.com', '김소령', false]];
+  const badPairs = pairs.filter(([e, n, exp]) => CRel.isPersonalSender(e, n) !== exp).map(([e, n]) => `${n}/${e}`);
+  ok('이름 증거 단위 — 양성 2 · 음성 5', badPairs.length === 0, badPairs.join(',') || `${pairs.length}건`);
+  ok('이름 없이 부르면 종전과 같다(Q sales 불변) — kimsoryeong@ 은 개인 아님', CRel.isPersonalSender('kimsoryeong@a.example.com') === false);
+
   //   카탈로그 — 엔진이 쓰는 기준 id 가 전부 목록에 있다(설명과 코드가 갈라지지 않게)
   const CAT = require('/opt/planq/dev-backend/services/mailCriteriaCatalog');
-  const seen = [ack, ooo, order, ticket, wadiz, spamKnown, spamStranger, pq, bought, adOrder, dsn, humanThanks, roleNotice, orderOff, ackOff, lockedOff, ikea, bodyOnly, krResv, ikeaOff, ikeaLegacy, gfm, fail, ad, nl, known, pqOld, pos, pqLegacy, sameDomainHuman, sigReply, esign, signIn]
+  const seen = [ack, ooo, order, ticket, wadiz, spamKnown, spamStranger, pq, bought, adOrder, dsn, humanThanks, roleNotice, orderOff, ackOff, lockedOff, ikea, bodyOnly, krResv, ikeaOff, ikeaLegacy, gfm, fail, ad, nl, known, pqOld, pos, pqLegacy, sameDomainHuman, sigReply, esign, signIn, bccRfq, bccQuestion, nameColdQ, brandName]
     .map((r) => r.criterion).filter(Boolean);
   const missing = [...new Set(seen)].filter((id) => !CAT.BY_ID.has(id));
   ok('판정이 낸 기준 id 가 전부 카탈로그에 있다', missing.length === 0, missing.join(',') || `${new Set(seen).size}종`);

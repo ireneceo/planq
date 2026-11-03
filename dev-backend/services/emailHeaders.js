@@ -88,10 +88,13 @@ function pickTriageHeaders(headers) {
  * @param inReplyTo  In-Reply-To
  * @param references References (배열 또는 공백 구분 문자열)
  */
-function normalizeHeaders({ headers, toEmails, inReplyTo, references } = {}) {
+function normalizeHeaders({ headers, toEmails, ccEmails, inReplyTo, references } = {}) {
   const out = { ...(pickTriageHeaders(headers) || {}) };
   const to = addrList(toEmails) || addrList(hget(headers, 'to'));
   if (to) out.to = to;
+  // 참조(Cc) — «우리 주소로 왔는가» 의 1단은 To 또는 Cc 다(2026-11-03 Fable). 없으면 비워 둔다 → 엄격한 2단(숨은참조)으로.
+  const cc = addrList(ccEmails) || addrList(hget(headers, 'cc'));
+  if (cc) out.cc = cc;
   const irt = inReplyTo || hget(headers, 'in-reply-to');
   if (irt) out['in-reply-to'] = String(irt);
   const refs = Array.isArray(references) ? references.join(' ') : (references || hget(headers, 'references'));

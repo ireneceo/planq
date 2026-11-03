@@ -30,6 +30,7 @@ function headersFromMessage(msg) {
     headers: normalizeHeaders({
       headers: stored,
       toEmails: msg.to_emails,
+      ccEmails: msg.cc_emails,
       inReplyTo: msg.in_reply_to,
       references: msg.references_chain,
     }),
@@ -221,7 +222,7 @@ function hasStrongRequest(subject, bodyText) {
   return STRONG_REQUEST.test(head);
 }
 
-// 우리 주소가 To 에 직접 있는가 (참조·숨은참조·대량발송 목록이 아니라)
+// 우리 주소가 To 또는 Cc 에 있는가 (숨은참조·대량발송 목록이 아니라)
 //   own 은 세 형태를 받는다: Set / 배열(둘 다 옛 emails-only) / { emails, domains }(도메인 규칙 포함).
 //   호출부가 섞여 있어서 형태를 좁히면 한쪽 경로가 조용히 죽는다.
 function isAddressedToUs(headers, own) {
@@ -236,7 +237,8 @@ function isAddressedToUs(headers, own) {
   const ownSet = new Set(emails.map((e) => String(e).toLowerCase().trim()).filter(Boolean));
   const domSet = new Set(domains.map((d) => String(d).toLowerCase().trim()).filter(Boolean));
   if (ownSet.size === 0 && domSet.size === 0) return false;
-  const to = (headers && (headers.to || headers.To)) || '';
+  // 2026-11-03 (Fable) — To **또는 Cc**. 둘 다 없으면 = 숨은참조(Bcc)로 받은 것 → 호출부가 더 엄격한 2단(bcc_request)으로.
+  const to = [headers && (headers.to || headers.To), headers && (headers.cc || headers.Cc)].filter(Boolean).join(', ');
   if (!to) return false;
   for (const addr of extractAddresses(to)) {
     if (ownSet.has(addr)) return true;
@@ -377,7 +379,7 @@ function hasBusinessRelevance(subject, bodyText) {
 //     ③ 아는 상대(고객·멤버·전에 우리가 답장한 상대)가 직접 쓴 메일 → 답변 필요.
 //     ④ 모르는 상대 → 우리 주소로 직접 왔고 명확한 요청·질문이 있을 때만.
 //   그 외는 스팸·광고가 아니어도 확인 권장 — 사람이 한 번 보고 판단한다.
-function replyVerdict({ subject, bodyText, fromEmail, headers, ownEmails, ownMatcher, isKnownContact, off, headersComplete = true }) {
+function replyVerdict({ subject, bodyText, fromEmail, fromName = null, headers, ownEmails, ownMatcher, isKnownContact, off, headersComplete = true }) {
   const on = (id) => CAT.isOn(id, off);
   const no = (criterion) => ({ ok: false, criterion });
   // ② 답장할 상대가 없는 메일 — 관계(아는 상대)보다, 회신 여부보다 **먼저** 걸러낸다.
@@ -416,7 +418,7 @@ function replyVerdict({ subject, bodyText, fromEmail, headers, ownEmails, ownMat
   if (!on('direct_request')) return no('unclear_intent');
   // ★ 수신 축만 matcher(도메인 규칙 포함). 위의 isSelfSender/isAutomated 는 ownEmails(정확 주소)를
   //   그대로 쓴다 — 도메인이 발신 축으로 새면 우리 도메인 동료의 문의가 자기발신으로 강등된다.
-  if (!isAddressedToUs(headers, ownMatcher || ownEmails)) return no('unclear_intent');
+  const addressed = isAddressedToUs(headers, ownMatcher || ownEmails);
   // ★ #450 (Irene 결정 2026-10-02) — **보낸 사람이 사람인가**를 Q sales 상담과 같은 부품으로 본다.
   //   역할·브랜드 주소(hosting@·mailmaster@·iclub@·account@)의 약관·마일리지·명세서가 물음표 하나로
   //   답변 필요에 올라왔다(운영 미연결 7건 중 6건). 상담 기준에는 이미 있던 조건이다(services/contactRelation).
@@ -425,10 +427,26 @@ function replyVerdict({ subject, bodyText, fromEmail, headers, ownEmails, ownMat
   //   ★ 2026-10-15 (Fable 설계 결정 ④) — Irene «안내·요청·문의면 무조건» 에도 이 조건은 유지한다:
   //     뒤집으면 dev 950건이 답변 필요로 올라간다(삼성생명·홈택스·은행 명세 …). 꼭 받아야 하는 역할 주소는
   //     «답변 필요로» 2회 학습 또는 규칙이 길이다. 자동이어도 «새 주문·문의·답변 도착» 은 inbound_action 이 올린다.
-  if (!require('./contactRelation').isPersonalSender(fromEmail)) return no('unclear_intent');
+  //   ★ 2026-11-03 (Fable 판정) — 표시 이름(fromName)을 같이 본다: 한 토막 회사 주소라도 이름과 주소가 같은 사람이면 개인.
+  const CR = require('./contactRelation');
+  if (!CR.isPersonalSender(fromEmail, fromName)) return no('unclear_intent');
   const body = plainText(bodyText).slice(0, 1200);
-  return (hasStrongRequest(subject, body) || hasQuestion(`${subject || ''}\n${body}`))
-    ? { ok: true, criterion: 'direct_request' } : no('unclear_intent');
+  //   이름 증거로만 사람이 된 주소(한 토막 회사 주소)는 물음표로는 올리지 않는다 — 실명 모양의 영업 메일
+  //   («VINYL - quick question» · «…문의 전환은요?», dev 7건)이 같은 모양이다. 분명한 요청이 있어야 한다.
+  const nameOnly = !CR.isPersonalSender(fromEmail);
+  // 1단 — To·Cc 로 왔다: 강한 요청 또는 물음표.
+  if (addressed && nameOnly) {
+    return hasStrongRequest(subject, body) ? { ok: true, criterion: 'direct_request' } : no('unclear_intent');
+  }
+  if (addressed) {
+    return (hasStrongRequest(subject, body) || hasQuestion(`${subject || ''}\n${body}`))
+      ? { ok: true, criterion: 'direct_request' } : no('unclear_intent');
+  }
+  // 2단 — 우리 주소가 To·Cc 어디에도 없다(= 숨은참조로 받음). 여러 업체에 숨은참조로 보내는 견적 요청이 이 모양이다
+  //   (에이비씨마트 견적 문의 실사례: To=본인 · Cc=동료 · 우리는 Bcc). 콜드메일도 같은 모양이라 **강한 요청만** 받는다(물음표 X).
+  //   Cc 정보가 없는 옛 메일도 여기로 떨어진다 — 더 엄격한 쪽으로 퇴화.
+  if (!on('bcc_request')) return no('unclear_intent');
+  return hasStrongRequest(subject, body) ? { ok: true, criterion: 'bcc_request' } : no('unclear_intent');
 }
 
 /** 관계로 답변 필요가 되는가 — replyVerdict 가 thread_reply·known_contact 로 참일 때만 그 기준 id, 아니면 null.
@@ -536,7 +554,7 @@ function isBulkBody(bodyText) {
 //   적용 순서 = 카탈로그 order (docs/MAIL_CRITERIA_DESIGN.md §3.3):
 //     스팸 → 스팸 구제(아는 상대) → 보안 알림 → 상대 행동 도착(답변 필요) → 꼭 봐야 하는 통지 → 자동응답
 //     → 자동 발송의 업무 내용·우리 시스템 알림 → 사람 메일(답변 필요 판정, 아니면 확인 권장)
-function triageInbound({ subject, bodyText, fromEmail, headers, ownEmails, ownMatcher, isKnownContact = false, off = null, impersonation = null }) {
+function triageInbound({ subject, bodyText, fromEmail, fromName = null, headers, ownEmails, ownMatcher, isKnownContact = false, off = null, impersonation = null }) {
   const on = (id) => CAT.isOn(id, off);
   const c = classify({ subject, bodyText, fromEmail, headers });
   // 사칭 의심 격리 — 모든 기준보다 먼저(카탈로그 order 5). 판정은 services/mailImpersonation 한 곳이고
@@ -580,7 +598,7 @@ function triageInbound({ subject, bodyText, fromEmail, headers, ownEmails, ownMa
   //   확인 권장으로 갔다(운영 5015, Irene: "내 메일도 서명요청에 대한 요청내용 왔는데 이게 확인권장이야").
   //   보안 우선 순서의 이유(모르는 상대 본문의 «요청이 아니라면» 상투구가 ④ 로 올라가는 것)는 관계 없는 메일에만 해당한다.
   if (triage === 'human' && c.status === 'open') {
-    const rel = relationVerdict({ subject, bodyText, fromEmail, headers, ownEmails, ownMatcher, isKnownContact: known, off });
+    const rel = relationVerdict({ subject, bodyText, fromEmail, fromName, headers, ownEmails, ownMatcher, isKnownContact: known, off });
     if (rel) return out('open', true, c.uncertain_reason, rel);
   }
   if (c.status === 'open' && on('security_code') && isSecurityNotice(subject, bodyText)) {
@@ -629,7 +647,7 @@ function triageInbound({ subject, bodyText, fromEmail, headers, ownEmails, ownMa
     //              ② 우리 대화에 대한 회신 (기존 일과 연결)
     //              ③ 우리 주소로 직접 온 메일 + 명확한 요청 문장 (문의·견적·회신 부탁…)
     //   그 외는 스팸·광고가 아니어도 확인 권장 — 사람이 한 번 보고 판단한다.
-    const v = replyVerdict({ subject, bodyText, fromEmail, headers, ownEmails, ownMatcher, isKnownContact: known, off });
+    const v = replyVerdict({ subject, bodyText, fromEmail, fromName, headers, ownEmails, ownMatcher, isKnownContact: known, off });
     if (v.ok) return out('open', true, c.uncertain_reason, v.criterion);
     const critical = on('critical_notice') && isCriticalNotice(subject);
     return out('uncertain', false, critical ? 'critical_notice' : 'unclear_intent', critical ? 'critical_notice' : v.criterion);
@@ -657,10 +675,10 @@ function triageBySenderOnly({ subject, bodyText, fromEmail, ownEmails }) {
 //                           헤더 없이 triage 를 다시 계산하면 광고가 사람 메일로 뒤집힌다
 //                           (실제로 그랬다 — 109건이 human 으로 뒤집혀 백업에서 복원했다).
 //   순서는 triageInbound 와 같다 — 두 경로가 갈라지면 안 된다.
-function retriageStored({ triage, subject, bodyText, fromEmail, headers, ownEmails, ownMatcher, isKnownContact = false, headersComplete = false, off = null, impersonation = null }) {
+function retriageStored({ triage, subject, bodyText, fromEmail, fromName = null, headers, ownEmails, ownMatcher, isKnownContact = false, headersComplete = false, off = null, impersonation = null }) {
   // 헤더가 있으면 동기화와 같은 문을 그대로 지난다 — 판정 로직이 두 벌로 갈라지지 않는다.
   if (headersComplete) {
-    return triageInbound({ subject, bodyText, fromEmail, headers, ownEmails, ownMatcher, isKnownContact, off, impersonation });
+    return triageInbound({ subject, bodyText, fromEmail, fromName, headers, ownEmails, ownMatcher, isKnownContact, off, impersonation });
   }
   const on = (id) => CAT.isOn(id, off);
   // 사칭 의심 격리 — triageInbound 와 같은 자리(맨 앞).
@@ -677,7 +695,7 @@ function retriageStored({ triage, subject, bodyText, fromEmail, headers, ownEmai
   // 로그인·인증 코드 — triage 무관 승격(triageInbound 와 같은 규칙. 두 경로가 갈라지면 안 된다).
   // 사람 메일의 관계 — triageInbound 와 같은 자리(보안 알림보다 먼저).
   if (triage === 'human' && !hasAdPrefix(subject)) {
-    const rel = relationVerdict({ subject, bodyText, fromEmail, headers, ownEmails, ownMatcher, isKnownContact: known, off, headersComplete: false });
+    const rel = relationVerdict({ subject, bodyText, fromEmail, fromName, headers, ownEmails, ownMatcher, isKnownContact: known, off, headersComplete: false });
     if (rel) return { triage, status: 'open', reply_needed: true, uncertain_reason: null, criterion: rel };
   }
   if (on('security_code') && isSecurityNotice(subject, bodyText)) {
@@ -726,7 +744,7 @@ function retriageStored({ triage, subject, bodyText, fromEmail, headers, ownEmai
   //   ③ 우리 주소로 직접 온 메일 + (명확한 요청 || 질문). 사람이 물어봤으면 답해야 한다 —
   //      "…폐쇄를 진행하면 될까요?" 처럼 요청 단어 없이 질문만 있는 메일이 확인 권장에 갇혔다.
   //      광고·뉴스레터는 이미 자동·마케팅으로 빠지므로(triage) 여기 human 경로엔 오지 않는다.
-  const v = replyVerdict({ subject, bodyText, fromEmail, headers, ownEmails, ownMatcher, isKnownContact: known, off, headersComplete: false });
+  const v = replyVerdict({ subject, bodyText, fromEmail, fromName, headers, ownEmails, ownMatcher, isKnownContact: known, off, headersComplete: false });
   if (v.ok) return { triage, status: 'open', reply_needed: true, uncertain_reason: null, criterion: v.criterion };
   const critical = on('critical_notice') && isCriticalNotice(subject);
   return { triage, status: 'uncertain', reply_needed: false, uncertain_reason: critical ? 'critical_notice' : 'unclear_intent', criterion: critical ? 'critical_notice' : v.criterion };

@@ -852,7 +852,11 @@
     },
     "direct_request": {
       "title": "A stranger asks us something directly",
-      "desc": "Sent straight to our address, from a personal address (personal free-mail or a two-part name at a company), with a request or a question mark. Role addresses such as info@ or help@ go to Worth a look — mark one as Reply needed twice and PlanQ learns it."
+      "desc": "Our address is in To or Cc, the sender is a personal address (personal free-mail, a two-part name at a company, or an address that matches the sender's name — e.g. Suran Kim / suran@), and there is a request or a question mark. Role addresses such as info@ or help@ go to Worth a look — mark one as Reply needed twice and PlanQ learns it."
+    },
+    "bcc_request": {
+      "title": "A stranger's request sent to us in Bcc",
+      "desc": "Mail where our address is not in To or Cc — like a quote request sent to several vendors in Bcc. Lifted only from a personal address with a clear request (quote, inquiry, please reply); a question mark alone is not enough, because cold mail looks the same."
     },
     "spam_rescue": {
       "title": "Judged as spam, but from someone we know",

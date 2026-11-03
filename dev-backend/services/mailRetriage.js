@@ -102,7 +102,7 @@ async function judgeThread(th, ctx, offList, { businessId, msg: givenMsg } = {})
       triage: th.triage,
       subject: msg.subject || th.subject,
       bodyText,
-      fromEmail, headers, headersComplete: complete,
+      fromEmail, fromName: msg.from_name || '', headers, headersComplete: complete,
       ownEmails: ctx.own.get(bizId) || [], ownMatcher: ctx.matcher.get(bizId) || null,
       isKnownContact: known, off,
     });
