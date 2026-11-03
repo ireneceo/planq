@@ -75,6 +75,8 @@ const TrialRefundModal: React.FC<Props> = ({ target, onClose, onDone, fmtMoney, 
 
   if (!target) return null;
   const trial = target.trial;
+  // 요청 없는 카드 결제도 이 창으로 연다(목록 [환불]) — Stripe 가 거절했을 때 «이미 환불했습니다» 로 기록할 길이 여기뿐이다(Fable 2026-11-03)
+  const hasRequest = !!target.requestedAt;
   const stripeRuns = isCard && target.hasStripeIntent && viaStripe;
   const canSubmit = declining ? !!declineReason.trim() : (isCard ? (stripeRuns || outsideDone) : transferred);
 
@@ -105,7 +107,8 @@ const TrialRefundModal: React.FC<Props> = ({ target, onClose, onDone, fmtMoney, 
           via_stripe: stripeRuns,
           ...(isCard && !stripeRuns ? { refunded_outside: outsideDone } : {}),
           ...(trial ? {} : { keep_subscription: keepSubscription }),
-          reason: trial ? t('payments.trialRefundReason', '체험 중 환불') : t('payments.requestRefundReason', '고객 요청 환불'),
+          reason: trial ? t('payments.trialRefundReason', '체험 중 환불')
+            : hasRequest ? t('payments.requestRefundReason', '고객 요청 환불') : t('payments.refundReason', '관리자 환불'),
         }),
       });
       const j = await r.json();
@@ -118,10 +121,12 @@ const TrialRefundModal: React.FC<Props> = ({ target, onClose, onDone, fmtMoney, 
     } finally { setBusy(false); }
   };
 
+  const title = (trial ? t('payments.trialRefundTitle', '체험 중 결제 환불')
+    : hasRequest ? t('payments.requestRefundTitle', '환불 요청 처리') : t('payments.cardRefundTitle', '카드 결제 환불')) as string;
   return (
     <StandardModal open onClose={onClose} size="sm"
-      title={(trial ? t('payments.trialRefundTitle', '체험 중 결제 환불') : t('payments.requestRefundTitle', '환불 요청 처리')) as string}
-      ariaLabel={(trial ? t('payments.trialRefundTitle', '체험 중 결제 환불') : t('payments.requestRefundTitle', '환불 요청 처리')) as string}
+      title={title}
+      ariaLabel={title}
       footer={declining ? (
         <>
           <ActionButton tone="secondary" size="md" onClick={() => setDeclining(false)}>{t('payments.back', '돌아가기') as string}</ActionButton>
@@ -131,11 +136,13 @@ const TrialRefundModal: React.FC<Props> = ({ target, onClose, onDone, fmtMoney, 
         </>
       ) : (
         <>
-          <ActionButton tone="secondary" size="md" onClick={() => { setError(null); setDeclining(true); }} data-testid="admin-refund-decline-open">
-            {t('payments.decline', '반려') as string}
-          </ActionButton>
+          {hasRequest && (
+            <ActionButton tone="secondary" size="md" onClick={() => { setError(null); setDeclining(true); }} data-testid="admin-refund-decline-open">
+              {t('payments.decline', '반려') as string}
+            </ActionButton>
+          )}
           <ActionButton tone="danger" size="md" loading={busy} disabled={!canSubmit} onClick={submit} data-testid="admin-trial-refund-submit">
-            {t('payments.trialRefundSubmit', '환불 처리') as string}
+            {(isCard && !stripeRuns ? t('payments.recordOnlySubmit', '환불로 기록만 하기') : t('payments.trialRefundSubmit', '환불 처리')) as string}
           </ActionButton>
         </>
       )}>
@@ -143,6 +150,9 @@ const TrialRefundModal: React.FC<Props> = ({ target, onClose, onDone, fmtMoney, 
         {trial ? t('payments.trialRefundLead', {
           biz: target.businessName || '', amount: fmtMoney(target.amount, target.currency),
           defaultValue: '{{biz}} 의 {{amount}} 결제를 전액 환불합니다. 처리하면 구독이 체험 상태로 돌아갑니다(체험 종료일은 그대로).',
+        }) as string : !hasRequest ? t('payments.cardRefundLead', {
+          biz: target.businessName || '', amount: fmtMoney(target.amount, target.currency),
+          defaultValue: '{{biz}} 의 {{amount}} 카드 결제를 환불합니다.',
         }) as string : t('payments.requestRefundLead', {
           biz: target.businessName || '', amount: fmtMoney(target.amount, target.currency),
           defaultValue: '{{biz}} 가 {{amount}} 결제의 환불을 요청했습니다. 약관 제4조(월간 7일·연간 14일 이내 전액, 그 뒤 일할)로 확인한 뒤 처리하거나 반려하세요.',
@@ -165,7 +175,7 @@ const TrialRefundModal: React.FC<Props> = ({ target, onClose, onDone, fmtMoney, 
       )}
       <Meta>
         <span>{isCard ? t('payments.method.card', '카드') : t('payments.method.bank_transfer', '계좌이체')}</span>
-        <span>{t('payments.trialRefundRequested', { date: fmtDate(target.requestedAt), defaultValue: '{{date}} 요청' }) as string}</span>
+        {hasRequest && <span>{t('payments.trialRefundRequested', { date: fmtDate(target.requestedAt), defaultValue: '{{date}} 요청' }) as string}</span>}
       </Meta>
       {target.note && <Note>{t('payments.requestReason', { note: target.note, defaultValue: '고객 사유: {{note}}' }) as string}</Note>}
       {declining ? (

@@ -210,8 +210,9 @@
     },
     "taxRequestedBadge": "Tax invoice requested",
     "trialRefundOutside": "I have already refunded this payment in the Stripe dashboard (or with the card company) — just record it here",
-    "confirmRefundCardStripe": "This is a card payment, so the card refund will run through Stripe.",
-    "confirmRefundCardOutside": "This payment has no Stripe payment ID, so no card refund will run — it is only recorded as refunded. Refund it in the Stripe dashboard first."
+    "cardRefundTitle": "Card payment refund",
+    "cardRefundLead": "Refund the {{amount}} card payment from {{biz}}.",
+    "recordOnlySubmit": "Record as refunded only"
   },
   "subs": {
     "title": "Subscriptions",
