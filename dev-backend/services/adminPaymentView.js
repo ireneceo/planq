@@ -71,4 +71,20 @@ function businessInfo(b) {
   };
 }
 
-module.exports = { paymentOrigins, businessInfo };
+// 카드 결제를 Stripe 대시보드에서 직접 환불할 때 여는 주소 — 관리자 처리 창이 «이 결제 열기» 로 쓴다(2026-11-03).
+//   결제 번호(pi_)가 있으면 그 결제, 없으면(옛 행·cs_) 대표 이메일로 검색. 테스트 키면 /test 경로.
+//   어느 Stripe 계정에 로그인했느냐는 주소로 못 고른다 — 처리 창 안내가 «결제를 받은 계정» 을 말한다.
+async function stripeDashboardLinker() {
+  const { PlatformSetting } = require('../models');
+  const row = await PlatformSetting.findOne({ order: [['id', 'ASC']], attributes: ['stripe_publishable_key'] });
+  const base = `https://dashboard.stripe.com${/^pk_test_/.test(row?.stripe_publishable_key || '') ? '/test' : ''}`;
+  return (p, b) => {
+    if (p.method !== 'stripe' && p.method !== 'card') return null;
+    const pi = p.stripe_payment_intent || '';
+    if (/^pi_[A-Za-z0-9]+$/.test(pi)) return `${base}/payments/${pi}`;
+    const email = b?.owner?.email || ownerOf(b)?.email;
+    return email ? `${base}/search?query=${encodeURIComponent(email)}` : `${base}/payments`;
+  };
+}
+
+module.exports = { paymentOrigins, businessInfo, stripeDashboardLinker };

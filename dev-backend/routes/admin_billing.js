@@ -283,6 +283,7 @@ router.get('/payments', async (req, res, next) => {
 
     // 누가·언제 가입·어떻게 생긴 청구인가(사용자 선택 / 체험 종료 전 자동 / 갱신 / 애드온)
     const origins = await paymentOrigins(rows);
+    const dashUrl = await require('../services/adminPaymentView').stripeDashboardLinker();
 
     res.set('X-Total-Count', String(count));
     return successResponse(res, rows.map((p) => ({
@@ -333,6 +334,7 @@ router.get('/payments', async (req, res, next) => {
       refund_kind: p.refund_kind,
       stripe_refund_id: p.stripe_refund_id,
       has_stripe_intent: !!p.stripe_payment_intent,
+      stripe_dashboard_url: dashUrl(p, p.Business),
     })));
   } catch (err) { next(err); }
 });

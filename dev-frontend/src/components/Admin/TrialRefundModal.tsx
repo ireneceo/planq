@@ -32,7 +32,13 @@ export interface TrialRefundTarget {
   cancelsSubscription?: boolean;
   /** 애드온 결제면 돌아가는 한도 수 */
   addonUnits?: number | null;
+  /** 카드 결제 — Stripe 대시보드에서 이 결제를 여는 주소(서버가 만든다, 결제 번호 없으면 대표 이메일 검색) */
+  stripeDashboardUrl?: string | null;
 }
+
+// Stripe 가 환불을 거절한 코드 — 받으면 창이 «Stripe 에서 직접 환불하는 순서» 로 넘어간다(같은 버튼을 다시 눌러도 같은 거절이다)
+const STRIPE_REFUSED = new Set(['stripe_payment_not_found', 'charge_already_refunded', 'more_permissions_required', 'stripe_auth_failed',
+  'stripe_not_configured', 'stripe_error', 'stripe_refund_failed', 'stripe_intent_missing']);
 
 interface Props {
   target: TrialRefundTarget | null;
@@ -115,6 +121,7 @@ const TrialRefundModal: React.FC<Props> = ({ target, onClose, onDone, fmtMoney, 
       if (!j?.success) throw new Error(j?.message || 'failed');
       onDone();
     } catch (e) {
+      if (STRIPE_REFUSED.has((e as Error).message)) { setViaStripe(false); setOutsideDone(false); }
       setError(t(`payments.trialRefundErr.${(e as Error).message}`, {
         defaultValue: t('payments.trialRefundFailed', { code: (e as Error).message, defaultValue: '환불 처리 실패 ({{code}})' }) as string,
       }) as string);
@@ -142,7 +149,7 @@ const TrialRefundModal: React.FC<Props> = ({ target, onClose, onDone, fmtMoney, 
             </ActionButton>
           )}
           <ActionButton tone="danger" size="md" loading={busy} disabled={!canSubmit} onClick={submit} data-testid="admin-trial-refund-submit">
-            {(isCard && !stripeRuns ? t('payments.recordOnlySubmit', '환불로 기록만 하기') : t('payments.trialRefundSubmit', '환불 처리')) as string}
+            {(isCard && !stripeRuns ? t('payments.recordOnlySubmit', 'Stripe 환불 완료') : t('payments.trialRefundSubmit', '환불 처리')) as string}
           </ActionButton>
         </>
       )}>
@@ -198,12 +205,26 @@ const TrialRefundModal: React.FC<Props> = ({ target, onClose, onDone, fmtMoney, 
         ) : (
           <Hint>{t('payments.trialRefundNoIntent', '이 결제에는 Stripe 결제 번호가 없습니다 — 카드사·Stripe 에서 직접 환불한 뒤 처리하세요.') as string}</Hint>
         )}
-        {!stripeRuns && (
+        {!stripeRuns && (<>
+          {/* 플랫폼 관리자가 이 창만 보고 따라 할 수 있게 — 돈은 Stripe 에서 나가고, 여기 버튼은 그 뒤에 누르는 «완료» 기록이다 */}
+          <Guide data-testid="admin-refund-stripe-guide">
+            <b>{t('payments.stripeGuideTitle', 'Stripe 에서 직접 환불하는 순서') as string}</b>
+            <ol>
+              <li>{t('payments.stripeGuide1', '결제를 받은 Stripe 계정으로 로그인합니다 — Stripe 계정을 바꿨다면 옛 계정입니다.') as string}</li>
+              <li>{target.stripeDashboardUrl ? (
+                <a href={target.stripeDashboardUrl} target="_blank" rel="noopener noreferrer" data-testid="admin-refund-stripe-open">
+                  {(/\/payments\/pi_/.test(target.stripeDashboardUrl) ? t('payments.stripeGuideOpen', 'Stripe 에서 이 결제 열기 ↗') : t('payments.stripeGuideSearch', 'Stripe 에서 대표 이메일로 결제 찾기 ↗')) as string}
+                </a>
+              ) : t('payments.stripeGuideFind', 'Stripe 대시보드 «결제» 에서 이 금액·날짜의 결제를 찾습니다.') as string}</li>
+              <li>{t('payments.stripeGuide3', '오른쪽 위 «환불» → 전액 → «환불» 을 누릅니다.') as string}</li>
+              <li>{t('payments.stripeGuide4', '결제 상태가 «환불됨» 또는 «대기 중» 이면 아래를 체크하고 «Stripe 환불 완료» 를 누릅니다. «실패» 면 누르지 마세요.') as string}</li>
+            </ol>
+          </Guide>
           <Check>
             <input type="checkbox" checked={outsideDone} onChange={(e) => setOutsideDone(e.target.checked)} data-testid="admin-trial-refund-outside" />
-            <span>{t('payments.trialRefundOutside', 'Stripe 대시보드(또는 카드사)에서 이 결제를 이미 환불했습니다 — 여기서는 기록만 합니다') as string}</span>
+            <span>{t('payments.trialRefundOutside', 'Stripe 에서 이 결제를 환불했고 상태를 확인했습니다') as string}</span>
           </Check>
-        )}
+        </>)}
       </>) : (
         <>
           <AccountBox data-testid="admin-trial-refund-account">
@@ -238,4 +259,8 @@ const DeclineBox = styled.div`display: flex; flex-direction: column; gap: 6px;
   textarea { padding: 8px 12px; border: 1px solid #E2E8F0; border-radius: 8px; font-size: 0.875rem; font-family: inherit; resize: vertical; }
   textarea:focus { outline: none; border-color: #14B8A6; box-shadow: 0 0 0 3px rgba(20,184,166,0.12); }`;
 const Effect = styled.div`font-size: 0.8125rem; font-weight: 600; color: #BE123C; background: #FFF1F2; border: 1px solid #FECDD3; border-radius: 8px; padding: 8px 10px; line-height: 1.5;`;
+const Guide = styled.div`font-size: 0.8125rem; color: #0F172A; background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px; padding: 10px 12px; line-height: 1.6;
+  ol { margin: 6px 0 0; padding-left: 18px; }
+  li + li { margin-top: 4px; }
+  a { color: #0F766E; font-weight: 600; text-decoration: underline; word-break: break-all; }`;
 const Err = styled.div`font-size: 0.8125rem; color: #DC2626;`;

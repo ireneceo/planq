@@ -79,6 +79,7 @@ interface PaymentRow {
   refund_kind?: 'trial' | 'manual' | null;
   stripe_refund_id?: string | null;
   has_stripe_intent?: boolean;
+  stripe_dashboard_url?: string | null;
 }
 
 interface Summary {
@@ -160,7 +161,7 @@ const AdminPaymentsPage = () => {
       businessName: p.business?.name || null, requestedAt: p.refund_requested_at || null,
       note: p.refund_request_note || null, hasStripeIntent: !!p.has_stripe_intent,
       taxIssued: p.tax_invoice_status === 'issued', trial: !!p.refund_request_trial,
-      cancelsSubscription: !!p.refund_cancels_subscription, addonUnits: p.refund_addon_units ?? null,
+      cancelsSubscription: !!p.refund_cancels_subscription, addonUnits: p.refund_addon_units ?? null, stripeDashboardUrl: p.stripe_dashboard_url ?? null,
     });
   }, [focusId, loading, items]);
 
@@ -219,7 +220,7 @@ const AdminPaymentsPage = () => {
     businessName: p.business?.name || null, requestedAt: p.refund_requested_at || null,
     note: p.refund_request_note || null, hasStripeIntent: !!p.has_stripe_intent,
     taxIssued: p.tax_invoice_status === 'issued', trial: !!p.refund_request_trial,
-    cancelsSubscription: !!p.refund_cancels_subscription, addonUnits: p.refund_addon_units ?? null,
+    cancelsSubscription: !!p.refund_cancels_subscription, addonUnits: p.refund_addon_units ?? null, stripeDashboardUrl: p.stripe_dashboard_url ?? null,
   });
   const handleRefund = async (p: PaymentRow) => {
     setBusyId(p.id); setError(null);
@@ -438,7 +439,7 @@ const AdminPaymentsPage = () => {
                           businessName: p.business?.name || null, requestedAt: p.refund_requested_at || null,
                           note: p.refund_request_note || null, hasStripeIntent: !!p.has_stripe_intent,
                           taxIssued: p.tax_invoice_status === 'issued', trial: !!p.refund_request_trial,
-      cancelsSubscription: !!p.refund_cancels_subscription, addonUnits: p.refund_addon_units ?? null,
+      cancelsSubscription: !!p.refund_cancels_subscription, addonUnits: p.refund_addon_units ?? null, stripeDashboardUrl: p.stripe_dashboard_url ?? null,
                         })}>
                         {p.refund_request_trial ? t('payments.trialRefundOpen', '체험 환불 처리') : t('payments.requestRefundOpen', '환불 요청 처리')}
                       </DangerBtn>
