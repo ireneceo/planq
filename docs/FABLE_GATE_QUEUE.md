@@ -210,6 +210,10 @@
 - 비차단: ① 정리 스크립트가 자체 값 있는 중복을 지울 수 있음 → 8984e9ac 에서 건너뛰게 함 ② createProject `contacts`(이름만 새 연락처)가 client 없는 토큰 줄을 만든다 — 다음 묶음 ③ source-candidates extra limit 300 ④ 상세 sourcePost 에 vlevel 등 칸(비밀 아님).
 
 
+## 2026-11-03 · 카드 환불 «기록만» 막기 (a74d5ef8 · 9ef4e3cb · 방 b534f79f) — 1차 FAIL → 2차 PASS
+- 1차 FAIL: 결제번호 있는 카드·요청 없음 건이 Stripe 거절 시 기록할 길 없음 → 카드 [환불] 을 처리 창으로.
+- 2차 PASS: 서버 23/23 · 실브라우저 16/16. 비차단: portone 확인 없이 기록 · 웹훅 cs_ 옛 행 · idempotency 24h.
+
 ## 2026-11-02 여러 계정 로그인·전환·알림 (커밋 6e4aae61) — **PASS** [Fable 완료 검증]
 - 설계: DESIGN-REVISE 6건 → 반영(docs/MULTI_ACCOUNT_DESIGN.md 7절). 완료 검증: 실HTTP 37/37 재실행 · 브라우저 3폭 48/48 · 적대 시험 27/27(라벨 위조·만료/변조 증명·폐기 쿠키 재사용·409 무회전·payload 스텁) · guard 83/84 · secrets 19/19 · 마이그레이션 멱등·배포 순서.
 - 비차단: ① sw.js 클릭이 앱 숫자를 0 으로 지움(앱이 열리면 합으로 다시 세움) ② qtask_view_mode·taskPopout 탭은 아직 사람 구분 없음(취향 값) ③ 보통 로그인의 앞 계정 푸시 정리는 다음 구독 때(2초 안) ④ scopedStorage 옛 키 물려받기는 공용 PC 다음 사람도 취향 값을 읽음 ⑤ 시험 스크립트 정리 경로(고침) ⑥ 옛 refresh_token 이중 쓰기 걷을 때 다시 게이트.

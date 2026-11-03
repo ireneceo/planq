@@ -169,6 +169,19 @@
 - 고침: 정해진 멱등 백필 `node dev-backend/scripts/migrate-project-client-user.js`(개발 DB) → 1행 연결 · 남은 행 0. health-check **98/98** · 불변식 가드 82/83 통과(게이트 기준 통과).
 - 다시 배포는 상황판 «배포» 버튼.
 
+### ✅ 카드 환불 «우리 쪽은 환불, Stripe 는 안 됨» — 확인 없이 기록만 하던 세 길 막음 (방 b534f79f · 2026-11-03 · [Opus] · Fable 완료 검증 1차 FAIL → 고쳐 2차 PASS) — 운영 반영: 다음 배포 때(백엔드 + 프론트, 스키마 없음)
+- Irene 11-03 «이거 다시 떠서 환불처리 했는데 우리 솔루션에서는 된것처럼 나오고 실제로 환불처리 안되었대. 다시 확인해줘. 한수정 건 환불하게»
+- 원인(코드): 카드 결제가 Stripe 환불 없이 결제 «환불» + 대표 앱 알림 «환불이 처리됐습니다» 까지 나가는 길이 셋 — ① 요청 없는 결제의 [환불] 버튼(Stripe 를 아예 안 부름) ② 처리 창에서 «Stripe 로 카드 환불 실행» 을 끔(확인 없음 — 10-30 내 안내 문구가 «끄고 기록만» 을 권했다) ③ Stripe 결제 번호가 없는 카드 결제(조용히 건너뜀). 한수정 건이 셋 중 어느 길인지는 운영 읽기 막혀 **확인 못 함**.
+- 고침 a74d5ef8: 서버 — 카드 결제는 Stripe 실행(번호 필수, 없으면 409 stripe_intent_missing) 또는 «이미 바깥에서 환불했다» 확인(refunded_outside)이 있어야만 기록(없으면 409 card_refund_not_confirmed), 감사에 refunded_outside · Stripe 환불 status failed/canceled 면 기록 안 함. 화면 — 처리 창 «이미 환불했습니다» 체크 필수 · [환불] 버튼은 번호 있으면 Stripe 실행, 없으면 확인창이 «기록만» 이라고 말함.
+- Fable 1차 FAIL: 번호 있는 카드·요청 없음 건은 Stripe 가 거절(이미 환불·옛 계정 결제)하면 기록할 길이 없었다 → 9ef4e3cb: 카드 결제 [환불] 은 처리 창으로(제목 «카드 결제 환불»·반려 없음) · Stripe 없이 처리 버튼 «환불로 기록만 하기».
+- 검증(dev): 실HTTP 7/7 · 실브라우저 19/19(처리 창 3폭 + 요청 없는 카드 [환불]·계좌이체 대조군) · build EXIT 0·error TS 0 · guard parity·i18n. Fable 2차: 서버 23/23 · 실브라우저 16/16 · PASS.
+- Fable 비차단(안 고침): portone 결제는 확인 없이 기록(옛 동작) · 웹훅이 payment_intent 없으면 cs_… 를 결제번호 칸에 넣는 옛 행(이제는 «이미 환불» 로 기록 가능) · Stripe failed 뒤 같은 키 재시도는 24시간 같은 결과.
+- 한수정 운영 건: PlanQ 기록은 이미 «환불» 이라 바꿀 것 없음 — 돈은 Irene 가 Stripe 대시보드에서(할 일 todomw053pun). 운영 기록 확인은 todomvuoaeh8(읽기 명령, 이 방에 붙여 넣기).
+
+### Irene 할 일
+- Stripe 대시보드에서 한수정 카드 결제 환불하기 (todomw053pun)
+- 한수정 결제 기록 읽기 명령 1줄을 이 방에 붙여 넣기 (todomvuoaeh8)
+
 ### ✅ 카드 환불 «된 것처럼 하다 안 됨» — Stripe 거절 응답 고침 (방 b534f79f · 2026-10-30 · [Opus] · Fable 안 씀 — 오류 응답·안내만, 돈 흐름(먼저 Stripe·실패면 DB 불변) 그대로 · 자체 검증) — 운영 반영: 다음 배포 때(백엔드 + 프론트 문구)
 - Irene «카드결제 스트라이프 바꾸고 환불하기 버튼도 다시 눌렀는데 된 것처럼 하다가 안되었어. 왜 안된거야? 고객에게 안내는 갔어?»
 - 원인(코드·실측): Stripe 거절의 statusCode 를 그대로 응답 → 키가 틀리면 401 → 화면이 «로그인 만료» 로 보고 세션 갱신 후 같은 요청을 한 번 더 보냄 → 또 실패(빙글 돌다 실패). 다른 Stripe 계정에서 받은 결제면 404 resource_missing → «환불 처리 실패 (resource_missing)» 처럼 영문 코드. 어느 경우든 Stripe 호출이 DB 보다 먼저라 결제는 «완료» 그대로.
@@ -176,8 +189,6 @@
 - 고침 b0a63e36: services/refund.stripeRefund 가 Stripe 오류를 409 + 코드(stripe_auth_failed · stripe_payment_not_found · stripe_not_configured · 기존 more_permissions_required 등)로 · ko/en 안내 4개.
 - 검증(dev): 7/7 — 키 없음 HTTP 409 · 실제 Stripe 401(틀린 키) → 409 stripe_auth_failed · 404 → stripe_payment_not_found · 403 코드 유지 · 실패 뒤 결제 paid·환불 id 없음 · 성공 대조군 refunded+re_id · 시험 결제 5563 지움. guard parity 4/4.
 
-### Irene 할 일
-- 운영 환불 기록 읽기 명령 1줄을 이 방에 붙여 넣기 (todomvuoaeh8) — 어떤 Stripe 오류였는지·고객 알림 여부 확정용.
 
 ### ✅ 공유 링크 미리보기 — 파일·폴더·설문 제목 + 이미지 파일은 그 이미지 썸네일 (방 8c0ba8e6 · 2026-10-30 · [Opus] · Fable 완료 검증 1차 FAIL(C1) → 고쳐 2차 PASS) — 운영 반영: 다음 배포 때(백엔드만) + 운영 nginx(Irene 할 일 todomvukca4g)
 - Irene «공유하면 SNS·메신저에서 파일·문서·페이지 제목, 썸네일은 그 이미지 아니면 메인 썸네일이 나와야 하는 거 아니야?» (planq.kr/public/files/…).
