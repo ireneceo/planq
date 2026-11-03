@@ -4,6 +4,13 @@
 
 
 
+### ✅ Q file 삭제 확인창이 미리보기 우측 패널 뒤로 뜸 (방 53879648 · 2026-11-03 · [Opus] · Fable 미검증(자체 검증) — 화면 겹침 순서) — 커밋 f55d5074 · 운영 반영: 다음 배포 때(프론트만)
+- 원인: Q file 가운데 확인창 껍데기 `pages/QProject/docs/dialogStyles` Modal 이 그 자리 z-index 80 → 미리보기 DetailDrawer(130)·그 막(125) 뒤.
+- 고침: StandardModal 과 같은 계약 — body 포털 + 1100 + `--pq-popup-top`. 폰 Dialog 의 머리줄 이중 차감 제거. 쓰는 곳 8개(삭제·대량 삭제·같은 이름·업로드·폴더·이동·폴더 삭제·Drive 가져오기) 함께.
+- 검증: build EXIT 0·TS 0 · 3폭(390·820·1440) 미리보기 열고 [삭제] → 확인창 body 아래·z 1100·네 모서리+[삭제] 버튼 elementFromPoint 모두 확인창 · 가로 넘침 0 · 대조군(z 80 되돌림) 1440 → 네 점 모두 가려짐. popuptop 가드 통과.
+- 가드 전체 실패 2건(god-file PostsPage.styles 805줄 · 높이 28px +1)은 다른 방 미커밋 문서 공유 작업 몫 — 이 커밋과 무관.
+- 시험 데이터 [확인용]: ws6 파일 11405 «[확인용] 삭제확인창_겹침.txt».
+
 ### ✅ PlanQ 프론트 빌드 두 개가 겹쳐 서버가 멈춤 — 빌드 대기 장치 (방 7677629b · 2026-11-03 · [Opus] · Fable 안 씀 — 내부 빌드 도구, 기계로 갈리는 확인) — 운영 반영: 해당 없음(개발 서버 도구)
 - 서버 방 실측: 11-03 07:51 방 710720df · 07:55 방 9f4c20b5 가 `npm run build` 를 겹쳐 돌려 메모리 200MB·스왑 99% → dev 전부 522 → 08:02 재부팅. prebuild 가 운영 배포만 기다리고 서버 공용 게이트를 안 거쳤다.
 - 고침: `scripts/build-gate.sh` 새로 — prebuild 가 ① 운영 배포(deploy-busy) ② 다른 PlanQ 빌드(자리 표시 `logs/frontend-build.owner` = npm 번호, flock 안에서 잡음 — tsc 가 1.5GB 차기 전 틈 막음) ③ `/var/www/scripts/heavy-task-gate.sh build`(SKIP_MEMGATE 무시) 를 30초마다 다시 봄, 최대 30분 → 넘으면 exit 1 빌드 안 함. 배포 빌드(PLANQ_DEPLOY_PIN)는 그대로 건너뜀(배포 스크립트 wait_heavy_gate 가 기다림).
