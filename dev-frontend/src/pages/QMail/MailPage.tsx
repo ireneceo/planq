@@ -1673,11 +1673,20 @@ const MailPage: React.FC = () => {
     const lastInbound = [...detail.messages].reverse().find(m => m.direction === 'inbound');
     return [...toAddrList(lastInbound?.to_emails), ...toAddrList(lastInbound?.cc_emails)].map((x) => x.toLowerCase());
   }, [detail]);
+  //   ★ 2026-11-03 (Irene: *"보낸 사람 이메일이 왜 우리 보내는 주소로 … 말이 이상하잖아"*) — 우리 주소가 To·Cc 어디에도
+  //     없으면(= 숨은참조로 받은 메일) To 첫 주소는 **보낸 고객 본인·그 회사 동료**일 수 있다. 그 주소를 «받은 주소» 로 삼으면
+  //     고객 주소를 우리 보내는 주소로 추가하라고 권한다. 대체 후보에서 보낸 사람과 같은 도메인 주소는 뺀다(없으면 '' = 안내 없음,
+  //     서버 규칙대로 기본 주소에서 발송).
   const receivedAt = useMemo(() => {
     const acct = String(detail?.account?.email || '').toLowerCase();
     const own = receivedList.find((x) => x === acct || aliases.some((a) => a.email.toLowerCase() === x));
-    return own || receivedList[0] || '';
-  }, [receivedList, detail?.account?.email, aliases]);
+    if (own) return own;
+    const lastInbound = detail ? [...detail.messages].reverse().find(m => m.direction === 'inbound') : undefined;
+    const sender = String(lastInbound?.from_email || '').toLowerCase();
+    const domainOf = (e: string) => e.split('@')[1] || '';
+    const senderDomain = domainOf(sender);
+    return receivedList.find((x) => x !== sender && (!senderDomain || domainOf(x) !== senderDomain)) || '';
+  }, [receivedList, detail, aliases]);
   // 받은 주소가 계정 주소도, 등록된 별칭도 아니면 → 한 번에 등록해서 그 주소로 보낼 수 있게
   const unknownReceived = !!receivedAt
     && receivedAt !== String(detail?.account?.email || '').toLowerCase()
@@ -3065,7 +3074,7 @@ const MailPage: React.FC = () => {
                           />
                         </FromSelect>
                         {receivedAt && receivedAt !== String(detail?.account?.email || '').toLowerCase() && !unknownReceived && (
-                          <HelpDot>{t('reply.aliasHelp', { defaultValue: '이 고객은 {{addr}} 주소로 메일을 보냈습니다. 답장도 그 주소에서 발송됩니다.', addr: receivedAt }) as string}</HelpDot>
+                          <HelpDot>{t('reply.aliasHelp', { defaultValue: '고객이 {{addr}} 로 보낸 메일이라 답장도 이 주소에서 나가요.', addr: receivedAt }) as string}</HelpDot>
                         )}
                         {unknownReceived ? (!recvGuard.willMiss && recvGuard.notice) : aliases.length === 0 ? (
                           <FromManage type="button" onClick={() => navigate('/business/settings/mail-accounts')}>

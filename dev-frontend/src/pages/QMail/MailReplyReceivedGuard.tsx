@@ -64,10 +64,10 @@ export function useReceivedAddressGuard(o: Opts) {
       });
       const j = await r.json().catch(() => ({}));
       if (j?.success && j.data?.id) { o.onAdded(j.data); return Number(j.data.id); }
-      setError(t('reply.receivedGuard.registerFailed', { defaultValue: '보내는 주소로 등록하지 못했어요. 설정 > 메일 계정에서 추가해 주세요.' }) as string);
+      setError(t('reply.receivedGuard.registerFailed', { defaultValue: '보내는 주소에 추가하지 못했어요. 설정 > 메일 계정에서 추가해 주세요.' }) as string);
       return null;
     } catch {
-      setError(t('reply.receivedGuard.registerFailed', { defaultValue: '보내는 주소로 등록하지 못했어요. 설정 > 메일 계정에서 추가해 주세요.' }) as string);
+      setError(t('reply.receivedGuard.registerFailed', { defaultValue: '보내는 주소에 추가하지 못했어요. 설정 > 메일 계정에서 추가해 주세요.' }) as string);
       return null;
     } finally { setBusy(false); }
   }, [o, receivedName, t]);
@@ -93,17 +93,17 @@ export function useReceivedAddressGuard(o: Opts) {
   const notice = o.unknownReceived ? (
     willMiss ? (
       <MissRow role="status" data-testid="mail-reply-received-miss">
-        <span>{t('reply.receivedGuard.miss', { defaultValue: '{{addr}} 로 받은 메일인데, 지금은 {{from}} 주소로 나갑니다.', ...vars }) as string}</span>
+        <span>{t('reply.receivedGuard.miss', { defaultValue: '{{addr}} 로 온 메일인데, 답장은 {{from}} 에서 나가요.', ...vars }) as string}</span>
         <MissButton type="button" disabled={busy} onClick={() => { void register(); }} data-testid="mail-reply-received-register">
-          {t('reply.useReceived', { defaultValue: '{{addr}} 로 보내기 (등록)', addr: o.receivedAt }) as string}
+          {t('reply.useReceived', { defaultValue: '보내는 주소에 {{addr}} 추가', addr: o.receivedAt }) as string}
         </MissButton>
         {error && <MissError role="alert">{error}</MissError>}
       </MissRow>
     ) : (
       <>
-        <HelpDot>{t('reply.aliasHelpUnregistered', { defaultValue: '이 고객은 {{addr}} 주소로 메일을 보냈습니다. 이 주소를 별칭으로 등록하면 답장도 그 주소에서 발송됩니다.', addr: o.receivedAt }) as string}</HelpDot>
+        <HelpDot>{t('reply.aliasHelpUnregistered', { defaultValue: '고객이 {{addr}} 로 보낸 메일이에요. 이 주소를 보내는 주소에 추가하면 답장도 이 주소에서 나가요.', addr: o.receivedAt }) as string}</HelpDot>
         <FromManage type="button" disabled={busy} onClick={() => { void register(); }}>
-          {t('reply.useReceived', { defaultValue: '{{addr}} 로 보내기 (등록)', addr: o.receivedAt }) as string}
+          {t('reply.useReceived', { defaultValue: '보내는 주소에 {{addr}} 추가', addr: o.receivedAt }) as string}
         </FromManage>
       </>
     )
@@ -115,10 +115,10 @@ export function useReceivedAddressGuard(o: Opts) {
       onClose={closeAsk}
       onConfirm={() => { void registerAndSend(); }}
       variant="info"
-      title={t('reply.receivedGuard.askTitle', { defaultValue: '받은 주소로 보낼까요?' }) as string}
-      message={t('reply.receivedGuard.askMessage', { defaultValue: '이 메일은 {{addr}} 로 받았습니다. 이대로 보내면 {{from}} 주소로 나갑니다. {{addr}} 를 이 메일함의 보내는 주소로 등록하고 그 주소로 보낼까요? (Gmail 등은 그 서비스 설정에서도 이 주소를 «보내는 주소»로 허용해 두어야 합니다.)', ...vars }) as string}
-      confirmText={t('reply.receivedGuard.askRegister', { defaultValue: '등록하고 {{addr}} 로 보내기', ...vars }) as string}
-      secondaryText={t('reply.receivedGuard.askAnyway', { defaultValue: '{{from}} 로 그대로 보내기', ...vars }) as string}
+      title={t('reply.receivedGuard.askTitle', { defaultValue: '받은 주소에서 답장할까요?' }) as string}
+      message={t('reply.receivedGuard.askMessage', { defaultValue: '고객이 {{addr}} 로 보낸 메일인데, 이 메일 계정의 보내는 주소에는 {{addr}} 가 없어요. 지금 보내면 {{from}} 에서 나갑니다.', ...vars }) as string}
+      confirmText={t('reply.receivedGuard.askRegister', { defaultValue: '보내는 주소에 추가하고 {{addr}} 에서 보내기', ...vars }) as string}
+      secondaryText={t('reply.receivedGuard.askAnyway', { defaultValue: '{{from}} 에서 보내기', ...vars }) as string}
       onSecondary={sendAnyway}
       cancelText={t('reply.cancel', { defaultValue: '취소' }) as string}
     />

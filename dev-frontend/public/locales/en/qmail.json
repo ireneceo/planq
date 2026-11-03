@@ -289,16 +289,16 @@
     "aiInstructionLabel": "AI request",
     "from": "From",
     "addAlias": "Add send-as address",
-    "useReceived": "Send from {{addr}} (register)",
+    "useReceived": "Add {{addr}} as a sending address",
     "dismissHint": "No reply required. It moves to Needs review.",
     "aiInstructionRequired": "You already have a draft. Tell AI how to revise it in the AI request box above.",
-    "aliasHelp": "This customer wrote to {{addr}}. Your reply will also be sent from that address.",
+    "aliasHelp": "The customer wrote to {{addr}}, so your reply goes out from that address too.",
     "aiEchoed": "The draft only repeated the email you received. Tell AI what you want to say in the AI request box above.",
     "keepNeeded": "Keep in “Needs reply” after sending (holding reply)",
     "aiWorking": "AI is drafting your reply…",
     "aiSlow": "AI is still writing. This can take a little longer — you can also just write it yourself.",
     "aiEmpty": "AI could not produce a draft this time. Try again, or tell it what you want in the AI request box above.",
-    "aliasHelpUnregistered": "This customer wrote to {{addr}}. Register it as an alias and your reply will be sent from that address too.",
+    "aliasHelpUnregistered": "The customer wrote to {{addr}}. Add it as a sending address and your reply will go out from it too.",
     "aiFailed": "Couldn't generate an AI suggestion",
     "aiNoInbound": "There's no received email to reply to.",
     "aiUnavailable": "The AI service is temporarily unavailable.",
@@ -308,12 +308,12 @@
     "aiRefine": "Refine with AI",
     "focusTitle": "Reply — {{subject}}",
     "receivedGuard": {
-      "miss": "This email was received at {{addr}}, but your reply will currently go out from {{from}}.",
-      "registerFailed": "Couldn't add it as a send-as address. Please add it in Settings > Mail accounts.",
+      "miss": "Sent to {{addr}}, but your reply will go out from {{from}}.",
+      "registerFailed": "Couldn't add it as a sending address. Please add it in Settings > Mail accounts.",
       "askTitle": "Reply from the address it was sent to?",
-      "askMessage": "This email was received at {{addr}}. If you send now, it goes out from {{from}}. Add {{addr}} as a send-as address for this mailbox and send from it? (With Gmail and similar services, the address must also be allowed as a “Send mail as” address in that service's settings.)",
-      "askRegister": "Add and send from {{addr}}",
-      "askAnyway": "Send from {{from}} anyway"
+      "askMessage": "The customer wrote to {{addr}}, but {{addr}} isn't a sending address of this mail account. If you send now, it goes out from {{from}}.",
+      "askRegister": "Add it and send from {{addr}}",
+      "askAnyway": "Send from {{from}}"
     }
   },
   "errors": {
