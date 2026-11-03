@@ -394,22 +394,37 @@ router.get('/health/imagegate', async (req, res, next) => {
 });
 
 // ─── 실시간 방송 대리 (#439) ───
-// POST /api/internal/broadcast  { emits: [{ room, event, payload }] }
+// POST /api/internal/broadcast  { emits: [{ rooms: [..], except?: [..], event, payload }] }  (옛 모양 { room } 도 받는다)
 //   socket.io 가 없는 같은 서버의 다른 프로세스(MCP :3005 — AI 에이전트 도구)가 행동 계층의 방송을 여기로 넘긴다
 //   (services/remoteIo.js). 인증은 파일 상단 requireInternalKey(루프백 + 키).
+//   ★ except 를 꼭 실어 그대로 적용한다(2026-11-03) — 숨은 프로젝트 방송은 «볼 수 있는 사람 방엔 행, 나머지엔 신호만» 이라
+//     except 를 빼면 볼 수 없는 사람에게 행이 간다. 방 배열은 한 번의 emit 으로(소켓 중복 수신 없음).
 // ★ 방 이름은 우리가 쓰는 모양만 받는다 — 키가 있는 같은 서버 프로세스라도 임의 방(전체 방송 등)으로 쏘지 못하게.
 //   이벤트 이름도 형식만 본다(`task:new`·`inbox:refresh` …). 한 번에 50건까지.
-const BROADCAST_ROOM = /^(business|project|user|conv|task):\d+$/;
-const BROADCAST_EVENT = /^[a-z_]+:[a-z_:]+$/;
+const BROADCAST_ROOM = /^(business|project|user|conv|task):\d+(:client|:staff)?$/;
+const BROADCAST_EVENT = /^[a-z_]+:[a-z_:-]+$/;
+// 500개를 넘으면 자르지 않고 null(= 그 줄 버림) — except 를 자르면 잘린 뒤 사람에게 넓은 쪽 줄이 간다(Fable 2026-11-03 비차단 2).
+const roomList = (v) => { const a = Array.isArray(v) ? v : (typeof v === 'string' ? [v] : []); return a.length > 500 ? null : a; };
 // audit-exempt: 실시간 신호 중계 — 데이터를 바꾸지 않는다(변경 자체의 감사는 보낸 쪽 행동 계층이 남겼다)
 router.post('/broadcast', (req, res) => {
   const emits = Array.isArray(req.body && req.body.emits) ? req.body.emits.slice(0, 50) : [];
   const io = req.app.get('io');
   let sent = 0;
   for (const e of emits) {
-    if (!e || typeof e.room !== 'string' || typeof e.event !== 'string') continue;
-    if (!BROADCAST_ROOM.test(e.room) || !BROADCAST_EVENT.test(e.event) || e.event.length > 60) continue;
-    if (io) { io.to(e.room).emit(e.event, e.payload === undefined ? null : e.payload); sent += 1; }
+    if (!e || typeof e.event !== 'string') continue;
+    if (!BROADCAST_EVENT.test(e.event) || e.event.length > 60) continue;
+    const rooms = roomList(e.rooms ?? e.room);
+    const except = roomList(e.except);
+    // 하나라도 모양이 틀리면 그 줄 전체를 버린다 — 일부만 걸러 보내면 except 가 빠져 넓게 샌다.
+    if (!rooms || !except) { console.warn('[internal/broadcast] room list over 500 — dropped', e.event); continue; }
+    if (!rooms.length || !rooms.every((r) => typeof r === 'string' && BROADCAST_ROOM.test(r))) continue;
+    if (!except.every((r) => typeof r === 'string' && BROADCAST_ROOM.test(r))) continue;
+    if (io) {
+      let target = io.to(rooms);
+      if (except.length) target = target.except(except);
+      target.emit(e.event, e.payload === undefined ? null : e.payload);
+      sent += 1;
+    }
   }
   return successResponse(res, { sent });
 });

@@ -850,12 +850,14 @@ const QTaskPage:React.FC=()=>{
     });
     // N+93 — 프로젝트명 변경 실시간 반영 (#11). project:updated 수신 시 전체 reload (프로젝트명 갱신).
     const offProj = onSocket('project:updated', () => { load(); });
+    // 새 프로젝트(다른 사람·AI 앱)도 프로젝트 필터·묶음에 바로 나오게 — 같은 다시 읽기(2026-11-03).
+    const offProjNew = onSocket('project:new', () => { load(); });
     // #250 — 태그 사전 변경(이름/색/삭제)은 전 업무의 칩 표기에 전파된다. 사전만 다시 읽는다.
     //   업무 자체의 태그 지정 변경은 `task:updated`(payload.tags) 가 위 merge 로 처리한다.
     const offTag = onSocket('task_tag:updated', () => { loadTagDict(); });
     return () => {
       leaveRoom(`business:${bizId}`);
-      offNew(); offUpd(); offDel(); offProj(); offTag();
+      offNew(); offUpd(); offDel(); offProj(); offProjNew(); offTag();
     };
   }, [bizId, user?.id]);   // eslint-disable-line react-hooks/exhaustive-deps
 

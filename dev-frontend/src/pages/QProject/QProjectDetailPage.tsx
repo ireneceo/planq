@@ -582,13 +582,17 @@ const QProjectDetailPage: React.FC = () => {
     const offProjClientUpd = onSocket('project_client:updated', debouncedReload);
     // 역할 이름 변경·삭제는 이 프로젝트 멤버 역할 글자도 바꾼다(services/memberRoles) — 다시 읽는다.
     const offRoleUpd = onSocket('member_role:updated', debouncedReload);
+    // 이 프로젝트의 이름·기간·상태가 다른 곳(다른 사람·AI 앱·종료)에서 바뀌면 다시 읽는다 — 다른 프로젝트 신호는 거른다.
+    const offProjUpd = onSocket('project:updated', (d: { id?: number }) => {
+      if (d?.id == null || Number(d.id) === Number(projectId)) debouncedReload();
+    });
     return () => {
       if (pending) window.clearTimeout(pending);
       leaveRoom(`business:${Number(projectBizId)}`);
       leaveRoom(`project:${Number(projectId)}`);
       offTaskNew(); offTaskUpd(); offTaskDel();
       offNoteNew(); offIssueNew();
-      offClientUpd(); offProjClientUpd(); offRoleUpd();
+      offClientUpd(); offProjClientUpd(); offRoleUpd(); offProjUpd();
     };
   }, [projectBizId, projectId, load]);
 

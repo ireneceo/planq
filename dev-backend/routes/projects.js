@@ -1105,6 +1105,14 @@ router.delete('/:id', authenticateToken, async (req, res, next) => {
         { where: { business_id: project.business_id, project_id: project.id, status: 'active' } },
     );
     require('../services/auditService').logAudit(req, { action: 'project.delete', targetType: 'project', targetId: project.id, businessId: project.business_id, oldValue: { status: project.status, name: project.name }, newValue: { status: 'closed' } }); // 감사 — 프로젝트 종료(보관)
+    // §16 — 종료도 열린 화면에 알린다(2026-11-03: 목록·Q talk 가 새로고침 전까지 종료된 프로젝트를 그대로 보였다). 신호만.
+    try {
+      const io = req.app.get('io');
+      if (io) {
+        require('../services/projectRoom').emitBusinessForProject(io, project.business_id, project.id, 'project:updated', { id: project.id, business_id: project.business_id, status: 'closed' }).catch(() => {});
+        io.to(`business:${project.business_id}`).emit('conversation:updated', { project_id: project.id, business_id: project.business_id });
+      }
+    } catch (e) { console.warn('[projects] close broadcast failed', e.message); }
     return successResponse(res, { id: project.id, status: 'closed' });
   } catch (err) { next(err); }
 });

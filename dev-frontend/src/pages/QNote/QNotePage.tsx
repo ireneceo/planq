@@ -93,6 +93,9 @@ import { PanelBackButton, PanelHeaderBar, DetailMetaBar } from '../../components
 import { isEnterAction } from '../../utils/imeKey';
 import { formatDayTime } from '../../utils/dateFormat';
 import { orderProjectsForMe } from '../../utils/projectOrder';
+import { useLiveReload } from '../../hooks/useLiveReload';
+
+const QNOTE_EVENTS = ['qnote:changed'] as const;
 
 /**
  * Q Note 페이지
@@ -747,6 +750,8 @@ const QNotePage = ({ scope, onRecordingChange }: QNotePageProps = {}) => {
       window.removeEventListener('qnote-session-updated', onSync);
     };
   }, [loadSessions]);
+  // 다른 기기·AI 앱(create_memo)이 만든 메모 — 서버가 내 개인 방에 qnote:changed 를 보낸다(2026-11-03).
+  useLiveReload(businessId, QNOTE_EVENTS, loadSessions);
 
   // URL 파라미터로 세션 자동 열기 (/notes/:sessionId)
   // handleStartMeeting 이 직접 navigate 했을 때는 openReview 를 다시 부르면 안 됨

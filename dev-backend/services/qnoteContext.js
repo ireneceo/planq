@@ -110,7 +110,14 @@ async function createMemo({ businessId, userId, title, bodyJson, projectId = nul
     if (r.status === 400 || r.status === 422) return { status: 'invalid', reason: 'invalid_input' };
     if (!r.ok) return { status: 'unavailable' };
     const j = await r.json();
-    return j?.data ? { status: 'ok', memo: j.data } : { status: 'unavailable' };
+    if (!j?.data) return { status: 'unavailable' };
+    // 열어 둔 Q note 목록에 알린다(2026-11-03) — q-note(FastAPI)는 소켓이 없어 AI 앱이 만든 메모가 새로고침 전까지 안 보였다.
+    //   메모는 나만 보기(L1)라 만든 사람 개인 방에만, 신호만 싣는다. MCP 프로세스에서는 remoteIo 가 메인으로 넘긴다.
+    try {
+      const io = global.__planqIo;
+      if (io) io.to(`user:${userId}`).emit('qnote:changed', { id: j.data.id, business_id: businessId });
+    } catch { /* 신호는 부가 효과 */ }
+    return { status: 'ok', memo: j.data };
   } catch { return { status: 'unavailable' }; }
   finally { clearTimeout(timer); }
 }

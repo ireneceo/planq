@@ -45,6 +45,9 @@ import { useWallNow } from './pastLook';
 import { useUrlDetailParams } from './useUrlDetailParams';
 import { useCalendarLayers, layerOf, layersParam, CalendarLayerToggle, GoogleCalendarGroup, FilterLine, useGoogleCalendarVisibility, type PersonalCalSource } from './calendarLayers';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
+import { useLiveReload } from '../../hooks/useLiveReload';
+
+const CAL_PROJECT_EVENTS = ['project:new', 'project:updated'] as const;
 
 interface ProjectOption { id: number; name: string; color?: string | null }
 
@@ -277,12 +280,15 @@ const QCalendarPage: React.FC<{ scope?: { type: 'project'; businessId: number; p
   }, [bizId, fetchRange]);
 
   // 프로젝트 목록 (모달 드롭다운 + 색 상속용)
-  useEffect(() => {
+  const loadProjects = useCallback(() => {
     if (!bizId) return;
     listProjects(bizId).then((rows) => {
       setProjects(rows.map((p) => ({ id: Number(p.id), name: p.name, color: p.color })));
     }).catch(() => { /* silent — 프로젝트 연결은 선택 */ });
   }, [bizId]);
+  useEffect(() => { loadProjects(); }, [loadProjects]);
+  // 새 프로젝트·이름/색 변경(다른 사람·AI 앱)도 드롭다운·색 상속에 바로 반영(2026-11-03).
+  useLiveReload(bizId, CAL_PROJECT_EVENTS, loadProjects);
 
   // Q Task 업무 가져와 이벤트로 변환
   useEffect(() => {

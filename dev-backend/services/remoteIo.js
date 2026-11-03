@@ -33,23 +33,31 @@ function flush() {
   } catch (e) { console.warn('[remoteIo]', e.message); }
 }
 
-function push(rooms, event, payload) {
-  for (const room of rooms) queue.push({ room, event, payload: payload === undefined ? null : payload });
+function push(rooms, event, payload, except = []) {
+  // 한 번의 emit = 한 줄(rooms 배열) — 방마다 나눠 보내면 두 방에 다 든 소켓이 두 번 받는다(socket.io 는 한 emit 안에서 중복을 거른다).
+  queue.push({ rooms, except, event, payload: payload === undefined ? null : payload });
   if (!timer) timer = setImmediate(flush);
 }
 
-// io.to(a).to(b).emit(e, p) 모양만 흉내 낸다 — 행동 계층이 쓰는 것이 이것뿐이다.
-function chain(rooms) {
+// io.to(a).to([b, c]).except([d]).emit(e, p) 모양을 흉내 낸다.
+// ★ 2026-11-03 — 옛 대리자는 `to(방 하나)` 만 흉내 냈다. 숨은 프로젝트(기본값 «참여 멤버만»)·L1/L2 업무 방송은
+//   projectRoom.emitBusinessForProject · taskRoom.emitTask 가 `to([방 배열])` + `.except(방들)` 를 쓰는데,
+//   여기엔 except 가 없어 TypeError → 호출부 `.catch(() => {})` 가 삼켰다. ChatGPT 가 프로젝트 안 업무를 만들고 고쳐도
+//   열린 화면엔 신호가 0 이었다(Irene «챗gpt나 다른 경로를 통해 뭔가 바꾸면 바로 바로 적용이 안돼»).
+const flat = (r) => (Array.isArray(r) ? r : [r]).filter((x) => typeof x === 'string');
+function chain(rooms, except) {
   return {
-    to(room) { return chain([...rooms, room]); },
-    in(room) { return chain([...rooms, room]); },
-    emit(event, payload) { push(rooms, event, payload); return true; },
+    to(room) { return chain([...rooms, ...flat(room)], except); },
+    in(room) { return chain([...rooms, ...flat(room)], except); },
+    except(room) { return chain(rooms, [...except, ...flat(room)]); },
+    emit(event, payload) { if (rooms.length) push(rooms, event, payload, except); return true; },
   };
 }
 
 const remoteIo = {
-  to(room) { return chain([room]); },
-  in(room) { return chain([room]); },
+  to(room) { return chain(flat(room), []); },
+  in(room) { return chain(flat(room), []); },
+  except(room) { return chain([], flat(room)); },
 };
 
 module.exports = { remoteIo };

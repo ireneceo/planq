@@ -536,6 +536,8 @@ const QTalkPage: React.FC<QTalkPageProps> = ({ embedded = false, initialConvId =
       renameTimer = window.setTimeout(() => { void silentReloadRef.current(); }, 250);   // 연속 신호 합치기
     };
     on('project:updated', reloadSoon);
+    // 새 프로젝트(다른 사람·AI 앱)도 좌측 프로젝트 목록에 바로(2026-11-03 — 여태 project:new 는 아무 화면도 안 들었다).
+    on('project:new', reloadSoon);
     on('conversation:updated', reloadSoon);
     // 참여자 추가·제거 신호 — 목록(추가된 본인)과 열려 있는 채팅의 @ 후보(ChatPanel)를 다시 읽힌다.
     on('conversation:participants', (d: { conversation_id: number }) => {
