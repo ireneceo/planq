@@ -113,6 +113,28 @@ async function voiceKeyterms(businessId) {
   return [...out].slice(0, 50);
 }
 
+// ── 제목에 남은 «업무 추가해» 류 명령 말 걷어내기 — 프롬프트만 믿지 않는다(모델이 가끔 그대로 둔다).
+//   업무·할 일을 가리키는 말 + 추가·등록·넣어 + «해·줘» 로 시키는 꼴만 지운다(«상품 추가» 같은 업무 내용은 건드리지 않는다).
+const FILLER_RE = /^(?:(?:어+|음+|그+|저기?|뭐|아+|자)[\s,.…]+)+/;
+const LEAD_CMD_RE = /^(?:(?:새\s*)?(?:업무|할\s*일|일|태스크|작업)\s*(?:하나\s*)?(?:로|를|에|좀)?\s*(?:하나\s*)?(?:추가|등록|넣어|만들어|생성)\s*(?:해\s*(?:줘|주세요|줄래)?|하자|줘|주세요)[\s,.!:~]*)+/;
+const TAIL_CMD_RE = /[\s,.]*(?:(?:거|것)\s*)?(?:(?:업무|할\s*일|태스크|작업)\s*(?:로|를|에|좀)?\s*(?:하나\s*)?(?:추가|등록|넣어|만들어|생성)\s*(?:해\s*(?:줘|주세요|줄래)?|하자|줘|주세요)|(?:추가|등록|넣어)\s*(?:해\s*(?:줘|주세요)|줘|주세요))[\s.!~]*$/;
+function cleanVoiceTitle(title) {
+  const orig = String(title || '').trim();
+  let t = orig;
+  for (let i = 0; i < 2; i += 1) t = t.replace(FILLER_RE, '').replace(LEAD_CMD_RE, '').replace(FILLER_RE, '');
+  t = t.replace(TAIL_CMD_RE, '').replace(/\s*(?:하는|할)\s*$/, '').trim();
+  return t.length >= 2 ? t : orig;
+}
+function cleanCallTitle(tc) {
+  if (tc?.function?.name !== 'create_task') return tc;
+  let args;
+  try { args = JSON.parse(tc.function.arguments || '{}'); } catch { return tc; }
+  if (!args.title) return tc;
+  const title = cleanVoiceTitle(args.title);
+  if (title === args.title) return tc;
+  return { ...tc, function: { ...tc.function, arguments: JSON.stringify({ ...args, title }) } };
+}
+
 // ── Cue 와 같은 제안 — 만들 것이면 Cue 툴 하나를 고르게 하고, 아니면(메모·메일 답장) JSON 으로 종류만.
 //   한 번의 LLM 호출로 끝낸다(memory feedback_ai_minimal_usage). 모델도 Cue 와 같은 kb_answer.
 async function proposeLikeCue(text, businessId, userId = null, platformRole = null) {
@@ -120,6 +142,7 @@ async function proposeLikeCue(text, businessId, userId = null, platformRole = nu
   const system = `너는 PlanQ 의 Cue 다. 사용자가 말로 한 요청을 받아쓴 문장을 읽고 무엇을 만들지 제안한다. 실행은 사람이 확인한 뒤에 한다.
 - 할 일·요청이면 create_task, 시각이 있는 약속·회의면 create_event, 회의록·제안서 같은 문서면 create_document 툴을(content 는 빈 문자열) **하나만** 호출한다.
   단 할 일을 **여러 개** 말했으면 말한 항목마다 create_task 를 하나씩 전부 부른다(합치거나 빼지 않는다 — 화면이 한 목록으로 묶는다).
+  같은 일을 말을 바꿔 **다시 말한 것**(«앞치마 … 그리고 업무의 상품 추가, 앞치마»)은 여러 개가 아니다 — 하나로 만든다.
 - 받아쓴 문장이라 이름이 조금 틀렸을 수 있다 — [멤버] 목록에서 발음이 가장 가까운 이름으로 맞춘다. 확신이 없으면 assignee_name 을 비운다.
 - "누구에게 ~해 달라고 요청해줘 / 시켜줘 / 부탁해줘" 는 **업무**다(create_task, 그 사람이 담당). 메일이 아니다.
   그 이름이 [멤버] 목록에 없어도 **업무다** — assignee_name 만 비우고 create_task 를 호출한다(메모로 바꾸지 않는다).
@@ -130,8 +153,10 @@ async function proposeLikeCue(text, businessId, userId = null, platformRole = nu
 - 받아쓴 말을 **그대로 제목에 넣지 않는다.** title 은 무엇을 하는지 짧은 한 줄(30자 안팎, «~하기/~추가» 같은 명사형)로 뽑는다.
   말버릇·감탄사(어, 음, 뭐, 그러니까)·같은 말 반복·«해줘/넣어줘/되네» 같은 꼬리는 뺀다.
 - 제목에 다 담기지 않는 **말한 세부**(품목·수량·조건·이유·참고)는 description(메모·메일은 detail)에 짧은 문장으로 정리해 넣는다.
-  예) «업무에 상품 추가 넣어줘. 어 뭐 넣어주냐면 앞치마 그리고 업무의 상품 추가, 앞치마. 음 그러면 되네»
-      → title «상품 추가 — 앞치마», description «추가할 상품: 앞치마»
+- «업무 추가해 / 할 일 넣어줘 / 업무로 등록해» 는 **무엇을 만들지 고르는 말**이다 — 제목·설명에 넣지 않는다. 그 뒤(또는 앞)에 말한 것이 업무 내용이다.
+  말한 단어를 바꾸거나 없는 말을 지어내지 않는다(«앞치마» 만 말했으면 제목은 «앞치마» 다).
+  예) «업무 추가해 앞치마 샘플 주문» → title «앞치마 샘플 주문»
+  예) «음 할 일 넣어줘 다음 주까지 로고 시안 세 개, 색은 파란 계열로» → title «로고 시안 세 개 만들기», description «색은 파란 계열», due_date 다음 주
 
 ${ctx}`;
   const r = await callLLM({
@@ -146,7 +171,8 @@ ${ctx}`;
   });
   const tokens = { input_tokens: r.input_tokens || 0, output_tokens: r.output_tokens || 0 };
   if (r.fallback) return { failed: true, ...tokens };
-  const calls = (Array.isArray(r.tool_calls) ? r.tool_calls : []).filter((tc) => VOICE_TOOLS.has(tc?.function?.name));
+  const calls = (Array.isArray(r.tool_calls) ? r.tool_calls : []).filter((tc) => VOICE_TOOLS.has(tc?.function?.name))
+    .map(cleanCallTitle);
   if (calls.length) {
     const proposed = await cueTools.buildProposedAction(businessId, calls, userId, platformRole);
     if (proposed) return { proposed_action: proposed, ...tokens };
@@ -239,7 +265,7 @@ async function classifyIntent(text, opts = {}) {
     const kind = ['task', 'event', 'memo', 'mail'].includes(j.kind) ? j.kind : 'memo';
     return {
       kind,
-      title: String(j.title || text).slice(0, 200),
+      title: cleanVoiceTitle(j.title || text).slice(0, 200),
       detail: String(j.detail || '').slice(0, 1000),
       assignee_name: j.assignee_name ? String(j.assignee_name).slice(0, 50) : null,
       when: j.when ? String(j.when).slice(0, 60) : null,
@@ -357,3 +383,4 @@ module.exports.sanitizeWhenStart = sanitizeWhenStart;
 module.exports.resolveAssignee = resolveAssignee;
 module.exports.proposeLikeCue = proposeLikeCue;
 module.exports.voiceKeyterms = voiceKeyterms;
+module.exports.cleanVoiceTitle = cleanVoiceTitle;
