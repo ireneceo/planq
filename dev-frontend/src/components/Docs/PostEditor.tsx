@@ -37,6 +37,7 @@ import EditorInsertDocButton from './EditorInsertDocButton';   // 다른 문서 
 import { toolbarScrollCss, useToolbarHScroll, ToolbarEdgeArrow } from '../Common/editorToolbarScroll';   // 글자색·배경·크기(2026-10-11 — 문서 안 표 포함)
 import { textStyleExtensions, currentTextStyleKeys, applyTextStyle, stripForeignTextStyle } from './editorTextStyle';
 import { clipboardPlainText } from '../../utils/clipboardPlainText';
+import { prepPastedHtml, htmlCarriesContent, hasDataImage, uploadDataImages } from '../../utils/pasteRich';   // 글+그림+영상 한꺼번에 붙이기(2026-11-04)
 
 // 사이클 N+16 — 노션 스타일 코드 블록. lowlight + common 언어팩 (30개+: js/ts/python/go/rust/sql/bash 등).
 const lowlight = createLowlight(common);
@@ -140,7 +141,8 @@ const PostEditor: React.FC<Props> = ({ value, onChange, onReady, placeholder, ed
     onCreate: ({ editor }) => onReadyRef.current?.(editor.getJSON()),
     onUpdate: ({ editor }) => onChange(editor.getJSON()),
     editorProps: {
-      transformPastedHTML: stripForeignTextStyle,   // 바깥 글의 색·크기는 걷는다(우리 문서끼리 복사는 유지)
+      // 바깥 글의 색·크기는 걷는다(우리 문서끼리 복사는 유지) · 지연 로딩 그림·영상 링크는 pasteRich 가 다듬는다
+      transformPastedHTML: (html) => stripForeignTextStyle(prepPastedHtml(html)),
       clipboardTextSerializer: clipboardPlainText,   // 평문 복사 = 화면 줄 그대로(줄마다 빈 줄 끼지 않게)
       handlePaste: (view, event) => {
         // ★ #337 — 엑셀·구글시트·웹 표를 복사하면 클립보드에 **표(text/html)와 그림(image/png)이 같이** 담긴다.
@@ -161,23 +163,21 @@ const PostEditor: React.FC<Props> = ({ value, onChange, onReady, placeholder, ed
 
         const pastedHtml = event.clipboardData?.getData('text/html') || '';
         const hasTable = /<table[\s>]/i.test(pastedHtml);
+        // ★ 2026-11-04 — 글·그림이 같이 온 html 이면 그림 파일보다 html 이 우선이다(utils/pasteRich 머리말).
+        //   여태 그림 파일 하나만 넣고 글을 통째로 버렸다. 그림 «한 장만» 복사한 경우만 파일 경로를 탄다.
+        const htmlFirst = hasTable || htmlCarriesContent(pastedHtml);
 
-        // 1) 이미지 붙여넣기 — 옛 동작 그대로 (단, 표가 같이 온 경우는 제외)
-        const items = hasTable ? null : event.clipboardData?.items;
-        if (items) {
-          for (let i = 0; i < items.length; i++) {
-            const item = items[i];
-            if (item.type.startsWith('image/')) {
-              const f = item.getAsFile();
-              if (f) {
-                event.preventDefault();
-                uploadEditorImage(f, businessId, projectId).then(url => {
-                  if (url && editor) editor.chain().focus().setImage({ src: url }).run();
-                });
-                return true;
-              }
+        // 1) 이미지 붙여넣기 — 그림만 복사했을 때(표·글이 같이 온 경우는 제외). 여러 장이면 전부.
+        const files = htmlFirst ? [] : Array.from(event.clipboardData?.files || []).filter(f => f.type.startsWith('image/'));
+        if (files.length) {
+          event.preventDefault();
+          (async () => {
+            for (const f of files) {
+              const url = await uploadEditorImage(f, businessId, projectId);
+              if (url && editor) editor.chain().focus().setImage({ src: url }).run();
             }
-          }
+          })();
+          return true;
         }
         // 2) 운영 #342 — "다른 웹이나 편집툴, 노션 같은 곳에서 복사를 하면 이미지는 미리보기 형태로
         //    제대로 안붙어."
@@ -192,31 +192,14 @@ const PostEditor: React.FC<Props> = ({ value, onChange, onReady, placeholder, ed
         //    ★ 서버가 원격 URL 을 대신 가져오는 방식(외부 이미지 재호스팅)은 여기 넣지 않는다 —
         //      임의 URL fetch 는 SSRF 표면이라 별도 설계가 필요하다. https 원격 이미지는 CSP 가
         //      이미 허용하므로 지금도 그대로 보인다(원본이 사라지면 같이 사라진다는 한계는 남는다).
-        const dataImgRe = /<img\b[^>]*?\bsrc\s*=\s*["'](data:image\/[a-zA-Z0-9.+-]+;base64,[^"']+)["'][^>]*>/gi;
-        const dataUrls = [...new Set([...pastedHtml.matchAll(dataImgRe)].map((m) => m[1]))];
-        if (dataUrls.length) {
+        //    ★ insertContent 는 transformPastedHTML 을 거치지 않는다 — 같은 다듬기를 직접 먼저 한다.
+        const prepped = stripForeignTextStyle(prepPastedHtml(pastedHtml));
+        if (hasDataImage(prepped)) {
           event.preventDefault();
           (async () => {
-            let html = pastedHtml;
-            let replaced = 0;
-            for (const [i, dataUrl] of dataUrls.entries()) {
-              try {
-                const blob = await (await fetch(dataUrl)).blob();
-                const ext = (blob.type.split('/')[1] || 'png').replace(/[^a-z0-9]/gi, '');
-                const file = new File([blob], `pasted-${i + 1}.${ext}`, { type: blob.type });
-                const url = await uploadEditorImage(file, businessId, projectId);
-                if (!url) continue;
-                // 같은 data URL 이 여러 번 나올 수 있다 — 전부 바꾼다. split/join 은 정규식 이스케이프가 불필요.
-                html = html.split(dataUrl).join(url);
-                replaced += 1;
-              } catch { /* 이 한 장만 건너뛴다 — 나머지는 살린다 */ }
-            }
-            if (!replaced) {
-              // 한 장도 못 올렸으면 종전 동작(그림 없이 글만)으로 떨어진다 — 회귀는 만들지 않는다.
-              editor?.chain().focus().insertContent(pastedHtml).run();
-              return;
-            }
-            editor?.chain().focus().insertContent(html).run();
+            const { html, replaced } = await uploadDataImages(prepped, (f) => uploadEditorImage(f, businessId, projectId));
+            // 한 장도 못 올렸으면 종전 동작(그림 없이 글만)으로 떨어진다 — 회귀는 만들지 않는다.
+            editor?.chain().focus().insertContent(replaced ? html : prepped).run();
           })();
           return true;
         }

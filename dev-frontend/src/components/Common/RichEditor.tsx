@@ -33,6 +33,7 @@ import { isEnterAction } from '../../utils/imeKey';
 import { ResizableImage } from '../Docs/ResizableImage';
 import { resizableImageCss } from '../Docs/resizableImageStyles';
 import { clipboardPlainText } from '../../utils/clipboardPlainText';
+import { prepPastedHtml, htmlCarriesContent, hasDataImage, uploadDataImages } from '../../utils/pasteRich';   // 글+그림+영상 한꺼번에 붙이기(2026-11-04)
 
 // 본문 이미지 — **Q docs 와 같은 확장을 쓴다.**
 //   운영 #378 (Irene): "그냥 드래그로 넣으면 사이즈 조정도 안되네... 통일해서 맞춰서
@@ -142,42 +143,38 @@ export default function RichEditor({
     editorProps: {
       attributes: { class: 'pq-editor-body' },
       clipboardTextSerializer: clipboardPlainText,   // 평문 복사 = 화면 줄 그대로(줄마다 빈 줄 끼지 않게)
+      transformPastedHTML: prepPastedHtml,   // 지연 로딩 그림 진짜 주소·영상 → 링크 문단(utils/pasteRich, PostEditor 와 같은 규칙)
       handlePaste: (view, event) => {
         // 1) 파일 붙여넣기 — 이미지는 본문에(업로드 경로가 있을 때), 그 외 파일은 첨부 칸으로(onAttachFiles 가 있을 때).
+        //    ★ 2026-11-04 — 글·그림이 같이 온 html(웹·워드·노션 복사)이면 그림 파일보다 html 이 우선이다
+        //    (utils/pasteRich 머리말). 여태 그림 파일만 넣고 글을 버렸다. PostEditor 와 같은 규칙.
+        const pastedHtml = event.clipboardData?.getData('text/html') || '';
+        const htmlFirst = /<table[\s>]/i.test(pastedHtml) || htmlCarriesContent(pastedHtml);
         {
           const files = Array.from(event.clipboardData?.files || []);
-          const { inline, attach } = splitDroppedFiles(files);
-          if (inline.length || attach.length) {
+          const split = splitDroppedFiles(files);
+          const inline = htmlFirst ? [] : split.inline;
+          const { attach } = split;
+          if (attach.length) onAttachFilesRef.current?.(attach);
+          if (inline.length || (attach.length && !htmlFirst)) {
             event.preventDefault();
-            if (attach.length) onAttachFilesRef.current?.(attach);
-            inline.forEach(f => uploadAndInsertImage(f));
+            (async () => { for (const f of inline) await uploadAndInsertImage(f); })();
             return true;
           }
+          // html 이 우선이면 첨부만 보내고 글·그림은 아래 경로로 이어서 붙인다
         }
         // 2) 운영 #342 — 노션·워드·웹에서 복사하면 이미지가 클립보드 HTML 안에 data: base64 로 온다.
         //    Image 확장이 allowBase64: false 라 그 <img> 를 통째로 버려서 "그림만 안 붙는" 상태였다.
         //    붙여넣는 순간 우리 스토리지로 올려 URL 로 바꾼다 (base64 를 본문에 박지 않는다).
         //    PostEditor 와 같은 규칙 — 두 에디터가 다르게 동작하면 사용자는 화면마다 다른 제품으로 읽는다.
+        //    ★ insertContent 는 transformPastedHTML 을 거치지 않는다 — 같은 다듬기를 직접 먼저 한다.
         if (uploadUrlRef.current) {
-          const pastedHtml = event.clipboardData?.getData('text/html') || '';
-          const dataImgRe = /<img\b[^>]*?\bsrc\s*=\s*["'](data:image\/[a-zA-Z0-9.+-]+;base64,[^"']+)["'][^>]*>/gi;
-          const dataUrls = [...new Set([...pastedHtml.matchAll(dataImgRe)].map((m) => m[1]))];
-          if (dataUrls.length) {
+          const prepped = prepPastedHtml(pastedHtml);
+          if (hasDataImage(prepped)) {
             event.preventDefault();
             (async () => {
-              let html = pastedHtml;
-              let replaced = 0;
-              for (const [i, dataUrl] of dataUrls.entries()) {
-                try {
-                  const blob = await (await fetch(dataUrl)).blob();
-                  const ext = (blob.type.split('/')[1] || 'png').replace(/[^a-z0-9]/gi, '');
-                  const src = await uploadImageForUrl(new File([blob], `pasted-${i + 1}.${ext}`, { type: blob.type }));
-                  if (!src) continue;
-                  html = html.split(dataUrl).join(src);
-                  replaced += 1;
-                } catch { /* 이 한 장만 건너뛴다 */ }
-              }
-              editor?.chain().focus().insertContent(replaced ? html : pastedHtml).run();
+              const { html, replaced } = await uploadDataImages(prepped, uploadImageForUrl);
+              editor?.chain().focus().insertContent(replaced ? html : prepped).run();
             })();
             return true;
           }
