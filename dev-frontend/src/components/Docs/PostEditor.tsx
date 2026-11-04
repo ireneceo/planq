@@ -727,9 +727,13 @@ const Body = styled.div<{ $editable?: boolean; $borderless?: boolean; $compact?:
 
   .ProseMirror {
     outline: none; font-size: 0.875rem; line-height: 1.65; color: #0F172A;
-    h1 { font-size: 1.375rem; font-weight: 700; color: #0F172A; margin-top: 1.2em; line-height: 1.3; }
-    h2 { font-size: 1.125rem; font-weight: 700; color: #0F172A; margin-top: 1em; line-height: 1.35; }
-    h3 { font-size: 0.9375rem; font-weight: 700; color: #334155; margin-top: 0.8em; line-height: 1.4; }
+    /* 제목 크기 = 마크다운 표준 비율(본문 대비 h1 2배 · h2 1.5배 · h3 1.25배) — 2026-11-04 Irene
+       «#가 Markdown 에서 가장 큰 제목인데 문서 편집 화면에서 왜 h2 로 나와?»
+       옛 값 h1 1.375rem(22px) 은 본문 14px 의 1.57배 = 표준 h2 크기라 «#» 이 h2 처럼 보였다.
+       em 이라 본문 크기(.ProseMirror font-size)를 바꿔도 비율이 따라간다. */
+    h1 { font-size: 2em; font-weight: 700; color: #0F172A; margin-top: 0.9em; line-height: 1.25; letter-spacing: -0.3px; }
+    h2 { font-size: 1.5em; font-weight: 700; color: #0F172A; margin-top: 0.9em; line-height: 1.3; letter-spacing: -0.2px; }
+    h3 { font-size: 1.25em; font-weight: 700; color: #1E293B; margin-top: 0.8em; line-height: 1.35; }
     p { color: #334155; margin: 0; }
     ul, ol { padding-left: 1.4em; margin: 0; }
     li { margin: 0; }
