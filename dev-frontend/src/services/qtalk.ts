@@ -10,7 +10,7 @@ import { apiFetch } from '../contexts/AuthContext';
 // 공통 타입
 // ─────────────────────────────────────────────
 export type ProjectStatus = 'active' | 'paused' | 'closed';
-export type ChannelType = 'customer' | 'internal' | 'group';
+export type ChannelType = 'customer' | 'internal' | 'group' | 'platform';   // platform = PlanQ 안내방
 
 export interface ApiProjectMember {
   id: number;

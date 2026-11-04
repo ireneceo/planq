@@ -1,5 +1,10 @@
 # Fable 게이트 대기열 → **판정 기록 보관소** (2026-10-08 부터)
 
+### 2026-11-04 방 d12c74b3 — PlanQ 안내방 3단계(84423656 서버 · 00c48c10 화면) — 완료 검증 **VERDICT: PASS** (차단 0)
+- 편차 7건 모두 허용: 메시지 라우트 두 곳에 afterMessageSoon · qhelperAnswer 별도(/help 무변경) · platformroom 래칫(28 파일 동결, 6곳 직접 확인) · 임시 스크립트 검증 · «PlanQ 팀 · 이름» 서버 displayName 한 곳(위조 무시 실측) · 내부 메모 숨김 · 지연 생성.
+- Fable 실측: HTTP 61건 ①~⑤ 재현(Cue 답·cue_usage 불변·Cue 알림 0 · 관리자 답 push 1·+4h 멈춤·감사 · member join/403 · client 전부 403 · 보관/삭제/이름 409 · 테넌트 · 검색/최근/요금제/내보내기/AI 출처 제외) · 마이그레이션 2회 멱등 · 화면 3폭 25/26(1 = 공용 배지, 무관).
+- 비차단(반영): ChatPanel [PlanQ 팀에게 묻기] 가 요청 상태를 서버에서 읽음 · ChannelType 'platform'. 남김: ① Message.create 있는 새 라우트도 afterMessageSoon 을 부르게 가드 한 줄 ② 4·5단계 전에 e2e --suite platformroom ③ 5단계 크론은 ensureRoom 을 직접 부를 것 ④ /help 프롬프트를 고치면 qhelperAnswer 도 ⑤ 사람 연결 알림은 Irene 실메일 — 시험 때 반복 금지.
+
 ### 2026-11-04 방 0a59c401 — 태블릿 사용(첫 로딩·좌측 메뉴 «여러 번 눌러야») — 원인 판정·완료 검증 1차 **FAIL** → 2차 **VERDICT: PASS**
 - 1차(c4683561 대상) 원인 증명: 아이패드 가로(≥1025 고정 메뉴)·데스크탑에서 드로어(업무 상세·추가·일정·고객·도움말)가 열려 있으면 막(left:0, z 125)이 메뉴(z 100)를 덮어 첫 탭 = 드로어 닫기, 두 번째에 이동(100% 재현 4/9). 앞선 고침 2819ffcb·e34cc7af·35021409·1c1c2e4c·c4683561 어느 것도 이 자리를 안 봄. 반증: 사이드바 hover 함정(연필 외) 없음 · 멈춤 중 재탭 유실 없음. 앱 심사 불필요 판단 맞음(웹만) — 단 f5ad8c36(아이패드 로그인 AppDelegate)은 앱 빌드 필요.
 - 2차(e88f1090): 막 left:var(--pq-nav-w) (DetailDrawer·TaskDetailDrawer·CueHelpDrawer) — 첫 탭 이동 9/9 · 펼침 220/접힘 64/서랍 0 따라감 · 막 바깥 탭 닫힘 유지 · 양성 대조(변수 0) 결함 되살아남 · 측정기 먹힌 탭 click:null 기록 · mobilechrome 0 실패 · modaltop 37 ✅.

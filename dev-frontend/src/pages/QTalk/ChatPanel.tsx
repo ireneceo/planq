@@ -703,7 +703,6 @@ const ChatPanel: React.FC<Props> = ({
   // PlanQ 안내방(channel_type 'platform') — 이름 고정·설정 없음·[PlanQ 팀에게 묻기]. 방을 바꾸면 버튼을 되돌린다.
   const isSupportRoom = activeConv?.channel_type === 'platform';
   const [humanAsked, setHumanAsked] = useState(false);
-  useEffect(() => { setHumanAsked(false); }, [activeConv?.id]);
   const [nameDraft, setNameDraft] = useState(activeConv?.name || '');
   React.useEffect(() => {
     setNameDraft(activeConv?.name || '');
@@ -743,6 +742,14 @@ const ChatPanel: React.FC<Props> = ({
   }, []);
   // FilePicker 의 businessId — useAuth() 의 user.business_id 사용 (MockProject 에는 business_id 없음)
   const businessId = user?.business_id ? Number(user.business_id) : null;
+  useEffect(() => {
+    setHumanAsked(false);
+    if (!isSupportRoom || !businessId) return;
+    // 이미 PlanQ 팀에 요청 중이면 버튼을 «알렸어요» 로(새로고침 뒤에도 — Fable 비차단 지적)
+    let alive = true;
+    apiFetch(`/api/support-room?business_id=${businessId}`).then((r) => r.json()).then((j) => { if (alive && j?.success && j.data?.human_requested) setHumanAsked(true); }).catch(() => {});
+    return () => { alive = false; };
+  }, [activeConv?.id, isSupportRoom, businessId]);
 
   // ★ 2026-09-16 (Irene: *"채팅 메시지에서 … 상담리스트로 보내기 기능이 있어야 할 것 같아. 그치?"*)
   //   Q sale 상담은 기계 기준(외부 발화 있음 · 고객 미등록)으로 모으는데, 그 기준이 놓치는 방이 있다.

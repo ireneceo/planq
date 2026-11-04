@@ -414,7 +414,14 @@
 - 검증: 로컬 시험 서버(가짜 값) — 같은 호스트 문서·fetch·새 창·Node fetch 전부 붙음 / 다른 호스트 0 / 카나리 자체 setRequestInterception 차단 그대로 / 쿠키·POST 본문 보존. 실제 dev: `--suite tenant,tabtitle` 총 실패 0. 오늘 full-sweep 중 이 변경 뒤(21:30Z~) 끝난 스위트 36개: 어제와 같음 32 · 나빠짐 2(detailopen·docfind) · 그 둘을 머리글 켬/끔으로 번갈아 돌리니 **양쪽 다 같은 모양으로 실패**(sweep 과 겹친 부하·429 — 머리글과 무관). 21:13~21:25 실패 증가는 내가 순찰을 sweep 과 겹쳐 돌린 탓(429).
 - 오늘 밤 순찰(18:03~20:33Z, 이 변경 전)은 «FATAL Connection closed» 로 timeout(exit 124) — 이 일과 무관한 기존 문제, 아침 /개발시작 이 볼 것. 관문은 아직 nginx 에 안 들어가 «켠 상태 통과» 는 확인 못 함.
 
-### 답 기다림: PlanQ 안내방 채팅(3단계)을 지금 시작할지 (방 d12c74b3 · 2026-11-04 · [Opus])
+### ✅ PlanQ 안내방 3단계 — 워크스페이스마다 PlanQ 방 · Cue 답 · PlanQ 팀 받은편지함 (방 d12c74b3 · 2026-11-04 · [Opus] · Fable 완료 검증 PASS) — 운영 반영: 다음 배포 때(migrate-support-room.js 배포 슬롯 · 백엔드 재시작 + 프론트)
+- Irene 11-04 «권고대로 진행해 줘»(3단계 먼저, 서버부터). 커밋 84423656(서버) · 00c48c10(화면) · 뒤 작은 수리 1건.
+- 검증: 서버 실호출 28/28 · 소켓(대표 창 ~30ms·고객 0·관리자 신호) · 화면 3폭 33/33 · build EXIT 0·error TS 0 · guard 84/85(문서 신선도 기존) · health-check 98/98 · Fable PASS(HTTP 61건·화면 25/26).
+- 확인용: ws6 안내방 conv 2006 · ws7 conv 2007 · «[확인용]» 메시지.
+- 다음: 2단계 발자국 → 4단계 피드백 다리(«요청으로 남길까요?» 카드) → 5단계 제안 메시지 → 6단계 보완 목록. 4·5 전에 e2e --suite platformroom. 남은 Fable 비차단은 docs/FABLE_GATE_QUEUE.md 맨 위.
+- Q talk 화면 매퍼(QTalkPage.tsx)는 다른 방 미커밋 수정이 있어 손대지 않았다.
+
+### 답 기다림 (이전): PlanQ 안내방 채팅(3단계)을 지금 시작할지 (방 d12c74b3 · 2026-11-04 · [Opus])
 - 무엇: **안내방 채팅(3단계 — 워크스페이스마다 PlanQ 방 · Cue 답 · 관리자 받은편지함)을 2단계(메뉴 기록)보다 먼저 지금 만들기 시작할까요?**
 - 왜: Irene 11-04 «Fable 검증해. 채팅도.» — 채팅은 아직 안 만들어 검증할 것이 없다(설계만 있음). 만들라는 뜻인지 갈림. 크기 큼(새 표·대화 종류 추가·Q talk 화면) · Q talk 화면 파일(QTalkPage.tsx)을 다른 방이 고치는 중.
 - 답 오면(예): 서버부터 — support_rooms·channel_type platform 마이그레이션 · access_scope 배제 술어 + 가드 platformroom · Q helper 두뇌 서비스 분리 · /api/support-room · /api/admin/support/* → 다른 방이 Q talk 를 놓으면 화면 → e2e platformroom → Fable 완료 검증.

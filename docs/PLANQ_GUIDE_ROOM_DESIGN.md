@@ -100,3 +100,12 @@
   member2 iOS 앱 세션 만들면 install_app false→true·마지막 접속 갱신 → 지우면 false · 화면 3폭 18/18(보임·실데이터·막힘 신호·가로 넘침 0·키 노출 0) ·
   build EXIT 0·error TS 0 · guard 82/83(문서 신선도 기존) · health-check 실패 1(clientlink #503 — 다른 방 시험 데이터, 이번 것 아님).
 - 남은 단계: 2 발자국 → 3 안내방 → 4 피드백 다리 → 5 제안 메시지 → 6 보완 목록(위 «구현 단계별 완료 조건»).
+
+### 3단계 — PlanQ 안내방 (2026-11-04 · 방 d12c74b3 · [Opus] · Fable 완료 검증 PASS)
+- 서버 84423656: `channel_type 'platform'` + `support_rooms` · `scripts/migrate-support-room.js`(배포 슬롯) · access_scope `isPlatformConversation`/`notPlatformConversation`/`notPlatformSql`(PRIVATE_CHANNELS 에 포함) ·
+  제외: plan.js 대화 수 · onboarding 대화 시작 · adoption 팀/고객 채팅 · 검색·최근 · AI 앱 출처 · 워크스페이스 Cue 문맥 · 내보내기 · 보관/삭제/이름 409 · 고객 참여 403.
+  `services/supportRoom.js`(방·참여·Cue 답·PlanQ 팀 답·사람 연결·받은편지함) · `services/qhelperAnswer.js` · `/api/support-room`(GET·join·human) · `/api/admin/support/*` · 가드 `platformroom`(래칫).
+- 화면 00c48c10: Q talk 맨 위 «PlanQ 안내»(LeftPanel) · 멤버 «들어가기» 줄 · ChatPanel 이름 고정·설정 없음·[PlanQ 팀에게 묻기] · `/admin/support`(AdminSupportPage) · 여정 칸 [안내방 열기].
+  «PlanQ 팀 · 이름» 은 서버 `displayName.applyMemberDisplayName`(meta 는 supportRoom 만 찍는다).
+- 설계와 다른 점: 공용 메시지 함수가 없어 두 메시지 라우트에서 `afterMessageSoon` · `/api/cue/help` 는 그대로 두고 같은 재료로 `qhelperAnswer` · 가드는 래칫 · 워크스페이스 생성 때가 아니라 처음 열 때 만든다 · 워크스페이스 내부 메모는 PlanQ 팀·Cue 에게 안 보인다.
+- 남은 단계: 2 발자국 · 4 피드백 다리 · 5 제안 메시지 · 6 보완 목록. 4·5 전에 `e2e --suite platformroom`.
