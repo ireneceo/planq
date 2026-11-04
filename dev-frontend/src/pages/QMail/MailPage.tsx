@@ -1433,6 +1433,12 @@ const MailPage: React.FC = () => {
   }, [replyScrollTick]);
   // 보내는 주소의 최신값 — aiSuggest 가 선언보다 앞에 있어 상태를 직접 못 읽는다(아래 fromAliasId 선언 뒤에서 맞춘다).
   const fromAliasRef = useRef<number | null>(null);
+  // 답장을 보낼 메일함 — null = 이 메일이 온 메일함(기본). 다른 메일함(회사·개인)을 고르면 그 id
+  //   (2026-11-04 Irene «답장하기에 보내는 사람에 왜 개인메일만 나와? … 등록된 모든 메일이 보내는 메일로 나와야지»).
+  //   서버(POST …/messages · mail-outgoing-identity)가 같은 account_id 를 받아 접근 가능 메일함인지 다시 본다.
+  const [replyAccountId, setReplyAccountId] = useState<number | null>(null);
+  const replyAccountRef = useRef<number | null>(null);
+  replyAccountRef.current = replyAccountId;
   const [replyHtml, setReplyHtml] = useState('');
   const [replyUploads, setReplyUploads] = useState<File[]>([]);
   const [replyFileIds, setReplyFileIds] = useState<number[]>([]);
@@ -1479,6 +1485,7 @@ const MailPage: React.FC = () => {
           // 초안 없이 요청만 = «이런 답장을 써 줘» (서버가 초안 유무로 문장을 가른다)
           ...(instruction ? { instruction, current_draft: isEmptyHtml(replyHtml) ? undefined : replyHtml } : {}),
           ...(fromAliasRef.current ? { from_alias_id: fromAliasRef.current } : {}),
+          ...(replyAccountRef.current ? { account_id: replyAccountRef.current } : {}),
         }),
       });
       const j = await r.json();
@@ -1707,7 +1714,7 @@ const MailPage: React.FC = () => {
   }, [detail, aliases, receivedAt]);
 
   // 스레드를 바꾸면 사용자 선택 흔적을 지운다 (다음 스레드는 다시 자동 결정)
-  useEffect(() => { fromAliasTouched.current = false; }, [activeId]);
+  useEffect(() => { fromAliasTouched.current = false; setReplyAccountId(null); }, [activeId]);
 
   // 맥락 패널 «이 사람과 오간 메일» 의 상대 — 마지막 받은 메일의 보낸 사람, 없으면(우리가 먼저 보낸 대화) 마지막 보낸 메일의 첫 받는 사람.
   //   우리 메일함 주소는 상대가 아니다.
@@ -1797,7 +1804,7 @@ const MailPage: React.FC = () => {
         headers: { 'Content-Type': 'application/json' },
         // 3상태 — null 이면 **키를 생략**해 서버가 "받은 주소로" 결정하게 한다(JSON.stringify 가 undefined 키를 뺀다).
         //   0 은 사용자가 계정 주소를 직접 고른 경우에만 나간다.
-        body: JSON.stringify({ body_html: replyHtml, attachment_file_ids: fileIds, from_alias_id: typeof aliasOverride === 'number' ? aliasOverride : (fromAliasId === null ? undefined : fromAliasId), signature: replySignature, keep_reply_needed: keepReplyNeeded }),
+        body: JSON.stringify({ body_html: replyHtml, attachment_file_ids: fileIds, account_id: replyAccountId || undefined, from_alias_id: typeof aliasOverride === 'number' ? aliasOverride : (fromAliasId === null ? undefined : fromAliasId), signature: replySignature, keep_reply_needed: keepReplyNeeded }),
       });
       const j = await r.json();
       if (!j.success) throw new Error(mailErrorText(j.message) || (t('reply.sendFailed', { defaultValue: '발송 실패' }) as string));
@@ -1845,11 +1852,25 @@ const MailPage: React.FC = () => {
     let alive = true;
     (async () => {
       try {
-        const r = await apiFetch(`/api/businesses/${businessId}/email-addresses?limit=500`);
-        const j = await r.json();
-        if (alive && j?.success && Array.isArray(j.data)) {
-          setToSuggestions(j.data.map((x: RecipientSuggestion) => ({ email: x.email, name: x.name || null, client: x.client || null })));
+        // 메일에 나온 상대(최근순) + 우리 멤버·고객(2026-11-04 Irene «받는 사람에 우리 멤버랑 고객 안나오는 것 같아»).
+        //   둘 중 하나가 실패해도 남은 쪽으로 추천한다. 같은 주소는 메일 쪽 줄(최근순 자리)을 쓰고 멤버·고객 표시만 더한다.
+        const read = async (url: string) => {
+          try { const j = await (await apiFetch(url)).json(); return j?.success && Array.isArray(j.data) ? j.data as RecipientSuggestion[] : []; }
+          catch { return [] as RecipientSuggestion[]; }
+        };
+        const [seen, people] = await Promise.all([
+          read(`/api/businesses/${businessId}/email-addresses?limit=500`),
+          read(`/api/businesses/${businessId}/email-addresses/people`),
+        ]);
+        const byEmail = new Map<string, RecipientSuggestion>();
+        for (const x of seen) byEmail.set(x.email.toLowerCase(), { email: x.email, name: x.name || null, client: x.client || null });
+        for (const x of people) {
+          const k = x.email.toLowerCase();
+          const cur = byEmail.get(k);
+          if (cur) byEmail.set(k, { ...cur, name: cur.name || x.name || null, client: cur.client || x.client || null, member: !!x.member });
+          else byEmail.set(k, { email: x.email, name: x.name || null, client: x.client || null, member: !!x.member });
         }
+        if (alive) setToSuggestions([...byEmail.values()]);
       } catch { /* 추천 없이 진행 */ }
     })();
     return () => { alive = false; };
@@ -1952,7 +1973,8 @@ const MailPage: React.FC = () => {
   //   개인 메일함은 별칭이 아니라 **별개 계정**이라 주소 칸에 영영 안 나왔다 — 그것이 신고 내용.
   //   그래서 계정별 별칭을 **전부** 모아 평평한 목록으로 만들고, 고르면 계정이 따라 정해진다.
   useEffect(() => {
-    if (!composeOpen || !businessId || !accounts.length) { setCAliases([]); return; }
+    // 답장창도 같은 목록을 쓴다 — 다른 메일함의 별칭까지 보내는 사람으로 고를 수 있게(replyFromOptions)
+    if (!(composeOpen || replyOpen) || !businessId || !accounts.length) { setCAliases([]); return; }
     let alive = true;
     (async () => {
       const all = [];
@@ -1966,7 +1988,7 @@ const MailPage: React.FC = () => {
       if (alive) setCAliases(all);
     })();
     return () => { alive = false; };
-  }, [composeOpen, businessId, accounts]);
+  }, [composeOpen, replyOpen, businessId, accounts]);
   // 음성 캡처가 넘긴 내용. compose=1 effect 안에서 **setSp 전에** 잡아둔다 —
   //   setSp(replace) 는 state 를 넘기지 않아 그 순간 location.state 가 사라지므로,
   //   초안 fetch 의 .finally 에서 읽으면 이미 null 이다.
@@ -2124,6 +2146,31 @@ const MailPage: React.FC = () => {
     return out;
   }, [accounts, cAliases, t]);
   const composeFromValue = `${cAccountId || accounts[0]?.id || 0}:${cFromAliasId || 0}`;
+  // 답장 «보내는 사람» — 이 메일이 온 메일함(+별칭)을 맨 위에, 그다음 **내가 쓸 수 있는 다른 메일함 전부**(+별칭).
+  //   여태 이 메일이 온 메일함 것만 나와서, 개인 메일함으로 온 메일은 회사 메일로 답할 길이 없었다(Irene 2026-11-04).
+  //   값은 새 메일과 같은 `계정id:별칭id`(0 = 메일함 주소).
+  const replyFromOptions = useMemo(() => {
+    const thr = detail?.account;
+    if (!thr?.id) return [] as Array<{ value: string; label: string }>;
+    const label = (name: string | null | undefined, email: string, personal: boolean) => {
+      const who = String(name || '').trim();
+      const base = who ? `${who} <${email}>` : email;
+      return personal ? `${base} · ${t('account.personal', { defaultValue: '개인' }) as string}` : base;
+    };
+    const thrPersonal = !!accounts.find(a => a.id === thr.id)?.is_personal;
+    const out: Array<{ value: string; label: string }> = [
+      { value: `${thr.id}:0`, label: label(thr.display_name, thr.email || '', thrPersonal) },
+      ...aliases.map(a => ({ value: `${thr.id}:${a.id}`, label: label(a.display_name, a.email, thrPersonal) })),
+    ];
+    for (const acc of accounts) {
+      if (acc.id === thr.id) continue;
+      out.push({ value: `${acc.id}:0`, label: label(acc.display_name, acc.email, !!acc.is_personal) });
+      for (const al of cAliases.filter(x => x.account_id === acc.id)) {
+        out.push({ value: `${acc.id}:${al.id}`, label: label(al.display_name, al.email, !!acc.is_personal) });
+      }
+    }
+    return out;
+  }, [detail?.account, accounts, aliases, cAliases, t]);
   // 모바일·태블릿(≤1024px) — 작업대는 오버레이 드로어로 연다.
   //   여태 $hideTablet 으로 통째로 숨겨서, 폰에서는 메일의 업무·메모·연결을 아예 쓸 수 없었다.
   const ctxNarrow = viewportNarrow;
@@ -3036,9 +3083,12 @@ const MailPage: React.FC = () => {
                         <FromSelect>
                           <PlanQSelect
                             size="sm"
-                            isSearchable={aliases.length > 5}
-                            value={{
-                              value: fromAliasId ?? 0,
+                            isSearchable={replyFromOptions.length > 5}
+                            value={replyAccountId && replyAccountId !== detail.account?.id ? (
+                              replyFromOptions.find(o => o.value === `${replyAccountId}:${fromAliasId || 0}`)
+                                || { value: `${replyAccountId}:0`, label: accounts.find(a => a.id === replyAccountId)?.email || '' }
+                            ) : {
+                              value: `${detail.account?.id || 0}:${fromAliasId ?? 0}`,
                               // 미지정(null)이면 **서버가 실제로 쓸 주소**를 보여준다 — 화면과 실발송이 어긋나면
                               //   그 자체가 사고다. 아직 못 받았으면 받은 주소, 그것도 없으면 계정 주소.
                               label: (() => {
@@ -3058,22 +3108,19 @@ const MailPage: React.FC = () => {
                               })(),
                             }}
                             onChange={(opt) => {
+                              const v = (opt as { value?: string } | null)?.value;
+                              if (!v) return;
                               fromAliasTouched.current = true;   // 사용자가 직접 골랐다 — 자동 계산이 못 덮게
-                              setFromAliasId(Number((opt as { value?: number } | null)?.value || 0));
+                              const [accId, aliasId] = v.split(':').map(Number);
+                              setReplyAccountId(accId && accId !== detail.account?.id ? accId : null);
+                              setFromAliasId(aliasId || 0);
                             }}
-                            // 표시 이름과 주소를 같이 — 새 메일 쪽 목록과 같은 형식
-                            options={[
-                              { value: 0, label: detail.account?.display_name
-                                ? `${detail.account.display_name} <${detail.account.email}>` : (detail.account?.email || '') },
-                              ...aliases.map(a => ({
-                                value: a.id,
-                                label: a.display_name ? `${a.display_name} <${a.email}>` : a.email,
-                              })),
-                            ]}
+                            // 표시 이름과 주소를 같이 — 새 메일 쪽 목록과 같은 형식 · 등록된 메일함 전부(replyFromOptions)
+                            options={replyFromOptions}
                             menuPlacement="top"
                           />
                         </FromSelect>
-                        {receivedAt && receivedAt !== String(detail?.account?.email || '').toLowerCase() && !unknownReceived && (
+                        {!replyAccountId && receivedAt && receivedAt !== String(detail?.account?.email || '').toLowerCase() && !unknownReceived && (
                           <HelpDot>{t('reply.aliasHelp', { defaultValue: '고객이 {{addr}} 로 보낸 메일이라 답장도 이 주소에서 나가요.', addr: receivedAt }) as string}</HelpDot>
                         )}
                         {unknownReceived ? (!recvGuard.willMiss && recvGuard.notice) : aliases.length === 0 ? (
@@ -3162,6 +3209,7 @@ const MailPage: React.FC = () => {
                     <SignatureBadge
                       businessId={businessId}
                       threadId={detail.id}
+                      accountId={replyAccountId}
                       fromAliasId={fromAliasId}
                       bodyHtml={sigLangSrc.body}
                       enabled={replySignature}

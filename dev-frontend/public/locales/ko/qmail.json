@@ -624,7 +624,8 @@
     "subjectPh": "제목을 입력하세요",
     "to": "받는 사람",
     "toRequired": "받는 사람을 입력해 주세요",
-    "suggestClient": "고객"
+    "suggestClient": "고객",
+    "suggestMember": "멤버"
   },
   "attachment": {
     "menu": "첨부 {{n}}개",

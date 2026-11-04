@@ -136,6 +136,69 @@ router.get('/', authenticateToken, checkBusinessAccess, requireMenu('qmail', 're
   } catch (err) { next(err); }
 });
 
+// ─── GET /people — 받는 사람 추천에 더할 «우리 사람» (멤버 · 고객) ────────
+// 2026-11-04 Irene «우리 메일에서 받는 사람에 우리 멤버랑 고객 안나오는 것 같아» —
+//   추천은 위 GET / (메일에 나온 상대 주소) 하나였다. 멤버 주소는 «우리 주소» 라 일부러 빠지고,
+//   메일을 한 번도 안 주고받은 고객은 목록에 없었다. 주소 보기 화면(GET /)은 그대로 두고 추천만 이 목록을 더한다.
+//   · 멤버: 이 워크스페이스 활성 멤버(시스템 ai 제외) — 이름은 워크스페이스 표시명(business_members.name → users.name).
+//   · 고객: 고객 목록과 같은 문(qsale 읽기)일 때만 — 메일 메뉴만 있는 멤버에게 고객 연락처를 새로 열지 않는다.
+//     주소 = 초대 주소 · 청구 담당 · 붙은 계정 · 추가 담당자(client_contacts). 보관(archived) 고객은 뺀다.
+router.get('/people', authenticateToken, checkBusinessAccess, requireMenu('qmail', 'read'), async (req, res, next) => {
+  try {
+    const businessId = Number(req.params.businessId);
+    const { BusinessMember, User, ClientContact } = require('../models');
+    const out = new Map();
+    const add = (email, row) => {
+      const e = norm(email);
+      if (!e || !e.includes('@') || e === norm(req.user.email) || out.has(e)) return;
+      out.set(e, { email: e, ...row });
+    };
+
+    const members = await BusinessMember.findAll({
+      where: { business_id: businessId, role: { [Op.ne]: 'ai' }, user_id: { [Op.ne]: null } },
+      attributes: ['user_id', 'name'],
+      include: [{ model: User, as: 'user', attributes: ['id', 'email', 'name'], required: true }],
+    });
+    for (const m of members) {
+      add(m.user?.email, { name: m.name || m.user?.name || null, member: true, client: null });
+    }
+
+    const { getMemberMenuLevels } = require('../middleware/menu_permission');
+    const lv = await getMemberMenuLevels(businessId, req.user.id);
+    const canClients = req.user.platform_role === 'platform_admin' || (lv && lv.menus && lv.menus.qsale && lv.menus.qsale !== 'none');
+    if (canClients) {
+      const clients = await Client.findAll({
+        where: { business_id: businessId, status: { [Op.ne]: 'archived' } },
+        attributes: ['id', 'user_id', 'invite_email', 'billing_contact_email', 'display_name', 'company_name'],
+      });
+      const userIds = clients.map((c) => c.user_id).filter(Boolean);
+      const users = userIds.length ? await User.findAll({ where: { id: { [Op.in]: userIds } }, attributes: ['id', 'email', 'name'] }) : [];
+      const userBy = new Map(users.map((u) => [u.id, u]));
+      const label = (c) => c.display_name || c.company_name || null;
+      for (const c of clients) {
+        const tag = { id: c.id, name: label(c) };
+        const u = c.user_id ? userBy.get(c.user_id) : null;
+        add(c.invite_email, { name: label(c) || u?.name || null, member: false, client: tag });
+        if (u) add(u.email, { name: label(c) || u.name || null, member: false, client: tag });
+        add(c.billing_contact_email, { name: label(c), member: false, client: tag });
+      }
+      const ids = clients.map((c) => c.id);
+      if (ids.length) {
+        const contacts = await ClientContact.findAll({
+          where: { business_id: businessId, client_id: { [Op.in]: ids }, email: { [Op.ne]: null } },
+          attributes: ['client_id', 'name', 'email'],
+        });
+        const byId = new Map(clients.map((c) => [c.id, c]));
+        for (const ct of contacts) {
+          const c = byId.get(ct.client_id);
+          add(ct.email, { name: ct.name || null, member: false, client: { id: ct.client_id, name: c ? label(c) : null } });
+        }
+      }
+    }
+    return successResponse(res, [...out.values()]);
+  } catch (err) { next(err); }
+});
+
 // ─── GET /:email/threads — 그 주소와 오간 스레드 (보관 포함) ────
 router.get('/:email/threads', authenticateToken, checkBusinessAccess, requireMenu('qmail', 'read'), async (req, res, next) => {
   try {

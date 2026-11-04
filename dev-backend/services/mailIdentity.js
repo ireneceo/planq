@@ -61,7 +61,9 @@ async function outgoingIdentityFor({ businessId, userId, accountId = null, threa
       attributes: ['id', 'account_id', 'subject'],
     });
     if (!thread) return { error: 'thread_not_found', status: 404 };
-    resolvedAccountId = thread.account_id;
+    // 답장도 다른 메일함에서 보낼 수 있다(2026-11-04 Irene «등록된 모든 메일이 보내는 메일로 나와야지») —
+    //   골랐으면(위에서 접근 가능 확인) 그 메일함, 아니면 스레드 메일함. 발송 라우트(email_threads POST messages)와 같은 규칙.
+    resolvedAccountId = accountId || thread.account_id;
     replyToAddresses = await receivedAddressesOf(thread.id);
     // ★ 답장 제목은 **서버가 만든다** — 발송 라우트와 같은 공식(replySubjectOf).
     //   화면이 제목을 안 보내던 탓에 «미리보기 en / 실발송 ko» 가 났다(Fable 실측).

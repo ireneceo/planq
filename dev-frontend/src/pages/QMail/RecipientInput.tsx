@@ -22,7 +22,7 @@ import { isEnterAction } from '../../utils/imeKey';
 import { findMatches } from '../../utils/searchMatch';
 import HighlightText from '../../components/Common/HighlightText';
 
-export interface RecipientSuggestion { email: string; name?: string | null; client?: { id: number; name?: string | null } | null }
+export interface RecipientSuggestion { email: string; name?: string | null; client?: { id: number; name?: string | null } | null; member?: boolean }
 
 interface Props {
   value: string;
@@ -55,7 +55,7 @@ const RecipientInput: React.FC<Props> = ({ value, onChange, placeholder, disable
     const taken = new Set(chips.map((c) => c.toLowerCase()));
     return suggestions
       .filter((s) => !taken.has(s.email.toLowerCase()))
-      .filter((s) => findMatches(s.email, q).length > 0 || findMatches(s.name || '', q).length > 0)
+      .filter((s) => findMatches(s.email, q).length > 0 || findMatches(s.name || '', q).length > 0 || findMatches(s.client?.name || '', q).length > 0)
       .slice(0, MAX_SHOWN);
   }, [q, suggestions, chips]);
   const showMenu = menuOpen && matches.length > 0 && !disabled;
@@ -175,7 +175,9 @@ const RecipientInput: React.FC<Props> = ({ value, onChange, placeholder, disable
                 ? <OptName><HighlightText text={m.name} query={q} /></OptName>
                 : null}
               <OptMail $solo={!m.name}><HighlightText text={m.email} query={q} /></OptMail>
-              {m.client && <OptTag>{t('compose.suggestClient', { defaultValue: '고객' }) as string}</OptTag>}
+              {m.member
+                ? <OptTag>{t('compose.suggestMember', { defaultValue: '멤버' }) as string}</OptTag>
+                : m.client && <OptTag>{t('compose.suggestClient', { defaultValue: '고객' }) as string}</OptTag>}
             </Opt>
           ))}
         </Menu>,

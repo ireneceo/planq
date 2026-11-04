@@ -1124,7 +1124,13 @@ router.post('/:businessId/email-threads/:id/messages',
       });
       if (!thread) return errorResponse(res, 'thread_not_found', 404);
 
-      const account = await EmailAccount.findOne({ where: { id: thread.account_id, business_id: businessId } });
+      // 보내는 메일함 — 기본은 이 메일이 온 메일함. 화면에서 다른 메일함(회사·개인)을 골랐으면 그 메일함으로 보낸다
+      //   (2026-11-04 Irene «답장하기에 보내는 사람에 왜 개인메일만 나와? … 등록된 모든 메일이 보내는 메일로 나와야지»).
+      //   고른 메일함도 **내가 볼 수 있는 메일함**(accessibleAccountIds — 남의 개인 메일함 제외)이어야 한다. 미리보기
+      //   (mailIdentity.outgoingIdentityFor)와 같은 규칙.
+      const askedAccountId = Number((req.body || {}).account_id) || null;
+      if (askedAccountId && !acctIds.includes(askedAccountId)) return errorResponse(res, 'forbidden_account', 403);
+      const account = await EmailAccount.findOne({ where: { id: askedAccountId || thread.account_id, business_id: businessId } });
       if (!account) return errorResponse(res, 'account_not_found', 404);
 
       // 스레드 메시지 — 스레딩 헤더 + 답장 수신자 결정
@@ -1755,8 +1761,9 @@ router.post('/:businessId/email-threads/:id/ai-suggest', // audit-exempt: 답장
       // 맺음 이름 — 이 답장이 실제로 나갈 신원(화면이 고른 보내는 주소)에서, 메일 언어로. 서명이 붙으면 이름은 서명이 싣는다.
       const mailClosing = require('../services/mailClosing');
       const fromAliasId = Number((req.body || {}).from_alias_id) || null;
+      const replyAccountId = Number((req.body || {}).account_id) || null;   // 다른 메일함에서 답장할 때(발송과 같은 값)
       const closing = await mailClosing.closingFor({
-        businessId, userId: req.user.id, threadId, fromAliasId, draftText: out.content, language,
+        businessId, userId: req.user.id, threadId, accountId: replyAccountId, fromAliasId, draftText: out.content, language,
       });
       const body = mailClosing.applyClosing(out.content, closing, language);
 

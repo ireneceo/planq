@@ -624,7 +624,8 @@
     "subjectPh": "Enter a subject",
     "to": "To",
     "toRequired": "Please enter a recipient",
-    "suggestClient": "Client"
+    "suggestClient": "Client",
+    "suggestMember": "Member"
   },
   "attachment": {
     "menu": "Attachments ({{n}})",
