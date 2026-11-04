@@ -610,9 +610,14 @@
 - 시험 데이터: 문서 6406 «[확인용] 장문 목차»(넣기 시험으로 본문에 6407 내용 들어감) · 6407 «[확인용] 끼워 넣을 글» · Q info 2842(프로젝트 1126).
 - 미커밋 qmail 6파일·MailImpersonationNote·session-state 남의 절은 다른 방 것 — 손대지 않음.
 
-### 나중에 — 시연 영상 정기 제작·발행 자동화 D′1 구현 · 다른 방(Cue 고객안내 채팅 d12c74b3)이 dev-backend models/index.js·server.js 고치는 중이 끝나면 · 그때 §20 D′1(마이그레이션·모델·videoTransition·workerAuth·routes/video_worker.js·claim 직렬화·worker.js API 모드·produce) 구현 → §20.11 대조군 검증 (방 e6f1ecd8 · 2026-11-04 · [Opus])
-- 설계 §20 확정: Fable 설계 판정 FAIL 차단 5 → 반영(§20.13, «반영하면 재판정 없이 구현 시작»). 커밋 bff47d79 · 81236081.
-
+### ✅ 시연 영상 정기 제작·발행 자동화 D′1 — 계획표·작업자 API·일정·자동 승인 (방 e6f1ecd8 · 2026-11-04 · [Opus] · Fable 설계 FAIL→반영 · 완료 검증 PASS)
+- 커밋 4b441d3b(D′1) · 다음 커밋(Fable 비차단 1·2·3·8). 설계 docs/DEMO_VIDEO_DESIGN.md §20(20.13 설계 판정 · 20.14 구현 기록 · 20.15 완료 검증).
+- 된 것: 요청 쌓기·순서 · 일정(요일·시간 창·하루 N편) · 작업자가 운영에서 받아 감(claim 직렬화·끊긴 작업 되돌리기) · AI 대본 → 검수 관문 통과면 자동 승인 → 렌더 → 조각 올리기 → «링크 대기» · 관문 걸림은 «확인 필요»(줄 안 막힘) → 승인 판·그대로 쓰기로 다시 넣으면 AI 건너뜀.
+- 검증: 자체 실HTTP 35/35(고친 뒤 재실행도 35/35) · Fable 독립 79항목 · 실제 작업자 1회 끝까지(프로젝트 10: AI 6장면 → 관문 → 그대로 쓰기 → 렌더 294초 → 5.3MB → awaiting_link) · guard 84/85(기존 경고) · health 98/98.
+- dev 설정: dev-backend/.env VIDEO_WORKER_TOKEN_SHA256·ALLOW_IPS · video-engine/.env(git 제외) VIDEO_API_BASE·VIDEO_WORKER_TOKEN. 일정은 꺼 둠(enabled:false).
+- 시험 데이터: [확인용] 요청 7~16(10 = 실제 완성본, awaiting_link).
+- 다음 D′2: 관리자 화면 4탭(계획표·링크 대기·확인 필요·발행됨) · AI 다음 편 제안 · 유튜브 메타 · 알림 · 드라이브 보관 · 녹음 방식 · 운영 사본 정리 · PM2 planq-video-worker. 그 뒤 E′(링크=발행·랜딩·SNS).
+- 운영 연결 때 확인(Fable 비차단 6): 운영 nginx client_max_body_size ≥ 41M.
 ### (이전) 답 기다림: 시연 영상 정기 제작·발행 자동화 — 기능 목록대로 설계(Fable 검토)로 넘어갈지 → Irene «권고대로» (방 e6f1ecd8 · 2026-11-04 · [Opus])
 - 무엇: **docs/DEMO_VIDEO_DESIGN.md §19 기능 목록(계획표·정기 실행·자동 승인·링크 대기 목록·링크=발행·SNS 영상 자동 게시)과 구조 B′(정본은 운영, 렌더만 dev)로 설계를 짜 Fable 검토를 받을까요?**
 - 왜: Irene «미리 요청 쌓고 정기 순서로 · 링크 안 올린 건 목록 · 내가 주면 다 발행 · 진짜 자동화». 지금 설계 B(사람이 dev→운영 옮김)로는 링크·파일을 두 번 옮겨야 해 못 채움. B′ 는 새 서버 간 통로(작업자 API)가 생겨 Fable gate.
