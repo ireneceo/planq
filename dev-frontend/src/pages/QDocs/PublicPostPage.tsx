@@ -148,14 +148,14 @@ const PublicPostPage: React.FC = () => {
 
         <PublicAttachmentList
           title={t('attachments', '첨부 파일') as string}
-          items={(post.attachments || []).filter((a) => a.file).map((a) => ({ id: a.id, name: a.file!.file_name, href: a.file!.download_url }))}
+          items={(post.attachments || []).filter((a) => a.file).map((a) => ({ id: a.id, name: a.file!.file_name, downloadHref: a.file!.download_url }))}
         />
         <PublicAttachmentList
           title={t('public.linkedDocs', '연결 문서') as string}
           testId="public-linked-docs"
           items={(post.linked_docs || []).map((d) => ({
-            id: `lp-${d.id}`, name: d.title, href: d.pdf_url || d.url,
-            extra: d.pdf_url ? { label: t('public.openDoc', '열기') as string, href: d.url } : undefined,
+            id: `lp-${d.id}`, name: d.title, openHref: d.url, downloadHref: d.pdf_url,
+            downloadLabel: t('public.linkedPdf', 'PDF 받기') as string,
           }))}
         />
       </>

@@ -1018,7 +1018,8 @@
     "scopeHintProject": "올린 파일은 이 문서와 같은 범위 — 프로젝트 참여자가 볼 수 있어요.",
     "scopeHintWorkspace": "올린 파일은 이 문서와 같은 범위 — 워크스페이스 멤버가 볼 수 있어요.",
     "scopeHintPublic": "올린 파일은 공개 링크를 여는 사람도 내려받을 수 있어요.",
-    "scopeHintPrivate": "이 문서는 나만 보기라 올린 파일도 나만 볼 수 있어요."
+    "scopeHintPrivate": "이 문서는 나만 보기라 올린 파일도 나만 볼 수 있어요.",
+    "download": "받기"
   },
   "autosave": {
     "saving": "임시저장 중…",
@@ -1118,7 +1119,7 @@
     "downloadPdf": "PDF 다운로드",
     "signMoved": "이 문서는 보기 전용입니다. 서명이 필요하면 보낸 분께 서명 요청 링크를 요청해 주세요.",
     "linkedDocs": "연결 문서",
-    "openDoc": "열기"
+    "linkedPdf": "PDF 받기"
   },
   "internalSign": {
     "title": "서명하기",
@@ -1166,7 +1167,8 @@
   "links": {
     "saveFailed": "문서는 저장했지만 연결 문서를 저장하지 못했습니다. 다시 시도해 주세요.",
     "pdf": "PDF 받기",
-    "pdfBusy": "받는 중…"
+    "pdfBusy": "받는 중…",
+    "open": "열기"
   },
   "cat": {
     "delete": "삭제",

@@ -35,7 +35,7 @@ import AttachmentField from '../Common/AttachmentField';
 import CategoryCombobox from '../Common/CategoryCombobox';
 import EmptyState from '../Common/EmptyState';
 import { uploadMyFile, uploadProjectFile, updateFileVisibility } from '../../services/files';
-import { LinkedPdfBtn } from './LinkedDocPdfBtn';
+import { LinkedPdfBtn, DlIcon, OpenIcon, AttachText } from './LinkedDocPdfBtn';
 import ConfirmDialog from '../Common/ConfirmDialog';
 import TrashDrawer from '../Trash/TrashDrawer';
 import TrashButton from '../Trash/TrashButton';
@@ -88,7 +88,7 @@ import { uploadErrorText } from '../../utils/uploadError';
 import { useDocFocusMode, DocFocusButton } from './docFocusMode';
 import { DocFocusBackdrop } from './docFocusStyles';
 import {
-  PrintOnlyTitle, Layout, Sidebar, TitleGroup, HeaderBtnRow, NewBtn, NewBtnWrap, NewDropdown, NewItem, NewItemTitle, NewItemDesc, ModalBackdrop, ModalDialog, ModalHead, ModalTitle, ModalClose, ModalBody, ModalSub, TplGrid, TplCard, TplCardIcon, TplBadgeSys, TplSearchInput, PinDot, ParentLink, SaveTplField, SaveTplLabel, SaveTplError, ModalFooter, TplCardBody, TplCardName, TplCardDesc, Empty, SearchWrap, FilterSection, FilterGroupLabel, Chip, Count, ColorDot, AddCatBtn, NewCatInput, RowList, RowItem, RowPinBtn, RowTitle, RowPreview, CardPreview, CardAuthor, RowVisChip, SectionGap, AiRegenRow, KindToggle, KindBtn, ShareMini, RowMeta, Dim, Content, StickyBands, StickyPanelHeader, Body, EditBody, TitleInput, AutoSaveMark, WideOnly, PhoneOnly, AutoSaveText, DraftTag, SignTag, ViewMeta, MetaLeft, MetaRight, AiEditDoneBar, AiEditUndoBtn, AiEditCloseBtn, MetaActions, HeaderActions, PinTag, ProjectTag, CategoryTag, MetaField, MetaRow, MetaSummaryBtn, MetaSummaryLabel, MetaSummaryValue, MetaSummaryChevron, VisibilityChip, ShareTag, CategoryMini, AttachSection, AttachTitle, AttachScopeHint, AttachList, AttachRow, AttachName, RemoveBtn, CatActions, CatIconBtn, ErrorBar, DescAddBtn, DescToggleHeader, DescBoxLabel, DescChevron, PrimaryBtn, EditBtn, IconActionBtn, SignBtn, LeaveBlockedNote, SecondaryBtn, TitleRow, MobileBackBtn, KnowledgeToast, SignedBody,
+  PrintOnlyTitle, Layout, Sidebar, TitleGroup, HeaderBtnRow, NewBtn, NewBtnWrap, NewDropdown, NewItem, NewItemTitle, NewItemDesc, ModalBackdrop, ModalDialog, ModalHead, ModalTitle, ModalClose, ModalBody, ModalSub, TplGrid, TplCard, TplCardIcon, TplBadgeSys, TplSearchInput, PinDot, ParentLink, SaveTplField, SaveTplLabel, SaveTplError, ModalFooter, TplCardBody, TplCardName, TplCardDesc, Empty, SearchWrap, FilterSection, FilterGroupLabel, Chip, Count, ColorDot, AddCatBtn, NewCatInput, RowList, RowItem, RowPinBtn, RowTitle, RowPreview, CardPreview, CardAuthor, RowVisChip, SectionGap, AiRegenRow, KindToggle, KindBtn, ShareMini, RowMeta, Dim, Content, StickyBands, StickyPanelHeader, Body, EditBody, TitleInput, AutoSaveMark, WideOnly, PhoneOnly, AutoSaveText, DraftTag, SignTag, ViewMeta, MetaLeft, MetaRight, AiEditDoneBar, AiEditUndoBtn, AiEditCloseBtn, MetaActions, HeaderActions, PinTag, ProjectTag, CategoryTag, MetaField, MetaRow, MetaSummaryBtn, MetaSummaryLabel, MetaSummaryValue, MetaSummaryChevron, VisibilityChip, ShareTag, CategoryMini, AttachSection, AttachTitle, AttachScopeHint, AttachList, AttachRow, RemoveBtn, CatActions, CatIconBtn, ErrorBar, DescAddBtn, DescToggleHeader, DescBoxLabel, DescChevron, PrimaryBtn, EditBtn, IconActionBtn, SignBtn, LeaveBlockedNote, SecondaryBtn, TitleRow, MobileBackBtn, KnowledgeToast, SignedBody,
 } from './PostsPage.styles';
 
 // 좌측 필터: 전체(기본) / 프로젝트 그룹 / 카테고리
@@ -2524,12 +2524,13 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId, onEditingChange }) =>
                       <AttachRow key={a.id}>
                         {/* 링크로 열면 401 이다(라우트가 Bearer 요구) — 인증 fetch 로 받는다.
                             받는 동안 이름 옆에 진행 상태를 붙여 "안 눌리는 것" 처럼 보이지 않게 한다. */}
-                        <AttachName as="button" type="button"
+                        <AttachText title={a.file?.file_name || ''}>{a.file?.file_name || '—'}</AttachText>
+                        {/* 이름은 글자, 받기는 글자 붙은 단추(2026-11-03 Irene «누르면 열릴 것 같은데 갑자기 다운로드 되서») */}
+                        <LinkedPdfBtn type="button" data-testid="attach-download"
                           disabled={dl.downloading}
                           onClick={() => a.file?.download_url && dl.start(a.file.download_url, a.file.file_name || 'file', String(a.id))}>
-                          {a.file?.file_name || '—'}
-                          {dl.downloadingId === String(a.id) && ` · ${dl.progressText}`}
-                        </AttachName>
+                          <DlIcon />{dl.downloadingId === String(a.id) ? dl.progressText : (t('attach.download', '받기') as string)}
+                        </LinkedPdfBtn>
                         <RemoveBtn type="button" onClick={() => detachOne(a.id)} title={t('actions.remove', '제거') as string} aria-label={t('actions.remove', '제거') as string}>×</RemoveBtn>
                       </AttachRow>
                     ))}
@@ -2897,12 +2898,13 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId, onEditingChange }) =>
                     <AttachList>
                       {detail.attachments.map(a => (
                         <AttachRow key={a.id}>
-                          <AttachName as="button" type="button"
+                          <AttachText title={a.file?.file_name || ''}>{a.file?.file_name || '—'}</AttachText>
+                          {/* 이름은 글자, 받기는 글자 붙은 단추(2026-11-03 Irene «누르면 열릴 것 같은데 갑자기 다운로드 되서») */}
+                          <LinkedPdfBtn type="button" data-testid="attach-download"
                             disabled={dl.downloading}
                             onClick={() => a.file?.download_url && dl.start(a.file.download_url, a.file.file_name || 'file', String(a.id))}>
-                            {a.file?.file_name || '—'}
-                            {dl.downloadingId === String(a.id) && ` · ${dl.progressText}`}
-                          </AttachName>
+                            <DlIcon />{dl.downloadingId === String(a.id) ? dl.progressText : (t('attach.download', '받기') as string)}
+                          </LinkedPdfBtn>
                           <RemoveBtn type="button" onClick={() => detachOne(a.id)} title={t('actions.remove', '제거') as string} aria-label={t('actions.remove', '제거') as string}>×</RemoveBtn>
                         </AttachRow>
                       ))}
@@ -2912,9 +2914,12 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId, onEditingChange }) =>
                     <AttachList>
                       {detail.linked_posts.map(lp => (
                         <AttachRow key={`lp-${lp.id}`}>
-                          <AttachName as="a" href={`/docs?post=${lp.id}`}>
+                          <AttachText title={lp.title}>
                             {lp.kind === 'table' ? '📊 ' : '📄 '}{lp.title}
-                          </AttachName>
+                          </AttachText>
+                          <LinkedPdfBtn as="a" href={`/docs?post=${lp.id}`} data-testid="linked-doc-open">
+                            <OpenIcon />{t('links.open', '열기') as string}
+                          </LinkedPdfBtn>
                           {/* 연결 문서도 받는다(2026-11-03 Irene «그 문서 다운로드가 안나와») — 권한은 서버 PDF 라우트가 본다 */}
                           <LinkedPdfBtn type="button" data-testid="linked-doc-pdf"
                             disabled={linkedPdfBusy === lp.id}
@@ -2928,7 +2933,7 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId, onEditingChange }) =>
                                 })
                                 .finally(() => setLinkedPdfBusy(null));
                             }}>
-                            {linkedPdfBusy === lp.id ? (t('links.pdfBusy', '받는 중…') as string) : (t('links.pdf', 'PDF 받기') as string)}
+                            <DlIcon />{linkedPdfBusy === lp.id ? (t('links.pdfBusy', '받는 중…') as string) : (t('links.pdf', 'PDF 받기') as string)}
                           </LinkedPdfBtn>
                         </AttachRow>
                       ))}

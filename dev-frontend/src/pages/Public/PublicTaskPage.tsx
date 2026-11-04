@@ -193,7 +193,9 @@ const PublicTaskPage = () => {
 
         <PublicAttachmentList
           title={t('public.task.attachments', { defaultValue: '첨부 파일' }) as string}
-          items={(task.attachments || []).map((a) => ({ id: a.id, name: a.name, href: (a.kind === 'post' ? a.url : a.download_url) || '#' }))}
+          items={(task.attachments || []).map((a) => (a.kind === 'post'
+            ? { id: a.id, name: a.name, openHref: a.url || null }
+            : { id: a.id, name: a.name, downloadHref: a.download_url || null }))}
         />
 
         <CTAArea>

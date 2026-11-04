@@ -2140,5 +2140,9 @@
     "failed": "Please try again in a moment",
     "syncBanner": "The account was switched in another window",
     "syncApply": "Switch now"
+  },
+  "publicAttach": {
+    "open": "Open",
+    "download": "Download"
   }
 }

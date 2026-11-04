@@ -2140,5 +2140,9 @@
     "failed": "잠시 후 다시 해 주세요",
     "syncBanner": "다른 창에서 계정이 바뀌었어요",
     "syncApply": "지금 바꾸기"
+  },
+  "publicAttach": {
+    "open": "열기",
+    "download": "받기"
   }
 }

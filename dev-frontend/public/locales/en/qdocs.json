@@ -1018,7 +1018,8 @@
     "scopeHintProject": "Files you add follow this document — project members can see them.",
     "scopeHintWorkspace": "Files you add follow this document — workspace members can see them.",
     "scopeHintPublic": "Anyone with the public link can download files you add here.",
-    "scopeHintPrivate": "This document is private, so files you add stay private too."
+    "scopeHintPrivate": "This document is private, so files you add stay private too.",
+    "download": "Download"
   },
   "autosave": {
     "saving": "Saving draft…",
@@ -1118,7 +1119,7 @@
     "downloadPdf": "Download PDF",
     "signMoved": "This document is view-only. If a signature is needed, ask the sender for a signing link.",
     "linkedDocs": "Linked documents",
-    "openDoc": "Open"
+    "linkedPdf": "Download PDF"
   },
   "internalSign": {
     "title": "Sign",
@@ -1166,7 +1167,8 @@
   "links": {
     "saveFailed": "The document was saved, but its linked documents were not. Please try again.",
     "pdf": "Download PDF",
-    "pdfBusy": "Downloading…"
+    "pdfBusy": "Downloading…",
+    "open": "Open"
   },
   "cat": {
     "delete": "Delete",
