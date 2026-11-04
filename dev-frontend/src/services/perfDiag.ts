@@ -81,15 +81,25 @@ export function perfShellMounted(businessId: number | null): void {
   poll();
 
   // 메뉴 누름 — 사이드바 안 링크만
+  // ★ 2026-11-04 (Fable) — 누른 대상(target)이 아니라 **손가락 자리**로 «메뉴를 눌렀다» 를 가른다.
+  //   메뉴 위를 다른 막이 덮으면 target 이 그 막이라 대상 기준으로는 그 탭이 기록조차 안 됐다 — 바로 그 원인을 못 봤다.
+  //   자리 밑의 메뉴 링크를 elementsFromPoint 로 찾고, click 이 그 링크에 안 오면 click:null(= 먹힌 탭) 으로 남는다.
   document.addEventListener('pointerdown', (e) => {
-    const a = (e.target as Element | null)?.closest?.('[data-pq-sidebar] a[href]') as HTMLAnchorElement | null;
-    if (!a || taps.length >= 12) return;
+    if (taps.length >= 12) return;
+    const sb = document.querySelector('[data-pq-sidebar]');
+    const r = sb?.getBoundingClientRect();
+    if (!sb || !r || r.width < 10 || r.right <= 0) return;
+    const pe = e as PointerEvent;
+    if (pe.clientX < r.left || pe.clientX > r.right || pe.clientY < r.top || pe.clientY > r.bottom) return;
+    const a = (document.elementsFromPoint(pe.clientX, pe.clientY)
+      .map(el => el.closest('a[href]')).find(x => x && sb.contains(x)) || null) as HTMLAnchorElement | null;
+    if (!a) return;
     const href = (a.getAttribute('href') || '').split('?')[0];
     const prev = [...taps].reverse().find(t => t.href === href);
     const tap: Tap = { href, at: ms(), click: null, url: null, paint: null, repeat: !!prev && prev.url == null && ms() - prev.at < 3000 };
     taps.push(tap);
     const onClick = (ce: Event) => {
-      if ((ce.target as Element | null)?.closest?.('[data-pq-sidebar] a[href]') === a) tap.click = ms();
+      if ((ce.target as Element | null)?.closest?.('a[href]') === a) tap.click = ms();
     };
     document.addEventListener('click', onClick, { capture: true, once: true });
     const end = performance.now() + 5000;

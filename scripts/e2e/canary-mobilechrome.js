@@ -154,7 +154,26 @@ async function run() {
         push(`드로어/${w} 상세가 열려도 PlanQ 앱 머리줄이 보인다`, !hdr.err && hdr.onTop, JSON.stringify(hdr));
       }
 
+      // ── ④-b 드로어가 열려 있어도 고정 좌측 메뉴는 그대로 눌린다 (2026-11-04, Fable 원인 판정) ──
+      //   드로어 막(z 125)이 left:0 이라 고정 메뉴(≥1025)를 덮어 첫 탭이 «드로어 닫기» 로 먹혔다(«여러 번 눌러야 이동»).
+      //   막은 --pq-nav-w 만큼 왼쪽을 비운다. 판정은 그 자리에 실제로 무엇이 있나(elementFromPoint).
+      if (W >= 1025) {
+        const hit = await page.evaluate(() => {
+          const a = document.querySelector('[data-pq-sidebar] a[href="/talk"]');
+          if (!a) return { err: 'no-link' };
+          const r = a.getBoundingClientRect();
+          const el = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2);
+          return { onLink: !!el && a.contains(el), top: el ? `${el.tagName} z=${getComputedStyle(el).zIndex}` : null,
+            form: !!document.querySelector('[data-testid="task-create-title"]') };
+        });
+        push(`메뉴/${w} 업무 추가가 열려 있어도 좌측 메뉴 자리 맨 위 = 메뉴 링크`, !hit.err && hit.form && hit.onLink, JSON.stringify(hit));
+      }
+
       // ── ⑤ 같은 메뉴 재클릭 = 그 메뉴 처음으로 ──────────────────────
+      // ★ 판정은 **폼 입력칸**(task-create-title)으로 — 10-23 머리줄 버튼이 «업무 추가» 글자 span 이 된 뒤
+      //   옛 판정(«업무 추가» 잎 글자)은 버튼 라벨을 폼으로 읽어 늘 빨강이었다(Fable 11-04 실측: 재클릭 뒤 폼은 실제로 닫힘).
+      const formBefore = await page.evaluate(() => !!document.querySelector('[data-testid="task-create-title"]'));
+      if (!formBefore) { skip(`재클릭/${w}`, '업무 추가 폼이 안 열려 재클릭을 잴 수 없다'); continue; }
       const clicked = await page.evaluate(() => {
         const a = [...document.querySelectorAll('a[href="/tasks"]')].find((x) => x.getBoundingClientRect().width > 0);
         if (!a) return false;
@@ -164,9 +183,7 @@ async function run() {
       await sleep(1200);
       if (!clicked) { skip(`재클릭/${w}`, '사이드바 링크가 안 보인다'); continue; }
       const closed = await page.evaluate(() => {
-        const t = [...document.querySelectorAll('div,h1,h2,h3,span')]
-          .find((e) => (e.textContent || '').trim() === '업무 추가' && e.children.length === 0);
-        return { open: !!t, url: location.pathname + location.search };
+        return { open: !!document.querySelector('[data-testid="task-create-title"]'), url: location.pathname + location.search };
       });
       push(`재클릭/${w} 메뉴를 다시 누르면 추가 폼이 닫힌다`, !closed.open, JSON.stringify(closed));
     }

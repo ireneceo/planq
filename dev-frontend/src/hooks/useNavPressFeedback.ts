@@ -27,3 +27,4 @@ export function useNavPressFeedback(pathname: string, businessId: number | null)
   };
   return { pressedPath, notePress };
 }
+export { useNavWidthVar } from './useNavWidthVar';

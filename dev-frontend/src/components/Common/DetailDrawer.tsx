@@ -238,7 +238,9 @@ const Backdrop = styled.div`
      **데스크탑 탭 모드 동작은 그대로**고 폰에서만 헤더가 남는다.
      숫자를 적지 않는다 — 상태바 인셋이 있는 기기에서 거짓이 된다. */
   /* ★ 기준선은 --pq-panel-top: 모든 폭에서 상단 크롬 아래(2026-10-17 — 폰도 앱 머리줄을 남긴다, index.css). */
-  position: fixed; top: var(--pq-panel-top, 0px); left: 0; right: 0; bottom: 0;
+  /* ★ 2026-11-04 — 왼쪽은 고정 메뉴 폭만큼 비운다(--pq-nav-w, hooks/useNavWidthVar). 0 이면 아이패드 가로·데스크탑에서
+     막이 메뉴를 덮어 첫 탭이 «드로어 닫기» 로 먹혔다(«여러 번 눌러야 이동», Fable 실측). */
+  position: fixed; top: var(--pq-panel-top, 0px); left: var(--pq-nav-w, 0px); right: 0; bottom: 0;
   background: rgba(15, 23, 42, 0.08);
   /* RightDock FAB(z-index 120) 위로 — 드로어 열리면 우하단 퀵메뉴가 드로어를 뚫고 나오지 않게.
      위계: 페이지크롬(99·100) < FAB(120) < 드로어(125·130) < 센터모달(1000+). */

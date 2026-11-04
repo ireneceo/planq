@@ -23,7 +23,7 @@ import WorkspaceBillingBanner from './WorkspaceBillingBanner';
 import AnnouncementBanner from '../Common/AnnouncementBanner';
 import SidebarClock from './SidebarClock';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
-import { useNavPressFeedback } from '../../hooks/useNavPressFeedback';
+import { useNavPressFeedback, useNavWidthVar } from '../../hooks/useNavPressFeedback';
 import { useAuthedImageSrc } from '../../hooks/useAuthedImageSrc';
 import FocusWidget from '../Focus/FocusWidget';
 import AttendanceWidget from '../Attendance/AttendanceWidget';   // #208 출퇴근
@@ -860,8 +860,6 @@ const AccordionGroupLabel = styled.div`
   }
 `;
 
-
-
 interface MainLayoutProps { children: React.ReactNode; tabMode?: boolean; }
 
 type SecondarySection = 'reports' | 'settings' | 'account' | null;
@@ -1220,6 +1218,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
     ? (secondaryCollapsed ? SECONDARY_COLLAPSED_W : SECONDARY_W)
     : 0;
   const mainMarginLeft = sidebarW + secondaryW;
+  useNavWidthVar(isMobileNav ? 0 : mainMarginLeft);   // 드로어 막이 고정 메뉴를 덮지 않게(hooks/useNavWidthVar)
 
   return (
     <LayoutContainer>

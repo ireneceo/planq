@@ -3179,7 +3179,8 @@ const DateRangeCell: React.FC<{
 const Backdrop = styled.div`
   /* 패널과 같은 기준선(--pq-panel-top, DetailDrawer.Backdrop 과 같은 계약). 2026-10-17 — 여태 --chrome-top 이라 폰에서 0 이어서
      어두운 막이 PlanQ 앱 머리줄을 덮고 그 위 메뉴·대화 버튼 누름을 가로챘다. */
-  position:fixed;top:var(--pq-panel-top, 0px);left:0;right:0;bottom:0;background:rgba(15, 23, 42, 0.08);
+  /* 왼쪽은 고정 메뉴 폭만큼 비운다(--pq-nav-w — DetailDrawer.Backdrop 과 같은 계약, 2026-11-04 메뉴 첫 탭 먹힘). */
+  position:fixed;top:var(--pq-panel-top, 0px);left:var(--pq-nav-w, 0px);right:0;bottom:0;background:rgba(15, 23, 42, 0.08);
   z-index:125;
   animation:pqFadeIn 0.22s ease-out;
   @keyframes pqFadeIn{from{opacity:0;}to{opacity:1;}}

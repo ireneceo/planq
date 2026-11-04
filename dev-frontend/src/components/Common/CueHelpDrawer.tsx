@@ -1008,7 +1008,8 @@ function readAttachmentPayload(files: File[]): Promise<Array<{ name: string; typ
 // ─── styled ───
 const Backdrop = styled.div`
   /* 패널과 같은 기준선 — 탭 막대는 어둡게 덮지 않는다(DetailDrawer 백드롭과 같다) */
-  position: fixed; top: var(--pq-panel-top, 0px); left: 0; right: 0; bottom: 0;
+  /* 왼쪽은 고정 메뉴 폭만큼 비운다(--pq-nav-w — DetailDrawer.Backdrop 과 같은 계약, 2026-11-04 메뉴 첫 탭 먹힘). */
+  position: fixed; top: var(--pq-panel-top, 0px); left: var(--pq-nav-w, 0px); right: 0; bottom: 0;
   background: rgba(15, 23, 42, 0.30);
   z-index: 1000;
 `;
