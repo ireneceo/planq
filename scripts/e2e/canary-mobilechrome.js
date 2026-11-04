@@ -16,7 +16,8 @@
 //     결함을 되살린 대조군까지 초록이었다.
 const { launch, login, goto, sleep } = require('./lib/browser');
 
-const WIDTHS = [['폰', 390, 844], ['태블릿', 834, 1112], ['데스크탑', 1440, 900]];
+// 아이패드 가로(1180×820, 터치) — 메뉴가 고정이 되는 태블릿 폭. «드로어 열린 채 메뉴 첫 탭 먹힘» 신고의 정확한 폭이다(2026-11-04 Fable 비차단).
+const WIDTHS = [['폰', 390, 844], ['태블릿', 834, 1112], ['아이패드가로', 1180, 820, true], ['데스크탑', 1440, 900]];
 
 async function chromeBottom(page) {
   return page.evaluate(() => {
@@ -117,8 +118,8 @@ async function run() {
     }
 
     // ── ④ 우측 드로어 기준선 = 크롬 하단 (3폭) ───────────────────────
-    for (const [w, W, H] of WIDTHS) {
-      await page.setViewport({ width: W, height: H, isMobile: W < 700, hasTouch: W < 700 });
+    for (const [w, W, H, touch] of WIDTHS) {
+      await page.setViewport({ width: W, height: H, isMobile: touch ?? W < 700, hasTouch: touch ?? W < 700 });
       await goto(page, '/tasks'); await sleep(2800);
       const cb = await chromeBottom(page);
       const box = await page.evaluate(() => {
