@@ -22,6 +22,7 @@ router.use(authenticateToken, requireRole('platform_admin'));
 
 const HUMAN_ROLES = ['owner', 'admin', 'member'];
 const MEMBER_LIMIT = 50;
+const MEMBER_CONCURRENCY = 5;
 const DAY = 24 * 60 * 60 * 1000;
 
 /** 막힘 신호 기준 — 화면은 key 와 숫자만 받아 문구를 그린다. */
@@ -43,7 +44,8 @@ router.get('/businesses/:id/journey', async (req, res, next) => {
   try {
     const biz = Number(req.params.id);
     if (!biz) return errorResponse(res, 'Invalid id', 400);
-    const business = await Business.findByPk(biz, {
+    const business = await Business.findOne({
+      where: { id: biz, deleted_at: null },
       attributes: ['id', 'owner_id', 'createdAt', 'trial_ends_at', 'subscription_status'],
     });
     if (!business) return errorResponse(res, 'Business not found', 404);
@@ -52,11 +54,11 @@ router.get('/businesses/:id/journey', async (req, res, next) => {
     const memberRows = await BusinessMember.findAll({
       where: { business_id: biz, removed_at: null, role: HUMAN_ROLES },
       attributes: ['user_id', 'role', 'joined_at', 'createdAt'],
-      include: [{ model: User, as: 'user', attributes: ['id', 'name', 'last_login_at', 'is_ai'], required: true }],
+      include: [{ model: User, as: 'user', attributes: ['id', 'name', 'last_login_at', 'is_ai'], required: true, where: { is_ai: false } }],
       order: [['createdAt', 'ASC']],
       limit: MEMBER_LIMIT + 1,
     });
-    const humans = memberRows.filter((m) => !m.user.is_ai).slice(0, MEMBER_LIMIT);
+    const humans = memberRows.slice(0, MEMBER_LIMIT);
     const userIds = humans.map((m) => m.user_id);
 
     const [nameMap, lastUsedRows] = await Promise.all([
@@ -68,7 +70,7 @@ router.get('/businesses/:id/journey', async (req, res, next) => {
     ]);
     const lastUsed = new Map(lastUsedRows.map((r) => [Number(r.user_id), r.at]));
 
-    const members = await Promise.all(humans.map(async (m) => {
+    const oneMember = async (m) => {
       const [stages, setup] = await Promise.all([
         getAdoptionStages({ businessId: biz, userId: m.user_id, role: m.role }),
         personalSetup(m.user_id, biz),
@@ -84,7 +86,12 @@ router.get('/businesses/:id/journey', async (req, res, next) => {
         stage: { current: stages.current, stage_count: stages.stage_count, steps: stages.steps },
         setup,
       };
-    }));
+    };
+    // 멤버마다 쿼리 ~23회 + Q Note 1회 — 한꺼번에 돌리면 큰 워크스페이스가 DB 풀(20)을 잡는다(Fable 비차단 1). 5명씩.
+    const members = [];
+    for (let i = 0; i < humans.length; i += MEMBER_CONCURRENCY) {
+      members.push(...await Promise.all(humans.slice(i, i + MEMBER_CONCURRENCY).map(oneMember)));
+    }
 
     const [mailAccounts, mailErrors, timelineRows, firstClient] = await Promise.all([
       EmailAccount.count({ where: { business_id: biz, is_active: true } }),
@@ -120,7 +127,8 @@ router.get('/businesses/:id/journey', async (req, res, next) => {
 
     const signals = [];
     if (inactiveDays !== null && inactiveDays >= INACTIVE_DAYS) signals.push({ key: 'inactive', days: inactiveDays });
-    if (trialDaysLeft !== null && trialDaysLeft <= TRIAL_ENDING_DAYS) signals.push({ key: 'trial_ending', days: Math.max(0, trialDaysLeft) });
+    if (trialDaysLeft !== null && trialDaysLeft < 0) signals.push({ key: 'trial_ended', days: -trialDaysLeft });
+    else if (trialDaysLeft !== null && trialDaysLeft <= TRIAL_ENDING_DAYS) signals.push({ key: 'trial_ending', days: trialDaysLeft });
     if (members.length <= 1 && ageDays >= SOLO_AFTER_DAYS) signals.push({ key: 'solo', days: ageDays });
     if (mailErrors > 0) signals.push({ key: 'mail_error', count: mailErrors });
     if (owner && owner.stage.current === 1 && ageDays >= STAGE1_STALL_DAYS) signals.push({ key: 'stage_stalled', stage: 1, days: ageDays });
@@ -137,7 +145,7 @@ router.get('/businesses/:id/journey', async (req, res, next) => {
         created_at: business.createdAt,
         trial_days_left: trialDaysLeft,
         members: members.length,
-        members_truncated: memberRows.filter((m) => !m.user.is_ai).length > MEMBER_LIMIT,
+        members_truncated: memberRows.length > MEMBER_LIMIT,
         app_installed: setupAny('install_app'),
         notifications_on: setupAny('enable_notifications'),
         calendar_connected: setupAny('connect_calendar'),

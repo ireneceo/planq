@@ -906,7 +906,8 @@
       "trial_ending": "{{days}} trial days left",
       "solo": "Used alone for {{days}} days",
       "mail_error": "{{count}} mail sync errors",
-      "stage_stalled": "Still on stage {{stage}} after {{days}} days"
+      "stage_stalled": "Still on stage {{stage}} after {{days}} days",
+      "trial_ended": "Trial ended {{days}} days ago"
     },
     "event": {
       "workspace_created": "Workspace created",
@@ -919,6 +920,9 @@
       "first_document": "First document",
       "first_file": "First file",
       "first_mail_account": "First mail connected"
-    }
+    },
+    "noOwner": "No human members",
+    "loading": "Loading…",
+    "trialEnded": "Ended"
   }
 }

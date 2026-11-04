@@ -26,14 +26,15 @@ export default function AdminBusinessJourney({ businessId }: { businessId: numbe
   useVisibilityRefresh(load);
 
   const stageText = (cur: number | null, count: number | null) =>
-    cur == null ? t('journey.stageDone', '모든 단계 완료') : t('journey.stageOf', { cur, count: count || 5, defaultValue: '{{cur}} / {{count}} 단계' });
+    count == null ? t('journey.noOwner', '사람 멤버 없음')
+    : cur == null ? t('journey.stageDone', '모든 단계 완료') : t('journey.stageOf', { cur, count: count || 5, defaultValue: '{{cur}} / {{count}} 단계' });
   const signalText = (s: AdminJourneySignal) => t(`journey.signal.${s.key}`, { days: s.days, count: s.count, stage: s.stage, defaultValue: s.key });
 
   return (
     <Section data-testid="admin-biz-journey">
       <SectionHead><SectionTitle>{t('journey.title', '여정')}</SectionTitle></SectionHead>
       {error && <ErrorText>{t('journey.loadFailed', '여정을 불러오지 못했어요')}</ErrorText>}
-      {!data && !error && <Dim>Loading…</Dim>}
+      {!data && !error && <Dim>{t('journey.loading', '불러오는 중…')}</Dim>}
       {data && (
         <>
           {data.signals.length > 0 && (
@@ -66,7 +67,9 @@ export default function AdminBusinessJourney({ businessId }: { businessId: numbe
           {data.summary.trial_days_left != null && (
             <KV>
               <KLabel>{t('journey.trialLeft', '체험 남은 날')}</KLabel>
-              <KValue>{t('journey.days', { count: Math.max(0, data.summary.trial_days_left), defaultValue: '{{count}}일' })}</KValue>
+              <KValue>{data.summary.trial_days_left < 0
+                ? t('journey.trialEnded', '끝남')
+                : t('journey.days', { count: data.summary.trial_days_left, defaultValue: '{{count}}일' })}</KValue>
             </KV>
           )}
 
@@ -117,7 +120,9 @@ const KValue = styled.div`flex: 1; min-width: 0; font-size: 0.8125rem; color: #0
 const Dim = styled.span`color: #94A3B8; font-size: 0.75rem;`;
 const ErrorText = styled.div`font-size: 0.8125rem; color: #DC2626; padding: 4px 0;`;
 const Chips = styled.div`display: flex; flex-wrap: wrap; gap: 4px;`;
+// 켜짐은 색만이 아니라 ✓ 표시로도 가른다(색을 못 보는 사람).
 const Chip = styled.span<{ $on: boolean }>`
+  &::before { content: '${(p) => (p.$on ? '✓ ' : '')}'; }
   font-size: 0.6875rem; font-weight: 600; padding: 2px 8px; border-radius: 999px;
   background: ${(p) => (p.$on ? '#F0FDFA' : '#F1F5F9')}; color: ${(p) => (p.$on ? '#0F766E' : '#94A3B8')};
 `;

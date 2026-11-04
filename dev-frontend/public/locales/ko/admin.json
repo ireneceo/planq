@@ -906,7 +906,8 @@
       "trial_ending": "체험 {{days}}일 남음",
       "solo": "가입 {{days}}일째 혼자 사용",
       "mail_error": "메일 동기화 오류 {{count}}개",
-      "stage_stalled": "가입 {{days}}일째 {{stage}}단계"
+      "stage_stalled": "가입 {{days}}일째 {{stage}}단계",
+      "trial_ended": "체험 끝난 지 {{days}}일"
     },
     "event": {
       "workspace_created": "워크스페이스 만듦",
@@ -919,6 +920,9 @@
       "first_document": "첫 문서",
       "first_file": "첫 파일",
       "first_mail_account": "첫 메일 연결"
-    }
+    },
+    "noOwner": "사람 멤버 없음",
+    "loading": "불러오는 중…",
+    "trialEnded": "끝남"
   }
 }
