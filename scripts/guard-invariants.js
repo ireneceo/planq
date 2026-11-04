@@ -2879,6 +2879,34 @@ function checkDupRoute() {
 }
 
 // ═══════════════════════════════════════════════
+// platformroom — **PlanQ 안내방(channel_type 'platform')은 워크스페이스 대화가 아니다** (2026-11-04 · docs/PLANQ_GUIDE_ROOM_DESIGN.md §1) [래칫]
+//
+//   안내방을 conversations 에 넣었기 때문에, channel_type 을 안 보고 business_id 로만 세는 곳은 조용히 오염된다
+//   (Fable 설계 실측: 요금제 대화 수 한도 · 처음 할 일 «대화 시작» · 적응 단계 «팀 채팅» — 셋 다 고쳤다).
+//   routes/services 에서 Conversation.count/findAll/findOne/findAndCountAll 또는 «FROM conversations» 를 쓰는 파일은
+//   access_scope 의 판정(isPlatformConversation·notPlatformConversation·notPlatformSql·PRIVATE_CHANNELS)을 쓰거나
+//   `// platformroom-exempt: <이유>` 를 적는다. 기존 파일은 그 개수로 동결(래칫) — 새로 세는 곳은 막는다.
+// ═══════════════════════════════════════════════
+function checkPlatformRoom() {
+  const files = [...walk(`${ROOT}/dev-backend/routes`, ['.js']), ...walk(`${ROOT}/dev-backend/services`, ['.js'])];
+  const re = /Conversation\.(count|findAll|findOne|findAndCountAll)\(|FROM\s+conversations\b/g;
+  const current = {};
+  const samples = [];
+  for (const f of files) {
+    const src = read(f);
+    const n = (src.match(re) || []).length;
+    if (!n) continue;
+    if (/isPlatformConversation|notPlatformConversation|notPlatformSql|PRIVATE_CHANNELS|PLATFORM_CHANNEL/.test(src)) continue;
+    if (/\/\/\s*platformroom-exempt:\s*\S/.test(src)) continue;
+    current[rel(f)] = n;
+    if (samples.length < 8) samples.push(`${rel(f)}: 대화방 조회 ${n}곳 — 안내방을 거르지 않음`);
+  }
+  const rt = ratchet('platformroom', current, samples);
+  report('platformroom', `대화방을 세는 곳은 안내방을 거른다 → access_scope.notPlatformConversation 등 (현재 ${rt.curTotal} / 베이스 ${rt.baseTotal})`,
+    rt.fails.length === 0, rt.fails.length ? rt.fails : rt.sampleLines);
+}
+
+// ═══════════════════════════════════════════════
 // cronalive — **자동 작업은 지운 워크스페이스를 건너뛴다** (2026-10-29 신설 · docs/WORKSPACE_DELETION_DESIGN.md ⑦) [HARD]
 //
 //   요청 경로는 middleware/workspaceAlive 가 닫지만 cron 은 요청이 아니라 그 문을 안 지난다 — 대표가 워크스페이스를
@@ -4023,6 +4051,7 @@ const CATEGORIES = {
   savemerge: checkSaveMerge,
   duproute: checkDupRoute,
   cronalive: checkCronAlive,
+  platformroom: checkPlatformRoom,
   modulegate: checkModuleGate,
   convparticipants: checkConvParticipants,
   trialplan: checkTrialPlan,

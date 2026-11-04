@@ -1460,6 +1460,7 @@ router.patch('/conversations/:id', authenticateToken, async (req, res, next) => 
   try {
     const conv = await Conversation.findByPk(req.params.id);
     if (!conv) return errorResponse(res, 'conversation_not_found', 404);
+    if (require('../middleware/access_scope').isPlatformConversation(conv)) return errorResponse(res, 'platform_room', 409);   // 안내방 이름·Cue 설정은 바꾸지 않는다(PLANQ_GUIDE_ROOM_DESIGN §1)
     // 프로젝트 conv 면 프로젝트 권한, standalone 이면 워크스페이스 멤버 권한
     if (conv.project_id) {
       const { role, error } = await loadProjectOrForbidden(conv.project_id, req.user.id);
@@ -1534,6 +1535,7 @@ router.post('/conversations/:id/messages', authenticateToken, async (req, res, n
       //   여태 else 가 없어 로그인한 누구나 남의 워크스페이스 대화방에 메시지를 넣을 수 있었다(Fable 2026-09-24 실측, 운영에도 있었다).
       const { canAccessConversation } = require('../middleware/access_scope');
       if (!(await canAccessConversation(req.user.id, conv))) return errorResponse(res, 'forbidden', 403);
+      if (await require('../services/supportRoom').staffWriteBlocked(conv, req.user.id)) return errorResponse(res, 'use_admin_support', 403);   // 안내방에 PlanQ 팀은 /api/admin/support 로만
     }
     // 운영 #240 (Fable 판정) — 보관된 대화 쓰기. conversations.js 와 **같은 헬퍼**를 쓴다.
     //   두 라우트에 술어를 인라인 복제하면 다음에 한쪽만 고쳐져 갈라진다.
@@ -1719,6 +1721,7 @@ router.post('/conversations/:id/messages', authenticateToken, async (req, res, n
       });
     }
 
+    require('../services/supportRoom').afterMessageSoon(conv, fullJson, io);   // PlanQ 안내방이면 Cue 답 · 관리자 신호(아니면 아무 일 없음)
     // Cue 자동 응답 트리거 — customer 채널 + 비 AI + **고객(외부) 발화일 때만**.
     // Cue 는 고객 대응 팀원 → 내부 스태프(owner/admin/member) 발화엔 끼어들지 않는다.
     // 내부 스태프는 business_members 에 있고(owner 포함), 고객(Client)은 없으므로 멤버 여부로 판별.

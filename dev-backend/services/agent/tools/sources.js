@@ -60,10 +60,11 @@ async function resolveSource(p, source, allowed) {
   if (source.kind === 'chat') {
     await assertMenu(p, 'qtalk', 'read');
     const { Conversation } = require('../../../models');
-    const { canAccessConversation, getUserScope } = require('../../../middleware/access_scope');
+    const { canAccessConversation, getUserScope, isPlatformConversation } = require('../../../middleware/access_scope');
     const conv = await Conversation.findOne({ where: { id: source.conversation_id, business_id: p.businessId } });
     const scope = conv ? await getUserScope(p.userId, p.businessId, p.platformRole) : null;
-    if (!conv || !(await canAccessConversation(p.userId, conv, scope))) throw err('NOT_FOUND', 'conversation_not_found');
+    // PlanQ 안내방은 업무 출처가 아니다(워크스페이스와 PlanQ 팀의 대화) — 없는 방처럼.
+    if (!conv || isPlatformConversation(conv) || !(await canAccessConversation(p.userId, conv, scope))) throw err('NOT_FOUND', 'conversation_not_found');
     return { kind: 'chat', conversation: conv, url: `${cfg.APP_URL}/talk?conv=${conv.id}` };
   }
   if (source.kind === 'task') {

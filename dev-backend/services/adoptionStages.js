@@ -16,6 +16,7 @@ const { getMemberMenuLevels } = require('../middleware/menu_permission');
 const { mailAttachmentFileIds } = require('./mailAttachmentFiles');
 const { billableClientWhere } = require('./clientQuota');
 const { Client } = require('../models');
+const { notPlatformSql } = require('../middleware/access_scope');
 
 const MANAGER_ROLES = new Set(['owner', 'admin']);
 const HUMAN_ROLES = ['owner', 'admin', 'member'];
@@ -108,7 +109,7 @@ async function getAdoptionStages({ businessId, userId, role }) {
          AND created_via IN ('ai_draft','agent','cue')`, R),
     team_chat: () => countOne(
       `SELECT COUNT(*) n FROM messages m JOIN conversations c ON c.id = m.conversation_id
-        WHERE c.business_id = :biz AND m.sender_id = :me AND m.kind = 'text' AND NOT ${CLIENT_CONV}`, R),
+        WHERE c.business_id = :biz AND m.sender_id = :me AND m.kind = 'text' AND NOT ${CLIENT_CONV} AND ${notPlatformSql('c')}`, R),   // 안내방 발언은 팀 채팅 습관이 아니다
     // 메일 — 이 사람이 볼 수 있는 계정(회사 공용 + 내 개인). routes/email_accounts.js accessibleWhere 와 같은 술어.
     connect_mail: () => countOne(
       `SELECT COUNT(*) n FROM email_accounts WHERE business_id = :biz AND is_active = 1
@@ -129,7 +130,7 @@ async function getAdoptionStages({ businessId, userId, role }) {
     invite_client: () => Client.count({ where: billableClientWhere(biz) }),
     client_chat: () => countOne(
       `SELECT COUNT(*) n FROM messages m JOIN conversations c ON c.id = m.conversation_id
-        WHERE c.business_id = :biz AND m.sender_id = :me AND m.kind = 'text' AND ${CLIENT_CONV}`, R),
+        WHERE c.business_id = :biz AND m.sender_id = :me AND m.kind = 'text' AND ${CLIENT_CONV} AND ${notPlatformSql('c')}`, R),
     issue_invoice: () => countOne('SELECT COUNT(*) n FROM invoices WHERE business_id = :biz', R),
   };
 

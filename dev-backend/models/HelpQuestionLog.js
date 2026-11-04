@@ -9,7 +9,7 @@ HelpQuestionLog.init({
   id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
   user_id: { type: DataTypes.INTEGER, allowNull: true, comment: '공개(비로그인) 질문은 NULL' },
   business_id: { type: DataTypes.INTEGER, allowNull: true },
-  mode: { type: DataTypes.ENUM('qhelper', 'public'), allowNull: false, defaultValue: 'qhelper' },
+  mode: { type: DataTypes.ENUM('qhelper', 'public', 'support_room'), allowNull: false, defaultValue: 'qhelper' },
   question: { type: DataTypes.STRING(1000), allowNull: false },
   lang: { type: DataTypes.STRING(5), allowNull: true },
   answered: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false, comment: '근거 위키 article 검색 hit 여부' },

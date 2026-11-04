@@ -15,6 +15,7 @@
 const searchGates = require('../services/searchGates');
 const express = require('express');
 const router = express.Router();
+const { Op } = require('sequelize');
 const { Task, Post, File, Conversation } = require('../models');
 const { authenticateToken } = require('../middleware/auth');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
@@ -49,7 +50,9 @@ router.get('/recent', authenticateToken, async (req, res, next) => {
         limit, order: [['created_at', 'DESC']],
       }).catch(() => []),
       Conversation.findAll({
-        where: w.convWhere, attributes: ['id', 'title', 'display_name', 'project_id'],
+        // PlanQ 안내방은 워크스페이스 검색·최근 목록에 안 나온다(설계 §1) — 권한 조건(Op.and)에 합친다.
+        where: { ...w.convWhere, [Op.and]: [...(w.convWhere[Op.and] || []), require('../middleware/access_scope').notPlatformConversation()] },
+        attributes: ['id', 'title', 'display_name', 'project_id'],
         limit, order: [['last_message_at', 'DESC']],
       }).catch(() => []),
     ]);

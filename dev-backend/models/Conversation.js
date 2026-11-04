@@ -53,8 +53,9 @@ Conversation.init({
     type: DataTypes.BIGINT,
     allowNull: true
   },
+  // 'platform' = PlanQ 안내방(워크스페이스당 하나, 2026-11-04) — 판정은 access_scope.isPlatformConversation 한 곳.
   channel_type: {
-    type: DataTypes.ENUM('customer', 'internal', 'group'),
+    type: DataTypes.ENUM('customer', 'internal', 'group', 'platform'),
     defaultValue: 'internal'
   },
   display_name: {

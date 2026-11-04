@@ -25,7 +25,7 @@ const notPrivateConversation = {
   [Op.or]: [
     { project_id: { [Op.ne]: null } },
     { client_id: { [Op.ne]: null } },
-    { channel_type: { [Op.notIn]: ['internal', 'group'] } },
+    { channel_type: { [Op.notIn]: require('../middleware/access_scope').PRIVATE_CHANNELS } },
   ],
 };
 

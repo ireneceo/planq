@@ -19,7 +19,7 @@ const {
 } = require('../models');
 const {
   assertWorkspaceAccess, taskListWhere, fileListWhereByLevel, postListWhereByLevel,
-  conversationListWhere,
+  conversationListWhere, notPlatformConversation,
 } = require('../middleware/access_scope');
 const { pickMatch } = require('../utils/searchMatch');
 const searchGates = require('./searchGates');
@@ -319,7 +319,7 @@ async function searchFiles(ctx, M, { limit, filters } = {}) {
 async function searchConversations(ctx, M, { limit } = {}) {
   const conversations = await Conversation.findAll({
     // ★ 권한 조건도 Op.and 를 쓴다(사적 대화방 — 2026-10-09 D3) — 펼친 뒤 [Op.and] 를 새로 주면 **덮어써서** 권한이 사라진다. 합친다.
-    where: { ...ctx.convWhere, [Op.and]: [...(ctx.convWhere[Op.and] || []), { [Op.or]: [...M.likeAny('title'), ...M.likeAny('display_name')] }] },
+    where: { ...ctx.convWhere, [Op.and]: [...(ctx.convWhere[Op.and] || []), notPlatformConversation(), { [Op.or]: [...M.likeAny('title'), ...M.likeAny('display_name')] }] },   // 안내방은 워크스페이스 검색에 안 나온다
     attributes: ['id', 'title', 'display_name', 'project_id'],
     limit, order: [M.relevance('title'), ['last_message_at', 'DESC']],
   }).catch(() => []);

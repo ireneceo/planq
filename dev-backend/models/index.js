@@ -156,6 +156,7 @@ const SocialAccount = require('./SocialAccount');
 const SocialPost = require('./SocialPost');
 const SocialPostLog = require('./SocialPostLog');
 const HelpQuestionLog = require('./HelpQuestionLog');
+const SupportRoom = require('./SupportRoom');
 const CueQuestionTopic = require('./CueQuestionTopic');
 const CueQuestionRaw = require('./CueQuestionRaw');
 const CueKnowledge = require('./CueKnowledge');
@@ -790,6 +791,7 @@ module.exports = {
   HelpCategory,
   HelpArticle,
   HelpQuestionLog,
+  SupportRoom,
   CueQuestionTopic,
   CueQuestionRaw,
   CueKnowledge,

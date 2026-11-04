@@ -2,6 +2,7 @@
 // 모든 라우트는 이 파일만 거치게. 하드코딩 금지.
 
 const { Op } = require('sequelize');
+const { notPlatformConversation } = require('../middleware/access_scope');
 const {
   Business, BusinessMember, Client, Project, Conversation,
   File, BusinessStorageUsage, CueUsage, QnoteUsage, BusinessPlanHistory,
@@ -222,7 +223,8 @@ async function getUsage(businessId) {
     Client.count({ where: billableClientWhere(key) }),
     Client.count({ where: prospectWhere(key) }),
     Project.count({ where: { business_id: key, status: { [Op.in]: ['active', 'paused'] } } }),
-    Conversation.count({ where: { business_id: key } }),
+    // PlanQ 안내방은 워크스페이스 대화가 아니다 — 요금제 대화 수 한도에 넣지 않는다.
+    Conversation.count({ where: { business_id: key, [Op.and]: [notPlatformConversation()] } }),
     BusinessStorageUsage.findOne({ where: { business_id: key } }),
     getCueActionsThisMonth(key),
     getCueActionsByTypeThisMonth(key),
@@ -407,7 +409,7 @@ async function canInner(businessId, action, ctx = {}) {
       return { ok: true };
     }
     case 'create_conversation': {
-      const cur = await Conversation.count({ where: { business_id: businessId } });
+      const cur = await Conversation.count({ where: { business_id: businessId, [Op.and]: [notPlatformConversation()] } });
       if (cur + 1 > limits.conversations_max) {
         return { ok: false, reason: 'conversations_quota_exceeded', limit: limits.conversations_max, current: cur };
       }

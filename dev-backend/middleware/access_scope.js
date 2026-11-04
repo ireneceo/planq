@@ -239,7 +239,21 @@ async function assertMemberOrAbove(userId, businessId, platformRole) {
 //   **참여자만** 본다 — owner/admin 도(«나만 보기» 문서·일정과 같은 선). platform_admin 은 종전대로.
 //   (2026-10-09 보안 점검 2차 D3, Irene «권고대로» · 설계 docs/PRIVATE_CHAT_DESIGN.md · Fable 설계 PASS)
 //   정의는 이 함수 하나 — `client_id IS NULL` 이 빠지면 고객이 붙은 internal 방이 «팀은 못 보고 고객만 보는» 거꾸로 닫힘이 된다.
-const PRIVATE_CHANNELS = ['internal', 'group'];
+// ★ PlanQ 안내방(channel_type 'platform', 2026-11-04 · docs/PLANQ_GUIDE_ROOM_DESIGN.md §1) — 워크스페이스와 PlanQ 팀의 방.
+//   사적 방과 같은 줄에 둔다 → 목록·참여자만·convBroadcast.emitConvWide·내보내기(notPrivateConversation)가 저절로 따라온다.
+//   «이 방인가» 판정은 아래 두 개뿐이다. 워크스페이스 사용량·검색·AI 문맥에서 빼는 곳은 이것을 쓴다(가드 --category=platformroom).
+const PLATFORM_CHANNEL = 'platform';
+const PRIVATE_CHANNELS = ['internal', 'group', PLATFORM_CHANNEL];
+function isPlatformConversation(conv) { return !!conv && conv.channel_type === PLATFORM_CHANNEL; }
+/** Sequelize where 조각 — Op.and 배열 안에 넣는다(channel_type 은 NULL 일 수 있어 «<>» 하나로 쓰지 않는다). */
+function notPlatformConversation() {
+  return { [Op.or]: [{ channel_type: null }, { channel_type: { [Op.ne]: PLATFORM_CHANNEL } }] };
+}
+/** 날 SQL 조각 — 별칭(c 등)을 받는다. */
+function notPlatformSql(alias = '') {
+  const col = alias ? `${alias}.channel_type` : 'channel_type';
+  return `(${col} IS NULL OR ${col} <> '${PLATFORM_CHANNEL}')`;
+}
 async function isPrivateConversation(conv) {
   if (!conv) return false;
   let c = conv;
@@ -1173,6 +1187,11 @@ module.exports = {
   attachWorkspaceScope,
   canAccessConversation,
   isPrivateConversation,
+  PLATFORM_CHANNEL,
+  PRIVATE_CHANNELS,
+  isPlatformConversation,
+  notPlatformConversation,
+  notPlatformSql,
   isConversationParticipant,
   canDownloadFile,
   conversationListWhere,

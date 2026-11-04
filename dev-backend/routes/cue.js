@@ -273,12 +273,13 @@ router.post('/help', authenticateToken, ...helpLimiter, async (req, res, next) =
           if (convMatch) {
             try {
               const { Conversation } = require('../models');
-              const { canAccessConversation } = require('../middleware/access_scope');
+              const { canAccessConversation, isPlatformConversation } = require('../middleware/access_scope');
               const conv = await Conversation.findOne({
                 where: { id: Number(convMatch[1]), business_id: businessId },
-                attributes: ['id', 'business_id', 'client_id'],
+                attributes: ['id', 'business_id', 'client_id', 'channel_type'],
               });
-              if (conv && await canAccessConversation(req.user.id, conv, scope)) allowedConvId = conv.id;
+              // PlanQ 안내방은 워크스페이스 Cue 문맥에 싣지 않는다(PlanQ 팀과의 대화 — 업무 자료가 아니다).
+              if (conv && !isPlatformConversation(conv) && await canAccessConversation(req.user.id, conv, scope)) allowedConvId = conv.id;
             } catch (e) { console.warn('[cue] conv 접근검사', e.message); }
           }
           let allowedThreadId = null;

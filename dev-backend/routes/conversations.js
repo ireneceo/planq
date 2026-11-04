@@ -16,7 +16,7 @@ const kbService = require('../services/kb_service');
 const { applyMemberDisplayName, applyMemberDisplayNameOne, getMemberNameMap, applyGuestDisplayName } = require('../services/displayName');
 
 // 워크스페이스 관리 판정 — owner·admin·platform_admin 한 함수(0-E E-1, middleware/access_scope)
-const { isWorkspaceAdminReq } = require('../middleware/access_scope');
+const { isWorkspaceAdminReq, isPlatformConversation } = require('../middleware/access_scope');
 const isAdmin = isWorkspaceAdminReq;
 
 // ─────────────────────────────────────────────────────────
@@ -519,6 +519,10 @@ router.post('/:businessId/:id/participants', authenticateToken, checkBusinessAcc
       allowed = !!pc;
     }
     if (!allowed) return errorResponse(res, 'user_not_in_workspace', 403);
+    // PlanQ 안내방엔 워크스페이스 사람 멤버만(고객·게스트 0 — 설계 §1). 위 판정은 멤버십 행만 봐서 removed_at·role 을 모른다.
+    if (isPlatformConversation(conv) && (isWorkspaceMember.removed_at || !['owner', 'admin', 'member'].includes(isWorkspaceMember.role))) {
+      return errorResponse(res, 'platform_room', 409);
+    }
     // 참여자면 그대로. «보는 중»(열어 보기만 한) 행이면 아래 joinParticipant 가 참여자로 **올린다** —
     //   예전엔 행이 있으면 그대로 돌려줘서 viewer 를 초대할 길이 없었다(Fable 판정 3).
     const exists = await ConversationParticipant.findOne({ where: { conversation_id: conv.id, user_id } });
@@ -759,6 +763,8 @@ router.post('/:businessId/:id/messages', authenticateToken, attachWorkspaceScope
     if (!(await canAccessConversation(req.user.id, conversation, req.scope))) {
       return errorResponse(res, 'forbidden', 403);
     }
+    // PlanQ 안내방에 PlanQ 팀은 관리자 받은편지함(/api/admin/support)으로만 쓴다(routes/projects.js 메시지 라우트와 같은 줄).
+    if (await require('../services/supportRoom').staffWriteBlocked(conversation, req.user.id)) return errorResponse(res, 'use_admin_support', 403);
     // Client 는 internal 메모 작성 금지
     const internalFlag = req.scope?.isClient ? false : !!is_internal;
 
@@ -919,6 +925,9 @@ router.post('/:businessId/:id/messages', authenticateToken, attachWorkspaceScope
     // 조건: 내부 메모가 아니고, 메시지를 보낸 사람이 관리자/멤버(사람)이면 Cue 는 스킵
     //       (Cue 는 오직 고객 메시지에만 자동 응답)
     // 단, 현재 테스트에서는 사람의 메시지도 Cue 에게 전달해볼 수 있도록 trigger 엔드포인트 분리.
+
+    // PlanQ 안내방 — Cue(Q helper 두뇌) 답 · 관리자 받은편지함 신호. 안내방이 아니면 바로 돌아온다(services/supportRoom).
+    if (emitMsg) require('../services/supportRoom').afterMessageSoon(conversation, emitMsg, io);
 
     // 응답도 sender enriched payload 사용 — socket emit 과 동일 (워크스페이스 표시명 포함)
     successResponse(res, emitMsg || msg, 'Message sent', 201);
@@ -1149,6 +1158,8 @@ router.post('/:businessId/:id/archive', authenticateToken, checkBusinessAccess, 
     const businessId = Number(req.params.businessId);
     const conv = await Conversation.findOne({ where: { id: req.params.id, business_id: businessId } });
     if (!conv) return errorResponse(res, 'conversation_not_found', 404);
+    // PlanQ 안내방은 워크스페이스가 보관·삭제하지 않는다(PlanQ 팀과의 기록 — 설계 §1).
+    if (isPlatformConversation(conv)) return errorResponse(res, 'platform_room', 409);
     if (conv.archived_at) return errorResponse(res, 'already_archived', 400);
 
     const wsMember = await BusinessMember.findOne({
@@ -1242,6 +1253,7 @@ router.delete('/:businessId/:id', authenticateToken, checkBusinessAccess, async 
     }
     const conv = await Conversation.findOne({ where: { id: req.params.id, business_id: businessId } });
     if (!conv) return errorResponse(res, 'conversation_not_found', 404);
+    if (isPlatformConversation(conv)) return errorResponse(res, 'platform_room', 409);
     if (!conv.archived_at) return errorResponse(res, 'must_archive_first', 400);
     const snapshot = { id: conv.id, name: conv.name, project_id: conv.project_id, archived_at: conv.archived_at };
 

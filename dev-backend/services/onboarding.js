@@ -30,6 +30,7 @@ const {
   EmailAccount, ExternalConnection, RefreshToken, AgentGrant,
 } = require('../models');
 const { billableClientWhere } = require('./clientQuota');
+const { notPlatformConversation } = require('../middleware/access_scope');
 const { getAdoptionStages } = require('./adoptionStages');
 
 /** 팀 적응 단계를 내놓은 시각 — 이보다 앞선 «다시 보지 않기» 는 단계 묶음에 먹지 않는다(아래 stages 주석). */
@@ -110,7 +111,7 @@ async function getOnboardingState({ businessId, userId }) {
     const [clients, conversations, tasks, mailAccounts] = await Promise.all([
       // "고객 초대" 단계 — Q sale 문의 고객(prospect)은 초대가 아니다. 문의만 넣어도 완료가 되면 안 된다(§16 U4)
       Client.count({ where: billableClientWhere(bizId) }),
-      Conversation.count({ where: { business_id: bizId } }),
+      Conversation.count({ where: { business_id: bizId, [Op.and]: [notPlatformConversation()] } }),   // 안내방은 «대화 시작» 이 아니다
       Task.count({ where: { business_id: bizId } }),
       EmailAccount.count({ where: { business_id: bizId, is_active: true } }),
     ]);
