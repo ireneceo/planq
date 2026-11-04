@@ -608,7 +608,18 @@ const cases = {
     assert(!leaked.length, `열린 리다이렉트 통과: ${leaked.join(' ')}`);
     assert(buildRedirectTarget({ ok: true, redirect: '//evil.com' }) === '/inbox', '착지 함수가 바깥 주소로 보낸다');
     assert(buildRedirectTarget({ ok: true, redirect: '/public/files/x' }) === '/public/files/x', '정상 상대경로가 버려진다(대조군)');
-    return `state.redirect 왕복 · 음성 ${bad.length}종 null · 착지 함수 차단/통과`;
+    // ★ 실제 서버를 거쳐 본다 (2026-11-04) — 위는 함수만 불러 전역 보안 필터(ssrfProtection)를 건너뛰었다.
+    //   그 필터가 ?redirect=/invite/… 를 400 으로 막아 10-08 부터 웹 초대 링크 구글 로그인이 전부 실패했는데 이 검사는 초록이었다.
+    const hop = async (q) => { const r = await fetch(`${BACKEND}/api/auth/google/initiate?${q}`, { redirect: 'manual' }); return { s: r.status, loc: r.headers.get('location') || '' }; };
+    for (const p of ['/invite/abcdefghijklmnop', '/dashboard']) {
+      const r = await hop(`redirect=${encodeURIComponent(p)}`);
+      assert(r.s === 302 && r.loc.startsWith('https://accounts.google.com/'), `실서버: redirect=${p} 로 구글 시작이 안 된다 (${r.s} ${r.loc.slice(0, 60)})`);
+    }
+    for (const p of ['//evil.com', 'http://127.0.0.1']) {
+      const r = await hop(`redirect=${encodeURIComponent(p)}`);
+      assert(!(r.s === 302 && r.loc.startsWith('https://accounts.google.com/')), `실서버: 바깥 주소 redirect=${p} 가 그대로 구글 시작으로 넘어간다`);
+    }
+    return `state.redirect 왕복 · 음성 ${bad.length}종 null · 착지 함수 차단/통과 · 실서버 초대 경로 302 → 구글 / 바깥 주소 막힘`;
   },
 
   // ─── 0-F invite 4: 초대 메일 실패가 응답에 보인다 ───

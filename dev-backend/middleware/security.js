@@ -53,10 +53,19 @@ const validateExternalUrl = (targetUrl) => {
   }
 };
 
+// 이동용 키(로그인 뒤 돌아갈 곳)에 실린 **같은 사이트 상대경로**(`/invite/…`)는 서버가 가져오는 주소가 아니라
+//   SSRF 대상이 아니다. 이 검사가 그것까지 «https 외부 주소만» 으로 막아서 2026-10-08(78a7c300, 구글·애플 시작에
+//   ?redirect= 를 싣기 시작) 부터 **웹의 초대 링크·돌아갈 곳 있는 구글/애플 로그인이 전부 400** 이었다(11-04 운영 고객 신고).
+//   열린 리다이렉트는 쓰는 쪽이 막는다(routes/oauth/core.js safeRedirectPath — ':'·'\\'·공백·'//' 거절).
+//   `url`·`callback` 은 그대로 엄격(서버가 실제로 부를 수 있는 값).
+const NAV_PARAMS = new Set(['redirect', 'return_url', 'next']);
+const isSameSitePath = (v) => typeof v === 'string' && v.startsWith('/') && !v.startsWith('//') && !v.startsWith('/\\');
+
 const ssrfProtection = (req, res, next) => {
   const urlParams = ['url', 'redirect', 'callback', 'return_url', 'next'];
   for (const param of urlParams) {
     const value = req.body?.[param] || req.query?.[param];
+    if (value && NAV_PARAMS.has(param) && isSameSitePath(value)) continue;
     if (value) {
       const validation = validateExternalUrl(value);
       if (!validation.valid) {
