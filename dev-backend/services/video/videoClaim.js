@@ -45,7 +45,8 @@ async function recoverStale(t, now = new Date()) {
     if (job.attempts >= 3) {
       await job.update({ status: 'failed', error_code: 'worker_lost', error_message: '작업자 신호가 세 번 끊김', finished_at: now }, { transaction: t });
       const p = await T.lockProject(job.project_id, t);
-      if (p.status === 'producing') await T.onJobFailed(p, { code: 'worker_lost', message: '작업자 신호가 세 번 끊김' }, t);
+      // 설계 §20.3(Fable 차단 1): 같은 작업이 세 번 끊기면 요청은 바로 failed — 다시 넣어 같은 밤에 또 돌지 않게(Fable 비차단 3)
+      if (p.status === 'producing') await T.move(p, 'failed', { reason: 'worker_lost', patch: { review_reason: 'worker_lost', review_detail: '작업자 신호가 세 번 끊김' } }, t);
     } else {
       await job.update({ status: 'queued', claimed_by: null, stage: null }, { transaction: t });
     }

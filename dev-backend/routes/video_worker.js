@@ -27,7 +27,8 @@ const fail = (res, e) => {
 // 이 작업자가 점유한 running 작업만
 const workerName = (req) => String(req.get('x-worker-name') || '').slice(0, 120);
 async function ownJob(req, t, id = req.params.id) {
-  const job = await VideoJob.findByPk(Number(id), { transaction: t, lock: t ? t.LOCK.UPDATE : undefined });
+  const n = Number(id);
+  const job = Number.isInteger(n) && n > 0 ? await VideoJob.findByPk(n, { transaction: t, lock: t ? t.LOCK.UPDATE : undefined }) : null; // 숫자가 아니면 404(WHERE id = NaN 500 방지 — Fable 비차단 2)
   if (!job) throw Object.assign(new Error('not_found'), { code: 'not_found', status: 404 });
   if (job.status !== 'running' || !workerName(req) || job.claimed_by !== workerName(req)) throw Object.assign(new Error('not_running'), { code: 'not_your_job', status: 409 });
   return job;

@@ -148,7 +148,8 @@ router.post('/projects/:id/requeue', async (req, res) => {
         approvedVersionId = v.id;
       }
       const accept = Array.isArray(req.body.accept) ? req.body.accept.filter((a) => a && a.shot && a.beat).map((a) => ({ shot: String(a.shot).slice(0, 60), beat: String(a.beat).slice(0, 60) })).slice(0, 50) : null;
-      const merged = accept ? [...(row.gate_overrides || []), ...accept] : null;
+      // 같은 장면을 두 번 받아들여도 한 번만(Fable 비차단 8)
+      const merged = accept ? [...new Map([...(row.gate_overrides || []), ...accept].map((a) => [`${a.shot}|${a.beat}`, a])).values()] : null;
       return T.requeue(row, { userId: req.user.id, approvedVersionId, gateOverrides: merged }, t);
     });
     return successResponse(res, view(p));
