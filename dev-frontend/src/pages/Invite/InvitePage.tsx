@@ -28,7 +28,7 @@ const InvitePage: React.FC = () => {
   const { token } = useParams<{ token: string }>();
   const { t } = useTranslation('common');
   const { t: tErr } = useTranslation('errors');
-  const { user, refreshUser, logout } = useAuth();
+  const { user, refreshUser } = useAuth();
   const navigate = useNavigate();
 
   const [info, setInfo] = useState<InviteInfo | null>(null);
@@ -86,7 +86,14 @@ const InvitePage: React.FC = () => {
   const invitedEmail = (info?.contact_email || '').trim();
   const emailMismatch = !!(user && info && !info.already_linked && invitedEmail
     && invitedEmail.toLowerCase() !== String(user.email || '').trim().toLowerCase());
-  const loginAsInvited = () => { logout({ next: `/invite/${token}` }); };
+  // 초대받은 주소로 로그인 — 지금 계정을 지우지 않고 «계정 추가» 로 연다(한 기기 여러 계정).
+  //   예전(logout + next)은 이 기기에 다른 계정이 있으면 그 계정으로 다시 부팅해 초대 화면을 잃고 계정 하나를 로그아웃시켰다
+  //   (Fable 2026-11-04 B11). 로그인 뒤 돌아갈 곳은 이 초대 화면 — useAddAccountMode 가 redirect 로 다시 부팅한다.
+  const loginAsInvited = () => {
+    const q = new URLSearchParams({ add: '1', redirect: `/invite/${token}` });
+    if (invitedEmail) q.set('email', invitedEmail);
+    window.location.href = `/login?${q.toString()}`;
+  };
 
   // 자동 수락 — 로그인 상태로 초대 링크 도착 시 (가입/로그인 후 redirect 포함) 버튼 클릭 없이 즉시 연결.
   //  링크 토큰 자체가 자격증명(token-is-proof) 이라 안전.

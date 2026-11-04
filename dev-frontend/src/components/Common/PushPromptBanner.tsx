@@ -20,8 +20,8 @@ const FIRST_SESSION_KEY = 'pq_push_prompt_first_session';
 function isFirstWebSession(): boolean {
   try {
     if (sessionStorage.getItem(FIRST_SESSION_KEY) === '1') return true;
-    if (localStorage.getItem(FIRST_SEEN_KEY)) return false;
-    localStorage.setItem(FIRST_SEEN_KEY, String(Date.now()));
+    if (localStorage.getItem(FIRST_SEEN_KEY)) return false; // storage-ok: 알림 권한은 기기 단위 — 사람과 무관한 «이 기기에서 처음 본 때»
+    localStorage.setItem(FIRST_SEEN_KEY, String(Date.now())); // storage-ok: 위와 같은 기기 단위 값
     sessionStorage.setItem(FIRST_SESSION_KEY, '1');
     return true;
   } catch { return false; }

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { startAuthRedirect } from '../../services/oauth';
-import { useAddAccountMode, AddAccountCancel } from './addAccountMode';
+import { useAddAccountMode, AddAccountCancel, useAddAccountErrors } from './addAccountMode';
 import GoogleAuthButton from '../../components/Auth/GoogleAuthButton';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -398,6 +398,16 @@ const LoginPage: React.FC = () => {
   const wsSwitchingRef = React.useRef(false);   // 전환 뒤 다시 로드되기 전에 이 effect 가 또 이동하지 않게
   // 한 기기 여러 계정 — «계정 추가»(?add=1). 로그인된 채로 이 화면을 쓴다(기존 계정은 그대로 남는다).
   const add = useAddAccountMode(user, isAuthenticated, authLoading);
+  const addErr = useAddAccountErrors();
+  // 계정 추가 중이면 제출 직전에 의도를 다시 남긴다 — 못 남기면 보통 로그인이 되어 다른 계정이 지워지므로 멈춘다
+  const addGate = async (forEmail?: string): Promise<boolean> => {
+    if (!add.active) return true;
+    if (forEmail && add.isCurrentEmail(forEmail)) { setError(addErr.same); return false; }
+    const r = await add.ensureIntent();
+    if (r) { setError(r === 'limit' ? addErr.limit : addErr.failed); return false; }
+    return true;
+  };
+  const startOauth = async (url: string) => { setError(''); if (await addGate()) await startAuthRedirect(url); };
   const [email, setEmail] = useState(() => add.prefillEmail);
   const [password, setPassword] = useState('');
   // 로그인 상태 유지 — default ON (Slack/Google/GitHub 표준).
@@ -476,6 +486,7 @@ const LoginPage: React.FC = () => {
       if (isAuthenticated && !add.active) {
         try { await logout(); } catch { /* noop */ }
       }
+      if (!(await addGate(devEmail))) { setIsLoading(false); return; }
       // 직접 fetch — AuthContext state 경합 피함
       const res = await fetch('/api/auth/login', {
         method: 'POST',
@@ -538,6 +549,7 @@ const LoginPage: React.FC = () => {
     setIsLoading(true);
 
     try {
+      if (!(await addGate(email))) return;
       const success = await login(email, password, remember);
       if (!success) {
         // 탈퇴 유예 중인지 확인 — 맞으면 복구 안내 (login 은 boolean 만 반환하므로 직접 조회)
@@ -671,7 +683,7 @@ const LoginPage: React.FC = () => {
               네이티브 앱: initiate 에 ?client=native → callback 이 일회용 code-exchange 딥링크로 분기(H-2).
               시스템 브라우저(SFSafariViewController)로 로그인 후 앱 복귀 시 세션이 WebView 에 심긴다. */}
           {/* 로그인·회원가입 공용 버튼 — components/Auth/GoogleAuthButton */}
-          <GoogleAuthButton onStart={startAuthRedirect} disabled={isLoading} redirect={redirectParam} />
+          <GoogleAuthButton onStart={(u) => { void startOauth(u); }} disabled={isLoading} redirect={redirectParam} />
 
           {isDev && (
             <DevPanel>

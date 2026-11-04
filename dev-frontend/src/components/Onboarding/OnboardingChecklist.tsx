@@ -88,11 +88,11 @@ function writeCollapsed(v: boolean): void {
 const INBOX_EXPAND_KEY = 'planq.onboarding.inboxExpanded';
 function readCollapsedFor(variant: string): boolean {
   if (variant !== 'inbox') return readCollapsed();
-  try { return localStorage.getItem(INBOX_EXPAND_KEY) !== '1'; } catch { return true; }
+  try { return localStorage.getItem(INBOX_EXPAND_KEY) !== '1'; } catch { return true; } // storage-ok: 펼침·접힘 화면 취향(사람 뜻 값 아님)
 }
 function writeCollapsedFor(variant: string, v: boolean): void {
   if (variant !== 'inbox') { writeCollapsed(v); return; }
-  try { if (v) localStorage.removeItem(INBOX_EXPAND_KEY); else localStorage.setItem(INBOX_EXPAND_KEY, '1'); } catch { /* 시크릿 모드 등 */ }
+  try { if (v) localStorage.removeItem(INBOX_EXPAND_KEY); else localStorage.setItem(INBOX_EXPAND_KEY, '1'); } catch { /* 시크릿 모드 등 */ } // storage-ok: 펼침·접힘 화면 취향
 }
 
 interface Props {

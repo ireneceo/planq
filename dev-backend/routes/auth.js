@@ -932,8 +932,14 @@ router.post('/logout', async (req, res, next) => {
     // 남은 계정이 있다 — 지금 계정을 지웠으면 다음 계정을 지금 계정으로(옛 refresh_token 도 그 계정 것으로 · has_session 유지).
     if (targets.includes(activeId)) {
       const nextId = remaining[0];
-      deviceAccounts.setLast(res, nextId);
-      res.cookie('refresh_token', bundle[nextId], { httpOnly: true, secure: cookieSecure(res), sameSite: 'lax', path: '/api/auth' });
+      // 수명은 /switch 와 같게 — 그 계정 refresh 행이 끝나는 때까지. 세션 쿠키로 두면 브라우저를 껐다 켤 때
+      //   rt_last 가 사라져 «지금 계정» 이 첫 쿠키로 떨어진다(Fable 2026-11-04 비차단 3).
+      const nextChk = await deviceAccounts.inspectRaw(nextId, bundle[nextId]);
+      const nextMaxAge = nextChk.row && nextChk.row.expires_at
+        ? Math.max(0, new Date(nextChk.row.expires_at).getTime() - Date.now()) : undefined;
+      deviceAccounts.setLast(res, nextId, nextMaxAge);
+      res.cookie('refresh_token', bundle[nextId], { httpOnly: true, secure: cookieSecure(res), sameSite: 'lax', path: '/api/auth',
+        ...(nextMaxAge != null ? { maxAge: nextMaxAge } : {}) });
       clearImageCookie(res);   // 다음 계정 이미지 쿠키는 그 계정 refresh 가 다시 준다
     }
     return successResponse(res, { remaining }, 'Logged out');

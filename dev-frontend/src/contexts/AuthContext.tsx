@@ -978,7 +978,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setUser(null);
       setAccessToken(null);
       if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
-      if (remaining.length) { broadcastAccountSwitch(remaining[0]); rebootForAccount(); return; }
+      // 남은 계정이 있으면 그 계정으로 — 갈 곳(next)을 받았으면 버리지 않는다(Fable 2026-11-04 B11)
+      if (remaining.length) { broadcastAccountSwitch(remaining[0]); rebootForAccount(opts?.next); return; }
       goLogin(opts?.next);
     })();
     logoutInFlightRef.current = run;

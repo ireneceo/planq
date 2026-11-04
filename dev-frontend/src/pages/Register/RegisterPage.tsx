@@ -9,7 +9,7 @@ import TrialPlanPicker, { DEFAULT_TRIAL_PLAN, parseTrialPlan, type TrialPlanCode
 import styled from 'styled-components';
 import { useAuth } from '../../contexts/AuthContext';
 import { mapApiError } from '../../utils/apiError';
-import { useAddAccountMode, AddAccountCancel } from '../Login/addAccountMode';
+import { useAddAccountMode, AddAccountCancel, useAddAccountErrors } from '../Login/addAccountMode';
 import { rebootForAccount, forgetBootScope } from '../../services/accounts';
 
 const Container = styled.div`
@@ -334,6 +334,15 @@ const RegisterPage: React.FC = () => {
     void finishSignup({ method: 'email', trial_plan: trialPlan }, newId, '/dashboard', (p) => rebootForAccount(p));
   });
 
+  const addErr = useAddAccountErrors();
+  const addGate = async (): Promise<boolean> => {
+    if (!add.active) return true;
+    if (add.isCurrentEmail(email)) { setError(addErr.same); return false; }
+    const r = await add.ensureIntent();
+    if (r) { setError(r === 'limit' ? addErr.limit : addErr.failed); return false; }
+    return true;
+  };
+
   // 돌아갈 곳(?redirect) — 구글·애플 가입과 «로그인» 링크에도 그대로 실어 보낸다(0-F F-2). 서버가 다시 거른다.
   const redirectParam = new URLSearchParams(location.search).get('redirect') || null;
   // 초대 가입 모드 — redirect=/invite/:token 으로 도착하면 워크스페이스 생성 없이 초대된 곳으로 합류.
@@ -428,6 +437,7 @@ const RegisterPage: React.FC = () => {
       }
       // 초대 가입·돌아갈 곳이 있는 가입(공유 링크 → 로그인 → 가입)은 전환으로 세지 않고 종전대로 돌아간다 —
       //   서버 oauth/finish 의 `!inviteResolved && !redirect` 와 같은 술어. 성공하면 위 effect 가 완료 처리를 한다.
+      if (!(await addGate())) { setIsLoading(false); return; }
       justRegisteredRef.current = !inviteToken && !redirectParam;
       const success = await register(name.trim(), email.trim(), password, businessName.trim(),
         { terms_accepted: termsAgreed, privacy_accepted: privacyAgreed, ...(inviteToken ? { invite_token: inviteToken } : { plan_code: trialPlan }) });
@@ -580,7 +590,7 @@ const RegisterPage: React.FC = () => {
               ★ 약관 동의 체크와 무관하게 노출한다 — 구글 가입 경로는 백엔드가 동의 시점을 기록하고,
                 동의 화면 전에 버튼을 잠그면 "왜 안 눌리지" 가 된다. */}
           <GoogleAuthButton
-            onStart={startAuthRedirect}
+            onStart={(u) => { void (async () => { setError(''); const ok = await addGate(); if (ok) await startAuthRedirect(u); })(); }}
             disabled={isLoading}
             dividerLabel={t('register.or', { defaultValue: '또는' }) as string}
             redirect={redirectParam}
