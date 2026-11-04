@@ -35,8 +35,28 @@ async function getMemberNameMap(businessId, userIds) {
 // items 의 path 위치(중첩 dot path 지원, 예: 'sender' 또는 'sender' / 'User')의 객체에 대해
 // BusinessMember.name 으로 name/name_localized 를 덮어쓴다.
 // items 는 toJSON() 된 plain object 배열을 가정.
+// PlanQ 안내방(2026-11-04)의 PlanQ 팀 글 — 보낸 사람은 워크스페이스 멤버가 아닌 플랫폼 관리자다.
+//   서버가 찍은 meta.platform_staff 를 보고 «PlanQ 팀 · 이름» 으로 덮는다(화면 매퍼는 name_localized[언어] → name 순으로 읽는다).
+//   메시지를 내보내는 모든 길(목록·소켓·검색)이 이 함수를 지나므로 여기 한 곳이다.
+const STAFF_PREFIX = { ko: 'PlanQ 팀', en: 'PlanQ team' };
+function applyPlatformStaffName(items, paths) {
+  for (const it of items) {
+    if (!it || !it.meta || !it.meta.platform_staff || !it.meta.support_room) continue;   // 두 칸 다 services/supportRoom 만 찍는다
+    for (const p of paths) {
+      const obj = it[p];
+      if (!obj || obj.is_ai) continue;
+      const base = obj.name || '';
+      const loc = { ko: `${STAFF_PREFIX.ko} · ${base}`, en: `${STAFF_PREFIX.en} · ${base}` };
+      obj.name = loc.ko; obj.name_localized = loc;
+      obj.display_name = loc.ko; obj.display_name_localized = loc;
+      obj.platform_staff = true;
+    }
+  }
+}
+
 async function applyMemberDisplayName(items, businessId, paths = ['sender']) {
   if (!Array.isArray(items) || !items.length || !businessId) return items;
+  applyPlatformStaffName(items, paths);
   // 모든 path 의 user id 수집
   const ids = [];
   for (const it of items) {

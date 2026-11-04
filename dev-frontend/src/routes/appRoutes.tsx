@@ -60,6 +60,7 @@ const AdminPlatformSettingsPage = lazy(() => import('../pages/Admin/AdminPlatfor
 const AdminSubscriptionsPage = lazy(() => import('../pages/Admin/AdminSubscriptionsPage'));
 const AdminPaymentsPage = lazy(() => import('../pages/Admin/AdminPaymentsPage'));
 const AdminInboxPage = lazy(() => import('../pages/Admin/AdminInboxPage'));
+const AdminSupportPage = lazy(() => import('../pages/Admin/AdminSupportPage'));
 const AdminBillingSettingsPage = lazy(() => import('../pages/Admin/AdminBillingSettingsPage'));
 const AdminInquiriesPage = lazy(() => import('../pages/Admin/AdminInquiriesPage'));
 const AdminNotificationsPage = lazy(() => import('../pages/Admin/AdminNotificationsPage'));
@@ -144,6 +145,7 @@ export const APP_ROUTES: AppRouteDef[] = [
   { path: '/admin/platform-settings', roles: ['platform_admin'], element: <AdminPlatformSettingsPage /> },
   { path: '/admin/subscriptions', roles: ['platform_admin'], element: <AdminSubscriptionsPage /> },
   { path: '/admin/inbox', roles: ['platform_admin'], element: <AdminInboxPage /> },
+  { path: '/admin/support', roles: ['platform_admin'], element: <AdminSupportPage /> },
   { path: '/admin/payments', roles: ['platform_admin'], element: <AdminPaymentsPage /> },
   { path: '/admin/billing-settings', roles: ['platform_admin'], element: <AdminBillingSettingsPage /> },
   { path: '/admin/inquiries', roles: ['platform_admin'], element: <AdminInquiriesPage /> },

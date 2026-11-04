@@ -610,5 +610,13 @@
     "windowTitle": "PlanQ 문서",
     "notFound": "이 문서를 볼 수 없습니다. 삭제됐거나 볼 권한이 없어요.",
     "loading": "문서를 불러오는 중…"
+  },
+  "supportRoom": {
+    "name": "PlanQ 안내",
+    "joining": "들어가는 중…",
+    "joinHint": "PlanQ 사용법을 Cue 와 PlanQ 팀에게 물어보세요 — 눌러서 들어가기",
+    "askHuman": "PlanQ 팀에게 묻기",
+    "askedHuman": "PlanQ 팀에 알렸어요",
+    "band": "Cue · PlanQ 팀이 PlanQ 사용법을 안내해요"
   }
 }

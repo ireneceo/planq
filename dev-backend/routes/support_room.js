@@ -17,7 +17,7 @@ router.get('/', async (req, res, next) => {
   try {
     const biz = bizOf(req);
     if (!biz) return errorResponse(res, 'business_id_required', 400);
-    const r = await supportRoom.roomForMember(biz, req.user.id);
+    const r = await supportRoom.roomForMember(biz, req.user.id, req.app.get('io'));
     if (!r) return errorResponse(res, 'forbidden', 403);
     return successResponse(res, r);
   } catch (err) { next(err); }
@@ -28,7 +28,7 @@ router.post('/join', async (req, res, next) => {
   try {
     const biz = bizOf(req);
     if (!biz) return errorResponse(res, 'business_id_required', 400);
-    const r = await supportRoom.join(biz, req.user.id);
+    const r = await supportRoom.join(biz, req.user.id, req.app.get('io'));
     if (!r) return errorResponse(res, 'forbidden', 403);
     return successResponse(res, r);
   } catch (err) { next(err); }

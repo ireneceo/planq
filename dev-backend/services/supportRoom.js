@@ -21,11 +21,24 @@ const HISTORY_TURNS = 3;
 function M() { return require('../models'); }
 
 /** 화면이 i18n 으로 그리는 안내 줄 — content 는 옛 화면·알림 미리보기용 한국어. */
+//   저장되는 글이라 받는 사람 언어(users.language)로 한 번 고른다 — 화면은 meta.support_notice 로 i18n 을 다시 그릴 수 있다.
 const NOTICE_TEXT = {
-  welcome: 'PlanQ 안내방이에요. PlanQ 쓰다가 궁금한 것을 여기에 물어보세요. Cue 가 바로 답하고, PlanQ 팀도 함께 봅니다.',
-  human_requested: 'PlanQ 팀에 알렸어요. 확인하는 대로 여기서 답드릴게요.',
-  cue_failed: '지금은 Cue 가 답을 찾지 못했어요. PlanQ 팀에 넘겼어요.',
+  ko: {
+    welcome: 'PlanQ 안내방이에요. PlanQ 쓰다가 궁금한 것을 여기에 물어보세요. Cue 가 바로 답하고, PlanQ 팀도 함께 봅니다.',
+    human_requested: 'PlanQ 팀에 알렸어요. 확인하는 대로 여기서 답드릴게요.',
+    cue_failed: '지금은 Cue 가 답을 찾지 못했어요. PlanQ 팀에 넘겼어요.',
+  },
+  en: {
+    welcome: 'This is your PlanQ help room. Ask anything about using PlanQ here — Cue answers right away and the PlanQ team reads along.',
+    human_requested: "We've let the PlanQ team know. They'll reply here as soon as they can.",
+    cue_failed: "Cue couldn't find an answer this time. We've passed it to the PlanQ team.",
+  },
 };
+async function langOf(userId) {
+  if (!userId) return 'ko';
+  const u = await M().User.findByPk(userId, { attributes: ['language'] }).catch(() => null);
+  return u && String(u.language || '').startsWith('en') ? 'en' : 'ko';
+}
 
 // ─── 방 ─────────────────────────────────────────────
 
@@ -62,7 +75,10 @@ async function ensureRoom(businessId) {
     return { room: again, conv: await Conversation.findByPk(again.conversation_id), created: false };
   }
   await joinManagers(conv.id, bizId);
-  if (biz.cue_user_id) await postNotice(conv, biz.cue_user_id, 'welcome', null);
+  if (biz.cue_user_id) {
+    const ownerRow = await M().Business.findByPk(bizId, { attributes: ['owner_id'] });
+    await postNotice(conv, biz.cue_user_id, 'welcome', null, await langOf(ownerRow && ownerRow.owner_id));
+  }
   return { room, conv, created: true };
 }
 
@@ -75,7 +91,18 @@ async function joinManagers(convId, bizId) {
     include: [{ model: User, as: 'user', attributes: ['id'], where: { is_ai: false }, required: true }],
   });
   const { joinParticipant } = require('./convParticipants');
-  for (const r of rows) await joinParticipant(convId, r.user_id, 'member');
+  const added = [];
+  for (const r of rows) {
+    const j = await joinParticipant(convId, r.user_id, 'member');
+    if (j.created || j.promoted) added.push(r.user_id);
+  }
+  return added;
+}
+
+/** 새로 들어온 사람의 Q talk 목록이 다시 읽게(QTalkPage 가 이 신호로 목록을 다시 받는다). */
+function signalJoined(io, convId, userIds) {
+  if (!io) return;
+  for (const id of userIds) io.to(`user:${id}`).emit('conversation:participants', { conversation_id: convId });
 }
 
 /** 이 사람이 안내방에 들어올 수 있는가 — 워크스페이스 사람 멤버. */
@@ -90,38 +117,38 @@ async function memberRole(bizId, userId) {
 }
 
 /** 워크스페이스 쪽 «내 안내방» — 화면이 Q talk 맨 위 칸을 그린다. 멤버가 아니면 null. */
-async function roomForMember(bizId, userId) {
+async function roomForMember(bizId, userId, io) {
   const role = await memberRole(bizId, userId);
   if (!role) return null;
   const r = await ensureRoom(bizId);
   if (!r) return null;
-  if (MANAGER_ROLES.includes(role)) await joinManagers(r.conv.id, bizId);
+  if (MANAGER_ROLES.includes(role)) signalJoined(io, r.conv.id, await joinManagers(r.conv.id, bizId));
+  else if (r.created) signalJoined(io, r.conv.id, await joinManagers(r.conv.id, bizId));
   const { ConversationParticipant } = M();
   const joined = !!(await ConversationParticipant.findOne({ where: { conversation_id: r.conv.id, user_id: userId }, attributes: ['id'] }));
   return { conversation_id: r.conv.id, joined, can_join: !joined, human_requested: !!r.room.human_requested_at };
 }
 
-async function join(bizId, userId) {
+async function join(bizId, userId, io) {
   const role = await memberRole(bizId, userId);
   if (!role) return null;
   const r = await ensureRoom(bizId);
   if (!r) return null;
-  await require('./convParticipants').joinParticipant(r.conv.id, userId, 'member');
+  const j = await require('./convParticipants').joinParticipant(r.conv.id, userId, 'member');
+  if (j.created || j.promoted) signalJoined(io, r.conv.id, [userId]);
   return { conversation_id: r.conv.id, joined: true };
 }
 
 // ─── 메시지 ───────────────────────────────────────────
 
-async function loadForEmit(msgId, bizId, { staff } = {}) {
+async function loadForEmit(msgId, bizId) {
   const { Message, User } = M();
   const full = await Message.findByPk(msgId, {
     include: [{ model: User, as: 'sender', attributes: ['id', 'name', 'name_localized', 'is_guest', 'is_ai'] }],
   });
   const json = full.toJSON();
-  // PlanQ 팀 사람은 워크스페이스 멤버가 아니다 — 표시명 규칙의 예외(계정 이름 그대로, 설계 비차단 지적).
-  if (!staff) {
-    try { await require('./displayName').applyMemberDisplayNameOne(json, bizId, ['sender']); } catch { /* best-effort */ }
-  }
+  // PlanQ 팀 글은 displayName 이 meta.platform_staff 를 보고 «PlanQ 팀 · 계정 이름» 으로 덮는다(워크스페이스 표시명 규칙의 예외).
+  try { await require('./displayName').applyMemberDisplayNameOne(json, bizId, ['sender']); } catch { /* best-effort */ }
   return json;
 }
 
@@ -145,10 +172,10 @@ async function signalAdmins(io, conv) {
   } catch (e) { console.warn('[supportRoom signal]', e.message); }
 }
 
-async function postNotice(conv, cueUserId, notice, io, extraMeta = {}) {
+async function postNotice(conv, cueUserId, notice, io, lang = 'ko', extraMeta = {}) {
   const { Message } = M();
   const msg = await Message.create({
-    conversation_id: conv.id, sender_id: cueUserId, content: NOTICE_TEXT[notice] || notice,
+    conversation_id: conv.id, sender_id: cueUserId, content: (NOTICE_TEXT[lang] || NOTICE_TEXT.ko)[notice] || notice,
     kind: 'text', is_ai: true, is_internal: false,
     meta: { support_room: true, support_notice: notice, ai_mode_used: 'qhelper', ...extraMeta },
   });
@@ -239,7 +266,7 @@ async function afterMessage({ conv, message, io }) {
   }).catch((e) => console.warn('[supportRoom log]', e.message));
 
   if (!r || !r.ok) {
-    await markHuman(room, conv, biz, io, 'cue_failed');
+    await markHuman(room, conv, biz, io, 'cue_failed', message.sender_id);
     return { skipped: 'cue_failed' };
   }
   const msg = await Message.create({
@@ -250,6 +277,7 @@ async function afterMessage({ conv, message, io }) {
   await conv.update({ last_message_at: new Date() });
   // Cue 답은 앱 안 배지만 — notify 를 부르지 않는다(Irene 결정 3).
   await broadcast(io, conv, await loadForEmit(msg.id, conv.business_id));
+  await signalAdmins(io, conv);
   return { replied: msg.id };
 }
 
@@ -268,10 +296,10 @@ async function staffWriteBlocked(conv, userId) {
 }
 
 /** 사람에게 넘김 — 방에 한 줄 + 관리자 알림(«확인 필요»). 이미 요청 중이면 다시 알리지 않는다. */
-async function markHuman(room, conv, biz, io, notice) {
+async function markHuman(room, conv, biz, io, notice, userId) {
   const already = !!room.human_requested_at;
   if (!already) await room.update({ human_requested_at: new Date() });
-  if (biz.cue_user_id) await postNotice(conv, biz.cue_user_id, notice, io);
+  if (biz.cue_user_id) await postNotice(conv, biz.cue_user_id, notice, io, await langOf(userId));
   await signalAdmins(io, conv);
   if (already) return;
   try {
@@ -298,7 +326,7 @@ async function requestHuman(bizId, userId, io) {
   const joined = await ConversationParticipant.findOne({ where: { conversation_id: r.conv.id, user_id: userId }, attributes: ['id'] });
   if (!joined) return null;
   const biz = await Business.findByPk(bizId, { attributes: ['id', 'cue_user_id'] });
-  await markHuman(r.room, r.conv, biz, io, 'human_requested');
+  await markHuman(r.room, r.conv, biz, io, 'human_requested', userId);
   return { conversation_id: r.conv.id, human_requested: true };
 }
 
@@ -317,7 +345,7 @@ async function postStaffMessage({ businessId, adminUser, content, io }) {
   const now = new Date();
   await r.conv.update({ last_message_at: now });
   await r.room.update({ cue_muted_until: new Date(now.getTime() + CUE_MUTE_MS), human_requested_at: null, admin_last_read_at: now });
-  const payload = await loadForEmit(msg.id, r.conv.business_id, { staff: true });
+  const payload = await loadForEmit(msg.id, r.conv.business_id);
   await broadcast(io, r.conv, payload);
   await signalAdmins(io, r.conv);
 
@@ -387,8 +415,7 @@ async function openForAdmin(businessId, adminUser) {
     order: [['id', 'DESC']], limit: 200,
   });
   let list = rows.reverse().map((m) => m.toJSON());
-  const members = list.filter((m) => !(m.meta && m.meta.platform_staff));
-  try { await require('./displayName').applyMemberDisplayName(members, r.conv.business_id, ['sender']); } catch { /* best-effort */ }
+  try { await require('./displayName').applyMemberDisplayName(list, r.conv.business_id, ['sender']); } catch { /* best-effort */ }
   list = require('../utils/deletedMessage').maskDeletedMessages(list);
   await r.room.update({ admin_last_read_at: new Date() });
   await require('./auditService').writeAudit({

@@ -923,6 +923,34 @@
     },
     "noOwner": "사람 멤버 없음",
     "loading": "불러오는 중…",
-    "trialEnded": "끝남"
+    "trialEnded": "끝남",
+    "openSupport": "안내방 열기"
+  },
+  "support": {
+    "title": "안내방",
+    "desc": "워크스페이스마다 하나인 «PlanQ 안내» 방입니다. Cue 가 먼저 답하고, PlanQ 팀이 이어서 답할 수 있습니다.",
+    "loading": "불러오는 중…",
+    "loadFailed": "목록을 불러오지 못했어요",
+    "empty": "아직 열린 안내방이 없어요",
+    "emptyDesc": "워크스페이스 사람이 Q talk 에서 «PlanQ 안내» 를 열면 여기에 보입니다.",
+    "noMessages": "아직 대화가 없어요",
+    "humanRequested": "PlanQ 팀 답 필요",
+    "unread": "안 읽음 {{count}}",
+    "openJourney": "이 워크스페이스 여정 보기",
+    "roomFailed": "안내방을 열지 못했어요",
+    "replyPh": "PlanQ 팀으로 답하기 — 보내면 워크스페이스 사람들에게 알림이 갑니다 (Ctrl/⌘ + Enter)",
+    "sendFailed": "보내지 못했어요. 다시 시도해 주세요.",
+    "muteHint": "보내면 4시간 동안 Cue 는 이 방에서 답하지 않습니다.",
+    "close": "닫기",
+    "sending": "보내는 중…",
+    "send": "PlanQ 팀으로 보내기",
+    "cue": "Cue",
+    "unknown": "알 수 없음",
+    "deleted": "삭제된 메시지",
+    "notice": {
+      "welcome": "PlanQ 안내방이에요. PlanQ 쓰다가 궁금한 것을 여기에 물어보세요. Cue 가 바로 답하고, PlanQ 팀도 함께 봅니다.",
+      "human_requested": "PlanQ 팀에 알렸어요. 확인하는 대로 여기서 답드릴게요.",
+      "cue_failed": "지금은 Cue 가 답을 찾지 못했어요. PlanQ 팀에 넘겼어요."
+    }
   }
 }

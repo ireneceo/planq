@@ -1069,6 +1069,14 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
   const saleMenuCount = inboxCounts.sale;  // Q sale 메뉴 뱃지 — 내게 귀속된 영업 확인 항목(확인 필요 total 의 부분집합)
   // N+63 — platform_admin 좌측 inbox badge (feedback + inquiries)
   const adminCounts = useAdminInboxCounts();
+  // 관리자 사이드바 «숫자 붙은 메뉴» 한 줄 — 접힌 사이드바 title·배지(99+)·aria 를 한 곳에서(같은 모양이 줄마다 13줄씩 베껴져 있었다).
+  const adminCountItem = (to: string, label: string, count: number, testid: string, icon: React.ReactNode) => (
+    <NavItem to={to} $isCollapsed={isCollapsed} $active={isActive(to)} title={isCollapsed ? `${label}${count > 0 ? ` (${count})` : ''}` : undefined}>
+      <NavIcon $isCollapsed={isCollapsed}>{icon}</NavIcon>
+      <NavLabel $isCollapsed={isCollapsed}>{label}</NavLabel>
+      {count > 0 && <InboxBadge $collapsed={isCollapsed} data-testid={testid} aria-label={`${label} ${count}`}>{count > 99 ? '99+' : count}</InboxBadge>}
+    </NavItem>
+  );
   // N+63 — 알림 feed (Activity Feed) 미읽음 카운트. 확인필요 (Action Queue) 와 분리.
   const { count: notifCount, others: notifOthers, scopeBizId: notifScopeBizId } = useNotificationCountState();
   const [notifOpen, setNotifOpen] = useState(false);
@@ -1399,30 +1407,13 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
               </NavSection>
               <NavSection>
                 <NavTitle $isCollapsed={isCollapsed}>{t('nav.adminSecSupport','고객 응대')}</NavTitle>
-                <NavItem to="/admin/inquiries" $isCollapsed={isCollapsed} $active={isActive('/admin/inquiries')}
-                  title={isCollapsed ? `${t('nav.inquiries', '문의 인박스')}${adminCounts.inquiriesPending > 0 ? ` (${adminCounts.inquiriesPending})` : ''}` : undefined}>
-                  <NavIcon $isCollapsed={isCollapsed}>
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg>
-                  </NavIcon>
-                  <NavLabel $isCollapsed={isCollapsed}>{t('nav.inquiries', '문의 인박스')}</NavLabel>
-                  {adminCounts.inquiriesPending > 0 && (
-                    <InboxBadge $collapsed={isCollapsed} data-testid="nav-badge-admin-inquiries" aria-label={`${t('nav.inquiries', '문의 인박스')} ${adminCounts.inquiriesPending}`}>
-                      {adminCounts.inquiriesPending > 99 ? '99+' : adminCounts.inquiriesPending}
-                    </InboxBadge>
-                  )}
-                </NavItem>
-                <NavItem to="/admin/feedback" $isCollapsed={isCollapsed} $active={isActive('/admin/feedback')}
-                  title={isCollapsed ? `${t('nav.feedback', '사용자 피드백')}${adminCounts.feedbackPending > 0 ? ` (${adminCounts.feedbackPending})` : ''}` : undefined}>
-                  <NavIcon $isCollapsed={isCollapsed}>
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-                  </NavIcon>
-                  <NavLabel $isCollapsed={isCollapsed}>{t('nav.feedback', '사용자 피드백')}</NavLabel>
-                  {adminCounts.feedbackPending > 0 && (
-                    <InboxBadge $collapsed={isCollapsed} data-testid="nav-badge-admin-feedback" aria-label={`${t('nav.feedback', '사용자 피드백')} ${adminCounts.feedbackPending}`}>
-                      {adminCounts.feedbackPending > 99 ? '99+' : adminCounts.feedbackPending}
-                    </InboxBadge>
-                  )}
-                </NavItem>
+                {adminCountItem('/admin/inquiries', t('nav.inquiries', '문의 인박스'), adminCounts.inquiriesPending, 'nav-badge-admin-inquiries',
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg>)}
+                {adminCountItem('/admin/feedback', t('nav.feedback', '사용자 피드백'), adminCounts.feedbackPending, 'nav-badge-admin-feedback',
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>)}
+                {/* PlanQ 안내방 받은편지함(2026-11-04) — 워크스페이스마다 하나인 PlanQ 방. 사람 연결 요청은 «확인 필요» 알림으로도 온다. */}
+                {adminCountItem('/admin/support', t('nav.support', '안내방'), 0, 'nav-badge-admin-support',
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>)}
               </NavSection>
               <NavSection>
                 <NavTitle $isCollapsed={isCollapsed}>{t('nav.adminSecBilling','결제·구독')}</NavTitle>

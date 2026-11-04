@@ -610,5 +610,13 @@
     "windowTitle": "PlanQ document",
     "notFound": "This document can't be shown. It was deleted or you don't have access.",
     "loading": "Loading document…"
+  },
+  "supportRoom": {
+    "name": "PlanQ help",
+    "joining": "Joining…",
+    "joinHint": "Ask Cue and the PlanQ team how to use PlanQ — tap to join",
+    "askHuman": "Ask the PlanQ team",
+    "askedHuman": "PlanQ team notified",
+    "band": "Cue and the PlanQ team help you use PlanQ"
   }
 }

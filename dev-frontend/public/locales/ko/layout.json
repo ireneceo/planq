@@ -197,7 +197,8 @@
     "payrollSettings": "급여 설정",
     "social": "SNS 발송",
     "signatures": "받은·보낸 서명",
-    "signatureManage": "서명 관리"
+    "signatureManage": "서명 관리",
+    "support": "안내방"
   },
   "user": {
     "profile": "내 프로필",

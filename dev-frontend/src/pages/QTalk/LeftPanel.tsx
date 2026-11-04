@@ -15,6 +15,7 @@ import { useListKeyboardNav } from '../../hooks/useListKeyboardNav';
 import { mediaTablet } from '../../theme/breakpoints';
 import PanelResizeHandle from '../../components/Layout/PanelResizeHandle';
 import FloatingMenu from '../../components/Common/FloatingMenu';
+import { apiFetch } from '../../contexts/AuthContext';
 
 interface Props {
   projects: MockProject[];
@@ -64,6 +65,31 @@ const LeftPanel: React.FC<Props> = ({
   const isClient = user?.business_role === 'client';
   const [query, setQuery] = useState('');
 
+  // PlanQ 안내방(2026-11-04, docs/PLANQ_GUIDE_ROOM_DESIGN.md) — 대표·관리자는 열면 저절로 참여, 멤버는 «들어가기».
+  //   참여 전에는 목록 API 에 안 나오므로(참여자만 보는 방) 이 칸이 맨 위에 자리를 만든다. 고객에게는 없다.
+  const bizId = user?.business_id || null;
+  const [support, setSupport] = useState<{ conversation_id: number; joined: boolean } | null>(null);
+  const [joining, setJoining] = useState(false);
+  useEffect(() => {
+    if (!bizId || isClient) { setSupport(null); return; }
+    let alive = true;
+    apiFetch(`/api/support-room?business_id=${bizId}`).then((r) => r.json()).then((j) => {
+      if (alive && j?.success) setSupport({ conversation_id: j.data.conversation_id, joined: !!j.data.joined });
+    }).catch(() => {});
+    return () => { alive = false; };
+  }, [bizId, isClient]);
+  const joinSupport = async () => {
+    if (!bizId || !support || joining) return;
+    setJoining(true);
+    try {
+      const j = await (await apiFetch('/api/support-room/join', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ business_id: bizId }) })).json();
+      // 서버가 'conversation:participants' 로 목록을 다시 읽힌다 — 그다음 연다.
+      if (j?.success) { setSupport({ conversation_id: j.data.conversation_id, joined: true }); onSelectConversation(-1, j.data.conversation_id); }
+    } catch { /* 다음에 다시 */ }
+    finally { setJoining(false); }
+  };
+  const supportName = t('supportRoom.name', 'PlanQ 안내');
+
   // ChatRow ⋮ 메뉴 — 한 시점에 한 행만 open. row 외부 클릭 / Esc 닫힘.
   const [menuOpenFor, setMenuOpenFor] = useState<number | null>(null);
   const menuRootRef = useRef<HTMLDivElement | null>(null);
@@ -107,6 +133,10 @@ const LeftPanel: React.FC<Props> = ({
     // 정렬: 핀(my_pinned_at NOT NULL) 우선 → 그 안에서 최근 활동순 (last_message_at DESC).
     // last_message_at 없으면 0 (맨 아래).
     result.sort((a, b) => {
+      // PlanQ 안내방은 핀보다도 위 — 늘 맨 위 한 줄.
+      const as_ = a.conversation.channel_type === 'platform' ? 1 : 0;
+      const bs_ = b.conversation.channel_type === 'platform' ? 1 : 0;
+      if (as_ !== bs_) return bs_ - as_;
       const ap = a.conversation.my_pinned_at ? 1 : 0;
       const bp = b.conversation.my_pinned_at ? 1 : 0;
       if (ap !== bp) return bp - ap;
@@ -215,8 +245,18 @@ const LeftPanel: React.FC<Props> = ({
             )}
           </Empty>
         )}
+        {support && !support.joined && !query && !conversations.some((c) => c.channel_type === 'platform') && (
+          <ChatRow data-testid="qtalk-support-join-row" $active={false} onClick={() => void joinSupport()}>
+            <LetterAvatar name="PlanQ" size={36} variant="neutral" />
+            <ChatBody>
+              <ChatTop><ChatName $active={false}>{supportName}</ChatName><CustomerTag>PlanQ</CustomerTag></ChatTop>
+              <ProjectName>{joining ? t('supportRoom.joining', '들어가는 중…') : t('supportRoom.joinHint', 'PlanQ 사용법을 Cue 와 PlanQ 팀에게 물어보세요 — 눌러서 들어가기')}</ProjectName>
+            </ChatBody>
+          </ChatRow>
+        )}
         {filteredChats.map(({ conversation: c, project: p }) => {
           const isActive = c.id === activeConversationId;
+          const isSupport = c.channel_type === 'platform';
           const isPinned = !!c.my_pinned_at;
           return (
             <ChatRow
@@ -227,14 +267,15 @@ const LeftPanel: React.FC<Props> = ({
               onClick={() => onSelectConversation(p.id, c.id)}
             >
               <LetterAvatar
-                name={p.name}
+                name={isSupport ? 'PlanQ' : p.name}
                 size={36}
                 variant={isActive ? 'active' : 'neutral'}
               />
               <ChatBody>
                 <ChatTop>
-                  <ChatName $active={isActive}><HighlightText text={c.name} query={query} /></ChatName>
+                  <ChatName $active={isActive}><HighlightText text={isSupport ? supportName : c.name} query={query} /></ChatName>
                   {c.channel_type === 'customer' && !isClient && <CustomerTag>{t('channelBadge.customer', '고객')}</CustomerTag>}
+                  {isSupport && <CustomerTag data-testid="qtalk-support-tag">PlanQ</CustomerTag>}
                 </ChatTop>
                 {/* 검색 — 행에 안 보이는 칸(프로젝트·고객사)에서 걸렸으면 왜 걸렸는지 한 줄 (공용 MatchReason) */}
                 {query.trim() && (() => {
@@ -276,7 +317,7 @@ const LeftPanel: React.FC<Props> = ({
               )}
               {/* ⋮ 채팅방 관리 메뉴 — workspace owner / project owner / platform admin 만 노출.
                   옵션: 프로젝트에서 분리 (project_id 있을 때) / 채팅방 보관 (Danger). ConfirmDialog 후 실행. */}
-              {canManage && canManage(c) && (onArchive || onUnlink) && (
+              {!isSupport && canManage && canManage(c) && (onArchive || onUnlink) && (
                 <MenuRoot ref={menuOpenFor === c.id ? menuRootRef : undefined}>
                   <MenuBtn
                     type="button"

@@ -2,7 +2,8 @@
 // Mock 단계의 prefix `Mock*` 는 호환성 위해 유지 — 후속 사이클에서 일괄 rename 예정.
 
 export type ProjectRole = 'owner' | 'member' | 'client';
-export type ChannelType = 'customer' | 'internal' | 'group';
+// 'platform' = PlanQ 안내방(워크스페이스당 하나, 2026-11-04) — 목록 맨 위 고정 · 이름은 화면이 i18n 으로 그린다.
+export type ChannelType = 'customer' | 'internal' | 'group' | 'platform';
 export type ProjectStatus = 'active' | 'paused' | 'closed';
 // 백엔드 Task ENUM 과 동기 — CLAUDE.md § Q Task 상태 ENUM
 export type TaskStatus =

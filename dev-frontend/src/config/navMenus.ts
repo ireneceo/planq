@@ -129,6 +129,7 @@ export const ADMIN_MENUS: NavMenuEntry[] = [
   { key: 'admin-inbox', to: '/admin/inbox', labelKey: 'nav.inbox', section: 'admin', roles: 'any' },
   { key: 'admin-inquiries', to: '/admin/inquiries', labelKey: 'nav.inquiries', section: 'admin', roles: 'any' },
   { key: 'admin-feedback', to: '/admin/feedback', labelKey: 'nav.feedback', section: 'admin', roles: 'any' },
+  { key: 'admin-support', to: '/admin/support', labelKey: 'nav.support', section: 'admin', roles: 'any' },
   { key: 'admin-subscriptions', to: '/admin/subscriptions', labelKey: 'nav.subscriptions', section: 'admin', roles: 'any' },
   { key: 'admin-payments', to: '/admin/payments', labelKey: 'nav.payments', section: 'admin', roles: 'any' },
   { key: 'admin-users', to: '/admin/users', labelKey: 'nav.users', section: 'admin', roles: 'any' },

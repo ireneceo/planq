@@ -923,6 +923,34 @@
     },
     "noOwner": "No human members",
     "loading": "Loading…",
-    "trialEnded": "Ended"
+    "trialEnded": "Ended",
+    "openSupport": "Open help room"
+  },
+  "support": {
+    "title": "Help rooms",
+    "desc": "Each workspace has one «PlanQ help» room. Cue answers first, and the PlanQ team can follow up.",
+    "loading": "Loading…",
+    "loadFailed": "Couldn't load the list",
+    "empty": "No help rooms yet",
+    "emptyDesc": "They appear here once someone in a workspace opens «PlanQ help» in Q talk.",
+    "noMessages": "No messages yet",
+    "humanRequested": "Needs PlanQ team",
+    "unread": "{{count}} unread",
+    "openJourney": "View this workspace's journey",
+    "roomFailed": "Couldn't open the help room",
+    "replyPh": "Reply as the PlanQ team — members get a notification (Ctrl/⌘ + Enter)",
+    "sendFailed": "Couldn't send. Please try again.",
+    "muteHint": "After you reply, Cue stays quiet in this room for 4 hours.",
+    "close": "Close",
+    "sending": "Sending…",
+    "send": "Send as PlanQ team",
+    "cue": "Cue",
+    "unknown": "Unknown",
+    "deleted": "Deleted message",
+    "notice": {
+      "welcome": "This is your PlanQ help room. Ask anything about using PlanQ here — Cue answers right away and the PlanQ team reads along.",
+      "human_requested": "We've let the PlanQ team know. They'll reply here as soon as they can.",
+      "cue_failed": "Cue couldn't find an answer this time. We've passed it to the PlanQ team."
+    }
   }
 }

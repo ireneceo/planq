@@ -386,7 +386,7 @@ const ShareReceivePage: React.FC = () => {
     <PickRow key={c.id} type="button" data-testid="share-conv-row" data-conv-id={c.id} disabled={busy !== null}
       onClick={() => void sendTo('chat', c)}>
       <span>{convLabel(c)}</span>
-      <PickMeta>{c.channel_type === 'customer' ? t('shareReceive.convCustomer', '고객') : t('shareReceive.convTeam', '팀')}</PickMeta>
+      <PickMeta>{c.channel_type === 'customer' ? t('shareReceive.convCustomer', '고객') : c.channel_type === 'platform' ? 'PlanQ' : t('shareReceive.convTeam', '팀')}</PickMeta>
     </PickRow>
   );
 

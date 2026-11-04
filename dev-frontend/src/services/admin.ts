@@ -115,6 +115,41 @@ export async function fetchAdminBusinessJourney(id: number): Promise<AdminJourne
   return j.data;
 }
 
+// PlanQ 안내방 받은편지함 (2026-11-04, docs/PLANQ_GUIDE_ROOM_DESIGN.md §2)
+export interface SupportRoomRow {
+  business_id: number; conversation_id: number; business_name: string | null;
+  human_requested: boolean; unread: number; last_message_at: string | null; last_preview: string;
+}
+export interface SupportMessage {
+  id: number; content: string; created_at: string; is_ai: boolean; is_deleted?: boolean; kind?: string;
+  meta?: { platform_staff?: boolean; support_notice?: string } | null;
+  sender?: { id: number; name?: string; name_localized?: Record<string, string> | null } | null;
+}
+export interface SupportRoomDetail {
+  business_id: number; business_name: string | null; conversation_id: number;
+  human_requested: boolean; cue_muted_until: string | null; messages: SupportMessage[];
+}
+export async function fetchSupportRooms(): Promise<{ rows: SupportRoomRow[]; total: number }> {
+  const r = await apiFetch('/api/admin/support/rooms?limit=200');
+  const j = await r.json();
+  if (!j.success) throw new Error(j.message || 'support rooms failed');
+  return { rows: j.data, total: j.pagination?.total ?? j.data.length };
+}
+export async function openSupportRoom(businessId: number): Promise<SupportRoomDetail> {
+  const r = await apiFetch(`/api/admin/support/rooms/${businessId}`);
+  const j = await r.json();
+  if (!j.success) throw new Error(j.message || 'support room failed');
+  return j.data;
+}
+export async function sendSupportMessage(businessId: number, content: string): Promise<SupportMessage> {
+  const r = await apiFetch(`/api/admin/support/rooms/${businessId}/messages`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ content }),
+  });
+  const j = await r.json();
+  if (!j.success) throw new Error(j.message || 'send failed');
+  return j.data.message;
+}
+
 export async function adminChangePlan(
   id: number,
   payload: { to_plan: PlanCode; note?: string | null; plan_expires_at?: string | null; scheduled_plan?: PlanCode | null }

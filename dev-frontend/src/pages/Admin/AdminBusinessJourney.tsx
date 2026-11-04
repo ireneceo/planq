@@ -6,6 +6,7 @@ import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
 import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
+import ChromeLink from '../../components/Tab/ChromeLink';
 import { fetchAdminBusinessJourney, type AdminJourney, type AdminJourneySignal } from '../../services/admin';
 
 const SETUP_KEYS = ['install_app', 'enable_notifications', 'connect_calendar', 'connect_ai_app'] as const;
@@ -32,7 +33,10 @@ export default function AdminBusinessJourney({ businessId }: { businessId: numbe
 
   return (
     <Section data-testid="admin-biz-journey">
-      <SectionHead><SectionTitle>{t('journey.title', '여정')}</SectionTitle></SectionHead>
+      <SectionHead>
+        <SectionTitle>{t('journey.title', '여정')}</SectionTitle>
+        <SupportLink to={`/admin/support?business=${businessId}`} data-testid="admin-biz-open-support">{t('journey.openSupport', '안내방 열기')}</SupportLink>
+      </SectionHead>
       {error && <ErrorText>{t('journey.loadFailed', '여정을 불러오지 못했어요')}</ErrorText>}
       {!data && !error && <Dim>{t('journey.loading', '불러오는 중…')}</Dim>}
       {data && (
@@ -113,6 +117,7 @@ export default function AdminBusinessJourney({ businessId }: { businessId: numbe
 const Section = styled.section`padding: 16px 20px; border-bottom: 1px solid #E2E8F0;`;
 const SectionHead = styled.div`display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;`;
 const SectionTitle = styled.h3`margin: 0; font-size: 0.8125rem; font-weight: 700; color: #0F172A; letter-spacing: -0.1px;`;
+const SupportLink = styled(ChromeLink)`font-size: 0.75rem; font-weight: 600; color: #0F766E; text-decoration: underline;`;
 const SubTitle = styled.div`margin: 14px 0 6px; font-size: 0.75rem; font-weight: 700; color: #334155;`;
 const KV = styled.div`display: flex; align-items: center; padding: 6px 0; gap: 8px;`;
 const KLabel = styled.div`width: 110px; font-size: 0.75rem; color: #64748B; flex-shrink: 0;`;

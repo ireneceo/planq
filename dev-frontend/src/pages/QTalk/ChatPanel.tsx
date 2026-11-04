@@ -700,6 +700,10 @@ const ChatPanel: React.FC<Props> = ({
 
   // 채팅방 이름 인라인 편집
   const [editingName, setEditingName] = useState(false);
+  // PlanQ 안내방(channel_type 'platform') — 이름 고정·설정 없음·[PlanQ 팀에게 묻기]. 방을 바꾸면 버튼을 되돌린다.
+  const isSupportRoom = activeConv?.channel_type === 'platform';
+  const [humanAsked, setHumanAsked] = useState(false);
+  useEffect(() => { setHumanAsked(false); }, [activeConv?.id]);
   const [nameDraft, setNameDraft] = useState(activeConv?.name || '');
   React.useEffect(() => {
     setNameDraft(activeConv?.name || '');
@@ -1417,11 +1421,11 @@ const ChatPanel: React.FC<Props> = ({
           ) : (
             <ChatNameRow>
               <ChatName
-                onClick={() => !isClient && setEditingName(true)}
-                title={!isClient ? t('chat.rename', '클릭해서 이름 수정') : undefined}
-                $editable={!isClient}
+                onClick={() => !isClient && !isSupportRoom && setEditingName(true)}
+                title={!isClient && !isSupportRoom ? t('chat.rename', '클릭해서 이름 수정') : undefined}
+                $editable={!isClient && !isSupportRoom}
               >
-                {channelLabel(activeConv.name)}
+                {isSupportRoom ? t('supportRoom.name', 'PlanQ 안내') : channelLabel(activeConv.name)}
               </ChatName>
             </ChatNameRow>
           )}
@@ -1448,13 +1452,20 @@ const ChatPanel: React.FC<Props> = ({
                 운영에 절반이었고, 그 방에서는 버튼이 아예 안 보였다. 링크는 **사람이 아니라 방**에 붙는다.
               ★ 서버(`routes/guest_admin.js`)가 같은 술어를 fail-closed 로 다시 본다.
               ★ 자리는 **액션 칸**이다 (2026-09-09) — 제목 옆에 두면 제목의 일부처럼 읽힌다. */}
+          {/* PlanQ 안내방 — Cue 대신 사람(PlanQ 팀)에게 묻기. 서버가 관리자 «확인 필요» 로 알린다(services/supportRoom.requestHuman). */}
+          {isSupportRoom && businessId && (
+            <HumanAskBtn type="button" data-testid="chat-support-ask-human" disabled={humanAsked}
+              onClick={() => { setHumanAsked(true); apiFetch('/api/support-room/human', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ business_id: businessId }) }).catch(() => setHumanAsked(false)); }}>
+              {humanAsked ? t('supportRoom.askedHuman', 'PlanQ 팀에 알렸어요') : t('supportRoom.askHuman', 'PlanQ 팀에게 묻기')}
+            </HumanAskBtn>
+          )}
           {activeConv.channel_type === 'customer' && !isClient && businessId && (
             <GuestLinkButton
               businessId={businessId}
               conversationId={activeConv.id}
               clientName={activeConv.client?.name || activeConv.name} />
           )}
-          {!isClient && onOpenSettings && (
+          {!isClient && !isSupportRoom && onOpenSettings && (
             <IconBtn type="button" data-testid="chat-open-settings" onClick={onOpenSettings} title={t('chat.openSettings', '채팅 설정') as string} aria-label={t('chat.openSettings', '채팅 설정') as string}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <circle cx="12" cy="12" r="3"/>
@@ -1472,7 +1483,9 @@ const ChatPanel: React.FC<Props> = ({
       <ChatMetaBar data-testid="chat-header-band2">
         <DetailMetaLeft>
           {/* 고객에게는 «고객» 칩·자기 이름 링크(→ 직원용 Q sales, 고객은 403)를 보이지 않는다(2026-11-03 첫 길 점검) */}
-          {isClient ? null : activeConv.channel_type === 'customer'
+          {isClient ? null : isSupportRoom
+            ? <InternalTag>{t('supportRoom.band', 'Cue · PlanQ 팀이 PlanQ 사용법을 안내해요')}</InternalTag>
+            : activeConv.channel_type === 'customer'
             ? <CustomerTag>{t('channelBadge.customer', '고객')}</CustomerTag>
             : <InternalTag>{t('channelBadge.internal', '내부')}</InternalTag>}
           {!isClient && activeConv.channel_type === 'customer' && activeConv.client && (
@@ -2859,10 +2872,10 @@ const QuickSwitchBtn = styled.button`
   }
 `;
 
-const QuickHash = styled.span<{ $type: 'customer' | 'internal' | 'group' }>`
+const QuickHash = styled.span<{ $type: 'customer' | 'internal' | 'group' | 'platform' }>`
   color: ${(p) =>
     p.$type === 'customer' ? '#F59E0B' :
-    p.$type === 'internal' ? '#94A3B8' : '#0F766E'};
+    p.$type === 'internal' || p.$type === 'platform' ? '#94A3B8' : '#0F766E'};
   font-weight: 700;
 `;
 
@@ -2915,6 +2928,11 @@ const IconBtn = styled.button`
   &:hover { background: #F1F5F9; color: #0F172A; }
 `;
 // N+93 (#9) — 새 창 분리 버튼. 데스크탑 전용 (모바일은 새창 의미 X → 숨김).
+const HumanAskBtn = styled.button`
+  height: 32px; padding: 0 12px; border-radius: 8px; border: 1px solid #CBD5E1; background: #fff;
+  font-size: 0.75rem; font-weight: 600; color: #0F766E; cursor: pointer; white-space: nowrap;
+  &:hover:not(:disabled) { border-color: #14B8A6; } &:disabled { color: #94A3B8; cursor: default; }
+`;
 const PopoutBtn = styled(IconBtn)`
   @media (max-width: 768px) { display: none; }
 `;
