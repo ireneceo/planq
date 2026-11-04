@@ -530,6 +530,9 @@ app.use('/api/whats-new', require('./routes/whats_new'));
 app.use('/api/org', require('./routes/org'));
 // 인사이트 글별 링크 미리보기 이미지(무인증, `/:slug/og.jpg` 꼬리 하나) — 로그인 Cue 카드 라우터보다 앞(2026-10-22 SNS 단계 1)
 app.use('/api/insights', require('./routes/insight_og'));
+// 시연 영상 작업자 API — dev 작업자 전용 문(§20.4). .env VIDEO_WORKER_TOKEN_SHA256 이 있을 때만 마운트(없으면 표면 없음 = 404).
+//   인증은 라우터 첫 줄 workerAuth(토큰 해시 + IP 허용 목록) — 사용자 토큰을 쓰지 않는다.
+if (require('./utils/workerAuth').configured()) app.use('/api/video-worker', require('./routes/video_worker'));
 // 공유 파일 링크 미리보기 이미지(무인증, `/files/:token/og.jpg` 하나) — 새 접두어라 다른 라우터와 안 겹친다(2026-10-30)
 app.use('/api/share-og', require('./routes/share_og'));
 app.use('/api/insights', require('./routes/insights'));
@@ -629,6 +632,8 @@ app.use('/api/support-room', require('./routes/support_room'));
 app.use('/api/admin', require('./routes/admin_dev_status'));
 // 인사이트 글 SNS 발송 — platform_admin 전용 (2026-10-22, docs/SNS_PUBLISH_DESIGN.md 단계 1: 외부 발송 없음)
 app.use('/api/admin/social', require('./routes/admin_social'));
+// 시연 영상 공방 — platform_admin 전용 (2026-11-04, docs/DEMO_VIDEO_DESIGN.md §20). 라우터 자체가 authenticateToken+requireRole 로 닫혀 있다.
+app.use('/api/admin/videos', require('./routes/admin_videos'));
 // 이력 라우터를 먼저 — /:id/revisions 가 /:id 패턴에 먹히지 않도록 순서를 명시한다.
 app.use('/api/posts', require('./routes/post_revisions'));
 app.use('/api/posts', require('./routes/post_comments'));   // 문서 댓글 — /:id/comments 꼬리만 (docs/DOC_COMMENTS_DESIGN.md)

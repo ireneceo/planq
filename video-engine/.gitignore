@@ -9,3 +9,5 @@ public/sfx/
 public/brand/
 assets/music/*.beats.json
 data/
+# 작업자(--remote)가 만드는 대본 — 정본은 운영 DB video_versions
+storyboards/vp*.json

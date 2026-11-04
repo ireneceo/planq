@@ -155,6 +155,10 @@ const LandingVisitor = require('./LandingVisitor');
 const SocialAccount = require('./SocialAccount');
 const SocialPost = require('./SocialPost');
 const SocialPostLog = require('./SocialPostLog');
+const VideoProject = require('./VideoProject');
+const VideoVersion = require('./VideoVersion');
+const VideoJob = require('./VideoJob');
+const VideoSetting = require('./VideoSetting');
 const HelpQuestionLog = require('./HelpQuestionLog');
 const SupportRoom = require('./SupportRoom');
 const CueQuestionTopic = require('./CueQuestionTopic');
@@ -678,6 +682,7 @@ module.exports = {
   PayrollRun, PayrollEntry, PayrollEntryLine, PayrollStatusHistory,
   LandingVisit, LandingVisitor,
   SocialAccount, SocialPost, SocialPostLog,
+  VideoProject, VideoVersion, VideoJob, VideoSetting,
   ProjectHistoryEntry,
   HistoryOverride,
   ProviderCredit,
@@ -1138,3 +1143,7 @@ SocialPost.belongsTo(HelpArticle, { as: 'article', foreignKey: 'article_id', onD
 HelpArticle.hasMany(SocialPost, { as: 'socialPosts', foreignKey: 'article_id', onDelete: 'CASCADE' });
 SocialPost.belongsTo(SocialAccount, { as: 'account', foreignKey: 'account_id', onDelete: 'SET NULL' });
 SocialPost.hasMany(SocialPostLog, { as: 'logs', foreignKey: 'post_id', onDelete: 'CASCADE' });
+VideoProject.hasMany(VideoVersion, { as: 'versions', foreignKey: 'project_id' });
+VideoVersion.belongsTo(VideoProject, { as: 'project', foreignKey: 'project_id' });
+VideoProject.hasMany(VideoJob, { as: 'jobs', foreignKey: 'project_id' });
+VideoJob.belongsTo(VideoProject, { as: 'project', foreignKey: 'project_id' });

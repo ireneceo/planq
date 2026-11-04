@@ -3,6 +3,7 @@
 //   실행: node worker.js            (계속 돈다 — D 에서 PM2 planq-video-worker)
 //         node worker.js --once     (대기열이 빌 때까지 하고 끝)
 //         node worker.js --enqueue <kind> '<payload json>'
+//         node worker.js --remote [--once]   (D′1: 운영 작업자 API 에서 받아 감 — §20.4. video-engine/.env 의 VIDEO_API_BASE·VIDEO_WORKER_TOKEN)
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
@@ -34,6 +35,97 @@ async function runJob(job, { progress = () => {}, log = () => {} } = {}) {
       return { outputs: r.map((x) => ({ aspect: x.aspect, file: path.relative(ROOT, x.out), bytes: x.bytes, seconds: x.seconds, ms: x.ms, rendered: x.rendered, reused: x.reused })) };
     }
     default: throw Object.assign(new Error(`모르는 작업 ${job.kind}`), { code: 'unknown_kind' });
+  }
+}
+
+// ── produce — 요청 1건을 끝까지(대본 → 검수 관문 → 렌더 → 올리기) (§20.3) ──
+//   payload.approved_version_id 가 있으면 AI 대본을 건너뛰고 그 판으로 · gate_overrides 는 «그대로 쓰기» 한 장면(Fable 차단 5).
+//   관문에 걸리면 사람 몫(review) — 실패 횟수를 세지 않고 «확인 필요» 로.
+function applyOverrides(script, overrides) {
+  for (const o of overrides || []) for (const sc of script.scenes || []) if (sc.kind === 'screen' && sc.shot === o.shot) sc.accept = [...new Set([...(sc.accept || []), o.beat])];
+  return script;
+}
+
+async function produce(claimed, { remote, stage, log }) {
+  const { job, project, version } = claimed;
+  const p = job.payload || {};
+  const aspects = (project.aspects && project.aspects.length ? project.aspects : ['landscape', 'portrait']);
+  let script; let versionId = version && version.id;
+  // 1) 대본
+  stage('script');
+  if (version && version.script) { script = version.script; log(`사람이 승인한 판 v${version.version_no} 으로 — AI 건너뜀`); }
+  else {
+    const { generate } = require('./ai/script');
+    script = await generate({ mode: project.mode, template: project.template || undefined, seconds: project.target_seconds, music: project.music || undefined, id: `vp${project.id}-j${job.id}`, instruction: `${project.title}\n${project.brief || ''}`.trim() });
+  }
+  script.id = `vp${project.id}-j${job.id}`;
+  applyOverrides(script, p.gate_overrides);
+  // 2) 검수 관문 — 가로·세로 장면 목록을 만들며 걸린 것을 모은다
+  stage('gate');
+  const { build, attachMontageBeats } = require('./build/storyboard');
+  const gate = []; const sbs = {};
+  for (const aspect of aspects) {
+    const sb = attachMontageBeats(build(script, aspect));
+    for (const g of sb._gate || []) gate.push({ aspect, shot: g.shot, beat: g.beat, kind: g.kind, text: g.text });
+    sbs[aspect] = sb;
+  }
+  const autoOk = !gate.length;
+  if (!versionId) {
+    const meta = script._ai || null; delete script._ai;
+    const v = await remote.call('POST', `/jobs/${job.id}/version`, { json: { script, ai_meta: meta, approve: autoOk } });
+    versionId = v.version_id;
+    if (autoOk && !v.approved) return { review: { reason: 'awaiting_approval', detail: { version_id: versionId } } };
+  }
+  if (!autoOk) return { review: { reason: 'gate_failed', detail: { version_id: versionId, gate: gate.slice(0, 40) } } };
+  for (const aspect of aspects) {
+    const out = path.join(ROOT, 'out', 'storyboards', `${script.id}.${aspect}.json`);
+    fs.mkdirSync(path.dirname(out), { recursive: true });
+    fs.writeFileSync(out, JSON.stringify(sbs[aspect], null, 1));
+  }
+  // 3) 렌더(조각 렌더 · 메모리 게이트는 render.js 가 기다린다)
+  stage('render');
+  const { renderAll } = require('./render');
+  // 한 화면비만이면 그 장면 목록 파일을 직접 준다(renderAll 은 id 로 받으면 가로·세로 두 파일을 다 연다)
+  const rendered = await renderAll({ arg0: aspects.length === 1 ? path.join(ROOT, 'out', 'storyboards', `${script.id}.${aspects[0]}.json`) : script.id, log });
+  // 4) 올리기
+  stage('upload');
+  const outputs = [];
+  for (const r of rendered) { const u = await remote.uploadFile(job.id, r.aspect, r.out); outputs.push({ upload_id: u.upload_id, seconds: r.seconds }); log(`올림 ${r.aspect} ${(r.bytes / 1e6).toFixed(1)}MB`); }
+  return { outputs };
+}
+
+// ── 운영 작업자 API 대기열(--remote) ──
+async function runRemoteOne() {
+  const remote = require('./lib/remote');
+  const claimed = await remote.call('POST', '/claim');
+  if (!claimed.job) return { did: false, why: claimed.why };
+  const { job } = claimed;
+  let cur = { stage: 'start', progress: 0 }; const logs = [];
+  // heartbeat 실패는 기록만 하고 작업을 멈추지 않는다(Fable 비차단 3)
+  const beat = () => remote.call('POST', `/jobs/${job.id}/heartbeat`, { json: { ...cur, log_b64: Buffer.from(logs.join('\n').slice(-4096)).toString('base64') } }).catch((e) => console.error(`[heartbeat] ${e.message}`));
+  const hb = setInterval(beat, HEARTBEAT_MS);
+  const stage = (s) => { cur = { stage: s, progress: 0 }; console.log(`[produce ${job.id}] ${s}`); beat(); };
+  const log = (m) => { logs.push(m); console.log(`[produce ${job.id}] ${m}`); const k = /조각 (\d+)\/(\d+)/.exec(m); if (k) cur.progress = +k[1] / +k[2]; };
+  try {
+    if (job.kind !== 'produce') throw Object.assign(new Error(`아직 원격으로 안 받는 작업 ${job.kind}`), { code: 'unknown_kind' });
+    const r = await Promise.race([produce(claimed, { remote, stage, log }), sleep(LIMIT_MS.render + 30 * 60e3).then(() => { throw Object.assign(new Error('작업 시간 상한'), { code: 'timeout' }); })]);
+    if (r.review) await remote.call('POST', `/jobs/${job.id}/fail`, { json: { code: r.review.reason, message: '', review: r.review } });
+    else await remote.call('POST', `/jobs/${job.id}/complete`, { json: { outputs: r.outputs } });
+    return { did: true, job: job.id, result: r.review ? `확인 필요(${r.review.reason})` : 'awaiting_link' };
+  } catch (e) {
+    console.error(`[produce ${job.id}] 실패 ${e.code || ''} ${e.message}`);
+    await remote.call('POST', `/jobs/${job.id}/fail`, { json: { code: e.code || 'failed', message: String(e.message).slice(0, 2000) } }).catch((x) => console.error(`[fail 보고] ${x.message}`));
+    return { did: true, job: job.id, result: `실패 ${e.code || ''}` };
+  } finally { clearInterval(hb); }
+}
+
+async function remoteLoop({ once = false } = {}) {
+  for (;;) {
+    let r;
+    try { r = await runRemoteOne(); } catch (e) { console.error(`[claim] ${e.message}`); r = { did: false, why: 'error' }; }
+    if (r.did) { console.log(`[remote] 작업 ${r.job} → ${r.result}`); continue; }
+    if (once) { console.log(`[remote] 받을 일 없음(${r.why})`); return; }
+    await sleep(60000);
   }
 }
 
@@ -103,6 +195,7 @@ async function loop({ once = false } = {}) {
 if (require.main === module) {
   const i = process.argv.indexOf('--enqueue');
   if (i > 0) { const j = enqueue(process.argv[i + 1], JSON.parse(process.argv[i + 2] || '{}')); console.log(j.id); }
+  else if (process.argv.includes('--remote')) remoteLoop({ once: process.argv.includes('--once') }).then(() => process.exit(0)).catch((e) => { console.error(e); process.exit(1); });
   else loop({ once: process.argv.includes('--once') }).catch((e) => { console.error(e); process.exit(1); });
 }
-module.exports = { runJob, enqueue, claim, recoverStale, runOne };
+module.exports = { runJob, enqueue, claim, recoverStale, runOne, produce, applyOverrides, runRemoteOne };

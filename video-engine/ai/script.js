@@ -102,13 +102,11 @@ function validate(script, catalog) {
   return dropped;
 }
 
-async function main() {
-  const mode = arg('mode', 'instruction');
-  const tplId = arg('template', mode === 'brand' ? 'emotional-brand' : 'fast-shorts');
-  const seconds = +arg('seconds', mode === 'brand' ? 25 : 30);
-  const id = arg('id', `${mode}-${Date.now()}`);
-  const instruction = process.argv.filter((a) => !a.startsWith('--')).slice(2).join(' ');
-  const voiceId = arg('voice');
+// 대본 만들기 — CLI(main)와 작업자(worker.js produce)가 같이 쓴다. 파일에 쓰고 대본 객체를 돌려준다.
+async function generate({ mode = 'instruction', template, seconds, id, instruction = '', music, voice: voiceId, face } = {}) {
+  const tplId = template || (mode === 'brand' ? 'emotional-brand' : 'fast-shorts');
+  seconds = +(seconds || (mode === 'brand' ? 25 : 30));
+  id = id || `${mode}-${Date.now()}`;
   const voiceJ = voiceId ? JSON.parse(fs.readFileSync(path.join(ROOT, 'data', 'voice', voiceId, 'voice.json'), 'utf8')) : null;
   if (!instruction && !voiceJ) throw new Error('지시문이 없음');
   const tpl = JSON.parse(fs.readFileSync(path.join(ROOT, 'templates', `${tplId}.json`), 'utf8'));
@@ -129,10 +127,17 @@ async function main() {
   const script = JSON.parse(r.content);
   const dropped = validate(script, catalog);
   if (voiceJ) dropped.push(...fixSay(script, voiceJ.sentences.length));
-  const out = { id, mode: voiceJ ? 'recording' : mode, ...(voiceJ ? { voice: { id: voiceId, face: arg('face') === '1' } } : {}), template: tplId, music: arg('music') || undefined, instruction, ...script, _ai: { model: r.model, input_tokens: r.input_tokens, output_tokens: r.output_tokens, dropped } };
+  const out = { id, mode: voiceJ ? 'recording' : mode, ...(voiceJ ? { voice: { id: voiceId, face: !!face } } : {}), template: tplId, music: music || undefined, instruction, ...script, _ai: { model: r.model, input_tokens: r.input_tokens, output_tokens: r.output_tokens, dropped } };
   const file = path.join(ROOT, 'storyboards', `${id}.json`);
   fs.writeFileSync(file, JSON.stringify(out, null, 2));
   console.log(`대본 ${file} · 장면 ${out.scenes.length} · 토큰 ${r.input_tokens}+${r.output_tokens}${dropped.length ? ' · 버림: ' + dropped.join(' / ') : ''}`);
+  return out;
+}
+
+async function main() {
+  const mode = arg('mode', 'instruction');
+  return generate({ mode, template: arg('template'), seconds: arg('seconds'), id: arg('id'), music: arg('music'), voice: arg('voice'), face: arg('face') === '1',
+    instruction: process.argv.filter((a) => !a.startsWith('--')).slice(2).join(' ') });
 }
 if (require.main === module) main().catch((e) => { console.error(e.message || e); process.exit(1); });
-module.exports = { facts, SCHEMA, validate, fixSay };
+module.exports = { generate, facts, SCHEMA, validate, fixSay };

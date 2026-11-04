@@ -385,3 +385,8 @@ published ─(발행 취소 / 보관)→ archived : 같은 트랜잭션에서 �
 - 받아들인 것: 구조 B′ · «링크 입력 = 발행 승인» 정책(사람이 유튜브에 직접 올리는 단계가 눈으로 보는 확인 · approved_by 에 누른 관리자).
 - 차단 1 claim 직렬화·끊긴 작업 되돌리기(20.3) · 2 SNS 게시물은 draft → 본문 생긴 뒤 approveByPublishIntent(20.5) · 3 발행 취소가 안 나간 게시물 취소(20.3) · 4 운영 사본 삭제 술어(20.6) · 5 produce payload approved_version_id·gate_overrides(20.3).
 - 비차단 1~14 반영 위치: 1·2·3·4·8·9 → 20.4 · 5·6·7·8 → 20.5 · 10·11·14 → 20.11 · 12 → 20.8 · 13 → §1.
+
+### 20.14 D′1 구현 기록 (2026-11-04 · 방 e6f1ecd8 · [Opus] · Fable 미검증(자체 검증) — E′ 끝 외부 발송 검증 1회 때 같이 본다)
+- 파일: `scripts/migrate-video.js`(4표 + video_settings 1행) · `models/Video{Project,Version,Job,Setting}.js` · `services/video/{videoTransition,videoClaim,videoUploads}.js` · `utils/workerAuth.js` · `routes/video_worker.js`(`/api/video-worker`, 토큰 해시 env 있을 때만 마운트) · `routes/admin_videos.js`(`/api/admin/videos`) · 작업자 `video-engine/worker.js --remote` · `lib/remote.js` · `ai/script.js generate()`.
+- 설계와 다른 점(작은 것): ① 일정 1행은 PlatformSetting 칸 대신 `video_settings` 표(고정 칸 단일 행 표에 JSON 키를 섞지 않음) ② 백엔드에 ffprobe 가 없다 → 올린 파일은 **MP4 머리(ftyp) + 크기 상한 + md5** 로 검사하고, `.env FFPROBE` 가 있으면 코덱·길이까지(운영에 ffmpeg 를 깔면 켜짐) ③ heartbeat 로그는 `log_b64`(base64)로 받는다 — 전역 SQL 패턴 검사가 자유 문장 로그를 400 으로 막는 것을 실측(비차단 3) ④ D′1 범위 밖으로 미룸: 녹음 방식(①, 소재 올리기 필요) · 드라이브 보관 · 운영 사본 정리 · 알림 · 유튜브 메타 · AI 다음 편 제안 → D′2.
+- dev 작업자 설정: `dev-backend/.env` `VIDEO_WORKER_TOKEN_SHA256`·`VIDEO_WORKER_ALLOW_IPS=127.0.0.1,87.106.11.184` · `video-engine/.env`(git 제외, 600) `VIDEO_API_BASE`·`VIDEO_WORKER_TOKEN`. 운영 연결 때는 운영 .env 에 해시·dev IP, dev `VIDEO_API_BASE=https://planq.kr`.
