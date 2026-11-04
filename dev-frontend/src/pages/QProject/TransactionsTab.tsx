@@ -604,6 +604,17 @@ const TransactionsTab: React.FC<Props> = ({ projectId }) => {
                               {s.status === 'skipped' && t('tx.stageStatus.skipped', '건너뜀')}
                             </>)}
                       </StageStatus>
+                      {/* 이 단계가 보고 있는 문서 — «어느 계약서가 실계약인가» 를 화면에서 알 수 있게(2026-11-04, Irene «이 계약서가 우리 실계약임을 어떻게 프로젝트에서 알지?») */}
+                      {s.linked_entity_type === 'post' && (() => {
+                        const doc = posts.find(p => p.id === s.linked_entity_id);
+                        return doc ? (
+                          <WatchingDoc type="button" data-testid={`tx-stage-doc-${s.kind}`}
+                            title={t('tx.stageBoard.watchingDocHint', '이 단계는 이 문서의 발행·서명 상태로 진행됩니다') as string}
+                            onClick={() => navigate(`/projects/p/${projectId}?tab=docs&post=${doc.id}`)}>
+                            {t('tx.stageBoard.watchingDoc', { defaultValue: '보는 문서: {{title}}', title: doc.title })}
+                          </WatchingDoc>
+                        ) : null;
+                      })()}
                       {s.metadata?.recurring && s.kind === 'invoice' && invoices.length > 0 && (
                         <RecurCycle>
                           {t('tx.stageBoard.cycleSummary', { defaultValue: '{{paid}}/{{total}}건 결제 완료', paid: invoices.filter(i => i.status === 'paid').length, total: invoices.length })}
@@ -1033,6 +1044,12 @@ const StageStatus = styled.div<{ $status: string }>`
 const RecurBadge = styled.span`
   display:inline-block;margin-left:6px;padding:1px 6px;border-radius:999px;
   font-size:0.5625rem;font-weight:700;color:#0D9488;background:#F0FDFA;border:1px solid #99F6E4;vertical-align:middle;
+`;
+const WatchingDoc = styled.button`
+  display:block;max-width:100%;margin-top:2px;padding:0;border:0;background:none;cursor:pointer;
+  font-size:0.6875rem;font-weight:500;color:#475569;text-decoration:underline;text-underline-offset:2px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:inherit;
+  &:hover{color:#0F766E;}
 `;
 const RecurCycle = styled.div`font-size:0.625rem;font-weight:600;color:#0D9488;margin-top:2px;`;
 const StageActions = styled.div`display:flex;gap:4px;margin-top:6px;flex-wrap:wrap;`;

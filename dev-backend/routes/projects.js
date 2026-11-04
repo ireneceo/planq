@@ -2084,8 +2084,8 @@ router.put('/:id/stages/:stageId', authenticateToken, async (req, res, next) => 
       // ① 수동 설정 — 자동 엔진이 덮어쓰지 않도록 lock (외부 체결 계약 등 PlanQ 밖 진행 케이스).
       //   pending 으로 되돌리면 lock 해제 → 자동 진행 재개.
       const meta = { ...(stage.metadata || {}) };
-      if (req.body.status === 'pending') delete meta.manual_locked;
-      else meta.manual_locked = true;
+      // [되돌리기] = «이 단계를 다시 하겠다» — 견적·제안 자동 «건너뜀» 이 바로 덮지 않게 no_auto_skip(2026-11-04 Fable 차단 1)
+      if (req.body.status === 'pending') { delete meta.manual_locked; meta.no_auto_skip = true; } else meta.manual_locked = true;
       patch.metadata = meta;
     }
     const stageBefore = stage.get({ plain: true, clone: true });
@@ -2821,7 +2821,7 @@ router.get('/:id/transactions', authenticateToken, async (req, res, next) => {
     if (role === 'client') return errorResponse(res, 'member_only', 403, 'member_only');
 
     const { Post, Invoice, InvoiceInstallment, SignatureRequest, Client, ProjectStage } = require('../models');
-    const { progressProject, computeNextAction, seedStages, dealKindOf, categoriesFor } = require('../services/projectStageEngine');
+    const { progressProject, computeNextAction, seedStages, dealKindOf, dealDocsWhere } = require('../services/projectStageEngine');
     const { Op } = require('sequelize');
 
     // Phase D+1 — 레거시 프로젝트 (stage 없음) 에 대해 lazy 시드.
@@ -2839,8 +2839,8 @@ router.get('/:id/transactions', authenticateToken, async (req, res, next) => {
     const posts = await Post.findAll({
       where: {
         project_id: project.id,
-        // 분류는 자유 글자 — 템플릿 문서는 «계약서»·«견적서» 로 저장된다(판정은 엔진 dealKindOf 한 곳)
-        category: { [Op.in]: categoriesFor('contract', 'quote', 'sow', 'proposal') },
+        // 거래 문서 = 분류(«계약서»·contract 등) ∨ 청구가 붙은 문서 — 엔진 pickContractPost 와 같은 집합
+        ...(await dealDocsWhere(project.id)),
       },
       // ★ 작성일 속성 이름은 createdAt — 'created_at' 로 고르면 응답에서 빠져 화면 타임라인이 죽었다(2026-11-03)
       attributes: ['id', 'title', 'category', 'status', 'createdAt', 'shared_at', 'share_token'],
@@ -2971,7 +2971,7 @@ router.get('/:id/transactions', authenticateToken, async (req, res, next) => {
       posts: posts.map(p => ({
         id: p.id,
         title: p.title,
-        category: dealKindOf(p.category) || p.category,
+        category: dealKindOf(p.category) || 'contract',   // 분류가 달라도 청구가 붙은 문서는 계약으로 보인다(위 조회 조건)
         status: p.status,
         created_at: p.createdAt,
         shared_at: p.shared_at,

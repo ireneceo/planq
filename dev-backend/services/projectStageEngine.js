@@ -13,7 +13,7 @@
 //   - 트랜잭션 외부에서 호출 (commit 후)
 
 const { Op } = require('sequelize');
-const { Project, ProjectStage, Post, Invoice, InvoiceInstallment, SignatureRequest, Client } = require('../models');
+const { Project, ProjectStage, Post, Invoice, InvoiceInstallment, SignatureRequest, Client, PostBillingTerms } = require('../models');
 
 // ─── 템플릿 정의 ───
 // 4 type: fixed (일시) / subscription (지속 구독) / consulting (컨설팅) / custom (자유)
@@ -48,7 +48,7 @@ const DEAL_DOC_ALIASES = {
   quote: ['quote', '견적서', '견적'],
   proposal: ['proposal', '제안서', '제안'],
   contract: ['contract', '계약서', '계약'],
-  sow: ['sow', '작업내역서', 'SOW'],
+  sow: ['sow', '작업내역서'],
 };
 const ALIAS_TO_KIND = new Map();
 for (const [kind, names] of Object.entries(DEAL_DOC_ALIASES)) {
@@ -82,6 +82,61 @@ async function seedStages(projectId, templateKey, transaction = null) {
   return ProjectStage.bulkCreate(rows, { transaction });
 }
 
+// ─── «이 프로젝트의 실계약» 판정 — 한 곳 (2026-11-04, Fable 설계 권고 B-1) ───
+// 예전엔 단계판(progressProject)은 «가장 오래된» 계약 문서, «다음 할 일»(deriveActionForStage)은 «가장 최근» 계약 문서를 봐서
+// 계약서가 둘 이상이면 서로 다른 문서를 가리켰다. 이제 세 곳(단계판·다음 할 일·청구서 만들기 링크)이 이 함수 하나를 쓴다.
+// 실계약 신호가 강한 순서(같은 순위 안에서는 최근 것):
+//   ① 서명 회차가 전부 signed 인 문서  ② 서명 요청을 보낸 문서  ③ 청구 조건을 적었거나 청구서의 근거가 된 문서  ④ 분류만 계약/SOW 인 문서
+// 후보 = 이 프로젝트 소속·발행된 문서 중 분류가 계약/SOW 이거나 ③(청구가 붙은 문서 — 분류 글자가 달라도 실계약이다).
+function pickContractPost(posts, sigsByPost, billingPostIds) {
+  const billed = new Set((billingPostIds || []).map(Number));
+  const cands = posts.filter((p) => p.status === 'published'
+    && (p.category === 'contract' || p.category === 'sow' || billed.has(Number(p.id))));
+  if (cands.length === 0) return null;
+  const rank = (p) => {
+    const sigs = sigsByPost[p.id] || [];
+    if (sigs.length > 0 && sigs.every((x) => x.status === 'signed')) return 0;
+    if (sigs.length > 0) return 1;
+    if (billed.has(Number(p.id))) return 2;
+    return 3;
+  };
+  const t = (p) => (p.created_at ? new Date(p.created_at).getTime() : 0);
+  const best = cands.slice().sort((a, b) => rank(a) - rank(b) || t(b) - t(a) || b.id - a.id)[0];
+  return { post: best, signed: rank(best) === 0, sigs: sigsByPost[best.id] || [] };
+}
+
+// 단계 계산이 쓰는 문서·서명·청구 연결을 한 번에 읽는다(progressProject 와 다음 할 일이 같은 재료를 쓰게).
+async function loadDealDocs(projectId) {
+  const posts = await Post.findAll({
+    where: { project_id: projectId },
+    // ★ Post 모델의 작성일 속성 이름은 createdAt 이다 — 'created_at' 로 고르면 값이 비어 온다.
+    attributes: ['id', 'title', 'category', 'status', 'shared_at', 'createdAt'],
+    order: [['created_at', 'ASC']],
+  }).then((rows) => rows.map((p) => ({
+    id: p.id, title: p.title, status: p.status, shared_at: p.shared_at, created_at: p.createdAt,
+    category: dealKindOf(p.category) || p.category,
+  })));
+  const postIds = posts.map((p) => p.id);
+  // 🔴 운영 #239 — `kind: 'sign'` 필수. 확인 요청(kind='confirm')은 서명이 아니다.
+  //   회차 술어는 서명본과 한 벌(signRoundWhere — 취소·닫힌 회차 제외, Fable 2026-10-22 R1).
+  const [allSigs, terms, srcInv] = postIds.length ? await Promise.all([
+    SignatureRequest.findAll({ where: require('./signedDocument').signRoundWhere('post', { [Op.in]: postIds }), attributes: ['id', 'entity_id', 'status', 'rejected_kind'] }),
+    PostBillingTerms.findAll({ where: { post_id: { [Op.in]: postIds } }, attributes: ['post_id'] }),
+    Invoice.findAll({ where: { project_id: projectId, source_post_id: { [Op.in]: postIds } }, attributes: ['source_post_id'] }),
+  ]) : [[], [], []];
+  const sigsByPost = {};
+  for (const x of allSigs) (sigsByPost[x.entity_id] = sigsByPost[x.entity_id] || []).push(x);
+  const billingPostIds = [...new Set([...terms.map((r) => r.post_id), ...srcInv.map((r) => r.source_post_id)])];
+  return { posts, sigsByPost, billingPostIds };
+}
+
+// 거래 탭 문서 목록 조건 — 분류가 견적·제안·계약·SOW 이거나, 청구 조건/청구서 근거가 붙은 문서(pickContractPost 후보와 같은 집합)
+async function dealDocsWhere(projectId) {
+  const { billingPostIds } = await loadDealDocs(projectId);
+  const byCat = { category: { [Op.in]: categoriesFor('contract', 'quote', 'sow', 'proposal') } };
+  return { [Op.or]: billingPostIds.length ? [byCat, { id: { [Op.in]: billingPostIds } }] : [byCat] };
+}
+
 // ─── 핵심: 프로젝트 stages 자동 진행 (entity 상태 → stage 상태) ───
 // 프로젝트의 모든 stage 를 entity 현황 기반으로 재계산.
 // 한 번에 atomic 하게 (race condition 방지).
@@ -94,45 +149,19 @@ async function progressProject(projectId) {
   if (stages.length === 0) return null;
 
   // 프로젝트의 entity 모음 (한 번에 fetch — 여러 stage 가 공유)
-  const [posts, invoices] = await Promise.all([
-    Post.findAll({
-      where: { project_id: projectId },
-      // ★ Post 모델의 작성일 속성 이름은 createdAt 이다 — 'created_at' 로 고르면 값이 비어 온다.
-      attributes: ['id', 'category', 'status', 'shared_at', 'createdAt'],
-      order: [['created_at', 'ASC']],
-    }).then((rows) => rows.map((p) => ({
-      id: p.id, status: p.status, shared_at: p.shared_at, created_at: p.createdAt,
-      category: dealKindOf(p.category) || p.category,
-    }))),
+  const [{ posts, sigsByPost, billingPostIds }, invoices] = await Promise.all([
+    loadDealDocs(projectId),
     Invoice.findAll({
       where: { project_id: projectId },
-      attributes: ['id', 'status', 'paid_at', 'sent_at', 'paid_amount', 'grand_total', 'installment_mode'],
+      attributes: ['id', 'status', 'paid_at', 'sent_at', 'paid_amount', 'grand_total', 'installment_mode', 'tax_invoice_status'],
       include: [
         { model: InvoiceInstallment, as: 'installments', separate: true, order: [['installment_no', 'ASC']] },
-        { model: Client, attributes: ['is_business'] },
+        { model: Client, attributes: ['is_business', 'country'] },
       ],
       order: [['created_at', 'ASC']],
     }),
   ]);
-
-  // post 별 서명 진행
-  const postIds = posts.map(p => p.id);
-  // 🔴 운영 #239 — `kind: 'sign'` 필수. 확인 요청(kind='confirm')은 서명이 아니다.
-  //   이 조회 결과가 아래에서 `every(status==='signed')` 로 계약 체결을 판정하는데, 같은 문서에
-  //   확인 요청이 하나라도 섞이면 그 행은 영원히 'signed' 가 되지 않아 **계약 단계가 영영 미완료**가 된다.
-  //   (Fable 설계 게이트가 잡은 회귀. 옛 행은 DEFAULT 'sign' 이라 기존 동작 무변화.)
-  const allSigs = postIds.length
-    ? await SignatureRequest.findAll({
-        // 회차 술어는 서명본과 한 벌(signRoundWhere — 취소·닫힌 회차 제외, Fable 2026-10-22 R1).
-        where: require('./signedDocument').signRoundWhere('post', { [Op.in]: postIds }),
-        attributes: ['id', 'entity_id', 'status'],
-      })
-    : [];
-  const sigsByPost = {};
-  for (const s of allSigs) {
-    if (!sigsByPost[s.entity_id]) sigsByPost[s.entity_id] = [];
-    sigsByPost[s.entity_id].push(s);
-  }
+  const contractPick = pickContractPost(posts, sigsByPost, billingPostIds);
 
   const results = [];
   // 직전 stage 완료 여부 — 다음 stage 의 active 여부 결정
@@ -140,8 +169,7 @@ async function progressProject(projectId) {
   // 견적·제안을 건너뛰고 계약(또는 바로 청구)부터 한 거래 — 그 앞 단계는 «진행 중» 이 아니라 «건너뜀» 이다.
   //   예전엔 견적 단계가 영영 «진행 중» 이라 «다음 할 일» 이 결제가 끝난 뒤에도 «견적서 작성하기» 였다(2026-11-03 실측).
   //   나중에 견적서를 발행하면 아래 평가가 다시 «완료» 로 돌린다(멱등). 사람이 직접 정한 단계(manual_locked)는 건드리지 않는다.
-  const movedPast = invoices.length > 0
-    || posts.some((p) => (p.category === 'contract' || p.category === 'sow') && p.status === 'published');
+  const movedPast = invoices.length > 0 || !!contractPick;
 
   for (const stage of stages) {
     // ① 수동 완료/건너뛰기(manual_locked)는 자동 평가 skip — 사용자 설정 존중(외부 체결 계약 등).
@@ -151,7 +179,7 @@ async function progressProject(projectId) {
       prevCompleted = stage.status === 'completed' || stage.status === 'skipped';
       continue;
     }
-    const evaluation = evaluateStage(stage, posts, invoices, sigsByPost, prevCompleted, movedPast);
+    const evaluation = evaluateStage(stage, posts, invoices, sigsByPost, prevCompleted, movedPast, contractPick);
     if (evaluation.changed) {
       await stage.update(evaluation.patch);
     }
@@ -163,7 +191,7 @@ async function progressProject(projectId) {
 }
 
 // stage 하나에 대해 entity 상태 평가
-function evaluateStage(stage, posts, invoices, sigsByPost, prevCompleted, movedPast = false) {
+function evaluateStage(stage, posts, invoices, sigsByPost, prevCompleted, movedPast = false, contractPick = null) {
   const now = new Date();
   let patch = {};
   let changed = false;
@@ -182,7 +210,7 @@ function evaluateStage(stage, posts, invoices, sigsByPost, prevCompleted, movedP
           };
           changed = true;
         }
-      } else if (movedPast && (stage.status === 'pending' || stage.status === 'active')) {
+      } else if (movedPast && !stage.metadata?.no_auto_skip && (stage.status === 'pending' || stage.status === 'active')) {
         patch = { status: 'skipped', completed_at: now };
         changed = true;
       } else if (stage.status === 'pending' && prevCompleted) {
@@ -198,7 +226,7 @@ function evaluateStage(stage, posts, invoices, sigsByPost, prevCompleted, movedP
           patch = { status: 'completed', linked_entity_type: 'post', linked_entity_id: proposal.id, completed_at: proposal.shared_at || proposal.created_at || now };
           changed = true;
         }
-      } else if (movedPast && (stage.status === 'pending' || stage.status === 'active')) {
+      } else if (movedPast && !stage.metadata?.no_auto_skip && (stage.status === 'pending' || stage.status === 'active')) {
         patch = { status: 'skipped', completed_at: now };
         changed = true;
       } else if (stage.status === 'pending' && prevCompleted) {
@@ -208,28 +236,16 @@ function evaluateStage(stage, posts, invoices, sigsByPost, prevCompleted, movedP
       break;
     }
     case 'contract': {
-      // 계약/SOW 후보 (양사 서명 완료된 게 있으면 그 post 와 연결)
-      const candidates = posts.filter(p =>
-        (p.category === 'contract' || p.category === 'sow') && p.status === 'published'
-      );
-      // 서명 완료된 candidate 찾기
-      let signedPost = null;
-      for (const p of candidates) {
-        const sigs = sigsByPost[p.id] || [];
-        if (sigs.length > 0 && sigs.every(s => s.status === 'signed')) {
-          signedPost = p;
-          break;
-        }
-      }
-      if (signedPost) {
-        if (stage.status !== 'completed') {
-          patch = { status: 'completed', linked_entity_type: 'post', linked_entity_id: signedPost.id, completed_at: now };
+      // 실계약 판정은 pickContractPost 한 곳(단계판·다음 할 일·청구서 링크가 같은 문서를 본다)
+      if (contractPick && contractPick.signed) {
+        if (stage.status !== 'completed' || stage.linked_entity_id !== contractPick.post.id) {
+          patch = { status: 'completed', linked_entity_type: 'post', linked_entity_id: contractPick.post.id, completed_at: stage.status === 'completed' ? (stage.completed_at || now) : now };
           changed = true;
         }
-      } else if (candidates.length > 0) {
-        // 작성됐으나 미서명 — active
-        if (stage.status !== 'active') {
-          patch = { status: 'active', linked_entity_type: 'post', linked_entity_id: candidates[0].id, started_at: stage.started_at || now };
+      } else if (contractPick) {
+        // 작성됐으나 미서명 — active (보는 문서가 바뀌면 연결도 따라간다)
+        if (stage.status !== 'active' || stage.linked_entity_id !== contractPick.post.id) {
+          patch = { status: 'active', linked_entity_type: 'post', linked_entity_id: contractPick.post.id, started_at: stage.started_at || now };
           changed = true;
         }
       } else if (stage.status === 'pending' && prevCompleted) {
@@ -296,9 +312,11 @@ function evaluateStage(stage, posts, invoices, sigsByPost, prevCompleted, movedP
             }
           }
         } else if (inv.status === 'paid') {
-          // 단일 — Invoice 자체에는 tax_invoice 컬럼이 별개 (tax_invoice_status 등). 단순화: paid 단일은 별도 ux
+          // 단건 — 청구서 자체의 tax_invoice_status 로 판정한다(POST /:biz/:id/mark-tax-invoice 가 'issued' 로 둔다).
+          //   예전엔 paidCount 만 올리고 미발행을 세지 않아, 사업자 고객 단건 청구는 입금만 하면 세금계산서를 안 끊어도
+          //   «세금계산서 발행: 완료» 였다(Fable 2026-11-04 실측 — 성주재단 같은 가장 흔한 모양).
           paidCount++;
-          // single invoice 의 tax_invoice 마킹은 현재 인스털먼트 단위로만 구현 — 이 케이스는 스킵
+          if (inv.tax_invoice_status !== 'issued') pendingCount++;
         }
       }
       if (paidCount === 0) {
@@ -373,16 +391,20 @@ async function deriveActionForStage(stage, projectId) {
       return { ...base, action_kind: 'create_post', label: '제안서 작성하기', hint: '이 프로젝트의 문서 탭에서 새 제안서 작성', link: `/projects/p/${projectId}?tab=docs&new=1&category=proposal` };
     }
     case 'contract': {
-      // contract / sow post 찾기
-      const post = await Post.findOne({
-        where: { project_id: projectId, category: { [Op.in]: categoriesFor('contract', 'sow') } },
-        order: [['created_at', 'DESC']],
-      });
+      // 단계판과 같은 판정(pickContractPost) — 계약서가 둘 이상일 때 두 곳이 다른 문서를 보던 것(2026-11-04 Fable B-1)
+      const { posts, sigsByPost, billingPostIds } = await loadDealDocs(projectId);
+      const pick = pickContractPost(posts, sigsByPost, billingPostIds);
+      const post = pick ? pick.post : null;
       if (!post) {
+        // 발행 전 계약서 초안이 있으면 그것부터 마무리
+        const draft = await Post.findOne({ where: { project_id: projectId, status: 'draft', category: { [Op.in]: categoriesFor('contract', 'sow') } }, order: [['created_at', 'DESC']], attributes: ['id', 'title'] });
+        if (draft) {
+          return { ...base, action_kind: 'publish_post', label: '계약서 마무리하기', hint: `${draft.title} — 초안을 발행하면 서명을 받을 수 있습니다`, link: `/projects/p/${projectId}?tab=docs&post=${draft.id}` };
+        }
         return { ...base, action_kind: 'create_post', label: '계약서 작성하기', hint: '계약/SOW 를 작성하면 서명 받기로 진행', link: `/projects/p/${projectId}?tab=docs&new=1&category=contract` };
       }
       // #239 — 위와 같은 이유로 kind:'sign' 한정 (확인 요청이 계약 체결 판정에 섞이면 안 된다).
-      const sigs = await SignatureRequest.findAll({ where: require('./signedDocument').signRoundWhere('post', post.id) });
+      const sigs = pick.sigs;
       if (sigs.length === 0) {
         return { ...base, action_kind: 'request_signature', label: '서명 요청 보내기', hint: `${post.title} — 양사 서명을 받아 계약을 체결합니다`, link: `/projects/p/${projectId}?tab=docs&post=${post.id}&action=sign` };
       }
@@ -431,7 +453,8 @@ async function deriveActionForStage(stage, projectId) {
       // 모두 발송됨 — 결제 대기
       const partial = invoices.find(i => i.status === 'partially_paid' || i.status === 'sent' || i.status === 'overdue');
       if (partial) return { ...base, action_kind: 'wait_payment', label: '결제 대기 중', hint: `${partial.invoice_number} — 고객 입금 대기`, link: `/bills?tab=invoices&invoice=${partial.id}` };
-      // 모두 paid
+      // 모두 paid — 구독형은 다음 회차를 기다린다(세금계산서 단계가 없을 수도 있다)
+      if (stage.metadata?.recurring) return { ...base, action_kind: 'wait_or_proceed', label: '이번 회차 결제 완료', hint: '다음 회차 청구를 기다립니다', link: null };
       return { ...base, action_kind: 'wait_or_proceed', label: '결제 완료', hint: '세금계산서 단계로 진행', link: null };
     }
     case 'tax_invoice': {
@@ -439,15 +462,21 @@ async function deriveActionForStage(stage, projectId) {
         where: { project_id: projectId },
         include: [
           { model: InvoiceInstallment, as: 'installments', separate: true },
-          { model: Client, attributes: ['is_business', 'biz_name', 'display_name'] },
+          { model: Client, attributes: ['is_business', 'country', 'biz_name', 'display_name'] },
         ],
+        order: [['created_at', 'ASC']],
       });
-      // 사업자 고객 + paid + tax_invoice_no 미입력 회차 첫 번째
+      // 사업자 고객(국내) + paid + 세금계산서 미발행 — 분할은 회차, 단건은 청구서 자체(엔진 판정과 같은 술어)
       for (const inv of invoices) {
-        if (!inv.Client?.is_business) continue;
-        const target = (inv.installments || []).find(i => i.status === 'paid' && !i.tax_invoice_no);
-        if (target) {
-          return { ...base, action_kind: 'mark_tax_invoice', label: '세금계산서 발행하기', hint: `${inv.invoice_number} · ${target.label} · 외부 발행 후 번호 마킹`, link: `/bills?tab=tax-invoices` };
+        if (!inv.Client?.is_business || (inv.Client?.country || 'KR') !== 'KR') continue;
+        const insts = inv.installments || [];
+        if (inv.installment_mode === 'split' && insts.length > 0) {
+          const target = insts.find(i => i.status === 'paid' && !i.tax_invoice_no);
+          if (target) {
+            return { ...base, action_kind: 'mark_tax_invoice', label: '세금계산서 발행하기', hint: `${inv.invoice_number} · ${target.label} · 외부 발행 후 번호 마킹`, link: `/bills?tab=invoices&invoice=${inv.id}` };
+          }
+        } else if (inv.status === 'paid' && inv.tax_invoice_status !== 'issued') {
+          return { ...base, action_kind: 'mark_tax_invoice', label: '세금계산서 발행하기', hint: `${inv.invoice_number} · 외부 발행 후 번호 마킹`, link: `/bills?tab=invoices&invoice=${inv.id}` };
         }
       }
       return { ...base, action_kind: 'wait_or_proceed', label: '세금계산서 처리 완료', hint: null, link: null };
@@ -458,15 +487,12 @@ async function deriveActionForStage(stage, projectId) {
 }
 
 async function findContractPostId(projectId) {
-  // 계약/SOW post 가 있으면 그 id, 없으면 견적이라도 (분류 글자는 dealKindOf 로 판정)
-  const rows = await Post.findAll({
-    where: { project_id: projectId, category: { [Op.in]: categoriesFor('contract', 'sow', 'quote') }, status: 'published' },
-    order: [['created_at', 'DESC']],
-    attributes: ['id', 'category'],
-  });
-  const rank = { contract: 0, sow: 1, quote: 2 };
-  const best = rows.slice().sort((a, b) => (rank[dealKindOf(a.category)] ?? 9) - (rank[dealKindOf(b.category)] ?? 9))[0];
-  return best ? best.id : null;
+  // 실계약(pickContractPost)이 있으면 그 문서, 없으면 최근 견적서라도
+  const { posts, sigsByPost, billingPostIds } = await loadDealDocs(projectId);
+  const pick = pickContractPost(posts, sigsByPost, billingPostIds);
+  if (pick) return pick.post.id;
+  const quotes = posts.filter((p) => p.category === 'quote' && p.status === 'published');
+  return quotes.length ? quotes[quotes.length - 1].id : null;
 }
 
 // ─── 외부 호출용: post 변경 시 trigger ───
@@ -501,6 +527,9 @@ module.exports = {
   STAGE_TEMPLATE_KEYS,
   dealKindOf,
   categoriesFor,
+  pickContractPost,
+  loadDealDocs,
+  dealDocsWhere,
   seedStages,
   progressProject,
   computeNextAction,

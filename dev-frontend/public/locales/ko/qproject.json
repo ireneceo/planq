@@ -301,7 +301,9 @@
       "revert": "되돌리기",
       "recurring": "반복",
       "recurringTitle": "구독 주기마다 반복되는 단계",
-      "cycleSummary": "{{paid}}/{{total}}건 결제 완료"
+      "cycleSummary": "{{paid}}/{{total}}건 결제 완료",
+      "watchingDoc": "보는 문서: {{title}}",
+      "watchingDocHint": "이 단계는 이 문서의 발행·서명 상태로 진행됩니다"
     },
     "stageStatus": {
       "completed": "완료",

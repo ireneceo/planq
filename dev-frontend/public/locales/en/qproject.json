@@ -301,7 +301,9 @@
       "revert": "Revert",
       "recurring": "Recurring",
       "recurringTitle": "Repeats every billing cycle",
-      "cycleSummary": "{{paid}}/{{total}} paid"
+      "cycleSummary": "{{paid}}/{{total}} paid",
+      "watchingDoc": "Tracking: {{title}}",
+      "watchingDocHint": "This step moves with this document's publishing and signatures"
     },
     "stageStatus": {
       "completed": "Done",
