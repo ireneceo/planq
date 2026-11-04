@@ -87,11 +87,14 @@ async function seedStages(projectId, templateKey, transaction = null) {
 // 계약서가 둘 이상이면 서로 다른 문서를 가리켰다. 이제 세 곳(단계판·다음 할 일·청구서 만들기 링크)이 이 함수 하나를 쓴다.
 // 실계약 신호가 강한 순서(같은 순위 안에서는 최근 것):
 //   ① 서명 회차가 전부 signed 인 문서  ② 서명 요청을 보낸 문서  ③ 청구 조건을 적었거나 청구서의 근거가 된 문서  ④ 분류만 계약/SOW 인 문서
-// 후보 = 이 프로젝트 소속·발행된 문서 중 분류가 계약/SOW 이거나 ③(청구가 붙은 문서 — 분류 글자가 달라도 실계약이다).
+// 후보 = 이 프로젝트 소속·발행된 문서 중 분류가 계약/SOW 이거나 ③(청구가 붙은 문서 — 분류 글자가 달라도 실계약이다. 단 견적·제안 분류는 제외).
 function pickContractPost(posts, sigsByPost, billingPostIds) {
   const billed = new Set((billingPostIds || []).map(Number));
+  // 견적·제안은 청구 조건이 붙어 있어도 실계약이 아니다 — 견적서에 조건을 적고 수락 서명을 받는 것은 정상 흐름이라,
+  //   넣으면 견적서가 «실계약» 으로 굳고 진짜 계약서는 서명 안내를 못 받는다(Fable 2026-11-04 2차 차단).
   const cands = posts.filter((p) => p.status === 'published'
-    && (p.category === 'contract' || p.category === 'sow' || billed.has(Number(p.id))));
+    && (p.category === 'contract' || p.category === 'sow'
+      || (billed.has(Number(p.id)) && p.category !== 'quote' && p.category !== 'proposal')));
   if (cands.length === 0) return null;
   const rank = (p) => {
     const sigs = sigsByPost[p.id] || [];
