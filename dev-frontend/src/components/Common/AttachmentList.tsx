@@ -24,6 +24,7 @@ import { bulkDownloadZip } from '../../services/files';
 import { useImageLightbox } from './ImageLightbox';
 import AttachmentPreviewDrawer, { type PreviewAttachment } from './AttachmentPreviewDrawer';
 import PostPreviewModal from '../Docs/PostPreviewModal';
+import { openDocWindow } from '../../utils/docWindow';
 
 export interface AttachmentListItem {
   id: number;
@@ -125,7 +126,8 @@ export default function AttachmentList({ items, businessId, layout = 'rows', onR
   };
 
   const open = (it: AttachmentListItem) => {
-    if (it.postId) { setDocPreview({ id: it.postId, title: it.name }); return; }
+    // 문서는 별도 창으로(utils/docWindow) — 창을 못 여는 곳(앱·폰·팝업 차단)만 앱 안 미리보기
+    if (it.postId) { if (!openDocWindow(it.postId)) setDocPreview({ id: it.postId, title: it.name }); return; }
     if (isImage(it)) {
       const idx = images.findIndex((x) => x.id === it.id);
       // 확대 보기 첫 화면은 리사이즈본(1600) — 원본은 라이트박스 «원본 보기»(fullSrc) 를 누를 때만 받는다.

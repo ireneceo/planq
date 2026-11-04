@@ -605,5 +605,10 @@
   "preview": {
     "attachments": "[첨부 {{count}}개]",
     "card": "[카드]"
+  },
+  "docPopout": {
+    "windowTitle": "PlanQ 문서",
+    "notFound": "이 문서를 볼 수 없습니다. 삭제됐거나 볼 권한이 없어요.",
+    "loading": "문서를 불러오는 중…"
   }
 }

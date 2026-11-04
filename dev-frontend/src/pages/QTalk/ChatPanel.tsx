@@ -21,6 +21,7 @@ import { placeFloating, anchorStyle } from '../../components/Common/popoverAncho
 import EmptyState from '../../components/Common/EmptyState';
 import DetailFallback from '../../components/Common/DetailFallback';
 import PostPreviewModal from '../../components/Docs/PostPreviewModal';
+import { openDocWindow } from '../../utils/docWindow';
 import SignatureLinkModal from '../../components/QTalk/SignatureLinkModal';
 import FilePicker, { type FilePickerResult } from '../../components/Common/FilePicker';
 import SendNameCardModal from '../../components/NameCard/SendNameCardModal';
@@ -1939,7 +1940,7 @@ const ChatPanel: React.FC<Props> = ({
                   );
                 })()
               ) : m.card ? (
-                <DocCard type="button" onClick={() => setPreviewCard(m.card as import('./types').PostCardMeta)}>
+                <DocCard type="button" onClick={() => { const c = m.card as import('./types').PostCardMeta; if (!openDocWindow(c.post_id)) setPreviewCard(c); }}>
                   <DocCardIcon>
                     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
                   </DocCardIcon>
