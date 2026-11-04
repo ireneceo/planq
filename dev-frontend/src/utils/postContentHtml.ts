@@ -16,7 +16,7 @@ import { generateHTML } from '@tiptap/core';
 import StarterKit from '@tiptap/starter-kit';
 import Link from '@tiptap/extension-link';
 import Image from '@tiptap/extension-image';
-import { Table } from '@tiptap/extension-table';
+import { PqTable } from '../components/Docs/pqTable';
 import { TableRow } from '@tiptap/extension-table-row';
 import { PqTableCell, PqTableHeader } from '../components/Docs/editorTableCellFill';
 import { SignatureField } from '../components/Docs/SignatureField';
@@ -28,7 +28,9 @@ import { sanitizeRichText } from './sanitizeHtml';
 //     같은 이름의 mark 가 둘이 되어(`Duplicate extension names found: ['link']`) 어느 규칙으로
 //     직렬화될지 보장되지 않는다. 편집기(PostEditor·RichEditor)와 **같은 처리**를 여기도 한다 —
 //     이 파일은 서버로 보낼 HTML 을 만드는 곳이라, 갈라지면 저장본이 화면과 달라진다.
-const EXTENSIONS = [StarterKit.configure({ link: false }), Link, Image, Table, TableRow,
+const EXTENSIONS = [StarterKit.configure({ link: false }), Link, Image,
+  // 표 — 편집기와 같은 PqTable(열 비율 % · 칸 하한 96 · .tableWrapper 래퍼를 변환기가 직접 만든다, 2026-11-04)
+  PqTable, TableRow,
   // 칸 채우기 색(2026-10-12) — 편집기와 같은 칸 확장. 기본 칸으로 바꾸면 보기 화면에서 색이 빠진다
   PqTableHeader, PqTableCell,
   // 서명란(2026-09-22) — 빠지면 읽기·공유 화면에서 서명 자리가 통째로 사라진다(변환기가 모르는 노드는 버린다)
@@ -61,8 +63,11 @@ export function postContentToHtml(contentJson: unknown): string {
  *  ★ 정화(sanitize) **뒤에** 감싼다. 앞에서 감싸면 sanitizer 가 래퍼를 지울 수 있다.
  *    넣는 것은 우리가 만든 고정 문자열이라 새 입력이 섞이지 않는다.
  */
-function wrapTables(html: string): string {
+export function wrapTables(html: string): string {
   if (!html.includes('<table')) return html;
+  // ★ 2026-11-04 — 변환기(PqTable renderWrapper)가 이미 감싼 표는 건너뛴다(이중 래핑 금지).
+  //   이 함수는 이제 **편집기 밖에서 만든 HTML**(공개 문서 body_html 옛 스냅샷 등)에 쓴다.
+  if (/<div class="tableWrapper">\s*<table/.test(html)) return html;
   return html
     .replace(/<table(\s|>)/g, '<div class="tableWrapper"><table$1')
     .replace(/<\/table>/g, '</table></div>');

@@ -130,6 +130,12 @@ async function partDocTable(width, docId) {
       return !!tn;
     });
     await sleep(600);
+    const openMenu = () => page.evaluate(() => {
+      // 2026-10-12 부터 표 안 커서에는 손잡이 [표 ⋯] 만 뜨고 메뉴는 눌러야 펼친다(d2d888a3) — 손잡이를 먼저 누른다
+      const h = [...document.querySelectorAll('[data-testid="editor-table-menu-open"]')].find((x) => x.offsetParent);
+      if (h) h.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+    });
+    await openMenu(); await sleep(400);
     const clickBubble = (re) => page.evaluate((src) => {
       const rx = new RegExp(src);
       const b = [...document.querySelectorAll('.pq-editor-bubble button')].find((x) => rx.test(x.textContent || '') && x.offsetParent);
@@ -139,6 +145,7 @@ async function partDocTable(width, docId) {
     }, re.source);
     const r1 = await clickBubble(/행↓|row ?↓|Row ?below/i);
     await sleep(400);
+    await openMenu(); await sleep(400);   // 누르면 메뉴가 접힐 수 있다 — 다시 연다(열려 있으면 손잡이가 없어 아무 일 없음)
     const c1 = await clickBubble(/열→|col.*→|Col.*right/i);
     await sleep(400);
     const after = await count();

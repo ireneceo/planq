@@ -13,33 +13,8 @@
 //   그래서 ②가 쓸 조각을 여기 하나 두고, HTML 을 넣는 곳은 전부 이것을 붙인다.
 //   새 화면이 생겨도 이 조각만 붙이면 된다 — 각자 table CSS 를 다시 쓰면 또 갈라진다
 //   (memory `feedback_copied_component_drifts_extract_shell`).
-import { css } from 'styled-components';
+//   ★ 2026-11-04 — 표 규칙은 편집기와 **같은 조각**(styles/pqTableCss)을 그대로 쓴다. 여기서 따로 적던
+//     width:auto·table-layout:auto 가 편집·보기와 또 다른 셋째 기준이었다.
+import { pqTableCss } from './pqTableCss';
 
-export const postContentTableCss = css`
-  /* 변환기(utils/postContentHtml)가 표를 .tableWrapper 로 감싼다 — 편집기와 **같은 클래스 이름**이다 */
-  .tableWrapper {
-    margin: 16px 0;
-    max-width: 100%;
-    overflow-x: auto;
-    &::-webkit-scrollbar { height: 8px; }
-    &::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 4px; }
-  }
-  table {
-    border-collapse: collapse;
-    /* 칸이 많으면 자연폭을 가지고 래퍼 안에서 가로 스크롤한다 — 눌러 넣지 않는다 */
-    width: auto;
-    min-width: 100%;
-    table-layout: auto;
-    font-size: 0.8125rem;
-  }
-  /* 칸 하한은 편집 화면과 같은 96px — 이보다 좁게 눌러 넣으면 글이 세로로 붕괴한다 */
-  td, th {
-    border: 1px solid #E2E8F0;
-    padding: 8px 10px;
-    min-width: 96px;
-    word-break: break-word;
-    overflow-wrap: anywhere;
-    vertical-align: top;
-  }
-  th { background: #F8FAFC; font-weight: 700; text-align: left; }
-`;
+export const postContentTableCss = pqTableCss;

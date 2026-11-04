@@ -14,7 +14,8 @@ import { signatureFieldExtension, signatureFieldEditorCss } from './SignatureFie
 import EditorSignatureButton from './EditorSignatureButton';
 import { ResizableImage } from './ResizableImage';
 import { resizableImageCss } from './resizableImageStyles';
-import { Table } from '@tiptap/extension-table';
+import { PqTable } from './pqTable';
+import { pqTableCss } from '../../styles/pqTableCss';
 import { TableRow } from '@tiptap/extension-table-row';
 import { PqTableCell, PqTableHeader } from './editorTableCellFill';   // 칸·열·행 채우기 색(2026-10-12)
 import TableBubbleMenu from './TableBubbleMenu';
@@ -126,7 +127,7 @@ const PostEditor: React.FC<Props> = ({ value, onChange, onReady, placeholder, ed
       //   목록·인용·코드블록은 정렬을 걸면 구조가 깨져 보이므로 대상에서 뺀다.
       //   렌더는 style="text-align:..." — 저장 JSON 에 textAlign attr 로 들어간다.
       TextAlign.configure({ types: ['heading', 'paragraph'], defaultAlignment: null }),
-      Table.configure({ resizable: true, HTMLAttributes: { class: 'editor-table' } }),
+      PqTable.configure({ HTMLAttributes: { class: 'editor-table' } }),   // 표시 기준 한 벌 — pqTable.ts 머리말
       TableRow,
       PqTableHeader, PqTableCell, ...checklistExtensions,
       FindReplace, ...textStyleExtensions, MarkdownShortcutFix,
@@ -587,127 +588,10 @@ const Body = styled.div<{ $editable?: boolean; $borderless?: boolean; $compact?:
 
   ${signatureFieldEditorCss}${checklistEditorCss}${findReplaceEditorCss}
 
-  /* ─── 표 (Body 직속 자손 — 편집/보기 모드 무관 적용) ─── */
-  /* border-collapse: separate 로 border-radius 작동. 셀은 right/bottom 만, 마지막 행/열 제거. */
-  /* 문서 표 기준 (Notion/GitHub) — 컨테이너보다 넓은 표는 '절대 잘리지 않고' 블록 안에서 가로 스크롤.
-     .tableWrapper(Tiptap 자동 생성) 가 스크롤 영역. 표는 colgroup 자연폭(width:max-content)을 가지되
-     작은 표는 min-width:100% 로 칼럼을 꽉 채움. 옛 width:100% 는 넓은 표를 강제로 끼워맞춰
-     resizable colgroup 고정폭과 충돌 → 우측 잘림 회귀의 원인. */
-  & .tableWrapper {
-    margin: 16px 0;
-    max-width: 100%;
-    overflow-x: auto;
-    &::-webkit-scrollbar { height: 8px; }
-    &::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 4px; }
-  }
-  & .tableWrapper table { margin: 0; }
-  & table {
-    border-collapse: separate; border-spacing: 0;
-    table-layout: fixed;
-    width: max-content;
-    /* ★ 2026-09-13 (Irene: *"문서에 표가 왜 내용까지만 테두리가 생기고 좌우 열이 자동 맞춤이
-       안되는 거야? 기본 반응형 안잡아줘?"*)
-       !important 가 필요한 이유 — prosemirror-tables 가 표 DOM 에 **인라인으로**
-       min-width(합계 px)를 쓴다(실측: 새 3열 표에 min-width 75px). 인라인이 이기므로
-       여기 적힌 100% 는 **한 번도 적용된 적이 없었고**, 표는 max-content(실측 290px)에 머물러
-       872px 본문 안에서 테두리가 내용까지만 그려졌다.
-       이 한 줄이 "기본 반응형" 이다 — 좁은 표는 본문 폭까지 늘어나고(남는 자리는 열이 나눠 갖는다),
-       넓은 표는 100% 가 하한이라 그대로 자연폭을 유지해 래퍼 안에서 가로 스크롤한다.
-       ※ 여기에 width:100% 를 쓰면 안 된다 — 넓은 표를 강제로 끼워 넣어 우측이 잘린다(옛 회귀).
-       ※ styled 템플릿 안 주석에 백틱을 쓰면 템플릿이 끊긴다 — 이 파일에서 또 겪었다. */
-    min-width: 100% !important;
-    max-width: none;
-    font-size: 0.8125rem; margin: 16px 0;
-    border: 1px solid #CBD5E1; border-radius: 10px;
-    overflow: hidden;
-    background: #fff;
-  }
-  & table td, & table th {
-    border-right: 1px solid #E2E8F0;
-    border-bottom: 1px solid #E2E8F0;
-    padding: 10px 14px;
-    vertical-align: top; min-width: 96px;
-    position: relative; box-sizing: border-box;
-  }
-  & table td:last-child, & table th:last-child { border-right: none; }
-  & table tr:last-child td, & table tr:last-child th { border-bottom: none; }
-  & table th {
-    background: #F8FAFC; color: #0F172A; font-weight: 700;
-    text-align: left; letter-spacing: -0.1px;
-    border-bottom: 1px solid #CBD5E1;
-  }
-  /* ★ 2026-08-27 — **읽기 전용에는 .tableWrapper 가 없다.**
-     Tiptap 은 columnResizing 이 붙는 편집 모드에서만 그 래퍼를 만든다. 그래서 읽기 화면에서는
-     width:max-content 표가 가둘 곳 없이 그대로 페이지 밖으로 잘려 나갔다
-     (운영 신고 2026-08-27 공개 미리보기 — 글 폭 658px 안에서 표가 1839px, 1181px 잘림).
-     읽기 화면의 기준은 **페이지 폭**이다: 표 자신이 스크롤 컨테이너가 되고(display:block),
-     폭이 남으면 auto 레이아웃이 글을 접어 페이지 안에 맞춘다. 정말 못 맞추는 넓은 표만 그 안에서 스크롤.
-     편집 모드는 손대지 않는다 — colgroup 고정폭·칼럼 리사이즈가 그대로 필요하다.
-     ⚠️ **이 블록은 반드시 위의 베이스 table 규칙(width:max-content) 뒤에 있어야 한다.** 같은 특정도라 나중 것이 이기는데,
-     앞으로 옮기면 베이스의 width:max-content 가 다시 이겨 **조용히 무력화된다**
-     (실제로 처음 넣을 때 앞에 두어 실측 0/3 실패했다). */
-  ${p => p.$editable ? '' : `
-  /* ★ 2026-09-13 (Irene: *"에디터에서는 제대로 나오는데 저장하고 나면 이상해."* ·
-     *"문서에 표가 우측 잘리고 테두리 중간에 없어지는 거"*)
-
-     원인은 아래에 있던 **display: block** 이다. 표를 블록으로 만들면 안쪽에 **익명 테이블 박스**가
-     생기는데 그 폭은 shrink-to-fit(내용만큼)이고, 테두리·배경·둥근모서리는 **바깥 블록**에 그려진다.
-     실측(운영 문서 "법률사무소 운영체계 진단 및 업무설계 보고서" 구조 복제, 1440px):
-       표 22개 중 **21개**가 바깥 872px / 안쪽 격자 726px → 146px 구간에 셀 테두리가 없다.
-       td:last-child 의 border-right 제거까지 겹쳐 "오른쪽이 잘린" 것처럼 보인다.
-     편집 화면은 .tableWrapper(TipTap 이 editable 에서만 만든다)가 스크롤을 맡아 이 문제가 없다 —
-     그래서 **"에디터는 멀쩡한데 저장하면 이상" 했다.**
-
-     고침: 표를 **진짜 표로 두고 폭을 채운다**(display: table + width 100% + table-layout fixed).
-       · 저장된 열 폭(colgroup)은 **비율로 보존**된다 — 실측 420:160 → 630:240 (72.4% : 27.6%).
-         tbody 를 table 로 만드는 다른 안은 colgroup 이 무시돼 115:755 로 뒤집혔다(그래서 버렸다).
-       · fixed 라 컨테이너를 넘지 않는다 — 2026-08-27 의 "페이지 밖으로 잘려 나감" 도 구조적으로 불가능.
-     다만 **열이 많으면** 한 칸이 96px 아래로 눌려 글이 세로로 붕괴한다(12열 실측 73px).
-     그 경우만 종전대로 표 안에서 가로 스크롤한다 — 임계값 9열은 본문 폭 872 ÷ 96 에서 나온 값이다.
-     (:has() 로 colgroup 의 col 개수를 센다. 실측 CSS.supports('selector(:has(a))') === true) */
-  & table {
-    display: table;
-    table-layout: fixed;
-    width: 100%;
-    max-width: 100%;
-    min-width: 0;
-  }
-  & table td, & table th { min-width: 0; word-break: break-word; overflow-wrap: anywhere; }
-
-  & table:has(colgroup col:nth-child(9)) {
-    display: block;
-    overflow-x: auto;
-    table-layout: auto;
-    &::-webkit-scrollbar { height: 8px; }
-    &::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 4px; }
-  }
-  /* 칼럼 하한은 편집 화면과 같은 96px — 스크롤로 넘긴 표에만 적용한다(눌러 넣지 않기 위함). */
-  & table:has(colgroup col:nth-child(9)) td,
-  & table:has(colgroup col:nth-child(9)) th { min-width: 96px; }
-  `}
-  ${p => p.$editable ? `
-  /* ★ 2026-10-25 (Irene: *"문서 테이블들이 열 안에 링크값 너무 길게 하지 말고 잘리게 하거나 엔터값 들어가게"*)
-     편집 표는 width:max-content 라 폭을 정하지 않은 열은 **글 한 줄 길이**까지 늘어난다 — 띄어쓰기 없는 긴 주소 한 줄에
-     실측 1068px 열(본문 872 → 표 1262, 가로 스크롤). 보기 화면은 이미 칸 안에서 줄바꿈한다.
-     고침: 폭을 안 정한 칸(colwidth 없음)의 **링크 든 문단**에 최대 폭을 둔다 — 블록의 max-width 는 표가 재는
-     내용 폭(max-content)도 같이 묶으므로 열이 그 이상 늘지 않고, 주소는 아무 글자에서나 줄을 바꾼다.
-     사용자가 손잡이로 넓힌 열(colwidth 있음)은 손대지 않는다. */
-  & table td:not([colwidth]) p:has(a[href]), & table th:not([colwidth]) p:has(a[href]) { max-width: 320px; }
-  & table td a[href], & table th a[href] { overflow-wrap: anywhere; word-break: break-all; }
-  ` : ''}
-  /* 첫 행 좌상단·우상단 라운드 (border-radius 가 table 에만 적용되면 셀이 가려서 안 보임) */
-  & table tr:first-child th:first-child, & table tr:first-child td:first-child {
-    border-top-left-radius: 10px;
-  }
-  & table tr:first-child th:last-child, & table tr:first-child td:last-child {
-    border-top-right-radius: 10px;
-  }
-  & table tr:last-child td:first-child, & table tr:last-child th:first-child {
-    border-bottom-left-radius: 10px;
-  }
-  & table tr:last-child td:last-child, & table tr:last-child th:last-child {
-    border-bottom-right-radius: 10px;
-  }
+  /* ─── 표 — 편집·보기 같은 기준 한 벌(styles/pqTableCss · 설계 components/Docs/pqTable.ts, 2026-11-04) ───
+     옛 규칙(편집 width:max-content / 보기 display:table·width:100%·9열 :has 덮어쓰기 / 링크 칸 320px)은
+     표 확장이 열을 % 로 내보내면서 필요 없어졌다 — 그 세 갈래가 «위 표는 잘리고 아래 표는 안 잘림» 의 원인이었다. */
+  ${pqTableCss}
   & table tbody tr:hover td { background: #FAFBFC; }
   & table p { margin: 0 !important; }
   /* 셀 선택 / 리사이즈 핸들 (편집 모드에서만 의미 있음) */

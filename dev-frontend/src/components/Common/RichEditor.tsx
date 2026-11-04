@@ -13,10 +13,10 @@ import TaskList from '@tiptap/extension-task-list';
 import TaskItem from '@tiptap/extension-task-item';
 // 표 (#151) — 여태 RichEditor 에는 표 확장이 없어서 업무 본문·메일·지식에 표를 **넣을 수도 볼 수도** 없었다.
 // (문서 에디터 PostEditor 에는 있었다 — 같은 앱인데 화면마다 되고 안 됐다.)
-import { Table } from '@tiptap/extension-table';
+import { PqTable } from '../Docs/pqTable';
+import { pqTableCss } from '../../styles/pqTableCss';
 import { TableRow } from '@tiptap/extension-table-row';
-import { TableCell } from '@tiptap/extension-table-cell';
-import { TableHeader } from '@tiptap/extension-table-header';
+import { PqTableCell, PqTableHeader } from '../Docs/editorTableCellFill';
 import { handleMarkdownPaste } from '../../utils/markdownPaste';
 import { MarkdownShortcutFix } from '../Docs/editorMarkdownShortcut';   // 모바일 한글 자판에서 «# »·«- » 변환(2026-10-24)
 import { Selection } from '@tiptap/pm/state';
@@ -121,10 +121,11 @@ export default function RichEditor({
       //   심는다(메일 클라이언트는 <style> 을 대부분 버린다). 클래스가 없으면 그 코드가 걸릴
       //   대상이 없어 **조용히 아무 일도 하지 않는다** — 실제로 그 상태였다(2026-08-19 발견).
       //   전달된 남의 표에는 이 클래스가 없으므로 우리가 손대지 않는다는 구분도 이 클래스가 만든다.
-      Table.configure({ resizable: true, HTMLAttributes: { class: 'pq-table' } }),
+      //   표시 기준은 문서 편집기와 한 벌(PqTable — 열 비율·칸 하한 96·스크롤 래퍼, components/Docs/pqTable.ts 2026-11-04)
+      PqTable.configure({ HTMLAttributes: { class: 'pq-table' } }),
       TableRow,
-      TableHeader,
-      TableCell,
+      PqTableHeader,
+      PqTableCell,
       SlashCommand.configure({ listComponent: SlashCommandList }),
     ],
     // #219 — 평문 본문(개행만 있는 옛 데이터·문서 이관본)은 그대로 넣으면 한 문단으로 뭉친다.
@@ -518,28 +519,8 @@ const EditorShell = styled.div<{ $mh: number; $ro?: boolean }>`
      PostEditor 의 $editable 게이트와 같은 자리 (주석에 백틱을 쓰면 이 템플릿이 거기서 끊긴다). */
   & .pq-editor-body{ ${p => resizableImageCss(!p.$ro)} }
   & .pq-editor-body a{color:#0D9488;text-decoration:underline;text-decoration-color:#99F6E4;text-underline-offset:3px;}
-  /* 표 (#151) — 문서 에디터(PostEditor)와 같은 시각. 넓은 표는 가로 스크롤로 가둔다(페이지가 밀리지 않게) */
-  & .pq-editor-body .tableWrapper{overflow-x:auto;}
-  /* 표 안 긴 링크 — 폭을 안 정한 칸에서는 줄을 바꿔 열이 늘지 않게(PostEditor 에 같은 규칙·실측 주석, 2026-10-25) */
-  & .pq-editor-body table td:not([colwidth]) p:has(a[href]),& .pq-editor-body table th:not([colwidth]) p:has(a[href]){max-width:320px;}
-  & .pq-editor-body table td a[href],& .pq-editor-body table th a[href]{overflow-wrap:anywhere;word-break:break-all;}
-  /* min-width 에 !important — prosemirror-tables 가 인라인 min-width 를 써서 여기 100% 를 덮는다.
-     그러면 표가 max-content 에 머물러 "테두리가 내용까지만" 이 된다(PostEditor 에 같은 주석). */
-  & .pq-editor-body table{
-    border-collapse:separate;border-spacing:0;table-layout:fixed;
-    width:max-content;min-width:100% !important;font-size:0.8125rem;margin:16px 0;
-    border:1px solid #CBD5E1;border-radius:10px;overflow:hidden;background:#fff;
-  }
-  & .pq-editor-body table td,& .pq-editor-body table th{
-    border-right:1px solid #E2E8F0;border-bottom:1px solid #E2E8F0;
-    padding:10px 14px;vertical-align:top;min-width:96px;position:relative;box-sizing:border-box;
-  }
-  & .pq-editor-body table td:last-child,& .pq-editor-body table th:last-child{border-right:none;}
-  & .pq-editor-body table tr:last-child td,& .pq-editor-body table tr:last-child th{border-bottom:none;}
-  & .pq-editor-body table th{
-    background:#F8FAFC;color:#0F172A;font-weight:700;text-align:left;
-    letter-spacing:-0.1px;border-bottom:1px solid #CBD5E1;
-  }
+  /* 표 (#151) — 문서 편집기와 같은 조각 한 벌(styles/pqTableCss, 2026-11-04). 넓은 표는 래퍼 안 가로 스크롤 */
+  & .pq-editor-body { ${pqTableCss} }
   & .pq-editor-body ::selection{background:#CCFBF1;}
 `;
 

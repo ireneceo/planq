@@ -107,6 +107,12 @@ async function run() {
       }
     });
     await sleep(900);
+    await page.evaluate(() => {
+      // 2026-10-12 부터 표 안 커서에는 손잡이 [표 ⋯] 만 뜨고 메뉴는 눌러야 펼친다(d2d888a3) — 손잡이를 먼저 누른다
+      const h = [...document.querySelectorAll('[data-testid="editor-table-menu-open"]')].find((x) => x.offsetParent);
+      if (h) h.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+    });
+    await sleep(500);
     const btn = await page.evaluate(() => {
       const b = document.querySelector('[data-testid="editor-table-even-cols"]');
       if (!b) return false;
@@ -137,19 +143,22 @@ async function run() {
     push('④ 가로 스크롤이 생기지 않는다',
       after.scrollW <= after.wrapW + 3, `scrollWidth ${after.scrollW} vs clientWidth ${after.wrapW}`);
 
-    // ── ⑤ 좁아지면 **눌러 넣지 않는다** (옛 '우측 잘림' 회귀 차단) ──────────
-    //   min-width:100% 를 !important 로 올렸으므로 좁은 표는 늘어난다. 그 반대쪽 —
-    //   컨테이너가 표보다 좁아지면 표는 자연폭을 지키고 **래퍼가 가로 스크롤**해야 한다.
-    //   (창을 좁히는 것이 열을 늘리는 것보다 같은 조건을 더 정확히 만든다)
+    // ── ⑤ 좁아지면 — 2026-11-04 표시 기준 한 벌(components/Docs/pqTable.ts · Fable 판정 A) ──────────
+    //   옛 계약(«좁아져도 저장 px 를 지키고 래퍼가 스크롤») 은 폐기 — 그 px 는 «그 사람 화면의 px» 일 뿐이라
+    //   폰에서 3열 표도 가로 스크롤시켰다. 새 계약: 열 수 × 96 ≤ 본문 폭이면 **본문 폭에 맞춘다**(스크롤 없음·칸 ≥ 96),
+    //   넘으면 칸 96 을 지키고 래퍼가 가로 스크롤. 어느 쪽이든 «잘림» 은 없다.
     await page.setViewport({ width: 375, height: 812 });
     await sleep(1400);
     const narrow = await measure(page);
     const narrowScroll = await page.evaluate(() => ({
       doc: document.documentElement.scrollWidth, win: window.innerWidth,
     }));
-    push('⑤ 컨테이너가 좁아져도 표를 눌러 넣지 않는다 (래퍼가 가로 스크롤)',
-      !!narrow && narrow.tableW > narrow.wrapW && narrow.scrollW > narrow.wrapW,
-      narrow ? `표 ${narrow.tableW} / 본문 ${narrow.wrapW} · scrollWidth ${narrow.scrollW}` : '측정 실패');
+    const fits = !!narrow && narrow.widths.length * 96 <= narrow.wrapW;
+    push('⑤ 좁아지면 — 열 수×96 이 들어가면 본문 폭에 맞추고, 아니면 칸 96 을 지킨 채 래퍼가 스크롤한다',
+      !!narrow && Math.min(...narrow.widths) >= 95 && (fits
+        ? Math.abs(narrow.wrapW - narrow.tableW) <= 3 && narrow.scrollW <= narrow.wrapW + 3
+        : narrow.scrollW > narrow.wrapW),
+      narrow ? `${fits ? '맞춤' : '스크롤'} 기대 · 표 ${narrow.tableW} / 본문 ${narrow.wrapW} · scrollWidth ${narrow.scrollW} · 열 [${narrow.widths.join(', ')}]` : '측정 실패');
     push('⑤-b 좁은 폭에서도 페이지가 가로로 밀리지 않는다',
       narrowScroll.doc <= narrowScroll.win + 2,
       `문서 ${narrowScroll.doc} vs 창 ${narrowScroll.win}`);

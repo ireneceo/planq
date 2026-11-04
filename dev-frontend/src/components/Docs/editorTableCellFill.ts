@@ -33,11 +33,47 @@ const fillAttribute = {
   },
 };
 
+// 붙여넣은 표의 열 폭 (2026-11-04) — 엑셀·구글 시트는 칸이 아니라 `<colgroup><col width="64" style="width:48pt">` 에 폭을 싣는다.
+//   라이브러리 기본 parseHTML 은 `if (cellIndex && …)` 라 **첫 칸(index 0)만 폭이 빠졌다** → «첫 열 폭 없음 + 나머지 px» 표.
+//   여기서는 index 0 포함 · width 속성과 style width(px/pt) 둘 다 읽는다. 칸에 colwidth 가 있으면 그것이 먼저다.
+function colWidthFromCol(col: Element | undefined): number | null {
+  if (!col) return null;
+  // ★ 단위가 px·pt(또는 단위 없는 width 속성 숫자)일 때만 받는다 — `%` 는 null.
+  //   우리 표 확장은 col 에 `width:N%` 를 쓴다(비율). 그걸 px 로 읽으면 HTML 을 다시 열 때 폭 없는 칸에
+  //   «25» 같은 값이 박혀 열이 24px 로 무너졌다(Fable 2026-11-04 실측 — 섞인 표 왕복).
+  const attr = (col.getAttribute('width') || '').trim();
+  if (/^\d+(\.\d+)?(px)?$/i.test(attr)) { const v = Math.round(parseFloat(attr)); if (v > 0) return v; }
+  const m = /(?:^|;)\s*width\s*:\s*([\d.]+)\s*(px|pt)\s*(?:;|$)/i.exec(col.getAttribute('style') || '');
+  if (!m) return null;
+  const v = parseFloat(m[1]) * (m[2].toLowerCase() === 'pt' ? 96 / 72 : 1);
+  return v > 0 ? Math.round(v) : null;
+}
+const colwidthAttribute = {
+  colwidth: {
+    default: null as number[] | null,
+    parseHTML: (el: HTMLElement) => {
+      const own = el.getAttribute('colwidth');
+      if (own) {
+        const v = own.split(',').map((w) => parseInt(w, 10));
+        return v.every((w) => w > 0) ? v : null;
+      }
+      const cols = el.closest('table')?.querySelectorAll('colgroup > col');
+      if (!cols || !cols.length) return null;
+      // colspan 을 반영한 시작 열
+      let start = 0;
+      for (let c = el.previousElementSibling; c; c = c.previousElementSibling) start += Number(c.getAttribute('colspan')) || 1;
+      const span = Number(el.getAttribute('colspan')) || 1;
+      const ws = Array.from({ length: span }, (_, i) => colWidthFromCol(cols[start + i]));
+      return ws.every((w): w is number => w != null) ? ws : null;
+    },
+  },
+};
+
 export const PqTableCell = TableCell.extend({
-  addAttributes() { return { ...this.parent?.(), ...fillAttribute }; },
+  addAttributes() { return { ...this.parent?.(), ...colwidthAttribute, ...fillAttribute }; },
 });
 export const PqTableHeader = TableHeader.extend({
-  addAttributes() { return { ...this.parent?.(), ...fillAttribute }; },
+  addAttributes() { return { ...this.parent?.(), ...colwidthAttribute, ...fillAttribute }; },
 });
 
 export type FillScope = 'cell' | 'col' | 'row';

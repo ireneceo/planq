@@ -1,6 +1,7 @@
 // 표 열 폭 맞춤 — PostEditor 에서 분리(2026-10-08, 동작 불변).
 import type { Editor } from '@tiptap/core';
 import type { Node as ProseMirrorNode } from '@tiptap/pm/model';
+import { TABLE_MIN_COL as MIN_COL_WIDTH } from './pqTable';
 
 // 운영 #311 — "빈 문서에 표를 만들 때 좌우 길이를 모든 표를 고정할 수도 있어야 하는데
 //   내용에 따라 가로 길이가 다 다르니까 정돈되지 않아 보일 때가 많아서
@@ -15,7 +16,6 @@ import type { Node as ProseMirrorNode } from '@tiptap/pm/model';
 //   ★ colspan 이 걸린 셀은 그 칸 수만큼 곱해 준다. 안 그러면 병합된 표가 찌그러진다.
 // 칸 하한 — 보기 화면(postContentView)·읽기 전용 규칙과 **같은 96px**.
 //   이보다 좁게 눌러 넣으면 글이 세로로 붕괴한다.
-const MIN_COL_WIDTH = 96;
 // 폭을 못 재는 경우(드로어가 아직 안 떠 clientWidth 가 0)만 쓰는 대비값.
 const FALLBACK_COL_WIDTH = 160;
 

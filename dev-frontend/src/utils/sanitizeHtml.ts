@@ -11,6 +11,8 @@ const ALLOWED_TAGS = [
   'p', 'br', 'strong', 'b', 'em', 'i', 'u', 's', 'code', 'pre', 'blockquote',
   'h1', 'h2', 'h3', 'h4', 'ul', 'ol', 'li', 'a', 'img', 'hr',
   'table', 'thead', 'tbody', 'tr', 'th', 'td', 'span',
+  // 표 열 비율(2026-11-04) — 표 확장이 <colgroup><col style="width:N%"> 로 열 폭을 싣는다. 빠지면 보기 화면 열이 전부 균등이 된다
+  'colgroup', 'col',
   // 서명란 블록(2026-09-22) — `<div data-signature-field>`. 빈 자리만 나타내는 컨테이너다.
   'div',
 ];
@@ -29,6 +31,13 @@ const STYLE_VALUE: Record<string, RegExp> = {
   'background-color': /^(#[0-9a-f]{3,8}|rgba?\(\s*\d{1,3}\s*,\s*\d{1,3}\s*,\s*\d{1,3}\s*(,\s*(0|1|0?\.\d+)\s*)?\))$/i,
   'font-size': /^(0?\.\d+|[1-3](\.\d+)?)em$|^\d{1,2}px$/i,
   'text-align': /^(left|center|right|justify)$/i,
+  // 표 표시 기준(2026-11-04, components/Docs/pqTable) — 열 % · 표 width:100% · 칸 하한 min-width px. 크기 숫자뿐이라 실행되는 값이 없다
+  'width': /^\d{1,3}(\.\d{1,4})?%$/,
+  'min-width': /^\d{1,5}px$/,
+  'table-layout': /^fixed$/,
+  // 표 래퍼가 스크롤 상자를 인라인으로 들고 다닌다(조각을 안 붙인 화면에서도 페이지를 밀지 않게)
+  'overflow-x': /^auto$/,
+  'max-width': /^100%$/,
 };
 export function safeStyle(css: string): string {
   return String(css || '').split(';').map((d) => {

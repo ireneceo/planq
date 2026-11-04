@@ -217,7 +217,6 @@ export const DocBody = styled.div`
   img{max-width:100%;height:auto;}
   /* 표 규격은 공용 조각 한 벌 — 각자 쓰면 갈라진다(2026-09-13) */
   ${postContentTableCss}
-  td,th{border:1px solid #e2e8f0;padding:5px 7px;}
   h1,h2,h3{margin:14px 0 6px;}
   ul,ol{padding-left:20px;}
 `;

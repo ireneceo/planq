@@ -5,6 +5,8 @@
 //   무인증 쓰기 표면이었다. 서명이 필요하면 Q docs 서명 요청(/sign/:token)으로 받는다.
 import React, { useEffect, useState, useCallback } from 'react';
 import { sanitizeRichText } from '../../utils/sanitizeHtml';
+import { wrapTables } from '../../utils/postContentHtml';
+import { pqTableCss } from '../../styles/pqTableCss';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { useParams } from 'react-router-dom';
@@ -77,7 +79,7 @@ const PublicDocPage: React.FC = () => {
         {/* ★ 무인증 공개 페이지다 — 원문을 그대로 넣으면 저장형 XSS 가 로그인 없는 방문자에게 실행된다.
             (2026-09-02 보안감사 실측: 주입한 onerror 가 verbatim 으로 응답에 실렸다.)
             같은 계열 공개 페이지(PublicKbDocumentPage·PublicTaskPage)는 이미 이 함수를 태운다. */}
-        <DocBody dangerouslySetInnerHTML={{ __html: sanitizeRichText(doc.body_html) }} />
+        <DocBody dangerouslySetInnerHTML={{ __html: wrapTables(sanitizeRichText(doc.body_html)) }} />
 
         {alreadySigned && (
           <SignBlock $accept={accepted}>
@@ -113,8 +115,8 @@ const DocFrame = styled.article`
   h2 { font-size: 1.0625rem; margin: 28px 0 10px 0; color: #0F172A; }
   p { margin: 0 0 12px 0; }
   ul, ol { padding-left: 24px; margin: 0 0 12px 0; }
-  table { width: 100%; border-collapse: collapse; margin: 12px 0; }
-  td, th { border: 1px solid #E2E8F0; padding: 8px 10px; }
+  /* 표 — 문서 편집기·보기와 같은 조각 한 벌(styles/pqTableCss, 2026-11-04). 넓은 표는 래퍼 안 가로 스크롤 */
+  ${pqTableCss}
   @media print {
     border: none; box-shadow: none; padding: 0; margin: 0; max-width: 100%;
   }
