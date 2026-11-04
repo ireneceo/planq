@@ -222,6 +222,10 @@
 - 비차단: ① 정리 스크립트가 자체 값 있는 중복을 지울 수 있음 → 8984e9ac 에서 건너뛰게 함 ② createProject `contacts`(이름만 새 연락처)가 client 없는 토큰 줄을 만든다 — 다음 묶음 ③ source-candidates extra limit 300 ④ 상세 sourcePost 에 vlevel 등 칸(비밀 아님).
 
 
+
+## 2026-11-04 · 시연 영상 정기 제작·발행 자동화 설계(§20) — VERDICT: FAIL (차단 5 · 반영하면 재판정 없이 구현 시작)
+- 방 e6f1ecd8 · 설계 1회분 · 차단: claim 직렬화·끊긴 작업 · SNS 빈 본문 approved · 발행 취소 시 미발송 게시물 · 운영 사본 삭제 술어 · needs_review 재진입 고리. 비차단 14. 반영 위치 docs/DEMO_VIDEO_DESIGN.md §20.13.
+
 ## 2026-11-03 · 카드 환불 처리 창 Stripe 안내 + 기록 되돌리기 스크립트 (0ee550f6 · 방 b534f79f) — PASS
 - 스크립트 15/15 · 실브라우저 12/12. 비차단: 확인 받고 적은 건 구별(→ --force 로 고침) · 애드온 이중 회수는 «구독 유지» 체크에 기댐 · stripe_refund_failed 도 안내로 · portone·cs_·idempotency 24h.
 

@@ -22,6 +22,7 @@
 | SNS 소재 | 운영 | **운영 SNS 발송에 «영상 소재» 를 드라이브에서 가져오기**(§9) | 서버 간 전송 |
 | 새 공개·서버 간 표면 | 없음 | 없음(사람이 링크를 옮긴다) | **새 서버 간 인증 표면** |
 
+- **→ 2026-11-04 §20.1 B′(정본 운영·렌더만 dev, 작업자가 바깥으로 나가는 호출만)로 바뀜** — 아래 B 설명은 옛 결정.
 - 권고 **B**: 렌더는 고객 서버에 올리지 않는다. dev 와 운영 사이를 잇는 것은 **사람이 옮기는 두 가지(유튜브 링크·드라이브 파일)** 뿐이라 새 서버 간 통로가 없다.
 - B 의 비용: 관리 페이지가 둘로 나뉜다(dev = 영상 공방, 운영 = 랜딩 영상·SNS). 공방 화면 머리에 «여기는 영상 공방(dev) — 완성본은 운영 [랜딩 영상]·[SNS 발송]에서 씁니다» 안내 + 운영 쪽 바로가기.
 - dev 에 실데이터를 두는 셈이 된다(완성 영상·대본) — 마케팅 소재이고 고객 데이터가 아니다. dev DB 는 `scripts/backup-planq-dev-db.sh` 일일 덤프(14일)에 이미 포함된다. **dev DB 를 운영 사본으로 다시 만들 때는 `video_*` 5표를 먼저 `--tables` 로 따로 덤프해 되살린다**(Fable 비차단 5 — server-backup 은 DB 를 안 담는다).
@@ -298,9 +299,12 @@ producing ─(검수 관문 걸림 · auto_approve=0 이면 대본 완성 시)�
 producing ─(실패, attempts<3)→ planned(맨 위 유지) · (attempts=3)→ failed
 needs_review ─(관리자: 대본 고침/«이대로» 승인)→ planned(맨 위)  · ─(건너뛰기)→ archived
 awaiting_link ─(관리자: 링크 넣고 [발행])→ published
-어느 상태든 ─(보관)→ archived (published 는 보관해도 랜딩 노출만 내림 — 이미 나간 SNS 는 그대로)
+어느 상태든 ─(보관)→ archived
+published ─(발행 취소 / 보관)→ archived : 같은 트랜잭션에서 그 영상의 social_posts 중 draft·approved·scheduled 를 socialTransition.cancel 로 전부 취소 + marketing_videos.published=0 (sent 는 그대로) (Fable 차단 3)
 ```
+- **claim 은 직렬화한다**(Fable 차단 1): claim 트랜잭션 맨 앞 `GET_LOCK('video_claim', 5)` — 못 잡으면 `{job:null}`. 잡은 뒤 **같은 자리에서 끊긴 작업 되돌리기**: `running ∧ heartbeat_at < now-5분` → `queued`(attempts+1), attempts≥3 이면 작업 failed + 프로젝트는 전이 문으로 `failed`(그 전엔 `planned` 맨 위 유지 — 실은 작업이 queued 로 남아 ①에서 다시 나간다). 하루 몫은 `video_projects.producing_started_at`(새 칸, KST 날짜)로 센다.
 - **정기 실행 = claim 할 때 판정**(크론 없음): 작업자 `POST /claim` → 서버가 ① 이미 queued 인 작업(revise·prep_voice·사람이 다시 넣은 것)을 먼저 주고 ② 없으면 일정(`video_schedule`)을 보고 — 켜짐 ∧ 지금이 창 안 ∧ 요일 ∧ 오늘(KST) producing 으로 옮긴 수 < per_day ∧ producing 중인 요청 0 — 계획표 맨 위 `planned` 1건을 **조건부 UPDATE**(`WHERE id=? AND status='planned'` 영향 1행)로 producing 으로 바꾸고 produce 작업을 만들어 준다. 같은 트랜잭션.
+- **사람이 손댄 뒤 다시 넣은 요청**(Fable 차단 5): produce payload 에 `approved_version_id`(있으면 AI 대본 단계 건너뛰고 그 판으로 렌더) · `gate_overrides`(사람이 «그대로 쓰기» 한 장면 id — writeAudit) · `stage_from`('script'|'render'). claim 응답이 그대로 준다. 관문은 overrides 를 존중한다. `auto_approve=0` 이면 produce 가 대본까지 만들고 needs_review(reason `awaiting_approval`) → 사람이 승인하면 approved_version_id 를 실어 다시 넣는다.
 - **자동 승인**: produce 안에서 AI 대본 → `build`(검수 관문 §7 — DOM 판정·소재 판정) 통과 → 판 source=`auto` 로 approved(approved_by NULL, 감사 기록 actor='video-worker'). 관문 실패 → `needs_review`(reason `gate_failed` + 걸린 장면 목록). AI 대본 울타리에서 버린 항목이 있으면(§6 dropped) 그대로 진행하되 판 `ai_meta` 에 남겨 화면에 «AI 가 버린 것 N개».
 - **실패 사유 코드** §5 + `worker_offline`(화면 표시용) · `link_check_failed`.
 
@@ -313,22 +317,30 @@ awaiting_link ─(관리자: 링크 넣고 [발행])→ published
   - `POST /claim` → `{job, project, version?, assets:[{id,bytes,md5}]}` 또는 `{job:null}` · 작업자 신호(`video_worker_seen_at`) 갱신
   - `POST /jobs/:id/heartbeat` `{stage, progress, log}` (log 마지막 4KB)
   - `POST /jobs/:id/version` `{script, ai_meta, source}` → 새 판 id (대본은 JSON 스키마 검사 + 512KB 상한)
-  - `POST /jobs/:id/complete` `{outputs:[{aspect, upload_id}], drive:{folder_id, files}, youtube_meta}` · `POST /jobs/:id/fail` `{code, message, review?:{reason, detail}}`
+  - `POST /jobs/:id/complete` `{outputs:[{aspect, upload_id}], drive:{folder_id, files}}`(유튜브 메타는 운영이 만든다 — 비차단 1) · `POST /jobs/:id/fail` `{code, message, review?:{reason, detail}}`
   - `GET /assets/:id` — 그 작업이 가진 소재만(작업 점유자 = 이 작업자일 때), Range
   - `POST /uploads` · `PUT /uploads/:id/parts/:n`(≤40MB) · `POST /uploads/:id/finish`(md5 검사) — mp4 만(ffprobe 로 컨테이너·길이 확인), 1파일 300MB 상한
+- 인증은 `utils/workerAuth.js` 한 벌 — 라우터 첫 줄 `router.use(workerAuth)`(가드 1건). dev 자체 시험은 같은 호스트라 허용 목록에 dev 공인 IP·127.0.0.1 둘 다 · 작업자는 X-Forwarded-For 를 붙이지 않는다. 401 로그에 req.ip(토큰 X) (비차단 4·9).
+- 조각 올리기는 라우트 수준 `express.raw({type:'application/octet-stream', limit:'41mb'})` · mp4 검사 ffprobe `-v error` 20초 · mp4 ∧ h264/aac ∧ ≤20분 (비차단 2·8).
+- heartbeat `log` 는 전역 SQL 패턴 검사에 걸릴 수 있다 — 작업자는 heartbeat 4xx 를 기록만 하고 작업을 계속, 서버는 걸린 줄을 버린다 (비차단 3).
+- 새 끝점 `POST /jobs/:id/reupload-done` — 운영 사본을 지운 뒤 다시 필요해지면 운영이 `reupload` 작업을 넣고 작업자가 드라이브에서 받아 다시 올린다 (차단 4).
 - 작업자가 보낸 값으로 **상태를 직접 정하지 않는다** — 서버가 전이 문(20.3)으로만 바꾼다. 점유 안 한 작업·끝난 작업에 오는 호출은 409.
 - 작업자는 dev DB 를 쓰지 않는다(드라이브 토큰 읽기만 — §9).
 
 ### 20.5 링크 = 발행 (외부 발송 트리거 — Fable gate)
 - 화면 «링크 대기» 에서 여러 줄 링크를 넣고 [발행] → `POST /api/admin/videos/publish` `[{project_id, youtube_url}]`(관리자 · `authenticateToken, requireRole('platform_admin')`).
-- 서버: ① id 추출(§10 네 형태 · 11자 검사) ② **유튜브 oEmbed 확인**(`https://www.youtube.com/oembed?url=…` — 키 불필요. 200 = 공개/일부공개 · 401/404 = 비공개·없음 → 그 줄만 `link_check_failed`, 나머지는 진행) ③ 같은 id 가 다른 영상에 이미 있으면 거절 ④ 트랜잭션: 링크 저장 · `published` 전이 · `marketing_videos` 행(placement 있으면 published=1, published_at) · `social_posts`(channels 마다 1건, kind=video, **status=approved, approved_by=누른 관리자**, 본문 = AI 초안 `social_draft` 를 발행 직후 작업으로 생성) — 즉시(`all`) 또는 채널당 하루 1건씩 `scheduled_at` 분산(`daily`).
-- **확인 창**(외부 발송 확인 규칙): «N편 · 랜딩 [위치 목록]에 공개 · SNS [계정 이름 목록]에 [즉시/하루 1건씩] 게시» 를 적는다. 연결된 SNS 계정이 없으면 «SNS 는 계정 연결 뒤 [SNS 발송]에서 보냄(초안만 만듦)» 으로 바뀐다.
+- 서버: ① id 추출(§10 네 형태 · 11자 검사) ② **유튜브 oEmbed 확인**(`https://www.youtube.com/oembed?url=…` — 키 불필요. 200 = 공개/일부공개 · 401/404 = 비공개·없음 → 그 줄만 `link_check_failed`, 나머지는 진행) ③ 같은 id 가 다른 영상에 이미 있으면 거절 ④ 트랜잭션: 링크 저장 · `published` 전이 · `marketing_videos` 행(placement 있으면 published=1, published_at) · **발행 의사 기록**(`sns_publish_by`·`sns_publish_at`·spread) · `social_posts` 를 **draft** 로(channels 마다 1건, kind=video, article_id NULL, marketing_video_id) 만들고 본문 생성 작업(`social_draft`)을 건다 (Fable 차단 2).
+⑤ 본문이 써진 순간 `socialTransition.approveByPublishIntent(postId)` — 새 문 하나: draft→approved · approved_by = 발행 누른 관리자 · action `approve_by_link` · 로그+writeAudit 같은 트랜잭션 · **빈 본문이면 거절 → draft 그대로 + «확인 필요» 알림**. 연결 계정 없는 채널은 draft 로 둔다.
+- oEmbed 는 DB 트랜잭션 **밖**에서 · 5초 · 5xx/timeout 은 «확인 못 함(다시 시도)»(영구 실패 아님) · oEmbed `title` 이 프로젝트 제목·유튜브 메타 제목과 다르면 확인 창에 «제목이 다릅니다» 경고 · 유튜브 id 중복 검사는 사람이 넣은 marketing_videos 행도 포함 (비차단 5·6).
+- `daily` 분산은 단계 1 에 scheduled 상태가 없으니 approved + `publish_after` 힌트만(단계 2 가 읽음) (비차단 7).
+- 재생이나 [mp4 받기] 이력 없이 [발행]하면 확인 창에 경고 한 줄(작업자 토큰이 샜을 때 마지막 방어) (비차단 8).
+- **확인 창**(외부 발송 확인 규칙): «N편 · 랜딩 [위치 목록]에 공개 · SNS [계정 이름 목록]에 [즉시/하루 1건씩] 게시 · **SNS 본문은 AI 가 쓰고 따로 확인 없이 나갑니다**» 를 적는다. 연결된 SNS 계정이 없으면 «SNS 는 계정 연결 뒤 [SNS 발송]에서 보냄(초안만 만듦)» 으로 바뀐다.
 - SNS 실제 게시는 **SNS 설계 단계 2(OAuth·예약 크론·공개 미디어 주소)** 가 한다 — 여기서는 승인된 게시물을 만들 뿐. 단계 2 전에는 approved 에서 멈추고 [SNS 발송] 화면에 보인다(반자동: 원고 복사·영상 받기·게시함 표시).
 - 영상 게시물의 미디어 = 운영 완성본 사본(세로 우선). SNS §4 공개 미디어 주소를 **video/mp4 · Range** 로 넓히는 것은 SNS 단계 2 의 Fable gate 에 같이 건다.
 
 ### 20.6 운영 완성본 사본 · 보관
 - `uploads/videos/<yyyy-mm>/<uuid>.mp4`(정적 공개 안 함 — 관리자 스트리밍 `GET /api/admin/videos/outputs/:versionId/:aspect` Range 만).
-- 보관: 발행 뒤 **30일**(SNS 예약·재시도 기간) 지나면 지운다(드라이브 원본은 남음 · `drive_file_id` 없으면 안 지움). 링크 대기 중·확인 필요 중인 것은 안 지운다. 정리는 기존 일일 정리 크론에 한 줄.
+- 보관(Fable 차단 4): 지우는 술어 = `published_at+30일` ∧ `drive_file_id` 있음 ∧ **그 영상의 social_posts 에 draft·approved·scheduled·sending·failed 0건** ∧ 진행 중 revise 없음. 링크 대기·확인 필요 중인 것은 안 지운다. 지운 뒤 필요해지면 `reupload` 작업(20.4). 정리 작업은 retentionPurge 처럼 **리포트 모드 기본 · APPLY 플래그**로 시작.
 - 디스크 예상: 1편 가로+세로 ≈ 30~60MB · 하루 1편이면 30일 ≈ 2GB 이하.
 
 ### 20.7 AI 보조 (운영 LLM · `services/llm.js` PURPOSES 등록 · costGuard.perUserLimiter)
@@ -337,7 +349,7 @@ awaiting_link ─(관리자: 링크 넣고 [발행])→ published
 - `social_draft` — 발행 때 채널별 본문(SNS 설계 §6 그대로).
 
 ### 20.8 알림
-- `awaiting_link` 가 생기면 플랫폼 관리자에게 앱 알림 1건(같은 날 여러 편이면 한 건으로 묶음: «링크 기다리는 영상 N편») + 푸시. `needs_review`·`failed`·작업자 6시간 무신호(일정 창 안일 때만)도 같은 방식. 메일은 안 보냄.
+- `awaiting_link` 가 생기면 플랫폼 관리자에게 앱 알림 1건(같은 날 여러 편이면 한 건으로 묶음: «링크 기다리는 영상 N편») + 푸시. `needs_review`·`failed`·작업자 6시간 무신호(일정 창 안일 때만)·발행 때 SNS 본문 생성 실패(draft 로 남음)도 같은 방식. 메일은 안 보냄.
 
 ### 20.9 화면 — 운영 `/admin/videos` (ADMIN_MENUS · i18n `adminVideo` ko/en · 3폭)
 머리: 작업자 상태(연결됨/마지막 신호) · 일정 요약(«매일 01~06시 1편 · 다음: <제목>») · [일정 설정].
@@ -357,6 +369,8 @@ awaiting_link ─(관리자: 링크 넣고 [발행])→ published
 - 흐름: 요청 3개 넣기 → 작업자 `--once` 3번(일정 시험값) → 3편 awaiting_link + 알림 1건 · 관문 걸리는 요청 1개(로딩 뼈대 장면) → needs_review, 다음 편은 계속.
 - 발행: 공개 영상 링크 1 + 없는 영상 링크 1 → 앞 것만 published · marketing_videos 1행 · social_posts 채널 수만큼 approved · 감사 기록 · 공개 API 에 나옴 / 뒤 것은 link_check_failed 로 남음.
 - 보관: 발행 31일 전 날짜로 바꿔 정리 → 운영 사본 삭제 · 드라이브 id 없는 것은 안 지움(대조군).
+- Fable 차단 대조군: ① 작업 중 작업자 kill → 5분 안 claim null · 5분 뒤 같은 작업 다시 · 같은 순간 claim 2번 → 1건 ② 빈 본문 게시물은 approved 안 됨 ③ daily 3채널 → 발행 취소 → approved 0·canceled 3·공개 API 0건 ④ approved 게시물이 남은 31일 지난 영상은 안 지워짐 ⑤ 뼈대 장면 needs_review → «그대로 쓰기» → 다음 produce AI 호출 0·awaiting_link.
+- 응답 비밀값: `/api/admin/videos/*` 에 토큰 해시·로컬 경로·드라이브 토큰 0 — health-check secrets 1건. 운영 .env 두 값은 배포 사전 점검 · migrate-video.js 는 migrate-social 옆 배포 슬롯 (비차단 10·11).
 - 화면 3폭 · i18n · e2e 스위트 `videoadmin`.
 
 ### 20.12 단계(바뀜)
@@ -366,3 +380,8 @@ awaiting_link ─(관리자: 링크 넣고 [발행])→ published
 | D′2 | 운영 화면 4탭 · AI 다음 편 제안 · 유튜브 메타 · 알림 · 운영 사본 보관 | 화면에서 요청부터 링크 대기까지 |
 | E′ | 링크=발행 · marketing_videos·랜딩 4곳(§10) · SNS 영상 게시물 생성 · CSP · (SNS 단계 2 와 이어짐) | 링크 한 번으로 랜딩 공개 + SNS 게시물 승인 |
 - Irene 할 일(그때): D′ 끝 — 운영 연결 `.env` 두 줄(작업자 토큰 해시·IP)은 배포 때 같이 · dev «PlanQ» 워크스페이스 드라이브 연결 · E′ — 유튜브 채널 · SNS 계정 연결(SNS 단계 2).
+
+### 20.13 Fable 설계 판정 (2026-11-04) — VERDICT: FAIL · 차단 5 → 위에 반영(판정문: «차단 1~5 를 반영하면 재판정 없이 D′1 구현 시작 가능», E′ 끝 외부 발송 검증 1회는 그대로)
+- 받아들인 것: 구조 B′ · «링크 입력 = 발행 승인» 정책(사람이 유튜브에 직접 올리는 단계가 눈으로 보는 확인 · approved_by 에 누른 관리자).
+- 차단 1 claim 직렬화·끊긴 작업 되돌리기(20.3) · 2 SNS 게시물은 draft → 본문 생긴 뒤 approveByPublishIntent(20.5) · 3 발행 취소가 안 나간 게시물 취소(20.3) · 4 운영 사본 삭제 술어(20.6) · 5 produce payload approved_version_id·gate_overrides(20.3).
+- 비차단 1~14 반영 위치: 1·2·3·4·8·9 → 20.4 · 5·6·7·8 → 20.5 · 10·11·14 → 20.11 · 12 → 20.8 · 13 → §1.
