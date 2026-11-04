@@ -59,7 +59,9 @@ async function getClientTimeline(businessId, clientId, { userId, limit = 40, bef
       //   초안은 ai_mode_used='draft' 이고 발송되면 ai_draft_approved=true 가 된다(models/Message.js).
       const where = {
         conversation_id: { [Op.in]: [...convMap.keys()] }, is_deleted: false,
-        [Op.or]: [{ ai_mode_used: null }, { ai_mode_used: { [Op.ne]: 'draft' } }, { ai_draft_approved: true }],
+        // 술어는 정본 한 곳(utils/messageVisibility 의 «미승인 Cue 초안 아님» 조각)을 쓴다 — 베끼면 갈라진다(Fable 비차단 지적).
+        //   내부 메모(is_internal)는 직원 타임라인이라 거르지 않는다 — 그 조각만 가져온다.
+        [Op.or]: require('../utils/messageVisibility').CLIENT_VISIBLE_MESSAGE_WHERE[Op.or],
       };
       if (beforeDate) where.createdAt = { [Op.lt]: beforeDate };
       const msgs = await Message.findAll({

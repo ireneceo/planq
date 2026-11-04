@@ -135,7 +135,7 @@ export default function ClientHomePage() {
           <Pane data-testid="home-body-info">
             <EntryInfoView entry={home?.entry || null} bookingOn={bookingOn}
               onAsk={openChat} onBook={() => { setReschedule(null); go('book'); }}
-              emptyText={t('home.noIntroClient', { ws: home?.workspace?.name || '', defaultValue: '{{ws}} 와의 대화·프로젝트·청구서를 여기서 봅니다.' }) as string} />
+              emptyText={t('home.noIntroClient', { ws: home?.workspace?.name || '', defaultValue: '{{ws}} 관련 대화·프로젝트·청구서를 여기서 봅니다.' }) as string} />
             {/* 2026-10-05 목소리 프로필 — 팀원 프로필과 **같은 컴포넌트**(VOICE_PROFILE_DESIGN §5-3).
                 고객은 로그인 계정이 있을 때만 등록할 수 있고, 연결된 상담 회의에서만 이름이 붙는다.
                 ★ 접힌 한 줄로 시작한다(2026-11-03 첫 길 점검 · Fable) — 처음 온 고객의 첫 화면에 목소리 특징값 동의 글이

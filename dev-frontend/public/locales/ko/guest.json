@@ -279,7 +279,7 @@
     "loadFail": "홈 정보를 불러오지 못했어요.",
     "tabsAria": "홈 탭",
     "bills": "청구",
-    "noIntroClient": "{{ws}} 와의 대화·프로젝트·청구서를 여기서 봅니다.",
+    "noIntroClient": "{{ws}} 관련 대화·프로젝트·청구서를 여기서 봅니다.",
     "voiceToggle": "회의록에 내 이름 표시하기 (선택)"
   },
   "stats": {
