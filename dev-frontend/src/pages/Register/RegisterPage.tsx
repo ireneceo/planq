@@ -344,6 +344,8 @@ const RegisterPage: React.FC = () => {
   // 초대 가입이면 어느 팀에 합류하는지 보여 주고, 초대받은 메일 주소를 채워 둔다(2026-10-09 새 팀 첫 길 점검 —
   //   «14일 무료 체험 · 무료로 시작하기» 만 보여 팀원이 새 회사를 만드는 줄 알았다). 실패하면 보통 가입 화면 그대로.
   const [inviteWorkspace, setInviteWorkspace] = useState<string | null>(null);
+  // 고객 초대(프로젝트·워크스페이스 고객)인지 — 고객에게 «팀원으로 합류» 라고 쓰면 자기가 그 회사 직원이 되는 줄 안다(2026-11-03).
+  const [inviteIsClient, setInviteIsClient] = useState(false);
   useEffect(() => {
     if (!inviteToken) return;
     let alive = true;
@@ -353,6 +355,7 @@ const RegisterPage: React.FC = () => {
         const j = await r.json();
         if (!alive || !j?.success) return;
         if (j.data?.workspace_name) setInviteWorkspace(String(j.data.workspace_name));
+        if (j.data?.type && j.data.type !== 'workspace_member') setInviteIsClient(true);
         if (j.data?.contact_email) setEmail((prev) => prev || String(j.data.contact_email));
       } catch { /* 보통 가입 화면 그대로 */ }
     })();
@@ -460,7 +463,9 @@ const RegisterPage: React.FC = () => {
             {add.active
               ? t('register.addSubtitle', { name: add.fromName, defaultValue: '{{name}} 계정은 그대로 두고 새 계정을 만들어요. 프로필 메뉴에서 눌러 바꿀 수 있어요.' })
               : inviteToken
-              ? (inviteWorkspace
+              ? (inviteWorkspace && inviteIsClient
+                ? t('register.inviteSubtitleClient', { name: inviteWorkspace, defaultValue: '{{name}} 와(과) 함께 일하는 공간에 들어갑니다. 계정만 만들면 대화·자료·일정을 바로 볼 수 있어요.' })
+                : inviteWorkspace
                 ? t('register.inviteSubtitle', { name: inviteWorkspace, defaultValue: '{{name}} 에 팀원으로 합류합니다. 계정만 만들면 바로 들어갑니다.' })
                 : t('register.inviteSubtitleNoName', '초대받은 워크스페이스에 합류합니다. 계정만 만들면 바로 들어갑니다.'))
               : t('register.subtitle')}

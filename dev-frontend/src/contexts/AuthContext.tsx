@@ -908,6 +908,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       body: JSON.stringify({
         email, password, name, business_name: businessName || undefined,
         client_kind: clientKind,
+        // 가입 화면에 보이던 언어로 계정·워크스페이스를 만든다 — 빠지면 서버 기본(ko)이 되어
+        //   영어 화면으로 가입한 사람이 첫 화면부터 한국어를 봤다(2026-11-03 첫 길 점검).
+        default_language: (i18n.language || '').startsWith('en') ? 'en' : 'ko',
         terms_accepted: opts?.terms_accepted ?? false,
         privacy_accepted: opts?.privacy_accepted ?? false,
         // 초대 가입 — 워크스페이스 생성 skip (초대된 워크스페이스에 고객으로 합류)

@@ -7,6 +7,7 @@ import ProtectedRoute from './components/ProtectedRoute';
 import ErrorBoundary from './components/Common/ErrorBoundary';
 import { isPopoutWindow } from './utils/popout';
 import { isPublicSurfacePath, isPublicViewPath } from './utils/publicSurface';
+import { useAppI18nReady } from './hooks/useAppI18nReady';
 import { isNonAppPath } from './utils/nonAppPath';
 import TabMirror from './components/Tab/TabMirror';
 import TabAppShell from './components/Tab/TabAppShell';
@@ -902,9 +903,11 @@ function ModeGate() {
   }, [isLoading, isAuthenticated, mode, wsLink]);
   // 전환 중에는 옛 워크스페이스 화면을 한 프레임도 그리지 않는다 — 목록이 잠깐 떴다 바뀌는 것이 «이상하게 보이는» 모양이었다
   //   판정 effect 가 돌기 전 첫 렌더도 막는다(effect 는 그린 뒤에 돈다).
+  // 로그인 뒤 앱 화면은 번역이 다 온 뒤 처음 그린다(hooks/useAppI18nReady — 번역 이름이 1~2초 보이던 것).
+  const i18nReady = useAppI18nReady(!isLoading && isAuthenticated && !isPublicSurfacePath(window.location.pathname));
   const needsSwitch = wsLink === null && !isLoading && isAuthenticated
     && !!foreignWorkspaceOf(window.location.pathname + window.location.search, user);
-  if (wsLink === 'switching' || needsSwitch) return <PageLoadingFallback />;
+  if (wsLink === 'switching' || needsSwitch || !i18nReady) return <PageLoadingFallback />;
   if (mode === 'tab') return <TabAppShell />;
   return <BrowserRouter><ShellApp /></BrowserRouter>;
 }

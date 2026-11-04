@@ -78,6 +78,7 @@
     "searchPh": "Search by number, client, title, project",
     "newInvoice": "New invoice",
     "empty": "No invoices yet",
+    "emptyClient": "Invoices you receive will appear here, ready to review and pay",
     "emptyCta": "Create your first invoice",
     "filter": {
       "all": "All",

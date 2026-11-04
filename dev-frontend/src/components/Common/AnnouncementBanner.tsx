@@ -44,7 +44,15 @@ const AnnouncementBanner: React.FC = () => {
   };
 
   const text = pickText(ann);
-  if (!text && policy && user && !policyDismissed) {
+  // 개정 공지는 **개정 전에 가입·동의한 사람**에게 알리는 것이다 — 공지가 뜬 뒤(시행 7일 전부터) 처리방침에 동의하고
+  //   가입한 사람은 이미 새 본문에 동의했다. 그 사람의 첫 화면에 «바뀝니다» 띠를 띄우면 무엇이 바뀌었는지 모를 소식으로
+  //   첫 화면을 한 줄 먹는다(2026-11-03 신규 가입 첫 길 점검).
+  const acceptedAfterNotice = (() => {
+    if (!policy || !user?.privacy_accepted_at) return false;
+    const [y, m, d] = policy.effective.split('-').map(Number);
+    return new Date(user.privacy_accepted_at) >= new Date(y, m - 1, d - 7);
+  })();
+  if (!text && policy && user && !policyDismissed && !acceptedAfterNotice) {
     const dismissPolicy = () => {
       try { window.localStorage.setItem(policyKey, '1'); } catch { /* 저장 안 돼도 이번 화면에선 닫는다 */ }
       setPolicyDismissed(true);

@@ -193,15 +193,26 @@ const InvitePage: React.FC = () => {
           </ActionBtn>
         ) : (
           <>
-            <Message>{t('invite.loginRequired', '초대를 수락하려면 로그인 또는 회원가입이 필요합니다.')}</Message>
-            <ActionBtn onClick={() => navigate(`/login?redirect=/invite/${token}`)}>
-              {t('invite.login', '로그인')}
-            </ActionBtn>
-            {/* 받는 이메일에 이미 계정이 있으면 새로 가입한 계정으로는 수락할 수 없다 — 가입 문을 내지 않는다 */}
-            {!info.invitee_has_account && (
-              <SecondaryBtn onClick={() => navigate(`/register?redirect=/invite/${token}`)}>
-                {t('invite.register', '회원가입')}
-              </SecondaryBtn>
+            {/* 받는 이메일에 계정이 없으면 이 사람은 처음 온 사람이다 — 앞 버튼은 «시작하기»(가입), 로그인은 뒤로 (2026-11-03 첫 길 점검:
+                처음 초대받은 고객에게 [로그인] 이 주 버튼이라 «계정이 있어야 하나?» 에서 멈췄다).
+                계정이 있으면 새로 가입한 계정으로는 수락할 수 없다 — 가입 문을 내지 않는다. */}
+            {info.invitee_has_account ? (
+              <>
+                <Message>{t('invite.loginToAccept', '이미 PlanQ 계정이 있는 주소예요. 로그인하면 바로 합류합니다.')}</Message>
+                <ActionBtn onClick={() => navigate(`/login?redirect=/invite/${token}`)}>
+                  {t('invite.login', '로그인')}
+                </ActionBtn>
+              </>
+            ) : (
+              <>
+                <Message>{t('invite.signupToAccept', '처음이시면 이름과 비밀번호만 정하면 바로 들어갑니다.')}</Message>
+                <ActionBtn onClick={() => navigate(`/register?redirect=/invite/${token}`)} data-testid="invite-start">
+                  {t('invite.start', '시작하기')}
+                </ActionBtn>
+                <SecondaryBtn onClick={() => navigate(`/login?redirect=/invite/${token}`)} data-testid="invite-login">
+                  {t('invite.haveAccount', '이미 계정이 있어요')}
+                </SecondaryBtn>
+              </>
             )}
           </>
         )}
