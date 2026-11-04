@@ -13,14 +13,16 @@ type Props = {
   bookingOn: boolean;
   onAsk: () => void;
   onBook: () => void;
+  /** 소개가 없을 때 대신 보일 말 — 로그인 고객 홈은 «아직 소개가 없어요» 대신 여기서 할 수 있는 것을 말한다 */
+  emptyText?: string;
 };
 
-export default function EntryInfoView({ entry, bookingOn, onAsk, onBook }: Props) {
+export default function EntryInfoView({ entry, bookingOn, onAsk, onBook, emptyText }: Props) {
   const { t } = useTranslation('guest');
   return (
     <>
       {entry?.intro ? <Para>{entry.intro}</Para> : (
-        <Empty>{t('entry.noIntro', { defaultValue: '아직 소개가 등록되지 않았어요.' })}</Empty>
+        <Empty>{emptyText || t('entry.noIntro', { defaultValue: '아직 소개가 등록되지 않았어요.' })}</Empty>
       )}
       {entry?.services && entry.services.length > 0 && (
         <Section>

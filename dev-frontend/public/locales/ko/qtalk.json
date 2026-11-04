@@ -135,7 +135,8 @@
         "body": "“{{name}}” 의 프로젝트 연결을 해제해요. 채팅방·메시지·참여자는 그대로 유지되고, “일반 대화” 그룹으로 옮겨져요.",
         "ok": "분리"
       }
-    }
+    },
+    "noChatsClient": "담당 팀과의 대화방이 여기에 보여요"
   },
   "archived": {
     "title": "보관된 채팅",
@@ -249,8 +250,8 @@
   },
   "chat": {
     "noProject": "대화를 시작해 보세요",
-    "noProjectLine1": "실시간 채팅, 업무 관리, 프로젝트 연동을 위한",
-    "noProjectLine2": "대화채널을 만들어드립니다.",
+    "noProjectLine1": "프로젝트·고객별 대화방이 여기에 모여요.",
+    "noProjectLine2": "팀원·고객과 첫 대화방을 만들어 보세요.",
     "noProjectCta": "새 대화 시작",
     "noChannel": "대화 채널이 없습니다",
     "noChannelDesc": "좌측에서 채널을 선택하거나 새 채널을 만드세요.",
@@ -389,7 +390,8 @@
     "guestBadge": "게스트",
     "guestBadgeHint": "로그인 없이 초대 링크로 들어온 상대입니다",
     "dropHere": "여기에 놓아 업로드",
-    "sharedBand": "공유한 내용이 담겨 있어요 — 확인하고 보내기를 누르세요"
+    "sharedBand": "공유한 내용이 담겨 있어요 — 확인하고 보내기를 누르세요",
+    "clientEmptyTitle": "대화방을 골라 주세요"
   },
   "page": {
     "title": "Q talk",

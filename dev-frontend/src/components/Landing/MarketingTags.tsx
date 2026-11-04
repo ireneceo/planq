@@ -92,10 +92,24 @@ const MarketingTags: React.FC = () => {
   const showBanner = inScope && hasId && !decided && !isSignupDone(location.pathname, location.search);
   const korean = isKoreanVisitor();
 
+  // 떠 있는 동의 카드 높이를 `--pq-consent-h` 로 알린다 — 가입·로그인 폼이 그만큼 바닥 여백을 두어
+  //   카드가 약관 체크·Google 버튼을 덮지 않게(2026-11-03 첫 길 점검 · Fable). 카드가 없으면 0.
+  const bannerRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const root = document.documentElement;
+    const el = bannerRef.current;
+    if (!showBanner || !el) { root.style.removeProperty('--pq-consent-h'); return; }
+    const set = () => root.style.setProperty('--pq-consent-h', `${Math.ceil(el.getBoundingClientRect().height) + 24}px`);
+    set();
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(set) : null;
+    ro?.observe(el);
+    return () => { ro?.disconnect(); root.style.removeProperty('--pq-consent-h'); };
+  }, [showBanner]);
+
   return (
     <>
       {showBanner && (
-        <Banner role="region" aria-label={t('consent.bannerLabel')} data-testid="consent-banner">
+        <Banner ref={bannerRef} role="region" aria-label={t('consent.bannerLabel')} data-testid="consent-banner">
           <BannerText>{korean ? t('consent.bannerNotice') : t('consent.bannerAsk')}</BannerText>
           <BannerActions>
             <ActionButton size="sm" tone="secondary" type="button" onClick={() => setSettingsOpen(true)} data-testid="consent-settings">

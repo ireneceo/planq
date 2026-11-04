@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
@@ -364,9 +364,18 @@ const QTalkPage: React.FC<QTalkPageProps> = ({ embedded = false, initialConvId =
   // effect 안에서 최신 user 를 읽는다 (핸들러가 옛 값에 굳지 않게 — 위 reallyVisible 과 같은 이유)
   const userRef = useRef(user);
   useEffect(() => { userRef.current = user; }, [user]);
+  const isClientViewer = user?.business_role === 'client';
+  // 고객이 보는 자기 대화방 이름 — 서버 제목은 직원 쪽 기준(고객 이름)이라 고객에게는 자기 이름이 방 제목으로 보였다.
+  //   고객 화면에서만 프로젝트 없는 고객 방을 상대 워크스페이스 이름으로 보여 준다(DB 제목은 그대로, 2026-11-03 첫 길 점검 · Fable).
+  const viewConversations = useMemo(() => {
+    if (!isClientViewer) return conversations;
+    const ws = user?.business_name || '';
+    if (!ws) return conversations;
+    return conversations.map((c) => (c.channel_type === 'customer' && !c.project_id ? { ...c, name: ws } : c));
+  }, [conversations, isClientViewer, user?.business_name]);
   useEffect(() => { reallyVisibleRef.current = reallyVisible; }, [reallyVisible]);
   // 탭 이름 = 열려 있는 대화방 이름
-  useTabTitle(conversations.find((c) => c.id === activeConversationId)?.name);
+  useTabTitle(viewConversations.find((c) => c.id === activeConversationId)?.name);
   const [highlightCandidateId, setHighlightCandidateId] = useState<number | null>(initialCandidateId);
   // 진입 시 candidate 강조는 5초 후 자동 해제
   useEffect(() => {
@@ -1043,6 +1052,17 @@ const QTalkPage: React.FC<QTalkPageProps> = ({ embedded = false, initialConvId =
           return next;
         });
         saveQtalkCache(bid, mappedProjects, mappedConvs);
+
+        // 고객은 자기 대화방을 바로 연다(Irene 2026-08-31 «고객만 자동 선택») — 아래 프로젝트 effect 에도 같은 규칙이 있지만
+        //   그 effect 는 프로젝트가 골라졌을 때만 돈다. 프로젝트 없는 고객 대화방(초대 수락 때 생기는 환영 방)만 있는 고객은
+        //   영영 «대화를 시작해 보세요» 빈 판을 봤다(2026-11-03 첫 길 점검 · Fable). 폰·태블릿 드릴다운은 목록부터(뒤로 가기 규칙).
+        const isClientBoot = userRef.current?.business_role === 'client';
+        const drilldownBoot = typeof window !== 'undefined' && window.matchMedia('(max-width: 1024px)').matches;
+        if (isClientBoot && !drilldownBoot && mappedConvs.length > 0) {
+          const customer = mappedConvs.find((c) => c.channel_type === 'customer');
+          const pick = (customer ?? mappedConvs[0]).id;
+          setActiveConversationId((prev) => prev ?? pick);
+        }
 
         if (mappedProjects.length > 0) {
           const params = new URLSearchParams(window.location.search);
@@ -1804,7 +1824,7 @@ const QTalkPage: React.FC<QTalkPageProps> = ({ embedded = false, initialConvId =
         width={leftWidth}
         onResizeStart={startLeftResize}
         projects={projects}
-        conversations={conversations}
+        conversations={viewConversations}
         activeProjectId={activeProjectId}
         activeConversationId={activeConversationId}
         loading={loading}
@@ -1851,7 +1871,7 @@ const QTalkPage: React.FC<QTalkPageProps> = ({ embedded = false, initialConvId =
         embedded={embedded}
         pinSlot={pinSlot}
         project={activeProject}
-        conversations={conversations}
+        conversations={viewConversations}
         messages={messages}
         activeConversationId={activeConversationId}
         onSelectConversation={handleSelectChannel}
@@ -1864,7 +1884,8 @@ const QTalkPage: React.FC<QTalkPageProps> = ({ embedded = false, initialConvId =
         onRenameConversation={handleRenameConversation}
         onOpenSettings={activeConversationId ? () => setSettingsOpen(true) : undefined}
         candidatesCount={projectCandidates.length}
-        onOpenNewChat={() => setChatModalOpen(true)}
+        onOpenNewChat={isClientViewer ? undefined : () => setChatModalOpen(true)}
+        listLoading={loading && conversations.length === 0}
         onMobileBack={handleMobileBack}
         mobileHidden={activeConversationId === null}
         onLoadOlder={loadOlderMessages}
@@ -1924,11 +1945,11 @@ const QTalkPage: React.FC<QTalkPageProps> = ({ embedded = false, initialConvId =
         activeConversationId={activeConversationId}
         businessId={businessId}
         members={wsMembers}
-        activeConv={conversations.find((c) => c.id === activeConversationId) || null}
+        activeConv={viewConversations.find((c) => c.id === activeConversationId) || null}
         extracting={extracting}
         onOpenExtract={handleExtract}
         onToggleAutoExtract={handleToggleAutoExtract}
-        conversations={conversations}
+        conversations={viewConversations}
         tasks={tasks}
         notes={notes}
         issues={issues}

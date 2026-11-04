@@ -203,7 +203,9 @@ const LeftPanel: React.FC<Props> = ({
             {query ? t('left.noResults', '검색 결과 없음') : t('left.noChats', '아직 대화가 없습니다')}
             {/* 폰·태블릿은 이 목록만 보인다 — 데스크탑 오른쪽의 «대화를 시작해 보세요» 안내가 없어 막다른 화면이었다
                 (2026-10-09 새 팀 첫 길 점검). 데스크탑은 오른쪽 안내가 같은 버튼을 이미 갖고 있어 숨긴다. */}
-            {!query && (
+            {/* 고객은 대화방을 만들 수 없다(서버 403) — 버튼 대신 «담당 팀과의 대화방이 여기에 보여요» (2026-11-03 첫 길 점검) */}
+            {!query && isClient && <EmptyHint>{t('left.noChatsClient', '담당 팀과의 대화방이 여기에 보여요')}</EmptyHint>}
+            {!query && !isClient && (
               <EmptyStart>
                 <EmptyHint>{t('left.noChatsHint', '팀원과 첫 대화방을 만들어 보세요')}</EmptyHint>
                 <EmptyStartBtn type="button" data-testid="qtalk-empty-new-chat" onClick={onOpenNewChat}>
@@ -232,7 +234,7 @@ const LeftPanel: React.FC<Props> = ({
               <ChatBody>
                 <ChatTop>
                   <ChatName $active={isActive}><HighlightText text={c.name} query={query} /></ChatName>
-                  {c.channel_type === 'customer' && <CustomerTag>{t('channelBadge.customer', '고객')}</CustomerTag>}
+                  {c.channel_type === 'customer' && !isClient && <CustomerTag>{t('channelBadge.customer', '고객')}</CustomerTag>}
                 </ChatTop>
                 {/* 검색 — 행에 안 보이는 칸(프로젝트·고객사)에서 걸렸으면 왜 걸렸는지 한 줄 (공용 MatchReason) */}
                 {query.trim() && (() => {

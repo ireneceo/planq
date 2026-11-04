@@ -6,7 +6,7 @@
 //   버튼은 이미 헤더에 있지만, "지금 이걸 해야 한다" 고 말해 주는 것이 없었다.
 //
 // 설계 원칙:
-//   1. 조건이 맞을 때만 뜬다 — 고객 대화방 · 살아 있는 링크 0 · 내가 고객이 아님
+//   1. 조건이 맞을 때만 뜬다 — 고객 대화방 · 살아 있는 링크 0 · 내가 고객이 아님 · 계정으로 들어온 고객 참여자 0
 //   2. 링크가 생기면 **상태에서 파생돼** 저절로 사라진다. 별도 플래그를 두면 갈라진다
 //   3. 버튼은 기존 GuestLinkButton 을 그대로 연다 — 모달을 새로 만들지 않는다
 //   4. 닫으면 그 방에서는 다시 안 뜬다(방별 기억). 매번 뜨면 잔소리가 된다
@@ -43,6 +43,16 @@ export default function GuestLinkPrompt({ businessId, conversationId, clientName
 
   const check = useCallback(async () => {
     if (dismissedSet().has(conversationId)) { setState('hide'); return; }
+    // 고객이 이미 계정으로 들어와 있으면(초대 수락 — 참여자 역할 client) 링크가 없어도 «못 들어옵니다» 가 아니다.
+    //   방금 초대 수락한 고객의 방에서 이 띠가 떠 오너가 «초대가 안 됐나?» 했다(2026-11-03 첫 길 점검 · Fable).
+    try {
+      const pr = await apiFetch(`/api/conversations/${businessId}/${conversationId}/participants`);
+      if (pr.ok) {
+        const pj = await pr.json();
+        const parts: Array<{ role?: string }> = pj?.success ? (pj.data?.participants || []) : [];
+        if (parts.some((p) => p.role === 'client')) { setState('hide'); return; }
+      }
+    } catch { /* 모르면 종전 판정(링크 유무)으로 */ }
     try {
       const r = await apiFetch(`/api/conversations/${businessId}/${conversationId}/guest-links`);
       if (!r.ok) { setState('hide'); return; }   // 권한 없음 등 — 조용히 접는다

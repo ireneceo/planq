@@ -135,7 +135,8 @@
         "body": "“{{name}}” will be disconnected from its project. The chat, messages, and members remain — it moves to the “General” group.",
         "ok": "Detach"
       }
-    }
+    },
+    "noChatsClient": "Your conversations with the team appear here"
   },
   "archived": {
     "title": "Archived chats",
@@ -281,8 +282,8 @@
   },
   "chat": {
     "noProject": "Start a conversation",
-    "noProjectLine1": "Create a chat channel for real-time messaging,",
-    "noProjectLine2": "task management, and project integration.",
+    "noProjectLine1": "Project and client conversations live here.",
+    "noProjectLine2": "Start your first conversation with your team or a client.",
     "noProjectCta": "New conversation",
     "noChannel": "No conversation channel yet",
     "noChannelDesc": "Pick a channel on the left or create a new one.",
@@ -421,7 +422,8 @@
     "guestBadge": "Guest",
     "guestBadgeHint": "Joined through an invite link, without signing in",
     "dropHere": "Drop here to upload",
-    "sharedBand": "Your shared content is in the message box — check it and press Send"
+    "sharedBand": "Your shared content is in the message box — check it and press Send",
+    "clientEmptyTitle": "Pick a conversation"
   },
   "page": {
     "title": "Q talk",

@@ -278,7 +278,9 @@
     "todoOpen": "Open To-do",
     "loadFail": "Couldn't load your home.",
     "tabsAria": "Home tabs",
-    "bills": "Bills"
+    "bills": "Bills",
+    "noIntroClient": "See your conversations, projects and invoices with {{ws}} here.",
+    "voiceToggle": "Show my name in meeting notes (optional)"
   },
   "stats": {
     "bWaiting": "Waiting",

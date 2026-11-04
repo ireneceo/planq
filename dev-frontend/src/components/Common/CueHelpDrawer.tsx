@@ -1478,6 +1478,9 @@ const FloatingTrigger = styled.button`
   @media (max-width: 1024px) {
     body:has([aria-modal="true"]) &,
     body:has([data-memo-popup="1"]) & { opacity: 0; pointer-events: none; visibility: hidden; }
+    /* 대화방 입력줄이 떠 있으면 숨긴다 — 보내기 버튼을 가렸다(ChatPanel 이 표식을 단다, 2026-11-03).
+       ≤1024 = Q talk 드릴다운 폭(입력줄이 화면 전체 폭) — RightDock 의 하단 입력줄 규칙과 같은 기준 */
+    body[data-chat-composer-open="1"] & { display: none; }
   }
   @media (max-width: 640px) {
     right: 16px; bottom: 16px;

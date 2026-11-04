@@ -12,6 +12,20 @@ import { isNativeApp, nativePlatform, openAppNotificationSettings } from '../../
 import { nativePushStatus } from '../../services/nativePush';
 
 const SESSION_DISMISS_KEY = 'pq_push_prompt_dismiss_session';
+// 이 브라우저의 첫 세션에는 띄우지 않는다(웹) — 막 가입·초대 수락한 사람의 첫 화면에 주황 «알림이 꺼져/차단되어 있어요» 가
+//   설치 카드·체험 카드와 겹쳐 «뭔가 고장났다» 로 읽혔다(2026-11-03 첫 길 점검 · Fable «한 번에 권유 하나»).
+//   둘째 세션(탭을 닫고 다시 온 때)부터 종전대로 적극 유도한다. 앱(네이티브)은 그대로 — 앱을 깐 이유가 알림이다.
+const FIRST_SEEN_KEY = 'pq_push_prompt_first_seen';
+const FIRST_SESSION_KEY = 'pq_push_prompt_first_session';
+function isFirstWebSession(): boolean {
+  try {
+    if (sessionStorage.getItem(FIRST_SESSION_KEY) === '1') return true;
+    if (localStorage.getItem(FIRST_SEEN_KEY)) return false;
+    localStorage.setItem(FIRST_SEEN_KEY, String(Date.now()));
+    sessionStorage.setItem(FIRST_SESSION_KEY, '1');
+    return true;
+  } catch { return false; }
+}
 
 // iOS Safari 비-PWA 감지 — push 미지원이지만 별도 안내 ("홈 화면에 추가 후")
 function isIosNotPwa(): boolean {
@@ -33,6 +47,7 @@ export default function PushPromptBanner() {
   const [dismissed, setDismissed] = useState<boolean>(() => {
     try { return sessionStorage.getItem(SESSION_DISMISS_KEY) === '1'; } catch { return false; }
   });
+  const [firstSession] = useState<boolean>(() => !isNativeApp() && isFirstWebSession());
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const iosNotPwa = isIosNotPwa();
@@ -85,7 +100,7 @@ export default function PushPromptBanner() {
     })();
   }, [status, refresh]);
 
-  if (dismissed) return null;
+  if (dismissed || firstSession) return null;
 
   // ★ 네이티브앱: OS 권한 기준으로 표시 (웹 문구/상태 사용 안 함).
   if (native) {

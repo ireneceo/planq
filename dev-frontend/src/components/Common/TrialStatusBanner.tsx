@@ -125,6 +125,10 @@ const TrialStatusBanner: React.FC<Props> = ({ businessId }) => {
         : t('trialBanner.trialEnding.desc', '체험 종료 후 자동 잠금되지 않도록 미리 결제하세요.');
     } else {
       if (!isOwner) return null;
+      // 가입 첫날(체험 14일 중 남은 날 14)에는 이 카드를 띄우지 않는다 — 쓰기도 전에 결제 권유가 첫 화면에 서면
+      //   막 들어온 사람에게 «돈 얘기부터» 로 읽힌다(2026-11-03 첫 길 점검 · Fable). 머리줄 «체험 14일» 칩은 그대로,
+      //   둘째 날부터 종전대로 «+1개월 받고 결제» 제안이 뜬다(2026-10-09 결제 유도 지시 유지).
+      if (days >= 14) return null;
       tone = 'info';
       // 체험 플랜은 가입 때 고른다(혼자 Starter · 팀 Basic · 큰 팀 Pro) — 이름을 박아 두면 팀 체험에도 «Starter» 가 떴다.
       const planName = status.plan?.name || status.plan?.code || '';

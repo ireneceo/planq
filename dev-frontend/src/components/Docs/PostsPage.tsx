@@ -1792,6 +1792,8 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId, onEditingChange }) =>
               <ListSortSelect value={listSort} onChange={setListSort} />
             </AtSortWrap>
             <AtToolbarRight>
+            {/* 고객은 문서를 만들지 않는다(서버 403) — 만들기·AI·카테고리 추가를 보이지 않는다(2026-11-03 첫 길 점검 · Fable) */}
+            {!isClientViewer && <>
             <AiActionButton size="filter" onClick={() => { setAiIntent('ai'); setAiOpen(true); }} label={t('ai.btn', 'AI')} title={t('ai.openHint', 'AI 가 문서 본문을 자동 작성') as string} />
             <NewBtnWrap>
               <NewBtn type="button" data-testid="docs-new" onClick={() => setNewDropdownOpen(v => !v)} title={t('btn.new') as string} aria-label={t('btn.new') as string} aria-expanded={newDropdownOpen}>
@@ -1819,6 +1821,7 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId, onEditingChange }) =>
                 </NewDropdown>
               )}
             </NewBtnWrap>
+            </>}
             </AtToolbarRight>
           </AtToolbar>
           <AtSplit>
@@ -1897,7 +1900,7 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId, onEditingChange }) =>
                     onBlur={async () => { const v = newCatDraft.trim(); setNewCatOpen(false); setNewCatDraft(''); if (!v) return; try { await createCategory(scope.businessId, v, scopeProjectId ?? null); await loadMeta(); setFilter({ kind: 'category', name: v }); } catch { /* silent */ } }}
                     onKeyDown={e => { if (isEnterAction(e)) (e.target as HTMLInputElement).blur(); if (e.key === 'Escape') { setNewCatOpen(false); setNewCatDraft(''); } }}
                     placeholder={t('filter.newCategoryPlaceholder', '카테고리 이름 (Enter)') as string} maxLength={40} />
-                ) : (
+                ) : !isClientViewer && (
                   <AddCatBtn type="button" onClick={() => setNewCatOpen(true)} title={t('filter.addCategory', '카테고리 추가') as string}>
                     + {t('filter.addCategory', '카테고리 추가')}
                   </AddCatBtn>
@@ -1915,12 +1918,12 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId, onEditingChange }) =>
                       <polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>
                     </svg>
                   )}
-                  title={t('empty.title', '문서를 시작하세요') as string}
-                  description={t('empty.line1', '매뉴얼 · 가이드 · 공지 · 회의록 — 팀이 함께 읽는 문서를 만들어 보세요.') as string}
-                  ctaLabel={t('newDropdown.blankLabel', { defaultValue: '빈 문서' }) as string}
-                  onCta={startNew}
-                  secondaryCtaLabel={t('newDropdown.tableLabel', { defaultValue: '표' }) as string}
-                  onSecondaryCta={() => { setAiIntent('manual'); setAiDefaultMode('table'); setAiOpen(true); }}
+                  title={isClientViewer ? t('empty.clientTitle', '아직 공유받은 문서가 없어요') as string : t('empty.title', '문서를 시작하세요') as string}
+                  description={isClientViewer ? t('empty.clientLine', '공유받은 문서가 여기에 보여요') as string : t('empty.line1', '매뉴얼 · 가이드 · 공지 · 회의록 — 팀이 함께 읽는 문서를 만들어 보세요.') as string}
+                  ctaLabel={isClientViewer ? undefined : t('newDropdown.blankLabel', { defaultValue: '빈 문서' }) as string}
+                  onCta={isClientViewer ? undefined : startNew}
+                  secondaryCtaLabel={isClientViewer ? undefined : t('newDropdown.tableLabel', { defaultValue: '표' }) as string}
+                  onSecondaryCta={isClientViewer ? undefined : () => { setAiIntent('manual'); setAiDefaultMode('table'); setAiOpen(true); }}
                 />
               ) : (
                 <AtGrid>
@@ -1989,6 +1992,8 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId, onEditingChange }) =>
             </HelpDot>
           </TitleGroup>
           <HeaderBtnRow>
+            {/* 고객은 문서를 만들지 않는다(서버 403) — 2026-11-03 첫 길 점검 · Fable */}
+            {!isClientViewer && <>
             <AiActionButton
               onClick={() => { setAiIntent('ai'); setAiOpen(true); }}
               label={t('ai.btn', 'AI')}
@@ -2021,6 +2026,7 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId, onEditingChange }) =>
                 </NewDropdown>
               )}
             </NewBtnWrap>
+            </>}
           </HeaderBtnRow>
         </PanelHeader>
 
@@ -2029,7 +2035,7 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId, onEditingChange }) =>
         <SearchWrap>
           <SearchBox width="100%" value={query} onChange={setQuery} placeholder={t('search.placeholder', '제목·내용·프로젝트 검색') as string} />
           <ListSortSelect variant="icon" data-testid="docs-sort" value={listSort} onChange={setListSort} />
-          <TrashButton active={trashOpen} data-testid="docs-trash-open" onClick={() => setTrashOpen(true)} />
+          {!isClientViewer && <TrashButton active={trashOpen} data-testid="docs-trash-open" onClick={() => setTrashOpen(true)} />}
         </SearchWrap>
 
         <FilterSection>
@@ -2118,7 +2124,7 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId, onEditingChange }) =>
               placeholder={t('filter.newCategoryPlaceholder', '카테고리 이름 (Enter)') as string}
               maxLength={40}
             />
-          ) : (
+          ) : !isClientViewer && (
             <AddCatBtn type="button" onClick={() => setNewCatOpen(true)} title={t('filter.addCategory', '카테고리 추가') as string}>
               + {t('filter.addCategory', '카테고리 추가')}
             </AddCatBtn>
@@ -2162,17 +2168,17 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId, onEditingChange }) =>
                   <line x1="16" y1="17" x2="8" y2="17"/>
                 </svg>
               )}
-              title={t('empty.title') as string}
-              description={t('empty.line1') as string}
-              ctaLabel={t('newDropdown.blankLabel', { defaultValue: '빈 문서' }) as string}
+              title={isClientViewer ? t('empty.clientTitle', '아직 공유받은 문서가 없어요') as string : t('empty.title') as string}
+              description={isClientViewer ? t('empty.clientLine', '공유받은 문서가 여기에 보여요') as string : t('empty.line1') as string}
+              ctaLabel={isClientViewer ? undefined : t('newDropdown.blankLabel', { defaultValue: '빈 문서' }) as string}
               ctaIcon={(
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round">
                   <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
                 </svg>
               )}
-              onCta={startNew}
-              secondaryCtaLabel={t('newDropdown.tableLabel', { defaultValue: '표' }) as string}
-              onSecondaryCta={() => { setAiIntent('manual'); setAiDefaultMode('table'); setAiOpen(true); }}
+              onCta={isClientViewer ? undefined : startNew}
+              secondaryCtaLabel={isClientViewer ? undefined : t('newDropdown.tableLabel', { defaultValue: '표' }) as string}
+              onSecondaryCta={isClientViewer ? undefined : () => { setAiIntent('manual'); setAiDefaultMode('table'); setAiOpen(true); }}
             />
           ) : (
             filtered.map(r => (
@@ -2959,24 +2965,24 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId, onEditingChange }) =>
                 <polyline points="10 9 9 9 8 9"/>
               </svg>
             )}
-            title={t('empty.title', '문서를 시작하세요') as string}
-            description={(
+            title={isClientViewer ? t('empty.clientTitle', '아직 공유받은 문서가 없어요') as string : t('empty.title', '문서를 시작하세요') as string}
+            description={isClientViewer ? t('empty.clientLine', '공유받은 문서가 여기에 보여요') as string : (
               <>
                 {t('empty.line1', '매뉴얼 · 가이드 · 공지 · 회의록 — 팀이 함께 읽는 문서를 만들어 보세요.')}
                 <br />
                 {t('empty.line2', '왼쪽 목록에서 기존 문서를 선택하거나, 새로 작성할 수 있습니다.')}
               </>
             )}
-            ctaLabel={t('newDropdown.blankLabel', { defaultValue: '빈 문서' }) as string}
+            ctaLabel={isClientViewer ? undefined : t('newDropdown.blankLabel', { defaultValue: '빈 문서' }) as string}
             ctaIcon={(
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round">
                 <line x1="12" y1="5" x2="12" y2="19"/>
                 <line x1="5" y1="12" x2="19" y2="12"/>
               </svg>
             )}
-            onCta={startNew}
-            secondaryCtaLabel={t('newDropdown.tableLabel', { defaultValue: '표' }) as string}
-            onSecondaryCta={() => { setAiIntent('manual'); setAiDefaultMode('table'); setAiOpen(true); }}
+            onCta={isClientViewer ? undefined : startNew}
+            secondaryCtaLabel={isClientViewer ? undefined : t('newDropdown.tableLabel', { defaultValue: '표' }) as string}
+            onSecondaryCta={isClientViewer ? undefined : () => { setAiIntent('manual'); setAiDefaultMode('table'); setAiOpen(true); }}
           />
         )}
       </Content>

@@ -83,6 +83,17 @@ function readCollapsed(): boolean {
 function writeCollapsed(v: boolean): void {
   try { if (v) localStorage.setItem(COLLAPSE_KEY, '1'); else localStorage.removeItem(COLLAPSE_KEY); } catch { /* 시크릿 모드 등 */ }
 }
+// «확인 필요» 자리는 **접힌 채로 시작**한다 — 펼쳐 두면 정작 확인할 목록이 한 화면 아래로 밀렸다
+//   (2026-11-03 첫 길 점검 · Fable). 그 자리에서 펼치면 기억한다(대시보드·설정의 접기와는 따로).
+const INBOX_EXPAND_KEY = 'planq.onboarding.inboxExpanded';
+function readCollapsedFor(variant: string): boolean {
+  if (variant !== 'inbox') return readCollapsed();
+  try { return localStorage.getItem(INBOX_EXPAND_KEY) !== '1'; } catch { return true; }
+}
+function writeCollapsedFor(variant: string, v: boolean): void {
+  if (variant !== 'inbox') { writeCollapsed(v); return; }
+  try { if (v) localStorage.removeItem(INBOX_EXPAND_KEY); else localStorage.setItem(INBOX_EXPAND_KEY, '1'); } catch { /* 시크릿 모드 등 */ }
+}
 
 interface Props {
   businessId: number | null;
@@ -95,7 +106,7 @@ const OnboardingChecklist: React.FC<Props> = ({ businessId, variant = 'dashboard
   const navigate = useNavigate();
   const [state, setState] = useState<OnboardingState | null>(null);
   const [busy, setBusy] = useState(false);
-  const [collapsed, setCollapsed] = useState<boolean>(readCollapsed);
+  const [collapsed, setCollapsed] = useState<boolean>(() => readCollapsedFor(variant));
   // 들여다보는 단계 — null 이면 서버가 정한 «지금 단계». 보는 사람의 편의라 저장하지 않는다.
   const [picked, setPicked] = useState<number | null>(null);
 
@@ -114,7 +125,7 @@ const OnboardingChecklist: React.FC<Props> = ({ businessId, variant = 'dashboard
   useVisibilityRefresh(load);
 
   const toggleCollapsed = () => {
-    setCollapsed((v) => { writeCollapsed(!v); return !v; });
+    setCollapsed((v) => { writeCollapsedFor(variant, !v); return !v; });
   };
 
   const dismiss = async () => {

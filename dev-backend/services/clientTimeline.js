@@ -54,7 +54,13 @@ async function getClientTimeline(businessId, clientId, { userId, limit = 40, bef
     const convMap = new Map(convs.map((c) => [c.id, c.title]));
     if (convMap.size) {
       // Message 는 business_id 없음 (Conversation 이 보유) — conversation_id IN 으로 이미 biz+client 스코프됨
-      const where = { conversation_id: { [Op.in]: [...convMap.keys()] }, is_deleted: false };
+      // 보내지 않은 Cue 초안(승인 전·거절)은 고객과의 이력이 아니다 — 고객은 본 적이 없다.
+      //   고객 상세 첫 줄에 «안녕하세요, 문의 주셔서 감사합니다…» 초안이 «채팅» 활동으로 떴다(2026-11-03 첫 길 점검 · Fable).
+      //   초안은 ai_mode_used='draft' 이고 발송되면 ai_draft_approved=true 가 된다(models/Message.js).
+      const where = {
+        conversation_id: { [Op.in]: [...convMap.keys()] }, is_deleted: false,
+        [Op.or]: [{ ai_mode_used: null }, { ai_mode_used: { [Op.ne]: 'draft' } }, { ai_draft_approved: true }],
+      };
       if (beforeDate) where.createdAt = { [Op.lt]: beforeDate };
       const msgs = await Message.findAll({
         where, order: [['createdAt', 'DESC']], limit: perSource,

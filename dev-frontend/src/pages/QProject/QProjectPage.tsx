@@ -398,8 +398,8 @@ const QProjectPage: React.FC = () => {
             </FilterSegBtn>
           ))}
         </FilterSeg>
-        {/* #99 — 고객/내부 구분 필터 */}
-        <FilterSeg role="tablist" aria-label={t('filter.kindLabel', '구분') as string}>
+        {/* #99 — 고객/내부 구분 필터 · 고객에게는 없다(고객이 보는 프로젝트는 전부 자기 것이라 뜻이 없다 — 2026-11-03 첫 길 점검) */}
+        {user?.business_role !== 'client' && <FilterSeg role="tablist" aria-label={t('filter.kindLabel', '구분') as string}>
           {(['all', 'client', 'internal'] as const).map((k) => (
             <FilterSegBtn key={k} type="button" $active={kindFilter === k}
               role="tab" aria-selected={kindFilter === k}
@@ -407,7 +407,7 @@ const QProjectPage: React.FC = () => {
               {t(`filter.kind.${k}`, k === 'all' ? '전체' : k === 'client' ? '고객' : '내부')}
             </FilterSegBtn>
           ))}
-        </FilterSeg>
+        </FilterSeg>}
         {/* #99 — 정렬 */}
         <SelectWrap>
           <PlanQSelect size="sm" isClearable={false} isSearchable={false}

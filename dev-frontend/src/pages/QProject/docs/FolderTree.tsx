@@ -11,6 +11,7 @@ import { useFolderDrop, type FolderDropFn } from './folderDrop';
 import OverflowMenu from '../../../components/Common/OverflowMenu';
 import { isEnterAction } from '../../../utils/imeKey';
 import { useFolderEditing } from './useFolderEditing';
+import { useAuth } from '../../../contexts/AuthContext';
 import type { FileFolder, FileSource, FolderDeleteOutcome } from '../../../services/files';
 import type { FolderSel } from './folderSel';
 
@@ -50,6 +51,8 @@ interface FolderTreeProps {
 }
 
 const FolderTree: React.FC<FolderTreeProps> = ({ folders, counts, total, selected, onSelect, onCreate, onRename, onDelete, onReorder, onDropFiles, onDropExternal, onDownloadFolder, onShareFolder, folderDrop: folderDropProp, tr, foldersOnly, projectName, projectColor, countDeep, trashDays }) => {
+  const { user } = useAuth();
+  const isClientViewer = user?.business_role === 'client';
   const ownDrop = useFolderDrop(onDropFiles, onDropExternal);
   const folderDrop = folderDropProp || ownDrop;
   const [creatingParent, setCreatingParent] = useState<number | null | undefined>(undefined);
@@ -238,7 +241,8 @@ const FolderTree: React.FC<FolderTreeProps> = ({ folders, counts, total, selecte
 
         {/* 자동으로 모이는 출처 — 프로젝트 행과 **같은 왼쪽 기준**이다(하위가 아니다). */}
         {/* «연결됨» 은 다른 프로젝트 소속 파일을 이 프로젝트에 건 것 — 있을 때만 칸을 세운다(docs/PROJECT_REFS_DESIGN.md) */}
-        {(['chat', 'task', 'meeting', 'post', 'mail', 'linked'] as FileSource[]).filter(src => src !== 'linked' || counts.bySrc.linked > 0).map(src => (
+        {/* 고객에게는 «메일» 출처가 없다 — 고객은 Q mail 을 쓰지 않아 늘 0 인 칸이었다(2026-11-03 첫 길 점검 · Fable) */}
+        {(['chat', 'task', 'meeting', 'post', 'mail', 'linked'] as FileSource[]).filter(src => src !== 'linked' || counts.bySrc.linked > 0).filter(src => !isClientViewer || src !== 'mail').map(src => (
           <TreeRow key={src} selected={selected === `src:${src}`} onClick={() => onSelect(`src:${src}`)}
             icon={<FolderIconWrap $sys={src} $selected={selected === `src:${src}`}><SystemFolderIcon src={src} /></FolderIconWrap>}
             name={sourceShortLabel(src, tr)} count={counts.bySrc[src]} />

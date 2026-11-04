@@ -77,6 +77,8 @@ interface Props {
   extracting?: boolean;
   onFocusCandidates?: () => void; // (legacy — 배너에서 더 이상 사용 안 함, 호출자 호환 유지)
   onOpenNewChat?: () => void;
+  /** 대화 목록이 아직 오는 중 — 그동안 «대화를 시작해 보세요» 빈 판을 그리지 않는다(있는 방이 곧 열린다) */
+  listLoading?: boolean;
   /** 모바일(<=tablet) 에서 리스트로 돌아가기 */
   onMobileBack?: () => void;
   /** 모바일에서 대화가 선택되지 않은 경우 ChatPanel 을 숨김 */
@@ -133,7 +135,7 @@ const ChatPanel: React.FC<Props> = ({
   onSendMessage, onCueDraftSend, onCueDraftReject, onRenameConversation, onOpenSettings,
   candidatesCount,
   onOpenNewChat, onMobileBack, mobileHidden = false, pinSlot,
-  onLoadOlder, hasMoreOlder = false, loadingOlder = false, jumpToLatestSignal = 0,
+  onLoadOlder, hasMoreOlder = false, loadingOlder = false, jumpToLatestSignal = 0, listLoading = false,
   loadFailed = false, onRetryLoad,
 }) => {
   const { t } = useTranslation('qtalk');
@@ -930,6 +932,13 @@ const ChatPanel: React.FC<Props> = ({
       return cv ? cv.call(el, { visibilityProperty: true }) : el.getClientRects().length > 0;
     });
   }, [activeConv?.id, mobileHidden]);
+  // 대화방 입력줄이 떠 있다고 body 에 알린다 — 고객·게스트용 Q helper 둥근 버튼(CueHelpDrawer)이 폰·태블릿에서
+  //   보내기 버튼 위에 겹쳤다(2026-11-03 첫 길 점검 · Fable). 직원용 도크(RightDock)는 주소(?conv)로 같은 일을 이미 한다.
+  React.useEffect(() => {
+    if (!activeConv?.id || mobileHidden) return;
+    document.body.dataset.chatComposerOpen = '1';
+    return () => { delete document.body.dataset.chatComposerOpen; };
+  }, [activeConv?.id, mobileHidden]);
 
   const scrollKey = (convId: number | null | undefined) => convId ? `qtalk_scroll_${convId}` : null;
 
@@ -1266,6 +1275,24 @@ const ChatPanel: React.FC<Props> = ({
 
   // 활성 대화가 없을 때만 EmptyState. 독립 대화(project null)도 activeConv 가 있으면 그대로 렌더.
   if (!activeConv && !project) {
+    // 목록이 오는 중이면 빈 판만 — 곧 열릴 방 앞에 «대화를 시작해 보세요» 가 1~2초 떴다(2026-11-03 첫 길 점검)
+    if (listLoading) return <Container $mobileHidden={mobileHidden} aria-busy="true" />;
+    // 고객은 대화방을 만들지 않는다 — 버튼 없이 «담당 팀과의 대화방» 안내
+    if (isClient) {
+      return (
+        <Container $mobileHidden={mobileHidden}>
+          <EmptyState
+            icon={
+              <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+              </svg>
+            }
+            title={t('chat.clientEmptyTitle', '대화방을 골라 주세요')}
+            description={t('left.noChatsClient', '담당 팀과의 대화방이 여기에 보여요')}
+          />
+        </Container>
+      );
+    }
     return (
       <Container $mobileHidden={mobileHidden}>
         <EmptyState
@@ -1276,9 +1303,9 @@ const ChatPanel: React.FC<Props> = ({
           }
           title={t('chat.noProject', '대화를 시작해 보세요')}
           description={<>
-            {t('chat.noProjectLine1', '실시간 채팅, 업무 관리, 프로젝트 연동을 위한')}
+            {t('chat.noProjectLine1', '프로젝트·고객별 대화방이 여기에 모여요.')}
             <br />
-            {t('chat.noProjectLine2', '대화채널을 만들어드립니다.')}
+            {t('chat.noProjectLine2', '팀원·고객과 첫 대화방을 만들어 보세요.')}
           </>}
           ctaLabel={onOpenNewChat ? t('chat.noProjectCta', '새 대화 시작') : undefined}
           ctaIcon={
@@ -1443,10 +1470,11 @@ const ChatPanel: React.FC<Props> = ({
           달라지지 않는다** — 방을 옮길 때 본문 시작 y 가 튀면 그게 곧 "정돈 안 돼 보임" 이다. */}
       <ChatMetaBar data-testid="chat-header-band2">
         <DetailMetaLeft>
-          {activeConv.channel_type === 'customer'
+          {/* 고객에게는 «고객» 칩·자기 이름 링크(→ 직원용 Q sales, 고객은 403)를 보이지 않는다(2026-11-03 첫 길 점검) */}
+          {isClient ? null : activeConv.channel_type === 'customer'
             ? <CustomerTag>{t('channelBadge.customer', '고객')}</CustomerTag>
             : <InternalTag>{t('channelBadge.internal', '내부')}</InternalTag>}
-          {activeConv.channel_type === 'customer' && activeConv.client && (
+          {!isClient && activeConv.channel_type === 'customer' && activeConv.client && (
             <CustomerLink
               type="button"
               onClick={() => navigate(`/sale/${activeConv.client!.id}`)}
@@ -1942,7 +1970,7 @@ const ChatPanel: React.FC<Props> = ({
                   }
                   return (
                     <>
-                      <MessageText $question={!!m.is_question}>{renderTextWithLinks(m.body)}</MessageText>
+                      <MessageText $question={!isClient && !!m.is_question}>{renderTextWithLinks(m.body)}</MessageText>
                       {translated && <TranslatedText>{renderTextWithLinks(translated)}</TranslatedText>}
                     </>
                   );

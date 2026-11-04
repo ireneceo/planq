@@ -20,12 +20,14 @@ const Container = styled.div`
   align-items: center;
   justify-content: center;
   padding: 20px;
+  /* 동의 카드(MarketingTags)가 떠 있으면 그 높이만큼 바닥 여백 — 카드가 약관·버튼을 덮지 않게 */
+  padding-bottom: calc(20px + var(--pq-consent-h, 0px));
 
   /* 모바일: 내용이 뷰포트보다 크면 flex 중앙정렬은 상단이 잘려(스크롤로 위로 못 감)
      회원가입 폼 상단이 사라진다. 상단정렬 + 상하 여백으로 폼 전체 도달 가능하게. */
   @media (max-width: 768px) {
     justify-content: flex-start;
-    padding: 16px 12px calc(24px + var(--pq-safe-bottom, 0px));
+    padding: 16px 12px calc(24px + var(--pq-safe-bottom, 0px) + var(--pq-consent-h, 0px));
   }
 `;
 
@@ -345,6 +347,7 @@ const RegisterPage: React.FC = () => {
   //   «14일 무료 체험 · 무료로 시작하기» 만 보여 팀원이 새 회사를 만드는 줄 알았다). 실패하면 보통 가입 화면 그대로.
   const [inviteWorkspace, setInviteWorkspace] = useState<string | null>(null);
   // 고객 초대(프로젝트·워크스페이스 고객)인지 — 고객에게 «팀원으로 합류» 라고 쓰면 자기가 그 회사 직원이 되는 줄 안다(2026-11-03).
+  //   누가 불렀는지는 왼쪽 판(폰은 위 띠)이 말하므로 부제는 할 일만 — 같은 문장을 두 번 쓰지 않는다.
   const [inviteIsClient, setInviteIsClient] = useState(false);
   useEffect(() => {
     if (!inviteToken) return;
@@ -446,15 +449,18 @@ const RegisterPage: React.FC = () => {
         <LeftSection>
           <BrandLogo>Plan<span>Q</span></BrandLogo>
           <BrandTagline>
-            {t('brand.description')}
+            {/* 초대 가입은 우리 제품 홍보가 아니라 «누가 불렀는지» 를 말한다(2026-11-03 첫 길 점검 · Fable) */}
+            {inviteToken && inviteWorkspace
+              ? t('brand.inviteDescription', { name: inviteWorkspace, defaultValue: '{{name}} 의 초대로 들어왔어요. 계정만 만들면 대화·자료·일정을 한곳에서 봅니다.' })
+              : t('brand.description')}
           </BrandTagline>
-          <FeatureList>
+          {!inviteToken && <FeatureList>
             <FeatureItem><CheckIcon /> {t('brand.featureTalk')}</FeatureItem>
             <FeatureItem><CheckIcon /> {t('brand.featureTask')}</FeatureItem>
             <FeatureItem><CheckIcon /> {t('brand.featureNote')}</FeatureItem>
             <FeatureItem><CheckIcon /> {t('brand.featureFile')}</FeatureItem>
             <FeatureItem><CheckIcon /> {t('brand.featureBill')}</FeatureItem>
-          </FeatureList>
+          </FeatureList>}
         </LeftSection>
 
         <RightSection>
@@ -464,7 +470,7 @@ const RegisterPage: React.FC = () => {
               ? t('register.addSubtitle', { name: add.fromName, defaultValue: '{{name}} 계정은 그대로 두고 새 계정을 만들어요. 프로필 메뉴에서 눌러 바꿀 수 있어요.' })
               : inviteToken
               ? (inviteWorkspace && inviteIsClient
-                ? t('register.inviteSubtitleClient', { name: inviteWorkspace, defaultValue: '{{name}} 와(과) 함께 일하는 공간에 들어갑니다. 계정만 만들면 대화·자료·일정을 바로 볼 수 있어요.' })
+                ? t('register.inviteSubtitleClient', { name: inviteWorkspace, defaultValue: '이름과 비밀번호만 정하면 바로 들어갑니다.' })
                 : inviteWorkspace
                 ? t('register.inviteSubtitle', { name: inviteWorkspace, defaultValue: '{{name}} 에 팀원으로 합류합니다. 계정만 만들면 바로 들어갑니다.' })
                 : t('register.inviteSubtitleNoName', '초대받은 워크스페이스에 합류합니다. 계정만 만들면 바로 들어갑니다.'))

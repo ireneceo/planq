@@ -38,6 +38,7 @@ type TabKey = typeof TAB_KEYS[number];
 export default function ClientHomePage() {
   const { t } = useTranslation('guest');
   const { user } = useAuth();
+  const [voiceOpen, setVoiceOpen] = useState(false);
   const navigate = useNavigate();
   const [sp, setSp] = useSearchParams();
   const bizId = user?.business_id || null;
@@ -133,11 +134,19 @@ export default function ClientHomePage() {
         {tab === 'info' && (
           <Pane data-testid="home-body-info">
             <EntryInfoView entry={home?.entry || null} bookingOn={bookingOn}
-              onAsk={openChat} onBook={() => { setReschedule(null); go('book'); }} />
+              onAsk={openChat} onBook={() => { setReschedule(null); go('book'); }}
+              emptyText={t('home.noIntroClient', { ws: home?.workspace?.name || '', defaultValue: '{{ws}} 와의 대화·프로젝트·청구서를 여기서 봅니다.' }) as string} />
             {/* 2026-10-05 목소리 프로필 — 팀원 프로필과 **같은 컴포넌트**(VOICE_PROFILE_DESIGN §5-3).
-                고객은 로그인 계정이 있을 때만 등록할 수 있고, 연결된 상담 회의에서만 이름이 붙는다. */}
+                고객은 로그인 계정이 있을 때만 등록할 수 있고, 연결된 상담 회의에서만 이름이 붙는다.
+                ★ 접힌 한 줄로 시작한다(2026-11-03 첫 길 점검 · Fable) — 처음 온 고객의 첫 화면에 목소리 특징값 동의 글이
+                  펼쳐져 있으면 «왜 내 목소리를?» 이 첫 질문이 된다. 필요한 사람만 펼친다. */}
             <VoiceCard data-testid="client-home-voice">
-              <VoiceProfileSection variant="client" />
+              <VoiceToggle type="button" aria-expanded={voiceOpen} data-testid="client-home-voice-toggle"
+                onClick={() => setVoiceOpen((v) => !v)}>
+                <span>{t('home.voiceToggle', { defaultValue: '회의록에 내 이름 표시하기 (선택)' })}</span>
+                <VoiceChevron $open={voiceOpen} aria-hidden>›</VoiceChevron>
+              </VoiceToggle>
+              {voiceOpen && <VoiceBody><VoiceProfileSection variant="client" /></VoiceBody>}
             </VoiceCard>
           </Pane>
         )}
@@ -178,7 +187,18 @@ const TodoBar = styled.button`
 `;
 const TodoGo = styled.span`flex-shrink:0;font-size:0.75rem;font-weight:700;`;
 const Warn = styled.div`padding:9px 12px;background:#FFF1F2;border:1px solid #FECDD3;border-radius:8px;font-size:0.75rem;color:#B91C3C;`;
+const VoiceToggle = styled.button`
+  display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;min-height:36px;
+  padding:0;background:none;border:none;cursor:pointer;text-align:left;
+  font-size:0.875rem;font-weight:600;color:#334155;
+  &:hover{color:#0F766E;}
+`;
+const VoiceChevron = styled.span<{ $open: boolean }>`
+  font-size:1.125rem;line-height:1;color:#94A3B8;transition:transform 0.15s;
+  transform:rotate(${(p) => (p.$open ? '90deg' : '0deg')});
+`;
+const VoiceBody = styled.div`margin-top:10px;`;
 const VoiceCard = styled.section`
-  background:#fff;border:1px solid #E2E8F0;border-radius:12px;padding:16px 18px;
+  background:#fff;border:1px solid #E2E8F0;border-radius:12px;padding:10px 18px;
   @media (max-width:640px){padding:14px;}
 `;

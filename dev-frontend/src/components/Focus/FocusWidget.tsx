@@ -262,6 +262,8 @@ const FocusWidget: React.FC<Props> = ({ isCollapsed, embedded }) => {
   };
   const onView = () => session?.task_id && navigate(`/tasks?task=${session.task_id}`);
 
+  // 고객은 Q Task «진행 시작» 을 쓰지 않는다 — «Q Task 에서 진행 시작 시 자동 측정 / 내 업무로 가기» 가 거짓이 된다(2026-11-03 첫 길 점검 · Fable)
+  if (user?.business_role === 'client') return null;
   if (enabled === null) return null;  // loading
   if (!enabled) return null;  // 비활성 — zero overhead
 

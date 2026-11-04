@@ -176,6 +176,8 @@
     "system": "Default"
   },
   "empty": {
+    "clientTitle": "No shared documents yet",
+    "clientLine": "Documents shared with you appear here",
     "title": "Start a document",
     "line1": "Manuals · guides · announcements · meeting notes — write what your team needs to read together.",
     "line2": "Pick an existing doc from the left, or create a new one."

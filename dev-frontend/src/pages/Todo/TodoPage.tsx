@@ -370,7 +370,8 @@ const TodoPage: React.FC = () => {
         return (
           <>
             <TabBar role="tablist">
-              {TAB_LIST.map((tab) => (
+              {/* 고객에게는 메일·영업 탭이 없다 — 고객이 쓰지 않는 메뉴라 늘 0 인 칸이었다(2026-11-03 첫 길 점검 · Fable) */}
+              {TAB_LIST.filter((tab) => user?.business_role !== 'client' || (tab !== 'mail' && tab !== 'sale')).map((tab) => (
                 <TabBtn key={tab} role="tab" type="button" aria-selected={activeTab === tab}
                   $active={activeTab === tab} onClick={() => setActiveTab(tab)}>
                   <span>{t(`todo.tab.${tab}`, {
