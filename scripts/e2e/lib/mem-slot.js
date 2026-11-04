@@ -7,12 +7,14 @@
 //   부르는 곳: run.js · lib/browser.js · puppeteer 를 직접 여는 카나리들(첫 줄).
 //   몫: 1500MB — 실측 2026-11-03 collapsed+mobilechrome 상자 정점 1140MB(+15% ≈ 1310) + 더 무거운 스위트 여유.
 //     몫 1000(상자 1300)은 정점이 상자 한도에 붙어 눌린 채 돌았다. 끝날 때 찍는 정점이 늘면 고친다.
+//   PLANQ_CHROME_MB 로 한 번만 더 크게 받을 수 있다 — 밤 순찰(--suite patrol, 7환경 한 번에)은 몫 1500(상자 1950)을 넘어
+//     11-03 밤 137 로 죽었다(결과 0) → nightly-patrol.sh 가 3000 을 준다. 끝에 찍히는 정점을 보고 줄인다.
 //   75 = 차례가 60분 안에 안 옴(시험 안 함 — 우회하지 말 것).
 const fs = require('fs');
 const { spawnSync } = require('child_process');
 
 const MEM_SLOT = '/home/irene/dev-server/bin/mem-slot';
-const NEED_MB = 1500;
+const NEED_MB = Number(process.env.PLANQ_CHROME_MB) > 0 ? Number(process.env.PLANQ_CHROME_MB) : 1500;
 
 if (!process.env.PLANQ_MEM_SLOT && fs.existsSync(MEM_SLOT)) {
   // 운영 배포가 도는 중이면 자리를 잡기 **전에** 기다린다 — 자리를 쥔 채 기다리면 다른 방의 줄을 막는다.

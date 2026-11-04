@@ -14,7 +14,8 @@ flock -n 9 || { echo "$(date -u +%FT%TZ) skip: previous patrol still running" >>
 if ! /opt/planq/scripts/deploy-busy.sh --wait 5400 nightly-patrol 2>> logs/patrol/cron.log; then
   echo "$(date -u +%FT%TZ) skip: deploy still running after 90min" >> logs/patrol/cron.log; exit 0
 fi
-timeout 9000 node scripts/e2e/run.js --suite patrol > "logs/patrol/run-$D.log" 2>&1
+# 순찰은 7환경을 한 번에 돈다 — 기본 몫 1500(상자 1950)을 넘어 11-03 밤 137 로 죽었다 → 순찰만 3000(lib/mem-slot.js)
+PLANQ_CHROME_MB=3000 timeout 9000 node scripts/e2e/run.js --suite patrol > "logs/patrol/run-$D.log" 2>&1
 RC=$?
 echo "$(date -u +%FT%TZ) exit=$RC $(grep -a '총 실패' "logs/patrol/run-$D.log" | tail -1)" >> logs/patrol/cron.log
 # 30일 지난 보고서 정리
