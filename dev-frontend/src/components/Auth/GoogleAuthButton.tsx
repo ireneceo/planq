@@ -14,6 +14,7 @@ import React, { useEffect, useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { isNativeApp } from '../../services/native';
+import { detectInAppBrowser, openInExternalBrowser } from '../../utils/inAppBrowser';
 
 export const GOOGLE_AUTH_ENABLED = true;
 
@@ -61,6 +62,31 @@ const GoogleAuthButton: React.FC<Props> = ({ onStart, disabled, withDivider = tr
   };
   const { t } = useTranslation('auth');
   const [apple, setApple] = useState(false);
+  // 카카오톡·인스타 등 앱 안 브라우저 — 구글이 로그인을 거절하므로 바깥 브라우저로 보내고 안내를 남긴다(2026-11-04).
+  //   안내는 누른 뒤에만 보인다(이메일 로그인은 앱 안에서도 되므로 미리 막지 않는다).
+  const [inAppHint, setInAppHint] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const onGoogle = () => {
+    const kind = isNativeApp() ? null : detectInAppBrowser();
+    if (!kind) { onStart(startUrl('google')); return; }
+    setInAppHint(true);
+    openInExternalBrowser(kind);
+  };
+  const copyLink = async () => {
+    const href = window.location.href;
+    try {
+      await navigator.clipboard.writeText(href);
+    } catch {
+      // 앱 안 브라우저는 clipboard API 가 막혀 있기도 하다 — 숨은 입력칸으로 복사
+      const ta = document.createElement('textarea');
+      ta.value = href; ta.setAttribute('readonly', ''); ta.style.position = 'fixed'; ta.style.opacity = '0';
+      document.body.appendChild(ta); ta.select();
+      try { document.execCommand('copy'); } catch { /* 복사 불가 — 주소는 안내 문구로 알 수 있다 */ }
+      document.body.removeChild(ta);
+    }
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 2000);
+  };
   useEffect(() => {
     let alive = true;
     void fetchProviders().then((p) => { if (alive) setApple(p.apple); });
@@ -75,7 +101,7 @@ const GoogleAuthButton: React.FC<Props> = ({ onStart, disabled, withDivider = tr
       <GoogleBtn
         type="button"
         data-testid="google-auth-btn"
-        onClick={() => onStart(startUrl('google'))}
+        onClick={onGoogle}
         disabled={disabled}
         aria-label={label}
       >
@@ -87,6 +113,15 @@ const GoogleAuthButton: React.FC<Props> = ({ onStart, disabled, withDivider = tr
         </GoogleIcon>
         {label}
       </GoogleBtn>
+      {inAppHint && (
+        <InAppNotice role="status" data-testid="google-inapp-notice">
+          <p>{t('login.inAppBlocked', '이 앱 안에서는 구글 로그인이 막혀 있어요. 크롬이나 사파리 같은 브라우저에서 열어 주세요.') as string}</p>
+          <p>{t('login.inAppHowTo', '화면 위·아래의 ⋯ 메뉴에서 «다른 브라우저로 열기» 를 누르거나, 주소를 복사해 브라우저에 붙여 넣으세요.') as string}</p>
+          <CopyBtn type="button" data-testid="google-inapp-copy" onClick={() => { void copyLink(); }}>
+            {copied ? (t('login.inAppCopied', '주소를 복사했어요') as string) : (t('login.inAppCopy', '주소 복사') as string)}
+          </CopyBtn>
+        </InAppNotice>
+      )}
       {apple && (
         <AppleBtn
           type="button"
@@ -126,6 +161,20 @@ const GoogleBtn = styled.button`
   &:focus-visible { outline: 2px solid #5EEAD4; outline-offset: 2px; }
 `;
 const GoogleIcon = styled.svg`width: 18px; height: 18px;`;
+const InAppNotice = styled.div`
+  margin-top: 10px; padding: 12px 14px;
+  background: #FFF7ED; border: 1px solid #FED7AA; border-radius: 8px;
+  font-size: 0.8125rem; line-height: 1.5; color: #9A3412;
+  & > p { margin: 0 0 6px; }
+`;
+const CopyBtn = styled.button`
+  margin-top: 4px; min-height: 36px; padding: 0 14px;
+  background: #FFFFFF; color: #0F172A;
+  border: 1px solid #CBD5E1; border-radius: 8px;
+  font-size: 0.8125rem; font-weight: 600; cursor: pointer; font-family: inherit;
+  &:hover { background: #F8FAFC; }
+  &:focus-visible { outline: 2px solid #5EEAD4; outline-offset: 2px; }
+`;
 // 애플 휴먼 인터페이스 가이드 — 검정 바탕·흰 로고·다른 로그인 버튼과 **같은 크기**.
 const AppleBtn = styled(GoogleBtn)`
   margin-top: 10px;
