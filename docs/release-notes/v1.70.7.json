@@ -1,0 +1,122 @@
+{
+  "version": "1.70.7",
+  "date": "2026-11-04",
+  "_auto": true,
+  "_range": "76a0e9f3..b9e59c88",
+  "summary": {
+    "ko": "문서·첨부 보기와 붙여넣기, 메일·계정 전환 사용성이 좋아졌어요",
+    "en": "Better document/attachment viewing, richer paste, and smoother mail & account switching"
+  },
+  "items": [
+    {
+      "ko": {
+        "title": "업무·채팅 첨부 문서를 새 창에서 바로 보기",
+        "body": "업무와 Q Talk 채팅에 첨부된 문서를 별도 창으로 열 수 있어요. 문서 상세 화면과 같은 구성으로 크게 띄워두고 다른 업무와 함께 볼 수 있습니다."
+      },
+      "en": {
+        "title": "Open task and chat attachments in a separate document window",
+        "body": "You can now open documents attached to tasks and Q Talk chats in a separate window. It shows the same detail view as documents, so you can keep it large on screen while working elsewhere."
+      }
+    },
+    {
+      "ko": {
+        "title": "첨부·연결 문서 이름 클릭 시 바로 열기·다운로드 선택",
+        "body": "업무와 문서의 첨부·연결 문서 줄에서 이름을 눌러도 바로 내려받지 않아요. 오른쪽에 [열기]·[↓ 받기]·[↓ PDF 받기] 단추가 생겨, 보고 싶을지 저장할지 골라 쓸 수 있습니다."
+      },
+      "en": {
+        "title": "Clear open/download buttons for attachments and linked documents",
+        "body": "In attachment and linked-document rows on tasks and documents, clicking the name no longer downloads immediately. Use the new [Open], [Download], and [Download PDF] buttons on the right to choose how you want to use the file."
+      }
+    },
+    {
+      "ko": {
+        "title": "웹에서 복사한 글·그림·영상 붙여넣기가 더 자연스러워졌어요",
+        "body": "문서와 업무 설명에 웹에서 복사한 글·그림·영상을 붙여넣을 때, 그림이 있어도 글이 사라지지 않고 함께 들어갑니다. 일부 사이트 그림이 막히던 문제도 줄였고, 영상은 링크로 남겨 편하게 참고할 수 있습니다."
+      },
+      "en": {
+        "title": "Richer pasting from the web into documents and task descriptions",
+        "body": "When pasting text, images, or videos from the web into documents or task descriptions, text is no longer lost when images are present—they come in together. Images from some sites now paste more reliably, and videos are kept as links for easy reference."
+      }
+    },
+    {
+      "ko": {
+        "title": "문서 표가 화면 크기에 맞게 더 깔끔하게 보여요",
+        "body": "문서의 표가 편집·보기·반응형 화면에서 같은 기준으로 보이도록 맞췄어요. 열 비율과 최소 칸 너비를 정리했고, 내용이 길면 표 안에서 스크롤되어 잘리지 않습니다."
+      },
+      "en": {
+        "title": "Cleaner, consistent tables in documents across all views",
+        "body": "Tables in documents now look consistent in edit, view, and responsive modes. Column ratios and minimum cell width are unified, and long content scrolls inside the table instead of being cut off."
+      }
+    },
+    {
+      "ko": {
+        "title": "문서 제목 크기가 마크다운 규칙에 맞게 조정됐어요",
+        "body": "문서 편집에서 «#»로 쓴 제목 크기가 마크다운 표준 비율에 맞게 바뀌었습니다. h1은 기본 글자의 2배, h2는 1.5배, h3는 1.25배로 표시되어 단계가 더 또렷하게 구분됩니다."
+      },
+      "en": {
+        "title": "Document heading sizes now follow standard Markdown levels",
+        "body": "Heading sizes in documents written with “#” now follow standard Markdown ratios. h1 is 2× the base text, h2 is 1.5×, and h3 is 1.25×, making each level more clearly distinguished."
+      }
+    },
+    {
+      "ko": {
+        "title": "Q mail 받는 사람 추천이 더 똑똑해졌어요",
+        "body": "Q mail에서 받는 사람을 입력할 때 우리 멤버와 고객이 함께 추천됩니다. 답장할 때는 보낸 사람에 연결된 메일함 주소들이 함께 떠서, 어떤 주소로 보낼지 고르기 쉬워졌습니다."
+      },
+      "en": {
+        "title": "Smarter recipient suggestions in Q mail",
+        "body": "When entering recipients in Q mail, suggestions now include both your team members and customers. When replying, all mailboxes linked to the sender are suggested, making it easier to choose which address to use."
+      }
+    },
+    {
+      "ko": {
+        "title": "여러 계정 추가 후 새 계정으로 자연스럽게 전환",
+        "body": "여러 계정을 쓸 때 계정 추가에서 «회원가입»을 눌러도 중간에 튕기지 않고, 끝까지 계정 추가 흐름으로 이어집니다. 가입이 끝나면 바로 새 계정으로 전환되어 이어서 사용할 수 있습니다."
+      },
+      "en": {
+        "title": "Smoother signup and switching when adding multiple accounts",
+        "body": "When using multiple accounts, choosing sign-up from Add Account now keeps you in the add-account flow instead of interrupting it. After finishing signup, PlanQ switches you directly to the new account so you can continue working."
+      }
+    },
+    {
+      "ko": {
+        "title": "태블릿에서 좌측 메뉴 탭이 더 정확하게 눌려요",
+        "body": "태블릿에서 좌측 메뉴 드로어가 열려 있을 때 첫 탭이 엉뚱하게 드로어 닫기로 처리되던 문제를 고쳤어요. 이제 원하는 메뉴를 바로 눌러 이동할 수 있습니다."
+      },
+      "en": {
+        "title": "More accurate left-menu taps on tablets",
+        "body": "On tablets, the first tap on the left menu no longer gets treated as closing the drawer. Your tap now correctly opens the menu item you choose."
+      }
+    },
+    {
+      "ko": {
+        "title": "음성으로 추가한 업무 제목이 더 깔끔해졌어요",
+        "body": "음성으로 «업무 추가해» 같은 말을 했을 때 그 문장이 제목에 그대로 남지 않도록 정리했어요. 예시 문장도 다듬어, 같은 내용을 다시 말해도 한 업무로 인식되도록 개선했습니다."
+      },
+      "en": {
+        "title": "Cleaner task titles when adding tasks by voice",
+        "body": "When adding tasks by voice, phrases like “add a task” are no longer left in the task title. Example phrases have been refined so that repeated commands about the same thing are treated as a single task more reliably."
+      }
+    },
+    {
+      "ko": {
+        "title": "그 밖의 개선",
+        "body": "문서·업무 화면의 붙여넣기 안정성을 높였고, 일부 환경에서 빌드와 시험이 느려지던 문제를 줄였습니다."
+      },
+      "en": {
+        "title": "Other improvements",
+        "body": "We improved paste stability in document and task views, and reduced slowdowns in some environments during build and testing."
+      }
+    },
+    {
+      "ko": {
+        "title": "보안과 안정성 강화",
+        "body": "데이터를 더 안전하게 지키도록 보안과 안정성을 강화했습니다."
+      },
+      "en": {
+        "title": "Security and stability improvements",
+        "body": "We strengthened security and stability to keep your data safer."
+      }
+    }
+  ]
+}
