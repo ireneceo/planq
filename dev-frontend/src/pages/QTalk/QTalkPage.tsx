@@ -579,6 +579,19 @@ const QTalkPage: React.FC<QTalkPageProps> = ({ embedded = false, initialConvId =
         const arr = prev[mapped.conversation_id] || [];
         // 중복 방지 (자기가 보낸 메시지는 이미 추가됨)
         if (arr.some((m) => m.id === mapped.id)) return prev;
+        // ★ 내가 보낸 메시지가 소켓으로 먼저 오면 «보내는 중» 임시 사본(음수 id)을 진짜로 바꾼다 (2026-11-04,
+        //   Irene «채팅할 때 자꾸 같은 문장이 두 번씩 나와»). 서버는 저장 직후 소켓을 쏘고 알림 준비를 마친 뒤에야
+        //   응답을 돌려줘서, 그 사이(첨부가 있으면 올리기가 끝날 때까지) 임시 사본 + 진짜가 나란히 두 줄이었다.
+        //   바꿔 끼우면 handleSendMessage 는 «이미 있음» 으로 임시 사본만 걷는다(첨부는 message:attachment 가 붙인다).
+        if (!partial && String(mapped.sender_id) === String(userRef.current?.id)) {
+          const norm = (s: string | null | undefined) => (s || '').replace(/\s+/g, ' ').trim();
+          const idx = arr.findIndex((m) => m.id < 0 && String(m.sender_id) === String(mapped.sender_id) && norm(m.body) === norm(mapped.body));
+          if (idx >= 0) {
+            const next = arr.slice();
+            next[idx] = mapped;
+            return { ...prev, [mapped.conversation_id]: next };
+          }
+        }
         if (partial) {
           setHistoryLoaded((h) => (h[mapped.conversation_id] ? { ...h, [mapped.conversation_id]: false } : h));
           return prev;

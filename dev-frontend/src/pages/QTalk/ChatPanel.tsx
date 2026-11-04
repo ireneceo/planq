@@ -1985,13 +1985,19 @@ const ChatPanel: React.FC<Props> = ({
                   // 1) detected_language 가 있으면 그것 외 키
                   // 2) 없으면 m.body 와 다른 첫 번째 번역
                   // 3) 그래도 없으면 미표시
+                  // ★ 원문과 같은 글(띄어쓰기·줄바꿈만 다른 것 포함)은 번역이 아니다 — 그대로 두 번 보였다
+                  //   (2026-11-04 «같은 문장이 두 번씩» · 모델이 원문 언어 사본을 줄바꿈만 바꿔 돌려준 행 실측).
                   const tr = m.translations;
                   let translated: string | undefined;
                   if (tr) {
-                    const validKeys = Object.keys(tr).filter(k => tr[k as keyof typeof tr]);
+                    const norm = (s: string | null | undefined) => (s || '').replace(/\s+/g, ' ').trim();
+                    const bodyN = norm(m.body);
+                    const validKeys = Object.keys(tr).filter(k => {
+                      const v = tr[k as keyof typeof tr];
+                      return !!v && norm(v) !== bodyN;
+                    });
                     const detected = m.detected_language;
-                    const otherKey = (detected && validKeys.find(k => k !== detected))
-                      || validKeys.find(k => tr[k as keyof typeof tr] !== m.body);
+                    const otherKey = (detected && validKeys.find(k => k !== detected)) || validKeys[0];
                     if (otherKey) translated = tr[otherKey as keyof typeof tr];
                   }
                   return (

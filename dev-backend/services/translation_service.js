@@ -118,6 +118,14 @@ JSON RULES:
         await recordUsage(businessId, 'translation', model, input_tokens || 0, output_tokens || 0);
       } catch (e) { console.warn('[translation] recordUsage failed', e.message); }
     }
+    // ★ 2026-11-04 — 두 언어가 다 원문과 같으면 번역이 아니다(단방향 번역의 untranslated_echo 와 같은 규칙).
+    //   채팅 화면이 같은 문장을 «번역» 으로 한 번 더 보였다. 고유명사·URL·이모지처럼 원래 같은 글이면
+    //   번역 줄이 없는 것이 맞다 — 재시도하지 않고 번역 없이 둔다.
+    const norm = (x) => String(x).replace(/\s+/g, ' ').trim();
+    const src = norm(text);
+    if (norm(translations[a]) === src && norm(translations[b]) === src) {
+      return { detected_language: detected, translations: null, fallback: true, reason: 'untranslated_echo' };
+    }
     return {
       detected_language: detected,
       translations,
