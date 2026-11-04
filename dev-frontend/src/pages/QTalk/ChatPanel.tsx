@@ -1,6 +1,7 @@
 import { openPopout } from '../../utils/pinHost';
 import { withW } from '../../utils/imageWidth';
 import { canOpenSeparateWindow } from '../../utils/popout';
+import { tabStore } from '../../stores/tabStore';
 import React, { useMemo, useState, useEffect, useRef, useCallback } from 'react';
 import { downloadFromApi } from '../../utils/download';
 import { createPortal } from 'react-dom';
@@ -1806,7 +1807,7 @@ const ChatPanel: React.FC<Props> = ({
                       $paid={paid}
                       $notified={notified}
                       $canceled={canceled}
-                      onClick={() => openPreviewWindow(ic.share_url)}
+                      onClick={() => openPreviewWindow(ic.share_url, ic.title)}
                     >
                       <InvCardIcon $paid={paid} $notified={notified}>
                         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -1839,7 +1840,11 @@ const ChatPanel: React.FC<Props> = ({
                 (() => {
                   const tc = m.card as import('./types').TaskCardMeta;
                   return (
-                    <SharedCard type="button" onClick={() => openPreviewWindow(tc.share_url)}>
+                    <SharedCard type="button" data-testid="chat-task-card" onClick={() => {
+                      // 폰·앱의 멤버는 진짜 업무 상세로(상태·댓글까지 — 앱 머리줄·뒤로=닫기 그대로). 고객·데스크탑은 공유 미리보기.
+                      if (!isClient && tc.task_id && !canOpenSeparateWindow()) { tabStore.openInNewTab(`/tasks?task=${tc.task_id}`); return; }
+                      openPreviewWindow(tc.share_url, tc.title);
+                    }}>
                       <SharedCardIcon $tone="task">
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
                       </SharedCardIcon>
@@ -1873,7 +1878,7 @@ const ChatPanel: React.FC<Props> = ({
                     return `${(b/1024/1024).toFixed(1)} MB`;
                   };
                   return (
-                    <SharedCard type="button" onClick={() => openPreviewWindow(fc.share_url)}>
+                    <SharedCard type="button" onClick={() => openPreviewWindow(fc.share_url, fc.title)}>
                       <SharedCardIcon $tone="file">
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/></svg>
                       </SharedCardIcon>
@@ -1895,7 +1900,7 @@ const ChatPanel: React.FC<Props> = ({
                 (() => {
                   const kc = m.card as import('./types').KbDocCardMeta;
                   return (
-                    <SharedCard type="button" onClick={() => openPreviewWindow(kc.share_url)}>
+                    <SharedCard type="button" onClick={() => openPreviewWindow(kc.share_url, kc.title)}>
                       <SharedCardIcon $tone="kb">
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
                       </SharedCardIcon>
@@ -1923,7 +1928,7 @@ const ChatPanel: React.FC<Props> = ({
                     } catch { return ''; }
                   };
                   return (
-                    <SharedCard type="button" onClick={() => openPreviewWindow(ec.share_url)}>
+                    <SharedCard type="button" onClick={() => openPreviewWindow(ec.share_url, ec.title)}>
                       <SharedCardIcon $tone="calendar">
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
                       </SharedCardIcon>

@@ -2144,5 +2144,9 @@
   "publicAttach": {
     "open": "열기",
     "download": "받기"
+  },
+  "sharePreview": {
+    "label": "미리보기",
+    "openTab": "새 탭으로"
   }
 }

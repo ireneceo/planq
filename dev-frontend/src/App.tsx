@@ -48,6 +48,8 @@ const RightDock = lazy(() => import('./components/Common/RightDock'));
 import LoginPage from './pages/Login/LoginPage';
 import I18nReady from './components/Common/I18nReady';
 import ModuleGate from './components/Common/ModuleGate';
+// 공유 미리보기 앱 안 창 — lazy 로 두면 첫 카드 누름(이벤트)이 청크가 오기 전에 사라진다. 작아서 바로 싣는다.
+import SharePreviewSheet from './components/Common/SharePreviewSheet';
 
 // Route-based code splitting — 페이지별 별도 chunk 로 첫 로드 번들 축소.
 // 이전: 모든 페이지 eager import → main bundle 2.75MB. 새로고침 시 모두 파싱·실행.
@@ -948,6 +950,8 @@ function App() {
       <Suspense fallback={null}><DownloadTray /></Suspense>
       {/* 키보드 내리기 단추 — 앱(아이폰·아이패드·안드로이드)에서 화면 키보드가 떠 있을 때만. 같은 이유로 **루트 한 곳** (2026-11-02) */}
       {isNativeApp() && <Suspense fallback={null}><KeyboardDismissButton /></Suspense>}
+      {/* 공유 미리보기(업무·파일·Q info·일정·청구서 카드) — 폰·앱에서 앱 안 창으로(utils/openPreviewWindow). 같은 이유로 **루트 한 곳** (2026-11-04) */}
+      <SharePreviewSheet />
     </PwaInstallProvider>
     </AuthProvider>
     </ErrorBoundary>

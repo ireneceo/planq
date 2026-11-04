@@ -13,6 +13,9 @@ import PostEditor from './PostEditor';
 import { fetchPost, type PostDetail } from '../../services/posts';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import { useEscapeStack } from '../../hooks/useEscapeStack';
+import {
+  PreviewBackdrop, PreviewDialog, PreviewHeader, PreviewTitle, PreviewHeaderActions, PreviewOpenBtn, PreviewCloseBtn,
+} from '../Common/previewDialogShell';
 
 interface Props {
   postId: number;
@@ -97,42 +100,14 @@ const PostPreviewModal: React.FC<Props> = ({ postId, title, onClose }) => {
 
 export default PostPreviewModal;
 
-const Backdrop = styled.div`
-  position: fixed; inset: var(--pq-popup-top, 0px) 0 0; background: rgba(15,23,42,0.55);
-  display: flex; align-items: center; justify-content: center; z-index: 1100;
-  padding: 24px;
-`;
-const Dialog = styled.div`
-  background: #fff; border-radius: 14px; width: 100%; max-width: 760px;
-  max-height: 86vh; display: flex; flex-direction: column;
-  box-shadow: 0 20px 60px rgba(0,0,0,0.25);
-  @media (max-width: 640px) {
-    max-height: 100%; border-radius: 0; max-width: 100vw;
-  }
-`;
-const Header = styled.div`
-  display: flex; align-items: center; gap: 12px;
-  padding: 14px 18px; border-bottom: 1px solid #F1F5F9;
-`;
-const Title = styled.h2`
-  flex: 1; font-size: 1rem; font-weight: 700; color: #0F172A; margin: 0;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-`;
-const HeaderActions = styled.div`display:flex;align-items:center;gap:6px;flex-shrink:0;`;
-const OpenBtn = styled.button`
-  display: inline-flex; align-items: center; padding: 7px 12px;
-  font-size: 0.75rem; font-weight: 700; color: #fff; background: #14B8A6;
-  border: none; border-radius: 8px; cursor: pointer;
-  &:hover { background: #0D9488; }
-`;
-const CloseBtn = styled.button`
-  /* touch-target-44: 폰 터치 타깃 (theme/tokens CONTROL.touchMin). 데스크탑 크기는 그대로. */
-  @media (max-width: 640px) { min-width: 44px; min-height: 44px; }
-
-  width: 28px; height: 28px; display: inline-flex; align-items: center; justify-content: center;
-  background: transparent; border: none; border-radius: 6px; cursor: pointer; color: #64748B;
-  &:hover { background: #F1F5F9; color: #0F172A; }
-`;
+// 껍데기(막·창·머리·닫기)는 공유 규격 — SharePreviewSheet 와 같은 것(components/Common/previewDialogShell)
+const Backdrop = PreviewBackdrop;
+const Dialog = PreviewDialog;
+const Header = PreviewHeader;
+const Title = PreviewTitle;
+const HeaderActions = PreviewHeaderActions;
+const OpenBtn = PreviewOpenBtn;
+const CloseBtn = PreviewCloseBtn;
 const Body = styled.div`
   flex: 1; overflow-y: auto; padding: 20px 28px 28px;
   font-size: 0.875rem; line-height: 1.7; color: #0F172A;

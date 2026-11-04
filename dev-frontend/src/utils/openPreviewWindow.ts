@@ -12,11 +12,24 @@
 // noopener 를 features 에 넣지 않는다: 넣으면 반환 핸들이 **항상 null** 이라 팝업 차단과 구분이 안 된다
 //   (memory feedback_window_open_noopener_null). 대신 핸들에서 opener 를 끊는다 — 보안 효과는 같다.
 
+import { canOpenSeparateWindow } from './popout';
+
+/** 앱 안 미리보기 창(components/Common/SharePreviewSheet)을 여는 이벤트 — detail {url,title} */
+export const SHARE_PREVIEW_EVENT = 'planq:share-preview';
+export interface SharePreviewDetail { url: string; title?: string }
+
 /** 문서 읽기 폭 — 공개 페이지 카드(820px) + 창 크롬 여유 */
 const PREVIEW_W = 900;
 const PREVIEW_H = 1000;
 
-export function openPreviewWindow(url: string): void {
+export function openPreviewWindow(url: string, title?: string): void {
+  // ★ 2026-11-04 — 별도 창을 못 여는 곳(폰 ≤768 · 앱)은 앱 안 창(SharePreviewSheet, App 루트)으로.
+  //   앱에서 window.open 은 nativeLinks 가 가로채 **앱 화면 자체를 /public/… 로 옮겼고** 거기엔 머리줄·닫기가 없었다
+  //   (Irene: "모바일에서 위 잘리고 닫기도 안나오고 헤더도 없어서 아무것도 못해").
+  if (!canOpenSeparateWindow()) {
+    window.dispatchEvent(new CustomEvent(SHARE_PREVIEW_EVENT, { detail: { url, title } }));
+    return;
+  }
   try {
     const availW = window.screen?.availWidth || 1280;
     const availH = window.screen?.availHeight || 900;

@@ -2144,5 +2144,9 @@
   "publicAttach": {
     "open": "Open",
     "download": "Download"
+  },
+  "sharePreview": {
+    "label": "Preview",
+    "openTab": "Open in new tab"
   }
 }

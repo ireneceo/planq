@@ -68,7 +68,7 @@ const PublicPageShell: React.FC<Props> = ({
   const showHeader = showBrand || !!title || !!actions || !!headerMeta;
 
   return (
-    <Page $layout={layout} $fill={fill} $print={print} $center={center}>
+    <Page $layout={layout} $fill={fill} $print={print} $center={center} $safeTop={!showHeader}>
       {showHeader && (
         <PublicToolbar app={layout === 'app'} print={print} brand={showBrand}
           workspace={workspace} title={title} subtitle={subtitle} headerMeta={headerMeta} actions={actions} />
@@ -178,8 +178,11 @@ export const PublicBtn = styled.button<{ $primary?: boolean }>`
   &:disabled { opacity: 0.5; cursor: default; }
 `;
 
-const Page = styled.div<{ $layout: string; $fill: boolean; $print: boolean; $center: boolean }>`
+const Page = styled.div<{ $layout: string; $fill: boolean; $print: boolean; $center: boolean; $safeTop: boolean }>`
   background: #F8FAFC;
+  /* ★ 상단 안전 영역 (2026-11-04 — 앱 상태바 겹침 모드에서 «위가 잘린다»). 머리줄이 있으면 머리줄이 그 칸을 흰색으로 채우고
+     (Toolbar padding-top), 머리줄이 없는 화면(업무 공유 카드 등)은 Page 가 비운다. 브라우저는 0 이라 그대로다. */
+  ${({ $safeTop }) => $safeTop && css`padding-top: var(--pq-safe-top, 0px);`}
   ${({ $layout, $fill }) => ($fill || $layout === 'app'
     /* 앱형은 내부가 스크롤한다 — 100dvh 여야 iOS 툴바가 바닥 입력줄을 안 먹는다.
        (100vh 는 주소창 높이를 포함해 실제보다 크다) */
@@ -188,10 +191,10 @@ const Page = styled.div<{ $layout: string; $fill: boolean; $print: boolean; $cen
   /* ★ 좌우 여백을 **여기서 주지 않는다.** 한 번 그렇게 했다가 sticky 흰 툴바가 그 안으로
      들어가 양옆에 회색 홈이 생겼다(2026-09-10 Fable 실측: post@1440 툴바 L20/R20).
      툴바·홍보 띠는 **전폭**이어야 하고, 여백은 본문(Frame)이 스스로 가진다. */
-  ${({ $center }) => $center && css`
+  ${({ $center, $safeTop }) => $center && css`
     /* 짧은 상태 카드(만료·비밀번호·초대)는 **세로 가운데**가 맞다 — 위에 붙이면 화면이 비어 보인다. */
     display: flex; align-items: center; justify-content: center;
-    padding-top: 24px; padding-bottom: 24px;
+    padding-top: ${$safeTop ? 'calc(24px + var(--pq-safe-top, 0px))' : '24px'}; padding-bottom: 24px;
   `}
   ${({ $print }) => $print && css`@media print { background: #FFF; padding: 0; }`}
 `;
@@ -204,6 +207,8 @@ const Toolbar = styled.div<{ $print: boolean; $app: boolean; $sticky: boolean }>
   ${({ $app, $sticky }) => ($app
     ? css`min-height: 60px; padding: 14px 20px;`
     : css`padding: 12px 24px; ${$sticky ? 'position: sticky; top: 0; z-index: 10;' : ''}`)}
+  /* 상태바 칸은 머리줄이 흰색으로 채운다(sticky 로 붙어도 상태바 뒤로 숨지 않게). 브라우저는 0. */
+  padding-top: calc(${({ $app }) => ($app ? '14px' : '12px')} + var(--pq-safe-top, 0px));
   ${({ $print }) => $print && css`@media print { display: none !important; }`}
   @media (max-width: 640px) { padding-left: 16px; padding-right: 16px; }
 `;
