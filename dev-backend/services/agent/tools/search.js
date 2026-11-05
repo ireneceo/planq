@@ -32,12 +32,6 @@ const KIND_NAMES = Object.keys(KINDS);
 const MAX_ROWS = 500;   // page × per_kind 상한(그룹당)
 const FRESHNESS_NOTE = 'Mail lists what PlanQ has synced so far (IMAP every ~3 min). Newer mail may exist on the server.';
 
-function parseIso(v, field) {
-  if (!v) return null;
-  const d = new Date(String(v));
-  if (Number.isNaN(d.getTime())) throw err('VALIDATION_ERROR', 'invalid_datetime', { fields: { [field]: v } });
-  return d;
-}
 
 const snippetOf = (m) => (m && m.snippet ? String(m.snippet) : null);
 const urlOf = {
@@ -164,8 +158,11 @@ async function searchAll(p, a) {
   const kinds = Array.isArray(a.kinds) && a.kinds.length ? [...new Set(a.kinds)] : KIND_NAMES;
   const perKind = Math.min(10, Math.max(1, a.per_kind || 5));
   const page = Math.max(1, a.page || 1);
-  const since = parseIso(a.since, 'since');
-  const until = parseIso(a.until, 'until');
+  // 오프셋 없는 값·날짜만 = 사용자 시간대(services/agent/datetime, 2026-11-05)
+  const { userTz, parseAgentTime } = require('../datetime');
+  const tzS = (a.since || a.until) ? await userTz(p) : null;
+  const since = a.since ? parseAgentTime(a.since, 'since', tzS) : null;
+  const until = a.until ? parseAgentTime(a.until, 'until', tzS, { endOfDay: true, inclusive: true }) : null;
 
   // 연결된 고객·프로젝트 — 이 워크스페이스 것이 아니면 «없다»(남의 id 를 필터로 넣어 존재를 떠보지 못하게)
   const { Client, Project } = require('../../../models');

@@ -31,12 +31,6 @@ async function scopeOf(p) {
   return getUserScope(p.userId, p.businessId, p.platformRole);
 }
 
-function parseSince(v, field) {
-  if (!v) return null;
-  const d = new Date(String(v));
-  if (Number.isNaN(d.getTime())) throw err('VALIDATION_ERROR', 'invalid_datetime', { fields: { [field]: v } });
-  return d;
-}
 
 /** 이 워크스페이스 프로젝트·고객 이름 — 다른 워크스페이스 id 는 이름을 붙이지 않는다. */
 async function nameMaps(p, projectIds, clientIds) {
@@ -68,7 +62,8 @@ async function searchDocuments(p, a) {
   if (a.project_id) conds.push({ project_id: a.project_id });
   if (a.category) conds.push({ category: a.category });
   if (a.kind) conds.push({ kind: a.kind });
-  const since = parseSince(a.updated_since, 'updated_since');
+  const { userTz, parseAgentTime } = require('../datetime');   // 오프셋 없는 값 = 사용자 시간대(2026-11-05)
+  const since = a.updated_since ? parseAgentTime(a.updated_since, 'updated_since', await userTz(p)) : null;
   if (since) conds.push({ updated_at: { [Op.gte]: since } });
   const pg = parsePage(a);
   const { rows, count } = await Post.findAndCountAll({

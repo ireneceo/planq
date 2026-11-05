@@ -167,7 +167,7 @@ const TOOLS = [
   {
     name: 'search_projects', risk: 'LOW', write: false, scopes: ['projects:read'], list: true,
     description: 'Search projects by name or client company. Returns project_id. Read-only.',
-    input: { query: z.string().max(100).optional(), status: z.string().max(30).optional(), limit: z.number().int().min(1).max(50).optional(), ...pageInput },
+    input: { query: z.string().max(100).optional(), status: z.enum(['active', 'paused', 'closed']).optional().describe('"active" = in progress, "paused" = on hold, "closed" = finished. Omit for all'), limit: z.number().int().min(1).max(50).optional(), ...pageInput },
     handler: (p, a) => dir.searchProjects(p, a),
   },
   {
@@ -184,9 +184,11 @@ const TOOLS = [
   },
   {
     name: 'list_events', risk: 'LOW', write: false, scopes: ['schedule:read'],
-    description: 'List calendar events the user can see between from and to (ISO 8601, at most 62 days). Recurring events are returned once. Optional filters: project_id, client_id (events the client attends), query (title). If has_more, narrow the range. Read-only.',
+    description: 'List calendar events the user can see between from and to (at most 62 days). Includes teammates\' team-visible events — for "my schedule" pass only_mine:true (events I created or attend); each item also says created_by_me / i_am_attending. Recurring events are expanded into one item per occurrence (occurrence:true; event_id is the series). Optional filters: project_id, client_id (events the client attends), query (title). If has_more, narrow the range. Read-only.',
     input: {
-      from: z.string().max(40), to: z.string().max(40),
+      from: z.string().max(40).describe('"YYYY-MM-DD" (start of that day in the user\'s time zone), local "YYYY-MM-DDTHH:MM", or ISO with offset'),
+      to: z.string().max(40).describe('"YYYY-MM-DD" = through the END of that day (inclusive; for "today" pass today\'s date for both from and to), or a datetime (exclusive)'),
+      only_mine: z.boolean().optional().describe('Only events I created or am invited to (use for "my schedule"/"내 일정")'),
       project_id: z.number().int().positive().optional(),
       client_id: z.number().int().positive().optional(),
       query: z.string().max(100).optional().describe('Words in the event title'),
@@ -199,7 +201,7 @@ const TOOLS = [
     description: 'Create one calendar event. Only adds — never edits or deletes. Private to the user unless visibility is "team". You can set its type, reminder, a linked task, an existing meeting link, attendees (workspace members / clients — they are notified) and create_meeting (PlanQ creates a Google Meet link, like the app\'s Meet button; only for team-visible events). With attendees or create_meeting it requires confirmation: the first call only returns a preview naming who is notified and where the meeting is created.',
     input: {
       title: z.string().trim().min(1).max(300),
-      start_at: z.string().max(40).describe('ISO datetime. For all_day events pass the date YYYY-MM-DD (time and offset are ignored).'),
+      start_at: z.string().max(40).describe('ISO datetime; without an offset it is local time in the user\'s time zone. For all_day events pass the date YYYY-MM-DD (time and offset are ignored).'),
       end_at: z.string().max(40).describe('ISO datetime. For all_day events pass the LAST day YYYY-MM-DD (inclusive).'),
       all_day: z.boolean().optional(),
       description: z.string().max(5000).optional(),
@@ -301,16 +303,16 @@ const TOOLS = [
     input: {
       query: z.string().max(100).optional().describe('Words in subject, body, sender, recipients, labels or attachment names'),
       account_id: z.number().int().positive().optional(),
-      folder: z.enum(['all', 'inbox', 'reply_needed', 'sent', 'archived', 'marketing', 'spam']).optional().describe('Default "all" (everything except spam). "inbox" = to check'),
-      direction: z.enum(['inbound', 'outbound', 'any']).optional().describe('Default "inbound" (received). "outbound" = mail we sent'),
+      folder: z.enum(['all', 'inbox', 'reply_needed', 'sent', 'archived', 'marketing', 'spam', 'assigned_to_me', 'following']).optional().describe('Default "all" (everything except spam). "reply_needed" = marked as needing a reply (whole workspace — combine with assigned_to_me or check each item\'s assignee for "mine"). "inbox" = "to check" (not urgent, worth a look). "assigned_to_me" = threads assigned to me. "following" = threads I follow. "archived" = done. "marketing" = newsletters/ads.'),
+      direction: z.enum(['inbound', 'outbound', 'any']).optional().describe('"inbound" = threads whose LAST message was received (threads we already replied to are excluded). "outbound" = we sent the last message. "any" = both. Default: "any" when query/from/to/client_id/project_id/label/assigned_to_me/following is given (searching), otherwise "inbound".'),
       from: z.string().max(100).optional().describe('Sender name or address contains'),
       to: z.string().max(100).optional().describe('Recipient (to/cc) contains'),
       client_id: z.number().int().positive().optional(),
       project_id: z.number().int().positive().optional(),
       unread_only: z.boolean().optional(),
       has_attachments: z.boolean().optional(),
-      since: z.string().max(40).optional().describe('ISO 8601 — last message at or after'),
-      until: z.string().max(40).optional().describe('ISO 8601 — last message at or before'),
+      since: z.string().max(40).optional().describe('Last message at or after. "YYYY-MM-DD" = start of that day in the user\'s time zone; a datetime without offset is local time'),
+      until: z.string().max(40).optional().describe('Last message at or before. "YYYY-MM-DD" = through the end of that day (user\'s time zone)'),
       label: z.string().max(50).optional(),
       ...pageInput,
     },
@@ -335,6 +337,7 @@ const TOOLS = [
       message_id: z.number().int().positive(),
       offset: z.number().int().min(0).optional().describe('Default 0'),
       max_chars: z.number().int().min(100).max(20000).optional().describe('Default 8,000'),
+      include_quoted: z.boolean().optional().describe('Include quoted/forwarded text below the new part (default false). Use when has_quoted_content is true — e.g. a colleague forwarded a customer mail with "please handle below".'),
     },
     handler: (p, a) => mail.getMailMessage(p, a),
   },
@@ -462,14 +465,14 @@ const TOOLS = [
   {
     name: 'append_to_document', risk: 'LOW', write: true, scopes: ['docs:write'],
     description: 'Add content (Markdown) to the end of an existing Q docs document. Never removes what is there. Fails if the document has a signature request (signed documents cannot change).',
-    input: { document_id: z.number().int().positive(), content: z.string().trim().min(1).max(50000), idempotency_key: idem },
+    input: { document_id: z.number().int().positive().describe('The post_id from search_documents / get_document'), content: z.string().trim().min(1).max(50000), idempotency_key: idem },
     handler: (p, a, actor) => docsw.appendToDocument(p, a, actor),
   },
   {
     name: 'update_document', risk: 'MEDIUM', write: true, scopes: ['docs:write'],
     description: 'Replace the title and/or the whole content (Markdown) of a Q docs document. The previous version stays in the document history. Requires confirmation: the first call only returns a preview. To add without replacing, use append_to_document.',
     input: {
-      document_id: z.number().int().positive(),
+      document_id: z.number().int().positive().describe('The post_id from search_documents / get_document'),
       title: z.string().trim().min(1).max(200).optional(),
       content: z.string().max(100000).optional(),
       confirmation_token: confirm, idempotency_key: idem,
@@ -481,7 +484,7 @@ const TOOLS = [
     name: 'link_documents', risk: 'LOW', write: true, scopes: ['docs:write'],
     description: 'Link (or unlink) other documents as related documents of a Q docs document. Links are two-way. Only documents the user can read are linked.',
     input: {
-      document_id: z.number().int().positive(),
+      document_id: z.number().int().positive().describe('The post_id from search_documents / get_document'),
       link: z.array(z.number().int().positive()).max(20).optional(),
       unlink: z.array(z.number().int().positive()).max(20).optional(),
       idempotency_key: idem,
@@ -491,7 +494,7 @@ const TOOLS = [
   {
     name: 'move_document_to_project', risk: 'MEDIUM', write: true, scopes: ['docs:write'],
     description: 'Put an existing Q docs document into a project (or take it out with project_id omitted). Who can see a project-level document changes with the project, so this requires confirmation: the first call only returns a preview.',
-    input: { document_id: z.number().int().positive(), project_id: z.number().int().positive().optional(), confirmation_token: confirm, idempotency_key: idem },
+    input: { document_id: z.number().int().positive().describe('The post_id from search_documents / get_document'), project_id: z.number().int().positive().optional(), confirmation_token: confirm, idempotency_key: idem },
     preview: (p, a) => docsw.previewMove(p, a),
     handler: (p, a, actor) => docsw.moveDocument(p, a, actor),
   },

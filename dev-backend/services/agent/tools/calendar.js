@@ -2,12 +2,13 @@
 //
 //   읽기는 캘린더 화면과 같은 술어(access_scope.calendarListWhere), 생성은 행동 계층(event_actions.createEvent)만.
 //   ★ 참석자 지정은 두지 않는다 — 참석자에게 초대 알림이 나가므로 MEDIUM 이고, M2-b 에서 확인 2단계와 같이 연다.
-//   ★ 반복 일정은 전개하지 않는다 — 원본 1건을 recurring:true 로 돌려준다(전개는 캘린더 라우트 안에 있어 아직 함수가 아니다).
+//   ★ 반복 일정은 화면과 같은 함수(services/calendarExpand)로 회차를 펼친다(2026-11-05 — 옛: 원본 1건만).
 const { Op } = require('sequelize');
 const cfg = require('../../agent_oauth/config');
 const { err, fromActionFailure } = require('../errors');
 
 const iso = (v) => (v ? new Date(v).toISOString() : null);
+const { userTz, parseAgentTime, localOf } = require('../datetime');
 const MAX_DAYS = 62;
 
 // 메뉴 Layer 판정은 services/agent/menu 한 벌.
@@ -15,17 +16,14 @@ const { assertMenu } = require('../menu');
 const DESC_MAX = 1000;
 const { allDayDates, allDayRange, allDayLastDateOf } = require('../../../utils/allDayDate');
 
-function parseIso(s, field) {
-  const d = new Date(String(s || ''));
-  if (Number.isNaN(d.getTime())) throw err('VALIDATION_ERROR', 'invalid_datetime', { fields: { [field]: s } });
-  return d;
-}
 
-const eventItem = (e, withDesc = false) => ({
+const eventItem = (e, withDesc = false, tz = null) => ({
   event_id: e.id,
   title: e.title,
   start_at: iso(e.start_at),
   end_at: iso(e.end_at),
+  // 사용자 시간대 벽시계도 같이 — UTC(Z)만 주면 모델이 시간대 변환을 틀린다(2026-11-05 점검)
+  ...(tz && !e.all_day ? { start_local: localOf(e.start_at, tz), end_local: localOf(e.end_at, tz) } : {}),
   all_day: !!e.all_day,
   // 종일은 날짜로도 준다 — start_at(UTC 자정)을 모델이 사용자 시간대로 바꾸면 «전날» 이라고 말한다(utils/allDayDate)
   ...(e.all_day ? (() => { const d = allDayDates(e); return { date: d.date, end_date: d.last_date }; })() : {}),
@@ -40,8 +38,10 @@ const eventItem = (e, withDesc = false) => ({
 // ── list_events ────────────────────────────────────────────
 async function listEvents(p, a) {
   await assertMenu(p, 'qcalendar', 'read');
-  const from = parseIso(a.from, 'from');
-  const to = parseIso(a.to, 'to');
+  // 오프셋 없는 값은 사용자 시간대로 푼다 · 날짜만 온 to 는 그날 끝까지(포함) — datetime.parseAgentTime
+  const tz = await userTz(p);
+  const from = parseAgentTime(a.from, 'from', tz);
+  const to = parseAgentTime(a.to, 'to', tz, { endOfDay: true });
   if (to <= from) throw err('VALIDATION_ERROR', 'to_before_from');
   if ((to - from) / 86400000 > MAX_DAYS) throw err('VALIDATION_ERROR', `range_over_${MAX_DAYS}_days`);
   const { CalendarEvent, Project } = require('../../../models');
@@ -65,15 +65,39 @@ async function listEvents(p, a) {
   }
   const q = String(a.query || '').normalize('NFC').trim();
   if (q) conds.push({ title: { [Op.like]: `%${q.replace(/[\\%_]/g, (c) => `\\${c}`)}%` } });
-  const rows = await CalendarEvent.findAll({
+  const raw = await CalendarEvent.findAll({
     where: { [Op.and]: conds },
     include: [{ model: Project, attributes: ['id', 'name'], required: false }],
-    order: [['start_at', 'ASC'], ['id', 'ASC']], limit: 101,
+    order: [['start_at', 'ASC'], ['id', 'ASC']], limit: 301,
   });
+  // 반복 일정은 화면과 같은 함수로 회차를 펼친다(services/calendarExpand — 2026-11-05). 원본 1건만 주면 «이번 주 일정» 에서
+  //   주간 회의가 빠지거나 첫 회차(몇 달 전) 날짜로 나왔다. 예외 회차(옮긴·지운 회차)도 화면과 같다.
+  const masterIds = raw.filter((e) => e.rrule).map((e) => e.id);
+  const children = masterIds.length ? await CalendarEvent.findAll({
+    where: { [Op.and]: [{ business_id: p.businessId }, { recurrence_parent_id: { [Op.in]: masterIds } }, { start_at: { [Op.lt]: to } }, { end_at: { [Op.gt]: from } }] },
+    include: [{ model: Project, attributes: ['id', 'name'], required: false }],
+  }) : [];
+  const { expandRecurring } = require('../../calendarExpand');
+  let rows = expandRecurring(raw.map((e) => e.toJSON()), children.map((c) => c.toJSON()), from, to)
+    .filter((e) => new Date(e.start_at) < to && new Date(e.end_at) > from);
+  // «내 일정» — 내가 만들었거나 참석자(user_id)인 것만. 대표·멤버는 팀 공개 일정도 보므로 이 칸이 없으면 동료 일정까지 «내 일정» 이 됐다.
+  const { CalendarEventAttendee } = require('../../../models');
+  const evIds = [...new Set(rows.map((e) => e._parent_event_id || e.id))];
+  const mineAtt = evIds.length ? await CalendarEventAttendee.findAll({ where: { event_id: { [Op.in]: evIds }, user_id: p.userId }, attributes: ['event_id'] }) : [];
+  const attending = new Set(mineAtt.map((x) => x.event_id));
+  const isMine = (e) => e.created_by === p.userId || attending.has(e._parent_event_id || e.id) || attending.has(e.id);
+  if (a.only_mine) rows = rows.filter(isMine);
+  rows.sort((x, y) => new Date(x.start_at) - new Date(y.start_at) || x.id - y.id);
   // 날짜 범위가 곧 페이지다(62일 상한) — has_more 는 범위 안에서 100건을 넘을 때만. 다음은 범위를 좁혀 다시 부른다.
-  const items = rows.slice(0, 100).map((e) => eventItem(e, !!a.include_description));
-  const more = rows.length > 100;
-  return { items, total: items.length, has_more: more, next_page: null, truncated: more, note: 'recurring events are returned once (not expanded). If has_more, call again with a narrower from/to range.' };
+  const items = rows.slice(0, 100).map((e) => ({
+    ...eventItem(e, !!a.include_description, tz),   // toJSON 한 행 — Project 는 include 그대로 실려 있다
+    ...(e._parent_event_id ? { event_id: e._parent_event_id, occurrence: true } : {}),
+    created_by_me: e.created_by === p.userId,
+    i_am_attending: attending.has(e._parent_event_id || e.id) || attending.has(e.id),
+  }));
+  const more = rows.length > 100 || raw.length > 300;
+  return { items, total: items.length, has_more: more, next_page: null, truncated: more, timezone: tz,
+    note: 'Recurring events are expanded: each occurrence is one item (occurrence:true, event_id = the series). Times without an offset are read in timezone; start_local/end_local are in that zone. If has_more, call again with a narrower from/to range.' };
 }
 
 // ── create_event ───────────────────────────────────────────
@@ -93,8 +117,9 @@ async function createEvent(p, a, actor) {
     if (last < sd[0]) throw err('VALIDATION_ERROR', 'end_before_start');
     ({ start_at: start, end_at: end } = allDayRange(sd[0], last));
   } else {
-    start = parseIso(a.start_at, 'start_at');
-    end = parseIso(a.end_at, 'end_at');
+    const tz = await userTz(p);
+    start = parseAgentTime(a.start_at, 'start_at', tz);
+    end = parseAgentTime(a.end_at, 'end_at', tz);
   }
   if (end < start) throw err('VALIDATION_ERROR', 'end_before_start');
   // M3-c 출처(설계 §6) — 일정 표에는 출처 칸이 없다 → 읽을 수 있는 메일·업무임을 확인한 뒤 설명 끝에 원본 링크 한 줄.
@@ -239,9 +264,18 @@ function eventPatch(a) {
     ...(a.task_id !== undefined ? { taskId: a.task_id } : {}),
   };
 }
-async function previewUpdateEvent(p, a) {
+/** 시간 칸 — 오프셋 없는 시각은 사용자 시간대 벽시계로 바꿔 행동 계층에 넘긴다(종일 일정은 날짜 그대로). 미리보기·실행 같은 함수. */
+async function localizeTimes(p, a, e) {
+  if (e.all_day || (a.start_at === undefined && a.end_at === undefined)) return a;
+  const tz = await userTz(p);
+  const out = { ...a };
+  for (const k of ['start_at', 'end_at']) if (a[k] !== undefined) out[k] = parseAgentTime(a[k], k, tz).toISOString();
+  return out;
+}
+async function previewUpdateEvent(p, a0) {
   await assertMenu(p, 'qcalendar', 'write');
-  const e = await loadVisibleEvent(p, a.event_id);
+  const e = await loadVisibleEvent(p, a0.event_id);
+  const a = await localizeTimes(p, a0, e);
   const patch = eventPatch(a);
   if (!Object.keys(patch).length) throw err('VALIDATION_ERROR', 'no_fields');
   const timeChange = a.start_at !== undefined || a.end_at !== undefined;
@@ -277,9 +311,10 @@ async function previewUpdateEvent(p, a) {
     ...(timeOrPlace ? { notified_count: ids.size } : {}),
   };
 }
-async function updateEventTool(p, a, actor) {
+async function updateEventTool(p, a0, actor) {
   await assertMenu(p, 'qcalendar', 'write');
-  const e = await loadVisibleEvent(p, a.event_id);
+  const e = await loadVisibleEvent(p, a0.event_id);
+  const a = await localizeTimes(p, a0, e);
   const eventActions = require('../../actions/event_actions');
   const r = await eventActions.updateEvent(actor, { businessId: p.businessId, eventId: e.id, ...eventPatch(a), via: p.provider === 'cue' ? 'cue' : 'agent' });
   if (!r.ok) throw fromActionFailure(r);

@@ -87,7 +87,7 @@ const addrList = (v) => {
 };
 
 /** 메시지 한 통 — text 는 부르는 쪽이 만든 평문(같은 함수로 만들어야 이어 읽기가 맞는다). */
-function mailMessageItem(m, { text = '', maxChars = 3000, attachments = [], senderName = null } = {}) {
+function mailMessageItem(m, { text = '', maxChars = 3000, attachments = [], senderName = null, isRead } = {}) {
   const j = typeof m.toJSON === 'function' ? m.toJSON() : m;
   const s = String(text || '');
   const cut = s.length > maxChars;
@@ -99,7 +99,8 @@ function mailMessageItem(m, { text = '', maxChars = 3000, attachments = [], send
     cc: addrList(j.cc_emails),
     sent_at: iso(j.sent_at),
     sent_by: j.direction === 'outbound' && j.sent_by_user_id ? { user_id: j.sent_by_user_id, name: senderName } : null,
-    is_read: !!j.is_read,
+    // 읽음은 보는 사람 기준(services/mailRead 커서) — 부르는 쪽이 계산해 준다. 옛 공용 칸 j.is_read 는 누가 열면 모두에게 읽음이었다.
+    is_read: isRead !== undefined ? !!isRead : !!j.is_read,
     body_text: cut ? s.slice(0, maxChars) : s,
     body_total_chars: s.length,
     truncated_fields: cut ? ['body_text'] : [],

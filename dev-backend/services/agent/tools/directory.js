@@ -5,6 +5,7 @@
 //   ★ 메뉴 Layer — 고객은 Q sales(qsale) 메뉴, 프로젝트·업무는 qtask. 화면에서 안 보이면 AI 도 못 본다.
 //   ★ 범위는 토큰의 워크스페이스로만 — 모든 조회에 business_id: p.businessId.
 const { Op } = require('sequelize');
+const { sequelize } = require('../../../config/database');
 const cfg = require('../../agent_oauth/config');
 const { err } = require('../errors');
 const { taskItem } = require('../serialize');
@@ -77,7 +78,7 @@ async function getClient(p, a) {
   const tasks = base ? await Task.findAll({
     where: { [Op.and]: [base, { client_id: c.id }, { status: { [Op.notIn]: ['completed', 'canceled'] } }] },
     include: [{ model: User, as: 'assignee', attributes: ['id', 'name'], required: false }, { model: Project, attributes: ['id', 'name'], required: false }],
-    order: [['due_date', 'ASC']], limit: 10,
+    order: [[sequelize.literal('`Task`.`due_date` IS NULL'), 'ASC'], ['due_date', 'ASC']], limit: 10,
   }) : [];
   const recent = await ClientInteraction.findAll({
     where: { business_id: p.businessId, client_id: c.id, deleted_at: null },
@@ -162,7 +163,7 @@ async function getProject(p, a) {
   const open = base ? await Task.findAll({
     where: { [Op.and]: [base, { project_id: pr.id }, { status: { [Op.notIn]: ['completed', 'canceled'] } }] },
     include: [{ model: User, as: 'assignee', attributes: ['id', 'name'], required: false }],
-    order: [['due_date', 'ASC']], limit: 20,
+    order: [[sequelize.literal('`Task`.`due_date` IS NULL'), 'ASC'], ['due_date', 'ASC']], limit: 20,
   }) : [];
   const { applyMemberDisplayName } = require('../../displayName');
   const tj = open.map((t) => t.toJSON());
@@ -299,10 +300,10 @@ async function listClientInteractions(p, a) {
   const conds = [{ business_id: p.businessId }, { client_id: c.id }, { deleted_at: null }];
   if (a.kind) conds.push({ kind: a.kind });
   if (a.project_id) conds.push({ project_id: a.project_id });
+  const { userTz, parseAgentTime } = require('../datetime');   // 오프셋 없는 값·날짜만 = 사용자 시간대(2026-11-05)
   for (const [k, op] of [['since', Op.gte], ['until', Op.lte]]) {
     if (!a[k]) continue;
-    const d = new Date(String(a[k]));
-    if (Number.isNaN(d.getTime())) throw err('VALIDATION_ERROR', 'invalid_datetime', { fields: { [k]: a[k] } });
+    const d = parseAgentTime(a[k], k, await userTz(p), k === 'until' ? { endOfDay: true, inclusive: true } : {});
     conds.push({ occurred_at: { [op]: d } });
   }
   const pg = parsePage(a);

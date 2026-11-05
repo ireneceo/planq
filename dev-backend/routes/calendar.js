@@ -46,6 +46,7 @@ const { attachWorkspaceScope, isMemberOrAbove, getUserScope, calendarListWhere, 
 const { createAuditLog } = require('../middleware/audit');
 const { RRule, rrulestr } = require('rrule');
 const allDay = require('../utils/allDayDate');
+const { expandRecurring } = require('../services/calendarExpand');
 // 사이클 N+13: Daily.co 완전 교체 → Google Calendar API (Meet 자동 생성)
 const gcal = require('../services/google_calendar');
 const calendarSync = require('../services/calendarSync');
@@ -196,63 +197,8 @@ router.get('/by-business/:businessId', authenticateToken, attachWorkspaceScope()
           include: INCLUDE_DETAIL,
         })
       : [];
-    // recurrence_id (YYYY-MM-DD) 별로 exception child 인덱싱
-    const exceptionByParentDate = new Map();
-    for (const child of exceptionChildren) {
-      const key = `${child.recurrence_parent_id}_${child.recurrence_id}`;
-      exceptionByParentDate.set(key, child.toJSON());
-    }
-
-    let events = [];
-    for (const e of rawEvents) {
-      const json = e.toJSON();
-      // child (exception) 는 master expansion 안에서 대체 — 단독으로 push 하지 않음 (중복 방지)
-      if (json.recurrence_parent_id) continue;
-      if (!json.rrule) {
-        events.push(json);
-        continue;
-      }
-      try {
-        const dur = new Date(json.end_at).getTime() - new Date(json.start_at).getTime();
-        const ruleSrc = json.rrule.startsWith('RRULE:') || json.rrule.startsWith('DTSTART')
-          ? json.rrule
-          : `RRULE:${json.rrule}`;
-        const rule = rrulestr(ruleSrc, { dtstart: new Date(json.start_at) });
-        // 종일은 UTC 자정 부호화 날짜라(utils/allDayDate) 회차 «시작» 이 워크스페이스 벽시계 범위보다 최대 반나절 앞뒤로 어긋난다 —
-        //   서쪽 시간대에서 범위 첫날 회차가 빠졌다(Fable 실측, 호놀룰루). 하루씩 넓혀 펼치고 화면이 날짜로 자른다.
-        const wide = json.all_day ? allDay.DAY_MS : 0;
-        const instances = rule.between(new Date(start.getTime() - wide), new Date(end.getTime() + wide), true);
-        // exception_dates set (YYYY-MM-DD) — EXDATE 처리
-        const exDates = new Set((Array.isArray(json.exception_dates) ? json.exception_dates : []).map(d => String(d).slice(0, 10)));
-        for (const inst of instances) {
-          const instDate = inst.toISOString().slice(0, 10);
-          // EXDATE 의 회차 = master 에서 skip
-          if (exDates.has(instDate)) {
-            // child 가 대체 있는지
-            const child = exceptionByParentDate.get(`${json.id}_${instDate}`);
-            if (child) events.push({ ...child, _is_exception: true, _parent_event_id: json.id });
-            continue;
-          }
-          events.push({
-            ...json,
-            start_at: inst.toISOString(),
-            end_at: new Date(inst.getTime() + dur).toISOString(),
-            _instance_key: `${json.id}_${instDate}`,
-            _parent_event_id: json.id,
-          });
-        }
-      } catch (err) {
-        console.error('rrule expansion failed', json.id, err.message);
-        events.push(json);
-      }
-    }
-    // exception child 가 master 범위 밖이라 위 loop 에서 안 잡힌 경우 별도 push
-    for (const child of exceptionChildren) {
-      const cjson = child.toJSON();
-      const cdate = String(cjson.recurrence_id).slice(0, 10);
-      const alreadyAdded = events.some(e => e._is_exception && e.id === cjson.id);
-      if (!alreadyAdded) events.push({ ...cjson, _is_exception: true, _parent_event_id: cjson.recurrence_parent_id });
-    }
+    // 펼치기는 services/calendarExpand 한 벌(AI 앱 list_events 도 같은 함수 — 2026-11-05)
+    let events = expandRecurring(rawEvents.map((e) => e.toJSON()), exceptionChildren.map((c) => c.toJSON()), start, end);
 
     // scope=mine — 내가 만들었거나 attendee 인 것만
     if (req.query.scope === 'mine') {

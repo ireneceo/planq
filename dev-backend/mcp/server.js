@@ -263,7 +263,10 @@ function buildAgentServer(principal) {
       ...(tool._meta ? { _meta: tool._meta } : {}),
     }, async (args) => {
       const out = await runTool(principal, tool.name, args || {});
-      return { content: [{ type: 'text', text: JSON.stringify(out) }], structuredContent: out };
+      // 실패는 MCP 실패 표시(isError)로도 알린다 — 없으면 클라이언트가 «성공» 으로 보여 모델이 오류를 가볍게 넘겼다(2026-11-05 점검).
+      //   단 CONFIRMATION_REQUIRED 는 실패가 아니라 «사용자에게 물어라» 이므로 표시하지 않는다(확인 2단계 흐름 그대로).
+      const isError = out && out.ok === false && out.error?.code !== 'CONFIRMATION_REQUIRED';
+      return { content: [{ type: 'text', text: JSON.stringify(out) }], structuredContent: out, ...(isError ? { isError: true } : {}) };
     });
   }
   return server;

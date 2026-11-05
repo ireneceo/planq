@@ -4,6 +4,7 @@
 //   이 파일은 모델에 create/update/destroy 를 직접 부르지 않는다(가드 agentsurface).
 //   신원·범위는 principal(토큰)에서만 — 입력에 workspace/user id 칸이 없다.
 const { Op } = require('sequelize');
+const { sequelize } = require('../../../config/database');
 const { z } = require('zod');
 const { err, fromActionFailure, forbiddenFieldsError, bodyLockedError } = require('../errors');
 const { taskItem, noteItem } = require('../serialize');
@@ -151,8 +152,8 @@ async function searchTasks(p, a) {
   if (a.project_id) conds.push({ project_id: a.project_id });
   if (a.client_id) conds.push({ client_id: a.client_id });
   if (a.updated_since) {
-    const d = new Date(String(a.updated_since));
-    if (Number.isNaN(d.getTime())) throw err('VALIDATION_ERROR', 'invalid_datetime', { fields: { updated_since: a.updated_since } });
+    const { userTz, parseAgentTime } = require('../datetime');   // 오프셋 없는 값은 사용자 시간대(2026-11-05)
+    const d = parseAgentTime(a.updated_since, 'updated_since', await userTz(p));
     conds.push({ updated_at: { [Op.gte]: d } });
   }
   const q = String(a.query || '').normalize('NFC').trim();
@@ -164,7 +165,7 @@ async function searchTasks(p, a) {
   // 권한 조건은 Op.and 안에 — 최상위 키로 두면 뒤 필터가 덮어쓴다(memory feedback_scope_where_top_key_overwritten)
   const { rows, count } = await Task.findAndCountAll({
     where: { [Op.and]: conds }, include: TASK_INCLUDE(),
-    order: [['due_date', 'ASC'], ['updated_at', 'DESC'], ['id', 'DESC']], limit: pg.pageSize, offset: pg.offset, distinct: true,
+    order: [[sequelize.literal('`Task`.`due_date` IS NULL'), 'ASC'], ['due_date', 'ASC'], ['updated_at', 'DESC'], ['id', 'DESC']]   // 마감 없는 업무를 뒤로(MySQL 은 오름차순에서 NULL 이 먼저 — 첫 페이지가 마감 없는 업무로 찼다), limit: pg.pageSize, offset: pg.offset, distinct: true,
   });
   return pageOf(await shapeTasks(rows, p.businessId), count, pg);
 }
