@@ -1139,7 +1139,23 @@ const QTalkPage: React.FC<QTalkPageProps> = ({ embedded = false, initialConvId =
         setConversations((prev) => {
           // 다른 프로젝트 대화는 유지
           const others = prev.filter((c) => c.project_id !== activeProjectId);
-          return [...others, ...mappedConvs];
+          // ★ 프로젝트 대화 API(/api/projects/:id/conversations)는 맨 행만 준다 — 마지막 대화 미리보기·안읽음·핀·읽은 시각이 없다.
+          //   그대로 덮으면 대화방을 고르는 순간 목록 줄이 «아직 대화가 없어요»·안읽음 0 으로 바뀌었다(2026-10-29 시연 영상 녹화 중 발견).
+          //   그 네 칸은 워크스페이스 목록(/api/conversations/:biz)이 정본이라 이전 값을 지킨다(새 메시지는 소켓이 따로 갱신).
+          const byId = new Map(prev.map((c) => [c.id, c]));
+          const merged = mappedConvs.map((m) => {
+            const old = byId.get(m.id);
+            if (!old) return m;
+            return {
+              ...m,
+              last_message_preview: m.last_message_preview ?? old.last_message_preview,
+              // 안읽음은 이 API 가 아예 안 준다 — 늘 지금 상태(prev)가 맞다(읽음 처리가 먼저 끝났으면 이미 0)
+              unread_count: old.unread_count,
+              my_pinned_at: m.my_pinned_at ?? old.my_pinned_at,
+              my_last_read_at: m.my_last_read_at ?? old.my_last_read_at,
+            };
+          });
+          return [...others, ...merged];
         });
         // raw 응답도 캐시 (ChatSettingsModal 의 translation_* prefill 용)
         setConvsRaw((prev) => {
