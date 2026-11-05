@@ -14,6 +14,7 @@
 const BE = '/opt/planq/dev-backend';
 process.chdir(BE);
 require(`${BE}/node_modules/dotenv`).config({ path: `${BE}/.env`, quiet: true });
+require('./health-fetch'); // 127.0.0.1 고정·재시도·429 기다림 — health-check 와 한 벌
 
 const [, , CASE, TOKEN, USER_ID, BACKEND] = process.argv;
 const userId = Number(USER_ID);
