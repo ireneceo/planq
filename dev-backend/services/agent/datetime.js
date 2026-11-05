@@ -49,6 +49,13 @@ function parseAgentTime(v, field, tz, { endOfDay = false, inclusive = false } = 
     hint: `Use ISO 8601, e.g. "2026-11-05" (whole day in ${tz}), "2026-11-05T14:00" (local time in ${tz}) or "2026-11-05T14:00:00+09:00".`,
   });
   if (!s) throw bad();
+  // 달·날 범위 — wallToInstant 는 13월·32일을 다음 달로 넘겨 받아 버린다(Fable 2026-11-05 지적)
+  const dm = /^(\d{4})-(\d{2})-(\d{2})/.exec(s);
+  if (dm) {
+    const [y, mo, da] = [Number(dm[1]), Number(dm[2]), Number(dm[3])];
+    const t = new Date(Date.UTC(y, mo - 1, da));
+    if (mo < 1 || mo > 12 || t.getUTCMonth() !== mo - 1 || t.getUTCDate() !== da) throw bad();
+  }
   let m = DATE_ONLY.exec(s);
   if (m) {
     if (!endOfDay) return wallToInstant(m[1], '00:00', tz);
