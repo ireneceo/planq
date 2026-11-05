@@ -97,6 +97,16 @@ done
 #   깨끗할 때도 똑같이 다시 실행한다 — 내용이 같아 동작은 그대로이고, 배포 중 다른 방이 이 파일을 고쳐도
 #   (bash 는 스크립트를 실행하면서 읽는다) 도는 절차가 바뀌지 않는다. 사본도 같은 DEPLOY_PIN 으로 만든다 —
 #   시작 뒤 다른 방이 커밋해도 절차와 사본이 갈라지지 않는다.
+# ★ 2026-11-06 — 기다림 시계. 상황판 배포 실행기는 PlanQ 배포를 60분에 끊는다(projects.json timeoutMin) — 끊기면 결과가
+#   «모름»(unknown)으로 남고 운영이 반쯤 바뀌었는지 사람이 다시 봐야 한다. 11-05 20:14 UTC(04:14 MYT) 배포가 그랬다:
+#   밤 순찰(planq-chrome, 18:00 UTC 부터 최대 3.5시간)이 메모리 자리 3900MB 를 쥔 채, 배포 빌드(상자 4680MB)가 자리표 줄에서
+#   기본 3600초를 기다리다 상황판 60분 제한에 먼저 끊겼다(운영은 안 바뀜 — 빌드는 운영 단계 앞). 그래서 모든 «기다림»
+#   (공용 게이트·자리표)은 배포 시작부터 PLANQ_DEPLOY_WAIT_MAX 초(기본 1800) 안에 끝나고, 넘으면 «운영 안 바꿈» 으로 분명히 실패한다.
+#   기다림 30분 + 빌드·운영 단계(실측 약 11분) + 사전 점검(약 4분) < 60분. 시계는 다시 실행(exec) 뒤에도 이어지게 export.
+export PLANQ_DEPLOY_T0="${PLANQ_DEPLOY_T0:-$(date +%s)}"
+DEPLOY_WAIT_MAX="${PLANQ_DEPLOY_WAIT_MAX:-1800}"
+wait_left() { echo $(( PLANQ_DEPLOY_T0 + DEPLOY_WAIT_MAX - $(date +%s) )); }
+
 SELF_FILES="scripts/deploy-planq.sh scripts/make-deploy-snapshot.sh"
 if [ -z "${PLANQ_DEPLOY_PIN:-}" ]; then
   DEPLOY_PIN=$(git -C "$REPO" rev-parse --verify 'HEAD^{commit}') || { echo "[ERROR] HEAD 커밋을 읽지 못함 — 배포 중단"; exit 1; }
@@ -356,6 +366,17 @@ preflight_check() {
       exit 1
     fi
     success "운영 .env 에 DEV_LOGIN_SECRET 없음"
+  fi
+
+  # 6) 메모리 자리표 — 빌드가 줄을 설지 미리 알린다(막지는 않음 · 기다림 상한은 wait_left). 11-05 04:14 MYT 배포는 밤 순찰이
+  #    자리를 쥔 줄 모른 채 한 시간을 기다리다 끊겼다 — 누가 쥐고 있는지 첫 몇 분 안에 기록에 남게.
+  if [ "$DRY_RUN" = false ] && [ -x "$HOME/dev-server/bin/mem-slot" ]; then
+    local SLOT_HELD
+    SLOT_HELD=$("$HOME/dev-server/bin/mem-slot" status 2>/dev/null | grep -E '^[[:space:]]+자리 ' || true)
+    if [ -n "$SLOT_HELD" ]; then
+      warn "메모리 자리표에 먼저 자리 잡은 일이 있다 — 빌드 차례가 늦으면 배포 시작 뒤 $((DEPLOY_WAIT_MAX / 60))분까지 기다리고, 넘으면 운영을 안 바꾸고 멈춘다:"
+      printf '%s\n' "$SLOT_HELD" | sed 's/^/     /'
+    fi
   fi
 
   # 5) 미커밋 변경 — make_snapshot 이 이미 «커밋하지 않고 빼고 배포» 로 처리했다(2026-10-12).
@@ -981,9 +1002,9 @@ wait_heavy_gate() {
   until "$GATE" build > "/tmp/planq-deploy-gate.$$" 2>&1; do
     if [ $waited -eq 0 ]; then warn "메모리 게이트 대기 — 다른 무거운 작업이 끝나면 빌드한다:"; sed 's/^/     /' "/tmp/planq-deploy-gate.$$"; fi
     waited=$((waited + 15))
-    if [ $waited -ge 1800 ]; then
+    if [ "$(wait_left)" -le 0 ]; then
       rm -f "/tmp/planq-deploy-gate.$$"
-      error "메모리 게이트가 30분 동안 안 열렸다 — 운영은 아직 안 바꿨다. 무거운 작업을 확인하고 다시 배포"
+      error "메모리 게이트가 배포 시작 뒤 $((DEPLOY_WAIT_MAX / 60))분 안에 안 열렸다 — 운영은 아직 안 바꿨다. 무거운 작업을 확인하고 다시 배포"
       exit 1
     fi
     sleep 15
@@ -1026,7 +1047,9 @@ build_frontend() {
   BUILD_EXIT=0
   for BUILD_TRY in 1 2; do
     wait_heavy_gate
-    if NODE_OPTIONS='--max-old-space-size=4096' npm run build > "$BUILD_LOG" 2>&1; then BUILD_EXIT=0; else BUILD_EXIT=$?; fi
+    # 자리표 줄에 설 시간 = 기다림 시계에 남은 만큼(최소 60초) — 넘으면 mem-slot 이 75 로 빌드 없이 끝난다(아래 «운영 안 바꿈»).
+    SLOT_WAIT=$(wait_left); [ "$SLOT_WAIT" -lt 60 ] && SLOT_WAIT=60
+    if PLANQ_SLOT_WAIT="$SLOT_WAIT" NODE_OPTIONS='--max-old-space-size=4096' npm run build > "$BUILD_LOG" 2>&1; then BUILD_EXIT=0; else BUILD_EXIT=$?; fi
     if [ "$BUILD_EXIT" -eq 137 ] || [ "$BUILD_EXIT" -eq 143 ] || { [ "$BUILD_EXIT" -ne 0 ] && grep -qE '^(Terminated|Killed)' "$BUILD_LOG"; }; then
       warn "프론트 빌드가 메모리 부족으로 끊겼다(exit $BUILD_EXIT, 시도 $BUILD_TRY/2) — 다른 무거운 작업이 끝나길 기다렸다 다시 짓는다"
       continue
@@ -1039,7 +1062,9 @@ build_frontend() {
   #   안에서 돈다. 위 wait_heavy_gate(공용 게이트)는 그대로 거치고, 자리표가 먼저 선 순서대로 메모리 몫을 나눠 준다.
   #   75 = 자리표 차례가 60분 안에 안 왔다(빌드 안 함) — 운영은 아직 안 바꿨다.
   if [ $BUILD_EXIT -eq 75 ]; then
-    error "메모리 자리표 차례가 60분 동안 안 왔다 — 빌드 안 함 · 운영은 아직 안 바꿨다. ~/dev-server/bin/mem-slot status 로 자리 잡은 일을 보고 다시 배포 (우회 금지)"
+    error "메모리 자리표 차례가 배포 시작 뒤 $((DEPLOY_WAIT_MAX / 60))분 안에 안 왔다 — 빌드 안 함 · 운영은 아직 안 바꿨다. 자리 잡은 일이 끝난 뒤 다시 배포 (우회 금지)"
+    "$HOME/dev-server/bin/mem-slot" status 2>/dev/null | sed 's/^/     /' || true
+    grep -E '^\[mem-slot\]' "$BUILD_LOG" | tail -2 | sed 's/^/     /' || true
     exit 1
   fi
   if [ $BUILD_EXIT -ne 0 ]; then
