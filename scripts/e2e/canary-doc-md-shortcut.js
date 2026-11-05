@@ -3,7 +3,7 @@
 // Irene: *"모바일에서 문서에 # ## 이런거 붙은 글자 크기 마킹 붙인 내용도 적용이 안돼."*
 //
 //   재는 것 (폰 390 · 태블릿 820 · 데스크탑 1440):
-//     ① 키보드로 «# » → 제목1, 글자 크기 22px (데스크탑 경로 — TipTap 입력 규칙)
+//     ① 키보드로 «# » → 제목1, 글자 크기 28px (데스크탑 경로 — TipTap 입력 규칙 · 3a31a4ec 마크다운 표준 비율 h1 2배 = 28px)
 //     ② «## » 를 입력 규칙을 거치지 않고 넣는다(한글 자판 조합 끝 반영과 같은 길 — handleTextInput 없이 문서만 바뀜) → 제목2
 //        대조군: 같은 글을 «기록 안 함» 트랜잭션으로 넣으면 문단 그대로(사람이 친 것만 바꾼다)
 //     ③ 바꾼 직후 실행 취소 → «##» 문단으로 돌아오고 다시 바뀌지 않는다
@@ -68,7 +68,7 @@ async function oneWidth(width) {
     await sleep(200);
     const c1 = await cur(page);
     const fs1 = await page.evaluate(() => { const h = document.querySelector('.ProseMirror h1'); return h ? getComputedStyle(h).fontSize : ''; });
-    push(`[${tag}] ① 키보드 «# » → 제목1 · 22px`, c1.type === 'heading' && c1.level === 1 && c1.text === '큰제목' && fs1 === '22px', `${c1.type}/${c1.level} «${c1.text}» · ${fs1}`);
+    push(`[${tag}] ① 키보드 «# » → 제목1 · 28px`, c1.type === 'heading' && c1.level === 1 && c1.text === '큰제목' && fs1 === '28px', `${c1.type}/${c1.level} «${c1.text}» · ${fs1}`);
 
     // ② 대조군 먼저 — 기록 안 함 트랜잭션은 바꾸지 않는다
     await freshLine(page);

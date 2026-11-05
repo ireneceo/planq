@@ -84,7 +84,9 @@ async function oneWidth(width) {
     //   (남는 자리는 min-width:100% 로 열들이 나눠 가지므로 칸 폭 자체는 상한보다 클 수 있다)
     const okW = !!m && (width < 700 ? m.cell <= 360 : m.table <= m.host);
     push(`[${tag}] ① 표 긴 주소 ${width < 700 ? '칸 ≤ 360px' : '— 표가 본문 안(가로 스크롤 없음)'}`, okW, m ? `칸 ${m.cell} · 표 ${m.table} / 본문 ${m.host}` : '표 없음');
-    await page.evaluate(() => { const s = document.createElement('style'); s.id = 'zq-ctl'; s.textContent = '.ProseMirror table p{max-width:none!important}'; document.head.appendChild(s); });
+    await page.evaluate(() => { const s = document.createElement('style'); s.id = 'zq-ctl'; s.textContent = '.ProseMirror table{table-layout:auto!important} .ProseMirror td,.ProseMirror td *,.ProseMirror th,.ProseMirror th *{overflow-wrap:normal!important;word-break:normal!important}'; document.head.appendChild(s); });
+    // ★ 2026-11-05 — 옛 «칸 안 문단 max-width» 상한은 d5b1bb1e(표 기준 한 벌)에서 지웠다. 지금 긴 주소를 칸 안에 가두는 것은
+    //   table-layout:fixed + overflow-wrap:anywhere(styles/pqTableCss) — 대조군은 그 둘을 끈다(옛 대조군은 없는 규칙을 꺼서 늘 그대로였다).
     await sleep(200);
     const mc = await measure();
     await page.evaluate(() => document.getElementById('zq-ctl')?.remove());

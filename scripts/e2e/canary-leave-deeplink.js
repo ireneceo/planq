@@ -159,7 +159,9 @@ async function run() {
       await new Promise((r) => setTimeout(r, 250));
     }
     const note = await page.evaluate(() => {
-      const el = document.querySelector('[data-testid="leave-linked-decided"]');
+      // 숨은 keep-alive 탭 사본이 아니라 그려진 것을 고른다(2026-11-05 — 첫 사본이 0 크기라 «안 보임» 으로 오판)
+      const all = [...document.querySelectorAll('[data-testid="leave-linked-decided"]')];
+      const el = all.find((x) => x.getClientRects().length > 0) || all[0];
       if (!el) return null;
       const r = el.getBoundingClientRect();
       return { text: el.innerText.trim(), painted: r.width > 1 && r.height > 1 };

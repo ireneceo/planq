@@ -144,12 +144,16 @@ async function oneWidth(width) {
     push(`[${tag}] ⑤ Esc 로 닫히면 칠한 자리 0`, !s6.barOpen && s6.matches === 0, `막대 ${s6.barOpen} · 칠함 ${s6.matches}`);
 
     // ⑥ 밑줄·구분선
-    await page.click('.ProseMirror');
-    await page.keyboard.press('End');
+    // 문서 끝에 커서 — 편집기 가운데를 누르면 폭에 따라 줄 중간에 떨어져 결과가 들쭉날쭉했다(390 실측)
+    await page.evaluate(() => document.querySelector('.ProseMirror').editor?.commands.focus('end'));
     await page.keyboard.press('Enter');
     await sleep(250);
     await page.click('[data-testid="editor-underline"]');
+    await sleep(200);   // 버튼이 편집기에 포커스를 돌려준 뒤 친다(첫 글자가 다른 자리로 가던 것)
     await page.keyboard.type('밑줄글');
+    // 사람처럼 버튼이 다 보이게 툴바를 넘긴 뒤 누른다 — 끝에 걸친 버튼은 «›» 화살표(마우스 기기)가 덮는다(2026-11-05 820 실측)
+    await page.evaluate(() => document.querySelector('[data-testid="editor-hr"]')?.scrollIntoView({ block: 'nearest', inline: 'center' }));
+    await sleep(150);
     await page.click('[data-testid="editor-hr"]');
     await sleep(300);
     const s7 = await snap(page);

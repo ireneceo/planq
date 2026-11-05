@@ -49,15 +49,15 @@ async function mkTask(made, { title, by, assignee, status, reviewer, reviewerSta
 }
 
 // 하단 줄 — 스크롤 상자 맨 위에서 보이는가 · 줄 바닥이 상자 바닥에 붙었는가
-async function footerState(page, { forceStatic = false } = {}) {
-  return page.evaluate((forceStatic) => {
+async function footerState(page, { forceStatic = false, toEnd = false } = {}) {
+  return page.evaluate((forceStatic, toEnd) => {
     const f = document.querySelector('[data-testid="task-detail-footer"]');
     if (!f) return { found: false };
     const wrap = f.closest('[data-testid="task-detail-footer"]');
     if (forceStatic) wrap.style.position = 'static';
     let sc = f.parentElement;
     while (sc && !(getComputedStyle(sc).overflowY === 'auto' || getComputedStyle(sc).overflowY === 'scroll')) sc = sc.parentElement;
-    if (sc) sc.scrollTop = 0;
+    if (sc) sc.scrollTop = toEnd ? sc.scrollHeight : 0;
     const r = f.getBoundingClientRect();
     const sr = sc ? sc.getBoundingClientRect() : { bottom: innerHeight };
     const hit = document.elementFromPoint(Math.round(r.left + r.width / 2), Math.round(r.top + Math.min(r.height / 2, 20)));
@@ -66,7 +66,7 @@ async function footerState(page, { forceStatic = false } = {}) {
     const btns = [...f.querySelectorAll('button')].map((x) => (x.textContent || '').trim());
     if (forceStatic) wrap.style.position = '';
     return { found: true, visible, scrolls, gap: Math.round(sr.bottom - r.bottom), btns };
-  }, forceStatic);
+  }, forceStatic, toEnd);
 }
 
 async function clickTid(page, tid) {
@@ -132,11 +132,20 @@ async function run() {
       await b.login(p, A.cred);
 
       await openDetail(p, tNew);
-      const f1 = await footerState(p);
-      push(`${vp.name} · ① 본문 맨 위에서도 하단 줄이 보이고 상자 바닥에 붙는다`, f1.found && f1.visible && Math.abs(f1.gap) <= 2,
+      // ★ 폰(≤640)은 버튼 줄을 고정하지 않는다 — Irene 2026-10-22 «모바일에서는 모든 고정푸터 다 고정 안해야»
+      //   (.claude/rules/ui-overlays.md «반응형 상세 드로어»). 폰은 «내용 끝까지 내리면 줄이 보이고 상자 바닥에 붙는다» 를 잰다.
+      //   (이 검사는 10-21 에 만들어져 10-22 결정을 못 받아 2주간 폰 ① 이 빨강이었다 — 2026-11-05 맞춤)
+      const f1 = await footerState(p, { toEnd: !!vp.mobile });
+      push(vp.mobile ? `${vp.name} · ① 내용 끝까지 내리면 하단 줄이 보이고 상자 바닥에 붙는다(폰은 고정 안 함)`
+        : `${vp.name} · ① 본문 맨 위에서도 하단 줄이 보이고 상자 바닥에 붙는다`, f1.found && f1.visible && Math.abs(f1.gap) <= 2,
         JSON.stringify(f1));
-      const f1c = await footerState(p, { forceStatic: true });
-      push(`${vp.name} · ① 대조군: 고정을 풀면 같은 판정이 «안 보임»`, f1c.found && f1c.scrolls && !f1c.visible, JSON.stringify(f1c));
+      if (vp.mobile) {
+        const f1m = await footerState(p);
+        push(`${vp.name} · ① 대조군: 폰은 맨 위에서 줄이 화면에 떠 있지 않다(키보드 위 고정 금지)`, f1m.found && f1m.scrolls && !f1m.visible, JSON.stringify(f1m));
+      } else {
+        const f1c = await footerState(p, { forceStatic: true });
+        push(`${vp.name} · ① 대조군: 고정을 풀면 같은 판정이 «안 보임»`, f1c.found && f1c.scrolls && !f1c.visible, JSON.stringify(f1c));
+      }
       push(`${vp.name} · ② 진행 전: 줄에 [업무 삭제]·[진행 시작하기]`, f1.btns.includes('업무 삭제') && f1.btns.includes('진행 시작하기'), JSON.stringify(f1.btns));
       await clickTid(p, 'task-footer-start');
       push(`${vp.name} · ② [진행 시작하기] → in_progress`, (await waitStatus(tNew, 'in_progress')) === 'in_progress', `task ${tNew}`);

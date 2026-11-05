@@ -341,8 +341,11 @@ async function run() {
             await cdp.send('Emulation.setDeviceMetricsOverride', { width: v.vp.width, height: H, mobile: true, deviceScaleFactor: 2 });
             await sleep(900);
             const down = await m();
-            push(`${v.key} · ③ 음성 대조: 키보드 내리면 헤더·메타·붙박이 버튼 복귀`,
-              down.kb !== '1' && down.header && down.meta && down.actions === 'sticky', JSON.stringify(down));
+            // ★ 폰(≤640)은 버튼 줄을 고정하지 않는다 — Irene 2026-10-22 «모바일에서는 모든 고정푸터 다 고정 안해야»
+            //   (MailPage.styles ComposerActions @media 640 static). 그 폭은 «복귀» 가 static 이 맞다(10-24~11-04 낡은 기대로 빨강).
+            const wantDown = v.vp.width <= 640 ? 'static' : 'sticky';
+            push(`${v.key} · ③ 음성 대조: 키보드 내리면 헤더·메타 복귀 · 버튼 줄 ${wantDown}`,
+              down.kb !== '1' && down.header && down.meta && down.actions === wantDown, JSON.stringify(down));
             await cdp.detach().catch(() => {});
             // 답장창 닫기 — 남기면 초안이 다음 실행에 섞인다
             await page.evaluate(() => { const c = Array.from(document.querySelectorAll('[data-pq-writing] button')).find((x) => /^(취소|Cancel)$/.test(x.innerText.trim())); c && c.click(); });

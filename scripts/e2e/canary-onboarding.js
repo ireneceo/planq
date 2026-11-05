@@ -369,6 +369,16 @@ async function run() {
           if (v.touch) await page.setUserAgent(UA);
           await b.login(page, { email: who.u.email, password: PASSWORD });
           // /inbox(확인 필요) — 로그인하면 오는 화면이라 처음 온 사람이 여기서 단계를 봐야 한다(2026-10-11 Irene)
+          // ★ 2026-11-04 902a347a(«첫 길» Fable 설계) — 확인 필요(/inbox)의 시작 체크리스트는 **접힌 채 시작**한다.
+          //   펼침은 사람이 누른 기록(localStorage planq.onboarding.inboxExpanded=1)이 있을 때만. 접힘을 먼저 재고(음성 대조),
+          //   펼친 기록을 심은 뒤 아래 ⑤⑥ 을 잰다(이 검사는 그 전 설계로 묶음·버튼을 재서 11-04 부터 빨강이었다).
+          {
+            await openCard(page, '/inbox', 'inbox');
+            const c0 = await cardInfo(page, 'inbox');
+            push(`${v.key} · ${who.label} · inbox ⓪ 처음엔 접힌 채(단계 묶음 안 보임)`, c0.found && c0.vis && (c0.groups || []).length === 0,
+              JSON.stringify({ found: c0.found, vis: c0.vis, g: c0.groups }));
+            await page.evaluate(() => { try { localStorage.setItem('planq.onboarding.inboxExpanded', '1'); } catch { /* */ } });
+          }
           for (const [path, variant] of [['/inbox', 'inbox'], ['/dashboard', 'dashboard'], ['/business/settings', 'settings']]) {
             await openCard(page, path, variant);
             const info = await cardInfo(page, variant);
