@@ -1,5 +1,10 @@
 # Fable 게이트 대기열 → **판정 기록 보관소** (2026-10-08 부터)
 
+### 2026-11-05 방 ed1a8eeb — AI 앱(ChatGPT·Claude) 도구 품질 묶음(7c802302·a655a59d·4d959cae) — 완료 검증 1차 **FAIL** → 2차(1bf54af6) **VERDICT: PASS**
+- 1차 차단: search_tasks 정렬 주석이 같은 줄의 limit·offset·distinct 를 주석 처리 — 한 번에 331~414건을 page_size 20 이라 말하며 돌려줌(2페이지 = 1페이지). 나머지 8항목 실호출 통과(시간대 · 반복 회차 = 화면 API 집합 차 0 · only_mine · 메일 any/담당/인용/사람별 읽음 · 격리 ws7·ws5·남의 개인 계정 · isError(확인 2단계 제외) · role · 진척 · update_event 미리보기=실행).
+- 2차: p1 20·p2 20·겹침 0 · 9페이지 414건 고유·마감순 · 날짜 «Fri Oct 06» → YYYY-MM-DD(기존 결함) · 애매한 날짜 거절 · create/update 응답 현지 시각. 비차단 «13월» → dfdcc059 반영.
+- 남김(쓰기 표면 — 설계 몫): 답장 초안 «고쳐줘» 두 번째 호출 CONFLICT · update_document 서식 손실(lossy 판정 없음) · 옛 /mcp get_project_status 권한 검사 없음(localhost 만).
+
 ### 2026-11-04 방 d12c74b3 — PlanQ 안내방 3단계(84423656 서버 · 00c48c10 화면) — 완료 검증 **VERDICT: PASS** (차단 0)
 - 편차 7건 모두 허용: 메시지 라우트 두 곳에 afterMessageSoon · qhelperAnswer 별도(/help 무변경) · platformroom 래칫(28 파일 동결, 6곳 직접 확인) · 임시 스크립트 검증 · «PlanQ 팀 · 이름» 서버 displayName 한 곳(위조 무시 실측) · 내부 메모 숨김 · 지연 생성.
 - Fable 실측: HTTP 61건 ①~⑤ 재현(Cue 답·cue_usage 불변·Cue 알림 0 · 관리자 답 push 1·+4h 멈춤·감사 · member join/403 · client 전부 403 · 보관/삭제/이름 409 · 테넌트 · 검색/최근/요금제/내보내기/AI 출처 제외) · 마이그레이션 2회 멱등 · 화면 3폭 25/26(1 = 공용 배지, 무관).
