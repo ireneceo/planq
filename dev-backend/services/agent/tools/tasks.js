@@ -137,7 +137,17 @@ async function searchTasks(p, a) {
   if (!base) throw err('PERMISSION_DENIED', 'no_task_access');
   if (!validDate(a.due_from) || !validDate(a.due_to)) throw err('VALIDATION_ERROR', 'invalid_date', { fields: { due_from: a.due_from, due_to: a.due_to } });
   const conds = [base];
-  const assignee = a.assignee === undefined ? 'me' : a.assignee;
+  // role(2026-11-05) — «내 승인 기다리는 것»·«내가 맡긴 일» 은 담당자 축으로 답할 수 없었다(assignee 만 있었다).
+  //   requester = 내가 요청한 업무 · reviewer = 내가 컨펌자이고 아직 내 확인을 기다리는 업무(확인 단계 + 내 상태 pending —
+  //   화면 확인필요와 같은 술어: services/reviewStage). role 을 주면 assignee 기본값(me)을 걸지 않는다.
+  const role = a.role || null;
+  if (role === 'requester') conds.push({ request_by_user_id: p.userId });
+  else if (role === 'reviewer') {
+    const { TaskReviewer } = require('../../../models');
+    const rv = await TaskReviewer.findAll({ where: { user_id: p.userId, state: 'pending' }, attributes: ['task_id'] });
+    conds.push({ id: { [Op.in]: rv.length ? rv.map((x) => x.task_id) : [0] } }, require('../../reviewStage').stageWhere('reviewing'));
+  }
+  const assignee = a.assignee === undefined ? (role ? 'anyone' : 'me') : a.assignee;
   if (assignee === 'me') conds.push({ assignee_id: p.userId });
   else if (typeof assignee === 'number') conds.push({ assignee_id: assignee });
   const status = a.status || 'open';

@@ -44,7 +44,8 @@ const TOOLS = [
     input: {
       query: z.string().max(100).optional().describe('Words in the task title or description'),
       assignee: z.union([z.literal('me'), z.literal('anyone'), z.number().int().positive()]).optional()
-        .describe('"me" (default), "anyone", or a user_id'),
+        .describe('"me" (default unless role is given), "anyone", or a user_id'),
+      role: z.enum(['requester', 'reviewer']).optional().describe('"requester" = tasks I requested (asked others to do). "reviewer" = tasks waiting for MY review/approval now. Use for "what do I need to approve?" / "how are the tasks I assigned going?"'),
       status: z.enum(['open', 'overdue', 'done', 'all']).optional().describe('Default "open"'),
       due_from: dateOnly.optional(), due_to: dateOnly.optional(),
       project_id: z.number().int().positive().optional(),
