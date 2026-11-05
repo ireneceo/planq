@@ -46,3 +46,6 @@ paths:
 - **nginx**: `location /agent/` · `location /.well-known/oauth-` → `127.0.0.1:3005`. 운영 스키마 `scripts/migrate-agent-oauth.js`(멱등, 배포 슬롯).
 - 회귀: `--suite agentconsent`(동의 화면 3폭) · 왕복 검사는 dev 전용 스크립트(OAuth 26검사 — 커밋하지 않는다).
 
+- **날짜·시각 입력은 `services/agent/datetime.parseAgentTime` 한 벌**(2026-11-05, Fable 2차 PASS) — 오프셋 없는 값 = 사용자 시간대(users.timezone → 워크스페이스),
+  날짜만 온 끝 값 = 그날 끝까지, 그 밖의 모양(«2026-11-5»·«11/05/2026»·13월)은 거절+예시. `new Date(String(s))` 로 도구 입력을 읽지 않는다(서버 UTC 로 풀려 «오늘 일정» 아침 회의가 빠졌다).
+  반복 일정 회차는 화면과 같은 `services/calendarExpand.expandRecurring`. 목록 도구의 `order` 줄 끝에 `//` 주석을 달지 않는다 — 같은 줄의 limit·offset 이 주석에 먹혀 수백 건이 나갔다(Fable 1차 FAIL).
