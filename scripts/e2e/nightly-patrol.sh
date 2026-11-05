@@ -15,7 +15,9 @@ if ! /opt/planq/scripts/deploy-busy.sh --wait 5400 nightly-patrol 2>> logs/patro
   echo "$(date -u +%FT%TZ) skip: deploy still running after 90min" >> logs/patrol/cron.log; exit 0
 fi
 # 순찰은 7환경을 한 번에 돈다 — 기본 몫 1500(상자 1950)을 넘어 11-03 밤 137 로 죽었다 → 순찰만 3000(lib/mem-slot.js)
-PLANQ_CHROME_MB=3000 timeout 9000 node scripts/e2e/run.js --suite patrol > "logs/patrol/run-$D.log" 2>&1
+# 시간 제한 9000(2시간 30분) → 12600(3시간 30분): 10-24 부터 순찰 자체가 2시간 20분 안팎이라 10-29·10-30·11-02·11-04 네 밤이
+#   제한에 걸려 끝(exit 124)·보고서 없이 끝났다 — 보고서는 끝에 한 번 쓰므로 제한에 걸리면 그날 결과가 통째로 없다(2026-11-06 정기 점검).
+PLANQ_CHROME_MB=3000 timeout 12600 node scripts/e2e/run.js --suite patrol > "logs/patrol/run-$D.log" 2>&1
 RC=$?
 echo "$(date -u +%FT%TZ) exit=$RC $(grep -a '총 실패' "logs/patrol/run-$D.log" | tail -1)" >> logs/patrol/cron.log
 # 30일 지난 보고서 정리
