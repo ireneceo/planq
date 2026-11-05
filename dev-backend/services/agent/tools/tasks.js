@@ -175,7 +175,8 @@ async function searchTasks(p, a) {
   // 권한 조건은 Op.and 안에 — 최상위 키로 두면 뒤 필터가 덮어쓴다(memory feedback_scope_where_top_key_overwritten)
   const { rows, count } = await Task.findAndCountAll({
     where: { [Op.and]: conds }, include: TASK_INCLUDE(),
-    order: [[sequelize.literal('`Task`.`due_date` IS NULL'), 'ASC'], ['due_date', 'ASC'], ['updated_at', 'DESC'], ['id', 'DESC']]   // 마감 없는 업무를 뒤로(MySQL 은 오름차순에서 NULL 이 먼저 — 첫 페이지가 마감 없는 업무로 찼다), limit: pg.pageSize, offset: pg.offset, distinct: true,
+    // 마감 없는 업무를 뒤로(MySQL 은 오름차순에서 NULL 이 먼저 — 첫 페이지가 마감 없는 업무로 찼다)
+    order: [[sequelize.literal('`Task`.`due_date` IS NULL'), 'ASC'], ['due_date', 'ASC'], ['updated_at', 'DESC'], ['id', 'DESC']], limit: pg.pageSize, offset: pg.offset, distinct: true,
   });
   return pageOf(await shapeTasks(rows, p.businessId), count, pg);
 }

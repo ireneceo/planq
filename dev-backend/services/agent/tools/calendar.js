@@ -164,7 +164,8 @@ async function createEvent(p, a, actor) {
   const { CalendarEvent, Project } = require('../../../models');
   const full = await CalendarEvent.findOne({ where: { id: ev.id, business_id: p.businessId }, include: [{ model: Project, attributes: ['id', 'name'], required: false }] });
   // Meet 이 실패해도 일정은 만들어졌다 — 이유를 돌려준다(카드·모델이 «링크는 못 만들었다» 를 말한다)
-  return { event: eventItem(full), created: true, ...(r.data?.meetWarning ? { meet_warning: r.data.meetWarning } : {}) };
+  // 사용자 시간대 벽시계도 같이(Fable 2026-11-05 — 로컬로 만들고 UTC 만 받으면 모델이 «06:00 으로 만들어졌다» 고 말한다)
+  return { event: eventItem(full, false, await userTz(p)), created: true, ...(r.data?.meetWarning ? { meet_warning: r.data.meetWarning } : {}) };
 }
 
 // ─────────────────────────────────────────────
@@ -318,7 +319,7 @@ async function updateEventTool(p, a0, actor) {
   const eventActions = require('../../actions/event_actions');
   const r = await eventActions.updateEvent(actor, { businessId: p.businessId, eventId: e.id, ...eventPatch(a), via: p.provider === 'cue' ? 'cue' : 'agent' });
   if (!r.ok) throw fromActionFailure(r);
-  return { event: eventItem(r.data.full || r.data.event), updated: true, attendees_notified: r.data.notified || 0 };
+  return { event: eventItem(r.data.full || r.data.event, false, await userTz(p)), updated: true, attendees_notified: r.data.notified || 0 };
 }
 
 // ── add_meeting_to_event (MEDIUM) ──────────────────────────

@@ -9,6 +9,7 @@ const { sequelize } = require('../../../config/database');
 const cfg = require('../../agent_oauth/config');
 const { err } = require('../errors');
 const { taskItem } = require('../serialize');
+const ser = require('../serialize');
 
 const escLike = (s) => s.replace(/[\\%_]/g, (c) => `\\${c}`);
 const iso = (v) => (v ? new Date(v).toISOString() : null);
@@ -41,8 +42,8 @@ const projectItem = (pr) => ({
   name: pr.name,
   status: pr.status,
   client_company: pr.client_company || null,
-  start_date: pr.start_date ? String(pr.start_date).slice(0, 10) : null,
-  end_date: pr.end_date ? String(pr.end_date).slice(0, 10) : null,
+  start_date: ser.dateOnly(pr.start_date),
+  end_date: ser.dateOnly(pr.end_date),
   url: `${cfg.APP_URL}/projects/p/${pr.id}`,
 });
 
@@ -221,7 +222,7 @@ async function getProject(p, a) {
     },
     clients: pcs.map((x) => ({ client_id: x.Client.id, name: x.Client.display_name || x.Client.company_name || null, contact_email: x.contact_email || x.Client.invite_email || null, url: `${cfg.APP_URL}/sale/${x.Client.id}` })),
     workstreams: wsRows.map((w) => ({ workstream_id: w.id, title: w.title, status: w.status, task_count: wsCounts.get(w.id) || 0 })),
-    stages: stages.map((st) => ({ kind: st.kind, label: st.label || null, status: st.status, expected_due_date: st.expected_due_date ? String(st.expected_due_date).slice(0, 10) : null })),
+    stages: stages.map((st) => ({ kind: st.kind, label: st.label || null, status: st.status, expected_due_date: ser.dateOnly(st.expected_due_date) })),
     counts: {
       open_tasks: openCount,
       completed_tasks: doneCount,

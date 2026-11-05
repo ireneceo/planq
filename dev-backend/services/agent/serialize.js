@@ -16,7 +16,17 @@ const STATUS_LABEL = {
   canceled: { ko: '취소', en: 'Canceled' },
 };
 
-const dateOnly = (v) => (v ? String(v).slice(0, 10) : null);
+// DATEONLY 가 Date 객체로 올 때가 있다(config/database dateStrings:false) — String(Date) 앞 10자는 «Fri Oct 06» 이라
+//   연도 없는 날짜가 AI 앱에 나갔다(Fable 2026-11-05 실측). mysql2 는 그 날짜의 서버 로컬 자정으로 만드므로 로컬 칸으로 읽는다.
+const dateOnly = (v) => {
+  if (!v) return null;
+  if (v instanceof Date) {
+    if (Number.isNaN(v.getTime())) return null;
+    const p2 = (n) => String(n).padStart(2, '0');
+    return `${v.getFullYear()}-${p2(v.getMonth() + 1)}-${p2(v.getDate())}`;
+  }
+  return String(v).slice(0, 10);
+};
 const iso = (v) => (v ? new Date(v).toISOString() : null);
 const person = (u) => (u ? { user_id: u.id, name: u.display_name || u.name || null } : null);
 

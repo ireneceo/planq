@@ -62,6 +62,9 @@ function parseAgentTime(v, field, tz, { endOfDay = false, inclusive = false } = 
       return m[4] ? new Date(d.getTime() + Number(m[4]) * 1000) : d;
     }
   }
+  // 오프셋이 있는 ISO 모양만 그대로 받는다. 그 밖의 모양(«2026-11-5»·«11/05/2026»·«Nov 5 2026»)은 new Date 가 서버 시간대(UTC)로 풀어
+  //   이 함수가 막으려던 증상이 그대로 돌아온다(Fable 2026-11-05 실측) — 거절하고 예시를 준다.
+  if (!/^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:?\d{2})$/i.test(s)) throw bad();
   const d = new Date(s);
   if (Number.isNaN(d.getTime())) throw bad();
   return d;
