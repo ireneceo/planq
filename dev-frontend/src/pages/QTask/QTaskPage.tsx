@@ -3410,9 +3410,10 @@ const PageTitle=styled.h1`font-size:1.125rem;font-weight:700;color:#0F172A;margi
 const HideCheck=styled.label`display:flex;align-items:center;gap:4px;font-size:0.75rem;color:#64748B;cursor:pointer;white-space:nowrap;& input{accent-color:#0D9488;}`;
 const ChipRow=styled.div`display:flex;gap:4px;margin-left:auto;@media (max-width: 640px){order:10;flex:1 1 100%;margin-left:0;overflow-x:auto;white-space:nowrap;&::-webkit-scrollbar{display:none;}& > *{flex-shrink:0;}}`;
 // 폰(≤640) 필터 접기 — 데스크탑은 display:contents 라 종전 배치 그대로. 폰은 [검색][필터][AI][+추가] 한 줄 → 펼친 필터 → 요약 칩.
-const SearchSlot=styled.div`display:contents;@media (max-width: 640px){display:block;flex:1 1 0;min-width:0;& > *{width:100% !important;}}`;
+/* ★ 폰은 검색·[필터]·[AI]·[+] 가 한 줄에 선다 — 그 줄의 주 액션(머리줄 정본 32px)에 맞춰 검색·필터도 32 (2026-11-05 · 36/32 섞여 들쭉날쭉, --suite headerrow) */
+const SearchSlot=styled.div`display:contents;@media (max-width: 640px){display:block;flex:1 1 0;min-width:0;& > *{width:100% !important;height:32px !important;}}`;
 const FilterGroup=styled.div<{$open:boolean}>`display:contents;@media (max-width: 640px){display:${p=>p.$open?'flex':'none'};order:5;flex:1 1 100%;flex-wrap:wrap;align-items:center;gap:8px;& > div{flex:1 1 140px;}}`;
-const PhoneFilterToggle=styled.button<{$on:boolean}>`display:none;@media (max-width: 640px){display:inline-flex;align-items:center;flex-shrink:0;height:36px;padding:0 12px;border-radius:8px;font-size:0.8125rem;font-weight:600;cursor:pointer;font-family:inherit;border:1px solid ${p=>p.$on?'#14B8A6':'#E2E8F0'};background:${p=>p.$on?'#F0FDFA':'#FFF'};color:${p=>p.$on?'#0F766E':'#475569'};}`;
+const PhoneFilterToggle=styled.button<{$on:boolean}>`display:none;@media (max-width: 640px){display:inline-flex;align-items:center;flex-shrink:0;height:32px;padding:0 12px;border-radius:8px;font-size:0.8125rem;font-weight:600;cursor:pointer;font-family:inherit;border:1px solid ${p=>p.$on?'#14B8A6':'#E2E8F0'};background:${p=>p.$on?'#F0FDFA':'#FFF'};color:${p=>p.$on?'#0F766E':'#475569'};}`;
 const Chip=styled.span<{$teal?:boolean;$coral?:boolean;$warn?:boolean}>`padding:2px 8px;font-size:0.6875rem;font-weight:600;border-radius:6px;background:${p=>p.$warn?'#FEF3C7':p.$teal?'#F0FDFA':p.$coral?'#FFF1F2':'#F1F5F9'};color:${p=>p.$warn?'#B45309':p.$teal?'#0F766E':p.$coral?'#9F1239':'#475569'};`;
 
 const TabBar=styled.div`display:flex;border-bottom:1px solid #E2E8F0;flex-shrink:0;@media(max-width:640px){overflow-x:auto;&::-webkit-scrollbar{display:none;}}`;

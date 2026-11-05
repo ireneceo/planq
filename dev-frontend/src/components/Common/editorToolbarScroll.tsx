@@ -99,4 +99,7 @@ const Arrow = styled.button<{ $side: 'start' | 'end'; $show: boolean }>`
   color: #475569; cursor: pointer;
   visibility: ${(p) => (p.$show ? 'visible' : 'hidden')};
   &:hover { color: #0F172A; }
+  /* ★ 손가락 기기(아이패드·폰)에는 두지 않는다(2026-11-05) — 툴바는 밀어서 넘기면 되고, 화살표가 끝 버튼 위에 겹쳐
+     반쯤 보이는 버튼(820폭 [구분선])을 누르면 버튼 대신 화살표가 눌렸다(--suite docfind ⑥, 좌표 실측). */
+  @media (hover: none) and (pointer: coarse) { display: none; }
 `;

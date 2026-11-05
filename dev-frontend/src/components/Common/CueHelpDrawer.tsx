@@ -1218,6 +1218,10 @@ const ModeBtn = styled.button<{ $active: boolean; $variant: 'qhelper' | 'workspa
 // #295 — 선택된 탭이 무엇을 다루는지 알려주는 한 줄. 탭 바로 아래, 본문 위.
 const ModeHint = styled.div`
   flex-shrink: 0;
+  /* ★ 폰에서 키보드가 뜨면 접는다(2026-11-05) — 창이 보이는 높이(281px)로 줄 때 안내·빠른 칩 줄이
+     줄지 않아 입력줄 아래 17px 가 키보드 뒤로 밀렸다(--suite mobileboot «cue/키보드 위 입력» 10-24부터 빨강).
+     .claude/rules/ui-layout.md «입력 중에는 부가 카드·정보 밴드를 접는다». 키보드를 내리면 돌아온다. */
+  @media (max-width: 768px) { body[data-keyboard-up='1'] & { display: none; } }
   display: flex; align-items: center; gap: 6px;
   padding: 0 14px 8px;
   font-size: 0.71875rem; font-weight: 500; color: #64748B;
@@ -1253,6 +1257,10 @@ const ModeDot = styled.span<{ $variant: 'cue' | 'wiki' | 'inquiry' }>`
 // ─── 빠른 분류 칩 (채팅 시작 전 의도 빠른 지정) ───
 const QuickChips = styled.div`
   flex-shrink: 0;
+  /* ★ 폰에서 키보드가 뜨면 접는다(2026-11-05) — 창이 보이는 높이(281px)로 줄 때 안내·빠른 칩 줄이
+     줄지 않아 입력줄 아래 17px 가 키보드 뒤로 밀렸다(--suite mobileboot «cue/키보드 위 입력» 10-24부터 빨강).
+     .claude/rules/ui-layout.md «입력 중에는 부가 카드·정보 밴드를 접는다». 키보드를 내리면 돌아온다. */
+  @media (max-width: 768px) { body[data-keyboard-up='1'] & { display: none; } }
   padding: 12px 16px;
   display: flex; flex-wrap: wrap; gap: 6px;
   border-bottom: 1px solid #F1F5F9;
@@ -1280,7 +1288,8 @@ const SubChips = styled.div`
 `;
 // ─── Q위키 탭 패널 (맥락 카드 + 카테고리 칩 + 전체 위키 링크) ───
 const WikiPanel = styled.div`
-  flex-shrink: 0;
+  /* 줄 수 있게 둔다 — 검색 결과·이 화면 카드가 많으면 shrink 0 이 입력줄(Footer)을 창 밖으로 밀어냈다(키보드가 뜨면 더). 넘치면 이 칸이 스크롤. */
+  flex-shrink: 1; min-height: 0; overflow-y: auto;
   padding: 12px 16px;
   display: flex; flex-direction: column; gap: 12px;
   border-bottom: 1px solid #F1F5F9;

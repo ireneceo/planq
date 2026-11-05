@@ -27,19 +27,52 @@ export function useRevealSelectedRow(
     let cancelled = false;
     let tries = 0;
     const sel = `${scope ? `${scope} ` : ''}[data-row-id="${String(activeId)}"]`;
+    // ★ 2026-11-05 — 탭 keep-alive 로 같은 화면이 숨은 탭에 남아 있으면 querySelector 가 **안 보이는 사본**을 집어
+    //   스크롤이 아무 일도 안 했다(휴가 알림 링크 --suite leavelink 가 밤마다 들쭉날쭉 «관리자 화면 안 false»).
+    //   그려진(상자가 있는) 행만 고른다.
+    const pick = (): HTMLElement | null => {
+      const all = Array.from(document.querySelectorAll<HTMLElement>(sel));
+      return all.find((x) => x.getClientRects().length > 0 && x.offsetParent !== null) || null;
+    };
+    // 사용자가 스스로 굴리기 시작하면 다시 끌어오지 않는다
+    let userMoved = false;
+    const onUser = () => { userMoved = true; };
+    const evs = ['wheel', 'touchstart', 'keydown', 'mousedown'] as const;
+    evs.forEach((e) => window.addEventListener(e, onUser, { capture: true, passive: true }));
+    const timers: number[] = [];
+    const reveal = (el: HTMLElement) => {
+      // block:'nearest' — 보이면 그대로 둔다. 페이지 전체를 끌어당기지 않는다.
+      try { el.scrollIntoView({ block: 'nearest', inline: 'nearest' }); } catch { /* 구형 */ }
+    };
+    const offscreen = (el: HTMLElement) => {
+      const r = el.getBoundingClientRect();
+      const vh = window.visualViewport?.height || window.innerHeight;
+      return r.bottom > vh || r.top < 0;
+    };
     const tick = () => {
       if (cancelled) return;
-      const el = document.querySelector(sel);
+      const el = pick();
       if (el) {
-        // block:'nearest' — 보이면 그대로 둔다. 페이지 전체를 끌어당기지 않는다.
-        try { el.scrollIntoView({ block: 'nearest', inline: 'nearest' }); } catch { /* 구형 */ }
+        reveal(el);
+        // 행을 찾은 뒤 위쪽 칸(통계·다른 목록)이 늦게 그려지면 행이 다시 화면 밖으로 밀린다 — 두 번 더 확인한다.
+        for (const ms of [500, 1400]) {
+          timers.push(window.setTimeout(() => {
+            if (cancelled || userMoved) return;
+            const again = pick();
+            if (again && offscreen(again)) reveal(again);
+          }, ms));
+        }
         return;
       }
-      if (tries++ < 20) window.setTimeout(tick, 150);
+      if (tries++ < 20) timers.push(window.setTimeout(tick, 150));
     };
     // 첫 시도는 다음 프레임 — 같은 커밋에서 행이 아직 안 붙었을 수 있다.
     const raf = window.requestAnimationFrame(tick);
-    return () => { cancelled = true; window.cancelAnimationFrame(raf); };
+    return () => {
+      cancelled = true; window.cancelAnimationFrame(raf);
+      timers.forEach((t) => window.clearTimeout(t));
+      evs.forEach((e) => window.removeEventListener(e, onUser, { capture: true }));
+    };
   }, [activeId, enabled, scope]);
 }
 
