@@ -177,6 +177,11 @@ async function getProject(p, a) {
   });
   const stages = await ProjectStage.findAll({ where: { project_id: pr.id }, attributes: ['kind', 'label', 'status', 'expected_due_date', 'order_index'], order: [['order_index', 'ASC']] });
   const openCount = base ? await Task.count({ where: { [Op.and]: [base, { project_id: pr.id }, { status: { [Op.notIn]: ['completed', 'canceled'] } }] } }) : 0;
+  // 진척 — «프로젝트 요약해줘» 에 진행률·지연을 말할 수 있게(2026-11-05). 같은 읽기 술어(taskListWhere), 지연 = 사용자 시간대 오늘보다 마감이 앞선 열린 업무.
+  const doneCount = base ? await Task.count({ where: { [Op.and]: [base, { project_id: pr.id }, { status: 'completed' }] } }) : 0;
+  const { userTz, localOf } = require('../datetime');
+  const todayLocal = String(localOf(new Date(), await userTz(p))).slice(0, 10);
+  const overdueCount = base ? await Task.count({ where: { [Op.and]: [base, { project_id: pr.id }, { status: { [Op.notIn]: ['completed', 'canceled'] } }, { due_date: { [Op.lt]: todayLocal } }] } }) : 0;
   const noteWhere = projectNoteWhere(p, pr.id);
   const noteCount = await ProjectNote.count({ where: noteWhere });
   const recentNotes = await loadProjectNotes(p, noteWhere, 3, 0);
@@ -219,6 +224,8 @@ async function getProject(p, a) {
     stages: stages.map((st) => ({ kind: st.kind, label: st.label || null, status: st.status, expected_due_date: st.expected_due_date ? String(st.expected_due_date).slice(0, 10) : null })),
     counts: {
       open_tasks: openCount,
+      completed_tasks: doneCount,
+      overdue_tasks: overdueCount,
       notes: noteCount,
       events_upcoming: eventsUpcoming,
       files,
