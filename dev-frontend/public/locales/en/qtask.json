@@ -1727,5 +1727,10 @@
   "phone": {
     "densityCard": "Card view",
     "densityCompact": "Compact view"
+  },
+  "clientEmpty": {
+    "title": "Nothing to review right now",
+    "desc": "See the progress of tasks you requested in the \"Requested\" tab. Tasks waiting for your review show up here.",
+    "cta": "Open Requested tab"
   }
 }

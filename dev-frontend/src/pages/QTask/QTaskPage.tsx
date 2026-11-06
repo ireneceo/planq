@@ -254,7 +254,9 @@ const QTaskPage:React.FC=()=>{
     const isWorkspace = (typeof window !== 'undefined' ? window.location.pathname : location.pathname).endsWith('/tasks/workspace');
     if (!isWorkspace && mineTabs.includes(v as ListTab)) return v as ListTab;
     if (isWorkspace && wsTabs.includes(v as ListTab)) return v as ListTab;
-    return isWorkspace ? 'workspace-tasks' : 'week';
+    // 고객은 «요청하기» 탭으로 연다 (2026-11-06 Irene «권고대로») — 고객의 오늘/이번 주는 «고객이 할 차례(컨펌)» 만 올려
+    //   요청한 업무가 단계마다 나왔다 사라졌다. 진행 상황을 단계별로 다 보는 곳은 요청하기 탭이다(목록 기준은 안 바꾼다).
+    return isWorkspace ? 'workspace-tasks' : (isClient ? 'requested' : 'week');
   });
   const setTab=(t:ListTab)=>{
     _setTab(t);
@@ -2671,7 +2673,25 @@ const QTaskPage:React.FC=()=>{
             />
             </EmptyCenterWrap>
           )}
-          {!loadError&&filtered.length===0&&!(tab==='week'&&myHoldCount>0)&&(
+          {/* 고객 — 오늘/이번 주가 비었으면 «요청한 업무는 요청하기 탭에» (위 초기 탭 주석과 같은 이유) */}
+          {!loadError&&filtered.length===0&&isClient&&scope==='mine'&&(tab==='today'||tab==='week')&&!(tab==='week'&&myHoldCount>0)&&(
+            <EmptyCenterWrap>
+            <EmptyState
+              icon={
+                <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M9 11l3 3L22 4" />
+                  <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
+                </svg>
+              }
+              title={t('clientEmpty.title','지금 확인할 업무가 없어요')}
+              description={t('clientEmpty.desc','요청한 업무의 진행 단계는 «요청하기» 탭에서 볼 수 있어요. 확인을 부탁받은 업무는 여기에 떠요.')}
+              ctaLabel={t('clientEmpty.cta','요청하기 탭 보기') as string}
+              onCta={()=>setTab('requested')}
+              ctaTestId="qtask-client-empty-requested"
+            />
+            </EmptyCenterWrap>
+          )}
+          {!loadError&&filtered.length===0&&!(tab==='week'&&myHoldCount>0)&&!(isClient&&scope==='mine'&&(tab==='today'||tab==='week'))&&(
             <EmptyCenterWrap>
             <EmptyState
               icon={
