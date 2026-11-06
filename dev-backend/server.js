@@ -571,6 +571,7 @@ app.use('/api/sale', require('./routes/sale_summary'));
 // 고객 담당자 · 받은 명함 → 고객 (docs/NAME_CARD_V3_STRATEGY.md 9절)
 app.use('/api/sale', require('./routes/sale_contacts'));
 app.use('/api/invites', require('./routes/invites'));
+app.use('/api/me/invites', require('./routes/me_invites'));   // 나에게 온 초대 — «시작하기»(/welcome), 이메일 인증 뒤에만
 app.use('/api/conversations', require('./routes/conversations'));
 app.use('/api/message-attachments', require('./routes/message_attachments'));
 app.use('/api/messages', require('./routes/message_reactions'));   // #138 이모지 리액션

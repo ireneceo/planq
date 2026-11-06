@@ -8,9 +8,7 @@
 //   그래서 소유자를 하나로 못 박는다. 여기 말고 어디에서도 이 Map 을 만들지 않는다.
 //   sweep 타이머도 여기 하나뿐이다 — 모듈이 캐시되므로 몇 번 require 해도 한 번만 돈다.
 
-const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const { User, Business, BusinessMember } = require('../../models');
 const { setRefreshCookies } = require('../../services/authTokens');
 // 옛 /login 의 refresh_token cookie 패턴 재사용 (다중 디바이스 + sliding renewal 정합)
 const { helpers } = require('../auth');
@@ -82,68 +80,6 @@ function issueNativeOAuthCode(user) {
   return jwt.sign({ uid: user.id, purpose: 'native_oauth', jti }, process.env.JWT_SECRET, { expiresIn: '10m' });
 }
 
-// slug 생성 (옛 /register 패턴)
-function generateSlug(name) {
-  const base = String(name || 'workspace').toLowerCase()
-    .replace(/[^a-z0-9가-힣]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 40) || 'workspace';
-  return `${base}-${Date.now().toString(36).slice(-6)}`;
-}
-
-// OAuth 신규 가입 — 자동 Business + Cue + BusinessMember 생성 (옛 /register 정합)
-async function setupNewWorkspace(user, wantsKo, transaction, planCode = null) {
-  const lang = wantsKo ? 'ko' : 'en';
-  const userName = user.name || user.email.split('@')[0];
-  const brandName = wantsKo ? `${userName} 의 워크스페이스` : `${userName}'s Workspace`;
-  // 고른 체험 플랜(가입 화면 → OAuth state) — 없거나 모르는 값이면 starter. 정본 config/plans.newTrialBusinessFields
-  const trialFields = require('../../config/plans').newTrialBusinessFields(planCode);
-
-  const business = await Business.create({
-    name: brandName,
-    brand_name: brandName,
-    slug: generateSlug(userName),
-    owner_id: user.id,
-    default_language: lang,
-    cue_mode: 'smart',
-    cue_paused: false,
-    ...trialFields,
-  }, { transaction });
-
-  await BusinessMember.create({
-    business_id: business.id,
-    user_id: user.id,
-    role: 'owner',
-    joined_at: new Date(),
-  }, { transaction });
-
-  // Cue AI 시스템 계정
-  const cueRandomHash = await bcrypt.hash(Math.random().toString(36) + Date.now(), 12);
-  const cueUser = await User.create({
-    email: `cue+${business.id}@system.planq.kr`,
-    password_hash: cueRandomHash,
-    name: 'Cue',
-    avatar_url: '/static/cue.svg',
-    is_ai: true,
-    platform_role: 'user',
-    status: 'active',
-    language: lang,
-  }, { transaction });
-
-  await business.update({ cue_user_id: cueUser.id }, { transaction });
-  await BusinessMember.create({
-    business_id: business.id,
-    user_id: cueUser.id,
-    role: 'ai',
-    joined_at: new Date(),
-  }, { transaction });
-
-  // active_business_id 설정 — 로그인 후 자동 진입
-  await user.update({ active_business_id: business.id }, { transaction });
-
-  return business;
-}
-
 /** 돌아갈 앱 경로 — 열린 리다이렉트 차단. 같은 출처 상대경로만 (0-F F-2).
  *  제어문자(\x00-\x1f · \x7f, NUL 포함)도 거절한다 — Fable 0-F 비차단 지적(2026-10-08 0-J). */
 function safeRedirectPath(v) {
@@ -190,6 +126,6 @@ async function issueSessionCookie(req, res, user, { method = 'oauth' } = {}) {
 
 module.exports = {
   stashConfirm, peekConfirm, consumeConfirm, claimNativeCodeOnce,
-  isNativeOAuth, issueNativeOAuthCode, generateSlug, setupNewWorkspace,
+  isNativeOAuth, issueNativeOAuthCode,
   buildRedirectTarget, issueSessionCookie, safeRedirectPath, inviteTokenOf,
 };

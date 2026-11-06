@@ -18,7 +18,7 @@ const { sendNativeReturn } = require('../../utils/nativeReturn');
 const { logOauthFailure } = require('../../utils/oauthLog');
 const oauthPairing = require('../../services/oauthPairing');
 const {
-  stashConfirm, issueNativeOAuthCode, setupNewWorkspace, buildRedirectTarget, issueSessionCookie, inviteTokenOf, safeRedirectPath,
+  stashConfirm, issueNativeOAuthCode, buildRedirectTarget, issueSessionCookie, inviteTokenOf, safeRedirectPath,
 } = require('./core');
 
 const PROVIDER_LABEL = { google: 'Google', apple: 'Apple' };
@@ -64,7 +64,7 @@ function failLogin(req, res, reason, { native, provider = 'google' } = {}) {
  * @param {string} p.logTag
  * @param {string|null} [p.redirect] 시작할 때 state 에 실어 온 돌아갈 앱 경로(0-F F-2). 초대 링크면 초대 모드 가입.
  */
-async function finishOauthLogin(req, res, { provider, profile, native, pairId, logTag, redirect = null, planCode = null }) {
+async function finishOauthLogin(req, res, { provider, profile, native, pairId, logTag, redirect = null }) {
   redirect = safeRedirectPath(redirect);
   const logCtx = { ua: String(req.get('user-agent') || '').slice(0, 120), native: native || undefined };
   const fail = (reason) => {
@@ -154,7 +154,7 @@ async function finishOauthLogin(req, res, { provider, profile, native, pairId, l
         privacy_accepted_at: new Date(),
         privacy_version: '1.0',
       }, { transaction: t });
-      if (!inviteResolved) await setupNewWorkspace(user, wantsKo, t, planCode);
+      // 워크스페이스는 만들지 않는다 — 가입 = 계정만, 만들기는 «시작하기»(/welcome) 에서(docs/SIGNUP_START_JOIN_DESIGN.md D1)
       await OauthConnection.create({
         user_id: user.id,
         provider,

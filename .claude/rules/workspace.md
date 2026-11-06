@@ -60,3 +60,9 @@ paths:
 - **cron 은 지운 워크스페이스를 건너뛴다** — `services/workspaceAlive`(filterAliveRows·aliveBusinessWhere). server.js 가 부르는 새 서비스가 여러 행을 고르면 그 술어를 쓰거나 `// cronalive-exempt: 이유` — 가드 `--category=cronalive`(HARD).
 - 삭제·복구는 `middleware/workspaceAlive.invalidate()` 를 부른다(30초 캐시). 열린 창은 소켓 `workspace:deleted` + 404 `workspace_deleted`(business_id 동봉) 두 길로 옮긴다(`WorkspaceSyncGuard` ⑥).
 
+### 가입 = 계정만 · 워크스페이스를 만드는 문은 하나 (2026-11-06 · 설계 `docs/SIGNUP_START_JOIN_DESIGN.md` · Fable DESIGN-READY)
+> Irene: *"우린 무료가 아닌데 모르는 새 그냥 만들어지면 안되잖아."*
+- 가입(비밀번호·구글·애플·계정 추가)은 **User 만** 만든다. 워크스페이스는 `POST /api/businesses` → **`services/workspaceCreate.createWorkspace` 한 문**(체험 필드 `newTrialBusinessFields` 도 여기만). 가입에 다시 생성 코드를 넣지 않는다.
+- 0개 계정의 착지는 **«시작하기» `/welcome`** — 판정 `utils/welcomeGate`(ProtectedRoute 리다이렉트 · ModeGate 는 0개면 탭 셸로 안 간다). 열리는 곳: /welcome·/profile·/invite·/oauth·/verify-email·/notifications·/guide. 스위처 «새로 만들기» 도 `/welcome?from=switcher`.
+- 받은 초대 `GET /api/me/invites`(이메일 인증 뒤에만 · 토큰·이메일 없는 화이트리스트) · 수락 `POST /api/me/invites/:type/:id/accept`(서버가 토큰을 찾아 `acceptInvite` 한 함수).
+

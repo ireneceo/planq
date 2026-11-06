@@ -3,7 +3,7 @@ import { initReactI18next } from 'react-i18next';
 import HttpBackend from 'i18next-http-backend';
 import LanguageDetector from 'i18next-browser-languagedetector';
 
-export const ALL_NS = ['common', 'auth', 'layout', 'profile', 'qnote', 'settings', 'qtalk', 'qtask', 'qproject', 'qdocs', 'qfile', 'clients', 'qcalendar', 'plan', 'legal', 'admin', 'dashboard', 'qbill', 'knowledge', 'insights', 'qtable', 'landing', 'errors', 'focus', 'qmail', 'qsale', 'wiki', 'org', 'appdownload', 'attendance', 'guest', 'payroll', 'cards'];
+export const ALL_NS = ['common', 'auth', 'layout', 'profile', 'qnote', 'settings', 'qtalk', 'qtask', 'qproject', 'qdocs', 'qfile', 'clients', 'qcalendar', 'plan', 'legal', 'admin', 'dashboard', 'qbill', 'knowledge', 'insights', 'qtable', 'landing', 'errors', 'focus', 'qmail', 'qsale', 'wiki', 'org', 'appdownload', 'attendance', 'guest', 'payroll', 'cards', 'welcome'];
 
 // ★ 2026-11-01 — 첫 방문자(랜딩·로그인·가입)는 33개 1.2MB 를 다 받을 때까지 글자가 안 나왔다
 //   (그동안 «pricingPage.plans.basic.name» 같은 이름이 보였고, 고친 뒤엔 빈 화면 1~3초).

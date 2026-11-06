@@ -8,7 +8,6 @@ const { USER_SENSITIVE_FIELDS } = require('../utils/userFields');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
 const { authenticateToken } = require('../middleware/auth');
 const { sequelize } = require('../config/database');
-const { newTrialBusinessFields } = require('../config/plans');
 
 // 세션 토큰·쿠키 정책은 services/authTokens 단일 원천 (라우팅 ≠ 세션 정책).
 //   auth_oauth.js 도 같은 규칙을 쓴다 — 두 벌로 두면 반드시 어긋난다.
@@ -21,19 +20,6 @@ const {
 const authAudit = require('../services/authAudit');
 const deviceAccounts = require('../services/deviceAccounts');
 
-// ============================================
-// Helper: slug 생성
-// ============================================
-const generateSlug = (name) => {
-  const base = name
-    .toLowerCase()
-    .replace(/[^a-z0-9가-힣\s-]/g, '')
-    .replace(/\s+/g, '-')
-    .replace(/-+/g, '-')
-    .substring(0, 50);
-  const suffix = Date.now().toString(36);
-  return `${base}-${suffix}`;
-};
 
 
 // ============================================
@@ -253,7 +239,6 @@ router.post('/register', async (req, res, next) => {
       // 신규: 워크스페이스 이름(브랜드) — 레거시 호환 위해 business_name 도 허용
       workspace_name,
       business_name,
-      brand_name_en,
       default_language,
       // 약관 동의 (필수, 2026-05-05)
       terms_accepted,
@@ -268,12 +253,11 @@ router.post('/register', async (req, res, next) => {
     // 초대 토큰 유효성 — ProjectClient/Client/BusinessMember invite_token 매칭 시 워크스페이스 미생성
     //   판정은 수락과 같은 해석기(services/invites.resolveInviteToken — 0-F F-1)
     const inviteResolved = invite_token ? await require('../services/invites').resolveInviteToken(String(invite_token)) : null;
-    const isInviteSignup = !!inviteResolved;
 
     // Validation — 초대 가입은 워크스페이스명 불필요
-    if (!email || !password || !name || (!brandName && !isInviteSignup)) {
+    if (!email || !password || !name) {
       await transaction.rollback();
-      return errorResponse(res, 'Email, password, name, and workspace name are required', 400);
+      return errorResponse(res, 'Email, password, and name are required', 400);
     }
     // 약관 동의 필수 — 한국 개인정보보호법 + GDPR 명시 동의
     if (!terms_accepted || !privacy_accepted) {
@@ -378,58 +362,12 @@ router.post('/register', async (req, res, next) => {
       email_verify_expires: verifyExpires,
     }, { transaction });
 
-    // 2. Create Business (워크스페이스) — 초대 가입은 skip (초대된 워크스페이스에 고객으로 합류)
-    let business = null;
-    let cueUser = null;
-    if (!isInviteSignup) {
-    // 신규 가입 = 고른 플랜으로 14일 체험(2026-10-09 — 혼자 Starter · 팀 Basic · 큰 팀 Pro).
-    //   값은 config/plans.newTrialBusinessFields 한 곳이 정한다(모르는 값 → starter).
-    const trialFields = newTrialBusinessFields(req.body?.plan_code);
-    const slug = generateSlug(brandName);
-    business = await Business.create({
-      name: brandName,                // legacy 호환
-      brand_name: brandName,
-      brand_name_en: lang === 'ko' ? (brand_name_en || null) : null,
-      slug,
-      owner_id: user.id,
-      default_language: lang,
-      cue_mode: 'smart',
-      cue_paused: false,
-      ...trialFields,
-    }, { transaction });
-
-    // 3. Create BusinessMember (관리자)
-    await BusinessMember.create({
-      business_id: business.id,
-      user_id: user.id,
-      role: 'owner',
-      joined_at: new Date()
-    }, { transaction });
-
-    // 4. Create Cue 시스템 계정 (AI 팀원)
-    const cueRandomHash = await bcrypt.hash(Math.random().toString(36) + Date.now(), 12);
-    cueUser = await User.create({
-      email: `cue+${business.id}@system.planq.kr`,
-      password_hash: cueRandomHash,
-      name: 'Cue',
-      avatar_url: '/static/cue.svg',
-      is_ai: true,
-      platform_role: 'user',
-      status: 'active',
-      language: lang
-    }, { transaction });
-
-    // Cue 의 email 은 business.id 가 필요하므로 이미 반영됨.
-    // business.cue_user_id 업데이트
-    await business.update({ cue_user_id: cueUser.id }, { transaction });
-
-    await BusinessMember.create({
-      business_id: business.id,
-      user_id: cueUser.id,
-      role: 'ai',
-      joined_at: new Date()
-    }, { transaction });
-    } // end if(!isInviteSignup) — 초대 가입은 워크스페이스 미생성
+    // 2. 워크스페이스는 만들지 않는다 (2026-11-06 · docs/SIGNUP_START_JOIN_DESIGN.md D1) — Irene «모르는 새 그냥 만들어지면 안되잖아».
+    //   가입 = 계정만. 만들기는 «시작하기»(/welcome) 에서 체험 안내를 읽고 누르는 명시적 행동(POST /api/businesses →
+    //   services/workspaceCreate 한 문). 옛 번들이 workspace_name·plan_code 를 실어 와도 쓰지 않는다(아래 집계 로그).
+    if (brandName || req.body?.plan_code) {
+      console.log('[register] legacy workspace fields ignored', JSON.stringify({ name: !!brandName, plan: !!req.body?.plan_code }));
+    }
     //  연결(초대 수락)은 커밋 **뒤** acceptInvite 를 best-effort 로 부른다(0-F F-1). 실패해도 가입은 성공 —
     //  프론트가 /invite/:token 으로 가서 자동 수락을 한 번 더 시도하고, 실패 이유(쿼터 등)를 그 화면이 말한다.
 
@@ -475,17 +413,7 @@ router.post('/register', async (req, res, next) => {
     // 플랫폼 관리자 알림 + 회원가입 이메일 인증 메일 — fan-out 비동기 (응답 지연 X)
     setImmediate(() => {
       const { notifyPlatformAdmins, APP_URL } = require('../services/platformNotify');
-      // 워크스페이스 생성 가입만 신규-워크스페이스 알림 (초대 가입은 워크스페이스 없음 → skip)
-      if (business) {
-        notifyPlatformAdmins({
-          eventKind: 'signup',
-          title: `신규 가입 — ${business.brand_name || business.name}`,
-          body: `${user.name} (${user.email}) 가 워크스페이스 "${business.brand_name || business.name}" 으로 가입했습니다.`,
-          link: `${APP_URL}/admin/businesses?id=${business.id}`,
-          ctaLabel: '워크스페이스 보기',
-          relatedEntityId: business.id,
-        }).catch(() => null);
-      }
+      // 플랫폼 관리자 «신규 워크스페이스» 알림은 이제 만들기(POST /api/businesses) 쪽이 보낸다 — 가입은 계정만.
       // 신규 가입자에게 이메일 인증 메일 자동 발송
       const emailService = require('../services/emailService');
       emailService.sendSignupVerifyEmail({
@@ -1123,8 +1051,12 @@ router.post('/verify-email-confirm', async (req, res, next) => {
 // ============================================
 // POST /api/auth/resend-verify-email
 // ============================================
+// «시작하기»(/welcome) 배너가 버튼을 내놓으므로 사람당 3회/시간 (docs/SIGNUP_START_JOIN_DESIGN.md §6-5)
+const resendVerifyLimit = require('../middleware/costGuard').perUserLimiter('resend-verify', {
+  windowMs: 60 * 60 * 1000, max: 3, message: 'too_many_verify_emails',
+});
 // audit-exempt: 인증 메일 재발송 요청만 — 확정은 verify-email-confirm 이 남긴다
-router.post('/resend-verify-email', authenticateToken, async (req, res, next) => {
+router.post('/resend-verify-email', authenticateToken, resendVerifyLimit, async (req, res, next) => {
   try {
     const user = await User.findByPk(req.user.id);
     if (!user) return errorResponse(res, 'user_not_found', 404);

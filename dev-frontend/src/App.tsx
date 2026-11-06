@@ -50,6 +50,7 @@ import I18nReady from './components/Common/I18nReady';
 import ModuleGate from './components/Common/ModuleGate';
 // 공유 미리보기 앱 안 창 — lazy 로 두면 첫 카드 누름(이벤트)이 청크가 오기 전에 사라진다. 작아서 바로 싣는다.
 import SharePreviewSheet from './components/Common/SharePreviewSheet';
+import { needsWelcome } from './utils/welcomeGate';
 
 // Route-based code splitting — 페이지별 별도 chunk 로 첫 로드 번들 축소.
 // 이전: 모든 페이지 eager import → main bundle 2.75MB. 새로고침 시 모두 파싱·실행.
@@ -89,6 +90,7 @@ const QProjectDetailPage = lazy(() => import('./pages/QProject/QProjectDetailPag
 const OrgPage = lazy(() => import('./pages/Settings/OrgPage'));
 const LegacyClientsRedirect = lazy(() => import('./components/Clients/LegacyClientsRedirect'));
 const InvitePage = lazy(() => import('./pages/Invite/InvitePage'));
+const WelcomePage = lazy(() => import('./pages/Welcome/WelcomePage'));
 const AgentConsentPage = lazy(() => import('./pages/Connect/AgentConsentPage'));
 const QCalendarPage = lazy(() => import('./pages/QCalendar/QCalendarPage'));
 const QDocsPage = lazy(() => import('./pages/QDocs/QDocsPage'));
@@ -273,7 +275,8 @@ function ShellApp() {
   const isPublicSurface = isPublicSurfacePath(_loc.pathname);
   // 게스트 대화 표면 — 공개 표면 중에서도 **PlanQ 안내를 일절 띄우지 않는** 곳.
   const isGuestSurface = _loc.pathname.startsWith('/g/');
-  const hideAppChrome = isPopout || isPublicSurface;
+  // «시작하기»(/welcome) 는 워크스페이스가 없을 수 있는 착지 — 업무·도구 크롬(FAB·Dock)을 띄우지 않는다
+  const hideAppChrome = isPopout || isPublicSurface || _loc.pathname === '/welcome';
   // 앱 로그인 마무리 프롬프트 — 이미 로그인돼 있으면 띄우지 않는다.
   const { isAuthenticated: isAuthenticatedForPair } = useAuth();
   // 공개 표면의 Q helper 는 tabStore(useChromeNav) 가 아니라 RR navigate 로 이동해야 한다.
@@ -760,6 +763,8 @@ function ShellApp() {
 
         {/* Invite (public — no auth required) */}
         <Route path="/invite/:token" element={<InvitePage />} />
+        {/* «시작하기» — 워크스페이스 0개 계정의 착지 · 새 워크스페이스 만들기 한 곳 (docs/SIGNUP_START_JOIN_DESIGN.md) */}
+        <Route path="/welcome" element={<ProtectedRoute><WelcomePage /></ProtectedRoute>} />
         {/* #439 AI 앱(ChatGPT·Claude) 연결 동의 — 앱 틀 밖 단독 화면. 로그인 안 했으면 로그인 후 돌아온다 */}
         <Route path="/connect/agent" element={<ProtectedRoute><AgentConsentPage /></ProtectedRoute>} />
         <Route path="/public/docs/:token" element={<PublicDocPage />} />
@@ -907,7 +912,8 @@ function ModeGate() {
   useEffect(() => {
     if (mode !== 'pending' || isLoading || wsLink !== 'done') return;
     let ts = false;
-    try { ts = isTabsSpike() && isAuthenticated && isAppInitialPath(); } catch { /* noop */ }
+    // 워크스페이스 0개 계정은 셸로 — ProtectedRoute 가 «시작하기»(/welcome) 로 보낸다(utils/welcomeGate)
+    try { ts = isTabsSpike() && isAuthenticated && isAppInitialPath() && !needsWelcome(user); } catch { /* noop */ }
     if (ts) {
       // 트리 스왑 진입 — 미러 끄고 부팅 탭 seed(deeplink > 현재 URL > /dashboard). sessionStorage 복원분 있으면 유지.
       try {
@@ -921,7 +927,7 @@ function ModeGate() {
       } catch { /* noop */ }
     }
     setMode(ts ? 'tab' : 'shell');
-  }, [isLoading, isAuthenticated, mode, wsLink]);
+  }, [isLoading, isAuthenticated, mode, wsLink, user]);
   // 전환 중에는 옛 워크스페이스 화면을 한 프레임도 그리지 않는다 — 목록이 잠깐 떴다 바뀌는 것이 «이상하게 보이는» 모양이었다
   //   판정 effect 가 돌기 전 첫 렌더도 막는다(effect 는 그린 뒤에 돈다).
   // 로그인 뒤 앱 화면은 번역이 다 온 뒤 처음 그린다(hooks/useAppI18nReady — 번역 이름이 1~2초 보이던 것).

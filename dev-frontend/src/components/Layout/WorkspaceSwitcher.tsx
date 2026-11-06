@@ -1,15 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { isAdminContext } from '../../stores/tabStore';
-import { createPortal } from 'react-dom';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { useChromeLocation, useChromeNav } from '../../hooks/useChromeNav';
-import { useAuth, apiFetch, type WorkspaceMembership } from '../../contexts/AuthContext';
-import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
-import { useFocusTrap } from '../../hooks/useFocusTrap';
-import { useEscapeStack } from '../../hooks/useEscapeStack';
-import { isEnterAction } from '../../utils/imeKey';
-import TrialPlanPicker, { DEFAULT_TRIAL_PLAN, type TrialPlanCode } from '../Auth/TrialPlanPicker';
+import { useAuth, type WorkspaceMembership } from '../../contexts/AuthContext';
 
 /**
  * WorkspaceSwitcher (사이드바 전용)
@@ -60,20 +54,6 @@ const WorkspaceSwitcher: React.FC<Props> = ({ collapsed }) => {
   const [open, setOpen] = useState(false);
   const [busyId, setBusyId] = useState<number | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
-  // 새 워크스페이스 만들기
-  const [createOpen, setCreateOpen] = useState(false);
-  const [createName, setCreateName] = useState('');
-  // 새 워크스페이스의 체험 플랜 — 가입 화면과 같은 부품·같은 기본값(TrialPlanPicker, 2026-10-09)
-  const [createPlan, setCreatePlan] = useState<TrialPlanCode>(DEFAULT_TRIAL_PLAN);
-  const [creating, setCreating] = useState(false);
-  const [createErr, setCreateErr] = useState('');
-
-  const createModalRef = useRef<HTMLDivElement>(null);
-  useBodyScrollLock(createOpen);
-  // Esc 는 입력에 포커스가 없어도 닫혀야 한다(기존엔 input onKeyDown 에만 걸려 있었다).
-  useEscapeStack(createOpen && !creating, () => setCreateOpen(false));
-  useFocusTrap(createModalRef, createOpen);
-
   useEffect(() => {
     if (!open) return;
     const handle = (e: MouseEvent) => {
@@ -148,25 +128,9 @@ const WorkspaceSwitcher: React.FC<Props> = ({ collapsed }) => {
     if (!isAdminMode) navigate('/admin/dashboard');
   };
 
-  const handleCreateWorkspace = async () => {
-    const nm = createName.trim();
-    if (!nm || creating) return;
-    setCreating(true); setCreateErr('');
-    try {
-      const r = await apiFetch('/api/businesses', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ brand_name: nm, plan_code: createPlan }),
-      });
-      const j = await r.json();
-      if (!r.ok || j?.success === false) throw new Error(j?.message || 'create_failed');
-      const newId = j.data?.id;
-      // 새로 만든 직후는 대시보드 — 시작 안내(팀원 초대부터)가 있는 곳. 회원가입과 같은 착지
-      if (newId) { await switchWorkspace(newId); window.location.href = '/dashboard'; }
-    } catch (e) {
-      setCreateErr((e as Error).message || (t('switcher.createError', '생성 실패') as string));
-      setCreating(false);
-    }
-  };
+  // 새 워크스페이스는 «시작하기»(/welcome) 한 화면에서 만든다 — 체험 안내 문장·플랜 고르기가 두 곳에서 갈리지 않게
+  //   (2026-11-06 · docs/SIGNUP_START_JOIN_DESIGN.md §2-2 — 옛 만들기 모달은 지웠다). 앱 셸 밖 화면이라 문서 이동.
+  const goWelcome = () => { setOpen(false); window.location.assign('/welcome?from=switcher'); };
 
   return (
     <Container ref={containerRef}>
@@ -179,7 +143,7 @@ const WorkspaceSwitcher: React.FC<Props> = ({ collapsed }) => {
         onClick={() => {
           if (collapsed) return;
           // 0개면 고를 것이 없다 — 드롭다운을 여는 대신 곧장 만들기로.
-          if (noWorkspace) { setCreateErr(''); setCreateName(''); setCreateOpen(true); return; }
+          if (noWorkspace) { goWelcome(); return; }
           setOpen((v) => !v);
         }}
         title={t('switcher.tooltip', '워크스페이스 전환') as string}
@@ -249,7 +213,7 @@ const WorkspaceSwitcher: React.FC<Props> = ({ collapsed }) => {
           )}
 
           <MenuDivider />
-          <MenuItem type="button" $current={false} onClick={() => { setOpen(false); setCreateErr(''); setCreateName(''); setCreateOpen(true); }}>
+          <MenuItem type="button" $current={false} onClick={goWelcome}>
             <PlusBadge>
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
             </PlusBadge>
@@ -283,35 +247,6 @@ const WorkspaceSwitcher: React.FC<Props> = ({ collapsed }) => {
         </Menu>
       )}
 
-      {/* ★ 운영 #264 — 반드시 document.body 로 portal 한다.
-          사이드바는 모바일(≤1024)에서 `transform: translateX(...)` 를 갖는데, transform 은 값이 0 이어도
-          position:fixed 자손의 기준 박스를 자기 자신으로 바꾼다. 그래서 이 오버레이가 사이드바(240px)
-          안에 갇혀 "좌측에 붙고 메뉴만 어두워지는" 상태가 됐다(Irene 원문). Sidebar 의 overflow-x:hidden
-          도 클리핑에 가세한다. portal 로 트리를 벗어나면 원래 의도대로 전체 화면 팝업이 된다. */}
-      {createOpen && createPortal((
-        <CreateOverlay onMouseDown={(e) => { if (e.target === e.currentTarget && !creating) setCreateOpen(false); }}>
-          <CreateModal ref={createModalRef} role="dialog" aria-modal="true" aria-labelledby="ws-create-title" onMouseDown={(e) => e.stopPropagation()}>
-            <CreateTitle id="ws-create-title">{t('switcher.createWorkspace', '새 워크스페이스 만들기')}</CreateTitle>
-            <CreateDesc>{t('switcher.createDesc', '내 소유의 새 워크스페이스를 만듭니다. 14일 무료 체험이 시작됩니다.')}</CreateDesc>
-            <CreateInput
-              autoFocus
-              value={createName}
-              maxLength={60}
-              placeholder={t('switcher.createPlaceholder', '워크스페이스 이름 (예: 우리회사)') as string}
-              onChange={(e) => { setCreateName(e.target.value); setCreateErr(''); }}
-              onKeyDown={(e) => { if (isEnterAction(e)) handleCreateWorkspace(); if (e.key === 'Escape' && !creating) setCreateOpen(false); }}
-            />
-            <PickerGap><TrialPlanPicker value={createPlan} onChange={setCreatePlan} disabled={creating} compact /></PickerGap>
-            {createErr && <CreateErr>{createErr}</CreateErr>}
-            <CreateActions>
-              <CreateCancel type="button" disabled={creating} onClick={() => setCreateOpen(false)}>{t('switcher.cancel', '취소')}</CreateCancel>
-              <CreatePrimary type="button" disabled={creating || !createName.trim()} onClick={handleCreateWorkspace}>
-                {creating ? t('switcher.creating', '만드는 중…') : t('switcher.create', '만들기')}
-              </CreatePrimary>
-            </CreateActions>
-          </CreateModal>
-        </CreateOverlay>
-      ), document.body)}
     </Container>
   );
 };
@@ -555,41 +490,4 @@ const PlusBadge = styled.span`
   width: 24px; height: 24px; border-radius: 8px; flex-shrink: 0;
   display: inline-flex; align-items: center; justify-content: center;
   background: rgba(94,234,212,0.16); color: #5EEAD4;
-`;
-const CreateOverlay = styled.div`
-  position: fixed; inset: var(--pq-popup-top, 0px) 0 0; z-index: 2000;
-  /* 폰·태블릿은 좌측 메뉴(10060) 안에서 연다 — 메뉴 위에 (2026-10-19) */
-  @media (max-width: 1024px) { z-index: 10070; }
-  /* 키보드가 올라오면 레이아웃 뷰포트는 그대로인데 보이는 영역만 줄어든다 —
-     --vvh(visual viewport, main.tsx 가 동기화)에 높이를 묶어야 모달이 키보드에 가리지 않는다. */
-  height: calc(var(--vvh, 100vh) - var(--pq-popup-top, 0px));
-  background: rgba(15,23,42,0.45);
-  display: flex; align-items: center; justify-content: center; padding: 16px;
-  padding-bottom: calc(16px + var(--pq-safe-bottom, 0px));
-`;
-const CreateModal = styled.div`
-  max-height: calc(var(--vvh, 100vh) - 40px);
-  overflow-y: auto;
-  width: 100%; max-width: 380px; background: #FFFFFF; border-radius: 14px;
-  padding: 22px 22px 18px; box-shadow: 0 24px 48px -16px rgba(15,23,42,0.4);
-`;
-const CreateTitle = styled.h3`font-size: 1rem; font-weight: 800; color: #0F172A; margin: 0 0 6px;`;
-const CreateDesc = styled.p`font-size: 0.75rem; color: #64748B; line-height: 1.6; margin: 0 0 16px;`;
-const CreateInput = styled.input`
-  width: 100%; box-sizing: border-box; padding: 11px 13px; font-size: 0.875rem;
-  border: 1px solid #CBD5E1; border-radius: 8px; color: #0F172A; outline: none;
-  &:focus { border-color: #14B8A6; box-shadow: 0 0 0 3px rgba(20,184,166,0.18); }
-`;
-const PickerGap = styled.div`margin-top: 14px;`;
-const CreateErr = styled.div`font-size: 0.75rem; color: #EF4444; margin-top: 8px;`;
-const CreateActions = styled.div`display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px;`;
-const CreateCancel = styled.button`
-  padding: 9px 16px; font-size: 0.8125rem; font-weight: 600; color: #475569;
-  background: #fff; border: 1px solid #E2E8F0; border-radius: 8px; cursor: pointer;
-  &:hover:not(:disabled) { background: #F8FAFC; } &:disabled { opacity: 0.5; cursor: not-allowed; }
-`;
-const CreatePrimary = styled.button`
-  padding: 9px 18px; font-size: 0.8125rem; font-weight: 700; color: #fff;
-  background: #0D9488; border: none; border-radius: 8px; cursor: pointer;
-  &:hover:not(:disabled) { background: #0F766E; } &:disabled { background: #CBD5E1; cursor: not-allowed; }
 `;

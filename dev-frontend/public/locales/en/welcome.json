@@ -1,0 +1,37 @@
+{
+  "title": "Get started",
+  "subtitle": "{{name}}, choose where you'll work.",
+  "logout": "Log out",
+  "back": "← Back",
+  "verify": {
+    "banner": "Verify {{email}} to see invitations sent to you.",
+    "resend": "Resend verification email",
+    "sent": "Sent · open it within 72 hours",
+    "tooMany": "Please try again later (3 per hour).",
+    "failed": "Couldn't send it. Please try again shortly."
+  },
+  "invites": {
+    "title": "Invitations for you",
+    "empty": "No invitations yet.",
+    "roleMember": "Member",
+    "roleAdmin": "Admin",
+    "roleClient": "Client",
+    "by": "Invited by {{name}}",
+    "daysLeft": "{{n}} days left",
+    "enter": "Join",
+    "expired": "Expired",
+    "quota": "No seats left right now. Let the owner of {{workspace}} know.",
+    "failed": "Couldn't join. Please try again shortly.",
+    "project": "Project “{{name}}”",
+    "loadFailed": "Couldn't load your invitations."
+  },
+  "create": {
+    "title": "Create a new workspace",
+    "namePlaceholder": "Workspace name (company or team)",
+    "trialNotice": "A 14-day free trial starts now. Payment is required when it ends; otherwise the workspace is locked.",
+    "submit": "Create with 14-day trial",
+    "submitting": "Creating…",
+    "nameRequired": "Please enter a workspace name.",
+    "failed": "Couldn't create it. Please try again shortly."
+  }
+}

@@ -2,6 +2,7 @@ import React from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../contexts/AuthContext';
+import { needsWelcome, isWelcomeAllowedPath } from '../utils/welcomeGate';
 import styled from 'styled-components';
 
 interface ProtectedRouteProps {
@@ -76,7 +77,7 @@ const BackButton = styled.button`
 
 const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, requiredRole }) => {
   const { t } = useTranslation('common');
-  const { isAuthenticated, isLoading, hasRole } = useAuth();
+  const { isAuthenticated, isLoading, hasRole, user } = useAuth();
   const location = useLocation();
 
   if (isLoading) {
@@ -91,6 +92,11 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, requiredRole 
     // ⑥ 멀티탭 — 트리 스왑 부팅 시 딥링크 복원(router state 는 트리 스왑에서 유실되므로 sessionStorage 로)
     try { sessionStorage.setItem('planq_boot_deeplink', location.pathname + (location.search || '')); } catch { /* noop */ }
     return <Navigate to="/login" state={{ from: location }} replace />;
+  }
+
+  // 워크스페이스가 하나도 없으면 «시작하기» 로 — 초대 수락·참여·새로 만들기를 거기서 고른다(utils/welcomeGate 한 곳)
+  if (needsWelcome(user) && !isWelcomeAllowedPath(location.pathname)) {
+    return <Navigate to="/welcome" replace />;
   }
 
   if (requiredRole && !hasRole(...requiredRole)) {

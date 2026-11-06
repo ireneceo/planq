@@ -5,7 +5,7 @@ import TrustNote from '../../components/Common/TrustNote';
 import { startAuthRedirect } from '../../services/oauth';
 import { finishSignup } from '../../services/marketingTags';
 import GoogleAuthButton from '../../components/Auth/GoogleAuthButton';
-import TrialPlanPicker, { DEFAULT_TRIAL_PLAN, parseTrialPlan, type TrialPlanCode } from '../../components/Auth/TrialPlanPicker';
+import { parseTrialPlan } from '../../components/Auth/TrialPlanPicker';
 import styled from 'styled-components';
 import { useAuth } from '../../contexts/AuthContext';
 import { mapApiError } from '../../utils/apiError';
@@ -306,10 +306,12 @@ const RegisterPage: React.FC = () => {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [businessName, setBusinessName] = useState('');
-  // 체험 플랜 — 요금제 화면에서 ?plan= 으로 오면 그것, 아니면 «팀과 함께»(요금제 «추천» 과 같은 값). 2026-10-09
-  const [trialPlan, setTrialPlan] = useState<TrialPlanCode>(() =>
-    parseTrialPlan(new URLSearchParams(location.search).get('plan')) || DEFAULT_TRIAL_PLAN);
+  // 가입 = 계정만(2026-11-06 · docs/SIGNUP_START_JOIN_DESIGN.md D1) — 워크스페이스 이름·체험 플랜은 «시작하기»(/welcome) 에서 고른다.
+  //   요금제 화면에서 ?plan= 으로 왔으면 시작하기의 만들기 칸에 그대로 넘긴다.
+  const welcomePath = (() => {
+    const p = parseTrialPlan(new URLSearchParams(location.search).get('plan'));
+    return p ? `/welcome?plan=${p}` : '/welcome';
+  })();
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   // 약관 동의 (필수, 2026-05-05)
@@ -331,7 +333,7 @@ const RegisterPage: React.FC = () => {
       return;
     }
     forgetBootScope();   // 측정 뒤 finishSignup 이 주소를 직접 바꿀 수도 있어 먼저 비운다
-    void finishSignup({ method: 'email', trial_plan: trialPlan }, newId, '/dashboard', (p) => rebootForAccount(p));
+    void finishSignup({ method: 'email' }, newId, welcomePath, (p) => rebootForAccount(p));
   });
 
   const addErr = useAddAccountErrors();
@@ -384,8 +386,8 @@ const RegisterPage: React.FC = () => {
         if (finishingRef.current) return;
         finishingRef.current = true;
         const method = justRegisteredRef.current ? 'email' : (qs.get('method') === 'apple' ? 'apple' : 'google');
-        const to = justRegisteredRef.current ? '/dashboard' : '/inbox';
-        void finishSignup({ method, trial_plan: justRegisteredRef.current ? trialPlan : undefined }, user?.id, to,
+        const to = welcomePath;   // 가입 = 계정만 — 어디서 일할지 «시작하기» 에서 고른다
+        void finishSignup({ method }, user?.id, to,
           (p) => navigate(p, { replace: true }));
         return;
       }
@@ -397,7 +399,7 @@ const RegisterPage: React.FC = () => {
         navigate('/dashboard', { replace: true });
       }
     }
-  }, [authLoading, isAuthenticated, navigate, location, user?.id, trialPlan, add.active]);
+  }, [authLoading, isAuthenticated, navigate, location, user?.id, welcomePath, add.active]);
 
   const validate = (): boolean => {
     const errors: Record<string, string> = {};
@@ -415,8 +417,6 @@ const RegisterPage: React.FC = () => {
     } else if (!/[a-zA-Z]/.test(password) || !/[0-9]/.test(password)) {
       errors.password = t('register.validation.passwordComplexity');
     }
-    // 초대 가입은 워크스페이스명 불필요 (초대된 워크스페이스에 합류)
-    if (!inviteToken && !businessName.trim()) errors.businessName = t('register.validation.businessNameRequired');
 
     setFieldErrors(errors);
     return Object.keys(errors).length === 0;
@@ -439,8 +439,8 @@ const RegisterPage: React.FC = () => {
       //   서버 oauth/finish 의 `!inviteResolved && !redirect` 와 같은 술어. 성공하면 위 effect 가 완료 처리를 한다.
       if (!(await addGate())) { setIsLoading(false); return; }
       justRegisteredRef.current = !inviteToken && !redirectParam;
-      const success = await register(name.trim(), email.trim(), password, businessName.trim(),
-        { terms_accepted: termsAgreed, privacy_accepted: privacyAgreed, ...(inviteToken ? { invite_token: inviteToken } : { plan_code: trialPlan }) });
+      const success = await register(name.trim(), email.trim(), password, '',
+        { terms_accepted: termsAgreed, privacy_accepted: privacyAgreed, ...(inviteToken ? { invite_token: inviteToken } : {}) });
       if (!success) {
         justRegisteredRef.current = false;
         setError(t('register.errorGeneric'));
@@ -540,24 +540,6 @@ const RegisterPage: React.FC = () => {
               {fieldErrors.password && <FieldError>{fieldErrors.password}</FieldError>}
             </InputGroup>
 
-            {/* 초대 가입은 워크스페이스명 입력 숨김 — 초대된 워크스페이스에 합류 */}
-            {!inviteToken && (
-              <InputGroup>
-                <Input
-                  type="text"
-                  value={businessName}
-                  onChange={(e) => { setBusinessName(e.target.value); setFieldErrors(prev => ({ ...prev, businessName: '' })); }}
-                  placeholder={t('register.businessNamePlaceholder')}
-                  $hasError={!!fieldErrors.businessName}
-                  autoComplete="organization"
-                />
-                {fieldErrors.businessName && <FieldError>{fieldErrors.businessName}</FieldError>}
-              </InputGroup>
-            )}
-
-            {/* 혼자·팀 고르기 → 고른 플랜으로 14일 체험. 초대 가입은 남의 워크스페이스에 합류하므로 없다. */}
-            {!inviteToken && <TrialPlanPicker value={trialPlan} onChange={setTrialPlan} disabled={isLoading} />}
-
             {/* 약관 동의 (필수) — 한국 개인정보보호법 + GDPR */}
             <ConsentRow>
               <ConsentItem>
@@ -594,7 +576,7 @@ const RegisterPage: React.FC = () => {
             disabled={isLoading}
             dividerLabel={t('register.or', { defaultValue: '또는' }) as string}
             redirect={redirectParam}
-            plan={inviteToken ? null : trialPlan}
+            plan={null}
           />
 
           {/* 안심 한 줄 — 문구 원천 common.trust 한 벌(docs/TRUST_SERVICES_DESIGN.md D2) */}
