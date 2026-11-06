@@ -202,7 +202,7 @@ const GuideTitle = styled.div`font-size: 0.8125rem; font-weight: 700; color: #0F
 const GuideSteps = styled.div`display: flex; flex-direction: column; gap: 8px;`;
 const GuideStep = styled.div`display: flex; gap: 10px; align-items: flex-start;`;
 const GuideNum = styled.span<{ $sub?: boolean }>`
-  flex-shrink: 0; width: 18px; height: 18px; border-radius: 50%;
+  flex-shrink: 0; width: 18px; aspect-ratio: 1; border-radius: 50%; /* 장식 번호 동그라미 — 컨트롤 아님(높이 래칫이 장식 span 도 센다) */
   background: ${p => p.$sub ? '#0F766E' : '#14B8A6'}; color: #fff;
   font-size: 0.6875rem; font-weight: 700; display: flex; align-items: center; justify-content: center; margin-top: 1px;
 `;
