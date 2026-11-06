@@ -1,7 +1,7 @@
 // EmailAccountSettings — Q mail M1 사용자 등록 UI
 // 워크스페이스 설정 → 메일 계정. admin 전용.
 // PageShell + 계정 목록 + 등록/수정 모달 (DetailDrawer) + 서비스 preset + 연결 테스트.
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { startAuthRedirect } from '../../services/oauth';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
@@ -25,6 +25,10 @@ import MailDomainRuleSection from './MailDomainRuleSection';
 import MailAuthDiagSection from './MailAuthDiagSection';
 import { useSettingsHeaderAction } from './settingsHeaderAction';
 import { formatDay } from '../../utils/dateFormat';
+import {
+  APP_PASSWORD_GUIDES, IMAP_ERROR_GUIDE, hostToGuideKey, detectPresetByEmail, ConnectGuide,
+  type TwoStepAnswer, type MailFormField,
+} from './MailConnectGuide';
 
 // Gmail 원클릭(OAuth) 연결 버튼 — Google 앱 심사(mail.google.com 제한 scope) 통과 전까지 숨긴다.
 // 심사 완료 시 true 로만 바꾸면 됨. 그 전에도 Gmail 을 포함한 모든 메일이 "앱 비밀번호" 방식으로 정상 연결된다.
@@ -425,140 +429,6 @@ const EmailAccountSettings: React.FC = () => {
   );
 };
 
-// ─── 앱 비밀번호 연결 단계별 안내 (#72/#88 — OAuth 검증 전 작동 경로) ───
-interface GuideDef {
-  titleKey: string; titleDefault: string;
-  steps: { key: string; default: string }[];
-  link?: { url: string; labelKey: string; labelDefault: string };
-}
-const APP_PASSWORD_GUIDES: Record<string, GuideDef> = {
-  gmail: {
-    titleKey: 'settings.guide.gmail.title', titleDefault: 'Gmail 앱 비밀번호로 연결하기',
-    steps: [
-      { key: 'settings.guide.gmail.s1', default: '구글 계정에 2단계 인증(2-Step Verification)을 먼저 켜주세요. (앱 비밀번호는 2단계 인증이 켜져 있어야 발급됩니다)' },
-      { key: 'settings.guide.gmail.s2', default: '아래 "앱 비밀번호 만들기"를 눌러 새 비밀번호를 생성하세요. 앱 이름은 "PlanQ"로 입력하면 됩니다.' },
-      { key: 'settings.guide.gmail.s3', default: '생성된 16자리 비밀번호를 아래 "앱 비밀번호" 칸에 그대로 붙여넣고 저장하세요(공백은 자동으로 제거됩니다). 서버 정보는 자동 입력되어 있습니다.' },
-    ],
-    link: { url: 'https://myaccount.google.com/apppasswords', labelKey: 'settings.guide.gmail.link', labelDefault: '앱 비밀번호 만들기 →' },
-  },
-  naver: {
-    titleKey: 'settings.guide.naver.title', titleDefault: 'Naver 메일 앱 비밀번호로 연결하기',
-    steps: [
-      { key: 'settings.guide.naver.s1', default: '네이버 메일 → 환경설정 → POP3/IMAP 설정에서 "IMAP/SMTP 사용"을 ON으로 바꿔주세요.' },
-      { key: 'settings.guide.naver.s2', default: '네이버 2단계 인증을 사용 중이면 "애플리케이션 비밀번호"를 발급하세요. (내정보 → 보안설정)' },
-      { key: 'settings.guide.naver.s3', default: '발급된 비밀번호(2단계 인증 미사용 시 네이버 로그인 비밀번호)를 아래 "앱 비밀번호" 칸에 입력하고 저장하세요.' },
-    ],
-    link: { url: 'https://mail.naver.com', labelKey: 'settings.guide.naver.link', labelDefault: '네이버 메일 설정 열기 →' },
-  },
-  icloud: {
-    titleKey: 'settings.guide.icloud.title', titleDefault: 'iCloud 앱 암호로 연결하기',
-    steps: [
-      { key: 'settings.guide.icloud.s1', default: 'Apple ID에 2단계 인증이 켜져 있어야 합니다.' },
-      { key: 'settings.guide.icloud.s2', default: '아래 "앱 암호 만들기"에서 새 앱 암호를 생성하세요. (로그인 및 보안 → 앱 암호)' },
-      { key: 'settings.guide.icloud.s3', default: '생성된 앱 암호를 아래 "앱 비밀번호" 칸에 붙여넣고 저장하세요.' },
-    ],
-    link: { url: 'https://account.apple.com', labelKey: 'settings.guide.icloud.link', labelDefault: 'Apple ID 앱 암호 →' },
-  },
-  outlook: {
-    titleKey: 'settings.guide.outlook.title', titleDefault: 'Outlook / Microsoft 365 연결하기',
-    steps: [
-      { key: 'settings.guide.outlook.s1', default: 'Microsoft 계정에 2단계 인증을 켜주세요.' },
-      { key: 'settings.guide.outlook.s2', default: '보안 설정에서 "앱 비밀번호"를 생성하세요. (일반 비밀번호로는 연결되지 않습니다)' },
-      { key: 'settings.guide.outlook.s3', default: '생성된 앱 비밀번호를 아래 "앱 비밀번호" 칸에 입력하고 저장하세요.' },
-    ],
-    link: { url: 'https://account.microsoft.com/security', labelKey: 'settings.guide.outlook.link', labelDefault: 'Microsoft 보안 설정 →' },
-  },
-  kakao: {
-    titleKey: 'settings.guide.kakao.title', titleDefault: 'Kakao 메일 연결하기',
-    steps: [
-      { key: 'settings.guide.kakao.s1', default: '카카오메일 → 설정 → IMAP/POP3 에서 "IMAP 사용"을 켜주세요.' },
-      { key: 'settings.guide.kakao.s2', default: '카카오 계정 비밀번호(2단계 인증 시 앱 비밀번호)를 아래 "비밀번호" 칸에 입력하고 저장하세요.' },
-    ],
-    link: { url: 'https://mail.kakao.com', labelKey: 'settings.guide.kakao.link', labelDefault: '카카오메일 설정 열기 →' },
-  },
-  daum: {
-    titleKey: 'settings.guide.daum.title', titleDefault: 'Daum 메일 연결하기',
-    steps: [
-      { key: 'settings.guide.daum.s1', default: 'Daum 메일 → 환경설정 → IMAP/POP3 에서 "IMAP 사용"을 켜주세요.' },
-      { key: 'settings.guide.daum.s2', default: 'Daum 계정 비밀번호를 아래 "비밀번호" 칸에 입력하고 저장하세요.' },
-    ],
-    link: { url: 'https://mail.daum.net', labelKey: 'settings.guide.daum.link', labelDefault: 'Daum 메일 설정 열기 →' },
-  },
-  custom: {
-    titleKey: 'settings.guide.custom.title', titleDefault: '회사 메일·기타 메일 연결하기',
-    steps: [
-      { key: 'settings.guide.custom.s1', default: '메일 제공업체나 회사 IT 담당자에게 IMAP/SMTP 서버 주소와 포트를 문의하세요. (예: 받기 imap.회사.com:993 · 보내기 smtp.회사.com:587)' },
-      { key: 'settings.guide.custom.s2', default: '메일함 설정에서 "IMAP 사용"이 켜져 있어야 합니다. (일부 서비스는 기본으로 꺼져 있어요)' },
-      { key: 'settings.guide.custom.s3', default: '아래에 서버 정보와 로그인 비밀번호(2단계 인증을 쓰면 발급받은 앱 비밀번호)를 입력하고 저장하세요.' },
-    ],
-  },
-};
-
-// 백엔드 검증 에러 코드 → 사용자 안내 (저장 전 IMAP 실검증 실패 시)
-const IMAP_ERROR_GUIDE: Record<string, { key: string; def: string; preset?: string }> = {
-  gmail_app_password_required: { key: 'settings.err.gmailAppPassword', def: 'Gmail 로그인에 실패했습니다. 앱 비밀번호가 맞는지, 2단계 인증과 IMAP 사용이 켜져 있는지 확인해 주세요.', preset: 'gmail' },
-  naver_app_password_required: { key: 'settings.err.naverAppPassword', def: '네이버 인증에 실패했습니다. IMAP 사용 설정과 (2단계 인증 시) 애플리케이션 비밀번호를 확인해 주세요.', preset: 'naver' },
-  ms_app_password_required: { key: 'settings.err.msAppPassword', def: 'Microsoft 계정 인증에 실패했습니다. 앱 비밀번호를 발급해 입력해 주세요.', preset: 'outlook' },
-  imap_auth_failed: { key: 'settings.err.authFailed', def: '아이디 또는 비밀번호가 올바르지 않아 연결하지 못했습니다.' },
-  imap_host_not_found: { key: 'settings.err.hostNotFound', def: 'IMAP 서버 주소를 찾을 수 없습니다. 서버 주소를 확인해 주세요.' },
-  imap_connect_failed: { key: 'settings.err.connectFailed', def: '메일 서버에 연결하지 못했습니다. 서버 주소와 포트를 확인해 주세요.' },
-  duplicate_email: { key: 'settings.err.duplicate', def: '이미 등록된 이메일입니다.' },
-  // 보내기(SMTP) — 저장 전 실제 로그인 검사 실패 (2026-09-21). 문구는 qmail.json settings.err.* 에만 둔다(하드코딩 래칫)
-  gmail_smtp_auth_failed: { key: 'settings.err.gmailSmtp', def: '', preset: 'gmail' },
-  naver_smtp_auth_failed: { key: 'settings.err.naverSmtp', def: '', preset: 'naver' },
-  ms_smtp_auth_failed: { key: 'settings.err.msSmtp', def: '', preset: 'outlook' },
-  smtp_auth_failed: { key: 'settings.err.smtpAuth', def: '' },
-  smtp_host_not_found: { key: 'settings.err.smtpHost', def: '' },
-  smtp_connect_failed: { key: 'settings.err.smtpConnect', def: '' },
-};
-
-// IMAP host → 안내 가이드 key (편집 모드에서도 provider 안내 표시)
-function hostToGuideKey(host?: string | null): string | null {
-  const h = (host || '').toLowerCase();
-  if (h.includes('gmail') || h.includes('googlemail')) return 'gmail';
-  if (h.includes('naver')) return 'naver';
-  if (h.includes('office365') || h.includes('outlook')) return 'outlook';
-  if (h.includes('kakao')) return 'kakao';
-  if (h.includes('daum')) return 'daum';
-  if (h.includes('me.com') || h.includes('icloud')) return 'icloud';
-  return null;
-}
-
-// 이메일 도메인 → preset 자동 감지 (입력만 하면 서버 정보 자동 완성)
-function detectPresetByEmail(email: string): string | null {
-  const dom = (email.split('@')[1] || '').toLowerCase();
-  if (!dom) return null;
-  if (/(^|\.)gmail\.com$|(^|\.)googlemail\.com$/.test(dom)) return 'gmail';
-  if (/(^|\.)naver\.com$/.test(dom)) return 'naver';
-  if (/(^|\.)daum\.net$|(^|\.)hanmail\.net$/.test(dom)) return 'daum';
-  if (/(^|\.)kakao\.com$/.test(dom)) return 'kakao';
-  if (/(^|\.)outlook\.|(^|\.)hotmail\.|(^|\.)live\./.test(dom)) return 'outlook';
-  if (/(^|\.)icloud\.com$|(^|\.)me\.com$|(^|\.)mac\.com$/.test(dom)) return 'icloud';
-  return null;
-}
-
-const ConnectGuide: React.FC<{ guide: GuideDef }> = ({ guide }) => {
-  const { t } = useTranslation('qmail');
-  return (
-  <GuideBox>
-    <GuideTitle>{t(guide.titleKey, guide.titleDefault)}</GuideTitle>
-    <GuideSteps>
-      {guide.steps.map((s, i) => (
-        <GuideStep key={s.key}>
-          <GuideNum>{i + 1}</GuideNum>
-          <GuideStepText>{t(s.key, s.default)}</GuideStepText>
-        </GuideStep>
-      ))}
-    </GuideSteps>
-    {guide.link && (
-      <GuideLink href={guide.link.url} target="_blank" rel="noopener noreferrer">
-        {t(guide.link.labelKey, guide.link.labelDefault)}
-      </GuideLink>
-    )}
-  </GuideBox>
-  );
-};
-
 // ─── 등록/편집 form ─────────────────────────────
 interface FormProps {
   initial: EmailAccountRow | null;
@@ -589,7 +459,41 @@ const AccountEditForm: React.FC<FormProps> = ({ initial, businessId, scope, onSa
     is_active: initial?.is_active ?? true,
   });
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  // ★ 실패는 «어느 칸» 과 함께 둔다 — 옛날엔 폼 맨 아래 상자 하나라 데스크탑·태블릿에서는 스크롤 밖에 떠
+  //   «눌렀는데 아무 일도 안 일어남» 으로 읽혔다(2026-11-06 Irene «경고문구가 맨 아래에 떠서 모르는데»).
+  //   빈칸·형식(화면 검사) = 그 칸으로 보내고 칸 밑에 이유 / 서버 거절 = 드로어 맨 위 경고 줄 + 문제 칸 표시 + [해당 칸으로 이동].
+  const [error, setError] = useState<{ msg: string; field: MailFormField | null; server: boolean } | null>(null);
+  const [twoStep, setTwoStep] = useState<TwoStepAnswer>(null);
+  const [guideEmph, setGuideEmph] = useState(false);
+  const alertRef = useRef<HTMLDivElement>(null);
+  const fieldRefs = useRef<Partial<Record<MailFormField, HTMLInputElement | null>>>({});
+  const bindField = (f: MailFormField) => (el: HTMLInputElement | null) => { fieldRefs.current[f] = el; };
+  const focusField = useCallback((f: MailFormField | null) => {
+    const el = f ? fieldRefs.current[f] : null;
+    if (!el) return;
+    el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    el.focus({ preventScroll: true });
+  }, []);
+  useEffect(() => {
+    if (!error) return;
+    if (error.server) {
+      // 경고는 폼 첫 줄이다 — 굴러가는 상자를 맨 위로 올린다. scrollIntoView 는 폰에서 상자 안 고정 머리줄(뒤로·제목)
+      //   밑으로 경고를 밀어 넣어 가렸다(390 실측). 상자를 못 찾으면 그때만 scrollIntoView.
+      const el = alertRef.current;
+      let box: HTMLElement | null = el?.parentElement || null;
+      while (box && !(box.scrollHeight > box.clientHeight && /(auto|scroll)/.test(getComputedStyle(box).overflowY))) box = box.parentElement;
+      if (box) box.scrollTo({ top: 0, behavior: 'smooth' });
+      else el?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+      el?.focus({ preventScroll: true });
+    } else {
+      focusField(error.field);
+    }
+  }, [error, focusField]);
+  const isBad = (f: MailFormField) => error?.field === f;
+  // 그 칸을 다시 고치기 시작하면 표시를 거둔다(다른 칸을 고칠 때는 그대로)
+  const touch = (f: MailFormField) => { if (error?.field === f) { setError(null); setGuideEmph(false); } };
+  const fieldError = (f: MailFormField) => (error && !error.server && error.field === f)
+    ? <FieldError data-testid={`mail-field-error-${f}`}>{error.msg}</FieldError> : null;
 
   const onPresetChange = (key: string) => {
     setPreset(key);
@@ -615,18 +519,18 @@ const AccountEditForm: React.FC<FormProps> = ({ initial, businessId, scope, onSa
 
   const onSubmit = async () => {
     setError(null);
+    setGuideEmph(false);
+    const local = (msg: string, field: MailFormField) => setError({ msg, field, server: false });
     if (!form.email || !form.email.includes('@')) {
-      setError(t('settings.emailInvalid', '올바른 이메일을 입력하세요') as string);
+      local(t('settings.emailInvalid', '올바른 이메일을 입력하세요') as string, 'email');
       return;
     }
-    if (!form.imap_host || !form.imap_username) {
-      setError(t('settings.imapRequired', 'IMAP 서버와 사용자명을 입력하세요') as string);
-      return;
-    }
+    if (!form.imap_host) { local(t('settings.imapHostRequired') as string, 'imap_host'); return; }
+    if (!form.imap_username) { local(t('settings.imapUserRequired') as string, 'imap_username'); return; }
     if (!isEdit && !form.imap_password) {
-      setError(usesAppPassword
+      local(usesAppPassword
         ? (t('settings.appPasswordRequired', '앱 비밀번호를 입력하세요') as string)
-        : (t('settings.passwordRequired', '비밀번호를 입력하세요') as string));
+        : (t('settings.passwordRequired', '비밀번호를 입력하세요') as string), 'imap_password');
       return;
     }
     setSubmitting(true);
@@ -659,7 +563,9 @@ const AccountEditForm: React.FC<FormProps> = ({ initial, businessId, scope, onSa
       const code = (e as Error).message;
       const guide = IMAP_ERROR_GUIDE[code];
       if (guide?.preset && guide.preset !== preset) setPreset(guide.preset); // 해당 provider 안내 박스 표시
-      setError(guide ? (t(guide.key, guide.def) as string) : code);
+      if (guide?.twoStepOff) setTwoStep('off');   // 구글이 거절 = 2단계 인증부터 의심 → 그 안내를 펼친다
+      setGuideEmph(!!guide?.preset && guide.field === 'imap_password');
+      setError({ msg: guide ? (t(guide.key, guide.def) as string) : code, field: guide?.field || null, server: true });
     } finally {
       setSubmitting(false);
     }
@@ -674,6 +580,16 @@ const AccountEditForm: React.FC<FormProps> = ({ initial, businessId, scope, onSa
       </DetailDrawer.Header>
       <DetailDrawer.Body>
         <Form>
+          {error?.server && (
+            <ErrorBox ref={alertRef} role="alert" tabIndex={-1} data-testid="mail-form-alert">
+              <span>{error.msg}</span>
+              {error.field && (
+                <JumpBtn type="button" onClick={() => focusField(error.field)}>
+                  {t('settings.jumpToField') as string}
+                </JumpBtn>
+              )}
+            </ErrorBox>
+          )}
           {!isEdit && (
             <ScopeNote $personal={scope === 'personal'}>
               {scope === 'personal'
@@ -691,19 +607,21 @@ const AccountEditForm: React.FC<FormProps> = ({ initial, businessId, scope, onSa
                 options={MAIL_PRESETS.map(p => ({ value: p.key, label: p.label }))}
               />
               {APP_PASSWORD_GUIDES[preset] && (
-                <ConnectGuide guide={APP_PASSWORD_GUIDES[preset]} />
+                <ConnectGuide guide={APP_PASSWORD_GUIDES[preset]} twoStep={twoStep} onTwoStep={setTwoStep} emphasize={guideEmph} />
               )}
             </Field>
           )}
           {isEdit && hostToGuideKey(form.imap_host) && APP_PASSWORD_GUIDES[hostToGuideKey(form.imap_host)!] && (
-            <ConnectGuide guide={APP_PASSWORD_GUIDES[hostToGuideKey(form.imap_host)!]} />
+            <ConnectGuide guide={APP_PASSWORD_GUIDES[hostToGuideKey(form.imap_host)!]} twoStep={twoStep} onTwoStep={setTwoStep} emphasize={guideEmph} />
           )}
 
           <Field>
             <Label>{t('settings.fieldEmail', '이메일') as string} <Required>*</Required></Label>
             <Input
               type="email" value={form.email}
+              ref={bindField('email')} $invalid={isBad('email')} aria-invalid={isBad('email') || undefined}
               onChange={e => {
+                touch('email');
                 const email = e.target.value;
                 // ★ 아이디 칸은 이메일을 **계속 따라간다**(사용자가 따로 고치기 전까지). 여태 `빈 칸일 때만` 채워서
                 //   첫 글자에서 멈췄다 — 운영 네이버 계정의 보내기 아이디가 한 글자로 저장돼 발송이 전부 거절됐다.
@@ -720,6 +638,7 @@ const AccountEditForm: React.FC<FormProps> = ({ initial, businessId, scope, onSa
               placeholder={t('settings.emailPh', 'contact@회사.com') as string}
               disabled={isEdit}
             />
+            {fieldError('email')}
           </Field>
 
           <Field>
@@ -740,9 +659,11 @@ const AccountEditForm: React.FC<FormProps> = ({ initial, businessId, scope, onSa
               <Label>{t('settings.fieldHost', '서버') as string} <Required>*</Required></Label>
               <Input
                 type="text" value={form.imap_host}
-                onChange={e => setForm({ ...form, imap_host: e.target.value })}
+                ref={bindField('imap_host')} $invalid={isBad('imap_host')} aria-invalid={isBad('imap_host') || undefined}
+                onChange={e => { touch('imap_host'); setForm({ ...form, imap_host: e.target.value }); }}
                 placeholder={t('settings.imapHostPh', 'imap.회사.com') as string}
               />
+              {fieldError('imap_host')}
             </Field>
             <Field>
               <Label>{t('settings.fieldPort', '포트') as string}</Label>
@@ -756,9 +677,11 @@ const AccountEditForm: React.FC<FormProps> = ({ initial, businessId, scope, onSa
             <Label>{t('settings.fieldUsername', '사용자명') as string} <Required>*</Required></Label>
             <Input
               type="text" value={form.imap_username}
-              onChange={e => setForm({ ...form, imap_username: e.target.value })}
+              ref={bindField('imap_username')} $invalid={isBad('imap_username')} aria-invalid={isBad('imap_username') || undefined}
+              onChange={e => { touch('imap_username'); setForm({ ...form, imap_username: e.target.value }); }}
               placeholder={form.email}
             />
+            {fieldError('imap_username')}
           </Field>
           <Field>
             <Label>
@@ -768,15 +691,17 @@ const AccountEditForm: React.FC<FormProps> = ({ initial, businessId, scope, onSa
             </Label>
             <Input
               type="password" value={form.imap_password}
+              ref={bindField('imap_password')} $invalid={isBad('imap_password')} aria-invalid={isBad('imap_password') || undefined}
               /* 앱비밀번호 provider 만 공백 제거 — 일반 IMAP 은 중간 공백이 유효한 비밀번호일 수 있어
                  입력 자체를 막으면 안 된다 (백엔드 normalizeImapPassword 와 같은 기준). */
-              onChange={e => setForm({
+              onChange={e => (touch('imap_password'), setForm({
                 ...form,
                 imap_password: usesAppPassword ? e.target.value.replace(/[\s\u00A0]/g, '') : e.target.value,
-              })}
+              }))}
               autoComplete="new-password"
               placeholder={usesAppPassword ? (t('settings.appPasswordPh', '계정 비밀번호가 아닌, 발급받은 앱 비밀번호') as string) : undefined}
             />
+            {fieldError('imap_password')}
           </Field>
 
           <SectionTitle>{t('settings.smtpSection', '보내기 (SMTP)') as string} <Optional>{t('settings.optional', '선택') as string}</Optional></SectionTitle>
@@ -786,7 +711,8 @@ const AccountEditForm: React.FC<FormProps> = ({ initial, businessId, scope, onSa
               <Label>{t('settings.fieldHost', '서버') as string}</Label>
               <Input
                 type="text" value={form.smtp_host || ''}
-                onChange={e => setForm({ ...form, smtp_host: e.target.value })}
+                ref={bindField('smtp_host')} $invalid={isBad('smtp_host')} aria-invalid={isBad('smtp_host') || undefined}
+                onChange={e => { touch('smtp_host'); setForm({ ...form, smtp_host: e.target.value }); }}
                 placeholder={t('settings.smtpHostPh', 'smtp.회사.com') as string}
               />
             </Field>
@@ -802,20 +728,21 @@ const AccountEditForm: React.FC<FormProps> = ({ initial, businessId, scope, onSa
             <Label>{t('settings.fieldUsername', '사용자명') as string}</Label>
             <Input
               type="text" value={form.smtp_username || ''}
-              onChange={e => setForm({ ...form, smtp_username: e.target.value })}
+              ref={bindField('smtp_username')} $invalid={isBad('smtp_username')} aria-invalid={isBad('smtp_username') || undefined}
+              onChange={e => { touch('smtp_username'); setForm({ ...form, smtp_username: e.target.value }); }}
             />
           </Field>
           <Field>
             <Label>{passwordLabel} {isEdit && <PasswordHint>{t('settings.passwordEditHint', '(비워두면 기존 유지)') as string}</PasswordHint>}</Label>
             <Input
               type="password" value={form.smtp_password}
-              onChange={e => setForm({ ...form, smtp_password: e.target.value })}
+              ref={bindField('smtp_password')} $invalid={isBad('smtp_password')} aria-invalid={isBad('smtp_password') || undefined}
+              onChange={e => { touch('smtp_password'); setForm({ ...form, smtp_password: e.target.value }); }}
               autoComplete="new-password"
             />
           </Field>
 
           <TrustNote spot="mailConnect" />
-          {error && <ErrorBox>{error}</ErrorBox>}
         </Form>
       </DetailDrawer.Body>
       <DetailDrawer.Footer>
@@ -957,9 +884,10 @@ const FieldHint = styled.span`font-size: 0.6875rem; font-weight: 500; color: #94
 const Required = styled.span`color: #EF4444;`;
 const PasswordHint = styled.span`font-size: 0.6875rem; color: #94A3B8; font-weight: 500; margin-left: 4px;`;
 const Optional = styled.span`font-size: 0.6875rem; color: #94A3B8; font-weight: 500; margin-left: 4px;`;
-const Input = styled.input`
+const Input = styled.input<{ $invalid?: boolean }>`
   height: 36px; padding: 0 10px;
-  border: 1px solid #E2E8F0; border-radius: 6px;
+  border: 1px solid ${p => p.$invalid ? '#FCA5A5' : '#E2E8F0'}; border-radius: 6px;
+  background: ${p => p.$invalid ? '#FEF2F2' : '#FFFFFF'};
   font-size: 0.8125rem; color: #0F172A;
   &:focus { outline: none; border-color: #14B8A6; box-shadow: 0 0 0 3px rgba(20,184,166,0.15); }
   &:disabled { background: #F8FAFC; color: #94A3B8; cursor: not-allowed; }
@@ -972,18 +900,18 @@ const SectionTitle = styled.div`
   display: flex; align-items: center;
 `;
 const SmtpHint = styled.div`font-size: 0.6875rem; color: #64748B; line-height: 1.5; padding: 8px 10px; background: #F8FAFC; border-radius: 6px;`;
-const GuideBox = styled.div`margin-top: 8px; padding: 14px 16px; background: #F0FDFA; border: 1px solid #99F6E4; border-radius: 10px;`;
-const GuideTitle = styled.div`font-size: 0.8125rem; font-weight: 700; color: #0F766E; margin-bottom: 10px;`;
-const GuideSteps = styled.div`display: flex; flex-direction: column; gap: 8px;`;
-const GuideStep = styled.div`display: flex; gap: 10px; align-items: flex-start;`;
-const GuideNum = styled.span`flex-shrink: 0; width: 18px; height: 18px; border-radius: 50%; background: #14B8A6; color: #fff; font-size: 0.6875rem; font-weight: 700; display: flex; align-items: center; justify-content: center; margin-top: 1px;`;
-const GuideStepText = styled.div`font-size: 0.75rem; color: #334155; line-height: 1.55;`;
-const GuideLink = styled.a`display: inline-block; margin-top: 12px; font-size: 0.75rem; font-weight: 600; color: #0F766E; text-decoration: none; padding: 7px 12px; background: #fff; border: 1px solid #14B8A6; border-radius: 8px; transition: background 0.15s; &:hover { background: #CCFBF1; }`;
 const ErrorBox = styled.div`
-  padding: 10px 12px;
+  display: flex; flex-direction: column; align-items: flex-start; gap: 6px;
+  padding: 10px 12px; line-height: 1.55;
   background: #FEF2F2; border: 1px solid #FECACA; border-radius: 6px;
   font-size: 0.75rem; color: #B91C1C;
+  &:focus { outline: none; }
 `;
+const JumpBtn = styled.button`
+  all: unset; cursor: pointer; font-weight: 700; color: #991B1B; text-decoration: underline;
+  &:focus-visible { outline: 2px solid #FCA5A5; outline-offset: 2px; border-radius: 2px; }
+`;
+const FieldError = styled.span`font-size: 0.6875rem; font-weight: 600; color: #B91C1C; line-height: 1.5;`;
 // confirm modal
 const ConfirmBackdrop = styled.div`
   position: fixed; inset: var(--pq-popup-top, 0px) 0 0; z-index: 9000;

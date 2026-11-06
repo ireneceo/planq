@@ -49,7 +49,6 @@
     "guide": {
       "gmail": {
         "title": "Connect Gmail with an App Password",
-        "s1": "First, turn on 2-Step Verification for your Google account. (App passwords require 2-Step Verification to be enabled.)",
         "s2": "Click \"Create app password\" below to generate a new password. Use \"PlanQ\" as the app name.",
         "s3": "Paste the generated 16-character password (no spaces) into the \"Password\" field below and save. Server settings are already filled in.",
         "link": "Create app password →"
@@ -63,14 +62,12 @@
       },
       "icloud": {
         "title": "Connect iCloud with an App-Specific Password",
-        "s1": "Your Apple ID must have two-factor authentication enabled.",
         "s2": "Generate a new app password under \"Create app password\" (Sign-In and Security → App-Specific Passwords).",
         "s3": "Paste the generated app password into the \"Password\" field below and save.",
         "link": "Apple ID app passwords →"
       },
       "outlook": {
         "title": "Connect Outlook / Microsoft 365",
-        "s1": "Turn on 2-step verification for your Microsoft account.",
         "s2": "Create an \"app password\" in security settings. (Regular passwords will not work)",
         "s3": "Paste the app password into the \"Password\" field below and save.",
         "link": "Microsoft security settings →"
@@ -92,6 +89,27 @@
         "s1": "Ask your mail provider or company IT for the IMAP/SMTP server address and port (e.g. incoming imap.company.com:993 · outgoing smtp.company.com:587).",
         "s2": "Make sure \"IMAP access\" is enabled in your mailbox settings (some services turn it off by default).",
         "s3": "Enter the server details and your login password (or an app password if you use 2-step verification) below, then save."
+      },
+      "twoStep": {
+        "q": {
+          "gmail": "Is 2-Step Verification on for your Google account?",
+          "outlook": "Is two-step verification on for your Microsoft account?",
+          "icloud": "Is two-factor authentication on for your Apple ID?"
+        },
+        "yes": "Yes, it's on",
+        "no": "No / Not sure",
+        "turnOn": {
+          "gmail": "App passwords can only be created when 2-Step Verification is on. Turn on \"2-Step Verification\" below and finish the phone check.",
+          "outlook": "App passwords can only be created when two-step verification is on. Turn it on in the security page below.",
+          "icloud": "App-specific passwords require two-factor authentication. Turn it on under \"Sign-In and Security\" in the page below."
+        },
+        "openSetup": "Turn on 2-Step Verification →",
+        "thenContinue": "Once it's on, come back here and continue from step 1 below.",
+        "blocked": {
+          "gmail": "If you see \"The setting you are looking for is not available for your account\", 2-Step Verification is still off. Company Google (Workspace) accounts may have it blocked by an admin — ask your admin.",
+          "outlook": "Company (Microsoft 365) accounts may have app passwords blocked by an admin — ask your admin.",
+          "icloud": "Turning on two-factor authentication needs a trusted device (e.g. iPhone) or phone number."
+        }
       }
     },
     "fieldEmail": "Email",
@@ -124,7 +142,7 @@
     "fixAuthGmail": "Gmail requires an app password — open Edit and enter the app password again.",
     "fixAuthGeneric": "Open Edit and re-enter the username and password.",
     "err": {
-      "gmailAppPassword": "Gmail cannot be connected with a regular password. Create an app password as guided above and enter it.",
+      "gmailAppPassword": "Google blocked sign-in with your account password. 2-Step Verification is on, so create a 16-character password in \"Create app password\" above and enter it in the \"App password\" field.",
       "naverAppPassword": "Naver authentication failed. Check that IMAP is enabled and use an application password if 2-step verification is on.",
       "msAppPassword": "Microsoft authentication failed. Create an app password and enter it.",
       "authFailed": "Could not connect — the username or password is incorrect.",
@@ -136,7 +154,9 @@
       "msSmtp": "Microsoft rejected the sending login. Microsoft 365 work accounts need an admin to allow \"SMTP AUTH\"; personal Outlook.com accounts do not support password-based connection.",
       "smtpAuth": "The sending (SMTP) login failed. Check the sending username (usually your full email address) and password.",
       "smtpHost": "The sending (SMTP) server address could not be found. Please check it.",
-      "smtpConnect": "Couldn't connect to the sending (SMTP) server. Check the server address and port (465 or 587)."
+      "smtpConnect": "Couldn't connect to the sending (SMTP) server. Check the server address and port (465 or 587).",
+      "gmailAuthInvalid": "Google rejected the sign-in. ① If 2-Step Verification is off, you can't create an app password — turn it on first using the guide above. ② If it's already on, copy the 16-character app password again and paste it (not your account password).",
+      "hostNotAllowed": "This server address can't be used (internal network address). Enter your mail provider's public server address."
     },
     "gmailOauthDenied": "Google connection was not completed — you may have cancelled, or one-click connection is limited for this account until PlanQ finishes Google app review. Use the app-password method in \"Add account\" below.",
     "gmailOauthFailed": "Gmail connection failed: {{code}} — try again later or use the app-password method.",
@@ -162,7 +182,10 @@
     "imapHostPh": "imap.company.com",
     "smtpHostPh": "smtp.company.com",
     "toPersonal": "Switch to personal",
-    "toTeam": "Make company-shared"
+    "toTeam": "Make company-shared",
+    "imapHostRequired": "Enter the incoming (IMAP) server address",
+    "imapUserRequired": "Enter the incoming (IMAP) username — usually your full email address",
+    "jumpToField": "Go to this field"
   },
   "folders": {
     "title": "Mailboxes",

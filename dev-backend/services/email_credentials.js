@@ -30,8 +30,14 @@ async function verifyImapCredentials({ host, port, tls, username, password, fold
   } catch (e) {
     const msg = String((e && e.message) || e);
     const h = String(host || '').toLowerCase();
-    if (/invalid credentials|authenticat|login fail|auth/i.test(msg)) {
-      if (h.includes('gmail') || h.includes('googlemail')) return { ok: false, code: 'gmail_app_password_required', detail: msg };
+    if (/invalid credentials|authenticat|login fail|auth|application-specific password/i.test(msg)) {
+      // 구글은 두 갈래로 거절한다 — 화면 안내가 달라야 한다(2단계 인증 꺼진 사람이 «앱 비밀번호 만들기» 로 가면 막힌다).
+      //   ① 2단계 인증 켜짐 + 계정 비밀번호 → «Application-specific password required» → 앱 비밀번호를 만들면 된다
+      //   ② 그 밖(2단계 인증 꺼짐 + 계정 비밀번호 · 앱 비밀번호 오타) → «Invalid credentials» → 2단계 인증부터 / 다시 붙여넣기
+      if (h.includes('gmail') || h.includes('googlemail')) {
+        if (/application-specific password required/i.test(msg)) return { ok: false, code: 'gmail_app_password_required', detail: msg };
+        return { ok: false, code: 'gmail_auth_invalid', detail: msg };
+      }
       if (h.includes('naver')) return { ok: false, code: 'naver_app_password_required', detail: msg };
       if (h.includes('office365') || h.includes('outlook')) return { ok: false, code: 'ms_app_password_required', detail: msg };
       return { ok: false, code: 'imap_auth_failed', detail: msg };
