@@ -1,5 +1,10 @@
 # Fable 게이트 대기열 → **판정 기록 보관소** (2026-10-08 부터)
 
+### 2026-11-06 방 21d66dbe — 채팅 반응 소켓 직원 방 분기(4be052cc) — 완료 검증 **VERDICT: PASS** (차단 0)
+- 11-06 Fable 비차단 지적(내부 메모·미승인 초안 반응이 conv:<id> 로 고객 소켓에 감) 처리. 방송 isVisibleToClient → conv:<id> / :staff · 고객이 안 보이는 메시지에 반응 → 404(없는 메시지와 같은 코드).
+- Fable 실측 conv 1806: 고객 소켓 보통 메시지 반응만 · 대표 소켓 셋 다(양성 대조) · 고객 내부/초안/삭제 반응 404 · 보통 200 · "1806:staff" join 시도 미수신 · 목록 동봉 reactions 에 내부 메모 없음 · 게스트 경로 반응 없음.
+- 비차단: ① 첨부 canReadAttachment 는 고객에게 숨긴 메시지 첨부를 403 으로(존재 노출) — 404 통일 고려 ② message:updated·deleted 사적 방·고객 경로는 코드로만 확인.
+
 ### 2026-11-06 방 e5b1e7a2 — 멤버는 참여한 Q talk 방만(프로젝트·고객 방) — 설계 DESIGN-READY → 완료 검증 1차 **FAIL** → 2차 **VERDICT: PASS**
 - Irene «참여자가 아닌 멤버가 리스트에 그 프로젝트 채팅이 나와.» — 10-15 설계 A 의 «B 하지 않음» 을 member 역할만 뒤집음(owner/admin 열린 문화 유지). 판정 `access_scope.participantOnlyScope` 한 곳.
 - 1차 차단: ① 화면 메시지 경로(`/api/projects/conversations/:id/messages` GET·POST)가 고객만 술어 — 비참여 멤버 히스토리 200·쓰기 200 ② `emitConvWide` 가 business:/숨은 프로젝트 청중으로 본문(내부메모 포함)을 비참여 멤버 소켓에 보냄. 비차단: 푸시 배지 58 vs 목록 4.
