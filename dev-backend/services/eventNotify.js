@@ -74,6 +74,23 @@ function whenText(ev, lang, tz) {
     : d.toLocaleString(locale, { dateStyle: 'short', timeStyle: 'short', timeZone: tz || 'Asia/Seoul' });
 }
 
+/**
+ * 알림 본문 끝에 붙일 «어디서» 한 줄 — 열기 전에 «화상 링크가 있구나 / 어디서 하는구나» 를 알게(2026-11-06 Irene).
+ *   화상 링크는 주소 대신 «화상 미팅» 표시만(잠금화면에 주소를 싣지 않는다 — 열면 일정 상세에 링크가 있다).
+ *   장소 칸에 링크를 붙여 넣은 경우도 화상 표시로 바꾼다. 장소 글은 40자에서 자른다.
+ *   초대·변경·임박 알림이 이 함수 하나를 쓴다(calendarReminderCron).
+ */
+function placeHint(ev, lang) {
+  if (!ev) return '';
+  const video = lang === 'en' ? 'Video call' : '화상 미팅';
+  const loc = String(ev.location || '').trim();
+  const locIsUrl = /^https?:\/\//i.test(loc);
+  const parts = [];
+  if (ev.meeting_url || locIsUrl) parts.push(video);
+  if (loc && !locIsUrl) parts.push(loc.length > 40 ? `${loc.slice(0, 40)}…` : loc);
+  return parts.length ? ` · ${parts.join(' · ')}` : '';
+}
+
 async function send({ kind, event, before, businessId, actorUserId, members, clients, message, ioApp }) {
   if (!members.length && !clients.length) return 0;
   const { notifyMany } = require('../routes/notifications');
@@ -81,8 +98,8 @@ async function send({ kind, event, before, businessId, actorUserId, members, cli
   const action = kind === 'change' ? 'calendar_changed' : 'calendar_invite';
   const body = (lang) => {
     const head = kind === 'change'
-      ? `"${event.title}" · ${whenText(before, lang, biz?.timezone)} → ${whenText(event, lang, biz?.timezone)}`
-      : `"${event.title}"${event.start_at ? ` · ${whenText(event, lang, biz?.timezone)}` : ''}`;
+      ? `"${event.title}" · ${whenText(before, lang, biz?.timezone)} → ${whenText(event, lang, biz?.timezone)}${placeHint(event, lang)}`
+      : `"${event.title}"${event.start_at ? ` · ${whenText(event, lang, biz?.timezone)}` : ''}${placeHint(event, lang)}`;
     return message ? `${head}\n${message}` : head;
   };
   const base = {
@@ -111,4 +128,4 @@ async function sendChange({ event, before, businessId, actorUserId, message, pri
   return send({ kind: 'change', event, before, businessId, actorUserId, members, clients, message, ioApp });
 }
 
-module.exports = { recipientsOf, recipientIdSet, readNotifyChoice, scheduleChanged, sendInvite, sendChange, MESSAGE_MAX };
+module.exports = { recipientsOf, recipientIdSet, readNotifyChoice, scheduleChanged, sendInvite, sendChange, placeHint, MESSAGE_MAX };

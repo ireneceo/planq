@@ -242,7 +242,7 @@ async function runCalendarReminderCron() {
           //   함수로 주면 notify 가 수신자 언어를 넣어 부른다 — 제목만 현지화되어
           //   한 알림 안에서 언어가 섞이던 것을 막는다(Fable 게이트 2026-09-05).
           // 본문은 **언제 시작하는지** — 제목이 «내일 일정» 인데 본문이 «1일 전» 이면 같은 말을 뒤집어 한 번 더 한다.
-          body: (lang) => `${startLocalIn(lang)} ${lang === 'en' ? 'start' : '시작'}${ev.location ? ` · ${ev.location}` : ''}`,
+          body: (lang) => `${startLocalIn(lang)} ${lang === 'en' ? 'start' : '시작'}${require('./eventNotify').placeHint(ev, lang)}`,   // 장소 + 화상 미팅 표시(초대·변경 알림과 같은 함수)
           link: `${appUrl}/calendar?event=${ev.id}`,
           ctaLabel: (lang) => (lang === 'en' ? 'View event' : '일정 보기'),
           workspaceName: wsName,
