@@ -127,6 +127,7 @@ const AdminSubscriptionsPage = lazy(() => import('./pages/Admin/AdminSubscriptio
 const AdminPaymentsPage = lazy(() => import('./pages/Admin/AdminPaymentsPage'));
 const AdminInboxPage = lazy(() => import('./pages/Admin/AdminInboxPage'));
 const AdminSupportPage = lazy(() => import('./pages/Admin/AdminSupportPage'));
+const AdminFollowupPage = lazy(() => import('./pages/Admin/AdminFollowupPage'));
 const AdminBillingSettingsPage = lazy(() => import('./pages/Admin/AdminBillingSettingsPage'));
 const AdminInquiriesPage = lazy(() => import('./pages/Admin/AdminInquiriesPage'));
 const AdminNotificationsPage = lazy(() => import('./pages/Admin/AdminNotificationsPage'));
@@ -714,6 +715,11 @@ function ShellApp() {
         <Route path="/admin/support" element={
           <ProtectedRoute requiredRole={['platform_admin']}>
             <MainLayout><AdminSupportPage /></MainLayout>
+          </ProtectedRoute>
+        } />
+        <Route path="/admin/followup" element={
+          <ProtectedRoute requiredRole={['platform_admin']}>
+            <MainLayout><AdminFollowupPage /></MainLayout>
           </ProtectedRoute>
         } />
         <Route path="/admin/payments" element={

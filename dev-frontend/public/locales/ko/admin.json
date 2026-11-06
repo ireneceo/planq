@@ -958,6 +958,49 @@
       "welcome": "PlanQ 안내방이에요. PlanQ 쓰다가 궁금한 것을 여기에 물어보세요. Cue 가 바로 답하고, PlanQ 팀도 함께 봅니다.",
       "human_requested": "PlanQ 팀에 알렸어요. 확인하는 대로 여기서 답드릴게요.",
       "cue_failed": "지금은 Cue 가 답을 찾지 못했어요. PlanQ 팀에 넘겼어요."
+    },
+    "recipients": "{{name}} 안내방 · {{count}}명에게 앱 알림이 갑니다",
+    "unfilled": "초안에 채우지 못한 자리(괄호 두 겹)가 남아 있어요. 고친 뒤 보낼 수 있어요."
+  },
+  "followup": {
+    "title": "신규 고객",
+    "desc": "최근 가입했거나 체험 중인 워크스페이스입니다. 상태를 보고 «도울 일» 을 골라 안내방으로 직접 메시지를 보낼 수 있어요. 자동으로 보내지 않습니다.",
+    "searchPh": "워크스페이스·이메일 검색",
+    "daysLabel": "가입 기간",
+    "days": "{{count}}일",
+    "sortLabel": "정렬",
+    "sortRecent": "가입 최신순",
+    "sortHelp": "도울 일 먼저",
+    "loading": "불러오는 중…",
+    "loadFailed": "목록을 불러오지 못했어요",
+    "empty": "이 기간에 새로 들어온 곳이 없어요",
+    "emptyDesc": "기간을 늘리거나 검색어를 바꿔 보세요.",
+    "trialLeft": "체험 D-{{count}}",
+    "trialEnded": "체험 끝남 {{count}}일",
+    "lastTalk": "마지막 대화",
+    "message": "메시지",
+    "more": "더 보기 ({{count}})",
+    "sentToday": "오늘 보냄",
+    "sentDaysAgo": "{{count}}일 전 보냄",
+    "helpTitle": "도울 일 — 누르면 초안이 입력칸에 들어가요",
+    "draftFailed": "초안을 불러오지 못했어요",
+    "threadTitle": "PlanQ 안내방 대화",
+    "missing": {
+      "app": "앱 없음",
+      "notifications": "알림 꺼짐",
+      "calendar": "캘린더 없음",
+      "ai_app": "AI 앱 없음",
+      "mail": "메일 없음"
+    },
+    "help": {
+      "trial_ended": "플랜 안내 (체험 끝남)",
+      "trial_ending": "플랜·결제 안내 (D-{{days}})",
+      "mail_error": "메일 다시 연결 안내",
+      "inactive": "안부 + 화상 안내 제안",
+      "stage_stalled": "첫 업무 만들기 안내",
+      "solo": "팀원 초대 안내",
+      "no_app": "앱 설치 안내",
+      "welcome": "환영 인사"
     }
   }
 }

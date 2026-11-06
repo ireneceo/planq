@@ -25,19 +25,14 @@ const MEMBER_LIMIT = 50;
 const MEMBER_CONCURRENCY = 5;
 const DAY = 24 * 60 * 60 * 1000;
 
-/** 막힘 신호 기준 — 화면은 key 와 숫자만 받아 문구를 그린다. */
-const INACTIVE_DAYS = 5;
-const TRIAL_ENDING_DAYS = 3;
-const SOLO_AFTER_DAYS = 3;
-const STAGE1_STALL_DAYS = 7;
+// 막힘 신호 기준·계산은 services/followupSummary.computeSignals 한 곳(신규 고객 팔로업 목록과 같은 함수).
 
 async function minAt(sql, biz) {
   const rows = await sequelize.query(sql, { replacements: { biz }, type: QueryTypes.SELECT });
   return (rows[0] && rows[0].at) || null;
 }
 
-const daysSince = (d, now) => (d ? Math.floor((now - new Date(d).getTime()) / DAY) : null);
-const laterOf = (a, b) => (!a ? b : !b ? a : (new Date(a) > new Date(b) ? a : b));
+const { computeSignals, daysSince, laterOf } = require('../services/followupSummary');
 
 // GET /api/admin/businesses/:id/journey
 router.get('/businesses/:id/journey', async (req, res, next) => {
@@ -125,13 +120,9 @@ router.get('/businesses/:id/journey', async (req, res, next) => {
     const trialDaysLeft = business.subscription_status === 'trialing' && business.trial_ends_at
       ? Math.ceil((new Date(business.trial_ends_at).getTime() - now) / DAY) : null;
 
-    const signals = [];
-    if (inactiveDays !== null && inactiveDays >= INACTIVE_DAYS) signals.push({ key: 'inactive', days: inactiveDays });
-    if (trialDaysLeft !== null && trialDaysLeft < 0) signals.push({ key: 'trial_ended', days: -trialDaysLeft });
-    else if (trialDaysLeft !== null && trialDaysLeft <= TRIAL_ENDING_DAYS) signals.push({ key: 'trial_ending', days: trialDaysLeft });
-    if (members.length <= 1 && ageDays >= SOLO_AFTER_DAYS) signals.push({ key: 'solo', days: ageDays });
-    if (mailErrors > 0) signals.push({ key: 'mail_error', count: mailErrors });
-    if (owner && owner.stage.current === 1 && ageDays >= STAGE1_STALL_DAYS) signals.push({ key: 'stage_stalled', stage: 1, days: ageDays });
+    const signals = computeSignals({
+      inactiveDays, trialDaysLeft, members: members.length, ageDays, mailErrors, ownerStage: owner ? owner.stage.current : null,
+    });
 
     // 워크스페이스 한 줄 요약 — 개인 설정은 «한 명이라도 했나».
     const setupAny = (key) => members.some((m) => m.setup.some((s) => s.key === key && s.done));

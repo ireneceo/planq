@@ -331,7 +331,7 @@ async function requestHuman(bizId, userId, io) {
 }
 
 /** PlanQ 팀(플랫폼 관리자)이 쓴다 — 관리자 라우트만 부른다. 사람 답이라 푸시가 간다. */
-async function postStaffMessage({ businessId, adminUser, content, io }) {
+async function postStaffMessage({ businessId, adminUser, content, io, ruleKey = null }) {
   const text = String(content || '').trim().slice(0, 5000);
   if (!text) return { error: 'content_required' };
   const r = await ensureRoom(businessId);
@@ -340,7 +340,8 @@ async function postStaffMessage({ businessId, adminUser, content, io }) {
   const msg = await Message.create({
     conversation_id: r.conv.id, sender_id: adminUser.id, content: text,
     kind: 'text', is_ai: false, is_internal: false,
-    meta: { support_room: true, platform_staff: true },   // 서버가 찍는다 — 요청 본문의 meta 는 받지 않는다
+    // 서버가 찍는다 — 요청 본문의 meta 는 받지 않는다. followup_rule = 팔로업 규칙 초안으로 쓴 글(라우트가 키를 검사).
+    meta: { support_room: true, platform_staff: true, ...(ruleKey ? { followup_rule: ruleKey } : {}) },
   });
   const now = new Date();
   await r.conv.update({ last_message_at: now });
@@ -351,7 +352,7 @@ async function postStaffMessage({ businessId, adminUser, content, io }) {
 
   await require('./auditService').writeAudit({
     userId: adminUser.id, businessId: r.conv.business_id, action: 'support.admin_send',
-    targetType: 'message', targetId: msg.id, newValue: { conversation_id: r.conv.id },
+    targetType: 'message', targetId: msg.id, newValue: { conversation_id: r.conv.id, ...(ruleKey ? { rule_key: ruleKey } : {}) },
   }).catch((e) => console.warn('[supportRoom audit]', e.message));
 
   try {
@@ -423,7 +424,10 @@ async function openForAdmin(businessId, adminUser) {
     targetType: 'conversation', targetId: r.conv.id,
   }).catch((e) => console.warn('[supportRoom audit]', e.message));
   const biz = await Business.findByPk(r.conv.business_id, { attributes: ['id', 'name', 'brand_name'] });
+  // 보내면 알림이 가는 사람 수(참여자 — «열어 봄» 행은 모델 기본 범위에서 빠진다) · 입력칸 위 설명줄용
+  const participants = await M().ConversationParticipant.count({ where: { conversation_id: r.conv.id } });
   return {
+    participants,
     business_id: r.conv.business_id, business_name: biz?.brand_name || biz?.name || null,
     conversation_id: r.conv.id, human_requested: !!r.room.human_requested_at,
     cue_muted_until: r.room.cue_muted_until, messages: list,

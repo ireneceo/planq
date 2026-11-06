@@ -29,13 +29,16 @@ router.get('/support/rooms/:businessId', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// POST /api/admin/support/rooms/:businessId/messages { content } — PlanQ 팀 답(푸시) · 감사 support.admin_send
+// POST /api/admin/support/rooms/:businessId/messages { content, rule_key? } — PlanQ 팀 답(푸시) · 감사 support.admin_send
 // audit-exempt: services/supportRoom.postStaffMessage 가 writeAudit(support.admin_send) 를 남긴다
 router.post('/support/rooms/:businessId/messages', perUserLimiter('admin-support-send', { windowMs: 60 * 1000, max: 30, message: 'too_many' }), async (req, res, next) => {
   try {
     const biz = Number(req.params.businessId);
     if (!biz) return errorResponse(res, 'invalid_id', 400);
-    const r = await supportRoom.postStaffMessage({ businessId: biz, adminUser: req.user, content: req.body && req.body.content, io: req.app.get('io') });
+    // rule_key(선택) — 신규 고객 팔로업 «도울 일» 초안으로 쓴 글. 규칙표에 있는 키만(아니면 400). 막지 않고 «보냄» 표시용.
+    const ruleKey = req.body && req.body.rule_key != null && req.body.rule_key !== '' ? String(req.body.rule_key) : null;
+    if (ruleKey && !require('../services/followupRules').RULE_KEYS.includes(ruleKey)) return errorResponse(res, 'invalid_rule', 400);
+    const r = await supportRoom.postStaffMessage({ businessId: biz, adminUser: req.user, content: req.body && req.body.content, io: req.app.get('io'), ruleKey });
     if (r.error === 'content_required') return errorResponse(res, 'content_required', 400);
     if (r.error) return errorResponse(res, r.error, 404);
     return successResponse(res, r, undefined, 201);

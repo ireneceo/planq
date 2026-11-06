@@ -625,6 +625,8 @@ app.use('/api/admin', require('./routes/admin'));
 app.use('/api/admin', require('./routes/admin_credits'));
 // 워크스페이스 «여정»(단계·개인 설정·앱·시간줄·막힘 신호) — 같은 /api/admin 아래. 라우터 자체가 platform_admin 으로 닫혀 있다.
 app.use('/api/admin', require('./routes/admin_journey'));
+// 신규 고객 팔로업(가입 N일·체험 중 목록 + 도울 일 + 초안) — 같은 /api/admin 아래, platform_admin 으로 닫혀 있다.
+app.use('/api/admin', require('./routes/admin_followup'));
 // PlanQ 안내방 — 관리자 받은편지함(/api/admin/support/*, platform_admin 전용) · 워크스페이스 쪽(/api/support-room, 사람 멤버만).
 app.use('/api/admin', require('./routes/admin_support'));
 app.use('/api/support-room', require('./routes/support_room'));

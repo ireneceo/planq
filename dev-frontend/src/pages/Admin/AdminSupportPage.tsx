@@ -12,17 +12,13 @@ import EmptyState from '../../components/Common/EmptyState';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
 import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
 import ChromeLink from '../../components/Tab/ChromeLink';
-import { useDraftKey, useDraftText } from '../../hooks/useDraftText';
 import { onSocket } from '../../services/socket';
 import { listRowTitleCss } from '../../theme/tokens';
-import { PrimaryBtn, SecondaryBtn } from './adminModalKit';
-import {
-  fetchSupportRooms, openSupportRoom, sendSupportMessage,
-  type SupportRoomRow, type SupportRoomDetail, type SupportMessage,
-} from '../../services/admin';
+import { fetchSupportRooms, type SupportRoomRow } from '../../services/admin';
+import { useSupportRoom, SupportThread, SupportComposer } from './AdminSupportThread';
 
 export default function AdminSupportPage() {
-  const { t, i18n } = useTranslation('admin');
+  const { t } = useTranslation('admin');
   const { formatDateTime } = useTimeFormat();
   const [params, setParams] = useSearchParams();
   const activeId = params.get('business') ? Number(params.get('business')) : null;
@@ -30,29 +26,14 @@ export default function AdminSupportPage() {
   const [rows, setRows] = useState<SupportRoomRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
-  const [room, setRoom] = useState<SupportRoomDetail | null>(null);
-  const [roomError, setRoomError] = useState(false);
-  const [sending, setSending] = useState(false);
-  const [sendError, setSendError] = useState(false);
-  const draft = useDraftText(useDraftKey('admin-support-reply', activeId, 'platform'));
-  const endRef = useRef<HTMLDivElement>(null);
+  const { room, roomError, reload: loadRoom } = useSupportRoom(activeId);
 
   const loadList = useCallback(async () => {
     try { setRows((await fetchSupportRooms()).rows); setError(false); }
     catch { setError(true); }
     finally { setLoading(false); }
   }, []);
-  const loadRoom = useCallback(async (id: number) => {
-    try { setRoom(await openSupportRoom(id)); setRoomError(false); }
-    catch { setRoomError(true); }
-  }, []);
-
   useEffect(() => { void loadList(); }, [loadList]);
-  useEffect(() => {
-    if (activeId) { setRoom(null); void loadRoom(activeId); } else setRoom(null);
-  }, [activeId, loadRoom]);
-  // 방을 열거나 새 글이 오면 맨 아래로
-  useEffect(() => { endRef.current?.scrollIntoView({ block: 'end' }); }, [room?.messages.length]);
 
   // 실시간 — 번호 신호만 오므로 서버 값으로 덮는다(250ms 묶기). 열린 방이면 그 방도.
   const activeRef = useRef(activeId);
@@ -63,12 +44,12 @@ export default function AdminSupportPage() {
       if (timer) window.clearTimeout(timer);
       timer = window.setTimeout(() => {
         void loadList();
-        if (activeRef.current && p && p.business_id === activeRef.current) void loadRoom(activeRef.current);
+        if (activeRef.current && p && p.business_id === activeRef.current) void loadRoom();
       }, 250);
     });
     return () => { off(); if (timer) window.clearTimeout(timer); };
   }, [loadList, loadRoom]);
-  useVisibilityRefresh(useCallback(() => { void loadList(); if (activeRef.current) void loadRoom(activeRef.current); }, [loadList, loadRoom]));
+  useVisibilityRefresh(useCallback(() => { void loadList(); if (activeRef.current) void loadRoom(); }, [loadList, loadRoom]));
 
   const select = (id: number) => {
     if (activeId === id) params.delete('business'); else params.set('business', String(id));
@@ -76,27 +57,6 @@ export default function AdminSupportPage() {
   };
   const close = () => { params.delete('business'); setParams(params, { replace: true }); };
 
-  const send = async () => {
-    if (!activeId || sending || !draft.text.trim()) return;
-    setSending(true); setSendError(false);
-    try {
-      await sendSupportMessage(activeId, draft.text.trim());
-      draft.clear();
-      await Promise.all([loadRoom(activeId), loadList()]);
-    } catch { setSendError(true); }
-    finally { setSending(false); }
-  };
-
-  const senderLabel = (m: SupportMessage) => {
-    if (m.is_ai) return t('support.cue', 'Cue');
-    const s = m.sender;
-    return (s?.name_localized?.[i18n.language] || s?.name || '').trim() || t('support.unknown', '알 수 없음');
-  };
-  const bodyOf = (m: SupportMessage) => {
-    if (m.is_deleted) return t('support.deleted', '삭제된 메시지');
-    if (m.meta?.support_notice) return t(`support.notice.${m.meta.support_notice}`, m.content);
-    return m.content;
-  };
   const activeRow = useMemo(() => rows.find((r) => r.business_id === activeId) || null, [rows, activeId]);
 
   return (
@@ -134,47 +94,11 @@ export default function AdminSupportPage() {
               {t('support.openJourney', '이 워크스페이스 여정 보기')}
             </JourneyLink>
           )}
-          {roomError && <ErrorText>{t('support.roomFailed', '안내방을 열지 못했어요')}</ErrorText>}
-          {!room && !roomError && <Dim>{t('support.loading', '불러오는 중…')}</Dim>}
-          {room && (
-            <Thread data-testid="admin-support-thread">
-              {room.messages.length === 0 && <Dim>{t('support.noMessages', '아직 대화가 없어요')}</Dim>}
-              {room.messages.map((m) => {
-                const staff = !!m.meta?.platform_staff;
-                return (
-                  <Bubble key={m.id} $kind={m.is_ai ? 'cue' : staff ? 'staff' : 'member'}>
-                    <BubbleHead>
-                      <strong>{senderLabel(m)}</strong>
-                      <Dim>{formatDateTime(m.created_at)}</Dim>
-                    </BubbleHead>
-                    <BubbleBody>{bodyOf(m)}</BubbleBody>
-                  </Bubble>
-                );
-              })}
-              <div ref={endRef} />
-            </Thread>
-          )}
+          <SupportThread room={room} roomError={roomError} />
         </DetailDrawer.Body>
         <DetailDrawer.Footer>
-          <Composer>
-            <ReplyBox
-              {...draft.bind}
-              rows={3}
-              placeholder={t('support.replyPh', 'PlanQ 팀으로 답하기 — 보내면 워크스페이스 사람들에게 알림이 갑니다 (Ctrl/⌘ + Enter)') as string}
-              onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') { e.preventDefault(); void send(); } }}
-              data-testid="admin-support-reply"
-            />
-            {sendError && <ErrorText>{t('support.sendFailed', '보내지 못했어요. 다시 시도해 주세요.')}</ErrorText>}
-            <ComposerRow>
-              <Dim>{t('support.muteHint', '보내면 4시간 동안 Cue 는 이 방에서 답하지 않습니다.')}</Dim>
-              <ComposerBtns>
-                <SecondaryBtn type="button" onClick={close}>{t('support.close', '닫기')}</SecondaryBtn>
-                <PrimaryBtn type="button" onClick={() => void send()} disabled={sending || !draft.text.trim()} data-testid="admin-support-send">
-                  {sending ? t('support.sending', '보내는 중…') : t('support.send', 'PlanQ 팀으로 보내기')}
-                </PrimaryBtn>
-              </ComposerBtns>
-            </ComposerRow>
-          </Composer>
+          <SupportComposer businessId={activeId} room={room} onClose={close}
+            onSent={async () => { await Promise.all([loadRoom(), loadList()]); }} />
         </DetailDrawer.Footer>
       </DetailDrawer>
     </PageShell>
@@ -199,20 +123,3 @@ const HumanBadge = styled.span`font-size: 0.6875rem; font-weight: 700; padding: 
 const Unread = styled.span`min-width: 20px; padding: 2px 6px; line-height: 1.45; border-radius: 10px; background: #F43F5E; color: #fff; font-size: 0.6875rem; font-weight: 700; display: inline-flex; align-items: center; justify-content: center;`;
 const DrawerTitle = styled.div`font-size: 1rem; font-weight: 700; color: #0F172A;`;
 const JourneyLink = styled(ChromeLink)`display: inline-block; margin: 12px 20px 0; font-size: 0.75rem; color: #0F766E; text-decoration: underline;`;
-const Thread = styled.div`display: flex; flex-direction: column; gap: 10px; padding: 16px 20px;`;
-const Bubble = styled.div<{ $kind: 'cue' | 'staff' | 'member' }>`
-  max-width: 88%; padding: 10px 12px; border-radius: 10px;
-  align-self: ${(p) => (p.$kind === 'member' ? 'flex-start' : 'flex-end')};
-  background: ${(p) => (p.$kind === 'staff' ? '#F0FDFA' : p.$kind === 'cue' ? '#FFF1F2' : '#F8FAFC')};
-  border: 1px solid ${(p) => (p.$kind === 'staff' ? '#99F6E4' : p.$kind === 'cue' ? '#FECDD3' : '#E2E8F0')};
-`;
-const BubbleHead = styled.div`display: flex; gap: 8px; align-items: baseline; font-size: 0.75rem; color: #334155; margin-bottom: 4px;`;
-const BubbleBody = styled.div`font-size: 0.8125rem; color: #0F172A; white-space: pre-wrap; word-break: break-word;`;
-const Composer = styled.div`display: flex; flex-direction: column; gap: 8px; width: 100%;`;
-const ReplyBox = styled.textarea`
-  width: 100%; box-sizing: border-box; resize: vertical; min-height: 72px; padding: 10px 12px;
-  border: 1px solid #CBD5E1; border-radius: 8px; font: inherit; font-size: 0.8125rem;
-  &:focus { outline: none; border-color: #14B8A6; }
-`;
-const ComposerRow = styled.div`display: flex; align-items: center; gap: 8px; justify-content: space-between; flex-wrap: wrap;`;
-const ComposerBtns = styled.div`display: flex; gap: 8px; margin-left: auto;`;

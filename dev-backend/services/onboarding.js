@@ -171,4 +171,4 @@ async function setOnboardingDismissed({ businessId, userId, dismissed, scope = '
   return true;
 }
 
-module.exports = { getOnboardingState, setOnboardingDismissed, personalSetup, ELIGIBLE_ROLES, PERSONAL_ROLES };
+module.exports = { getOnboardingState, setOnboardingDismissed, personalSetup, ELIGIBLE_ROLES, PERSONAL_ROLES, APP_CLIENT_KINDS, CALENDAR_PROVIDERS };

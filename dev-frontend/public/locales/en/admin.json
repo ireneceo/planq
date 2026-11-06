@@ -958,6 +958,49 @@
       "welcome": "This is your PlanQ help room. Ask anything about using PlanQ here — Cue answers right away and the PlanQ team reads along.",
       "human_requested": "We've let the PlanQ team know. They'll reply here as soon as they can.",
       "cue_failed": "Cue couldn't find an answer this time. We've passed it to the PlanQ team."
+    },
+    "recipients": "{{name}} help room · {{count}} people get an app notification",
+    "unfilled": "The draft still has an unfilled placeholder (double braces). Edit it before sending."
+  },
+  "followup": {
+    "title": "New customers",
+    "desc": "Workspaces that signed up recently or are on trial. Check their status, pick a suggested help item and message them directly in their help room. Nothing is sent automatically.",
+    "searchPh": "Search workspace or email",
+    "daysLabel": "Signed up within",
+    "days": "{{count}} days",
+    "sortLabel": "Sort",
+    "sortRecent": "Newest first",
+    "sortHelp": "Needs help first",
+    "loading": "Loading…",
+    "loadFailed": "Couldn't load the list",
+    "empty": "No new workspaces in this period",
+    "emptyDesc": "Try a longer period or a different search.",
+    "trialLeft": "Trial D-{{count}}",
+    "trialEnded": "Trial ended {{count}}d ago",
+    "lastTalk": "Last message",
+    "message": "Message",
+    "more": "Show more ({{count}})",
+    "sentToday": "sent today",
+    "sentDaysAgo": "sent {{count}}d ago",
+    "helpTitle": "Suggested help — tap to put a draft in the reply box",
+    "draftFailed": "Couldn't load the draft",
+    "threadTitle": "PlanQ help room",
+    "missing": {
+      "app": "No app",
+      "notifications": "Notifications off",
+      "calendar": "No calendar",
+      "ai_app": "No AI app",
+      "mail": "No mail"
+    },
+    "help": {
+      "trial_ended": "Plan options (trial ended)",
+      "trial_ending": "Plans & payment (D-{{days}})",
+      "mail_error": "Reconnect mail",
+      "inactive": "Check in + offer a video walkthrough",
+      "stage_stalled": "Create a first task",
+      "solo": "Invite teammates",
+      "no_app": "Install the app",
+      "welcome": "Welcome message"
     }
   }
 }

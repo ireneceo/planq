@@ -109,3 +109,7 @@
   «PlanQ 팀 · 이름» 은 서버 `displayName.applyMemberDisplayName`(meta 는 supportRoom 만 찍는다).
 - 설계와 다른 점: 공용 메시지 함수가 없어 두 메시지 라우트에서 `afterMessageSoon` · `/api/cue/help` 는 그대로 두고 같은 재료로 `qhelperAnswer` · 가드는 래칫 · 워크스페이스 생성 때가 아니라 처음 열 때 만든다 · 워크스페이스 내부 메모는 PlanQ 팀·Cue 에게 안 보인다.
 - 남은 단계: 2 발자국 · 4 피드백 다리 · 5 제안 메시지 · 6 보완 목록. 4·5 전에 `e2e --suite platformroom`.
+
+### 신규 고객 팔로업 화면 (2026-11-06 · [Opus] · Fable 설계 DESIGN-FIX)
+- `/admin/followup` — 여정(1단계)·안내방(3단계)을 가입·체험 중 워크스페이스 한 줄로 묶고 «도울 일» 초안 → 관리자가 고쳐 보냄. 정본 `docs/ADMIN_FOLLOWUP_DESIGN.md`.
+- 막힘 신호 계산을 `services/followupSummary.computeSignals` 로 옮김(여정 응답 불변). 규칙표 `services/followupRules.js` = 5단계 제안 메시지의 1차 묶음.

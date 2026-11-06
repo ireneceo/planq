@@ -1414,6 +1414,9 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
                 {/* PlanQ 안내방 받은편지함(2026-11-04) — 워크스페이스마다 하나인 PlanQ 방. 사람 연결 요청은 «확인 필요» 알림으로도 온다. */}
                 {adminCountItem('/admin/support', t('nav.support', '안내방'), 0, 'nav-badge-admin-support',
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>)}
+                {/* 신규 고객 팔로업(2026-11-06) — 가입·체험 중 워크스페이스 상태·도울 일·안내방 메시지 */}
+                {adminCountItem('/admin/followup', t('nav.followup', '신규 고객'), 0, 'nav-badge-admin-followup',
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>)}
               </NavSection>
               <NavSection>
                 <NavTitle $isCollapsed={isCollapsed}>{t('nav.adminSecBilling','결제·구독')}</NavTitle>

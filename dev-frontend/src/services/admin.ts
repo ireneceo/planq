@@ -128,6 +128,8 @@ export interface SupportMessage {
 export interface SupportRoomDetail {
   business_id: number; business_name: string | null; conversation_id: number;
   human_requested: boolean; cue_muted_until: string | null; messages: SupportMessage[];
+  /** 보내면 알림이 가는 사람 수(안내방 참여자) */
+  participants?: number;
 }
 export async function fetchSupportRooms(): Promise<{ rows: SupportRoomRow[]; total: number }> {
   const r = await apiFetch('/api/admin/support/rooms?limit=200');
@@ -141,13 +143,50 @@ export async function openSupportRoom(businessId: number): Promise<SupportRoomDe
   if (!j.success) throw new Error(j.message || 'support room failed');
   return j.data;
 }
-export async function sendSupportMessage(businessId: number, content: string): Promise<SupportMessage> {
+export async function sendSupportMessage(businessId: number, content: string, ruleKey?: string | null): Promise<SupportMessage> {
   const r = await apiFetch(`/api/admin/support/rooms/${businessId}/messages`, {
-    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ content }),
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(ruleKey ? { content, rule_key: ruleKey } : { content }),
   });
   const j = await r.json();
   if (!j.success) throw new Error(j.message || 'send failed');
   return j.data.message;
+}
+
+// 신규 고객 팔로업 (2026-11-06, docs/ADMIN_FOLLOWUP_DESIGN.md) — 사용 모양만(제목·본문 없음)
+export interface FollowupHelp { key: string; priority: number; params: { days?: number; count?: number; stage?: number }; sent_at: string | null }
+export interface FollowupRow {
+  business: { id: number; name: string | null; owner: { id: number; name: string | null; email: string } | null };
+  created_at: string | null;
+  subscription_status: string | null;
+  plan: string | null;
+  trial_ends_at: string | null;
+  trial_days_left: number | null;
+  exempt_kind: string | null;
+  stage: { current: number | null; stage_count: number } | null;
+  last_seen_at: string | null;
+  members: number;
+  setup: { app: boolean; notifications: boolean; calendar: boolean; ai_app: boolean; mail_accounts: number; mail_errors: number };
+  signals: AdminJourneySignal[];
+  help: FollowupHelp[];
+  room: { conversation_id: number; last_message_at: string | null; unread: number; last_staff_at: string | null; human_requested: boolean } | null;
+  owner_lang: 'ko' | 'en';
+}
+export type FollowupDays = 7 | 30 | 90;
+export type FollowupSort = 'recent' | 'help';
+export async function fetchFollowup(opts: { days: FollowupDays; sort: FollowupSort; q?: string; limit?: number; offset?: number }): Promise<{ rows: FollowupRow[]; total: number }> {
+  const qs = new URLSearchParams({ days: String(opts.days), sort: opts.sort, limit: String(opts.limit ?? 50), offset: String(opts.offset ?? 0) });
+  if (opts.q) qs.set('q', opts.q);
+  const r = await apiFetch(`/api/admin/followup?${qs.toString()}`);
+  const j = await r.json();
+  if (!j.success) throw new Error(j.message || 'followup failed');
+  return { rows: j.data, total: j.pagination?.total ?? j.data.length };
+}
+export async function fetchFollowupDraft(businessId: number, key: string): Promise<{ key: string; lang: string; text: string }> {
+  const r = await apiFetch(`/api/admin/followup/${businessId}/draft?key=${encodeURIComponent(key)}`);
+  const j = await r.json();
+  if (!j.success) throw new Error(j.message || 'draft failed');
+  return j.data;
 }
 
 export async function adminChangePlan(
