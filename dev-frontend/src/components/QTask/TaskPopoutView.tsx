@@ -345,19 +345,29 @@ const TaskPopoutView: React.FC<TaskPopoutViewProps> = ({ pinSlot }) => {
   const repTag = (tk: PopoutTask) => (tk.tags && tk.tags.length > 0 ? tk.tags[0].name : null);
   const repProject = (tk: PopoutTask) => (tk.Project?.name || null);
 
-  // 그룹 보기 공통 — 그룹 키(null last) → 같은 그룹 안에서는 기존 사슬 그대로.
-  const byGroup = (key: (tk: PopoutTask) => string | null, view: OrderView) => (a: PopoutTask, b: PopoutTask): number => {
+  // 묶음 순서 = 사람이 정한 순서(2026-11-06, Irene «태그별로 순서를 정할 수 있게 … 프로젝트도»).
+  //   태그 = 워크스페이스 태그 사전 순서(태그 관리 창 ▲▼ → task_tags.sort_order) · 프로젝트 = 내 프로젝트 순서
+  //   (별 먼저 → 프로젝트 목록에서 끈 순서, listProjects=orderProjectsForMe). 사전에 없으면 뒤, 그 안은 이름순.
+  const tagRank = useMemo(() => new Map(tagDict.map((g, i) => [Number(g.id), i])), [tagDict]);
+  const projectRank = useMemo(() => new Map(projectDict.map((p, i) => [Number(p.id), i])), [projectDict]);
+  const rankTag = (tk: PopoutTask) => (tk.tags && tk.tags.length > 0 ? tagRank.get(Number(tk.tags[0].id)) ?? Infinity : Infinity);
+  const rankProject = (tk: PopoutTask) => (tk.Project?.id != null ? projectRank.get(Number(tk.Project.id)) ?? Infinity : Infinity);
+
+  // 그룹 보기 공통 — 그룹 키(null last) → 묶음 순위 → 이름 → 같은 그룹 안에서는 기존 사슬 그대로.
+  const byGroup = (key: (tk: PopoutTask) => string | null, rank: (tk: PopoutTask) => number, view: OrderView) => (a: PopoutTask, b: PopoutTask): number => {
     const ka = key(a); const kb = key(b);
     if (ka && !kb) return -1;          // 그룹 없는 업무는 맨 뒤 (null last)
     if (!ka && kb) return 1;
     if (ka && kb) {
+      const ra = rank(a); const rb = rank(b);
+      if (ra !== rb) return ra < rb ? -1 : 1;
       const c = ka.localeCompare(kb);
       if (c !== 0) return c;
     }
     return innerSort(view)(a, b);
   };
-  const byTagRule = byGroup(repTag, 'tag');
-  const byProjectRule = byGroup(repProject, 'project');
+  const byTagRule = byGroup(repTag, rankTag, 'tag');
+  const byProjectRule = byGroup(repProject, rankProject, 'project');
   // 2026-09-08 — 잠깐 '전체'(그룹 없음)로 바꿨던 것을 '마감일별' 로 되돌린다.
   //   라벨과 동작을 **같이** 되돌려야 문구가 거짓말을 하지 않는다: 마감일이 먼저,
   //   같은 날짜 안쪽만 고른 정렬이 정한다(칩=나열 기준 / 셀렉트=그 안쪽 순서).
@@ -400,9 +410,9 @@ const TaskPopoutView: React.FC<TaskPopoutViewProps> = ({ pinSlot }) => {
     popTab === 'week' ? true : inTodaySet(tk as never, todayStr, myId, effTz, includeDone)
   ), [popTab, todayStr, myId, effTz]);
   const openTasks = useMemo(
-    () => tasks.filter((tk) => !CLOSED.includes(tk.status) && inTab(tk, false)).sort(sortRule), [tasks, viewMode, sortKey, inTab]);   // eslint-disable-line react-hooks/exhaustive-deps
+    () => tasks.filter((tk) => !CLOSED.includes(tk.status) && inTab(tk, false)).sort(sortRule), [tasks, viewMode, sortKey, inTab, tagRank, projectRank]);   // eslint-disable-line react-hooks/exhaustive-deps
   const doneTasks = useMemo(
-    () => tasks.filter((tk) => CLOSED.includes(tk.status) && inTab(tk, true)).sort(sortRule), [tasks, viewMode, sortKey, inTab]);    // eslint-disable-line react-hooks/exhaustive-deps
+    () => tasks.filter((tk) => CLOSED.includes(tk.status) && inTab(tk, true)).sort(sortRule), [tasks, viewMode, sortKey, inTab, tagRank, projectRank]);    // eslint-disable-line react-hooks/exhaustive-deps
   const visible = showDone ? [...openTasks, ...doneTasks] : openTasks;
   // 헤더 카운트 — 보이는 행을 담당자 기준으로 가른다(메인 리스트 summary 와 같은 정의).
   const mineCount = useMemo(() => visible.filter((tk) => tk.assignee_id === myId).length, [visible, myId]);

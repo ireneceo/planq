@@ -144,14 +144,53 @@ router.post('/tags', authenticateToken, async (req, res, next) => {
     const dup = await TaskTag.findOne({ where: { business_id: businessId, name } });
     if (dup) return errorResponse(res, '같은 이름의 태그가 이미 있습니다', 409);
 
+    // 새 태그는 사전 **맨 뒤**에 붙는다 — 0 으로 두면 사람이 정한 순서 맨 위로 튄다(2026-11-06 순서 지정).
+    const explicitOrder = Number(req.body.sort_order);
+    const maxOrder = Number(await TaskTag.max('sort_order', { where: { business_id: businessId } })) || 0;
     const tag = await TaskTag.create({
       business_id: businessId, name, color,
-      sort_order: Number(req.body.sort_order) || 0,
+      sort_order: Number.isFinite(explicitOrder) && explicitOrder > 0 ? explicitOrder : maxOrder + 1,
       created_by: req.user.id,
     });
     logAudit(req, { action: 'task_tag.create', targetType: 'task_tag', targetId: tag.id, newValue: { name, color } });
     broadcastTagDict(req, businessId);
     return successResponse(res, serializeTag(tag, 0), 'Tag created', 201);
+  } catch (err) { next(err); }
+});
+
+// ─── PUT /api/tasks/tags/order — 사전 순서 한 번에 (2026-11-06, Irene «태그별로 순서를 정할 수 있게») ───
+// body: { business_id, ids: number[] (보일 순서) }
+//   워크스페이스 공용 순서(task_tags.sort_order) — 팝아웃 «태그별» 묶음·태그 고르기 목록이 이 순서를 따른다.
+//   ids 에 없는 이 워크스페이스 태그는 뒤에 원래 순서대로 붙는다(동시에 누가 새 태그를 만든 경우).
+//   다른 워크스페이스 id 가 섞이면 400 — 조용히 버리면 화면 순서와 저장 순서가 갈린다.
+//   ★ `/tags/:tagId` 보다 **위**에 둔다(아니면 'order' 가 :tagId 로 잡힌다).
+router.put('/tags/order', authenticateToken, async (req, res, next) => {
+  try {
+    const businessId = await requireMember(req, res);
+    if (!businessId) return;
+    const raw = Array.isArray(req.body.ids) ? req.body.ids : null;
+    if (!raw) return errorResponse(res, 'ids required', 400);
+    const ids = [...new Set(raw.map(Number).filter((n) => Number.isInteger(n) && n > 0))];
+    if (ids.length !== raw.length) return errorResponse(res, 'invalid_ids', 400);
+    const tags = await TaskTag.findAll({
+      where: { business_id: businessId },
+      order: [['sort_order', 'ASC'], ['name', 'ASC']],
+    });
+    const own = new Set(tags.map((t) => t.id));
+    if (ids.some((id) => !own.has(id))) return errorResponse(res, '이 워크스페이스에 없는 태그가 포함됐습니다', 400);
+    const rest = tags.map((t) => t.id).filter((id) => !ids.includes(id));
+    const finalOrder = [...ids, ...rest];
+    const before = tags.map((t) => t.id);
+    const changed = tags.filter((t) => t.sort_order !== finalOrder.indexOf(t.id) + 1);
+    if (changed.length === 0) return successResponse(res, { ids: finalOrder });   // 멱등 — 소켓도 울리지 않는다
+    await sequelize.transaction(async (transaction) => {
+      for (const t of changed) {
+        await t.update({ sort_order: finalOrder.indexOf(t.id) + 1 }, { transaction });
+      }
+    });
+    logAudit(req, { action: 'task_tag.reorder', targetType: 'task_tag', targetId: null, businessId, oldValue: { ids: before }, newValue: { ids: finalOrder } });
+    broadcastTagDict(req, businessId);
+    return successResponse(res, { ids: finalOrder }, 'Tag order updated');
   } catch (err) { next(err); }
 });
 

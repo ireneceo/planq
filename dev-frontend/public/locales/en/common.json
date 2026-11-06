@@ -1984,7 +1984,10 @@
     "cancel": "Cancel",
     "delete": "Delete",
     "deleting": "Deleting…",
-    "rename": "Rename"
+    "rename": "Rename",
+    "reorderFailed": "Couldn't change the order",
+    "moveUp": "Move “{{name}}” up",
+    "moveDown": "Move “{{name}}” down"
   },
   "memberRoles": {
     "pickPh": "Select role",

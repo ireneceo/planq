@@ -2047,7 +2047,7 @@ const QTaskPage:React.FC=()=>{
                   onCreateOption={(name)=>{void (async()=>{
                     const tag=await createTaskTag(bizId,name);
                     if(!tag)return;
-                    setTagDict(prev=>prev.some(g=>g.id===tag.id)?prev:[...prev,{...tag,usage_count:0}].sort((a,b)=>a.name.localeCompare(b.name)));
+                    setTagDict(prev=>prev.some(g=>g.id===tag.id)?prev:[...prev,{...tag,usage_count:0}]);
                     setTagFilter(tag.id);
                   })();}}
                   placeholder={t('filter.allTags','전체 태그')}
@@ -2357,7 +2357,7 @@ const QTaskPage:React.FC=()=>{
                           onSaved={(tags)=>setAllTasks(prev=>prev.map(x=>x.id===task.id?{...x,tags}:x))}
                           onDictAdd={(tag)=>setTagDict(prev=>prev.some(g=>g.id===tag.id)
                             ? prev
-                            : [...prev,{id:tag.id,name:tag.name,color:tag.color??null}].sort((a,b)=>a.name.localeCompare(b.name)))}
+                            : [...prev,{id:tag.id,name:tag.name,color:tag.color??null}])}
                         />
                         {/* WORK_FLOW §6 — 이월 배지: 지난 주에서 넘어온 활성 업무. 과거 이력이 살아있음을 인지시킴. */}
                         {scope==='mine' && (tab==='week'||tab==='today') && isCarried(task) && (
@@ -2429,7 +2429,7 @@ const QTaskPage:React.FC=()=>{
                           onSaved={(tags)=>setAllTasks(prev=>prev.map(x=>x.id===task.id?{...x,tags}:x))}
                           onDictAdd={(tag)=>setTagDict(prev=>prev.some(g=>g.id===tag.id)
                             ? prev
-                            : [...prev,{id:tag.id,name:tag.name,color:tag.color??null}].sort((a,b)=>a.name.localeCompare(b.name)))}
+                            : [...prev,{id:tag.id,name:tag.name,color:tag.color??null}])}
                         />
                         </DesktopOnly>
                       </>)}

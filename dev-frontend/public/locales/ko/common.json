@@ -1984,7 +1984,10 @@
     "cancel": "취소",
     "delete": "삭제",
     "deleting": "삭제 중…",
-    "rename": "이름 변경"
+    "rename": "이름 변경",
+    "reorderFailed": "순서를 바꾸지 못했습니다",
+    "moveUp": "«{{name}}» 위로",
+    "moveDown": "«{{name}}» 아래로"
   },
   "memberRoles": {
     "pickPh": "역할 선택",

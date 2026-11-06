@@ -1522,7 +1522,8 @@
     "saveFailed": "태그를 저장하지 못했습니다",
     "maxPerTask": "업무당 태그는 최대 {{count}}개입니다",
     "manageHint": "태그 이름 변경·삭제",
-    "manage": "태그 관리"
+    "manage": "태그 관리",
+    "reorderFailed": "순서를 바꾸지 못했습니다"
   },
   "series": {
     "title": "반복 업무 수정",

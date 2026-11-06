@@ -5,7 +5,7 @@
 //   (CLAUDE.md «껍데기는 빼서 같이 쓴다»). 무엇을 부르고 무엇이라 적는지는 호출측 어댑터가 정한다.
 //
 //   ★ 삭제는 결과를 숫자로 알린 뒤 한다(호출측 deleteConfirm 문구). window.confirm 금지 · 모달 위 모달 금지 → 인라인 행.
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import StandardModal from './StandardModal';
@@ -47,10 +47,14 @@ interface Props<E extends DictEntry> {
   /** 바뀐 뒤 호출측이 다시 읽는다(소켓도 오지만 본인 창은 즉시) */
   onChanged: () => void;
   testId?: string;
+  /** 순서 저장(보일 순서의 id 목록) — 있을 때만 행에 위/아래 버튼이 생긴다(업무 태그 · 2026-11-06). 역할 사전은 넘기지 않는다. */
+  reorder?: (ids: number[]) => Promise<DictResult>;
+  reorderFailed?: string;
 }
 
 function DictManageModal<E extends DictEntry>({
   open, onClose, dict, adapter, texts, canCreate = true, canManage = true, maxLength = 30, onChanged, testId,
+  reorder, reorderFailed,
 }: Props<E>) {
   const { t } = useTranslation('common');
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -60,6 +64,23 @@ function DictManageModal<E extends DictEntry>({
   const [newName, setNewName] = useState('');
   const [adding, setAdding] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  // 순서 — 누르는 즉시 화면에 반영(낙관), 저장 실패면 사전 순서로 되돌리고 알린다. 사전이 다시 오면 그것이 정본.
+  const [order, setOrder] = useState<E[]>(dict);
+  const [moving, setMoving] = useState(false);
+  useEffect(() => { setOrder(dict); }, [dict]);
+  const move = async (idx: number, delta: -1 | 1) => {
+    const to = idx + delta;
+    if (!reorder || moving || to < 0 || to >= order.length) return;
+    const next = [...order];
+    const [it] = next.splice(idx, 1);
+    next.splice(to, 0, it);
+    setOrder(next); setMoving(true); setErr(null);
+    try {
+      const r = await reorder(next.map((e) => e.id));
+      if (!r.ok) { setOrder(dict); setErr(r.message || reorderFailed || t('dict.reorderFailed', '순서를 바꾸지 못했습니다')); return; }
+      onChanged();
+    } finally { setMoving(false); }
+  };
 
   const add = async () => {
     const name = newName.trim();
@@ -116,7 +137,7 @@ function DictManageModal<E extends DictEntry>({
           <Empty>{texts.empty}</Empty>
         ) : (
           <List>
-            {dict.map((entry) => (
+            {order.map((entry, idx) => (
               <Item key={entry.id} data-testid={testId ? `${testId}-item` : undefined}>
                 {editingId === entry.id ? (
                   <Row>
@@ -144,6 +165,16 @@ function DictManageModal<E extends DictEntry>({
                   </Row>
                 ) : (
                   <Row>
+                    {reorder && canManage && (
+                      <MoveCol>
+                        <MoveBtn type="button" disabled={moving || idx === 0} onClick={() => void move(idx, -1)}
+                          aria-label={t('dict.moveUp', { name: entry.name, defaultValue: '«{{name}}» 위로' }) as string}
+                          data-testid={testId ? `${testId}-up` : undefined}>▲</MoveBtn>
+                        <MoveBtn type="button" disabled={moving || idx === order.length - 1} onClick={() => void move(idx, 1)}
+                          aria-label={t('dict.moveDown', { name: entry.name, defaultValue: '«{{name}}» 아래로' }) as string}
+                          data-testid={testId ? `${testId}-down` : undefined}>▼</MoveBtn>
+                      </MoveCol>
+                    )}
                     <NameText>{entry.name}</NameText>
                     <Usage>{texts.usage(entry)}</Usage>
                     {canManage && (
@@ -178,6 +209,14 @@ const Row = styled.div`display: flex; align-items: center; gap: 8px; min-width: 
 const NameText = styled.span`
   flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   font-size: 0.8125rem; font-weight: 700; color: #0F172A;
+`;
+const MoveCol = styled.span`flex-shrink: 0; display: inline-flex; gap: 2px;`;
+const MoveBtn = styled.button`
+  width: 32px; height: 32px; padding: 0; border-radius: 6px; cursor: pointer;
+  border: 1px solid #E2E8F0; background: #fff; color: #475569; font-size: 0.625rem; line-height: 1;
+  &:disabled { opacity: 0.35; cursor: default; }
+  &:hover:not(:disabled) { border-color: #94A3B8; color: #0F172A; }
+  &:focus-visible { outline: none; box-shadow: 0 0 0 2px rgba(20,184,166,0.3); }
 `;
 const Usage = styled.span`flex-shrink: 0; font-size: 0.6875rem; color: #94A3B8;`;
 const ConfirmText = styled.span`flex: 1; min-width: 0; font-size: 0.75rem; color: #B91C1C;`;

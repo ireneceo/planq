@@ -39,10 +39,19 @@ export function usePopoutQuickAdd({
   useEffect(() => {
     if (!bizId) return;
     let alive = true;
-    listProjects(bizId)
-      .then((rows) => { if (alive) setProjectDict(rows.map((pj) => ({ id: pj.id, name: pj.name }))); })
-      .catch(() => { /* 선택지가 없어도 화면은 살아 있어야 한다 */ });
-    return () => { alive = false; };
+    const load = () => {
+      listProjects(bizId)
+        .then((rows) => { if (alive) setProjectDict(rows.map((pj) => ({ id: pj.id, name: pj.name }))); })
+        .catch(() => { /* 선택지가 없어도 화면은 살아 있어야 한다 */ });
+    };
+    load();
+    // 이 사전 순서가 팝아웃 «프로젝트별» 묶음 순서다 — 메인 창 프로젝트 목록에서 순서·별을 바꾸고
+    //   팝아웃으로 돌아오면 다시 읽는다(2026-11-06 묶음 순서).
+    const onFocus = () => load();
+    const onVis = () => { if (document.visibilityState === 'visible') load(); };
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onVis);
+    return () => { alive = false; window.removeEventListener('focus', onFocus); document.removeEventListener('visibilitychange', onVis); };
   }, [bizId]);
 
 

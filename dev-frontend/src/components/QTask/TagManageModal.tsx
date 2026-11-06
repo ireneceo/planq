@@ -45,10 +45,17 @@ const TagManageModal: React.FC<Props> = ({ open, onClose, bizId, dict, onChanged
     }),
     remove: (tag) => call(`/api/tasks/tags/${tag.id}`, { method: 'DELETE' }),
   }), [bizId]);
+  // 순서 — 워크스페이스 공용(task_tags.sort_order). 팝아웃 «태그별» 묶음이 이 순서를 따른다(2026-11-06).
+  const reorder = useMemo(() => (bizId
+    ? (ids: number[]) => call('/api/tasks/tags/order', {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ business_id: bizId, ids }),
+    })
+    : undefined), [bizId]);
 
   return (
     <DictManageModal<TagDictEntry>
       open={open} onClose={onClose} dict={dict} adapter={adapter} onChanged={onChanged}
+      testId="tag-manage" reorder={reorder} reorderFailed={t('tags.reorderFailed', '순서를 바꾸지 못했습니다') as string}
       texts={{
         title: t('tags.manageTitle', '태그 관리') as string,
         newPh: t('tags.newPh', '새 태그 이름') as string,

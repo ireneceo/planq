@@ -1522,7 +1522,8 @@
     "saveFailed": "Could not save tags",
     "maxPerTask": "Up to {{count}} tags per task",
     "manageHint": "Rename or delete tags",
-    "manage": "Manage tags"
+    "manage": "Manage tags",
+    "reorderFailed": "Couldn't change the order"
   },
   "series": {
     "title": "Edit repeating task",
