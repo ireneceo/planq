@@ -87,7 +87,9 @@ async function run() {
           // 행 자체를 누른다 — 행 onClick 은 버튼·링크 위 클릭을 무시한다
           const row = Array.from(document.querySelectorAll('[data-task-row]')).find((r) => r.getBoundingClientRect().height > 0);
           if (!row) return false;
-          row.click(); return true;
+          // 폰 줄(PhoneTaskRow, 5b3f4df0)은 줄 바깥이 아니라 안쪽 제목 버튼이 연다 — 있으면 그것을 누른다
+          const open = row.querySelector('[data-testid="task-row-title"]');
+          (open || row).click(); return true;
         });
         // 이미 열려 있으면(마지막 업무 복원) 먼저 닫는다
         if (await drawerOpen(page)) { await page.keyboard.press('Escape'); await sleep(800); }
