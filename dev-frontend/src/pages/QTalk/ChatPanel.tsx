@@ -785,7 +785,7 @@ const ChatPanel: React.FC<Props> = ({
   // 자동으로 Drive 의 Conversations/프로젝트 폴더로 업로드 (자체 스토리지 쿼터·사이즈 한도 우회).
   // ★ 2026-11-06 «3개 넣었는데 1개 · 넣지 않은 그림이 붙음» (정찰 qmw4pptbb B·D)
   //   ① 순서 — 동시 업로드는 끝나는 순서가 제각각이다. 고른 순번(seq)을 잡아 두고 staged 를 그 순번으로 정렬한다.
-  //   ② 취소 — [×]·방 전환으로 뺀 업로드는 abort 하고, 늦게 끝나도 staged 에 넣지 않는다
+  //   ② 취소 — [×]·방 전환으로 뺀 업로드는 «죽은 것» 으로 표시하고, 늦게 끝나도 staged 에 넣지 않는다
   //      (옛: 칩만 지우고 업로드는 계속 → 끝나면 다음 메시지·다른 방에 붙었다).
   const uploadSeqRef = useRef(0);
   const stagedSeqRef = useRef<Record<number, number>>({});
@@ -814,7 +814,8 @@ const ChatPanel: React.FC<Props> = ({
       const r = await uploadMyFile(businessId, sendFile, {
         conversationId: activeConv?.id ?? null,
         projectId: project?.id ?? null,
-        signal: ctl.signal,
+        // ★ 요청 자체는 끊지 않는다 — 끊으면 서버(multer)가 쓰던 조각 파일을 디스크에 남긴다(Fable 11-06 실측 11MB 고아).
+        //   대신 끝나도 alive() 가 거짓이라 첨부에 넣지 않는다.
       });
       if (!alive()) return;
       if (!r.success || !r.file) {
