@@ -31,7 +31,15 @@
 - 운영 반영: 다음 배포 때(마이그레이션 없음).
 
 
-### ⏸ 답 기다림: 데스크탑 앱(윈도우·맥) 만들지 (방 e34be021 · 2026-11-06)
+### ⏸ 답 기다림: 데스크탑 앱 1단계 — 서버 세션 종류 «desktop» 추가 허락 (방 e34be021 · 2026-11-06)
+- 무엇: 설계 `docs/DESKTOP_APP_DESIGN.md`(Fable design **DESIGN-READY**) 7절 1단계 = `refresh_tokens.client_kind` ENUM 끝에 'desktop'(365일) — 새 스크립트 `dev-backend/scripts/migrate-desktop-client-kind.js` + 개발 DB 에 실행 + 운영 배포 스크립트(`scripts/deploy-planq.sh` 마이그레이션 칸)에 한 줄 + `authTokens`·`RefreshToken` 모델·`onboarding APP_CLIENT_KINDS` 에 'desktop'.
+- 왜 멈췄나: 그 묶음 명령(배포 스크립트 수정 + 개발 DB ALTER)이 허락 창에 걸려 3분 넘게 답이 없었다 → 실행 안 됨(파일·DB 변경 0 확인).
+- 답이 오면: «예» → 위 묶음 실행(개발 DB ENUM 두 번 돌려 멱등 확인 · `X-Client-Kind: desktop` 로그인 365일 / web 30일 대조) → 설계 7절 2~10단계(프론트 분기 · `desktop/` Electron 껍데기 · 팝아웃 여러 개 항상 위 · 알림·배지 · 로그인 · 자동 업데이트·빌드 · 다운로드 화면 · e2e) → 끝나고 Fable gate 1회.
+  «배포 스크립트는 빼고» → 운영 마이그레이션 줄은 넣지 않고 작업기록 «다음 배포 때 수동 실행» 으로 남긴다(운영 배포가 'desktop' 로그인에서 500 날 수 있어 배포 전에 꼭 필요).
+- 진행 상태: 설계 문서만 커밋. 구현 0.
+
+
+### ✅ 답 받음(이전): 데스크탑 앱(윈도우·맥) 만들지 — Irene «권고대로»(1단계부터) (방 e34be021 · 2026-11-06)
 - 무엇: Irene «데스크탑 앱 어때? PWA 불편한 거 맞지?» — 정찰 계획 `.claude/plans/qmw4ke5f1.md`. 결론: 불편은 크롬 PWA 자체 한계(항상 위 창 1개·자리 못 정함·창 밖 메뉴 불가·알림이 브라우저 상태에 매임·설치 방식 제각각·Q Note 앱 소리 못 잡음) — Irene 만의 문제 아님. «느림»(10-21)은 PWA 탓 아니었음(706b1714).
 - 권고: 만든다면 Electron + 원격 껍데기(폰 앱과 같은 방식). 1단계 = 팝아웃 여러 개 항상 위·자리 기억·트레이·알림·로그인 복귀(2~3주) · Q Note 시스템 소리는 2단계. 비용: 윈도우 코드서명 인증서(연간)·맥 Developer ID(기존 계정)·맥 빌드 장비.
 - 답이 오면: «예» → Fable 설계(kind=design, 범위·알림 경로·로그인·자동 업데이트) 먼저, 구현은 그 뒤. 인증서 발급은 Irene 할 일로 분리.
