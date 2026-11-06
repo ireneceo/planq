@@ -201,6 +201,7 @@ const DashboardPage: React.FC = () => {
                   {t(`todo.verb.${item.verb}`, item.verb)}
                   {item.stage === 'external_review' && <Dim>· {t('todo.stage.external_review', '외부컨펌중')}</Dim>}
                   {item.context && <Dim>· {item.context}</Dim>}
+                  {item.meta?.responsible_name && <Dim>· {t('todo.mailResponsible', { name: item.meta.responsible_name })}</Dim>}
                 </RowMeta>
               </RowMain>
               {item.dueAt && (

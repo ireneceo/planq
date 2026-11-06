@@ -70,6 +70,7 @@ paths:
 
 **기타 (2):** kb_chunks, kb_documents, kb_pinned_faqs, cue_usage
 
+> **2026-11-06 — `email_accounts.responsible_user_id` INT NULL FK users SET NULL** — 회사 공용 메일함 «책임자» 한 사람(Fable 설계). 보는 권한은 그대로, 표시(설정 카드·계정 고르기·목록·상세)와 확인필요 귀속만(`services/mailTodoWhere` — 스레드 답변 담당 > 책임자(활성 멤버) > 전원). 판정 `services/mailResponsible`. 개인 메일함엔 없음. 운영 `migrate-mail-responsible.js`(배포 슬롯).
 > **2026-10-30 — `email_messages.signature_read` JSON NULL** — 메일 서명 AI 읽기 결과 `{ values, found }`(Q sale 고객 추가 창, `routes/sale_contacts.js` 한 곳). 같은 마이그레이션 스크립트.
 > **2026-10-30 — `email_messages.translations` JSON NULL** — 메일 본문 번역 저장 `{ <lang>: { text, detected_language, at } }`. 읽고 쓰는 곳은 `services/mailTranslate` 하나(JSON_SET 으로 그 언어만). 운영 `migrate-mail-translations.js`(배포 슬롯, PM2 reload 전).
 >   ★ attributes 로 고른 `created_at` 은 인스턴스 속성으로 안 붙는다(`m.created_at === undefined`, `m.get('created_at')` 은 값) — 비교에 쓰면 «언제나 옛것» 으로 거짓 판정(메일 요약 재사용 대조군이 잡음).

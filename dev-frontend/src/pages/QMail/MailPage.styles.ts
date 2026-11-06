@@ -579,6 +579,10 @@ export const FolderChip = styled(LabelChip)`
   border-color: #E2E8F0;
   white-space: nowrap;
 `;
+// 메일함 책임자(«책임 이름») — 폴더 칩 모양 그대로. 폰은 행이 두 줄로 밀리므로 감춘다(Fable 설계 2026-11-06).
+export const ResponsibleChip = styled(FolderChip)`
+  @media (max-width: 640px) { display: none; }
+`;
 // 상세 헤더 좌측 (목록 열기 + 제목) — PanelHeader 안 왼쪽 슬롯.
 //   운영 #283 — 목록 열기 버튼이 absolute 로 제목 위에 겹쳐 "상단이 잘린" 것처럼 보였다.
 //   ★ PanelHeader 는 ≤640px 에서 flex-direction:column 이라, 버튼과 제목을 이 Row 로 묶지 않으면

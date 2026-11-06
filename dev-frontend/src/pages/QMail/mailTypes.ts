@@ -10,6 +10,7 @@ export interface MailAccount {
   email: string;
   display_name: string | null;
   is_personal: boolean;
+  responsible_user_id?: number | null;   // 회사 공용 메일함 책임자(지정 시)
   unread: number;
 }
 
@@ -68,7 +69,7 @@ export interface Thread {
   match?: SearchMatchInfo | null;
   //   owner_user_id: 이 스레드가 붙은 계정의 주인. null 이면 워크스페이스 공용, 값이 있으면 개인메일.
   //   본문 인라인 이미지 등급을 계정 목록 조회 없이 정하기 위해 서버가 같이 내려준다(#378 후속).
-  account: { id: number; email: string; display_name?: string | null; owner_user_id?: number | null } | null;
+  account: { id: number; email: string; display_name?: string | null; owner_user_id?: number | null; responsible_user_id?: number | null } | null;
   // 상대방(발신자) — 목록의 "보낸 사람" 자리. 내 메일함 이름(account.display_name)이 아니다.
   counterpart?: { name: string | null; email: string | null } | null;
   // 2026-09-15 — 검색은 폴더를 넘는다(서버 searchFolderWhere). 그래서 행이 **자기 자리**를 말한다.

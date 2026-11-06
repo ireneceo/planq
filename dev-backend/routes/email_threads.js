@@ -202,7 +202,7 @@ router.get('/:businessId/email-threads',
           //   바로 알 수 있어야 한다. 목록에 의존하면 로딩 경합에서 "모름" 이 되고, 그때
           //   개인메일 본문 이미지가 워크스페이스 등급으로 저장될 수 있다(#378 후속).
           //   값 자체는 노출돼도 안전하다 — 이 스레드는 이미 본인만 볼 수 있는 것이다(위 필터).
-          { model: EmailAccount, attributes: ['id', 'email', 'display_name', 'owner_user_id'], required: false },
+          { model: EmailAccount, attributes: ['id', 'email', 'display_name', 'owner_user_id', 'responsible_user_id'], required: false },
           { model: Client, attributes: ['id', 'display_name', 'company_name'], required: false },
           { model: Project, attributes: ['id', 'name', 'color'], required: false },
         ],
@@ -374,7 +374,7 @@ router.get('/:businessId/mail-accounts',
           business_id: businessId, is_active: true,
           [Op.or]: [{ owner_user_id: null }, { owner_user_id: req.user.id }],
         },
-        attributes: ['id', 'email', 'display_name', 'owner_user_id'],
+        attributes: ['id', 'email', 'display_name', 'owner_user_id', 'responsible_user_id'],
         order: [['owner_user_id', 'ASC'], ['created_at', 'ASC']],
       });
       const ids = accts.map(a => a.id);
@@ -393,6 +393,8 @@ router.get('/:businessId/mail-accounts',
         email: a.email,
         display_name: a.display_name,
         is_personal: a.owner_user_id != null,
+        // 회사 공용 메일함 책임자(지정 시) — 계정 고르기 라벨에 «책임 이름» 을 붙인다
+        responsible_user_id: a.owner_user_id == null ? (a.responsible_user_id ?? null) : null,
         unread: unreadMap[a.id] || 0,
       }));
       return successResponse(res, data);
@@ -418,7 +420,7 @@ router.get('/:businessId/email-threads/:id',
           //   바로 알 수 있어야 한다. 목록에 의존하면 로딩 경합에서 "모름" 이 되고, 그때
           //   개인메일 본문 이미지가 워크스페이스 등급으로 저장될 수 있다(#378 후속).
           //   값 자체는 노출돼도 안전하다 — 이 스레드는 이미 본인만 볼 수 있는 것이다(위 필터).
-          { model: EmailAccount, attributes: ['id', 'email', 'display_name', 'owner_user_id'], required: false },
+          { model: EmailAccount, attributes: ['id', 'email', 'display_name', 'owner_user_id', 'responsible_user_id'], required: false },
           { model: Client, attributes: ['id', 'display_name', 'company_name', 'invite_email'], required: false },
           { model: Project, attributes: ['id', 'name', 'color'], required: false },
         ],

@@ -146,7 +146,8 @@
       "waiting": "Waiting"
     },
     "hidden": "Showing up to 30 of each kind — {{count}} more not listed.",
-    "chatUnread": "{{count}} unread"
+    "chatUnread": "{{count}} unread",
+    "mailResponsible": "In charge: {{name}}"
   },
   "review": {
     "title": "Today's review",

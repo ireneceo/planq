@@ -285,6 +285,9 @@ const TodoList: React.FC<Props> = ({ items, hiddenCount = 0, loading, groupBy = 
                         </CtxText>
                       )}
                       {it.context && <CtxText>{it.context}</CtxText>}
+                      {it.meta?.responsible_name && (
+                        <CtxText data-testid="todo-mail-responsible">{t('todo.mailResponsible', { name: it.meta.responsible_name })}</CtxText>
+                      )}
                     </CardMeta>
                     <Subject data-testid="todo-card-title">{it.subject}</Subject>
                   </CardBody>

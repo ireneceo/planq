@@ -1042,5 +1042,11 @@
     "earlier": "Read earlier",
     "none": "None yet",
     "noReply": "No member has replied yet"
+  },
+  "responsible": {
+    "title": "Person in charge of this address",
+    "desc": "When set, reply-needed mail to this address appears only in that person's To-do. Everyone can still read the mailbox. (A per-mail \"Reply owner\" takes priority.)",
+    "none": "Not set — shown to everyone",
+    "chip": "In charge: {{name}}"
   }
 }

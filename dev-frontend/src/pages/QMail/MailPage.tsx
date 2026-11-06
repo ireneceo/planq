@@ -897,6 +897,10 @@ const MailPage: React.FC = () => {
     } catch { /* silent */ }
   }, [businessId, i18n.language]);
 
+  // 메일함 책임자 표시명 — 멤버 목록에 없으면(떠남) 그리지 않는다(설정한 경우에만 보인다)
+  const respName = (uid?: number | null) => (uid ? members.find(m => m.user_id === uid)?.name : undefined);
+  const respLabel = (uid?: number | null) => { const n = respName(uid); return n ? ` · ${t('responsible.chip', { name: n }) as string}` : ''; };
+
   // 스레드 부분 수정 (스타/라벨/보관) — 낙관적 갱신
   // #384 — 이 대화의 후속 알림 기간. 전용 라우트(POST .../follow-up)를 쓴다 —
   //   일반 PUT 은 이 필드를 받지 않고, 값 검증(0~365)도 그 라우트에 있다.
@@ -2482,7 +2486,7 @@ const MailPage: React.FC = () => {
                     ? (() => {
                         const a = accounts.find((x) => x.id === accountFilter);
                         return a
-                          ? { value: a.id, label: `${a.is_personal ? (t('accounts.personal', { defaultValue: '개인' }) as string) : (t('accounts.team', { defaultValue: '회사' }) as string)} · ${a.email}` }
+                          ? { value: a.id, label: `${a.is_personal ? (t('accounts.personal', { defaultValue: '개인' }) as string) : (t('accounts.team', { defaultValue: '회사' }) as string)} · ${a.email}${respLabel(a.responsible_user_id)}` }
                           : null;
                       })()
                     : { value: 0, label: t('accounts.all', { defaultValue: '메일 전체' }) as string }
@@ -2495,7 +2499,7 @@ const MailPage: React.FC = () => {
                   { value: 0, label: t('accounts.all', { defaultValue: '메일 전체' }) as string },
                   ...accounts.map((a) => ({
                     value: a.id,
-                    label: `${a.is_personal ? (t('accounts.personal', { defaultValue: '개인' }) as string) : (t('accounts.team', { defaultValue: '회사' }) as string)} · ${a.email}${a.unread > 0 ? ` (${a.unread})` : ''}`,
+                    label: `${a.is_personal ? (t('accounts.personal', { defaultValue: '개인' }) as string) : (t('accounts.team', { defaultValue: '회사' }) as string)} · ${a.email}${respLabel(a.responsible_user_id)}${a.unread > 0 ? ` (${a.unread})` : ''}`,
                   })),
                 ]}
               />
@@ -2641,6 +2645,7 @@ const MailPage: React.FC = () => {
                   markSpamRow={markSpamRow}
                   labelColor={labelColor}
                   formatTimeAgo={formatTimeAgo}
+                  responsibleName={mt.account?.owner_user_id ? undefined : respName(mt.account?.responsible_user_id)}
                 />
               ))}
               {loadingMore && <ListMoreRow><Spinner /></ListMoreRow>}
@@ -2898,6 +2903,9 @@ const MailPage: React.FC = () => {
                       액션(담당·태그·팔로우·업무추출)을 줄이는 것보다 이쪽이 낫다. */}
                   {detail.message_count > 1 && <MetaChip $hidePhone>{t('messageCount', { defaultValue: '{{n}}개 메시지', n: detail.message_count }) as string}</MetaChip>}
                   {detail.client && <MetaChip>{detail.client.display_name || detail.client.company_name}</MetaChip>}
+                  {!detail.account?.owner_user_id && respName(detail.account?.responsible_user_id) && (
+                    <MetaChip $hidePhone data-testid="mail-detail-responsible">{t('responsible.chip', { name: respName(detail.account?.responsible_user_id) }) as string}</MetaChip>
+                  )}
                   {/* 담당자 — 값이 곧 칩이다. 고치는 셀렉트는 누를 때만 꺼낸다.
                       옛 구조는 PlanQSelect 를 툴바에 그대로 세워 150px 를 상시 점유했다. */}
                   <MailReplyOwnerChip

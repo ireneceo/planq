@@ -23,6 +23,8 @@ import MailAliasSection from './MailAliasSection';
 import MailExtraFoldersSection from './MailExtraFoldersSection';
 import MailDomainRuleSection from './MailDomainRuleSection';
 import MailAuthDiagSection from './MailAuthDiagSection';
+import MailResponsibleSection, { type MailMemberOption } from './MailResponsibleSection';
+import { displayName, type NameLocalizable } from '../../utils/displayName';
 import { useSettingsHeaderAction } from './settingsHeaderAction';
 import { formatDay } from '../../utils/dateFormat';
 import {
@@ -35,7 +37,7 @@ import {
 const GMAIL_ONECLICK_ENABLED = false;
 
 const EmailAccountSettings: React.FC = () => {
-  const { t } = useTranslation('qmail');
+  const { t, i18n } = useTranslation('qmail');
   const { user } = useAuth();
   const businessId = user?.business_id ? Number(user.business_id) : null;
   const isAdmin = user?.business_role === 'owner' || user?.business_role === 'admin' || user?.platform_role === 'platform_admin';
@@ -80,6 +82,26 @@ const EmailAccountSettings: React.FC = () => {
   }, [businessId]);
 
   useEffect(() => { load(); }, [load]);
+
+  // 책임자 고르기·표시용 멤버(ai·수락 전 초대 제외). 이름은 워크스페이스 표시명(공용 헬퍼).
+  const [members, setMembers] = useState<MailMemberOption[]>([]);
+  useEffect(() => {
+    if (!businessId) return;
+    let alive = true;
+    (async () => {
+      try {
+        const j = await apiFetch(`/api/businesses/${businessId}/members`).then(r => r.json());
+        if (!alive || !j.success) return;
+        setMembers((j.data || [])
+          .filter((m: { user_id: number | null; role?: string }) => m.user_id && m.role !== 'ai')
+          .map((m: { user_id: number; user?: NameLocalizable | null }) => ({
+            user_id: m.user_id, name: displayName(m.user, i18n.language) || `#${m.user_id}`,
+          })));
+      } catch { /* 이름 없이도 화면은 돈다 */ }
+    })();
+    return () => { alive = false; };
+  }, [businessId, i18n.language]);
+  const memberName = (uid?: number | null) => (uid ? members.find(m => m.user_id === uid)?.name : undefined);
 
   // ★ 훅은 전부 early return **위**에. 아래에 두면 businessId 가 늦게 잡히는 렌더(새로고침 직후)
   //   다음에 훅이 7→8 개로 늘어 React 가 "Rendered more hooks than during the previous render"
@@ -175,6 +197,10 @@ const EmailAccountSettings: React.FC = () => {
             {acc.is_personal
               ? <PersonalBadge>{t('settings.scopePersonal', '개인') as string}</PersonalBadge>
               : <TeamBadge>{t('settings.scopeTeam', '회사 공용') as string}</TeamBadge>}
+            {/* 책임자 — 지정했을 때만(Irene «설정을 한 경우에만 나오는 거야») */}
+            {!acc.is_personal && memberName(acc.responsible_user_id) && (
+              <ResponsibleBadge>{t('responsible.chip', { name: memberName(acc.responsible_user_id) }) as string}</ResponsibleBadge>
+            )}
             {acc.is_default && <DefaultBadge>{t('settings.default', '기본') as string}</DefaultBadge>}
             {!acc.is_active && <InactiveBadge>{t('settings.inactive', '비활성') as string}</InactiveBadge>}
             {acc.needs_reconnect && <ErrorBadge>{t('settings.needsReconnect') as string}</ErrorBadge>}
@@ -257,6 +283,19 @@ const EmailAccountSettings: React.FC = () => {
           (1600px 화면 실측: 카드 920px 중 내용이 455px, 오른쪽 380px 공백).
           Irene: "버튼들 있는 아래에 내용이 안 나오고 우측에 여백이 너무 많이 생겨".
           카드 직계 자식으로 내려 **전체 폭**을 쓰게 한다. */}
+        {/* 회사 공용 메일함 책임자 — 개인 메일함에는 없다 */}
+        {!acc.is_personal && (
+          <MailResponsibleSection
+            key={`responsible-${acc.id}`}
+            businessId={businessId}
+            accountId={acc.id}
+            initial={acc.responsible_user_id ?? null}
+            members={members}
+            canEdit={isAdmin}
+            onSaved={(next) => setAccounts(prev => prev.map(a => a.id === acc.id ? { ...a, responsible_user_id: next } : a))}
+          />
+        )}
+
         {/* 보내는 주소(Send-as) — 여러 도메인을 쓰는 메일함 */}
         <MailAliasSection
           businessId={businessId}
@@ -834,8 +873,12 @@ const AccountCard = styled.div`
 `;
 const CardHeader = styled.div`display: flex; gap: 16px; justify-content: space-between; flex-wrap: wrap;`;
 const EmailInfo = styled.div`display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 240px;`;
-const EmailRow = styled.div`display: flex; align-items: center; gap: 8px;`;
+const EmailRow = styled.div`display: flex; align-items: center; gap: 8px; flex-wrap: wrap;`;
 const Email = styled.div`font-size: 0.9375rem; font-weight: 700; color: #0F172A;`;
+const ResponsibleBadge = styled.span`
+  font-size: 0.6875rem; font-weight: 700; padding: 2px 8px;
+  background: #F1F5F9; color: #334155; border-radius: 12px; white-space: nowrap;
+`;
 const DefaultBadge = styled.span`
   font-size: 0.6875rem; font-weight: 700; padding: 2px 8px;
   background: #CCFBF1; color: #0F766E; border-radius: 12px;

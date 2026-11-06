@@ -28,6 +28,8 @@ export interface EmailAccountRow {
   signature_html_en: string | null;
   signature_enabled: boolean;
   owner_user_id: number | null;
+  // 회사 공용 메일함 책임자(NULL = 지정 안 함) — 이름은 화면이 멤버 목록으로 매핑
+  responsible_user_id?: number | null;
   is_personal: boolean;
   scope: 'team' | 'personal';
   last_sync_at: string | null;

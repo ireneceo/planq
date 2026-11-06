@@ -9,7 +9,7 @@ import {
   ThreadSubject, UnreadDot, SentTag, PromoteErrTag, ThreadPreview, FollowUpChip,
   ImpersonationBadge, SpamReasonBadge, UncertainBadge, UncertainInline, ReplyNeededBadge,
   InquiryBadge, HoldingBadge, RuleBadge, ReplyRow, HandledBadge, OverdueChip, RowBtn, SendArrow,
-  RowLabels, FolderChip, LabelChip,
+  RowLabels, FolderChip, LabelChip, ResponsibleChip,
 } from './MailPage.styles';
 
 type RowAction = (e: React.MouseEvent, threadId: number) => void;
@@ -32,11 +32,13 @@ interface Props {
   markSpamRow: RowAction;
   labelColor: (name: string) => string;
   formatTimeAgo: (v: string) => string;
+  /** 메일함 책임자 표시명 — 회사 공용 메일함에 지정됐을 때만 */
+  responsibleName?: string;
 }
 
 export default function MailThreadRow({
   mt, active, handled, promoted, promoteErr, folder, qDebounced, addressMode, dismissingId,
-  onOpen, dismissReply, markHandled, markReplyNeeded, markReviewRow, markSpamRow, labelColor, formatTimeAgo,
+  onOpen, dismissReply, markHandled, markReplyNeeded, markReviewRow, markSpamRow, labelColor, formatTimeAgo, responsibleName,
 }: Props) {
   const { t } = useTranslation('qmail');
   const { t: tSale } = useTranslation('qsale');
@@ -317,8 +319,11 @@ export default function MailThreadRow({
       )}
       {/* 검색은 폴더를 넘으므로, 지금 보고 있는 폴더가 아닌 곳에서 온 결과는 어디 것인지 말한다.
           같은 폴더면 붙이지 않는다 — 모든 행에 같은 칩이 붙으면 읽히지 않는다. */}
-      {(mt.labels && mt.labels.length > 0) || ((qDebounced || addressMode) && mt.folder && mt.folder !== folder) ? (
+      {(mt.labels && mt.labels.length > 0) || responsibleName || ((qDebounced || addressMode) && mt.folder && mt.folder !== folder) ? (
         <RowLabels>
+          {responsibleName && (
+            <ResponsibleChip $color="#64748B" data-testid="mail-row-responsible">{t('responsible.chip', { name: responsibleName }) as string}</ResponsibleChip>
+          )}
           {/* 주소 보기(«이 주소와 오간 메일», 보관 포함)도 폴더를 넘는다 — 검색과 같이 자리를 말한다 */}
           {(qDebounced || addressMode) && mt.folder && mt.folder !== folder && (
             <FolderChip $color="#64748B">{t(`folders.${mt.folder}`, { defaultValue: mt.folder }) as string}</FolderChip>

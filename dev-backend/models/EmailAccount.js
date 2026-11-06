@@ -49,6 +49,10 @@ EmailAccount.init({
   smtp_tls: { type: DataTypes.BOOLEAN, allowNull: true, defaultValue: true },
   // 개인 메일 소유자 — NULL = 회사 공용 (모든 멤버 접근), set = 개인 (본인만 접근, 외부 연동 Phase 3)
   owner_user_id: { type: DataTypes.INTEGER, allowNull: true, references: { model: 'users', key: 'id' } },
+  // 회사 공용 메일함의 1차 책임자(2026-11-06 · Fable 설계). owner_user_id(개인 주인 = 접근 격리)와 다른 축 —
+  //   보는 권한은 그대로, 화면 표시와 확인필요 귀속만 바꾼다(services/mailTodoWhere). NULL = 지정 안 함.
+  //   개인 메일함에는 두지 않는다(PUT 400 · 개인 전환 시 NULL). 스레드 «답변 담당»(is_assigned)이 이 값보다 이긴다.
+  responsible_user_id: { type: DataTypes.INTEGER, allowNull: true, references: { model: 'users', key: 'id' } },
   // 상태
   is_active: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: true },
   is_default: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },

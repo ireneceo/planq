@@ -1000,21 +1000,16 @@ async function collectChats(businessId, userId) {
 
 async function collectMails(businessId, userId) {
   const oneDayMs = 24 * 60 * 60 * 1000;
-  const { EmailThread, EmailAccount, EmailThreadParticipant } = require('../models');
-  const accs = await EmailAccount.findAll({
-    where: {
-      business_id: businessId,
-      is_active: true,
-      [Op.or]: [{ owner_user_id: null }, { owner_user_id: userId }],  // 남의 개인 메일함은 제외
-    },
-    attributes: ['id', 'email'],
-  });
-  if (!accs.length) return [];
+  const { EmailThread } = require('../models');
+  // 귀속(스레드 답변 담당 > 메일함 책임자 > 전원)은 services/mailTodoWhere 한 곳 — SQL 술어라 LIMIT 가 그 뒤에 걸린다
+  const { mailTodoScope } = require('../services/mailTodoWhere');
+  const { accounts: accs, where: scopeWhere, responsibleNames } = await mailTodoScope(businessId, userId);
+  if (!accs.length || !scopeWhere) return [];
   const accMap = Object.fromEntries(accs.map(a => [a.id, a.email]));
 
   const threads = await EmailThread.findAll({
     where: {
-      account_id: { [Op.in]: accs.map(a => a.id) },
+      ...scopeWhere,
       reply_needed: true,
       status: { [Op.in]: ['open', 'uncertain'] },
     },
@@ -1023,19 +1018,9 @@ async function collectMails(businessId, userId) {
   });
   if (!threads.length) return [];
 
-  // 담당자 지정된 스레드는 담당자에게만 — 지정 안 된 건 접근 가능한 모두에게 (공유 큐)
-  const assigned = await EmailThreadParticipant.findAll({
-    where: { thread_id: { [Op.in]: threads.map(t => t.id) }, is_assigned: true },
-    attributes: ['thread_id', 'user_id'],
-  });
-  const assigneeMap = new Map();
-  assigned.forEach(a => { assigneeMap.set(a.thread_id, a.user_id); });
-
   const now = new Date();
   const out = [];
   for (const th of threads) {
-    const owner = assigneeMap.get(th.id);
-    if (owner && Number(owner) !== Number(userId)) continue;   // 남이 맡은 메일은 내 확인 필요가 아니다
     const since = th.reply_needed_at ? new Date(th.reply_needed_at) : new Date(th.last_message_at || th.created_at);
     const days = Math.floor((now.getTime() - since.getTime()) / oneDayMs);
     // 메일은 업무·청구와 달리 마감이 없다 — 방치 기간으로만 급함을 판단한다.
@@ -1053,6 +1038,8 @@ async function collectMails(businessId, userId) {
       createdAt: safeToIso(th.last_message_at || th.createdAt),
       actor: { name: th.from_name || th.from_email || null },
       link: `/mail?thread=${th.id}`,
+      // 메일함 책임자 — 설정된 경우에만(화면이 «· 책임 이름» 을 붙인다)
+      ...(responsibleNames.get(th.account_id) ? { meta: { responsible_name: responsibleNames.get(th.account_id) } } : {}),
     });
   }
   return out;

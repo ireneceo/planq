@@ -6,6 +6,7 @@ const express = require('express');
 const { Op } = require('sequelize');
 const router = express.Router();
 const { EmailAccount, Business, EmailAccountAlias } = require('../models');
+const { resolveResponsiblePatch } = require('../services/mailResponsible');
 const { assertOutboundHostAllowed } = require('../utils/netGuard');
 const { authenticateToken, checkBusinessAccess } = require('../middleware/auth');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
@@ -103,6 +104,8 @@ function serializeAccount(acc) {
     //   (명시 나열이라 안 적으면 목록엔 없고 화면은 매번 기본값으로 보인다).
     auto_extract_scope: j.auto_extract_scope || 'off',
     owner_user_id: j.owner_user_id ?? null,
+    // 회사 공용 메일함 책임자 — 이름은 화면이 멤버 목록으로 매핑한다(원천을 둘로 만들지 않는다)
+    responsible_user_id: j.responsible_user_id ?? null,
     is_personal: j.owner_user_id != null,
     scope: j.owner_user_id != null ? 'personal' : 'team',
     last_sync_at: j.last_sync_at,
@@ -234,6 +237,15 @@ router.put('/:businessId/email-accounts/:id', authenticateToken, checkBusinessAc
         patch.owner_user_id = null;
       }
     }
+    // 회사 공용 메일함 책임자(Fable 설계 2026-11-06) — 공용만 · 관리자만(canManageAccount 가 공용=관리자로 이미 막는다) ·
+    //   값은 이 워크스페이스의 활성 멤버(ai 제외)만. null = 해제. 개인으로 바꾸면 같이 비운다.
+    if (b.responsible_user_id !== undefined) {
+      const r = await resolveResponsiblePatch({ raw: b.responsible_user_id, businessId: acc.business_id, isAdmin: isAdmin(req),
+        willBeTeam: (patch.owner_user_id !== undefined ? patch.owner_user_id : acc.owner_user_id) == null });
+      if (r.error) return errorResponse(res, r.error, r.status);
+      patch.responsible_user_id = r.value;
+    }
+    if (patch.owner_user_id != null) patch.responsible_user_id = null;
     if (b.display_name !== undefined) patch.display_name = b.display_name || null;
     // 서명 — 계정마다 등록한다. HTML 저장(발송 시 emailSend.appendSignature 가 붙인다).
     if (b.signature_html !== undefined) patch.signature_html = b.signature_html ? String(b.signature_html).slice(0, 20000) : null;
@@ -317,14 +329,16 @@ router.put('/:businessId/email-accounts/:id', authenticateToken, checkBusinessAc
       if (!sv.ok) return res.status(400).json({ success: false, message: sv.code });
     }
     const prevOwner = acc.owner_user_id;
+    const prevResponsible = acc.responsible_user_id ?? null;
     await acc.update(patch);
     await createAuditLog({
       userId: req.user.id, businessId: req.params.businessId,
       // 관리자가 남의 개인 계정을 교정한 경우는 별도 action — 감사에서 구분되어야 한다
       action: remediation ? 'email_account.admin_remediate' : 'email_account.update',
       targetType: 'EmailAccount', targetId: acc.id,
-      oldValue: remediation ? { owner_user_id: prevOwner } : undefined,
-      newValue: { fields: Object.keys(patch), ...(remediation ? { owner_user_id: acc.owner_user_id } : {}) },
+      oldValue: remediation ? { owner_user_id: prevOwner } : ('responsible_user_id' in patch ? { responsible_user_id: prevResponsible } : undefined),
+      newValue: { fields: Object.keys(patch), ...(remediation ? { owner_user_id: acc.owner_user_id } : {}),
+        ...('responsible_user_id' in patch ? { responsible_user_id: acc.responsible_user_id ?? null } : {}) },
     });
     // 목록(GET)과 같은 모양으로 돌려준다 — 화면이 응답을 통째로 대입해도 폴더 상태가 사라지지 않게(가드 savemerge 계열)
     const fm = await extraFoldersByAccount(req.params.businessId, [acc.id]);
