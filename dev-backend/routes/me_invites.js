@@ -100,6 +100,9 @@ async function collectInvites(addrs, userId) {
     out.push({ type: 'project_client', id: p.id, business_id: proj.business_id, biz: proj.Business, invited_by: p.invited_by, invited_at: p.invited_at, ...e,
       role: 'client', project_name: proj.name });
   }
+  // 이미 활성 멤버인 워크스페이스의 초대(고객·만료 멤버 초대)는 뺀다 — 눌러도 409 already_member 뿐이다(Fable 비차단 지적 3)
+  const memberOf = new Set((await BusinessMember.findAll({ where: { user_id: userId, removed_at: null }, attributes: ['business_id'] })).map((m) => m.business_id));
+  for (let i = out.length - 1; i >= 0; i--) if (memberOf.has(out[i].business_id)) out.splice(i, 1);
   for (const r of out) r.inviter_name = await displayInviter(names.get(r.invited_by), r.invited_by, r.business_id);
   out.sort((a, b) => new Date(b.invited_at || 0) - new Date(a.invited_at || 0));
   return out;

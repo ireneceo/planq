@@ -274,10 +274,40 @@ async function acceptInviteInner(user, resolved, opts = {}) {
 
     if (resolved.type === 'workspace_member') {
       const bm = resolved.record;
-      const dup = await BusinessMember.findOne({
+      // ★ unscoped — 모델 defaultScope(removed_at NULL)를 타면 «나갔던 멤버» 의 행을 못 보고 아래 update 가
+      //   UNIQUE(business_id,user_id) 에 걸려 409 ERR_DUPLICATE 로 죽었다(2026-11-06 Fable 실측 — 참여 승인과 같은 계열).
+      const dup = await BusinessMember.unscoped().findOne({
         where: { business_id: bm.business_id, user_id: user.id, id: { [Op.ne]: bm.id } },
         transaction: t, lock: t.LOCK.UPDATE,
       });
+      if (dup && dup.removed_at) {
+        // 나갔던 사람의 재초대 — 옛 행을 되살리고 초대 행은 지운다(services/joinRequests.approve 와 같은 벌)
+        if (!isSameInvitee(user, bm.invite_email, bm.user_id)) {
+          await t.rollback();
+          throw new InviteError('invalid_or_expired_invite', 404);
+        }
+        const planEngine = require('./plan');
+        const planCan = await planEngine.can(bm.business_id, 'add_member', { excludeMemberId: bm.id });
+        if (!planCan.ok) {
+          await t.rollback();
+          throw new InviteError('quota', 422, planEngine.buildQuotaError(planCan, bm.business_id));
+        }
+        const role = bm.invited_role === 'admin' ? 'admin' : 'member';
+        await bm.destroy({ transaction: t });
+        await dup.update({
+          removed_at: null, removed_reason: null, role, joined_at: new Date(),
+          invited_by: bm.invited_by, invited_at: bm.invited_at,
+          default_role: bm.default_role ?? dup.default_role, department_id: bm.department_id ?? null, team_id: bm.team_id ?? null,
+        }, { transaction: t });
+        const conv = await require('./clientToMember').promoteClientToMember({ businessId: dup.business_id, userId: user.id, transaction: t });
+        await t.commit();
+        require('./clientToMember').afterPromote(conv, { businessId: dup.business_id, userId: user.id, actorUserId: user.id, io });
+        await landOn(user, dup.business_id);
+        broadcast(io, dup.business_id, 'member:updated', { id: dup.id });
+        notifyInviterOnAccept(bm.invited_by, null, 'workspace_member', user.id, dup.business_id).catch((e) => console.warn('[notify invite workspace_member]', e.message));
+        audit(opts, user, { action: 'invite.accept', targetType: 'workspace_member', targetId: dup.id, businessId: dup.business_id, newValue: { type: 'workspace_member', role, rejoined: true } });
+        return { type: 'workspace_member', business_id: dup.business_id, redirect: REDIRECT.workspace_member, already: false };
+      }
       if (dup) {
         // 남의 초대면 지우지 않는다 — 이 계정은 이미 그 워크스페이스 멤버다(초대는 원래 받는 사람 몫으로 남긴다)
         if (!isSameInvitee(user, bm.invite_email, bm.user_id)) {

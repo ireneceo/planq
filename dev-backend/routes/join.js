@@ -28,7 +28,12 @@ const lookupIpLimit = rateLimit({
   keyGenerator: (req) => `join-lookup-ip${ipKeyGenerator(req.ip)}`,
   message: { success: false, message: 'too_many_lookups' },
 });
-const requestLimit = perUserLimiter('join-request', { windowMs: HOUR, max: 5, message: 'too_many_join_requests' });
+// 성공한 신청(201)만 센다 — «신청 중» 을 두 번 누른 409 같은 실수가 한도를 깎지 않게(Fable 비차단 지적 2)
+const requestLimit = rateLimit({
+  windowMs: HOUR, max: 5, standardHeaders: true, legacyHeaders: false, skipFailedRequests: true,
+  keyGenerator: (req) => (req.user?.id ? `join-request-u${req.user.id}` : `join-request-ip${ipKeyGenerator(req.ip)}`),
+  message: { success: false, message: 'too_many_join_requests' },
+});
 
 /** 로그인 + 이메일 인증. 사람 행을 req.joinUser 에 싣는다. */
 async function requireVerified(req, res, next) {
