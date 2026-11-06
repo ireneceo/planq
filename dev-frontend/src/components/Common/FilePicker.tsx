@@ -28,14 +28,14 @@ interface Props {
   title?: string;
   accept?: string;
   multiple?: boolean;              // default true
-  mode?: 'both' | 'upload' | 'existing';  // 호환용 — 새 통합 UI 에선 항상 둘 다 표시
+  mode?: 'both' | 'upload' | 'existing';  // 'upload' = 내 기기 파일만(파일함 검색·Drive 숨김 — 고객 채팅). 그 외는 둘 다 표시
   variant?: 'drawer' | 'modal';    // default 'drawer' — 편집 폼 내부엔 'modal' 권장
   // 옵션 — Q Talk 채팅 첨부에선 기존 문서(post)도 같이 첨부 가능하게
   includePosts?: boolean;
 }
 
 const FilePicker: React.FC<Props> = ({
-  open, onClose, businessId, onPick, title, accept, variant = 'drawer', includePosts = false,
+  open, onClose, businessId, onPick, title, accept, variant = 'drawer', includePosts = false, mode = 'both',
 }) => {
   const { t } = useTranslation('common');
   const [uploads, setUploads] = useState<File[]>([]);
@@ -81,6 +81,7 @@ const FilePicker: React.FC<Props> = ({
         existingPostIds={existingPostIds}
         onExistingPostIdsChange={setExistingPostIds}
         accept={accept}
+        hideExistingSearch={mode === 'upload'}
       />
     </BodyInner>
   );

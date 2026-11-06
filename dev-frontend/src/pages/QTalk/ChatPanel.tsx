@@ -726,6 +726,10 @@ const ChatPanel: React.FC<Props> = ({
   const [uploadingFiles, setUploadingFiles] = useState<Array<{ tempId: string; name: string; size: number; error?: string }>>([]);
   const [stagedExistingIds, setStagedExistingIds] = useState<number[]>([]);
   const [stagedExistingMeta, setStagedExistingMeta] = useState<Record<number, { name: string; size: number }>>({});
+  // ★ 2026-11-06 고객(client)은 워크스페이스 파일함(`POST /api/files/:biz`)에 올릴 수 없다(서버 403 «Use chat attachments instead»).
+  //   그래서 고객이 고른 파일은 **보낼 때까지 화면에만** 들고 있다가, 메시지를 만든 뒤 메시지 첨부 라우트
+  //   (`/api/message-attachments/:conv/:msg` — 대화방 접근·용량 집계·고객 소켓 술어가 이미 있다)로 고른 순서대로 올린다.
+  const [stagedRawFiles, setStagedRawFiles] = useState<Array<{ key: string; file: File }>>([]);
   const [stagedPostIds, setStagedPostIds] = useState<number[]>([]);
   const [stagedPostMeta, setStagedPostMeta] = useState<Record<number, { title: string }>>({});
   const [filePickerOpen, setFilePickerOpen] = useState(false);
@@ -800,6 +804,11 @@ const ChatPanel: React.FC<Props> = ({
     });
   };
   const uploadOne = async (file: File, name?: string) => {
+    if (isClient) {
+      const f = name && name !== file.name ? new File([file], name, { type: file.type, lastModified: file.lastModified }) : file;
+      setStagedRawFiles(prev => [...prev, { key: `raw-${Date.now()}-${Math.random().toString(36).slice(2)}`, file: f }]);
+      return;
+    }
     if (!businessId) return;
     const tempId = `up-${Date.now()}-${Math.random().toString(36).slice(2)}`;
     const seq = ++uploadSeqRef.current;
@@ -855,6 +864,7 @@ const ChatPanel: React.FC<Props> = ({
     for (const c of uploadCtlRef.current.values()) c.abort();
     uploadCtlRef.current.clear();
     setUploadingFiles([]);
+    setStagedRawFiles([]);
     // 공유로 담겨 온 파일은 방을 고르기 전에 담긴 것이다(방을 골라야 보낸다) — 그건 버리지 않는다.
     if (sharedStagedRef.current) return;
     stagedSeqRef.current = {};
@@ -869,7 +879,7 @@ const ChatPanel: React.FC<Props> = ({
   }, [sharedStaged, input, stagedExistingIds.length]);
   const handleSend = () => {
     setSharedStaged(false);
-    const hasFiles = stagedExistingIds.length > 0;
+    const hasFiles = stagedExistingIds.length > 0 || stagedRawFiles.length > 0;
     const hasPosts = stagedPostIds.length > 0;
     const hasUploading = uploadingFiles.some(x => !x.error);
     if (hasUploading) return; // 업로드 진행 중엔 전송 X (UI 도 disabled)
@@ -878,11 +888,12 @@ const ChatPanel: React.FC<Props> = ({
     //   옛: 실패해도 비운 채라 쓴 글이 사라졌다. 되돌릴 때 그 사이 새로 쓴 글이 있으면 덮지 않는다.
     const sent = {
       convId: activeConversationId, text: input,
-      fileIds: stagedExistingIds, fileMeta: stagedExistingMeta, postIds: stagedPostIds, postMeta: stagedPostMeta,
+      fileIds: stagedExistingIds, fileMeta: stagedExistingMeta, rawFiles: stagedRawFiles, postIds: stagedPostIds, postMeta: stagedPostMeta,
     };
     Promise.resolve(onSendMessage(
       input,
-      undefined, // raw File 배열은 더 이상 사용하지 않음 (업로드 즉시 → existingIds 경로 통일)
+      // 멤버는 고르는 즉시 파일함에 올려 existingIds 로 보낸다. 고객만 raw File(메시지 생성 뒤 메시지 첨부로 업로드).
+      stagedRawFiles.length > 0 ? stagedRawFiles.map((x) => x.file) : undefined,
       stagedExistingIds.length > 0 ? stagedExistingIds : undefined,
       stagedPostIds.length > 0 ? stagedPostIds : undefined,
     )).then((ok) => {
@@ -896,6 +907,7 @@ const ChatPanel: React.FC<Props> = ({
       if (sent.convId && sent.text.trim()) { try { localStorage.setItem(draftKey(user?.id, sent.convId), sent.text); } catch { /* */ } }
       setStagedExistingIds((cur) => (cur.length ? cur : sent.fileIds));
       setStagedExistingMeta((cur) => (Object.keys(cur).length ? cur : sent.fileMeta));
+      setStagedRawFiles((cur) => (cur.length ? cur : sent.rawFiles));
       setStagedPostIds((cur) => (cur.length ? cur : sent.postIds));
       setStagedPostMeta((cur) => (Object.keys(cur).length ? cur : sent.postMeta));
     }).catch(() => { /* onSendMessage 가 자기 실패를 알린다 */ });
@@ -904,6 +916,7 @@ const ChatPanel: React.FC<Props> = ({
     if (activeConversationId) { try { localStorage.removeItem(draftKey(user?.id, activeConversationId)); } catch { /* */ } }
     setStagedExistingIds([]);
     setStagedExistingMeta({});
+    setStagedRawFiles([]);
     setStagedPostIds([]);
     setStagedPostMeta({});
     stagedSeqRef.current = {};
@@ -967,6 +980,7 @@ const ChatPanel: React.FC<Props> = ({
     setStagedExistingIds(prev => prev.filter(x => x !== id));
     setStagedExistingMeta(prev => { const next = { ...prev }; delete next[id]; return next; });
   };
+  const removeRaw = (key: string) => setStagedRawFiles(prev => prev.filter(x => x.key !== key));
   const removePost = (id: number) => {
     setStagedPostIds(prev => prev.filter(x => x !== id));
     setStagedPostMeta(prev => { const next = { ...prev }; delete next[id]; return next; });
@@ -2454,7 +2468,7 @@ const ChatPanel: React.FC<Props> = ({
             </CueBadgeInline>
           </InputToolbar>
         )}
-        {(uploadingFiles.length > 0 || stagedExistingIds.length > 0 || stagedPostIds.length > 0) && (
+        {(uploadingFiles.length > 0 || stagedExistingIds.length > 0 || stagedRawFiles.length > 0 || stagedPostIds.length > 0) && (
           <StagedRow>
             {uploadingFiles.map((u) => (
               u.error ? (
@@ -2474,6 +2488,14 @@ const ChatPanel: React.FC<Props> = ({
                   <StagedX type="button" onClick={() => removeUploading(u.tempId)} aria-label="remove">×</StagedX>
                 </StagedChip>
               )
+            ))}
+            {stagedRawFiles.map(({ key, file }) => (
+              <StagedChip key={key} data-testid="qtalk-staged-raw">
+                <ExistingDot />
+                <StagedName title={file.name}>{file.name}</StagedName>
+                <StagedSize>{(file.size / 1024).toFixed(0)}KB</StagedSize>
+                <StagedX type="button" onClick={() => removeRaw(key)} aria-label="remove">×</StagedX>
+              </StagedChip>
             ))}
             {stagedExistingIds.map(id => {
               const meta = stagedExistingMeta[id];
@@ -2627,7 +2649,7 @@ const ChatPanel: React.FC<Props> = ({
             data-testid="qtalk-send"
             disabled={
               uploadingFiles.some(x => !x.error) ||
-              (!input.trim() && stagedExistingIds.length === 0 && stagedPostIds.length === 0)
+              (!input.trim() && stagedExistingIds.length === 0 && stagedRawFiles.length === 0 && stagedPostIds.length === 0)
             }
             onClick={handleSend}
           >
@@ -2655,10 +2677,11 @@ const ChatPanel: React.FC<Props> = ({
           businessId={Number(businessId)}
           onPick={handleFilePicked}
           title={t('chat.input.attach', '파일·문서 첨부') as string}
-          mode="both"
+          // 고객은 파일함 검색·Drive·문서 카드를 쓰지 않는다(그 라우트들이 고객에게 닫혀 있다) — 내 기기 파일만.
+          mode={isClient ? 'upload' : 'both'}
           variant="modal"
           multiple
-          includePosts
+          includePosts={!isClient}
         />
       )}
       {!isClient && businessId && activeConversationId && (

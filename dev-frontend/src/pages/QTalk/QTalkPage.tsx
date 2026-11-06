@@ -1525,12 +1525,15 @@ const QTalkPage: React.FC<QTalkPageProps> = ({ embedded = false, initialConvId =
         } : undefined)
         : { id: 0 } as Awaited<ReturnType<typeof qtalkApi.sendMessage>>;
       const attachmentResults: qtalkApi.ApiMessageAttachment[] = [];
-      if (files && files.length > 0) {
-        const uploads = await Promise.allSettled(
-          files.map((f) => qtalkApi.uploadMessageAttachment(convId, created.id, f))
-        );
-        uploads.forEach((r) => { if (r.status === 'fulfilled') attachmentResults.push(r.value); });
+      // 새 파일(고객 채팅 — 고객은 파일함에 못 올린다)도 고른 순서대로 **하나씩** — 병렬이면 저장 순서가 매번 달랐다.
+      let uploadFailed = 0;
+      if (files && files.length > 0 && created.id) {
+        for (const f of files) {
+          try { attachmentResults.push(await qtalkApi.uploadMessageAttachment(convId, created.id, f)); }
+          catch { uploadFailed += 1; }
+        }
       }
+      if (uploadFailed > 0) showNotice(t('page.attachPartFailed', { count: uploadFailed, total: files!.length }));
       // ★ 2026-11-06 — 고른 순서대로 **하나씩** 붙인다. 병렬이면 서버 저장 순서(새로고침 뒤 순서)가 매번 달랐다.
       //   실패는 삼키지 않는다 — 몇 장이 빠졌는지 알린다(옛: 3장 중 2장만 붙어도 아무 말이 없었다).
       let linkFailed = 0;
