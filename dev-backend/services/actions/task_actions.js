@@ -1563,7 +1563,9 @@ async function approve(task, actor, { note = null } = {}) {
     notifyTask({
       userId: task.request_by_user_id || task.created_by,
       task, wsName, excludeUserId: actor.userId,
-      action: 'task_completed', ctaLabel: '결과 확인',
+      // ★ «완료» 가 아니라 «컨펌 승인» — 진짜 완료 알림은 담당자가 «최종 완료» 를 누를 때(complete) 한 번.
+      //   옛: 여기서도 task_completed 라 요청자(고객)가 «완료» 를 두 번 받았다(2026-11-06 Irene «완료했는데 또 다시 뜸»).
+      action: 'task_approved', ctaLabel: '업무 보기',
       body: `"${task.title}" — 컨펌이 끝났습니다(담당자 마무리 대기)`,
     });
     notifyTask({
