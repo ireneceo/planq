@@ -879,6 +879,9 @@ router.post('/:businessId/members/invite', authenticateToken, checkBusinessAcces
     const { default_role } = req.body || {};
     const org = await MI.resolveOrg(businessId, req.body || {});
     if (org.error) return errorResponse(res, org.error, 400);
+    // 권한(member|admin) — 초대할 때 정한다(2026-11-06 Irene). 수락 때 이 행이 그대로 멤버십이 된다. owner·ai 는 이 문으로 못 준다.
+    const access = MI.resolveAccessRole(req.body?.role);
+    if (access.error) return errorResponse(res, access.error, 400);
 
     // 역할은 워크스페이스 역할 사전을 거친다 — 여기서 새로 친 글자도 사전에 생긴다(services/memberRoles).
     //   미리 보기(dry_run)에서는 사전에 쓰지 않는다.
@@ -917,7 +920,7 @@ router.post('/:businessId/members/invite', authenticateToken, checkBusinessAcces
         // 동시 요청이 자리를 채웠을 수 있다 — 한 명씩 게이트를 다시 본다(캐시 없이 직접 센다)
         const can = await planEngine.can(businessId, 'add_member');
         if (!can.ok) { out.push({ email: r.email, status: 'quota' }); continue; }
-        await MI.createInvite(req, businessId, { email: r.email, existingUserId: r.existingUserId, inviteRole: rr.role, org });
+        await MI.createInvite(req, businessId, { email: r.email, existingUserId: r.existingUserId, inviteRole: rr.role, accessRole: access.role, org });
         out.push({ email: r.email, status: 'invited' });
       }
       return successResponse(res, { results: out, invited: out.filter((r) => r.status === 'invited').length }, 'Members invited', 201);
@@ -938,7 +941,7 @@ router.post('/:businessId/members/invite', authenticateToken, checkBusinessAcces
     }
     const rr = await resolveRole();
     if (rr.error) return errorResponse(res, rr.error.code, rr.error.http);
-    const out = await MI.createInvite(req, businessId, { email: chk.email, existingUserId: chk.existingUserId, inviteRole: rr.role, org });
+    const out = await MI.createInvite(req, businessId, { email: chk.email, existingUserId: chk.existingUserId, inviteRole: rr.role, accessRole: access.role, org });
     successResponse(res, out, 'Member invited', 201);
   } catch (error) { next(error); }
 });

@@ -52,12 +52,23 @@ async function resolveOrg(businessId, { department_id, team_id }) {
 }
 
 /** 초대 행 만들기 + 메일 + 기존 계정 앱 알림 + 감사. checkOne 이 'ok' 인 줄에만 부른다. */
-async function createInvite(req, businessId, { email, existingUserId, inviteRole, org }) {
+/** 초대 권한 — 없으면 member. member|admin 만(owner·ai·그 밖은 400). */
+function resolveAccessRole(raw) {
+  if (raw === undefined || raw === null || raw === '') return { role: 'member' };
+  const v = String(raw).trim().toLowerCase();
+  if (v === 'member' || v === 'admin') return { role: v };
+  return { error: 'invalid_invite_role' };
+}
+
+async function createInvite(req, businessId, { email, existingUserId, inviteRole, accessRole = 'member', org }) {
   const token = crypto.randomBytes(24).toString('hex');
   const created = await BusinessMember.create({
     business_id: businessId,
     user_id: null,
     role: 'member',
+    // 권한은 수락 때 적용한다(services/invites.acceptInvite) — 수락 전 행은 user_id NULL 인데
+    //   role 을 admin 으로 두면 «owner/admin 목록»(알림 받는 사람 13곳)에 빈 사람으로 끼어든다.
+    invited_role: accessRole === 'admin' ? 'admin' : 'member',
     default_role: inviteRole,
     invited_by: req.user.id,
     invited_at: new Date(),
@@ -90,7 +101,7 @@ async function createInvite(req, businessId, { email, existingUserId, inviteRole
     targetType: 'business_member',
     targetId: created.id,
     businessId,
-    newValue: { email, default_role: created.default_role || null, department_id: created.department_id || null, team_id: created.team_id || null },
+    newValue: { email, invited_role: created.invited_role, default_role: created.default_role || null, department_id: created.department_id || null, team_id: created.team_id || null },
   });
   // 초대 토큰은 계정을 «그 멤버로» 붙이는 열쇠다 — 응답에 싣지 않는다
   const out = created.toJSON(); delete out.invite_token;
@@ -110,4 +121,4 @@ function normalizeEmails(list) {
   return out;
 }
 
-module.exports = { checkOne, seatsRemaining, resolveOrg, createInvite, normalizeEmails, MAX_BULK };
+module.exports = { checkOne, seatsRemaining, resolveOrg, resolveAccessRole, createInvite, normalizeEmails, MAX_BULK };

@@ -581,7 +581,12 @@
       "confirmLead": "Invitations will be emailed to these {{n}} people.",
       "confirmSkipped": "Not sent: {{list}}",
       "confirmSeats": "Seats left after sending: {{n}}",
-      "confirmSend": "Send"
+      "confirmSend": "Send",
+      "accessMember": "Access: Member",
+      "accessAdmin": "Access: Admin",
+      "confirmMember": "They will join as a member.",
+      "confirmAdmin": "They will join as an admin as soon as they accept.",
+      "errRole": "Please choose the access level again."
     },
     "links": {
       "projects": "Projects",

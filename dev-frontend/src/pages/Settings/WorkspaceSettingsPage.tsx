@@ -596,6 +596,7 @@ export default function WorkspaceSettingsPage() {
   const [inviteOpen, setInviteOpen] = useState(false);
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteRole, setInviteRole] = useState('');
+  const [inviteAccess, setInviteAccess] = useState<'member' | 'admin'>('member');   // 초대 때 정하는 권한(수락하면 그대로)
   const [inviteBusy, setInviteBusy] = useState(false);
   const [inviteError, setInviteError] = useState<string | null>(null);
   // 여러 명 초대 — 부서·팀(선택) · 보내기 전 확인(받는 주소·남은 자리) · 줄별 결과
@@ -746,6 +747,10 @@ export default function WorkspaceSettingsPage() {
   };
 
   // 초대 칸 — 쉼표·줄바꿈·공백으로 나눈 이메일 목록(중복은 서버가 한 번 더 거른다)
+  const accessOptions = useMemo(() => [
+    { value: 'member' as const, label: t('members.bulkInvite.accessMember', '권한: 멤버') as string },
+    { value: 'admin' as const, label: t('members.bulkInvite.accessAdmin', '권한: 관리자') as string },
+  ], [t]);
   const inviteEmailList = useMemo(() => inviteEmail.split(/[\s,;]+/).map((x) => x.trim()).filter(Boolean), [inviteEmail]);
   const inviteOrgPayload = useCallback(() => {
     if (!inviteOrg) return {};
@@ -790,7 +795,7 @@ export default function WorkspaceSettingsPage() {
         setInviteError(t('members.bulkInvite.tooMany', '한 번에 20명까지 초대할 수 있습니다.') as string);
         return;
       }
-      const pv = await inviteMembersBulk(businessId, { emails: inviteEmailList, dry_run: true, ...inviteOrgPayload() });
+      const pv = await inviteMembersBulk(businessId, { emails: inviteEmailList, role: inviteAccess, dry_run: true, ...inviteOrgPayload() });
       const sendable = pv.sendable ?? pv.results.filter((r) => r.status === 'ok').length;
       if (sendable === 0) { setInviteResults(pv.results); setInviteError(t('members.bulkInvite.nothingToSend', '보낼 수 있는 주소가 없습니다.') as string); return; }
       const remaining = pv.remaining ?? null;
@@ -804,6 +809,7 @@ export default function WorkspaceSettingsPage() {
       const msg = err instanceof Error ? err.message : String(err);
       if (msg.includes('forbidden')) setInviteError(t('members.inviteErrForbidden', '초대 권한이 없습니다.') as string);
       else if (msg.includes('invalid_team') || msg.includes('invalid_department')) setInviteError(t('members.bulkInvite.errOrg', '부서·팀을 다시 골라 주세요.') as string);
+      else if (msg.includes('invalid_invite_role')) setInviteError(t('members.bulkInvite.errRole', '권한을 다시 골라 주세요.') as string);
       else setInviteError(mapApiError(err, tErr));
     } finally { setInviteBusy(false); }
   };
@@ -815,7 +821,7 @@ export default function WorkspaceSettingsPage() {
     setInvitePreview(null);
     setInviteBusy(true); setInviteError(null);
     try {
-      const res = await inviteMembersBulk(businessId, { emails, default_role: inviteRole.trim() || undefined, ...inviteOrgPayload() });
+      const res = await inviteMembersBulk(businessId, { emails, role: inviteAccess, default_role: inviteRole.trim() || undefined, ...inviteOrgPayload() });
       if (res.status === 422) {
         setInviteError(t('members.bulkInvite.overQuota', '남은 자리는 {{remaining}}명인데 {{n}}명을 초대하려고 합니다. 요금제에서 멤버 자리를 늘리거나 인원을 줄여 주세요.', { remaining: res.remaining ?? 0, n: res.sendable ?? emails.length }) as string);
         return;
@@ -1564,6 +1570,16 @@ export default function WorkspaceSettingsPage() {
                       value={inviteRole || null} onChange={(v) => setInviteRole(v || '')} testId="invite-role" />
                   </InviteRoleSlot>
                 </InviteInputRow>
+                <InviteInputRow>
+                  <InviteRoleSlot data-testid="invite-access">
+                    <PlanQSelect
+                      value={accessOptions.find((o) => o.value === inviteAccess) || accessOptions[0]}
+                      onChange={(opt) => setInviteAccess(((opt as { value: 'member' | 'admin' } | null)?.value) ?? 'member')}
+                      options={accessOptions}
+                      size="sm"
+                    />
+                  </InviteRoleSlot>
+                </InviteInputRow>
                 {inviteOrgOptions.length > 0 && (
                   <InviteInputRow>
                     <InviteRoleSlot data-testid="invite-org">
@@ -1586,7 +1602,7 @@ export default function WorkspaceSettingsPage() {
                   </InviteResultList>
                 )}
                 <InviteActionRow>
-                  <InviteCancel type="button" onClick={() => { setInviteOpen(false); setInviteEmail(''); setInviteRole(''); setInviteError(null); setInviteOrg(null); setInviteResults(null); }}>
+                  <InviteCancel type="button" onClick={() => { setInviteOpen(false); setInviteEmail(''); setInviteRole(''); setInviteAccess('member'); setInviteError(null); setInviteOrg(null); setInviteResults(null); }}>
                     {t('members.inviteCancel', '취소')}
                   </InviteCancel>
                   <InviteSubmit type="button" data-testid="invite-submit" disabled={inviteBusy || !inviteEmailList.length} onClick={() => void sendMemberInvite()}>
@@ -1603,6 +1619,9 @@ export default function WorkspaceSettingsPage() {
               title={t('members.bulkInvite.confirmTitle', '초대 메일을 보낼까요?') as string}
               message={invitePreview ? [
                 t('members.bulkInvite.confirmLead', '아래 {{n}}명에게 초대 메일을 보냅니다.', { n: invitePreview.sendable }) as string,
+                inviteAccess === 'admin'
+                  ? t('members.bulkInvite.confirmAdmin', '관리자 권한으로 초대합니다 — 수락하면 바로 관리자입니다.') as string
+                  : t('members.bulkInvite.confirmMember', '멤버 권한으로 초대합니다.') as string,
                 ...invitePreview.rows.filter((r) => r.status === 'ok').map((r) => `· ${r.email}`),
                 ...(invitePreview.rows.some((r) => r.status !== 'ok')
                   ? [t('members.bulkInvite.confirmSkipped', '보내지 않는 주소: {{list}}', { list: invitePreview.rows.filter((r) => r.status !== 'ok').map(inviteRowText).join(', ') }) as string]
@@ -1625,9 +1644,10 @@ export default function WorkspaceSettingsPage() {
               const shownName = isPending ? (m.invite_email || '') : memberDisplayName(m.user, i18n.language);
               const firstLetter = (shownName || '?').charAt(0).toUpperCase();
               // 역할 글자는 권한 표와 한 벌 — 오너 / 관리자 / 멤버 (2026-10-23: 옛 글자는 owner 를 «관리자», admin 을 «멤버» 로 보였다)
-              const roleLabel = m.role === 'owner'
+              const effRole = isPending && m.invited_role === 'admin' ? 'admin' : m.role;   // 수락 전 행은 초대 때 고른 권한으로
+              const roleLabel = effRole === 'owner'
                 ? t('members.roleOwner', '오너')
-                : m.role === 'admin'
+                : effRole === 'admin'
                   ? t('members.roleAdmin')
                   : m.role === 'ai'
                     ? t('members.roleAi')

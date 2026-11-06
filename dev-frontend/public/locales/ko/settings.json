@@ -581,7 +581,12 @@
       "confirmLead": "아래 {{n}}명에게 초대 메일을 보냅니다.",
       "confirmSkipped": "보내지 않는 주소: {{list}}",
       "confirmSeats": "보낸 뒤 남는 자리 {{n}}명",
-      "confirmSend": "보내기"
+      "confirmSend": "보내기",
+      "accessMember": "권한: 멤버",
+      "accessAdmin": "권한: 관리자",
+      "confirmMember": "멤버 권한으로 초대합니다.",
+      "confirmAdmin": "관리자 권한으로 초대합니다 — 수락하면 바로 관리자입니다.",
+      "errRole": "권한을 다시 골라 주세요."
     },
     "links": {
       "projects": "연결 프로젝트",

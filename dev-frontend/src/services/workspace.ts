@@ -40,6 +40,7 @@ export interface WorkspaceMember {
   user_id: number | null;
   role: 'owner' | 'admin' | 'member' | 'ai';   // admin — 서버가 보내는 값(2026-10-23: 타입에 없어 화면이 관리자를 멤버로 그렸다)
   default_role?: string | null;
+  invited_role?: 'member' | 'admin' | null;   // 수락 전 초대 행 — 초대 때 고른 권한
   daily_work_hours?: number | string | null;
   weekly_work_days?: number | null;
   participation_rate?: number | string | null;
@@ -137,7 +138,7 @@ export async function inviteMember(id: number, payload: { email: string; default
 }
 
 export interface BulkInviteRow { email: string; status: 'ok' | 'invalid' | 'already_member' | 'already_invited' | 'quota' | 'invited' }
-export interface BulkInvitePayload { emails: string[]; default_role?: string; department_id?: number | null; team_id?: number | null; dry_run?: boolean }
+export interface BulkInvitePayload { emails: string[]; role?: 'member' | 'admin'; default_role?: string; department_id?: number | null; team_id?: number | null; dry_run?: boolean }
 /** 여러 명 초대 — dry_run 이면 줄별 판정만(발송 0). 실제 호출은 보낼 수 있는 사람 수가 남은 자리보다 많으면 422(한 통도 안 보냄). */
 export async function inviteMembersBulk(id: number, payload: BulkInvitePayload): Promise<{ status: number; results: BulkInviteRow[]; sendable?: number; remaining?: number | null; invited?: number }> {
   const r = await apiFetch(`/api/businesses/${id}/members/invite`, {

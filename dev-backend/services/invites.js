@@ -300,7 +300,9 @@ async function acceptInviteInner(user, resolved, opts = {}) {
         await t.rollback();
         throw new InviteError('quota', 422, planEngine.buildQuotaError(planCan, bm.business_id));
       }
-      await bm.update({ user_id: user.id, joined_at: new Date() }, { transaction: t });
+      // 초대 때 정한 권한을 지금 적용한다(invited_role — 수락 전에는 member 로 둔다)
+      const acceptedRole = bm.invited_role === 'admin' ? 'admin' : (bm.role === 'admin' ? 'admin' : 'member');
+      await bm.update({ user_id: user.id, joined_at: new Date(), role: acceptedRole }, { transaction: t });
       // 같은 계정이 이 워크스페이스 고객이었으면 고객 자국을 멤버로 바꾼다(2026-10-16 — Irene «그대로 고객이야»)
       const conv = await require('./clientToMember').promoteClientToMember({ businessId: bm.business_id, userId: user.id, transaction: t });
       await t.commit();
@@ -308,7 +310,7 @@ async function acceptInviteInner(user, resolved, opts = {}) {
       await landOn(user, bm.business_id);
       broadcast(io, bm.business_id, 'member:updated', { id: bm.id });
       notifyInviterOnAccept(bm.invited_by, null, 'workspace_member', user.id, bm.business_id).catch((e) => console.warn('[notify invite workspace_member]', e.message));
-      audit(opts, user, { action: 'invite.accept', targetType: 'workspace_member', targetId: bm.id, businessId: bm.business_id, newValue: { type: 'workspace_member' } });
+      audit(opts, user, { action: 'invite.accept', targetType: 'workspace_member', targetId: bm.id, businessId: bm.business_id, newValue: { type: 'workspace_member', role: bm.role } });
       return { type: 'workspace_member', business_id: bm.business_id, redirect: REDIRECT.workspace_member, already: false };
     }
 

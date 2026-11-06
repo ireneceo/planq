@@ -53,6 +53,13 @@ BusinessMember.init({
     type: DataTypes.ENUM('owner', 'member', 'ai', 'admin'),
     defaultValue: 'member'
   },
+  // 초대할 때 정한 권한(2026-11-06 Irene «초대할 때부터 권한») — 수락(services/invites.acceptInvite)이 role 로 옮긴다.
+  //   수락 전 행의 role 은 늘 'member'(user_id NULL 행이 owner/admin 목록에 끼지 않게). NULL = 옛 초대 = member.
+  //   운영: scripts/migrate-invited-role.js(배포 슬롯 — 모델이 SELECT 하므로 코드보다 먼저).
+  invited_role: {
+    type: DataTypes.ENUM('member', 'admin'),
+    allowNull: true,
+  },
   // 워크스페이스별 이름 (null 이면 User.name 사용). 한 사용자가 여러 워크스페이스에서 다른 표시 이름을 가질 수 있음.
   name: {
     type: DataTypes.STRING(100),
