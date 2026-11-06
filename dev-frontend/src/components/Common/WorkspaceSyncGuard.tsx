@@ -59,7 +59,9 @@ const WorkspaceSyncGuard: React.FC = () => {
       const bid = Number(m.business_id);
       if (!uid || !bid) return;
       if (uid !== userIdRef.current) return;             // 사칭 창·다른 계정 창
-      if (bid === bizRef.current) return;                // 이미 이 워크스페이스(자기 수신 포함)
+      // 이미 이 워크스페이스(자기 수신 포함) — 다른 창이 다시 돌아왔으면(A→B→A) 띄워 둔 줄도 내린다.
+      //   안 내리면 이 창은 이미 A 인데 줄은 B 로 남고, «전환» 을 누르면 오히려 B 로 간다(2026-11-06 Irene 신고).
+      if (bid === bizRef.current) { setPending(null); return; }
       apply(bid);
     };
     let ch: BroadcastChannel | null = null;
@@ -92,7 +94,8 @@ const WorkspaceSyncGuard: React.FC = () => {
     if (!user?.id) return undefined;
     const onStale = (ev: Event) => {
       const bid = Number((ev as CustomEvent<{ business_id?: number }>).detail?.business_id);
-      if (!bid || bid === bizRef.current) return;
+      if (!bid) return;
+      if (bid === bizRef.current) { setPending(null); return; }
       apply(bid);
     };
     window.addEventListener('planq:workspace-stale', onStale);
@@ -145,11 +148,17 @@ const WorkspaceSyncGuard: React.FC = () => {
   }, [user?.id]);
 
   if (!pending) return null;
+  // 어느 워크스페이스로 바뀌었는지 — 서버·채널은 id 만 보내고, 이름은 이 창이 들고 있는 목록에서 찾는다(목록에 없으면 옛 문구)
+  const name = user?.workspaces?.find((w) => Number(w.business_id) === pending)?.brand_name;
   return (
     <Bar role="status" aria-live="polite" data-testid="workspace-sync-bar">
-      <span>{t('workspaceSync.banner', '다른 창이나 기기에서 워크스페이스가 바뀌었어요') as string}</span>
+      <span>{name
+        ? t('workspaceSync.bannerNamed', { name, defaultValue: '다른 창에서 «{{name}}» 워크스페이스로 바뀌었어요' }) as string
+        : t('workspaceSync.banner', '다른 창이나 기기에서 워크스페이스가 바뀌었어요') as string}</span>
       <ApplyBtn type="button" data-testid="workspace-sync-apply" onClick={() => apply(pending, true)}>
-        {t('workspaceSync.apply', '지금 전환') as string}
+        {name
+          ? t('workspaceSync.applyNamed', { name, defaultValue: '«{{name}}» 로 전환' }) as string
+          : t('workspaceSync.apply', '지금 전환') as string}
       </ApplyBtn>
     </Bar>
   );

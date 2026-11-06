@@ -630,7 +630,9 @@
   },
   "workspaceSync": {
     "banner": "다른 창이나 기기에서 워크스페이스가 바뀌었어요",
-    "apply": "지금 전환"
+    "apply": "지금 전환",
+    "bannerNamed": "다른 창에서 «{{name}}» 워크스페이스로 바뀌었어요",
+    "applyNamed": "«{{name}}» 로 전환"
   },
   "dock": {
     "toggle": "바로 열기 — Q talk · Q task · Q note · Q helper",

@@ -8,6 +8,7 @@
 //   ① 메인 창에서 A→B 전환(실제 전환기 클릭) → 두 번째 메인 탭은 /talk 로 재부팅 · 팝아웃은 **제자리 재부팅** 후 B 로 조회
 //   ② 다시 A 로 → 팝아웃이 **A 로 돌아온다** (신고 원문 그대로)
 //   ③ 입력 중인 탭은 재부팅하지 않고 줄만 띄운다 · 친 글자 보존 · "지금 전환" 누르면 이동
+//   ③-b 메인이 다시 원래 워크스페이스로 돌아오면 그 줄이 내려간다 · 줄에 워크스페이스 이름
 //   ④ 사칭 토큰의 전환은 403
 //   ⑤ 음성 대조군 — 전환이 없으면 아무 창도 재부팅하지 않는다(가만히 둔 8초)
 //   ★ 끝나면 계정의 active_business_id 를 원래 값으로 되돌린다(다른 스위트가 이 계정을 쓴다)
@@ -117,11 +118,31 @@ async function run() {
     await main.waitForSelector('[data-testid="ws-switcher-trigger"]', { visible: true, timeout: 15000 });
     await b.sleep(1000);
     await switchVia(main, B);
-    const barShown = await waitFor(async () => !!(await tab2.$('[data-testid="workspace-sync-bar"]')), 8000);
+    let barShown = await waitFor(async () => !!(await tab2.$('[data-testid="workspace-sync-bar"]')), 8000);
     const kept = await tab2.evaluate((txt) => { const el = document.activeElement; return !!el && el.value === txt; }, probeText).catch(() => false);
     const notRebooted = (await timeOrigin(tab2)) === t2tab;
     push('③ 입력 중 탭 — 재부팅 없이 줄만 · 글자 보존', focused && barShown && kept && notRebooted,
       `포커스=${focused} 줄=${barShown} 글자보존=${kept} 재부팅없음=${notRebooted}`);
+    // ③-b 다른 창이 다시 원래 워크스페이스로 돌아오면(B→A) 줄이 내려간다 · 줄 문구에 바뀐 워크스페이스 이름 (2026-11-06 Irene 신고)
+    //   «팝아웃에서 워크스페이스 이동하면 … 돌아와도 계속 떠있어. 어느 워크스페이스인지 … 정보 보내면 안돼?»
+    if (barShown) {
+      const [[bRow]] = await sequelize.query('SELECT brand_name FROM businesses WHERE id=?', { replacements: [B] });
+      const barText = await tab2.$eval('[data-testid="workspace-sync-bar"]', (el) => el.textContent || '').catch(() => '');
+      const named = !!bRow?.brand_name && barText.includes(bRow.brand_name);
+      await main.waitForSelector('[data-testid="ws-switcher-trigger"]', { visible: true, timeout: 15000 });
+      await b.sleep(1000);
+      await switchVia(main, A);
+      const barGone = await waitFor(async () => !(await tab2.$('[data-testid="workspace-sync-bar"]')), 8000);
+      const kept2 = await tab2.evaluate((txt) => { const el = document.activeElement; return !!el && el.value === txt; }, probeText).catch(() => false);
+      const notRebooted2 = (await timeOrigin(tab2)) === t2tab;
+      push('③-b 돌아오면(B→A) 줄이 내려간다 · 줄에 워크스페이스 이름 · 재부팅 없음 · 글자 보존', named && barGone && kept2 && notRebooted2,
+        `이름=${named} («${barText.trim()}») 줄내림=${barGone} 글자보존=${kept2} 재부팅없음=${notRebooted2}`);
+      // 다시 B 로 — 아래 "지금 전환" 단계가 줄을 누른다
+      await main.waitForSelector('[data-testid="ws-switcher-trigger"]', { visible: true, timeout: 15000 });
+      await b.sleep(1000);
+      await switchVia(main, B);
+      barShown = await waitFor(async () => !!(await tab2.$('[data-testid="workspace-sync-bar"]')), 8000);
+    }
     if (barShown) {
       await tab2.bringToFront();
       await tab2.click('[data-testid="workspace-sync-apply"]');

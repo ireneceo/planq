@@ -630,7 +630,9 @@
   },
   "workspaceSync": {
     "banner": "Your workspace was changed in another window or device",
-    "apply": "Switch now"
+    "apply": "Switch now",
+    "bannerNamed": "Switched to “{{name}}” in another window",
+    "applyNamed": "Switch to “{{name}}”"
   },
   "dock": {
     "toggle": "Quick open — Q talk · Q task · Q note · Q helper",
