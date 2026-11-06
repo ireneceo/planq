@@ -97,7 +97,8 @@ async function probe(page) {
 //   → 러너 계약({name, run} · run 은 결과 **배열** 반환)에 맞춘다. 단독 실행도 그대로 된다.
 async function run() {
   const out = [];
-  const { browser, page } = await b.launch({});
+  const { browser, page: firstPage } = await b.launch({});
+  let page = firstPage;
   await page.setViewport({ width: 1440, height: 900 });
   await b.login(page);
 
@@ -179,9 +180,20 @@ async function run() {
       //   내려가고 내용이 붙을 때까지 기다린다. 진짜 빈 화면은 아래 sticky 판정에 그대로 잡힌다.
       //   ※ 이 노이즈에 가려져 있던 **진짜 결함**은 따로 잡아 고쳤다 — 프로젝트 파일 탭이 한 번
       //     진입에 API 1,219건을 쏘아 커넥션 풀 20/20 을 묶고 있었다(DocsTab scope 객체 dep).
+      // ★ 화면마다 탭을 새로 연다 (2026-11-06) — 한 탭으로 43화면을 연달아 돌면 크롬 메모리가 화면마다 쌓여
+      //   540MB → 2450MB 까지 올랐다(실측). 11-04 상자 정점 1950MB(한도) · 11-05 137 로 죽어 결과 0.
+      //   로그인(refresh 쿠키)은 브라우저에 남아 있어 새 탭도 그대로 인증된다. 판정 방식은 그대로.
+      if (pagesChecked > 0) {
+        const next = await browser.newPage();
+        await next.setViewport({ width: 1440, height: 900 });
+        next.setDefaultTimeout(30000);
+        await page.close().catch(() => {});
+        page = next;
+      }
       await b.goto(page, path);
       await new Promise(r => setTimeout(r, 1600));
       const rows = await probe(page);
+      if (process.env.STICKY_MEM) { try { const fs = require('fs'); const cg = fs.readFileSync('/proc/self/cgroup', 'utf8').trim().split(':').pop(); console.log('[mem]', path, Math.round(Number(fs.readFileSync(`/sys/fs/cgroup${cg}/memory.current`, 'utf8')) / 1048576)); } catch { /* 진단용 */ } }
       pagesChecked += 1;
       perPage.push({ path, n: rows.length, ok: rows.filter(r => r.verdict === 'ok').length });
       for (const r of rows) {
