@@ -286,10 +286,25 @@ const OPENED_JUDGE = () => {
 
 async function patrolEnv(browser, env, routes, maxN, report, creds) {
   const ctx = await browser.createBrowserContext();
-  const page = await setupPage(ctx, env);
+  const t0 = Date.now();
   const errs = [];
-  page.on('pageerror', (e) => errs.push(String(e.message || e).slice(0, 200)));
-  page.on('console', (m) => { if (m.type() === 'error' && /\[ErrorBoundary\]/.test(m.text())) errs.push('boundary: ' + m.text().slice(0, 180)); });
+  const watch = (p) => {
+    p.on('pageerror', (e) => errs.push(String(e.message || e).slice(0, 200)));
+    p.on('console', (m) => { if (m.type() === 'error' && /\[ErrorBoundary\]/.test(m.text())) errs.push('boundary: ' + m.text().slice(0, 180)); });
+  };
+  let page = await setupPage(ctx, env);
+  watch(page);
+  let blockedPrev = 0;   // 닫은 탭들이 막은 쓰기 합
+  // ★ 화면마다 탭을 새로 연다 (2026-11-06) — 한 탭으로 화면 수십 개를 연달아 돌면 크롬 메모리가 화면마다 쌓인다
+  //   (같은 계열 sticky 실측: 한 탭 540MB → 2450MB · 화면마다 새 탭이면 650~820MB 평탄). 순찰은 11-05 상자 정점 3299MB 였고
+  //   시간도 10-24 2시간 20분 → 11-05 3시간 30분으로 늘어 제한(exit 124)에 걸렸다. 로그인(쿠키)은 컨텍스트에 남아 새 탭도 인증된다.
+  const freshPage = async () => {
+    const next = await setupPage(ctx, env);
+    watch(next);
+    blockedPrev += page.__blocked || 0;
+    await page.close().catch(() => null);
+    page = next;
+  };
   let newTargets = 0;
   ctx.on('targetcreated', (t) => { if (t.type() === 'page' && t !== page.target()) newTargets += 1; });
   const findings = [];   // { route, button, kind, detail, severity }
@@ -305,7 +320,9 @@ async function patrolEnv(browser, env, routes, maxN, report, creds) {
     for (const { route, scope } of units) {
      // 한 화면이 멈추면(브라우저 응답 없음) 그 화면만 기록하고 다음 화면으로 — 환경 전체를 끝내지 않는다
      try {
+      if (scope === 'content') await freshPage();
       const e0 = errs.length;
+      const tr = Date.now();
       await b.goto(page, route);
       await b.dismissBlockers(page).catch(() => null);
       await b.sleep(800);
@@ -438,6 +455,7 @@ async function patrolEnv(browser, env, routes, maxN, report, creds) {
         const o2 = await page.evaluate(OVERLAY_SIG).catch(() => 0);
         if (after.boundary || p2 !== p1 || stillModal || o2 > o1) { await b.goto(page, route); await b.sleep(400); await page.evaluate(MARK, markN, DANGER.source, doneSnap, scope); }
       }
+      if (process.env.PATROL_MEM) { try { const cg = fs.readFileSync('/proc/self/cgroup', 'utf8').trim().split(':').pop(); console.error('[patrol-mem]', env.n, route, `${Math.round((Date.now() - tr) / 1000)}s`, `${Math.round(Number(fs.readFileSync(`/sys/fs/cgroup${cg}/memory.current`, 'utf8')) / 1048576)}MB`); } catch { /* 진단용 */ } }
      } catch (e) {
       findings.push({ route, button: '-', kind: '화면 응답 없음', detail: String(e.message || e).slice(0, 160), severity: 'FAIL' });
       try { await b.goto(page, env.client ? '/home' : '/dashboard'); } catch { /* 다음 화면에서 다시 연다 */ }
@@ -446,7 +464,7 @@ async function patrolEnv(browser, env, routes, maxN, report, creds) {
   } catch (e) {
     findings.push({ route: '-', button: '-', kind: 'FATAL', detail: String(e.message || e).slice(0, 200), severity: 'FAIL' });
   } finally {
-    report.push({ env: env.n, clicked, blocked: page.__blocked, findings, openedJudged });
+    report.push({ env: env.n, clicked, blocked: blockedPrev + (page.__blocked || 0), findings, openedJudged, sec: Math.round((Date.now() - t0) / 1000) });
     await ctx.close().catch(() => null);
   }
 }
@@ -478,6 +496,25 @@ async function run() {
     await bs.send('Browser.setDownloadBehavior', { behavior: 'allowAndName', downloadPath: dlDir, eventsEnabled: true });
     bs.on('Browser.downloadWillBegin', () => { browser.__downloads = (browser.__downloads || 0) + 1; });
   } catch { /* 감지 못 하면 경고가 조금 늘 뿐이다 */ }
+  // 사람이 읽는 보고서 — 환경 하나가 끝날 때마다 다시 쓴다 (2026-11-06). 끝에 한 번만 쓰면 시간 제한(cron timeout)에
+  //   걸린 밤은 그때까지 돈 환경 결과까지 통째로 없어졌다(10-29·11-04). 끝나지 않은 보고서는 첫 줄에 «도는 중» 이 붙는다.
+  const tStart = Date.now();
+  const writeReport = (done) => {
+    const mins = (sec) => `${Math.floor(sec / 60)}분 ${sec % 60}초`;
+    const lines = [`# 버튼 순찰 ${new Date().toISOString()}${done ? '' : ` — 도는 중(환경 ${report.length}/${envs.length} 끝남)`} · 걸린 시간 ${mins(Math.round((Date.now() - tStart) / 1000))}`, `화면 ${ownerRoutes.length}(상세 ${detail.routes.length} 포함${detail.missing.length ? ' · 못 고른 상세: ' + detail.missing.join(',') : ''}) · 고객 화면 ${fixture ? fixture.routes.length : 0} × 환경 ${envs.map((e) => e.n).join(', ')} · 화면당 최대 ${maxN}개`, ''];
+    for (const r of report) {
+      const fails = r.findings.filter((f) => f.severity === 'FAIL');
+      const warns = r.findings.filter((f) => f.severity === 'WARN');
+      lines.push(`## ${r.env} — 누름 ${r.clicked} · 연 창 ${r.openedJudged} · 막은 쓰기 ${r.blocked} · 실패 ${fails.length} · 경고 ${warns.length} · ${mins(r.sec || 0)}`);
+      for (const f of [...fails, ...warns]) lines.push(`- [${f.severity}] ${f.route} · «${f.button}» · ${f.kind} — ${f.detail}`);
+      lines.push('');
+    }
+    try {
+      const dir = '/opt/planq/logs/patrol';
+      fs.mkdirSync(dir, { recursive: true });
+      fs.writeFileSync(path.join(dir, `patrol-${today()}${process.env.PATROL_TAG ? "-" + process.env.PATROL_TAG : ""}.log`), lines.join('\n'));
+    } catch { /* 보고서 실패는 판정에 영향 없음 */ }
+  };
   try {
     for (const env of envs) {
       if (env.client) {
@@ -490,6 +527,7 @@ async function run() {
       } else {
         await patrolEnv(browser, env, ownerRoutes, maxN, report);
       }
+      writeReport(false);
     }
   } finally {
     await browser.close().catch(() => null);
@@ -500,20 +538,7 @@ async function run() {
     }
   }
 
-  // 사람이 읽는 보고서
-  const lines = [`# 버튼 순찰 ${new Date().toISOString()}`, `화면 ${ownerRoutes.length}(상세 ${detail.routes.length} 포함${detail.missing.length ? ' · 못 고른 상세: ' + detail.missing.join(',') : ''}) · 고객 화면 ${fixture ? fixture.routes.length : 0} × 환경 ${envs.map((e) => e.n).join(', ')} · 화면당 최대 ${maxN}개`, ''];
-  for (const r of report) {
-    const fails = r.findings.filter((f) => f.severity === 'FAIL');
-    const warns = r.findings.filter((f) => f.severity === 'WARN');
-    lines.push(`## ${r.env} — 누름 ${r.clicked} · 연 창 ${r.openedJudged} · 막은 쓰기 ${r.blocked} · 실패 ${fails.length} · 경고 ${warns.length}`);
-    for (const f of [...fails, ...warns]) lines.push(`- [${f.severity}] ${f.route} · «${f.button}» · ${f.kind} — ${f.detail}`);
-    lines.push('');
-  }
-  try {
-    const dir = '/opt/planq/logs/patrol';
-    fs.mkdirSync(dir, { recursive: true });
-    fs.writeFileSync(path.join(dir, `patrol-${today()}${process.env.PATROL_TAG ? "-" + process.env.PATROL_TAG : ""}.log`), lines.join('\n'));
-  } catch { /* 보고서 실패는 판정에 영향 없음 */ }
+  writeReport(true);
 
   const results = [...pre];
   for (const r of report) {
