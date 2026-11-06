@@ -61,9 +61,12 @@ import WeeklyReviewModal from '../../components/QTask/WeeklyReviewModal';
 import WeeklyReviewTab from '../../components/QTask/WeeklyReviewTab';
 import { type TaskTagLite } from '../../components/QTask/TagChips';
 import RowTags from '../../components/QTask/RowTags';
-import { DesktopOnly, PhoneStatus, PhoneMeta, fmtDueShort } from '../../components/QTask/phoneRow';
+import { DesktopOnly, fmtDueShort } from '../../components/QTask/phoneRow';
+import PhoneTaskRow from '../../components/QTask/PhoneTaskRow';   // 폰 목록 행 — 팝아웃 행 모양 + 카드/한 줄 보기(2026-11-06)
+import { usePopoutDensity } from '../../components/QTask/usePopoutDensity';
+import { DensityIcon } from '../../components/QTask/TaskPopoutView.styles';
 import { useFocusControl } from '../../hooks/useFocusControl';
-import { LiveStatusText, TaskRowFocusButton, PhoneFocusSlot } from '../../components/QTask/TaskRowFocusCell';
+import { LiveStatusText, TaskRowFocusButton } from '../../components/QTask/TaskRowFocusCell';
 import OpenTaskPopoutButton from '../../components/QTask/OpenTaskPopoutButton';
 import { useMenuReset } from '../../hooks/useMenuReset';
 import TagManageModal from '../../components/QTask/TagManageModal';
@@ -347,6 +350,10 @@ const QTaskPage:React.FC=()=>{
   //   폰에서만 자동 포커스를 끈다 — 먼저 폼을 보고, 입력할 때 사용자가 직접 탭한다.
   //   (isNarrow 는 레이아웃 기준이라 태블릿·분할에서도 참이다 — 여기선 폰만 대상이라 별도 판정)
   const isPhone = useMediaQuery('(max-width: 640px)');
+  // 폰은 리스트 하나 + 보기 두 가지(카드 / 한 줄) — 팝아웃 «오늘 내 업무» 와 같은 축(Irene 2026-11-06).
+  //   칸반은 폰에서 가로로 칸을 넘겨야 해 업무 처리용이 아니다 → 폰에서는 리스트로 그린다(저장된 보기값은 그대로 — 데스크탑에서 다시 칸반).
+  const effViewMode:ViewMode=isPhone?'list':viewMode;
+  const phoneDensity=usePopoutDensity('planq:qtask:phoneDensity');
   // 폰(≤640)은 상태·태그·담당자 필터를 [필터] 버튼 하나로 접는다 — 펼쳐 두면 목록 위가 화면의 절반을 먹었다(2026-10-15).
   const [phoneFiltersOpen, setPhoneFiltersOpen] = useState(false);
   const rightOverlayOpen = panel.asideOpen;
@@ -1341,13 +1348,13 @@ const QTaskPage:React.FC=()=>{
   },[filtered,rowLimit,detailTaskId]);
   const hasMoreRows=visibleRows.length<filtered.length;
   useEffect(()=>{
-    if(!hasMoreRows||viewMode!=='list')return;
+    if(!hasMoreRows||effViewMode!=='list')return;
     const el=rowSentinelRef.current;
     if(!el||typeof IntersectionObserver==='undefined'){ setRowLimit(Infinity); return; }
     const io=new IntersectionObserver((es)=>{ if(es.some(e=>e.isIntersecting)) setRowLimit(n=>n+ROW_CHUNK); },{rootMargin:'800px 0px'});
     io.observe(el);
     return()=>io.disconnect();
-  },[hasMoreRows,viewMode,visibleRows.length]);
+  },[hasMoreRows,effViewMode,visibleRows.length]);
 
   // togglePriority 가 latest weekSet 에 접근하기 위한 ref.
   //   ★ filtered 가 아니라 weekSet — 보기 옵션(검색·상태필터·완료가리기)이 DB 재인덱스 범위를
@@ -1432,7 +1439,7 @@ const QTaskPage:React.FC=()=>{
     itemIds:taskItemIds,
     activeId:detailTaskId,
     onChange:(id)=>{ setDetailTaskId(id); const sp=new URLSearchParams(location.search); sp.set('task',String(id)); navigate(`${location.pathname}?${sp.toString()}`,{replace:true}); },
-    enabled:viewMode==='list',
+    enabled:effViewMode==='list',
     itemSelector:(id)=>`[data-qtask-row="${id}"]`,
   });
 
@@ -1864,14 +1871,29 @@ const QTaskPage:React.FC=()=>{
               <FinalizeText>{t('weeklyReview.finalize','이번 주 마무리')}</FinalizeText>
             </FinalizeBtn>
           )}
-          <ViewToggle>
-            <ViewBtn $active={viewMode==='list'} onClick={()=>changeView('list')} type="button" title={t('view.list','리스트')}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+          {isPhone?(
+          <ViewToggle data-testid="qtask-phone-density">
+            <ViewBtn $active={!phoneDensity.compact} onClick={()=>{if(phoneDensity.compact)phoneDensity.toggleCompact();}} type="button"
+              data-testid="qtask-phone-density-card" aria-pressed={!phoneDensity.compact}
+              title={t('phone.densityCard','카드로 보기') as string} aria-label={t('phone.densityCard','카드로 보기') as string}>
+              <DensityIcon compact={false} />
             </ViewBtn>
-            <ViewBtn $active={viewMode==='kanban'} onClick={()=>changeView('kanban')} type="button" title={t('view.kanban','카드')}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="6" height="18" rx="1"/><rect x="11" y="3" width="6" height="12" rx="1"/><rect x="19" y="3" width="2" height="7" rx="1"/></svg>
+            <ViewBtn $active={phoneDensity.compact} onClick={()=>{if(!phoneDensity.compact)phoneDensity.toggleCompact();}} type="button"
+              data-testid="qtask-phone-density-compact" aria-pressed={phoneDensity.compact}
+              title={t('phone.densityCompact','한 줄로 보기') as string} aria-label={t('phone.densityCompact','한 줄로 보기') as string}>
+              <DensityIcon compact />
             </ViewBtn>
           </ViewToggle>
+          ):(
+        <ViewToggle>
+              <ViewBtn $active={viewMode==='list'} onClick={()=>changeView('list')} type="button" title={t('view.list','리스트')}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+              </ViewBtn>
+              <ViewBtn $active={viewMode==='kanban'} onClick={()=>changeView('kanban')} type="button" title={t('view.kanban','카드')}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="6" height="18" rx="1"/><rect x="11" y="3" width="6" height="12" rx="1"/><rect x="19" y="3" width="2" height="7" rx="1"/></svg>
+              </ViewBtn>
+            </ViewToggle>
+          )}
           <ScopeToggle>
             <ScopeBtn $active={scope==='mine'} onClick={()=>setScope('mine')} type="button">
               {t('scope.mine','내 업무')}
@@ -2125,7 +2147,7 @@ const QTaskPage:React.FC=()=>{
           )}
 
           {/* Column headers (sortable) */}
-          {viewMode==='list'&&(
+          {effViewMode==='list'&&(
           <TableHScroll ref={qtColumns.containerRef}>
             <ColRow>
               {/* ★ 열 순서·폭·숨김은 qtColumns 한 벌(hooks/useTableColumns) — 머리 칸과 행 칸이 같은 cellStyle() 을 받는다.
@@ -2154,6 +2176,55 @@ const QTaskPage:React.FC=()=>{
 
                 return(
                   <Fragment key={task.id}>
+                  {isPhone?(()=>{
+                    // 폰 — 팝아웃 행 모양(components/QTask/PhoneTaskRow). 판정·동작은 표 행과 같은 함수를 쓴다:
+                    //   체크 노출 quickActionFor · 완료 toggleComplete(해제 = 진행 중 + 진행률 0) · 보류 막기 completeBlocked · 재클릭 토글.
+                    const qa=quickActionFor(task.status,(task.reviewers||[]).length,task.assignee_id===myId);
+                    const dueStr=(task.due_date||'').slice(0,10);
+                    const lateDays=isDelayed&&dueStr?Math.floor((new Date(todayStr).getTime()-new Date(dueStr).getTime())/86400000):0;
+                    const relation=scope==='workspace'
+                      ? (task.assignee?.name?<NameChip $type="observer">{displayName(task.assignee, i18nClient.language)}</NameChip>:null)
+                      : (task.assignee_id===myId&&(task.source==='internal_request'||task.source==='qtalk_extract')&&task.requester?.name)
+                        ? <NameChip $type="from" title={t('chip.fromRequester','Requester') as string}>{displayName(task.requester, i18nClient.language)}</NameChip>
+                        : ((task.request_by_user_id===myId||task.created_by===myId)&&task.assignee?.name&&task.assignee_id!==myId)
+                          ? <NameChip $type="to" title={t('chip.toAssignee','My requestee') as string}>{displayName(task.assignee, i18nClient.language)}</NameChip>
+                          : null;
+                    return(
+                      <PhoneTaskRow
+                        taskId={task.id} title={task.title}
+                        statusCode={_dispStatus} statusPlain={String(_statusLabel)}
+                        statusLabel={<LiveStatusText live={focus.liveFor(task)}>{_statusLabel}</LiveStatusText>}
+                        color={sc} compact={phoneDensity.compact} qa={qa}
+                        completeBlocked={completeBlocked(task.status)}
+                        completeBlockedHint={t('hold.completeBlocked','보류 해제 후 완료 처리할 수 있어요') as string}
+                        done={task.status==='completed'||task.status==='canceled'}
+                        selected={detailTaskId===task.id} delayed={!!isDelayed}
+                        unread={!!task.has_unread}
+                        unreadHint={t('list.hasUnread', { defaultValue: '새 활동(댓글·변경) — 열면 사라집니다' }) as string}
+                        prioNum={displayPriorityMap.get(task.id)||null}
+                        priorityLevel={task.priority_level}
+                        projectName={task.Project?.name||null}
+                        dueText={_due?t('popout.due','마감 {{date}}',{date:fmtDueShort(_due)}) as string:null}
+                        overdueText={isDelayed?(lateDays>=1?t('status.delayedDays',{d:lateDays}):t('status.delayed','Delayed')) as string:null}
+                        tags={tagFilter != null ? (task.tags || []).filter(tg => tg.id !== tagFilter) : task.tags}
+                        extra={<>
+                          {relation}
+                          {scope==='mine' && (tab==='week'||tab==='today') && isCarried(task) && <CarriedBadge>{t('list.carried','이월')}</CarriedBadge>}
+                          {task.recurrence_rule && (
+                            <RecurChip $iconOnly title={formatRRuleLabel(task.recurrence_rule, task.due_date, t, { short: false })}>
+                              <RecurIcon viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                                <polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/>
+                                <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+                              </RecurIcon>
+                            </RecurChip>
+                          )}
+                        </>}
+                        trailing={showFocusCol?<TaskRowFocusButton focus={focus} task={task} />:null}
+                        onAction={()=>toggleComplete(task)}
+                        onOpen={()=>{ if(detailTaskId===task.id){closeDetail();return;} openDetail(task.id); }}
+                      />
+                    );
+                  })():(
                   <TRow data-task-row data-qtask-row={task.id} data-row-id={task.id} $done={task.status==='completed'} $delayed={!!isDelayed} $selected={detailTaskId===task.id}
                     onClick={(e)=>{
                       // 빈 공간 클릭 → 상세 드로어 오픈. 인터랙티브 요소는 제외 (그 요소가 자체 핸들러 실행)
@@ -2252,8 +2323,6 @@ const QTaskPage:React.FC=()=>{
                         {task.has_unread
                           ? <UnreadDot title={t('list.hasUnread', { defaultValue: '새 활동(댓글·변경) — 열면 사라집니다' }) as string} />
                           : <UnreadDotSpacer aria-hidden="true" />}
-                        {/* 폰 전용 상태 배지 — 상태 칸은 폰에서 숨으므로 제목 앞에 둔다(오늘 내 업무 팝아웃과 같은 자리) */}
-                        <PhoneStatus $bg={sc.bg} $fg={sc.fg} data-testid="qtask-phone-status"><LiveStatusText live={focus.liveFor(task)}>{_statusLabel}</LiveStatusText></PhoneStatus>
                         {/* ★ 2026-09-07 (Irene: "Q task 리스트 모든 디바이스 모든 곳에서 제목 편집기능
                             없애고 클릭하면 다 업무상세 나오게 해줘.") — 제목 클릭은 **상세를 연다.**
                             같은 자리에서 어떤 때는 편집칸이 열리고 어떤 때는 상세가 열리면 무엇을 누른
@@ -2263,19 +2332,7 @@ const QTaskPage:React.FC=()=>{
                         <TaskTitle $done={task.status==='completed'} title={task.title} data-testid="task-row-title">
                           <HighlightText text={task.title} query={search} />
                         </TaskTitle>
-                        {/* 폰에서만 여기서 줄을 끊는다 — 첫 줄은 ⋮·체크·제목, 둘째 줄은 태그·지연 칩(제목 밑으로 들여쓴다). */}
-                        {showFocusCol&&<PhoneFocusSlot><TaskRowFocusButton focus={focus} task={task} /></PhoneFocusSlot>}
-                        <RowBreak aria-hidden="true" data-row-break="" />
-                        {/* 폰 전용 메타 — 프로젝트·마감·담당자(전체 업무). 표의 칸들이 폰에서 숨는 몫을 여기서 말한다. */}
-                        {task.Project?.name && <PhoneMeta data-testid="qtask-phone-project">{task.Project.name}</PhoneMeta>}
-                        {_due && !isDelayed && (
-                          <PhoneMeta $tone={dColor==='today'?'today':undefined} data-testid="qtask-phone-due">
-                            {t('popout.due','마감 {{date}}',{date:fmtDueShort(_due)})}
-                          </PhoneMeta>
-                        )}
-                        {scope==='workspace' && task.assignee?.name && (
-                          <PhoneMeta $tone="person">{displayName(task.assignee, i18nClient.language)}</PhoneMeta>
-                        )}
+                        {/* 폰은 이 표 행을 그리지 않는다 — 아래 PhoneTaskRow(팝아웃 행 모양)가 맡는다. */}
                         {/* #353 ⑤ 중요도 — 높음·긴급만 그린다. 보통까지 그리면 배경 소음이 된다. */}
                         <ImportanceChip level={task.priority_level} />
                         {/* #250 "리스트에도 태그들 볼 수 있게 하기로 하지 않았어?" — 메인은 3칩 + `+k`.
@@ -2291,7 +2348,7 @@ const QTaskPage:React.FC=()=>{
                             칩 바로 뒤에 두면 칩 개수에 따라 + 의 가로 위치가 행마다 달라져 정신없다. */}
                         <RowTags
                           only="chips"
-                          taskId={task.id} bizId={bizId} max={isPhone?1:3}
+                          taskId={task.id} bizId={bizId} max={3}
                           shownTags={tagFilter != null ? (task.tags || []).filter(tg => tg.id !== tagFilter) : task.tags}
                           allTags={task.tags}
                           editable={!isClient && canEditDatesFor(task)}
@@ -2529,6 +2586,7 @@ const QTaskPage:React.FC=()=>{
                       ));
                     })()}
                   </TRow>
+                  )}
                   {addingBelowId === task.id && (
                     <QTaskInlineAddRow>
                       <QTaskInlineSpacer />
@@ -2653,7 +2711,7 @@ const QTaskPage:React.FC=()=>{
           )}
           </TableHScroll>
           )}
-          {viewMode==='kanban'&&(
+          {effViewMode==='kanban'&&(
             <KanbanBoard>
               {(function(){
                 // 탭별 카드 분류 — 각 컬럼이 고유 필터·헤더 색·제목을 가짐
@@ -3558,7 +3616,6 @@ const UnreadDot=styled.span`flex-shrink:0;width:6px;height:6px;border-radius:50%
 //   점이 있는 행만 제목이 9px 밀리면 좌측선이 데이터에 따라 흔들린다.
 // 폰 목록 줄바꿈 — 너비 100% 빈 칸이 다음 칩들을 둘째 줄로 보낸다. 둘째 줄 첫 칩은 제목 시작선에 맞춘다
 //   (폰 ⋮ 36 + 체크 15 + 안읽음 점 6 + 간격 4×3 = 69 — TaskRowActionMenu 폰 규칙과 같은 숫자). 데스크탑·태블릿은 그리지 않는다.
-const RowBreak=styled.span`display:none;@media (max-width: 640px){display:block;flex:0 0 100%;height:0;& + *{margin-left:29px;}}`;
 const UnreadDotSpacer=styled.span`flex-shrink:0;width:6px;height:6px;display:inline-block;`;
 const StatusPill=styled.span<{$bg:string;$fg:string;$clickable?:boolean}>`
   padding:2px 8px;background:${p=>p.$bg};color:${p=>p.$fg};font-size:0.625rem;font-weight:700;

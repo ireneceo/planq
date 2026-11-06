@@ -1713,5 +1713,9 @@
   },
   "errors": {
     "note_required_for_revision": "이번 라운드에 남긴 댓글이 없어요. 수정할 내용을 적어 주세요"
+  },
+  "phone": {
+    "densityCard": "카드로 보기",
+    "densityCompact": "한 줄로 보기"
   }
 }

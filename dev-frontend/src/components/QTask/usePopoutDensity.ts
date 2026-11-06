@@ -5,11 +5,13 @@ import { useEffect, useState } from 'react';
 
 const KEY = 'planq:taskPopout:density';
 
-export function usePopoutDensity() {
+/** key — 기억할 자리. 기본은 팝아웃. Q task 폰 목록은 'planq:qtask:phoneDensity' 로 따로 기억한다
+ *  (팝아웃은 데스크탑 곁창, 폰 목록은 하루 업무 처리 화면 — 한쪽을 바꿨다고 다른 쪽이 바뀌면 낯설다). */
+export function usePopoutDensity(key: string = KEY) {
   const [compact, setCompact] = useState<boolean>(() => {
-    try { return localStorage.getItem(KEY) === 'compact'; } catch { return false; }
+    try { return localStorage.getItem(key) === 'compact'; } catch { return false; }
   });
-  useEffect(() => { try { localStorage.setItem(KEY, compact ? 'compact' : 'card'); } catch { /* ignore */ } }, [compact]);
+  useEffect(() => { try { localStorage.setItem(key, compact ? 'compact' : 'card'); } catch { /* ignore */ } }, [key, compact]);
   return { compact, toggleCompact: () => setCompact((v) => !v) };
 }
 

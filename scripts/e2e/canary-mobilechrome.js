@@ -64,7 +64,9 @@ async function run() {
           if (Number(cs.fontWeight) < 600) return;
           const b = e.getBoundingClientRect();
           if (b.width < 100 || b.height < 10 || b.top < 130) return;
-          if (cs.textOverflow !== 'ellipsis' && cs.webkitLineClamp !== '2') return;
+          // 줄임표·두 줄 자르기로 «행 제목» 을 알아본다. 단 Q task 폰 카드 행(2026-11-06 PhoneTaskRow)은 제목을 자르지 않고
+          //   다 보여 준다(Irene «제목이 잘려보이는게 제일 속터져») — 그 제목은 data-row-title 표식으로 잡는다(안 잡으면 0건 = 미측정).
+          if (cs.textOverflow !== 'ellipsis' && cs.webkitLineClamp !== '2' && !e.hasAttribute('data-row-title')) return;
           // ★ **행 제목은 진한 색이다.** 회색 글자는 메타(열 머리글·부제)라 이 규격의 대상이 아니다
           //   (#283 위계: 제목은 진한 검정 → 나머지는 메타 톤).
           //   이 줄이 없으면 표의 «열 머리글»(11px 회색 정렬 버튼)까지 잡아 **거짓 실패**가 난다

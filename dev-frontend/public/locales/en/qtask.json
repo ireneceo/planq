@@ -1713,5 +1713,9 @@
   },
   "errors": {
     "note_required_for_revision": "You haven't commented this round — write what needs to change"
+  },
+  "phone": {
+    "densityCard": "Card view",
+    "densityCompact": "Compact view"
   }
 }
