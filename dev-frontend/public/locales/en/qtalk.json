@@ -439,6 +439,7 @@
     "loadFailed": "Load failed: {{msg}}",
     "projectCreated": "Project \"{{name}}\" created",
     "createFailed": "Create failed: {{msg}}",
+    "attachPartFailed": "{{count}} of {{total}} attachments could not be attached — please upload them again",
     "loadFailedShort": "Failed to load project list",
     "projectCreateFailed": "Failed to create project",
     "chatCreated": "Chat \"{{title}}\" created",

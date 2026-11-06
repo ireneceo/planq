@@ -1531,12 +1531,16 @@ const QTalkPage: React.FC<QTalkPageProps> = ({ embedded = false, initialConvId =
         );
         uploads.forEach((r) => { if (r.status === 'fulfilled') attachmentResults.push(r.value); });
       }
-      if (existingFileIds && existingFileIds.length > 0) {
-        const links = await Promise.allSettled(
-          existingFileIds.map((id) => qtalkApi.linkExistingFileToMessage(convId, created.id, id))
-        );
-        links.forEach((r) => { if (r.status === 'fulfilled') attachmentResults.push(r.value); });
+      // ★ 2026-11-06 — 고른 순서대로 **하나씩** 붙인다. 병렬이면 서버 저장 순서(새로고침 뒤 순서)가 매번 달랐다.
+      //   실패는 삼키지 않는다 — 몇 장이 빠졌는지 알린다(옛: 3장 중 2장만 붙어도 아무 말이 없었다).
+      let linkFailed = 0;
+      if (existingFileIds && existingFileIds.length > 0 && created.id) {
+        for (const id of existingFileIds) {
+          try { attachmentResults.push(await qtalkApi.linkExistingFileToMessage(convId, created.id, id)); }
+          catch { linkFailed += 1; }
+        }
       }
+      if (linkFailed > 0) showNotice(t('page.attachPartFailed', { count: linkFailed, total: existingFileIds!.length }));
       // post(문서) 첨부 — share-to-chat 으로 카드 메시지 별도 생성
       if (hasPosts) {
         const { sharePostToChat } = await import('../../services/posts');
@@ -1549,10 +1553,18 @@ const QTalkPage: React.FC<QTalkPageProps> = ({ embedded = false, initialConvId =
         const mapped = apiMessageToMock({ ...created, attachments: attachmentResults });
         setMessages((prev) => {
           const arr = prev[convId] || [];
-          // optimistic tempId 제거 + real id 가 이미 있으면 그대로, 없으면 append
+          // optimistic tempId 제거 + real id 가 이미 있으면 **첨부를 합쳐** 넣고, 없으면 append
+          //   ★ 2026-11-06 «3개 넣었는데 1개» — 11-04 부터 소켓 message:new(첨부 0개)가 거의 늘 먼저 자리를 잡는다.
+          //   옛 코드는 그때 여기서 받은 온전한 첨부 목록을 버려, 첨부가 message:attachment 소켓에만 달렸다
+          //   (재연결·방 join 이 늦으면 일부만 도착 → 새로고침해야 3개). 응답 순서(= 고른 순서)를 앞에, 소켓으로만 온 것은 뒤에.
           const withoutTemp = arr.filter((m) => m.id !== tempId);
           if (withoutTemp.some((m) => m.id === mapped.id)) {
-            return { ...prev, [convId]: withoutTemp };
+            return { ...prev, [convId]: withoutTemp.map((m) => {
+              if (m.id !== mapped.id) return m;
+              const fromResp = mapped.attachments || [];
+              const extra = (m.attachments || []).filter((a) => !fromResp.some((x) => x.id === a.id));
+              return { ...m, attachments: [...fromResp, ...extra] };
+            }) };
           }
           return { ...prev, [convId]: [...withoutTemp, mapped] };
         });

@@ -49,27 +49,31 @@ self.addEventListener('fetch', (event) => {
         // Cache 에 파일 임시 저장 (10분 후 자동 정리는 별도 — 일단 새 share 마다 덮어쓰기)
         const cache = await caches.open(SHARE_CACHE);
         await cache.delete('/_share_payload');
+        // ★ 2026-11-06 — 지난 공유의 파일 칸을 먼저 비운다. 옛: 덮어쓰기만 해서 이번 공유보다 칸이 많던
+        //   지난번 그림(_share_file_2 …)이 남았고, File 이 아닌 항목을 건너뛰면 번호가 비어 지난 그림이 섞였다.
+        for (const req of await cache.keys()) {
+          if (new URL(req.url).pathname.startsWith('/_share_file_')) await cache.delete(req);
+        }
+        const realFiles = files.filter((f) => f instanceof File);
         const payload = {
           title: String(title),
           text: String(text),
           url: String(link),
-          fileCount: files.length,
+          fileCount: realFiles.length,
           ts: Date.now(),
         };
         await cache.put('/_share_payload', new Response(JSON.stringify(payload), {
           headers: { 'Content-Type': 'application/json' },
         }));
         // 파일들 — index 별로 저장
-        for (let i = 0; i < files.length; i++) {
-          const f = files[i];
-          if (f instanceof File) {
-            await cache.put(`/_share_file_${i}`, new Response(f, {
-              headers: {
-                'Content-Type': f.type || 'application/octet-stream',
-                'X-Filename': encodeURIComponent(f.name),
-              },
-            }));
-          }
+        for (let i = 0; i < realFiles.length; i++) {
+          const f = realFiles[i];
+          await cache.put(`/_share_file_${i}`, new Response(f, {
+            headers: {
+              'Content-Type': f.type || 'application/octet-stream',
+              'X-Filename': encodeURIComponent(f.name),
+            },
+          }));
         }
         // ShareReceivePage 로 redirect — query 로 share 마커
         return Response.redirect('/share-receive?shared=1', 303);

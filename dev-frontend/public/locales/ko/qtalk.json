@@ -407,6 +407,7 @@
     "loadFailed": "로드 실패: {{msg}}",
     "projectCreated": "프로젝트 \"{{name}}\" 생성됨",
     "createFailed": "생성 실패: {{msg}}",
+    "attachPartFailed": "첨부 {{total}}개 중 {{count}}개를 붙이지 못했어요 — 다시 올려 주세요",
     "loadFailedShort": "프로젝트 목록 로드 실패",
     "projectCreateFailed": "프로젝트 생성 실패",
     "chatCreated": "대화 \"{{title}}\" 생성됨",

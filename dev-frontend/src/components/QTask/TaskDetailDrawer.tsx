@@ -1386,6 +1386,7 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
     const items = e.clipboardData?.items;
     if (!items) return;
     const imgs: File[] = [];
+    const stamp = Date.now();
     for (let i = 0; i < items.length; i++) {
       const it = items[i];
       if (it.kind === 'file' && it.type.startsWith('image/')) {
@@ -1393,7 +1394,7 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
         if (f) {
           const ext = it.type.split('/')[1] || 'png';
           const named = (f.name && f.name !== 'image.png')
-            ? f : new File([f], `pasted-${Date.now()}.${ext}`, { type: it.type });
+            ? f : new File([f], `pasted-${stamp}-${imgs.length + 1}.${ext}`, { type: it.type }); // 한 번에 여러 장이면 같은 이름이 되던 것(2026-11-06)
           imgs.push(named);
         }
       }
@@ -1421,13 +1422,15 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
       if (!r.success) return;
       const comment = r.data;
       const attached: CommentAttach[] = [];
-      // 1) 새 파일 업로드
+      // 1) 새 파일 업로드 — ★ 실패한 파일은 입력칸에 남긴다(2026-11-06). 옛: 조용히 버려 «3장 올렸는데 2장» 을 알 길이 없었다.
+      const failedFiles: File[] = [];
       for (const f of commentFiles) {
         const fd = new FormData();
         fd.append('file', f, f.name);
         const ur = await apiFetch(`/api/tasks/${detailTask.id}/attachments?context=comment&commentId=${comment.id}`, { method: 'POST', body: fd });
-        const uj = await ur.json();
-        if (uj.success) attached.push({
+        const uj = await ur.json().catch(() => ({ success: false }));
+        if (!uj.success) { failedFiles.push(f); continue; }
+        attached.push({
           id: uj.data.id, stored_name: uj.data.stored_name,
           original_name: uj.data.original_name, file_size: uj.data.file_size, mime_type: uj.data.mime_type,
         });
@@ -1447,7 +1450,7 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
         }
       }
       setDetailTask(prev => prev ? { ...prev, comments: [...(prev.comments || []), { ...comment, attachments: attached }] } : prev);
-      commentDraft.clear(); setCommentFiles([]);
+      commentDraft.clear(); setCommentFiles(failedFiles);
       setCommentExistingFileIds([]); setCommentExistingPostIds([]); setCommentPickerOpen(false);
     } finally { setCommentSending(false); }
   };

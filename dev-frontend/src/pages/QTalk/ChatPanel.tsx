@@ -660,6 +660,8 @@ const ChatPanel: React.FC<Props> = ({
   // 공유로 담겨 온 내용이 입력칸에 있다는 표시 — 보내기는 사람이 누른다. 안내가 목록 맨 아래 회색 한 줄이라
   //   «보냈다» 고 믿고 닫았다(2026-10-16 Fable UX). 보내거나 비우면 사라진다.
   const [sharedStaged, setSharedStaged] = useState(false);
+  const sharedStagedRef = useRef(false);
+  sharedStagedRef.current = sharedStaged;
   useEffect(() => {
     if (prefillAppliedRef.current) return;
     const prefill = searchParams.get('prefill');
@@ -671,7 +673,7 @@ const ChatPanel: React.FC<Props> = ({
       if (attachFileIds && businessIdForPrefill) {
         const ids = attachFileIds.split(',').map(s => Number(s)).filter(n => Number.isFinite(n) && n > 0);
         if (ids.length > 0) {
-          setStagedExistingIds(prev => Array.from(new Set([...prev, ...ids])));
+          addStagedInOrder(ids, ++uploadSeqRef.current);
           // 사이클 N+58 — batch meta fetch (이름·크기) — chip 에 "#id" 대신 실제 메타 노출
           import('../../contexts/AuthContext').then(({ apiFetch }) => {
             apiFetch(`/api/files/${businessIdForPrefill}?ids=${ids.join(',')}&limit=${ids.length}`)
@@ -781,34 +783,85 @@ const ChatPanel: React.FC<Props> = ({
   // 진행 중엔 uploadingFiles 에 임시 chip 으로 노출 (이름 + 크기 + 스피너).
   // **Drive 라우팅:** 활성 대화/프로젝트 컨텍스트를 함께 보내 워크스페이스가 Drive 연동되어 있으면
   // 자동으로 Drive 의 Conversations/프로젝트 폴더로 업로드 (자체 스토리지 쿼터·사이즈 한도 우회).
-  const uploadOne = async (file: File) => {
+  // ★ 2026-11-06 «3개 넣었는데 1개 · 넣지 않은 그림이 붙음» (정찰 qmw4pptbb B·D)
+  //   ① 순서 — 동시 업로드는 끝나는 순서가 제각각이다. 고른 순번(seq)을 잡아 두고 staged 를 그 순번으로 정렬한다.
+  //   ② 취소 — [×]·방 전환으로 뺀 업로드는 abort 하고, 늦게 끝나도 staged 에 넣지 않는다
+  //      (옛: 칩만 지우고 업로드는 계속 → 끝나면 다음 메시지·다른 방에 붙었다).
+  const uploadSeqRef = useRef(0);
+  const stagedSeqRef = useRef<Record<number, number>>({});
+  const uploadCtlRef = useRef<Map<string, AbortController>>(new Map());
+  const addStagedInOrder = (ids: number[], seq: number) => {
+    for (const id of ids) if (stagedSeqRef.current[id] === undefined) stagedSeqRef.current[id] = seq;
+    setStagedExistingIds(prev => {
+      const add = ids.filter(id => !prev.includes(id));
+      if (add.length === 0) return prev;
+      const seqOf = (id: number) => stagedSeqRef.current[id] ?? Number.MAX_SAFE_INTEGER;
+      return [...prev, ...add].sort((a, b) => seqOf(a) - seqOf(b));
+    });
+  };
+  const uploadOne = async (file: File, name?: string) => {
     if (!businessId) return;
     const tempId = `up-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-    setUploadingFiles(prev => [...prev, { tempId, name: file.name, size: file.size }]);
+    const seq = ++uploadSeqRef.current;
+    const convAtStart = activeConversationId;
+    const ctl = new AbortController();
+    uploadCtlRef.current.set(tempId, ctl);
+    const sendFile = name && name !== file.name ? new File([file], name, { type: file.type, lastModified: file.lastModified }) : file;
+    // 이 업로드가 아직 «살아 있는가» — [×] 로 빼지 않았고, 시작한 방을 그대로 보고 있다
+    const alive = () => uploadCtlRef.current.get(tempId) === ctl && !ctl.signal.aborted && activeConvRef.current === convAtStart;
+    setUploadingFiles(prev => [...prev, { tempId, name: sendFile.name, size: sendFile.size }]);
     try {
-      const r = await uploadMyFile(businessId, file, {
+      const r = await uploadMyFile(businessId, sendFile, {
         conversationId: activeConv?.id ?? null,
         projectId: project?.id ?? null,
+        signal: ctl.signal,
       });
+      if (!alive()) return;
       if (!r.success || !r.file) {
         setUploadingFiles(prev => prev.map(x => x.tempId === tempId ? { ...x, error: r.message || t('chat.upload.failed', '업로드 실패') as string } : x));
         return;
       }
       const fid = Number(String(r.file.id).replace(/^direct-/, ''));
       if (fid) {
-        setStagedExistingIds(prev => prev.includes(fid) ? prev : [...prev, fid]);
-        setStagedExistingMeta(prev => ({ ...prev, [fid]: { name: file.name, size: file.size } }));
+        addStagedInOrder([fid], seq);
+        setStagedExistingMeta(prev => ({ ...prev, [fid]: { name: sendFile.name, size: sendFile.size } }));
       }
       setUploadingFiles(prev => prev.filter(x => x.tempId !== tempId));
     } catch (e) {
+      if (!alive()) return;
       setUploadingFiles(prev => prev.map(x => x.tempId === tempId ? { ...x, error: mapApiError(e, tErr) } : x));
+    } finally {
+      if (uploadCtlRef.current.get(tempId) === ctl) uploadCtlRef.current.delete(tempId);
     }
   };
 
-  // 여러 파일 동시 업로드 (Promise.allSettled — 일부 실패해도 나머지 진행)
-  const uploadMany = async (files: File[]) => {
-    await Promise.allSettled(files.map(uploadOne));
+  // 여러 파일 동시 업로드 (Promise.allSettled — 일부 실패해도 나머지 진행). 순서는 addStagedInOrder 가 지킨다.
+  //   붙여넣기는 이름이 다 «image.png» 라 칩·확대 보기에서 구별이 안 됐다 → pasted 면 시각+순번 이름.
+  const uploadMany = async (files: File[], opts?: { pasted?: boolean }) => {
+    const stamp = new Date().toISOString().replace(/[-:T]/g, '').slice(0, 14);
+    await Promise.allSettled(files.map((f, i) => {
+      if (!opts?.pasted) return uploadOne(f);
+      const ext = (f.name.match(/\.[A-Za-z0-9]{1,6}$/)?.[0]) || (f.type.startsWith('image/') ? `.${f.type.slice(6).replace('jpeg', 'jpg').replace(/\+.*$/, '')}` : '');
+      return uploadOne(f, `pasted-${stamp}${files.length > 1 ? `-${i + 1}` : ''}${ext}`);
+    }));
   };
+  // 방을 옮기면 고르던·올리던 첨부를 버린다(옛: A 방에서 고른 그림이 B 방 입력칸에 남아 B 방으로 갔다).
+  //   글 초안은 방별로 남지만 첨부는 그 방 폴더에 올라간 것이라 다른 방으로 옮길 수 없다.
+  const prevConvForStageRef = useRef(activeConversationId);
+  useEffect(() => {
+    if (prevConvForStageRef.current === activeConversationId) return;
+    prevConvForStageRef.current = activeConversationId;
+    for (const c of uploadCtlRef.current.values()) c.abort();
+    uploadCtlRef.current.clear();
+    setUploadingFiles([]);
+    // 공유로 담겨 온 파일은 방을 고르기 전에 담긴 것이다(방을 골라야 보낸다) — 그건 버리지 않는다.
+    if (sharedStagedRef.current) return;
+    stagedSeqRef.current = {};
+    setStagedExistingIds([]);
+    setStagedExistingMeta({});
+    setStagedPostIds([]);
+    setStagedPostMeta({});
+  }, [activeConversationId]);
 
   useEffect(() => {
     if (sharedStaged && !input.trim() && stagedExistingIds.length === 0) setSharedStaged(false);
@@ -852,7 +905,9 @@ const ChatPanel: React.FC<Props> = ({
     setStagedExistingMeta({});
     setStagedPostIds([]);
     setStagedPostMeta({});
-    setUploadingFiles([]);
+    stagedSeqRef.current = {};
+    // 실패한 칩은 남긴다 — 지우면 «3장 골랐는데 2장만 갔다» 를 사람이 알 길이 없다(정찰 D). [×] 로 직접 뺀다.
+    setUploadingFiles(prev => prev.filter(x => !!x.error));
     pinBottomRef.current = true;   // 내가 보냈으면 언제나 바닥 (고정이 풀려 있었어도 다시 고정)
     scrollToBottom();
     // 사이클 N+15-B + N+17 — 전송 후 키보드 유지 (Hangouts/iMessage 패턴).
@@ -871,7 +926,7 @@ const ChatPanel: React.FC<Props> = ({
       uploadMany(result.uploaded);
     }
     if (result.existingFileIds && result.existingFileIds.length > 0 && businessId) {
-      setStagedExistingIds(prev => [...new Set([...prev, ...result.existingFileIds!])]);
+      addStagedInOrder(result.existingFileIds, ++uploadSeqRef.current);
       // 메타 fetch (이름·크기 표시)
       try {
         const all = await fetchWorkspaceFiles(Number(businessId));
@@ -902,7 +957,11 @@ const ChatPanel: React.FC<Props> = ({
       } catch { /* skip */ }
     }
   };
-  const removeUploading = (tempId: string) => setUploadingFiles(prev => prev.filter(x => x.tempId !== tempId));
+  const removeUploading = (tempId: string) => {
+    uploadCtlRef.current.get(tempId)?.abort();
+    uploadCtlRef.current.delete(tempId);
+    setUploadingFiles(prev => prev.filter(x => x.tempId !== tempId));
+  };
   const removeExisting = (id: number) => {
     setStagedExistingIds(prev => prev.filter(x => x !== id));
     setStagedExistingMeta(prev => { const next = { ...prev }; delete next[id]; return next; });
@@ -2032,7 +2091,8 @@ const ChatPanel: React.FC<Props> = ({
                         key={a.id}
                         type="button"
                         onClick={() => {
-                          const idx = imgAttachs.findIndex(x => x.id === a.id);
+                          // ★ 목록(lightboxItems)과 같은 기준으로 찾는다 — preview_url 없는 그림이 섞이면 한 칸씩 밀려 옆 그림이 열렸다
+                          const idx = imgAttachs.filter(x => !!x.preview_url).findIndex(x => x.id === a.id);
                           openImageLightbox(lightboxItems, idx < 0 ? 0 : idx);
                         }}
                         title={a.file_name}
@@ -2550,7 +2610,7 @@ const ChatPanel: React.FC<Props> = ({
               }
               if (files.length > 0) {
                 e.preventDefault();
-                uploadMany(files);
+                uploadMany(files, { pasted: true });
               }
             }}
             placeholder={t('chat.input.placeholder', '메시지 입력') as string}
