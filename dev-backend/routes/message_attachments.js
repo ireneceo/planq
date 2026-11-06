@@ -163,7 +163,9 @@ router.post('/:conversationId/:messageId',
       // Socket.IO broadcast: 같은 대화방에 첨부 알림
       const io = req.app.get('io');
       if (io) {
-        io.to(`conv:${req._conversation.id}`).emit('message:attachment', {
+        // ★ 2026-11-06 — 내부 메모·미승인 초안의 첨부는 직원 방으로만. `conv:<id>` 에는 고객이 있다 —
+        //   message:new 는 막아 놓고(conversations.js) 첨부 이벤트만 열려 있어 파일명·미리보기 주소가 고객 소켓에 갔다.
+        io.to(isVisibleToClient(msg) ? `conv:${req._conversation.id}` : `conv:${req._conversation.id}:staff`).emit('message:attachment', {
           message_id: msg.id,
           attachment: serializeMessageAttachment(created),
         });
@@ -227,7 +229,9 @@ router.post('/:conversationId/:messageId/link-existing',
       require('../services/auditService').logAudit(req, { action: 'message.attach_existing', targetType: 'message', targetId: msg.id, businessId: req._conversation.business_id, newValue: { file_id: file.id, conversation_id: req._conversation.id } }); // 감사 — 붙이는 순간 대화방 전원에게 열린다
       const io = req.app.get('io');
       if (io) {
-        io.to(`conv:${req._conversation.id}`).emit('message:attachment', {
+        // ★ 2026-11-06 — 내부 메모·미승인 초안의 첨부는 직원 방으로만. `conv:<id>` 에는 고객이 있다 —
+        //   message:new 는 막아 놓고(conversations.js) 첨부 이벤트만 열려 있어 파일명·미리보기 주소가 고객 소켓에 갔다.
+        io.to(isVisibleToClient(msg) ? `conv:${req._conversation.id}` : `conv:${req._conversation.id}:staff`).emit('message:attachment', {
           message_id: msg.id,
           attachment: serializeMessageAttachment(created),
         });
