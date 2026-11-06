@@ -1413,11 +1413,11 @@ router.get('/:id/conversations', authenticateToken, async (req, res, next) => {
     });
     // ★ 한 프로젝트에 고객사가 둘이면 고객 채널도 회사마다 따로다(project_channel.js) — 고객에게는 **자기 회사 채널만**.
     //   channel_type 만 보면 다른 회사의 채널 이름·대화가 보였다(2026-10-09 보안점검). 판정은 대화방 술어 한 벌.
-    if (role === 'client') {
-      const { canAccessConversation } = require('../middleware/access_scope');
-      const ok = await Promise.all(convs.map((c) => canAccessConversation(req.user.id, c)));
-      convs = convs.filter((_, i) => ok[i]);
-    }
+    //   ★ 멤버도 같은 술어로(참여한 방만 — 2026-11-06 Irene · Fable, access_scope.participantOnlyScope). owner/admin 은 결과 같음.
+    const { canAccessConversation, getUserScope } = require('../middleware/access_scope');
+    const scope = await getUserScope(req.user.id, project.business_id);
+    const ok = await Promise.all(convs.map((c) => canAccessConversation(req.user.id, c, scope)));
+    convs = convs.filter((_, i) => ok[i]);
     return successResponse(res, convs.map((c) => c.toJSON()));
   } catch (err) { next(err); }
 });
@@ -1527,7 +1527,7 @@ router.post('/conversations/:id/messages', authenticateToken, async (req, res, n
         return errorResponse(res, 'forbidden_channel', 403);
       }
       // 고객 채널이어도 **자기 회사 채널**이어야 한다 — 목록과 같은 술어(canAccessConversation).
-      if (role === 'client' && !(await require('../middleware/access_scope').canAccessConversation(req.user.id, conv))) {
+      if (!(await require('../middleware/access_scope').canAccessConversation(req.user.id, conv))) {
         return errorResponse(res, 'forbidden_channel', 403);
       }
     } else {
@@ -1930,7 +1930,7 @@ router.get('/conversations/:id/messages', authenticateToken, async (req, res, ne
         return errorResponse(res, 'forbidden_channel', 403);
       }
       // 고객 채널이어도 **자기 회사 채널**이어야 한다 — 목록과 같은 술어(canAccessConversation).
-      if (role === 'client' && !(await require('../middleware/access_scope').canAccessConversation(req.user.id, conv))) {
+      if (!(await require('../middleware/access_scope').canAccessConversation(req.user.id, conv))) {
         return errorResponse(res, 'forbidden_channel', 403);
       }
     } else {

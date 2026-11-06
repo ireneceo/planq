@@ -271,11 +271,20 @@ async function isConversationParticipant(userId, convId) {
   return !!p;
 }
 
+/** 멤버(member 역할)는 프로젝트·고객 방도 **참여한 방만** 본다 (2026-11-06 Irene «참여자가 아닌 멤버가 리스트에 그 프로젝트 채팅이 나와» · Fable 설계).
+ *  열린 문화(10-15 설계 A)는 owner/admin/platform_admin 에게만 남는다 — 관리자는 안 보이면 참여자 추가·정리를 못 한다.
+ *  목록(conversationListWhere)과 접근(canAccessConversation)이 이 한 판정을 같이 쓴다 — 갈라지면 «목록엔 없는데 링크로 열림» 이 된다.
+ *  뷰어 행(is_viewer=1, 열어 봄·핀)은 참여가 아니다 — defaultScope 로 세지 않는다. */
+function participantOnlyScope(scope) {
+  return !!scope?.isMember && !scope.isOwner && !scope.isAdmin && !scope.isPlatformAdmin;
+}
+
 async function canAccessConversation(userId, conversation, scope) {
   if (!conversation) return false;
   if (!scope) scope = await getUserScope(userId, conversation.business_id);
   if (isMemberOrAbove(scope)) {
     if (scope.isPlatformAdmin) return true;
+    if (participantOnlyScope(scope)) return isConversationParticipant(userId, conversation.id);
     // 숨은 프로젝트의 방 — 그 방 참여자(이름 박힌 사람)만(2026-10-16 프로젝트 가시성).
     if (scope.visibleProjectIds !== null) {
       let pid = conversation.project_id;
@@ -304,6 +313,9 @@ async function conversationListWhere(userId, businessId, scope) {
     const mine = (await ConversationParticipant.findAll({
       where: { user_id: userId }, attributes: ['conversation_id'],
     })).map((r) => r.conversation_id);
+    if (participantOnlyScope(scope)) {
+      return { business_id: businessId, id: { [Op.in]: mine.length ? mine : [-1] } };
+    }
     const open = scopedOr(scope, [
       { project_id: { [Op.ne]: null } },
       { client_id: { [Op.ne]: null } },
@@ -1187,6 +1199,7 @@ module.exports = {
   attachWorkspaceScope,
   canAccessConversation,
   isPrivateConversation,
+  participantOnlyScope,
   PLATFORM_CHANNEL,
   PRIVATE_CHANNELS,
   isPlatformConversation,

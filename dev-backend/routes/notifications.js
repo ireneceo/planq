@@ -324,23 +324,7 @@ async function notify({ userId, businessId, eventKind, title, titleSpec, body, l
       let badge;
       try {
         if (businessId) {
-          const { sequelize } = require('../config/database');
-          // 1. 채팅 unread total (모든 conversation)
-          const [chatRows] = await sequelize.query(
-            `SELECT COUNT(m.id) AS cnt
-               FROM messages m
-               LEFT JOIN conversation_participants cp /* own-row: 읽음 커서는 viewer 포함, 사적 방 접근권은 is_viewer = 0 만(아래) */
-                 ON cp.conversation_id = m.conversation_id AND cp.user_id = :uid
-              INNER JOIN conversations c ON c.id = m.conversation_id AND c.business_id = :bid
-              WHERE m.sender_id != :uid
-                AND (m.is_deleted IS NULL OR m.is_deleted = 0)
-                AND (cp.last_read_at IS NULL OR m.created_at > cp.last_read_at)
-                -- 사적 대화방(프로젝트·고객 없는 팀 대화)은 참여자 것만 센다 — 목록 술어와 같은 선(2026-10-09 D3)
-                AND (c.project_id IS NOT NULL OR c.client_id IS NOT NULL
-                     OR c.channel_type NOT IN ('internal','group') OR (cp.id IS NOT NULL AND cp.is_viewer = 0))`,
-            { replacements: { uid: userId, bid: businessId } }
-          );
-          const chatUnread = Number(chatRows[0]?.cnt || 0);
+          const chatUnread = await require('../services/chatBadge').chatUnreadForBadge(userId, businessId);   // 목록과 같은 술어
           // 2. 인박스 total — /api/dashboard/todo 와 같은 정의 (cross-workspace 합산)
           //    여기선 single biz 컨텍스트라 그 biz 의 인박스 항목만 fetch.
           let inboxTotal = 0;

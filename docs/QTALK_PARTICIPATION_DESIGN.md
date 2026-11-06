@@ -3,6 +3,16 @@
 > Irene: *"Q talk에서 채팅리스트에 어떻게 추가되는 거야? 관리자는 무조건 추가되는 거야? 초대 안했는데 들어가있고 그런데 왜 그래?"*
 > 정찰 `.claude/plans/qmv7x6n6o.md` 1번 절 · **Fable 설계 판정 A**(2026-10-15) · [Opus] 구현.
 
+## 2026-11-06 바뀜 — 멤버는 참여한 방만 (B 채택, member 역할만)
+> Irene: *"참여자가 아닌 멤버가 리스트에 그 프로젝트 채팅이 나와."* · Fable 설계 판정(DESIGN-READY) · [Opus] 구현.
+- **business 역할 `member`** 는 프로젝트·고객 방도 **참여자(is_viewer=0)인 방만** 목록·접근한다. owner/admin/platform_admin 은 종전(열린 문화) 그대로 — 관리자는 안 보이면 참여자 추가·정리를 못 한다.
+- 판정 한 곳: `middleware/access_scope.participantOnlyScope(scope)` — `conversationListWhere`(목록·안읽음 수·검색·AI 앱 등)와 `canAccessConversation`(열기·소켓·첨부·링크)이 같이 쓴다. 목록만 숨기면 «링크로는 열림» 이 다음 신고가 된다.
+- `routes/projects.js` 의 프로젝트 방 문 — 채팅 탭 목록 `GET /:id/conversations` · 메시지 읽기/보내기 `GET·POST /conversations/:id/messages`(화면이 쓰는 경로) — 도 모든 역할을 같은 술어로 거른다(전에는 고객만 · Fable 검증 1차 FAIL ①).
+- 실시간: `services/convBroadcast.emitConvWide` 는 프로젝트·고객 방 사건을 `business:` 방이 아니라 **owner/admin ∪ 그 방 참여 직원의 `user:` 방**으로만 보낸다(1차 FAIL ② — 비참여 멤버 소켓에 본문·내부메모가 갔다).
+- OS 푸시 배지의 채팅 수는 `services/chatBadge.chatUnreadForBadge` — 목록 술어로 센다(옛 SQL 은 멤버 58 vs 목록 4).
+- 뷰어 행·핀은 접근권이 아니다 — 비참여 방에 핀해 둔 것도 목록에서 빠진다(데이터는 그대로, 다시 초대되면 `joinParticipant` 가 올린다).
+- 검증: member1 비참여 방 68·70 — 목록·열기(403)·프로젝트 탭·안읽음 수에서 빠짐 / 고치기 전 같은 호출은 전부 보임(대조군) · owner 는 그대로 200 · member1 참여 방 101 은 200 · 고객 목록 변화 0 · 비참여 방 핀 404 · 재초대 즉시 200.
+
 ## 원인
 - **보이는 것**(가시성 축): 멤버 이상은 프로젝트·고객 채팅을 참여하지 않아도 목록에서 본다 — 열린 문화(2026-10-09 D3 에서 유지한 결정). 관리자만이 아니라 멤버 전원.
 - **들어가 있는 것**(참여 축): 방을 **열기만 해도** 읽음 처리(`PUT /:biz/:id/read`)·핀이 `role:'member'` 참여자 행을 만들었다.

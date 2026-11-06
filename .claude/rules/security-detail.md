@@ -81,7 +81,7 @@ paths:
 - **Q talk «열어 봄» ≠ «참여»** (2026-10-15 Fable A) — 읽음·핀이 만드는 행은 `conversation_participants.is_viewer=1`(내 읽음 커서·핀만).
   모델 defaultScope 가 참여자만 보이게 해 참여자 목록·@·메시지 알림·읽음 분모·사적 방 접근권에서 빠진다. 쓰는 문은 `services/convParticipants.js` 하나
   (`touchOwnRow` viewer · `joinParticipant` 초대·생성·승격 · `promoteSpeaker` 말하면 참여자 · `removeRows`). 가드 `--category=convparticipants`.
-  목록에 보이는 범위(멤버 이상은 프로젝트·고객 방)는 그대로. 운영: `migrate-conv-viewer.js`(배포 슬롯) · 옛 행 `backfill-conv-viewer.js`(dry-run 기본, 수동). 설계 `docs/QTALK_PARTICIPATION_DESIGN.md`.
+  목록에 보이는 범위: owner/admin 은 프로젝트·고객 방 전부, **멤버(member)는 참여한 방만**(2026-11-06 Irene · Fable — `access_scope.participantOnlyScope` 한 곳, 목록·접근 같이). 운영: `migrate-conv-viewer.js`(배포 슬롯) · 옛 행 `backfill-conv-viewer.js`(dry-run 기본, 수동). 설계 `docs/QTALK_PARTICIPATION_DESIGN.md`.
 - **멤버는 참여한 프로젝트 ∪ «전체 공개» 프로젝트만 본다** (2026-10-16, Irene *"관리자 아닌데 모든 프로젝트가 나오고 있어 … 자기가 들어가 있는 프로젝트와 그와 연결된 업무들과 일정들만 … 아니면 전체공개분만"* · Fable 설계) —
   `projects.visibility`(members 기본·기존 행도 / workspace). owner·admin·platform_admin 은 전부. 판정은 `access_scope` **한 곳**:
   `scope.visibleProjectIds`(null=제한 없음) · `canSeeProject` · `projectScopeWhere` · 쓰기 문 `userCanSeeProject` — `visibility` 칸을 다른 곳에서 직접 읽지 않는다.

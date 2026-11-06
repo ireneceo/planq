@@ -1,5 +1,10 @@
 # Fable 게이트 대기열 → **판정 기록 보관소** (2026-10-08 부터)
 
+### 2026-11-06 방 e5b1e7a2 — 멤버는 참여한 Q talk 방만(프로젝트·고객 방) — 설계 DESIGN-READY → 완료 검증 1차 **FAIL** → 2차 **VERDICT: PASS**
+- Irene «참여자가 아닌 멤버가 리스트에 그 프로젝트 채팅이 나와.» — 10-15 설계 A 의 «B 하지 않음» 을 member 역할만 뒤집음(owner/admin 열린 문화 유지). 판정 `access_scope.participantOnlyScope` 한 곳.
+- 1차 차단: ① 화면 메시지 경로(`/api/projects/conversations/:id/messages` GET·POST)가 고객만 술어 — 비참여 멤버 히스토리 200·쓰기 200 ② `emitConvWide` 가 business:/숨은 프로젝트 청중으로 본문(내부메모 포함)을 비참여 멤버 소켓에 보냄. 비차단: 푸시 배지 58 vs 목록 4.
+- 2차: ① 403/참여 방 200 ② 소켓 비참여 멤버 0건 · owner 전부 · 고객 conv: 방 그대로 · 배지 = 목록(4·85·15·4). 비차단: dev 에 admin 계정 없어 admin 소켓 실측 못 함(코드 role IN owner,admin).
+
 ### 2026-11-05 방 ed1a8eeb — AI 앱(ChatGPT·Claude) 도구 품질 묶음(7c802302·a655a59d·4d959cae) — 완료 검증 1차 **FAIL** → 2차(1bf54af6) **VERDICT: PASS**
 - 1차 차단: search_tasks 정렬 주석이 같은 줄의 limit·offset·distinct 를 주석 처리 — 한 번에 331~414건을 page_size 20 이라 말하며 돌려줌(2페이지 = 1페이지). 나머지 8항목 실호출 통과(시간대 · 반복 회차 = 화면 API 집합 차 0 · only_mine · 메일 any/담당/인용/사람별 읽음 · 격리 ws7·ws5·남의 개인 계정 · isError(확인 2단계 제외) · role · 진척 · update_event 미리보기=실행).
 - 2차: p1 20·p2 20·겹침 0 · 9페이지 414건 고유·마감순 · 날짜 «Fri Oct 06» → YYYY-MM-DD(기존 결함) · 애매한 날짜 거절 · create/update 응답 현지 시각. 비차단 «13월» → dfdcc059 반영.
