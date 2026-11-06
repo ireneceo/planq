@@ -2183,6 +2183,10 @@ const MailPage: React.FC = () => {
   // 좁은 폭 맥락 패널 오버레이: 뒤로 가기 = 닫기 (#437)
   const closeCtxOverlay = useCallback(() => setCtxOverlayOpen(false), []);
   useBackToClose(ctxNarrow && ctxOverlayOpen, closeCtxOverlay);
+  // 폰 작성 창도 뒤로 가기 = 닫기 (2026-11-06, Irene «우측 하단 채팅아이콘으로 … 뒤로가기 취소 다 작동 안하고») —
+  //   [+ 새 메일]·우하단 [+메일] 로 연 작성 창은 화면 상태라 뒤로 가도 그대로 남았다(메일 화면에서 열면 주소가 안 바뀜).
+  //   사람 화면 이메일로 연 작성(back=1)은 닫을 때 returnAfterCompose 가 스스로 뒤로 간다 — 여기서 칸을 또 쌓으면 둘이 엇갈린다.
+  useBackToClose(viewportNarrow && composeOpen && !composeBackRef.current, () => closeCompose('user'));
   // #262 M2 — 최신 메시지만 펼친 채 시작 (접기 상태·스크롤 앵커). 훅으로 절출.
   const { expandedMsgIds, toggleMsg, scrollRef } = useThreadMessageExpansion(
     detail ? detail.id : null,

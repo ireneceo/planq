@@ -191,6 +191,8 @@ const SUITES = {
   guestentry: () => require('./canary-guest-entry'),
   // 폰·태블릿 우측패널 뒤로=닫기 · 메뉴 맨 위 · 메일 쓰기 모드 · 폴더 전체 선택 (2026-09-29, #437·#441·#436·#427)
   mobilepanels: () => require('./canary-mobile-panels'),
+  // 우하단 바로 열기 8항목 × 3폭 — 열기·취소·뒤로·저장 뒤 «다시 안 열림» (2026-11-06, 폰 업무추가에서 못 나가던 것)
+  dockexit: () => require('./canary-dock-exit'),
   // 화면 깨짐 전수 점검 — 주요 18화면 × 3폭 가로 넘침·버튼 겹침·안 그려진 버튼 (2026-09-29, 대조군 포함)
   screenbreak: () => require('./canary-screen-break'),
   // 폰 전 화면 — 상단 헤더 통일 · 크롬(헤더+서브헤더+필터) 비율 · 입력 누르기 전/중/후 복원 (2026-09-30)

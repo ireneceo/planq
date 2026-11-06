@@ -18,6 +18,7 @@ import CueActionCard, { type CueProposal, type CueActionResult } from './CueActi
 import CueMeetingLink from './CueMeetingLink';
 import CueTaskBatch, { isTaskBatch } from '../QTask/CueTaskBatch';
 import { cueActionDeepLink } from '../../hooks/useCueChat';
+import { useBackToClose } from '../../hooks/useBackToClose';
 
 const MAX_SECONDS = 30;
 
@@ -71,6 +72,8 @@ export default function VoiceCaptureSheet({ onClose }: Props) {
 
   useBodyScrollLock(true);
   useEscapeStack(true, onClose);
+  // 폰: 뒤로 가기 = 시트 닫기 (2026-11-06 — 우하단 [말로 추가] 를 연 채 뒤로 가도 그대로 남았다)
+  useBackToClose(true, onClose);
 
   const stopTracks = () => {
     recRef.current?.stream.getTracks().forEach((tr) => tr.stop());

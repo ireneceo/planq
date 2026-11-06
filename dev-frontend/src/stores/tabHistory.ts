@@ -38,8 +38,11 @@ export function decidePaneNav(opts: {
   //   «닫기» = 같은 화면에서 쿼리 조각이 **빠지기만** 하는 이동(?task=12 → 없음). 여는 이동(조각이 생김)은 종전대로 쌓는다.
   //   «갈아타기»(같은 쿼리 키, 값만 바뀜 — ?task=A → ?task=B)도 같다. 쌓으면 그 아래 칸이 A 열린 주소라
   //   B 를 닫고 뒤로 가면 A 가 다시 열렸다(Fable 2026-10-01 실측: A 열기 → 탭 왕복 → B → X → 뒤로).
+  // ★ 2026-11-06 — 여는 신호를 **걷어 내는** replace(`?create=1` → 없음, 대신 `view=…` 가 붙을 수 있음)도 갈아끼운다.
+  //   우하단 [+일정] 은 새 탭 칸을 `/calendar?create=1` 로 시작하고, 화면이 신호를 지우며 보기 인자를 붙인다.
+  //   쌓으면 아래 칸이 `?create=1` 로 남아, 창을 닫고 뒤로 가면 그 칸에 닿는 순간 창이 **다시 열렸다**(태블릿 실측).
   if (navType === 'REPLACE' && !prevEntryPath && windowPath !== undefined
-      && (isClosingNav(windowPath, path) || isSwitchingNav(windowPath, path))) {
+      && (isClosingNav(windowPath, path) || isSwitchingNav(windowPath, path) || isConsumingNav(windowPath, path))) {
     return { op: 'swap', path, tabId };
   }
   return { op: 'push', path, tabId };
@@ -56,6 +59,17 @@ export function isClosingNav(from: string, to: string): boolean {
   for (const [k, v] of ts) { if (fs.get(k) !== v) return false; }
   for (const k of fs.keys()) { if (!ts.has(k)) removed++; }
   return removed > 0;
+}
+
+/** from → to 가 같은 화면에서 «한 번 쓰고 지우는 여는 신호»(create·compose·new·ai)를 지우는가 — 다른 인자는 붙어도 된다. */
+const OPENER_KEYS = ['create', 'compose', 'new', 'ai'];
+export function isConsumingNav(from: string, to: string): boolean {
+  const [fp, fq = ''] = from.split('?');
+  const [tp, tq = ''] = to.split('?');
+  if (fp !== tp) return false;
+  const fs = new URLSearchParams(fq);
+  const ts = new URLSearchParams(tq);
+  return OPENER_KEYS.some((k) => fs.has(k) && !ts.has(k));
 }
 
 /** from → to 가 같은 화면에서 쿼리 키는 그대로이고 값만 바뀌는 이동인가(열린 패널의 대상 갈아타기). */

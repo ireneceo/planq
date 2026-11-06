@@ -32,6 +32,7 @@ import { makeSnippet } from '../../utils/searchMatch';
 import { useLeaveSave } from '../../hooks/useLeaveSave';
 import { IconClose, IconDetach, IconPlus, IconSearch, IconResize } from './MemoPopupIcons';
 import { formatDay } from '../../utils/dateFormat';
+import { useBackToClose } from '../../hooks/useBackToClose';
 
 // 사이클 N+17 — RichEditor 도입 (TipTap). lazy 로 첫 메모 작성 시점에만 받음.
 // vendor-tiptap (417KB) + vendor-highlight (162KB) 가 lazy chunk 로 떨어져 첫 로드 부담 0.
@@ -327,6 +328,9 @@ const MemoPopup: React.FC<Props> = ({ open, onClose, businessId, existingSession
   //   최신 클로저를 ref 로 참조 (미저장 마지막 입력 유실 방지).
   const closeRef = useRef<() => void>(() => onClose());
   useEscapeStack(open && !searchOpen, useCallback(() => closeRef.current(), []));
+  // 폰: 뒤로 가기 = 메모 창 닫기(Esc 와 같은 길 — 미저장 입력 flush). 2026-11-06 우하단 [Q note]
+  //   별도 창(standalone)은 닫기 = 창 닫기라 걸지 않는다.
+  useBackToClose(open && !standalone, () => closeRef.current());
 
   // ★ 메모 팝업이 열려 있는 동안 새 빌드 자동 새로고침 보류 (BuildVersionGuard 계약).
   //   자동저장이 끝나면 "미저장 없음" 이 되어 reload 가 열리는 구멍 — 문서 편집에서 실제로 화면이

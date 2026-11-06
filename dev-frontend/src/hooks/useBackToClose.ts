@@ -68,6 +68,18 @@ if (typeof window !== 'undefined' && window.history) {
 //   주소를 바꿔 여는 패널(`?task=`)은 닫을 때 라우터가 표식 칸의 주소를 «닫힌 주소» 로 덮어쓴다.
 //   그런데 걷어 내려가 닿는 아래 칸은 여전히 «열린 주소» 일 수 있다(처음부터 `?task=` 로 들어온 경우).
 //   거기 닿으면 화면이 주소를 읽어 **패널이 다시 열린다.** 그래서 닿기 직전에 닫힌 주소로 바꿔 둔다.
+// replace 가 같은 경로에서 검색 인자를 **지우기만** 했는가(여는 신호 소비) — 더하거나 값을 바꾼 것은 아니다.
+function onlyRemovedParams(from: string, to: string): boolean {
+  try {
+    const a = new URL(from), b = new URL(to);
+    if (a.pathname !== b.pathname || a.search === b.search) return false;
+    let removed = false;
+    for (const [k, v] of b.searchParams) if (a.searchParams.get(k) !== v) return false;
+    for (const k of a.searchParams.keys()) if (!b.searchParams.has(k)) removed = true;
+    return removed;
+  } catch { return false; }
+}
+
 let pendingFixUrl: string | null = null;
 // 버튼으로 닫으며 부른 back() 이 아직 도착하지 않았다 — 그 사이 새 패널이 칸을 쌓으면 그 back 이 **새 칸을 걷어**
 //   방금 연 패널이 바로 닫힌다(2026-10-23 실측: 폰 Q talk 새 대화 창을 닫고 고객 추가 드로어를 열면 드로어가 즉시 닫혔다).
@@ -124,7 +136,16 @@ export function useBackToClose(active: boolean, onClose: () => void): void {
       // 앞 패널을 닫는 back() 이 진행 중이면 기다린다(상한 약 1.5초 — 도착 못 해도 결국 쌓는다)
       if ((backPending > 0 || closing.size > 0) && tries < 50) { tries += 1; timer = window.setTimeout(tryPush, 30); return; }
       // 주소 이동(새 칸)과 함께 열렸다 → 주소가 이미 뒤로를 맡는다.
-      if (Date.now() - lastNavAt < NAV_WINDOW_MS) return;
+      //   ★ 단, 여는 신호를 주소에서 **걷어 낸** 경우는 아니다(2026-11-06, Irene «모바일에서 우측 하단 채팅아이콘으로
+      //   업무추가 들어가면 … 뒤로가기 취소 다 작동 안하고 계속 또 열려»). 우하단 [+업무]·[+일정]·[+메일] 은
+      //   `?create=1` 로 한 칸 쌓고, 받는 화면이 열자마자 그 신호를 replace 로 지운다(새로고침·뒤로로 또 열리지 않게).
+      //   그러면 주소에는 창의 흔적이 없어 뒤로 가도 주소가 안 바뀌고(같은 화면에서 열었을 때) 창이 그대로 남았다.
+      //   주소가 더는 창을 들고 있지 않으므로 이 훅이 칸을 쌓는다 — 아래 칸 되돌리기(신호 복원)도 하지 않는다.
+      const lr0 = lastReplace;
+      const here0 = window.location.href;
+      const consumed = !!lr0 && lr0.at >= lastNavAt && Date.now() - lr0.at < NAV_WINDOW_MS
+        && lr0.to === here0 && onlyRemovedParams(lr0.from, lr0.to);
+      if (!consumed && Date.now() - lastNavAt < NAV_WINDOW_MS) return;
       attachOnce();
       const base = (window.history.state && typeof window.history.state === 'object') ? window.history.state : {};
       here = window.location.href;
@@ -133,8 +154,9 @@ export function useBackToClose(active: boolean, onClose: () => void): void {
         // 주소를 **덮어써서** 연 패널(Q task `?task=`) — 아래 칸이 이미 «열린 주소» 라서, 그대로 두면
         //   뒤로 가서 그 칸에 닿는 순간 패널이 **다시 열린다.** 아래 칸을 열기 전 주소로 되돌려 둔다.
         //   (라우터는 모른다 — 돌아왔을 때 popstate 가 주는 주소로 다시 그리므로 문제가 없다.)
+        //   신호를 걷어 낸 replace 는 거꾸로다 — 되돌리면 아래 칸에 `?create=1` 이 살아나 뒤로 가면 창이 또 열린다.
         const lr = lastReplace;
-        if (lr && Date.now() - lr.at < NAV_WINDOW_MS && lr.to === here && lr.from !== here) {
+        if (!consumed && lr && Date.now() - lr.at < NAV_WINDOW_MS && lr.to === here && lr.from !== here) {
           window.history.replaceState(base, '', lr.from);
         }
         window.history.pushState({ ...base, [MARK]: entry.token }, '', here);
