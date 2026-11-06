@@ -55,6 +55,8 @@ import ConfirmDialog from '../../components/Common/ConfirmDialog';
 import DetailDrawer from '../../components/Common/DetailDrawer';
 import SalePage from '../QSale/SalePage';
 import { SegmentedToggle, SegmentedBtn } from '../../components/Common/segmentedToggle';
+import JoinRequestsPanel, { useJoinPendingCount } from '../../components/Join/JoinRequestsPanel';
+import JoinSettingsCard from '../../components/Join/JoinSettingsCard';
 import MemberLinks from '../../components/People/MemberLinks';
 import EmailLink from '../../components/People/EmailLink';
 import ModulesSection from '../../components/Settings/ModulesSection';
@@ -612,12 +614,15 @@ export default function WorkspaceSettingsPage() {
   //   부르는 쪽(채팅·업무·메일)이 아는 것은 사람의 id 이지 워크스페이스 멤버 행 번호가 아니다.
   // 설정 › 멤버·고객 — [멤버 | 고객] 알약(2026-10-22 Fable 판정 4). 고객 쪽은 Q sale 고객 목록 **본체**(SalePage embedded)다.
   //   주소 ?tab=clients 가 정본(새로고침·공유에 남는다). 바꾸면 열린 상세(?member=/?client=)는 닫는다.
-  const peopleView: 'members' | 'clients' = isMembersMode && searchParams.get('tab') === 'clients' ? 'clients' : 'members';
+  // «참여 신청»(?tab=requests) — 대표·관리자만(docs/SIGNUP_START_JOIN_DESIGN.md §5-5)
+  const peopleTabParam = isMembersMode ? searchParams.get('tab') : null;
+  const peopleView: 'members' | 'clients' | 'requests' = peopleTabParam === 'clients' ? 'clients' : peopleTabParam === 'requests' && isWsAdmin ? 'requests' : 'members';
+  const joinPending = useJoinPendingCount(businessId, tab === 'members' && isWsAdmin);
   const canSeeClientList = !!user && user.business_role !== 'client' && user.menu_levels?.qsale !== 'none';
-  const setPeopleView = (v: 'members' | 'clients') => {
+  const setPeopleView = (v: 'members' | 'clients' | 'requests') => {
     setSearchParams((sp) => {
       const out = new URLSearchParams(sp);
-      if (v === 'clients') out.set('tab', 'clients'); else out.delete('tab');
+      if (v === 'members') out.delete('tab'); else out.set('tab', v);
       out.delete('member'); out.delete('client');
       return out;
     }, { replace: true });
@@ -1374,6 +1379,8 @@ export default function WorkspaceSettingsPage() {
       )}
 
       {/* 워크스페이스 삭제 — 일반(브랜드) 탭 맨 아래 Danger Zone. 대표만(서버 preflight 403 이면 안 그린다) */}
+      {/* 멤버 참여(도메인·참여 코드) — 대표만(서버 403 이면 안 그린다) */}
+      {(tab === 'brand' || tab === 'legal') && businessId && user?.business_role === 'owner' && <JoinSettingsCard businessId={businessId} />}
       {(tab === 'brand' || tab === 'legal') && businessId && user?.business_role === 'owner' && (
         <WorkspaceDeletionSection businessId={businessId} />
       )}
@@ -1522,11 +1529,18 @@ export default function WorkspaceSettingsPage() {
               data-testid="people-tab-clients" onClick={() => setPeopleView('clients')}>
               {t('membersPage.tabClients', '고객')}
             </SegmentedBtn>
+            {isWsAdmin && (
+              <SegmentedBtn type="button" role="tab" aria-selected={peopleView === 'requests'} $active={peopleView === 'requests'}
+                data-testid="people-tab-requests" onClick={() => setPeopleView('requests')}>
+                {t('membersPage.tabRequests', '참여 신청')}{joinPending > 0 ? ` ${joinPending}` : ''}
+              </SegmentedBtn>
+            )}
           </SegmentedToggle>
         </PeopleToggleRow>
       )}
       {tab === 'members' && peopleView === 'clients' && canSeeClientList && <SalePage embedded />}
-      {tab === 'members' && (peopleView === 'members' || !canSeeClientList) && (
+      {tab === 'members' && peopleView === 'requests' && businessId && <JoinRequestsPanel businessId={businessId} />}
+      {tab === 'members' && (peopleView === 'members' || (!canSeeClientList && peopleView !== 'requests')) && (
         <>
           <Card>
             <SectionHeaderRow>

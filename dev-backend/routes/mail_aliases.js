@@ -131,11 +131,7 @@ router.delete('/:businessId/email-accounts/:id/aliases/:aliasId', authenticateTo
 // 공용 메일 도메인 — 등록을 막는다. 이걸 열면 그 제공자의 **모든 발신자**가 우리 주소로 보이고,
 //   숨은참조 대량발송이 전부 "우리에게 온 메일" 이 된다 (도메인 규칙을 만든 이유를 스스로 무너뜨림).
 //   해당 제공자의 개인 계정 자체는 email_accounts.email 로 이미 우리 주소에 포함돼 있어 규칙이 불필요하다.
-const PUBLIC_MAIL_DOMAINS = new Set([
-  'gmail.com', 'googlemail.com', 'naver.com', 'daum.net', 'hanmail.net', 'kakao.com',
-  'outlook.com', 'hotmail.com', 'live.com', 'yahoo.com', 'icloud.com', 'me.com',
-  'protonmail.com', 'proton.me', 'nate.com',
-]);
+const { PUBLIC_MAIL_DOMAINS } = require('../utils/publicMailDomains');   // 한 벌 — 참여 도메인(services/joinPolicy)도 같이 쓴다
 const DOMAIN_RE = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/;
 
 /** 입력 정규화 — '@wor-pro.com' · 'WOR-PRO.com' 같은 관용 입력을 받아준다. 이메일 전체·와일드카드는 거부. */

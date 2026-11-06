@@ -333,7 +333,11 @@
       "deletion_reason",
       "deleted_by",
       "purge_after",
-      "purged_at"
+      "purged_at",
+      "join_by_domain",
+      "join_domain",
+      "join_code",
+      "join_code_rotated_at"
     ],
     "calendar_event_attachments": [
       "id",
@@ -3295,6 +3299,22 @@
       "source",
       "is_off",
       "created_by",
+      "created_at",
+      "updated_at"
+    ],
+    "workspace_join_requests": [
+      "id",
+      "business_id",
+      "user_id",
+      "source",
+      "status",
+      "message",
+      "requested_at",
+      "expires_at",
+      "decided_at",
+      "decided_by",
+      "decision_note",
+      "retry_after",
       "created_at",
       "updated_at"
     ],

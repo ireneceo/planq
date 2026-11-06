@@ -726,6 +726,8 @@ sync_database() {
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-mail-responsible.js 2>&1 | tail -4"
   # 2026-11-06 멤버 초대 권한(business_members.invited_role ENUM member/admin NULL · 백필 없음) — 모델이 SELECT 하므로 코드보다 먼저.
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-invited-role.js 2>&1 | tail -3"
+  # 2026-11-06 워크스페이스 참여 신청 — workspace_join_requests 표 + businesses 참여 설정 4칸(UNIQUE join_code). additive · 멱등 · 코드보다 먼저.
+  prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-join-requests.js 2>&1 | tail -4"
   # 2026-10-16 갈라진 옛 메일 스레드 합치기 — email_thread_redirects 표(옛 스레드 번호 → 새 번호, 멱등). 상세 GET 이 읽는다(없으면 종전 404).
   #   합치기 자체는 여기서 하지 않는다 — 운영 미리보기(merge-split-mail-threads.js, 기본 dry-run) 보고 뒤 --apply 수동.
   #   그 스크립트의 되돌리기 장부(scripts/out/)는 위 보호 목록 '/scripts/out/' 이 지킨다.

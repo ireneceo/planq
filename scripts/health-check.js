@@ -1237,6 +1237,31 @@ function defineSecretTests() {
     return `목록 ${rows.length}행 · 상세 1건 — 토큰 0 · 쓸 필드 유지`;
   });
 
+  // ★ 2026-11-06 워크스페이스 참여 코드(businesses.join_code) — 알면 참여 신청을 낼 수 있는 열쇠. 읽는 문은
+  //   GET …/join-settings(대표) 하나다. 워크스페이스 상세·/auth/me 는 모델을 통째로 내보내는 곳이라
+  //   전역 toJSON 비밀 목록(models/index SECRET_HASH_KEYS)에서 빠지면 조용히 샌다. 원문 문자열로 판정 + 양성 대조군(설정에는 온다).
+  test('secrets', '워크스페이스 참여 코드는 참여 설정에만 — 상세·/auth/me 에 없다', async () => {
+    await setup();
+    const H = { Authorization: `Bearer ${ctx.token}`, 'Content-Type': 'application/json' };
+    const biz = Number(ctx.businessId);
+    const before = await http('GET', `${BACKEND}/api/businesses/${biz}/join-settings`, { headers: H });
+    if (!before?.data) throw new Error('참여 설정을 못 읽었다 — 검사 계정이 대표가 아닐 수 있다');
+    const wasOn = !!before.data.code_enabled;
+    try {
+      const on = wasOn ? before : await http('PUT', `${BACKEND}/api/businesses/${biz}/join-settings`, { headers: H, body: { code_enabled: true } });
+      const code = String(on?.data?.join_code || '').replace('-', '');
+      if (!/^[A-Z2-9]{8}$/.test(code)) throw new Error('참여 설정에 코드가 없다 — 양성 대조군 실패(거짓 통과 위험)');
+      const det = await http('GET', `${BACKEND}/api/businesses/${biz}`, { headers: H });
+      const me = await http('GET', `${BACKEND}/api/auth/me`, { headers: H });
+      const raw = JSON.stringify(det) + JSON.stringify(me);
+      if (raw.includes(code)) throw new Error('워크스페이스 상세·/auth/me 응답에 참여 코드가 실려 있다');
+      if (!det?.data?.id) throw new Error('상세 응답이 비었다 — 거짓 통과 가능성');
+      return '상세·/auth/me 코드 0 · 참여 설정에는 있음';
+    } finally {
+      if (!wasOn) await http('PUT', `${BACKEND}/api/businesses/${biz}/join-settings`, { headers: H, body: { code_enabled: false } }).catch(() => null);
+    }
+  });
+
   // ★ 2026-10-15 급여(docs/PAYROLL_DESIGN.md §4·§11) — 대상자의 지급 계좌(bank_account_enc)는 목록·상세 응답에 원문도 암호문도 없어야 한다.
   //   보유 여부(has_bank_account)만 온다. 계좌번호를 주는 문은 GET …/bank-account 하나(감사). 모델 통째 내보내기로 조용히 돌아온다.
   //   검사 계정의 워크스페이스는 급여 기능이 꺼져 있을 수 있어 DB 로 잠깐 켜고 끝나면 원래대로 되돌린다.

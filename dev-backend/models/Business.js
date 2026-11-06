@@ -199,6 +199,13 @@ Business.init({
   deleted_by: { type: DataTypes.INTEGER, allowNull: true },
   purge_after: { type: DataTypes.DATE, allowNull: true },   // 이 뒤 정리 cron 이 파일·연결을 지운다(owner_request 만 채운다)
   purged_at: { type: DataTypes.DATE, allowNull: true },
+  // ─── 참여 신청(2026-11-06 · docs/SIGNUP_START_JOIN_DESIGN.md §6 — 대표만 켠다) ───
+  //   열림 판정은 services/joinPolicy.domainJoinOpen 한 곳(저장값만 믿지 않는다 — 대표의 인증된 회사 메일 도메인과 다시 맞춘다).
+  join_by_domain: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
+  join_domain: { type: DataTypes.STRING(120), allowNull: true },
+  // 응답 비밀값(models/index SECRET_HASH_KEYS) — GET …/join-settings 만 내보낸다
+  join_code: { type: DataTypes.STRING(12), allowNull: true, unique: 'uq_businesses_join_code' },
+  join_code_rotated_at: { type: DataTypes.DATE, allowNull: true },
   // ─── Cue 설정 ───
   cue_mode: {
     type: DataTypes.ENUM('smart', 'auto', 'draft'),

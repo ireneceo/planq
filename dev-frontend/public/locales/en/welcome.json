@@ -33,5 +33,27 @@
     "submitting": "Creating…",
     "nameRequired": "Please enter a workspace name.",
     "failed": "Couldn't create it. Please try again shortly."
+  },
+  "join": {
+    "title": "Join your company's workspace",
+    "domainHint": "Workspaces open to @{{domain}}",
+    "noDomain": "No workspace is open to your company email.",
+    "request": "Request to join",
+    "pending": "Requested · waiting for approval",
+    "cancel": "Cancel",
+    "codeLabel": "Have a join code?",
+    "codePlaceholder": "ABCD-EFGH",
+    "codeFind": "Find",
+    "codeNotFound": "No workspace matches that code.",
+    "tooMany": "Please try again in a little while.",
+    "needVerify": "Verify your email to find your company's workspace.",
+    "rejected": "Not approved · you can ask again after {{date}}",
+    "rejectedNow": "Not approved",
+    "approved": "Approved",
+    "expired": "Expired · you can ask again",
+    "alreadyMember": "Already a member",
+    "failed": "Couldn't send the request. Please try again shortly.",
+    "myRequests": "Your join requests",
+    "note": "Reason: {{note}}"
   }
 }

@@ -70,6 +70,7 @@ paths:
 
 **기타 (2):** kb_chunks, kb_documents, kb_pinned_faqs, cue_usage
 
+> **2026-11-06 — `workspace_join_requests` 표 + `businesses.join_by_domain·join_domain·join_code(UNIQUE)·join_code_rotated_at`** — 워크스페이스 참여 신청(사람×워크스페이스 한 행 · pending/approved/rejected/canceled · 만료는 읽을 때 `services/joinRequests.isLive`). 열림 판정 `services/joinPolicy.domainJoinOpen` 한 곳(대표의 인증된 회사 메일 도메인과 다시 맞춘다). `join_code` 는 응답 비밀값(models/index SECRET_HASH_KEYS — `GET …/join-settings` 만). 운영 `migrate-join-requests.js`(배포 슬롯). 설계 `docs/SIGNUP_START_JOIN_DESIGN.md`.
 > **2026-11-06 — `business_members.invited_role` ENUM(member,admin) NULL** — 멤버 초대 때 고른 권한(Irene «초대할 때부터 권한»). 수락 전 행의 `role` 은 늘 member(user_id NULL 행이 owner/admin 목록 13곳에 끼지 않게) · `services/invites.acceptInvite` 가 role 로 옮긴다 · NULL = 옛 초대 = member. 운영 `migrate-invited-role.js`(배포 슬롯).
 > **2026-11-06 — `email_accounts.responsible_user_id` INT NULL FK users SET NULL** — 회사 공용 메일함 «책임자» 한 사람(Fable 설계). 보는 권한은 그대로, 표시(설정 카드·계정 고르기·목록·상세)와 확인필요 귀속만(`services/mailTodoWhere` — 스레드 답변 담당 > 책임자(활성 멤버) > 전원). 판정 `services/mailResponsible`. 개인 메일함엔 없음. 운영 `migrate-mail-responsible.js`(배포 슬롯).
 > **2026-10-30 — `email_messages.signature_read` JSON NULL** — 메일 서명 AI 읽기 결과 `{ values, found }`(Q sale 고객 추가 창, `routes/sale_contacts.js` 한 곳). 같은 마이그레이션 스크립트.

@@ -489,6 +489,7 @@ app.use('/api/businesses', require('./routes/member_cards'));
 app.use('/api/businesses', require('./routes/member_overview'));   // 멤버 상세의 연결 프로젝트·업무·히스토리 (2026-10-22) — «/:businessId/members/:userId/overview» 꼬리만, businesses.js 보다 앞   // 동료의 기본 명함 보기 (2026-10-22) — «/:businessId/members/:userId/card…» 꼬리만, businesses.js 보다 앞
 app.use('/api/businesses', require('./routes/member_handover'));   // 퇴사 인수인계 (2026-10-22, docs/ORG_STAGE0_DESIGN.md) — «/:businessId/members/:memberId/handover»·«/members-departed» 꼬리만, businesses.js 보다 앞
 app.use('/api/businesses', require('./routes/member_permissions'));   // 멤버 메뉴 권한·역할·멤버 기본 권한 (2026-10-23 businesses.js 에서 옮김) — 꼬리 경로만, businesses.js 보다 앞
+app.use('/api/businesses', require('./routes/join_admin'));   // 참여 신청 승인·참여 설정 (docs/SIGNUP_START_JOIN_DESIGN.md) — 꼬리 경로만, businesses.js 보다 앞
 app.use('/api/me/brands', require('./routes/brands').myBrands);            // 개인 브랜드(내 명함용, 본인 것만)
 app.use('/api/businesses', require('./routes/workspace_deletion').deleteRouter);   // 워크스페이스 삭제 (2026-10-29) — «/:id/delete»·«/:id/deletion-preflight» 꼬리만, businesses.js 보다 앞
 app.use('/api/businesses', require('./routes/businesses'));
@@ -572,6 +573,7 @@ app.use('/api/sale', require('./routes/sale_summary'));
 app.use('/api/sale', require('./routes/sale_contacts'));
 app.use('/api/invites', require('./routes/invites'));
 app.use('/api/me/invites', require('./routes/me_invites'));   // 나에게 온 초대 — «시작하기»(/welcome), 이메일 인증 뒤에만
+app.use('/api/join', require('./routes/join'));   // 워크스페이스 참여 신청(신청자 쪽) — 로그인+이메일 인증, 이름 검색 없음
 app.use('/api/conversations', require('./routes/conversations'));
 app.use('/api/message-attachments', require('./routes/message_attachments'));
 app.use('/api/messages', require('./routes/message_reactions'));   // #138 이모지 리액션

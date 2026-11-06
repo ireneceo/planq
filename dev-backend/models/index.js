@@ -58,6 +58,7 @@ const TaskUserOrder = require('./TaskUserOrder');
 const TaskTag = require('./TaskTag');
 const TaskTagLink = require('./TaskTagLink');
 const MemberRole = require('./MemberRole');
+const WorkspaceJoinRequest = require('./WorkspaceJoinRequest');
 const ProjectStatusOption = require('./ProjectStatusOption');
 const ProjectStage = require('./ProjectStage');
 const ProjectPinnedDoc = require('./ProjectPinnedDoc');
@@ -213,6 +214,8 @@ const SECRET_HASH_KEYS = new Set([
   'password_hash', 'share_password_hash', 'refresh_token_hash', 'prev_refresh_token_hash',
   'password_reset_token', 'email_verify_token', 'reset_token',
   'portone_api_secret', 'portone_webhook_secret', 'popbill_secret_key',
+  // 워크스페이스 참여 코드 — 알면 참여 신청을 낼 수 있는 열쇠. 읽는 문은 GET …/join-settings(대표) 하나(2026-11-06)
+  'join_code',
 ]);
 Sequelize.Model.prototype.toJSON = function () {
   const obj = _origToJSON.call(this);
@@ -646,6 +649,9 @@ TaskTag.belongsTo(User, { as: 'creator', foreignKey: 'created_by' });
 // MemberRole — 역할 사전(docs/MEMBER_ROLES_DESIGN.md). 새 워크스페이스는 만들 때 공통 기본 세트를 받는다.
 //   ★ 생성 문이 셋(가입·두 번째 워크스페이스·OAuth)이라 훅 한 곳에서 시드한다. 같은 트랜잭션에 묶는다.
 MemberRole.belongsTo(Business, { foreignKey: 'business_id', onDelete: 'CASCADE' });
+// 워크스페이스 참여 신청(docs/SIGNUP_START_JOIN_DESIGN.md §5)
+WorkspaceJoinRequest.belongsTo(Business, { foreignKey: 'business_id', onDelete: 'CASCADE' });
+WorkspaceJoinRequest.belongsTo(User, { foreignKey: 'user_id', as: 'requester', onDelete: 'CASCADE' });
 Business.addHook('afterCreate', 'seedMemberRoles', async (biz, options) => {
   await require('../services/memberRoles').seedDefaults(biz.id, {
     lang: biz.default_language, userId: biz.owner_id || null, transaction: options?.transaction,
@@ -742,6 +748,7 @@ module.exports = {
   TaskTag,
   TaskTagLink,
   MemberRole,
+  WorkspaceJoinRequest,
   ProjectStatusOption,
   ProjectStage,
   ProjectPinnedDoc,

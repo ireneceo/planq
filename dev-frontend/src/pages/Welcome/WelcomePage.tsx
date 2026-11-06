@@ -1,7 +1,7 @@
 // «시작하기» /welcome — 워크스페이스 0개 계정의 착지 · 두 번째 워크스페이스 만들기 (2026-11-06)
 //   설계 docs/SIGNUP_START_JOIN_DESIGN.md §3 (Fable DESIGN-READY). Irene: *"우린 무료가 아닌데 모르는 새 그냥 만들어지면
 //   안되잖아. 워크스페이스를 만들건지 다른 초대에 대응할건지 다른 워크스페이스 초대받은 걸 표시해야지."*
-//   (a) 나에게 온 초대(이메일 인증 뒤에만) → (c) 새로 만들기(«14일 무료 체험» 문장을 읽고 누름). (b) 참여 신청은 2단계.
+//   (a) 나에게 온 초대(이메일 인증 뒤에만) → (b) 우리 회사 워크스페이스에 참여 신청(도메인 추천·참여 코드) → (c) 새로 만들기(«14일 무료 체험» 문장을 읽고 누름).
 //   들어가기·만들기 뒤에는 문서 이동 — 모드 판정(탭 셸 진입)이 워크스페이스 수를 다시 보게 한다.
 import React, { useCallback, useEffect, useState } from 'react';
 import styled from 'styled-components';
@@ -11,6 +11,10 @@ import { useAuth, apiFetch } from '../../contexts/AuthContext';
 import TrialPlanPicker, { DEFAULT_TRIAL_PLAN, parseTrialPlan, type TrialPlanCode } from '../../components/Auth/TrialPlanPicker';
 import { formatDay } from '../../utils/dateFormat';
 import { onSocket } from '../../services/socket';
+import {
+  getJoinSuggestions, lookupJoinCode, requestJoin, getMyJoinRequests, cancelJoinRequest, JoinApiError,
+  type JoinWorkspaceCard,
+} from '../../services/join';
 
 interface InviteRow {
   type: 'workspace_member' | 'workspace_client' | 'project_client';
@@ -91,6 +95,84 @@ const WelcomePage: React.FC = () => {
     } catch { setVerifyMsg(t('verify.failed') as string); }
     finally { setVerifyBusy(false); }
   };
+
+  // (b) 참여 신청 — 회사 메일 도메인 추천 · 참여 코드 · 내가 보낸 신청
+  const [sugg, setSugg] = useState<{ domains: string[]; workspaces: JoinWorkspaceCard[] } | null>(null);
+  const [mine, setMine] = useState<JoinWorkspaceCard[]>([]);
+  const [code, setCode] = useState('');
+  const [found, setFound] = useState<JoinWorkspaceCard | null>(null);
+  const [joinMsg, setJoinMsg] = useState('');
+  const [joinBusy, setJoinBusy] = useState<number | null>(null);
+  const loadJoin = useCallback(async () => {
+    try { setSugg(await getJoinSuggestions()); } catch { setSugg({ domains: [], workspaces: [] }); }
+    try { setMine(await getMyJoinRequests()); } catch { setMine([]); }
+  }, []);
+  useEffect(() => { if (verified) void loadJoin(); }, [verified, loadJoin]);
+  useEffect(() => {
+    if (!verified) return undefined;
+    // 승인·거절 신호 — 승인이면 들어간다(다른 화면에서 고른 것이 아니면)
+    const off = onSocket<{ status?: string }>('join_request:decided', (p) => {
+      if (p?.status === 'approved' && !fromSwitcher) { window.location.assign('/dashboard'); return; }
+      void loadJoin(); setFound(null);
+    });
+    const onVis = () => { if (document.visibilityState === 'visible') void loadJoin(); };
+    document.addEventListener('visibilitychange', onVis);
+    return () => { off(); document.removeEventListener('visibilitychange', onVis); };
+  }, [verified, fromSwitcher, loadJoin]);
+  const findCode = async () => {
+    setJoinMsg(''); setFound(null);
+    if (!code.trim()) return;
+    try { setFound(await lookupJoinCode(code.trim())); }
+    catch (e) { setJoinMsg((e instanceof JoinApiError && e.status === 429 ? t('join.tooMany') : t('join.codeNotFound')) as string); }
+  };
+  const sendJoin = async (w: JoinWorkspaceCard, source: 'domain' | 'code') => {
+    setJoinBusy(w.business_id); setJoinMsg('');
+    try {
+      await requestJoin({ business_id: w.business_id, source, ...(source === 'code' ? { code: code.trim() } : {}) });
+      if (source === 'code') { try { setFound(await lookupJoinCode(code.trim())); } catch { setFound(null); } }
+      await loadJoin();
+    } catch (e) {
+      setJoinMsg((e instanceof JoinApiError && e.status === 429 ? t('join.tooMany') : t('join.failed')) as string);
+      await loadJoin();
+    } finally { setJoinBusy(null); }
+  };
+  const cancelJoin = async (id: number) => {
+    setJoinMsg('');
+    try { await cancelJoinRequest(id); } catch { /* 다시 읽으면 상태가 보인다 */ }
+    if (found) { try { setFound(await lookupJoinCode(code.trim())); } catch { setFound(null); } }
+    await loadJoin();
+  };
+  const reqStatusText = (w: JoinWorkspaceCard): string | null => {
+    const r = w.request;
+    if (w.already_member) return t('join.alreadyMember') as string;
+    if (!r) return null;
+    if (r.status === 'pending') return t('join.pending') as string;
+    if (r.status === 'approved') return t('join.approved') as string;
+    if (r.status === 'expired') return t('join.expired') as string;
+    if (r.status === 'rejected') return (r.retry_after ? t('join.rejected', { date: formatDay(r.retry_after) }) : t('join.rejectedNow')) as string;
+    return null;
+  };
+  const canRequest = (w: JoinWorkspaceCard) => !w.already_member && (!w.request || w.request.status === 'expired' || w.request.status === 'canceled' || (w.request.status === 'rejected' && !w.request.retry_after));
+  const renderJoinRow = (w: JoinWorkspaceCard, source: 'domain' | 'code') => (
+    <InviteItem key={`${source}:${w.business_id}`} $expired={false} data-testid="welcome-join-row">
+      <InviteMain>
+        <InviteName>{w.brand_name}</InviteName>
+        {reqStatusText(w) && <InviteMeta><span>{reqStatusText(w)}</span></InviteMeta>}
+        {w.request?.status === 'rejected' && w.request.decision_note && <InviteMeta><span>{t('join.note', { note: w.request.decision_note })}</span></InviteMeta>}
+      </InviteMain>
+      {w.request?.status === 'pending' && (
+        <SecondaryBtn type="button" onClick={() => { void cancelJoin(w.request!.id); }} data-testid="welcome-join-cancel">{t('join.cancel')}</SecondaryBtn>
+      )}
+      {canRequest(w) && (
+        <PrimaryBtn type="button" disabled={joinBusy === w.business_id} onClick={() => { void sendJoin(w, source); }} data-testid="welcome-join-request">
+          {t('join.request')}
+        </PrimaryBtn>
+      )}
+    </InviteItem>
+  );
+  // 내가 보낸 신청 중 추천·코드 결과에 안 보이는 것(예: 코드로 신청한 곳)
+  const shownIds = new Set([...(sugg?.workspaces || []).map((w) => w.business_id), ...(found ? [found.business_id] : [])]);
+  const otherMine = mine.filter((w) => !shownIds.has(w.business_id));
 
   // (c) 새로 만들기
   const [name, setName] = useState('');
@@ -175,6 +257,44 @@ const WelcomePage: React.FC = () => {
             })}
           </Card>
         )}
+
+        <Card data-testid="welcome-join">
+          <CardTitle>{t('join.title')}</CardTitle>
+          {!verified && <Empty>{t('join.needVerify')}</Empty>}
+          {verified && sugg && (
+            <>
+              {sugg.domains.length > 0 && <Hint>{t('join.domainHint', { domain: sugg.domains.join(', @') })}</Hint>}
+              {sugg.workspaces.length === 0 && sugg.domains.length > 0 && <Empty>{t('join.noDomain')}</Empty>}
+              {sugg.workspaces.map((w) => renderJoinRow(w, 'domain'))}
+            </>
+          )}
+          {verified && otherMine.length > 0 && (
+            <>
+              <Hint>{t('join.myRequests')}</Hint>
+              {otherMine.map((w) => renderJoinRow(w, 'code'))}
+            </>
+          )}
+          {verified && (
+            <>
+              <Hint>{t('join.codeLabel')}</Hint>
+              <CodeRow>
+                <NameInput
+                  value={code}
+                  maxLength={12}
+                  placeholder={t('join.codePlaceholder') as string}
+                  onChange={(e) => { setCode(e.target.value); setJoinMsg(''); }}
+                  onKeyDown={(e) => { if (e.key === 'Enter' && !e.nativeEvent.isComposing) { e.preventDefault(); void findCode(); } }}
+                  data-testid="welcome-join-code"
+                  autoCapitalize="characters"
+                  autoComplete="off"
+                />
+                <SecondaryBtn type="button" onClick={() => { void findCode(); }} data-testid="welcome-join-find">{t('join.codeFind')}</SecondaryBtn>
+              </CodeRow>
+              {found && renderJoinRow(found, 'code')}
+            </>
+          )}
+          {joinMsg && <ErrText>{joinMsg}</ErrText>}
+        </Card>
 
         <Card data-testid="welcome-create">
           <CardTitle>{t('create.title')}</CardTitle>
@@ -274,6 +394,7 @@ const Notice = styled.p`
   background: #F1F5F9; border-radius: 8px; padding: 10px 12px;
 `;
 const CreateRow = styled.div`display: flex; justify-content: flex-end;`;
+const CodeRow = styled.div`display: flex; gap: 8px; align-items: center; & > input { flex: 1; min-width: 0; }`;
 const PrimaryBtn = styled.button`
   flex-shrink: 0; padding: 0 16px; min-height: 40px; font-size: 0.8125rem; font-weight: 700; color: #FFFFFF;
   background: #0D9488; border: none; border-radius: 8px; cursor: pointer;

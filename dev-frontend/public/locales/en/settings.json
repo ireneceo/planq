@@ -7,7 +7,8 @@
     "title": "Members & clients",
     "subtitle": "Manage teammates, the AI teammate (Cue) and clients in one place",
     "tabMembers": "Members",
-    "tabClients": "Clients"
+    "tabClients": "Clients",
+    "tabRequests": "Join requests"
   },
   "tabs": {
     "brand": "Brand",
@@ -1143,5 +1144,46 @@
     "errName": "The workspace name doesn't match.",
     "errOauth": "Accounts that sign in with Google or Apple only can't delete a workspace yet. Please contact us.",
     "errGeneric": "Couldn't delete the workspace. Please try again shortly."
+  },
+  "joinSettings": {
+    "title": "Joining",
+    "desc": "Let people from your company send a join request without an invitation. An owner or admin must approve each request.",
+    "domainLabel": "Find by company email",
+    "domainHint": "People who verified an @{{domain}} email can see this workspace.",
+    "domainUnavailable": "Not available: the owner has no verified company email (public providers like gmail don't count).",
+    "domainClosed": "Currently closed — the owner's email domain changed. Turn it on again.",
+    "codeLabel": "Join code",
+    "codeHint": "People with the code can find this workspace on “Get started” and request to join.",
+    "copy": "Copy",
+    "copied": "Copied",
+    "rotate": "New code",
+    "rotateTitle": "Create a new join code?",
+    "rotateBody": "The current code stops working right away. Requests already received stay.",
+    "rotateConfirm": "Create",
+    "cancel": "Cancel"
+  },
+  "joinRequests": {
+    "title": "Join requests",
+    "desc": "People who found this workspace by company email or join code. Requests disappear after 14 days without approval.",
+    "seats": "· {{n}} seats left",
+    "noSeat": "No seats left, so you can't approve right now · add seats in Settings › Plan.",
+    "loadFailed": "Couldn't load join requests.",
+    "empty": "No join requests.",
+    "viaDomain": "Company email",
+    "viaCode": "Join code",
+    "expired": "Expired",
+    "roleLabel": "Access",
+    "roleMember": "Member",
+    "roleAdmin": "Admin",
+    "approve": "Approve",
+    "reject": "Decline",
+    "cancel": "Cancel",
+    "approveTitle": "Approve this request?",
+    "approveBody": "{{name}} will join as {{role}}.",
+    "approveSeats": "Seats left {{from}} → {{to}}",
+    "rejectTitle": "Decline this request?",
+    "rejectBody": "{{name}} will be told it wasn't approved and can ask again after 7 days.",
+    "quota": "No seats left · add member seats in your plan.",
+    "failed": "Couldn't do that. Please try again shortly."
   }
 }
