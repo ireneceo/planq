@@ -10,7 +10,18 @@
 - 운영 반영: 다음 배포 때.
 
 
-### ⏸ 답 기다림: 멤버 초대 권한 · 가입 때 워크스페이스 자동 생성 · 워크스페이스 찾아 신청 (방 65563a16 · 2026-11-06 · [Opus] · 검토만, 코드 변경 0)
+### ✅ 초대 권한 · 가입=계정만(«시작하기») · 워크스페이스 참여 신청 (방 65563a16 · 2026-11-06 · [Opus] · Irene «권고대로» · Fable 설계 DESIGN-READY · Fable 완료 검증 PASS)
+- 14993f86 ① 멤버 초대 때 권한(멤버/관리자) — `business_members.invited_role`(수락 때 role 로) · 운영 `migrate-invited-role.js`.
+- 2cd18a99 설계 `docs/SIGNUP_START_JOIN_DESIGN.md`.
+- 5a8b3beb 1단계 — 가입 = 계정만(비밀번호·구글·애플·계정 추가) · 만드는 문 `services/workspaceCreate` 하나 · `/welcome` «시작하기»(받은 초대 + 새로 만들기·14일 체험 문장) · `GET /api/me/invites`(이메일 인증 뒤에만, 토큰·이메일 없음) · 0개 계정 리다이렉트 `utils/welcomeGate` · 스위처 만들기 → /welcome.
+- ec5c6c30 2단계 — 참여 신청(`workspace_join_requests` · 운영 `migrate-join-requests.js`) · 회사 메일 도메인 추천 + 참여 코드 · 대표·관리자 승인(권한 고르기·자리 한도·동시 승인 잠금·나갔던 사람 되살림) · 설정 일반 «멤버 참여»(대표만) · 멤버·고객 «참여 신청» 탭 · health-check secrets 1건(양성 대조군).
+- 02403f55 Fable 비차단 지적 반영 — 나갔던 멤버 재초대 수락 409 → 되살림(기존 결함) · 이미 멤버인 곳 초대 목록에서 뺌 · 신청 한도는 성공만. 자체 검증(실HTTP 7항목 · e2e invite·invitenotify 0 실패 · guard 84/85). Fable 미검증(자체 검증) — Fable 권고 그대로.
+- 검증: 실HTTP ① 17 · 1단계 25 · 2단계 37+ · 크롬 3폭(시작하기·참여 신청 탭·설정 카드·실시간 승인 이동) · e2e tenant·invite·invitenotify·nativelogin·wssync 0 실패 · build EXIT 0 · Fable 실측 111+37+24.
+- 시험 데이터 [확인용]: 계정 welcome-a/b/c-…@planq-check.test · fable-f1~f4-…(Test1234!) · ws 16756·16772 · ws7 참여 설정 켬(도메인 test.planq.kr · 코드) + welcome-c 의 대기 신청 1 + «check-admin-invite@planq-check.test» 관리자 초대 대기.
+- 남은 것(Fable 비차단 4): 운영 배포 전 «프로젝트 고객만 있고 워크스페이스 0» 계정 수를 읽기 전용으로 잴 것 — 그 계정은 /welcome 으로 간다.
+- 운영 반영: 다음 배포 때(마이그레이션 2개 배포 슬롯 등록됨).
+
+### ⏸ 답 기다림(이전): 멤버 초대 권한 · 가입 때 워크스페이스 자동 생성 · 워크스페이스 찾아 신청 (방 65563a16 · 2026-11-06 · [Opus] · 검토만, 코드 변경 0)
 - 무엇: Irene «초대할 때부터 권한(관리자냐 아니냐) · 로그인 상태로 새 계정 만들면 워크스페이스가 그냥 생김 · 받은 초대 표시 · 다른 워크스페이스 검색해 신청» 검토.
 - 사실: ① 초대 행은 `role:'member'` 고정(services/memberInvite.createInvite) — 초대 창은 직무 역할(기획·디자인)·부서·팀만. 관리자는 수락 뒤 설정에서 따로 올림(member_permissions PUT role).
   ② /register(계정 추가 ?add=1 포함)는 초대 링크로 온 게 아니면 워크스페이스 이름 필수 + 체험 플랜 → 가입 즉시 워크스페이스·14일 체험 생성(routes/auth.js register · oauth/finish setupNewWorkspace 도 같음).
