@@ -62,6 +62,7 @@ import { useVerticalReorder } from '../Common/useVerticalReorder';
 import { usePopoutMyOrder } from './usePopoutMyOrder';
 import TaskDetailDrawer, { type DrawerMemberOption } from './TaskDetailDrawer';
 import PopoutUrgentBand, { type UrgentRequestItem } from './PopoutUrgentBand';
+import PopoutInboxBand from './PopoutInboxBand';
 import { STATUS_COLOR, displayStatus, getStatusLabel, type StatusCode } from '../../utils/taskLabel';
 import { getRoles, primaryPerspective } from '../../utils/taskRoles';
 import TagChips, { type TaskTagLite } from './TagChips';
@@ -453,6 +454,8 @@ const TaskPopoutView: React.FC<TaskPopoutViewProps> = ({ pinSlot }) => {
 
       {/* 긴급 요청 띠 — 이번 주 목록과 무관하게 맨 위(마감 없는 요청도). 확인하면 빠진다. */}
       <PopoutUrgentBand items={urgentReqs} onOpen={setSelectedId} onAcked={silentLoad} />
+      {/* 확인 필요 한 줄 — 누르면 전체(2026-11-06). 팝아웃만 쓰는 사람이 확인 필요를 놓치지 않게. */}
+      {bizId && <PopoutInboxBand bizId={bizId} onOpenTask={setSelectedId} excludeTaskIds={urgentReqs.map((r) => r.id)} />}
 
       {/* Cue 에게 말하기 — Q task 목록과 **같은 컴포넌트**(2026-10-12 Fable (다) 7). 여러 개를 나열하면 항목마다 한 건.
           기본값은 Q task «오늘/이번 주» 탭과 같은 규칙(오늘 마감 + 이번 주 버킷) — 만든 업무가 이 목록에 남는다. */}

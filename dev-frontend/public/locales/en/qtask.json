@@ -1490,6 +1490,15 @@
       "ack": "Acknowledge",
       "ackFailed": "Couldn't acknowledge. Please try again.",
       "flash": "({{n}} urgent)"
+    },
+    "inbox": {
+      "title": "To check",
+      "head": "{{n}} to check",
+      "expand": "Show all items to check",
+      "collapse": "Collapse items to check",
+      "inUrgent": "{{n}} urgent request(s) are in the band above",
+      "more": "+{{n}} more",
+      "openMain": "Open in To check"
     }
   },
   "tags": {
