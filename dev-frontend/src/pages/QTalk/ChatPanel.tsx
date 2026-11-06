@@ -2587,14 +2587,15 @@ const ChatPanel: React.FC<Props> = ({
                영구 true 로 남아 Enter 전송이 영영 막히는 회귀 방지. blur 시 강제 리셋. */
             onBlur={() => { composingRef.current = false; }}
             aria-label={t('chat.input.aria', { defaultValue: '메시지 입력' }) as string}
-            /* 사이클 N+15-B — 모바일 키보드 액세서리 바 (위/아래 화살표) 최소화 + 자동수정/사전 변환 비활성
+            /* 2026-11-06 Irene «폰 문장 자동완성이 우리 앱에서 안 돼» — 키보드 추천 단어·자동 수정은 켠다.
+               옛(N+15-B) autoCorrect=off · autoComplete=off · spellCheck=false 가 iOS QuickType 줄과
+               안드로이드(Gboard·삼성) 추천 줄을 통째로 껐다. 다시 끄지 말 것.
+               spellCheck 는 터치 기기에서만 켠다 — 데스크탑은 한글에 빨간 밑줄만 생긴다.
                사이클 N+23 — lang="ko" + autoCapitalize=off — 일부 안드로이드/iOS 한글 키보드에서 첫
                글자 누락 (예: "나" → "ㅏ") 회귀의 흔한 원인은 자동 대소문자 처리. autoCapitalize=sentences
-               가 한글 IME 첫 자모와 race condition. 한글 입력에는 영향 없는 sentences 를 off 로. */
-            autoCorrect="off"
+               가 한글 IME 첫 자모와 race condition. 한글 입력에는 영향 없는 sentences 를 off 로(유지). */
             autoCapitalize="off"
-            autoComplete="off"
-            spellCheck={false}
+            spellCheck={!enterSends()}
             inputMode="text"
             enterKeyHint="send"
             lang="ko"
