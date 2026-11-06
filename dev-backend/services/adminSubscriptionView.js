@@ -66,6 +66,7 @@ function workspaceRow(b) {
       billing_exempt: isExemptNow(b),
       billing_exempt_kind: b.billing_exempt_kind,
       owner: ownerOf(b),
+      joined_at: createdAtOf(b),
     },
     plan_code: b.plan,
     cycle: null,
@@ -80,4 +81,52 @@ function workspaceRow(b) {
   };
 }
 
-module.exports = { createdAtOf, OWNER_ATTRS, ownerOf, businessSearchOr, workspacesWithoutSubscription, workspaceRow };
+// 구독 행 → 화면 한 줄. pp = 그 구독의 가장 최근 pending 결제(입금 확인 대상) 또는 undefined.
+function subscriptionRow(s, pp) {
+  return {
+  id: s.id,
+  kind: 'subscription',
+  business: s.Business ? {
+    id: s.Business.id,
+    name: s.Business.brand_name || s.Business.name,
+    slug: s.Business.slug,
+    plan: s.Business.plan,
+    subscription_status: s.Business.subscription_status,
+    // 프론트는 이 값만 보고 "면제" 뱃지를 띄우고 상태 라벨을 과거형으로 바꾼다.
+    billing_exempt: isExemptNow(s.Business),
+    billing_exempt_kind: s.Business.billing_exempt_kind,
+    owner: ownerOf(s.Business),
+    joined_at: createdAtOf(s.Business),
+  } : null,
+  plan_code: s.plan_code,
+  cycle: s.cycle,
+  status: s.status,
+  price: Number(s.price),
+  currency: s.currency,
+  // 체험 종료일은 워크스페이스가 아직 체험 중일 때만 — 결제 뒤엔 지난 기록이라 헷갈린다.
+  trial_ends_at: s.Business && s.Business.subscription_status === 'trialing' ? s.Business.trial_ends_at : null,
+  started_at: s.started_at,
+  current_period_start: s.current_period_start,
+  current_period_end: s.current_period_end,
+  next_billing_at: s.next_billing_at,
+  past_due_at: s.past_due_at,
+  grace_ends_at: s.grace_ends_at,
+  demoted_at: s.demoted_at,
+  canceled_at: s.canceled_at,
+  cancel_reason: s.cancel_reason,
+  created_at: createdAtOf(s),
+  pending_payment: pp ? {
+    id: pp.id,
+    amount: Number(pp.amount),
+    method: pp.method,
+    period_start: pp.period_start,
+    period_end: pp.period_end,
+    created_at: createdAtOf(pp),
+    // 고객 입금 통보 — 관리자 확인 우선순위 표시용
+    notify_paid_at: pp.notify_paid_at,
+    notify_payer_name: pp.notify_payer_name || pp.payer_name || null,
+  } : null,
+  };
+}
+
+module.exports = { createdAtOf, OWNER_ATTRS, ownerOf, businessSearchOr, workspacesWithoutSubscription, workspaceRow, subscriptionRow };

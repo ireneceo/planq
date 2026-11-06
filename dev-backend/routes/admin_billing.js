@@ -9,7 +9,7 @@ const express = require('express');
 const router = express.Router();
 const { Op } = require('sequelize');
 const { Business, Subscription, Payment, User } = require('../models');
-const { createdAtOf, OWNER_ATTRS, ownerOf, businessSearchOr, workspacesWithoutSubscription, workspaceRow } = require('../services/adminSubscriptionView');
+const { createdAtOf, OWNER_ATTRS, ownerOf, businessSearchOr, workspacesWithoutSubscription, workspaceRow, subscriptionRow } = require('../services/adminSubscriptionView');
 const { paymentOrigins, businessInfo } = require('../services/adminPaymentView');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
 const { isExemptNow, exemptBusinessIds, liveBusinessIds } = require('../services/billingExemptView');
@@ -49,7 +49,9 @@ router.get('/subscriptions', async (req, res, next) => {
       attributes: ['id', 'name', 'brand_name', 'slug', 'plan', 'subscription_status',
         // 결제 면제 (운영 #275) — 면제 워크스페이스의 옛 강등/연체 구독 행이
         // 현재 상태처럼 보이면 안 된다. 행 단위로 판정 근거를 같이 내려준다.
-        'billing_exempt', 'billing_exempt_kind', 'billing_exempt_until'],
+        'billing_exempt', 'billing_exempt_kind', 'billing_exempt_until',
+        // 가입일·체험 종료일 — 결제대기·활성 카드에도 «언제 들어왔고 체험이 언제 끝나나» 가 보여야 한다(2026-11-06 Irene «날짜를 알 수가 없어»).
+        'trial_ends_at', 'created_at'],
       where: {
         deleted_at: null,
         ...(q ? { [Op.or]: await businessSearchOr(q) } : {}),
@@ -87,48 +89,7 @@ router.get('/subscriptions', async (req, res, next) => {
     }
 
     res.set('X-Total-Count', String(count + extra.length));
-    const subRow = (s) => ({
-      id: s.id,
-      kind: 'subscription',
-      business: s.Business ? {
-        id: s.Business.id,
-        name: s.Business.brand_name || s.Business.name,
-        slug: s.Business.slug,
-        plan: s.Business.plan,
-        subscription_status: s.Business.subscription_status,
-        // 프론트는 이 값만 보고 "면제" 뱃지를 띄우고 상태 라벨을 과거형으로 바꾼다.
-        billing_exempt: isExemptNow(s.Business),
-        billing_exempt_kind: s.Business.billing_exempt_kind,
-        owner: ownerOf(s.Business),
-      } : null,
-      plan_code: s.plan_code,
-      cycle: s.cycle,
-      status: s.status,
-      price: Number(s.price),
-      currency: s.currency,
-      started_at: s.started_at,
-      current_period_start: s.current_period_start,
-      current_period_end: s.current_period_end,
-      next_billing_at: s.next_billing_at,
-      past_due_at: s.past_due_at,
-      grace_ends_at: s.grace_ends_at,
-      demoted_at: s.demoted_at,
-      canceled_at: s.canceled_at,
-      cancel_reason: s.cancel_reason,
-      created_at: createdAtOf(s),
-      pending_payment: pendingMap.has(s.id) ? {
-        id: pendingMap.get(s.id).id,
-        amount: Number(pendingMap.get(s.id).amount),
-        method: pendingMap.get(s.id).method,
-        period_start: pendingMap.get(s.id).period_start,
-        period_end: pendingMap.get(s.id).period_end,
-        created_at: pendingMap.get(s.id).created_at,
-        // 고객 입금 통보 — 관리자 확인 우선순위 표시용
-        notify_paid_at: pendingMap.get(s.id).notify_paid_at,
-        notify_payer_name: pendingMap.get(s.id).notify_payer_name || pendingMap.get(s.id).payer_name || null,
-      } : null,
-    });
-    return successResponse(res, merged.map((m) => (m.s ? subRow(m.s) : workspaceRow(m.b))));
+    return successResponse(res, merged.map((m) => (m.s ? subscriptionRow(m.s, pendingMap.get(m.s.id)) : workspaceRow(m.b))));
   } catch (err) { next(err); }
 });
 

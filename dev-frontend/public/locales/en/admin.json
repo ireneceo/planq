@@ -268,7 +268,14 @@
     "exemptNotice": "{{n}} billing-exempt workspace(s) are excluded from the overdue / grace / downgraded counts. Change exemptions in Workspace management.",
     "trialEnd": "Trial ends",
     "joinedAt": "Joined",
-    "noOwner": "No owner info"
+    "noOwner": "No owner info",
+    "requestedAt": "Requested",
+    "billedAt": "Billed",
+    "billPeriod": "period",
+    "startedAt": "Started",
+    "nextBilling": "Next billing",
+    "pastDueAt": "Past due since",
+    "canceledAt": "Canceled"
   },
   "platform": {
     "title": "Platform settings",

@@ -41,6 +41,7 @@ interface SubscriptionRow {
     billing_exempt?: boolean;
     billing_exempt_kind?: 'internal' | 'tester' | 'partner' | null;
     owner?: { id: number; name: string | null; email: string } | null;
+    joined_at?: string | null;
   } | null;
   plan_code: string;
   cycle: 'monthly' | 'yearly' | null;
@@ -49,7 +50,9 @@ interface SubscriptionRow {
   currency: string | null;
   trial_ends_at?: string | null;
   started_at: string | null;
+  current_period_start?: string | null;
   current_period_end: string | null;
+  past_due_at?: string | null;
   next_billing_at: string | null;
   grace_ends_at: string | null;
   demoted_at: string | null;
@@ -267,11 +270,25 @@ const AdminSubscriptionsPage = () => {
                           {s.pending_payment!.notify_payer_name ? ` · ${t('subs.payer', '입금자')} ${s.pending_payment!.notify_payer_name}` : ''}
                         </NotifyLine>
                       )}
-                      {s.kind === 'workspace' && <span>{t('subs.joinedAt', '가입')}: {fmtDate(s.created_at)}</span>}
+                      {/* 어느 상태든 «언제 들어왔나» 가 먼저 — 결제대기·활성 카드에 날짜가 하나도 없었다(2026-11-06 Irene). */}
+                      {(s.business?.joined_at || s.kind === 'workspace') && (
+                        <span data-testid={`admin-sub-joined-${s.id}`}>{t('subs.joinedAt', '가입')}: {fmtDate(s.business?.joined_at || s.created_at)}</span>
+                      )}
                       {s.trial_ends_at && <span>{t('subs.trialEnd', '체험 종료')}: {fmtDate(s.trial_ends_at)}</span>}
+                      {s.kind === 'subscription' && <span>{t('subs.requestedAt', '결제 신청')}: {fmtDate(s.created_at)}</span>}
+                      {s.pending_payment && (
+                        <span data-testid={`admin-sub-billed-${s.id}`}>
+                          {t('subs.billedAt', '청구')}: {fmtDate(s.pending_payment.created_at)}
+                          {s.pending_payment.period_start && ` · ${t('subs.billPeriod', '기간')} ${fmtDate(s.pending_payment.period_start)} ~ ${fmtDate(s.pending_payment.period_end)}`}
+                        </span>
+                      )}
+                      {s.started_at && <span>{t('subs.startedAt', '시작')}: {fmtDate(s.started_at)}</span>}
                       {s.current_period_end && <span>{t('subs.periodEnd', '기간 종료')}: {fmtDate(s.current_period_end)}</span>}
+                      {s.next_billing_at && s.next_billing_at !== s.current_period_end && <span>{t('subs.nextBilling', '다음 결제')}: {fmtDate(s.next_billing_at)}</span>}
+                      {s.past_due_at && <span>{t('subs.pastDueAt', '연체 시작')}: {fmtDate(s.past_due_at)}</span>}
                       {s.grace_ends_at && <span>{t('subs.graceEnd', '유예 종료')}: {fmtDate(s.grace_ends_at)}</span>}
                       {s.demoted_at && <span>{t('subs.demotedAt', '강등')}: {fmtDate(s.demoted_at)}</span>}
+                      {s.canceled_at && <span>{t('subs.canceledAt', '해지')}: {fmtDate(s.canceled_at)}</span>}
                     </RowDates>
                   </RowLeft>
                   <RowRight>

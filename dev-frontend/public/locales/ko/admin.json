@@ -268,7 +268,14 @@
     "exemptNotice": "결제 면제 워크스페이스 {{n}}건은 연체·유예·강등 집계에서 제외했습니다. 면제 설정은 워크스페이스 관리에서 변경합니다.",
     "trialEnd": "체험 종료",
     "joinedAt": "가입",
-    "noOwner": "주인 정보 없음"
+    "noOwner": "주인 정보 없음",
+    "requestedAt": "결제 신청",
+    "billedAt": "청구",
+    "billPeriod": "기간",
+    "startedAt": "시작",
+    "nextBilling": "다음 결제",
+    "pastDueAt": "연체 시작",
+    "canceledAt": "해지"
   },
   "platform": {
     "title": "플랫폼 설정",
