@@ -11,6 +11,7 @@ const { authenticateToken } = require('../middleware/auth');
 const { attachWorkspaceScope, canAccessConversation } = require('../middleware/access_scope');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
 const { applyMemberDisplayName } = require('../services/displayName');
+const { isVisibleToClient } = require('../utils/messageVisibility');
 
 // 허용 이모지 — 임의 문자열 저장 금지(스토리지·렌더 오염 차단). 채팅 리액션 표준 세트.
 const ALLOWED = ['👍', '❤️', '😂', '🎉', '👀', '🙏', '✅', '🔥'];
@@ -27,6 +28,11 @@ async function loadMessageOrFail(req, res) {
   if (!conv) { errorResponse(res, 'conversation_not_found', 404); return null; }
   if (!(await canAccessConversation(req.user.id, conv, req.scope))) {
     errorResponse(res, 'forbidden', 403); return null;
+  }
+  // 고객에게 안 보이는 메시지(내부 메모·삭제·미승인 초안)는 고객에게 «없는 메시지» 다 — 반응을 달거나
+  //   응답으로 직원 반응(누른 사람 이름)을 받지 못한다. 첨부(message_attachments canReadAttachment)와 같은 술어.
+  if (req.scope?.isClient && !isVisibleToClient(message)) {
+    errorResponse(res, 'message_not_found', 404); return null;
   }
   return { message, conv };
 }
@@ -56,7 +62,9 @@ function broadcast(req, message, reactions) {
   const io = req.app.get('io') || global.__planqIo;
   if (!io) return;
   const payload = { message_id: message.id, conversation_id: message.conversation_id, reactions };
-  io.to(`conv:${message.conversation_id}`).emit('message:reaction', payload);
+  // ★ 2026-11-06 — 내부 메모·미승인 초안에 단 반응은 직원 방으로만. `conv:<id>` 에는 고객이 있다 —
+  //   message:new·message:attachment 는 막아 놓고 반응만 열려 있어 message_id·이모지·누른 사람 이름이 고객 소켓에 갔다.
+  io.to(isVisibleToClient(message) ? `conv:${message.conversation_id}` : `conv:${message.conversation_id}:staff`).emit('message:reaction', payload);
   require('../services/convBroadcast').emitConvWide(io, { id: message.conversation_id, business_id: message.business_id || Number(req.params.businessId) }, 'message:reaction', payload).catch(() => {});   // 사적 방은 참여자에게만(D3)
 }
 
