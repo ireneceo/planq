@@ -9,12 +9,28 @@ const GONE_KINDS = {
   email_thread: { model: 'EmailThread', link: /[?&]thread=(\d+)/ },
   invoice: { model: 'Invoice', link: /[?&]invoice=(\d+)/ },
   conversation: { model: 'Conversation', link: /^\/talk(?:\/(\d+)|\?(?:.*&)?conv=(\d+))/ },
+  // ★ 문서(설문 응답·문서 댓글 알림 → /docs?post=N) — 2026-11-06 밤 순찰: 지운 설문의 «새 응답» 알림을 누르면
+  //   «찾을 수 없음» 상세가 떴다. 그 알림 entity_type 은 q_record(응답 id)라 종류로는 못 고르고 링크로 고른다.
+  //   Post 는 paranoid — 휴지통에 간 문서도 findAll 에 안 나와 «지워짐» 으로 본다(휴지통 문서는 링크로 안 열린다).
+  post: { model: 'Post', link: /[?&]post=(\d+)/ },
 };
+// entity_type 없이(또는 판정 못 하는 종류로) 링크만 보고 고를 때 — 화면 경로별로 그 화면이 여는 대상
+const LINK_KINDS = [
+  { path: /^\/tasks\b/, kind: 'task' },
+  { path: /^\/(docs|posts)\b/, kind: 'post' },
+  { path: /^\/mail\b/, kind: 'email_thread' },
+  { path: /^\/calendar\b/, kind: 'calendar_event' },
+  { path: /^\/bills\b/, kind: 'invoice' },
+];
 function targetOf(n) {
   if (n.entity_type && GONE_KINDS[n.entity_type] && n.entity_id) return { kind: n.entity_type, id: Number(n.entity_id) };
   const link = n.link || '';
-  // entity_type 없이 링크만 있는 옛 알림 — 업무 링크가 대부분이다(dev 실측 313건)
-  if (/^\/tasks\b/.test(link)) { const m = link.match(GONE_KINDS.task.link); if (m) return { kind: 'task', id: Number(m[1]) }; }
+  // entity_type 없이 링크만 있는 옛 알림(dev 실측 업무 313건) · 종류로 못 고르는 알림(설문 응답 q_record → 문서 링크)
+  for (const { path, kind } of LINK_KINDS) {
+    if (!path.test(link)) continue;
+    const m = link.match(GONE_KINDS[kind].link);
+    if (m) return { kind, id: Number(m[1]) };
+  }
   // 채팅 링크는 두 모양 — /talk/:id(옛) · /talk?conv=:id(utils/notification_link.js 가 만드는 지금 모양)
   if (/^\/talk\b/.test(link)) { const m = link.match(GONE_KINDS.conversation.link); if (m) return { kind: 'conversation', id: Number(m[1] || m[2]) }; }
   return null;
