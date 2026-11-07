@@ -113,6 +113,7 @@ async def _run_migrations(db):
     ('meeting_answer_style', 'TEXT'),   # 이번 회의 답변 스타일 자유 입력
     ('meeting_answer_length', 'TEXT'),  # 'short' | 'medium' | 'long'
     ('keywords', 'TEXT'),               # JSON string[] — STT 보정용 어휘 사전
+    ('purpose', 'TEXT'),                # 시작 창 «목적» 칩 — meeting|consultation|lecture|interview|memo|other (NULL = 옛 노트)
   ]
   for col, typ in session_profile_cols:
     if not await _column_exists(db, 'sessions', col):

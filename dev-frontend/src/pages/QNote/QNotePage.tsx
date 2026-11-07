@@ -69,6 +69,7 @@ import {
 import SharedEmptyState from '../../components/Common/EmptyState';
 import DetailFallback from '../../components/Common/DetailFallback';
 import { isOtherWorkspace } from '../../utils/workspaceMatch';
+import { canSaveToSale } from '../../utils/qnotePurpose';
 import HighlightText from '../../components/Common/HighlightText';
 import SearchBoxCommon from '../../components/Common/SearchBox';
 import { useListKeyboardNav } from '../../hooks/useListKeyboardNav';
@@ -1122,6 +1123,7 @@ const QNotePage = ({ scope, onRecordingChange }: QNotePageProps = {}) => {
           priorityQACsv: null,
           meetingAnswerStyle: '',
           meetingAnswerLength: 'medium',
+          purpose: detail.purpose || '',
         });
       } else {
         setPendingConfig(null);
@@ -1370,6 +1372,7 @@ const QNotePage = ({ scope, onRecordingChange }: QNotePageProps = {}) => {
         priorityQACsv: null,
         meetingAnswerStyle: '',
         meetingAnswerLength: 'medium',
+        purpose: activeSession.purpose || '',
       };
       setPendingConfig(fallback);
     }
@@ -1610,6 +1613,8 @@ const QNotePage = ({ scope, onRecordingChange }: QNotePageProps = {}) => {
         pasted_context: cfg.pastedContext || undefined,
         meeting_answer_style: cfg.meetingAnswerStyle || undefined,
         meeting_answer_length: cfg.meetingAnswerLength || undefined,
+        // 목적 — 빈 문자열이면 서버가 해제(NULL). 설정에서 «상담» 으로 바꾸면 [상담 저장] 이 생긴다.
+        purpose: cfg.purpose ?? '',
       });
       // #241 — 녹음 중이면 서버의 번역 설정 캐시를 갱신시킨다.
       //   live.py 는 연결 시 1회만 읽으므로 이게 없으면 "회의 도중 켰는데 안 나온다" 가 된다.
@@ -1681,6 +1686,7 @@ const QNotePage = ({ scope, onRecordingChange }: QNotePageProps = {}) => {
       priorityQACsv: null,
       meetingAnswerStyle: '',
       meetingAnswerLength: 'medium',
+      purpose: '',
     });
   };
 
@@ -1746,6 +1752,8 @@ const QNotePage = ({ scope, onRecordingChange }: QNotePageProps = {}) => {
         user_expertise_level: user?.expertise_level || undefined,
         meeting_answer_style: cfg.meetingAnswerStyle || user?.answer_style_default || undefined,
         meeting_answer_length: cfg.meetingAnswerLength || user?.answer_length_default || 'medium',
+        // 시작 창 «목적» — 상담일 때만 [상담 저장] 이 보인다(utils/qnotePurpose)
+        ...(cfg.purpose ? { purpose: cfg.purpose } : {}),
         // keywords 는 서버가 자동 추출 — 프론트에서 전달하지 않음
         // ★ 프로젝트 안(embedded)에서 시작한 노트는 **그 프로젝트의 것**이다.
         //   여태 메모(createMemoSession)만 이 값을 실었고 음성메모·음성 노트·녹음 파일은 안 실어
@@ -2966,6 +2974,7 @@ const QNotePage = ({ scope, onRecordingChange }: QNotePageProps = {}) => {
                     <SettingsIcon size={16} />
                   </HeaderIconBtn>
                   {/* 글자 버튼이라 $compact(폰에서 36px 정사각으로 접힘)를 쓰지 않는다 — 접히면 글자가 넘친다 */}
+                  {canSaveToSale(activeSession) && (
                   <SecondaryBtn data-testid="qnote-save-sale"
                     onClick={() => {
                       if (phase === 'recording' || phase === 'paused') { setConfirmEndSave(true); return; }
@@ -2975,6 +2984,7 @@ const QNotePage = ({ scope, onRecordingChange }: QNotePageProps = {}) => {
                     aria-label={t('saveToSale.saveOnly', { defaultValue: '상담 저장' }) as string}>
                     {t('saveToSale.saveOnly', { defaultValue: '상담 저장' }) as string}
                   </SecondaryBtn>
+                  )}
                   {phase === 'prepared' && (
                     <PrimaryBtn $compact onClick={startRecording} disabled={lockedByOther} title={lockedByOther ? t('page.errors.recorderLockedBanner') : t('page.controls.startRecording')} aria-label={t('page.controls.startRecording')}>
                       <MicIcon size={14} />
@@ -3167,11 +3177,13 @@ const QNotePage = ({ scope, onRecordingChange }: QNotePageProps = {}) => {
                 {visibilityError && <span style={{ fontSize: '0.6875rem', color: '#B91C1C' }}>{visibilityError}</span>}
                 {/* 끝난 노트의 [상담 저장] — 녹음 머리줄의 같은 버튼과 같은 문(setSaveToSaleOpen). 2026-10-04 까지 끝난 노트에는
                     이 문이 아예 없었다(Fable 실측 — 머리줄 주석은 «끝난 노트는 [상담 저장]» 이라고 적혀 있었다). */}
+                {canSaveToSale(activeSession) && (
                 <ReviewSecondaryBtn type="button" data-testid="qnote-save-sale"
                   onClick={() => setSaveToSaleOpen(true)}
                   title={t('saveToSale.saveOnly', { defaultValue: '상담 저장' }) as string}>
                   {t('saveToSale.saveOnly', { defaultValue: '상담 저장' }) as string}
                 </ReviewSecondaryBtn>
+                )}
                 {/* 공유 — Primary (Q docs PrimaryBtn 패턴) */}
                 {String(activeSession.user_id) === String(user?.id) && (
                   <ReviewPrimaryBtn type="button" onClick={() => setShareModalOpen(true)} title={t('page.reviewBar.shareTitle', '회의록 공유') as string}>
@@ -3513,6 +3525,7 @@ const QNotePage = ({ scope, onRecordingChange }: QNotePageProps = {}) => {
           priorityQACsv: null,
           meetingAnswerStyle: activeSession.meeting_answer_style || '',
           meetingAnswerLength: (activeSession.meeting_answer_length as 'short'|'medium'|'long') || 'medium',
+          purpose: activeSession.purpose || '',
         } : undefined}
         onClose={() => { setShowStartModal(false); setEditingSession(false); }}
         onStart={handleSaveSessionEdit}

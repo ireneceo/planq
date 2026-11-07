@@ -609,6 +609,7 @@ class CreateSessionRequest(BaseModel):
   keywords: Optional[List[str]] = None  # STT 보정용 어휘 사전
   category: Optional[str] = Field(None, max_length=100)  # 운영 #54 — 분류
   tags: Optional[List[str]] = None                       # 운영 #54 — 태그
+  purpose: Optional[str] = Field(None, max_length=20)   # 시작 창 «목적» — 상담일 때만 [상담 저장]
   # ★ 2026-09-13 — 만들 때 바로 붙이는 연결.
   #   여태 이 두 필드가 **스키마에 없어서** 화면이 보내도 조용히 버려졌다(pydantic 이 무시한다).
   #   MemoView 는 사이클 N+17 부터 `project_id` 를 보내고 있었고 주석에는 "prefill 반영" 이라고
@@ -650,6 +651,7 @@ class UpdateSessionRequest(BaseModel):
   unlink_client: Optional[bool] = None
   category: Optional[str] = Field(None, max_length=100)  # 운영 #54 — 분류
   tags: Optional[List[str]] = None                       # 운영 #54 — 태그
+  purpose: Optional[str] = Field(None, max_length=20)   # 시작 창 «목적» — 상담일 때만 [상담 저장]
   # N+42 — 정리하기 모달이 트랜스크립트를 외부 자산(업무/지식/문서/공유) 으로 변환할 때 timestamp 기록
   mark_summarized: Optional[bool] = None
 
@@ -1116,6 +1118,8 @@ def _build_field_updates(body: UpdateSessionRequest):
   if body.tags is not None:
     cleaned_tags = _sanitize_tags(body.tags)
     fields.append('tags = ?'); values.append(json.dumps(cleaned_tags) if cleaned_tags else None)
+  if body.purpose is not None:
+    fields.append('purpose = ?'); values.append(_clean_purpose(body.purpose))
   return fields, values
 
 
@@ -1138,6 +1142,19 @@ def _sanitize_keywords(raw: Optional[List[str]]) -> List[str]:
     if len(out) >= 200:
       break
   return out
+
+
+SESSION_PURPOSES = {'meeting', 'consultation', 'lecture', 'interview', 'memo', 'other'}
+
+
+def _clean_purpose(raw: str) -> Optional[str]:
+  """시작 창 «목적» 값. 빈 문자열 = 해제(NULL). 모르는 값은 400 — 조용히 버리지 않는다."""
+  v = (raw or '').strip()
+  if not v:
+    return None
+  if v not in SESSION_PURPOSES:
+    raise HTTPException(status_code=400, detail='invalid purpose')
+  return v
 
 
 def _sanitize_tags(raw: Optional[List[str]]) -> List[str]:
@@ -1279,6 +1296,7 @@ async def create_session(body: CreateSessionRequest, user: dict = Depends(get_cu
   category_val = (body.category.strip() or None) if body.category else None
   tags_list = _sanitize_tags(body.tags)
   tags_json = json.dumps(tags_list) if tags_list else None
+  purpose_val = _clean_purpose(body.purpose) if body.purpose is not None else None
 
   # text 메모는 STT 단계 X → 'active' 로 바로 진입 (사용자 입력 중)
   # voice 는 기존 그대로 'prepared' → 사용자가 "녹음 시작" 누르면 'recording'
@@ -1305,8 +1323,8 @@ async def create_session(body: CreateSessionRequest, user: dict = Depends(get_cu
             user_name, user_bio, user_expertise, user_organization, user_job_title,
             user_language_levels, user_expertise_level, meeting_answer_style, meeting_answer_length,
             keywords, input_type, translate_enabled, linked_voice_session_id, body, category, tags,
-            project_id, client_id)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+            project_id, client_id, purpose)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
       (
         body.business_id, user['user_id'], body.title, language, initial_status,
         body.brief, participants_json, languages_json,
@@ -1317,7 +1335,7 @@ async def create_session(body: CreateSessionRequest, user: dict = Depends(get_cu
         keywords_json,
         input_type, translate_enabled_int, body.linked_voice_session_id, body.body,
         category_val, tags_json,
-        body.project_id, body.client_id,
+        body.project_id, body.client_id, purpose_val,
       )
     )
     await db.commit()

@@ -2,6 +2,7 @@ import { useState, useMemo, useRef, useEffect } from 'react';
 import styled from 'styled-components';
 import { useTranslation, Trans } from 'react-i18next';
 import PlanQSelect from '../../components/Common/PlanQSelect';
+import { QNOTE_PURPOSES } from '../../utils/qnotePurpose';
 import {
   MicIcon,
   MonitorIcon,
@@ -72,6 +73,9 @@ export interface StartConfig {
   priorityQACsv: File | null;
   meetingAnswerStyle: string;
   meetingAnswerLength: 'short' | 'medium' | 'long';
+  // 목적 칩(meeting·consultation·lecture·interview·memo·other, '' = 안 고름) — 서버 sessions.purpose.
+  //   «상담» 일 때만 [상담 저장] 이 보인다(utils/qnotePurpose). 여태 화면 상태로만 있고 버려졌다.
+  purpose: string;
   // NOTE: STT 보정용 어휘 사전은 서버가 세션 생성 시 자동 추출 (UI 노출 없음)
 }
 
@@ -220,6 +224,7 @@ const StartMeetingModal = ({ open, userLanguage, editMode, initialConfig, editin
     if (editMode && initialConfig) {
       setTitle(initialConfig.title || '');
       setBrief(initialConfig.brief || '');
+      setPurpose(initialConfig.purpose || '');
       setParticipants(initialConfig.participants || []);
       setMeetingLang(initialConfig.meetingLanguages?.[0] || '');
       setTranslateEnabled(!!initialConfig.translateEnabled);
@@ -293,6 +298,7 @@ const StartMeetingModal = ({ open, userLanguage, editMode, initialConfig, editin
         setPriorityQAs(Array.isArray(d.priorityQAs) ? d.priorityQAs : []);
         setMeetingAnswerStyle(d.meetingAnswerStyle || '');
         setMeetingAnswerLength((['short','medium','long'].includes(d.meetingAnswerLength) ? d.meetingAnswerLength : 'medium') as 'short'|'medium'|'long');
+        setPurpose(typeof d.purpose === 'string' ? d.purpose : '');
         hasDraftRef.current = true;
         setDraftRestored(true);
         return;
@@ -315,6 +321,7 @@ const StartMeetingModal = ({ open, userLanguage, editMode, initialConfig, editin
     setPriorityQAs([]);
     setMeetingAnswerStyle('');
     setMeetingAnswerLength('medium');
+    setPurpose('');
   }, [open, effectiveUserLanguage]);
 
   // 초안 자동 저장 — 필드 변경 시 debounce 500ms. 편집 모드는 저장 안 함.
@@ -326,7 +333,7 @@ const StartMeetingModal = ({ open, userLanguage, editMode, initialConfig, editin
           title, brief, participants,
           meetingLang, translateEnabled, translationLang, answerLang, showAdvanced,
           captureMode, pastedContext, urls,
-          priorityQAs, meetingAnswerStyle, meetingAnswerLength,
+          priorityQAs, meetingAnswerStyle, meetingAnswerLength, purpose,
           // 초안이 언제 것인지 — 오래된 초안이 오늘 회의 설정을 지배하지 않게 한다.
           savedAt: Date.now(),
         };
@@ -335,7 +342,7 @@ const StartMeetingModal = ({ open, userLanguage, editMode, initialConfig, editin
         // 넣으면 아무것도 입력하지 않아도 초안이 저장돼 매번 "초안 복원됨" 배지가 뜨고,
         // 초안 지우기(clearDraft)가 다시 프리필 → 즉시 재저장이라 사실상 무효가 된다.
         const hasAny = title || brief || participants.length ||
-          pastedContext || urls.length || priorityQAs.length || meetingAnswerStyle;
+          pastedContext || urls.length || priorityQAs.length || meetingAnswerStyle || purpose;
         if (hasAny) {
           localStorage.setItem(DRAFT_KEY, JSON.stringify({ v: 2, value: draft, editedAt: draft.savedAt }));
           hasDraftRef.current = true;
@@ -347,7 +354,7 @@ const StartMeetingModal = ({ open, userLanguage, editMode, initialConfig, editin
     }, 500);
     return () => clearTimeout(handle);
   }, [open, title, brief, participants, meetingLang, translationLang, answerLang,
-      showAdvanced, translateEnabled, captureMode, pastedContext, urls, priorityQAs, meetingAnswerStyle, meetingAnswerLength]);
+      showAdvanced, translateEnabled, captureMode, pastedContext, urls, priorityQAs, meetingAnswerStyle, meetingAnswerLength, purpose]);
 
   const clearDraft = () => {
     try { localStorage.removeItem(DRAFT_KEY); } catch { /* ignore */ }
@@ -355,6 +362,7 @@ const StartMeetingModal = ({ open, userLanguage, editMode, initialConfig, editin
     setDraftRestored(false);
     setTitle('');
     setBrief('');
+    setPurpose('');
     setParticipants([]);
     setPName('');
     setPRole('');
@@ -657,6 +665,7 @@ const StartMeetingModal = ({ open, userLanguage, editMode, initialConfig, editin
       priorityQACsv: priorityCsv,
       meetingAnswerStyle: meetingAnswerStyle.trim(),
       meetingAnswerLength,
+      purpose,
     });
   };
 
@@ -715,7 +724,7 @@ const StartMeetingModal = ({ open, userLanguage, editMode, initialConfig, editin
           <Field>
             <Label>{t('startModal.purposeLabel', '목적')}</Label>
             <PurposeRow>
-              {(['meeting','consultation','lecture','interview','memo','other'] as const).map(k => (
+              {QNOTE_PURPOSES.map(k => (
                 <PurposeChip
                   key={k}
                   type="button"

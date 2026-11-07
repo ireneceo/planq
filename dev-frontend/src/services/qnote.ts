@@ -134,6 +134,8 @@ export interface QNoteSession {
   // 운영 #54 — 분류/태그 (메모·음성 공통)
   category?: string | null;
   tags?: string[] | null;
+  // 시작 창 «목적» — NULL = 옛 노트(목적 없음)
+  purpose?: string | null;
 }
 
 /**
@@ -350,6 +352,8 @@ export interface CreateSessionPayload {
   // 운영 #54 — 분류/태그
   category?: string | null;
   tags?: string[];
+  // 시작 창 «목적» — 빈 문자열 = 해제
+  purpose?: string;
 }
 
 // opts.projectId — 프로젝트 탭(embedded Q Note)이 그 프로젝트 회의록만 본다.
