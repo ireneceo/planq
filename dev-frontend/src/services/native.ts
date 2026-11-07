@@ -7,6 +7,64 @@ import { Capacitor } from '@capacitor/core';
 /** iOS/Android 네이티브 앱(WebView) 안에서 실행 중인가. 웹/PWA/데스크탑이면 false. */
 export const isNativeApp = (): boolean => Capacitor.isNativePlatform();
 
+/**
+ * 데스크탑 앱(Electron, `desktop/preload.js`)이 창에 붙여 주는 다리 — 이 목록이 **전부**다
+ * (docs/DESKTOP_APP_DESIGN.md §5 «preload 표면»). 여기 없는 것을 부르지 않는다.
+ */
+export interface PlanqDesktopBridge {
+  version: string;
+  platform: 'win32' | 'darwin' | 'linux';
+  /** 이 창(부른 창 자신)을 «항상 위» 로 / 풀기 */
+  setAlwaysOnTop: (on: boolean) => Promise<boolean>;
+  /** OS 알림 — 메인 창만 부른다(팝아웃도 같은 소켓 이벤트를 받는다). 같은 id 는 main 이 60초 동안 한 번만 */
+  notify: (n: { id: string; title: string; body?: string; link?: string | null; urgent?: boolean; tag?: string }) => Promise<boolean>;
+  /** 작업 표시줄·독 숫자(0 이면 지움) */
+  setBadge: (n: number) => Promise<boolean>;
+  /** 시스템 브라우저로 열기(http/https 만) */
+  openExternal: (url: string) => Promise<boolean>;
+  getAutoLaunch: () => Promise<boolean>;
+  setAutoLaunch: (on: boolean) => Promise<boolean>;
+  /** OS 알림을 눌렀을 때 — link 를 받는다. 해제 함수를 돌려준다 */
+  onNotificationClick: (cb: (link: string | null) => void) => () => void;
+  /** planq://oauth/native-return?… 로 앱이 깨어났을 때 — 전체 URL 을 받는다 */
+  onDeepLink: (cb: (url: string) => void) => () => void;
+}
+
+/** 데스크탑 앱 다리. 웹·PWA·폰 앱이면 null. */
+export const desktopBridge = (): PlanqDesktopBridge | null => {
+  if (typeof window === 'undefined') return null;
+  const b = (window as unknown as { planqDesktop?: PlanqDesktopBridge }).planqDesktop;
+  return b && typeof b.setAlwaysOnTop === 'function' ? b : null;
+};
+
+/**
+ * 데스크탑 앱(윈도우·맥) 안에서 실행 중인가 — 판정은 UA 가 아니라 **다리가 있는가** 하나다.
+ * ★ `isNativeApp()` 과 다르다 — 그쪽은 Capacitor 플러그인을 부르는 길(29파일)이라 데스크탑을 섞으면 죽는다.
+ *   데스크탑이 달라야 하는 자리는 이 함수로 **따로** 가른다(설계 §3-2).
+ */
+export const isDesktopApp = (): boolean => desktopBridge() !== null;
+
+/**
+ * 외부 로그인·연동(구글·애플)을 **시스템 브라우저 + 앱 복귀**(client=native · 짝 맞추기 · planq://)로 하는 앱인가.
+ *   폰 앱과 데스크탑 앱 둘 다 — 구글은 앱 안 창에서 로그인을 막는다. 이 판정만 두 앱을 같이 다룬다(설계 §3-7).
+ */
+export const usesSystemBrowserAuth = (): boolean => isNativeApp() || isDesktopApp();
+
+/**
+ * 시스템 브라우저로 열기 — 폰 앱은 Capacitor 인앱 브라우저, 데스크탑 앱은 OS 기본 브라우저.
+ * 로그인(구글·애플)처럼 앱 창 안에서 열면 안 되는 주소에만 쓴다. 웹이면 false(부르는 쪽이 종전대로).
+ */
+export async function openSystemBrowser(url: string): Promise<boolean> {
+  const d = desktopBridge();
+  if (d) { await d.openExternal(url); return true; }
+  if (isNativeApp()) {
+    const { Browser } = await import('@capacitor/browser');
+    await Browser.open({ url });
+    return true;
+  }
+  return false;
+}
+
 /** 현재 플랫폼. 네이티브면 'ios'|'android', 웹이면 'web'. */
 export const nativePlatform = (): 'ios' | 'android' | 'web' =>
   Capacitor.getPlatform() as 'ios' | 'android' | 'web';
@@ -27,6 +85,10 @@ export async function openExternalUrl(url: string): Promise<void> {
       window.location.reload();
     });
     await Browser.open({ url });
+  } else if (isDesktopApp()) {
+    // 데스크탑 앱: 창 안은 planq.kr 만 열린다(탐색 잠금). 결제는 OS 브라우저에서 하고,
+    //   돌아와 창을 누르면 useVisibilityRefresh 가 서버 상태를 다시 읽는다.
+    await desktopBridge()!.openExternal(url);
   } else {
     window.location.href = url;
   }
@@ -41,9 +103,11 @@ export async function openExternalUrl(url: string): Promise<void> {
  *   그래서 앱에서 그 경로로 만든 세션만 `web`(30일)로 잡혀, 다른 로그인 경로(365일)와
  *   달랐다. 판정을 복사하면 반드시 갈라진다 — 세션을 만드는 곳은 전부 여기를 부른다.
  */
-export const detectClientKind = (): 'pwa' | 'web' | 'ios' | 'android' => {
+export const detectClientKind = (): 'pwa' | 'web' | 'ios' | 'android' | 'desktop' => {
   if (typeof window === 'undefined') return 'web';
   try {
+    // 데스크탑 앱 — 365일(서버 authTokens LONG_KINDS). PWA 와 갈라 센다(설계 §3-2).
+    if (isDesktopApp()) return 'desktop';
     // 네이티브 우선 — WebView 안에서도 display-mode 가 standalone 일 수 있다.
     if (isNativeApp()) {
       const p = nativePlatform();
@@ -74,6 +138,13 @@ export const detectClientKind = (): 'pwa' | 'web' | 'ios' | 'android' => {
  * @returns 열었으면 true. 웹이거나 플러그인이 못 열면 false — **부르는 쪽이 폴백 문구를 띄운다.**
  */
 export async function openAppNotificationSettings(): Promise<boolean> {
+  // 데스크탑 앱 — OS 알림 설정 화면(맥 시스템 설정 › 알림 · 윈도우 설정 › 알림)
+  const d = desktopBridge();
+  if (d) {
+    if (d.platform === 'darwin') return d.openExternal('x-apple.systempreferences:com.apple.preference.notifications');
+    if (d.platform === 'win32') return d.openExternal('ms-settings:notifications');
+    return false;
+  }
   if (!isNativeApp()) return false;
   try {
     // iOS: 'app-settings:' 가 이 앱의 설정 화면으로 간다.

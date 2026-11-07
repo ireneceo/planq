@@ -8,7 +8,7 @@ import { initFontScale } from './services/fontScale'
 import { captureFirstTouch } from './services/firstTouch'
 import App from './App.tsx'
 import { bindPermissionSync } from './services/push.ts'
-import { isNativeApp, nativePlatform } from './services/native'
+import { isNativeApp, isDesktopApp, nativePlatform } from './services/native'
 
 // iOS 입력 자동확대 끄기 (운영 #435, 2026-09-28).
 //   Irene: *"업무상세를 입력하려고 하니 입력창이 확대되고 위아래 제대로 안보여 … 확대된 채로 다른 모든
@@ -33,7 +33,9 @@ import { isNativeApp, nativePlatform } from './services/native'
 // 네이티브 앱(Capacitor)에서는 SW 를 등록하지 않는다: iOS WKWebView 는 SW 미지원이라 자연 skip
 // 되지만 Android WebView 는 SW 를 지원하므로 명시 가드 필요(MOBILE_APP_DESIGN §6.6). 네이티브는
 // 웹 푸시 대신 APNs/FCM(Phase 2) 을 쓰고, 빌드 갱신은 remote URL 로 자동 반영된다.
-if (!isNativeApp() && 'serviceWorker' in navigator) {
+// 데스크탑 앱(Electron)도 등록하지 않는다 — 웹 푸시가 안 되고(알림은 소켓 → OS 알림), 옛 SW 가 옛 화면 조각을
+//   불러 «Something went wrong» 이 나던 PWA 불편을 껍데기에서 없앤다(docs/DESKTOP_APP_DESIGN.md §3-6).
+if (!isNativeApp() && !isDesktopApp() && 'serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' }).then((reg) => {
       // 30분 주기 update 체크 — 새 SW 발견 시 install→activate 자동 진행
@@ -44,7 +46,7 @@ if (!isNativeApp() && 'serviceWorker' in navigator) {
 
 // 알림 권한 동기화 — focus 복귀 시 OS 권한 OFF 면 backend 의 좀비 endpoint 자동 정리.
 // 웹 푸시 전용 로직이라 네이티브 앱에서는 skip (네이티브 푸시는 Phase 2 nativePush 가 담당).
-if (!isNativeApp()) {
+if (!isNativeApp() && !isDesktopApp()) {
   bindPermissionSync();
 }
 

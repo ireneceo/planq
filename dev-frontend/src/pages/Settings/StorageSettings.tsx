@@ -2,7 +2,7 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import TrustNote from '../../components/Common/TrustNote';
 import { startAuthPopup } from '../../services/oauth';
-import { isNativeApp } from '../../services/native';
+import { usesSystemBrowserAuth } from '../../services/native';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { apiFetch, useAuth } from '../../contexts/AuthContext';
@@ -185,7 +185,7 @@ const StorageSettings: React.FC<Props> = ({ businessId }) => {
       // 웹: 팝업 + closed 폴링. 네이티브: 시스템 브라우저 → 완료는 planq:oauth-connected 이벤트로(§6.8).
       const popup = await startAuthPopup(j.data.auth_url, `planq-oauth-${provider}`, `width=${w},height=${h},left=${left},top=${top}`);
       popupRef.current = popup || null;
-      if (isNativeApp()) return;  // 네이티브: 앱 복귀 이벤트가 load() 담당 (아래 useEffect)
+      if (usesSystemBrowserAuth()) return;  // 폰·데스크탑 앱: 앱 복귀 이벤트가 load() 담당 (아래 useEffect)
       if (!popup) {
         // 팝업 차단됨
         setConnecting(null);

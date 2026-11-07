@@ -1073,7 +1073,14 @@
     "title": "디바이스 알림 (Web Push)",
     "unsubscribeBtn": "이 디바이스 알림 끄기",
     "unsubscribedMsg": "디바이스 알림이 꺼졌습니다",
-    "unsupportedMsg": "이 브라우저는 푸시 알림을 지원하지 않습니다."
+    "unsupportedMsg": "이 브라우저는 푸시 알림을 지원하지 않습니다.",
+    "desktop": {
+      "title": "이 컴퓨터 알림 (데스크탑 앱)",
+      "howItWorks": "PlanQ 데스크탑 앱이 켜져 있는 동안 알림이 옵니다. 창을 닫아도 작업 표시줄(맥은 메뉴 막대)에 남아 알림을 받고, 앱을 완전히 끄면 오지 않습니다.",
+      "openOsSettings": "컴퓨터 알림 설정 열기",
+      "openOsFailed": "이 컴퓨터에서는 설정을 바로 열 수 없어요 — 시스템 설정의 «알림» 에서 PlanQ 를 찾아 주세요.",
+      "autoLaunch": "컴퓨터를 켤 때 PlanQ 자동 실행"
+    }
   },
   "payrollSettings": {
     "openTitle": "급여 화면",

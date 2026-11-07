@@ -1,0 +1,23 @@
+{
+  "name": "planq-desktop",
+  "productName": "PlanQ",
+  "version": "1.0.0",
+  "description": "PlanQ desktop app (Windows · Mac) — remote shell for planq.kr",
+  "main": "src/main.js",
+  "private": true,
+  "author": "PlanQ",
+  "homepage": "https://planq.kr",
+  "scripts": {
+    "start": "electron .",
+    "build:win": "node scripts/build.js win",
+    "build:mac": "node scripts/build.js mac",
+    "check": "node scripts/check.js"
+  },
+  "dependencies": {
+    "electron-updater": "6.8.10"
+  },
+  "devDependencies": {
+    "electron": "44.9.0",
+    "electron-builder": "26.17.0"
+  }
+}

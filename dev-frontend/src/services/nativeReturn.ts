@@ -6,7 +6,7 @@
 // 둘이 다른 코드를 타면 한쪽만 고쳐진다(로그인 실패 착지·연결 확인·연동 완료가 그랬다). 그래서 여기 하나다.
 // (2026-10-16 NativeBridge.tsx 에서 옮겼다. 바뀐 것은 둘 — 연결 확인·code 분기에서 6자리 페어링을 먼저 지운다
 //  (앱 안에서 끝나는 흐름이라 코드 입력창이 뜰 까닭이 없다). 나머지는 그대로.)
-import { nativePlatform } from './native';
+import { detectClientKind } from './native';
 import { clearPair } from './oauth';
 
 /** 이 주소가 OAuth 복귀인지. https 는 같은 출처만 — 경로만 보고 받으면 남의 도메인 링크로도 교환이 트리거된다(로그인 CSRF). */
@@ -57,7 +57,7 @@ export async function handleNativeReturnUrl(u: URL): Promise<boolean> {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ code, client_kind: nativePlatform() }),
+        body: JSON.stringify({ code, client_kind: detectClientKind() }),   // ios·android·desktop — 세션 기한(365일)을 정한다
       });
       if (r.ok) { window.location.href = '/inbox'; return true; }
     } catch { /* 아래 실패 착지 */ }

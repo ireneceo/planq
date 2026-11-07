@@ -1592,7 +1592,9 @@
     "recordingTitle": "Recording in progress",
     "recordingMessage": "Unpinning now closes the pinned window and stops the recording. Continue?",
     "recordingConfirm": "Stop recording and unpin",
-    "failed": "Couldn't pin it. Please press the pin once more."
+    "failed": "Couldn't pin it. Please press the pin once more.",
+    "desktopPinHint": "Keep this window on top of other windows. You can pin several windows at once.",
+    "desktopUnpinHint": "Unpinning turns it back into a normal window."
   },
   "update": {
     "ready": "A new version is ready",

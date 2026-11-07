@@ -19,6 +19,7 @@ import { useAuth, apiFetch } from '../../contexts/AuthContext';
 import { enterWorkspaceLink, WS_PARAM } from '../../utils/workspaceLink';
 import { notificationRowToToastLink, openNotificationTarget, type NotificationFullRow } from '../../utils/notificationLink';
 import NotificationTypeIcon from './NotificationTypeIcon';
+import { desktopBridge } from '../../services/native';
 import { ensureUnlock, playPing } from './notificationSound';
 
 interface Toast {
@@ -194,6 +195,28 @@ export default function NotificationToaster() {
     // 의미하므로 useUnreadTotal 이 즉시 refetch 해야 사이드바 뱃지가 stale 되지 않음.
     if (toast.type === 'message') {
       window.dispatchEvent(new Event('planq:unread-changed'));
+    }
+    // ★ 데스크탑 앱 — 창을 보고 있지 않으면(숨김·다른 앱 앞) OS 알림. 보고 있으면 아래 카드만(한 알림 = 한 번).
+    //   이 토스터는 메인 창에만 마운트된다(팝아웃은 hideAppChrome) → 메인 창 단일 발신. main 이 id 로 60초 중복도 막는다.
+    //   «지금 보는 대화» 로 카드를 건너뛰는 것은 보고 있을 때의 얘기다 — 안 보고 있으면 그 대화 메시지도 알린다.
+    //   docs/DESKTOP_APP_DESIGN.md §3-5
+    if (!channelOff) {
+      const desk = desktopBridge();
+      const looking = document.visibilityState === 'visible' && document.hasFocus();
+      if (desk && !looking) {
+        const link = toast.link
+          ? (toast.foreignBusinessId ? `${toast.link}${toast.link.includes('?') ? '&' : '?'}${WS_PARAM}=${toast.foreignBusinessId}` : toast.link)
+          : null;
+        void desk.notify({
+          id: toast.notificationId != null ? `n:${toast.notificationId}` : `${toast.contextKey || toast.type}|${toast.title}|${toast.body || ''}`,
+          title: toast.workspaceName ? `${toast.workspaceName} · ${toast.title}` : toast.title,
+          body: toast.body,
+          link,
+          urgent: !!toast.urgent,
+          tag: toast.contextKey,
+        }).catch(() => false);
+        return;
+      }
     }
     if (skipToast) return;
 

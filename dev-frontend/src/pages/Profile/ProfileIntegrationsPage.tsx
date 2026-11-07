@@ -7,7 +7,7 @@
 // Phase 2~: 개인 Google Calendar / Gmail / Drive 직접 등록 (옛 OAuth 인프라 재사용 + owner_scope='user')
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { startAuthRedirect, startAuthPopup } from '../../services/oauth';
-import { isNativeApp } from '../../services/native';
+import { usesSystemBrowserAuth } from '../../services/native';
 import styled from 'styled-components';
 import { Link, useNavigate } from 'react-router-dom';
 import AutoSaveField from '../../components/Common/AutoSaveField';
@@ -226,7 +226,7 @@ const ProfileIntegrationsPage: React.FC = () => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         // #125a — 네이티브면 콜백이 HTML(창 멈춤) 대신 앱 딥링크로 복귀하도록 서버에 알린다
-        body: JSON.stringify({ provider, business_id: businessId, client: isNativeApp() ? 'native' : 'web' }),
+        body: JSON.stringify({ provider, business_id: businessId, client: usesSystemBrowserAuth() ? 'native' : 'web' }),
       });
       const j = await r.json();
       if (!j.success || !j.data?.auth_url) {
@@ -236,7 +236,7 @@ const ProfileIntegrationsPage: React.FC = () => {
       }
       // 웹: 팝업 + postMessage. 네이티브: 시스템 브라우저 → 완료는 planq:oauth-connected 이벤트로(§6.8).
       const popup = await startAuthPopup(j.data.auth_url, 'planq-personal-oauth', 'width=520,height=660');
-      if (!isNativeApp() && !popup) {
+      if (!usesSystemBrowserAuth() && !popup) {
         setErrorMsg(t('integrations.popupBlocked', { defaultValue: '팝업이 차단되었어요. 브라우저에서 팝업을 허용해 주세요.' }) as string);
         setConnProvider(null);
       }

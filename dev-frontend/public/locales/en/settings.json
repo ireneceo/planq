@@ -1073,7 +1073,14 @@
     "title": "Device notifications (Web Push)",
     "unsubscribeBtn": "Turn off notifications on this device",
     "unsubscribedMsg": "Notifications are off for this device",
-    "unsupportedMsg": "This browser doesn't support push notifications."
+    "unsupportedMsg": "This browser doesn't support push notifications.",
+    "desktop": {
+      "title": "This computer's notifications (desktop app)",
+      "howItWorks": "Notifications arrive while the PlanQ desktop app is running. Closing the window keeps it in the taskbar (menu bar on Mac) so alerts still come; quitting the app stops them.",
+      "openOsSettings": "Open system notification settings",
+      "openOsFailed": "Settings can't be opened directly on this computer — find PlanQ under Notifications in your system settings.",
+      "autoLaunch": "Start PlanQ when the computer starts"
+    }
   },
   "payrollSettings": {
     "openTitle": "Payroll",

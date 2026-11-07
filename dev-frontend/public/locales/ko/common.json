@@ -1592,7 +1592,9 @@
     "recordingTitle": "녹음 중입니다",
     "recordingMessage": "지금 해제하면 고정창이 닫히며 녹음이 중단됩니다. 계속할까요?",
     "recordingConfirm": "녹음을 멈추고 해제",
-    "failed": "고정하지 못했어요. 핀을 한 번 더 눌러 주세요."
+    "failed": "고정하지 못했어요. 핀을 한 번 더 눌러 주세요.",
+    "desktopPinHint": "이 창을 다른 창 위에 항상 보이게 고정합니다. 여러 창을 함께 고정할 수 있어요.",
+    "desktopUnpinHint": "고정을 풀면 보통 창이 됩니다."
   },
   "update": {
     "ready": "새 버전이 준비됐어요",

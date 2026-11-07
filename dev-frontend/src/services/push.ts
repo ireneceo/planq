@@ -7,8 +7,13 @@
 //   5) POST /api/push/subscribe (endpoint, keys, user_agent)
 import { getDeviceProof } from './accounts';
 import { apiFetch, getAccessToken } from '../contexts/AuthContext';
-import { isNativeApp } from './native';
+import { isNativeApp, isDesktopApp } from './native';
 import { registerNative, unregisterNative } from './nativePush';
+
+// ★ 데스크탑 앱(Electron)에는 웹 푸시가 없다 — PushManager 객체는 있지만 subscribe 만 실패하는 «거짓 참» 이다.
+//   알림은 앱이 켜져 있는 동안 소켓 → OS 알림(NotificationToaster)으로 온다(docs/DESKTOP_APP_DESIGN.md §3-5·6).
+//   조용히 실패하지 않게 사유 'desktop_app' 을 돌려준다 — 화면이 그 사유로 안내 문구를 고른다.
+const DESKTOP = { ok: false, reason: 'desktop_app' } as const;
 
 function urlBase64ToUint8Array(base64String: string): Uint8Array {
   const padding = '='.repeat((4 - base64String.length % 4) % 4);
@@ -20,6 +25,7 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array {
 }
 
 export async function isPushSupported(): Promise<boolean> {
+  if (isDesktopApp()) return false;
   return 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
 }
 
@@ -88,6 +94,7 @@ export async function subscribe(): Promise<{ ok: boolean; reason?: string }> {
   if (!getAccessToken()) return { ok: false, reason: 'not_authenticated' };
   // 네이티브 앱: 웹 push(SW/VAPID) 대신 APNs/FCM 등록. isPushSupported()는 SW 부재로 false 라 그 앞에 분기.
   if (isNativeApp()) return registerNative();
+  if (isDesktopApp()) return { ...DESKTOP };
   if (!await isPushSupported()) return { ok: false, reason: 'unsupported' };
 
   const perm = await Notification.requestPermission();
@@ -158,6 +165,7 @@ export async function subscribe(): Promise<{ ok: boolean; reason?: string }> {
 
 export async function unsubscribe(): Promise<{ ok: boolean; reason?: string }> {
   if (isNativeApp()) return unregisterNative();
+  if (isDesktopApp()) return { ok: true }; // 구독이 애초에 없다
   if (!('serviceWorker' in navigator)) return { ok: true }; // already not supported
   const reg = await navigator.serviceWorker.getRegistration();
   if (!reg) return { ok: true };
@@ -174,6 +182,7 @@ export async function unsubscribe(): Promise<{ ok: boolean; reason?: string }> {
 }
 
 export async function isSubscribed(): Promise<boolean> {
+  if (isDesktopApp()) return false;
   if (!('serviceWorker' in navigator)) return false;
   const reg = await navigator.serviceWorker.getRegistration();
   if (!reg) return false;
@@ -220,6 +229,7 @@ export async function autoSubscribeIfPossible(): Promise<{ ok: boolean; reason?:
   if (!getAccessToken()) return { ok: false, reason: 'not_authenticated' };
   // 네이티브 앱: APNs/FCM 등록으로 위임 (아래 웹 SW/VAPID 경로 skip).
   if (isNativeApp()) return registerNative();
+  if (isDesktopApp()) return { ...DESKTOP };
   if (!(await isPushSupported())) return { ok: false, reason: 'unsupported' };
 
   const perm = Notification.permission;

@@ -5,7 +5,8 @@
 // ★ WorkspaceSyncGuard 는 여기·ShellApp 어느 쪽에도 두지 않는다 — App 루트(ModeGate 옆)에 한 번. 두 벌이면 한쪽이 빠진다.
 import { Suspense, lazy } from 'react';
 import NativeBridge from '../NativeBridge';
-import { isNativeApp } from '../../services/native';
+import DesktopBridge from '../DesktopBridge';
+import { isNativeApp, isDesktopApp } from '../../services/native';
 
 const CueHelpDrawer = lazy(() => import('../Common/CueHelpDrawer'));
 const MemoFab = lazy(() => import('../QNote/MemoFab'));
@@ -30,7 +31,9 @@ export default function ChromeOverlays() {
       {/* App.tsx 와 같은 계약 — 네이티브(예: iPad 가로, ≥1025px 라 탭 모드)에서는 OS 알림이 담당 */}
       {!isNativeApp() && <NotificationToaster />}
       <NativeBridge />
-      {!isNativeApp() && <PwaInstallBanner />}
+      <DesktopBridge />
+      {/* 데스크탑 앱은 이미 설치된 앱이다 — PWA 설치 안내를 띄우지 않는다 */}
+      {!isNativeApp() && !isDesktopApp() && <PwaInstallBanner />}
       {!isNativeApp() && <OpenInAppBanner />}
       <PopoutBridgeChrome />
       <BuildVersionGuard />

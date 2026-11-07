@@ -13,7 +13,7 @@
 //
 // 백엔드 푸시 payload 의 badge 도 **같은 공식**이다 (routes/notifications.js).
 //   공식이 두 벌이면 이미 갈라져 있다 — 잠금화면 숫자와 앱 안 숫자가 달라진다.
-import { isNativeApp } from '../services/native';
+import { isNativeApp, desktopBridge } from '../services/native';
 import { useEffect, useRef, useState } from 'react';
 import { fetchDeviceAccounts } from '../services/accounts';
 
@@ -52,6 +52,9 @@ async function applyBadge(count: number): Promise<boolean> {
       else await Badge.clear();
       return true;
     }
+    // 데스크탑 앱(Electron) — 작업 표시줄·독 숫자. 같은 공식의 같은 값(새 공식 없음 — docs/DESKTOP_APP_DESIGN.md §3-4)
+    const desk = desktopBridge();
+    if (desk) return await desk.setBadge(Math.max(0, count)).catch(() => false);
     const nav = navigator as Navigator & NavigatorBadge;
     if (count > 0 && typeof nav.setAppBadge === 'function') {
       await nav.setAppBadge(count).catch(() => null);

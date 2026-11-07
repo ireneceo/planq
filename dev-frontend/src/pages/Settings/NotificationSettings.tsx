@@ -1,6 +1,7 @@
 // 알림 설정 매트릭스 (Phase E4)
 // 이벤트 × 채널 × On/Off — 사용자 본인 (워크스페이스 컨텍스트)
-import { isNativeApp } from '../../services/native';
+import { isNativeApp, isDesktopApp } from '../../services/native';
+import DesktopAppNotifyBody from './DesktopAppNotifyBody';
 import React, { useEffect, useRef, useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation, Trans } from 'react-i18next';
@@ -418,6 +419,16 @@ const PushSection: React.FC<{ businessId: number | null }> = () => {
   // 'unsupported' / 'loading' / subscribed 는 일반 표시.
   const isOff = !subscribed && (permission === 'default' || permission === 'granted');
   const isDenied = permission === 'denied';
+
+  // 데스크탑 앱 — 웹 푸시가 없다(켜기 버튼 대신 «어떻게 오는지» + OS 설정 + 자동 실행). docs/DESKTOP_APP_DESIGN.md §3-5
+  if (isDesktopApp()) {
+    return (
+      <Section>
+        <SectionTitle>{t('push.desktop.title', '이 컴퓨터 알림 (데스크탑 앱)')}</SectionTitle>
+        <DesktopAppNotifyBody />
+      </Section>
+    );
+  }
 
   return (
     <Section>

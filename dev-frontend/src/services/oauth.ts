@@ -7,7 +7,7 @@
 //
 // 웹(브라우저/PWA)에서는 기존 동작 그대로 — redirect 는 location.href, popup 은 window.open.
 // 웹 회귀 0: 모든 분기는 isNativeApp() 이 true 인 쪽이 새 길.
-import { isNativeApp } from './native';
+import { isNativeApp, isDesktopApp, openSystemBrowser } from './native';
 
 function toAbsolute(url: string): string {
   if (/^https?:\/\//i.test(url)) return url;
@@ -132,11 +132,11 @@ export async function claimWithCode(code: string): Promise<{ ok: boolean; reason
 }
 
 export async function startAuthRedirect(url: string): Promise<void> {
-  if (isNativeApp()) {
+  if (isNativeApp() || isDesktopApp()) {
     // iOS 로그인 창이 있으면 그것으로 끝낸다 — 복귀를 OS 가 보장하므로 6자리 페어링을 열지 않는다
     //   (페어링이 없으면 코드 입력창은 뜰 일이 없다).
     clearPair();
-    if (await openIosAuthSession(url)) return;
+    if (isNativeApp() && await openIosAuthSession(url)) return;
     // 딥링크가 실패해도 코드로 이어갈 수 있게 흐름을 먼저 연다. 실패하면 딥링크만으로 진행.
     let withPair = url;
     try {
@@ -149,6 +149,8 @@ export async function startAuthRedirect(url: string): Promise<void> {
         withPair += (url.includes('?') ? '&' : '?') + 'pair=' + encodeURIComponent(pairId);
       }
     } catch { /* 페어링 없이 딥링크만으로 진행 */ }
+    // 데스크탑 앱: OS 기본 브라우저 — planq:// 가 앱을 깨우면 바로, 안 되면 앱 창으로 돌아올 때 6자리(PairCodePrompt)
+    if (isDesktopApp()) { await openSystemBrowser(toAbsolute(withPair)); return; }
     await openNativeBrowser(withPair);
     return;
   }
@@ -171,5 +173,7 @@ export async function startAuthPopup(
     await openNativeBrowser(url);
     return null;
   }
+  // 데스크탑 앱: 앱 창 안은 planq.kr 만 열린다 — OS 브라우저로 열고 완료는 planq://(kind=connect) → planq:oauth-connected.
+  if (isDesktopApp()) { await openSystemBrowser(toAbsolute(url)); return null; }
   return window.open(url, name, features);
 }

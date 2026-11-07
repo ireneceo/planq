@@ -41,16 +41,22 @@ const PopoutPinButton: React.FC<Props> = ({ host }) => {
 
   if (!host.canPin || host.mode === 'holder') return null;
 
-  const pinned = host.mode === 'pip-content';
+  // 데스크탑 앱은 이 창 자체가 고정된다(host.pinned) — 브라우저는 고정창 안(pip-content)일 때가 고정 상태
+  const pinned = host.pinned;
   const label = pinned
     ? (t('popoutPin.unpin', '고정 해제') as string)
     : (t('popoutPin.pin', '항상 위로 고정') as string);
-  const hint = pinned
+  const hint = host.desktop
+    ? (pinned
+      ? (t('popoutPin.desktopUnpinHint', '고정을 풀면 보통 창이 됩니다.') as string)
+      : (t('popoutPin.desktopPinHint', '이 창을 다른 창 위에 항상 보이게 고정합니다. 여러 창을 함께 고정할 수 있어요.') as string))
+    : pinned
     ? (t('popoutPin.unpinHint', '고정을 풀면 원래 창으로 돌아옵니다.') as string)
     : (t('popoutPin.pinHint', '다른 창 위에 항상 보이게 고정합니다. 고정창은 브라우저가 화면 오른쪽 위에 띄워요 — 창을 옮긴 뒤 고정해도 그 자리로 갑니다.') as string);
 
   const handleClick = () => {
-    if (pinned && isRecording()) { setConfirmOpen(true); return; }
+    // 녹음 확인은 브라우저 고정창에만 — 거기선 해제가 고정창(과 마이크)을 없앤다. 데스크탑 앱은 같은 창이 그대로라 녹음이 안 끊긴다
+    if (pinned && !host.desktop && isRecording()) { setConfirmOpen(true); return; }
     host.toggle();
   };
 

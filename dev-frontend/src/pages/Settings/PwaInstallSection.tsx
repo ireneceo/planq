@@ -8,7 +8,7 @@ import React, { useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { usePwaInstall } from '../../contexts/PwaInstallContext';
-import { isNativeApp } from '../../services/native';
+import { isNativeApp, isDesktopApp } from '../../services/native';
 import AppQrCode, { appDownloadUrl } from '../../components/Common/AppQrCode';
 import { getManualSteps } from '../../utils/pwaInstallSteps';
 
@@ -33,7 +33,8 @@ const PwaInstallSection: React.FC = () => {
   //   이미 앱으로 실행 중이라 사용자에게는 고장 난 안내로 읽힌다(2026-08-25 Irene).
   //   ★ 훅 호출 뒤에 둔다 — early return 을 훅 위에 두면 React #310 으로 화면이 깨진다
   //     (memory feedback_hooks_after_early_return).
-  const native = isNativeApp();
+  // 폰 앱·데스크탑 앱은 이미 설치된 앱이다 — PWA 설치 칸을 그리지 않는다
+  const native = isNativeApp() || isDesktopApp();
   const { isStandalone, isRelatedInstalled, canPrompt, isIos, platform, install } = usePwaInstall();
   const [busy, setBusy] = useState(false);
   const [resultMsg, setResultMsg] = useState<string | null>(null);

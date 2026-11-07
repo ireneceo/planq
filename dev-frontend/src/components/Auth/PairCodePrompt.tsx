@@ -13,7 +13,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import styled from 'styled-components';
-import { isNativeApp } from '../../services/native';
+import { usesSystemBrowserAuth } from '../../services/native';
 import { pendingPairId, clearPair, claimWithCode, pairReadyForCode } from '../../services/oauth';
 import { useEscapeStack } from '../../hooks/useEscapeStack';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
@@ -32,7 +32,7 @@ const PairCodePrompt: React.FC<{ authed: boolean }> = ({ authed }) => {
 
   // 앱이 앞으로 나올 때마다 진행 중인 흐름이 있는지 본다 (브라우저에서 돌아온 순간).
   useEffect(() => {
-    if (!isNativeApp() || authed) return;
+    if (!usesSystemBrowserAuth() || authed) return;
     // ★ 흐름이 열려 있는 것만으로 띄우지 않는다 — 로그인이 끝나 코드가 생겼을 때만(서버에 묻는다).
     //   창을 그냥 닫으면 입력할 코드가 없다(2026-10-16 Irene 아이패드).
     let alive = true;
@@ -43,10 +43,13 @@ const PairCodePrompt: React.FC<{ authed: boolean }> = ({ authed }) => {
     check();
     const onVis = () => { if (document.visibilityState === 'visible') check(); };
     document.addEventListener('visibilitychange', onVis);
+    // 데스크탑 앱은 브라우저로 갔다 와도 창이 «보이는» 채라 visibilitychange 가 안 온다 — 창이 앞으로 오는 focus 로도 본다
+    window.addEventListener('focus', check);
     window.addEventListener('planq:oauth-dismissed', check);
     return () => {
       alive = false;
       document.removeEventListener('visibilitychange', onVis);
+      window.removeEventListener('focus', check);
       window.removeEventListener('planq:oauth-dismissed', check);
     };
   }, [authed]);

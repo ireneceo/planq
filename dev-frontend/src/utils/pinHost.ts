@@ -24,6 +24,7 @@
 //     권한 창이 클릭을 써 버림·거부) **앞 고정은 이미 풀렸고 새 고정은 없다** — 둘 다 잃었다.
 //     이제 새 고정이 실패하면(pin-abort) 앞 고정은 그대로 남는다.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { desktopBridge } from '../services/native';
 
 export type PinTool = 'qtalk' | 'qtask' | 'qnote' | 'qhelper';
 /** normal = 평범한 팝아웃 창 / holder = PiP 를 소유한 작은 창 / pip-content = PiP 안 iframe */
@@ -280,6 +281,10 @@ export interface PinHost {
   toggle: () => void;
   /** 마지막 고정 시도가 브라우저에 거절된 시각(0 = 없음). 첫 회는 창 관리 권한 창이 클릭을 써 버려 늘 한 번 실패한다. */
   pinFailedAt: number;
+  /** 지금 «항상 위» 인가 — 브라우저는 mode==='pip-content', 데스크탑 앱은 창 자체가 고정된다(mode 는 늘 normal) */
+  pinned: boolean;
+  /** 데스크탑 앱의 창 고정인가(고정창·홀더 없이 이 창이 그대로 항상 위) */
+  desktop: boolean;
 }
 
 export interface UsePinHostOptions {
@@ -293,8 +298,13 @@ export interface UsePinHostOptions {
  * mode === 'holder' 면 호출부는 도구 본문 대신 PinHolderView 를 그린다.
  */
 export function usePinHost({ tool, title }: UsePinHostOptions): PinHost {
-  const pipContent = useMemo(() => isPipContent(), []);
-  const canPin = useMemo(() => (pipContent ? true : supportsPin()), [pipContent]);
+  // ★ 데스크탑 앱(Electron) — 창마다 «항상 위» 를 켠다. 여러 개 동시·홀더 없음·선공지 없음(docs/DESKTOP_APP_DESIGN.md §3-3).
+  //   이 분기는 supportsPin()·pipApi() 보다 **앞**이다 — Electron 크로미움도 Document PiP 를 내놓으므로
+  //   뒤에 두면 데스크탑 앱에서 옛 홀더·고정창이 다시 뜬다(설계의 최대 리스크).
+  const desktop = useMemo(() => desktopBridge(), []);
+  const [desktopPinned, setDesktopPinned] = useState(false);
+  const pipContent = useMemo(() => (desktop ? false : isPipContent()), [desktop]);
+  const canPin = useMemo(() => (desktop ? true : pipContent ? true : supportsPin()), [desktop, pipContent]);
   const [mode, setMode] = useState<PinMode>(() => (pipContent ? 'pip-content' : 'normal'));
   /** 마지막 고정 시도가 실패한 시각(0 = 없음) — 버튼이 «다시 눌러 주세요» 를 보여 준다 */
   const [pinFailedAt, setPinFailedAt] = useState(0);
@@ -514,6 +524,11 @@ export function usePinHost({ tool, title }: UsePinHostOptions): PinHost {
   }, []);
 
   const pin = useCallback(async () => {
+    if (desktop) {
+      const ok = await desktop.setAlwaysOnTop(true).catch(() => false);
+      if (ok) setDesktopPinned(true); else setPinFailedAt(Date.now());
+      return;
+    }
     if (pipContent || pipRef.current) return;
     const api = pipApi();
     if (!api) return;
@@ -611,7 +626,7 @@ export function usePinHost({ tool, title }: UsePinHostOptions): PinHost {
       window.moveTo(at.x, at.y);
     } catch { /* noop */ }
     setMode('holder');
-  }, [pipContent, tool, title, width, height, onPipGone, pipAnchor, hideTarget]);
+  }, [desktop, pipContent, tool, title, width, height, onPipGone, pipAnchor, hideTarget]);
 
   // ── 고정창 안에서: 자기 창이 움직이면 홀더에게 좌표를 밀어준다 (위 PipMovedMsg 주석 참조) ──
   useEffect(() => {
@@ -641,6 +656,11 @@ export function usePinHost({ tool, title }: UsePinHostOptions): PinHost {
   }, [pipContent, tool]);
 
   const unpin = useCallback(() => {
+    if (desktop) {
+      setDesktopPinned(false);
+      void desktop.setAlwaysOnTop(false).catch(() => false);
+      return;
+    }
     if (pipContent) {
       // ★ 이 클릭은 **고정창 안의 사용자 조작**이다. 여기서 홀더 창을 이름으로 지목해 앞으로 끌어온다.
       //   (빈 URL 로 여는 window.open 은 같은 이름의 창이 있으면 **그 창을 그대로 앞세운다**.)
@@ -658,12 +678,14 @@ export function usePinHost({ tool, title }: UsePinHostOptions): PinHost {
       return;
     }
     releasePip();
-  }, [pipContent, tool, releasePip]);
+  }, [desktop, pipContent, tool, releasePip]);
 
   const toggle = useCallback(() => {
+    if (desktop) { if (desktopPinned) unpin(); else void pin(); return; }
     if (mode === 'normal') { void pin(); return; }
     unpin();
-  }, [mode, pin, unpin]);
+  }, [desktop, desktopPinned, mode, pin, unpin]);
 
-  return { mode, canPin, pin, unpin, toggle, pinFailedAt };
+  const pinned = desktop ? desktopPinned : mode === 'pip-content';
+  return { mode, canPin, pin, unpin, toggle, pinFailedAt, pinned, desktop: !!desktop };
 }

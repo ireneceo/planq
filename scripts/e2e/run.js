@@ -119,6 +119,8 @@ const SUITES = {
   consultlinks: () => require('./canary-consult-links'),
   // 알림을 눌러 **그 화면에 닿는가** + 오프라인 폴백에서 서버로 돌아오는가 (앱이 좌초하던 계열)
   pushdeeplink: () => require('./canary-push-deeplink'),
+  // 데스크탑 앱(Electron, desktop/) — 실제 앱을 xvfb 로 띄워 팝아웃 다중 고정·알림 1회·로그인 복귀·탐색 잠금(docs/DESKTOP_APP_DESIGN.md §8)
+  desktop: () => require('./canary-desktop'),
   // 문서 표 [폭 맞춤] — 누른 뒤 오른쪽에 빈 여백이 남지 않는가 · 열이 균등한가.
   //   colgroup·CSS·컨테이너 폭이 합쳐진 뒤에만 존재하는 종류라 정적 검사로는 못 잡는다.
   tablefit: () => require('./canary-table-fit'),

@@ -16,6 +16,7 @@ import { tabStore } from './stores/tabStore';
 import { isNativeApp } from './services/native';
 import { takeDeepLinkTarget } from './services/nativePush';
 import NativeBridge from './components/NativeBridge';
+import DesktopBridge from './components/DesktopBridge';
 import { splitWorkspaceParam, foreignWorkspaceOf, stripWorkspaceParamFromLocation, enterWorkspaceLink } from './utils/workspaceLink';
 import PairCodePrompt from './components/Auth/PairCodePrompt';
 import { installRoutePrefetch } from './lib/routePrefetch';
@@ -850,6 +851,8 @@ function ShellApp() {
         {!hideAppChrome && !isNativeApp() && <NotificationToaster />}
         {/* 딥링크/알림탭/OAuth 복귀 브리지 (웹/네이티브 공용, MOBILE_APP_DESIGN §5.4·§7.2) */}
         <NativeBridge />
+        {/* 데스크탑 앱(Electron) 다리 — planq:// 복귀·OS 알림 클릭. 웹·폰 앱에선 아무것도 안 함 */}
+        <DesktopBridge />
         {/* 앱 로그인 마무리 — 딥링크가 앱을 못 열었을 때 브라우저에 뜬 6자리로 세션을 받는다.
             네이티브 + 진행 중인 페어링이 있을 때만 스스로 뜬다(내부 판정). */}
         <PairCodePrompt authed={isAuthenticatedForPair} />

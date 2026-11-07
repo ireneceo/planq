@@ -13,7 +13,7 @@
 import React, { useEffect, useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
-import { isNativeApp } from '../../services/native';
+import { usesSystemBrowserAuth } from '../../services/native';
 import { detectInAppBrowser, openInExternalBrowser } from '../../utils/inAppBrowser';
 
 export const GOOGLE_AUTH_ENABLED = true;
@@ -54,7 +54,7 @@ const GoogleAuthButton: React.FC<Props> = ({ onStart, disabled, withDivider = tr
   const startUrl = (provider: 'google' | 'apple') => {
     const base = `/api/auth/${provider}/initiate`;
     const q = new URLSearchParams();
-    if (isNativeApp()) q.set('client', 'native');
+    if (usesSystemBrowserAuth()) q.set('client', 'native');   // 폰 앱·데스크탑 앱 — 시스템 브라우저 + 앱 복귀
     else if (redirect) q.set('redirect', redirect);
     if (plan) q.set('plan', plan);
     const qs = q.toString();
@@ -67,7 +67,7 @@ const GoogleAuthButton: React.FC<Props> = ({ onStart, disabled, withDivider = tr
   const [inAppHint, setInAppHint] = useState(false);
   const [copied, setCopied] = useState(false);
   const onGoogle = () => {
-    const kind = isNativeApp() ? null : detectInAppBrowser();
+    const kind = usesSystemBrowserAuth() ? null : detectInAppBrowser();
     if (!kind) { onStart(startUrl('google')); return; }
     setInAppHint(true);
     openInExternalBrowser(kind);

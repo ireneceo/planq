@@ -214,6 +214,7 @@ function isAppRelaunch(): boolean {
   try {
     const cap = (window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor;
     if (cap?.isNativePlatform?.()) return true;                       // Capacitor 네이티브 앱
+    if ((window as unknown as { planqDesktop?: unknown }).planqDesktop) return true; // 데스크탑 앱(Electron) — 늘 / 로 뜬다(services/native.isDesktopApp 과 같은 판정)
     if ((window.navigator as unknown as { standalone?: boolean }).standalone === true) return true; // iOS 홈화면
     return window.matchMedia?.('(display-mode: standalone)').matches ?? false;  // 설치형 PWA(데스크탑 앱)
   } catch { return false; }
