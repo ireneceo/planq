@@ -32,11 +32,13 @@ const TTL_MS_BY_KIND = {
   pwa: 365 * DAY_MS,
   ios: 365 * DAY_MS,
   android: 365 * DAY_MS,
+  // 데스크탑 앱(Electron, 2026-11-06 docs/DESKTOP_APP_DESIGN.md) — 트레이 상주로 알림을 받으려면 상시 세션(앱과 같은 정책)
+  desktop: 365 * DAY_MS,
   web: 30 * DAY_MS,
 };
-// 장기 세션(365일) client_kind 집합 — pwa + 네이티브 앱.
-const LONG_KINDS = new Set(['pwa', 'ios', 'android']);
-const VALID_KINDS = new Set(['pwa', 'ios', 'android', 'web']);
+// 장기 세션(365일) client_kind 집합 — pwa + 네이티브 앱 + 데스크탑 앱.
+const LONG_KINDS = new Set(['pwa', 'ios', 'android', 'desktop']);
+const VALID_KINDS = new Set(['pwa', 'ios', 'android', 'desktop', 'web']);
 function resolveClientKind(req, fallback) {
   const body = (req?.body?.client_kind || '').toString().toLowerCase();
   if (VALID_KINDS.has(body)) return body;

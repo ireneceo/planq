@@ -43,8 +43,8 @@ const PERSONAL_ROLES = new Set(['owner', 'admin', 'member']);
 
 /** 개인 캘린더로 치는 공급자 — 내 외부 연동 화면(ProfileIntegrationsPage)의 «캘린더» 칸과 같은 목록. */
 const CALENDAR_PROVIDERS = ['google_calendar', 'microsoft_calendar', 'apple_calendar'];
-/** 설치된 앱(네이티브·홈 화면 PWA)으로 로그인한 세션의 client_kind. 'web' 은 브라우저 탭이다. */
-const APP_CLIENT_KINDS = ['pwa', 'ios', 'android'];
+/** 설치된 앱(네이티브·홈 화면 PWA·데스크탑 앱)으로 로그인한 세션의 client_kind. 'web' 은 브라우저 탭이다. */
+const APP_CLIENT_KINDS = ['pwa', 'ios', 'android', 'desktop'];
 
 function summarize(scope, dismissed, steps) {
   return { scope, dismissed, done_count: steps.filter((s) => s.done).length, total: steps.length, steps };

@@ -34,7 +34,8 @@ RefreshToken.init({
   // 클라이언트 종류 — pwa/ios/android(모바일 앱)는 365일 long-lived, web(브라우저)는 30일.
   // refresh 시 옛 row 의 값 그대로 따라가 같은 정책으로 갱신 (sliding renewal).
   client_kind: {
-    type: DataTypes.ENUM('pwa', 'web', 'ios', 'android'),
+    // 'desktop' = 데스크탑 앱(2026-11-06) — 운영은 scripts/migrate-desktop-client-kind.js(끝에 append, 배포 슬롯)
+    type: DataTypes.ENUM('pwa', 'web', 'ios', 'android', 'desktop'),
     allowNull: false, defaultValue: 'web',
   },
   // 만료 시각 (login 시점 + TTL by client_kind). 검사 시 NOW() 와 비교.

@@ -553,6 +553,9 @@ sync_database() {
   # 올라가면 push_subscriptions 조회가 Unknown column 으로 죽어 기존 웹푸시까지 전멸한다.
   log "Running idempotent migrations..."
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-push-native.js 2>&1 | tail -10"
+  # 2026-11-06 데스크탑 앱 — refresh_tokens.client_kind ENUM 끝 'desktop'(멱등, docs/DESKTOP_APP_DESIGN.md §4).
+  #   로그인·갱신이 이 값을 저장하므로 PM2 reload 전. 롤백은 코드만(값은 남겨도 무해).
+  prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-desktop-client-kind.js 2>&1 | tail -3"
   # 언어별 메일 서명 — email_accounts/email_account_aliases/businesses 의 `*_en` 3컬럼 (2026-09-18).
   #   ★ **PM2 reload 앞**이어야 한다. 컬럼 없이 새 코드가 뜨면 `EmailAccount.findOne` 이
   #     전 컬럼을 SELECT 하다 ER_BAD_FIELD → **Q mail 전 라우트 500**, `GET /:biz/mail` 도 500.
