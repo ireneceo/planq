@@ -85,7 +85,25 @@
 - 운영 반영: 다음 배포 때(마이그레이션 없음).
 
 
-### ⏸ 답 기다림: 데스크탑 앱 1단계 — 서버 세션 종류 «desktop» 추가 허락 (방 e34be021 · 2026-11-06)
+### ⏸ 답 기다림: 데스크탑 앱 9단계 — 다운로드 화면용 «Windows·Mac 앱 주소» 칸 추가 허락 (방 e34be021 · 2026-11-07)
+- 무엇: `platform_settings` 에 `app_windows_url`·`app_mac_url`(VARCHAR 500, NULL) 두 칸 — 새 스크립트 `dev-backend/scripts/migrate-desktop-app-urls.js`(멱등, 아래 내용) + 개발 DB 실행 +
+  운영 배포 스크립트 마이그레이션 칸 한 줄(PM2 reload 전) + 모델·`routes/admin.js` setStr 두 줄·`routes/app_download.js` windows_url/mac_url · 관리자 플랫폼 설정 칸 둘 · `DownloadAppPage` «Windows 앱 / Mac 앱 받기» + SmartScreen 안내.
+  (스크립트: information_schema 로 칸 있나 보고 없으면 `ALTER TABLE platform_settings ADD COLUMN <칸> VARCHAR(500) NULL AFTER app_android_url`)
+- 왜 멈췄나: 그 묶음 명령(모델·라우트·배포 스크립트 수정 + 개발 DB ALTER)이 허락 창에 걸려 3분 넘게 답이 없었다 → 실행 안 됨(코드·DB 변경 0 확인, 만들어 둔 스크립트 파일은 지움).
+- 답이 오면: 위 묶음 → 이어서 남은 일(아래 «다음 할 일»).
+- 지금까지(커밋됨): 758e94a6 세션 종류 desktop(365일) · 93819a14 Electron 껍데기 + 화면 분기(e2e --suite desktop 18검사 PASS, 대조군 포함) · 50887cca 패키지 시험 표면 제거.
+  첫 윈도우 설치 파일 `desktop/dist/dev/PlanQ-Setup-1.0.0.exe`(dev 출처·무서명·121MB, wine 빌드 성공) — 검사기가 시험 표면을 잡아 고침, **고친 뒤 재빌드는 아직**.
+
+### 다음 할 일 — 데스크탑 앱 1단계 남은 것 (방 e34be021)
+1. 9단계(위 허락 뒤) 다운로드 화면·플랫폼 설정 칸.
+2. 윈도우 재빌드 `cd desktop && ~/dev-server/bin/mem-slot run planq-desktop-build 2500 -- node scripts/build.js win --origin https://dev.planq.kr` → check.js PASS 확인.
+3. codemagic.yaml 에 `desktop_mac` 워크플로(mac_mini_m2 · `node scripts/build.js mac`) + `desktop/scripts/publish.sh`(산출물 → 운영 /opt/planq/desktop-releases/, 웹 /배포와 분리, Irene 지시 때만).
+4. 규칙 파일 `.claude/rules/desktop-app.md`(paths: desktop/**, services/native.ts, utils/pinHost.ts) + CLAUDE.md 표 한 줄.
+5. 웹 회귀 e2e `tenant`·`pushdeeplink`·`wssync` → Fable gate 1회(로그인 경로·client_kind 운영 마이그레이션·공개 /desktop/).
+6. Irene 할 일 카드: 맥 Developer ID 인증서 · 운영 nginx /desktop/ + 폴더(sudo) · 실기기 확인(check:true).
+
+
+### ✅ 답 받음(이전): 데스크탑 앱 1단계 — 서버 세션 종류 «desktop» 추가 허락 — Irene «권고대로» (방 e34be021 · 2026-11-06)
 - 무엇: 설계 `docs/DESKTOP_APP_DESIGN.md`(Fable design **DESIGN-READY**) 7절 1단계 = `refresh_tokens.client_kind` ENUM 끝에 'desktop'(365일) — 새 스크립트 `dev-backend/scripts/migrate-desktop-client-kind.js` + 개발 DB 에 실행 + 운영 배포 스크립트(`scripts/deploy-planq.sh` 마이그레이션 칸)에 한 줄 + `authTokens`·`RefreshToken` 모델·`onboarding APP_CLIENT_KINDS` 에 'desktop'.
 - 왜 멈췄나: 그 묶음 명령(배포 스크립트 수정 + 개발 DB ALTER)이 허락 창에 걸려 3분 넘게 답이 없었다 → 실행 안 됨(파일·DB 변경 0 확인).
 - 답이 오면: «예» → 위 묶음 실행(개발 DB ENUM 두 번 돌려 멱등 확인 · `X-Client-Kind: desktop` 로그인 365일 / web 30일 대조) → 설계 7절 2~10단계(프론트 분기 · `desktop/` Electron 껍데기 · 팝아웃 여러 개 항상 위 · 알림·배지 · 로그인 · 자동 업데이트·빌드 · 다운로드 화면 · e2e) → 끝나고 Fable gate 1회.
