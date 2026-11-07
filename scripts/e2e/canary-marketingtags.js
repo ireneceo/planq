@@ -147,7 +147,7 @@ async function run() {
       await go(page, '/features');
       const s = await state(page);
       push('⑥ 로그인한 사람 /features — GTM 안 실림 · 이벤트 0', !s.script && s.events.length === 0, JSON.stringify({ script: s.script, n: names(s) }));
-      // ⑦ 가입 완료 착지 — pq_sign_up 한 번 → 앱으로(새 문서) · 다시 와도 두 번 안 보냄
+      // ⑦ 가입 완료 착지 — pq_sign_up 한 번 → «시작하기»(/welcome, 가입=계정만 2026-11-06 설계 D1) · 다시 와도 두 번 안 보냄
       await page.evaluate(() => { try { localStorage.removeItem('planq:mkt-signup-sent'); sessionStorage.removeItem('pqdl'); } catch (e) {} });
       await page.goto(`${b.BASE}/register?done=1&method=google`, { waitUntil: 'domcontentloaded' });
       await sleep(6000);
@@ -156,9 +156,9 @@ async function run() {
       await page.goto(`${b.BASE}/register?done=1&method=google`, { waitUntil: 'domcontentloaded' });
       await sleep(6000);
       const s7b = await state(page);
-      push('⑦ /register?done=1 — pq_sign_up(method=google) 1건 → /inbox(GTM 없음) · 다시 와도 2건째 없음',
-        su.length === 1 && su[0].method === 'google' && s7.path.startsWith('/inbox') && !s7.script
-          && s7b.events.filter((e) => e.event === 'pq_sign_up').length === 1 && s7b.path.startsWith('/inbox'),
+      push('⑦ /register?done=1 — pq_sign_up(method=google) 1건 → /welcome(GTM 없음) · 다시 와도 2건째 없음',
+        su.length === 1 && su[0].method === 'google' && s7.path.startsWith('/welcome') && !s7.script
+          && s7b.events.filter((e) => e.event === 'pq_sign_up').length === 1 && s7b.path.startsWith('/welcome'),
         JSON.stringify({ su, path: s7.path, script: s7.script, again: s7b.events.filter((e) => e.event === 'pq_sign_up').length, path2: s7b.path }));
     } catch (e) { push('⑥⑦ 오류', false, e.message); } finally { await ctx.close().catch(() => {}); }
 

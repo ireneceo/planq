@@ -159,6 +159,18 @@ async function setupPage(ctx, env) {
     // 앱 흉내에서 외부(구글 등) 리소스는 그대로 둔다
     r.continue().catch(() => null);
   });
+  // «눌렀더니 찾을 수 없음(오류)» 이 어떤 응답 때문이었는지 남긴다 — 메일 상세 detail-fallback-error 가 11-02·11-05·11-06 밤마다
+  //   간헐로 났는데 낮에 같은 GET 은 200 이라 원인(429·409·500·끊김)을 가를 수 없었다(2026-11-07). 순찰 차단 409 는 빼고 센다.
+  page.__apiFails = [];
+  page.on('response', (res) => {
+    const u = res.url();
+    if (!/\/api\//.test(u) || res.status() < 400 || res.request().method() !== 'GET') return;
+    page.__apiFails.push(`${res.status()} GET ${u.replace(/^https?:\/\/[^/]+/, '').slice(0, 90)}`);
+  });
+  page.on('requestfailed', (r) => {
+    if (!/\/api\//.test(r.url()) || r.method() !== 'GET') return;
+    page.__apiFails.push(`끊김(${(r.failure() && r.failure().errorText) || '?'}) GET ${r.url().replace(/^https?:\/\/[^/]+/, '').slice(0, 90)}`);
+  });
   return page;
 }
 
@@ -388,6 +400,7 @@ async function patrolEnv(browser, env, routes, maxN, report, creds) {
         // «눌러도 반응 없음» 판정용 — 화면 변화·요청·주소·새 창 어느 것도 없으면 죽은 버튼이다(2026-10-05 Irene:
         //   «이런 문제를 내가 찾기 전에 너가 안돼?» — 상담 «메일에서 보기» 신고)
         const r1 = page.__reqs;
+        const af1 = (page.__apiFails || []).length;
         await page.evaluate(() => {
           window.__pqMut = 0;
           if (window.__pqObs) window.__pqObs.disconnect();
@@ -422,7 +435,10 @@ async function patrolEnv(browser, env, routes, maxN, report, creds) {
           if (oj && oj.issues.length) findings.push({ route, button: name, kind: '연 창 모양', detail: `[${oj.name}] ${oj.issues.join(' · ')}`.slice(0, 260), severity: 'FAIL' });
           openedJudged += 1;
         }
-        if (react.fallback.length) findings.push({ route, button: name, kind: '눌렀더니 찾을 수 없음', detail: `${react.fallback.join(',')} @ ${react.url}`, severity: 'FAIL' });
+        if (react.fallback.length) {
+          const fails = (page.__apiFails || []).slice(af1, af1 + 3);
+          findings.push({ route, button: name, kind: '눌렀더니 찾을 수 없음', detail: `${react.fallback.join(',')} @ ${react.url}${fails.length ? ` · 응답: ${fails.join(' / ')}` : ' · 실패 응답 없음(화면 판정)'}`, severity: 'FAIL' });
+        }
         // 이미 선택된 탭·필터를 다시 누른 것은 반응이 없는 게 정상이다(aria-selected/pressed/current)
         const alreadyOn = await el.evaluate((x) => ['aria-selected', 'aria-pressed', 'aria-current'].some((k) => { const v = x.getAttribute(k); return v && v !== 'false'; })).catch(() => false);
         if (!alreadyOn && !chooser && !downloaded && react.mut === 0 && page.__reqs === r1 && react.url === p1 && newTargets === t1) {

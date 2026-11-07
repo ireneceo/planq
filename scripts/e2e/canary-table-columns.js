@@ -8,7 +8,7 @@
 //        5px 미만 클릭은 정렬이 바뀐다(음성 대조)
 //     ③ 폭: 손잡이 +40 → 머리·행 둘 다 +40 · 최대에서 멈춤 · 두 번 누르면 기본 · 키보드 → 3번 = +24
 //     ④ 1024 + 패널 열림 + 모든 폭 최대 저장 → 업무 칸 ≥ 최소폭 · 자동으로 빠진 열이 열 설정에 «좁아서 숨겨짐» · 제목이 실제로 보임(elementFromPoint)
-//     ⑤ 폰 390: 머리줄 없음 · 문서 가로 넘침 0 · 저장값 무시
+//     ⑤ 폰 390: 머리줄 없음 · 문서 가로 넘침 0 · 저장값 무시(폰 행 제목 data-row-title 이 보인다)
 //     ⑥ 깨진 저장값(쓰레기 JSON·모르는 키·폭 99999·업무 칸 숨김) → 화면이 그려지고 업무 칸 보임
 const b = require('./lib/browser');
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -241,7 +241,9 @@ async function run() {
         return {
           headVisible: !!head && head.getBoundingClientRect().height > 0,
           over: document.documentElement.scrollWidth - window.innerWidth,
-          titleCells: Array.from(document.querySelectorAll('[data-task-row] [data-col="title"]')).filter(e => e.getBoundingClientRect().width > 200).length,
+          // 폰 행은 표 칸이 아니라 PhoneTaskRow(2026-11-06 5b3f4df0) — 제목은 data-row-title 이다. 저장값이 제목을 숨겨도
+          //   제목이 보여야 한다: 글자가 있고 그려져 있다(폭 > 0). 제목 폭은 글자만큼이라(«Z1» 18px) 폭 문턱으로 재지 않는다.
+          titleCells: Array.from(document.querySelectorAll('[data-task-row] [data-row-title]')).filter(e => e.getBoundingClientRect().width > 0 && e.getBoundingClientRect().height > 0 && (e.textContent || '').trim().length > 0).length,
           rows: document.querySelectorAll('[data-task-row]').length,
         };
       });

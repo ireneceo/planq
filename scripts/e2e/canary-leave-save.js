@@ -106,7 +106,9 @@ async function run() {
       const before = reqs.slice(since).filter(isNamePut).length;
       await nav(page, '/tasks');
       await waitFor(async () => reqs.slice(since).some(isNamePut), 5000);
-      await b.sleep(800);
+      // 서버 반영은 «요청이 보였다» 가 아니라 DB 로 잰다 — 밤 검사처럼 서버가 붐비면 PUT 이 0.8초 안에 안 끝난다
+      //   (2026-10-31·11-06 실측: PUT 1 · DB 옛값). 고정 대기 대신 최대 8초 DB 를 본다(안 오면 그대로 실패).
+      await waitFor(async () => (await q('SELECT name FROM users WHERE id=?', [USER]))[0].name === `${origName} LV`, 8000, 300);
       const puts = reqs.slice(since).filter(isNamePut).length;
       const [{ name: now5 }] = await q('SELECT name FROM users WHERE id=?', [USER]);
       push('⑤ AutoSaveField 입력 0.5초 뒤 화면을 떠나도 저장 — 떠나기 전 0 · 뒤 PUT 1 · 서버 == 입력',
@@ -354,7 +356,8 @@ async function run() {
       const picked = dlg2 && (await click(page, SEL('leave-scope-single')));
       await b.sleep(200);
       const saved = picked && (await click(page, SEL('leave-save')));
-      await waitFor(async () => page.url().includes('/login'), 12000);
+      // 저장은 «원문 확인 GET → PUT → 로그아웃» 세 걸음이다 — 붐빌 때 12초를 넘긴 밤이 있었다(11-06). 판정은 그대로.
+      await waitFor(async () => page.url().includes('/login'), 25000);
       await b.sleep(1000);
       const seq = reqs.slice(since);
       const putIdx = seq.findIndex((r) => r.method === 'PUT' && r.url === `/api/tasks/by-business/${BIZ}/${seriesId}` && r.body.includes(`반복2${stamp}`) && r.body.includes('"series_scope":"single"'));
@@ -373,12 +376,14 @@ async function run() {
       push('⑦ 로그아웃 전 저장', false, '프로필 이름 입력칸을 못 찾음 — 계측 불가');
     } else {
       const since = reqs.length;
+      // ⑦ 은 ⑤ 의 결과(LV)에 묶지 않는다 — ⑤ 하나가 늦으면 ⑦ 까지 같이 빨개졌다(11-06). 지금 서버 값 + ' LO' 로 잰다.
+      const [{ name: base7 }] = await q('SELECT name FROM users WHERE id=?', [USER]);
       await typeAtEnd(page, NAME, ' LO');
       await b.sleep(300);
       const menu = (await click(page, SEL('user-menu-open'))) && (await waitFor(async () => !!(await handleOf(page, SEL('user-menu-logout'))), 3000));
       // 같은 요소를 연달아 두 번 — 메뉴가 닫히기 전에 두 번째 클릭이 들어간다
       const clicked = menu && await page.evaluate((s) => { const el = document.querySelector(s); if (!el) return false; el.click(); el.click(); return true; }, SEL('user-menu-logout'));
-      await waitFor(async () => page.url().includes('/login'), 10000);
+      await waitFor(async () => page.url().includes('/login'), 25000);
       await b.sleep(1000);
       const seq = reqs.slice(since);
       const putIdx = seq.findIndex(isNamePut);
@@ -386,7 +391,7 @@ async function run() {
       const logoutN = seq.filter((r) => r.method === 'POST' && r.url === '/api/auth/logout').length;
       const [{ name: now7 }] = await q('SELECT name FROM users WHERE id=?', [USER]);
       push('⑦ 로그아웃 — 대기 중 저장이 먼저(토큰 살아 있을 때) · 이중 클릭에도 로그아웃 POST 1',
-        clicked && putIdx >= 0 && logoutIdx > putIdx && logoutN === 1 && now7 === `${origName} LV LO`,
+        clicked && putIdx >= 0 && logoutIdx > putIdx && logoutN === 1 && now7 === `${base7} LO`,
         `메뉴=${!!menu} 클릭=${clicked} PUT순번=${putIdx} 로그아웃순번=${logoutIdx} 로그아웃수=${logoutN} DB=${now7}`);
     }
 
