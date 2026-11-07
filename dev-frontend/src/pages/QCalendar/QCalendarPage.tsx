@@ -570,14 +570,14 @@ const QCalendarPage: React.FC<{ scope?: { type: 'project'; businessId: number; p
               {t('backToMonth', { defaultValue: '월간 보기로' }) as string}
             </BackToMonthBtn>
           )}
-          <TodayBtn onClick={goToday}>{t('today')}</TodayBtn>
+          <TodayBtn onClick={goToday} data-testid="calendar-today">{t('today')}</TodayBtn>
           <HeaderTitle>{headerTitle}</HeaderTitle>
           <NavIconBtn onClick={goPrev} aria-label={t('prev')}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <polyline points="15 18 9 12 15 6" />
             </svg>
           </NavIconBtn>
-          <NavIconBtn onClick={goNext} aria-label={t('next')}>
+          <NavIconBtn onClick={goNext} aria-label={t('next')} data-testid="calendar-next">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <polyline points="9 18 15 12 9 6" />
             </svg>

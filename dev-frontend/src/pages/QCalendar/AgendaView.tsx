@@ -83,38 +83,76 @@ const AgendaView: React.FC<Props> = ({ anchor, today, now, events, onSelectEvent
     return out;
   }, [anchor, today, eventMap]);
 
-  // 오늘로 자동 스크롤 — 월이 바뀌면, 그리고 오늘 위에 묶음이 늘 때마다(사용자가 직접 움직이기 전까지).
+  // 오늘로 자동 스크롤 — 들어올 때·달/«오늘» 이 바뀔 때, 그리고 오늘 위에 묶음이 늘 때마다(사용자가 직접 굴리기 전까지).
   //   useLayoutEffect 즉시(RAF 지연 금지 박제).
-  //   ★ 2026-10-16 — 한 번만 맞추면 1일이 보였다: 첫 렌더는 loading=false(조회 전)라 «오늘» 묶음만 있을 때
-  //     스크롤을 써 버리고, 이어 일정·업무(따로 도착)가 오늘 위에 끼면서 오늘이 화면 밖으로 밀렸다.
-  //     그래서 «오늘 위 묶음 수» 가 바뀔 때마다 다시 맞춘다. 사용자가 굴린 뒤로는 손대지 않는다.
+  //   ★ 2026-10-16 — 한 번만 맞추면 1일이 보였다: 일정·업무가 따로 도착해 오늘 위에 끼면서 오늘이 화면 밖으로 밀렸다
+  //     → «오늘 위 묶음 수» 가 바뀔 때마다 다시 맞춘다.
+  //   ★ 2026-11-07 — 같은 신고 두 번째(폰 실기기): «사용자가 움직였다» 를 창 전체의 touchmove/wheel 로 판정해,
+  //     화면이 뜨는 동안 손가락이 닿기만 해도 그 뒤 도착한 일정·업무에 다시 맞추지 않았다(첫 렌더가 이미 «맞췄음» 을 기록).
+  //     이제 **스크롤 상자가 우리가 맞춘 자리에서 실제로 움직였고, 맞춘 뒤 사용자 입력이 있었을 때만** 사용자 이동으로 본다.
   const todayRef = useRef<HTMLDivElement>(null);
-  const monthKey = toDateKey(startOfMonth(anchor));
+  const viewKey = `${toDateKey(startOfMonth(anchor))}@${anchor.getTime()}`;   // «오늘» 버튼(같은 달)도 새로 맞춘다
   const beforeToday = groups.findIndex((g) => g.isToday);
   const scrolledFor = useRef<string>('');
   const userMoved = useRef(false);
+  const placedTop = useRef<number | null>(null);      // 우리가 맞춘 직후 스크롤 상자 scrollTop
+  const inputSincePlace = useRef(false);              // 맞춘 뒤 사용자 입력(터치·휠·키)이 있었나
+  const scrollerOf = (el: HTMLElement | null): HTMLElement | null => {
+    for (let p = el?.parentElement || null; p; p = p.parentElement) {
+      const oy = getComputedStyle(p).overflowY;
+      if (oy === 'auto' || oy === 'scroll') return p;
+    }
+    return (document.scrollingElement as HTMLElement | null) || null;
+  };
   useEffect(() => {
     userMoved.current = false;
-    const mark = () => { userMoved.current = true; };
-    window.addEventListener('wheel', mark, { capture: true, passive: true });
-    window.addEventListener('touchmove', mark, { capture: true, passive: true });
-    window.addEventListener('keydown', mark, { capture: true });
-    return () => {
-      window.removeEventListener('wheel', mark, { capture: true });
-      window.removeEventListener('touchmove', mark, { capture: true });
-      window.removeEventListener('keydown', mark, { capture: true });
+    placedTop.current = null;
+    inputSincePlace.current = false;
+    const sc = scrollerOf(todayRef.current);
+    if (!sc) return undefined;
+    const onInput = () => { inputSincePlace.current = true; };
+    const onScroll = () => {
+      if (placedTop.current == null || !inputSincePlace.current) return;
+      if (Math.abs(sc.scrollTop - placedTop.current) > 4) userMoved.current = true;
     };
-  }, [monthKey]);
+    const target: EventTarget = sc === document.scrollingElement ? window : sc;
+    sc.addEventListener('touchmove', onInput, { passive: true });
+    sc.addEventListener('wheel', onInput, { passive: true });
+    window.addEventListener('keydown', onInput);
+    target.addEventListener('scroll', onScroll, { passive: true });
+    return () => {
+      sc.removeEventListener('touchmove', onInput);
+      sc.removeEventListener('wheel', onInput);
+      window.removeEventListener('keydown', onInput);
+      target.removeEventListener('scroll', onScroll);
+    };
+  }, [viewKey, beforeToday >= 0]);
+  // 오늘 뒤가 짧으면(이번 달 남은 일정이 적으면) 끝까지 굴려도 오늘이 위로 못 온다 — 아래 여백으로 채운다(2026-11-07 실측: 마지막 묶음이 오늘이면 화면 가운데 아래).
+  const tailRef = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => {
-    // Fable A-1 — fetch 완료(loading=false) 후에만 스크롤/마킹.
+    const tail = tailRef.current; const el = todayRef.current;
+    if (!tail || !el) return;
+    const sc = scrollerOf(el);
+    if (!sc) return;
+    const need = Math.max(0, Math.floor(sc.clientHeight - (tail.getBoundingClientRect().top - el.getBoundingClientRect().top)));
+    const cur = tail.offsetHeight;
+    if (Math.abs(cur - need) > 1) tail.style.height = `${need}px`;
+  });
+  useLayoutEffect(() => {
+    // Fable A-1 — fetch 완료(loading=false) 후에만 스크롤.
     if (loading) return;
     if (beforeToday < 0) return;
-    const key = `${monthKey}:${beforeToday}`;
+    const key = `${viewKey}:${beforeToday}`;
     if (scrolledFor.current === key) return;
-    if (userMoved.current && scrolledFor.current.startsWith(`${monthKey}:`)) return;
+    if (userMoved.current && scrolledFor.current.startsWith(`${viewKey}:`)) return;
+    const el = todayRef.current;
+    if (!el) return;
     scrolledFor.current = key;
-    todayRef.current?.scrollIntoView({ block: 'start' });
-  }, [monthKey, beforeToday, loading]);
+    el.scrollIntoView({ block: 'start' });
+    const sc = scrollerOf(el);
+    placedTop.current = sc ? sc.scrollTop : null;
+    inputSincePlace.current = false;
+  }, [viewKey, beforeToday, loading]);
 
   if (!loading && groups.length === 0) {
     return (
@@ -133,7 +171,7 @@ const AgendaView: React.FC<Props> = ({ anchor, today, now, events, onSelectEvent
   return (
     <Wrap>
       {groups.map((g) => (
-        <Group key={g.key} ref={g.isToday ? todayRef : undefined}>
+        <Group key={g.key} ref={g.isToday ? todayRef : undefined} data-testid={g.isToday ? 'agenda-today' : undefined}>
           <DayHeader data-pastday={pastDayAttr(g.date, today)} onClick={() => onSelectDate(g.date)}>
             <DateBadge $today={g.isToday} $isSaturday={g.date.getDay() === 6} $isSunday={g.date.getDay() === 0}>
               {g.date.getDate()}
@@ -204,6 +242,7 @@ const AgendaView: React.FC<Props> = ({ anchor, today, now, events, onSelectEvent
           })}
         </Group>
       ))}
+      {beforeToday >= 0 && <TailSpace ref={tailRef} aria-hidden />}
     </Wrap>
   );
 };
@@ -211,6 +250,10 @@ const AgendaView: React.FC<Props> = ({ anchor, today, now, events, onSelectEvent
 export default AgendaView;
 
 // ── styled ──
+const TailSpace = styled.div`
+  flex-shrink: 0;
+`;
+
 const Wrap = styled.div`
   display: flex; flex-direction: column; gap: 4px;
   padding: 4px 0 calc(20px + var(--pq-safe-bottom, 0px));

@@ -224,6 +224,8 @@ const SUITES = {
   // 종일 일정 날짜 (2026-10-07, docs/ALLDAY_EVENT_DATE_DESIGN.md) — 기기 시간대 3개(서울·KL·LA) × 폭: 하루·이틀·매주 반복·옛 부호화·업무 마감이
   //   기대 칸에만 · 상세 날짜 글자 동일 · LA 기기 등록 창 «오늘» = DB 날짜. 양성 대조군: E2E_CONTROL_DIR=<옛 빌드>.
   allday: () => require('./canary-allday-date'),
+  // 폰 일정 목록 보기 «오늘» 맨 위 (2026-11-07 두 번째 신고) — 그대로 · 로딩 중 손가락 닿음(양성 대조군: 옛 코드 실패) · 사용자가 끈 자리 유지 · 다음 달→오늘. 폰 390·360.
+  agendatoday: () => require('./canary-agenda-today'),
   booking: () => require('./canary-booking'),
   // 같은 기능의 **서버 판정** 실 HTTP 검사(화면 없음) — 슬롯 모양·한도·전이·한 건=한 버킷·메일 시도·수정/삭제 409.
   bookingapi: () => require('./canary-booking-api'),
