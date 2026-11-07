@@ -140,6 +140,12 @@ function popoutKey(url) {
   try { const p = new URL(url).pathname.split('/')[1] || ''; return /-popout$/.test(p) ? p : null; } catch { return null; }
 }
 
+// 렌더러에 주는 인자 — 시험 인자는 아래 «시험 전용» 구역에서만 붙는다(scripts/build.js 가 패키지에서 잘라낸다, check.js 가 확인)
+const RENDERER_ARGS = [];
+// @test-only-start
+if (TEST_MODE) RENDERER_ARGS.push('--planq-desktop-test');
+// @test-only-end
+
 function baseWebPreferences() {
   return {
     preload: path.join(__dirname, 'preload.js'),
@@ -150,7 +156,7 @@ function baseWebPreferences() {
     webviewTag: false,
     spellcheck: false,
     devTools: !app.isPackaged,
-    additionalArguments: [`--planq-version=${app.getVersion()}`, ...(TEST_MODE ? ['--planq-desktop-test'] : [])],
+    additionalArguments: [`--planq-version=${app.getVersion()}`, ...RENDERER_ARGS],
   };
 }
 
@@ -368,10 +374,11 @@ handle('planq:open-external', (_event, url) => {
 handle('planq:get-auto-launch', () => getAutoLaunch());
 handle('planq:set-auto-launch', (_event, on) => setAutoLaunch(!!on));
 
+// @test-only-start — 시험 전용 IPC(test/ 폴더는 패키지에 들어가지 않고, 이 구역도 build.js 가 잘라낸다)
 if (TEST_MODE) {
-  // 시험 전용 IPC — test/test-hooks.js(패키지에 들어가지 않는다). e2e `desktop` 스위트가 창·알림·바깥 열기를 센다.
   require('../test/test-hooks')({ ipcMain, BrowserWindow, getMain: () => mainWin, testLog, getBadge: () => badgeCount, showMain, deliverDeepLink });
 }
+// @test-only-end
 
 // ── 권한 — 앱 출처의 알림·마이크(Q Note)·클립보드 읽기만 ──
 const ALLOWED_PERMS = new Set(['notifications', 'media', 'clipboard-read', 'clipboard-sanitized-write', 'fullscreen']);
