@@ -100,6 +100,7 @@
 3. codemagic.yaml 에 `desktop_mac` 워크플로(mac_mini_m2 · `node scripts/build.js mac`) + `desktop/scripts/publish.sh`(산출물 → 운영 /opt/planq/desktop-releases/, 웹 /배포와 분리, Irene 지시 때만).
 4. 규칙 파일 `.claude/rules/desktop-app.md`(paths: desktop/**, services/native.ts, utils/pinHost.ts) + CLAUDE.md 표 한 줄.
 5. 웹 회귀 e2e `tenant`·`pushdeeplink`·`wssync` → Fable gate 1회(로그인 경로·client_kind 운영 마이그레이션·공개 /desktop/).
+   ★ **PlanQ 운영 배포 막아 둠**(상황판 deploy-hold `re34be021`, 2026-11-07) — 758e94a6(운영 ENUM)·93819a14(로그인 경로)가 Fable 완료 검증 전이라. Fable gate PASS 뒤 상황판에서 풀도록 보고에 적는다.
 6. Irene 할 일 카드: 맥 Developer ID 인증서 · 운영 nginx /desktop/ + 폴더(sudo) · 실기기 확인(check:true).
 
 
