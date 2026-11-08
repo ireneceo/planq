@@ -90,6 +90,14 @@ async function run() {
       if (!/^\/(api|qnote\/api)\//.test(u)) return;
       reqs.push({ method: r.method(), url: u, body: r.postData() || '', auth: r.headers().authorization || null });
     });
+    // ⑤⑦ 이름 PUT 의 응답 — «PUT 1 · DB 옛값»(11-06·07 밤) 이 서버 거절(429 등)인지 값이 다른 것인지 가른다
+    const putRes = [];
+    page.on('response', (res) => {
+      try {
+        const u = res.url().replace(/^https?:\/\/[^/]+/, '');
+        if (res.request().method() === 'PUT' && u === `/api/users/${USER}`) putRes.push(`${res.status()} 남은한도=${res.headers()['ratelimit-remaining'] ?? '?'} ${(res.request().postData() || '').slice(0, 60)}`);
+      } catch { /* noop */ }
+    });
     const lastAuth = () => [...reqs].reverse().find((r) => r.auth)?.auth || null;
     await b.login(page);
 
@@ -101,18 +109,22 @@ async function run() {
       push('⑤ AutoSaveField 떠나도 저장', false, '프로필 이름 입력칸을 못 찾음 — 계측 불가');
     } else {
       const since = reqs.length;
+      // 칸 값 — «PUT 1 · DB 옛값»(11-06·07 밤)이 늦게 온 사용자 정보가 입력을 덮은 것인지 가른다(입력 전 · 떠나기 직전)
+      const v0 = (await probe(page, NAME))?.value;
       await typeAtEnd(page, NAME, ' LV');
       await b.sleep(500);
+      const v1 = (await probe(page, NAME))?.value;
       const before = reqs.slice(since).filter(isNamePut).length;
       await nav(page, '/tasks');
       await waitFor(async () => reqs.slice(since).some(isNamePut), 5000);
       // 서버 반영은 «요청이 보였다» 가 아니라 DB 로 잰다 — 밤 검사처럼 서버가 붐비면 PUT 이 0.8초 안에 안 끝난다
       //   (2026-10-31·11-06 실측: PUT 1 · DB 옛값). 고정 대기 대신 최대 8초 DB 를 본다(안 오면 그대로 실패).
       await waitFor(async () => (await q('SELECT name FROM users WHERE id=?', [USER]))[0].name === `${origName} LV`, 8000, 300);
+      await waitFor(async () => putRes.length > 0, 3000, 100);   // DB 가 먼저 바뀌고 응답 이벤트가 뒤에 올 수 있다
       const puts = reqs.slice(since).filter(isNamePut).length;
       const [{ name: now5 }] = await q('SELECT name FROM users WHERE id=?', [USER]);
       push('⑤ AutoSaveField 입력 0.5초 뒤 화면을 떠나도 저장 — 떠나기 전 0 · 뒤 PUT 1 · 서버 == 입력',
-        before === 0 && puts === 1 && now5 === `${origName} LV`, `떠나기 전=${before} 뒤=${puts} DB=${now5}`);
+        before === 0 && puts === 1 && now5 === `${origName} LV`, `떠나기 전=${before} 뒤=${puts} DB=${now5} 칸=[${v0}→${v1}] 응답=[${putRes.join(' | ')}]`);
     }
 
     // ── ⑥ Q Note 새 메모 — 입력 0.3초 뒤 화면을 떠난다 ──

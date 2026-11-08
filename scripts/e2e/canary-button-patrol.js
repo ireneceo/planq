@@ -156,14 +156,30 @@ async function setupPage(ctx, env) {
       page.__blocked += 1;
       return r.respond({ status: 409, contentType: 'application/json', body: JSON.stringify({ success: false, message: 'patrol_write_blocked' }) }).catch(() => null);
     }
+    // 대조군(PATROL_CONTROL_429=once|always) — 메일 상세 GET 에 가짜 429. once 면 첫 번째만, always 면 매번.
+    //   once → «한도 풀린 뒤 다시 열면 열림» 경고 · always → 그대로 실패 로 갈려야 429 다시 재기 판정을 믿는다.
+    const c429 = process.env.PATROL_CONTROL_429;
+    if (c429 && m === 'GET' && /\/email-threads\/\d+$/.test(u.split('?')[0]) && (c429 === 'always' || !global.__patrolC429)) {
+      global.__patrolC429 = true;
+      return r.respond({ status: 429, contentType: 'application/json', headers: { 'ratelimit-reset': '3' }, body: JSON.stringify({ success: false, message: 'Too many requests' }) }).catch(() => null);
+    }
     // 앱 흉내에서 외부(구글 등) 리소스는 그대로 둔다
     r.continue().catch(() => null);
   });
   // «눌렀더니 찾을 수 없음(오류)» 이 어떤 응답 때문이었는지 남긴다 — 메일 상세 detail-fallback-error 가 11-02·11-05·11-06 밤마다
   //   간헐로 났는데 낮에 같은 GET 은 200 이라 원인(429·409·500·끊김)을 가를 수 없었다(2026-11-07). 순찰 차단 409 는 빼고 센다.
   page.__apiFails = [];
+  // 요청 한도(429) — 순찰은 누를 때마다 화면을 통째로 다시 열어(한 번에 API 약 75건) 한 계정 1분 600회를 넘길 수 있다(2026-11-08 실측).
+  //   몇 번 걸렸는지 보고서에 남기고, 풀리는 시각(RateLimit-Reset 초)을 들고 있다가 다시 열어 볼 때 쓴다.
+  page.__r429 = 0;
+  page.__rlResetAt = 0;
   page.on('response', (res) => {
     const u = res.url();
+    if (res.status() === 429 && /\/api\//.test(u)) {
+      page.__r429 += 1;
+      const sec = Number(res.headers()['ratelimit-reset']);
+      page.__rlResetAt = Date.now() + (Number.isFinite(sec) && sec >= 0 ? Math.min(sec, 65) : 60) * 1000;
+    }
     if (!/\/api\//.test(u) || res.status() < 400 || res.request().method() !== 'GET') return;
     page.__apiFails.push(`${res.status()} GET ${u.replace(/^https?:\/\/[^/]+/, '').slice(0, 90)}`);
   });
@@ -307,6 +323,7 @@ async function patrolEnv(browser, env, routes, maxN, report, creds) {
   let page = await setupPage(ctx, env);
   watch(page);
   let blockedPrev = 0;   // 닫은 탭들이 막은 쓰기 합
+  let r429Prev = 0;      // 닫은 탭들이 받은 429 합
   // ★ 화면마다 탭을 새로 연다 (2026-11-06) — 한 탭으로 화면 수십 개를 연달아 돌면 크롬 메모리가 화면마다 쌓인다
   //   (같은 계열 sticky 실측: 한 탭 540MB → 2450MB · 화면마다 새 탭이면 650~820MB 평탄). 순찰은 11-05 상자 정점 3299MB 였고
   //   시간도 10-24 2시간 20분 → 11-05 3시간 30분으로 늘어 제한(exit 124)에 걸렸다. 로그인(쿠키)은 컨텍스트에 남아 새 탭도 인증된다.
@@ -314,6 +331,7 @@ async function patrolEnv(browser, env, routes, maxN, report, creds) {
     const next = await setupPage(ctx, env);
     watch(next);
     blockedPrev += page.__blocked || 0;
+    r429Prev += page.__r429 || 0;
     await page.close().catch(() => null);
     page = next;
   };
@@ -437,7 +455,31 @@ async function patrolEnv(browser, env, routes, maxN, report, creds) {
         }
         if (react.fallback.length) {
           const fails = (page.__apiFails || []).slice(af1, af1 + 3);
-          findings.push({ route, button: name, kind: '눌렀더니 찾을 수 없음', detail: `${react.fallback.join(',')} @ ${react.url}${fails.length ? ` · 응답: ${fails.join(' / ')}` : ' · 실패 응답 없음(화면 판정)'}`, severity: 'FAIL' });
+          let detail = `${react.fallback.join(',')} @ ${react.url}${fails.length ? ` · 응답: ${fails.join(' / ')}` : ' · 실패 응답 없음(화면 판정)'}`;
+          let severity = 'FAIL';
+          let kind = '눌렀더니 찾을 수 없음';
+          // 429 때문이면 끄지 않고 다시 잰다 — 한도가 풀릴 때까지 기다렸다가 그 주소를 새로 연다.
+          //   다시 열어 열리면 순찰 속도 탓(경고로 남김), 또 «찾을 수 없음» 이면 그대로 실패.
+          if (fails.some((f) => f.startsWith('429 '))) {
+            const waitMs = Math.max(0, (page.__rlResetAt || 0) - Date.now()) + 1500;
+            await b.sleep(Math.min(waitMs, 70000));
+            const af2 = (page.__apiFails || []).length;
+            await b.goto(page, react.url).catch(() => null);
+            await b.sleep(1500);
+            const again = await page.evaluate(() => [...document.querySelectorAll('[data-testid="detail-fallback-notfound"],[data-testid="detail-fallback-forbidden"],[data-testid="detail-fallback-error"]')]
+              .filter((e) => !e.closest('[aria-hidden="true"]') && e.getBoundingClientRect().width > 0).map((e) => e.getAttribute('data-testid'))).catch(() => ['?']);
+            const fails2 = (page.__apiFails || []).slice(af2, af2 + 3);
+            if (again.length === 0) {
+              severity = 'WARN';
+              kind = '요청 한도(429)로 못 엶 — 한도 풀린 뒤 다시 열면 열림(순찰 속도)';
+            } else {
+              detail += ` · 한도 풀린 뒤 다시 열어도 ${again.join(',')}${fails2.length ? ` · 응답: ${fails2.join(' / ')}` : ''}`;
+            }
+            await b.goto(page, route).catch(() => null);
+            await b.sleep(400);
+            await page.evaluate(MARK, markN, DANGER.source, doneSnap, scope).catch(() => null);
+          }
+          findings.push({ route, button: name, kind, detail, severity });
         }
         // 이미 선택된 탭·필터를 다시 누른 것은 반응이 없는 게 정상이다(aria-selected/pressed/current)
         const alreadyOn = await el.evaluate((x) => ['aria-selected', 'aria-pressed', 'aria-current'].some((k) => { const v = x.getAttribute(k); return v && v !== 'false'; })).catch(() => false);
@@ -480,7 +522,7 @@ async function patrolEnv(browser, env, routes, maxN, report, creds) {
   } catch (e) {
     findings.push({ route: '-', button: '-', kind: 'FATAL', detail: String(e.message || e).slice(0, 200), severity: 'FAIL' });
   } finally {
-    report.push({ env: env.n, clicked, blocked: blockedPrev + (page.__blocked || 0), findings, openedJudged, sec: Math.round((Date.now() - t0) / 1000) });
+    report.push({ env: env.n, clicked, blocked: blockedPrev + (page.__blocked || 0), r429: r429Prev + (page.__r429 || 0), findings, openedJudged, sec: Math.round((Date.now() - t0) / 1000) });
     await ctx.close().catch(() => null);
   }
 }
@@ -521,7 +563,7 @@ async function run() {
     for (const r of report) {
       const fails = r.findings.filter((f) => f.severity === 'FAIL');
       const warns = r.findings.filter((f) => f.severity === 'WARN');
-      lines.push(`## ${r.env} — 누름 ${r.clicked} · 연 창 ${r.openedJudged} · 막은 쓰기 ${r.blocked} · 실패 ${fails.length} · 경고 ${warns.length} · ${mins(r.sec || 0)}`);
+      lines.push(`## ${r.env} — 누름 ${r.clicked} · 연 창 ${r.openedJudged} · 막은 쓰기 ${r.blocked} · 요청 한도(429) ${r.r429 || 0} · 실패 ${fails.length} · 경고 ${warns.length} · ${mins(r.sec || 0)}`);
       for (const f of [...fails, ...warns]) lines.push(`- [${f.severity}] ${f.route} · «${f.button}» · ${f.kind} — ${f.detail}`);
       lines.push('');
     }
