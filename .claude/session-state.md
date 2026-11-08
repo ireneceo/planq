@@ -4,7 +4,7 @@
 
 ### ✅ 정기 점검 11/09 00:15 — 개발완료 + 개발시작 (방 f3fc578d · 2026-11-08 UTC · [Opus] · Fable 안 씀 — 기록·확인만, 코드 변경 0)
 - 개발완료: 0단계 health 99/99 · guard 84/85 · tenant 실패 0 · 0-F 마커 6ecc70f0(by fable) 이후 소스 변경 없음. DEVELOPMENT_PLAN 에 11/08 서버 확장성 점검·consultlinks 검사기 기록. 사용자 화면 변경 없음 → Q위키 조치 없음. 7-B 운영 피드백 답글: 이번에 다룬 피드백 0건 → 없음.
-- 1-B 운영 피드백: **읽기 못 함** — 운영 DB 읽기(ssh) 가 자동 허락 검사에서 거절됨(«Production Reads»). 우회하지 않음. 진행대기·반영중·승인 기다림 수 모름 → 다음 점검 또는 Irene 가 관리자 > 사용자 피드백 화면에서 확인.
+- 1-B 운영 피드백: **읽기 못 함** — 운영 DB 읽기(ssh) 가 자동 허락 검사에서 거절됨(«Production Reads»). 우회하지 않음. 진행대기·반영중·승인 기다림 수 모름 → Irene 할 일 todomw81g85k(읽기 명령 붙여 넣기)로 올림.
 - 1-C 밤 검사 11-07: 전체 167 중 통과 160 · 실패 7(tenantwrite·mailrt·consultlinks·detailopen·taskaddparity·guestproject·leavesave) — 11-06 대비 새 빨강 0(tablecols·marketingtags 통과로 돌아옴). consultlinks 는 30d8a74a(11-08)가 밤 검사 뒤라 다음 밤에 확인. 순찰 실패 1(메일 detail-fallback-error — 새로 붙인 응답 기록에 **429**).
   → leavesave ⑤(f88a4631 고친 뒤에도 빨강 = 두 번째) + 순찰 429 를 한 일로 상황판 대기열에 넣음. 나머지 5개(tenantwrite·mailrt·detailopen·taskaddparity·guestproject)는 10-26 부터 미판정 그대로.
 
