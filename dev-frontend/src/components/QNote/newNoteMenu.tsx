@@ -13,24 +13,56 @@ import { useTranslation } from 'react-i18next';
 import { anchorStyle, type AnchorPos } from '../Common/popoverAnchor';
 import { listRowTitleCss } from '../../theme/tokens';
 import { tabStore } from '../../stores/tabStore';
+import { webConferenceCapability } from '../../services/audio';
+import { EditIcon, MonitorIcon, BoltIcon, MicIcon, FileIcon } from '../Common/Icons';
 
-export type NewNoteKind = 'memo' | 'quick' | 'upload' | 'voice';
+// 'voice' = 옛 주소(`?new=voice`·메모 창 링크) — 받는 쪽이 온라인/대면 중 이 기기에서 되는 쪽으로 푼다.
+export type NewNoteKind = 'memo' | 'quick' | 'upload' | 'voice' | 'voice_online' | 'voice_offline';
+type MenuKind = Exclude<NewNoteKind, 'voice'>;
+type MenuGroup = 'write' | 'record' | 'file';
 
-/** 순서 (Irene 2026-09-11): 메모 → 음성메모 → 녹음 파일 → 음성 노트(대화형).
- *  가벼운 것에서 무거운 것으로 — 적기 · 바로 녹음하기 · 가진 녹음 올리기 · 준비해서 회의하기. */
-// ★ 문구는 **로케일에만** 둔다. 여기 한국어 기본값을 적으면 같은 문장이 두 곳이 되고,
-//   로케일을 고쳐도 폴백이 남아 갈라진다(그리고 하드코딩 래칫이 올라간다).
-//   네 키 모두 ko/en 양쪽에 있다 — `qnote:page.newNoteDropdown.*`.
-export const NEW_NOTE_KINDS: Array<{ kind: NewNoteKind; testId: string; titleKey: string; descKey: string }> = [
-  { kind: 'memo', testId: 'qnote-new-memo',
+/** 순서·묶음 (Irene 2026-11-08 «권고대로» — 대화형을 온라인/대면 둘로 나누고, 보면 뭘 하는지 바로 알게).
+ *  적기 → 녹음하며 받아쓰기(바로 녹음 · 온라인 회의 · 대면 회의 — 가벼운 것부터, Fable 설계 판정 d) → 파일. 녹음 방식은 메뉴에서 정해진다
+ *  — 설정 창이 맨 아래에서 «캡처 방식» 을 다시 묻지 않는다. */
+// ★ 문구는 **로케일에만** 둔다(`qnote:page.newNoteDropdown.*`, ko/en 양쪽). 여기 기본값을 적으면 두 곳이 된다.
+export const NEW_NOTE_KINDS: Array<{ kind: MenuKind; group: MenuGroup; testId: string; titleKey: string; descKey: string }> = [
+  { kind: 'memo', group: 'write', testId: 'qnote-new-memo',
     titleKey: 'page.newNoteDropdown.memoLabel', descKey: 'page.newNoteDropdown.memoDesc' },
-  { kind: 'quick', testId: 'qnote-quick-record',
+  { kind: 'quick', group: 'record', testId: 'qnote-quick-record',
     titleKey: 'page.newNoteDropdown.quickLabel', descKey: 'page.newNoteDropdown.quickDesc' },
-  { kind: 'upload', testId: 'qnote-upload-audio',
+  { kind: 'voice_online', group: 'record', testId: 'qnote-new-online',
+    titleKey: 'page.newNoteDropdown.onlineLabel', descKey: 'page.newNoteDropdown.onlineDesc' },
+  { kind: 'voice_offline', group: 'record', testId: 'qnote-new-offline',
+    titleKey: 'page.newNoteDropdown.offlineLabel', descKey: 'page.newNoteDropdown.offlineDesc' },
+  { kind: 'upload', group: 'file', testId: 'qnote-upload-audio',
     titleKey: 'page.newNoteDropdown.uploadLabel', descKey: 'page.newNoteDropdown.uploadDesc' },
-  { kind: 'voice', testId: 'qnote-new-voice',
-    titleKey: 'page.newNoteDropdown.voiceLabel', descKey: 'page.newNoteDropdown.voiceDesc' },
 ];
+const GROUP_KEY: Record<MenuGroup, string> = {
+  write: 'page.newNoteDropdown.groupWrite',
+  record: 'page.newNoteDropdown.groupRecord',
+  file: 'page.newNoteDropdown.groupFile',
+};
+
+/** 온라인 회의(마이크 + 탭 소리)를 이 기기에서 할 수 있나 — 판정은 녹음 쪽 한 곳(webConferenceCapability). */
+export function onlineMeetingAvailable(): boolean {
+  try { return webConferenceCapability.isAvailable(); } catch { return false; }
+}
+
+/** 옛 'voice' 를 이 기기에서 되는 쪽으로 푼다. */
+export function resolveVoiceKind(kind: NewNoteKind): NewNoteKind {
+  if (kind !== 'voice') return kind;
+  return onlineMeetingAvailable() ? 'voice_online' : 'voice_offline';
+}
+
+function KindIcon({ kind }: { kind: MenuKind }) {
+  switch (kind) {
+    case 'memo': return <EditIcon size={16} />;
+    case 'voice_online': return <MonitorIcon size={16} />;
+    case 'voice_offline': return <MicIcon size={16} />;
+    case 'quick': return <BoltIcon size={16} />;
+    case 'upload': return <FileIcon size={16} />;
+  }
+}
 
 /** Q note 밖에서 부르는 기본 동작 — 그 종류로 Q note 를 새 탭에 연다.
  *  (하던 일 위에 얹히는 진입점은 새 탭 — 보던 화면을 덮지 않는다.) */
@@ -56,15 +88,30 @@ export function NewNoteMenu(
 ) {
   const { t } = useTranslation('qnote');
   if (!pos) return null;
+  const onlineOk = onlineMeetingAvailable();
   return createPortal(
     <NewNoteDropdown ref={panelRef} style={anchorStyle(pos)}
       onMouseLeave={onMouseLeave} data-testid="qnote-new-menu" role="menu">
-      {NEW_NOTE_KINDS.map((it) => (
-        <NewNoteItem key={it.kind} type="button" data-testid={it.testId} onClick={() => onPick(it.kind)}>
-          <NewNoteItemTitle>{t(it.titleKey) as string}</NewNoteItemTitle>
-          <NewNoteItemDesc>{t(it.descKey) as string}</NewNoteItemDesc>
-        </NewNoteItem>
-      ))}
+      {NEW_NOTE_KINDS.map((it, i) => {
+        const disabled = it.kind === 'voice_online' && !onlineOk;
+        const head = i === 0 || NEW_NOTE_KINDS[i - 1].group !== it.group;
+        return (
+          <div key={it.kind}>
+            {head && <NewNoteGroupLabel role="presentation">{t(GROUP_KEY[it.group]) as string}</NewNoteGroupLabel>}
+            <NewNoteItem type="button" role="menuitem" data-testid={it.testId}
+              disabled={disabled} aria-disabled={disabled || undefined}
+              onClick={() => { if (!disabled) onPick(it.kind); }}>
+              <NewNoteItemIcon $kind={it.kind} aria-hidden="true"><KindIcon kind={it.kind} /></NewNoteItemIcon>
+              <NewNoteItemText>
+                <NewNoteItemTitle>{t(it.titleKey) as string}</NewNoteItemTitle>
+                <NewNoteItemDesc>
+                  {disabled ? (t('page.newNoteDropdown.onlineUnavailable') as string) : (t(it.descKey) as string)}
+                </NewNoteItemDesc>
+              </NewNoteItemText>
+            </NewNoteItem>
+          </div>
+        );
+      })}
     </NewNoteDropdown>,
     document.body,
   );
@@ -103,8 +150,10 @@ export const NewNoteDropdown = styled.div`
   /* 좌표는 usePopoverAnchor 가 인라인 style 로 준다(트리거 오른쪽 끝 기준). */
   position: fixed;
   z-index: 2000;
-  min-width: 220px;
+  min-width: 280px;
+  width: 300px;
   max-width: calc(100vw - 16px);
+  padding-bottom: 4px;
   background: #FFFFFF;
   border: 1px solid #E2E8F0;
   border-radius: 10px;
@@ -114,18 +163,38 @@ export const NewNoteDropdown = styled.div`
   @keyframes pqNoteDdFade { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
 `;
 export const NewNoteItem = styled.button`
-  display: block; width: 100%; text-align: left;
-  padding: 10px 14px;
+  display: flex; align-items: flex-start; gap: 10px; width: 100%; text-align: left;
+  padding: 9px 14px;
   background: transparent; border: none; cursor: pointer;
-  &:hover { background: #F8FAFC; }
+  &:hover:not(:disabled) { background: #F8FAFC; }
   &:focus-visible { background: #F0FDFA; outline: none; }
-  & + & { border-top: 1px solid #F1F5F9; }
+  &:disabled { cursor: not-allowed; opacity: 0.55; }
 `;
+/** 묶음 이름(적기·녹음하며 받아쓰기·파일) — 누르는 것이 아니라 읽는 줄. */
+const NewNoteGroupLabel = styled.div`
+  padding: 8px 14px 2px;
+  font-size: 0.6875rem; font-weight: 600; color: #94A3B8; letter-spacing: 0.2px;
+  div + div > & { border-top: 1px solid #F1F5F9; margin-top: 4px; padding-top: 10px; }
+`;
+const ICON_TONE: Record<MenuKind, { bg: string; fg: string }> = {
+  memo: { bg: '#F0FDFA', fg: '#0F766E' },
+  voice_online: { bg: '#EFF6FF', fg: '#1D4ED8' },
+  voice_offline: { bg: '#F5F3FF', fg: '#6D28D9' },
+  quick: { bg: '#FFF7ED', fg: '#C2410C' },   // 빨강은 «녹음 중»·위험 색이라 피한다(Fable 비차단 2)
+  upload: { bg: '#F8FAFC', fg: '#475569' },
+};
+const NewNoteItemIcon = styled.span<{ $kind: MenuKind }>`
+  flex-shrink: 0; width: 32px; height: 32px; border-radius: 8px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: ${p => ICON_TONE[p.$kind].bg}; color: ${p => ICON_TONE[p.$kind].fg};
+  margin-top: -1px;
+`;
+const NewNoteItemText = styled.span`display: block; min-width: 0; flex: 1;`;
 export const NewNoteItemTitle = styled.div`
   /* 규격은 theme/tokens.listRowTitleCss 하나다 (전엔 0.8125rem 고정 — 폰에서 2px 작았다). */
   ${listRowTitleCss}
   color: #0F172A;
 `;
 export const NewNoteItemDesc = styled.div`
-  font-size: 0.6875rem; color: #94A3B8; margin-top: 2px;
+  font-size: 0.6875rem; color: #64748B; margin-top: 2px; line-height: 1.4;
 `;

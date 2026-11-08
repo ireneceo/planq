@@ -4,14 +4,19 @@ import { useTranslation, Trans } from 'react-i18next';
 import PlanQSelect from '../../components/Common/PlanQSelect';
 import { QNOTE_PURPOSES } from '../../utils/qnotePurpose';
 import {
-  MicIcon,
-  MonitorIcon,
   CloseIcon,
   PlusIcon,
   FileTextIcon,
+  UserIcon,
+  HelpCircleIcon,
+  GlobeIcon,
+  ChatIcon,
+  NoteIcon,
+  BookIcon,
 } from '../../components/Common/Icons';
+import { CaptureModeBar, SettingCard, MoreSectionTitle, FooterNote } from './startMeetingCards';
 import { LANGUAGES, getDefaultLanguageFromBrowser } from '../../constants/languages';
-import { ALL_CAPTURE_CAPABILITIES } from '../../services/audio';
+import { webConferenceCapability } from '../../services/audio';
 import type { CaptureMode } from '../../services/audio';
 import {
   downloadPriorityQATemplate,
@@ -38,6 +43,10 @@ interface Props {
   initialConfig?: Partial<StartConfig>;
   // 편집 모드에서 세션이 이미 존재하므로 파일 drop/select 시 바로 업로드 가능
   editingSessionId?: number;
+  // 새 노트 — + 메뉴(온라인 회의 / 대면 회의)에서 정한 녹음 방식. 초안의 값보다 우선한다(Fable 판정 1).
+  presetCaptureMode?: CaptureMode;
+  // 업로드 노트처럼 녹음 방식이 없는 노트는 녹음 방식 줄을 그리지 않는다.
+  captureHidden?: boolean;
   onClose: () => void;
   onStart: (config: StartConfig) => void;
 }
@@ -111,7 +120,7 @@ function getLanguageLabel(code: string): string {
   return LANGUAGES.find((l) => l.code === code)?.label || code;
 }
 
-const StartMeetingModal = ({ open, userLanguage, editMode, initialConfig, editingSessionId, onClose, onStart }: Props) => {
+const StartMeetingModal = ({ open, userLanguage, editMode, initialConfig, editingSessionId, presetCaptureMode, captureHidden, onClose, onStart }: Props) => {
   const { t } = useTranslation('qnote');
   const { t: tErr } = useTranslation('errors');
   const effectiveUserLanguage = userLanguage || getDefaultLanguageFromBrowser();
@@ -128,6 +137,16 @@ const StartMeetingModal = ({ open, userLanguage, editMode, initialConfig, editin
   // #241 — 기본 OFF. 체크해야 번역 언어 셀렉트가 나온다.
   const [translateEnabled, setTranslateEnabled] = useState(false);
   const [captureMode, setCaptureMode] = useState<CaptureMode>('web_conference');
+  // «더 정확하게» 카드 — 여러 개 동시에 열린다(아코디언 X). 열 때마다 전부 접힌 채 시작(편집 포함 — Fable 판정 a·b).
+  const [openCards, setOpenCards] = useState<Set<string>>(() => new Set());
+  const toggleCard = (id: string) => setOpenCards((prev) => {
+    const next = new Set(prev);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    return next;
+  });
+  const onlineAvailable = useMemo(() => {
+    try { return webConferenceCapability.isAvailable(); } catch { return false; }
+  }, []);
   const [documents, setDocuments] = useState<File[]>([]);
   // 사이클 O4 — 워크스페이스 파일 link (재업로드 X)
   const [workspaceFileIds, setWorkspaceFileIds] = useState<number[]>([]);
@@ -219,6 +238,7 @@ const StartMeetingModal = ({ open, userLanguage, editMode, initialConfig, editin
     setIsDragging(false);
     setDocuments([]);
     setPriorityCsv(null);
+    setOpenCards(new Set());
 
     // 편집 모드 — initialConfig 로 채우고 초안 복원 건너뜀
     if (editMode && initialConfig) {
@@ -292,7 +312,8 @@ const StartMeetingModal = ({ open, userLanguage, editMode, initialConfig, editin
         setTranslationLang(d.translationLang || effectiveUserLanguage);
         setAnswerLang(d.answerLang || '');
         setShowAdvanced(!!d.showAdvanced);
-        setCaptureMode(d.captureMode || 'web_conference');
+        // 메뉴에서 고른 녹음 방식이 초안을 이긴다 — «대면 회의» 를 눌렀는데 초안의 «온라인» 으로 열리면 안 된다.
+        setCaptureMode(presetCaptureMode || d.captureMode || 'web_conference');
         setPastedContext(d.pastedContext || '');
         setUrls(Array.isArray(d.urls) ? d.urls : []);
         setPriorityQAs(Array.isArray(d.priorityQAs) ? d.priorityQAs : []);
@@ -315,7 +336,7 @@ const StartMeetingModal = ({ open, userLanguage, editMode, initialConfig, editin
     setTranslationLang(effectiveUserLanguage);
     setAnswerLang('');
     setShowAdvanced(false);
-    setCaptureMode('web_conference');
+    setCaptureMode(presetCaptureMode || 'web_conference');
     setPastedContext('');
     setUrls([]);
     setPriorityQAs([]);
@@ -623,6 +644,37 @@ const StartMeetingModal = ({ open, userLanguage, editMode, initialConfig, editin
   };
 
 
+  // 카드 머리줄의 «지금 값» — 실제 값으로 보인다(Fable 판정 6). 편집이면 이미 저장된 것도 센다.
+  const cardSummary = (() => {
+    const none = t('startModal.summary.none') as string;
+    const off = t('startModal.summary.off') as string;
+    const people = participants.length + (pName.trim() ? 1 : 0);
+    const firstName = participants[0]?.name || pName.trim();
+    const fileCount = documents.length + workspaceFileIds.length + existingDocuments.length;
+    const matParts = [
+      fileCount ? t('startModal.summary.files', { count: fileCount }) : '',
+      urls.length ? t('startModal.summary.links', { count: urls.length }) : '',
+      pastedContext.trim() ? t('startModal.summary.text') : '',
+    ].filter(Boolean) as string[];
+    const qaCount = priorityQAs.length + existingPriorityQAs.length;
+    const qaParts = [
+      qaCount ? t('startModal.summary.qa', { count: qaCount }) : '',
+      priorityCsv ? priorityCsv.name : '',
+    ].filter(Boolean) as string[];
+    const lengthLabel = t(`startModal.summary.length.${meetingAnswerLength}`) as string;
+    return {
+      people: { filled: people > 0, text: people === 0 ? none
+        : people === 1 ? firstName : (t('startModal.summary.people', { name: firstName, count: people - 1 }) as string) },
+      materials: { filled: matParts.length > 0, text: matParts.length ? matParts.join(' · ') : none },
+      priority: { filled: qaParts.length > 0, text: qaParts.length ? qaParts.join(' · ') : none },
+      translate: { filled: translateEnabled, text: translateEnabled ? getLanguageLabel(translationLang) : off },
+      answer: { filled: meetingAnswerLength !== 'medium' || !!meetingAnswerStyle.trim(),
+        text: meetingAnswerStyle.trim() ? `${lengthLabel} · ${t('startModal.summary.styleSet')}` : lengthLabel },
+      brief: { filled: !!brief.trim(), text: brief.trim() ? (t('startModal.summary.written') as string) : none },
+      vocab: { filled: sessionKeywords.length > 0, text: sessionKeywords.length ? (t('startModal.summary.words', { count: sessionKeywords.length }) as string) : none },
+    };
+  })();
+
   const handleStart = () => {
     // 입력 중인 참여자 이름이 "+ 추가" 없이 남아있으면 자동으로 포함.
     // 사용자가 한 명만 입력하고 엔터/버튼 없이 바로 "회의 시작"을 눌러도 저장되도록.
@@ -673,7 +725,9 @@ const StartMeetingModal = ({ open, userLanguage, editMode, initialConfig, editin
     <Backdrop onClick={onClose}>
       <ModalBox role="dialog" aria-modal="true" aria-label={editMode ? (t('startModal.editHeader', '회의 설정 편집') as string) : (t('startModal.header') as string)} onClick={(e) => e.stopPropagation()}>
         <Header>
-          <Title>{editMode ? t('startModal.editHeaderTitle', '회의 설정 편집') : t('startModal.header')}</Title>
+          <Title data-testid="qnote-start-title">{editMode
+            ? t('startModal.editHeaderTitle', '회의 설정 편집')
+            : (captureMode === 'microphone' ? t('startModal.headerOffline') : t('startModal.headerOnline'))}</Title>
           <HeaderRight>
             {!editMode && draftRestored && (
               <>
@@ -690,6 +744,10 @@ const StartMeetingModal = ({ open, userLanguage, editMode, initialConfig, editin
         </Header>
 
         <Body>
+          {/* 녹음 방식이 창을 열면 처음 보이는 것이다 — 프로필 안내보다 위(Fable 비차단 1) */}
+          {!captureHidden && (
+            <CaptureModeBar mode={captureMode} onChange={setCaptureMode} locked={!!editMode} onlineAvailable={onlineAvailable} />
+          )}
           {/* 프로필 미완성 안내 — Q Note 답변 품질 향상 위해 */}
           {!editMode && (() => {
             const u = user as { bio?: string | null; expertise?: string | null; organization?: string | null; job_title?: string | null } | null;
@@ -738,20 +796,21 @@ const StartMeetingModal = ({ open, userLanguage, editMode, initialConfig, editin
           </Field>
 
           <Field>
-            <Label>{t('startModal.briefLabel')}</Label>
-            <Hint>{t('startModal.briefHint')}</Hint>
-            <TextArea
-              placeholder={t('startModal.briefPlaceholder')}
-              value={brief}
-              onChange={(e) => setBrief(e.target.value)}
-              maxLength={2000}
-              rows={4}
+            <Label>
+              {t('startModal.meetingLanguageLabel')} <Required>*</Required>
+            </Label>
+            <PlanQSelect
+              options={allLangOptions}
+              value={selectedMeetingOpt}
+              onChange={(opt: any) => setMeetingLang(opt?.value || '')}
+              placeholder={t('startModal.meetingLanguagePlaceholder')}
             />
-            <CharCount>{brief.length} / 2000</CharCount>
           </Field>
 
+          <MoreSectionTitle />
+          <SettingCard id="people" icon={<UserIcon size={16} />} title={t('startModal.card.people.title')} benefit={t('startModal.card.people.benefit')}
+            summary={cardSummary.people.text} filled={cardSummary.people.filled} open={openCards.has('people')} onToggle={() => toggleCard('people')}>
           <Field>
-            <Label>{t('startModal.participantsLabel')}</Label>
             <Hint>{t('startModal.participantsHint')}</Hint>
             {/* 2026-10-05 목소리 프로필 — 기준은 화면이 짧게 알려준다 */}
             <Hint data-testid="qnote-start-voice-hint">{t('startModal.voiceHint', '목소리를 등록한 참석자는 회의 기록에 이름이 자동으로 붙습니다 (내 프로필에서 등록)')}</Hint>
@@ -796,76 +855,172 @@ const StartMeetingModal = ({ open, userLanguage, editMode, initialConfig, editin
               </AddRowBtn>
             </ParticipantInputs>
           </Field>
-
+          </SettingCard>
+          <SettingCard id="materials" icon={<FileTextIcon size={16} />} title={t('startModal.card.materials.title')} benefit={t('startModal.card.materials.benefit')}
+            summary={cardSummary.materials.text} filled={cardSummary.materials.filled} open={openCards.has('materials')} onToggle={() => toggleCard('materials')}>
           <Field>
-            <Label>
-              {t('startModal.meetingLanguageLabel')} <Required>*</Required>
-            </Label>
-            <PlanQSelect
-              options={allLangOptions}
-              value={selectedMeetingOpt}
-              onChange={(opt: any) => setMeetingLang(opt?.value || '')}
-              placeholder={t('startModal.meetingLanguagePlaceholder')}
-            />
-          </Field>
-
-          {showAdvanced ? (
-            <AdvancedSection>
-              <AdvancedToggle onClick={() => setShowAdvanced(false)}>
-                {t('startModal.advancedHide')}
-              </AdvancedToggle>
-              <Field>
-                <CheckboxLabel>
-                  <input
-                    type="checkbox"
-                    checked={translateEnabled}
-                    onChange={(e) => setTranslateEnabled(e.target.checked)}
-                  />
-                  <span>{t('startModal.translateNeeded', '번역 필요')}</span>
-                </CheckboxLabel>
-                <Hint>{t('startModal.translateNeededHint', '체크하면 발화와 답변을 다른 언어로 함께 보여줍니다.')}</Hint>
-              </Field>
-              <LangRow>
-                {translateEnabled && (
-                  <Field>
-                    <Label>{t('startModal.translationLanguageLabel')}</Label>
-                    <PlanQSelect
-                      options={allLangOptions}
-                      value={selectedTranslationOpt}
-                      onChange={(opt: any) => setTranslationLang(opt?.value || effectiveUserLanguage)}
-                      placeholder={t('startModal.translationLanguagePlaceholder')}
-                    />
-                    <Hint>{t('startModal.translationHint', { lang: getLanguageLabel(effectiveUserLanguage) })}</Hint>
-                  </Field>
-                )}
-                <Field>
-                  <Label>{t('startModal.answerLanguageLabel')}</Label>
-                  <PlanQSelect
-                    options={allLangOptions}
-                    value={allLangOptions.find((o) => o.value === answerLang) || null}
-                    onChange={(opt: any) => setAnswerLang(opt?.value || meetingLang)}
-                    placeholder={t('startModal.answerLanguagePlaceholder')}
-                  />
-                </Field>
-              </LangRow>
-            </AdvancedSection>
-          ) : (
-            <AdvancedToggle onClick={() => setShowAdvanced(true)}>
-              {t('startModal.advancedShow')}
-            </AdvancedToggle>
-          )}
-
-          <Field>
-            <PriorityLabel>
-              <PriorityBadge>{t('startModal.priority.badge', '최우선')}</PriorityBadge>
-              {t('startModal.priority.label', 'Q&A 자료 (답변 1순위)')}
-              {editMode && existingPriorityQAs.length > 0 && (
-                <ExistingCount>{t('startModal.priority.totalCount', { count: existingPriorityQAs.length })}</ExistingCount>
-              )}
-            </PriorityLabel>
             <Hint>
-              {t('startModal.priority.intro1', '여기에 등록한 Q&A는 ')}<strong>{t('startModal.priority.introStrong', '다른 모든 자료보다 먼저')}</strong>{t('startModal.priority.intro2', ' 사용됩니다. 파일 업로드 또는 직접 입력 두 가지 방식 모두 지원합니다.')}
+              <Trans i18nKey="startModal.materialsHintLine2" ns="qnote" components={{ 1: <strong /> }} />
+              <br />
+              {t('startModal.materialsHintLine3')}
             </Hint>
+
+            {/* 편집 모드: 기존 문서 목록 (읽기 + 삭제) */}
+            {editMode && existingDocuments.length > 0 && (
+              <FileList>
+                {existingDocuments.map((doc) => (
+                  <FileRow key={doc.id}>
+                    <FileIcon>
+                      <FileTextIcon size={14} />
+                    </FileIcon>
+                    <FileName>{doc.original_filename || doc.title || t('startModal.docName', { id: doc.id })}</FileName>
+                    <FileSize>{doc.status === 'indexed' ? t('startModal.chunkUnit', { count: doc.chunk_count || 0 }) : doc.status}</FileSize>
+                    <RemoveBtn onClick={() => handleDeleteExistingDocument(doc.id)} aria-label={t('startModal.removeLabel')}>
+                      <CloseIcon size={14} />
+                    </RemoveBtn>
+                  </FileRow>
+                ))}
+              </FileList>
+            )}
+
+            {fileError && <ErrorBanner>{fileError}</ErrorBanner>}
+            <Dropzone
+              $dragging={isDragging}
+              onClick={() => fileInputRef.current?.click()}
+              onDragOver={(e) => {
+                e.preventDefault();
+                setIsDragging(true);
+              }}
+              onDragLeave={() => setIsDragging(false)}
+              onDrop={(e) => {
+                e.preventDefault();
+                setIsDragging(false);
+                addFiles(e.dataTransfer.files);
+              }}
+            >
+              <DropzoneIcon>
+                <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                  <polyline points="17 8 12 3 7 8"/>
+                  <line x1="12" y1="3" x2="12" y2="15"/>
+                </svg>
+              </DropzoneIcon>
+              <DropzoneText>
+                {t('startModal.dropzoneText')}
+                <DropzoneSubText>{t('startModal.dropzoneSub')}</DropzoneSubText>
+              </DropzoneText>
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                accept={ACCEPTED_TYPES.join(',')}
+                hidden
+                onChange={(e) => {
+                  if (e.target.files) addFiles(e.target.files);
+                  e.target.value = '';
+                }}
+              />
+            </Dropzone>
+
+            <PickerRow>
+              <WorkspaceFileBtn type="button" onClick={() => setFilePickerOpen(true)}>
+                {t('startModal.fromWorkspace', '+ 워크스페이스 파일에서')}
+              </WorkspaceFileBtn>
+              <PickerHint>{t('startModal.fromWorkspaceHint', '재업로드 없이 기존 파일을 회의 자료로 연결')}</PickerHint>
+            </PickerRow>
+            {workspaceFileIds.length > 0 && (
+              <FileList>
+                {workspaceFileIds.map(id => {
+                  const meta = workspaceFileMeta[id];
+                  return (
+                    <FileRow key={`ws-${id}`}>
+                      <FileIcon><FileTextIcon size={14} /></FileIcon>
+                      <FileName>{meta?.name || `#${id}`}</FileName>
+                      {meta?.size != null && <FileSize>{formatFileSize(meta.size)}</FileSize>}
+                      <WorkspaceTag>{t('startModal.workspaceTag', '기존')}</WorkspaceTag>
+                      <RemoveBtn onClick={() => removeWorkspaceFile(id)} aria-label={t('startModal.removeLabel')}>
+                        <CloseIcon size={14} />
+                      </RemoveBtn>
+                    </FileRow>
+                  );
+                })}
+              </FileList>
+            )}
+            {documents.length > 0 && (
+              <FileList>
+                {documents.map((file, idx) => (
+                  <FileRow key={`${file.name}-${idx}`}>
+                    <FileIcon>
+                      <FileTextIcon size={14} />
+                    </FileIcon>
+                    <FileName>{file.name}</FileName>
+                    <FileSize>{formatFileSize(file.size)}</FileSize>
+                    <RemoveBtn onClick={() => removeFile(idx)} aria-label={t('startModal.removeLabel')}>
+                      <CloseIcon size={14} />
+                    </RemoveBtn>
+                  </FileRow>
+                ))}
+              </FileList>
+            )}
+
+            <Divider>
+              <DividerText>{t('startModal.dividerText')}</DividerText>
+            </Divider>
+
+            <TextArea
+              placeholder={t('startModal.pastedPlaceholder')}
+              value={pastedContext}
+              onChange={(e) => setPastedContext(e.target.value)}
+              maxLength={MAX_TEXT_CHARS}
+              rows={4}
+            />
+            <CharCount>
+              {pastedContext.length.toLocaleString()} / {MAX_TEXT_CHARS.toLocaleString()}
+            </CharCount>
+
+            <Divider>
+              <DividerText>{t('startModal.dividerUrl')}</DividerText>
+            </Divider>
+
+            <UrlRow>
+              <ParticipantInput
+                placeholder={t('startModal.urlPlaceholder')}
+                value={urlInput}
+                onChange={(e) => setUrlInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (isEnterAction(e)) {
+                    e.preventDefault();
+                    addUrl();
+                  }
+                }}
+              />
+              <AddRowBtn type="button" onClick={addUrl} disabled={!urlInput.trim()}>
+                <PlusIcon size={14} />
+              </AddRowBtn>
+            </UrlRow>
+            <Hint>{t('startModal.urlHint')}</Hint>
+
+            {urls.length > 0 && (
+              <FileList>
+                {urls.map((u, idx) => (
+                  <FileRow key={u}>
+                    <FileIcon>
+                      <FileTextIcon size={14} />
+                    </FileIcon>
+                    <FileName>{u}</FileName>
+                    <UrlStatus>{t('startModal.urlStatusPending')}</UrlStatus>
+                    <RemoveBtn onClick={() => removeUrl(idx)} aria-label={t('startModal.removeLabel')}>
+                      <CloseIcon size={14} />
+                    </RemoveBtn>
+                  </FileRow>
+                ))}
+              </FileList>
+            )}
+          </Field>
+          </SettingCard>
+          <SettingCard id="priority" icon={<HelpCircleIcon size={16} />} title={t('startModal.card.priority.title')} benefit={t('startModal.card.priority.benefit')}
+            summary={cardSummary.priority.text} filled={cardSummary.priority.filled} open={openCards.has('priority')} onToggle={() => toggleCard('priority')}>
+          <Field>
 
             {/* ── 1) 파일 업로드 영역 (먼저) ── */}
             <input
@@ -1037,13 +1192,85 @@ const StartMeetingModal = ({ open, userLanguage, editMode, initialConfig, editin
               );
             })()}
           </Field>
-
-          {editMode && (
+          </SettingCard>
+          <SettingCard id="translate" icon={<GlobeIcon size={16} />} title={t('startModal.card.translate.title')} benefit={t('startModal.card.translate.benefit')}
+            summary={cardSummary.translate.text} filled={cardSummary.translate.filled} open={openCards.has('translate')} onToggle={() => toggleCard('translate')}>
+          <div>
             <Field>
-              <Label>
-                {t('startModal.vocabulary.label', '어휘사전 (STT 교정용)')}
-                {sessionKeywords.length > 0 && <ExistingCount>{t('startModal.vocabulary.countSuffix', { count: sessionKeywords.length })}</ExistingCount>}
-              </Label>
+              <CheckboxLabel>
+                <input
+                  type="checkbox"
+                  checked={translateEnabled}
+                  onChange={(e) => setTranslateEnabled(e.target.checked)}
+                />
+                <span>{t('startModal.translateNeeded', '번역 필요')}</span>
+              </CheckboxLabel>
+            </Field>
+            <LangRow>
+              {translateEnabled && (
+                <Field>
+                  <Label>{t('startModal.translationLanguageLabel')}</Label>
+                  <PlanQSelect
+                    options={allLangOptions}
+                    value={selectedTranslationOpt}
+                    onChange={(opt: any) => setTranslationLang(opt?.value || effectiveUserLanguage)}
+                    placeholder={t('startModal.translationLanguagePlaceholder')}
+                  />
+                  <Hint>{t('startModal.translationHint', { lang: getLanguageLabel(effectiveUserLanguage) })}</Hint>
+                </Field>
+              )}
+              <Field>
+                <Label>{t('startModal.answerLanguageLabel')}</Label>
+                <PlanQSelect
+                  options={allLangOptions}
+                  value={allLangOptions.find((o) => o.value === answerLang) || null}
+                  onChange={(opt: any) => setAnswerLang(opt?.value || meetingLang)}
+                  placeholder={t('startModal.answerLanguagePlaceholder')}
+                />
+              </Field>
+            </LangRow>
+          </div>
+          </SettingCard>
+          <SettingCard id="answer" icon={<ChatIcon size={16} />} title={t('startModal.card.answer.title')} benefit={t('startModal.card.answer.benefit')}
+            summary={cardSummary.answer.text} filled={cardSummary.answer.filled} open={openCards.has('answer')} onToggle={() => toggleCard('answer')}>
+          <Field>
+            <LengthRow>
+              <LengthBtn type="button" $active={meetingAnswerLength === 'short'} onClick={() => setMeetingAnswerLength('short')}>
+                {t('startModal.answerStyle.short', '짧게 (1-2문장)')}
+              </LengthBtn>
+              <LengthBtn type="button" $active={meetingAnswerLength === 'medium'} onClick={() => setMeetingAnswerLength('medium')}>
+                {t('startModal.answerStyle.medium', '보통 (2-3문장)')}
+              </LengthBtn>
+              <LengthBtn type="button" $active={meetingAnswerLength === 'long'} onClick={() => setMeetingAnswerLength('long')}>
+                {t('startModal.answerStyle.long', '길게 (3-4문장)')}
+              </LengthBtn>
+            </LengthRow>
+            <TextArea
+              placeholder={t('startModal.answerStyle.stylePlaceholder', '예시: 짧고 자신감 있게. 전문용어 금지. 구체적 숫자 포함. 반드시 질문을 되묻지 말 것.') as string}
+              value={meetingAnswerStyle}
+              onChange={(e) => setMeetingAnswerStyle(e.target.value)}
+              rows={3}
+              maxLength={2000}
+            />
+          </Field>
+          </SettingCard>
+          <SettingCard id="brief" icon={<NoteIcon size={16} />} title={t('startModal.card.brief.title')} benefit={t('startModal.card.brief.benefit')}
+            summary={cardSummary.brief.text} filled={cardSummary.brief.filled} open={openCards.has('brief')} onToggle={() => toggleCard('brief')}>
+          <Field>
+            <TextArea
+              placeholder={t('startModal.briefPlaceholder')}
+              value={brief}
+              onChange={(e) => setBrief(e.target.value)}
+              maxLength={2000}
+              rows={4}
+            />
+            <CharCount>{brief.length} / 2000</CharCount>
+          </Field>
+          </SettingCard>
+          {editMode && (
+          <SettingCard id="vocab" icon={<BookIcon size={16} />} title={t('startModal.card.vocab.title')} benefit={t('startModal.card.vocab.benefit')}
+            summary={cardSummary.vocab.text} filled={cardSummary.vocab.filled} open={openCards.has('vocab')} onToggle={() => toggleCard('vocab')}>
+            <Field>
               <Hint>
                 {t('startModal.vocabulary.hintPart1', '여기 등록된 단어는 ')}<strong>{t('startModal.vocabulary.hintStrong1', 'Deepgram 이 음성인식 시 우선 매칭')}</strong>{t('startModal.vocabulary.hintPart2', '하고, AI 가 "remote work" 같은 구절을 잘못 듣는 문제를 고쳐줍니다.')}
                 <br />
@@ -1092,236 +1319,12 @@ const StartMeetingModal = ({ open, userLanguage, editMode, initialConfig, editin
                 </AddRowBtn>
               </KeywordAddRow>
             </Field>
+          </SettingCard>
           )}
-
-          <Field>
-            <Label>{t('startModal.answerStyle.label', '답변 스타일 · 길이')}</Label>
-            <Hint>
-              {t('startModal.answerStyle.hint', '답변이 너무 어렵거나 길면 여기서 조정하세요. 말하기 좋은 단어로, 언어 레벨에 맞게 생성됩니다.')}
-            </Hint>
-            <LengthRow>
-              <LengthBtn type="button" $active={meetingAnswerLength === 'short'} onClick={() => setMeetingAnswerLength('short')}>
-                {t('startModal.answerStyle.short', '짧게 (1-2문장)')}
-              </LengthBtn>
-              <LengthBtn type="button" $active={meetingAnswerLength === 'medium'} onClick={() => setMeetingAnswerLength('medium')}>
-                {t('startModal.answerStyle.medium', '보통 (2-3문장)')}
-              </LengthBtn>
-              <LengthBtn type="button" $active={meetingAnswerLength === 'long'} onClick={() => setMeetingAnswerLength('long')}>
-                {t('startModal.answerStyle.long', '길게 (3-4문장)')}
-              </LengthBtn>
-            </LengthRow>
-            <TextArea
-              placeholder={t('startModal.answerStyle.stylePlaceholder', '예시: 짧고 자신감 있게. 전문용어 금지. 구체적 숫자 포함. 반드시 질문을 되묻지 말 것.') as string}
-              value={meetingAnswerStyle}
-              onChange={(e) => setMeetingAnswerStyle(e.target.value)}
-              rows={3}
-              maxLength={2000}
-            />
-          </Field>
-
-          <Field>
-            <Label>
-              {t('startModal.materialsLabel')}
-              {editMode && existingDocuments.length > 0 && (
-                <ExistingCount>{t('startModal.materialsExisting', { count: existingDocuments.length })}</ExistingCount>
-              )}
-            </Label>
-            <Hint>
-              {t('startModal.materialsHintLine1')}
-              <br />
-              <Trans i18nKey="startModal.materialsHintLine2" ns="qnote" components={{ 1: <strong /> }} />
-              <br />
-              {t('startModal.materialsHintLine3')}
-            </Hint>
-
-            {/* 편집 모드: 기존 문서 목록 (읽기 + 삭제) */}
-            {editMode && existingDocuments.length > 0 && (
-              <FileList>
-                {existingDocuments.map((doc) => (
-                  <FileRow key={doc.id}>
-                    <FileIcon>
-                      <FileTextIcon size={14} />
-                    </FileIcon>
-                    <FileName>{doc.original_filename || doc.title || t('startModal.docName', { id: doc.id })}</FileName>
-                    <FileSize>{doc.status === 'indexed' ? t('startModal.chunkUnit', { count: doc.chunk_count || 0 }) : doc.status}</FileSize>
-                    <RemoveBtn onClick={() => handleDeleteExistingDocument(doc.id)} aria-label={t('startModal.removeLabel')}>
-                      <CloseIcon size={14} />
-                    </RemoveBtn>
-                  </FileRow>
-                ))}
-              </FileList>
-            )}
-
-            {fileError && <ErrorBanner>{fileError}</ErrorBanner>}
-            <Dropzone
-              $dragging={isDragging}
-              onClick={() => fileInputRef.current?.click()}
-              onDragOver={(e) => {
-                e.preventDefault();
-                setIsDragging(true);
-              }}
-              onDragLeave={() => setIsDragging(false)}
-              onDrop={(e) => {
-                e.preventDefault();
-                setIsDragging(false);
-                addFiles(e.dataTransfer.files);
-              }}
-            >
-              <DropzoneIcon>
-                <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                  <polyline points="17 8 12 3 7 8"/>
-                  <line x1="12" y1="3" x2="12" y2="15"/>
-                </svg>
-              </DropzoneIcon>
-              <DropzoneText>
-                {t('startModal.dropzoneText')}
-                <DropzoneSubText>{t('startModal.dropzoneSub')}</DropzoneSubText>
-              </DropzoneText>
-              <input
-                ref={fileInputRef}
-                type="file"
-                multiple
-                accept={ACCEPTED_TYPES.join(',')}
-                hidden
-                onChange={(e) => {
-                  if (e.target.files) addFiles(e.target.files);
-                  e.target.value = '';
-                }}
-              />
-            </Dropzone>
-
-            <PickerRow>
-              <WorkspaceFileBtn type="button" onClick={() => setFilePickerOpen(true)}>
-                {t('startModal.fromWorkspace', '+ 워크스페이스 파일에서')}
-              </WorkspaceFileBtn>
-              <PickerHint>{t('startModal.fromWorkspaceHint', '재업로드 없이 기존 파일을 회의 자료로 연결')}</PickerHint>
-            </PickerRow>
-            {workspaceFileIds.length > 0 && (
-              <FileList>
-                {workspaceFileIds.map(id => {
-                  const meta = workspaceFileMeta[id];
-                  return (
-                    <FileRow key={`ws-${id}`}>
-                      <FileIcon><FileTextIcon size={14} /></FileIcon>
-                      <FileName>{meta?.name || `#${id}`}</FileName>
-                      {meta?.size != null && <FileSize>{formatFileSize(meta.size)}</FileSize>}
-                      <WorkspaceTag>{t('startModal.workspaceTag', '기존')}</WorkspaceTag>
-                      <RemoveBtn onClick={() => removeWorkspaceFile(id)} aria-label={t('startModal.removeLabel')}>
-                        <CloseIcon size={14} />
-                      </RemoveBtn>
-                    </FileRow>
-                  );
-                })}
-              </FileList>
-            )}
-            {documents.length > 0 && (
-              <FileList>
-                {documents.map((file, idx) => (
-                  <FileRow key={`${file.name}-${idx}`}>
-                    <FileIcon>
-                      <FileTextIcon size={14} />
-                    </FileIcon>
-                    <FileName>{file.name}</FileName>
-                    <FileSize>{formatFileSize(file.size)}</FileSize>
-                    <RemoveBtn onClick={() => removeFile(idx)} aria-label={t('startModal.removeLabel')}>
-                      <CloseIcon size={14} />
-                    </RemoveBtn>
-                  </FileRow>
-                ))}
-              </FileList>
-            )}
-
-            <Divider>
-              <DividerText>{t('startModal.dividerText')}</DividerText>
-            </Divider>
-
-            <TextArea
-              placeholder={t('startModal.pastedPlaceholder')}
-              value={pastedContext}
-              onChange={(e) => setPastedContext(e.target.value)}
-              maxLength={MAX_TEXT_CHARS}
-              rows={4}
-            />
-            <CharCount>
-              {pastedContext.length.toLocaleString()} / {MAX_TEXT_CHARS.toLocaleString()}
-            </CharCount>
-
-            <Divider>
-              <DividerText>{t('startModal.dividerUrl')}</DividerText>
-            </Divider>
-
-            <UrlRow>
-              <ParticipantInput
-                placeholder={t('startModal.urlPlaceholder')}
-                value={urlInput}
-                onChange={(e) => setUrlInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (isEnterAction(e)) {
-                    e.preventDefault();
-                    addUrl();
-                  }
-                }}
-              />
-              <AddRowBtn type="button" onClick={addUrl} disabled={!urlInput.trim()}>
-                <PlusIcon size={14} />
-              </AddRowBtn>
-            </UrlRow>
-            <Hint>{t('startModal.urlHint')}</Hint>
-
-            {urls.length > 0 && (
-              <FileList>
-                {urls.map((u, idx) => (
-                  <FileRow key={u}>
-                    <FileIcon>
-                      <FileTextIcon size={14} />
-                    </FileIcon>
-                    <FileName>{u}</FileName>
-                    <UrlStatus>{t('startModal.urlStatusPending')}</UrlStatus>
-                    <RemoveBtn onClick={() => removeUrl(idx)} aria-label={t('startModal.removeLabel')}>
-                      <CloseIcon size={14} />
-                    </RemoveBtn>
-                  </FileRow>
-                ))}
-              </FileList>
-            )}
-          </Field>
-
-          <Field>
-            <Label>
-              {t('startModal.captureLabel')} <Required>*</Required>
-            </Label>
-            <CaptureNote>{t('startModal.captureModeNote', '마이크 모드는 본인/상대 구분이 안 됩니다. 웹 화상회의 모드는 본인(마이크) / 상대(탭 오디오, 다수여도 모두 상대) 로 자동 구분됩니다.')}</CaptureNote>
-            <CaptureCards>
-              {ALL_CAPTURE_CAPABILITIES.map((cap) => {
-                const available = cap.isAvailable();
-                const selected = captureMode === cap.mode;
-                const Icon = cap.mode === 'web_conference' ? MonitorIcon : MicIcon;
-                return (
-                  <CaptureCard
-                    key={cap.mode}
-                    $selected={selected}
-                    $disabled={!available}
-                    onClick={() => available && setCaptureMode(cap.mode)}
-                  >
-                    <CaptureLabelRow>
-                      <CaptureIconWrap $selected={selected}>
-                        <Icon size={18} />
-                      </CaptureIconWrap>
-                      <CaptureLabel>
-                        {cap.label}
-                        {!available && <Unavailable>{t('startModal.unavailable')}</Unavailable>}
-                      </CaptureLabel>
-                    </CaptureLabelRow>
-                    <CaptureDesc>{cap.description}</CaptureDesc>
-                  </CaptureCard>
-                );
-              })}
-            </CaptureCards>
-          </Field>
         </Body>
 
         <Footer>
+          <FooterNote>{t('startModal.footerNote')}</FooterNote>
           <SecondaryBtn onClick={onClose}>{t('startModal.cancel')}</SecondaryBtn>
           <PrimaryBtn onClick={handleStart} disabled={!canStart}>
             {editMode ? t('startModal.saveBtn', '저장') : t('startModal.start')}
@@ -1454,15 +1457,6 @@ const PurposeChip = styled.button<{ $active?: boolean }>`
   &:hover { background: ${(p) => (p.$active ? '#0D9488' : '#F8FAFC')}; }
   &:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(20,184,166,0.3); }
 `;
-const CaptureNote = styled.div`
-  font-size: 0.75rem;
-  color: #78350F;
-  background: #FEF3C7;
-  border: 1px solid #FDE68A;
-  border-radius: 8px;
-  padding: 8px 12px;
-  line-height: 1.5;
-`;
 const ProfileBanner = styled.div`
   display: flex;
   align-items: flex-start;
@@ -1493,23 +1487,7 @@ const ProfileBannerLink = styled.a`
   &:hover { background: #F0FDFA; border-color: #14B8A6; }
 `;
 
-const AdvancedSection = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-`;
 
-const AdvancedToggle = styled.button`
-  font-size: 0.75rem;
-  font-weight: 500;
-  color: #94a3b8;
-  background: none;
-  border: none;
-  cursor: pointer;
-  padding: 4px 0;
-  text-align: left;
-  &:hover { color: #64748b; }
-`;
 
 const CheckboxLabel = styled.label`
   display: inline-flex; align-items: center; gap: 6px; cursor: pointer;
@@ -1645,15 +1623,6 @@ const Divider = styled.div`
   }
 `;
 
-const PriorityLabel = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 0.8125rem;
-  font-weight: 600;
-  color: #0f172a;
-  margin-bottom: 4px;
-`;
 
 const EditModeBanner = styled.div`
   margin: -4px 0 12px;
@@ -1668,17 +1637,6 @@ const EditModeBanner = styled.div`
   strong { color: #0f766e; font-weight: 700; }
 `;
 
-const ExistingCount = styled.span`
-  display: inline-flex;
-  align-items: center;
-  margin-left: auto;
-  padding: 2px 8px;
-  font-size: 0.6875rem;
-  font-weight: 600;
-  color: #0f766e;
-  background: #ccfbf1;
-  border-radius: 10px;
-`;
 
 const GenerateKeywordsBtn = styled.button`
   padding: 8px 14px;
@@ -1756,17 +1714,6 @@ const EmptyHint = styled.div`
   border-radius: 8px;
 `;
 
-const PriorityBadge = styled.span`
-  display: inline-flex;
-  align-items: center;
-  padding: 3px 8px;
-  font-size: 0.625rem;
-  font-weight: 700;
-  color: #ffffff;
-  background: #f43f5e;
-  border-radius: 4px;
-  letter-spacing: 0.03em;
-`;
 
 const PQRow = styled.div`
   display: flex;
@@ -1962,63 +1909,12 @@ const RemoveBtn = styled.button`
   }
 `;
 
-const CaptureCards = styled.div`
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
-  @media (max-width: 600px) {
-    grid-template-columns: 1fr;
-  }
-`;
 
-const CaptureCard = styled.div<{ $selected: boolean; $disabled: boolean }>`
-  border: 2px solid ${(p) => (p.$selected ? '#14b8a6' : '#e2e8f0')};
-  background: ${(p) => (p.$selected ? '#f0fdfa' : '#ffffff')};
-  border-radius: 12px;
-  padding: 14px 16px;
-  cursor: ${(p) => (p.$disabled ? 'not-allowed' : 'pointer')};
-  opacity: ${(p) => (p.$disabled ? 0.5 : 1)};
-  transition: all 150ms;
-  &:hover {
-    border-color: ${(p) => (p.$disabled ? '#e2e8f0' : '#14b8a6')};
-  }
-`;
 
-const CaptureLabelRow = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 6px;
-`;
 
-const CaptureIconWrap = styled.div<{ $selected: boolean }>`
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  border-radius: 8px;
-  background: ${(p) => (p.$selected ? '#ccfbf1' : '#f1f5f9')};
-  color: ${(p) => (p.$selected ? '#0d9488' : '#64748b')};
-`;
 
-const CaptureLabel = styled.div`
-  font-size: 0.875rem;
-  font-weight: 600;
-  color: #0f172a;
-`;
 
-const Unavailable = styled.span`
-  font-size: 0.75rem;
-  font-weight: 400;
-  color: #94a3b8;
-`;
 
-const CaptureDesc = styled.div`
-  font-size: 0.75rem;
-  color: #64748b;
-  line-height: 1.4;
-`;
 
 const Footer = styled.div`
   padding: 16px 28px 24px;

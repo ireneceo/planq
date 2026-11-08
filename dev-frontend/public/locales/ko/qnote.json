@@ -37,13 +37,21 @@
     },
     "newNoteDropdown": {
       "memoLabel": "메모",
-      "memoDesc": "텍스트 · 코드블록 · 서식 지원",
+      "memoDesc": "글로 빠르게 적기",
       "voiceLabel": "음성 노트 (대화형)",
       "voiceDesc": "회의 녹음 + STT + 답변 찾기",
-      "quickLabel": "음성메모",
-      "quickDesc": "준비 없이 즉시 시작 · 번역 없음 · 마이크",
-      "uploadLabel": "녹음 파일",
-      "uploadDesc": "가지고 있는 녹음을 올려 텍스트로"
+      "quickLabel": "바로 녹음",
+      "quickDesc": "설정 없이 지금 바로 녹음 · 설정은 나중에 더할 수 있어요",
+      "uploadLabel": "녹음 파일 올리기",
+      "uploadDesc": "이미 녹음한 파일을 글로",
+      "groupWrite": "적기",
+      "groupRecord": "녹음하며 받아쓰기",
+      "groupFile": "파일",
+      "onlineLabel": "온라인 회의",
+      "onlineDesc": "Zoom·Meet·Teams 웹 회의 — 내 목소리와 상대 목소리를 나눠 기록",
+      "onlineUnavailable": "컴퓨터 크롬·엣지 브라우저에서 할 수 있어요",
+      "offlineLabel": "대면 회의",
+      "offlineDesc": "같은 자리에서 마이크로 — 제목·참여자·자료를 미리 넣고 녹음"
     },
     "header": {
       "editTitleHint": "클릭하여 수정",
@@ -404,7 +412,7 @@
       "label": "어휘사전 (STT 교정용)",
       "countSuffix": "{{count}}개",
       "hintPart1": "여기 등록된 단어는 ",
-      "hintStrong1": "Deepgram 이 음성인식 시 우선 매칭",
+      "hintStrong1": "음성 인식이 이 단어를 먼저 알아듣고",
       "hintPart2": "하고, AI 가 \"remote work\" 같은 구절을 잘못 듣는 문제를 고쳐줍니다.",
       "hintStrong2": "업로드한 문서가 최우선 소스",
       "hintPart3": "입니다. 문서 인덱싱이 끝나면 자동으로 재추출되며, 그 전이면 아래 \"문서 기반 재추출\" 버튼으로 즉시 뽑을 수 있습니다.",
@@ -428,7 +436,72 @@
     "docName": "문서 #{{id}}",
     "chunkUnit": "{{count}} chunks",
     "saveBtn": "저장",
-    "voiceHint": "목소리를 등록한 참석자는 회의 기록에 이름이 자동으로 붙습니다 (내 프로필에서 등록)"
+    "voiceHint": "목소리를 등록한 참석자는 회의 기록에 이름이 자동으로 붙습니다 (내 프로필에서 등록)",
+    "headerOnline": "새 온라인 회의",
+    "headerOffline": "새 대면 회의",
+    "mode": {
+      "online": "온라인 회의",
+      "offline": "대면 회의",
+      "onlineHint": "내 목소리(마이크)와 상대 목소리(회의 탭 소리)를 나눠 기록해요. 시작하면 회의 탭을 고르고 «탭 오디오 공유»를 켜 주세요.",
+      "offlineHint": "마이크 하나로 녹음해요. 말한 사람은 끝난 뒤 이름을 연결할 수 있어요.",
+      "onlineUnavailable": "온라인 회의는 컴퓨터의 크롬·엣지 브라우저에서 할 수 있어요.",
+      "locked": "녹음 방식은 바꿀 수 없어요 — 다른 방식으로 하려면 새 노트로 시작하세요.",
+      "change": "바꾸기",
+      "toOnline": "온라인 회의로 바꾸기",
+      "toOffline": "대면 회의로 바꾸기"
+    },
+    "more": {
+      "title": "더 정확하게",
+      "hint": "안 해도 돼요 — 넣을수록 받아쓰기·답변·요약이 좋아져요."
+    },
+    "card": {
+      "people": {
+        "title": "참여자",
+        "benefit": "이름을 넣으면 누가 말했는지 기록에 이름이 붙어요"
+      },
+      "materials": {
+        "title": "참고 자료",
+        "benefit": "질문이 나오면 이 자료에서 먼저 답을 찾아요"
+      },
+      "priority": {
+        "title": "준비한 Q&A",
+        "benefit": "예상 질문을 넣어 두면 그 답을 가장 먼저 보여줘요"
+      },
+      "translate": {
+        "title": "번역",
+        "benefit": "말한 내용과 답변을 다른 언어로 같이 보여줘요"
+      },
+      "answer": {
+        "title": "답변 방식",
+        "benefit": "질문에 대한 답변의 길이와 말투를 정해요"
+      },
+      "brief": {
+        "title": "회의 배경",
+        "benefit": "목적·주의할 점을 적어 두면 요약과 답변이 더 정확해요"
+      },
+      "vocab": {
+        "title": "어휘사전",
+        "benefit": "자주 나오는 이름·용어를 넣으면 더 정확히 알아들어요"
+      }
+    },
+    "summary": {
+      "none": "없음",
+      "off": "안 함",
+      "people": "{{name}} 외 {{count}}명",
+      "files": "파일 {{count}}개",
+      "links": "링크 {{count}}개",
+      "text": "붙여 넣은 글",
+      "qa": "{{count}}개",
+      "written": "적어 둠",
+      "styleSet": "말투 지정",
+      "words": "{{count}}개",
+      "length": {
+        "short": "짧게",
+        "medium": "보통",
+        "long": "길게"
+      }
+    },
+    "footerNote": "설정은 녹음 중에도 바꿀 수 있어요"
   },
   "newNoteModal": {
     "title": "새 노트",

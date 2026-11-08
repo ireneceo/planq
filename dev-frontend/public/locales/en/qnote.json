@@ -37,13 +37,21 @@
     },
     "newNoteDropdown": {
       "memoLabel": "Memo",
-      "memoDesc": "Text · code blocks · formatting",
+      "memoDesc": "Jot things down in text",
       "voiceLabel": "Voice note (interactive)",
       "voiceDesc": "Meeting recording + STT + answer finder",
-      "quickLabel": "Voice memo",
-      "quickDesc": "Start instantly · no translation · microphone",
-      "uploadLabel": "Recording file",
-      "uploadDesc": "Upload a recording you already have"
+      "quickLabel": "Record now",
+      "quickDesc": "Record right now with no setup · add settings later",
+      "uploadLabel": "Upload a recording",
+      "uploadDesc": "Turn a recording you already have into text",
+      "groupWrite": "Write",
+      "groupRecord": "Record & transcribe",
+      "groupFile": "File",
+      "onlineLabel": "Online meeting",
+      "onlineDesc": "Zoom · Meet · Teams on the web — records your voice and others’ separately",
+      "onlineUnavailable": "Available in Chrome or Edge on a computer",
+      "offlineLabel": "In-person meeting",
+      "offlineDesc": "Same room, your mic — add title, people and materials first"
     },
     "header": {
       "editTitleHint": "Click to edit",
@@ -404,7 +412,7 @@
       "label": "Vocabulary (STT correction)",
       "countSuffix": "{{count}}",
       "hintPart1": "Words registered here are ",
-      "hintStrong1": "matched first by Deepgram during speech recognition",
+      "hintStrong1": "recognized first by speech recognition",
       "hintPart2": ", fixing misheard phrases like \"remote work\".",
       "hintStrong2": "Uploaded documents are the primary source",
       "hintPart3": ". They are re-extracted automatically once indexing finishes, or use \"Re-extract from docs\" below to pull them immediately.",
@@ -428,7 +436,72 @@
     "docName": "Document #{{id}}",
     "chunkUnit": "{{count}} chunks",
     "saveBtn": "Save",
-    "voiceHint": "Participants who registered their voice are named automatically in the transcript (register in My profile)"
+    "voiceHint": "Participants who registered their voice are named automatically in the transcript (register in My profile)",
+    "headerOnline": "New online meeting",
+    "headerOffline": "New in-person meeting",
+    "mode": {
+      "online": "Online meeting",
+      "offline": "In-person meeting",
+      "onlineHint": "Records your voice (mic) and others’ (meeting tab audio) separately. When you start, pick the meeting tab and turn on “Share tab audio”.",
+      "offlineHint": "Records with one microphone. You can link speakers to names afterwards.",
+      "onlineUnavailable": "Online meetings work in Chrome or Edge on a computer.",
+      "locked": "The recording method can’t be changed — start a new note to use another method.",
+      "change": "Change",
+      "toOnline": "Switch to online meeting",
+      "toOffline": "Switch to in-person meeting"
+    },
+    "more": {
+      "title": "Make it more accurate",
+      "hint": "Optional — the more you add, the better transcripts, answers and summaries get."
+    },
+    "card": {
+      "people": {
+        "title": "Participants",
+        "benefit": "Add names so the record shows who said what"
+      },
+      "materials": {
+        "title": "Reference materials",
+        "benefit": "When a question comes up, answers are found here first"
+      },
+      "priority": {
+        "title": "Prepared Q&A",
+        "benefit": "Add expected questions and their answers show up first"
+      },
+      "translate": {
+        "title": "Translation",
+        "benefit": "Show what was said and the answers in another language too"
+      },
+      "answer": {
+        "title": "Answer style",
+        "benefit": "Set how long answers are and how they sound"
+      },
+      "brief": {
+        "title": "Meeting background",
+        "benefit": "Note the goal and cautions for more accurate summaries and answers"
+      },
+      "vocab": {
+        "title": "Vocabulary",
+        "benefit": "Add frequent names and terms so they’re recognized correctly"
+      }
+    },
+    "summary": {
+      "none": "None",
+      "off": "Off",
+      "people": "{{name}} +{{count}}",
+      "files": "{{count}} files",
+      "links": "{{count}} links",
+      "text": "Pasted text",
+      "qa": "{{count}}",
+      "written": "Added",
+      "styleSet": "Custom tone",
+      "words": "{{count}}",
+      "length": {
+        "short": "Short",
+        "medium": "Medium",
+        "long": "Long"
+      }
+    },
+    "footerNote": "You can change settings even while recording"
   },
   "newNoteModal": {
     "title": "New note",

@@ -20,7 +20,7 @@ import SaveToSaleModal from './SaveToSaleModal';
 import CueTaskBar from '../../components/QTask/CueTaskBar';
 import AiAssistButton from '../../components/Common/AiAssistButton';
 // 새 노트 메뉴·＋ 버튼은 Q sale 과 **같은 한 벌**이다 — 여기서 다시 그리지 않는다
-import { NewNoteMenu, NewSessionWrap, NewSessionBtn } from '../../components/QNote/newNoteMenu';
+import { NewNoteMenu, NewSessionWrap, NewSessionBtn, resolveVoiceKind, type NewNoteKind } from '../../components/QNote/newNoteMenu';
 import { usePopoverAnchor } from '../../components/Common/popoverAnchor';
 import FloatingMenu from '../../components/Common/FloatingMenu';
 import { getDefaultLanguageFromBrowser } from '../../constants/languages';
@@ -81,7 +81,7 @@ import { usePanelStack } from '../../hooks/usePanelStack';
 // MemoView (PostEditor 풀모드 + 헤더) — 메모 신규/편집 시점에만 chunk fetch (vendor-tiptap lazy).
 const MemoView = React.lazy(() => import('./MemoView'));
 // NewNoteModal — Q docs PostAiModal manual mode 패턴 동일 (탭 메모/음성 + 옵션). 사이클 N+17 hotfix.
-import NewNoteModal, { type NewNoteKind } from './NewNoteModal';
+import NewNoteModal, { type NewNoteKind as ModalNoteKind } from './NewNoteModal';
 import FloatingPanelToggle from '../../components/Common/FloatingPanelToggle';
 import PanelResizeHandle, { usePanelWidth } from '../../components/Layout/PanelResizeHandle';
 // ★ 2026-09-18 — 프로젝트 탭 안에서는 **문서·파일·지식 탭과 같은 껍데기**로 그린다
@@ -316,6 +316,13 @@ const QNotePage = ({ scope, onRecordingChange }: QNotePageProps = {}) => {
   }, []);
 
   const [showStartModal, setShowStartModal] = useState(false);
+  // 새 회의의 녹음 방식 — + 메뉴(온라인 회의 / 대면 회의)에서 정해져 설정 창으로 간다.
+  const [startCaptureMode, setStartCaptureMode] = useState<'web_conference' | 'microphone'>('web_conference');
+  const openNewMeeting = (kind: NewNoteKind) => {
+    const k = resolveVoiceKind(kind);
+    setStartCaptureMode(k === 'voice_offline' ? 'microphone' : 'web_conference');
+    setShowStartModal(true);
+  };
   const [editingSession, setEditingSession] = useState<boolean>(false);
   const [phase, setPhase] = useState<Phase>('empty');
   const [sessions, setSessions] = useState<QNoteSession[]>([]);
@@ -1706,7 +1713,10 @@ const QNotePage = ({ scope, onRecordingChange }: QNotePageProps = {}) => {
     //   브라우저가 AudioContext 를 잠근 채 두고, 마이크는 켜졌는데 오디오 0 인 세션이 된다
     //   (2026-08-29 PCMStreamer 실측 사고와 같은 계열). + 메뉴를 열어 한 번 누르게 한다.
     else if (newKindParam === 'quick') setNewNoteDropdownOpen(true);
-    else if (newKindParam === 'voice') guardRecording(() => setShowStartModal(true));
+    else if (newKindParam === 'voice' || newKindParam === 'voice_online' || newKindParam === 'voice_offline') {
+      const k = newKindParam as NewNoteKind;
+      guardRecording(() => openNewMeeting(k));
+    }
     else if (newKindParam === 'upload') guardRecording(() => setAudioUploadOpen(true));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [newKindParam, businessId]);
@@ -2608,7 +2618,7 @@ const QNotePage = ({ scope, onRecordingChange }: QNotePageProps = {}) => {
         if (kind === 'memo') guardRecording(() => { void createMemoSession(); });
         else if (kind === 'quick') guardRecording(() => { handleQuickStart(); });
         else if (kind === 'upload') guardRecording(() => setAudioUploadOpen(true));
-        else guardRecording(() => setShowStartModal(true));
+        else guardRecording(() => openNewMeeting(kind));
       }}
     />
   ) : null;
@@ -2896,7 +2906,7 @@ const QNotePage = ({ scope, onRecordingChange }: QNotePageProps = {}) => {
               }
             }}
             secondaryCtaLabel={t('page.empty.ctaVoice', { defaultValue: '새 음성노트' }) as string}
-            onSecondaryCta={() => setShowStartModal(true)}
+            onSecondaryCta={() => openNewMeeting('voice')}
           />
         )}
 
@@ -3497,6 +3507,7 @@ const QNotePage = ({ scope, onRecordingChange }: QNotePageProps = {}) => {
 
       <StartMeetingModal
         open={showStartModal && !editingSession}
+        presetCaptureMode={startCaptureMode}
         userLanguage={user?.language ?? undefined}
         onClose={() => setShowStartModal(false)}
         onStart={handleStartMeeting}
@@ -3505,6 +3516,7 @@ const QNotePage = ({ scope, onRecordingChange }: QNotePageProps = {}) => {
       <StartMeetingModal
         open={showStartModal && editingSession}
         editMode
+        captureHidden={activeSession?.capture_mode === 'upload'}
         userLanguage={user?.language ?? undefined}
         editingSessionId={activeSession?.id}
         initialConfig={activeSession ? {
@@ -3648,7 +3660,7 @@ const QNotePage = ({ scope, onRecordingChange }: QNotePageProps = {}) => {
           open={newNoteModalOpen}
           onClose={() => setNewNoteModalOpen(false)}
           businessId={Number(businessId)}
-          onStart={async (kind: NewNoteKind, opts) => {
+          onStart={async (kind: ModalNoteKind, opts) => {
             setNewNoteModalOpen(false);
             setComposingPrefill({ project_id: opts.project_id, client_id: opts.client_id });
             if (kind === 'memo') {

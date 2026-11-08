@@ -2,7 +2,7 @@
 //
 // 이 계열은 이미 두 번 났다 — 버튼은 있는데 메뉴 markup 이 다른 가지에 있어 **눌러도 항목이 0개**
 // (aria-expanded 는 true). 그래서 «있는가» 가 아니라 **누른 뒤 항목이 보이는가**로 판정한다.
-//   ① Q sale [상담 진행] → Q note 새 노트 메뉴 4항목이 화면에 실제로 그려지는가
+//   ① Q sale [상담 진행] → Q note 새 노트 메뉴 5항목이(2026-11-08 온라인·대면 회의로 나눔) 화면에 실제로 그려지는가
 //   ② 메일 상세 [상담으로 보내기] 가 툴바에 보이는가(여태 ⋯ 안에만 있었다)
 //   ③ 음성 대조군 — 누르기 전에는 항목이 0개여야 한다(늘 떠 있는 것을 통과로 세지 않게)
 const b = require('./lib/browser');
@@ -56,7 +56,7 @@ async function run() {
       await page.click('[data-testid="sale-proceed-consult"]');
       await b.sleep(400);
       const after = await page.evaluate(probeMenu);
-      push(`${vp.name}/누르면 4항목이 실제로 보인다`, after.visible === 4,
+      push(`${vp.name}/누르면 5항목이 실제로 보인다`, after.visible === 5,
         `보임 ${after.visible}/${after.items} · aria-expanded=${after.expanded} · [${after.labels}]`);
     }
 

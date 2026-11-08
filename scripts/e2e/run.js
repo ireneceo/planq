@@ -226,6 +226,7 @@ const SUITES = {
   allday: () => require('./canary-allday-date'),
   // 폰 일정 목록 보기 «오늘» 맨 위 (2026-11-07 두 번째 신고) — 그대로 · 로딩 중 손가락 닿음(양성 대조군: 옛 코드 실패) · 사용자가 끈 자리 유지 · 다음 달→오늘. 폰 390·360.
   agendatoday: () => require('./canary-agenda-today'),
+  qnotenewnote: () => require('./canary-qnote-newnote'),
   booking: () => require('./canary-booking'),
   // 같은 기능의 **서버 판정** 실 HTTP 검사(화면 없음) — 슬롯 모양·한도·전이·한 건=한 버킷·메일 시도·수정/삭제 409.
   bookingapi: () => require('./canary-booking-api'),
