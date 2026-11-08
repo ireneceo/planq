@@ -349,7 +349,10 @@
     "taglinePh": "PlanQ keeps work from becoming a chore.",
     "terms_version": "Terms of service version",
     "gtm_container_id": "Marketing measurement — Google Tag Manager container ID",
-    "gtm_hint": "When set, this container (GA4 · Meta Pixel) loads only on public pages and the sign-up screen — never in the logged-in service, shared links or apps. Leave empty to turn it off. Update the privacy policy first."
+    "gtm_hint": "When set, this container (GA4 · Meta Pixel) loads only on public pages and the sign-up screen — never in the logged-in service, shared links or apps. Leave empty to turn it off. Update the privacy policy first.",
+    "app_windows_url": "Desktop app — Windows (installer URL)",
+    "app_mac_url": "Desktop app — Mac (dmg URL)",
+    "app_desktop_url_hint": "The /app download page shows a \"Download\" button for the visitor's computer (Windows/Mac). Leave empty to show only the browser app (PWA) install. Only https addresses are used."
   },
   "page": {
     "title": "Workspace Admin",

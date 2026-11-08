@@ -40,6 +40,9 @@ interface PlatformSettings {
   apple_key_id: string | null;
   apple_private_key_set?: boolean;
   app_android_url: string | null;
+  // 데스크탑 앱 받기 주소(2026-11-07) — /app 화면이 이 컴퓨터 OS 에 맞는 버튼을 단다
+  app_windows_url: string | null;
+  app_mac_url: string | null;
   gtm_container_id: string | null;
 }
 
@@ -50,7 +53,7 @@ const EMPTY: PlatformSettings = {
   guest_links_enabled: false,
   announcement_text: '', announcement_text_en: '', announcement_dismissible: true, announcement_severity: 'info',
   seo_title: '', seo_description: '', seo_keywords: '', og_image_url: '',
-  app_ios_url: '', app_android_url: '', gtm_container_id: '',
+  app_ios_url: '', app_android_url: '', app_windows_url: '', app_mac_url: '', gtm_container_id: '',
   apple_services_id: '', apple_team_id: '', apple_key_id: '', apple_private_key_set: false,
 };
 
@@ -89,6 +92,8 @@ const AdminPlatformSettingsPage = () => {
           og_image_url: r.data.og_image_url || '',
           app_ios_url: r.data.app_ios_url || '',
           app_android_url: r.data.app_android_url || '',
+          app_windows_url: r.data.app_windows_url || '',
+          app_mac_url: r.data.app_mac_url || '',
           gtm_container_id: r.data.gtm_container_id || '',
           apple_services_id: r.data.apple_services_id || '',
           apple_team_id: r.data.apple_team_id || '',
@@ -411,6 +416,31 @@ const AdminPlatformSettingsPage = () => {
             />
           </AutoSaveField>
           <OgHint>{t('platform.app_url_hint', '/app 다운로드 페이지가 방문자 환경(iOS/Android)에 맞춰 이 링크로 안내합니다. 비우면 "출시 준비 중"으로 표시됩니다.')}</OgHint>
+        </Field>
+
+        <Field>
+          <Label>{t('platform.app_windows_url', '데스크탑 앱 — Windows (설치 파일 URL)')}</Label>
+          <AutoSaveField type="input" onSave={async () => save({ app_windows_url: data.app_windows_url })}>
+            <Input
+              value={data.app_windows_url || ''}
+              onChange={(e) => set('app_windows_url', e.target.value)}
+              placeholder="https://planq.kr/desktop/PlanQ-Setup-1.0.0.exe"
+              maxLength={500}
+            />
+          </AutoSaveField>
+        </Field>
+
+        <Field>
+          <Label>{t('platform.app_mac_url', '데스크탑 앱 — Mac (dmg URL)')}</Label>
+          <AutoSaveField type="input" onSave={async () => save({ app_mac_url: data.app_mac_url })}>
+            <Input
+              value={data.app_mac_url || ''}
+              onChange={(e) => set('app_mac_url', e.target.value)}
+              placeholder="https://planq.kr/desktop/PlanQ-1.0.0-mac-universal.dmg"
+              maxLength={500}
+            />
+          </AutoSaveField>
+          <OgHint>{t('platform.app_desktop_url_hint', '/app 다운로드 페이지가 방문자 컴퓨터(Windows/Mac)에 맞춰 «앱 받기» 버튼을 답니다. 비우면 그 버튼 없이 브라우저 앱(PWA) 설치만 보입니다. https 주소만 쓰입니다.')}</OgHint>
         </Field>
 
         {/* 랜딩 마케팅 측정(GTM) — 비우면 꺼짐. 서버별 설정이라 dev 값은 운영에 안 간다(docs/MARKETING_TRACKING_DESIGN.md §6) */}

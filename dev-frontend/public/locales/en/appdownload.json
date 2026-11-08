@@ -61,5 +61,14 @@
     "dismissed": "Installation cancelled. You can try again anytime.",
     "notReady": "If it is already installed, use «Open in app» on the right of the address bar. Otherwise click the install icon (⊕) on the right of the address bar.",
     "otherBrowser": "Open this page in Chrome or Edge to install it with one click."
+  },
+  "desktopApp": {
+    "cta": {
+      "windows": "Download for Windows",
+      "mac": "Download for Mac"
+    },
+    "smartScreen": "If \"Windows protected your PC\" appears on first launch, choose \"More info → Run anyway\".",
+    "pwaNote": "If you use the desktop app, remove the browser-installed PlanQ (PWA) — otherwise notifications arrive twice.",
+    "orBrowser": "Or install as a browser app"
   }
 }

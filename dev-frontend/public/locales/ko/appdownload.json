@@ -61,5 +61,14 @@
     "dismissed": "설치를 취소했어요. 언제든 다시 누를 수 있어요.",
     "notReady": "이미 설치돼 있으면 주소창 오른쪽 «앱에서 열기» 로 여세요. 아니라면 주소창 오른쪽 설치 아이콘(⊕)을 누르세요.",
     "otherBrowser": "Chrome·Edge 로 이 페이지를 열면 버튼 하나로 바로 설치돼요."
+  },
+  "desktopApp": {
+    "cta": {
+      "windows": "Windows 앱 받기",
+      "mac": "Mac 앱 받기"
+    },
+    "smartScreen": "처음 실행할 때 «Windows의 PC 보호» 창이 뜨면 «추가 정보 → 실행»을 눌러 주세요.",
+    "pwaNote": "데스크탑 앱을 쓰면 브라우저에 설치한 PlanQ(PWA)는 지워 주세요 — 알림이 두 번 옵니다.",
+    "orBrowser": "또는 브라우저 앱으로 설치"
   }
 }

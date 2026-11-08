@@ -7,7 +7,7 @@ import { useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { usePwaInstall } from '../../contexts/PwaInstallContext';
-import { isNativeApp } from '../../services/native';
+import { isNativeApp, isDesktopApp } from '../../services/native';
 import { track } from '../../services/marketingTags';
 import LandingLayout from '../../components/Landing/LandingLayout';
 import AppQrCode, { appDownloadUrl } from '../../components/Common/AppQrCode';
@@ -44,7 +44,7 @@ function detectDesktopOs(): DesktopOs | null {
 /** 시작 메뉴·Dock 처럼 OS 마다 다른 문구는 windows/mac 만 따로, 나머지는 공통(other). */
 const launchKey = (os: DesktopOs | null) => (os === 'windows' || os === 'mac' ? os : 'other');
 
-interface DownloadInfo { ios_url: string | null; android_url: string | null; }
+interface DownloadInfo { ios_url: string | null; android_url: string | null; windows_url?: string | null; mac_url?: string | null; }
 
 export default function DownloadAppPage() {
   const { t } = useTranslation('appdownload');
@@ -53,7 +53,8 @@ export default function DownloadAppPage() {
   const [loading, setLoading] = useState(true);
   const platform = detectPlatform();
   const desktopOs = detectDesktopOs();
-  const inApp = isNativeApp();
+  // 폰 앱·데스크탑 앱 안 — 이미 설치된 앱이라 받을 것이 없다
+  const inApp = isNativeApp() || isDesktopApp();
 
   useEffect(() => {
     let cancelled = false;
@@ -82,6 +83,8 @@ export default function DownloadAppPage() {
   const iosUrl = info?.ios_url || null;
   const qrUrl = appDownloadUrl(typeof window !== 'undefined' && window.location.pathname.startsWith('/en/'));
   const androidUrl = info?.android_url || null;
+  // 데스크탑 앱(2026-11-07 docs/DESKTOP_APP_DESIGN.md §3-9) — 이 컴퓨터 OS 의 설치 파일만. 주소가 비면 버튼 없음(PWA 설치만, 종전 그대로)
+  const desktopAppUrl = desktopOs === 'windows' ? (info?.windows_url || null) : desktopOs === 'mac' ? (info?.mac_url || null) : null;
 
   const StoreCard = ({ p, url }: { p: 'ios' | 'android'; url: string | null }) => (
     <Platform_ $highlight={platform === p}>
@@ -127,6 +130,18 @@ export default function DownloadAppPage() {
             <DesktopCard $highlight data-testid="app-desktop-card">
               <PlatIcon><MonitorGlyph /></PlatIcon>
               <PlatLabel>{t(`desktopPwa.label.${desktopOs ?? 'other'}`)}</PlatLabel>
+              {desktopAppUrl && (
+                <>
+                  <PrimaryBtn href={desktopAppUrl} data-testid="app-desktop-native" onClick={() => track('pq_app_download', { platform: `desktop_${desktopOs}` })}>
+                    {t(`desktopApp.cta.${desktopOs}`)}
+                  </PrimaryBtn>
+                  {/* 윈도우 코드서명 전 — SmartScreen «알 수 없는 게시자» 를 미리 알린다(설계 §6-③) */}
+                  {desktopOs === 'windows' && <ViaHint>{t('desktopApp.smartScreen')}</ViaHint>}
+                  {/* 브라우저 PWA 와 앱을 둘 다 쓰면 알림이 양쪽에서 온다(설계 §9) */}
+                  <ViaHint>{t('desktopApp.pwaNote')}</ViaHint>
+                  <DesktopHint>{t('desktopApp.orBrowser')}</DesktopHint>
+                </>
+              )}
               <DesktopPwaInstall />
             </DesktopCard>
             <DesktopHint>{t('desktop.or')}</DesktopHint>

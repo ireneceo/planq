@@ -778,6 +778,8 @@ router.put('/platform-settings', async (req, res, next) => {
       ...setStr('og_image_url', 500),
       ...setStr('app_ios_url', 500),
       ...setStr('app_android_url', 500),
+      ...setStr('app_windows_url', 500),
+      ...setStr('app_mac_url', 500),
       ...(b.gtm_container_id !== undefined ? { gtm_container_id: String(b.gtm_container_id || '').trim() || null } : {}),
       updated_by_user_id: req.user.id,
     };
