@@ -44,8 +44,11 @@ rsync -av -e "ssh $SSH_OPTS" "${FILES[@]}" "$PROD_HOST:$REMOTE_DIR/"
 rsync -av -e "ssh $SSH_OPTS" "${LISTS[@]}" "$PROD_HOST:$REMOTE_DIR/"
 for l in "${LISTS[@]}"; do
   n="$(basename "$l")"
-  code="$(curl -s -o /dev/null -w '%{http_code}' "https://planq.kr/desktop/$n")"
-  echo "  https://planq.kr/desktop/$n → $code"
-  [ "$code" = 200 ] || { echo "✗ 공개 주소에서 목록이 안 보인다"; exit 1; }
+  # ★ 200 만 보면 거짓 통과한다 — nginx /desktop/ 이 없으면 SPA 폴백이 index.html 을 200 으로 준다(Fable 2026-11-08 실측).
+  #   올린 목록과 **같은 version 줄**이 공개 주소 본문에 있는지 본다.
+  want="$(grep -m1 '^version:' "$l")"
+  got="$(curl -s "https://planq.kr/desktop/$n" | grep -m1 '^version:' || true)"
+  echo "  https://planq.kr/desktop/$n → ${got:-(목록 아님)}"
+  [ -n "$want" ] && [ "$got" = "$want" ] || { echo "✗ 공개 주소에서 올린 목록이 안 보인다(nginx /desktop/ 확인) — 기대 «$want»"; exit 1; }
 done
 echo "✓ 게시 완료"

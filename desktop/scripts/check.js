@@ -54,7 +54,18 @@ if (process.argv[2] === '--self-test') {
 
 const dist = process.argv[3];
 if (!dist || !fs.existsSync(dist)) { console.error('[desktop-check] dist 폴더 없음'); process.exit(2); }
-const asars = findAsar(dist);
+let asars = findAsar(dist);
+// 맥 산출물(codemagic artifacts)은 .app 폴더 없이 zip 만 온다 — zip 을 풀어 그 안의 asar 를 읽는다(Fable 2026-11-08 지적)
+if (!asars.length) {
+  const zips = fs.readdirSync(dist).filter((f) => f.endsWith('.zip'));
+  if (zips.length) {
+    const tmp = fs.mkdtempSync(path.join(require('os').tmpdir(), 'planq-desktop-check-'));
+    for (const z of zips) {
+      require('child_process').execFileSync('unzip', ['-q', '-o', path.join(dist, z), '-d', path.join(tmp, z)], { stdio: 'inherit' });
+    }
+    asars = findAsar(tmp);
+  }
+}
 if (!asars.length) { console.error('[desktop-check] app.asar 를 못 찾음'); process.exit(1); }
 let ok = true;
 for (const a of asars) ok = readAsar(a) && ok;

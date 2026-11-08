@@ -730,7 +730,7 @@ router.post('/refresh', async (req, res, next) => {
 
     // 7. Rotate — 옛 row revoke (rotated) + 새 row 생성 + 새 cookie
     //    옛 row 의 replaced_by_id 에 새 row id 저장 (다중 탭 race 흡수에 사용)
-    //    client_kind 는 옛 row 그대로 따라감 (PWA 모바일은 365일 유지, 데스크탑은 30일).
+    //    client_kind 는 옛 row 그대로 따라감 (PWA·폰 앱·데스크탑 앱은 365일 유지, 데스크탑 브라우저는 30일).
     //    sliding renewal — createRefreshTokenRow 가 NOW + TTL_MS_BY_KIND[kind] 로 새 만료 갱신.
     //    persist 는 최초 로그인의 remember 를 그대로 승계 (#244 — 세션쿠키가 영구쿠키로 승격되던 것 차단).
     // #244 — **수령 확인 기록**. 이 토큰이 클라이언트에 실제로 도달했다는 유일한 증거다.
