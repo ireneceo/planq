@@ -2312,7 +2312,12 @@ const MailPage: React.FC = () => {
       else apiFetch(`/api/businesses/${businessId}/email-drafts`, { method: 'DELETE' }).catch(() => {});
       closeCompose('sent');
       loadList(); loadCounts(); loadAccounts();
-      if (j.data?.thread_id) setActive(j.data.thread_id);
+      // ★ setActive 가 아니라 navigateToThread (2026-11-08, Irene: "새메일 쓰기 하면 저장되어 있는 내용이 나오는데 … 보내기 전 거 아닌 것 같아").
+      //   setActive 는 «작성 폼이 열려 있으면 쓰던 것을 초안으로 저장하고 이동» 한다. 이 함수 안의 setActive 는
+      //   보내기 누를 때의 렌더 값(composeOpen=true · cTo/cSubject/cBody = 방금 보낸 내용)을 보므로, 위 DELETE 와
+      //   거의 같은 순간에 **보낸 메일을 다시 새 메일 초안으로 PUT** 했다(실측 DELETE 뒤 4ms PUT). 다음 [+ 새 메일] 에
+      //   이미 보낸 메일이 되살아났다. 폼은 이미 닫았으니 저장 없이 이동만 한다.
+      if (j.data?.thread_id) navigateToThread(j.data.thread_id);
     } catch (e) {
       setCError((e as Error).message);
     } finally { setCSending(false); }
