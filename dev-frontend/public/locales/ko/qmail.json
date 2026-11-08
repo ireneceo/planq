@@ -648,7 +648,14 @@
     "to": "받는 사람",
     "toRequired": "받는 사람을 입력해 주세요",
     "suggestClient": "고객",
-    "suggestMember": "멤버"
+    "suggestMember": "멤버",
+    "restoredDraft": "임시저장된 메일을 불러왔어요",
+    "restoredDraftAt": "임시저장된 메일을 불러왔어요 · {{time}} 저장",
+    "discardDraft": "지우고 새로 쓰기",
+    "discardTitle": "임시저장 메일 지우기",
+    "discardMsg": "불러온 임시저장 메일을 지우고 빈 메일로 시작할까요? 지운 내용은 되돌릴 수 없어요.",
+    "discardConfirm": "지우기",
+    "discardFailed": "임시저장 메일을 지우지 못했어요. 잠시 후 다시 시도해 주세요."
   },
   "attachment": {
     "menu": "첨부 {{n}}개",

@@ -648,7 +648,14 @@
     "to": "To",
     "toRequired": "Please enter a recipient",
     "suggestClient": "Client",
-    "suggestMember": "Member"
+    "suggestMember": "Member",
+    "restoredDraft": "Loaded your saved draft",
+    "restoredDraftAt": "Loaded your saved draft · saved {{time}}",
+    "discardDraft": "Discard and start over",
+    "discardTitle": "Discard saved draft",
+    "discardMsg": "Discard the loaded draft and start a blank email? This can't be undone.",
+    "discardConfirm": "Discard",
+    "discardFailed": "Couldn't discard the saved draft. Please try again in a moment."
   },
   "attachment": {
     "menu": "Attachments ({{n}})",

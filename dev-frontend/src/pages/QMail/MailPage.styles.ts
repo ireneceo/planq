@@ -1210,6 +1210,16 @@ export const DraftStatusLine = styled.span<{ $err?: boolean }>`
 `;
 
 // 새 메일 아래줄의 상태줄 — [보내기][취소] 뒤에 붙는다. auto 여백을 쓰면 줄이 넘칠 때 버튼을 밀 수 있어 끈다.
+// 불러온 새 메일 임시저장 — KeptDraftNote 와 같은 상자 + 오른쪽 [지우고 새로 쓰기] 글자 버튼
+export const RestoredDraftNote = styled(KeptDraftNote)`
+  display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap;
+`;
+export const RestoredDraftDiscard = styled.button`
+  border: none; background: none; padding: 4px 2px; min-height: 32px; cursor: pointer;
+  font-size: 0.75rem; font-weight: 600; color: #0F766E; white-space: nowrap;
+  &:hover { text-decoration: underline; }
+`;
+
 export const ComposeDraftStatus = styled(DraftStatusLine)`
   margin-right: 0; margin-left: 4px; min-width: 0;
 `;

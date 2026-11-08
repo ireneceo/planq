@@ -34,6 +34,7 @@ import { PanelGridLayout, CollapsibleSidebar, SidebarBackdrop, Panel } from '../
 import { useAuth, apiFetch } from '../../contexts/AuthContext';
 import MailImpersonationNote from './MailImpersonationNote';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
+import ConfirmDialog from '../../components/Common/ConfirmDialog';
 import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
 import { useReallyVisible } from '../../contexts/TabActiveContext';
 import { joinRoom, leaveRoom, onSocket, getSocket } from '../../services/socket';
@@ -164,7 +165,7 @@ import {
   BulkAction,
   BulkCappedNote,
   FwdPreview, FwdPreviewHead, FwdChevron, FwdPreviewBody, FwdPreviewMeta,
-  KeptDraftNote,
+  KeptDraftNote, RestoredDraftNote, RestoredDraftDiscard,
   DraftStatusLine,
   ComposeDraftStatus,
   PromoteErrTag, InquiryFilterBar, InquiryFilterClear, SentViaBar, SentViaHint,
@@ -218,7 +219,7 @@ const MailPage: React.FC = () => {
   const [filtersOpen, setFiltersOpen] = useState<boolean>(() => {
     try { return localStorage.getItem('planq.mail.filtersOpen') === '1'; } catch { return false; }
   });
-  const { formatTimeAgo } = useTimeFormat();   // formatDateTime — 전달 인용 헤더를 서버가 만들면서 미사용
+  const { formatTimeAgo, formatDateTime } = useTimeFormat();   // formatDateTime — 불러온 임시저장 시각(새 메일)
   const [sp, setSp] = useSearchParams();
   const location = useLocation();
   const businessId = user?.business_id ? Number(user.business_id) : null;
@@ -1897,6 +1898,11 @@ const MailPage: React.FC = () => {
   // 그 경로에서 **건드리지 않고 남겨 둔** 초안이 있으면 화면이 그렇게 말한다 —
   //   말하지 않으면 사용자는 "내가 쓰던 메일이 날아갔나" 로 읽는다.
   const [keptDraftNotice, setKeptDraftNotice] = useState(false);
+  // 새 메일을 열 때 서버 초안을 **불러왔으면** 그 저장 시각 — 폼 위에 «불러왔어요 · 언제 저장» + [지우고 새로 쓰기].
+  //   (2026-11-08, Irene: "새메일 쓰기 하면 저장되어 있는 내용이 나오는데 … 뭐가 저장된 건지")
+  //   새 메일 초안은 (워크스페이스 × 사람) 한 칸이라 말없이 채워지면 언제·무엇인지 알 수 없고, ✕·취소는 보존이라 버릴 길이 없었다.
+  const [restoredDraftAt, setRestoredDraftAt] = useState<string | null>(null);
+  const [discardDraftAsk, setDiscardDraftAsk] = useState(false);
   // 주소 메뉴 «고객으로 저장» 이 열린 메일 번호를 읽는다 — addressActions 는 businessId 로만 다시 만든다(ref 로 최신값)
   const detailIdRef = useRef<number | null>(null);
   detailIdRef.current = detail?.id ?? null;
@@ -2081,6 +2087,9 @@ const MailPage: React.FC = () => {
         return;
       }
       if (d) {
+        const restoredHas = !!((Array.isArray(d.to_emails) && d.to_emails.length) || (d.subject || '').trim()
+          || !isEmptyHtml(d.body_html || '') || (Array.isArray(d.attachment_file_ids) && d.attachment_file_ids.length));
+        if (restoredHas) setRestoredDraftAt(String(d.updated_at || d.updatedAt || ''));
         if (Array.isArray(d.to_emails) && d.to_emails.length) setCTo(toAddrList(d.to_emails).join(', '));
         if (d.subject) { setCSubject(d.subject); hadSubject = true; }
         if (d.body_html) { setCBody(d.body_html); restoredBody = d.body_html; }
@@ -2234,11 +2243,26 @@ const MailPage: React.FC = () => {
     setCFromAliasId(0);
     setFwdFromMsgId(null); setFwdAttachCount(0);
     fwdRestoredRef.current = '';   // 같은 메일을 다시 전달하면 로컬 초안을 다시 읽는다
-    composeFreshToRef.current = null; setKeptDraftNotice(false); setComposeDraftStatus('idle');
+    composeFreshToRef.current = null; setKeptDraftNotice(false); setComposeDraftStatus('idle'); setRestoredDraftAt(null); setDiscardDraftAsk(false);
     pendingVoiceRef.current = null; composeVoiceUntouched.current = false;
   }
 
 
+  // [지우고 새로 쓰기] — 서버 새 메일 초안을 지우고 같은 폼을 빈 채로 둔다(닫지 않는다).
+  //   ★ 지우기 전에 걸린 저장분(composePendingRef)을 버린다 — 안 버리면 떠날 때 지운 글을 다시 PUT 한다.
+  //   apiFetch 는 throw 하지 않는다 — r.ok 를 본다. 실패면 폼을 그대로 두고 말한다(지운 척하지 않는다).
+  const discardRestoredDraft = async () => {
+    setDiscardDraftAsk(false);
+    if (!businessId) return;
+    const r = await apiFetch(`/api/businesses/${businessId}/email-drafts`, { method: 'DELETE' }).catch(() => null);
+    if (!r || !r.ok) {
+      setCError(t('compose.discardFailed', { defaultValue: '임시저장 메일을 지우지 못했어요. 잠시 후 다시 시도해 주세요.' }) as string);
+      return;
+    }
+    composePendingRef.current = null;
+    resetComposeFields();
+    composeDraftReady.current = true;
+  };
   // reason — 'user'(✕·취소): 걸려 있던 초안을 먼저 보낸다(다시 열면 서버 초안이 복원된다) · 'sent': 버린다
   const closeCompose = (reason: 'user' | 'sent') => {
     if (reason === 'user') void sendPendingDraft(composePendingRef); else composePendingRef.current = null;
@@ -2699,6 +2723,28 @@ const MailPage: React.FC = () => {
               <ComposeBody>
                 {/* 남겨 둔 초안이 있다는 것을 화면이 말한다 — 말하지 않으면 "쓰던 메일이 날아갔나" 가 된다.
                     지운 것이 아니므로 상단 '새 메일' 로 열면 그대로 이어 쓸 수 있다. */}
+                {restoredDraftAt !== null && !fwdFromMsgId && (
+                  <RestoredDraftNote role="status" data-testid="mail-compose-restored" data-pq-writing-hide="">
+                    <span>
+                      {(restoredDraftAt
+                        ? t('compose.restoredDraftAt', { time: formatDateTime(restoredDraftAt), defaultValue: '임시저장된 메일을 불러왔어요 · {{time}} 저장' })
+                        : t('compose.restoredDraft', { defaultValue: '임시저장된 메일을 불러왔어요' })) as string}
+                    </span>
+                    <RestoredDraftDiscard type="button" data-testid="mail-compose-discard" onClick={() => setDiscardDraftAsk(true)}>
+                      {t('compose.discardDraft', { defaultValue: '지우고 새로 쓰기' }) as string}
+                    </RestoredDraftDiscard>
+                  </RestoredDraftNote>
+                )}
+                <ConfirmDialog
+                  isOpen={discardDraftAsk}
+                  onClose={() => setDiscardDraftAsk(false)}
+                  onConfirm={() => { void discardRestoredDraft(); }}
+                  title={t('compose.discardTitle', { defaultValue: '임시저장 메일 지우기' }) as string}
+                  message={t('compose.discardMsg', { defaultValue: '불러온 임시저장 메일을 지우고 빈 메일로 시작할까요? 지운 내용은 되돌릴 수 없어요.' }) as string}
+                  confirmText={t('compose.discardConfirm', { defaultValue: '지우기' }) as string}
+                  cancelText={t('common.cancel', { defaultValue: '취소' }) as string}
+                  variant="danger"
+                />
                 {keptDraftNotice && (
                   <KeptDraftNote role="status">
                     {t('compose.keptDraft', { defaultValue: '쓰던 임시저장 메일은 그대로 있습니다. 위 “새 메일” 로 열면 이어 쓸 수 있어요.' }) as string}
