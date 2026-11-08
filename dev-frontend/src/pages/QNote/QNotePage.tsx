@@ -2739,6 +2739,8 @@ const QNotePage = ({ scope, onRecordingChange }: QNotePageProps = {}) => {
               <SessionItem
                 key={session.id}
                 data-qnote-session={session.id}
+                data-qnote-kind={isTextMemo ? 'text' : 'voice'}
+                data-qnote-status={session.status || ''}
                 $active={isActive}
                 onClick={() => handleSessionClick(session.id)}
               >

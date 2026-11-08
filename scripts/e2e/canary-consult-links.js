@@ -98,7 +98,15 @@ async function run() {
     // ★ 단계를 **나눠서** 기다린다. 한 evaluate 안에서 «행 클릭 → 상세 렌더 → 버튼 클릭» 을
     //   연달아 하면 상세가 아직 안 붙어 버튼을 못 찾고, 그것을 "버튼이 없다" 로 보고하게 된다.
     //   세션 행의 손잡이는 `data-qnote-session` 이다.
-    await page.evaluate(() => { const r = document.querySelector('[data-qnote-session]'); if (r) r.click(); });
+    // ★ 2026-11-08 Fable 실측: 첫 행이 글 메모([확인용] 메모)면 [상담 저장] 이 없는 메모 화면이 열려 «판정 불가» 빨강이었다.
+    //   상담 저장은 **끝난 음성 노트**에만 있다 — 종류·상태 손잡이로 그 행을 고른다(녹음 중 행을 누르면 이어 녹음 흐름이 된다).
+    const picked = await page.evaluate(() => {
+      const rows = [...document.querySelectorAll('[data-qnote-session][data-qnote-kind="voice"]')];
+      const r = rows.find((e) => /^(completed|ended)$/.test(e.dataset.qnoteStatus || '')) || null;
+      if (r) r.click();
+      return r ? r.dataset.qnoteSession : null;
+    });
+    if (!picked) push('상담 저장/끝난 음성 노트가 목록에 있다', false, '끝난 음성 노트 행 0 — 판정 불가');
     await b.sleep(2500);
     const opener = await page.evaluate(() => {
       const el = document.querySelector('[data-testid="qnote-save-sale"]');
