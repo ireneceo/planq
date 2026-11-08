@@ -72,7 +72,39 @@ function accountHealth(account) {
     needs_reconnect: reauth,
     reauth_kind: reauth ? reauthKind(account) : null,
     fail_count: (account && account.fail_count) || 0,
+    // 연속 실패로 재시도 간격이 늘어난 상태면 다음 시도 시각(아니면 null) — syncBackoff 한 곳
+    retry_after: (account && syncBackoff(account).retryAt) || null,
   };
+}
+
+/**
+ * 연속 실패한 계정의 수신 재시도 간격 — 단일 원천 (2026-11-08 서버 확장성 점검).
+ *
+ * 왜: dev 시험 계정 #647·#648(imap.invalid)이 **7,811번 연속 실패**하면서도 3분마다 다시 연결을 시도했다.
+ *   계정이 늘면 죽은 계정 수만큼 연결·DNS·DB 쓰기가 쌓인다. 반면 «끄기»(is_active=false)로 처리하면
+ *   잠깐 장애였던 살아 있는 계정이 영영 꺼져 사람이 켤 때까지 메일이 멈춘다(help@ 5일 방치와 같은 계열).
+ *   그래서 끄지 않고 **간격만 늘린다** — 저절로 낫는 길은 남긴다.
+ *
+ * 규칙: 연속 실패 BACKOFF_AFTER(10)번까지는 그대로(3분 폴링 · IDLE 재연결).
+ *   그 뒤로는 실패마다 간격 두 배(3분 → 6분 → … ) · 상한: 한 번이라도 받은 계정 6시간, 한 번도 못 받은 계정 24시간.
+ *   기준 시각은 마지막 실패 기록 시각(updated_at — 실패 때마다 fail_count 와 같이 쓰인다).
+ *   풀리는 문: 성공(fail_count 0) · 설정에서 받기 자격을 다시 저장/재연결(fail_count 0).
+ *   IDLE(지속 연결)은 이 상태 동안 열지 않는다 — 폴링이 시도해 성공하면 다음 IDLE 정리 때 다시 연다.
+ */
+const BACKOFF_AFTER = 10;
+const BACKOFF_BASE_MS = 3 * 60 * 1000;
+const BACKOFF_CAP_SYNCED_MS = 6 * 3600 * 1000;
+const BACKOFF_CAP_NEVER_MS = 24 * 3600 * 1000;
+
+function syncBackoff(account, now = Date.now()) {
+  const fails = Number((account && account.fail_count) || 0);
+  if (fails < BACKOFF_AFTER) return { backoff: false, retryAt: null };
+  const cap = account.last_sync_at ? BACKOFF_CAP_SYNCED_MS : BACKOFF_CAP_NEVER_MS;
+  const exp = Math.min(fails - BACKOFF_AFTER, 30);          // 2^30 이상은 어차피 상한
+  const delay = Math.min(BACKOFF_BASE_MS * 2 ** exp, cap);
+  const lastFailAt = new Date(account.updated_at || account.updatedAt || 0).getTime() || 0;
+  const retryAt = lastFailAt + delay;
+  return { backoff: true, retryAt: new Date(retryAt), due: now >= retryAt };
 }
 
 /**
@@ -111,6 +143,6 @@ function oauthToPasswordPatch(acc, body, patch) {
 }
 
 module.exports = {
-  needsReauth, reauthKind, accountHealth, oauthToPasswordPatch,
+  needsReauth, reauthKind, accountHealth, oauthToPasswordPatch, syncBackoff, BACKOFF_AFTER,
   REAUTH_PATTERNS, TRANSIENT_PATTERNS,
 };

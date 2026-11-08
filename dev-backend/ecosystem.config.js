@@ -12,6 +12,11 @@ module.exports = {
       restart_delay: 4000,
       watch: false,
       max_memory_restart: '512M',
+      // 2026-11-08 — 힙 상한을 PM2 재시작 선(512M) 아래로. 안 걸면 V8 기본 상한이 약 2GB 라
+      //   큰 목록 요청(예: all-files 1회 ≈ +15MB 쓰레기)이 쌓여도 GC 를 미루다가 PM2 가 먼저 죽였다
+      //   (재시작 137회 · 실측: 20회 호출 RSS 252→515MB, 강제 GC 하면 453→211MB = 누수 아님).
+      //   384 + 코드·버퍼 ≈ 100MB 가 512 안에 든다. 바꾸면 pm2 delete 후 이 파일로 다시 start 해야 먹는다(reload 는 node_args 를 안 읽음).
+      node_args: '--max-old-space-size=384',
       kill_timeout: 5000,
       env: {
         NODE_ENV: 'development',

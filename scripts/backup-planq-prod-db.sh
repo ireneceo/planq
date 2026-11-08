@@ -75,11 +75,13 @@ fi
 
 # 크로스 백업: 운영 DB 백업을 dev 서버로 전송 (POS 보강 핵심)
 CROSS_BACKUP_DIR="irene@87.106.11.184:/home/irene/backups/cross-backup/prod-planq"
-scp -o ConnectTimeout=10 -q $BACKUP_FILE $CROSS_BACKUP_DIR/ 2>/dev/null
-if [ $? -eq 0 ]; then
+# 2026-11-08 — 오류 내용을 버리지 않는다(옛 `2>/dev/null` 은 «failed» 한 줄만 남겨 왜 실패했는지 알 길이 없었다).
+SCP_ERR=$(scp -o ConnectTimeout=10 -o BatchMode=yes -q $BACKUP_FILE $CROSS_BACKUP_DIR/ 2>&1)
+SCP_RC=$?
+if [ $SCP_RC -eq 0 ]; then
     echo "$(date '+%Y-%m-%d %H:%M:%S') - OK Cross-backup sent to dev server" >> $LOG_FILE
 else
-    echo "$(date '+%Y-%m-%d %H:%M:%S') - WARN Cross-backup to dev server failed" >> $LOG_FILE
+    echo "$(date '+%Y-%m-%d %H:%M:%S') - WARN Cross-backup to dev server failed (exit $SCP_RC): $(echo "$SCP_ERR" | tr '\n' ' ' | cut -c1-300)" >> $LOG_FILE
 fi
 
 echo "$(date '+%Y-%m-%d %H:%M:%S') - PlanQ prod DB backup completed!" >> $LOG_FILE

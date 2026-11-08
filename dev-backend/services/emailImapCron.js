@@ -20,7 +20,7 @@ const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 const { decrypt } = require('./encryption');
-const { needsReauth } = require('./emailAccountHealth');
+const { needsReauth, syncBackoff, BACKOFF_AFTER } = require('./emailAccountHealth');
 const { isEmbedded, isNoiseAttachment } = require('./emailAttachments');
 const { reservePlanqUpload } = require('./storageUsage');
 const { toNFC } = require('./filename');   // #364 — 첨부 파일명 조합형 통일 (업로드 관문과 같은 축)
@@ -1268,6 +1268,8 @@ async function syncOne(account, opts = {}) {
 async function tick() {
   try {
     const liveBizIds = await liveBusinessIdSet();
+    // 연속 실패 계정은 간격을 늘려 재시도한다(끄지 않는다) — 규칙은 emailAccountHealth.syncBackoff 한 곳.
+    let backoffSkipped = 0;
     const accounts = (await EmailAccount.findAll({
       where: { is_active: true },
       // MySQL — NULL 먼저 (한 번도 sync 안 된 계정 우선)
@@ -1275,8 +1277,12 @@ async function tick() {
         [require('sequelize').literal('last_sync_at IS NULL'), 'DESC'],
         ['last_sync_at', 'ASC'],
       ],
-      limit: 50,
-    })).filter((a) => !liveBizIds || !a.business_id || liveBizIds.has(a.business_id));
+    }))
+      .filter((a) => !liveBizIds || !a.business_id || liveBizIds.has(a.business_id))
+      // 간격을 늘린(syncBackoff) 계정을 50개로 자르기 **전에** 거른다 — 안 그러면 한 번도 못 받은 죽은 계정
+      //   (last_sync_at NULL 이 앞에 선다)이 자리를 다 차지해 건강한 계정의 backstop 폴링이 밀린다(Fable 비차단 b).
+      .filter((a) => { const bo = syncBackoff(a); if (bo.backoff && !bo.due) { backoffSkipped += 1; return false; } return true; })
+      .slice(0, 50);
 
     for (const acc of accounts) {
       // 실시간 IDLE 연결이 살아있는 계정은 이미 즉시 수신 중 — 폴링이 2번째 연결을 열어
@@ -1359,8 +1365,13 @@ async function tick() {
         } else if (failCount === FAIL_ALERT_THRESHOLD) {
           console.warn(`[emailImapCron] account #${acc.id} (${acc.email}) — 한 번도 sync 성공한 적 없는 계정이라 자동알림 생략`);
         }
+        if (failCount >= BACKOFF_AFTER) {
+          console.warn(`[emailImapCron] account #${acc.id} — 연속 ${failCount}회 실패, 다음 시도 ${syncBackoff({ ...acc.get(), fail_count: failCount, updated_at: new Date() }).retryAt.toISOString()}`);
+        }
       }
     }
+    // 간격을 늘려 건너뛴 수를 남긴다 — 조용히 거르면 «정말 걸러지는가» 를 로그로 확인할 길이 없다
+    if (backoffSkipped) console.log(`[emailImapCron] 연속 실패로 이번에 건너뛴 계정 ${backoffSkipped}개`);
   } catch (e) {
     console.error('[emailImapCron] tick fatal:', e.message);
   }
@@ -1478,6 +1489,15 @@ async function startIdleForAccount(account) {
 
   let conn;
   try {
+    // 재연결 타이머는 예약 당시의 계정 객체를 들고 온다 — 그 사이 꺼졌거나 연속 실패 상태가 됐으면 열지 않는다.
+    const fresh = await EmailAccount.findByPk(id);
+    if (!fresh || !fresh.is_active || syncBackoff(fresh).backoff) {
+      const c0 = idleConns.get(id);
+      if (c0 && c0.connecting) idleConns.delete(id);
+      idleBackoff.delete(id);
+      return;
+    }
+    account = fresh;
     const imapConfig = await buildImapConfig(account, { onIdle: true });
     conn = await imaps.connect({ imap: imapConfig });
     await conn.openBox(account.imap_folder || 'INBOX');
@@ -1549,7 +1569,12 @@ async function reconcileIdle() {
     // 제거/비활성된 계정 IDLE 정리
     for (const id of idleConns.keys()) { if (!activeIds.has(id)) stopIdleForAccount(id); }
     // 신규 계정 IDLE 시작
-    for (const acc of accounts) { if (!idleConns.has(acc.id)) await startIdleForAccount(acc); }
+    // 연속 실패 계정(syncBackoff)은 지속 연결을 열지 않는다 — 열어도 실패해 5분마다 재연결만 돈다.
+    //   폴링이 간격을 늘려 시도하고, 성공하면 fail_count 가 0 이 되어 다음 정리 때 여기서 연결한다.
+    for (const acc of accounts) {
+      if (syncBackoff(acc).backoff) { if (idleConns.has(acc.id)) stopIdleForAccount(acc.id); continue; }
+      if (!idleConns.has(acc.id)) await startIdleForAccount(acc);
+    }
   } catch (e) {
     console.error('[emailIdle] reconcile 실패:', e.message);
   }

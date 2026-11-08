@@ -31,6 +31,9 @@ module.exports = {
       restart_delay: 4000,
       watch: false,
       max_memory_restart: '1G',    // 운영은 dev 보다 여유 있게
+      // 2026-11-08 — 힙 상한을 재시작 선(1G) 아래로(dev 실측 근거는 dev-backend/ecosystem.config.js 같은 줄).
+      //   ★ 배포의 `pm2 reload <이름>` 은 node_args 를 다시 읽지 않는다 — 운영 적용은 이 파일로 delete→start 한 번(배포 방 몫).
+      node_args: '--max-old-space-size=768',
       kill_timeout: 5000,
       env: {
         NODE_ENV: 'production',
