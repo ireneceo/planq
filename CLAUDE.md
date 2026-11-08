@@ -221,6 +221,7 @@ memory `feedback_unwired_guard_is_no_guard` 와 같은 계열이다.
 | `billing.md` | 체험·선결제·체험 중 환불 |
 | `calendar.md` | 캘린더·상담 예약 |
 | `db-schema.md` | DB 테이블 목록·스키마 이력 |
+| `desktop-app.md` | 데스크탑 앱(윈도우·맥, Electron) — 판정·preload 표면·탐색 잠금·핀·알림·시험 표면 |
 | `dev-status.md` | 플랫폼 운영 — 배포별 개발 현황(dev_status_reports) |
 | `guest-links.md` | 게스트 링크(guest_links) |
 | `leave.md` | 휴가 종류(leave_types) |

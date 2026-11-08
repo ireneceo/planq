@@ -223,3 +223,39 @@ workflows:
       #   credentials: $GOOGLE_PLAY_SERVICE_ACCOUNT
       #   track: internal
       #   submit_as_draft: true
+
+  # ── 데스크탑 앱 — 맥 (2026-11-08 · docs/DESKTOP_APP_DESIGN.md §3-8) ─────────────────────────
+  # 윈도우 설치 파일은 우리 서버에서 wine 으로 만든다(desktop/scripts/build.js win). 맥 dmg·zip 은 맥 장비가 있어야 해 여기서.
+  # 출처는 운영(https://planq.kr) 고정 — build.js 가 src/origin.json 에 박고 check.js 가 «시험 표면 0» 을 본다.
+  # 서명·공증(Irene 할 일): Code signing identities 에 «Developer ID Application» 인증서를 올리고 그 환경 그룹을
+  #   environment.groups 에 연결한다(CSC_LINK·CSC_KEY_PASSWORD 등 electron-builder 표준 변수).
+  #   없으면 무서명 — 맥 Gatekeeper 경고 + 맥 자동 업데이트 불가(Squirrel.Mac 은 서명을 요구).
+  # 수동 실행만(트리거 없음). 운영 /desktop/ 게시는 산출물을 받아 desktop/scripts/publish.sh — Irene 지시 때만.
+  desktop-mac:
+    name: PlanQ Desktop — Mac (운영 planq.kr)
+    instance_type: mac_mini_m2
+    max_build_duration: 60
+    environment:
+      node: 20
+    scripts:
+      - name: 의존성 설치
+        script: |
+          cd desktop
+          npm ci
+      - name: 맥 앱 만들기 (dmg + zip, universal) + 시험 표면 0 검사
+        script: |
+          set -e
+          cd desktop
+          node scripts/build.js mac --origin https://planq.kr
+    artifacts:
+      - desktop/dist/prod/*.dmg
+      - desktop/dist/prod/*.zip
+      - desktop/dist/prod/*.blockmap
+      - desktop/dist/prod/latest-mac.yml
+    publishing:
+      email:
+        recipients:
+          - irene@irenewp.com
+        notify:
+          success: true
+          failure: true
