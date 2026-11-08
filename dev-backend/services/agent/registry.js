@@ -448,6 +448,20 @@ const TOOLS = [
     },
     handler: (p, a) => mail.createMailReplyDraft(p, a),
   },
+  // ── 2026-11-08 — 새 메일 «초안»(Irene «AI 가 내용 써서 보내고 서명 붙고» · Fable decision C 의 A). 여전히 보내지 않는다(HIGH) ──
+  {
+    name: 'create_mail_draft', risk: 'LOW', write: true, scopes: ['mail:read', 'mail_drafts:write'],
+    description: 'Save a NEW mail draft (not a reply) in PlanQ: recipients, subject and plain-text body, optionally with PlanQ files attached. Nothing is sent: the user opens the returned url, checks the recipients and the sender address, and sends it themselves; PlanQ adds the signature configured for that sender. To reply to an existing mail use create_mail_reply_draft instead. If the user already has an unsent new-mail draft it is never overwritten (CONFLICT draft_exists).',
+    input: {
+      to: z.array(z.string().trim().min(3).max(254)).min(1).max(10).describe('Recipient email addresses (plain addresses like name@example.com). Only "To" — no Cc/Bcc.'),
+      subject: z.string().trim().min(1).max(300),
+      body_text: z.string().trim().min(1).max(5000).describe('Mail body as plain text (no HTML). End with a closing phrase such as "Best regards," and write no name or signature after it — PlanQ adds the sender\'s name or signature for the address the mail goes out from.'),
+      account_id: z.number().int().positive().optional().describe('Mail account to send from (account_id from list_mail_accounts). Default: the user\'s own account, else the first shared one. The user can still change it before sending.'),
+      file_ids: z.array(z.number().int().positive()).max(10).optional().describe('PlanQ files (file_id from list_files or upload_file) to attach. Still not sent — the user sends it.'),
+      idempotency_key: idem,
+    },
+    handler: (p, a) => mail.createMailDraft(p, a),
+  },
   // ── 2026-10-05 — Q docs 문서 쓰기 · 파일 올리기 (Irene: "문서도 작성할 수 있어야지. 파일도 보낼 수 있어야 하고.") ──
   //   문서는 services/actions/post_actions(화면과 같은 함수), 파일은 driveImport.ingestDownloadedFile.
   {

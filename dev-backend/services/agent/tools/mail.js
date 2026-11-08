@@ -415,4 +415,72 @@ async function createMailReplyDraft(p, a) {
   };
 }
 
-module.exports = { listMailAccounts, searchMail, getMailThread, getMailMessage, mailThreadCount, messageText, CONTENT_NOTE, mailGate, loadThread, createMailReplyDraft };
+// ── create_mail_draft (2026-11-08 Irene «AI 가 내용 써서 보내고 서명 붙고» · Fable decision C 의 A) ──────────────────
+//   **새 메일** 초안 — 본인 compose 초안 칸(email_drafts thread_id null) 하나. 보내지 않는다(외부 발송 = HIGH, 도구 없음).
+//   사람이 /mail?compose=1 로 열어 받는 사람·보내는 주소를 보고 직접 보낸다 — 서명은 보낼 때 emailSend 가 그 주소대로 붙인다.
+//   ★ 받는 사람은 «받는 사람» 칸 하나만 — 작성 폼에 참조·숨은참조 칸이 없어, 저장하면 사람이 못 보는 수신자가 된다.
+//   ★ 보내는 계정은 접근 가능 집합 안에서만(mailGate). 별칭·발신 주소는 받지 않는다(보낼 때 사람이 고른다).
+//   ★ 이미 쓰던 새 메일 초안이 있으면 CONFLICT — 덮지 않는다(답장 초안과 같은 규칙).
+const DRAFT_EMAIL_RE = /^[^\s@<>,;"]+@[^\s@<>,;"]+\.[^\s@<>,;"]+$/;
+async function createMailDraft(p, a) {
+  const acctIds = await mailGate(p);
+  await assertMenu(p, 'qmail', 'write');
+  if (!acctIds.length) throw err('NOT_FOUND', 'no_mail_account', { hint: 'This user has no mail account connected in PlanQ. Ask them to connect one in PlanQ mail settings first.' });
+  let accountId = acctIds[0];
+  if (a.account_id != null) {
+    if (!acctIds.includes(a.account_id)) throw err('NOT_FOUND', 'account_not_found', { hint: 'Use an account_id from list_mail_accounts.' });
+    accountId = a.account_id;
+  } else {
+    // 기본 = 내 개인 계정 우선(화면 작성 폼 기본값과 같은 감각), 없으면 공용 첫 계정
+    const rows = await accountRows(p, acctIds);
+    const mine = rows.find((r) => r.owner_user_id === p.userId && r.is_active !== false);
+    const any = rows.find((r) => r.is_active !== false);
+    if (mine) accountId = mine.id; else if (any) accountId = any.id;
+  }
+  const to = [...new Set((a.to || []).map((x) => String(x).trim().toLowerCase()).filter(Boolean))];
+  const bad = to.filter((x) => x.length > 254 || !DRAFT_EMAIL_RE.test(x));
+  if (bad.length) throw err('VALIDATION_ERROR', 'invalid_email', { invalid: bad.slice(0, 5) });
+  const { findDraft, upsertDraft, isBlankHtml } = require('../../mailDrafts');
+  const existing = await findDraft({ businessId: p.businessId, userId: p.userId, threadId: null });
+  if (existing && (!isBlankHtml(existing.body_html) || String(existing.subject || '').trim()
+    || (Array.isArray(existing.to_emails) && existing.to_emails.length)
+    || (Array.isArray(existing.attachment_file_ids) && existing.attachment_file_ids.length))) {
+    throw err('CONFLICT', 'draft_exists', {
+      existing_draft: { subject: existing.subject || '', body_chars: String(existing.body_html || '').replace(/<[^>]*>/g, '').length, updated_at: ser.iso(existing.updated_at || existing.updatedAt) },
+      hint: 'The user already has an unsent new-mail draft in PlanQ. Ask them to send or discard it first; it is never overwritten.',
+      url: `${cfg.APP_URL}/mail?compose=1`,
+    });
+  }
+  const subject = String(a.subject || '').trim().slice(0, 500);
+  const mailClosing = require('../../mailClosing');
+  const { detectLang } = require('../../emailBodyClean');
+  const lang = detectLang(a.body_text, 'ko', subject);
+  const closing = await mailClosing.closingFor({ businessId: p.businessId, userId: p.userId, threadId: null, accountId, draftText: a.body_text, language: lang });
+  const bodyHtml = plainToHtml(mailClosing.applyClosing(a.body_text, closing, lang));
+  if (isBlankHtml(bodyHtml)) throw err('VALIDATION_ERROR', 'body_required');
+  let attachIds = null;
+  if (Array.isArray(a.file_ids) && a.file_ids.length) {
+    const { File } = require('../../../models');
+    const { canUserSeeFile } = require('../../../middleware/imageViewer');
+    const ids = [...new Set(a.file_ids.map(Number))];
+    const files = await File.findAll({ where: { id: ids, business_id: p.businessId, deleted_at: null } });
+    if (files.length !== ids.length) throw err('NOT_FOUND', 'file_not_found');
+    for (const f of files) if (!(await canUserSeeFile(p.userId, p.platformRole, f))) throw err('NOT_FOUND', 'file_not_found');
+    attachIds = ids;
+  }
+  const d = await upsertDraft({
+    businessId: p.businessId, userId: p.userId, threadId: null,
+    fields: {
+      account_id: accountId, in_reply_to_message_id: null,
+      to_emails: to.length ? to : null, cc_emails: null, bcc_emails: null,
+      subject: subject || null, body_html: bodyHtml, attachment_file_ids: attachIds,
+    },
+  });
+  return {
+    draft: { draft_id: d.id, account_id: accountId, to, subject, body_chars: String(a.body_text).length, attached_file_ids: attachIds || [], url: `${cfg.APP_URL}/mail?compose=1` },
+    note: 'Saved as a new-mail draft in PlanQ — nothing was sent. The user opens the url, checks the recipients and sender, and sends it from PlanQ; PlanQ adds the signature set for that sender address.',
+    created: true,
+  };
+}
+
+module.exports = { listMailAccounts, searchMail, getMailThread, getMailMessage, mailThreadCount, messageText, CONTENT_NOTE, mailGate, loadThread, createMailReplyDraft, createMailDraft };

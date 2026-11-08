@@ -1,5 +1,9 @@
 # Fable 게이트 대기열 → **판정 기록 보관소** (2026-10-08 부터)
 
+### 2026-11-08 방 e0fb1154 — AI 앱 새 메일 초안 `create_mail_draft` — decision **C**(초안 먼저·발송은 Irene 승인 뒤) · 완료 검증 **VERDICT: PASS** (차단 0)
+- Fable 실측: CONFLICT 시 초안 129 불변 · cc/from 입력 strict 거절 · 이름 붙은 주소·11개 거절 · 남의 계정·남의 개인 파일 NOT_FOUND · scope 없으면 재연결 안내 · 같은 인자 replayed · 감사 agent.create_mail_draft · HTTP GET /email-drafts 로 작성 폼 복원 실데이터 · MCP tools/list 54개 노출 · 외부 발송 0.
+- 비차단: ① account_id 명시 시 비활성 공용 계정 받음(사람 경로와 같은 집합) ② 서명 없는 공용 계정이면 맺음 이름이 메일함 이름 — B 설계 때 ③ 감사 args 120자 이하 본문 남음(기존 정책) ④ M3 설계서 표 미기재·Cue 미포함(의도).
+
 ### 2026-11-06 방 21d66dbe — 채팅 반응 소켓 직원 방 분기(4be052cc) — 완료 검증 **VERDICT: PASS** (차단 0)
 - 11-06 Fable 비차단 지적(내부 메모·미승인 초안 반응이 conv:<id> 로 고객 소켓에 감) 처리. 방송 isVisibleToClient → conv:<id> / :staff · 고객이 안 보이는 메시지에 반응 → 404(없는 메시지와 같은 코드).
 - Fable 실측 conv 1806: 고객 소켓 보통 메시지 반응만 · 대표 소켓 셋 다(양성 대조) · 고객 내부/초안/삭제 반응 404 · 보통 200 · "1806:staff" join 시도 미수신 · 목록 동봉 reactions 에 내부 메모 없음 · 게스트 경로 반응 없음.
