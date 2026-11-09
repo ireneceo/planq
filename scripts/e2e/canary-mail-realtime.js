@@ -134,24 +134,34 @@ async function run() {
 //      옛 병합(prev 순서 유지 + 새 id 만 prepend)은 자리를 그대로 둬서 F5 전엔 안 올라왔다.
 //   ② 스크롤 앵커: 그렇게 순서가 바뀌어도, 보고 있던 행은 화면의 같은 자리에 있어야 한다.
 //      (순서를 왜곡해 스크롤을 지키던 옛 방식으로 되돌아가지 못하게 두 불변식을 같이 건다.)
+// ★ 받은 메일 목록은 2026-10-12 부터 «마지막으로 받은 시각» 순이다(services/mailFolders receivedOrder =
+//   inbound 메시지 MAX(sent_at), 없으면 last_message_at). last_message_at 만 올리면 서버 순서가 그대로라
+//   10-12 부터 ①·재연결이 매일 빨강이었다(2026-11-09 판정: 검사기가 옛 정렬 키). 새 메일 «도착» 을 흉내 내려면
+//   그 스레드의 마지막 받은 메시지 시각도 지금으로 올린다 — 원복도 둘 다.
 function bumpTime(threadId) {
   return dbJson(`
     const { sequelize } = require('./config/database');
     (async () => {
       const [[t]] = await sequelize.query('SELECT last_message_at FROM email_threads WHERE id=${threadId}');
+      const [[m]] = await sequelize.query("SELECT id, sent_at FROM email_messages WHERE thread_id=${threadId} AND direction='inbound' ORDER BY sent_at DESC, id DESC LIMIT 1");
       await sequelize.query('UPDATE email_threads SET last_message_at=NOW() WHERE id=${threadId}');
-      console.log('__JSON__' + JSON.stringify({ prev: t.last_message_at }));
+      if (m) await sequelize.query('UPDATE email_messages SET sent_at=NOW() WHERE id=' + m.id);
+      console.log('__JSON__' + JSON.stringify({ prev: { t: t.last_message_at, msgId: m ? m.id : null, msgSent: m ? m.sent_at : null } }));
       process.exit(0);
     })();
   `);
 }
 
 function restoreTime(threadId, prev) {
-  const v = prev instanceof Date ? prev.toISOString().slice(0, 19).replace('T', ' ') : String(prev).slice(0, 19).replace('T', ' ');
+  const fmt = (x) => (x instanceof Date ? x.toISOString() : String(x)).slice(0, 19).replace('T', ' ');
+  const snap = prev && typeof prev === 'object' && !(prev instanceof Date) && 't' in prev ? prev : { t: prev, msgId: null };
+  const v = fmt(snap.t);
+  const msgSql = snap.msgId && snap.msgSent ? `await sequelize.query("UPDATE email_messages SET sent_at='${fmt(snap.msgSent)}' WHERE id=${Number(snap.msgId)}");` : '';
   return dbJson(`
     const { sequelize } = require('./config/database');
     (async () => {
       await sequelize.query("UPDATE email_threads SET last_message_at='${v}' WHERE id=${threadId}");
+      ${msgSql}
       const [[t]] = await sequelize.query('SELECT last_message_at FROM email_threads WHERE id=${threadId}');
       console.log('__JSON__' + JSON.stringify(t));
       process.exit(0);
