@@ -129,13 +129,44 @@ async function otherWorkspaceCases(page) {
       await page.setViewport(vp);
       for (const [label, mk, id, checkMissing] of cases) {
         if (!id) { console.log(`  ${label} 다른 워크스페이스 표본 없음 — 건너뜀`); continue; }
+        // 실패 응답을 남긴다 — «폴백: detail-fallback-error» 만으로는 서버 거절(429·500)인지 화면 판정인지 못 가른다(2026-11-09)
+        //   ★ 이 검사는 8화면 × 3폭을 빠르게 연다 — 화면마다 API 가 10여 개라 일반 한도(분당 100)에 걸려 429 를 받으면
+        //     화면은 «오류» 폴백을 그린다(11-02~11-08 매일 다른 칸이 빨강이던 원인). 429 를 받았으면 한도가 풀릴 때까지
+        //     기다렸다 **한 번 더** 열어 가른다(11-07 순찰 0051325e 와 같은 방식). 두 번째도 안 되면 그대로 실패.
+        let errs = [], reset = 0;
+        const onRes = (r) => {
+          const u = r.url(); if (!u.includes('/api/') || r.status() < 400) return;
+          errs.push(`${r.status()} ${u.replace(/^https?:\/\/[^/]+/, '').slice(0, 70)}`);
+          if (r.status() === 429) reset = Math.max(reset, Number(r.headers()['ratelimit-reset'] || r.headers()['retry-after'] || 60));
+        };
+        page.on('response', onRes);
         await goto(page, mk(id));
-        const seen = await waitEval(page, NOTICE, (v) => v === true);
+        let seen = await waitEval(page, NOTICE, (v) => v === true);
+        if (!seen && reset) {
+          const wait = Math.min(reset, 65) + 2;
+          console.log(`  [${vpLabel}] ${label} 429 — 한도 풀릴 때까지 ${wait}s 기다렸다 다시 연다`);
+          await new Promise((r) => setTimeout(r, wait * 1000));
+          errs = []; reset = 0;
+          await goto(page, mk(id));
+          seen = await waitEval(page, NOTICE, (v) => v === true);
+          if (seen) errs = [];
+        }
+        page.off('response', onRes);
         seen ? ok(`[${vpLabel}] ${label} 내 다른 워크스페이스 항목 → 전환 안내가 보인다`)
-          : bad(`[${vpLabel}] ${label} 내 다른 워크스페이스 항목 → 안내 없음 (폴백: ${await page.evaluate(FB)})${await drift(page, mk(id))}`);
+          : bad(`[${vpLabel}] ${label} 내 다른 워크스페이스 항목 → 안내 없음 (폴백: ${await page.evaluate(FB)})${await drift(page, mk(id))}${errs.length ? ` · 실패 응답 ${errs.slice(0, 4).join(' / ')}` : ''}`);
         if (checkMissing && vpLabel === '데스크탑') {
+          let r429 = 0; const on2 = (r) => { if (r.url().includes('/api/') && r.status() === 429) r429 = Math.max(r429, Number(r.headers()['ratelimit-reset'] || r.headers()['retry-after'] || 60)); };
+          page.on('response', on2);
           await goto(page, mk(99999901));
-          const f = await waitEval(page, FB, (v) => v && v !== 'detail-fallback-loading');
+          let f = await waitEval(page, FB, (v) => v && v !== 'detail-fallback-loading');
+          if (f !== 'detail-fallback-notfound' && r429) {   // 위와 같은 이유 — 한도에 걸린 «오류» 는 판정이 아니다
+            const wait = Math.min(r429, 65) + 2;
+            console.log(`  ${label} 없는 ID 429 — ${wait}s 기다렸다 다시 연다`);
+            await new Promise((r) => setTimeout(r, wait * 1000));
+            await goto(page, mk(99999901));
+            f = await waitEval(page, FB, (v) => v && v !== 'detail-fallback-loading');
+          }
+          page.off('response', on2);
           const n = await page.evaluate(NOTICE);
           (f === 'detail-fallback-notfound' && !n) ? ok(`${label} 없는 ID → "찾을 수 없음"(전환 안내 아님)`)
             : bad(`${label} 없는 ID → ${f || '아무 말도 없음'} · notice=${n}${await drift(page, mk(99999901))}`);
