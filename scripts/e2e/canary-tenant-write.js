@@ -15,6 +15,7 @@
 //   `email_messages` UPDATE 는 `thread_id IN (...)` 뿐이라 막을 것이 없었다.
 const fs = require('fs');
 const { sequelize } = require('/opt/planq/dev-backend/config/database');
+const mailRead = require('/opt/planq/dev-backend/services/mailRead');
 
 const BACKEND = process.env.CANARY_BACKEND || 'http://localhost:3003';
 const EMAIL = 'health-check@planq.kr';
@@ -226,23 +227,28 @@ async function run() {
 
   // ── ③ 음성 대조군 — 내 것 1건은 **실제로 처리된다**(400 이 «라우트가 죽어서» 가 아님을 증명)
   //     + 섞어 보내면 내 것만 처리되고 남의 것은 그대로다.
+  //   ★ 읽음은 2026-10-22 부터 «사람 × 스레드»(services/mailRead — 내 커서 email_thread_participants) 다.
+  //     옛 공용 칸 unread_count > 0 으로 고르면 배우가 이미 읽은 스레드를 집어 서버가 «안 읽은 것 0» → 400 no_threads 를 준다
+  //     (10-23 부터 매일 빨강이던 것 · 2026-11-09 판정: 검사기가 옛 읽음 술어). 라우트와 **같은 술어**(unreadExpr)로 고르고 잰다.
+  const unreadFor = mailRead.unreadExpr(actor.id, 't');
   const [own] = await q(
     `SELECT t.id FROM email_threads t JOIN email_accounts a ON a.id = t.account_id
       WHERE t.business_id = ? AND (a.owner_user_id IS NULL OR a.owner_user_id = ?)
-        AND t.unread_count > 0 ORDER BY t.unread_count ASC, t.id ASC LIMIT 1`, [myBiz, actor.id]);
+        AND ${unreadFor} ORDER BY t.id ASC LIMIT 1`, [myBiz, actor.id]);
   if (!own) {
     unmeasured('음성 대조군 — 내 스레드는 처리된다', '배우 소속에 미읽음 스레드 없음');
   } else {
     // 원복을 위해 지금 상태를 정확히 기록한다
     const ownBefore = (await q('SELECT id, unread_count, status, reply_needed FROM email_threads WHERE id = ?', [own.id]))[0];
+    const cursorBefore = (await q('SELECT id, last_read_message_id, last_read_at FROM email_thread_participants WHERE thread_id = ? AND user_id = ?', [own.id, actor.id]))[0] || null;
     const ownMsgs = (await q('SELECT id FROM email_messages WHERE thread_id = ? AND is_read = 0', [own.id])).map((r) => r.id);
     try {
       const r = await post(token, myBiz, 'bulk-read', { thread_ids: [own.id, ...victimIds] });
-      const ownAfter = (await q('SELECT unread_count FROM email_threads WHERE id = ?', [own.id]))[0];
+      const ownAfter = (await q(`SELECT (CASE WHEN ${unreadFor} THEN 1 ELSE 0 END) AS unread_count FROM email_threads t WHERE t.id = ?`, [own.id]))[0];
       const victimAfter = await snapshot(victimIds);
       push('섞어 보내기 — 내 것만 처리되고 남의 것은 그대로',
         r.status === 200 && Number(ownAfter.unread_count) === 0 && same(before, victimAfter),
-        `HTTP ${r.status} updated=${r.json?.data?.updated} · 내 스레드 미읽음 ${ownBefore.unread_count}→${ownAfter.unread_count}` +
+        `HTTP ${r.status} updated=${r.json?.data?.updated} · 내 스레드(나 기준) 안 읽음 1→${ownAfter.unread_count}` +
         ` · 피해자 ${before.msgUnread}→${victimAfter.msgUnread}`);
     } finally {
       // 데이터 원복 — 카나리가 남긴 상태가 다음 검사를 죽인다
@@ -251,6 +257,14 @@ async function run() {
       }
       await q('UPDATE email_threads SET unread_count = ?, status = ?, reply_needed = ? WHERE id = ?',
         [ownBefore.unread_count, ownBefore.status, ownBefore.reply_needed, own.id]);
+      // 내 읽음 커서도 되돌린다(안 그러면 다음 밤엔 이 스레드가 «읽음» 이 되어 고를 것이 줄어든다)
+      if (cursorBefore) {
+        await q('UPDATE email_thread_participants SET last_read_message_id = ?, last_read_at = ? WHERE id = ?',
+          [cursorBefore.last_read_message_id, cursorBefore.last_read_at, cursorBefore.id]);
+      } else {
+        await q('DELETE FROM email_thread_participants WHERE thread_id = ? AND user_id = ? AND is_assigned = 0 AND is_following = 0',
+          [own.id, actor.id]);
+      }
     }
   }
 
