@@ -154,7 +154,9 @@ async function run() {
     await page.goto(`${BASE}/business/settings/attendance?leave=${leaveId}`, { waitUntil: 'networkidle2' }).catch(() => {});
     // 안내 줄이 붙을 때까지 기다린다(여기도 고정 sleep 으로 재지 않는다).
     for (let i = 0; i < 32; i++) {
-      const seen = await page.evaluate(() => !!document.querySelector('[data-testid="leave-linked-decided"]')).catch(() => false);
+      // 그려진 사본이 붙을 때까지(숨은 keep-alive 사본만 있을 때 멈추면 «안 보임» 으로 오판 — 2026-11-08 밤 검사)
+      const seen = await page.evaluate(() => [...document.querySelectorAll('[data-testid="leave-linked-decided"]')]
+        .some((x) => { const r = x.getBoundingClientRect(); return r.width > 1 && r.height > 1; })).catch(() => false);
       if (seen) break;
       await new Promise((r) => setTimeout(r, 250));
     }

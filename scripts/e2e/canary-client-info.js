@@ -173,7 +173,9 @@ async function run() {
     {
       const ctx = await browser.createBrowserContext(); const page = await ctx.newPage();
       await page.setViewport({ width: 1440, height: 900 });
-      await login(page); await page.goto(`${BASE}/home`, { waitUntil: 'domcontentloaded' }); await sleep(2500);
+      await login(page); await page.goto(`${BASE}/home`, { waitUntil: 'domcontentloaded' });
+      // 고정 2.5초로 재면 밤 검사(붐빌 때) 첫 화면 로딩이 늦어 /home 에 머문 것처럼 보인다(2026-11-08). 넘어갈 때까지 최대 15초.
+      await page.waitForFunction(() => !location.pathname.startsWith('/home'), { timeout: 15000 }).catch(() => {});
       push('⑫ 오너가 /home → /dashboard(고객 문이 아니다)', !page.url().includes('/home'), page.url());
       await ctx.close();
     }

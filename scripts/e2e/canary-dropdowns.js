@@ -88,13 +88,16 @@ async function run() {
     const clicked = await page.evaluate(() => {
       const pop = [...document.querySelectorAll('[role="menu"]')].find((e) => e.getBoundingClientRect().width > 0);
       if (!pop) return false;
-      const it = [...pop.querySelectorAll('a,button')].find((e) => e.getBoundingClientRect().width > 100 && e.getBoundingClientRect().height > 24);
+      // 대상이 지워진 알림(data-target-missing)은 제품이 일부러 이동하지 않는다(NotificationDropdown handleClick).
+      //   맨 위가 그런 알림이면 «아무 일 없음» 을 «보던 탭이 덮인다» 로 오판했다(2026-11-08 밤 검사) — 열 수 있는 항목만 고른다.
+      const it = [...pop.querySelectorAll('a,button')].find((e) => e.getBoundingClientRect().width > 100 && e.getBoundingClientRect().height > 24
+        && !e.hasAttribute('data-target-missing'));
       if (!it) return false;
       it.click(); return true;
     });
     await b.sleep(1500);
     if (!clicked) {
-      results.push({ name: 'open-in-new-tab', ok: false, msg: '🔴 누를 알림 항목이 없다. 판정 불가' });
+      results.push({ name: 'open-in-new-tab', ok: false, msg: '🔴 누를 수 있는 알림 항목이 없다(지워진 대상 알림 제외). 판정 불가' });
     } else {
       const after = await page.evaluate(() => ({
         tabs: document.querySelectorAll('[data-testid="tabstrip"] [role="tab"]').length,

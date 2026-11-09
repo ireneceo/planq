@@ -67,7 +67,9 @@ function chromeProbe() {
     // 헤더 한가운데와 양 끝 버튼 자리를 찍어 본다 — 헤더가 아닌 것이 잡히면 무언가 덮고 있다
     for (const x of [30, vw / 2, vw - 30]) {
       const h = document.elementFromPoint(x, hr.top + hr.height / 2);
-      if (h && !hdr.contains(h) && !h.closest('[aria-modal="true"],[data-pq-drawer-panel],[role="dialog"]')) {
+      // 잠깐 떴다 사라지는 도착 알림 카드(NotificationToaster, role=alert · 우상단 고정)는 덮개가 아니다 —
+      //   밤 검사가 다른 스위트와 겹쳐 돌 때 그 스위트가 만든 알림 카드가 폰 머리줄 위에 떠 «헤더를 덮음» 으로 오판했다(2026-11-08 /mail?thread).
+      if (h && !hdr.contains(h) && !h.closest('[aria-modal="true"],[data-pq-drawer-panel],[role="dialog"],[role="alert"]')) {
         headerCovered = `${h.tagName.toLowerCase()}.${String(h.className).split(' ')[0].slice(0, 24)} @x${Math.round(x)}`;
         break;
       }
@@ -310,6 +312,21 @@ async function run() {
         await page.evaluate(() => { const x = document.getElementById('__sweep_band'); x && x.remove(); });
         const ok = a.contentTop != null && bb.contentTop != null && bb.contentTop - a.contentTop >= 250;
         push(`${v.key} · 대조군: 끼운 머리줄만큼 콘텐츠 시작이 내려간다`, ok, `${a.contentTop} → ${bb.contentTop}`);
+      }
+
+      // ── 대조군 ③: 머리줄 위에 고정 덮개를 심으면 잡고, 같은 덮개가 알림 카드(role=alert)면 넘긴다
+      {
+        const plant = (alert) => page.evaluate((al) => {
+          const d = document.createElement('div'); d.id = '__sweep_cover';
+          if (al) d.setAttribute('role', 'alert');
+          d.style.cssText = 'position:fixed;top:0;left:0;right:0;height:80px;z-index:99999;background:#fee;';
+          document.body.appendChild(d);
+        }, alert);
+        const unplant = () => page.evaluate(() => { const x = document.getElementById('__sweep_cover'); x && x.remove(); });
+        await plant(false); const c1 = await page.evaluate(chromeProbe); await unplant();
+        await plant(true); const c2 = await page.evaluate(chromeProbe); await unplant();
+        const ok = c1.header ? (!!c1.headerCovered && !c2.headerCovered) : null;
+        push(`${v.key} · 대조군: 머리줄 덮개는 잡고 알림 카드는 넘긴다`, ok === true, ok === null ? '머리줄 없음 — 미측정' : `덮개 ${c1.headerCovered || '못 잡음'} · 알림 카드 ${c2.headerCovered || '넘김'}`);
       }
 
       const headers = [];
