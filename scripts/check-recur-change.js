@@ -42,6 +42,7 @@ async function scenario(tok, biz, { label, start, rule0, rule1, pick, scope }) {
   const target = pick(before, pid);
   const [us, uj] = await api(tok, 'PUT', `/api/tasks/by-business/${biz}/${target}`, { recurrence_rule: rule1, series_scope: scope });
   check(`${label}: 저장 200`, us === 200, us !== 200 ? JSON.stringify(uj) : '');
+  const afterPut = await series(pid);   // 자정 생성기 전 — 저장 직후 화면에 보이는 것
   await gen.generateOneSeries(await Task.findByPk(pid), new Date());
   const after = await series(pid);
   const ids = new Set(after.map((t) => t.id));
@@ -52,7 +53,7 @@ async function scenario(tok, biz, { label, start, rule0, rule1, pick, scope }) {
   const beforeIds = new Set(before.map((t) => t.id));
   const ghosts = after.filter((t) => !beforeIds.has(t.id) && t.due < today);
   check(`${label}: ③ 지난 날짜 가짜 회차 0`, ghosts.length === 0, ghosts.map((t) => t.due).join(','));
-  return { before, after, beforeIds, today };
+  return { before, after, afterPut, beforeIds, today };
 }
 
 (async () => {
@@ -76,6 +77,16 @@ async function scenario(tok, biz, { label, start, rule0, rule1, pick, scope }) {
     const allTue = newFuture.every((t) => new Date(`${t.due}T00:00:00Z`).getUTCDay() === 2);
     check('C: ④ 내일 이후 옛 규칙 회차 정리됨', oldFutureLeft.length === 0, oldFutureLeft.map((t) => t.due).join(','));
     check('C: ④ 새 규칙(화) 회차 생성됨', newFuture.length > 0 && allTue, newFuture.map((t) => t.due).join(','));
+    // D. Irene 2026-11-10 실제 동작 — 오래된 매주 시리즈를 지난 회차에서 «평일 매일» 로. 바꾼 뒤 내일~7일 안 평일이 다 있어야 한다
+    //    (옛 코드: 고친 업무 1개만 남고 그것도 지난 날짜 · 자정 생성기가 시리즈 처음부터 지난 평일을 지어냄)
+    const dd = await scenario(tok, biz, { label: 'D 매주→평일 매일·all', start: -21, rule0: 'FREQ=WEEKLY;BYDAY=MO', rule1: 'FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR', scope: 'all',
+      pick: (b) => b.filter((t) => t.due < ymd(0)).pop().id });
+    const want = []; for (let n = 1; n <= 7; n += 1) { const s = ymd(n); const w = new Date(`${s}T00:00:00Z`).getUTCDay(); if (w >= 1 && w <= 5) want.push(s); }
+    const have = new Set(dd.afterPut.map((t) => t.due));   // ★ 저장 직후(자정 생성기 전)에 이미 있어야 한다
+    const missing = want.filter((s) => !have.has(s));
+    const weekend = dd.after.filter((t) => !dd.beforeIds.has(t.id) && [0, 6].includes(new Date(`${t.due}T00:00:00Z`).getUTCDay()));
+    check('D: 저장 직후 내일부터 7일 안 평일 회차 모두 있음', missing.length === 0, missing.join(','));
+    check('D: 새로 생긴 주말 회차 0', weekend.length === 0, weekend.map((t) => t.due).join(','));
   } finally {
     for (const pid of made) await Task.destroy({ where: { recurrence_parent_id: pid } }).then(() => Task.destroy({ where: { id: pid } })).catch(() => {});
   }

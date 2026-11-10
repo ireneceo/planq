@@ -1478,6 +1478,7 @@ router.put('/by-business/:businessId/:id', authenticateToken, async (req, res, n
       isOwnerOrAdmin,
       // 필요할 때만 계산한다 (scope='all' 일 때만) — 모든 업무 저장에 tz 쿼리를 얹지 않는다.
       getToday: async () => todayInTz(await getWorkspaceTz(businessId)),
+      io: req.app.get('io'),
     });
     if (!ruleRes.ok) return errorResponse(res, ruleRes.code, ruleRes.http);
     const seriesRuleApplied = ruleRes.reset;

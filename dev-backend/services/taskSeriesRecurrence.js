@@ -79,7 +79,7 @@ function extractSeriesRuleChange(task, updates) {
  * @returns {Promise<{ok:true, reset:number} | {ok:false, code:string, http:number}>}
  */
 async function applySeriesRuleChange({
-  task, updates, businessId, seriesRuleChange, scope, actorId, isOwnerOrAdmin, getToday,
+  task, updates, businessId, seriesRuleChange, scope, actorId, isOwnerOrAdmin, getToday, io,
 }) {
   const parentRuleChanged = updates.recurrence_rule !== undefined && !task.recurrence_parent_id;
   if (!seriesRuleChange && !parentRuleChanged) return { ok: true, reset: 0 };
@@ -151,7 +151,20 @@ async function applySeriesRuleChange({
   const keptDate = taskDue && taskDue >= fromDate ? taskDue : null;
   const cursor = firstOnOrAfter(newRule, anchor, fromDate, keptDate);
   await parent.update({ next_occurrence_at: cursor });
-  return { ok: true, reset: reset || 0, next: cursor };
+
+  // 바로 만든다 — 자정 생성기를 기다리면 바꾼 직후 화면엔 고친 업무 하나만 남는다
+  //   (2026-11-10 Irene: *"1개만 남았는데 이번 업무도 아니야. 평일매일로 선택했는데"*).
+  //   ★ 알림은 보내지 않는다 — 버킷을 넘기고 비우지 않는다(사람이 지금 직접 바꾼 일이라 «준비됐어요» 알림이 필요 없다).
+  //   실패해도 저장은 성공이다 — 자정 생성기가 같은 커서로 이어서 만든다(멱등).
+  let created = 0;
+  if (cursor) {
+    try {
+      const gen = require('./recurringTaskGenerator');
+      const r = await gen.generateOneSeries(parent, new Date(), io || null, new Map());
+      created = (r && r.created_count) || 0;
+    } catch (e) { console.warn('[taskSeriesRecurrence] 즉시 생성 실패 — 자정 생성기가 이어 만든다', parent.id, e.message); }
+  }
+  return { ok: true, reset: reset || 0, next: cursor, created };
 }
 
 module.exports = { extractSeriesRuleChange, applySeriesRuleChange, asDateOnly, firstOnOrAfter };
