@@ -59,3 +59,11 @@ paths:
 
 > **댓글·메모 visibility 통일:** `personal`/`internal`/`shared` — `task_comments` 와 `project_notes` 공통 ENUM.
 >
+
+> **반복 설정 변경은 «오늘까지는 건드리지 않는다» (2026-11-10, Irene *"반복설정 바꿨더니 과거 지연된 업무들 다 없어졌어 … 이 회차부터 적용 했는데. «앞으로» 라고 하는 걸랑 헷갈리고"*)**
+> - 판정은 `services/taskSeriesRecurrence.applySeriesRuleChange` 한 곳. 지우는 것은 **아직 시작 안 한 + 경계 뒤** 회차뿐 —
+>   경계 = 고친 업무가 앞날이면 그 날짜(그 업무 자신은 남김), 오늘·지난 업무면 **내일**. 지연 회차·오늘 회차는 절대 지우지 않는다.
+> - **생성 커서(`next_occurrence_at`)는 경계 뒤 새 규칙 첫 날짜**(`firstOnOrAfter`, 기준점은 부모 마감일). 옛 코드는 커서를
+>   시리즈 맨 처음으로 되돌려 생성기가 **지난 날짜마다 가짜 지연 업무**를 지어냈다.
+> - 화면(`SeriesScopeDialog` recurrence)은 «이 업무 다음부터»(앞날 업무일 때만) / «내일부터» 두 개 — «이 회차 이후·앞으로 전부» 는 폐기.
+> - 회귀 `node scripts/check-recur-change.js`(실 HTTP + dev DB · 옛 코드로 5건 FAIL 확인한 양성 대조군 · ④ 음성 대조군 = 뒤 회차는 실제로 바뀌는가).

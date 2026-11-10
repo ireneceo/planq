@@ -10,6 +10,8 @@ import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { useEscapeStack } from '../../hooks/useEscapeStack';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
+import { todayInTz } from '../../utils/timezones';
+import { formatDay } from '../../utils/dateFormat';
 
 export type SeriesScope = 'single' | 'future' | 'all';
 
@@ -26,10 +28,12 @@ interface Props {
   /** 'delete' 일 때 — 삭제 중 표시·실패 이유(창 안에 남긴다, 조용한 실패 금지). */
   busy?: boolean;
   error?: string | null;
+  /** 'recurrence' 일 때 — 고치는 업무의 마감일(YYYY-MM-DD). 오늘 이전·오늘이면 «오늘부터» 하나만 묻는다. */
+  dueDate?: string | null;
 }
 
-const SeriesScopeDialog: React.FC<Props> = ({ open, onPick, onClose, variant = 'content', busy, error }) => {
-  const { t } = useTranslation('qtask');
+const SeriesScopeDialog: React.FC<Props> = ({ open, onPick, onClose, variant = 'content', busy, error, dueDate }) => {
+  const { t, i18n } = useTranslation('qtask');
   useBodyScrollLock(open);
   useEscapeStack(open, onClose);
   if (!open) return null;
@@ -52,30 +56,53 @@ const SeriesScopeDialog: React.FC<Props> = ({ open, onPick, onClose, variant = '
       </Card>
     </Backdrop>
   );
-  return (
-    <Backdrop role="dialog" aria-modal="true" aria-label={(isRecur ? t('series.recurTitle', '반복 설정 변경') : t('series.title', '반복 업무 수정')) as string} onClick={onClose}>
-      <Card onClick={(e) => e.stopPropagation()}>
-        <Title>{isRecur ? t('series.recurTitle', '반복 설정 변경') : t('series.title', '반복 업무 수정')}</Title>
-        <Desc>{isRecur
-          ? t('series.recurDesc', '이 반복은 시리즈 전체가 함께 씁니다. 새 주기를 어디부터 적용할까요?')
-          : t('series.desc', '이 업무는 반복됩니다. 어디까지 반영할까요?')}</Desc>
-        {!isRecur && (
-          <Opt type="button" onClick={() => onPick('single')} data-testid="series-scope-single">
-            <OptName>{t('series.single', '이 회차만')}</OptName>
-            <OptHint>{t('series.singleHint', '다른 회차는 그대로 둡니다')}</OptHint>
+  // 반복 설정 변경 — «언제부터 새 반복으로 바꾸나» 만 묻는다 (2026-11-10 Irene 신고).
+  //   *"반복설정 바꿨더니 과거 지연된 업무들 다 없어졌어 … «앞으로» 라고 하는 걸랑 헷갈리고 뭘 어떻게 한다는 건지 모르겠고"*
+  //   옛 창은 «이 회차 이후» / «앞으로 전부» 두 개였다. 지난(지연된) 회차를 열면 둘이 같은 일인데 이름만 달랐고,
+  //   «다시 잡습니다» 가 무엇을 지우고 무엇을 남기는지 말하지 않았다. 지금 서버 계약
+  //   (services/taskSeriesRecurrence): 오늘까지의 업무는 손대지 않는다 · 아직 시작 안 한 뒤 업무만 새 날짜로 바꿔 만든다.
+  //   그래서 ① 고치는 업무가 오늘이거나 지난 것 → 선택지 하나(«내일부터») ② 앞날 업무 → «그 날짜부터» / «내일부터».
+  if (isRecur) {
+    const today = todayInTz(Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Seoul');
+    const due = dueDate ? String(dueDate).slice(0, 10) : null;
+    const dueIsFuture = !!due && due > today;
+    const dueLabel = due ? formatDay(due, { locale: i18n.language === 'en' ? 'en-US' : 'ko-KR', weekday: true }) : '';
+    return (
+      <Backdrop role="dialog" aria-modal="true" aria-label={t('series.recurTitle', '반복 설정 변경') as string} onClick={onClose}>
+        <Card onClick={(e) => e.stopPropagation()}>
+          <Title>{t('series.recurTitle', '반복 설정 변경')}</Title>
+          <Desc>{t('series.recurDesc2', '언제부터 새 반복으로 바꿀까요? 그 전 업무와 이미 시작한 업무는 그대로 두고, 아직 시작 안 한 뒤 업무만 새 반복 날짜로 바꿔 만듭니다.')}</Desc>
+          {dueIsFuture && (
+            <Opt type="button" onClick={() => onPick('future')} data-testid="series-scope-future">
+              <OptName>{t('series.recurFromThis', '이 업무 다음부터')}</OptName>
+              <OptHint>{t('series.recurFromThisHint', { date: dueLabel, defaultValue: '이 업무({{date}})까지는 그대로 두고, 그 뒤 업무부터 새 반복으로 바꿉니다' })}</OptHint>
+            </Opt>
+          )}
+          <Opt type="button" onClick={() => onPick('all')} data-testid="series-scope-all">
+            <OptName>{t('series.recurFromTomorrow', '내일부터')}</OptName>
+            <OptHint>{t('series.recurFromTomorrowHint', '오늘까지의 업무(지연된 업무 포함)는 그대로 둡니다')}</OptHint>
           </Opt>
-        )}
+          <Cancel type="button" onClick={onClose} data-testid="series-scope-cancel">{t('series.cancel', '취소')}</Cancel>
+        </Card>
+      </Backdrop>
+    );
+  }
+  return (
+    <Backdrop role="dialog" aria-modal="true" aria-label={t('series.title', '반복 업무 수정') as string} onClick={onClose}>
+      <Card onClick={(e) => e.stopPropagation()}>
+        <Title>{t('series.title', '반복 업무 수정')}</Title>
+        <Desc>{t('series.desc', '이 업무는 반복됩니다. 어디까지 반영할까요?')}</Desc>
+        <Opt type="button" onClick={() => onPick('single')} data-testid="series-scope-single">
+          <OptName>{t('series.single', '이 회차만')}</OptName>
+          <OptHint>{t('series.singleHint', '다른 회차는 그대로 둡니다')}</OptHint>
+        </Opt>
         <Opt type="button" onClick={() => onPick('future')} data-testid="series-scope-future">
-          <OptName>{isRecur ? t('series.recurFuture', '이 회차 이후') : t('series.future', '이 회차 이후 모두')}</OptName>
-          <OptHint>{isRecur
-            ? t('series.recurFutureHint', '이 회차부터 새 주기로 다시 잡습니다. 지난 회차는 그대로 둡니다')
-            : t('series.futureHint', '지난 회차는 기록으로 남깁니다')}</OptHint>
+          <OptName>{t('series.future', '이 회차 이후 모두')}</OptName>
+          <OptHint>{t('series.futureHint', '지난 회차는 기록으로 남깁니다')}</OptHint>
         </Opt>
         <Opt type="button" onClick={() => onPick('all')} data-testid="series-scope-all">
-          <OptName>{isRecur ? t('series.recurAll', '앞으로 전부') : t('series.all', '전체 회차')}</OptName>
-          <OptHint>{isRecur
-            ? t('series.recurAllHint', '오늘 이후의 아직 시작 안 한 회차를 모두 새 주기로 다시 잡습니다')
-            : t('series.allHint', '지난 회차까지 같은 내용으로 맞춥니다')}</OptHint>
+          <OptName>{t('series.all', '전체 회차')}</OptName>
+          <OptHint>{t('series.allHint', '지난 회차까지 같은 내용으로 맞춥니다')}</OptHint>
         </Opt>
         <Cancel type="button" onClick={onClose} data-testid="series-scope-cancel">{t('series.cancel', '취소')}</Cancel>
       </Card>

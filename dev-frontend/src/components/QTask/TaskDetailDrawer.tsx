@@ -3064,6 +3064,7 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
     <SeriesScopeDialog
       open={!!seriesAsk || !!seriesTagAsk}
       variant={seriesAskVariant}
+      dueDate={detailTask?.due_date ?? null}
       onClose={() => {
         // 설명을 고치다 범위 물음을 취소했다 — 서버엔 안 갔고 에디터에만 남는다. 로컬 본으로 옮겨
         //   다시 열면 복원·로그아웃이면 확인창에 걸리게 한다(조용히 사라지지 않게)

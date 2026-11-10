@@ -326,6 +326,7 @@ const ProjectTaskList: React.FC<Props> = ({
     <SeriesScopeDialog
       open={!!seriesAsk}
       variant={seriesAsk?.variant ?? 'content'}
+      dueDate={seriesAsk ? ((tasks.find((t) => t.id === seriesAsk.taskId) as { due_date?: string | null } | undefined)?.due_date ?? null) : null}
       onClose={() => setSeriesAsk(null)}
       onPick={(scope) => {
         const ask = seriesAsk;
