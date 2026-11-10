@@ -39,9 +39,10 @@
 - 맥 서명 준비: `desktop/build/entitlements.mac.plist`(마이크) · codemagic desktop-mac `groups: planq_desktop_mac`. 운영 자리 `scripts/apply-nginx-desktop.sh`.
 - Irene 할 일(같은 tid 로 고쳐 올림): todomw7e4wl9 운영 /desktop/ sudo 1줄 · todomw7e4whm 맥 Developer ID·앱 암호 → Codemagic 묶음.
 - 대기열 앞: C·E 구현(다음 방). B 는 맥 서명 뒤 실기기 스파이크.
-- ⏸ 답 기다림: 윈도우 앱을 서명 없이 먼저 낼지(아래).
+- 윈도우 서명: Irene «fable 이 결정» → Fable 결정 C(파일럿만 무서명, 공개는 서명 뒤) — docs/DESKTOP_APP_PHASE2.md §6.
+- D 실측: canary-desktop-offline 이 메모리 자리표 1시간 대기 끝에 못 돔(75) — **아직 미실측**. 다음 방이 `node scripts/e2e/canary-desktop-offline.js` 실행 후 Fable 완료 검증 1회(D + apply-nginx-desktop.sh).
 
-### ⏸ 답 기다림: 윈도우 데스크탑 앱 — 서명 없이 먼저 낼지 (방 3a92dacf · 2026-11-10)
+### 답 기다림 (이전): 윈도우 데스크탑 앱 — 서명 없이 먼저 낼지 (방 3a92dacf · 2026-11-10) → Irene «fable 이 결정» → Fable C
 - 무엇: 윈도우 설치 파일에 코드서명 인증서를 붙일지. A 무서명으로 먼저(설치 때 «Windows의 PC 보호» → 추가 정보 → 실행 · 자동 업데이트는 https 로만 보호) / B 코드서명 인증서 구입 뒤 출시(발급·본인확인 1~2주 · 연 비용).
 - 권고(Fable 지적 반영): A 로 시범 고객에게 먼저 + B 병행 구입 → 받으면 다음 버전부터 서명.
 - 답이 오면: A → 운영 nginx·맥 서명 카드 끝난 뒤 윈도우 운영 빌드 + publish.sh(Irene 지시 때) / B → 인증서 받기 할 일 카드 올리고 게시는 서명 뒤.
