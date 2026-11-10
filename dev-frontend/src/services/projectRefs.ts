@@ -2,8 +2,9 @@
 //   소속은 그대로(공개 범위 기준). 연결은 보여 주는 자리만 늘린다 — 볼 수 있는 사람은 원본 공개 범위 그대로다.
 import { apiFetch } from '../contexts/AuthContext';
 import type { PostRow } from './posts';
+import type { KbDocumentRow } from './knowledge';
 
-export type ProjectRefEntity = 'post' | 'file';
+export type ProjectRefEntity = 'post' | 'file' | 'kb';
 
 export interface ProjectRefChip { project_id: number; name: string; color: string | null; can_unlink: boolean }
 
@@ -38,4 +39,13 @@ export async function fetchLinkedPosts(projectId: number): Promise<PostRow[]> {
   if (!r.ok) return [];
   const j = await r.json();
   return (j.data || []) as PostRow[];
+}
+
+// 프로젝트 정보 탭(Q info 본체)의 «연결됨» 행 — Q info 목록과 같은 모양 + linked: true + home_project(보일 때만)
+//   (2026-11-10 Irene «Q info 프로젝트 연결이 여러 개 되어야 해»)
+export async function fetchLinkedKb(projectId: number): Promise<KbDocumentRow[]> {
+  const r = await apiFetch(`/api/projects/${projectId}/refs?type=kb`);
+  if (!r.ok) return [];
+  const j = await r.json();
+  return (j.data || []) as KbDocumentRow[];
 }

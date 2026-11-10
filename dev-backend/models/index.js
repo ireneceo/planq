@@ -501,7 +501,7 @@ ProjectRef.belongsTo(Project, { foreignKey: 'project_id', onDelete: 'CASCADE' })
 //   소속을 옮기면 새 소속 프로젝트로 걸려 있던 연결은 지운다 — 같은 항목이 «소속» 과 «연결됨» 으로 두 번 서지 않게.
 //   옮기는 문(문서 PUT·공개 범위·파일 이동·AI move_document_to_project)이 모두 인스턴스 update 라 훅 한 곳이 다 받는다.
 //   (읽을 때도 소속 = 대상 프로젝트인 행은 빼므로, 훅이 빠지는 문이 생겨도 중복은 화면에 안 선다.)
-for (const [M, type] of [[Post, 'post'], [File, 'file']]) {
+for (const [M, type] of [[Post, 'post'], [File, 'file'], [KbDocument, 'kb']]) {
   M.addHook('afterUpdate', (row, opts) => {
     if (!row.changed || !row.changed('project_id') || !row.project_id) return null;
     return ProjectRef.destroy({

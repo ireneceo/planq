@@ -11,17 +11,21 @@
 //     원본 소속의 L2·숨은 프로젝트 규칙이 그대로 선다. 제목을 복사해 두지 않는다(보안 규칙 5).
 //   - 고객(client)·AI: 1차에 아무것도 안 보이고 붙이기·떼기 403. 실시간 사건 project:ref_changed 는 CLIENT_VIEW 에 없다(고객 방에 안 간다).
 //   - 복사(문서·파일·프로젝트 복제)에는 따라가지 않는다. 소속 이동은 models/index.js 훅이 새 소속으로 걸린 연결을 지운다.
+//   - 2026-11-10 Q info(kb) 추가 — Irene «Q info 프로젝트 연결이 여러 개 되어야 해». 같은 계약 그대로:
+//     읽기 = canAccessKbDocumentByLevel · 보여 주기 = kbDocumentsListWhereByLevel · 나만 보기(L1·옛 private) 400 ·
+//     소속 = project_id(프로젝트 범위 자료) · 원본 편집자 = 올린 사람 ∨ 소속 PM ∨ owner/admin(Q info 삭제와 같은 축).
 'use strict';
 
 const { Op } = require('sequelize');
-const { Post, File, Project, ProjectMember, ProjectRef } = require('../models');
+const { Post, File, KbDocument, Project, ProjectMember, ProjectRef } = require('../models');
 const {
   getUserScope, isMemberOrAbove, isWorkspaceAdmin, canSeeProject,
   canAccessFileByLevel, postListWhereByLevel, fileListWhereByLevel,
+  canAccessKbDocumentByLevel, kbDocumentsListWhereByLevel,
 } = require('../middleware/access_scope');
 const { canReadPost, canEditPost } = require('./postAccess');
 
-const ENTITY_TYPES = ['post', 'file'];
+const ENTITY_TYPES = ['post', 'file', 'kb'];
 const MAX_LIST = 200;
 
 const fail = (code, http) => ({ ok: false, code, http });
@@ -30,23 +34,27 @@ const validId = (v) => Number.isInteger(Number(v)) && Number(v) > 0;
 async function loadEntity(type, id) {
   if (!Number.isFinite(id) || id <= 0) return null;
   if (type === 'post') return Post.findByPk(id);   // paranoid — 휴지통 문서는 null
+  if (type === 'kb') return KbDocument.findByPk(id);   // paranoid — 휴지통 정보는 null
   const f = await File.findByPk(id);
   return f && !f.deleted_at ? f : null;
 }
 
 function vlevelOf(type, e) {
+  if (type === 'kb') return (e.vlevel === 'L1' || (e.vlevel == null && e.scope === 'private')) ? 'L1' : e.vlevel;
   return type === 'post' ? e.vlevel : (e.vlevel || e.visibility);
 }
 
 async function canRead(user, type, e, scope) {
   if (type === 'post') return canReadPost(user, e);
+  if (type === 'kb') return canAccessKbDocumentByLevel(user.id, e, scope);
   return canAccessFileByLevel(user.id, e, scope);
 }
 
 // 원본 편집자 — 문서는 canEditPost 한 곳, 파일은 올린 사람 ∨ 소속 프로젝트 PM(routes/files.js canMutateFile 과 같은 축).
 async function canEditEntity(user, type, e, scope) {
   if (type === 'post') return canEditPost(user.id, e, user.platform_role);
-  if (isWorkspaceAdmin(scope) || e.uploader_id === user.id) return true;
+  const owner = type === 'kb' ? e.uploaded_by : e.uploader_id;
+  if (isWorkspaceAdmin(scope) || owner === user.id) return true;
   return e.project_id ? isPm(e.project_id, user.id) : false;
 }
 
@@ -199,11 +207,26 @@ async function linkedFilesForProject(user, project, include) {
   return { rows, homes: await homeProjects(rows, scope) };
 }
 
+// 프로젝트 정보 탭의 «연결됨» 행 — Q info 목록과 같은 술어(kbDocumentsListWhereByLevel)·같은 칸.
+const KB_LIST_ATTRS = ['id', 'title', 'source_type', 'category', 'categories', 'scope', 'project_id', 'client_id', 'file_name', 'file_size', 'version', 'status', 'chunk_count', 'uploaded_by', 'tags', 'attached_file_ids', 'attached_post_ids', 'custom_columns', 'custom_values', 'read_policy', 'client_ids', 'vlevel', 'target_member_ids', 'security_level', 'created_at', 'updated_at'];
+async function linkedKbForProject(user, project) {
+  const scope = await getUserScope(user.id, project.business_id, user.platform_role);
+  if (!isMemberOrAbove(scope) || scope.isAi) return { rows: [], homes: new Map() };
+  const ids = await refIdsFor(project, 'kb');
+  if (!ids.length) return { rows: [], homes: new Map() };
+  const rows = await KbDocument.findAll({
+    where: { [Op.and]: [kbDocumentsListWhereByLevel(scope), { id: { [Op.in]: ids } }, notHomeOf(project)] },
+    attributes: KB_LIST_ATTRS,
+    order: [['created_at', 'DESC']],
+  });
+  return { rows, homes: await homeProjects(rows, scope) };
+}
+
 // 영구 삭제 — 원본 행이 사라지면 연결 행도 지운다(휴지통은 남긴다 — 복원하면 다시 보인다).
 async function onEntityPurged(entityType, entityId, { transaction } = {}) {
   return ProjectRef.destroy({ where: { entity_type: entityType, entity_id: entityId }, transaction });
 }
 
 module.exports = {
-  ENTITY_TYPES, link, unlink, listForEntity, linkedPostsForProject, linkedFilesForProject, onEntityPurged, loadEntity, canRead,
+  ENTITY_TYPES, link, unlink, listForEntity, linkedPostsForProject, linkedFilesForProject, linkedKbForProject, onEntityPurged, loadEntity, canRead,
 };

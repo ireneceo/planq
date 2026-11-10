@@ -16,6 +16,7 @@ import HighlightText from '../Common/HighlightText';
 import MatchReason from '../Common/MatchReason';
 import SecurityLevelBadge from '../Common/SecurityLevelBadge';
 import { pickMatch } from '../../utils/searchMatch';
+import { LinkedMini } from '../Docs/linkedDocs';
 import { LEGACY_KB_CATEGORIES, type KbDocumentRow } from '../../services/knowledge';
 
 
@@ -295,7 +296,9 @@ export const StatusChip = styled.span<{ $s: string }>`
 `;
 
 /* 리스트 제목 — 읽기 전용 (#143). 행을 클릭하면 우측 패널이 열리고 거기서 편집한다. */
+const RowTitleLine = styled.div`display: flex; align-items: center; gap: 4px; min-width: 0;`;
 export const RowTitleText = styled.div`
+  min-width: 0;
   font-size: 0.875rem; font-weight: 600; color: #0F172A;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   padding: 2px 8px;
@@ -352,7 +355,11 @@ export function KbDocRow({
 
       {/* 제목 — 읽기 전용. 클릭하면 우측 패널이 열리고 거기서 편집 (#143) */}
       <ColTitleArea>
-        <RowTitleText><HighlightText text={d.title} query={search} /></RowTitleText>
+        <RowTitleLine>
+          <RowTitleText><HighlightText text={d.title} query={search} /></RowTitleText>
+          {/* 프로젝트 정보 탭의 «연결됨» 행 — 문서 탭과 같은 표시. 메타 칸은 900px 아래에서 숨으므로 제목 옆에 둔다 */}
+          {d.linked && <LinkedMini project={d.home_project} />}
+        </RowTitleLine>
         {/* #187 — 본문 미리보기. 검색 중 제목엔 없고 본문에서 찾았으면 **찾은 자리**를 대신 보여준다
             (첫 줄 미리보기는 말줄임에 가려 매칭어가 안 보일 수 있다). */}
         {(() => {

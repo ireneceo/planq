@@ -11,6 +11,16 @@
 - «업무도 여러 개» 라는 전제는 사실과 다르다 — 업무도 지금 프로젝트 하나뿐. 여러 개로 보이는 것은 «관련 업무»(task_links)·«업무 첨부».
 - 고객: 1차에 아무것도 안 보인다(연결 목록·칩 빈 배열, 붙이기·떼기 403, 실시간 사건은 CLIENT_VIEW 미등록).
 
+## 2단계 — Q info(2026-11-10, Irene «Q info 프로젝트 연결이 여러 개 되어야 해»)
+- `entity_type='kb'` 를 같은 표·같은 서비스에 더했다. 계약은 위와 같다:
+  읽기 `canAccessKbDocumentByLevel` · 보여 주기 `kbDocumentsListWhereByLevel` · 나만 보기(L1·옛 `scope private`) 400 ·
+  소속 = `kb_documents.project_id` · 원본 편집자 = 올린 사람 ∨ 소속 PM ∨ owner/admin(Q info 삭제와 같은 축).
+- 소속 이동 훅(`models/index.js`)·영구 삭제(`contentTrash.purgeContentRow` kind kb)도 같은 줄에 붙였다. 휴지통 동안은 남는다.
+- API: `GET /api/projects/:id/refs?type=kb`(Q info 목록과 같은 칸 + `linked:true` + `home_project`) · 붙이기/떼기/칩은 기존 문 그대로(`kb`).
+- 화면: Q info 상세 «공개» 아래 «연결 프로젝트»(`ProjectRefsField entityType="kb"`) · 프로젝트 정보 탭 목록에 연결 행(«연결됨 · 소속»,
+  지우기·선택 없음 — 떼기는 상세 ×) · 실시간 `project:ref_changed`(entity_type kb). 합치기는 `components/Knowledge/kbLinked.ts`.
+- 검증: 실호출 36건(연결 여러 개·중복·L1·소속·비멤버 · member1 양성/음성(P2 팀 공개 C 안 보임) · 칩 이름 안 샘 · 고객 0 · 떼기 권한 · 소속 이동 · 휴지통/복원/영구 삭제 · 감사).
+
 ## 표 `project_refs`
 `id · business_id · project_id(BIGINT FK projects ON DELETE CASCADE) · entity_type VARCHAR(16) · entity_id · created_by · created_at`
 UNIQUE(project_id, entity_type, entity_id) · INDEX(entity_type, entity_id) · INDEX(business_id). ENUM 아님(값 검사는 서비스).

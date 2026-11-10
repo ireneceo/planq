@@ -5,7 +5,7 @@
 //   ★ 소속(posts.project_id · files.project_id)은 그대로 **공개 범위의 열쇠**다. 이 행은 권한을 넓히지 않는다 —
 //     연결된 프로젝트 탭에 보여 줄 때도 원본 목록 술어(postListWhereByLevel·fileListWhereByLevel)로 거른다.
 //   ★ 쓰는 문은 services/projectRefs.js 하나. 제목을 복사해 두지 않는다(보안 규칙 5).
-//   ★ entity_type 은 ENUM 이 아니라 문자열 — 값 검사는 서비스(ENTITY_TYPES). 1차 'post'|'file', 다음 단계 'task'.
+//   ★ entity_type 은 ENUM 이 아니라 문자열 — 값 검사는 서비스(ENTITY_TYPES). 1차 'post'|'file', 2026-11-10 'kb'(Q info), 다음 단계 'task'.
 const { DataTypes, Model } = require('sequelize');
 const { sequelize } = require('../config/database');
 

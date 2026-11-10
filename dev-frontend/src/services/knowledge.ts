@@ -39,6 +39,9 @@ export interface KbDocumentRow {
   attached_posts?: Array<{ id: number; title: string; project_id: number | null; category: string | null }>;
   updated_at: string;
   created_at: string;
+  // 프로젝트 정보 탭의 «연결됨» 행(GET /api/projects/:id/refs?type=kb) — 다른 프로젝트 소속·소속 없음인데 이 프로젝트에 연결
+  linked?: boolean;
+  home_project?: { id: number; name: string; color: string | null } | null;
 }
 
 export interface KbListFilter {

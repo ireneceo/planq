@@ -14,12 +14,18 @@ const projectRefs = require('../services/projectRefs');
 
 const send = (res, r) => (r.ok ? successResponse(res, r.data) : errorResponse(res, r.code, r.http));
 
-// GET /api/projects/:id/refs?type=post — 프로젝트 문서 탭의 «연결됨» 행(보는 사람이 원본을 읽을 수 있는 것만)
+// GET /api/projects/:id/refs?type=post|kb — 프로젝트 문서·정보 탭의 «연결됨» 행(보는 사람이 원본을 읽을 수 있는 것만)
 router.get('/projects/:id/refs', authenticateToken, async (req, res, next) => {
   try {
     const { project, error } = await loadProjectOrForbidden(Number(req.params.id), req.user.id);
     if (error) return errorResponse(res, error.message, error.code);
-    if (String(req.query.type || 'post') !== 'post') return errorResponse(res, 'invalid_entity_type', 400);
+    const type = String(req.query.type || 'post');
+    if (type === 'kb') {
+      // 프로젝트 정보 탭(Q info 본체)의 «연결됨» 행 — Q info 목록과 같은 칸 + linked:true + 소속 프로젝트(보일 때만)
+      const { rows, homes } = await projectRefs.linkedKbForProject(req.user, project);
+      return successResponse(res, rows.map((r) => ({ ...r.toJSON(), home_project: homes.get(Number(r.project_id)) || null, linked: true })));
+    }
+    if (type !== 'post') return errorResponse(res, 'invalid_entity_type', 400);
     const { rows, homes } = await projectRefs.linkedPostsForProject(req.user, project, {
       include: [
         { model: User, as: 'author', attributes: ['id', 'name', 'name_localized'] },

@@ -55,6 +55,8 @@ import { apiFetch } from '../../contexts/AuthContext';
 import { listProjects, listWorkspaceClients, type ApiProject, type WorkspaceClientRow } from '../../services/qtalk';
 import { fetchWorkspaceFiles, uploadMyFile, formatBytes, type ProjectFile } from '../../services/files';
 import { fetchPosts, type PostRow } from '../../services/posts';
+import { withLinkedKb } from '../../components/Knowledge/kbLinked';
+import ProjectRefsField from '../../components/Common/ProjectRefsField';
 import VisibilityField, { serializeVisibility, parseVisibility, type VisibilityValue } from '../../components/Common/VisibilityField';
 import AiActionButton from '../../components/Common/AiActionButton';
 import OverflowMenu from '../../components/Common/OverflowMenu';
@@ -380,13 +382,14 @@ const KnowledgePage: React.FC<KnowledgePageProps> = ({ embedded = false, mode = 
       if (activeTag) filter.tag = activeTag;
       if (debouncedSearch.current.trim()) filter.q = debouncedSearch.current.trim();
       const list = await listKnowledge(businessId, filter);
-      setDocs(list);
+      // 프로젝트 정보 탭 — 다른 곳 소속인데 이 프로젝트에 «연결» 한 정보도 함께(행에 «연결됨»)
+      setDocs(projectMode ? await withLinkedKb(list, projectId!, { q: filter.q, tag: activeTag }) : list);
       setLoadError(null);
     } catch (e) {
       // 여태는 catch 가 없어 `void load()` 가 예외를 삼켰고, docs 가 빈 채로 남아 빈 상태가 떴다.
       setLoadError(e instanceof Error ? e.message : 'unknown');
     } finally { setLoading(false); }
-  }, [businessId, mode, activeScope, activeProject, activeClient, activeTag]);
+  }, [businessId, mode, activeScope, activeProject, activeClient, activeTag, projectMode, projectId]);
 
   useEffect(() => { void load(); }, [load]);
 
@@ -412,6 +415,10 @@ const KnowledgePage: React.FC<KnowledgePageProps> = ({ embedded = false, mode = 
       onSocket('kb:new', debouncedReload),
       onSocket('kb:updated', debouncedReload),
       onSocket('kb:deleted', debouncedReload),
+      // 이 프로젝트에 정보를 걸거나 뗐다(프로젝트 방 신호 — 프로젝트 상세가 join 한다)
+      onSocket('project:ref_changed', (p: { project_id?: number; entity_type?: string }) => {
+        if (projectMode && p?.entity_type === 'kb' && Number(p.project_id) === projectId) debouncedReload();
+      }),
       onSocket('kb:cat:new', debouncedReloadCats),
       onSocket('kb:cat:updated', debouncedReloadCats),
       onSocket('kb:cat:deleted', debouncedReloadCats),
@@ -984,12 +991,13 @@ const KnowledgePage: React.FC<KnowledgePageProps> = ({ embedded = false, mode = 
                    selectMode={selectMode}
                    selected={selectedIds.has(d.id)}
                    onOpen={() => setDetailId(prev => prev === d.id ? null : d.id)}
-                   onToggleSelect={() => setSelectedIds(prev => {
+                   /* 연결 행은 원본이 다른 곳 소속 — 여기서 지우거나 묶어 지우지 않는다(떼기는 상세 «연결 프로젝트» ×) */
+                   onToggleSelect={d.linked ? undefined : () => setSelectedIds(prev => {
                      const n = new Set(prev);
                      if (n.has(d.id)) n.delete(d.id); else n.add(d.id);
                      return n;
                    })}
-                   onDelete={() => setConfirmDelete(d.id)}
+                   onDelete={d.linked ? undefined : () => setConfirmDelete(d.id)}
                  />
                ))}
              </List>
@@ -1539,6 +1547,13 @@ const KnowledgePage: React.FC<KnowledgePageProps> = ({ embedded = false, mode = 
                       clients={clients.map(c => ({ id: c.id, display_name: c.display_name, biz_name: c.biz_name, company_name: c.company_name }))}
                       members={members}
                     />
+                  </MetaEditWrap>
+                  {/* 연결 프로젝트 — 소속(공개 범위의 프로젝트)은 하나 그대로, 다른 프로젝트 정보 탭에도 보이게 건다(문서·파일과 같은 칸) */}
+                  <MetaLabel>{t('projectRefs.label', { ns: 'common' }) as string}</MetaLabel>
+                  <MetaEditWrap style={{ gridColumn: '1 / -1' }}>
+                    <ProjectRefsField key={`kb-refs-${detail.id}`} entityType="kb" entityId={detail.id} businessId={businessId}
+                      homeProjectId={detail.project_id ?? null}
+                      vlevel={detail.vlevel === 'L1' || (!detail.vlevel && detail.scope === 'private') ? 'L1' : (detail.vlevel ?? null)} />
                   </MetaEditWrap>
                   {/* D4 #62 — 보안등급 (visibility 와 별개 축. 내부·기밀은 외부 공유·번들 차단) */}
                   <MetaLabel>
