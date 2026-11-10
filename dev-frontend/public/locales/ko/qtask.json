@@ -1481,8 +1481,6 @@
     "sortMine": "직접 정렬",
     "dragHandle": "끌어서 순서 바꾸기 (Alt+↑/↓) — 이 보기에서만 바뀌어요",
     "reorderFailed": "순서를 저장하지 못했어요 — 원래 순서로 되돌렸어요. 다시 끌어 주세요.",
-    "toolsToggle": "직접 추가 · 보기 설정",
-    "doneHiddenShort": "완료 가림",
     "urgent": {
       "title": "긴급 요청",
       "head": "긴급 요청 {{n}}건 — 확인해 주세요",
@@ -1500,6 +1498,13 @@
       "inUrgent": "긴급 요청 {{n}}건은 위 띠에 있어요",
       "more": "외 {{n}}건",
       "openMain": "확인 필요 화면에서 보기"
+    },
+    "sections": {
+      "label": "보일 칸 고르기",
+      "group": "위쪽에 보일 칸",
+      "cue": "Cue 에게 말하기",
+      "add": "할 일 입력",
+      "view": "보기 기준 · 정렬"
     }
   },
   "tags": {

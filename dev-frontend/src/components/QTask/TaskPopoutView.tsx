@@ -73,7 +73,7 @@ import { useTaskTagDict } from './useTaskTagDict';
 import TagManageModal from './TagManageModal';
 import PopoutViewChips, { type PopoutView } from './PopoutViewChips';
 import PopoutScopeTitle from './PopoutScopeTitle';
-import PopoutToolsFold from './PopoutToolsFold';
+import PopoutSectionsMenu, { usePopoutSections } from './PopoutSectionsMenu';
 import PopoutQuickAdd from './PopoutQuickAdd';
 import CueTaskBar from './CueTaskBar';
 import { usePopoutQuickAdd } from './usePopoutQuickAdd';
@@ -180,6 +180,7 @@ const TaskPopoutView: React.FC<TaskPopoutViewProps> = ({ pinSlot }) => {
   // ★ 2026-08-24 (Irene) — 기본은 **완료도 보이되 아래로**(Q Task 리스트와 같은 방식).
   //   옛 기본(숨김)은 완료를 누르는 순간 행이 사라져 "없어져버린다" 로 읽혔다.
   const [hideDone, setHideDone] = useState(false);
+  const [sections, toggleSection] = usePopoutSections();   // 위쪽 세 칸 보이기/가리기 — 사람마다 기억
   const showDone = !hideDone;
   // #237·#258 — 오늘/이번 주 2탭. 팝아웃은 "오늘 해야 할 일" 도구로 쓰이므로 기본은 오늘.
   //   데이터는 /my-week 한 벌을 공유하고 탭은 **클라이언트 필터**다 — 새 요청·새 술어를 만들지 않는다.
@@ -449,6 +450,16 @@ const TaskPopoutView: React.FC<TaskPopoutViewProps> = ({ pinSlot }) => {
           <HeadMeta data-testid="task-popout-count">
             {t('popout.countSummary', { n: mineCount, r: reqCount, defaultValue: '업무 {{n}}건, 요청 {{r}}건' })}
           </HeadMeta>
+          {/* 위쪽 세 칸(Cue·할 일 입력·보기 설정)을 각각 보이고 가림 — Irene 2026-11-10 (PopoutSectionsMenu 머리말). */}
+          <PopoutSectionsMenu sections={sections} onToggle={toggleSection}
+            label={t('popout.sections.label', '보일 칸 고르기') as string}
+            groupLabel={t('popout.sections.group', '위쪽에 보일 칸') as string}
+            labels={{
+              cue: t('popout.sections.cue', 'Cue 에게 말하기') as string,
+              add: t('popout.sections.add', '할 일 입력') as string,
+              view: t('popout.sections.view', '보기 기준 · 정렬') as string,
+            }}
+            hiddenFilterActive={!sections.view && hideDone && doneTasks.length > 0} />
           {/* 보기 밀도(카드 / 한 줄) — 탭 줄이 빠지며 헤더로 올라왔다(Irene 2026-10-12). */}
           <HeadIconBtn type="button" $active={compact} aria-pressed={compact} data-testid="task-popout-density"
             aria-label={t('popout.densityCompact', '촘촘히 보기 (한 줄)') as string} title={t('popout.densityCompact', '촘촘히 보기 (한 줄)') as string}
@@ -469,23 +480,14 @@ const TaskPopoutView: React.FC<TaskPopoutViewProps> = ({ pinSlot }) => {
 
       {/* Cue 에게 말하기 — Q task 목록과 **같은 컴포넌트**(2026-10-12 Fable (다) 7). 여러 개를 나열하면 항목마다 한 건.
           기본값은 Q task «오늘/이번 주» 탭과 같은 규칙(오늘 마감 + 이번 주 버킷) — 만든 업무가 이 목록에 남는다. */}
-      {!loading && !error && bizId && (
-        <PopoutCueSlot>
+      {sections.cue && !loading && !error && bizId && (
+        <PopoutCueSlot data-testid="task-popout-cue">
           <CueTaskBar businessId={bizId} projectId={null} compact members={members}
             defaults={{ due_date: todayStr, planned_week_start: weekStart }} />
         </PopoutCueSlot>
       )}
-      {/* 직접 추가 · 보기 설정 — 기본 접힘(Irene 2026-10-12: Cue 에게 말하기가 위에 있고, 보기 설정은 늘 쓰던 대로 둔다).
-          접혀 있어도 요약 줄이 지금 설정을 말한다 — 안 보이는 «완료 가리기» 가 행을 거르면 «없어졌다» 로 읽힌다. */}
-      {!loading && !error && (
-        <PopoutToolsFold label={t('popout.toolsToggle', '직접 추가 · 보기 설정') as string}
-          summary={[
-            ({ tag: t('popout.viewTag', '태그별'), project: t('popout.viewProject', '프로젝트별'), due: t('popout.viewDue', '마감일별') } as Record<PopoutView, string>)[effView],
-            SORT_LABELS[sortKey],
-            hideDone ? (t('popout.doneHiddenShort', '완료 가림') as string) : '',
-          ].filter(Boolean).join(' · ')}>
       {/* #258 — 퀵애드. 로딩·에러 중에는 내지 않는다(기본값의 원천인 weekStart 가 아직 없다). */}
-      {!loading && !error && (
+      {sections.add && !loading && !error && (
         <PopoutQuickAdd
           onAdd={quickAdd}
           placeholder={popTab === 'today'
@@ -525,7 +527,7 @@ const TaskPopoutView: React.FC<TaskPopoutViewProps> = ({ pinSlot }) => {
       )}
 
       {/* #258 — 보기 기준 칩. 정본 집합은 그대로고 **나열 방식만** 바뀐다(행 개수 불변). */}
-      {!loading && !error && (visible.length > 0 || doneTasks.length > 0) && (
+      {sections.view && !loading && !error && (visible.length > 0 || doneTasks.length > 0) && (
         <PopoutViewChips
           value={effView}
           onChange={setViewMode}
@@ -560,8 +562,6 @@ const TaskPopoutView: React.FC<TaskPopoutViewProps> = ({ pinSlot }) => {
             />
           )}
         />
-      )}
-        </PopoutToolsFold>
       )}
       <TagManageModal
         bizId={bizId}

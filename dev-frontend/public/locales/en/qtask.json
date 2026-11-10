@@ -1481,8 +1481,6 @@
     "sortMine": "Custom order",
     "dragHandle": "Drag to reorder (Alt+↑/↓) — only in this view",
     "reorderFailed": "Couldn’t save the order — it’s back to how it was. Please drag again.",
-    "toolsToggle": "Add & view options",
-    "doneHiddenShort": "done hidden",
     "urgent": {
       "title": "Urgent requests",
       "head": "{{n}} urgent request(s) — please acknowledge",
@@ -1500,6 +1498,13 @@
       "inUrgent": "{{n}} urgent request(s) are in the band above",
       "more": "+{{n}} more",
       "openMain": "Open in To check"
+    },
+    "sections": {
+      "label": "Choose what to show",
+      "group": "Show at the top",
+      "cue": "Ask Cue",
+      "add": "Add a task",
+      "view": "View & sort"
     }
   },
   "tags": {
