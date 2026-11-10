@@ -11,7 +11,7 @@
 const path = require('path');
 const fs = require('fs');
 const {
-  app, BrowserWindow, ipcMain, shell, Tray, Menu, Notification, nativeImage, session, screen,
+  app, BrowserWindow, WebContentsView, ipcMain, shell, Tray, Menu, Notification, nativeImage, session, screen, net,
 } = require('electron');
 
 // ── 출처 — 빌드 때 한 값으로 고정(scripts/build.js 가 src/origin.json 을 쓴다). 실행 중 바꿀 수 없다. ──
@@ -227,6 +227,7 @@ function createMain() {
   const rememberMain = () => { mainTrack.grab(); mainTrack.flush(); };
 
   mainWin.webContents.setUserAgent(`${mainWin.webContents.getUserAgent()} PlanQDesktop/${app.getVersion()}`);
+  watchMainLoad(mainWin.webContents);
   mainWin.loadURL(`${APP_ORIGIN}/`);
   mainWin.once('ready-to-show', () => { if (!START_HIDDEN) mainWin.show(); });
   mainWin.webContents.on('did-finish-load', () => {
@@ -238,6 +239,68 @@ function createMain() {
     e.preventDefault();
     rememberMain();
     mainWin.hide();
+  });
+}
+
+// ── 연결 끊김 화면 (2단계 D · docs/DESKTOP_APP_PHASE2.md · Fable DESIGN-FIX 4) ──
+//   메인 프레임을 못 불러오면(네트워크 오류 · 5xx 응답) 흰 화면 대신 껍데기 안 offline.html 을 덮는다.
+//   ★ 그 화면은 **preload 없는 전용 보기**(WebContentsView)다 — file:// 출처에 다리를 붙이지 않는다.
+//   ★ 다시 시도는 main 타이머(10초) — 출처가 응답하면(5xx 아님) 덮개를 걷고 메인 창을 다시 읽는다.
+//   ★ ERR_ABORTED(-3)는 오류가 아니다(이동 도중 취소·탐색 잠금이 막은 것) — 넘긴다.
+let offlineView = null;
+let offlineTimer = null;
+let offlineChecking = false;
+function fitOffline() {
+  if (!offlineView || !mainWin || mainWin.isDestroyed()) return;
+  const [w, h] = mainWin.getContentSize();
+  offlineView.setBounds({ x: 0, y: 0, width: w, height: h });
+}
+async function originAlive() {
+  try {
+    const r = await net.fetch(`${APP_ORIGIN}/`, { method: 'GET', cache: 'no-store' });
+    return r.status < 500;
+  } catch { return false; }
+}
+async function retryOnline() {
+  if (offlineChecking || !offlineView) return;
+  offlineChecking = true;
+  try {
+    if (await originAlive()) { hideOffline(); if (mainWin && !mainWin.isDestroyed()) mainWin.loadURL(`${APP_ORIGIN}/`); }
+  } finally { offlineChecking = false; }
+}
+function showOffline() {
+  if (!mainWin || mainWin.isDestroyed() || offlineView) return;
+  offlineView = new WebContentsView({
+    webPreferences: { contextIsolation: true, sandbox: true, nodeIntegration: false, webSecurity: true, javascript: true, devTools: !app.isPackaged },
+  });
+  const wc = offlineView.webContents;
+  wc.on('will-navigate', (e) => e.preventDefault());                 // 이 화면은 어디로도 가지 않는다
+  wc.setWindowOpenHandler(() => ({ action: 'deny' }));
+  wc.on('page-title-updated', (_e, title) => { if (/^retry-/.test(title)) retryOnline(); });
+  wc.loadFile(path.join(__dirname, 'offline.html'));
+  mainWin.contentView.addChildView(offlineView);
+  fitOffline();
+  mainWin.on('resize', fitOffline);
+  offlineTimer = setInterval(retryOnline, 10000);
+  if (!START_HIDDEN && !mainWin.isVisible()) mainWin.show();   // 첫 화면부터 실패하면 ready-to-show 를 기다리지 않는다
+}
+function hideOffline() {
+  if (offlineTimer) { clearInterval(offlineTimer); offlineTimer = null; }
+  if (!offlineView) return;
+  try { if (mainWin && !mainWin.isDestroyed()) { mainWin.removeListener('resize', fitOffline); mainWin.contentView.removeChildView(offlineView); } } catch { /* */ }
+  try { offlineView.webContents.close(); } catch { /* */ }
+  offlineView = null;
+}
+function watchMainLoad(wc) {
+  wc.on('did-fail-load', (_e, code, _desc, url, isMainFrame) => {
+    if (!isMainFrame || code === -3) return;
+    if (url && !sameOrigin(url)) return;
+    showOffline();
+  });
+  wc.on('did-navigate', (_e, url, httpCode) => {
+    if (!sameOrigin(url)) return;
+    if (httpCode >= 500) showOffline();
+    else if (httpCode > 0) hideOffline();
   });
 }
 

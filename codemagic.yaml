@@ -237,6 +237,11 @@ workflows:
     max_build_duration: 60
     environment:
       node: 20
+      # 서명·공증 변수 묶음(Irene 할 일 — Codemagic «Environment variables» 에 이 이름으로 만든다):
+      #   CSC_LINK(Developer ID Application .p12 를 base64) · CSC_KEY_PASSWORD · APPLE_ID · APPLE_APP_SPECIFIC_PASSWORD · APPLE_TEAM_ID(H2HW8BHXNW)
+      #   electron-builder 가 이 변수가 있으면 서명하고 공증까지 한다. 묶음이 없으면 빌드가 시작 전에 멈춘다.
+      groups:
+        - planq_desktop_mac
     scripts:
       - name: 의존성 설치
         script: |

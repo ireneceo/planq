@@ -1,0 +1,41 @@
+<!doctype html>
+<!-- 연결 끊김 화면 (2단계 D · docs/DESKTOP_APP_PHASE2.md). 껍데기 안 정적 파일 — preload 없는 전용 보기에 뜬다(main.js showOffline).
+     다시 시도는 main 타이머가 맡는다. 버튼은 제목을 바꿔 main 에 알린다(다리·IPC 없음). -->
+<html>
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'">
+<title>offline</title>
+<style>
+  html,body{margin:0;height:100%;background:#F8FAFC;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Apple SD Gothic Neo","Malgun Gothic",sans-serif;color:#0F172A}
+  .wrap{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:24px;box-sizing:border-box;text-align:center}
+  h1{font-size:18px;font-weight:700;margin:0}
+  p{font-size:14px;color:#64748B;margin:0;line-height:1.5}
+  button{margin-top:8px;height:36px;padding:0 16px;border-radius:8px;border:1px solid #14B8A6;background:#0F766E;color:#fff;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit}
+  button:hover{background:#115E59}
+  button:disabled{opacity:.6;cursor:default}
+</style>
+</head>
+<body>
+<div class="wrap" data-testid="desktop-offline">
+  <h1 id="t"></h1>
+  <p id="d"></p>
+  <button id="b" type="button"></button>
+</div>
+<script>
+  var ko = (navigator.language || '').toLowerCase().indexOf('ko') === 0;
+  var S = ko
+    ? { t: 'PlanQ 에 연결할 수 없어요', d: '인터넷 연결을 확인해 주세요. 연결되면 저절로 다시 열립니다.', b: '다시 연결', w: '연결하는 중…' }
+    : { t: "Can't reach PlanQ", d: 'Check your internet connection. PlanQ will reopen by itself once you are back online.', b: 'Try again', w: 'Connecting…' };
+  document.getElementById('t').textContent = S.t;
+  document.getElementById('d').textContent = S.d;
+  var b = document.getElementById('b');
+  b.textContent = S.b;
+  b.addEventListener('click', function () {
+    b.disabled = true; b.textContent = S.w;
+    document.title = 'retry-' + Date.now();          // main 이 page-title-updated 로 받는다
+    setTimeout(function () { b.disabled = false; b.textContent = S.b; }, 4000);
+  });
+</script>
+</body>
+</html>

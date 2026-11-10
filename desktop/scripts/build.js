@@ -41,6 +41,7 @@ for (const f of fs.readdirSync(path.join(ROOT, 'src'))) {
   fs.writeFileSync(path.join(STAGE, 'src', f), code);
 }
 fs.copyFileSync(path.join(ROOT, 'build', 'icon.png'), path.join(STAGE, 'build', 'icon.png'));
+fs.copyFileSync(path.join(ROOT, 'build', 'entitlements.mac.plist'), path.join(STAGE, 'build', 'entitlements.mac.plist'));   // 맥 서명 권한(마이크)
 fs.writeFileSync(path.join(STAGE, 'src', 'origin.json'), JSON.stringify({ origin }) + '\n');
 fs.writeFileSync(path.join(STAGE, 'package.json'), JSON.stringify({
   name: pkg.name, productName: pkg.productName, version: pkg.version, description: pkg.description,
@@ -67,6 +68,9 @@ const config = {
     target: [{ target: 'dmg', arch: ['universal'] }, { target: 'zip', arch: ['universal'] }],   // zip 은 자동 업데이트용
     category: 'public.app-category.productivity',
     hardenedRuntime: true,
+    // 서명·공증 때만 의미가 있다 — 마이크 권한(audio-input)이 없으면 서명한 앱에서 Q note 녹음이 막힌다.
+    entitlements: 'build/entitlements.mac.plist',
+    entitlementsInherit: 'build/entitlements.mac.plist',
     extendInfo: { NSMicrophoneUsageDescription: 'PlanQ uses the microphone for Q Note meeting notes.' },
   },
 };

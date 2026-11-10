@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- 맥 서명(hardened runtime) 권한 — Electron 이 돌기 위한 JIT 두 줄 + Q note 마이크.
+     없으면 서명·공증한 앱에서 마이크가 조용히 막힌다(무서명 빌드는 hardened runtime 이 안 걸려 드러나지 않는다). 2026-11-10 -->
+<plist version="1.0">
+<dict>
+  <key>com.apple.security.cs.allow-jit</key><true/>
+  <key>com.apple.security.cs.allow-unsigned-executable-memory</key><true/>
+  <key>com.apple.security.device.audio-input</key><true/>
+</dict>
+</plist>
