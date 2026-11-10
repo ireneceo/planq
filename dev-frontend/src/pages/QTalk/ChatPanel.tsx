@@ -34,6 +34,7 @@ import AttachmentPreviewDrawer, { type PreviewAttachment } from '../../component
 import { DownloadAllButton } from '../../components/Common/AttachmentList';
 import { mediaTablet } from '../../theme/breakpoints';
 import { mapApiError } from '../../utils/apiError';
+import { uploadErrorText } from '../../utils/uploadError';
 import { useImageLightbox } from '../../components/Common/ImageLightbox';
 import { useNavigate } from 'react-router-dom';
 import MessageReactions from './MessageReactions';   // #138 이모지 리액션 (메시지에 다는 것)
@@ -143,6 +144,7 @@ const ChatPanel: React.FC<Props> = ({
   const { t } = useTranslation('qtalk');
   const navigate = useNavigate();
   const { t: tErr } = useTranslation('errors');
+  const { t: tCommon } = useTranslation('common');   // 업로드 실패 문장(common:upload.err.*)
   const { t: tq } = useTranslation('qtask');   // #206 — 업무 상태 라벨 단일 원천
   const { t: tSale } = useTranslation('qsale');   // #449 — [상담으로 보내기] 실패 사유
   const { user } = useAuth();
@@ -828,7 +830,10 @@ const ChatPanel: React.FC<Props> = ({
       });
       if (!alive()) return;
       if (!r.success || !r.file) {
-        setUploadingFiles(prev => prev.map(x => x.tempId === tempId ? { ...x, error: r.message || t('chat.upload.failed', '업로드 실패') as string } : x));
+        // 사유 코드(file_size_exceeded·needs_drive_for_large_file …)를 그대로 그리면 사람이 못 읽는다 —
+        //   폰 영상이 플랜 한도를 넘어 «needs_drive_for_large_file» 만 보이던 것(2026-11-10). 다른 첨부 화면과 같은 문장 함수.
+        const msg = r.message ? uploadErrorText(r.message, tCommon, r.limitBytes) : t('chat.upload.failed', '업로드 실패') as string;
+        setUploadingFiles(prev => prev.map(x => x.tempId === tempId ? { ...x, error: msg } : x));
         return;
       }
       const fid = Number(String(r.file.id).replace(/^direct-/, ''));
