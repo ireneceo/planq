@@ -3397,8 +3397,10 @@ const QTaskPage:React.FC=()=>{
                   위 분기에 없는 mine 탭은 전부 여기로 떨어지게 한다. */}
             {scope==='mine'&&!['week','today','requested','all'].includes(tab)&&personalInsights}
 
-            {/* 전체 워크스페이스 업무: 프로젝트 진척(전체) + 이슈 + 메모 */}
-            {scope==='workspace'&&workspaceInsights}
+            {/* 전체 워크스페이스 업무: 프로젝트 진척(전체) + 이슈 + 메모 — 셋 다 없으면 빈 패널 대신 안내 */}
+            {scope==='workspace'&&(projProg.size>0||issues.length>0||notes.length>0
+              ? workspaceInsights
+              : <EmptyChart>{t('right.workspaceEmpty','아직 보여 줄 프로젝트 진척·이슈·메모가 없어요. 프로젝트에 연결된 업무가 생기면 여기에 모입니다.')}</EmptyChart>)}
             </>;
             })()}
           </RightScroll>

@@ -316,6 +316,7 @@
   },
   "right": {
     "expand": "Open panel",
+    "workspaceEmpty": "No project progress, issues or notes to show yet. They will appear here once tasks are linked to projects.",
     "collapse": "Collapse panel",
     "toggle": "Toggle insight panel",
     "title": "Overview",
