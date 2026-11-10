@@ -2944,6 +2944,7 @@ const QTaskPage:React.FC=()=>{
                 : tab==='week' ? t('tab.week','이번 주 내 업무')
                 : tab==='requested' ? t('tab.requested','요청하기')
                 : tab==='watching' ? t('tab.watching','참조')
+                : tab==='weekly-review' ? t('tab.weeklyReviewMine','나의 업무보고')
                 : t('tab.all','내 전체업무')}
             </RightTitle>
           </RightHeader>
@@ -3390,6 +3391,11 @@ const QTaskPage:React.FC=()=>{
               )}
               {personalInsights}
             </>}
+
+            {/* 그 밖의 내 업무 탭(참조·나의 업무보고 …): 탭 고유 섹션 없음 — 기본(개인 인사이트).
+                ★ 탭을 하나씩 열거하면 새 탭이 생길 때마다 본문 빈 패널이 된다(참조 c1b7868c·업무보고 b64fbbca 두 번).
+                  위 분기에 없는 mine 탭은 전부 여기로 떨어지게 한다. */}
+            {scope==='mine'&&!['week','today','requested','all'].includes(tab)&&personalInsights}
 
             {/* 전체 워크스페이스 업무: 프로젝트 진척(전체) + 이슈 + 메모 */}
             {scope==='workspace'&&workspaceInsights}
