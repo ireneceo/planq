@@ -164,6 +164,7 @@ import {
   AcctManageIcon,
   BulkAction,
   BulkCappedNote,
+  BulkSharedNote,
   FwdPreview, FwdPreviewHead, FwdChevron, FwdPreviewBody, FwdPreviewMeta,
   KeptDraftNote, RestoredDraftNote, RestoredDraftDiscard,
   DraftStatusLine,
@@ -1057,6 +1058,10 @@ const MailPage: React.FC = () => {
   const bulkAction: { path: string; label: string } | null = !bulkBase ? null
     : !bulkCount ? bulkBase
     : { ...bulkBase, label: t('bulk.withCount', { label: bulkBase.label, n: bulkCount, defaultValue: '{{label}} ({{n}})' }) as string };
+  // 「모두 답변 불필요」·「모두 확인완료」는 메일 자체의 상태라 공용 메일함이면 같이 보는 사람 모두에게 바뀐다
+  //   (읽음만 사람별). 대상에 공용 메일함이 섞일 때만 확인 단계에서 보이는 글자로 알린다 — title 은 폰에서 안 뜬다(2026-11-10 Fable).
+  const bulkTouchesTeamInbox = !!bulkBase && bulkBase.path !== 'bulk-read'
+    && (accountFilter ? accounts.some((a) => a.id === accountFilter && !a.is_personal) : accounts.some((a) => !a.is_personal));
   const armBulk = useCallback(() => {
     setBulkConfirm(true);
     if (bulkTimer.current) clearTimeout(bulkTimer.current);
@@ -2465,6 +2470,11 @@ const MailPage: React.FC = () => {
                     ? (t('bulk.confirmN', { defaultValue: '{{n}}개 처리?', n: bulkCount }) as string)
                     : bulkAction.label}</span>
               </BulkAction>
+            )}
+            {bulkConfirm && !bulkBusy && bulkTouchesTeamInbox && (
+              <BulkSharedNote role="note" data-testid="mail-bulk-shared-note">
+                {t('bulk.sharedNote', { defaultValue: '공용 메일함의 메일은 같이 보는 사람 모두에게 함께 처리됩니다. 읽음 표시만 나에게만 적용됩니다.' }) as string}
+              </BulkSharedNote>
             )}
             {/* 상한에 걸려 일부만 처리된 경우 — 조용히 넘어가지 않는다. 다시 누르면 이어서 처리된다. */}
             {bulkCapped && (

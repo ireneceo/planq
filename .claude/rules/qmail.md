@@ -90,6 +90,11 @@ paths:
 >   본인 설정 API `routes/email_account_notify.js`(GET my-notify · PUT :id/my-notify, 볼 수 있는 메일함만 — 남의 개인 계정 404) · 화면 설정 > 알림 «메일 주소별 알림».
 >   채널 매트릭스(mail × 채널)와는 독립 축. 운영 `migrate-mail-notify-per-user.js`(배포 슬롯, 코드보다 먼저). 설계 `docs/MAIL_NOTIFY_PER_ADDRESS_DESIGN.md`.
 >
+> ⑨ **«답변 필요» 폴더는 귀속(할 일) 축이다** (2026-11-10, Irene *"주소에 담당자 넣으면 답변필요에 담당아닌 사람은 안나와야"* · Fable DESIGN-READY) —
+>   답변 담당 > 공용 메일함 책임자(활성 멤버) > 볼 수 있는 전원(대표도 같음). 목록·탭 수·«모두 답변 불필요»(all+folder) 가 `services/mailTodoWhere.folderOwnershipWhere`
+>   **한 함수**를 부른다(확인필요·메뉴 배지와 같은 빌더). 전체·검색·상세·확인 권장은 그대로(보는 권한 불변). 책임자 바뀌면 `responsible_changed` 방송.
+>   «모두 답변 불필요/확인완료» 는 메일 자체 상태라 공용이면 전원에게 바뀐다 → 확인 단계에 `bulk.sharedNote`(공용 메일함이 섞일 때만). 읽음만 사람별.
+>
 > 회귀: `node scripts/e2e/run.js --suite maillabel` (16검사 — 폴더 술어 · i18n 원천 ko/en · 실화면 문구 ·
 > 배지 축 · **폰(375) 가시 단서** · 누르기 전후 수 일치).
 > ★ **빌드된 locales 는 `gzip_static`** 이다 — 대조군으로 문구를 되돌릴 때 평문 `.json` 만 바꾸면

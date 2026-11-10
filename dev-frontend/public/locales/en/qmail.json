@@ -593,11 +593,12 @@
     "confirmDismiss": "Mark all loaded emails as no reply needed?",
     "confirm": "Confirm",
     "cancel": "Cancel",
-    "confirmDone": "Mark all read",
+    "confirmDone": "Mark all handled",
     "markRead": "Mark all read",
     "working": "Working…",
     "confirmN": "Apply to {{n}}?",
     "withCount": "{{label}} ({{n}})",
+    "sharedNote": "Mail in a shared inbox is updated for everyone who sees it. Only read marks are yours alone.",
     "capped": "Too many to do at once — part of them were handled. Press again to continue."
   },
   "notifyScope": {

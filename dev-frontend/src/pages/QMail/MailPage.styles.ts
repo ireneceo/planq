@@ -1122,6 +1122,11 @@ export const BulkCappedNote = styled.div`
   margin-top: 2px; padding: 0 2px;
   color: #92400E; font-size: 0.6875rem; font-weight: 600; line-height: 1.4;
 `;
+export const BulkSharedNote = styled.div`
+  flex-basis: 100%;
+  margin-top: 2px; padding: 0 2px;
+  color: #475569; font-size: 0.6875rem; font-weight: 600; line-height: 1.4;
+`;
 export const BulkAction = styled.button<{ $confirm?: boolean }>`
   flex-shrink: 0; align-self: center;
   display: inline-flex; align-items: center; gap: 5px;

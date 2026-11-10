@@ -27,6 +27,7 @@ const { inlineMailTableStyles } = require('../services/emailHtmlInline');
 const { buildQuote, buildForwardHeader, isolateForwardedHtml } = require('../services/emailQuote');
 // 폴더 정의·정렬은 services/mailFolders 가 단일 원천 (리스트 라우트 + 벌크 처리 공용)
 const { folderWhere, searchFolderWhere, folderOf, sentOrder, sentViaWhere, normalizeSentVia, receivedOrder, receivedAtAttribute, BULK_FOLDERS } = require('../services/mailFolders');
+const { folderOwnershipWhere } = require('../services/mailTodoWhere');
 // accessibleAccountIds 도 여기서 온다 — 프라이버시 격리 정의를 두 벌 두지 않는다
 const { outgoingIdentityFor, accessibleAccountIds, receivedAddressesOf } = require('../services/mailIdentity');
 // 검색 결과의 "왜 걸렸나" (match: { field, snippet }) — 2026-09-11
@@ -140,6 +141,12 @@ router.get('/:businessId/email-threads',
         where.account_id = reqId;
       } else {
         where.account_id = { [Op.in]: acctIds };
+      }
+      // «답변 필요» 폴더 = 내 할 일(귀속) — 답변 담당 > 메일함 책임자 > 전원 (services/mailTodoWhere 한 곳 · 2026-11-10 Fable).
+      //   확인필요·메뉴 배지와 같은 술어. 일괄 처리(resolveBulkTargetIds)도 같은 함수를 부른다. Op.and 안에 — 최상위 키를 덮지 않게.
+      {
+        const own = await folderOwnershipWhere(folder, hasQuery, businessId, req.user.id, account_id ? [Number(account_id)] : acctIds);
+        if (own) where[Op.and] = [...(where[Op.and] || []), own];
       }
       // 별칭별 보기 — "support@ 로 온 것만" 처럼 우리 쪽 수신 주소로 좁힌다.
       //   계정 격리(위 account_id 조건) 안에서만 동작하므로 남의 개인 메일이 새지 않는다.
@@ -987,10 +994,14 @@ async function resolveBulkTargetIds(body, businessId, userId, actionWhere = {}) 
     ? folderWhere(body.folder, userId, businessId)
     : (() => { const ids = parseThreadIds(body); return ids.length ? { id: { [Op.in]: ids } } : null; })();
   if (!selector) return { ids: [], acctScope, capped: false };
+  // 폴더 전체 갈래는 목록과 같은 귀속 술어 — 안 그러면 «모두 답변 불필요» 가 내 눈에 안 보이는 남의 담당 메일까지 끈다.
+  //   thread_ids 갈래는 좁히지 않는다(개별 버튼과 같은 권한).
+  const own = (body?.all && BULK_FOLDERS.has(body?.folder))
+    ? await folderOwnershipWhere(body.folder, false, businessId, userId, scopeIds) : null;
 
   // Op.and 로 합친다 — 펼쳐 넣으면 같은 컬럼 조건(status 등)이 서로를 덮어쓴다.
   const rows = await EmailThread.findAll({
-    where: { [Op.and]: [selector, { business_id: businessId, account_id: acctScope }, actionWhere] },
+    where: { [Op.and]: [selector, { business_id: businessId, account_id: acctScope }, actionWhere, ...(own ? [own] : [])] },
     attributes: ['id'], limit: BULK_MAX + 1,
   });
   const all = rows.map((r) => r.id);

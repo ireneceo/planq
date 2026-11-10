@@ -13,6 +13,7 @@
 const SIGNAL_KEYS = new Set([
   'id', 'thread_id', 'message_id', 'business_id', 'bulk', 'handled', 'unread', 'reply_needed', 'status',
   'rule_applied', 'rule_deleted', 'follow_up_days', 'assignee_user_id', 'issue_added', 'note_added', 'is_new_thread',
+  'responsible_changed',
 ]);
 function mailSignal(payload) {
   if (!payload || typeof payload !== 'object') return payload;
@@ -29,7 +30,9 @@ function broadcastMail(req, businessId, event, rawPayload) {
   const payload = mailSignal(rawPayload && typeof rawPayload === 'object' ? { ...rawPayload, business_id: Number(businessId) } : rawPayload);
   const room = `business:${businessId}`;
   io.to(room).emit(event, payload);
-  if (payload && Object.prototype.hasOwnProperty.call(payload, 'reply_needed')) {
+  // 답변 필요 «귀속» 이 바뀌는 신호(담당 지정·메일함 책임자·개인↔공용)도 확인필요·메뉴 배지를 다시 세게 한다(2026-11-10 Fable).
+  const has = (k) => payload && Object.prototype.hasOwnProperty.call(payload, k);
+  if (has('reply_needed') || has('assignee_user_id') || has('responsible_changed')) {
     io.to(room).emit('inbox:refresh', { reason: 'mail_reply_needed' });
   }
 }

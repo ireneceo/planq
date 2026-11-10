@@ -13,6 +13,7 @@ const { successResponse, errorResponse } = require('../middleware/errorHandler')
 const { encrypt, decrypt } = require('../services/encryption');
 const { createAuditLog } = require('../middleware/audit');
 const { accountHealth, oauthToPasswordPatch } = require('../services/emailAccountHealth');
+const { broadcastMail } = require('../services/mailBroadcast');
 
 // admin 권한 검사 — owner 또는 admin 또는 platform_admin
 function isAdmin(req) {
@@ -340,6 +341,11 @@ router.put('/:businessId/email-accounts/:id', authenticateToken, checkBusinessAc
       newValue: { fields: Object.keys(patch), ...(remediation ? { owner_user_id: acc.owner_user_id } : {}),
         ...('responsible_user_id' in patch ? { responsible_user_id: acc.responsible_user_id ?? null } : {}) },
     });
+    // 책임자·개인↔공용이 실제로 바뀌면 «답변 필요» 귀속이 바뀐다 — 열린 Q mail·확인필요가 F5 없이 다시 읽게 신호만(2026-11-10 Fable).
+    if (('responsible_user_id' in patch && prevResponsible !== (acc.responsible_user_id ?? null))
+      || ('owner_user_id' in patch && prevOwner !== acc.owner_user_id)) {
+      broadcastMail(req, acc.business_id, 'mail:updated', { bulk: true, responsible_changed: true });
+    }
     // 목록(GET)과 같은 모양으로 돌려준다 — 화면이 응답을 통째로 대입해도 폴더 상태가 사라지지 않게(가드 savemerge 계열)
     const fm = await extraFoldersByAccount(req.params.businessId, [acc.id]);
     successResponse(res, { ...serializeAccount(acc), extra_folders: fm.get(acc.id) || serializeExtraFolders([]) });
