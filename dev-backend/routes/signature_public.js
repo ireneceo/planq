@@ -262,10 +262,10 @@ router.post('/sign/request-link', linkLimiter, async (req, res, next) => { // au
 });
 
 async function sendLinkAgain(sr) {
-  const { User, Business } = require('../models');
+  const { Business } = require('../models');
   const entity = await loadEntity(sr.entity_type, sr.entity_id);
   const wsSender = await require('../services/workspaceSender').loadWorkspaceSender(sr.business_id);
-  const sender = await User.findByPk(sr.requester_user_id, { attributes: ['name'] });
+  const sender = await require('../services/displayName').getMemberDisplayNameByUser(sr.business_id, sr.requester_user_id);   // 워크스페이스 표시명
   await require('../services/emailService').sendSignatureRequestEmail({
     to: sr.signer_email,
     docTitle: sr.title_snapshot || entity?.title || '문서',

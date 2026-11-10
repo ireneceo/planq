@@ -80,7 +80,7 @@ async function createInvite(req, businessId, { email, existingUserId, inviteRole
   try {
     const { sendInviteEmail } = require('./emailService');
     const biz = await Business.findByPk(businessId, { attributes: ['brand_name', 'name'] });
-    const inviter = await User.findByPk(req.user.id, { attributes: ['name'] });
+    const inviter = await require('./displayName').getMemberDisplayNameByUser(businessId, req.user.id);   // 워크스페이스 표시명(계정 실명 X)
     await sendInviteEmail({
       to: email,
       workspaceName: biz?.brand_name || biz?.name || '',

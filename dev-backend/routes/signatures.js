@@ -129,7 +129,7 @@ router.post('/posts/:id/signatures', authenticateToken, async (req, res, next) =
     const expiresAt = new Date(Date.now() + expiresInDays * 86400 * 1000);
 
     // 발송자 + 워크스페이스 정보
-    const sender = await User.findByPk(req.user.id, { attributes: ['name'], transaction: t });
+    const sender = await require('../services/displayName').getMemberDisplayNameByUser(post.business_id, req.user.id);   // 받는 쪽에 보이는 이름 = 워크스페이스 표시명
     const business = await Business.findByPk(post.business_id, { attributes: ['name', 'brand_name'], transaction: t });
 
     // #239 — 서명 요청(sign) vs 확인 요청(confirm). 모르는 값이면 sign 으로 떨어진다(fail-safe:
@@ -375,7 +375,7 @@ router.post('/signatures/:id/reminder', authenticateToken, async (req, res, next
       return errorResponse(res, 'cannot_remind', 400);
     }
     const post = await Post.findByPk(sr.entity_id);
-    const sender = await User.findByPk(req.user.id, { attributes: ['name'] });
+    const sender = await require('../services/displayName').getMemberDisplayNameByUser(sr.business_id, req.user.id);   // 워크스페이스 표시명
     const wsSender = await require('../services/workspaceSender').loadWorkspaceSender(sr.business_id);
     const signUrl = `${APP_URL}/sign/${sr.token}`;
     await sendSignatureRequestEmail({

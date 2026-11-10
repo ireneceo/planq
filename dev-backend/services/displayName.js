@@ -109,6 +109,15 @@ async function getMemberDisplayName(businessId, userId, fallbackName, fallbackLo
   };
 }
 
+// 사람 한 명의 워크스페이스 표시명 — 계정 이름(users.name)을 스스로 읽어 fallback 한다.
+//   메일·공개 링크처럼 «받는 쪽에 보이는 보낸 사람 이름» 에 쓴다(초대 메일 등 · 2026-11-10: 계정 실명이 그대로 나갔다).
+async function getMemberDisplayNameByUser(businessId, userId) {
+  if (!userId) return { name: null, name_localized: null };
+  const { User } = require('../models');
+  const u = await User.findByPk(userId, { attributes: ['name', 'name_localized'], raw: true });
+  return getMemberDisplayName(businessId, userId, u?.name, u?.name_localized);
+}
+
 /**
  * 게스트 메시지의 표시명을 **메시지 행에 박제된 값**으로 바꾼다 (#259, 2026-09-02).
  *
@@ -145,5 +154,6 @@ module.exports = {
   applyMemberDisplayName,
   applyMemberDisplayNameOne,
   getMemberDisplayName,
+  getMemberDisplayNameByUser,
   applyGuestDisplayName,
 };

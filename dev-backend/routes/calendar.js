@@ -1233,6 +1233,9 @@ router.get('/public/by-token/:token', async (req, res, next) => {
     if (checkShareExpiry(ev, res)) return;
     const v = await verifySharePassword(ev, req);
     if (!v.ok) return res.status(v.status).json({ success: false, message: v.error, requires_password: v.requires_password });
+    // 작성자 = 워크스페이스 표시명(멤버 이름) — 계정 실명이 공개 링크로 새지 않게(2026-11-10, 파일·Q info 공개와 같은 함수)
+    const creator = ev.creator ? { id: ev.creator.id, name: ev.creator.name } : null;
+    if (creator) await applyMemberDisplayNameOne({ creator }, ev.business_id, ['creator']);
     return successResponse(res, {
       id: ev.id,
       title: ev.title,
@@ -1243,7 +1246,7 @@ router.get('/public/by-token/:token', async (req, res, next) => {
       all_day: ev.all_day,
       category: ev.category,
       meeting_url: ev.meeting_url,
-      creator: ev.creator ? { id: ev.creator.id, name: ev.creator.name } : null,
+      creator: creator ? { id: creator.id, name: creator.name } : null,
       project: ev.Project ? { id: ev.Project.id, name: ev.Project.name } : null,
       workspace: ev.Business ? { id: ev.Business.id, name: ev.Business.brand_name || ev.Business.name, timezone: ev.Business.timezone || null } : null,
       shared_at: ev.shared_at,

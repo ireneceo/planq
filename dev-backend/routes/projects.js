@@ -3645,7 +3645,7 @@ router.post('/:id/clients', authenticateToken, async (req, res, next) => {
       try {
         const { sendInviteEmail } = require('../services/emailService');
         const sender = await require('../services/workspaceSender').loadWorkspaceSender(project.business_id);
-        const inviter = await User.findByPk(req.user.id, { attributes: ['name'] });
+        const inviter = await require('../services/displayName').getMemberDisplayNameByUser(project.business_id, req.user.id);   // 워크스페이스 표시명(계정 실명 X)
         await sendInviteEmail({
           to: row.contact_email,
           ...sender,
@@ -3691,7 +3691,7 @@ router.post('/:id/clients/:clientId/resend-invite', authenticateToken, async (re
     try {
       const { sendInviteEmail } = require('../services/emailService');
       const sender = await require('../services/workspaceSender').loadWorkspaceSender(project.business_id);
-      const inviter = await User.findByPk(req.user.id, { attributes: ['name'] });
+      const inviter = await require('../services/displayName').getMemberDisplayNameByUser(project.business_id, req.user.id);   // 워크스페이스 표시명(계정 실명 X)
       await sendInviteEmail({
         to: row.contact_email,
         ...sender,

@@ -2693,6 +2693,12 @@ router.get('/public/by-token/:token', async (req, res, next) => {
     const v = await verifySharePassword(task, req);
     if (!v.ok) return res.status(v.status).json({ success: false, message: v.error, requires_password: v.requires_password });
     const tps = require('../services/taskPublicShare');
+    // 담당자·요청자 = 워크스페이스 표시명(멤버 이름) — 계정 실명이 공개 링크로 새지 않게(2026-11-10)
+    const people = {
+      assignee: task.assignee ? { id: task.assignee.id, name: task.assignee.name } : null,
+      creator: task.creator ? { id: task.creator.id, name: task.creator.name } : null,
+    };
+    await applyMemberDisplayNameOne(people, task.business_id, ['assignee', 'creator']);
     return successResponse(res, {
       id: task.id,
       title: task.title,
@@ -2702,8 +2708,8 @@ router.get('/public/by-token/:token', async (req, res, next) => {
       start_date: task.start_date,
       due_date: task.due_date,
       category: task.category,
-      assignee: task.assignee ? { id: task.assignee.id, name: task.assignee.name } : null,
-      creator: task.creator ? { id: task.creator.id, name: task.creator.name } : null,
+      assignee: people.assignee ? { id: people.assignee.id, name: people.assignee.name } : null,
+      creator: people.creator ? { id: people.creator.id, name: people.creator.name } : null,
       project: task.Project ? { id: task.Project.id, name: task.Project.name } : null,
       workspace: task.Business ? { id: task.Business.id, name: task.Business.brand_name || task.Business.name } : null,
       shared_at: task.shared_at,
