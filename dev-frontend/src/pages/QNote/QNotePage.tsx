@@ -1882,6 +1882,28 @@ const QNotePage = ({ scope, onRecordingChange }: QNotePageProps = {}) => {
   }, [phase, reviewBlocks, blocks]);
   const showRecordingUI = phase === 'prepared' || phase === 'recording' || phase === 'paused';
 
+  // 참여자 + «내 발화»(처리 안 함·숨김·보기) 줄 — 녹음 화면과 다 끝난 노트 화면이 같이 쓴다.
+  // ★ 2026-09-07 녹음 화면 쪽을 «중복» 으로 지웠는데 두 화면은 서로 배타(showRecordingUI ↔ review)라
+  //   중복이 아니었다 → 녹음 중에 «내 발화» 설정이 사라졌다(2026-11-11 Irene 신고). 한 곳에서 그린다.
+  const renderParticipantBar = () => (activeSession ? (
+    <ParticipantBar data-testid="qnote-participant-bar">
+      <ParticipantBarLabel>{t('page.participantBar.label', { count: (activeSession.participants?.length ?? 0) + 1 })}</ParticipantBarLabel>
+      <ParticipantPill key="self">{t('page.participantBar.self')}</ParticipantPill>
+      {(activeSession.participants || []).map((p, i) => (
+        <ParticipantPill key={i}>
+          {p.name}
+          {p.role && <ParticipantPillRole>{p.role}</ParticipantPillRole>}
+        </ParticipantPill>
+      ))}
+      <SelfModeGroup data-testid="qnote-self-mode">
+        <SelfModeLabel>{t('page.selfMode.label', '내 발화')}</SelfModeLabel>
+        <SelfModeBtn $active={selfMode === 'skip'} onClick={() => setSelfMode('skip')} title={t('page.selfMode.skipTitle', '내 발화는 아예 처리 안 함 (가장 빠름)')}>{t('page.selfMode.skip', '처리 안 함')}</SelfModeBtn>
+        <SelfModeBtn $active={selfMode === 'hide'} onClick={() => setSelfMode('hide')} title={t('page.selfMode.hideTitle', '내 발화는 녹음·저장하되 화면에서 숨김')}>{t('page.selfMode.hide', '숨김')}</SelfModeBtn>
+        <SelfModeBtn $active={selfMode === 'show'} onClick={() => setSelfMode('show')} title={t('page.selfMode.showTitle', '내 발화도 다 보여줌')}>{t('page.selfMode.show', '보기')}</SelfModeBtn>
+      </SelfModeGroup>
+    </ParticipantBar>
+  ) : null);
+
   // #241 — 이 세션이 번역을 쓰는가. 자동 번역 호출과 "번역 중…" 표시를 전부 이 값으로 막는다.
   //   백엔드만 고치면 번역은 안 오는데 placeholder 가 남아 "영원히 번역 중" 으로 보인다.
   //   ★ 서버의 wants_translation 과 **같은 3조건**이어야 한다. 하나라도 빠지면 서버는 빈 번역을
@@ -3031,10 +3053,8 @@ const QNotePage = ({ scope, onRecordingChange }: QNotePageProps = {}) => {
               </HeaderBand>
             )}
 
-            {/* ★ 2026-09-07 — 여기 있던 참여자 바를 **지웠다.** 아래 요약·업무 밴드 다음에
-                같은 바가 한 번 더 그려지고 있었다(실측: '<ParticipantBar>' 2회). 헤더 접기를
-                없애면서 '{!headerCollapsed && …}' 가드가 사라지자 중복이 그대로 드러난다.
-                정본은 아래 하나 — "녹음 transcript 바로 위" 가 이 바의 자리다. */}
+            {/* 참여자 + «내 발화» — 녹음 화면(여기)과 끝난 노트 화면은 서로 배타라 각자 한 번씩 그린다. */}
+            {renderParticipantBar()}
 
             {liveError && <ErrorBar>{liveError}</ErrorBar>}
             {liveNotice && <NoticeBar>{liveNotice}</NoticeBar>}
@@ -3402,22 +3422,7 @@ const QNotePage = ({ scope, onRecordingChange }: QNotePageProps = {}) => {
             </TasksSection>
 
             {/* N+88 — 참여자/내 발화 모드: 녹음 transcript 바로 위 (요약·업무 아래) */}
-            <ParticipantBar>
-              <ParticipantBarLabel>{t('page.participantBar.label', { count: (activeSession.participants?.length ?? 0) + 1 })}</ParticipantBarLabel>
-              <ParticipantPill key="self">{t('page.participantBar.self')}</ParticipantPill>
-              {(activeSession.participants || []).map((p, i) => (
-                <ParticipantPill key={i}>
-                  {p.name}
-                  {p.role && <ParticipantPillRole>{p.role}</ParticipantPillRole>}
-                </ParticipantPill>
-              ))}
-              <SelfModeGroup>
-                <SelfModeLabel>{t('page.selfMode.label', '내 발화')}</SelfModeLabel>
-                <SelfModeBtn $active={selfMode === 'skip'} onClick={() => setSelfMode('skip')} title={t('page.selfMode.skipTitle', '내 발화는 아예 처리 안 함 (가장 빠름)')}>{t('page.selfMode.skip', '처리 안 함')}</SelfModeBtn>
-                <SelfModeBtn $active={selfMode === 'hide'} onClick={() => setSelfMode('hide')} title={t('page.selfMode.hideTitle', '내 발화는 녹음·저장하되 화면에서 숨김')}>{t('page.selfMode.hide', '숨김')}</SelfModeBtn>
-                <SelfModeBtn $active={selfMode === 'show'} onClick={() => setSelfMode('show')} title={t('page.selfMode.showTitle', '내 발화도 다 보여줌')}>{t('page.selfMode.show', '보기')}</SelfModeBtn>
-              </SelfModeGroup>
-            </ParticipantBar>
+            {renderParticipantBar()}
 
             <Transcript>
               {renderBlocks.length === 0 && <EmptyTranscript>{t('page.reviewEmpty')}</EmptyTranscript>}
