@@ -1989,7 +1989,7 @@ const DrawerTitleEdit: React.FC<{
         role="button"
         tabIndex={0}
         aria-label={`${initialValue} — ${t('inline.editHint', '클릭해서 편집')}`}
-        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setEditing(true); } }}
+        onKeyDown={(e) => { if (isEnterAction(e) || e.key === ' ') { e.preventDefault(); setEditing(true); } }}
       >{initialValue}</DrawerTitle>
     );
   }

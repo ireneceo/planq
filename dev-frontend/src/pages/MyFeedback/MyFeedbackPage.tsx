@@ -20,7 +20,7 @@ import { openFeedback } from '../../utils/feedbackOpen';
 import { HeaderCta, CtaPlus } from '../../components/Common/headerCta';
 import EmptyState from '../../components/Common/EmptyState';
 import { mapApiError } from '../../utils/apiError';
-import { isEnterAction } from '../../utils/imeKey';
+import { isEnterAction, isComposingEvent } from '../../utils/imeKey';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
 
 interface FeedbackItem {
@@ -383,7 +383,7 @@ const MyFeedbackPage = () => {
                       placeholder={t('myFeedback.followup.placeholder') as string}
                       rows={3}
                       onKeyDown={e => {
-                        if (e.nativeEvent.isComposing || (e.nativeEvent as KeyboardEvent).keyCode === 229) return;
+                        if (isComposingEvent(e)) return;
                         if (isEnterAction(e) && (e.metaKey || e.ctrlKey)) { e.preventDefault(); submitFollowup(); }
                         if (e.key === 'Escape' && !followup.trim()) setComposeOpen(false);
                       }}

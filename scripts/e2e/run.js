@@ -344,6 +344,8 @@ const SUITES = {
   chatmore: () => require('./canary-chat-more-menu'),
   // «모든 버튼 눌러보기» 순찰 — 화면 × 폰·태블릿·PC 웹 + 폰·아이패드 앱 흉내. 쓰기 요청은 전부 막는다(데이터 불변). 매일 밤 cron.
   patrol: () => require('./canary-button-patrol'),
+  // 한 칸 + 옆 버튼 한 줄 «엔터 = 그 버튼» · 한글 조합 중 엔터 무시 · 키보드로 카드 열기 (2026-11-11)
+  enterkeys: () => require('./canary-enter-keys'),
   // 쓰다 만 글이 남는가 · 남의 글과 섞이지 않는가 (DRAFT_PERSISTENCE_DESIGN D-C6). 창 두 개·같은 문서 두 탭·
   //   로그아웃·사칭·옛 키 이관을 실브라우저로 — 인스턴스끼리 덮어쓰는 유실은 한 창 검사로는 안 드러난다.
   drafts: () => require('./canary-drafts'),

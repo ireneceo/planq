@@ -21,6 +21,7 @@ import { joinRoom, leaveRoom, onSocket } from '../../services/socket';
 import { fetchTodo, type TodoResponse, type TodoItem } from '../../services/dashboard';
 import { useNotifications } from '../../hooks/useNotifications';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
+import { isEnterAction } from '../../utils/imeKey';
 
 interface CalEventLite {
   id: number;
@@ -153,7 +154,8 @@ const DashboardPage: React.FC = () => {
       {orgScope === 'personal' && (<>
       {/* 1. 인박스 카드 + 4 액션 (한 행) */}
       <TopRow>
-        <InboxCard onClick={navTo('/inbox')} role="button" tabIndex={0}>
+        <InboxCard onClick={navTo('/inbox')} role="button" tabIndex={0} data-testid="dashboard-inbox-card"
+          onKeyDown={(e) => { if (e.target === e.currentTarget && (isEnterAction(e) || e.key === ' ')) { e.preventDefault(); navigate('/inbox'); } }}>
           <InboxLabel>{t('inboxCard.label', '확인 필요')}</InboxLabel>
           <InboxCount $highlight={totalInbox > 0}>{totalInbox}</InboxCount>
           <InboxBreakdown>

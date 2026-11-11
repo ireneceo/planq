@@ -6,6 +6,7 @@ import StandardModal from '../../components/Common/StandardModal';
 import ActionButton from '../../components/Common/ActionButton';
 import PlanQSelect from '../../components/Common/PlanQSelect';
 import { createCard, CardApiError, type MyCard, type PrefillSource } from '../../services/nameCards';
+import { isEnterAction } from '../../utils/imeKey';
 
 interface Props {
   open: boolean;
@@ -56,7 +57,7 @@ const CreateCardModal: React.FC<Props> = ({ open, sources, defaultSource, onClos
         <Input id="card-create-label" ref={inputRef} value={label} maxLength={60} data-testid="card-create-label"
           placeholder={t('create.labelPlaceholder') as string}
           onChange={(e) => setLabel(e.target.value)}
-          onKeyDown={(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) void submit(); }} />
+          onKeyDown={(e) => { if (isEnterAction(e) && (e.metaKey || e.ctrlKey)) void submit(); }} />
         <Hint>{t('create.labelHint')}</Hint>
       </Field>
       <Field>

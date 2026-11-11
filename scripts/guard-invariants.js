@@ -337,6 +337,34 @@ function checkDropdownClip() {
     rt.fails.length === 0, rt.fails.length ? [...rt.fails, ...samples] : (opts.verbose ? samples : []));
 }
 
+// enterime — 엔터를 `e.key === 'Enter'` 로 직접 비교하는 곳 래칫 (2026-11-11)
+//   한글 조합 중 엔터는 «확정» 이다 — 직접 비교하면 «안녕하세» 까지 쓴 글이 저장·전송된다.
+//   `isComposing` 만 보는 것도 모자라다(keyCode 229 를 같이 봐야 한다). 판정은 utils/imeKey 한 곳:
+//   isEnterAction(e) / isComposingEvent(e). 같은 줄에 그 판정이 있으면 세지 않는다.
+//   memory feedback_ime_enter_needs_guard · UI_DESIGN_GUIDE §1.8
+function checkEnterIme() {
+  const files = walk(`${ROOT}/dev-frontend/src`, ['.ts', '.tsx']);
+  const current = {}; const samples = [];
+  const re = /\.key\s*===?\s*['"]Enter['"]|['"]Enter['"]\s*===?\s*\w+\.key|nativeEvent\.isComposing/;
+  for (const f of files) {
+    const r = rel(f);
+    if (r.endsWith('utils/imeKey.ts')) continue;
+    let n = 0;
+    read(f).split('\n').forEach((l, i) => {
+      const t = l.trim();
+      if (t.startsWith('//') || t.startsWith('*') || t.startsWith('/*')) return;
+      if (!re.test(l)) return;
+      if (/isEnterAction\(|isComposingEvent\(/.test(l)) return;
+      n++;
+      if (samples.length < 20) samples.push(`${r}:${i + 1}: ${t.slice(0, 100)}`);
+    });
+    if (n) current[r] = n;
+  }
+  const rt = ratchet('enterime', current, samples);
+  report('enterime', `엔터 직접 비교 래칫 — utils/imeKey 의 isEnterAction 을 쓴다 (현재 ${rt.curTotal} / 베이스 ${rt.baseTotal})`,
+    rt.fails.length === 0, rt.fails.length ? [...rt.fails, ...samples] : (opts.verbose ? samples : []));
+}
+
 // ═══════════════════════════════════════════════
 // 2b. parity — locales ko/en 키 패리티 래칫 + i18n.ts ns 등록 하드 게이트
 //     "기획 단계부터 ko/en 동시 작성" (CLAUDE.md 다국어 필수) 자동 검출.
@@ -4068,6 +4096,7 @@ const CATEGORIES = {
   iosstack: checkIosStack,
   popuptop: checkPopupTop,
   dropdownclip: checkDropdownClip,
+  enterime: checkEnterIme,
   mailsender: checkMailSender,
   tenant: checkTenant,
   pagination: checkPagination,

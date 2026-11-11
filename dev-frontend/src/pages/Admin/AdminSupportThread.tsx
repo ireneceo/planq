@@ -8,6 +8,7 @@ import { useTimeFormat } from '../../hooks/useTimeFormat';
 import { useDraftKey, useDraftText } from '../../hooks/useDraftText';
 import { PrimaryBtn, SecondaryBtn } from './adminModalKit';
 import { openSupportRoom, sendSupportMessage, type SupportRoomDetail, type SupportMessage } from '../../services/admin';
+import { isEnterAction } from '../../utils/imeKey';
 
 /** 방 하나 읽기 — businessId 가 바뀌면 다시 읽는다. reload 는 소켓·탭 복귀에서 부른다. */
 export function useSupportRoom(businessId: number | null) {
@@ -128,7 +129,7 @@ export function SupportComposer({ businessId, room, insert, onSent, onClose }: {
         onChange={(e) => { setText(e.target.value); if (!e.target.value.trim()) setRuleKey(null); }}
         rows={4}
         placeholder={t('support.replyPh', 'PlanQ 팀으로 답하기 — 보내면 워크스페이스 사람들에게 알림이 갑니다 (Ctrl/⌘ + Enter)') as string}
-        onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') { e.preventDefault(); void send(); } }}
+        onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && isEnterAction(e)) { e.preventDefault(); void send(); } }}
         data-testid="admin-support-reply"
         data-draft-kind="admin-support-reply"
       />

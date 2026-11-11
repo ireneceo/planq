@@ -12,6 +12,7 @@ import ActionButton from '../../Common/ActionButton';
 import PlanQSelect, { type PlanQSelectOption } from '../../Common/PlanQSelect';
 import SingleDateField from '../../Common/SingleDateField';
 import { fetchSurveyCandidates, sendSurveyIssue, type SurveyCandidate, type SurveyIssueView, type SurveyQuota } from '../../../services/qtable';
+import { isEnterAction } from '../../../utils/imeKey';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const isoDay = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -176,7 +177,7 @@ const SurveySendModal: React.FC<Props> = ({ open, onClose, recordId, surveyTitle
           <Label>{t('survey.addEmail', '이메일 직접 추가')}</Label>
           <Row>
             <Grow><SearchInput value={emailDraft} onChange={(e) => setEmailDraft(e.target.value)} placeholder="name@company.com"
-              onKeyDown={(e) => { if (e.key === 'Enter' && !e.nativeEvent.isComposing) { e.preventDefault(); addEmail(); } }} aria-label={t('survey.addEmail', '이메일 직접 추가') as string} /></Grow>
+              onKeyDown={(e) => { if (isEnterAction(e)) { e.preventDefault(); addEmail(); } }} aria-label={t('survey.addEmail', '이메일 직접 추가') as string} /></Grow>
             <ActionButton tone="secondary" size="sm" onClick={addEmail} disabled={!emailDraft.trim()}>{t('survey.add', '추가')}</ActionButton>
           </Row>
           {emails.length > 0 && (

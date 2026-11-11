@@ -12,6 +12,7 @@ import DetailDrawer from '../Common/DetailDrawer';
 import ActionButton from '../Common/ActionButton';
 import { useDraftKey, useDraftText } from '../../hooks/useDraftText';
 import { proposePostAiEdit, applyPostAiEdit, type AiEditProposal, type AiEditChange, type AiEditLoc } from '../../services/posts';
+import { isEnterAction } from '../../utils/imeKey';
 
 interface Props {
   open: boolean;
@@ -125,7 +126,7 @@ const PostAiEditDrawer: React.FC<Props> = ({ open, onClose, postId, onApplied })
             placeholder={t('aiEdit.placeholder', '예: 소고기 가격을 모두 5링깃으로 바꿔줘') as string}
             onChange={draft.bind.onChange}
             onKeyDown={(e) => {
-              if (e.key === 'Enter' && (e.metaKey || e.ctrlKey) && !e.nativeEvent.isComposing) { e.preventDefault(); void propose(); }
+              if (isEnterAction(e) && (e.metaKey || e.ctrlKey)) { e.preventDefault(); void propose(); }
             }}
           />
           <Hint>{t('aiEdit.hint', 'AI 가 수정안을 만들면 고칠 곳마다 수정 전·후를 보여 드려요. 체크한 곳만 문서에 적용되고, 적용한 뒤에도 되돌릴 수 있어요. 글과 표 칸의 내용만 바꿀 수 있어요(행·문단 추가나 삭제는 [편집]에서).')}</Hint>

@@ -17,6 +17,7 @@ import { apiFetch } from '../../contexts/AuthContext';
 import { formatDayTime } from '../../utils/dateFormat';
 // 쓰다 만 설명은 남는다(가드 --category=draft)
 import { useDraftKey, useDraftText } from '../../hooks/useDraftText';
+import { isEnterAction } from '../../utils/imeKey';
 
 export interface HistoryRef { source_table: string; source_id: number; }
 
@@ -185,7 +186,7 @@ function NoteEditor({ row, historyRef, projectId, clientSees, edited, onDone, on
         {...draft.bind}
         onKeyDown={(e) => {
           if (e.key === 'Escape') { e.stopPropagation(); cancel(); }
-          if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) save(e);
+          if (isEnterAction(e) && (e.metaKey || e.ctrlKey)) save(e);
         }} />
       <Meta>
         <Count $over={len > MAX}>{len}/{MAX}</Count>

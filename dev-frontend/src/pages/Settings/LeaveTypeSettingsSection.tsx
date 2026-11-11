@@ -15,6 +15,7 @@ import ActionButton from '../../components/Common/ActionButton';
 import { Switch, SwitchKnob } from '../../components/Common/switchShell';
 import { useLeaveTypes, labelOf, type LeaveTypeRow } from '../Attendance/leaveTypes';
 import { Section, Head, Title, Hint, AddRow, NameInput, ErrText, Empty, List, Row, Badge, DelBtn } from './attendanceSectionShell';
+import { isEnterAction } from '../../utils/imeKey';
 
 type Draft = { name: string; days: string; pay: 'paid' | 'unpaid'; active: boolean };
 const toDraft = (x: LeaveTypeRow): Draft => ({
@@ -190,7 +191,7 @@ export default function LeaveTypeSettingsSection({ businessId }: { businessId: n
             placeholder={t('leaveTypes.addNamePh', '새 종류 이름 (예: 리프레시 휴가)') as string}
             aria-label={t('leaveTypes.addNamePh', '새 종류 이름 (예: 리프레시 휴가)') as string}
             onChange={(e) => setNewName(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) void submitAdd(); }}
+            onKeyDown={(e) => { if (isEnterAction(e) && (e.metaKey || e.ctrlKey)) void submitAdd(); }}
           />
           <PaySeg role="radiogroup" aria-label={t('leaveTypes.col.pay', '유급') as string}>
             {(['paid', 'unpaid'] as const).map((p) => (

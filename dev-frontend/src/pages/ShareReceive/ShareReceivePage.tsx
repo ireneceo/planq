@@ -25,6 +25,7 @@ import { fetchFolders, fetchWorkspaceFolders, createFolder, createWorkspaceFolde
 import { detectChatExport, chatExportFileName, type ChatExportInfo } from '../../utils/chatExport';
 import { textMatches } from '../../utils/searchMatch';
 import { useBackToClose } from '../../hooks/useBackToClose';
+import { isEnterAction } from '../../utils/imeKey';
 
 interface SharePayload {
   title: string;
@@ -596,6 +597,7 @@ const ShareReceivePage: React.FC = () => {
               <NewFolderInput
                 value={newFolderName}
                 onChange={(e) => setNewFolderName(e.target.value)}
+                onKeyDown={(e) => { if (isEnterAction(e) && newFolderName.trim() && busy === null) { e.preventDefault(); void addFolder(); } }}
                 placeholder={t('shareReceive.place.newFolderPh', '새 폴더 이름 (고른 폴더 안에 만듭니다)') as string}
                 maxLength={100}
                 data-testid="share-new-folder"

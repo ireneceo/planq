@@ -10,6 +10,7 @@ import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import StandardModal from '../Common/StandardModal';
 import ActionButton from '../Common/ActionButton';
+import { isEnterAction } from '../../utils/imeKey';
 
 interface Props {
   open: boolean;
@@ -86,7 +87,7 @@ const SignatureLinkModal: React.FC<Props> = ({ open, onClose, entityType, entity
           <Input
             type="email" value={email} autoFocus
             onChange={(e) => setEmail(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter' && !e.nativeEvent.isComposing) void submit(); }}
+            onKeyDown={(e) => { if (isEnterAction(e)) void submit(); }}
             placeholder="email@example.com" autoComplete="email" spellCheck={false}
             disabled={busy}
           />

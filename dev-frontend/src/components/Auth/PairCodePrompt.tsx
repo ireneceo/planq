@@ -18,6 +18,7 @@ import { pendingPairId, clearPair, claimWithCode, pairReadyForCode } from '../..
 import { useEscapeStack } from '../../hooks/useEscapeStack';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
+import { isEnterAction } from '../../utils/imeKey';
 
 const PairCodePrompt: React.FC<{ authed: boolean }> = ({ authed }) => {
   const { t } = useTranslation('auth');
@@ -92,7 +93,7 @@ const PairCodePrompt: React.FC<{ authed: boolean }> = ({ authed }) => {
           ref={inputRef}
           value={code}
           onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-          onKeyDown={(e) => { if (e.key === 'Enter') void submit(); }}
+          onKeyDown={(e) => { if (isEnterAction(e)) void submit(); }}
           inputMode="numeric"
           autoComplete="one-time-code"
           maxLength={6}

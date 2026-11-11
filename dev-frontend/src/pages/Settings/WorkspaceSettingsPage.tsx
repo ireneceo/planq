@@ -70,6 +70,7 @@ import WorkspaceBrandsSection from '../../components/Brand/WorkspaceBrandsSectio
 import WorkspaceDeletionSection from './WorkspaceDeletionSection';
 import NameCardViewDrawer, { MemberCardButton } from '../../components/NameCard/NameCardViewDrawer';
 import { formatDay, formatDayTime } from '../../utils/dateFormat';
+import { isEnterAction } from '../../utils/imeKey';
 
 type TabKey = 'payroll' | 'attendance' | 'brand' | 'legal' | 'language' | 'work-env' | 'storage' | 'plan' | 'permissions' | 'members' | 'cue' | 'billing' | 'email' | 'mail-accounts' | 'notifications' | 'work-flow' | 'data-export' | 'activity' | 'signatures';   // signatures — 서명 관리(owner/admin, 2026-10-23) · activity — 팀원 활동 기록(owner 전용)
 
@@ -1576,7 +1577,7 @@ export default function WorkspaceSettingsPage() {
                     placeholder={t('members.bulkInvite.placeholderMulti', '초대할 이메일 — 여러 명은 쉼표나 줄바꿈으로') as string}
                     value={inviteEmail}
                     onChange={(e) => setInviteEmail(e.target.value)}
-                    onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && e.key === 'Enter' && inviteEmailList.length) { e.preventDefault(); void sendMemberInvite(); } }}
+                    onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && isEnterAction(e) && inviteEmailList.length) { e.preventDefault(); void sendMemberInvite(); } }}
                   />
                   <InviteRoleSlot>
                     <RolePicker bizId={businessId} dict={roleDict.dict} onDictAdd={roleDict.add} size="md"

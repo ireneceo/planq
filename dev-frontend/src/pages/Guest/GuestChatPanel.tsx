@@ -199,7 +199,7 @@ export default function GuestChatPanel({ token, canWrite, active = true, onGone,
               <NameInput
                 data-testid="guest-name-input"
                 value={nameDraft} onChange={(e) => setNameDraft(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Enter' && !e.nativeEvent.isComposing) saveName(nameDraft, true); }}
+                onKeyDown={(e) => { if (isEnterAction(e)) saveName(nameDraft, true); }}
                 placeholder={t('namePh', { defaultValue: '이름 (선택)' }) as string}
                 maxLength={30} autoFocus />
               <NameBtn data-testid="guest-name-ok" type="button" onClick={() => saveName(nameDraft, true)}>

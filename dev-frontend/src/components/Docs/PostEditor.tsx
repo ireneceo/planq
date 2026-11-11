@@ -37,6 +37,7 @@ import EditorInsertDocButton from './EditorInsertDocButton';   // 다른 문서 
 import { toolbarScrollCss, useToolbarHScroll, ToolbarEdgeArrow } from '../Common/editorToolbarScroll';   // 글자색·배경·크기(2026-10-11 — 문서 안 표 포함)
 import { textStyleExtensions, currentTextStyleKeys, applyTextStyle, stripForeignTextStyle } from './editorTextStyle';
 import { clipboardPlainText } from '../../utils/clipboardPlainText';
+import { isComposingEvent } from '../../utils/imeKey';
 import { prepPastedHtml, htmlCarriesContent, hasDataImage, uploadDataImages } from '../../utils/pasteRich';   // 글+그림+영상 한꺼번에 붙이기(2026-11-04)
 
 // 사이클 N+16 — 노션 스타일 코드 블록. lowlight + common 언어팩 (30개+: js/ts/python/go/rust/sql/bash 등).
@@ -279,7 +280,7 @@ const PostEditor: React.FC<Props> = ({ value, onChange, onReady, placeholder, ed
   // ⌘/Ctrl+F 찾기 · ⌘⇧H(맥) / Ctrl+H 바꾸기 — 편집기 안(본문·툴바·막대)에 포커스가 있을 때만 가로챈다.
   //   그 밖에서는 브라우저 찾기를 그대로 둔다.
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (!editable || e.nativeEvent.isComposing) return;
+    if (!editable || isComposingEvent(e)) return;
     const mod = e.metaKey || e.ctrlKey;
     if (!mod || e.altKey) return;
     const k = e.key.toLowerCase();

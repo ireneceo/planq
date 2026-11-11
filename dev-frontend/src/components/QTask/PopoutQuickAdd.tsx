@@ -12,6 +12,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import styled from 'styled-components';
 import CalendarPicker from '../Common/CalendarPicker';
 import PlanQSelect from '../Common/PlanQSelect';
+import { isComposingEvent } from '../../utils/imeKey';
 
 const Wrap = styled.form`
   display: flex; gap: 6px; align-items: center;
@@ -160,7 +161,7 @@ const PopoutQuickAdd: React.FC<PopoutQuickAddProps> = ({ onAdd, placeholder, add
             // ★ IME 조합 중의 Enter 는 "조합 확정" 이지 제출이 아니다. 이 가드가 없으면
             //   한국어 입력에서 마지막 글자가 확정되는 순간 한 번 더 제출된다.
             if (e.key !== 'Enter') return;
-            if (e.nativeEvent.isComposing) return;
+            if (isComposingEvent(e)) return;
             e.preventDefault();
             void submit();
           }}

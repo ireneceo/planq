@@ -9,6 +9,7 @@ import styled from 'styled-components';
 import AutoSaveField from '../../components/Common/AutoSaveField';
 import { setPayerLabel, type ApiInvoice } from '../../services/invoices';
 import { payerCodeOf } from './invoiceCaps';
+import { isEnterAction } from '../../utils/imeKey';
 
 interface Props {
   invoice: ApiInvoice;
@@ -68,7 +69,7 @@ export default function PayerCodeEditor({ invoice, fallbackName, canEdit, onSave
           autoFocus value={val} maxLength={LABEL_MAX} autoComplete="off"
           onChange={(e) => setVal(e.target.value)}
           onBlur={() => setEditing(false)}
-          onKeyDown={(e) => { if (e.key === 'Escape' || e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+          onKeyDown={(e) => { if (e.key === 'Escape' || isEnterAction(e)) (e.target as HTMLInputElement).blur(); }}
           placeholder={t('detail.bank.payerNamePlaceholder', { defaultValue: '비우면 회사 이름' }) as string}
           aria-label={t('detail.bank.payerNameLabel', { defaultValue: '입금자명 번호 뒤 이름' }) as string}
           data-testid="invoice-payer-name-input"

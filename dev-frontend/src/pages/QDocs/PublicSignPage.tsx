@@ -42,6 +42,7 @@ import StandardModal from '../../components/Common/StandardModal';
 import { useTabId } from '../../contexts/TabActiveContext';
 import { useTabTitle } from '../../hooks/useTabTitle';
 import { tabStore } from '../../stores/tabStore';
+import { isEnterAction } from '../../utils/imeKey';
 
 interface PublicSignData {
   token: string;
@@ -259,7 +260,7 @@ const PublicSignPage: React.FC = () => {
     if (e.key === 'ArrowLeft' && idx > 0) otpRefs.current[idx - 1]?.focus();
     if (e.key === 'ArrowRight' && idx < 5) otpRefs.current[idx + 1]?.focus();
     // Enter = 확인. 한글 조합 중 Enter 는 확정이지 실행이 아니다(숫자 칸이라도 IME 가 켜져 있을 수 있다)
-    if (e.key === 'Enter' && !e.nativeEvent.isComposing) { e.preventDefault(); void verifyOtp(); }
+    if (isEnterAction(e)) { e.preventDefault(); void verifyOtp(); }
   };
 
   const onOtpPaste = (e: React.ClipboardEvent<HTMLInputElement>) => {

@@ -43,7 +43,7 @@ import ReactionPickerPopover from './ReactionPickerPopover';   // 반응 고르�
 import EmojiPickerButton from './EmojiPickerButton';   // #380 입력창 이모지 (보내는 것)
 import { PanelBackButton, PanelHeaderBar, DetailMetaBar, DetailMetaLeft } from '../../components/Layout/PanelHeader';
 import { openPreviewWindow } from '../../utils/openPreviewWindow';
-import { isEnterAction, enterSends } from '../../utils/imeKey';
+import { isEnterAction, enterSends, isComposingEvent } from '../../utils/imeKey';
 import GuestLinkButton from '../../components/QTalk/GuestLinkButton';
 import GuestLinkPrompt from '../../components/QTalk/GuestLinkPrompt';
 import { isNativeApp } from '../../services/native';
@@ -1309,7 +1309,7 @@ const ChatPanel: React.FC<Props> = ({
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     // e.nativeEvent.isComposing 또는 keyCode 229 는 IME 조합 중임을 의미
     // composingRef 까지 병행 체크 (브라우저/OS 조합에 따라 isComposing 이 false 로 들어올 수 있음)
-    if (e.nativeEvent.isComposing || (e.nativeEvent as KeyboardEvent).keyCode === 229 || composingRef.current) {
+    if (isComposingEvent(e) || composingRef.current) {
       return;
     }
     // #68 — 멘션 드롭다운 열림 시 키보드 우선 처리 (전송 가로채기)
@@ -2169,7 +2169,7 @@ const ChatPanel: React.FC<Props> = ({
                         <AttachDl role="button" tabIndex={0} title={t('attachList.download', { ns: 'common', defaultValue: '내려받기' }) as string}
                           aria-label={`${t('attachList.download', { ns: 'common', defaultValue: '내려받기' })}: ${a.file_name}`}
                           onClick={(e) => { e.stopPropagation(); void downloadAttachment(a.id, a.file_name); }}
-                          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); void downloadAttachment(a.id, a.file_name); } }}>
+                          onKeyDown={(e) => { if (isEnterAction(e) || e.key === ' ') { e.preventDefault(); e.stopPropagation(); void downloadAttachment(a.id, a.file_name); } }}>
                           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
                             <path d="M12 3v12" /><polyline points="7 10 12 15 17 10" /><path d="M5 21h14" />
                           </svg>

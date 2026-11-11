@@ -15,6 +15,7 @@ import AutoSaveField from '../Common/AutoSaveField';
 import { SegmentedToggle, SegmentedBtn } from '../Common/segmentedToggle';
 import { saveSalesIntake, patchSalesIntake, type SalesIntake, type SaleCriterion } from '../../services/sale';
 import CriteriaList, { type CriteriaGroup } from '../Common/CriteriaList';
+import { isEnterAction } from '../../utils/imeKey';
 
 type Mode = 'manual' | 'auto';
 interface Props { businessId: number; isOwner: boolean }
@@ -106,7 +107,7 @@ const SalesIntakeSection: React.FC<Props> = ({ businessId, isOwner }) => {
           <AddInput value={draft[k]} placeholder={t('salesIntake.criteria.placeholder') as string}
             data-testid={`sales-intake-input-${k}`}
             onChange={(e) => setDraft((d) => ({ ...d, [k]: e.target.value }))}
-            onKeyDown={(e) => { if (e.key === 'Enter' && !e.nativeEvent.isComposing) { e.preventDefault(); void addEntry(k); } }} />
+            onKeyDown={(e) => { if (isEnterAction(e)) { e.preventDefault(); void addEntry(k); } }} />
           <AddBtn type="button" data-testid={`sales-intake-add-${k}`} disabled={!draft[k].trim() || busyId === `domain_${k}`}
             onClick={() => { void addEntry(k); }}>
             {t('salesIntake.criteria.add') as string}

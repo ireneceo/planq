@@ -18,7 +18,7 @@ import { tabStore } from '../../stores/tabStore';
 import OverflowMenu, { type OverflowItem } from '../Common/OverflowMenu';
 import ConfirmDialog from '../Common/ConfirmDialog';
 import AutoSaveField from '../Common/AutoSaveField';
-import { isComposingEvent } from '../../utils/imeKey';
+import { isComposingEvent, isEnterAction } from '../../utils/imeKey';
 
 type Kind = 'doc' | 'event' | 'mail' | 'project';
 type Status = 'pending' | 'active' | 'completed' | 'skipped';
@@ -220,7 +220,7 @@ const TaskActionItemsSection: React.FC<Props> = ({ taskId, businessId }) => {
               if (isComposingEvent(e)) return;
               if (e.key === 'Escape') { setAdding(false); setNewLabel(''); }
               // Enter 단독 저장 금지 — Ctrl/⌘+Enter 만
-              if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); void submitNew(); }
+              if (isEnterAction(e) && (e.metaKey || e.ctrlKey)) { e.preventDefault(); void submitNew(); }
             }}
           />
           <FormBtns>
@@ -268,7 +268,7 @@ const TaskActionItemsSection: React.FC<Props> = ({ taskId, businessId }) => {
                         maxLength={200}
                         aria-label={t('resultActions.rename') as string}
                         onChange={(e) => { setRenameVal(e.target.value); renameRef.current = e.target.value; }}
-                        onKeyDown={(e) => { if (isComposingEvent(e)) return; if (e.key === 'Escape' || e.key === 'Enter') setRenaming(null); }}
+                        onKeyDown={(e) => { if (isComposingEvent(e)) return; if (e.key === 'Escape' || isEnterAction(e)) setRenaming(null); }}
                         onBlur={() => setRenaming(null)}
                       />
                     </AutoSaveField>

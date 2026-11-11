@@ -1510,7 +1510,7 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                 ? (e) => { e.stopPropagation(); setTitleDraft(detailTask.title); setEditingTitle(true); }
                 : undefined}
               onKeyDown={headerCanEditTitle
-                ? (e) => { if (e.key === 'Enter') { e.preventDefault(); setTitleDraft(detailTask.title); setEditingTitle(true); } }
+                ? (e) => { if (isEnterAction(e)) { e.preventDefault(); setTitleDraft(detailTask.title); setEditingTitle(true); } }
                 : undefined}
               title={headerCanEditTitle
                 ? (t('detail.clickToEdit', '클릭하여 수정') as string)

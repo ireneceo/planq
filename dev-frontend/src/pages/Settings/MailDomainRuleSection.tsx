@@ -11,6 +11,7 @@ import { useTranslation } from 'react-i18next';
 import ConfirmDialog from '../../components/Common/ConfirmDialog';
 import ActionButton from '../../components/Common/ActionButton';
 import { apiFetch } from '../../contexts/AuthContext';
+import { isEnterAction } from '../../utils/imeKey';
 
 export interface MailDomainRule {
   id: number;
@@ -152,6 +153,7 @@ export default function MailDomainRuleSection({ businessId, canEdit, accountEmai
                 value={editDomain}
                 disabled={busy}
                 onChange={(e) => setEditDomain(e.target.value)}
+                onKeyDown={(e) => { if (isEnterAction(e) && !busy && editDomain.trim()) { e.preventDefault(); void saveEdit(r.id); } }}
                 aria-label={t('domainRule.ph', { defaultValue: 'wor-pro.com' }) as string}
               />
               <LinkBtn type="button" onClick={() => saveEdit(r.id)} disabled={busy || !editDomain.trim()}>
@@ -186,6 +188,7 @@ export default function MailDomainRuleSection({ businessId, canEdit, accountEmai
             value={domain}
             disabled={busy}
             onChange={(e) => setDomain(e.target.value)}
+            onKeyDown={(e) => { if (isEnterAction(e) && !busy && domain.trim()) { e.preventDefault(); void add(); } }}
             placeholder={t('domainRule.ph', { defaultValue: 'wor-pro.com' }) as string}
           />
           <ActionButton tone="secondary" size="sm" onClick={add} loading={busy} disabled={!domain.trim()}>

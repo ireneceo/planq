@@ -12,6 +12,7 @@ import BrandForm from '../../components/Brand/BrandForm';
 import { onSocket } from '../../services/socket';
 import { myBrandApi } from '../../services/brands';
 import { listBrandOptions, patchCard, CardApiError, type BrandItem, type MyCard } from '../../services/nameCards';
+import { isEnterAction } from '../../utils/imeKey';
 
 const MAX = 4;
 
@@ -129,7 +130,7 @@ const CardBrandPicker: React.FC<Props> = ({ card, onChanged }) => {
             <Label htmlFor="card-brand-new-name">{t('brand.name')}</Label>
             <TextInput id="card-brand-new-name" value={newName} maxLength={100} autoFocus data-testid="card-brand-new-name"
               onChange={(e) => setNewName(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) void createPersonal(); }} />
+              onKeyDown={(e) => { if (isEnterAction(e) && (e.metaKey || e.ctrlKey)) void createPersonal(); }} />
             <Hint>{t('brand.personalHint')}</Hint>
           </>
         ) : editing ? (

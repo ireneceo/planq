@@ -15,6 +15,7 @@ import { onSocket } from '../../services/socket';
 import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
 import { workspaceBrandApi } from '../../services/brands';
 import { CardApiError, type BrandItem } from '../../services/nameCards';
+import { isEnterAction } from '../../utils/imeKey';
 
 interface Props { businessId: number; canEdit: boolean; onDefaultChanged?: () => void }
 
@@ -118,7 +119,7 @@ const WorkspaceBrandsSection: React.FC<Props> = ({ businessId, canEdit, onDefaul
         <FieldLabel htmlFor="ws-brand-new-name">{t('brand.name')}</FieldLabel>
         <TextInput id="ws-brand-new-name" value={newName} maxLength={100} autoFocus data-testid="ws-brand-new-name"
           onChange={(e) => setNewName(e.target.value)}
-          onKeyDown={(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) void create(); }} />
+          onKeyDown={(e) => { if (isEnterAction(e) && (e.metaKey || e.ctrlKey)) void create(); }} />
       </StandardModal>
 
       <ConfirmDialog isOpen={!!askDelete} onClose={() => setAskDelete(null)} variant="danger"

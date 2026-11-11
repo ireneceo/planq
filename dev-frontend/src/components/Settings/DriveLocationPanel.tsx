@@ -21,6 +21,7 @@ import { useTranslation } from 'react-i18next';
 import { apiFetch } from '../../contexts/AuthContext';
 import { listBusinessMembers } from '../../services/qtalk';
 import ConfirmDialog from '../Common/ConfirmDialog';
+import { isEnterAction } from '../../utils/imeKey';
 
 export interface DriveFolderInfo {
   name?: string;
@@ -127,6 +128,7 @@ const DriveLocationPanel: React.FC<Props> = ({ businessId, folder, onChanged }) 
               data-testid="gdrive-folder-relocate-input"
               value={value}
               onChange={(e) => setValue(e.target.value)}
+              onKeyDown={(e) => { if (isEnterAction(e) && !busy && value.trim()) { e.preventDefault(); void apply(); } }}
               placeholder={tr('storage.gdriveFolder.relocatePlaceholder')}
               disabled={busy}
             />

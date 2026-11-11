@@ -17,6 +17,7 @@ import {
   type ClientContact, type ContactField,
 } from '../../services/sale';
 import { Section, SectionTitle, SectionTitleRow, Helper, Dim } from './clientDetailStyles';
+import { isEnterAction } from '../../utils/imeKey';
 
 interface Props {
   businessId: number;
@@ -115,7 +116,7 @@ export default function ClientContactsSection({ businessId, clientId, canEdit, o
         <FieldLabel htmlFor={`contact-new-${clientId}`}>{t('contacts.field.name')}</FieldLabel>
         <TextInput id={`contact-new-${clientId}`} value={newName} maxLength={100} autoFocus data-testid="client-contact-new-name"
           onChange={(e) => setNewName(e.target.value)}
-          onKeyDown={(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) void create(); }} />
+          onKeyDown={(e) => { if (isEnterAction(e) && (e.metaKey || e.ctrlKey)) void create(); }} />
         {err && <ErrLine role="alert">{err}</ErrLine>}
       </StandardModal>
 

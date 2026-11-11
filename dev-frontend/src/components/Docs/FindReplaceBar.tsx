@@ -9,6 +9,7 @@ import { useEscapeStack } from '../../hooks/useEscapeStack';
 import {
   getFindState, setFindQuery, clearFind, stepFind, replaceCurrent, replaceAll,
 } from './editorFindReplace';
+import { isComposingEvent, isEnterAction } from '../../utils/imeKey';
 
 interface Props {
   editor: Editor;
@@ -60,14 +61,14 @@ const FindReplaceBar: React.FC<Props> = ({ editor, showReplace, onToggleReplace,
   const pos = total ? st.current + 1 : 0;
 
   const onFindKey = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.nativeEvent.isComposing) return;   // 한글 조합 중 Enter 는 확정이다
-    if (e.key === 'Enter') { e.preventDefault(); stepFind(editor, e.shiftKey ? -1 : 1); }
+    if (isComposingEvent(e)) return;   // 한글 조합 중 Enter 는 확정이다
+    if (isEnterAction(e)) { e.preventDefault(); stepFind(editor, e.shiftKey ? -1 : 1); }
   };
   const doReplace = () => { setDone(replaceCurrent(editor, replacement)); };
   const doReplaceAll = () => { setDone(replaceAll(editor, replacement)); };
   const onReplaceKey = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.nativeEvent.isComposing) return;
-    if (e.key === 'Enter') { e.preventDefault(); if (e.metaKey || e.ctrlKey) doReplaceAll(); else doReplace(); }
+    if (isComposingEvent(e)) return;
+    if (isEnterAction(e)) { e.preventDefault(); if (e.metaKey || e.ctrlKey) doReplaceAll(); else doReplace(); }
   };
 
   const countLabel = !query

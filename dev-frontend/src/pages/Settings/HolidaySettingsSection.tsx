@@ -17,6 +17,7 @@ import ActionButton from '../../components/Common/ActionButton';
 import { Switch, SwitchKnob } from '../../components/Common/switchShell';
 import { formatDay } from '../../utils/dateFormat';
 import { Section, Head, Title, Hint, AddRow, NameInput, ErrText, Empty, List, Row, Badge, DelBtn } from './attendanceSectionShell';
+import { isEnterAction } from '../../utils/imeKey';
 
 interface HolidayRow {
   id: number; date: string; name: string; name_en: string | null;
@@ -177,7 +178,7 @@ export default function HolidaySettingsSection({ businessId }: { businessId: num
             value={newName} maxLength={100}
             placeholder={t('holidays.namePlaceholder', '이름 (예: 창립기념일)') as string}
             onChange={(e) => setNewName(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) void submitAdd(); }}
+            onKeyDown={(e) => { if (isEnterAction(e) && (e.metaKey || e.ctrlKey)) void submitAdd(); }}
           />
           <ActionButton size="sm" tone="primary" data-testid="holiday-add-submit"
             disabled={submitting || !newDate || !newName.trim()} onClick={() => void submitAdd()}>

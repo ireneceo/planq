@@ -7,6 +7,7 @@ import { apiFetch } from '../../contexts/AuthContext';
 import ActionButton from '../../components/Common/ActionButton';
 import ConfirmDialog from '../../components/Common/ConfirmDialog';
 import { formatDay } from '../../utils/dateFormat';
+import { isEnterAction } from '../../utils/imeKey';
 
 interface TokenRow {
   id: number;
@@ -78,6 +79,7 @@ const ApiTokenSection: React.FC<{ businessId: number }> = ({ businessId }) => {
         <Input
           value={name}
           onChange={(e) => setName(e.target.value)}
+          onKeyDown={(e) => { if (isEnterAction(e) && !creating && name.trim()) { e.preventDefault(); void create(); } }}
           placeholder={t('apitoken.namePh', '토큰 이름 (예: Claude Code)') as string}
           maxLength={120}
         />

@@ -26,6 +26,7 @@ import { useTranslation } from 'react-i18next';
 import { tabStore } from '../../stores/tabStore';
 import { useTabState } from '../../hooks/useTabStore';
 import type { Editor } from '@tiptap/core';
+import { isEnterAction } from '../../utils/imeKey';
 
 type MenuItem = {
   key: string;
@@ -437,7 +438,7 @@ const AppContextMenu: React.FC = () => {
           onChange={(e) => setLinkForm({ ...linkForm, value: e.target.value })}
           onKeyDown={(e) => {
             // stopPropagation — 편집기가 모달 안이면 Esc 가 모달까지 닫는다(useEscapeStack 은 document 에서 듣는다)
-            if (e.key === 'Enter' && !e.nativeEvent.isComposing) { e.preventDefault(); e.stopPropagation(); applyLink(); }
+            if (isEnterAction(e)) { e.preventDefault(); e.stopPropagation(); applyLink(); }
             if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); const ed = linkForm.editor; close(); if (!ed.isDestroyed) ed.commands.focus(); }
           }}
         />

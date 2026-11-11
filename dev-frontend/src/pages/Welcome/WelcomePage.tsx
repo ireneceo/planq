@@ -15,6 +15,7 @@ import {
   getJoinSuggestions, lookupJoinCode, requestJoin, getMyJoinRequests, cancelJoinRequest, JoinApiError,
   type JoinWorkspaceCard,
 } from '../../services/join';
+import { isEnterAction } from '../../utils/imeKey';
 
 interface InviteRow {
   type: 'workspace_member' | 'workspace_client' | 'project_client';
@@ -283,7 +284,7 @@ const WelcomePage: React.FC = () => {
                   maxLength={12}
                   placeholder={t('join.codePlaceholder') as string}
                   onChange={(e) => { setCode(e.target.value); setJoinMsg(''); }}
-                  onKeyDown={(e) => { if (e.key === 'Enter' && !e.nativeEvent.isComposing) { e.preventDefault(); void findCode(); } }}
+                  onKeyDown={(e) => { if (isEnterAction(e)) { e.preventDefault(); void findCode(); } }}
                   data-testid="welcome-join-code"
                   autoCapitalize="characters"
                   autoComplete="off"

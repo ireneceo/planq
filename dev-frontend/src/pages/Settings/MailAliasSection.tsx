@@ -13,6 +13,7 @@ import SignatureLangTabs, { type SigLang } from '../../components/Common/Signatu
 import { useDraftKey, useDraftText } from '../../hooks/useDraftText';
 import { apiFetch } from '../../contexts/AuthContext';
 import { readDraftRecord } from '../../services/draftStore';
+import { isEnterAction } from '../../utils/imeKey';
 
 export interface MailAlias {
   id: number;
@@ -205,6 +206,7 @@ export default function MailAliasSection({ businessId, accountId, accountEmail }
               value={editEmail}
               disabled={busy}
               onChange={(e) => setEditEmail(e.target.value)}
+              onKeyDown={(e) => { if (isEnterAction(e) && !busy && editEmail.trim()) { e.preventDefault(); void saveEdit(a.id); } }}
               aria-label={t('alias.emailPh', { defaultValue: 'hello@another-domain.com' }) as string}
             />
             <InputSm
@@ -212,6 +214,7 @@ export default function MailAliasSection({ businessId, accountId, accountEmail }
               value={editName}
               disabled={busy}
               onChange={(e) => setEditName(e.target.value)}
+              onKeyDown={(e) => { if (isEnterAction(e) && !busy && editEmail.trim()) { e.preventDefault(); void saveEdit(a.id); } }}
               placeholder={t('alias.namePh', { defaultValue: '표시 이름 (선택)' }) as string}
             />
             <LinkBtn type="button" onClick={() => saveEdit(a.id)} disabled={busy || !editEmail.trim()}>
@@ -286,6 +289,7 @@ export default function MailAliasSection({ businessId, accountId, accountEmail }
           value={email}
           disabled={busy}
           onChange={(e) => setEmail(e.target.value)}
+          onKeyDown={(e) => { if (isEnterAction(e) && !busy && email.trim()) { e.preventDefault(); void add(); } }}
           placeholder={t('alias.emailPh', { defaultValue: 'hello@another-domain.com' }) as string}
         />
         <InputSm
@@ -293,6 +297,7 @@ export default function MailAliasSection({ businessId, accountId, accountEmail }
           value={name}
           disabled={busy}
           onChange={(e) => setName(e.target.value)}
+          onKeyDown={(e) => { if (isEnterAction(e) && !busy && email.trim()) { e.preventDefault(); void add(); } }}
           placeholder={t('alias.namePh', { defaultValue: '표시 이름 (선택)' }) as string}
         />
         <ActionButton tone="secondary" size="sm" onClick={add} loading={busy} disabled={!email.trim()}>

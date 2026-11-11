@@ -12,6 +12,7 @@ import { useTranslation } from 'react-i18next';
 import ActionButton from '../../components/Common/ActionButton';
 import PlanQSelect, { type PlanQSelectOption } from '../../components/Common/PlanQSelect';
 import { apiFetch } from '../../contexts/AuthContext';
+import { isEnterAction } from '../../utils/imeKey';
 
 type CheckStatus = 'ok' | 'missing' | 'unknown' | 'conflict' | 'lookup_failed';
 interface Check { key: string; status: CheckStatus; records: string[]; selector?: string; reason?: string; tried?: string[] }
@@ -122,6 +123,7 @@ export default function MailAuthDiagSection({ businessId }: Props) {
         <Input
           type="text" value={selector} disabled={busy}
           onChange={(e) => setSelector(e.target.value)}
+          onKeyDown={(e) => { if (isEnterAction(e) && !busy && selected) { e.preventDefault(); void run(); } }}
           placeholder={t('authDiag.selectorPh', { defaultValue: 'DKIM selector (선택 — 알면 입력)' }) as string}
         />
         <ActionButton tone="secondary" size="sm" onClick={run} loading={busy} disabled={!selected}>

@@ -92,7 +92,7 @@ paths:
 ## UI 규칙 — 액션 버튼 / 중복 제출 / URL 싱크
 
 - **액션 버튼 3톤** (Primary / Secondary / Danger)만 사용. 상태 색을 버튼 배경에 칠하지 말 것. `UI_DESIGN_GUIDE.md` 섹션 1.7.
-- **생성/추가/승인 액션은 중복 제출 가드 필수** — `submitting` state + 버튼 `disabled`. Enter 단독 저장 금지 (Ctrl/Cmd+Enter 만 허용). 섹션 1.8.
+- **생성/추가/승인 액션은 중복 제출 가드 필수** — `submitting` state + 버튼 `disabled`. Enter 단독 저장 금지 (Ctrl/Cmd+Enter 만 허용) — 예외: 채팅형 한 칸 · **한 칸 + 옆 버튼 한 줄**(Enter = 그 버튼, 2026-11-11). 엔터 판정은 `utils/imeKey` 만(가드 `--category=enterime`). 섹션 1.8.
 - **상세/드로어 패널은 URL 싱크** — `?task=:id`, `?client=:id` 등 단수형 쿼리로 싱크. 새로고침·공유 시 컨텍스트 유지. 섹션 1.9.
 
 ---

@@ -14,7 +14,7 @@ import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import FloatingMenu from '../../components/Common/FloatingMenu';
 import { useEscapeStack } from '../../hooks/useEscapeStack';
-import { isComposingEvent } from '../../utils/imeKey';
+import { isComposingEvent, isEnterAction } from '../../utils/imeKey';
 import { searchPlaces, type PlaceSuggestion } from '../../services/calendar';
 import { Input as FormInput } from './eventFormStyles';
 
@@ -96,7 +96,7 @@ const LocationAutocomplete: React.FC<Props> = ({ value, onChange, onOpenChange, 
     if (!showList || isComposingEvent(e)) return;
     if (e.key === 'ArrowDown') { e.preventDefault(); setHi(i => Math.min(items.length - 1, i + 1)); }
     else if (e.key === 'ArrowUp') { e.preventDefault(); setHi(i => Math.max(-1, i - 1)); }
-    else if (e.key === 'Enter') {
+    else if (isEnterAction(e)) {
       e.preventDefault(); e.stopPropagation();
       if (hi >= 0 && items[hi]) pick(items[hi]); else close();
     }
