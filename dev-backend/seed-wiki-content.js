@@ -567,6 +567,8 @@ const ARTICLES = [
       note('녹음 방식은 시작한 뒤에는 바꿀 수 없습니다. 다른 방식으로 하려면 새 노트로 시작하세요. 나머지 설정은 녹음 중에도 바꿀 수 있습니다.',
         'The recording method cannot be changed after you start — start a new note to use another one. Other settings can be changed even while recording.'),
       s('녹음 중 실시간으로 받아쓰기가 진행되고, 종료 후 요약이 생성됩니다.', 'Transcription runs live during recording; a summary is generated when you stop.'),
+      s('질문이 들리면 AI가 발음·군말을 다듬어 질문을 정리하고, 정리한 질문으로 답을 찾습니다. 카드에는 «AI가 정리한 질문» 과 «들린 그대로» 가 같이 보입니다. 질문이 덜 끝났거나 잘못 정리됐으면 질문을 눌러 고치면 다시 찾고, 되돌릴 수도 있습니다.',
+        'When a question is heard, AI cleans up mispronunciations and filler to tidy the question, then looks for an answer using the tidied version. The card shows both «Question tidied by AI» and «As heard». If a question is incomplete or tidied wrongly, tap it to edit and search again — you can also revert.'),
       s('녹음 중에 다른 세션을 열거나 새 메모를 만들려고 하면 확인 창이 뜹니다. 녹음은 확인을 누른 뒤에만 중단되고, 그때까지 기록된 내용은 이미 저장되어 있습니다.',
         'If you open another session or start a new note while recording, a confirmation appears. Recording stops only after you confirm, and everything captured so far is already saved.'),
       note('Q Note 는 기본적으로 개인 공간입니다 — 명시적으로 공유하기 전까지 다른 사람이 볼 수 없습니다.',
