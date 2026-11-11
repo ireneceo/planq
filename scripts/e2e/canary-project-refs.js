@@ -13,6 +13,7 @@ const OWNER = { email: 'owner@test.planq.kr', password: 'Test1234!' };
 const API = 'http://localhost:3003';
 const WS = 6, P1 = 36, P2 = 35;   // P1 패키지 디자인(owner·member1) · P2 브랜드 리뉴얼(owner·member1·member2 · 고객 18)
 const TITLE = '[확인용] 연결 화면 확인 — 패키지 디자인 소속';
+const OWN_TITLE = '[확인용] 연결 화면 확인 — 브랜드 리뉴얼 소속';
 const results = [];
 const push = (name, pass, detail) => { results.push({ name, fail: !pass, details: detail ? [detail] : [] }); if (require.main === module) console.log(`${pass ? '✅' : '❌'} ${name}${!pass && detail ? ' — ' + detail : ''}`); };
 
@@ -33,6 +34,12 @@ async function ensureFixtures() {
   if (!post) post = (await o('POST', '/api/posts', { business_id: WS, project_id: P1, title: TITLE, vlevel: 'L2', status: 'published',
     content_json: { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: '브랜드 리뉴얼 프로젝트에도 연결된 문서입니다.' }] }] } })).j?.data;
   await o('POST', `/api/projects/${P2}/refs`, { entity_type: 'post', entity_id: post.id });   // 이미 있으면 409 — 괜찮다
+  // ① 대조군(«전체» 에는 소속 카드도 섞임)용 P2 소속 문서 — 7일 정리로 지워지면 다시 만든다(11-10 밤 검사: P2 소속 0건 → 대조군 1/1 로 빨강)
+  const own = await o('GET', `/api/posts?business_id=${WS}&project_id=${P2}&q=${encodeURIComponent(OWN_TITLE)}`);
+  if (!(own.j?.data || []).some((p) => p.title === OWN_TITLE)) {
+    await o('POST', '/api/posts', { business_id: WS, project_id: P2, title: OWN_TITLE, vlevel: 'L2', status: 'published',
+      content_json: { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: '브랜드 리뉴얼 프로젝트 소속 문서입니다.' }] }] } });
+  }
   const files = await o('GET', `/api/projects/${P1}/files`);
   let file = (files.j?.data || []).find((f) => f.source === 'direct' && f.file_name === 'confirm-linked-file.txt');
   let fileId = file ? Number(String(file.id).replace('direct-', '')) : null;
