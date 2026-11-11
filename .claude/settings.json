@@ -23,6 +23,15 @@
             "command": "/opt/planq/.claude/hooks/scout-guard.sh"
           }
         ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/opt/planq/.claude/hooks/node-eval-guard.sh"
+          }
+        ]
       }
     ]
   },

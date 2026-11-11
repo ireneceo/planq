@@ -17,6 +17,9 @@ const MEM_SLOT = '/home/irene/dev-server/bin/mem-slot';
 const NEED_MB = Number(process.env.PLANQ_CHROME_MB) > 0 ? Number(process.env.PLANQ_CHROME_MB) : 1500;
 
 if (!process.env.PLANQ_MEM_SLOT && fs.existsSync(MEM_SLOT)) {
+  // 지난 시험이 SIGKILL 로 죽어 남긴 고아 크롬·멈춘 node -e 를 먼저 치운다(scripts/reap-orphans.js · 2026-11-11 —
+  //   6일째 남은 크롬 발견). 치우다 실패해도 시험은 그대로 간다.
+  try { require('../../reap-orphans').reap(); } catch { /* 정리는 덤 */ }
   // 운영 배포가 도는 중이면 자리를 잡기 **전에** 기다린다 — 자리를 쥔 채 기다리면 다른 방의 줄을 막는다.
   //   (run.js 는 스위트마다 다시 본다 — 도중에 시작한 배포용. 판정은 scripts/deploy-busy.sh 한 곳)
   spawnSync('/opt/planq/scripts/deploy-busy.sh', ['--wait', '5400', 'e2e:mem-slot'], { stdio: ['ignore', 'ignore', 'inherit'] });
