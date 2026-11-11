@@ -62,11 +62,21 @@ export interface LiveQuickQuestionEvent {
   transcript: string;
 }
 
+/** 정제가 질문을 정리했다(Fable DESIGN-FIX) — status ok 면 interpreted 로 답을 찾는다. */
+export interface LiveQuestionInterpretedEvent {
+  type: 'question_interpreted';
+  utterance_id: number;
+  interpreted: string | null;
+  status: 'ok' | 'unclear' | 'same' | null;
+  incomplete: boolean;
+}
+
 export type LiveEvent =
   | LiveTranscriptEvent
   | LiveFinalizedEvent
   | LiveEnrichmentEvent
   | LiveQuickQuestionEvent
+  | LiveQuestionInterpretedEvent
   | LiveAnswerReadyEvent
   | LiveReadyEvent
   | LiveErrorEvent

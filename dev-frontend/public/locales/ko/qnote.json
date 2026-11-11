@@ -159,7 +159,11 @@
         "rag": "자료 기반",
         "none": "미발견",
         "general": "AI 답변"
-      }
+      },
+      "aiRefined": "AI가 정리한 질문",
+      "heardAs": "들린 그대로",
+      "unclear": "질문이 또렷하지 않아요 — 눌러서 고쳐 다시 찾기",
+      "incomplete": "질문이 불완전해요 — 눌러서 고치면 답을 찾아요"
     },
     "popover": {
       "title": "이 사람은",

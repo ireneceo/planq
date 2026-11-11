@@ -100,6 +100,48 @@ async def _run_migrations(db):
     if not await _column_exists(db, 'detected_questions', col):
       await db.execute(f"ALTER TABLE detected_questions ADD COLUMN {col} {typ}")
 
+  # detected_questions: AI 가 정리한 질문 (2026-11-11 · Fable 설계 DESIGN-FIX)
+  #   녹취(utterances.original_text)는 들린 그대로 두고, 답 찾기는 이 정리문으로 한다.
+  #   question_interpreted — 정리한 핵심 질문(status ok) 또는 사용자가 고친 질문(edited). 아니면 NULL.
+  #   interpret_status     — 'ok' | 'unclear' | 'same' | NULL(아직 정리 전)
+  #   answer_basis         — 'raw' | 'interpreted' | 'edited' — 답이 어느 문장으로 찾아졌나.
+  #                          interpreted/edited 답은 raw 결과가 덮지 않는다(늦게 끝난 쪽이 이기던 경합 제거).
+  for col, typ in [
+    ('question_interpreted', 'TEXT'),
+    ('interpret_status', 'TEXT'),
+    ('answer_basis', 'TEXT'),
+    # 사용자가 카드에서 고친(합친) 질문 — 정리문(question_interpreted)과 따로 둬서 «되돌리기» 가 정리문으로 돌아가게(Fable 완료 검증 2)
+    ('question_edited', 'TEXT'),
+  ]:
+    if not await _column_exists(db, 'detected_questions', col):
+      await db.execute(f"ALTER TABLE detected_questions ADD COLUMN {col} {typ}")
+
+  # 발화당 질문 행 1개 — 옛 중복(빠른 경로 원문 행 + 정제 행)을 멱등 정리 후 유니크 인덱스.
+  #   남길 행: 답 있는 행 중 최신 → 없으면 최신. utterance_id NULL 행(업로드 등)은 건드리지 않는다.
+  cur = await db.execute(
+    "SELECT 1 FROM sqlite_master WHERE type='index' AND name='uq_questions_session_utt'"
+  )
+  if not await cur.fetchone():
+    await db.execute('''
+      DELETE FROM detected_questions
+      WHERE utterance_id IS NOT NULL
+        AND id NOT IN (
+          SELECT (
+            SELECT d2.id FROM detected_questions d2
+            WHERE d2.session_id = d.session_id AND d2.utterance_id = d.utterance_id
+            ORDER BY (d2.answer_text IS NOT NULL AND d2.answer_text != '') DESC, d2.id DESC
+            LIMIT 1
+          )
+          FROM detected_questions d
+          WHERE d.utterance_id IS NOT NULL
+          GROUP BY d.session_id, d.utterance_id
+        )
+    ''')
+    await db.execute(
+      'CREATE UNIQUE INDEX IF NOT EXISTS uq_questions_session_utt '
+      'ON detected_questions(session_id, utterance_id)'
+    )
+
   # sessions: 사용자 프로필 스냅샷 (답변 생성 시 "나"로서 답하기 위한 정보)
   session_profile_cols = [
     ('user_name', 'TEXT'),              # 사용자 이름

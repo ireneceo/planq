@@ -463,7 +463,97 @@ def _build_translate_system(
   base = base.replace('{translation_lang_name}', _lang_name_for_translation(translate_to, language))
   if not translate:
     base += '\n\n[중요] 이 요청은 번역이 필요 없다. "translation" 은 위 2번 항목을 무시하고 항상 빈 문자열 ""로 응답한다. 1·3·4번 항목은 그대로 수행한다.\n'
-  return base
+  return base + CORE_QUESTION_ADDENDUM
+
+
+# 질문 정리 (2026-11-11 · Fable 설계 DESIGN-FIX) — 같은 정제 호출에 두 필드만 더한다(호출·지연 추가 없음).
+#   formatted_original 의 «단어 1:1 교체만» 규칙은 그대로 — 기록은 들린 그대로, 답 찾기만 정리문으로.
+#   등록 Q&A 제목은 힌트로 주지 않는다(해석이 등록 질문 쪽으로 끌려가 «확신 있게 틀린» 답이 된다).
+CORE_QUESTION_ADDENDUM = """
+
+## 5. core_question + clarity — a SEPARATE step. It never changes is_question (decide is_question ONLY by section 3).
+If is_question is false: core_question "" and clarity "same".
+
+If is_question is true, write the single core question the speaker most plausibly asked (STT often garbles it):
+  - Drop fillers, thanks, preamble, repeated words, side remarks. ONE sentence, same language as the utterance.
+  - Keep every condition the question depends on (deadline, date, number, "before X", "for Y", comparison).
+  - Repair only clearly mis-heard words; resolve "it / that / 그거" only from Recent Conversation when unambiguous.
+  - Never add a topic, number, date, name or product absent from the utterance, Vocabulary or Recent Conversation.
+    Keep proper nouns and loanwords as spoken (do not translate them).
+  - Several questions → keep the main, most specific one.
+  e.g. "음 그러니까 저희가 3월 출시라 그 전에 견적서를 받을 수 있을까요" → "3월 출시 전에 견적서를 받을 수 있을까요?"
+  e.g. "Yeah okay so, um, how do you, how do you handle refunds for annual plans?" → "How do you handle refunds for annual plans?"
+
+clarity: "same" = already a clean single question · "ok" = you repaired/extracted it ·
+         "unclear" = a listener could not tell what is being asked (then core_question = formatted_original).
+
+Final response format (strict JSON only, 6 fields):
+{"formatted_original": "...", "translation": "...", "is_question": true|false, "detected_language": "..", "core_question": "...", "clarity": "same|ok|unclear"}
+"""
+
+
+_NUM_RE = re.compile(r'\d+(?:[.,]\d+)?')
+_LATIN_RE = re.compile(r'[A-Za-z][A-Za-z0-9\-]+')
+_KO_STOP_CHARS = re.compile(r'[^\w가-힣]+')
+_DEMONSTRATIVE_RE = re.compile(r'(그거|그건|그게|이거|이건|이게|저거|저건|거기|\b(?:that|this|it|these|those)\b)', re.IGNORECASE)
+
+
+def _norm_q(s: str) -> str:
+  return _KO_STOP_CHARS.sub('', (s or '').lower())
+
+
+def guard_core_question(
+  original: str,
+  core: Optional[str],
+  clarity: Optional[str],
+  recent_utterances: Optional[list[str]] = None,
+  vocabulary: Optional[list[str]] = None,
+) -> tuple[Optional[str], str]:
+  """LLM 이 낸 core_question 을 기계로 걸러 (정리문 or None, status) 를 돌려준다.
+
+  status: 'ok'(정리문을 답 찾기에 쓴다) · 'same'(원문 그대로 써도 됨) · 'unclear'(원문으로 찾되 불확실).
+  가드(Fable): 길이 ≤ 원문×1.2 · 원문·최근 발화·용어집에 없는 숫자/영문 고유어가 생기면 unclear.
+  """
+  orig = (original or '').strip()
+  c = (core or '').strip()
+  st = (clarity or '').strip().lower()
+  if st not in ('ok', 'same', 'unclear'):
+    st = 'unclear' if not c else 'ok'
+  if st == 'unclear' or not c:
+    return None, 'unclear'
+  # 짧은 질문이 지시어(그거·이거·this·that·it)에 기대면 무엇을 묻는지 모른다 — 모델이 same 이라 해도 unclear.
+  #   («Will this?» · «그거 언제» · «What about that?»). 짧아도 지시어가 없으면(«How are you?») 그대로.
+  #   모델이 최근 발화로 지시어를 풀어낸 정리문(ok, 정리문에 지시어 없음)은 살린다 — «그건 얼마예요?» 후속 질문(Fable 완료 검증 1).
+  if is_incomplete_question(orig) and _DEMONSTRATIVE_RE.search(orig) and (st != 'ok' or _DEMONSTRATIVE_RE.search(c)):
+    return None, 'unclear'
+  if _norm_q(c) == _norm_q(orig):
+    return None, 'same'
+  if len(c) > max(len(orig) * 1.2, len(orig) + 8):
+    return None, 'unclear'
+  source = ' '.join([orig] + list(recent_utterances or []) + list(vocabulary or [])).lower()
+  for n in _NUM_RE.findall(c):
+    if n not in source:
+      return None, 'unclear'
+  for w in _LATIN_RE.findall(c):
+    # 문장 첫머리·흔한 기능어 대소문자 차이는 lower 로 흡수. 원문 어디에도 없는 영문 낱말은 '새 고유어' 로 본다.
+    if w[0].isupper() and w.lower() not in source:
+      return None, 'unclear'
+  if st == 'same':
+    # LLM 은 same 이라 했지만 문장이 다르다 — 서두를 뗀 경우가 대부분이라 정리문으로 본다.
+    st = 'ok'
+  return c, st
+
+
+def is_incomplete_question(text: str) -> bool:
+  """불완전 질문(«Will.»·«Would you be ordered?») — unclear 와 함께일 때만 답 자동 생성을 미룬다.
+  영어 등 띄어 쓰는 말은 3단어 이하, 한국어는 2어절 이하."""
+  t = (text or '').strip()
+  if not t:
+    return True
+  words = [w for w in re.split(r'\s+', t) if re.search(r'\w', w)]
+  if re.search(r'[가-힣]', t):
+    return len(words) <= 2
+  return len(words) <= 3
 
 
 # 번역 목적지 이름 — 명시 목적지가 없으면 옛 동작(회의 언어의 반대말)을 유지해
@@ -490,7 +580,7 @@ def _build_stt_correction_prefix(
       + '\n- '.join(items)
     )
   if recent_utterances:
-    recent = [u for u in recent_utterances[-3:] if u and u.strip()]
+    recent = [u for u in recent_utterances[-6:] if u and u.strip()]
     if recent:
       parts.append(
         '## Recent Conversation (REFERENCE ONLY — not a filter)\n'
@@ -596,10 +686,20 @@ async def translate_and_detect_question(
         'is_question': any(bool(r.get('is_question')) for r in results),
         # 첫 chunk 의 detected_language 가 utterance 전체 대표
         'detected_language': results[0].get('detected_language', 'unknown') if results else 'unknown',
+        # 질문 정리 — 질문으로 판정된 마지막 chunk 의 것(긴 발화는 끝에 질문이 오는 경우가 대부분)
+        **_last_question_core(results),
       }
 
   return await _translate_single(text, meeting_context, language, vocabulary, recent_utterances,
                                  translate=translate, translate_to=translate_to)
+
+
+def _last_question_core(results: list[dict]) -> dict:
+  qs = [r for r in results if r.get('is_question')]
+  if not qs:
+    return {'core_question': '', 'clarity': ''}
+  last = qs[-1]
+  return {'core_question': last.get('core_question') or '', 'clarity': last.get('clarity') or ''}
 
 
 async def _translate_single(
@@ -650,6 +750,8 @@ async def _translate_single(
         'translation': data.get('translation', ''),
         'is_question': bool(data.get('is_question', False)),
         'detected_language': data.get('detected_language', 'unknown'),
+        'core_question': data.get('core_question') or '',
+        'clarity': data.get('clarity') or '',
       }
     except json.JSONDecodeError as e:
       if attempt == 0:

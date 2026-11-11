@@ -159,7 +159,11 @@
         "rag": "Material-based",
         "none": "Not found",
         "general": "AI Answer"
-      }
+      },
+      "aiRefined": "AI-refined question",
+      "heardAs": "As heard",
+      "unclear": "Unclear question — tap to edit and search again",
+      "incomplete": "Incomplete question — tap to edit and find an answer"
     },
     "popover": {
       "title": "This person is",

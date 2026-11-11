@@ -2,6 +2,7 @@ import asyncio
 import json
 import logging
 import re
+import time
 import uuid
 import numpy as np
 import aiosqlite
@@ -12,7 +13,10 @@ from services.billing_client import (
     check_membership, check_quota, record_usage, alert_flush_failure, billed_seconds,
 )
 from services.database import DB_PATH, connect as db_connect
-from services.llm_service import translate_and_detect_question, detect_question_fast
+from services.llm_service import (
+  translate_and_detect_question, detect_question_fast, guard_core_question, is_incomplete_question,
+  _DEMONSTRATIVE_RE,
+)
 from services.answer_service import find_answer as _find_answer, translate_answer_text
 from services.audio_buffer import RollingAudioBuffer, SpeakerAudioCollector
 from services.voice_fingerprint import (
@@ -222,7 +226,7 @@ async def _enrich_and_persist(
   vocabulary: 사용자 검토된 어휘 사전 (LLM 교정 시 1순위)
   """
   try:
-    recent = await _load_recent_utterances(session_id, utterance_id)
+    recent = await _load_recent_utterances(session_id, utterance_id, limit=6)
     # #241 — 번역 술어(단일 원천). 목적지가 없거나 회의 언어와 같으면 번역하지 않는다.
     #   여태 이 경로는 프롬프트에 "영어 번역" 이 박혀 있어 **무슨 설정을 해도 영어**가 나왔다.
     #   ★ 번역을 안 해도 이 호출 자체는 반드시 한다 — 같은 호출이 formatted_original(STT 교정)과
@@ -264,6 +268,14 @@ async def _enrich_and_persist(
       is_self = await _is_self_speaker(db, speaker_row_id)
 
       final_is_question = bool(is_question and not is_self and not out_of_scope)
+      # 질문 정리(Fable DESIGN-FIX) — 녹취는 formatted_original(들린 그대로), 답 찾기는 정리문.
+      interpreted: str | None = None
+      interpret_status: str | None = None
+      if final_is_question:
+        interpreted, interpret_status = guard_core_question(
+          formatted_original, enriched.get('core_question'), enriched.get('clarity'),
+          recent_utterances=recent, vocabulary=vocabulary,
+        )
       # original_text 를 formatted_original 로 덮어씀 (한국어 띄어쓰기 교정 반영)
       await db.execute(
         '''UPDATE utterances
@@ -272,34 +284,48 @@ async def _enrich_and_persist(
            WHERE id = ?''',
         (formatted_original, translation, 1 if final_is_question else 0, detected_language, utterance_id)
       )
+      prior_answer_basis: str | None = None
       if final_is_question:
+        # 발화당 1행(uq_questions_session_utt) — 빠른 경로가 만든 원문 행이 있으면 그 행을 고친다.
         await db.execute(
-          '''INSERT INTO detected_questions (session_id, utterance_id, question_text)
-             VALUES (?, ?, ?)''',
-          (session_id, utterance_id, formatted_original)
+          '''INSERT INTO detected_questions
+               (session_id, utterance_id, question_text, question_interpreted, interpret_status)
+             VALUES (?, ?, ?, ?, ?)
+             ON CONFLICT(session_id, utterance_id) DO UPDATE SET
+               question_text = excluded.question_text,
+               question_interpreted = excluded.question_interpreted,
+               interpret_status = excluded.interpret_status''',
+          (session_id, utterance_id, formatted_original, interpreted, interpret_status)
         )
+        cur = await db.execute(
+          '''SELECT answer_text, answer_basis FROM detected_questions
+             WHERE session_id = ? AND utterance_id = ?''',
+          (session_id, utterance_id),
+        )
+        r = await cur.fetchone()
+        if r and (r[0] or '').strip():
+          prior_answer_basis = r[1] or 'raw'
       await db.commit()
 
-    # 질문 감지 즉시 → 백그라운드 답변 prefetch (fast path 에서 이미 답변이 왔다면 스킵)
+    # 답 찾기 — 한 번만, 정리문으로(ok) · 아니면 들린 그대로. 불완전 질문은 자동으로 찾지 않는다(누르면 찾는다).
     if final_is_question:
-      already_answered = False
-      try:
-        async with db_connect() as dbx:
-          dbx.row_factory = aiosqlite.Row
-          cur = await dbx.execute(
-            '''SELECT answer_text FROM detected_questions
-               WHERE session_id = ? AND utterance_id = ?
-               ORDER BY id DESC LIMIT 1''',
-            (session_id, utterance_id),
-          )
-          row = await cur.fetchone()
-          if row and (row['answer_text'] or '').strip():
-            already_answered = True
-      except Exception:
+      incomplete = interpret_status == 'unclear' and is_incomplete_question(formatted_original)
+      search_text = interpreted if interpret_status == 'ok' and interpreted else formatted_original
+      basis = 'interpreted' if interpret_status == 'ok' else 'raw'
+      fired = (session_id, utterance_id) in _raw_fallback_fired
+      _raw_fallback_fired.discard((session_id, utterance_id))
+      if incomplete:
         pass
-      if not already_answered:
+      elif prior_answer_basis is None and not (fired and basis == 'raw'):
         asyncio.create_task(
-          _prefetch_answer(session_id, utterance_id, formatted_original, meeting_context, websocket)
+          _prefetch_answer(session_id, utterance_id, search_text, meeting_context, websocket, basis=basis,
+                           heard_text=formatted_original)
+        )
+      elif prior_answer_basis == 'raw' and basis == 'interpreted':
+        # 2.5초 안전망이 원문으로 먼저 찾았는데 정리문이 다르다 → 1회만 다시 찾는다.
+        asyncio.create_task(
+          _prefetch_answer(session_id, utterance_id, search_text, meeting_context, websocket, basis=basis,
+                           heard_text=formatted_original)
         )
 
     try:
@@ -312,6 +338,14 @@ async def _enrich_and_persist(
         'detected_language': detected_language,
         'out_of_scope': out_of_scope,
       })
+      if final_is_question:
+        await websocket.send_json({
+          'type': 'question_interpreted',
+          'utterance_id': utterance_id,
+          'interpreted': interpreted,
+          'status': interpret_status,
+          'incomplete': bool(interpret_status == 'unclear' and is_incomplete_question(formatted_original)),
+        })
     except Exception:
       pass
   except asyncio.CancelledError:
@@ -332,19 +366,31 @@ async def _enrich_and_persist(
       pass
 
 
+# 정제가 이 시간 안에 안 끝나면 빠른 경로가 들린 그대로 답을 찾는다(Fable DESIGN-FIX 3).
+FAST_PREFETCH_FALLBACK_SEC = 2.5
+# 안전망이 원문으로 이미 찾기 시작한 발화 — 정제가 늦게 끝나 정리문이 원문과 같으면 또 찾지 않는다.
+_raw_fallback_fired: set[tuple[int, int]] = set()
+
+
 async def _prefetch_answer(
   session_id: int,
   utterance_id: int,
   question_text: str,
   meeting_context: dict | None,
   websocket: WebSocket,
+  basis: str = 'raw',
+  heard_text: str | None = None,
 ):
   """
-  질문 감지 즉시 호출. 답변을 미리 찾아 detected_questions에 캐시.
+  질문 감지 뒤 호출. 답변을 미리 찾아 detected_questions에 캐시.
   사용자가 "답변 찾기" 클릭 시 cached-answer API로 즉시 반환.
+  basis: 'raw'(들린 그대로) · 'interpreted'(AI 정리문). interpreted/edited 로 찾은 답은 raw 결과가 덮지 않는다.
   """
   try:
-    result = await _find_answer(session_id, question_text, meeting_context)
+    result = await _find_answer(
+      session_id, question_text, meeting_context, exclude_utterance_id=utterance_id,
+      heard_text=heard_text if basis == 'interpreted' else None,
+    )
     if result['tier'] == 'none':
       return
 
@@ -353,20 +399,27 @@ async def _prefetch_answer(
     import json as _json
     # 답변 즉시 저장 (번역 없이)
     async with db_connect() as db:
-      await db.execute('''
+      cur = await db.execute('''
         UPDATE detected_questions
         SET answer_text = ?, answer_tier = ?, matched_qa_id = ?,
-            answer_sources = ?, answered_at = datetime('now')
+            answer_sources = ?, answered_at = datetime('now'), answer_basis = ?
         WHERE session_id = ? AND utterance_id = ?
+          AND NOT (? = 'raw' AND COALESCE(answer_basis, '') IN ('interpreted', 'edited'))
+          AND COALESCE(answer_basis, '') != 'edited'
       ''', (
         result['answer'],
         result['tier'],
         result.get('matched_qa_id'),
         _json.dumps(result.get('sources', []), ensure_ascii=False) if result.get('sources') else None,
+        basis,
         session_id,
         utterance_id,
+        basis,
       ))
       await db.commit()
+      if cur.rowcount == 0:
+        logger.info(f'prefetch: kept better answer (basis={basis} skipped) utt={utterance_id}')
+        return
 
     # 프론트에 답변 준비 완료 알림
     try:
@@ -378,7 +431,7 @@ async def _prefetch_answer(
     except Exception:
       pass
 
-    logger.info(f'prefetch: session={session_id} utt={utterance_id} tier={result["tier"]}')
+    logger.info(f'prefetch: session={session_id} utt={utterance_id} tier={result["tier"]} basis={basis}')
   except Exception as e:
     logger.warning(f'prefetch_answer failed: session={session_id} utt={utterance_id} err={e}')
 
@@ -768,12 +821,13 @@ async def websocket_live(websocket: WebSocket, session_id: int = Query(...)):
 
     # ── 빠른 질문 판정 병렬 경로 (gpt-4.1-nano, ~300ms) ──
     # 본인 발화는 즉시 스킵 (prefetch 대상 아님 — 내 질문은 상대가 답해야 함).
-    # 상대 발화는 finalized 와 동시에 fast-path 실행 → 질문이면 즉시 prefetch_answer.
-    # 그 뒤 enrichment(정제+번역+정확 판정)는 병렬로 돌며 나중에 덮어쓴다.
+    # 상대 발화는 finalized 와 동시에 fast-path 실행 → 질문이면 카드만 즉시 띄운다.
+    # 답 찾기는 enrichment(정제+번역+정확 판정+질문 정리)가 정리문으로 1회 — 2.5초 안에 안 끝나면 여기서 원문으로(안전망).
     fast_started = False
     try:
       # 실제 is_self 는 _commit 에서 이미 finalized_is_self 로 계산됨
       if not finalized_is_self:
+        fast_t0 = time.monotonic()
         async def _fast_question_path():
           try:
             is_q = await detect_question_fast(transcript_text, language=dg_language)
@@ -784,9 +838,9 @@ async def websocket_live(websocket: WebSocket, session_id: int = Query(...)):
                   'UPDATE utterances SET is_question = 1 WHERE id = ? AND is_question = 0',
                   (utterance_id,),
                 )
-                # detected_questions 에 중복 방지 INSERT
+                # detected_questions 에 중복 방지 INSERT (발화당 1행 — 정제가 먼저 만들었으면 무시)
                 await dbx.execute('''
-                  INSERT INTO detected_questions (session_id, utterance_id, question_text)
+                  INSERT OR IGNORE INTO detected_questions (session_id, utterance_id, question_text)
                   SELECT ?, ?, ?
                   WHERE NOT EXISTS (
                     SELECT 1 FROM detected_questions
@@ -794,7 +848,7 @@ async def websocket_live(websocket: WebSocket, session_id: int = Query(...)):
                   )
                 ''', (session_id, utterance_id, transcript_text, session_id, utterance_id))
                 await dbx.commit()
-              # 프론트에 빠른 질문 카드 표시
+              # 프론트에 빠른 질문 카드 표시 (카드는 즉시)
               try:
                 await websocket.send_json({
                   'type': 'quick_question',
@@ -803,10 +857,28 @@ async def websocket_live(websocket: WebSocket, session_id: int = Query(...)):
                 })
               except Exception:
                 pass
-              # 즉시 답변 prefetch
-              asyncio.create_task(
-                _prefetch_answer(session_id, utterance_id, transcript_text, meeting_context, websocket)
+              # 답 찾기는 정제(질문 정리)가 한다. 2.5초 안에 정리가 안 끝나면(느림·실패) 들린 그대로 찾는다 — 안전망.
+              await asyncio.sleep(max(0.0, FAST_PREFETCH_FALLBACK_SEC - (time.monotonic() - fast_t0)))
+              async with db_connect() as dbx:
+                cur = await dbx.execute(
+                  '''SELECT interpret_status, answer_text FROM detected_questions
+                     WHERE session_id = ? AND utterance_id = ?''',
+                  (session_id, utterance_id),
+                )
+                r = await cur.fetchone()
+              # 안전망도 불완전 질문(짧음 + 지시어)에는 자동 답을 붙이지 않는다(Fable 완료 검증 비차단 지적).
+              #   «Will.» 처럼 한 낱말짜리도 막는다(Fable 2차 비차단 ③).
+              incomplete_raw = is_incomplete_question(transcript_text) and (
+                bool(_DEMONSTRATIVE_RE.search(transcript_text)) or len(transcript_text.split()) <= 1
               )
+              if r and r[0] is None and not (r[1] or '').strip() and not incomplete_raw:
+                logger.info(f'fast_question_path: interpretation not ready in {FAST_PREFETCH_FALLBACK_SEC}s — raw prefetch utt={utterance_id}')
+                if len(_raw_fallback_fired) > 5000:
+                  _raw_fallback_fired.clear()
+                _raw_fallback_fired.add((session_id, utterance_id))
+                asyncio.create_task(
+                  _prefetch_answer(session_id, utterance_id, transcript_text, meeting_context, websocket, basis='raw')
+                )
           except Exception as e:
             logger.warning(f'fast_question_path failed utt={utterance_id}: {e}')
         asyncio.create_task(_fast_question_path())

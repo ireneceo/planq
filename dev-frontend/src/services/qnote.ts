@@ -86,6 +86,17 @@ export interface QNoteDetectedQuestion {
   matched_qa_id: number | null;
 }
 
+/** AI 가 정리한 질문(질문 카드) — status ok 면 interpreted 로 답을 찾았다. 녹취는 들린 그대로. */
+export interface QNoteQuestionInterpretation {
+  utterance_id: number;
+  question_interpreted: string | null;
+  interpret_status: 'ok' | 'unclear' | 'same' | null;
+  answer_basis: 'raw' | 'interpreted' | 'edited' | null;
+  /** 사용자가 카드에서 고친(합친) 질문 — answer_basis 'edited' 일 때 */
+  question_edited?: string | null;
+  incomplete: boolean;
+}
+
 export interface QNoteSession {
   id: number;
   business_id: number;
@@ -108,6 +119,7 @@ export interface QNoteSession {
   documents?: QNoteDocument[];
   speakers?: QNoteSpeaker[];
   detected_questions?: QNoteDetectedQuestion[];
+  question_interpretations?: QNoteQuestionInterpretation[];
   // 답변 수준/스타일 제어
   user_language_levels?: Record<string, { reading?: number; speaking?: number; listening?: number; writing?: number }> | null;
   user_expertise_level?: string | null;
@@ -750,11 +762,15 @@ export async function downloadPriorityQATemplate(): Promise<void> {
   await downloadBlob(blob, 'priority_qa_template.csv');
 }
 
-export async function findAnswer(sessionId: number, questionText: string, utteranceId?: number) {
+/**
+ * edited — 사용자가 카드에서 질문을 고쳐(또는 다음 문장을 합쳐) 찾는다. 서버는 그 문장을 이 발화의 질문으로 저장한다.
+ *   edited 가 아니고 utteranceId 가 있으면 서버가 AI 정리문(있으면)으로 찾는다 — 화면이 고른 문장을 보내도 같다.
+ */
+export async function findAnswer(sessionId: number, questionText: string, utteranceId?: number, edited = false) {
   const res = await apiFetch(`${BASE}/sessions/${sessionId}/find-answer`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ question_text: questionText, utterance_id: utteranceId }),
+    body: JSON.stringify({ question_text: questionText, utterance_id: utteranceId, edited }),
   });
   return handle<FindAnswerResult>(res);
 }
@@ -768,6 +784,12 @@ export async function translateAnswer(sessionId: number, text: string, targetLan
     body: JSON.stringify(body),
   });
   return handle<{ translation: string }>(res);
+}
+
+/** 고친(합친) 질문을 되돌린다 — 서버의 고친 문장·그 답을 지워 다음 답 찾기가 AI 정리문으로 찾게 한다. */
+export async function resetQuestionEdit(sessionId: number, utteranceId: number) {
+  const res = await apiFetch(`${BASE}/sessions/${sessionId}/utterances/${utteranceId}/question-reset`, { method: 'POST' });
+  return handle<{ reset: boolean }>(res);
 }
 
 export async function getCachedAnswer(sessionId: number, utteranceId: number) {

@@ -44,6 +44,7 @@ import {
   matchSpeaker,
   getSpeakerCandidates,
   getCachedAnswer,
+  resetQuestionEdit,
   findAnswer,
   translateAnswer,
   createPriorityQA,
@@ -70,6 +71,7 @@ import SharedEmptyState from '../../components/Common/EmptyState';
 import DetailFallback from '../../components/Common/DetailFallback';
 import { isOtherWorkspace } from '../../utils/workspaceMatch';
 import { canSaveToSale } from '../../utils/qnotePurpose';
+import { QuestionInterpLine, displayQuestion, interpFromDetail, type QuestionInterp } from './questionInterpret';
 import HighlightText from '../../components/Common/HighlightText';
 import SearchBoxCommon from '../../components/Common/SearchBox';
 import { useListKeyboardNav } from '../../hooks/useListKeyboardNav';
@@ -1052,6 +1054,19 @@ const QNotePage = ({ scope, onRecordingChange }: QNotePageProps = {}) => {
       //     거기서 뒤로 가면 반쯤 만들어진 상태로 돌아가는 셈이라 의미가 다르다.
       goNote(`/notes/${sessionId}`);
 
+      setQuestionInterp(interpFromDetail(detail.question_interpretations));
+      // 고쳐서 찾은 질문은 새로고침 뒤에도 고친 문장으로 보인다(답이 그 문장으로 찾아졌다).
+      const editedInit: Record<number, string> = {};
+      (detail.question_interpretations || []).forEach((q) => {
+        if (q.answer_basis === 'edited' && q.question_edited) editedInit[q.utterance_id] = q.question_edited;
+      });
+      if (Object.keys(editedInit).length > 0) {
+        setAnswerData((prev) => {
+          const next = { ...prev };
+          Object.entries(editedInit).forEach(([k, v]) => { next[Number(k)] = { ...next[Number(k)], editedQuestion: v }; });
+          return next;
+        });
+      }
       // 저장된 답변 있는 질문들 → 초기 상태 세팅 (답변 보기 버튼으로 시작)
       if (detail.detected_questions && detail.detected_questions.length > 0) {
         const readySet = new Set<number>();
@@ -1300,9 +1315,29 @@ const QNotePage = ({ scope, onRecordingChange }: QNotePageProps = {}) => {
       return;
     }
 
+    if (ev.type === 'question_interpreted') {
+      setQuestionInterp((prev) => ({
+        ...prev,
+        [ev.utterance_id]: { interpreted: ev.interpreted, interpret_status: ev.status, incomplete: !!ev.incomplete },
+      }));
+      return;
+    }
+
     if ((ev as any).type === 'answer_ready') {
       const uttId = (ev as any).utterance_id as number;
       setAnswerReadySet((prev) => new Set(prev).add(uttId));
+      // 이미 펼친 답이 있는데 더 나은 답(원문 → AI 정리문)이 오면 바꿔 끼운다. 고친 질문의 답은 건드리지 않는다.
+      const cur = answerDataRef.current[uttId];
+      const sessId = activeSessionRef.current?.id;
+      if (cur?.answer && !cur.loading && !cur.editedQuestion && sessId) {
+        getCachedAnswer(sessId, uttId).then((cached) => {
+          setAnswerData((prev) => {
+            const p = prev[uttId];
+            if (!p || p.editedQuestion || p.answer === cached.answer) return prev;
+            return { ...prev, [uttId]: { ...p, answer: cached.answer, tier: cached.answer_tier || p.tier, answer_translation: undefined } };
+          });
+        }).catch(() => {});
+      }
       return;
     }
 
@@ -2071,8 +2106,12 @@ const QNotePage = ({ scope, onRecordingChange }: QNotePageProps = {}) => {
     editedTranslation?: string;       // 수정된 질문의 번역 (editedQuestion 변경 시 재계산)
     mergedBlockIds?: string[];        // 합친 블록 ID 목록 (순서 유지)
   }>>({});
+  const answerDataRef = useRef(answerData);
+  answerDataRef.current = answerData;
   const [answerReadySet, setAnswerReadySet] = useState<Set<number>>(new Set());
   const [editingQuestionId, setEditingQuestionId] = useState<number | null>(null);
+  // AI 가 정리한 질문(발화별) — 소켓 question_interpreted · 세션 상세 question_interpretations
+  const [questionInterp, setQuestionInterp] = useState<Record<number, QuestionInterp>>({});
 
   // 현재 합쳐진(숨겨진) 블록 ID set — 렌더링 시 스킵
   const hiddenBlockIds = useMemo(() => {
@@ -2318,6 +2357,9 @@ const QNotePage = ({ scope, onRecordingChange }: QNotePageProps = {}) => {
       const hasAnswer = ad && !ad.loading && ad.answer && !ad.error;
       const isCollapsed = ad?.collapsed ?? false;
       const isEditing = editingQuestionId === questionUttId;
+      // 카드에 보일 질문 = AI 정리문(있으면) — 답도 그 문장으로 찾았다. 고치면(editedQuestion) 그것이 이긴다.
+      const qi = questionUttId ? questionInterp[questionUttId] : undefined;
+      const shownQuestion = displayQuestion(originalText, qi);
 
       const fetchTranslation = (sessId: number, uttId: number, answerText: string) => {
         if (!translateOn) return;   // #241 — 번역 OFF 세션은 자동 번역을 부르지 않는다
@@ -2334,14 +2376,15 @@ const QNotePage = ({ scope, onRecordingChange }: QNotePageProps = {}) => {
           .catch(() => {});
       };
 
-      const doSearch = async (searchText: string) => {
+      // edited — 사용자가 고친(합친) 문장. 아니면 서버가 AI 정리문으로 찾는다.
+      const doSearch = async (searchText: string, edited = false) => {
         if (!questionUttId || !activeSessionRef.current) return;
         const sessId = activeSessionRef.current.id;
 
         setAnswerData((prev) => ({ ...prev, [questionUttId]: { ...prev[questionUttId], loading: true, error: undefined, collapsed: false } }));
 
-        // 수정 안 한 원본이면 캐시 시도
-        if (searchText === originalText) {
+        // 수정 안 한 질문이면 캐시 시도
+        if (!edited) {
           try {
             const cached = await getCachedAnswer(sessId, questionUttId);
             setAnswerData((prev) => ({
@@ -2360,7 +2403,10 @@ const QNotePage = ({ scope, onRecordingChange }: QNotePageProps = {}) => {
         }
 
         try {
-          const result = await findAnswer(sessId, searchText, questionUttId);
+          const result = await findAnswer(sessId, searchText, questionUttId, edited);
+          // 찾는 사이 질문이 바뀌었으면(되돌리기·다시 고침) 늦게 온 답은 버린다(Fable 2차 비차단 ①).
+          const nowEdited = answerDataRef.current[questionUttId]?.editedQuestion;
+          if ((edited ? searchText : undefined) !== nowEdited) return;
           if (result.tier === 'none') {
             setAnswerData((prev) => ({
               ...prev,
@@ -2401,8 +2447,8 @@ const QNotePage = ({ scope, onRecordingChange }: QNotePageProps = {}) => {
           }));
         } else {
           // 답변 없음 → 검색
-          const searchText = ad?.editedQuestion ?? originalText;
-          doSearch(searchText);
+          if (ad?.editedQuestion) doSearch(ad.editedQuestion, true);
+          else doSearch(shownQuestion);
         }
       };
 
@@ -2428,8 +2474,13 @@ const QNotePage = ({ scope, onRecordingChange }: QNotePageProps = {}) => {
         if (!questionUttId) return;
         setEditingQuestionId(null);
         const trimmed = newText.trim();
-        if (!trimmed || trimmed === originalText) {
-          // 원본과 같거나 빈 값 → 수정 취소, editedQuestion/editedTranslation 제거
+        if (!trimmed || trimmed === shownQuestion) {
+          // 원본과 같거나 빈 값 → 수정 취소, editedQuestion/editedTranslation 제거 · 서버의 고친 문장·답도 되돌린다
+          if (ad?.editedQuestion && activeSessionRef.current) {
+            resetQuestionEdit(activeSessionRef.current.id, questionUttId).catch(() => {});
+            setAnswerData((prev) => ({ ...prev, [questionUttId]: {} }));
+            return;
+          }
           setAnswerData((prev) => {
             const cur = { ...prev[questionUttId] };
             delete cur.editedQuestion;
@@ -2446,7 +2497,7 @@ const QNotePage = ({ scope, onRecordingChange }: QNotePageProps = {}) => {
         if (activeSession) {
           retranslateQuestion(activeSession.id, questionUttId, trimmed);
         }
-        doSearch(trimmed);
+        doSearch(trimmed, true);
       };
 
       // 다음 블록 텍스트 합치기 (다음 블록은 숨김 처리)
@@ -2474,12 +2525,13 @@ const QNotePage = ({ scope, onRecordingChange }: QNotePageProps = {}) => {
         if (activeSession) {
           retranslateQuestion(activeSession.id, questionUttId, merged);
         }
-        doSearch(merged);
+        doSearch(merged, true);
       };
 
       // 합친 블록 분리 — 숨김 해제 + 질문 원본 복귀
       const handleUnmerge = () => {
         if (!questionUttId) return;
+        if (activeSessionRef.current) resetQuestionEdit(activeSessionRef.current.id, questionUttId).catch(() => {});
         setAnswerData((prev) => {
           const cur = { ...prev[questionUttId] };
           delete cur.editedQuestion;
@@ -2507,7 +2559,7 @@ const QNotePage = ({ scope, onRecordingChange }: QNotePageProps = {}) => {
               {block.isManual && <ManualBadge>{t('page.question.manualBadge', '입력한 질문')}</ManualBadge>}
               {isEditing ? (
                 <QuestionEditInput
-                  defaultValue={ad?.editedQuestion ?? originalText}
+                  defaultValue={ad?.editedQuestion ?? shownQuestion}
                   autoFocus
                   onBlur={(e) => commitEdit(e.currentTarget.value)}
                   onKeyDown={(e) => {
@@ -2519,7 +2571,7 @@ const QNotePage = ({ scope, onRecordingChange }: QNotePageProps = {}) => {
                 />
               ) : (
                 <QuestionOriginal onClick={startEdit} title={t('page.header.editTitleHint')} style={{ cursor: 'text' }}>
-                  {ad?.editedQuestion || originalText}
+                  {ad?.editedQuestion || shownQuestion}
                   {ad?.editedQuestion && <EditedMark>{t('page.question.editedMark')}</EditedMark>}
                   {mergedCount > 0 && <MergedBadge>{t('page.question.mergedBadge', { count: mergedCount })}</MergedBadge>}
                 </QuestionOriginal>
@@ -2548,6 +2600,7 @@ const QNotePage = ({ scope, onRecordingChange }: QNotePageProps = {}) => {
                 )}
               </QuestionTopActions>
             </QuestionTopRow>
+            {!isEditing && !ad?.editedQuestion && <QuestionInterpLine original={originalText} qi={qi} />}
             {!isEditing && (ad?.editedQuestion ? (
               ad?.editedTranslation !== undefined ? (
                 ad.editedTranslation ? (

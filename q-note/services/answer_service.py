@@ -312,25 +312,33 @@ async def _search_generated_qa(
   return await _semantic_rerank(candidates, q_emb, SEMANTIC_THRESHOLD_GENERATED)
 
 
-async def _load_session_history(session_id: int, limit: int = 30) -> list[dict]:
-  """같은 세션에서 이미 답변한 질문-답변 리스트 (최신 순)."""
+async def _load_session_history(
+  session_id: int, limit: int = 30, exclude_utterance_id: Optional[int] = None,
+) -> list[dict]:
+  """같은 세션에서 이미 답변한 질문-답변 리스트 (최신 순).
+  질문 문장은 AI 정리문/사용자가 고친 문장이 있으면 그것(답이 그 문장으로 찾아졌다).
+  exclude_utterance_id — 지금 다시 찾는 그 발화의 옛 답(원문으로 찾은 것)을 «재사용» 하지 않게 뺀다."""
   async with db_connect() as db:
     db.row_factory = aiosqlite.Row
     cursor = await db.execute('''
-      SELECT id, utterance_id, question_text, answer_text, answer_tier, answered_at
+      SELECT id, utterance_id,
+             COALESCE(NULLIF(question_edited, ''), NULLIF(question_interpreted, ''), question_text) AS question_text,
+             answer_text, answer_tier, answered_at
       FROM detected_questions
       WHERE session_id = ?
         AND answer_text IS NOT NULL
         AND answer_text != ''
+        AND (? IS NULL OR utterance_id IS NULL OR utterance_id != ?)
       ORDER BY id DESC
       LIMIT ?
-    ''', (session_id, limit))
+    ''', (session_id, exclude_utterance_id, exclude_utterance_id, limit))
     rows = await cursor.fetchall()
     return [dict(r) for r in rows]
 
 
 async def _search_session_history(
-  session_id: int, question_text: str, q_emb: Optional[np.ndarray]
+  session_id: int, question_text: str, q_emb: Optional[np.ndarray],
+  exclude_utterance_id: Optional[int] = None,
 ) -> Optional[dict]:
   """같은 세션에서 이미 답변한 질문 중 시맨틱 유사도 매우 높은 것만 재사용.
 
@@ -341,7 +349,7 @@ async def _search_session_history(
   """
   if q_emb is None:
     return None
-  history = await _load_session_history(session_id)
+  history = await _load_session_history(session_id, exclude_utterance_id=exclude_utterance_id)
   if not history:
     return None
   from services.embedding_service import embed_batch
@@ -688,9 +696,15 @@ async def find_answer(
   session_id: int,
   question_text: str,
   meeting_context: Optional[dict] = None,
+  exclude_utterance_id: Optional[int] = None,
+  heard_text: Optional[str] = None,
 ) -> dict:
   """
   6단계 우선순위로 답변 탐색.
+  exclude_utterance_id — 그 발화 자신의 옛 답은 session_reuse 후보에서 뺀다(다시 찾기가 옛 답을 되돌려주지 않게).
+  heard_text — question_text 가 AI 정리문일 때 들린 그대로의 문장. 등록 답변(priority·custom)은 정리문으로 못 찾으면
+    들린 그대로로 한 번 더 본다 — 정리하며 뗀 서두에 주제어가 있어 옛 일치를 놓치던 것(재생 비교 3건)을 막는다.
+    두 번째 시도도 같은 검증기를 통과해야 하므로 거짓 일치 위험은 옛 동작과 같다.
   Returns: {
     tier: 'priority'|'custom'|'session_reuse'|'generated'|'rag'|'general'|'none',
     answer, answer_translation, confidence, sources, matched_qa_id, _translation_lang
@@ -786,18 +800,32 @@ async def find_answer(
       '_translation_lang': effective_translation_lang,
     }
 
+  heard = (heard_text or '').strip()
+  heard_emb = None
+  if heard and heard != question_text.strip():
+    try:
+      heard_emb = await embed_text(heard)
+    except Exception:
+      heard_emb = None
+  else:
+    heard = ''
+
   # ── Tier 1: Priority Q&A (최우선) ──
   m = await _search_priority_qa(session_id, question_text, q_emb)
+  if not m and heard:
+    m = await _search_priority_qa(session_id, heard, heard_emb)
   if m:
     return await _qa_result(m, 'priority')
 
   # ── Tier 2: Custom Q&A (사용자 직접 등록) ──
   m = await _search_custom_qa(session_id, question_text, q_emb)
+  if not m and heard:
+    m = await _search_custom_qa(session_id, heard, heard_emb)
   if m:
     return await _qa_result(m, 'custom')
 
   # ── Tier 3: Session history — 이미 답변한 유사 질문 재사용 ──
-  hist = await _search_session_history(session_id, question_text, q_emb)
+  hist = await _search_session_history(session_id, question_text, q_emb, exclude_utterance_id=exclude_utterance_id)
   if hist:
     hist_ans = hist['answer_text']
     # 언어 강제 (session history 는 과거 답변 재사용인데 언어가 바뀌었을 수 있음)

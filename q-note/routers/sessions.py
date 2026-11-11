@@ -1570,12 +1570,28 @@ async def get_session(
       (session_id,)
     )
     detected_questions = [dict(r) for r in await cursor.fetchall()]
+    # AI 가 정리한 질문 / 사용자가 고친 질문 — 새로고침 뒤에도 카드가 같은 문장을 보인다(답 유무와 무관).
+    cursor = await db.execute(
+      '''SELECT utterance_id, question_text, question_interpreted, interpret_status, answer_basis, question_edited
+         FROM detected_questions
+         WHERE session_id = ? AND utterance_id IS NOT NULL
+           AND (interpret_status IS NOT NULL OR answer_basis = 'edited')''',
+      (session_id,)
+    )
+    from services.llm_service import is_incomplete_question
+    question_interpretations = []
+    for r in await cursor.fetchall():
+      qi = dict(r)
+      qt = qi.pop('question_text', '') or ''
+      qi['incomplete'] = bool(qi.get('interpret_status') == 'unclear' and is_incomplete_question(qt))
+      question_interpretations.append(qi)
 
     data = _deserialize_session(row)
     data['utterances'] = utterances
     data['documents'] = documents
     data['speakers'] = speakers
     data['detected_questions'] = detected_questions
+    data['question_interpretations'] = question_interpretations
     lock_state = _recorder_lock_state(row)
     data['recorder_lock'] = {
       'active': lock_state['active'],
@@ -2408,6 +2424,8 @@ class FindAnswerRequest(BaseModel):
   #   (main/sub)으로 보여주려고 목적지를 명시해 부른다 — "번역 필요" 를 껐어도 이건 동작해야 한다.
   #   #241 게이트는 이 인자가 **없을 때**(= 세션 설정을 따르겠다는 뜻)만 적용된다.
   target_language: Optional[str] = Field(None, max_length=10)
+  # edited — 사용자가 카드에서 질문을 고쳐 다시 찾음(Fable DESIGN-FIX 5). 그 문장이 이 발화의 질문이 된다.
+  edited: bool = False
 
 
 def _strip_qa_blob(row: dict) -> dict:
@@ -3000,7 +3018,53 @@ async def find_answer_endpoint(
     db.row_factory = aiosqlite.Row
     await _load_session_or_403(db, session_id, user['user_id'], user.get('business_id'))
 
-  result = await find_answer(session_id, body.question_text.strip())
+  # 질문 정리(Fable DESIGN-FIX) — 발화에 연결된 질문이면 AI 정리문/사용자가 고친 문장으로 찾는다.
+  #   edited 면 보낸 문장 그대로(사용자가 고친 것). 그 발화 자신의 옛 답은 재사용 후보에서 뺀다.
+  search_text = body.question_text.strip()
+  basis = 'raw'
+  heard_text = None
+  if body.utterance_id:
+    if body.edited:
+      basis = 'edited'
+    else:
+      try:
+        async with db_connect() as db:
+          cur = await db.execute(
+            '''SELECT question_interpreted, interpret_status, answer_basis, question_text, question_edited
+               FROM detected_questions WHERE session_id = ? AND utterance_id = ?''',
+            (session_id, body.utterance_id),
+          )
+          r = await cur.fetchone()
+        if r and r[2] == 'edited' and (r[4] or '').strip():
+          search_text = r[4].strip()
+          basis = 'edited'
+        elif r and (r[0] or '').strip() and r[1] == 'ok':
+          heard_text = (r[3] or '').strip() or None
+          search_text = r[0].strip()
+          basis = 'interpreted'
+      except Exception:
+        pass
+  # 고친 질문은 찾기 «전에» 저장한다 — 새로고침 뒤에도 카드가 고친 문장을 보이고, 찾는 사이 «되돌리기»(question-reset)가
+  #   이 행을 비울 수 있게(Fable 2차 비차단 ①). 늦게 끝난 답은 아래 UPSERT 가 문장이 같을 때만 쓴다.
+  if body.utterance_id and basis == 'edited':
+    try:
+      async with db_connect() as db:
+        await db.execute(
+          '''INSERT INTO detected_questions (session_id, utterance_id, question_text, question_edited, answer_basis)
+             VALUES (?, ?, ?, ?, 'edited')
+             ON CONFLICT(session_id, utterance_id) DO UPDATE SET
+               question_edited = excluded.question_edited, answer_basis = 'edited',
+               answer_text = NULL, answer_tier = NULL, matched_qa_id = NULL, answer_sources = NULL''',
+          (session_id, body.utterance_id, search_text, search_text),
+        )
+        await db.commit()
+    except Exception as e:
+      import logging
+      logging.getLogger('q-note').warning(f'find-answer edited persist failed: {e}')
+
+  result = await find_answer(session_id, search_text, exclude_utterance_id=body.utterance_id, heard_text=heard_text)
+  result['question_used'] = search_text
+  result['answer_basis'] = basis
 
   # 번역 언어 정보를 추출하고 응답에서 제거 (내부용)
   translation_lang = result.pop('_translation_lang', None)
@@ -3025,33 +3089,26 @@ async def find_answer_endpoint(
   if body.utterance_id and result.get('answer'):
     try:
       async with db_connect() as db:
-        db.row_factory = aiosqlite.Row
-        # 기존 row 있으면 UPDATE, 없으면 INSERT
-        cur = await db.execute(
-          'SELECT id FROM detected_questions WHERE session_id = ? AND utterance_id = ?',
-          (session_id, body.utterance_id)
-        )
-        existing = await cur.fetchone()
         sources_json = json.dumps(result.get('sources', []), ensure_ascii=False) if result.get('sources') else None
-        if existing:
-          await db.execute('''
-            UPDATE detected_questions
-            SET answer_text = ?, answer_tier = ?, matched_qa_id = ?,
-                answer_sources = ?, answered_at = datetime('now')
-            WHERE id = ?
-          ''', (
-            result['answer'], result.get('tier'), result.get('matched_qa_id'),
-            sources_json, existing['id']
-          ))
-        else:
-          await db.execute('''
-            INSERT INTO detected_questions
-              (session_id, utterance_id, question_text, answer_text, answer_tier, matched_qa_id, answer_sources, answered_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))
-          ''', (
-            session_id, body.utterance_id, body.question_text.strip(),
-            result['answer'], result.get('tier'), result.get('matched_qa_id'), sources_json
-          ))
+        # 발화당 1행(UPSERT) · 원문으로 찾은 답은 정리문/고친 문장 답을 덮지 않는다(prefetch 와 같은 조건)
+        await db.execute('''
+          INSERT INTO detected_questions
+            (session_id, utterance_id, question_text, answer_text, answer_tier, matched_qa_id, answer_sources, answered_at, answer_basis)
+          VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'), ?)
+          ON CONFLICT(session_id, utterance_id) DO UPDATE SET
+            answer_text = excluded.answer_text, answer_tier = excluded.answer_tier,
+            matched_qa_id = excluded.matched_qa_id, answer_sources = excluded.answer_sources,
+            answered_at = excluded.answered_at, answer_basis = excluded.answer_basis
+          WHERE NOT (excluded.answer_basis = 'raw'
+                     AND COALESCE(detected_questions.answer_basis, '') IN ('interpreted', 'edited'))
+            AND NOT (excluded.answer_basis = 'edited'
+                     AND (COALESCE(detected_questions.answer_basis, '') != 'edited'
+                          OR COALESCE(detected_questions.question_edited, '') != ?))
+        ''', (
+          session_id, body.utterance_id, body.question_text.strip(),
+          result['answer'], result.get('tier'), result.get('matched_qa_id'), sources_json, basis,
+          search_text,
+        ))
         await db.commit()
     except Exception as e:
       import logging
@@ -3087,6 +3144,29 @@ async def translate_answer_endpoint(
 
   translated = await translate_answer_text(body.question_text.strip(), effective_trans)
   return success({'translation': translated})
+
+
+@router.post('/{session_id}/utterances/{utterance_id}/question-reset')
+async def reset_question_edit(
+  session_id: int,
+  utterance_id: int,
+  user: dict = Depends(get_current_user)
+):
+  """카드에서 고친(합친) 질문을 되돌린다 — 고친 문장과 그 답을 지워 다음 «답 찾기» 가 AI 정리문(또는 들린 그대로)으로 찾게.
+  (Fable 완료 검증 2 — 화면만 되돌리면 서버는 고친 문장의 답을 계속 돌려줬다.) 쓰기라 답 찾기와 같은 권한."""
+  async with db_connect() as db:
+    db.row_factory = aiosqlite.Row
+    await _load_session_or_403(db, session_id, user['user_id'], user.get('business_id'))
+    cur = await db.execute(
+      '''UPDATE detected_questions
+         SET question_edited = NULL, answer_basis = NULL,
+             answer_text = NULL, answer_tier = NULL, matched_qa_id = NULL, answer_sources = NULL, answered_at = NULL
+         WHERE session_id = ? AND utterance_id = ? AND answer_basis = ?''',
+      (session_id, utterance_id, 'edited'),
+    )
+    changed = cur.rowcount > 0
+    await db.commit()
+  return success({'reset': changed})
 
 
 @router.get('/{session_id}/utterances/{utterance_id}/cached-answer')
