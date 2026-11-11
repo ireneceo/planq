@@ -1,0 +1,122 @@
+{
+  "version": "1.70.9",
+  "date": "2026-11-11",
+  "_auto": true,
+  "_range": "f785317c..4a65a6ff",
+  "summary": {
+    "ko": "반복 업무·오늘 내 업무·메일 답변 흐름이 더 정확하고 편해졌어요",
+    "en": "Recurring tasks, Today view, and mail replies now work more clearly and reliably"
+  },
+  "items": [
+    {
+      "ko": {
+        "title": "데스크탑 앱에서 전역 단축키로 빠르게 업무 추가",
+        "body": "데스크탑 앱에서 전역 단축키로 바로 업무를 추가할 수 있고, 점프 목록·맥 메뉴에서도 허용된 항목만 보이도록 정리했습니다. 자주 쓰는 업무 기능에 더 빨리 접근할 수 있습니다."
+      },
+      "en": {
+        "title": "Add tasks faster with global shortcuts in the desktop app",
+        "body": "In the desktop app, you can now add tasks directly using global shortcuts, and jump lists/Mac menus only show allowed items. This makes it quicker to reach your most-used task actions."
+      }
+    },
+    {
+      "ko": {
+        "title": "팝아웃 ‘오늘 내 업무’에서 필요한 칸만 골라 보기",
+        "body": "팝아웃 ‘오늘 내 업무’에서 Cue·할 일 입력·보기 설정 칸을 각각 보이기/가리기 할 수 있습니다. 상단 ‘보일 칸’ 메뉴에서 필요한 영역만 남겨 더 간단한 화면으로 쓸 수 있습니다."
+      },
+      "en": {
+        "title": "Choose exactly what to show in pop-out ‘Today’ view",
+        "body": "In the pop-out ‘Today’ view, you can now show or hide Cue, task input, and view settings separately. Use the ‘Visible sections’ menu in the header to keep only what you need for a cleaner screen."
+      }
+    },
+    {
+      "ko": {
+        "title": "Q info 도 여러 프로젝트에 ‘연결’해 관리",
+        "body": "Q info 를 소속 프로젝트 외에 다른 프로젝트에도 여러 개 연결할 수 있습니다. 문서·파일처럼 하나의 정보를 여러 프로젝트에서 같은 계약 단위로 함께 볼 수 있습니다."
+      },
+      "en": {
+        "title": "Link one Q info item to multiple projects",
+        "body": "You can now link a Q info item to multiple projects beyond its main project. As with documents and files, the same information can be shared across several projects under the same contract context."
+      }
+    },
+    {
+      "ko": {
+        "title": "Q note 녹음 화면에서 ‘내 발화’ 보기 설정 복원",
+        "body": "Q note 녹음 화면에서 ‘내 발화’를 처리 안 함·숨김·보기로 고르는 설정이 다시 제대로 동작합니다. 녹음 중 내 발화를 어떻게 다룰지 이전처럼 선택할 수 있습니다."
+      },
+      "en": {
+        "title": "‘My speech’ options restored in Q note recording",
+        "body": "In Q note recording, the ‘My speech’ options (no processing, hide, show) now work correctly again. You can control how your own speech is handled during recording as before."
+      }
+    },
+    {
+      "ko": {
+        "title": "Q talk 첨부 실패 이유를 알기 쉽게 안내",
+        "body": "Q talk 에 파일을 올릴 때 용량 초과 등으로 실패하면, 코드 대신 이해하기 쉬운 문장으로 이유를 보여줍니다. 특히 휴대폰 영상처럼 큰 파일이 왜 안 올라가는지 바로 알 수 있습니다."
+      },
+      "en": {
+        "title": "Clearer explanations when Q talk file uploads fail",
+        "body": "When a file upload fails in Q talk (for example due to size limits), you now see a clear message instead of a code. This makes it easier to understand why large files like phone videos cannot be uploaded."
+      }
+    },
+    {
+      "ko": {
+        "title": "Q task 반복 설정 변경 시 새 회차가 바로 생성",
+        "body": "Q task 에서 반복 설정을 바꾸면, 변경 내용을 반영한 새 반복 회차가 즉시 만들어집니다. 자정까지 고친 업무 1개만 남던 문제를 막아, 반복 업무 흐름이 끊기지 않습니다."
+      },
+      "en": {
+        "title": "Recurring tasks now update immediately after rule changes",
+        "body": "When you change recurrence settings in Q task, a new occurrence is created right away with the updated rule. This prevents cases where only one edited task remained until midnight, keeping the recurring flow intact."
+      }
+    },
+    {
+      "ko": {
+        "title": "Q task 반복 업무 변경 시 날짜·지연 업무가 꼬이지 않게",
+        "body": "반복 설정을 바꿀 때 지연·오늘 업무를 지우지 않고, 지난 날짜에 가짜 업무를 만들지 않도록 조정했습니다. 창 안내 문구도 ‘이 업무 다음부터 / 내일부터’로 바뀌어 기준 시점을 더 쉽게 이해할 수 있습니다."
+      },
+      "en": {
+        "title": "Safer changes to recurring tasks without fake or lost items",
+        "body": "When editing recurrence in Q task, delayed and today tasks are kept, and no extra tasks are created in past dates. The dialog text now says ‘From after this task / From tomorrow’ so the starting point is clearer."
+      }
+    },
+    {
+      "ko": {
+        "title": "Q task 우측 패널이 비어 있을 때도 안내 문구 제공",
+        "body": "Q task 전체 업무에서 우측 패널에 보여 줄 프로젝트 진척·이슈·메모가 없으면, 빈 공간 대신 안내 문구를 보여줍니다. 무엇을 어디서 추가해야 할지 더 쉽게 알 수 있습니다."
+      },
+      "en": {
+        "title": "Guidance text when Q task side panel has no project data",
+        "body": "In Q task All tasks view, if there is no project progress, issue, or memo to show in the right panel, you now see guidance text instead of an empty area. This helps you understand what can be added and where."
+      }
+    },
+    {
+      "ko": {
+        "title": "Q task ‘내 업무’ 우측 패널 내용 표시 오류 수정",
+        "body": "Q task ‘내 업무’에서 ‘참조’·‘나의 업무보고’ 탭의 우측 패널에 제목만 보이고 본문이 비던 문제를 고쳤습니다. 그 밖의 탭은 기본대로 개인 인사이트가 보입니다."
+      },
+      "en": {
+        "title": "Fixed empty side panel in Q task ‘My tasks’ tabs",
+        "body": "In Q task ‘My tasks’, the right panel in the ‘Reference’ and ‘My reports’ tabs now shows full content instead of only titles. Other tabs continue to display personal insights as before."
+      }
+    },
+    {
+      "ko": {
+        "title": "Q mail ‘답변 필요’ 폴더가 책임자에게만 보이도록 정리",
+        "body": "Q mail 공용 메일함에 책임자·답변 담당이 지정된 경우, ‘답변 필요’ 폴더는 해당 담당자에게만 보이도록 바뀌었습니다. 일괄 처리 버튼도 공용 메일함용 안내로 정리했습니다."
+      },
+      "en": {
+        "title": "Q mail ‘Needs reply’ folder now focused on assignees",
+        "body": "In shared Q mail inboxes with a responsible or reply assignee, the ‘Needs reply’ folder is now visible only to them. Bulk action buttons also show guidance tailored for shared inbox use."
+      }
+    },
+    {
+      "ko": {
+        "title": "보안과 안정성 강화",
+        "body": "데이터를 더 안전하게 지키도록 보안과 안정성을 강화했습니다."
+      },
+      "en": {
+        "title": "Security and stability improvements",
+        "body": "We strengthened security and stability to keep your data safer."
+      }
+    }
+  ]
+}
