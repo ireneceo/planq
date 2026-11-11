@@ -1079,7 +1079,19 @@
       "howItWorks": "Notifications arrive while the PlanQ desktop app is running. Closing the window keeps it in the taskbar (menu bar on Mac) so alerts still come; quitting the app stops them.",
       "openOsSettings": "Open system notification settings",
       "openOsFailed": "Settings can't be opened directly on this computer — find PlanQ under Notifications in your system settings.",
-      "autoLaunch": "Start PlanQ when the computer starts"
+      "autoLaunch": "Start PlanQ when the computer starts",
+      "shortcut": {
+        "label": "Quick add task with a shortcut",
+        "desc": "Press this key while using any other program to open a small window and add a task right away. Press Esc to hide it.",
+        "change": "Change key",
+        "reset": "Reset to default",
+        "recording": "Press the new key combination (Esc to cancel)",
+        "recordAria": "New shortcut",
+        "errNeedsModifier": "Include Ctrl, Cmd or Alt (so other programs can still type that key).",
+        "errCommon": "That key is commonly used, like copy or paste — add Shift or Alt.",
+        "errInUse": "Another program is already using this key, so it couldn't be registered — please choose a different key.",
+        "errInvalid": "That combination can't be used — combine a letter, number, F-key or Space with Ctrl, Cmd or Alt."
+      }
     }
   },
   "payrollSettings": {

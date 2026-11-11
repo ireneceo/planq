@@ -9,6 +9,7 @@ import ActionButton from '../../components/Common/ActionButton';
 import AutoSaveField from '../../components/Common/AutoSaveField';
 import { Switch, SwitchKnob } from '../../components/Common/switchShell';
 import { desktopBridge, openAppNotificationSettings } from '../../services/native';
+import DesktopQuickAddShortcut from './DesktopQuickAddShortcut';
 
 const DesktopAppNotifyBody: React.FC = () => {
   const { t } = useTranslation('settings');
@@ -64,6 +65,7 @@ const DesktopAppNotifyBody: React.FC = () => {
           <Label>{t('push.desktop.autoLaunch', '컴퓨터를 켤 때 PlanQ 자동 실행')}</Label>
         </Row>
       )}
+      <DesktopQuickAddShortcut />
     </Body>
   );
 };

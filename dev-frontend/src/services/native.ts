@@ -28,6 +28,27 @@ export interface PlanqDesktopBridge {
   onNotificationClick: (cb: (link: string | null) => void) => () => void;
   /** planq://oauth/native-return?… 로 앱이 깨어났을 때 — 전체 URL 을 받는다 */
   onDeepLink: (cb: (url: string) => void) => () => void;
+  // ── 2단계(docs/DESKTOP_APP_PHASE2.md) — 옛 껍데기에는 없다(웹이 먼저 배포된다) → 전부 선택. 없으면 그 기능을 안 그린다 ──
+  /** 전역 단축키 «빠른 업무 추가» 상태 */
+  getShortcut?: () => Promise<DesktopShortcutState | false>;
+  /** 켜기/끄기·키 바꾸기 — 메인 창만(main 이 거절). 형식 검증은 main(Ctrl/Cmd/Alt 필수) */
+  setShortcut?: (req: { enabled?: boolean; accel?: string }) => Promise<{ ok: boolean; error?: DesktopShortcutError; state: DesktopShortcutState } | false>;
+  /** 단축키로 빠른 추가 창이 다시 떠올랐다(입력칸에 포커스) */
+  onQuickAdd?: (cb: () => void) => () => void;
+  /** 점프 목록·맥 메뉴 «Q task·Q talk·Q note 열기» */
+  onAction?: (cb: (tool: 'qtask' | 'qtalk' | 'qnote') => void) => () => void;
+}
+
+export type DesktopShortcutError = 'invalid' | 'needs_modifier' | 'common_key' | 'in_use' | 'not_main';
+export interface DesktopShortcutState {
+  enabled: boolean;
+  /** Electron 표기(CommandOrControl+Shift+Space) */
+  accel: string;
+  /** 화면 표기(Ctrl+Shift+Space · 맥 Cmd+Shift+Space) */
+  display: string;
+  registered: boolean;
+  error: DesktopShortcutError | null;
+  defaultAccel: string;
 }
 
 /** 데스크탑 앱 다리. 웹·PWA·폰 앱이면 null. */

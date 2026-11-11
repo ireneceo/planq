@@ -11,8 +11,9 @@
 const path = require('path');
 const fs = require('fs');
 const {
-  app, BrowserWindow, WebContentsView, ipcMain, shell, Tray, Menu, Notification, nativeImage, session, screen, net,
+  app, BrowserWindow, WebContentsView, ipcMain, shell, Tray, Menu, Notification, nativeImage, session, screen, net, globalShortcut,
 } = require('electron');
+const { DEFAULT_ACCEL, validateAccel, displayAccel, ACTION_ARG, actionFromArgv } = require('./shortcut');
 
 // ── 출처 — 빌드 때 한 값으로 고정(scripts/build.js 가 src/origin.json 을 쓴다). 실행 중 바꿀 수 없다. ──
 function readOrigin() {
@@ -33,10 +34,14 @@ const SCHEME = 'planq';
 const KO = {
   open: 'PlanQ 열기', autoLaunch: '컴퓨터 켤 때 자동 실행', installUpdate: '새 버전 설치하고 다시 시작',
   quit: '종료', tooltip: 'PlanQ', tooltipCount: (n) => `PlanQ — 확인할 것 ${n}개`,
+  quickAdd: (k) => (k ? `빠른 업무 추가 (${k})` : '빠른 업무 추가'), shortcutOn: '단축키로 빠른 업무 추가',
+  openTask: 'Q task 열기', openTalk: 'Q talk 열기', openNote: 'Q note 열기', fileMenu: '파일',
 };
 const EN = {
   open: 'Open PlanQ', autoLaunch: 'Start when the computer starts', installUpdate: 'Install update and restart',
   quit: 'Quit', tooltip: 'PlanQ', tooltipCount: (n) => `PlanQ — ${n} to check`,
+  quickAdd: (k) => (k ? `Quick add task (${k})` : 'Quick add task'), shortcutOn: 'Quick add with shortcut',
+  openTask: 'Open Q task', openTalk: 'Open Q talk', openNote: 'Open Q note', fileMenu: 'File',
 };
 const L = () => (String(app.getLocale() || '').toLowerCase().startsWith('ko') ? KO : EN);
 
@@ -45,6 +50,9 @@ if (!app.requestSingleInstanceLock()) {
   app.quit();
 } else {
   app.on('second-instance', (_e, argv) => {
+    // 점프 목록·독 메뉴 — 고정 허용 목록 이름만(§4-5). 그 밖의 --pq-action 값은 버리고 평소처럼 메인 창
+    const action = actionFromArgv(argv);
+    if (action) { runAction(action); return; }
     const link = argv.find((a) => typeof a === 'string' && a.startsWith(`${SCHEME}://`));
     if (link) deliverDeepLink(link);
     showMain();
@@ -64,6 +72,7 @@ let quitting = false;
 let updateReady = false;
 let pendingDeepLink = null;
 let badgeCount = 0;
+let pendingAction = actionFromArgv(process.argv);   // 점프 목록으로 콜드 스타트
 
 // 맥: planq:// 는 open-url 로 온다(앱이 안 떠 있으면 ready 전에 올 수 있다 — 들고 있다가 보낸다)
 app.on('open-url', (e, url) => { e.preventDefault(); deliverDeepLink(url); showMain(); });
@@ -232,6 +241,7 @@ function createMain() {
   mainWin.once('ready-to-show', () => { if (!START_HIDDEN) mainWin.show(); });
   mainWin.webContents.on('did-finish-load', () => {
     if (pendingDeepLink) { const l = pendingDeepLink; pendingDeepLink = null; deliverDeepLink(l); }
+    if (pendingAction) { const a = pendingAction; pendingAction = null; runAction(a); }
   });
   // 닫기(X) = 숨김 — 트레이에 남아 알림을 받는다. 진짜 종료는 트레이 «종료»·맥 Cmd+Q.
   mainWin.on('close', (e) => {
@@ -321,6 +331,160 @@ function deliverDeepLink(url) {
   mainWin.webContents.send('planq:deep-link', url);
 }
 
+// ── 빠른 업무 추가 (2단계 C · docs/DESKTOP_APP_PHASE2.md §4-3) ──
+//   전역 단축키 → 작은 창(기존 /task-popout?quick=1 — 새 화면을 그리지 않는다). 저장 키는 그 화면의 입력 규칙 그대로.
+//   ★ 창은 baseWebPreferences() 그대로(같은 preload·탐색 잠금) · Esc = 숨김(다음 단축키에 바로 뜬다)
+//   ★ 로그아웃이면(창이 /task-popout 을 벗어나 로그인으로 가면) 이 창을 닫고 메인 창을 보인다
+//   ★ 단축키 바꾸기는 메인 창만 · 형식 검증은 main(shortcut.js — 수식키 필수)
+const SETTINGS_FILE = () => path.join(app.getPath('userData'), 'desktop-settings.json');
+function loadSettings() {
+  try { return JSON.parse(fs.readFileSync(SETTINGS_FILE(), 'utf8')) || {}; } catch { return {}; }
+}
+function saveSettings(patch) {
+  const next = { ...loadSettings(), ...patch };
+  try { fs.writeFileSync(SETTINGS_FILE(), JSON.stringify(next)); } catch { /* 디스크 문제 — 이번 실행만 */ }
+  return next;
+}
+const shortcut = { enabled: true, accel: DEFAULT_ACCEL, registered: false, error: null };
+function loadShortcutSetting() {
+  const q = loadSettings().quickAdd || {};
+  shortcut.enabled = q.enabled !== false;
+  const v = validateAccel(q.accel || DEFAULT_ACCEL);
+  shortcut.accel = v.ok ? v.accel : DEFAULT_ACCEL;
+}
+/** 지금 설정대로 등록. 실패(다른 프로그램이 이미 씀)는 registered:false + error:'in_use' — 설정 화면에 보인다 */
+function applyShortcut() {
+  try { globalShortcut.unregisterAll(); } catch { /* */ }
+  shortcut.registered = false; shortcut.error = null;
+  if (shortcut.enabled) {
+    let ok = false;
+    try { ok = globalShortcut.register(shortcut.accel, openQuickAdd); } catch { ok = false; }
+    shortcut.registered = !!ok;
+    if (!ok) shortcut.error = 'in_use';
+  }
+  rebuildTrayMenu();
+  setupMenu();   // 맥 파일 메뉴의 단축키 표기를 같이 맞춘다
+  return shortcut.registered;
+}
+function shortcutState() {
+  return { enabled: shortcut.enabled, accel: shortcut.accel, display: displayAccel(shortcut.accel, process.platform),
+    registered: shortcut.registered, error: shortcut.error, defaultAccel: DEFAULT_ACCEL };
+}
+/** 설정 바꾸기 — 형식 거절이면 아무것도 안 바뀐다. 새 키가 이미 쓰이고 있으면 옛 키로 되돌리고 'in_use' */
+function setShortcut(req) {
+  const enabled = req && typeof req.enabled === 'boolean' ? req.enabled : shortcut.enabled;
+  let accel = shortcut.accel;
+  if (req && req.accel !== undefined) {
+    const v = validateAccel(req.accel);
+    if (!v.ok) return { ok: false, error: v.error, state: shortcutState() };
+    accel = v.accel;
+  }
+  const prev = { enabled: shortcut.enabled, accel: shortcut.accel };
+  shortcut.enabled = enabled; shortcut.accel = accel;
+  applyShortcut();
+  if (shortcut.enabled && !shortcut.registered) {
+    shortcut.enabled = prev.enabled; shortcut.accel = prev.accel;
+    applyShortcut();
+    return { ok: false, error: 'in_use', state: shortcutState() };
+  }
+  saveSettings({ quickAdd: { enabled: shortcut.enabled, accel: shortcut.accel } });
+  return { ok: true, state: shortcutState() };
+}
+
+let quickWin = null;
+const QUICK_PATH = '/task-popout';
+function quickBounds() {
+  const saved = loadBounds().__quick;
+  if (saved && onSomeScreen(saved)) return { x: saved.x, y: saved.y, width: saved.w, height: saved.h };
+  const w = 520; const h = 640;
+  try {
+    const a = screen.getDisplayNearestPoint(screen.getCursorScreenPoint()).workArea;
+    return { x: Math.round(a.x + (a.width - w) / 2), y: Math.round(a.y + Math.max(40, (a.height - h) / 3)), width: w, height: h };
+  } catch { return { width: w, height: h }; }
+}
+function openQuickAdd() {
+  if (quickWin && !quickWin.isDestroyed()) {
+    if (quickWin.isMinimized()) quickWin.restore();
+    quickWin.show(); quickWin.focus();
+    if (!quickWin.webContents.isLoading()) quickWin.webContents.send('planq:quick-add');
+    return quickWin;
+  }
+  quickWin = new BrowserWindow({
+    ...quickBounds(),
+    minWidth: 360, minHeight: 300,
+    show: false,
+    title: 'PlanQ',
+    autoHideMenuBar: true,
+    backgroundColor: '#ffffff',
+    icon: path.join(__dirname, '..', 'build', 'icon.png'),
+    webPreferences: baseWebPreferences(),
+  });
+  const win = quickWin;
+  win.setMenuBarVisibility(false);
+  trackBounds(win, '__quick');
+  const leftQuick = (url) => {
+    if (!sameOrigin(url)) return false;
+    try { return new URL(url).pathname !== QUICK_PATH; } catch { return false; }
+  };
+  // 로그아웃·세션 만료 — 이 창은 로그인 화면을 그리지 않는다. 메인 창에서 로그인하게
+  const onNav = (_e, url) => {
+    if (!leftQuick(url)) return;
+    try { win.destroy(); } catch { /* */ }
+    showMain();
+  };
+  win.webContents.on('did-navigate', onNav);
+  win.webContents.on('did-navigate-in-page', onNav);
+  win.webContents.on('before-input-event', (e, input) => {
+    if (input.type === 'keyDown' && input.key === 'Escape' && !input.alt && !input.control && !input.meta && !input.shift) {
+      e.preventDefault();
+      win.hide();
+    }
+  });
+  win.on('close', (e) => { if (quitting) return; e.preventDefault(); win.hide(); });   // 닫기 = 숨김(다음 단축키에 바로)
+  win.on('closed', () => { if (quickWin === win) quickWin = null; });
+  win.once('ready-to-show', () => { win.show(); win.focus(); });
+  win.loadURL(`${APP_ORIGIN}${QUICK_PATH}?quick=1`);
+  return win;
+}
+
+// ── 점프 목록(윈도우)·파일 메뉴/독 메뉴(맥) — 고정 허용 목록 동작만 (2단계 E · §4-5) ──
+//   팝아웃은 웹의 단일 진입점(launchDockTool)이 연다 — 같은 pq-* 창을 다시 쓴다(창 자리·계단 규칙 그대로).
+function runAction(action) {
+  if (action === 'quick-task') { openQuickAdd(); return; }
+  if (!['qtask', 'qtalk', 'qnote'].includes(action)) return;
+  if (!mainWin || mainWin.isDestroyed()) { pendingAction = action; createMain(); return; }
+  if (mainWin.webContents.isLoading() || !sameOrigin(mainWin.webContents.getURL())) { pendingAction = action; showMain(); return; }
+  mainWin.webContents.send('planq:action', action);
+}
+function actionMenuItems(withAccel) {
+  const s = L();
+  return [
+    { label: s.quickAdd(''), accelerator: withAccel && shortcut.enabled && shortcut.registered ? shortcut.accel : undefined, registerAccelerator: false, click: () => runAction('quick-task') },
+    { type: 'separator' },
+    { label: s.openTask, click: () => runAction('qtask') },
+    { label: s.openTalk, click: () => runAction('qtalk') },
+    { label: s.openNote, click: () => runAction('qnote') },
+  ];
+}
+function setupJumpList() {
+  if (process.platform === 'darwin') {
+    try { app.dock.setMenu(Menu.buildFromTemplate(actionMenuItems(false))); } catch { /* */ }
+    return;
+  }
+  if (process.platform !== 'win32') return;
+  const s = L();
+  const pre = process.defaultApp && process.argv.length >= 2 ? `"${path.resolve(process.argv[1])}" ` : '';
+  const task = (action, title) => ({
+    program: process.execPath, arguments: `${pre}${ACTION_ARG}${action}`,
+    iconPath: process.execPath, iconIndex: 0, title, description: title,
+  });
+  try {
+    app.setUserTasks([
+      task('quick-task', s.quickAdd('')), task('qtask', s.openTask), task('qtalk', s.openTalk), task('qnote', s.openNote),
+    ]);
+  } catch { /* */ }
+}
+
 // ── 트레이 ──
 function trayImage() {
   const img = nativeImage.createFromPath(path.join(__dirname, '..', 'build', 'icon.png'));
@@ -332,6 +496,8 @@ function rebuildTrayMenu() {
   const s = L();
   const items = [
     { label: s.open, click: showMain },
+    { label: s.quickAdd(shortcut.enabled && shortcut.registered ? displayAccel(shortcut.accel, process.platform) : ''), click: openQuickAdd },
+    { label: s.shortcutOn, type: 'checkbox', checked: shortcut.enabled, click: (mi) => setShortcut({ enabled: mi.checked }) },
     { type: 'separator' },
     { label: s.autoLaunch, type: 'checkbox', checked: getAutoLaunch(), click: (mi) => setAutoLaunch(mi.checked) },
   ];
@@ -435,11 +601,17 @@ handle('planq:open-external', (_event, url) => {
   return true;
 });
 handle('planq:get-auto-launch', () => getAutoLaunch());
+handle('planq:get-shortcut', () => shortcutState());
+handle('planq:set-shortcut', (event, req) => {
+  if (!mainWin || event.sender !== mainWin.webContents) return { ok: false, error: 'not_main', state: shortcutState() };   // 메인 창만(§4-3)
+  return setShortcut(req && typeof req === 'object' ? { enabled: req.enabled, accel: req.accel } : {});
+});
 handle('planq:set-auto-launch', (_event, on) => setAutoLaunch(!!on));
 
 // @test-only-start — 시험 전용 IPC(test/ 폴더는 패키지에 들어가지 않고, 이 구역도 build.js 가 잘라낸다)
 if (TEST_MODE) {
-  require('../test/test-hooks')({ ipcMain, BrowserWindow, getMain: () => mainWin, testLog, getBadge: () => badgeCount, showMain, deliverDeepLink });
+  require('../test/test-hooks')({ ipcMain, BrowserWindow, getMain: () => mainWin, testLog, getBadge: () => badgeCount, showMain, deliverDeepLink,
+    openQuickAdd, getQuick: () => quickWin, shortcutState });
 }
 // @test-only-end
 
@@ -479,18 +651,24 @@ function installUpdate() {
 function setupMenu() {
   if (process.platform !== 'darwin') { Menu.setApplicationMenu(null); return; }
   Menu.setApplicationMenu(Menu.buildFromTemplate([
-    { role: 'appMenu' }, { role: 'editMenu' }, { role: 'viewMenu' }, { role: 'windowMenu' },
+    { role: 'appMenu' }, { label: L().fileMenu, submenu: actionMenuItems(true) },
+    { role: 'editMenu' }, { role: 'viewMenu' }, { role: 'windowMenu' },
   ]));
 }
 
 app.whenReady().then(() => {
   if (process.platform === 'win32') app.setAppUserModelId('kr.planq.desktop');   // 윈도우 알림에 앱 이름이 붙게
   setupPermissions();
+  loadShortcutSetting();
   setupMenu();
   createMain();
   createTray();
+  applyShortcut();
+  setupJumpList();
   setupUpdater();
+  if (pendingAction === 'quick-task') { pendingAction = null; openQuickAdd(); }
 });
+app.on('will-quit', () => { try { globalShortcut.unregisterAll(); } catch { /* */ } });
 app.on('activate', showMain);             // 맥 독 아이콘 누름
 app.on('before-quit', () => { quitting = true; });
 app.on('window-all-closed', () => { /* 트레이에 남는다 — 종료하지 않는다 */ });

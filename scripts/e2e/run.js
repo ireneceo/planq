@@ -121,6 +121,10 @@ const SUITES = {
   pushdeeplink: () => require('./canary-push-deeplink'),
   // 데스크탑 앱(Electron, desktop/) — 실제 앱을 xvfb 로 띄워 팝아웃 다중 고정·알림 1회·로그인 복귀·탐색 잠금(docs/DESKTOP_APP_DESIGN.md §8)
   desktop: () => require('./canary-desktop'),
+  // 데스크탑 앱 2단계 C·E — 빠른 업무 추가 단축키(수식키 검증 양성 대조군)·점프 목록 허용 목록(docs/DESKTOP_APP_PHASE2.md §4-3·§4-5)
+  desktopquick: () => require('./canary-desktop-quick'),
+  // 데스크탑 앱 2단계 D — 연결 끊김 화면(서버 없음·502 대조군·자동 복귀·다시 연결)
+  desktopoffline: () => require('./canary-desktop-offline'),
   // 문서 표 [폭 맞춤] — 누른 뒤 오른쪽에 빈 여백이 남지 않는가 · 열이 균등한가.
   //   colgroup·CSS·컨테이너 폭이 합쳐진 뒤에만 존재하는 종류라 정적 검사로는 못 잡는다.
   tablefit: () => require('./canary-table-fit'),

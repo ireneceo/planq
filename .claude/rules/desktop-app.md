@@ -22,3 +22,4 @@ paths:
 - **시험 표면은 패키지에 없다** — 시험 코드는 `// @test-only-start` … `// @test-only-end` 구역 또는 `desktop/test/` 에만. `scripts/check.js` 가 만든 asar 를 읽어 막는다(첫 빌드에서 main.js 시험 줄을 실제로 잡았다). 자체 시험은 `node scripts/check.js --self-test`.
 - **리눅스(xvfb) 실측 함정** — 창 안 `window.close()` 는 `close` 없이 바로 `closed`, 이동 끝(`moved`·`resized`)도 안 온다. 창 자리는 `move`·`resize` 로 들고 있다가 저장한다(`trackBounds`). 단일 실행 잠금 때문에 남은 시험 앱이 있으면 새 실행이 조용히 꺼진다 — 시험은 끝에 프로세스 묶음째 정리한다.
 - 운영 DB: `migrate-desktop-client-kind.js`(refresh_tokens.client_kind 'desktop' 365일) · `migrate-desktop-app-urls.js`(platform_settings 받기 주소) — 둘 다 배포 슬롯, PM2 reload 전.
+- **2단계 C·E (2026-11-10, `docs/DESKTOP_APP_PHASE2.md` §6)** — 전역 단축키 검증은 main(`desktop/src/shortcut.js`) 한 곳: Ctrl/Cmd/Alt 필수(렌더러 값을 믿지 않는다) · 바꾸기는 메인 창만. 빠른 추가 창은 새 화면이 아니라 `/task-popout?quick=1`(웹 `useDesktopQuickMode`). 점프 목록·맥 메뉴 인자는 `--pq-action=` 허용 목록만 — 새 동작은 `ACTIONS`·preload `onAction` 거름·웹 `DesktopBridge` 셋을 같이. 회귀 `--suite desktopquick`.

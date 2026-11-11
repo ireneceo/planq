@@ -28,6 +28,15 @@ const bridge = {
   setAutoLaunch: (on) => invoke('planq:set-auto-launch', !!on),
   onNotificationClick: (cb) => listen('planq:notification-click', (link) => cb(typeof link === 'string' ? link : null)),
   onDeepLink: (cb) => listen('planq:deep-link', (url) => { if (typeof url === 'string') cb(url); }),
+  // 2단계 C — 전역 단축키 «빠른 업무 추가». 바꾸기는 메인 창만(main 이 거절) · 형식 검증은 main
+  getShortcut: () => invoke('planq:get-shortcut'),
+  setShortcut: (req) => invoke('planq:set-shortcut', req && typeof req === 'object' ? {
+    enabled: typeof req.enabled === 'boolean' ? req.enabled : undefined,
+    accel: typeof req.accel === 'string' ? req.accel.slice(0, 64) : undefined,
+  } : {}),
+  onQuickAdd: (cb) => listen('planq:quick-add', () => cb()),
+  // 2단계 E — 점프 목록·맥 메뉴 «Q task·Q talk·Q note 열기»(허용 목록 이름만 온다)
+  onAction: (cb) => listen('planq:action', (a) => { if (a === 'qtask' || a === 'qtalk' || a === 'qnote') cb(a); }),
 };
 
 // @test-only-start — 시험 다리. 개발 실행 + PLANQ_DESKTOP_TEST=1 일 때만 main 이 --planq-desktop-test 를 준다.
@@ -38,6 +47,8 @@ if (process.argv.includes('--planq-desktop-test')) {
     hideMain: () => ipcRenderer.invoke('planq:test:hide-main'),
     showMain: () => ipcRenderer.invoke('planq:test:show-main'),
     deepLink: (url) => ipcRenderer.invoke('planq:test:deep-link', String(url)),
+    quickAdd: () => ipcRenderer.invoke('planq:test:quick-add'),
+    quickKey: (k) => ipcRenderer.invoke('planq:test:quick-key', String(k)),
   };
 }
 // @test-only-end

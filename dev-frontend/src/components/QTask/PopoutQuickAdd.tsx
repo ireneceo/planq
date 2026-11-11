@@ -8,7 +8,7 @@
 //   ★ 단, 한국어 IME 조합 확정 Enter 가 이중 발화하므로 `isComposing` 가드가 **필수**다.
 //
 // TaskPopoutView 가 크므로 여기로 절출했다(god-file 래칫).
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import styled from 'styled-components';
 import CalendarPicker from '../Common/CalendarPicker';
 import PlanQSelect from '../Common/PlanQSelect';
@@ -105,9 +105,11 @@ export interface PopoutQuickAddProps {
   option?: QuickAddOption | null;
   /** 마감일별 보기에서 쓰는 날짜 칸. option 과 **동시에 오지 않는다**(보기 기준은 하나다). */
   dateOption?: QuickAddDateOption | null;
+  /** 데스크탑 «빠른 업무 추가» 창 — 주면 처음 그릴 때와 값이 바뀔 때마다 입력칸에 포커스(useDesktopQuickMode) */
+  focusSignal?: number;
 }
 
-const PopoutQuickAdd: React.FC<PopoutQuickAddProps> = ({ onAdd, placeholder, addLabel, errorText, option, dateOption }) => {
+const PopoutQuickAdd: React.FC<PopoutQuickAddProps> = ({ onAdd, placeholder, addLabel, errorText, option, dateOption, focusSignal }) => {
   const [value, setValue] = useState('');
   const [pending, setPending] = useState(0);        // 서버로 가는 중인 줄 수(입력은 막지 않는다)
   const [failedTitle, setFailedTitle] = useState('');
@@ -115,6 +117,7 @@ const PopoutQuickAdd: React.FC<PopoutQuickAddProps> = ({ onAdd, placeholder, add
   const [dateOpen, setDateOpen] = useState(false);
   const dateAnchor = useRef<HTMLButtonElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  useEffect(() => { if (focusSignal !== undefined) inputRef.current?.focus(); }, [focusSignal]);
 
   // ★ 2026-10-21 (Irene: "엔터 치고 너무 오랫동안 기다려야 입력이 들어가. 신속하게 추가되어야")
   //   예전엔 만들기 → 순서 저장 → 목록 다시 읽기 세 왕복이 **다 끝나야** 칸이 비었다(그동안 readonly).

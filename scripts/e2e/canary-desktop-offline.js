@@ -81,5 +81,5 @@ async function run() {
   return results;
 }
 
-module.exports = { run };
+module.exports = { run, name: 'desktop-offline' };
 if (require.main === module) run().then((r) => { const f = r.filter((x) => x.fail).length; console.log(`FAIL ${f}/${r.length}`); process.exit(f ? 1 : 0); });

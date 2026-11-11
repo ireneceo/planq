@@ -77,6 +77,7 @@ import PopoutSectionsMenu, { usePopoutSections } from './PopoutSectionsMenu';
 import PopoutQuickAdd from './PopoutQuickAdd';
 import CueTaskBar from './CueTaskBar';
 import { usePopoutQuickAdd } from './usePopoutQuickAdd';
+import { useDesktopQuickMode } from './useDesktopQuickMode';
 import { createTaskTag } from './createTaskTag';
 // ★ bySortRule 은 이제 여기서 직접 안 쓴다 — bySelectedSort 가 마지막 tie-break 으로 그것을 부른다
 //   (정본 사슬은 그대로 살아 있고, 이 화면은 '고른 정렬 → 사슬' 순서로만 본다).
@@ -181,6 +182,7 @@ const TaskPopoutView: React.FC<TaskPopoutViewProps> = ({ pinSlot }) => {
   //   옛 기본(숨김)은 완료를 누르는 순간 행이 사라져 "없어져버린다" 로 읽혔다.
   const [hideDone, setHideDone] = useState(false);
   const [sections, toggleSection] = usePopoutSections();   // 위쪽 세 칸 보이기/가리기 — 사람마다 기억
+  const desktopQuick = useDesktopQuickMode();   // 데스크탑 단축키 창 — 입력 칸은 가려 두었어도 보이고 뜰 때마다 포커스
   const showDone = !hideDone;
   // #237·#258 — 오늘/이번 주 2탭. 팝아웃은 "오늘 해야 할 일" 도구로 쓰이므로 기본은 오늘.
   //   데이터는 /my-week 한 벌을 공유하고 탭은 **클라이언트 필터**다 — 새 요청·새 술어를 만들지 않는다.
@@ -487,9 +489,10 @@ const TaskPopoutView: React.FC<TaskPopoutViewProps> = ({ pinSlot }) => {
         </PopoutCueSlot>
       )}
       {/* #258 — 퀵애드. 로딩·에러 중에는 내지 않는다(기본값의 원천인 weekStart 가 아직 없다). */}
-      {sections.add && !loading && !error && (
+      {(sections.add || desktopQuick.quick) && !loading && !error && (
         <PopoutQuickAdd
           onAdd={quickAdd}
+          focusSignal={desktopQuick.quick ? desktopQuick.focusSignal : undefined}
           placeholder={popTab === 'today'
             ? t('popout.quickAddToday', '오늘 할 일 입력 후 Enter')
             : t('popout.quickAddWeek', '이번 주 할 일 입력 후 Enter')}

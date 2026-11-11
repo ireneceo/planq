@@ -1079,7 +1079,19 @@
       "howItWorks": "PlanQ 데스크탑 앱이 켜져 있는 동안 알림이 옵니다. 창을 닫아도 작업 표시줄(맥은 메뉴 막대)에 남아 알림을 받고, 앱을 완전히 끄면 오지 않습니다.",
       "openOsSettings": "컴퓨터 알림 설정 열기",
       "openOsFailed": "이 컴퓨터에서는 설정을 바로 열 수 없어요 — 시스템 설정의 «알림» 에서 PlanQ 를 찾아 주세요.",
-      "autoLaunch": "컴퓨터를 켤 때 PlanQ 자동 실행"
+      "autoLaunch": "컴퓨터를 켤 때 PlanQ 자동 실행",
+      "shortcut": {
+        "label": "단축키로 빠른 업무 추가",
+        "desc": "다른 프로그램을 쓰다가 이 키를 누르면 작은 창이 떠서 바로 업무를 적을 수 있어요. Esc 를 누르면 창이 숨습니다.",
+        "change": "키 바꾸기",
+        "reset": "기본값으로",
+        "recording": "새 키 조합을 누르세요 (Esc 취소)",
+        "recordAria": "새 단축키 입력",
+        "errNeedsModifier": "Ctrl·Cmd·Alt 중 하나를 같이 눌러야 해요 (다른 프로그램에서 그 글자를 못 치게 되지 않게).",
+        "errCommon": "복사·붙여넣기처럼 자주 쓰는 키예요 — Shift 나 Alt 를 더해 주세요.",
+        "errInUse": "다른 프로그램이 이미 이 키를 쓰고 있어 등록하지 못했어요 — 다른 키로 바꿔 주세요.",
+        "errInvalid": "이 키 조합은 쓸 수 없어요 — 글자·숫자·F키·Space 중 하나에 Ctrl·Cmd·Alt 를 더해 주세요."
+      }
     }
   },
   "payrollSettings": {
