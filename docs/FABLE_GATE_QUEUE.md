@@ -1,5 +1,11 @@
 # Fable 게이트 대기열 → **판정 기록 보관소** (2026-10-08 부터)
 
+### 2026-11-12 방 ffc98a5c — 게스트 링크 사진·PDF 보내기 + 직원 첨부 보기 (38e5a0dc · cc9fbbf0) — 완료 검증 1차 **FAIL** → 2차 **VERDICT: PASS**
+- 설계 `docs/GUEST_UPLOAD_DESIGN.md`(DESIGN: READY). 1차 Fable 실측 통과 축: 화이트리스트(UUID·public 주소 0) · 판정이 캐시보다 먼저(지움·내부 메모 → 404) · 이상한 id 404 · 생성 실패·쿼터 거절·스위치·읽기 전용 → 디스크·쿼터·메시지 변화 0 · 큰 Content-Length 413 · IP 한도 31번째 429 · 큰 픽셀 PNG 메모리 안정 · tenant 9/9 · health 99/99 · guard 85/86.
+- 1차 차단 B1: Drive 저장 직원 그림 미리보기 500(첨부 행에 business_id 없음 — 로그인 다운로드와 같은 모양으로 안 넘김). 고침 cc9fbbf0 + 카나리 Drive 대조군. 2차: external_id 있음/옛 행 모두 404 · planq 그림 200 · e2e guestupload,tenant 실패 0.
+- 같이 고침: N1 응답 뒤 next(err) 이중 처리 · N4 파일명 태그·꺾쇠 제거 · 대화 전용 화면의 누를 수 없는 파일 칩 옆 이유 한 줄.
+- 비차단(남김): 실제 Drive 연결 워크스페이스의 200 경로는 dev 에 자료가 없어 못 잼 — **배포 뒤 운영에서 Drive 저장 직원 그림 1건을 게스트 링크로 열어 볼 것** · 연결 끊긴 워크스페이스는 깨진 썸네일(404) · Drive 리사이즈 실패 502 는 공용 헬퍼 동작(guest_project 와 같음) · HEIC·PDF 는 머리 바이트만 검사 · IP 한도 키는 운영 nginx 실 IP 설정에 의존(미확인).
+
 ### 2026-11-12 방 ffc98a5c — Q talk 채널톡 대비: 답장·안 읽음·대화 안 찾기 — 완료 검증 1차 **FAIL** → 2차 **VERDICT: PASS** · 게스트 첨부 설계 **DESIGN: READY**
 - 범위: 541ac1bb(답장·안 읽음) · c866020f(대화 안 찾기 `GET …/messages/search` + 읽기 판정 `services/convReadAccess` 로 목록과 공유) · e82ac1c6(수정). 사이 cbe25e2a(다른 방 Q talk 알림)·6255de4f 등은 **판정 범위 밖** — 마커를 남기지 않았다(남이 커밋한 외부 발송 변경까지 «통과» 로 덮지 않으려고).
 - Fable 실측: 사용자 8 × 대화 30 = 240쌍 목록↔검색 상태 불일치 0 · 누수 0 · 응답 키 화이트리스트 · 스니펫 ≤160 · 리팩터링 동작 불변 · guard 85/86 · health 99/99.

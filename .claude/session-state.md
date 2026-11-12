@@ -11,7 +11,11 @@
 - 운영 반영: 다음 배포 때(서버 1곳 + 화면).
 - **A 대화 안 찾기 ✅ c866020f** — 머리줄 돋보기 · `GET …/conversations/:id/messages/search` · 읽기 판정 `services/convReadAccess`(목록도 이 함수로) · API 7경우 · 카나리 chatreply 3폭 37/37.
 - Fable 완료 검증(답장·찾기): 1차 FAIL(B1 고객이 내부 메모 id 로 답장 → 존재 확인 창구) → e82ac1c6 고침 → 2차 **PASS**. 기록 docs/FABLE_GATE_QUEUE.md. 마커는 안 남김(사이 cbe25e2a 다른 방 알림 커밋까지 덮게 돼서).
-- **B 게스트 링크 사진·PDF 보내기 ✅ 38e5a0dc** — Fable 설계 READY(docs/GUEST_UPLOAD_DESIGN.md) · API 26/26 · 카나리 guestupload 3폭 22/22 · guestentry(upload 키만 추가)·guestproject·tenant 0 실패 · health 99/99 · guard 85/86(방송 래칫 부채 guest.js→guestMessage.js 한 줄 이동). Fable 완료 검증 진행 중.
+- **B 게스트 링크 사진·PDF 보내기 ✅ 38e5a0dc** — Fable 설계 READY(docs/GUEST_UPLOAD_DESIGN.md) · API 26/26 · 카나리 guestupload 3폭 22/22 · guestentry(upload 키만 추가)·guestproject·tenant 0 실패 · health 99/99 · guard 85/86(방송 래칫 부채 guest.js→guestMessage.js 한 줄 이동). Fable 완료 검증 1차 FAIL(Drive 그림 미리보기 500) → cc9fbbf0 고침 → 2차 **PASS**. guestentry 단독 재실행 0 실패.
+- 확인용: 대화 68 게스트 링크 새로 발급 + «[확인용] 게스트 링크에서 보낸 사진» 메시지 8277.
+- 배포 뒤 할 일: 운영에서 Drive 저장 직원 그림 1건을 게스트 링크로 열어 보기(dev 에 Drive 자료 없음 — Fable 비차단).
+
+### 답 기다림: 다음으로 D «대화 상태(열림·해결·보류)·담당자 배정» 을 Fable 설계부터 시작할까 · 왜: A·B 끝, 권고 순서상 다음이 D(DB·새 흐름이라 Fable 설계 + Irene 승인) · 답이 오면: 예면 Fable 설계 1회 → 구현, 아니면 C·E·F·G 와 같이 실제 요청 볼 때까지 보류.
 
 ### 답 기다림 (이전 — Irene «권고대로» A→B): Q talk 남은 빈칸 중 무엇부터 할까 · 왜: A 대화 안 검색(중 · 바로 가능) / B 게스트 링크 고객 파일 보내기(공개 업로드 = Fable 설계) / D 상태·담당자(대 · Fable 설계) — 크기·공개 표면이라 Irene 결정 · 답이 오면: 고른 것부터 — A 는 바로 구현, B·D 는 Fable 설계 1회 뒤 구현.
 
