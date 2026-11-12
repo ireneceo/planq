@@ -10,7 +10,8 @@
 - 시험 자료: ws 6 대화 68 «[확인용] 답장 시험» 메시지 7793(원문 6876 인용).
 - 운영 반영: 다음 배포 때(서버 1곳 + 화면).
 - **A 대화 안 찾기 ✅ c866020f** — 머리줄 돋보기 · `GET …/conversations/:id/messages/search` · 읽기 판정 `services/convReadAccess`(목록도 이 함수로) · API 7경우 · 카나리 chatreply 3폭 37/37.
-- **B 게스트 링크 고객 파일 보내기** — Fable 설계 요청(A 완료 검증과 묶어 1회). 원래 설계(docs/GUEST_LINK_DESIGN.md §1)는 «텍스트만». 게스트는 직원이 보낸 첨부도 못 보는 것으로 보임(serializeMessage 에 attachments 없음).
+- Fable 완료 검증(답장·찾기): 1차 FAIL(B1 고객이 내부 메모 id 로 답장 → 존재 확인 창구) → e82ac1c6 고침 → 2차 **PASS**. 기록 docs/FABLE_GATE_QUEUE.md. 마커는 안 남김(사이 cbe25e2a 다른 방 알림 커밋까지 덮게 돼서).
+- **B 게스트 링크 사진·PDF 보내기 ✅ 38e5a0dc** — Fable 설계 READY(docs/GUEST_UPLOAD_DESIGN.md) · API 26/26 · 카나리 guestupload 3폭 22/22 · guestentry(upload 키만 추가)·guestproject·tenant 0 실패 · health 99/99 · guard 85/86(방송 래칫 부채 guest.js→guestMessage.js 한 줄 이동). Fable 완료 검증 진행 중.
 
 ### 답 기다림 (이전 — Irene «권고대로» A→B): Q talk 남은 빈칸 중 무엇부터 할까 · 왜: A 대화 안 검색(중 · 바로 가능) / B 게스트 링크 고객 파일 보내기(공개 업로드 = Fable 설계) / D 상태·담당자(대 · Fable 설계) — 크기·공개 표면이라 Irene 결정 · 답이 오면: 고른 것부터 — A 는 바로 구현, B·D 는 Fable 설계 1회 뒤 구현.
 
