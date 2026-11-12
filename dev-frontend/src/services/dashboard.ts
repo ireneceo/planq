@@ -47,6 +47,7 @@ export type TodoVerb =
   | 'sale_next_action'      // 다음 할 일이 없다 — 정한다
   | 'sale_account_request'
   | 'chat_unread' // 게스트가 계정을 요청했다 — 초대를 보낸다
+  | 'chat_open_inquiry' // 내가 담당인 응대 중 고객 문의(읽었어도 남는다 — docs/QTALK_CARE_DESIGN.md)
   | 'schedule';   // 상담 신청 — 승인·다른 시간 제안·거절 중 하나를 정한다
 
 export interface TodoWorkspace {

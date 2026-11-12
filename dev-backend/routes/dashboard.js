@@ -962,6 +962,7 @@ async function collectChats(businessId, userId) {
     ? `AND ${clientVisibleSql('m')}`
     : 'AND (m.is_deleted IS NULL OR m.is_deleted = 0)';
 
+  // ★ LIMIT 은 아래에서 «응대 중 문의» 와 합친 뒤 한 번 건다(docs/QTALK_CARE_DESIGN.md) — 방 수만큼만 행이 나온다(convIds 범위).
   const [rows] = await sequelize.query(
     `SELECT m.conversation_id AS cid, COUNT(m.id) AS cnt, MAX(m.created_at) AS last_at
        FROM messages m
@@ -971,31 +972,52 @@ async function collectChats(businessId, userId) {
         AND m.sender_id != :uid
         ${visSql}
         AND (cp.last_read_at IS NULL OR m.created_at > cp.last_read_at)
-      GROUP BY m.conversation_id
-      ORDER BY last_at ASC
-      LIMIT ${COLLECT_LIMIT}`,
+      GROUP BY m.conversation_id`,
     { replacements: { uid: userId, cids: convIds } },
   );
 
   const now = Date.now();
   const oneHourMs = 60 * 60 * 1000;
-  return rows.map((r) => {
-    const last = r.last_at ? new Date(r.last_at) : new Date();
-    const hours = (now - last.getTime()) / oneHourMs;
+  const prio = (at) => {
+    const hours = (now - (at ? new Date(at) : new Date()).getTime()) / oneHourMs;
     // 채팅은 메일보다 빠른 응답을 기대받는다(메일은 7일/3일). 하루 넘게 방치된 방은 긴급.
-    const priority = hours >= 24 ? 'urgent' : (hours >= 3 ? 'today' : 'week');
-    return {
-      id: `chat-${r.cid}`,
-      type: 'chat',
-      priority,
-      verb: 'chat_unread',
-      subject: titleMap.get(r.cid) || '',
-      count: Number(r.cnt) || 0,     // 안 읽은 메시지 수 — 표시용(세는 단위는 방이다)
-      dueAt: null,
-      createdAt: safeToIso(r.last_at),
-      link: `/talk?conv=${r.cid}`,
-    };
-  });
+    return hours >= 24 ? 'urgent' : (hours >= 3 ? 'today' : 'week');
+  };
+  const out = rows.map((r) => ({
+    id: `chat-${r.cid}`,
+    type: 'chat',
+    priority: prio(r.last_at),
+    verb: 'chat_unread',
+    subject: titleMap.get(r.cid) || '',
+    count: Number(r.cnt) || 0,     // 안 읽은 메시지 수 — 표시용(세는 단위는 방이다)
+    dueAt: null,
+    createdAt: safeToIso(r.last_at),
+    link: `/talk?conv=${r.cid}`,
+    _at: r.last_at ? new Date(r.last_at).getTime() : now,
+  }));
+  // 내가 담당인 «응대 중» 문의 — 읽었어도 남는다. 같은 방이 이미 안읽음으로 들어 있으면 더하지 않는다(한 방 = 한 건, 같은 id).
+  //   미배정은 넣지 않는다(목록의 «답할 문의» 칸이 보여 준다). 판정은 services/convCare 한 곳.
+  if (!viewerScope?.isClient) {
+    const seen = new Set(rows.map((r) => Number(r.cid)));
+    const mine = await require('../services/convCare').myOpenInquiryIds(convIds, userId);
+    for (const m of mine) {
+      if (seen.has(m.conversation_id)) continue;
+      out.push({
+        id: `chat-${m.conversation_id}`,
+        type: 'chat',
+        priority: prio(m.state_changed_at),
+        verb: 'chat_open_inquiry',
+        subject: titleMap.get(m.conversation_id) || '',
+        count: 0,
+        dueAt: null,
+        createdAt: safeToIso(m.state_changed_at),
+        link: `/talk?conv=${m.conversation_id}`,
+        _at: m.state_changed_at ? new Date(m.state_changed_at).getTime() : now,
+      });
+    }
+  }
+  out.sort((a, b) => a._at - b._at);   // 오래 기다린 것부터(옛 ORDER BY last_at ASC 와 같다)
+  return out.slice(0, COLLECT_LIMIT).map(({ _at, ...it }) => it);
 }
 
 async function collectMails(businessId, userId) {

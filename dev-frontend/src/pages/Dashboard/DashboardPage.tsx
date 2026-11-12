@@ -82,6 +82,7 @@ const DashboardPage: React.FC = () => {
       onSocket('task:new', debouncedReload), onSocket('task:updated', debouncedReload), onSocket('task:deleted', debouncedReload),
       onSocket('event:created', debouncedReload), onSocket('event:updated', debouncedReload), onSocket('event:deleted', debouncedReload),
       onSocket('inbox:refresh', debouncedReload),
+      onSocket('conversation:care', debouncedReload),   // 내가 담당인 응대 중 문의(docs/QTALK_CARE_DESIGN.md)
     ];
     return () => { if (pending) window.clearTimeout(pending); leaveRoom(`business:${Number(bizId)}`); offs.forEach((off) => off()); };
   }, [bizId, reloadTodo]);

@@ -171,6 +171,7 @@ const TodoPage: React.FC = () => {
       onSocket('event:deleted', debouncedReload),
       // Phase D — 서명/결제알림/세금계산서/PATCH 통합 신호
       onSocket('inbox:refresh', debouncedReload),
+      onSocket('conversation:care', debouncedReload),   // 내가 담당인 응대 중 문의(docs/QTALK_CARE_DESIGN.md)
     ];
     // N+35 — 같은 탭 안 안전망 (socket 지연/끊김 시 즉시 sync).
     // TaskDetailDrawer 의 workflow 액션 성공 시 즉시 dispatch.

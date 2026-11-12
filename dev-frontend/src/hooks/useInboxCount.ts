@@ -62,6 +62,8 @@ export function useInboxCount(businessId: number | null | undefined): InboxCount
     //   이걸 안 걸면 채팅이 와도 배지가 그대로 있다가 탭을 옮겨야 늘어난다(§16 (c) 실시간 계약).
     //   읽음 처리(방을 열면)도 같은 이벤트로 줄어든다 — QTalkPage 가 markRead 후 emit 한다.
     const offMessage = onSocket('message:new', debounced);
+    // 응대 상태·담당이 바뀌면 «내가 담당인 응대 중 문의» 가 들거나 빠진다(docs/QTALK_CARE_DESIGN.md)
+    const offCare = onSocket('conversation:care', debounced);
 
     return () => {
       cancelled = true;
@@ -69,6 +71,7 @@ export function useInboxCount(businessId: number | null | undefined): InboxCount
       leaveRoom(`business:${businessId}`);
       offInbox();
       offMessage();
+      offCare();
     };
   }, [businessId, user?.id]);
 

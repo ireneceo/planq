@@ -48,6 +48,7 @@ function usePopoutInbox(bizId: number) {
     joinRoom(room);
     const offInbox = onSocket('inbox:refresh', debounced);
     const offMsg = onSocket('message:new', debounced);
+    const offCare = onSocket('conversation:care', debounced);   // 응대 중 문의 담당 변화(docs/QTALK_CARE_DESIGN.md)
     // 업무 변화(요청·컨펌 차례)는 inbox:refresh 와 함께 오지만, task:* 만 오는 경로도 있어 같이 듣는다
     const offTaskNew = onSocket('task:new', debounced);
     const offTaskUpd = onSocket('task:updated', debounced);
@@ -58,7 +59,7 @@ function usePopoutInbox(bizId: number) {
       window.removeEventListener('focus', debounced);
       document.removeEventListener('visibilitychange', onVis);
       leaveRoom(room);
-      offInbox(); offMsg(); offTaskNew(); offTaskUpd();
+      offInbox(); offMsg(); offCare(); offTaskNew(); offTaskUpd();
     };
   }, [bizId, load]);
 
