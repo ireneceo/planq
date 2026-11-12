@@ -1,5 +1,11 @@
 # Fable 게이트 대기열 → **판정 기록 보관소** (2026-10-08 부터)
 
+### 2026-11-12 방 ffc98a5c — Q talk 문의 응대 상태·담당자(D) (c4d3a37b·24cba74b·e13f3310·f825c97b) — 설계 **DESIGN: READY** → 완료 검증 **VERDICT: PASS** (차단 0)
+- 설계 `docs/QTALK_CARE_DESIGN.md`. Fable 실측 67/67(권한·격리·값 검증 12종·누출 — client 응답·소켓 care/assignee 0 · 전이 · 담당=참여자·알림 1·감사 · 확인 필요 한 방 한 건 · FK cascade · 배포 순서 재시작 앞) · e2e talkcare·inboxcount·tenant·chatreply·guestupload 실패 0 · health 99/99 · guard 85/86.
+- 설계 차이 1(projects.js 메시지 문의 고객 판정 → isCustomerSender): 적합 — 운영 #240 «고객은 절대 차단하지 않는다» 를 프로젝트 없는 고객 방에서 어기던 것이 conversations.js 문과 같아졌다. 예외 주석(audit-exempt·platformroom-exempt) 정당.
+- 비차단: ① platform_admin 이 남의 워크스페이스 방에 PUT …/care 200(기존 isMemberOrAbove·canAccessConversation 패턴 — 회귀 아님, 닫을지 나중 판단) ② 백필 state_changed_at = NOW() → 운영 배포 직후 기본 담당 방이 담당자 확인 필요에 한꺼번에 뜨고 24시간 뒤 urgent — **배포 보고의 «담당 채움» 숫자를 Irene 에게 전할 것** ③ projects.js 메시지 POST 마다 isCustomerSender(약 6쿼리) ④ assignee_user_id 배열 [16] 이 16 으로 통과(뒤 멤버 검증은 걸림).
+- 확인 못 함: 고객 실화면 칩(브라우저 로그인 수단 없음 — 데이터는 안 나감) · 게스트 글 → open 직접 재현 · Cue 글(코드만) · OS 푸시 · 멤버 제거·인수인계 훅 재실행(구현자는 실측).
+
 ### 2026-11-12 방 ffc98a5c — 게스트 링크 사진·PDF 보내기 + 직원 첨부 보기 (38e5a0dc · cc9fbbf0) — 완료 검증 1차 **FAIL** → 2차 **VERDICT: PASS**
 - 설계 `docs/GUEST_UPLOAD_DESIGN.md`(DESIGN: READY). 1차 Fable 실측 통과 축: 화이트리스트(UUID·public 주소 0) · 판정이 캐시보다 먼저(지움·내부 메모 → 404) · 이상한 id 404 · 생성 실패·쿼터 거절·스위치·읽기 전용 → 디스크·쿼터·메시지 변화 0 · 큰 Content-Length 413 · IP 한도 31번째 429 · 큰 픽셀 PNG 메모리 안정 · tenant 9/9 · health 99/99 · guard 85/86.
 - 1차 차단 B1: Drive 저장 직원 그림 미리보기 500(첨부 행에 business_id 없음 — 로그인 다운로드와 같은 모양으로 안 넘김). 고침 cc9fbbf0 + 카나리 Drive 대조군. 2차: external_id 있음/옛 행 모두 404 · planq 그림 200 · e2e guestupload,tenant 실패 0.
