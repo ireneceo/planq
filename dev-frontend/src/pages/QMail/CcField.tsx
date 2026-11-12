@@ -54,7 +54,7 @@ const AddBtn = styled.button`
   align-self: flex-start;
   padding: 2px 0; border: none; background: none; cursor: pointer;
   font-size: 0.75rem; font-weight: 600; color: #0F766E;
-  min-height: 28px;
+  min-height: 32px;
   ${mediaPhone} { min-height: 36px; }   /* 폰 터치 자리 */
   &:hover:not(:disabled) { text-decoration: underline; }
   &:disabled { color: #94A3B8; cursor: default; }
