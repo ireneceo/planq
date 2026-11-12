@@ -259,6 +259,12 @@ export default function ThreadMessages(p: Props) {
                     : t('detail.toAddr', { defaultValue: '받은 주소' })) as string}: {toAddrList(m.to_emails).join(', ')}
                 </MessageTo>
               )}
+              {/* 참조(CC) — 누가 같이 받았는지(2026-11-12 Irene «메일에 참조가 없오»). 데이터는 늘 있었는데 화면에 안 그렸다 */}
+              {toAddrList(m.cc_emails).length > 0 && (
+                <MessageTo data-testid="mail-msg-cc">
+                  {t('detail.ccAddr', { defaultValue: '참조' }) as string}: {toAddrList(m.cc_emails).join(', ')}
+                </MessageTo>
+              )}
             </MessageFrom>
             <MsgHeaderRight>
               {/* #272 — "접힌상태랑 아닌 상태 구별 안되고 글자가 잘리는 것처럼 보여버려".

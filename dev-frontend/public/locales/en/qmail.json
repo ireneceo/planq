@@ -584,7 +584,8 @@
     "zoom": "Text size",
     "zoomIn": "Zoom in",
     "zoomOut": "Zoom out",
-    "zoomReset": "Reset zoom"
+    "zoomReset": "Reset zoom",
+    "ccAddr": "Cc"
   },
   "bulk": {
     "markAllRead": "Mark all read",
@@ -656,7 +657,10 @@
     "discardTitle": "Discard saved draft",
     "discardMsg": "Discard the loaded draft and start a blank email? This can't be undone.",
     "discardConfirm": "Discard",
-    "discardFailed": "Couldn't discard the saved draft. Please try again in a moment."
+    "discardFailed": "Couldn't discard the saved draft. Please try again in a moment.",
+    "cc": "Cc",
+    "addCc": "Add Cc",
+    "ccInvalid": "Check the Cc address format: {{list}}"
   },
   "attachment": {
     "menu": "Attachments ({{n}})",

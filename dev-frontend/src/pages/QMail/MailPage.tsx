@@ -47,6 +47,7 @@ import { uploadMyFile } from '../../services/files';
 import { markMailReview, deleteMailRule, type MailMarkLearning } from '../../services/mail';
 import MailContextPanel, { requestExtractTasks, requestCueAdvice } from './MailContextPanel';
 import RecipientInput, { type RecipientSuggestion } from './RecipientInput';
+import CcField, { ccList, invalidCc } from './CcField';
 import { useInlineCidImages } from './useInlineCidImages';
 import { displayName, type NameLocalizable } from '../../utils/displayName';
 import { useLocalDraft, useDraftKey } from '../../hooks/useLocalDraft';
@@ -554,7 +555,7 @@ const MailPage: React.FC = () => {
     //   아무 일도 안 일어나는 것처럼 보였다("밖에 리스트 누르면 안나가져").
     //   초안은 1.5초 자동저장 + 다음에 열 때 복원되므로, 확정 저장 후 닫고 보내주면 된다.
     if (composeOpen && id !== null) {
-      const hasContent = !!(cTo.trim() || cSubject.trim() || !isEmptyHtml(cBody) || cFileIds.length);
+      const hasContent = !!(cTo.trim() || cCc.trim() || cSubject.trim() || !isEmptyHtml(cBody) || cFileIds.length);
       // 전달(forward) 은 이 브라우저에 초안이 남는다(위 fwdDraft) → **이동을 막지 않는다.**
       //   옛 동작은 쓴 게 있으면 이탈 자체를 차단했다 — 사용자에겐 "안 나가져" 로 보였다.
       if (fwdFromMsgId) {
@@ -569,7 +570,7 @@ const MailPage: React.FC = () => {
         apiFetch(`/api/businesses/${businessId}/email-drafts`, {
           method: 'PUT', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            to_emails: cTo.split(/[,;\s]+/).map(x => x.trim()).filter(Boolean),
+            to_emails: cTo.split(/[,;\s]+/).map(x => x.trim()).filter(Boolean), cc_emails: ccList(cCc),
             subject: cSubject, body_html: cBody, attachment_file_ids: cFileIds, account_id: cAccountId,
           }),
         }).then((r) => {
@@ -1450,6 +1451,7 @@ const MailPage: React.FC = () => {
   const replyAccountRef = useRef<number | null>(null);
   replyAccountRef.current = replyAccountId;
   const [replyHtml, setReplyHtml] = useState('');
+  const [replyCc, setReplyCc] = useState('');   // 답장 참조(CC) — 콤마 문자열(CcField)
   const [replyUploads, setReplyUploads] = useState<File[]>([]);
   const [replyFileIds, setReplyFileIds] = useState<number[]>([]);
   const [cSignature, setCSignature] = useState(true);
@@ -1540,7 +1542,7 @@ const MailPage: React.FC = () => {
   // 스레드 전환 시 컴포저 초기화 — 답장창은 닫힌 채로. 먼저 내용을 읽고, 답장하기를 누르면 열린다.
   useEffect(() => {
     void sendPendingDraft(replyPendingRef);   // 떠나는 스레드에 걸려 있던 답장 초안부터 보낸다(아래 D-C3)
-    setReplyOpen(false); setReplyHtml(''); setReplyUploads([]); setReplyFileIds([]); setReplyError(null); setAiFaqSources([]);
+    setReplyOpen(false); setReplyHtml(''); setReplyCc(''); setReplyUploads([]); setReplyFileIds([]); setReplyError(null); setAiFaqSources([]);
   }, [activeId]);
 
   // ?reply=1 — AI 앱(ChatGPT·Claude)이 만든 답장 초안의 링크(설계 docs/AI_AGENT_M3_DESIGN.md §3.4).
@@ -1591,6 +1593,7 @@ const MailPage: React.FC = () => {
       const d = j?.data;
       if (d) {
         if (d.body_html) setReplyHtml(d.body_html);
+        if (Array.isArray(d.cc_emails) && d.cc_emails.length) setReplyCc(toAddrList(d.cc_emails).join(', '));
         if (Array.isArray(d.attachment_file_ids) && d.attachment_file_ids.length) setReplyFileIds(d.attachment_file_ids);
       }
     }).catch(() => {}).finally(() => { replyDraftReady.current = true; });
@@ -1610,10 +1613,10 @@ const MailPage: React.FC = () => {
   };
   useEffect(() => {
     if (!replyOpen || !businessId || !activeId || !replyDraftReady.current) return;
-    if (isEmptyHtml(replyHtml) && !replyFileIds.length) return;
+    if (isEmptyHtml(replyHtml) && !replyFileIds.length && !replyCc.trim()) return;
     const snap: PendingDraft = {
       url: `/api/businesses/${businessId}/email-drafts`,
-      body: { thread_id: activeId, body_html: replyHtml, attachment_file_ids: replyFileIds },
+      body: { thread_id: activeId, body_html: replyHtml, attachment_file_ids: replyFileIds, cc_emails: ccList(replyCc) },
     };
     replyPendingRef.current = snap;
     const tid = setTimeout(async () => {
@@ -1629,7 +1632,7 @@ const MailPage: React.FC = () => {
       } catch { setReplyDraftStatus('error'); }
     }, 1500);
     return () => clearTimeout(tid);
-  }, [replyOpen, businessId, activeId, replyHtml, replyFileIds]);
+  }, [replyOpen, businessId, activeId, replyHtml, replyFileIds, replyCc]);
   // 로그아웃·워크스페이스 전환(flush 프로토콜) · 창 닫기(pagehide keepalive) · 메일 화면째 떠남(언마운트)
   useEffect(() => {
     const off = onFlushPendingSaves((waitUntil) => {
@@ -1782,6 +1785,7 @@ const MailPage: React.FC = () => {
       setReplyError(t('reply.emptyBody', { defaultValue: '내용을 입력해 주세요' }) as string);
       return;
     }
+    if (invalidCc(replyCc).length) { setReplyError(t('compose.ccInvalid', { list: invalidCc(replyCc).join(', '), defaultValue: '참조 주소 형식을 확인해 주세요: {{list}}' }) as string); return; }
     setSending(true);
     setReplyError(null);
     // ★ 2R-2 — 클릭 즉시 임시 카드를 넣고 컴포저를 닫는다. 운영의 POST 는 실 SMTP 왕복을 포함해
@@ -1814,7 +1818,7 @@ const MailPage: React.FC = () => {
         headers: { 'Content-Type': 'application/json' },
         // 3상태 — null 이면 **키를 생략**해 서버가 "받은 주소로" 결정하게 한다(JSON.stringify 가 undefined 키를 뺀다).
         //   0 은 사용자가 계정 주소를 직접 고른 경우에만 나간다.
-        body: JSON.stringify({ body_html: replyHtml, attachment_file_ids: fileIds, account_id: replyAccountId || undefined, from_alias_id: typeof aliasOverride === 'number' ? aliasOverride : (fromAliasId === null ? undefined : fromAliasId), signature: replySignature, keep_reply_needed: keepReplyNeeded }),
+        body: JSON.stringify({ body_html: replyHtml, cc: ccList(replyCc), attachment_file_ids: fileIds, account_id: replyAccountId || undefined, from_alias_id: typeof aliasOverride === 'number' ? aliasOverride : (fromAliasId === null ? undefined : fromAliasId), signature: replySignature, keep_reply_needed: keepReplyNeeded }),
       });
       const j = await r.json();
       if (!j.success) throw new Error(mailErrorText(j.message) || (t('reply.sendFailed', { defaultValue: '발송 실패' }) as string));
@@ -1829,7 +1833,7 @@ const MailPage: React.FC = () => {
         sent_at: j.data?.sent_at ?? pending.sent_at,
       }));
       apiFetch(`/api/businesses/${businessId}/email-drafts?thread_id=${threadId}`, { method: 'DELETE' }).catch(() => {});
-      setReplyHtml(''); setReplyUploads([]); setReplyFileIds([]); setKeepReplyNeeded(false);
+      setReplyHtml(''); setReplyCc(''); setReplyUploads([]); setReplyFileIds([]); setKeepReplyNeeded(false);
       // 권위 동기화(서명·표 인라인 반영)는 배경에서 — 화면을 막지 않는다.
       loadDetail(threadId);
       loadList();
@@ -1858,7 +1862,7 @@ const MailPage: React.FC = () => {
   //   (키 입력마다 부르지 않는다 — 라우트가 메시지를 전수 집계한다). 실패는 추천 없이 그대로 쓴다.
   const [toSuggestions, setToSuggestions] = useState<RecipientSuggestion[]>([]);
   useEffect(() => {
-    if (!composeOpen || !businessId) return;
+    if ((!composeOpen && !replyOpen) || !businessId) return;   // 답장 참조 칸도 같은 추천을 쓴다
     let alive = true;
     (async () => {
       try {
@@ -1884,12 +1888,13 @@ const MailPage: React.FC = () => {
       } catch { /* 추천 없이 진행 */ }
     })();
     return () => { alive = false; };
-  }, [composeOpen, businessId]);
+  }, [composeOpen, replyOpen, businessId]);
   const [cAccountId, setCAccountId] = useState<number | null>(null);
   // 컴포저(새 메일·전달)용 별칭 — 답장(detail.account)과 계정이 다를 수 있어 따로 로딩한다.
   const [cAliases, setCAliases] = useState<Array<{ id: number; email: string; display_name: string | null; is_default: boolean; account_id: number }>>([]);
   const [cFromAliasId, setCFromAliasId] = useState<number>(0);   // 0 = 계정 기본 주소
   const [cTo, setCTo] = useState('');
+  const [cCc, setCCc] = useState('');   // 새 메일·전달 참조(CC) — 콤마 문자열(CcField)
 
   // #261 — 주소를 누르면 할 수 있는 일들. 행동의 주인은 이 페이지다(메뉴는 표시만 한다).
   //   "이 주소의 메일 보기" 는 **보관된 것도 포함**해서 찾는다 — 운영에서 못 찾은 메일이
@@ -2040,10 +2045,10 @@ const MailPage: React.FC = () => {
   const fwdDraftKey = useDraftKey('mail-forward', fwdFromMsgId || null, businessId) || '';
   const fwdDraft = useLocalDraft({
     key: fwdDraftKey,
-    value: { to: cTo, subject: cSubject, body: cBody, fileIds: cFileIds, accountId: cAccountId },
+    value: { to: cTo, cc: cCc, subject: cSubject, body: cBody, fileIds: cFileIds, accountId: cAccountId },
     debounceMs: 800,
     enabled: !!fwdDraftKey && composeOpen,
-    isEmpty: (v) => !v.to.trim() && !v.subject.trim() && isEmptyHtml(v.body) && !v.fileIds.length,
+    isEmpty: (v) => !v.to.trim() && !(v.cc || '').trim() && !v.subject.trim() && isEmptyHtml(v.body) && !v.fileIds.length,
   });
   // 전달 폼을 다시 열면 쓰던 내용을 되살린다. 값이 있는 필드만 덮는다.
   //   ★ `fwdDraft.restored` 를 쓰면 안 된다 — 그 값은 **훅이 마운트될 때의 키**로 한 번만 읽는다.
@@ -2056,7 +2061,7 @@ const MailPage: React.FC = () => {
     if (!composeOpen || !fwdDraftKey || fwdRestoredRef.current === fwdDraftKey) return;
     fwdRestoredRef.current = fwdDraftKey;
     if (user?.id && fwdFromMsgId) migrateLegacyDraft(`qmail-fwd-${user.id}-${fwdFromMsgId}`, fwdDraftKey, user.id);
-    let r: { value: { to: string; subject: string; body: string; fileIds: number[]; accountId: number | null } } | null = null;
+    let r: { value: { to: string; cc?: string; subject: string; body: string; fileIds: number[]; accountId: number | null } } | null = null;
     try {
       const raw = localStorage.getItem(fwdDraftKey);
       if (raw) r = JSON.parse(raw);
@@ -2064,6 +2069,7 @@ const MailPage: React.FC = () => {
     if (!r || !r.value) return;
     const v = r.value;
     if (v.to) setCTo(v.to);
+    if (v.cc) setCCc(v.cc);
     if (v.subject) setCSubject(v.subject);
     if (v.body && !isEmptyHtml(v.body)) setCBody(v.body);
     if (Array.isArray(v.fileIds) && v.fileIds.length) setCFileIds(v.fileIds);
@@ -2092,10 +2098,11 @@ const MailPage: React.FC = () => {
         return;
       }
       if (d) {
-        const restoredHas = !!((Array.isArray(d.to_emails) && d.to_emails.length) || (d.subject || '').trim()
+        const restoredHas = !!((Array.isArray(d.to_emails) && d.to_emails.length) || (Array.isArray(d.cc_emails) && d.cc_emails.length) || (d.subject || '').trim()
           || !isEmptyHtml(d.body_html || '') || (Array.isArray(d.attachment_file_ids) && d.attachment_file_ids.length));
         if (restoredHas) setRestoredDraftAt(String(d.updated_at || d.updatedAt || ''));
         if (Array.isArray(d.to_emails) && d.to_emails.length) setCTo(toAddrList(d.to_emails).join(', '));
+        if (Array.isArray(d.cc_emails) && d.cc_emails.length) setCCc(toAddrList(d.cc_emails).join(', '));
         if (d.subject) { setCSubject(d.subject); hadSubject = true; }
         if (d.body_html) { setCBody(d.body_html); restoredBody = d.body_html; }
         if (Array.isArray(d.attachment_file_ids) && d.attachment_file_ids.length) setCFileIds(d.attachment_file_ids);
@@ -2125,10 +2132,10 @@ const MailPage: React.FC = () => {
     if (!composeOpen || fwdFromMsgId || !businessId || !composeDraftReady.current) return;
     // 음성이 심어놓은 상태 그대로면 아직 사용자의 글이 아니다 — 서버 초안을 덮어쓰지 않는다.
     if (composeVoiceUntouched.current) return;
-    if (!cTo.trim() && !cSubject.trim() && isEmptyHtml(cBody) && !cFileIds.length) return;
+    if (!cTo.trim() && !cCc.trim() && !cSubject.trim() && isEmptyHtml(cBody) && !cFileIds.length) return;
     const snap: PendingDraft = {
       url: `/api/businesses/${businessId}/email-drafts`,
-      body: { to_emails: cTo.split(/[,;\s]+/).map(s => s.trim()).filter(Boolean), subject: cSubject, body_html: cBody, attachment_file_ids: cFileIds, account_id: cAccountId },
+      body: { to_emails: cTo.split(/[,;\s]+/).map(s => s.trim()).filter(Boolean), cc_emails: ccList(cCc), subject: cSubject, body_html: cBody, attachment_file_ids: cFileIds, account_id: cAccountId },
     };
     composePendingRef.current = snap;   // 떠날 때 보낼 것(위 D-C3)
     const tid = setTimeout(async () => {
@@ -2143,7 +2150,7 @@ const MailPage: React.FC = () => {
       } catch { setComposeDraftStatus('error'); }
     }, 1500);
     return () => clearTimeout(tid);
-  }, [composeOpen, fwdFromMsgId, businessId, cTo, cSubject, cBody, cFileIds, cAccountId]);
+  }, [composeOpen, fwdFromMsgId, businessId, cTo, cCc, cSubject, cBody, cFileIds, cAccountId]);
 
   // 보낼 수 있는 주소 = (계정 기본 주소 + 그 계정의 별칭) 을 계정마다 이어붙인 것.
   //   값은 `${accountId}:${aliasId}` — 하나만 고르면 계정과 별칭이 동시에 정해진다.
@@ -2244,7 +2251,7 @@ const MailPage: React.FC = () => {
   //   문마다 손으로 지우면 한 곳씩 빠져 전달 제목·첨부·발신 주소가 다른 모드로 넘어간다(2026-10-15).
   //   setter·ref 만 쓰므로 [businessId] 로 메모된 addressActions 안에서 불러도 낡은 값을 보지 않는다.
   function resetComposeFields() {
-    setCTo(''); setCSubject(''); setCBody(''); setCUploads([]); setCFileIds([]); setCError(null);
+    setCTo(''); setCCc(''); setCSubject(''); setCBody(''); setCUploads([]); setCFileIds([]); setCError(null);
     setCFromAliasId(0);
     setFwdFromMsgId(null); setFwdAttachCount(0);
     fwdRestoredRef.current = '';   // 같은 메일을 다시 전달하면 로컬 초안을 다시 읽는다
@@ -2312,6 +2319,7 @@ const MailPage: React.FC = () => {
     if (!businessId || cSending) return;
     if (!cTo.trim()) { setCError(t('compose.toRequired', { defaultValue: '받는 사람을 입력해 주세요' }) as string); return; }
     // 전달은 원문이 서버에서 붙으므로 덧붙일 말이 없어도 보낼 수 있다.
+    if (invalidCc(cCc).length) { setCError(t('compose.ccInvalid', { list: invalidCc(cCc).join(', '), defaultValue: '참조 주소 형식을 확인해 주세요: {{list}}' }) as string); return; }
     if (!fwdFromMsgId && isEmptyHtml(cBody)) { setCError(t('compose.bodyRequired', { defaultValue: '내용을 입력해 주세요' }) as string); return; }
     const accId = cAccountId || accounts[0]?.id;
     if (!accId) { setCError(t('compose.noAccount', { defaultValue: '보낼 메일 계정이 없어요' }) as string); return; }
@@ -2327,11 +2335,11 @@ const MailPage: React.FC = () => {
       const r = fwdFromMsgId && activeId
         ? await apiFetch(`/api/businesses/${businessId}/email-threads/${activeId}/forward`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ account_id: accId, message_id: fwdFromMsgId, to, subject: cSubject, body_html: cBody, include_original: true, attachment_file_ids: fileIds, from_alias_id: cFromAliasId, signature: cSignature }),
+          body: JSON.stringify({ account_id: accId, message_id: fwdFromMsgId, to, cc: ccList(cCc), subject: cSubject, body_html: cBody, include_original: true, attachment_file_ids: fileIds, from_alias_id: cFromAliasId, signature: cSignature }),
         })
         : await apiFetch(`/api/businesses/${businessId}/email-compose`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ account_id: accId, to, subject: cSubject, body_html: cBody, attachment_file_ids: fileIds, from_alias_id: cFromAliasId, signature: cSignature }),
+          body: JSON.stringify({ account_id: accId, to, cc: ccList(cCc), subject: cSubject, body_html: cBody, attachment_file_ids: fileIds, from_alias_id: cFromAliasId, signature: cSignature }),
         });
       const j = await r.json();
       if (!j.success) throw new Error(mailErrorText(j.message) || (t('compose.sendFailed', { defaultValue: '발송 실패' }) as string));
@@ -2794,6 +2802,7 @@ const MailPage: React.FC = () => {
                     suggestions={toSuggestions}
                   />
                 </ComposeField>
+                <CcField testId="compose-cc" value={cCc} onChange={(next) => { markComposeTouched(); setCCc(next); }} suggestions={toSuggestions} />
                 <ComposeField data-pq-editor-hide="">
                   <ComposeLabel>{t('compose.subject', { defaultValue: '제목' }) as string}</ComposeLabel>
                   <ComposeInput data-testid="mail-compose-subject" value={cSubject} onChange={(e) => { markComposeTouched(); setCSubject(e.target.value); }} placeholder={t('compose.subjectPh', { defaultValue: '제목을 입력하세요' }) as string} />
@@ -3211,6 +3220,7 @@ const MailPage: React.FC = () => {
                         {t('reply.to', { defaultValue: '받는 사람' }) as string}: <strong>{replyToHint}</strong>
                       </ComposerTo>
                     )}
+                    <CcField testId="reply-cc" variant="inline" value={replyCc} onChange={setReplyCc} suggestions={toSuggestions} disabled={sending} />
                     {/* ★ 2026-09-16 (Irene: *"이 이메일이 AI답변 초안을 눌러도 아무 반응이 없어."*)
                         누르는 순간 답장창으로 바뀌면서 **누른 버튼(스피너·"AI 작성 중…")이 사라진다.**
                         진행 표시가 답장창 맨 아래에만 있어, 본문이 긴 메일에서는 화면 밖이었다.

@@ -584,7 +584,8 @@
     "zoom": "글자 크기",
     "zoomIn": "크게 보기",
     "zoomOut": "작게 보기",
-    "zoomReset": "원래 크기로"
+    "zoomReset": "원래 크기로",
+    "ccAddr": "참조"
   },
   "bulk": {
     "markAllRead": "모두 읽음",
@@ -656,7 +657,10 @@
     "discardTitle": "임시저장 메일 지우기",
     "discardMsg": "불러온 임시저장 메일을 지우고 빈 메일로 시작할까요? 지운 내용은 되돌릴 수 없어요.",
     "discardConfirm": "지우기",
-    "discardFailed": "임시저장 메일을 지우지 못했어요. 잠시 후 다시 시도해 주세요."
+    "discardFailed": "임시저장 메일을 지우지 못했어요. 잠시 후 다시 시도해 주세요.",
+    "cc": "참조",
+    "addCc": "참조 추가",
+    "ccInvalid": "참조 주소 형식을 확인해 주세요: {{list}}"
   },
   "attachment": {
     "menu": "첨부 {{n}}개",
