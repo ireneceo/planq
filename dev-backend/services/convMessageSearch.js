@@ -19,6 +19,7 @@ const likeEscape = (s) => String(s).replace(/[\\%_]/g, (c) => `\\${c}`);
 
 async function searchConversationMessages(req, res, next) {
   try {
+    if (!/^\d{1,10}$/.test(String(req.params.id))) return errorResponse(res, 'conversation_not_found', 404);   // '68 OR 1=1' 강제변환 막기
     const conv = await Conversation.findByPk(req.params.id);
     if (!conv) return errorResponse(res, 'conversation_not_found', 404);
     const denied = await convReadDenied(conv, req.user.id);

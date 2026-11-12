@@ -1578,7 +1578,7 @@ router.post('/conversations/:id/messages', authenticateToken, async (req, res, n
       kind: kind || 'text',
       is_ai: false,
       is_internal: false,
-      reply_to_message_id: await require('../services/messageReply').resolveReplyTo(conv.id, reply_to_message_id),   // 같은 대화 메시지만
+      reply_to_message_id: await require('../services/messageReply').resolveReplyTo(conv, req.user.id, reply_to_message_id),   // 같은 대화 메시지만
     });
     // last_message_at 업데이트
     await conv.update({ last_message_at: new Date() });
