@@ -1009,6 +1009,32 @@ const QTalkPage: React.FC<QTalkPageProps> = ({ embedded = false, initialConvId =
     }
   }, [messages]);
 
+  // 대화 안 검색 결과로 이동 — 아직 안 불러온 옛 메시지면 거기까지 200개씩 불러온다(최대 10번 = 2000개).
+  //   찾으면 true. 화면(ChatPanel)이 그 뒤 그 메시지로 굴린다.
+  const messagesRef = useRef(messages);
+  messagesRef.current = messages;
+  const loadUntilMessage = useCallback(async (msgId: number): Promise<boolean> => {
+    const convId = activeConversationIdRef.current;
+    if (!convId) return false;
+    let list = messagesRef.current[convId] || [];
+    if (list.some((m) => m.id === msgId)) return true;
+    for (let i = 0; i < 10 && list.length > 0; i += 1) {
+      const { messages: older, hasMore } = await qtalkApi.loadOlderMessages(convId, list[0].id, 200);
+      const existIds = new Set(list.map((m) => m.id));
+      const fresh = older.map(apiMessageToMock).filter((m) => !existIds.has(m.id));
+      list = [...fresh, ...list];
+      setMessages((prev) => {
+        const cur = prev[convId] || [];
+        const ids = new Set(cur.map((m) => m.id));
+        return { ...prev, [convId]: [...fresh.filter((m) => !ids.has(m.id)), ...cur] };
+      });
+      setOlderState((p) => ({ ...p, [convId]: { hasMore, loading: false } }));
+      if (list.some((m) => m.id === msgId)) return true;
+      if (!hasMore || fresh.length === 0) break;
+    }
+    return false;
+  }, []);
+
   // 활성 대화 older 상태 — 첫 로드가 서버의 has_more 를 그대로 심어 둔다(짐작 제거).
   //   olderState 가 아직 없는 순간(캐시로 먼저 그려진 화면 등)에만 옛 짐작을 폴백으로 쓴다.
   const activeMsgCount = activeConversationId ? (messages[activeConversationId]?.length || 0) : 0;
@@ -1934,6 +1960,7 @@ const QTalkPage: React.FC<QTalkPageProps> = ({ embedded = false, initialConvId =
         onMobileBack={handleMobileBack}
         mobileHidden={activeConversationId === null}
         onLoadOlder={loadOlderMessages}
+        onLoadUntilMessage={loadUntilMessage}
         jumpToLatestSignal={jumpToLatestSignal}
         hasMoreOlder={hasMoreOlder}
         loadingOlder={loadingOlder}

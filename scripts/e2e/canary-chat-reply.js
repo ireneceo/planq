@@ -34,6 +34,16 @@ async function mkConv(title) {
 }
 async function seed() {
   const replyConv = await mkConv('[카나리] 답장');
+  // 찾기 — 첫 화면(최근 50개)보다 훨씬 옛날 글 하나 + 채움 80개. 검색 결과로 누르면 거기까지 불러와 굴러가야 한다
+  await sequelize.query(
+    `INSERT INTO messages (conversation_id, sender_id, content, kind, created_at, updated_at)
+     VALUES (?, ?, '[카나리] 처음 약속 장소는 판교역칠번출구 입니다', 'text', DATE_SUB(NOW(), INTERVAL 600 MINUTE), NOW())`, { replacements: [replyConv, OWNER] });
+  for (let i = 1; i <= 80; i++) {
+    await sequelize.query(
+      `INSERT INTO messages (conversation_id, sender_id, content, kind, created_at, updated_at)
+       VALUES (?, ?, ?, 'text', DATE_SUB(NOW(), INTERVAL ? MINUTE), NOW())`,
+      { replacements: [replyConv, OWNER, `[카나리] 답장 확인용 메시지 채움 ${i}`, 500 - i] });
+  }
   for (let i = 1; i <= 40; i++) {   // 화면보다 길게 — «원문으로 이동» 을 재려면 원문이 화면 밖이어야 한다
     await sequelize.query(
       `INSERT INTO messages (conversation_id, sender_id, content, kind, created_at, updated_at)
@@ -124,7 +134,7 @@ async function run() {
       const band = await page.evaluate(PAINTED, '[data-testid="chat-reply-band"]');
       const input = await page.evaluate(PAINTED, '[data-testid="qtalk-input"]');
       const bandText = await page.evaluate(() => document.querySelector('[data-testid="chat-reply-band"]')?.innerText || '');
-      push(`${key} · 답장 띠가 그려지고 입력칸이 보임`, band.ok && input.ok && band.bottom <= input.top + 2 && /답장 확인용 메시지 1/.test(bandText),
+      push(`${key} · 답장 띠가 그려지고 입력칸이 보임`, band.ok && input.ok && band.bottom <= input.top + 2 && /답장 확인용 메시지/.test(bandText),
         `띠 ${JSON.stringify(band)} · 입력 ${JSON.stringify(input)} · «${bandText.replace(/\n/g, ' / ')}»`);
 
       // ④ Esc (데스크탑만 — 터치 키보드엔 Esc 가 없다)
@@ -180,6 +190,46 @@ async function run() {
       await b.sleep(1200);
       const after = await page.evaluate(VIEW, target);
       push(`${key} · 인용 줄 누르면 원문이 화면 안으로`, !before.inView && after.inView, `전 ${JSON.stringify(before)} → 후 ${JSON.stringify(after)}`);
+    }
+
+    // ⑦ 대화 안 찾기 — 3폭
+    const [[old]] = await sequelize.query("SELECT id FROM messages WHERE conversation_id = ? AND content LIKE '%판교역칠번출구%'", { replacements: [ids.replyConv] });
+    for (const { key, vp, touch } of VIEWPORTS) {
+      await page.setViewport(vp);
+      await b.goto(page, `/talk?conv=${ids.replyConv}`);
+      await page.waitForFunction(() => document.querySelectorAll('[data-testid="qtalk-messages"] [data-msg-id]').length >= 40, { timeout: 20000 }).catch(() => null);
+      await b.sleep(800);
+      const loadedBefore = await page.evaluate((id) => !!document.querySelector(`[data-msg-id="${id}"]`), old.id);
+      const opened = await tapOrClick(page, '[data-testid="chat-search-open"]', touch);
+      await b.sleep(300);
+      const panel = await page.evaluate(PAINTED, '[data-testid="chat-search-panel"] input');
+      push(`${key} · 찾기 칸이 열리고 입력칸이 그려짐`, opened && panel.ok, JSON.stringify(panel));
+      if (!panel.ok) continue;
+      await page.focus('[data-testid="chat-search-panel"] input');
+      await page.keyboard.type('없는말큐큐');
+      await page.waitForFunction(() => /맞는 메시지가 없어요|No matching/.test(document.querySelector('[data-testid="chat-search-results"]')?.innerText || ''), { timeout: 5000 }).catch(() => null);
+      const none = await page.evaluate(() => document.querySelector('[data-testid="chat-search-results"]')?.innerText || '');
+      push(`${key} · 없는 말은 «맞는 메시지가 없어요»`, /맞는 메시지가 없어요|No matching/.test(none), none.slice(0, 40));
+      await page.evaluate(() => { const i = document.querySelector('[data-testid="chat-search-panel"] input'); const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set; set.call(i, ''); i.dispatchEvent(new Event('input', { bubbles: true })); });
+      await page.keyboard.type('판교역 칠번');   // 공백이 달라도 찾는다(서버·화면 같은 규칙)
+      const hitSel = `[data-testid="chat-search-hit-${old.id}"]`;
+      await page.waitForSelector(hitSel, { timeout: 6000 }).catch(() => null);
+      const hit = await page.evaluate(PAINTED, hitSel);
+      const mark = await page.evaluate((s) => !!document.querySelector(`${s} mark`), hitSel);
+      push(`${key} · 결과 줄이 그려지고 맞은 말이 강조됨`, hit.ok && mark, `${JSON.stringify(hit)} · 강조=${mark}`);
+      if (!hit.ok) continue;
+      await tapOrClick(page, hitSel, touch);
+      await page.waitForFunction((id) => !!document.querySelector(`[data-msg-id="${id}"]`), { timeout: 15000 }, old.id).catch(() => null);
+      await b.sleep(1500);
+      const v = await page.evaluate((id) => { const e = document.querySelector(`[data-msg-id="${id}"]`); if (!e) return { found: false }; const r = e.getBoundingClientRect(); const l = document.querySelector('[data-testid="qtalk-messages"]').getBoundingClientRect(); return { found: true, inView: r.top >= l.top - 1 && r.bottom <= l.bottom + 1, top: Math.round(r.top) }; }, old.id);
+      push(`${key} · 안 불러온 옛 메시지로 이동(처음엔 없음 → 불러와 화면 안)`, !loadedBefore && v.found && v.inView, `처음 불러옴=${loadedBefore} · ${JSON.stringify(v)}`);
+      if (!touch) {
+        await page.focus('[data-testid="chat-search-panel"] input');
+        await page.keyboard.press('Escape');
+        await b.sleep(200);
+        const closed = await page.evaluate(() => !document.querySelector('[data-testid="chat-search-panel"]'));
+        push(`${key} · Esc 로 찾기 닫힘`, closed, `닫힘=${closed}`);
+      }
     }
 
     // ⑤ 안 읽음 거르기 — 목록이 보이는 폭(데스크탑·폰 목록 화면)

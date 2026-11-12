@@ -632,5 +632,16 @@
     "jump": "Go to original",
     "unavailable": "Original message unavailable",
     "attachment": "Attachment"
+  },
+  "search": {
+    "open": "Search this conversation",
+    "placeholder": "Search this conversation",
+    "close": "Close search",
+    "loading": "Searching…",
+    "error": "Search failed. Please try again shortly",
+    "none": "No matching messages",
+    "count": "{{count}} results",
+    "countMore": "Showing the latest {{count}} — narrow your search",
+    "jumping": "Opening…"
   }
 }

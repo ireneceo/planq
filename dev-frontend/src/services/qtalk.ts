@@ -432,6 +432,16 @@ export async function loadOlderMessages(
   return { messages: body.data || [], hasMore: !!body.has_more };
 }
 
+// 대화 안 메시지 검색 — 최근부터 50개 · 스니펫(평문 창)만 온다. 읽기 판정은 목록과 같은 서버 함수.
+export interface ConvSearchHit { id: number; created_at: string; sender_id: number; sender_name: string; snippet: string }
+export async function searchConversationMessages(conversationId: number, q: string): Promise<{ hits: ConvSearchHit[]; hasMore: boolean }> {
+  const res = await apiFetch(`/api/projects/conversations/${conversationId}/messages/search?q=${encodeURIComponent(q)}`);
+  let body: { success: boolean; data?: ConvSearchHit[]; has_more?: boolean; message?: string } | null = null;
+  try { body = await res.json(); } catch { throw new Error(`HTTP ${res.status}`); }
+  if (!res.ok || !body?.success) throw new Error(body?.message || `HTTP ${res.status}`);
+  return { hits: body.data || [], hasMore: !!body.has_more };
+}
+
 export async function listProjectTasks(projectId: number): Promise<ApiTask[]> {
   const res = await apiFetch(`/api/projects/${projectId}/tasks`);
   return handle<ApiTask[]>(res);

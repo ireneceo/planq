@@ -41,7 +41,8 @@ import MessageReactions from './MessageReactions';   // #138 이모지 리액션
 import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
 import ReactionPickerPopover from './ReactionPickerPopover';   // 반응 고르기 — 도구줄에서 떠 있는 팝오버
 import EmojiPickerButton from './EmojiPickerButton';
-import { ReplyQuote, ReplyComposerBand, ReplyIcon } from './ReplyQuote';   // 답장(인용)   // #380 입력창 이모지 (보내는 것)
+import { ReplyQuote, ReplyComposerBand, ReplyIcon } from './ReplyQuote';   // 답장(인용)
+import ChatSearchPanel from './ChatSearchPanel';   // 대화 안 찾기   // #380 입력창 이모지 (보내는 것)
 import { PanelBackButton, PanelHeaderBar, DetailMetaBar, DetailMetaLeft } from '../../components/Layout/PanelHeader';
 import { openPreviewWindow } from '../../utils/openPreviewWindow';
 import { isEnterAction, enterSends, isComposingEvent } from '../../utils/imeKey';
@@ -89,6 +90,7 @@ interface Props {
   mobileHidden?: boolean;
   /** 위로 스크롤 시 과거 메시지 로드 (무한 스크롤 업) */
   onLoadOlder?: () => void;
+  onLoadUntilMessage?: (messageId: number) => Promise<boolean>;   // 검색 결과가 아직 안 불러온 옛 메시지일 때
   hasMoreOlder?: boolean;
   loadingOlder?: boolean;
   /** 히스토리 로드가 끝내 실패 — 스켈레톤 대신 오류·다시 시도(0-J) */
@@ -139,7 +141,7 @@ const ChatPanel: React.FC<Props> = ({
   onSendMessage, onCueDraftSend, onCueDraftReject, onRenameConversation, onOpenSettings,
   candidatesCount,
   onOpenNewChat, onMobileBack, mobileHidden = false, pinSlot,
-  onLoadOlder, hasMoreOlder = false, loadingOlder = false, jumpToLatestSignal = 0, listLoading = false,
+  onLoadOlder, onLoadUntilMessage, hasMoreOlder = false, loadingOlder = false, jumpToLatestSignal = 0, listLoading = false,
   loadFailed = false, onRetryLoad,
 }) => {
   const { t } = useTranslation('qtalk');
@@ -528,7 +530,8 @@ const ChatPanel: React.FC<Props> = ({
   const [editingMsgId, setEditingMsgId] = useState<number | null>(null);
   // 답장(인용) 대상 — 방을 바꾸면 비운다
   const [replyTarget, setReplyTarget] = useState<MockMessage | null>(null);
-  useEffect(() => { setReplyTarget(null); }, [activeConversationId]);
+  const [searchOpen, setSearchOpen] = useState(false);   // 대화 안 찾기 칸
+  useEffect(() => { setReplyTarget(null); setSearchOpen(false); }, [activeConversationId]);
   const [editingMsgDraft, setEditingMsgDraft] = useState('');
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedMsgIds, setSelectedMsgIds] = useState<Set<number>>(new Set());
@@ -629,10 +632,22 @@ const ChatPanel: React.FC<Props> = ({
   const scrollToMessage = (msgId: number) => {
     const el = document.querySelector(`[data-msg-id="${msgId}"]`);
     if (el && el instanceof HTMLElement) {
+      pinBottomRef.current = false;   // 옛 메시지로 간 것 — 이미지·번역이 늦게 커져도 바닥으로 끌려가지 않게
       el.scrollIntoView({ behavior: 'smooth', block: 'center' });
       setPinnedBarFlashId(msgId);
       window.setTimeout(() => setPinnedBarFlashId(null), 1800);
     }
+  };
+
+  // 검색 결과로 이동 — 아직 안 불러왔으면 부모가 거기까지 불러온 뒤 그린 다음에 굴린다
+  const jumpToSearchHit = async (msgId: number) => {
+    if (!document.querySelector(`[data-msg-id="${msgId}"]`) && onLoadUntilMessage) {
+      pinBottomRef.current = false;
+      const ok = await onLoadUntilMessage(msgId).catch(() => false);
+      if (!ok) return;
+      await new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r())));
+    }
+    scrollToMessage(msgId);
   };
 
   const pinnedMessages = useMemo(() =>
@@ -1567,6 +1582,10 @@ const ChatPanel: React.FC<Props> = ({
               conversationId={activeConv.id}
               clientName={activeConv.client?.name || activeConv.name} />
           )}
+          <IconBtn type="button" data-testid="chat-search-open" onClick={() => setSearchOpen((v) => !v)} aria-pressed={searchOpen}
+            title={t('search.open', '이 대화에서 찾기') as string} aria-label={t('search.open', '이 대화에서 찾기') as string}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="7" /><path d="M21 21l-4.35-4.35" /></svg>
+          </IconBtn>
           {!isClient && !isSupportRoom && onOpenSettings && (
             <IconBtn type="button" data-testid="chat-open-settings" onClick={onOpenSettings} title={t('chat.openSettings', '채팅 설정') as string} aria-label={t('chat.openSettings', '채팅 설정') as string}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -1622,6 +1641,9 @@ const ChatPanel: React.FC<Props> = ({
           ))}
         </DetailMetaLeft>
       </ChatMetaBar>
+      {searchOpen && (
+        <ChatSearchPanel conversationId={activeConv.id} onJump={jumpToSearchHit} onClose={() => setSearchOpen(false)} />
+      )}
 
       {/* 사이클 N+16-E — 핀 공지 영역 (Slack 패턴). 1개 이상 핀 시 헤더 아래 노란 액센트 바.
           접힘: "📌 공지 N개" 한 줄. 펴짐: 핀 메시지 리스트, 클릭 시 본문으로 스크롤 + 잠시 강조. */}

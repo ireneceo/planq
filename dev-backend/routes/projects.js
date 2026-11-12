@@ -1914,6 +1914,9 @@ router.post('/messages/:id/reject-draft', authenticateToken, async (req, res, ne
   } catch (err) { next(err); }
 });
 
+// GET /api/projects/conversations/:id/messages/search?q= — 대화 안 메시지 검색(스니펫만 · 읽기 판정은 목록과 같은 함수)
+router.get('/conversations/:id/messages/search', authenticateToken, require('../services/convMessageSearch').searchConversationMessages);
+
 // ============================================
 // GET /api/projects/conversations/:id/messages — 대화방 메시지 목록 (시간순)
 // (projects 라우터 네임스페이스 아래에 중첩)
@@ -1922,25 +1925,9 @@ router.get('/conversations/:id/messages', authenticateToken, async (req, res, ne
   try {
     const conv = await Conversation.findByPk(req.params.id);
     if (!conv) return errorResponse(res, 'conversation_not_found', 404);
-    if (conv.project_id) {
-      const { error, role } = await loadProjectOrForbidden(conv.project_id, req.user.id);
-      if (error) return errorResponse(res, error.message, error.code);
-      if (role === 'client' && conv.channel_type !== 'customer') {
-        return errorResponse(res, 'forbidden_channel', 403);
-      }
-      // 고객 채널이어도 **자기 회사 채널**이어야 한다 — 목록과 같은 술어(canAccessConversation).
-      if (!(await require('../middleware/access_scope').canAccessConversation(req.user.id, conv))) {
-        return errorResponse(res, 'forbidden_channel', 403);
-      }
-    } else {
-      // 독립 대화(standalone, project_id 없음) — 접근 검사 (cross-tenant/IDOR 차단).
-      //   워크스페이스 멤버 이상 또는 참여 client 만. 옛 코드는 standalone 에 검사 없어 conv id 열거로
-      //   타 워크스페이스 메시지 조회 가능했던 갭. (검증 사이클 발견 fix)
-      const { canAccessConversation } = require('../middleware/access_scope');
-      if (!(await canAccessConversation(req.user.id, conv))) {
-        return errorResponse(res, 'forbidden', 403);
-      }
-    }
+    // 읽기 판정 — 대화 안 검색과 같은 함수(services/convReadAccess). 술어를 여기 다시 쓰지 않는다.
+    const denied = await require('../services/convReadAccess').convReadDenied(conv, req.user.id);
+    if (denied) return errorResponse(res, denied.message, denied.code);
     const { MessageAttachment, ConversationParticipant } = require('../models');
     // 페이지네이션 — 최신 N개를 우선 로드 (옛 'ASC limit 200' 은 긴 대화에서 '오래된 200개' 만 보이는 버그).
     //   ?limit=N (default 50, max 200) · ?before=<messageId> → 그 메시지보다 오래된 N개 (무한 스크롤 업).

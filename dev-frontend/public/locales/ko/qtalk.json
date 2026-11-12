@@ -632,5 +632,16 @@
     "jump": "원문으로 이동",
     "unavailable": "원문을 볼 수 없어요",
     "attachment": "첨부 파일"
+  },
+  "search": {
+    "open": "이 대화에서 찾기",
+    "placeholder": "이 대화에서 찾기",
+    "close": "찾기 닫기",
+    "loading": "찾는 중…",
+    "error": "찾지 못했어요. 잠시 뒤 다시 해 보세요",
+    "none": "맞는 메시지가 없어요",
+    "count": "{{count}}개",
+    "countMore": "최근 {{count}}개만 보여요 — 더 좁혀 찾아 보세요",
+    "jumping": "이동 중…"
   }
 }
