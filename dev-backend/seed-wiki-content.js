@@ -355,6 +355,11 @@ const ARTICLES = [
       s('메시지를 입력하면 실시간으로 전달됩니다. 파일도 함께 보낼 수 있습니다.', 'Type a message to send in real time — you can attach files too.'),
       note('메시지는 수정(수정됨 표시)·삭제(삭제된 메시지로 마스킹)가 가능합니다.',
         'Messages can be edited (marked “edited”) or deleted (masked as “deleted message”).'),
+      // 2026-11-12 — 답장·안 읽음·대화 안 찾기
+      s('메시지에 마우스를 올려(모바일은 메시지를 한 번 눌러) **답장**을 누르면 원문을 붙여 답할 수 있습니다. 붙은 원문을 누르면 그 메시지로 이동합니다.',
+        'Hover a message (tap it on mobile) and choose **Reply** to answer with the original quoted. Tap the quote to jump to that message.'),
+      s('대화 목록 위 **안 읽음** 을 누르면 안 읽은 대화만 보입니다. 대화 머리의 **이 대화에서 찾기** 로 그 대화 안 메시지를 찾을 수 있습니다.',
+        'Tap **Unread** above the chat list to show only unread chats. Use **Search in this chat** in the chat header to find messages in that chat.'),
       // 2026-10-09 — 사적 팀 대화(보안 점검 2차 D3)
       note('프로젝트·고객과 연결하지 않은 팀 대화는 **참여자만** 볼 수 있습니다. 대표·관리자도 참여자가 아니면 보지 못합니다. 프로젝트 대화방과 고객 대화방은 팀 모두가 봅니다.',
         'Team chats not linked to a project or client are visible to **participants only** — owners and admins included. Project and client chats are visible to the whole team.'),
@@ -1070,6 +1075,8 @@ const ARTICLES = [
         'Once you connect a mail account (Settings → Mail accounts), incoming mail collects in the Q Mail inbox. Mail, chat, and tasks appear on one timeline per client.'),
       s('Q Mail 화면에서 메일 스레드를 엽니다.', 'Open a mail thread on the Q Mail screen.'),
       s('답장·전달·임시저장이 대화처럼 동작합니다. 첨부는 Q File에 함께 보관됩니다.', 'Reply, forward, and save drafts like a chat. Attachments are also stored in Q File.'),
+      s('새 메일·답장·전달에서 **참조 추가** 를 눌러 참조(CC) 주소를 넣을 수 있습니다. 받은 메일의 참조 주소는 보낸 사람 아래에 보입니다.',
+        'In a new mail, reply, or forward, click **Add CC** to add CC addresses. CC addresses on received mail appear under the sender.'),
       s('첨부가 있는 메일은 목록에서 제목 옆에 클립 표시가 붙습니다. 열어보기 전에 첨부 유무를 알 수 있어요.',
         'Threads with attachments show a paperclip in the list, so you can tell before opening.'),
       s('첨부를 누르면 이미지와 PDF는 바로 미리보기로 열립니다. 이미지는 좌우로 넘겨 볼 수 있고, 내려받을 때는 첨부 오른쪽의 내려받기 아이콘을 누르세요. 그 밖의 형식은 누르면 바로 내려받습니다.',
