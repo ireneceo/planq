@@ -324,5 +324,20 @@
     "items_one": "항목 {{count}}",
     "items_other": "항목 {{count}}",
     "gone": "이 자료는 더 이상 볼 수 없어요."
+  },
+  "att": {
+    "view": "크게 보기",
+    "loginToDownload": "파일을 받으려면 계정이 필요해요",
+    "remove": "빼기",
+    "add": "사진·PDF 보내기",
+    "sending": "보내는 중…",
+    "err": {
+      "invalid": "사진(jpg·png·webp·gif·heic)과 PDF 만 보낼 수 있어요.",
+      "tooLarge": "파일이 너무 커요. 한 파일에 {{mb}}MB 까지예요.",
+      "tooMany": "한 번에 {{n}}개까지 보낼 수 있어요.",
+      "cap": "이 링크로 보낼 수 있는 파일 수를 넘었어요. 담당자에게 알려 주세요.",
+      "rate": "잠시 뒤 다시 보내 주세요.",
+      "storage": "지금은 파일을 받을 수 없어요. 담당자에게 알려 주세요."
+    }
   }
 }

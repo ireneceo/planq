@@ -341,6 +341,7 @@ const SUITES = {
   // 메시지 반응 — 3폭에서 «가만히 있으면 안 보임·겹침 없음·고르는 줄이 글자를 밀지도 덮지도 않음» (2026-09-28)
   chatreaction: () => require('./canary-chat-reaction'),
   chatreply: () => require('./canary-chat-reply'),
+  guestupload: () => require('./canary-guest-upload'),
   // 메시지 [더보기] 반복 — 갱신 함수 안 e.currentTarget(null) 로 화면이 죽던 운영 크래시 (2026-10-05)
   chatmore: () => require('./canary-chat-more-menu'),
   // «모든 버튼 눌러보기» 순찰 — 화면 × 폰·태블릿·PC 웹 + 폰·아이패드 앱 흉내. 쓰기 요청은 전부 막는다(데이터 불변). 매일 밤 cron.

@@ -28,4 +28,11 @@ const ATTACHMENT_EXT = new Set([
   '.mp3', '.wav', '.m4a', '.aac', '.ogg', '.flac',
 ]);
 
-module.exports = { ATTACHMENT_EXT };
+// 게스트 링크(로그인 없음)가 채팅으로 보낼 수 있는 형식 — 이미지·PDF 만 (docs/GUEST_UPLOAD_DESIGN.md §2).
+//   svg 는 뺀다(스크립트를 품는 형식). 오피스·zip·영상은 계정 초대 고객만 — 서버에 악성 파일 검사기가 없다.
+const GUEST_ATTACHMENT_EXT = new Set(['.jpg', '.jpeg', '.png', '.webp', '.gif', '.heic', '.heif', '.pdf']);
+for (const e of GUEST_ATTACHMENT_EXT) {
+  if (!ATTACHMENT_EXT.has(e)) throw new Error(`GUEST_ATTACHMENT_EXT ${e} 는 ATTACHMENT_EXT 의 부분집합이어야 한다`);
+}
+
+module.exports = { ATTACHMENT_EXT, GUEST_ATTACHMENT_EXT };

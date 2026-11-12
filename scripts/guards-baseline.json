@@ -334,7 +334,7 @@
   },
   "broadcastpayload": {
     "dev-backend/routes/conversations.js": 1,
-    "dev-backend/routes/guest.js": 1,
+    "dev-backend/services/guestMessage.js": 1,
     "dev-backend/routes/projects.js": 8,
     "dev-backend/services/actions/task_actions.js": 1,
     "dev-backend/services/chatPost.js": 1,

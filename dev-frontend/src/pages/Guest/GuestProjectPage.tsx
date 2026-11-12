@@ -631,7 +631,7 @@ export default function GuestProjectPage({ token, project, workspace, canWrite, 
       <ChatWrap $on={tab === 'chat'} data-testid="guest-tab-body-chat">
         {/* 답글 알림 신청 — 대화 화면과 **같은 부품**(설계 §7.1, 2026-09-05 Fable 지적 D3). */}
         <NotifyColumn><GuestNotifySection token={token} onGone={onGone} /></NotifyColumn>
-        <GuestChatPanel token={token} canWrite={canWrite} active={tab === 'chat'} onGone={onGone} column />
+        <GuestChatPanel token={token} canWrite={canWrite} active={tab === 'chat'} onGone={onGone} column onNeedLogin={() => needLogin('download')} />
       </ChatWrap>
 
       <LoginRequiredSheet

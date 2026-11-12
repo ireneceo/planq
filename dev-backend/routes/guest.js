@@ -46,10 +46,13 @@ const serializeMessage = (m, guestUserId, cardState, partyNames) => ({
   sender_name: m.sender?.is_guest === true
     ? (m.meta?.guest?.name || m.sender.name || null)
     : ((m.sender && partyNames) ? (partyNames.get(m.sender.id) || null) : null),
+  attachments: Array.isArray(m.attachments) ? m.attachments.map(require('../services/guestAttachment').serializeGuestAttachment) : [],
 });
 
 // 답글 알림 신청 (#259 A안) — 별도 파일. `/:token/notify/*` 만 가져간다.
 router.use(require('./guest_subscribe'));
+// 첨부 — 사진·PDF 보내기(`/:token/messages/upload`)와 토큰 아래 미리보기(`/:token/attachments/:id/preview`). docs/GUEST_UPLOAD_DESIGN.md
+router.use(require('./guest_attachments'));
 // 프로젝트 탭(업무·문서·파일) — scope='project' 링크만 여는 라우트. 파일이 갈라져 있어야
 //   "어느 라우트가 무엇을 여는가" 가 눈에 보인다(무인증 표면).
 router.use(require('./guest_project'));
@@ -169,6 +172,8 @@ router.get('/:token', guestLimiter('guest-ctx', { windowMs: 60 * 1000, max: 60 }
       scope: link.scope || 'conversation',
       guest_name: link.guest_name,
       can_write: !!link.can_write,
+      // 사진·PDF 보내기 — 화면은 이 값만 쓴다(숫자 하드코딩 금지). 방이 있고 쓸 수 있고 스위치가 켜져 있을 때만.
+      upload: require('./guest_attachments').uploadInfo(req.guest),
       // 계정 요청을 이미 보냈는가 — 화면이 배너를 "요청 보냄" 상태로 바꾼다.
       account_requested: !!link.account_requested_at,
       // 고객은 **선택**이다 (2026-09-02). 붙어 있으면 이름을 보여주고, 없으면 null —
@@ -198,7 +203,11 @@ router.get('/:token/messages', guestLimiter('guest-msgs', { windowMs: 60 * 1000,
     const rows = await Message.findAll({
       // 쿼리에서 한 번, visibleToGuest 에서 또 한 번 — 둘 중 하나가 바뀌어도 안 샌다.
       where: { conversation_id: conversation.id, is_deleted: false },
-      include: [{ model: User, as: 'sender', attributes: ['id', 'name', 'is_guest'] }],
+      include: [
+        { model: User, as: 'sender', attributes: ['id', 'name', 'is_guest'] },
+        // 첨부 — 모양은 services/guestAttachment 화이트리스트(영구 공개 주소를 싣지 않는다, docs/GUEST_UPLOAD_DESIGN.md §1)
+        { model: require('../models').MessageAttachment, as: 'attachments', attributes: ['id', 'file_name', 'file_size', 'mime_type', 'file_path', 'storage_provider', 'external_id'], required: false },
+      ],
       order: [['created_at', 'DESC']],
       limit: 200,
     });
@@ -320,103 +329,18 @@ router.get('/:token/cards/:messageId/open',
 //   게스트가 글을 쓴다. **텍스트만** — 파일 업로드는 2단계(쿼터·악성파일 축이 별도 설계).
 router.post('/:token/messages', guestLimiter('guest-send', { windowMs: 60 * 1000, max: 10 }), attachGuest, requireRoom, async (req, res, next) => {
   try {
-    const { link, conversation, guestUser } = req.guest;
+    const { link } = req.guest;
     if (!link.can_write) return errorResponse(res, 'read_only_link', 403);
+    // 정화·표시명·생성·소켓·알림은 사진 보내기와 **한 함수**(services/guestMessage) — 베끼면 갈라진다.
+    const { createGuestMessage, cleanGuestContent, cleanGuestName } = require('../services/guestMessage');
     const raw = String(req.body?.content || '').trim();
     if (!raw) return errorResponse(res, 'content_required', 400);
     if (raw.length > 4000) return errorResponse(res, 'content_too_long', 400);
-
-    // ★ 무인증 표면이다 — 기존 메시지 라우트는 문자열을 그대로 저장하지만(프론트가 렌더 시 정화),
-    //   여기는 아무나 쓸 수 있으므로 **태그를 아예 걷어낸다.** 게스트는 서식이 필요 없다.
-    //   프론트 정화기를 믿고 원문을 넣으면, 그 정화기가 한 번 무너질 때 이 입구가 통로가 된다.
-    const cleaned = raw.replace(/<[^>]*>/g, '').slice(0, 4000);
+    const cleaned = cleanGuestContent(raw);
     if (!cleaned.trim()) return errorResponse(res, 'content_required', 400);
-
-    // ── 게스트가 스스로 정하는 표시명 (선택) ──────────────────────────────
-    //   무인증 입력이다. 프론트 정화기를 믿지 않는다 — 본문과 같은 원칙.
-    //   비어 있으면 null → 화면은 "게스트" 로 그린다.
-    let guestDisplayName = null;
-    const rawName = req.body?.guest_name;
-    if (rawName != null) {
-      const n = String(rawName)
-        .replace(/<[^>]*>/g, '')             // 태그
-        .replace(/[\u0000-\u001F\u007F]/g, '')  // 제어문자
-        .replace(/\s+/g, ' ')
-        .trim()
-        .slice(0, 30);                        // 30자 캡
-      if (n) {
-        // 사칭 차단 — 우리 쪽 사람으로 보이는 이름은 거절한다. 뱃지가 최종 방어지만
-        //   "PlanQ 관리자" 가 이름으로 통과하면 뱃지를 못 본 사람에게는 통한다.
-        const RESERVED = ['planq', 'cue', '관리자', 'admin', '운영자', '담당자'];
-        const low = n.toLowerCase();
-        if (RESERVED.some((w) => low.includes(w))) return errorResponse(res, 'name_reserved', 400);
-        guestDisplayName = n;
-      }
-    }
-    const msg = await Message.create({
-      conversation_id: conversation.id,
-      sender_id: guestUser.id,   // 그림자 User — sender_id 는 NOT NULL 이다
-      content: cleaned,
-      kind: 'text',
-      is_ai: false,
-      is_internal: false,        // ★ 게스트는 내부 메모를 만들 수 없다. 하드코딩이다
-      // ★ 표시명은 **이 행에 박제**한다 (2026-09-02).
-      //   한 링크를 여럿이 나눠 갖는 것이 이 기능의 전제라(설계 §2), 이름을 링크나 그림자 User 에
-      //   두면 **나중 사람이 이름을 정하는 순간 과거 메시지의 이름까지 소급해서 바뀐다.**
-      //   신원(누가 썼나) = 링크의 그림자 User, 라벨(뭐라고 보이나) = 이 값. 둘을 갈라 둔다.
-      //   link_id 는 §8 승격(이 링크 발 메시지만 이관)의 열쇠이기도 하다.
-      //   이름이 없으면 키 자체를 넣지 않는다 — JSON null 은 읽는 쪽에서 문자열 'null' 로
-      //   새어 나갈 자리를 만든다(실측: 목록 미리보기에 "null" 이 이름으로 떴다).
-      meta: { guest: guestDisplayName ? { link_id: link.id, name: guestDisplayName } : { link_id: link.id } },
-    });
-    await conversation.update({ last_message_at: new Date() });
-    await link.increment('message_count');
-
-    // 실시간 반영 — 멤버 Q Talk 이 즉시 본다 (CLAUDE.md 운영 안정성 §16).
-    const full = await Message.findByPk(msg.id, {
-      include: [{ model: User, as: 'sender', attributes: ['id', 'name', 'name_localized', 'is_guest'] }],
-    });
-    const io = req.app.get('io');
-    if (io && full) {
-      const payload = full.toJSON();
-      // 표시명은 REST 와 **같은 헬퍼**로 바꾼다 — 경로마다 따로 쓰면 반드시 갈라진다.
-      require('../services/displayName').applyGuestDisplayName(payload);
-      payload.via_guest_link = true;   // (옛 필드 — 뱃지 근거는 sender.is_guest 다)
-      io.to(`conv:${conversation.id}`).emit('message:new', payload);
-      require('../services/convBroadcast').emitConvWide(io, conversation, 'message:new', payload).catch(() => {});
-    }
-
-    // 멤버에게 알림 — 게스트가 글을 썼는데 아무도 모르면 이 기능은 무용지물이다.
-    try {
-      const { notifyMany } = require('./notifications');
-      const { ConversationParticipant } = require('../models');
-      const parts = await ConversationParticipant.findAll({
-        where: { conversation_id: conversation.id },
-        attributes: ['user_id', 'role'],
-      });
-      const memberIds = parts.filter((p) => p.role !== 'client' && p.user_id !== guestUser.id).map((p) => p.user_id);
-      if (memberIds.length) {
-        await notifyMany({
-          userIds: memberIds,
-          businessId: conversation.business_id,
-          eventKind: 'message',
-          // link.guest_name 은 멤버 메모용이라 대개 비어 있다. 이 글을 쓴 사람의 이름을 쓴다.
-          // 제목은 notifyTitle 규약(«Q Talk · 게스트 메시지 · 이름»)으로 수신자 언어 — 옛: '… (게스트)' 한국어 박제(0-I).
-          titleSpec: { feature: 'chat', action: 'chat_guest_message', subject: guestDisplayName || link.guest_name || '' },
-          // 정화 전 raw 가 아니라 태그를 걷어낸 cleaned 를 넣는다 — 알림은 메일·inbox·push 로
-          //   퍼지고 그중 하나만 HTML 로 렌더하면 무인증 입구가 그대로 통로가 된다 (#259).
-          body: cleaned.length > 140 ? cleaned.slice(0, 140) + '…' : cleaned,
-          // ★ #407 — 게스트가 쓴 본문은 **우리 울타리 밖으로 내보내지 않는다.** 인앱에만 남는다.
-          //   무인증 링크로 들어온 사람이 쓴 자유 텍스트라 더더욱 메일·푸시로 퍼뜨릴 이유가 없다.
-          previewPolicy: 'internal_only',
-          link: `/talk?conv=${conversation.id}`,
-          entityType: 'Conversation',
-          entityId: conversation.id,
-          ioApp: req.app,
-        });
-      }
-    } catch (e) { console.warn('[guest] notify 실패:', e.message); }
-
+    const nm = cleanGuestName(req.body?.guest_name);
+    if (nm.error) return errorResponse(res, nm.error, 400);
+    const { msg } = await createGuestMessage({ guest: req.guest, content: cleaned, guestName: nm.name, app: req.app });
     return successResponse(res, { id: msg.id, created_at: msg.created_at }, 'sent', 201);
   } catch (err) { next(err); }
 });

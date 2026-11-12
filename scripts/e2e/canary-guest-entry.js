@@ -19,7 +19,8 @@
 const { launch, login, sleep, BASE, CREDS } = require('./lib/browser');
 
 const API = process.env.E2E_API || 'http://localhost:3003';
-const OLD_KEYS = ['account_requested', 'can_write', 'client_name', 'conversation', 'guest_name', 'project', 'scope'];
+// 2026-11-12 — `upload`(사진·PDF 보내기 가능 여부·한도) 하나만 더해졌다(docs/GUEST_UPLOAD_DESIGN.md §2 · 검증 7 «upload 키 외 동일»).
+const OLD_KEYS = ['account_requested', 'can_write', 'client_name', 'conversation', 'guest_name', 'project', 'scope', 'upload'];
 // 응답 **원문**으로 판정한다 — 키 이름만 보면 중첩·새 경로로 빠져나간다(health-check --category=secrets 와 같은 이유).
 const FORBIDDEN = [/business_id/, /"slug"/, /@/, /user_id/, /owner/, /"phone"/, /"email"/, /brand_/, /legal_/, /subscription/];
 const SYMBOL = /^\/api\/businesses\/symbol\/[0-9a-f-]+\.(png|jpe?g|gif|webp|svg)$/i;

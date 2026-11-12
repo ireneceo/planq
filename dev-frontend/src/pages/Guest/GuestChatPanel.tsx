@@ -17,6 +17,7 @@ const columnCss = `
   > * { width:100%; max-width:${READ_W}; margin-left:auto; margin-right:auto; }
 `;
 import { isEnterAction, enterSends } from '../../utils/imeKey';
+import { MessageAttachments, PickedChips, ClipIcon, checkPicked, type GuestAttachment, type GuestUploadInfo } from './GuestChatAttachments';
 
 export type GuestCard = {
   card_type: string | null;
@@ -28,6 +29,7 @@ export type GuestCard = {
 export type GuestMsg = {
   id: number; content: string; created_at: string; is_mine: boolean; sender_name: string | null;
   kind?: string; card?: GuestCard | null;
+  attachments?: GuestAttachment[];
 };
 
 type Props = {
@@ -39,9 +41,11 @@ type Props = {
   column?: boolean;
   /** 링크가 죽었을 때(404) 부모가 만료 화면으로 바꾸게 */
   onGone: () => void;
+  /** 파일 칩을 누르면 — 로그인 안내 시트(그 시트를 가진 화면만 준다) */
+  onNeedLogin?: () => void;
 };
 
-export default function GuestChatPanel({ token, canWrite, active = true, onGone, column = false }: Props) {
+export default function GuestChatPanel({ token, canWrite, active = true, onGone, column = false, onNeedLogin }: Props) {
   const { t } = useTranslation('guest');
   const [msgs, setMsgs] = useState<GuestMsg[]>([]);
   const [draft, setDraft] = useState('');
@@ -59,6 +63,35 @@ export default function GuestChatPanel({ token, canWrite, active = true, onGone,
   const [nameSkipped, setNameSkipped] = useState(false);
   const [nameDraft, setNameDraft] = useState('');
   const bottomRef = useRef<HTMLDivElement>(null);
+  // 사진·PDF 보내기 — 서버가 준 값(ctx.upload)만 쓴다(숫자 하드코딩 금지, docs/GUEST_UPLOAD_DESIGN.md §2)
+  const [upload, setUpload] = useState<GuestUploadInfo | null>(null);
+  const [picked, setPicked] = useState<File[]>([]);
+  const fileRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (!token || !canWrite) return;
+    fetch(`/api/guest/${token}`).then((r) => (r.ok ? r.json() : null))
+      .then((j) => { if (j?.success && j.data?.upload?.enabled) setUpload(j.data.upload); })
+      .catch(() => { /* 첨부 없이도 채팅은 된다 */ });
+  }, [token, canWrite]);
+  const uploadErr = (code: string | undefined) => {
+    switch (code) {
+      case 'invalid_file': return t('att.err.invalid', { defaultValue: '사진(jpg·png·webp·gif·heic)과 PDF 만 보낼 수 있어요.' });
+      case 'file_too_large': return t('att.err.tooLarge', { defaultValue: '파일이 너무 커요. 한 파일에 {{mb}}MB 까지예요.', mb: Math.round((upload?.max_bytes || 0) / 1024 / 1024) });
+      case 'too_many_files': return t('att.err.tooMany', { defaultValue: '한 번에 {{n}}개까지 보낼 수 있어요.', n: upload?.max_files || 0 });
+      case 'guest_upload_cap': return t('att.err.cap', { defaultValue: '이 링크로 보낼 수 있는 파일 수를 넘었어요. 담당자에게 알려 주세요.' });
+      case 'too_many_requests': return t('att.err.rate', { defaultValue: '잠시 뒤 다시 보내 주세요.' });
+      case 'storage_full': return t('att.err.storage', { defaultValue: '지금은 파일을 받을 수 없어요. 담당자에게 알려 주세요.' });
+      default: return t('sendFailed', { defaultValue: '보내지 못했습니다. 잠시 후 다시 시도해 주세요.' });
+    }
+  };
+  const pick = (list: FileList | null) => {
+    if (!list || !upload) return;
+    const arr = Array.from(list);
+    const why = checkPicked(arr, picked.length, upload);
+    if (why) { setErr(uploadErr(why) as string); return; }
+    setErr(null);
+    setPicked((cur) => [...cur, ...arr]);
+  };
 
   const load = useCallback(async () => {
     if (!token) return;
@@ -111,13 +144,24 @@ export default function GuestChatPanel({ token, canWrite, active = true, onGone,
    */
   const sendWith = async (effectiveName: string) => {
     const body = draft.trim();
-    if (!body || sending || !token) return;
+    const files = picked;
+    if ((!body && !files.length) || sending || !token) return;
     setSending(true); setErr(null);
     try {
-      const r = await fetch(`/api/guest/${token}/messages`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content: body, guest_name: effectiveName || undefined }),
-      });
+      let r: Response;
+      if (files.length) {
+        // 사진·PDF — 글과 파일을 한 요청으로(서버가 메시지와 첨부를 같이 만든다)
+        const fd = new FormData();
+        for (const f of files) fd.append('files', f, f.name);
+        if (body) fd.append('content', body);
+        if (effectiveName) fd.append('guest_name', effectiveName);
+        r = await fetch(`/api/guest/${token}/messages/upload`, { method: 'POST', body: fd });
+      } else {
+        r = await fetch(`/api/guest/${token}/messages`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ content: body, guest_name: effectiveName || undefined }),
+        });
+      }
       if (r.status === 404) { onGone(); return; }
       if (!r.ok) {
         const j = await r.json().catch(() => ({} as { message?: string }));
@@ -127,10 +171,11 @@ export default function GuestChatPanel({ token, canWrite, active = true, onGone,
           setAskName(true); setNameDraft(effectiveName);
           return;
         }
-        setErr(t('sendFailed', { defaultValue: '보내지 못했습니다. 잠시 후 다시 시도해 주세요.' }) as string);
+        setErr((files.length ? uploadErr((j as { message?: string })?.message) : t('sendFailed', { defaultValue: '보내지 못했습니다. 잠시 후 다시 시도해 주세요.' })) as string);
         return;
       }
       setDraft('');
+      setPicked([]);
       await load();
     } catch {
       setErr(t('sendFailed', { defaultValue: '보내지 못했습니다. 잠시 후 다시 시도해 주세요.' }) as string);
@@ -143,11 +188,11 @@ export default function GuestChatPanel({ token, canWrite, active = true, onGone,
     if (!n) setNameSkipped(true);   // 빈 값으로 확인 = 건너뛴 것
     try { n ? localStorage.setItem(nameKey, n) : localStorage.removeItem(nameKey); } catch { /* 시크릿 창 */ }
     setAskName(false);
-    if (thenSend && draft.trim()) void sendWith(n);
+    if (thenSend && (draft.trim() || picked.length)) void sendWith(n);
   };
 
   const send = async () => {
-    if (!draft.trim() || sending || !token) return;
+    if ((!draft.trim() && !picked.length) || sending || !token) return;
     // ★ 이름은 **첫 글을 쓰기 직전**에 한 번만 묻는다. 입장 때 막으면 "가볍게 들어와서 확인" 이
     //   안 된다 — 읽기만 하러 온 사람에게 관문을 세우지 않는다.
     if (!name && !askName && !nameSkipped) { setAskName(true); setNameDraft(''); return; }
@@ -183,7 +228,10 @@ export default function GuestChatPanel({ token, canWrite, active = true, onGone,
                   </CardDead>
                 )
               ) : (
-                <Text>{m.content}</Text>
+                m.content ? <Text>{m.content}</Text> : null
+              )}
+              {!!m.attachments?.length && (
+                <MessageAttachments token={token} items={m.attachments} mine={m.is_mine} onNeedLogin={onNeedLogin} />
               )}
             </Bubble>
           </Row>
@@ -219,7 +267,19 @@ export default function GuestChatPanel({ token, canWrite, active = true, onGone,
               <NameNote>{t('nameFromNow', { defaultValue: '바꾼 이름은 이후 메시지부터' })}</NameNote>
             </NameShown>
           ) : null}
+          <PickedChips files={picked} onRemove={(i) => setPicked((cur) => cur.filter((_, k) => k !== i))} />
           <InputRow>
+            {upload && (
+              <>
+                <input ref={fileRef} type="file" multiple hidden accept={upload.accept.join(',')} data-testid="guest-file-input"
+                  onChange={(e) => { pick(e.target.files); e.target.value = ''; }} />
+                <AttachBtn type="button" data-testid="guest-attach" disabled={sending || picked.length >= upload.max_files}
+                  onClick={() => fileRef.current?.click()}
+                  aria-label={t('att.add', { defaultValue: '사진·PDF 보내기' }) as string} title={t('att.add', { defaultValue: '사진·PDF 보내기' }) as string}>
+                  <ClipIcon />
+                </AttachBtn>
+              </>
+            )}
             <TArea data-testid="guest-input" value={draft} onChange={(e) => setDraft(e.target.value)}
               onKeyDown={(e) => {
                 // 멤버 채팅창(ChatPanel)과 **같은 규칙** — 같은 제품에서 엔터가 다르게 동작하면 안 된다.
@@ -231,8 +291,8 @@ export default function GuestChatPanel({ token, canWrite, active = true, onGone,
               }}
               placeholder={t('placeholder', { defaultValue: '메시지를 입력하세요' }) as string}
               rows={1} disabled={sending} />
-            <SendBtn data-testid="guest-send" type="button" onClick={send} disabled={sending || !draft.trim()}>
-              {t('send', { defaultValue: '보내기' })}
+            <SendBtn data-testid="guest-send" type="button" onClick={send} disabled={sending || (!draft.trim() && !picked.length)}>
+              {sending && picked.length ? t('att.sending', { defaultValue: '보내는 중…' }) : t('send', { defaultValue: '보내기' })}
             </SendBtn>
           </InputRow>
           {/* 규칙을 설명하지 않고 **지금 쓰는 법**만 한 줄. 터치 기기에서는 해당이 없어 숨긴다. */}
@@ -299,6 +359,12 @@ const TArea = styled.textarea`
   flex:1;min-height:44px;max-height:120px;resize:none;padding:10px 12px;
   border:1px solid #e2e8f0;border-radius:10px;font-size:0.875rem;font-family:inherit;
   &:focus{outline:none;border-color:#14b8a6;}
+`;
+const AttachBtn = styled.button`
+  width:44px;height:44px;flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;
+  border:1px solid #e2e8f0;border-radius:10px;background:#fff;color:#475569;cursor:pointer;
+  &:hover:not(:disabled){border-color:#14b8a6;color:#0D9488;}
+  &:disabled{opacity:.5;cursor:not-allowed;}
 `;
 const SendBtn = styled.button`
   height:44px;padding:0 16px;border:none;border-radius:10px;background:#14b8a6;color:#fff;

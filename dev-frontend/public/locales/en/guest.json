@@ -324,5 +324,20 @@
     "items_one": "{{count}} field",
     "items_other": "{{count}} fields",
     "gone": "This item is no longer available."
+  },
+  "att": {
+    "view": "View larger",
+    "loginToDownload": "You need an account to download files",
+    "remove": "Remove",
+    "add": "Send photos or PDFs",
+    "sending": "Sending…",
+    "err": {
+      "invalid": "You can send photos (jpg, png, webp, gif, heic) and PDFs only.",
+      "tooLarge": "That file is too large. Up to {{mb}}MB per file.",
+      "tooMany": "You can send up to {{n}} files at a time.",
+      "cap": "This link has reached its file limit. Please let your contact know.",
+      "rate": "Please try again in a moment.",
+      "storage": "Files can’t be received right now. Please let your contact know."
+    }
   }
 }
