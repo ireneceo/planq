@@ -978,6 +978,8 @@ ALTER TABLE invoices
 
 `kb_pinned_faqs` / `cue_usage` / `audit_logs` / `conversation_participants`(+`pinned_at`·`last_read_at`) 는 원 설계와 거의 동일.
 
+`conversation_care` (ConversationCare, 2026-11-12) — Q talk 고객 문의 응대 상태·담당자, 방당 0~1행: conversation_id(PK·FK conversations CASCADE), business_id, state('open'/'hold'/'resolved'), state_changed_at/by(NULL=고객 글 자동), assignee_user_id, assigned_at/by(NULL=기본값). 읽고 쓰는 곳 `services/convCare` 하나 · 고객 응답에 안 나감. 설계 `docs/QTALK_CARE_DESIGN.md`.
+
 ### 7.2 신규 테이블 카탈로그 (85)
 
 #### 조직 — Q조직 (2)

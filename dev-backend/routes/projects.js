@@ -1539,13 +1539,9 @@ router.post('/conversations/:id/messages', authenticateToken, async (req, res, n
     }
     // 운영 #240 (Fable 판정) — 보관된 대화 쓰기. conversations.js 와 **같은 헬퍼**를 쓴다.
     //   두 라우트에 술어를 인라인 복제하면 다음에 한쪽만 고쳐져 갈라진다.
+    const isClient = await require('../services/convCare').isCustomerSender(conv, req.user.id);   // 고객 쪽(고객·게스트) — 프로젝트 없는 고객 방도(2026-11-12)
     {
       const { decideArchivedWrite, unarchivePatch } = require('../services/conversationLifecycle');
-      let isClient = false;
-      if (conv.project_id) {
-        const { role } = await loadProjectOrForbidden(conv.project_id, req.user.id);
-        isClient = role === 'client';
-      }
       const d = decideArchivedWrite(conv, { isClient });
       if (d.action === 'block') return errorResponse(res, d.message, 409, d.code);
       if (d.action === 'reactivate') {
@@ -1584,6 +1580,7 @@ router.post('/conversations/:id/messages', authenticateToken, async (req, res, n
     await conv.update({ last_message_at: new Date() });
     // 열어 보기만 하던 사람이 말하면 참여자다(2026-10-15 Fable A · services/convParticipants).
     await require('../services/convParticipants').promoteSpeaker(conv.id, req.user.id, { io: req.app.get('io') });
+    if (isClient) await require('../services/convCare').onCustomerMessage(conv, { io: req.app.get('io'), isClient });   // 응대 상태 — 고객 글이면 open(docs/QTALK_CARE_DESIGN.md)
 
     // 응답에 sender 포함
     const full = await Message.findByPk(msg.id, {

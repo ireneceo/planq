@@ -198,6 +198,9 @@ async function apply({ businessId, fromUserId, toUserId, actor, io }) {
     moved.clients += 1;
   }
 
+  // Q talk 응대 담당 — 인수자에게(참여자로 들인다 · services/convCare). 알림 숫자에는 넣지 않는다(업무·프로젝트·고객 세 가지 그대로).
+  await require('./convCare').clearAssignee(businessId, fromUserId, { to: toUserId, io, actorUserId: actor.userId, req: actor.req || null });
+
   const any = moved.tasks + moved.projects + moved.clients;
   if (any) {
     // 인수자에게 한 통(업무마다 보내면 20건이면 20통). 메일은 안 보낸다.

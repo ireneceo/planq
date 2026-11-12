@@ -85,6 +85,9 @@ async function createGuestMessage({ guest, content, guestName, files = [], app }
     require('./convBroadcast').emitConvWide(io, conversation, 'message:new', payload).catch(() => {});
   }
 
+  // 응대 상태 — 게스트 글은 항상 고객 쪽(services/convCare · docs/QTALK_CARE_DESIGN.md). best-effort.
+  await require('./convCare').onCustomerMessage(conversation, { io, isClient: true });
+
   // 멤버에게 알림 — 게스트가 글을 썼는데 아무도 모르면 이 기능은 무용지물이다.
   try {
     const { notifyMany } = require('../routes/notifications');

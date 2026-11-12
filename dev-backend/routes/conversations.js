@@ -560,6 +560,8 @@ router.delete('/:businessId/:id/participants/:userId', authenticateToken, checkB
       if (io) io.in(`user:${targetUserId}`).socketsLeave([`conv:${conv.id}`, `conv:${conv.id}:staff`]);
     }
     if (removed) emitParticipantsChanged(req, conv.id, targetUserId);
+    // 내보낸 사람이 이 방 응대 담당이면 비운다(+방송) — 참여자 아닌 담당은 알림을 못 받는다(services/convCare).
+    if (removed) await require('../services/convCare').clearAssignee(conv.business_id, targetUserId, { conversationId: conv.id, io: req.app.get('io'), actorUserId: req.user.id, req });
     if (removed) require('../services/auditService').logAudit(req, {
       action: 'conversation.participant_remove', targetType: 'conversation', targetId: conv.id, businessId: conv.business_id,
       oldValue: { user_id: targetUserId }, newValue: { self_leave: isSelfLeave },
@@ -806,6 +808,8 @@ router.post('/:businessId/:id/messages', authenticateToken, attachWorkspaceScope
     await conversation.update({ last_message_at: new Date() });
     // 열어 보기만 하던 사람이 말하면 참여자다(Fable A) — 알림 팬아웃(아래 참여자 조회)보다 먼저.
     await promoteSpeaker(conversation.id, req.user.id, { io: req.app.get('io') });
+    // 응대 상태 — 고객 글이면 해결·보류 → open, 첫 글이면 행을 만든다(services/convCare · docs/QTALK_CARE_DESIGN.md). best-effort.
+    if (req.scope?.isClient) await require('../services/convCare').onCustomerMessage(conversation, { io: req.app.get('io'), isClient: true });
 
     // Socket.IO broadcast — 채팅 페이지 실시간 반영 + 우측 상단 in-app 토스터 트리거.
     // (projects.js 의 메시지 라우트와 동일 패턴. NotificationToaster 의 'message:new' 핸들러가 받음.)
