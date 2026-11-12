@@ -47,7 +47,7 @@ async function checkGuestFile(absPath, originalName) {
 /** 파일명 — 제어문자·경로 구분자 제거, 120자 */
 function cleanGuestFileName(raw) {
   const { decodeOriginalName } = require('./filename');
-  const s = String(decodeOriginalName(raw) || '').replace(/[\u0000-\u001F\u007F]/g, '').replace(/[\\/]/g, '_').trim();
+  const s = String(decodeOriginalName(raw) || '').replace(/<[^>]*>/g, '').replace(/[<>]/g, '').replace(/[\u0000-\u001F\u007F]/g, '').replace(/[\\/]/g, '_').trim();   // 태그·꺾쇠도 걷는다(이 이름을 HTML 로 그리는 곳이 생겨도 통로가 안 되게, Fable N4)
   return (s || 'file').slice(0, 120);
 }
 

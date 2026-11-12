@@ -47,6 +47,9 @@ async function seed() {
   await sequelize.query(`INSERT INTO message_attachments (message_id, file_name, file_path, file_size, mime_type, storage_provider, created_at) VALUES (?, '[카나리] 견적서.pdf', 'uploads/none.pdf', 1234, 'application/pdf', 'planq', NOW())`, { replacements: [msgId] }).catch(async () => {
     await sequelize.query(`INSERT INTO message_attachments (message_id, file_name, file_path, file_size, mime_type, storage_provider) VALUES (?, '[카나리] 견적서.pdf', 'uploads/none.pdf', 1234, 'application/pdf', 'planq')`, { replacements: [msgId] });
   });
+  // 직원이 보낸 Drive 저장 그림 — 이 워크스페이스는 Drive 연결이 없다 → 미리보기는 404 여야 한다(500 이면 Fable 2026-11-12 B1 재발)
+  const [m2] = await sequelize.query(`INSERT INTO messages (conversation_id, sender_id, content, kind, created_at, updated_at) VALUES (?, ?, '[카나리] 드라이브 그림', 'text', NOW(), NOW())`, { replacements: [convId, OWNER] });
+  await sequelize.query(`INSERT INTO message_attachments (message_id, file_name, file_path, file_size, mime_type, storage_provider, external_id, created_at) VALUES (?, '[카나리] drive.png', 'canaryDriveId0000000000000', 999, 'image/png', 'gdrive', 'canaryDriveId0000000000000', NOW())`, { replacements: [m2] });
   // 게스트 링크 — 서비스 한 함수로 발급(토큰 평문은 발급 때만 안다)
   const { User } = require('/opt/planq/dev-backend/models');
   const owner = await User.findByPk(OWNER);
@@ -149,6 +152,15 @@ async function run() {
       // ⑤ 직원 PDF 칩
       const pdfChip = await page.evaluate(() => [...document.querySelectorAll('[data-testid^="guest-att-file-"]')].some((e) => /견적서\.pdf/.test(e.textContent || '')));
       push(`${key} · 직원이 보낸 PDF 가 파일 칩으로 보임`, pdfChip, `칩=${pdfChip}`);
+      // 대화 전용 화면은 로그인 시트가 없다 — 누를 수 없는 칩 옆에 이유가 **보여야** 한다(폰은 title 툴팁이 안 뜬다)
+      await page.evaluate(() => document.querySelector('[data-testid="guest-att-why"]')?.scrollIntoView({ block: 'center' }));
+      const why = await page.evaluate(PAINTED, '[data-testid="guest-att-why"]');
+      push(`${key} · 파일 칩 옆 «계정이 필요해요» 한 줄이 그려짐`, why.ok, JSON.stringify(why));
+      if (key.startsWith('폰')) {
+        const [[dr]] = await sequelize.query(`SELECT ma.id FROM message_attachments ma JOIN messages m ON m.id = ma.message_id WHERE m.conversation_id = ? AND ma.storage_provider = 'gdrive'`, { replacements: [ids.convId] });
+        const st = await page.evaluate(async (u) => (await fetch(u)).status, `/api/guest/${ids.token}/attachments/${dr.id}/preview?w=400`);
+        push('Drive 저장 그림(연결 없는 워크스페이스) 미리보기 → 404(500 아님)', st === 404, `HTTP ${st}`);
+      }
     }
   } catch (e) {
     results.push({ name: 'canary-guest-upload', fail: 0, fatal: 1, details: ['FATAL ' + e.message] });

@@ -158,8 +158,8 @@ router.post('/:token/messages/upload',
       try {
         made = await createGuestMessage({ guest: req.guest, content, guestName: nm.name, files: prepared, app: req.app });
       } catch (e) {
-        await fail('upload_failed', 500);
-        throw e;
+        console.error('[guest upload] 생성 실패:', e.message);   // 응답은 여기서 끝낸다 — next(err) 로 두 번 쓰지 않는다(Fable N1)
+        return fail('upload_failed', 500);
       }
       return successResponse(res, {
         id: made.msg.id,
@@ -167,8 +167,9 @@ router.post('/:token/messages/upload',
         attachments: made.attachments.map(serializeGuestAttachment),
       }, 'sent', 201);
     } catch (err) {
-      if (!res.headersSent) { await fail('upload_failed', 500).catch(() => {}); }
-      next(err);
+      if (res.headersSent) { console.error('[guest upload]', err.message); return; }
+      await fail('upload_failed', 500).catch(() => {});
+      console.error('[guest upload]', err.message);
     }
   });
 
@@ -198,7 +199,15 @@ router.get('/:token/attachments/:attId/preview',
       const cacheId = `guest-att:${att.storage_provider || 'planq'}:${att.external_id || att.file_path}`;
       if (imageResize.serveCachedIfPresent(rq, res, mime, cacheId, PREVIEW_CACHE_OPTS)) return;
       const { readAttachmentBody } = require('../services/attachmentStorage');
-      const body = await readAttachmentBody(att);
+      // ★ 첨부 행에는 business_id 가 없다 — Drive 분기는 그 값으로 토큰을 찾는다. 로그인 다운로드(message_attachments.js)와 같은 모양으로 넘긴다
+      //   (Fable 2026-11-12 B1: 그대로 넘기면 Drive 저장 그림이 500). 옛 행은 file_path 에 Drive ID 가 있다.
+      const body = await readAttachmentBody({
+        storage_provider: att.storage_provider,
+        file_path: att.file_path,
+        external_id: att.external_id || att.file_path,
+        business_id: req.guest.conversation.business_id,
+        file_size: att.file_size,
+      }).catch(() => null);
       if (!body || body.ok === false || body.redirect) return errorResponse(res, 'not_found', 404);
       if (body.abs) {
         const served = await imageResize.maybeServeResized(rq, res, body.abs, mime, PREVIEW_CACHE_OPTS);

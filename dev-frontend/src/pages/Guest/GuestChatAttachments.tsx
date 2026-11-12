@@ -45,6 +45,10 @@ export function MessageAttachments({ token, items, mine, onNeedLogin }: {
           <ChipSize>{fmtSize(a.file_size)}</ChipSize>
         </FileChip>
       )))}
+      {/* 누를 수 없는 파일 칩에는 이유를 **보이게** 한 줄 — 폰은 title 툴팁이 안 뜬다(Fable 지적 · 비활성 + 이유) */}
+      {!onNeedLogin && items.some((a) => !(a.kind === 'image' && a.has_preview)) && (
+        <Why data-testid="guest-att-why">{t('att.loginToDownload', { defaultValue: '파일을 받으려면 계정이 필요해요' })}</Why>
+      )}
       {viewing && (
         <ImageLightbox src={`${base(viewing)}?w=1600`} alt={viewing.file_name} onClose={() => setViewing(null)} />
       )}
@@ -78,6 +82,7 @@ export const ClipIcon = () => (
 );
 
 const List = styled.div`display:flex;flex-wrap:wrap;gap:6px;margin-top:4px;`;
+const Why = styled.div`flex-basis:100%;font-size:0.6875rem;opacity:.75;`;
 const ThumbBtn = styled.button`
   padding:0;border:1px solid #E2E8F0;border-radius:10px;overflow:hidden;background:#F8FAFC;cursor:zoom-in;
   width:160px;max-width:100%;
