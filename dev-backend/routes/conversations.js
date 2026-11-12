@@ -917,6 +917,10 @@ router.post('/:businessId/:id/messages', authenticateToken, attachWorkspaceScope
           previewPolicy: 'excerpt',
           tag: `conv:${conversation.id}`,
           entityType: 'conversation', entityId: conversation.id,
+          // ★ 2026-10-08 0-H (Irene ⑤) — 채팅 메시지는 메일을 즉시 보내지 않는다(routes/projects.js 메시지 문과 같은 계약).
+          //   5분 안 읽으면 unreadEscalationCron 이 묶어 1통. 이 문만 빠져 있어 1건 = 참여자 수만큼 메일이었다
+          //   (dev 30일 notify:message 111건 — 2026-11-12 20~30명 점검). @멘션은 즉시 그대로.
+          skipChannels: ['email'],
         }).catch((e) => console.warn('[notify message msg]', e.message));
       }
     } catch (e) { console.warn('[notify msg outer]', e.message); }
