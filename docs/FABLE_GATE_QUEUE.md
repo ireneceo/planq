@@ -1,5 +1,12 @@
 # Fable 게이트 대기열 → **판정 기록 보관소** (2026-10-08 부터)
 
+### 2026-11-12 방 e06e6515 — 여러 계정 알림: 기기 주소가 바뀌어도 다른 계정 구독을 옮김 (58bd85b3 · 6ffe9b09 · 9d048e79) — 완료 검증 1차 **FAIL** → 설계 **DESIGN-OK** → 2차 **VERDICT: PASS**
+- 발단: Irene «멀티로그인에서 알림이 다 오게 되는 거 맞아? 인스타처럼?» — 웹 24h 재구독 때 지금 계정만 새 주소로, 다른 계정은 죽은 옛 주소 → 410 삭제로 끊김.
+- 1차 차단 B1: desync 재구독(같은 계정을 같은 host 다른 기기에서 써서 이 기기 내 행이 좀비 만료)에선 조건 ②(본인 활성 행) 때문에 못 옮김 → 본인 만료 표시 행 정확 일치(`expired:${id}:${prev}`.slice(0,500))도 인정(DESIGN-OK, ①③ 그대로, 410 삭제는 안 옮김).
+- 2차 실측: 활성·desync·앱 토큰·495자 주소 carried=1 · 남의 만료 행/남의 proof/proof 밖/id 불일치/접두만 같음/proof 없음 0 · 변조 proof 40종+재시험 0(1차 묶음 1회 빨강은 응답 미기록·재현 안 됨 — 회귀에 «변조 proof → 0» 본문 기록 권고).
+- 비차단: N1 옛 주소가 탭 메모리(새로고침·POST 실패 시 잃음) · N2 proof 가 기기에 안 묶임(같은 사람 계정끼리) · N3 시험은 실제 구독 없는 host 로 · N4 실기기 확인 못 함.
+- 판정 범위는 위 3커밋만 — 같은 지문의 다른 방 커밋은 각 방 자체 검증 그대로.
+
 ### 2026-11-12 방 ffc98a5c — Q talk 문의 응대 상태·담당자(D) (c4d3a37b·24cba74b·e13f3310·f825c97b) — 설계 **DESIGN: READY** → 완료 검증 **VERDICT: PASS** (차단 0)
 - 설계 `docs/QTALK_CARE_DESIGN.md`. Fable 실측 67/67(권한·격리·값 검증 12종·누출 — client 응답·소켓 care/assignee 0 · 전이 · 담당=참여자·알림 1·감사 · 확인 필요 한 방 한 건 · FK cascade · 배포 순서 재시작 앞) · e2e talkcare·inboxcount·tenant·chatreply·guestupload 실패 0 · health 99/99 · guard 85/86.
 - 설계 차이 1(projects.js 메시지 문의 고객 판정 → isCustomerSender): 적합 — 운영 #240 «고객은 절대 차단하지 않는다» 를 프로젝트 없는 고객 방에서 어기던 것이 conversations.js 문과 같아졌다. 예외 주석(audit-exempt·platformroom-exempt) 정당.
