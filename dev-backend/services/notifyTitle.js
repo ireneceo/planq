@@ -90,6 +90,8 @@ const ACTIONS = {
   chat_guest_message: { ko: '게스트 메시지', en: 'Guest message' },
   chat_account_request: { ko: '고객 계정 요청', en: 'Client account request' },
   chat_mention: { ko: '멘션', en: 'Mentioned you' },
+  // 문의 응대 담당 지정(2026-11-12 · docs/QTALK_CARE_DESIGN.md) — 제목 subject 가 «지정한 사람 · 방 이름» 이다
+  chat_assigned: { ko: '대화 담당으로 지정했어요', en: 'Made you the owner of a conversation' },
   // Q Calendar
   calendar_invite: { ko: '일정 초대', en: 'Event invitation' },
   calendar_changed: { ko: '일정 변경', en: 'Event updated' },   // #462 — 사람이 «변경 알림 보내기» 를 고른 때만

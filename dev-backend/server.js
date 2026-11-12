@@ -594,6 +594,8 @@ app.use('/api/name-cards', require('./routes/name_cards'));                  // 
 app.use('/api/surveys', require('./routes/survey_manage'));   // 설문 v2 «발행» 관리(인증) — 회차·보내기·다시 보내기·회수·미리보기. 무인증 /api/survey 와 다른 접두어
 // 게스트 링크 **관리** (멤버용, 인증 필수) — 공개 표면과 파일을 나눠 둔다.
 app.use('/api/conversations', require('./routes/guest_admin'));
+// Q talk 문의 응대 상태·담당자 바꾸기(직원만, PUT …/:businessId/:id/care) — docs/QTALK_CARE_DESIGN.md
+app.use('/api/conversations', require('./routes/conversation_care'));
 // ★ 동기화 조치 라우트를 **먼저** 마운트한다 — calendar.js 에 `/:id/share` 같은 와일드카드 형태가
 //   있어 뒤에 붙이면 경로가 그쪽에 먹힐 위험이 있다(라우트 순서 함정).
 app.use('/api/calendar', require('./routes/calendar_sync'));

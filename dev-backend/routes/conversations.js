@@ -217,12 +217,15 @@ router.get('/:businessId', authenticateToken, attachWorkspaceScope(), async (req
       }
     }
 
+    // 응대 상태·담당 — **직원에게만** 싣는다. 고객 응답에는 키 자체가 없다(services/convCare · docs/QTALK_CARE_DESIGN.md).
+    const careMap = req.scope?.isClient ? null : await require('../services/convCare').careFor(convIds, Number(req.params.businessId));
     const enriched = conversations.map(c => {
       const obj = c.toJSON();
       obj.my_pinned_at = pinMap.get(c.id) || null;
       obj.my_last_read_at = lastReadMap.get(c.id) || null;
       obj.unread_count = unreadMap.get(c.id) || 0;
       obj.last_message_preview = lastMsgMap.get(c.id) || null;
+      if (careMap) obj.care = careMap.get(c.id) || null;
       return obj;
     });
     // 정렬: 핀 우선 (pinned_at NOT NULL DESC), 그 안에서 last_message_at DESC
@@ -742,6 +745,12 @@ router.get('/:businessId/:id', authenticateToken, attachWorkspaceScope(), async 
     if (Array.isArray(result.participants)) {
       // participants[i].User 로 nested 됨 → path 'User'
       await applyMemberDisplayName(result.participants, Number(req.params.businessId), ['User']);
+    }
+    // 응대 상태·담당 + 이 대화의 진행 중 업무 수 — **직원에게만**(고객 응답엔 키 없음 · services/convCare).
+    if (!req.scope?.isClient) {
+      const convCare = require('../services/convCare');
+      result.care = await convCare.careOne(conversation);
+      result.open_task_count = await convCare.openTaskCount(conversation, req.user.id, req.scope);
     }
     successResponse(res, result);
   } catch (error) { next(error); }
