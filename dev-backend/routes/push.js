@@ -105,14 +105,25 @@ async function settleOtherUsers(req, endpoint) {
 // 기기 주소가 바뀔 때 이 기기 다른 계정들의 구독을 새 주소로 옮긴다 (2026-11-12).
 //   웹은 지금 계정이 24시간마다·수신 끊김·브라우저 교체 때 구독을 새로 받는다(주소가 바뀐다). 그때 지금 계정만 새 주소로
 //   등록되고 다른 계정 행은 죽은 옛 주소에 남아 → 다음 발송 410 → 행 삭제 → 그 계정 알림이 조용히 끊겼다(«인스타처럼» 의 구멍).
-//   옮기는 조건(셋 다): ①증명에 요청한 본인이 있다(이 기기 묶음) ②옛 주소에 본인의 살아 있는 행이 있다(옛 주소가 이 기기 것)
+//   옮기는 조건(셋 다): ①증명에 요청한 본인이 있다(이 기기 묶음) ②옛 주소에 본인의 행이 있다 — 살아 있거나 만료 표시로 남은 것(옛 주소가 이 기기 것)
 //   ③옮길 행의 주인이 증명 안에 있다. 그 밖의 행은 건드리지 않는다(남의 다른 기기 구독을 끌어오지 않게).
 async function carryCoAccounts(req, prevEndpoint, newEndpoint, fields) {
   if (!prevEndpoint || prevEndpoint === newEndpoint) return 0;
   const proof = require('../services/deviceAccounts').proofUids(req.body?.device_proof);
   if (!proof.has(req.user.id)) return 0;
   const mine = await PushSubscription.findOne({ where: { endpoint: prevEndpoint, user_id: req.user.id, expired_at: null } });
-  if (!mine) return 0;
+  if (!mine) {
+    // 내 행이 이미 만료됐어도(같은 계정을 다른 기기에서 열면 같은 host 좀비 규칙이 이 기기 행을 만료시킨다 → desync 재구독)
+    //   그 주소가 이 기기 것이었다는 근거로 인정한다. 만료시킬 때 쓰는 식과 **정확히 같은** 값만(Fable 설계 판정 2026-11-12).
+    //   410 으로 삭제돼 흔적이 없으면 근거가 없으니 옮기지 않는다.
+    const expiredMine = await PushSubscription.findAll({
+      where: { user_id: req.user.id, expired_at: { [Op.ne]: null }, endpoint: { [Op.startsWith]: 'expired:' } },
+      attributes: ['id', 'endpoint'],
+      order: [['id', 'DESC']],
+      limit: 300,
+    });
+    if (!expiredMine.some((r) => r.endpoint === `expired:${r.id}:${prevEndpoint}`.slice(0, 500))) return 0;
+  }
   const rows = await PushSubscription.findAll({
     where: { endpoint: prevEndpoint, user_id: { [Op.ne]: req.user.id }, expired_at: null },
     limit: 20,
