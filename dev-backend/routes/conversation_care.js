@@ -12,8 +12,10 @@ const { attachWorkspaceScope, canAccessConversation, isMemberOrAbove } = require
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
 const convCare = require('../services/convCare');
 const { isArchived } = require('../services/conversationLifecycle');
+// platformroom-exempt: 고객 방(channel_type 'customer')만 다룬다 — isCareRoom 이 안내방(platform)·내부방을 409 로 돌려보낸다
 
 // PUT /api/conversations/:businessId/:id/care  body { state?, assignee_user_id? } (하나 이상)
+// audit-exempt: services/convCare.setCare 가 conversation.care_state·care_assign(+participant_add via care_assign)을 남긴다
 router.put('/:businessId/:id/care', authenticateToken, attachWorkspaceScope(), async (req, res, next) => {
   try {
     const businessId = Number(req.params.businessId);

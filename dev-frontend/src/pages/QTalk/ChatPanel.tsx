@@ -44,6 +44,8 @@ import EmojiPickerButton from './EmojiPickerButton';
 import { ReplyQuote, ReplyComposerBand, ReplyIcon } from './ReplyQuote';   // 답장(인용)
 import ChatSearchPanel from './ChatSearchPanel';   // 대화 안 찾기   // #380 입력창 이모지 (보내는 것)
 import { PanelBackButton, PanelHeaderBar, DetailMetaBar, DetailMetaLeft } from '../../components/Layout/PanelHeader';
+import CareChips from './CareChips';
+import type { ConvCare } from './careList';
 import { openPreviewWindow } from '../../utils/openPreviewWindow';
 import { isEnterAction, enterSends, isComposingEvent } from '../../utils/imeKey';
 import GuestLinkButton from '../../components/QTalk/GuestLinkButton';
@@ -77,6 +79,8 @@ interface Props {
   onCueDraftReject: (messageId: number) => void;
   onToggleAutoExtract: (conversationId: number, enabled: boolean) => void;
   onRenameConversation: (conversationId: number, name: string) => void;
+  /** 응대 상태·담당 낙관 갱신·되돌리기(QTalkPage 목록 상태에 합친다) */
+  onCareChange?: (conversationId: number, care: ConvCare | null) => void;
   onOpenSettings?: () => void;
   candidatesCount: number;
   extracting?: boolean;
@@ -138,7 +142,7 @@ function openConvPopout(convId: number) {
 
 const ChatPanel: React.FC<Props> = ({
   project, conversations, messages, activeConversationId, onSelectConversation,
-  onSendMessage, onCueDraftSend, onCueDraftReject, onRenameConversation, onOpenSettings,
+  onSendMessage, onCueDraftSend, onCueDraftReject, onRenameConversation, onCareChange, onOpenSettings,
   candidatesCount,
   onOpenNewChat, onMobileBack, mobileHidden = false, pinSlot,
   onLoadOlder, onLoadUntilMessage, hasMoreOlder = false, loadingOlder = false, jumpToLatestSignal = 0, listLoading = false,
@@ -1609,6 +1613,10 @@ const ChatPanel: React.FC<Props> = ({
             : activeConv.channel_type === 'customer'
             ? <CustomerTag>{t('channelBadge.customer', '고객')}</CustomerTag>
             : <InternalTag>{t('channelBadge.internal', '내부')}</InternalTag>}
+          {/* 응대 상태·담당(직원 · 고객 방만 — docs/QTALK_CARE_DESIGN.md). 칩·팝오버는 CareChips 한 곳 */}
+          {!isClient && !isSupportRoom && activeConv.channel_type === 'customer' && businessId && (
+            <CareChips businessId={businessId} conversationId={activeConv.id} care={activeConv.care} myUserId={user?.id ? Number(user.id) : null} onCareChange={onCareChange} />
+          )}
           {!isClient && activeConv.channel_type === 'customer' && activeConv.client && (
             <CustomerLink
               type="button"

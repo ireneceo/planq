@@ -141,7 +141,10 @@
     "filterAll": "전체",
     "filterUnread": "안 읽음",
     "filterUnreadN": "안 읽음 {{count}}",
-    "noUnread": "안 읽은 대화가 없어요"
+    "noUnread": "안 읽은 대화가 없어요",
+    "filterMine": "답할 문의",
+    "filterMineN": "답할 문의 {{count}}",
+    "noMine": "답할 문의가 없어요"
   },
   "archived": {
     "title": "보관된 채팅",
@@ -643,5 +646,23 @@
     "count": "{{count}}개",
     "countMore": "최근 {{count}}개만 보여요 — 더 좁혀 찾아 보세요",
     "jumping": "이동 중…"
+  },
+  "care": {
+    "state": {
+      "open": "응대 중",
+      "hold": "보류",
+      "resolved": "해결"
+    },
+    "setState": "응대 상태 정하기",
+    "assignee": "담당 {{name}}",
+    "noAssignee": "담당 없음",
+    "unassigned": "미배정",
+    "takeIt": "내가 맡기",
+    "joinHint": "담당자는 이 대화의 참여자가 돼요",
+    "reopenHint": "고객이 다시 글을 쓰면 «응대 중» 으로 돌아와요",
+    "openTasks": "이 대화의 진행 중 업무 {{count}}건 · 해결해도 업무는 그대로 남아요",
+    "stateAria": "응대 상태",
+    "assigneeAria": "담당자",
+    "failed": "저장하지 못했어요"
   }
 }

@@ -1,3 +1,4 @@
+import type { ConvCare } from './careList';
 // Q Talk 응답 타입 정의 (실 API 응답 모양과 일치).
 // Mock 단계의 prefix `Mock*` 는 호환성 위해 유지 — 후속 사이클에서 일괄 rename 예정.
 
@@ -194,6 +195,8 @@ export interface MockConversation {
   my_last_read_at?: string | null;
   // 연결된 고객 (고객 대화방) — 이름 클릭 시 통합 타임라인으로 이동
   client?: { id: number; name: string } | null;
+  // 응대 상태·담당(직원만, 2026-11-12 docs/QTALK_CARE_DESIGN.md). null = 문의 없음 · undefined = 고객 화면(안 옴)
+  care?: ConvCare | null;
 }
 
 export interface MockTaskCandidate {

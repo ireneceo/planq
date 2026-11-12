@@ -1,3 +1,4 @@
+import type { ConvCare } from '../pages/QTalk/careList';
 import { orderProjectsForMe } from '../utils/projectOrder';
 import { apiFetch } from '../contexts/AuthContext';
 
@@ -216,6 +217,8 @@ export interface ApiConversation {
     role: string;
     User?: { id: number; name: string; email: string; avatar_url?: string | null };
   }>;
+  // 응대 상태·담당 — 서버가 직원에게만 싣는다(고객 응답엔 키 없음). null = 문의 없음.
+  care?: ConvCare | null;
   // 보관 정보 (보관된 채팅 응답에만 채워짐 — listArchivedConversations)
   name?: string | null;
   archived_at?: string | null;
@@ -370,6 +373,24 @@ export async function listProjectConversations(projectId: number): Promise<ApiCo
 export async function listBusinessConversations(businessId: number): Promise<ApiConversation[]> {
   const res = await apiFetch(`/api/conversations/${businessId}`);
   return handle<ApiConversation[]>(res);
+}
+
+// 고객 문의 «응대 상태 · 담당자» 바꾸기 — 직원만(서버 routes/conversation_care.js · docs/QTALK_CARE_DESIGN.md).
+export interface CareUpdateResult extends ConvCare { conversation_id: number; open_task_count: number }
+export async function updateConversationCare(
+  businessId: number, conversationId: number,
+  body: { state?: string; assignee_user_id?: number | null },
+): Promise<CareUpdateResult> {
+  const res = await apiFetch(`/api/conversations/${businessId}/${conversationId}/care`, {
+    method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+  });
+  return handle<CareUpdateResult>(res);
+}
+/** 이 대화의 진행 중 업무 수 — 상세 응답에서(직원만). 상태 팝오버를 열 때만 부른다. */
+export async function fetchConversationOpenTaskCount(businessId: number, conversationId: number): Promise<number> {
+  const res = await apiFetch(`/api/conversations/${businessId}/${conversationId}`);
+  const d = await handle<{ open_task_count?: number }>(res);
+  return Number(d?.open_task_count || 0);
 }
 
 // 대화방 진입 시 읽음 처리 — last_read_at = NOW(). unread_count 0 으로 리셋.

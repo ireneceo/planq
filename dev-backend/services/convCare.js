@@ -8,6 +8,7 @@
 
 const { Op, QueryTypes } = require('sequelize');
 
+// platformroom-exempt: 행은 고객 방(isCareRoom)에만 생긴다 — 여기서 읽는 대화방은 care 행이 가리키는 것뿐이라 안내방이 섞이지 않는다
 const STATES = ['open', 'hold', 'resolved'];
 const CLOSED_TASK = ['completed', 'canceled'];
 

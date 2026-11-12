@@ -31,6 +31,7 @@ import { mapApiError } from '../../utils/apiError';
 import FloatingPanelToggle from '../../components/Common/FloatingPanelToggle';
 import { ReportProblemLink } from '../../components/Common/ReportProblem';
 import { usePanelWidth } from '../../components/Layout/PanelResizeHandle';
+import type { ConvCare } from './careList';
 
 /**
  * QTalkPage — 실데이터 기반 (시드 데이터 로드)
@@ -133,6 +134,8 @@ function apiConversationToMock(c: qtalkApi.ApiConversation): MockConversation {
     client: c.Client
       ? { id: c.Client.id, name: c.Client.display_name || c.Client.company_name || String(c.Client.id) }
       : null,
+    // 응대 상태·담당 — 서버가 직원에게만 싣는다(키가 없으면 undefined 그대로 — 고객 화면)
+    ...(c.care !== undefined ? { care: c.care } : {}),
   };
 }
 
@@ -548,6 +551,11 @@ const QTalkPage: React.FC<QTalkPageProps> = ({ embedded = false, initialConvId =
     // 새 프로젝트(다른 사람·AI 앱)도 좌측 프로젝트 목록에 바로(2026-11-03 — 여태 project:new 는 아무 화면도 안 들었다).
     on('project:new', reloadSoon);
     on('conversation:updated', reloadSoon);
+    // 응대 상태·담당(직원만 받는다 — 서버 emitConvWide) — 그 방 한 줄만 바꾼다(docs/QTALK_CARE_DESIGN.md)
+    on('conversation:care', (d: { conversation_id: number; care: ConvCare | null }) => {
+      if (!d?.conversation_id) return;
+      setConversations((prev) => prev.map((c) => (c.id === d.conversation_id ? { ...c, care: d.care } : c)));
+    });
     // 참여자 추가·제거 신호 — 목록(추가된 본인)과 열려 있는 채팅의 @ 후보(ChatPanel)를 다시 읽힌다.
     on('conversation:participants', (d: { conversation_id: number }) => {
       reloadSoon();
@@ -1646,6 +1654,11 @@ const QTalkPage: React.FC<QTalkPageProps> = ({ embedded = false, initialConvId =
   };
 
   // 청크 2: 채널 이름 변경
+  // 응대 상태·담당 — 칩(CareChips)의 낙관 갱신·서버 결과·되돌리기를 목록 상태에 합친다
+  const handleCareChange = useCallback((conversationId: number, care: ConvCare | null) => {
+    setConversations((prev) => prev.map((c) => (c.id === conversationId ? { ...c, care } : c)));
+  }, []);
+
   const handleRenameConversation = async (conversationId: number, name: string) => {
     try {
       const updated = await qtalkApi.updateConversation(conversationId, { display_name: name });
@@ -1952,6 +1965,7 @@ const QTalkPage: React.FC<QTalkPageProps> = ({ embedded = false, initialConvId =
         onCueDraftSend={handleCueDraftSend}
         onCueDraftReject={handleCueDraftReject}
         onToggleAutoExtract={handleToggleAutoExtract}
+        onCareChange={handleCareChange}
         onRenameConversation={handleRenameConversation}
         onOpenSettings={activeConversationId ? () => setSettingsOpen(true) : undefined}
         candidatesCount={projectCandidates.length}

@@ -342,6 +342,8 @@ const SUITES = {
   chatreaction: () => require('./canary-chat-reaction'),
   chatreply: () => require('./canary-chat-reply'),
   guestupload: () => require('./canary-guest-upload'),
+  // Q talk 고객 문의 «응대 상태 · 담당자» — 밴드2 칩·팝오버·«답할 문의» 세그먼트 3폭 (2026-11-12 · docs/QTALK_CARE_DESIGN.md)
+  talkcare: () => require('./canary-talk-care'),
   // 메시지 [더보기] 반복 — 갱신 함수 안 e.currentTarget(null) 로 화면이 죽던 운영 크래시 (2026-10-05)
   chatmore: () => require('./canary-chat-more-menu'),
   // «모든 버튼 눌러보기» 순찰 — 화면 × 폰·태블릿·PC 웹 + 폰·아이패드 앱 흉내. 쓰기 요청은 전부 막는다(데이터 불변). 매일 밤 cron.

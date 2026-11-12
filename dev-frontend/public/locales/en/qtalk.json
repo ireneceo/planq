@@ -141,7 +141,10 @@
     "filterAll": "All",
     "filterUnread": "Unread",
     "filterUnreadN": "Unread {{count}}",
-    "noUnread": "No unread conversations"
+    "noUnread": "No unread conversations",
+    "filterMine": "To answer",
+    "filterMineN": "To answer ({{count}})",
+    "noMine": "Nothing to answer"
   },
   "archived": {
     "title": "Archived chats",
@@ -643,5 +646,23 @@
     "count": "{{count}} results",
     "countMore": "Showing the latest {{count}} — narrow your search",
     "jumping": "Opening…"
+  },
+  "care": {
+    "state": {
+      "open": "Open",
+      "hold": "On hold",
+      "resolved": "Resolved"
+    },
+    "setState": "Set status",
+    "assignee": "Owner: {{name}}",
+    "noAssignee": "No owner",
+    "unassigned": "Unassigned",
+    "takeIt": "Assign to me",
+    "joinHint": "The owner is added to this conversation",
+    "reopenHint": "Reopens when the customer writes again",
+    "openTasks": "{{count}} open task(s) from this conversation stay open",
+    "stateAria": "Inquiry status",
+    "assigneeAria": "Owner",
+    "failed": "Couldn't save"
   }
 }
