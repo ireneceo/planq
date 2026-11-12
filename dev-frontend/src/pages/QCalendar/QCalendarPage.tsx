@@ -32,7 +32,6 @@ import DetailFallbackDrawer from '../../components/Common/DetailFallbackDrawer';
 import { useDirectDetail } from '../../hooks/useDirectDetail';
 import { joinRoom, leaveRoom, onSocket } from '../../services/socket';
 import { todayInTz, detectBrowserTz } from '../../utils/timezones';
-import { displayName, type NameLocalizable } from '../../utils/displayName';
 import { mapApiError } from '../../utils/apiError';
 
 // ─── URL 싱크 ─── (calendarUrl.ts)
@@ -46,6 +45,7 @@ import { useUrlDetailParams } from './useUrlDetailParams';
 import { useCalendarLayers, layerOf, layersParam, CalendarLayerToggle, GoogleCalendarGroup, FilterLine, useGoogleCalendarVisibility, type PersonalCalSource } from './calendarLayers';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
 import { useLiveReload } from '../../hooks/useLiveReload';
+import { pickableMembers } from '../../utils/pickableMembers';
 
 const CAL_PROJECT_EVENTS = ['project:new', 'project:updated'] as const;
 
@@ -175,9 +175,8 @@ const QCalendarPage: React.FC<{ scope?: { type: 'project'; businessId: number; p
         // 표시명은 공용 헬퍼가 정본이다. 백엔드가 `user` (소문자 alias) 에 워크스페이스 표시명을
         // enrich 해서 내려준다(businesses.js GET /:businessId/members). 여태 대문자 `User` 를 읽어
         // **항상 undefined** → 워크스페이스 표시명이 없는 멤버는 전원 `#1` `#2` 로 보였다.
-        setMembers((j.data || []).map((m: { user_id: number; user?: NameLocalizable | null }) => ({
-          user_id: m.user_id, name: displayName(m.user, i18n.language) || `#${m.user_id}`,
-        })));
+        // 2026-11-12 — 초대 대기(«#null»)·Cue 는 참석자 후보가 아니다 → utils/pickableMembers
+        setMembers(pickableMembers(j.data, i18n.language).map((m) => ({ user_id: m.user_id, name: m.name })));
       }
     }).catch(() => {});
     // N+63 — 클라이언트 attendee picker. active 클라이언트만.

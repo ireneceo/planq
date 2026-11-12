@@ -66,6 +66,7 @@ import TrashButton from '../../components/Trash/TrashButton';
 import { isEnterAction } from '../../utils/imeKey';
 import { formatDay, formatDayTime } from '../../utils/dateFormat';
 import { CtaPlus, phoneIconOnly } from '../../components/Common/headerCta';
+import { pickableMembers } from '../../utils/pickableMembers';
 
 // N+64 — 옛 ENUM 6 (i18n cat.{key} 라벨 보유, fallback 표시용). 자유 카테고리는 string 그대로.
 const CATEGORIES: KbCategory[] = [...LEGACY_KB_CATEGORIES];
@@ -302,14 +303,7 @@ const KnowledgePage: React.FC<KnowledgePageProps> = ({ embedded = false, mode = 
     reloadCategories();
     apiFetch(`/api/businesses/${businessId}/members`).then(r => r.json()).then(j => {
       if (j?.success && Array.isArray(j.data)) {
-        setMembers(j.data
-          .filter((m: { user?: { is_ai?: boolean }; role?: string }) => !m.user?.is_ai && m.role !== 'ai')
-          .map((m: { user_id?: number; id?: number; user?: { id?: number; name?: string; display_name?: string | null }; name?: string; role?: string }) => ({
-            user_id: m.user_id || m.id || m.user?.id || 0,
-            // 워크스페이스 표시명 우선 — 계정명 노출 방지
-            name: m.user?.display_name || m.name || m.user?.name || '—',
-            role: m.role || 'member',
-          })).filter((m: { user_id: number }) => m.user_id > 0));
+        setMembers(pickableMembers(j.data)); // 초대 대기·Cue 제외 — utils/pickableMembers (2026-11-12: 대기 행 id 가 사람 id 로 새던 것)
       }
     }).catch(() => {});
   }, [businessId]);

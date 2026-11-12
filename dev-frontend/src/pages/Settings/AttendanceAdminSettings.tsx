@@ -17,6 +17,7 @@ import HolidaySettingsSection from './HolidaySettingsSection';   // #424 휴일�
 import LeaveTypeSettingsSection from './LeaveTypeSettingsSection';   // 휴가 종류 — 맨 위(docs/LEAVE_TYPES_DESIGN.md §6.1)
 import { AdminFixDrawer } from '../Attendance/AdminFixDrawer';
 import type { LeaveRequestRow, PresenceRow, StatRow } from '../Attendance/shared';
+import { pickableMembers } from '../../utils/pickableMembers';
 
 interface Props { businessId: number }
 
@@ -91,9 +92,9 @@ export default function AttendanceAdminSettings({ businessId }: Props) {
       if (!r.ok) return;
       const j = await r.json().catch(() => null);
       if (!j?.success) return;
-      const list = (j.data || []) as { user_id: number; name?: string; user?: { name?: string } }[];
-      if (!Array.isArray(list)) return;
-      setMembers(list.map((m) => ({ user_id: m.user_id, name: m.name || m.user?.name || `#${m.user_id}` })));
+      if (!Array.isArray(j.data)) return;
+      // 2026-11-12 — 초대 대기(«#null»)·Cue 제외 → utils/pickableMembers
+      setMembers(pickableMembers(j.data).map((m) => ({ user_id: m.user_id, name: m.name })));
     })();
   }, [businessId]);
 

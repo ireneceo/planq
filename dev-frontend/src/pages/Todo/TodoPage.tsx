@@ -31,6 +31,7 @@ import { useAuth, apiFetch } from '../../contexts/AuthContext';
 import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
 import { cacheKey, readCache, hasCache, writeCache } from '../../lib/pageCache';
 import { joinRoom, leaveRoom, onSocket, getSocket } from '../../services/socket';
+import { pickableMembers } from '../../utils/pickableMembers';
 
 interface MemberOpt { user_id: number; name: string; }
 
@@ -211,7 +212,7 @@ const TodoPage: React.FC = () => {
       .then(r => r.json())
       .then(j => {
         if (j.success) {
-          setMembers(j.data.map((m: { user_id: number; name: string }) => ({ user_id: m.user_id, name: m.name })));
+          setMembers(pickableMembers(j.data, undefined, { includeAi: true }).map(m => ({ user_id: m.user_id, name: m.name }))); // 빈 이름·초대 대기 행 제외(2026-11-12)
         }
       })
       .catch(() => { /* noop */ });

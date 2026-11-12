@@ -29,6 +29,7 @@ import { isEnterAction, enterSends } from '../../utils/imeKey';
 import { formatDay } from '../../utils/dateFormat';
 import EventPlaceField from './EventPlaceField';
 import { Field, Label, AttachToggle, CheckboxLabel } from './eventFormStyles';
+import { pickableMembers } from '../../utils/pickableMembers';
 
 interface Props {
   initialStart: Date;
@@ -151,14 +152,7 @@ const NewEventModal: React.FC<Props> = ({ initialStart, initialTitle, initialDes
     listWorkspaceClients(businessId).then(c => setClientsList(c.filter(x => x.status !== 'archived'))).catch(() => {});
     apiFetch(`/api/businesses/${businessId}/members`).then(r => r.json()).then(j => {
       if (j?.success && Array.isArray(j.data)) {
-        setMembers(j.data
-          .filter((m: { user?: { is_ai?: boolean }; role?: string }) => !m.user?.is_ai && m.role !== 'ai')
-          .map((m: { user_id?: number; id?: number; user?: { id?: number; name?: string; display_name?: string | null }; name?: string; role?: string }) => ({
-            user_id: m.user_id || m.id || m.user?.id || 0,
-            // 워크스페이스 표시명 우선 — 계정명 노출 방지
-            name: m.user?.display_name || m.name || m.user?.name || '—',
-            role: m.role || 'member',
-          })).filter((m: { user_id: number }) => m.user_id > 0));
+        setMembers(pickableMembers(j.data)); // 초대 대기·Cue 제외 — utils/pickableMembers (2026-11-12: 대기 행 id 가 사람 id 로 새던 것)
       }
     }).catch(() => {});
   }, [businessId]);

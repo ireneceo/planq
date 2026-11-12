@@ -49,7 +49,6 @@ import MailContextPanel, { requestExtractTasks, requestCueAdvice } from './MailC
 import RecipientInput, { type RecipientSuggestion } from './RecipientInput';
 import CcField, { ccList, invalidCc } from './CcField';
 import { useInlineCidImages } from './useInlineCidImages';
-import { displayName, type NameLocalizable } from '../../utils/displayName';
 import { useLocalDraft, useDraftKey } from '../../hooks/useLocalDraft';
 import { migrateLegacyDraft } from '../../services/draftStore';
 import PanelResizeHandle, { usePanelWidth } from '../../components/Layout/PanelResizeHandle';
@@ -173,6 +172,7 @@ import {
   PromoteErrTag, InquiryFilterBar, InquiryFilterClear, SentViaBar, SentViaHint,
   LearnBar, LearnText, LearnLink, LearnClose,
 } from './MailPage.styles';
+import { pickableMembers } from '../../utils/pickableMembers';
 
 
 
@@ -894,9 +894,8 @@ const MailPage: React.FC = () => {
       //   (routes/businesses.js). 여태 대문자 `User` 를 읽어 **항상 undefined** 였고, 워크스페이스
       //   표시명이 따로 없는 멤버는 전원 `#1` `#2` 로 보였다 — Irene 이 본 "이상한 1, 2" 가 이것이다.
       //   이 members 는 맥락 패널의 업무 후보 카드·담당자 선택기로 그대로 흐른다.
-      if (j.success) setMembers((j.data || []).map((m: { user_id: number; user?: NameLocalizable | null }) => ({
-        user_id: m.user_id, name: displayName(m.user, i18n.language) || `#${m.user_id}`,
-      })));
+      // 2026-11-12 — 초대 대기 행(«#null») 제외. Cue 는 업무 후보 담당자로 남긴다 → utils/pickableMembers
+      if (j.success) setMembers(pickableMembers(j.data, i18n.language, { includeAi: true }).map((m) => ({ user_id: m.user_id, name: m.name })));
     } catch { /* silent */ }
   }, [businessId, i18n.language]);
 

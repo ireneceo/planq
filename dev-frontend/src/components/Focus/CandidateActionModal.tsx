@@ -21,6 +21,7 @@ import SingleDateField from '../Common/SingleDateField';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import { useEscapeStack } from '../../hooks/useEscapeStack';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
+import { pickableMembers } from '../../utils/pickableMembers';
 
 interface Member { user_id: number; name: string; }
 interface CandidateInfo {
@@ -74,7 +75,7 @@ const CandidateActionModal: React.FC<Props> = ({ open, info, onClose, onRegister
         const r = await apiFetch(`/api/businesses/${info.workspace_business_id}/members`);
         const j = await r.json();
         if (cancelled || !j.success) return;
-        setMembers((j.data || []).map((m: { user_id: number; name: string }) => ({ user_id: m.user_id, name: m.name })));
+        setMembers(pickableMembers(j.data, undefined, { includeAi: true }).map(m => ({ user_id: m.user_id, name: m.name }))); // 최상위 m.name 은 표시명이 없으면 빈칸이었다(2026-11-12)
       } catch { /* noop */ }
     })();
     return () => { cancelled = true; };

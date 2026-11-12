@@ -85,6 +85,7 @@ import { buildQuickChoicesFromDict, bySelectedSort, byMyOrder, type PopoutSortKe
 import PopoutSortSelect, { usePopoutSort } from './PopoutSortSelect';
 import { requestMainNavigate } from '../Common/PopoutBridge';
 import ImportanceChip from './ImportanceChip';
+import { pickableMembers } from '../../utils/pickableMembers';
 
 interface PopoutTask {
   id: number;
@@ -283,7 +284,7 @@ const TaskPopoutView: React.FC<TaskPopoutViewProps> = ({ pinSlot }) => {
       .then((r) => (r.ok ? r.json() : null))
       .then((j) => {
         if (cancelled || !j?.success) return;
-        setMembers((j.data as Array<{ user_id: number; name: string }>).map((m) => ({ user_id: m.user_id, name: m.name })));
+        setMembers(pickableMembers(j.data, undefined, { includeAi: true }).map((m) => ({ user_id: m.user_id, name: m.name }))); // 빈 이름·초대 대기 행 제외(2026-11-12)
       })
       .catch(() => { /* 멤버 목록은 부가 정보 — 실패해도 리스트는 뜬다 */ });
     return () => { cancelled = true; };

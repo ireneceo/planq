@@ -462,7 +462,8 @@
     "unknown": "Unknown member",
     "pmOff": "Make PM",
     "pmOn": "Remove PM",
-    "pmOwner": "The project creator is PM automatically"
+    "pmOwner": "The project creator is PM automatically",
+    "search": "Search by name or email"
   },
   "docs": {
     "drop": {

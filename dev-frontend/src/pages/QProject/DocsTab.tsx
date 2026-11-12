@@ -66,6 +66,7 @@ import { useDriveImport } from './docs/useDriveImport';
 import { formatDay } from '../../utils/dateFormat';
 import { useTrashRetentionDays } from '../../hooks/useTrashRetentionDays';
 import { FileExtIcon } from './FileExtIcon';
+import { pickableMembers } from '../../utils/pickableMembers';
 
 export type DocScope =
   | { type: 'project'; projectId: number; businessId: number }
@@ -275,14 +276,7 @@ const DocsTab: React.FC<Props> = (props) => {
     listWorkspaceClients(bizId).then(c => setClients(c.filter(x => x.status !== 'archived'))).catch(() => {});
     apiFetch(`/api/businesses/${bizId}/members`).then(r => r.json()).then(j => {
       if (j?.success && Array.isArray(j.data)) {
-        setMembers(j.data
-          .filter((m: { user?: { is_ai?: boolean }; role?: string }) => !m.user?.is_ai && m.role !== 'ai')
-          .map((m: { user_id?: number; id?: number; user?: { id?: number; name?: string; display_name?: string | null }; name?: string; role?: string }) => ({
-            user_id: m.user_id || m.id || m.user?.id || 0,
-            // 워크스페이스 표시명 우선 — 계정명 노출 방지
-            name: m.user?.display_name || m.name || m.user?.name || '—',
-            role: m.role || 'member',
-          })).filter((m: { user_id: number }) => m.user_id > 0));
+        setMembers(pickableMembers(j.data)); // 초대 대기·Cue 제외 — utils/pickableMembers (2026-11-12: 대기 행 id 가 사람 id 로 새던 것)
       }
     }).catch(() => {});
   }, [scope]);

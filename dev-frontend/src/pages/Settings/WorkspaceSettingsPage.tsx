@@ -1671,7 +1671,12 @@ export default function WorkspaceSettingsPage() {
                 ? t('members.cueCardDesc')
                 : isPending
                   ? t('members.pendingInvite', '초대 대기 중')
-                  : m.user?.job_title || m.user?.email || '';
+                  // 2026-11-12 — 20~30명에선 이름만으로 못 가른다: 조직 화면에서 정한 팀(없으면 부서)·직책을 먼저.
+                  //   직책은 드로어와 같은 정본(멤버 행 job_title → 계정 job_title). 둘 다 없으면 이메일.
+                  : ([
+                      (() => { const u = m.team || m.department; return u ? ((i18n.language.startsWith('en') && u.name_en) || u.name) : null; })(),
+                      m.job_title || m.user?.job_title,
+                    ].filter(Boolean).join(' · ') || m.user?.email || '');
               return (
                 <MemberRow key={m.id} $ai={isAi} $clickable={!isAi}
                   onClick={() => { if (!isAi) openMember(selectedMemberId === m.id ? null : m.id); }}>
@@ -1684,7 +1689,7 @@ export default function WorkspaceSettingsPage() {
                     <MemberEmail>{subLine}</MemberEmail>
                   </MemberInfo>
                   {!isAi && m.default_role && <DefaultRoleBadge>{m.default_role}</DefaultRoleBadge>}
-                  <RoleBadge $role={m.role}>{roleLabel}</RoleBadge>
+                  <RoleBadge $role={effRole}>{roleLabel}</RoleBadge>
                 </MemberRow>
               );
             })}

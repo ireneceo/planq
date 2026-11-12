@@ -1066,11 +1066,14 @@ router.get('/:businessId/members', authenticateToken, checkBusinessAccess, async
         { model: Department, as: 'department', attributes: ['id', 'name', 'name_en', 'lead_user_id'], required: false },
         { model: Team, as: 'team', attributes: ['id', 'name', 'name_en', 'lead_user_id'], required: false },
       ],
-      order: [
-        ['role', 'ASC'], // 'ai' → 'member' → 'owner' (역순정렬은 수동 처리)
-        ['created_at', 'ASC']
-      ]
+      order: [['created_at', 'ASC']],
     });
+    // 역할 순서는 JS 로 — role 은 ENUM('owner','member','ai','admin') 이라 MySQL 이 **정의 순서**로 정렬해
+    //   관리자가 Cue 아래 맨 끝에 섰다(2026-11-12 20~30명 점검). 대표 → 관리자 → 멤버 → Cue, 같은 역할은 가입 순.
+    //   초대 대기 행(user_id NULL)은 같은 역할 안에서 맨 뒤.
+    const ROLE_RANK = { owner: 0, admin: 1, member: 2, ai: 3 };
+    members.sort((a, b) => ((ROLE_RANK[a.role] ?? 9) - (ROLE_RANK[b.role] ?? 9))
+      || ((a.user_id ? 0 : 1) - (b.user_id ? 0 : 1)));
     // #98 — user 객체에 워크스페이스 표시명 채움(프로젝트 상세와 동일 패턴). 멤버 선택자·목록이
     //   계정명(한수정) 대신 워크스페이스 표시명(루아)을 쓰도록. displayName() 헬퍼 자동 적용 대상.
     const out = members.map((m) => {

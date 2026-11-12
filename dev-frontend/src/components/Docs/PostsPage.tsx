@@ -90,6 +90,7 @@ import { DocFocusBackdrop } from './docFocusStyles';
 import {
   PrintOnlyTitle, Layout, Sidebar, TitleGroup, HeaderBtnRow, NewBtn, NewBtnWrap, NewDropdown, NewItem, NewItemTitle, NewItemDesc, ModalBackdrop, ModalDialog, ModalHead, ModalTitle, ModalClose, ModalBody, ModalSub, TplGrid, TplCard, TplCardIcon, TplBadgeSys, TplSearchInput, PinDot, ParentLink, SaveTplField, SaveTplLabel, SaveTplError, ModalFooter, TplCardBody, TplCardName, TplCardDesc, Empty, SearchWrap, FilterSection, FilterGroupLabel, Chip, Count, ColorDot, AddCatBtn, NewCatInput, RowList, RowItem, RowPinBtn, RowTitle, RowPreview, CardPreview, CardAuthor, RowVisChip, SectionGap, AiRegenRow, KindToggle, KindBtn, ShareMini, RowMeta, Dim, Content, StickyBands, StickyPanelHeader, Body, EditBody, TitleInput, AutoSaveMark, WideOnly, PhoneOnly, AutoSaveText, DraftTag, SignTag, ViewMeta, MetaLeft, MetaRight, AiEditDoneBar, AiEditUndoBtn, AiEditCloseBtn, MetaActions, HeaderActions, PinTag, ProjectTag, CategoryTag, MetaField, MetaRow, MetaSummaryBtn, MetaSummaryLabel, MetaSummaryValue, MetaSummaryChevron, VisibilityChip, ShareTag, CategoryMini, AttachSection, AttachTitle, AttachScopeHint, AttachList, AttachRow, RemoveBtn, CatActions, CatIconBtn, ErrorBar, DescAddBtn, DescToggleHeader, DescBoxLabel, DescChevron, PrimaryBtn, EditBtn, IconActionBtn, SignBtn, LeaveBlockedNote, SecondaryBtn, TitleRow, MobileBackBtn, KnowledgeToast, SignedBody,
 } from './PostsPage.styles';
+import { pickableMembers } from '../../utils/pickableMembers';
 
 // 좌측 필터: 전체(기본) / 프로젝트 그룹 / 카테고리
 // '내 문서'·'기본' 섹션은 제거. 상단 통합검색이 프로젝트명·제목·본문·카테고리를 모두 커버.
@@ -244,14 +245,7 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId, onEditingChange }) =>
     listWorkspaceClients(visBizId).then(c => setVisClients(c.filter(x => x.status !== 'archived'))).catch(() => {});
     apiFetch(`/api/businesses/${visBizId}/members`).then(r => r.json()).then(j => {
       if (j?.success && Array.isArray(j.data)) {
-        setVisMembers(j.data
-          .filter((m: { user?: { is_ai?: boolean }; role?: string }) => !m.user?.is_ai && m.role !== 'ai')
-          .map((m: { user_id?: number; id?: number; user?: { id?: number; name?: string; display_name?: string | null }; name?: string; role?: string }) => ({
-            user_id: m.user_id || m.id || m.user?.id || 0,
-            // 워크스페이스 표시명(user.display_name) 우선 — 계정명 노출 방지 [[feedback_member_display_name_on_lists]]
-            name: m.user?.display_name || m.name || m.user?.name || '—',
-            role: m.role || 'member',
-          })).filter((m: { user_id: number }) => m.user_id > 0));
+        setVisMembers(pickableMembers(j.data)); // 초대 대기·Cue 제외 — utils/pickableMembers (2026-11-12: 대기 행 id 가 사람 id 로 새던 것)
       }
     }).catch(() => {});
   }, [visBizId]);

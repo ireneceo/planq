@@ -340,14 +340,20 @@ const ChatPanel: React.FC<Props> = ({
     [mentionMembers, mentionParticipants],
   );
 
-  // 자동완성 후보 — 현재 query 로 필터 (최대 6)
+  // 자동완성 후보 — 현재 query 로 필터. 옛 상한 6 은 20~30명 방에서 «@» 만 치면 앞 6명만 보이고
+  //   나머지가 있다는 표시도 없었다(2026-11-12). 목록은 220px 안에서 스크롤하고, 화살표로 고른 줄은 보이게 굴린다.
   const mentionCandidates = useMemo(() => {
     if (!mentionActive) return [];
     const q = mentionQuery.toLowerCase();
     return mentionParticipants
       .filter((m) => !q || m.name.toLowerCase().includes(q))
-      .slice(0, 6);
+      .slice(0, 50);
   }, [mentionActive, mentionQuery, mentionParticipants]);
+  const mentionListRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = mentionListRef.current?.querySelector('[aria-selected="true"]') as HTMLElement | null;
+    el?.scrollIntoView({ block: 'nearest' });
+  }, [mentionIdx, mentionCandidates]);
 
   // 커서 직전 "@토큰" 컨텍스트 감지 — @ 앞이 공백/줄머리이고 토큰에 허용문자만.
   const detectMention = (value: string, caret: number) => {
@@ -2442,7 +2448,7 @@ const ChatPanel: React.FC<Props> = ({
           </SharedBand>
         )}
         {mentionActive && mentionCandidates.length > 0 && (
-          <MentionDropdown role="listbox" aria-label={t('chat.mention.aria', { defaultValue: '멤버 멘션' }) as string}>
+          <MentionDropdown ref={mentionListRef} role="listbox" aria-label={t('chat.mention.aria', { defaultValue: '멤버 멘션' }) as string}>
             {mentionCandidates.map((mc, i) => (
               <MentionItem
                 key={mc.user_id} type="button" role="option" aria-selected={i === mentionIdx}

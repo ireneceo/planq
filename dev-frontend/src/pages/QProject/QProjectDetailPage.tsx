@@ -150,6 +150,9 @@ import { setProjectPinned, PROJECT_PREF_EVENT } from '../../services/projectPref
 import RoleManageModal from '../../components/MemberRole/RoleManageModal';
 import { useMemberRoleDict } from '../../components/MemberRole/useMemberRoleDict';
 import FloatingMenu from '../../components/Common/FloatingMenu';
+import { PickerFilter } from '../../components/Common/pickerList';
+import { isPickableRow } from '../../utils/pickableMembers';
+import { textMatches } from '../../utils/searchMatch';
 
 const PROJECT_COLORS = PROJECT_COLOR_PALETTE.map(p => p.value);
 
@@ -345,6 +348,7 @@ const QProjectDetailPage: React.FC = () => {
   const [bizMembers, setBizMembers] = useState<BizMember[]>([]);
   const [bizClients, setBizClients] = useState<{ id: number; display_name: string | null; company_name: string | null; invite_email?: string | null; status?: string | null; user?: { id: number; name: string; email: string } }[]>([]);
   const [addMemberOpen, setAddMemberOpen] = useState(false);
+  const [addMemberQuery, setAddMemberQuery] = useState('');
   const [closeModalOpen, setCloseModalOpen] = useState(false);
   // 상태 변경 사유 — 히스토리에서 가장 읽고 싶은 것이 "왜 바꿨나" 다.
   //   업무의 수정요청 사유와 같은 성격: 별도 "이력 추가" 기능이 아니라, 그 동작을 하는 순간 같이 받는 한 줄.
@@ -500,7 +504,8 @@ const QProjectDetailPage: React.FC = () => {
             apiFetch(`/api/clients/${pr.data.business_id}`).then(r => r.json()).catch(() => null),
           ]);
           // 사이클 P8 — Cue (is_ai=true) 도 팀원으로 노출. 업무 자동 실행 가능.
-          if (mr?.success) setBizMembers(mr.data || []);
+          // 초대 대기 행(user_id NULL)은 아직 사람이 아니다 — 누르면 addMember(null) 이었다(2026-11-12). Cue 는 그대로.
+          if (mr?.success) setBizMembers((mr.data || []).filter((m: BizMember) => isPickableRow(m as never, true)));
           if (cr?.success) setBizClients(cr.data || []);
         }
       }
@@ -1119,15 +1124,23 @@ const QProjectDetailPage: React.FC = () => {
               if (candidates.length === 0) return <Dim style={{ marginTop: 6 }}>{t('members.noCandidates', '추가 가능한 워크스페이스 멤버가 없습니다')}</Dim>;
               return addMemberOpen ? (
                 <AddMemberBox>
+                  {/* 20~30명이면 목록만으로는 못 찾는다 — 8명 넘으면 찾기 칸(문서 공동 편집자·메일 담당과 같은 규칙) */}
+                  {candidates.length > 8 && (
+                    <PickerFilter value={addMemberQuery} onChange={(e) => setAddMemberQuery(e.target.value)} autoFocus
+                      data-testid="project-member-add-search"
+                      placeholder={t('members.search', '이름·이메일로 찾기') as string}
+                      aria-label={t('members.search', '이름·이메일로 찾기') as string} />
+                  )}
                   <MemberCandidateList>
-                    {candidates.map(b => (
+                    {candidates.filter(b => !addMemberQuery.trim()
+                      || textMatches(`${b.user?.display_name || ''} ${b.user?.name || ''} ${b.user?.email || ''}`, addMemberQuery)).map(b => (
                       <MemberCandidateItem key={b.user_id} type="button" onClick={() => addMember(b.user_id)}>
                         {b.user?.display_name || b.user?.name || `user ${b.user_id}`}
                         {b.user?.email && <MemberEmail>{b.user.email}</MemberEmail>}
                       </MemberCandidateItem>
                     ))}
                   </MemberCandidateList>
-                  <AddMemberCancelBtn type="button" onClick={() => setAddMemberOpen(false)}>{t('members.cancel', '취소')}</AddMemberCancelBtn>
+                  <AddMemberCancelBtn type="button" onClick={() => { setAddMemberOpen(false); setAddMemberQuery(''); }}>{t('members.cancel', '취소')}</AddMemberCancelBtn>
                 </AddMemberBox>
               ) : (
                 <AddMemberLink type="button" onClick={() => setAddMemberOpen(true)}>+ {t('members.add', '멤버 추가')}</AddMemberLink>
