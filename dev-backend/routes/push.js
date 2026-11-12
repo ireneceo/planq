@@ -102,6 +102,36 @@ async function settleOtherUsers(req, endpoint) {
   return { expired, kept };
 }
 
+// 기기 주소가 바뀔 때 이 기기 다른 계정들의 구독을 새 주소로 옮긴다 (2026-11-12).
+//   웹은 지금 계정이 24시간마다·수신 끊김·브라우저 교체 때 구독을 새로 받는다(주소가 바뀐다). 그때 지금 계정만 새 주소로
+//   등록되고 다른 계정 행은 죽은 옛 주소에 남아 → 다음 발송 410 → 행 삭제 → 그 계정 알림이 조용히 끊겼다(«인스타처럼» 의 구멍).
+//   옮기는 조건(셋 다): ①증명에 요청한 본인이 있다(이 기기 묶음) ②옛 주소에 본인의 살아 있는 행이 있다(옛 주소가 이 기기 것)
+//   ③옮길 행의 주인이 증명 안에 있다. 그 밖의 행은 건드리지 않는다(남의 다른 기기 구독을 끌어오지 않게).
+async function carryCoAccounts(req, prevEndpoint, newEndpoint, fields) {
+  if (!prevEndpoint || prevEndpoint === newEndpoint) return 0;
+  const proof = require('../services/deviceAccounts').proofUids(req.body?.device_proof);
+  if (!proof.has(req.user.id)) return 0;
+  const mine = await PushSubscription.findOne({ where: { endpoint: prevEndpoint, user_id: req.user.id, expired_at: null } });
+  if (!mine) return 0;
+  const rows = await PushSubscription.findAll({
+    where: { endpoint: prevEndpoint, user_id: { [Op.ne]: req.user.id }, expired_at: null },
+    limit: 20,
+  });
+  let moved = 0;
+  for (const r of rows) {
+    if (!proof.has(r.user_id)) continue;
+    const dup = await PushSubscription.findOne({ where: { endpoint: newEndpoint, user_id: r.user_id } });
+    if (dup) {
+      // 그 계정이 이미 새 주소에 있다 — 옛 행만 정리
+      await r.update({ endpoint: `expired:${r.id}:${r.endpoint}`.slice(0, 500), expired_at: new Date() });
+      continue;
+    }
+    await r.update({ endpoint: newEndpoint, ...fields, expired_at: null, last_used_at: new Date() });
+    moved++;
+  }
+  return moved;
+}
+
 function isAllowedEndpoint(rawUrl) {
   try {
     const u = new URL(rawUrl);
@@ -158,6 +188,9 @@ router.post('/subscribe', authenticateToken, async (req, res, next) => {
     //   - 같은 user → 갱신 (디바이스 같은 사람, 토큰 갱신)
     //   - 다른 user → 이 기기 계정 묶음이면 유지, 아니면 expired 마크(기기 양도/공용 PC) — settleOtherUsers 한 곳
     const others = await settleOtherUsers(req, endpoint);
+    const prevEp = typeof req.body?.previous_endpoint === 'string' && isAllowedEndpoint(req.body.previous_endpoint)
+      ? req.body.previous_endpoint : null;
+    others.carried = await carryCoAccounts(req, prevEp, endpoint, { p256dh: keys.p256dh, auth: keys.auth });
     const existing = await PushSubscription.findOne({ where: { endpoint, user_id: req.user.id } });
     if (existing) {
       await existing.update({
@@ -207,6 +240,9 @@ router.post('/subscribe-native', authenticateToken, async (req, res, next) => {
 
     // 같은 기기 토큰에 다른 사람 — 이 기기 계정 묶음이면 유지, 아니면 expired(기기 양도). settleOtherUsers 한 곳.
     const others = await settleOtherUsers(req, endpoint);
+    const prevTok = String(req.body?.previous_device_token || '');
+    const prevOk = kind === 'apns' ? /^[0-9a-fA-F]{64,200}$/.test(prevTok) : prevTok.length >= 100;
+    others.carried = await carryCoAccounts(req, prevOk ? `${kind}:${prevTok}` : null, endpoint, { device_token: tok });
     const existing = await PushSubscription.findOne({ where: { endpoint, user_id: req.user.id } });
     if (existing) {
       await existing.update({

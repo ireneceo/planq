@@ -225,7 +225,9 @@ self.addEventListener('pushsubscriptionchange', (event) => {
   event.waitUntil((async () => {
     try {
       const cs = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
-      for (const c of cs) c.postMessage({ type: 'planq:resubscribe-needed' });
+      // 옛 주소를 같이 넘긴다 — 한 기기 여러 계정이면 서버가 다른 계정 구독도 새 주소로 옮긴다(2026-11-12).
+      const old = event.oldSubscription && event.oldSubscription.endpoint ? event.oldSubscription.endpoint : null;
+      for (const c of cs) c.postMessage({ type: 'planq:resubscribe-needed', old_endpoint: old });
     } catch (e) { /* silent */ }
   })());
 });

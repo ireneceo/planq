@@ -89,6 +89,11 @@ export async function registerServiceWorker(): Promise<ServiceWorkerRegistration
   }
 }
 
+// 한 기기 여러 계정 — 브라우저 구독을 새로 받기 직전의 옛 기기 주소. 서버가 이 기기 다른 계정들의 구독을
+//   새 주소로 옮긴다(안 옮기면 지금 계정만 새 주소로 가고, 다른 계정은 죽은 옛 주소에 남아 알림이 끊긴다 — 2026-11-12).
+let carryFromEndpoint: string | null = null;
+function rememberOldEndpoint(ep: string | null | undefined) { if (ep) carryFromEndpoint = ep; }
+
 export async function subscribe(): Promise<{ ok: boolean; reason?: string }> {
   // 사이클 N+17 — logout 상태면 즉시 return. 로그인 페이지에서 401 무한 retry 회귀 차단.
   if (!getAccessToken()) return { ok: false, reason: 'not_authenticated' };
@@ -126,6 +131,7 @@ export async function subscribe(): Promise<{ ok: boolean; reason?: string }> {
     const a = checkJson.keys?.auth || '';
     if (p.length < 80 || a.length < 8) {
       console.warn('[push] invalid existing subscription detected — resubscribing');
+      rememberOldEndpoint(sub.endpoint);
       await sub.unsubscribe().catch(() => null);
       sub = null;
     }
@@ -153,12 +159,14 @@ export async function subscribe(): Promise<{ ok: boolean; reason?: string }> {
       keys: { p256dh: json.keys?.p256dh, auth: json.keys?.auth },
       user_agent: navigator.userAgent,
       ...(deviceProof ? { device_proof: deviceProof } : {}),
+      ...(carryFromEndpoint && carryFromEndpoint !== json.endpoint ? { previous_endpoint: carryFromEndpoint } : {}),
     }),
   });
   if (!post.ok) {
     const j = await post.json();
     return { ok: false, reason: j.message || 'register_failed' };
   }
+  carryFromEndpoint = null;
   markResubNow();
   return { ok: true };
 }
@@ -248,7 +256,7 @@ export async function autoSubscribeIfPossible(): Promise<{ ok: boolean; reason?:
       try {
         const reg = await navigator.serviceWorker.getRegistration();
         const s = reg ? await reg.pushManager.getSubscription() : null;
-        if (s) await s.unsubscribe();
+        if (s) { rememberOldEndpoint(s.endpoint); await s.unsubscribe(); }
         console.warn('[push] backend desync — resubscribing', { browserEndpoint: check.browserEndpoint });
       } catch { /* unsubscribe 실패 무시 — subscribe() 가 재시도 */ }
     }
@@ -295,7 +303,7 @@ export async function syncPermissionOnFocus(): Promise<void> {
       try {
         const reg = await navigator.serviceWorker.getRegistration();
         const s = reg ? await reg.pushManager.getSubscription() : null;
-        if (s) await s.unsubscribe();
+        if (s) { rememberOldEndpoint(s.endpoint); await s.unsubscribe(); }
       } catch { /* ignore */ }
       await subscribe().catch(() => null);
     }
@@ -315,7 +323,10 @@ export function bindPermissionSync(): void {
   // SW 가 구독 만료/교체 감지 시(pushsubscriptionchange) 재구독 요청 — 토큰 보유한 client 가 처리.
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.addEventListener('message', (e: MessageEvent) => {
-      if (e.data && e.data.type === 'planq:resubscribe-needed') void subscribe();
+      if (e.data && e.data.type === 'planq:resubscribe-needed') {
+        rememberOldEndpoint(typeof e.data.old_endpoint === 'string' ? e.data.old_endpoint : null);
+        void subscribe();
+      }
       // SW 가 push 를 실제 수신할 때마다 시각 기록 → receiveStale 판정 기준 (수신 끊김 자동 감지).
       if (e.data && e.data.type === 'planq:push-received') markPushReceived();
     });

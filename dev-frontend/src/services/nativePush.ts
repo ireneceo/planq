@@ -49,6 +49,8 @@ export async function registerNative(): Promise<{ ok: boolean; reason?: string }
     bound = true;
     // 토큰 수신 → backend 등록 (토큰 변동 시 재발화 → upsert).
     await PushNotifications.addListener('registration', async (token) => {
+      // 토큰이 바뀌었으면 옛 토큰을 같이 보낸다 — 서버가 이 기기 다른 계정들의 구독을 새 토큰으로 옮긴다(2026-11-12).
+      const prevToken = getLastToken();
       setLastToken(token.value);
       try {
         const { Device } = await import('@capacitor/device');
@@ -63,6 +65,7 @@ export async function registerNative(): Promise<{ ok: boolean; reason?: string }
             device_name: info ? `${info.manufacturer ?? ''} ${info.model}`.trim() : undefined,
             // 한 기기 여러 계정 — 이 기기 계정 묶음 증명(서버 서명 60초, services/accounts)
             ...(deviceProof ? { device_proof: deviceProof } : {}),
+            ...(prevToken && prevToken !== token.value ? { previous_device_token: prevToken } : {}),
           }),
         });
       } catch (e) {
