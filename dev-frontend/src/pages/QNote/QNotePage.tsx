@@ -3333,6 +3333,11 @@ const QNotePage = ({ scope, onRecordingChange }: QNotePageProps = {}) => {
               <ErrorBar>{t('audioUpload.failedNotice')}</ErrorBar>
             )}
 
+            {/* ★ 2026-11-12 (Irene «녹음하고 요약한 후 스크롤 안되고 멈춰있어») — 요약·업무·녹취를 **한 스크롤 상자**에 담는다.
+                여태 요약(약 300px)·업무(최대 320px) 밴드는 고정 높이로 서 있고 녹취만 스스로 스크롤했다 — 요약이 길면
+                녹취 칸이 안쪽 여백 높이(144px)까지 눌리고(태블릿·폰은 그것마저 화면 밖, 바깥은 overflow:hidden) 어디를 굴려도
+                안 움직였다. 이제 요약·업무는 내리면 위로 지나가고, 직접 질문 줄만 바닥에 남는다. */}
+            <ReviewScroll data-testid="qnote-review-scroll">
             {/* N+88 — 인라인 영속 요약. 항상 표시, 비었으면 생성 CTA. */}
             <SummarySection>
               <SummaryHead>
@@ -3477,13 +3482,14 @@ const QNotePage = ({ scope, onRecordingChange }: QNotePageProps = {}) => {
             {/* N+88 — 참여자/내 발화 모드: 녹음 transcript 바로 위 (요약·업무 아래) */}
             {renderParticipantBar()}
 
-            <Transcript>
+            <ReviewTranscript>
               {renderBlocks.length === 0 && <EmptyTranscript>{t('page.reviewEmpty')}</EmptyTranscript>}
               {renderBlocks
                 .filter((b) => !hiddenBlockIds.has(b.id))
                 .filter((b) => selfMode === 'show' || b.kind === 'question' || !isSelfBlock(b))
                 .map((block, idx, arr) => renderBlock(block, idx > 0 ? arr[idx - 1] : null, idx, arr))}
-            </Transcript>
+            </ReviewTranscript>
+            </ReviewScroll>
 
             <ManualQuestionBar>
               <ManualQuestionInput
@@ -4914,6 +4920,19 @@ const Transcript = styled.div`
   display: flex;
   flex-direction: column;
   gap: 18px;
+`;
+
+// 다 끝난 노트(review) — 요약·업무·녹취를 함께 굴리는 상자. 녹취는 그 안에서 제 높이대로 선다(스스로 스크롤하지 않음).
+const ReviewScroll = styled.div`
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+`;
+const ReviewTranscript = styled(Transcript)`
+  flex: none;
+  overflow: visible;
 `;
 
 const EmptyTranscript = styled.div`
