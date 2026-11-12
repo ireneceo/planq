@@ -136,7 +136,12 @@
         "ok": "분리"
       }
     },
-    "noChatsClient": "담당 팀과의 대화방이 여기에 보여요"
+    "noChatsClient": "담당 팀과의 대화방이 여기에 보여요",
+    "filterAria": "대화 거르기",
+    "filterAll": "전체",
+    "filterUnread": "안 읽음",
+    "filterUnreadN": "안 읽음 {{count}}",
+    "noUnread": "안 읽은 대화가 없어요"
   },
   "archived": {
     "title": "보관된 채팅",
@@ -619,5 +624,13 @@
     "askHuman": "PlanQ 팀에게 묻기",
     "askedHuman": "PlanQ 팀에 알렸어요",
     "band": "Cue · PlanQ 팀이 PlanQ 사용법을 안내해요"
+  },
+  "reply": {
+    "action": "답장",
+    "to": "{{name}} 님에게 답장",
+    "cancel": "답장 취소",
+    "jump": "원문으로 이동",
+    "unavailable": "원문을 볼 수 없어요",
+    "attachment": "첨부 파일"
   }
 }

@@ -1571,7 +1571,6 @@ router.post('/conversations/:id/messages', authenticateToken, async (req, res, n
     // 첨부만 보낼 때 화면이 싣는 힌트(알림 문구용, 저장하지 않는다) — 화이트리스트·범위는 outsidePreview.attachmentBody 가 정한다.
     const attachKind = req.body?.attachment_kind === 'image' || req.body?.attachment_kind === 'file' ? req.body.attachment_kind : null;
     const attachCount = Math.min(50, Math.max(1, Math.floor(Number(req.body?.attachment_count)) || 1));
-
     const msg = await Message.create({
       conversation_id: conv.id,
       sender_id: req.user.id,
@@ -1579,7 +1578,7 @@ router.post('/conversations/:id/messages', authenticateToken, async (req, res, n
       kind: kind || 'text',
       is_ai: false,
       is_internal: false,
-      reply_to_message_id: reply_to_message_id || null,
+      reply_to_message_id: await require('../services/messageReply').resolveReplyTo(conv.id, reply_to_message_id),   // 같은 대화 메시지만
     });
     // last_message_at 업데이트
     await conv.update({ last_message_at: new Date() });

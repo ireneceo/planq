@@ -40,7 +40,8 @@ import { useNavigate } from 'react-router-dom';
 import MessageReactions from './MessageReactions';   // #138 이모지 리액션 (메시지에 다는 것)
 import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
 import ReactionPickerPopover from './ReactionPickerPopover';   // 반응 고르기 — 도구줄에서 떠 있는 팝오버
-import EmojiPickerButton from './EmojiPickerButton';   // #380 입력창 이모지 (보내는 것)
+import EmojiPickerButton from './EmojiPickerButton';
+import { ReplyQuote, ReplyComposerBand, ReplyIcon } from './ReplyQuote';   // 답장(인용)   // #380 입력창 이모지 (보내는 것)
 import { PanelBackButton, PanelHeaderBar, DetailMetaBar, DetailMetaLeft } from '../../components/Layout/PanelHeader';
 import { openPreviewWindow } from '../../utils/openPreviewWindow';
 import { isEnterAction, enterSends, isComposingEvent } from '../../utils/imeKey';
@@ -70,7 +71,7 @@ interface Props {
   onSelectConversation: (conversationId: number) => void;
   onOpenExtract: () => void;
   /** 반환이 false 면 전송 실패 — 비웠던 입력·첨부를 되돌린다. void(옛 호출부)는 성공으로 본다. */
-  onSendMessage: (body: string, files?: File[], existingFileIds?: number[], existingPostIds?: number[]) => void | boolean | Promise<void | boolean>;
+  onSendMessage: (body: string, files?: File[], existingFileIds?: number[], existingPostIds?: number[], replyToId?: number) => void | boolean | Promise<void | boolean>;
   onCueDraftSend: (messageId: number, editedBody?: string) => void;
   onCueDraftReject: (messageId: number) => void;
   onToggleAutoExtract: (conversationId: number, enabled: boolean) => void;
@@ -525,6 +526,9 @@ const ChatPanel: React.FC<Props> = ({
 
   // 사이클 N+16-E — 메시지 액션 (수정 / 삭제 / 핀 / 묶음 선택).
   const [editingMsgId, setEditingMsgId] = useState<number | null>(null);
+  // 답장(인용) 대상 — 방을 바꾸면 비운다
+  const [replyTarget, setReplyTarget] = useState<MockMessage | null>(null);
+  useEffect(() => { setReplyTarget(null); }, [activeConversationId]);
   const [editingMsgDraft, setEditingMsgDraft] = useState('');
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedMsgIds, setSelectedMsgIds] = useState<Set<number>>(new Set());
@@ -900,6 +904,7 @@ const ChatPanel: React.FC<Props> = ({
     const sent = {
       convId: activeConversationId, text: input,
       fileIds: stagedExistingIds, fileMeta: stagedExistingMeta, rawFiles: stagedRawFiles, postIds: stagedPostIds, postMeta: stagedPostMeta,
+      reply: replyTarget,
     };
     Promise.resolve(onSendMessage(
       input,
@@ -907,6 +912,7 @@ const ChatPanel: React.FC<Props> = ({
       stagedRawFiles.length > 0 ? stagedRawFiles.map((x) => x.file) : undefined,
       stagedExistingIds.length > 0 ? stagedExistingIds : undefined,
       stagedPostIds.length > 0 ? stagedPostIds : undefined,
+      replyTarget ? replyTarget.id : undefined,
     )).then((ok) => {
       if (ok !== false) return;
       if (activeConvRef.current !== sent.convId) {
@@ -921,8 +927,10 @@ const ChatPanel: React.FC<Props> = ({
       setStagedRawFiles((cur) => (cur.length ? cur : sent.rawFiles));
       setStagedPostIds((cur) => (cur.length ? cur : sent.postIds));
       setStagedPostMeta((cur) => (Object.keys(cur).length ? cur : sent.postMeta));
+      setReplyTarget((cur) => cur || sent.reply);
     }).catch(() => { /* onSendMessage 가 자기 실패를 알린다 */ });
     setInput('');
+    setReplyTarget(null);
     // 전송 → 해당 대화 draft 제거 (실패하면 위에서 입력을 되돌리고, 입력 변화가 draft 를 다시 쓴다)
     if (activeConversationId) { try { localStorage.removeItem(draftKey(user?.id, activeConversationId)); } catch { /* */ } }
     setStagedExistingIds([]);
@@ -1325,6 +1333,7 @@ const ChatPanel: React.FC<Props> = ({
       if (isEnterAction(e) || e.key === 'Tab') { e.preventDefault(); insertMention(mentionCandidates[mentionIdx] || mentionCandidates[0]); return; }
       if (e.key === 'Escape') { e.preventDefault(); closeMention(); return; }
     }
+    if (e.key === 'Escape' && replyTarget) { e.preventDefault(); setReplyTarget(null); return; }   // 답장 띠 닫기
     if (isEnterAction(e) && !e.shiftKey) {
       // #110 — 터치 기기에서는 Enter = 줄바꿈(기본 동작 유지), 전송은 Send 버튼만.
       //   판정은 입력 장치로 한다(utils/imeKey enterSends — 폭으로 가르면 팝아웃이 폰이 된다, #428).
@@ -1834,6 +1843,9 @@ const ChatPanel: React.FC<Props> = ({
                     </GuestBadge>
                   )}
                 </MessageHeader>
+              )}
+              {!isDeleted && !!m.reply_to_message_id && (
+                <ReplyQuote target={convMessages.find((x) => x.id === m.reply_to_message_id)} onJump={scrollToMessage} />
               )}
               {isDeleted ? (
                 <DeletedPlaceholder>{t('chat.deleted', '삭제된 메시지입니다')}</DeletedPlaceholder>
@@ -2355,6 +2367,15 @@ const ChatPanel: React.FC<Props> = ({
                     </svg>
                   </ToolBarBtn>
                 )}
+                {m.id > 0 && !m.cue_draft && (
+                  <ToolBarBtn type="button"
+                    data-testid={`chat-reply-${m.id}`}
+                    onClick={(e) => { e.stopPropagation(); setReplyTarget(m); setActiveToolbarMsgId(null); textInputRef.current?.focus(); }}
+                    title={t('reply.action', { defaultValue: '답장' }) as string}
+                    aria-label={t('reply.action', { defaultValue: '답장' }) as string}>
+                    <ReplyIcon />
+                  </ToolBarBtn>
+                )}
                 <ToolBarBtn type="button" onClick={(e) => { e.stopPropagation(); handleCopyText(m.body || ''); }} title={t('chat.action.copy', '메시지 복사') as string} aria-label={t('chat.action.copy', '메시지 복사') as string}>
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
@@ -2442,6 +2463,7 @@ const ChatPanel: React.FC<Props> = ({
 
       {/* 입력창 */}
       <InputBar>
+        {replyTarget && <ReplyComposerBand target={replyTarget} onCancel={() => setReplyTarget(null)} />}
         {sharedStaged && (
           <SharedBand role="status" data-testid="chat-shared-band">
             {t('chat.sharedBand', { defaultValue: '공유한 내용이 담겨 있어요 — 확인하고 보내기를 누르세요' })}

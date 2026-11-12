@@ -136,7 +136,12 @@
         "ok": "Detach"
       }
     },
-    "noChatsClient": "Your conversations with the team appear here"
+    "noChatsClient": "Your conversations with the team appear here",
+    "filterAria": "Filter conversations",
+    "filterAll": "All",
+    "filterUnread": "Unread",
+    "filterUnreadN": "Unread {{count}}",
+    "noUnread": "No unread conversations"
   },
   "archived": {
     "title": "Archived chats",
@@ -619,5 +624,13 @@
     "askHuman": "Ask the PlanQ team",
     "askedHuman": "PlanQ team notified",
     "band": "Cue and the PlanQ team help you use PlanQ"
+  },
+  "reply": {
+    "action": "Reply",
+    "to": "Replying to {{name}}",
+    "cancel": "Cancel reply",
+    "jump": "Go to original",
+    "unavailable": "Original message unavailable",
+    "attachment": "Attachment"
   }
 }

@@ -1,5 +1,6 @@
 import React, { useMemo, useState, useCallback, useEffect, useRef } from 'react';
 import styled from 'styled-components';
+import { SegmentedToggle, SegmentedBtn } from '../../components/Common/segmentedToggle';
 import { listRowTitleCss } from '../../theme/tokens';
 import { useTranslation } from 'react-i18next';
 import HighlightText from '../../components/Common/HighlightText';
@@ -64,6 +65,8 @@ const LeftPanel: React.FC<Props> = ({
   const { user } = useAuth();
   const isClient = user?.business_role === 'client';
   const [query, setQuery] = useState('');
+  // 안 읽은 대화만 — 문의가 몰릴 때 답할 방만 추린다(채널톡 «안 읽음» 과 같은 쓰임)
+  const [unreadOnly, setUnreadOnly] = useState(false);
 
   // PlanQ 안내방(2026-11-04, docs/PLANQ_GUIDE_ROOM_DESIGN.md) — 대표·관리자는 열면 저절로 참여, 멤버는 «들어가기».
   //   참여 전에는 목록 API 에 안 나오므로(참여자만 보는 방) 이 칸이 맨 위에 자리를 만든다. 고객에게는 없다.
@@ -158,8 +161,11 @@ const LeftPanel: React.FC<Props> = ({
         (x.conversation.last_message || '').toLowerCase().includes(q)
       );
     }
+    // 지금 연 방은 읽는 순간 0 이 되므로 남겨 둔다 — 읽자마자 목록에서 사라지면 보던 방을 잃는다
+    if (unreadOnly) list = list.filter((x) => x.conversation.unread_count > 0 || x.conversation.id === activeConversationId);
     return list;
-  }, [chats, query]);
+  }, [chats, query, unreadOnly, activeConversationId]);
+  const unreadChatCount = useMemo(() => chats.filter((x) => x.conversation.unread_count > 0).length, [chats]);
 
   const itemIds = useMemo(() => filteredChats.map((x) => x.conversation.id), [filteredChats]);
   const handleKeyboardChange = useCallback((id: number) => {
@@ -211,6 +217,14 @@ const LeftPanel: React.FC<Props> = ({
           shortcutHint="Ctrl+K"
           width="100%"
         />
+        <FilterToggle role="tablist" aria-label={t('left.filterAria', '대화 거르기') as string}>
+          <SegmentedBtn type="button" role="tab" aria-selected={!unreadOnly} $active={!unreadOnly} data-testid="qtalk-filter-all" onClick={() => setUnreadOnly(false)}>
+            {t('left.filterAll', '전체')}
+          </SegmentedBtn>
+          <SegmentedBtn type="button" role="tab" aria-selected={unreadOnly} $active={unreadOnly} data-testid="qtalk-filter-unread" onClick={() => setUnreadOnly(true)}>
+            {unreadChatCount > 0 ? t('left.filterUnreadN', { count: unreadChatCount, defaultValue: '안 읽음 {{count}}' }) : t('left.filterUnread', '안 읽음')}
+          </SegmentedBtn>
+        </FilterToggle>
       </SearchSection>
 
       <ChatList>
@@ -230,12 +244,12 @@ const LeftPanel: React.FC<Props> = ({
         )}
         {filteredChats.length === 0 && !loading && (
           <Empty>
-            {query ? t('left.noResults', '검색 결과 없음') : t('left.noChats', '아직 대화가 없습니다')}
+            {query ? t('left.noResults', '검색 결과 없음') : unreadOnly ? t('left.noUnread', '안 읽은 대화가 없어요') : t('left.noChats', '아직 대화가 없습니다')}
             {/* 폰·태블릿은 이 목록만 보인다 — 데스크탑 오른쪽의 «대화를 시작해 보세요» 안내가 없어 막다른 화면이었다
                 (2026-10-09 새 팀 첫 길 점검). 데스크탑은 오른쪽 안내가 같은 버튼을 이미 갖고 있어 숨긴다. */}
             {/* 고객은 대화방을 만들 수 없다(서버 403) — 버튼 대신 «담당 팀과의 대화방이 여기에 보여요» (2026-11-03 첫 길 점검) */}
-            {!query && isClient && <EmptyHint>{t('left.noChatsClient', '담당 팀과의 대화방이 여기에 보여요')}</EmptyHint>}
-            {!query && !isClient && (
+            {!query && !unreadOnly && isClient && <EmptyHint>{t('left.noChatsClient', '담당 팀과의 대화방이 여기에 보여요')}</EmptyHint>}
+            {!query && !unreadOnly && !isClient && (
               <EmptyStart>
                 <EmptyHint>{t('left.noChatsHint', '팀원과 첫 대화방을 만들어 보세요')}</EmptyHint>
                 <EmptyStartBtn type="button" data-testid="qtalk-empty-new-chat" onClick={onOpenNewChat}>
@@ -306,7 +320,7 @@ const LeftPanel: React.FC<Props> = ({
                   <ProjectName>{t('left.preview.empty', '아직 대화가 없어요')}</ProjectName>
                 )}
               </ChatBody>
-              {!isActive && c.unread_count > 0 && <Unread>{c.unread_count}</Unread>}
+              {!isActive && c.unread_count > 0 && <Unread data-testid="qtalk-unread-badge">{c.unread_count}</Unread>}
               {onTogglePin && (
                 <StarToggle
                   pinned={isPinned}
@@ -456,6 +470,10 @@ const NewChatBtn = styled.button`
   flex-shrink: 0;
   &:hover { background: #0D9488; }
   &:focus-visible { outline: 2px solid rgba(20, 184, 166, 0.3); outline-offset: 2px; }
+`;
+
+const FilterToggle = styled(SegmentedToggle)`
+  margin-top: 8px;
 `;
 
 const SearchSection = styled.div`

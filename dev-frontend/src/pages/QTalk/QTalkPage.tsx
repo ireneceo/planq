@@ -1487,7 +1487,7 @@ const QTalkPage: React.FC<QTalkPageProps> = ({ embedded = false, initialConvId =
   // 사이클 N+15-E — Optimistic local insertion. 사용자 클릭 즉시 메시지 표시 (네트워크 RT 0ms 인상).
   // tempId(음수) → API 성공 시 real id 로 replace. 실패 시 표시는 유지 + 추후 재시도 UI 가능.
   // 반환값 — 저장 성공 여부. 입력창(ChatPanel)이 실패면 비웠던 글·첨부를 되돌린다(2026-10-08 0-J).
-  const handleSendMessage = async (body: string, files?: File[], existingFileIds?: number[], existingPostIds?: number[]): Promise<boolean> => {
+  const handleSendMessage = async (body: string, files?: File[], existingFileIds?: number[], existingPostIds?: number[], replyToId?: number): Promise<boolean> => {
     if (!activeConversationId) return false;
     const convId = activeConversationId; // 클로저 안정화
     const hasAttachments = (files && files.length > 0) || (existingFileIds && existingFileIds.length > 0);
@@ -1509,6 +1509,7 @@ const QTalkPage: React.FC<QTalkPageProps> = ({ embedded = false, initialConvId =
       attachments: [],
       translations: null,
       detected_language: null,
+      reply_to_message_id: replyToId || null,
     } : null;
     if (optimisticMsg) {
       setMessages((prev) => ({ ...prev, [convId]: [...(prev[convId] || []), optimisticMsg] }));
@@ -1518,7 +1519,7 @@ const QTalkPage: React.FC<QTalkPageProps> = ({ embedded = false, initialConvId =
     }
     try {
       const created = (content || hasAttachments)
-        ? await qtalkApi.sendMessage(convId, content, undefined, hasAttachments ? {
+        ? await qtalkApi.sendMessage(convId, content, replyToId, hasAttachments ? {
           // 새로 올리는 것이 전부 이미지면 «이미지», 기존 파일(종류 모름)이 섞이거나 다른 파일이면 «파일»
           kind: (!existingFileIds?.length && (files || []).every((f) => f.type.startsWith('image/'))) ? 'image' : 'file',
           count: (files?.length || 0) + (existingFileIds?.length || 0),
