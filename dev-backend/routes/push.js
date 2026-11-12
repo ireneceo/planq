@@ -113,6 +113,7 @@ async function carryCoAccounts(req, prevEndpoint, newEndpoint, fields) {
   if (!proof.has(req.user.id)) return 0;
   const mine = await PushSubscription.findOne({ where: { endpoint: prevEndpoint, user_id: req.user.id, expired_at: null } });
   if (!mine) {
+    // 범위: 요청자 본인(user_id) 구독 행만 — 구독은 기기 단위라 business_id 가 없다(2026-09-11).
     // 내 행이 이미 만료됐어도(같은 계정을 다른 기기에서 열면 같은 host 좀비 규칙이 이 기기 행을 만료시킨다 → desync 재구독)
     //   그 주소가 이 기기 것이었다는 근거로 인정한다. 만료시킬 때 쓰는 식과 **정확히 같은** 값만(Fable 설계 판정 2026-11-12).
     //   410 으로 삭제돼 흔적이 없으면 근거가 없으니 옮기지 않는다.
