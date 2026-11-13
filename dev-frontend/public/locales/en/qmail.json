@@ -121,9 +121,11 @@
     "smtpHint": "If SMTP is left empty, PlanQ's default send server is used.",
     "fieldHost": "Server",
     "fieldPort": "Port",
-    "fieldUsername": "Username",
+    "fieldUsername": "Login ID",
+    "loginIdHint": "The ID you sign in to your mail service with. For Gmail, Naver and Outlook it is the same as the email address above (filled in automatically).",
+    "smtpLoginIdHint": "Leave blank to use the incoming login ID.",
     "fieldPassword": "Password",
-    "imapRequired": "Enter IMAP server and username",
+    "imapRequired": "Enter the IMAP server and login ID",
     "passwordRequired": "Enter the password",
     "passwordEditHint": "(Leave empty to keep current)",
     "optional": "Optional",
@@ -184,7 +186,7 @@
     "toPersonal": "Switch to personal",
     "toTeam": "Make company-shared",
     "imapHostRequired": "Enter the incoming (IMAP) server address",
-    "imapUserRequired": "Enter the incoming (IMAP) username — usually your full email address",
+    "imapUserRequired": "Enter the incoming (IMAP) login ID — usually your full email address",
     "jumpToField": "Go to this field"
   },
   "folders": {

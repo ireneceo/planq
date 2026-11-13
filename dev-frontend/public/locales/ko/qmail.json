@@ -121,9 +121,11 @@
     "smtpHint": "SMTP 정보를 비우면 PlanQ 기본 발송 서버를 사용합니다.",
     "fieldHost": "서버",
     "fieldPort": "포트",
-    "fieldUsername": "사용자명",
+    "fieldUsername": "로그인 아이디",
+    "loginIdHint": "메일 서비스에 로그인할 때 쓰는 아이디예요. Gmail·네이버·Outlook 은 위 이메일 주소와 같아요(자동으로 채워져요).",
+    "smtpLoginIdHint": "비우면 받기의 로그인 아이디를 그대로 써요.",
     "fieldPassword": "비밀번호",
-    "imapRequired": "IMAP 서버와 사용자명을 입력하세요",
+    "imapRequired": "IMAP 서버와 로그인 아이디를 입력하세요",
     "passwordRequired": "비밀번호를 입력하세요",
     "passwordEditHint": "(비워두면 기존 유지)",
     "optional": "선택",
@@ -184,7 +186,7 @@
     "toPersonal": "개인으로 전환",
     "toTeam": "회사 공용으로",
     "imapHostRequired": "받기(IMAP) 서버 주소를 입력하세요",
-    "imapUserRequired": "받기(IMAP) 사용자명을 입력하세요 — 보통 이메일 주소 전체예요",
+    "imapUserRequired": "받기(IMAP) 로그인 아이디를 입력하세요 — 보통 이메일 주소 전체예요",
     "jumpToField": "해당 칸으로 이동"
   },
   "folders": {

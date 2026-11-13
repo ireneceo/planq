@@ -713,13 +713,14 @@ const AccountEditForm: React.FC<FormProps> = ({ initial, businessId, scope, onSa
             </Field>
           </Grid2>
           <Field>
-            <Label>{t('settings.fieldUsername', '사용자명') as string} <Required>*</Required></Label>
+            <Label>{t('settings.fieldUsername', '로그인 아이디') as string} <Required>*</Required></Label>
             <Input
               type="text" value={form.imap_username}
               ref={bindField('imap_username')} $invalid={isBad('imap_username')} aria-invalid={isBad('imap_username') || undefined}
               onChange={e => { touch('imap_username'); setForm({ ...form, imap_username: e.target.value }); }}
               placeholder={form.email}
             />
+            <FieldHint>{t('settings.loginIdHint', '메일 서비스에 로그인할 때 쓰는 아이디예요. Gmail·네이버·Outlook 은 위 이메일 주소와 같아요(자동으로 채워져요).') as string}</FieldHint>
             {fieldError('imap_username')}
           </Field>
           <Field>
@@ -764,12 +765,14 @@ const AccountEditForm: React.FC<FormProps> = ({ initial, businessId, scope, onSa
             </Field>
           </Grid2>
           <Field>
-            <Label>{t('settings.fieldUsername', '사용자명') as string}</Label>
+            <Label>{t('settings.fieldUsername', '로그인 아이디') as string}</Label>
             <Input
               type="text" value={form.smtp_username || ''}
               ref={bindField('smtp_username')} $invalid={isBad('smtp_username')} aria-invalid={isBad('smtp_username') || undefined}
               onChange={e => { touch('smtp_username'); setForm({ ...form, smtp_username: e.target.value }); }}
+              placeholder={form.imap_username || undefined}
             />
+            <FieldHint>{t('settings.smtpLoginIdHint', '비우면 받기의 로그인 아이디를 그대로 써요.') as string}</FieldHint>
           </Field>
           <Field>
             <Label>{passwordLabel} {isEdit && <PasswordHint>{t('settings.passwordEditHint', '(비워두면 기존 유지)') as string}</PasswordHint>}</Label>
