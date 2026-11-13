@@ -43,6 +43,7 @@ import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
 import ReactionPickerPopover from './ReactionPickerPopover';   // 반응 고르기 — 도구줄에서 떠 있는 팝오버
 import EmojiPickerButton from './EmojiPickerButton';
 import { ReplyQuote, ReplyComposerBand, ReplyIcon } from './ReplyQuote';   // 답장(인용)
+import { ForwardFlow, ForwardedLabel, ForwardIcon } from './ForwardFlow';   // 다른 방으로 전달(docs/QTALK_FORWARD_DESIGN.md)
 import ChatSearchPanel from './ChatSearchPanel';   // 대화 안 찾기   // #380 입력창 이모지 (보내는 것)
 import { PanelBackButton, PanelHeaderBar, DetailMetaBar, DetailMetaLeft } from '../../components/Layout/PanelHeader';
 import CareChips from './CareChips';
@@ -540,6 +541,8 @@ const ChatPanel: React.FC<Props> = ({
   const [editingMsgDraft, setEditingMsgDraft] = useState('');
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedMsgIds, setSelectedMsgIds] = useState<Set<number>>(new Set());
+  const canForwardHere = !isClient && activeConv?.channel_type !== 'platform';   // 서버: 직원만 · 안내방 제외
+  const [forwardIds, setForwardIds] = useState<number[] | null>(null);   // 전달 창(ForwardFlow)에 넘길 메시지 — null 이면 닫힘
   // N+93 — 터치(hover:none) tap-to-reveal: 탭한 메시지만 액션 툴바 노출 (평소엔 0개 → 글 안 가림).
   //   데스크탑은 hover 동작이라 무관(이 state 미사용). 대화 전환·바깥 탭 시 해제.
   const [activeToolbarMsgId, setActiveToolbarMsgId] = useState<number | null>(null);
@@ -1747,6 +1750,9 @@ const ChatPanel: React.FC<Props> = ({
               </svg>
               {t('chat.selection.copy', '복사')}
             </SelectionBtn>
+            {canForwardHere && <SelectionBtn type="button" data-testid="chat-selection-forward" disabled={!convMessages.some((m) => selectedMsgIds.has(m.id) && m.forwardable)} onClick={() => setForwardIds([...selectedMsgIds])}>
+              <ForwardIcon />{t('chat.action.forward', '전달')}
+            </SelectionBtn>}
             <SelectionBtn type="button" $danger disabled={selectedMsgIds.size === 0} onClick={() => setConfirmDeleteId(-1)}>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <polyline points="3 6 5 6 21 6"/><path d="M19 6l-2 14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/>
@@ -1921,6 +1927,7 @@ const ChatPanel: React.FC<Props> = ({
                   )}
                 </MessageHeader>
               )}
+              {!isDeleted && m.forwarded && <ForwardedLabel />}
               {!isDeleted && !!m.reply_to_message_id && (
                 <ReplyQuote target={convMessages.find((x) => x.id === m.reply_to_message_id)} onJump={scrollToMessage} />
               )}
@@ -2838,7 +2845,7 @@ const ChatPanel: React.FC<Props> = ({
         if (!moreMenu.anchorEl || !moreMenu.anchorEl.isConnected) return null;
         const rect = moreMenu.anchorEl.getBoundingClientRect();
         const MENU_W = 200;
-        const MENU_H_EST = canDeleteM ? 84 : 44; // 항목 수 * 42 + padding
+        const MENU_H_EST = (canDeleteM ? 84 : 44) + (m.forwardable ? 42 : 0); // 항목 수 * 42 + padding
         // 자리는 공용 placeFloating(아래가 모자라면 위로 · 보이는 화면 기준 — 2026-10-27 드롭다운 잘림 통합)
         const place = placeFloating(rect, { width: MENU_W, height: MENU_H_EST }, { align: 'end', gap: 6 });
         return createPortal(
@@ -2846,6 +2853,9 @@ const ChatPanel: React.FC<Props> = ({
             <ToolBarMoreItem type="button" onClick={(e) => { e.stopPropagation(); setMoreMenu(null); setSelectionMode(true); setSelectedMsgIds(new Set([m.id])); }}>
               {t('chat.action.selectMulti', '여러 메시지 선택')}
             </ToolBarMoreItem>
+            {m.forwardable && canForwardHere && <ToolBarMoreItem type="button" data-testid="chat-more-forward" onClick={(e) => { e.stopPropagation(); setMoreMenu(null); setForwardIds([m.id]); }}>
+              {t('chat.action.forward', '전달')}
+            </ToolBarMoreItem>}
             {canDeleteM && (
               <ToolBarMoreItem type="button" $danger onClick={(e) => { e.stopPropagation(); setMoreMenu(null); setConfirmDeleteId(m.id); }}>
                 {t('chat.action.delete', '삭제')}
@@ -2856,6 +2866,9 @@ const ChatPanel: React.FC<Props> = ({
         );
       })()}
 
+      <ForwardFlow businessId={businessId ? Number(businessId) : null} sourceConversationId={activeConv?.id ?? null}
+        messages={forwardIds ? convMessages.filter((m) => forwardIds.includes(m.id)) : null}
+        onClose={() => setForwardIds(null)} onSent={exitSelection} />
       {/* 사이클 N+16-E — 메시지 삭제 확인. confirmDeleteId === -1 이면 묶음 삭제 의미. */}
       {confirmDeleteId !== null && (
         <ConfirmBackdrop onClick={() => setConfirmDeleteId(null)}>

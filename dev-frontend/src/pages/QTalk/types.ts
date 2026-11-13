@@ -169,6 +169,9 @@ export interface MockMessage {
   is_deleted?: boolean;
   edited_at?: string | null;
   pinned_at?: string | null;
+  // 전달 — forwarded = 전달로 생긴 글(«전달된 메시지» 한 줄) · forwardable = 서버 isForwardableMessage 와 같은 판정
+  forwarded?: boolean;
+  forwardable?: boolean;
 }
 
 export interface MockConversation {

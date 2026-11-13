@@ -326,7 +326,8 @@
       "selectMulti": "Select multiple",
       "delete": "Delete",
       "promoteToSale": "Send to consults",
-      "promotedToSale": "Sent to consults"
+      "promotedToSale": "Sent to consults",
+      "forward": "Forward"
     },
     "pinned": {
       "count_one": "{{count}} pinned",
@@ -671,5 +672,23 @@
     "badge": "Muted",
     "hint": "You'll still be notified when someone @mentions you",
     "failed": "Couldn't change notification settings. Try again"
+  },
+  "forward": {
+    "title": "Forward to which chat?",
+    "search": "Search chats or customers",
+    "send": "Forward to “{{room}}”",
+    "count": "{{n}} messages",
+    "partial": "Only {{m}} of {{n}} will be forwarded (cards and deleted messages are skipped)",
+    "clientRoom": "Customers can see this chat",
+    "done": "Forwarded",
+    "goRoom": "Open chat",
+    "label": "Forwarded message",
+    "err": {
+      "notForwardable": "Some messages can’t be forwarded",
+      "attachment": "Restricted attachments can’t be forwarded. Attach the file directly instead",
+      "archived": "You can’t forward to an archived chat",
+      "failed": "Couldn’t forward. Please try again"
+    },
+    "empty": "No chats to forward to"
   }
 }

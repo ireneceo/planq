@@ -207,6 +207,8 @@ function apiMessageToMock(m: qtalkApi.ApiMessage): MockMessage {
     is_deleted: !!m.is_deleted,
     edited_at: m.edited_at || null,
     pinned_at: m.pinned_at || null,
+    forwarded: m.kind === 'text' && !!(m.meta as { forwarded?: boolean } | null | undefined)?.forwarded,
+    forwardable: m.kind === 'text' && !m.is_deleted && !m.is_internal && !(m.is_ai && m.ai_mode_used === 'draft' && !m.ai_draft_approved),
   };
 }
 

@@ -559,6 +559,16 @@ export async function deleteMessage(businessId: number, conversationId: number, 
   const j = await res.json().catch(() => null);
   return !!j?.success;
 }
+// 다른 대화방으로 전달 — 서버 routes/conversation_forward.js (docs/QTALK_FORWARD_DESIGN.md). 실패하면 서버 code 를 던진다.
+export async function forwardMessages(businessId: number, sourceConversationId: number, messageIds: number[], targetConversationId: number): Promise<{ target_conversation_id: number; messages: ApiMessage[] }> {
+  const res = await apiFetch(`/api/conversations/${businessId}/${sourceConversationId}/forward`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ message_ids: messageIds, target_conversation_id: targetConversationId }),
+  });
+  const j = await res.json().catch(() => null);
+  if (!res.ok || !j?.success) throw new Error(j?.code || j?.message || 'failed');
+  return j.data;
+}
 export async function pinMessage(businessId: number, conversationId: number, messageId: number): Promise<boolean> {
   const res = await apiFetch(`/api/conversations/${businessId}/${conversationId}/messages/${messageId}/pin`, { method: 'POST' });
   const j = await res.json().catch(() => null);

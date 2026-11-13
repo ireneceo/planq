@@ -26,6 +26,7 @@ import { detectChatExport, chatExportFileName, type ChatExportInfo } from '../..
 import { textMatches } from '../../utils/searchMatch';
 import { useBackToClose } from '../../hooks/useBackToClose';
 import { isEnterAction } from '../../utils/imeKey';
+import ConversationPicker, { conversationLabel } from '../../components/Common/ConversationPicker';
 
 interface SharePayload {
   title: string;
@@ -105,8 +106,6 @@ function recommendFor(files: File[], canFile: boolean): Recommend {
   return media ? 'chat' : 'file';
 }
 
-const GROUP_LIMIT = 5;
-
 const ShareReceivePage: React.FC = () => {
   const { t } = useTranslation('common');
   const [params] = useSearchParams();
@@ -136,7 +135,6 @@ const ShareReceivePage: React.FC = () => {
   const [placeFolder, setPlaceFolder] = useState<number | null>(null);
   const [newFolderName, setNewFolderName] = useState('');
   const [query, setQuery] = useState('');
-  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [recents, setRecents] = useState<RecentDest[]>(() => readRecents(rKey));
   const [saved, setSaved] = useState<{ projectId: number | null; folderId: number | null; count: number } | null>(null);
   // 이미 올린 파일 id — «다른 곳에도 보내기» 로 채팅·업무에 붙일 때 다시 올리지 않는다(내 파일에 같은 행이 두 개 생겼다)
@@ -212,7 +210,7 @@ const ShareReceivePage: React.FC = () => {
   }, [title, text, url]);
 
   const fmtSize = (n: number) => n < 1024 ? `${n} B` : n < 1024*1024 ? `${(n/1024).toFixed(1)} KB` : `${(n/1024/1024).toFixed(1)} MB`;
-  const convLabel = (c: ApiConversation) => c.display_name || c.title || c.Client?.display_name || c.Client?.company_name || `#${c.id}`;
+  const convLabel = conversationLabel;
   const projectName = (pid: number | null) => (pid === null ? (t('shareReceive.place.company', '회사 파일') as string) : (projects.find((p) => p.id === pid)?.name || `#${pid}`));
   const placeLabel = (pid: number | null, fid: number | null) => {
     const f = fid ? allFolders.find((x) => x.id === fid) : null;
@@ -359,37 +357,8 @@ const ShareReceivePage: React.FC = () => {
     else openPlacePicker({ projectId: r.projectId, folderId: r.folderId });
   };
 
-  // 대화방 정렬 — 고정 먼저, 그다음 최근 대화순(목록 응답에 이미 있는 값)
-  const sortedConvs = useMemo(() => {
-    const ts = (v?: string | null) => (v ? new Date(v).getTime() : 0);
-    return [...(convs || [])].sort((a, b) => {
-      const pa = ts(a.my_pinned_at), pb = ts(b.my_pinned_at);
-      if (!!pa !== !!pb) return pa ? -1 : 1;
-      if (pa && pb && pa !== pb) return pb - pa;
-      return ts(b.last_message_at) - ts(a.last_message_at);
-    });
-  }, [convs]);
-  const convMatches = (c: ApiConversation) => [convLabel(c), c.Client?.display_name, c.Client?.company_name, c.title].some((x) => textMatches(x, query));
-  const convGroups = useMemo(() => {
-    const recentIds = liveRecents.filter((r) => r.kind === 'chat').map((r) => (r as { id: number }).id);
-    const byId = new Map(sortedConvs.map((c) => [c.id, c]));
-    const recent = recentIds.map((id) => byId.get(id)).filter(Boolean) as ApiConversation[];
-    const rest = sortedConvs.filter((c) => !recentIds.includes(c.id));
-    return [
-      { key: 'recent', label: t('shareReceive.group.recent', '최근 보낸 곳'), rows: recent },
-      { key: 'pinned', label: t('shareReceive.group.pinned', '고정한 대화방'), rows: rest.filter((c) => c.my_pinned_at) },
-      { key: 'customer', label: t('shareReceive.group.customer', '고객 대화방'), rows: rest.filter((c) => !c.my_pinned_at && c.channel_type === 'customer') },
-      { key: 'team', label: t('shareReceive.group.team', '팀 대화방'), rows: rest.filter((c) => !c.my_pinned_at && c.channel_type !== 'customer') },
-    ].filter((g) => g.rows.length > 0);
-  }, [sortedConvs, liveRecents, t]);
-
-  const renderConvRow = (c: ApiConversation) => (
-    <PickRow key={c.id} type="button" data-testid="share-conv-row" data-conv-id={c.id} disabled={busy !== null}
-      onClick={() => void sendTo('chat', c)}>
-      <span>{convLabel(c)}</span>
-      <PickMeta>{c.channel_type === 'customer' ? t('shareReceive.convCustomer', '고객') : c.channel_type === 'platform' ? 'PlanQ' : t('shareReceive.convTeam', '팀')}</PickMeta>
-    </PickRow>
-  );
+  // 대화방 고르기는 components/Common/ConversationPicker 한 벌(메시지 전달과 같이 쓴다) — «최근 보낸 곳» 만 여기서 넘긴다
+  const recentConvIds = useMemo(() => liveRecents.filter((r) => r.kind === 'chat').map((r) => (r as { id: number }).id), [liveRecents]);
 
   if (loading) {
     return (
@@ -523,32 +492,8 @@ const ShareReceivePage: React.FC = () => {
               <BackLink type="button" onClick={() => setStep('dest')}>{t('shareReceive.back', '← 다른 곳')}</BackLink>
               <ChooseLabel>{t('shareReceive.pickConv', '어느 대화방에 보낼까요?')}</ChooseLabel>
             </PickHead>
-            <SearchWrap>
-              <SearchIcon size={16} />
-              <SearchInput value={query} onChange={(e) => setQuery(e.target.value)} data-testid="share-search"
-                placeholder={t('shareReceive.searchConv', '대화방·고객 이름으로 찾기') as string} />
-            </SearchWrap>
-            {convs === null && <Hint>{t('common.loading', '불러오는 중...')}</Hint>}
-            {convs && convs.length === 0 && <Hint>{t('shareReceive.convEmpty', '보낼 수 있는 대화방이 없습니다')}</Hint>}
-            {convs && query.trim() && (() => {
-              const hits = sortedConvs.filter(convMatches);
-              return hits.length ? hits.slice(0, 30).map(renderConvRow) : <Hint>{t('shareReceive.noMatch', '맞는 곳이 없습니다')}</Hint>;
-            })()}
-            {convs && !query.trim() && convGroups.map((g) => {
-              const open = expanded[g.key];
-              const rows = open ? g.rows : g.rows.slice(0, GROUP_LIMIT);
-              return (
-                <Group key={g.key} data-testid={`share-group-${g.key}`}>
-                  <GroupLabel>{g.label}</GroupLabel>
-                  {rows.map(renderConvRow)}
-                  {!open && g.rows.length > GROUP_LIMIT && (
-                    <MoreBtn type="button" onClick={() => setExpanded((p) => ({ ...p, [g.key]: true }))}>
-                      {t('shareReceive.more', { n: g.rows.length - GROUP_LIMIT, defaultValue: '더 보기 ({{n}})' })}
-                    </MoreBtn>
-                  )}
-                </Group>
-              );
-            })}
+            <ConversationPicker convs={convs} recentIds={recentConvIds} disabled={busy !== null}
+              onPick={(c) => void sendTo('chat', c)} />
           </PickBox>
         )}
 
@@ -722,12 +667,6 @@ const SearchWrap = styled.label`
 `;
 const SearchInput = styled.input`
   flex: 1; min-width: 0; border: none; outline: none; background: transparent; font-size: 1rem; color: #0F172A;
-`;
-const Group = styled.div`display: flex; flex-direction: column; gap: 6px; margin-top: 4px;`;
-const GroupLabel = styled.div`font-size: 0.75rem; font-weight: 700; color: #64748B;`;
-const MoreBtn = styled.button`
-  align-self: flex-start; background: none; border: none; padding: 0; min-height: 32px;
-  color: #0F766E; font-size: 0.8125rem; font-weight: 600; cursor: pointer;
 `;
 const PickRow = styled.button<{ $on?: boolean; $depth?: number }>`
   display: flex; align-items: center; justify-content: space-between; gap: 8px;

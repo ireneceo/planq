@@ -294,7 +294,8 @@
       "selectMulti": "여러 메시지 선택",
       "delete": "삭제",
       "promoteToSale": "상담으로 보내기",
-      "promotedToSale": "상담으로 보냄"
+      "promotedToSale": "상담으로 보냄",
+      "forward": "전달"
     },
     "pinned": {
       "count_one": "공지 {{count}}개",
@@ -671,5 +672,23 @@
     "badge": "알림 꺼짐",
     "hint": "나를 @부른 메시지는 계속 알려 드려요",
     "failed": "알림 설정을 바꾸지 못했어요. 다시 시도해 주세요"
+  },
+  "forward": {
+    "title": "어느 대화방으로 전달할까요?",
+    "search": "대화방·고객 이름으로 찾기",
+    "send": "‘{{room}}’에 전달",
+    "count": "메시지 {{n}}개",
+    "partial": "{{n}}개 중 {{m}}개만 전달됩니다 (카드·지운 메시지 제외)",
+    "clientRoom": "고객이 보는 방입니다",
+    "done": "전달했어요",
+    "goRoom": "방으로 이동",
+    "label": "전달된 메시지",
+    "err": {
+      "notForwardable": "전달할 수 없는 메시지가 섞여 있어요",
+      "attachment": "보안등급이 걸린 첨부는 전달할 수 없어요. 파일 첨부로 직접 붙여 주세요",
+      "archived": "보관된 대화방에는 전달할 수 없어요",
+      "failed": "전달하지 못했어요. 다시 시도해 주세요"
+    },
+    "empty": "전달할 수 있는 대화방이 없습니다"
   }
 }
