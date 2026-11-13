@@ -16,7 +16,7 @@
 const { Op } = require('sequelize');
 
 async function postCardMessage({ conv, senderId, content, meta, io }) {
-  const { Message, User, Business, ConversationParticipant } = require('../models');
+  const { Message, User } = require('../models');
   const msg = await Message.create({
     conversation_id: conv.id,
     sender_id: senderId,
@@ -40,20 +40,38 @@ async function postCardMessage({ conv, senderId, content, meta, io }) {
         const { applyMemberDisplayNameOne } = require('./displayName');
         await applyMemberDisplayNameOne(fullJson, conv.business_id, ['sender']);
       } catch { /* best-effort */ }
-      io.to(`conv:${conv.id}`).emit('message:new', fullJson);
-      // business 방 = 이 대화에 없는 멤버까지 듣는다 — 카드 meta 의 열쇠(공유 토큰·서명 링크)는 참여자 방에만.
-      //   목록·토스터는 미리보기 본문만 쓴다(Fable 2026-10-08 관찰).
-      //   덜어낸 사본엔 meta_partial 을 붙인다 — 화면은 이 사본을 대화 본문 캐시에 넣지 않고 다음에 열 때 서버에서 다시 읽는다.
-      const SECRET_META = ['share_token', 'share_url', 'token', 'sign_url', 'url'];
-      const meta0 = fullJson.meta && typeof fullJson.meta === 'object' ? fullJson.meta : null;
-      const hasSecret = !!meta0 && Object.keys(meta0).some((k) => SECRET_META.includes(k));
-      const bizJson = hasSecret
-        ? { ...fullJson, meta: Object.fromEntries(Object.entries(meta0).filter(([k]) => !SECRET_META.includes(k))), meta_partial: true }
-        : fullJson;
-      require('./convBroadcast').emitConvWide(io, conv, 'message:new', bizJson).catch(() => {});   // 사적 방은 참여자에게만(D3)
+      broadcastNewMessage(io, conv, fullJson);
     }
   } catch (e) { console.warn('[chatPost broadcast]', e.message); }
 
+  await notifyNewMessage({ conv, senderId, body: String(content || '').slice(0, 140) });
+  return msg;
+}
+
+// 방송 — 카드와 전달(services/messageForward)이 같이 쓴다. payload 는 호출부가 다 만든 것(표시명·첨부 직렬화 포함).
+//   conv 방은 고객에게 보이는 메시지만(내부 메모·미승인 초안은 :staff), 워크스페이스 전체는 convBroadcast 한 문(사적 방은 참여자에게만).
+function broadcastNewMessage(io, conv, payload) {
+  if (!io || !payload) return;
+  try {
+    const { isVisibleToClient } = require('../utils/messageVisibility');
+    io.to(isVisibleToClient(payload) ? `conv:${conv.id}` : `conv:${conv.id}:staff`).emit('message:new', payload);
+    // business 방 = 이 대화에 없는 멤버까지 듣는다 — 카드 meta 의 열쇠(공유 토큰·서명 링크)는 참여자 방에만.
+    //   목록·토스터는 미리보기 본문만 쓴다(Fable 2026-10-08 관찰).
+    //   덜어낸 사본엔 meta_partial 을 붙인다 — 화면은 이 사본을 대화 본문 캐시에 넣지 않고 다음에 열 때 서버에서 다시 읽는다.
+    const SECRET_META = ['share_token', 'share_url', 'token', 'sign_url', 'url'];
+    const meta0 = payload.meta && typeof payload.meta === 'object' ? payload.meta : null;
+    const hasSecret = !!meta0 && Object.keys(meta0).some((k) => SECRET_META.includes(k));
+    const bizJson = hasSecret
+      ? { ...payload, meta: Object.fromEntries(Object.entries(meta0).filter(([k]) => !SECRET_META.includes(k))), meta_partial: true }
+      : payload;
+    require('./convBroadcast').emitConvWide(io, conv, 'message:new', bizJson).catch(() => {});   // 사적 방은 참여자에게만(D3)
+  } catch (e) { console.warn('[chatPost broadcast]', e.message); }
+}
+
+// 알림 — 보낸 사람 제외 참여자, 내부 채널이면 고객 제외. 한 번 부르면 한 건(전달 20개도 1건).
+//   entityType conversation → 방 알림 끄기가 notifications.js 에서 저절로 걸린다. 메일은 즉시 보내지 않는다.
+async function notifyNewMessage({ conv, senderId, body }) {
+  const { User, Business, ConversationParticipant } = require('../models');
   try {
     const participants = await ConversationParticipant.findAll({
       where: { conversation_id: conv.id, user_id: { [Op.ne]: senderId } },
@@ -76,7 +94,7 @@ async function postCardMessage({ conv, senderId, content, meta, io }) {
         businessId: conv.business_id,
         eventKind: 'message',
         titleSpec: { feature: 'chat', action: 'chat_message', subject: [disp?.name, convTitle].filter(Boolean).join(' · ') },
-        body: String(content || '').slice(0, 140),
+        body,
         link: `/talk?conv=${conv.id}`,
         workspaceName: biz?.brand_name || biz?.name || null,
         previewPolicy: 'excerpt',
@@ -87,8 +105,6 @@ async function postCardMessage({ conv, senderId, content, meta, io }) {
       });
     }
   } catch (e) { console.warn('[chatPost notify]', e.message); }
-
-  return msg;
 }
 
-module.exports = { postCardMessage };
+module.exports = { postCardMessage, broadcastNewMessage, notifyNewMessage };

@@ -773,7 +773,8 @@ router.get('/:businessId/:id', authenticateToken, attachWorkspaceScope(), async 
           ],
           // 최신 200개를 가져온다 (DESC). 옛 'ASC limit 200' 은 200+ 대화에서 '가장 오래된 200개' 만
           // 반환해 최근 메시지가 사라지던 버그. 표시용 ASC 정렬은 아래에서 복원.
-          order: [['created_at', 'DESC']],
+          // 같은 초에 생긴 메시지(전달 묶음)는 id 로 순서를 잇는다.
+          order: [['created_at', 'DESC'], ['id', 'DESC']],
           limit: 200
         }
       ]
@@ -1416,14 +1417,20 @@ router.delete('/:businessId/:id', authenticateToken, checkBusinessAccess, async 
     //   releasePlanqUpload 는 자체 트랜잭션(BusinessStorageUsage FOR UPDATE)을 열어 self-deadlock 회피.
     if (planqAttachments.length) {
       let releasedBytes = 0;
+      let releasedCount = 0;
+      // 전달(services/messageForward)은 같은 저장 파일을 다른 방의 첨부 행이 가리키게 한다 — 남은 행이 있으면 파일·쿼터를 그대로 둔다.
+      const seenPaths = new Set();
       for (const a of planqAttachments) {
-        if (!a.file_path) continue;
+        if (!a.file_path || seenPaths.has(a.file_path)) continue;
+        seenPaths.add(a.file_path);
+        if (await MessageAttachmentModel.count({ where: { file_path: a.file_path } })) continue;
         const abs = pathMod.isAbsolute(a.file_path) ? a.file_path : pathMod.join(__dirname, '..', a.file_path);
         try { if (fsMod.existsSync(abs)) fsMod.unlinkSync(abs); } catch (_) { /* ignore */ }
         releasedBytes += Number(a.file_size || 0);
+        releasedCount += 1;
       }
-      await require('../services/storageUsage')
-        .releasePlanqUpload(businessId, releasedBytes, planqAttachments.length)
+      if (releasedCount) await require('../services/storageUsage')
+        .releasePlanqUpload(businessId, releasedBytes, releasedCount)
         .catch((e) => console.warn('[conversations] usage release failed', e.message));
     }
 

@@ -596,6 +596,8 @@ app.use('/api/surveys', require('./routes/survey_manage'));   // 설문 v2 «발
 app.use('/api/conversations', require('./routes/guest_admin'));
 // Q talk 문의 응대 상태·담당자 바꾸기(직원만, PUT …/:businessId/:id/care) — docs/QTALK_CARE_DESIGN.md
 app.use('/api/conversations', require('./routes/conversation_care'));
+// Q talk 메시지 전달(POST …/:businessId/:id/forward, 멤버 이상) — 고유 꼬리 경로라 순서 영향 없음. docs/QTALK_FORWARD_DESIGN.md
+app.use('/api/conversations', require('./routes/conversation_forward'));
 // ★ 동기화 조치 라우트를 **먼저** 마운트한다 — calendar.js 에 `/:id/share` 같은 와일드카드 형태가
 //   있어 뒤에 붙이면 경로가 그쪽에 먹힐 위험이 있다(라우트 순서 함정).
 app.use('/api/calendar', require('./routes/calendar_sync'));

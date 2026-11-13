@@ -208,7 +208,7 @@ router.get('/:token/messages', guestLimiter('guest-msgs', { windowMs: 60 * 1000,
         // 첨부 — 모양은 services/guestAttachment 화이트리스트(영구 공개 주소를 싣지 않는다, docs/GUEST_UPLOAD_DESIGN.md §1)
         { model: require('../models').MessageAttachment, as: 'attachments', attributes: ['id', 'file_name', 'file_size', 'mime_type', 'file_path', 'storage_provider', 'external_id'], required: false },
       ],
-      order: [['created_at', 'DESC']],
+      order: [['created_at', 'DESC'], ['id', 'DESC']],   // 같은 초(전달 묶음)는 id 로
       limit: 200,
     });
     const visible = rows.map((m) => (m.toJSON ? m.toJSON() : m))
