@@ -360,6 +360,13 @@ const ARTICLES = [
         'Hover a message (tap it on mobile) and choose **Reply** to answer with the original quoted. Tap the quote to jump to that message.'),
       s('대화 목록 위 **안 읽음** 을 누르면 안 읽은 대화만 보입니다. 대화 머리의 **이 대화에서 찾기** 로 그 대화 안 메시지를 찾을 수 있습니다.',
         'Tap **Unread** above the chat list to show only unread chats. Use **Search in this chat** in the chat header to find messages in that chat.'),
+      // 2026-11-13 — 전달·알림 끄기·응대 상태
+      s('메시지의 더보기(또는 여러 개 선택)에서 **전달** 을 누르고 대화방을 고르면 다른 대화방으로 보낼 수 있습니다. 받는 방에는 «전달된 메시지» 로 표시됩니다.',
+        'Choose **Forward** from a message’s More menu (or after selecting several) and pick a chat to send them to another chat. They appear there as “Forwarded message”.'),
+      s('대화 머리에서 **알림 끄기** 를 누르면 그 대화의 보통 메시지 알림·숫자가 나에게만 꺼집니다. 나를 @부른 메시지와 담당 배정은 계속 알려 드립니다.',
+        'Tap **Mute notifications** in the chat header to turn off regular message alerts and counts for that chat — for you only. Messages that @mention you and assignments still notify you.'),
+      s('고객 문의 대화는 머리에서 **응대 상태**(응대 중·보류·해결)와 **담당자**를 정할 수 있습니다. 대화 목록 위 **답할 문의** 를 누르면 내가 담당인 «응대 중» 문의만 보입니다.',
+        'For client inquiry chats, set the **status** (Open · On hold · Resolved) and **assignee** in the header. Tap **To answer** above the chat list to see only open inquiries assigned to you.'),
       // 2026-10-09 — 사적 팀 대화(보안 점검 2차 D3)
       note('프로젝트·고객과 연결하지 않은 팀 대화는 **참여자만** 볼 수 있습니다. 대표·관리자도 참여자가 아니면 보지 못합니다. 프로젝트 대화방과 고객 대화방은 팀 모두가 봅니다.',
         'Team chats not linked to a project or client are visible to **participants only** — owners and admins included. Project and client chats are visible to the whole team.'),
@@ -1077,6 +1084,11 @@ const ARTICLES = [
       s('답장·전달·임시저장이 대화처럼 동작합니다. 첨부는 Q File에 함께 보관됩니다.', 'Reply, forward, and save drafts like a chat. Attachments are also stored in Q File.'),
       s('새 메일·답장·전달에서 **참조 추가** 를 눌러 참조(CC) 주소를 넣을 수 있습니다. 받은 메일의 참조 주소는 보낸 사람 아래에 보입니다.',
         'In a new mail, reply, or forward, click **Add CC** to add CC addresses. CC addresses on received mail appear under the sender.'),
+      // 2026-11-13 — 전체 답장·숨은참조·안 읽음으로 표시
+      s('답장할 때 **보낸 사람에게만** 또는 **전체 답장** 을 고를 수 있고, **숨은참조 추가** 로 숨은참조(BCC) 주소도 넣을 수 있습니다.',
+        'When replying, choose **Sender only** or **Reply all**, and use **Add Bcc** to add Bcc addresses.'),
+      s('읽은 메일도 **안 읽음으로 표시** 를 누르면 다시 안 읽은 메일로 남습니다. 이 표시는 나에게만 적용됩니다.',
+        'Use **Mark as unread** to keep a read mail as unread. This applies to you only.'),
       s('첨부가 있는 메일은 목록에서 제목 옆에 클립 표시가 붙습니다. 열어보기 전에 첨부 유무를 알 수 있어요.',
         'Threads with attachments show a paperclip in the list, so you can tell before opening.'),
       s('첨부를 누르면 이미지와 PDF는 바로 미리보기로 열립니다. 이미지는 좌우로 넘겨 볼 수 있고, 내려받을 때는 첨부 오른쪽의 내려받기 아이콘을 누르세요. 그 밖의 형식은 누르면 바로 내려받습니다.',
