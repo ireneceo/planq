@@ -284,6 +284,67 @@ async function run() {
     if (fixtureId && prev) await db.EmailThread.update(prev, { where: { id: fixtureId } }).catch(() => null);
   }
 
+  // ── ③ «안 읽음으로 표시»(나만) — 누른 화면이 방금 켠 표시를 스스로 풀지 않는다 (2026-11-13) ──
+  //   docs/QMAIL_MARK_UNREAD_DESIGN.md §6·§10. Fable 완료 검증 1차 B1 재현을 그대로 검사로 고정한다:
+  //   상세가 열린 채 신호(mail:refresh)로 상세를 다시 읽는 중에(응답 1.5초 지연) ⋯ → «안 읽음으로 표시» 를 누르면,
+  //   늦게 온 응답이 상세를 다시 그리고 자동 읽음(mark-read)으로 표시를 풀었다(누른 사람에게는 «눌렀는데 안 된다»).
+  //   ★ 양성 대조 = 고치기 전 빌드에서 이 검사가 빨강이었다(2026-11-13 실측) — 지연을 빼면 결함이 안 보인다.
+  {
+    const browser2 = await b.launch().then((x) => x.browser);
+    try {
+      const page = await browser2.newPage();
+      await page.setViewport({ width: 1440, height: 900 });
+      await b.login(page);
+      const tok = await page.evaluate(async (c) => {
+        const r = await fetch('/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify(c) }).then((x) => x.json());
+        return r?.data?.token || null;
+      }, b.CREDS);
+      const api = (method, path) => page.evaluate(async (m, pth, tk, biz) => {
+        const r = await fetch(pth, { method: m, headers: { Authorization: 'Bearer ' + tk, 'X-Workspace-Id': String(biz) } });
+        return { status: r.status, body: await r.json().catch(() => null) };
+      }, method, path, tok, FIX_BIZ);
+      const unreadN = async () => ((await api('GET', `/api/businesses/${FIX_BIZ}/email-threads?folder=all&unread=true&limit=1`)).body?.pagination?.total ?? null);
+      // 받은 메일이 있는 스레드 하나(표시할 수 있는 것)
+      const list = (await api('GET', `/api/businesses/${FIX_BIZ}/email-threads?folder=all&limit=20`)).body?.data || [];
+      let tid = null;
+      for (const t of list) { const d = (await api('GET', `/api/businesses/${FIX_BIZ}/email-threads/${t.id}`)).body?.data; if (d && d.can_mark_unread) { tid = t.id; break; } }
+      if (!tid) {
+        results.push({ name: '안 읽음으로 표시 — 누른 화면이 스스로 풀지 않는다', unmeasured: true, details: ['표시할 수 있는 스레드가 첫 20행에 없다'] });
+      } else {
+        await b.goto(page, `/mail?folder=all&thread=${tid}`); await b.sleep(3500);   // 열면 읽음(지난 표시도 풀림)
+        const u0 = await unreadN();
+        let markReads = 0;
+        await page.setRequestInterception(true);
+        page.on('request', (req) => {
+          const u = req.url();
+          if (req.method() === 'POST' && u.includes(`/email-threads/${tid}/mark-read`)) markReads += 1;
+          if (req.method() === 'GET' && new RegExp(`/email-threads/${tid}(\\?|$)`).test(u)) { setTimeout(() => req.continue().catch(() => null), 1500); return; }
+          req.continue().catch(() => null);
+        });
+        await page.evaluate(() => window.dispatchEvent(new Event('mail:refresh')));
+        await b.sleep(150);
+        await page.click('[data-testid="mail-detail-more"]'); await b.sleep(400);
+        await page.click('[data-testid="mail-detail-mark-unread"]');
+        await b.sleep(4000);
+        const u1 = await unreadN();
+        const shownWithoutThread = await page.evaluate(() => !new URL(location.href).searchParams.get('thread') && !!document.querySelector('[data-testid="mail-reply-open"]'));
+        push('안 읽음으로 표시 — 늦은 상세 응답이 표시를 풀지 않는다(+1 유지 · mark-read 0회)',
+          u0 != null && u1 === u0 + 1 && markReads === 0,
+          `안 읽음 ${u0} → ${u1} · 누른 뒤 mark-read ${markReads}회 — 풀리면 «눌렀는데 안 읽음이 안 된다»`);
+        push('안 읽음으로 표시 — 닫은 상세가 다시 그려지지 않는다',
+          !shownWithoutThread, shownWithoutThread ? '주소에 thread 가 없는데 상세(답장 버튼)가 보인다' : '닫힌 채');
+        await page.setRequestInterception(false);
+        await b.goto(page, `/mail?folder=all&thread=${tid}`); await b.sleep(3500);   // 다시 열면 풀린다(음성 대조)
+        const u2 = await unreadN();
+        push('안 읽음으로 표시 — 다시 열면 풀린다 (음성 대조)', u2 === u0, `안 읽음 ${u1} → ${u2} (처음 ${u0})`);
+      }
+    } catch (e) {
+      push('안 읽음으로 표시 단계', false, String((e && e.message) || e));
+    } finally {
+      await browser2.close().catch(() => null);
+    }
+  }
+
   return results;
 }
 

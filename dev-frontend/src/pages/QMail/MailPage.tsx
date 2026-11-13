@@ -1189,8 +1189,14 @@ const MailPage: React.FC = () => {
   //   «안 읽음으로 표시» 한 메일을 열어 둔 다른 탭이 신호 한 번에 표시를 풀지 않게 한다(docs/QMAIL_MARK_UNREAD_DESIGN.md §6).
   const autoReadIdRef = useRef<number | null>(null);
   useEffect(() => { if (!activeId) autoReadIdRef.current = null; }, [activeId]);
+  // 방금 «안 읽음으로 표시» 한 스레드 — 닫은 뒤 늦게 도착한 상세 응답·신호 재조회가 표시를 풀지 못하게 한다.
+  //   실제로 다시 열 때(activeId 가 다시 서는 순간, 아래 상세 effect)만 지운다(Fable 완료 검증 1차 B1, 2026-11-13).
+  const justMarkedRef = useRef<number | null>(null);
   const loadDetail = useCallback(async (id: number) => {
     if (!businessId) return;
+    // 방금 «안 읽음으로 표시» 하고 닫은 메일 — 신호 재조회(옛 activeId 를 쥔 silentReload)가 닫힌 상세를 다시 그리지 않게.
+    //   실제로 다시 열면 상세 effect 가 이 표를 먼저 지운다.
+    if (justMarkedRef.current === id) return;
     const reqNo = ++detailReqRef.current;
     const stale = () => reqNo !== detailReqRef.current;
     setDetailLoading(true);
@@ -1228,7 +1234,7 @@ const MailPage: React.FC = () => {
         // 자동 읽음 처리 (unread_count 있을 때만) — 내가 «안 읽음으로 표시» 한 메일은 **새로 열 때만** 읽음으로 돌린다
         const freshOpen = autoReadIdRef.current !== id;
         autoReadIdRef.current = id;
-        if (j.data.unread_count > 0 && (!j.data.marked_unread || freshOpen)) {
+        if (j.data.unread_count > 0 && justMarkedRef.current !== id && (!j.data.marked_unread || freshOpen)) {
           const mr = await apiFetch(`/api/businesses/${businessId}/email-threads/${id}/mark-read`, { method: 'POST' });
           // 지금 연 사람(나)은 읽은 것이다 — «읽음 n/m» 명단이 연 직후에도 나를 «안 읽음» 에 두지 않게(받아 온 명단은 읽기 전 것).
           if (mr.ok && myUserId) {
@@ -1293,7 +1299,7 @@ const MailPage: React.FC = () => {
     //   (Irene: "리스트 클릭해도 상세내용이 너무 늦게 나와"). silentReload 는 이 effect 를
     //   타지 않으므로 열려 있는 화면이 깜빡이지 않는다.
     setDetail(null);
-    if (activeId) loadDetail(activeId);
+    if (activeId) { justMarkedRef.current = null; loadDetail(activeId); }   // 새로 여는 것 — 방금 표시한 메일도 열면 읽음
   }, [activeId, loadDetail]);
 
   const onMarkSpam = async () => {
@@ -1323,6 +1329,11 @@ const MailPage: React.FC = () => {
       const r = await apiFetch(`/api/businesses/${businessId}/email-threads/${threadId}/mark-unread`, { method: 'POST' });
       const j = await r.json().catch(() => null);
       if (!r.ok || !j?.success) throw new Error('mark_unread_failed');
+      // 날아가 있는 상세 응답을 버린다 — 닫은 뒤 늦게 와서 상세를 다시 그리고 자동 읽음으로 표시를 풀던 길(B1)
+      detailReqRef.current += 1;
+      setDetailLoading(false);
+      justMarkedRef.current = threadId;
+      setDetail(null);
       clearSelection();
       loadList({ silent: true });
       loadCounts();
