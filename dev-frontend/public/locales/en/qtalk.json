@@ -664,5 +664,12 @@
     "stateAria": "Inquiry status",
     "assigneeAria": "Owner",
     "failed": "Couldn't save"
+  },
+  "mute": {
+    "on": "Mute notifications",
+    "off": "Unmute notifications",
+    "badge": "Muted",
+    "hint": "You'll still be notified when someone @mentions you",
+    "failed": "Couldn't change notification settings. Try again"
   }
 }

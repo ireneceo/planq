@@ -113,7 +113,7 @@ router.isAllowed = isAllowed;
  *   메일·푸시에는 «무슨 일이 있었는지» 만 보낸다. 제목·링크는 그대로라 도달성은 안 떨어진다.
  *   ★ 이것은 «가리기» 가 아니라 **경로를 좁히는 것**이다 — 우리 DB 의 평문 저장은 별건이다.
  */
-async function notify({ userId, businessId, eventKind, title, titleSpec, body, link, ctaLabel, workspaceName, tag, actorUserId, entityType, entityId, ioApp, skipChannels, previewPolicy, suppressEscalation, urgent }) {
+async function notify({ userId, businessId, eventKind, title, titleSpec, body, link, ctaLabel, workspaceName, tag, actorUserId, entityType, entityId, ioApp, skipChannels, previewPolicy, suppressEscalation, urgent, ignoreMute }) {
   if (!userId || !eventKind) return { inbox: false, email: false, push: false };
   // ★ 삭제된 워크스페이스로는 아무것도 발송하지 않는다 (Fable 중요 — 중앙 fan-out 무검사).
   //   여기 한 곳이 알림·메일·푸시의 공통 착지점이라, 여기서 막으면 발송 계열이 전부 닫힌다.
@@ -145,6 +145,17 @@ async function notify({ userId, businessId, eventKind, title, titleSpec, body, l
     //   지금은 7ms 라 미룬다. 합치려면 두 곳이 같은 attributes 를 쓰게 해야 하는데,
     //   그 김에 email 분기의 조건이 바뀌면 여기와 갈라진다 — 별건으로 다룬다.
   } catch { /* 조회 실패로 알림 전체를 막지 않는다 */ }
+  // ★ 대화방 알림 끄기 (2026-11-13 · docs/QTALK_MUTE_DESIGN.md §3-3 · Fable DESIGN-READY) — 이 사람이 끈 방의
+  //   **보통 메시지**(eventKind 'message')는 어느 채널로도 보내지 않는다. 알림 행이 안 생기므로 5분 뒤 재알림 메일도 없다.
+  //   @멘션·담당 배정은 'mention' 이라 그대로 온다. 게스트 계정 요청처럼 처리할 일은 호출부가 ignoreMute 로 통과시킨다.
+  //   entityType 은 호출부마다 대소문자가 달라(guest 쪽 'Conversation') 소문자로 맞춘다.
+  //   조회 실패는 **보낸다** — 끄기는 편의 기능이고, 실패로 알림을 삼키는 쪽이 더 나쁘다.
+  if (eventKind === 'message' && !ignoreMute && entityId && String(entityType || '').toLowerCase() === 'conversation') {
+    try {
+      const [own] = await require('../services/convParticipants').ownRows(userId, [Number(entityId)], ['muted_at']);
+      if (own && own.muted_at) return { inbox: false, email: false, push: false, skipped: 'conv_muted' };
+    } catch (e) { console.warn('[notify conv mute]', e.message); }
+  }
   // 수신자 언어는 한 번만 읽고 제목·본문·버튼이 같이 쓴다.
   //   `body`/`ctaLabel` 을 **함수**로 주면 언어를 받아 만든다 — notifyMany 로 여러 명에게 보낼 때
   //   각자의 언어로 나간다(문자열로 주면 종전대로 그대로 쓴다, 옛 호출부 무변경).
@@ -368,10 +379,10 @@ async function notify({ userId, businessId, eventKind, title, titleSpec, body, l
 }
 
 // 멀티 수신자용 (워크스페이스 멤버 N 명에게 한 번에)
-async function notifyMany({ userIds, businessId, eventKind, title, titleSpec, body, link, ctaLabel, workspaceName, excludeUserId, tag, actorUserId, entityType, entityId, ioApp, skipChannels, previewPolicy, suppressEscalation, urgent }) {
+async function notifyMany({ userIds, businessId, eventKind, title, titleSpec, body, link, ctaLabel, workspaceName, excludeUserId, tag, actorUserId, entityType, entityId, ioApp, skipChannels, previewPolicy, suppressEscalation, urgent, ignoreMute }) {
   const filtered = (userIds || []).filter((id) => id && id !== excludeUserId);
   const results = await Promise.all(
-    filtered.map((uid) => notify({ userId: uid, businessId, eventKind, title, titleSpec, body, link, ctaLabel, workspaceName, tag, actorUserId, entityType, entityId, ioApp, skipChannels, previewPolicy, suppressEscalation, urgent }))
+    filtered.map((uid) => notify({ userId: uid, businessId, eventKind, title, titleSpec, body, link, ctaLabel, workspaceName, tag, actorUserId, entityType, entityId, ioApp, skipChannels, previewPolicy, suppressEscalation, urgent, ignoreMute }))
   );
   return results;
 }

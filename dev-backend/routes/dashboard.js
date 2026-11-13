@@ -972,6 +972,7 @@ async function collectChats(businessId, userId) {
         AND m.sender_id != :uid
         ${visSql}
         AND (cp.last_read_at IS NULL OR m.created_at > cp.last_read_at)
+        AND cp.muted_at IS NULL /* 알림 끈 방은 «확인 필요»·사이드바 Q talk 숫자에서 뺀다(docs/QTALK_MUTE_DESIGN.md §3-4) — 담당 문의는 아래에서 그대로 */
       GROUP BY m.conversation_id`,
     { replacements: { uid: userId, cids: convIds } },
   );

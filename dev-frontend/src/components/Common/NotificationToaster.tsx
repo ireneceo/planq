@@ -21,6 +21,7 @@ import { notificationRowToToastLink, openNotificationTarget, type NotificationFu
 import NotificationTypeIcon from './NotificationTypeIcon';
 import { desktopBridge } from '../../services/native';
 import { ensureUnlock, playPing } from './notificationSound';
+import { ensureMutedLoaded, isConversationMuted } from '../../hooks/useMutedConversations';
 
 interface Toast {
   id: string;
@@ -66,7 +67,7 @@ export default function NotificationToaster() {
   // 사운드 unlock — 마운트 직후 첫 user gesture 리스너 등록.
   // socket 알림은 user gesture 가 아니라서 그 시점에 AudioContext 만들어도 Chrome 이 차단함.
   // 페이지에서 사용자가 한 번이라도 클릭/키 입력/터치하면 자동으로 unlock.
-  useEffect(() => { ensureUnlock(); }, []);
+  useEffect(() => { ensureUnlock(); ensureMutedLoaded(); }, []);
 
   // 지금 떠 있는 카드 — sw.js 의 «이 알림 카드를 띄웠나» 물음에 답할 때 읽는다(state 는 리스너 클로저에서 낡는다).
   const toastsRef = useRef<Toast[]>([]);
@@ -341,6 +342,8 @@ export default function NotificationToaster() {
     // 채팅 메시지 — 본인이 보낸 건 제외 (sender_id !== userId)
     const offMsg = onSocket('message:new', (msg: { id: number; conversation_id: number; sender_id: number; content?: string; attachment_hint?: { kind: 'image' | 'file'; count: number }; sender?: { name?: string; display_name?: string | null } }) => {
       if (msg.sender_id === Number(user.id)) return;
+      // 알림 끈 방 — 토스트·소리 없음. @멘션은 notification:new(mention)로 따로 와서 그대로 뜬다(docs/QTALK_MUTE_DESIGN.md §4).
+      if (isConversationMuted(msg.conversation_id)) return;
       // 중복 차단 — 같은 메시지가 conv room + business room 양쪽으로 도착 (백엔드 2회 emit). msg.id 로 1회만 처리.
       if (msg.id) {
         const now = Date.now();

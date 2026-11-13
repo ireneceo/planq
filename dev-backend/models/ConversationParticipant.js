@@ -42,6 +42,12 @@ ConversationParticipant.init({
     type: DataTypes.DATE,
     allowNull: true
   },
+  // 내 대화방 알림 끄기 — null = 켜짐, timestamp = 끈 시각(2026-11-13 · docs/QTALK_MUTE_DESIGN.md).
+  //   보통 메시지 알림(푸시·알림함·토스트·메일)만 막고 @멘션·담당 배정은 그대로 온다. 판정은 routes/notifications.js notify() 한 곳.
+  muted_at: {
+    type: DataTypes.DATE,
+    allowNull: true
+  },
   // 마지막으로 읽은 시각 — unread_count 계산 기준점.
   // null = 한 번도 읽지 않음 (모든 메시지가 unread).
   // 대화방 진입 시 PUT /:bid/:id/read 로 NOW() 갱신.

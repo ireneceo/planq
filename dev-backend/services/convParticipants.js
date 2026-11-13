@@ -47,6 +47,16 @@ async function ownRows(userId, conversationIds, attributes) {
   });
 }
 
+/** 내가 알림을 끈 대화방 id 전부(viewer 포함 · 워크스페이스 구분 없음) — 화면 토스트 거르기용(docs/QTALK_MUTE_DESIGN.md). */
+async function mutedConversationIds(userId) {
+  const { Op } = require('sequelize');
+  const rows = await model().unscoped().findAll({
+    where: { user_id: userId, muted_at: { [Op.ne]: null } },
+    attributes: ['conversation_id'],
+  });
+  return rows.map((r) => r.conversation_id);
+}
+
 /**
  * 참여자로 들인다(초대·생성·말하기). 없으면 참여자로 만들고, viewer 행이면 **참여자로 올린다**
  * (joined_at = 지금, 읽음 커서·핀은 그대로). 이미 참여자면 아무것도 안 한다.
@@ -134,4 +144,4 @@ async function countOthers(conversationId, senderId) {
   return model().count({ where: { conversation_id: conversationId, user_id: { [Op.ne]: senderId } } });
 }
 
-module.exports = { touchOwnRow, ownRows, joinParticipant, promoteSpeaker, removeRows, changeRole, countOthers };
+module.exports = { touchOwnRow, ownRows, mutedConversationIds, joinParticipant, promoteSpeaker, removeRows, changeRole, countOthers };

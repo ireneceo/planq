@@ -15,6 +15,7 @@ import {
 } from './types';
 import { useAuth, apiFetch } from '../../contexts/AuthContext';
 import * as qtalkApi from '../../services/qtalk';
+import { useMutedConversations, setConversationMutedLocal } from '../../hooks/useMutedConversations';
 import { promoteInboxItem, promoteErrorKey } from '../../services/sale';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
 import LetterAvatar from '../../components/Common/LetterAvatar';
@@ -780,6 +781,30 @@ const ChatPanel: React.FC<Props> = ({
   }, []);
   // FilePicker 의 businessId — useAuth() 의 user.business_id 사용 (MockProject 에는 business_id 없음)
   const businessId = user?.business_id ? Number(user.business_id) : null;
+  // 대화방 알림 끄기(나만) — docs/QTALK_MUTE_DESIGN.md. 끈 방 묶음은 한 벌(useMutedConversations) — 토스트·사이드바 숫자와 같은 값.
+  const { isMuted } = useMutedConversations();
+  const [muteNotice, setMuteNotice] = useState<{ kind: 'hint' | 'error'; text: string } | null>(null);
+  const muteNoticeTimer = useRef<number | null>(null);
+  const showMuteNotice = (n: { kind: 'hint' | 'error'; text: string }) => {
+    setMuteNotice(n);
+    if (muteNoticeTimer.current) window.clearTimeout(muteNoticeTimer.current);
+    muteNoticeTimer.current = window.setTimeout(() => setMuteNotice(null), 5000);
+  };
+  useEffect(() => () => { if (muteNoticeTimer.current) window.clearTimeout(muteNoticeTimer.current); }, []);
+  useEffect(() => { setMuteNotice(null); }, [activeConversationId]);
+  const toggleMute = async (convId: number) => {
+    if (!businessId) return;
+    const next = !isMuted(convId);
+    setConversationMutedLocal(convId, next);   // 바로 바뀐다 — 실패하면 되돌린다
+    const res = await qtalkApi.setConversationMuted(businessId, convId, next).catch(() => null);
+    if (!res) {
+      setConversationMutedLocal(convId, !next);
+      showMuteNotice({ kind: 'error', text: t('mute.failed', '알림 설정을 바꾸지 못했어요. 다시 시도해 주세요') as string });
+      return;
+    }
+    if (next) showMuteNotice({ kind: 'hint', text: t('mute.hint', '나를 @부른 메시지는 계속 알려 드려요') as string });
+    else setMuteNotice(null);
+  };
   useEffect(() => {
     setHumanAsked(false);
     if (!isSupportRoom || !businessId) return;
@@ -1586,6 +1611,25 @@ const ChatPanel: React.FC<Props> = ({
               conversationId={activeConv.id}
               clientName={activeConv.client?.name || activeConv.name} />
           )}
+          {/* 알림 끄기/켜기 — 나만 바뀐다(다른 사람에게 영향·표시 없음). 끈 방도 @멘션·담당 배정은 온다. */}
+          {!isSupportRoom && (() => {
+            const on = isMuted(activeConv.id);
+            const label = (on ? t('mute.off', '알림 켜기') : t('mute.on', '알림 끄기')) as string;
+            return (
+              <IconBtn type="button" data-testid="chat-mute-toggle" aria-pressed={on}
+                onClick={() => { void toggleMute(activeConv.id); }} title={label} aria-label={label}>
+                {on ? (
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                    <path d="M13.73 21a2 2 0 0 1-3.46 0" /><path d="M18.63 13A17.89 17.89 0 0 1 18 8" /><path d="M6.26 6.26A5.86 5.86 0 0 0 6 8c0 7-3 9-3 9h14" /><path d="M18 8a6 6 0 0 0-9.33-5" /><line x1="1" y1="1" x2="23" y2="23" />
+                  </svg>
+                ) : (
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                    <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" /><path d="M13.73 21a2 2 0 0 1-3.46 0" />
+                  </svg>
+                )}
+              </IconBtn>
+            );
+          })()}
           <IconBtn type="button" data-testid="chat-search-open" onClick={() => setSearchOpen((v) => !v)} aria-pressed={searchOpen}
             title={t('search.open', '이 대화에서 찾기') as string} aria-label={t('search.open', '이 대화에서 찾기') as string}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="7" /><path d="M21 21l-4.35-4.35" /></svg>
@@ -1649,6 +1693,9 @@ const ChatPanel: React.FC<Props> = ({
           ))}
         </DetailMetaLeft>
       </ChatMetaBar>
+      {muteNotice && (
+        <MuteNoticeLine role="status" data-testid="chat-mute-notice" $error={muteNotice.kind === 'error'}>{muteNotice.text}</MuteNoticeLine>
+      )}
       {searchOpen && (
         <ChatSearchPanel conversationId={activeConv.id} onJump={jumpToSearchHit} onClose={() => setSearchOpen(false)} />
       )}
@@ -3080,6 +3127,12 @@ const HeaderRight = styled.div`
   flex-shrink: 0;
 `;
 
+const MuteNoticeLine = styled.div<{ $error: boolean }>`
+  padding: 6px 16px; font-size: 0.75rem; line-height: 1.4;
+  color: ${(p) => (p.$error ? '#B91C1C' : '#475569')};
+  background: ${(p) => (p.$error ? '#FEF2F2' : '#F8FAFC')};
+  border-bottom: 1px solid #E2E8F0;
+`;
 const IconBtn = styled.button`
   width: 30px;
   height: 30px;

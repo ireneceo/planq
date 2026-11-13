@@ -10,7 +10,7 @@ const { serializeMessageAttachments } = require('../services/filePreview');
 const { maskDeletedMessages } = require('../utils/deletedMessage');
 const { CLIENT_VISIBLE_MESSAGE_WHERE, clientVisibleSql, isVisibleToClient } = require('../utils/messageVisibility');
 const { createAuditLog } = require('../middleware/audit');
-const { touchOwnRow, ownRows, joinParticipant, promoteSpeaker, removeRows, countOthers } = require('../services/convParticipants');
+const { touchOwnRow, ownRows, mutedConversationIds, joinParticipant, promoteSpeaker, removeRows, countOthers } = require('../services/convParticipants');
 const cueOrchestrator = require('../services/cue_orchestrator');
 const kbService = require('../services/kb_service');
 const { applyMemberDisplayName, applyMemberDisplayNameOne, getMemberNameMap, applyGuestDisplayName } = require('../services/displayName');
@@ -78,7 +78,8 @@ router.get('/me/unread-total-all', authenticateToken, async (req, res, next) => 
           WHERE m.conversation_id IN (:cids)
             AND m.sender_id != :uid
             ${visSql}
-            AND (cp.last_read_at IS NULL OR m.created_at > cp.last_read_at)`,
+            AND (cp.last_read_at IS NULL OR m.created_at > cp.last_read_at)
+            AND cp.muted_at IS NULL /* 알림 끈 방은 합계에서 뺀다(docs/QTALK_MUTE_DESIGN.md §3-4) */`,
         { replacements: { uid, cids: convIds } }
       );
       const cnt = Number(rows[0]?.cnt || 0);
@@ -86,6 +87,16 @@ router.get('/me/unread-total-all', authenticateToken, async (req, res, next) => 
       total += cnt;
     }
     return successResponse(res, { total, by_business: byBiz });
+  } catch (err) { next(err); }
+});
+
+// ─────────────────────────────────────────────────────────
+// 내가 알림을 끈 대화방 id — 화면 토스트·소리 거르기용(docs/QTALK_MUTE_DESIGN.md §3-2).
+//   내 행만 읽는다(접근 판정 불필요). ★ `/:businessId` 보다 먼저 선언 — 아니면 'me' 가 워크스페이스 id 로 잡힌다.
+// ─────────────────────────────────────────────────────────
+router.get('/me/muted', authenticateToken, async (req, res, next) => {
+  try {
+    return successResponse(res, { ids: await mutedConversationIds(req.user.id) });
   } catch (err) { next(err); }
 });
 
@@ -116,8 +127,9 @@ router.get('/:businessId', authenticateToken, attachWorkspaceScope(), async (req
     // 사용자 본인의 pinned_at + last_read_at 부착 (응답 sort 용 + unread 계산).
     // ConversationParticipant 의 두 필드는 사용자별 — 같은 conv 라도 사람마다 핀/읽음 상태가 다름.
     //   ★ viewer(열어 보기만 한) 행도 내 핀·읽음 커서다 — 그래서 unscoped 인 ownRows.
-    const myParts = await ownRows(req.user.id, conversations.map(c => c.id), ['conversation_id', 'pinned_at', 'last_read_at']);
+    const myParts = await ownRows(req.user.id, conversations.map(c => c.id), ['conversation_id', 'pinned_at', 'last_read_at', 'muted_at']);
     const pinMap = new Map(myParts.map(p => [p.conversation_id, p.pinned_at]));
+    const muteMap = new Map(myParts.map(p => [p.conversation_id, p.muted_at]));
     // 진입 시점 '여기까지 읽음' 구분선용 — markRead 전 last_read_at (frontend 가 진입 시 freeze).
     const lastReadMap = new Map(myParts.map(p => [p.conversation_id, p.last_read_at]));
 
@@ -222,6 +234,7 @@ router.get('/:businessId', authenticateToken, attachWorkspaceScope(), async (req
     const enriched = conversations.map(c => {
       const obj = c.toJSON();
       obj.my_pinned_at = pinMap.get(c.id) || null;
+      obj.my_muted_at = muteMap.get(c.id) || null;
       obj.my_last_read_at = lastReadMap.get(c.id) || null;
       obj.unread_count = unreadMap.get(c.id) || 0;
       obj.last_message_preview = lastMsgMap.get(c.id) || null;
@@ -276,6 +289,55 @@ router.delete('/:businessId/:id/pin', authenticateToken, checkBusinessAccess, as
     const io = req.app.get('io');
     if (io) io.to(`user:${req.user.id}`).emit('conversation:pin', { conversation_id: convId, pinned_at: null });
     return successResponse(res, { pinned_at: null });
+  } catch (err) { next(err); }
+});
+
+// ─────────────────────────────────────────────────────────
+// 대화방 알림 끄기/켜기 (사람별) — docs/QTALK_MUTE_DESIGN.md §3-2 (Fable DESIGN-READY)
+//   PUT /api/conversations/:businessId/:id/mute  { muted: true|false }
+//   보통 메시지 알림만 막는다(@멘션·담당 배정은 그대로) — 판정은 routes/notifications.js notify() 한 곳.
+//   ★ 판정 먼저, 행은 나중 — 끄기는 «보는 중» 행을 **만든다**(touchOwnRow). 검사 없이 만들면 비참여자가 사적 방에
+//     행을 심는다(핀과 같은 구멍, 2026-10-09 D3). 접근 불가·없는 방은 둘 다 404(방이 있는지조차 알리지 않는다).
+//   고객도 쓴다 → checkBusinessAccess(멤버 전용) 대신 /read 와 같은 attachWorkspaceScope.
+// ─────────────────────────────────────────────────────────
+// audit-exempt: 개인 표시 상태(핀·읽음과 같다) — 내용·공개 범위·다른 사람 무변경
+router.put('/:businessId/:id/mute', authenticateToken, attachWorkspaceScope(), async (req, res, next) => {
+  try {
+    const businessId = Number(req.params.businessId);
+    const convId = Number(req.params.id);
+    const { muted } = req.body || {};
+    if (typeof muted !== 'boolean') return errorResponse(res, 'muted_boolean_required', 400);
+    const conv = await Conversation.findOne({ where: { id: convId, business_id: businessId } });
+    if (!conv) return errorResponse(res, 'conversation_not_found', 404);
+    if (!(await canAccessConversation(req.user.id, conv, req.scope))) return errorResponse(res, 'conversation_not_found', 404);
+    let mutedAt = null;
+    if (muted) {
+      const [prev] = await ownRows(req.user.id, [convId], ['id', 'muted_at']);
+      const row = (prev && prev.muted_at) ? prev : await touchOwnRow(convId, req.user.id, { muted_at: new Date(Math.floor(Date.now() / 1000) * 1000) });   // 초 단위 — DB(DATETIME)와 같은 값을 돌려준다
+      mutedAt = row.muted_at;
+      // 끄기 직전에 생긴 이 방의 내 안읽음 «보통 메시지» 알림 — 5분 뒤 재알림 메일(unreadEscalationCron)이 나가지 않게 막는다.
+      //   멘션은 그대로 둔다(끈 방에서도 오는 것과 같은 규칙).
+      try {
+        const { Notification } = require('../models');
+        await Notification.update(
+          { email_escalated_at: new Date() },
+          { where: {
+            user_id: req.user.id, event_kind: 'message', read_at: null, email_escalated_at: null,
+            entity_type: { [Op.in]: ['conversation', 'Conversation'] }, entity_id: convId,
+          } },
+        );
+      } catch (e) { console.warn('[conv mute escalate-off]', e.message); }
+    } else {
+      // 켜기는 행을 만들지 않는다 — 없으면 원래 켜져 있는 것이다.
+      const [row] = await ownRows(req.user.id, [convId], ['id', 'muted_at']);
+      if (row && row.muted_at) await row.update({ muted_at: null });
+    }
+    const io = req.app.get('io');
+    if (io) {
+      io.to(`user:${req.user.id}`).emit('conversation:mute', { conversation_id: convId, business_id: businessId, muted_at: mutedAt });
+      io.to(`user:${req.user.id}`).emit('inbox:refresh', { reason: 'conversation_mute', conversation_id: convId });
+    }
+    return successResponse(res, { muted_at: mutedAt });
   } catch (err) { next(err); }
 });
 
@@ -357,7 +419,7 @@ router.get('/:businessId/unread-total', authenticateToken, attachWorkspaceScope(
       ? `AND ${clientVisibleSql('m')}`
       : 'AND (m.is_deleted IS NULL OR m.is_deleted = 0)';
     const [rows] = await sequelize.query(
-      `SELECT m.conversation_id AS cid, COUNT(m.id) AS cnt
+      `SELECT m.conversation_id AS cid, COUNT(m.id) AS cnt, MAX(cp.muted_at IS NOT NULL) AS muted
          FROM messages m
          LEFT JOIN conversation_participants cp /* own-row: viewer 포함 — 내 읽음 커서 */
            ON cp.conversation_id = m.conversation_id AND cp.user_id = :uid
@@ -370,7 +432,8 @@ router.get('/:businessId/unread-total', authenticateToken, attachWorkspaceScope(
     );
     const byConv = {};
     let total = 0;
-    rows.forEach(r => { byConv[r.cid] = Number(r.cnt); total += Number(r.cnt); });
+    // 알림 끈 방은 total 에서만 뺀다 — 방별 숫자(by_conversation)는 그대로(docs/QTALK_MUTE_DESIGN.md §3-4)
+    rows.forEach(r => { byConv[r.cid] = Number(r.cnt); if (!Number(r.muted)) total += Number(r.cnt); });
     return successResponse(res, { total, by_conversation: byConv });
   } catch (err) { next(err); }
 });

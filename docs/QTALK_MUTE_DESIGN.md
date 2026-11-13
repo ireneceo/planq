@@ -69,6 +69,7 @@ eventKind === 'message' && String(entityType).toLowerCase() === 'conversation' &
 | `GET /me/unread-total-all` (사이드바·워크스페이스 선택기) | 추가 |
 | `GET /:businessId/unread-total` | `total` 에서만 뺀다. `by_conversation` 은 그대로 |
 | `services/chatBadge.chatUnreadForBadge` (푸시에 실리는 앱 아이콘 숫자) | 추가 |
+| `routes/dashboard.js collectChats` («확인 필요» 채팅 항목 = 사이드바 Q talk 숫자) | 추가 — 구현 때 찾은 넷째 곳(2026-11-13). 내가 담당인 «응대 중» 문의 항목은 그대로 |
 | 목록 `GET /:businessId` 의 방별 `unread_count` | **안 바꾼다** |
 LEFT JOIN 인 두 곳은 내 행이 없으면 `cp.muted_at` 이 NULL 이라 지금처럼 센다. 끄기/켜기 직후 서버가 내게 `inbox:refresh` 도 쏜다(합계 다시 받기).
 

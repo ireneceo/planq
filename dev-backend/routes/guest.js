@@ -276,6 +276,8 @@ router.post('/:token/account-request',
           entityType: 'Conversation',
           entityId: conversation.id,
           ioApp: req.app,
+          // 계정 요청은 «글이 올라왔다» 가 아니라 처리할 일이다 — 대화방 알림을 꺼도 온다(docs/QTALK_MUTE_DESIGN.md §3-3).
+          ignoreMute: true,
         });
       }
       // Q sale — 이 링크에 고객이 붙어 있으면 **담당자에게** 영업 알림으로도 간다(대화방 참가자 알림과 별개).

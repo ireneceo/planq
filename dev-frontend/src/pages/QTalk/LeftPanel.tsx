@@ -19,6 +19,7 @@ import { mediaTablet } from '../../theme/breakpoints';
 import PanelResizeHandle from '../../components/Layout/PanelResizeHandle';
 import FloatingMenu from '../../components/Common/FloatingMenu';
 import { apiFetch } from '../../contexts/AuthContext';
+import { useMutedConversations } from '../../hooks/useMutedConversations';
 
 interface Props {
   projects: MockProject[];
@@ -64,6 +65,8 @@ const LeftPanel: React.FC<Props> = ({
   onTogglePin, canManage, onArchive, onUnlink, onOpenArchive, mobileHidden = false, pinSlot,
 }) => {
   const { t } = useTranslation('qtalk');
+  // 알림 끈 방 — 종 끄기 아이콘 + 회색 안읽음 숫자(docs/QTALK_MUTE_DESIGN.md §4). 묶음은 토스트·사이드바와 같은 한 벌.
+  const { isMuted } = useMutedConversations();
   const { user } = useAuth();
   const isClient = user?.business_role === 'client';
   const [query, setQuery] = useState('');
@@ -271,6 +274,7 @@ const LeftPanel: React.FC<Props> = ({
           const isActive = c.id === activeConversationId;
           const isSupport = c.channel_type === 'platform';
           const isPinned = !!c.my_pinned_at;
+          const muted = isMuted(c.id);
           return (
             <ChatRow
               key={c.id}
@@ -290,6 +294,13 @@ const LeftPanel: React.FC<Props> = ({
                   {c.channel_type === 'customer' && !isClient && <CustomerTag>{t('channelBadge.customer', '고객')}</CustomerTag>}
                   {c.channel_type === 'customer' && !isClient && <CareRowTag care={c.care} />}
                   {isSupport && <CustomerTag data-testid="qtalk-support-tag">PlanQ</CustomerTag>}
+                  {muted && (
+                    <MutedIcon data-testid="qtalk-muted-icon" width="13" height="13" role="img" aria-label={t('mute.badge', '알림 꺼짐') as string}
+                      viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <title>{t('mute.badge', '알림 꺼짐') as string}</title>
+                      <path d="M13.73 21a2 2 0 0 1-3.46 0" /><path d="M18.63 13A17.89 17.89 0 0 1 18 8" /><path d="M6.26 6.26A5.86 5.86 0 0 0 6 8c0 7-3 9-3 9h14" /><path d="M18 8a6 6 0 0 0-9.33-5" /><line x1="1" y1="1" x2="23" y2="23" />
+                    </MutedIcon>
+                  )}
                 </ChatTop>
                 {/* 검색 — 행에 안 보이는 칸(프로젝트·고객사)에서 걸렸으면 왜 걸렸는지 한 줄 (공용 MatchReason) */}
                 {query.trim() && (() => {
@@ -320,7 +331,7 @@ const LeftPanel: React.FC<Props> = ({
                   <ProjectName>{t('left.preview.empty', '아직 대화가 없어요')}</ProjectName>
                 )}
               </ChatBody>
-              {!isActive && c.unread_count > 0 && <Unread data-testid="qtalk-unread-badge">{c.unread_count}</Unread>}
+              {!isActive && c.unread_count > 0 && <Unread data-testid="qtalk-unread-badge" $muted={muted}>{c.unread_count}</Unread>}
               {onTogglePin && (
                 <StarToggle
                   pinned={isPinned}
@@ -680,11 +691,15 @@ const PreviewText = styled.span``;
 // 읽지 않은 메시지 수 — ChatBody 옆, 별(StarToggle) 좌측. ChatRow 의 직접 자식이라
 // ChatName flex:1 에 squeeze 되지 않고 항상 우측에 명확히 표시. 데스크탑·모바일 일관.
 // 모바일에선 살짝 더 크게 (가시성 강화).
-const Unread = styled.div`
+const MutedIcon = styled.svg`
+  flex-shrink: 0; color: #94A3B8;
+`;
+// 알림 끈 방은 같은 숫자를 회색 바탕으로 — 안 읽은 건 맞지만 «나를 부르는» 숫자는 아니다(docs/QTALK_MUTE_DESIGN.md §2)
+const Unread = styled.div<{ $muted?: boolean }>`
   min-width: 18px;
   height: 18px;
   padding: 0 6px;
-  background: #F43F5E;
+  background: ${(p) => (p.$muted ? '#94A3B8' : '#F43F5E')};
   color: #FFFFFF;
   border-radius: 8px;
   font-size: 0.625rem;

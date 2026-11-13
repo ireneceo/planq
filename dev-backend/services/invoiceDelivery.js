@@ -126,6 +126,8 @@ async function deliverChat({ invoice, actorUserId, message, shareUrl, io }) {
           body: invoiceBody(invoice),
           workspaceName: biz?.brand_name || biz?.name || null,
           link: `/talk?conv=${conv.id}`,
+          // 대화방 소속을 밝힌다 — 없으면 알림 끈 방에도 청구서 카드 알림이 갔다(docs/QTALK_MUTE_DESIGN.md §3-3).
+          entityType: 'conversation', entityId: conv.id,
         });
       }
     }

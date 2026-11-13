@@ -233,6 +233,15 @@ export async function pinConversation(businessId: number, conversationId: number
   return !!j?.success;
 }
 
+/** 대화방 알림 끄기/켜기(나만) — docs/QTALK_MUTE_DESIGN.md. 실패면 null. */
+export async function setConversationMuted(businessId: number, conversationId: number, muted: boolean): Promise<{ muted_at: string | null } | null> {
+  const r = await apiFetch(`/api/conversations/${businessId}/${conversationId}/mute`, {
+    method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ muted }),
+  });
+  const j = await r.json().catch(() => null);
+  return j?.success ? (j.data as { muted_at: string | null }) : null;
+}
+
 export async function unpinConversation(businessId: number, conversationId: number): Promise<boolean> {
   const r = await apiFetch(`/api/conversations/${businessId}/${conversationId}/pin`, { method: 'DELETE' });
   const j = await r.json().catch(() => null);

@@ -19,6 +19,7 @@
 import { useCallback, useEffect, useState, useRef } from 'react';
 import { useAuth, apiFetch } from '../contexts/AuthContext';
 import { joinRoom, leaveRoom, onSocket } from '../services/socket';
+import { ensureMutedLoaded, isConversationMuted } from './useMutedConversations';
 
 export type UnreadByBusiness = Record<number, number>;
 type AllResponse = { total: number; by_business: UnreadByBusiness };
@@ -73,9 +74,11 @@ function scheduleRefresh() {
 // 공유 소켓(services/socket) 구독. 재연결 시 room 재join 은 공유 소켓이 자동 처리.
 function ensureSocket(userId: string | number) {
   if (offMessage) return; // 이미 구독됨
-  offMessage = onSocket('message:new', (msg: { sender_id?: number }) => {
-    // 옵티미스틱 +1 — 본인 발신 제외 (backend SQL 도 본인 제외)
-    if (msg?.sender_id && Number(msg.sender_id) !== Number(userId)) {
+  ensureMutedLoaded();
+  offMessage = onSocket('message:new', (msg: { sender_id?: number; conversation_id?: number }) => {
+    // 옵티미스틱 +1 — 본인 발신 제외 (backend SQL 도 본인 제외).
+    //   알림 끈 방은 서버 합계에서 빠지므로 미리 올리지 않는다(올렸다 내려가는 깜빡임 · docs/QTALK_MUTE_DESIGN.md §4).
+    if (msg?.sender_id && Number(msg.sender_id) !== Number(userId) && !isConversationMuted(msg.conversation_id)) {
       const next = { ...currentState, total: currentState.total + 1 };
       broadcast(next);
     }
