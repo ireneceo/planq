@@ -37,6 +37,7 @@
   - 미들웨어 `authenticateToken, attachWorkspaceScope()` — `/read` 와 같다(`checkBusinessAccess` 를 쓰면 고객이 못 쓴다).
   - 순서: ① 방이 그 워크스페이스 것인지 ② `canAccessConversation(req.user.id, conv, req.scope)` ③ 그 뒤에만 행을 건드린다.
     ①② 실패는 둘 다 **404 `conversation_not_found`**(핀과 같다 — 방이 있는지조차 알려 주지 않는다). `muted` 가 boolean 아니면 400.
+    (구현 실제: 내가 멤버가 아닌 워크스페이스 경로는 `attachWorkspaceScope` 가 먼저 403 — `/read` 와 같다.)
   - `muted:true` → `touchOwnRow(convId, uid, { muted_at: new Date() })` (이미 꺼져 있으면 시각 유지).
     그리고 그 방의 내 안읽음 `message` 알림 행에 `email_escalated_at = NOW()` — 끄기 직전에 생긴 행이 5분 뒤 메일로 나가지 않게.
   - `muted:false` → `ownRows` 로 찾아 `muted_at:null`. **행을 만들지 않는다.**
@@ -84,7 +85,8 @@ LEFT JOIN 인 두 곳은 내 행이 없으면 `cp.muted_at` 이 NULL 이라 지�
   «안읽음만» 걸러 보기와 그 개수는 끈 방도 포함한다(안 읽은 것은 맞다).
 - **켜고 끄는 곳** — 대화방 머리의 ⋮ 메뉴에 «알림 끄기 / 알림 켜기» 한 줄(기존 메뉴 컴포넌트를 쓴다, 새로 만들지 않는다).
   목록 행에 이미 행 메뉴가 있으면 같은 항목을 거기에도. 확인 창 없이 바로 바뀌고, 실패하면 되돌리고 오류 문구를 보인다.
-  `QTalkPage` 는 `conversation:mute` 를 `conversation:pin` 옆에서 받아 `my_muted_at` 을 고친다.
+  (구현 실제: 대화 머리에 ⋮ 메뉴가 없어 **종 아이콘 버튼**(`chat-mute-toggle`)으로 넣었다. `conversation:mute` 는 `QTalkPage` 가 아니라
+  공용 훅 `useMutedConversations` 가 받고, 화면은 목록의 `my_muted_at` 대신 그 묶음을 읽는다 — 동작은 같다.)
 - **문구(ko / en)** — 네임스페이스 `qtalk`
   | 키 | ko | en |
   |---|---|---|
