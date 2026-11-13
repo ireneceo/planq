@@ -1,0 +1,102 @@
+{
+  "version": "1.70.10",
+  "date": "2026-11-13",
+  "_auto": true,
+  "_range": "4a65a6ff..bb2a0d49",
+  "summary": {
+    "ko": "Q talk 응대 화면 개편과 Q mail 참조(CC) 지원",
+    "en": "Revamped Q talk care view and added CC field in Q mail"
+  },
+  "items": [
+    {
+      "ko": {
+        "title": "Q talk 응대 화면 개편·담당 보기 개선",
+        "body": "Q Talk 응대 화면에서 상태·담당 칩, 좌측 [전체·안 읽음·답할 문의] 필터, 행 태그로 문의를 한눈에 정리해 볼 수 있습니다. 내가 담당인 ‘응대 중’ 문의도 건별로 더 정확히 집계됩니다."
+      },
+      "en": {
+        "title": "Improved Q talk care view and assignee display",
+        "body": "In Q Talk care view, you can now see status and assignee chips, use the left filters [All · Unread · To reply], and check row tags to manage inquiries at a glance. Conversations you’re handling in ‘In care’ are now counted more accurately per case."
+      }
+    },
+    {
+      "ko": {
+        "title": "Q talk 문의 배정·담당 표시 강화",
+        "body": "Q Talk 목록·상세 화면에서 care(담당자) 정보를 바로 확인할 수 있고, 배정 시 대화에 변경 내용이 표시되며 알림도 발송됩니다. 직원은 어떤 문의가 누구에게 맡겨졌는지 더 쉽게 파악할 수 있습니다."
+      },
+      "en": {
+        "title": "Stronger assignment and care indicators in Q talk",
+        "body": "In Q Talk list and detail views, you can now see care (assignee) information directly. When a conversation is assigned, the change is shown in the thread and a notification is sent, so staff can easily see who is handling which inquiry."
+      }
+    },
+    {
+      "ko": {
+        "title": "Q talk 답장(인용)과 안 읽은 대화만 보기",
+        "body": "Q Talk에서 특정 메시지를 골라 답장(인용)할 수 있어, 어떤 말에 대한 답인지 더 분명해졌습니다. 또 ‘안 읽은 대화만 보기’로 새 문의만 골라 빠르게 처리할 수 있습니다."
+      },
+      "en": {
+        "title": "Reply with quote and view only unread conversations in Q talk",
+        "body": "In Q Talk, you can now reply to a specific message with a quote, making it clearer what you’re responding to. You can also filter to ‘show only unread conversations’ to focus on new inquiries first."
+      }
+    },
+    {
+      "ko": {
+        "title": "Q talk 대화 안에서 메시지 검색",
+        "body": "Q Talk 대화 화면 안에서 해당 대화의 메시지를 검색할 수 있습니다. 키워드로 예전 대화를 바로 찾아 업무 맥락을 빠르게 확인하세요."
+      },
+      "en": {
+        "title": "Search messages within a Q talk conversation",
+        "body": "You can now search messages within an open Q Talk conversation. Use keywords to quickly find past messages and recover the context of your work."
+      }
+    },
+    {
+      "ko": {
+        "title": "Q mail에 참조(CC) 입력·표시 지원",
+        "body": "Q mail에서 새 메일 작성·전달·답장 시 참조(CC)를 넣을 수 있고, 받은 메일의 참조 대상도 함께 표시됩니다. 메일에 함께 알아야 할 동료를 더 정확히 걸어둘 수 있습니다."
+      },
+      "en": {
+        "title": "CC field now available in Q mail",
+        "body": "In Q mail, you can now add CC recipients when composing, forwarding, or replying to emails, and see who was CC’d on received emails. This makes it easier to include the right colleagues in each thread."
+      }
+    },
+    {
+      "ko": {
+        "title": "Q note 질문 정리로 답을 더 쉽게 찾기",
+        "body": "Q Note에서 질문을 정리해 두고, 실제로 들은 말은 그대로 보면서도 정리된 질문 기준으로 답을 찾을 수 있습니다. 비슷한 질문이 많을 때 필요한 답을 더 빨리 찾는 데 도움이 됩니다."
+      },
+      "en": {
+        "title": "Find answers faster with organized questions in Q note",
+        "body": "In Q Note, you can keep what was said as-is while organizing questions, then search answers by these cleaned-up questions. This helps you find the right answer faster when many similar questions exist."
+      }
+    },
+    {
+      "ko": {
+        "title": "Q note 요약·업무·녹취 스크롤 경험 개선",
+        "body": "Q Note에서 요약 뒤 스크롤이 멈추던 문제를 고치고, 요약·업무·녹취를 한 스크롤 상자에서 자연스럽게 이어서 볼 수 있게 했습니다."
+      },
+      "en": {
+        "title": "Smoother scrolling for summary, tasks, and transcripts in Q note",
+        "body": "We fixed an issue where scrolling could stop after a summary in Q Note. Summary, tasks, and transcripts now appear in a single scroll area for a smoother reading experience."
+      }
+    },
+    {
+      "ko": {
+        "title": "그 밖의 개선",
+        "body": "여러 계정을 같은 기기에서 쓸 때 알림이 끊기거나 섞이지 않도록 구독 방식을 다듬었습니다. Q talk 알림이 특정 메시지에서만 늦게 가던 문제도 함께 수정했습니다."
+      },
+      "en": {
+        "title": "Other improvements",
+        "body": "We refined notification subscriptions so alerts remain stable when using multiple accounts on the same device. We also fixed a case where some Q talk notifications were sent late for specific messages."
+      }
+    },
+    {
+      "ko": {
+        "title": "보안과 안정성 강화",
+        "body": "데이터를 더 안전하게 지키도록 보안과 안정성을 강화했습니다."
+      },
+      "en": {
+        "title": "Security and stability improvements",
+        "body": "We strengthened security and stability to keep your data safer."
+      }
+    }
+  ]
+}
