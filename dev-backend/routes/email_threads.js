@@ -565,6 +565,8 @@ router.get('/:businessId/email-threads/:id',
             from_name: mj.from_name,
             to_emails: mj.to_emails,
             cc_emails: mj.cc_emails,
+            // 숨은참조 — 우리가 보낸 메일에만 있다(받은 메일엔 원래 안 실려 온다). 이 대화를 볼 수 있는 멤버에게만 가는 응답이다.
+            bcc_emails: mj.direction === 'outbound' ? (mj.bcc_emails || null) : null,
             subject: mj.subject,
             body_html: bodyOut,
             body_text: mj.body_text,
@@ -1154,8 +1156,14 @@ router.post('/:businessId/email-threads/:id/messages',
       const lastInbound = [...msgs].reverse().find(m => m.direction === 'inbound');
       const lastMsg = msgs.length ? msgs[msgs.length - 1] : null;
 
-      // 수신자: 명시 to 우선, 없으면 마지막 inbound 발신자
-      let toList = (Array.isArray(to) && to.length) ? to : (lastInbound ? [lastInbound.from_email] : []);
+      // 수신자: 명시 to 우선, 없으면 마지막 inbound 발신자.
+      //   받은 메일이 없는 대화(우리가 먼저 보내고 아직 답이 없음)면 마지막 보낸 메일의 받는 사람 — 다시 연락하기.
+      //   옛 코드는 여기서 recipient_required 400 이라 «답장하기» 가 아무것도 못 보냈다(2026-11-13).
+      const lastOutbound = [...msgs].reverse().find(m => m.direction === 'outbound');
+      const addrOf = (x) => (typeof x === 'string' ? x : (x && x.email) || '');
+      let toList = (Array.isArray(to) && to.length) ? to
+        : (lastInbound ? [lastInbound.from_email]
+          : (lastOutbound && Array.isArray(lastOutbound.to_emails) ? lastOutbound.to_emails.map(addrOf) : []));
       toList = toList.map(s => String(s || '').trim()).filter(Boolean);
       if (!toList.length) return errorResponse(res, 'recipient_required', 400);
 

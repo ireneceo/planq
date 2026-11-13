@@ -339,7 +339,15 @@
       "askMessage": "고객이 {{addr}} 로 보낸 메일인데, 이 메일 계정의 보내는 주소에는 {{addr}} 가 없어요. 지금 보내면 {{from}} 에서 나갑니다.",
       "askRegister": "보내는 주소에 추가하고 {{addr}} 에서 보내기",
       "askAnyway": "{{from}} 에서 보내기"
-    }
+    },
+    "buttonSender": "답장",
+    "buttonAll": "전체 답장",
+    "modeLabel": "답장 범위",
+    "modeSender": "보낸 사람에게만",
+    "modeAll": "전체 답장 ({{n}}명)",
+    "modeAllHint": "받은 메일의 받는 사람·참조에 있던 사람도 함께 받아요",
+    "toRequired": "받는 사람을 넣어 주세요",
+    "toInvalid": "받는 사람 주소 형식을 확인해 주세요: {{list}}"
   },
   "errors": {
     "loadList": "인박스 로딩 실패"
@@ -587,7 +595,8 @@
     "zoomIn": "크게 보기",
     "zoomOut": "작게 보기",
     "zoomReset": "원래 크기로",
-    "ccAddr": "참조"
+    "ccAddr": "참조",
+    "bccAddr": "숨은참조"
   },
   "bulk": {
     "markAllRead": "모두 읽음",
@@ -662,7 +671,10 @@
     "discardFailed": "임시저장 메일을 지우지 못했어요. 잠시 후 다시 시도해 주세요.",
     "cc": "참조",
     "addCc": "참조 추가",
-    "ccInvalid": "참조 주소 형식을 확인해 주세요: {{list}}"
+    "ccInvalid": "참조 주소 형식을 확인해 주세요: {{list}}",
+    "bcc": "숨은참조",
+    "addBcc": "숨은참조 추가",
+    "bccInvalid": "숨은참조 주소 형식을 확인해 주세요: {{list}}"
   },
   "attachment": {
     "menu": "첨부 {{n}}개",

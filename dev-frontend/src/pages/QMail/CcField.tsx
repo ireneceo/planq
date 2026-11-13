@@ -1,4 +1,4 @@
-// CcField — 메일 «참조(CC)» 칸 (2026-11-12, Irene «메일에 참조가 없오»).
+// CcField — 메일 «참조(CC)»·«숨은참조(BCC)» 칸 (2026-11-12, Irene «메일에 참조가 없오»).
 //
 // 서버(email-compose · forward · 답장 · 임시저장)는 처음부터 cc 를 받았는데 화면에 칸이 없어 넣을 길이 없었다.
 //   · 평소에는 «참조 추가» 글자 버튼만 — 대부분의 메일은 참조가 없고, 칸을 늘 세우면 폰에서 본문 자리를 먹는다.
@@ -24,17 +24,23 @@ interface Props {
   /** 'field' = 새 메일 칸 모양(위 라벨) · 'inline' = 답장창 한 줄(앞 라벨) */
   variant?: 'field' | 'inline';
   disabled?: boolean;
+  /** 'cc' = 참조(기본) · 'bcc' = 숨은참조 — 같은 칩 입력, 라벨만 다르다(2026-11-13) */
+  kind?: 'cc' | 'bcc';
 }
 
-const CcField: React.FC<Props> = ({ value, onChange, suggestions, testId, variant = 'field', disabled }) => {
+const CcField: React.FC<Props> = ({ value, onChange, suggestions, testId, variant = 'field', disabled, kind = 'cc' }) => {
   const { t } = useTranslation('qmail');
   const [open, setOpen] = useState(false);
   const shown = open || !!value.trim();
-  const label = t('compose.cc', { defaultValue: '참조' }) as string;
+  const label = (kind === 'bcc'
+    ? t('compose.bcc', { defaultValue: '숨은참조' })
+    : t('compose.cc', { defaultValue: '참조' })) as string;
   if (!shown) {
     return (
       <AddBtn type="button" data-testid={`${testId}-add`} disabled={disabled} onClick={() => setOpen(true)} data-pq-editor-hide="">
-        + {t('compose.addCc', { defaultValue: '참조 추가' }) as string}
+        + {(kind === 'bcc'
+          ? t('compose.addBcc', { defaultValue: '숨은참조 추가' })
+          : t('compose.addCc', { defaultValue: '참조 추가' })) as string}
       </AddBtn>
     );
   }
@@ -60,6 +66,7 @@ const AddBtn = styled.button`
   &:disabled { color: #94A3B8; cursor: default; }
 `;
 const Wrap = styled.div<{ $inline: boolean }>`
+  width: 100%;   /* 참조·숨은참조 «추가» 버튼 줄 안에서 열리면 한 줄을 다 쓴다 */
   display: flex; gap: ${(p) => (p.$inline ? '8px' : '4px')};
   flex-direction: ${(p) => (p.$inline ? 'row' : 'column')};
   align-items: ${(p) => (p.$inline ? 'center' : 'stretch')};

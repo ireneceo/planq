@@ -88,6 +88,7 @@ export interface Message {
   from_name: string | null;
   to_emails: Array<string | { name?: string; email: string }>;   // 백엔드는 [{name,email}] 로 준다
   cc_emails?: Array<string | { name?: string; email: string }> | null;
+  bcc_emails?: Array<string | { name?: string; email: string }> | null;   // 우리가 보낸 메일에만(서버가 outbound 만 싣는다)
   subject: string | null;
   body_html: string | null;
   body_text: string | null;

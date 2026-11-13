@@ -339,7 +339,15 @@
       "askMessage": "The customer wrote to {{addr}}, but {{addr}} isn't a sending address of this mail account. If you send now, it goes out from {{from}}.",
       "askRegister": "Add it and send from {{addr}}",
       "askAnyway": "Send from {{from}}"
-    }
+    },
+    "buttonSender": "Reply",
+    "buttonAll": "Reply all",
+    "modeLabel": "Reply to",
+    "modeSender": "Sender only",
+    "modeAll": "Reply all ({{n}})",
+    "modeAllHint": "Everyone on To and Cc of the received mail also gets it",
+    "toRequired": "Add a recipient",
+    "toInvalid": "Check the recipient address: {{list}}"
   },
   "errors": {
     "loadList": "Failed to load inbox"
@@ -587,7 +595,8 @@
     "zoomIn": "Zoom in",
     "zoomOut": "Zoom out",
     "zoomReset": "Reset zoom",
-    "ccAddr": "Cc"
+    "ccAddr": "Cc",
+    "bccAddr": "Bcc"
   },
   "bulk": {
     "markAllRead": "Mark all read",
@@ -662,7 +671,10 @@
     "discardFailed": "Couldn't discard the saved draft. Please try again in a moment.",
     "cc": "Cc",
     "addCc": "Add Cc",
-    "ccInvalid": "Check the Cc address format: {{list}}"
+    "ccInvalid": "Check the Cc address format: {{list}}",
+    "bcc": "Bcc",
+    "addBcc": "Add Bcc",
+    "bccInvalid": "Check the Bcc address: {{list}}"
   },
   "attachment": {
     "menu": "Attachments ({{n}})",

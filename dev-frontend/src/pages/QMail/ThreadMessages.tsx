@@ -265,6 +265,12 @@ export default function ThreadMessages(p: Props) {
                   {t('detail.ccAddr', { defaultValue: '참조' }) as string}: {toAddrList(m.cc_emails).join(', ')}
                 </MessageTo>
               )}
+              {/* 숨은참조 — 우리가 보낸 메일만. 받는 사람은 못 보지만 보낸 쪽(팀)은 누구에게 몰래 갔는지 알아야 한다 */}
+              {m.direction === 'outbound' && toAddrList(m.bcc_emails).length > 0 && (
+                <MessageTo data-testid="mail-msg-bcc">
+                  {t('detail.bccAddr', { defaultValue: '숨은참조' }) as string}: {toAddrList(m.bcc_emails).join(', ')}
+                </MessageTo>
+              )}
             </MessageFrom>
             <MsgHeaderRight>
               {/* #272 — "접힌상태랑 아닌 상태 구별 안되고 글자가 잘리는 것처럼 보여버려".

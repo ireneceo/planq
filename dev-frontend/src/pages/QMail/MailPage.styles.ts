@@ -930,6 +930,22 @@ export const ComposerTo = styled.div`
   font-size: 0.75rem; color: #64748B;
   strong { color: #0F172A; font-weight: 600; }
 `;
+/* 답장 받는 사람 줄 · 답장 범위 줄 · 참조/숨은참조 «추가» 줄 (2026-11-13) — 라벨은 CcField 와 같은 글자(0.75rem/600) */
+export const ReplyAddrLabel = styled.label`
+  font-size: 0.75rem; font-weight: 600; color: #64748B; flex-shrink: 0;
+`;
+export const ReplyModeRow = styled.div`
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+`;
+export const ReplyToRow = styled.div`
+  display: flex; align-items: center; gap: 8px;
+`;
+export const ReplyToGrow = styled.div`
+  flex: 1; min-width: 0;
+`;
+export const AddrAddRow = styled.div`
+  display: flex; align-items: center; gap: 4px 16px; flex-wrap: wrap;
+`;
 /* AI 진행 줄 — **쓰는 자리 바로 위**에서 말한다 (2026-09-16).
    답장창 맨 아래 버튼의 스피너만으로는 본문이 긴 메일에서 화면 밖이라 보이지 않았다.
    포인트색 계열이되 에러(붉은 박스)와 구별되게 옅은 배경으로 둔다. */
