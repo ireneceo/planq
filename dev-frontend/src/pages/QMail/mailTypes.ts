@@ -117,6 +117,8 @@ export interface Message {
 
 export interface ThreadDetail extends Thread {
   messages: Message[];
+  marked_unread?: boolean;     // 내가 «안 읽음으로 표시» 했나(나만) — 자동 읽음 가리기용
+  can_mark_unread?: boolean;   // 받은 메일이 있어 표시할 수 있나
   assignee_user_id?: number | null;
   assignee_name?: string | null;
   my_following?: boolean;

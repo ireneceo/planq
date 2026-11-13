@@ -273,7 +273,9 @@
     "removeLabel": "Remove label",
     "unassigned": "Unassigned",
     "markReview": "Move to Worth a look",
-    "markReviewHint": "Moves this mail to Worth a look. Do it twice for the same sender and PlanQ will put that sender there automatically."
+    "markReviewHint": "Moves this mail to Worth a look. Do it twice for the same sender and PlanQ will put that sender there automatically.",
+    "markUnread": "Mark as unread",
+    "markUnreadFailed": "Couldn't mark as unread. Please try again."
   },
   "selectWorkspace": "Select a workspace.",
   "selectThread": "Select a thread",

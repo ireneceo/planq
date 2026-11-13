@@ -95,6 +95,11 @@ paths:
 >   **한 함수**를 부른다(확인필요·메뉴 배지와 같은 빌더). 전체·검색·상세·확인 권장은 그대로(보는 권한 불변). 책임자 바뀌면 `responsible_changed` 방송.
 >   «모두 답변 불필요/확인완료» 는 메일 자체 상태라 공용이면 전원에게 바뀐다 → 확인 단계에 `bulk.sharedNote`(공용 메일함이 섞일 때만). 읽음만 사람별.
 >
+> ⑩ **«안 읽음으로 표시» 는 사람별 표시 칸이다** (2026-11-13, 빈칸 점검 ② · Fable DESIGN-READY) — `email_thread_participants.marked_unread`.
+>   판정은 `services/mailRead` 한 곳(`unreadExpr` 의 OR · `isUnreadFor(thread, 내 행)` · `isMarkedUnread`)이고 읽음 쓰기(`markReadFor`)가 내린다 —
+>   열기·모두 읽음·확인 완료가 저절로 푼다. 커서·바닥·«읽음 n/m» 명단(`openedLatest`)은 건드리지 않는다. 칸 이름을 다른 파일에서 쓰면 가드 `mailread` 가 막는다.
+>   화면은 표시한 메일을 **새로 열 때만** 자동 읽음(같은 메일 신호 재조회는 안 푼다). 설계 `docs/QMAIL_MARK_UNREAD_DESIGN.md` · 운영 `migrate-mail-mark-unread.js`(배포 슬롯).
+>
 > 회귀: `node scripts/e2e/run.js --suite maillabel` (16검사 — 폴더 술어 · i18n 원천 ko/en · 실화면 문구 ·
 > 배지 축 · **폰(375) 가시 단서** · 누르기 전후 수 일치).
 > ★ **빌드된 locales 는 `gzip_static`** 이다 — 대조군으로 문구를 되돌릴 때 평문 `.json` 만 바꾸면

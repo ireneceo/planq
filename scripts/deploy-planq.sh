@@ -596,6 +596,8 @@ sync_database() {
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-conversation-care.js 2>&1 | tail -5"
   # 2026-11-13 Q talk 대화방 알림 끄기(docs/QTALK_MUTE_DESIGN.md) — conversation_participants.muted_at 칸(멱등). ★ PM2 reload 앞 — 없으면 대화 목록이 500.
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-conv-mute.js 2>&1 | tail -5"
+  # 2026-11-13 Q mail «안 읽음으로 표시»(docs/QMAIL_MARK_UNREAD_DESIGN.md) — email_thread_participants.marked_unread 칸(멱등). ★ PM2 reload 앞 — 없으면 메일 목록·수가 500.
+  prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-mail-mark-unread.js 2>&1 | tail -5"
   # 2026-10-29 폴더 공유 링크(#469) — file_folders 공유 칸 5개 + share_token unique(멱등). ★ PM2 reload 앞 — 없으면 폴더 목록이 500.
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-folder-share.js 2>&1 | tail -5"
   # 2026-10-29 워크스페이스 삭제 — businesses 칸 4개 + 옛 삭제본 사유 백필(멱등). ★ PM2 reload 앞 — 없으면 워크스페이스 목록·로그인이 500.

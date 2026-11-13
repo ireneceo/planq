@@ -1185,6 +1185,10 @@ const MailPage: React.FC = () => {
   //   옛 스레드 요청과 새 요청이 **동시에** 날아갔고(7980·8057), 늦게 온 옛 응답이 새 상세를 덮거나
   //   옛 요청의 실패가 새 화면을 «오류» 로 만들 수 있었다.
   const detailReqRef = useRef(0);
+  // 직전에 자동 읽음을 판단한 스레드 — 같은 메일을 신호로 다시 읽을 때(silentReload·재시도)는 «새로 여는» 것이 아니다.
+  //   «안 읽음으로 표시» 한 메일을 열어 둔 다른 탭이 신호 한 번에 표시를 풀지 않게 한다(docs/QMAIL_MARK_UNREAD_DESIGN.md §6).
+  const autoReadIdRef = useRef<number | null>(null);
+  useEffect(() => { if (!activeId) autoReadIdRef.current = null; }, [activeId]);
   const loadDetail = useCallback(async (id: number) => {
     if (!businessId) return;
     const reqNo = ++detailReqRef.current;
@@ -1221,8 +1225,10 @@ const MailPage: React.FC = () => {
         }
         setDetailStatus('ready');
         setDetail(j.data);
-        // 자동 읽음 처리 (unread_count 있을 때만)
-        if (j.data.unread_count > 0) {
+        // 자동 읽음 처리 (unread_count 있을 때만) — 내가 «안 읽음으로 표시» 한 메일은 **새로 열 때만** 읽음으로 돌린다
+        const freshOpen = autoReadIdRef.current !== id;
+        autoReadIdRef.current = id;
+        if (j.data.unread_count > 0 && (!j.data.marked_unread || freshOpen)) {
           const mr = await apiFetch(`/api/businesses/${businessId}/email-threads/${id}/mark-read`, { method: 'POST' });
           // 지금 연 사람(나)은 읽은 것이다 — «읽음 n/m» 명단이 연 직후에도 나를 «안 읽음» 에 두지 않게(받아 온 명단은 읽기 전 것).
           if (mr.ok && myUserId) {
@@ -1310,10 +1316,31 @@ const MailPage: React.FC = () => {
   //   ★ "답 없으면" 은 값이 하나뿐인 택일이라 셀렉트 대신 체크 항목으로 편다.
   //     옛 구조는 라벨 + PlanQSelect 로 툴바에서 150px 를 상시 먹었고, 그것이 밴드가
   //     3줄로 감기던 주된 원인이었다(실측 137px).
+  // «안 읽음으로 표시»(나만) — 성공하면 상세를 닫는다(열어 둔 채면 자동 읽음이 바로 다시 푼다). docs/QMAIL_MARK_UNREAD_DESIGN.md §6·§7
+  const markUnread = useCallback(async (threadId: number) => {
+    if (!businessId) return;
+    try {
+      const r = await apiFetch(`/api/businesses/${businessId}/email-threads/${threadId}/mark-unread`, { method: 'POST' });
+      const j = await r.json().catch(() => null);
+      if (!r.ok || !j?.success) throw new Error('mark_unread_failed');
+      clearSelection();
+      loadList({ silent: true });
+      loadCounts();
+    } catch {
+      setErrorMsg(t('actions.markUnreadFailed', { defaultValue: '안 읽음으로 표시하지 못했습니다. 다시 시도해 주세요.' }) as string);
+    }
+  }, [businessId, clearSelection, loadList, loadCounts, t]);
+
   const detailMenuItems = useMemo<OverflowItem[]>(() => {
     if (!detail) return [];
     const cur = String(detail.follow_up_days ?? 'default');
     const items: OverflowItem[] = [
+      ...(detail.can_mark_unread ? [{
+        key: 'mark-unread',
+        label: t('actions.markUnread', { defaultValue: '안 읽음으로 표시' }) as string,
+        onClick: () => { void markUnread(detail.id); },
+        testId: 'mail-detail-mark-unread',
+      }] : []),
       {
         key: 'spam',
         label: detail.status === 'spam'
@@ -1357,7 +1384,7 @@ const MailPage: React.FC = () => {
     // onMarkSpam 은 매 렌더 새로 만들어지는 평범한 함수라 deps 에 넣으면 메모가 무의미해진다.
     //   detail.id·status·follow_up_days 가 바뀔 때만 다시 만들면 충분하다.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [detail?.id, detail?.status, detail?.client, detail?.follow_up_days, detail?.last_message_direction, t, setFollowUpDays, promoteThread]);
+  }, [detail?.id, detail?.status, detail?.client, detail?.follow_up_days, detail?.last_message_direction, detail?.can_mark_unread, t, setFollowUpDays, promoteThread, markUnread]);
 
   // ── 실시간 silent 갱신 (socket / visibility) — 스피너 없이 list+counts+열린 detail 갱신
   const lastSilentAt = useRef(0);

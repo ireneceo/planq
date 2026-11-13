@@ -3124,6 +3124,20 @@ function checkMailRead() {
     }
   };
   roots.forEach((r) => { if (fs.existsSync(r)) walk(r); });
+  // «안 읽음으로 표시»(marked_unread) 칸은 mailRead·모델·마이그레이션·합치기 스크립트에만 — 다른 파일이 직접 읽거나 쓰면 판정이 두 벌이 된다
+  //   (2026-11-13 · docs/QMAIL_MARK_UNREAD_DESIGN.md §9). routes·services·scripts 전체를 본다(이름 거름 없음).
+  const MU_OK = /(services\/mailRead\.js|models\/EmailThreadParticipant\.js|scripts\/migrate-mail-mark-unread\.js|scripts\/merge-split-mail-threads\.js)$/;
+  const muWalk = (dir) => {
+    for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+      const fp = `${dir}/${e.name}`;
+      if (e.isDirectory()) { if (e.name !== 'node_modules') muWalk(fp); continue; }
+      if (!e.name.endsWith('.js')) continue;
+      const rel = fp.replace(`${ROOT}/`, '');
+      if (MU_OK.test(rel)) continue;
+      read(fp).split('\n').forEach((l, i) => { if (/marked_unread/.test(l) && !/isMarkedUnread\(/.test(l)) bad.push(`${rel}:${i + 1} — marked_unread 는 services/mailRead(isMarkedUnread·markUnreadFor) 로만`); });
+    }
+  };
+  ['routes', 'services', 'scripts'].map((d) => `${ROOT}/dev-backend/${d}`).forEach((r) => { if (fs.existsSync(r)) muWalk(r); });
   report('mailread', `메일 읽음 판정은 services/mailRead 한 곳 (${files}개 파일)`, bad.length === 0, bad);
 }
 

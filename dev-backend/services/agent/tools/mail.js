@@ -70,11 +70,15 @@ function hasQuoted(m) {
   const all = messageText(m, { includeQuoted: true });
   return all.length > vis.length + 40;
 }
-/** 메시지 한 통이 나에게 읽음인가 — 스레드와 같은 커서(services/mailRead). 옛 공용 칸 is_read 를 쓰지 않는다. */
-function readFor(m, thread, cursor) {
+/** 메시지 한 통이 나에게 읽음인가 — 스레드와 같은 판정(services/mailRead). 옛 공용 칸 is_read 를 쓰지 않는다. mine = 내 참여자 행(없으면 null). */
+function readFor(m, thread, mine) {
   if (m.direction !== 'inbound') return true;
+  const mr = require('../../mailRead');
   // 스레드가 나에게 읽음이면 전부 읽음(스레드 판정과 어긋나지 않게 — last_inbound_message_id 가 빈 옛 행 포함)
-  if (!require('../../mailRead').isUnreadFor(thread, cursor)) return true;
+  if (!mr.isUnreadFor(thread, mine)) return true;
+  const cursor = mine ? mine.last_read_message_id : null;
+  // «안 읽음으로 표시» 만으로 안 읽음이면 마지막 받은 메일 한 통만 안 읽음(docs/QMAIL_MARK_UNREAD_DESIGN.md §4)
+  if (mr.openedLatest(thread, cursor)) return Number(m.id) !== Number(thread.last_inbound_message_id);
   return Number(m.id) <= Math.max(Number(cursor) || 0, Number(thread.read_floor_message_id) || 0);
 }
 
@@ -267,9 +271,8 @@ async function getMailThread(p, a) {
   const parts = await EmailThreadParticipant.findAll({ where: { thread_id: t.id }, include: [{ model: User, attributes: ['id', 'name'], required: false }] });
   const assigned = parts.find((x) => x.is_assigned);
   const mine = parts.find((x) => x.user_id === p.userId);
-  const cursor = mine ? mine.last_read_message_id : null;
   const messages = rows.map((m) => ({
-    ...ser.mailMessageItem(m, { text: messageText(m), maxChars, attachments: attachmentsOf(m), senderName: names.get(m.sent_by_user_id)?.name || null, isRead: readFor(m, t, cursor) }),
+    ...ser.mailMessageItem(m, { text: messageText(m), maxChars, attachments: attachmentsOf(m), senderName: names.get(m.sent_by_user_id)?.name || null, isRead: readFor(m, t, mine || null) }),
     has_quoted_content: hasQuoted(m),
   }));
   const assigneeName = assigned ? ((await getMemberNameMap(p.businessId, [assigned.user_id]).catch(() => new Map())).get(assigned.user_id)?.name || assigned.User?.name || null) : null;
@@ -279,7 +282,7 @@ async function getMailThread(p, a) {
     thread: {
       ...ser.mailThreadItem(t, { counterpart: cps.get(t.id) || null, hasAttachments: atts.has(t.id), folder: folderOf(t) }),
       // 읽음은 이 연결의 사람 기준(services/mailRead) — 옛 공용 칸을 덮는다
-      unread_count: require('../../mailRead').isUnreadFor(t, mine ? mine.last_read_message_id : null) ? 1 : 0,
+      unread_count: require('../../mailRead').isUnreadFor(t, mine || null) ? 1 : 0,
       status: t.status,
       reply_needed: !!t.reply_needed,
       assignee: assigned ? { user_id: assigned.user_id, name: assigneeName } : null,
@@ -312,7 +315,7 @@ async function getMailMessage(p, a) {
   let thread;
   try { thread = await loadThread(p, m.thread_id, acctIds); } catch { throw err('NOT_FOUND', 'message_not_found'); }
   const { EmailThreadParticipant } = require('../../../models');
-  const mine = await EmailThreadParticipant.findOne({ where: { thread_id: thread.id, user_id: p.userId }, attributes: ['last_read_message_id'] });
+  const mine = await EmailThreadParticipant.findOne({ where: { thread_id: thread.id, user_id: p.userId } });   // 행 전체 — 읽음 판정(services/mailRead)이 커서와 표시를 같이 본다
   const offset = Math.max(0, a.offset || 0);
   const maxChars = Math.min(20000, a.max_chars || 8000);
   const full = messageText(m, { includeQuoted: !!a.include_quoted });
@@ -320,7 +323,7 @@ async function getMailMessage(p, a) {
   const next = offset + piece.length < full.length ? offset + piece.length : null;
   return {
     message: {
-      ...ser.mailMessageItem(m, { text: '', maxChars: 0, attachments: attachmentsOf(m), senderName: null, isRead: readFor(m, thread, mine ? mine.last_read_message_id : null) }),
+      ...ser.mailMessageItem(m, { text: '', maxChars: 0, attachments: attachmentsOf(m), senderName: null, isRead: readFor(m, thread, mine || null) }),
       includes_quoted: !!a.include_quoted,
       ...(a.include_quoted ? {} : { has_quoted_content: hasQuoted(m) }),
       body_text: piece,

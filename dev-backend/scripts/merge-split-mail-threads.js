@@ -167,8 +167,10 @@ async function applyGroup(plan, runId) {
     const assignee = (() => { for (const tid of order) { const a = L.participants.find((p) => p.thread_id === tid && p.is_assigned); if (a) return a.user_id; } return null; })();
     const byUser = new Map();
     for (const p of L.participants) {
-      const cur = byUser.get(p.user_id) || { user_id: p.user_id, is_following: 0, last_read_message_id: null, last_read_at: null };
+      const cur = byUser.get(p.user_id) || { user_id: p.user_id, is_following: 0, last_read_message_id: null, last_read_at: null, marked_unread: 0 };
       cur.is_following = cur.is_following || (p.is_following ? 1 : 0);
+      // «안 읽음으로 표시» 는 OR 로 옮긴다 — 안 옮기면 합친 뒤 표시가 사라진다(docs/QMAIL_MARK_UNREAD_DESIGN.md §9)
+      cur.marked_unread = cur.marked_unread || (p.marked_unread ? 1 : 0);
       if (p.last_read_message_id != null && (cur.last_read_message_id == null || p.last_read_message_id > cur.last_read_message_id)) cur.last_read_message_id = p.last_read_message_id;
       if (p.last_read_at && (!cur.last_read_at || new Date(p.last_read_at) > new Date(cur.last_read_at))) cur.last_read_at = p.last_read_at;
       byUser.set(p.user_id, cur);
@@ -177,10 +179,10 @@ async function applyGroup(plan, runId) {
     if (L.participants.length) {
       await X('DELETE FROM email_thread_participants WHERE thread_id IN (:all)', { all }, t);
       for (const u of byUser.values()) {
-        await X(`INSERT INTO email_thread_participants (thread_id, user_id, is_assigned, is_following, last_read_message_id, last_read_at,
+        await X(`INSERT INTO email_thread_participants (thread_id, user_id, is_assigned, is_following, last_read_message_id, last_read_at, marked_unread,
             is_viewing, viewing_started_at, is_drafting, drafting_started_at, created_at, updated_at)
-          VALUES (:S, :uid, :asg, :fol, :lrm, :lra, 0, NULL, 0, NULL, NOW(), NOW())`,
-        { S, uid: u.user_id, asg: u.user_id === assignee ? 1 : 0, fol: u.is_following ? 1 : 0, lrm: u.last_read_message_id, lra: u.last_read_at }, t);
+          VALUES (:S, :uid, :asg, :fol, :lrm, :lra, :mu, 0, NULL, 0, NULL, NOW(), NOW())`,
+        { S, uid: u.user_id, asg: u.user_id === assignee ? 1 : 0, fol: u.is_following ? 1 : 0, lrm: u.last_read_message_id, lra: u.last_read_at, mu: u.marked_unread ? 1 : 0 }, t);
       }
     }
     // ③ 초안 — 사람당 최신 1개만(나머지는 ledger 에 본문째 남기고 지운다)

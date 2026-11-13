@@ -537,7 +537,10 @@ router.get('/:businessId/email-threads/:id',
           trust_candidate: require('../services/mailTrustedDomains').candidateOf(tj.impersonation),
         } : null,
         // 보는 사람 기준(services/mailRead) — 옛 공용 칸을 읽지 않는다
-        unread_count: mailRead.isUnreadFor(thread, myP ? myP.last_read_message_id : null) ? 1 : 0,
+        unread_count: mailRead.isUnreadFor(thread, myP || null) ? 1 : 0,
+        // «안 읽음으로 표시»(나만) — 화면이 자동 읽음을 가리는 데 쓴다 · 받은 메일이 있어야 표시할 수 있다(docs/QMAIL_MARK_UNREAD_DESIGN.md §5)
+        marked_unread: mailRead.isMarkedUnread(myP || null),
+        can_mark_unread: !!thread.last_inbound_message_id,
         message_count: tj.message_count || 0,
         labels: tj.labels || [],
         read_status: readStatus,
@@ -652,6 +655,28 @@ router.post('/:businessId/email-threads/:id/mark-read', // audit-exempt: 본인 
       }
       emitMyRead(req, req.params.businessId, { thread_id: thread.id, unread: 0 });
       return successResponse(res, { id: thread.id, unread_count: 0 });
+    } catch (err) { next(err); }
+  }
+);
+
+// ─────────────────────────────────────────────
+// POST mark-unread — «안 읽음으로 표시»(나만) · docs/QMAIL_MARK_UNREAD_DESIGN.md §5 (Fable DESIGN-READY)
+//   범위는 mark-read 와 같다(business_id + 볼 수 있는 메일함). 받은 메일이 없는 스레드는 400(판정이 받은 메일을 전제).
+//   다른 멤버·옛 공용 칸·답변 필요·알림은 그대로. 신호는 내 방(user:)에만.
+// ─────────────────────────────────────────────
+router.post('/:businessId/email-threads/:id/mark-unread', // audit-exempt: 본인 읽음 표시(화면 상태) — 내용·공개 범위·담당 무변경
+  authenticateToken, checkBusinessAccess, requireMenu('qmail', 'read'),
+  async (req, res, next) => {
+    try {
+      const acctIds = await accessibleAccountIds(Number(req.params.businessId), req.user.id);
+      const thread = await EmailThread.findOne({
+        where: { id: req.params.id, business_id: req.params.businessId, account_id: { [Op.in]: acctIds.length ? acctIds : [0] } },
+      });
+      if (!thread) return errorResponse(res, 'thread_not_found', 404);
+      if (!thread.last_inbound_message_id) return errorResponse(res, 'no_inbound_message', 400);
+      await mailRead.markUnreadFor(req.user.id, thread.id);
+      emitMyRead(req, req.params.businessId, { thread_id: thread.id, unread: 1 });
+      return successResponse(res, { id: thread.id, unread_count: 1 });
     } catch (err) { next(err); }
   }
 );

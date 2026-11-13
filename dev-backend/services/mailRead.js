@@ -24,10 +24,14 @@ function uid(userId) {
 //   참여자 행은 (thread_id, user_id) 유니크 인덱스로 한 행만 찾는다.
 function unreadExpr(userId, alias = 'EmailThread') {
   const a = `\`${alias}\``;
-  return `(${a}.\`last_inbound_message_id\` IS NOT NULL AND ${a}.\`last_inbound_message_id\` > GREATEST(
+  const u = uid(userId);
+  // 종전(커서·바닥) OR «안 읽음으로 표시»(내 행 marked_unread=1 · docs/QMAIL_MARK_UNREAD_DESIGN.md §4)
+  return `(${a}.\`last_inbound_message_id\` IS NOT NULL AND (${a}.\`last_inbound_message_id\` > GREATEST(
     COALESCE((SELECT p.last_read_message_id FROM email_thread_participants p
-              WHERE p.thread_id = ${a}.\`id\` AND p.user_id = ${uid(userId)}), 0),
-    COALESCE(${a}.\`read_floor_message_id\`, 0)))`;
+              WHERE p.thread_id = ${a}.\`id\` AND p.user_id = ${u}), 0),
+    COALESCE(${a}.\`read_floor_message_id\`, 0))
+    OR EXISTS (SELECT 1 FROM email_thread_participants pm
+               WHERE pm.thread_id = ${a}.\`id\` AND pm.user_id = ${u} AND pm.marked_unread = 1)))`;
 }
 
 /** where 조각 — 나에게 안 읽은 스레드만. `Op.and` 배열에 넣는다. */
@@ -40,11 +44,29 @@ function unreadAttribute(userId, alias) {
   return [sequelize.literal(`(CASE WHEN ${unreadExpr(userId, alias)} THEN 1 ELSE 0 END)`), 'unread_count'];
 }
 
-/** 한 스레드가 나에게 안 읽음인가 — 인스턴스(또는 plain)와 내 커서로. */
-function isUnreadFor(thread, cursor) {
+/** 커서·바닥으로 마지막 받은 메일까지 열어 봤나 — «읽음 n/m» 명단의 사실(표시와 무관). */
+function openedLatest(thread, cursor) {
+  const last = Number(thread.last_inbound_message_id) || 0;
+  if (!last) return true;
+  return last <= Math.max(Number(cursor) || 0, Number(thread.read_floor_message_id) || 0);
+}
+
+/** 내 행에 «안 읽음으로 표시» 가 켜져 있나 — 칸 이름을 이 파일 밖에 퍼뜨리지 않는다(가드 mailread). */
+function isMarkedUnread(mine) {
+  if (!mine) return false;
+  const v = typeof mine.get === 'function' ? mine.get('marked_unread') : mine.marked_unread;
+  return v === true || Number(v) === 1;
+}
+
+/**
+ * 한 스레드가 나에게 안 읽음인가 — 인스턴스(또는 plain)와 **내 참여자 행**(없으면 null)으로.
+ *   행을 받아 커서와 «안 읽음으로 표시» 를 둘 다 직접 읽는다(인자를 따로 받으면 호출부가 빠뜨려도 조용하다).
+ */
+function isUnreadFor(thread, mine) {
   const last = Number(thread.last_inbound_message_id) || 0;
   if (!last) return false;
-  return last > Math.max(Number(cursor) || 0, Number(thread.read_floor_message_id) || 0);
+  if (isMarkedUnread(mine)) return true;
+  return !openedLatest(thread, mine ? mine.last_read_message_id : null);
 }
 
 /**
@@ -63,11 +85,26 @@ async function markReadFor(userId, threadIds) {
         FROM email_threads t WHERE t.id IN (:chunk) AND t.last_inbound_message_id IS NOT NULL
       ON DUPLICATE KEY UPDATE
         last_read_message_id = GREATEST(COALESCE(last_read_message_id, 0), VALUES(last_read_message_id)),
-        last_read_at = VALUES(last_read_at), updated_at = VALUES(updated_at)`,
+        last_read_at = VALUES(last_read_at), marked_unread = 0, updated_at = VALUES(updated_at)`,
     { replacements: { chunk } });
     n += Number(res && (res.affectedRows ?? 0)) || 0;
   }
   return n;
+}
+
+/**
+ * «안 읽음으로 표시»(나만) — 단일 UPSERT. 표시만 켠다 — 커서·last_read_at(«읽음 n/m» 명단)·담당·팔로우·옛 공용 칸은 안 건드린다.
+ * threadId 는 **호출부가 범위(business_id·접근 계정)를 거른 것**이어야 한다. docs/QMAIL_MARK_UNREAD_DESIGN.md §4
+ */
+async function markUnreadFor(userId, threadId) {
+  const u = uid(userId);
+  const t = Number(threadId);
+  if (!Number.isInteger(t) || t <= 0) throw new Error('mailRead: threadId required');
+  await sequelize.query(`INSERT INTO email_thread_participants
+      (thread_id, user_id, is_assigned, is_following, last_read_message_id, last_read_at, marked_unread, is_viewing, is_drafting, created_at, updated_at)
+    VALUES (:t, ${u}, 0, 0, NULL, NULL, 1, 0, 0, NOW(), NOW())
+    ON DUPLICATE KEY UPDATE marked_unread = 1, updated_at = VALUES(updated_at)`,
+  { replacements: { t } });
 }
 
 /**
@@ -113,11 +150,12 @@ async function readersOf(thread, audience) {
   const byUser = new Map(parts.map((p) => [p.user_id, p]));
   return audience.map((a) => {
     const p = byUser.get(a.user_id);
-    const read = !isUnreadFor(thread, p ? p.last_read_message_id : null);
+    // 명단은 «열어 봤나» 의 사실이다 — «안 읽음으로 표시» 는 보지 않는다(나도 남도 명단은 그대로).
+    const read = openedLatest(thread, p ? p.last_read_message_id : null);
     // 바닥으로만 읽음이 된 사람(옛 공용 읽음)은 시각을 모른다 — null 로 둔다.
     const at = read && p && p.last_read_message_id ? p.last_read_at : null;
     return { user_id: a.user_id, name: a.name, read, read_at: at };
   });
 }
 
-module.exports = { unreadForWhere, unreadAttribute, isUnreadFor, markReadFor, audienceOf, readersOf, unreadExpr };
+module.exports = { unreadForWhere, unreadAttribute, isUnreadFor, isMarkedUnread, openedLatest, markReadFor, markUnreadFor, audienceOf, readersOf, unreadExpr };

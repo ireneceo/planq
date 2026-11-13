@@ -273,7 +273,9 @@
     "removeLabel": "태그 제거",
     "unassigned": "담당 없음",
     "markReview": "확인 권장으로",
-    "markReviewHint": "이 메일을 «확인 권장» 으로 올립니다. 같은 보낸 사람을 2번 올리면 앞으로 자동으로 확인 권장에 둡니다."
+    "markReviewHint": "이 메일을 «확인 권장» 으로 올립니다. 같은 보낸 사람을 2번 올리면 앞으로 자동으로 확인 권장에 둡니다.",
+    "markUnread": "안 읽음으로 표시",
+    "markUnreadFailed": "안 읽음으로 표시하지 못했습니다. 다시 시도해 주세요."
   },
   "selectWorkspace": "워크스페이스를 선택해 주세요.",
   "selectThread": "스레드를 선택해 주세요",

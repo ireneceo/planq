@@ -13,6 +13,9 @@ EmailThreadParticipant.init({
   is_following: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
   last_read_message_id: { type: DataTypes.INTEGER, allowNull: true },
   last_read_at: { type: DataTypes.DATE, allowNull: true },
+  // «안 읽음으로 표시»(나만) — 1 이면 커서와 상관없이 나에게 안 읽음. 읽음 쓰기(markReadFor)가 내린다.
+  //   읽고 쓰는 곳은 services/mailRead 한 곳(가드 mailread) · docs/QMAIL_MARK_UNREAD_DESIGN.md
+  marked_unread: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
   // 동시 작업 인디케이터 (1.7)
   is_viewing: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
   viewing_started_at: { type: DataTypes.DATE, allowNull: true },

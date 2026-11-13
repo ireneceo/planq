@@ -70,6 +70,7 @@ paths:
 
 **기타 (2):** kb_chunks, kb_documents, kb_pinned_faqs, cue_usage
 
+> **2026-11-13 — `email_thread_participants.marked_unread` TINYINT(1) NOT NULL DEFAULT 0** — Q mail «안 읽음으로 표시»(나만). 판정·쓰기는 `services/mailRead` 한 곳(가드 mailread). 운영 `migrate-mail-mark-unread.js`(배포 슬롯 · 코드보다 먼저). 설계 `docs/QMAIL_MARK_UNREAD_DESIGN.md`.
 > **2026-11-13 — `conversation_participants.muted_at` DATETIME NULL** — Q talk 대화방 알림 끄기(사람별, NULL = 켜짐). 참여자 아닌 대표·관리자는 «보는 중» 행에 담는다(핀과 같다). 보통 메시지 알림만 막고 @멘션·담당 배정은 통과 — 판정은 `routes/notifications.js notify()` 한 곳. 안읽음 합계 3곳(`/me/unread-total-all`·`/:biz/unread-total` total·`chatBadge`)에서 뺀다. 운영 `migrate-conv-mute.js`(배포 슬롯). 설계 `docs/QTALK_MUTE_DESIGN.md`.
 > **2026-11-12 — `conversation_care` 표** — Q talk 고객 문의 «응대 상태(open/hold/resolved) · 담당자 한 명», 방당 0~1행(PK conversation_id, FK cascade). `conversations` 에 칸을 더하지 않는다(통째 toJSON 이 고객에게 샌다). 읽고 쓰는 곳은 `services/convCare` 하나 · 직원 응답에만 `care` · 실시간 `conversation:care` 는 emitConvWide. 운영 `migrate-conversation-care.js`(배포 슬롯 · 한 번 백필). 설계 `docs/QTALK_CARE_DESIGN.md`.
 > **2026-11-06 — `workspace_join_requests` 표 + `businesses.join_by_domain·join_domain·join_code(UNIQUE)·join_code_rotated_at`** — 워크스페이스 참여 신청(사람×워크스페이스 한 행 · pending/approved/rejected/canceled · 만료는 읽을 때 `services/joinRequests.isLive`). 열림 판정 `services/joinPolicy.domainJoinOpen` 한 곳(대표의 인증된 회사 메일 도메인과 다시 맞춘다). `join_code` 는 응답 비밀값(models/index SECRET_HASH_KEYS — `GET …/join-settings` 만). 운영 `migrate-join-requests.js`(배포 슬롯). 설계 `docs/SIGNUP_START_JOIN_DESIGN.md`.
