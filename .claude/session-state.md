@@ -7,6 +7,13 @@
 
 
 
+### ✅ 명함 «연락처에 저장»·«내 명함첩에 보관» 점검 (방 ccde87ce · 2026-11-14 · [Opus] · Fable 안 씀 — 앱 안 파일 받기 한 곳 버그, 자체 검증) — 운영 반영: 다음 배포 때
+- 웹 실측(폰 375): 공개 명함 /c/:token «연락처에 저장» = vcf 200 text/vcard(이름·회사·전화·메일·주소·사진) · 비로그인 «로그인하고 보관» → /login?redirect=/c/… · 로그인 후 «보관» → «보관했어요 · 명함첩 보기» → 받은 명함 목록에 보임 · 명함첩 «연락처에 저장» vcf 200
+- 경계: 내 명함 보관 400 own_card · 없는 토큰 404 · 다시 보관 = 같은 행 갱신 · 남의 보관 vcf 404 · 비로그인 보관 401
+- 고침: 명함첩·동료 명함의 «연락처에 저장» 이 웹 방식(a[download])만 써서 앱(WebView) 안에서는 눌러도 반응 없던 것 → 공용 downloadBlob(앱이면 저장+공유 시트). build EXIT 0 · error TS 0 · 가드 85/86 통과
+- 확인 못 함: 실제 아이폰·안드로이드 앱에서 공유 시트 → 연락처 추가
+- 제안(안 바꿈): 폰에서 명함이 길면 두 버튼이 화면 아래(375×667 에서 y=715)라 스크롤해야 보임 · 비로그인→로그인 뒤 보관 버튼을 한 번 더 눌러야 함
+
 ### ✅ 미확인 업무요청을 «오늘 나의 업무»·이번 주 목록 맨 위에 (방 882a9d4f · 2026-11-14 · [Opus] 구현 · Fable 설계 GO-WITH-CHANGES → 자체 검증) — 커밋 f20aa921 · 운영 반영: 다음 배포 때(DB 변경 없음)
 - 술어 = 확인필요 ① 하나(서버 `weekTaskSet.unackedRequestWhere` → myWeekWhere 만 / 프론트 `todayTaskSet.isUnackedRequestToMe` → inTodaySet ⓪·inWeekCanonical). 확인(ack) 하면 날짜 규칙으로 돌아감
 - 집계는 주간 기준 유지: /my-week summary = myAssignedWeekWhere id 로 가름 · 메인 그래프 chartWeekTasks 제외. 주간보고 빌더·today_review 불변

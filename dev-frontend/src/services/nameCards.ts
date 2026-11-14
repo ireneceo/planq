@@ -1,6 +1,7 @@
 // 내 명함 API — 서버 routes/name_cards.js · name_cards_public.js. 설계 docs/BUSINESS_CARD_DESIGN.md
 //   ★ 공개 응답(CardView)과 받은 명함 스냅샷은 서버의 같은 함수(cardPublicView) 출력이다 — 화면도 같은 타입·같은 CardFace 로 그린다.
 import { apiFetch, apiUpload } from '../contexts/AuthContext';
+import { downloadBlob } from '../utils/download';
 
 export interface CardLink { label: string; url: string }
 
@@ -140,7 +141,7 @@ export const memberCardPhotoUrl = (businessId: number, userId: number, v: CardVi
 export async function downloadMemberVcf(businessId: number, userId: number, name: string): Promise<void> {
   const r = await apiFetch(`/api/businesses/${businessId}/members/${userId}/card/vcf`);
   if (!r.ok) throw new CardApiError('generic', r.status);
-  triggerDownload(await r.blob(), `${(name || 'card').replace(/[\\/:*?"<>|]+/g, '')}.vcf`);
+  await triggerDownload(await r.blob(), `${(name || 'card').replace(/[\\/:*?"<>|]+/g, '')}.vcf`);
 }
 
 // 받은 명함
@@ -158,18 +159,13 @@ export async function downloadSavedVcf(s: SavedCard): Promise<void> {
   const r = await apiFetch(`/api/name-cards/saved/${s.id}/vcf`);
   if (!r.ok) throw new CardApiError('generic', r.status);
   const blob = await r.blob();
-  triggerDownload(blob, `${(s.card.name || 'card').replace(/[\\/:*?"<>|]+/g, '')}.vcf`);
+  await triggerDownload(blob, `${(s.card.name || 'card').replace(/[\\/:*?"<>|]+/g, '')}.vcf`);
 }
 
-export function triggerDownload(blob: Blob, filename: string) {
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
+// 앱(안드로이드·아이폰) 안에서는 a[download] 가 아무 일도 안 한다 — 공용 downloadBlob 이 앱이면 저장 + 공유 시트로 넘긴다.
+//   옛 구현은 웹 방식만 복사해 두어 앱 안 명함첩·동료 명함의 «연락처에 저장» 이 눌러도 반응이 없었다(2026-11-14 점검).
+export async function triggerDownload(blob: Blob, filename: string): Promise<void> {
+  await downloadBlob(blob, filename);
 }
 
 // 공개(무인증)
