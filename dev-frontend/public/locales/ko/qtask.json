@@ -1477,6 +1477,7 @@
     "countSummary": "업무 {{n}}건, 요청 {{r}}건",
     "sortLabel": "정렬",
     "sortRecent": "최신등록순",
+    "sortDue": "마감일순",
     "sortName": "이름순",
     "sortStage": "업무단계순",
     "viewAll": "전체",

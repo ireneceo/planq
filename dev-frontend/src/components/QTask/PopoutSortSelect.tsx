@@ -31,7 +31,7 @@ const SORT_KEY = (tab: string) => `planq.popout.sort2.${tab}`;
 function readSort(tab: string): PopoutSortKey {
   try {
     const v = localStorage.getItem(SORT_KEY(tab));
-    if (v === 'mine' || v === 'name' || v === 'stage' || v === 'recent') return v;
+    if (v === 'mine' || v === 'due' || v === 'name' || v === 'stage' || v === 'recent') return v;
   } catch { /* ignore */ }
   // 기본 = 직접 정렬 (2026-10-12 — 끌어 옮기기). 고른 값이 저장돼 있으면 그대로 존중한다.
   return 'mine';
@@ -53,11 +53,12 @@ const PopoutSortSelect: React.FC<Props> = ({ value, onChange, labels, ariaLabel 
       value={{ value, label: labels[value] }}
       onChange={(v) => {
         const next = (v as { value?: string } | null)?.value;
-        if (next === 'mine' || next === 'recent' || next === 'name' || next === 'stage') onChange(next);
+        if (next === 'mine' || next === 'recent' || next === 'due' || next === 'name' || next === 'stage') onChange(next);
       }}
       options={[
         { value: 'mine', label: labels.mine },
         { value: 'recent', label: labels.recent },
+        { value: 'due', label: labels.due },
         { value: 'name', label: labels.name },
         { value: 'stage', label: labels.stage },
       ]}

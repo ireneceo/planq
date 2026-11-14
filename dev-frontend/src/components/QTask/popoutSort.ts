@@ -98,8 +98,9 @@ export function buildQuickChoicesFromDict(
 //
 // 그래서 이 비교자는 **그룹 안에서** 쓰인다 — 그룹 키 비교가 먼저고, 같은 그룹이면 이 순서다.
 // 우선순위 사슬(bySortRule)은 그대로 남는다: 완전 동률일 때의 마지막 tie-break 으로만 쓴다.
-export type PopoutSortKey = 'mine' | 'recent' | 'name' | 'stage';
-export const POPOUT_SORT_KEYS: PopoutSortKey[] = ['mine', 'recent', 'name', 'stage'];
+// 2026-11-14 Irene: «최신등록순 같은 거 나오는 거에 마감일순도 넣어줘» → 'due' (마감 가까운 순 · 마감 없음은 뒤).
+export type PopoutSortKey = 'mine' | 'recent' | 'due' | 'name' | 'stage';
+export const POPOUT_SORT_KEYS: PopoutSortKey[] = ['mine', 'recent', 'due', 'name', 'stage'];
 
 /** 업무 단계 순서 — 화면에서 읽는 진행 순서 그대로.
  *  ★ 목록에 없는 새 status 는 **맨 끝이 아니라 중간(99)** 에 두지 않는다. 끝(999)에 두고,
@@ -121,6 +122,10 @@ export function bySelectedSort(key: PopoutSortKey, view: OrderView = 'due') {
   return (a: SortableTask, b: SortableTask): number => {
     if (key === 'name') {
       const c = (a.title || '').localeCompare(b.title || '');
+      if (c !== 0) return c;
+    } else if (key === 'due') {
+      // 마감일순 — 마감 가까운 것(지난 것 포함) 먼저, 마감 없는 업무는 맨 뒤.
+      const c = cmpNullLast(a.due_date, b.due_date);
       if (c !== 0) return c;
     } else if (key === 'stage') {
       const c = stageRank(a) - stageRank(b);

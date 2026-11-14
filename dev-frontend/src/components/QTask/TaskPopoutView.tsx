@@ -341,6 +341,7 @@ const TaskPopoutView: React.FC<TaskPopoutViewProps> = ({ pinSlot }) => {
   const innerSort = (view: OrderView) => bySelectedSort(sortKey, view);
   const SORT_LABELS: Record<PopoutSortKey, string> = {
     recent: t('popout.sortRecent', '최신등록순') as string,
+    due: t('popout.sortDue', '마감일순') as string,
     name: t('popout.sortName', '이름순') as string,
     stage: t('popout.sortStage', '업무단계순') as string,
     mine: t('popout.sortMine', '직접 정렬') as string,

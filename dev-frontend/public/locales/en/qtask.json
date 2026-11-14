@@ -1477,6 +1477,7 @@
     "countSummary": "{{n}} tasks, {{r}} requests",
     "sortLabel": "Sort",
     "sortRecent": "Newest first",
+    "sortDue": "Due date",
     "sortName": "By name",
     "sortStage": "By stage",
     "viewAll": "All",
