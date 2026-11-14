@@ -7,6 +7,13 @@
 
 
 
+### ✅ 미확인 업무요청을 «오늘 나의 업무»·이번 주 목록 맨 위에 (방 882a9d4f · 2026-11-14 · [Opus] 구현 · Fable 설계 GO-WITH-CHANGES → 자체 검증) — 커밋 f20aa921 · 운영 반영: 다음 배포 때(DB 변경 없음)
+- 술어 = 확인필요 ① 하나(서버 `weekTaskSet.unackedRequestWhere` → myWeekWhere 만 / 프론트 `todayTaskSet.isUnackedRequestToMe` → inTodaySet ⓪·inWeekCanonical). 확인(ack) 하면 날짜 규칙으로 돌아감
+- 집계는 주간 기준 유지: /my-week summary = myAssignedWeekWhere id 로 가름 · 메인 그래프 chartWeekTasks 제외. 주간보고 빌더·today_review 불변
+- 실측: member1 my-week 7→9건 · summary 불변(옛 담당자-only 방식이면 9) · 확인필요 ack id = 목록 미확인 id 일치 · 요청자 주간 무영향 · 3폭+팝아웃 맨 위 · inboxcount 0 실패 · 빌드 EXIT 0 · 가드 통과
+- 확인용 데이터: ws 6 업무 #8809 «[확인용] 오늘 노출 요청 (날짜 없음)»(미확인 유지) · #8810(확인함 → waiting)
+- 비차단: 미확인 요청은 우선순위 번호 순서와 무관하게 맨 위(번호가 1부터 아닐 수 있음) · 묶음 보기·직접 정렬에서는 맨 위 고정 안 함 · 반복 업무가 미확인으로 생기면 매 회차 오늘에 뜸
+
 ### ✅ Drive 가져오기 .gdoc «허용되지 않는 파일 형식» (방 885b0ef7 · 2026-11-14 · [Opus] · Fable 안 씀 — 가져오기 판정 한 곳 버그, 권한·돈·삭제 아님 · 자체 검증) — 커밋 b3052f6d · 운영 반영: 다음 배포 때
 - 원인: Drive 에 일반 파일로 올라간 .gdoc(PC 구글 드라이브 폴더의 링크 파일)이 Drive 가져오기 허용 목록에 없었다.
 - 고침(services/driveImport.js resolveGoogleShortcut): 안의 문서 id 로 원본을 찾으면 docx·xlsx·pptx 로 변환해 들임 · 원본을 못 보면(drive.file) 링크 파일 그대로 들여 열면 구글 문서로 · Drive 자체 바로가기도 원본 찾기, 못 찾으면 «원본을 열 수 없음» 안내. 미러 동기화는 그대로.
