@@ -147,6 +147,7 @@
     "loginToSave": "Log in to save this card",
     "ownCard": "This is your card",
     "saveFail": "Couldn't save.",
+    "contactFail": "Couldn't get the contact file. Please try again.",
     "notFound": "Card not found",
     "notFoundHint": "The link may have changed, or the owner turned it off.",
     "error": "Couldn't load the card.",

@@ -140,6 +140,18 @@ async function run() {
     push('D 바깥 주소 → OS 브라우저(2건) · 창 수·메인 주소 그대로', ext.length === 2 && st.windows.length === winsD && mainPage.url() === urlD,
       JSON.stringify({ ext, wins: [winsD, st.windows.length], url: mainPage.url().replace(ORIGIN, '') }));
 
+    // ── D2 전화·메일 링크 → OS 기본 앱 · 그 밖 스킴은 막힘(대조군) — 명함 «전화»·«메일» (2026-11-14) ──
+    const urlD2 = mainPage.url();
+    await mainPage.evaluate(() => {
+      for (const h of ['mailto:a@example.com', 'tel:0101234', 'file:///etc/hosts']) { const a = document.createElement('a'); a.href = h; document.body.appendChild(a); a.click(); a.remove(); }
+    });
+    await sleep(1500);
+    st = await state();
+    const contact = st.openExternal.filter((u) => /^(mailto|tel):/.test(u));
+    const leaked = st.openExternal.filter((u) => u.startsWith('file:'));
+    push('D2 mailto·tel → OS 앱(2건) · file: 은 막힘 · 메인 주소 그대로', contact.length === 2 && leaked.length === 0 && mainPage.url() === urlD2,
+      JSON.stringify({ contact, leaked, url: mainPage.url().replace(ORIGIN, '') }));
+
     // ── E 알림 1회 ──
     await mainPage.evaluate(() => window.planqDesktop.__test.hideMain());
     await sleep(800);

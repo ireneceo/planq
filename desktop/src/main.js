@@ -89,6 +89,11 @@ function sameOrigin(u) {
 function isHttp(u) {
   try { const p = new URL(u).protocol; return p === 'http:' || p === 'https:'; } catch { return false; }
 }
+// 전화·문자·메일 링크(명함 «전화»·«메일» 버튼, 본문 mailto 등) — 창 안에서는 갈 곳이 없어 잠금에 막혀 «아무 일 없음» 이었다(2026-11-14 점검).
+//   OS 기본 앱(메일·전화)에 넘긴다. 이 세 스킴만 — 다른 스킴은 계속 막는다.
+function isContactScheme(u) {
+  try { const p = new URL(u).protocol; return p === 'mailto:' || p === 'tel:' || p === 'sms:'; } catch { return false; }
+}
 // OS 알림 설정 화면 두 곳만 예외로 연다(설정 › «컴퓨터 알림 설정 열기»)
 const OS_SETTINGS = new Set([
   'x-apple.systempreferences:com.apple.preference.notifications',
@@ -174,7 +179,7 @@ app.on('web-contents-created', (_e, contents) => {
   const guard = (event, url) => {
     if (sameOrigin(url)) return;
     event.preventDefault();
-    if (isHttp(url)) openExternalLogged(url);
+    if (isHttp(url) || isContactScheme(url)) openExternalLogged(url);
   };
   contents.on('will-navigate', guard);
   contents.on('will-redirect', guard);
@@ -198,7 +203,7 @@ app.on('web-contents-created', (_e, contents) => {
       }
       return { action: 'allow', overrideBrowserWindowOptions: o };
     }
-    if (isHttp(url)) openExternalLogged(url);
+    if (isHttp(url) || isContactScheme(url)) openExternalLogged(url);
     return { action: 'deny' };
   });
   contents.on('did-create-window', (win, { url }) => {
