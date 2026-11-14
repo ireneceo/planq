@@ -188,10 +188,7 @@
     "imapHostRequired": "Enter the incoming (IMAP) server address",
     "imapUserRequired": "Enter the incoming (IMAP) login ID — usually your full email address",
     "jumpToField": "Go to this field",
-    "draftRestoredAt": "Restored your unsaved entries · saved {{time}}",
-    "draftRestored": "Restored your unsaved entries",
-    "draftNoPassword": "Passwords are never saved — please enter them again.",
-    "draftDiscard": "Clear and start over"
+    "draftNoPassword": "Passwords are never saved — please enter them again."
   },
   "folders": {
     "title": "Mailboxes",

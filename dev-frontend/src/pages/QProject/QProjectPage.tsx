@@ -170,7 +170,9 @@ const QProjectPage: React.FC = () => {
     if (j.success && j.data?.id) {
       setNewProjectOpen(false);
       navigate(`/projects/p/${j.data.id}`);
+      return true; // 만들기 성공 — 모달이 입력 초안을 지운다
     }
+    return false;
   }, [user?.business_id, navigate]);
   const [loading, setLoading] = useState(() => !hasCache(projKey));
   // ★ "못 불러옴" 과 "프로젝트가 없음" 은 다른 상태다. 여태는 실패해도 빈 상태가 떠서

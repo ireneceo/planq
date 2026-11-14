@@ -1,4 +1,4 @@
-// canary-mail-account-draft — 메일 계정 등록 폼의 입력이 닫기·새로고침·연결 실패에도 남는가 · 비밀번호는 안 남는가 (2026-11-14)
+// canary-mail-account-draft — 메일 계정 등록 폼 · 새 프로젝트 창의 입력이 닫기·새로고침·연결 실패에도 남는가 · 비밀번호는 안 남는가 (2026-11-14)
 //
 //   Irene: "이메일 설정이나 어떤 정보를 많이 넣는 화면에서 안될 수도 있는데 임시저장이라도 하게 해줘야 해.
 //           자동으로 저장되거나. 다 날라가서 너무 불편해."
@@ -143,7 +143,7 @@ async function run() {
     if ((await valueOf(p, 'mail-account-email')) === null) await openAdd(p);
 
     // ⑤ 지우기
-    await clickId(p, 'mail-account-draft-discard');
+    await clickId(p, 'mail-account-draft-restored-discard');
     await b.sleep(400);
     const v5 = await valueOf(p, 'mail-account-email');
     const note5 = await visible(p, 'mail-account-draft-restored');
@@ -155,6 +155,47 @@ async function run() {
       v5 === '' && !note5 && keys5.length === 0 && keys5b.length === 0,
       `이메일=${JSON.stringify(v5)} · 줄=${note5} · 키 ${keys5.length}→닫은 뒤 ${keys5b.length}`);
     await clearDrafts(p);
+
+    // ── 새 프로젝트 창 (kind 'project-create') — P1 입력 저장본 · P2 Esc 닫고 새로고침해 다시 열기 · P3 지우기 · P4 만들기 성공 = 저장본 삭제 ──
+    const PK = 'planq:draft:project-create:';
+    const pKeys = () => p.evaluate((k) => Object.keys(localStorage).filter((x) => x.startsWith(k)), PK);
+    const PNAME = `[확인용] 초안 프로젝트 ${Date.now() % 100000}`;
+    const openNew = async () => {
+      await b.goto(p, '/projects?new=1');
+      if (!(await waitFor(async () => (await valueOf(p, 'project-create-name')) !== null, 10000))) throw new Error('새 프로젝트 창이 안 열렸다');
+      await b.sleep(500);
+    };
+    await p.evaluate((k) => Object.keys(localStorage).filter((x) => x.startsWith(k)).forEach((x) => localStorage.removeItem(x)), PK);
+    await openNew();
+    await b.sleep(1000);
+    const pEmpty = (await pKeys()).length;
+    await typeInto(p, 'project-create-name', PNAME);
+    await typeInto(p, 'project-create-desc', '초안 설명 줄');
+    await b.sleep(1000);
+    const pk1 = await pKeys();
+    const pr1 = pk1.length ? await p.evaluate((k) => localStorage.getItem(k), pk1[0]) : '';
+    push('P1 새 프로젝트 — 열기만 하면 저장본 0 · 입력하면 저장본', pEmpty === 0 && pk1.length === 1 && pr1.includes(PNAME) && pr1.includes('초안 설명 줄'),
+      `열기만=${pEmpty} · 입력 뒤 키 ${pk1.length}(${pk1[0] || '-'})`);
+    await p.keyboard.press('Escape');
+    await b.sleep(600);
+    await openNew();
+    const pv2 = { name: await valueOf(p, 'project-create-name'), desc: await valueOf(p, 'project-create-desc'), note: await visible(p, 'project-create-draft') };
+    push('P2 Esc 로 닫고 새로고침해 다시 열면 복원 · 복원 줄', pv2.name === PNAME && pv2.desc === '초안 설명 줄' && pv2.note, JSON.stringify(pv2));
+    await clickId(p, 'project-create-draft-discard');
+    await b.sleep(800);
+    const pv3 = { name: await valueOf(p, 'project-create-name'), note: await visible(p, 'project-create-draft'), keys: (await pKeys()).length };
+    push('P3 [지우고 처음부터] → 칸 빈칸 · 줄 사라짐 · 저장본 0', pv3.name === '' && !pv3.note && pv3.keys === 0, JSON.stringify(pv3));
+    await typeInto(p, 'project-create-name', PNAME);
+    await b.sleep(900);
+    const before4 = (await pKeys()).length;
+    const clicked = await p.evaluate(() => {
+      const btn = [...document.querySelectorAll('button')].find((e) => e.getClientRects().length > 0 && /^(프로젝트 생성|Create project)$/i.test((e.textContent || '').trim()));
+      if (!btn) return false; btn.click(); return true;
+    });
+    const created = await waitFor(async () => /\/projects\/p\/\d+/.test(p.url()), 15000);
+    await b.sleep(800);
+    const after4 = (await pKeys()).length;
+    push('P4 만들기 성공 → 저장본 삭제', before4 === 1 && clicked && created && after4 === 0, `만들기 전 키 ${before4} · 눌림=${clicked} · 상세로 감=${created}(${p.url()}) · 뒤 키 ${after4}`);
   } catch (e) {
     results.push({ name: '실행', fatal: 1, details: [e.message] });
   } finally {

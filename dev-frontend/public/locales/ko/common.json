@@ -1695,6 +1695,8 @@
     "lastLoginAt": "마지막 로그인 {{date}}"
   },
   "draft": {
+    "formRestoredAt": "입력하던 내용을 불러왔어요 · {{time}} 임시저장",
+    "formDiscard": "지우고 처음부터",
     "restored": "임시저장된 내용을 불러왔어요",
     "clear": "지우기",
     "replaced": "다른 창의 더 새 글로 바뀌었어요",

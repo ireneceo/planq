@@ -7,8 +7,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { useLocalDraft, useDraftKey } from '../../hooks/useLocalDraft';
-import { formatDayTime } from '../../utils/dateFormat';
-import { RestoredDraftNote as RestoredNote, RestoredDraftDiscard as RestoredDiscard } from '../QMail/MailPage.styles';
+import FormDraftNote from '../../components/Common/FormDraftNote';
 import DetailDrawer from '../../components/Common/DetailDrawer';
 import TrustNote from '../../components/Common/TrustNote';
 import PlanQSelect, { type PlanQSelectOption } from '../../components/Common/PlanQSelect';
@@ -226,15 +225,10 @@ const MailAccountEditForm: React.FC<FormProps> = ({ initial, businessId, scope, 
       <DetailDrawer.Body>
         <Form>
           {restoredAt !== null && (
-            <RestoredNote role="status" data-testid="mail-account-draft-restored">
-              <span>
-                {t('settings.draftRestoredAt', { time: formatDayTime(new Date(restoredAt)), defaultValue: '입력하던 내용을 불러왔어요 · {{time}} 임시저장' }) as string}
-                <RestoredSub>{t('settings.draftNoPassword', '비밀번호는 저장하지 않아요 — 다시 넣어 주세요.') as string}</RestoredSub>
-              </span>
-              <RestoredDiscard type="button" data-testid="mail-account-draft-discard" onClick={discardDraft}>
-                {t('settings.draftDiscard', '지우고 처음부터') as string}
-              </RestoredDiscard>
-            </RestoredNote>
+            <FormDraftNote
+              savedAt={restoredAt} onDiscard={discardDraft} testId="mail-account-draft-restored"
+              hint={t('settings.draftNoPassword', '비밀번호는 저장하지 않아요 — 다시 넣어 주세요.') as string}
+            />
           )}
           {error?.server && (
             <ErrorBox ref={alertRef} role="alert" tabIndex={-1} data-testid="mail-form-alert">
@@ -483,4 +477,3 @@ const ScopeNote = styled.div<{ $personal: boolean }>`
   color: ${p => p.$personal ? '#475569' : '#1E40AF'};
   border: 1px solid ${p => p.$personal ? '#E2E8F0' : '#BFDBFE'};
 `;
-const RestoredSub = styled.span`display: block; color: #64748B; font-weight: 500;`;

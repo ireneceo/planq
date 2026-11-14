@@ -12,12 +12,27 @@ import { useAuth } from '../../contexts/AuthContext';
 import { PROJECT_COLOR_PALETTE } from '../../utils/projectColors';
 import { Field, Label, Input, HelpText, RemoveBtn } from './newProjectFormStyles';
 import NewProjectClientsField, { type ClientInput } from './NewProjectClientsField';
+import { useLocalDraft, useDraftKey } from '../../hooks/useLocalDraft';
+import { readDraftRecord } from '../../services/draftStore';
+import FormDraftNote from '../../components/Common/FormDraftNote';
+
+// 새 프로젝트 입력 초안 (2026-11-14 Irene «정보를 많이 넣는 화면 … 다 날라가서 너무 불편해») —
+//   닫기·새로고침·화면 이동에도 남고, 다시 열면 복원 줄과 함께 채운다. 지우는 곳은 만들기 성공과 [지우고 처음부터] 뿐.
+//   ★ 채널 참여 멤버(체크)는 남기지 않는다 — 멤버가 바뀔 때마다 전원으로 다시 맞춰지는 값이라(아래 members 이펙트).
+interface ProjectDraft {
+  name: string; clientCompany: string; clientEmail: string; description: string;
+  startDate: string; endDate: string; color: string; projectType: 'fixed' | 'ongoing'; isInternal: boolean;
+  members: MemberInput[]; clients: ClientInput[];
+  customerChatName: string; internalChatName: string;
+  createCustomerChannel: boolean; createInternalChannel: boolean;
+}
 
 interface Props {
   businessId: number;
   open: boolean;
   onClose: () => void;
-  onCreate: (data: ProjectFormData) => void;
+  /** 만들기에 성공했으면 true 를 돌려준다 — 그때만 입력 초안을 지운다(실패를 삼키는 핸들러 뒤에서 지우면 실패가 곧 입력 삭제다) */
+  onCreate: (data: ProjectFormData) => void | boolean | Promise<void | boolean>;
   /** Q sale 상담에서 "프로젝트 만들기" 로 진입 — 고객·회사를 미리 채운다(죽은 링크를 만들지 않는다) */
   prefillClient?: { name: string; email: string; company?: string } | null;
 }
@@ -107,11 +122,13 @@ const NewProjectModal: React.FC<Props> = ({ businessId, open, onClose, onCreate,
         const humans = list.filter((m) => m.role !== 'ai' && m.user);
         setAvailableMembers(humans);
         // 본인을 기본 담당자로 세팅 (아직 비어있을 때만)
-        if (members.length === 0 && user) {
+        //   ★ 함수형으로 — 열 때 임시저장본에서 멤버를 되살렸으면 그것을 덮지 않는다
+        if (user) {
           const me = humans.find((m) => m.user_id === Number(user.id));
           if (me) {
             // 역할 = 그 사람의 «기본 역할»(설정 > 멤버). 없으면 비움(옛 '기획' 고정 폐기).
-            setMembers([{ user_id: me.user_id, name: me.name || me.user?.name || user.name, role: me.default_role || null, is_default: true }]);
+            setMembers((prev) => (prev.length > 0 ? prev
+              : [{ user_id: me.user_id, name: me.name || me.user?.name || user.name, role: me.default_role || null, is_default: true }]));
           }
         }
       } catch (err) {
@@ -154,6 +171,49 @@ const NewProjectModal: React.FC<Props> = ({ businessId, open, onClose, onCreate,
     });
   }, [members]);
 
+  // ─── 입력 초안 ───
+  //   상담(Q sale)에서 고객을 채워 여는 길(prefillClient)은 그 고객이 정본이라 초안을 붙이지 않는다.
+  const draftKey = useDraftKey('project-create', 'new', businessId) || '';
+  const draftOn = open && !prefillClient && !!draftKey;
+  const draftValue: ProjectDraft = {
+    name, clientCompany, clientEmail, description, startDate, endDate, color, projectType, isInternal,
+    members, clients, customerChatName, internalChatName, createCustomerChannel, createInternalChannel,
+  };
+  const draft = useLocalDraft<ProjectDraft>({
+    key: draftKey, value: draftValue, enabled: draftOn,
+    // 이름·설명 등 손으로 넣은 것이 없으면 빈 초안(자동으로 들어가는 «나» 멤버·기본 토글만으로는 남기지 않는다)
+    isEmpty: (v) => !v.name.trim() && !v.clientCompany.trim() && !v.clientEmail.trim() && !v.description.trim()
+      && !v.startDate && !v.endDate && v.clients.length === 0 && !v.customerChatName.trim() && !v.internalChatName.trim()
+      && v.members.length <= 1,
+  });
+  const [restoredAt, setRestoredAt] = useState<number | null>(null);
+  // 열릴 때마다 저장본을 읽는다 — 이 모달은 닫혀도 마운트된 채라 useLocalDraft 의 «마운트 때 읽기» 로는 두 번째 열기를 못 본다
+  useEffect(() => {
+    if (!draftOn) { setRestoredAt(null); return; }
+    const rec = readDraftRecord<ProjectDraft>(draftKey);
+    const v = rec && !rec.cleared ? rec.value : null;
+    if (!v || typeof v !== 'object' || typeof v.name !== 'string') return;
+    setName(v.name); setClientCompany(v.clientCompany || ''); setClientEmail(v.clientEmail || '');
+    setDescription(v.description || ''); setStartDate(v.startDate || ''); setEndDate(v.endDate || '');
+    if (v.color) setColor(v.color);
+    setProjectType(v.projectType === 'ongoing' ? 'ongoing' : 'fixed');
+    setIsInternal(!!v.isInternal);
+    if (Array.isArray(v.members) && v.members.length > 0) setMembers(v.members);
+    if (Array.isArray(v.clients)) setClients(v.clients);
+    setCustomerChatName(v.customerChatName || ''); setInternalChatName(v.internalChatName || '');
+    setCreateCustomerChannel(v.createCustomerChannel !== false); setCreateInternalChannel(v.createInternalChannel !== false);
+    setRestoredAt(rec!.editedAt || Date.now());
+  }, [draftOn, draftKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  const discardDraft = () => {
+    draft.clear();
+    setName(''); setClientCompany(''); setClientEmail(''); setDescription(''); setStartDate(''); setEndDate('');
+    setColor(PROJECT_COLOR_PALETTE[0].value); setProjectType('fixed'); setIsInternal(false);
+    setMembers((prev) => prev.filter((m) => m.user_id === Number(user?.id)).map((m) => ({ ...m, is_default: true })));
+    setClients([]); setCustomerChatName(''); setInternalChatName('');
+    setCreateCustomerChannel(true); setCreateInternalChannel(true);
+    setRestoredAt(null);
+  };
+
   if (!open) return null;
 
   const addMember = (userId: number) => {
@@ -178,7 +238,7 @@ const NewProjectModal: React.FC<Props> = ({ businessId, open, onClose, onCreate,
     if (!name.trim() || submitting) return;
     setSubmitting(true);
     try {
-      await onCreate({
+      const ok = await onCreate({
         name: name.trim(),
         client_company: clientCompany.trim(),
         client_email: clientEmail.trim(),
@@ -196,6 +256,7 @@ const NewProjectModal: React.FC<Props> = ({ businessId, open, onClose, onCreate,
           ...(createInternalChannel ? [{ channel_type: 'internal' as const, name: internalChatName.trim() || t('newProject.internalChannelName', { defaultValue: '{{name}} 내부', name: name.trim() }), participant_user_ids: Array.from(internalParticipants) }] : []),
         ],
       });
+      if (ok === true) draft.clear();
     } finally {
       setSubmitting(false);
     }
@@ -215,11 +276,14 @@ const NewProjectModal: React.FC<Props> = ({ businessId, open, onClose, onCreate,
       submitLabel={t('modal.create', '프로젝트 생성')}
       submitDisabled={!name.trim()}
     >
+          {restoredAt !== null && (
+            <FormDraftNote savedAt={restoredAt} onDiscard={discardDraft} testId="project-create-draft" />
+          )}
           {/* 기본 정보 */}
           <Field>
             <Label>{t('modal.name', '프로젝트명')} <Required>*</Required></Label>
             <Input
-              value={name}
+              value={name} data-testid="project-create-name"
               onChange={(e) => setName(e.target.value)}
               placeholder={t('modal.namePlaceholder', '예: 브랜드 리뉴얼')}
               autoFocus
@@ -305,7 +369,7 @@ const NewProjectModal: React.FC<Props> = ({ businessId, open, onClose, onCreate,
           <Field>
             <Label>{t('modal.description', '설명 (선택)')}</Label>
             <TextArea
-              value={description}
+              value={description} data-testid="project-create-desc"
               onChange={(e) => setDescription(e.target.value)}
               placeholder={t('modal.descriptionPlaceholder', '프로젝트 목적·범위·주의사항')}
               rows={2}

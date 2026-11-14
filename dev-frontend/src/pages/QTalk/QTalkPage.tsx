@@ -1425,8 +1425,10 @@ const QTalkPage: React.FC<QTalkPageProps> = ({ embedded = false, initialConvId =
       setActiveConversationId(null);
       setModalOpen(false);
       showNotice(t('page.projectCreated', { name: mapped.name }));
+      return true; // 만들기 성공 — 모달이 입력 초안을 지운다
     } catch (err: unknown) {
       showNotice(t('page.createFailed', { msg: mapApiError(err, tErr) }));
+      return false;
     }
   };
 

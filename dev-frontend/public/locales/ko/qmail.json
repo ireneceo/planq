@@ -188,10 +188,7 @@
     "imapHostRequired": "받기(IMAP) 서버 주소를 입력하세요",
     "imapUserRequired": "받기(IMAP) 로그인 아이디를 입력하세요 — 보통 이메일 주소 전체예요",
     "jumpToField": "해당 칸으로 이동",
-    "draftRestoredAt": "입력하던 내용을 불러왔어요 · {{time}} 임시저장",
-    "draftRestored": "입력하던 내용을 불러왔어요",
-    "draftNoPassword": "비밀번호는 저장하지 않아요 — 다시 넣어 주세요.",
-    "draftDiscard": "지우고 처음부터"
+    "draftNoPassword": "비밀번호는 저장하지 않아요 — 다시 넣어 주세요."
   },
   "folders": {
     "title": "메일함",

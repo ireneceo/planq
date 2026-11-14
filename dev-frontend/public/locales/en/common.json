@@ -1695,6 +1695,8 @@
     "lastLoginAt": "Last sign-in {{date}}"
   },
   "draft": {
+    "formRestoredAt": "Restored your unsaved entries · saved {{time}}",
+    "formDiscard": "Clear and start over",
     "restored": "Restored your unsent text",
     "clear": "Clear",
     "replaced": "Updated with newer text from another window",
