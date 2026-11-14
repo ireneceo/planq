@@ -49,7 +49,7 @@ import {
 } from './TaskPopoutView.styles';
 import { usePopoutDensity, COMPACT_TEXT_CODES } from './usePopoutDensity';
 
-import { inTodaySet } from '../../utils/todayTaskSet';
+import { inTodaySet, isUnackedRequestToMe } from '../../utils/todayTaskSet';
 import { detectBrowserTz, dateStrInTz } from '../../utils/timezones';
 import { useAuth, apiFetch } from '../../contexts/AuthContext';
 import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
@@ -407,9 +407,19 @@ const TaskPopoutView: React.FC<TaskPopoutViewProps> = ({ pinSlot }) => {
   useEffect(() => { setQuickPick(''); }, [effView]);
 
   orderViewRef.current = effView;
-  const sortRule = effView === 'tag' ? byTagRule
+  const baseSortRule = effView === 'tag' ? byTagRule
     : effView === 'project' ? byProjectRule
       : byDueRule;
+  // 미확인 받은 요청은 맨 위 — «확인 먼저» (Irene 2026-11-14 · Fable). 묶음 보기(태그·프로젝트)는 머리줄이 갈리지 않게,
+  //   직접 정렬은 사람이 정한 순서라 건드리지 않는다. 나열(마감일별)일 때만.
+  const pinUnacked = effView === 'due' && sortKey !== 'mine';
+  const sortRule = (a: PopoutTask, b: PopoutTask): number => {
+    if (pinUnacked) {
+      const ua = isUnackedRequestToMe(a as never, myId); const ub = isUnackedRequestToMe(b as never, myId);
+      if (ua !== ub) return ua ? -1 : 1;
+    }
+    return baseSortRule(a, b);
+  };
   // 오늘 탭 = 이번 주 응답(/my-week) 위에 utils/todayTaskSet 술어를 얹은 것. 메인 화면과 **같은 함수**다.
   const inTab = useCallback((tk: PopoutTask, includeDone: boolean) => (
     popTab === 'week' ? true : inTodaySet(tk as never, todayStr, myId, effTz, includeDone)

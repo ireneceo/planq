@@ -25,7 +25,7 @@ const { serializeTaskComment } = require('../utils/rowTimestamps');
 const { annotateCommentContext } = require('../services/taskCommentContext');
 // 생성·전이는 행동 계층 단일 착지점을 지난다 (사람도 Cue 도 같은 문).
 const taskActions = require('../services/actions/task_actions');
-const { myWeekWhere } = require('../services/weekTaskSet');
+const { myWeekWhere, myAssignedWeekWhere } = require('../services/weekTaskSet');
 const { modelFor: llmModelFor } = require('../services/llm');
 
 // 행동의 주체 — 사람이 HTTP 로 들어온 경우. req 는 감사 로그의 IP 맥락에만 쓴다.
@@ -152,7 +152,14 @@ router.get('/my-week', authenticateToken, async (req, res, next) => {
     // ★ 집계(가용시간·번다운·요약)는 **담당자-only 부분집합**으로 고정한다.
     //   tasks 를 넓힌 채 그대로 합산하면 남의 업무 시간이 내 번다운·남은시간에 섞인다
     //   (인사이트 카드와 팝아웃 헤더가 동시에 오염). 목록만 넓히고 계산은 그대로.
-    const mine = tasks.filter(t => t.assignee_id === uid);
+    // ★ 2026-11-14 — 목록에는 날짜 무관 «미확인 받은 요청» 이 더해졌다(weekTaskSet.unackedRequestWhere). 집계는 주간 기준 유지
+    //   (Fable 설계: «확인» 을 누르는 순간 남은 시간이 줄어드는 숫자를 만들지 않는다) → 담당자 주간 분기(myAssignedWeekWhere)
+    //   id 조회 1회로 가른다. 날짜 규칙을 여기서 JS 로 다시 쓰지 않는다(세 번째 미러 금지).
+    const assignedIds = new Set((await Task.findAll({
+      where: { business_id: businessId, ...myAssignedWeekWhere(uid, monday, sunday, { tzOffset: tzOffsetOf(tz) }) },
+      attributes: ['id'],
+    })).map(r => r.id));
+    const mine = tasks.filter(t => t.assignee_id === uid && assignedIds.has(t.id));
 
     // 가용시간 — #208: 그 주에 승인된 휴가만큼 실질 가용시간이 줄어든다.
     //   기존 키(weekly 등)는 그대로 두고 weekly_effective/leave_days 를 **더한다**.

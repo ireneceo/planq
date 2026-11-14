@@ -9,6 +9,12 @@
 //   여기서는 주간 판정 위에 얹는 **날짜/상태 필터**만 정의한다.
 //
 // ★ 그래프·가용시간·업무시간은 **주간 기준 유지**가 Irene 의 명시 요구다 — 이 술어는 리스트에만 쓴다.
+//
+// ★ 2026-11-14 — **미확인 받은 요청은 날짜 무관 오늘의 일이다** (Irene: «업무요청 들어온 건 바로 오늘 업무리스트에도
+//   나오게 … 확인필요에 들어오는 거고, 오늘 업무로 가정해서 확인은 먼저 하게» · Fable 설계 GO-WITH-CHANGES).
+//   술어는 확인필요 ① 버킷(dev-backend routes/dashboard.js unconfirmed · services/urgentTaskNotify.isUnackedRequest)과
+//   **같은 선**이다 — 한쪽만 바꾸지 말 것. 확인(ack)하면 빠지고 그 뒤는 아래 날짜 규칙을 탄다.
+//   이번 주 쪽은 목록(백엔드 weekTaskSet.myWeekWhere · QTaskPage inWeekCanonical)만 넓힌다 — 그래프·가용시간·주간보고는 불변.
 
 export interface TodayTaskLike {
   status: string;
@@ -17,6 +23,19 @@ export interface TodayTaskLike {
   completed_at?: string | null;
   assignee_id?: number | null;
   reviewers?: Array<{ user_id: number; state: 'pending' | 'approved' | 'revision' }> | null;
+  request_by_user_id?: number | null;
+  request_ack_at?: string | null;
+}
+
+/** 확인필요 ① 과 같은 상태 집합 (백엔드 services/urgentTaskNotify.UNACKED_STATUSES). 보류·제출 뒤 단계는 «요청 확인» 이 아니다. */
+export const UNACKED_REQUEST_STATUSES = ['not_started', 'waiting', 'in_progress'];
+
+/** 나에게 온, 아직 확인하지 않은 업무요청인가 — 확인필요 ① 버킷과 같은 술어. */
+export function isUnackedRequestToMe(t: TodayTaskLike, myId: number): boolean {
+  if (!myId || t.assignee_id !== myId) return false;
+  if (t.request_by_user_id == null || t.request_by_user_id === myId) return false;
+  if (t.request_ack_at) return false;
+  return UNACKED_REQUEST_STATUSES.includes(t.status);
 }
 
 /** 완료 시각을 **워크스페이스 로컬 날짜**로. `slice(0,10)` 금지 —
@@ -50,6 +69,9 @@ export function inTodaySet(t: TodayTaskLike, today: string, myId: number, tz: st
     if (!includeDone) return false;
     return completedDateLocal(t.completed_at, tz) === today;
   }
+
+  // ⓪ 미확인 받은 요청 — 날짜와 무관하게 오늘 먼저 확인할 일이다 (2026-11-14, 위 머리말)
+  if (isUnackedRequestToMe(t, myId)) return true;
 
   const due = (t.due_date || '').slice(0, 10);     // 날짜 컬럼은 DATE 라 UTC 이슈 없음
   const start = (t.start_date || '').slice(0, 10);

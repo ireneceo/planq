@@ -22,7 +22,7 @@ import CalendarPicker from '../../components/Common/CalendarPicker';
 import { PanelLayout, Panel } from '../../components/Layout/PanelLayout';
 import PlanQSelect from '../../components/Common/PlanQSelect';
 import { todayInTz, mondayOfDateStr, addDaysStr, detectBrowserTz } from '../../utils/timezones';
-import { inTodaySet } from '../../utils/todayTaskSet';
+import { inTodaySet, isUnackedRequestToMe } from '../../utils/todayTaskSet';
 import { STATUS_CODES, STATUS_COLOR, displayStatus, getStatusLabel, statusOptionsFor, type StatusCode } from '../../utils/taskLabel';
 import { getRoles, primaryPerspective } from '../../utils/taskRoles';
 import TaskQuickSearch from '../../components/QTask/TaskQuickSearch';
@@ -1193,7 +1193,11 @@ const QTaskPage:React.FC=()=>{
   //     검색 밖 task 의 우선순위와 충돌하는 데이터 오염이 났다 (2026-07-28 Fable 설계 게이트가 잡은 실버그).
   //   ★ 백엔드 `my-week` 의 where 절과 **미러**다 (routes/tasks.js). 한쪽만 고치면 메인과 팝아웃의
   //     우선순위 번호가 갈린다 — 실제로 reviewer·관여완료 분기 누락으로 그 결함이 났다.
-  const inWeekCanonical=useCallback((t:TaskRow, includeDone:boolean)=>{
+  // withUnacked — ★ 2026-11-14 미확인 받은 요청은 날짜 무관 이번 주 목록에 든다(서버 weekTaskSet.myWeekWhere 미러,
+  //   utils/todayTaskSet.isUnackedRequestToMe = 확인필요 ① 술어). **목록만** 넓힌다 — 그래프·부하(chartWeekTasks)는
+  //   false 로 불러 주간 기준을 지킨다(서버 /my-week summary 가 myAssignedWeekWhere 로 가르는 것과 같은 선).
+  const inWeekCanonical=useCallback((t:TaskRow, includeDone:boolean, withUnacked:boolean=true)=>{
+    if(withUnacked&&isUnackedRequestToMe(t,myId))return true;
     // 1) 기간/상태 검사 — "이번 주 나의 업무" canonical 규칙 (docs/WORK_FLOW_DESIGN.md §5).
     //  - 완료/취소: "완료시점"이 이번 주인 것만 (completed_at 이 기간 안). 마감 과거여도 이번 주에
     //    끝냈으면 이번 주 업무 (완료시점 기준). completed_at 없으면 제외(언제 끝났는지 모름).
@@ -1297,6 +1301,13 @@ const QTaskPage:React.FC=()=>{
         const bDone=b.status==='completed'||b.status==='canceled';
         if(aDone&&!bDone)return 1;
         if(!aDone&&bDone)return -1;
+      }
+      // 0) 미확인 받은 요청은 맨 위 — 오늘·이번 주 기본 정렬(우선순위)일 때만. «확인 먼저» (Irene 2026-11-14 · Fable).
+      //    사용자가 다른 칸으로 정렬을 고르면 그 선택을 따른다.
+      if(scope==='mine'&&hasPrioCol&&effSortKey==='priority_order'){
+        const ua=isUnackedRequestToMe(a,myId), ub=isUnackedRequestToMe(b,myId);
+        if(ua&&!ub)return -1;
+        if(!ua&&ub)return 1;
       }
       // 1) 주 정렬 (사용자 선택)
       const sk=effSortKey;
@@ -1574,7 +1585,7 @@ const QTaskPage:React.FC=()=>{
   //   리스트에 담당자 나 아닌 걸 왜 내 업무정보에 넣어"). 내 시간·내 진척이므로 남의 담당 업무는
   //   컨펌자로 관여해도 이 수치에 넣지 않는다. 이 조건을 제거하지 말 것.
   const chartWeekTasks=useMemo(()=>(
-    scope==='mine' ? allTasks.filter(t=>inWeekCanonical(t,true)&&t.assignee_id===myId&&t.status!=='canceled') : []
+    scope==='mine' ? allTasks.filter(t=>inWeekCanonical(t,true,false)&&t.assignee_id===myId&&t.status!=='canceled') : []
   ),[allTasks,scope,myId,inWeekCanonical]);
 
   // ★ 카드도 **그래프와 같은 집합**(chartWeekTasks = 이번 주 정본 ∩ 담당자=나)을 읽는다.

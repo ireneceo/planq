@@ -84,6 +84,23 @@ function myAssignedWeekWhere(uid, monday, sunday, opts = {}) {
 }
 
 /**
+ * 나에게 온 **미확인 업무요청** — 확인필요 ① 버킷(routes/dashboard.js unconfirmed)·urgentTaskNotify.isUnackedRequest 와 같은 술어.
+ * ★ 2026-11-14 Irene «업무요청 들어온 건 바로 오늘 업무리스트에도 … 오늘 업무로 가정해서 확인은 먼저 하게» (Fable 설계 GO-WITH-CHANGES):
+ *   날짜 무관 이번 주 **목록**(myWeekWhere)에 든다. myAssignedWeekWhere(주간보고 빌더·today_review)에는 넣지 않는다 —
+ *   그래프·가용시간·보고서는 주간 기준 유지. 확인(ack)하면 빠지고 그 뒤는 위 날짜 규칙.
+ */
+function unackedRequestWhere(uid) {
+  const id = Number(uid);
+  const { UNACKED_STATUSES } = require('./urgentTaskNotify');
+  return {
+    assignee_id: id,
+    [Op.and]: [{ request_by_user_id: { [Op.ne]: id } }, { request_by_user_id: { [Op.not]: null } }],
+    request_ack_at: null,
+    status: { [Op.in]: UNACKED_STATUSES },
+  };
+}
+
+/**
  * `/my-week` 풀셋 — 담당자 분기 + 내가 pending 컨펌자인 활성 업무 + 내가 관여한 그 주 완료.
  * QTaskPage 의 weekSet memo 와 **미러**다. 한쪽만 고치면 두 화면의 우선순위 번호가 갈린다
  * (2026-07-28 실사고: reviewer·관여완료 분기 누락으로 팝아웃 번호가 메인과 어긋남).
@@ -94,6 +111,8 @@ function myWeekWhere(uid, businessId, monday, sunday, opts = {}) {
     business_id: businessId,
     [Op.or]: [
       myAssignedWeekWhere(id, monday, sunday, opts),
+      // 미확인 받은 요청 — 날짜 무관 (위 unackedRequestWhere 머리말). 프론트 QTaskPage inWeekCanonical 미러.
+      unackedRequestWhere(id),
       // 내가 pending 컨펌자인 활성 업무 — 날짜 무관 (메인 filtered 의 myRev pending 분기 미러).
       //   담당자가 아니어도 "내가 행동해야 하는 것"이라 이번 주 무대에 오른다.
       //   ★ 2026-09-11 — 컨펌 단계에서 외부컨펌으로 넘어간 업무도 남긴다(services/reviewStage). 컨펌자가 외부컨펌을
@@ -127,4 +146,4 @@ function myWeekWhere(uid, businessId, monday, sunday, opts = {}) {
   };
 }
 
-module.exports = { myAssignedWeekWhere, myWeekWhere, completedInWeek };
+module.exports = { myAssignedWeekWhere, myWeekWhere, completedInWeek, unackedRequestWhere };

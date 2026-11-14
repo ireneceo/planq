@@ -68,3 +68,7 @@ paths:
 > - **바꾸는 즉시 새 회차를 만든다**(`generateOneSeries` + 비우지 않는 알림 버킷 = 알림 없음) — 자정 생성기를 기다리면 바꾼 직후 «고친 업무 1개만 남는» 화면이 된다(Irene 같은 날 2차 신고).
 > - 화면(`SeriesScopeDialog` recurrence)은 «이 업무 다음부터»(앞날 업무일 때만) / «내일부터» 두 개 — «이 회차 이후·앞으로 전부» 는 폐기.
 > - 회귀 `node scripts/check-recur-change.js`(실 HTTP + dev DB · 옛 코드로 5건 FAIL 확인한 양성 대조군 · ④ 음성 대조군 = 뒤 회차는 실제로 바뀌는가).
+
+> **미확인 받은 요청은 오늘·이번 주 목록에 날짜 무관으로 든다 (2026-11-14, Irene · Fable)** — 술어는 확인필요 ① 하나
+> (서버 `weekTaskSet.unackedRequestWhere`·`urgentTaskNotify.UNACKED_STATUSES` / 프론트 `todayTaskSet.isUnackedRequestToMe`).
+> `myWeekWhere`(목록·우선순위 정본)에만 넣고 `myAssignedWeekWhere`(보고서·today_review)·summary·그래프에는 넣지 않는다. 기본 정렬 맨 위. 정본 `docs/WORK_FLOW_DESIGN.md §5`.

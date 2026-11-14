@@ -566,6 +566,11 @@ if (session.task_id) {
 
 추가 규칙:
 - **pending reviewer**: 내가 컨펌 대기(state=pending) 인 `reviewing`/`revision_requested` 업무는 담당자가 아니어도 표시.
+- **미확인 받은 요청 — 날짜 무관 이번 주 목록 + 오늘** (2026-11-14 Irene *"업무요청 들어온 건 바로 오늘 업무리스트에도 … 오늘 업무로 가정해서 확인은 먼저 하게"* · Fable 설계 GO-WITH-CHANGES).
+  술어 = 확인필요 ① 버킷(담당=나 ∧ 요청자≠나 ∧ 미확인 ∧ not_started/waiting/in_progress). 서버 `weekTaskSet.unackedRequestWhere`(→ `myWeekWhere` 만) ·
+  프론트 `utils/todayTaskSet.isUnackedRequestToMe`(→ `inTodaySet` ⓪ · `inWeekCanonical`). **목록만** 넓힌다 — `/my-week` summary 와
+  메인 그래프·부하(`chartWeekTasks`)는 `myAssignedWeekWhere` 기준 그대로(확인 누르는 순간 남은 시간이 줄어드는 숫자 금지), 주간보고 빌더 불변.
+  기본 정렬에서 맨 위(메인 우선순위 정렬 · 팝아웃 마감일별 나열). 확인(ack)하면 빠지고 그 뒤는 위 날짜 규칙(ack 는 not_started → waiting 이라 활성으로 남는다).
 - **외부컨펌(external_review)은 단계 표시다 — 리스트업 조건을 바꾸지 않는다** (2026-09-11 Irene 확정).
   > *"확인요청 받은 거 외부컨펌 눌렀는데 이번 주 나의 업무리스트에서 아주 사라졌어. … 리스트에서 안 없어지게 하고
   > 확인필요에도 그냥 안 없어지게 하고 단계만 표시해두자. 리스트업 조건은 확인요청 받은 상태나 내가 업무처리해야 하는
