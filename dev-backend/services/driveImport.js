@@ -100,6 +100,73 @@ function checkEligible(meta) {
   return { ok: true };
 }
 
+const DRIVE_SHORTCUT_MIME = 'application/vnd.google-apps.shortcut';
+const TARGET_FIELDS = 'id, name, mimeType, size, webViewLink, md5Checksum';
+
+/** 작은 파일 본문을 상한까지만 읽는다(바로가기 파싱용). 넘거나 실패하면 null. */
+async function readSmall(drive, fileId, max) {
+  try {
+    const stream = await gdrive.getFileStream(drive, fileId);
+    const chunks = [];
+    let bytes = 0;
+    return await new Promise((resolve) => {
+      stream.on('data', (c) => {
+        bytes += c.length;
+        if (bytes > max) { stream.destroy(); resolve(null); return; }
+        chunks.push(c);
+      });
+      stream.on('end', () => resolve(Buffer.concat(chunks)));
+      stream.on('error', () => resolve(null));
+    });
+  } catch { return null; }
+}
+
+async function getTargetMeta(drive, id) {
+  try {
+    const g = await drive.files.get({ fileId: id, fields: TARGET_FIELDS, supportsAllDrives: true }, { timeout: 10000 });
+    return g.data && g.data.id ? g.data : null;
+  } catch { return null; }
+}
+
+/**
+ * 구글 문서 **바로가기**를 풀어 가리키는 문서를 찾는다.
+ *
+ * ★ 2026-11-14 (Irene: *"구글 드라이브에서 가져오기 하면 문서파일로 들어오면 되지 왜 허용이 안되는 거야?"*) —
+ *   Drive 에서 «브랜드를 지키는 법_ver05_전자책용 편집.gdoc»(0KB) 을 고르면 «허용되지 않는 파일 형식» 이었다.
+ *   그 파일은 문서가 아니라 PC 의 구글 드라이브 폴더가 만든 수백 바이트짜리 **링크 파일**(services/googleShortcut)이
+ *   Drive 에 일반 파일로 올라간 것이고, Drive 가져오기 허용 목록(ALLOWED_EXT)에 .gdoc 이 없었다.
+ *   → 안의 문서 id 로 **원본 문서**를 찾아 네이티브 문서와 같은 길(docx·xlsx·pptx 로 변환)로 들인다.
+ *   → 원본을 이 앱이 못 보면(drive.file 권한은 Picker 로 고른 파일만 보인다) 링크 파일 그대로 들인다 —
+ *     PlanQ 에서 열면 그 문서(docs.google.com)로 열린다(파일함 /shortcut · 첨부와 같은 동작). 거절하지 않는다.
+ *   Drive 자체 바로가기(mimeType shortcut)도 같은 길로 원본을 찾는다 — 못 찾으면 그때만 거절한다(들일 바이트가 없다).
+ * @returns {{target?:object, linkOnly?:boolean, reason?:string}} 빈 객체 = 바로가기 아님(보통 판정으로)
+ */
+async function resolveGoogleShortcut(drive, meta) {
+  if (!meta || !meta.id || !drive) return {};
+  const mime = String(meta.mimeType || '');
+  if (mime === DRIVE_SHORTCUT_MIME) {
+    let targetId = meta.shortcutDetails && meta.shortcutDetails.targetId;
+    if (!targetId) {
+      try {
+        const g = await drive.files.get({ fileId: meta.id, fields: 'shortcutDetails', supportsAllDrives: true }, { timeout: 10000 });
+        targetId = g.data && g.data.shortcutDetails && g.data.shortcutDetails.targetId;
+      } catch { /* 아래에서 거절 */ }
+    }
+    const target = targetId ? await getTargetMeta(drive, targetId) : null;
+    if (!target || String(target.mimeType || '') === DRIVE_SHORTCUT_MIME) return { reason: 'google_shortcut_unreachable' };
+    return { target };
+  }
+  if (mime.startsWith(GOOGLE_NATIVE_PREFIX)) return {};
+  const gs = require('./googleShortcut');
+  if (!gs.looksLikeShortcut(meta.name, meta.size)) return {};
+  const buf = await readSmall(drive, meta.id, gs.MAX_BYTES);
+  const parsed = buf ? gs.parseShortcut(buf, meta.name) : null;
+  if (!parsed) return {};   // 바로가기 모양이 아니다 — 보통 판정(확장자)으로
+  const target = await getTargetMeta(drive, parsed.docId);
+  if (target && exportSpecFor(target.mimeType)) return { target };
+  return { linkOnly: true };
+}
+
 /**
  * Drive 파일 하나를 PlanQ 로 들인다.
  * @param ctx { drive, businessId, uploaderId }
@@ -116,7 +183,16 @@ async function importDriveFile(ctx, meta, opts = {}) {
   //   같은 기본값을 쓴다 — 호출자가 좁히고 싶으면 명시한다.
   const visibility = opts.visibility || 'L3';
 
-  const eligible = checkEligible(meta);
+  // 구글 문서 바로가기(.gdoc 등 · Drive 바로가기) — 가리키는 **문서 자체**를 들인다.
+  //   한 번만 따라간다(_shortcutResolved) — 바로가기가 바로가기를 가리켜도 돌지 않는다.
+  let eligible = null;
+  if (!opts._shortcutResolved) {
+    const sc = await resolveGoogleShortcut(drive, meta);
+    if (sc.target) return importDriveFile(ctx, sc.target, { ...opts, _shortcutResolved: true });
+    if (sc.reason) return { ok: false, reason: sc.reason };
+    if (sc.linkOnly) eligible = { ok: true };
+  }
+  if (!eligible) eligible = checkEligible(meta);
   if (!eligible.ok) return { ok: false, reason: eligible.reason };
 
   const driveId = meta.id;
@@ -281,5 +357,5 @@ async function ingestDownloadedFile(ctx, temp, opts) {
 
 module.exports = {
   importDriveFile, ingestDownloadedFile, uploadPathFor, extOf, checkEligible, ALLOWED_EXT, GOOGLE_NATIVE_PREFIX,
-  exportSpecFor, exportNameFor, GOOGLE_EXPORT,
+  exportSpecFor, exportNameFor, GOOGLE_EXPORT, resolveGoogleShortcut,
 };

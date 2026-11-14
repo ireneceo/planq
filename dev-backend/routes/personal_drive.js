@@ -150,7 +150,7 @@ async function importHandler(req, res, next, forcedScope) {
     let meta;
     try {
       const g = await r.drive.files.get(
-        { fileId, fields: 'id, name, mimeType, size, webViewLink, md5Checksum', supportsAllDrives: true },
+        { fileId, fields: 'id, name, mimeType, size, webViewLink, md5Checksum, shortcutDetails', supportsAllDrives: true },
         { timeout: 10000 });
       meta = g.data;
     } catch (e) {
@@ -175,7 +175,7 @@ async function importHandler(req, res, next, forcedScope) {
     );
     if (!out.ok) {
       const status = out.reason === 'storage_quota_exceeded' || out.reason === 'file_size_exceeded' ? 413
-        : out.reason === 'extension_not_allowed' || out.reason === 'google_native' ? 415
+        : out.reason === 'extension_not_allowed' || out.reason === 'google_native' || out.reason === 'google_shortcut_unreachable' ? 415
           : 502;
       return errorResponse(res, out.reason, status);
     }

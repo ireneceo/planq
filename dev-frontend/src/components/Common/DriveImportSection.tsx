@@ -107,6 +107,8 @@ const DriveImportSection: React.FC<Props> = ({
   const reasonText = useCallback((reason: string) => (
     reason.startsWith('google_export_too_large')
       ? (t('attach.drive.exportTooLarge') as string)
+      : reason.startsWith('google_shortcut_unreachable')
+        ? (t('attach.drive.shortcutUnreachable') as string)
       : reason.startsWith('google_native')
         ? (t('attach.drive.nativeDoc') as string)
       : reason.startsWith('extension_not_allowed')

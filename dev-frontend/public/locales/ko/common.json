@@ -861,6 +861,7 @@
       "importFailed": "가져오지 못했습니다",
       "nativeDoc": "Google 설문지·사이트 등은 문서 형식으로 바꿀 수 없어 가져올 수 없습니다. Drive 에서 PDF 로 내보낸 뒤 올려 주세요.",
       "extNotAllowed": "허용되지 않는 파일 형식입니다",
+      "shortcutUnreachable": "바로가기가 가리키는 원본 문서를 열 수 없습니다. Drive 에서 원본 문서를 직접 골라 주세요.",
       "quota": "저장공간이 가득 찼습니다",
       "pickerOpen": "Drive 에서 찾아보기",
       "pickerOpening": "여는 중...",
