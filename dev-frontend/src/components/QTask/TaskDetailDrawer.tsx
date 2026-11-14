@@ -377,7 +377,7 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
   // #290 — 팝아웃 여부는 창 단위 불변값(sessionStorage). 렌더마다 재계산할 이유가 없다.
   const [isPopout] = useState(() => isPopoutWindow());
   // 팝아웃에서 관리 필드 접힘 상태. 펼치면 그 창에서는 유지된다(매번 다시 펼치는 마찰 제거).
-  const [metaOpen, setMetaOpen] = useState(false);
+  const [metaOpen, setMetaOpen] = useState(() => { try { return sessionStorage.getItem(META_OPEN_KEY) === '1'; } catch { return false; } });
   const [openHistory, setOpenHistory] = useState(false);
   const [openDaily, setOpenDaily] = useState(false);
 
@@ -1898,9 +1898,22 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                   팝아웃에서만 기본 접힘 — 섹션 순서·구성은 메인과 동일하게 두고(두 화면이 갈리면
                   검증 표면이 두 배가 된다) 펼치면 편집 기능은 전부 그대로다. */}
               {isPopout && (
-                <MetaToggle type="button" onClick={() => setMetaOpen(v => !v)} aria-expanded={metaOpen}>
+                /* 2026-11-14 Irene «접힌건지 몰라서 모르는 사람이 많아» — 회색 글자 한 줄이라 제목처럼 읽혔다.
+                   누를 수 있는 줄(테두리·배경)로 만들고, 접혀 있을 때는 안에 든 값 요약 + «펼치기» 를 붙여
+                   «여기 더 있다» 가 보이게 한다. 펼친 상태는 이 창에서 기억한다(업무를 바꿔도 다시 접히지 않게). */
+                <MetaToggle type="button" data-testid="task-detail-meta-toggle"
+                  onClick={() => setMetaOpen(v => { const n = !v; try { sessionStorage.setItem(META_OPEN_KEY, n ? '1' : '0'); } catch { /* 저장 못 해도 화면은 그대로 */ } return n; })}
+                  aria-expanded={metaOpen} $open={metaOpen}>
                   <ColArrow $open={metaOpen}>▸</ColArrow>
-                  <span>{t('detail.meta.toggle', '상세 정보')}</span>
+                  <MetaToggleTitle>{t('detail.meta.toggle', '상세 정보')}</MetaToggleTitle>
+                  {!metaOpen && (() => {
+                    const parts: string[] = [];
+                    if (selectedAssigneeOption) parts.push(selectedAssigneeOption.label);
+                    if (detailTask.due_date) parts.push(t('detail.meta.toggleDue', { date: String(detailTask.due_date).slice(5, 10).replace('-', '/'), defaultValue: '마감 {{date}}' }) as string);
+                    if (reviewers.length) parts.push(t('detail.meta.toggleReviewers', { count: reviewers.length, defaultValue: '컨펌자 {{count}}' }) as string);
+                    return parts.length ? <MetaToggleSummary>{parts.join(' · ')}</MetaToggleSummary> : null;
+                  })()}
+                  <MetaToggleAction>{metaOpen ? t('detail.meta.toggleClose', '접기') : t('detail.meta.toggleOpen', '펼치기')}</MetaToggleAction>
                 </MetaToggle>
               )}
               <MetaGrid $hidden={isPopout && !metaOpen}>
@@ -3386,12 +3399,18 @@ const DrawerNameChip = styled.span<{ $type: 'from' | 'to' | 'observer' | 'mine' 
 // 추가 폼 (QTaskPage 의 AddOptRow / AddOptField / AddOptLabel) 과 동일한 패턴.
 // flex + wrap + 자연 폭. 라벨 위 + 값 아래 (vertical cell).
 // #290 — 팝아웃 접힘 토글. Reviewers/History 의 ColHeader 와 같은 생김새를 쓴다(새 패턴 안 만듦).
-const MetaToggle = styled.button`
-  display:flex;align-items:center;gap:8px;width:100%;padding:8px 0 2px;
-  background:transparent;border:none;font-size:0.75rem;font-weight:700;color:#64748B;
-  cursor:pointer;text-align:left;font-family:inherit;
-  &:hover{color:#0F172A;}
+const META_OPEN_KEY = 'pq:popout-meta-open';
+// 2026-11-14 — 접힘을 알아보게: 테두리·연한 배경의 누르는 줄 + 오른쪽 «펼치기/접기». 색은 기존 청록 계열 그대로.
+const MetaToggle = styled.button<{ $open: boolean }>`
+  display:flex;align-items:center;gap:8px;width:100%;min-height:36px;margin-top:10px;padding:6px 10px;
+  background:${p => p.$open ? '#FFFFFF' : '#F8FAFC'};border:1px solid #E2E8F0;border-radius:8px;
+  font-size:0.75rem;color:#64748B;cursor:pointer;text-align:left;font-family:inherit;
+  &:hover{border-color:#14B8A6;background:#F0FDFA;}
+  &:focus-visible{outline:2px solid #14B8A6;outline-offset:1px;}
 `;
+const MetaToggleTitle = styled.span`flex-shrink:0;font-weight:700;color:#334155;`;
+const MetaToggleSummary = styled.span`flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#64748B;`;
+const MetaToggleAction = styled.span`flex-shrink:0;margin-left:auto;font-weight:600;color:#0F766E;`;
 const MetaGrid = styled.div<{ $hidden?: boolean; $settings?: boolean }>`
   /* 속성 줄 격자 (2026-10-12) — 칸마다 «위 라벨 + 36px 상자» 이던 것을 «왼쪽 라벨 · 오른쪽 값» 줄로.
      넓으면 2열(서랍 480 → 칸 ≈218px), 좁으면(폰·팝아웃 좁은 창) 1열. */

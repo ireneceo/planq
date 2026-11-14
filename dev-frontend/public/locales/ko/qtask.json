@@ -564,7 +564,11 @@
       "workstream": "추진과제",
       "aiCreatedOn": "AI 작성",
       "cueCreatedOn": "Cue 작성",
-      "aiRequestedOn": "AI 요청"
+      "aiRequestedOn": "AI 요청",
+      "toggleOpen": "펼치기",
+      "toggleClose": "접기",
+      "toggleDue": "마감 {{date}}",
+      "toggleReviewers": "컨펌자 {{count}}"
     },
     "description": "업무 설명",
     "descriptionSelf": "내가 적은 업무 메모",

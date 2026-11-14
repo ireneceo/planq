@@ -564,7 +564,11 @@
       "workstream": "Workstream",
       "aiCreatedOn": "Created by AI",
       "cueCreatedOn": "Created by Cue",
-      "aiRequestedOn": "Requested by AI"
+      "aiRequestedOn": "Requested by AI",
+      "toggleOpen": "Show",
+      "toggleClose": "Hide",
+      "toggleDue": "Due {{date}}",
+      "toggleReviewers": "{{count}} reviewer(s)"
     },
     "description": "Description",
     "descriptionSelf": "My work notes",
