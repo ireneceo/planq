@@ -62,13 +62,33 @@ const CardFace: React.FC<Props> = ({ view, photoSrc, variant = 'full', className
           {role && <Role $compact={compact}>{role}</Role>}
           {first ? (
             <>
-              <BrandLine data-testid="card-brand">
-                {first.logo_url && !compact && <BrandLogo src={first.logo_url} alt="" />}
-                <Company $accent={accent} $compact={compact}>{bName(first)}</Company>
-              </BrandLine>
-              {!compact && bTag(first) && <BrandTag>{bTag(first)}</BrandTag>}
+              {!compact && first.entry_url ? (
+                // 워크스페이스 줄 → 그 워크스페이스 «고객 창구»(소개·서비스·문의·상담 예약). 로고·이름·한 줄 소개가 한 덩어리로 눌린다
+                <BrandEntry href={first.entry_url} target="_blank" rel="noopener noreferrer" $accent={accent}
+                  title={t('public.workspaceEntry') as string} data-testid="card-brand-entry">
+                  <BrandLine data-testid="card-brand">
+                    {first.logo_url && <BrandLogo src={first.logo_url} alt="" />}
+                    <Company $accent={accent} $compact={compact}>{bName(first)}</Company>
+                    <EntryArrow aria-hidden>›</EntryArrow>
+                  </BrandLine>
+                  {bTag(first) && <BrandTag>{bTag(first)}</BrandTag>}
+                  <EntryHint>{t('public.workspaceEntry')}</EntryHint>
+                </BrandEntry>
+              ) : (
+                <>
+                  <BrandLine data-testid="card-brand" $spaced={!compact && !!first.logo_url}>
+                    {first.logo_url && !compact && <BrandLogo src={first.logo_url} alt="" />}
+                    <Company $accent={accent} $compact={compact}>{bName(first)}</Company>
+                  </BrandLine>
+                  {!compact && bTag(first) && <BrandTag>{bTag(first)}</BrandTag>}
+                </>
+              )}
               {!compact && brands.length > 1 && (
-                <BrandChips>{brands.slice(1).map((b, i) => <BrandChip key={`${b.name}-${i}`}>{bName(b)}</BrandChip>)}</BrandChips>
+                <BrandChips>{brands.slice(1).map((b, i) => (b.entry_url
+                  // 워크스페이스 기본 브랜드가 둘째 이후에 있어도 창구로 갈 수 있게(첫 줄이 서브 브랜드인 명함)
+                  ? <BrandChipLink key={`${b.name}-${i}`} href={b.entry_url} target="_blank" rel="noopener noreferrer"
+                      title={t('public.workspaceEntry') as string} data-testid="card-brand-chip-entry">{bName(b)} ›</BrandChipLink>
+                  : <BrandChip key={`${b.name}-${i}`}>{bName(b)}</BrandChip>))}</BrandChips>
               )}
               {showCompany && <CompanySub $compact={compact} data-testid="card-company">{view.company}</CompanySub>}
             </>
@@ -185,13 +205,32 @@ const Role = styled.div<{ $compact: boolean }>`
 const Company = styled.div<{ $accent: string; $compact: boolean }>`
   font-size: ${(p) => (p.$compact ? '0.8125rem' : '0.9375rem')}; font-weight: 600; color: ${(p) => p.$accent}; overflow-wrap: anywhere;
 `;
-const BrandLine = styled.div`display: flex; align-items: center; gap: 6px; min-width: 0;`;
+// 로고가 있으면 위(직함)·아래(한 줄 소개)와 숨 쉴 틈을 준다 — 이름 칸 간격 2px 에 24px 로고가 붙어 보였다(Irene 2026-11-14)
+const BrandLine = styled.div<{ $spaced?: boolean }>`
+  display: flex; align-items: center; gap: 8px; min-width: 0;
+  ${(p) => (p.$spaced ? 'margin: 6px 0 2px;' : '')}
+`;
+// 워크스페이스 «고객 창구» 로 가는 덩어리 — 칸 자체는 글자 그대로 두고 살짝 바탕만(누를 수 있다는 표시)
+const BrandEntry = styled.a<{ $accent: string }>`
+  display: flex; flex-direction: column; gap: 4px; min-width: 0;
+  margin: 8px 0 2px; padding: 10px 12px; border-radius: 10px;
+  border: 1px solid #E2E8F0; background: #F8FAFC; text-decoration: none;
+  &:hover { background: #F1F5F9; border-color: #CBD5E1; }
+  &:focus-visible { outline: 2px solid ${(p) => p.$accent}; outline-offset: 2px; }
+`;
+const EntryArrow = styled.span`margin-left: auto; font-size: 1.125rem; line-height: 1; color: #94A3B8; flex-shrink: 0;`;
+const EntryHint = styled.span`font-size: 0.75rem; font-weight: 600; color: #64748B;`;
 // 브랜드 로고 — 글자 줄 옆 작은 그림(컨트롤 아님). 정사각 비율로 둔다
 const BrandLogo = styled.img`width: 24px; aspect-ratio: 1; object-fit: contain; border-radius: 4px; flex-shrink: 0;`;
 const BrandTag = styled.div`font-size: 0.8125rem; color: #64748B; line-height: 1.4; overflow-wrap: anywhere;`;
 const BrandChips = styled.div`display: flex; flex-wrap: wrap; gap: 4px; margin-top: 2px;`;
 const BrandChip = styled.span`
   font-size: 0.75rem; font-weight: 600; color: #475569; background: #F1F5F9; border-radius: 999px; padding: 2px 8px;
+`;
+const BrandChipLink = styled.a`
+  font-size: 0.75rem; font-weight: 600; color: #0F766E; background: #F0FDFA; border: 1px solid #CCFBF1;
+  border-radius: 999px; padding: 4px 10px; text-decoration: none;
+  &:hover { background: #CCFBF1; }
 `;
 const CompanySub = styled.div<{ $compact: boolean }>`
   font-size: ${(p) => (p.$compact ? '0.75rem' : '0.8125rem')}; color: #94A3B8; overflow-wrap: anywhere;

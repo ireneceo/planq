@@ -75,9 +75,19 @@ function fingerprint(view) {
   delete v.updated_at;
   // v2 이전 보관본에는 brands 칸이 없다 — 빈 목록과 같게 본다(안 그러면 옛 보관본이 전부 «바뀜» 으로 뜬다)
   if (!Array.isArray(v.brands)) v.brands = [];
+  // 창구 주소(entry_url)는 «명함 주인이 바꾼 것» 이 아니다 — 대표가 창구를 열고·바꾸고·닫을 때 붙고 빠진다.
+  //   비교에서 뺀다(옛 보관본엔 키 자체가 없다 — 넣으면 배포 순간 전부 «바뀜», Fable 차단 2026-11-14)
+  v.brands = v.brands.map((b) => { const { entry_url, ...rest } = b || {}; return rest; }); // eslint-disable-line no-unused-vars
   const norm = (x) => (Array.isArray(x) ? x.map(norm)
     : (x && typeof x === 'object') ? Object.keys(x).sort().reduce((o, k) => { o[k] = norm(x[k]); return o; }, {}) : x);
   return JSON.stringify(norm(v));
+}
+/** 보관본의 창구 주소는 저장해 둔 값이 아니라 **지금 값**으로 — 회수·교체된 옛 /g/ 주소를 누르면 죽은 화면이다.
+ *  원본이 닫혔거나 같은 브랜드를 못 찾으면 주소를 뺀다(글자만 보인다). */
+function withLiveEntry(snapshot, source) {
+  if (!snapshot || !Array.isArray(snapshot.brands)) return snapshot;
+  const live = new Map(((source && source.brands) || []).map((b) => [b.name, b.entry_url || null]));
+  return { ...snapshot, brands: snapshot.brands.map((b) => ({ ...b, entry_url: live.get(b && b.name) || null })) };
 }
 /** source = 원본의 지금 공개 모양(브랜드 포함, 열려 있을 때만) — openSources·cardPublicViewWithBrands */
 function savedView(row, source) {
@@ -85,7 +95,7 @@ function savedView(row, source) {
   const alive = !!source;
   return {
     id: r.id,
-    card: r.snapshot,
+    card: withLiveEntry(r.snapshot, source),
     has_photo: !!r.has_photo,
     memo: r.memo || '',
     saved_at: r.created_at || r.createdAt,

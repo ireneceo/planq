@@ -108,9 +108,46 @@ async function brandsForCards(cards) {
     const owner = ownerOf.get(l.card_id);
     const ok = b.owner_kind === 'user' ? Number(b.user_id) === Number(owner)
       : memberships.get(owner).has(Number(b.business_id));
-    if (ok) out.get(l.card_id).push(publicBrandView(b));
+    // 창구 주소는 워크스페이스 **기본 브랜드**(= 워크스페이스 이름)에만 — 서브 브랜드를 누르면 다른 이름의 화면이 열린다(Fable 비차단 2)
+    if (ok) out.get(l.card_id).push({ ...publicBrandView(b), _bizId: b.owner_kind === 'business' && b.is_default ? Number(b.business_id) : null });
+  }
+  // 워크스페이스 브랜드 → 그 워크스페이스 «고객 창구» 주소(entry_url). 명함에서 워크스페이스 줄을 누르면 소개·문의로 간다
+  //   (설계 docs/CLIENT_ENTRY_DESIGN.md §3 — 창구의 실제 유입은 명함·카톡·메일 서명 «링크를 건네는 동선»).
+  //   ★ 대표가 «고객 창구» 를 발급해 둔 워크스페이스만 · 킬스위치(guest_links_enabled=false)·삭제된 워크스페이스는 null.
+  //   ★ 새 링크를 만들지 않는다(읽기만) — 공개 표면에서 발급이 일어나면 안 된다.
+  const entry = await entryUrlsFor([...new Set([...out.values()].flat().map((v) => v._bizId).filter(Boolean))]);
+  for (const list2 of out.values()) {
+    for (const v of list2) { v.entry_url = (v._bizId && entry.get(v._bizId)) || null; delete v._bizId; }
   }
   return out;
+}
+
+/** 워크스페이스 id 들 → 살아 있는 «고객 창구» 공유 주소. Map<businessId, url> (없으면 빠진다)
+ *  ★ 게스트 화면이 여는 조건과 같게 — 플랫폼 스위치(행 없음 = 닫힘)·워크스페이스 스위치·삭제. 닫힌 문을 명함에 걸지 않는다.
+ *  ★ 한 번에 읽는다 — 자리 판정은 findLiveSharedLink 와 같은 조건(shared·미회수·미만료·scope workspace·가장 최근 id). */
+async function entryUrlsFor(bizIds) {
+  const map = new Map();
+  if (!bizIds.length) return map;
+  const { Business, GuestLink, PlatformSetting } = require('../models');
+  const platform = await PlatformSetting.findOne({ attributes: ['guest_links_enabled'] });
+  if (!platform || platform.guest_links_enabled !== true) return map;
+  const alive = await Business.findAll({
+    where: { id: bizIds, deleted_at: null, guest_links_enabled: { [Op.ne]: false } },
+    attributes: ['id'], raw: true,
+  });
+  if (!alive.length) return map;
+  const { urlForSharedLink } = require('./guest_link');
+  const links = await GuestLink.findAll({
+    where: { business_id: alive.map((b) => b.id), kind: 'shared', revoked_at: null, scope: 'workspace', expires_at: { [Op.gt]: new Date() } },
+    order: [['id', 'DESC']],
+  });
+  for (const l of links) {
+    const bid = Number(l.business_id);
+    if (map.has(bid)) continue; // 가장 최근 것 하나만(findLiveSharedLink 와 같다) — 옛 난수 링크면 url 이 null 이라 빠진다
+    map.set(bid, urlForSharedLink(l));
+  }
+  for (const [k, v] of map) if (!v) map.delete(k);
+  return map;
 }
 
 async function brandsForCard(card) {

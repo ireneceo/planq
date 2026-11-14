@@ -15,6 +15,8 @@ export interface BrandView {
   tagline_en: string | null;
   logo_url: string | null;
   links: BrandLink[];
+  /** 워크스페이스 브랜드면 그 워크스페이스 «고객 창구» 주소(소개·문의·상담 예약) — 대표가 창구를 열어 둔 곳만, 없으면 null */
+  entry_url?: string | null;
 }
 /** 관리 모양 — 고르기·설정 화면 */
 export interface BrandItem extends BrandView {
