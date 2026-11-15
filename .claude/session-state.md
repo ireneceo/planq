@@ -2830,6 +2830,12 @@
 - 10-29 방 9572baa2 PlanQ 메일로 확인: Codemagic 마지막 iOS 빌드 10-14 #21(TestFlight 1.0.1 (20)) · 그 뒤 빌드·TestFlight·심사 메일 0건 · App Store 공개 1.0(10-01) 그대로 → «했어요» 는 실제로 안 된 것. 아이패드 로그인 고침 f5ad8c36(10-16)은 어떤 앱 빌드에도 없음. 안드로이드 #17(1.70.1)은 최신 코드와 같음. ✔ 로 옮기지 않고 새 할 일 todomvswjmxv «Codemagic iOS 새 빌드 → 그 빌드로 심사 제출» 올림.
 - 11-16 Irene: Apple 설정 1~4 완료(App Group group.app.planq · App ID app.planq.ShareExtension + App Group · 본 앱 App Group 연결 · 프로필 «PlanQ Share Extension AppStore» 새로 + «PlanQ App Store» 다시 생성, 둘 다 Active). 서명 방식 = Codemagic 이 API 키로 Apple 에서 가져오기(Fetch profiles) — 프로필 파일 업로드 안 함 · codemagic.yaml ios_signing(app.planq)은 app.planq.* 확장 프로필도 가져오므로 그대로. 할 일 todomv5a7pg0 → «GitHub 로그인 Codemagic 에서 두 프로필 Fetch» 로 고쳐 다시 올림. 그다음: iOS Share Extension 구현(설계 iOS 절).
 - 11-15 Irene: Google 로그인 Codemagic 은 빈 계정(앱 «planq» Finish build setup · 빌드 0) · Play 최신 9/18 1.0(코드 30) → 빌드 안 함. 방 9572baa2: 빌드 #17~#21 은 **GitHub 로그인(ireneceo) Codemagic 계정**(docs/IOS_BETA_RUNBOOK.md:84 «GitHub 계정으로 가입»)에 있다고 판단 — 카드 todomvswjmxv 를 «GitHub 로 로그인 → iOS·Android 둘 다 새 빌드 → 심사·Play 새 버전» 으로 고쳐 다시 올림. 확인 못 함: GitHub 계정 안 화면.
+- 11-16 Irene: GitHub 로그인도 같은 계정(irene@irenewp.com · 개인 공간만 · 앱 planq «Finish build setup» · 빌드 0 · 옛 메일 링크 Not Found) — TestFlight 엔 1.0.1 (17~20) 있음 → 옛 Codemagic 앱(과 서명)이 사라지고 새로 연결된 것으로 보임. 방 9572baa2 조사:
+  - 팀 이름·ID·삭제 기록은 어디에도 없음(런북은 «Team 만들지 말 것», 서버에 Codemagic 토큰 없음 → 이 서버의 방은 Codemagic 을 바꿀 수 없음). 빌드 메일 수신자는 yaml 의 irene@irenewp.com 이라 계정 주인 증거는 아님. help@wor-pro.com 은 Apple 쪽 계정.
+  - 안드로이드 업로드 키 백업 있음: secrets/planq_upload.jks + .credentials(2026-09-04 · alias planq · CN=PlanQ,O=Worpro Lab · SHA-1 AA:E1:6B:11:2A:F9:ED:C7:7B:53:3F:D0:41:8A:9D:3F:0F:52:5F:CC · SHA-256 33:E1:4E:15…C1:EC). Play App Signing 사용(런북) → 잃어도 업로드 키 재설정 가능.
+  - ASC API 키: Key ID A68786VG7D · Issuer 8bd97182-8787-43c3-b129-19257cebdf00 · .p8 은 Irene 로컬 보관(서버 없음 — 런북). secrets/ios_dist_cert_key.pem(08-25)은 예전 배포 인증서 개인키.
+  - 새 앱이면 Codemagic 빌드 번호가 1부터 → Play(30) 거부 → codemagic.yaml VERSION_CODE_OFFSET 100(34582d80, GitHub 푸시).
+  - 카드 셋으로 다시: todomwi42tdx iOS 서명(API 키·인증서·프로필 Fetch — 방 4842fdf8 카드 todomv5a7pg0 를 흡수, then 에 Share Extension 대기열) → todomvswjmxv App Store 심사(빌드 설정·iOS 빌드·제출) → todomwi41puf 안드로이드(키 올리기·빌드·Play).
 
 ### 완료: Cue 고객 자동답변 재료 = 그 고객에 연결된 것만 (방 81843b55 · 2026-10-16 · [Opus] · 설계 Fable) — 운영 미배포 · a0b42a7b
 - 원문: «워크스페이스 내용들 중 보안단위가 전체워크스페이스여도 고객에게는 안보이는 거 맞지? 고객은 연결된 곳만 보이는 거야.»
