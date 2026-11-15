@@ -1807,9 +1807,8 @@
     "dLoggedIn": "로그인 사용자",
     "dMessage": "문의 내용",
     "dRepliedBy": "마지막 처리",
-    "dReplyEmail": "메일로 회신",
     "dReplyNote": "답변 노트 (내부)",
-    "dReplyPh": "내부 노트 — 어떻게 처리했는지 기록. 문의자에게 전달되지 않습니다. 회신은 별도로 메일에서 직접 보내주세요.",
+    "dReplyPh": "내부 노트 — 어떻게 처리했는지 기록. 문의자에게 전달되지 않습니다. 문의자에게 보낼 글은 위 «회신» 칸에서 보내세요.",
     "dSave": "저장",
     "dSource": "경로",
     "dStatus": "상태 변경",
@@ -1836,9 +1835,8 @@
       "trialEnds": "체험 종료",
       "topics": "주제"
     },
-    "dReplyDraft": "회신 초안 (문의자에게 보낼 글)",
-    "dReplyDraftPh": "문의자에게 보낼 회신을 쓰거나 AI 초안을 받으세요. 이 칸은 저장되지 않습니다.",
-    "dReplyDraftHint": "[메일로 회신] 을 누르면 이 글이 메일 본문에 들어갑니다(길면 복사해서 붙여 넣으세요).",
+    "dReplyDraft": "회신 (문의자에게 보낼 글)",
+    "dReplyDraftPh": "문의자에게 보낼 회신을 쓰거나 AI 초안을 받으세요. 쓰던 글은 이 브라우저에 남고, [PlanQ 에서 보내기] 를 누르면 문의자에게 메일로 나갑니다.",
     "dReplyCopy": "복사",
     "dReplyCopied": "복사됨",
     "appGroup": "앱 안에서 받은 문의 {{count}}",
@@ -1853,6 +1851,46 @@
       "in_progress": "반영중",
       "done": "완료",
       "wontfix": "보류"
+    },
+    "reply": {
+      "send": "PlanQ 에서 보내기",
+      "sending": "보내는 중…",
+      "confirmTitle": "회신 메일 보내기",
+      "confirmMsg": "{{name}} ({{email}}) 에게 이 회신을 PlanQ 메일로 보냅니다. 보낸 뒤에는 되돌릴 수 없어요.",
+      "confirmUnknown": "결과를 확인하지 못한 회신이 있어요 — 이미 보내졌을 수 있습니다. 그래도 보낼까요?",
+      "confirmOk": "보내기",
+      "cancel": "취소",
+      "spamDisabled": "스팸으로 표시된 문의에는 보낼 수 없어요",
+      "emptyDisabled": "보낼 글을 먼저 쓰세요",
+      "historyTitle": "보낸 회신 ({{count}})",
+      "by": "{{name}} → {{email}}",
+      "more": "전체 보기",
+      "less": "접기",
+      "rowTag": "회신 {{count}}",
+      "sentOk": "보냈어요",
+      "failedWith": "보내지 못했어요: {{reason}}",
+      "status": {
+        "sent": "보냄",
+        "failed": "보내지 못함",
+        "skipped": "보내지 않음",
+        "sending": "보내는 중",
+        "unknown": "결과 확인 안 됨 — 보내졌을 수 있어요"
+      },
+      "reason": {
+        "sending_disabled": "이 서버는 메일 발송이 꺼져 있어요(개발 서버)",
+        "blocked": "보낼 수 없는 주소예요",
+        "smtp_not_configured": "메일 발송 설정이 없어요"
+      },
+      "err": {
+        "duplicate_reply": "같은 회신을 방금 보냈어요",
+        "reply_daily_limit": "이 문의에는 오늘 더 보낼 수 없어요(하루 10통)",
+        "rate": "잠시 뒤 다시 보내 주세요",
+        "inquiry_spam": "스팸으로 표시된 문의에는 보낼 수 없어요",
+        "reply_body_too_long": "회신은 10,000자까지예요",
+        "reply_body_required": "보낼 글을 먼저 쓰세요",
+        "invalid_recipient": "문의자 메일 주소가 올바르지 않아요",
+        "generic": "보내지 못했어요. 다시 시도해 주세요"
+      }
     }
   },
   "downloadTray": {

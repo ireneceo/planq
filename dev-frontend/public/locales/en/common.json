@@ -1807,9 +1807,8 @@
     "dLoggedIn": "Signed-in user",
     "dMessage": "Message",
     "dRepliedBy": "Last handled by",
-    "dReplyEmail": "Reply by email",
     "dReplyNote": "Reply note (internal)",
-    "dReplyPh": "Internal note — record how it was handled. Not sent to the person who asked. Send replies separately from your email.",
+    "dReplyPh": "Internal note — record how it was handled. Not sent to the person who asked. Send replies from the \"Reply\" box above.",
     "dSave": "Save",
     "dSource": "Source",
     "dStatus": "Change status",
@@ -1836,9 +1835,8 @@
       "trialEnds": "Trial ends",
       "topics": "Topics"
     },
-    "dReplyDraft": "Reply draft (to send to the sender)",
-    "dReplyDraftPh": "Write the reply to the sender or get an AI draft. This box is not saved.",
-    "dReplyDraftHint": "\"Reply by email\" puts this text in the email body (if it is long, copy and paste it).",
+    "dReplyDraft": "Reply (to send to the sender)",
+    "dReplyDraftPh": "Write the reply to the sender or get an AI draft. What you write stays in this browser; \"Send from PlanQ\" emails it to the sender.",
     "dReplyCopy": "Copy",
     "dReplyCopied": "Copied",
     "appGroup": "In-app inquiries {{count}}",
@@ -1853,6 +1851,46 @@
       "in_progress": "In progress",
       "done": "Done",
       "wontfix": "On hold"
+    },
+    "reply": {
+      "send": "Send from PlanQ",
+      "sending": "Sending…",
+      "confirmTitle": "Send reply email",
+      "confirmMsg": "PlanQ will email this reply to {{name}} ({{email}}). This cannot be undone once sent.",
+      "confirmUnknown": "A previous reply has an unconfirmed result — it may already have been sent. Send anyway?",
+      "confirmOk": "Send",
+      "cancel": "Cancel",
+      "spamDisabled": "You cannot reply to an inquiry marked as spam",
+      "emptyDisabled": "Write the reply first",
+      "historyTitle": "Sent replies ({{count}})",
+      "by": "{{name}} → {{email}}",
+      "more": "Show all",
+      "less": "Collapse",
+      "rowTag": "{{count}} replied",
+      "sentOk": "Sent",
+      "failedWith": "Could not send: {{reason}}",
+      "status": {
+        "sent": "Sent",
+        "failed": "Failed",
+        "skipped": "Not sent",
+        "sending": "Sending",
+        "unknown": "Result unconfirmed — may have been sent"
+      },
+      "reason": {
+        "sending_disabled": "Email sending is turned off on this server (dev)",
+        "blocked": "This address cannot receive email",
+        "smtp_not_configured": "Email sending is not configured"
+      },
+      "err": {
+        "duplicate_reply": "You just sent the same reply",
+        "reply_daily_limit": "No more replies to this inquiry today (10 per day)",
+        "rate": "Please try again in a moment",
+        "inquiry_spam": "You cannot reply to an inquiry marked as spam",
+        "reply_body_too_long": "Replies can be up to 10,000 characters",
+        "reply_body_required": "Write the reply first",
+        "invalid_recipient": "The sender's email address is invalid",
+        "generic": "Could not send. Please try again"
+      }
     }
   },
   "downloadTray": {

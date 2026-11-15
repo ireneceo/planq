@@ -905,6 +905,11 @@ sync_database() {
   log "Adding onboarding call inquiry schema..."
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-onboarding-call.js 2>&1 | tail -5"
 
+  # 2026-11-15 — 문의 인박스 직접 회신(docs/INQUIRY_DIRECT_REPLY_DESIGN.md · Fable 설계 FIX 반영):
+  #   contact_inquiry_replies 표(멱등 — sync 가 먼저 만들었으면 FK 만 확인). 관리자 문의 목록이 이 표를 세므로 PM2 reload 전.
+  log "Adding inquiry replies table..."
+  prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-inquiry-replies.js 2>&1 | tail -3"
+
   # 2026-10-23 — 워크스페이스 백업 확장(docs/TRUST_SERVICES_DESIGN.md D3 · Fable 설계 PASS):
   #   export_jobs.scope ENUM('me','workspace') DEFAULT 'me' — 워크스페이스 백업이 백그라운드 작업이 됐다.
   #   ★ **코드보다 먼저 돈다** — 모델이 scope 를 SELECT 하므로 없으면 내보내기 화면·워커가 500 이다. 멱등.

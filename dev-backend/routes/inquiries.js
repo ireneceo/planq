@@ -3,7 +3,7 @@
 const express = require('express');
 const router = express.Router();
 const jwt = require('jsonwebtoken');
-const { Op } = require('sequelize');
+const { Op, literal } = require('sequelize');
 const { ContactInquiry, User, Business } = require('../models');
 const { authenticateToken, requireRole } = require('../middleware/auth');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
@@ -194,6 +194,11 @@ router.get('/admin', authenticateToken, requireRole('platform_admin'), async (re
         { model: Business, attributes: ['id', 'brand_name', 'name'], required: false },
         { model: User, as: 'repliedBy', attributes: ['id', 'name'], required: false },
       ],
+      // 회신 수·마지막 보낸 시각 — PlanQ 가 직접 보낸 회신 표에서(2026-11-15). replied_at 은 내부 노트 저장 시각이라 쓰지 않는다.
+      attributes: { include: [
+        [literal("(SELECT COUNT(*) FROM contact_inquiry_replies r WHERE r.inquiry_id = `ContactInquiry`.`id` AND r.status = 'sent')"), 'reply_count'],
+        [literal("(SELECT MAX(r.sent_at) FROM contact_inquiry_replies r WHERE r.inquiry_id = `ContactInquiry`.`id` AND r.status = 'sent')"), 'last_reply_sent_at'],
+      ] },
       order: [['created_at', 'DESC']],
       limit: 200,
       // ★ 2026-10-02 — 여기 `locale: inquiry.locale` 이 잘못 붙어 있어(없는 변수) 이 목록이 **2026-08-25 부터 늘 500** 이었다.
@@ -240,8 +245,39 @@ router.patch('/admin/:id', authenticateToken, requireRole('platform_admin'), asy
   } catch (err) { next(err); }
 });
 
+// ─── 문의 직접 회신 (platform_admin · 2026-11-15) ───
+//   PlanQ 가 문의자(from_email 고정 — 화면이 주소를 바꿀 수 없다)에게 보내고 contact_inquiry_replies 에 남긴다.
+//   쓰는 문은 services/inquiryReply 하나. 설계 docs/INQUIRY_DIRECT_REPLY_DESIGN.md.
+//   한도는 사용자 키라 authenticateToken 뒤에 둔다(관리자당 분 5 · 일 50). 문의당 하루 10통은 서비스가 센다.
+const inquiryReply = require('../services/inquiryReply');
+const { perUserDaily } = require('../middleware/costGuard');
+const replySendLimit = perUserDaily('inquiry-reply', { perMin: 5, perDay: 50, message: 'reply_rate_limited' });
+
+router.get('/admin/:id/replies', authenticateToken, requireRole('platform_admin'), async (req, res, next) => {
+  try {
+    const inquiry = await ContactInquiry.findByPk(req.params.id, { attributes: ['id'] });
+    if (!inquiry) return errorResponse(res, 'not_found', 404);
+    return successResponse(res, await inquiryReply.listReplies(inquiry.id));
+  } catch (err) { next(err); }
+});
+
+// 보낸 결과가 실패·건너뜀이어도 200(기록이 남았다) — data.reply.status 와 error_message 를 화면이 보인다.
+//   행을 만들기 전의 검증 실패만 4xx.
+router.post('/admin/:id/replies', authenticateToken, requireRole('platform_admin'), ...replySendLimit, async (req, res, next) => {
+  // audit-exempt: 감사는 services/inquiryReply.sendInquiryReply 가 writeAudit('inquiry.reply_send') 로 남긴다(발송 결과까지 담아 한 번)
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id <= 0) return errorResponse(res, 'not_found', 404);
+    const out = await inquiryReply.sendInquiryReply({ inquiryId: id, body: req.body && req.body.body, userId: req.user.id, ip: req.ip });
+    return successResponse(res, out);
+  } catch (err) {
+    if (err instanceof inquiryReply.InquiryReplyError) return errorResponse(res, err.code, err.status);
+    next(err);
+  }
+});
+
 // ─── POST /api/inquiries/admin/:id/ai-draft — 회신 AI 초안 (platform_admin) ───
-//   초안만 돌려준다 — reply_note(내부 노트)에 쓰지 않고 메일도 보내지 않는다. 회신은 관리자가 [메일로 회신] 으로.
+//   초안만 돌려준다 — reply_note(내부 노트)에 쓰지 않고 메일도 보내지 않는다. 보내기는 관리자가 [PlanQ 에서 보내기](위 /replies) 로.
 const { draftAdminReply, REASON_STATUS, adminReplyLimit, draftOpts } = require('../services/adminReplyDraft');
 router.post('/admin/:id/ai-draft', authenticateToken, requireRole('platform_admin'), ...adminReplyLimit, async (req, res, next) => {
   // audit-exempt: 초안을 돌려줄 뿐 저장하지 않는다

@@ -115,6 +115,7 @@ const Report = require('./Report');
 const ReportShare = require('./ReportShare');
 // ─── 플랫폼 문의 ───
 const ContactInquiry = require('./ContactInquiry');
+const ContactInquiryReply = require('./ContactInquiryReply');
 const NotificationPref = require('./NotificationPref');
 const Notification = require('./Notification');
 const EmailLog = require('./EmailLog');
@@ -790,6 +791,7 @@ module.exports = {
   ReportShare,
   // 플랫폼 문의
   ContactInquiry,
+  ContactInquiryReply,
   NotificationPref,
   Notification,
   EmailLog,
@@ -1074,6 +1076,10 @@ Business.hasMany(Report, { as: 'reports', foreignKey: 'business_id' });
 ContactInquiry.belongsTo(User, { as: 'fromUser', foreignKey: 'from_user_id' });
 ContactInquiry.belongsTo(User, { as: 'repliedBy', foreignKey: 'replied_by_user_id' });
 ContactInquiry.belongsTo(Business, { foreignKey: 'business_id' });
+// 문의에 PlanQ 가 직접 보낸 회신(2026-11-15 · services/inquiryReply)
+ContactInquiry.hasMany(ContactInquiryReply, { as: 'replies', foreignKey: 'inquiry_id', onDelete: 'CASCADE' });
+ContactInquiryReply.belongsTo(ContactInquiry, { as: 'inquiry', foreignKey: 'inquiry_id' });
+ContactInquiryReply.belongsTo(User, { as: 'sentBy', foreignKey: 'sent_by_user_id' });
 
 // NotificationPref — 사용자별 알림 채널 prefs (Phase E4)
 NotificationPref.belongsTo(User, { foreignKey: 'user_id', onDelete: 'CASCADE' });

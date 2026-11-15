@@ -1,6 +1,11 @@
 # Fable 게이트 대기열 → **판정 기록 보관소** (2026-10-08 부터)
 
 
+### 2026-11-15 방 2c59ce15 — 문의 인박스 PlanQ 직접 회신 + 회신 기록 — 설계 **DESIGN: FIX**(6건 반영) → 완료 검증 1차 **FAIL** → 2차 **FAIL** → 3차 **PASS**
+- 설계 `docs/INQUIRY_DIRECT_REPLY_DESIGN.md`: 표 `contact_inquiry_replies` · 서비스 `services/inquiryReply` 한 문 · FIX 6건 = FOR UPDATE 안에서 검사+sending 행 / 멈춘 sending 은 «결과 확인 안 됨» / replied_at 안 건드림 / new→in_progress 조건부 / 헤더 빼기는 공용 인자로 안 엶 / 성공 경로 시험은 프로세스 안 가짜 전송.
+- 1차 차단(화면): B1 보낸 뒤 «새 문의» 목록에서 빠지며 상세가 닫힘 · B2 발송 중 다른 문의로 옮기면 결과가 그 문의에 붙음. 2차 차단: B1-b 목록에 남는 문의(처리중 탭)에서 보내면 저장 안 한 노트·상태 선택이 덮임.
+- 실측: 서버 실호출 32/32 · 화면 3폭 33/33(dev 발송 꺼짐 경로) · 보냄 경로 24/24(B1·B2 경합 실제 발생) · B1-b 14/14 · build 0 error TS · guard 85/86 · health 100/100. 비차단: 옛 번들 양성 대조군 없음 · `?inquiry=` 만으로 다른 탭 문의 안 열림(기존) · help@planq.kr 실제 수신 확인 못 함.
+
 ### 2026-11-15 방 dfd1d07e — 문의·피드백 접수 확인 자동 + 상황판 «들어온 문의» 칸 (70ae4866) — 설계 **DESIGN: READY** → 완료 검증 1차 **FAIL** → 2차 **PASS**
 - 설계 `docs/FEEDBACK_AUTOREPLY_BOARD_DESIGN.md`: 고정 문구 접수 확인만 자동(PurpleHere «권고대로» ① 적용, 다시 묻지 않음) · AI 답 자동 발송 안 함 · 1-B 에서 열린 건 전부 상황판에 · 2단계는 방향만.
 - 1차 차단: 메일 미인증 가입 직후 토큰으로 제출하면 임의 주소로 자유 제목(200자) PlanQ 메일이 나감. 고침: 미인증이면 skipChannels ['email'](종·푸시는 그대로) + health-check 미인증 메일 0·대조군.

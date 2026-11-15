@@ -173,7 +173,9 @@ function emailHeader() {
 //   - 문의 버튼은 본문 액션버튼(teal)과 구분되는 작은 회색 "PlanQ에 문의하기" (플랫폼 문의처임을 명시).
 //   - notificationSettings: 알림설정 링크 표시 여부 (워크스페이스 멤버 알림에만)
 function emailFooter(options = {}) {
-  const { notificationSettings = false, workspaceName = null, workspaceContact = null } = options;
+  const { notificationSettings = false, workspaceName = null, workspaceContact = null, replyableText = null } = options;
+  // replyableText — 사람이 쓴 회신(문의 직접 회신)은 답장을 받는다. «발신 전용» 두 줄을 모두 이 문구로 바꾼다.
+  const noReplyText = replyableText ? escapeHtml(replyableText) : '이 메일은 발신 전용입니다 · 회신은 받지 못합니다';
   const siteHost = PLATFORM.website.replace(/^https?:\/\//, '');
 
   // 워크스페이스 발송 — 보낸 주체 블록 (상단, 강조)
@@ -187,11 +189,11 @@ function emailFooter(options = {}) {
           <span style="font-size:11px;color:#64748B;">문의·회신: <a href="mailto:${escapeHtml(workspaceContact)}" style="color:#0D9488;text-decoration:none;">${escapeHtml(workspaceContact)}</a></span>
         </td></tr>` : `
         <tr><td align="center" style="padding-bottom:12px;color:#94A3B8;font-size:11px;">
-          이 메일은 발신 전용입니다 · 회신은 받지 못합니다
+          ${noReplyText}
         </td></tr>`}
         <tr><td style="border-top:1px solid #E2E8F0;font-size:0;line-height:0;height:1px;">&nbsp;</td></tr>` : `
         <tr><td align="center" style="padding-bottom:0;color:#94A3B8;font-size:11px;">
-          이 메일은 발신 전용입니다 · 회신은 받지 못합니다
+          ${noReplyText}
         </td></tr>`;
 
   const notifRow = notificationSettings ? `
@@ -380,10 +382,15 @@ function emailBlockReason(to) {
   return any ? null : 'empty';
 }
 
-const sendEmail = async ({
+// 발송 몸통 — 결과를 {status, error} 로 돌려준다. **이 파일 안에서만 쓴다**(export 하지 않는다).
+//   두 번째 인자 internal.humanReply 는 «사람이 쓴 회신» 경로(sendInquiryReplyEmail)만 넘긴다 — 자동발송 헤더 셋을 뺀다.
+//   ★ 공용 인자로 열지 않는다(Fable 2026-11-15): 그 헤더는 PlanQ 알림이 Q mail 로 되수집될 때 «사람 메일» 로 분류되는
+//     자기 오염을 막는 장치다(emailTriage.isAutomated). 공용 sendEmail 은 이 인자를 받지도 넘기지도 않는다.
+const deliverEmail = async ({
   to, subject: rawSubject, html, attachments, fromName, replyTo,
   template, businessId, relatedEntityType, relatedEntityId, initiatedBy,
-}) => {
+}, internal = {}) => {
+  const humanReply = internal.humanReply === true;
   // 제목 공백 정규화 — **단일 지점**. subjectPrefix 가 빈 문자열을 돌려주면 호출부의
   //   `${subjectPrefix(ws)} ${title}` 이 앞쪽 공백을 남긴다. 호출부 14곳을 고치는 대신
   //   여기서 한 번 정리한다(새 호출부가 생겨도 자동으로 적용된다).
@@ -403,7 +410,7 @@ const sendEmail = async ({
   if (String(process.env.EMAIL_SENDING_ENABLED ?? 'true').toLowerCase() === 'false') {
     console.warn(`Email suppressed (sending disabled on this server): to=${to}, subject=${subject}`);
     await recordLog({ ...baseLog, status: 'skipped', error_message: 'sending disabled (non-prod)' });
-    return false;
+    return { status: 'skipped', error: 'sending_disabled' };
   }
 
   // ② 가짜/테스트/형식불량 주소 차단 — 바운스·발신평판 보호
@@ -411,14 +418,14 @@ const sendEmail = async ({
   if (blocked) {
     console.warn(`Email blocked (${blocked}): to=${to}, subject=${subject}`);
     await recordLog({ ...baseLog, status: 'skipped', error_message: `blocked: ${blocked}` });
-    return false;
+    return { status: 'skipped', error: `blocked_${blocked}` };
   }
 
   const transport = getTransporter();
   if (!transport) {
     console.warn(`Email skipped (no SMTP): to=${to}, subject=${subject}`);
     await recordLog({ ...baseLog, status: 'skipped', error_message: 'SMTP not configured' });
-    return false;
+    return { status: 'skipped', error: 'smtp_not_configured' };
   }
 
   const fromAddr = process.env.SMTP_FROM || PLATFORM.supportEmail;
@@ -441,7 +448,7 @@ const sendEmail = async ({
       //   여태 헤더가 없어서, PlanQ 가 보낸 알림 메일이 Q Mail 로 다시 수집될 때 "사람이 보낸 메일"로
       //   분류됐다(triage='human' → reply_needed 자동 ON). 운영 "답변 필요" 116건 중 93건이
       //   PlanQ 자기 알림이었던 자가 오염의 근원. 수신 측 isAutomated() 는 이미 이 헤더를 본다.
-      headers: {
+      headers: humanReply ? {} : {
         'Auto-Submitted': 'auto-generated',
         'X-Auto-Response-Suppress': 'All',
         // PlanQ 가 보낸 알림이라는 표식(2026-10-22 Fable D5) — 받는 쪽 판정(emailTriage.isFromOurPlatform)이 이것만 본다.
@@ -453,13 +460,17 @@ const sendEmail = async ({
       ...(replyTo ? { replyTo } : {}),
     });
     await recordLog({ ...baseLog, status: 'sent' });
-    return true;
+    return { status: 'sent', error: null };
   } catch (error) {
     console.error('Email send failed:', error.message);
-    await recordLog({ ...baseLog, status: 'failed', error_message: String(error.message || '').slice(0, 1000) });
-    return false;
+    const msg = String(error.message || '').slice(0, 1000);
+    await recordLog({ ...baseLog, status: 'failed', error_message: msg });
+    return { status: 'failed', error: msg || 'send_failed' };
   }
 };
+
+// 공용 발송 — 예전 그대로 true/false 만 돌려준다(호출부 수십 곳 불변).
+const sendEmail = async (opts) => (await deliverEmail(opts)).status === 'sent';
 
 // ═══════════════════════════════════════════════════════════════
 // 1. 초대 메일
@@ -1248,6 +1259,49 @@ async function sendInquiryReceivedEmail({ to, name, message, inquiryId, locale, 
   });
 }
 
+// 문의 직접 회신 — 관리자가 쓴 글을 PlanQ 가 보낸다(2026-11-15 · services/inquiryReply 만 부른다).
+//   사람이 쓴 답이라 자동발송 헤더를 빼고(deliverEmail internal.humanReply) 회신은 플랫폼 문의 주소로 받는다.
+//   본문·인용은 모두 escape(공개 폼의 주소·문구는 미검증이다 — 남의 글을 PlanQ 이름으로 HTML 로 옮기지 않는다).
+function inquiryReplySubject({ inquiryId, locale }) {
+  const en = String(locale || '').toLowerCase().startsWith('en');
+  return en ? `[PlanQ] Re: your inquiry #${inquiryId}` : `[PlanQ] 문의 #${inquiryId} 답변드립니다`;
+}
+
+function inquiryReplyEmailHtml({ body, originalMessage, inquiredAt, locale }) {
+  const en = String(locale || '').toLowerCase().startsWith('en');
+  const sign = en ? 'PlanQ Support' : 'PlanQ 운영팀';
+  let dateStr = '';
+  try { dateStr = inquiredAt ? new Date(inquiredAt).toISOString().slice(0, 10) : ''; } catch { dateStr = ''; }
+  const quoteHead = en ? `Your inquiry${dateStr ? ` (${dateStr})` : ''}` : `보내 주신 문의${dateStr ? ` (${dateStr})` : ''}`;
+  const orig = String(originalMessage || '');
+  const quoted = orig.length > 800 ? `${orig.slice(0, 800)}…` : orig;
+  const inner = `
+    <div style="font-size:14px;color:#0F172A;line-height:1.75;white-space:pre-wrap;">${escapeHtml(body)}</div>
+    <div style="margin-top:22px;font-size:13px;color:#475569;font-weight:600;">${escapeHtml(sign)}</div>
+    ${quoted ? `
+    <div style="margin-top:24px;font-size:11px;color:#94A3B8;font-weight:600;">${escapeHtml(quoteHead)}</div>
+    <div style="margin-top:6px;padding:10px 12px;background:#F8FAFC;border-left:3px solid #CBD5E1;border-radius:0 8px 8px 0;font-size:12px;color:#64748B;line-height:1.6;white-space:pre-wrap;">${escapeHtml(quoted)}</div>` : ''}`;
+  return emailWrap({
+    title: en ? 'PlanQ Support' : 'PlanQ 답변',
+    body: inner,
+    preheader: plainPreheader(body),
+    footerOptions: {
+      replyableText: en ? 'Reply to this email to reach the PlanQ support team' : '이 메일에 회신하시면 PlanQ 운영팀이 받습니다',
+    },
+  });
+}
+
+/** @returns {Promise<{status:'sent'|'failed'|'skipped', error:string|null}>} */
+async function sendInquiryReplyEmail({ to, subject, body, originalMessage, inquiredAt, locale, replyId, initiatedBy }) {
+  const platform = await getPlatform();
+  return deliverEmail({
+    to, subject,
+    html: inquiryReplyEmailHtml({ body, originalMessage, inquiredAt, locale }),
+    replyTo: platform.supportEmail,
+    template: 'inquiry_reply', relatedEntityType: 'inquiry_reply', relatedEntityId: replyId, initiatedBy,
+  }, { humanReply: true });
+}
+
 // #426 무료 업무체계 자가진단 — 결과 요약 1통(이메일을 남기고 «결과 메일로 받기» 를 고른 사람에게만).
 //   층별 점수 막대 + 가장 먼저 손볼 곳 + 두 갈래 안내(무료로 시작 / 전문가 진단). 마케팅 후속 메일은 보내지 않는다.
 function diagnosisResultEmailHtml({ scores, weakest, layerNames, locale, appUrl }) {
@@ -1560,6 +1614,8 @@ module.exports = {
   sendGuestVerifyCodeEmail, sendGuestReplyNotifyEmail, sendGuestBookingEmail,
   sendBillingInstructionEmail,
   sendInquiryReceivedEmail,
+  sendInquiryReplyEmail,
+  inquiryReplySubject,
   sendDiagnosisResultEmail,
   sendNotificationEmail,
   sendPasswordResetEmail,

@@ -1,7 +1,7 @@
 // platform_admin 문의 인박스 — 랜딩 /contact 폼 + 게스트 Cue "문의 남기기" 통합 인박스
 // 라우트: /admin/inquiries
 // 기능: 상태별 탭 (new/in_progress/resolved/spam) + 종류 필터 + 상세 + 답변 노트 + 상태 변경
-import { useEffect, useMemo, useState, useCallback } from 'react';
+import { useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import AdminReplyDraftButton from './AdminReplyDraftButton';
@@ -15,8 +15,10 @@ import PlanQSelect, { type PlanQSelectOption } from '../../components/Common/Pla
 import DetailDrawer from '../../components/Common/DetailDrawer';
 import EmptyState from '../../components/Common/EmptyState';
 import { apiFetch } from '../../contexts/AuthContext';
+import { clearDraftRecord } from '../../services/draftStore';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
 import { formatDateTime } from '../../utils/dateFormat';
+import ConfirmDialog from '../../components/Common/ConfirmDialog';
 
 type Status = 'new' | 'in_progress' | 'resolved' | 'spam';
 type Kind = 'enterprise' | 'general' | 'landing' | 'diagnosis' | 'onboarding_call';
@@ -54,6 +56,23 @@ interface InquiryItem {
   fromUser?: { id: number; name: string; email: string } | null;
   Business?: { id: number; name: string; brand_name: string | null } | null;
   repliedBy?: { id: number; name: string } | null;
+  // PlanQ 가 직접 보낸 회신(contact_inquiry_replies) 중 보낸 것(sent) 수·마지막 시각 — 서버 목록이 센다.
+  reply_count?: number | string;
+  last_reply_sent_at?: string | null;
+}
+
+// 문의 직접 회신 기록 — 서버 services/inquiryReply.toView 모양. status 'unknown' = 5분 넘게 결과 없음(보내졌을 수 있다).
+type ReplyStatus = 'sending' | 'sent' | 'failed' | 'skipped' | 'unknown';
+interface InquiryReply {
+  id: number;
+  to_email: string;
+  subject: string;
+  body: string;
+  status: ReplyStatus;
+  error_message: string | null;
+  sent_at: string | null;
+  created_at: string;
+  sent_by: { id: number; name: string } | null;
 }
 
 const STATUSES: Status[] = ['new', 'in_progress', 'resolved', 'spam'];
@@ -93,9 +112,18 @@ const AdminInquiriesPage = () => {
   const [detailId, setDetailId] = useState<number | null>(null);
   const [detail, setDetail] = useState<InquiryItem | null>(null);
   const [replyNote, setReplyNote] = useState('');
-  // 회신 초안 — 서버에 저장하지 않는다(내부 노트와 다르다). [메일로 회신] 이 본문으로 싣는다.
+  // 회신 — 쓰는 동안은 서버에 저장하지 않는다(내부 노트와 다르다). [PlanQ 에서 보내기] 가 이 글을 문의자에게 보내고,
+  //   보낸 글은 서버 기록(contact_inquiry_replies)에 남는다.
   //   쓰다 닫아도 이 브라우저에 남는다(입력 초안 규칙) — 문의마다 따로, 처리 완료·스팸으로 저장하면 비운다.
-  const inqReplyDraft = useDraftText(useDraftKey('admin-inquiry-reply', detailId, 'platform'));
+  const replyDraftKey = useDraftKey('admin-inquiry-reply', detailId, 'platform');
+  const inqReplyDraft = useDraftText(replyDraftKey);
+  // 지금 열린 문의 — 비동기 응답(발송·기록 읽기)이 도착했을 때 «아직 그 문의인가» 를 본다(Fable 완료 검증 B2).
+  const detailIdRef = useRef<number | null>(detailId);
+  detailIdRef.current = detailId;
+  // 노트·상태 선택을 마지막으로 채운 문의 — 닫으면 비운다(다시 열면 서버 값으로 다시 채운다)
+  const filledIdRef = useRef<number | null>(null);
+  // 기록 읽기 순번 — 같은 문의를 두 번 읽을 때 늦게 보낸 요청의 답만 쓴다(Fable 2차 N3)
+  const repliesSeqRef = useRef(0);
   const replyDraft = inqReplyDraft.text;
   const setReplyDraft = inqReplyDraft.setText;
   const clearReplyDraft = inqReplyDraft.clear;
@@ -103,9 +131,12 @@ const AdminInquiriesPage = () => {
   const [submitting, setSubmitting] = useState(false);
   const [copied, setCopied] = useState(false);
   useEffect(() => { setCopied(false); }, [replyDraft]);
-  // 메일 앱 주소 길이 한도(≈2,000자) 안이면 초안을 본문으로 싣는다. 넘으면 [복사] 로.
-  const encodedDraft = replyDraft.trim() ? encodeURIComponent(replyDraft) : '';
-  const mailBody = encodedDraft && encodedDraft.length <= 1800 ? `&body=${encodedDraft}` : '';
+  // 보낸 회신 기록 · 보내기 확인창 · 결과 안내
+  const [replies, setReplies] = useState<InquiryReply[]>([]);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [sendNote, setSendNote] = useState<{ tone: 'ok' | 'err'; text: string } | null>(null);
+  const [expanded, setExpanded] = useState<Record<number, boolean>>({});
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -141,11 +172,90 @@ const AdminInquiriesPage = () => {
     if (idParam && /^\d+$/.test(idParam)) setDetailId(Number(idParam));
   }, [params]);
 
+  const loadReplies = useCallback(async (id: number) => {
+    const seq = ++repliesSeqRef.current;
+    try {
+      const r = await apiFetch(`/api/inquiries/admin/${id}/replies`);
+      const j = await r.json();
+      if (detailIdRef.current !== id || seq !== repliesSeqRef.current) return;   // 그사이 다른 문의로 옮겼다 — 남의 기록을 그리지 않는다
+      if (j.success && Array.isArray(j.data)) setReplies(j.data);
+    } catch { /* 기록을 못 읽어도 상세는 보인다 */ }
+  }, []);
+
+  useEffect(() => {
+    setReplies([]); setSendNote(null); setExpanded({}); setConfirmOpen(false);
+    if (detailId) void loadReplies(detailId);
+  }, [detailId, loadReplies]);
+
+  const reasonText = useCallback((code: string | null) => {
+    if (!code) return t('adminInq.reply.err.generic');
+    if (code === 'sending_disabled' || code === 'smtp_not_configured') return t(`adminInq.reply.reason.${code}`);
+    if (code.startsWith('blocked_')) return t('adminInq.reply.reason.blocked');
+    return code;   // SMTP 오류 원문 — 관리자 화면이라 그대로 보인다
+  }, [t]);
+
+  const sendReply = useCallback(async () => {
+    if (!detail || sending) return;
+    setConfirmOpen(false);
+    setSending(true);
+    setSendNote(null);
+    // 보낸 문의와 그 초안 키를 붙잡는다 — 응답이 올 때 다른 문의가 열려 있으면 그 문의 화면·초안을 건드리지 않는다.
+    const sentId = detail.id;
+    const sentKey = replyDraftKey;
+    const stillHere = () => detailIdRef.current === sentId;
+    try {
+      const r = await apiFetch(`/api/inquiries/admin/${sentId}/replies`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ body: replyDraft }),
+      });
+      const j = await r.json().catch(() => null);
+      if (r.ok && j?.success) {
+        const rep = j.data.reply as InquiryReply;
+        if (rep.status === 'sent') {
+          if (stillHere()) clearReplyDraft(); else clearDraftRecord(sentKey);
+          if (stillHere()) {
+            setSendNote({ tone: 'ok', text: t('adminInq.reply.sentOk') });
+            // 서버가 new → in_progress 로 옮겼을 수 있다 — 열린 상세는 그 값으로(목록에서 빠져도 상세는 닫지 않는다, B1)
+            const st = j.data.inquiry_status as Status | undefined;
+            if (st) setDetail((d) => (d && d.id === sentId ? { ...d, status: st } : d));
+          }
+          void load(); refreshAdminTodo();
+        } else if (stillHere()) {
+          setSendNote({ tone: 'err', text: t('adminInq.reply.failedWith', { reason: reasonText(rep.error_message) }) });
+        }
+      } else if (stillHere()) {
+        const code = String(j?.message || '');
+        const known = ['duplicate_reply', 'reply_daily_limit', 'inquiry_spam', 'reply_body_too_long', 'reply_body_required', 'invalid_recipient'];
+        const key = r.status === 429 && !known.includes(code) ? 'rate' : (known.includes(code) ? code : 'generic');
+        setSendNote({ tone: 'err', text: t(`adminInq.reply.err.${key}`) });
+      }
+    } catch {
+      if (stillHere()) setSendNote({ tone: 'err', text: t('adminInq.reply.err.generic') });
+    } finally {
+      setSending(false);
+      // 성공·실패·응답 유실 모두 기록을 다시 읽는다 — 응답만 잃은 경우(행은 sending)도 확인창 경고가 붙게(Fable N1)
+      void loadReplies(sentId);
+    }
+  }, [detail, sending, replyDraft, replyDraftKey, clearReplyDraft, t, reasonText, loadReplies, load]);
+
   useEffect(() => {
     const it = items.find(x => x.id === detailId);
-    setDetail(it || null);
-    setReplyNote(it?.reply_note || '');
-    setNextStatus(it?.status === 'new' ? 'in_progress' : (it?.status || 'in_progress'));
+    // 열린 문의가 목록 재조회로 빠졌을 때(회신을 보내 «새 문의» → «처리중» 으로 옮겨진 경우)는 상세를 닫지 않고
+    //   쓰던 내부 노트·상태 선택도 그대로 둔다(Fable 완료 검증 B1). 다른 문의를 열거나 닫으면 종전대로.
+    if (!it) {
+      setDetail((d) => (d && detailId && d.id === detailId ? d : null));
+      if (!detailId) filledIdRef.current = null;
+      return;
+    }
+    setDetail(it);
+    // 노트·상태 선택은 **열린 문의가 바뀔 때만** 서버 값으로 채운다 — 회신을 보낸 뒤 목록을 다시 읽어도
+    //   쓰던 내부 노트·고른 상태가 덮이지 않게(Fable 2차 B1-b: «처리중» 탭에서 보낸 후속 회신).
+    if (filledIdRef.current !== it.id) {
+      filledIdRef.current = it.id;
+      setReplyNote(it.reply_note || '');
+      setNextStatus(it.status === 'new' ? 'in_progress' : it.status);
+    }
   }, [detailId, items]);
 
   const closeDetail = useCallback(() => {
@@ -248,6 +358,11 @@ const AdminInquiriesPage = () => {
               <RowHeader>
                 <FromName>{it.from_name}</FromName>
                 <KindTag>{kindLabel(it.kind, t)}</KindTag>
+                {Number(it.reply_count || 0) > 0 && (
+                  <ReplyTag title={it.last_reply_sent_at ? tf.formatDateTime(it.last_reply_sent_at) : undefined}>
+                    {t('adminInq.reply.rowTag', { count: Number(it.reply_count) })}
+                  </ReplyTag>
+                )}
                 <Spacer />
                 <CreatedAt>{tf.formatDateTime(it.created_at)}</CreatedAt>
               </RowHeader>
@@ -366,15 +481,55 @@ const AdminInquiriesPage = () => {
                 data-testid="admin-inq-reply-draft"
               />
               <AdminReplyDraftButton key={detail.id} endpoint={`/api/inquiries/admin/${detail.id}/ai-draft`} value={replyDraft} onDraft={setReplyDraft} />
-              {replyDraft.trim() && (
-                <DraftActions>
-                  <DMeta>{t('adminInq.dReplyDraftHint')}</DMeta>
+              <DraftActions>
+                <SendBtn
+                  type="button"
+                  data-testid="admin-inq-reply-send"
+                  disabled={sending || !replyDraft.trim() || detail.status === 'spam'}
+                  title={detail.status === 'spam' ? t('adminInq.reply.spamDisabled') as string : (!replyDraft.trim() ? t('adminInq.reply.emptyDisabled') as string : undefined)}
+                  onClick={() => setConfirmOpen(true)}
+                >
+                  {sending ? t('adminInq.reply.sending') : t('adminInq.reply.send')}
+                </SendBtn>
+                {replyDraft.trim() && (
                   <LinkBtn type="button" onClick={() => { void navigator.clipboard?.writeText(replyDraft).then(() => setCopied(true)).catch(() => {}); }}>
                     {copied ? t('adminInq.dReplyCopied') : t('adminInq.dReplyCopy')}
                   </LinkBtn>
-                </DraftActions>
-              )}
+                )}
+              </DraftActions>
+              {detail.status === 'spam' && <DMeta>{t('adminInq.reply.spamDisabled')}</DMeta>}
+              {sendNote && <SendNote $tone={sendNote.tone} role="status" data-testid="admin-inq-reply-note">{sendNote.text}</SendNote>}
             </DSection>
+
+            {replies.length > 0 && (
+              <DSection data-testid="admin-inq-replies">
+                <DLabel>{t('adminInq.reply.historyTitle', { count: replies.length })}</DLabel>
+                <ReplyList>
+                  {replies.map((rp) => {
+                    const long = rp.body.length > 240 || rp.body.split('\n').length > 4;
+                    const open = !!expanded[rp.id];
+                    return (
+                      <ReplyItem key={rp.id} data-testid="admin-inq-reply-row">
+                        <ReplyHead>
+                          <ReplyStatusChip $s={rp.status}>{t(`adminInq.reply.status.${rp.status}`)}</ReplyStatusChip>
+                          <ReplyMeta>{tf.formatDateTime(rp.sent_at || rp.created_at)}</ReplyMeta>
+                        </ReplyHead>
+                        <ReplyMeta>{t('adminInq.reply.by', { name: rp.sent_by?.name || '—', email: rp.to_email })}</ReplyMeta>
+                        <ReplyBody $clamp={long && !open}>{rp.body}</ReplyBody>
+                        {long && (
+                          <LinkBtn type="button" onClick={() => setExpanded((m) => ({ ...m, [rp.id]: !open }))}>
+                            {open ? t('adminInq.reply.less') : t('adminInq.reply.more')}
+                          </LinkBtn>
+                        )}
+                        {(rp.status === 'failed' || rp.status === 'skipped') && rp.error_message && (
+                          <ReplyError>{reasonText(rp.error_message)}</ReplyError>
+                        )}
+                      </ReplyItem>
+                    );
+                  })}
+                </ReplyList>
+              </DSection>
+            )}
 
             <DSection>
               <DLabel>{t('adminInq.dReplyNote', '답변 노트 (내부)')}</DLabel>
@@ -393,15 +548,24 @@ const AdminInquiriesPage = () => {
           </DetailDrawer.Body>
           <DetailDrawer.Footer>
             <FooterRow>
-              <a href={`mailto:${detail.from_email}?subject=Re: ${encodeURIComponent(t('adminInq.mailSubject', 'PlanQ 문의'))} %23${detail.id}${mailBody}`} target="_blank" rel="noreferrer">
-                <SecondaryBtn type="button">{t('adminInq.dReplyEmail', '메일로 회신')}</SecondaryBtn>
-              </a>
               <PrimaryBtn type="button" onClick={submit} disabled={submitting}>
                 {submitting ? t('common.saving', '저장 중...') : t('adminInq.dSave', '저장')}
               </PrimaryBtn>
             </FooterRow>
           </DetailDrawer.Footer>
         </DetailDrawer>
+      )}
+      {detail && (
+        <ConfirmDialog
+          isOpen={confirmOpen}
+          onClose={() => setConfirmOpen(false)}
+          onConfirm={() => { void sendReply(); }}
+          title={t('adminInq.reply.confirmTitle')}
+          message={`${t('adminInq.reply.confirmMsg', { name: detail.from_name, email: detail.from_email })}${replies.some((r) => r.status === 'unknown' || r.status === 'sending') ? `\n\n${t('adminInq.reply.confirmUnknown')}` : ''}`}
+          confirmText={t('adminInq.reply.confirmOk')}
+          cancelText={t('adminInq.reply.cancel')}
+          variant={replies.some((r) => r.status === 'unknown' || r.status === 'sending') ? 'warning' : 'info'}
+        />
       )}
     </PageShell>
   );
@@ -480,15 +644,44 @@ const TzTag = styled.span`
   background: #F1F5F9; border-radius: 4px;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
 `;
+const ReplyTag = styled.span`
+  font-size: 0.6875rem; font-weight: 600; color: #475569;
+  padding: 2px 8px; background: #F1F5F9; border: 1px solid #E2E8F0; border-radius: 999px;
+`;
+const SendBtn = styled.button`
+  padding: 8px 14px; background: #FFFFFF; color: #0F766E;
+  border: 1px solid #14B8A6; border-radius: 8px; font-size: 0.8125rem; font-weight: 700; cursor: pointer;
+  &:hover:not(:disabled) { background: #F0FDFA; }
+  &:disabled { color: #94A3B8; border-color: #E2E8F0; cursor: not-allowed; }
+`;
+const SendNote = styled.div<{ $tone: 'ok' | 'err' }>`
+  margin-top: 8px; font-size: 0.75rem; font-weight: 600; line-height: 1.5;
+  color: ${p => p.$tone === 'ok' ? '#0F766E' : '#B91C1C'};
+`;
+const ReplyList = styled.div`display: flex; flex-direction: column; gap: 8px;`;
+const ReplyItem = styled.div`border: 1px solid #E2E8F0; border-radius: 8px; padding: 10px 12px; background: #FFFFFF;`;
+const ReplyHead = styled.div`display: flex; align-items: center; gap: 8px; flex-wrap: wrap;`;
+const ReplyMeta = styled.div`font-size: 0.6875rem; color: #64748B; margin-top: 2px;`;
+const ReplyBody = styled.div<{ $clamp: boolean }>`
+  margin-top: 6px; font-size: 0.8125rem; color: #0F172A; line-height: 1.6; white-space: pre-wrap; word-break: break-word;
+  ${p => p.$clamp ? 'display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden;' : ''}
+`;
+const ReplyError = styled.div`margin-top: 6px; font-size: 0.75rem; color: #B91C1C;`;
+const REPLY_CHIP: Record<ReplyStatus, [string, string, string]> = {
+  sent: ['#0F766E', '#F0FDFA', '#99F6E4'],
+  failed: ['#B91C1C', '#FEF2F2', '#FECACA'],
+  skipped: ['#475569', '#F1F5F9', '#E2E8F0'],
+  sending: ['#475569', '#F1F5F9', '#E2E8F0'],
+  unknown: ['#B45309', '#FFFBEB', '#FDE68A'],
+};
+const ReplyStatusChip = styled.span<{ $s: ReplyStatus }>`
+  font-size: 0.6875rem; font-weight: 700; padding: 2px 8px; border-radius: 999px;
+  color: ${p => REPLY_CHIP[p.$s][0]}; background: ${p => REPLY_CHIP[p.$s][1]}; border: 1px solid ${p => REPLY_CHIP[p.$s][2]};
+`;
 const FooterRow = styled.div`display: flex; gap: 8px; justify-content: flex-end; width: 100%;`;
 const PrimaryBtn = styled.button`
   padding: 8px 16px; background: #14B8A6; color: #FFFFFF;
   border: none; border-radius: 8px; font-size: 0.8125rem; font-weight: 700; cursor: pointer;
   &:hover:not(:disabled) { background: #0D9488; }
   &:disabled { background: #CBD5E1; cursor: not-allowed; }
-`;
-const SecondaryBtn = styled.button`
-  padding: 8px 16px; background: #FFFFFF; color: #475569;
-  border: 1px solid #E2E8F0; border-radius: 8px; font-size: 0.8125rem; font-weight: 600; cursor: pointer;
-  &:hover { border-color: #14B8A6; color: #0F766E; }
 `;
