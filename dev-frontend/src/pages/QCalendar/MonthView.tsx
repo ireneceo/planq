@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { linkLine } from './linkLine';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
@@ -12,7 +12,7 @@ import { isTaskEvent } from './taskToEvent';
 import { formatDay } from '../../utils/dateFormat';
 import type { HolidayMark } from '../../hooks/useWorkspaceHolidays';
 import { HolidayName, holidayLabel } from './holidayLook';
-import { TaskIcon, formatChipTime } from './DayEventsCard';
+import { TaskIcon, formatChipTime, DayEventsBody } from './DayEventsCard';
 import { useDayHoverCard, DayHoverCard } from './DayHoverCard';
 
 // 날짜 키 별 인덱스 — 멀티데이 이벤트는 걸친 모든 날짜에 등장
@@ -47,11 +47,13 @@ interface Props {
   weekStart?: 0 | 1;
   /** #424 — 워크스페이스 휴일(쉬는 날만, dateKey → 이름). 읽기 전용 표시 */
   holidays?: Record<string, HolidayMark>;
+  /** 폰(≤640) — 칸에는 점만, 고른 날의 일정은 달력 아래 목록으로(2026-11-15). 글자 칩 7칸은 폰 폭에서 읽을 수 없다 */
+  compact?: boolean;
 }
 
 const MAX_VISIBLE = 3;
 
-const MonthView: React.FC<Props> = ({ anchor, today, now, events, onSelectEvent, onSelectDate, onCreateAt, weekStart = 0, holidays }) => {
+const MonthView: React.FC<Props> = ({ anchor, today, now, events, onSelectEvent, onSelectDate, onCreateAt, weekStart = 0, holidays, compact = false }) => {
   const { t, i18n } = useTranslation('qcalendar');
   const days = useMemo(() => getMonthGridDays(anchor, weekStart), [anchor, weekStart]);
   const eventMap = useMemo(() => indexByDayKey(events), [events]);
@@ -64,9 +66,14 @@ const MonthView: React.FC<Props> = ({ anchor, today, now, events, onSelectEvent,
   // 날짜 호버 카드 — 마우스로 일정 있는 날 위에 잠시 머물면 칸 옆에 그 날 목록(DayHoverCard).
   const hc = useDayHoverCard(false);
   const hoverEvents = hc.hover ? eventMap[hc.hover.key] || [] : [];
+  // 폰 — 고른 날. 처음엔 기준 날짜(들어오면 오늘 · 달을 넘기면 1일). 기준이 바뀌면 다시 그 날.
+  const anchorKey = toDateKey(anchor);
+  const [picked, setPicked] = useState<{ for: string; key: string; day: Date } | null>(null);
+  const sel = picked && picked.for === anchorKey ? picked : { for: anchorKey, key: anchorKey, day: anchor };
+  const selEvents = eventMap[sel.key] || [];
 
   return (
-    <Wrap>
+    <Wrap $compact={compact}>
       <Weekdays>
         {weekdayKeys.map((k) => (
           <WeekdayCell key={k} $isSaturday={k === 'sat'} $isSunday={k === 'sun'}>
@@ -74,7 +81,7 @@ const MonthView: React.FC<Props> = ({ anchor, today, now, events, onSelectEvent,
           </WeekdayCell>
         ))}
       </Weekdays>
-      <Grid>
+      <Grid $compact={compact}>
         {days.map((day, idx) => {
           const key = toDateKey(day);
           const list = eventMap[key] || [];
@@ -91,16 +98,19 @@ const MonthView: React.FC<Props> = ({ anchor, today, now, events, onSelectEvent,
               $outMonth={!inMonth}
               $today={isToday}
               data-pastday={pastDayAttr(day, today)}
-              onClick={() => { hc.close(); onSelectDate(day); }}
-              onPointerEnter={list.length ? (ev) => hc.enterCell(ev, key, day) : undefined}
+              $compact={compact}
+              $picked={compact && sel.key === key}
+              data-picked={compact && sel.key === key ? '1' : undefined}
+              onClick={() => { hc.close(); if (compact) setPicked({ for: anchorKey, key, day }); else onSelectDate(day); }}
+              onPointerEnter={list.length && !compact ? (ev) => hc.enterCell(ev, key, day) : undefined}
               onPointerLeave={hc.leave}
             >
-              <CellHead>
+              <CellHead $compact={compact}>
                 <DateBadge $today={isToday} $isSaturday={day.getDay() === 6} $isSunday={day.getDay() === 0 || !!hol}>
                   {day.getDate()}
                 </DateBadge>
-                {hol && <HolidayName data-testid="calendar-holiday" title={holidayLabel(hol, i18n.language)}>{holidayLabel(hol, i18n.language)}</HolidayName>}
-                {onCreateAt && (
+                {hol && !compact && <HolidayName data-testid="calendar-holiday" title={holidayLabel(hol, i18n.language)}>{holidayLabel(hol, i18n.language)}</HolidayName>}
+                {onCreateAt && !compact && (
                   <AddBtn
                     type="button"
                     aria-label={t('month.createOn', { defaultValue: '이 날짜에 일정 추가' }) as string}
@@ -111,6 +121,15 @@ const MonthView: React.FC<Props> = ({ anchor, today, now, events, onSelectEvent,
                   </AddBtn>
                 )}
               </CellHead>
+              {compact ? (
+                <Dots data-testid="calendar-day-dots">
+                  {list.slice(0, 3).map((e) => {
+                    const c = getEventColors(e as CalendarEvent);
+                    return <Dot key={`d-${isTaskEvent(e) ? 't' : 'e'}-${e.id}`} $color={c.border} />;
+                  })}
+                  {list.length > 3 && <DotMore>+{list.length - 3}</DotMore>}
+                </Dots>
+              ) : (<>
               <EventList>
                 {visible.map((e) => {
                   const c = getEventColors(e as CalendarEvent);
@@ -161,10 +180,25 @@ const MonthView: React.FC<Props> = ({ anchor, today, now, events, onSelectEvent,
                   </MoreLink>
                 </MoreLinkWrap>
               )}
+              </>)}
             </Cell>
           );
         })}
       </Grid>
+
+      {compact && (
+        <PickedDay data-testid="calendar-month-day">
+          <DayEventsBody
+            title={dayTitle(sel.day)}
+            events={selEvents}
+            now={now}
+            onSelectEvent={(e) => onSelectEvent(e.id, e.start_at?.slice(0, 10))}
+            onOpenDay={() => onSelectDate(sel.day)}
+            onCreate={onCreateAt ? () => createOn(sel.day) : undefined}
+          />
+          {selEvents.length === 0 && <NoItems>{t('agenda.noneToday', '일정 없음')}</NoItems>}
+        </PickedDay>
+      )}
 
       {hc.hover && hoverEvents.length > 0 && (
         <DayHoverCard rect={hc.hover.rect} title={dayTitle(hc.hover.day)} events={hoverEvents} now={now}
@@ -180,10 +214,11 @@ const MonthView: React.FC<Props> = ({ anchor, today, now, events, onSelectEvent,
 export default MonthView;
 
 // ── styled ──
-const Wrap = styled.div`
+const Wrap = styled.div<{ $compact?: boolean }>`
   display: flex; flex-direction: column; height: 100%; width: 100%; flex: 1; min-width: 0;
   background: #fff; border: 1px solid #E2E8F0; border-radius: 10px; overflow: hidden;
   position: relative;
+  ${({ $compact }) => $compact && 'height: auto;'}
 `;
 const Weekdays = styled.div`
   display: grid; grid-template-columns: repeat(7, 1fr);
@@ -193,13 +228,15 @@ const WeekdayCell = styled.div<{ $isSaturday: boolean; $isSunday: boolean }>`
   padding: 10px 12px; font-size: 0.75rem; font-weight: 600; letter-spacing: -0.1px;
   color: ${({ $isSunday, $isSaturday }) => $isSunday ? '#BE123C' : $isSaturday ? '#1D4ED8' : '#475569'};
   text-align: center;
+  @media (max-width: 640px) { padding: 8px 0; }
 `;
-const Grid = styled.div`
+const Grid = styled.div<{ $compact?: boolean }>`
   display: grid; grid-template-columns: repeat(7, 1fr);
   grid-auto-rows: minmax(112px, 1fr);
   flex: 1; min-height: 0; overflow-y: auto;
+  ${({ $compact }) => $compact && 'grid-auto-rows: auto; flex: none; overflow: visible;'}
 `;
-const Cell = styled.div<{ $outMonth: boolean; $today: boolean }>`
+const Cell = styled.div<{ $outMonth: boolean; $today: boolean; $compact?: boolean; $picked?: boolean }>`
   position: relative; border-right: 1px solid #E2E8F0; border-bottom: 1px solid #E2E8F0;
   padding: 6px 6px 4px; cursor: pointer;
   background: ${({ $today }) => $today ? '#F0FDFA' : '#fff'};
@@ -210,9 +247,27 @@ const Cell = styled.div<{ $outMonth: boolean; $today: boolean }>`
   &:hover { background: ${({ $today }) => $today ? '#ECFDF5' : '#F8FAFC'}; }
   &[data-pastday='1'] { background: ${PAST_DAY_BG}; }
   &[data-pastday='1']:hover { background: ${PAST_DAY_BG_HOVER}; }
+  ${({ $compact }) => $compact && `
+    align-items: center; padding: 4px 2px; min-height: 52px;
+    &:hover { background: inherit; }
+  `}
+  ${({ $picked }) => $picked && `
+    box-shadow: inset 0 0 0 2px #14B8A6;
+  `}
 `;
-const CellHead = styled.div`
+// 폰 월 보기 — 칸 안 일정 점(최대 3) + 나머지 수
+const Dots = styled.div`
+  display: flex; align-items: center; justify-content: center; gap: 3px; min-height: 8px; margin-top: 2px;
+`;
+const DotMore = styled.span`font-size: 0.625rem; font-weight: 600; color: #64748B; line-height: 1;`;
+// 폰 월 보기 — 고른 날 일정(달력 아래). 목록 모양은 더보기·호버 카드와 같은 DayEventsBody
+const PickedDay = styled.div`
+  border-top: 1px solid #E2E8F0; display: flex; flex-direction: column;
+`;
+const NoItems = styled.div`font-size: 0.8125rem; color: #94A3B8; padding: 4px 16px 16px;`;
+const CellHead = styled.div<{ $compact?: boolean }>`
   display: flex; align-items: center; gap: 4px;
+  ${({ $compact }) => $compact && 'justify-content: center;'}
   flex-wrap: wrap;   /* #424 — 폰에서 휴일 이름이 다음 줄로 내려간다(holidayLook) */
 `;
 // 데스크탑은 hover 시 노출, 터치 기기는 hover 가 없으므로 상시 노출 (CLAUDE.md 반응형 원칙)

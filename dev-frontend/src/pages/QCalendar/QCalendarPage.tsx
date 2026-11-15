@@ -586,7 +586,7 @@ const QCalendarPage: React.FC<{ scope?: { type: 'project'; businessId: number; p
         {embedded && <EmbeddedEnd>{headerActions}</EmbeddedEnd>}{/* 얹힌 모드 — 머리줄이 없어 년/월 줄 끝에. 폰은 다음 줄 */}
       </Toolbar>
 
-      <ViewWrap $agenda={view === 'agenda'} $embedded={embedded}>
+      <ViewWrap $agenda={view === 'agenda' || (view === 'month' && isPhone)} $embedded={embedded}>{/* 폰 월 보기도 문서 흐름(달력 + 고른 날 목록) */}
         {view === 'agenda' && (
           <AgendaView
             anchor={anchor}
@@ -610,6 +610,7 @@ const QCalendarPage: React.FC<{ scope?: { type: 'project'; businessId: number; p
             onSelectEvent={selectFromView}
             onSelectDate={handleSelectDate}
             onCreateAt={handleCreateAt}
+            compact={isPhone}
           />
         )}
         {(view === 'week' || view === 'day') && (

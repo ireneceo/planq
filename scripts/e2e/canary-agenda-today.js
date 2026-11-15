@@ -4,10 +4,13 @@
 //   원인: 창 전체의 touchmove 하나로 «사용자가 움직였다» 고 보고, 화면이 뜨는 동안 손가락이 닿으면
 //   그 뒤 도착한 일정·업무가 오늘 위에 끼어도 다시 맞추지 않았다 → 1일부터 보였다. puppeteer 는 터치를 안 해서 초록이었다.
 //
-//   ① 그대로 들어감 → 오늘 묶음이 스크롤 상자 위 끝
-//   ② 조회 지연 + 들어가는 동안 손가락 닿음(touchmove, 스크롤 없음) + 업무 늦게 도착 → 오늘 묶음이 위 끝  (옛 코드에서 실패해야 한다 = 양성 대조군)
-//   ③ 맞춘 뒤 사용자가 실제로 끌어 올림(scrollTop 변화) → 늦게 온 업무가 그 자리를 빼앗지 않는다  (음성 쪽 — 10-16 의도 유지)
-//   ④ 다음 달 → «오늘» 버튼 → 오늘 묶음이 위 끝
+//   2026-11-15 세 번째 신고 — 굴리기 방식을 버렸다: 이번 달이면 목록이 **오늘에서 시작**하고 지난 날은 [지난 날짜 보기].
+//   판정 «ok» = 오늘 묶음이 목록 첫 묶음(앞에 지난 날 묶음 0) · 화면 위쪽 절반에 보임 · 년/월 줄(«오늘» 버튼)도 화면에 보임.
+//   ① 그대로 들어감
+//   ② 조회 지연 + 들어가는 동안 손가락 닿음 + 업무(2일 마감) 늦게 도착 — 옛 굴리기 코드가 실패하던 조건
+//   ③ [지난 날짜 보기] → 1일·2일(늦게 온 업무) 묶음이 오늘 위에 펼쳐짐
+//   ④ 다음 달 → «오늘» 버튼 → 다시 오늘부터
+//   ⑤ 폰 월 보기 — 칸은 점, 달력 아래 오늘 목록 · 1일 칸을 누르면 그 날 일정(__AGT 1)
 //   폭: 폰 390×844 · 360×740. 픽스처: 이번 달 1일~(오늘-1) 일정 `__AGT`(끝나면 지운다) + 가짜 업무 응답(가로채기 — DB 안 씀).
 const { launch, login, goto, sleep, dismissBlockers } = require('./lib/browser');
 
@@ -45,14 +48,15 @@ const ymdIn = (tz, d = new Date()) => new Intl.DateTimeFormat('en-CA', { timeZon
 async function measure(page) {
   return page.evaluate((F) => {
     const el = window.__findToday();
-    if (!el) return { found: false };
-    let sc = el.parentElement;
-    while (sc && !/(auto|scroll)/.test(getComputedStyle(sc).overflowY)) sc = sc.parentElement;
-    const top = el.getBoundingClientRect().top;
-    const scTop = sc ? sc.getBoundingClientRect().top : 0;
-    const groups = el.parentElement ? el.parentElement.children.length : 0;
-    const idx = el.parentElement ? [...el.parentElement.children].indexOf(el) : -1;
-    return { found: true, off: Math.round(top - scTop), scrollTop: sc ? Math.round(sc.scrollTop) : null, max: sc ? sc.scrollHeight - sc.clientHeight : null, groups, idx, vh: innerHeight };
+    const tb = document.querySelector('[data-testid="calendar-today"]');
+    const tbTop = tb ? Math.round(tb.getBoundingClientRect().top) : null;
+    const toolbarVisible = tb ? tbTop >= 0 && tbTop < innerHeight : false;
+    if (!el) return { found: false, toolbarVisible };
+    const sibs = [...el.parentElement.children];
+    const idx = sibs.indexOf(el);
+    const prevGroups = sibs.slice(0, idx).filter((x) => x.tagName === 'DIV').length;   // 버튼(BUTTON) 말고 지난 날 묶음
+    const earlierBtn = !!document.querySelector('[data-testid="agenda-show-earlier"]');
+    return { found: true, top: Math.round(el.getBoundingClientRect().top), vh: innerHeight, prevGroups, groups: sibs.filter((x) => x.tagName === 'DIV').length, earlierBtn, toolbarVisible, tbTop };
   }, FIND_TODAY);
 }
 
@@ -78,7 +82,7 @@ async function intercept(page, { evDelay, taskDelay, taskDay, biz }) {
   });
 }
 
-const near = (m) => m.found && m.idx > 0 && Math.abs(m.off) <= 24;
+const near = (m) => m.found && m.prevGroups === 0 && m.top >= 0 && m.top < m.vh / 2 && m.toolbarVisible;
 
 async function run() {
   const results = [];
@@ -145,30 +149,17 @@ async function run() {
         } finally { await browser.close(); }
       }
 
-      // ③ 맞춘 뒤 사용자가 실제로 끌어 올림 → 늦게 온 업무가 자리를 빼앗지 않는다
+      // ③ [지난 날짜 보기] → 지난 날(1일·늦게 온 2일 업무)이 오늘 위에 펼쳐진다
       {
-        const { browser, page } = await fresh({ evDelay: 0, taskDelay: 4000, taskDay });
+        const { browser, page } = await fresh({ evDelay: 0, taskDelay: 1500, taskDay });
         try {
-          await page.goto(`${require('./lib/browser').BASE}/calendar`, { waitUntil: 'domcontentloaded' });
-          await page.waitForFunction((F) => !!window.__findToday(), { timeout: 15000 }, FIND_TODAY);
-          await sleep(1200);
+          await goto(page, '/calendar'); await dismissBlockers(page).catch(() => null); await sleep(3000);
           const before = await measure(page);
-          const userTop = await page.evaluate((F) => {
-            const el = window.__findToday();
-            let sc = el.parentElement;
-            while (sc && !/(auto|scroll)/.test(getComputedStyle(sc).overflowY)) sc = sc.parentElement;
-            el.dispatchEvent(new Event('touchmove', { bubbles: true }));
-            sc.scrollTop = Math.max(0, sc.scrollTop - 120);
-            return Math.round(sc.scrollTop);
-          }, FIND_TODAY);
-          await sleep(300);
-          const dragged = await measure(page);
-          await sleep(4500);
+          await page.click('[data-testid="agenda-show-earlier"]'); await sleep(600);
           const m = await measure(page);
-          // 업무 묶음이 오늘 위에 새로 끼었고(idx 증가), 오늘은 사용자가 끈 화면 위치 그대로(다시 맨 위로 당겨지지 않음).
-          //   scrollTop 자체는 브라우저 스크롤 고정(anchoring)이 끼운 높이만큼 늘 수 있다 — 화면 위치로 판정한다.
-          const kept = m.found && m.idx > before.idx && dragged.off > 24 && Math.abs(m.off - dragged.off) <= 4;
-          results.push({ name: `user-drag-kept:${tag}`, fail: kept ? 0 : 1, hasCanary: true, details: [`손댄 뒤 scrollTop ${userTop} · 전 ${JSON.stringify(before)} · 끈 직후 off ${dragged.off} · 후 ${JSON.stringify(m)}`] });
+          const txt = await page.evaluate(() => document.body.innerText);
+          const ok = near(before) && before.earlierBtn && m.found && m.prevGroups >= 2 && !m.earlierBtn && txt.includes('__AGT 1') && txt.includes('__AGT late task');
+          results.push({ name: `show-earlier:${tag}`, fail: ok ? 0 : 1, hasCanary: true, details: [`전 ${JSON.stringify(before)} · 후 ${JSON.stringify(m)}`] });
         } finally { await browser.close(); }
       }
 
@@ -182,6 +173,26 @@ async function run() {
           await page.click('[data-testid="calendar-today"]'); await sleep(2000);
           const m = await measure(page);
           results.push({ name: `next-then-today:${tag}`, fail: !away.found && near(m) ? 0 : 1, hasCanary: true, details: [`다음 달 오늘 묶음 ${away.found ? '있음(틀림)' : '없음'} · ${JSON.stringify(m)}`] });
+        } finally { await browser.close(); }
+      }
+
+      // ⑤ 폰 월 보기 — 칸 점 · 달력 아래 오늘 목록 · 1일 칸 누르면 그 날
+      {
+        const { browser, page } = await fresh({ evDelay: 0, taskDelay: 0, taskDay });
+        try {
+          await goto(page, '/calendar?view=month'); await dismissBlockers(page).catch(() => null); await sleep(2500);
+          const m0 = await page.evaluate(() => {
+            const day = document.querySelector('[data-testid="calendar-month-day"]');
+            const chips = document.querySelectorAll('[data-date] [data-testid="calendar-event"]').length;
+            const dots = document.querySelectorAll('[data-testid="calendar-day-dots"]').length;
+            const r = day ? day.getBoundingClientRect() : null;
+            return { panel: !!day, panelText: day ? day.innerText.slice(0, 40) : '', chips, dots, panelW: r ? Math.round(r.width) : 0, docW: document.documentElement.scrollWidth, vw: innerWidth };
+          });
+          await page.click(`[data-date="${Y}-${pad(M)}-01"]`); await sleep(500);
+          const t1 = await page.evaluate(() => document.querySelector('[data-testid="calendar-month-day"]')?.innerText || '');
+          const ok = m0.panel && m0.chips === 0 && m0.dots >= 28 && m0.docW <= m0.vw && m0.panelText.includes(String(D)) && t1.includes('__AGT 1');
+          results.push({ name: `phone-month:${tag}`, fail: ok ? 0 : 1, hasCanary: true, details: [`${JSON.stringify(m0)} · 1일 누름 → ${JSON.stringify(t1.slice(0, 60))}`] });
+          await page.screenshot({ path: `/tmp/agendatoday-month-${tag}.png` }).catch(() => null);
         } finally { await browser.close(); }
       }
     }

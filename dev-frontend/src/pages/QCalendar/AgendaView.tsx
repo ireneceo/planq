@@ -1,7 +1,7 @@
 // #133 — 모바일 아젠다(리스트) 뷰. 폰에서 월/주 그리드 칩이 판독 불가한 문제 해소.
-//   anchor 월의 이벤트 있는 날만 날짜별 그룹으로 세로 나열. 오늘 자동 스크롤. 빈 월 빈 상태.
+//   anchor 월의 이벤트 있는 날만 날짜별 그룹으로 세로 나열. 이번 달이면 오늘부터(지난 날은 버튼으로). 빈 월 빈 상태.
 //   데이터는 QCalendarPage 의 filteredEvents(events+tasks+personal 병합, RRULE 전개) 그대로 재사용.
-import React, { useMemo, useRef, useLayoutEffect, useEffect } from 'react';
+import React, { useMemo, useRef, useLayoutEffect, useState } from 'react';
 import { linkLine } from './linkLine';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
@@ -83,76 +83,27 @@ const AgendaView: React.FC<Props> = ({ anchor, today, now, events, onSelectEvent
     return out;
   }, [anchor, today, eventMap]);
 
-  // 오늘로 자동 스크롤 — 들어올 때·달/«오늘» 이 바뀔 때, 그리고 오늘 위에 묶음이 늘 때마다(사용자가 직접 굴리기 전까지).
-  //   useLayoutEffect 즉시(RAF 지연 금지 박제).
-  //   ★ 2026-10-16 — 한 번만 맞추면 1일이 보였다: 일정·업무가 따로 도착해 오늘 위에 끼면서 오늘이 화면 밖으로 밀렸다
-  //     → «오늘 위 묶음 수» 가 바뀔 때마다 다시 맞춘다.
-  //   ★ 2026-11-07 — 같은 신고 두 번째(폰 실기기): «사용자가 움직였다» 를 창 전체의 touchmove/wheel 로 판정해,
-  //     화면이 뜨는 동안 손가락이 닿기만 해도 그 뒤 도착한 일정·업무에 다시 맞추지 않았다(첫 렌더가 이미 «맞췄음» 을 기록).
-  //     이제 **스크롤 상자가 우리가 맞춘 자리에서 실제로 움직였고, 맞춘 뒤 사용자 입력이 있었을 때만** 사용자 이동으로 본다.
-  const todayRef = useRef<HTMLDivElement>(null);
-  const viewKey = `${toDateKey(startOfMonth(anchor))}@${anchor.getTime()}`;   // «오늘» 버튼(같은 달)도 새로 맞춘다
-  const beforeToday = groups.findIndex((g) => g.isToday);
-  const scrolledFor = useRef<string>('');
-  const userMoved = useRef(false);
-  const placedTop = useRef<number | null>(null);      // 우리가 맞춘 직후 스크롤 상자 scrollTop
-  const inputSincePlace = useRef(false);              // 맞춘 뒤 사용자 입력(터치·휠·키)이 있었나
-  const scrollerOf = (el: HTMLElement | null): HTMLElement | null => {
-    for (let p = el?.parentElement || null; p; p = p.parentElement) {
+  // 오늘부터 보여 준다 — 지난 날짜는 위 [지난 날짜 보기] 를 눌러야 펼친다 (2026-11-15, 같은 신고 세 번째).
+  //   ★ 10-16·11-07 은 «1일부터 그린 뒤 오늘로 굴리기» 를 고쳤는데 실기기에선 또 1일이 보였다 — 굴리기는
+  //     일정·업무 도착 순서·손가락·브라우저마다 결과가 달라 브라우저 시험이 초록이어도 폰에서 어긋난다.
+  //     이제 굴리지 않는다: 이 달에 오늘이 있으면 목록이 **오늘에서 시작**한다(무엇이 언제 도착하든 같은 결과).
+  //     굴리기가 없으니 년/월 줄(«오늘»·보기 고르기)도 화면 위에 그대로 남는다.
+  const viewKey = `${toDateKey(startOfMonth(anchor))}@${anchor.getTime()}`;   // 달 이동·«오늘» 버튼 = 다시 오늘부터
+  const [earlierFor, setEarlierFor] = useState<string>('');
+  const showEarlier = earlierFor === viewKey;
+  const todayIdx = groups.findIndex((g) => g.isToday);
+  const earlierCount = todayIdx > 0 ? todayIdx : 0;
+  const shown = showEarlier || todayIdx < 0 ? groups : groups.slice(todayIdx);
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const firstKey = useRef(viewKey);
+  useLayoutEffect(() => {
+    if (firstKey.current === viewKey) return;   // 처음 들어올 때는 화면 껍데기가 이미 맨 위에서 연다
+    firstKey.current = viewKey;
+    for (let p = wrapRef.current?.parentElement || null; p; p = p.parentElement) {
       const oy = getComputedStyle(p).overflowY;
-      if (oy === 'auto' || oy === 'scroll') return p;
+      if (oy === 'auto' || oy === 'scroll') { p.scrollTop = 0; break; }
     }
-    return (document.scrollingElement as HTMLElement | null) || null;
-  };
-  useEffect(() => {
-    userMoved.current = false;
-    placedTop.current = null;
-    inputSincePlace.current = false;
-    const sc = scrollerOf(todayRef.current);
-    if (!sc) return undefined;
-    const onInput = () => { inputSincePlace.current = true; };
-    const onScroll = () => {
-      if (placedTop.current == null || !inputSincePlace.current) return;
-      if (Math.abs(sc.scrollTop - placedTop.current) > 4) userMoved.current = true;
-    };
-    const target: EventTarget = sc === document.scrollingElement ? window : sc;
-    sc.addEventListener('touchmove', onInput, { passive: true });
-    sc.addEventListener('wheel', onInput, { passive: true });
-    window.addEventListener('keydown', onInput);
-    target.addEventListener('scroll', onScroll, { passive: true });
-    return () => {
-      sc.removeEventListener('touchmove', onInput);
-      sc.removeEventListener('wheel', onInput);
-      window.removeEventListener('keydown', onInput);
-      target.removeEventListener('scroll', onScroll);
-    };
-  }, [viewKey, beforeToday >= 0]);
-  // 오늘 뒤가 짧으면(이번 달 남은 일정이 적으면) 끝까지 굴려도 오늘이 위로 못 온다 — 아래 여백으로 채운다(2026-11-07 실측: 마지막 묶음이 오늘이면 화면 가운데 아래).
-  const tailRef = useRef<HTMLDivElement>(null);
-  useLayoutEffect(() => {
-    const tail = tailRef.current; const el = todayRef.current;
-    if (!tail || !el) return;
-    const sc = scrollerOf(el);
-    if (!sc) return;
-    const need = Math.max(0, Math.floor(sc.clientHeight - (tail.getBoundingClientRect().top - el.getBoundingClientRect().top)));
-    const cur = tail.offsetHeight;
-    if (Math.abs(cur - need) > 1) tail.style.height = `${need}px`;
-  });
-  useLayoutEffect(() => {
-    // Fable A-1 — fetch 완료(loading=false) 후에만 스크롤.
-    if (loading) return;
-    if (beforeToday < 0) return;
-    const key = `${viewKey}:${beforeToday}`;
-    if (scrolledFor.current === key) return;
-    if (userMoved.current && scrolledFor.current.startsWith(`${viewKey}:`)) return;
-    const el = todayRef.current;
-    if (!el) return;
-    scrolledFor.current = key;
-    el.scrollIntoView({ block: 'start' });
-    const sc = scrollerOf(el);
-    placedTop.current = sc ? sc.scrollTop : null;
-    inputSincePlace.current = false;
-  }, [viewKey, beforeToday, loading]);
+  }, [viewKey]);
 
   if (!loading && groups.length === 0) {
     return (
@@ -169,9 +120,14 @@ const AgendaView: React.FC<Props> = ({ anchor, today, now, events, onSelectEvent
   }
 
   return (
-    <Wrap>
-      {groups.map((g) => (
-        <Group key={g.key} ref={g.isToday ? todayRef : undefined} data-testid={g.isToday ? 'agenda-today' : undefined}>
+    <Wrap ref={wrapRef}>
+      {!showEarlier && earlierCount > 0 && (
+        <EarlierBtn type="button" onClick={() => setEarlierFor(viewKey)} data-testid="agenda-show-earlier">
+          {t('agenda.showEarlier', { count: earlierCount, defaultValue: '지난 날짜 보기 ({{count}}일)' }) as string}
+        </EarlierBtn>
+      )}
+      {shown.map((g) => (
+        <Group key={g.key} data-testid={g.isToday ? 'agenda-today' : undefined}>
           <DayHeader data-pastday={pastDayAttr(g.date, today)} onClick={() => onSelectDate(g.date)}>
             <DateBadge $today={g.isToday} $isSaturday={g.date.getDay() === 6} $isSunday={g.date.getDay() === 0}>
               {g.date.getDate()}
@@ -242,7 +198,6 @@ const AgendaView: React.FC<Props> = ({ anchor, today, now, events, onSelectEvent
           })}
         </Group>
       ))}
-      {beforeToday >= 0 && <TailSpace ref={tailRef} aria-hidden />}
     </Wrap>
   );
 };
@@ -250,8 +205,11 @@ const AgendaView: React.FC<Props> = ({ anchor, today, now, events, onSelectEvent
 export default AgendaView;
 
 // ── styled ──
-const TailSpace = styled.div`
-  flex-shrink: 0;
+const EarlierBtn = styled.button`
+  align-self: center; margin: 4px 0 2px; padding: 8px 14px; min-height: 36px;
+  border: 1px solid #E2E8F0; border-radius: 999px; background: #fff;
+  font-family: inherit; font-size: 0.8125rem; font-weight: 600; color: #475569; cursor: pointer;
+  &:hover { background: #F8FAFC; border-color: #CBD5E1; color: #0F172A; }
 `;
 
 const Wrap = styled.div`

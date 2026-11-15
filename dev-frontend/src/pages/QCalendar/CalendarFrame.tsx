@@ -24,7 +24,7 @@ const CalendarFrame: React.FC<Props> = ({ embedded, title, actions, children }) 
 export function useCalendarOptions() {
   const { t } = useTranslation('qcalendar');
   const viewOptions = useMemo(() => [
-    { value: 'agenda', label: t('view.agenda', '아젠다') },
+    { value: 'agenda', label: t('view.agenda', '목록') },
     { value: 'month', label: t('view.month') },
     { value: 'week', label: t('view.week') },
     { value: 'day', label: t('view.day') },

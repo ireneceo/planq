@@ -8,7 +8,7 @@
     "month": "Month",
     "week": "Week",
     "day": "Day",
-    "agenda": "Agenda"
+    "agenda": "List"
   },
   "new": "New event",
   "syncNotice": {
@@ -248,7 +248,8 @@
     "emptyHint": "Add one with the New event button",
     "todayDivider": "Today",
     "addOnDay": "Add event on this day",
-    "noneToday": "No events"
+    "noneToday": "No events",
+    "showEarlier": "Show earlier days ({{count}})"
   },
   "month": {
     "createOn": "Add an event on this day",
