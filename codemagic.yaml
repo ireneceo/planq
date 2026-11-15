@@ -110,6 +110,9 @@ workflows:
         - planq_upload
       vars:
         PACKAGE_NAME: "app.planq"
+        # Codemagic 앱을 새로 만들면 PROJECT_BUILD_NUMBER 가 1 부터 다시 센다(2026-11-16 — 옛 앱이 사라져
+        #   «planq» 를 다시 연결). Play 에는 이미 versionCode 30 이 있어 1·2·3 은 전부 거부된다 → 이만큼 얹는다.
+        VERSION_CODE_OFFSET: "100"
       node: 20
       java: 21
     scripts:
@@ -138,7 +141,7 @@ workflows:
           #   PROJECT_BUILD_NUMBER 와 **큰 쪽**을 쓴다 — 연동이 생기면 그쪽이 자동으로 이긴다.
           LATEST=$(google-play get-latest-build-number --package-name "$PACKAGE_NAME" 2>/dev/null || echo 0)
           CANDIDATE=$((LATEST + 1))
-          NEXT=${PROJECT_BUILD_NUMBER:-1}
+          NEXT=$(( ${PROJECT_BUILD_NUMBER:-1} + ${VERSION_CODE_OFFSET:-0} ))
           if [ "$CANDIDATE" -gt "$NEXT" ]; then NEXT=$CANDIDATE; fi
           echo "Play 최신=$LATEST / Codemagic 빌드번호=${PROJECT_BUILD_NUMBER:-?} → 채택 $NEXT"
           echo "versionCode → $NEXT"
