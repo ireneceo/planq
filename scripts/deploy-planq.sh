@@ -1005,6 +1005,11 @@ sync_database() {
   log "Backfilling invoice payments..."
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/backfill-invoice-payments.js 2>&1 | tail -6"
 
+  # 2026-11-15 미결제 플랜 청구 = 플랜 + 현재 애드온(Fable R9). 옛 청구(유예 중 39,000 등)에 애드온을 싣고
+  #   유예·체험 중에 만들어진 애드온 일할 청구를 닫는다(이중 청구 방지). 멱등 · 입금 통보한 청구는 그대로 · 메일은 안 보냄(출력만).
+  log "Syncing pending plan payments with add-ons..."
+  prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/backfill-pending-addon-sync.js --apply 2>&1 | tail -60"
+
   # 2026-10-07 — 프로젝트 고객 채널을 «프로젝트 × 고객» 으로(Fable B 판정 7). 다른 고객사의 방에 들어간 고객을 자기 방으로
   #   옮기고 주인 없는 방에 주인을 정한다. 멱등. 아래 contact_user_id 백필보다 **먼저**(그쪽이 고객의 방을 찾는다).
   log "Splitting project customer channels per client..."

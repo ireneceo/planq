@@ -8,9 +8,11 @@ import { mapApiError } from '../../utils/apiError';
 interface Props {
   businessId: number;
   isOwner: boolean;
+  // 신청 뒤 위쪽 «결제가 필요한 청구» 카드 금액을 다시 읽게(서버가 미결제 청구에 애드온을 더한다)
+  onChanged?: () => void;
 }
 
-const AddonSection: React.FC<Props> = ({ businessId, isOwner }) => {
+const AddonSection: React.FC<Props> = ({ businessId, isOwner, onChanged }) => {
   const { t } = useTranslation('settings');
   const { t: tErr } = useTranslation('errors');
   const [data, setData] = useState<AddonStatus | null>(null);
@@ -42,9 +44,18 @@ const AddonSection: React.FC<Props> = ({ businessId, isOwner }) => {
     setResultMsg(null);
     try {
       const r = await requestAddon(businessId, item.code, quantity);
-      setResultMsg(t('addon.requestOk', '신청 접수 — {{krw}}원 청구서가 발행되고 입금 안내 메일이 발송됩니다. 한도는 신청 즉시 적용됐습니다.', {
-        krw: Number(r.prorated_amount_krw ?? 0).toLocaleString('ko-KR'),
-      }) as string);
+      const money = (n: number | null | undefined) => (r.currency === 'KRW'
+        ? t('addon.krw', { amount: Number(n ?? 0).toLocaleString('ko-KR'), defaultValue: '{{amount}}원' })
+        : `${r.currency} ${Number(n ?? 0).toLocaleString()}`) as string;
+      const vars = {
+        addon: money(r.next_period_addon_amount), total: money(r.pending_total),
+        amount: money(r.charge_amount), days: r.days_remaining ?? 0,
+      };
+      if (r.mode === 'folded') setResultMsg(t('addon.okFolded', { ...vars, defaultValue: '신청 완료 — 한도는 바로 적용됐습니다. 결제할 금액에 {{addon}}이 더해져 {{total}}이 됐습니다.' }) as string);
+      else if (r.mode === 'next_bill') setResultMsg(t('addon.okNextBill', { ...vars, defaultValue: '신청 완료 — 체험 중에는 무료이고, 첫 결제부터 {{addon}}이 포함됩니다.' }) as string);
+      else if (r.mode === 'separate') setResultMsg(t('addon.okSeparate', { ...vars, defaultValue: '신청 완료 — 입금 확인 중인 청구와 별도로 {{amount}} 청구서가 발행됐습니다(입금 안내 메일).' }) as string);
+      else setResultMsg(t('addon.okProrated', { ...vars, defaultValue: '신청 완료 — 이번 기간 {{days}}일분 {{amount}} 청구서가 발행됐습니다(입금 안내 메일). 다음 결제부터 {{addon}}이 포함됩니다.' }) as string);
+      onChanged?.();
       await reload();
     } catch (e) {
       setResultMsg(t('addon.requestErr', '신청 실패: {{msg}}', { msg: mapApiError(e, tErr) }) as string);

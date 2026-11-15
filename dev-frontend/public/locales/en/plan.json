@@ -11,7 +11,17 @@
     "waitingTitle": "Awaiting payment confirmation",
     "waitingBadge": "Pending",
     "waitingHint": "Your payment notification was received. The subscription activates automatically once the PlanQ team confirms.",
-    "ctaNotified": "Notify again"
+    "ctaNotified": "Notify again",
+    "linePlan": "{{name}} plan",
+    "lineAddon": "{{name}} × {{qty}}",
+    "lineMonths": " × {{months}} months",
+    "addonName": {
+      "member": "Extra member",
+      "clients_10": "Extra client slots (10)",
+      "qnote_10h": "Extra Q Note hours (10h)",
+      "cue_1000": "Extra Cue actions (1,000)",
+      "storage_5gb": "Extra storage (5GB)"
+    }
   },
   "current": {
     "title": "Current Plan",

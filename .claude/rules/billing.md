@@ -83,3 +83,18 @@ paths:
   회귀 `health-check --category=secrets`(응답 원문에 계좌번호 0).
 - 운영: `scripts/migrate-trial-refund.js`(멱등, 배포 슬롯 등록 — 모델이 SELECT 하므로 코드보다 먼저). 약관 제4조에 한 줄 추가(버전은 안 올림 — 이용자에게 유리한 변경).
 
+
+## 미결제 플랜 청구 = 플랜 + **현재** 애드온 (2026-11-15 박제 · Fable 설계 R1~R10)
+
+> Irene: *"멤버를 추가해도 결제금액이 같아."* — 유예 중 갱신 청구(베이직 39,000)가 애드온 추가 **전에** 만들어져 멱등 재사용됐고,
+> 애드온은 따로 «일할» 청구가 됐는데 기간 끝이 이미 지나 **1일치(163원)** 로 잡혔다. 그 청구는 화면 어디에도 안 보였다.
+
+- **불변식**: 얼지 않은 pending 플랜 결제의 금액 = `billing.buildRenewalLines(그 구독, 현재 biz)` 합. 맞추는 문은 **`services/pendingPlanSync.syncPendingPlanAmount` 하나**.
+- **애드온을 바꾸는 4문이 같은 트랜잭션에서 부른다** — 신청(`requestAddon`)·해지(`cancelAddon`)·환불 회수(`refund.refundPayment`)·관리자 `/addons/apply`.
+  새로 `addon_*` 를 쓰는 문을 만들면 같이 부른다. 첫 체크아웃(`createPendingSubscription`)도 같은 내역 함수로 만든다.
+- **얼었다** = `notify_paid_at`(입금했어요) 또는 `stripe_session_id`(카드 결제창, 트랜잭션 전 `releaseStripeSession` 이 만료 시도). 얼면 금액을 안 바꾼다.
+- **신청 청구 = A(지금 기간 일할) + B(다음 기간)** 독립: A 는 active 구독 기간이 돌 때만(연간 상한 12개월·구독 통화) · B 는 pending 에 접기 /
+  pending 없으면 다음 청구가 포함 / 얼었고 A 없으면 한 기간 전액 별도. **체험·유예엔 일할 없음 — 체험 중 애드온은 무료, 첫 결제부터 포함.**
+- 잠금 순서 pay → biz(markPaymentPaid 와 같다). 금액이 바뀌면 커밋 뒤 새 금액 입금 안내(인증 메일만).
+- 화면: `/status.pending_payment.line_items` 로 카드에 내역 · 신청 문구는 `mode`(folded·prorated·separate·next_bill).
+- 옛 청구: `scripts/backfill-pending-addon-sync.js`(dry-run 기본, 배포 슬롯 `--apply`) — 유예·체험 중 애드온 일할 청구는 `folded_into_plan` 으로 닫는다.

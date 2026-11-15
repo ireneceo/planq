@@ -2,11 +2,10 @@
 // 2026-05-05 도입. 자체결제(계좌이체) 정책 1순위.
 //
 // 흐름:
-//   1. requestAddon — 사용자가 add-on 신청
-//      a) 다음 청구 주기까지 남은 일수 / 30일 비율로 일할 계산
-//      b) Payment(kind='addon', subscription_id=NULL, addon_code, addon_quantity, status='pending') 생성
-//      c) Business.addon_X += quantity 즉시 적용 (한도 늘어남)
-//      d) 입금 안내 메일 발송
+//   1. requestAddon — 사용자가 add-on 신청 (2026-11-15 Fable 설계 R5 — 아래 함수 주석)
+//      a) Business.addon_X += quantity 즉시 적용 (한도 늘어남)
+//      b) 지금 유료 기간이 돌면 남은 일수 일할 Payment(kind='addon') + 입금 안내 메일
+//      c) 미결제 플랜 청구가 있으면 그 금액에 애드온을 더한다(pendingPlanSync) — 체험·유예는 b 없음
 //   2. markAddonPaid — owner 가 입금 후 mark-paid 클릭. Payment paid 처리.
 //   3. cancelAddon — 사용자 해지 클릭 시 Business.addon_X -= quantity (다음 결제부터 빠짐, 환불 X)
 //
@@ -40,26 +39,31 @@ function renewalAddonLines(biz, cycle, currency = 'KRW') {
   }).filter((l) => l.amount > 0);
 }
 
-function nextBillingDate(biz) {
-  // trial 중이면 trial_ends_at, plan active 면 plan_expires_at, 그 외엔 +30일
-  if (biz.subscription_status === 'trialing' && biz.trial_ends_at) return new Date(biz.trial_ends_at);
-  if (biz.plan_expires_at) return new Date(biz.plan_expires_at);
-  return new Date(Date.now() + DAYS_PER_PERIOD * 86400 * 1000);
+// 지금 돌고 있는 유료 기간 — 일할 청구(A)의 근거. 체험·past_due·유예·잠금이면 null (Fable R5-A).
+//   체험 중 선결제자는 current_period_start = 체험 끝이라 max(지금, 시작) 으로 체험일이 빠진다.
+async function runningPaidPeriod(businessId, t, now = new Date()) {
+  const sub = await Subscription.findOne({
+    where: { business_id: businessId, status: 'active', current_period_end: { [Op.gt]: now } },
+    order: [['current_period_end', 'DESC']], transaction: t,
+  });
+  if (!sub) return null;
+  const start = sub.current_period_start && new Date(sub.current_period_start) > now ? new Date(sub.current_period_start) : now;
+  const days = Math.ceil((new Date(sub.current_period_end).getTime() - start.getTime()) / 86400000);
+  if (days <= 0) return null;
+  return { sub, start, end: new Date(sub.current_period_end), days };
 }
 
-function daysBetween(from, to) {
-  const ms = new Date(to).getTime() - new Date(from).getTime();
-  return Math.max(1, Math.ceil(ms / 86400000));
+// 일할 금액 — 상한은 월간 1개월치 · 연간 12개월치(옛 30일 상한은 연간 구독자에게 1개월치만 받았다).
+function prorateFor(unitPrice, qty, days, cycle, currency) {
+  const cap = cycle === 'yearly' ? 12 : 1;
+  return roundMoney(unitPrice * qty * Math.min(days / DAYS_PER_PERIOD, cap), currency);
 }
 
-function prorateAmount(unitPriceKRW, quantity, daysRemaining) {
-  const days = Math.min(Math.max(daysRemaining, 1), DAYS_PER_PERIOD);
-  const proportion = days / DAYS_PER_PERIOD;
-  const amount = unitPriceKRW * quantity * proportion;
-  return Math.round(amount);  // 원단위 반올림
-}
-
-// 사용자가 add-on 신청 — 일할 청구서 발행 + 한도 즉시 적용
+// 사용자가 add-on 신청 — 한도 즉시 적용 + 청구(2026-11-15 Fable 설계 R5):
+//   A. 지금 유료 기간이 돌고 있으면 남은 기간 일할 결제(별도 kind='addon')
+//   B. 다음 기간분 — 미결제 플랜 청구가 있으면 그 금액에 더한다(pendingPlanSync). 없으면 다음 청구가 포함한다.
+//      그 청구가 이미 얼었고(입금 통보·Stripe) A 도 없으면 한 기간 전액을 별도 결제로.
+//   체험 중에는 무료(체험일 일할 폐지 — R6), 첫 결제부터 전액 포함.
 async function requestAddon({ businessId, addonCode, quantity = 1, userId, taxInvoice = null }) {
   // ★ 결제 면제 워크스페이스는 애드온 청구도 만들지 않는다 (운영 #275).
   //   게이트는 라우트가 아니라 서비스에 둔다 — pending Payment 를 만드는 3경로 중 하나다
@@ -71,79 +75,121 @@ async function requestAddon({ businessId, addonCode, quantity = 1, userId, taxIn
   const addon = getAddon(addonCode);
   if (!addon) throw new Error('invalid_addon_code');
   const qty = Math.max(1, Math.min(100, Number(quantity) || 1));
-
-  const biz = await Business.findByPk(businessId);
-  if (!biz) throw new Error('business_not_found');
-  if (!addon.available_in.includes(biz.plan)) throw new Error('addon_not_available_for_plan');
-
-  const unitPrice = addon.price_monthly?.KRW || 0;
-  const fullAmount = unitPrice * qty;
-  const nextBill = nextBillingDate(biz);
-  const daysRemain = daysBetween(new Date(), nextBill);
-  const proratedAmount = prorateAmount(unitPrice, qty, daysRemain);
+  const sync = require('./pendingPlanSync');
+  await sync.releaseStripeSession(businessId);   // 트랜잭션 전에 — 열린 카드 결제창을 닫아야 금액을 바꿀 수 있다
 
   const t = await sequelize.transaction();
+  let syncResult = null;
+  let pay = null;
+  let biz = null;
   try {
-    // 1. Payment 생성 (standalone, subscription_id NULL)
-    const pay = await Payment.create({
-      business_id: businessId,
-      subscription_id: null,
-      kind: 'addon',
-      addon_code: addon.code,
-      addon_quantity: qty,
-      method: 'bank_transfer',
-      status: 'pending',
-      amount: proratedAmount,
-      currency: 'KRW',
-      cycle: 'monthly',
-      period_start: new Date(),
-      period_end: nextBill,
-      created_by: userId || null,
-      tax_invoice_requested: !!(taxInvoice && taxInvoice.biz_no),
-      tax_invoice_data: (taxInvoice && taxInvoice.biz_no) ? {
-        biz_no: String(taxInvoice.biz_no || '').slice(0, 20),
-        biz_name: String(taxInvoice.biz_name || '').slice(0, 200),
-        ceo_name: String(taxInvoice.ceo_name || '').slice(0, 80),
-        address: String(taxInvoice.address || '').slice(0, 500),
-        email: String(taxInvoice.email || '').slice(0, 200),
-      } : null,
-      tax_invoice_status: (taxInvoice && taxInvoice.biz_no) ? 'requested' : 'none',
-    }, { transaction: t });
+    // 잠금 순서: 미결제 플랜 청구 → biz (markPaymentPaid 와 같다)
+    const pendingPay = await sync.lockPayablePending(businessId, t);
+    biz = await Business.findByPk(businessId, { transaction: t, lock: t.LOCK.UPDATE });
+    if (!biz) throw new Error('business_not_found');
+    if (!addon.available_in.includes(biz.plan)) throw new Error('addon_not_available_for_plan');
 
-    // 2. Business.addon_X += quantity (즉시 효력 — 사용자 결정 A 모델)
+    const now = new Date();
+    const running = await runningPaidPeriod(businessId, t, now);
+    const currency = (running && running.sub.currency) || (pendingPay && pendingPay.currency) || 'KRW';
+    const cycle = (running && running.sub.cycle) || (pendingPay && pendingPay.cycle) || 'monthly';
+    const unitPrice = (addon.price_monthly && addon.price_monthly[currency]) ?? 0;
+    const periodMult = cycle === 'yearly' ? 12 : 1;
+    const nextPeriodAmount = roundMoney(unitPrice * qty * periodMult, currency);
+
+    // 1. 한도 즉시 적용(사용자 결정 A 모델)
     const totalUnitsAdded = addon.unit * qty;
-    const currentField = Number(biz[addon.field] || 0);
-    await biz.update({
-      [addon.field]: currentField + totalUnitsAdded,
-    }, { transaction: t });
+    await biz.update({ [addon.field]: Number(biz[addon.field] || 0) + totalUnitsAdded }, { transaction: t });
 
-    // 3. AuditLog
+    // 2. B — 다음 기간분을 미결제 플랜 청구에 접는다
+    if (pendingPay) syncResult = await sync.syncPendingPlanAmount(businessId, { transaction: t, payment: pendingPay, userId });
+    const frozen = !!(syncResult && syncResult.frozen);
+
+    // 3. A — 돌고 있는 유료 기간 일할 / 얼었고 A 없음 → 한 기간 전액 별도
+    let mode;
+    let chargeAmount = 0;
+    let periodStart = null;
+    let periodEnd = null;
+    let daysRemain = null;
+    if (running) {
+      mode = 'prorated';
+      daysRemain = running.days;
+      chargeAmount = prorateFor(unitPrice, qty, running.days, running.sub.cycle, currency);
+      periodStart = running.start; periodEnd = running.end;
+    } else if (frozen) {
+      mode = 'separate';
+      chargeAmount = nextPeriodAmount;
+      const billing = require('./billing');
+      const psub = await Subscription.findByPk(pendingPay.subscription_id, { transaction: t });
+      const pv = psub ? billing.previewPeriod({ sub: psub, biz, now }) : null;
+      periodStart = pv ? pv.period_start : now; periodEnd = pv ? pv.period_end : null;
+    } else if (syncResult && syncResult.payment) {
+      mode = 'folded';
+    } else {
+      mode = 'next_bill';
+    }
+
+    if (chargeAmount > 0) {
+      pay = await Payment.create({
+        business_id: businessId,
+        subscription_id: null,
+        kind: 'addon',
+        addon_code: addon.code,
+        addon_quantity: qty,
+        method: 'bank_transfer',
+        status: 'pending',
+        amount: chargeAmount,
+        currency,
+        cycle,
+        period_start: periodStart,
+        period_end: periodEnd,
+        created_by: userId || null,
+        tax_invoice_requested: !!(taxInvoice && taxInvoice.biz_no),
+        tax_invoice_data: (taxInvoice && taxInvoice.biz_no) ? {
+          biz_no: String(taxInvoice.biz_no || '').slice(0, 20),
+          biz_name: String(taxInvoice.biz_name || '').slice(0, 200),
+          ceo_name: String(taxInvoice.ceo_name || '').slice(0, 80),
+          address: String(taxInvoice.address || '').slice(0, 500),
+          email: String(taxInvoice.email || '').slice(0, 200),
+        } : null,
+        tax_invoice_status: (taxInvoice && taxInvoice.biz_no) ? 'requested' : 'none',
+      }, { transaction: t });
+    }
+
     await writeAudit({
       user_id: userId || null,
       business_id: businessId,
       action: 'addon_request_created',
-      target_type: 'payment',
-      target_id: pay.id,
+      target_type: pay ? 'payment' : 'business',
+      target_id: pay ? pay.id : businessId,
       new_value: {
-        addon_code: addon.code,
-        addon_field: addon.field,
-        quantity: qty,
-        unit: addon.unit,
-        unit_price_krw: unitPrice,
-        full_amount_krw: fullAmount,
-        prorated_amount_krw: proratedAmount,
-        days_remaining: daysRemain,
-        next_billing_at: nextBill.toISOString(),
+        addon_code: addon.code, addon_field: addon.field, quantity: qty, unit: addon.unit,
+        unit_price: unitPrice, currency, mode,
+        charge_amount: chargeAmount, days_remaining: daysRemain,
+        next_period_addon_amount: nextPeriodAmount,
+        pending_payment_id: syncResult && syncResult.payment ? syncResult.payment.id : null,
+        pending_total: syncResult && syncResult.payment ? Number(syncResult.payment.amount) : null,
       },
     }, { transaction: t });
 
     await t.commit();
     try { planEngine.invalidateBusinessCache(businessId); } catch { /* noop */ }
 
-    // 4. 입금 안내 메일 (best-effort)
-    safeSendInstructionEmail({ biz, payment: pay, addon, quantity: qty, daysRemain }).catch(() => null);
+    if (pay) safeSendInstructionEmail({ biz, payment: pay, addon, quantity: qty, daysRemain, currency }).catch(() => null);
+    sync.notifyIfChanged(syncResult);
 
-    return { payment: pay, prorated_amount: proratedAmount, full_amount: fullAmount, days_remaining: daysRemain, next_billing_at: nextBill };
+    return {
+      mode,
+      payment: pay,
+      currency,
+      prorated_amount: mode === 'prorated' ? chargeAmount : 0,
+      charge_amount: chargeAmount,
+      days_remaining: daysRemain,
+      next_period_addon_amount: nextPeriodAmount,
+      pending_total: syncResult && syncResult.payment ? Number(syncResult.payment.amount) : null,
+      pending_frozen: frozen,
+      quantity: qty,
+    };
   } catch (err) {
     if (!t.finished) await t.rollback();
     throw err;
@@ -236,28 +282,49 @@ async function revokeUnitsInTx({ biz, addonCode, quantity, t }) {
   return { field: addon.field, previous, current, removed };
 }
 
+// 해지 — 한도 즉시 차감(환불 X) + 미결제 플랜 청구 금액을 같이 줄인다(얼었으면 그대로 · Fable R7).
 async function cancelAddon({ businessId, addonCode, quantity, userId }) {
   const addon = getAddon(addonCode);
   if (!addon) throw new Error('invalid_addon_code');
-  const biz = await Business.findByPk(businessId);
-  if (!biz) throw new Error('business_not_found');
-  const { previous: current, current: next, removed: unitsRemoved } = await revokeUnitsInTx({ biz, addonCode, quantity, t: null });
+  const sync = require('./pendingPlanSync');
+  await sync.releaseStripeSession(businessId);
+  const t = await sequelize.transaction();
+  let syncResult = null;
+  let r;
+  try {
+    const pendingPay = await sync.lockPayablePending(businessId, t);
+    const biz = await Business.findByPk(businessId, { transaction: t, lock: t.LOCK.UPDATE });
+    if (!biz) throw new Error('business_not_found');
+    r = await revokeUnitsInTx({ biz, addonCode, quantity, t });
+    if (pendingPay) syncResult = await sync.syncPendingPlanAmount(businessId, { transaction: t, payment: pendingPay, userId });
+    await writeAudit({
+      user_id: userId || null,
+      business_id: businessId,
+      action: 'addon_canceled',
+      target_type: 'business',
+      target_id: businessId,
+      old_value: { [addon.field]: r.previous },
+      new_value: {
+        [addon.field]: r.current, addon_code: addon.code, units_removed: r.removed,
+        pending_total: syncResult && syncResult.payment ? Number(syncResult.payment.amount) : null,
+        pending_frozen: !!(syncResult && syncResult.frozen),
+      },
+    }, { transaction: t });
+    await t.commit();
+  } catch (err) {
+    if (!t.finished) await t.rollback();
+    throw err;
+  }
   try { planEngine.invalidateBusinessCache(businessId); } catch { /* noop */ }
-
-  await writeAudit({
-    user_id: userId || null,
-    business_id: businessId,
-    action: 'addon_canceled',
-    target_type: 'business',
-    target_id: businessId,
-    old_value: { [addon.field]: current },
-    new_value: { [addon.field]: next, addon_code: addon.code, units_removed: unitsRemoved },
-  }).catch(() => null);
-
-  return { addon_field: addon.field, previous: current, current: next, removed: unitsRemoved };
+  sync.notifyIfChanged(syncResult);
+  return {
+    addon_field: r.field, previous: r.previous, current: r.current, removed: r.removed,
+    pending_total: syncResult && syncResult.payment ? Number(syncResult.payment.amount) : null,
+    frozen: !!(syncResult && syncResult.frozen),
+  };
 }
 
-async function safeSendInstructionEmail({ biz, payment, addon, quantity, daysRemain }) {
+async function safeSendInstructionEmail({ biz, payment, addon, quantity, daysRemain, currency = 'KRW' }) {
   try {
     const owners = await BusinessMember.findAll({
       where: { business_id: biz.id, role: 'owner', removed_at: null },
@@ -274,7 +341,7 @@ async function safeSendInstructionEmail({ biz, payment, addon, quantity, daysRem
           quantity,
           daysRemain,
           amount: Number(payment.amount),
-          currency: 'KRW',
+          currency,
           paymentId: payment.id,
           businessId: biz.id,
         }).catch(() => null);
@@ -290,7 +357,7 @@ module.exports = {
   requestAddon,
   markAddonPaid,
   cancelAddon,
-  prorateAmount,
-  nextBillingDate,
+  prorateFor,
+  runningPaidPeriod,
   renewalAddonLines,
 };

@@ -277,6 +277,26 @@ const PlanSettings: React.FC<Props> = ({ businessId }) => {
               <PayDueAmount>
                 {formatPrice(Number(status.pending_payment.amount), (status.pending_payment.currency as Currency) || 'KRW')}
               </PayDueAmount>
+              {/* 애드온이 실린 청구면 내역 — 플랜만 보이면 «멤버를 추가해도 금액이 같다» 로 읽힌다 */}
+              {(status.pending_payment.line_items || []).some(l => l.kind === 'addon') && (
+                <PayDueLines data-testid="paydue-lines">
+                  {(status.pending_payment.line_items || []).map((l, i) => (
+                    <li key={`${l.kind}-${l.code}-${i}`}>
+                      <span>
+                        {l.kind === 'plan'
+                          ? t('payDue.linePlan', { name: (catalog.find(p => p.code === l.code)?.name_ko) || l.label, defaultValue: '{{name}} 플랜' })
+                          : t('payDue.lineAddon', {
+                            name: t(`payDue.addonName.${l.code}`, { defaultValue: l.label }),
+                            qty: l.quantity || 1,
+                            defaultValue: '{{name}} × {{qty}}',
+                          })}
+                        {l.kind === 'addon' && (l.months || 1) > 1 && t('payDue.lineMonths', { months: l.months, defaultValue: ' × {{months}}개월' })}
+                      </span>
+                      <span>{formatPrice(Number(l.amount), (status.pending_payment!.currency as Currency) || 'KRW')}</span>
+                    </li>
+                  ))}
+                </PayDueLines>
+              )}
               <PayDueHint>
                 {notified
                   ? t('payDue.waitingHint', '입금 통보가 접수되었습니다. 관리자가 입금을 확인하면 자동으로 활성화됩니다.')
@@ -564,7 +584,8 @@ const PlanSettings: React.FC<Props> = ({ businessId }) => {
       </Section>
       )}
 
-      {/* Enterprise — 별도 섹션 (표에서 분리) */}
+      {/* Enterprise — 별도 섹션 (표에서 분리). App Store 3.1.1 — 앱 안에서는 영업 문의(견적·계약 유도)도 숨긴다(2026-11-16 Fable 지적) */}
+      {canPurchaseInApp() && (
       <EnterpriseCard>
         <EntContent>
           <EntTitle>{t('enterprise.title')}</EntTitle>
@@ -580,13 +601,14 @@ const PlanSettings: React.FC<Props> = ({ businessId }) => {
           <BtnPrimary type="button" onClick={() => openInquiry('enterprise')}>{t('enterprise.contactBtn')}</BtnPrimary>
         </EntCta>
       </EnterpriseCard>
+      )}
 
       {/* 추가 슬롯 (Add-on) — 멤버·고객·Q Note·Cue·스토리지.
           App Store 3.1.1 — add-on 도 앱에서 소비하는 디지털 재화라 외부결제 신청 표면을
           네이티브에서 노출하면 안 된다. 플랜 CTA 와 같은 게이트. */}
       {canPurchaseInApp() && currentPlan.code !== 'free' && currentPlan.code !== 'enterprise' && businessId && (
         <Section>
-          <AddonSection businessId={businessId} isOwner={user?.business_role === 'owner' || user?.platform_role === 'platform_admin'} />
+          <AddonSection businessId={businessId} isOwner={user?.business_role === 'owner' || user?.platform_role === 'platform_admin'} onChanged={load} />
         </Section>
       )}
 
@@ -844,6 +866,12 @@ const PayDueRow = styled.div`
 const PayDueInfo = styled.div`display:flex;flex-direction:column;gap:4px;min-width:0;`;
 const PayDuePlan = styled.div`font-size:0.875rem;font-weight:600;color:#0F172A;`;
 const PayDueAmount = styled.div`font-size:1.5rem;font-weight:800;color:#0F172A;letter-spacing:-0.5px;font-variant-numeric:tabular-nums;`;
+const PayDueLines = styled.ul`
+  list-style:none;margin:2px 0 4px;padding:0;display:flex;flex-direction:column;gap:2px;max-width:320px;
+  li{display:flex;justify-content:space-between;gap:12px;font-size:0.8125rem;color:#334155;font-variant-numeric:tabular-nums;}
+  li span:first-child{min-width:0;overflow-wrap:anywhere;}
+  li span:last-child{flex-shrink:0;}
+`;
 const PayDueHint = styled.div`font-size:0.75rem;color:#64748B;line-height:1.45;`;
 const PayDueBtn = styled.button<{ $notified?: boolean }>`
   flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;min-height:44px;

@@ -123,6 +123,7 @@ router.get('/:businessId/status', authenticateToken, checkBusinessAccess, async 
         created_at: pendingPayment.created_at,
         // 고객이 입금 통보를 누른 시각 (있으면 "입금 확인 대기중")
         notify_paid_at: pendingPayment.notify_paid_at,
+        line_items: pendingPayment.line_items || null,   // 플랜 + 애드온 줄(카드가 «왜 이 금액인가» 를 보인다)
         // 확정 시 기간 — 확정과 같은 함수(billing.previewPeriod)로 계산한 값(A-⑤)
         period_end_preview: payable && payable.preview ? payable.preview.period_end : null,
         trial_days_carried: payable && payable.preview ? payable.preview.trial_days_carried : 0,
@@ -713,16 +714,19 @@ router.post('/:businessId/addons/request', authenticateToken, checkBusinessAcces
         businessId, addonCode: addon_code, quantity, userId: req.user.id,
         taxInvoice: tax_invoice && tax_invoice.biz_no ? tax_invoice : null,
       });
+      // mode: folded(미결제 청구에 더함) · prorated(이번 기간 일할 별도) · separate(입금 확인 중 → 한 기간 별도) · next_bill(체험 — 다음 청구부터)
       return successResponse(res, {
         received: true,
         addon_code,
-        quantity: r.payment.addon_quantity,
-        prorated_amount_krw: r.prorated_amount,
-        full_amount_krw: r.full_amount,
+        quantity: r.quantity,
+        mode: r.mode,
+        currency: r.currency,
+        prorated_amount: r.prorated_amount,
+        charge_amount: r.charge_amount,
         days_remaining: r.days_remaining,
-        next_billing_at: r.next_billing_at,
-        payment_id: r.payment.id,
-        next_step: '입금 안내 메일이 발송됐습니다. 한도는 신청 즉시 적용됐습니다.',
+        next_period_addon_amount: r.next_period_addon_amount,
+        pending_total: r.pending_total,
+        payment_id: r.payment ? r.payment.id : null,
       });
     } catch (e) {
       if (e.message === 'invalid_addon_code') return errorResponse(res, 'invalid_addon_code', 400);
@@ -820,12 +824,23 @@ router.post('/:businessId/addons/apply', authenticateToken, checkBusinessAccess,
     const d = Number(delta);
     if (!Number.isFinite(d)) return errorResponse(res, 'invalid_delta', 400);
 
+    // 한도를 바꾸면 미결제 플랜 청구 금액도 같은 트랜잭션에서 맞춘다(애드온을 바꾸는 4문 공통 — Fable R4).
     const { Business } = require('../models');
-    const biz = await Business.findByPk(businessId);
-    if (!biz) return errorResponse(res, 'business_not_found', 404);
-    const next = Math.max(0, Number(biz[field] || 0) + d);
-    await biz.update({ [field]: next });
+    const pps = require('../services/pendingPlanSync');
+    await pps.releaseStripeSession(businessId);
+    let next; let pendingSync = null;
+    const found = await sequelize.transaction(async (t) => {
+      const pendingPay = await pps.lockPayablePending(businessId, t);
+      const biz = await Business.findByPk(businessId, { transaction: t, lock: t.LOCK.UPDATE });
+      if (!biz) return false;
+      next = Math.max(0, Number(biz[field] || 0) + d);
+      await biz.update({ [field]: next }, { transaction: t });
+      if (pendingPay) pendingSync = await pps.syncPendingPlanAmount(businessId, { transaction: t, payment: pendingPay, userId: req.user.id });
+      return true;
+    });
+    if (!found) return errorResponse(res, 'business_not_found', 404);
     planEngine.invalidateBusinessCache(businessId);
+    pps.notifyIfChanged(pendingSync);
 
     // 애드온 적용 audit — 옛 코드는 BillEvent.create 로 잘못된 스키마(entity_type='addon_apply',
     // kind/payload_json = 미존재 필드)를 호출해 .catch 로 silent 실패했음(bill_events ENUM=quote|invoice).

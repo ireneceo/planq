@@ -1060,7 +1060,12 @@
     "requestErr": "Request failed: {{msg}}",
     "requesting": "Requesting...",
     "requestOk": "Request received — a {{krw}} KRW invoice is issued and payment instructions are emailed. The limit was applied immediately.",
-    "title": "Add-ons"
+    "title": "Add-ons",
+    "krw": "₩{{amount}}",
+    "okFolded": "Done — the limit is raised now. {{addon}} was added to your amount due, which is now {{total}}.",
+    "okNextBill": "Done — free during your trial; {{addon}} is included from your first payment.",
+    "okSeparate": "Done — a separate {{amount}} invoice was issued alongside the payment being confirmed (see the payment email).",
+    "okProrated": "Done — a {{amount}} invoice for the remaining {{days}} days was issued (see the payment email). {{addon}} is included from your next payment."
   },
   "push": {
     "desc": "Get push notifications in the browser or the home-screen PWA on mobile — even when you're not looking at PlanQ.",

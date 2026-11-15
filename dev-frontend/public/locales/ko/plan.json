@@ -11,7 +11,17 @@
     "waitingTitle": "입금 확인 대기중",
     "waitingBadge": "확인 대기",
     "waitingHint": "입금 통보가 접수되었습니다. PlanQ 운영팀이 입금을 확인하면 자동으로 활성화됩니다.",
-    "ctaNotified": "다시 통보하기"
+    "ctaNotified": "다시 통보하기",
+    "linePlan": "{{name}} 플랜",
+    "lineAddon": "{{name}} × {{qty}}",
+    "lineMonths": " × {{months}}개월",
+    "addonName": {
+      "member": "멤버 추가",
+      "clients_10": "고객 슬롯 추가(10명)",
+      "qnote_10h": "Q Note 시간 추가(10시간)",
+      "cue_1000": "Cue AI 액션 추가(1,000회)",
+      "storage_5gb": "스토리지 추가(5GB)"
+    }
   },
   "current": {
     "title": "현재 플랜",

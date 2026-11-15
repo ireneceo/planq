@@ -107,6 +107,8 @@ export interface PendingPayment {
   // 확정 시 기간 끝·체험 승계 일수 — 서버가 확정과 같은 함수로 계산(FIX_0AB A-⑤)
   period_end_preview?: string | null;
   trial_days_carried?: number;
+  // 금액 내역 — 플랜 줄 + 애드온 줄(서버 buildRenewalLines 한 벌). 카드가 «왜 이 금액인가» 를 보인다.
+  line_items?: PaymentLineItem[] | null;
 }
 
 // 결제 금액 내역 한 줄(FIX_0AB A-④) — 플랜 1줄 + 애드온 n줄
@@ -369,8 +371,11 @@ export async function fetchAddons(businessId: number): Promise<AddonStatus> {
 
 export async function requestAddon(businessId: number, addonCode: string, quantity: number): Promise<{
   received: boolean; addon_code: string; quantity: number;
-  prorated_amount_krw: number; full_amount_krw: number;
-  days_remaining: number; next_billing_at: string | null; payment_id: number; next_step: string;
+  // folded: 미결제 청구에 더함 · prorated: 이번 기간 일할 별도 청구 · separate: 입금 확인 중이라 별도 청구 · next_bill: 체험 — 첫 결제부터 포함
+  mode: 'folded' | 'prorated' | 'separate' | 'next_bill';
+  currency: Currency;
+  prorated_amount: number; charge_amount: number; days_remaining: number | null;
+  next_period_addon_amount: number; pending_total: number | null; payment_id: number | null;
 }> {
   const r = await apiFetch(`/api/plan/${businessId}/addons/request`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' },

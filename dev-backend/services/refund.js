@@ -80,6 +80,10 @@ async function refundPayment({ paymentId, mode = 'manual', reason, viaStripe = f
   let stripeRefundId = null;
   if (viaStripe && isCard(pre)) stripeRefundId = await _stripeRefund(pre);   // 실패하면 여기서 throw — DB 불변
 
+  // 애드온 환불은 한도를 회수하고 미결제 플랜 청구도 줄인다 — 열린 카드 결제창이 있으면 먼저 닫는다(트랜잭션 밖 · Fable 검증 B1).
+  if (mode === 'manual' && pre && pre.kind === 'addon' && !keepSubscription) {
+    await require('./pendingPlanSync').releaseStripeSession(pre.business_id);
+  }
   const t = await sequelize.transaction();
   try {
     const pay = await Payment.findByPk(paymentId, { transaction: t, lock: t.LOCK.UPDATE });
@@ -90,6 +94,7 @@ async function refundPayment({ paymentId, mode = 'manual', reason, viaStripe = f
     let restoredTo = null;
     let audit = {};
     let addonUnitsRemoved = null;
+    let pendingSync = null;
 
     if (mode === 'trial') {
       const sub = pay.subscription_id ? await Subscription.findByPk(pay.subscription_id, { transaction: t, lock: t.LOCK.UPDATE }) : null;
@@ -125,13 +130,19 @@ async function refundPayment({ paymentId, mode = 'manual', reason, viaStripe = f
     }
 
     if (mode === 'manual') {
+      // 잠금 순서 pay → biz(markPaymentPaid·애드온 신청과 같게 — 거꾸로면 교착, Fable 검증 B1). 회수할 애드온 환불일 때만 미리 잠근다.
+      const pendingPay = (pay.kind === 'addon' && !keepSubscription && pay.addon_code)
+        ? await require('./pendingPlanSync').lockPayablePending(pay.business_id, t) : null;
       const biz = await Business.findByPk(pay.business_id, { transaction: t, lock: t.LOCK.UPDATE });
       if (pay.kind === 'addon') {
         // 돈을 돌려줬는데 한도가 열려 있으면 어긋난다 — 보상성 환불(keepSubscription)이면 그대로 둔다.
         if (!keepSubscription && biz && pay.addon_code) {
           const r = await require('./addonBilling').revokeUnitsInTx({ biz, addonCode: pay.addon_code, quantity: pay.addon_quantity, t });
           addonUnitsRemoved = r.removed;
-          audit = { addon_code: pay.addon_code, addon_field: r.field, addon_units_removed: r.removed, addon_before: r.previous, addon_after: r.current };
+          // 회수한 만큼 미결제 플랜 청구에서도 뺀다(애드온을 바꾸는 4문 공통 — Fable R4). 얼었으면 그대로.
+          pendingSync = pendingPay ? await require('./pendingPlanSync').syncPendingPlanAmount(pay.business_id, { transaction: t, payment: pendingPay, userId: adminUserId }) : null;
+          audit = { addon_code: pay.addon_code, addon_field: r.field, addon_units_removed: r.removed, addon_before: r.previous, addon_after: r.current,
+            pending_total: pendingSync && pendingSync.payment ? Number(pendingSync.payment.amount) : null };
         }
       } else {
         const sub = pay.subscription_id ? await Subscription.findByPk(pay.subscription_id, { transaction: t, lock: t.LOCK.UPDATE }) : null;
@@ -171,6 +182,7 @@ async function refundPayment({ paymentId, mode = 'manual', reason, viaStripe = f
 
     await t.commit();
     try { require('./plan').invalidateBusinessCache(pay.business_id); } catch { /* noop */ }
+    require('./pendingPlanSync').notifyIfChanged(pendingSync);
 
     if (mode === 'trial') {
       setImmediate(async () => {

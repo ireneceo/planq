@@ -95,16 +95,16 @@ function previewPeriod({ sub, biz, now = new Date() }) {
 // 화면이 «결제하세요» 로 띄워도 되는 pending 플랜 결제 — 확정될 수 있는 것만.
 //   addon 은 제외(kind 미필터 버그: 애드온 pending 이 플랜 결제창을 열고 있었다).
 //   반환: { payment, subscription, preview } | null
-async function findPayablePending(businessId) {
+async function findPayablePending(businessId, { transaction } = {}) {
   const rows = await Payment.findAll({
     where: { business_id: businessId, kind: 'plan', status: 'pending' },
-    order: [['created_at', 'DESC']], limit: 5,
+    order: [['created_at', 'DESC']], limit: 5, transaction,
   });
   if (!rows.length) return null;
-  const biz = await Business.findByPk(businessId, { attributes: ['id', 'plan', 'subscription_status', 'trial_ends_at'] });
+  const biz = await Business.findByPk(businessId, { attributes: ['id', 'plan', 'subscription_status', 'trial_ends_at'], transaction });
   for (const p of rows) {
-    const sub = p.subscription_id ? await Subscription.findByPk(p.subscription_id) : null;
-    if (sub && (await subscriptionConfirmability(sub, biz)).ok) {
+    const sub = p.subscription_id ? await Subscription.findByPk(p.subscription_id, { transaction }) : null;
+    if (sub && (await subscriptionConfirmability(sub, biz, { transaction })).ok) {
       return { payment: p, subscription: sub, preview: previewPeriod({ sub, biz }) };
     }
   }
@@ -400,14 +400,21 @@ async function createPendingSubscription({ businessId, planCode, cycle, userId, 
       created_by: userId,
     }, { transaction: t });
 
+    // 금액 = 플랜 + 현재 애드온(연간 ×12) — 갱신 청구와 같은 내역 함수(2026-11-15 Fable R4).
+    //   옛: 플랜 줄 하나 → 애드온이 있는 채 업그레이드·재결제하면 새 기간 애드온이 통째로 빠졌다.
+    const addonFields = Object.values(PLANS.ADDONS || {}).map((a) => a.field);
+    const lineBiz = await Business.findByPk(businessId, { attributes: ['id', ...addonFields], transaction: t });
+    const lines = buildRenewalLines(sub, lineBiz);
+    const { roundMoney } = require('./money');
+    const amount = roundMoney(lines.reduce((acc, l) => acc + Number(l.amount || 0), 0), currency);
+
     const pay = await Payment.create({
       business_id: businessId,
       subscription_id: sub.id,
       method: 'bank_transfer',
       status: 'pending',
-      amount: price, currency, cycle,
-      // 금액 내역(모양 통일) — 첫 결제엔 플랜 줄 하나. 애드온은 일할 결제가 따로 있다(A-④).
-      line_items: [planLine(sub)],
+      amount, currency, cycle,
+      line_items: lines,
       created_by: userId,
       // 세금계산서 (한국 사업자 옵션) — mark-paid 시 발행 시도
       tax_invoice_requested: !!(taxInvoice && taxInvoice.biz_no),
@@ -449,7 +456,7 @@ async function createPendingSubscription({ businessId, planCode, cycle, userId, 
             workspaceName: wsName,
             itemName: plan.name_ko || plan.name,
             cycle,
-            amount: price,
+            amount: Number(pay.amount),
             currency,
             paymentId: pay.id,
             businessId,
@@ -457,7 +464,7 @@ async function createPendingSubscription({ businessId, planCode, cycle, userId, 
         }
       }
       if (!process.env.SMTP_HOST) {
-        console.log(`[DEV-BILLING] payment=${pay.id} biz=${businessId} ${planCode}/${cycle} ${price} ${currency}`);
+        console.log(`[DEV-BILLING] payment=${pay.id} biz=${businessId} ${planCode}/${cycle} ${pay.amount} ${currency}`);
       }
     } catch (e) {
       console.error('[billing] email failed:', e.message);
@@ -1079,6 +1086,7 @@ module.exports = {
   downgradeToFree,
   runDailyBillingCron,
   ensureRenewalPayment,
+  notifyRenewalDue,
   buildReceiptPdf,
   getCurrentSubscription,
   getPlanPrice,
