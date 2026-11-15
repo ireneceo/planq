@@ -265,7 +265,7 @@
 - 맥 서명 준비: `desktop/build/entitlements.mac.plist`(마이크) · codemagic desktop-mac `groups: planq_desktop_mac`. 운영 자리 `scripts/apply-nginx-desktop.sh`.
 - Irene 할 일(같은 tid 로 고쳐 올림): todomw7e4wl9 운영 /desktop/ sudo 1줄 · todomw7e4whm 맥 Developer ID·앱 암호 → Codemagic 묶음.
 - 대기열 앞: C·E 구현(다음 방). B 는 맥 서명 뒤 실기기 스파이크.
-- 윈도우 서명: Irene «fable 이 결정» → Fable 결정 C(파일럿만 무서명, 공개는 서명 뒤) — docs/DESKTOP_APP_PHASE2.md §6.
+- 윈도우 서명: Fable C(11-10) → Irene «꼭 사야 해?» → **Fable B(11-15): 공개는 Microsoft Store**(MS 서명, 인증서 안 삼) · 무서명은 파일럿 직접 링크만 — docs/DESKTOP_APP_PHASE2.md §6-2. Irene 할 일 todomwhjunty(파트너 센터 법인 계정·이름 예약). 인증서 카드 todomwb21g33 내림. 운영 /desktop/ 자리 확인됨(404·403).
 - D 실측: canary-desktop-offline 이 메모리 자리표 1시간 대기 끝에 못 돔(75) — **아직 미실측**. 다음 방이 `node scripts/e2e/canary-desktop-offline.js` 실행 후 Fable 완료 검증 1회(D + apply-nginx-desktop.sh).
 
 ### 답 기다림 (이전): 윈도우 데스크탑 앱 — 서명 없이 먼저 낼지 (방 3a92dacf · 2026-11-10) → Irene «fable 이 결정» → Fable C
