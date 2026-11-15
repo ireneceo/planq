@@ -14,6 +14,8 @@ const HEARTBEAT_MS = 15000, STALE_MS = 5 * 60 * 1000;
 const LIMIT_MS = { render: 90 * 60e3, prep_voice: 10 * 60e3, script: 2 * 60e3, revise: 2 * 60e3, analyze_asset: 3 * 60e3, capture: 20 * 60e3, build: 2 * 60e3 };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const WHO = `${process.pid}@${require('os').hostname()}`;
+const MEM_SLOT = process.env.MEM_SLOT_BIN || '/home/irene/dev-server/bin/mem-slot';
+const RENDER_SLOT_MB = +(process.env.VIDEO_RENDER_SLOT_MB || 3200); // 렌더 정점 ≈ 3GB 실측(크롬 2 · 합성기 1.1GB)
 
 // ── 작업 내용(대기열 종류와 무관) ──
 async function runJob(job, { progress = () => {}, log = () => {} } = {}) {
@@ -30,9 +32,28 @@ async function runJob(job, { progress = () => {}, log = () => {} } = {}) {
       return { ok: true };
     }
     case 'render': {
-      const { renderAll } = require('./render');
-      const r = await renderAll({ arg0: p.id, only: p.only || null, log: (m) => { log(m); const k = /조각 (\d+)\/(\d+)/.exec(m); if (k) progress(+k[1] / +k[2]); } });
-      return { outputs: r.map((x) => ({ aspect: x.aspect, file: path.relative(ROOT, x.out), bytes: x.bytes, seconds: x.seconds, ms: x.ms, rendered: x.rendered, reused: x.reused })) };
+      // 렌더는 서버 공용 «메모리 자리표» 안에서 돈다(2026-11-03 서버 규칙 · ~/dev-server/bin/mem-slot) — 크롬 2개 + 합성기 ≈ 3GB(실측).
+      //   자리를 쥐는 동안 다른 방·다른 제품의 빌드는 줄을 선다(공용 게이트가 크롬을 못 보던 구멍을 자리표가 덮는다).
+      //   75 = 1시간 기다려도 자리가 안 남(렌더 안 함) · 137 = 상자 한도 넘어 죽음 — 둘 다 우회하지 않고 실패로 남긴다.
+      const { spawn } = require('child_process');
+      const args = ['run', 'planq-video', String(RENDER_SLOT_MB), '--', process.execPath, path.join(ROOT, 'render.js'), p.id, ...(p.only ? [`--only=${p.only}`] : []), '--json-result'];
+      const out = await new Promise((resolve, reject) => {
+        const ch = spawn(MEM_SLOT, args, { cwd: ROOT });
+        let buf = '', result = null;
+        const onLine = (line) => {
+          if (line.startsWith('@@RESULT ')) { result = JSON.parse(line.slice(9)); return; }
+          if (!line.trim()) return;
+          log(line); const k = /조각 (\d+)\/(\d+)/.exec(line); if (k) progress(+k[1] / +k[2]);
+        };
+        ch.stdout.on('data', (d) => { buf += d; const ls = buf.split('\n'); buf = ls.pop(); ls.forEach(onLine); });
+        ch.stderr.on('data', (d) => String(d).split('\n').filter((l) => /mem-slot|rror/.test(l)).forEach((l) => log(l)));
+        ch.on('close', (code) => {
+          if (buf) onLine(buf);
+          if (code === 0 && result) resolve(result);
+          else reject(Object.assign(new Error(code === 75 ? '메모리 자리표 — 1시간 기다려도 자리가 안 남(렌더 안 함)' : code === 137 ? `메모리 상자(${RENDER_SLOT_MB}MB×1.3) 넘어 렌더가 죽음` : `렌더 실패(종료 코드 ${code})`), { code: code === 75 ? 'memory_wait_timeout' : code === 137 ? 'render_oom' : 'render_failed' }));
+        });
+      });
+      return { outputs: out.map((x) => ({ aspect: x.aspect, file: path.relative(ROOT, x.out), bytes: x.bytes, seconds: x.seconds, ms: x.ms, rendered: x.rendered, reused: x.reused })) };
     }
     default: throw Object.assign(new Error(`모르는 작업 ${job.kind}`), { code: 'unknown_kind' });
   }

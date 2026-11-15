@@ -1,7 +1,8 @@
 // 렌더 — 장면 목록 하나를 가로(16:9)·세로(9:16) mp4 로. 한 번에 한 편씩(대기열은 엔진 단계에서).
 //   시작 전 서버 공용 메모리 게이트(heavy-task-gate)와 운영 배포 표시(deploy-busy)를 보고, 막히면 기다린다(우회 안 함).
 //   큰 녹화 원본은 번들에 복사하지 않고 127.0.0.1 임시 서버로 내준다.
-// 실행: node render.js <대본 id | 장면 목록.json> [--only=landscape|portrait] [--still=12.5,30] [--full]
+// 실행: ~/dev-server/bin/mem-slot run planq-video 3200 -- node render.js <대본 id | 장면 목록.json>  (서버 규칙 — 크롬 렌더는 자리표 안에서. 작업자는 저절로 그렇게 한다)
+//       자리표 밖에서 직접 돌리면 옛 게이트(heavy-task-gate·남은 메모리)를 기다린다. 이어서: [--only=landscape|portrait] [--still=12.5,30] [--full]
 //   기본 = 조각 렌더(lib/chunks.js): 장면 조각마다 해시를 내고 data/chunks 에 있으면 재사용 → 소리만 한 번 렌더 → 이어 붙여 합친다.
 //   --full = 한 번에 통째 렌더(조각 이음새 대조용).
 const fs = require('fs');
@@ -17,14 +18,22 @@ const ROOT = __dirname;
 const arg = (k) => (process.argv.find((a) => a.startsWith(`--${k}=`)) || '').slice(k.length + 3) || null;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+// 서버 «메모리 자리표»(mem-slot) 상자 안에서 도는가 — 상자 이름 memslot-<이름>-<pid>.scope
+function inMemSlot() {
+  try { return /memslot-/.test(fs.readFileSync('/proc/self/cgroup', 'utf8')); } catch { return false; }
+}
+
 async function waitGate() {
   const gate = '/var/www/scripts/heavy-task-gate.sh';
+  // 자리표 안이면 메모리는 자리표가 이미 나눠 줬다 — 옛 게이트(남은 메모리 2.5GB)를 또 기다리면 자리를 쥔 채 남의 빌드를 막는다
+  //   (2026-11-15 실측: 자리를 쥐고 옛 게이트를 기다리는 동안 PurpleHere 빌드가 줄을 섰다). 운영 배포 중인지는 자리표가 모르므로 그것만 본다.
+  const slotted = inMemSlot();
   let waited = 0;
   for (;;) {
     const dep = spawnSync('/opt/planq/scripts/deploy-busy.sh', [], { encoding: 'utf8' });
-    const g = fs.existsSync(gate) ? spawnSync(gate, ['build'], { encoding: 'utf8' }) : { status: 0 };
+    const g = slotted ? { status: 0 } : fs.existsSync(gate) ? spawnSync(gate, ['build'], { encoding: 'utf8' }) : { status: 0 };
     const avail = +(/MemAvailable:\s+(\d+)/.exec(fs.readFileSync('/proc/meminfo', 'utf8')) || [0, 0])[1] / 1024;
-    if (dep.status !== 0 && g.status === 0 && avail > 2200) { if (waited) console.log(`  메모리 게이트 열림 (${waited}s 기다림)`); return; }
+    if (dep.status !== 0 && g.status === 0 && (slotted || avail > 2200)) { if (waited) console.log(`  메모리 게이트 열림 (${waited}s 기다림)`); return; }
     if (!waited) console.log(`  기다림 — ${dep.status === 0 ? '운영 배포 중' : g.status !== 0 ? String(g.stdout || g.stderr).trim().split('\n')[0] : `여유 메모리 ${avail.toFixed(0)}MB`}`);
     if (waited > 3600) throw new Error('메모리 게이트가 1시간 동안 안 열림');
     await sleep(15000); waited += 15;
@@ -140,6 +149,7 @@ async function renderAll({ arg0, only = null, stillAt = null, full = false, log 
 
 if (require.main === module) {
   renderAll({ arg0: process.argv[2], only: arg('only'), stillAt: arg('still'), full: process.argv.includes('--full') })
+    .then((r) => { if (process.argv.includes('--json-result')) console.log('@@RESULT ' + JSON.stringify(r)); }) // 작업자가 자리표 너머로 결과를 받는다
     .catch((e) => { console.error(e); process.exit(1); });
 }
 module.exports = { renderAll, waitGate, markRunning };
