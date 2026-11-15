@@ -1,5 +1,11 @@
 # Fable 게이트 대기열 → **판정 기록 보관소** (2026-10-08 부터)
 
+
+### 2026-11-15 방 dfd1d07e — 문의·피드백 접수 확인 자동 + 상황판 «들어온 문의» 칸 (70ae4866) — 설계 **DESIGN: READY** → 완료 검증 1차 **FAIL** → 2차 **PASS**
+- 설계 `docs/FEEDBACK_AUTOREPLY_BOARD_DESIGN.md`: 고정 문구 접수 확인만 자동(PurpleHere «권고대로» ① 적용, 다시 묻지 않음) · AI 답 자동 발송 안 함 · 1-B 에서 열린 건 전부 상황판에 · 2단계는 방향만.
+- 1차 차단: 메일 미인증 가입 직후 토큰으로 제출하면 임의 주소로 자유 제목(200자) PlanQ 메일이 나감. 고침: 미인증이면 skipChannels ['email'](종·푸시는 그대로) + health-check 미인증 메일 0·대조군.
+- 2차 실측: 미인증 → notify:feedback 메일 0 · 종 1 · 인증 뒤 대조군 메일 1. 비차단: 미인증 분기 suppressEscalation(지금은 feedback 이 재알림 대상 아님) · 24h 상한 동시 경합 · 사용자 내보내기 ack_sent_at 제외(반영함) · «나갔나» 판정 좁힘(반영함).
+
 ### 2026-11-15 방 3c1edf10 — 고객 한도 = 초대받아 입장한 고객만 (2902cf0b) — 설계 **DESIGN-READY** → 완료 검증 1차 **FAIL** → 2차 **PASS**
 - 설계: 술어 active+user_id · 게이트 초대 보낼 때 + 입장할 때(Business 잠금·+0 예외·409·토큰 유지·초대한 사람 알림 1) · managed 게이트 제거 · 지표 4곳 registeredClientWhere.
 - 1차 차단: 가입 횟수 제한 예외(isLiveInviteSignup)가 고객 초대 자리를 안 봐 꽉 찬 워크스페이스의 초대 토큰이 IP 한도를 건너뜀(400×5,429). 나머지(동시 수락 200/409·재수락·복원 422 등)는 실측 통과.
