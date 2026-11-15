@@ -539,6 +539,9 @@ async function run() {
       const patches = [];
       const onReq = (r) => { if (r.method() === 'PATCH' && /history-entries\//.test(r.url())) patches.push(r.url()); };
       page2.on('request', onReq);
+      // «앱으로 설치» 안내(PwaInstallBanner)는 크롬이 설치 가능 신호를 준 날에만 뜬다 — 800×600 창에서 오른쪽 아래 토글을 덮어
+      // 클릭이 안내 버튼에 먹혔다(11-14·11-16 실측: 덮은 것 «7일 안 보기» · PATCH 0건). 사람이 «7일 안 보기» 를 누른 상태로 잰다.
+      await page2.evaluate(() => { try { localStorage.setItem('pq_pwa_install_dismiss_until', String(Date.now() + 864e5)); } catch { /* 없음 */ } });
       await page2.goto(`${BASE}/projects/p/${PROJ}?tab=history`, { waitUntil: 'networkidle2', timeout: 45000 });
       await page2.waitForSelector(`[data-testid="history-client-visible-${hVisId}"] [role="switch"]`, { timeout: 15000 }).catch(() => null);
       const before = await page2.evaluate((id) => (document.querySelector(`[data-testid="history-client-visible-${id}"] [role="switch"]`) || {}).getAttribute?.('aria-checked'), hVisId);
