@@ -77,13 +77,14 @@ async function refundPayment({ paymentId, mode = 'manual', reason, viaStripe = f
     if (!viaStripe && !refundedOutside) throw err('card_refund_not_confirmed', 409);
   }
 
+  // 애드온 환불은 한도를 회수하고 미결제 플랜 청구도 줄인다 — 열린 카드 결제창이 있으면 먼저 닫는다(트랜잭션 밖 · Fable 검증 B1).
+  //   Stripe 환불보다 앞 · 실패해도 환불을 막지 않는다(못 닫으면 sync 가 그 청구를 «얼음» 으로 둔다 — Fable 3차 비차단 2).
+  if (mode === 'manual' && pre && pre.kind === 'addon' && !keepSubscription) {
+    try { await require('./pendingPlanSync').releaseStripeSession(pre.business_id); } catch (e) { console.warn('[refund] release stripe session failed', e.message); }
+  }
+
   let stripeRefundId = null;
   if (viaStripe && isCard(pre)) stripeRefundId = await _stripeRefund(pre);   // 실패하면 여기서 throw — DB 불변
-
-  // 애드온 환불은 한도를 회수하고 미결제 플랜 청구도 줄인다 — 열린 카드 결제창이 있으면 먼저 닫는다(트랜잭션 밖 · Fable 검증 B1).
-  if (mode === 'manual' && pre && pre.kind === 'addon' && !keepSubscription) {
-    await require('./pendingPlanSync').releaseStripeSession(pre.business_id);
-  }
   const t = await sequelize.transaction();
   try {
     const pay = await Payment.findByPk(paymentId, { transaction: t, lock: t.LOCK.UPDATE });

@@ -37,13 +37,14 @@ const { writeAudit } = require('../services/auditService');
       const t = await sequelize.transaction();
       try {
         const r = await sync.syncPendingPlanAmount(bizId, { transaction: t });
-        if (r.payment && !r.frozen) {
-          foldedCodes.set(bizId, new Set((r.payment.line_items || []).filter((l) => l.kind === 'addon').map((l) => l.code)));
-        }
         if (r.frozen) { out.frozen.push({ biz: bizId, payment: r.payment.id, amount: r.old_amount }); }
         else if (r.payment && (r.changed || r.old_amount !== r.new_amount)) out.synced.push({ biz: bizId, payment: r.payment.id, from: r.old_amount, to: r.new_amount });
         else out.unchanged += 1;
         if (APPLY) await t.commit(); else await t.rollback();
+        // «실렸다» 는 커밋이 끝난 뒤에만 센다 — 커밋이 실패했는데 애드온 청구를 닫으면 어디에도 안 실린다(Fable 3차 비차단 1)
+        if (r.payment && !r.frozen) {
+          foldedCodes.set(bizId, new Set((r.payment.line_items || []).filter((l) => l.kind === 'addon').map((l) => l.code)));
+        }
       } catch (e) {
         if (!t.finished) await t.rollback();
         console.error(`[backfill] biz ${bizId} 실패: ${e.message}`);
