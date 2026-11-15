@@ -47,7 +47,11 @@
 - 확인 못 함: 운영에서 help@planq.kr(Reply-To)이 실제로 메일을 받는지 · 운영 SMTP 실제 발송.
 - 운영 반영: 다음 배포 때(마이그레이션 `migrate-inquiry-replies.js` 배포 슬롯 등록).
 - 확인용 데이터: dev 문의 #76·#85(«[확인용] 회신 시험»·«[확인용] 다른 문의»).
-### 답 기다림: 문의 #3 한수정 회신 — 메일 프로그램으로 이미 보냈는지, 배포 뒤 PlanQ 로 다시 보낼지 (방 2c59ce15 · 11-15 Irene «했어요» 뒤 운영 읽기)
+### ✅ 문의 #3 한수정 회신 — Irene 가 메일 프로그램(옛 [메일로 회신])으로 보냄 (방 2c59ce15 · 11-16)
+- Irene 두 번째 «했어요»(질문: 메일 프로그램으로 이미 보냈나 / 배포 뒤 PlanQ 로) 뒤 운영 다시 읽기: 여전히 미배포(빌드 11-15T04:54Z · 표 없음) · PlanQ 발송 0 → PlanQ 로는 보낼 길이 없었으므로 메일 프로그램 발송으로 판단. PlanQ 에는 회신 기록이 남지 않는다(PlanQ 밖 발송).
+- 남은 것 없음. 배포 뒤 이 문의에 다시 보낼 필요 없음(같은 글 두 통 방지).
+
+#### (이전) 답 기다림: 문의 #3 한수정 회신 — 메일 프로그램으로 이미 보냈는지, 배포 뒤 PlanQ 로 다시 보낼지 → Irene «했어요»
 - 운영 읽기(SELECT 만): 운영 빌드 2026-11-15T04:54Z(388d668e 전) · contact_inquiry_replies 표 없음(미배포) · 문의 #3 status resolved · replied_at 2026-11-15T17:39:56Z(노트 저장 칸 — 회신 발송 아님) · reply_note 빈칸 · email_logs 에 hsj0102 로 10-29 이후 PlanQ 발송 0.
 - 판단: PlanQ 로는 안 나갔다. 옛 mailto 로 Irene 메일 프로그램에서 보냈을 수는 있다(PlanQ 밖이라 확인 불가).
 - 답이 오면: «메일 프로그램으로 보냈어요» → 끝(작업기록 ✅) · 배포 뒤 PlanQ 로 보냈다 → 운영 contact_inquiry_replies(inquiry_id=3) sent · email_logs inquiry_reply sent 확인.
