@@ -84,12 +84,13 @@ router.post('/', authenticateToken, async (req, res, next) => {
   const transaction = await sequelize.transaction();
   let committed = false;
   try {
-    const { brand_name, name, brand_name_en, default_language } = req.body;
-    const bName = (brand_name || name || '').trim();
-    if (!bName) { await transaction.rollback(); return errorResponse(res, 'Workspace name required', 400); }
+    const { brand_name_en, default_language } = req.body;
+    const wc = require('../services/workspaceCreate');
+    const v = wc.validateWorkspaceInput(req.body);   // 상호·업종 필수 · 사업자등록번호 선택(App Store 3.1.1 사업자 전용)
+    if (v.error) { await transaction.rollback(); return errorResponse(res, v.error, 400); }
     const firstOwned = !(await Business.findOne({ where: { owner_id: req.user.id }, attributes: ['id'], transaction }));
-    const business = await require('../services/workspaceCreate').createWorkspace(req.user.id, {
-      name: bName, brand_name_en, lang: default_language, plan_code: req.body?.plan_code,
+    const business = await wc.createWorkspace(req.user.id, {
+      name: v.name, brand_name_en, lang: default_language, plan_code: req.body?.plan_code, industry: v.industry, tax_id: v.tax_id,
     }, { transaction });
 
     await transaction.commit();
@@ -109,7 +110,7 @@ router.post('/', authenticateToken, async (req, res, next) => {
         notifyPlatformAdmins({
           eventKind: 'signup',
           title: `신규 워크스페이스 — ${business.brand_name || business.name}`,
-          body: `${req.user.name || ''} (${req.user.email || ''}) 가 워크스페이스 "${business.brand_name || business.name}" 을 만들었습니다.`,
+          body: `${req.user.name || ''} (${req.user.email || ''}) 가 워크스페이스 "${business.brand_name || business.name}" 을 만들었습니다. (업종 ${business.industry || '-'})`,
           link: `${APP_URL}/admin/businesses?id=${business.id}`,
           ctaLabel: '워크스페이스 보기',
           relatedEntityId: business.id,

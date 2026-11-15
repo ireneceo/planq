@@ -23,7 +23,9 @@ const PricingPage: React.FC = () => {
         <Container>
           <Eyebrow>{t('pricingPage.eyebrow', 'PRICING')}</Eyebrow>
           <Title>{t('pricingPage.title', '시작은 무료, 필요한 만큼 확장')}</Title>
-          <Sub>{t('pricingPage.sub', '신용카드 없이 14일 무료 체험. 언제든 해지 가능합니다.')}</Sub>
+          <Sub>{t('pricingPage.sub')}</Sub>
+          {/* 사업자·조직 전용 판매 — App Store 3.1.1 대응(2026-11-16). 약관 «사업 목적 전용» 조항과 같은 말 */}
+          <BizOnly data-testid="pricing-biz-only">{t('pricingPage.bizOnly')}</BizOnly>
         </Container>
       </SubHero>
 
@@ -135,6 +137,9 @@ const Sub = styled.p`
   line-height: 1.7; max-width: 640px; margin: 0 auto;
 `;
 
+const BizOnly = styled.p`
+  margin: 12px auto 0; max-width: 640px; font-size: 0.875rem; line-height: 1.6; color: #475569;
+`;
 const PlansSection = styled.section`padding: 64px 0 96px; background: #FFFFFF;`;
 const PlansGrid = styled.div`
   display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px;

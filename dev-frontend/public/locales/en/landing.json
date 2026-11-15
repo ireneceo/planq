@@ -619,13 +619,14 @@
   "pricingPage": {
     "eyebrow": "PRICING",
     "title": "Start free, scale as needed",
-    "sub": "14 days free, no credit card. Cancel anytime.",
+    "sub": "Work plans for businesses and teams. 14-day free trial, no credit card, cancel anytime.",
+    "bizOnly": "PlanQ is a work tool for businesses and organizations (including sole proprietors). There are no consumer or family plans.",
     "recommended": "Recommended",
     "plans": {
       "starter": {
         "name": "Starter",
         "price": "₩9,900/mo",
-        "sub": "Solo freelancers · 14-day free trial",
+        "sub": "Sole-proprietor businesses · 14-day trial",
         "features": [
           "1 member (add-on for more)",
           "5 customers / 5 projects",

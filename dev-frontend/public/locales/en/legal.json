@@ -127,9 +127,10 @@
       "title": "Article 1 (Definitions)",
       "items": [
         "\"Service\" means the PlanQ web application and related features provided by the Company.",
-        "\"User\" means any individual or business entity that agrees to these Terms and uses the Service.",
+        "\"User\" means any business (including a sole proprietor), company or organization that agrees to these Terms and uses the Service, and any individual (member or client) invited to its workspace.",
         "\"Workspace\" means the organizational unit users create within the Service.",
-        "\"Paid Services\" means subscription tiers (Starter, Basic, Pro, Enterprise) requiring recurring payment."
+        "\"Paid Services\" means subscription tiers (Starter, Basic, Pro, Enterprise) requiring recurring payment.",
+        "The Service is provided only for the business purposes of organizations such as businesses (including sole proprietors), companies and associations. Users who create a workspace or subscribe to a Paid Service must use it for business purposes; the Company does not offer the Service or any plan for personal, household or family (consumer) use. Members and clients invited to a workspace use the Service within that workspace's business scope. (Effective 2026-11-23 for users who create a new workspace, and 2026-12-23 for existing users)"
       ]
     },
     "s2": {
@@ -137,7 +138,8 @@
       "items": [
         "Users must register with accurate information. Impersonation may result in service restriction.",
         "Account credentials are the user's responsibility. The Company is not liable for losses due to user negligence.",
-        "The Company may refuse or terminate service for identity theft, false information, or Terms violations."
+        "The Company may refuse or terminate service for identity theft, false information, or Terms violations.",
+        "Users who create a workspace must enter accurate business information, such as the business name and industry. If use for non-business purposes is identified, the Company may restrict or terminate use. (Effective 2026-11-23 for users who create a new workspace, and 2026-12-23 for existing users)"
       ]
     },
     "s3": {

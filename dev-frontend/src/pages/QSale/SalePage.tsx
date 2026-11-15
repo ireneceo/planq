@@ -44,6 +44,7 @@ import {
 } from '../../services/sale';
 import { getCardIntake, type CardIntake } from '../../services/sale';
 import { ACCESS_KINDS, ACCESS_STYLE } from '../../utils/clientLabel';
+import { canPurchaseInApp } from '../../utils/purchase';
 
 const PAGE = 50;
 
@@ -496,7 +497,8 @@ export default function SalePage({ embedded = false }: { embedded?: boolean } = 
             defaultValue: '정식 = 계정을 만들어 드린 고객 · 문의 = 아직 초대하지 않은 상담 상대. 숫자는 현재 / 플랜 한도입니다.',
           }) as string}>
             <span>{quotaLabel}</span>
-            {quotaTight && (
+            {/* App Store 3.1.1 — 앱 안에서는 «한도 늘리기»(플랜 변경 유도)를 두지 않는다 */}
+            {quotaTight && canPurchaseInApp() && (
               <QuotaCta type="button" data-testid="sale-quota-raise"
                 onClick={() => navigate('/business/settings/plan')}>
                 {t('quota.raise', { defaultValue: '한도 늘리기' }) as string}

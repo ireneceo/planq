@@ -103,6 +103,7 @@
       "sign_rejected": "서명 거절됨",
       "sign_revise": "수정 요청 받음",
       "pay": "결제 대기",
+      "plan_status": "구독 상태 확인 필요 — 워크스페이스 관리자에게 문의해 주세요",
       "revise": "수정 재제출",
       "attend": "오늘 미팅",
       "respond": "응답 대기",

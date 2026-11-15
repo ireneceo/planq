@@ -255,7 +255,8 @@ const PlanSettings: React.FC<Props> = ({ businessId }) => {
       )}
 
       {/* 미결제 청구 — 입금 통보 진입점. 통보 후엔 "입금 확인 대기중" 상태로 전환 (관리자 확인 후 활성화). */}
-      {status.pending_payment && (() => {
+      {/* App Store 3.1.1 — 앱 안에서는 금액·입금 안내·결제 버튼을 띄우지 않는다(모달도 앱에선 없다) */}
+      {canPurchaseInApp() && status.pending_payment && (() => {
         const notified = !!status.pending_payment.notify_paid_at;
         return (
         <PayDueCard id="pay-due" $notified={notified}>

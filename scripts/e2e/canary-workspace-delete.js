@@ -81,9 +81,9 @@ async function run() {
   const member2 = await makeUser('member2', PW);
   const tOwner = await apiLogin(owner.email, PW);
   const name = `[확인용] 삭제 화면 시험 ${Date.now()}`;
-  const keep = await call(tOwner, '/api/businesses', { method: 'POST', body: JSON.stringify({ brand_name: name + ' 남는곳' }) });
+  const keep = await call(tOwner, '/api/businesses', { method: 'POST', body: JSON.stringify({ brand_name: name + ' 남는곳', industry: 'other' }) });
   const keepId = keep.body?.data?.id || keep.body?.data?.business?.id;
-  const made = await call(tOwner, '/api/businesses', { method: 'POST', body: JSON.stringify({ brand_name: name }) });
+  const made = await call(tOwner, '/api/businesses', { method: 'POST', body: JSON.stringify({ brand_name: name, industry: 'other' }) });
   const bizId = made.body?.data?.id || made.body?.data?.business?.id;
   for (const m of [member, member2]) {
     await sql("INSERT INTO business_members (business_id, user_id, role, joined_at, created_at, updated_at) VALUES (?, ?, 'member', NOW(), NOW(), NOW())", [bizId, m.id]);

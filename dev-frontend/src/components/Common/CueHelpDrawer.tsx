@@ -27,6 +27,7 @@ import { startQhelperHeartbeat, CUE_ASK_EVENT, type CueAskMsg } from '../../util
 import { POPOUT_CHANNEL, requestMainNavigate } from './PopoutBridge';
 import { isEnterAction, isComposingEvent } from '../../utils/imeKey';
 import { isAdminContext } from '../../stores/tabStore';
+import { canPurchaseInApp } from '../../utils/purchase';
 
 // 사이클 P7d — 채팅 모드 분리: qhelper(PlanQ 매뉴얼) / workspace(Cue, 워크스페이스 데이터)
 // 'feedback' / 'inquiry' 는 별도 view (채팅 아닌 폼)
@@ -1241,7 +1242,8 @@ function groupWikiCats(cats: WikiCategory[]): { key: WikiGroupKey; cats: WikiCat
   for (const c of cats) by[WIKI_GROUP_OF[c.slug] || 'features'].push(c);
   const out: { key: WikiGroupKey; cats: WikiCategory[]; direct?: string }[] = [];
   for (const key of ['start', 'features', 'pricing', 'settings'] as WikiGroupKey[]) {
-    if (key === 'pricing') { out.push({ key, cats: [], direct: '/pricing' }); continue; }
+    // App Store 3.1.1 — 앱 안에서는 요금 안내(/pricing)로 보내지 않는다
+    if (key === 'pricing') { if (canPurchaseInApp()) out.push({ key, cats: [], direct: '/pricing' }); continue; }
     const list = by[key];
     if (list.length === 0) continue;
     out.push(list.length === 1 ? { key, cats: list, direct: `/guide?category=${list[0].slug}` } : { key, cats: list });

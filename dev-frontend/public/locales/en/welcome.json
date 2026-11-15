@@ -27,12 +27,22 @@
   },
   "create": {
     "title": "Create a new workspace",
-    "namePlaceholder": "Workspace name (company or team)",
+    "namePlaceholder": "e.g. WOR-PRO Lab, Kim Design Studio",
     "trialNotice": "A 14-day free trial starts now. Payment is required when it ends; otherwise the workspace is locked.",
+    "trialNotice_native": "Your new workspace starts with a 14-day trial. When the trial ends, the workspace may be locked.",
     "submit": "Create with 14-day trial",
     "submitting": "Creating…",
-    "nameRequired": "Please enter a workspace name.",
-    "failed": "Couldn't create it. Please try again shortly."
+    "nameRequired": "Please enter your business name.",
+    "failed": "Couldn't create it. Please try again shortly.",
+    "bizNotice": "PlanQ is a work tool for businesses and organizations (including sole proprietors). It is not for personal or family use.",
+    "nameLabel": "Business name (company or trading name)",
+    "industryLabel": "Industry",
+    "industryPlaceholder": "Choose your industry",
+    "industryRequired": "Please choose your industry.",
+    "taxIdLabel": "Business registration number (optional)",
+    "taxIdPlaceholder": "e.g. 123-45-67890 — you can add it later in Settings",
+    "taxIdInvalid": "Use 4–50 characters: digits, letters or hyphens.",
+    "required": "Required"
   },
   "join": {
     "title": "Join your company's workspace",
@@ -55,5 +65,19 @@
     "failed": "Couldn't send the request. Please try again shortly.",
     "myRequests": "Your join requests",
     "note": "Reason: {{note}}"
+  },
+  "industries": {
+    "agency": "Advertising & marketing agency",
+    "design": "Design & branding studio",
+    "it": "IT & software development",
+    "consulting": "Consulting",
+    "professional": "Legal, accounting, tax & IP",
+    "education": "Education & training",
+    "media": "Media & content production",
+    "commerce": "Retail & e-commerce",
+    "manufacturing": "Manufacturing",
+    "construction": "Construction & interior",
+    "health": "Healthcare, beauty & wellness",
+    "other": "Other business"
   }
 }

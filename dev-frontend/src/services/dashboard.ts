@@ -4,6 +4,7 @@
  * 멘션은 messages.read_at 스키마 미도입으로 Phase 8 이후 확장.
  */
 import { apiFetch } from '../contexts/AuthContext';
+import { canPurchaseInApp } from '../utils/purchase';
 
 export type TodoPriority = 'urgent' | 'today' | 'waiting' | 'week';
 
@@ -24,6 +25,7 @@ export type TodoVerb =
   | 'approve'
   | 'review'
   | 'pay'
+  | 'plan_status'
   | 'revise'
   | 'attend'
   | 'respond'
@@ -136,7 +138,15 @@ export async function fetchTodo(businessId?: number): Promise<TodoResponse> {
   const res = await apiFetch(`/api/dashboard/todo${qs}`);
   const json = await res.json();
   if (!json.success) throw new Error(json.message || 'Failed to fetch todo');
-  return json.data as TodoResponse;
+  const data = json.data as TodoResponse;
+  // App Store 3.1.1 — 앱 안에서는 PlanQ 구독 청구 항목의 금액·«결제/입금» 문구·결제 화면 링크를 지운다.
+  //   항목 자체는 남긴다(«확인 필요 = 메뉴 배지 합» 숫자를 그대로 두려고). 웹은 서버 값 그대로.
+  if (!canPurchaseInApp() && Array.isArray(data?.items)) {
+    data.items = data.items.map((it) => (it.type === 'planq_subscription'
+      ? { ...it, verb: 'plan_status', subject: '', context: undefined, link: undefined, amount: undefined }
+      : it));
+  }
+  return data;
 }
 
 export function groupByPriority(items: TodoItem[]): Record<TodoPriority, TodoItem[]> {

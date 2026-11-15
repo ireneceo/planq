@@ -103,6 +103,7 @@
       "sign_rejected": "Signature rejected",
       "sign_revise": "Revision requested",
       "pay": "Payment pending",
+      "plan_status": "Subscription needs attention — please contact your workspace admin",
       "revise": "Resubmit",
       "attend": "Meeting today",
       "respond": "Response needed",

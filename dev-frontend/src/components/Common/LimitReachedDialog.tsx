@@ -129,7 +129,8 @@ const LimitReachedDialog: React.FC = () => {
         {detail.exempt && (
           <AddonHint>{t('limit.exemptHint', '이 워크스페이스는 구독료가 면제되어 있습니다. 한도 조정이 필요하면 플랫폼 관리자에게 문의해 주세요.')}</AddonHint>
         )}
-        {trialSwitch && (
+        {/* App Store 3.1.1 — 체험 플랜 바꾸기(Basic·Pro 이름)도 요금제 고르기라 앱 안에서는 숨긴다(웹은 그대로) */}
+        {trialSwitch && canPurchaseInApp() && (
           <AddonHint data-testid="limit-trial-switch-hint">
             {isOwner
               ? t(`limit.trialSwitch.hint_${trialSwitch.next}`)
@@ -141,7 +142,7 @@ const LimitReachedDialog: React.FC = () => {
           <SecondaryBtn type="button" onClick={close}>{t('limit.close', '닫기')}</SecondaryBtn>
           {/* App Store 3.1.1 — 네이티브에선 구매 유도 CTA 숨김.
               면제 워크스페이스도 같이 숨긴다 — 눌러도 체크아웃이 400 이라 막다른 길. */}
-          {trialSwitch && isOwner ? (
+          {trialSwitch && isOwner && canPurchaseInApp() ? (
             <PrimaryBtn type="button" data-testid="limit-trial-switch" disabled={switching} onClick={doTrialSwitch}>
               {t(`limit.trialSwitch.cta_${trialSwitch.next}`)}
             </PrimaryBtn>

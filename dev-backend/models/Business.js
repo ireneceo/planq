@@ -95,6 +95,8 @@ Business.init({
   // 한국 세금계산서 공급자 필수 항목 (운영 #32)
   biz_type: { type: DataTypes.STRING(100), allowNull: true, comment: '업태' },
   biz_item: { type: DataTypes.STRING(100), allowNull: true, comment: '종목' },
+  // 업종 코드(config/industries.js) — 새 워크스페이스는 필수(사업자 전용 판매 · App Store 3.1.1, 2026-11-16). 옛 워크스페이스는 NULL
+  industry: { type: DataTypes.STRING(30), allowNull: true, comment: '업종 코드' },
   phone: {
     type: DataTypes.STRING(50),
     allowNull: true

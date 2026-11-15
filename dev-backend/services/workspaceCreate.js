@@ -21,7 +21,21 @@ async function uniqueSlug(name, transaction) {
  * @param {{ transaction }} opts 호출부 트랜잭션(커밋·롤백은 호출부)
  * @returns {Promise<Business>}
  */
-async function createWorkspace(userId, { name, brand_name_en = null, lang = 'ko', plan_code = null }, { transaction }) {
+/**
+ * 만들기 입력 검사 — 상호(이름)·업종 필수, 사업자등록번호는 선택(2026-11-16 · App Store 3.1.1 «사업자 전용 판매»).
+ * @returns {{ error: string } | { name: string, industry: string, tax_id: string|null }}
+ */
+function validateWorkspaceInput(body = {}) {
+  const name = String(body.brand_name || body.name || '').trim();
+  if (!name) return { error: 'workspace_name_required' };
+  const industry = String(body.industry || '').trim();
+  if (!require('../config/industries').isIndustryCode(industry)) return { error: 'industry_required' };
+  const taxId = String(body.tax_id || '').trim();
+  if (taxId && !/^[0-9A-Za-z\- ]{4,50}$/.test(taxId)) return { error: 'tax_id_invalid' };
+  return { name, industry, tax_id: taxId || null };
+}
+
+async function createWorkspace(userId, { name, brand_name_en = null, lang = 'ko', plan_code = null, industry = null, tax_id = null }, { transaction }) {
   const bName = String(name || '').trim();
   const language = lang === 'en' ? 'en' : 'ko';
   const slug = await uniqueSlug(bName, transaction);
@@ -31,6 +45,7 @@ async function createWorkspace(userId, { name, brand_name_en = null, lang = 'ko'
     name: bName, brand_name: bName,
     brand_name_en: language === 'ko' ? (brand_name_en || null) : null,
     slug, owner_id: userId, default_language: language,
+    industry: industry || null, tax_id: tax_id || null,
     cue_mode: 'smart', cue_paused: false,
     ...trialFields,
   }, { transaction });
@@ -55,4 +70,4 @@ async function createWorkspace(userId, { name, brand_name_en = null, lang = 'ko'
   return business;
 }
 
-module.exports = { createWorkspace };
+module.exports = { createWorkspace, validateWorkspaceInput };

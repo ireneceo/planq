@@ -16,6 +16,9 @@ import {
   type JoinWorkspaceCard,
 } from '../../services/join';
 import { isEnterAction } from '../../utils/imeKey';
+import PlanQSelect from '../../components/Common/PlanQSelect';
+import { purchaseCopyKeys } from '../../utils/purchase';
+import { INDUSTRY_CODES } from '../../config/industries';
 
 interface InviteRow {
   type: 'workspace_member' | 'workspace_client' | 'project_client';
@@ -177,21 +180,27 @@ const WelcomePage: React.FC = () => {
   const otherMine = mine.filter((w) => !shownIds.has(w.business_id));
 
   // (c) 새로 만들기
+  // 상호·업종 필수 · 사업자등록번호 선택 — App Store 3.1.1 «사업자에게만 판매»(2026-11-16, Fable 판단 B안). 서버 validateWorkspaceInput 이 다시 거른다.
   const [name, setName] = useState('');
+  const [industry, setIndustry] = useState('');
+  const [taxId, setTaxId] = useState('');
   const [plan, setPlan] = useState<TrialPlanCode>(() => parseTrialPlan(qs.get('plan')) || DEFAULT_TRIAL_PLAN);
   const [creating, setCreating] = useState(false);
   const [createErr, setCreateErr] = useState('');
   const create = async () => {
     if (creating) return;
     if (!name.trim()) { setCreateErr(t('create.nameRequired') as string); return; }
+    if (!industry) { setCreateErr(t('create.industryRequired') as string); return; }
     setCreating(true); setCreateErr('');
     try {
       const lang = (user?.language === 'en') ? 'en' : 'ko';
       const r = await apiFetch('/api/businesses', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ brand_name: name.trim(), plan_code: plan, default_language: lang }),
+        body: JSON.stringify({ brand_name: name.trim(), industry, tax_id: taxId.trim() || undefined, plan_code: plan, default_language: lang }),
       });
       const j = await r.json().catch(() => ({}));
+      if (r.status === 400 && j?.message === 'tax_id_invalid') { setCreateErr(t('create.taxIdInvalid') as string); setCreating(false); return; }
+      if (r.status === 400 && j?.message === 'industry_required') { setCreateErr(t('create.industryRequired') as string); setCreating(false); return; }
       if (!r.ok || !j?.success) throw new Error(j?.message || 'create');
       window.location.assign('/dashboard');
     } catch {
@@ -300,16 +309,43 @@ const WelcomePage: React.FC = () => {
 
         <Card data-testid="welcome-create">
           <CardTitle>{t('create.title')}</CardTitle>
+          <Hint data-testid="welcome-biz-notice">{t('create.bizNotice')}</Hint>
+          <FieldLabel htmlFor="welcome-create-name">{t('create.nameLabel')} <Req>*</Req></FieldLabel>
           <NameInput
+            id="welcome-create-name"
             value={name}
             maxLength={60}
             placeholder={t('create.namePlaceholder') as string}
             onChange={(e) => { setName(e.target.value); setCreateErr(''); }}
             data-testid="welcome-create-name"
             autoComplete="organization"
+            aria-required="true"
+          />
+          <FieldLabel as="div">{t('create.industryLabel')} <Req>*</Req></FieldLabel>
+          <div data-testid="welcome-create-industry">
+            <PlanQSelect
+              value={industry ? { value: industry, label: t(`industries.${industry}`) as string } : null}
+              onChange={(opt) => { setIndustry(String((opt as { value: string } | null)?.value ?? '')); setCreateErr(''); }}
+              options={INDUSTRY_CODES.map((c) => ({ value: c, label: t(`industries.${c}`) as string }))}
+              placeholder={t('create.industryPlaceholder') as string}
+              aria-label={t('create.industryLabel') as string}
+              isDisabled={creating}
+              isSearchable={false}
+            />
+          </div>
+          <FieldLabel htmlFor="welcome-create-taxid">{t('create.taxIdLabel')}</FieldLabel>
+          <NameInput
+            id="welcome-create-taxid"
+            value={taxId}
+            maxLength={50}
+            inputMode="text"
+            placeholder={t('create.taxIdPlaceholder') as string}
+            onChange={(e) => { setTaxId(e.target.value); setCreateErr(''); }}
+            data-testid="welcome-create-taxid"
+            autoComplete="off"
           />
           <PickerGap><TrialPlanPicker value={plan} onChange={setPlan} disabled={creating} /></PickerGap>
-          <Notice data-testid="welcome-trial-notice">{t('create.trialNotice')}</Notice>
+          <Notice data-testid="welcome-trial-notice">{t(purchaseCopyKeys('create.trialNotice'))}</Notice>
           {createErr && <ErrText>{createErr}</ErrText>}
           <CreateRow>
             <PrimaryBtn type="button" disabled={creating} onClick={() => { void create(); }} data-testid="welcome-create-submit">
@@ -391,6 +427,8 @@ const NameInput = styled.input`
   &:focus { border-color: #14B8A6; box-shadow: 0 0 0 3px rgba(20,184,166,0.18); }
 `;
 const PickerGap = styled.div`margin-top: 4px;`;
+const FieldLabel = styled.label`font-size: 0.8125rem; font-weight: 600; color: #334155; margin: 4px 0 -4px;`;
+const Req = styled.span`color: #DC2626;`;
 const Notice = styled.p`
   margin: 0; font-size: 0.8125rem; line-height: 1.6; color: #334155;
   background: #F1F5F9; border-radius: 8px; padding: 10px 12px;

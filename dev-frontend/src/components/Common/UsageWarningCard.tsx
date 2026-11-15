@@ -6,6 +6,7 @@ import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
+import { purchaseCopyKeys } from '../../utils/purchase';
 import { fetchStatus } from '../../services/plan';
 import { canPurchaseInApp } from '../../utils/purchase';
 
@@ -97,14 +98,14 @@ const UsageWarningCard: React.FC<Props> = ({ businessId }) => {
             <Subtitle>
               {exempt
                 ? t('usageWarn.subtitleFullExempt', '더 추가하려면 한도를 늘려야 합니다. 플랫폼 관리자에게 문의해 주세요.')
-                : t('usageWarn.subtitleFull', '더 추가하려면 플랜을 올리거나 추가 슬롯을 사세요.')}
+                : t(purchaseCopyKeys('usageWarn.subtitleFull'), '더 추가하려면 플랜을 올리거나 추가 슬롯을 사세요.')}  {/* App Store 3.1.1 — 앱은 _native 중립 문구 */}
             </Subtitle>
           )}
           {anyOver && (
             <Subtitle>
               {exempt
                 ? t('usageWarn.subtitleOverExempt', '초과 상태에선 신규 추가가 차단됩니다. 한도 조정은 플랫폼 관리자에게 문의해 주세요.')
-                : t('usageWarn.subtitleOver', '초과 상태에선 신규 추가가 차단됩니다. 플랜을 올리거나 기존 항목을 정리하세요.')}
+                : t(purchaseCopyKeys('usageWarn.subtitleOver'), '초과 상태에선 신규 추가가 차단됩니다. 플랜을 올리거나 기존 항목을 정리하세요.')}
             </Subtitle>
           )}
         </TitleArea>

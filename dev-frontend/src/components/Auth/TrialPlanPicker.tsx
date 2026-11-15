@@ -10,6 +10,7 @@
 import React from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
+import { canPurchaseInApp } from '../../utils/purchase';
 
 export const TRIAL_PLAN_OPTIONS = ['starter', 'basic', 'pro'] as const;
 export type TrialPlanCode = typeof TRIAL_PLAN_OPTIONS[number];
@@ -33,6 +34,7 @@ interface Props {
 const TrialPlanPicker: React.FC<Props> = ({ value, onChange, disabled, compact }) => {
   const { t } = useTranslation('auth');
   const { t: tl } = useTranslation('landing');
+  const inApp = !canPurchaseInApp();
   return (
     <Wrap role="radiogroup" aria-label={t('trialPlan.title', '어떻게 쓰실 건가요?') as string} data-testid="trial-plan-picker">
       <Title>{t('trialPlan.title', '어떻게 쓰실 건가요?')}</Title>
@@ -53,9 +55,10 @@ const TrialPlanPicker: React.FC<Props> = ({ value, onChange, disabled, compact }
               <Dot $on={on} aria-hidden="true" />
               <Body>
                 <Name>{t(`trialPlan.${KIND[code]}.label`)}</Name>
+                {/* App Store 3.1.1 — 앱 안에서는 요금제 이름·가격을 보이지 않는다(인원만). 웹은 그대로 */}
                 <Meta>
-                  {tl(`pricingPage.plans.${code}.name`)} · {t(`trialPlan.${KIND[code]}.members`)}
-                  {!compact && <> · {tl(`pricingPage.plans.${code}.price`)}</>}
+                  {inApp ? t(`trialPlan.${KIND[code]}.members`) : <>{tl(`pricingPage.plans.${code}.name`)} · {t(`trialPlan.${KIND[code]}.members`)}</>}
+                  {!compact && !inApp && <> · {tl(`pricingPage.plans.${code}.price`)}</>}
                 </Meta>
               </Body>
             </Option>

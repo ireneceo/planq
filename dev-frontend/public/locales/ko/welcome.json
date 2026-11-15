@@ -27,12 +27,22 @@
   },
   "create": {
     "title": "새 워크스페이스 만들기",
-    "namePlaceholder": "워크스페이스 이름 (회사·팀 이름)",
+    "namePlaceholder": "예: 워프로랩, 김디자인 스튜디오",
     "trialNotice": "14일 무료 체험이 시작됩니다. 체험이 끝나면 결제가 필요하고, 결제하지 않으면 워크스페이스가 잠깁니다.",
+    "trialNotice_native": "새 워크스페이스는 14일 체험으로 시작해요. 체험이 끝나면 워크스페이스가 잠길 수 있어요.",
     "submit": "14일 체험으로 만들기",
     "submitting": "만드는 중…",
-    "nameRequired": "워크스페이스 이름을 적어 주세요.",
-    "failed": "만들지 못했어요. 잠시 뒤 다시 해 주세요."
+    "nameRequired": "상호(회사·사업자 이름)를 적어 주세요.",
+    "failed": "만들지 못했어요. 잠시 뒤 다시 해 주세요.",
+    "bizNotice": "PlanQ 는 사업자·조직의 업무용 서비스입니다(1인 사업자 포함). 개인·가족 용도로는 쓸 수 없어요.",
+    "nameLabel": "상호 (회사·사업자 이름)",
+    "industryLabel": "업종",
+    "industryPlaceholder": "업종을 골라 주세요",
+    "industryRequired": "업종을 골라 주세요.",
+    "taxIdLabel": "사업자등록번호 (선택)",
+    "taxIdPlaceholder": "예: 123-45-67890 — 나중에 설정에서 넣어도 돼요",
+    "taxIdInvalid": "사업자등록번호는 숫자·영문·- 만 4~50자로 적어 주세요.",
+    "required": "필수"
   },
   "join": {
     "title": "우리 회사 워크스페이스에 참여",
@@ -55,5 +65,19 @@
     "failed": "신청하지 못했어요. 잠시 뒤 다시 해 주세요.",
     "myRequests": "보낸 참여 신청",
     "note": "사유: {{note}}"
+  },
+  "industries": {
+    "agency": "광고·마케팅 대행",
+    "design": "디자인·브랜딩 스튜디오",
+    "it": "IT·소프트웨어 개발",
+    "consulting": "컨설팅",
+    "professional": "법무·회계·세무·특허",
+    "education": "교육·강의",
+    "media": "미디어·콘텐츠 제작",
+    "commerce": "유통·커머스",
+    "manufacturing": "제조",
+    "construction": "건설·인테리어",
+    "health": "의료·뷰티·웰니스",
+    "other": "기타 사업"
   }
 }

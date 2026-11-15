@@ -163,3 +163,43 @@ Q Mail 도 같다(IMAP 계정 연결이 있어야 채워진다).
 유료 계정이면 바로 된다. **내부 테스터 100명까지는 심사 없이** 초대 즉시 설치.
 외부 테스터(최대 10,000명)는 간단한 베타 심사를 거친다.
 정식 출시 전에 팀이 실제로 써보는 단계로 쓰면 된다 — App Store 심사와 별개다.
+
+## 7. 1.0.1 반려(2026-10-05) 대응 — 재제출 (2026-11-16 · Fable 판단 B안 «조직 전용 판매», IAP 보류)
+
+반려 2건: ① 2.1(a) iPad 로그인 뒤 빈 화면 → 10-16 고침, TestFlight 빌드 21 ② 3.1.1/3.1.3(c) «기업용 서비스를 개인·소비자에게도 IAP 없이 판매».
+②는 앱 화면이 아니라 **판매 대상**(웹 요금제 Starter «1인 프리랜서») 문제였다. B안으로 바꾼 것:
+
+| 무엇 | 어디 |
+|---|---|
+| 요금제 문구 «1인 프리랜서» → «1인 사업자(프리랜서 사업자)», 요금제 머리에 «사업자·조직 전용, 소비자·가족 요금제 없음» 한 줄 | `landing.json pricingPage.*` · `PricingPage.tsx` |
+| 체험 고르기 «혼자 쓰기» → «1인 사업자» | `auth.json trialPlan.*` · `common.json trialSwitch.hint_basic` |
+| 워크스페이스 만들기에 **상호(필수)·업종(필수)·사업자등록번호(선택)** + «사업자·조직 업무용» 안내 | `WelcomePage.tsx` · 서버 `services/workspaceCreate.validateWorkspaceInput`(400 `industry_required`·`tax_id_invalid`) · `businesses.industry` 칸 · 코드 목록 `config/industries.{js,ts}` |
+| 약관 제1조 «이용자» 정의를 사업자·단체 + 초대된 개인으로 · «사업 목적 전용(소비자·가족 용도 아님)» · 제2조 «사업 정보 정확히» (새 워크스페이스 11-23 · 기존 이용자 12-23 시행 — 제13조 30일 고지) | `legal.json terms.s1·s2` |
+| 앱 안 구매 표면 재점검에서 찾은 빈 곳: «시작하기» 체험 고르기의 요금제 이름·가격 · 한도 창 «팀 체험으로 바꾸기» · Q sale «한도 늘리기» · 도움말 «요금» 링크 · 플랜 화면 Enterprise 문의 카드 · 한도 창 설명 8종(«상위 플랜·add-on·결제») → 앱에서 숨김/중립 문구(Fable 1차 FAIL 지적 2건 포함) | `TrialPlanPicker` · `WelcomePage`(trialNotice_native) · `LimitReachedDialog` · `SalePage` · `CueHelpDrawer` · `PlanSettings` · `common.json limit.*.desc_native` |
+
+### Apple 답장 (영문 최종본 — 운영 반영 뒤 붙여 넣는다)
+
+```
+Hello App Review team,
+
+Thank you for your review. We have addressed both issues in version 1.0.1 (build 21).
+
+Guideline 2.1(a)
+The blank screen after signing in on iPad has been fixed in build 21.
+
+Guidelines 3.1.1 and 3.1.3(c)
+PlanQ is a work-management service for businesses and organizations (client chat, tasks, documents, files and invoices for teams). It is not offered to consumers:
+- Subscriptions are sold only on our website, per workspace, to businesses and organizations. Our entry plan is for sole-proprietor businesses. We offer no personal, consumer or family plans.
+- Creating a workspace requires business information (business name and industry).
+- Our Terms of Service (https://planq.kr/terms, Articles 1 and 2) limit use of the service to business purposes and state that it is not offered for personal, household or family use (effective November 23, 2026 for new workspaces).
+- Members and clients join a workspace through an invitation from that organization.
+
+The iOS app is a free companion app for these business accounts. It shows no plan prices, no purchase, upgrade or sales-inquiry buttons, and no calls to action to purchase outside the app.
+
+Demo account: the sign-in details are in the App Review Information section.
+
+Thank you.
+```
+
+- 3.1.3(f)(무료 단독 앱)은 넣지 않았다 — Apple 이 VoIP·클라우드·메일·호스팅으로 좁게 보는 항목이라 걸면 오히려 반박거리가 된다. 3.1.3(c)(조직에 직접 판매)로 맞춘다.
+- B안으로도 반려되면 IAP(C안) 여부는 Irene 결정.

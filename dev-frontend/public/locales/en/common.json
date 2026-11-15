@@ -1079,9 +1079,11 @@
     "title": "Approaching plan limits",
     "titleFull": "Some plan limits are reached",
     "subtitleFull": "To add more, upgrade your plan or buy extra slots.",
+    "subtitleFull_native": "To add more, the limit needs to be raised. Please contact your workspace admin.",
     "subtitleFullExempt": "To add more, the limit must be raised. Contact the platform admin.",
     "titleOver": "Some plan limits are exceeded",
     "subtitleOver": "New additions are blocked while over limit. Upgrade your plan or remove existing items.",
+    "subtitleOver_native": "While over the limit, new items can't be added. Clean up existing items or contact your workspace admin.",
     "cta": "Plans & Add-ons",
     "ctaUpgrade": "Upgrade now",
     "detail": "View usage",
@@ -1109,6 +1111,7 @@
     "clients": {
       "title": "Client limit reached",
       "desc": "The number of clients who joined by invite has reached your plan's limit. Add an add-on or upgrade your plan.",
+      "desc_native": "The number of clients who joined by invite has reached the limit. Please contact your workspace admin.",
       "addon": "Client slots add-on: ₩2,900/mo for 10"
     },
     "projects": {
@@ -1118,11 +1121,13 @@
     },
     "conv": {
       "title": "Conversation limit reached",
-      "desc": "Higher plans have unlimited conversations."
+      "desc": "Higher plans have unlimited conversations.",
+      "desc_native": "This workspace has reached its conversation limit. Please contact your workspace admin."
     },
     "storage": {
       "title": "Storage quota exceeded",
       "desc": "Storage is full. Use the add-on or connect Google Drive for unlimited.",
+      "desc_native": "Storage is full. Remove files you no longer need or contact your workspace admin.",
       "addon": "Storage add-on: ₩4,900/mo for 5GB · or connect Google Drive"
     },
     "fileSize": {
@@ -1132,24 +1137,29 @@
     "cue": {
       "title": "Cue AI monthly limit reached",
       "desc": "You've used all Cue actions this month. Add capacity or it resets on the 1st.",
+      "desc_native": "You've used all Cue actions this month. They reset on the 1st.",
       "addon": "Cue add-on: ₩4,900/mo for 1,000 actions"
     },
     "qnote": {
       "title": "Q Note monthly hours reached",
       "desc": "You've used all Q Note minutes this month.",
+      "desc_native": "You've used all Q Note minutes this month. They reset on the 1st.",
       "addon": "Q Note add-on: ₩9,900/mo for 10 hours"
     },
     "feature": {
       "title": "Not in your plan",
-      "desc": "This feature is available on higher plans."
+      "desc": "This feature is available on higher plans.",
+      "desc_native": "This feature isn't available in this workspace. Please contact your workspace admin."
     },
     "inactive": {
       "title": "Subscription inactive",
-      "desc": "Pay your invoice to restore access. Check the billing page."
+      "desc": "Pay your invoice to restore access. Check the billing page.",
+      "desc_native": "This workspace isn't available right now. Please contact your workspace admin."
     },
     "generic": {
       "title": "Limit reached",
-      "desc": "You've reached a plan limit."
+      "desc": "You've reached a plan limit.",
+      "desc_native": "You've reached a limit. Please contact your workspace admin."
     },
     "exemptHint": "This workspace is exempt from subscription charges. Contact the platform admin if you need higher limits.",
     "needsDrive": {
@@ -1157,7 +1167,7 @@
       "desc": "Files over 50MB can’t be stored in PlanQ’s own storage. Connect Google Drive in Settings › Files & integrations to upload video directly."
     },
     "trialSwitch": {
-      "hint_basic": "You're on the solo trial (Starter · 1 member). Switch to the team trial to invite up to 5 people at no charge. Your trial end date stays the same.",
+      "hint_basic": "You're on the sole-proprietor trial (Starter · 1 member). Switch to the team trial to invite up to 5 people at no charge. Your trial end date stays the same.",
       "hint_pro": "You're on the Basic trial (up to 5). Switch to the larger-team trial (Pro) to invite up to 10 people at no charge. Your trial end date stays the same.",
       "cta_basic": "Switch to team trial (Basic · 5)",
       "cta_pro": "Switch to larger-team trial (Pro · 10)",
