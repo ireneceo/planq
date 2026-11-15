@@ -7,6 +7,14 @@
 
 
 
+### ❌ 추가 슬롯(Add-on) 신청 실패 — 원인이 운영에만 있음, 운영 로그 대기 (방 067d8f2c · 2026-11-15 · [Opus] · Fable 안 씀 — 원인 미확정, 돈 공식은 안 건드림)
+- Irene: «지메이트 워크스페이스에서 사용자추가가 안돼 … 신청 실패: 서버에서 처리하지 못했어요». 화면 문구 = 서버 500(«Internal server error» → errors.server_error).
+- dev 실측: ws6(pro) 실 HTTP 신청 200 · 체험 중 starter 6곳 × 멤버/고객 슬롯 서비스 직접 호출 12/12 성공 → 코드 경로로는 재현 안 됨. 지메이트는 dev DB 에 없음(운영 워크스페이스). 운영 로그 ssh 읽기는 이 방에서 거절됨(우회 안 함).
+- 고친 것(원인 아님, 진단·방어): ① 화면 신청 오류에 오류 번호(request_id) 표시 — services/plan.ts requestAddon 이 status·requestId 를 싣는다 ② routes/plan.js 신청 라우트가 서비스의 billing_exempt 를 500 대신 400 으로.
+- 시험 정리: ws6 결제 7253 삭제 + addon_members 원복 · 체험 시험 워크스페이스 6곳 결제 12건 삭제·한도 원복(감사 로그 행은 남음, dev).
+- Irene 할 일 todomwhjmgg1 — 운영 오류 기록 읽기 명령 1줄. then: 출력의 err_message·stack 으로 원인 고침.
+- 1번 «문의·피드백 자동답변 + 상황판 할 일 연동» 은 새 외부 발송 경로라 Fable 설계 필요 → 대기열 앞으로 되돌림.
+
 ### ✅ 고객 한도 = 초대받아 입장한 고객만 (방 3c1edf10 · 2026-11-15 · [Opus] · Fable 설계 DESIGN-READY · 완료 검증 2차 PASS · 2902cf0b)
 - Irene: «기율 워크스페이스 고객 20명 한도 도달 … 초대해서 입장한 고객이 아니면 한도도달 아닌건데 … Q sales 고객은 DB일 뿐». 원인: 한도 술어가 prospect 만 빼고 직접 관리·초대 대기·보관까지 셌다(10-15 규칙 «managed 한도 포함»).
 - 고침: `services/clientQuota` 한도 = active+계정 · 게이트 초대 때 + 입장 때(`invites.assertClientSeat`) · managed 게이트 제거 · 가입 횟수 예외 같은 판정 · 문구 ko/en(«입장 고객 n/max»).
