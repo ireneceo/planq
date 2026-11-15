@@ -376,7 +376,13 @@ export async function requestAddon(businessId: number, addonCode: string, quanti
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ addon_code: addonCode, quantity }),
   });
-  const j = await r.json();
-  if (!j.success) throw new Error(j.message || 'request addon failed');
+  const j = await r.json().catch(() => ({}));
+  if (!j.success) {
+    // 5xx 면 오류 번호(request_id)를 같이 싣는다 — 화면이 «(오류 번호 …)» 를 붙여 운영 로그 한 줄을 바로 찾는다(mapApiError).
+    const err = new Error(j.message || `HTTP ${r.status}`) as Error & { status?: number; requestId?: string };
+    err.status = r.status;
+    if (j.request_id) err.requestId = j.request_id;
+    throw err;
+  }
   return j.data;
 }

@@ -728,6 +728,7 @@ router.post('/:businessId/addons/request', authenticateToken, checkBusinessAcces
       if (e.message === 'invalid_addon_code') return errorResponse(res, 'invalid_addon_code', 400);
       if (e.message === 'addon_not_available_for_plan') return errorResponse(res, 'addon_not_available_for_plan', 400);
       if (e.message === 'business_not_found') return errorResponse(res, 'business_not_found', 404);
+      if (e.message === 'billing_exempt') return errorResponse(res, 'billing_exempt', 400);
       throw e;
     }
   } catch (err) { next(err); }
