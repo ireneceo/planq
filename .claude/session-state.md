@@ -1144,7 +1144,7 @@
 - 확인용: 파일 11089 «[확인용] 미리보기 이미지.png» 토큰 VOEBciTXrw-BHMINtyTIVVTjyRvzSg9h · 11090 PDF yfRaejkTDbe1TyqLZ5DgVgr4CoQmw0xW · 11091 비밀번호 Lp41ycqIZTO4i1HIF-wT0P-VPXfdq7hD.
 
 ### Irene 할 일
-- 운영 웹서버에 «공유 링크 미리보기 봇 넘김» 설정 넣기 (todomvuo0xys — scp 는 했음, 서버 창 sudo 1줄 남음) — `! scp …apply-nginx-share-bot.sh` → 서버 창 `ssh -t … sudo bash /opt/planq/scripts/apply-nginx-share-bot.sh /etc/nginx/sites-enabled/planq.kr 3004` (11/15 /tmp → /opt/planq/scripts 로 옮김 · 아직 미적용 실측: 봇에게 index.html 고정 제목).
+- ✅ (11/15 Irene 적용) 운영 웹서버 «공유 링크 미리보기 봇 넘김» — 봇 요청 /public/files·folders·tasks·docs·/sign·/c·/ 7경로 모두 백엔드(Express) 응답 · 사람 200(/insights 301) 실측. 실제 공유 파일 토큰으로 파일 이름 제목 확인은 못 함(운영 DB 읽기 권한 막힘).
 
 ### ✅ 폰 이미지 보기 — 두 손가락 확대·끌어 이동·두 번 탭 (방 ff601fe9 · 2026-10-30 · [Opus] · Fable 안 씀 — 화면 손가락 동작, 되돌리기 쉬움 · 자체 검증) — 운영 반영: 다음 배포 때
 - Irene «모바일에서 이미지들 클릭한 후 확대하면 잘 안되고 좌우위아래 이동도 안돼». 공용 `components/Common/ImageLightbox.tsx` 한 곳(채팅·메일·업무·문서·위키·파일·관리자 피드백 모두 이것을 씀) — 커밋 a309b7d7.
