@@ -19,12 +19,17 @@
 - 운영 반영: 다음 배포 때(마이그레이션 1개 · 배포 슬롯에 있음).
 - 다음 할 일: (Fable 비차단) 미인증 분기에 `suppressEscalation: true` 같이 넘기기(지금은 feedback 이 재알림 대상이 아니라 안전 — 그 목록에 넣는 날 같이) · 24h 상한 동시 제출 경합(영향 = 본인 종 알림뿐) · 2단계 «이대로 보내기» 는 상황판 보내기 버튼 계약이 생긴 뒤 별도 설계 1 + 검증 1.
 
-### ❌ 추가 슬롯(Add-on) 신청 실패 — 원인이 운영에만 있음, 운영 로그 대기 (방 067d8f2c · 2026-11-15 · [Opus] · Fable 안 씀 — 원인 미확정, 돈 공식은 안 건드림)
+### ✅ 추가 슬롯(Add-on) 신청 500 — 운영 payments.subscription_id 옛 NOT NULL (방 067d8f2c · 2026-11-15 · [Opus] 구현 · Fable 완료 검증 PASS · 36c763d5)
+- 원인(운영 로그, Irene 이 붙여 넣음): req 25269ba93fe6139f POST /api/plan/21/addons/request 500 «Column 'subscription_id' cannot be null». 애드온 결제는 구독 없이 만드는데 운영 표만 옛 NOT NULL(모델·dev 는 NULL 허용 — Sequelize sync 는 외래키 칸 NULL 허용을 못 바꿔 남아 있었다, Fable 기제 확인).
+- 고침: `dev-backend/scripts/migrate-payment-subscription-nullable.js`(종류·외래키·색인·행 그대로, 멱등) + `scripts/deploy-planq.sh` 배포 슬롯(sync 뒤·reload 앞). 운영 반영: 다음 배포 때 — ★ 배포 보고에 출력 줄을 적는다: «NOT NULL → NULL 허용 완료» 가 정상, «할 일 없음» 이면 원인 가설이 틀린 것.
+- 검증: 대조 표(NOT NULL+같은 FK) before 거절 → after 저장·FK 유지·2회차 무동작·97행 MD5 동일 · 서비스 경로 실커밋 subscription_id null 저장(시험 행 정리) · health 100/100 · guard 85/86. Fable 비차단: 같은 계열(모델에서 FK 칸을 NULL 허용으로 바꾼 곳)이 다른 표에도 있을 수 있음 — 다음 할 일: 운영 information_schema 와 모델 allowNull 읽기 전용 대조.
+
+#### (이전) 원인 찾기 전 기록
 - Irene: «지메이트 워크스페이스에서 사용자추가가 안돼 … 신청 실패: 서버에서 처리하지 못했어요». 화면 문구 = 서버 500(«Internal server error» → errors.server_error).
 - dev 실측: ws6(pro) 실 HTTP 신청 200 · 체험 중 starter 6곳 × 멤버/고객 슬롯 서비스 직접 호출 12/12 성공 → 코드 경로로는 재현 안 됨. 지메이트는 dev DB 에 없음(운영 워크스페이스). 운영 로그 ssh 읽기는 이 방에서 거절됨(우회 안 함).
 - 고친 것(원인 아님, 진단·방어): ① 화면 신청 오류에 오류 번호(request_id) 표시 — services/plan.ts requestAddon 이 status·requestId 를 싣는다 ② routes/plan.js 신청 라우트가 서비스의 billing_exempt 를 500 대신 400 으로.
 - 시험 정리: ws6 결제 7253 삭제 + addon_members 원복 · 체험 시험 워크스페이스 6곳 결제 12건 삭제·한도 원복(감사 로그 행은 남음, dev).
-- 답 기다림: 운영 오류 기록 읽기 명령 1줄을 이 방에 붙여 넣기(질문 askmwhl9sc7 · Irene «진행 중인 건 여기서 안내» 로 할 일 카드 todomwhjmgg1 뺌) · 답이 오면: 출력의 err_message·stack 으로 원인 고치고 실호출 검증.
+- (이전) 답 기다림: 운영 오류 기록 읽기 — Irene 이 붙여 넣어 받음(할 일 카드 todomwhjmgg1 은 «진행 중인 건 여기서 안내» 로 뺌).
 - 1번 «문의·피드백 자동답변 + 상황판 할 일 연동» 은 새 외부 발송 경로라 Fable 설계 필요 → 대기열 앞으로 되돌림.
 
 ### ✅ 고객 한도 = 초대받아 입장한 고객만 (방 3c1edf10 · 2026-11-15 · [Opus] · Fable 설계 DESIGN-READY · 완료 검증 2차 PASS · 2902cf0b)
