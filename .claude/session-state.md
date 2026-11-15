@@ -47,7 +47,12 @@
 - 확인 못 함: 운영에서 help@planq.kr(Reply-To)이 실제로 메일을 받는지 · 운영 SMTP 실제 발송.
 - 운영 반영: 다음 배포 때(마이그레이션 `migrate-inquiry-replies.js` 배포 슬롯 등록).
 - 확인용 데이터: dev 문의 #76·#85(«[확인용] 회신 시험»·«[확인용] 다른 문의»).
-### 답 기다림: 운영 문의 #3(한수정 환불)에 PlanQ 로 회신 보내기 (방 2c59ce15 · 상황판 act askmwhrsvr3)
+### 답 기다림: 문의 #3 한수정 회신 — 메일 프로그램으로 이미 보냈는지, 배포 뒤 PlanQ 로 다시 보낼지 (방 2c59ce15 · 11-15 Irene «했어요» 뒤 운영 읽기)
+- 운영 읽기(SELECT 만): 운영 빌드 2026-11-15T04:54Z(388d668e 전) · contact_inquiry_replies 표 없음(미배포) · 문의 #3 status resolved · replied_at 2026-11-15T17:39:56Z(노트 저장 칸 — 회신 발송 아님) · reply_note 빈칸 · email_logs 에 hsj0102 로 10-29 이후 PlanQ 발송 0.
+- 판단: PlanQ 로는 안 나갔다. 옛 mailto 로 Irene 메일 프로그램에서 보냈을 수는 있다(PlanQ 밖이라 확인 불가).
+- 답이 오면: «메일 프로그램으로 보냈어요» → 끝(작업기록 ✅) · 배포 뒤 PlanQ 로 보냈다 → 운영 contact_inquiry_replies(inquiry_id=3) sent · email_logs inquiry_reply sent 확인.
+
+#### (이전) 답 기다림: 운영 문의 #3(한수정 환불)에 PlanQ 로 회신 보내기 (방 2c59ce15 · 상황판 act askmwhrsvr3) → Irene «했어요» → 위 확인
 - 무엇: 다음 배포로 388d668e 가 운영에 나간 뒤 Irene 가 https://planq.kr/admin/inquiries?inquiry=3 «회신» 칸에 아래 글을 붙여 [PlanQ 에서 보내기].
 - 왜: 운영 관리자 계정으로만 보낼 수 있다(이 방은 운영 접속·외부 발송 안 함).
 - 답이 오면: 운영 읽기로 contact_inquiry_replies 의 inquiry_id=3 행 status 가 sent 인지·email_logs 가 sent 인지 확인(실패면 error_message 로 원인) · Reply-To(help@planq.kr) 수신 여부도 같이.
