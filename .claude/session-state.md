@@ -24,7 +24,7 @@
 - dev 실측: ws6(pro) 실 HTTP 신청 200 · 체험 중 starter 6곳 × 멤버/고객 슬롯 서비스 직접 호출 12/12 성공 → 코드 경로로는 재현 안 됨. 지메이트는 dev DB 에 없음(운영 워크스페이스). 운영 로그 ssh 읽기는 이 방에서 거절됨(우회 안 함).
 - 고친 것(원인 아님, 진단·방어): ① 화면 신청 오류에 오류 번호(request_id) 표시 — services/plan.ts requestAddon 이 status·requestId 를 싣는다 ② routes/plan.js 신청 라우트가 서비스의 billing_exempt 를 500 대신 400 으로.
 - 시험 정리: ws6 결제 7253 삭제 + addon_members 원복 · 체험 시험 워크스페이스 6곳 결제 12건 삭제·한도 원복(감사 로그 행은 남음, dev).
-- Irene 할 일 todomwhjmgg1 — 운영 오류 기록 읽기 명령 1줄. then: 출력의 err_message·stack 으로 원인 고침.
+- 답 기다림: 운영 오류 기록 읽기 명령 1줄을 이 방에 붙여 넣기(질문 askmwhl9sc7 · Irene «진행 중인 건 여기서 안내» 로 할 일 카드 todomwhjmgg1 뺌) · 답이 오면: 출력의 err_message·stack 으로 원인 고치고 실호출 검증.
 - 1번 «문의·피드백 자동답변 + 상황판 할 일 연동» 은 새 외부 발송 경로라 Fable 설계 필요 → 대기열 앞으로 되돌림.
 
 ### ✅ 고객 한도 = 초대받아 입장한 고객만 (방 3c1edf10 · 2026-11-15 · [Opus] · Fable 설계 DESIGN-READY · 완료 검증 2차 PASS · 2902cf0b)
