@@ -4115,6 +4115,7 @@
 - 조치: Irene 할 일 «구글 콘솔 인증 센터 상태 확인하고 심사 제출하기» 상황판에 올림(todomvbdo20g). 절차·문안·영상 대본 docs/GOOGLE_OAUTH_CALENDARLIST_GUIDE.md.
 - 코드 변경 없음.
 - 2026-10-29 Irene «이미 심사 다 했던 거 다시 심사신청 하는 거 버전 올리는 건데 안내가 이게 맞아?» → 안내가 «처음 심사» 기준이었음. 카드 todomvbdo20g 를 «권한 1개 추가 → 그 권한만 재심사» 4단계로 고쳐 다시 올림(브랜딩·도메인·게시 상태 단계 뺌) · 안내 문서 맨 앞에 같은 한 줄 (방 9e833f65).
+- 2026-11-15 Irene «절차 맞는지 · Gmail·drive 전체 지워도 운영 안 깨지는지» → 코드 실측: 요청하는 권한은 openid·email·profile·calendar.events·drive.file·calendarlist.readonly(누를 때만)뿐. mail.google.com 은 08-19 부터 새 동의 막힘(googleScopes OAUTH_CONSENT_DISABLED), drive 전체는 요청 안 함(인정만). 카드 4단계로 다시 올림(방 9e833f65). 운영에 Gmail 구글 로그인 연결 메일 계정이 남았는지는 운영 DB 라 확인 못 함.
 
 ### ✅ (끝남 2026-10-20) 모바일 메뉴 알림·공지 드롭다운 (방 995e64cb)
 - 무엇: Irene «메뉴 닫지 말고 드롭다운이 가장 앞에» 반영 — 미커밋 5파일(dropdownShell MenuPopover z 10070 · Notification/WhatsNewDropdown · GlobalSearchModal · WorkspaceSwitcher 만들기 창 · MainLayout 메뉴 닫기 되돌림). 팀 상태 z 10070 은 c7f066f7 에 이미.
