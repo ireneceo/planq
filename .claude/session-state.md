@@ -4146,7 +4146,11 @@
 - 환불 요청(루아 테스트 KRW 39,000) 처리 실패 `more_permissions_required` = 운영 플랫폼 Stripe 제한 키에 환불 권한 없음. 코드 문제 아님(dev 는 Stripe 키 자체가 없음).
 - 키 권한을 켜고 다시 처리하거나, Stripe 에서 직접 환불 후 «Stripe 로 카드 환불 실행» 끄고 기록만. 커밋 2bed4f3a 로 이 오류가 할 일 안내 문구로 뜬다.
 
-### 답 기다림: GTM-5WQHW96L 작업공간 게시 (방 9572baa2 · 2026-11-15 · [Opus])
+### 답 기다림 (이전): GTM-5WQHW96L 작업공간 게시 (방 9572baa2 · 2026-11-15 · [Opus])
 - **GTM 에서 미리보기로 GA4 태그 확인 뒤 [제출]→[게시] 하고 «했어요» 라고 답해 주실래요?** (상황판 askmwhmp68m, act)
 - 왜: 처리방침 시행일 11-03 지남 · 가져오기·GA4 ID(G-ZBCPFNJ8DG) 입력 끝 · 게시는 Irene Google 계정에서만.
 - 답 오면: 공개 gtm.js?id=GTM-5WQHW96L 버전이 2 이상·G-ZBCPFNJ8DG 실림 확인 · 헤드리스로 /pricing 에서 google-analytics collect 요청 확인 · /login 0.
+- 11-15 Irene: 미리보기 «Not connected»·planq.kr/pricing 에 GTM 0개·배너 없음(바닥 «쿠키 설정» 만) → 게시 안 함. 방 9572baa2 재측정: 코드 정상 —
+  로그인한 사람은 싣지 않음(MarketingTags.tsx `isTrackable(..., loggedIn)` → 배너·GTM 둘 다 없음 = Irene 증상과 일치) · 로그인 안 한 한국어/서울: / 와 /pricing gtm.js 실림, /login 0 ·
+  로그인 안 한 영어/쿠알라룸푸르: 배너 뜸 → «Allow» 후 gtm.js 실림·dataLayer 생김. 코드 수정·배포 필요 없음.
+  게시는 외부 화면 일이라 따로 카드 todomwhs1wnn «시크릿 창에서 GTM 미리보기 확인하고 게시하기» 로 옮김(act 질문 askmwhmp68m 은 상황판이 뺌).
