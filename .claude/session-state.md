@@ -1186,7 +1186,7 @@
 - ③ 채팅 버튼(커밋 0e044b08): 끌어서 옮기기(마우스·손가락) → 가까운 좌/우 가장자리에 붙음 · 기기별 기억(localStorage pq-dock-pos) · 위쪽이면 메뉴가 아래로 · 메뉴 맨 아래 «버튼 위치 처음대로». 기본 자리는 그대로 둠 — 다른 화면 바닥 여백(88px)이 그 자리에 맞춰져 있어 올리면 목록 끝 줄이 버튼 밑에 깔림. 문서 화면 바닥 여백 20→88px(폰은 스크롤 상자가 달라 끝 빈 자리로).
 - 검증: 3폭 23항목 중 22 통과 — 남은 1건은 데스크탑 브라우저의 «PlanQ 앱으로 설치» 띠가 문서 끝 [보내기]를 덮는 것(채팅 버튼 겹침 0 · 설치된 앱에선 안 뜸 · 손대지 않음). canary-fab-reach 문제 0 · i18n·parity 통과 · build EXIT 0·error TS 0.
 
-### ✅ 답 기다림 (이전): PlanQ GTM 번호가 PurpleHere 컨테이너와 같음 → 10-30 Irene «권고대로»(A 새 컨테이너) · 카드 todomvdbjl6v(새 컨테이너 만들기·관리자 번호 바꾸기·가져오기)·todomvdbjlhb(새 컨테이너 게시, 앞 카드 뒤) 다시 씀 · 코드 0 (방 de785bc6 · 2026-10-29 · [Opus] · Fable 안 씀 — 외부 서비스 설정 선택, 코드·DB 변경 없음, 컨테이너가 비어 있어 되돌리기 쉬움)
+### ✅ 답 기다림 (이전): PlanQ GTM 번호가 PurpleHere 컨테이너와 같음 — ★ 11-15 Irene 정정: 틀린 판단, GTM-5WQHW96L 은 PlanQ 것 → 10-30 Irene «권고대로»(A 새 컨테이너) · 카드 todomvdbjl6v(새 컨테이너 만들기·관리자 번호 바꾸기·가져오기)·todomvdbjlhb(새 컨테이너 게시, 앞 카드 뒤) 다시 씀 · 코드 0 (방 de785bc6 · 2026-10-29 · [Opus] · Fable 안 씀 — 외부 서비스 설정 선택, 코드·DB 변경 없음, 컨테이너가 비어 있어 되돌리기 쉬움)
 - 무엇: **PlanQ 용 GTM 컨테이너(planq.kr)를 새로 만들어 PlanQ 관리자 설정 GTM 번호를 그걸로 바꿀까요, 아니면 지금 번호(GTM-5WQHW96L)를 두 사이트가 같이 쓰게 주소 조건을 붙일까요?** (상황판 askmvtysvr4)
 - 왜: 운영 /api/platform/info gtm_container_id = GTM-5WQHW96L(10-29 재조회) = PurpleHere tracking.ts·gtm-container-purplehere.json 의 번호. 공개 gtm.js 는 버전 1·G- ID 0 = 아직 빈 컨테이너(섞인 데이터 없음). 두 가져오기 파일의 GA4 구성 태그가 다 «모든 페이지» 트리거라 한 컨테이너에 넣으면 서로 상대 사이트 GA4·픽셀로 샌다. PurpleHere 카드 todomvjvib2x 는 «충돌 덮어쓰기» 라 같은 이름 태그를 지울 수 있음(PurpleHere 것이라 안 건드림 — 알릴지는 서버 방 몫).
 - 지금: PlanQ 카드 todomvdbjl6v(가져오기 단계 앞)·todomvdbjlhb(게시 단계 앞)에 «⏸ 잠깐 멈춤 — 컨테이너 번호 확인 중» 넣어 같은 tid·recheck 로 다시 올림.
@@ -2681,6 +2681,11 @@
 - 공지 띠 켜기 — 회원 메일 안 보냄, 10-21 까지(todomvdbjkl4) · nginx CSP sudo(todomvdbjkw2) · GTM·GA4·Meta 계정·ID·가져오기(todomvdbjl6v) · 11-03 이후 GTM 게시 + 운영 ID 입력(todomvdbjlhb, check) — 10-21 점검: 넷 다 아직(운영 공지·GTM ID 비어 있음 · CSP 미적용) · 10-24 점검: 처리방침 1.5(85cf6287)로 시행일 11-03 — 카드 todomvdbjl6v·todomvdbjlhb 날짜 고침(운영 화면은 다음 배포까지 10-28)
 - 10-29 방 9572baa2(Irene «구글 태그는 했는데 페이스북 픽셀이 중요해?»): 운영 /api/platform/info gtm_container_id = GTM-5WQHW96L(이미 입력됨) · 운영 CSP 에 googletagmanager·connect.facebook.net 열림(todomvdbjkw2 끝난 셈) · 공개 gtm.js 버전 1 = 태그 0·G- ID 없음(빈 컨테이너 게시 → 아무것도 안 모임). GA4 속성·가져오기는 아직. Meta 픽셀은 Meta 광고 때만 필요 → 보류. 카드 todomvdbjl6v «GA4 측정 ID·가져오기(픽셀은 광고 때)» · todomvdbjlhb «11-03 이후 게시(ID 이미 있음)» 로 고쳐 다시 올림. 처리방침 Meta 문구는 그대로 둠(나중에 광고 때 다시 고지할 필요 없게).
 - 10-29 방 4a4b18cd(Irene «이미 하지 않았어? 설정에 태그코드 넣었는데?»): 재실측 — 운영 gtm_container_id=GTM-5WQHW96L 입력됨 ✓ · 공개 gtm.js 여전히 버전 1·태그 0(GA4 태그·G- ID 없음) · 운영 처리방침 시행일 11-03. ID 입력은 끝, 남은 것 = GA4 태그 넣은 새 버전 게시. 카드 todomvdbjlhb 를 «11-03 이후 GA4 태그 넣은 새 버전 게시(ID 입력은 끝남)» 로 고쳐 다시 올림.
+- 11-15 방 9572baa2 Irene «했어요» + 정정: **GTM-5WQHW96L 은 PurpleHere 것이 아니라 GTM 계정 «PlanQ»(6399230140) 의 컨테이너 «planq.kr»** — 10-29 «PurpleHere 번호» 판단(방 de785bc6)은 틀림. 새 컨테이너 안 만들고 이 번호 그대로, 운영 관리자 칸도 그대로.
+  - Irene 한 일: GA4 계정 «PlanQ»(416348320) / 속성 «PlanQ»(564382838) · **측정 ID G-ZBCPFNJ8DG**(웹 스트림 https://planq.kr) · 향상된 측정 4개+브라우저 기록 끔 · 보관 14개월 · Google 신호 끔 · 주요 이벤트 sign_up·generate_lead · Search Console planq.kr(도메인) 연결 · GTM 가져오기 «병합»(태그 11·트리거 11·변수 16 추가) · 변수 «GA4 측정 ID»=G-ZBCPFNJ8DG · Meta 픽셀 ID 그대로 · 게시 안 함.
+  - 읽기 확인: 운영 /api/platform/info gtm_container_id=GTM-5WQHW96L ✓ · 공개 gtm.js 버전 1·G- ID 0(게시 전이 맞음) ✓ · 헤드리스(한국어·서울, 로그인 안 함) 운영 / 와 /pricing 에 gtm.js?id=GTM-5WQHW96L 실림 · /login 0 ✓. Irene 가 홈에서 0개를 본 것은 로그인한 상태(로그인한 사람은 싣지 않음) 또는 예전에 «거부» 를 고른 브라우저이기 때문.
+  - 게시: 11-03 지남 → 카드 todomvdbjlhb 뺌, 이 방 act 질문 askmwhmp68m «GTM-5WQHW96L 작업공간 게시하기» 로. «했어요» 오면 공개 gtm.js 버전·G-ZBCPFNJ8DG 실림 확인.
+  - PurpleHere 개발 코드 tracking.ts:9 가 같은 GTM-5WQHW96L 을 씀(운영 purplehere.com 은 gtag G-LTTLKH1J85 직접 — 아직 안 나감) → 운영에 나가면 PlanQ GA4 로 섞임. PurpleHere 대기열에 넘김(그 폴더는 안 건드림).
 ### 답 기다림 (이전): 마케팅 측정(GTM·GA4·Meta 픽셀) 게시 목록 승인 (방 d103516d · 2026-10-17 · [Opus] · 설계·검증 Fable)
 - 원문: «이거 해야 하는 거 안한거 있어? 메타 픽셀, 구글 서치콘솔, GA4, GTM 설정. 이벤트는 사이트 구조에 맞게 설계하고 설계서도 남기고 발행·게시 전에는 목록 보여주고 승인»
 - 실측: 서치콘솔만 돼 있었고(06-05 부터 sitemap) GTM·GA4·Meta 픽셀은 0 — 09-21 에 CSP·쿠키 동의 때문에 일부러 안 하고 자체 집계를 만들었었다.
@@ -4104,3 +4109,8 @@
 ### (끝남) Stripe 운영 키 «Refunds 쓰기» 권한 — 2026-10-30 Irene «좋아요» 확인
 - 환불 요청(루아 테스트 KRW 39,000) 처리 실패 `more_permissions_required` = 운영 플랫폼 Stripe 제한 키에 환불 권한 없음. 코드 문제 아님(dev 는 Stripe 키 자체가 없음).
 - 키 권한을 켜고 다시 처리하거나, Stripe 에서 직접 환불 후 «Stripe 로 카드 환불 실행» 끄고 기록만. 커밋 2bed4f3a 로 이 오류가 할 일 안내 문구로 뜬다.
+
+### 답 기다림: GTM-5WQHW96L 작업공간 게시 (방 9572baa2 · 2026-11-15 · [Opus])
+- **GTM 에서 미리보기로 GA4 태그 확인 뒤 [제출]→[게시] 하고 «했어요» 라고 답해 주실래요?** (상황판 askmwhmp68m, act)
+- 왜: 처리방침 시행일 11-03 지남 · 가져오기·GA4 ID(G-ZBCPFNJ8DG) 입력 끝 · 게시는 Irene Google 계정에서만.
+- 답 오면: 공개 gtm.js?id=GTM-5WQHW96L 버전이 2 이상·G-ZBCPFNJ8DG 실림 확인 · 헤드리스로 /pricing 에서 google-analytics collect 요청 확인 · /login 0.
