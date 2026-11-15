@@ -263,7 +263,7 @@
 - 설계 `docs/DESKTOP_APP_PHASE2.md` — A 게시 · B Q note 회의 시스템 소리 녹음(줌·팀즈 앱 소리 — PWA 로 불가) · C 전역 단축키 빠른 업무 추가 · D 연결 끊김 화면 · E 맥 메뉴바·윈도우 점프 목록. Fable DESIGN-FIX 6개를 §4 에 반영(B 요청 판정 좁힘·맥 불확실 3건 스파이크·C 수식키 검증·D preload 없는 보기·E 허용 목록·윈도우 무서명은 Irene 결정).
 - **D 구현**: `desktop/src/main.js` showOffline(WebContentsView · preload 없음 · 10초 main 타이머 · -3 제외 · 메인 프레임 5xx 포함) + `desktop/src/offline.html`(ko/en, «다시 연결»=제목 바꿈 신호). 검사 `scripts/e2e/canary-desktop-offline.js`.
 - 맥 서명 준비: `desktop/build/entitlements.mac.plist`(마이크) · codemagic desktop-mac `groups: planq_desktop_mac`. 운영 자리 `scripts/apply-nginx-desktop.sh`.
-- Irene 할 일(같은 tid 로 고쳐 올림): todomw7e4wl9 운영 /desktop/ sudo 1줄 · todomw7e4whm 맥 Developer ID·앱 암호 → Codemagic 묶음.
+- Irene 할 일(같은 tid 로 고쳐 올림): todomw7e4wl9 운영 /desktop/ sudo 1줄 · (11-15 고침: 인증서 요청 파일 단계 추가·세 장으로) todomwhjwdv5 ① .p12 만들기 · todomwhjwdxu ② 앱 암호 · todomwhjwsa4 ③ Codemagic 값 5개.
 - 대기열 앞: C·E 구현(다음 방). B 는 맥 서명 뒤 실기기 스파이크.
 - 윈도우 서명: Fable C(11-10) → Irene «꼭 사야 해?» → **Fable B(11-15): 공개는 Microsoft Store**(MS 서명, 인증서 안 삼) · 무서명은 파일럿 직접 링크만 — docs/DESKTOP_APP_PHASE2.md §6-2. Irene 할 일 todomwhjunty(파트너 센터 법인 계정·이름 예약). 인증서 카드 todomwb21g33 내림. 운영 /desktop/ 자리 확인됨(404·403).
 - D 실측: canary-desktop-offline 이 메모리 자리표 1시간 대기 끝에 못 돔(75) — **아직 미실측**. 다음 방이 `node scripts/e2e/canary-desktop-offline.js` 실행 후 Fable 완료 검증 1회(D + apply-nginx-desktop.sh).
