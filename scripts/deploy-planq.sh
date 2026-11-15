@@ -598,6 +598,9 @@ sync_database() {
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-conv-mute.js 2>&1 | tail -5"
   # 2026-11-13 Q mail «안 읽음으로 표시»(docs/QMAIL_MARK_UNREAD_DESIGN.md) — email_thread_participants.marked_unread 칸(멱등). ★ PM2 reload 앞 — 없으면 메일 목록·수가 500.
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-mail-mark-unread.js 2>&1 | tail -5"
+  # 2026-11-15 추가 슬롯 신청 500(운영 payments.subscription_id 가 옛 NOT NULL) — NULL 허용으로만 맞춘다(종류·외래키 그대로, 멱등).
+  #   애드온 결제는 구독 없이 만든다(services/addonBilling). 코드 변경 없음 — 배포 순서 무관하지만 다른 이관과 같이 reload 앞.
+  prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-payment-subscription-nullable.js 2>&1 | tail -5"
   # 2026-10-29 폴더 공유 링크(#469) — file_folders 공유 칸 5개 + share_token unique(멱등). ★ PM2 reload 앞 — 없으면 폴더 목록이 500.
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-folder-share.js 2>&1 | tail -5"
   # 2026-10-29 워크스페이스 삭제 — businesses 칸 4개 + 옛 삭제본 사유 백필(멱등). ★ PM2 reload 앞 — 없으면 워크스페이스 목록·로그인이 500.
