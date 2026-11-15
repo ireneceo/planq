@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- 공유 확장은 추적·수집을 하지 않는다. 파일 시각·UserDefaults 같은 «이유를 적어야 하는 API» 도 쓰지 않는다
+	     (묶음 나이는 manifest.json 의 ts·폴더 이름으로 판정 — docs/NATIVE_SHARE_RECEIVE.md 결정 7). -->
+	<key>NSPrivacyTracking</key>
+	<false/>
+	<key>NSPrivacyTrackingDomains</key>
+	<array/>
+	<key>NSPrivacyCollectedDataTypes</key>
+	<array/>
+	<key>NSPrivacyAccessedAPITypes</key>
+	<array/>
+</dict>
+</plist>

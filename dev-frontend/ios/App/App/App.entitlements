@@ -22,5 +22,13 @@
 	<array>
 		<string>applinks:dev.planq.kr</string>
 	</array>
+	<!--
+	  App Group — 공유 확장(ShareExtension)이 받은 파일을 여기에 두고 ShareReceivePlugin 이 가져간다.
+	  ShareExtension/ShareExtension.entitlements 와 같은 값이어야 한다(scripts/ios-beta-check.js 가 본다).
+	-->
+	<key>com.apple.security.application-groups</key>
+	<array>
+		<string>group.app.planq</string>
+	</array>
 </dict>
 </plist>

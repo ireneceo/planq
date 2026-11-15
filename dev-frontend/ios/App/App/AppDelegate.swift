@@ -142,5 +142,6 @@ public class PlanqAuthSessionPlugin: CAPPlugin, CAPBridgedPlugin, ASWebAuthentic
 class PlanqBridgeViewController: CAPBridgeViewController {
     override open func capacitorDidLoad() {
         bridge?.registerPluginInstance(PlanqAuthSessionPlugin())
+        bridge?.registerPluginInstance(ShareReceivePlugin())   // 공유 받기(#434 ② iOS) — ShareReceivePlugin.swift
     }
 }

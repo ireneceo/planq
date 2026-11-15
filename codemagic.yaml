@@ -31,6 +31,9 @@ workflows:
       ios_signing:
         distribution_type: app_store
         bundle_identifier: app.planq
+        # ↑ app.planq.* 확장 프로필도 같이 가져온다 — 공유 확장 app.planq.ShareExtension(프로필
+        #   planq_share_extension_appstore, App Group group.app.planq)이 여기서 서명된다(2026-11-16 Irene 등록).
+        #   `xcode-project use-profiles` 가 타깃의 번들 ID 로 짝을 맞춘다. 확장 프로필이 빠지면 서명 단계에서 깨진다.
       vars:
         XCODE_WORKSPACE: "dev-frontend/ios/App/App.xcworkspace"
         XCODE_SCHEME: "App"

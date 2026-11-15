@@ -9,7 +9,7 @@
 |---|---|
 | ① 공유 받은 뒤 화면 (`/share-receive`, 웹·앱 공용) | ✅ 2026-09-29 — 대화방 고르기 · 저장 위치(회사 파일/프로젝트 → 폴더 · 새 폴더) · 문서가 글·첨부를 받음. 카나리 `--suite sharereceive` |
 | ② 안드로이드 공유 수신 | ✅ 코드 2026-10-07 — **새 앱 빌드(Play)가 나가야 사용자에게 닿는다** (아래 «안드로이드 — 구현») |
-| ② iOS Share Extension | ⏳ 상세 설계·일정 2026-10-29(아래 «iOS 상세 설계») — **Apple 개발자 계정 작업이 먼저** (아래 전제) |
+| ② iOS Share Extension | ✅ 코드 2026-11-15 (아래 «iOS — 구현») — Apple 설정·Codemagic 서명 끝(11-16 Irene). **Codemagic TestFlight 빌드 → 실기기 확인이 남았다** |
 
 ## 핵심 결정 — 입구는 하나다
 
@@ -114,14 +114,29 @@
 ### 일정
 | 단계 | 누가 | 걸리는 것 | 상태 |
 |---|---|---|---|
-| 0. Apple 설정 4가지(App Group·확장 번들·프로필·Codemagic 등록) | Irene | 20~30분 | 상황판 할 일 `todomv5a7pg0`(10/12~) **여기서 멈춰 있다** |
-| 1. 구현(위 파일) + guard·빌드 | Claude | 반나절 | 0 끝나면 바로 |
+| 0. Apple 설정 4가지(App Group·확장 번들·프로필·Codemagic 등록) | Irene | 20~30분 | ✅ 11-16 — 프로필 planq_appstore_v2(app.planq, App Groups) · planq_share_extension_appstore(app.planq.ShareExtension) |
+| 1. 구현(위 파일) + guard·빌드 | Claude | 반나절 | ✅ 11-15 (아래 «iOS — 구현») |
 | 2. Codemagic «PlanQ iOS — TestFlight» 빌드(서명·업로드) | Claude 커밋 → Irene 실행 | 30~40분 | 실패하면 로그 보고 1 로 |
 | 3. TestFlight 외부 베타 심사(새 확장이 붙어 다시 심사) | Apple | 보통 1일 | |
 | 4. 실기기 확인 — 사진 여러 장·PDF·앱 꺼진 상태·로그아웃 상태·10개 넘게 | Irene | 10분 | |
 | 안드로이드 — Play 업로드 + 심사 + 실기기 | Irene → Google | 1~3일 | 상황판 할 일 `todomv5a7m3l` |
 
 → 아이폰은 **0번이 끝난 날부터 약 2~3일**(대부분 Apple 심사 대기). 안드로이드는 Play 업로드만 하면 된다.
+
+## iOS — 구현 (2026-11-15, [Opus])
+
+- 확장 `ios/App/ShareExtension/` — `ShareViewController.swift`(화면 없는 카드 «PlanQ 로 보내는 중…» → 못 열면 안내 + [PlanQ 열기][닫기]) ·
+  `Info.plist`(사전형 활성 규칙 Image≤10·File≤10·Text·WebURL≤1, 버전은 `$(MARKETING_VERSION)`·`$(CURRENT_PROJECT_VERSION)`) ·
+  `ShareExtension.entitlements`(group.app.planq) · `PrivacyInfo.xcprivacy`(추적·수집·이유 API 없음).
+  ★ `ShareViewController` 에 `@objc(이름)` 을 붙이지 않는다 — Info.plist 의 `$(PRODUCT_MODULE_NAME).ShareViewController` 로 찾는다.
+- 본 앱 `App/ShareReceivePlugin.swift`(jsName `ShareReceive`, `PlanqBridgeViewController` 가 등록) — `.capacitorOpenURL`(planq://share)·
+  `willEnterForeground`(묶음이 있을 때만) 에서 신호. `takePending` 이 최근 묶음을 `Caches/share-in/` 로 옮기고 App Group 을 비운다.
+- `project.pbxproj` — 맥·ruby 가 없어 손으로 썼다(id `PQ…05xx`). 확장 타깃 · App 에 «Embed Foundation Extensions»(Pods 스크립트 **앞** — Xcode 15 순환 오류 회피) ·
+  타깃 의존. 서버의 node `xcode` 파서로 구문·참조 0 dangling 확인. **진짜 검증은 Codemagic 빌드.**
+- JS: `nativeShare.ts` 가 `android|ios` · `NativeBridge` 의 appUrlOpen 은 `planq://share` 를 그냥 넘긴다(공유 이동과 경주 안 함).
+- 검사: `scripts/ios-beta-check.js` 가 두 타깃 `CURRENT_PROJECT_VERSION`·`MARKETING_VERSION`·Info.plist 버전·App Group 일치를 본다
+  (양성 대조군: 확장 MARKETING_VERSION 1.0.2 → ✗ · App Group 바꿈 → ✗ 확인). `cap:beta` 체인에 물려 있어 Codemagic 에서도 돈다.
+- 웹 배포로 가는 것: `nativeShare.ts`·`NativeBridge` 만(옛 iOS 빌드는 플러그인이 없어 takePending 실패 → 아무 일 없음). 나머지는 **새 앱 빌드**.
 
 ## 검증 계획 (빌드가 생기면)
 - 안드로이드: 갤러리 → 공유 → PlanQ → ① 화면이 뜨고 파일 칩이 보인다 → 프로젝트 폴더 저장 → DB 확인
