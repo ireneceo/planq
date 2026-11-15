@@ -3677,6 +3677,7 @@
 - 10/15 Irene: 취소·재시도해도 계속 돌기만 함(멈춘 단계 이름은 못 받음, «다른 작업방에 말했어» — 그 뒤 codemagic.yaml·android 커밋 0건). 빌드 시간 한도 60분인데 1시간 넘게 돈다 = 실행이 아니라 «대기열» 가능성 큼. → «Irene 할 일: Codemagic API 토큰을 secrets/codemagic-token 에(서버 창 read -s)» 올림. 들어오면 API 로 빌드 상태·단계 로그를 직접 읽는다(빌드 시작·취소는 안 함).
 - 10/16 Irene: «빌드 다 했어» → 토큰 할 일 뺌. 남은 것: Play 업로드·실기기 확인(«안드로이드 앱 새 빌드 올리기» 할 일 그대로) · 아이폰은 Apple 설정 대기.
 - 10/16 Irene «공유할 때 어디로 갈지 너무 어려울 것 같아 … 검토 제대로 해» → [Fable] UX 설계 판정(그대로 iPhone 불가) → [Opus] 받은 뒤 화면 재설계 구현(추천 카드 1장+최근 칩 · 대화방 검색·묶음 · 프로젝트 행 → 폴더 · 저장 결과 카드 · 대화방 입력칸 위 줄 · 썸네일 · 배너 숨김 · 뒤로 가기) → [Fable] 완성 점검 PASS. sharereceive 66/66 · 빌드 0 · guard 72/73. 남음: 고객 역할 실측 · 실기기(안드로이드 Play 업데이트 뒤) · iOS 는 Apple 설정 뒤 착수.
+- 11-15 Irene: Google 로그인 Codemagic 은 빈 계정(빌드 0) · Play 최신 9/18 1.0(코드 30) → .aab 못 받음. 빌드 #17~#21 은 GitHub 로그인(ireneceo) Codemagic 계정에 있다(docs/IOS_BETA_RUNBOOK.md:84 · codemagic.yaml android-play 는 Play 자동 올리기 주석 → .aab 를 손으로 올려야 함). 할 일 todomv5a7m3l 은 todomvswjmxv(GitHub 로그인 → iOS·Android 새 빌드 → Play 새 버전)와 겹쳐 뺌. **Play 새 버전 올라간 뒤 할 일**: 폰 갤러리 «공유하기» 목록에 PlanQ·«PlanQ 로 공유» 화면 확인(Irene) · 안 되면 docs/NATIVE_SHARE_RECEIVE.md 안드로이드 절·ShareReceivePlugin.java·services/nativeShare.ts 조사 · 되면 운영 피드백 #434·#456 답글 초안 docs/ 에(발송은 Irene 확인 후).
 
 ### 정기 점검 10/12 (방 69426d00 · [Opus])
 - 개발완료: health 84/84 · guard 68/69 · e2e tenant 0 · 위키 커버리지 통과 → 10/11 작업 6건 DEVELOPMENT_PLAN·next.json 기록.
