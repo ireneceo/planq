@@ -42,10 +42,17 @@ function fbRow(r, now) {
   } else {
     return null; // 닫힌 상태(done·wontfix) — 조회가 거르지만 한 번 더
   }
+  const answered = Number(r.answered) === 1 || r.answered === true;
+  // 이미 답했는데 접수·검토중에 머문 줄 = 답하기는 끝났고 닫기만 남음(Fable 2026-11-15 «닫기 대기»).
+  //   «조사 없이 승인 판단» 은 답이 없는 줄에만 쓴다. 닫는 손은 관리자 화면뿐 → needsIrene 예.
+  let closeWait = false;
+  if ((st === 'pending' || st === 'reviewing') && answered && !(Number(r.open_followups) > 0)) {
+    closeWait = true; needsIrene = true; next = '답함 — 완료로 닫기 또는 승인 · 관리자 > 사용자 피드백';
+    if (verdict === '답장만 필요') verdict = '이미 해결'; // 답장이 필요한 줄이었는데 답했다 — 남은 건 닫기
+  }
   // 답 없는 후속 글 — 무엇이든 Irene 필요
   if (Number(r.open_followups) > 0) { needsIrene = true; next = `추가 글에 답 필요 · ${next}`; }
 
-  const answered = Number(r.answered) === 1 || r.answered === true;
   const replied = answered ? `답함(${mmdd(r.responded_at)})`
     : (r.ack_sent_at ? `접수 확인 나감(${mmdd(r.ack_sent_at)})` : '아직');
   const basis = [STATUS_KO[st] || st,
@@ -57,27 +64,33 @@ function fbRow(r, now) {
     title: '', verdict, basis, replied, next, needsIrene,
     link: `${APP}/admin/feedback?id=${r.id}`, queueRef, draft: '',
     _orig: { title: String(r.title || ''), head: String(r.body || '').slice(0, 40) },
-    _status: st,
+    _status: st, _closeWait: closeWait,
   };
 }
 
 /** 손님 문의(contact_inquiries, 랜딩) 한 줄 */
 function landingRow(r) {
-  const repliedAt = r.replied_at || null;
-  let verdict; let needsIrene; let next;
-  if (r.status === 'new' || !repliedAt) { verdict = '답장만 필요'; needsIrene = true; next = '관리자 > 문의에서 메일로 회신'; }
-  else { verdict = '이미 해결'; needsIrene = false; next = '없음 — 닫기만'; }
+  // 회신함 = PlanQ 직접 회신 sent 가 있거나(contact_inquiry_replies) 옛 내부 노트 replied_at 이 있음.
+  //   직접 회신은 replied_at 을 건드리지 않는다(org-feedback 규칙) — replied_at 만 보면 보낸 뒤에도 «회신 아직» 으로 남았다.
+  const sentAt = r.last_reply_at || null;
+  const repliedAt = sentAt || r.replied_at || null;
+  const replied = Number(r.replies_sent) > 0 || !!r.replied_at;
+  let verdict; let needsIrene; let next; let closeWait = false;
+  if (!replied) { verdict = '답장만 필요'; needsIrene = true; next = '관리자 > 문의에서 메일로 회신'; }
+  // 회신했으면 닫기만 남는다 — 닫는 손은 관리자뿐이라 Irene 필요(Fable 2026-11-15, 옛 «아니오 · 닫기만» 은 정의와 어긋났다).
+  else { verdict = '이미 해결'; needsIrene = true; closeWait = true; next = '회신함 · 완료로 닫기 — 관리자 > 문의'; }
   return {
     ref: `landing#${r.id}`, kind: 'landing', at: day(r.created_at), who: '손님(랜딩)',
     title: '', verdict, basis: `${STATUS_KO[r.status] || r.status}${r.kind ? ` · ${r.kind}` : ''}`,
-    replied: `자동 접수 메일 · ${repliedAt ? `회신함(${mmdd(repliedAt)})` : '회신 아직'}`,
-    next, needsIrene, link: `${APP}/admin/inquiries`, queueRef: '', draft: '',
+    replied: `자동 접수 메일 · ${replied ? `회신함${repliedAt ? `(${mmdd(repliedAt)})` : ''}` : '회신 아직'}`,
+    // 화면은 탭(status) 목록에서만 상세를 찾는다 — 회신하면 대개 «처리중» 이라 status 를 같이 실어야 열린다(Fable 검증 B1, adminTodo 와 같은 모양)
+    next, needsIrene, link: `${APP}/admin/inquiries?status=${encodeURIComponent(r.status || 'new')}&inquiry=${r.id}`, queueRef: '', draft: '',
     _orig: { title: '', head: String(r.body || '').slice(0, 40) },
-    _status: r.status,
+    _status: r.status, _closeWait: closeWait,
   };
 }
 
-/** 조회 행들 → 줄 뼈대 (Irene 필요 → 최근 순, 100건) */
+/** 조회 행들 → 줄 뼈대 (Irene 필요[답·판단 먼저 → 닫기 대기] → 그 밖, 각 묶음 안 최근 순, 100건) */
 function buildItems(rows, { now = Date.now() } = {}) {
   const items = [];
   for (const r of rows || []) {
@@ -85,7 +98,8 @@ function buildItems(rows, { now = Date.now() } = {}) {
     const it = r.src === 'landing' ? landingRow(r) : r.src === 'fb' ? fbRow(r, now) : null;
     if (it) items.push(it);
   }
-  items.sort((a, b) => (Number(b.needsIrene) - Number(a.needsIrene)) || String(b.at).localeCompare(String(a.at)));
+  const tier = (x) => (x.needsIrene ? (x._closeWait ? 1 : 0) : 2);
+  items.sort((a, b) => (tier(a) - tier(b)) || String(b.at).localeCompare(String(a.at)));
   const total = items.length;
   return { items: items.slice(0, MAX_ITEMS), total };
 }
@@ -129,6 +143,9 @@ function checkForPost(filled, base) {
     }
     out.push(it);
   }
+  // 기계 순서(답·판단 → 닫기 대기 → 그 밖)를 지킨다 — 상황판은 needsIrene 만 정렬하고 같으면 올린 순서(Fable 검증 N3)
+  const rank = new Map((base || []).map((b, i) => [b.ref, i]));
+  out.sort((a, b) => rank.get(a.ref) - rank.get(b.ref));
   if ((filled || []).length !== (base || []).length) errors.push(`줄 수가 뼈대(${(base || []).length})와 다름(${(filled || []).length})`);
   return { ok: errors.length === 0, errors, items: out };
 }

@@ -268,7 +268,8 @@ router.post('/admin/:id/replies', authenticateToken, requireRole('platform_admin
   try {
     const id = Number(req.params.id);
     if (!Number.isInteger(id) || id <= 0) return errorResponse(res, 'not_found', 404);
-    const out = await inquiryReply.sendInquiryReply({ inquiryId: id, body: req.body && req.body.body, userId: req.user.id, ip: req.ip });
+    const close = !!(req.body && req.body.close === true); // «보내고 완료로 닫기» — true 만 닫는다
+    const out = await inquiryReply.sendInquiryReply({ inquiryId: id, body: req.body && req.body.body, userId: req.user.id, ip: req.ip, close });
     return successResponse(res, out);
   } catch (err) {
     if (err instanceof inquiryReply.InquiryReplyError) return errorResponse(res, err.code, err.status);

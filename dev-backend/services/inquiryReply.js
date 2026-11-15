@@ -66,9 +66,11 @@ async function listReplies(inquiryId) {
  * @param {string} p.body          관리자가 쓴 회신 본문
  * @param {number} p.userId        보내는 플랫폼 관리자
  * @param {string} [p.ip]
- * @returns {Promise<{reply:object, inquiry_status:string}>}
+ * @param {boolean} [p.close]     «보내고 완료로 닫기» — 보낸 것이 확인(sent)됐을 때만 new·in_progress → resolved (Fable 2026-11-15)
+ * @returns {Promise<{reply:object, inquiry_status:string, closed:boolean}>}
  */
-async function sendInquiryReply({ inquiryId, body, userId, ip }) {
+async function sendInquiryReply({ inquiryId, body, userId, ip, close: closeArg = false }) {
+  const close = closeArg === true; // 문자열 'false' 등은 닫지 않는다(Fable 검증 N2)
   const text = String(body == null ? '' : body).replace(/\r\n/g, '\n').trim();
   if (!text) throw new InquiryReplyError('reply_body_required', 400);
   if (text.length > BODY_MAX) throw new InquiryReplyError('reply_body_too_long', 400);
@@ -137,11 +139,23 @@ async function sendInquiryReply({ inquiryId, body, userId, ip }) {
   await reply.update(patch);
 
   let inquiryStatus = inquiry.status;
+  let closed = false;
   if (result.status === 'sent') {
-    await ContactInquiry.update(
-      { status: 'in_progress' },
-      { where: { id: inquiry.id, status: 'new' } },
-    );
+    // 닫기는 보낼 때마다 관리자가 고른다(자동 resolved 안 함). 실패·건너뜀이면 상태를 건드리지 않는다.
+    //   조건부 UPDATE — 그사이 다른 관리자가 스팸·해결로 바꿨으면 0행(오류 아님).
+    if (close) {
+      const [n] = await ContactInquiry.update(
+        { status: 'resolved' },
+        { where: { id: inquiry.id, status: { [Op.in]: ['new', 'in_progress'] } } },
+      );
+      closed = n > 0;
+    }
+    if (!closed) {
+      await ContactInquiry.update(
+        { status: 'in_progress' },
+        { where: { id: inquiry.id, status: 'new' } },
+      );
+    }
     const fresh = await ContactInquiry.findByPk(inquiry.id, { attributes: ['status'] });
     inquiryStatus = fresh ? fresh.status : inquiryStatus;
   }
@@ -150,7 +164,8 @@ async function sendInquiryReply({ inquiryId, body, userId, ip }) {
   try {
     await writeAudit({
       userId, action: 'inquiry.reply_send', targetType: 'contact_inquiry', targetId: inquiry.id,
-      newValue: { reply_id: reply.id, status: result.status, to_email: reply.to_email, length: reply.body.length, error: patch.error_message || null },
+      oldValue: closed ? { inquiry_status: inquiry.status } : undefined,
+      newValue: { reply_id: reply.id, status: result.status, to_email: reply.to_email, length: reply.body.length, error: patch.error_message || null, close_requested: !!close, closed, ...(closed ? { inquiry_status: 'resolved' } : {}) },
       ipAddress: ip || null,
     });
   } catch (e) { console.warn('[inquiryReply] audit failed', e.message); }
@@ -158,7 +173,7 @@ async function sendInquiryReply({ inquiryId, body, userId, ip }) {
   const full = await ContactInquiryReply.findByPk(reply.id, {
     include: [{ model: User, as: 'sentBy', attributes: ['id', 'name'], required: false }],
   });
-  return { reply: toView(full), inquiry_status: inquiryStatus };
+  return { reply: toView(full), inquiry_status: inquiryStatus, closed };
 }
 
 module.exports = { sendInquiryReply, listReplies, displayStatus, InquiryReplyError, STUCK_MS, PER_INQUIRY_DAY };

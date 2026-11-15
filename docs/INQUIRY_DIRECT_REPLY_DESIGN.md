@@ -32,7 +32,7 @@
 1. 문의 없음 404 · `status='spam'` 409 `inquiry_spam` · 본문 trim 1~10,000자 아니면 400 · 받는 주소 형식 불량 400.
 2. **중복 방지**: 같은 문의에 같은 본문이 `sending`/`sent` 로 60초 안에 있으면 409 `duplicate_reply` (두 번 누름·재시도 겹침).
 3. 행 생성 `status='sending'` → `emailService.sendEmailDetailed`(새 함수 — sendEmail 과 같은 몸통이 `{status, error}` 를 돌려주게 나누고, 기존 `sendEmail` 은 그것의 bool 래퍼) 호출 → 결과로 행 갱신(sent: sent_at / failed·skipped: error_message).
-4. 성공(sent)이면 `contact_inquiries.replied_at=now, replied_by_user_id=관리자` · 상태 `new` 이면 `in_progress` 로(보낸 뒤 «새 문의» 탭에 남지 않게). 해결 처리는 관리자가 정한다(자동 resolved 안 함).
+4. 성공(sent)이면 `contact_inquiries.replied_at=now, replied_by_user_id=관리자` · 상태 `new` 이면 `in_progress` 로(보낸 뒤 «새 문의» 탭에 남지 않게). 해결 처리는 관리자가 정한다(자동 resolved 안 함) — **닫기는 보낼 때마다 관리자가 고른다**(2026-11-15 Fable): 화면 [보내고 완료로 닫기](주)·[보내기만 — 진행 중 유지], 본문 `close:true` 이고 sent 일 때만 `UPDATE … SET status='resolved' WHERE status IN ('new','in_progress')`(0행은 오류 아님 · 실패·건너뜀이면 상태 그대로) · 응답 `closed` · 감사 `inquiry.reply_send` 한 건에 `close_requested`·`closed`.
    skipped(dev·차단 주소)·failed 는 문의 상태·replied_at 을 바꾸지 않는다.
 5. 감사 `writeAudit` action `inquiry.reply_send` target `contact_inquiry` (new_value: reply_id·status·to_email·글자 수 — 본문 원문은 감사에 안 싣는다, 표에 있다).
 6. 응답: 회신 행(본문 포함) + 갱신된 문의 상태. 실패도 **200 + status:failed + error** (기록은 남았으므로) — 화면이 이유를 보인다.

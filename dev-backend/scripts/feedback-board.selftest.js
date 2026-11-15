@@ -30,7 +30,21 @@ eq('7 반영중', pick(one(fb({ status: 'in_progress' }))), ['개발 필요', fa
 eq('8 반영중 + 답 없는 후속 글', pick(one(fb({ status: 'in_progress', open_followups: 1 }))), ['개발 필요', true, '추가 글에 답 필요 · 배포되면 닫힘']);
 eq('9 손님 문의 new', pick(one({ src: 'landing', id: 3, status: 'new', created_at: OLD, body: 'x' })), ['답장만 필요', true, '관리자 > 문의에서 메일로 회신']);
 eq('10a 손님 문의 in_progress·회신 전', pick(one({ src: 'landing', id: 3, status: 'in_progress', created_at: OLD })), ['답장만 필요', true, '관리자 > 문의에서 메일로 회신']);
-eq('10b 손님 문의 회신함', pick(one({ src: 'landing', id: 3, status: 'in_progress', replied_at: OLD, created_at: OLD })), ['이미 해결', false, '없음 — 닫기만']);
+eq('10b 손님 문의 회신함(옛 내부 노트) → 닫기', pick(one({ src: 'landing', id: 3, status: 'in_progress', replied_at: OLD, created_at: OLD })), ['이미 해결', true, '회신함 · 완료로 닫기 — 관리자 > 문의']);
+const direct = one({ src: 'landing', id: 76, status: 'in_progress', replied_at: null, replies_sent: 1, last_reply_at: YOUNG, created_at: OLD });
+eq('10c 직접 회신 sent(replied_at 없음) → 회신함·닫기', [...pick(direct), direct.replied, direct.link],
+  ['이미 해결', true, '회신함 · 완료로 닫기 — 관리자 > 문의', '자동 접수 메일 · 회신함(11-15)', 'https://planq.kr/admin/inquiries?status=in_progress&inquiry=76']);
+eq('10d 직접 회신 0건·replied_at 없음 → 회신 아직', one({ src: 'landing', id: 4, status: 'in_progress', replies_sent: 0, created_at: OLD }).replied, '자동 접수 메일 · 회신 아직');
+eq('10e 답함 + 후속 0 → 닫기 대기', pick(one(fb({ status: 'reviewing', answered: 1, responded_at: OLD }))), ['확인 중', true, '답함 — 완료로 닫기 또는 승인 · 관리자 > 사용자 피드백']);
+eq('10e2 문의 답함 → 이미 해결·닫기', pick(one(fb({ kind: 'inquiry', answered: 1, responded_at: OLD })))[0], '이미 해결');
+eq('10f 답함 + 답 없는 후속 → 후속 답 먼저', pick(one(fb({ status: 'reviewing', answered: 1, open_followups: 1 })))[2], '추가 글에 답 필요 · 조사 없이 승인 판단');
+eq('10g 진행대기는 답함이어도 닫기 대기 아님', pick(one(fb({ status: 'queued', answered: 1 })))[2], '대기열 fb#1 에서 진행');
+const ord = buildItems([
+  { src: 'landing', id: 9, status: 'in_progress', replies_sent: 1, created_at: '2026-11-14T00:00:00Z' },
+  fb({ id: 2, status: 'queued', created_at: '2026-11-14T00:00:00Z' }),
+  fb({ id: 3, created_at: OLD }),
+], { now: NOW }).items.map((x) => x.ref);
+eq('10h 정렬 — 답·판단 → 닫기 대기 → 그 밖', ord, ['fb#3', 'landing#9', 'fb#2']);
 eq('11 닫힌 상태는 줄 없음', buildItems([fb({ status: 'done' })], { now: NOW }).items.length, 0);
 eq('12 replied 답함/접수 확인', [one(fb({ answered: 1, responded_at: OLD })).replied, one(fb({ ack_sent_at: YOUNG })).replied], ['답함(11-10)', '접수 확인 나감(11-15)']);
 // 정렬·100건
@@ -53,6 +67,8 @@ eq('21 비밀값 무늬 거절', checkForPost(fill((x) => (x.ref === 'fb#1' ? { 
 const tamper = checkForPost(fill((x) => ({ needsIrene: !x.needsIrene, queueRef: 'fb#999' })), base);
 eq('22 needsIrene·queueRef 는 기계 값으로', tamper.items.map((x) => [x.needsIrene, x.queueRef]), base.map((x) => [x.needsIrene, x.queueRef]));
 eq('23 줄 빠짐 거절', checkForPost(fill(() => ({})).slice(0, 1), base).ok, false);
+const rev = checkForPost(fill(() => ({})).reverse(), base);
+eq('25 올릴 때 기계 순서 유지', rev.items.map((x) => x.ref), base.map((x) => x.ref));
 eq('24 내부 칸(_orig) 안 나감', Object.keys(checkForPost(fill(() => ({})), base).items[0]).some((k) => k.startsWith('_')), false);
 
 console.log(`feedback-board selftest: ${pass} pass · ${fail} fail`);

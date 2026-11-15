@@ -134,6 +134,8 @@ const AdminInquiriesPage = () => {
   // 보낸 회신 기록 · 보내기 확인창 · 결과 안내
   const [replies, setReplies] = useState<InquiryReply[]>([]);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  // «보내고 완료로 닫기»(true) / «보내기만 — 진행 중 유지»(false) — 닫기는 보낼 때마다 관리자가 고른다(Fable 2026-11-15, 자동 resolved 아님)
+  const [closeAfterSend, setCloseAfterSend] = useState(true);
   const [sending, setSending] = useState(false);
   const [sendNote, setSendNote] = useState<{ tone: 'ok' | 'err'; text: string } | null>(null);
   const [expanded, setExpanded] = useState<Record<number, boolean>>({});
@@ -207,7 +209,7 @@ const AdminInquiriesPage = () => {
       const r = await apiFetch(`/api/inquiries/admin/${sentId}/replies`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ body: replyDraft }),
+        body: JSON.stringify({ body: replyDraft, close: closeAfterSend }),
       });
       const j = await r.json().catch(() => null);
       if (r.ok && j?.success) {
@@ -215,7 +217,7 @@ const AdminInquiriesPage = () => {
         if (rep.status === 'sent') {
           if (stillHere()) clearReplyDraft(); else clearDraftRecord(sentKey);
           if (stillHere()) {
-            setSendNote({ tone: 'ok', text: t('adminInq.reply.sentOk') });
+            setSendNote({ tone: 'ok', text: j.data.closed ? t('adminInq.reply.sentClosed') : t('adminInq.reply.sentOk') });
             // 서버가 new → in_progress 로 옮겼을 수 있다 — 열린 상세는 그 값으로(목록에서 빠져도 상세는 닫지 않는다, B1)
             const st = j.data.inquiry_status as Status | undefined;
             if (st) setDetail((d) => (d && d.id === sentId ? { ...d, status: st } : d));
@@ -237,7 +239,7 @@ const AdminInquiriesPage = () => {
       // 성공·실패·응답 유실 모두 기록을 다시 읽는다 — 응답만 잃은 경우(행은 sending)도 확인창 경고가 붙게(Fable N1)
       void loadReplies(sentId);
     }
-  }, [detail, sending, replyDraft, replyDraftKey, clearReplyDraft, t, reasonText, loadReplies, load]);
+  }, [detail, sending, replyDraft, closeAfterSend, replyDraftKey, clearReplyDraft, t, reasonText, loadReplies, load]);
 
   useEffect(() => {
     const it = items.find(x => x.id === detailId);
@@ -482,14 +484,25 @@ const AdminInquiriesPage = () => {
               />
               <AdminReplyDraftButton key={detail.id} endpoint={`/api/inquiries/admin/${detail.id}/ai-draft`} value={replyDraft} onDraft={setReplyDraft} />
               <DraftActions>
+                {(detail.status === 'new' || detail.status === 'in_progress') && (
+                  <SendCloseBtn
+                    type="button"
+                    data-testid="admin-inq-reply-send-close"
+                    disabled={sending || !replyDraft.trim()}
+                    title={!replyDraft.trim() ? t('adminInq.reply.emptyDisabled') as string : undefined}
+                    onClick={() => { setCloseAfterSend(true); setConfirmOpen(true); }}
+                  >
+                    {sending && closeAfterSend ? t('adminInq.reply.sending') : t('adminInq.reply.sendClose')}
+                  </SendCloseBtn>
+                )}
                 <SendBtn
                   type="button"
                   data-testid="admin-inq-reply-send"
                   disabled={sending || !replyDraft.trim() || detail.status === 'spam'}
                   title={detail.status === 'spam' ? t('adminInq.reply.spamDisabled') as string : (!replyDraft.trim() ? t('adminInq.reply.emptyDisabled') as string : undefined)}
-                  onClick={() => setConfirmOpen(true)}
+                  onClick={() => { setCloseAfterSend(false); setConfirmOpen(true); }}
                 >
-                  {sending ? t('adminInq.reply.sending') : t('adminInq.reply.send')}
+                  {sending && !closeAfterSend ? t('adminInq.reply.sending') : ((detail.status === 'new' || detail.status === 'in_progress') ? t('adminInq.reply.sendOnly') : t('adminInq.reply.send'))}
                 </SendBtn>
                 {replyDraft.trim() && (
                   <LinkBtn type="button" onClick={() => { void navigator.clipboard?.writeText(replyDraft).then(() => setCopied(true)).catch(() => {}); }}>
@@ -561,8 +574,8 @@ const AdminInquiriesPage = () => {
           onClose={() => setConfirmOpen(false)}
           onConfirm={() => { void sendReply(); }}
           title={t('adminInq.reply.confirmTitle')}
-          message={`${t('adminInq.reply.confirmMsg', { name: detail.from_name, email: detail.from_email })}${replies.some((r) => r.status === 'unknown' || r.status === 'sending') ? `\n\n${t('adminInq.reply.confirmUnknown')}` : ''}`}
-          confirmText={t('adminInq.reply.confirmOk')}
+          message={`${t('adminInq.reply.confirmMsg', { name: detail.from_name, email: detail.from_email })}${(detail.status === 'new' || detail.status === 'in_progress') ? `\n\n${closeAfterSend ? t('adminInq.reply.confirmClose') : t('adminInq.reply.confirmKeep')}` : ''}${replies.some((r) => r.status === 'unknown' || r.status === 'sending') ? `\n\n${t('adminInq.reply.confirmUnknown')}` : ''}`}
+          confirmText={closeAfterSend && (detail.status === 'new' || detail.status === 'in_progress') ? t('adminInq.reply.confirmOkClose') : t('adminInq.reply.confirmOk')}
           cancelText={t('adminInq.reply.cancel')}
           variant={replies.some((r) => r.status === 'unknown' || r.status === 'sending') ? 'warning' : 'info'}
         />
@@ -653,6 +666,13 @@ const SendBtn = styled.button`
   border: 1px solid #14B8A6; border-radius: 8px; font-size: 0.8125rem; font-weight: 700; cursor: pointer;
   &:hover:not(:disabled) { background: #F0FDFA; }
   &:disabled { color: #94A3B8; border-color: #E2E8F0; cursor: not-allowed; }
+`;
+// 주 버튼 — 회신하면 대개 끝이다(닫기 대기로 남지 않게). Primary 톤.
+const SendCloseBtn = styled.button`
+  padding: 8px 14px; background: #14B8A6; color: #FFFFFF;
+  border: 1px solid #14B8A6; border-radius: 8px; font-size: 0.8125rem; font-weight: 700; cursor: pointer;
+  &:hover:not(:disabled) { background: #0D9488; border-color: #0D9488; }
+  &:disabled { background: #E2E8F0; border-color: #E2E8F0; color: #94A3B8; cursor: not-allowed; }
 `;
 const SendNote = styled.div<{ $tone: 'ok' | 'err' }>`
   margin-top: 8px; font-size: 0.75rem; font-weight: 600; line-height: 1.5;

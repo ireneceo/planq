@@ -36,10 +36,11 @@ paths:
   안 보냄: 후속 글 · 플랫폼관리자 제출 · 이미 보냄(`feedback_items.ack_sent_at`, 조건부 UPDATE 로 먼저 잡고 안 나가면 되돌림) · 같은 사람 24시간 5건 넘음.
   `admin_response`·`responded_*`·`reply_seen_at`·상태·감사는 건드리지 않는다(respondToFeedback 을 거치지 않는다) · `ack_sent_at` 은 MINE_FIELDS 밖. 운영 `migrate-feedback-ack.js`(배포 슬롯). 회귀 health-check external «접수 확인».
   2단계(상황판에서 초안 눌러 보내기)는 상황판 보내기 버튼 계약이 생긴 뒤 별도 설계 1회 + 검증 1회.
-- **상황판 «들어온 문의» 칸 = 열린 건 전부** (2026-11-15, 같은 설계 §2) — 개발시작.md 1-B ② · 조회 `scripts/feedback-board.sql`(개인정보 칸 없음) → `scripts/feedback-board.js --build/--post/--fail` · 판정 `services/feedbackBoard`(needsIrene 은 방이 못 고친다) · 시험 `scripts/feedback-board.selftest.js`. 보여 주기만 — 개발 대상 규칙(진행대기만)은 그대로.
+- **상황판 «들어온 문의» 칸 = 열린 건 전부** (2026-11-15, 같은 설계 §2) — 개발시작.md 1-B ② · 조회 `scripts/feedback-board.sql`(개인정보 칸 없음) → `scripts/feedback-board.js --build/--post/--fail` · 판정 `services/feedbackBoard`(needsIrene 은 방이 못 고친다 · 회신·답 했는데 열린 줄 = «완료로 닫기» 닫기 대기, Irene 필요) · 시험 `scripts/feedback-board.selftest.js`. 보여 주기만 — 개발 대상 규칙(진행대기만)은 그대로.
 - **손님 문의 직접 회신 — PlanQ 가 보내고 문의에 남긴다** (2026-11-15, Irene «개발에 제대로 되게 할거야» · Fable 설계 FIX 반영 → 완료 3차 PASS · `docs/INQUIRY_DIRECT_REPLY_DESIGN.md`) —
   표 `contact_inquiry_replies`(문의당 여러 줄 · sending/sent/failed/skipped) · 쓰는 문 `services/inquiryReply.sendInquiryReply` 하나(`POST /api/inquiries/admin/:id/replies`, 관리자당 분 5·일 50 · 문의당 하루 10통 · 같은 본문 60초 409 · 스팸 409).
   문의 행 FOR UPDATE 안에서 검사 + `sending` 행 → 커밋 → 발송은 밖. 받는 주소는 문의 행 `from_email` 고정(화면이 못 바꾼다) · 5분 넘은 sending = «결과 확인 안 됨»(실패로 보이면 두 통 나간다).
-  `replied_at` 은 내부 노트 저장 칸이라 건드리지 않는다 — 목록 «회신 n» 은 이 표(sent)에서. 성공이면 new→in_progress 만 조건부.
+  `replied_at` 은 내부 노트 저장 칸이라 건드리지 않는다 — 목록 «회신 n»·상황판 «회신함» 은 이 표(sent)에서. 성공이면 new→in_progress 만 조건부.
+  ★ **[보내고 완료로 닫기]**(2026-11-15, Irene «완료처리 되게 조치가 되어야» · Fable 설계) — `close:true` + sent 일 때만 new·in_progress→resolved(조건부). 자동 닫기는 없다(중간 회신까지 닫힌다).
   메일은 `emailService.sendInquiryReplyEmail` — 사람이 쓴 답이라 자동발송 헤더 셋을 빼는 길(`deliverEmail` 내부 인자)은 **이 함수만** 쓴다(공용 `sendEmail` 은 bool·헤더 그대로) · Reply-To = 플랫폼 문의 주소 · 본문·인용 escape.
   화면은 보내기 전 ConfirmDialog(이름·주소) · 보낸 뒤 상세 유지·초안 비움 · 실패면 이유와 글 유지. 운영 `migrate-inquiry-replies.js`(배포 슬롯).
