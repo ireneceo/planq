@@ -689,6 +689,9 @@ sync_database() {
   # 2026-10-29 피드백 AI 조사 — feedback_items.ai_triage JSON · ai_triage_verdict ENUM · ai_triage_at(멱등, 백필 없음).
   #   모델이 SELECT 하므로 PM2 reload 전. 쓰는 길은 scripts/feedback-triage.js(상황판이 부름) 하나.
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-feedback-triage.js 2>&1 | tail -5"
+  # 2026-11-15 문의·피드백 접수 확인 — feedback_items.ack_sent_at DATETIME NULL(멱등, 백필 없음 — 옛 건에 소급 발송 안 함).
+  #   모델이 SELECT 하므로 PM2 reload 전. 쓰는 곳 services/feedbackAck 하나. 설계 docs/FEEDBACK_AUTOREPLY_BOARD_DESIGN.md §1.
+  prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-feedback-ack.js 2>&1 | tail -5"
   # 2026-11-04 PlanQ 안내방 — conversations.channel_type ENUM 끝 'platform' · help_question_logs.mode 끝 'support_room' · support_rooms 표(멱등).
   #   모델이 새 값·표를 쓰므로 PM2 reload 전. 롤백은 코드만(값·표는 남겨도 무해). 설계 docs/PLANQ_GUIDE_ROOM_DESIGN.md §8.
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-support-room.js 2>&1 | tail -5"

@@ -95,6 +95,10 @@ FeedbackItem.init({
     allowNull: true, defaultValue: null,
   },
   ai_triage_at: { type: DataTypes.DATE, allowNull: true }, // «조사됨» 의 정본
+  // 접수 확인(고정 문구) 알림을 보낸 시각 (2026-11-15 · docs/FEEDBACK_AUTOREPLY_BOARD_DESIGN.md §1).
+  //   쓰는 곳 services/feedbackAck 하나 — «이미 보냄» 판정. 답글(admin_response)·상태와 무관. 보고자 응답(MINE_FIELDS)에 싣지 않는다.
+  //   운영: scripts/migrate-feedback-ack.js(멱등 · 백필 없음) — 코드보다 먼저.
+  ack_sent_at: { type: DataTypes.DATE, allowNull: true },
 }, {
   sequelize,
   tableName: 'feedback_items',

@@ -21,7 +21,7 @@ paths:
 - **피드백·문의는 플랫폼관리자 승인을 거쳐야 개발에 들어간다** (2026-10-22, Irene *"검토중을 무조건 거쳐야 해 … 진행대기 단계"* · Fable 설계) —
   접수(pending) → 검토중(reviewing) → **진행대기(queued, 승인)** → 반영중(in_progress) → 완료/보류. 승인 정본 = `approved_at IS NOT NULL`.
   전이는 `services/feedbackStatus` 한 곳(관리자 화면·`feedback-reply.js`·배포 닫기 `close-deployed-feedback.js`). 플랫폼관리자 최상위 제출만 즉시 진행대기.
-  상황판 «문의 가져오기» 는 개발시작.md 1-B 조회(진행대기만)를 읽는다. 운영 `migrate-feedback-approval.js`(배포 슬롯). 설계 `docs/FEEDBACK_APPROVAL_DESIGN.md`.
+  상황판 «문의 가져오기» 는 개발시작.md 1-B 조회(대기열은 진행대기만 · 칸에는 열린 건 전부)를 읽는다. 운영 `migrate-feedback-approval.js`(배포 슬롯). 설계 `docs/FEEDBACK_APPROVAL_DESIGN.md`.
 - **접수되면 AI 가 원인·고칠 방법만 조사해 관리자 상세에 붙인다** (2026-10-29, Irene «권고대로» · Fable 설계 `docs/FEEDBACK_AI_TRIAGE_DESIGN.md`) —
   `feedback_items.ai_triage`(JSON)·`ai_triage_verdict`·`ai_triage_at`(«조사됨» 정본). 조사는 개발 착수가 아니다 — 승인 규칙(진행대기만 개발) 그대로.
   쓰는 문은 `scripts/feedback-triage.js` 하나(검증 정본 `services/feedbackTriage`, 조사 칸만 · 알림 0 · 감사 `feedback.triage`) — Irene 10-29 지시 = **이 칸에 한한 운영 쓰기 상시 승인**.
@@ -31,3 +31,9 @@ paths:
   `POST /api/feedback/:id/ai-draft`(근거 = 같은 스레드 앞 대화 + 위키 + 피드백 AI 조사 요약) · `POST /api/inquiries/admin/:id/ai-draft`(손님 문의, 언어 = `locale`).
   화면은 칸을 채우기만 한다(`pages/Admin/AdminReplyDraftButton`) — 피드백은 [답글 저장]·단계 버튼, 손님 문의는 «회신 초안» 칸(내부 노트와 별개, 초안 kind `admin-inquiry-reply` 범위 `'platform'`)을 [메일로 회신] 이 본문으로 싣는다.
   근거에 없는 사실은 있다·없다 단정 금지(실측: «무료 체험 없음» 이라고 지어냈다 → 프롬프트로 막음). 자동 답변·PlanQ 직접 발송은 새 외부 발송 경로라 별도 설계(Fable).
+- **접수 확인(고정 문구)만 자동 — AI 답 자동 발송은 만들지 않는다** (2026-11-15, Irene «문의랑 피드백을 고객에게 자동으로 먼저 답변» · PurpleHere 같은 글 «권고대로» ① · Fable 설계 `docs/FEEDBACK_AUTOREPLY_BOARD_DESIGN.md`) —
+  `services/feedbackAck.sendFeedbackAck` 한 곳(POST /api/feedback 의 setImmediate). 기존 `notify()` 한 번(eventKind feedback — 종 알림 + 그 사람 설정대로 메일·푸시) · 문구 ko/en 고정 · 원문 인용 없음.
+  안 보냄: 후속 글 · 플랫폼관리자 제출 · 이미 보냄(`feedback_items.ack_sent_at`, 조건부 UPDATE 로 먼저 잡고 안 나가면 되돌림) · 같은 사람 24시간 5건 넘음.
+  `admin_response`·`responded_*`·`reply_seen_at`·상태·감사는 건드리지 않는다(respondToFeedback 을 거치지 않는다) · `ack_sent_at` 은 MINE_FIELDS 밖. 운영 `migrate-feedback-ack.js`(배포 슬롯). 회귀 health-check external «접수 확인».
+  2단계(상황판에서 초안 눌러 보내기)는 상황판 보내기 버튼 계약이 생긴 뒤 별도 설계 1회 + 검증 1회.
+- **상황판 «들어온 문의» 칸 = 열린 건 전부** (2026-11-15, 같은 설계 §2) — 개발시작.md 1-B ② · 조회 `scripts/feedback-board.sql`(개인정보 칸 없음) → `scripts/feedback-board.js --build/--post/--fail` · 판정 `services/feedbackBoard`(needsIrene 은 방이 못 고친다) · 시험 `scripts/feedback-board.selftest.js`. 보여 주기만 — 개발 대상 규칙(진행대기만)은 그대로.

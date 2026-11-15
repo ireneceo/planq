@@ -1617,6 +1617,58 @@ function defineSecretTests() {
     } finally { run(`require('dotenv').config();const M=require('./models');M.FeedbackItem.destroy({where:{id:${o.id}}}).then(()=>process.exit(0))`); }
   });
 
+  // ★ 2026-11-15 문의·피드백 접수 확인(docs/FEEDBACK_AUTOREPLY_BOARD_DESIGN.md §1 · services/feedbackAck) —
+  //   최상위 제출 → 제출자 알림 1건 + ack_sent_at, 답 칸(admin_response·responded_at)·상태는 그대로.
+  //   보내지 않는 경우(후속 글·플랫폼관리자) → 0건. 제외 조건을 빼면 이 검사가 빨갛게 된다(2026-11-15 반증 확인).
+  test('external', '문의·피드백 접수 확인 — 최상위 1건 · 후속 글·플랫폼관리자 0건 · 답 칸 그대로', async () => {
+    if (!BACKEND.startsWith('http://localhost')) return true;
+    const run = (code) => execSync(`node -e "${code}"`, { cwd: '/opt/planq/dev-backend', encoding: 'utf8', timeout: 120000 });
+    const stamp = Date.now();
+    const out = run(`require('dotenv').config();const M=require('./models');const T=require('./services/authTokens');(async()=>{`
+      + `const c=await M.User.findOne({where:{email:'client@test.planq.kr'}});const a=await M.User.findOne({where:{email:'admin@test.planq.kr'}});`
+      + `console.log('OUT='+JSON.stringify({cid:c.id,aid:a.id,ct:T.generateAccessToken(c),at:T.generateAccessToken(a)}));process.exit(0)})().catch(e=>{console.error(e.message);process.exit(1)})`);
+    const o = JSON.parse(out.split('\n').find((l) => l.startsWith('OUT=')).slice(4));
+    const ids = [];
+    let verified0 = null;
+    const post = async (tok, body) => {
+      const r = await http('POST', `${BACKEND}/api/feedback`, { headers: { Authorization: `Bearer ${tok}` }, body, expectStatus: 201 });
+      const id = r && (r.data ? r.data.id : (r.body && r.body.data && r.body.data.id));
+      if (id) ids.push(id); return id;
+    };
+    try {
+      const top = await post(o.ct, { kind: 'inquiry', title: `[health] ack ${stamp}`, body: 'x', business_id: 6 });
+      const adm = await post(o.at, { kind: 'feedback', title: `[health] ack-admin ${stamp}`, body: 'x' });
+      if (!top || !adm) throw new Error('제출 id 를 못 읽음');
+      // 후속 글은 답이 있어야 쓸 수 있다 — 시험 답을 DB 로 단다(답 알림 경로 밖)
+      run(`require('dotenv').config();const M=require('./models');M.FeedbackItem.update({admin_response:'hc',responded_at:new Date()},{where:{id:${Number(top)}}}).then(()=>process.exit(0))`);
+      const fup = await post(o.ct, { parent_id: top, body: `[health] ack-followup ${stamp}` });
+      // 메일 인증 안 한 계정 — 종 알림은 가되 메일은 0(가입 직후 토큰으로 남의 주소에 자유 문구 메일을 보내던 구멍, 2026-11-15 Fable FAIL).
+      //   시험 고객 계정의 인증 시각을 잠깐 비우고(아래 finally 에서 되돌림) 제출한다.
+      const vOut = run(`require('dotenv').config();const M=require('./models');M.User.findByPk(${o.cid},{attributes:['id','email_verified_at']}).then(u=>{console.log('V='+(u.email_verified_at?new Date(u.email_verified_at).toISOString():''));return M.User.update({email_verified_at:null},{where:{id:${o.cid}}})}).then(()=>process.exit(0))`);
+      verified0 = (vOut.split('\n').find((l) => l.startsWith('V=')) || 'V=').slice(2);
+      const unv = await post(o.ct, { kind: 'feedback', title: `[health] ack-unverified ${stamp}`, body: 'x', business_id: 6 });
+      await new Promise((r) => setTimeout(r, 2500));
+      const res = run(`require('dotenv').config();const M=require('./models');(async()=>{const n=(u,id)=>M.Notification.count({where:{user_id:u,entity_type:'feedback_item',entity_id:id}});`
+        + `const t=await M.FeedbackItem.findByPk(${Number(top)});`
+        + `const ml=(k)=>M.EmailLog.count({where:{template:'notify:feedback',to_email:'client@test.planq.kr',subject:{[require('sequelize').Op.like]:'%'+k+' ${stamp}%'}}});`
+        + `console.log('R='+JSON.stringify({top:await n(${o.cid},${Number(top)}),ack:!!t.ack_sent_at,st:t.status,fup:await n(${o.cid},${Number(fup)}),adm:await n(${o.aid},${Number(adm)}),`
+        + `unv:await n(${o.cid},${Number(unv)}),unvMail:await ml('ack-unverified'),topMail:await ml('ack')}));process.exit(0)})()`);
+      const r = JSON.parse(res.split('\n').find((l) => l.startsWith('R=')).slice(2));
+      if (r.top !== 1 || !r.ack) throw new Error(`최상위 접수 확인 ${r.top}건·ack ${r.ack} (기대 1·true)`);
+      if (r.st !== 'pending') throw new Error(`상태가 바뀜: ${r.st}`);
+      if (r.fup !== 0) throw new Error(`후속 글에 접수 확인 ${r.fup}건`);
+      if (r.adm !== 0) throw new Error(`플랫폼관리자 제출에 접수 확인 ${r.adm}건`);
+      if (r.unv !== 1) throw new Error(`미인증 계정 접수 확인 종 알림 ${r.unv}건 (기대 1)`);
+      if (r.unvMail !== 0) throw new Error(`미인증 계정에 접수 확인 메일 기록 ${r.unvMail}건 (기대 0)`);
+      // 대조군 — 인증된 계정의 최상위 건은 메일 기록이 있다(dev 는 skipped 로 남는다). 없으면 위 0 이 거짓 통과일 수 있다.
+      if (r.topMail < 1) throw new Error('대조군 실패 — 인증 계정 접수 확인 메일 기록이 0 (메일 기록 경로가 안 돈다)');
+      return '최상위 1 · 후속 0 · 관리자 0 · 미인증 메일 0(종 1) · 상태 pending';
+    } finally {
+      if (verified0 !== null) run(`require('dotenv').config();const M=require('./models');M.User.update({email_verified_at:${verified0 ? `new Date('${verified0}')` : 'null'}},{where:{id:${o.cid}}}).then(()=>process.exit(0))`);
+      if (ids.length) run(`require('dotenv').config();const M=require('./models');(async()=>{await M.Notification.destroy({where:{entity_type:'feedback_item',entity_id:[${ids.map(Number).join(',')}]}});await M.FeedbackItem.destroy({where:{id:[${ids.map(Number).join(',')}]}});process.exit(0)})()`);
+    }
+  });
+
   test('secrets', '워크스페이스 백업(CSV·JSON)에 토큰·비밀 칸 값·나만 보기 항목이 실리지 않는다', async () => {
     if (!BACKEND.startsWith('http://localhost')) return true;
     const run = (code) => execSync(`node -e "${code}"`, { cwd: '/opt/planq/dev-backend', encoding: 'utf8', timeout: 120000 });

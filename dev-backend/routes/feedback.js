@@ -169,6 +169,9 @@ router.post('/', authenticateToken, async (req, res, next) => {
         ctaLabel: '피드백 보기',
         relatedEntityId: parent ? parent.id : item.id,
       }).catch(() => null);
+      // 제출자에게 접수 확인(고정 문구) — 판정·발송은 services/feedbackAck 한 곳. 실패해도 제출은 201.
+      //   (설계 docs/FEEDBACK_AUTOREPLY_BOARD_DESIGN.md §1 · 후속 글·플랫폼관리자·이미 보냄·24시간 5건 넘음은 안 보낸다)
+      require('../services/feedbackAck').sendFeedbackAck(item, { ioApp: req.app }).catch(() => null);
     });
 
     return successResponse(res, pickMine(item), 'Submitted', 201);

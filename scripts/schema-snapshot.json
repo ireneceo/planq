@@ -1,5 +1,5 @@
 {
-  "_generated": "2026-11-08",
+  "_generated": "2026-11-15",
   "_db": "planq_dev_db",
   "_note": "스키마 변경 후 `node scripts/dump-schema.js` 로 갱신할 것. guard-invariants schemacol 이 읽는다.",
   "tables": {
@@ -584,6 +584,18 @@
       "created_at",
       "updated_at"
     ],
+    "conversation_care": [
+      "conversation_id",
+      "business_id",
+      "state",
+      "state_changed_at",
+      "state_changed_by",
+      "assignee_user_id",
+      "assigned_at",
+      "assigned_by",
+      "created_at",
+      "updated_at"
+    ],
     "conversation_participants": [
       "id",
       "conversation_id",
@@ -593,6 +605,7 @@
       "joined_at",
       "created_at",
       "pinned_at",
+      "muted_at",
       "last_read_at"
     ],
     "conversations": [
@@ -977,6 +990,7 @@
       "is_following",
       "last_read_message_id",
       "last_read_at",
+      "marked_unread",
       "is_viewing",
       "viewing_started_at",
       "is_drafting",
@@ -1146,7 +1160,8 @@
       "error_context",
       "ai_triage",
       "ai_triage_verdict",
-      "ai_triage_at"
+      "ai_triage_at",
+      "ack_sent_at"
     ],
     "file_folders": [
       "id",
