@@ -1354,6 +1354,14 @@
 - 바꾼 것: `video-engine/lib/voice.js` `dropRetakes`·`captionChunks` · `build/storyboard.js` 녹음 자막을 틀로 나눔 + 한 문장 나눈 자막끼리 안 겹치게 · `prep-voice.js` 로그에 «다시 말한 시도» · 설계 §6 ①-4·6.
 - 검증: 합성 단어 시험 12/12(부분·한 단어·세 번·통째 재테이크 + 대조군 3: 나란한 완결 문장·다른 말·한 단어만 겹침은 남김 · 긴 문장 → 2자막 각 두 줄 16자 안 · 단어 빠짐 0 · 끝 마침표) · 실제 시험 녹음(영어 89단어) 재테이크 0 = 전과 같음 · test-luna 11문장 → 23자막 틀 벗어남 0 · storyboard 불러오기 OK. **렌더로 화면 확인은 안 함** — Irene 녹음(todomvtt2bas) 영상 만들 때 같이 본다.
 
+### ✅ 시연 영상 렌더 — 서버 메모리 자리표로 (방 b4b90288 · 2026-11-15 · [Opus] · Fable 안 씀 — 내부 도구 실행 방식)
+- Irene 할 일 «서버 방에 렌더 게이트 보강 맡기기» 확인: 서버 대기열에 들어가 있음(qid mwhmrylw, 11-15 09:27) · 아직 안 함(`/var/www/scripts/heavy-task-gate.sh` 그대로 09-06).
+- 대신 11-03 생긴 공용 «메모리 자리표»(mem-slot)로 같은 일을 이 방에서 끝냄: 작업자 렌더 = `mem-slot run planq-video 3200 -- node render.js …` · 자리표 안이면 옛 게이트 안 기다림.
+- 실측: 렌더 중 자리 «planq-video 몫 3200 상자 4160» 잡힘 · 표시 파일 logs/video-render-running.pid 있음(명령줄 video-engine/render.js) · 끝나면 표시 파일·자리 둘 다 빔 · 렌더 완성(6조각 재사용 1초).
+  - 고친 것: 처음엔 자리를 쥔 채 옛 게이트(남은 메모리 2.5GB)를 기다려 PurpleHere 빌드가 줄을 섰다 → 내 시험 렌더를 멈춰 자리 풀고(그 빌드 먼저) 자리표 안이면 옛 게이트 건너뛰게 고침.
+- 서버 방 일(heavy-task-gate 에 표시 파일 보기)은 자리표가 이미 막으므로 **없어도 된다** — 해도 해롭지 않음(직접 자리표 없이 돌린 렌더까지 막음).
+- Q talk 목록 미리보기 버그는 11-05 다른 방이 검증·커밋(2e4aa3e5) — talk-d 다시 녹화: 노들커머스 줄 미리보기 정상. 남은 검수 걸림 = 새로 생긴 «PlanQ 안내» 대화방(데모에 메시지 0 → «아직 대화가 없어요» 진짜 빈 화면) · client-d 고객 작업대 «아직 메모가 없습니다». → 다음: 데모 시드가 «PlanQ 안내» 방을 어떻게 채우는지 보고 채우거나, talk-d 녹화를 그 줄이 안 보이게(목록 스크롤·필터 «고객»).
+
 ### 🔧 진행 중: 시연·홍보 영상 C단계(엔진) — 지시 영상 ✅ · 녹음 영상은 Irene 녹음 대기 (방 b4b90288 · 2026-10-30 · [Opus] · Fable 미검증(자체 검증) — 설계 PASS 범위 안 구현, dev 전용 도구)
 - 커밋 88d9b02f(엔진 1) · 다음 커밋(엔진 2: 녹화 장면 project-d·file-d, 검수 오탐 예외, 데모 프로젝트 메모, c2 대본).
 - 결과 페이지 https://claude.ai/artifact/3saAMi8fdmQSWKSBQy6VEw (판 2 — C단계 절 추가) · 원본 `video-engine/out/renders/c2-instruction-{16x9,9x16}.mp4`(38.5s · 대기열 작업자 → 조각 렌더 9조각).
@@ -2769,6 +2777,7 @@
 - 10-23 Irene: «이미 했어(실기기 확인), 애플이랑 구글 다시 업로드하자» → 할 일 todomvbezw7s 를 «Codemagic iOS·안드로이드 새 빌드 → App Store 심사 제출·Play 새 버전» 으로 고쳐 다시 올림(방 55d1cade). 앱 파일은 GitHub 과 같음(버전 1.70.1, iOS MARKETING_VERSION 1.0.1 — 이미 출시된 번호면 올려야 함).
 - 10-23 Irene «했어요»(메모 없음). 서버에서 읽어 본 것: App Store 공개 버전 1.0(10-01) → 1.0.1 은 아직 안 쓰인 번호라 버전 올릴 필요 없음. Codemagic 빌드·TestFlight·심사·Play 상태는 이 서버에 읽을 열쇠가 없어 확인 못 함 → 심사 결과 대기.
 - 10-29 방 9572baa2 PlanQ 메일로 확인: Codemagic 마지막 iOS 빌드 10-14 #21(TestFlight 1.0.1 (20)) · 그 뒤 빌드·TestFlight·심사 메일 0건 · App Store 공개 1.0(10-01) 그대로 → «했어요» 는 실제로 안 된 것. 아이패드 로그인 고침 f5ad8c36(10-16)은 어떤 앱 빌드에도 없음. 안드로이드 #17(1.70.1)은 최신 코드와 같음. ✔ 로 옮기지 않고 새 할 일 todomvswjmxv «Codemagic iOS 새 빌드 → 그 빌드로 심사 제출» 올림.
+- 11-15 Irene: Google 로그인 Codemagic 은 빈 계정(앱 «planq» Finish build setup · 빌드 0) · Play 최신 9/18 1.0(코드 30) → 빌드 안 함. 방 9572baa2: 빌드 #17~#21 은 **GitHub 로그인(ireneceo) Codemagic 계정**(docs/IOS_BETA_RUNBOOK.md:84 «GitHub 계정으로 가입»)에 있다고 판단 — 카드 todomvswjmxv 를 «GitHub 로 로그인 → iOS·Android 둘 다 새 빌드 → 심사·Play 새 버전» 으로 고쳐 다시 올림. 확인 못 함: GitHub 계정 안 화면.
 
 ### 완료: Cue 고객 자동답변 재료 = 그 고객에 연결된 것만 (방 81843b55 · 2026-10-16 · [Opus] · 설계 Fable) — 운영 미배포 · a0b42a7b
 - 원문: «워크스페이스 내용들 중 보안단위가 전체워크스페이스여도 고객에게는 안보이는 거 맞지? 고객은 연결된 곳만 보이는 거야.»
