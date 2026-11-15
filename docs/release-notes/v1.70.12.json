@@ -1,0 +1,52 @@
+{
+  "version": "1.70.12",
+  "date": "2026-11-15",
+  "_auto": true,
+  "_range": "c1521b4a..d1c6b0ec",
+  "summary": {
+    "ko": "iOS 공유·문의 회신·일정 보기 등 사용성이 좋아졌어요",
+    "en": "Improved iOS sharing, inquiry replies, and schedule views for smoother use"
+  },
+  "items": [
+    {
+      "ko": {
+        "title": "iOS에서 사진·파일을 바로 PlanQ로 공유",
+        "body": "iOS 앱에서 사진이나 파일을 열고 «공유»를 누르면 PlanQ로 바로 보내 저장할 수 있습니다. 다른 앱을 쓰다가도 PlanQ에 쉽게 모아둘 수 있어요."
+      },
+      "en": {
+        "title": "Share photos and files directly to PlanQ on iOS",
+        "body": "From the iOS share menu, you can now send photos and files straight into PlanQ. It’s easier to collect what you see in other apps and keep it organized in PlanQ."
+      }
+    },
+    {
+      "ko": {
+        "title": "문의 인박스에서 바로 회신 메일 발송",
+        "body": "문의 인박스에서 답장을 보내면 PlanQ가 직접 회신 메일을 보내고, 그 내용이 문의 기록에 함께 남습니다. 문의별 대화를 한 화면에서 이어서 볼 수 있어요."
+      },
+      "en": {
+        "title": "Reply to inquiries and send emails directly from the inbox",
+        "body": "When you reply from the inquiry inbox, PlanQ now sends the email directly and saves the reply in the inquiry history. You can follow the full conversation in one place."
+      }
+    },
+    {
+      "ko": {
+        "title": "폰 일정 목록·월 보기 사용성 개선",
+        "body": "폰 일정 목록 보기가 오늘 날짜부터 시작되며, 지난 일정은 버튼으로 모아서 볼 수 있습니다. 월 보기에서는 점 표시와 함께 선택한 날의 일정 목록을 아래에서 바로 확인할 수 있고, «아젠다» 이름을 «목록»으로 바꿔 더 쉽게 찾을 수 있어요."
+      },
+      "en": {
+        "title": "Better mobile schedule list and month views",
+        "body": "On phones, the schedule list view now starts from today, with past dates available via a button. In the month view, you can see dots and the selected day’s schedule list below, and the former “Agenda” view is now labeled “List” for clarity."
+      }
+    },
+    {
+      "ko": {
+        "title": "그 밖의 개선",
+        "body": "안드로이드 앱 빌드 번호 규칙을 조정해 스토어 업데이트가 더 안정적으로 이뤄집니다. 추가 슬롯 신청 시 오류가 나면 원인을 알 수 있도록 오류 번호를 보여주며, 고객 한도 계산에서 초대만 받은 고객과 문의·정보만 등록된 고객은 한도에 포함되지 않도록 정리했습니다."
+      },
+      "en": {
+        "title": "Other improvements",
+        "body": "Android app build numbering has been adjusted so store updates work more reliably. When extra slots cannot be added, an error code now helps you understand what went wrong. Customer limits now count only customers who have actually joined, excluding inquiries and info-only entries."
+      }
+    }
+  ]
+}
