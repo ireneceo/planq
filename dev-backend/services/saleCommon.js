@@ -184,7 +184,7 @@ async function serializeClients(businessId, rows) {
     // 관계 축 판정 — 화면은 이 두 값만 본다(services/clientAccess 단일 원천)
     can_invite: c.can_invite,
     email_editable: c.email_editable,
-    quota_counted: c.status !== 'prospect',
+    quota_counted: c.status === 'active' && !!c.user_id,   // 고객 한도 = 입장한 고객(services/clientQuota.billableClientWhere 와 같은 판정)
     project_count: (linked.get(c.id) || []).length,
     sales_stage: c.sales_stage,
     sales_stage_changed_at: c.sales_stage_changed_at,

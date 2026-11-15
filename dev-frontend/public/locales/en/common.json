@@ -50,7 +50,8 @@
     "loginAsInvited": "Sign in as {{invited}}",
     "acceptAsCurrent": "Accept with current account",
     "forOtherAccount": "This invitation is for the {{invited}} account. Sign in with that account to accept it.",
-    "onlyInvitedAccount": "It can only be accepted with that account."
+    "onlyInvitedAccount": "It can only be accepted with that account.",
+    "clientsQuotaExceeded": "This workspace has reached its client limit. Please contact the person who invited you."
   },
   "time": {
     "justNow": "just now",
@@ -1107,7 +1108,7 @@
     },
     "clients": {
       "title": "Client limit reached",
-      "desc": "You've hit your plan's client cap. Add slots or upgrade.",
+      "desc": "The number of clients who joined by invite has reached your plan's limit. Add an add-on or upgrade your plan.",
       "addon": "Client slots add-on: ₩2,900/mo for 10"
     },
     "projects": {

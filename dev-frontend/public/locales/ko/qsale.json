@@ -40,11 +40,11 @@
   },
   "quota": {
     "counted": "한도: 포함",
-    "not_counted": "한도: 미포함 · 추가하거나 초대하면 포함",
-    "header": "고객 {{clients}}/{{clients_max}} · 문의 {{prospects}}/{{prospects_max}}",
+    "not_counted": "한도: 미포함 · 초대받아 입장하면 포함",
+    "header": "입장 고객 {{clients}}/{{clients_max}} · 문의 {{prospects}}/{{prospects_max}}",
     "unlimited": "무제한",
-    "invite_notice": "추가하거나 초대하면 고객 한도에 포함됩니다 (지금 {{clients}} / {{clients_max}})",
-    "tip": "고객 = 추가했거나 초대한 고객(계정 유무 무관) · 문의 = 아직 등록하지 않은 상담 상대. 숫자는 현재 / 플랜 한도입니다.",
+    "invite_notice": "초대받은 고객이 입장하면 고객 한도에 포함됩니다 (지금 {{clients}} / {{clients_max}})",
+    "tip": "고객 한도 = 초대를 받아 입장한 고객 수 · 정보만 등록한 고객·문의 고객·초대 대기는 세지 않습니다. 숫자는 현재 / 플랜 한도입니다.",
     "raise": "한도 늘리기"
   },
   "source": {
@@ -186,7 +186,7 @@
     "proceedConsult": "상담 진행",
     "registerManaged": "고객으로 추가",
     "registerManagedTitle": "고객으로 추가할까요?",
-    "registerManagedBody": "메일은 보내지 않습니다. 우리가 정보를 넣어 관리하는 «추가한 고객» 이 되어 고객 한도에 들어가고, 청구서·프로젝트에 씁니다. 영업 단계는 그대로입니다.",
+    "registerManagedBody": "메일은 보내지 않습니다. 우리가 정보를 넣어 관리하는 «추가한 고객» 이 되어 청구서·프로젝트에 씁니다. 고객 한도에는 들어가지 않습니다. 영업 단계는 그대로입니다.",
     "archiveClient": "보관",
     "restoreClient": "되살리기",
     "archiveError": {

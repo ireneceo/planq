@@ -86,8 +86,9 @@ router.post('/:businessId/invite', authenticateToken, checkBusinessAccess, requi
     if (target) {
       const blocked = sourceConflict(target.id);
       if (blocked) return blocked;
-      // 문의 고객은 초대하는 순간 정식 고객 한도에 들어간다 — 그때만 센다. 직접 관리 고객은 이미 세고 있다(+0).
-      if (target.status === 'prospect') {
+      // 고객 한도는 «입장한 고객» 만 센다(2026-11-15 · clientQuota). 문의·직접 관리 고객 모두 아직 안 세므로
+      //   초대 보내기 전에 자리를 본다. 마지막 문은 입장(services/invites assertClientSeat)이다.
+      {
         const planCan = await planEngine.can(businessId, 'add_client');
         if (!planCan.ok) return res.status(422).json(planEngine.buildQuotaError(planCan, businessId));
       }
@@ -200,9 +201,8 @@ router.post('/:businessId/managed', authenticateToken, checkBusinessAccess, requ
       return errorResponse(res, 'already_member', 409, 'already_member');
     }
 
+    // 직접 관리 고객은 고객 한도에 들어가지 않는다(2026-11-15 Irene «Q sales 에 나오는 고객은 DB일 뿐»).
     const planEngine = require('../services/plan');
-    const planCan = await planEngine.can(businessId, 'add_client');
-    if (!planCan.ok) return res.status(422).json(planEngine.buildQuotaError(planCan, businessId));
 
     if (upgrade) {
       // 빈 칸만 채운다 — 사람이 이미 적은 값은 덮지 않는다(register-managed 와 같은 감사 이름)
@@ -252,7 +252,7 @@ router.post('/:businessId/managed', authenticateToken, checkBusinessAccess, requ
 });
 
 // 문의 고객 → 직접 관리 고객(계정 없이 정식 고객으로) — 사람이 누르는 문. 영업 단계(sales_stage)는 건드리지 않는다.
-//   정식 고객 한도에 들어가므로 add_client 를 본다.
+//   직접 관리 고객은 고객 한도에 들어가지 않는다(2026-11-15 — 한도 = 입장한 고객, services/clientQuota).
 router.post('/:businessId/:id/register-managed', authenticateToken, checkBusinessAccess, requireMenu('qsale', 'write'), async (req, res, next) => {
   try {
     const businessId = Number(req.params.businessId);
@@ -260,8 +260,6 @@ router.post('/:businessId/:id/register-managed', authenticateToken, checkBusines
     if (!client) return errorResponse(res, 'Client not found', 404);
     if (client.status !== 'prospect' || client.user_id) return errorResponse(res, 'not_prospect', 409);
     const planEngine = require('../services/plan');
-    const planCan = await planEngine.can(businessId, 'add_client');
-    if (!planCan.ok) return res.status(422).json(planEngine.buildQuotaError(planCan, businessId));
     await client.update({ status: 'managed' });
     await createAuditLog({
       userId: req.user.id, businessId,

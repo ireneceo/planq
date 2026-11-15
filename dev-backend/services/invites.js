@@ -132,6 +132,74 @@ function isSameInvitee(user, inviteEmail, prefilledUserId) {
   return !!a && !!b && a === b;
 }
 
+// ─── 입장 게이트 — 고객 한도는 «입장한 고객» 만 센다(2026-11-15 Irene · Fable 설계) ───
+//   대기 초대는 세지 않으므로 초대를 한도보다 많이 보낼 수 있다 → 마지막 문은 입장이다.
+//   술어는 clientQuota 한 곳. 같은 워크스페이스 동시 수락은 Business 행 잠금으로 줄을 세운다.
+//   이미 이 워크스페이스의 입장 고객인 계정이면 +0 이라 통과한다.
+// 자리 판정 한 벌 — 입장 게이트(잠금 안)와 가입 횟수 제한 예외(middleware/security isLiveInviteSignup)가 같이 쓴다.
+//   «수락이 성공할 토큰» 과 «IP 한도를 건너뛰는 토큰» 이 갈라지면 꽉 찬 워크스페이스의 살아 있는 초대가
+//   영구 열쇠가 된다(2026-11-15 Fable FAIL 실측 — 같은 계열 2026-10-09).
+//   +0 인 경우: 이 계정이 이미 그 워크스페이스의 입장 고객 · 수락이 채울 고객 행(clientId)이 이미 세는 행.
+async function clientSeatCheck(businessId, { userId = null, clientId = null, transaction = null } = {}) {
+  if (!businessId) return { ok: true };
+  const { billableClientWhere } = require('./clientQuota');
+  const tx = transaction ? { transaction } : {};
+  if (userId && await Client.count({ where: { ...billableClientWhere(businessId), user_id: userId }, ...tx }) > 0) return { ok: true };
+  if (clientId && await Client.count({ where: { ...billableClientWhere(businessId), id: clientId }, ...tx }) > 0) return { ok: true };
+  const limits = await require('./plan').getEffectiveLimits(businessId);
+  const max = limits.clients_max;
+  if (max === undefined || max === null || max === Infinity) return { ok: true };
+  const cur = await Client.count({ where: billableClientWhere(businessId), ...tx });
+  return cur + 1 > max ? { ok: false, limit: max, current: cur } : { ok: true };
+}
+
+/** 토큰 해석 결과(resolveInviteToken)로 «이 고객 초대를 지금 수락할 자리가 있나» — 잠금 없이 읽기만. */
+async function inviteClientSeatOk(resolved, userId = null) {
+  if (!resolved || (resolved.type !== 'workspace_client' && resolved.type !== 'project_client')) return true;
+  let wsId = resolved.business_id;
+  if (!wsId && resolved.type === 'project_client') {
+    wsId = (await Project.findByPk(resolved.record.project_id, { attributes: ['business_id'] }))?.business_id;
+  }
+  const clientId = resolved.type === 'project_client' ? resolved.record.client_id : resolved.record.id;
+  return (await clientSeatCheck(wsId, { userId, clientId })).ok;
+}
+
+async function assertClientSeat(businessId, userId, t, clientId = null) {
+  if (!businessId) return;
+  await Business.findOne({ where: { id: businessId }, attributes: ['id'], transaction: t, lock: t.LOCK.UPDATE });
+  const r = await clientSeatCheck(businessId, { userId, clientId, transaction: t });
+  if (!r.ok) {
+    throw new InviteError('clients_quota_exceeded', 409, {
+      success: false, message: 'clients_quota_exceeded', code: 'clients_quota_exceeded', limit: r.limit, current: r.current,
+    });
+  }
+}
+
+// 입장이 막혔다고 초대한 사람에게 앱 안에서만 한 번 알린다(메일·푸시 없음 · 같은 초대 반복 시도는 1건).
+async function notifyInviterSeatFull(inviterUserId, businessId, entityType, entityId, accepterUserId) {
+  if (!inviterUserId || !businessId) return;
+  const { Notification } = require('../models');
+  const exists = await Notification.findOne({
+    where: { user_id: inviterUserId, entity_type: `${entityType}_seat_full`, entity_id: entityId },
+    attributes: ['id'],
+  }).catch(() => null);
+  if (exists) return;
+  const accepter = await User.findByPk(accepterUserId, { attributes: ['name', 'email'] });
+  const biz = await Business.findByPk(businessId, { attributes: ['name', 'brand_name'] });
+  const { notify } = require('../routes/notifications');
+  await notify({
+    userId: inviterUserId, businessId, eventKind: 'invite',
+    title: (lang) => (lang === 'en'
+      ? 'An invited client tried to join, but the client limit is full'
+      : '초대한 고객이 입장하려 했지만 고객 한도가 찼습니다'),
+    body: accepter?.name || accepter?.email || '',
+    link: '/sale?tab=clients', ctaLabel: (lang) => (lang === 'en' ? 'View clients' : '고객 보기'),
+    workspaceName: biz?.brand_name || biz?.name || null,
+    entityType: `${entityType}_seat_full`, entityId,
+    skipChannels: ['email', 'push'],
+  });
+}
+
 /**
  * 세 타입 공통 수락.
  * @param {User|{id:number}} user  로그인(또는 방금 만든) 사용자
@@ -177,6 +245,17 @@ async function acceptInviteInner(user, resolved, opts = {}) {
       if (await require('./clientToMember').isActiveWorkspaceMember(wsId, user.id, { transaction: t })) {
         await t.rollback();
         throw new InviteError('already_member', 409);
+      }
+      // 고객 한도 — 입장하는 순간에 센다. 막히면 롤백하고 토큰은 그대로 둔다(자리가 나면 같은 링크로 입장).
+      try { await assertClientSeat(wsId, user.id, t, resolved.type === 'project_client' ? resolved.record.client_id : resolved.record.id); }
+      catch (e) {
+        await t.rollback();
+        if (e instanceof InviteError && e.code === 'clients_quota_exceeded') {
+          const r = resolved.record;
+          notifyInviterSeatFull(r.invited_by, wsId, resolved.type, r.id, user.id)
+            .catch((err) => console.warn('[invite seat full notify]', err.message));
+        }
+        throw e;
       }
     }
 
@@ -233,6 +312,7 @@ async function acceptInviteInner(user, resolved, opts = {}) {
           if (cl && cl.user_id) await require('./clientOnboarding').ensureWelcomeConversation(cl, { io });
         } catch (e) { console.warn('[invite project welcome]', e.message); }
       }
+      try { require('./plan').invalidateBusinessCache(bizId); } catch { /* 캐시일 뿐이다 */ }
       await landOn(user, bizId);
       broadcast(io, bizId, 'project_client:updated', { project_id: pc.project_id, id: pc.id });
       notifyInviterOnAccept(pc.invited_by, pc.project_id, 'project_client', user.id, null).catch((e) => console.warn('[notify invite project_client]', e.message));
@@ -263,6 +343,7 @@ async function acceptInviteInner(user, resolved, opts = {}) {
       // 이미 연결돼 있던 프로젝트에 이 계정을 들인다(안 하면 고객 화면에서 프로젝트·채팅방이 통째로 안 보인다)
       await require('./clientOnboarding').linkClientToProjects(cl, { transaction: t });
       await t.commit();
+      try { require('./plan').invalidateBusinessCache(cl.business_id); } catch { /* 캐시일 뿐이다 */ }
       await landOn(user, cl.business_id);
       broadcast(io, cl.business_id, 'client:updated', { id: cl.id, business_id: cl.business_id });
       notifyInviterOnAccept(cl.invited_by, null, 'workspace_client', user.id, cl.business_id).catch((e) => console.warn('[notify invite workspace_client]', e.message));
@@ -387,4 +468,4 @@ async function notifyInviterOnAccept(inviterUserId, projectId, kind, accepterUse
   });
 }
 
-module.exports = { resolveInviteToken, acceptInvite, InviteError, notifyInviterOnAccept, inviteeAccountOf };
+module.exports = { resolveInviteToken, acceptInvite, InviteError, notifyInviterOnAccept, inviteeAccountOf, inviteClientSeatOk };

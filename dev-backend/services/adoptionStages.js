@@ -14,7 +14,7 @@ const { QueryTypes } = require('sequelize');
 const { sequelize } = require('../config/database');
 const { getMemberMenuLevels } = require('../middleware/menu_permission');
 const { mailAttachmentFileIds } = require('./mailAttachmentFiles');
-const { billableClientWhere } = require('./clientQuota');
+const { registeredClientWhere } = require('./clientQuota');
 const { Client } = require('../models');
 const { notPlatformSql } = require('../middleware/access_scope');
 
@@ -127,7 +127,7 @@ async function getAdoptionStages({ businessId, userId, role }) {
     create_document: () => countOne(
       'SELECT COUNT(*) n FROM posts WHERE business_id = :biz AND author_id = :me AND deleted_at IS NULL', R),
     // 고객 초대 — 기존 «고객 초대» 줄·요금제 한도와 같은 술어(문의 고객 prospect 는 초대가 아니다).
-    invite_client: () => Client.count({ where: billableClientWhere(biz) }),
+    invite_client: () => Client.count({ where: registeredClientWhere(biz) }),
     client_chat: () => countOne(
       `SELECT COUNT(*) n FROM messages m JOIN conversations c ON c.id = m.conversation_id
         WHERE c.business_id = :biz AND m.sender_id = :me AND m.kind = 'text' AND ${CLIENT_CONV} AND ${notPlatformSql('c')}`, R),

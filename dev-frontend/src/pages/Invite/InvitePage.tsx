@@ -22,7 +22,7 @@ interface InviteInfo {
 }
 
 // 이 화면이 직접 사람 말로 바꾸는 코드 — 공용 매퍼로 보내면 «처리 중 오류 (…)» 가 된다.
-const INVITE_CODES = ['already_accepted', 'already_member', 'email_mismatch', 'invalid_or_expired_invite', 'invite_expired', 'invite_not_found', 'invite_for_other_account'];
+const INVITE_CODES = ['already_accepted', 'already_member', 'email_mismatch', 'invalid_or_expired_invite', 'invite_expired', 'invite_not_found', 'invite_for_other_account', 'clients_quota_exceeded'];
 
 const InvitePage: React.FC = () => {
   const { token } = useParams<{ token: string }>();
@@ -118,6 +118,7 @@ const InvitePage: React.FC = () => {
     if (code === 'invite_for_other_account') return t('invite.forOtherAccount', '이 초대는 {{invited}} 계정 앞으로 왔습니다. 그 계정으로 로그인해야 수락할 수 있어요.', { invited: invitedEmail });
     if (code === 'email_mismatch') return t('invite.emailMismatch', '이 초대는 다른 이메일 주소로 발송되었습니다. 초대받은 이메일로 로그인해 주세요.');
     if (code === 'already_accepted') return t('invite.alreadyAcceptedError', '이미 수락된 초대입니다.');
+    if (code === 'clients_quota_exceeded') return t('invite.clientsQuotaExceeded', '이 워크스페이스의 고객 정원이 가득 찼습니다. 초대한 분에게 문의해 주세요.');
     return code;
   };
 

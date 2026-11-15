@@ -50,7 +50,8 @@
     "loginAsInvited": "{{invited}} 로 로그인",
     "acceptAsCurrent": "지금 계정으로 수락",
     "forOtherAccount": "이 초대는 {{invited}} 계정 앞으로 왔습니다. 그 계정으로 로그인해야 수락할 수 있어요.",
-    "onlyInvitedAccount": "이 초대는 그 계정으로만 수락할 수 있어요."
+    "onlyInvitedAccount": "이 초대는 그 계정으로만 수락할 수 있어요.",
+    "clientsQuotaExceeded": "이 워크스페이스의 고객 정원이 가득 찼습니다. 초대한 분에게 문의해 주세요."
   },
   "time": {
     "justNow": "방금",
@@ -1107,7 +1108,7 @@
     },
     "clients": {
       "title": "고객 수 한도 도달",
-      "desc": "현재 플랜의 고객 한도에 도달했습니다. add-on 또는 상위 플랜으로 늘리세요.",
+      "desc": "초대받아 입장한 고객 수가 현재 플랜의 한도에 도달했습니다. add-on 또는 상위 플랜으로 늘리세요.",
       "addon": "고객 슬롯 add-on: ₩2,900/월/10명"
     },
     "projects": {

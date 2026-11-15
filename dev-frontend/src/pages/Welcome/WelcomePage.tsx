@@ -72,7 +72,8 @@ const WelcomePage: React.FC = () => {
     try {
       const r = await apiFetch(`/api/me/invites/${row.type}/${row.id}/accept`, { method: 'POST' });
       const j = await r.json().catch(() => ({}));
-      if (r.status === 422) {
+      // 멤버 자리(422) · 고객 정원(409 clients_quota_exceeded — 입장 게이트) 둘 다 «자리가 없다»
+      if (r.status === 422 || j?.message === 'clients_quota_exceeded') {
         setRowState((s) => ({ ...s, [k]: { err: t('invites.quota', { workspace: row.workspace_name || '' }) as string } }));
         return;
       }

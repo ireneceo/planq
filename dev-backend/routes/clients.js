@@ -281,8 +281,15 @@ router.post('/:businessId/:id/archive', authenticateToken, checkBusinessAccess, 
     const { reactivatedStatusOf } = require('../services/clientAccess');
     const target = want === 'archived' ? 'archived' : reactivatedStatusOf(client);
     if (target === client.status) return successResponse(res, stripClientSecrets(client.toJSON()));
+    // 되살려 «입장한 고객»(active)이 되면 고객 한도 자리를 새로 쓴다 — 초대·입장과 같은 게이트(2026-11-15)
+    const planEngine = require('../services/plan');
+    if (target === 'active' && client.user_id && client.status !== 'active') {
+      const planCan = await planEngine.can(req.params.businessId, 'add_client');
+      if (!planCan.ok) return res.status(422).json(planEngine.buildQuotaError(planCan, req.params.businessId));
+    }
     const before = { status: client.status };
     await client.update({ status: target });
+    try { planEngine.invalidateBusinessCache(req.params.businessId); } catch { /* 캐시일 뿐이다 */ }
     if (target === 'archived') await require('../services/inviteNotify').dismissInviteNotice('client', client.id);
     await createAuditLog({
       userId: req.user.id, businessId: req.params.businessId,
@@ -332,6 +339,7 @@ router.delete('/:businessId/:id', authenticateToken, checkBusinessAccess, requir
     for (const pc of pcRows) await pc.destroy();
 
     await client.destroy();
+    try { require('../services/plan').invalidateBusinessCache(req.params.businessId); } catch { /* 캐시일 뿐이다 */ }
     await createAuditLog({
       userId: req.user.id, businessId: req.params.businessId,
       action: 'client.deleted', targetType: 'client', targetId: Number(req.params.id),

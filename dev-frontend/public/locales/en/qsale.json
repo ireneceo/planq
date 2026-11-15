@@ -40,11 +40,11 @@
   },
   "quota": {
     "counted": "Counts toward plan limit",
-    "not_counted": "Not counted · counts once added or invited",
-    "header": "Clients {{clients}}/{{clients_max}} · Inquiries {{prospects}}/{{prospects_max}}",
+    "not_counted": "Not counted · counts once they accept the invite and join",
+    "header": "Joined clients {{clients}}/{{clients_max}} · Inquiries {{prospects}}/{{prospects_max}}",
     "unlimited": "Unlimited",
-    "invite_notice": "Adding or inviting counts toward your client limit (now {{clients}} / {{clients_max}})",
-    "tip": "Clients = clients you added or invited (with or without an account) · Inquiries = contacts not registered yet. The numbers are current / plan limit.",
+    "invite_notice": "Invited clients count toward your client limit once they join (now {{clients}} / {{clients_max}})",
+    "tip": "Client limit = clients who accepted an invite and joined · Clients you only keep records for, inquiries and pending invites are not counted. The numbers are current / plan limit.",
     "raise": "Raise the limit"
   },
   "source": {
@@ -186,7 +186,7 @@
     "proceedConsult": "Start consult",
     "registerManaged": "Add as client",
     "registerManagedTitle": "Add as a client?",
-    "registerManagedBody": "No email is sent. They become an «Added» client you manage yourselves, counted in your client limit and ready for invoices and projects. The sales stage stays as is.",
+    "registerManagedBody": "No email is sent. They become an «Added» client you manage yourselves, ready for invoices and projects. They don't count toward your client limit. The sales stage stays as is.",
     "archiveClient": "Archive",
     "restoreClient": "Restore",
     "archiveError": {

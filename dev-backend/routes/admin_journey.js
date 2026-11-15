@@ -16,7 +16,7 @@ const { successResponse, errorResponse } = require('../middleware/errorHandler')
 const { getAdoptionStages } = require('../services/adoptionStages');
 const { personalSetup } = require('../services/onboarding');
 const { getMemberNameMap } = require('../services/displayName');
-const { billableClientWhere } = require('../services/clientQuota');
+const { registeredClientWhere } = require('../services/clientQuota');
 
 router.use(authenticateToken, requireRole('platform_admin'));
 
@@ -105,7 +105,7 @@ router.get('/businesses/:id/journey', async (req, res, next) => {
         ['first_mail_account', 'SELECT MIN(created_at) at FROM email_accounts WHERE business_id = :biz'],
         ['first_invoice', 'SELECT MIN(created_at) at FROM invoices WHERE business_id = :biz'],
       ].map(async ([key, sql]) => ({ key, at: await minAt(sql, biz) }))),
-      Client.min('createdAt', { where: billableClientWhere(biz) }),
+      Client.min('createdAt', { where: registeredClientWhere(biz) }),
     ]);
 
     const timeline = [{ key: 'workspace_created', at: business.createdAt }, ...timelineRows, { key: 'first_client', at: firstClient || null }]

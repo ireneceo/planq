@@ -399,6 +399,10 @@ const setupSecurity = (app) => {
           const planCan = await require('../services/plan').can(r.business_id, 'add_member', { excludeMemberId: r.record.id });
           ok = !!planCan?.ok;
         }
+        // 고객 초대도 수락과 같은 술어 — 꽉 찬 워크스페이스의 고객 초대는 수락이 409 라 토큰이 산다(2026-11-15 입장 게이트).
+        if (ok && (r.type === 'workspace_client' || r.type === 'project_client')) {
+          ok = await require('../services/invites').inviteClientSeatOk(r);
+        }
       } catch { ok = false; }
     }
     req._liveInviteSignup = ok;

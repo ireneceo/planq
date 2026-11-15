@@ -3,7 +3,7 @@
 //   ① 방문자 확인  창구(scope='workspace')에서 이메일을 확인해 개인 링크를 받은 사람
 //   ② 예약 신청    고객이 신청한 상담(calendar_events.booking_status IS NOT NULL)
 //   ③ 확정        ② 중 지금 confirmed 인 것 (끝난 상담도 confirmed 로 남는다 — 끝남은 파생값)
-//   ④ 고객 등록    ③ 의 고객 중 정식 고객(clientQuota.billableClientWhere — 문의 고객 prospect 만 뺀다)
+//   ④ 고객 등록    ③ 의 고객 중 정식 고객(clientQuota.registeredClientWhere — 문의 고객 prospect 만 뺀다)
 //
 // ★ 설계 문서는 ① 을 `guest_links.use_count` 로 적었지만 **그 컬럼은 없다.** 익명 방문은 세지 않는다
 //   (쿠키·IP 를 남기지 않는 것이 창구의 원칙이다). 확인한 방문자는 행이 생기고 생성 시각이 있어
@@ -14,7 +14,7 @@
 
 const { Op } = require('sequelize');
 const { GuestLink, CalendarEvent, CalendarEventAttendee, Client } = require('../models');
-const { billableClientWhere } = require('./clientQuota');
+const { registeredClientWhere } = require('./clientQuota');
 
 async function buildEntryFunnel(businessId, period) {
   const between = { [Op.between]: [new Date(period.from + ' 00:00:00'), new Date(period.to + ' 23:59:59')] };
@@ -44,7 +44,7 @@ async function buildEntryFunnel(businessId, period) {
   let registered = 0;
   if (confirmedClientIds.size) {
     registered = await Client.count({
-      where: { [Op.and]: [billableClientWhere(businessId), { id: [...confirmedClientIds] }] },
+      where: { [Op.and]: [registeredClientWhere(businessId), { id: [...confirmedClientIds] }] },
     });
   }
 

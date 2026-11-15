@@ -29,7 +29,7 @@ const {
   Client, Conversation, Task, PushSubscription, Business, BusinessMember,
   EmailAccount, ExternalConnection, RefreshToken, AgentGrant,
 } = require('../models');
-const { billableClientWhere } = require('./clientQuota');
+const { registeredClientWhere } = require('./clientQuota');
 const { notPlatformConversation } = require('../middleware/access_scope');
 const { getAdoptionStages } = require('./adoptionStages');
 
@@ -110,7 +110,7 @@ async function getOnboardingState({ businessId, userId }) {
     // 네 단계는 PlanQ 가 도는 한 바퀴다: 고객을 들이고 → 말을 걸고 → 일이 생기고 → 메일이 같이 들어온다.
     const [clients, conversations, tasks, mailAccounts] = await Promise.all([
       // "고객 초대" 단계 — Q sale 문의 고객(prospect)은 초대가 아니다. 문의만 넣어도 완료가 되면 안 된다(§16 U4)
-      Client.count({ where: billableClientWhere(bizId) }),
+      Client.count({ where: registeredClientWhere(bizId) }),
       Conversation.count({ where: { business_id: bizId, [Op.and]: [notPlatformConversation()] } }),   // 안내방은 «대화 시작» 이 아니다
       Task.count({ where: { business_id: bizId } }),
       EmailAccount.count({ where: { business_id: bizId, is_active: true } }),

@@ -90,6 +90,8 @@ async function promoteClientToMember({ businessId, userId, transaction }) {
       { where: { id: { [Op.in]: cls.map((c) => c.id) } }, transaction: t },
     );
     out.clients = cls.length;
+    // 입장 고객이 멤버로 바뀌면 고객 한도 숫자가 준다(사용량 캐시 30초)
+    try { require('./plan').invalidateBusinessCache(businessId); } catch { /* 캐시일 뿐이다 */ }
   }
 
   // ② 프로젝트 고객 행 → 같은 프로젝트 멤버. 같은 계정 ∨ (계정 없음 ∧ (잡힌 고객 ∨ 같은 이메일)) — 다른 계정 행은 안 건드린다
