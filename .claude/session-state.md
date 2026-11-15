@@ -4193,3 +4193,4 @@
   로그인한 사람은 싣지 않음(MarketingTags.tsx `isTrackable(..., loggedIn)` → 배너·GTM 둘 다 없음 = Irene 증상과 일치) · 로그인 안 한 한국어/서울: / 와 /pricing gtm.js 실림, /login 0 ·
   로그인 안 한 영어/쿠알라룸푸르: 배너 뜸 → «Allow» 후 gtm.js 실림·dataLayer 생김. 코드 수정·배포 필요 없음.
   게시는 외부 화면 일이라 따로 카드 todomwhs1wnn «시크릿 창에서 GTM 미리보기 확인하고 게시하기» 로 옮김(act 질문 askmwhmp68m 은 상황판이 뺌).
+- 11-16 Irene: 운영 /pricing 배너·GTM 0 · JS 214개에 «GTM-» 0 → «운영 미배포, 개발 ID 를 GTM-5WQHW96L 로 바꾸고 배포» 요청. 방 9572baa2 재측정(새 브라우저 컨텍스트, 로그인 안 함): 한국어 → 배너 + gtm.js?id=GTM-5WQHW96L · 영어/말레이시아 → 동의 배너(허용 전 0). 운영 배포돼 있음 — 번호는 /api/platform/info 에서 받아 JS 에 없음이 정상. 배너·요청 0 = 로그인한(또는 다른 시크릿 창에서 로그인한) 브라우저. 개발 GTM-PLANQDEV 는 일부러 둔 가짜(개발 방문이 운영 GA4 에 섞이지 않게) — 안 바꿈. 카드 todomwhs1wnn 에 «시크릿 창 모두 닫고 새로·planq 로그인 금지» 넣어 다시 올림.
