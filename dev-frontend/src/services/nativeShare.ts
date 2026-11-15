@@ -1,4 +1,6 @@
-// 네이티브 앱(안드로이드)의 «공유 받기» — #434 ②. 설계 docs/NATIVE_SHARE_RECEIVE.md
+// 네이티브 앱(안드로이드·iOS)의 «공유 받기» — #434 ②. 설계 docs/NATIVE_SHARE_RECEIVE.md
+// 플러그인: 안드로이드 ShareReceivePlugin.java · iOS ShareReceivePlugin.swift(공유 확장 ShareExtension 이 App Group 에 넘긴 것을 가져온다)
+// — 둘은 같은 이름·같은 메서드(takePending / 'shareReceived')라 여기서는 플랫폼을 가리지 않는다.
 //
 // 입구는 하나다: 앱 플러그인(ShareReceivePlugin.java)이 받은 파일을 **웹 공유(public/sw.js)와 같은 캐시 형식**
 // (`planq-share-v1` 의 /_share_payload + /_share_file_{i}, X-Filename 헤더)으로 옮기고 /share-receive?shared=1 로 보낸다.
@@ -68,9 +70,10 @@ export async function consumeNativeShare(): Promise<string | null> {
   return `/share-receive?shared=1&n=${Date.now()}`;
 }
 
-/** 앱이 켜질 때 + 켜져 있는 동안 공유를 받는다. 안드로이드만(iOS 는 Share Extension 이 생기면 같은 함수로). */
+/** 앱이 켜질 때 + 켜져 있는 동안 공유를 받는다. 안드로이드·iOS(옛 iOS 빌드는 플러그인이 없어 takePending 이 실패 → null). */
 export async function bindNativeShare(go: (path: string) => void): Promise<() => void> {
-  if (nativePlatform() !== 'android') return () => {};
+  const platform = nativePlatform();
+  if (platform !== 'android' && platform !== 'ios') return () => {};
   const run = async () => { const path = await consumeNativeShare(); if (path) go(path); };
   let handle: { remove: () => Promise<void> } | null = null;
   try { handle = await (await getPlugin()).addListener('shareReceived', () => { run(); }); } catch { /* 옛 앱 빌드 */ }

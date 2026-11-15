@@ -165,6 +165,10 @@ export default function NativeBridge() {
             //   iOS 로그인 창(ASWebAuthenticationSession)이 돌려준 주소도 같은 함수를 탄다.
             if (await handleNativeReturnUrl(u)) return;
 
+            // iOS 공유 확장이 본 앱을 여는 신호(planq://share) — 받은 것은 ShareReceive 플러그인이 'shareReceived' 로
+            //   알리고 bindNativeShare 가 가져간다. 여기서 경로 이동·연동 새로고침을 하지 않는다(공유 이동과 경주).
+            if (u.protocol === 'planq:' && u.host === 'share') return;
+
             // ★ 2026-10-09 — 다른 서버의 링크는 앱 안에서 열지 않는다. 아래는 **경로만** 꺼내 이 앱의 서버로
             //   이동하므로, 운영 앱이 dev.planq.kr 링크를 받으면 운영 데이터의 같은 경로(/tasks?task=123 …)를
             //   보여 준다 — 다른 서버의 다른 업무다. 앱이 받는 도메인은 빌드마다 server.url 하나로 좁혔지만
