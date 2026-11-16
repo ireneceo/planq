@@ -1,5 +1,8 @@
 ## 현재 작업 상태
-### ⏸ 답 기다림: App Store 1.0.1 ASO 안 확인 (방 c316a1d5 · 2026-11-16 · [Opus] · Fable 안 씀 — 스토어 문구·그림, 코드·DB·권한 불변 · 금지어 기계 검사 0건)
+### ✅ App Store 1.0.1 ASO 안 — Irene «권고대로» 11-16 (방 c316a1d5)
+- 확인 페이지에 Apple 답장(빌드 22 판)·스크린샷 원본 링크 더함(v2). 이 방에는 브라우저·ASC 열쇠가 없어 입력·제출은 Irene 할 일 카드 todomvswjmxv 로 고쳐 올림(빌드 22 선택 · 문구 붙여 넣기 · 스크린샷 12장 · 답장 회신·제출 → then: 제출 확인 + CPP 3개 안내).
+
+#### (이전) 답 기다림: App Store 1.0.1 ASO 안 확인 (방 c316a1d5 · 2026-11-16 · [Opus] · Fable 안 씀 — 스토어 문구·그림, 코드·DB·권한 불변 · 금지어 기계 검사 0건)
 - 무엇: 부제·키워드·프로모션·새 기능·설명(ko/en) + 스크린샷 iPhone 6.9″ 6장·iPad 13″ 6장 + CPP 3안 → https://claude.ai/artifact/CUH1PN1PYsLppy62QwMegV · 파일 `store-assets/appstore-1.0.1/` · 문구 정본 docs/APPSTORE_SUBMISSION_PREP.md §8
 - 왜 묻나: 스토어에 공개되는 문구·그림(Irene 확인 후 입력이 지시 조건)
 - 답이 오면: (OK) ASC 1.0.1 에 문구·스크린샷 입력(브라우저 쪽) → 빌드 21→22 교체 → 답장(§7, build 22 로 고침) 회신 → 심사 제출 · CPP 3개 만들기. (고침) 해당 칸만 고쳐 같은 주소로 다시 올림.
