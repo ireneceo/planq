@@ -1,0 +1,102 @@
+{
+  "version": "1.70.14",
+  "date": "2026-11-16",
+  "_auto": true,
+  "_range": "44e1a6aa..edf0c081",
+  "summary": {
+    "ko": "사내 공지·소통 기본기와 프로젝트·AI 업무 연동이 크게 좋아졌어요",
+    "en": "Internal announcements, team communication basics, and project–AI task planning are now much smoother"
+  },
+  "items": [
+    {
+      "ko": {
+        "title": "워크스페이스 전체 공지방과 읽음 확인",
+        "body": "Q Talk에 워크스페이스 «전체» 대화방이 생기고, 제목이 있는 공지를 보내면 자동으로 상단에 고정되고 알림이 갑니다. 누가 읽었는지 읽음 명단도 바로 볼 수 있어요."
+      },
+      "en": {
+        "title": "Workspace-wide announcement room with read tracking",
+        "body": "Q Talk now has an “All” workspace room where you can send titled announcements that are auto-pinned to the top with notifications. You can also see a read list to check who has viewed each announcement."
+      }
+    },
+    {
+      "ko": {
+        "title": "사내 소통 기본기: 초대·1:1 메시지·멤버 메일",
+        "body": "새 멤버를 초대 메시지와 함께 쉽게 초대하고, 이름 칩으로 여러 명을 한 번에 입력할 수 있습니다. 1:1 메시지를 바로 보내고, 전체 멤버에게 메일을 보내며, 내 프로필로 간단한 명함도 만들 수 있어요."
+      },
+      "en": {
+        "title": "Core internal comms: invites, 1:1 messages, member emails",
+        "body": "You can now invite new members with a custom message and add multiple people at once with name chips. Send direct 1:1 messages, email all members in your workspace, and create a simple business card from your profile."
+      }
+    },
+    {
+      "ko": {
+        "title": "프로젝트 멤버와 대화방이 자동으로 맞춰져요",
+        "body": "프로젝트 멤버를 추가·제외하면 해당 프로젝트 Q Talk 대화방 참여자도 함께 반영됩니다. 대화방에 대표가 멤버를 넣으면 프로젝트 멤버에도 자동으로 추가되어, 사람 관리를 두 번 할 필요가 없습니다."
+      },
+      "en": {
+        "title": "Project members and chat room participants stay in sync",
+        "body": "When you add or remove project members, the participants in that project’s Q Talk room are updated automatically. If a project owner adds someone to the chat, they’re also added as a project member, so you don’t have to manage people twice."
+      }
+    },
+    {
+      "ko": {
+        "title": "AI로 프로젝트 전체 업무 일정을 한 번에 짭니다",
+        "body": "AI에게 프로젝트 전체 업무를 맡기면 15~30개의 업무를 단계별·기간 안에 자동 배치해 줍니다. 한 줄로 정리된 업무 행과 단계별 묶음 미리보기를 먼저 보고, 마음에 들면 한 번에 추가할 수 있어요."
+      },
+      "en": {
+        "title": "Plan full project schedules with AI-generated tasks",
+        "body": "Ask AI to plan your project and it will create about 15–30 tasks, arranged by phase and within your timeframe. You can first review a one-line list of tasks and grouped phase previews, then add them all to the project in one go."
+      }
+    },
+    {
+      "ko": {
+        "title": "문서에 바로 쓰는 차트 블록",
+        "body": "Q docs 문서에 막대·선·영역·원 그래프를 차트 블록으로 넣을 수 있습니다. 데이터만 저장해 화면, PDF, 서명본에서 같은 모양으로 보여서 보고서와 제안서를 깔끔하게 관리할 수 있어요."
+      },
+      "en": {
+        "title": "Inline chart blocks in Q docs",
+        "body": "You can now insert bar, line, area, and pie charts as chart blocks in Q docs. Only the data is stored, so the chart looks the same on screen, in PDFs, and in signed copies, keeping reports and proposals consistent."
+      }
+    },
+    {
+      "ko": {
+        "title": "AI가 만든 표도 문서 편집기 표로 깔끔하게",
+        "body": "AI가 보낸 문서·메모에 Markdown 파이프( | )로 된 표가 있으면, Q docs 편집기 표로 자동 변환해 줍니다. 복사·편집·서식 변경이 쉬워져 AI 답변을 바로 문서로 다듬을 수 있어요."
+      },
+      "en": {
+        "title": "AI-generated tables become editable Q docs tables",
+        "body": "When AI sends documents or notes with Markdown pipe (|) tables, they’re automatically converted into native tables in the Q docs editor. You can then easily copy, edit, and format them to refine AI answers into proper documents."
+      }
+    },
+    {
+      "ko": {
+        "title": "앱 설치 메뉴에서 데스크톱·모바일 앱 바로 열기",
+        "body": "프로필 메뉴 «앱 다운로드»와 시작 안내의 «앱 설치(폰·컴퓨터)»를 누르면 PlanQ 앱 설치 화면이 새 탭으로 열립니다. 팀에 앱 설치를 안내할 때 더 찾기 쉬워졌어요."
+      },
+      "en": {
+        "title": "Quick access to desktop and mobile app install from menus",
+        "body": "Clicking “앱 다운로드” in your profile menu or “앱 설치(폰·컴퓨터)” in the getting-started guide now opens the PlanQ app install page in a new tab. This makes it easier to guide your team to install the apps."
+      }
+    },
+    {
+      "ko": {
+        "title": "그 밖의 개선: 프로젝트 멤버·채팅 이름·요금 표시",
+        "body": "프로젝트에서 대표가 아닌 멤버도 추가·빼기 버튼이 보이던 문제를 고쳐, 눌렀다가 멤버가 사라지는 현상을 막았습니다. 채팅에서 내가 보낸 메시지 이름이 깜빡이던 현상과, 구독 플랜 카드에 멤버 추가 후에도 요금이 39,000원으로만 보이던 표시 오류도 함께 수정했어요."
+      },
+      "en": {
+        "title": "Other improvements: project members, chat names, plan price display",
+        "body": "We fixed an issue where non-owners saw add/remove buttons in projects that made members seem to appear then disappear. We also resolved the flicker where your own chat messages briefly showed the wrong name, and corrected the current plan card so prices update properly when you add members."
+      }
+    },
+    {
+      "ko": {
+        "title": "보안과 안정성 강화",
+        "body": "데이터를 더 안전하게 지키도록 보안과 안정성을 강화했습니다."
+      },
+      "en": {
+        "title": "Security and stability improvements",
+        "body": "We strengthened security and stability to keep your data safer."
+      }
+    }
+  ]
+}
