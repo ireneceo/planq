@@ -11,7 +11,8 @@ const planEngine = require('./plan');
 const { planAtLeast } = require('../config/plans');
 
 async function adminCheckoutDenial(req, businessId, planCode) {
-  if (req.businessRole === 'owner' || req.user?.platform_role === 'platform_admin') return null;
+  // 이 문 앞(routes/plan.js isWorkspaceAdminReq)을 지난 사람 = 대표·관리자·플랫폼 관리자 — 워크스페이스 관리자(admin)에게만 건다.
+  if (req.user?.platform_role === 'platform_admin' || req.businessRole !== 'admin') return null;
   const { plan: currentPlan } = await planEngine.getBusinessPlan(businessId);
   if (currentPlan && !planAtLeast(planCode, currentPlan.code)) {
     return { status: 403, body: { success: false, message: 'downgrade_owner_only' } };
