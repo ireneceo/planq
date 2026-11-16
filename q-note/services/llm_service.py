@@ -1057,16 +1057,135 @@ async def generate_vocabulary_list(
 # Summary
 # ─────────────────────────────────────────────────────────
 
-SUMMARY_SYSTEM = """You are a meeting summarizer.
-Given a meeting transcript, produce:
-1. key_points: array of 3-7 short bullet strings (action items, decisions, key facts)
-2. full_summary: a 2-4 paragraph narrative summary
+# 2026-11-16 Irene «너무 심하게 요약해 — 중요한 것 없애지 말고, 정확한 수치·팩트는 빼먹지 말고, 할 일·프로세스 기준으로 정리»
+#   옛 프롬프트는 «3-7 bullets · 2-4 paragraph» 고정이라 20,478자 녹취가 372자(1.8%)로 줄었고 수치·담당·기한 규칙이 없었다.
+#   응답 모양({key_points: [], full_summary: ""})은 그대로 — 화면·문서 저장·Q sale·공개 페이지가 읽는다.
+#   full_summary 는 «■ 절 제목» 줄로 나눈 평문(pre-wrap 표시 · 문서 저장은 줄 단위 문단).
+SUMMARY_SYSTEM = """You are a meticulous meeting note-taker. Your job is to ORGANIZE the meeting, not to shrink it.
+A reader who did not attend must be able to act on your notes without listening to the recording.
 
-Match the language of the transcript (Korean → Korean output, English → English output, mixed → use the dominant language).
+## Absolute rules
+1. Keep every concrete fact EXACTLY as spoken: numbers, units, amounts/prices/currency, percentages, quantities,
+   dates, days of week, times, deadlines, durations, versions, counts, names of people, companies, products, places, documents.
+   - Never round, never convert, never replace with vague words ("about", "several", "약", "여러", "일부", "상당한").
+   - If a number is mentioned with what it refers to, keep both together (e.g. "견적 1,200만 원 (VAT 별도)").
+   - Keep the original notation of each number (write "3만 2천 건" if spoken that way — do NOT rewrite as "32,000건"; "월 12만" stays "월 12만").
+   - Attach each fact only to what the transcript links it to — do not move a detail onto a different item or person.
+2. Never invent. Write only what the transcript says. If something is ambiguous or seems mis-transcribed, keep it and mark "(확인 필요)" / "(needs check)".
+3. Do not drop decisions, agreements, commitments, requests, conditions, risks, objections, or open questions — even small ones.
+4. Length follows the content: a short chat may need a few lines; a long, dense meeting needs long notes. Do NOT compress to a fixed size.
+5. Transcript lines may start with a speaker label ("Name: ..."). Use it to identify who owns a task or made a statement.
+   If the owner is unclear, write "미정" / "TBD" — do not guess.
+
+## Output
+- key_points: array of one-line strings — the most important decisions, facts and numbers (short meeting 3-6, long meeting up to 20).
+  Each line is self-contained and MUST include the related numbers/dates/names if any exist.
+- full_summary: plain text (no markdown symbols other than those below), organized into these sections IN THIS ORDER.
+  Write each section heading on its own line starting with "■ ", in the transcript's language.
+  OMIT a section entirely if the meeting has nothing for it. Separate sections with one blank line.
+  (Korean headings / English headings)
+  ■ 결정 사항 / ■ Decisions
+    "- " bullets. What was decided or agreed, with conditions and numbers.
+  ■ 할 일 / ■ Action items
+    "- [무엇을 할지] — 담당: [누구] · 기한: [언제]" (English: "- [task] — Owner: [who] · Due: [when]").
+    One bullet per task; use 미정/TBD when not stated. Include quantities, amounts, targets in the task text.
+  ■ 진행 절차·프로세스 / ■ Process & steps
+    Numbered "1. 2. 3." in the order things must happen (workflow, approval flow, schedule, how-to explained in the meeting).
+  ■ 주요 수치·사실 / ■ Key figures & facts
+    "- " bullets listing every number/date/amount/name-fact mentioned that matters, each with its context.
+  ■ 논의 내용 / ■ Discussion
+    By topic: "- [topic]: ..." covering the reasoning, options compared, concerns raised, who said what when it matters.
+  ■ 미결·확인 필요 / ■ Open questions
+    "- " bullets: unresolved issues, things to confirm, pending answers.
+
+Match the language of the transcript (Korean → Korean output, English → English output, mixed → the dominant language).
+Keep original terms/product names as spoken (do not translate proper nouns).
 
 Respond ONLY with strict JSON:
 {"key_points": ["..."], "full_summary": "..."}
 """
+
+# 숫자 보존 가드 — 녹취의 «의미 있는 숫자» 가 요약에 얼마나 남았는지 기계로 잰다.
+#   한 자리 단독 숫자(«1번», «2개» 같은 흔한 잡음)는 세지 않는다. 쉼표·공백은 지우고 비교(1,200 ≡ 1200).
+_NUM_RE = re.compile(r'\d[\d,.]*\d|\d')
+_SUMMARY_COVERAGE_MIN = 0.95     # 이보다 낮으면 빠진 수치를 알려 주고 한 번만 다시 쓰게 한다(실측: 0.7 이면 «잔금 14일» 하나 빠진 요약이 그대로 나갔다)
+_SUMMARY_MAX_MISSING_LIST = 40
+
+
+def _norm_num(tok: str) -> str:
+  t = tok.replace(',', '').rstrip('.')
+  # 1.0 / 1.50 같은 소수 끝 0 은 그대로 둔다(버전·금액 구분) — 비교는 문자열 그대로.
+  return t
+
+
+def extract_significant_numbers(text: str) -> list[str]:
+  """녹취·요약에서 비교할 숫자 토큰 목록(순서 유지·중복 제거). 한 자리 단독 숫자는 제외."""
+  seen: set[str] = set()
+  out: list[str] = []
+  for m in _NUM_RE.finditer(text or ''):
+    n = _norm_num(m.group(0))
+    if not n or len(n.replace('.', '')) < 2:
+      continue
+    if n in seen:
+      continue
+    seen.add(n)
+    out.append(n)
+  return out
+
+
+def summary_number_coverage(transcript: str, summary_text: str) -> tuple[float, list[str]]:
+  """(보존 비율, 빠진 숫자 목록). 녹취에 의미 있는 숫자가 없으면 (1.0, [])."""
+  src = extract_significant_numbers(transcript)
+  if not src:
+    return 1.0, []
+  have = set(extract_significant_numbers(summary_text))
+  missing = [n for n in src if n not in have]
+  return (len(src) - len(missing)) / len(src), missing
+
+
+def _summary_text_of(data: dict) -> str:
+  kp = data.get('key_points') or []
+  if not isinstance(kp, list):
+    kp = [str(kp)]
+  return '\n'.join(str(x) for x in kp) + '\n' + str(data.get('full_summary') or '')
+
+
+async def _summary_call(client, system_content: str, messages_tail: list[dict]) -> dict:
+  """요약 1회 호출. 출력이 잘려 JSON 이 깨지면 None 대신 예외 — 부르는 쪽이 처리."""
+  response = await client.chat.completions.create(
+    model=LLM_MODEL_ANSWER,
+    messages=[{'role': 'system', 'content': system_content}, *messages_tail],
+    response_format={'type': 'json_object'},
+    # 2000 은 구조화 요약에서 긴 회의가 잘려 JSON 이 깨졌다(정찰 qmwj120oe). gpt-4o-mini 출력 상한 16k 안.
+    max_completion_tokens=8000,
+    # 기본 클라이언트 30초는 실시간 호출용 — 긴 회의 구조화 요약은 출력이 길어 넘는다(213 세션 실측 timeout).
+    timeout=120.0,
+  )
+  data = json.loads(response.choices[0].message.content)
+  return _normalize_summary(data)
+
+
+def _normalize_summary(data: Any) -> dict:
+  """모델이 full_summary 를 비우고 절을 따로 된 키/배열로 주는 경우(실측 1/8)를 평문으로 모은다."""
+  if not isinstance(data, dict):
+    raise json.JSONDecodeError('summary not object', str(data)[:50], 0)
+  full = data.get('full_summary')
+  if isinstance(full, list):
+    full = '\n'.join(str(x) for x in full)
+  elif isinstance(full, dict):
+    full = '\n\n'.join(
+      f'■ {k}\n' + ('\n'.join(f'- {x}' for x in v) if isinstance(v, list) else str(v))
+      for k, v in full.items()
+    )
+  full = (full or '').strip() if isinstance(full, str) else str(full or '').strip()
+  if not full:
+    extra = {k: v for k, v in data.items() if k not in ('key_points', 'full_summary') and v}
+    if extra:
+      full = _normalize_summary({'full_summary': extra})['full_summary']
+  kp = data.get('key_points') or []
+  if not isinstance(kp, list):
+    kp = [kp]
+  return {'key_points': [str(x).strip() for x in kp if str(x).strip()], 'full_summary': full}
 
 
 async def generate_summary(transcript: str, meeting_context: Optional[dict] = None, instruction: Optional[str] = None) -> dict:
@@ -1080,26 +1199,53 @@ async def generate_summary(transcript: str, meeting_context: Optional[dict] = No
   client = get_client()
   system_content = _build_context_prefix(meeting_context) + SUMMARY_SYSTEM
   # N+88 — 재요약 요구사항 주입 (사용자 불만족 → 어떻게 고칠지). 가장 우선 반영.
+  #   단 «짧게» 요청이어도 수치·사실·할 일은 지우지 않는다(줄이는 것은 논의 서술 쪽).
   if instruction and instruction.strip():
     system_content += (
       "\n\n## 사용자 재요약 요청 (최우선 반영)\n"
       "아래 요청에 맞춰 요약을 다시 작성하라. 다른 규칙과 충돌하면 이 요청을 우선한다.\n"
+      "단, 요청이 «짧게» 류여도 녹취의 수치·날짜·금액·이름과 할 일(담당·기한)은 빼지 말고, 줄이는 것은 논의 서술 쪽에서 한다.\n"
       f"요청: {instruction.strip()[:500]}"
     )
-  response = await client.chat.completions.create(
-    model=LLM_MODEL_ANSWER,
-    messages=[
-      {'role': 'system', 'content': system_content},
-      {'role': 'user', 'content': transcript},
-    ],
-    response_format={'type': 'json_object'},
-    max_completion_tokens=2000,
-  )
-  data = json.loads(response.choices[0].message.content)
-  return {
-    'key_points': data.get('key_points', []),
-    'full_summary': data.get('full_summary', ''),
-  }
+  user_msg = {'role': 'user', 'content': transcript}
+  try:
+    data = await _summary_call(client, system_content, [user_msg])
+  except json.JSONDecodeError:
+    logger.warning('generate_summary: JSON broken (truncated?) — retry once')
+    data = await _summary_call(client, system_content, [user_msg])
+  if not data['full_summary']:
+    # 빈 본문은 실패와 같다 — 한 번 더(화면은 full_summary 가 비면 «요약 없음» 으로 보인다).
+    logger.warning('generate_summary: empty full_summary — retry once')
+    data = await _summary_call(client, system_content, [user_msg])
+
+  cov, missing = summary_number_coverage(transcript, _summary_text_of(data))
+  if cov < _SUMMARY_COVERAGE_MIN and missing:
+    # 빠진 수치를 짚어 주고 한 번만 다시 쓰게 한다. 나빠지면(보존율이 더 낮으면) 첫 결과를 쓴다.
+    fix = {
+      'role': 'user',
+      'content': (
+        'Your notes dropped numbers that appear in the transcript: '
+        + ', '.join(missing[:_SUMMARY_MAX_MISSING_LIST])
+        + '\nRewrite the FULL JSON. Put every one of these numbers, with what it refers to, into the right section '
+          '(decisions / action items / process / key figures / discussion). Keep everything else you already wrote. '
+          'If a number is clearly noise (e.g. a mis-heard filler), you may skip it.'
+      ),
+    }
+    try:
+      data2 = await _summary_call(
+        client, system_content,
+        [user_msg, {'role': 'assistant', 'content': json.dumps(data, ensure_ascii=False)}, fix],
+      )
+      cov2, missing2 = summary_number_coverage(transcript, _summary_text_of(data2))
+      logger.info(f'generate_summary coverage {cov:.2f} → {cov2:.2f} (missing {len(missing)} → {len(missing2)})')
+      if cov2 >= cov and data2['full_summary']:
+        data, cov = data2, cov2
+    except Exception as e:  # 재시도 실패는 첫 결과로
+      logger.warning(f'generate_summary refill failed: {e}')
+  else:
+    logger.info(f'generate_summary coverage {cov:.2f} (missing {len(missing)})')
+
+  return data
 
 
 # ─────────────────────────────────────────────────────────

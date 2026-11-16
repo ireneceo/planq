@@ -1595,9 +1595,13 @@ const QNotePage = ({ scope, onRecordingChange }: QNotePageProps = {}) => {
     setSummaryError(null);
     setSummarizing(true);
     try {
+      // 2026-11-16 — 줄 앞에 화자 이름을 붙여 보낸다. 요약이 «할 일 — 담당: 누구» 를 잡을 재료(전엔 말만 이어 붙여 담당을 알 수 없었다).
       const text = (textOverride ?? renderBlocks
         .filter((b) => b.kind === 'speech' || b.kind === 'question')
-        .map((b) => b.segments.map((s) => s.original).join(' '))
+        .map((b) => {
+          const said = b.segments.map((s) => s.original).join(' ');
+          return b.speakerLabel ? `${b.speakerLabel}: ${said}` : said;
+        })
         .join('\n')).trim();
       if (!text) {
         setSummaryError(t('page.reviewBar.emptyTranscript') as string);
@@ -4856,8 +4860,7 @@ const SummaryFull = styled.div`
   line-height: 1.7;
   color: #334155;
   white-space: pre-wrap;
-  max-height: 180px;
-  overflow-y: auto;
+  /* 2026-11-16 — 요약이 결정·할 일·절차·수치 절로 길어졌다. 180px 작은 상자 안 스크롤 대신 패널 스크롤에 맡긴다. */
 `;
 const SummaryEmpty = styled.div`
   display: flex;

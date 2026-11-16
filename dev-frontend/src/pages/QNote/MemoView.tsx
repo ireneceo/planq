@@ -633,7 +633,7 @@ const MemoSummaryPoints = styled.ul`
 `;
 const MemoSummaryFull = styled.div`
   font-size: 0.8125rem; line-height: 1.7; color: #334155; white-space: pre-wrap;
-  max-height: 140px; overflow-y: auto;
+  /* 2026-11-16 — 절로 나뉜 긴 요약을 작은 상자에 가두지 않는다(음성 노트 SummaryFull 과 같게). */
 `;
 const MemoSummaryHint = styled.div`
   font-size: 0.8125rem; color: #64748B;
