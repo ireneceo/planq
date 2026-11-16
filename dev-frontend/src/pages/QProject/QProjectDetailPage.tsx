@@ -325,6 +325,10 @@ const QProjectDetailPage: React.FC = () => {
   const canSetVisibility = !!authUser && (authUser.platform_role === 'platform_admin'
     || authUser.business_role === 'owner' || authUser.business_role === 'admin'
     || (project?.projectMembers || []).some((m) => Number(m.user_id) === Number(authUser.id) && !!m.is_pm));
+  // 프로젝트 멤버 추가·빼기·PM·역할 — 서버 PUT /api/projects/:id/members 와 같은 술어(워크스페이스 대표·플랫폼 관리자).
+  //   예전엔 누구에게나 버튼을 주고 403 을 삼켜 «넣었는데 잠깐 보였다 사라짐» 이 됐다(2026-11-16 지메이트 신고).
+  const canManageMembers = !!authUser && (authUser.platform_role === 'platform_admin' || authUser.business_role === 'owner');
+  const [memberSaveErr, setMemberSaveErr] = useState(false);
   const [otherWsBizId, setOtherWsBizId] = useState<number | null>(null);
   // 탭 이름 = 프로젝트 이름. ★ 아래 `if (!projectId) return` 보다 반드시 위 — 훅은 조건부일 수 없다.
   useTabTitle(project?.name);
@@ -620,8 +624,11 @@ const QProjectDetailPage: React.FC = () => {
     //   덮어쓰지 말고 덧입힌다 (2026-09-18 Q note 와 같은 계열).
     setProject((prev) => (prev ? { ...prev, ...j.data } : j.data));
   };
-  // 뱃지가 없는 호출부(추가·삭제·PM 토글)는 옛 낙관적 동작 유지 — 실패는 다음 조작의 서버 값으로 덮인다
-  const saveMembersOptimistic = (next: Parameters<typeof saveMembers>[0]) => { void saveMembers(next).catch(() => {}); };
+  // 뱃지가 없는 호출부(추가·삭제·PM 토글) — 실패를 삼키지 않는다: 서버 값으로 되돌리고 한 줄로 알린다
+  const saveMembersOptimistic = (next: Parameters<typeof saveMembers>[0]) => {
+    setMemberSaveErr(false);
+    void saveMembers(next).catch(() => { setMemberSaveErr(true); void load({ silent: true }); });
+  };
 
   // 이슈·메모 등록 (#148) — 옛 코드는 저장 경로가 onKeyDown 안에만 있어서 **Enter 없이는 저장이 불가능**했다
   // (버튼이 없으니 태블릿/모바일에선 등록 자체가 막힘). 버튼과 Enter 가 같은 함수를 지나게 한다.
@@ -1093,7 +1100,7 @@ const QProjectDetailPage: React.FC = () => {
                       >
                         {fire => (
                           <RolePicker bizId={project.business_id} dict={roleDict.dict} onDictAdd={roleDict.add}
-                            value={m.role} disabled={isOwner}
+                            value={m.role} disabled={isOwner || !canManageMembers}
                             placeholder={t('edit.rolePlaceholder', '역할') as string}
                             onManage={canManageRoles ? () => setRoleManageOpen(true) : undefined}
                             onChange={(v) => { if ((v || null) !== (m.role || null)) fire({ role: v }); }}
@@ -1104,7 +1111,7 @@ const QProjectDetailPage: React.FC = () => {
                       <PmToggle
                         type="button"
                         $active={isPm}
-                        disabled={isOwner}
+                        disabled={isOwner || !canManageMembers}
                         onClick={() => togglePm(m.user_id)}
                         title={isOwner
                           ? (t('members.pmOwner', '프로젝트 생성자는 자동 PM') as string)
@@ -1115,7 +1122,7 @@ const QProjectDetailPage: React.FC = () => {
                       >
                         PM
                       </PmToggle>
-                      {!isOwner && (
+                      {!isOwner && canManageMembers && (
                         <MemberRemoveBtn type="button" onClick={() => removeMember(m.user_id)} title={t('members.remove', '제거') as string}>×</MemberRemoveBtn>
                       )}
                     </MemberRow>
@@ -1123,7 +1130,9 @@ const QProjectDetailPage: React.FC = () => {
                 })}
               </MemberList>
             )}
-            {(() => {
+            {memberSaveErr && <Dim role="alert" data-testid="project-member-save-error">{t('members.saveFailed', '멤버 변경을 저장하지 못했습니다. 서버 값으로 되돌렸습니다.')}</Dim>}
+            {!canManageMembers && !isClient && <Dim data-testid="project-member-owner-only">{t('members.ownerOnly', '프로젝트 멤버 추가·빼기는 워크스페이스 대표만 할 수 있습니다.')}</Dim>}
+            {canManageMembers && (() => {
               const joined = new Set((project.projectMembers || []).map(m => m.user_id));
               const candidates = bizMembers.filter(b => !joined.has(b.user_id));
               if (candidates.length === 0) return <Dim style={{ marginTop: 6 }}>{t('members.noCandidates', '추가 가능한 워크스페이스 멤버가 없습니다')}</Dim>;
