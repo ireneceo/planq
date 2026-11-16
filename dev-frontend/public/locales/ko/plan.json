@@ -192,7 +192,9 @@
     "errors": {
       "checkoutFailed": "결제 요청 실패. 잠시 후 다시 시도해 주세요.",
       "markPaidFailed": "입금 완료 처리 실패. 결제 ID 와 금액을 확인 후 다시 시도해 주세요.",
-      "notifyFailed": "입금 통보 실패. 잠시 후 다시 시도해 주세요."
+      "notifyFailed": "입금 통보 실패. 잠시 후 다시 시도해 주세요.",
+      "paymentInProgress": "이미 입금 통보했거나 카드 결제가 진행 중인 결제가 있어요. 그 결제가 끝난 뒤 다시 시도하거나 대표에게 확인해 주세요.",
+      "downgradeOwnerOnly": "지금보다 낮은 플랜으로 바꾸는 것은 워크스페이스 대표만 할 수 있어요."
     },
     "notify": "입금했어요",
     "notified": {

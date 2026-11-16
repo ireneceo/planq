@@ -106,7 +106,14 @@ export default function CheckoutModal({
     checkout(businessId, plan.code as Exclude<PlanCode, 'free' | 'enterprise'>, cycle, 'KRW', trialOption)
       .then(res => {
         if (!alive) return;
-        if (!res) { setError(t('checkout.errors.checkoutFailed')); return; }
+        if ('error' in res) {
+          setError(res.error === 'payment_in_progress'
+            ? t('checkout.errors.paymentInProgress')
+            : res.error === 'downgrade_owner_only'
+              ? t('checkout.errors.downgradeOwnerOnly')
+              : t('checkout.errors.checkoutFailed'));
+          return;
+        }
         setPaymentId(res.payment_id);
         setAmount(Number(res.amount || 0));
         // 서버가 실제로 보너스를 붙였는지는 응답이 말한다 — 화면이 추정하지 않는다.

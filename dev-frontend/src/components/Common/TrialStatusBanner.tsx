@@ -46,7 +46,8 @@ const daysBetween = (iso: string | null): number => {
 const TrialStatusBanner: React.FC<Props> = ({ businessId }) => {
   const { t } = useTranslation('common');
   const { user } = useAuth();
-  const isOwner = user?.business_role === 'owner' || user?.platform_role === 'platform_admin';
+  // 결제할 수 있는 사람 = 대표·관리자(2026-11-16 Irene «관리자도 결제할 수 있어야» — 서버 routes/plan.js isWorkspaceAdminReq 와 같은 선)
+  const isOwner = user?.business_role === 'owner' || user?.business_role === 'admin' || user?.platform_role === 'platform_admin';
   const [status, setStatus] = useState<PlanStatus | null>(null);
 
   const load = useCallback(() => {
@@ -88,7 +89,7 @@ const TrialStatusBanner: React.FC<Props> = ({ businessId }) => {
 
   // App Store 3.1.1 — 네이티브 앱에선 명령형 결제 유도 문구(미리 결제하세요 등)도 리젝 회색지대라
   //   상태만 알리는 중립 문구로 대체한다. (CTA 숨김만으론 본문 유도 표현이 남음 — Fable 권고)
-  // 결제는 오너 몫이다 — 결제 화면(/business/settings/plan)도 오너 메뉴다. 팀원에게는 결제 버튼·결제 유도 문구 대신
+  // 결제는 대표·관리자 몫이다. 팀원에게는 결제 버튼·결제 유도 문구 대신
   //   네이티브와 같은 «상태만 알리는» 문구를 쓰고, 평상시 체험 안내(할 일이 없는 정보)는 보이지 않는다
   //   (2026-10-09 새 팀 첫 길 점검 — 팀원 첫 화면에 «Starter 체험 · 결제 페이지» 가 떠 있었다).
   const canPay = isOwner && canPurchaseInApp();

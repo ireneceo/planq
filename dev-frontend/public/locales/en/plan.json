@@ -192,7 +192,9 @@
     "errors": {
       "checkoutFailed": "Checkout failed. Please try again.",
       "markPaidFailed": "Failed to mark as paid. Please verify and retry.",
-      "notifyFailed": "Failed to send notification. Please try again."
+      "notifyFailed": "Failed to send notification. Please try again.",
+      "paymentInProgress": "A payment is already in progress (transfer reported or card checkout open). Try again after it completes, or check with the workspace owner.",
+      "downgradeOwnerOnly": "Only the workspace owner can move to a lower plan."
     },
     "notify": "I have paid",
     "notified": {

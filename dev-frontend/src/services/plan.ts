@@ -249,14 +249,15 @@ export async function checkout(
   currency: Currency = 'KRW',
   // 체험 선택지 코드. 개월 수는 **서버가 정한다** — 여기로 숫자를 보내지 않는다.
   trialOption?: string | null
-): Promise<{ subscription_id: number; payment_id: number; amount: number; currency: Currency; bonus_months?: number; period_end_preview?: string | null; trial_days_carried?: number } | null> {
+): Promise<{ subscription_id: number; payment_id: number; amount: number; currency: Currency; bonus_months?: number; period_end_preview?: string | null; trial_days_carried?: number } | { error: string }> {
   const r = await apiFetch(`/api/plan/${businessId}/checkout`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ plan_code: planCode, cycle, currency, ...(trialOption ? { trial_option: trialOption } : {}) }),
   });
   const j = await r.json();
-  return j.success ? j.data : null;
+  // 실패는 서버 코드를 그대로 돌려준다 — 관리자 결제의 «진행 중 결제 있음»·«내리기는 대표만» 을 화면이 가려 말한다.
+  return j.success ? j.data : { error: String(j.message || 'checkout_failed') };
 }
 
 // 카드 결제 (Stripe Hosted Checkout) — 기존 pending Payment 를 Stripe 결제 세션으로 전환.
