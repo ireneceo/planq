@@ -549,6 +549,18 @@ router.post('/:businessId', authenticateToken, checkBusinessAccess, async (req, 
       if (pid === business.cue_user_id) continue;
       await joinParticipant(conversation.id, pid, 'member');
     }
+    // ★ 프로젝트 방을 만들며 넣은 멤버도 «참여자 추가» 와 같은 규칙으로 프로젝트 멤버가 된다(2026-11-16 운영 #473).
+    //   여태 이 문만 빠져 있어, 대표가 «For Develop» 방을 만들며 넣은 멤버가 대화는 보이는데 프로젝트는 못 봐
+    //   작업대가 not_project_member 로 막혔다. 판정은 syncProjectMember 한 함수(대표·관리자만 · 아니면 채팅에만).
+    if (conversation.project_id && uniq.length) {
+      const bms = await BusinessMember.findAll({
+        where: { business_id: Number(req.params.businessId), user_id: uniq.map(Number).filter(Boolean) },
+      });
+      for (const bm of bms) {
+        if (Number(bm.user_id) === Number(req.user.id) || Number(bm.user_id) === Number(business.cue_user_id)) continue;
+        await syncProjectMember(req, conversation, bm);
+      }
+    }
 
     await createAuditLog({
       user_id: req.user.id, business_id: req.params.businessId,

@@ -598,7 +598,8 @@
   },
   "workbench": {
     "loadFailed": "Could not load the workbench",
-    "retry": "Retry"
+    "retry": "Retry",
+    "notProjectMember": "You're not a member of this project, so its workbench (tasks, memos, issues) is hidden. You can still chat here. Ask the owner or an admin to add you to the project."
   },
   "guestPrompt": {
     "title": "Your client can't see this conversation yet",

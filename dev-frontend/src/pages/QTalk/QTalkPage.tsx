@@ -42,6 +42,8 @@ import { displayName } from '../../utils/displayName';
  * Write 엔드포인트는 청크 2~5 에서 추가 (현재는 읽기만).
  */
 
+// 작업대 로드가 «프로젝트 멤버 아님» 으로 막힌 표식(오류 문구와 구별)
+const NOT_PROJECT_MEMBER = '__not_project_member__';
 const STORAGE_LEFT = 'qtalk_left_collapsed';
 const STORAGE_RIGHT = 'qtalk_right_collapsed';
 
@@ -1298,7 +1300,8 @@ const QTalkPage: React.FC<QTalkPageProps> = ({ embedded = false, initialConvId =
         //   게다가 5개 중 listProjectConversations 만 .catch() 가 없어 그 하나의 실패·타임아웃(15초)이
         //   전체를 throw 시켰다.
         //   → 이 실패는 작업대 영역에만 표시하고, 대화는 계속 보이게 한다.
-        if (!cancelled) setProjectDataError(mapApiError(err, tErr));
+        // ★ 프로젝트 멤버가 아니어서 막힌 것은 고장이 아니다(운영 #473) — 다시 시도·신고가 아니라 이유와 할 일을 말한다.
+        if (!cancelled) setProjectDataError((err instanceof Error && err.message === 'not_project_member') ? NOT_PROJECT_MEMBER : mapApiError(err, tErr));
       } finally {
         // 실패했든 아니든 **로딩은 끝난다**. 안 내리면 스피너가 영원히 돈다.
         if (!cancelled) setLoading(false);
@@ -2031,7 +2034,12 @@ const QTalkPage: React.FC<QTalkPageProps> = ({ embedded = false, initialConvId =
       {/* 작업대 데이터 로드 실패 — 대화는 그대로 두고 여기만 알린다 (Irene 2026-09-03).
           안 보여주면 업무·메모·이슈가 **조용히 빈 채로** 있어 사용자는 "원래 없는 것" 으로 읽는다
           (memory feedback_silent_no_output_paths). 다시 시도할 길을 같이 준다. */}
-      {projectDataError && activeProjectId && (
+      {projectDataError === NOT_PROJECT_MEMBER && activeProjectId && (
+        <WorkbenchErrorBar role="status" data-testid="qtalk-workbench-not-member">
+          <span>{t('workbench.notProjectMember', { defaultValue: '이 프로젝트의 멤버가 아니어서 작업대(업무·메모·이슈)를 볼 수 없습니다. 대화는 그대로 할 수 있어요. 대표나 관리자에게 프로젝트 멤버 추가를 요청하세요.' }) as string}</span>
+        </WorkbenchErrorBar>
+      )}
+      {projectDataError && projectDataError !== NOT_PROJECT_MEMBER && activeProjectId && (
         <WorkbenchErrorBar role="alert" data-testid="qtalk-workbench-error">
           <span>{t('workbench.loadFailed', { defaultValue: '작업대 정보를 불러오지 못했습니다' }) as string}</span>
           <WorkbenchRetryBtn type="button" onClick={() => { setProjectDataError(null); setReloadKey((k) => k + 1); }}>
