@@ -1,6 +1,12 @@
 # Fable 게이트 대기열 → **판정 기록 보관소** (2026-10-08 부터)
 
 
+### 2026-11-16 방 80f405cb — 관리자(admin)도 구독 결제 (19f123b2·b92308de·3291d12c) — 완료 검증 1차 **FAIL** → 고침 → 2차 **PASS**
+- Irene: «관리자도 결제할 수 있어야 하는데 왜 오너만 돼? 카드결제 누르면 결제가 안돼.» — checkout 이 403 owner_only.
+- 개방: checkout·stripe-checkout·notify-paid·addons/request = `isWorkspaceAdminReq`. 대표만 그대로: 환불 요청·/change·cancel-schedule·trial-plan·추가 슬롯 해지. 입금 확정은 플랫폼 관리자만.
+- 1차 FAIL B1 admin checkout 이 대표가 입금 통보한(카드창 열린) pending 을 replace 로 취소 · B2 낮은 plan_code 로 «내리기는 대표만» 우회 → `services/adminCheckoutGuard` (admin 에게만 403 downgrade_owner_only · 409 payment_in_progress). 대표 동작 불변(양성 대조군: 대표는 얼린 청구를 여전히 취소함).
+- 비차단(남김): 가드가 «admin 아니면 통과» 로 열린 쪽(호출처 1곳) · 가드가 트랜잭션 밖(좁은 경합) · 얼린 판정이 갱신 청구까지 넓음 · 체험 중 낮은 플랜 결제도 admin 403 · admin enterprise checkout 500(종전 경로) · 입금 안내 메일 수신자 대표만(외부 발송 — 범위 밖) · **대표 자신의 replace 가 자기 입금 통보 결제를 취소하는 종전 동작**.
+
 ### 2026-11-16 방 2e7f3806 — 문의 «완료로 닫기» — 회신 [보내고 완료로 닫기] + 상황판 «닫기 대기» 판정 — 설계 **DESIGN: READY** → 완료 검증 1차 **FAIL** → 고침 → 2차 **PASS**
 - Irene: «들어온 문의가 어떻게 해결되는 거야? 완료처리 되게 조치가 되어야 하는데 왜 리스트가 계속 남는 형태야?»
 - 설계: ① 손님 문의 회신함(직접 회신 sent>0 OR replied_at) = Irene 필요 «완료로 닫기»(옛 «아니오 · 닫기만» 은 정의와 어긋남) ② 피드백 접수·검토중+답함+후속 0 = «닫기 대기» 묶음 ③ [보내고 완료로 닫기](주)·[보내기만] — sent 일 때만 조건부 resolved, 자동 닫기 없음 ④ --refresh 안 만듦(운영 읽기 막히면 거짓 초록).
