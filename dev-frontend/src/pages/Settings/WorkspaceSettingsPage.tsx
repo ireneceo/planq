@@ -58,7 +58,12 @@ import { SegmentedToggle, SegmentedBtn } from '../../components/Common/segmented
 import JoinRequestsPanel, { useJoinPendingCount } from '../../components/Join/JoinRequestsPanel';
 import JoinSettingsCard from '../../components/Join/JoinSettingsCard';
 import MemberLinks from '../../components/People/MemberLinks';
-import EmailLink from '../../components/People/EmailLink';
+import {
+  InvitePrimaryBtn, InviteBox, InviteInputRow, InviteRoleSlot, InviteHintText, InviteError, InviteResultList, InviteResultItem, InviteActionRow, InviteCancel, InviteSubmit, InviteEmailSlot, InviteMessage,
+} from '../../components/Members/inviteFormStyles';
+import RecipientInput from '../QMail/RecipientInput';
+import EmailLink, { openMailCompose } from '../../components/People/EmailLink';
+import DirectMessageButton from '../../components/People/DirectMessageButton';
 import ModulesSection from '../../components/Settings/ModulesSection';
 import PayrollManagersSection from '../../components/Permissions/PayrollManagersSection';
 import RolePicker from '../../components/MemberRole/RolePicker';
@@ -70,7 +75,6 @@ import WorkspaceBrandsSection from '../../components/Brand/WorkspaceBrandsSectio
 import WorkspaceDeletionSection from './WorkspaceDeletionSection';
 import NameCardViewDrawer, { MemberCardButton } from '../../components/NameCard/NameCardViewDrawer';
 import { formatDay, formatDayTime } from '../../utils/dateFormat';
-import { isEnterAction } from '../../utils/imeKey';
 
 type TabKey = 'payroll' | 'attendance' | 'brand' | 'legal' | 'language' | 'work-env' | 'storage' | 'plan' | 'permissions' | 'members' | 'cue' | 'billing' | 'email' | 'mail-accounts' | 'notifications' | 'work-flow' | 'data-export' | 'activity' | 'signatures';   // signatures — 서명 관리(owner/admin, 2026-10-23) · activity — 팀원 활동 기록(owner 전용)
 
@@ -103,44 +107,8 @@ const SectionHeaderRow = styled.div`
   /* 폰 — [역할 관리][+ 멤버 초대] 가 옆에 서면 섹션 설명이 31px 폭으로 한 글자씩 세로가 됐다(2026-10-22). 버튼은 아래로 */
   @media (max-width: 640px) { flex-direction: column; gap: 10px; }
 `;
-const InvitePrimaryBtn = styled.button`
-  display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 14px;
-  background: #14B8A6; color: #FFFFFF; border: none; border-radius: 8px;
-  font-size: 0.8125rem; font-weight: 700; cursor: pointer; flex-shrink: 0;
-  &:hover { background: #0D9488; }
-`;
-const InviteBox = styled.div`
-  margin: 12px 0 16px; padding: 14px; background: #F8FAFC; border: 1px solid #E2E8F0;
-  border-radius: 10px; display: flex; flex-direction: column; gap: 10px;
-`;
-const InviteInputRow = styled.div`display: flex; gap: 8px; flex-wrap: wrap; & + & { margin-top: 8px; }`;
-// 여러 명을 붙여 넣을 수 있게 여러 줄 칸(쉼표·줄바꿈·공백으로 나눈다 — 조직 0단계 0-4)
-const InviteInput = styled.textarea`
-  flex: 2; min-width: 200px; min-height: 36px; resize: vertical; font-family: inherit; line-height: 1.4;
-  padding: 8px 12px; border: 1px solid #CBD5E1; border-radius: 8px;
-  font-size: 0.8125rem; background: #FFFFFF; &:focus { outline: none; border-color: #14B8A6; box-shadow: 0 0 0 2px rgba(20,184,166,0.15); }
-`;
-// 초대 폼 역할 칸 — 역할 사전 고르기(RolePicker)를 담는 자리. 이메일 칸과 같은 줄.
-const InviteRoleSlot = styled.div`flex: 1; min-width: 140px;`;
 const MemberHeaderActions = styled.div`display: flex; align-items: center; gap: 8px; flex-shrink: 0; flex-wrap: wrap; justify-content: flex-end;
   @media (max-width: 640px) { justify-content: flex-start; }`;
-const InviteHintText = styled.div`font-size: 0.75rem; color: #64748B; line-height: 1.5; margin-top: 6px;`;
-const InviteError = styled.div`font-size: 0.75rem; color: #DC2626;`;
-const InviteResultList = styled.ul`margin: 6px 0 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 2px;`;
-const InviteResultItem = styled.li<{ $ok?: boolean }>`font-size: 0.75rem; color: ${(p) => (p.$ok ? '#0F766E' : '#B45309')}; overflow-wrap: anywhere;`;
-const InviteActionRow = styled.div`display: flex; gap: 8px; justify-content: flex-end;`;
-const InviteCancel = styled.button`
-  padding: 7px 12px; background: #FFFFFF; color: #334155; border: 1px solid #CBD5E1;
-  border-radius: 8px; font-size: 0.75rem; font-weight: 600; cursor: pointer;
-  &:hover { background: #F8FAFC; border-color: #94A3B8; }
-`;
-const InviteSubmit = styled.button`
-  padding: 7px 14px; background: #0D9488; color: #FFFFFF; border: none;
-  border-radius: 8px; font-size: 0.75rem; font-weight: 700; cursor: pointer;
-  &:hover:not(:disabled) { background: #0F766E; }
-  &:disabled { background: #CBD5E1; cursor: not-allowed; }
-`;
-
 const SectionDesc = styled.p`
   font-size: 0.8125rem;
   color: #64748b;
@@ -582,6 +550,10 @@ export default function WorkspaceSettingsPage() {
 
   const [ws, setWs] = useState<Workspace | null>(null);
   const [members, setMembers] = useState<WorkspaceMember[]>([]);
+  // 전체 멤버에게 메일 — 수락한 사람 멤버(AI·초대 대기 제외)의 주소, 나 제외
+  const allMemberEmails = useMemo(() => members
+    .filter((m) => m.user_id && m.role !== 'ai' && Number(m.user_id) !== Number(user?.id) && m.user?.email)
+    .map((m) => String(m.user?.email)), [members, user?.id]);
   // 역할 이름 변경·삭제는 멤버의 «기본 역할» 글자도 바꾼다(services/memberRoles) — 다른 창에서 바꿔도 목록을 다시 읽는다.
   //   방 구독은 useMemberRoleDict 가 한다.
   useEffect(() => {
@@ -598,6 +570,7 @@ export default function WorkspaceSettingsPage() {
   }, [businessId]);
   const [inviteOpen, setInviteOpen] = useState(false);
   const [inviteEmail, setInviteEmail] = useState('');
+  const [inviteMessage, setInviteMessage] = useState('');   // 초대 메일에 함께 보낼 말(선택 · 2026-11-16)
   const [inviteRole, setInviteRole] = useState('');
   const [inviteAccess, setInviteAccess] = useState<'member' | 'admin'>('member');   // 초대 때 정하는 권한(수락하면 그대로)
   const [inviteBusy, setInviteBusy] = useState(false);
@@ -827,7 +800,7 @@ export default function WorkspaceSettingsPage() {
     setInvitePreview(null);
     setInviteBusy(true); setInviteError(null);
     try {
-      const res = await inviteMembersBulk(businessId, { emails, role: inviteAccess, default_role: inviteRole.trim() || undefined, ...inviteOrgPayload() });
+      const res = await inviteMembersBulk(businessId, { emails, role: inviteAccess, default_role: inviteRole.trim() || undefined, message: inviteMessage.trim() || undefined, ...inviteOrgPayload() });
       if (res.status === 422) {
         setInviteError(t('members.bulkInvite.overQuota', '남은 자리는 {{remaining}}명인데 {{n}}명을 초대하려고 합니다. 요금제에서 멤버 자리를 늘리거나 인원을 줄여 주세요.', { remaining: res.remaining ?? 0, n: res.sendable ?? emails.length }) as string);
         return;
@@ -836,10 +809,10 @@ export default function WorkspaceSettingsPage() {
       setMembers(fresh);
       const failed = res.results.filter((r) => r.status !== 'invited');
       if (failed.length === 0) {
-        setInviteOpen(false); setInviteEmail(''); setInviteRole(''); setInviteOrg(null); setInviteResults(null);
+        setInviteOpen(false); setInviteEmail(''); setInviteMessage(''); setInviteRole(''); setInviteOrg(null); setInviteResults(null);
       } else {
         setInviteResults(res.results);
-        setInviteEmail(failed.map((r) => r.email).join('\n'));
+        setInviteEmail(failed.map((r) => r.email).join(', '));
       }
     } catch (err: unknown) {
       setInviteError(mapApiError(err, tErr));
@@ -1555,6 +1528,13 @@ export default function WorkspaceSettingsPage() {
                 onClick={() => setRoleManageOpen(true)}>
                 {t('members.roleManage', '역할 관리')}
               </ActionButton>
+              {/* 전체 멤버에게 메일 — 우리 메일 작성창에 수락한 사람 멤버 주소를 채워 연다(새 발송 경로 없음 · 2026-11-16) */}
+              {allMemberEmails.length > 0 && (
+                <ActionButton tone="secondary" size="sm" data-testid="settings-mail-all-members"
+                  onClick={() => void openMailCompose(allMemberEmails, { bizId: Number(businessId || 0), qmailLevel: user?.menu_levels?.qmail })}>
+                  {t('members.mailAll', '전체 멤버에게 메일')}
+                </ActionButton>
+              )}
               {isAdmin && !inviteOpen && (
                 <InvitePrimaryBtn type="button" onClick={() => { setInviteOpen(true); setInviteError(null); }}>
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
@@ -1570,15 +1550,10 @@ export default function WorkspaceSettingsPage() {
               <InviteBox>
                 <InviteInputRow>
                   {/* draft-exempt: 보내기 전 확인창까지 한 화면에서 끝나는 주소 목록 — 쓰다 만 글이 아니다 */}
-                  <InviteInput
-                    autoFocus
-                    rows={inviteEmailList.length > 1 ? 3 : 1}
-                    data-testid="invite-emails"
-                    placeholder={t('members.bulkInvite.placeholderMulti', '초대할 이메일 — 여러 명은 쉼표나 줄바꿈으로') as string}
-                    value={inviteEmail}
-                    onChange={(e) => setInviteEmail(e.target.value)}
-                    onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && isEnterAction(e) && inviteEmailList.length) { e.preventDefault(); void sendMemberInvite(); } }}
-                  />
+                  <InviteEmailSlot>
+                    <RecipientInput value={inviteEmail} onChange={setInviteEmail} data-testid="invite-emails"
+                      placeholder={t('members.bulkInvite.placeholderChips', '초대할 이메일 — 입력하고 Enter·쉼표') as string} />
+                  </InviteEmailSlot>
                   <InviteRoleSlot>
                     <RolePicker bizId={businessId} dict={roleDict.dict} onDictAdd={roleDict.add} size="md"
                       placeholder={t('members.defaultRolePlaceholder', '기본 역할') as string}
@@ -1609,6 +1584,9 @@ export default function WorkspaceSettingsPage() {
                     </InviteRoleSlot>
                   </InviteInputRow>
                 )}
+                {/* draft-exempt: 확인창까지 한 화면에서 끝나는 초대 메일 문구 */}
+                <InviteMessage rows={2} maxLength={500} value={inviteMessage} onChange={(e) => setInviteMessage(e.target.value)} data-testid="invite-message"
+                  placeholder={t('members.bulkInvite.messagePlaceholder', '함께 보낼 말 (선택) — 초대 메일에 그대로 실립니다') as string} />
                 <InviteHintText>{t('members.inviteHint', '받은 사람이 초대 메일의 링크로 가입(이미 계정이 있으면 로그인)하면 바로 팀원이 됩니다. 링크는 30일 동안 열립니다.')}</InviteHintText>
                 {inviteError && <InviteError>{inviteError}</InviteError>}
                 {inviteResults && inviteResults.length > 0 && (
@@ -1617,7 +1595,7 @@ export default function WorkspaceSettingsPage() {
                   </InviteResultList>
                 )}
                 <InviteActionRow>
-                  <InviteCancel type="button" onClick={() => { setInviteOpen(false); setInviteEmail(''); setInviteRole(''); setInviteAccess('member'); setInviteError(null); setInviteOrg(null); setInviteResults(null); }}>
+                  <InviteCancel type="button" onClick={() => { setInviteOpen(false); setInviteEmail(''); setInviteMessage(''); setInviteRole(''); setInviteAccess('member'); setInviteError(null); setInviteOrg(null); setInviteResults(null); }}>
                     {t('members.inviteCancel', '취소')}
                   </InviteCancel>
                   <InviteSubmit type="button" data-testid="invite-submit" disabled={inviteBusy || !inviteEmailList.length} onClick={() => void sendMemberInvite()}>
@@ -1638,6 +1616,7 @@ export default function WorkspaceSettingsPage() {
                   ? t('members.bulkInvite.confirmAdmin', '관리자 권한으로 초대합니다 — 수락하면 바로 관리자입니다.') as string
                   : t('members.bulkInvite.confirmMember', '멤버 권한으로 초대합니다.') as string,
                 ...invitePreview.rows.filter((r) => r.status === 'ok').map((r) => `· ${r.email}`),
+                ...(inviteMessage.trim() ? [t('members.bulkInvite.confirmMessage', '함께 보낼 말: {{m}}', { m: inviteMessage.trim() }) as string] : []),
                 ...(invitePreview.rows.some((r) => r.status !== 'ok')
                   ? [t('members.bulkInvite.confirmSkipped', '보내지 않는 주소: {{list}}', { list: invitePreview.rows.filter((r) => r.status !== 'ok').map(inviteRowText).join(', ') }) as string]
                   : []),
@@ -1735,6 +1714,7 @@ export default function WorkspaceSettingsPage() {
                         {isPending && <DrawerPendingNote>{t('members.pendingNote', '초대 수락 후 프로필이 표시됩니다.')}</DrawerPendingNote>}
                       </DrawerHeadText>
                       {!isPending && target.user_id && businessId && <MemberCardButton businessId={businessId} userId={Number(target.user_id)} onOpen={setCardUserId} />}
+                      {!isPending && target.user_id && businessId && <DirectMessageButton businessId={businessId} userId={Number(target.user_id)} targetRole={target.role} />}
                       <RoleBadge $role={target.role}>
                         {target.role === 'owner' ? t('members.roleOwner', '오너') : target.role === 'admin' ? t('members.roleAdmin') : target.role === 'ai' ? t('members.roleAi') : t('members.roleMember')}
                       </RoleBadge>

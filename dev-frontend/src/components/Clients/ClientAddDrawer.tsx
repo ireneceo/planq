@@ -81,6 +81,8 @@ export default function ClientAddDrawer({ open, onClose, businessId, prefill, fr
   // 이 자리가 이미 다른 고객에 붙어 있을 때(409 already_client) · 웹폼 릴레이 발신자(400 relay_sender_use_manual)
   const [boundId, setBoundId] = useState<number | null>(null);
   const [relay, setRelay] = useState(false);
+  // 초대 메일에 함께 보낼 말(선택 · 2026-11-16 Irene «고객초대할 때 메시지도 넣을 수 있어야지») — 서버가 500자로 자른다
+  const [inviteMessage, setInviteMessage] = useState('');
 
   // 열릴 때마다 처음부터 — 대상(inviteFor)·채움값(prefill)을 반영한다
   useEffect(() => {
@@ -88,7 +90,7 @@ export default function ClientAddDrawer({ open, onClose, businessId, prefill, fr
     // 명함에서 왔으면 «직접 관리» 로 연다 — 받은 명함은 아직 초대할 사이가 아닌 경우가 대부분이다
     //   메일 서명에서 왔을 때도 «직접 관리» — 서명이 주는 전화·직함·부서 칸이 그 모드에만 있다(초대로 바꿀 수 있다)
     //   2026-10-23 — 기본은 언제나 «추가»(메일이 안 나가는 쪽). 초대는 사람이 고른다.
-    setMode('managed'); setError(null); setExistingId(null); setMailWarn(false); setBoundId(null); setRelay(false); setConfirmInvite(false);
+    setMode('managed'); setError(null); setExistingId(null); setMailWarn(false); setBoundId(null); setRelay(false); setConfirmInvite(false); setInviteMessage('');
     setPhone(prefill?.phone || ''); setJobTitle(prefill?.job_title || ''); setDepartment(prefill?.department || '');
     if (inviteFor) {
       setName(inviteFor.display_name || inviteFor.company_name || '');
@@ -253,7 +255,7 @@ export default function ClientAddDrawer({ open, onClose, businessId, prefill, fr
       // 프로젝트 초대 문 하나 — 워크스페이스 고객 행도 거기서 만든다(초대 메일 한 통). 워크스페이스 초대를 따로 부르면 두 통이 된다.
       const r = await apiFetch(`/api/projects/${projectId}/clients`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: name.trim(), email: email.trim(), company_name: company.trim() || null, kind }),
+        body: JSON.stringify({ name: name.trim(), email: email.trim(), company_name: company.trim() || null, kind, message: inviteMessage.trim() || undefined }),
       });
       const pj = await r.json().catch(() => null);
       if (!r.ok || !pj?.success) throw new Error(pj?.message === 'already_member' ? t('addModal.errAlreadyMember') : (pj?.message || t('inviteModal.errFailed')));
@@ -265,6 +267,7 @@ export default function ClientAddDrawer({ open, onClose, businessId, prefill, fr
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         name: name.trim(), email: email.trim(), company_name: company.trim() || null, kind,
+        ...(inviteMessage.trim() ? { message: inviteMessage.trim() } : {}),
         ...(inviteFor ? { client_id: inviteFor.id } : {}),
         ...(source ? { source } : {}),
       }),
@@ -374,6 +377,14 @@ export default function ClientAddDrawer({ open, onClose, businessId, prefill, fr
           value={kindOptions.find((o) => o.value === kind)} options={kindOptions}
           onChange={(o) => setKind((((o as { value?: string })?.value) as Kind) || 'customer')} />
       </Field>
+      {!managed && (
+        <Field><FieldLabel>{t('inviteModal.message', '함께 보낼 말 (선택)')}</FieldLabel>
+          {/* draft-exempt: 확인창까지 한 화면에서 끝나는 초대 메일 문구 — 창을 닫으면 버린다 */}
+          <FieldTextarea value={inviteMessage} maxLength={500} rows={3} onChange={(e) => setInviteMessage(e.target.value)}
+            placeholder={t('inviteModal.messagePlaceholder', '초대 메일에 함께 실을 말 — 예: 프로젝트 진행 상황을 여기서 공유드릴게요.') as string}
+            data-testid="clients-invite-message" />
+        </Field>
+      )}
       {!managed && <Helper>{t('inviteModal.helper')}</Helper>}
       {!managed && <TrustNote spot="clientInvite" />}
       {error && (
@@ -424,6 +435,7 @@ const ModeRow = styled.div`display:flex;flex-direction:column;align-items:flex-s
 const Field = styled.div`display:flex;flex-direction:column;gap:4px;`;
 const FieldLabel = styled.label`font-size:0.75rem;font-weight:600;color:#0F172A;`;
 const FieldInput = styled.input`height:38px;padding:0 12px;border:1px solid #E2E8F0;border-radius:8px;font-size:0.8125rem;color:#0F172A;font-family:inherit;background:#FFF;&:focus{outline:none;border-color:#14B8A6;box-shadow:0 0 0 3px rgba(20,184,166,0.1);}&::placeholder{color:#CBD5E1;}`;
+const FieldTextarea = styled.textarea`padding:8px 12px;border:1px solid #E2E8F0;border-radius:8px;font-size:0.8125rem;color:#0F172A;font-family:inherit;line-height:1.5;resize:vertical;min-height:64px;background:#FFF;&:focus{outline:none;border-color:#14B8A6;box-shadow:0 0 0 3px rgba(20,184,166,0.1);}&::placeholder{color:#CBD5E1;}`;
 const Req = styled.span`color:#F43F5E;margin-left:2px;`;
 const WarnBlock = styled.div`margin-top:4px;padding:10px 12px;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;color:#991b1b;font-size:0.75rem;`;
 const PhotoPreview = styled.img`display:block;width:100%;max-height:220px;object-fit:contain;border-radius:8px;border:1px solid #E2E8F0;background:#F8FAFC;`;

@@ -40,6 +40,15 @@ interface Props {
   empty?: React.ReactNode;
 }
 
+/** 우리 메일 작성(새 탭) — Q mail 을 못 쓰면 기기 메일 앱. 여러 주소는 콤마로(«전체 멤버에게 메일»). EmailLink 와 같은 길. */
+export async function openMailCompose(addrs: string[], opts: { bizId: number; qmailLevel?: string | null }): Promise<void> {
+  const list = addrs.map((a) => (a || '').trim()).filter((a) => EMAIL_RE.test(a));
+  if (!list.length) return;
+  const canMail = opts.qmailLevel !== 'none' && opts.bizId > 0 && await hasMailAccount(opts.bizId);
+  if (!canMail) { window.location.href = `mailto:${list.join(',')}`; return; }
+  tabStore.newTab(composePath(list.join(',')));
+}
+
 export default function EmailLink({ email, className, empty = null }: Props) {
   const { t } = useTranslation('common');
   const { user } = useAuth();
@@ -52,9 +61,7 @@ export default function EmailLink({ email, className, empty = null }: Props) {
     if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
     e.preventDefault();
     e.stopPropagation();
-    const canMail = user?.menu_levels?.qmail !== 'none' && bizId > 0 && await hasMailAccount(bizId);
-    if (!canMail) { window.location.href = `mailto:${addr}`; return; }
-    tabStore.newTab(composePath(addr));
+    await openMailCompose([addr], { bizId, qmailLevel: user?.menu_levels?.qmail });
   }, [addr, bizId, user?.menu_levels?.qmail]);
 
   if (!addr) return <>{empty}</>;

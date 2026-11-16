@@ -60,6 +60,12 @@ const MyCardsPage: React.FC = () => {
   }, []);
   useEffect(() => { void load(); }, [load]);
   useEffect(() => { listPrefillSources().then(setSources).catch(() => setSources([])); }, []);
+  // ?new=1 — 내 프로필 «명함 만들기» 에서 왔다(2026-11-16) → 만들기 창을 바로 열고 주소에서 지운다
+  useEffect(() => {
+    if (params.get('new') !== '1') return;
+    setCreateOpen(true);
+    const next = new URLSearchParams(params); next.delete('new'); setParams(next, { replace: true });
+  }, [params, setParams]);
   useVisibilityRefresh(load);
   const timer = useRef<number | null>(null);
   useEffect(() => {

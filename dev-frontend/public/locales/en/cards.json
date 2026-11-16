@@ -249,5 +249,13 @@
     "empty": "No cards to send. Turn on a card link in My account > My cards.",
     "failed": "Couldn't send. Please try again in a moment.",
     "loadFailed": "Couldn't load your cards."
+  },
+  "profilePrompt": {
+    "noneTitle": "You don't have a business card yet",
+    "hasTitle": "My cards: {{n}}",
+    "noneHint": "Create one so teammates can see it from your name, and share it by link or QR.",
+    "hasHint": "Teammates see your workspace default card when they click your name.",
+    "create": "Create a card",
+    "open": "View my cards"
   }
 }

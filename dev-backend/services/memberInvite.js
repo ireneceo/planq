@@ -60,7 +60,7 @@ function resolveAccessRole(raw) {
   return { error: 'invalid_invite_role' };
 }
 
-async function createInvite(req, businessId, { email, existingUserId, inviteRole, accessRole = 'member', org }) {
+async function createInvite(req, businessId, { email, existingUserId, inviteRole, accessRole = 'member', org, message }) {
   const token = crypto.randomBytes(24).toString('hex');
   const created = await BusinessMember.create({
     business_id: businessId,
@@ -87,6 +87,7 @@ async function createInvite(req, businessId, { email, existingUserId, inviteRole
       inviterName: inviter?.name || '',
       kind: 'workspace_member',
       token,
+      message,
     });
   } catch (e) { console.warn('member invite email failed:', e.message); }
   if (existingUserId) {
@@ -101,7 +102,7 @@ async function createInvite(req, businessId, { email, existingUserId, inviteRole
     targetType: 'business_member',
     targetId: created.id,
     businessId,
-    newValue: { email, invited_role: created.invited_role, default_role: created.default_role || null, department_id: created.department_id || null, team_id: created.team_id || null },
+    newValue: { email, with_message: !!message, invited_role: created.invited_role, default_role: created.default_role || null, department_id: created.department_id || null, team_id: created.team_id || null },
   });
   // 초대 토큰은 계정을 «그 멤버로» 붙이는 열쇠다 — 응답에 싣지 않는다
   const out = created.toJSON(); delete out.invite_token;

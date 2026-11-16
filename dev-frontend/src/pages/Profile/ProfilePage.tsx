@@ -19,6 +19,7 @@ import ActionButton from '../../components/Common/ActionButton';
 // UserTimezoneSection 함수는 이 파일 내 정의 (export) — 새 페이지가 import.
 import TimezoneSelector from '../../components/Common/TimezoneSelector';
 import PageShell from '../../components/Layout/PageShell';
+import ProfileCardPrompt from '../../components/NameCard/ProfileCardPrompt';
 import { CheckIcon, XIcon } from '../../components/Common/Icons';
 import { useTimezones } from '../../hooks/useTimezones';
 import { InlineErrorBar } from '../../components/Common/ReportProblem';
@@ -390,6 +391,7 @@ export default function ProfilePage() {
       <div ref={errorBannerRef} />
       {error && <Banner $kind="error"><XIcon size={14} />{error}</Banner>}
       {success && <Banner $kind="success"><CheckIcon size={14} />{success}</Banner>}
+      <ProfileCardPrompt />
 
       <Container>
         {/* 계정 정보 — 모든 워크스페이스 공유 (이름·아이디·이메일·기본 언어) */}

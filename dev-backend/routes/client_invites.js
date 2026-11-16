@@ -13,7 +13,7 @@ const { broadcastClient, stripClientSecrets } = require('../services/clientRespo
 
 // 초대 메일 한 통 — 새 초대·승격 두 분기가 같이 쓴다(베끼면 한쪽만 고쳐진다).
 //   sendEmail 은 던지지 않고 false 를 돌려준다 — 결과를 응답에 싣는다(0-F F-1).
-async function sendClientInviteMail(req, { to, targetName, token }) {
+async function sendClientInviteMail(req, { to, targetName, token, message }) {
   try {
     const { sendInviteEmail } = require('../services/emailService');
     const sender = await require('../services/workspaceSender').loadWorkspaceSender(req.params.businessId);
@@ -25,6 +25,7 @@ async function sendClientInviteMail(req, { to, targetName, token }) {
       targetName,
       kind: 'workspace_client',
       token,
+      message,
     });
     return sent === true;
   } catch (e) { console.warn('invite email send failed:', e.message); return false; }
@@ -108,7 +109,7 @@ router.post('/:businessId/invite', authenticateToken, checkBusinessAccess, requi
         oldValue: before, newValue: { status: 'invited', invite_email: email.trim() },
       });
       await linkSrc.attachSourceToClient({ businessId: Number(businessId), actorUserId: req.user.id, client: target, resolved, req, inquiryStage: true });
-      const inviteEmailSent = await sendClientInviteMail(req, { to: email.trim(), targetName: target.display_name || name.trim(), token });
+      const inviteEmailSent = await sendClientInviteMail(req, { to: email.trim(), targetName: target.display_name || name.trim(), token, message: (req.body || {}).message });
       await notifyClientInvitee(req, { email: email.trim(), entityId: target.id, token });
       // 문의 → 정식 고객으로 한도 계수가 바뀐다. 사용량 캐시(30초)를 비워야 플랜 화면이 바로 맞는다
       try { planEngine.invalidateBusinessCache(businessId); } catch { /* 캐시일 뿐이다 */ }
@@ -151,7 +152,7 @@ router.post('/:businessId/invite', authenticateToken, checkBusinessAccess, requi
     await linkSrc.attachSourceToClient({ businessId: Number(businessId), actorUserId: req.user.id, client: created, resolved, req, inquiryStage: true });
 
     // 초대 이메일 발송 (실패해도 초대 레코드는 유지) — 실패를 **응답에 싣는다**(0-F F-1).
-    const inviteEmailSent = await sendClientInviteMail(req, { to: email.trim(), targetName: name.trim(), token });
+    const inviteEmailSent = await sendClientInviteMail(req, { to: email.trim(), targetName: name.trim(), token, message: (req.body || {}).message });
     if (existingUser) await notifyClientInvitee(req, { userId: existingUser.id, entityId: created.id, token });
     try { planEngine.invalidateBusinessCache(businessId); } catch { /* 캐시일 뿐이다 */ }
 

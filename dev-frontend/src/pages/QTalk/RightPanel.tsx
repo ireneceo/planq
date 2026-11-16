@@ -1,3 +1,4 @@
+import { usePersonPopover, PersonNameButton } from '../../components/Common/usePersonPopover';
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
@@ -73,6 +74,7 @@ const RightPanel: React.FC<Props> = ({
   const { user } = useAuth();
   const { formatTimeAgo } = useTimeFormat();
   const navigate = useNavigate();
+  const { openPerson, personNode } = usePersonPopover(businessId);   // 멤버 이름 → 사람 카드
   // 담당자 후보 — Cue(AI) 제외 (배정해도 이 경로엔 실행 트리거가 없어 좀비 업무가 된다)
   const taskMembers = useMemo(
     () => members.filter((m) => !m.is_ai && m.role !== 'ai').map((m) => ({ user_id: m.user_id, name: m.name })),
@@ -499,7 +501,9 @@ const RightPanel: React.FC<Props> = ({
               {project.members.map((m) => (
                 <MemberRow key={m.user_id}>
                   <LetterAvatar name={m.name} size={22} />
-                  <MemberName>{m.name}</MemberName>
+                  <MemberName>
+                    <PersonNameButton type="button" data-testid="rightpanel-member-name" onClick={(e) => openPerson(m.user_id, e.currentTarget)}>{m.name}</PersonNameButton>
+                  </MemberName>
                   {m.role && <RoleTag>{m.role}</RoleTag>}
                   {/* PM 배지 — 정식 project_members.is_pm (백엔드 직렬화 + QTalkPage 매핑) */}
                   {(m as unknown as { is_pm?: boolean }).is_pm && <PmTag>{t('right.info.pmTag', 'PM')}</PmTag>}
@@ -541,6 +545,7 @@ const RightPanel: React.FC<Props> = ({
     <Container $w={width}>
       {onResizeStart && <TalkResizeHandle onMouseDown={onResizeStart} />}
       {panelBody}
+      {personNode}
     </Container>
   );
 };

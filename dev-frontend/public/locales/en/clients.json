@@ -119,7 +119,9 @@
     "submit": "Send invitation",
     "errRequired": "Name and email are required",
     "errFailed": "Invite failed",
-    "emailFailed": "The invite was created but the email couldn’t be sent. Check mail settings and use “Resend invite”."
+    "emailFailed": "The invite was created but the email couldn’t be sent. Check mail settings and use “Resend invite”.",
+    "message": "Message (optional)",
+    "messagePlaceholder": "A note to include in the invite email — e.g. We will share project updates here."
   },
   "deleteModal": {
     "title": "Confirm client deletion",

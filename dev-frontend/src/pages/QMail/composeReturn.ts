@@ -7,8 +7,10 @@ const COMPOSE_TO_RE = /^[^\s@,;<>]+@[^\s@,;<>]+\.[^\s@,;<>]+$/;
 
 /** ?to= 가 쓸 수 있는 주소면 그 주소, 아니면 null · back 은 그대로(없으면 null) */
 export function readComposeIntent(sp: URLSearchParams): { to: string | null; back: string | null } {
-  const to = (sp.get('to') || '').trim();
-  return { to: to && COMPOSE_TO_RE.test(to) ? to : null, back: sp.get('back') || null };
+  // 여러 주소는 콤마로(2026-11-16 «전체 멤버에게 메일» — 받는 사람 칸 값 계약과 같은 콤마 문자열). 하나라도 모양이 아니면 통째로 버린다.
+  const list = (sp.get('to') || '').split(',').map((x) => x.trim()).filter(Boolean);
+  const ok = list.length > 0 && list.length <= 300 && list.every((x) => COMPOSE_TO_RE.test(x));
+  return { to: ok ? list.join(', ') : null, back: sp.get('back') || null };
 }
 
 /** 보내거나 닫은 뒤 — 폰(미러) = 뒤로 · 탭 모드 = 이 작성 탭을 닫고 연 탭으로(옆 탭으로 떨어지지 않게) */

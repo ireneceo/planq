@@ -475,7 +475,15 @@ const sendEmail = async (opts) => (await deliverEmail(opts)).status === 'sent';
 // ═══════════════════════════════════════════════════════════════
 // 1. 초대 메일
 // ═══════════════════════════════════════════════════════════════
-function inviteEmailHtml({ workspaceName, inviterName, targetName, kind, contextName, inviteUrl }) {
+// 초대하는 사람이 함께 적은 말(선택) — 텍스트만, 줄바꿈 유지, 500자. 문서 공유 메일과 같은 인용 상자(quoteBlock, 이스케이프).
+//   2026-11-16 Irene «멤버나 고객초대할 때 메시지도 넣을 수 있어야지». 저장하지 않는다 — 재발송 메일에는 실리지 않는다.
+function normalizeInviteMessage(raw) {
+  if (raw === undefined || raw === null) return '';
+  const s = String(raw).replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '').replace(/\r\n?/g, '\n').trim();
+  return Array.from(s).slice(0, 500).join('');   // 글자 단위(이모지 대리쌍을 반으로 자르지 않는다)
+}
+
+function inviteEmailHtml({ workspaceName, inviterName, targetName, kind, contextName, inviteUrl, message }) {
   const roleLine = kind === 'workspace_member'
     ? '에서 팀원으로 초대하셨습니다.'
     : kind === 'workspace_client'
@@ -486,6 +494,7 @@ function inviteEmailHtml({ workspaceName, inviterName, targetName, kind, context
     <div style="font-size:15px;line-height:1.7;color:#0F172A;margin-bottom:8px;">
       <b>${escapeHtml(inviterName || '')}</b> 님이 <b>${escapeHtml(workspaceName || '')}</b> 워크스페이스${roleLine}
     </div>
+    ${quoteBlock(normalizeInviteMessage(message))}
     <div style="margin-top:20px;text-align:center;">
       ${ctaButton(inviteUrl, '초대 수락하기')}
     </div>
@@ -496,7 +505,7 @@ function inviteEmailHtml({ workspaceName, inviterName, targetName, kind, context
   return emailWrap({ title: 'PlanQ 초대', body, preheader: `${inviterName || ''}님이 ${workspaceName}${contextName ? ` · ${contextName}` : ''}에 초대했습니다`, footerOptions: { workspaceName } });
 }
 
-async function sendInviteEmail({ to, workspaceName, inviterName, targetName, kind, contextName, token, fromName, replyTo }) {
+async function sendInviteEmail({ to, workspaceName, inviterName, targetName, kind, contextName, token, fromName, replyTo, message }) {
   if (!to) return false;
   const inviteUrl = `${APP_URL}/invite/${token}`;
   // 멤버 초대는 멤버행(보낸 사람 PlanQ · [워크스페이스] 접두어), 고객·프로젝트 고객 초대는 고객행(보낸 사람 워크스페이스 · 접두어 없음).
@@ -506,7 +515,7 @@ async function sendInviteEmail({ to, workspaceName, inviterName, targetName, kin
     : `${inviterName || ''}님이 ${contextName ? `${contextName} 에 ` : ''}초대했습니다`;
   return sendEmail({
     to, subject,
-    html: inviteEmailHtml({ workspaceName, inviterName, targetName, kind, contextName, inviteUrl }),
+    html: inviteEmailHtml({ workspaceName, inviterName, targetName, kind, contextName, inviteUrl, message }),
     ...(member ? {} : { fromName, replyTo }),
     template: 'invite', relatedEntityType: 'invite_token',
   });
@@ -1629,7 +1638,7 @@ module.exports = {
   sendTrialRefundDoneEmail,
   MAIL_FONT_STACK,
   sendEmail,
-  sendInviteEmail, sendPostShareEmail, sendEntityShareEmail, sendSignatureRequestEmail, sendSignatureOtpEmail,
+  sendInviteEmail, normalizeInviteMessage, sendPostShareEmail, sendEntityShareEmail, sendSignatureRequestEmail, sendSignatureOtpEmail,
   sendSurveyInviteEmail,
   sendInvoiceEmail, sendPaymentReminderEmail, sendReceiptIssuedEmail, sendReceiptCorrectionEmail, sendVerificationCodeEmail,
   sendUnreadNotificationEmail,

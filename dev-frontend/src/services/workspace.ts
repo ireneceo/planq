@@ -138,7 +138,7 @@ export async function inviteMember(id: number, payload: { email: string; default
 }
 
 export interface BulkInviteRow { email: string; status: 'ok' | 'invalid' | 'already_member' | 'already_invited' | 'quota' | 'invited' }
-export interface BulkInvitePayload { emails: string[]; role?: 'member' | 'admin'; default_role?: string; department_id?: number | null; team_id?: number | null; dry_run?: boolean }
+export interface BulkInvitePayload { emails: string[]; role?: 'member' | 'admin'; default_role?: string; department_id?: number | null; team_id?: number | null; dry_run?: boolean; message?: string }
 /** 여러 명 초대 — dry_run 이면 줄별 판정만(발송 0). 실제 호출은 보낼 수 있는 사람 수가 남은 자리보다 많으면 422(한 통도 안 보냄). */
 export async function inviteMembersBulk(id: number, payload: BulkInvitePayload): Promise<{ status: number; results: BulkInviteRow[]; sendable?: number; remaining?: number | null; invited?: number }> {
   const r = await apiFetch(`/api/businesses/${id}/members/invite`, {

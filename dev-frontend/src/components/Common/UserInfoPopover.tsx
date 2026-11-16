@@ -18,6 +18,8 @@ import LetterAvatar from './LetterAvatar';
 import EmailLink from '../People/EmailLink';
 import { tabStore } from '../../stores/tabStore';
 import { onSocket } from '../../services/socket';
+import { useAuth } from '../../contexts/AuthContext';
+import { openDirectConversation } from '../../services/qtalk';
 
 interface OrgUnit { id: number; name: string; name_en?: string | null }
 interface MemberRow {
@@ -142,6 +144,22 @@ const UserInfoPopover: React.FC<Props> = ({ open, userId, businessId, anchorEl, 
   const orgName = (u?: OrgUnit | null) => u ? ((i18n.language?.startsWith('en') && u.name_en) ? u.name_en : u.name) : '';
   const [info, setInfo] = useState<UserInfo | null>(null);
   const [loading, setLoading] = useState(false);
+  const [dmBusy, setDmBusy] = useState(false);
+  const [dmError, setDmError] = useState<string | null>(null);
+  const { user: me } = useAuth();
+  // 1:1 메시지 — 멤버가 다른 멤버에게만(고객은 기존 고객 대화방 · 서버 POST /direct 와 같은 선)
+  const canDm = ['owner', 'admin', 'member'].includes(String(me?.business_role || '')) && Number(me?.id) !== Number(userId);
+  const startDm = async () => {
+    if (dmBusy) return;
+    setDmBusy(true); setDmError(null);
+    try {
+      const conv = await openDirectConversation(businessId, userId);
+      tabStore.openInNewTab(`/talk?conv=${conv.id}`);
+      onClose();
+    } catch {
+      setDmError(t('userInfo.dmFailed', '1:1 대화를 열지 못했어요') as string);
+    } finally { setDmBusy(false); }
+  };
   const popoverRef = useRef<HTMLDivElement | null>(null);
   const hasCard = useHasMemberCard(businessId, userId, open && !!onOpenCard && info?.scope === 'member');
 
@@ -282,6 +300,14 @@ const UserInfoPopover: React.FC<Props> = ({ open, userId, businessId, anchorEl, 
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><polyline points="9 18 15 12 9 6" /></svg>
               </ProfileLinkBtn>
             )}
+            {/* 1:1 메시지(2026-11-16 Irene «아이디 클릭하면 이메일, 1:1 메시지 보내기 그리고 명함보기») — 둘만의 방이 있으면 그 방 */}
+            {info.scope === 'member' && canDm && (
+              <ProfileLinkBtn type="button" data-testid="userinfo-direct-message" onClick={startDm} disabled={dmBusy}>
+                {t('userInfo.directMessage', '1:1 메시지')}
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><polyline points="9 18 15 12 9 6" /></svg>
+              </ProfileLinkBtn>
+            )}
+            {dmError && <NoInfo role="alert">{dmError}</NoInfo>}
             {/* 워크스페이스 기본 명함(docs/NAME_CARD_V2_DESIGN.md 결정 3) — 있을 때만 */}
             {hasCard && onOpenCard && (
               <ProfileLinkBtn type="button" data-testid="userinfo-open-card" onClick={() => { onOpenCard(userId); onClose(); }}>
