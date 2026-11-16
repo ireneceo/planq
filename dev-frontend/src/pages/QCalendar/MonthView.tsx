@@ -109,7 +109,8 @@ const MonthView: React.FC<Props> = ({ anchor, today, now, events, onSelectEvent,
                 <DateBadge $today={isToday} $isSaturday={day.getDay() === 6} $isSunday={day.getDay() === 0 || !!hol}>
                   {day.getDate()}
                 </DateBadge>
-                {hol && !compact && <HolidayName data-testid="calendar-holiday" title={holidayLabel(hol, i18n.language)}>{holidayLabel(hol, i18n.language)}</HolidayName>}
+                {/* 폰(compact) 점 보기에서도 휴일 이름은 남긴다 — #424 계약(745ddf27 에서 빠졌던 것, holidaycap 카나리) */}
+                {hol && <HolidayName data-testid="calendar-holiday" title={holidayLabel(hol, i18n.language)}>{holidayLabel(hol, i18n.language)}</HolidayName>}
                 {onCreateAt && !compact && (
                   <AddBtn
                     type="button"

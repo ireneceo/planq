@@ -114,6 +114,9 @@ async function run() {
       const fresh = async (opts) => {
         const { browser, page } = await launch({ mobile: true });
         await page.setViewport({ ...vp, isMobile: true, hasTouch: true, deviceScaleFactor: 2 });
+        // 기기 시계 = 워크스페이스 시간대 — 시험 «오늘»(ymdIn(_tz)) 과 화면 «오늘» 이 서버 UTC 로 갈리지 않게.
+        // 밤 검사는 UTC 18시대(한국·말레이 새벽)에 돌아 날짜가 하루 어긋나 phone-month 가 빨갛던 것(11-15).
+        await page.emulateTimezone(_tz).catch(() => null);
         await page.evaluateOnNewDocument(installFinder);
         await login(page);
         if (opts) await intercept(page, { ...opts, biz: _biz });

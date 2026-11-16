@@ -109,6 +109,23 @@ async function run() {
             });
             return { out, cells: document.querySelectorAll('[data-date]').length, tz: Intl.DateTimeFormat().resolvedOptions().timeZone };
           });
+          // 폰 월 보기(745ddf27 이후)는 칸에 칩 대신 점만 그린다 — 점 있는 날을 눌러 아래 «고른 날» 목록에서 제목을 읽는다.
+          // 칩이 하나도 없고 점 칸이 있을 때만 이 길로 간다(데스크탑·태블릿 판정은 그대로).
+          if (!Object.keys(where.out).length) {
+            const dotted = await page.$$eval('[data-date]', (cells) => cells
+              .filter((c) => c.querySelector('[data-testid="calendar-day-dots"]')?.children.length)
+              .map((c) => c.getAttribute('data-date')));
+            for (const d of dotted) {
+              await page.click(`[data-date="${d}"]`).catch(() => null);
+              await sleep(250);
+              const titles = await page.$$eval('[data-testid="calendar-month-day"] [data-testid="calendar-event"],[data-testid="calendar-month-day"] [data-testid="calendar-task"]',
+                (els) => els.map((e) => (e.getAttribute('title') || e.textContent || '').trim()));
+              for (const t of titles) {
+                const k = ['__ADC single', '__ADC two', '__ADC weekly', '__ADC legacy', '__ADC task'].find((x) => t.startsWith(x) || t.includes(x));
+                if (k) (where.out[k] = where.out[k] || []).push(d);
+              }
+            }
+          }
           if (!where.cells) {
             results.push({ name: `cells:${label}`, fail: 0, details: [`⬜ 미측정 — 월 격자 칸이 없다(이 폭은 다른 보기)`] });
           } else {
