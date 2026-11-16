@@ -1,4 +1,13 @@
 ## 현재 작업 상태
+### 문서 차트 블록 — 막대·선·영역·원 (방 6c4e928d · 2026-11-16 · [Opus] · 커밋 b8d8e19d · Fable 설계 DESIGN: FIX 8건 반영 → 완료 검증 1차 FAIL(B1 큰 값 눈금 무한 루프 → 서버 사망) → 고침 · 마지막 고침은 Fable 미검증(자체 검증 — 한 사안 2번 다 씀))
+- 설계 `docs/DOC_CHART_BLOCK_DESIGN.md` · 규칙 `.claude/rules/qdocs.md` «차트 블록» · 그림 한 벌 `dev-backend/utils/chartSvg.js`(화면은 `components/Docs/chartData.ts` 로 가져옴)
+- 편집기 도구줄 [차트] · 표 메뉴 [차트로] · 보기·게스트·PDF·서명본·워드(데이터 표)·검색 글 · 옛 화면 저장 409 `editor_outdated`
+- 자체 검증: 퍼즈 throw 0 · 화면=서버 그림 8/8 · 3폭 화면 · build EXIT 0 · health 100/100 · guard 85/86(경고 1) · e2e signature·tablemenu·docsdup 통과
+- 확인용: 문서 9145(차트 3)·9146(복사본)·9120(표+차트)
+- B1 고침: 값 크기 상한 1e15 · 눈금 정수 개수(≤12, 못 만들면 빈 그림) — 옛 함수는 같은 값에서 죽음(양성 대조군), 새 함수 40사례 0.06초·NaN 0 · 실HTTP 큰 값 문서 PDF 200·서버 생존
+- Fable 비차단 남은 것: N2 저장 때 차트 정규화 안 함(렌더 때 함) · N3 에이전트 update_document(전체 교체) 미리보기에 «차트 N개 빠짐» 경고 없음 · N4 409 문구 서버 한국어 고정
+- 다음 할 일 후보(Fable 비차단): «값 표시» 토글 · «편집기 노드 ⊆ 서버 case» 가드 · AI 앱이 차트를 만드는 문법(마크다운 ```chart)
+
 ### ✅ 사내 공지 보내기 — 워크스페이스 «전체» 대화방 + 공지 (방 1bf4fb3b · 2026-11-16 · [Opus] · Fable 설계 B → 완료 검증 PASS(재검증 포함))
 - 공지 = «전체» 방(멤버 전원 자동 참여) 메시지 + 제목 + 자동 핀 · 알림(방 알림 꺼도 감, 즉시 메일 없음 — 안 읽으면 채팅과 같은 5분 묶음 메일) · 읽음 N/M, 명단은 작성자·대표·관리자
 - 서버 `routes/team_channel.js`·`services/team_channel.js` · `businesses.team_conversation_id`(migrate-team-channel.js 배포 슬롯) · 화면 설정›멤버 «공지 보내기» · Q talk «전체» 방 공지 띠(공지 목록·공지 올리기) · `ChatPinnedBar.tsx`(ChatPanel 에서 핀 띠 분리)
@@ -11,7 +20,7 @@
 - 범위 밖: 업무 설명·결과물 표(`taskMarkdown.js` 왕복 계약 — lossy 경계 Fable 설계 필요, 계획 `.claude/plans/qmwiqw265.md` 2단계)
 - 확인용 문서 9120 · 메모 100000853
 
-### 답 기다림: 문서에 그래프 넣기 — HTML 자유 입력 대신 «차트 블록» 으로 갈지 (방 6c4e928d · 2026-11-16)
+### ✅ (이전) 답 기다림: 문서에 그래프 넣기 — Irene «권고대로 진행해 줘» → 아래 차트 블록 (방 6c4e928d · 2026-11-16)
 - 판단: HTML 그대로 쓰기는 비권고(저장 형식이 TipTap JSON · 그래프 HTML = 스크립트 → 무인증 공유 링크·서명본·PDF 4경로 보안/재현 문제). 대신 데이터만 저장하는 «차트 블록»(막대·선·원·영역, 표에서 만들기, AI 도 표 데이터로) 권고. 계획 `.claude/plans/qmwirvqfg.md`
 - 답이 오면: «예» → /기능설계 + Fable 설계 1회 → 구현. «아니오» → 닫기.
 
