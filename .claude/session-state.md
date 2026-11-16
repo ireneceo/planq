@@ -3,9 +3,10 @@
 - 1 채팅: 보낸 즉시 그리는 임시 메시지 이름이 계정 이름(users.name)이라 서버 응답(워크스페이스 표시명)으로 바뀌며 깜빡였다 → `QTalkPage` 임시 메시지·`NewChatModal` «나» 칩 = `displayName(user)` · `ChatPanel` @멘션 강조 목록 = 표시명
 - 2 다운로드: 사이드바 프로필 메뉴 «앱 다운로드»(새 탭 /app, 폰·데스크탑 앱 안에선 숨김) · 시작 안내 «앱 설치 (폰·컴퓨터)» 버튼 → /app 새 탭(옛: 설정>알림). 적응 단계 1단계로 옮기기(B-2)는 안 함(정찰 권고 — 분류 기준 변경 = Fable 설계)
 - 3 지메이트: 서버 PUT /api/projects/:id/members 는 워크스페이스 대표·플랫폼 관리자만(관리자·멤버 403, dev 실측 member 403/owner 200) — 화면은 누구에게나 버튼을 주고 403 을 삼켜 «넣었다가 사라짐». → 대표 아니면 추가·빼기·PM·역할 잠금 + 안내 한 줄 · 실패 시 서버 값으로 되돌리고 알림. 운영 데이터(홍진호 행·누가 넣었나)는 확인 못 함(운영 조회 권한 거부)
-- 남은 결정: 관리자(admin)도 프로젝트 멤버를 바꾸게 할지 — 권한 범위 변경이라 Fable 설계 + Irene 결정
+- ✅ 관리자(admin)도 프로젝트 멤버 추가·빼기·PM·역할 (66a39d19 · Irene «권고대로» · Fable 설계 READY → 완료 검증 PASS — 실HTTP 26/27(1건 시험 가정 오류)·브라우저 3폭×2역할) · 술어 `services/projectAccess.canManageProjectMembers` · 화면 `utils/projectMemberPerm` · 만든 사람 행 서버 강제
+- Fable 비차단 남은 것: PUT members 문자열 user_id 면 조용히 skipped(Number 정규화) · members 비배열 500·중복 409 → 400 · admin 이 자기 PM 지정 가능(파일 수정 권한 따라옴 — 문서화) · §5.5 표 admin 열 없음 · 확인용 프로젝트 1720·채팅 2633
 
-### 답 기다림: 관리자도 프로젝트 멤버 추가·빼기 허용? · 지메이트 «넣었다가 사라짐» 근본 · 답이 «예» 면 Fable 설계 → `routes/projects.js` PUT members·`routes/conversations.js` syncProjectMember 같은 술어로 + 화면 `canManageMembers` 같이 + PERMISSION_MATRIX
+### 답 기다림 (이전 — 11-16 Irene «권고대로» → 66a39d19 완료): 관리자도 프로젝트 멤버 추가·빼기 허용? · 지메이트 «넣었다가 사라짐» 근본 · 답이 «예» 면 Fable 설계 → `routes/projects.js` PUT members·`routes/conversations.js` syncProjectMember 같은 술어로 + 화면 `canManageMembers` 같이 + PERMISSION_MATRIX
 
 ### 문서 차트 블록 — 막대·선·영역·원 (방 6c4e928d · 2026-11-16 · [Opus] · 커밋 b8d8e19d · Fable 설계 DESIGN: FIX 8건 반영 → 완료 검증 1차 FAIL(B1 큰 값 눈금 무한 루프 → 서버 사망) → 고침 · 마지막 고침은 Fable 미검증(자체 검증 — 한 사안 2번 다 씀))
 - 설계 `docs/DOC_CHART_BLOCK_DESIGN.md` · 규칙 `.claude/rules/qdocs.md` «차트 블록» · 그림 한 벌 `dev-backend/utils/chartSvg.js`(화면은 `components/Docs/chartData.ts` 로 가져옴)
