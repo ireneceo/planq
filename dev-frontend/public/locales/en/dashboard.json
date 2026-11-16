@@ -231,8 +231,8 @@
         "wikiQuery": "Google Calendar & Meet sync"
       },
       "install_app": {
-        "label": "Install the mobile app",
-        "why": "Get notified and reply on the go"
+        "label": "Install the apps (phone & desktop)",
+        "why": "Get notified and reply on the go, and open PlanQ in its own window on your computer"
       },
       "connect_ai_app": {
         "label": "Connect an AI app (ChatGPT, Claude)",
@@ -303,7 +303,7 @@
       "open": "Open",
       "connect": "Connect",
       "turnOn": "Turn on",
-      "installGuide": "Install guide"
+      "installGuide": "Get the apps"
     },
     "stagesTitle": "Team adoption stages",
     "stageProgress": "{{done}}/{{total}} stages",

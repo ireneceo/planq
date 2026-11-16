@@ -47,7 +47,7 @@ import { useAppShellLock } from '../../hooks/useAppShellLock';
 import { mediaTablet } from '../../theme/breakpoints';
 import InstallPromptBanner from '../Common/InstallPromptBanner';
 import PushPromptBanner from '../Common/PushPromptBanner';
-import { isNativeApp } from '../../services/native';
+import { isNativeApp, isDesktopApp } from '../../services/native';
 import i18n from '../../i18n';
 import {
   IconDashboard, IconTodo, IconTalk, TALK_BUBBLE_PATH, IconTalkRound, IconTask,
@@ -2194,6 +2194,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
                     <UserMenuItemLink to="/profile" onClick={() => setUserMenuOpen(false)} role="menuitem">
                       {t('user.profile')}
                     </UserMenuItemLink>
+                    {!isNativeApp() && !isDesktopApp() && <UserMenuItemBtn type="button" role="menuitem" data-testid="user-menu-download" onClick={() => { setUserMenuOpen(false); window.open(i18n.language?.startsWith('en') ? '/en/app' : '/app', '_blank', 'noopener'); }}>{t('user.downloadApp')}</UserMenuItemBtn>}{/* 앱 다운로드 — /app 은 랜딩 껍데기라 새 탭. 앱 안에선 쓸모없어 숨김 */}
                     <UserMenuItemBtn type="button" $danger data-testid="user-menu-logout" onClick={() => { setUserMenuOpen(false); logout(); }} role="menuitem">
                       {t('user.logout')}
                     </UserMenuItemBtn>

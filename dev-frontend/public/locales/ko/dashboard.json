@@ -231,8 +231,8 @@
         "wikiQuery": "구글 캘린더·Meet 연동"
       },
       "install_app": {
-        "label": "모바일 앱 설치",
-        "why": "이동 중에도 알림을 받고 바로 답합니다"
+        "label": "앱 설치 (폰·컴퓨터)",
+        "why": "폰으로 이동 중에도 알림·답장, 컴퓨터 앱으로 창 하나에서 바로 엽니다"
       },
       "connect_ai_app": {
         "label": "AI 앱 연결(ChatGPT·Claude)",
@@ -303,7 +303,7 @@
       "open": "열기",
       "connect": "연결",
       "turnOn": "켜기",
-      "installGuide": "설치 안내"
+      "installGuide": "앱 받기"
     },
     "stagesTitle": "팀 적응 단계",
     "stageProgress": "{{done}}/{{total}}단계",

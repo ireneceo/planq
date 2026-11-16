@@ -203,6 +203,7 @@
   },
   "user": {
     "profile": "My Profile",
+    "downloadApp": "Download apps",
     "logout": "Logout",
     "menu": "Account menu"
   },

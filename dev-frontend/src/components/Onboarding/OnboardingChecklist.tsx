@@ -46,7 +46,7 @@ type ActionKind = 'open' | 'connect' | 'turnOn' | 'installGuide';
  *  ★ hasWiki 는 seed-wiki-content.js 에 **실제로 있는 글**만: invite-client · start-conversation ·
  *    create-task · connect-mail · google-calendar-meet · connect-chatgpt-claude.
  *    알림 켜기·앱 설치는 글이 없다 → 사용법 없음. */
-const STEP_META: Record<string, { go?: string; act?: 'push' | 'wiki'; action: ActionKind; hasWiki?: boolean }> = {
+const STEP_META: Record<string, { go?: string; act?: 'push' | 'wiki' | 'download'; action: ActionKind; hasWiki?: boolean }> = {
   invite_client: { go: '/sale?tab=clients', action: 'open', hasWiki: true },
   start_conversation: { go: '/talk', action: 'open', hasWiki: true },
   create_task: { go: '/tasks', action: 'open', hasWiki: true },
@@ -56,8 +56,9 @@ const STEP_META: Record<string, { go?: string; act?: 'push' | 'wiki'; action: Ac
   enable_notifications: { act: 'push', action: 'turnOn' },
   // 개인 캘린더 연결은 '내 외부 연동' 화면이다(사이드바 내 계정 > 내 외부 연동).
   connect_calendar: { go: '/profile/integrations', action: 'connect', hasWiki: true },
-  // 앱 설치 안내는 '내 알림' 화면의 설치 섹션(PwaInstallSection)이 상시 진입점이다.
-  install_app: { go: '/business/settings/notifications', action: 'installGuide' },
+  // 앱 설치 — 다운로드 화면(/app, 폰·컴퓨터 앱 모두)을 새 탭으로 연다(2026-11-16 Irene «다운받게 해야»).
+  //   /app 은 랜딩 껍데기라 같은 창에서 열면 앱 화면을 잃는다(프로필 메뉴 «앱 다운로드» 와 같은 길).
+  install_app: { act: 'download', action: 'installGuide' },
   // AI 앱 연결 — '내 외부 연동' 의 «연결된 AI 앱» 칸으로 보낸다(2026-10-04). 거기에 주소 복사 + ChatGPT·Claude 의
   //   연결 화면을 바로 여는 버튼 + 순서가 있다. 위키만 열면 사용자가 ChatGPT 메뉴를 직접 찾아야 했다(Irene 이 실제로 막혔다).
   connect_ai_app: { go: '/profile/integrations?focus=ai', action: 'connect', hasWiki: true },
@@ -102,7 +103,7 @@ interface Props {
 }
 
 const OnboardingChecklist: React.FC<Props> = ({ businessId, variant = 'dashboard' }) => {
-  const { t } = useTranslation('dashboard');
+  const { t, i18n } = useTranslation('dashboard');
   const navigate = useNavigate();
   const [state, setState] = useState<OnboardingState | null>(null);
   const [busy, setBusy] = useState(false);
@@ -158,6 +159,7 @@ const OnboardingChecklist: React.FC<Props> = ({ businessId, variant = 'dashboard
       return;
     }
     if (meta.act === 'wiki') { openWiki(key); return; }
+    if (meta.act === 'download') { window.open(i18n.language?.startsWith('en') ? '/en/app' : '/app', '_blank', 'noopener'); return; }
     if (meta.go) navigate(meta.go);
   };
 
