@@ -5,6 +5,8 @@
 - 3 지메이트: 서버 PUT /api/projects/:id/members 는 워크스페이스 대표·플랫폼 관리자만(관리자·멤버 403, dev 실측 member 403/owner 200) — 화면은 누구에게나 버튼을 주고 403 을 삼켜 «넣었다가 사라짐». → 대표 아니면 추가·빼기·PM·역할 잠금 + 안내 한 줄 · 실패 시 서버 값으로 되돌리고 알림. 운영 데이터(홍진호 행·누가 넣었나)는 확인 못 함(운영 조회 권한 거부)
 - 남은 결정: 관리자(admin)도 프로젝트 멤버를 바꾸게 할지 — 권한 범위 변경이라 Fable 설계 + Irene 결정
 
+### 답 기다림: 관리자도 프로젝트 멤버 추가·빼기 허용? · 지메이트 «넣었다가 사라짐» 근본 · 답이 «예» 면 Fable 설계 → `routes/projects.js` PUT members·`routes/conversations.js` syncProjectMember 같은 술어로 + 화면 `canManageMembers` 같이 + PERMISSION_MATRIX
+
 ### 문서 차트 블록 — 막대·선·영역·원 (방 6c4e928d · 2026-11-16 · [Opus] · 커밋 b8d8e19d · Fable 설계 DESIGN: FIX 8건 반영 → 완료 검증 1차 FAIL(B1 큰 값 눈금 무한 루프 → 서버 사망) → 고침 · 마지막 고침은 Fable 미검증(자체 검증 — 한 사안 2번 다 씀))
 - 설계 `docs/DOC_CHART_BLOCK_DESIGN.md` · 규칙 `.claude/rules/qdocs.md` «차트 블록» · 그림 한 벌 `dev-backend/utils/chartSvg.js`(화면은 `components/Docs/chartData.ts` 로 가져옴)
 - 편집기 도구줄 [차트] · 표 메뉴 [차트로] · 보기·게스트·PDF·서명본·워드(데이터 표)·검색 글 · 옛 화면 저장 409 `editor_outdated`
