@@ -182,10 +182,10 @@ Q Mail 도 같다(IMAP 계정 연결이 있어야 채워진다).
 ```
 Hello App Review team,
 
-Thank you for your review. We have addressed both issues in version 1.0.1 (build 21).
+Thank you for your review. We have addressed both issues in version 1.0.1 (build 22).
 
 Guideline 2.1(a)
-The blank screen after signing in on iPad has been fixed in build 21.
+The blank screen after signing in on iPad has been fixed in build 22.
 
 Guidelines 3.1.1 and 3.1.3(c)
 PlanQ is a work-management service for businesses and organizations (client chat, tasks, documents, files and invoices for teams). It is not offered to consumers:
@@ -203,3 +203,21 @@ Thank you.
 
 - 3.1.3(f)(무료 단독 앱)은 넣지 않았다 — Apple 이 VoIP·클라우드·메일·호스팅으로 좁게 보는 항목이라 걸면 오히려 반박거리가 된다. 3.1.3(c)(조직에 직접 판매)로 맞춘다.
 - B안으로도 반려되면 IAP(C안) 여부는 Irene 결정.
+
+### 제출 빌드 = 22 (2026-11-16)
+빌드 21 은 공유 확장 전 코드(34582d8). 공유 확장(d1c6b0ec)이 들어간 Codemagic iOS #23 → TestFlight 빌드 22 로 바꿔 제출한다. 답장 문구도 build 22 로 고쳤다(위).
+
+## 8. 1.0.1 ASO(검색 최적화) — 메타데이터·스크린샷·맞춤 제품 페이지 (2026-11-16 · Irene 확인 전 안)
+
+검토 화면(문구 표·스크린샷·CPP 안 한 곳): 상황판 질문의 링크. 스크린샷 파일 `store-assets/appstore-1.0.1/{iphone-6.9,ipad-13}/ko-0N-*.png`
+(iPhone 1320×2868 · iPad 2064×2752 · 각 6장 · 개발서버 «PlanQ 데모» 워크스페이스(ws 19618, 운영 appreview 와 같은 시드 `scripts/seed-appstore-demo.js`) 실화면).
+
+| 칸 | ko | en |
+|---|---|---|
+| 이름 | PlanQ 플랜큐 - 업무관리·협업 (그대로) | (그대로) |
+| 부제 (30) | 고객관리·프로젝트관리·청구서 한곳에 | Clients, Projects & Invoices |
+| 키워드 (100) | CRM,견적서,인보이스,거래처,외주관리,에이전시,전자서명,계약서,회의록,녹음요약,일정관리,캘린더,할일,칸반,채팅,메신저,근태,파일공유,그룹웨어,워크스페이스,업무보고 (91자) | crm,quote,estimate,contract,e-signature,meeting notes,transcription,todo,kanban,calendar,team chat (98자) |
+| 프로모션 텍스트 (170) | 고객 채팅부터 프로젝트·업무관리, 견적서·청구서, 회의록 요약까지. 흩어진 업무를 PlanQ 한곳에서 정리하세요. | From client chat to projects, tasks, quotes, invoices and meeting summaries. Keep your team's work in one place. |
+
+- 초안에서 뺀 말: «1인사업자» — 3.1.1 재반려 방지(«개인» 판매로 읽힐 여지). 이름·부제와 겹치는 «업무관리·협업·고객관리·프로젝트관리·청구서» 는 키워드에서 뺐다(Apple 은 세 칸을 합쳐 색인).
+- 금지어(가격·요금제·구독·웹에서 결제·개인·프리랜서) 0건 — 메타데이터·설명·CPP 문구 기계 검사. 스크린샷은 눈으로(청구서 화면의 «결제 완료/결제 추적» 은 고객 용역 대금 상태 표시라 둠 · 아이패드 청구서는 «카드 결제 링크» 칸 위에서 자름).

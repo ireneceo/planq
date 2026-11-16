@@ -1,4 +1,13 @@
 ## 현재 작업 상태
+### ⏸ 답 기다림: App Store 1.0.1 ASO 안 확인 (방 c316a1d5 · 2026-11-16 · [Opus] · Fable 안 씀 — 스토어 문구·그림, 코드·DB·권한 불변 · 금지어 기계 검사 0건)
+- 무엇: 부제·키워드·프로모션·새 기능·설명(ko/en) + 스크린샷 iPhone 6.9″ 6장·iPad 13″ 6장 + CPP 3안 → https://claude.ai/artifact/CUH1PN1PYsLppy62QwMegV · 파일 `store-assets/appstore-1.0.1/` · 문구 정본 docs/APPSTORE_SUBMISSION_PREP.md §8
+- 왜 묻나: 스토어에 공개되는 문구·그림(Irene 확인 후 입력이 지시 조건)
+- 답이 오면: (OK) ASC 1.0.1 에 문구·스크린샷 입력(브라우저 쪽) → 빌드 21→22 교체 → 답장(§7, build 22 로 고침) 회신 → 심사 제출 · CPP 3개 만들기. (고침) 해당 칸만 고쳐 같은 주소로 다시 올림.
+- 만든 것: 개발 DB ws 19618 «PlanQ 데모»(owner@test.planq.kr 소유 · 시드 + 고객 대화 6건(게스트 링크 1616) · 청구서 2건 발송됨(메일·채팅 발송 없이) · 고객 2곳 사업자 정보(가상) · Q note 메모 100000867 요약). 시험 계정 활성 워크스페이스는 6 으로 되돌림.
+- 고친 것: `scripts/seed-appstore-demo.js` — ① /auth/me 워크스페이스 모양(business_id·brand_name)을 못 읽어 **첫 워크스페이스로 떨어져 엉뚱한 곳에 시드**하던 것 → 이름이 맞는 곳만 ② 프로젝트에 고객을 안 붙여 **청구서 2건이 400 client_not_in_project 로 빠지던 것**(운영 심사 계정에도 청구서가 없을 가능성) → client_ids 로 붙이고 옛 프로젝트도 연결.
+- 찾은 화면 버그(안 고침, 따로): 청구서 상세 «수신» 이 사업자 정보 없는 고객이면 «국가: 개인» 으로 보임(라벨·값 어긋남) · /share-receive 탭 이름이 «설정» 으로 뜸.
+- 확인 못 함: 운영 appreview 계정 데이터(운영 접속 안 함) · ASC 의 현재 영어 페이지 유무·지금 설명 원문.
+
 ### ✅ 긴급 피드백 fb#473 — 지메이트 멤버가 프로젝트 채팅 작업대 «not_project_member» (방 e099790f · 2026-11-16 · [Opus])
 - 운영 원인(읽기만): 대표가 05:27 «For Develop»(대화 71) 방을 만들며 멤버(user 82)를 넣고 내부방 58 에도 넣었지만 프로젝트 35 멤버엔 없음(visibility=members) → 대화는 보이고 작업대 GET /projects/35/conversations 403
   · 참여자 추가 → 프로젝트 멤버 연동(36826943)은 08:58 배포라 그 전 추가분은 안 걸림 · **방 만들기 문(POST /conversations/:biz)은 연동 자체가 없었음**

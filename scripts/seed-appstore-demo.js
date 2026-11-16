@@ -101,8 +101,13 @@ async function main() {
   const me = await api('GET', '/api/auth/me');
   const u = me.json?.data?.user || me.json?.data || {};
   const businesses = u.workspaces || [];
-  bizId = (businesses.find((b) => (b.name || b.business_name) === WS_NAME) || businesses[0])?.id
-    || (u.business_name === WS_NAME ? u.business_id : null) || u.business_id;
+  // /auth/me workspaces 는 { business_id, brand_name } 모양이다(옛 { id, name } 도 받는다).
+  //   ★ 이름이 맞는 곳만 쓴다 — 옛 코드는 못 찾으면 첫 워크스페이스로 떨어져 엉뚱한 곳에 시드했다.
+  const wsName = (b) => b.brand_name || b.name || b.business_name;
+  const wsId = (b) => b.business_id || b.id;
+  const found = businesses.find((b) => wsName(b) === WS_NAME);
+  bizId = found ? wsId(found) : (businesses.length === 1 ? wsId(businesses[0]) : null)
+    || (u.business_name === WS_NAME ? u.business_id : null);
   if (!bizId) { console.error('워크스페이스를 찾지 못했다', me.json); process.exit(1); }
   log(`· 워크스페이스 id=${bizId}`);
 
@@ -131,12 +136,23 @@ async function main() {
   const projList0 = (await api('GET', `/api/projects?business_id=${bizId}`)).json?.data || [];
   for (const p of PROJECTS) {
     if (projList0.some((x) => x.name === p.name)) { log(`· 프로젝트 이미 있음: ${p.name}`); continue; }
-    const r = await api('POST', '/api/projects', { business_id: bizId, ...p });
+    // ★ client_company 는 글자일 뿐 고객을 붙이지 않는다 — client_ids 로 붙여야 청구서가 그 고객·프로젝트로 만들어진다
+    //   (안 붙이면 POST /invoices 400 client_not_in_project, 2026-11-16 실측).
+    const cid = clientId(p.client_company);
+    const r = await api('POST', '/api/projects', { business_id: bizId, ...p, ...(cid ? { client_ids: [cid] } : {}) });
     if (r.ok) { created.projects.push(r.json.data); log(`· 프로젝트 생성: ${p.name}`); }
     else log(`  ! 프로젝트 실패 ${p.name}`, r.status, r.json?.message);
   }
   const projList = (await api('GET', `/api/projects?business_id=${bizId}`)).json?.data || [];
   const projId = (name) => projList.find((p) => p.name === name)?.id || null;
+  // 예전 시드로 이미 있는 프로젝트(고객 안 붙은 채)도 붙인다 — 이미 붙어 있으면 서버가 already 로 끝낸다
+  for (const p of PROJECTS) {
+    const pid = projId(p.name);
+    const cid = clientId(p.client_company);
+    if (!pid || !cid) continue;
+    const r = await api('POST', `/api/projects/${pid}/clients`, { client_id: cid });
+    if (!r.ok && r.status !== 409) log(`  ! 프로젝트 고객 연결 실패 ${p.name}`, r.status, r.json?.message);
+  }
 
   // ─────────────────────────────────────────────── 4. 대화 + 메시지
   const CONVS = [
