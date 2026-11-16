@@ -8,7 +8,7 @@ import { useSearchParams } from 'react-router-dom';
 import {
   fetchCatalog, fetchStatus, changePlan, cancelScheduledChange, startTrial, switchTrialPlan,
   formatPrice, formatLimit, formatBytes, formatMinutes, usageColor,
-  type PlanDef, type PlanStatus, type PlanCode, type BillingCycle, type Currency,
+  type PlanDef, type PlanStatus, type PlanCode, type BillingCycle, type Currency, type PaymentLineItem,
 } from '../../services/plan';
 import { submitInquiry } from '../../services/inquiries';
 import { useAuth, apiFetch } from '../../contexts/AuthContext';
@@ -125,6 +125,27 @@ const PlanSettings: React.FC<Props> = ({ businessId }) => {
   const usage = status?.usage;
   // 사용량 막대의 한도 = 실제로 적용되는 한도(체험 중 Cue·녹음 캡, add-on 합산). 없으면 플랜 정가 한도.
   const effLimits = currentPlan ? { ...currentPlan.limits, ...(status?.effective_limits || {}) } : null;
+
+  // 금액 내역 줄(플랜 + 애드온) — 미결제 청구 카드와 현재 플랜 카드가 같이 쓴다.
+  const renderChargeLines = (lines: PaymentLineItem[], cur: Currency, testId: string) => (
+    <PayDueLines data-testid={testId}>
+      {lines.map((l, i) => (
+        <li key={`${l.kind}-${l.code}-${i}`}>
+          <span>
+            {l.kind === 'plan'
+              ? t('payDue.linePlan', { name: (catalog.find(p => p.code === l.code)?.name_ko) || l.label, defaultValue: '{{name}} 플랜' })
+              : t('payDue.lineAddon', {
+                name: t(`payDue.addonName.${l.code}`, { defaultValue: l.label }),
+                qty: l.quantity || 1,
+                defaultValue: '{{name}} × {{qty}}',
+              })}
+            {l.kind === 'addon' && (l.months || 1) > 1 && t('payDue.lineMonths', { months: l.months, defaultValue: ' × {{months}}개월' })}
+          </span>
+          <span>{formatPrice(Number(l.amount), cur)}</span>
+        </li>
+      ))}
+    </PayDueLines>
+  );
 
   // ─── 미결제 청구 결제 흐름 (피드백: 배너 "결제하러 가기" → 플랜 재선택이 아니라 청구 내역 보고 결제) ───
   // 미결제 payment 가 있으면 그 구독 플랜으로 CheckoutModal(입금 안내 + mark-paid)을 직접 연다.
@@ -280,23 +301,7 @@ const PlanSettings: React.FC<Props> = ({ businessId }) => {
               </PayDueAmount>
               {/* 애드온이 실린 청구면 내역 — 플랜만 보이면 «멤버를 추가해도 금액이 같다» 로 읽힌다 */}
               {(status.pending_payment.line_items || []).some(l => l.kind === 'addon') && (
-                <PayDueLines data-testid="paydue-lines">
-                  {(status.pending_payment.line_items || []).map((l, i) => (
-                    <li key={`${l.kind}-${l.code}-${i}`}>
-                      <span>
-                        {l.kind === 'plan'
-                          ? t('payDue.linePlan', { name: (catalog.find(p => p.code === l.code)?.name_ko) || l.label, defaultValue: '{{name}} 플랜' })
-                          : t('payDue.lineAddon', {
-                            name: t(`payDue.addonName.${l.code}`, { defaultValue: l.label }),
-                            qty: l.quantity || 1,
-                            defaultValue: '{{name}} × {{qty}}',
-                          })}
-                        {l.kind === 'addon' && (l.months || 1) > 1 && t('payDue.lineMonths', { months: l.months, defaultValue: ' × {{months}}개월' })}
-                      </span>
-                      <span>{formatPrice(Number(l.amount), (status.pending_payment!.currency as Currency) || 'KRW')}</span>
-                    </li>
-                  ))}
-                </PayDueLines>
+                renderChargeLines(status.pending_payment.line_items || [], (status.pending_payment.currency as Currency) || 'KRW', 'paydue-lines')
               )}
               <PayDueHint>
                 {notified
@@ -332,6 +337,12 @@ const PlanSettings: React.FC<Props> = ({ businessId }) => {
             <Price>{t('comparison.contact')}</Price>
           ) : currentPlan.price_monthly.KRW === 0 ? (
             <Price>{t('comparison.free')}</Price>
+          ) : status.recurring_charge ? (
+            // 정기 요금 = 플랜 + 지금 붙은 추가 슬롯(서버 billing.buildRenewalLines — 청구와 같은 내역)
+            <>
+              <Price data-testid="plan-current-price">{formatPrice(Number(status.recurring_charge.amount), status.recurring_charge.currency)}</Price>
+              <PriceUnit>/ {status.recurring_charge.cycle === 'yearly' ? t('comparison.year') : t('comparison.month')}</PriceUnit>
+            </>
           ) : (
             <>
               <Price>{formatPrice(currentPlan.price_monthly[currency], currency)}</Price>
@@ -340,6 +351,8 @@ const PlanSettings: React.FC<Props> = ({ businessId }) => {
           )}
         </PriceRow>
         )}
+        {canPurchaseInApp() && status.recurring_charge && status.recurring_charge.line_items.some(l => l.kind === 'addon') &&
+          renderChargeLines(status.recurring_charge.line_items, status.recurring_charge.currency, 'plan-current-lines')}
         <MetaRow>
           {status.in_trial && status.trial_ends_at && (
             <Meta>{t('current.trialEnds', { days: Math.ceil((new Date(status.trial_ends_at).getTime() - Date.now()) / 86400000) })}</Meta>

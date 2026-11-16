@@ -130,6 +130,17 @@ router.get('/:businessId/status', authenticateToken, checkBusinessAccess, async 
         period_end_preview: payable && payable.preview ? payable.preview.period_end : null,
         trial_days_carried: payable && payable.preview ? payable.preview.trial_days_carried : 0,
       } : null,
+      // 지금 플랜의 정기 요금 = 플랜 + 현재 애드온 — 미결제 청구와 같은 내역 함수(billing.buildRenewalLines).
+      //   플랜 카드가 «39,000원» 만 보이면 멤버 추가로 낸 돈이 화면 어디에도 없다(Irene 2026-11-16 지메이트).
+      recurring_charge: (() => {
+        if (!plan || plan.code === 'free' || plan.code === 'enterprise' || exempt) return null;
+        const sub = (subscription && subscription.plan_code === plan.code)
+          ? subscription
+          : { plan_code: plan.code, cycle: 'monthly', currency: 'KRW', price: null };
+        const lines = billing.buildRenewalLines(sub, biz);
+        const amount = lines.reduce((acc, l) => acc + Number(l.amount || 0), 0);
+        return { cycle: sub.cycle, currency: sub.currency || 'KRW', amount, line_items: lines };
+      })(),
       recent_payments: recentPayments.map(p => ({
         id: p.id, subscription_id: p.subscription_id,
         amount: p.amount, currency: p.currency, cycle: p.cycle,

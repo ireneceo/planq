@@ -156,6 +156,8 @@ export interface PlanStatus {
   exempt_until: string | null;
   subscription: SubscriptionInfo | null;
   pending_payment: PendingPayment | null;
+  // 지금 플랜의 정기 요금 = 플랜 + 현재 추가 슬롯(서버 billing.buildRenewalLines). 무료·엔터프라이즈·면제면 null.
+  recurring_charge?: { cycle: BillingCycle; currency: Currency; amount: number; line_items: PaymentLineItem[] } | null;
   recent_payments: PaymentRecord[];
   usage: PlanUsage;
   history: PlanHistoryItem[];
