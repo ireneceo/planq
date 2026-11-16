@@ -696,5 +696,51 @@
       "failed": "Couldn’t forward. Please try again"
     },
     "empty": "No chats to forward to"
+  },
+  "team": {
+    "name": "Everyone",
+    "bar": {
+      "none": "No active announcement",
+      "list": "Announcements",
+      "new": "Post announcement"
+    },
+    "msg": {
+      "tag": "Announcement"
+    },
+    "announce": {
+      "title": "Send announcement",
+      "editTitle": "Edit announcement",
+      "cancel": "Cancel",
+      "save": "Save",
+      "send": "Post announcement",
+      "hint": "It is posted in the «Everyone» chat and pinned at the top. All members are notified, and you can see who read it in the announcement list.",
+      "restored": "Restored what you were writing",
+      "titleLabel": "Title",
+      "titlePh": "e.g. All-hands meeting next Monday",
+      "bodyLabel": "Message",
+      "bodyPh": "Write what members should know",
+      "titleRequired": "Enter a title",
+      "bodyRequired": "Enter a message",
+      "forbidden": "Only owners and admins can post announcements",
+      "failed": "Could not post the announcement. Please try again shortly"
+    },
+    "list": {
+      "title": "Announcements",
+      "new": "Post announcement",
+      "error": "Could not load announcements",
+      "loading": "Loading…",
+      "emptyAdmin": "No announcements yet. Use «Post announcement» to notify every member.",
+      "empty": "No announcements yet.",
+      "live": "Active",
+      "ended": "Ended",
+      "jump": "View in chat",
+      "edited": "edited",
+      "readRatio": "{{read}} of {{total}} read",
+      "edit": "Edit",
+      "readersError": "Could not load the list",
+      "unread": "Unread {{count}}",
+      "read": "Read {{count}}",
+      "none": "None"
+    }
   }
 }

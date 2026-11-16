@@ -596,6 +596,8 @@ sync_database() {
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-conversation-care.js 2>&1 | tail -5"
   # 2026-11-13 Q talk 대화방 알림 끄기(docs/QTALK_MUTE_DESIGN.md) — conversation_participants.muted_at 칸(멱등). ★ PM2 reload 앞 — 없으면 대화 목록이 500.
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-conv-mute.js 2>&1 | tail -5"
+  # 2026-11-16 워크스페이스 «전체» 대화방·공지(Fable 설계 B) — businesses.team_conversation_id 칸(멱등). ★ PM2 reload 앞 — 모델이 SELECT 해서 없으면 500. 방은 처음 쓸 때 만든다(백필 없음).
+  prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-team-channel.js 2>&1 | tail -5"
   # 2026-11-13 Q mail «안 읽음으로 표시»(docs/QMAIL_MARK_UNREAD_DESIGN.md) — email_thread_participants.marked_unread 칸(멱등). ★ PM2 reload 앞 — 없으면 메일 목록·수가 500.
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-mail-mark-unread.js 2>&1 | tail -5"
   # 2026-11-15 추가 슬롯 신청 500(운영 payments.subscription_id 가 옛 NOT NULL) — NULL 허용으로만 맞춘다(종류·외래키 그대로, 멱등).

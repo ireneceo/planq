@@ -29,6 +29,7 @@ import FilePicker, { type FilePickerResult } from '../../components/Common/FileP
 import SendNameCardModal from '../../components/NameCard/SendNameCardModal';
 import OverflowMenu, { type OverflowItem } from '../../components/Common/OverflowMenu';
 import UserInfoPopover from '../../components/Common/UserInfoPopover';
+import ChatPinnedBar, { AnnouncementHead } from './ChatPinnedBar';
 import NameCardViewDrawer from '../../components/NameCard/NameCardViewDrawer';
 import { fetchWorkspaceFiles, uploadMyFile, isImage as isRenderableImage } from '../../services/files';
 import AttachmentPreviewDrawer, { type PreviewAttachment } from '../../components/Common/AttachmentPreviewDrawer';
@@ -553,7 +554,6 @@ const ChatPanel: React.FC<Props> = ({
   const [reactionPicker, setReactionPicker] = useState<{ msgId: number; anchorEl: HTMLElement } | null>(null);
   const closeReactionPicker = React.useCallback(() => setReactionPicker(null), []);
   const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
-  const [pinnedBarOpen, setPinnedBarOpen] = useState(true);
   const [pinnedBarFlashId, setPinnedBarFlashId] = useState<number | null>(null);
 
   const isOwnerOrAdmin = user?.business_role === 'owner' || user?.platform_role === 'platform_admin';
@@ -1703,40 +1703,9 @@ const ChatPanel: React.FC<Props> = ({
         <ChatSearchPanel conversationId={activeConv.id} onJump={jumpToSearchHit} onClose={() => setSearchOpen(false)} />
       )}
 
-      {/* 사이클 N+16-E — 핀 공지 영역 (Slack 패턴). 1개 이상 핀 시 헤더 아래 노란 액센트 바.
-          접힘: "📌 공지 N개" 한 줄. 펴짐: 핀 메시지 리스트, 클릭 시 본문으로 스크롤 + 잠시 강조. */}
-      {pinnedMessages.length > 0 && (
-        <PinnedBar>
-          <PinnedHeader type="button" onClick={() => setPinnedBarOpen((v) => !v)} aria-expanded={pinnedBarOpen}>
-            <PinIcon viewBox="0 0 24 24" fill="currentColor"><path d="M14 4l-1 1 1 1-4 4-4-1-1 1 4 4-5 5 1 1 5-5 4 4 1-1-1-4 4-4 1 1 1-1z"/></PinIcon>
-            <PinnedTitle>{t('chat.pinned.count', { count: pinnedMessages.length, defaultValue: `공지 ${pinnedMessages.length}개` })}</PinnedTitle>
-            <PinChevron $open={pinnedBarOpen} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="6 9 12 15 18 9" />
-            </PinChevron>
-          </PinnedHeader>
-          {pinnedBarOpen && (
-            <PinnedList>
-              {pinnedMessages.map((m) => (
-                <PinnedItem key={m.id} type="button" onClick={() => scrollToMessage(m.id)}>
-                  <PinnedSender>{m.sender_name}</PinnedSender>
-                  <PinnedBody>{m.body || (m.attachments?.length ? t('preview.attachments', { defaultValue: '[첨부 {{count}}개]', count: m.attachments.length }) : '')}</PinnedBody>
-                  <PinnedTime>{formatGroupTime(m.pinned_at || m.created_at)}</PinnedTime>
-                  {canPinMessage && (
-                    <PinnedUnpinBtn
-                      type="button"
-                      onClick={(e) => { e.stopPropagation(); handleTogglePinMsg(m); }}
-                      title={t('chat.pinned.unpin', '공지 해제') as string}
-                      aria-label={t('chat.pinned.unpin', '공지 해제') as string}
-                    >
-                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
-                    </PinnedUnpinBtn>
-                  )}
-                </PinnedItem>
-              ))}
-            </PinnedList>
-          )}
-        </PinnedBar>
-      )}
+      {/* 핀 공지 띠 + «전체» 방 공지 목록·올리기 — ChatPinnedBar(2026-11-16 분리) */}
+      <ChatPinnedBar pinnedMessages={pinnedMessages} canPin={canPinMessage} onJump={scrollToMessage} onUnpin={handleTogglePinMsg} formatTime={formatGroupTime}
+        team={activeConv.is_team && businessId && user ? { businessId: Number(businessId), conversationId: activeConv.id, myUserId: Number(user.id), canAnnounce: ['owner', 'admin'].includes(String(user.business_role)) || user.platform_role === 'platform_admin' } : null} />
 
       {/* 사이클 N+16-E — 묶음 선택 모드 액션 바 */}
       {selectionMode && (
@@ -2183,6 +2152,7 @@ const ChatPanel: React.FC<Props> = ({
                   }
                   return (
                     <>
+                      {m.announcement && <AnnouncementHead title={m.announcement.title} />}
                       <MessageText $question={!isClient && !!m.is_question}>{renderTextWithLinks(m.body)}</MessageText>
                       {translated && <TranslatedText>{renderTextWithLinks(translated)}</TranslatedText>}
                     </>
@@ -3600,108 +3570,6 @@ const ToolBarMoreItem = styled.button<{ $danger?: boolean }>`
   &:hover { background: ${(p) => (p.$danger ? '#FEF2F2' : '#F8FAFC')}; }
 `;
 
-// PinnedBar — Slack 패턴 헤더 아래 공지 영역
-const PinnedBar = styled.div`
-  flex-shrink: 0;
-  background: linear-gradient(180deg, #FEF3C7 0%, #FEF9E7 100%);
-  border-bottom: 1px solid #FCD34D;
-`;
-const PinnedHeader = styled.button`
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-  padding: 8px 16px;
-  background: transparent;
-  border: none;
-  cursor: pointer;
-  font-size: 0.75rem;
-  color: #92400E;
-  transition: background 0.15s;
-  &:hover { background: rgba(245, 158, 11, 0.08); }
-`;
-const PinIcon = styled.svg`
-  width: 14px;
-  height: 14px;
-  color: #D97706;
-  flex-shrink: 0;
-`;
-const PinnedTitle = styled.span`
-  font-size: 0.75rem;
-  font-weight: 700;
-  color: #92400E;
-`;
-const PinChevron = styled.svg<{ $open: boolean }>`
-  width: 12px;
-  height: 12px;
-  color: #92400E;
-  margin-left: auto;
-  transition: transform 0.15s;
-  transform: rotate(${(p) => (p.$open ? '0deg' : '-90deg')});
-`;
-const PinnedList = styled.div`
-  display: flex;
-  flex-direction: column;
-  padding: 0 8px 8px;
-  gap: 4px;
-  max-height: 200px;
-  /* #245 — 한 축만 auto 로 두면 반대축이 visible→auto 로 강제돼(CSS overflow 상호작용)
-     1px 초과에도 가로로 흔들린다. MessageList 와 같은 잠금을 여기에도 건다
-     (내부 PinnedItem 에 nowrap 텍스트가 있어 실제로 넘칠 수 있다). */
-  overflow-y: auto;
-  overflow-x: hidden;
-  overscroll-behavior-x: none;
-`;
-const PinnedItem = styled.button`
-  position: relative;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 30px 8px 12px;
-  background: #FFFFFF;
-  border: 1px solid rgba(217, 119, 6, 0.18);
-  border-radius: 8px;
-  cursor: pointer;
-  text-align: left;
-  font-size: 0.75rem;
-  transition: background 0.15s, border-color 0.15s;
-  &:hover { background: #FFFBEB; border-color: #F59E0B; }
-`;
-const PinnedSender = styled.span`
-  font-weight: 700;
-  color: #0F172A;
-  flex-shrink: 0;
-`;
-const PinnedBody = styled.span`
-  flex: 1;
-  color: #334155;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  min-width: 0;
-`;
-const PinnedTime = styled.span`
-  font-size: 0.625rem;
-  color: #94A3B8;
-  flex-shrink: 0;
-`;
-const PinnedUnpinBtn = styled.button`
-  position: absolute;
-  right: 4px;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 22px;
-  height: 22px;
-  border: none;
-  background: transparent;
-  color: #94A3B8;
-  border-radius: 4px;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  &:hover { background: #FEF3C7; color: #92400E; }
-`;
 
 // SelectionBar — 묶음 선택 모드 상단 액션 바
 const SelectionBar = styled.div`

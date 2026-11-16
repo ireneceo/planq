@@ -1,4 +1,11 @@
 ## 현재 작업 상태
+### ✅ 사내 공지 보내기 — 워크스페이스 «전체» 대화방 + 공지 (방 1bf4fb3b · 2026-11-16 · [Opus] · Fable 설계 B → 완료 검증 PASS(재검증 포함))
+- 공지 = «전체» 방(멤버 전원 자동 참여) 메시지 + 제목 + 자동 핀 · 알림(방 알림 꺼도 감, 즉시 메일 없음 — 안 읽으면 채팅과 같은 5분 묶음 메일) · 읽음 N/M, 명단은 작성자·대표·관리자
+- 서버 `routes/team_channel.js`·`services/team_channel.js` · `businesses.team_conversation_id`(migrate-team-channel.js 배포 슬롯) · 화면 설정›멤버 «공지 보내기» · Q talk «전체» 방 공지 띠(공지 목록·공지 올리기) · `ChatPinnedBar.tsx`(ChatPanel 에서 핀 띠 분리)
+- 자체 검증: 실HTTP 35 · 브라우저 3폭×2역할 55 · build EXIT 0 · guard 85/86 · health 100/100. Fable 실HTTP 50/50.
+- 남은 비차단(Fable): 탈퇴 멤버가 다음 열기 전까지 읽음 분모에 남음 · 플랫폼 관리자 공지 뒤 참여자에서 빠짐 · 지운 공지의 알림 행이 남아 묶음 메일이 나갈 수 있음(일반 채팅과 같음)
+- 확인용: ws6 «전체» 방 conv 2623 · 공지 2개([확인용])
+
 ### ✅ AI 앱(ChatGPT·Claude)이 보낸 문서·메모의 표 → 편집기 표 (방 6c4e928d · 2026-11-16 · [Opus] · 커밋 f4016e0c · Fable 안 씀 — 변환 문법만 늘림(도구·scope·권한 불변), 편집기 스키마 검사·양/음성 대조로 갈림 · Fable 미검증(자체 검증))
 - `services/agent/markdown.js` markdownToDoc 에 GFM 파이프 표(정렬·칸 안 `<br>`·`\|`·코드 안 `|`·칸 수 맞춤) · 도구 설명 2줄
 - 범위 밖: 업무 설명·결과물 표(`taskMarkdown.js` 왕복 계약 — lossy 경계 Fable 설계 필요, 계획 `.claude/plans/qmwiqw265.md` 2단계)

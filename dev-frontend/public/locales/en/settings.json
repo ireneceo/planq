@@ -634,7 +634,8 @@
         "external_review": "External review"
       }
     },
-    "mailAll": "Email all members"
+    "mailAll": "Email all members",
+    "announce": "Send announcement"
   },
   "cue": {
     "sectionTitle": "Cue Settings",

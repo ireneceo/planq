@@ -1366,6 +1366,8 @@ router.delete('/:id/members/:memberId', authenticateToken, async (req, res, next
     if (member.user_id) require('../services/socketRevoke').leaveBusinessRooms(req.app.get('io'), member.user_id, businessId);
     // Q talk 응대 담당 — 떠난 사람이 담당으로 남으면 그 문의가 «답할 문의» 에 아무에게도 안 뜬다 → 비운다(services/convCare).
     if (member.user_id) await require('../services/convCare').clearAssignee(businessId, member.user_id, { io: req.app.get('io'), actorUserId: req.user.id, req });
+    // «전체» 대화방에서도 뺀다(참여자 = 활성 멤버 · services/team_channel)
+    if (member.user_id) await require('../services/team_channel').syncTeamMembersQuiet(businessId, { io: req.app.get('io') });
     // 사이클 N+21 — 인사 변경 audit log (가장 중요한 영역)
     require('../services/auditService').logAudit(req, {
       action: 'business_member.remove',

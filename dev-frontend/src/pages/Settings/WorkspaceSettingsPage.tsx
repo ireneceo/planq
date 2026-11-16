@@ -68,6 +68,7 @@ import ModulesSection from '../../components/Settings/ModulesSection';
 import PayrollManagersSection from '../../components/Permissions/PayrollManagersSection';
 import RolePicker from '../../components/MemberRole/RolePicker';
 import RoleManageModal from '../../components/MemberRole/RoleManageModal';
+import AnnounceModal from '../../components/TeamChannel/AnnounceModal';
 import DefaultRoleField from '../../components/MemberRole/DefaultRoleField';
 import { useMemberRoleDict } from '../../components/MemberRole/useMemberRoleDict';
 import { onSocket } from '../../services/socket';
@@ -492,6 +493,8 @@ export default function WorkspaceSettingsPage() {
   // 역할 사전 — 프로젝트 멤버 역할과 «기본 역할» 이 같은 목록(docs/MEMBER_ROLES_DESIGN.md). 고객은 이 화면에 오지 않는다.
   const roleDict = useMemberRoleDict(businessId || null);
   const [roleManageOpen, setRoleManageOpen] = useState(false);
+  const [announceOpen, setAnnounceOpen] = useState(false);
+  const canAnnounce = ['owner', 'admin'].includes(String(user?.business_role)) || user?.platform_role === 'platform_admin';
 
   const location = useLocation();
   const navigate = useNavigate();
@@ -1535,6 +1538,12 @@ export default function WorkspaceSettingsPage() {
                   {t('members.mailAll', '전체 멤버에게 메일')}
                 </ActionButton>
               )}
+              {/* 공지 보내기 — «전체» 대화방에 공지(핀·알림·읽음 확인). 대표·관리자만(services/team_channel · 2026-11-16) */}
+              {canAnnounce && (
+                <ActionButton tone="secondary" size="sm" data-testid="settings-announce-open" onClick={() => setAnnounceOpen(true)}>
+                  {t('members.announce', '공지 보내기')}
+                </ActionButton>
+              )}
               {isAdmin && !inviteOpen && (
                 <InvitePrimaryBtn type="button" onClick={() => { setInviteOpen(true); setInviteError(null); }}>
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
@@ -1677,6 +1686,10 @@ export default function WorkspaceSettingsPage() {
               <DepartedMembersSection key={`departed-${members.length}`} businessId={businessId} candidates={handoverCandidates} />
             )}
           </Card>
+          {announceOpen && businessId && (
+            <AnnounceModal businessId={Number(businessId)} onClose={() => setAnnounceOpen(false)}
+              onDone={(r) => { setAnnounceOpen(false); if (r.conversation_id) navigate(`/talk?conv=${r.conversation_id}`); }} />
+          )}
           <RoleManageModal open={roleManageOpen} onClose={() => setRoleManageOpen(false)}
             bizId={businessId} dict={roleDict.dict} canManage={isWsAdmin}
             onChanged={() => { void roleDict.reload(); void listMembers(businessId).then(setMembers).catch(() => {}); }} />

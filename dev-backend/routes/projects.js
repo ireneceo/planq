@@ -1476,10 +1476,12 @@ router.patch('/conversations/:id', authenticateToken, async (req, res, next) => 
 
     const { display_name, auto_extract_enabled, translation_enabled, translation_languages } = req.body || {};
     const patch = {};
-    if (typeof display_name === 'string' && display_name.trim()) {
+    // «전체» 방(services/team_channel)은 이름·업무 자동 추출을 바꾸지 않는다(이름은 화면이 번역 · 추출은 끔) — 번역 설정만 받는다
+    const isTeam = await require('../services/team_channel').isTeamConversation(conv);
+    if (!isTeam && typeof display_name === 'string' && display_name.trim()) {
       patch.display_name = display_name.trim();
     }
-    if (typeof auto_extract_enabled === 'boolean') {
+    if (!isTeam && typeof auto_extract_enabled === 'boolean') {
       patch.auto_extract_enabled = auto_extract_enabled;
     }
     if (translation_enabled !== undefined || translation_languages !== undefined) {

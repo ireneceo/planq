@@ -179,6 +179,7 @@ export type SupportedLang = 'ko' | 'en' | 'ja' | 'zh' | 'es';
 
 export interface ApiConversation {
   id: number;
+  is_team?: boolean;   // 워크스페이스 «전체» 방(routes/conversations 목록)
   business_id: number;
   project_id: number | null;
   client_id?: number | null;

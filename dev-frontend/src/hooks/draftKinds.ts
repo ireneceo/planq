@@ -32,6 +32,8 @@ export const DRAFT_KINDS = {
   // PlanQ 안내방 — PlanQ 팀이 워크스페이스에 쓰는 답(2026-11-04). 방(워크스페이스)마다 따로. 안내방·신규 고객 팔로업이 같은 부품.
   'admin-support-reply': { ttlMs: 7 * DAY, mode: 'append', owners: ['pages/Admin/AdminSupportThread.tsx'] },
   'sale-lost-note': { ttlMs: 7 * DAY, mode: 'append', owners: ['components/QSale/LostReasonModal.tsx'] },
+  // 워크스페이스 «전체» 방 공지 본문 — 공지 쓰기 창을 닫거나 새로고침해도 남는다(2026-11-16). 새 공지 하나만(고치기는 원문이 있어 남기지 않는다).
+  'team-announcement': { ttlMs: 7 * DAY, mode: 'append', owners: ['components/TeamChannel/AnnounceModal.tsx'] },
   // 노트를 상담으로 저장할 때 쓰는 메모 — 요약을 손보다가 창을 닫으면 그대로 사라지던 값(2026-09-18).
   //   base = 요약 프리필. 요약이 다시 생성돼 원문이 바뀌면 옛 초안을 버린다(D-C1d).
   'qnote-sale-memo': { ttlMs: 7 * DAY, mode: 'edit', owners: ['pages/QNote/SaveToSaleModal.tsx'] },

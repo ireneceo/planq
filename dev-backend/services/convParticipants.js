@@ -144,4 +144,13 @@ async function countOthers(conversationId, senderId) {
   return model().count({ where: { conversation_id: conversationId, user_id: { [Op.ne]: senderId } } });
 }
 
-module.exports = { touchOwnRow, ownRows, mutedConversationIds, joinParticipant, promoteSpeaker, removeRows, changeRole, countOthers };
+/**
+ * 한 방의 참여 행(읽기) — 기본은 참여자만(defaultScope, viewer 제외), includeViewers 면 «보는 중» 행까지.
+ * 워크스페이스 «전체» 방 참여자 맞추기·공지 읽음 수(services/team_channel · routes/team_channel)가 쓴다.
+ */
+async function participantRows(conversationId, attributes, { includeViewers = false } = {}) {
+  const M = includeViewers ? model().unscoped() : model();
+  return M.findAll({ where: { conversation_id: conversationId }, attributes, raw: true });
+}
+
+module.exports = { touchOwnRow, ownRows, mutedConversationIds, joinParticipant, promoteSpeaker, removeRows, changeRole, countOthers, participantRows };

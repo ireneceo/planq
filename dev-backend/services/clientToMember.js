@@ -134,6 +134,8 @@ async function promoteClientToMember({ businessId, userId, transaction }) {
 
 /** 커밋 뒤 — 감사·실시간 신호. 바뀐 것이 없으면 아무것도 안 한다. */
 function afterPromote(r, { businessId, userId, actorUserId, io }) {
+  // 멤버가 됐다 — «전체» 대화방 참여자를 맞춘다(services/team_channel · 방이 아직 없으면 아무것도 안 함). 모든 가입 문이 여기를 지난다.
+  require('./team_channel').syncTeamMembersQuiet(businessId, { io });
   if (!r || (!r.clients && !r.projectClients && !r.participants)) return;
   try {
     const { createAuditLog } = require('./auditService');

@@ -169,6 +169,8 @@ export interface MockMessage {
   is_deleted?: boolean;
   edited_at?: string | null;
   pinned_at?: string | null;
+  // «전체» 방 공지(services/team_channel) — 메시지 meta.announcement. 제목은 머리로, 본문은 body 그대로.
+  announcement?: { title: string } | null;
   // 전달 — forwarded = 전달로 생긴 글(«전달된 메시지» 한 줄) · forwardable = 서버 isForwardableMessage 와 같은 판정
   forwarded?: boolean;
   forwardable?: boolean;
@@ -200,6 +202,8 @@ export interface MockConversation {
   client?: { id: number; name: string } | null;
   // 응대 상태·담당(직원만, 2026-11-12 docs/QTALK_CARE_DESIGN.md). null = 문의 없음 · undefined = 고객 화면(안 옴)
   care?: ConvCare | null;
+  // 워크스페이스 «전체» 방(멤버 전원 · 공지) — 이름은 화면이 번역한다
+  is_team?: boolean;
 }
 
 export interface MockTaskCandidate {

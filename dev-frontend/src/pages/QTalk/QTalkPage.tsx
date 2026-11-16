@@ -23,6 +23,7 @@ import {
 } from './types';
 import { useAuth, apiFetch } from '../../contexts/AuthContext';
 import * as qtalkApi from '../../services/qtalk';
+import { getTeamChannel } from '../../services/teamChannel';
 import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
 import { useRevealSelectedRow } from '../../hooks/useRevealSelectedRow';
 import { useTabTitle } from '../../hooks/useTabTitle';
@@ -123,7 +124,8 @@ function apiConversationToMock(c: qtalkApi.ApiConversation): MockConversation {
     id: c.id,
     project_id: c.project_id || 0,
     channel_type: c.channel_type,
-    name: c.display_name || c.title || i18n.t('qtalk:fallback.noName', { defaultValue: '(이름 없음)' }),
+    name: c.is_team ? i18n.t('qtalk:team.name', { defaultValue: '전체' }) : (c.display_name || c.title || i18n.t('qtalk:fallback.noName', { defaultValue: '(이름 없음)' })),
+    is_team: !!c.is_team,
     auto_extract_enabled: c.auto_extract_enabled,
     unread_count: c.unread_count || 0,
     last_extracted_message_id: c.last_extracted_message_id,
@@ -207,6 +209,10 @@ function apiMessageToMock(m: qtalkApi.ApiMessage): MockMessage {
     is_deleted: !!m.is_deleted,
     edited_at: m.edited_at || null,
     pinned_at: m.pinned_at || null,
+    announcement: (() => {
+      const a = m.kind === 'text' ? (m.meta as unknown as { announcement?: { title?: string } } | null | undefined)?.announcement : null;
+      return a ? { title: String(a.title || '') } : null;
+    })(),
     forwarded: m.kind === 'text' && !!(m.meta as { forwarded?: boolean } | null | undefined)?.forwarded,
     forwardable: m.kind === 'text' && !m.is_deleted && !m.is_internal && !(m.is_ai && m.ai_mode_used === 'draft' && !m.ai_draft_approved),
   };
@@ -668,7 +674,14 @@ const QTalkPage: React.FC<QTalkPageProps> = ({ embedded = false, initialConvId =
       const mapped = apiMessageToMock(msg);
       setMessages((prev) => {
         const arr = prev[mapped.conversation_id] || [];
-        return { ...prev, [mapped.conversation_id]: arr.map((m) => (m.id === mapped.id ? mapped : m)) };
+        // 수정 신호에 없는 칸(반응·첨부·읽음 수)은 지금 값을 둔다 — 통째로 바꾸면 고친 순간 반응·읽음 표시가 사라진다
+        return { ...prev, [mapped.conversation_id]: arr.map((m) => (m.id === mapped.id ? {
+          ...mapped,
+          reactions: msg.reactions ? mapped.reactions : m.reactions,
+          attachments: msg.attachments ? mapped.attachments : m.attachments,
+          read_by_count: mapped.read_by_count ?? m.read_by_count,
+          other_count: mapped.other_count ?? m.other_count,
+        } : m)) };
       });
     });
 
@@ -1087,7 +1100,9 @@ const QTalkPage: React.FC<QTalkPageProps> = ({ embedded = false, initialConvId =
         //   시간 제한을 걸어 **실패로 떨어뜨린다** — 실패하면 화면이 이유와 다시 시도를 준다.
         const [projList, convList] = await withLoadTimeout(Promise.all([
           qtalkApi.listProjects(businessId),
-          qtalkApi.listBusinessConversations(businessId).catch(() => [] as qtalkApi.ApiConversation[]),
+          // 멤버는 «전체» 방을 먼저 보장한다(없으면 만들고 참여자를 맞춘다 — services/team_channel). 고객은 부르지 않는다(403).
+          (userRef.current?.business_role === 'client' ? Promise.resolve(null) : getTeamChannel(bid).catch(() => null))
+            .then(() => qtalkApi.listBusinessConversations(businessId)).catch(() => [] as qtalkApi.ApiConversation[]),
         ]));
         if (cancelled) return;
 

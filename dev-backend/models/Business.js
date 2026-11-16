@@ -218,6 +218,11 @@ Business.init({
     allowNull: true,
     references: { model: 'users', key: 'id' }
   },
+  // 워크스페이스 «전체» 대화방 — 멤버 전원이 들어가는 방 1개 + 공지(2026-11-16 Fable 설계 B · services/team_channel.js 한 곳).
+  team_conversation_id: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+  },
   cue_paused: {
     type: DataTypes.BOOLEAN,
     defaultValue: false

@@ -17,6 +17,7 @@ const { applyMemberDisplayName, applyMemberDisplayNameOne, getMemberNameMap, app
 
 // 워크스페이스 관리 판정 — owner·admin·platform_admin 한 함수(0-E E-1, middleware/access_scope)
 const { isWorkspaceAdminReq, isPlatformConversation } = require('../middleware/access_scope');
+const { isTeamConversation } = require('../services/team_channel');
 const isAdmin = isWorkspaceAdminReq;
 
 // ─────────────────────────────────────────────────────────
@@ -231,8 +232,10 @@ router.get('/:businessId', authenticateToken, attachWorkspaceScope(), async (req
 
     // 응대 상태·담당 — **직원에게만** 싣는다. 고객 응답에는 키 자체가 없다(services/convCare · docs/QTALK_CARE_DESIGN.md).
     const careMap = req.scope?.isClient ? null : await require('../services/convCare').careFor(convIds, Number(req.params.businessId));
+    const teamConvId = (await Business.findByPk(Number(req.params.businessId), { attributes: ['team_conversation_id'] }))?.team_conversation_id || null;
     const enriched = conversations.map(c => {
       const obj = c.toJSON();
+      obj.is_team = !!teamConvId && Number(c.id) === Number(teamConvId);   // «전체» 방(services/team_channel) — 화면이 이름 번역·맨 위
       obj.my_pinned_at = pinMap.get(c.id) || null;
       obj.my_muted_at = muteMap.get(c.id) || null;
       obj.my_last_read_at = lastReadMap.get(c.id) || null;
@@ -246,6 +249,7 @@ router.get('/:businessId', authenticateToken, attachWorkspaceScope(), async (req
       const ap = a.my_pinned_at ? 1 : 0;
       const bp = b.my_pinned_at ? 1 : 0;
       if (ap !== bp) return bp - ap; // 핀이 위로
+      if (!!a.is_team !== !!b.is_team) return a.is_team ? -1 : 1;   // 그다음 «전체» 방
       const al = a.last_message_at ? new Date(a.last_message_at).getTime() : 0;
       const bl = b.last_message_at ? new Date(b.last_message_at).getTime() : 0;
       return bl - al;
@@ -714,6 +718,7 @@ router.post('/:businessId/:id/participants', authenticateToken, checkBusinessAcc
     // ★ 부르는 사람이 이 방을 볼 수 있어야 사람을 넣을 수 있다 — 사적 대화방은 참여자만 보므로,
     //   이 검사가 없으면 비참여 멤버(owner 포함)가 **자기를 넣어** 규칙을 우회한다(2026-10-09 D3, Fable 설계).
     if (!(await canAccessConversation(req.user.id, conv))) return errorResponse(res, 'Conversation not found', 404);
+    if (await isTeamConversation(conv)) return errorResponse(res, 'team_channel_locked', 409);   // «전체» 방 참여자 = 활성 멤버(services/team_channel)
     // 추가 대상 user 가 같은 워크스페이스 멤버 또는 프로젝트 고객이어야 함 (타 워크스페이스 유저 유입 차단)
     const isWorkspaceMember = await BusinessMember.findOne({ where: { user_id, business_id: businessId } });
     let allowed = !!isWorkspaceMember;
@@ -752,6 +757,7 @@ router.delete('/:businessId/:id/participants/:userId', authenticateToken, checkB
     const conv = await Conversation.findOne({ where: { id: req.params.id, business_id: req.params.businessId } });
     if (!conv) return errorResponse(res, 'Conversation not found', 404);
     const targetUserId = Number(req.params.userId);
+    if (await isTeamConversation(conv)) return errorResponse(res, 'team_channel_locked', 409);   // «전체» 방 참여자 = 활성 멤버(services/team_channel)
     const isSelfLeave = targetUserId === req.user.id;
     const isOwner = isWorkspaceAdminReq(req);   // owner·admin·platform_admin (0-E)
     if (!isSelfLeave && !isOwner) {
@@ -1347,6 +1353,7 @@ router.post('/:businessId/:id/cue/resume', authenticateToken, checkBusinessAcces
     if (!conversation) return errorResponse(res, 'Conversation not found', 404);
     // 볼 수 있는 방에서만 — 사적 대화방은 참여자만(2026-10-09 D3).
     if (!(await canAccessConversation(req.user.id, conversation))) return errorResponse(res, 'Conversation not found', 404);
+    if (await isTeamConversation(conversation)) return errorResponse(res, 'team_channel_locked', 409);   // «전체» 방은 Cue 끔(참여자 = 사람 멤버만 · Fable 검증 비차단 1)
     // Cue 를 켜면 Cue 사용자를 참여자로 넣는다 — 켠 방의 참여자 목록에 Cue 가 보이게(설계 검토 5).
     //   ★ 접근 판정은 바꾸지 않는다: Cue(ai 역할)는 canAccessConversation 의 멤버가 아니고, 자동응답은
     //     고객 채널·고객 발화 전용이라 사적 방에서 답하는 경로는 원래 없다(Fable 완료 검증 2026-10-09 비차단 1).
@@ -1381,6 +1388,7 @@ router.post('/:businessId/:id/archive', authenticateToken, checkBusinessAccess, 
     // PlanQ 안내방은 워크스페이스가 보관·삭제하지 않는다(PlanQ 팀과의 기록 — 설계 §1).
     if (isPlatformConversation(conv)) return errorResponse(res, 'platform_room', 409);
     if (conv.archived_at) return errorResponse(res, 'already_archived', 400);
+    if (await isTeamConversation(conv)) return errorResponse(res, 'team_channel_locked', 409);   // «전체» 방 참여자 = 활성 멤버(services/team_channel)
 
     const wsMember = await BusinessMember.findOne({
       where: { user_id: req.user.id, business_id: businessId, removed_at: null },
@@ -1474,6 +1482,7 @@ router.delete('/:businessId/:id', authenticateToken, checkBusinessAccess, async 
     const conv = await Conversation.findOne({ where: { id: req.params.id, business_id: businessId } });
     if (!conv) return errorResponse(res, 'conversation_not_found', 404);
     if (isPlatformConversation(conv)) return errorResponse(res, 'platform_room', 409);
+    if (await isTeamConversation(conv)) return errorResponse(res, 'team_channel_locked', 409);   // «전체» 방 참여자 = 활성 멤버(services/team_channel)
     if (!conv.archived_at) return errorResponse(res, 'must_archive_first', 400);
     const snapshot = { id: conv.id, name: conv.name, project_id: conv.project_id, archived_at: conv.archived_at };
 

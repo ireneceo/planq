@@ -634,7 +634,8 @@
         "external_review": "외부 컨펌"
       }
     },
-    "mailAll": "전체 멤버에게 메일"
+    "mailAll": "전체 멤버에게 메일",
+    "announce": "공지 보내기"
   },
   "cue": {
     "sectionTitle": "Cue 설정",

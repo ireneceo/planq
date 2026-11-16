@@ -150,6 +150,8 @@ const LeftPanel: React.FC<Props> = ({
       const ap = a.conversation.my_pinned_at ? 1 : 0;
       const bp = b.conversation.my_pinned_at ? 1 : 0;
       if (ap !== bp) return bp - ap;
+      // 그다음 워크스페이스 «전체» 방(멤버 전원·공지) — 서버 목록 정렬과 같다
+      if (!!a.conversation.is_team !== !!b.conversation.is_team) return a.conversation.is_team ? -1 : 1;
       const ta = a.conversation.last_message_at ? new Date(a.conversation.last_message_at).getTime() : 0;
       const tb = b.conversation.last_message_at ? new Date(b.conversation.last_message_at).getTime() : 0;
       return tb - ta;
