@@ -33,6 +33,7 @@ import FloatingPanelToggle from '../../components/Common/FloatingPanelToggle';
 import { ReportProblemLink } from '../../components/Common/ReportProblem';
 import { usePanelWidth } from '../../components/Layout/PanelResizeHandle';
 import type { ConvCare } from './careList';
+import { displayName } from '../../utils/displayName';
 
 /**
  * QTalkPage — 실데이터 기반 (시드 데이터 로드)
@@ -1553,7 +1554,7 @@ const QTalkPage: React.FC<QTalkPageProps> = ({ embedded = false, initialConvId =
       id: tempId,
       conversation_id: convId,
       sender_id: Number(user?.id || 0),
-      sender_name: user?.name || '',
+      sender_name: displayName(user, i18n.language),
       sender_role: 'member' as const,
       sender_color: '#0D9488',
       body: content,

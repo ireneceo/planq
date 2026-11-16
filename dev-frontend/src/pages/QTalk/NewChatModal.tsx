@@ -14,6 +14,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { listBusinessMembers, listProjects, listWorkspaceClients, type WorkspaceMemberRow, type WorkspaceClientRow, type ApiProject, type SupportedLang } from '../../services/qtalk';
 import { isEnterAction } from '../../utils/imeKey';
 import { clientOptionLabel } from '../../utils/clientLabel';
+import { displayName } from '../../utils/displayName';
 
 export interface NewChatFormData {
   title: string;
@@ -61,7 +62,7 @@ interface Props {
 
 const NewChatModal: React.FC<Props> = ({ businessId, open, preselectedProjectId, onClose, onCreate, onAddClient, restore }) => {
   // qsale = 고객 관계 글자(utils/clientLabel)
-  const { t } = useTranslation(['qtalk', 'qsale']);
+  const { t, i18n } = useTranslation(['qtalk', 'qsale']);
   const { user } = useAuth();
   const myId = user ? Number(user.id) : -1;
 
@@ -320,8 +321,8 @@ const NewChatModal: React.FC<Props> = ({ businessId, open, preselectedProjectId,
             )}
             <Chips>
               <MeChip>
-                <LetterAvatar name={user?.name || t('newChat.me', '나')} size={20} />
-                <span>{user?.name || t('newChat.me', '나')} ({t('newChat.me', '나')})</span>
+                <LetterAvatar name={displayName(user, i18n.language) || t('newChat.me', '나')} size={20} />
+                <span>{displayName(user, i18n.language) || t('newChat.me', '나')} ({t('newChat.me', '나')})</span>
               </MeChip>
               {participantIds.map((uid) => {
                 const m = members.find((x) => x.user_id === uid);

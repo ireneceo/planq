@@ -296,8 +296,9 @@ const ChatPanel: React.FC<Props> = ({
       .then((ms) => {
         if (cancelled) return;
         const arr = (ms || [])
-          .filter((m) => m.user_id && m.user?.name && !m.user?.is_ai)
-          .map((m) => ({ user_id: m.user!.id, name: m.user!.name }));
+          .filter((m) => m.user_id && (m.user?.display_name || m.user?.name) && !m.user?.is_ai)
+          // 본문 @멘션은 워크스페이스 표시명으로 들어간다 — 강조 검증도 같은 이름으로.
+          .map((m) => ({ user_id: m.user!.id, name: m.user!.display_name || m.user!.name }));
         setMentionMembers(arr);
       })
       .catch(() => { /* best-effort */ });
