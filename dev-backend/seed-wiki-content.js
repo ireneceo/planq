@@ -367,6 +367,11 @@ const ARTICLES = [
         'Tap **Mute notifications** in the chat header to turn off regular message alerts and counts for that chat — for you only. Messages that @mention you and assignments still notify you.'),
       s('고객 문의 대화는 머리에서 **응대 상태**(응대 중·보류·해결)와 **담당자**를 정할 수 있습니다. 대화 목록 위 **답할 문의** 를 누르면 내가 담당인 «응대 중» 문의만 보입니다.',
         'For client inquiry chats, set the **status** (Open · On hold · Resolved) and **assignee** in the header. Tap **To answer** above the chat list to see only open inquiries assigned to you.'),
+      // 2026-11-16 — 사내 공지·1:1 메시지
+      s('멤버 모두가 들어 있는 **«전체»** 대화방에서 **공지 올리기**(또는 설정 › 멤버의 **공지 보내기**)로 제목을 붙인 공지를 보낼 수 있습니다. 공지는 방 위에 고정되고, 그 방 알림을 꺼 둔 사람에게도 알림이 가며, 몇 명이 읽었는지 보입니다.',
+        'In the **All** chat, which every member is in, use **Post announcement** (or **Send announcement** in Settings › Members) to send a titled announcement. It is pinned at the top, notifies members even if they muted that chat, and shows how many have read it.'),
+      s('사람 이름을 눌러 나오는 카드나 멤버 상세에서 **1:1 메시지** 를 누르면 그 멤버와 둘만의 대화방이 열립니다(이미 있으면 그 방으로).',
+        'Tap **Direct message** on a person card (tap a name) or on a member’s details to open a private chat with that member — or the existing one.'),
       // 2026-10-09 — 사적 팀 대화(보안 점검 2차 D3)
       note('프로젝트·고객과 연결하지 않은 팀 대화는 **참여자만** 볼 수 있습니다. 대표·관리자도 참여자가 아니면 보지 못합니다. 프로젝트 대화방과 고객 대화방은 팀 모두가 봅니다.',
         'Team chats not linked to a project or client are visible to **participants only** — owners and admins included. Project and client chats are visible to the whole team.'),
@@ -644,6 +649,9 @@ const ARTICLES = [
     body: [
       s('Q docs 에서 문서 유형(견적·계약·제안서)을 선택합니다.', 'In Q docs, choose a document type (quote, contract, proposal).'),
       s('내용을 작성하고 고객·프로젝트에 연결합니다.', 'Write the content and link it to a client or project.'),
+      // 2026-11-16 — 문서 차트 블록
+      s('편집기 도구줄의 **차트 넣기** 로 막대·선·영역·원 그래프를 넣을 수 있습니다. 이미 만든 표는 표 메뉴의 **차트로** 를 누르면 그 값으로 그래프가 됩니다. 공유 링크·PDF·서명본에도 같은 그림으로 나옵니다.',
+        'Use **Insert chart** in the editor toolbar to add a bar, line, area or pie chart. For an existing table, choose **Chart** from the table menu to chart its values. Shared links, PDFs and signed copies show the same chart.'),
     ] },
   { cat: 'qdocs', slug: 'share-document-linked-docs', visibility: 'public', linked_route: '/docs', est: 2,
     title: t('공유 링크에 연결 문서 함께 보내기', 'Send linked documents with a share link'),
@@ -1009,7 +1017,9 @@ const ARTICLES = [
       s('설정 → 메일 계정 (또는 Q Mail 화면의 "메일 계정 연결")으로 들어갑니다.', 'Go to Settings → Mail accounts (or "Connect a mail account" on the Q Mail screen).'),
       s('회사 공용 메일은 관리자가 연결하면 모든 팀원이 인박스에서 함께 봅니다. 개인 메일은 본인에게만 보입니다.', 'A shared company mailbox (connected by an admin) is visible to the whole team; a personal mailbox is visible only to you.'),
       h('IMAP로 직접 연결 (그 외 메일)', 'Connect via IMAP (other providers)'),
-      s('"계정 추가"에서 이메일 주소, IMAP 호스트·포트, 비밀번호(또는 앱 비밀번호)를 입력합니다.', 'In "Add account", enter your email address, IMAP host and port, and password (or app password).'),
+      s('"계정 추가"에서 이메일 주소, 발신 이름, 비밀번호(또는 앱 비밀번호)를 입력합니다. Gmail·네이버·Outlook 등 알려진 서비스는 이것만으로 되고, 그 외 메일은 받는 메일 서버 한 칸이 더 나옵니다.', 'In "Add account", enter your email address, sender name and password (or app password). Known services such as Gmail, Naver and Outlook need nothing else; for other mail, one more field for the incoming mail server appears.'),
+      // 2026-11-16 — 메일 계정 칸 정리
+      s('포트·로그인 아이디·보내는 메일 서버는 **고급 설정** 을 펼쳐서 바꿉니다. 비워 두면 받는 메일 서버와 같은 아이디·비밀번호로 보냅니다.', 'Open **Advanced settings** to change ports, login ID or the outgoing mail server. If left blank, mail is sent with the same ID and password as the incoming server.'),
       note('Gmail·네이버 등 2단계 인증을 쓰는 메일은 일반 비밀번호 대신 "앱 비밀번호"를 발급해 입력해야 합니다. Gmail 도 앱 비밀번호로 연결합니다.',
         'For mailboxes with 2-step verification (Gmail, Naver, etc.), generate and enter an "app password" instead of your normal password. Gmail also connects with an app password.'),
     ] },
@@ -1248,6 +1258,9 @@ const ARTICLES = [
       s('상단 "새 프로젝트"로 프로젝트를 만들고 멤버·고객·채널을 설정합니다.', 'Create a project with "New project" at the top and set members, clients, and channels.'),
       s('리스트 상단의 정렬·그룹 선택으로 원하는 방식으로 봅니다.', 'Use the sort and group selectors above the list to organize your view.'),
       note('부서별·팀별 그룹은 프로젝트 담당자(owner)의 소속을 기준으로 묶습니다.', 'Department and team grouping is based on the project owner’s membership.'),
+      // 2026-11-16 — 프로젝트 멤버 ↔ 프로젝트 대화방
+      note('프로젝트 멤버는 대표·관리자가 추가하거나 뺄 수 있습니다. 멤버로 넣으면 그 프로젝트의 대화방에도 함께 들어가고, 빼면 대화방에서도 나갑니다. 대표·관리자가 프로젝트 대화방에 사람을 넣어도 프로젝트 멤버가 됩니다.',
+        'Owners and admins can add or remove project members. Adding a member also adds them to the project’s chats, and removing them takes them out. When an owner or admin adds someone to a project chat, they become a project member too.'),
     ] },
   { cat: 'qproject', slug: 'project-group-tasks', visibility: 'public', linked_route: '/projects', est: 2,
     title: t('프로젝트 업무를 그룹(추진과제)으로', 'Organize project tasks into groups'),
