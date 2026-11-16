@@ -37,11 +37,11 @@
 - 시험 데이터: dev ws 19066 «[확인용] 업종 시험 워크스페이스»·19112(Fable) — 7일 뒤 정리 대상.
 - 데모 계정(appreview@planq.kr) 운영 로그인 확인 못 함 — 이 방에서 운영 접속 권한 거부. 재제출 카드 1단계로 넣음.
 
-#### 답 기다림: App Store 재제출 B안 — 운영 반영 확인 + 약관 고지 메일
-- 11-16 할 일 점검(방 30a09dbf): **B안은 운영에 나감**(11-16 00:37 빌드 — 운영 landing.json·legal.json 이 개발과 같음, «1인 사업자»·시행일 11-23/12-23 보임). 남은 것 = 약관 고지 메일 결정(상황판 askmwibw86i 아직 답 없음). 재제출 카드 todomvswjmxv 를 그에 맞게 고침.
-- 무엇: 위 문구·가입 칸·약관을 운영에 내고(다음 배포) 기존 회원에게 약관 개정 고지 메일을 보낼지.
-- 왜: 약관 제13조가 «7일 전(중요 변경 30일 전) 공지·이메일» 을 약속 — 메일 없이 시행일만 적으면 스스로 어긴다(Fable). 메일 = 외부 발송이라 Irene 결정.
-- 답이 오면: 예 → 배포 때 약관 버전 올림·공지 띠·고지 메일(scripts/send-terms-notice.js 계열) 준비 → 배포 뒤 «App Store 재제출» 할 일 카드. 아니오 → 시행일 문구를 고지 뒤로 다시 잡음.
+#### (이전) 답 기다림: App Store 재제출 B안 — 운영 반영 확인 + 약관 고지 메일 → Irene «권고대로»(①) 11-16
+- B안 화면·가입·약관은 11-16 00:37 정기 배포로 이미 운영 반영(방 30a09dbf 확인).
+- 고지: 82285a89 — 배포 단계 scripts/migrate-terms-business-only.js(1.2 단계 뒤)가 공지 띠 + 활성 회원 고지 메일(terms_notice_1_3). 운영이 1.2 이상이면 버전 1.3(재동의), 1.1 이면 버전 그대로·메일 «창 안 뜸» 문구. Fable 2차 PASS(docs/FABLE_GATE_QUEUE.md 맨 위). **다음 배포 때 나간다 — 11-23 전이어야 함**(넘기면 30일 가드가 막고 매 배포 warn → 시행일 옮김).
+- 재제출: 할 일 카드 todomvswjmxv 고침(빌드 21 · 데모 계정 로그인 확인 · 답장 복사 https://claude.ai/artifact/3Su8qYnGAZwzmeATquUkTQ#reply · 제출).
+- 확인 못 함: 운영 terms_version(1.1/1.2) · dev 실제 실행(메일 경로라 이 방 권한 거부 — 렌더·미리보기만) · Fable 통과 표식(.fable-gate.json) 쓰기도 이 방 권한 거부.
 
 ### ✅ iOS 공유 확장(Share Extension) 구현 — 사진·파일 «공유» → PlanQ (방 8b1f0a60 · 2026-11-15 · [Opus] · Fable 안 씀 — 설계는 10-29 Fable 검토 반영, 완료 판정은 Codemagic 빌드·실기기(기계·실측) · Fable 미검증(자체 검증))
 - 파일: `ios/App/ShareExtension/`(ShareViewController.swift·Info.plist·entitlements·PrivacyInfo) · `App/ShareReceivePlugin.swift`(+ AppDelegate 등록) · `App.entitlements` App Group · `project.pbxproj` 확장 타깃(손으로, node xcode 파서 dangling 0) · `nativeShare.ts` ios 분기 · `NativeBridge` planq://share 통과 · `ios-beta-check.js` 버전·App Group 검사(양성 대조군 2건 ✗ 확인) · codemagic.yaml 주석.
