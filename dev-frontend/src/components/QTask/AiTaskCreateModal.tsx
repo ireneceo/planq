@@ -13,7 +13,8 @@ import SingleDateField from '../Common/SingleDateField';
 import { apiFetch } from '../../contexts/AuthContext';
 import { mapApiError } from '../../utils/apiError';
 import { listWorkstreams, createWorkstream } from '../../services/projectCanvas';
-import AiCandidateCard, { type AiCandidate } from './AiCandidateCard';
+import { type AiCandidate } from './AiCandidateCard';
+import AiCandidateSections, { ensurePhaseGroups } from './AiCandidateSections';
 import AiRegenerateBar from '../Common/AiRegenerateBar';
 import AiAreaBlock, { type AiArea } from './AiAreaBlock';
 import AiLoadSummary from './AiLoadSummary';
@@ -187,6 +188,11 @@ export default function AiTaskCreateModal({ open, onClose, businessId, projectId
   const [listShortfall, setListShortfall] = useState<{ expected: number; got: number } | null>(null);
   // 출력 상한에서 잘려 서버가 앞쪽 업무만 건졌다 — 조용히 일부만 보여주지 않는다.
   const [partial, setPartial] = useState(false);
+  // 2026-11-16 — 서버가 프로젝트 «전체 업무 일정» 모드로 처리했는가(단계별로 묶어 보인다) · 최소 개수 미달 안내
+  const [projectPlan, setProjectPlan] = useState(false);
+  const [planShortfall, setPlanShortfall] = useState<{ expected: number; got: number } | null>(null);
+  // 단계 이름 중 아직 그룹이 아닌 것을 확정 때 업무 그룹으로 만든다(기본 켬 — 단계가 곧 그룹이어야 «체계적» 으로 남는다).
+  const [makeGroups, setMakeGroups] = useState(true);
 
   // 템플릿 항목이 미리보기에 놓인 다음 렌더에서 요청을 보낸다(prompt·후보 state 가 반영된 뒤여야 base 로 실린다).
   useEffect(() => {
@@ -301,6 +307,9 @@ export default function AiTaskCreateModal({ open, onClose, businessId, projectId
       const enumShort = j.data?.enumerated_shortfall as { expected: number; got: number } | null;
       setListShortfall(enumShort && enumShort.got < enumShort.expected ? enumShort : null);
       setPartial(!!j.data?.partial);
+      setProjectPlan(!!j.data?.project_plan);
+      const ps = j.data?.plan_shortfall as { expected: number; got: number } | null;
+      setPlanShortfall(ps && ps.got < ps.expected ? ps : null);
       setStage('preview');
     } catch (e) {
       setError(mapApiError(e, tErr));
@@ -317,12 +326,14 @@ export default function AiTaskCreateModal({ open, onClose, businessId, projectId
   };
 
   const confirm = async () => {
-    const selected = candidates.filter(c => c.selected);
+    let selected = candidates.filter(c => c.selected);
     if (selected.length === 0 || submitting) return;
     setSubmitting(true);
     setError(null);
     setNotice(null);
     try {
+      // 단계 → 업무 그룹(기존 라우트로만 — ensurePhaseGroups). 템플릿 목록은 서버가 템플릿 그룹을 만든다(겹쳐 만들지 않는다).
+      if (grouped && makeGroups && selectedProjectId && !seed) selected = await ensurePhaseGroups(selected, workstreams, handleCreateGroup);
       const r = await apiFetch('/api/tasks/ai-create/confirm', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -368,10 +379,13 @@ export default function AiTaskCreateModal({ open, onClose, businessId, projectId
   };
 
   const selectedCount = candidates.filter(c => c.selected).length;
+  // 단계별로 묶어 보인다 — 서버가 프로젝트 일정 모드로 처리했거나, 후보가 이미 서로 다른 단계(그룹) 둘 이상에 걸쳐 있을 때. 루틴은 영역 블록이 따로 있다.
+  const grouped = !routineMode && !!selectedProjectId
+    && (projectPlan || new Set(candidates.map((c) => c.workstream_id || c.workstream_hint || '')).size >= 2);
 
   return (
     <Backdrop onClick={onClose}>
-      <Dialog onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={t('ai.title', 'AI 로 업무추가') as string}>
+      <Dialog $wide={stage === 'preview'} onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={t('ai.title', 'AI 로 업무추가') as string}>
         <Header>
           <Title>
             <Sparkle>
@@ -547,21 +561,20 @@ export default function AiTaskCreateModal({ open, onClose, businessId, projectId
                   ))}
                 </ShortfallBox>
               )}
-              <CardList>
-                {candidates.map((c, i) => (
-                  <AiCandidateCard
-                    key={c.idx}
-                    number={seed ? i + 1 : undefined}
-                    candidate={c}
-                    members={members}
-                    baseDate={baseDate}
-                    onChange={(patch) => updateCand(c.idx, patch)}
-                    hasProject={!!selectedProjectId}
-                    workstreams={workstreams}
-                    onCreateGroup={handleCreateGroup}
-                  />
-                ))}
-              </CardList>
+              <AiCandidateSections
+                candidates={candidates}
+                members={members}
+                baseDate={baseDate}
+                onChange={updateCand}
+                hasProject={!!selectedProjectId}
+                workstreams={workstreams}
+                onCreateGroup={handleCreateGroup}
+                numbered={!!seed}
+                grouped={grouped}
+                makeGroups={makeGroups && !seed}
+                onMakeGroupsChange={seed ? undefined : setMakeGroups}
+                planShortfall={planShortfall}
+              />
               {error && <ErrorMsg>{error}</ErrorMsg>}
               {notice && <NoticeMsg role="status">{notice}</NoticeMsg>}
             </AIForm>
@@ -610,9 +623,9 @@ const Backdrop = styled.div`
   z-index: 1000; padding: 20px;
   @media (max-width: 640px) { padding: 0; align-items: stretch; }
 `;
-const Dialog = styled.div`
+const Dialog = styled.div<{ $wide?: boolean }>`
   background: #fff; border-radius: 14px;
-  width: 100%; max-width: 560px; max-height: 90vh;
+  width: 100%; max-width: ${p => (p.$wide ? '760px' : '560px')}; max-height: 90vh;   /* 미리보기는 일정표라 넓게 — 행이 한 줄에 들어간다 */
   display: flex; flex-direction: column;
   box-shadow: 0 20px 60px rgba(0,0,0,0.2);
   @media (max-width: 640px) {
@@ -740,7 +753,6 @@ const ReasoningBox = styled.div`
   padding: 10px 12px; background: #F0FDFA; color: #0F766E;
   border-left: 3px solid #14B8A6; border-radius: 6px; font-size: 0.75rem; line-height: 1.5;
 `;
-const CardList = styled.div`display: flex; flex-direction: column; gap: 8px;`;
 
 // #354 — 모드 선택 (일회성 분해 / 루틴 설계). 상태색을 버튼 배경에 칠하지 않는다(3톤 규칙) —
 //   선택 표시는 테두리와 옅은 바탕으로만 한다.

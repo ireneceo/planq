@@ -8,13 +8,12 @@
 //   4. assignee_hint — 멤버 역할 키워드. 후처리에서 BusinessMember.job_title/expertise 매칭
 //   5. 사용자 마감/기간 준수 (target_date 명시 시 due_offset_days <= target offset)
 //
-// LLM: gpt-4o-mini (cue_orchestrator 와 동일 모델), JSON mode
+// LLM: gpt-4o-mini(task_plan_list) · 프로젝트 «전체 업무 일정» 은 gpt-5.1(project_plan) — services/llm.js, JSON mode
 
 const { recordUsage } = require('./cue_orchestrator');
 
 // LLM 호출은 게이트웨이 단일 지점을 지난다 (services/llm.js).
 const { callLLM, isEnabled, modelFor } = require('./llm');
-const MODEL = modelFor('task_plan');
 
 // 결과물 기반 명명 검증 — 단독으로 쓰이면 부적절한 단어 (사용자 인지용)
 const VAGUE_WORDS_KO = ['디자인', '개발', '시장조사', '조사', '회의', '미팅', '리뷰', '검토', '확인', '준비', '체크', '논의', '기획', '분석'];
@@ -22,6 +21,11 @@ const VAGUE_WORDS_EN = ['design', 'develop', 'research', 'meeting', 'review', 'c
 
 // AI 업무 확정 한 번에 만들 수 있는 업무 수 — 확정 라우트·Cue 업무 묶음·분해 프롬프트의 개수 상한이 같은 값을 쓴다(단일 원천)
 const MAX_CONFIRM_CANDIDATES = 40;
+// 프로젝트 «전체 업무 일정» 모드의 개수 범위 — 프롬프트와 부족 재요구가 같은 값을 읽는다.
+const PROJECT_PLAN_MIN = 15;
+const PROJECT_PLAN_MAX = 30;
+// 이 수 이상 업무가 이미 있으면 «빠진 것만 채우기»(최소 개수·부족 재요구 없음)
+const PROJECT_GAPFILL_AT = 10;
 
 function detectVague(title, language) {
   const t = String(title || '').trim();
@@ -30,13 +34,43 @@ function detectVague(title, language) {
   // 단독 단어 + 공백 추가 + 결과물 명사가 없는 경우만 의심
   // 예: "디자인", "디자인 작업" → vague / "메인 페이지 디자인 시안 작성" → OK (작성/시안 등 결과물 명사 포함)
   const lower = t.toLowerCase();
-  const hasOutputNoun = /(작성|발행|제작|등록|보고서|시안|초안|문서|자료|일정표|리스트|목록|결과|보고|배포|런칭|회의록|draft|report|document|deliverable|launch|publish)/i.test(t);
+  // 2026-11-16 — 프로젝트 일정의 단계 게이트(«기획안 고객 승인본 확정»)·산출물 이름(정의서·명세서·체크리스트)도 결과물이다.
+  const hasOutputNoun = /(작성|발행|제작|등록|보고서|시안|초안|문서|자료|일정표|리스트|목록|결과|보고|배포|런칭|회의록|확정|승인본|기획안|계획서|정의서|명세서|체크리스트|가이드|구조도|와이어프레임|분석표|비교표|리포트|draft|report|document|deliverable|launch|publish|sign-?off|spec|checklist)/i.test(t);
   if (hasOutputNoun) return false;
   return list.some(w => lower.includes(w.toLowerCase()));
 }
 
-function buildSystemPrompt(language, members, projectContext, targetDate, todayLocal, mode, workstreams = [], routineCtx = null, enumerated = 0) {
+function buildSystemPrompt(language, members, projectContext, targetDate, todayLocal, mode, workstreams = [], routineCtx = null, enumerated = 0, planCtx = null) {
   const lang = language === 'en' ? 'English' : 'Korean';
+  // 2026-11-16 — 프로젝트 «전체 업무 일정» 모드 (Irene «너무 조금 생성돼 … 체계적인 제대로 된 프로페셔널한 일정»).
+  //   프로젝트 안에서 나열·루틴·재생성 지시 없이 목표 한 줄로 부르면 이 블록이 붙는다(판정은 planTasksFromPrompt 한 곳).
+  //   ★ 루틴 블록과 같은 이유로 프롬프트 **맨 끝**에 붙인다 — 앞에 두면 뒤따르는 «5~15» 정책에 묻힌다.
+  const projectPlanBlock = planCtx ? `
+
+═══ PROJECT SCHEDULE MODE — FINAL REQUIREMENTS. THESE OVERRIDE THE DECOMPOSITION COUNT ABOVE ═══
+
+The user is building the FULL work schedule of one project (a professional project plan / WBS), not a quick to-do list.
+
+1. COUNT — ${planCtx.gapFill
+    ? `this project ALREADY HAS a plan (${planCtx.existingTitles.length} tasks, listed in 5). Output ONLY the genuinely missing work — as many tasks as are really missing (it may be few). Never pad with filler such as internal reviews or summaries of other tasks.`
+    : `output ${PROJECT_PLAN_MIN}~${PROJECT_PLAN_MAX} tasks (never more than ${MAX_CONFIRM_CANDIDATES}). A plan under ${PROJECT_PLAN_MIN} tasks is a FAILED answer.`}
+   Size each task as one deliverable that one person finishes in about 0.5~5 working days (4~32h). Split bigger work; merge trivial steps.
+2. PHASES — organize the plan into 4~7 sequential phases and put the phase name in "workstream_hint" for EVERY task (never null).
+   ${planCtx.workstreams && planCtx.workstreams.length
+    ? 'This project already has work groups (listed in CONTEXT). Reuse those EXACT names where they fit; add new phase names only for work they do not cover.'
+    : 'This project has no work groups yet. Use short, standard phase names for this domain (예: 착수·기획 / 설계 / 디자인 / 개발·제작 / 검수·QA / 런칭·안정화).'}
+   Output tasks phase by phase, in schedule order (all tasks of phase 1 first, then phase 2 …).
+   Each phase ends with a review/approval deliverable (예: "기획안 고객 승인본 확정", "디자인 시안 최종 컨펌") — set "is_milestone": true on that task only. Other tasks: false.
+3. SCHEDULE — ${planCtx.startOffset != null || planCtx.endOffset != null
+    ? `the project runs from offset ${planCtx.startOffset ?? 0} to offset ${planCtx.endOffset ?? 'open'} (today = 0). Every task must start at or after ${Math.max(0, planCtx.startOffset ?? 0)}${planCtx.endOffset != null ? ` and be due at or before ${planCtx.endOffset}` : ''}. Spread the phases across that whole window — do not crowd everything into the first weeks.`
+    : 'no project dates are set. Lay the phases out realistically from today, in working days.'}
+   Phases follow each other; tasks inside a phase may run in parallel. Set "depends_on_index" on the key hand-offs (phase gate → first task of the next phase, and obvious inputs). Never point to a later task.
+4. ROLES — set "assignee_hint" (기획자 / 디자이너 / 개발자 / 마케터 / PM …) on every task so the team can split the work.
+5. DO NOT DUPLICATE — ${planCtx.existingTitles && planCtx.existingTitles.length
+    ? `the project already has these tasks. Do NOT output them again (or a reworded copy); plan the remaining work around them:\n${planCtx.existingTitles.slice(0, 60).map((x) => `  - ${x}`).join('\n')}`
+    : 'the project has no tasks yet.'}
+6. BREVITY — "description" = ONE short sentence (what the deliverable contains). "instruction" = null. No recurrence unless the user asked for a routine.
+` : '';
   // #354 루틴 설계 모드 — 일회성 분해가 아니라 **상시 반복 체계**를 설계한다.
   //   ★ 여기서 만들지 않는 것(Fable 판정): 성과지표(측정 방법 없는 지표 금지 — #358 게이트가 먼저),
   //     Q Records 자동 개설(문서 종속 자원이라 고아를 낳는다 — #360 이 먼저), 전략 필드 쓰기.
@@ -304,12 +338,13 @@ ${workstreamBlock}
       "assignee_hint": "<short role keyword or null>",
       "assignee_name": "<exact member name if user named a person, else null>",
       "depends_on_index": <int or null>,
+      "is_milestone": <true only for a phase-gate review/approval deliverable, else false>,
       "area_ref": <int index into "areas", routine mode only, else omit>,
       "pipeline_refs": [<int>, ...]   // routine mode only, else omit
     }
   ],
   "reasoning": "<ONE short phrase (max 30 Korean chars / 60 English chars) naming WHAT was broken out. No justification, no restating the user's request, no meta-commentary about the decomposition itself. Good: \\"계획서 작성 1건으로 정리했어요\\". Bad: \\"사용자의 요청에 따라 ... 단일 작업을 정의했습니다. 이 작업은 ... 필요합니다\\">"
-}${routineBlock}`;
+}${routineBlock}${projectPlanBlock}`;
 }
 
 async function callOpenAi(systemPrompt, userPrompt, purpose = 'task_plan') {
@@ -465,15 +500,43 @@ const MIN_ROUTINE_INSTRUCTION = 300;
 // 영역 이름 키 — 확정 라우트·AI 앱 create_workstream 과 한 벌(services/actions/workstream_actions).
 function normAreaKey(s) { return require('./actions/workstream_actions').normalizeWorkstreamTitle(s); }
 
-async function planTasksFromPrompt({ prompt, businessId, projectContext, members = [], workstreams = [], targetDate = null, todayLocal, language = 'ko', mode = null, instruction = null, instructions = null, baseCandidates = null, strategy = null, existingRecurring = null, baseAreas = null }) {
+// 프로젝트 일정 모드 — 후보 일정을 [startOffset, endOffset] 창 안으로(오늘 = 0). 둘 다 없으면 그대로.
+function fitPlanToWindow(cands, startOffset, endOffset) {
+  const s0 = Number.isInteger(startOffset) && startOffset > 0 ? startOffset : 0;
+  const minStart = Math.min(...cands.map((c) => c.start_offset_days));
+  if (minStart < s0) {
+    const shift = s0 - minStart;
+    for (const c of cands) { c.start_offset_days += shift; c.due_offset_days += shift; }
+  }
+  if (!Number.isInteger(endOffset) || endOffset <= s0) return;
+  const maxDue = Math.max(...cands.map((c) => c.due_offset_days));
+  if (maxDue <= endOffset) return;
+  const base = Math.min(s0, ...cands.map((c) => c.start_offset_days));
+  const k = (endOffset - base) / (maxDue - base);
+  for (const c of cands) {
+    c.start_offset_days = base + Math.floor((c.start_offset_days - base) * k);
+    c.due_offset_days = Math.max(c.start_offset_days, base + Math.round((c.due_offset_days - base) * k));
+    c.duration_days = Math.max(1, c.due_offset_days - c.start_offset_days);
+  }
+}
+
+async function planTasksFromPrompt({ prompt, businessId, projectContext, members = [], workstreams = [], targetDate = null, todayLocal, language = 'ko', mode = null, instruction = null, instructions = null, baseCandidates = null, strategy = null, existingRecurring = null, baseAreas = null, projectPlan = null }) {
   if (!prompt || !String(prompt).trim()) {
     return { candidates: [], reasoning: '', fallback: true, error: 'empty_prompt' };
   }
   const isRoutine = mode === 'routine';
   // 나열 항목 수 — 루틴 아닌 모든 모드(Cue 바·모달 일회성 분해). 프롬프트 규칙·출력 상한·개수 재요구가 같은 값을 읽는다.
   const enumerated = isRoutine ? 0 : countEnumeratedItems(prompt);
+  // 프로젝트 «전체 업무 일정» 모드 — 프로젝트 안 · 일반 모드(quick·routine 아님) · 나열 없음 · 재생성 지시·직전 목록 없음.
+  //   재생성은 «직전 목록 고쳐 쓰기» 라 개수·단계 계약을 다시 걸면 «둘을 합쳐줘» 같은 지시와 싸운다 — 걸지 않는다.
+  const hasRevision = (Array.isArray(instructions) && instructions.some((x) => String(x || '').trim()))
+    || !!(instruction && String(instruction).trim())
+    || (Array.isArray(baseCandidates) && baseCandidates.length > 0);
+  const planCtx = (projectPlan && !mode && enumerated < 2 && !hasRevision)
+    // 이미 일정이 있는 프로젝트(업무 10건 이상)는 «빠진 것만 채우기» — 최소 개수를 걸면 채우려고 군더더기 업무를 지어낸다(실측).
+    ? { ...projectPlan, workstreams, gapFill: (projectPlan.existingTitles || []).length >= PROJECT_GAPFILL_AT } : null;
   let systemPrompt = buildSystemPrompt(language, members, projectContext, targetDate, todayLocal, mode, workstreams,
-    isRoutine ? { strategy, existingRecurring } : null, enumerated);
+    isRoutine ? { strategy, existingRecurring } : null, enumerated, planCtx);
   // KNOWLEDGE_LOOP 축1 — 워크스페이스 카테고리별 실측 소요시간 통계 주입 (estimated_hours 정확도 ↑)
   try { systemPrompt += await require('./cueKnowledge').getWorkPatternPromptBlock(businessId); } catch { /* noop */ }
   // 운영 #312 — 재생성은 "처음부터 다시 분해" 가 아니라 **"직전 결과를 고쳐 쓰기"** 다.
@@ -532,7 +595,8 @@ async function planTasksFromPrompt({ prompt, businessId, projectContext, members
   // 2026-10-27 — 나열이 없어도 «매장 오픈 업무 전부·최대로» 같은 큰 목표는 20~40건이 나와 2,000토큰에서 늘 잘렸다.
   //   그래서 일회성 분해는 모두 task_plan_list(8,000) — 개수 상한(MAX_CONFIRM_CANDIDATES)은 프롬프트가 건다.
   //   task_plan 자체는 voice.js 도 쓰므로 그대로 둔다.
-  const planPurpose = isRoutine ? 'routine_plan' : 'task_plan_list';
+  // 2026-11-16 — 프로젝트 «전체 업무 일정» 은 상위 모델(project_plan — llm.js 주석).
+  const planPurpose = isRoutine ? 'routine_plan' : (planCtx ? 'project_plan' : 'task_plan_list');
   const result = await callOpenAi(systemPrompt, userPrompt, planPurpose);
 
   let parsed;
@@ -680,6 +744,8 @@ async function planTasksFromPrompt({ prompt, businessId, projectContext, members
       area_ref,
       area_ref_dropped,
       pipeline_refs,
+      // 프로젝트 일정 모드의 단계 게이트(검수·승인) — 확정이 templateDetails.candidateTaskFields 로 그대로 저장한다.
+      is_milestone: !!planCtx && t.is_milestone === true,
       vague,
     };
   }).filter(c => c.title);
@@ -875,6 +941,31 @@ async function planTasksFromPrompt({ prompt, businessId, projectContext, members
     }
   }
 
+  // 2026-11-16 — 프로젝트 일정 모드인데 PROJECT_PLAN_MIN 건 미만이면 1회 보충 요구(직전 목록 유지 + 빠진 단계·업무 더하기).
+  //   더 많은 쪽을 쓴다. 그래도 모자라면 plan_shortfall 로 화면이 말한다(조용한 손실 금지). 잘린 경우(partial)는 걸지 않는다.
+  let planShortfall = null;
+  if (planCtx && !planCtx.gapFill && !partial && !result.fallback && candidates.length && candidates.length < PROJECT_PLAN_MIN) {
+    const got = candidates.length;
+    const listed = candidates.map((c, i) => `${i + 1}. ${c.title}${c.workstream_hint ? ` [${c.workstream_hint}]` : ''}`).join('\n');
+    const note = language === 'en'
+      ? `\n\n[Constraint] Your previous plan had only ${got} tasks:\n${listed}\nKeep all of them and ADD the missing work so every phase is complete. Total ${PROJECT_PLAN_MIN}~${PROJECT_PLAN_MAX}.`
+      : `\n\n[제약] 직전 일정은 ${got}개뿐이었다:\n${listed}\n이것을 모두 유지하고 빠진 업무를 **더해** 단계마다 빠짐없이 채운다. 합계 ${PROJECT_PLAN_MIN}~${PROJECT_PLAN_MAX}개.`;
+    try {
+      const retry = await callOpenAi(systemPrompt, userPrompt + note, planPurpose);
+      const rp = JSON.parse(retry.content);
+      const retried = buildCandidates(Array.isArray(rp.tasks) ? rp.tasks : []);
+      if (retried.length > got) candidates = retried;
+      result.input_tokens += retry.input_tokens || 0;
+      result.output_tokens += retry.output_tokens || 0;
+    } catch (e) {
+      console.warn('[aiTaskPlanner] project plan retry failed', e.message);
+    }
+    if (candidates.length < PROJECT_PLAN_MIN) planShortfall = { expected: PROJECT_PLAN_MIN, got: candidates.length };
+  }
+  // 프로젝트 기간 맞추기 — 모델이 시작일 전에 깔거나 종료일을 넘겨도(실측: 34건 중 시작 전 3 · 종료 후 4) 서버가 창 안으로 옮긴다.
+  //   시작이 앞서면 전체를 뒤로 민다 · 끝이 넘치면 시작~끝 사이를 비율로 줄인다(순서·겹침 모양은 그대로). LLM 순종에 기대지 않는다.
+  if (planCtx && candidates.length) fitPlanToWindow(candidates, planCtx.startOffset, planCtx.endOffset);
+
   // #90 — 링크 유실 방지 안전망: 프롬프트의 URL 이 어떤 후보 description 에도 없으면 첫 후보에 보존.
   const urls = (String(prompt).match(/https?:\/\/[^\s<>"')]+/g) || []).slice(0, 3);
   if (urls.length && candidates.length) {
@@ -916,7 +1007,7 @@ async function planTasksFromPrompt({ prompt, businessId, projectContext, members
       //   "출력이 6배인 호출" 이 일반 분해와 구별되지 않아, 비용이 어디서 나는지 못 읽는다.
       await recordUsage(businessId,
         isRoutine ? 'ai_routine_plan' : 'ai_task_create',
-        isRoutine ? modelFor('routine_plan') : MODEL,
+        modelFor(planPurpose),   // 실제로 부른 모델 단가로 센다(프로젝트 일정 모드는 gpt-5.1)
         result.input_tokens, result.output_tokens);
     } catch (e) { console.warn('[aiTaskPlanner] recordUsage failed', e.message); }
   }
@@ -927,6 +1018,10 @@ async function planTasksFromPrompt({ prompt, businessId, projectContext, members
     // #354 — 계약을 못 채운 항목. 화면이 "지침이 짧습니다" 를 말할 수 있어야 한다(조용한 손실 금지).
     routine_shortfall: routineShortfall,
     enumerated_shortfall: enumeratedShortfall,
+    // 2026-11-16 — 프로젝트 일정 모드가 최소 개수를 못 채웠다(재요구 뒤에도). 화면이 말한다.
+    plan_shortfall: planShortfall,
+    // 화면이 «단계별 일정» 으로 묶어 보여 줄지 정한다(이 응답이 프로젝트 일정 모드로 처리됐는가).
+    project_plan: !!planCtx,
     // 2026-10-27 — 출력 상한에서 잘려 앞쪽 업무만 건졌다. 화면이 «여기까지만» 을 말한다(조용한 손실 금지).
     partial,
     // 운영 #263 — "이런 긴 멘트가 필요해? 언제 읽어?"

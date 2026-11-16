@@ -1360,7 +1360,21 @@
     "hasBody": "본문 있음",
     "milestone": "주요",
     "noDate": "날짜 없음",
-    "refineRejected": "AI 가 낸 변경 중 {{n}}건은 맞지 않아 반영하지 않았어요."
+    "refineRejected": "AI 가 낸 변경 중 {{n}}건은 맞지 않아 반영하지 않았어요.",
+    "completedChip": "완료로 추가",
+    "detailShow": "상세 설정",
+    "detailHide": "상세 접기",
+    "plan": {
+      "summaryTasks": "업무 {{n}}개",
+      "summaryPhases": "단계 {{n}}개",
+      "summaryHours": "총 {{n}}시간",
+      "makeGroups": "단계 {{n}}개를 업무 그룹으로 만들기",
+      "selectPhase": "{{name}} 전체 선택",
+      "noPhase": "단계 없음",
+      "newGroup": "새 그룹",
+      "phaseCount": "{{n}}개",
+      "shortfall": "프로젝트 일정이 {{got}}개만 만들어졌어요(권장 {{expected}}개 이상) — [다시 만들기] 에 빠진 단계를 적어 주세요."
+    }
   },
   "bar": {
     "resumeTitle": "이 업무 진행 중",

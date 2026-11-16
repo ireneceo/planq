@@ -462,10 +462,18 @@ router.post('/ai-create', authenticateToken, aiCreateModeLimiter, async (req, re
     if (project_id) {
       projectRow = await Project.findOne({
         where: { id: project_id, business_id },
-        attributes: ['id', 'name', 'description', 'strategy_context', 'strategy_goal'],
+        attributes: ['id', 'name', 'description', 'strategy_context', 'strategy_goal', 'start_date', 'end_date'],
       });
       if (!projectRow) return errorResponse(res, 'project_not_found', 404);
-      projectContext = `${projectRow.name}${projectRow.description ? ' — ' + String(projectRow.description).slice(0, 200) : ''}`;
+      projectContext = `${projectRow.name}${projectRow.description ? ' — ' + String(projectRow.description).slice(0, 600) : ''}`;
+      // 2026-11-16 — 프로젝트 «전체 업무 일정» 은 프로젝트를 알아야 제대로 짠다(전엔 이름 + 설명 200자뿐이었다).
+      //   기간·목표·배경을 같이 싣는다(읽기만 — 전략 필드를 쓰지 않는다).
+      if (projectRow.start_date || projectRow.end_date) {
+        const ymdP = (d) => (d instanceof Date ? d.toISOString().slice(0, 10) : (d || '?'));
+        projectContext += `\nProject period: ${ymdP(projectRow.start_date)} ~ ${ymdP(projectRow.end_date)}`;
+      }
+      if (projectRow.strategy_goal) projectContext += `\nProject goal: ${String(projectRow.strategy_goal).slice(0, 400)}`;
+      if (projectRow.strategy_context) projectContext += `\nProject background: ${String(projectRow.strategy_context).slice(0, 400)}`;
     }
 
     // #353 ② — 업무그룹(워크스트림) 이름을 LLM 에 알려준다. 안 알려주면 이름을 지어내고,
@@ -511,6 +519,36 @@ router.post('/ai-create', authenticateToken, aiCreateModeLimiter, async (req, re
     const tz = await getWorkspaceTz(business_id);
     const todayLocal = todayInTz(tz);
 
+    // 2026-11-16 — 프로젝트 «전체 업무 일정» 모드 재료(일반 모드 · 프로젝트 안에서만 — 쓸지 말지는 planner 가 한 곳에서 정한다).
+    //   ① 기간: 프로젝트 시작·종료일을 오늘 기준 날 수로 — 그 창 안에 단계를 깐다. 마감을 따로 안 줬으면 종료일이 마감.
+    //   ② 이미 있는 업무 제목: 같은 일을 또 만들지 않게. **볼 수 있는 것만**(taskListWhere — 남의 «나만 보기» 제목이 프롬프트로 새지 않게).
+    let projectPlan = null;
+    let effectiveTarget = target_date || null;
+    if (projectRow && !effectiveMode) {
+      const DATE = /^\d{4}-\d{2}-\d{2}$/;
+      const ymd = (d) => (d instanceof Date ? d.toISOString().slice(0, 10) : String(d || '').slice(0, 10));   // DATEONLY 가 Date 로 올 때도
+      const off = (d) => (DATE.test(ymd(d)) ? Math.round((Date.parse(`${ymd(d)}T00:00:00Z`) - Date.parse(`${todayLocal}T00:00:00Z`)) / 86400000) : null);
+      const startOffset = off(projectRow.start_date);
+      let endOffset = off(projectRow.end_date);
+      if (endOffset != null && endOffset < 7) endOffset = null;   // 이미 끝났거나 코앞이면 그 날짜로 몰아넣지 않는다
+      if (!effectiveTarget && endOffset != null) effectiveTarget = ymd(projectRow.end_date);
+      const visWhere = (await taskListWhere(req.user.id, Number(business_id))) || { id: -1 };
+      const existing = await Task.findAll({
+        where: {
+          business_id, project_id: projectRow.id,
+          recurrence_parent_id: null,
+          status: { [Op.ne]: 'canceled' },
+          [Op.and]: [visWhere],
+        },
+        attributes: ['title'], order: [['id', 'ASC']], limit: 60,
+      });
+      projectPlan = {
+        startOffset: startOffset != null && endOffset != null && startOffset >= endOffset ? null : startOffset,
+        endOffset,
+        existingTitles: existing.map((t) => String(t.title || '').slice(0, 120)).filter(Boolean),
+      };
+    }
+
     const { planTasksFromPrompt } = require('../services/aiTaskPlanner');
     const result = await planTasksFromPrompt({
       prompt,
@@ -518,7 +556,7 @@ router.post('/ai-create', authenticateToken, aiCreateModeLimiter, async (req, re
       projectContext,
       members,
       workstreams: workstreamNames,
-      targetDate: target_date || null,
+      targetDate: effectiveTarget,
       todayLocal,
       language: language || (req.user.language === 'en' ? 'en' : 'ko'),
       // ★ 화이트리스트를 **명시**한다. 예전엔 `mode === 'quick' ? 'quick' : null` 이라
@@ -537,6 +575,7 @@ router.post('/ai-create', authenticateToken, aiCreateModeLimiter, async (req, re
         : null,
       existingRecurring: effectiveMode === 'routine' ? existingRecurring : null,
       baseAreas: Array.isArray(base_areas) ? base_areas.slice(0, 12) : null,
+      projectPlan,
     });
 
     // ★ 응답이 상한에서 잘려 아무것도 못 건진 경우 — 200 + 빈 목록으로 내보내지 않는다.
@@ -556,6 +595,9 @@ router.post('/ai-create', authenticateToken, aiCreateModeLimiter, async (req, re
       routine_shortfall: result.routine_shortfall || null,
       // 2026-10-12 — 나열한 N개 중 M개만 나왔을 때(재요구 뒤에도). 화면이 «N개 중 M개» 를 말한다.
       enumerated_shortfall: result.enumerated_shortfall || null,
+      // 2026-11-16 — 프로젝트 «전체 업무 일정» 모드로 처리됐는가 · 최소 개수를 못 채웠는가(재요구 뒤에도)
+      project_plan: !!result.project_plan,
+      plan_shortfall: result.plan_shortfall || null,
       partial: !!result.partial,                       // 2026-10-27 — 출력 상한에서 잘려 앞쪽만 건졌다
       existing_recurring: existingRecurring,           // 부하 요약의 "이미 돌고 있는 것"
       reasoning: result.reasoning,

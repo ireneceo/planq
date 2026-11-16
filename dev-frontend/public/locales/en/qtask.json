@@ -1360,7 +1360,21 @@
     "hasBody": "Has body",
     "milestone": "Key",
     "noDate": "No date",
-    "refineRejected": "{{n}} change(s) from the AI did not fit and were not applied."
+    "refineRejected": "{{n}} change(s) from the AI did not fit and were not applied.",
+    "completedChip": "Add as done",
+    "detailShow": "More settings",
+    "detailHide": "Hide settings",
+    "plan": {
+      "summaryTasks": "{{n}} tasks",
+      "summaryPhases": "{{n}} phases",
+      "summaryHours": "{{n}}h total",
+      "makeGroups": "Create {{n}} phases as task groups",
+      "selectPhase": "Select all in {{name}}",
+      "noPhase": "No phase",
+      "newGroup": "New group",
+      "phaseCount": "{{n}}",
+      "shortfall": "Only {{got}} tasks were planned (recommended {{expected}}+) — tell [Regenerate] which phases are missing."
+    }
   },
   "bar": {
     "resumeTitle": "In progress",

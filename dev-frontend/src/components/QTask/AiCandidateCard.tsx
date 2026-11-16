@@ -1,5 +1,5 @@
 // AI 업무 후보 카드 — AiTaskCreateModal(분해 모달)과 CueTaskBar(말 걸기 바) 공유.
-// 제목·마감·예측시간·담당자 인라인 편집 + 모호한 업무명(⚠) 경고. 단일 진실 원천(DRY).
+// 한 줄 행(제목·기간·시간·담당자) + «⋯» 상세(중요도·반복·그룹·완료로 추가) + 모호한 업무명(⚠) 경고. 단일 진실 원천(DRY).
 import { useMemo, useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
@@ -159,8 +159,20 @@ export default function AiCandidateCard({ candidate: c, members, baseDate, onCha
   const startDateStr = addDaysISO(baseDate, startOff);
   const dueDateStr = addDaysISO(baseDate, dueOff);
 
+  // 2026-11-16 — 한 줄 행(Irene «업무 하나가 너무 높아 … 더 심플하게»). 기본은 제목·기간·시간·담당자 한 줄이고,
+  //   중요도·반복·그룹·완료로 추가·기간 날 수는 «⋯» 로 펼친다. 기본값이 아닌 값만 작은 칩으로 줄에 남겨 «숨긴 것» 을 알린다.
+  //   펼친 칸의 컨트롤은 종전 그대로다(값·저장 경로 불변) — 접어 둔 것뿐.
+  const [detailOpen, setDetailOpen] = useState(false);
+  const nonDefaultPriority = c.priority === 'urgent' || c.priority === 'high' || c.priority === 'low';
+  const recurLabel = c.completed || hideRecurrence ? '' : (c.recurrence_rule
+    ? formatRRuleLabel(c.recurrence_rule, ruleAnchorDate, t as unknown as TFunction)
+    : (c.recurrence && c.recurrence !== 'none' ? (recurOptions.find(o => o.value === c.recurrence)?.label || '') : ''));
+  const dateText = hasDue
+    ? (dur === 0 ? fmtMd(startDateStr) : `${fmtMd(startDateStr)}–${fmtMd(dueDateStr)}`)
+    : (c.start_offset_days === null ? t('ai.noDate', '날짜 없음') : t('ai.noDue', '마감 없음'));
+
   return (
-    <Card $disabled={!c.selected}>
+    <Card $disabled={!c.selected} data-testid="ai-candidate-row">
       <CardHeader>
         <Checkbox
           type="checkbox"
@@ -172,34 +184,47 @@ export default function AiCandidateCard({ candidate: c, members, baseDate, onCha
           value={c.title}
           onChange={e => onChange({ title: e.target.value })}
           $vague={c.vague}
+          title={c.description || c.title}
         />
         {c.vague && <VagueBadge title={t('ai.vagueHint', '결과물 명사가 빠진 것 같아요. 예: "디자인" → "메인 시안 작성"') as string}>⚠</VagueBadge>}
-        <AssigneeInline>
-          <PlanQSelect
-            size="sm"
-            isClearable
-            placeholder={hasProject
-              ? t('ai.assigneeProjectDefault', '프로젝트 기본 담당자') as string
-              /* 프로젝트 없이 담당자를 비워 두면 서버가 만든 사람(나)에게 배정한다(task_actions.createTask) —
-                 «미배정» 이라고 쓰면 거짓이다. */
-              : t('ai.assigneeDefaultMe', '나 (기본)') as string}
-            /* 운영 #263 — "담당자로 내가 안나오고 이상한 1, 2 라고 표시되는데."
-               목록에 없는 id 가 오면 여태 `#2` 같은 날 id 를 그렸다. 사용자에게 숫자는 아무 뜻이 없다.
-               (근본 원인인 "후보 풀 ≠ 표시 목록" 은 routes/tasks.js 에서 기준을 맞춰 막았고,
-                여기는 그래도 어긋났을 때의 마지막 방어선이다 — 숫자 대신 사람 말로.) */
-            value={c.assignee_user_id
-              ? { value: String(c.assignee_user_id), label: assigneeLabel(c.assignee_user_id) }
-              : null}
-            onChange={(v) => {
-              const val = (v as { value?: string })?.value;
-              onChange({ assignee_user_id: val ? Number(val) : null });
-            }}
-            /* ★ 값만 있고 옵션에 없으면 react-select 는 라벨은 그려도 **다시 고를 수가 없다**
-               (드롭다운을 열면 그 사람이 목록에 없다). 서버가 고른 사람이 이 화면 목록 밖이면
-               옵션에도 끼워 넣는다 — 보이는 것과 고를 수 있는 것을 같게. */
-            options={assigneeOptions}
-          />
-        </AssigneeInline>
+        <RowMeta>
+          {c.is_milestone && <DetailChip>{t('ai.milestone', '주요')}</DetailChip>}
+          {nonDefaultPriority && <PriChip $p={c.priority}>{t(`importance.${c.priority}`, c.priority) as string}</PriChip>}
+          {recurLabel && <InfoChip title={c.recurrence_rule || ''}>{recurLabel}</InfoChip>}
+          {c.completed && <InfoChip>{t('ai.completedChip', '완료로 추가')}</InfoChip>}
+          <RowDate data-testid="ai-row-date">{dateText}</RowDate>
+          {c.estimated_hours != null && <RowHours>{c.estimated_hours}h</RowHours>}
+          <AssigneeInline>
+            <PlanQSelect
+              size="sm"
+              variant="inline"
+              isClearable
+              placeholder={hasProject
+                ? t('ai.assigneeProjectDefault', '프로젝트 기본 담당자') as string
+                /* 프로젝트 없이 담당자를 비워 두면 서버가 만든 사람(나)에게 배정한다(task_actions.createTask) —
+                   «미배정» 이라고 쓰면 거짓이다. */
+                : t('ai.assigneeDefaultMe', '나 (기본)') as string}
+              /* 운영 #263 — 목록에 없는 id 가 오면 날 id 대신 사람 말로(assigneeLabel). 서버가 고른 사람이
+                 이 화면 목록 밖이면 옵션에도 끼워 넣는다(assigneeOptions) — 보이는 것 = 고를 수 있는 것. */
+              value={c.assignee_user_id
+                ? { value: String(c.assignee_user_id), label: assigneeLabel(c.assignee_user_id) }
+                : null}
+              onChange={(v) => {
+                const val = (v as { value?: string })?.value;
+                onChange({ assignee_user_id: val ? Number(val) : null });
+              }}
+              options={assigneeOptions}
+            />
+          </AssigneeInline>
+          <MoreBtn type="button" onClick={() => setDetailOpen(v => !v)} aria-expanded={detailOpen}
+            data-testid="ai-row-more"
+            aria-label={(detailOpen ? t('ai.detailHide', '상세 접기') : t('ai.detailShow', '상세 설정')) as string}
+            title={(detailOpen ? t('ai.detailHide', '상세 접기') : t('ai.detailShow', '상세 설정')) as string}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+              {detailOpen ? <polyline points="18 15 12 9 6 15" /> : <polyline points="6 9 12 15 18 9" />}
+            </svg>
+          </MoreBtn>
+        </RowMeta>
       </CardHeader>
       {!c.assignee_user_id && c.assignee_name && (
         <UnmatchedWarn>
@@ -208,6 +233,8 @@ export default function AiCandidateCard({ candidate: c, members, baseDate, onCha
             : t('ai.assigneeUnmatched', '"{{name}}" 을(를) 멤버에서 찾지 못했어요 — 담당자를 직접 선택해 주세요. 그대로 확정하면 내 업무로 만들어집니다.', { name: c.assignee_name }) as string}
         </UnmatchedWarn>
       )}
+      {detailOpen && (<>
+      {c.description && <DescLine>{c.description}</DescLine>}
       <CardMetaRow>
         <MetaItem>
           <MetaIcon><CalendarIcon size={13} /></MetaIcon>
@@ -223,7 +250,6 @@ export default function AiCandidateCard({ candidate: c, members, baseDate, onCha
           </DurEdit>
           </>) : <DateRange>{c.start_offset_days === null ? t('ai.noDate', '날짜 없음') : t('ai.noDue', '마감 없음')}</DateRange>}
         </MetaItem>
-        {c.is_milestone && <MetaItem><DetailChip>{t('ai.milestone', '주요')}</DetailChip></MetaItem>}
         {c.body && <MetaItem><DetailChip title={String(c.body).replace(/<[^>]*>/g, ' ').slice(0, 200)}>{t('ai.hasBody', '본문 있음')}</DetailChip></MetaItem>}
         <MetaItem>
           <MetaIcon><ClockIcon size={13} /></MetaIcon>
@@ -231,11 +257,8 @@ export default function AiCandidateCard({ candidate: c, members, baseDate, onCha
             onChange={e => onChange({ estimated_hours: e.target.value === '' ? null : (Number(e.target.value) || 1) })} />
           <Unit>h</Unit>
         </MetaItem>
-        {/* #353 ⑤ 중요도 — AI 가 판단한 값을 **확정 전에 사람이 정정**하는 자리.
-            여태 이 값은 만들어지고도 저장 자리가 없어 매번 버려졌다(카드 타입에는 있었는데 렌더 0곳).
-            사람이 고친 값이 우선이다 — confirm 이 이 값을 그대로 실어 보낸다. */}
+        {/* #353 ⑤ 중요도 — AI 가 판단한 값을 **확정 전에 사람이 정정**하는 자리. 사람이 고친 값이 우선이다. */}
         <MetaItem>
-          {/* 경고 삼각형을 쓰면 경고로 읽힌다 — 칸 이름을 글자로 */}
           <MetaLabel>{t('importance.label', '중요도')}</MetaLabel>
           <PlanQSelect size="sm" isClearable
             placeholder={t('importance.unset', '미지정') as string}
@@ -243,14 +266,9 @@ export default function AiCandidateCard({ candidate: c, members, baseDate, onCha
             onChange={(v) => onChange({ priority: (v as { value?: string })?.value || '' })}
             options={['urgent', 'high', 'normal', 'low'].map((k) => ({ value: k, label: t(`importance.${k}`) as string }))} />
         </MetaItem>
-        {/* 정기 루틴 — AI 가 "매일/매주/매월" 을 잡아내면 여기서 확인·수정한다.
-            여태 후보에 반복 개념이 없어서 "매일 …" 이라고 써도 일회성으로만 생성됐다.
-            ★ 완료로 추가일 때는 감춘다 — 완료된 일에 다음 회차는 없고(서버가 null 로 끊는다),
-              보이는 채로 두면 화면이 저장되지 않을 값을 약속하게 된다. */}
+        {/* 정기 루틴 — 완료로 추가일 때는 감춘다(완료된 일에 다음 회차는 없다 — 서버가 null 로 끊는다). */}
         {!c.completed && !hideRecurrence && (c.recurrence_rule ? (
-          /* #353 ① — 프리셋이 표현하지 못하는 규칙(평일만·매월 마지막 평일·분기·종료조건).
-             select 로 위장하면 화면이 약속한 값과 저장되는 값이 어긋난다 → 규칙 라벨을 그대로 보여주고,
-             바꾸고 싶으면 해제해서 프리셋으로 내려가게 한다. 라벨은 단일 원천(formatRRuleLabel). */
+          /* #353 ① — 프리셋이 표현하지 못하는 규칙은 select 로 위장하지 않고 라벨 그대로(formatRRuleLabel). */
           <MetaItem>
             <RuleChip title={c.recurrence_rule}>
               {formatRRuleLabel(c.recurrence_rule, ruleAnchorDate, t as unknown as TFunction)}
@@ -272,11 +290,7 @@ export default function AiCandidateCard({ candidate: c, members, baseDate, onCha
             </RecurWrap>
           </MetaItem>
         ))}
-        {/* 업무그룹 — **여기서 고른다.** 종전에는 AI 가 낸 이름을 읽기 전용 칩으로 보여만 줘서
-            이름이 기존 그룹과 글자까지 같지 않으면 그대로 미분류로 떨어졌다.
-            그룹이 아직 하나도 없으면 고를 것이 없으므로 힌트 칩만 두고, 힌트가 있으면
-            그 이름으로 만들 수 있게 한다(생성은 기존 라우트를 통한다). */}
-        {/* 프로젝트가 없으면 그룹이 존재할 수 없다 — 저장되지 않을 그룹을 칩으로 약속하지 않는다 */}
+        {/* 업무그룹 — 여기서 고른다(프로젝트가 없으면 그룹이 존재할 수 없어 감춘다). 그룹이 없으면 힌트 칩만. */}
         {hasProject && (workstreams.length > 0 || c.workstream_hint) && (
           <MetaItem>
             <MetaIcon>
@@ -315,8 +329,8 @@ export default function AiCandidateCard({ candidate: c, members, baseDate, onCha
           <DoneLbl>{t('ai.completedAdd', '완료로 추가')}</DoneLbl>
         </MetaItem>
       </CardMetaRow>
-      {/* #353 ③ — 장문 실행 지침. 카드에서 통째로 펼치면 목록이 무너지므로 접어 두되,
-          **있다는 사실과 길이는 보이게** 한다(모르고 넘어가면 저장된 뒤에야 발견한다). */}
+      </>)}
+      {/* #353 ③ — 장문 실행 지침. 접어 두되 **있다는 사실과 길이는 보이게** 한다. */}
       {c.instruction && (
         <InstrBox>
           <InstrToggle type="button" onClick={() => setInstrOpen(v => !v)} aria-expanded={instrOpen}>
@@ -330,7 +344,7 @@ export default function AiCandidateCard({ candidate: c, members, baseDate, onCha
           )}
         </InstrBox>
       )}
-      {c.completed && (
+      {c.completed && detailOpen && (
         <DoneHint>{t('ai.completedHint', '이미 끝낸 일로 오늘 날짜에 기록됩니다 — 반복은 적용되지 않아요')}</DoneHint>
       )}
     </Card>
@@ -373,14 +387,45 @@ const DoneCheck = styled.input`width: 15px; height: 15px; flex-shrink: 0; cursor
 const DoneLbl = styled.span`font-size: 0.75rem; color: #475569; cursor: pointer;`;
 const DoneHint = styled.div`font-size: 0.6875rem; color: #64748B; padding: 0 2px;`;
 const Card = styled.div<{ $disabled: boolean }>`
-  padding: 10px 12px;
+  padding: 5px 8px 5px 10px;
   background: ${p => p.$disabled ? '#F8FAFC' : '#FFFFFF'};
   border: 1px solid ${p => p.$disabled ? '#E2E8F0' : '#CBD5E1'};
   border-radius: 8px;
   opacity: ${p => p.$disabled ? 0.6 : 1};
-  display: flex; flex-direction: column; gap: 8px;
+  display: flex; flex-direction: column; gap: 6px;
 `;
-const CardHeader = styled.div`display: flex; align-items: center; gap: 8px;`;
+/* 폰에서는 제목이 한 줄을 다 쓰고 기간·시간·담당자가 아래 줄로 감긴다(제목이 잘려 읽히지 않는 것보다 낫다). */
+const CardHeader = styled.div`
+  display: flex; align-items: center; gap: 6px;
+  @media (max-width: 640px) { flex-wrap: wrap; row-gap: 2px; }
+`;
+const RowMeta = styled.div`
+  display: flex; align-items: center; gap: 6px; flex-shrink: 0; margin-left: auto;
+  @media (max-width: 640px) { width: 100%; padding-left: 22px; gap: 4px; }
+`;
+const RowDate = styled.span`
+  font-size: 0.75rem; font-weight: 600; color: #334155; white-space: nowrap; font-variant-numeric: tabular-nums;
+`;
+const RowHours = styled.span`
+  font-size: 0.75rem; color: #64748B; white-space: nowrap; min-width: 26px; text-align: right; font-variant-numeric: tabular-nums;
+`;
+const InfoChip = styled.span`
+  font-size: 0.6875rem; color: #475569; background: #F1F5F9; border-radius: 4px; padding: 1px 6px;
+  white-space: nowrap; max-width: 140px; overflow: hidden; text-overflow: ellipsis;
+`;
+const PriChip = styled.span<{ $p: string }>`
+  font-size: 0.6875rem; font-weight: 600; border-radius: 4px; padding: 1px 6px; white-space: nowrap; flex-shrink: 0;
+  color: ${p => (p.$p === 'urgent' ? '#B91C1C' : p.$p === 'high' ? '#C2410C' : '#64748B')};
+  background: ${p => (p.$p === 'urgent' ? '#FEF2F2' : p.$p === 'high' ? '#FFF7ED' : '#F1F5F9')};
+`;
+const MoreBtn = styled.button`
+  flex-shrink: 0; width: 32px; height: 32px; display: inline-flex; align-items: center; justify-content: center;
+  border: none; background: transparent; color: #94A3B8; border-radius: 6px; cursor: pointer;
+  &:hover { background: #F1F5F9; color: #0F766E; }
+  &[aria-expanded='true'] { color: #0F766E; background: #F0FDFA; }
+  @media (max-width: 640px) { width: 36px; height: 36px; }
+`;
+const DescLine = styled.div`font-size: 0.75rem; color: #64748B; line-height: 1.5; padding-left: 22px;`;
 const Checkbox = styled.input`width: 16px; height: 16px; flex-shrink: 0; cursor: pointer;`;
 const TitleInput = styled.input<{ $vague: boolean }>`
   flex: 1; min-width: 0;
@@ -395,12 +440,13 @@ const TitleInput = styled.input<{ $vague: boolean }>`
 const VagueBadge = styled.span`flex-shrink: 0; font-size: 0.875rem; color: #B45309; cursor: help;`;
 const UnmatchedWarn = styled.div`font-size: 0.75rem; color: #B45309; background: #FFFBEB; border-radius: 6px; padding: 6px 10px; margin: 6px 0 0; line-height: 1.4;`;
 const AssigneeInline = styled.div`
-  flex-shrink: 0; min-width: 110px; max-width: 150px;
-  margin-left: auto;
+  flex-shrink: 0; width: 132px;
+  /* 폰 — 둘째 줄에서 남는 폭을 담당자가 가져간다(줄이 셋으로 감기지 않게) */
+  @media (max-width: 640px) { flex: 1 1 auto; width: auto; min-width: 84px; }
 `;
 const CardMetaRow = styled.div`
   display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
-  padding-left: 24px;
+  padding: 6px 0 2px 22px; border-top: 1px dashed #E2E8F0;
   font-size: 0.75rem; color: #475569;
 `;
 const MetaItem = styled.div`display: inline-flex; align-items: center; gap: 4px;`;
@@ -417,7 +463,7 @@ const DurInput = styled.input`
 const Unit = styled.span`color: #94A3B8; font-size: 0.6875rem;`;
 const DetailChip = styled.span`
   font-size: 0.6875rem; font-weight: 600; color: #0F766E; background: #F0FDFA;
-  border-radius: 4px; padding: 1px 6px;
+  border-radius: 4px; padding: 1px 6px; white-space: nowrap; flex-shrink: 0;
 `;
 const CardNumber = styled.span`
   flex-shrink: 0; min-width: 22px; padding: 0 4px; text-align: center;
