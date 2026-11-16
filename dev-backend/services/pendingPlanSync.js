@@ -57,7 +57,10 @@ async function syncPendingPlanAmount(businessId, { transaction: t, payment = und
 
   const sub = await Subscription.findByPk(pay.subscription_id, { transaction: t });
   const biz = await Business.findByPk(businessId, { transaction: t, lock: t.LOCK.UPDATE });
-  if (!sub || !biz) return { payment: pay, changed: false, frozen: false, old_amount: old, new_amount: old };
+  // ★ 지운 워크스페이스는 건드리지 않는다 — 그 청구는 워크스페이스 삭제 흐름이 소유한다.
+  //   2026-11-16 배포 게이트 실측: 백필이 지운 워크스페이스 38곳 청구까지 금액을 바꿔 감사 행 76건이
+  //   보관 스탬프 없이(retain_until NULL = 영구 보관) 남았다 — health-check [retention] FAIL.
+  if (!sub || !biz || biz.deleted_at) return { payment: pay, changed: false, frozen: false, old_amount: old, new_amount: old };
 
   const billing = require('./billing');
   const lines = billing.buildRenewalLines(sub, biz);

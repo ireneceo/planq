@@ -28,9 +28,14 @@ const { writeAudit } = require('../services/auditService');
 (async () => {
   const out = { synced: [], frozen: [], unchanged: 0, closed: [], manual: [] };
   try {
-    const bizIds = (await Payment.findAll({
+    const pendingBizIds = (await Payment.findAll({
       where: { kind: 'plan', status: 'pending' }, attributes: ['business_id'], group: ['business_id'], raw: true,
     })).map((r) => r.business_id);
+    // 지운 워크스페이스는 뺀다 — 그 청구는 삭제 흐름이 소유한다(sync 도 건너뛰지만 목록부터 뺀다 · 2026-11-16)
+    const deletedIds = new Set((await Business.findAll({
+      where: { id: pendingBizIds, deleted_at: { [Op.ne]: null } }, attributes: ['id'], raw: true,
+    })).map((r) => r.id));
+    const bizIds = pendingBizIds.filter((id) => !deletedIds.has(id));
 
     const foldedCodes = new Map();   // biz → 이번 실행에서 얼지 않은 미결제 플랜 청구에 실린 애드온 코드들
     for (const bizId of bizIds) {
@@ -63,7 +68,8 @@ const { writeAudit } = require('../services/auditService');
       if (inPaid > 0) continue;   // 돌던 유료 기간의 일할 — 정당한 청구
       const row = { biz: a.business_id, payment: a.id, code: a.addon_code, qty: a.addon_quantity, amount: Number(a.amount) };
       let why = null;
-      if (new Date(a.createdAt || a.created_at) >= CUTOFF) why = '새 코드가 만든 청구';
+      if (deletedIds.has(a.business_id) || await Business.count({ where: { id: a.business_id, deleted_at: { [Op.ne]: null } } })) why = '지운 워크스페이스';
+      else if (new Date(a.createdAt || a.created_at) >= CUTOFF) why = '새 코드가 만든 청구';
       else if (a.notify_paid_at || a.stripe_session_id) why = '고객이 입금 통보·카드 결제창';
       else {
         const folded = foldedCodes.get(a.business_id);
