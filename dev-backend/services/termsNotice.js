@@ -29,10 +29,10 @@ async function collectTargets({ version, only } = {}) {
 }
 
 /** 보내기 — { ok, fail }. log 는 한 줄씩 받는 함수(없으면 console.log). */
-async function sendAll({ version, effectiveOn, targets, log = console.log, gapMs = 400 }) {
+async function sendAll({ version, effectiveOn, targets, reaccept = true, log = console.log, gapMs = 400 }) {
   let ok = 0; let fail = 0;
   for (const t of targets) {
-    const r = await sendTermsNoticeEmail({ to: t.to, name: t.name, lang: t.lang, userId: t.id, effectiveOn, template: templateFor(version) });
+    const r = await sendTermsNoticeEmail({ to: t.to, name: t.name, lang: t.lang, userId: t.id, effectiveOn, template: templateFor(version), version, reaccept });
     if (r) ok += 1; else fail += 1;
     if ((ok + fail) % 50 === 0) log(`[terms-notice] … ${ok + fail}/${targets.length}`);
     await sleep(gapMs);   // 발신 평판 — 한꺼번에 쏟지 않는다

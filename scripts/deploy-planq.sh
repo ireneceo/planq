@@ -1272,6 +1272,13 @@ post_restart_backfills() {
   log "Terms update notice (version 1.2 · banner · member mail)..."
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-terms-handover.js 2>&1 | grep -E 'terms-handover' | tail -6" \
     || warn "약관 개정 고지 단계 실패 — 출력 확인 후 수동 재실행"
+  # 2026-11-16 App Store 3.1.1 B안 — 이용약관 제1·2조 «사업 목적 전용» 개정: 약관 버전 1.3(재동의) + 공지 띠 + 활성 회원 고지 메일 1통.
+  #   Irene «권고대로»(= 고지 메일 보냄, 상황판 askmwibw86i). 1.2 단계 **뒤에** — 1.2 전이면 스스로 건너뛴다.
+  #   기존 이용자 시행일(config/termsBusinessOnly)이 오늘(KST)+30일보다 이르면 아무것도 안 하고 경고(= 11-23 지나 배포되면 날짜를 옮겨 재배포).
+  #   멱등 · 실패해도 배포 계속. 메일이 끊기면 운영에서 `node scripts/send-terms-notice.js --version=1.3` 미리보기 → `--send --confirm=<수>`.
+  log "Terms update notice (version 1.3 business-only · banner · member mail)..."
+  prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-terms-business-only.js 2>&1 | grep -E 'terms-bizonly' | tail -6" \
+    || warn "약관 1.3 고지 단계 실패 — 출력 확인 후 수동 재실행"
   # 2026-10-23 서명 문서 공개 범위 바닥 — 서명·확인 요청이 살아 있는 «나만 보기»(L1) 옛 문서를 L2 로(docs/SIGNATURE_VISIBILITY_FLOOR_DESIGN.md).
   #   Irene «권고대로»(= A 일괄 올림, 2026-10-23 상황판 답). 대상 목록(읽기만)을 먼저 로그에 남기고 --apply · 감사 reason signature_floor.backfill · 멱등(다시 돌리면 0건).
   #   ★ 재시작 뒤 — 새 코드가 떠 있어야 올린 뒤 바로 «나만 보기» 로 되돌리는 문이 닫혀 있다. 실패해도 배포 계속(수동 재실행).

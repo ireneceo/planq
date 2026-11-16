@@ -1564,6 +1564,17 @@ const TERMS_NOTICE = {
       '문서·파일·메모 등 그 밖의 자료는 넘기지 않습니다.',
       '다음에 로그인하면 바뀐 약관에 동의하는 창이 한 번 뜹니다. 동의하지 않으면 이용을 중단할 수 있습니다(제13조).',
     ],
+    // 버전마다 바뀐 조항이 다르다 — 없으면 위 items(1.2 인수인계)로 떨어진다.
+    itemsByVersion: {
+      '1.3': [
+        'PlanQ 는 사업자(1인 사업자 포함)·법인·단체 등 조직의 업무용 서비스입니다. 서비스는 업무 목적으로만 제공되며, 개인·가족 등 소비자 용도의 서비스나 요금제는 없습니다(제1조).',
+        '워크스페이스를 만들 때는 상호·업종 등 사업 정보를 정확하게 입력해 주세요. 사업 목적이 아닌 이용이 확인되면 이용이 제한되거나 해지될 수 있습니다(제2조). 워크스페이스에 초대된 멤버·고객은 그 워크스페이스의 업무 범위에서 그대로 이용하시면 됩니다.',
+        '이미 PlanQ 를 쓰고 계신 분께는 2026-12-23 부터, 새로 워크스페이스를 만드는 경우에는 2026-11-23 부터 적용됩니다.',
+      ],
+    },
+    // itemsByVersion 끝에 붙는 마지막 줄 — 재동의 창이 실제로 뜰 때만 «창이 뜹니다» 라고 쓴다(약관 버전을 안 올리는 경로가 있다 · Fable 11-16)
+    reacceptYes: '다음에 로그인하면 바뀐 약관에 동의하는 창이 한 번 뜹니다. 동의하지 않으면 이용을 중단할 수 있습니다(제13조).',
+    reacceptNo: '바뀐 약관에 동의하지 않으면 시행일 전까지 이용을 중단할 수 있습니다(제13조).',
     cta: '바뀐 이용약관 보기',
     legal: '이 메일은 이용약관 변경 고지로, 수신 동의 여부와 관계없이 보내드립니다.',
   },
@@ -1576,29 +1587,40 @@ const TERMS_NOTICE = {
       'Other materials such as documents, files and memos are not handed over.',
       'The next time you log in, you will be asked once to agree to the updated Terms. If you do not agree, you may stop using the service (Article 13).',
     ],
+    itemsByVersion: {
+      '1.3': [
+        'PlanQ is a work service for businesses (including sole proprietors), companies and organizations. It is provided only for business purposes, and there is no service or plan for personal, household or family (consumer) use (Article 1).',
+        'When you create a workspace, please enter accurate business information such as the business name and industry. If use for non-business purposes is identified, use may be restricted or terminated (Article 2). Members and clients invited to a workspace can keep using it within that workspace’s business scope.',
+        'These changes apply from 2026-12-23 for existing users, and from 2026-11-23 for workspaces newly created.',
+      ],
+    },
+    reacceptYes: 'The next time you log in, you will be asked once to agree to the updated Terms. If you do not agree, you may stop using the service (Article 13).',
+    reacceptNo: 'If you do not agree to the updated Terms, you may stop using the service before they take effect (Article 13).',
     cta: 'Read the updated Terms',
     legal: 'This is a notice of a change to our Terms of Service and is sent regardless of your email preferences.',
   },
 };
-function termsNoticeEmailHtml({ name, lang, effectiveOn }) {
+function termsNoticeEmailHtml({ name, lang, effectiveOn, version, reaccept = true }) {
   const c = TERMS_NOTICE[lang === 'en' ? 'en' : 'ko'];
+  const byVer = version && c.itemsByVersion && c.itemsByVersion[version];
+  const items = byVer ? [...byVer, reaccept ? c.reacceptYes : c.reacceptNo] : c.items;
   const url = `${APP_URL}/terms`;
   const body = `
     <div style="font-size:16px;font-weight:700;color:#0F172A;line-height:1.5;">${escapeHtml(c.hello(name || (lang === 'en' ? 'there' : '회원')))}</div>
     <div style="margin-top:12px;font-size:14px;color:#475569;line-height:1.7;">${escapeHtml(c.lead(effectiveOn))}</div>
     <ul style="margin:12px 0 0;padding-left:18px;font-size:14px;color:#334155;line-height:1.7;">
-      ${c.items.map((it) => `<li style="margin-bottom:6px;">${escapeHtml(it)}</li>`).join('')}
+      ${items.map((it) => `<li style="margin-bottom:6px;">${escapeHtml(it)}</li>`).join('')}
     </ul>
     <div style="margin-top:20px;">${ctaButton(url, c.cta)}</div>
     ${fallbackLink(url)}
     <div style="margin-top:18px;font-size:12px;color:#94A3B8;line-height:1.6;">${escapeHtml(c.legal)}</div>`;
   return emailWrap({ title: c.subject(effectiveOn), body });
 }
-async function sendTermsNoticeEmail({ to, name, lang, userId, effectiveOn, template }) {
+async function sendTermsNoticeEmail({ to, name, lang, userId, effectiveOn, template, version, reaccept = true }) {
   if (!to) return false;
   const c = TERMS_NOTICE[lang === 'en' ? 'en' : 'ko'];
   return sendEmail({
-    to, subject: c.subject(effectiveOn), html: termsNoticeEmailHtml({ name, lang, effectiveOn }),
+    to, subject: c.subject(effectiveOn), html: termsNoticeEmailHtml({ name, lang, effectiveOn, version, reaccept }),
     template, relatedEntityType: 'user', relatedEntityId: userId || null,
   });
 }
