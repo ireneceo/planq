@@ -11,6 +11,9 @@
 //   ⑤ 복원 줄 [지우고 처음부터] → 저장본 삭제 · 이메일 칸 빈칸
 //   ⑥ 복원 줄이 폰 390 · 태블릿 768 · 데스크탑 1440 에서 실제로 보인다(elementFromPoint)
 //   ⑦ 처음 열고 아무것도 안 넣으면 저장본이 생기지 않는다(빈 초안 0)
+//   ⑧ 칸 정리(2026-11-16 Irene «다른 메일서버는 포트도 smtp도 안 나오는데 우린 왜 항목이 많아?») —
+//      Gmail 이면 서버·포트·보내기 칸 0개 · 모르는 도메인이면 «직접 입력» + 받기 서버 1칸(imap.<도메인> 제안) · 보내기 칸은 접힘
+//   ⑨ 접힌 칸(로그인 아이디)이 비어 [등록] → «고급 설정» 이 저절로 펼쳐지고 그 칸에 커서
 const b = require('./lib/browser');
 
 const PATH = '/business/settings/mail-accounts?scope=personal';
@@ -49,6 +52,11 @@ async function openAdd(p) {
   if (!ok) throw new Error('[계정 추가] 버튼이 안 보인다');
   if (!(await waitFor(async () => (await valueOf(p, 'mail-account-email')) !== null))) throw new Error('등록 폼이 안 열렸다');
   await b.sleep(300);
+}
+async function openAdvanced(p) {
+  if (await p.evaluate(() => !!document.querySelector('[data-testid="mail-account-advanced"]'))) return;
+  await clickId(p, 'mail-account-advanced-toggle');
+  await waitFor(() => p.evaluate(() => !!document.querySelector('[data-testid="mail-account-advanced"]')), 3000);
 }
 async function typeInto(p, id, text) {
   const h = (await p.evaluateHandle((s) => [...document.querySelectorAll(s)].find((e) => e.getClientRects().length > 0) || null, SEL(id))).asElement();
@@ -92,6 +100,7 @@ async function run() {
     await typeInto(p, 'mail-account-email', EMAIL);
     await typeInto(p, 'mail-account-from-name', '[확인용] 초안 카나리');
     await typeInto(p, 'mail-account-imap-pw', SECRET);
+    await openAdvanced(p);
     await typeInto(p, 'mail-account-smtp-pw', SECRET + 'S');
     await b.sleep(1200);
     const keys1 = await draftKeys(p);
@@ -104,6 +113,7 @@ async function run() {
     // ② 취소로 닫고 다시 열기
     const closed = await closeForm(p);
     await openAdd(p);
+    await openAdvanced(p);
     const v2 = { email: await valueOf(p, 'mail-account-email'), user: await valueOf(p, 'mail-account-imap-user'), pw: await valueOf(p, 'mail-account-imap-pw'), from: await valueOf(p, 'mail-account-from-name') };
     const note2 = await visible(p, 'mail-account-draft-restored');
     push('② [취소] 뒤 다시 열면 복원 · 비밀번호 빈칸 · 복원 줄',
@@ -154,6 +164,32 @@ async function run() {
     push('⑤ [지우고 처음부터] → 저장본 삭제 · 칸 빈칸 · 줄 사라짐',
       v5 === '' && !note5 && keys5.length === 0 && keys5b.length === 0,
       `이메일=${JSON.stringify(v5)} · 줄=${note5} · 키 ${keys5.length}→닫은 뒤 ${keys5b.length}`);
+    await clearDrafts(p);
+
+    // ⑧ 칸 정리 — 서비스별로 보이는 칸
+    const shown = (id) => p.evaluate((s) => [...document.querySelectorAll(s)].some((e) => e.getClientRects().length > 0), SEL(id));
+    await openAdd(p);
+    const g = { host: await shown('mail-account-imap-host'), port: await shown('mail-account-imap-port'), smtp: await shown('mail-account-smtp-host'), user: await shown('mail-account-imap-user'), toggle: await shown('mail-account-advanced-toggle') };
+    await typeInto(p, 'mail-account-email', 'info@planq-canary.invalid');
+    await b.sleep(300);
+    const c = { host: await shown('mail-account-imap-host'), hostVal: await valueOf(p, 'mail-account-imap-host'), smtp: await shown('mail-account-smtp-host'), port: await shown('mail-account-imap-port') };
+    push('⑧ Gmail = 서버·포트·보내기 칸 0 · 모르는 도메인 = 받기 서버 1칸(imap.<도메인>) · 보내기 접힘',
+      !g.host && !g.port && !g.smtp && !g.user && g.toggle && c.host && c.hostVal === 'imap.planq-canary.invalid' && !c.smtp && !c.port,
+      `Gmail ${JSON.stringify(g)} · 직접 ${JSON.stringify(c)}`);
+
+    // ⑨ 접힌 칸 문제 → 저절로 펼침 + 그 칸 커서
+    await openAdvanced(p);
+    await typeInto(p, 'mail-account-imap-user', 'x');
+    await p.keyboard.press('Backspace');
+    await clickId(p, 'mail-account-advanced-toggle'); // 다시 접는다
+    await b.sleep(200);
+    const folded = !(await shown('mail-account-imap-user'));
+    await typeInto(p, 'mail-account-imap-pw', SECRET);
+    await clickId(p, 'mail-account-submit');
+    const opened = await waitFor(async () => p.evaluate(() => document.activeElement?.getAttribute('data-testid') === 'mail-account-imap-user'), 3000);
+    const errShown = await shown('mail-field-error-imap_username');
+    push('⑨ 접힌 로그인 아이디 빈칸 → 고급 설정 펼침 + 그 칸 커서 + 이유', folded && opened && errShown, `접혀 있었음=${folded} · 커서=${opened} · 이유=${errShown}`);
+    await closeForm(p);
     await clearDrafts(p);
 
     // ── 새 프로젝트 창 (kind 'project-create') — P1 입력 저장본 · P2 Esc 닫고 새로고침해 다시 열기 · P3 지우기 · P4 만들기 성공 = 저장본 삭제 ──

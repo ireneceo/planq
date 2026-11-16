@@ -118,7 +118,7 @@
     "displayNamePh": "예: 회사 고객지원",
     "imapSection": "받기 (IMAP)",
     "smtpSection": "보내기 (SMTP)",
-    "smtpHint": "SMTP 정보를 비우면 PlanQ 기본 발송 서버를 사용합니다.",
+    "smtpHint": "비우면 받기 서버 주소에서 imap 을 smtp 로 바꾼 주소(예: smtp.회사.com)로, 같은 아이디·비밀번호로 보내요.",
     "fieldHost": "서버",
     "fieldPort": "포트",
     "fieldUsername": "로그인 아이디",
@@ -190,7 +190,12 @@
     "imapHostRequired": "받기(IMAP) 서버 주소를 입력하세요",
     "imapUserRequired": "받기(IMAP) 로그인 아이디를 입력하세요 — 보통 이메일 주소 전체예요",
     "jumpToField": "해당 칸으로 이동",
-    "draftNoPassword": "비밀번호는 저장하지 않아요 — 다시 넣어 주세요."
+    "draftNoPassword": "비밀번호는 저장하지 않아요 — 다시 넣어 주세요.",
+    "fieldImapHost": "받는 메일 서버 (IMAP)",
+    "imapHostHint": "메일 호스팅 업체가 알려 준 받는 서버 주소예요. 모르면 «imap.도메인» 으로 먼저 시도해 보세요.",
+    "advanced": "고급 설정 (포트·로그인 아이디·보내기 서버)",
+    "advancedHint": "대부분은 그대로 두면 돼요. 메일 호스팅 업체가 다른 값을 알려 줬을 때만 바꾸세요.",
+    "smtpPwHint": "비우면 위 비밀번호를 그대로 써요."
   },
   "folders": {
     "title": "메일함",

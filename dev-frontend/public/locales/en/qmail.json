@@ -118,7 +118,7 @@
     "displayNamePh": "e.g., Company Support",
     "imapSection": "Receive (IMAP)",
     "smtpSection": "Send (SMTP)",
-    "smtpHint": "If SMTP is left empty, PlanQ's default send server is used.",
+    "smtpHint": "Leave empty to send through the receiving server address with imap replaced by smtp (e.g. smtp.company.com), using the same login and password.",
     "fieldHost": "Server",
     "fieldPort": "Port",
     "fieldUsername": "Login ID",
@@ -190,7 +190,12 @@
     "imapHostRequired": "Enter the incoming (IMAP) server address",
     "imapUserRequired": "Enter the incoming (IMAP) login ID — usually your full email address",
     "jumpToField": "Go to this field",
-    "draftNoPassword": "Passwords are never saved — please enter them again."
+    "draftNoPassword": "Passwords are never saved — please enter them again.",
+    "fieldImapHost": "Incoming mail server (IMAP)",
+    "imapHostHint": "The incoming server address from your mail host. If unsure, try \"imap.yourdomain\" first.",
+    "advanced": "Advanced (ports, login ID, outgoing server)",
+    "advancedHint": "Most people can leave these as they are. Change them only if your mail host gave you different values.",
+    "smtpPwHint": "Leave empty to use the password above."
   },
   "folders": {
     "title": "Mailboxes",

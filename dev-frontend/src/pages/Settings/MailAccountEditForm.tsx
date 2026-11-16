@@ -43,6 +43,30 @@ const pickFormFields = (v: Partial<FormNoSecret>, isEdit: boolean): Partial<Form
   return out as Partial<FormNoSecret>;
 };
 
+// ─── «고급 설정» — 대부분 사람이 몰라도 되는 칸 (2026-11-16 Irene «다른 메일서버는 포트도 안나오고 smtp도 안나오는데 우린 왜 이렇게 항목이 많아?») ───
+//   서버는 비운 칸을 스스로 채운다(routes/email_accounts.js · emailSend.deriveSmtpHost):
+//   보내기 서버 = 받기 서버 imap.→smtp. · 아이디·비밀번호 = 받기 값 · 포트 587. 그래서 기본 화면에는
+//   이메일·발신 이름·(직접 입력이면 받기 서버)·비밀번호만 두고 나머지는 접는다. 값은 그대로 보낸다.
+//   ★ 저장된 값이 기본과 다르거나 서버 거절이 접힌 칸을 가리키면 저절로 펼친다(숨은 칸 탓 실패를 못 고치는 일 방지).
+const presetOfHost = (host: string) => MAIL_PRESETS.find(p => p.key !== 'custom' && p.imap_host === host);
+const expectedSmtpHost = (imapHost: string) => presetOfHost(imapHost)?.smtp_host || imapHost.replace(/^imap\./, 'smtp.');
+const suggestImapHost = (email: string) => {
+  const d = (email.split('@')[1] || '').trim().toLowerCase();
+  return d.includes('.') ? `imap.${d}` : '';
+};
+const needsAdvanced = (f: FormNoSecret): boolean => {
+  const user = f.imap_username || '';
+  if (f.imap_port && Number(f.imap_port) !== 993) return true;
+  if (user && user !== f.email) return true;
+  if (f.smtp_username && f.smtp_username !== user && f.smtp_username !== f.email) return true;
+  if (f.smtp_host && f.smtp_host !== expectedSmtpHost(f.imap_host || '')) return true;
+  const presetPort = presetOfHost(f.imap_host || '')?.smtp_port;
+  if (f.smtp_port && Number(f.smtp_port) !== (presetPort || 587)) return true;
+  return false;
+};
+// 직접 입력 계정에서 이 거절은 접힌 아이디·포트가 원인일 수 있다 → 펼쳐 보여 준다
+const CUSTOM_OPEN_CODES = ['imap_auth_failed', 'imap_connect_failed', 'imap_unreachable'];
+
 interface FormProps {
   initial: EmailAccountRow | null;
   businessId: number;
@@ -72,6 +96,11 @@ const MailAccountEditForm: React.FC<FormProps> = ({ initial, businessId, scope, 
     is_active: initial?.is_active ?? true,
   });
   const [form, setForm] = useState<FormState>(initialForm);
+  // 사람이 서비스를 직접 골랐는가 — 안 골랐으면 모르는 도메인 주소를 넣을 때 «직접 입력» 으로 옮긴다
+  //   (기본값 Gmail 인 채 회사 주소를 넣으면 숨은 imap.gmail.com 으로 연결을 시도한다)
+  const presetPicked = useRef<boolean>(isEdit);
+  const [advanced, setAdvanced] = useState<boolean>(() => isEdit && needsAdvanced(initialForm()));
+  const [pendingFocus, setPendingFocus] = useState<MailFormField | null>(null);
 
   // ─── 입력 초안 (비밀번호 제외) ───
   //   base = 편집 대상의 서버 설정값. updated_at 은 동기화마다 바뀌어 쓰지 않는다.
@@ -89,8 +118,10 @@ const MailAccountEditForm: React.FC<FormProps> = ({ initial, businessId, scope, 
     const r = draft.restored;
     if (!r || !r.value || typeof r.value.form !== 'object') return;
     if ((r.value.base || '') !== base) { draft.clear(); return; } // 그 사이 설정이 바뀌었으면 옛 초안을 버린다
+    const merged = { ...form, ...pickFormFields(r.value.form, isEdit) };
     setForm((prev) => ({ ...prev, ...pickFormFields(r.value.form, isEdit) }));
-    if (!isEdit && typeof r.value.preset === 'string') setPreset(r.value.preset);
+    if (needsAdvanced(merged)) setAdvanced(true);
+    if (!isEdit && typeof r.value.preset === 'string') { setPreset(r.value.preset); presetPicked.current = true; }
     setRestoredAt(r.savedAt || Date.now());
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -98,6 +129,8 @@ const MailAccountEditForm: React.FC<FormProps> = ({ initial, businessId, scope, 
     draft.clear();
     setForm(initialForm());
     setPreset(isEdit ? 'custom' : 'gmail');
+    presetPicked.current = isEdit;
+    setAdvanced(isEdit && needsAdvanced(initialForm()));
     setRestoredAt(null);
     setError(null);
   };
@@ -113,12 +146,25 @@ const MailAccountEditForm: React.FC<FormProps> = ({ initial, businessId, scope, 
   const bindField = (f: MailFormField) => (el: HTMLInputElement | null) => { fieldRefs.current[f] = el; };
   const focusField = useCallback((f: MailFormField | null) => {
     const el = f ? fieldRefs.current[f] : null;
-    if (!el) return;
+    if (!el) {
+      // 접힌 칸이면 펼친 뒤(다음 렌더에 칸이 생긴다) 옮긴다 — 안 그러면 [해당 칸으로 이동] 이 먹통이다
+      if (f) { setAdvanced(true); setPendingFocus(f); }
+      return;
+    }
     el.scrollIntoView({ block: 'center', behavior: 'smooth' });
     el.focus({ preventScroll: true });
   }, []);
   useEffect(() => {
+    if (!pendingFocus || !advanced) return;
+    const el = fieldRefs.current[pendingFocus];
+    setPendingFocus(null);
+    if (!el) return;
+    el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    el.focus({ preventScroll: true });
+  }, [pendingFocus, advanced]);
+  useEffect(() => {
     if (!error) return;
+    if (error.field && !fieldRefs.current[error.field]) setAdvanced(true); // 문제 칸이 접혀 있으면 펼쳐 표시가 보이게
     if (error.server) {
       // 경고는 폼 첫 줄이다 — 굴러가는 상자를 맨 위로 올린다. scrollIntoView 는 폰에서 상자 안 고정 머리줄(뒤로·제목)
       //   밑으로 경고를 밀어 넣어 가렸다(390 실측). 상자를 못 찾으면 그때만 scrollIntoView.
@@ -149,8 +195,20 @@ const MailAccountEditForm: React.FC<FormProps> = ({ initial, businessId, scope, 
         smtp_host: p.smtp_host,
         smtp_port: p.smtp_port,
       }));
+    } else if (key === 'custom') {
+      // 직접 입력 — 앞 서비스(Gmail 등)의 서버가 접힌 칸에 남아 엉뚱한 곳으로 보내지 않게 비운다.
+      //   받기 서버는 이메일 도메인으로 제안(imap.<도메인>), 보내기는 비워 서버가 받기 서버로 추정하게.
+      setForm(prev => ({
+        ...prev,
+        imap_host: presetOfHost(prev.imap_host) || !prev.imap_host ? suggestImapHost(prev.email) : prev.imap_host,
+        imap_port: 993,
+        smtp_host: '',
+        smtp_port: null,
+      }));
     }
   };
+  // 알려진 서비스면 서버·포트는 우리가 안다 — 받기 서버 칸도 접는다
+  const knownPreset = isEdit ? !!hostToGuideKey(form.imap_host) : preset !== 'custom';
 
   // Gmail·Naver·Outlook·iCloud 는 계정 비밀번호로 IMAP 연결이 안 되고 앱 비밀번호를 발급해야 한다.
   // 항목명을 "비밀번호" 로만 두면 계정 비밀번호를 넣고 실패하는 사고가 반복 → 항목명 자체를 바꾼다.
@@ -209,6 +267,7 @@ const MailAccountEditForm: React.FC<FormProps> = ({ initial, businessId, scope, 
       if (guide?.preset && guide.preset !== preset) setPreset(guide.preset); // 해당 provider 안내 박스 표시
       if (guide?.twoStepOff) setTwoStep('off');   // 구글이 거절 = 2단계 인증부터 의심 → 그 안내를 펼친다
       setGuideEmph(!!guide?.preset && guide.field === 'imap_password');
+      if (!knownPreset && CUSTOM_OPEN_CODES.includes(code)) setAdvanced(true);
       setError({ msg: guide ? (t(guide.key, guide.def) as string) : code, field: guide?.field || null, server: true });
     } finally {
       setSubmitting(false);
@@ -253,7 +312,7 @@ const MailAccountEditForm: React.FC<FormProps> = ({ initial, businessId, scope, 
               <PlanQSelect
                 size="sm" isSearchable={false}
                 value={{ value: preset, label: currentPreset?.label || 'Custom' }}
-                onChange={(opt) => onPresetChange((opt as PlanQSelectOption | null)?.value as string || 'custom')}
+                onChange={(opt) => { presetPicked.current = true; onPresetChange((opt as PlanQSelectOption | null)?.value as string || 'custom'); }}
                 options={MAIL_PRESETS.map(p => ({ value: p.key, label: p.label }))}
               />
               {APP_PASSWORD_GUIDES[preset] && (
@@ -276,14 +335,18 @@ const MailAccountEditForm: React.FC<FormProps> = ({ initial, businessId, scope, 
                 // ★ 아이디 칸은 이메일을 **계속 따라간다**(사용자가 따로 고치기 전까지). 여태 `빈 칸일 때만` 채워서
                 //   첫 글자에서 멈췄다 — 운영 네이버 계정의 보내기 아이디가 한 글자로 저장돼 발송이 전부 거절됐다.
                 const follows = (v?: string | null) => !v || v === form.email;
+                // 직접 입력의 받기 서버도 사용자가 따로 고치기 전까지 도메인을 따라간다(imap.<도메인>)
+                const hostFollows = !isEdit && preset === 'custom' && (!form.imap_host || form.imap_host === suggestImapHost(form.email));
                 setForm({
                   ...form, email,
                   imap_username: follows(form.imap_username) ? email : form.imap_username,
                   smtp_username: follows(form.smtp_username) ? email : form.smtp_username,
+                  imap_host: hostFollows ? suggestImapHost(email) : form.imap_host,
                 });
                 // 도메인 자동 감지 → 서버 정보 자동 완성 + provider 안내 표시
                 const auto = detectPresetByEmail(email);
                 if (!isEdit && auto && auto !== preset) onPresetChange(auto);
+                else if (!isEdit && !auto && !presetPicked.current && preset !== 'custom' && /@[^@\s]+\.[^@\s]+$/.test(email)) onPresetChange('custom');
               }}
               placeholder={t('settings.emailPh', 'contact@회사.com') as string}
               disabled={isEdit}
@@ -303,37 +366,19 @@ const MailAccountEditForm: React.FC<FormProps> = ({ initial, businessId, scope, 
             <FieldHint>{t('settings.fromNameHint', '받는 사람 메일함에 이 이름으로 표시돼요. 비우면 메일 주소만 보입니다.') as string}</FieldHint>
           </Field>
 
-          <SectionTitle>{t('settings.imapSection', '받기 (IMAP)') as string}</SectionTitle>
-          <Grid2>
+          {!knownPreset && (
             <Field>
-              <Label>{t('settings.fieldHost', '서버') as string} <Required>*</Required></Label>
+              <Label>{t('settings.fieldImapHost', '받는 메일 서버 (IMAP)') as string} <Required>*</Required></Label>
               <Input
-                type="text" value={form.imap_host}
+                type="text" value={form.imap_host} data-testid="mail-account-imap-host"
                 ref={bindField('imap_host')} $invalid={isBad('imap_host')} aria-invalid={isBad('imap_host') || undefined}
                 onChange={e => { touch('imap_host'); setForm({ ...form, imap_host: e.target.value }); }}
                 placeholder={t('settings.imapHostPh', 'imap.회사.com') as string}
               />
+              <FieldHint>{t('settings.imapHostHint', '메일 호스팅 업체가 알려 준 받는 서버 주소예요. 모르면 «imap.도메인» 을 먼저 넣어 보세요.') as string}</FieldHint>
               {fieldError('imap_host')}
             </Field>
-            <Field>
-              <Label>{t('settings.fieldPort', '포트') as string}</Label>
-              <Input
-                type="number" value={form.imap_port}
-                onChange={e => setForm({ ...form, imap_port: Number(e.target.value) || 993 })}
-              />
-            </Field>
-          </Grid2>
-          <Field>
-            <Label>{t('settings.fieldUsername', '로그인 아이디') as string} <Required>*</Required></Label>
-            <Input
-              type="text" value={form.imap_username} data-testid="mail-account-imap-user"
-              ref={bindField('imap_username')} $invalid={isBad('imap_username')} aria-invalid={isBad('imap_username') || undefined}
-              onChange={e => { touch('imap_username'); setForm({ ...form, imap_username: e.target.value }); }}
-              placeholder={form.email}
-            />
-            <FieldHint>{t('settings.loginIdHint', '메일 서비스에 로그인할 때 쓰는 아이디예요. Gmail·네이버·Outlook 은 위 이메일 주소와 같아요(자동으로 채워져요).') as string}</FieldHint>
-            {fieldError('imap_username')}
-          </Field>
+          )}
           <Field>
             <Label>
               {passwordLabel}
@@ -355,45 +400,92 @@ const MailAccountEditForm: React.FC<FormProps> = ({ initial, businessId, scope, 
             {fieldError('imap_password')}
           </Field>
 
-          <SectionTitle>{t('settings.smtpSection', '보내기 (SMTP)') as string} <Optional>{t('settings.optional', '선택') as string}</Optional></SectionTitle>
-          <SmtpHint>{t('settings.smtpHint', 'SMTP 정보를 비우면 PlanQ 기본 발송 서버를 사용합니다.') as string}</SmtpHint>
-          <Grid2>
-            <Field>
-              <Label>{t('settings.fieldHost', '서버') as string}</Label>
-              <Input
-                type="text" value={form.smtp_host || ''}
-                ref={bindField('smtp_host')} $invalid={isBad('smtp_host')} aria-invalid={isBad('smtp_host') || undefined}
-                onChange={e => { touch('smtp_host'); setForm({ ...form, smtp_host: e.target.value }); }}
-                placeholder={t('settings.smtpHostPh', 'smtp.회사.com') as string}
-              />
-            </Field>
-            <Field>
-              <Label>{t('settings.fieldPort', '포트') as string}</Label>
-              <Input
-                type="number" value={form.smtp_port || ''}
-                onChange={e => setForm({ ...form, smtp_port: Number(e.target.value) || null })}
-              />
-            </Field>
-          </Grid2>
-          <Field>
-            <Label>{t('settings.fieldUsername', '로그인 아이디') as string}</Label>
-            <Input
-              type="text" value={form.smtp_username || ''}
-              ref={bindField('smtp_username')} $invalid={isBad('smtp_username')} aria-invalid={isBad('smtp_username') || undefined}
-              onChange={e => { touch('smtp_username'); setForm({ ...form, smtp_username: e.target.value }); }}
-              placeholder={form.imap_username || undefined}
-            />
-            <FieldHint>{t('settings.smtpLoginIdHint', '비우면 받기의 로그인 아이디를 그대로 써요.') as string}</FieldHint>
-          </Field>
-          <Field>
-            <Label>{passwordLabel} {isEdit && <PasswordHint>{t('settings.passwordEditHint', '(비워두면 기존 유지)') as string}</PasswordHint>}</Label>
-            <Input
-              type="password" value={form.smtp_password} data-testid="mail-account-smtp-pw"
-              ref={bindField('smtp_password')} $invalid={isBad('smtp_password')} aria-invalid={isBad('smtp_password') || undefined}
-              onChange={e => { touch('smtp_password'); setForm({ ...form, smtp_password: e.target.value }); }}
-              autoComplete="new-password"
-            />
-          </Field>
+          <AdvancedToggle
+            type="button" data-testid="mail-account-advanced-toggle"
+            aria-expanded={advanced} onClick={() => setAdvanced(v => !v)}
+          >
+            <Chevron $open={advanced} aria-hidden>▸</Chevron>
+            {t('settings.advanced', '고급 설정 (포트·로그인 아이디·보내기 서버)') as string}
+          </AdvancedToggle>
+          {advanced && (
+            <AdvancedBox data-testid="mail-account-advanced">
+              <AdvancedHint>{t('settings.advancedHint', '대부분은 그대로 두면 돼요. 메일 호스팅 업체가 다른 값을 알려 줬을 때만 바꾸세요.') as string}</AdvancedHint>
+              <SectionTitle>{t('settings.imapSection', '받기 (IMAP)') as string}</SectionTitle>
+              <Grid2>
+                {knownPreset ? (
+                  <Field>
+                    <Label>{t('settings.fieldHost', '서버') as string}</Label>
+                    <Input
+                      type="text" value={form.imap_host}
+                      ref={bindField('imap_host')} $invalid={isBad('imap_host')} aria-invalid={isBad('imap_host') || undefined}
+                      onChange={e => { touch('imap_host'); setForm({ ...form, imap_host: e.target.value }); }}
+                    />
+                    {fieldError('imap_host')}
+                  </Field>
+                ) : <span />}
+                <Field>
+                  <Label>{t('settings.fieldPort', '포트') as string}</Label>
+                  <Input
+                    type="number" value={form.imap_port} data-testid="mail-account-imap-port"
+                    onChange={e => setForm({ ...form, imap_port: Number(e.target.value) || 993 })}
+                  />
+                </Field>
+              </Grid2>
+              <Field>
+                <Label>{t('settings.fieldUsername', '로그인 아이디') as string} <Required>*</Required></Label>
+                <Input
+                  type="text" value={form.imap_username} data-testid="mail-account-imap-user"
+                  ref={bindField('imap_username')} $invalid={isBad('imap_username')} aria-invalid={isBad('imap_username') || undefined}
+                  onChange={e => { touch('imap_username'); setForm({ ...form, imap_username: e.target.value }); }}
+                  placeholder={form.email}
+                />
+                <FieldHint>{t('settings.loginIdHint', '메일 서비스에 로그인할 때 쓰는 아이디예요. Gmail·네이버·Outlook 은 위 이메일 주소와 같아요(자동으로 채워져요).') as string}</FieldHint>
+                {fieldError('imap_username')}
+              </Field>
+
+              <SectionTitle>{t('settings.smtpSection', '보내기 (SMTP)') as string} <Optional>{t('settings.optional', '선택') as string}</Optional></SectionTitle>
+              <SmtpHint>{t('settings.smtpHint') as string}</SmtpHint>
+              <Grid2>
+                <Field>
+                  <Label>{t('settings.fieldHost', '서버') as string}</Label>
+                  <Input
+                    type="text" value={form.smtp_host || ''} data-testid="mail-account-smtp-host"
+                    ref={bindField('smtp_host')} $invalid={isBad('smtp_host')} aria-invalid={isBad('smtp_host') || undefined}
+                    onChange={e => { touch('smtp_host'); setForm({ ...form, smtp_host: e.target.value }); }}
+                    placeholder={expectedSmtpHost(form.imap_host || '') || (t('settings.smtpHostPh', 'smtp.회사.com') as string)}
+                  />
+                </Field>
+                <Field>
+                  <Label>{t('settings.fieldPort', '포트') as string}</Label>
+                  <Input
+                    type="number" value={form.smtp_port || ''}
+                    onChange={e => setForm({ ...form, smtp_port: Number(e.target.value) || null })}
+                    placeholder="587"
+                  />
+                </Field>
+              </Grid2>
+              <Field>
+                <Label>{t('settings.fieldUsername', '로그인 아이디') as string}</Label>
+                <Input
+                  type="text" value={form.smtp_username || ''}
+                  ref={bindField('smtp_username')} $invalid={isBad('smtp_username')} aria-invalid={isBad('smtp_username') || undefined}
+                  onChange={e => { touch('smtp_username'); setForm({ ...form, smtp_username: e.target.value }); }}
+                  placeholder={form.imap_username || undefined}
+                />
+                <FieldHint>{t('settings.smtpLoginIdHint', '비우면 받기의 로그인 아이디를 그대로 써요.') as string}</FieldHint>
+              </Field>
+              <Field>
+                <Label>{passwordLabel} {isEdit && <PasswordHint>{t('settings.passwordEditHint', '(비워두면 기존 유지)') as string}</PasswordHint>}</Label>
+                <Input
+                  type="password" value={form.smtp_password} data-testid="mail-account-smtp-pw"
+                  ref={bindField('smtp_password')} $invalid={isBad('smtp_password')} aria-invalid={isBad('smtp_password') || undefined}
+                  onChange={e => { touch('smtp_password'); setForm({ ...form, smtp_password: e.target.value }); }}
+                  autoComplete="new-password"
+                />
+                <FieldHint>{t('settings.smtpPwHint', '비우면 위 비밀번호를 그대로 써요.') as string}</FieldHint>
+              </Field>
+            </AdvancedBox>
+          )}
 
           <TrustNote spot="mailConnect" />
         </Form>
@@ -450,13 +542,26 @@ const Input = styled.input<{ $invalid?: boolean }>`
   &:focus { outline: none; border-color: #14B8A6; box-shadow: 0 0 0 3px rgba(20,184,166,0.15); }
   &:disabled { background: #F8FAFC; color: #94A3B8; cursor: not-allowed; }
 `;
-const Grid2 = styled.div`display: grid; grid-template-columns: 2fr 1fr; gap: 10px;`;
+const Grid2 = styled.div`display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 10px; & input { min-width: 0; width: 100%; box-sizing: border-box; }`;
 const SectionTitle = styled.div`
   font-size: 0.8125rem; font-weight: 700; color: #0F172A;
   margin-top: 8px; padding-top: 12px;
   border-top: 1px solid #E2E8F0;
   display: flex; align-items: center;
 `;
+const AdvancedToggle = styled.button`
+  all: unset; cursor: pointer; align-self: flex-start;
+  display: inline-flex; align-items: center; gap: 6px; min-height: 32px;
+  font-size: 0.75rem; font-weight: 600; color: #475569;
+  &:hover { color: #0F172A; }
+  &:focus-visible { outline: 2px solid #5EEAD4; outline-offset: 2px; border-radius: 4px; }
+`;
+const Chevron = styled.span<{ $open: boolean }>`
+  display: inline-block; font-size: 0.6875rem; color: #94A3B8;
+  transform: rotate(${p => p.$open ? 90 : 0}deg); transition: transform 0.15s;
+`;
+const AdvancedBox = styled.div`display: flex; flex-direction: column; gap: 14px; margin-top: -6px;`;
+const AdvancedHint = styled.div`font-size: 0.6875rem; color: #64748B; line-height: 1.5;`;
 const SmtpHint = styled.div`font-size: 0.6875rem; color: #64748B; line-height: 1.5; padding: 8px 10px; background: #F8FAFC; border-radius: 6px;`;
 const ErrorBox = styled.div`
   display: flex; flex-direction: column; align-items: flex-start; gap: 6px;
