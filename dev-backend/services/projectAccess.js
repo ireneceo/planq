@@ -98,4 +98,11 @@ function projectForClient(json, viewerUserId) {
   return out;
 }
 
-module.exports = { loadProjectOrForbidden, requireBusinessMember, visibleProjectWhere, projectForClient, PROJECT_CLIENT_HIDDEN };
+// 프로젝트 멤버 구성(추가·빼기·PM·역할) — 워크스페이스 대표·관리자·플랫폼 관리자. member/ai/client/PM(멤버)는 아님.
+//   role = loadProjectOrForbidden 이 돌려준 그 프로젝트 워크스페이스의 bm.role(req.businessRole·body 값 금지).
+//   2026-11-16 Irene «권고대로» — 관리자도 프로젝트 멤버 관리 · Fable 설계 READY. 호출부: PUT /api/projects/:id/members · conversations syncProjectMember.
+function canManageProjectMembers(user, role) {
+  return user?.platform_role === 'platform_admin' || role === 'owner' || role === 'admin';
+}
+
+module.exports = { canManageProjectMembers, loadProjectOrForbidden, requireBusinessMember, visibleProjectWhere, projectForClient, PROJECT_CLIENT_HIDDEN };

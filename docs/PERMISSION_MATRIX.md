@@ -69,7 +69,7 @@ ALTER TABLE project_members
 - **프로젝트 생성자는 자동 PM** — `project_members.is_pm = 1` 로 seed.
 - **owner 는 암묵적 PM** — DB 플래그 없이도 PM 게이트 통과 (코드 레벨에서 `isOwner || isPM`).
 - **PM 0명 상태 허용** — 이 경우 PM 게이트는 owner 만 통과.
-- **PM 지정/해제** — owner 만 가능 (인사 권한). PM 이 자기 자신을 해제하는 것도 owner 승인 필요.
+- **PM 지정/해제** — owner·admin(·platform_admin) (2026-11-16 관리자 추가, `services/projectAccess.canManageProjectMembers`). 프로젝트 만든 사람은 항상 PM·멤버(서버가 PUT members 에서 강제 — 목록에서 빼도 행이 남는다).
 
 ### 3.3 UI 표시 (Phase 1 구현)
 
@@ -244,8 +244,8 @@ async function canFinancialAction(user, businessId, projectId) {
 
 | 액션 | platform_admin | owner | member | PM | client |
 |---|:---:|:---:|:---:|:---:|:---:|
-| 멤버 초대/제거/역할 변경 | ● | ● | - | - | - |
-| PM 지정/해제 | ● | ● | - | - | - |
+| 멤버 초대/제거/역할 변경 (워크스페이스 멤버십 — owner 고정 그대로) | ● | ● | - | - | - |
+| 프로젝트 멤버 추가·빼기 · PM 지정/해제 · 프로젝트 내 역할 — **admin 도 ●** (2026-11-16 Irene «권고대로», `services/projectAccess.canManageProjectMembers` — PUT `/api/projects/:id/members` · 채팅 초대 시 프로젝트 멤버 연동이 같은 함수) | ● | ● | - | - | - |
 | 워크스페이스 설정 (이름/로고/권한 토글) | ● | ● | - | - | - |
 | 플랜 (내향 구독) 변경·결제수단 등록 | ● | ● | - | - | - |
 | 구독·추가 슬롯 **결제** (checkout · 카드 결제 · 입금했어요 · 추가 신청) — **admin 도 ●** (2026-11-16 Irene «관리자도 결제할 수 있어야», `routes/plan.js` `isWorkspaceAdminReq`) | ● | ● | - | - | - |
@@ -622,5 +622,6 @@ const { canFinancial, reason } = usePermissions(projectId);
 | 2026-07-10 | **코드 실측 대조 갱신 (Fable 게이트)**: §2 `ai`(Cue) 역할 추가 + admin 스캐폴드 실태 명시 (ENUM 은 owner/member/ai — `models/BusinessMember.js:46`), §4.3 토글 미들웨어 구현체 확인 (`middleware/permissions.js`), §4.5 멤버 메뉴 권한 Layer 3 신설 (`requireMenu`, 12 메뉴키, weekly_team default none), §5.7 실코드 정합 (project_id 이관 완화 운영 #42 · status 직접 PUT 담당자 포함 · 워크플로우 only_assignee/not_a_reviewer · DELETE 타인 관여 0건 운영 #14), §5.8 Q Note visibility L1~L4 (N+14, 쓰기는 여전히 생성자만), §5.10 owner_only 11 라우트 + 현금영수증·증빙정정 + requireMenu 중첩, §5.11 Q위키 visibility 신설, §6.2 Stripe `*_enc` + 전역 toJSON redact, §7 client 업무 조건 실코드(화이트리스트 OR) 정합 + access_scope 단일원천 + L1~L4 요약 | Fable 검증 게이트 — 코드가 진실 원칙으로 문서 정정 |
 
 | 2026-07-10 | **admin 역할 정식 활성화 (Fable 게이트 — "정석" 판정 A)**: `BusinessMember.role` ENUM 에 `admin` append (모델=SSOT → sync-database 재-strip 차단), `access_scope.js` `attachWorkspaceScope` allowed 세트에 `scope.isAdmin` 편입 (누락 시 admin 이 checkBusinessAccess 전 라우트 403 잠김 — E2E 로 발견), `scripts/health-check.js` ENUM 유지 감시 항목 추가. 실 HTTP 7/7: 승격 200(기존 ENUM 결손 500 회귀 해소)·DB admin·admin 게이트 통과·admin invoice send 403 owner_only(재무 불변식)·강등 복원. 근본원인: 6-09 수동 ALTER 가 모델 미갱신 → sync 가 벗김 | Fable 판정 — "죽은 스캐폴드가 아닌 N+21 배포기능의 DB 결손 사고, 승인된 설계 복원이 정석" |
+| 2026-11-16 | **관리자(admin)도 프로젝트 멤버 관리** — 추가·빼기·PM·역할(같은 PUT). 술어 `services/projectAccess.canManageProjectMembers` 한 곳(PUT members · conversations syncProjectMember) · 화면 `utils/projectMemberPerm`. 프로젝트 만든 사람 행은 PUT 으로 빠지지 않게 서버 강제. 종료·삭제·청구 설정·재무는 owner 고정 그대로. 실 HTTP 27/27(admin 승격·복원, 음성·양성 대조) | Irene «권고대로» · Fable 설계 READY |
 
 이후 변경 시 이 테이블에 한 줄 + 관련 매트릭스 업데이트.

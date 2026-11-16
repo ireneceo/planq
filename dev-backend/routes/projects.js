@@ -78,18 +78,6 @@ async function taskVisAnd(userId, businessId) {
   return w || { id: -1 };
 }
 
-// 관리자 전용 액션(프로젝트 멤버 관리·삭제·종료·이관) 가드.
-// owner 또는 platform_admin 만 통과.
-async function requireProjectAdmin(projectId, user) {
-  const loaded = await loadProjectOrForbidden(projectId, user.id);
-  if (loaded.error) return loaded;
-  const isPlatformAdmin = user.platform_role === 'platform_admin';
-  if (!isPlatformAdmin && loaded.role !== 'owner') {
-    return { error: { code: 403, message: 'owner_only' } };
-  }
-  return loaded;
-}
-
 // ============================================
 // POST /api/projects — 신규 프로젝트 생성
 // 바디: { business_id, name, description?, client_company?, start_date?, end_date?, members: [{user_id, role, is_default}], clients: [{name, email}] }
@@ -1126,12 +1114,11 @@ router.put('/:id/members', authenticateToken, async (req, res, next) => {
   try {
     const { project, role, error } = await loadProjectOrForbidden(Number(req.params.id), req.user.id);
     if (error) { await t.rollback(); return errorResponse(res, error.message, error.code); }
-    // 권한: owner/platform_admin 만. 멤버 구성 변경은 인사/조직 관리 영역.
-    // PERMISSION_MATRIX.md §5.5 — "프로젝트 멤버 추가·제거".
-    const isPlatformAdmin = req.user.platform_role === 'platform_admin';
-    if (!isPlatformAdmin && role !== 'owner') {
+    // 권한: 워크스페이스 대표·관리자·플랫폼 관리자 (2026-11-16 관리자 추가 · PERMISSION_MATRIX §5.5).
+    //   판정은 services/projectAccess.canManageProjectMembers 한 곳 — 채팅 초대(conversations syncProjectMember)와 같은 함수.
+    if (!require('../services/projectAccess').canManageProjectMembers(req.user, role)) {
       await t.rollback();
-      return errorResponse(res, '프로젝트 멤버 관리는 워크스페이스 오너만 가능합니다', 403);
+      return errorResponse(res, '프로젝트 멤버 관리는 워크스페이스 대표·관리자만 가능합니다', 403);
     }
 
     const { members = [] } = req.body || {};
@@ -1180,6 +1167,12 @@ router.put('/:id/members', authenticateToken, async (req, res, next) => {
         // PM 플래그 — 클라이언트 입력 반영 + 프로젝트 owner 는 강제 PM (PERMISSION_MATRIX §3)
         is_pm: m.user_id === project.owner_user_id ? true : !!m.is_pm,
       });
+    }
+    // 프로젝트 만든 사람은 빠지지 않는다 — 화면만 × 를 숨겼고 API 로는 지워졌다(채팅 쪽 project_channel 은 이미 «owner 는 못 뺀다»).
+    //   받은 목록에 없으면 이전 역할로 PM 행을 이어 붙인다(removed 에도 안 잡힌다). Fable 설계 2026-11-16 불변식 1.
+    if (project.owner_user_id && !rows.some((r) => Number(r.user_id) === Number(project.owner_user_id))) {
+      const prevOwner = beforeRows.find((r) => Number(r.user_id) === Number(project.owner_user_id));
+      if (prevOwner) rows.push({ project_id: project.id, user_id: prevOwner.user_id, role: prevOwner.role, role_order: 0, is_pm: true });
     }
     await ProjectMember.bulkCreate(rows, { transaction: t });
 

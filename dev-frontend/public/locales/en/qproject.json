@@ -466,7 +466,7 @@
     "search": "Search by name or email",
     "chatLinkHint": "Members you add also join this project's chats automatically.",
     "saveFailed": "Couldn't save the member change. Reverted to the saved list.",
-    "ownerOnly": "Only the workspace owner can add or remove project members."
+    "ownerOnly": "Only workspace owners and admins can add or remove project members."
   },
   "docs": {
     "drop": {

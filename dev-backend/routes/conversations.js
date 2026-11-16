@@ -662,8 +662,8 @@ function emitParticipantsChanged(req, conversationId, userId) {
 }
 
 // 프로젝트 대화방에 워크스페이스 멤버를 넣으면 **프로젝트 멤버로도** 넣는다(2026-11-16 Irene «서로 연결된 건데 각각 따로 초대»).
-//   권한은 프로젝트 멤버 관리와 **같은 술어**(routes/projects.js PUT /:id/members — 워크스페이스 대표·플랫폼 관리자).
-//   그 밖의 사람이 넣으면 채팅에만 들어가고 화면이 «프로젝트 멤버 추가는 대표만» 을 알린다 — 채팅 초대가
+//   권한은 프로젝트 멤버 관리와 **같은 함수**(services/projectAccess.canManageProjectMembers — 대표·관리자·플랫폼 관리자).
+//   그 밖의 사람이 넣으면 채팅에만 들어가고 화면이 «프로젝트 멤버 추가는 대표·관리자만» 을 알린다 — 채팅 초대가
 //   프로젝트 가시성(참여 멤버만 보는 프로젝트)을 넓히는 뒷문이 되지 않게.
 //   들어가면 그 프로젝트의 다른 대화방에도 참여자로(PUT /members 와 같은 joinProjectMemberToChannels).
 //   돌려주는 것: { project_member: 'added' | 'already' | 'not_allowed' } — 프로젝트 방이 아니거나 고객이면 {}.
@@ -676,8 +676,7 @@ async function syncProjectMember(req, conv, bm) {
     // routes/projects.js PUT /:id/members 와 글자까지 같은 판정(같은 함수 · 같은 조건)
     const { project, role, error } = await require('../services/projectAccess').loadProjectOrForbidden(Number(conv.project_id), req.user.id);
     if (error || !project || Number(project.business_id) !== Number(conv.business_id)) return {};
-    const isPlatformAdmin = req.user.platform_role === 'platform_admin';
-    if (!isPlatformAdmin && role !== 'owner') return { project_member: 'not_allowed' };
+    if (!require('../services/projectAccess').canManageProjectMembers(req.user, role)) return { project_member: 'not_allowed' };
     await sequelize.transaction(async (t) => {
       await ProjectMember.create({
         project_id: project.id, user_id: userId, role: null, role_order: 0,

@@ -1,4 +1,5 @@
 // /projects/p/:id — 프로젝트 허브 (대시보드/업무/문서/고객/프로세스 파트 5탭)
+import { canManageProjectMembers } from '../../utils/projectMemberPerm';
 import React, { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import HistoryNote, { type HistoryNoteFields } from '../../components/Common/HistoryNote';
 // 연결 입력 문구는 한 곳에서 온다 (화면마다 적으면 갈라진다)
@@ -325,9 +326,9 @@ const QProjectDetailPage: React.FC = () => {
   const canSetVisibility = !!authUser && (authUser.platform_role === 'platform_admin'
     || authUser.business_role === 'owner' || authUser.business_role === 'admin'
     || (project?.projectMembers || []).some((m) => Number(m.user_id) === Number(authUser.id) && !!m.is_pm));
-  // 프로젝트 멤버 추가·빼기·PM·역할 — 서버 PUT /api/projects/:id/members 와 같은 술어(워크스페이스 대표·플랫폼 관리자).
+  // 프로젝트 멤버 추가·빼기·PM·역할 — 서버 PUT /api/projects/:id/members 와 같은 술어(대표·관리자·플랫폼 관리자, utils/projectMemberPerm).
   //   예전엔 누구에게나 버튼을 주고 403 을 삼켜 «넣었는데 잠깐 보였다 사라짐» 이 됐다(2026-11-16 지메이트 신고).
-  const canManageMembers = !!authUser && (authUser.platform_role === 'platform_admin' || authUser.business_role === 'owner');
+  const canManageMembers = canManageProjectMembers(authUser);
   const [memberSaveErr, setMemberSaveErr] = useState(false);
   const [otherWsBizId, setOtherWsBizId] = useState<number | null>(null);
   // 탭 이름 = 프로젝트 이름. ★ 아래 `if (!projectId) return` 보다 반드시 위 — 훅은 조건부일 수 없다.
@@ -1131,7 +1132,7 @@ const QProjectDetailPage: React.FC = () => {
               </MemberList>
             )}
             {memberSaveErr && <Dim role="alert" data-testid="project-member-save-error">{t('members.saveFailed', '멤버 변경을 저장하지 못했습니다. 서버 값으로 되돌렸습니다.')}</Dim>}
-            {!canManageMembers && !isClient && <Dim data-testid="project-member-owner-only">{t('members.ownerOnly', '프로젝트 멤버 추가·빼기는 워크스페이스 대표만 할 수 있습니다.')}</Dim>}
+            {!canManageMembers && !isClient && <Dim data-testid="project-member-owner-only">{t('members.ownerOnly', '프로젝트 멤버 추가·빼기는 워크스페이스 대표·관리자만 할 수 있습니다.')}</Dim>}
             {canManageMembers && (() => {
               const joined = new Set((project.projectMembers || []).map(m => m.user_id));
               const candidates = bizMembers.filter(b => !joined.has(b.user_id));
