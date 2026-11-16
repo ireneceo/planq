@@ -20,13 +20,17 @@
     s = s.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '').trim();
     return s.length > max ? s.slice(0, max) : s;
   }
+  // 값 크기 상한 — 이보다 크면 부동소수 간격이 1 을 넘어 눈금 계산이 멈추지 않는다(Fable 완료 검증 B1: [1e16, 1e16+4] 로 서버가 죽었다)
+  var MAX_ABS = 1e15;
   function num(v) {
-    if (typeof v === 'number') return isFinite(v) ? v : null;
-    if (typeof v !== 'string') return null;
-    var s = v.replace(/[,\s]/g, '').replace(/%$/, '');
-    if (!s || !/^[-+]?(\d+\.?\d*|\.\d+)(e[-+]?\d+)?$/i.test(s)) return null;
-    var n = Number(s);
-    return isFinite(n) ? n : null;
+    var n;
+    if (typeof v === 'number') n = v;
+    else if (typeof v === 'string') {
+      var s = v.slice(0, 64).replace(/[,\s]/g, '').replace(/%$/, '');
+      if (!s || !/^[-+]?(\d+\.?\d*|\.\d+)(e[-+]?\d+)?$/i.test(s)) return null;
+      n = Number(s);
+    } else return null;
+    return isFinite(n) && Math.abs(n) <= MAX_ABS ? n : null;
   }
 
   /** 저장·렌더 모두 이 함수를 지난 값만 쓴다. 거절하지 않고 깎는다. */
@@ -68,18 +72,27 @@
     return parts.join('.');
   }
   function r1(n) { return Math.round(n * 10) / 10; }
-  /** 깔끔한 눈금 (1·2·5×10ⁿ) */
+  /** 깔끔한 눈금 (1·2·5×10ⁿ). 눈금은 **정수 개수**로 만든다 — 더하기 반복은 큰 값에서 멈추지 않는다(Fable B1).
+   *  만들 수 없으면(간격 0·무한·눈금 12개 초과) null → 그리지 않음 */
   function niceScale(min, max) {
+    if (!isFinite(min) || !isFinite(max)) return null;
     if (min === max) { if (max === 0) { max = 1; } else if (max > 0) { min = 0; } else { max = 0; } }
     var span = max - min;
     var raw = span / 5;
+    if (!(raw > 0) || !isFinite(raw)) return null;
     var p = Math.pow(10, Math.floor(Math.log10(raw)));
+    if (!(p > 0) || !isFinite(p)) return null;
     var m = raw / p;
     var step = (m <= 1 ? 1 : m <= 2 ? 2 : m <= 5 ? 5 : 10) * p;
-    var lo = Math.floor(min / step) * step;
-    var hi = Math.ceil(max / step) * step;
+    if (!(step > 0) || !isFinite(step)) return null;
+    var i0 = Math.floor(min / step);
+    var i1 = Math.ceil(max / step);
+    var n = i1 - i0;
+    if (!isFinite(n) || n < 1 || n > 12) return null;
     var ticks = [];
-    for (var v = lo; v <= hi + step / 2; v += step) ticks.push(Math.round(v / step) * step);
+    for (var k = 0; k <= n; k += 1) ticks.push((i0 + k) * step);
+    var lo = ticks[0]; var hi = ticks[n];
+    if (!(hi > lo)) return null;
     return { lo: lo, hi: hi, ticks: ticks };
   }
   function text(x, y, s, o) {
@@ -125,6 +138,7 @@
     var mn = Math.min.apply(null, all.concat(c.kind === 'line' ? [] : [0]));
     var mx = Math.max.apply(null, all.concat(c.kind === 'line' ? [] : [0]));
     var sc = niceScale(mn, mx);
+    if (!sc) return empty(c, top);
     var tickW = Math.max.apply(null, sc.ticks.map(function (t) { return fmt(t).length; }));
     var left = 16 + Math.min(tickW, 12) * 6.6;
     var right = W - 16;
