@@ -1,4 +1,13 @@
 ## 현재 작업 상태
+### ✅ 긴급 피드백 fb#473 — 지메이트 멤버가 프로젝트 채팅 작업대 «not_project_member» (방 e099790f · 2026-11-16 · [Opus])
+- 운영 원인(읽기만): 대표가 05:27 «For Develop»(대화 71) 방을 만들며 멤버(user 82)를 넣고 내부방 58 에도 넣었지만 프로젝트 35 멤버엔 없음(visibility=members) → 대화는 보이고 작업대 GET /projects/35/conversations 403
+  · 참여자 추가 → 프로젝트 멤버 연동(36826943)은 08:58 배포라 그 전 추가분은 안 걸림 · **방 만들기 문(POST /conversations/:biz)은 연동 자체가 없었음**
+- 고침: `routes/conversations.js` 방 만들기도 syncProjectMember 같은 함수(대표·관리자만, 아니면 채팅에만) · `QTalkPage` 작업대가 not_project_member 면 오류·신고 대신 이유 안내(ko/en `workbench.notProjectMember`)
+- 실HTTP: member1 전 403 → 멤버가 만든 방(대조군) 여전히 403 → 대표가 만든 방 뒤 200 + 감사 project.members.add · 시험 뒤 [확인용] 참여 멤버만 프로젝트(714) 원상복구
+- 커밋 cb9f1b03 · Fable 완료 검증 PASS(실HTTP 8건 — 외부·고객·내보낸 멤버·Cue·다른 ws 프로젝트·문자열 id 중복 · health-check 100/100)
+- Fable 비차단 남은 것: ① 방 만들기가 participant_user_ids 를 워크스페이스 확인 없이 참여자로 넣음(이전부터 · 외부 사용자·고객이 member 역할로 들어감 — 별도 건 Fable 설계로 막기) ② 일반 멤버가 만들 때 project_member not_allowed 응답 없음 ③ 멤버마다 순차 await
+- 운영 데이터: 82 를 프로젝트 35 멤버로 넣는 것은 대표가 화면에서(운영 DB 쓰기 안 함) · 다른 워크스페이스 불일치 user 3 × 대화 13·14·34(워프로랩 추정, 손대지 않음)
+
 ### ✅ 노트 요약 고도화 — 수치·팩트 보존 + 결정·할 일·절차 정리 (방 6dde7bab · 2026-11-16 · [Opus] · 커밋 a9ae5b94 · Fable 안 씀 — 요약 프롬프트·표시, DB·API·권한·분류 기준 불변, 숫자 보존율 기계 측정)
 - `q-note/services/llm_service.py` SUMMARY_SYSTEM 다시 씀(■ 결정·할 일(담당·기한)·절차·수치·논의·미결) + 숫자 보존 가드(95% 미만 1회 재작성) · 출력 8000 · timeout 120s · 빈 본문 재시도
 - 화면: 녹취에 화자 이름 붙여 보냄 · 요약 칸 높이 제한 해제(음성·메모) · 규칙 `.claude/rules/qnote.md` «요약 = 줄이지 말고 정리»
