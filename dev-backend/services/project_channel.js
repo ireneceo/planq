@@ -8,6 +8,7 @@
 //
 // ★ "있으면 그 방" 의 정렬은 목록 라우트와 **같아야** 한다(`id ASC`). 다르면 화면에 보이는
 //   첫 고객 채널과 링크가 걸리는 방이 갈린다.
+// platformroom-exempt: 이 파일은 project_id 로 묶인 프로젝트 방만 찾는다 — PlanQ 안내방은 프로젝트에 달리지 않는다
 const { Op } = require('sequelize');
 const { Conversation, ProjectMember, ConversationParticipant, Client, ProjectClient, Business, User } = require('../models');
 const { createAuditLog } = require('./auditService');
@@ -184,4 +185,91 @@ async function customerChannelForClient({ businessId, projectId, clientId, trans
   return cv;
 }
 
-module.exports = { ensureProjectCustomerChannel, findClientChannel, ensureClientChannel, customerChannelForClient };
+/**
+ * 프로젝트 멤버 → 그 프로젝트의 대화방 전부에 참여자로 (2026-11-16 Irene «프로젝트에 추가하면 채팅에도 추가되게»).
+ *   프로젝트 방(내부·고객 채널)은 사적 방이 아니라 프로젝트의 것 — 방을 만들 때 넣는 규칙(ensureClientChannel 등)을
+ *   **나중에 들어온 멤버**에게도 똑같이. joinParticipant 는 멱등(이미 참여자면 그대로, «보는 중» 이면 올림).
+ *   보관된 방도 넣는다 — 되살리면 그 멤버도 그 방 사람이다.
+ * @returns {Promise<number[]>} 새로 들어간(또는 올라간) 대화방 id
+ */
+async function joinProjectMemberToChannels({ projectId, businessId, userIds, actorUserId, via = 'project_member', io, exceptConversationId } = {}) {
+  const ids = await humanMemberIds(businessId, userIds);
+  if (!projectId || !businessId || !ids.length) return [];
+  const convs = await Conversation.findAll({
+    where: { project_id: projectId, business_id: businessId }, attributes: ['id'],
+  });
+  const joined = [];
+  for (const cv of convs) {
+    if (exceptConversationId && Number(cv.id) === Number(exceptConversationId)) continue;
+    for (const uid of ids) {
+      const r = await require('./convParticipants').joinParticipant(cv.id, uid, 'member');
+      if (!r.created && !r.promoted) continue;
+      joined.push(cv.id);
+      try {
+        createAuditLog({
+          user_id: actorUserId || null, business_id: businessId,
+          action: 'conversation.participant_add', entity_type: 'conversation', entity_id: cv.id,
+          new_value: { user_id: uid, role: 'member', via },
+        });
+      } catch { /* 감사 실패가 참여를 막지 않는다 */ }
+      // routes/conversations.js emitParticipantsChanged 와 같은 신호
+      if (io) io.to(`conv:${cv.id}`).to(`conv:${cv.id}:staff`).to(`user:${uid}`).emit('conversation:participants', { conversation_id: cv.id });
+    }
+  }
+  return [...new Set(joined)];
+}
+
+// 사람 멤버만(owner·admin·member) — Cue(ai)는 방을 만들 때 넣는 규칙이 따로 있어 여기서 넣거나 빼지 않는다
+async function humanMemberIds(businessId, userIds) {
+  const ids = [...new Set((userIds || []).map(Number).filter(Boolean))];
+  if (!businessId || !ids.length) return [];
+  const rows = await require('../models').BusinessMember.findAll({
+    where: { business_id: businessId, user_id: ids, role: ['owner', 'admin', 'member'] }, attributes: ['user_id'], raw: true,
+  });
+  return [...new Set(rows.map((r) => Number(r.user_id)))];
+}
+
+/**
+ * 프로젝트에서 빠진 멤버 → 그 프로젝트의 대화방(보관 포함) 참여에서도 뺀다 (2026-11-16 Fable 완료 검증 FAIL 1 — 넣기가 방 N개를 주는데
+ *   빼기가 0개를 거두면 숨은 프로젝트에서 빠진 사람이 고객·내부 대화를 계속 읽는다). 넣기와 대칭 — 같은 방 집합, 같은 사람 범위.
+ *   참여 행(viewer 포함)·응대 담당·열린 소켓까지 거둔다(채팅 «내보내기» 와 같은 세 단계). 채팅 → 프로젝트 빼기는 하지 않는다.
+ * @returns {Promise<number[]>} 빠진 대화방 id
+ */
+async function leaveProjectMemberFromChannels({ projectId, businessId, userIds, actorUserId, io, req } = {}) {
+  const ids = await humanMemberIds(businessId, userIds);
+  if (!projectId || !businessId || !ids.length) return [];
+  const convs = await Conversation.findAll({
+    where: { project_id: projectId, business_id: businessId }, attributes: ['id'],
+  });
+  const left = [];
+  for (const cv of convs) {
+    for (const uid of ids) {
+      const removed = await require('./convParticipants').removeRows({ conversation_id: cv.id, user_id: uid });
+      if (!removed) continue;
+      left.push(cv.id);
+      if (io) {
+        io.in(`user:${uid}`).socketsLeave([`conv:${cv.id}`, `conv:${cv.id}:staff`]);
+        io.to(`conv:${cv.id}`).to(`conv:${cv.id}:staff`).to(`user:${uid}`).emit('conversation:participants', { conversation_id: cv.id });
+      }
+      await require('./convCare').clearAssignee(businessId, uid, { conversationId: cv.id, io, actorUserId, req });
+      try {
+        createAuditLog({
+          user_id: actorUserId || null, business_id: businessId,
+          action: 'conversation.participant_remove', entity_type: 'conversation', entity_id: cv.id,
+          old_value: { user_id: uid }, new_value: { via: 'project_member_removed', project_id: projectId },
+        });
+      } catch { /* 감사 실패가 회수를 막지 않는다 */ }
+    }
+  }
+  return [...new Set(left)];
+}
+
+/** PUT /api/projects/:id/members 뒤 — 든 멤버는 넣고 빠진 멤버(프로젝트 owner 제외)는 뺀다. 실패는 로그만(저장은 이미 끝났다). */
+async function syncProjectMemberChannels({ project, added = [], removed = [], actorUserId, io, req } = {}) {
+  const base = { projectId: project.id, businessId: project.business_id, actorUserId, io };
+  try { if (added.length) await joinProjectMemberToChannels({ ...base, userIds: added }); } catch (e) { console.warn('[project_channel] join', e.message); }
+  const out = removed.filter((uid) => Number(uid) !== Number(project.owner_user_id));
+  try { if (out.length) await leaveProjectMemberFromChannels({ ...base, userIds: out, req }); } catch (e) { console.warn('[project_channel] leave', e.message); }
+}
+
+module.exports = { ensureProjectCustomerChannel, findClientChannel, ensureClientChannel, customerChannelForClient, joinProjectMemberToChannels, leaveProjectMemberFromChannels, syncProjectMemberChannels };

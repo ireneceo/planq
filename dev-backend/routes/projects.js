@@ -1205,6 +1205,9 @@ router.put('/:id/members', authenticateToken, async (req, res, next) => {
     await t.commit();
     // 빠진 멤버는 숨은 프로젝트의 실시간 방에서 나간다(2026-10-16 · 전체 공개면 할 일 없음)
     require('../services/socketRevoke').leaveHiddenProjectRooms(req.app.get('io'), project.id).catch(() => {});
+    // 프로젝트 멤버 = 그 프로젝트 대화방 참여자(2026-11-16 Irene «서로 연결된 건데 각각 따로 초대») — 든 사람은 넣고 빠진 사람은 뺀다(Fable FAIL 1 대칭).
+    //   2026-11-06 부터 멤버는 참여한 방만 본다. 프로젝트 owner 는 빠질 수 없다. 실패가 저장을 되돌리지 않는다.
+    await require('../services/project_channel').syncProjectMemberChannels({ project, added, removed, actorUserId: req.user.id, io: req.app.get('io'), req });
     if (roleAdded) {
       const io = req.app.get('io');
       if (io) io.to(`business:${project.business_id}`).emit('member_role:updated', { business_id: project.business_id, actor_user_id: req.user.id });
@@ -3502,7 +3505,8 @@ router.get('/workspace/:businessId/all-tasks', authenticateToken, async (req, re
 // ============================================
 // POST /api/projects/:id/clients — 기존 프로젝트에 고객 추가 (초대 토큰 발급)
 // ============================================
-router.post('/:id/clients', authenticateToken, async (req, res, next) => {
+// 초대 메일이 나가는 문 — 멤버·고객 초대와 같은 사용자별 발송 한도(invite-email, ops-backend 1번 · Fable 2026-11-16 FAIL 2)
+router.post('/:id/clients', authenticateToken, ...require('../middleware/costGuard').perUserDaily('invite-email', { perMin: 20, perDay: 200, message: '초대 발송이 너무 잦습니다. 잠시 후 다시 시도하세요.' }), async (req, res, next) => {
   try {
     const { project, role, error } = await loadProjectOrForbidden(Number(req.params.id), req.user.id);
     if (error) return errorResponse(res, error.message, error.code);
@@ -3637,6 +3641,7 @@ router.post('/:id/clients', authenticateToken, async (req, res, next) => {
           kind: 'project',
           contextName: project.name,
           token,
+          message: (req.body || {}).message,   // 함께 보낼 말(선택 · 2026-11-16) — emailService 가 다듬고 이스케이프
         });
       } catch (e) { console.warn('invite email send failed:', e.message); }
     }

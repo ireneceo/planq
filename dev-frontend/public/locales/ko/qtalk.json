@@ -520,7 +520,11 @@
       "clientTag": "고객",
       "aiTag": "AI",
       "invitePh2": "멤버 · 고객 선택",
-      "pendingNote": "초대 수락 대기 중인 고객은 수락하면 자동으로 이 채팅에 참여합니다"
+      "pendingNote": "초대 수락 대기 중인 고객은 수락하면 자동으로 이 채팅에 참여합니다",
+      "projectAdded": "{{name}} 님을 프로젝트 멤버로도 추가했어요. 이 프로젝트의 다른 채팅에도 들어갑니다.",
+      "projectNotAllowed": "{{name}} 님은 이 채팅에만 들어갔어요. 프로젝트 멤버 추가는 워크스페이스 대표만 할 수 있어요.",
+      "projectLinkHint": "프로젝트 채팅이라 멤버를 초대하면 프로젝트 멤버로도 추가됩니다.",
+      "projectLinkHintMember": "프로젝트 채팅이에요. 프로젝트 멤버가 아닌 사람은 이 채팅에만 들어가요(프로젝트 멤버 추가는 대표만)."
     }
   },
   "userInfo": {
@@ -539,7 +543,9 @@
     "openMemberProfile": "멤버 프로필 열기",
     "externalUser": "(외부 사용자)",
     "noName": "(이름 없음)",
-    "openCard": "명함 보기"
+    "openCard": "명함 보기",
+    "directMessage": "1:1 메시지",
+    "dmFailed": "1:1 대화를 열지 못했어요"
   },
   "popout": {
     "title": "PlanQ 채팅"

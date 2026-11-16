@@ -633,13 +633,25 @@ export async function createConversation(input: CreateConversationInput): Promis
   return handle<ApiConversation>(res);
 }
 
-export async function addConversationParticipant(businessId: number, conversationId: number, userId: number, role: 'member' | 'client' = 'member'): Promise<void> {
+// 1:1 대화 — 둘만의 팀 대화가 있으면 그 방, 없으면 새로(서버가 판정 · 멤버끼리만)
+export async function openDirectConversation(businessId: number, userId: number): Promise<{ id: number; reused: boolean }> {
+  const res = await apiFetch(`/api/conversations/${businessId}/direct`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ user_id: userId }),
+  });
+  return handle<{ id: number; reused: boolean }>(res);
+}
+
+// 프로젝트 대화방이면 서버가 프로젝트 멤버로도 넣는다 — project_member: 'added'(넣음) · 'already'(이미 멤버) · 'not_allowed'(대표만 가능, 채팅에만 들어감)
+export async function addConversationParticipant(businessId: number, conversationId: number, userId: number, role: 'member' | 'client' = 'member'): Promise<{ project_member?: 'added' | 'already' | 'not_allowed' }> {
   const res = await apiFetch(`/api/conversations/${businessId}/${conversationId}/participants`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ user_id: userId, role }),
   });
-  await handle<unknown>(res);
+  const data = await handle<{ project_member?: 'added' | 'already' | 'not_allowed' } | null>(res);
+  return data || {};
 }
 
 // 참여자 패널 데이터 — 현재 참여자 + 추가 후보(멤버/고객) + 미수락 초대고객(안내)

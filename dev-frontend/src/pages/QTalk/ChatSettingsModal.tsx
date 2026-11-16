@@ -58,6 +58,10 @@ const ChatSettingsModal: React.FC<Props> = ({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [inviteId, setInviteId] = useState<number | null>(null);
+  // 프로젝트 대화방에 멤버를 넣은 결과 — 프로젝트 멤버로도 들어갔는지 알린다(2026-11-16 프로젝트↔채팅 멤버 연동)
+  const [projectNote, setProjectNote] = useState<string | null>(null);
+  const isProjectRoom = !!conversation.project_id;
+  const canManageProjectMembers = String(me?.business_role || '') === 'owner' || me?.platform_role === 'platform_admin';
 
   // 참여자 — 서버에서 fetch (prop 의존 시 빈 목록 오표시 → #1 fix). 추가/제거 시 로컬 즉시 반영.
   const [participants, setParticipants] = useState<Participant[]>([]);
@@ -73,6 +77,7 @@ const ChatSettingsModal: React.FC<Props> = ({
     setLangB(ll[1] || 'en');
     setError(null);
     setInviteId(null);
+    setProjectNote(null);
     // 참여자 패널 데이터 fetch — 현재 참여자 + 멤버/고객 후보 + 미수락 초대고객
     fetchParticipantPanel(businessId, conversation.id).then(panel => {
       setParticipants(panel.participants.map(p => ({ user_id: p.user_id, name: p.name, email: p.email, role: p.role, is_ai: p.is_ai })));
@@ -118,9 +123,11 @@ const ChatSettingsModal: React.FC<Props> = ({
     if (!inviteId || busy) return;
     const c = candidates.find(x => x.user_id === inviteId);
     if (!c) return;
-    setBusy(true); setError(null);
+    setBusy(true); setError(null); setProjectNote(null);
     try {
-      await addConversationParticipant(businessId, conversation.id, inviteId, c.kind);
+      const r = await addConversationParticipant(businessId, conversation.id, inviteId, c.kind);
+      if (r.project_member === 'added') setProjectNote(t('settings.participants.projectAdded', { name: c.name, defaultValue: '{{name}} 님을 프로젝트 멤버로도 추가했어요. 이 프로젝트의 다른 채팅에도 들어갑니다.' }) as string);
+      else if (r.project_member === 'not_allowed') setProjectNote(t('settings.participants.projectNotAllowed', { name: c.name, defaultValue: '{{name}} 님은 이 채팅에만 들어갔어요. 프로젝트 멤버 추가는 워크스페이스 대표만 할 수 있어요.' }) as string);
       // 로컬 즉시 반영 + 후보에서 제거
       setParticipants(prev => [...prev, { user_id: c.user_id, name: c.name, email: c.email, role: c.kind }]);
       setCandidates(prev => prev.filter(x => x.user_id !== c.user_id));
@@ -261,6 +268,14 @@ const ChatSettingsModal: React.FC<Props> = ({
                 </PrimaryBtn>
               </InviteRow>
             )}
+            {isProjectRoom && memberOptions.length > 0 && (
+              <ReadHint>
+                {canManageProjectMembers
+                  ? t('settings.participants.projectLinkHint', { defaultValue: '프로젝트 채팅이라 멤버를 초대하면 프로젝트 멤버로도 추가됩니다.' }) as string
+                  : t('settings.participants.projectLinkHintMember', { defaultValue: '프로젝트 채팅이에요. 프로젝트 멤버가 아닌 사람은 이 채팅에만 들어가요(프로젝트 멤버 추가는 대표만).' }) as string}
+              </ReadHint>
+            )}
+            {projectNote && <PendingNote role="status">{projectNote}</PendingNote>}
             {pendingClients.length > 0 && (
               <PendingNote>
                 {t('settings.participants.pendingNote', { defaultValue: '초대 수락 대기 중인 고객은 수락하면 자동으로 이 채팅에 참여합니다' }) as string}

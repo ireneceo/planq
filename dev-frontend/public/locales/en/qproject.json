@@ -463,7 +463,8 @@
     "pmOff": "Make PM",
     "pmOn": "Remove PM",
     "pmOwner": "The project creator is PM automatically",
-    "search": "Search by name or email"
+    "search": "Search by name or email",
+    "chatLinkHint": "Members you add also join this project's chats automatically."
   },
   "docs": {
     "drop": {

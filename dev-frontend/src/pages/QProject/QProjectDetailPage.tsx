@@ -17,6 +17,7 @@ import { joinRoom, leaveRoom, onSocket } from '../../services/socket';
 import DetailFallback from '../../components/Common/DetailFallback';
 import type { DetailStatus } from '../../hooks/useDetailResource';
 import PageShell from '../../components/Layout/PageShell';
+import { usePersonPopover, PersonNameButton } from '../../components/Common/usePersonPopover';
 import { useTabTitle } from '../../hooks/useTabTitle';
 import AutoSaveField, { type AutoSaveHandle } from '../../components/Common/AutoSaveField';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
@@ -737,6 +738,8 @@ const QProjectDetailPage: React.FC = () => {
     });
   }, [tasks]);
 
+  // 멤버 이름을 누르면 사람 카드(이메일·1:1 메시지·명함 — components/Common/usePersonPopover)
+  const { openPerson, personNode } = usePersonPopover(project?.business_id);
   if (!projectId) return <PageShell title="Error"><Empty>{t('error.invalidUrl', '잘못된 주소')}</Empty></PageShell>;
   // ★ 보여줄 것이 아직 없을 때만 로딩 화면. 이미 그려진 페이지를 스피너로 덮으면
   //   그 안의 편집기·스크롤·열어둔 패널이 언마운트로 전부 날아간다.
@@ -1076,7 +1079,9 @@ const QProjectDetailPage: React.FC = () => {
                   return (
                     <MemberRow key={m.user_id}>
                       <MemberName>
-                        {m.User?.display_name || m.User?.name || `user ${m.user_id}`}
+                        <PersonNameButton type="button" data-testid="project-member-name" onClick={(e) => openPerson(m.user_id, e.currentTarget)}>
+                          {m.User?.display_name || m.User?.name || `user ${m.user_id}`}
+                        </PersonNameButton>
                         {isOwner && <OwnerTag>{t('members.owner', '오너')}</OwnerTag>}
                         {isPm && !isOwner && <PmTag>PM</PmTag>}
                       </MemberName>
@@ -1124,6 +1129,8 @@ const QProjectDetailPage: React.FC = () => {
               if (candidates.length === 0) return <Dim style={{ marginTop: 6 }}>{t('members.noCandidates', '추가 가능한 워크스페이스 멤버가 없습니다')}</Dim>;
               return addMemberOpen ? (
                 <AddMemberBox>
+                  {/* 프로젝트 멤버 = 프로젝트 채팅 참여자(2026-11-16 서버가 같이 넣는다) — 따로 초대할 필요 없다고 알린다 */}
+                  <Dim>{t('members.chatLinkHint', '추가한 멤버는 이 프로젝트의 채팅에도 자동으로 들어갑니다.')}</Dim>
                   {/* 20~30명이면 목록만으로는 못 찾는다 — 8명 넘으면 찾기 칸(문서 공동 편집자·메일 담당과 같은 규칙) */}
                   {candidates.length > 8 && (
                     <PickerFilter value={addMemberQuery} onChange={(e) => setAddMemberQuery(e.target.value)} autoFocus
@@ -1550,6 +1557,7 @@ const QProjectDetailPage: React.FC = () => {
         cancelText={t('common.cancel', '취소') as string}
         variant="danger"
       />
+      {personNode}
     </PageShell>
   );
 };

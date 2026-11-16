@@ -234,7 +234,11 @@
       "clientTag": "Client",
       "aiTag": "AI",
       "invitePh2": "Select member or client",
-      "pendingNote": "Invited clients will join this chat automatically once they accept"
+      "pendingNote": "Invited clients will join this chat automatically once they accept",
+      "projectAdded": "{{name}} was also added to the project and joins its other chats.",
+      "projectNotAllowed": "{{name}} joined this chat only. Only the workspace owner can add project members.",
+      "projectLinkHint": "This is a project chat — inviting a member also adds them to the project.",
+      "projectLinkHintMember": "This is a project chat. People who are not project members join this chat only (only the owner can add project members)."
     }
   },
   "modal": {
@@ -539,7 +543,9 @@
     "openMemberProfile": "Open member profile",
     "externalUser": "(External user)",
     "noName": "(No name)",
-    "openCard": "View card"
+    "openCard": "View card",
+    "directMessage": "Direct message",
+    "dmFailed": "Couldn't open the direct chat"
   },
   "popout": {
     "title": "PlanQ Chat"

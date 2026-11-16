@@ -463,7 +463,8 @@
     "pmOff": "PM 지정",
     "pmOn": "PM 해제",
     "pmOwner": "프로젝트 생성자는 자동 PM",
-    "search": "이름·이메일로 찾기"
+    "search": "이름·이메일로 찾기",
+    "chatLinkHint": "추가한 멤버는 이 프로젝트의 채팅에도 자동으로 들어갑니다."
   },
   "docs": {
     "drop": {

@@ -556,6 +556,98 @@ router.post('/:businessId', authenticateToken, checkBusinessAccess, async (req, 
   } catch (error) { next(error); }
 });
 
+// ─────────────────────────────────────────────────────────
+// 1:1 대화 — 있으면 그 방, 없으면 만든다 (2026-11-16 Irene «아이디 클릭하면 … 1:1 메시지 보내기»)
+//   «둘만의 방» = 이 워크스페이스의 프로젝트·고객 없는 팀 대화(사적 방 — isPrivateConversation)이고 보관 안 됐고
+//   참여자(viewer 제외, Cue 제외)가 정확히 나와 상대 둘. 누를 때마다 새 방이 생기지 않게 찾는 쪽이 먼저다.
+//   멤버끼리만(owner·admin·member, 정지·내보냄 제외) — 고객은 기존 고객 대화방으로 만난다.
+//   새로 만들 때만 대화방 수 한도(create_conversation)를 본다 — 있는 방을 여는 것은 한도와 무관.
+// ─────────────────────────────────────────────────────────
+router.post('/:businessId/direct', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+  // audit-exempt: 새로 만들 때의 감사는 아래 openDirect 가 남긴다(있는 방을 찾아 여는 것은 쓰기가 아니다)
+  try {
+    const businessId = Number(req.params.businessId);
+    const me = Number(req.user.id);
+    const target = Number(req.body?.user_id);
+    if (!target) return errorResponse(res, 'user_id required', 400);
+    if (target === me) return errorResponse(res, 'self_direct', 400);
+    const PEOPLE = ['owner', 'admin', 'member'];
+    const [mine, theirs] = await Promise.all([
+      BusinessMember.findOne({ where: { business_id: businessId, user_id: me, removed_at: null }, attributes: ['role'] }),
+      BusinessMember.findOne({ where: { business_id: businessId, user_id: target, removed_at: null }, attributes: ['role', 'user_id'] }),
+    ]);
+    if (!mine || !PEOPLE.includes(mine.role)) return errorResponse(res, 'members_only', 403);
+    if (!theirs || !PEOPLE.includes(theirs.role)) return errorResponse(res, 'user_not_in_workspace', 403);
+    const targetUser = await User.findByPk(target, { attributes: ['id', 'name', 'is_ai', 'status'] });
+    if (!targetUser || targetUser.is_ai) return errorResponse(res, 'user_not_in_workspace', 403);
+    if (targetUser.status && targetUser.status !== 'active') return errorResponse(res, 'user_inactive', 409);
+    // 같은 두 사람의 동시 요청은 줄을 세운다(한 프로세스 안) — 빠르게 두 번 누르면 방이 둘 생겼다(Fable 비차단 1)
+    const lockKey = `${businessId}:${Math.min(me, target)}:${Math.max(me, target)}`;
+    const prev = directLocks.get(lockKey) || Promise.resolve();
+    let release;
+    const myTurn = new Promise((r) => { release = r; });
+    const chain = prev.then(() => myTurn);
+    directLocks.set(lockKey, chain);
+    await prev;
+    try {
+      return await openDirect(req, res, { businessId, me, target, targetUser });
+    } finally {
+      release();
+      if (directLocks.get(lockKey) === chain) directLocks.delete(lockKey);
+    }
+  } catch (error) { next(error); }
+});
+
+// 둘만의 방 찾기·만들기 본체 — 위 라우트가 같은 두 사람 요청을 줄 세운 뒤 부른다
+async function openDirect(req, res, { businessId, me, target, targetUser }) {
+  {
+    const business = await Business.findByPk(businessId, { attributes: ['id', 'cue_user_id'] });
+    // 둘만의 방 찾기 — 참여자 행(viewer 제외)에서 나·상대가 모두 있고 다른 사람(Cue 제외)이 없는 사적 방
+    const [rows] = await sequelize.query(
+      `SELECT c.id FROM conversations c
+         JOIN conversation_participants p ON p.conversation_id = c.id AND p.is_viewer = 0
+        WHERE c.business_id = :biz AND c.project_id IS NULL AND c.client_id IS NULL
+          AND c.channel_type = 'internal' AND c.archived_at IS NULL
+          AND (:cue IS NULL OR p.user_id <> :cue)
+        GROUP BY c.id
+       HAVING COUNT(DISTINCT p.user_id) = 2
+          AND SUM(p.user_id = :me) > 0 AND SUM(p.user_id = :target) > 0
+        ORDER BY MAX(c.last_message_at) DESC, c.id DESC
+        LIMIT 1`,
+      { replacements: { biz: businessId, me, target, cue: business?.cue_user_id || null } },
+    );
+    if (rows.length) {
+      const found = await Conversation.findByPk(rows[0].id);
+      return successResponse(res, { ...found.toJSON(), reused: true });
+    }
+
+    const planCan = await require('../services/plan').can(businessId, 'create_conversation');
+    if (!planCan.ok) return res.status(403).json(require('../services/plan').buildQuotaError(planCan, businessId));
+    const names = await getMemberNameMap(businessId, [me, target]);
+    const meUser = await User.findByPk(me, { attributes: ['name'] });
+    const nameOf = (uid, fallback) => names.get(uid)?.name || fallback || '';
+    const title = [nameOf(me, meUser?.name), nameOf(target, targetUser.name)].filter(Boolean).join(' · ') || '1:1';
+    const conversation = await sequelize.transaction(async (t) => {
+      const conv = await Conversation.create({
+        business_id: businessId, project_id: null, client_id: null, title,
+        channel_type: 'internal', cue_enabled: false, auto_extract_enabled: false,
+      }, { transaction: t });
+      await joinParticipant(conv.id, me, 'owner', { transaction: t });
+      await joinParticipant(conv.id, target, 'member', { transaction: t });
+      return conv;
+    });
+    await createAuditLog({
+      user_id: me, business_id: businessId,
+      action: 'create', entity_type: 'conversation', entity_id: conversation.id,
+      new_value: { title, channel_type: 'direct', direct_with: target },
+    });
+    emitParticipantsChanged(req, conversation.id, target);
+    emitParticipantsChanged(req, conversation.id, me);
+    return successResponse(res, { ...conversation.toJSON(), reused: false }, 'Conversation created', 201);
+  }
+}
+const directLocks = new Map();
+
 // 참여자 명단이 바뀌었다는 **신호만** 보낸다(행 없음) — 같은 방을 열어 둔 사람의 @ 후보·참여자 목록과
 //   추가·제거된 본인의 대화 목록이 새로고침 없이 따라오게. 받는 화면이 id 로 다시 읽는다.
 function emitParticipantsChanged(req, conversationId, userId) {
@@ -563,6 +655,52 @@ function emitParticipantsChanged(req, conversationId, userId) {
   if (!io) return;
   const payload = { conversation_id: conversationId };
   io.to(`conv:${conversationId}`).to(`conv:${conversationId}:staff`).to(`user:${userId}`).emit('conversation:participants', payload);
+}
+
+// 프로젝트 대화방에 워크스페이스 멤버를 넣으면 **프로젝트 멤버로도** 넣는다(2026-11-16 Irene «서로 연결된 건데 각각 따로 초대»).
+//   권한은 프로젝트 멤버 관리와 **같은 술어**(routes/projects.js PUT /:id/members — 워크스페이스 대표·플랫폼 관리자).
+//   그 밖의 사람이 넣으면 채팅에만 들어가고 화면이 «프로젝트 멤버 추가는 대표만» 을 알린다 — 채팅 초대가
+//   프로젝트 가시성(참여 멤버만 보는 프로젝트)을 넓히는 뒷문이 되지 않게.
+//   들어가면 그 프로젝트의 다른 대화방에도 참여자로(PUT /members 와 같은 joinProjectMemberToChannels).
+//   돌려주는 것: { project_member: 'added' | 'already' | 'not_allowed' } — 프로젝트 방이 아니거나 고객이면 {}.
+async function syncProjectMember(req, conv, bm) {
+  if (!conv.project_id || !bm || bm.removed_at || !['owner', 'admin', 'member'].includes(bm.role)) return {};
+  const userId = Number(bm.user_id);
+  try {
+    const exists = await ProjectMember.findOne({ where: { project_id: conv.project_id, user_id: userId }, attributes: ['id'] });
+    if (exists) return { project_member: 'already' };
+    // routes/projects.js PUT /:id/members 와 글자까지 같은 판정(같은 함수 · 같은 조건)
+    const { project, role, error } = await require('../services/projectAccess').loadProjectOrForbidden(Number(conv.project_id), req.user.id);
+    if (error || !project || Number(project.business_id) !== Number(conv.business_id)) return {};
+    const isPlatformAdmin = req.user.platform_role === 'platform_admin';
+    if (!isPlatformAdmin && role !== 'owner') return { project_member: 'not_allowed' };
+    await sequelize.transaction(async (t) => {
+      await ProjectMember.create({
+        project_id: project.id, user_id: userId, role: null, role_order: 0,
+        is_pm: userId === project.owner_user_id,
+      }, { transaction: t });
+      await require('../services/auditService').writeAudit({
+        userId: req.user.id, businessId: project.business_id, action: 'project.members.add',
+        targetType: 'project', targetId: project.id, ipAddress: req.ip,
+        newValue: { user_id: userId, via: 'conversation', conversation_id: conv.id },
+      }, { transaction: t });
+    });
+    const io = req.app.get('io');
+    await require('../services/project_channel').joinProjectMemberToChannels({
+      projectId: project.id, businessId: project.business_id, userIds: [userId], actorUserId: req.user.id,
+      via: 'project_member', io, exceptConversationId: conv.id,
+    });
+    if (io) {
+      const payload = { id: project.id, business_id: project.business_id };
+      require('../services/projectRoom').emitBusinessForProject(io, project.business_id, project.id, 'project:updated', payload).catch(() => {});
+      require('../services/projectRoom').emitProject(io, project.id, 'project:updated', payload);
+    }
+    return { project_member: 'added' };
+  } catch (e) {
+    if (e?.name === 'SequelizeUniqueConstraintError') return { project_member: 'already' };
+    console.warn('[conversations.participants] project member sync', e.message);
+    return {};
+  }
 }
 
 // 참여자 개별 추가/제거
@@ -592,7 +730,7 @@ router.post('/:businessId/:id/participants', authenticateToken, checkBusinessAcc
     // 참여자면 그대로. «보는 중»(열어 보기만 한) 행이면 아래 joinParticipant 가 참여자로 **올린다** —
     //   예전엔 행이 있으면 그대로 돌려줘서 viewer 를 초대할 길이 없었다(Fable 판정 3).
     const exists = await ConversationParticipant.findOne({ where: { conversation_id: conv.id, user_id } });
-    if (exists) return successResponse(res, exists);
+    if (exists) return successResponse(res, { ...exists.toJSON(), ...(await syncProjectMember(req, conv, isWorkspaceMember)) });
     // ★ 역할은 **서버가 정한다** — 워크스페이스 멤버면 member, 아니면(프로젝트 고객) client.
     //   여태 요청 본문의 role 을 그대로 썼고 없으면 'member' 였다 → 고객이 member 로 들어가
     //   내부 메시지 알림 제외(role==='client' 판정)에서 빠질 수 있었다(운영 실측 1건, 2026-10-06).
@@ -603,7 +741,8 @@ router.post('/:businessId/:id/participants', authenticateToken, checkBusinessAcc
       newValue: { user_id: Number(user_id), role: created.role },
     });
     emitParticipantsChanged(req, conv.id, Number(user_id));
-    successResponse(res, created, 'Participant added', 201);
+    const sync = await syncProjectMember(req, conv, isWorkspaceMember);
+    successResponse(res, { ...created.toJSON(), ...sync }, 'Participant added', 201);
   } catch (error) { next(error); }
 });
 // 권한: 본인이 나가는 경우(셀프 제거) 또는 owner/platform_admin 만.
