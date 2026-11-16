@@ -150,6 +150,7 @@
       "authFailed": "Could not connect — the username or password is incorrect.",
       "hostNotFound": "IMAP server address not found. Please check the server address.",
       "connectFailed": "Could not reach the mail server. Check the server address and port.",
+      "unreachable": "The mail server isn't responding. If the address and port are correct, the server is likely blocking connections from abroad (PlanQ's servers are outside Korea). Ask your mail administrator or hosting provider to allow access from PlanQ's servers.",
       "duplicate": "This email is already registered.",
       "gmailSmtp": "Gmail rejected the sending (SMTP) login. Check that the sending username is your full email address and the app password is correct.",
       "naverSmtp": "Naver rejected the sending (SMTP) login. In Naver Mail settings > POP3/IMAP, turn on \"IMAP/SMTP\", and check the sending username is your full email address.",
@@ -157,6 +158,7 @@
       "smtpAuth": "The sending (SMTP) login failed. Check the sending username (usually your full email address) and password.",
       "smtpHost": "The sending (SMTP) server address could not be found. Please check it.",
       "smtpConnect": "Couldn't connect to the sending (SMTP) server. Check the server address and port (465 or 587).",
+      "smtpUnreachable": "The sending (SMTP) server isn't responding. If the address and port are correct, the server is likely blocking connections from abroad (PlanQ's servers are outside Korea). Ask your mail administrator or hosting provider to allow access from PlanQ's servers.",
       "gmailAuthInvalid": "Google rejected the sign-in. ① If 2-Step Verification is off, you can't create an app password — turn it on first using the guide above. ② If it's already on, copy the 16-character app password again and paste it (not your account password).",
       "hostNotAllowed": "This server address can't be used (internal network address). Enter your mail provider's public server address."
     },

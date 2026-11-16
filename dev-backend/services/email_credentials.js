@@ -18,6 +18,13 @@ function normalizeImapPassword(host, password) {
     : raw.trim();
 }
 
+// 연결 단계에서 상대가 아무 답도 안 함 — 방화벽·해외 IP 차단에서 흔하다. 거절(ECONNREFUSED)은 포트가 틀린 쪽이라 빼 둔다.
+function isUnreachable(e, msg) {
+  const code = e && e.code;
+  if (code === 'ETIMEDOUT' || code === 'EHOSTUNREACH' || code === 'ENETUNREACH') return true;
+  return /timed out while connecting|connection timeout|ETIMEDOUT|EHOSTUNREACH|ENETUNREACH/i.test(msg);
+}
+
 async function verifyImapCredentials({ host, port, tls, username, password, folder }) {
   try {
     const imaps = require('imap-simple');
@@ -43,6 +50,9 @@ async function verifyImapCredentials({ host, port, tls, username, password, fold
       return { ok: false, code: 'imap_auth_failed', detail: msg };
     }
     if (/enotfound|getaddrinfo/i.test(msg)) return { ok: false, code: 'imap_host_not_found', detail: msg };
+    // 응답 없음(타임아웃) ≠ 주소·포트 틀림 — 2026-11-16 gmate.co.kr 실측: 한국 회사 메일 서버가 해외(우리 서버 DE)
+    //   접속을 말없이 버려 «주소·포트 확인» 안내가 거짓이었다(같은 값으로 맥 메일은 연결됨).
+    if (isUnreachable(e, msg)) return { ok: false, code: 'imap_unreachable', detail: msg };
     return { ok: false, code: 'imap_connect_failed', detail: msg };
   }
 }
@@ -76,6 +86,7 @@ async function verifySmtpCredentials({ host, port, username, password, tls }) {
       return { ok: false, code: 'smtp_auth_failed', detail: msg };
     }
     if (/enotfound|getaddrinfo/i.test(msg)) return { ok: false, code: 'smtp_host_not_found', detail: msg };
+    if (isUnreachable(e, msg)) return { ok: false, code: 'smtp_unreachable', detail: msg };
     return { ok: false, code: 'smtp_connect_failed', detail: msg };
   } finally {
     try { tr.close(); } catch { /* noop */ }

@@ -94,6 +94,7 @@ export const IMAP_ERROR_GUIDE: Record<string, { key: string; def: string; preset
   imap_auth_failed: { key: 'settings.err.authFailed', def: '', field: 'imap_password' },
   imap_host_not_found: { key: 'settings.err.hostNotFound', def: '', field: 'imap_host' },
   imap_connect_failed: { key: 'settings.err.connectFailed', def: '', field: 'imap_host' },
+  imap_unreachable: { key: 'settings.err.unreachable', def: '', field: 'imap_host' },
   // 목적지 검사(utils/netGuard) — 받기·보내기 서버 둘 다 이 코드를 쓴다. 받기 칸으로 보낸다.
   invalid_host: { key: 'settings.err.hostNotFound', def: '', field: 'imap_host' },
   host_unresolved: { key: 'settings.err.hostNotFound', def: '', field: 'imap_host' },
@@ -106,6 +107,7 @@ export const IMAP_ERROR_GUIDE: Record<string, { key: string; def: string; preset
   smtp_auth_failed: { key: 'settings.err.smtpAuth', def: '', field: 'smtp_username' },
   smtp_host_not_found: { key: 'settings.err.smtpHost', def: '', field: 'smtp_host' },
   smtp_connect_failed: { key: 'settings.err.smtpConnect', def: '', field: 'smtp_host' },
+  smtp_unreachable: { key: 'settings.err.smtpUnreachable', def: '', field: 'smtp_host' },
 };
 
 // IMAP host → 안내 가이드 key (편집 모드에서도 provider 안내 표시)
