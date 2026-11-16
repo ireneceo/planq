@@ -320,6 +320,10 @@ pm2 restart planq-dev-backend
 
 ---
 
+## 개발 명령 설정 (상황판 «들어온 문의» 계약 — `~/dev-server/public/docs/SERVER-GUIDE.ko.md` 3절)
+- 운영 문의 읽기(읽기 전용): `.claude/commands/개발시작.md` 1-B ② — `ssh … mysql … < dev-backend/scripts/feedback-board.sql | node scripts/feedback-board.js --build --deployed <운영 .last-deployed-commit>` → 채우기 → `--post`
+- 답글 길: 피드백(`fb#`) = 운영에서 `node scripts/feedback-reply.js <replies.json>`(시험 실행 · `status` 는 지금 상태 그대로 = 상태 안 바꿈) → 같은 명령 `--apply` · 손님 문의(`landing#`) = 없음 — 관리자 > 문의 화면에서 주인이 직접(«메일로 회신»). 상황판 «방에 답장 맡기기» 일은 이 길만 쓴다
+
 ## 배포 규칙
 
 - **Irene이 "배포" 명령을 하지 않으면 절대 배포하지 않음**

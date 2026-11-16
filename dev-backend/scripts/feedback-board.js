@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 // 상황판 «들어온 문의» 칸 올리기 — 개발시작.md 1-B (설계 docs/FEEDBACK_AUTOREPLY_BOARD_DESIGN.md §2)
 //
-//   --build [--out <파일>]   표준입력 = 운영 조회 결과(한 줄에 JSON 하나, src 'fb'|'landing') → 줄 뼈대 JSON
+//   --build [--out <파일>] [--deployed <운영 커밋>]   표준입력 = 운영 조회 결과(한 줄에 JSON 하나, src 'fb'|'landing') → 줄 뼈대 JSON
 //                            (기본 /opt/planq/.claude/plans/inquiries-board.json · 커밋 안 함). title·draft 는 비워 둔다.
+//                            --deployed = 운영 backend/.last-deployed-commit — AI 조사 «이미 고쳐짐» 커밋이 운영에 나갔는지 근거로 쓴다(없으면 «모름»).
 //   --post [--file <파일>]   방이 title(우리 말 요약)·draft 를 채운 파일을 검사 → POST /api/inquiries. 걸리면 안 올리고 exit 1.
 //   --fail "<이유>"          운영을 못 읽었을 때 — ok:false 만 올린다(지난 목록 유지). 빈 목록을 ok:true 로 올리지 않는다.
 //
@@ -10,6 +11,7 @@
 const fs = require('fs');
 const path = require('path');
 const http = require('http');
+const { execFileSync } = require('child_process');
 const { buildItems, checkForPost } = require('../services/feedbackBoard');
 
 const BOARD = process.env.BOARD_URL || 'http://127.0.0.1:8800';
@@ -45,7 +47,19 @@ async function main() {
       try { rows.push(JSON.parse(l)); } catch (_) { bad.push(i + 1); }
     });
     if (bad.length) { console.error(`[feedback-board] JSON 아닌 줄 ${bad.length}개(${bad.slice(0, 5).join(',')}) — 조회를 확인`); process.exit(1); }
-    const { items, total } = buildItems(rows);
+    const deployedRef = String(opt('--deployed') || '').trim();
+    let isDeployed = null;
+    if (/^[0-9a-f]{7,40}$/.test(deployedRef)) {
+      const repo = path.join(__dirname, '..', '..');
+      isDeployed = (commit) => {
+        const c = String(commit || '').trim();
+        if (!/^[0-9a-f]{7,40}$/.test(c)) return null;
+        try { execFileSync('git', ['-C', repo, 'merge-base', '--is-ancestor', c, deployedRef], { stdio: 'ignore' }); return true; } catch (e) {
+          return e.status === 1 ? false : null; // 1 = 조상 아님(배포 전) · 그 밖 = 커밋을 모름
+        }
+      };
+    } else if (deployedRef) { console.error(`[feedback-board] --deployed 값이 커밋 모양 아님 — 무시(운영 반영 «모름»)`); }
+    const { items, total } = buildItems(rows, { isDeployed });
     const out = opt('--out') || DEFAULT_FILE;
     fs.mkdirSync(path.dirname(out), { recursive: true });
     fs.writeFileSync(out, JSON.stringify({ builtAt: new Date().toISOString(), total, items, base: items }, null, 2));
