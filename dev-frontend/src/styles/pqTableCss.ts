@@ -13,6 +13,9 @@
 import { css } from 'styled-components';
 
 export const pqTableCss = css`
+  /* 차트 블록(2026-11-16, components/Docs/ChartBlock) — 문서 본문을 그리는 모든 곳이 이 조각을 붙이므로 여기에 둔다 */
+  .pq-chart { margin: 12px 0; max-width: 720px; border: 1px solid #E2E8F0; border-radius: 8px; overflow: hidden; background: #fff; line-height: 0; }
+  .pq-chart img { display: block; width: 100%; height: auto; margin: 0; border-radius: 0; }
   .tableWrapper {
     margin: 16px 0;
     max-width: 100%;

@@ -447,6 +447,12 @@ show_changes() {
     # head -10 이 파이프를 조기에 닫아 git diff/grep 이 SIGPIPE(141) → set -euo pipefail 이 배포 전체를
     # 중단시키던 버그(변경파일 >10 인 모든 증분 배포). || true 로 흡수.
     (git diff --name-only "$LAST_REMOTE" "$DEPLOY_COMMIT" 2>/dev/null | grep -E '^(dev-(backend|frontend)|q-note)' | head -10 | sed 's/^/    /') || true
+    # 화면·서버 공용 파일(2026-11-16 차트 블록) — 화면 빌드가 같은 파일을 가져온다. --skip-build 로 서버만 올리면
+    #   PDF·서명본과 화면의 차트 그림이 갈라진다(docs/DOC_CHART_BLOCK_DESIGN.md 4절). 그런 배포는 멈춘다.
+    if [ "$SKIP_BUILD" = true ] && git diff --name-only "$LAST_REMOTE" "$DEPLOY_COMMIT" 2>/dev/null | grep -qx 'dev-backend/utils/chartSvg.js'; then
+      echo "  ✖ dev-backend/utils/chartSvg.js 가 바뀌었다 — 화면도 같은 파일로 빌드해야 한다. --skip-build 없이 다시 배포한다."
+      exit 1
+    fi
   else
     echo "  Last deployed: (first deploy)"
   fi

@@ -59,3 +59,11 @@ paths:
   조건 잠금 = 본문 잠금(`isPostSignatureLocked`) · 서명 화면에 조건이 보인다(`publicView`) · 급여 계약서 제외 · 금액 계산은 `services/invoiceCreate.computeAmounts` 한 곳(손으로 만드는 청구서와 같다). 설계 `docs/CONTRACT_AUTO_INVOICE_DESIGN.md`.
   **빈 칸 안내(«+ 청구 조건 적기»)는 서명 요청 창 3단계에서만** 보인다(2026-10-27, Irene «서명을 할 때만 넣거나 따로 원해서 설정에서 넣고 싶은 사람에게만») — 문서 화면은 설정 › 기능 사용
   «문서에 청구 조건 칸 보이기»(`modules.doc_billing_terms`, 기본 끔 · API 는 막지 않는다)를 켠 워크스페이스만. 적어 둔 조건·서명 뒤 «청구서 만들기» 는 늘 보인다. 칸은 같은 `BillingTermsSection`(`offerEmpty`).
+
+## 차트 블록 = 데이터 노드, 실행 코드 없음 (2026-11-16 · 설계 `docs/DOC_CHART_BLOCK_DESIGN.md` · Fable 설계 FIX 반영)
+> Irene: *"문서에 html로 작성하는 기능도 넣을까? 그래프들 못 넣어서 답답해"* → HTML 자유 입력 대신 차트 블록(«권고대로»).
+- 노드 `pqChart` attrs.chart = `{v,kind,title,labels,series,unit}` 뿐. 그림은 **`dev-backend/utils/chartSvg.js` 한 벌**(서버 require · 화면 `components/Docs/chartData.ts` 가 빌드 때 가져옴) → `<img src="data:image/svg+xml">`. 정화기에 svg 태그를 넣지 않는다.
+- 렌더 소비처를 늘리면 같이: 편집기·`postContentHtml` EXTENSIONS(화면) · `pdfTemplates.nodeToHtml`(PDF·서명본) · `docxService.blockXml`(워드=데이터 표) · `posts.js extractText/extractBlockText`(검색·공유 본문).
+- 서버로 보내는 HTML(`postContentToHtml` — AI 고쳐쓰기·템플릿)은 그림 없는 조각만. 그림 함수 뜻이 바뀌면 `v` 를 올린다(서명 고정본 그림).
+- **옛 화면 보호** — 새로 그리는 노드를 만들면 `routes/posts.js GUARDED_NODES` 와 `services/posts.ts EDITOR_NODES` 에 같이 넣는다(옛 번들이 빈 본문으로 저장해 지우는 것을 409 `editor_outdated` 로 막는다).
+- `--skip-build` 배포에 `chartSvg.js` 변경이 끼면 배포 스크립트가 멈춘다.

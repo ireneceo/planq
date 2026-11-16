@@ -123,6 +123,18 @@ function blockXml(node, ctx) {
       return tableXml(node);
     case 'horizontalRule':
       return '<w:p><w:pPr><w:pBdr><w:bottom w:val="single" w:sz="6" w:color="CBD5E1"/></w:pBdr></w:pPr></w:p>';
+    case 'pqChart': {
+      // 차트 블록(2026-11-16) — 워드에는 그림 대신 제목 + 데이터 표로 넣는다(설계 docs/DOC_CHART_BLOCK_DESIGN.md)
+      try {
+        const c = require('../utils/chartSvg').normalizeChart(node.attrs && node.attrs.chart);
+        const cell = (type, text) => ({ type, content: [{ type: 'paragraph', content: text ? [{ type: 'text', text }] : [] }] });
+        const fmt = (v) => (v == null ? '' : String(v));
+        const rows = [{ type: 'tableRow', content: [cell('tableHeader', c.unit ? `(${c.unit})` : ''), ...c.series.map((x) => cell('tableHeader', x.name))] },
+          ...c.labels.map((l, i) => ({ type: 'tableRow', content: [cell('tableCell', l), ...c.series.map((x) => cell('tableCell', fmt(x.values[i])))] }))];
+        const head = c.title ? paraXml(runXml(c.title, { bold: true })) : '';
+        return head + (c.series.length && c.labels.length ? tableXml({ type: 'table', content: rows }) : '');
+      } catch { return ''; }
+    }
     case 'image':
       // 이미지는 넣지 않는다(파일 상단 주석). 무엇이 빠졌는지는 알려준다.
       return paraXml(runXml(`[이미지: ${node.attrs?.alt || node.attrs?.title || '첨부'}]`, { italic: true }));

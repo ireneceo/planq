@@ -359,6 +359,9 @@ function nodeToHtml(n) {
     // 칸 채우기 색(2026-10-12) — #rrggbb 모양만(편집기 PqTableCell 과 같은 규칙)
     case 'tableCell': return `<td${span}${cellFillAttr(a)}>${inner}</td>`;
     case 'tableHeader': return `<th${span}${cellFillAttr(a)}>${inner}</th>`;
+    // 차트 블록(2026-11-16) — 화면과 **같은 함수**(utils/chartSvg)로 같은 그림. 실패해도 그 차트만 빈 자리(PDF·서명 화면 전체가 500 이 되지 않게)
+    case 'pqChart':
+      try { return require('../utils/chartSvg').chartHtml(a.chart); } catch { return ''; }
     case 'image': {
       const w = a.width ? ` width="${escapeHtml(String(a.width).replace(/[^0-9a-z%.]/gi, ''))}"` : '';
       return `<img src="${escapeHtml(absolutizeSrc(a.src))}"${w} alt="${escapeHtml(a.alt || '')}"/>`;

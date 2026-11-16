@@ -7,7 +7,7 @@ import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
 import { useRevealSelectedRow } from '../../hooks/useRevealSelectedRow';
 import { joinRoom, leaveRoom, onSocket } from '../../services/socket';
 import { useTranslation } from 'react-i18next';
-import { postContentToHtml } from '../../utils/postContentHtml';
+import { postContentToHtml, countCharts } from '../../utils/postContentHtml';
 import { docHasContent } from '../../utils/docHasContent';
 import { sanitizeRichText } from '../../utils/sanitizeHtml';
 import HelpDot from '../Common/HelpDot';
@@ -847,6 +847,9 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId, onEditingChange }) =>
       });
       setContentDraft(r.body_html as unknown);
       setAiCtx((prev) => (prev ? { ...prev, instructions: nextInstructions } : prev));
+      // 차트 블록(2026-11-16) — AI 가 차트 조각을 지웠으면 조용히 넘기지 않는다(Fable 설계 1).
+      const lostCharts = countCharts(baseHtml || '') - countCharts(String(r.body_html || ''));
+      if (lostCharts > 0) setError(t('editor.chart.aiDropped', { count: lostCharts, defaultValue: 'AI 가 고쳐 쓰면서 차트 {{count}}개가 빠졌습니다. «차트는 그대로 두라» 고 지시해 다시 생성해 보세요.' }) as string);
     } catch (e) {
       setError((e as Error).message || (t('ai.regenFailed', '재생성 실패. 잠시 후 다시 시도해 주세요.') as string));
     } finally { setRegenBusy(false); }

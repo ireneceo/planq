@@ -911,6 +911,40 @@
       "sourceLine": "— From: {{title}}{{by}}",
       "emptyBody": "This document has no body to insert.",
       "failed": "Couldn't load the document. Please try again."
+    },
+    "chart": {
+      "editBtn": "Edit chart",
+      "insertTitle": "Insert chart",
+      "editTitle": "Edit chart",
+      "save": "Save",
+      "insert": "Insert",
+      "kind": "Type",
+      "kinds": {
+        "bar": "Bar",
+        "line": "Line",
+        "area": "Area",
+        "pie": "Pie"
+      },
+      "titleLabel": "Title",
+      "titlePh": "e.g. Monthly revenue",
+      "unitLabel": "Unit",
+      "unitPh": "e.g. USD",
+      "data": "Data",
+      "hint": "The first column is the item, the header row is the series name. You can paste cells copied from Excel.",
+      "hintPie": "Pie charts use only the first series. You can paste cells copied from Excel.",
+      "seriesName": "Series {{n}} name",
+      "seriesPh": "Series {{n}}",
+      "delSeries": "Remove this series",
+      "addSeries": "Series",
+      "labelName": "Item {{n}}",
+      "labelPh": "Item {{n}}",
+      "delRow": "Remove this item",
+      "addRow": "Item",
+      "preview": "Preview",
+      "fromTable": "Chart",
+      "fromTableHint": "Make a chart from this table's values and insert it below (the table stays)",
+      "aiDropped": "AI rewriting dropped {{count}} chart(s). Try regenerating with the instruction \"keep the charts\".",
+      "cancel": "Cancel"
     }
   },
   "tab": {

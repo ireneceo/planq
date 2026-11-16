@@ -86,6 +86,10 @@ async function assertWorkspaceOrClient(userId, businessId, platformRole) {
 // 문서 편집 권한 — services/postAccess.canEditPost 한 벌(작성자 + 공동 편집자, docs/DOC_COEDITORS_DESIGN.md). 프로젝트 옮기기는 canMovePostProject.
 const { canEditPost, canMovePostProject } = require('../services/postAccess');
 
+// 옛 화면이 그리지 못하는 «보호 노드» — 화면 services/posts.ts EDITOR_NODES 와 짝(2026-11-16 차트 블록)
+const GUARDED_NODES = ['pqChart'];
+const chartSvg = require('../utils/chartSvg');
+
 // Plain text 추출 — Tiptap JSON → 검색/프리뷰용 plain string
 function extractText(json) {
   if (!json) return '';
@@ -95,6 +99,8 @@ function extractText(json) {
     const walk = (n) => {
       if (!n) return;
       if (n.text) out.push(n.text);
+      // 차트 블록 — 제목·항목·값을 검색 글자로(그림에는 text 노드가 없다)
+      if (n.type === 'pqChart') out.push(chartSvg.chartText(n.attrs && n.attrs.chart));
       if (Array.isArray(n.content)) n.content.forEach(walk);
     };
     walk(obj);
@@ -127,6 +133,8 @@ function extractBlockText(json, { maxChars = 100000 } = {}) {
     const walk = (n) => {
       if (!n) return;
       if (n.type === 'hardBreak') { cur.push('\n'); return; }
+      // 차트 블록 — 공유 페이지 본문·AI 읽기에 제목·항목·값을 한 블록으로(Fable 설계 7)
+      if (n.type === 'pqChart') { flush(); cur.push(chartSvg.chartText(n.attrs && n.attrs.chart)); flush(); return; }
       if (n.text) cur.push(n.text);
       if (Array.isArray(n.content)) n.content.forEach(walk);
       if (BLOCK_TYPES.has(n.type)) flush();
@@ -866,6 +874,17 @@ router.put('/:id', authenticateToken, async (req, res, next) => {
     }
     // 자동저장 PUT — 타이핑 중이라는 뜻. 감사 로그·거래 stage 는 명시 저장에서만 발화한다
     //   (안 그러면 글 하나 쓰는 동안 audit_logs 에 수십 row 가 쌓이고 stage 가 흔들린다).
+    // 옛 화면 보호(2026-11-16 차트 블록 · Fable 설계 6) — 배포 전 번들은 차트 노드를 몰라 문서를 빈 본문으로 그린다.
+    //   그 화면이 저장하면 차트와 본문이 통째로 지워진다(실측: 옛 번들에서 차트 문서 보기·편집 모두 빈 화면).
+    //   새 화면은 updatePost 가 editor_nodes 를 싣는다. 보호 노드가 있는 문서에 그 표시 없이 본문을 쓰면 막는다(새로고침 안내).
+    if (req.body.content_json !== undefined && post.content_json) {
+      const stored = String(post.content_json);
+      const known = Array.isArray(req.body.editor_nodes) ? req.body.editor_nodes : [];
+      const missing = GUARDED_NODES.filter((n) => stored.includes(`"type":"${n}"`) && !known.includes(n));
+      if (missing.length) {
+        return res.status(409).json({ success: false, code: 'editor_outdated', message: '화면이 옛 버전이라 이 문서를 저장할 수 없습니다. 새로고침 후 다시 편집해 주세요.' });
+      }
+    }
     const isAutosave = req.body.autosave === true;
     const patch = {};
     if (req.body.title !== undefined) patch.title = String(req.body.title).slice(0, 200);

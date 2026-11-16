@@ -34,7 +34,10 @@ function questionnaireView({ record, post, business, settings, recipient }) {
   if (isSurvey) {
     try {
       const { richBodyToHtml } = require('../services/pdfTemplates');
-      descriptionHtml = String(richBodyToHtml(post.content_json, null, null) || '').slice(0, 50000);
+      descriptionHtml = String(richBodyToHtml(post.content_json, null, null) || '');
+      // 50,000자에서 자르면 차트 그림(<img> base64) 중간이 잘린다 — 넘치면 차트를 대체 글만으로 바꾼 뒤 자른다(2026-11-16)
+      if (descriptionHtml.length > 50000) descriptionHtml = descriptionHtml.replace(/<img src="data:image\/svg\+xml;base64,[^"]*" alt="([^"]*)"[^>]*>/g, '<p>$1</p>');
+      descriptionHtml = descriptionHtml.slice(0, 50000);
     } catch { descriptionHtml = ''; }
   }
   return {

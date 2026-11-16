@@ -22,6 +22,7 @@ import { PqTableCell, PqTableHeader } from '../components/Docs/editorTableCellFi
 import { SignatureField } from '../components/Docs/SignatureField';
 import { textStyleExtensions } from '../components/Docs/editorTextStyle';
 import { sanitizeRichText } from './sanitizeHtml';
+import { ChartBlock } from '../components/Docs/ChartBlock';
 
 /** 편집기와 **같은 확장 목록**. 여기서만 늘린다. */
 //   ★ `link: false` — StarterKit v3 가 Link 를 자체 포함한다. 그대로 두고 우리 Link 를 또 넣으면
@@ -36,7 +37,9 @@ const EXTENSIONS = [StarterKit.configure({ link: false }), Link, Image,
   // 서명란(2026-09-22) — 빠지면 읽기·공유 화면에서 서명 자리가 통째로 사라진다(변환기가 모르는 노드는 버린다)
   SignatureField,
   // 글자색·배경·크기(2026-10-11) — 빠지면 그 mark 에서 throw 해 문서 통째로 빈 문자열이 된다
-  ...textStyleExtensions];
+  ...textStyleExtensions,
+  // 차트 블록(2026-11-16) — 빠지면 보기·게스트에서 차트가 통째로 사라진다(서명란과 같은 계열)
+  ChartBlock];
 
 /**
  * 변환만 한다(정화 없음). 서버로 보낼 HTML 은 이 함수를 쓴다.
@@ -44,10 +47,22 @@ const EXTENSIONS = [StarterKit.configure({ link: false }), Link, Image,
  *   예외를 던지지 않는다.
  */
 export function postContentToHtml(contentJson: unknown): string {
+  // ★ 서버로 가는 HTML(AI 고쳐쓰기 base_html·문서 템플릿)에는 차트 그림(base64)을 싣지 않는다 — 데이터 조각만.
+  //   그림 하나가 AI 입력 글자 한도(24,000자)를 먹어 뒤 본문이 잘린다(Fable 설계 1). 편집기가 조각을 다시 차트로 읽는다.
+  return stripChartImages(renderHtml(contentJson));
+}
+function renderHtml(contentJson: unknown): string {
   if (!contentJson) return '';
   try {
     return generateHTML(contentJson as Record<string, unknown>, EXTENSIONS);
   } catch { return ''; }
+}
+export function stripChartImages(html: string): string {
+  return html.includes('data-pq-chart') ? html.replace(/<div([^>]*\sdata-pq-chart="[^"]*"[^>]*)><img[^>]*><\/div>/g, '<div$1></div>') : html;
+}
+/** HTML 안 차트 개수 — AI 고쳐쓰기 뒤 차트가 빠졌는지 본다 */
+export function countCharts(html: string): number {
+  return (html.match(/data-pq-chart=/g) || []).length;
 }
 
 /** 표를 가로 스크롤 래퍼로 감싼다.
@@ -75,6 +90,6 @@ export function wrapTables(html: string): string {
 
 /** 화면에 넣을 HTML — 변환 + 정화 + 표 래핑. `dangerouslySetInnerHTML` 에는 **이것만** 쓴다. */
 export function postContentToSafeHtml(contentJson: unknown): string {
-  const html = postContentToHtml(contentJson);
+  const html = renderHtml(contentJson);
   return html ? wrapTables(sanitizeRichText(html)) : '';
 }

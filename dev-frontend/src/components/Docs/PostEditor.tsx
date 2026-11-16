@@ -19,6 +19,9 @@ import { pqTableCss } from '../../styles/pqTableCss';
 import { TableRow } from '@tiptap/extension-table-row';
 import { PqTableCell, PqTableHeader } from './editorTableCellFill';   // 칸·열·행 채우기 색(2026-10-12)
 import TableBubbleMenu from './TableBubbleMenu';
+import { ChartBlock, chartBlockCss } from './ChartBlock';   // 차트 블록(2026-11-16, docs/DOC_CHART_BLOCK_DESIGN.md)
+import ChartEditorModal from './ChartEditorModal';
+import type { ChartData } from './chartData';
 import { openEditorLinkForm } from '../Common/AppContextMenu';   // 표 손잡이 → 행·열·칸 색 메뉴(2026-10-12)
 import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight';
 import TextAlign from '@tiptap/extension-text-align';
@@ -103,6 +106,10 @@ const PostEditor: React.FC<Props> = ({ value, onChange, onReady, placeholder, ed
   // useEditor 옵션은 생성 시점 값으로 굳는다 — 최신 콜백을 ref 로 붙든다.
   const onReadyRef = useRef(onReady);
   onReadyRef.current = onReady;
+  // 차트 창 — insert(커서 자리 · 또는 표 아래 insertAt) / edit(그 차트 pos)
+  const [chartModal, setChartModal] = useState<{ mode: 'insert' | 'edit'; pos?: number; insertAt?: number; initial: ChartData | null } | null>(null);
+  const openChartEditRef = useRef<(pos: number, chart: ChartData) => void>(() => {});
+  openChartEditRef.current = (pos, chart) => setChartModal({ mode: 'edit', pos, initial: chart });
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
@@ -125,6 +132,11 @@ const PostEditor: React.FC<Props> = ({ value, onChange, onReady, placeholder, ed
       ResizableImage.configure({ inline: false, allowBase64: false, HTMLAttributes: { class: 'editor-image' } }),
       // 서명란 — 문서 안의 «여기에 서명이 들어간다» 자리. 문구는 여기서 t() 로 넣는다(확장 안에 글자를 박지 않는다).
       signatureFieldExtension(t),
+      // 차트 블록 — 데이터만 저장, 그림은 서버와 같은 함수(chartData). 읽기 전용이면 [차트 고치기] 를 그리지 않는다
+      ChartBlock.configure({
+        onEdit: editable ? (pos, chart) => openChartEditRef.current(pos, chart) : undefined,
+        labels: { edit: t('editor.chart.editBtn', '차트 고치기') as string },
+      }),
       // #363 — 정렬(좌/가운데/우). 문단과 제목에만 적용한다.
       //   목록·인용·코드블록은 정렬을 걸면 구조가 깨져 보이므로 대상에서 뺀다.
       //   렌더는 style="text-align:..." — 저장 JSON 에 textAlign attr 로 들어간다.
@@ -407,6 +419,20 @@ const PostEditor: React.FC<Props> = ({ value, onChange, onReady, placeholder, ed
                 <line x1="15" y1="3" x2="15" y2="21"/>
               </svg>
             </ToolBtn>
+            <ToolBtn
+              type="button"
+              data-testid="doc-insert-chart"
+              onClick={() => setChartModal({ mode: 'insert', initial: null })}
+              title={t('editor.chart.insertTitle', '차트 넣기')}
+              aria-label={t('editor.chart.insertTitle', '차트 넣기')}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="4" y1="20" x2="20" y2="20"/>
+                <rect x="6" y="11" width="3" height="9"/>
+                <rect x="11" y="6" width="3" height="14"/>
+                <rect x="16" y="14" width="3" height="6"/>
+              </svg>
+            </ToolBtn>
           </Group>
           {isActive('table') && (
             <>
@@ -465,7 +491,20 @@ const PostEditor: React.FC<Props> = ({ value, onChange, onReady, placeholder, ed
         </BubbleMenu>
       )}
       {/* 표 안에 커서가 있을 때 — 표 위 모서리 손잡이 → 누르면 행·열·칸 색 메뉴 (TableBubbleMenu) */}
-      {editable && <TableBubbleMenu editor={editor} />}
+      {editable && <TableBubbleMenu editor={editor}
+        onChartFromTable={(chart, insertAt) => setChartModal({ mode: 'insert', insertAt, initial: chart })} />}
+      {editable && (
+        <ChartEditorModal open={!!chartModal} mode={chartModal?.mode || 'insert'} initial={chartModal?.initial || null}
+          onClose={() => setChartModal(null)}
+          onSubmit={(chart) => {
+            const m = chartModal;
+            setChartModal(null);
+            if (!m) return;
+            if (m.mode === 'edit' && typeof m.pos === 'number') editor.chain().focus().updateChartAt(m.pos, chart).run();
+            else if (typeof m.insertAt === 'number') editor.chain().focus().insertChartAt(m.insertAt, chart).run();
+            else editor.chain().focus().insertChart(chart).run();
+          }} />
+      )}
       <Body $editable={editable} $borderless={borderless} $compact={compact}>
         <LightboxWrapper>
           <EditorContent editor={editor} />
@@ -570,7 +609,7 @@ const Body = styled.div<{ $editable?: boolean; $borderless?: boolean; $compact?:
      이게 없으면 본문이 길어질 때 Wrap 에 잘려 스크롤 불가 (메모장 스크롤 안 됨 회귀 fix). */
   ${p => p.$compact ? `flex: 1; min-height: 0; overflow-y: auto; ` : ''}
 
-  ${signatureFieldEditorCss}${checklistEditorCss}${findReplaceEditorCss}
+  ${signatureFieldEditorCss}${checklistEditorCss}${findReplaceEditorCss}${chartBlockCss}
 
   /* ─── 표 — 편집·보기 같은 기준 한 벌(styles/pqTableCss · 설계 components/Docs/pqTable.ts, 2026-11-04) ───
      옛 규칙(편집 width:max-content / 보기 display:table·width:100%·9열 :has 덮어쓰기 / 링크 칸 320px)은

@@ -911,6 +911,40 @@
       "sourceLine": "— 가져온 글: {{title}}{{by}}",
       "emptyBody": "이 문서는 넣을 본문이 없습니다.",
       "failed": "문서를 불러오지 못했습니다. 다시 시도해 주세요."
+    },
+    "chart": {
+      "editBtn": "차트 고치기",
+      "insertTitle": "차트 넣기",
+      "editTitle": "차트 고치기",
+      "save": "저장",
+      "insert": "넣기",
+      "kind": "종류",
+      "kinds": {
+        "bar": "막대",
+        "line": "선",
+        "area": "영역",
+        "pie": "원"
+      },
+      "titleLabel": "제목",
+      "titlePh": "예: 월별 매출",
+      "unitLabel": "단위",
+      "unitPh": "예: 만원",
+      "data": "데이터",
+      "hint": "첫 열은 항목, 머리줄은 계열 이름입니다. 엑셀에서 복사한 칸을 표에 붙여넣을 수 있어요.",
+      "hintPie": "원 그래프는 첫 번째 계열만 씁니다. 엑셀에서 복사한 칸을 표에 붙여넣을 수 있어요.",
+      "seriesName": "계열 {{n}} 이름",
+      "seriesPh": "계열 {{n}}",
+      "delSeries": "이 계열 빼기",
+      "addSeries": "계열",
+      "labelName": "항목 {{n}}",
+      "labelPh": "항목 {{n}}",
+      "delRow": "이 항목 빼기",
+      "addRow": "항목",
+      "preview": "미리보기",
+      "fromTable": "차트로",
+      "fromTableHint": "이 표의 값으로 차트를 만들어 표 아래에 넣습니다 (표는 그대로)",
+      "aiDropped": "AI 가 고쳐 쓰면서 차트 {{count}}개가 빠졌습니다. «차트는 그대로 두라» 고 지시해 다시 생성해 보세요.",
+      "cancel": "취소"
     }
   },
   "tab": {

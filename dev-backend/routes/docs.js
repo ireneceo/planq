@@ -502,8 +502,12 @@ ${guidance}`;
       ? `${rawBase.slice(0, BASE_CAP)}\n<!-- (이하 생략됨 — 생략된 뒷부분은 그대로 유지한다고 가정하고 이어서 작성) -->`
       : rawBase;
 
+    // 차트 블록(2026-11-16) — 화면이 그림 없이 데이터 조각만 보낸다. 모델이 지우거나 고치면 차트가 사라진다.
+    const chartRule = baseHtml.includes('data-pq-chart')
+      ? '\n※ `<div data-pq-chart="…"></div>` 는 문서 안의 차트다. 지시가 그 차트를 지우라고 하지 않는 한 그 태그를 속성 값 그대로, 같은 자리에 둔다.'
+      : '';
     const baseBlock = baseHtml
-      ? `\n\n[현재 문서 — 이것을 **고쳐서** 내라. 지시와 무관한 부분은 사용자가 손댄 결과이므로 그대로 보존한다]\n${baseHtml}`
+      ? `\n\n[현재 문서 — 이것을 **고쳐서** 내라. 지시와 무관한 부분은 사용자가 손댄 결과이므로 그대로 보존한다]${chartRule}\n${baseHtml}`
       : '';
     const refineLine = instructions.length
       ? `\n\n[수정 지시 — 앞에서 뒤로 누적된 요구다. **모두** 반영한다. 뒤엣것이 앞엣것과 충돌하면 뒤엣것을 따른다]\n`

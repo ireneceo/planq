@@ -11,8 +11,9 @@ import { BubbleMenu } from '@tiptap/react/menus';
 import { currentCellFillKey, setCellFill } from './editorTableCellFill';
 import { CellFillButton } from './CellFillButton';
 import { distributeTableColumnsEvenly } from './editorTableFit';   // 표 열 폭 맞춤(운영 #311)
+import { chartFromMatrix, type ChartData } from './chartData';   // 이 표로 차트(2026-11-16)
 
-const TableBubbleMenu: React.FC<{ editor: Editor }> = ({ editor }) => {
+const TableBubbleMenu: React.FC<{ editor: Editor; onChartFromTable?: (chart: ChartData, insertAt: number) => void }> = ({ editor, onChartFromTable }) => {
   const { t } = useTranslation('qdocs');
   const [tableMenuOpen, setTableMenuOpen] = useState(false);
   // 표 밖으로 나가면 표 메뉴를 다시 접는다(다음 표에 들어갈 때는 손잡이부터).
@@ -74,6 +75,22 @@ const TableBubbleMenu: React.FC<{ editor: Editor }> = ({ editor }) => {
                 title={t('editor.table.evenColsHint', '표를 본문 폭에 맞추고 열을 같은 너비로 나눕니다 (드래그로 다시 조절 가능)') as string}
                 onMouseDown={(e) => { e.preventDefault(); distributeTableColumnsEvenly(editor); }}>⇹{t('editor.table.evenCols', '폭 맞춤')}</TableBubbleBtn>
             </TableBubbleGroup>
+            {onChartFromTable && (
+              <>
+                <TableBubbleSep />
+                <TableBubbleGroup>
+                  <TableBubbleBtn type="button" data-testid="editor-table-to-chart"
+                    title={t('editor.chart.fromTableHint', '이 표의 값으로 차트를 만들어 표 아래에 넣습니다 (표는 그대로)') as string}
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      const at = tableUnderCursor(editor);
+                      if (!at) return;
+                      setTableMenuOpen(false);
+                      onChartFromTable(chartFromMatrix(at.matrix), at.end);
+                    }}>📊 {t('editor.chart.fromTable', '차트로')}</TableBubbleBtn>
+                </TableBubbleGroup>
+              </>
+            )}
             <TableBubbleSep />
             <TableBubbleGroup>
               <CellFillButton current={currentCellFillKey(editor)} onPick={(scope, item) => { setCellFill(editor, scope, item.value); }} />
@@ -98,6 +115,23 @@ const TableBubbleMenu: React.FC<{ editor: Editor }> = ({ editor }) => {
 };
 
 export default TableBubbleMenu;
+
+// 커서가 든 표 → 칸 글자 2차원 배열 + 표 바로 뒤 위치(차트를 넣을 자리)
+function tableUnderCursor(editor: Editor): { matrix: string[][]; end: number } | null {
+  const { $from } = editor.state.selection;
+  for (let d = $from.depth; d > 0; d--) {
+    const node = $from.node(d);
+    if (node.type.name !== 'table') continue;
+    const matrix: string[][] = [];
+    node.forEach((row) => {
+      const cells: string[] = [];
+      row.forEach((cell) => { cells.push(cell.textContent); });
+      matrix.push(cells);
+    });
+    return { matrix, end: $from.after(d) };
+  }
+  return null;
+}
 
 // 표 메뉴의 기준점 — 커서가 아니라 **표의 위 모서리**. 커서 기준이면 메뉴가 바로 윗줄 칸을 덮는다.
 //   표 머리가 화면(툴바) 위로 스크롤돼 나가면 지금 칸의 위 모서리로 내려온다(손잡이 하나 크기만 겹친다).

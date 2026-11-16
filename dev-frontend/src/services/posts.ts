@@ -272,6 +272,9 @@ export class StaleEditError extends Error {
   }
 }
 
+/** 이 화면이 그릴 줄 아는 «보호 노드» — 서버 routes/posts.js GUARDED_NODES 와 짝. 새 보호 노드를 만들면 둘 다 더한다 */
+export const EDITOR_NODES = ['pqChart'];
+
 export async function updatePost(id: number, patch: Partial<{
   title: string; content_json: TiptapDoc; category: string | null; status: 'draft' | 'published'; is_pinned: boolean;
   project_id: number | null; conversation_id: number | null;
@@ -287,7 +290,9 @@ export async function updatePost(id: number, patch: Partial<{
   const r = await apiFetch(`/api/posts/${id}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(patch),
+    // 본문을 보낼 때 «이 화면이 아는 노드» 를 같이 싣는다(2026-11-16 차트 블록) — 옛 화면(배포 전 번들)은 차트를 몰라
+    //   문서를 빈 본문으로 그리고 그대로 저장하면 차트·본문이 지워진다. 서버가 이 값이 없으면 차트 문서 저장을 막는다.
+    body: JSON.stringify(patch.content_json !== undefined ? { ...patch, editor_nodes: EDITOR_NODES } : patch),
   });
   // ★ apiFetch 는 throw 하지 않는다 — 상태 코드를 직접 봐야 실패가 침묵하지 않는다.
   if (r.status === 409) {
