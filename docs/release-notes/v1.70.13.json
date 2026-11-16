@@ -1,0 +1,42 @@
+{
+  "version": "1.70.13",
+  "date": "2026-11-16",
+  "_auto": true,
+  "_range": "d1c6b0ec..44e1a6aa",
+  "summary": {
+    "ko": "조직 전용 판매 정리와 iOS 공유, 구독 결제 계산을 개선했어요",
+    "en": "Improved organization-only sales flow, iOS sharing, and subscription billing"
+  },
+  "items": [
+    {
+      "ko": {
+        "title": "조직 전용 판매 화면과 안내 문구 정리",
+        "body": "조직 전용 판매 설정 시 사업자 안내 문구와 가입 업종 입력, 약관 동의, 앱 내 구매 안내가 더 또렷하게 보이도록 정리했어요. 필요한 정보를 빠뜨리지 않고 설정할 수 있습니다."
+      },
+      "en": {
+        "title": "Clearer organization-only sales setup and guidance",
+        "body": "When setting up organization-only sales, business guidance text, required business type input, terms agreement, and in-app purchase notices are now shown more clearly. This helps you complete the setup without missing required information."
+      }
+    },
+    {
+      "ko": {
+        "title": "iOS에서 PlanQ로 콘텐츠 공유 연결 개선",
+        "body": "iOS에서 공유하기를 통해 PlanQ를 선택하면 공유 링크가 PlanQ로 더 안정적으로 전달되도록 처리 방식을 다듬었어요. 다른 앱에서 PlanQ로 내용을 옮길 때 끊김이 줄어듭니다."
+      },
+      "en": {
+        "title": "More reliable sharing to PlanQ from iOS",
+        "body": "When you choose PlanQ from the iOS share menu, shared links are now passed into PlanQ more reliably. This reduces interruptions when sending content from other apps into PlanQ."
+      }
+    },
+    {
+      "ko": {
+        "title": "구독 결제에서 멤버 추가 슬롯 금액 반영",
+        "body": "구독 결제 시 멤버 추가 슬롯 금액이 결제 금액에 빠지던 문제를 고쳤어요. 이제 미결제 청구 금액에 플랜과 현재 애드온(멤버 추가 슬롯)이 모두 정확히 합산됩니다."
+      },
+      "en": {
+        "title": "Member add-on slots now included in subscription billing",
+        "body": "We fixed an issue where member add-on slots were not included in the subscription amount. Your outstanding charges now correctly include both your plan and current add-ons (member slots)."
+      }
+    }
+  ]
+}
