@@ -8,6 +8,7 @@ const planEngine = require('../services/plan');
 const { PLANS, PLAN_ORDER, ADDONS, toPublicJson, planAtLeast, getAddon, listAddonsForPlan,
   bonusMonthsForTrialOption, newTrialBusinessFields } = require('../config/plans');
 const { sequelize } = require('../config/database');
+const { isWorkspaceAdminReq } = require('../middleware/access_scope');
 
 // ─── 결제 면제 워크스페이스 진입 차단 (운영 #275) ───
 // 진짜 게이트는 서비스(createPendingSubscription / requestAddon)에 있다 — cron 도 지나가야 하므로.
@@ -428,9 +429,8 @@ const { Subscription, Payment } = require('../models');
 // body: { plan_code: 'starter'|'basic'|'pro', cycle: 'monthly'|'yearly' }
 router.post('/:businessId/checkout', authenticateToken, checkBusinessAccess, async (req, res, next) => {
   try {
-    if (req.businessRole !== 'owner' && req.user.platform_role !== 'platform_admin') {
-      return errorResponse(res, 'owner_only', 403);
-    }
+    // 결제(지불)는 대표·관리자 둘 다 — 2026-11-16 Irene «관리자도 결제할 수 있어야». 환불·플랜 내리기는 대표만 그대로.
+    if (!isWorkspaceAdminReq(req)) return errorResponse(res, 'owner_or_admin_only', 403);
     const businessId = Number(req.params.businessId);
     const { plan_code, cycle = 'monthly', currency = 'KRW', tax_invoice, trial_option } = req.body || {};
     if (!plan_code || !PLANS[plan_code]) return errorResponse(res, 'invalid_plan_code', 400);
@@ -485,9 +485,8 @@ router.post('/:businessId/checkout', authenticateToken, checkBusinessAccess, asy
 //   success/cancel URL 은 서버 상수(APP_URL) 기반 — 클라 입력 open-redirect 방지.
 router.post('/:businessId/payments/:paymentId/stripe-checkout', authenticateToken, checkBusinessAccess, async (req, res, next) => {
   try {
-    if (req.businessRole !== 'owner' && req.user.platform_role !== 'platform_admin') {
-      return errorResponse(res, 'owner_only', 403);
-    }
+    // 결제(지불)는 대표·관리자 둘 다 — 2026-11-16 Irene «관리자도 결제할 수 있어야». 환불·플랜 내리기는 대표만 그대로.
+    if (!isWorkspaceAdminReq(req)) return errorResponse(res, 'owner_or_admin_only', 403);
     const businessId = Number(req.params.businessId);
     const paymentId = Number(req.params.paymentId);
     if (await blockIfExempt(businessId, res)) return;
@@ -538,9 +537,8 @@ router.post('/:businessId/payments/:paymentId/stripe-checkout', authenticateToke
 // body: { payer_name?, payer_memo?, tax_invoice? }
 router.post('/:businessId/payments/:paymentId/notify-paid', authenticateToken, checkBusinessAccess, async (req, res, next) => {
   try {
-    if (req.businessRole !== 'owner' && req.user.platform_role !== 'platform_admin') {
-      return errorResponse(res, 'owner_only', 403);
-    }
+    // 결제(지불)는 대표·관리자 둘 다 — 2026-11-16 Irene «관리자도 결제할 수 있어야». 환불·플랜 내리기는 대표만 그대로.
+    if (!isWorkspaceAdminReq(req)) return errorResponse(res, 'owner_or_admin_only', 403);
     const businessId = Number(req.params.businessId);
     const paymentId = Number(req.params.paymentId);
     const pay = await Payment.findOne({ where: { id: paymentId, business_id: businessId } });
@@ -702,9 +700,8 @@ router.get('/:businessId/addons', authenticateToken, checkBusinessAccess, async 
 //   입금 후 owner 가 /addons/orders/:paymentId/mark-paid 로 결제 확정.
 router.post('/:businessId/addons/request', authenticateToken, checkBusinessAccess, async (req, res, next) => {
   try {
-    if (req.businessRole !== 'owner' && req.user.platform_role !== 'platform_admin') {
-      return errorResponse(res, 'owner_only', 403);
-    }
+    // 결제(지불)는 대표·관리자 둘 다 — 2026-11-16 Irene «관리자도 결제할 수 있어야». 환불·플랜 내리기는 대표만 그대로.
+    if (!isWorkspaceAdminReq(req)) return errorResponse(res, 'owner_or_admin_only', 403);
     const businessId = Number(req.params.businessId);
     if (await blockIfExempt(businessId, res)) return;
     const { addon_code, quantity = 1, tax_invoice } = req.body || {};

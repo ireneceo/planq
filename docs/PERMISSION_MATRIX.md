@@ -248,6 +248,7 @@ async function canFinancialAction(user, businessId, projectId) {
 | PM 지정/해제 | ● | ● | - | - | - |
 | 워크스페이스 설정 (이름/로고/권한 토글) | ● | ● | - | - | - |
 | 플랜 (내향 구독) 변경·결제수단 등록 | ● | ● | - | - | - |
+| 구독·추가 슬롯 **결제** (checkout · 카드 결제 · 입금했어요 · 추가 신청) — **admin 도 ●** (2026-11-16 Irene «관리자도 결제할 수 있어야», `routes/plan.js` `isWorkspaceAdminReq`) | ● | ● | - | - | - |
 | 포트원·팝빌 API 키 등록 | ● | ● | - | - | - |
 | 결제 수동 기록 (invoice_payments 수동) | ● | ● | - | - | - |
 | 환불 처리 | ● | ● | - | - | - |

@@ -609,7 +609,7 @@ const PlanSettings: React.FC<Props> = ({ businessId }) => {
           네이티브에서 노출하면 안 된다. 플랜 CTA 와 같은 게이트. */}
       {canPurchaseInApp() && currentPlan.code !== 'free' && currentPlan.code !== 'enterprise' && businessId && (
         <Section>
-          <AddonSection businessId={businessId} isOwner={user?.business_role === 'owner' || user?.platform_role === 'platform_admin'} onChanged={load} />
+          <AddonSection businessId={businessId} isOwner={user?.business_role === 'owner' || user?.business_role === 'admin' || user?.platform_role === 'platform_admin'} onChanged={load} />
         </Section>
       )}
 
