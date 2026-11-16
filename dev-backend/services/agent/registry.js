@@ -466,7 +466,7 @@ const TOOLS = [
   //   문서는 services/actions/post_actions(화면과 같은 함수), 파일은 driveImport.ingestDownloadedFile.
   {
     name: 'create_document', risk: 'LOW', write: true, scopes: ['docs:write'],
-    description: 'Create a document in PlanQ Q docs (title + content written in Markdown: headings, lists, bold, links). Optionally put it in a project (find project_id with search_projects) and link related documents (two-way). Visible to the project members, or to the whole workspace when no project — same as creating it in the app.',
+    description: 'Create a document in PlanQ Q docs (title + content written in Markdown: headings, lists, bold, links, tables as GitHub pipe tables). Optionally put it in a project (find project_id with search_projects) and link related documents (two-way). Visible to the project members, or to the whole workspace when no project — same as creating it in the app.',
     input: {
       title: z.string().trim().min(1).max(200),
       content: z.string().max(100000).describe('Document body in Markdown'),
@@ -564,7 +564,7 @@ const TOOLS = [
   },
   {
     name: 'create_memo', risk: 'LOW', write: true, scopes: ['notes:write'],
-    description: 'Save a private text memo in PlanQ Q note (title + body in Markdown), optionally linked to a project or client. Only the user can see it until they share it in PlanQ. Only adds. Write what the user said — do not add follow-ups, advice or items they did not mention.',
+    description: 'Save a private text memo in PlanQ Q note (title + body in Markdown; tables as GitHub pipe tables), optionally linked to a project or client. Only the user can see it until they share it in PlanQ. Only adds. Write what the user said — do not add follow-ups, advice or items they did not mention.',
     input: {
       title: z.string().trim().min(1).max(200),
       body: z.string().max(100000).describe('Memo body in Markdown — only the facts the user stated, one line each. Never add conclusions, next steps or implications.'),
