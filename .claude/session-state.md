@@ -1,9 +1,10 @@
 ## 현재 작업 상태
-### 🕓 메일 한국 중계(B안) — 코드 완료 · 서울 서버 기다림 (방 a0a49cdb · 2026-11-17 · [Opus] · Fable 설계 DESIGN-FIX 7건 반영 · 완료 검증 진행)
+### 🕓 나중에 — 메일 한국 중계(B안): 코드 완료 · 서울 서버 기다림 (방 a0a49cdb · 2026-11-17 · [Opus] · Fable 설계 DESIGN-FIX 반영 · 완료 검증 PASS(꺼진 채 배포) · 켜기 전 차단 A 는 2b918ee2 로 고침 — VM 뒤 Fable 재검증)
 - Irene «권고대로» B안. 설계 `docs/MAIL_KR_RELAY_DESIGN.md` · 코드 f255e762(`services/mailRoute` 한 곳 · `email_accounts.connect_route` · 운영 이관 `migrate-mail-connect-route.js` 배포 슬롯 등록).
 - 운영 .env `MAIL_RELAY_URL` 이 없으면 지금과 똑같이 동작(꺼진 채 배포 가능).
 - Irene 할 일 카드 todomwkgoi77 «서울 리전 서버 1대 만들기» — 이전 카드 todomwin8l7c(gmate 허용 요청)는 이 방법으로 대체해 뺌. 열쇠 `~/.ssh/planq_relay_ed25519`.
-- 서버가 오면: ssh → VM 에서 gmate 993 TCP·인증서 실측(설계 7절 6) → dante·방화벽(PlanQ 운영·개발 IP) → dante 무응답 코드 매핑·IDLE 30분 실측 → 운영 .env 는 배포 때.
+- 서버가 오면: ssh → VM 에서 gmate 993 TCP·인증서 실측(설계 7절 6) → dante·방화벽(PlanQ 운영·개발 IP) → dante 무응답 코드 매핑·IDLE 30분 실측 → Fable 재검증(설계 8절 남은 것 + A 수정분) → PASS 면 설계 8절에 줄 맨 앞 `RELAY-PROD-OK:` 줄 → 운영 .env MAIL_RELAY_URL(그 전엔 배포 점검이 막음).
+- 운영 반영: 다음 배포 때(꺼진 채 — 이관 migrate-mail-connect-route.js 슬롯 등록됨).
 
 ### (이전) 답 기다림 — 해외 접속을 막는 한국 메일 서버(gmate 등) 대처 방법 (방 a0a49cdb · 2026-11-17 · [Opus]) — Irene «권고대로» B 로 답함
 - 무엇: gmate 처럼 해외 IP 를 통째로 막는 메일 서버를 어떻게 붙일지. 실측 11-17 — PlanQ 서버에서 gmate 메일(1.234.54.22, 25·80·443·993·143·465·587)·홈페이지(116.127.123.151 https) 전부 응답 없음, 같은 때 naver·daum·gabia·cafe24 는 200 → 우리 망 문제 아님. Mac·폰 메일은 사용자 기기(한국 IP)에서 바로 붙어서 됨.
