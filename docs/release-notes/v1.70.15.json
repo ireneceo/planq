@@ -1,0 +1,82 @@
+{
+  "version": "1.70.15",
+  "date": "2026-11-17",
+  "_auto": true,
+  "_range": "edf0c081..f255e762",
+  "summary": {
+    "ko": "근태·휴가 끄기 스위치와 편집기 복사·지우기 버튼 등 사용성이 좋아졌어요",
+    "en": "Improved usability with time-off on/off switch and new copy/clear buttons in editors"
+  },
+  "items": [
+    {
+      "ko": {
+        "title": "근태·휴가 기능, 한 번에 끄고 숨길 수 있어요",
+        "body": "설정 › 근태 관리 맨 위에서 근태·휴가 기능을 끌 수 있습니다. 끄면 관련 메뉴와 위젯, 알림이 모두 숨겨져 근태 관리를 쓰지 않는 팀도 화면이 더 단순해집니다."
+      },
+      "en": {
+        "title": "Turn time & leave features off in one place",
+        "body": "You can now turn off time and leave features at the top of Settings › Time Management. When turned off, related menus, widgets, and notifications are hidden so teams not using attendance stay on a simpler screen."
+      }
+    },
+    {
+      "ko": {
+        "title": "편집기 입력란에 ‘복사’·‘모두 지우기’ 버튼 추가",
+        "body": "업무 결과물·설명 등 RichEditor 입력란 9곳에 ‘복사’와 ‘모두 지우기’ 버튼이 생겼습니다. 긴 내용을 한 번에 복사하거나, 입력을 빠르게 비우고 다시 쓸 수 있습니다."
+      },
+      "en": {
+        "title": "New Copy and Clear buttons in rich text fields",
+        "body": "RichEditor fields such as work results and descriptions now have Copy and Clear All buttons. Quickly copy long content in one click or empty the field to start over faster."
+      }
+    },
+    {
+      "ko": {
+        "title": "Q mail 팝업 창, 워크스페이스가 고정돼요",
+        "body": "Q mail 팝업 창에서는 메인 화면 워크스페이스 전환이 영향을 주지 않습니다. 팝업 안에서만 워크스페이스를 바꿀 수 있고, 창을 닫으면 메인 화면의 원래 메일로 돌아갑니다."
+      },
+      "en": {
+        "title": "Q mail pop-out window keeps its workspace fixed",
+        "body": "In the Q mail pop-out window, switching workspaces on the main screen no longer affects the pop-out. You can change workspace only inside the window, and when it closes you return to the original mail view on the main screen."
+      }
+    },
+    {
+      "ko": {
+        "title": "문서 표 열 너비가 내용에 맞게 더 자연스럽게",
+        "body": "문서에서 기본 표를 만들면 열 너비를 따로 조정하지 않은 경우, 짧은 열은 내용만큼만, 남는 공간은 긴 글이 있는 열에 더 넓게 배분됩니다. 표 읽기와 편집이 더 편해집니다."
+      },
+      "en": {
+        "title": "Table columns in docs now size more naturally to content",
+        "body": "When you insert a default table in docs and don’t adjust column widths, short columns now fit their content while remaining space is given to columns with longer text. This makes tables easier to read and edit."
+      }
+    },
+    {
+      "ko": {
+        "title": "이번 주 나의 업무, 실제 이번 주 일만 보여줘요",
+        "body": "‘이번 주 나의 업무’에서 시작 날짜가 모두 다음 주 이후인 받은 요청·진행대기 업무는 목록에서 빠집니다. 이번 주에 실제로 해야 할 일만 모아볼 수 있습니다."
+      },
+      "en": {
+        "title": "“My work this week” now shows only this week’s tasks",
+        "body": "In “My work this week”, requested or pending tasks whose dates all start after next week are no longer shown. You now see only the work that actually belongs to this week."
+      }
+    },
+    {
+      "ko": {
+        "title": "프로젝트 채팅 작업대, 멤버 규칙이 더 분명해졌어요",
+        "body": "프로젝트 채팅 방 만들기에서 넣은 멤버도 참여자 추가와 같은 규칙으로 프로젝트 멤버가 됩니다. 프로젝트 멤버가 아닌 작업대를 고르면, 오류 대신 참여할 수 없는 이유를 안내해 줍니다."
+      },
+      "en": {
+        "title": "Clearer member rules in project chat workbenches",
+        "body": "Members added when creating a project chat room now follow the same rules as when adding participants and become project members. If you pick a workbench that’s not a project member, the screen explains why it can’t join instead of just failing."
+      }
+    },
+    {
+      "ko": {
+        "title": "그 밖의 개선",
+        "body": "정해 둔 멤버·고객·프로젝트·대화방 한도는 꽉 찼을 때가 아니라 실제로 넘겼을 때만 경고합니다. 업무 요청하기에서 탭을 바꿔도 담당자에 ‘나’가 남지 않고 비워져, 잘못 지정되는 일을 줄였습니다."
+      },
+      "en": {
+        "title": "Other improvements",
+        "body": "Limits for members, customers, projects, and rooms now warn only when you actually exceed them, not just when they’re full. In “Request work”, the assignee field no longer keeps “Me” when switching tabs, reducing accidental self-assignment."
+      }
+    }
+  ]
+}
