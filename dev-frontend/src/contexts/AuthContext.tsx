@@ -5,6 +5,7 @@ import i18n from '../i18n';
 import { detectClientKind } from '../services/native';
 import { setDatePrefs, type DateFormatPref, type TimeFormatPref, type WeekStartPref } from '../utils/dateFormat';
 import { clearPageCache } from '../lib/pageCache';
+import { getPinnedWorkspace, clearPinnedWorkspace } from '../utils/popout';
 import {
   purgeDraftsNotOwnedBy, purgeDraftsOf, setDraftOwner, sweepExpiredDrafts, setDraftsSuppressed, listLeaveBlockers,
   DRAFT_OWNER_KEY,
@@ -686,6 +687,23 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     setUserState(next);
   }, []);
   const [isLoading, setIsLoading] = useState(true);
+  // /me 한 벌 — 고정 창(메일 팝아웃)이면 «이 창의 워크스페이스» 범위로 묻는다(utils/popout getPinnedWorkspace).
+  //   서버가 403 view_ws_denied(멤버 해제·삭제·고객)면 고정을 풀고 정본으로 다시 묻는다 — 못 보는 워크스페이스를
+  //   붙든 채 빈 화면·오류로 남지 않게. 실패·비정상 응답은 null(호출자 종전 동작).
+  const fetchMe = async (): Promise<Record<string, unknown> | null> => {
+    const pinned = getPinnedWorkspace();
+    let res = await apiFetch(pinned ? `/api/auth/me?view_ws=${pinned}` : '/api/auth/me');
+    if (pinned && res.status === 403) {
+      const j = await res.clone().json().catch(() => null);
+      if (j?.code === 'view_ws_denied') {
+        clearPinnedWorkspace();
+        res = await apiFetch('/api/auth/me');
+      }
+    }
+    if (!res.ok) return null;
+    const result = await res.json().catch(() => null);
+    return result?.success && result.data ? result.data as Record<string, unknown> : null;
+  };
   const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // 유저 데이터 정규화
@@ -782,15 +800,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
         if (seeded) {
           // 상속 토큰으로 즉시 검증 (만료면 apiFetch 가 401→refresh 자동 복구)
-          const meRes = await apiFetch('/api/auth/me');
-          if (meRes.ok) {
-            const meResult = await meRes.json();
-            if (meResult.success && meResult.data) {
-              setUser(normalizeUser(meResult.data));
-              scheduleRefresh();
-              setIsLoading(false);
-              return;
-            }
+          const meData = await fetchMe();
+          if (meData) {
+            setUser(normalizeUser(meData));
+            scheduleRefresh();
+            setIsLoading(false);
+            return;
           }
         }
 
@@ -805,17 +820,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           //   폴백을 남겨두는 이유: 옛 백엔드(배포 시차)나 응답 형식 변화로 user 가 없을 때
           //   부팅이 통째로 죽으면 안 되기 때문이다 — 없으면 종전대로 /me 를 부른다.
           const inline = refreshRes.user as Record<string, unknown> | undefined;
-          if (inline && typeof inline === 'object' && inline.id) {
+          // ★ 고정 창은 refresh 의 user(정본 범위)를 쓰지 않는다 — 자기 워크스페이스 범위로 다시 묻는다.
+          if (inline && typeof inline === 'object' && inline.id && !getPinnedWorkspace()) {
             setUser(normalizeUser(inline));
             scheduleRefresh();
           } else {
-            const res = await apiFetch('/api/auth/me');
-            if (res.ok) {
-              const result = await res.json();
-              if (result.success && result.data) {
-                setUser(normalizeUser(result.data));
-                scheduleRefresh();
-              }
+            const meData = await fetchMe();
+            if (meData) {
+              setUser(normalizeUser(meData));
+              scheduleRefresh();
             }
           }
         }
@@ -994,13 +1007,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   // 서버에서 최신 유저 정보 다시 가져오기 (약관 재동의 등에서 사용)
   const refreshUser = async (): Promise<void> => {
     try {
-      const res = await apiFetch('/api/auth/me');
-      if (res.ok) {
-        const result = await res.json();
-        if (result.success && result.data) {
-          setUser(normalizeUser(result.data));
-        }
-      }
+      const meData = await fetchMe();
+      if (meData) setUser(normalizeUser(meData));
     } catch (e) {
       console.error('[refreshUser] failed', e);
     }

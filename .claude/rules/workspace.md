@@ -26,6 +26,16 @@ paths:
    명시값≠헤더(Q3 mismatch)는 **관찰만** 한다(`[wsctx] mismatch`) — 목록·집계 분류 전에 막으면 의도된 교차 조회가 깨진다.
 3. **전환은 모든 창에 전파된다** — `WorkspaceSyncGuard` 는 **App 루트 한 곳**(ModeGate 옆). ShellApp·ChromeOverlays
    어느 한 트리에만 두면 데스크탑 메인 창(TabAppShell)에서 안 돈다(2026-09-11 실측). 회귀: `--suite wssync`.
+   ★ **유일한 예외 — 메일 팝아웃(`/mail-popout`)은 연 워크스페이스에 고정된다** (2026-11-17, Irene «권고대로» · Fable 설계 2단계).
+   > Irene: *"다른 창이랑 옆에 두고 봐야 하는 일이 자꾸 생기는데 … 워크스페이스 바뀌어도 모두 연동 안되는 건 어려울까?"*
+   - 판정·저장은 `utils/popout.getPinnedWorkspace` **한 곳**(창의 sessionStorage + 주소 `?ws=`, **경로가 /mail-popout 일 때만** — window.open 이
+     sessionStorage 를 복사하므로 이 창이 연 다른 창이 고정을 물려받지 않게). 창 안 전환은 `switchPinnedWorkspace`(이 창만 다시 부팅, 정본 불변).
+   - 서버는 정본을 바꾸지 않는다 — `GET /api/auth/me?view_ws=N` 이 그 워크스페이스의 **직원 멤버(대표·관리자·멤버)** 일 때만 그 범위로 답하고
+     (`routes/auth.js getUserWithBusiness` opts.viewBusinessId), 아니면 403 `view_ws_denied` → 창이 고정을 풀고 정본으로(`AuthContext.fetchMe`).
+   - 고정 창은 다른 창 전환(①②)·409 stale(④)을 따르지 않는다. 삭제(⑥)·내보내짐(소켓 `workspace:left`)·창 복귀(30초)는 /me 로 다시 확인한다.
+   - 고정 창이 부르는 범위 없는 라우트는 헤더(=고정값)≠정본이라 **409 로 실패한다**(정본 데이터로 새지 않는 쪽). 메일 화면은 전부 `/businesses/:id/` 명시값이다 —
+     메일 화면에 범위 없는 호출을 더하면 고정 창에서 깨진다.
+   - **다른 팝아웃(업무·대화·노트)은 종전대로 같이 바뀐다.** 넓힐지는 써 보고 Irene 이 정한다. 새로 넓힐 때 위 판정 함수의 경로 조건만 늘리지 말고 그 화면의 범위 없는 호출부터 0 으로.
 4. **id 로 여는 상세는 항목의 워크스페이스를 확인한다.** 엔티티 라우트는 항목 자기 워크스페이스 권한만 보므로(설계 C3)
    화면이 막는다 — `utils/workspaceMatch.isOtherWorkspace` + `DetailFallback status="other_workspace" businessId=…`
    (내용은 그리지 않고 전환 안내만). 새 상세 화면도 같은 두 줄을 넣는다.

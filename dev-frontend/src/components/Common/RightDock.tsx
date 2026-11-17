@@ -30,7 +30,7 @@ export const openDockTool = (tool: DockTool) => {
  *  FAB 밖(사이드바 Cue 버튼 등)에서도 같은 함수를 부른다. 각자 분기를 복사하면
  *  한쪽만 고쳐진 채 갈라진다 — openDockTool 은 **모바일 폴백 전용**이라 그것만
  *  부르면 데스크탑에서 아무 일도 안 일어난다(실측). */
-export const launchDockTool = (tool: DockTool) => {
+export const launchDockTool = (tool: DockTool, opts?: { url?: string; name?: string }) => {
   // 창을 못 여는 곳(폰 폭·앱 안 — 아이패드 앱 포함)은 앱 안에서 연다. 판정은 utils/popout 한 곳.
   if (!canOpenSeparateWindow()) {
     if (tool === 'qtalk') { tabStore.navigateActive('/talk'); return; }
@@ -38,7 +38,7 @@ export const launchDockTool = (tool: DockTool) => {
     if (tool === 'qmail') { tabStore.navigateActive('/mail'); return; }
     openDockTool(tool); return;
   }
-  openPopout(tool);
+  openPopout(tool, opts);
 };
 
 const FAB_HIDDEN_PREFIXES = ['/memo', '/talk-popout', '/task-popout', '/note-popout', '/help-popout', '/mail-popout'];

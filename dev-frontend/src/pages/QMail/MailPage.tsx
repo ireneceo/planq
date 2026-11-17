@@ -2497,7 +2497,7 @@ const MailPage: React.FC = () => {
             )}
             {/* 새 창으로 — 메일을 다른 창 옆에 두고 관리(2026-11-17 Irene). 창을 못 여는 곳(폰 폭·앱)과 이미 분리 창이면 숨긴다 */}
             {canOpenSeparateWindow() && location.pathname !== '/mail-popout' && (
-              <AcctManageIcon type="button" data-testid="mail-popout-open" onClick={() => launchDockTool('qmail')}
+              <AcctManageIcon type="button" data-testid="mail-popout-open" onClick={() => launchDockTool('qmail', { url: `/mail-popout?ws=${businessId}`, name: `pq-qmail-${businessId}` })}
                 title={t('popout.open', { defaultValue: '새 창으로 열기' }) as string}
                 aria-label={t('popout.open', { defaultValue: '새 창으로 열기' }) as string}>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" /><polyline points="15 3 21 3 21 9" /><line x1="10" y1="14" x2="21" y2="3" /></svg>

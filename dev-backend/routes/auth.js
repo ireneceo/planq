@@ -54,7 +54,11 @@ function pickActiveBusinessId(storedId, availableIds) {
   return ids.length ? ids[0] : null;
 }
 
-const getUserWithBusiness = async (userId) => {
+// opts.viewBusinessId — **고정 창**(메일 팝아웃, 2026-11-17 Irene «권고대로» · Fable 설계 2단계)이 «이 창의 워크스페이스» 로
+//   응답을 받는다. 그 워크스페이스의 **직원 멤버(대표·관리자·멤버)** 일 때만이다 — 고객·AI·비소속·삭제면
+//   `{ view_denied: true }` 만 돌려준다(창이 정본으로 돌아간다). 정본(active_business_id)·is_active 는 바꾸지 않는다.
+const VIEW_ROLES = ['owner', 'admin', 'member'];
+const getUserWithBusiness = async (userId, opts = {}) => {
   const user = await User.findByPk(userId, {
     attributes: { exclude: USER_SENSITIVE_FIELDS }   // utils/userFields — 목록은 한 곳에서만
   });
@@ -153,37 +157,51 @@ const getUserWithBusiness = async (userId) => {
     } catch (e) { console.warn('[auth] active_business_id self-heal failed:', e.message); }
   }
 
-  // 5) is_active 플래그 부착
+  // 5) is_active 플래그 부착 — 정본 기준(고정 창이어도 스위처의 «지금» 은 정본이다)
   for (const w of workspaces) w.is_active = (w.business_id === activeId);
+
+  // 5-b) 고정 창 — 응답 범위만 그 워크스페이스로(위 opts 주석). 판정은 여기 한 곳.
+  let scopeWs = activeWs;
+  const viewId = opts.viewBusinessId != null ? Number(opts.viewBusinessId) : null;
+  if (opts.viewBusinessId != null) {
+    const vw = Number.isInteger(viewId) && viewId > 0 ? map.get(viewId) : null;
+    if (!vw || !VIEW_ROLES.includes(vw.role)) return { view_denied: true };
+    scopeWs = vw;
+  }
 
   const userData = user.toJSON();
   userData.workspaces = workspaces;
-  if (activeWs) {
-    userData.business_id = activeWs.business_id;
-    userData.business_name = activeWs.brand_name;
-    userData.business_role = activeWs.role;
+  if (opts.viewBusinessId != null) {
+    userData.view_pinned = true;
+    userData.canonical_business_id = activeId || null;
+  }
+  const activeWs_ = scopeWs;
+  if (activeWs_) {
+    userData.business_id = activeWs_.business_id;
+    userData.business_name = activeWs_.brand_name;
+    userData.business_role = activeWs_.role;
     // 메뉴 권한(none/read/write) — 화면이 «숨김» 을 따른다(0-E E-2). owner/admin 은 전부 'write'. 고객·없음은 null.
     try {
-      userData.menu_levels = (await require('../middleware/menu_permission').getMemberMenuLevels(activeWs.business_id, user.id))?.menus || null;
+      userData.menu_levels = (await require('../middleware/menu_permission').getMemberMenuLevels(activeWs_.business_id, user.id))?.menus || null;
     } catch (e) { userData.menu_levels = null; console.warn('[auth] menu_levels failed:', e.message); }
     // 워크스페이스 기능 켜기/끄기(services/modules — 메뉴가 서버 가드와 같은 값을 본다) + 급여 관리자 여부(메뉴 노출용)
     try {
       const { Business } = require('../models');
-      const bizRow = await Business.findByPk(activeWs.business_id, { attributes: ['id', 'modules', 'permissions'] });
+      const bizRow = await Business.findByPk(activeWs_.business_id, { attributes: ['id', 'modules', 'permissions'] });
       const mods = require('../services/modules').modulesOf(bizRow);
       userData.modules = mods;
       userData.can_manage_payroll = mods.payroll
-        ? await require('../services/payrollAccess').canManagePayroll(user.id, activeWs.business_id, user.platform_role, bizRow)
+        ? await require('../services/payrollAccess').canManagePayroll(user.id, activeWs_.business_id, user.platform_role, bizRow)
         : false;
     } catch (e) { userData.modules = null; userData.can_manage_payroll = false; console.warn('[auth] modules failed:', e.message); }
-    userData.workspace_timezone = activeWs.timezone;
-    userData.workspace_reference_timezones = activeWs.reference_timezones || [];
+    userData.workspace_timezone = activeWs_.timezone;
+    userData.workspace_reference_timezones = activeWs_.reference_timezones || [];
     // 워크스페이스 컨텍스트의 표시명 — 사이드바 등 UI 가 active workspace 의 이름을 보여주도록.
     // 메모 project_account_workspace_profile_split: 계정 (User.name) vs 워크스페이스 (BusinessMember.name) 분리.
-    userData.nav_prefs = activeWs.nav_prefs || null;
-    userData.table_prefs = activeWs.table_prefs || null;
-    userData.display_name = activeWs.member_name || user.name;
-    userData.display_name_localized = activeWs.member_name_localized || user.name_localized || null;
+    userData.nav_prefs = activeWs_.nav_prefs || null;
+    userData.table_prefs = activeWs_.table_prefs || null;
+    userData.display_name = activeWs_.member_name || user.name;
+    userData.display_name_localized = activeWs_.member_name_localized || user.name_localized || null;
   } else {
     userData.business_id = null;
     userData.business_name = null;
@@ -881,9 +899,14 @@ router.post('/logout', async (req, res, next) => {
 // ============================================
 router.get('/me', authenticateToken, async (req, res, next) => {
   try {
-    const userData = await getUserWithBusiness(req.user.id);
+    // ?view_ws=N — 고정 창(메일 팝아웃)이 자기 워크스페이스 범위로 받는다. 직원 멤버가 아니면 403(창이 정본으로 돌아간다).
+    const hasView = req.query.view_ws !== undefined;
+    const userData = await getUserWithBusiness(req.user.id, hasView ? { viewBusinessId: req.query.view_ws } : {});
     if (!userData) {
       return errorResponse(res, 'User not found', 404);
+    }
+    if (userData.view_denied) {
+      return res.status(403).json({ success: false, code: 'view_ws_denied', message: 'view_ws_denied' });
     }
     // platform(공지·약관 버전)은 getUserWithBusiness 가 이미 붙였다 — 단일 원천.
     successResponse(res, userData);

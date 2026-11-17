@@ -17,7 +17,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { onSocket, getSocket } from '../../services/socket';
 import { isReloadSafe } from '../../utils/reloadSafety';
 import { flushPendingSaves } from '../../services/pendingSaves';
-import { isPopoutWindow } from '../../utils/popout';
+import { isPopoutWindow, getPinnedWorkspace } from '../../utils/popout';
 import { clearPageCache } from '../../lib/pageCache';
 import {
   WORKSPACE_CHANNEL, isSwitching, canRebootNow, rebootForWorkspace,
@@ -55,6 +55,8 @@ const WorkspaceSyncGuard: React.FC = () => {
     if (!user?.id) return undefined;
     const handle = (m: Partial<WorkspaceSwitchMsg> | null | undefined) => {
       if (!m) return;
+      // 고정 창(메일 팝아웃)은 다른 창의 전환을 따르지 않는다 — 창 안 띠에서만 바꾼다(utils/popout 고정 워크스페이스).
+      if (getPinnedWorkspace()) return;
       const uid = Number(m.user_id);
       const bid = Number(m.business_id);
       if (!uid || !bid) return;
@@ -95,6 +97,8 @@ const WorkspaceSyncGuard: React.FC = () => {
     const onStale = (ev: Event) => {
       const bid = Number((ev as CustomEvent<{ business_id?: number }>).detail?.business_id);
       if (!bid) return;
+      // 고정 창은 정본과 다른 것이 정상이다 — 409 로 정본에 끌려가지 않는다(범위 없는 라우트를 부르면 그 요청만 실패).
+      if (getPinnedWorkspace()) return;
       if (bid === bizRef.current) { setPending(null); return; }
       apply(bid);
     };
@@ -120,6 +124,27 @@ const WorkspaceSyncGuard: React.FC = () => {
     const onEv = (ev: Event) => onDeleted((ev as CustomEvent<{ business_id?: number }>).detail?.business_id);
     window.addEventListener('planq:workspace-deleted', onEv);
     return () => { off(); window.removeEventListener('planq:workspace-deleted', onEv); };
+  }, [user?.id]);
+
+  // ⑦ 고정 창 — 그 워크스페이스에서 내보내졌으면(소켓 workspace:left) · 창으로 돌아올 때 /me 로 다시 확인한다.
+  //   못 보게 됐으면 AuthContext.fetchMe 가 고정을 풀고 정본으로 받는다 → ③ 이 이 창을 정본으로 다시 부팅한다.
+  useEffect(() => {
+    if (!user?.id || !getPinnedWorkspace()) return undefined;
+    let last = 0;
+    const recheck = (force = false) => {
+      // 창을 오갈 때마다 묻지 않게 30초에 한 번(내보내짐 신호는 바로)
+      if (!force && Date.now() - last < 30000) return;
+      last = Date.now();
+      void refreshRef.current().catch(() => null);
+    };
+    const off = onSocket<{ business_id?: number }>('workspace:left', (d) => {
+      if (Number(d?.business_id) === Number(bizRef.current)) recheck(true);
+    });
+    const onVis = () => { if (document.visibilityState === 'visible') recheck(); };
+    const onFocus = () => recheck();
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onVis);
+    return () => { off(); window.removeEventListener('focus', onFocus); document.removeEventListener('visibilitychange', onVis); };
   }, [user?.id]);
 
   // ③ 사본이 조용히 바뀐 경우 — 첫 값은 기준선으로만 기억한다(부팅), 계정이 바뀌면 기준선을 새로 잡는다

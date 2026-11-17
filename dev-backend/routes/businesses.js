@@ -1364,6 +1364,8 @@ router.delete('/:id/members/:memberId', authenticateToken, async (req, res, next
     if (!member.joined_at) await require('../services/inviteNotify').dismissInviteNotice('business_member', member.id);
     // 내보낸 사람의 소켓을 이 워크스페이스 룸에서 뺀다 — 안 빼면 연결이 끊길 때까지 방송을 계속 받는다.
     if (member.user_id) require('../services/socketRevoke').leaveBusinessRooms(req.app.get('io'), member.user_id, businessId);
+    // 그 사람의 «이 워크스페이스에 고정된 창»(메일 팝아웃)이 바로 알게 — 신호만(id). 창은 /me 로 다시 확인하고 정본으로 돌아간다.
+    if (member.user_id) { try { req.app.get('io')?.to(`user:${member.user_id}`).emit('workspace:left', { business_id: businessId }); } catch { /* noop */ } }
     // Q talk 응대 담당 — 떠난 사람이 담당으로 남으면 그 문의가 «답할 문의» 에 아무에게도 안 뜬다 → 비운다(services/convCare).
     if (member.user_id) await require('../services/convCare').clearAssignee(businessId, member.user_id, { io: req.app.get('io'), actorUserId: req.user.id, req });
     // «전체» 대화방에서도 뺀다(참여자 = 활성 멤버 · services/team_channel)

@@ -1089,6 +1089,8 @@
     "open": "Open in new window",
     "windowTitle": "PlanQ Mail",
     "workspace": "Workspace",
-    "workspaceHint": "The workspace whose mail this window shows. Switching workspaces changes this window too."
+    "workspaceHint": "The workspace whose mail this window shows. Switching workspaces changes this window too.",
+    "workspacePick": "Change this window's workspace",
+    "pinnedHint": "Only this window changes. Switching workspaces in the main window leaves this window as it is."
   }
 }
