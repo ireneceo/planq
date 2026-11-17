@@ -1627,6 +1627,23 @@
 - 시험 데이터: 문서 6406 «[확인용] 장문 목차»(넣기 시험으로 본문에 6407 내용 들어감) · 6407 «[확인용] 끼워 넣을 글» · Q info 2842(프로젝트 1126).
 - 미커밋 qmail 6파일·MailImpersonationNote·session-state 남의 절은 다른 방 것 — 손대지 않음.
 
+### 답 기다림: 시연 영상 배경음악 — BudgetPixel 3곡은 출처 표기 필수(CC BY 4.0), 이대로 쓸지 (방 4568155d · 2026-11-17 · [Opus])
+- 무엇: **BudgetPixel 세 곡은 출처 표기가 필수(CC BY 4.0)인데, 이대로 쓰고 영상을 올릴 때 설명란에 출처 줄을 붙일까요?**
+- 선택지: ① 이대로 씀(권고 — 곡·매칭 끝남, 지금 임시곡도 같은 조건, 상업·수익화 허용) ② 출처 표기 없는 곡으로 다시 고름(유튜브 오디오 보관함 «저작자 표시 필요 없음» — 외부 화면이라 Irene 따로 카드).
+- 답이 오면: ① → 끝(D′2 유튜브 메타 만들 때 catalog credit 을 설명란에 자동으로 붙이는 칸 넣기) · ② → 새 곡 받아 catalog 교체 후 r1~r3 다시 렌더.
+- 다음 할 일(답과 무관): 반복 이음매(45초 0.2초 빔) — 곡 끝 꼬리 자르고 겹쳐 잇기 · 새 템플릿 Fable UX 점검 1회(설계 §211)는 Irene 가 방향 확인한 뒤 템플릿 확정 때 · talk-d 다시 녹화.
+
+### ✅ 시연 영상 참고 영상 템플릿 + 배경음악 3곡 (방 4568155d · 2026-11-17 · [Opus] · Fable 안 씀 — dev 전용 도구, 되돌리기 쉬움 · 설계 §211 «새 템플릿 Fable UX 점검 1회»는 아직)
+- 참고 영상(Irene 11-17, Claude 가 대신 고름): Notion AI 소개(FElBbgnNtVA) · Slack «The Big Meeting»(a-uFTOioy8s) — yt-dlp 2026.10.26(~/.local/bin, 저장소 밖)로 받아 분석 후 원본 지움.
+  - 템플릿 ref-notion-ai · ref-slack-meeting · ref-mix-notion-slack(리듬·자막·전환·카메라=Notion / 색·바탕·효과음·박자=Slack). 손으로 고친 칸은 source.handFixed(다크 모드·레터박스가 색 측정을 깎음 · Notion 가운데 글자 = 챕터 카드).
+  - 측정: Notion 컷 중간 10초·분당 5.7·박자 일치 13% · Slack 컷 중간 1.7초·분당 27.9·박자 일치 51%(172bpm).
+- 음악: BudgetPixel 3곡 BrightGuitar(wav 45s)·MinimalTech(45s)·InspiringStrings(60s). **Irene 메모 «출처 표기 불필요» 와 달리 곡 페이지 원문은 CC BY 4.0 + 출처 줄 필수**(지금 임시곡 Kevin MacLeod 와 같은 조건). 일단 넣고 렌더함 — Irene 결정 대기(아래 답 기다림).
+  - 짧은 곡 반복 재생: Video.tsx `<Audio loop loopVolumeCurveBehavior="extend">` + build 박자 격자를 곡 주기로 이어 붙임.
+- 대본: a1·a2·c2 → BrightGuitar · a3 → InspiringStrings. 새 r1-feature·r2-shorts(섞은 템플릿) · r3-brand(Slack 템플릿) — 내용은 a1~a3 그대로, talk-d 검수 걸림(«PlanQ 안내» 빈 대화방, 11-15 알려진 것)은 옛 A 와 같은 소재로 비교하려고 --accept-all.
+- 커밋 cc6c40b2(음악·반복) · fd59918a(템플릿·r 대본). 렌더 out/renders/r{1,2,3}-*-{16x9,9x16}.mp4 (r1 73.8s · r2 19.5s · r3 21.4s, 1920×1080 / 1080×1920).
+- 결과 페이지 https://claude.ai/artifact/3saAMi8fdmQSWKSBQy6VEw 판 3 — 맨 위 «참고 영상 + 새 음악» 절, 예전 A 판은 아래 비교용. 페이지 원본 video-engine/out/page/.
+- 검증: r1 가로 구간별 소리 0~40s −21.9dB · 46~60s −23.4dB · 60~71s −20.2dB(45초 뒤에도 음악 있음) · 44.9s 부근 0.2초 빔(곡 끝 페이드 → 반복 이음매) · 스틸 눈 확인(밝은 청록 무늬·노란 강조).
+
 ### ✅ 시연 영상 정기 제작·발행 자동화 D′1 — 계획표·작업자 API·일정·자동 승인 (방 e6f1ecd8 · 2026-11-04 · [Opus] · Fable 설계 FAIL→반영 · 완료 검증 PASS)
 - 커밋 4b441d3b(D′1) · 다음 커밋(Fable 비차단 1·2·3·8). 설계 docs/DEMO_VIDEO_DESIGN.md §20(20.13 설계 판정 · 20.14 구현 기록 · 20.15 완료 검증).
 - 된 것: 요청 쌓기·순서 · 일정(요일·시간 창·하루 N편) · 작업자가 운영에서 받아 감(claim 직렬화·끊긴 작업 되돌리기) · AI 대본 → 검수 관문 통과면 자동 승인 → 렌더 → 조각 올리기 → «링크 대기» · 관문 걸림은 «확인 필요»(줄 안 막힘) → 승인 판·그대로 쓰기로 다시 넣으면 AI 건너뜀.
