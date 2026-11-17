@@ -4,6 +4,7 @@
 //   지정하면 서버(services/mailReplyTask)가 «메일 답변: …» 업무를 만들고 메일과 잇는다. 담당자가 답장하면 업무가 닫힌다.
 //   옛 «담당» 칩을 그대로 대신한다 — 같은 자리·같은 껍데기(ChipPopover)·같은 고르기 목록.
 // ★ 팝오버 안에 PlanQSelect 를 쓰지 않는다(포털 메뉴가 바깥클릭으로 읽혀 선택 전에 닫힌다 — CLAUDE.md 밴드2 절).
+import { goMainOr } from '../../components/Common/PopoutBridge';
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import styled from 'styled-components';
@@ -84,7 +85,7 @@ const MailReplyOwnerChip: React.FC<Props> = ({ assigneeId, assigneeName, replyTa
               )}
               {replyTask && (
                 <PickerItem type="button" data-testid="mail-reply-task-open"
-                  onClick={() => { tabStore.openInNewTab(`/tasks?task=${replyTask.id}`); close(); }}>
+                  onClick={() => { goMainOr(`/tasks?task=${replyTask.id}`, (x) => tabStore.openInNewTab(x)); close(); }}>
                   {t('replyOwner.openTask', { defaultValue: '연결된 업무 보기' })}
                   <PickerHint>{CLOSED.includes(replyTask.status)
                     ? t(`replyOwner.taskState.${replyTask.status}`, { defaultValue: replyTask.status === 'completed' ? '완료' : '취소' })

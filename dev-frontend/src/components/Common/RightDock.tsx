@@ -35,12 +35,13 @@ export const launchDockTool = (tool: DockTool) => {
   if (!canOpenSeparateWindow()) {
     if (tool === 'qtalk') { tabStore.navigateActive('/talk'); return; }
     if (tool === 'qtask') { tabStore.navigateActive('/tasks'); return; }
+    if (tool === 'qmail') { tabStore.navigateActive('/mail'); return; }
     openDockTool(tool); return;
   }
   openPopout(tool);
 };
 
-const FAB_HIDDEN_PREFIXES = ['/memo', '/talk-popout', '/task-popout', '/note-popout', '/help-popout'];
+const FAB_HIDDEN_PREFIXES = ['/memo', '/talk-popout', '/task-popout', '/note-popout', '/help-popout', '/mail-popout'];
 
 // ★ 2026-10-29 Irene: *"우측하단 채팅버튼을 … 마우스로 여기저기 이동시키게 하면 어때? 모바일이랑 탭에서도 이동하게"*
 //   버튼을 끌어 옮긴다(데스크탑·태블릿·폰 같은 Pointer Events). 놓으면 가까운 좌/우 가장자리에 붙는다 —

@@ -82,6 +82,7 @@ const WorkspaceSettingsPage = lazy(() => import('./pages/Settings/WorkspaceSetti
 const QTalkPage = lazy(() => import('./pages/QTalk/QTalkPage'));
 const QTalkStandalonePage = lazy(() => import('./pages/QTalk/QTalkStandalonePage'));
 const QTaskStandalonePage = lazy(() => import('./pages/QTask/QTaskStandalonePage'));
+const MailStandalonePage = lazy(() => import('./pages/QMail/MailStandalonePage'));
 const DocStandalonePage = lazy(() => import('./pages/QDocs/DocStandalonePage'));
 const PersonalVaultPage = lazy(() => import('./pages/PersonalVault/PersonalVaultPage'));
 const MyFeedbackPage = lazy(() => import('./pages/MyFeedback/MyFeedbackPage'));
@@ -266,7 +267,7 @@ function ShellApp() {
   // 팝아웃/standalone 창(#31) + 공개 미리보기 페이지(#33)에선 메인 chrome(토스터·FAB·Dock·헬프드로어) 숨김.
   //   공개 공유/미리보기는 외부 열람용 — 로그인 사용자의 인앱 알림이 뜨면 안 됨.
   const _loc = useLocation();
-  const isPopout = /\/(talk-popout|task-popout|note-popout|help-popout|doc-popout)(\/|$)/.test(_loc.pathname)
+  const isPopout = /\/(talk-popout|task-popout|note-popout|help-popout|doc-popout|mail-popout)(\/|$)/.test(_loc.pathname)
     || _loc.pathname.startsWith('/memo/')
     || isPublicViewPath(_loc.pathname)   // 공유 링크 + 서명 화면 — utils/publicSurface 한 곳
     || isPopoutWindow(); // #84 — 팝아웃 창 안에서 /guide 등으로 이동해도 chrome 숨김 유지
@@ -530,6 +531,12 @@ function ShellApp() {
         <Route path="/doc-popout" element={
           <ProtectedRoute>
             <DocStandalonePage />
+          </ProtectedRoute>
+        } />
+        {/* Q mail 분리 창 — 메일을 다른 창 옆에 두고 관리(2026-11-17 Irene · Fable 설계 1단계). 권한은 /mail 과 같다 */}
+        <Route path="/mail-popout" element={
+          <ProtectedRoute requiredRole={['business_owner', 'business_member']}>
+            <MailStandalonePage />
           </ProtectedRoute>
         } />
         <Route path="/help-popout" element={

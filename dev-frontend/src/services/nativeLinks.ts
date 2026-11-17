@@ -17,6 +17,7 @@ function inAppTarget(path: string): { tool: 'qhelper' | 'qnote' } | { path: stri
   if (pathname === '/help-popout') return { tool: 'qhelper' };
   if (pathname === '/note-popout') return { tool: 'qnote' };
   if (pathname === '/task-popout') return { path: '/tasks' };
+  if (pathname === '/mail-popout') return { path: sp.get('thread') ? `/mail?thread=${encodeURIComponent(sp.get('thread') as string)}` : '/mail' };
   if (pathname === '/doc-popout') return { path: sp.get('post') ? `/docs?post=${encodeURIComponent(sp.get('post') as string)}` : '/docs' };
   if (pathname === '/talk-popout') return { path: sp.get('conv') ? `/talk?conv=${encodeURIComponent(sp.get('conv') as string)}` : '/talk' };
   const memo = /^\/memo\/([^/]+)$/.exec(pathname);

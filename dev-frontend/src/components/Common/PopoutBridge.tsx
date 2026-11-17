@@ -48,6 +48,16 @@ export function requestMainNavigate(to: string): boolean {
   }
 }
 
+/** 팝아웃 창이면 메인 창에 이동을 부탁하고, 아니면 이 창에서 `local` 로 간다 — 팝아웃 안에서 쓰는 화면(메일 등)의
+ *  «다른 화면으로 가기» 한 벌. 팝아웃은 MainLayout 이 없는 도구 창이라 설정·고객 상세가 그 안에 뜨면 안 된다. */
+export function goMainOr(path: string, local: (p: string) => void): void {
+  if (isPopoutWindow()) {
+    if (!requestMainNavigate(path)) window.open(path, '_blank', 'noopener');
+    return;
+  }
+  local(path);
+}
+
 /** 수신 로직 본체. `go` 만 셸별로 다르다(RR navigate / tabStore.navigateActive). */
 function usePopoutNavigateListener(go: (to: string) => void) {
   useEffect(() => {

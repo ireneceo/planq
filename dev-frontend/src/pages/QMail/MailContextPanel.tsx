@@ -3,6 +3,7 @@
 //   ★ 요약/업무후보/이슈/노트는 Phase B/C — 여기선 연결 + cross-channel 만 (mock 금지: 실 데이터만).
 //   설계: docs/QMAIL_CONTEXT_DESIGN.md §5, §7.1
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { goMainOr } from '../../components/Common/PopoutBridge';
 import { useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
@@ -658,7 +659,7 @@ const MailContextPanel: React.FC<Props> = ({ businessId, thread, members, myUser
                   <SaleSummaryText>{clientSummary}</SaleSummaryText>
                 </SaleSummaryBox>
               )}
-              <WorkbenchSectionLink type="button" onClick={() => navigate(`/sale/${clientId}`)}>
+              <WorkbenchSectionLink type="button" onClick={() => goMainOr(`/sale/${clientId}`, navigate)}>
                 {t('context.openInSale', { defaultValue: 'Q sales 에서 보기' }) as string}<span aria-hidden>›</span>
               </WorkbenchSectionLink>
               {/* (2026-10-16) «통합 타임라인 보기» 는 없앴다 — Q sale 상세가 같은 타임라인이다(같은 곳을 가리키는 링크 두 개) */}

@@ -26,7 +26,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { desktopBridge } from '../services/native';
 
-export type PinTool = 'qtalk' | 'qtask' | 'qnote' | 'qhelper';
+export type PinTool = 'qtalk' | 'qtask' | 'qnote' | 'qhelper' | 'qmail';
 /** normal = 평범한 팝아웃 창 / holder = PiP 를 소유한 작은 창 / pip-content = PiP 안 iframe */
 export type PinMode = 'normal' | 'holder' | 'pip-content';
 
@@ -50,6 +50,7 @@ export const POPOUT_PATH: Record<PinTool, string> = {
   qtask: '/task-popout',
   qnote: '/note-popout',
   qhelper: '/help-popout',
+  qmail: '/mail-popout',
 };
 
 /** 도구별 창 크기 단일 원천 — 도크가 여는 일반 창 · PiP · 핀 해제 복귀 크기가 모두 이 값이다.
@@ -60,6 +61,8 @@ export const POPOUT_SIZE: Record<PinTool, { width: number; height: number }> = {
   qtask: { width: 520, height: 780 },
   qnote: { width: 480, height: 640 },
   qhelper: { width: 440, height: 720 },
+  // qmail — 목록 | 본문 2단이 다 보이는 폭(폭 1024 이하면 MailPage 가 목록↔본문 드릴다운으로 바뀐다)
+  qmail: { width: 1100, height: 820 },
 };
 
 // ─── 팝아웃 자리 규칙 (Irene 2026-08-20) ───

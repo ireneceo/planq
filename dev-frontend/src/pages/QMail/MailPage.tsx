@@ -72,6 +72,9 @@ import { onFlushPendingSaves } from '../../services/pendingSaves';
 import { keepaliveJson } from '../../services/keepaliveFetch';
 import { promoteInboxItem, promoteErrorKey } from '../../services/sale';
 import { readComposeIntent, returnAfterCompose } from './composeReturn';
+import { goMainOr } from '../../components/Common/PopoutBridge';
+import { launchDockTool } from '../../components/Common/RightDock';
+import { canOpenSeparateWindow } from '../../utils/popout';
 import { useMailClientAdd, openClientTab } from './useMailClientAdd';
 import { guessLangFromText, pickTranslateTarget } from './mailLang';
 import MailThreadRow from './MailThreadRow';
@@ -2486,10 +2489,18 @@ const MailPage: React.FC = () => {
           <PanelTitle>Q mail</PanelTitle>
           <HeaderActions>
             {accounts.length >= 1 && (
-              <AcctManageIcon type="button" onClick={() => navigate('/business/settings/mail-accounts')}
+              <AcctManageIcon type="button" onClick={() => goMainOr('/business/settings/mail-accounts', navigate)}
                 title={t('accounts.manageTitle', { defaultValue: '메일 계정 추가·설정' }) as string}
                 aria-label={t('accounts.manage', { defaultValue: '계정 관리' }) as string}>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" /></svg>
+              </AcctManageIcon>
+            )}
+            {/* 새 창으로 — 메일을 다른 창 옆에 두고 관리(2026-11-17 Irene). 창을 못 여는 곳(폰 폭·앱)과 이미 분리 창이면 숨긴다 */}
+            {canOpenSeparateWindow() && location.pathname !== '/mail-popout' && (
+              <AcctManageIcon type="button" data-testid="mail-popout-open" onClick={() => launchDockTool('qmail')}
+                title={t('popout.open', { defaultValue: '새 창으로 열기' }) as string}
+                aria-label={t('popout.open', { defaultValue: '새 창으로 열기' }) as string}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" /><polyline points="15 3 21 3 21 9" /><line x1="10" y1="14" x2="21" y2="3" /></svg>
               </AcctManageIcon>
             )}
             <ComposeBtn type="button" data-testid="mail-compose-open" onClick={() => { openNewCompose(); if (viewportNarrow) setSidebarCollapsed(true); }} title={t('compose.new', { defaultValue: '새 메일' }) as string} aria-label={t('compose.new', { defaultValue: '새 메일' }) as string}>
@@ -2604,7 +2615,7 @@ const MailPage: React.FC = () => {
             </LearnText>
             {learnNote.learned && !learnNote.undone && (
               <>
-                <LearnLink type="button" onClick={() => navigate('/business/settings/mail-accounts')}>
+                <LearnLink type="button" onClick={() => goMainOr('/business/settings/mail-accounts', navigate)}>
                   {t('learnBar.settings', { defaultValue: '설정에서 보기' }) as string}
                 </LearnLink>
                 <LearnLink type="button" data-testid="mail-learn-undo" onClick={() => { void undoLearn(); }}>
@@ -2748,7 +2759,7 @@ const MailPage: React.FC = () => {
               </EmptyIcon>
               <EmptyText>{t('noAccount.title', { defaultValue: '아직 연결된 메일 계정이 없어요' }) as string}</EmptyText>
               <NoAcctHint>{t('noAccount.desc', { defaultValue: 'Gmail 또는 IMAP 메일 계정을 연결하면 Q mail에서 받은 메일을 함께 보고 답장할 수 있어요. 여러 계정을 연결하면 주소별로도 볼 수 있어요.' }) as string}</NoAcctHint>
-              <NoAcctBtn type="button" onClick={() => navigate('/business/settings/mail-accounts')}>
+              <NoAcctBtn type="button" onClick={() => goMainOr('/business/settings/mail-accounts', navigate)}>
                 {t('noAccount.cta', { defaultValue: '메일 계정 연결하기' }) as string}
               </NoAcctBtn>
             </EmptyList>
@@ -3310,7 +3321,7 @@ const MailPage: React.FC = () => {
                           <HelpDot>{t('reply.aliasHelp', { defaultValue: '고객이 {{addr}} 로 보낸 메일이라 답장도 이 주소에서 나가요.', addr: receivedAt }) as string}</HelpDot>
                         )}
                         {unknownReceived ? (!recvGuard.willMiss && recvGuard.notice) : aliases.length === 0 ? (
-                          <FromManage type="button" onClick={() => navigate('/business/settings/mail-accounts')}>
+                          <FromManage type="button" onClick={() => goMainOr('/business/settings/mail-accounts', navigate)}>
                             {t('reply.addAlias', { defaultValue: '보내는 주소 추가' }) as string}
                           </FromManage>
                         ) : null}
