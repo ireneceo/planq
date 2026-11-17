@@ -33,6 +33,9 @@ import { isEnterAction } from '../../utils/imeKey';
 import { ResizableImage } from '../Docs/ResizableImage';
 import { resizableImageCss } from '../Docs/resizableImageStyles';
 import { clipboardPlainText } from '../../utils/clipboardPlainText';
+import { copyRichContent } from '../../utils/copyRich';
+import ConfirmDialog from './ConfirmDialog';
+import { CopyIcon, CheckIcon, TrashIcon } from './Icons';
 import { prepPastedHtml, htmlCarriesContent, hasDataImage, uploadDataImages } from '../../utils/pasteRich';   // 글+그림+영상 한꺼번에 붙이기(2026-11-04)
 
 // 본문 이미지 — **Q docs 와 같은 확장을 쓴다.**
@@ -81,6 +84,13 @@ export default function RichEditor({
   const effectivePlaceholder = placeholder ?? t('editor.placeholder');
   const [linkOpen, setLinkOpen] = useState(false);
   const [linkValue, setLinkValue] = useState('');
+  // 편집기 아래 줄 «복사»·«모두 지우기» (2026-11-17 Irene — 업무 결과물 등 입력란마다 복사·전체 지우기가 따라다니게).
+  // 편집기 9곳이 모두 이 컴포넌트라 여기 한 곳에 둔다 — 화면마다 붙이면 갈라진다.
+  const [hasContent, setHasContent] = useState(() => !!String(value || '').replace(/<p>\s*<\/p>/g, '').trim());
+  const [copyState, setCopyState] = useState<'idle' | 'done' | 'failed'>('idle');
+  const copyTimerRef = useRef<number | null>(null);
+  useEffect(() => () => { if (copyTimerRef.current) window.clearTimeout(copyTimerRef.current); }, []);
+  const [clearAsk, setClearAsk] = useState(false);
   const currentValueRef = useRef(value);
   const uploadUrlRef = useRef(uploadUrl);
   useEffect(() => { uploadUrlRef.current = uploadUrl; }, [uploadUrl]);
@@ -135,6 +145,7 @@ export default function RichEditor({
     onUpdate: ({ editor }) => {
       const html = editor.getHTML();
       currentValueRef.current = html;
+      setHasContent(!editor.isEmpty);
       onChange(html);
     },
     onBlur: ({ editor }) => {
@@ -209,7 +220,10 @@ export default function RichEditor({
     if (value === currentValueRef.current) return;
     editor.commands.setContent(plainTextToHtml(value), { emitUpdate: false });
     currentValueRef.current = value;
+    setHasContent(!editor.isEmpty);
   }, [value, editor]);
+  // 처음 그릴 때 값(빈 문단만 있는 HTML 등)의 실제 비었는지는 에디터가 안다
+  useEffect(() => { if (editor) setHasContent(!editor.isEmpty); }, [editor]);
 
   // ★ `editable` 은 useEditor **초기화 때 한 번만** 읽힌다. 나중에 readOnly 가 바뀌어도
   //   ProseMirror 의 contenteditable 은 그대로라, 툴바만 사라지고 **본문은 계속 쳐졌다**
@@ -325,6 +339,23 @@ export default function RichEditor({
     if (pm && e.clientY < pm.getBoundingClientRect().bottom) return;
     editor.commands.focus('end');
   };
+
+  // 전체 복사 — 서식(HTML)과 평문을 같이. 평문은 편집기에서 ⌘C 할 때와 같은 규칙(clipboardPlainText).
+  const copyAll = async () => {
+    if (!editor || editor.isEmpty) return;
+    const doc = editor.state.doc;
+    const ok = await copyRichContent({ html: editor.getHTML(), text: clipboardPlainText(doc.slice(0, doc.content.size)) });
+    setCopyState(ok ? 'done' : 'failed');
+    if (copyTimerRef.current) window.clearTimeout(copyTimerRef.current);
+    copyTimerRef.current = window.setTimeout(() => setCopyState('idle'), 1800);
+  };
+  // 모두 지우기 — 묻고 지운다. 편집기 기록에 남으므로 ⌘Z 로 되돌릴 수 있다(onChange → 자동저장은 평소 입력과 같다).
+  const clearAll = () => {
+    setClearAsk(false);
+    if (!editor || readOnly) return;
+    editor.chain().focus().clearContent(true).run();
+  };
+  const showActions = !readOnly || hasContent;
 
   return (
     <EditorShell className="pq-rich-editor" $mh={minHeight} $ro={readOnly} onClick={handleWrapperClick}>
@@ -445,9 +476,45 @@ export default function RichEditor({
       <LightboxWrapper>
         <EditorContent editor={editor} />
       </LightboxWrapper>
-      {!readOnly && (
-        <Hint>{t('editor.hintPrefix')} <kbd>/</kbd> {t('editor.hintSuffix')}</Hint>
+      {showActions && (
+        <Hint data-pq-editor-actions="1">
+          {!readOnly && <HintText>{t('editor.hintPrefix')} <kbd>/</kbd> {t('editor.hintSuffix')}</HintText>}
+          <EdActions>
+            <EdActBtn type="button" data-testid="editor-copy-all" disabled={!hasContent}
+              $tone={copyState === 'done' ? 'ok' : copyState === 'failed' ? 'bad' : undefined}
+              title={t('editor.copyAllTip', { defaultValue: '내용 전체를 복사합니다 (서식 포함)' }) as string}
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={(e) => { e.stopPropagation(); void copyAll(); }}>
+              {copyState === 'done' ? <CheckIcon size={13} /> : <CopyIcon size={13} />}
+              <span>{copyState === 'done'
+                ? t('editor.copied', { defaultValue: '복사됨' })
+                : copyState === 'failed'
+                  ? t('editor.copyFailed', { defaultValue: '복사 못 함' })
+                  : t('editor.copyAll', { defaultValue: '복사' })}</span>
+            </EdActBtn>
+            {!readOnly && (
+              <EdActBtn type="button" data-testid="editor-clear-all" disabled={!hasContent}
+                title={t('editor.clearAllTip', { defaultValue: '내용을 모두 지웁니다' }) as string}
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={(e) => { e.stopPropagation(); setClearAsk(true); }}>
+                <TrashIcon size={13} />
+                <span>{t('editor.clearAll', { defaultValue: '모두 지우기' })}</span>
+              </EdActBtn>
+            )}
+          </EdActions>
+        </Hint>
       )}
+      <ConfirmDialog
+        isOpen={clearAsk}
+        onClose={() => setClearAsk(false)}
+        onConfirm={clearAll}
+        title={t('editor.clearAllTitle', { defaultValue: '내용을 모두 지울까요?' }) as string}
+        message={t('editor.clearAllMsg', { defaultValue: '이 입력란의 글·그림·표가 모두 지워집니다. 지운 바로 뒤에는 Ctrl+Z(⌘Z)로 되돌릴 수 있어요.' }) as string}
+        confirmText={t('editor.clearAll', { defaultValue: '모두 지우기' }) as string}
+        cancelText={t('editor.linkCancel', { defaultValue: '취소' }) as string}
+        variant="danger"
+        zIndex={2400}
+      />
     </EditorShell>
   );
 }
@@ -521,8 +588,23 @@ const EditorShell = styled.div<{ $mh: number; $ro?: boolean }>`
   & .pq-editor-body ::selection{background:#CCFBF1;}
 `;
 
-const Hint = styled.div`padding:6px 16px 8px;font-size:0.6875rem;color:#94A3B8;border-top:1px solid #F1F5F9;
+const Hint = styled.div`padding:4px 8px 4px 16px;font-size:0.6875rem;color:#94A3B8;border-top:1px solid #F1F5F9;
+  display:flex;align-items:center;gap:8px;min-height:40px;
   kbd{display:inline-block;padding:1px 5px;background:#F1F5F9;border:1px solid #E2E8F0;border-radius:3px;font-size:0.625rem;font-family:monospace;color:#475569;margin:0 2px;}
+`;
+
+const HintText = styled.span`flex:1;min-width:0;
+  @media (max-width: 640px){ display:none; }
+`;
+// 우측 정렬은 margin-left:auto (읽기 전용이면 안내 글이 없어 이것만 있다)
+const EdActions = styled.div`margin-left:auto;display:inline-flex;align-items:center;gap:2px;flex-shrink:0;`;
+const EdActBtn = styled.button<{ $tone?: 'ok' | 'bad' }>`
+  display:inline-flex;align-items:center;gap:4px;height:32px;padding:0 8px;border:none;border-radius:6px;
+  background:transparent;font-size:0.75rem;font-weight:500;cursor:pointer;white-space:nowrap;
+  color:${p => p.$tone === 'ok' ? '#0F766E' : p.$tone === 'bad' ? '#DC2626' : '#64748B'};
+  &:hover:not(:disabled){background:#F1F5F9;color:#0F172A;}
+  &:disabled{opacity:0.45;cursor:default;}
+  @media (max-width: 640px){ height:36px; padding:0 10px; }
 `;
 
 const Bubble = styled.div`display:inline-flex;align-items:center;gap:2px;padding:3px;background:#0F172A;border-radius:8px;box-shadow:0 4px 12px rgba(15,23,42,0.25);`;

@@ -758,7 +758,15 @@
     "redo": "Redo",
     "slash": {
       "empty": "No commands"
-    }
+    },
+    "copyAll": "Copy",
+    "copyAllTip": "Copy all content (with formatting)",
+    "copied": "Copied",
+    "copyFailed": "Couldn't copy",
+    "clearAll": "Clear all",
+    "clearAllTip": "Clear all content",
+    "clearAllTitle": "Clear all content?",
+    "clearAllMsg": "All text, images and tables in this field will be removed. Right after clearing you can undo with Ctrl+Z (⌘Z)."
   },
   "filepicker": {
     "title": "Pick files",

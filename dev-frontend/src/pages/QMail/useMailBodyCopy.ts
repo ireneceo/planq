@@ -11,58 +11,16 @@
 //   여기서 다루는 것은 **평문 메일**(페이지에 그대로 그려지는 쪽)과 **복사 버튼**이다.
 import React from 'react';
 
-/** HTML 메일 본문 → 붙여넣기 좋은 평문. 태그를 지우되 줄 구조는 살린다. */
-function htmlToText(html: string): string {
-  return String(html)
-    .replace(/<style[\s\S]*?<\/style>/gi, '')
-    .replace(/<script[\s\S]*?<\/script>/gi, '')
-    .replace(/<br\s*\/?>/gi, '\n')
-    .replace(/<\/(p|div|tr|li|h[1-6])>/gi, '\n')
-    .replace(/<[^>]+>/g, '')
-    .replace(/&nbsp;/g, ' ')
-    .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"')
-    .replace(/[ \t]+\n/g, '\n')
-    .replace(/\n{3,}/g, '\n\n')
-    .trim();
-}
+import { copyRichContent } from '../../utils/copyRich';
 
 export type CopyState = 'idle' | 'done' | 'failed';
 
 /**
  * 본문 복사. HTML 메일이면 서식과 평문을 **같이** 클립보드에 올린다 —
- * 문서에 붙이면 서식이, 메모장에 붙이면 글자가 나온다.
+ * 문서에 붙이면 서식이, 메모장에 붙이면 글자가 나온다. 본체는 utils/copyRich(편집기 복사 버튼과 한 벌).
  */
-export async function copyMailBody(body: { html?: string | null; text?: string | null }): Promise<boolean> {
-  const plain = body.text && body.text.trim()
-    ? body.text
-    : (body.html ? htmlToText(body.html) : '');
-  if (!plain && !body.html) return false;
-  try {
-    // ClipboardItem 은 https(또는 localhost) + 사용자 제스처 안에서만 된다. 안 되면 평문으로 물러선다.
-    if (body.html && typeof ClipboardItem !== 'undefined' && navigator.clipboard?.write) {
-      await navigator.clipboard.write([
-        new ClipboardItem({
-          'text/html': new Blob([body.html], { type: 'text/html' }),
-          'text/plain': new Blob([plain], { type: 'text/plain' }),
-        }),
-      ]);
-      return true;
-    }
-    await navigator.clipboard.writeText(plain);
-    return true;
-  } catch {
-    // 권한이 없거나 오래된 브라우저 — execCommand 로 마지막 시도.
-    try {
-      const ta = document.createElement('textarea');
-      ta.value = plain;
-      ta.style.cssText = 'position:fixed;left:-9999px;top:0;';
-      document.body.appendChild(ta);
-      ta.select();
-      const ok = document.execCommand('copy');
-      ta.remove();
-      return ok;
-    } catch { return false; }
-  }
+export function copyMailBody(body: { html?: string | null; text?: string | null }): Promise<boolean> {
+  return copyRichContent(body);
 }
 
 /**

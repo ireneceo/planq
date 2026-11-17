@@ -758,7 +758,15 @@
     "redo": "다시 실행",
     "slash": {
       "empty": "명령 없음"
-    }
+    },
+    "copyAll": "복사",
+    "copyAllTip": "내용 전체를 복사합니다 (서식 포함)",
+    "copied": "복사됨",
+    "copyFailed": "복사 못 함",
+    "clearAll": "모두 지우기",
+    "clearAllTip": "내용을 모두 지웁니다",
+    "clearAllTitle": "내용을 모두 지울까요?",
+    "clearAllMsg": "이 입력란의 글·그림·표가 모두 지워집니다. 지운 바로 뒤에는 Ctrl+Z(⌘Z)로 되돌릴 수 있어요."
   },
   "filepicker": {
     "title": "파일 선택",
