@@ -1,0 +1,78 @@
+{
+  "id": "ref-mix-notion-slack",
+  "name": "기능 소개 + 밝은 톤 (참고: Notion AI × Slack)",
+  "caption": "lower",
+  "captionScale": 1,
+  "wordStagger": 0.11,
+  "transition": "fade",
+  "transitionSec": 0.65,
+  "camera": {
+    "maxZoom": 2.1,
+    "fill": 0.62,
+    "easeSec": 1.5,
+    "portraitFill": 0.9
+  },
+  "spotlight": 0.85,
+  "waitSpeed": 2.5,
+  "grade": {
+    "saturate": 1.15,
+    "contrast": 1.08,
+    "brightness": 1.03
+  },
+  "background": "mesh",
+  "palette": {
+    "bg1": "#0B4F4A",
+    "bg2": "#0D9488",
+    "accent": "#FCD34D",
+    "text": "#F0FDFA",
+    "highlight": "#FBBF24",
+    "highlightText": "#1A1A1A"
+  },
+  "musicVolume": 0.4,
+  "duck": 0.35,
+  "sfx": {
+    "click": 0.4,
+    "whoosh": 0.4,
+    "pop": 0.35,
+    "ding": 0.45,
+    "boom": 0.7
+  },
+  "chapterCards": true,
+  "speedBadge": true,
+  "beatSync": "downbeat",
+  "pace": 1,
+  "source": {
+    "kind": "reference-mix",
+    "refs": [
+      "FElBbgnNtVA.mp4",
+      "a-uFTOioy8s.mp4"
+    ],
+    "from": {
+      "ref-notion-ai": [
+        "caption",
+        "captionScale",
+        "wordStagger",
+        "transition",
+        "transitionSec",
+        "camera",
+        "spotlight",
+        "waitSpeed",
+        "chapterCards",
+        "speedBadge",
+        "pace"
+      ],
+      "ref-slack-meeting": [
+        "grade",
+        "background",
+        "palette",
+        "sfx",
+        "beatSync(downbeat — 음악에 맞춰 끊는 경쾌함)"
+      ],
+      "hand": [
+        "musicVolume 0.4 (강의형 0.32 와 브랜드 0.55 사이)"
+      ]
+    },
+    "notes": "Irene 2026-11-17: «1번(Notion)의 정보 전달 방식에 2번(Slack)의 밝은 톤을 섞는다 · 세로 숏폼은 1번을 9:16 으로»"
+  },
+  "cursorSize": 44
+}

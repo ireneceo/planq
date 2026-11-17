@@ -1,0 +1,123 @@
+{
+  "id": "ref-slack-meeting",
+  "name": "브랜드 필름 (참고: Slack Big Meeting)",
+  "caption": "cinema",
+  "captionScale": 1,
+  "wordStagger": 0.16,
+  "transition": "cut",
+  "transitionSec": 0.4,
+  "camera": {
+    "maxZoom": 2.1,
+    "fill": 0.6,
+    "easeSec": 0.6,
+    "portraitFill": 0.9
+  },
+  "spotlight": 0.6,
+  "waitSpeed": 3,
+  "grade": {
+    "saturate": 1.15,
+    "contrast": 1.08,
+    "brightness": 1.03
+  },
+  "background": "mesh",
+  "palette": {
+    "bg1": "#0B4F4A",
+    "bg2": "#0D9488",
+    "accent": "#FCD34D",
+    "text": "#F0FDFA",
+    "highlight": "#FBBF24",
+    "highlightText": "#1A1A1A"
+  },
+  "musicVolume": 0.55,
+  "duck": 0.4,
+  "sfx": {
+    "click": 0.4,
+    "whoosh": 0.4,
+    "pop": 0.35,
+    "ding": 0.45,
+    "boom": 0.7
+  },
+  "chapterCards": false,
+  "speedBadge": false,
+  "beatSync": "downbeat",
+  "pace": 1.41,
+  "source": {
+    "kind": "reference",
+    "refs": [
+      "a-uFTOioy8s.mp4"
+    ],
+    "measured": {
+      "duration": 75.19,
+      "size": "1920x1080",
+      "vertical": false,
+      "cuts": {
+        "count": 35,
+        "median": 1.71,
+        "p25": 1.13,
+        "p75": 2.17,
+        "perMinute": 27.93,
+        "curve5s": [
+          3,
+          3,
+          2,
+          3,
+          4,
+          1,
+          1,
+          2,
+          4,
+          3,
+          0,
+          5,
+          2,
+          1,
+          0,
+          1
+        ]
+      },
+      "look": {
+        "brightness": 0.26,
+        "saturation": 0.09,
+        "contrast": 0.46
+      },
+      "audio": {
+        "bpm": 172.3,
+        "beatSec": 0.35,
+        "cutOnBeat": 0.51
+      }
+    },
+    "vision": {
+      "caption": {
+        "present": false,
+        "position": "lower-third",
+        "sizeRatio": 0,
+        "weight": "regular",
+        "box": "none",
+        "emphasis": "none",
+        "emphasisColor": null,
+        "wordsPerLine": 0,
+        "animation": "unknown"
+      },
+      "style": "cinema",
+      "camera": {
+        "zoomIns": "some",
+        "panning": "some",
+        "screenRecording": false,
+        "deviceFrames": "none"
+      },
+      "transitions": [
+        "cut"
+      ],
+      "background": "footage",
+      "mood": "뮤지컬처럼 경쾌하지만 영화 톤의 연출",
+      "notes": "시네마스코프 비율처럼 상하 레터박스 사용·컬러그레이딩이 강한 영화풍·댄스와 움직임이 많은 장면을 리듬감 있게 컷 편집"
+    },
+    "notes": "시네마스코프 비율처럼 상하 레터박스 사용·컬러그레이딩이 강한 영화풍·댄스와 움직임이 많은 장면을 리듬감 있게 컷 편집",
+    "handFixed": {
+      "grade": "측정 채도 0.09 는 위아래 검은 띠(시네마스코프)가 평균을 깎은 값 — 실제는 노랑·빨강·보라가 강한 밝은 필름 → 채도·대비·밝기를 올림",
+      "palette": "참고 영상 의상·소품의 따뜻한 노랑을 강조색으로, 바탕은 PlanQ 청록을 한 단계 밝게(브랜드 색은 유지)",
+      "background": "aurora → mesh (더 경쾌한 바탕)"
+    }
+  },
+  "cursorSize": 44
+}

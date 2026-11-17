@@ -1,0 +1,124 @@
+{
+  "id": "ref-notion-ai",
+  "name": "기능 소개 (참고: Notion AI)",
+  "caption": "lower",
+  "captionScale": 1,
+  "wordStagger": 0.11,
+  "transition": "fade",
+  "transitionSec": 0.65,
+  "camera": {
+    "maxZoom": 2.1,
+    "fill": 0.62,
+    "easeSec": 1.5,
+    "portraitFill": 0.9
+  },
+  "spotlight": 0.85,
+  "waitSpeed": 2.5,
+  "grade": {
+    "saturate": 1.0,
+    "contrast": 1.0,
+    "brightness": 1.0
+  },
+  "background": "aurora",
+  "palette": {
+    "bg1": "#0B3B38",
+    "bg2": "#0F766E",
+    "accent": "#5EEAD4",
+    "text": "#CCFBF1",
+    "highlight": "#5EEAD4",
+    "highlightText": "#0B2B29"
+  },
+  "musicVolume": 0.32,
+  "duck": 0.35,
+  "sfx": {
+    "click": 0.55,
+    "whoosh": 0.25,
+    "pop": 0.3,
+    "ding": 0.35,
+    "boom": 0.5
+  },
+  "chapterCards": true,
+  "speedBadge": true,
+  "beatSync": "none",
+  "pace": 1,
+  "source": {
+    "kind": "reference",
+    "refs": [
+      "FElBbgnNtVA.mp4"
+    ],
+    "measured": {
+      "duration": 84.8,
+      "size": "1920x1080",
+      "vertical": false,
+      "cuts": {
+        "count": 8,
+        "median": 10,
+        "p25": 8.13,
+        "p75": 11.53,
+        "perMinute": 5.66,
+        "curve5s": [
+          0,
+          0,
+          0,
+          1,
+          1,
+          0,
+          0,
+          1,
+          0,
+          1,
+          0,
+          1,
+          0,
+          1,
+          2,
+          0,
+          0
+        ]
+      },
+      "look": {
+        "brightness": 0.14,
+        "saturation": 0,
+        "contrast": 0.04
+      },
+      "audio": {
+        "bpm": 95.7,
+        "beatSec": 0.63,
+        "cutOnBeat": 0.13
+      }
+    },
+    "vision": {
+      "caption": {
+        "present": true,
+        "position": "center",
+        "sizeRatio": 0.06,
+        "weight": "regular",
+        "box": "none",
+        "emphasis": "none",
+        "emphasisColor": null,
+        "wordsPerLine": 3,
+        "animation": "fade"
+      },
+      "style": "cinema",
+      "camera": {
+        "zoomIns": "some",
+        "panning": "none",
+        "screenRecording": true,
+        "deviceFrames": "none"
+      },
+      "transitions": [
+        "cut",
+        "fade"
+      ],
+      "background": "footage",
+      "mood": "차분한 화면 녹화 데모 느낌",
+      "notes": "전체가 다크 모드 화면녹화 중심, 마우스 커서와 클릭 모션이 핵심 액션으로 보임, 중간중간 완전 블랙 화면으로 전환 템포를 줌"
+    },
+    "notes": "전체가 다크 모드 화면녹화 중심, 마우스 커서와 클릭 모션이 핵심 액션으로 보임, 중간중간 완전 블랙 화면으로 전환 템포를 줌",
+    "handFixed": {
+      "caption": "판독 «cinema»(가운데 큰 글자) → lower. 참고 영상의 가운데 글자는 검은 화면 사이 카드(= 우리 chapterCards)이고, 화면 녹화 위 자막은 없다. 우리 기능 영상은 화면 위 짧은 문구가 필요해 하단 판으로 둔다",
+      "grade": "측정 채도 0·대비 0.04 는 다크 모드 화면 녹화라서 나온 값(색 보정이 아님) → 중립 1.0"
+    }
+  },
+  "cursorSize": 44
+}
