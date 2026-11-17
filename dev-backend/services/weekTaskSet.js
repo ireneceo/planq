@@ -22,7 +22,8 @@ const { Op, literal } = require('sequelize');
  *   완료/취소 — completed_at 이 그 주
  *   미착수    — 계획 주간 · 그 주 마감 · 지연(마감 지남) · 시작~마감 기간이 그 주와 겹침 · 마감 없이 그 주 시작.
  *               **날짜 없거나 시작만 지난 마감 없는 backlog 는 제외**(flood 차단)
- *   착수한 것 — in_progress·reviewing·revision_requested·waiting·external_review 는 날짜 무관
+ *   착수한 것 — in_progress·reviewing·revision_requested·external_review 는 날짜 무관
+ *   진행대기  — waiting 은 날짜 무관, 단 «미래 전용»(notFutureOnly)이면 제외 (2026-11-17)
  *               (on_hold 는 의도적 제외 — 보류는 이번 주 무대에서 퇴장)
  *
  * @param uid    사용자 id (정수 강제 — literal 삽입 전 인젝션 차단)
@@ -45,6 +46,21 @@ function completedInWeek(monday, sunday, tzOffset) {
     [Op.and]: literal(
       `DATE(CONVERT_TZ(\`completed_at\`, '+00:00', '${off}')) BETWEEN '${monday}' AND '${sunday}'`,
     ),
+  };
+}
+
+/**
+ * «미래 전용» 이 아닌 업무 — 그 주에 계획됐거나, 시작일이 그 주 끝 이전이거나, 시작일 없이 마감이 그 주 끝 이전(또는 날짜 없음).
+ * 미래 전용 = planned_week_start ≠ 그 주 ∧ (start_date > 일요일 ∨ (start_date 없음 ∧ due_date > 일요일)).
+ * waiting·미확인 요청 두 갈래만 쓴다. 프론트 미러 `utils/todayTaskSet.isFutureOnly` — 한쪽만 바꾸지 말 것.
+ */
+function notFutureOnly(monday, sunday) {
+  return {
+    [Op.or]: [
+      { planned_week_start: monday },
+      { start_date: { [Op.lte]: sunday } },
+      { start_date: null, [Op.or]: [{ due_date: null }, { due_date: { [Op.lte]: sunday } }] },
+    ],
   };
 }
 
@@ -76,7 +92,11 @@ function myAssignedWeekWhere(uid, monday, sunday, opts = {}) {
       // ★ 2026-09-12 done_feedback(승인완료·마무리 대기)도 남긴다 — 컨펌은 끝났지만 **닫는 것은
       //   담당자**다. 빼면 "확인필요에는 뜨는데 이번 주 목록에서는 사라진" 상태가 되는데,
       //   그건 외부컨펌 때 Irene 이 신고한 것과 같은 모양이다(2026-09-11 services/reviewStage 참조).
-      { status: { [Op.in]: ['in_progress', 'reviewing', 'revision_requested', 'waiting', 'external_review', 'done_feedback'] } },
+      { status: { [Op.in]: ['in_progress', 'reviewing', 'revision_requested', 'external_review', 'done_feedback'] } },
+      // ★ 2026-11-17 waiting(진행대기 — 요청을 «확인» 하면 not_started 가 여기로 온다)은 **날짜가 전부 다음 주 이후면 뺀다**.
+      //   옛: 착수한 것과 같이 날짜 무관이라, 1월 일을 확인하는 순간 1월까지 매주 이번 주 목록에 남았다
+      //   (Irene «기간에 맞지 않게 … 1월 달건데 리스트에 다 나와» · Fable decision B). 날짜 없는 것·이번 주·지연은 그대로 남는다.
+      { status: 'waiting', ...notFutureOnly(monday, sunday) },
     ],
   };
   if (opts.createdBefore) branch.created_at = { [Op.lte]: opts.createdBefore };
@@ -89,12 +109,16 @@ function myAssignedWeekWhere(uid, monday, sunday, opts = {}) {
  *   날짜 무관 이번 주 **목록**(myWeekWhere)에 든다. myAssignedWeekWhere(주간보고 빌더·today_review)에는 넣지 않는다 —
  *   그래프·가용시간·보고서는 주간 기준 유지. 확인(ack)하면 빠지고 그 뒤는 위 날짜 규칙.
  */
-function unackedRequestWhere(uid) {
+function unackedRequestWhere(uid, monday, sunday) {
   const id = Number(uid);
   const { UNACKED_STATUSES } = require('./urgentTaskNotify');
+  // ★ 2026-11-17 — 날짜가 전부 다음 주 이후인 요청은 이번 주 목록에 넣지 않는다(Fable decision B).
+  //   확인은 확인필요 ① 버킷·알림이 받는다(그쪽 술어는 그대로). monday/sunday 없이 부르면 옛 동작(날짜 무관).
+  const and = [{ request_by_user_id: { [Op.ne]: id } }, { request_by_user_id: { [Op.not]: null } }];
+  if (monday && sunday) and.push(notFutureOnly(monday, sunday));
   return {
     assignee_id: id,
-    [Op.and]: [{ request_by_user_id: { [Op.ne]: id } }, { request_by_user_id: { [Op.not]: null } }],
+    [Op.and]: and,
     request_ack_at: null,
     status: { [Op.in]: UNACKED_STATUSES },
   };
@@ -111,8 +135,8 @@ function myWeekWhere(uid, businessId, monday, sunday, opts = {}) {
     business_id: businessId,
     [Op.or]: [
       myAssignedWeekWhere(id, monday, sunday, opts),
-      // 미확인 받은 요청 — 날짜 무관 (위 unackedRequestWhere 머리말). 프론트 QTaskPage inWeekCanonical 미러.
-      unackedRequestWhere(id),
+      // 미확인 받은 요청 — 날짜 무관, 단 날짜가 전부 다음 주 이후면 제외 (위 unackedRequestWhere 머리말). 프론트 QTaskPage inWeekCanonical 미러.
+      unackedRequestWhere(id, monday, sunday),
       // 내가 pending 컨펌자인 활성 업무 — 날짜 무관 (메인 filtered 의 myRev pending 분기 미러).
       //   담당자가 아니어도 "내가 행동해야 하는 것"이라 이번 주 무대에 오른다.
       //   ★ 2026-09-11 — 컨펌 단계에서 외부컨펌으로 넘어간 업무도 남긴다(services/reviewStage). 컨펌자가 외부컨펌을
@@ -146,4 +170,4 @@ function myWeekWhere(uid, businessId, monday, sunday, opts = {}) {
   };
 }
 
-module.exports = { myAssignedWeekWhere, myWeekWhere, completedInWeek, unackedRequestWhere };
+module.exports = { myAssignedWeekWhere, myWeekWhere, completedInWeek, unackedRequestWhere, notFutureOnly };

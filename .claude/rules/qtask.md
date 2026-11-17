@@ -72,3 +72,5 @@ paths:
 > **미확인 받은 요청은 오늘·이번 주 목록에 날짜 무관으로 든다 (2026-11-14, Irene · Fable)** — 술어는 확인필요 ① 하나
 > (서버 `weekTaskSet.unackedRequestWhere`·`urgentTaskNotify.UNACKED_STATUSES` / 프론트 `todayTaskSet.isUnackedRequestToMe`).
 > `myWeekWhere`(목록·우선순위 정본)에만 넣고 `myAssignedWeekWhere`(보고서·today_review)·summary·그래프에는 넣지 않는다. 기본 정렬 맨 위. 정본 `docs/WORK_FLOW_DESIGN.md §5`.
+> ★ **단 «미래 전용»(날짜가 전부 다음 주 이후) 요청은 빼고, 확인 뒤 진행대기(waiting)도 미래 전용이면 뺀다** (2026-11-17, Irene «1월 달건데 리스트에 다 나와» · Fable decision B) —
+> 서버 `weekTaskSet.notFutureOnly` · 프론트 `todayTaskSet.isFutureOnly` 한 벌. 확인필요 ① 술어는 그대로.

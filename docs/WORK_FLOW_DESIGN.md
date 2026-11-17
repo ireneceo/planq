@@ -562,7 +562,8 @@ if (session.task_id) {
 |------|------------------|------|
 | **completed / canceled** | `completed_at` 이 이번 주 범위 안일 때만 | "완료시점이 이번 주"가 기준. 마감이 과거여도 이번 주에 끝냈으면 이번 주 성과. completed_at 없으면 제외(시점 불명) |
 | **not_started (미진행)** | 이번 주 계획(`planned_week_start`=이번주 월) **또는** 이번 주 마감 **또는 지연(`due_date` 가 이번 주 前 = 마감 지난 미착수)** **또는 시작~마감 기간이 이번 주와 겹침(`start_date ≤ 일` ∧ `due_date ≥ 월`)** **또는 마감 없이 이번 주 시작**. 날짜 없는 것·시작만 지난 마감 없는 것은 제외 | 지연(밀린 내 일)은 이번 주 책임선에 포함(Irene 2026-07-05). 시작되는 일은 마감이 다음 주라도 이번 주(Irene 2026-10-29 «시작되는 일이면 리스트업은 그래야» · Fable 설계). 책임선 없는 backlog 만 flood 차단으로 제외 |
-| **in_progress / reviewing / revision_requested / waiting** | **날짜 무관 항상 표시** | 한 번 착수한 내 업무는 마감·날짜가 없어도 끝까지 이번 주 책임선. 요청받아 진행 중인 마감 없는 업무도 포함 |
+| **in_progress / reviewing / revision_requested** | **날짜 무관 항상 표시** | 한 번 착수한 내 업무는 마감·날짜가 없어도 끝까지 이번 주 책임선. 요청받아 진행 중인 마감 없는 업무도 포함 |
+| **waiting (진행대기)** | 날짜 무관 표시, **단 «미래 전용»(아래)이면 제외** | 요청 «확인» 이 not_started → waiting 으로 옮긴다. 옛: 날짜 무관이라 1월 일을 확인하면 1월까지 매주 떴다(2026-11-17 Irene «기간에 맞지 않게 … 1월 달건데 리스트에 다 나와» · Fable decision B) |
 
 추가 규칙:
 - **pending reviewer**: 내가 컨펌 대기(state=pending) 인 `reviewing`/`revision_requested` 업무는 담당자가 아니어도 표시.
@@ -571,6 +572,9 @@ if (session.task_id) {
   프론트 `utils/todayTaskSet.isUnackedRequestToMe`(→ `inTodaySet` ⓪ · `inWeekCanonical`). **목록만** 넓힌다 — `/my-week` summary 와
   메인 그래프·부하(`chartWeekTasks`)는 `myAssignedWeekWhere` 기준 그대로(확인 누르는 순간 남은 시간이 줄어드는 숫자 금지), 주간보고 빌더 불변.
   기본 정렬에서 맨 위(메인 우선순위 정렬 · 팝아웃 마감일별 나열). 확인(ack)하면 빠지고 그 뒤는 위 날짜 규칙(ack 는 not_started → waiting 이라 활성으로 남는다).
+  ★ **2026-11-17 좁힘 — «미래 전용» 요청은 넣지 않는다** (Irene 이 AI 로 1월 업무를 멤버에게 몰아 넣자 멤버 이번 주 목록이 1월 일로 덮였다 · Fable decision B).
+  미래 전용 = `planned_week_start` ≠ 이번 주 ∧ (`start_date` > 일요일 ∨ (`start_date` 없음 ∧ `due_date` > 일요일)). 날짜 없는 요청·이번 주·지연·이번 주에 시작해 다음 달 마감은 그대로 든다.
+  확인은 확인필요 ① 버킷·알림이 그대로 받는다(그쪽 술어 불변). 술어 한 벌: 서버 `weekTaskSet.notFutureOnly` · 프론트 `utils/todayTaskSet.isFutureOnly` — 미확인 요청·waiting 두 갈래만 쓴다.
 - **외부컨펌(external_review)은 단계 표시다 — 리스트업 조건을 바꾸지 않는다** (2026-09-11 Irene 확정).
   > *"확인요청 받은 거 외부컨펌 눌렀는데 이번 주 나의 업무리스트에서 아주 사라졌어. … 리스트에서 안 없어지게 하고
   > 확인필요에도 그냥 안 없어지게 하고 단계만 표시해두자. 리스트업 조건은 확인요청 받은 상태나 내가 업무처리해야 하는

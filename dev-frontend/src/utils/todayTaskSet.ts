@@ -38,6 +38,22 @@ export function isUnackedRequestToMe(t: TodayTaskLike, myId: number): boolean {
   return UNACKED_REQUEST_STATUSES.includes(t.status);
 }
 
+/** «미래 전용» 업무인가 — 그 주(periodFrom~periodTo)에 계획되지 않았고, 날짜가 전부 그 주 끝 뒤.
+ *  미래 전용 = planned_week_start ≠ periodFrom ∧ (start_date > periodTo ∨ (start_date 없음 ∧ due_date > periodTo)).
+ *  ★ 2026-11-17 (Irene «1월 달건데 리스트에 다 나와» · Fable decision B) — 미확인 요청·waiting(진행대기) 두 갈래가
+ *  이번 주 목록에 날짜 무관으로 들어가 1월 업무가 매주 떴다. 두 갈래만 이 함수로 거른다.
+ *  백엔드 미러 `services/weekTaskSet.notFutureOnly` — 한쪽만 바꾸지 말 것. */
+export function isFutureOnly(
+  t: { start_date?: string | null; due_date?: string | null; planned_week_start?: string | null },
+  periodFrom: string, periodTo: string,
+): boolean {
+  if ((t.planned_week_start || '').slice(0, 10) === periodFrom) return false;
+  const start = (t.start_date || '').slice(0, 10);
+  if (start) return start > periodTo;
+  const due = (t.due_date || '').slice(0, 10);
+  return !!due && due > periodTo;
+}
+
 /** 완료 시각을 **워크스페이스 로컬 날짜**로. `slice(0,10)` 금지 —
  *  completed_at 은 UTC ISO 라, KST 오전 9시 이전 완료가 전날로 오판된다.
  *  주 단위에서는 주 경계에서만 드러나던 결함이 "오늘" 단위에선 매일 드러난다. */

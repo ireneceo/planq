@@ -22,7 +22,7 @@ import CalendarPicker from '../../components/Common/CalendarPicker';
 import { PanelLayout, Panel } from '../../components/Layout/PanelLayout';
 import PlanQSelect from '../../components/Common/PlanQSelect';
 import { todayInTz, mondayOfDateStr, addDaysStr, detectBrowserTz } from '../../utils/timezones';
-import { inTodaySet, isUnackedRequestToMe } from '../../utils/todayTaskSet';
+import { inTodaySet, isUnackedRequestToMe, isFutureOnly } from '../../utils/todayTaskSet';
 import { STATUS_CODES, STATUS_COLOR, displayStatus, getStatusLabel, statusOptionsFor, type StatusCode } from '../../utils/taskLabel';
 import { getRoles, primaryPerspective } from '../../utils/taskRoles';
 import TaskQuickSearch from '../../components/QTask/TaskQuickSearch';
@@ -1197,7 +1197,8 @@ const QTaskPage:React.FC=()=>{
   //   utils/todayTaskSet.isUnackedRequestToMe = 확인필요 ① 술어). **목록만** 넓힌다 — 그래프·부하(chartWeekTasks)는
   //   false 로 불러 주간 기준을 지킨다(서버 /my-week summary 가 myAssignedWeekWhere 로 가르는 것과 같은 선).
   const inWeekCanonical=useCallback((t:TaskRow, includeDone:boolean, withUnacked:boolean=true)=>{
-    if(withUnacked&&isUnackedRequestToMe(t,myId))return true;
+    // ★ 2026-11-17 날짜가 전부 다음 주 이후인 요청은 빼고(Fable decision B — 서버 unackedRequestWhere 미러). 확인은 확인필요 ① 이 받는다.
+    if(withUnacked&&isUnackedRequestToMe(t,myId)&&!isFutureOnly(t,periodFrom,periodTo))return true;
     // 1) 기간/상태 검사 — "이번 주 나의 업무" canonical 규칙 (docs/WORK_FLOW_DESIGN.md §5).
     //  - 완료/취소: "완료시점"이 이번 주인 것만 (completed_at 이 기간 안). 마감 과거여도 이번 주에
     //    끝냈으면 이번 주 업무 (완료시점 기준). completed_at 없으면 제외(언제 끝났는지 모름).
@@ -1225,7 +1226,10 @@ const QTaskPage:React.FC=()=>{
       // #206 R6 — 보류는 이번 주 무대에서 퇴장(전체 탭·보류 컬럼에만 주차). 서버 my-week 화이트리스트와 미러.
       //   external_review 는 잔류 — 외부를 채근할 책임이 담당자에게 남는다.
       if(t.status==='on_hold') return false;
-      return true; // in_progress·reviewing·revision_requested·waiting·external_review
+      // ★ 2026-11-17 진행대기(waiting — 요청 «확인» 이 not_started 를 여기로 옮긴다)는 날짜가 전부 다음 주 이후면 뺀다
+      //   (서버 myAssignedWeekWhere waiting 갈래 미러 · Fable decision B). 날짜 없는 것·이번 주·지연은 남는다.
+      if(t.status==='waiting') return !isFutureOnly(t,periodFrom,periodTo);
+      return true; // in_progress·reviewing·revision_requested·external_review
     })();
     if(!inPeriod) return false;
 
