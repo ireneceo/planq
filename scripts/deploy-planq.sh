@@ -366,6 +366,14 @@ preflight_check() {
       exit 1
     fi
     success "운영 .env 에 DEV_LOGIN_SECRET 없음"
+
+    # 메일 한국 중계(docs/MAIL_KR_RELAY_DESIGN.md) — 서울 서버 실측·Fable 재검증 전에는 운영에서 켜지 않는다(2026-11-17 Fable 완료 검증 F).
+    #   재검증을 통과하면 그 문서 8절에 줄 맨 앞이 «RELAY-PROD-OK:» 인 줄을 남긴다 — 그 줄이 없으면서 운영 .env 에 MAIL_RELAY_URL 이 있으면 멈춘다.
+    if ssh $SSH_OPTS "$PROD_HOST" "[ -f $PROD_BE/.env ] && grep -Eq '^[[:space:]]*(export[[:space:]]+)?MAIL_RELAY_URL[[:space:]]*=' $PROD_BE/.env" \
+       && ! grep -q '^RELAY-PROD-OK:' "$REPO/docs/MAIL_KR_RELAY_DESIGN.md" 2>/dev/null; then
+      error "운영 .env 에 MAIL_RELAY_URL 있음 — 메일 한국 중계는 아직 재검증 전이다(docs/MAIL_KR_RELAY_DESIGN.md 8절). 그 줄을 지우고 다시 배포"
+      exit 1
+    fi
   fi
 
   # 6) 메모리 자리표 — 빌드가 줄을 설지 미리 알린다(막지는 않음 · 기다림 상한은 wait_left). 11-05 04:14 MYT 배포는 밤 순찰이

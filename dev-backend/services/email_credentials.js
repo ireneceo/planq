@@ -76,18 +76,16 @@ async function verifyImapCredentials({ host, port, tls, username, password, fold
 //   `smtp_username` 이 한 글자로 저장됐다. 받기는 멀쩡해서 아무도 몰랐고, 보내는 순간에야 실패한다.
 //   발송 코드(emailSend.buildTransport)와 **같은 규칙**으로 호스트·포트·아이디를 정한다 — 검사와 실제가
 //   다르면 검사가 초록이어도 발송은 실패한다.
-//   `preferRoute` = 받기가 성공한 길 — 그 길부터 시도한다(등록 대기 최악 시간을 줄인다, Fable).
+//   `preferRoute` = 받기의 길(계정 connect_route 또는 방금 받기 검사가 성공한 길) — 보내기 길은 이것으로만 정한다.
 async function verifySmtpCredentials({ host, port, username, password, tls, preferRoute = null, authType = 'password' }) {
   const p = Number(port) || 587;
-  const addresses = await relayAddresses(host, p, tls, authType);
-  let order = ['direct'];
-  if (addresses) order = mailRoute.forceRelay() ? ['relay'] : (preferRoute === 'relay' ? ['relay'] : ['direct', 'relay']);
-  let res;
-  for (let i = 0; i < order.length; i += 1) {
-    res = await verifySmtpOnce({ host, port: p, username, password, tls, route: order[i], addresses, fallback: i < order.length - 1 });
-    if (res.ok || res.code !== 'smtp_unreachable' || order[i] !== 'direct') break;
-  }
-  if (!res.ok && res.code === 'smtp_unreachable' && order.includes('relay')) return { ...res, code: 'smtp_unreachable_relay' };
+  // 길은 실제 발송(emailSend.buildTransport → mailRoute.smtpViaRelay)과 같은 함수로 정한다 — 검사와 발송이 다른 길이면
+  //   검사는 초록인데 발송은 전부 실패한다(Fable 완료 검증 A). 보내기만 따로 중계로 넘어가지 않는다.
+  const route = mailRoute.smtpRouteFor(preferRoute, { port: p, tls, authType });
+  const addresses = route === 'relay' ? await relayAddresses(host, p, tls, authType) : null;
+  if (route === 'relay' && !addresses) return { ok: false, code: 'smtp_host_not_found' };
+  const res = await verifySmtpOnce({ host, port: p, username, password, tls, route, addresses, fallback: false });
+  if (!res.ok && res.code === 'smtp_unreachable' && route === 'relay') return { ...res, code: 'smtp_unreachable_relay' };
   return res;
 }
 

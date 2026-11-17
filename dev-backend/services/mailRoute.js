@@ -22,6 +22,7 @@ const DIRECT_STREAK_BEFORE_RELAY = 3;
 const DIRECT_TIMEOUT_WITH_FALLBACK_MS = 8000;
 const RELAY_TIMEOUT_MS = 12000;
 const REPROBE_EVERY_MS = 24 * 3600 * 1000;
+const REPROBE_PER_TICK = 3;
 const MAX_OPENING = 4;        // 동시에 여는(handshake 중) 중계 연결 상한
 const MAX_LIVE = 300;         // 살아 있는 중계 연결 상한
 
@@ -69,7 +70,11 @@ function isCertError(e) {
 }
 
 // ── 계정별 길 기억 ──
-const directStreak = new Map();   // accountId → 연속 «직접 응답 없음» 횟수(메모리 — 재시작하면 보수적으로 0)
+// accountId → { n: 연속 «직접 응답 없음» 횟수, first: 첫 실패 시각 }(메모리 — 재시작하면 보수적으로 0)
+//   ★ 횟수만 세면 IDLE 재연결(5→10→20초)이 1분 만에 3회를 채워 순간 장애에도 중계로 샌다(Fable 완료 검증 B)
+//     → 3회 + 첫 실패로부터 10분 이상 걸쳐 있어야 중계를 시도한다.
+const directStreak = new Map();
+const STREAK_MIN_SPAN_MS = 10 * 60 * 1000;
 
 /** 시도 순서. account 가 없으면(등록 전) 저장 없이 같은 규칙. */
 function routeOrder(account, { port, tls, authType }) {
@@ -78,7 +83,9 @@ function routeOrder(account, { port, tls, authType }) {
   const route = account && account.connect_route;
   if (route === 'relay') return ['relay'];
   if (route === 'direct') {
-    return (directStreak.get(account.id) || 0) >= DIRECT_STREAK_BEFORE_RELAY ? ['direct', 'relay'] : ['direct'];
+    const st = directStreak.get(account.id);
+    const ripe = st && st.n >= DIRECT_STREAK_BEFORE_RELAY && Date.now() - st.first >= STREAK_MIN_SPAN_MS;
+    return ripe ? ['direct', 'relay'] : ['direct'];
   }
   return ['direct', 'relay'];
 }
@@ -92,17 +99,19 @@ async function rememberRoute(account, route) {
   try {
     const { sequelize } = require('../config/database');
     // 조건부 — 동시에 두 연결이 다른 길을 쓰려 해도 먼저 쓴 쪽만 남는다(Fable: 경합)
-    await sequelize.query(
+    const [, meta] = await sequelize.query(
       'UPDATE email_accounts SET connect_route = ?, connect_route_checked_at = NOW() WHERE id = ? AND connect_route <=> ?',
       { replacements: [route, account.id, prev] },
     );
     try { account.set ? account.set('connect_route', route, { raw: true }) : (account.connect_route = route); } catch { account.connect_route = route; }
-    console.log(`[mailRoute] account #${account.id} 연결 길 ${prev || '모름'} → ${route}`);
+    const changed = meta && (meta.affectedRows ?? meta.changedRows);
+    if (changed) console.log(`[mailRoute] account #${account.id} 연결 길 ${prev || '모름'} → ${route}`);
   } catch (e) { console.warn('[mailRoute] remember', e.message); }
 }
 function noteDirectUnreachable(account) {
   if (!account || !account.id) return;
-  directStreak.set(account.id, (directStreak.get(account.id) || 0) + 1);
+  const st = directStreak.get(account.id) || { n: 0, first: Date.now() };
+  directStreak.set(account.id, { n: st.n + 1, first: st.first });
 }
 
 // ── 중계 고장 알림 (계정이 아니라 관리자에게, 1시간에 한 번) ──
@@ -230,10 +239,19 @@ async function connectImap(account, imapConfigIn, { addresses: addrIn, authType 
   throw lastErr;
 }
 
-/** 발송이 중계를 타는가 — 받기가 중계로 붙는 계정만(같은 서버가 해외를 막는다). */
+/**
+ * 보내기(SMTP)의 길 — **검사(등록·수정·연결 테스트)와 실제 발송이 이 한 함수로 정한다**.
+ *   받기의 길(connect_route)이 relay 인 계정만 보내기도 중계. 보내기만 따로 중계로 «넘어가» 초록을 내지 않는다
+ *   (Fable 완료 검증 A — 검사는 중계로 성공, 발송은 직접이라 전부 실패하던 구멍). 보내기만 해외를 막으면 정직하게 smtp_unreachable.
+ */
+function smtpRouteFor(imapRoute, { port, tls, authType }) {
+  if (!relayAllowed({ port, tls, authType })) return 'direct';
+  return forceRelay() || imapRoute === 'relay' ? 'relay' : 'direct';
+}
+/** 발송이 중계를 타는가 — smtpRouteFor 와 같은 판정. */
 function smtpViaRelay(account, port) {
-  if (!account || !relayAllowed({ port, tls: account.smtp_tls !== false, authType: account.auth_type })) return false;
-  return forceRelay() || account.connect_route === 'relay';
+  if (!account) return false;
+  return smtpRouteFor(account.connect_route, { port, tls: account.smtp_tls !== false, authType: account.auth_type }) === 'relay';
 }
 
 /** nodemailer `getSocket` — 중계 길일 때만 넘긴다. */
@@ -256,10 +274,13 @@ function smtpRelayOptions(host, addresses) {
 async function reprobeRelayAccounts(accounts) {
   if (!relayConfig() || forceRelay()) return;
   const { assertOutboundHostAllowed } = require('../utils/netGuard');
+  let done = 0;   // tick 하나가 길어지지 않게 한 번에 몇 개만(Fable 완료 검증 C) — 남은 것은 다음 tick
   for (const acc of accounts || []) {
     if (acc.connect_route !== 'relay') continue;
     const at = acc.connect_route_checked_at ? new Date(acc.connect_route_checked_at).getTime() : 0;
     if (Date.now() - at < REPROBE_EVERY_MS) continue;
+    if (done >= REPROBE_PER_TICK) break;
+    done += 1;
     const port = Number(acc.imap_port) || 993;
     const g = await assertOutboundHostAllowed(acc.imap_host, port);
     let ok = false;
@@ -293,6 +314,6 @@ function reconnectJitterMs(account) {
 module.exports = {
   RELAY_PORTS, relayConfig, relayAllowed, forceRelay, isUnreachable, isCertError,
   routeOrder, rememberRoute, noteDirectUnreachable, openRelaySocket, connectImap,
-  smtpRelayOptions, smtpViaRelay, reprobeRelayAccounts, reconnectJitterMs, reportRelayDown,
+  smtpRelayOptions, smtpRouteFor, smtpViaRelay, reprobeRelayAccounts, reconnectJitterMs, reportRelayDown,
   DIRECT_TIMEOUT_WITH_FALLBACK_MS,
 };

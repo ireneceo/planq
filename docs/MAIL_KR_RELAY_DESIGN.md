@@ -88,3 +88,10 @@ PlanQ 서버(DE) ──SOCKS5(인증)──▶ 한국 중계(서울 VM) ──�
 - 등록 대기: SMTP 는 IMAP 이 성공한 길부터 → 최악 시간을 재서 nginx 타임아웃 안인지 확인.
 - 완료 검증: 중계 꺼짐 = 기존 동작 · 중계 죽임 → `relay_unavailable`(계정 오류 0 · 직접으로 안 샘) · 직접 1회 실패로 relay 전환 안 됨 · OAuth·평문 계정 중계 시도 0 · 잘못된 인증서 중계 거절 · netGuard 차단 IP CONNECT 0(중계 로그) · IDLE 30분 + 중계 재시작 뒤 분산 재연결 · `MAIL_RELAY_URL` 로그·응답 미노출 · 3분 tick 소요 전후 비교.
 - 선택: SOCKS 비밀번호는 평문이라 실질 통제는 IP 허용 목록 — 여유 되면 WireGuard/stunnel.
+
+## 8. Fable 완료 검증 (2026-11-17 · 코드 f255e762)
+- **VERDICT: PASS — 운영 .env 에 `MAIL_RELAY_URL` 이 없는(꺼진) 채 배포.** 옛/새 코드 대조 9건 같음 · 마이그레이션 멱등 · 실HTTP · 켜진 경로 로컬 시험 재현 · 차단 IP CONNECT 0 · 중계 TLS authorized · 중계 죽임 뒤 계정 오류 0.
+- 켜기 전 차단 A(고침): 보내기 검사가 받기 direct 계정에서도 중계로 넘어가 초록을 내고 실제 발송은 직접이라 실패 → `mailRoute.smtpRouteFor` 한 함수로 검사·발송이 같은 길(받기 길이 relay 일 때만 보내기도 중계).
+- 권고 반영: B 연속 3회 + 첫 실패로부터 10분 이상 · C 하루 재확인 tick 당 3개 · F 배포 사전 점검(아래 줄이 없으면서 운영 .env 에 MAIL_RELAY_URL 이 있으면 멈춤) · E 0행이면 로그 안 남김.
+- 남은 것(서울 VM 후 재검증): dante 무응답 코드 매핑 · IDLE 30분 + 중계 재시작 분산 · 중계 로그 · gmate 인증서 · 등록 최악 대기 · A 수정분. 비차단 D(재확인이 TCP 만 봄)는 그때 같이 본다.
+- 운영에서 켜도 된다는 판정을 받으면 여기에 줄 맨 앞이 `RELAY-PROD-OK:` 이고 뒤에 날짜·판정을 적은 줄을 남긴다(줄 맨 앞일 때만 인정) — 그 전까지는 배포 스크립트가 운영 .env 의 MAIL_RELAY_URL 을 막는다.
