@@ -18,23 +18,34 @@ function normalizeImapPassword(host, password) {
     : raw.trim();
 }
 
-// 연결 단계에서 상대가 아무 답도 안 함 — 방화벽·해외 IP 차단에서 흔하다. 거절(ECONNREFUSED)은 포트가 틀린 쪽이라 빼 둔다.
-function isUnreachable(e, msg) {
-  const code = e && e.code;
-  if (code === 'ETIMEDOUT' || code === 'EHOSTUNREACH' || code === 'ENETUNREACH') return true;
-  return /timed out while connecting|connection timeout|ETIMEDOUT|EHOSTUNREACH|ENETUNREACH/i.test(msg);
+// 응답 없음 판정·길 고르기는 services/mailRoute 한 곳(2026-11-17 한국 중계 — docs/MAIL_KR_RELAY_DESIGN.md).
+const mailRoute = require('./mailRoute');
+const { isUnreachable } = mailRoute;
+
+// 중계를 탈 수도 있을 때만 검사한 주소를 구한다(중계는 그 IP 로만 CONNECT).
+async function relayAddresses(host, port, tls, authType) {
+  if (!mailRoute.relayAllowed({ port, tls, authType })) return null;
+  const { assertOutboundHostAllowed } = require('../utils/netGuard');
+  const g = await assertOutboundHostAllowed(host, port);
+  return g.ok ? g.addresses : null;
 }
 
-async function verifyImapCredentials({ host, port, tls, username, password, folder }) {
+// 결과의 `route`(direct|relay)는 등록·수정이 계정에 저장한다. `account` 를 주면 mailRoute 가 직접 기억한다.
+async function verifyImapCredentials({ host, port, tls, username, password, folder, account = null, authType = 'password' }) {
+  let addresses = null;
   try {
-    const imaps = require('imap-simple');
-    const conn = await imaps.connect({
-      imap: { user: username, password, host, port, tls, authTimeout: 10000, tlsOptions: { rejectUnauthorized: false } },
-    });
+    addresses = await relayAddresses(host, port, tls, authType);
+    const imapConfig = { user: username, password, host, port, tls, authTimeout: 10000, tlsOptions: { rejectUnauthorized: false } };
+    const run = addresses
+      ? mailRoute.connectImap(account, imapConfig, { addresses, authType })
+      : require('imap-simple').connect({ imap: imapConfig }).then((conn) => ({ conn, route: 'direct' }));
+    const { conn, route } = await run;
     await conn.openBox(folder || 'INBOX');
     await conn.end();
-    return { ok: true };
+    return { ok: true, route };
   } catch (e) {
+    if (e && e.pqCode === 'relay_unavailable') return { ok: false, code: 'relay_unavailable', detail: e.message };
+    if (e && e.pqCode === 'cert') return { ok: false, code: 'imap_cert_invalid', detail: e.message };
     const msg = String((e && e.message) || e);
     const h = String(host || '').toLowerCase();
     if (/invalid credentials|authenticat|login fail|auth|application-specific password/i.test(msg)) {
@@ -52,7 +63,8 @@ async function verifyImapCredentials({ host, port, tls, username, password, fold
     if (/enotfound|getaddrinfo/i.test(msg)) return { ok: false, code: 'imap_host_not_found', detail: msg };
     // 응답 없음(타임아웃) ≠ 주소·포트 틀림 — 2026-11-16 gmate.co.kr 실측: 한국 회사 메일 서버가 해외(우리 서버 DE)
     //   접속을 말없이 버려 «주소·포트 확인» 안내가 거짓이었다(같은 값으로 맥 메일은 연결됨).
-    if (isUnreachable(e, msg)) return { ok: false, code: 'imap_unreachable', detail: msg };
+    // 한국 중계까지 거쳤는데도 응답 없음 — «해외 차단» 이 아니라 주소·포트·서버 쪽 문제다(안내가 다르다)
+    if (isUnreachable(e, msg)) return { ok: false, code: addresses ? 'imap_unreachable_relay' : 'imap_unreachable', detail: msg };
     return { ok: false, code: 'imap_connect_failed', detail: msg };
   }
 }
@@ -64,19 +76,36 @@ async function verifyImapCredentials({ host, port, tls, username, password, fold
 //   `smtp_username` 이 한 글자로 저장됐다. 받기는 멀쩡해서 아무도 몰랐고, 보내는 순간에야 실패한다.
 //   발송 코드(emailSend.buildTransport)와 **같은 규칙**으로 호스트·포트·아이디를 정한다 — 검사와 실제가
 //   다르면 검사가 초록이어도 발송은 실패한다.
-async function verifySmtpCredentials({ host, port, username, password, tls }) {
-  const nodemailer = require('nodemailer');
+//   `preferRoute` = 받기가 성공한 길 — 그 길부터 시도한다(등록 대기 최악 시간을 줄인다, Fable).
+async function verifySmtpCredentials({ host, port, username, password, tls, preferRoute = null, authType = 'password' }) {
   const p = Number(port) || 587;
+  const addresses = await relayAddresses(host, p, tls, authType);
+  let order = ['direct'];
+  if (addresses) order = mailRoute.forceRelay() ? ['relay'] : (preferRoute === 'relay' ? ['relay'] : ['direct', 'relay']);
+  let res;
+  for (let i = 0; i < order.length; i += 1) {
+    res = await verifySmtpOnce({ host, port: p, username, password, tls, route: order[i], addresses, fallback: i < order.length - 1 });
+    if (res.ok || res.code !== 'smtp_unreachable' || order[i] !== 'direct') break;
+  }
+  if (!res.ok && res.code === 'smtp_unreachable' && order.includes('relay')) return { ...res, code: 'smtp_unreachable_relay' };
+  return res;
+}
+
+async function verifySmtpOnce({ host, port: p, username, password, tls, route, addresses, fallback }) {
+  const nodemailer = require('nodemailer');
   const tr = nodemailer.createTransport({
     host, port: p, secure: p === 465,
     auth: { user: username, pass: password },
     requireTLS: tls !== false && p !== 465,
-    connectionTimeout: 10000, greetingTimeout: 10000, socketTimeout: 15000,
+    connectionTimeout: fallback ? mailRoute.DIRECT_TIMEOUT_WITH_FALLBACK_MS : 10000, greetingTimeout: 10000, socketTimeout: 15000,
+    ...(route === 'relay' ? mailRoute.smtpRelayOptions(host, addresses) : {}),
   });
   try {
     await tr.verify();
-    return { ok: true };
+    return { ok: true, route };
   } catch (e) {
+    if (e && e.pqCode === 'relay_unavailable') return { ok: false, code: 'relay_unavailable', detail: e.message };
+    if (route === 'relay' && mailRoute.isCertError(e)) return { ok: false, code: 'smtp_cert_invalid', detail: String(e.message) };
     const msg = String((e && e.message) || e);
     const h = String(host || '').toLowerCase();
     if (e && (e.code === 'EAUTH' || /535|534|auth/i.test(msg))) {

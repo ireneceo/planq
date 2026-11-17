@@ -70,6 +70,10 @@ EmailAccount.init({
     allowNull: false,
     defaultValue: 'off',
   },
+  // 2026-11-17 연결 길 — direct(직접) / relay(한국 중계) / NULL(모름). 정하고 쓰는 곳은 services/mailRoute 한 곳.
+  //   해외 IP 를 막는 한국 메일 서버만 relay. 설계 docs/MAIL_KR_RELAY_DESIGN.md
+  connect_route: { type: DataTypes.ENUM('direct', 'relay'), allowNull: true },
+  connect_route_checked_at: { type: DataTypes.DATE, allowNull: true },
   last_sync_at: { type: DataTypes.DATE, allowNull: true },
   last_sync_error: { type: DataTypes.TEXT, allowNull: true },
   fail_count: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },

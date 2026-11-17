@@ -55,17 +55,19 @@ async function buildTransport(account) {
   const port = account.smtp_port || 587;
   // ★ 발송 직전 재검사 — 등록 검사와 연결 사이에 DNS 가 바뀔 수 있고(리바인딩),
   //   검증 없던 시절의 옛 계정도 여기로 온다. OAuth 계정은 **살아 있는 토큰**을 들고 나간다.
-  {
-    const r = await assertOutboundHostAllowed(host, port);
-    if (!r.ok) throw new Error('smtp_host_not_allowed:' + r.code);
-  }
+  const guard = await assertOutboundHostAllowed(host, port);
+  if (!guard.ok) throw new Error('smtp_host_not_allowed:' + guard.code);
   const user = account.smtp_username || account.imap_username;
   const pass = decrypt(account.smtp_password_encrypted || account.imap_password_encrypted);
   if (!pass) throw new Error('smtp_password_missing');
+  // 한국 중계 — 받기가 중계로 붙는 계정만 보내기도 중계로(같은 서버가 해외를 막는다). 판정은 mailRoute 한 곳.
+  const mailRoute = require('./mailRoute');
+  const viaRelay = mailRoute.smtpViaRelay(account, port);
   return nodemailer.createTransport({
     host, port, secure: port === 465,
     auth: { user, pass },
     requireTLS: account.smtp_tls !== false && port !== 465,
+    ...(viaRelay ? mailRoute.smtpRelayOptions(host, guard.addresses) : {}),
   });
 }
 

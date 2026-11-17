@@ -199,6 +199,10 @@ const EmailAccountSettings: React.FC = () => {
             {acc.is_default && <DefaultBadge>{t('settings.default', '기본') as string}</DefaultBadge>}
             {!acc.is_active && <InactiveBadge>{t('settings.inactive', '비활성') as string}</InactiveBadge>}
             {acc.needs_reconnect && <ErrorBadge>{t('settings.needsReconnect') as string}</ErrorBadge>}
+            {/* 해외 IP 를 막는 메일 서버 — 한국 중계로 붙는다(서버 services/mailRoute 가 정한 값) */}
+            {acc.connect_route === 'relay' && (
+              <ResponsibleBadge title={t('settings.relayTip') as string} data-testid="mail-account-relay-badge">{t('settings.relayBadge') as string}</ResponsibleBadge>
+            )}
           </EmailRow>
           {acc.display_name && <DisplayName>{acc.display_name}</DisplayName>}
           <MetaRow>

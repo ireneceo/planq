@@ -75,7 +75,9 @@ async function assertOutboundHostAllowed(host, port, { ports = MAIL_PORTS } = {}
   if (!ports.has(p)) return { ok: false, code: 'port_not_allowed' };
 
   // 리터럴 IP 면 그대로, 이름이면 A/AAAA 전부 검사 (하나라도 내부면 차단 — 라운드로빈 우회 차단)
-  if (net.isIP(h)) return ipBlocked(h) ? { ok: false, code: 'host_not_allowed' } : { ok: true };
+  //   ★ 검사한 주소를 돌려준다(`addresses`) — 한국 중계(services/mailRoute)는 **이 IP 로만** CONNECT 한다.
+  //     중계가 이름을 다시 풀면 검사와 실제 목적지가 달라진다(2026-11-17 Fable 설계 검토 4).
+  if (net.isIP(h)) return ipBlocked(h) ? { ok: false, code: 'host_not_allowed' } : { ok: true, addresses: [{ address: h, family: net.isIP(h) }] };
   let addrs;
   try {
     addrs = await dnsp.lookup(h, { all: true });
@@ -84,7 +86,7 @@ async function assertOutboundHostAllowed(host, port, { ports = MAIL_PORTS } = {}
   }
   if (!addrs.length) return { ok: false, code: 'host_unresolved' };
   if (addrs.some((a) => ipBlocked(a.address))) return { ok: false, code: 'host_not_allowed' };
-  return { ok: true };
+  return { ok: true, addresses: addrs.map((a) => ({ address: a.address, family: a.family })) };
 }
 
 module.exports = { assertOutboundHostAllowed, ipBlocked, MAIL_PORTS };

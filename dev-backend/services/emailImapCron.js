@@ -13,7 +13,7 @@
 //   4. fail_count ≥ 3 → platform_admin alert (notify)
 const cron = require('node-cron');
 const { assertOutboundHostAllowed } = require('../utils/netGuard');
-const imaps = require('imap-simple');
+const mailRoute = require('./mailRoute');   // 연결 길(직접 / 한국 중계) — docs/MAIL_KR_RELAY_DESIGN.md
 const { simpleParser } = require('mailparser');
 const { Op } = require('sequelize');
 const path = require('path');
@@ -426,10 +426,8 @@ async function buildImapConfig(account, { onIdle = false } = {}) {
   // ★ 등록 시점 검사만으로는 부족하다 — **검사 때와 연결 때의 DNS 가 다를 수 있고**(리바인딩),
   //   검증이 없던 시절에 저장된 옛 계정은 검사를 아예 안 거쳤다. 연결 직전에 한 번 더 본다.
   //   (2026-09-02 보안감사 H-5 후속 — Fable 이 TOCTOU 로 지적)
-  {
-    const r = await assertOutboundHostAllowed(account.imap_host, Number(account.imap_port) || 993);
-    if (!r.ok) throw new Error('imap_host_not_allowed:' + r.code);
-  }
+  const guard = await assertOutboundHostAllowed(account.imap_host, Number(account.imap_port) || 993);
+  if (!guard.ok) throw new Error('imap_host_not_allowed:' + guard.code);
   let imapConfig;
   if (account.auth_type === 'google_oauth') {
     const gmailOauth = require('./gmail_oauth');
@@ -470,6 +468,7 @@ async function buildImapConfig(account, { onIdle = false } = {}) {
   }
   // node-imap keepalive: idle 상태에서 주기적으로 NOOP/IDLE 갱신 → 새 메일 즉시 'mail' 이벤트.
   if (onIdle) imapConfig.keepalive = { interval: 10000, idleInterval: 300000, forceNoop: true };
+  imapConfig._pqAddresses = guard.addresses;   // 중계는 이 검사한 IP 로만 붙는다(mailRoute 가 떼어 낸다)
   return imapConfig;
 }
 
@@ -1141,7 +1140,7 @@ async function ingestMessage(ctx, { r, uid, box, role = 'inbox', isBackfill }) {
 async function syncOne(account, opts = {}) {
   const imapConfig = await buildImapConfig(account);
 
-  const conn = await imaps.connect({ imap: imapConfig });
+  const { conn } = await mailRoute.connectImap(account, imapConfig);
 
   // "우리 주소" 집합 — 우리가 보낸 메일(플랫폼 알림·워크스페이스 발송)이 되돌아온 것은
   // 사람 문의가 아니다. 이게 없어서 운영 "답변 필요" 116건 중 93건이 자기 알림이었다.
@@ -1284,6 +1283,7 @@ async function tick() {
       .filter((a) => { const bo = syncBackoff(a); if (bo.backoff && !bo.due) { backoffSkipped += 1; return false; } return true; })
       .slice(0, 50);
 
+    await mailRoute.reprobeRelayAccounts(accounts);   // 중계 계정 하루 한 번 직접 TCP 재확인(IDLE 안 끊음)
     for (const acc of accounts) {
       // 실시간 IDLE 연결이 살아있는 계정은 이미 즉시 수신 중 — 폴링이 2번째 연결을 열어
       // Gmail 동시연결 제한(15)을 압박하는 것을 막는다. IDLE 이 끊긴(conn=null) 계정만 backstop 폴링.
@@ -1301,6 +1301,7 @@ async function tick() {
         const n = await syncOne(acc);
         if (n > 0) console.log(`[emailImapCron] account #${acc.id} (${acc.email}) — ${n} new`);
       } catch (e) {
+        if (e && e.pqCode === 'relay_unavailable') continue;   // 중계 고장은 계정 오류가 아니다(관리자 알림은 mailRoute 가)
         const failCount = (acc.fail_count || 0) + 1;
         await acc.update({
           last_sync_error: String(e.message).slice(0, 1000),
@@ -1473,7 +1474,7 @@ function scheduleReconnect(account) {
   const t = setTimeout(() => {
     reconnectTimers.delete(id);
     startIdleForAccount(account).catch(() => {});
-  }, next);
+  }, next + mailRoute.reconnectJitterMs(account));   // 중계 계정은 흩어서(중계 재시작 때 한꺼번에 붙지 않게)
   reconnectTimers.set(id, t);
 }
 
@@ -1499,7 +1500,7 @@ async function startIdleForAccount(account) {
     }
     account = fresh;
     const imapConfig = await buildImapConfig(account, { onIdle: true });
-    conn = await imaps.connect({ imap: imapConfig });
+    ({ conn } = await mailRoute.connectImap(account, imapConfig));
     await conn.openBox(account.imap_folder || 'INBOX');
   } catch (e) {
     // 연결 실패 — 플레이스홀더 정리(단, 그 사이 stop 요청 왔으면 존중) 후 재연결 예약

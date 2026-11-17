@@ -104,6 +104,7 @@ function serializeAccount(acc) {
     // #235 — 업무 자동추출 범위. 화면이 현재 설정을 그리려면 여기 실려야 한다
     //   (명시 나열이라 안 적으면 목록엔 없고 화면은 매번 기본값으로 보인다).
     auto_extract_scope: j.auto_extract_scope || 'off',
+    connect_route: j.connect_route || null,   // relay = 한국 중계로 연결(해외 IP 를 막는 메일 서버) — 화면 «한국 경유» 표시
     owner_user_id: j.owner_user_id ?? null,
     // 회사 공용 메일함 책임자 — 이름은 화면이 멤버 목록으로 매핑한다(원천을 둘로 만들지 않는다)
     responsible_user_id: j.responsible_user_id ?? null,
@@ -185,6 +186,7 @@ router.post('/:businessId/email-accounts', authenticateToken, checkBusinessAcces
       username: b.smtp_username || b.imap_username,
       password: smtpPassword || imapPassword,
       tls: b.smtp_tls !== false,
+      preferRoute: verify.route,
     });
     if (!smtpVerify.ok) return res.status(400).json({ success: false, message: smtpVerify.code });
     // 첫 공용 계정이면 is_default 자동 (개인 계정은 공용 default 후보 아님)
@@ -207,6 +209,7 @@ router.post('/:businessId/email-accounts', authenticateToken, checkBusinessAcces
       smtp_tls: b.smtp_tls !== false,
       is_active: true,
       is_default: scope === 'team' && teamCount === 0,
+      connect_route: verify.route || null, connect_route_checked_at: verify.route ? new Date() : null,   // 성공한 길(직접/한국 중계) — services/mailRoute
     });
     await createAuditLog({
       userId: req.user.id, businessId,
@@ -304,9 +307,10 @@ router.put('/:businessId/email-accounts/:id', authenticateToken, checkBusinessAc
         folder: b.imap_folder !== undefined ? (b.imap_folder || 'INBOX') : acc.imap_folder,
       });
       if (!verify.ok) return res.status(400).json({ success: false, message: verify.code });
-      // 검증 통과 → 실패 이력 리셋
+      // 검증 통과 → 실패 이력 리셋 · 성공한 연결 길을 다시 적는다(서버를 바꿨으면 길도 바뀔 수 있다)
       patch.last_sync_error = null;
       patch.fail_count = 0;
+      if (verify.route) { patch.connect_route = verify.route; patch.connect_route_checked_at = new Date(); }
 
       Object.assign(patch, oauthToPasswordPatch(acc, b, patch));  // OAuth → 앱 비밀번호 전환 (검증 통과 후에만)
     }
@@ -326,6 +330,7 @@ router.put('/:businessId/email-accounts/:id', authenticateToken, checkBusinessAc
         username: pick('smtp_username') || pick('imap_username'),
         password: smtpPass,
         tls: pick('smtp_tls') !== false,
+        preferRoute: patch.connect_route || acc.connect_route || null,
       });
       if (!sv.ok) return res.status(400).json({ success: false, message: sv.code });
     }
@@ -385,18 +390,11 @@ router.post('/:businessId/email-accounts/:id/test', authenticateToken, checkBusi
     let connOk = false;
     let errMsg = null;
     try {
-      const imaps = require('imap-simple');
-      const conn = await imaps.connect({
-        imap: {
-          user: acc.imap_username,
-          password,
-          host: acc.imap_host,
-          port: acc.imap_port,
-          tls: acc.imap_tls,
-          authTimeout: 10000,
-          tlsOptions: { rejectUnauthorized: false },
-        },
-      });
+      // 길(직접 / 한국 중계)은 수신과 같은 규칙 — services/mailRoute 한 곳
+      const guard = await assertOutboundHostAllowed(acc.imap_host, Number(acc.imap_port) || 993);
+      if (!guard.ok) throw new Error(guard.code);
+      const { conn } = await require('../services/mailRoute').connectImap(acc, { user: acc.imap_username, password, host: acc.imap_host,
+        port: acc.imap_port, tls: acc.imap_tls, authTimeout: 10000, tlsOptions: { rejectUnauthorized: false } }, { addresses: guard.addresses });
       await conn.openBox(acc.imap_folder);
       await conn.end();
       connOk = true;
@@ -412,6 +410,7 @@ router.post('/:businessId/email-accounts/:id/test', authenticateToken, checkBusi
         username: acc.smtp_username || acc.imap_username,
         password: decrypt(acc.smtp_password_encrypted) || password,
         tls: acc.smtp_tls !== false,
+        preferRoute: acc.connect_route || null,
       });
       smtpOk = sv.ok; smtpCode = sv.ok ? null : sv.code;
     }

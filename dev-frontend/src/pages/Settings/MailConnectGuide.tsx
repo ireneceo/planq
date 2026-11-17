@@ -108,6 +108,12 @@ export const IMAP_ERROR_GUIDE: Record<string, { key: string; def: string; preset
   smtp_host_not_found: { key: 'settings.err.smtpHost', def: '', field: 'smtp_host' },
   smtp_connect_failed: { key: 'settings.err.smtpConnect', def: '', field: 'smtp_host' },
   smtp_unreachable: { key: 'settings.err.smtpUnreachable', def: '', field: 'smtp_host' },
+  // 한국 중계(2026-11-17, services/mailRoute) — 중계까지 거쳐도 무응답 · 중계 경로 인증서 불량 · 중계 고장
+  imap_unreachable_relay: { key: 'settings.err.unreachableRelay', def: '', field: 'imap_host' },
+  smtp_unreachable_relay: { key: 'settings.err.smtpUnreachableRelay', def: '', field: 'smtp_host' },
+  imap_cert_invalid: { key: 'settings.err.certInvalid', def: '', field: 'imap_host' },
+  smtp_cert_invalid: { key: 'settings.err.smtpCertInvalid', def: '', field: 'smtp_host' },
+  relay_unavailable: { key: 'settings.err.relayUnavailable', def: '' },
 };
 
 // IMAP host → 안내 가이드 key (편집 모드에서도 provider 안내 표시)

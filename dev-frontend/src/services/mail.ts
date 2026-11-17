@@ -22,6 +22,8 @@ export interface EmailAccountRow {
   notify_scope: 'all' | 'recommended' | 'reply_only';
   // #235 — 업무 자동추출 범위 (계정 속성). 'off' 가 기본.
   auto_extract_scope?: 'off' | 'reply_needed' | 'recommended';
+  /** 연결 길 — relay = 한국 중계(해외 IP 를 막는 메일 서버). 서버 services/mailRoute 가 정한다 */
+  connect_route?: 'direct' | 'relay' | null;
   // 서명 — 계정마다 등록 (발송 시 백엔드가 본문 끝에 붙인다)
   signature_html: string | null;
   /** 영문 서명 — 비우면 signature_html 을 쓴다 (2026-09-18) */
