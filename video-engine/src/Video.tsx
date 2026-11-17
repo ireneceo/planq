@@ -79,7 +79,7 @@ export const Video: React.FC<{ sb: Storyboard; aspect: Aspect }> = ({ sb, aspect
           </Sequence>
         );
       })}
-      {sb.music && <Audio src={sb.music.src.startsWith('http') ? sb.music.src : staticFile(sb.music.src)} startFrom={Math.round(sb.music.startAt * fps)} volume={musicVol} />}
+      {sb.music && <Audio src={sb.music.src.startsWith('http') ? sb.music.src : staticFile(sb.music.src)} startFrom={Math.round(sb.music.startAt * fps)} volume={musicVol} loop={!!sb.music.loop} loopVolumeCurveBehavior="extend" />}
       {sb.voice && <Audio src={sb.voice.src} volume={sb.voice.volume} />}
       {sb.voice && sb.voice.face && <FaceCircle src={sb.voice.face} aspect={aspect} accent={tpl.palette.accent} />}
       {sb.sfx.map((x, i) => (

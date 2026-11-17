@@ -297,7 +297,10 @@ function build(script, aspect = 'landscape') {
 
   // 음악 박자: 영상 0초 = 음악 startAt. 장면 경계를 박자에 붙인다(녹음 기반은 말이 길이를 정하므로 안 붙인다)
   const startAt = mus ? (script.musicStart != null ? script.musicStart : mus.analysis.beats[0]) : 0;
-  const grid = !mus || tpl.beatSync === 'none' || voice ? [] : (tpl.beatSync === 'downbeat' ? mus.analysis.downbeats : mus.analysis.beats).map((b) => b - startAt).filter((b) => b > 0);
+  // 곡이 영상보다 짧으면 startAt~곡 끝 구간을 이어 붙여 반복한다(Video.tsx <Audio loop>) — 박자 격자도 같은 주기로 이어 붙인다
+  const period = mus ? mus.analysis.duration - startAt : 0;
+  const tile = (arr) => { const out = []; for (let k = 0; k < (period > 1 ? 20 : 1); k++) for (const b of arr) { const x = b - startAt + k * period; if (x >= 0 && b >= startAt) out.push(x); } return out; };
+  const grid = !mus || tpl.beatSync === 'none' || voice ? [] : tile(tpl.beatSync === 'downbeat' ? mus.analysis.downbeats : mus.analysis.beats).filter((b) => b > 0);
   let at = 0;
   scenes.forEach((sc, i) => {
     const trans = i === 0 ? 0 : (sc.transIn ?? tpl.transitionSec);
@@ -349,12 +352,12 @@ function build(script, aspect = 'landscape') {
   return {
     id: script.id, aspect, title: script.title, mode: script.mode || 'instruction', fps: FPS,
     template: tpl, scenes,
-    music: mus ? { src: `media/music/${mus.file ? path.basename(mus.file) : ''}`, volume: tpl.musicVolume, startAt: r3(startAt), fadeIn: 0.6, fadeOut: 2.2, credit: mus.credit } : undefined,
+    music: mus ? { src: `media/music/${mus.file ? path.basename(mus.file) : ''}`, volume: tpl.musicVolume, startAt: r3(startAt), fadeIn: 0.6, fadeOut: 2.2, loop: total > period - 0.05 || undefined, credit: mus.credit } : undefined,
     sfx: sfx.filter((x) => x.t >= 0 && x.t < total),
     voice: voice || undefined,
     brand: { logoWhite: 'brand/planQ_white_new.svg', logoColor: 'brand/planQ_color.svg', mark: 'brand/favicon.svg', url: 'planq.kr' },
     _grid: grid.filter((b) => b < total), _total: r3(total), _gate: gateIssues,
-    _beats: mus ? mus.analysis.beats.map((b) => r3(b - startAt)).filter((b) => b >= 0 && b < total) : [],
+    _beats: mus ? tile(mus.analysis.beats).map(r3).filter((b) => b < total) : [],
   };
 }
 

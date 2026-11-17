@@ -2,7 +2,7 @@
   "id": "a2-shorts",
   "mode": "instruction",
   "template": "fast-shorts",
-  "music": "Pamgaea",
+  "music": "BrightGuitar",
   "instruction": "고객 대화 속 요청을 AI가 업무 후보로 찾아 주고, 업무로 관리하는 기능을 30초 쇼츠로. 대상: 외주·에이전시 대표. 고객 요청을 카톡에서 놓쳐 본 경험을 건드려라.",
   "title": "카톡 요청, AI가 바로 업무로",
   "concept": "외주·에이전시 대표가 카톡 속 고객 요청을 놓치는 불안을, Q talk + Q task로 ‘대화=업무’ 흐름으로 보여주는 30초 쇼츠.",

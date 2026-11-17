@@ -67,7 +67,7 @@ export type Storyboard = {
   template: Template;
   fps: number;
   scenes: Scene[];
-  music?: { src: string; volume: number; startAt: number; fadeIn: number; fadeOut: number };
+  music?: { src: string; volume: number; startAt: number; fadeIn: number; fadeOut: number; loop?: boolean };
   sfx: { t: number; kind: 'click' | 'whoosh' | 'pop' | 'ding' | 'boom'; vol?: number }[];
   voice?: { src: string; volume: number; spans: { t0: number; t1: number }[]; face?: string | null };
   brand: { logoWhite: string; logoColor: string; mark: string; url: string };
