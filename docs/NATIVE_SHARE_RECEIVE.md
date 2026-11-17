@@ -9,7 +9,7 @@
 |---|---|
 | ① 공유 받은 뒤 화면 (`/share-receive`, 웹·앱 공용) | ✅ 2026-09-29 — 대화방 고르기 · 저장 위치(회사 파일/프로젝트 → 폴더 · 새 폴더) · 문서가 글·첨부를 받음. 카나리 `--suite sharereceive` |
 | ② 안드로이드 공유 수신 | ✅ 코드 2026-10-07 — **새 앱 빌드(Play)가 나가야 사용자에게 닿는다** (아래 «안드로이드 — 구현») |
-| ② iOS Share Extension | ✅ 코드 2026-11-15 (아래 «iOS — 구현») — Apple 설정·Codemagic 서명 끝(11-16 Irene). **Codemagic TestFlight 빌드 → 실기기 확인이 남았다** |
+| ② iOS Share Extension | ✅ 코드 2026-11-15 · ✅ Codemagic 빌드 #23 → TestFlight 22 (11-17) · App Store 심사 대기 — **실기기 확인이 남았다** |
 
 ## 핵심 결정 — 입구는 하나다
 
@@ -116,8 +116,8 @@
 |---|---|---|---|
 | 0. Apple 설정 4가지(App Group·확장 번들·프로필·Codemagic 등록) | Irene | 20~30분 | ✅ 11-16 — 프로필 planq_appstore_v2(app.planq, App Groups) · planq_share_extension_appstore(app.planq.ShareExtension) |
 | 1. 구현(위 파일) + guard·빌드 | Claude | 반나절 | ✅ 11-15 (아래 «iOS — 구현») |
-| 2. Codemagic «PlanQ iOS — TestFlight» 빌드(서명·업로드) | Claude 커밋 → Irene 실행 | 30~40분 | 실패하면 로그 보고 1 로 |
-| 3. TestFlight 외부 베타 심사(새 확장이 붙어 다시 심사) | Apple | 보통 1일 | |
+| 2. Codemagic «PlanQ iOS — TestFlight» 빌드(서명·업로드) | Claude 커밋 → Irene 실행 | 30~40분 | ✅ 11-17 — Codemagic iOS #23(main e610a59a 포함) 성공 = 공유 확장 첫 컴파일·서명 통과 → TestFlight 빌드 22 |
+| 3. TestFlight 외부 베타 심사(새 확장이 붙어 다시 심사) | Apple | 보통 1일 | 11-17 App Store 1.0.1 을 빌드 22 로 바꿔 재제출 — «심사 대기 중». 내부 테스터는 TestFlight 22 로 지금 설치 가능 |
 | 4. 실기기 확인 — 사진 여러 장·PDF·앱 꺼진 상태·로그아웃 상태·10개 넘게 | Irene | 10분 | |
 | 안드로이드 — Play 업로드 + 심사 + 실기기 | Irene → Google | 1~3일 | 상황판 할 일 `todomv5a7m3l` |
 
