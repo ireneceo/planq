@@ -8,6 +8,7 @@ const { authenticateToken, checkBusinessAccess } = require('../middleware/auth')
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
 const { canWrite, blockClient } = require('../services/attendanceAdmin');
 const LT = require('../services/leaveTypes');
+const { requireModule } = require('../services/modules');   // 근태·휴가 꺼지면 404
 
 const router = express.Router();
 
@@ -24,7 +25,7 @@ async function listPayload(req, businessId) {
 }
 
 // GET /api/businesses/:businessId/leave-types?include_inactive=1
-router.get('/:businessId/leave-types', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+router.get('/:businessId/leave-types', authenticateToken, checkBusinessAccess, requireModule('attendance'), async (req, res, next) => {
   try {
     if (blockClient(req, res)) return;
     return successResponse(res, await listPayload(req, Number(req.params.businessId)));
@@ -32,7 +33,7 @@ router.get('/:businessId/leave-types', authenticateToken, checkBusinessAccess, a
 });
 
 // audit-exempt: 감사(leave_type.create|update|delete)는 services/leaveTypes 안에서 쓴다 — 규칙과 같은 자리
-router.post('/:businessId/leave-types', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+router.post('/:businessId/leave-types', authenticateToken, checkBusinessAccess, requireModule('attendance'), async (req, res, next) => {
   try {
     if (blockClient(req, res)) return;
     if (!canWrite(req)) return errorResponse(res, 'Admin permission required', 403);
@@ -43,7 +44,7 @@ router.post('/:businessId/leave-types', authenticateToken, checkBusinessAccess, 
 });
 
 // audit-exempt: 감사(leave_type.create|update|delete)는 services/leaveTypes 안에서 쓴다 — 규칙과 같은 자리
-router.patch('/:businessId/leave-types/:id', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+router.patch('/:businessId/leave-types/:id', authenticateToken, checkBusinessAccess, requireModule('attendance'), async (req, res, next) => {
   try {
     if (blockClient(req, res)) return;
     if (!canWrite(req)) return errorResponse(res, 'Admin permission required', 403);
@@ -57,7 +58,7 @@ router.patch('/:businessId/leave-types/:id', authenticateToken, checkBusinessAcc
 });
 
 // audit-exempt: 감사(leave_type.create|update|delete)는 services/leaveTypes 안에서 쓴다 — 규칙과 같은 자리
-router.delete('/:businessId/leave-types/:id', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+router.delete('/:businessId/leave-types/:id', authenticateToken, checkBusinessAccess, requireModule('attendance'), async (req, res, next) => {
   try {
     if (blockClient(req, res)) return;
     if (!canWrite(req)) return errorResponse(res, 'Admin permission required', 403);

@@ -408,7 +408,10 @@ async function notificationScope(req) {
   const where = { user_id: req.user.id, [Op.or]: [{ business_id: businessId }, { business_id: null }] };
   // 꺼진 기능의 알림은 빼고 센다 — 켜면 돌아온다(지우지 않는다). docs/PAYROLL_DESIGN.md §2.2
   const { moduleOnFor } = require('../services/modules');
-  if (!(await moduleOnFor(businessId, 'payroll'))) where.event_kind = { [Op.ne]: 'payroll' };
+  const hidden = [];
+  if (!(await moduleOnFor(businessId, 'payroll'))) hidden.push('payroll');
+  if (!(await moduleOnFor(businessId, 'attendance'))) hidden.push('leave');
+  if (hidden.length) where.event_kind = { [Op.notIn]: hidden };
   return { where, businessId };
 }
 const scopeError = (res, status) => errorResponse(res, status === 403 ? 'forbidden' : 'invalid business_id', status);

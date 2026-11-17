@@ -361,6 +361,8 @@ async function pauseActiveFocus(userId) {
  */
 async function autoClockInOnFocus({ businessId, userId }) {
   try {
+    // 근태·휴가 기능이 꺼진 워크스페이스는 근무 기록을 만들지 않는다(services/modules).
+    if (!(await require('./modules').moduleOnFor(businessId, 'attendance'))) return null;
     // 자정을 넘겨 일하던 중이면 어제를 24:00 에 닫고 오늘을 00:00 에 연다 — 그 뒤엔 아래가 «이미 근무중» 으로 끝난다.
     await ensureMidnightSplit({ businessId, userId }).catch((e) => console.warn('[attendance midnight split]', e.message));
     const u = await User.findByPk(userId, { attributes: ['id', 'auto_clock_in_on_focus'] });

@@ -16,6 +16,7 @@ const { successResponse, errorResponse } = require('../utils/response');
 const { parsePagination, paginatedResponse } = require('../middleware/errorHandler');
 const { AttendanceDay, AttendanceEvent, User, BusinessMember, LeaveRequest } = require('../models');
 const A = require('../services/attendanceTransition');
+const { moduleOnFor } = require('../services/modules');
 const { ymd } = require('../utils/datetime');
 
 const clockLimiter = rateLimit({
@@ -32,6 +33,7 @@ async function requireMember(req, res, businessId) {
   if (!(scope.isMember || scope.isOwner || scope.isAdmin || scope.isPlatformAdmin)) {
     errorResponse(res, 'forbidden', 403); return null;
   }
+  if (!(await moduleOnFor(businessId, 'attendance'))) { errorResponse(res, 'module_off', 404); return null; }   // 근태·휴가 꺼짐 = 없는 API(services/modules · 멤버십 확인 뒤라 남에게 켜짐 여부를 말하지 않는다)
   return scope;
 }
 const isManager = (scope) => !!(scope.isOwner || scope.isAdmin || scope.isPlatformAdmin);

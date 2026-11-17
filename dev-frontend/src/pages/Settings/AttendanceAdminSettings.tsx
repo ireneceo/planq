@@ -8,7 +8,9 @@ import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router-dom';
 import styled from 'styled-components';
-import { apiFetch } from '../../contexts/AuthContext';
+import { apiFetch, useAuth } from '../../contexts/AuthContext';
+import AttendanceModuleSwitch from '../../components/Settings/AttendanceModuleSwitch';   // 맨 위 켜기/끄기
+import { attendanceOn } from '../../utils/workspaceModules';
 import { joinRoom, leaveRoom, onSocket } from '../../services/socket';
 import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
 import { ATTENDANCE_REFRESH_EVENT, type AttendanceDay } from '../../hooks/useAttendance';
@@ -23,6 +25,8 @@ interface Props { businessId: number }
 
 export default function AttendanceAdminSettings({ businessId }: Props) {
   const { t } = useTranslation('attendance');
+  const { user } = useAuth();
+  const moduleOn = attendanceOn(user?.modules);   // 꺼져 있으면 스위치 + 휴일만(근태·휴가 API 는 404)
   const year = new Date().getFullYear();
   const today = new Date().toISOString().slice(0, 10);
 
@@ -46,6 +50,7 @@ export default function AttendanceAdminSettings({ businessId }: Props) {
   const [fixTarget, setFixTarget] = useState<AttendanceDay | null>(null);
 
   const load = useCallback(async () => {
+    if (!moduleOn) return;
     const get = async (url: string) => {
       const r = await apiFetch(url);
       if (!r.ok) return null;                    // apiFetch 는 throw 하지 않는다
@@ -62,7 +67,7 @@ export default function AttendanceAdminSettings({ businessId }: Props) {
     if (all) setAllRequests(all);
     if (team) setTeamDays(team);
     if (st) setStats(st.members || []);
-  }, [businessId, teamDate, statMonth]);
+  }, [businessId, teamDate, statMonth, moduleOn]);
 
   useEffect(() => { void load(); }, [load]);
   useVisibilityRefresh(load);
@@ -112,6 +117,10 @@ export default function AttendanceAdminSettings({ businessId }: Props) {
 
   return (
     <Wrap>
+      <AttendanceModuleSwitch businessId={businessId} />
+      {/* 휴일·근무일은 캘린더·가용시간이 같이 써서 근태를 꺼도 남는다(서버 business_holidays 도 막지 않는다) */}
+      {!moduleOn && <HolidaySettingsSection businessId={businessId} />}
+      {moduleOn && (<>
       <Desc>{t('admin.desc') as string}</Desc>
       <LeaveTypeSettingsSection businessId={businessId} />
       <HolidaySettingsSection businessId={businessId} />
@@ -128,6 +137,7 @@ export default function AttendanceAdminSettings({ businessId }: Props) {
         day={fixTarget} onClose={() => setFixTarget(null)}
         nameOf={nameOf} onDone={load}
       />
+      </>)}
     </Wrap>
   );
 }

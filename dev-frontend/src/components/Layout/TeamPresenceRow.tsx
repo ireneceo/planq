@@ -7,6 +7,7 @@ import { createPortal } from 'react-dom';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../contexts/AuthContext';
+import { attendanceOn } from '../../utils/workspaceModules';
 import { useTeamPresence, PRESENCE_DOT, type PresenceState } from '../../hooks/useTeamPresence';
 import { listMembers, type WorkspaceMember } from '../../services/workspace';
 import { useEscapeStack } from '../../hooks/useEscapeStack';
@@ -24,7 +25,7 @@ const TeamPresenceRow: React.FC = () => {
   const { t, i18n } = useTranslation('attendance');
   const { user } = useAuth();
   const isClient = user?.business_role === 'client';
-  const bizId = (!isClient && user?.business_id) ? Number(user.business_id) : null;
+  const bizId = (!isClient && user?.business_id && attendanceOn(user?.modules)) ? Number(user.business_id) : null;   // 근태 꺼짐 = 줄 없음
   const presence = useTeamPresence(bizId);
   const myId = user?.id ? Number(user.id) : 0;
   const [open, setOpen] = useState(false);

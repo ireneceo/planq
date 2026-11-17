@@ -7,6 +7,7 @@ import React from 'react';
 import styled, { css, keyframes } from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../contexts/AuthContext';
+import { attendanceOn } from '../../utils/workspaceModules';
 import { useAttendance, formatHm, formatHours } from '../../hooks/useAttendance';
 import StandardModal from '../Common/StandardModal';
 import ActionButton from '../Common/ActionButton';
@@ -30,7 +31,8 @@ const AttendanceWidget: React.FC<Props> = ({ variant = 'sidebar', isCollapsed, e
   //   (2026-09-02 고객 계정 재현: 사이드바에 위젯이 그대로 떠 있고 콘솔에 403).
   //   bizId 를 null 로 넘겨 훅이 아예 호출하지 않게 한다 — 훅 개수는 그대로 유지.
   const isClientUser = user?.business_role === 'client';
-  const bizId = (!isClientUser && user?.business_id) ? Number(user.business_id) : null;
+  // 근태·휴가 기능이 꺼진 워크스페이스도 같은 방식으로 안 그린다(utils/workspaceModules).
+  const bizId = (!isClientUser && user?.business_id && attendanceOn(user?.modules)) ? Number(user.business_id) : null;
   const a = useAttendance(bizId);
 
   // ★ 이 세 줄은 **early return 앞**이어야 한다 — 아래 `return null` 뒤에 훅을 두면

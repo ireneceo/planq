@@ -223,5 +223,17 @@
     "hint": "Status only · times and records are not shown",
     "loading": "Loading…",
     "empty": "No other members"
+  },
+  "module": {
+    "title": "Use attendance & leave",
+    "stateOn": "On",
+    "stateOff": "Off",
+    "descOn": "Clock-in records, leave requests and approvals. Turning this off hides the Attendance menu and clock-in widget for everyone.",
+    "descOff": "Turned off. The Attendance menu, clock-in widget and leave notifications are hidden. Records are kept and come back when you turn it on.",
+    "ownerOnly": "Only the owner can change this.",
+    "offConfirmTitle": "Turn off attendance & leave?",
+    "offConfirmMsg": "For every member, the Attendance menu, sidebar clock-in widget, teammate status dots, leave approvals and leave notifications will disappear. Auto clock-in on task start stops and leave is no longer deducted from capacity. Records are not deleted and come back when you turn it on again.",
+    "offConfirm": "Turn off",
+    "saveError": "Could not save. Please try again shortly."
   }
 }

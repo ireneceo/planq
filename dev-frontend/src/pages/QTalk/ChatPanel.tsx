@@ -14,6 +14,7 @@ import {
   type MockMessage, type MockProject, type MockConversation, type PostCardMeta,
 } from './types';
 import { useAuth, apiFetch } from '../../contexts/AuthContext';
+import { attendanceOn } from '../../utils/workspaceModules';
 import * as qtalkApi from '../../services/qtalk';
 import { useMutedConversations, setConversationMutedLocal } from '../../hooks/useMutedConversations';
 import { promoteInboxItem, promoteErrorKey } from '../../services/sale';
@@ -160,7 +161,7 @@ const ChatPanel: React.FC<Props> = ({
   const { user } = useAuth();
   const { t: tAtt } = useTranslation('attendance');
   // #429 — 멤버 이름 옆 오늘 상태 점. 고객이 보는 화면에서는 부르지도 않는다(서버도 403).
-  const presence = useTeamPresence(user?.business_role !== 'client' && user?.business_id ? Number(user.business_id) : null);
+  const presence = useTeamPresence(user?.business_role !== 'client' && user?.business_id && attendanceOn(user?.modules) ? Number(user.business_id) : null);   // 근태 꺼짐 = 이름 옆 근무 점 없음
   const { formatTime } = useTimeFormat();
   const isClient = user?.business_role === 'client';
 

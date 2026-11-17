@@ -13,6 +13,7 @@ const { successResponse, errorResponse } = require('../utils/response');
 const { parsePagination, paginatedResponse } = require('../middleware/errorHandler');
 const { LeaveGrant, LeaveRequest, LeaveType, AuditLog } = require('../models');
 const L = require('../services/leaveTransition');
+const { moduleOnFor } = require('../services/modules');
 const LT = require('../services/leaveTypes');
 const { ymd } = require('../utils/datetime');
 
@@ -22,6 +23,8 @@ async function requireMember(req, res, businessId) {
   if (!(scope.isMember || scope.isOwner || scope.isAdmin || scope.isPlatformAdmin)) {
     errorResponse(res, 'forbidden', 403); return null;
   }
+  // 근태·휴가 기능이 꺼져 있으면 없는 API(404 — services/modules · docs/PAYROLL_DESIGN.md §2.2). 멤버십 확인 뒤라 남에게 켜짐 여부를 말하지 않는다.
+  if (!(await moduleOnFor(businessId, 'attendance'))) { errorResponse(res, 'module_off', 404); return null; }
   return scope;
 }
 const isManager = (scope) => !!(scope.isOwner || scope.isAdmin || scope.isPlatformAdmin);

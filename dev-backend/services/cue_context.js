@@ -918,6 +918,7 @@ async function getHrSnapshot({ businessId, userId, scope, businessTimezone }) {
   if (!userId || !scope || scope.isClient) return null;
   const isMemberish = !!(scope.isMember || scope.isOwner || scope.isAdmin || scope.isPlatformAdmin);
   if (!isMemberish) return null;
+  if (!(await require('./modules').moduleOnFor(businessId, 'attendance'))) return null;   // 근태·휴가 꺼짐 — Cue 문맥에도 없다
   try {
     const { AttendanceDay, LeaveRequest, User } = require('../models');
     const today = todayStr(businessTimezone);

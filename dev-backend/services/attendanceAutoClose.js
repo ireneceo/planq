@@ -93,7 +93,11 @@ async function runAttendanceAutoClose() {
     const tzCache = new Map();
     let closed = 0;
     let splitCount = 0;
+    const { moduleOnFor } = require('./modules');
+    const modCache = new Map();   // 근태·휴가가 꺼진 워크스페이스는 건너뛴다(켜면 그때 마감된다 — 설계 §2.2)
     for (const day of open) {
+      if (!modCache.has(day.business_id)) modCache.set(day.business_id, await moduleOnFor(day.business_id, 'attendance'));
+      if (!modCache.get(day.business_id)) continue;
       const tz = await tzOf(tzCache, day.business_id);
       const today = dateStrInTz(new Date(), tz);
       if (ymd(day.work_date) >= today) continue;   // String(Date) 로 비교하면 요일 문자열이 나온다   // 오늘 근무 중인 사람은 건드리지 않는다

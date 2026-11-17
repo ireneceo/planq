@@ -76,6 +76,8 @@ async function getDeductionsInRange(userId, businessId, startYmd, endYmd, { cal 
   const holiday_list = c.holidays.filter((h) => h.date >= startYmd && h.date <= endYmd);
   const work_weekdays = [...c.weekdays].sort();
   if (!userId) return { ...empty, holiday_days: holiday_list.length, holiday_list, work_weekdays };
+  // 근태·휴가가 꺼져 있으면 휴가 차감 0(기록은 남는다 — 설계 §2.2). 휴일은 그대로 뺀다.
+  if (!(await require('./modules').moduleOnFor(businessId, 'attendance'))) return { ...empty, holiday_days: holiday_list.length, holiday_list, work_weekdays };
   const { Op } = require('sequelize');
   const { LeaveRequest } = require('../models');
   const rows = await LeaveRequest.findAll({

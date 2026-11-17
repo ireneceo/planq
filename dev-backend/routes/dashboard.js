@@ -374,6 +374,7 @@ function unitLabel(r, TYPE, UNIT, typeName = '') {
 async function collectLeaveApprovals(businessId, userRole, userId) {
   // owner·admin(그리고 platform_admin) 만 승인권자다. member 에게는 보이지 않아야 한다.
   if (!['owner', 'admin', 'platform_admin'].includes(userRole)) return [];
+  if (!(await require('../services/modules').moduleOnFor(businessId, 'attendance'))) return [];   // 근태·휴가 꺼짐 — 승인 할 일도 없다
   const items = [];
   const pend = await LeaveRequest.findAll({
     where: { business_id: businessId, status: 'pending', user_id: { [Op.ne]: userId } },

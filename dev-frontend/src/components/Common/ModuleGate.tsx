@@ -6,12 +6,14 @@
 import React from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import DetailFallback from './DetailFallback';
+import { attendanceOn } from '../../utils/workspaceModules';
 
-export default function ModuleGate({ module, children }: { module: 'payroll' | 'payroll_self'; children: React.ReactNode }) {
+export default function ModuleGate({ module, children }: { module: 'payroll' | 'payroll_self' | 'attendance'; children: React.ReactNode }) {
   const { user } = useAuth();
   if (!user) return null;
   const on = module === 'payroll' ? !!(user.modules?.payroll && user.can_manage_payroll)
-    : module === 'payroll_self' ? !!user.modules?.payroll : false;
+    : module === 'payroll_self' ? !!user.modules?.payroll
+    : module === 'attendance' ? attendanceOn(user.modules) : false;
   if (!on) return <DetailFallback status="not_found" />;
   return <>{children}</>;
 }

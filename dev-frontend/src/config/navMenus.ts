@@ -9,6 +9,7 @@
 //   검색 동의어도 언어별 콘텐츠라 locales 의 `nav.searchAliases.<key>`(쉼표 구분)에 둔다.
 
 import type { MenuKey } from '../services/permissions';
+import { attendanceOn } from '../utils/workspaceModules';
 
 // admin = 워크스페이스 관리자. roles 에 'admin' **또는** 'member' 가 있으면 보인다(멤버이면서 관리 권한, 0-E E-2).
 export type NavRole = 'owner' | 'admin' | 'member' | 'client';
@@ -32,7 +33,8 @@ export interface NavMenuEntry {
   /** 워크스페이스 기능이 켜져 있어야 보이는 메뉴(2026-10-15 — 서버 services/modules 와 같은 값, /api/auth/me 의 modules).
    *  'payroll' 은 켜져 있고 **급여 관리자**(owner + 지정 담당자 — can_manage_payroll)일 때만 보인다. */
   /** 'payroll_self' = 기능이 켜져 있으면 누구나(본인 급여명세서) — 관리자 술어 없음 */
-  module?: 'payroll' | 'payroll_self';
+  /** 'attendance' = 근태·휴가 기능이 켜져 있을 때만(기본 켜짐 — utils/workspaceModules.attendanceOn) */
+  module?: 'payroll' | 'payroll_self' | 'attendance';
 }
 
 /** 섹션 헤더 i18n 키 (layout ns) */
@@ -79,7 +81,8 @@ export const WORKSPACE_MENUS: NavMenuEntry[] = [
   { key: 'received-signatures', to: '/signatures/received', labelKey: 'nav.signatures', section: 'personal', roles: ['owner', 'member'] },
   { key: 'my-feedback', to: '/me/feedback', labelKey: 'nav.myFeedback', section: 'personal', roles: ['owner', 'member'] },
   // 0-E — 사이드바에 있는데 표에 없던 것(가드 navregistry 가 막는다)
-  { key: 'attendance', to: '/attendance', labelKey: 'nav.attendance', section: 'personal', roles: ['owner', 'member'] },
+  { key: 'attendance', to: '/attendance', labelKey: 'nav.attendance', section: 'personal', roles: ['owner', 'member'], module: 'attendance' },
+  // ↑ 근태·휴가를 끄면 이 메뉴만 숨는다. 설정 › 근태 관리(ws-attendance-admin)는 남는다 — 맨 위 스위치가 켜는 문이다(급여 설정과 같은 모양).
 
   { key: 'stats-overview', to: '/stats/overview', labelKey: 'nav.statsOverview', section: 'manage', roles: ['owner', 'member'], permKey: 'insights' },
   { key: 'stats-tasks', to: '/stats/tasks', labelKey: 'nav.statsTaskTime', section: 'manage', roles: ['owner', 'member'], permKey: 'insights' },
@@ -170,7 +173,7 @@ export function visibleNavMenus(opts: {
   /** 멤버 메뉴 권한(GET /api/auth/me 의 menu_levels). 'none' 인 permKey 메뉴는 뺀다 (0-E E-2) */
   menuLevels?: MenuLevels;
   /** 워크스페이스 기능(GET /api/auth/me 의 modules) — module 이 달린 메뉴는 켜져 있을 때만 */
-  modules?: { payroll?: boolean } | null;
+  modules?: { payroll?: boolean; attendance?: boolean } | null;
   /** 급여 관리자(GET /api/auth/me 의 can_manage_payroll) */
   canManagePayroll?: boolean;
 }): NavMenuEntry[] {
@@ -180,6 +183,7 @@ export function visibleNavMenus(opts: {
     if (m.permKey && opts.menuLevels && opts.menuLevels[m.permKey] === 'none') return false;
     if (m.module === 'payroll' && !(opts.modules?.payroll && opts.canManagePayroll)) return false;
     if (m.module === 'payroll_self' && !opts.modules?.payroll) return false;
+    if (m.module === 'attendance' && !attendanceOn(opts.modules)) return false;
     if (m.roles === 'any') return true;
     if (!role) return false;
     const roles = m.roles as NavRole[];

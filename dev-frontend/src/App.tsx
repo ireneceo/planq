@@ -437,7 +437,7 @@ function ShellApp() {
 
         <Route path="/attendance" element={
           <ProtectedRoute>
-            <MainLayout><AttendancePage /></MainLayout>
+            <MainLayout><ModuleGate module="attendance"><AttendancePage /></ModuleGate></MainLayout>
           </ProtectedRoute>
         } />
 
