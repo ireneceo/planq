@@ -129,7 +129,8 @@
     "openPost": "Open document",
     "removeAttach": "Remove",
     "tags": "Tags",
-    "visibility": "Visibility"
+    "visibility": "Visibility",
+    "catNeedOne": "Keep at least one category to save"
   },
   "row": {
     "delete": "Delete",
@@ -168,9 +169,6 @@
     "memberPick": "Pick members",
     "memberPh": "Select members",
     "errMembersRequired": "Please select at least one member",
-    "newCatPh": "New category name",
-    "addCat": "Add",
-    "catDup": "Name already exists — adding will auto-select",
     "customColumns": "Custom fields",
     "addColumn": "Add field",
     "colNamePh": "Field name (e.g. API key)",
@@ -215,7 +213,11 @@
     "attachExistingPosts": "Link existing docs",
     "errContentRequired2": "Add at least one thing besides the title — write a body, fill in an item, or attach a file or document",
     "attach": "Attach material",
-    "close": "Close"
+    "close": "Close",
+    "catPh": "Search or type a new category",
+    "catCreateNamed": "Create category '{{name}}'",
+    "catCreateErr": "Couldn't create the category — please try again",
+    "errCategoryRequired": "Choose at least one category"
   },
   "csvIngest": {
     "drop": "Drag a CSV file here, or click to choose",

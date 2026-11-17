@@ -16,6 +16,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
 import DetailFallback from '../../components/Common/DetailFallback';
 import CategoryTree, { Split, MainArea } from '../../components/Common/CategoryTree';
+import KbCategoryPicker from './KbCategoryPicker';
 import type { DetailStatus } from '../../hooks/useDetailResource';
 import { findOtherWorkspaceOf } from '../../utils/workspaceMatch';
 import { joinRoom, leaveRoom, onSocket } from '../../services/socket';
@@ -45,7 +46,7 @@ import KbCsvIngestModal from './KbCsvIngestModal';
 import {
   listKnowledge, fetchPersonalKb, createKnowledge, deleteKnowledge, updateKnowledge,
   uploadKnowledgeFile, updateKbSecurityLevel,
-  listKbCategories, createKbCategory, createKbShareBundle,
+  listKbCategories, createKbShareBundle,
   LEGACY_KB_CATEGORIES,
   type KbDocumentRow, type KbCategory, type KbScope, type KbVlevel, type KbCategoryRow,
 } from '../../services/knowledge';
@@ -264,8 +265,8 @@ const KnowledgePage: React.FC<KnowledgePageProps> = ({ embedded = false, mode = 
   // N+64 — 카테고리 마스터 (자유 추가/편집)
   const [catMaster, setCatMaster] = useState<KbCategoryRow[]>([]);
   const [catOrphan, setCatOrphan] = useState<string[]>([]);
-  const [newCatInput, setNewCatInput] = useState('');
-  const [catAdding, setCatAdding] = useState(false);
+  // 상세 패널에서 카테고리를 다 지운 채(아직 저장 안 함) — 문서 id 별
+  const [catPending, setCatPending] = useState<{ id: number; cats: string[] } | null>(null);
   // 워크스페이스 멤버 (L2-members picker 용)
   const [members, setMembers] = useState<Array<{ user_id: number; name: string; role: string }>>([]);
   // 카테고리 master + orphan fetch 헬퍼
@@ -519,7 +520,6 @@ const KnowledgePage: React.FC<KnowledgePageProps> = ({ embedded = false, mode = 
     setUploadFiles([]);
     setPickedFileIds(new Set());
     setPickedPostIds(new Set());
-    setNewCatInput('');
     setSubmitError(null);
     setResultMsg(null);
   };
@@ -546,6 +546,9 @@ const KnowledgePage: React.FC<KnowledgePageProps> = ({ embedded = false, mode = 
       // 한 줄로 둔다 — 줄을 나누면 가드가 t() 폴백으로 못 보고 하드코딩으로 센다
       setSubmitError(t('modal.errContentRequired2', '제목 말고 내용이 하나는 있어야 합니다 — 본문을 쓰거나, 항목에 값을 넣거나, 파일·문서를 첨부하세요') as string); return;
     }
+    if (draft.categories.length === 0) {
+      setSubmitError(t('modal.errCategoryRequired', '카테고리를 하나 이상 고르세요') as string); return;
+    }
     // N+64 — vlevel 검증
     if (draft.vlevel === 'L2' && draft.scope === 'project' && !draft.project_id) {
       setSubmitError(t('modal.errProjectRequired', '프로젝트를 선택하세요') as string); return;
@@ -559,8 +562,8 @@ const KnowledgePage: React.FC<KnowledgePageProps> = ({ embedded = false, mode = 
     setSubmitting(true); setSubmitError(null); setResultMsg(null);
     try {
       const meta = {
-        category: draft.categories[0] || draft.category,
-        categories: draft.categories.length > 0 ? draft.categories : [draft.category],
+        category: draft.categories[0],
+        categories: draft.categories,
         scope: draft.scope,
         project_id: draft.scope === 'project' ? draft.project_id : null,
         client_id: draft.scope === 'client' ? draft.client_id : null,
@@ -1485,35 +1488,26 @@ const KnowledgePage: React.FC<KnowledgePageProps> = ({ embedded = false, mode = 
                 <MetaGrid>
                   <MetaLabel>{t('drawer.category')}</MetaLabel>
                   <MetaEditWrap>
-                    <PlanQSelect size="sm" isMulti isSearchable
-                      value={docCats(detail).map(c => ({
-                        value: c,
-                        label: LEGACY_KB_CATEGORIES.includes(c as typeof LEGACY_KB_CATEGORIES[number]) ? (t(`cat.${c}`) as string) : c,
-                      }))}
-                      onChange={async (opts) => {
-                        const arr = Array.isArray(opts) ? opts : [];
-                        const next = arr.map(o => String((o as PlanQSelectOption).value));
+                    {/* 2026-11-17 — 등록 창과 같은 KbCategoryPicker. 마지막 하나를 지우면 저장하지 않고(서버는 최소 1개)
+                        «하나 이상 남겨야 저장» 을 보여 준다 — 그 상태에서 새로 고르면 그때 저장한다. */}
+                    <KbCategoryPicker key={detail.id} businessId={businessId}
+                      value={catPending && catPending.id === detail.id ? catPending.cats : docCats(detail)}
+                      master={catMaster} orphan={catOrphan} onCreated={reloadCategories}
+                      hasError={!!(catPending && catPending.id === detail.id)}
+                      testId="kb-drawer-category"
+                      onChange={async (next) => {
                         const cur = docCats(detail);
-                        if (next.length === cur.length && next.every((v, i) => v === cur[i])) return;
-                        if (next.length === 0) return;  // 최소 1개 강제
+                        if (next.length === 0) { setCatPending({ id: detail.id, cats: [] }); setCatError(t('drawer.catNeedOne', '카테고리를 하나 이상 남겨야 저장돼요') as string); return; }
+                        setCatPending(null);
+                        if (next.length === cur.length && next.every((v, i) => v === cur[i])) { setCatError(null); return; }
                         try {
                           await updateKnowledge(businessId, detail.id, { categories: next });
                           setDocs(prev => prev.map(x => x.id === detail.id ? { ...x, categories: next, category: next[0] } : x));
                           setDetail(prev => prev ? { ...prev, categories: next, category: next[0] } : prev);
                           setCatError(null);
                         } catch (e) { setCatError(t('drawer.catSaveErr') as string); }
-                      }}
-                      options={(() => {
-                        // 모달(1166-1182)과 동일 union — LEGACY 6 + 마스터 + orphan + 현재 문서 카테고리.
-                        const seen = new Set<string>();
-                        const opts: { value: string; label: string }[] = [];
-                        for (const c of LEGACY_KB_CATEGORIES) { seen.add(c); opts.push({ value: c, label: t(`cat.${c}`) as string }); }
-                        for (const m of catMaster) if (!seen.has(m.name)) { seen.add(m.name); opts.push({ value: m.name, label: m.name }); }
-                        for (const o of catOrphan) if (!seen.has(o)) { seen.add(o); opts.push({ value: o, label: o }); }
-                        for (const c of docCats(detail)) if (!seen.has(c)) { seen.add(c); opts.push({ value: c, label: c }); }
-                        return opts;
-                      })()} />
-                    {catError && <span style={{ fontSize: '0.6875rem', color: '#B91C1C' }}>{catError}</span>}
+                      }} />
+                    {catError && <CatErrText role="alert">{catError}</CatErrText>}
                   </MetaEditWrap>
                   {/* N+65 — 상세 패널 visibility 통합 (등록 모달과 동일 VisibilityField). 옛 scope/project/client/read_policy 4 row 폐지. */}
                   <MetaLabel>{t('drawer.visibility', { defaultValue: '공개' }) as string}</MetaLabel>
@@ -1744,62 +1738,16 @@ const KnowledgePage: React.FC<KnowledgePageProps> = ({ embedded = false, mode = 
                   placeholder={t('modal.titlePh') as string} maxLength={300} />
               </Field>
 
-              {/* 2) 카테고리 — N+64 자유 추가/편집 (LEGACY 6 + master + orphan union, 자유 추가 input) */}
+              {/* 2) 카테고리 — LEGACY 6 + master + orphan, 치면 후보·없으면 만들기 (KbCategoryPicker) */}
               <Field>
                 <Label>{t('modal.category')}</Label>
-                <PlanQSelect size="sm" isMulti isSearchable
-                  value={(draft.categories.length > 0 ? draft.categories : [draft.category]).map(c => ({
-                    value: c, label: LEGACY_KB_CATEGORIES.includes(c as typeof LEGACY_KB_CATEGORIES[number]) ? (t(`cat.${c}`) as string) : c,
-                  }))}
-                  onChange={(opts) => {
-                    const arr = Array.isArray(opts) ? opts : [];
-                    const next = arr.map(o => String((o as PlanQSelectOption).value));
-                    setDraft(d => ({ ...d, categories: next.length > 0 ? next : ['manual'], category: next[0] || 'manual' }));
-                  }}
-                  options={(() => {
-                    const seen = new Set<string>();
-                    const opts: { value: string; label: string }[] = [];
-                    for (const c of LEGACY_KB_CATEGORIES) { seen.add(c); opts.push({ value: c, label: t(`cat.${c}`) as string }); }
-                    for (const m of catMaster) if (!seen.has(m.name)) { seen.add(m.name); opts.push({ value: m.name, label: m.name }); }
-                    for (const o of catOrphan) if (!seen.has(o)) { seen.add(o); opts.push({ value: o, label: o }); }
-                    return opts;
-                  })()} />
-                {/* 자유 추가 input */}
-                <NewCatRow>
-                  <TextInput
-                    value={newCatInput}
-                    onChange={e => setNewCatInput(e.target.value)}
-                    placeholder={t('modal.newCatPh', '새 카테고리 이름') as string}
-                    maxLength={40}
-                    onKeyDown={(e) => {
-                      if (isEnterAction(e)) { e.preventDefault(); (document.getElementById('kb-add-cat-btn') as HTMLButtonElement)?.click(); }
-                    }}
-                  />
-                  <SecondaryBtn
-                    id="kb-add-cat-btn" type="button" disabled={!newCatInput.trim() || catAdding}
-                    onClick={async () => {
-                      const name = newCatInput.trim();
-                      if (!name || !businessId) return;
-                      // 중복 검사 — 이미 선택 또는 master 에 있으면 안내 + 선택만
-                      const dup = draft.categories.includes(name);
-                      if (dup) { setNewCatInput(''); return; }
-                      setCatAdding(true);
-                      try {
-                        await createKbCategory(businessId, name);
-                        await reloadCategories();
-                        setDraft(d => ({ ...d, categories: [...d.categories, name] }));
-                        setNewCatInput('');
-                      } catch (_) { /* ignore */ } finally { setCatAdding(false); }
-                    }}>
-                    + {t('modal.addCat', '추가')}
-                  </SecondaryBtn>
-                </NewCatRow>
-                {newCatInput.trim() && (() => {
-                  const name = newCatInput.trim();
-                  const exists = [...LEGACY_KB_CATEGORIES, ...catMaster.map(m => m.name), ...catOrphan].includes(name);
-                  if (exists) return <DupHint>{t('modal.catDup', '이미 같은 이름이 있어요 — 추가하면 자동 선택됩니다') as string}</DupHint>;
-                  return null;
-                })()}
+                {/* 2026-11-17 — 한 칸: 치면 후보, 없으면 «만들기». 옛 «새 카테고리 이름 + [추가]» 줄은 없앴다(KbCategoryPicker 머리말) */}
+                <KbCategoryPicker businessId={businessId}
+                  value={draft.categories}
+                  master={catMaster} orphan={catOrphan} onCreated={reloadCategories}
+                  hasError={draft.categories.length === 0 && !!submitError}
+                  testId="kb-modal-category"
+                  onChange={(next) => setDraft(d => ({ ...d, categories: next, category: next[0] || d.category }))} />
               </Field>
 
               {/* 3) 사용자 정의 항목 추가 */}
@@ -2506,17 +2454,7 @@ const CsvUploadBtn = styled.button`
 `;
 
 const Loading = styled.div`padding: 40px; text-align: center; color: #94A3B8;`;
-// N+64 — 자유 카테고리 추가 input row
-const NewCatRow = styled.div`
-  display: flex; gap: 8px; margin-top: 6px;
-  & > input { flex: 1; }
-`;
-const DupHint = styled.div`
-  margin-top: 4px;
-  padding: 6px 10px;
-  background: #FEF3C7; border: 1px solid #FCD34D;
-  border-radius: 6px; font-size: 0.75rem; color: #92400E;
-`;
+const CatErrText = styled.span`font-size: 0.6875rem; color: #B91C1C;`;
 // N+65 — 옛 PolicyRadio* / ScopeSubField / SubLabel styled 제거 (VisibilityField 로 통합)
 
 // 사용자 정의 항목 추가 (이름·타입·값·표시여부)
@@ -2744,6 +2682,5 @@ const SuccessBox = styled.div`
 `;
 const TextInput = styled.input`height: 36px; padding: 0 10px; border: 1px solid #E2E8F0; border-radius: 6px; font-size: 0.8125rem; color: #0F172A; &:focus { outline: none; border-color: #14B8A6; box-shadow: 0 0 0 3px rgba(20,184,166,0.15); }`;
 // N+72-5 — TextArea 폐기 (RichEditor 통합)
-const SecondaryBtn = styled.button`height: 36px; padding: 0 14px; background: transparent; color: #475569; border: 1px solid #E2E8F0; border-radius: 8px; font-size: 0.8125rem; font-weight: 600; cursor: pointer; &:hover { background: #F8FAFC; border-color: #CBD5E1; }`;
 
 

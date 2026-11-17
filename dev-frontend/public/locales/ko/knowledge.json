@@ -129,7 +129,8 @@
     "openPost": "문서 열기",
     "removeAttach": "제거",
     "tags": "태그",
-    "visibility": "공개"
+    "visibility": "공개",
+    "catNeedOne": "카테고리를 하나 이상 남겨야 저장돼요"
   },
   "row": {
     "delete": "삭제",
@@ -168,9 +169,6 @@
     "memberPick": "멤버 선택",
     "memberPh": "멤버 선택",
     "errMembersRequired": "멤버를 한 명 이상 선택하세요",
-    "newCatPh": "새 카테고리 이름",
-    "addCat": "추가",
-    "catDup": "이미 같은 이름이 있어요 — 추가하면 자동 선택됩니다",
     "customColumns": "항목 추가",
     "addColumn": "항목 추가",
     "colNamePh": "항목명 (예: API 키)",
@@ -215,7 +213,11 @@
     "attachExistingPosts": "기존 문서 연결",
     "errContentRequired2": "제목 말고 내용이 하나는 있어야 합니다 — 본문을 쓰거나, 항목에 값을 넣거나, 파일·문서를 첨부하세요",
     "attach": "자료 첨부",
-    "close": "닫기"
+    "close": "닫기",
+    "catPh": "카테고리 검색 또는 새로 입력",
+    "catCreateNamed": "'{{name}}' 카테고리 만들기",
+    "catCreateErr": "카테고리를 만들지 못했어요 — 다시 시도해 주세요",
+    "errCategoryRequired": "카테고리를 하나 이상 고르세요"
   },
   "csvIngest": {
     "drop": "CSV 파일을 끌어다 놓거나 클릭해 선택하세요",
