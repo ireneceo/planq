@@ -1,4 +1,10 @@
 ## 현재 작업 상태
+### ✅ 안드로이드 minSdk 23→24 — Play 자동 보호 업로드 거부 해결 (방 cc271d60 · 2026-11-17 · [Opus] · 커밋 48f61868 · Fable 안 씀 — Fable 판단 A 대로 설정 한 줄)
+- `dev-frontend/android/variables.gradle` minSdkVersion 24 · 자동 보호는 그대로 켬
+- `scripts/android-beta-check.js` minSdk<24 면 빌드 세움(Codemagic `cap:beta:android` 경로) — 23 되살림 대조군 ✗ 확인
+- 코드에 SDK 23 전용 분기 없음(ShareReceivePlugin 은 33 분기만) · Capacitor 라이브러리는 root ext 값을 따름
+### Irene 할 일
+- todomwi41puf «Codemagic android-play 다시 빌드(143 이상) → Play 프로덕션 새 버전에 aab 올리기» — 공유 받기 실기기 확인 포함
 ### ✅ 입력란 복사·모두 지우기 — 편집기 9곳 공통 (방 35882570 · 2026-11-17 · [Opus] · Fable 안 씀 — 화면 버튼, 저장 경로·권한·DB 불변)
 - `RichEditor` 아래 줄에 «복사»(서식+평문 같이) · «모두 지우기»(묻고 지움, ⌘Z 로 되돌림) — 업무 설명·결과물·업무 추가·템플릿·Q info·메일 작성·서명 등 편집기 전부. 읽기 전용이면 «복사» 만(내용 있을 때)
 - 복사 본체는 `utils/copyRich.ts` 한 벌(메일 본문 복사도 이걸 씀) · 폰에서는 «팁: / 입력…» 안내 글을 숨기고 버튼만
