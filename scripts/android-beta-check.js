@@ -101,12 +101,20 @@ if (!backupErrs.length) console.log('  백업: allowBackup=false · 규칙 두 �
 //   빌드는 성공한 뒤 업로드에서 막히므로, 빌드 시점에 먼저 세운다.
 //   ★ Play 요구치가 오르면 이 상수를 같이 올린다.
 const PLAY_MIN_TARGET_SDK = 36;
+// minSdk — Play «자동 보호(automatic protection)» 가 켜진 앱은 minSdk 24 미만 번들을 **업로드 거부**한다.
+//   2026-11-17 실사례: android-play #19(versionCode 142, minSdk 23) → "requires a minimum SDK version of 24".
+//   자동 보호는 끄지 않는다(Irene 11-17 · Fable 판단 A) — minSdk 를 24 아래로 내리지 않는다.
+const PLAY_MIN_MIN_SDK = 24;
 const VARS = path.join(ROOT, 'dev-frontend/android/variables.gradle');
 if (fs.existsSync(VARS)) {
   const v = fs.readFileSync(VARS, 'utf8');
   const target = Number((v.match(/targetSdkVersion\s*=\s*(\d+)/) || [])[1]);
   const compile = Number((v.match(/compileSdkVersion\s*=\s*(\d+)/) || [])[1]);
-  console.log(`  targetSdk: ${target} / compileSdk: ${compile}`);
+  const min = Number((v.match(/minSdkVersion\s*=\s*(\d+)/) || [])[1]);
+  console.log(`  minSdk: ${min} / targetSdk: ${target} / compileSdk: ${compile}`);
+  if (!(min >= PLAY_MIN_MIN_SDK)) {
+    fail.push(`minSdk 가 ${min} 입니다 — Play 자동 보호는 최소 ${PLAY_MIN_MIN_SDK} 를 요구하며 업로드를 거부합니다.`);
+  }
   if (!(target >= PLAY_MIN_TARGET_SDK)) {
     fail.push(`targetSdk 가 ${target} 입니다 — Play 는 최소 ${PLAY_MIN_TARGET_SDK} 를 요구하며 업로드를 거부합니다.`);
   }
