@@ -128,7 +128,9 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({
   //   ★ 2026-10-21 Irene «오늘 내업무에서 업무추가할 때는 이번주 내업무도, 담당자가 항상 나야, 팝아웃에서도»
   //     10-09 에는 칸에서 동료를 고르면 그 사람에게 갔다 — 그 길은 이제 폼 안 [요청하기] 가 맡는다(f4979e74).
   const assigneeLockedToMe = assigneeFixedToMe && !isRequest && myId != null;
-  const assigneeId = assigneeLockedToMe ? myId : assigneePick;
+  // 요청하기에서 «나» 는 담당자가 아니다 — 값이 어디서 들어왔든(폼이 열린 채 탭이 «요청하기» 로 바뀜·말로 추가·첫 값) 비운다.
+  //   ★ 2026-11-17 Irene «요청하기 할 때 자기 이름이 담당자로 들어가는 미스가 없도록 비워줘» — switchMode 만 비우던 구멍.
+  const assigneeId = assigneeLockedToMe ? myId : (isRequest && assigneePick === myId ? null : assigneePick);
   const [projectId, setProjectId] = useState<number | null>(fixedProjectId ?? initial?.projectId ?? null);
   const [workstreamId, setWorkstreamId] = useState<number | null>(null);
   // 공개 범위·보안등급(2026-10-12) — 문서와 같은 컴포넌트(VisibilityChip·VisibilityChangeModal·보안 선택).

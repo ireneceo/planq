@@ -303,6 +303,40 @@ async function run() {
       !!(beforeOther.fields && beforeOther.fields.includes('est') && beforeOther.fields.includes('recur')),
       `고르기 전 필드 ${beforeOther.fields || beforeOther.error} — 없었다면 위 판정은 무효다`);
     await closeForm(page);
+
+    // ── ⑩ 요청하기에서 담당자에 «나» 가 들어가 있지 않다 (2026-11-17 Irene «자기 이름이 담당자로 들어가는 미스가 없도록 비워줘») ──
+    //   구멍: 폼은 탭을 바꿔도 열린 채다. 내 업무 탭(담당자=나)에서 연 폼을 «요청하기» 탭으로 옮기면 모드만 바뀌고 나는 남았다.
+    //   양성 대조군 = 옮기기 전에는 (나) 였다(⑨ lockedMine 과 같은 칸).
+    const ASSIGNEE_LABEL = () => {
+      const c = document.querySelector('[data-testid="task-create-form"] [data-field="assignee"] [class*="-control"]');
+      return c ? (c.textContent || '').trim() : null;
+    };
+    await clickTestId(page, 'qtask-tab-all');
+    await sleep(1200);
+    const fMine = await openForm(page, 'task-add-btn');
+    const beforeSwitch = await page.evaluate(ASSIGNEE_LABEL);
+    // 드로어 막이 탭 버튼을 덮어 좌표 클릭은 막에 떨어진다(닫힘) — 폼이 열린 채 탭이 바뀌는 상태(표 아래 인라인 폼·말로 추가)를 DOM 클릭으로 만든다
+    const switched = await page.evaluate(() => {
+      const b = document.querySelector('[data-testid="qtask-tab-requested"]');
+      if (!b) return false; b.click(); return true;
+    });
+    await sleep(1200);
+    const onReqTab = await page.evaluate(() => /tab=requested/.test(location.search));
+    const afterSwitch = await page.evaluate(ASSIGNEE_LABEL);
+    push('⑩ 열린 폼을 «요청하기» 탭으로 옮기면 담당자 «나» 가 비워진다',
+      !fMine.error && switched && onReqTab && afterSwitch != null && !/\(나\)|\(me\)/.test(afterSwitch),
+      fMine.error || (!(switched && onReqTab) ? `탭이 안 바뀜 — 판정 불가 (버튼 ${switched} · 주소 ${onReqTab})` : `옮긴 뒤 담당자 칸 «${afterSwitch}»`));
+    push('⑩ 양성 대조군 — 옮기기 전에는 나였다',
+      !!beforeSwitch && /\(나\)|\(me\)/.test(beforeSwitch), `옮기기 전 «${beforeSwitch}»`);
+    await closeForm(page);
+    await goto(page, '/tasks?tab=requested');   // 새로 들어온 «요청하기» 탭 — 앞 단계 폼·막이 남지 않게 새로 읽는다
+    await sleep(3000);
+    const fReq = await openForm(page, 'task-add-btn');
+    const freshReq = await page.evaluate(ASSIGNEE_LABEL);
+    push('⑩ «요청하기» 탭에서 새로 열어도 담당자는 비어 있다',
+      !fReq.error && freshReq != null && !/\(나\)|\(me\)/.test(freshReq),
+      fReq.error || `새로 연 담당자 칸 «${freshReq}»`);
+    await closeForm(page);
   } catch (e) {
     push('카나리 실행', false, String((e && e.message) || e));
   } finally {
