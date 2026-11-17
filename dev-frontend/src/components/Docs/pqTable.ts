@@ -12,7 +12,11 @@
 //   (표 폭 = max(width, 열 합)) — CSS 만으로는 못 고친다.
 //
 // ■ 기준(Fable 설계 판정 A, 2026-11-04) — 어느 화면·어느 폭이든 하나:
-//   ① 표 = 본문 폭 100%. 저장된 열 폭은 **비율**로만 쓴다(폭 없는 열 = 저장된 열들의 평균, 전부 없으면 균등).
+//   ① 표 = 본문 폭 100%. 저장된 열 폭은 **비율**로만 쓴다(폭 없는 열 = 저장된 열들의 평균).
+//      ★ 2026-11-17 Irene «기본 표는 열을 고정으로 나누지 말고 내용 크기에 따라 줄고, 남는 여유는 다른 열에»:
+//        열 폭이 **하나도 저장되지 않은 표**(새로 넣은 기본 표·붙여넣은 표)는 균등 대신 **내용 기준**
+//        (table-layout:auto) — 짧은 열(번호·날짜)은 내용만큼(하한 96), 남는 폭은 글이 긴 열이 가져간다.
+//        손으로 끌거나 «열 고르게» 를 누른 표는 그때부터 그 비율로 고정(사용자가 정한 폭이 이긴다). 편집·보기 같은 기준.
 //   ② 칸 하한 96px — `열 수 × 96 > 본문 폭` 일 때만 표를 감싼 .tableWrapper 안에서 가로 스크롤. 잘림 0.
 //   ③ 저장 데이터(content_json · colwidth px 숫자)는 바꾸지 않는다 — 표시만.
 //   그래서 열은 % 로, 하한은 표 인라인 min-width 로 내보낸다(우리 renderHTML · 우리 View 둘 다 같은 함수).
@@ -46,22 +50,23 @@ function storedWidths(node: ProseMirrorNode): (number | null)[] {
   return out;
 }
 
-/** 표시 계획 — 열마다 %, 표 min-width(px). 편집 View · renderHTML · 굳히기가 같이 쓴다. */
-export function tableLayout(node: ProseMirrorNode): { pcts: number[]; minWidth: number } {
+/** 표시 계획 — 열마다 % (null = 열 폭 저장 없음 → 내용 기준), 열 수, 표 min-width(px). 편집 View · renderHTML 가 같이 쓴다. */
+export function tableLayout(node: ProseMirrorNode): { pcts: number[] | null; cols: number; minWidth: number } {
   const ws = storedWidths(node);
   const n = ws.length;
-  if (!n) return { pcts: [], minWidth: 0 };
+  if (!n) return { pcts: [], cols: 0, minWidth: 0 };
   const set = ws.filter((w): w is number => w != null);
-  const avg = set.length ? set.reduce((a, b) => a + b, 0) / set.length : 1;
+  if (!set.length) return { pcts: null, cols: n, minWidth: n * TABLE_MIN_COL };
+  const avg = set.reduce((a, b) => a + b, 0) / set.length;
   const weights = ws.map((w) => (w == null ? avg : w));
   const sum = weights.reduce((a, b) => a + b, 0) || 1;
   const pcts = weights.map((w) => Math.round((w / sum) * 1000000) / 10000);
-  return { pcts, minWidth: n * TABLE_MIN_COL };
+  return { pcts, cols: n, minWidth: n * TABLE_MIN_COL };
 }
 
-// ★ table-layout:fixed 도 여기서 싣는다 — CSS 조각 기본은 auto(열 정보 없는 마크다운·외부 HTML 표는 내용 기준 + 칸 하한 96).
-//   우리 표만 fixed 라야 열 % 가 지켜지고 글 길이로 열이 늘지 않는다.
-const tableStyle = (minWidth: number) => `width:100%;min-width:${minWidth}px;table-layout:fixed`;
+// ★ table-layout:fixed 는 열 폭이 저장된 표에만 싣는다 — 그래야 열 % 가 지켜지고 글 길이로 열이 늘지 않는다.
+//   폭 없는 표는 CSS 조각 기본 auto(내용 기준 + 칸 하한 96) — 마크다운·외부 HTML 표와 같은 길.
+const tableStyle = (minWidth: number, fixed: boolean) => `width:100%;min-width:${minWidth}px${fixed ? ';table-layout:fixed' : ''}`;
 
 /** 편집 화면 View — TipTap TableView 와 같은 모양(.tableWrapper > table > colgroup + tbody), 열만 %.
  *  ★ colgroup 은 table 의 **첫 자식**이어야 한다 — prosemirror-tables 가 드래그 중 `dom.firstChild` 에 px 를 직접 쓴다. */
@@ -83,15 +88,15 @@ export class PqTableView implements NodeView {
   }
 
   private render() {
-    const { pcts, minWidth } = tableLayout(this.node);
+    const { pcts, cols: n, minWidth } = tableLayout(this.node);
     const cols = this.colgroup.children;
-    pcts.forEach((p, i) => {
+    for (let i = 0; i < n; i += 1) {
       let col = cols[i] as HTMLElement | undefined;
       if (!col) col = this.colgroup.appendChild(document.createElement('col'));
-      col.style.cssText = `width:${p}%`;
-    });
-    while (this.colgroup.children.length > pcts.length) this.colgroup.lastChild!.remove();
-    this.table.style.cssText = tableStyle(minWidth);
+      col.style.cssText = pcts ? `width:${pcts[i]}%` : '';
+    }
+    while (this.colgroup.children.length > n) this.colgroup.lastChild!.remove();
+    this.table.style.cssText = tableStyle(minWidth, !!pcts);
   }
 
   update(node: ProseMirrorNode) {
@@ -150,7 +155,11 @@ function freezeOnResizePlugin() {
       const delta = dragged - m.frozen[m.col];
       if (!delta) return null;
       const widths = now.map((w, i) => (w == null ? m.frozen[i] : w));
-      widths[nb] = Math.max(TABLE_MIN_COL, m.frozen[nb] - delta);
+      // 이웃이 하한(96)까지만 양보한다 — 더 끌면 끈 열을 거기서 멈춘다. 안 그러면 합이 늘어 표 전체가 다시 비율로
+      //   줄어들어 다른 열까지 움직였다(2026-11-17 실측 [127,127,616] → [196,91,583]).
+      const give = Math.min(delta, m.frozen[nb] - TABLE_MIN_COL);
+      widths[m.col] = m.frozen[m.col] + give;
+      widths[nb] = m.frozen[nb] - give;
       const tr = state.tr;
       return writeWidths(tr, m.tablePos, table, widths) ? tr : null;
     },
@@ -169,10 +178,20 @@ function freezeOnResizePlugin() {
           const col = map.colCount($cell.pos - tableStart) + (Number($cell.nodeAfter?.attrs.colspan) || 1) - 1;
           const tableDom = (view.nodeDOM(tablePos) as HTMLElement | null)?.querySelector?.('table') as HTMLTableElement | null;
           if (!tableDom) return false;
-          // 지금 보이는 열 px = 비율 × 표 안쪽 폭(좌우 테두리 2px 제외). 합 = 표 폭이라 굳혀도 화면은 그대로다.
-          const inner = Math.max(0, tableDom.getBoundingClientRect().width - 2);
-          const { pcts } = tableLayout(table);
-          const frozen = pcts.map((p) => Math.max(TABLE_MIN_COL, Math.round((p / 100) * inner)));
+          // 지금 보이는 열 px 를 **화면에서 잰다**(첫 행 칸 폭, 병합 칸은 칸 수로 나눔) — 내용 기준(auto) 표도 비율 표도
+          //   같은 길. 합 ≈ 표 폭이라 굳혀도(fixed + 그 비율) 화면은 그대로다.
+          const { cols: n } = tableLayout(table);
+          const measured: number[] = [];
+          const firstRow = tableDom.rows[0];
+          if (firstRow) {
+            Array.from(firstRow.cells).forEach((c) => {
+              const span = Math.max(1, c.colSpan || 1);
+              const w = c.getBoundingClientRect().width / span;
+              for (let j = 0; j < span; j += 1) measured.push(w);
+            });
+          }
+          if (measured.length !== n) return false;
+          const frozen = measured.map((w) => Math.max(TABLE_MIN_COL, Math.round(w)));
           const original = storedWidths(table);
           const tr = view.state.tr;
           if (writeWidths(tr, tablePos, table, frozen)) {
@@ -221,9 +240,10 @@ export const PqTable = Table.extend({
     };
   },
   renderHTML({ node, HTMLAttributes }) {
-    const { pcts, minWidth } = tableLayout(node);
-    const attrs: Record<string, unknown> = { ...this.options.HTMLAttributes, ...HTMLAttributes, style: tableStyle(minWidth) };
-    const table = ['table', attrs, ['colgroup', {}, ...pcts.map((p) => ['col', { style: `width:${p}%` }])], ['tbody', 0]];
+    const { pcts, cols: n, minWidth } = tableLayout(node);
+    const attrs: Record<string, unknown> = { ...this.options.HTMLAttributes, ...HTMLAttributes, style: tableStyle(minWidth, !!pcts) };
+    const colEls = pcts ? pcts.map((p) => ['col', { style: `width:${p}%` }]) : Array.from({ length: n }, () => ['col', {}]);
+    const table = ['table', attrs, ['colgroup', {}, ...colEls], ['tbody', 0]];
     // ★ 래퍼의 스크롤을 **인라인으로도** 싣는다 — 편집기 HTML(업무 설명·메일·지식)을 그리는 화면은 여럿이고
     //   그중 표 CSS 조각을 안 붙인 곳(공개 업무·고객 정보·지식 등)에서는 표 하한(min-width 열수×96)이 페이지를 밀었다
     //   (Fable 2026-11-04 실측: 폰 390 에서 문서 폭 1203). 화면마다 붙이는 대신 HTML 자체가 스크롤 상자를 들고 다닌다.

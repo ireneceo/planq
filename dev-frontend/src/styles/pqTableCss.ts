@@ -5,7 +5,7 @@
 // 기준(설계 components/Docs/pqTable.ts 머리말 — Fable 판정 A):
 //   · 표 = 본문 폭 100% · 열 = 저장 폭의 **비율**(%) — 둘 다 표 확장이 인라인으로 싣는다(width:100% · min-width:열수×96px).
 //   · 열 수 × 96 > 본문 폭 이면 .tableWrapper 안에서만 가로 스크롤 — 페이지 밖으로 잘리지 않는다.
-//   · 우리 표는 table-layout:fixed(인라인) 라 열이 글 길이로 늘지 않는다 — 대신 안 끊기는 긴 글(주소)은 칸 안에서 줄을 바꾼다.
+//   · 열 폭이 저장된 표만 table-layout:fixed(인라인) — 열이 글 길이로 늘지 않는다. 폭 없는 기본 표는 auto(내용 기준, 2026-11-17).
 //   ★ 여기에 width:max-content · display:block · :has(col:nth-child(N)) 같은 화면별 덮어쓰기를 다시 넣지 않는다 —
 //     그 셋이 이번에 갈라진 원인이었다(9열 임계값은 데스크탑 872px 에서만 맞던 값).
 //   ★ 인라인 min-width 가 없는 옛 HTML(공개 문서 옛 스냅샷)도 안 잘리게 표 자체 하한은 CSS 로도 둔다(min-width:100%).

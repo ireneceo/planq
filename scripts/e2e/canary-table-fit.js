@@ -87,6 +87,45 @@ async function run() {
     push('⓪-b 만들자마자 열 폭이 서로 같다',
       spread0 <= 3, `열 폭 [${before.widths.join(', ')}] · 최대−최소 ${spread0}`);
 
+    // ⓪-c 2026-11-17 — 열 폭 저장 없는 표 = 내용 기준(auto). 마지막 열에 긴 글을 치면 그 열이 넓어지고 표는 본문 폭 그대로.
+    //   ⓪-d 손잡이를 끌면 그 순간 보이는 폭으로 굳혀(fixed) 끈 만큼만 바뀌고 표 폭은 그대로(오른쪽 이웃이 양보).
+    await page.evaluate(() => {
+      const cells = document.querySelectorAll('.ProseMirror table tr:nth-child(2) > *');
+      const cell = cells[cells.length - 1];
+      if (cell) {
+        const p = cell.querySelector('p') || cell;
+        const r = document.createRange(); r.selectNodeContents(p); r.collapse(true);
+        const sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(r);
+      }
+    });
+    await page.keyboard.type('긴 글 열 — 내용 기준 표에서는 이 열이 남는 폭을 가져가야 한다 긴 글 긴 글 긴 글', { delay: 2 });
+    await sleep(700);
+    const typed = await measure(page);
+    const layoutTyped = await page.evaluate(() => getComputedStyle(document.querySelector('.ProseMirror table')).tableLayout);
+    push('⓪-c 내용 기준 — 긴 글 열이 넓어지고(빈 열보다 넓다) 표는 본문 폭 그대로',
+      !!typed && layoutTyped === 'auto' && typed.widths[2] > typed.widths[0] + 40 && Math.abs(typed.wrapW - typed.tableW) <= 3,
+      typed ? `layout ${layoutTyped} · 열 [${typed.widths.join(', ')}] · 표 ${typed.tableW}/본문 ${typed.wrapW}` : '측정 실패');
+    const edge = await page.evaluate(() => {
+      const c = document.querySelector('.ProseMirror table tr:first-child > *');
+      const r = c.getBoundingClientRect(); return { x: r.right - 2, y: r.top + r.height / 2 };
+    });
+    await page.mouse.move(edge.x - 20, edge.y); await sleep(150);
+    await page.mouse.move(edge.x, edge.y); await sleep(250);
+    await page.mouse.down(); await sleep(100);
+    await page.mouse.move(edge.x + 40, edge.y, { steps: 5 }); await page.mouse.move(edge.x + 80, edge.y, { steps: 5 });
+    await page.mouse.up(); await sleep(800);
+    // 손잡이 위에 마우스를 남겨 두면 아래 합성 클릭이 «또 한 번 끌기» 가 된다 — 표 밖으로 치운다
+    await page.mouse.move(5, 5); await sleep(300);
+    const dragged = await measure(page);
+    const layoutDragged = await page.evaluate(() => getComputedStyle(document.querySelector('.ProseMirror table')).tableLayout);
+    // 이웃이 96 까지만 양보하므로 첫 열 증가 = min(끈 만큼, 이웃 − 96). 마지막 열은 그대로(±3).
+    const expectGrow = typed ? Math.min(80, typed.widths[1] - 96) : 0;
+    push('⓪-d 손잡이를 끌면 첫 열은 끈 만큼(이웃이 96 까지만 양보) · 마지막 열·표 폭 그대로 · 이후 그 비율로 고정',
+      !!typed && !!dragged && layoutDragged === 'fixed' && Math.abs((dragged.widths[0] - typed.widths[0]) - expectGrow) <= 15
+        && Math.abs(dragged.widths[2] - typed.widths[2]) <= 3
+        && Math.abs(dragged.wrapW - dragged.tableW) <= 3 && Math.min(...dragged.widths) >= 95,
+      dragged ? `layout ${layoutDragged} · 열 [${typed ? typed.widths.join(', ') : '-'}] → [${dragged.widths.join(', ')}] · 표 ${dragged.tableW}/본문 ${dragged.wrapW}` : '측정 실패');
+
     // 일부러 한 열을 좁혀 "제각각" 상태를 만든다 — 그래야 ②③ 이 의미를 갖는다.
     //   (표를 막 만들면 열이 이미 균등이라 대조군이 안 된다)
     await page.evaluate(() => {

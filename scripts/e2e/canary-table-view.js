@@ -32,6 +32,14 @@ const mkRow = (n, pre, ws) => ({ type: 'tableRow', content: Array.from({ length:
   content: [{ type: 'paragraph', content: [{ type: 'text', text: `${pre}${i + 1} 가나다라마바사아자차` }] }],
 })) });
 
+// 2026-11-17 Irene «기본 표는 열을 고정으로 나누지 말고 내용 크기에 따라 줄고, 남는 여유는 다른 열에» —
+//   열 폭 저장 없는 표 = 내용 기준(table-layout:auto). 짧은 열(번호)은 좁고, 긴 글 열이 남는 폭을 가져가야 한다.
+const txtRow = (texts) => ({ type: 'tableRow', content: texts.map((tx) => ({
+  type: 'tableCell', attrs: { colspan: 1, rowspan: 1, colwidth: null },
+  content: [{ type: 'paragraph', content: [{ type: 'text', text: tx }] }],
+})) });
+const LONG = '내용 기준 표 — 이 칸은 글이 길어서 남는 폭을 가져가야 한다. 번호 칸과 날짜 칸은 내용만큼만 차지하고 나머지 여유는 이 칸으로 간다.';
+
 const fx = { id: null, tok: null, biz: null };
 
 // 픽스처는 **API 로** 만든다 — 편집 UI 를 거치면 초안이 남아 위 ①의 행(hang)이 재발한다.
@@ -51,6 +59,8 @@ async function setup() {
     { type: 'table', content: [mkRow(3, '머리', [400, 400, 500]), mkRow(3, '값', [400, 400, 500])] },
     { type: 'paragraph', content: [{ type: 'text', text: '붙여넣기 모양' }] },
     { type: 'table', content: [mkRow(4, '머리', [0, 300, 300, 300]), mkRow(4, '값', [0, 300, 300, 300])] },
+    { type: 'paragraph', content: [{ type: 'text', text: '내용 기준 표' }] },
+    { type: 'table', content: [txtRow(['No', '날짜', '내용']), txtRow(['1', '11-17', LONG]), txtRow(['2', '11-18', '짧음'])] },
   ] };
   const r = await fetch(`${BASE}/api/posts`, {
     method: 'POST',
@@ -114,6 +124,22 @@ const readTables = (page, sel) => page.evaluate((s) => {
   };
 }, sel);
 
+// 내용 기준 표 — 마지막 표(픽스처 순서). 첫 열(번호)은 좁고 긴 글 열이 더 넓으며, 표는 본문 폭을 채운다.
+const readAuto = (page) => page.evaluate(() => {
+  const ts = [...document.querySelectorAll('.tiptap table')];
+  const t = ts[ts.length - 1]; if (!t || !t.rows[0]) return null;
+  const ws = [...t.rows[0].cells].map((c) => Math.round(c.getBoundingClientRect().width));
+  const wrap = t.closest('.tableWrapper');
+  return { ws, layout: getComputedStyle(t).tableLayout, tableW: Math.round(t.getBoundingClientRect().width), wrapW: wrap ? wrap.clientWidth : 0 };
+});
+const judgeAuto = (a, label) => {
+  push(`⑥ ${label} 열 폭 없는 표는 내용 기준(auto) — 번호 열은 좁게(≤130) · 긴 글 열이 더 넓다 · 칸 하한 96`,
+    !!a && a.layout === 'auto' && a.ws[0] <= 130 && a.ws[0] < a.ws[2] && Math.min(...a.ws) >= 95,
+    a ? `layout ${a.layout} · 열 [${a.ws.join(', ')}]` : '표를 못 찾았다');
+  push(`⑥-b ${label} 내용 기준 표도 본문 폭을 채운다(남는 여유는 다른 열에)`,
+    !!a && Math.abs(a.wrapW - a.tableW) <= 3, a ? `표 ${a.tableW} / 본문 ${a.wrapW}` : '-');
+};
+
 const judge = (v, label) => {
   push(`${label} 표가 하나도 잘리지 않는다(넘치면 래퍼 안 스크롤)`, v.n > 0 && v.clipped.length === 0,
     v.clipped.length ? `잘린 표 ${v.clipped.length}/${v.n} · 예 ${v.clipped[0].cols}열 숨김 ${v.clipped[0].hidden}px` : `표 ${v.n}개`);
@@ -140,7 +166,8 @@ async function run() {
 
     const v = await readTables(page, '.tiptap table');
     push('① 보기 화면에 표가 그려졌다 (측정 전제)',
-      v.n >= 4, `표 ${v.n}개 (3열·12열·열 폭 저장 3열·붙여넣기 4열이어야 한다)`);
+      v.n >= 5, `표 ${v.n}개 (3열·12열·열 폭 저장 3열·붙여넣기 4열·내용 기준 3열이어야 한다)`);
+    judgeAuto(await readAuto(page), '1440');
     push('② **테두리가 중간에 끊기지 않는다** (행 폭 == 표 폭)',
       v.n > 0 && v.short.length === 0,
       v.short.length ? `끊긴 표 ${v.short.length}/${v.n}개 · 예: 표 ${v.short[0].blockW} vs 행 ${v.short[0].rowW}` : 'ok');
@@ -155,6 +182,7 @@ async function run() {
       await sleep(1400);
       const p = await readTables(page, '.tiptap table');
       judge(p, String(w));
+      judgeAuto(await readAuto(page), String(w));
       push(`⑤ ${w} 테두리가 끊기지 않는다`, p.n > 0 && p.short.length === 0, p.short.length ? `끊긴 표 ${p.short.length}/${p.n}개` : `표 ${p.n}개 일치`);
       push(`⑤-b ${w} 페이지가 가로로 밀리지 않는다`, p.docScroll <= p.win + 2, `문서 ${p.docScroll} vs 창 ${p.win}`);
     }
