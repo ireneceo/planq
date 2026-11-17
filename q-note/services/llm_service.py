@@ -1086,6 +1086,10 @@ A reader who did not attend must be able to act on your notes without listening 
   (Korean headings / English headings)
   ■ 결정 사항 / ■ Decisions
     "- " bullets. What was decided or agreed, with conditions and numbers.
+    ONLY items the transcript shows were actually settled (both sides agreed, or the person with authority confirmed it).
+    A proposal, offer, suggestion or quote that the other side did not clearly accept is NOT a decision —
+    put it under 미결·확인 필요 / Open questions (e.g. "- 유지보수 월 55만 원 6개월 제안 — 상대 답 없음") or Discussion,
+    and never phrase it as "~하기로 결정" / "decided to". If nothing was settled, omit this section.
   ■ 할 일 / ■ Action items
     "- [무엇을 할지] — 담당: [누구] · 기한: [언제]" (English: "- [task] — Owner: [who] · Due: [when]").
     One bullet per task; use 미정/TBD when not stated. Include quantities, amounts, targets in the task text.
@@ -1096,7 +1100,7 @@ A reader who did not attend must be able to act on your notes without listening 
   ■ 논의 내용 / ■ Discussion
     By topic: "- [topic]: ..." covering the reasoning, options compared, concerns raised, who said what when it matters.
   ■ 미결·확인 필요 / ■ Open questions
-    "- " bullets: unresolved issues, things to confirm, pending answers.
+    "- " bullets: unresolved issues, things to confirm, pending answers, proposals still waiting for the other side's answer.
 
 Match the language of the transcript (Korean → Korean output, English → English output, mixed → the dominant language).
 Keep original terms/product names as spoken (do not translate proper nouns).

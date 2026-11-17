@@ -80,7 +80,9 @@ export const Card = styled.div<{ $selected?: boolean }>`
 export const CardName = styled.div`padding:8px 36px 2px 10px;font-size:0.8125rem;font-weight:600;color:#0F172A;line-height:1.35;
   display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;
   min-height:calc(1.35em * 2);word-break:break-word;`;
-export const CardMeta = styled.div`padding:0 10px;font-size:0.6875rem;color:#64748B;display:flex;gap:4px;
+// 2026-11-17 — 칩(연결됨 · 소속 프로젝트)이 붙으면 줄이 넘쳐 날짜·작성자가 한 글자씩 세로로 깨졌다 → 줄을 감고 글자는 줄바꿈하지 않는다
+export const CardMeta = styled.div`padding:0 10px;font-size:0.6875rem;color:#64748B;display:flex;flex-wrap:wrap;align-items:center;gap:4px;
+  & > *{white-space:nowrap;min-width:0;max-width:100%;}
   &:last-child{padding-bottom:10px;margin-top:2px;}
 `;
 

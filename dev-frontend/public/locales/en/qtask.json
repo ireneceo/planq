@@ -1245,6 +1245,7 @@
     "loadingTitle": "AI is decomposing tasks",
     "loadingSub": "Breaking into outcome-named steps...",
     "loadingHint": "Usually about 10 seconds — up to a minute for many tasks.",
+    "loadingHintRoutine": "Routine design builds areas, repeat rules and instructions, so it usually takes about a minute. Please keep this window open.",
     "noCandidates": "Could not extract tasks. Please be more specific.",
     "titlePlaceholder": "End with a deliverable (e.g. ... draft / report / launch)",
     "vagueHint": "Looks like a deliverable noun is missing. e.g. \"Design\" → \"Main page mockup draft\"",

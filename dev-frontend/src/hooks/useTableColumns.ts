@@ -13,7 +13,9 @@ import {
 } from '../components/Common/DataTable/columns';
 
 const PHONE_MQ = '(max-width: 640px)';
-const DRAG_START_PX = 5;
+const DRAG_START_PX = 8;
+/** 머리 칸 양끝 이만큼은 «경계» — 눌러 끌면 순서가 아니라 폭(2026-11-17 «경계 몇 px 끌었는데 열 순서가 바뀜») */
+const EDGE_PX = 12;
 const KEY_STEP_PX = 8;
 
 type Opts<K extends string> = {
@@ -177,8 +179,14 @@ export function useTableColumns<K extends string>(tableId: string, defs: ColumnD
     }
     return over === key ? null : { over, side };
   };
+  // 경계에서 시작한 폭 끌기 — 손잡이(8px)를 살짝 벗어나 옆 칸 머리를 잡아도 순서가 아니라 폭이 바뀌게
+  const edgeRef = useRef<{ key: K; x: number; w: number } | null>(null);
+  const setWidthRef = useRef<(key: K, px: number) => void>(() => {});
+  setWidthRef.current = setWidth;
   useEffect(() => {
     const onMove = (e: PointerEvent) => {
+      const g = edgeRef.current;
+      if (g) { setWidthRef.current(g.key, g.w + (e.clientX - g.x)); return; }
       const d = dragRef.current;
       if (!d) return;
       if (!d.started) {
@@ -190,6 +198,13 @@ export function useTableColumns<K extends string>(tableId: string, defs: ColumnD
       setDrag({ key: d.key, overKey: t?.over ?? null, side: t?.side ?? 'before' });
     };
     const onUp = (e: PointerEvent) => {
+      if (edgeRef.current) {
+        edgeRef.current = null;
+        document.body.style.cursor = '';
+        suppressClick.current = true;
+        setTimeout(() => { suppressClick.current = false; }, 0);
+        return;
+      }
       const d = dragRef.current;
       dragRef.current = null;
       if (!d) return;
@@ -233,6 +248,19 @@ export function useTableColumns<K extends string>(tableId: string, defs: ColumnD
         if ((e.target as HTMLElement).closest('[data-col-resize]')) return;
         const row = e.currentTarget.parentElement;
         if (!row) return;
+        // 칸 양끝은 경계 — 오른쪽 끝 = 이 칸 폭, 왼쪽 끝 = 바로 앞 칸 폭(폭을 못 바꾸는 칸이면 아무것도 안 함)
+        const r = e.currentTarget.getBoundingClientRect();
+        const i = columns.findIndex(c => c.key === key);
+        const edge = e.clientX >= r.right - EDGE_PX ? columns[i] : (e.clientX <= r.left + EDGE_PX && i > 0 ? columns[i - 1] : null);
+        if (edge) {
+          e.preventDefault();
+          // 폭을 못 바꾸는 칸(업무·# 처럼 고정·채움)의 경계면 아무것도 하지 않는다 — 순서를 바꾸지도 않는다
+          if (!edge.flex && edge.minWidth < edge.maxWidth) {
+            edgeRef.current = { key: edge.key, x: e.clientX, w: edge.effWidth };
+            document.body.style.cursor = 'col-resize';
+          }
+          return;
+        }
         dragRef.current = { key, x0: e.clientX, started: false, row };
       },
       onClickCapture: (e: React.MouseEvent) => {

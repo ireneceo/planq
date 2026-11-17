@@ -443,9 +443,11 @@ const Loading = styled.div`padding: 40px; text-align: center; color: #94A3B8;`;
 const List = styled.div`display: flex; flex-direction: column; gap: 0;`;
 const Row = styled.div<{ $active: boolean }>`
   cursor: pointer;
-  display: grid;
-  grid-template-columns: auto auto minmax(200px, 1fr) auto;
+  /* 칩 수가 줄마다 다르다(종류·분류·긴급·AI 조사) — 4칸 격자면 «고칠 것» 칩이 제목 칸(1fr)에 들어가 늘어나고 제목이 끝으로 밀렸다(2026-11-17) */
+  display: flex;
   gap: 12px; align-items: center;
+  & > * { flex-shrink: 0; }
+  & > :nth-last-child(2) { flex: 1 1 200px; min-width: 0; flex-shrink: 1; }
   padding: 12px 16px;
   background: ${p => p.$active ? '#F0FDFA' : '#FFFFFF'};
   border-bottom: 1px solid #E2E8F0;

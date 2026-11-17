@@ -191,8 +191,12 @@ async function followupCandidates({ days, q }) {
     order: [['created_at', 'DESC'], ['id', 'DESC']],
     limit: CANDIDATE_CAP,
   });
-  return rows.filter((b) => !(isExemptNow(b) && b.billing_exempt_kind === 'internal'));
+  // 점검 스크립트(health-money·health-access)가 몇 초 만들었다 지우는 시험 워크스페이스는 고객이 아니다 —
+  //   목록에 잡힌 뒤 열면 이미 지워져 «여정·안내방을 열지 못했어요» 가 떴다(2026-11-17).
+  return rows.filter((b) => !(isExemptNow(b) && b.billing_exempt_kind === 'internal')
+    && !String(b.name || '').startsWith(HEALTH_WS_PREFIX));
 }
+const HEALTH_WS_PREFIX = '[health-';
 
 module.exports = {
   followupCandidates, FOLLOWUP_BIZ_ATTRS,

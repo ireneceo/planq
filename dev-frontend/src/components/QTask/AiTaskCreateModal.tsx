@@ -497,7 +497,7 @@ export default function AiTaskCreateModal({ open, onClose, businessId, projectId
               <LoadingText>{t('ai.loadingTitle', 'AI 가 업무를 분해하고 있어요')}</LoadingText>
               <LoadingSub>{t('ai.loadingSub', '결과물 중심으로 단계를 나누는 중...')}</LoadingSub>
               <ProgressTrack><ProgressFill /></ProgressTrack>
-              <LoadingHint>{t('ai.loadingHint', '보통 10초 안팎, 업무가 많으면 1분쯤 걸려요.')}</LoadingHint>
+              <LoadingHint>{t(routineMode ? 'ai.loadingHintRoutine' : 'ai.loadingHint') as string}</LoadingHint>
             </LoadingBox>
           )}
 

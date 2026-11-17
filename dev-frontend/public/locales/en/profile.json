@@ -393,6 +393,7 @@
     "openClaude": "Open in Claude",
     "helpLink": "Full guide",
     "workspacesLine": "Workspaces: {{def}} (default) · also {{others}}",
+    "workspaceLineOne": "Workspace: {{name}}",
     "disconnectMessageMulti": "{{app}} will no longer have access to any of {{list}} — this whole connection ends. To use it again, reconnect from that app.",
     "outdatedTitle": "Reconnect to get new abilities",
     "outdatedAbilities": "New: {{list}}",

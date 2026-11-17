@@ -131,6 +131,12 @@ const ConnectedAiAppsSection: React.FC<{ businessId: number }> = ({ businessId }
                   {t('aiApps.connectedAt', { date: formatDateTime(g.created_at) })}
                   {g.last_used_at && <> · {t('aiApps.lastUsed', { date: formatDateTime(g.last_used_at) })}</>}
                 </ConnMeta>
+                {/* 연결마다 어느 워크스페이스인지 — 한 곳이어도 보인다(2026-11-17, 전엔 여러 곳일 때만이라 «안 보인다» 로 읽혔다) */}
+                {(g.workspaces?.length || 0) === 1 && (
+                  <ConnMeta data-testid={`ai-app-workspaces-${g.id}`}>
+                    {t('aiApps.workspaceLineOne', { name: g.workspaces![0].name || `#${g.workspaces![0].business_id}` })}
+                  </ConnMeta>
+                )}
                 {(g.workspaces?.length || 0) > 1 && (
                   <ConnMeta data-testid={`ai-app-workspaces-${g.id}`}>
                     {t('aiApps.workspacesLine', {
