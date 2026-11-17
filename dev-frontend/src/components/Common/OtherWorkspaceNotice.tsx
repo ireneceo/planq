@@ -7,6 +7,7 @@ import React, { useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../contexts/AuthContext';
+import { getPinnedWorkspace, switchPinnedWorkspace } from '../../utils/popout';
 
 interface Props {
   businessId: number | null | undefined;
@@ -21,6 +22,8 @@ const OtherWorkspaceNotice: React.FC<Props> = ({ businessId }) => {
   const onSwitch = async () => {
     if (!ws || busy) return;
     setBusy(true);
+    // 고정 창(메일 팝아웃)은 정본을 바꾸지 않고 **이 창만** 그 워크스페이스로(workspace.md 3항 예외 · Fable 검증 비차단 1).
+    if (getPinnedWorkspace()) { switchPinnedWorkspace(ws.business_id, { keepSearch: true }); return; }
     const ok = await switchWorkspace(ws.business_id);
     // 같은 주소로 다시 부팅 — 이번에는 그 워크스페이스 안에서 열린다(다른 창은 WorkspaceSyncGuard 가 따라온다).
     if (ok) { window.location.reload(); return; }

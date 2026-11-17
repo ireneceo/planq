@@ -73,9 +73,12 @@ export function clearPinnedWorkspace(): void {
 }
 
 /** 창 안에서 다른 워크스페이스로 — 이 창만 바뀐다(다른 창·정본 그대로). 보던 메일은 버리고 새로 부팅한다. */
-export function switchPinnedWorkspace(businessId: number): void {
+//   keepSearch — 보던 주소(?thread= 등)를 살린다(«다른 워크스페이스 항목» 안내의 [전환해서 열기]).
+export function switchPinnedWorkspace(businessId: number, opts?: { keepSearch?: boolean }): void {
   try {
     sessionStorage.setItem(PIN_WS_KEY, String(businessId));
-    window.location.replace(`${PINNED_WS_PATH}?ws=${businessId}`);
+    const sp = opts?.keepSearch ? new URLSearchParams(window.location.search) : new URLSearchParams();
+    sp.set('ws', String(businessId));
+    window.location.replace(`${PINNED_WS_PATH}?${sp.toString()}`);
   } catch { /* noop */ }
 }

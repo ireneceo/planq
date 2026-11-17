@@ -162,7 +162,9 @@ const getUserWithBusiness = async (userId, opts = {}) => {
 
   // 5-b) 고정 창 — 응답 범위만 그 워크스페이스로(위 opts 주석). 판정은 여기 한 곳.
   let scopeWs = activeWs;
-  const viewId = opts.viewBusinessId != null ? Number(opts.viewBusinessId) : null;
+  // 숫자 글자만 받는다 — Number('0x7')·Number(' 7')·배열 같은 느슨한 변환을 막는다(Fable 검증 비차단 2)
+  const viewId = (typeof opts.viewBusinessId === 'string' && /^\d{1,10}$/.test(opts.viewBusinessId)) || Number.isInteger(opts.viewBusinessId)
+    ? Number(opts.viewBusinessId) : null;
   if (opts.viewBusinessId != null) {
     const vw = Number.isInteger(viewId) && viewId > 0 ? map.get(viewId) : null;
     if (!vw || !VIEW_ROLES.includes(vw.role)) return { view_denied: true };

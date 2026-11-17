@@ -94,6 +94,26 @@ async function run() {
     await pop.screenshot({ path: (process.env.MAILPIN_SHOT || '/tmp') + '/pin-pop-open.png' });
   } catch (e) { ok(false, 'A 예외 ' + e.message); } finally { try { await A.sw(6); } catch { /* */ } await A.browser.close(); }
 
+  // ── F. 고정 창(ws7)에서 ws6 메일 주소를 열면 «다른 워크스페이스» 안내 → [전환해서 열기] = 이 창만 ws6 · 정본 불변
+  const F = await session('owner', 6);
+  try {
+    await F.sw(7);   // 정본 7 — 옛 버튼(정본 전환)이면 6 으로 바뀌어 잡힌다
+    const [t6] = await sequelize.query('SELECT id FROM email_threads WHERE business_id = 6 ORDER BY id DESC LIMIT 1', { type: 'SELECT' });
+    await F.page.goto(`${BASE}/mail-popout?ws=7&thread=${t6.id}`, { waitUntil: 'domcontentloaded' });
+    const notice = await F.page.waitForSelector('[data-testid="other-workspace-switch"]', { timeout: 30000 }).catch(() => null);
+    ok(!!notice, `ws7 고정 창에 ws6 메일(${t6.id}) → «다른 워크스페이스» 안내`);
+    if (notice) {
+      const nav = F.page.waitForNavigation({ waitUntil: 'domcontentloaded' });
+      await F.page.click('[data-testid="other-workspace-switch"]'); await nav;
+      await F.page.waitForSelector('[data-testid="mail-popout-workspace"]'); await sleep(2500);
+      const u = F.page.url();
+      ok(/ws=6/.test(u) && new RegExp(`thread=${t6.id}`).test(u), `전환해서 열기 → 이 창 ws6 · 보던 메일 유지 (${u.replace(BASE, '')})`);
+      ok(/PlanQ 테스트/.test(await chipText(F.page)), `띠 «${await chipText(F.page)}»`);
+      ok(await canon('owner@test.planq.kr') === 7, `정본 7 그대로 (${await canon('owner@test.planq.kr')})`);
+      const n2 = await F.page.$('[data-testid="other-workspace-notice"]'); ok(!n2, '안내가 사라지고 메일이 열림');
+    }
+  } catch (e) { ok(false, 'F 예외 ' + e.message); } finally { try { await F.sw(6); } catch { /* */ } await F.browser.close(); }
+
   // ── E. 못 보는 워크스페이스 고정 → 정본으로 돌아감 (member1 은 ws7 비소속)
   const B = await session('member', 6);
   try {
