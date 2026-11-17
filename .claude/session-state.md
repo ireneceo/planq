@@ -4452,6 +4452,10 @@
   로그인 안 한 영어/쿠알라룸푸르: 배너 뜸 → «Allow» 후 gtm.js 실림·dataLayer 생김. 코드 수정·배포 필요 없음.
   게시는 외부 화면 일이라 따로 카드 todomwhs1wnn «시크릿 창에서 GTM 미리보기 확인하고 게시하기» 로 옮김(act 질문 askmwhmp68m 은 상황판이 뺌).
 - 11-16 Irene: 운영 /pricing 배너·GTM 0 · JS 214개에 «GTM-» 0 → «운영 미배포, 개발 ID 를 GTM-5WQHW96L 로 바꾸고 배포» 요청. 방 9572baa2 재측정(새 브라우저 컨텍스트, 로그인 안 함): 한국어 → 배너 + gtm.js?id=GTM-5WQHW96L · 영어/말레이시아 → 동의 배너(허용 전 0). 운영 배포돼 있음 — 번호는 /api/platform/info 에서 받아 JS 에 없음이 정상. 배너·요청 0 = 로그인한(또는 다른 시크릿 창에서 로그인한) 브라우저. 개발 GTM-PLANQDEV 는 일부러 둔 가짜(개발 방문이 운영 GA4 에 섞이지 않게) — 안 바꿈. 카드 todomwhs1wnn 에 «시크릿 창 모두 닫고 새로·planq 로그인 금지» 넣어 다시 올림.
+- 11-17 Irene «GTM 게시 했어요»(Version 2 «GA4 첫 게시») + «운영 화면이 GTM 안 불러옴 → 운영 배포 필요?» (방 a4e5c3e1 · [Opus] · Fable 안 씀 — 읽기 실측만, 코드·배포 0):
+  - 공개 gtm.js?id=GTM-5WQHW96L = "version":"2" · G-ZBCPFNJ8DG 실림 ✓ · 운영 /api/platform/info gtm_container_id=GTM-5WQHW96L ✓
+  - 헤드리스(로그인 안 함·새 컨텍스트) 운영 /pricing 한국어·서울: 쿠키 띠 보임 · dataLayer 6 · gtm.js → gtag/js?id=G-ZBCPFNJ8DG → region1.google-analytics.com/g/collect?tid=G-ZBCPFNJ8DG 나감 ✓ · 영어/뉴욕: 동의 띠만·요청 0(허용 전, 설계대로) ✓ · /login 0 ✓
+  - 결론: 운영 배포 빠진 것 없음(번호는 info 에서 받아 JS 에 GTM- 문자열 없음이 정상). Irene 브라우저 0개 = 로그인 상태(시크릿 창끼리 로그인 공유) 또는 예전에 끈 동의(localStorage planq:consent). 배포 안 함.
 - 11-16 Irene «했어요»(todomwi42tdx iOS 서명): Codemagic 개인 공간에 API 키 PlanQ ASC(A68786VG7D) 이미 있음 · 인증서 «PlanQ Distribution»(2027-08-25) 이미 있어 새로 안 만듦 · 프로필 Fetch «planq_appstore_v2»(app.planq)·«planq_share_extension_appstore» · 옛 무효 사본 삭제 · 안드로이드 키스토어 planq_upload(2054-01-20) 그대로 → 사라진 건 앱 planq 빌드 설정·기록뿐. Codemagic 화면은 이 방이 읽을 길이 없어 Irene 메모로 확인. ios_signing 은 bundle_identifier 로 고르므로 프로필 이름 바뀜 영향 없음.
   - 안드로이드 카드 todomwi41puf 에서 키 내려받기·올리기 단계 뺌(빌드 → Play 만). iOS Share Extension 구현 PlanQ 대기열에 넣음.
   - Irene 지적: 개인 공간은 Global variables 잠금 → desktop-mac groups planq_desktop_mac. 맥 서명 ③ 카드(todomwhjwsa4)는 앱 단위 «PlanQ 앱 › Environment variables» 그룹이라 개인 공간에서도 됨 — 단 앱 planq 빌드 설정(todomvswjmxv 1단계)이 끝난 뒤에 보인다.
