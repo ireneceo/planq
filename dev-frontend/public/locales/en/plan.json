@@ -47,7 +47,7 @@
     "qnote": "Q Note",
     "unlimited": "Unlimited",
     "warningSoon": "Approaching limit",
-    "warningFull": "Near limit",
+    "warningFull": "Limit reached",
     "cueUnit": "actions",
     "qnoteUnit": "minutes",
     "cueBreakdown": "Cue Usage — By Feature",
@@ -82,7 +82,9 @@
       "bizreg_read": "Business registration reading",
       "ai_template_refine": "Template AI refine"
     },
-    "prospects": "Prospects"
+    "prospects": "Prospects",
+    "warningOver": "Over limit — can't add more",
+    "seatFull": "Full — all seats in use"
   },
   "comparison": {
     "title": "Compare Plans",

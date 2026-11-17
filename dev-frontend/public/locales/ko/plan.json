@@ -47,7 +47,7 @@
     "qnote": "Q Note",
     "unlimited": "무제한",
     "warningSoon": "한도 임박",
-    "warningFull": "한도 초과 임박",
+    "warningFull": "한도 도달",
     "cueUnit": "회",
     "qnoteUnit": "분",
     "cueBreakdown": "Cue 사용 — 기능별 내역",
@@ -82,7 +82,9 @@
       "bizreg_read": "사업자등록증 읽기",
       "ai_template_refine": "템플릿 AI 고쳐 넣기"
     },
-    "prospects": "문의 고객"
+    "prospects": "문의 고객",
+    "warningOver": "한도 초과 — 새로 추가할 수 없어요",
+    "seatFull": "꽉 참 — 자리를 모두 쓰고 있어요"
   },
   "comparison": {
     "title": "플랜 비교",

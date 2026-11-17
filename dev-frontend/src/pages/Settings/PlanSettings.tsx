@@ -420,24 +420,28 @@ const PlanSettings: React.FC<Props> = ({ businessId }) => {
         <UsageGrid>
           <UsageRow
             label={t('usage.members')}
+            seat
             current={usage.members}
             limit={effLimits!.members_max}
             t={t}
           />
           <UsageRow
             label={t('usage.clients')}
+            seat
             current={usage.clients}
             limit={effLimits!.clients_max}
             t={t}
           />
           <UsageRow
             label={t('usage.projects')}
+            seat
             current={usage.projects}
             limit={effLimits!.projects_max}
             t={t}
           />
           <UsageRow
             label={t('usage.conversations')}
+            seat
             current={usage.conversations}
             limit={effLimits!.conversations_max}
             t={t}
@@ -805,12 +809,23 @@ interface UsageRowProps {
   limit: number | null;
   formatter?: (n: number | null) => string;
   unit?: string;
+  /** 멤버·고객·프로젝트·대화방 — 정해서 쓰는 자리. 꽉 찬 것은 정상(경고 X), 넘쳤을 때만 빨강. */
+  seat?: boolean;
   t: (k: string) => string;
 }
-const UsageRow: React.FC<UsageRowProps> = ({ label, current, limit, formatter, unit, t }) => {
+const UsageRow: React.FC<UsageRowProps> = ({ label, current, limit, formatter, unit, seat, t }) => {
   const isUnlimited = limit === null || limit === undefined;
   const ratio = isUnlimited ? 0 : Math.min(1, current / Math.max(1, limit as number));
-  const color = usageColor(ratio);
+  const over = !isUnlimited && current > (limit as number);
+  // ★ 2026-11-17 — 6자리 사서 6명 쓰는 것은 «한도 초과 임박» 이 아니다. 자리는 넘쳤을 때만 경고색.
+  const color: 'ok' | 'warn' | 'crit' = seat ? (over ? 'crit' : 'ok') : usageColor(ratio);
+  const warnText = over
+    ? t('usage.warningOver')
+    : seat
+      ? (ratio >= 1 ? t('usage.seatFull') : null)
+      : color === 'crit'
+        ? (ratio >= 1 ? t('usage.warningFull') : t('usage.warningSoon'))
+        : color === 'warn' ? t('usage.warningSoon') : null;
   const fmt = formatter || ((n: number | null) => n === null ? '∞' : n.toLocaleString());
   return (
     <UsageBlock>
@@ -828,10 +843,8 @@ const UsageRow: React.FC<UsageRowProps> = ({ label, current, limit, formatter, u
           <UsageBar>
             <UsageFill style={{ width: `${ratio * 100}%` }} $color={color} />
           </UsageBar>
-          {color !== 'ok' && (
-            <UsageWarn $color={color}>
-              {color === 'crit' ? t('usage.warningFull') : t('usage.warningSoon')}
-            </UsageWarn>
+          {warnText && (
+            <UsageWarn $color={color}>{warnText}</UsageWarn>
           )}
         </>
       )}
@@ -983,7 +996,7 @@ const UsageFill = styled.div<{ $color: 'ok' | 'warn' | 'crit' }>`
 `;
 const UsageWarn = styled.div<{ $color: 'ok' | 'warn' | 'crit' }>`
   font-size:0.6875rem;font-weight:600;
-  color:${p => p.$color === 'crit' ? '#DC2626' : '#C2410C'};
+  color:${p => p.$color === 'crit' ? '#DC2626' : p.$color === 'warn' ? '#C2410C' : '#64748B'};
 `;
 
 /* 비교표 */

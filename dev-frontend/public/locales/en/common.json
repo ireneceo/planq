@@ -1078,9 +1078,9 @@
   "usageWarn": {
     "title": "Approaching plan limits",
     "titleFull": "Some plan limits are reached",
-    "subtitleFull": "To add more, upgrade your plan or buy extra slots.",
-    "subtitleFull_native": "To add more, the limit needs to be raised. Please contact your workspace admin.",
-    "subtitleFullExempt": "To add more, the limit must be raised. Contact the platform admin.",
+    "subtitleFull": "To use more, upgrade your plan or buy extra capacity.",
+    "subtitleFull_native": "To use more, the limit needs to be raised. Please contact your workspace admin.",
+    "subtitleFullExempt": "To use more, the limit must be raised. Contact the platform admin.",
     "titleOver": "Some plan limits are exceeded",
     "subtitleOver": "New additions are blocked while over limit. Upgrade your plan or remove existing items.",
     "subtitleOver_native": "While over the limit, new items can't be added. Clean up existing items or contact your workspace admin.",

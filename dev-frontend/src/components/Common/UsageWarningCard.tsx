@@ -1,4 +1,4 @@
-// 사용량 80%+ 한도 항목 사전 경고 카드 — DashboardPage 에 노출.
+// 한도 경고 카드 — DashboardPage 에 노출. 닳는 것(스토리지·Cue·Q Note)은 80%+, 자리(멤버·고객·프로젝트)는 넘쳤을 때만.
 // 빨간 한도 도달 모달과 별도 — 이건 노란색 사전 안내.
 //
 // 2026-05-05 도입.
@@ -61,19 +61,23 @@ const UsageWarningCard: React.FC<Props> = ({ businessId }) => {
   if (!usage || !limits) return null;
 
   const items: { key: string; label: string; current: number; limit: number; pct: number; format?: (n: number) => string }[] = [];
-  const push = (key: string, labelKey: string, current: number, limit: number | null, fmt?: (n: number) => string) => {
+  // seat=true — 멤버·고객·프로젝트처럼 «정해서 쓰는 자리». 6명 쓰려고 6자리를 샀으면 6/6 이 정상이다.
+  //   ★ 2026-11-17 Irene: *"멤버 6명 하려고 6명으로 했으니 한도 도달하지. 이 안내가 계속 나오면 이상한거 아니야?"*
+  //   → 자리는 **넘쳤을 때(current > limit)만** 알린다. 더 추가하려는 순간엔 LimitReachedDialog 가 안내한다.
+  //   쓰면 닳는 것(스토리지·Cue·Q Note)은 모르는 새 차서 기능이 멈추므로 80% 부터 미리 알린다.
+  const push = (key: string, labelKey: string, current: number, limit: number | null, seat: boolean, fmt?: (n: number) => string) => {
     if (limit == null || limit === 0) return;
     const pct = current / limit;
-    if (pct < WARN_THRESHOLD) return;
+    if (seat ? current <= limit : pct < WARN_THRESHOLD) return;
     items.push({ key, label: t(labelKey), current, limit, pct, format: fmt });
   };
 
-  push('members',  'usageWarn.members',  usage.members,                  limits.members_max);
-  push('clients',  'usageWarn.clients',  usage.clients,                  limits.clients_max);
-  push('projects', 'usageWarn.projects', usage.projects,                 limits.projects_max);
-  push('storage',  'usageWarn.storage',  usage.storage_bytes,            limits.storage_bytes,        fmtBytes);
-  push('cue',      'usageWarn.cue',      usage.cue_actions_this_month,   limits.cue_actions_monthly);
-  push('qnote',    'usageWarn.qnote',    usage.qnote_minutes_this_month, limits.qnote_minutes_monthly, fmtMinutes);
+  push('members',  'usageWarn.members',  usage.members,                  limits.members_max,          true);
+  push('clients',  'usageWarn.clients',  usage.clients,                  limits.clients_max,          true);
+  push('projects', 'usageWarn.projects', usage.projects,                 limits.projects_max,         true);
+  push('storage',  'usageWarn.storage',  usage.storage_bytes,            limits.storage_bytes,        false, fmtBytes);
+  push('cue',      'usageWarn.cue',      usage.cue_actions_this_month,   limits.cue_actions_monthly,  false);
+  push('qnote',    'usageWarn.qnote',    usage.qnote_minutes_this_month, limits.qnote_minutes_monthly, false, fmtMinutes);
 
   if (items.length === 0) return null;
 
@@ -97,8 +101,8 @@ const UsageWarningCard: React.FC<Props> = ({ businessId }) => {
           {anyFull && (
             <Subtitle>
               {exempt
-                ? t('usageWarn.subtitleFullExempt', '더 추가하려면 한도를 늘려야 합니다. 플랫폼 관리자에게 문의해 주세요.')
-                : t(purchaseCopyKeys('usageWarn.subtitleFull'), '더 추가하려면 플랜을 올리거나 추가 슬롯을 사세요.')}  {/* App Store 3.1.1 — 앱은 _native 중립 문구 */}
+                ? t('usageWarn.subtitleFullExempt', '더 쓰려면 한도를 늘려야 합니다. 플랫폼 관리자에게 문의해 주세요.')
+                : t(purchaseCopyKeys('usageWarn.subtitleFull'), '더 쓰려면 플랜을 올리거나 추가 용량을 사세요.')}  {/* App Store 3.1.1 — 앱은 _native 중립 문구 */}
             </Subtitle>
           )}
           {anyOver && (
