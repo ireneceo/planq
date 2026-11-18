@@ -94,15 +94,18 @@
 - 배포 준비: Drive 파인더 지우기·고치기는 Fable 완료 검증 전이라 운영 꺼진 채(f62fff22) — 나머지는 다음 배포에 그대로 나감
 - 자체 검증: drivesync 켬 PASS · 끔 대조군 뒤집힘 · /api/cloud/status finder_sync true · build EXIT 0 · guard 85/86
 
-### 답 기다림: 개발 서버 «워프로랩» Google Drive 다시 연결 (2차 — 11-18 10:45 확인: 연결 기록 0 · 토큰 여전히 invalid_grant · 상황판 askmwlzwy10) (3차 — 12:13 확인: 여전히 invalid_grant · 연결 감사 0 · 대표 계정 user 3 은 10-13 뒤 dev 로그인·세션 0 → 운영에서 한 듯. 대신 시험 워크스페이스 ws 6 에 김오너(dev-login)로 Drive 연결 요청 — 측정은 ws 6 으로 BIZ 바꿔 돌린다) — 파인더 지우기·고치기 반영 실 Drive 측정 (방 d907f0d8 · 2026-11-18 · [Opus] · Irene «권고대로» · Fable 설계 DESIGN-READY)
-- 무엇: dev ws 3 Drive 토큰이 만료(invalid_grant, 11-18 04:48 표시 기록) → 실 Drive 측정(§4.6 양성 1~4) 못 함. 대표 계정 본인만 재연결 가능 — 상황판 act askmwln63vb
-- 한 일: 커밋 cf3f5801 — services/gdriveMirrorSync(지움 분기표·고침·옛 판·알림) · gdriveSyncRun(워크스페이스당 한 줄, 커서 적용 뒤 저장 · 실패 고침 다시 시도) · files.deleted_via·drive_sync_issue(migrate-file-drive-sync.js 배포 슬롯) · 휴지통·목록 표시 · 안내 문구 · 회귀 health-check drivesync
-- 자체 검증: 가짜 Changes 15/15(removed·쌍둥이·문서 그림·폴더째·100건·NULL md5 에코·한도·받기 실패·Drive 정본 불변·스위치·동시 2회 차감 1회·가드 양성 대조군·증빙) · HTTP 3/3(휴지통 deleted_via·복구가 지움·목록 drive_sync_issue) · 화면 3폭(태그 82×19 눌림·휴지통 문구) · build EXIT 0·error TS 0 · guard 85/86 · health 101/101
-- 확인용 데이터(ws 6): 파일 13157 «[확인용] Drive 와 다름 표시.txt» · 휴지통 13158 «Drive 에서 지운 파일» · 13159 «이전 판»
-- 답이 오면: `cp $CLAUDE_JOB_DIR/tmp/test-drive-real.js dev-backend/` → 실행 → rm → Fable 완료 검증(/fable-검증) → 작업기록 ✅
-- ★ 2026-11-18 배포 준비 방(ebab08aa) f62fff22: 운영에는 **꺼진 채** 나간다 — 전체 스위치 `GDRIVE_FINDER_SYNC=1` 일 때만 반영(개발 .env 에 넣음). Fable 완료 검증 PASS 뒤 운영 .env 에 같은 줄 + pm2 reload 해야 켜진다.
-- 운영 반영 조건(Fable §4.6): Irene 맥 실기기 1회(파인더에서 오피스·한글·미리보기로 저장 → 휴지통으로 가지 않고 새 내용으로 오는지) · 운영 숫자 3개(산 미러 행·쌍둥이·문서 그림 미러) — 이 방 운영 읽기는 권한 거부됨 · 배포 뒤 1주 원장 건수
-- 범위 밖으로 남긴 것(비차단): Drive 이름변경 확장자 검사 없음 · Drive 정본 분기 지움이 trashFile 안 거침 · 전체 대조(files.list)
+### ✅ Drive(파인더)에서 지우면 PlanQ 휴지통 · 고치면 새 내용(옛 판 보관) (방 d907f0d8 · 2026-11-18 · [Opus] · Irene «권고대로» · Fable 설계 DESIGN-READY · 완료 검증 PASS)
+- 설계·판정·실측 정본 `docs/GDRIVE_FINDER_EDIT_SYNC_DESIGN.md`(§4 설계 · §5 자체 검증 · §6 Fable 완료 검증) · 규칙 `.claude/rules/qfile.md` 끝
+- 커밋 cf3f5801(구현) · f62fff22(다른 방: 전체 스위치 `GDRIVE_FINDER_SYNC=1` 일 때만, 운영 기본 꺼짐 · dev 켬) · 7042e8bb(검증 기록)
+- 실측: 실 Drive(dev ws 6, Irene 12:43 연결) 15/15 · 가짜 Changes 15/15 · HTTP 3/3 · 화면 3폭 · build EXIT 0 · guard 85/86 · health 101/101 · Fable 독립 재현 실 웹훅 22/22·가짜 31/31
+- dev ws 3(워프로랩) Drive 토큰은 만료 그대로(invalid_grant) — ws 6 에 같은 구글 계정으로 따로 연결, 폴더 «PlanQ - PlanQ 테스트 워크스페이스»
+- 확인용(ws 6): 13157 «[확인용] Drive 와 다름 표시.txt» · 휴지통 13158·13159
+- 운영 반영: 다음 배포 때(꺼진 채 — migrate-file-drive-sync.js 배포 슬롯)
+
+### 다음 할 일 — 운영에서 Drive 파인더 반영 켜기 전 (Fable §6)
+- 코드: ① 내려받기 시간 제한(멈추면 그 워크스페이스 동기화 전체가 섬) ② md5 없는 직접 지움에 `trash_held` 표시 ③ 휴지통 트랜잭션 실패 표시·재시도 ④ (선택) post_revisions 첨부 동결 · 전체 대조(files.list)
+- 실측: 맥 파인더에서 오피스·한글·미리보기로 저장 → 휴지통이 아니라 새 내용으로 오는지(Irene 맥) · 두 번째 구글 계정(편집자) 지움 · 운영 숫자 3개(산 미러 행·쌍둥이·문서 그림 미러)
+- 그 뒤 운영 .env `GDRIVE_FINDER_SYNC=1` · 배포 뒤 1주 원장 trash·content·trash_held·edit_* 건수
 
 ### ✅ 손님 문의 landing#2 (9,900원 환불) — 답장 안 보냄(내부 시험 문의) · Irene 가 관리자 화면에서 «완료»로 닫음 (방 f433cd1f · 2026-11-18 · [Opus] · 상황판 자동 답장)
 - 무엇: 상황판 초안(«요청하신 9,900원 결제는 10월 22일에 환불 처리되었습니다…»)을 손님 문의 landing#2 에 보내기.
