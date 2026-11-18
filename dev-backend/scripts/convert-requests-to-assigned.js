@@ -27,9 +27,11 @@ const REVERT = arg('--revert');
         for (const k of Object.keys(e.reviewer)) {
           if (typeof e.reviewer[k] === 'string' && /^\d{4}-\d{2}-\d{2}T/.test(e.reviewer[k])) e.reviewer[k] = new Date(e.reviewer[k]);
         }
-        if (await conv.revertOne(e)) ok++; else skipped.push(e.task_id);
+        const r = await conv.revertOne(e);
+        if (r.ok) ok++; else skipped.push(`#${e.task_id}(${r.reason})`);
       }
-      console.log(`[revert] 되돌림 ${ok} / ${entries.length}${skipped.length ? ` · 건너뜀(이미 바뀜) ${skipped.join(',')}` : ''}`);
+      // 건너뜀 = 변환 뒤 완료·취소됐거나 컨펌자가 붙은 것 — 되돌리면 «완료 + 컨펌 대기» 가 되므로 그대로 둔다
+      console.log(`[revert] 되돌림 ${ok} / ${entries.length}${skipped.length ? ` · 건너뜀 ${skipped.join(', ')}` : ''}`);
       return;
     }
     const businessId = Number(arg('--business'));

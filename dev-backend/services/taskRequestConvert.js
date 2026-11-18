@@ -57,7 +57,7 @@ async function convertOne(taskId, { businessId, creatorId }) {
     );
     await sequelize.query('DELETE FROM task_reviewers WHERE id = :rid', { replacements: { rid: rev.id }, transaction: t });
     await t.commit();
-    entry = { task_id: row.id, source: row.source, request_by_user_id: row.request_by_user_id, reviewer: rev };
+    entry = { task_id: row.id, business_id: Number(businessId), creator_id: Number(creatorId), source: row.source, request_by_user_id: row.request_by_user_id, reviewer: rev };
   } catch (e) { await t.rollback(); throw e; }
 
   require('./auditService').logAudit(null, {
@@ -70,15 +70,30 @@ async function convertOne(taskId, { businessId, creatorId }) {
   return entry;
 }
 
-/** 장부 한 줄을 되돌린다 — 요청 표시·컨펌자 행을 원래 값으로. 이미 다른 컨펌자가 붙었거나 값이 바뀌었으면 건너뛴다. */
+/** 장부 한 줄을 되돌린다 — 요청 표시·컨펌자 행을 원래 값으로.
+ *  변환 때와 같은 상태에서만 되돌린다(2026-11-18 Fable 완료 검증 지적 2): 같은 워크스페이스·같은 작성자 ∧ 여전히 배정 업무 ∧
+ *  아직 열린 단계(시작 전·진행대기·진행 중) ∧ 컨펌자 0명 ∧ 라운드 0. 그 사이 완료됐거나 컨펌자가 붙었으면 건너뛴다 —
+ *  안 그러면 «완료 + 컨펌자 pending»(막으려던 모양)을 되돌림이 만든다. 건너뛴 이유를 돌려준다. */
 async function revertOne(entry) {
+  if (!entry || !Number(entry.task_id) || !Number(entry.business_id) || !Number(entry.creator_id)
+      || !entry.reviewer || Number(entry.reviewer.user_id) !== Number(entry.creator_id)) return { ok: false, reason: 'bad_entry' };
   const t = await sequelize.transaction();
   try {
     const [row] = await sequelize.query(
-      "SELECT id FROM tasks WHERE id = :id AND request_by_user_id IS NULL AND source = 'manual' FOR UPDATE",
-      { replacements: { id: entry.task_id }, type: QueryTypes.SELECT, transaction: t },
+      `SELECT t.id, t.status FROM tasks t
+        WHERE t.id = :id AND t.business_id = :biz AND t.created_by = :creator
+          AND t.request_by_user_id IS NULL AND t.source = 'manual'
+          AND t.status IN ('not_started', 'waiting', 'in_progress') AND COALESCE(t.review_round, 0) = 0
+          AND NOT EXISTS (SELECT 1 FROM task_reviewers r WHERE r.task_id = t.id)
+        FOR UPDATE`,
+      { replacements: { id: Number(entry.task_id), biz: Number(entry.business_id), creator: Number(entry.creator_id) }, type: QueryTypes.SELECT, transaction: t },
     );
-    if (!row) { await t.rollback(); return false; }
+    if (!row) {
+      const [cur] = await sequelize.query('SELECT status, source, request_by_user_id, business_id FROM tasks WHERE id = :id',
+        { replacements: { id: Number(entry.task_id) }, type: QueryTypes.SELECT, transaction: t });
+      await t.rollback();
+      return { ok: false, reason: cur ? `changed:${cur.status}` : 'gone' };
+    }
     await sequelize.query(
       'UPDATE tasks SET request_by_user_id = :rb, source = :src, updated_at = NOW() WHERE id = :id',
       { replacements: { id: entry.task_id, rb: entry.request_by_user_id, src: entry.source }, transaction: t },
@@ -95,8 +110,14 @@ async function revertOne(entry) {
     }
     await t.commit();
   } catch (e) { await t.rollback(); throw e; }
+  require('./auditService').logAudit(null, {
+    userId: null, businessId: Number(entry.business_id), action: 'task.assigned_to_request_revert',
+    targetType: 'task', targetId: Number(entry.task_id),
+    oldValue: { source: 'manual', request_by_user_id: null, reviewer_user_id: null },
+    newValue: { source: entry.source, request_by_user_id: entry.request_by_user_id, reviewer_user_id: Number(entry.creator_id), via: 'script:convert-requests-to-assigned --revert' },
+  });
   await signal(entry.task_id);
-  return true;
+  return { ok: true };
 }
 
 async function signal(taskId) {

@@ -215,6 +215,9 @@ async function collectTasks(businessId, userId) {
   //    Q Task 우측 패널은 이 버킷을 '보낸 업무요청' 으로 세는데 여기에는 수집기 자체가 없었다.
   //    술어는 QTaskPage panelCounts.sent 와 같다 — 의뢰자(request_by 또는 내가 만들어 남에게 맡김)
   //    + status='reviewing' + 내가 pending 컨펌자가 아님(그건 위 3) 이 이미 세므로 한 업무 = 한 버킷).
+  //    ★ 2026-11-18 — «요청하기» 탭은 request_by 하나로 좁혔지만 이 버킷은 **의뢰자에게 컨펌 진행을 알리는** 자리라
+  //      created_by(만들어 남에게 맡김)도 그대로 둔다(의도). 배정 업무에 손으로 컨펌자를 붙여 컨펌 단계가 되면 만든 사람도 본다.
+  //      QTaskPage panelCounts.sent 와 같은 술어 — 둘을 같이 바꾼다(숫자 배지 계약).
   const myPendingReviewTaskIds = new Set(pendingReviews.map((r) => r.Task && r.Task.id).filter(Boolean));
   const sentInReview = await Task.findAll({
     where: {

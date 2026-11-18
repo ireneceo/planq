@@ -33,6 +33,9 @@ const ERROR_CODE_MAP: Record<string, string> = {
   'Invalid user': 'invalid_user',
   'Expired refresh token': 'refresh_expired',
 
+  // 업무 — 컨펌자 대기 중 완료(2026-11-18 · 서버 taskTransition.completionBlockedByReview)
+  'not_ready_for_complete': 'task_needs_review',
+
   // 일반 권한/대상
   'forbidden': 'forbidden',
   'owner_only': 'owner_only',

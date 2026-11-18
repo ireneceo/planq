@@ -15,6 +15,7 @@
   "no_workspace": "No workspace available",
   "rate_limit_login": "Too many login attempts. Please try again shortly",
   "rate_limit_generic": "Too many requests. Please try again shortly",
+  "task_needs_review": "This task needs its reviewers’ sign-off before it can be completed.",
   "forbidden": "Permission denied",
   "owner_only": "Only the author can change this",
   "not_found": "Not found",

@@ -3845,6 +3845,13 @@ router.patch('/tasks/:id', authenticateToken, async (req, res, next) => {
     const { status } = req.body || {};
     const allowed = ['task_requested', 'task_re_requested', 'waiting', 'not_started', 'in_progress', 'review_requested', 're_review_requested', 'customer_confirm', 'completed', 'canceled'];
     if (!status || !allowed.includes(status)) return errorResponse(res, 'invalid status', 400);
+    // 컨펌자 대기 중 «완료» 금지 — PUT·체크박스(complete)와 같은 술어 한 벌(taskTransition.canEnterStatus, 2026-11-18 Fable 완료 검증 지적 1).
+    //   Q talk 우측 패널 체크박스가 이 길이라, 여기만 열려 있으면 컨펌을 건너뛰고 닫혔다(dev 실측 200).
+    {
+      const { canEnterStatus } = require('../services/taskTransition');
+      const gate = await canEnterStatus(task.id, status, { fromStatus: task.status });
+      if (!gate.ok) return errorResponse(res, gate.reason, 400);
+    }
     const prevTaskStatus = task.status;
     await task.update({ status });
     if (prevTaskStatus !== status) logAudit(req, { action: 'task.status_change', targetType: 'task', targetId: task.id, businessId: task.business_id, oldValue: { status: prevTaskStatus }, newValue: { status } }); // 이 경로는 task_status_history 를 쓰지 않는다
