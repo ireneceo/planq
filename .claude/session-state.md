@@ -1,5 +1,6 @@
 ## 현재 작업 상태
-### 답 기다림: 데스크탑 앱 1.1.0 윈도우 시험판을 운영 /desktop/ 에 올리기 (방 1150159e · 2026-11-18 · [Opus] · Fable 완료 검증 1차 FAIL 1건 → 2차 PASS)
+### ✅ 데스크탑 앱 1.1.0 — 회의 소리 녹음·Store 제출본 + 윈도우 시험판 운영 /desktop/ 게시 (방 1150159e · 2026-11-18 · [Opus] · Fable 완료 검증 1차 FAIL 1건 → 2차 PASS)
+- 게시됨(Irene 이 이 방에서 publish.sh): https://planq.kr/desktop/latest.yml version 1.1.0 · exe 200 · sha512 로컬과 일치 · 공개 버튼 숨김 그대로(has_windows false) — 직접 링크 https://planq.kr/desktop/PlanQ-Setup-1.1.0.exe
 - 무엇: `desktop/dist/prod/PlanQ-Setup-1.1.0.exe`(운영 출처·무서명 NSIS·check PASS)를 Irene 이 이 방에서 `! bash desktop/scripts/publish.sh desktop/dist/prod` 로 올림. 왜: 이 방은 운영 접속이 막혀 있다(권한 거부). 공개 버튼은 그대로 숨김(app_windows_url 비어 있음) — 직접 링크로 윈도우 PC 시험(회의 소리 녹음·트레이·알림·planq:// 로그인).
 - 답이 오면: 공개 주소 `https://planq.kr/desktop/latest.yml` version 1.1.0 · exe 200 확인 → 직접 링크 안내. 안 올리면 Store 길만으로 진행(실기기 시험이 Store 플라이트 뒤로 밀림).
 - 이번에 한 것: **2단계 B 회의 소리 녹음**(윈도우 메인 창만 · 판정 `desktop/src/capture.js` · 매번 네이티브 확인창, 기본 = 취소 · 자기 창 영상 + loopback · 트레이 «● 회의 소리 녹음 허용됨» did-navigate 까지) · 맥은 Electron loopback 없음 → «아직 못 해요» 문구 · **Store(MSIX) 제출본** `build.js win-store` + `codemagic.yaml desktop-win-store`(windows_x2, 그룹 planq_desktop_store) · StartupTask + 설정 «자동 실행 설정 열기» · Store 타일 그림 · 껍데기 1.1.0 · docs/DESKTOP_APP_PHASE2.md §7
