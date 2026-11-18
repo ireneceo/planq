@@ -80,4 +80,72 @@ function calendarHint(todayLocal) {
   return lines.join('\n');
 }
 
-module.exports = { resolveSpokenDate, correctWhenStart, calendarHint, spokenWeekday };
+// ── 업무 마감용 (2026-11-18 — Q task «Cue에게 말하기» 가 «다음주 금요일까지» 를 LLM 산수로 11/24 로 냈다) ──
+// 숫자로 말한 날짜도 푼다(«다음달 1일»·«11월 30일»·«11/30»·«15일까지»·«월말»). 없는 날(2월 30일)은 null.
+function lastDayOfMonth(y, m) { return new Date(Date.UTC(y, m, 0)).getUTCDate(); }
+function ymdStr(y, m, d) { return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`; }
+function validYmd(y, m, d) { return m >= 1 && m <= 12 && d >= 1 && d <= lastDayOfMonth(y, m) ? ymdStr(y, m, d) : null; }
+
+function resolveExplicitDate(when, todayLocal) {
+  const s = String(when || '').replace(/\s+/g, ' ');
+  const [ty, tm, td] = todayLocal.split('-').map(Number);
+  const nextMonth = () => (tm === 12 ? [ty + 1, 1] : [ty, tm + 1]);
+  let m;
+  if ((m = /(\d{1,2})\s*월\s*(\d{1,2})\s*일/.exec(s))) {
+    const mo = Number(m[1]); const d = Number(m[2]);
+    const thisYear = validYmd(ty, mo, d);
+    if (!thisYear) return null;
+    return thisYear < todayLocal ? validYmd(ty + 1, mo, d) : thisYear;
+  }
+  if ((m = /(?<![\d/.])(\d{1,2})\s*\/\s*(\d{1,2})(?![\d/])/.exec(s))) {
+    const mo = Number(m[1]); const d = Number(m[2]);
+    const thisYear = validYmd(ty, mo, d);
+    if (!thisYear) return null;
+    return thisYear < todayLocal ? validYmd(ty + 1, mo, d) : thisYear;
+  }
+  if ((m = /(다음|담)\s*달\s*(\d{1,2})\s*일/.exec(s))) { const [y, mo] = nextMonth(); return validYmd(y, mo, Number(m[2])); }
+  if ((m = /(이번|이)\s*달\s*(\d{1,2})\s*일/.exec(s))) return validYmd(ty, tm, Number(m[2]));
+  if (/(다음|담)\s*달\s*(말|말일|마지막\s*날)/.test(s)) { const [y, mo] = nextMonth(); return ymdStr(y, mo, lastDayOfMonth(y, mo)); }
+  if (/(이번\s*달\s*(말|말일|마지막\s*날)|월말)/.test(s)) return ymdStr(ty, tm, lastDayOfMonth(ty, tm));
+  if ((m = /(?<![\d월])(\d{1,2})\s*일\s*(까지|에|날|마감)/.exec(s))) {
+    const d = Number(m[1]);
+    if (d >= td) return validYmd(ty, tm, d);
+    const [y, mo] = nextMonth(); return validYmd(y, mo, d);
+  }
+  return null;
+}
+
+// 날짜 표현이 몇 개인가 — 둘 이상이면(«월요일부터 금요일까지»·«A 는 내일, B 는 금요일») 마감을 하나로 못 박지 않는다.
+const DATE_MENTION_RES = [
+  /\d{1,2}\s*월\s*\d{1,2}\s*일/g,
+  /(?<![\d/.])\d{1,2}\s*\/\s*\d{1,2}(?![\d/])/g,
+  /(다음|담|이번|이)\s*달\s*(\d{1,2}\s*일|말일|말|마지막\s*날)/g,
+  /월말/g,
+  /\d{1,3}\s*일\s*(뒤|후)|in \d{1,3} days?/gi,
+  /(?<![\d월])\d{1,2}\s*일\s*(까지|에|날|마감)/g,
+  /[월화수목금토일]\s*요일|\b(monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b/gi,
+  /오늘|내일|모레|글피|\btoday\b|\btomorrow\b|\btonight\b/gi,
+];
+function countDateMentions(text) {
+  let s = String(text || '');
+  let n = 0;
+  for (const re of DATE_MENTION_RES) {
+    s = s.replace(re, () => { n += 1; return ' § '; });
+  }
+  return n;
+}
+
+/** 업무 요청 한 문장에서 마감 날짜 하나를 코드로 푼다. 날짜 표현이 정확히 하나일 때만 — 아니면 null(LLM 몫). */
+function resolveDeadline(text, todayLocal) {
+  if (countDateMentions(text) !== 1) return null;
+  return resolveExplicitDate(text, todayLocal) || resolveSpokenDate(text, todayLocal);
+}
+
+const KO_DOW_NAMES = ['', '월', '화', '수', '목', '금', '토', '일'];
+const EN_DOW_NAMES = ['', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+function dowLabel(dateStr, language = 'en') {
+  const d = isoDow(dateStr);
+  return language === 'ko' ? KO_DOW_NAMES[d] : EN_DOW_NAMES[d];
+}
+
+module.exports = { resolveSpokenDate, correctWhenStart, calendarHint, spokenWeekday, resolveExplicitDate, resolveDeadline, countDateMentions, dowLabel };

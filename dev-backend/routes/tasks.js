@@ -526,7 +526,13 @@ router.post('/ai-create', authenticateToken, aiCreateModeLimiter, async (req, re
     //   ① 기간: 프로젝트 시작·종료일을 오늘 기준 날 수로 — 그 창 안에 단계를 깐다. 마감을 따로 안 줬으면 종료일이 마감.
     //   ② 이미 있는 업무 제목: 같은 일을 또 만들지 않게. **볼 수 있는 것만**(taskListWhere — 남의 «나만 보기» 제목이 프롬프트로 새지 않게).
     let projectPlan = null;
-    let effectiveTarget = target_date || null;
+    // 2026-11-18 — 사용자가 문장에 마감을 말했으면(«다음주 금요일까지») 날짜는 코드가 푼다(relativeDate.resolveDeadline).
+    //   LLM 산수에 맡겼더니 11/18(수) «다음주 금요일» 이 11/24 로 나왔다. 루틴(«매주 금요일») 은 마감이 아니라 반복이라 뺀다.
+    //   날짜 표현이 둘 이상이면 null — 그때는 종전대로 LLM 이 배치한다.
+    const spokenDeadline = (!target_date && effectiveMode !== 'routine')
+      ? require('../services/relativeDate').resolveDeadline(prompt, todayLocal) : null;
+    const userDeadline = (target_date && /^\d{4}-\d{2}-\d{2}$/.test(String(target_date)) ? String(target_date) : null) || spokenDeadline;
+    let effectiveTarget = target_date || spokenDeadline || null;
     if (projectRow && !effectiveMode) {
       const DATE = /^\d{4}-\d{2}-\d{2}$/;
       const ymd = (d) => (d instanceof Date ? d.toISOString().slice(0, 10) : String(d || '').slice(0, 10));   // DATEONLY 가 Date 로 올 때도
@@ -560,6 +566,7 @@ router.post('/ai-create', authenticateToken, aiCreateModeLimiter, async (req, re
       members,
       workstreams: workstreamNames,
       targetDate: effectiveTarget,
+      userDeadline,
       todayLocal,
       language: language || (req.user.language === 'en' ? 'en' : 'ko'),
       // ★ 화이트리스트를 **명시**한다. 예전엔 `mode === 'quick' ? 'quick' : null` 이라

@@ -14,6 +14,7 @@ const { recordUsage } = require('./cue_orchestrator');
 
 // LLM 호출은 게이트웨이 단일 지점을 지난다 (services/llm.js).
 const { callLLM, isEnabled, modelFor } = require('./llm');
+const { calendarHint, dowLabel } = require('./relativeDate');
 
 // 결과물 기반 명명 검증 — 단독으로 쓰이면 부적절한 단어 (사용자 인지용)
 const VAGUE_WORDS_KO = ['디자인', '개발', '시장조사', '조사', '회의', '미팅', '리뷰', '검토', '확인', '준비', '체크', '논의', '기획', '분석'];
@@ -310,8 +311,10 @@ Internal ops → 현황 정리 / 분석 보고서 / 액션 아이템 정의 / �
 
 ═══ CONTEXT ═══
 
-Today: ${todayLocal}
-${targetDate ? `User's target deadline: ${targetDate}` : 'No explicit deadline.'}
+Today: ${todayLocal} (${dowLabel(todayLocal)})
+${targetDate ? `User's target deadline: ${targetDate} (${dowLabel(targetDate)}, due_offset_days = ${offsetBetween(todayLocal, targetDate)})` : 'No explicit deadline.'}
+Calendar (Monday-start weeks):
+${calendarHint(todayLocal)}
 ${projectContext ? `Project context: ${projectContext}` : ''}
 
 Workspace members (use these to infer assignee_hint):
@@ -500,6 +503,18 @@ const MIN_ROUTINE_INSTRUCTION = 300;
 // 영역 이름 키 — 확정 라우트·AI 앱 create_workstream 과 한 벌(services/actions/workstream_actions).
 function normAreaKey(s) { return require('./actions/workstream_actions').normalizeWorkstreamTitle(s); }
 
+function offsetBetween(fromYmd, toYmd) {
+  return Math.round((Date.parse(`${toYmd}T00:00:00Z`) - Date.parse(`${fromYmd}T00:00:00Z`)) / 86400000);
+}
+function fitToUserDeadline(cands, tOff) {
+  if (!Number.isInteger(tOff) || tOff < 0) return;
+  for (const c of cands) {
+    if (cands.length === 1 || c.due_offset_days > tOff) c.due_offset_days = tOff;
+    if (c.start_offset_days > c.due_offset_days) c.start_offset_days = c.due_offset_days;
+    c.duration_days = Math.max(1, c.due_offset_days - c.start_offset_days);
+  }
+}
+
 // 프로젝트 일정 모드 — 후보 일정을 [startOffset, endOffset] 창 안으로(오늘 = 0). 둘 다 없으면 그대로.
 function fitPlanToWindow(cands, startOffset, endOffset) {
   const s0 = Number.isInteger(startOffset) && startOffset > 0 ? startOffset : 0;
@@ -520,7 +535,7 @@ function fitPlanToWindow(cands, startOffset, endOffset) {
   }
 }
 
-async function planTasksFromPrompt({ prompt, businessId, projectContext, members = [], workstreams = [], targetDate = null, todayLocal, language = 'ko', mode = null, instruction = null, instructions = null, baseCandidates = null, strategy = null, existingRecurring = null, baseAreas = null, projectPlan = null }) {
+async function planTasksFromPrompt({ prompt, businessId, projectContext, members = [], workstreams = [], targetDate = null, userDeadline = null, todayLocal, language = 'ko', mode = null, instruction = null, instructions = null, baseCandidates = null, strategy = null, existingRecurring = null, baseAreas = null, projectPlan = null }) {
   if (!prompt || !String(prompt).trim()) {
     return { candidates: [], reasoning: '', fallback: true, error: 'empty_prompt' };
   }
@@ -965,6 +980,9 @@ async function planTasksFromPrompt({ prompt, businessId, projectContext, members
   // 프로젝트 기간 맞추기 — 모델이 시작일 전에 깔거나 종료일을 넘겨도(실측: 34건 중 시작 전 3 · 종료 후 4) 서버가 창 안으로 옮긴다.
   //   시작이 앞서면 전체를 뒤로 민다 · 끝이 넘치면 시작~끝 사이를 비율로 줄인다(순서·겹침 모양은 그대로). LLM 순종에 기대지 않는다.
   if (planCtx && candidates.length) fitPlanToWindow(candidates, planCtx.startOffset, planCtx.endOffset);
+  // 2026-11-18 — 사용자가 말한 마감은 코드가 지킨다(머리 5번 «마감 준수» 를 LLM 순종에 맡기지 않는다).
+  //   후보 1개(«…까지 업무 추가해줘») = 그 업무의 마감이 곧 그 날 · 여러 개 = 넘친 것만 그 날로 당긴다(단계 배치는 LLM 몫).
+  if (userDeadline && !isRoutine && candidates.length) fitToUserDeadline(candidates, offsetBetween(todayLocal, userDeadline));
 
   // #90 — 링크 유실 방지 안전망: 프롬프트의 URL 이 어떤 후보 description 에도 없으면 첫 후보에 보존.
   const urls = (String(prompt).match(/https?:\/\/[^\s<>"')]+/g) || []).slice(0, 3);
