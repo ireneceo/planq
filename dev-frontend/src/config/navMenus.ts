@@ -285,3 +285,31 @@ export function permKeyForPath(path: string): MenuKey | null {
   }
   return best && best.permKey ? best.permKey : null;
 }
+
+/**
+ * 워크스페이스를 바꿀 때 착지할 주소 — **보던 메뉴의 첫 화면**(2026-11-18, Irene
+ *   «워크스페이스 이동할 때 … 계속 채팅으로 가는데 … 내가 보던 페이지로 가는 게 제일 편리한 거 아냐»).
+ * - 메뉴 표에서 가장 긴 접두어로 메뉴를 찾고 그 메뉴의 `to` 만 돌려준다 — 항목 id·쿼리(?task=12·/notes/52·/projects/p/3)는
+ *   앞 워크스페이스의 것이라 싣지 않는다(.claude/rules/workspace.md 5 «보던 경로를 새 범위에 싣지 않는다»).
+ * - 새 워크스페이스에서 그 메뉴가 안 보이면(역할·메뉴 권한 none·기능 꺼짐) `fallback`(종전 착지 /talk).
+ *   판정은 사이드바와 같은 `visibleNavMenus` 를 쓴다 — 술어를 두 벌로 만들지 않는다.
+ */
+export function workspaceSwitchLanding(currentPath: string, target: {
+  businessRole?: string | null;
+  menuLevels?: MenuLevels;
+  modules?: { payroll?: boolean; attendance?: boolean } | null;
+  canManagePayroll?: boolean;
+}, fallback = '/talk'): string {
+  const p = (currentPath || '').split('?')[0].replace(/\/+$/, '') || '/';
+  let best: NavMenuEntry | null = null;
+  for (const m of WORKSPACE_MENUS) {
+    const base = m.to.split('?')[0];
+    if (p === base || p.startsWith(`${base}/`)) {
+      if (!best || base.length > best.to.split('?')[0].length) best = m;
+    }
+  }
+  if (!best) return fallback;
+  const key = (best as NavMenuEntry).key;
+  const visible = visibleNavMenus({ ...target, scope: 'workspace' });
+  return visible.some((m) => m.key === key) ? (best as NavMenuEntry).to : fallback;
+}

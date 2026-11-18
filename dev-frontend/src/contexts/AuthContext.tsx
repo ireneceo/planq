@@ -124,7 +124,8 @@ interface AuthContextType {
   updateUser: (userData: Partial<User>) => void;
   refreshUser: () => Promise<void>;
   hasRole: (...roles: string[]) => boolean;
-  switchWorkspace: (businessId: number) => Promise<boolean>;
+  /** onSwitched — 전환이 끝난 새 사용자 상태(역할·메뉴 권한·기능)를 받는다. 착지 주소를 새 워크스페이스 기준으로 고를 때 쓴다 */
+  switchWorkspace: (businessId: number, onSwitched?: (u: User) => void) => Promise<boolean>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -1068,7 +1069,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   // 워크스페이스 전환 — 백엔드에 active_business_id 영구 저장 + user 상태 갱신
-  const switchWorkspace = async (businessId: number): Promise<boolean> => {
+  const switchWorkspace = async (businessId: number, onSwitched?: (u: User) => void): Promise<boolean> => {
     if (!user) return false;
     if (user.business_id === businessId) return true; // 이미 active
     // 전환 POST 전에 대기 중인 자동저장을 **지금 워크스페이스로** 보낸다 — 전환 뒤에 나가면 새 범위로 가거나 409 로 막힌다
@@ -1092,7 +1093,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       //   같은 브라우저의 다른 창(팝아웃·핀·다른 탭)에는 채널로 즉시, 다른 기기는 서버 소켓 emit 으로 간다.
       markSwitching();
       broadcastWorkspaceSwitch(Number(user.id), businessId);
-      setUser(normalizeUser(body.data));
+      const nextUser = normalizeUser(body.data);
+      setUser(nextUser);
+      onSwitched?.(nextUser);
       return true;
     } catch (e) {
       // eslint-disable-next-line no-console

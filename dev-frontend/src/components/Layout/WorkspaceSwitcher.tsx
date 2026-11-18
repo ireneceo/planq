@@ -4,6 +4,7 @@ import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { useChromeLocation, useChromeNav } from '../../hooks/useChromeNav';
 import { useAuth, type WorkspaceMembership } from '../../contexts/AuthContext';
+import { workspaceSwitchLanding } from '../../config/navMenus';
 
 /**
  * WorkspaceSwitcher (사이드바 전용)
@@ -116,11 +117,22 @@ const WorkspaceSwitcher: React.FC<Props> = ({ collapsed }) => {
       setOpen(false);
       return;
     }
+    // 보던 메뉴로 간다(2026-11-18 Irene) — 메뉴 첫 화면만(항목 id·쿼리는 앞 워크스페이스 것이라 싣지 않는다).
+    //   새 워크스페이스에서 그 메뉴가 안 보이면 종전 착지(/talk). 판정은 전환 응답의 새 역할·메뉴 권한·기능으로.
+    const from = location.pathname;
+    let landing = '/talk';
     setBusyId(target.business_id);
-    const ok = await switchWorkspace(target.business_id);
+    const ok = await switchWorkspace(target.business_id, (u) => {
+      landing = workspaceSwitchLanding(from, {
+        businessRole: u.business_role || target.role,
+        menuLevels: u.menu_levels,
+        modules: u.modules,
+        canManagePayroll: u.can_manage_payroll,
+      });
+    });
     setBusyId(null);
     setOpen(false);
-    if (ok) window.location.href = '/talk';
+    if (ok) window.location.href = landing;
   };
 
   const handleSwitchAdmin = () => {
