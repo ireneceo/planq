@@ -17,6 +17,7 @@ module.exports = function installTestHooks({ ipcMain, BrowserWindow, getMain, te
     shortcut: shortcutState(),
     notify: testLog.notify.slice(),
     openExternal: testLog.openExternal.slice(),
+    displayMedia: testLog.displayMedia.slice(),
     badge: getBadge(),
   }));
   ipcMain.handle('planq:test:hide-main', () => { const m = getMain(); if (m) m.hide(); return true; });

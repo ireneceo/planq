@@ -449,6 +449,8 @@
       "onlineHint": "Records your voice (mic) and others’ (meeting tab audio) separately. When you start, pick the meeting tab and turn on “Share tab audio”.",
       "offlineHint": "Records with one microphone. You can link speakers to names afterwards.",
       "onlineUnavailable": "Online meetings work in Chrome or Edge on a computer.",
+      "onlineHintDesktop": "Records your voice (mic) and others’ (sound playing on this computer) separately — Zoom and Teams app meetings too. When you start, choose “Start recording” in the confirmation window.",
+      "onlineUnavailableDesktop": "Online meeting recording isn’t available in this desktop app yet — use the Windows app or Chrome/Edge.",
       "locked": "The recording method can’t be changed — start a new note to use another method.",
       "change": "Change",
       "toOnline": "Switch to online meeting",

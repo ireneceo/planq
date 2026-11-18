@@ -10,6 +10,7 @@ import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { MonitorIcon, MicIcon, ChevronDownIcon } from '../../components/Common/Icons';
 import type { CaptureMode } from '../../services/audio';
+import { isDesktopApp } from '../../services/native';
 
 /** 맨 위 녹음 방식 줄 — 메뉴에서 이미 골랐다. 새 노트면 [바꾸기], 편집이면 바꿀 수 없음(저장이 녹음 방식을 보내지 않는다 ·
  *  녹음한 뒤 바꾸면 앞 구간과 뒤 구간의 화자 구분이 섞인다 — Fable 판정 c). */
@@ -23,6 +24,7 @@ export function CaptureModeBar({ mode, onChange, locked, onlineAvailable }: {
   const online = mode === 'web_conference';
   const other: CaptureMode = online ? 'microphone' : 'web_conference';
   const switchBlocked = !online && !onlineAvailable;
+  const desktop = isDesktopApp();   // 데스크탑 앱은 탭을 고르지 않는다 — 시스템 소리 + 확인 창(docs/DESKTOP_APP_PHASE2.md §7)
   return (
     <ModeBar data-testid="qnote-start-mode" data-mode={mode}>
       <ModeIcon $online={online} aria-hidden="true">{online ? <MonitorIcon size={18} /> : <MicIcon size={18} />}</ModeIcon>
@@ -31,9 +33,9 @@ export function CaptureModeBar({ mode, onChange, locked, onlineAvailable }: {
         <ModeHint>
           {locked
             ? t('startModal.mode.locked')
-            : (online ? t('startModal.mode.onlineHint') : t('startModal.mode.offlineHint'))}
+            : (online ? t(desktop ? 'startModal.mode.onlineHintDesktop' : 'startModal.mode.onlineHint') : t('startModal.mode.offlineHint'))}
         </ModeHint>
-        {!locked && switchBlocked && <ModeHint>{t('startModal.mode.onlineUnavailable')}</ModeHint>}
+        {!locked && switchBlocked && <ModeHint>{t(desktop ? 'startModal.mode.onlineUnavailableDesktop' : 'startModal.mode.onlineUnavailable')}</ModeHint>}
       </ModeText>
       {!locked && (
         <ModeSwitch type="button" data-testid="qnote-start-mode-change"

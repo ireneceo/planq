@@ -1,5 +1,5 @@
 import type { AudioCaptureSource, CaptureCapabilities } from './AudioCaptureSource';
-import { isDesktopApp } from '../native';
+import { isDesktopApp, desktopBridge } from '../native';
 
 /**
  * 웹 화상회의 캡처 — 마이크(본인) + 탭 오디오(상대) 믹싱.
@@ -209,9 +209,10 @@ export const webConferenceCapability: CaptureCapabilities = {
   mode: 'web_conference',
   label: '웹 화상회의',
   description: 'Google Meet · MS Teams 웹 · Zoom 웹 · 온라인 강의 — 마이크와 상대방 목소리를 함께 녹음합니다 (Chrome/Edge)',
-  // ★ 데스크탑 앱(Electron)은 1단계에서 화면·탭 공유(getDisplayMedia)를 열지 않는다 — 함수는 있지만 부르면 실패해
-  //   «눌러도 안 되는 모드» 가 된다. 시스템 소리 녹음은 다음 단계(docs/DESKTOP_APP_DESIGN.md §2·§7-7) — 그때까지 «지원 안 함» 표시.
+  // ★ 데스크탑 앱(Electron)은 공유 고르기 창이 없다 — main 이 «시스템 소리 + 자기 창» 을 주는 껍데기(윈도우 메인 창)만 된다
+  //   (docs/DESKTOP_APP_PHASE2.md §1-B·§7). 그 밖(맥·팝아웃 창·옛 껍데기)은 부르면 실패하므로 «지원 안 함» 으로 그린다.
   isAvailable: () =>
-    !isDesktopApp() && !!navigator.mediaDevices?.getUserMedia && !!navigator.mediaDevices?.getDisplayMedia,
+    (isDesktopApp() ? !!desktopBridge()?.capabilities?.systemAudio : true)
+    && !!navigator.mediaDevices?.getUserMedia && !!navigator.mediaDevices?.getDisplayMedia,
   requiresUserGesture: true,
 };

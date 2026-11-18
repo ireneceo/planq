@@ -1,4 +1,13 @@
 ## 현재 작업 상태
+### 답 기다림: 데스크탑 앱 1.1.0 윈도우 시험판을 운영 /desktop/ 에 올리기 (방 1150159e · 2026-11-18 · [Opus] · Fable 완료 검증 1차 FAIL 1건 → 2차 PASS)
+- 무엇: `desktop/dist/prod/PlanQ-Setup-1.1.0.exe`(운영 출처·무서명 NSIS·check PASS)를 Irene 이 이 방에서 `! bash desktop/scripts/publish.sh desktop/dist/prod` 로 올림. 왜: 이 방은 운영 접속이 막혀 있다(권한 거부). 공개 버튼은 그대로 숨김(app_windows_url 비어 있음) — 직접 링크로 윈도우 PC 시험(회의 소리 녹음·트레이·알림·planq:// 로그인).
+- 답이 오면: 공개 주소 `https://planq.kr/desktop/latest.yml` version 1.1.0 · exe 200 확인 → 직접 링크 안내. 안 올리면 Store 길만으로 진행(실기기 시험이 Store 플라이트 뒤로 밀림).
+- 이번에 한 것: **2단계 B 회의 소리 녹음**(윈도우 메인 창만 · 판정 `desktop/src/capture.js` · 매번 네이티브 확인창, 기본 = 취소 · 자기 창 영상 + loopback · 트레이 «● 회의 소리 녹음 허용됨» did-navigate 까지) · 맥은 Electron loopback 없음 → «아직 못 해요» 문구 · **Store(MSIX) 제출본** `build.js win-store` + `codemagic.yaml desktop-win-store`(windows_x2, 그룹 planq_desktop_store) · StartupTask + 설정 «자동 실행 설정 열기» · Store 타일 그림 · 껍데기 1.1.0 · docs/DESKTOP_APP_PHASE2.md §7
+- 실측: capture.test.js 8/8(양성 대조 뒤집힘) · e2e desktop·desktopquick·desktopoffline 97줄 총 실패 0(G: 제스처 없음 no_gesture · 팝아웃 not_main_frame · 메인 클릭 ok) · qnotenewnote 3폭 0 실패(크롬 그대로) · build EXIT 0 · i18n·parity 통과 · 설치본 asar defaultId:1·시험 표면 0. (11-10 «D 미실측» 은 이번에 desktopoffline 통과로 해소)
+- 확인 못 함(윈도우·맥 실기기만): 실제 시스템 소리·확인창 · 줌/팀즈 앱 소리 · MSIX 빌드 자체 · Store 설치본 4가지 · StartupTask 는 --hidden 없이 메인 창으로 뜸(Fable c) · 데스크탑 취소 문구가 «탭 공유» 기준(Fable d, 기존 하드코딩)
+- 남은 외부 일(상황판 카드 그대로): todomwhjunty 파트너 센터(+제품 ID 값 3개 → Codemagic, 이번에 카드 고침) · 맥 서명 ①②③ todomwhjwdv5·todomwhjwdxu·todomwhjwsa4 → codemagic desktop-mac.
+- 다음 할 일: 파트너 센터 값 들어오면 Codemagic desktop-win-store 빌드 → 패키지 플라이트 사내 설치 → 실기기 4가지 + 회의 소리 → 제출 → 통과 뒤 platform_settings.app_windows_url(Store 주소). 맥 인증서 뒤 desktop-mac 빌드 → publish.sh → app_mac_url.
+
 ### ✅ fb#464 답장 보냄·완료로 닫음 (방 b5aed582 · 2026-11-18 22:18 KST · [Opus] · 상황판 «답장 자동 보내기») — 운영 대조: f8585dce 가 운영 커밋 2171cba8 에 포함 · 운영 PaymentHistory 가 downloadFromApi + 행 옆 실패 문구 · 고객 새 글 0 · feedback-reply.js dry-run → --apply · pending → done
 
 ### ✅ fb#463 답장 보냄·완료로 닫음 (방 31a2d42b · 2026-11-18 22:17 KST · [Opus] · 상황판 «답장 자동 보내기») — 운영 대조: cancel_task·move_task_to_project 운영 코드(2171cba8)에 있음 · 고객 새 글 0 · feedback-reply.js dry-run → --apply · pending → done

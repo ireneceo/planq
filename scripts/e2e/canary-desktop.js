@@ -192,6 +192,37 @@ async function run() {
     const popNotify = await pops.find((p) => !p.isClosed()).evaluate(() => window.planqDesktop.notify({ id: `pop-${Date.now()}`, title: 'x' })).catch(() => 'err');
     push('E 팝아웃 창의 notify 는 거절', popNotify === false, String(popNotify));
 
+    // ── G 회의 소리 녹음(2단계 B) — 판정 길이 실제 앱에 걸려 있는가 ──
+    //   리눅스(xvfb)는 시스템 소리가 없다 → 메인 창의 정상 요청도 «unsupported_os» 로 거절되고, 다리는 systemAudio=false 를 알린다.
+    //   허락 길(윈도우)·조건별 판정은 desktop/test/capture.test.js 가 node 로 양성 대조군과 함께 잰다.
+    const capMain = await mainPage.evaluate(() => window.planqDesktop.capabilities || null);
+    const gdmCall = (p) => p.evaluate(() => navigator.mediaDevices.getDisplayMedia({ video: true, audio: true }).then(() => 'granted', (e) => e.name)).catch(() => 'err');
+    const lastDm = async () => { const d = (await state()).displayMedia || []; return d[d.length - 1] || null; };
+    await mainPage.bringToFront();
+    // 음성 대조 ① 제스처 없는 스크립트 호출(XSS 모양) — 윈도우였다면 no_gesture 로 거절돼야 한다.
+    //   ★ puppeteer evaluate 는 CDP userGesture=true 라 그 자체가 «사용자 동작» 이다 → 일시 활성(약 5초)이 지난 뒤 타이머로 부른다
+    await mainPage.evaluate(() => { window.__pqG0 = 'pending'; setTimeout(() => { navigator.mediaDevices.getDisplayMedia({ video: true, audio: true }).then(() => { window.__pqG0 = 'granted'; }, (e) => { window.__pqG0 = e.name; }); }, 6500); });
+    await sleep(8000);
+    const g0 = await mainPage.evaluate(() => window.__pqG0);
+    const d0 = await lastDm();
+    // 음성 대조 ② 팝아웃 창에서 실제 클릭 뒤 호출 — 메인 창이 아니므로 not_main_frame
+    const popG = pops.find((p) => !p.isClosed());
+    await popG.bringToFront(); await popG.click('body').catch(() => null);
+    const g1 = await gdmCall(popG);
+    const d1 = await lastDm();
+    // 양성 ③ 메인 창 실제 클릭 뒤 — 윈도우였다면 통과(ok) · 리눅스는 unsupported_os 로 거절
+    await mainPage.bringToFront(); await mainPage.click('body').catch(() => null);
+    const gdm = await gdmCall(mainPage);
+    const dm = await lastDm();
+    push('G 회의 소리 — 리눅스는 거절 · 윈도우 판정: 메인 클릭 ok / 제스처 없음 no_gesture / 팝아웃 not_main_frame',
+      [g0, g1, gdm].every((x) => x !== 'granted') && !!d0 && !!d1 && !!dm
+        && dm.verdict === 'unsupported_os' && dm.asWindows === 'ok' && dm.isMainTopFrame && dm.userGesture
+        && d0.asWindows === 'no_gesture' && d1.asWindows === 'not_main_frame',
+      JSON.stringify({ g: [g0, g1, gdm], d0, d1, dm }));
+    const capPop = await pops.find((p) => !p.isClosed()).evaluate(() => window.planqDesktop.capabilities || null).catch(() => 'err');
+    push('G 능력 표시 — 리눅스 메인·팝아웃 모두 systemAudio false · Store 아님', !!capMain && capMain.systemAudio === false && capMain.autoLaunchViaOs === false
+      && !!capPop && capPop.systemAudio === false, JSON.stringify({ capMain, capPop }));
+
     // ── F 로그인 복귀(planq://) ──
     const [[mem2]] = await sequelize.query("SELECT id FROM users WHERE email='member2@test.planq.kr'");
     const jti = `${mem2.id}-${Date.now()}-desk`;

@@ -20,10 +20,13 @@ const DesktopAppNotifyBody: React.FC = () => {
   const autoRef = useRef<boolean | null>(null);
   autoRef.current = autoLaunch;
 
+  // Microsoft Store 설치본은 자동 실행을 윈도우 «시작 프로그램» 설정에서 켠다(MSIX — 앱이 직접 못 켠다)
+  const viaOs = !!bridge?.capabilities?.autoLaunchViaOs;
+
   useEffect(() => {
-    if (!bridge) return;
+    if (!bridge || viaOs) return;
     bridge.getAutoLaunch().then((v) => setAutoLaunch(!!v)).catch(() => setAutoLaunch(false));
-  }, [bridge]);
+  }, [bridge, viaOs]);
 
   if (!bridge) return null;
 
@@ -47,7 +50,20 @@ const DesktopAppNotifyBody: React.FC = () => {
         </ActionButton>
         {openFailed && <Hint>{t('push.desktop.openOsFailed', '이 컴퓨터에서는 설정을 바로 열 수 없어요 — 시스템 설정의 «알림» 에서 PlanQ 를 찾아 주세요.')}</Hint>}
       </Row>
-      {autoLaunch !== null && (
+      {viaOs && (
+        <Row>
+          <ActionButton
+            tone="secondary"
+            size="sm"
+            data-testid="desktop-auto-launch-os"
+            onClick={() => { void bridge.openExternal('ms-settings:startupapps'); }}
+          >
+            {t('push.desktop.autoLaunchOpenOs', '자동 실행 설정 열기')}
+          </ActionButton>
+          <Hint>{t('push.desktop.autoLaunchOsHint', '윈도우 «설정 › 앱 › 시작 프로그램» 에서 PlanQ 를 켜면 컴퓨터를 켤 때 함께 실행돼요.')}</Hint>
+        </Row>
+      )}
+      {!viaOs && autoLaunch !== null && (
         <Row>
           <AutoSaveField type="toggle" onSave={persistAutoLaunch}>
             <Switch

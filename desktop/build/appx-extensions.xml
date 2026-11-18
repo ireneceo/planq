@@ -1,0 +1,5 @@
+        <!-- Microsoft Store 설치본의 «컴퓨터 켤 때 자동 실행» — 기본 꺼짐. 사용자가 윈도우 «설정 › 앱 › 시작 프로그램» 에서 켠다.
+             (MSIX 는 레지스트리 Run 자리를 쓸 수 없어 setLoginItemSettings 가 듣지 않는다 — desktop/src/main.js STORE) -->
+        <desktop:Extension Category="windows.startupTask" Executable="app\PlanQ.exe" EntryPoint="Windows.FullTrustApplication">
+          <desktop:StartupTask TaskId="PlanQStartup" Enabled="false" DisplayName="PlanQ" />
+        </desktop:Extension>

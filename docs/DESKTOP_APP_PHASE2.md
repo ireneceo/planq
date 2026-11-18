@@ -75,3 +75,17 @@ e2e `desktop` 에 더함 — B: 핸들러가 다른 출처 요청 거절 · 같�
 - 기억 기반 미확인: 법인 계정 등록비·한국 법인 인증 절차 · MSIX 는 **윈도우 빌드 기계 필요**(리눅스 wine 으로는 어려움 → Codemagic windows 인스턴스 후보) · 자동 실행은 MSIX StartupTask 방식이라 기존 setLoginItemSettings 그대로는 안 됨 · planq:// 복귀·트레이는 실기기 확인 전.
 - 할 일: (Irene) 파트너 센터 법인 계정 + 이름 «PlanQ» 예약 — 상황판 todomwhjunty · (개발) appx/MSIX 대상 추가(Store 빌드는 electron-updater 끔) → 윈도우 기계 시험 빌드 → 실기기 4가지(자동 실행·planq:// 로그인 복귀·트레이·알림·Store 업데이트) — 하나라도 못 고치면 A → 통과 뒤 제출·공개 주소 설정.
 - 인증서 신청 카드(todomwb21g33)는 내림. 운영 `/desktop/` 자리는 Irene 이 만들었고 확인됨(2026-11-15: 없는 파일 404 · 폴더 목록 403).
+
+## 7. B 회의 소리 녹음 · Store 제출본 (2026-11-18 · Irene «우리 데스크탑용 앱을 개발했어? … 필요한 조치 다 해서 완성해줘» · 껍데기 1.1.0)
+- **B 판정은 `desktop/src/capture.js judgeDisplayMedia` 한 곳** — 윈도우 ∧ 앱 출처(요청·프레임 둘 다) ∧ **메인 창 최상위 프레임** ∧ 사용자 제스처 ∧ 소리 요청. 하나라도 아니면 거절(callback null).
+  허락 = main 의 네이티브 확인창(**기본 버튼 = 취소** — Fable 완료 검증 1차 FAIL: 채팅 중 Enter·Space 한 번에 넘어갔다 · **매번** — Fable FIX 1 은 «첫 회 + 녹음 중 트레이 표시» 였지만 main 은 트랙이 끝난 것을 볼 길이 없어 표시를 정확히 못 끈다 → 더 엄한 «매번 확인» 으로. 크롬도 매번 공유 창을 띄워 수고는 같다) →
+  `{ video: 요청한 자기 프레임, audio: 'loopback' }`(다른 프로그램 화면은 주지 않는다 · 웹이 영상 트랙을 바로 끈다). 확인을 기다리는 동안 창이 다른 곳으로 갔으면 거절.
+- **맥 스파이크(FIX 2)는 문서로 결론** — Electron 44 의 시스템 소리(loopback)는 **윈도우 전용**(electron.d.ts `Streams.audio`). 맥은 `systemAudio:false` → 웹이 «이 데스크탑 앱에서는 아직 못 해요 — 윈도우 앱이나 크롬·엣지» 로 그린다(전처럼 눌러도 안 되는 모드가 아님). 맥 15 시스템 피커(`useSystemPicker`, 실험)는 서명 뒤 실기기로 따로.
+- 웹: `services/native PlanqDesktopBridge.capabilities`(선택 — 옛 껍데기는 없음 = false) · `webConferenceCapability.isAvailable` 이 데스크탑이면 `capabilities.systemAudio` 를 본다 · 회의 시작 창 문구 `startModal.mode.onlineHintDesktop/onlineUnavailableDesktop`.
+  능력은 main 이 인자로 준다(`--planq-system-audio` 메인 창만 · `--planq-store`) — 렌더러가 바꿀 수 없다. 팝아웃 창은 systemAudio false.
+- **Store(MSIX) 제출본** — `node scripts/build.js win-store`(윈도우 기계 전용 → `codemagic.yaml desktop-win-store`, 환경 그룹 `planq_desktop_store` 의 파트너 센터 값 셋). 서명·업데이트는 Store — `publish` 없음 · main `STORE`(`process.windowsStore`)면 electron-updater 끔.
+  자동 실행은 매니페스트 StartupTask(`build/appx-extensions.xml`, 기본 꺼짐) — MSIX 는 레지스트리 Run 을 못 써서 `setLoginItemSettings` 가 듣지 않는다 → 트레이·설정 화면이 윈도우 «시작 프로그램» 설정(`ms-settings:startupapps`)을 연다(`capabilities.autoLaunchViaOs`). planq:// 는 매니페스트 프로토콜(electron-builder `protocols`). 마이크는 `capabilities: microphone` 선언.
+  타일 그림 `build/appx/*.png` ← `scripts/make-appx-assets.js`(icon.png 에서, 아이콘 바뀔 때만).
+- 허락 표시(Fable 비차단 a): 허락한 순간부터 메인 창이 새 문서로 바뀔 때까지(`did-navigate` — 탐색 «시작» 은 막힌 탐색·내려받기에도 와서 쓰지 않는다, Fable 재검증) 트레이 맨 위 «● 회의 소리 녹음 허용됨 — 눌러서 끄기»(누르면 메인 창 새로고침 = 스트림 끝). 실제보다 길게 보이는 쪽.
+- 검증: `node desktop/test/capture.test.js` 8/8(판정 하나를 지우면 FAIL 로 뒤집힘) · e2e `desktop` G 2건(실제 앱에서 판정 길을 지남 · 리눅스 거절 · 능력 표시) · `desktopquick`·`desktopoffline` 회귀.
+- **실기기만 남음**: 윈도우에서 줌/팀즈 앱 소리가 실제로 녹음되는지 · 확인창 · Store 설치본 4가지(자동 실행·planq:// 로그인 복귀·트레이·알림) — 파트너 센터 계정(todomwhjunty) 뒤 Codemagic 빌드 → 파트너 센터 «패키지 플라이트»로 사내 설치.

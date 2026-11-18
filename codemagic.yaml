@@ -270,3 +270,36 @@ workflows:
         notify:
           success: true
           failure: true
+
+  # ── 데스크탑 앱 — 윈도우 Microsoft Store 제출본 MSIX (2026-11-18 · docs/DESKTOP_APP_PHASE2.md §6-2·§7) ────────────
+  # MSIX(.appx) 는 윈도우 SDK(makeappx)가 있어야 해 우리 리눅스 서버(wine)로는 못 만든다 → 윈도우 기계에서.
+  # 서명은 Store 가 한다(올린 뒤 MS 가 서명해 배달) — 인증서 없음. 자동 업데이트도 Store 몫이라 latest.yml 없음.
+  # 정체 값 셋(Irene 할 일 — 파트너 센터 › 앱 › «제품 관리 › 제품 ID» 화면 값을 Codemagic 환경 그룹 planq_desktop_store 에):
+  #   PLANQ_STORE_IDENTITY_NAME(패키지/ID 이름) · PLANQ_STORE_PUBLISHER(패키지/ID 게시자 «CN=…») · PLANQ_STORE_PUBLISHER_NAME(게시자 표시 이름)
+  # 수동 실행만. 산출물 .appx 를 파트너 센터 «패키지» 칸에 올려 제출한다.
+  desktop-win-store:
+    name: PlanQ Desktop — Windows Store (운영 planq.kr)
+    instance_type: windows_x2
+    max_build_duration: 60
+    environment:
+      node: 20
+      groups:
+        - planq_desktop_store
+    scripts:
+      - name: 의존성 설치
+        script: |
+          cd desktop
+          npm ci
+      - name: Store 패키지 만들기 (MSIX x64) + 시험 표면 0 검사
+        script: |
+          cd desktop
+          node scripts/build.js win-store --origin https://planq.kr
+    artifacts:
+      - desktop/dist/prod-store/*.appx
+    publishing:
+      email:
+        recipients:
+          - irene@irenewp.com
+        notify:
+          success: true
+          failure: true

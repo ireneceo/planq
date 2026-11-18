@@ -1087,6 +1087,8 @@
       "openOsSettings": "Open system notification settings",
       "openOsFailed": "Settings can't be opened directly on this computer — find PlanQ under Notifications in your system settings.",
       "autoLaunch": "Start PlanQ when the computer starts",
+      "autoLaunchOpenOs": "Open startup settings",
+      "autoLaunchOsHint": "Turn PlanQ on in Windows Settings › Apps › Startup to launch it when the computer starts.",
       "shortcut": {
         "label": "Quick add task with a shortcut",
         "desc": "Press this key while using any other program to open a small window and add a task right away. Press Esc to hide it.",

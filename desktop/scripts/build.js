@@ -1,5 +1,8 @@
 #!/usr/bin/env node
-// PlanQ 데스크탑 앱 패키지 만들기 — node scripts/build.js <win|mac> [--origin https://planq.kr]
+// PlanQ 데스크탑 앱 패키지 만들기 — node scripts/build.js <win|win-store|mac> [--origin https://planq.kr]
+//   win-store = Microsoft Store 제출용 MSIX(.appx) — 윈도우 기계에서만 만들어진다(codemagic desktop-win-store).
+//     Store 정체(파트너 센터 «제품 ID» 화면 값)는 환경변수 셋: PLANQ_STORE_IDENTITY_NAME · PLANQ_STORE_PUBLISHER(CN=…) ·
+//     PLANQ_STORE_PUBLISHER_NAME. 서명은 Store 가 한다(우리는 무서명으로 올린다). 자동 업데이트 목록은 만들지 않는다.
 //
 // 하는 일 (docs/DESKTOP_APP_DESIGN.md §3-1·§3-8·§8-G):
 //   1) .stage/ 에 실을 것만 옮긴다 — src/(preload 의 «@test-only» 구역은 잘라냄) · build/ 아이콘 · package.json(실행 의존성만)
@@ -21,7 +24,17 @@ const { execFileSync } = require('child_process');
 const ROOT = path.resolve(__dirname, '..');
 const STAGE = path.join(ROOT, '.stage');
 const target = process.argv[2];
-if (!['win', 'mac'].includes(target)) { console.error('usage: node scripts/build.js <win|mac> [--origin URL]'); process.exit(2); }
+if (!['win', 'win-store', 'mac'].includes(target)) { console.error('usage: node scripts/build.js <win|win-store|mac> [--origin URL]'); process.exit(2); }
+const STORE = target === 'win-store';
+const storeId = {
+  identityName: process.env.PLANQ_STORE_IDENTITY_NAME,
+  publisher: process.env.PLANQ_STORE_PUBLISHER,
+  publisherDisplayName: process.env.PLANQ_STORE_PUBLISHER_NAME,
+};
+if (STORE && (!storeId.identityName || !/^CN=/.test(storeId.publisher || '') || !storeId.publisherDisplayName)) {
+  console.error('[desktop-build] win-store 는 파트너 센터 값 셋이 필요하다: PLANQ_STORE_IDENTITY_NAME · PLANQ_STORE_PUBLISHER(CN=…) · PLANQ_STORE_PUBLISHER_NAME');
+  process.exit(2);
+}
 const oi = process.argv.indexOf('--origin');
 const origin = new URL(oi > 0 ? process.argv[oi + 1] : (process.env.PLANQ_DESKTOP_ORIGIN || 'https://planq.kr')).origin;
 if (!/^https:\/\/(dev\.)?planq\.kr$/.test(origin)) { console.error(`[desktop-build] 출처는 planq.kr / dev.planq.kr 만: ${origin}`); process.exit(2); }
@@ -42,6 +55,11 @@ for (const f of fs.readdirSync(path.join(ROOT, 'src'))) {
 }
 fs.copyFileSync(path.join(ROOT, 'build', 'icon.png'), path.join(STAGE, 'build', 'icon.png'));
 fs.copyFileSync(path.join(ROOT, 'build', 'entitlements.mac.plist'), path.join(STAGE, 'build', 'entitlements.mac.plist'));   // 맥 서명 권한(마이크)
+if (STORE) {
+  // Store 타일 그림(build/appx — scripts/make-appx-assets.js) · 자동 실행 StartupTask
+  fs.cpSync(path.join(ROOT, 'build', 'appx'), path.join(STAGE, 'build', 'appx'), { recursive: true });
+  fs.copyFileSync(path.join(ROOT, 'build', 'appx-extensions.xml'), path.join(STAGE, 'build', 'appx-extensions.xml'));
+}
 fs.writeFileSync(path.join(STAGE, 'src', 'origin.json'), JSON.stringify({ origin }) + '\n');
 fs.writeFileSync(path.join(STAGE, 'package.json'), JSON.stringify({
   name: pkg.name, productName: pkg.productName, version: pkg.version, description: pkg.description,
@@ -56,7 +74,7 @@ const config = {
   appId: 'kr.planq.desktop',
   productName: 'PlanQ',
   electronVersion,
-  directories: { output: path.join(ROOT, 'dist', origin.includes('dev.') ? 'dev' : 'prod'), buildResources: 'build' },
+  directories: { output: path.join(ROOT, 'dist', `${origin.includes('dev.') ? 'dev' : 'prod'}${STORE ? '-store' : ''}`), buildResources: 'build' },
   files: ['src/**', 'package.json', 'node_modules/**'],
   icon: 'build/icon.png',
   protocols: [{ name: 'PlanQ', schemes: ['planq'] }],
@@ -74,14 +92,29 @@ const config = {
     extendInfo: { NSMicrophoneUsageDescription: 'PlanQ uses the microphone for Q Note meeting notes.' },
   },
 };
+if (STORE) {
+  config.win = { target: [{ target: 'appx', arch: ['x64'] }], artifactName: 'PlanQ-Store-${version}.${ext}' };
+  config.appx = {
+    ...storeId,
+    applicationId: 'PlanQ',
+    displayName: 'PlanQ',
+    backgroundColor: 'transparent',
+    languages: ['ko-KR', 'en-US'],
+    addAutoLaunchExtension: false,
+    customExtensionsPath: 'build/appx-extensions.xml',
+    // runFullTrust 는 electron-builder 가 늘 넣는다. 마이크(Q note) — MSIX 는 선언이 없으면 윈도우가 막는다
+    capabilities: ['internetClient', 'microphone'],
+  };
+  delete config.publish;   // Store 가 업데이트를 배달한다 — latest.yml 을 만들지 않는다(main.js 도 STORE 면 electron-updater 끔)
+}
 fs.writeFileSync(path.join(STAGE, 'electron-builder.json'), JSON.stringify(config, null, 2));
 
 // ── 3) 만들기 ──
 const bin = path.join(ROOT, 'node_modules', '.bin', 'electron-builder');
 const env = { ...process.env };
 if (!env.CSC_LINK) env.CSC_IDENTITY_AUTO_DISCOVERY = 'false';   // 인증서가 없으면 무서명(설계 §6 Irene 할 일 ①③)
-execFileSync(bin, [`--${target}`, '--projectDir', STAGE, '--config', 'electron-builder.json', '--publish', 'never'], { cwd: ROOT, stdio: 'inherit', env });
+execFileSync(bin, [`--${STORE ? 'win' : target}`, '--projectDir', STAGE, '--config', 'electron-builder.json', '--publish', 'never'], { cwd: ROOT, stdio: 'inherit', env });
 
 // ── 4) 시험 표면 0 확인 ──
-execFileSync(process.execPath, [path.join(__dirname, 'check.js'), target, config.directories.output], { stdio: 'inherit' });
+execFileSync(process.execPath, [path.join(__dirname, 'check.js'), STORE ? 'win-store' : target, config.directories.output], { stdio: 'inherit' });
 console.log(`[desktop-build] 완료 → ${config.directories.output}`);

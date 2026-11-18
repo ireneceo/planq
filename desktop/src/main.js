@@ -11,9 +11,10 @@
 const path = require('path');
 const fs = require('fs');
 const {
-  app, BrowserWindow, WebContentsView, ipcMain, shell, Tray, Menu, Notification, nativeImage, session, screen, net, globalShortcut,
+  app, BrowserWindow, WebContentsView, ipcMain, shell, Tray, Menu, Notification, nativeImage, session, screen, net, globalShortcut, dialog,
 } = require('electron');
 const { DEFAULT_ACCEL, validateAccel, displayAccel, ACTION_ARG, actionFromArgv } = require('./shortcut');
+const { systemAudioSupported, judgeDisplayMedia, CONFIRM_TEXT } = require('./capture');
 
 // ── 출처 — 빌드 때 한 값으로 고정(scripts/build.js 가 src/origin.json 을 쓴다). 실행 중 바꿀 수 없다. ──
 function readOrigin() {
@@ -29,6 +30,11 @@ const APP_ORIGIN = readOrigin();
 const TEST_MODE = !app.isPackaged && process.env.PLANQ_DESKTOP_TEST === '1';
 const START_HIDDEN = process.argv.includes('--hidden');   // 로그인 시 자동 실행은 트레이로만 뜬다
 const SCHEME = 'planq';
+// Microsoft Store(MSIX) 설치본 — 서명·업데이트는 Store 가 맡는다(electron-updater 끔). 자동 실행은 매니페스트 StartupTask 라
+//   레지스트리(setLoginItemSettings)로 못 켠다 → 윈도우 «시작 앱» 설정을 연다. docs/DESKTOP_APP_PHASE2.md §6-2 · §7
+const STORE = process.platform === 'win32' && !!process.windowsStore;
+const SYSTEM_AUDIO = systemAudioSupported(process.platform);
+const STARTUP_APPS = 'ms-settings:startupapps';
 
 // ── 문구(트레이·메뉴) — 화면 문구는 웹(i18n)이 들고, 껍데기는 이 몇 줄뿐이다 ──
 const KO = {
@@ -36,12 +42,14 @@ const KO = {
   quit: '종료', tooltip: 'PlanQ', tooltipCount: (n) => `PlanQ — 확인할 것 ${n}개`,
   quickAdd: (k) => (k ? `빠른 업무 추가 (${k})` : '빠른 업무 추가'), shortcutOn: '단축키로 빠른 업무 추가',
   openTask: 'Q task 열기', openTalk: 'Q talk 열기', openNote: 'Q note 열기', fileMenu: '파일',
+  captureOn: '● 회의 소리 녹음 허용됨 — 눌러서 끄기',
 };
 const EN = {
   open: 'Open PlanQ', autoLaunch: 'Start when the computer starts', installUpdate: 'Install update and restart',
   quit: 'Quit', tooltip: 'PlanQ', tooltipCount: (n) => `PlanQ — ${n} to check`,
   quickAdd: (k) => (k ? `Quick add task (${k})` : 'Quick add task'), shortcutOn: 'Quick add with shortcut',
   openTask: 'Open Q task', openTalk: 'Open Q talk', openNote: 'Open Q note', fileMenu: 'File',
+  captureOn: '● Meeting audio allowed — click to stop',
 };
 const L = () => (String(app.getLocale() || '').toLowerCase().startsWith('ko') ? KO : EN);
 
@@ -98,6 +106,7 @@ function isContactScheme(u) {
 const OS_SETTINGS = new Set([
   'x-apple.systempreferences:com.apple.preference.notifications',
   'ms-settings:notifications',
+  STARTUP_APPS,   // Store 설치본의 «컴퓨터 켤 때 자동 실행» 은 이 화면에서 켠다
 ]);
 function fromAppFrame(event) {
   try { return sameOrigin(event.senderFrame && event.senderFrame.url); } catch { return false; }
@@ -170,7 +179,7 @@ function baseWebPreferences() {
     webviewTag: false,
     spellcheck: false,
     devTools: !app.isPackaged,
-    additionalArguments: [`--planq-version=${app.getVersion()}`, ...RENDERER_ARGS],
+    additionalArguments: [`--planq-version=${app.getVersion()}`, ...(STORE ? ['--planq-store'] : []), ...RENDERER_ARGS],
   };
 }
 
@@ -215,7 +224,7 @@ app.on('web-contents-created', (_e, contents) => {
 });
 
 // ── 바깥 열기 기록(시험용) ──
-const testLog = { notify: [], openExternal: [] };
+const testLog = { notify: [], openExternal: [], displayMedia: [] };
 function openExternalLogged(url) {
   if (TEST_MODE) { testLog.openExternal.push(url); return; }
   shell.openExternal(url).catch(() => {});
@@ -233,7 +242,12 @@ function createMain() {
     autoHideMenuBar: true,
     backgroundColor: '#ffffff',
     icon: path.join(__dirname, '..', 'build', 'icon.png'),
-    webPreferences: { ...baseWebPreferences(), backgroundThrottling: false },   // 트레이로 숨은 동안에도 소켓·알림이 늦춰지지 않게
+    webPreferences: (() => {
+      const w = { ...baseWebPreferences(), backgroundThrottling: false };   // 트레이로 숨은 동안에도 소켓·알림이 늦춰지지 않게
+      // 회의 소리 녹음은 메인 창만 받는다(main 이 판정) — 웹이 «지원» 으로 그릴지도 메인 창에만 알린다
+      if (SYSTEM_AUDIO) w.additionalArguments = [...w.additionalArguments, '--planq-system-audio'];
+      return w;
+    })(),
   });
   const saved = loadBounds().__main;
   if (saved && onSomeScreen(saved)) mainWin.setBounds({ x: saved.x, y: saved.y, width: saved.w, height: saved.h });
@@ -242,6 +256,10 @@ function createMain() {
 
   mainWin.webContents.setUserAgent(`${mainWin.webContents.getUserAgent()} PlanQDesktop/${app.getVersion()}`);
   watchMainLoad(mainWin.webContents);
+  // 메인 프레임이 새 문서로 **바뀐 뒤**(새로고침·다른 주소) 허락받은 녹음 스트림도 같이 끝난다 → 표시를 내린다.
+  //   did-start-navigation 은 막힌 탐색·내려받기·204 에도 와서 녹음 중에 표시가 꺼졌다(Fable 재검증 실측) — 완료(did-navigate)만 본다.
+  //   같은 문서 안 이동(pushState)은 did-navigate-in-page 로 따로 와서 여기 안 걸린다.
+  mainWin.webContents.on('did-navigate', () => setCaptureGranted(false));
   mainWin.loadURL(`${APP_ORIGIN}/`);
   mainWin.once('ready-to-show', () => { if (!START_HIDDEN) mainWin.show(); });
   mainWin.webContents.on('did-finish-load', () => {
@@ -500,16 +518,19 @@ function rebuildTrayMenu() {
   if (!tray) return;
   const s = L();
   const items = [
+    ...(captureGranted ? [{ label: s.captureOn, click: stopCaptureByReload }, { type: 'separator' }] : []),
     { label: s.open, click: showMain },
     { label: s.quickAdd(shortcut.enabled && shortcut.registered ? displayAccel(shortcut.accel, process.platform) : ''), click: openQuickAdd },
     { label: s.shortcutOn, type: 'checkbox', checked: shortcut.enabled, click: (mi) => setShortcut({ enabled: mi.checked }) },
     { type: 'separator' },
-    { label: s.autoLaunch, type: 'checkbox', checked: getAutoLaunch(), click: (mi) => setAutoLaunch(mi.checked) },
+    STORE
+      ? { label: s.autoLaunch, click: () => { shell.openExternal(STARTUP_APPS).catch(() => {}); } }
+      : { label: s.autoLaunch, type: 'checkbox', checked: getAutoLaunch(), click: (mi) => setAutoLaunch(mi.checked) },
   ];
   if (updateReady) items.push({ type: 'separator' }, { label: s.installUpdate, click: installUpdate });
   items.push({ type: 'separator' }, { label: s.quit, click: () => { quitting = true; app.quit(); } });
   tray.setContextMenu(Menu.buildFromTemplate(items));
-  tray.setToolTip(badgeCount > 0 ? s.tooltipCount(badgeCount) : s.tooltip);
+  tray.setToolTip(captureGranted ? s.captureOn : (badgeCount > 0 ? s.tooltipCount(badgeCount) : s.tooltip));
 }
 function createTray() {
   tray = new Tray(trayImage());
@@ -519,9 +540,11 @@ function createTray() {
 
 // ── 자동 실행 — 기본 끔. 켜면 트레이로만 뜬다(--hidden) ──
 function getAutoLaunch() {
+  if (STORE) return false;   // StartupTask 상태는 레지스트리로 못 읽는다 — 웹은 capabilities.autoLaunchViaOs 로 버튼을 그린다
   try { return !!app.getLoginItemSettings().openAtLogin; } catch { return false; }
 }
 function setAutoLaunch(on) {
+  if (STORE) return false;
   try {
     app.setLoginItemSettings({ openAtLogin: !!on, openAsHidden: !!on, args: on ? ['--hidden'] : [] });
     rebuildTrayMenu();
@@ -630,12 +653,55 @@ function setupPermissions() {
     cb(sameOrigin(origin) && ALLOWED_PERMS.has(permission));
   });
   ses.setPermissionCheckHandler((_wc, permission, requestingOrigin) => sameOrigin(requestingOrigin) && ALLOWED_PERMS.has(permission));
+  setupDisplayMedia(ses);
+}
+
+// ── Q note «온라인 회의» 녹음 — 시스템 소리 + 자기 창 영상(웹이 바로 끈다). 2단계 B · 판정은 capture.js 한 곳 ──
+// 허락 표시(Fable 비차단 a): main 은 트랙이 끝난 것을 못 본다 → 허락한 순간부터 메인 창이 다시 불러지거나 다른 곳으로 갈 때까지
+//   트레이에 «회의 소리 허용됨» 을 띄운다(실제보다 길게 보이는 쪽 — 안전). 누르면 메인 창을 다시 불러 녹음을 끊는다.
+let captureGranted = false;
+function setCaptureGranted(on) {
+  if (captureGranted === !!on) return;
+  captureGranted = !!on;
+  rebuildTrayMenu();
+}
+function stopCaptureByReload() {
+  setCaptureGranted(false);
+  if (mainWin && !mainWin.isDestroyed()) mainWin.webContents.reload();
+}
+function setupDisplayMedia(ses) {
+  ses.setDisplayMediaRequestHandler((request, callback) => {
+    const frame = request && request.frame;
+    const input = {
+      platform: process.platform,
+      sameOrigin: sameOrigin(request && request.securityOrigin) && !!frame && sameOrigin(frame.url),
+      isMainTopFrame: !!(frame && mainWin && !mainWin.isDestroyed() && frame === mainWin.webContents.mainFrame),
+      userGesture: !!(request && request.userGesture),
+      audioRequested: !!(request && request.audioRequested),
+    };
+    const verdict = judgeDisplayMedia(input);
+    // 시험: 플랫폼을 뺀 판정(윈도우였다면)도 남긴다 — 리눅스는 unsupported_os 가 먼저 걸려 배선이 틀려도 초록이 되기 때문(Fable 비차단 b)
+    if (TEST_MODE) testLog.displayMedia.push({ verdict: verdict.ok ? 'ok' : verdict.reason, asWindows: (judgeDisplayMedia({ ...input, platform: 'win32' }).reason || 'ok'), ...input });
+    if (!verdict.ok) { callback(null); return; }
+    if (TEST_MODE) { callback(null); return; }   // xvfb(리눅스)엔 오지 않는 길 — 판정 기록만
+    const txt = String(app.getLocale() || '').toLowerCase().startsWith('ko') ? CONFIRM_TEXT.ko : CONFIRM_TEXT.en;
+    dialog.showMessageBox(mainWin, {
+      // ★ 기본 버튼 = 취소(Fable 완료 검증 FAIL 1, 2026-11-18) — 채팅 중 Enter·Space 한 번에 시스템 소리가 넘어가지 않게
+      type: 'question', buttons: txt.buttons, defaultId: 1, cancelId: 1, noLink: true, message: txt.message, detail: txt.detail,
+    }).then(({ response }) => {
+      if (response !== 0) { callback(null); return; }
+      // 답을 기다리는 동안 창이 다른 곳으로 갔으면 거절(콜백은 죽은 프레임에 던진다)
+      if (!mainWin || mainWin.isDestroyed() || frame !== mainWin.webContents.mainFrame || !sameOrigin(frame.url)) { callback(null); return; }
+      try { callback({ video: frame, audio: 'loopback' }); } catch { callback(null); return; }
+      setCaptureGranted(true);
+    }).catch(() => callback(null));
+  });
 }
 
 // ── 자동 업데이트 — planq.kr/desktop/ (generic). 조용히 받아 종료 때 설치(설계 §3-8) ──
 let autoUpdater = null;
 function setupUpdater() {
-  if (!app.isPackaged) return;
+  if (!app.isPackaged || STORE) return;   // Store 설치본은 Store 가 업데이트를 배달한다
   try { ({ autoUpdater } = require('electron-updater')); } catch { return; }
   autoUpdater.setFeedURL({ provider: 'generic', url: `${APP_ORIGIN}/desktop/` });
   autoUpdater.autoDownload = true;

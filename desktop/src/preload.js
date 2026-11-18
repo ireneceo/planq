@@ -17,6 +17,11 @@ function listen(channel, cb) {
 const bridge = {
   version: (process.argv.find((a) => a.startsWith('--planq-version=')) || '').slice('--planq-version='.length),
   platform: process.platform === 'darwin' ? 'darwin' : process.platform === 'win32' ? 'win32' : 'linux',
+  // 2단계 B·Store — main 이 정해 인자로 준다(렌더러가 바꿀 수 없다). 옛 껍데기엔 없다 → 웹은 undefined 를 false 로 읽는다
+  capabilities: Object.freeze({
+    systemAudio: process.argv.includes('--planq-system-audio'),   // 메인 창 + 윈도우만 — 실제 허락은 main 이 요청마다 판정·확인창
+    autoLaunchViaOs: process.argv.includes('--planq-store'),      // Microsoft Store 설치본 — 자동 실행은 윈도우 «시작 앱» 설정에서
+  }),
   setAlwaysOnTop: (on) => invoke('planq:set-always-on-top', !!on),
   notify: (n) => invoke('planq:notify', n && typeof n === 'object' ? {
     id: String(n.id || ''), title: String(n.title || ''), body: n.body == null ? '' : String(n.body),

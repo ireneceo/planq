@@ -14,6 +14,13 @@ export const isNativeApp = (): boolean => Capacitor.isNativePlatform();
 export interface PlanqDesktopBridge {
   version: string;
   platform: 'win32' | 'darwin' | 'linux';
+  /** 2단계 B·Store — main 이 정한 능력. 옛 껍데기에는 없다(undefined = false) */
+  capabilities?: {
+    /** Q note «온라인 회의» — 이 창에서 시스템 소리 녹음을 받을 수 있다(윈도우 메인 창만. 허락은 main 이 요청마다 확인창으로) */
+    systemAudio?: boolean;
+    /** Microsoft Store 설치본 — 자동 실행은 윈도우 «시작 앱» 설정(ms-settings:startupapps)에서 켠다 */
+    autoLaunchViaOs?: boolean;
+  };
   /** 이 창(부른 창 자신)을 «항상 위» 로 / 풀기 */
   setAlwaysOnTop: (on: boolean) => Promise<boolean>;
   /** OS 알림 — 메인 창만 부른다(팝아웃도 같은 소켓 이벤트를 받는다). 같은 id 는 main 이 60초 동안 한 번만 */
