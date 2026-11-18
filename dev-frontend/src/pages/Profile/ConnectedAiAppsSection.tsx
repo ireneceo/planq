@@ -111,6 +111,8 @@ const ConnectedAiAppsSection: React.FC<{ businessId: number }> = ({ businessId }
           <li><span>{t('aiApps.step3')}</span></li>
           <li><span>{t('aiApps.step4')}</span></li>
         </Steps>
+        {/* 도구가 늘어도 서버는 요청마다 목록을 새로 준다 — 재연결은 새 scope 때만(설계서 부록 «다시 연결» 계약) */}
+        <StepHint data-testid="ai-apps-update-hint">{t('aiApps.updateHint')}</StepHint>
         <HelpLink href="/guide/a/connect-chatgpt-claude" target="_blank" rel="noopener noreferrer">{t('aiApps.helpLink')} ↗</HelpLink>
       </HowTo>
       {items === null ? null : items.length === 0 ? (

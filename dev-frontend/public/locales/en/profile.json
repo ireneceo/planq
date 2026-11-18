@@ -389,6 +389,7 @@
     "step2Hint": "ChatGPT: [Add] › [Create MCP App] · Claude: [Add custom connector] — ChatGPT needs a paid plan; Claude allows one on the free plan.",
     "step3": "Enter PlanQ as the name, paste the address, keep OAuth as the authentication, and create it.",
     "step4": "When the PlanQ connection screen opens, pick the workspace and access and choose [Allow]. In ChatGPT, use [+] › Developer mode › PlanQ in a new chat; in Claude, turn PlanQ on in the tools menu.",
+    "updateHint": "New features usually don't need a reconnect — if one doesn't show up, use [Refresh] in ChatGPT's app settings, start a new chat in Claude, or a new session in Claude Code. Reconnect only when a new permission is added; this list and the AI will tell you.",
     "openChatgpt": "Open in ChatGPT",
     "openClaude": "Open in Claude",
     "helpLink": "Full guide",

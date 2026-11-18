@@ -389,6 +389,7 @@
     "step2Hint": "ChatGPT: [Add] › [Create MCP App] · Claude: [커스텀 커넥터 추가] — ChatGPT 는 유료 플랜, Claude 는 무료 플랜도 1개까지 연결됩니다.",
     "step3": "이름에 PlanQ, 주소에 복사한 주소를 붙여 넣고 인증은 OAuth 로 둔 채 만듭니다.",
     "step4": "PlanQ 연결 화면이 열리면 워크스페이스와 권한을 고르고 [허용] 합니다. ChatGPT 는 새 채팅의 [+] › Developer mode › PlanQ, Claude 는 도구 메뉴에서 PlanQ 를 켜고 씁니다.",
+    "updateHint": "새 기능이 생겨도 대부분 다시 연결할 필요 없어요 — 안 보이면 ChatGPT 는 앱 설정의 [새로고침], Claude 는 새 대화, Claude Code 는 새 세션. 새 권한이 붙을 때만 다시 연결하고, 그때는 아래 목록과 AI 가 알려 줍니다.",
     "openChatgpt": "ChatGPT 에서 열기",
     "openClaude": "Claude 에서 열기",
     "helpLink": "자세한 사용법",

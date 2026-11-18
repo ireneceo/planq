@@ -477,7 +477,7 @@ Developer mode 커넥터로 §6.2 시나리오 + «해제 후 재연결» + «�
 
 | 바뀐 것 | 다시 연결? |
 |---|---|
-| 기존 scope 안에서 도구 추가·수정 | 필요 없음 — MCP 세션마다 도구 목록을 새로 준다(ChatGPT 가 도구 목록을 캐시하는지는 미실측) |
+| 기존 scope 안에서 도구 추가·수정 | 필요 없음 — 서버는 stateless(`sessionIdGenerator: undefined`)라 **요청마다** `registry.js` 로 도구 목록을 새로 만든다(서버 캐시 0 · 배포 스크립트가 `planq-prod-mcp` 를 reload). 앱 쪽 캐시는 미실측(2026-11-18 dev 로그엔 시험 스크립트뿐 · 운영 로그 열람은 권한 거부) — 안 보이면 ChatGPT 앱 설정 [새로고침] · Claude 새 대화 · Claude Code 새 세션으로 안내(위키 connect-chatgpt-claude · 프로필 «연결된 AI 앱» `aiApps.updateHint`) |
 | 묶음에 새 scope 추가(10-05 docs·files:write · 10-07 projects:write) | 필요 — 옛 동의를 조용히 넓히지 않는다. 다시 연결하면 묶음 전체가 붙는다(grants.grantedScopes) |
 
 - 판정 한 곳 `grants.missingBundleScopes`(자기 묶음 안에서만 — 읽기만 연결에 쓰기를 권하지 않는다) · 안내 한 벌 `grants.reconnectAdvice`.
