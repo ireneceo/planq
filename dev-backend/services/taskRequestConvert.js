@@ -76,7 +76,10 @@ async function convertOne(taskId, { businessId, creatorId }) {
  *  안 그러면 «완료 + 컨펌자 pending»(막으려던 모양)을 되돌림이 만든다. 건너뛴 이유를 돌려준다. */
 async function revertOne(entry) {
   if (!entry || !Number(entry.task_id) || !Number(entry.business_id) || !Number(entry.creator_id)
-      || !entry.reviewer || Number(entry.reviewer.user_id) !== Number(entry.creator_id)) return { ok: false, reason: 'bad_entry' };
+      || !entry.reviewer || Number(entry.reviewer.user_id) !== Number(entry.creator_id)
+      // 되돌릴 값은 변환이 지운 모양 하나뿐이다 — 장부가 다른 값을 말하면 손댄 장부다(Fable 재검증 비차단 지적)
+      || Number(entry.request_by_user_id) !== Number(entry.creator_id) || entry.source !== 'internal_request'
+      || (entry.reviewer.task_id != null && Number(entry.reviewer.task_id) !== Number(entry.task_id))) return { ok: false, reason: 'bad_entry' };
   const t = await sequelize.transaction();
   try {
     const [row] = await sequelize.query(
@@ -92,20 +95,27 @@ async function revertOne(entry) {
       const [cur] = await sequelize.query('SELECT status, source, request_by_user_id, business_id FROM tasks WHERE id = :id',
         { replacements: { id: Number(entry.task_id) }, type: QueryTypes.SELECT, transaction: t });
       await t.rollback();
-      return { ok: false, reason: cur ? `changed:${cur.status}` : 'gone' };
+      if (!cur) return { ok: false, reason: 'gone' };
+      if (Number(cur.business_id) !== Number(entry.business_id)) return { ok: false, reason: 'other_workspace' };
+      return { ok: false, reason: `changed:${cur.status}${cur.request_by_user_id ? ':request' : ''}` };
     }
     await sequelize.query(
       'UPDATE tasks SET request_by_user_id = :rb, source = :src, updated_at = NOW() WHERE id = :id',
-      { replacements: { id: entry.task_id, rb: entry.request_by_user_id, src: entry.source }, transaction: t },
+      { replacements: { id: Number(entry.task_id), rb: Number(entry.creator_id), src: 'internal_request' }, transaction: t },
     );
     const r = entry.reviewer;
     const [dup] = await sequelize.query('SELECT id FROM task_reviewers WHERE task_id = :id AND user_id = :uid',
       { replacements: { id: entry.task_id, uid: r.user_id }, type: QueryTypes.SELECT, transaction: t });
     if (!dup) {
-      const cols = Object.keys(r).filter((k) => k !== 'id');
+      // 칸은 화이트리스트 · 업무·사람·상태는 장부가 아니라 여기서 정한다(변환이 지운 행 = 작성자 pending 내부 컨펌자)
       await sequelize.query(
-        `INSERT INTO task_reviewers (${cols.map((c) => `\`${c}\``).join(',')}) VALUES (${cols.map((c) => `:${c}`).join(',')})`,
-        { replacements: r, transaction: t },
+        `INSERT INTO task_reviewers (task_id, user_id, is_client, state, added_by_user_id, created_at, updated_at)
+         VALUES (:task_id, :user_id, 0, 'pending', :added_by, :created_at, NOW())`,
+        { replacements: {
+          task_id: Number(entry.task_id), user_id: Number(entry.creator_id),
+          added_by: r.added_by_user_id != null ? Number(r.added_by_user_id) : Number(entry.creator_id),
+          created_at: r.created_at ? new Date(r.created_at) : new Date(),
+        }, transaction: t },
       );
     }
     await t.commit();
