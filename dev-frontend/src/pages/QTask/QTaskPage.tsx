@@ -65,6 +65,8 @@ import { DesktopOnly, fmtDueShort } from '../../components/QTask/phoneRow';
 import PhoneTaskRow from '../../components/QTask/PhoneTaskRow';   // 폰 목록 행 — 팝아웃 행 모양 + 카드/한 줄 보기(2026-11-06)
 import { usePopoutDensity } from '../../components/QTask/usePopoutDensity';
 import { DensityIcon } from '../../components/QTask/TaskPopoutView.styles';
+import TaskPopoutView from '../../components/QTask/TaskPopoutView';
+import { PopoutEmbedSlot } from '../../components/QTask/PopoutEmbedHead';
 import { useFocusControl } from '../../hooks/useFocusControl';
 import { LiveStatusText, TaskRowFocusButton } from '../../components/QTask/TaskRowFocusCell';
 import OpenTaskPopoutButton from '../../components/QTask/OpenTaskPopoutButton';
@@ -356,6 +358,9 @@ const QTaskPage:React.FC=()=>{
   //   칸반은 폰에서 가로로 칸을 넘겨야 해 업무 처리용이 아니다 → 폰에서는 리스트로 그린다(저장된 보기값은 그대로 — 데스크탑에서 다시 칸반).
   const effViewMode:ViewMode=isPhone?'list':viewMode;
   const phoneDensity=usePopoutDensity('planq:qtask:phoneDensity');
+  // 폰 «오늘·이번 주» = 팝아웃 본체를 얹는다 — 보일 칸 고르기·바로 입력·보기 기준/정렬이 팝아웃과 같은 모양(2026-11-18 Irene).
+  //   고객은 그대로(요청하기 탭 안내 빈 화면 등 고객 전용 흐름이 이 목록에 있다).
+  const phonePopout=isPhone&&scope==='mine'&&(tab==='today'||tab==='week')&&!isClient;
   // 폰(≤640)은 상태·태그·담당자 필터를 [필터] 버튼 하나로 접는다 — 펼쳐 두면 목록 위가 화면의 절반을 먹었다(2026-10-15).
   const [phoneFiltersOpen, setPhoneFiltersOpen] = useState(false);
   const rightOverlayOpen = panel.asideOpen;
@@ -1861,6 +1866,45 @@ const QTaskPage:React.FC=()=>{
   if(loading)return<SkeletonList rows={8}/>;
 
   const sortIcon=(key:SortKey)=>effSortKey===key?(sortDir==='asc'?'↑':'↓'):'';
+  // 필터 줄과 폰 팝아웃 머리줄(PopoutEmbedHead)이 같이 쓴다 — 두 벌로 베끼지 않는다.
+  const weekLoadChips=(<>
+              <Chip $teal={!isOverCap} $warn={isOverCap}
+                title={(isOverCap
+                  ? t('summary.overCapHint', { over: formatHours(planOverHours), defaultValue: '계획한 예측시간이 가용시간을 {{over}}h 초과 — 마감 조정·위임·기간 재배분을 검토하세요.' })
+                  : t('summary.remainCapHint','내가 담당자인 활성 업무의 남은 일(예측×미완료) / 주간 가용시간')) as string}>
+                {scope==='workspace'
+                  ? t('summary.workspacePredict', { est: formatHours(summary.myEst) })
+                  : isOverCap
+                    ? t('summary.planCapOver2', { plan: formatHours(loadBreakdown.plan), cap: formatHours(effectiveCapacity), over: formatHours(planOverHours), defaultValue: '계획 {{plan}}h / 가용 {{cap}}h · {{over}}h 초과' })
+                    : t('summary.planCap2', { plan: formatHours(loadBreakdown.plan), cap: formatHours(effectiveCapacity), defaultValue: '계획 {{plan}}h / 가용 {{cap}}h' })}
+              </Chip>
+              <Chip $coral title={t('summary.actualHint','') as string}>{t('summary.actual', { act: formatHours(summary.act) })}</Chip>
+  </>);
+  const holdChip=(<>
+              {tab==='week'&&myHoldCount>0&&(
+                <Chip as="button" type="button" data-testid="qtask-hold-chip"
+                  onClick={goToHeldTasks}
+                  title={t('weekHold.emptyCta','보류 업무 보기') as string}
+                  style={{background:'#FFEDD5',color:'#9A3412',cursor:'pointer',border:'none'}}>
+                  <StatusGlyph code="on_hold" /> {t('weekHold.chip',{n:myHoldCount,defaultValue:'보류 {{n}}'})}
+                </Chip>
+              )}
+  </>);
+  const addActions=(<>
+            <AiActionButton
+              testId="qtask-ai-open"
+              onClick={()=>setAiOpen(true)}
+              label={t('ai.btnShort','AI')}
+              title={t('ai.btnHint','자연어 한 줄로 여러 업무 자동 생성') as string}
+            />
+            <HeaderCta type="button" data-testid="task-add-btn" $collapseOnPhone
+              aria-label={(scope==='mine'&&tab==='requested'?t('add.reqBtn','요청 추가'):t('add.btn','업무 추가')) as string}
+              title={(scope==='mine'&&tab==='requested'?t('add.reqBtn','요청 추가'):t('add.btn','업무 추가')) as string}
+              onClick={()=>{
+              // 우측 상단 = panel(드로어) 모드
+              openAddForm(false,{assigneeId:tab==='requested'?null:myId});
+            }}><CtaPlus /><span data-cta-label>{scope==='mine'&&tab==='requested'?t('add.reqBtn','요청 추가'):t('add.btn','업무 추가')}</span></HeaderCta>
+  </>);
 
   return(
     <PanelLayout>
@@ -2009,7 +2053,7 @@ const QTaskPage:React.FC=()=>{
         )}
 
         {/* Cue에게 말하기 바 — 캐주얼 한마디 → AI 업무 즉시 생성 (리스트 탭에서만, 요청하기 제외) */}
-        {bizId && ((scope==='mine'&&(tab==='week'||tab==='today'||tab==='all')) || (scope==='workspace'&&tab==='workspace-tasks')) && (
+        {bizId && !phonePopout && ((scope==='mine'&&(tab==='week'||tab==='today'||tab==='all')) || (scope==='workspace'&&tab==='workspace-tasks')) && (
           <CueTaskBar
             businessId={bizId}
             projectId={null}
@@ -2022,7 +2066,16 @@ const QTaskPage:React.FC=()=>{
         )}
 
         {/* 일반 탭 — 기존 리스트 (week/all/requested/workspace-tasks/scope=workspace 기본) */}
-        {tab!=='weekly-review' && tab!=='workspace-weekly' && tab!=='workspace-monthly' && (
+        {phonePopout && bizId && (
+          <PopoutEmbedSlot data-testid="qtask-phone-popout">
+            <TaskPopoutView embedded={{
+              tab: tab==='today'?'today':'week', compact: phoneDensity.compact, onOpenTask: openDetail, activeId: detailTaskId,
+              headLeft: tab==='week' ? <>{weekLoadChips}{holdChip}</> : null,
+              headRight: addActions,
+            }} />
+          </PopoutEmbedSlot>
+        )}
+        {tab!=='weekly-review' && tab!=='workspace-weekly' && tab!=='workspace-monthly' && !phonePopout && (
           <ListScroll>
           {/* Filter bar — 테이블과 함께 스크롤 */}
           <FilterBar>
@@ -2116,42 +2169,13 @@ const QTaskPage:React.FC=()=>{
                 </Chip>
               ) : (<>
               <Chip>{summary.count}{t('summary.unit','개')}</Chip>
-              <Chip $teal={!isOverCap} $warn={isOverCap}
-                title={(isOverCap
-                  ? t('summary.overCapHint', { over: formatHours(planOverHours), defaultValue: '계획한 예측시간이 가용시간을 {{over}}h 초과 — 마감 조정·위임·기간 재배분을 검토하세요.' })
-                  : t('summary.remainCapHint','내가 담당자인 활성 업무의 남은 일(예측×미완료) / 주간 가용시간')) as string}>
-                {scope==='workspace'
-                  ? t('summary.workspacePredict', { est: formatHours(summary.myEst) })
-                  : isOverCap
-                    ? t('summary.planCapOver2', { plan: formatHours(loadBreakdown.plan), cap: formatHours(effectiveCapacity), over: formatHours(planOverHours), defaultValue: '계획 {{plan}}h / 가용 {{cap}}h · {{over}}h 초과' })
-                    : t('summary.planCap2', { plan: formatHours(loadBreakdown.plan), cap: formatHours(effectiveCapacity), defaultValue: '계획 {{plan}}h / 가용 {{cap}}h' })}
-              </Chip>
-              <Chip $coral title={t('summary.actualHint','') as string}>{t('summary.actual', { act: formatHours(summary.act) })}</Chip>
+              {weekLoadChips}
               </>)}
               {/* #206 V1 — 보류하면 주간 목록에서 사라진다. 사라졌다는 사실 자체를 여기서 말해주지 않으면
                   사용자는 업무가 없어졌다고 느낀다. 클릭하면 전체 탭 + 보류 필터로 착지. */}
-              {tab==='week'&&myHoldCount>0&&(
-                <Chip as="button" type="button" data-testid="qtask-hold-chip"
-                  onClick={goToHeldTasks}
-                  title={t('weekHold.emptyCta','보류 업무 보기') as string}
-                  style={{background:'#FFEDD5',color:'#9A3412',cursor:'pointer',border:'none'}}>
-                  <StatusGlyph code="on_hold" /> {t('weekHold.chip',{n:myHoldCount,defaultValue:'보류 {{n}}'})}
-                </Chip>
-              )}
+              {holdChip}
             </ChipRow>
-            <AiActionButton
-              testId="qtask-ai-open"
-              onClick={()=>setAiOpen(true)}
-              label={t('ai.btnShort','AI')}
-              title={t('ai.btnHint','자연어 한 줄로 여러 업무 자동 생성') as string}
-            />
-            <HeaderCta type="button" data-testid="task-add-btn" $collapseOnPhone
-              aria-label={(scope==='mine'&&tab==='requested'?t('add.reqBtn','요청 추가'):t('add.btn','업무 추가')) as string}
-              title={(scope==='mine'&&tab==='requested'?t('add.reqBtn','요청 추가'):t('add.btn','업무 추가')) as string}
-              onClick={()=>{
-              // 우측 상단 = panel(드로어) 모드
-              openAddForm(false,{assigneeId:tab==='requested'?null:myId});
-            }}><CtaPlus /><span data-cta-label>{scope==='mine'&&tab==='requested'?t('add.reqBtn','요청 추가'):t('add.btn','업무 추가')}</span></HeaderCta>
+            {addActions}
           </FilterBar>
 
           {/* ★ P0-1 — 저장 실패를 여기서 말한다. 침묵하면 사용자는 "저장됨" 으로 읽는다(#228). */}

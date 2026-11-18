@@ -13,7 +13,7 @@ import type { QuickAction } from './popoutQuickAction';
 import { COMPACT_TEXT_CODES } from './usePopoutDensity';
 import {
   Row, RowInner, RowLead, RowMain, RowTop, RowTitle, RowMeta, MetaChip, MetaDue,
-  Badge, StatusDot, Slot, CheckBtn, SubmitBtn, PrioChip,
+  Badge, StatusDot, CheckBtn, PrioChip, phoneTouchCss,
 } from './TaskPopoutView.styles';
 import TagChips, { type TaskTagLite } from './TagChips';
 import ImportanceChip, { type PriorityLevel } from './ImportanceChip';
@@ -97,9 +97,7 @@ export default PhoneTaskRow;
 const PRow = styled(Row)<{ $compact: boolean; $delayed: boolean }>`
   margin: 8px 10px 0;
   ${({ $delayed }) => ($delayed ? 'box-shadow: inset 3px 0 0 #DC2626;' : '')}
-  ${Slot}, ${CheckBtn}, ${SubmitBtn} { width: 40px; height: 40px; }
-  ${CheckBtn}::before { width: 22px; height: 22px; }
-  ${RowLead} { display: flex; align-items: center; margin-left: -6px; }
+  ${phoneTouchCss}
   ${({ $compact, $delayed }) => $compact && css`
     margin: 0; gap: 0; padding: 0 10px 0 6px;
     border: 0; border-radius: 0; border-bottom: 1px solid #F1F5F9;

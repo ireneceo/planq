@@ -86,6 +86,7 @@ import PopoutSortSelect, { usePopoutSort } from './PopoutSortSelect';
 import { requestMainNavigate } from '../Common/PopoutBridge';
 import ImportanceChip from './ImportanceChip';
 import { pickableMembers } from '../../utils/pickableMembers';
+import PopoutEmbedHead, { type PopoutEmbedded } from './PopoutEmbedHead';
 
 interface PopoutTask {
   id: number;
@@ -123,9 +124,11 @@ const CLOSED = ['completed', 'canceled'];
 interface TaskPopoutViewProps {
   /** 헤더 우측에 놓을 핀 토글 (QTaskStandalonePage 가 주입 — 핀 상태는 창이 소유한다) */
   pinSlot?: React.ReactNode;
+  /** 폰 Q task «오늘·이번 주» 탭에 얹을 때(2026-11-18 Irene «모바일에서도 팝아웃에서 사용하듯 같은 형태») — PopoutEmbedHead 머리말 */
+  embedded?: PopoutEmbedded;
 }
 
-const TaskPopoutView: React.FC<TaskPopoutViewProps> = ({ pinSlot }) => {
+const TaskPopoutView: React.FC<TaskPopoutViewProps> = ({ pinSlot, embedded }) => {
   const { t } = useTranslation('qtask');
   const { user } = useAuth();
   const bizId = user?.business_id ? Number(user.business_id) : null;
@@ -187,10 +190,11 @@ const TaskPopoutView: React.FC<TaskPopoutViewProps> = ({ pinSlot }) => {
   const showDone = !hideDone;
   // #237·#258 — 오늘/이번 주 2탭. 팝아웃은 "오늘 해야 할 일" 도구로 쓰이므로 기본은 오늘.
   //   데이터는 /my-week 한 벌을 공유하고 탭은 **클라이언트 필터**다 — 새 요청·새 술어를 만들지 않는다.
-  const [popTab, setPopTab] = useState<'today' | 'week'>(() => {
+  const [ownTab, setPopTab] = useState<'today' | 'week'>(() => {
     try { return localStorage.getItem('planq:taskPopout:tab') === 'week' ? 'week' : 'today'; } catch { return 'today'; }
   });
-  useEffect(() => { try { localStorage.setItem('planq:taskPopout:tab', popTab); } catch { /* ignore */ } }, [popTab]);
+  const popTab = embedded ? embedded.tab : ownTab;   // 얹힌 화면에서는 범위를 주인(Q task 탭)이 정한다
+  useEffect(() => { if (!embedded) try { localStorage.setItem('planq:taskPopout:tab', ownTab); } catch { /* ignore */ } }, [ownTab, embedded]);
 
   // #258 — 보기 기준은 **탭마다 따로** 기억한다. 원문이 탭별로 다른 디폴트를 지정했기 때문이다:
   //   "오늘의 내 업무에서는 태그별 보기를 디폴트로" / "이번 주 내 업무 탭에서는 마감일순을 디폴트로".
@@ -208,7 +212,8 @@ const TaskPopoutView: React.FC<TaskPopoutViewProps> = ({ pinSlot }) => {
   // 정렬 — 탭별로 기억된다. 상태·저장은 PopoutSortSelect 로 절출(god-file 래칫).
   //   그룹(태그별·프로젝트별)은 그대로 두고 **그 안쪽 순서**를 이 값이 정한다.
   const { sortKey, setSortKey } = usePopoutSort(popTab);
-  const { compact, toggleCompact } = usePopoutDensity();   // 카드 / 촘촘히(한 줄) — 두 탭 공통
+  const density = usePopoutDensity();   // 카드 / 촘촘히(한 줄) — 두 탭 공통. 얹힌 화면은 Q task 머리의 폰 밀도를 따른다
+  const compact = embedded ? embedded.compact : density.compact;
   const ListEl = compact ? CompactList : List;
   // 탭이 바뀌면 그 탭이 기억한 보기로 갈아탄다(없으면 그 탭의 디폴트).
   useEffect(() => { setViewMode(readView(popTab)); }, [popTab]);   // eslint-disable-line react-hooks/exhaustive-deps
@@ -325,7 +330,9 @@ const TaskPopoutView: React.FC<TaskPopoutViewProps> = ({ pinSlot }) => {
   }, [silentLoad]));
 
   // 리스트 재클릭 토글 (CLAUDE.md UI 규칙)
-  const handleRow = (id: number) => setSelectedId((prev) => (prev === id ? null : id));
+  // 얹힌 화면은 주인의 상세(주소 ?task= 싱크·재클릭 토글)로 연다 — 이 창의 상세를 따로 띄우지 않는다.
+  const handleRow = (id: number) => (embedded ? embedded.onOpenTask(id) : setSelectedId((prev) => (prev === id ? null : id)));
+  const activeId = embedded ? embedded.activeId : selectedId;
 
   // 우선순위 번호 버튼은 팝아웃에서 내렸다(2026-10-12 — 끌어 옮기는 «내 순서» 로 대체, priority_order 데이터·메인 번호는 그대로).
 
@@ -444,6 +451,14 @@ const TaskPopoutView: React.FC<TaskPopoutViewProps> = ({ pinSlot }) => {
   const isOverdue = (tk: PopoutTask) =>
     !!tk.due_date && tk.due_date.slice(0, 10) < todayStr && !CLOSED.includes(tk.status);
 
+  // 위쪽 세 칸(Cue·할 일 입력·보기 설정)을 각각 보이고 가림 — Irene 2026-11-10 (PopoutSectionsMenu 머리말). 얹힌 화면도 같은 메뉴.
+  const sectionsMenu = (
+    <PopoutSectionsMenu sections={sections} onToggle={toggleSection}
+      label={t('popout.sections.label', '보일 칸 고르기') as string}
+      groupLabel={t('popout.sections.group', '위쪽에 보일 칸') as string}
+      labels={{ cue: t('popout.sections.cue', 'Cue 에게 말하기') as string, add: t('popout.sections.add', '할 일 입력') as string, view: t('popout.sections.view', '보기 기준 · 정렬') as string }}
+      hiddenFilterActive={!sections.view && hideDone && doneTasks.length > 0} />
+  );
   // 행 왼쪽 24px 슬롯 — 분기별로 렌더가 다르지만 폭은 항상 같다 (제목 좌측선 정렬 유지).
   if (!bizId) {
     return <Center>{t('popout.noWorkspace', '워크스페이스를 선택한 뒤 다시 열어주세요.')}</Center>;
@@ -451,6 +466,10 @@ const TaskPopoutView: React.FC<TaskPopoutViewProps> = ({ pinSlot }) => {
 
   return (
     <Wrap>
+      {embedded ? (
+        <PopoutEmbedHead embedded={embedded} count={t('popout.countSummary', { n: mineCount, r: reqCount, defaultValue: '업무 {{n}}건, 요청 {{r}}건' }) as string}
+          menu={sectionsMenu} />
+      ) : (
       <Head>
         {/* 제목 = 범위 고르기(오늘 / 이번 주) — 탭 줄을 따로 두지 않는다(Irene 2026-10-12, PopoutScopeTitle 머리말).
             ★ 제목은 고른 범위를 그대로 말한다 — 고정 '이번 주 내 업무' 는 오늘에서 거짓말이 된다. */}
@@ -464,20 +483,11 @@ const TaskPopoutView: React.FC<TaskPopoutViewProps> = ({ pinSlot }) => {
           <HeadMeta data-testid="task-popout-count">
             {t('popout.countSummary', { n: mineCount, r: reqCount, defaultValue: '업무 {{n}}건, 요청 {{r}}건' })}
           </HeadMeta>
-          {/* 위쪽 세 칸(Cue·할 일 입력·보기 설정)을 각각 보이고 가림 — Irene 2026-11-10 (PopoutSectionsMenu 머리말). */}
-          <PopoutSectionsMenu sections={sections} onToggle={toggleSection}
-            label={t('popout.sections.label', '보일 칸 고르기') as string}
-            groupLabel={t('popout.sections.group', '위쪽에 보일 칸') as string}
-            labels={{
-              cue: t('popout.sections.cue', 'Cue 에게 말하기') as string,
-              add: t('popout.sections.add', '할 일 입력') as string,
-              view: t('popout.sections.view', '보기 기준 · 정렬') as string,
-            }}
-            hiddenFilterActive={!sections.view && hideDone && doneTasks.length > 0} />
+          {sectionsMenu}
           {/* 보기 밀도(카드 / 한 줄) — 탭 줄이 빠지며 헤더로 올라왔다(Irene 2026-10-12). */}
           <HeadIconBtn type="button" $active={compact} aria-pressed={compact} data-testid="task-popout-density"
             aria-label={t('popout.densityCompact', '촘촘히 보기 (한 줄)') as string} title={t('popout.densityCompact', '촘촘히 보기 (한 줄)') as string}
-            onClick={toggleCompact}><DensityIcon compact={compact} /></HeadIconBtn>
+            onClick={density.toggleCompact}><DensityIcon compact={compact} /></HeadIconBtn>
           {/* #258 Q Task 로 가는 문 — 메인 탭에 부탁한다(이 창에서 /tasks 를 열면 팝아웃이 본체가 된다).
               메인 탭이 응답했는지 알 길이 없어(단방향 방송) 새 창 폴백은 두지 않는다 — 두 번 눌러 두 탭이 뜨는 혼란이 더 크다. */}
           <GoMainBtn type="button" data-testid="task-popout-go-qtask" onClick={() => requestMainNavigate('/tasks')}>
@@ -486,11 +496,12 @@ const TaskPopoutView: React.FC<TaskPopoutViewProps> = ({ pinSlot }) => {
           {pinSlot}
         </HeadRight>
       </Head>
+      )}
 
       {/* 긴급 요청 띠 — 이번 주 목록과 무관하게 맨 위(마감 없는 요청도). 확인하면 빠진다. */}
-      <PopoutUrgentBand items={urgentReqs} onOpen={setSelectedId} onAcked={silentLoad} />
+      <PopoutUrgentBand items={urgentReqs} onOpen={(id) => (embedded ? embedded.onOpenTask(id) : setSelectedId(id))} onAcked={silentLoad} />
       {/* 확인 필요 한 줄 — 누르면 전체(2026-11-06). 팝아웃만 쓰는 사람이 확인 필요를 놓치지 않게. */}
-      {bizId && <PopoutInboxBand bizId={bizId} onOpenTask={setSelectedId} excludeTaskIds={urgentReqs.map((r) => r.id)} />}
+      {bizId && !embedded && <PopoutInboxBand bizId={bizId} onOpenTask={setSelectedId} excludeTaskIds={urgentReqs.map((r) => r.id)} />}
 
       {/* Cue 에게 말하기 — Q task 목록과 **같은 컴포넌트**(2026-10-12 Fable (다) 7). 여러 개를 나열하면 항목마다 한 건.
           기본값은 Q task «오늘/이번 주» 탭과 같은 규칙(오늘 마감 + 이번 주 버킷) — 만든 업무가 이 목록에 남는다. */}
@@ -640,7 +651,7 @@ const TaskPopoutView: React.FC<TaskPopoutViewProps> = ({ pinSlot }) => {
                 <Row
                   role="listitem"
                   data-testid="task-popout-row"
-                  $active={selectedId === tk.id}
+                  $active={activeId === tk.id}
                   $dim={CLOSED.includes(tk.status)}
                   {...(canReorder && !CLOSED.includes(tk.status)
                     ? { 'data-reorder-id': tk.id, 'data-reorder-group': reorderGroup(tk) } : {})}
@@ -673,7 +684,7 @@ const TaskPopoutView: React.FC<TaskPopoutViewProps> = ({ pinSlot }) => {
                             aria-label={focus.liveFor(tk) ? t('popout.act.workingNow', '지금 작업중') as string : getStatusLabel(tk, role, todayStr, t as never)}
                             title={focus.liveFor(tk) ? t('popout.act.workingNow', '지금 작업중') as string : getStatusLabel(tk, role, todayStr, t as never)} />
                           : <Badge $bg={color.bg} $fg={color.fg}><LiveStatusText live={focus.liveFor(tk)}>{getStatusLabel(tk, role, todayStr, t as never)}</LiveStatusText></Badge>}
-                        <RowTitle>{tk.title}</RowTitle>
+                        <RowTitle data-row-title="">{tk.title}</RowTitle>
                         {/* #353 ⑤ 중요도 — 목록·프로젝트 목록과 **같은 칩**을 쓴다(베끼면 갈라진다). */}
                         <ImportanceChip level={tk.priority_level} />
                       </RowTop>
@@ -753,7 +764,7 @@ const TaskPopoutView: React.FC<TaskPopoutViewProps> = ({ pinSlot }) => {
 
       </Body>
 
-      {selectedId !== null && (
+      {!embedded && selectedId !== null && (
         <TaskDetailDrawer
           taskId={selectedId}
           bizId={bizId}

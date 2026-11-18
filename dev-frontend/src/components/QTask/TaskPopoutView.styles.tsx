@@ -3,7 +3,7 @@
 //   ★ 확장자가 .tsx 인 이유: 이 블록에 SVG 아이콘 컴포넌트(JSX)가 함께 있다.
 import React from 'react';
 import { listRowTitleCss } from '../../theme/tokens';
-import styled, { keyframes } from 'styled-components';
+import styled, { css, keyframes } from 'styled-components';
 
 export const Wrap = styled.div`
   display: flex; flex-direction: column;
@@ -412,4 +412,12 @@ export const DragGrip: React.FC = () => (
 export const PopoutCueSlot = styled.div`
   padding: 10px 12px 0;
   flex-shrink: 0;
+`;
+
+// 폰 손가락 규격 — 체크·확인요청 40px · 체크 네모 22px. 폰 목록 행(PhoneTaskRow)과 폰 Q task 에 얹은 팝아웃(PopoutEmbedSlot)이 같이 쓴다.
+//   팝아웃 창도 폭이 좁아(520) @media 로 걸지 않고 쓰는 쪽이 감싼다.
+export const phoneTouchCss = css`
+  ${Slot}, ${CheckBtn}, ${SubmitBtn} { width: 40px; height: 40px; }
+  ${CheckBtn}::before { width: 22px; height: 22px; }
+  ${RowLead} { display: flex; align-items: center; margin-left: -6px; }
 `;
