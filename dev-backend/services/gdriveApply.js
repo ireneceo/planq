@@ -6,17 +6,22 @@
 // ── Fable 설계 게이트가 정한 정책 (이 파일이 그 정본) ─────────────────────────
 // ① 정본 축 = **origin_provider** (services/fileOrigin.js 가 유일한 판정). **비대칭**이다.
 //    · origin='gdrive' (정본이 Drive)  → 이름·이동·휴지통 전부 반영
-//    · origin=NULL     (정본이 PlanQ, Drive 는 가시성 사본) → 이름·이동은 반영하되
-//      **Drive 사본 삭제는 원본 삭제가 아니라 '미러 해제'**. 사용자가 자기 드라이브를
-//      정리하다 워크스페이스 파일이 증발하는 사고를 원천 차단한다.
+//    · origin=NULL     (정본이 PlanQ, Drive 는 가시성 사본) → 이름·이동은 반영하고,
+//      ★ 2026-11-18 (Irene «파인더에서 지우고 고칠 수 없으면 무용지물» · Fable 설계 DESIGN-READY)
+//      **사본의 지움·고침도 반영한다** — 지움 = PlanQ 휴지통(되살릴 수 있음) · 고침 = 새 내용 + 옛 판 휴지통 행.
+//      판정·안전판(폴더째 지움 보류 · 대량 보류 · 쌍둥이·문서 그림 제외 · 고친 뒤 지움)은
+//      services/gdriveMirrorSync.js 한 곳 · 설계 docs/GDRIVE_FINDER_EDIT_SYNC_DESIGN.md §4.
+//      그 밖(접근 상실 removed · 쌍둥이 등)은 종전대로 '미러 해제'.
 //    ※ 2026-08-29 이전엔 이 축이 `storage_provider` 였다. 그 컬럼은 **서빙 축**(바이트가
 //      어디 있는가)이기도 해서, v2 인제스트(정본=Drive · 바이트=PlanQ)를 표현할 수 없었다.
 //      Fable 설계 게이트 결정 B-1 로 축을 갈랐다.
 // ② 삭제는 **항상 soft** (deleted_at 마킹). 물리 삭제 없음 — 복구 경로가 있는 삭제만 자동화한다.
+//    미러 행의 휴지통은 사용자 삭제와 같은 `trashFile`(보관기간·쿼터·색인·Drive 사본 회수)을 지난다.
 // ③ 에코 차단은 **멱등 비교가 1차**. 적용 전 DB 현재값과 비교해 diff 0 이면 아무것도 안 한다.
 //    우리가 만든 변경이 Changes 로 되돌아와도 이미 DB 가 그 상태라 자연 흡수된다
 //    (서버 재시작·원장 유실에도 견고 — 억제 원장 단독은 취약하다).
 // ④ 충돌은 modifiedTime LWW. 병합 UI 는 만들지 않는다(실충돌 희소, 과설계).
+//    미러 행은 PlanQ 에 바이트를 고치는 길이 없어 충돌이 없다 — **그 길을 새로 만들면 이 판정을 다시 연다.**
 //
 // ★ 지금 scope 는 `drive.file`(앱이 만든 것만) 이다. 사용자가 Drive 에 **직접 넣은 새 파일**은
 //   애초에 Changes 에 안 잡힌다 → 'create' 는 v2(Restricted `drive` scope) 로 미뤄져 있다.
@@ -25,6 +30,12 @@ const { Op } = require('sequelize');
 const { File, FileFolder, GdriveSyncLog } = require('../models');
 const { isDriveMaster } = require('./fileOrigin');
 const { newCache } = require('./gdriveTree');
+const mirrorSync = require('./gdriveMirrorSync');
+
+/** PlanQ 정본 미러 행인가 — 이 Drive id 가 그 행의 «사본» 이다. 지움·고침 반영은 이 행에만. */
+function isMirrorRowOf(local, driveId) {
+  return !!local && !isDriveMaster(local) && local.storage_provider === 'planq' && local.gdrive_mirror_id === driveId;
+}
 
 // 적용 결과 기록 — 실패해도 본 흐름을 막지 않는다(로그가 기능을 죽이면 안 된다).
 async function log(businessId, row) {
@@ -76,7 +87,7 @@ async function mapParentFolder(businessId, parents) {
  * Changes API 결과 한 건을 적용한다.
  * @returns {{action:string, reason?:string}} 무엇을 했는지 (로그·집계용)
  */
-async function applyChange(businessId, change, ctx = null) {
+async function applyChange(businessId, change, ctx = null, mctx = null) {
   const driveId = change.fileId || change.file?.id;
   if (!driveId) return { action: 'skip', reason: 'no_file_id' };
 
@@ -115,7 +126,9 @@ async function applyChange(businessId, change, ctx = null) {
       await log(businessId, { gdrive_file_id: driveId, file_id: local.id, action: 'trash' });
       return { action: 'trash' };
     }
-    // ① PlanQ 가 정본 — 사본이 지워졌을 뿐이다. 원본은 건드리지 않는다.
+    // ① PlanQ 가 정본 — 미러 사본의 지움은 gdriveMirrorSync 의 분기표가 정한다(휴지통·보류·미러 해제).
+    if (isMirrorRowOf(local, driveId)) return mirrorSync.applyMirrorDelete(businessId, local, change, mctx);
+    // 그 밖(옛 포인터 등)은 종전대로 — 사본이 지워졌을 뿐이다. 원본은 건드리지 않는다.
     if (!local.gdrive_mirror_id) return { action: 'skip', reason: 'no_change' };
     // ★ 그 사본을 가리키던 **모든 행**을 비운다 (2026-09-17, Fable 5차).
     //   한 행만 비우면 형제(특히 휴지통 행)가 **죽은 포인터**를 든 채 남고, 그 행은
@@ -159,7 +172,23 @@ async function applyChange(businessId, change, ctx = null) {
     if (f.size) patch.file_size = Number(f.size);
   }
 
+  // ── 미러 사본의 내용 수정 (2026-11-18) — 아는 md5 와 다르면 새 바이트 + 옛 판. 같으면(에코) 아무것도 안 한다.
+  let edited = false;
+  if (isMirrorRowOf(local, driveId) && !local.deleted_at) {
+    await mirrorSync.clearHeldIfRestored(local, f);
+    if (f.md5Checksum) {
+      const known = await mirrorSync.knownMd5(local);
+      if (!known) {
+        await log(businessId, { gdrive_file_id: driveId, file_id: local.id, action: 'skip', reason: 'local_missing' });
+      } else {
+        const r = await mirrorSync.applyMirrorEdit(businessId, local, f, mctx, known);
+        edited = r.action === 'content';
+      }
+    }
+  }
+
   if (Object.keys(patch).length === 0) {
+    if (edited) return { action: 'content' };
     // ③ 에코 흡수 지점 — 우리가 만든 변경이 되돌아오면 여기서 조용히 끝난다.
     await log(businessId, { gdrive_file_id: driveId, file_id: local.id, action: 'skip', reason: 'no_change' });
     return { action: 'skip', reason: 'no_change' };
@@ -175,9 +204,11 @@ async function applyChanges(businessId, changes, ctx = null) {
   const summary = { applied: 0, skipped: 0, failed: 0, byAction: {}, blocked: false };
   // 조상 걷기 캐시는 **배치 1회 동안만** 공유한다(폴더는 움직인다).
   const runCtx = ctx ? { ...ctx, cache: newCache() } : null;
+  // 미러 지움·고침의 한 번 몫(내려받기 한도·알림 묶음) — ctx 유무와 무관하게 늘 만든다
+  const mctx = mirrorSync.newRunCtx(businessId, ctx && ctx.drive);
   for (const c of changes || []) {
     try {
-      const r = await applyChange(businessId, c, runCtx);
+      const r = await applyChange(businessId, c, runCtx, mctx);
       if (r.action === 'skip') summary.skipped += 1; else summary.applied += 1;
       summary.byAction[r.action] = (summary.byAction[r.action] || 0) + 1;
       // 저장공간이 찼으면 남은 건을 계속 시도하지 않는다 (외부 API·디스크 낭비 차단)
@@ -188,6 +219,7 @@ async function applyChanges(businessId, changes, ctx = null) {
       await log(businessId, { gdrive_file_id: c?.fileId, action: 'skip', reason: 'error', detail: { message: String(e.message).slice(0, 200) } });
     }
   }
+  await mirrorSync.flushNotices(mctx);   // 올린 사람·대표에게 앱 안 알림 — 사람마다 한 장
   return summary;
 }
 

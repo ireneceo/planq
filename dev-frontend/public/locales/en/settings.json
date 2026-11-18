@@ -271,7 +271,7 @@
     "scopeTitle": "Where your files are stored",
     "scopeBackedUp": "Shared files (project, task, chat attachments) → Google Drive",
     "scopeLocal": "Personal vault (my files, private notes) → PlanQ (connecting a personal Drive doesn't change where files are stored)",
-    "scopeOneWay": "Files created or deleted directly in Drive are not reflected in PlanQ.",
+    "scopeOneWay": "Files PlanQ put in Drive: deleting one in Drive (Finder) moves it to PlanQ Trash, and editing it updates PlanQ (the previous version is kept in Trash; restore from PlanQ Trash). Folders deleted as a whole and files added directly to Drive are not reflected.",
     "connect": "Connect",
     "connecting": "Connecting…",
     "disconnect": "Disconnect",

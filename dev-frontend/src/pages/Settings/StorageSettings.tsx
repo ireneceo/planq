@@ -266,7 +266,7 @@ const StorageSettings: React.FC<Props> = ({ businessId }) => {
             <li>
               {providers.gdrive.ingest?.active
                 ? tr('storage.scopeTwoWay', 'Drive 에서 직접 올린 파일도 워크스페이스 폴더 안에 있으면 PlanQ 파일함으로 들어옵니다. 삭제·이름 변경도 반영됩니다.')
-                : tr('storage.scopeOneWay', 'Drive 에서 직접 만들거나 삭제한 파일은 PlanQ 와 동기화되지 않습니다. 파일 관리는 PlanQ 안에서만 해주세요.')}
+                : tr('storage.scopeOneWay')}
             </li>
           </ul>
         </NoticeText>

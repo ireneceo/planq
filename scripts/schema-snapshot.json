@@ -1,5 +1,5 @@
 {
-  "_generated": "2026-11-15",
+  "_generated": "2026-11-18",
   "_db": "planq_dev_db",
   "_note": "스키마 변경 후 `node scripts/dump-schema.js` 로 갱신할 것. guard-invariants schemacol 이 읽는다.",
   "tables": {
@@ -337,7 +337,9 @@
       "join_by_domain",
       "join_domain",
       "join_code",
-      "join_code_rotated_at"
+      "join_code_rotated_at",
+      "industry",
+      "team_conversation_id"
     ],
     "calendar_event_attachments": [
       "id",
@@ -574,6 +576,20 @@
       "from_user_timezone",
       "locale",
       "details"
+    ],
+    "contact_inquiry_replies": [
+      "id",
+      "inquiry_id",
+      "sent_by_user_id",
+      "to_email",
+      "subject",
+      "body",
+      "locale",
+      "status",
+      "error_message",
+      "sent_at",
+      "created_at",
+      "updated_at"
     ],
     "contract_pay_lines": [
       "id",
@@ -881,7 +897,9 @@
       "signature_html_en",
       "signature_enabled",
       "notify_scope",
-      "auto_extract_scope"
+      "auto_extract_scope",
+      "connect_route",
+      "connect_route_checked_at"
     ],
     "email_attachments": [
       "id",
@@ -1214,9 +1232,11 @@
       "gdrive_mirror_url",
       "gdrive_mirrored_at",
       "deleted_by",
+      "deleted_via",
       "purged_at",
       "origin_provider",
       "drive_md5",
+      "drive_sync_issue",
       "purge_after"
     ],
     "focus_sessions": [

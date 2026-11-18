@@ -1660,6 +1660,12 @@ const DocsTab: React.FC<Props> = (props) => {
                           {tr('docs.unmirrored') as string}
                         </UnmirrorTag>
                       )}
+                      {/* 2026-11-18 — Drive 에서 지우거나 고쳤는데 반영하지 못했다. 이유는 값마다 문구, 모르는 값은 값 그대로. */}
+                      {f.drive_sync_issue && (
+                        <UnmirrorTag data-testid="drive-sync-issue" title={tr(`docs.driveSyncIssue.${f.drive_sync_issue}`, f.drive_sync_issue)}>
+                          {tr('docs.driveSyncIssue.label') as string}
+                        </UnmirrorTag>
+                      )}
                       {!selectMode && <QuickViewButton file={f} onOpen={setQuickFile} />}
                     </RowName>
                     <RowSrc>

@@ -11,29 +11,16 @@
 const { BusinessCloudToken } = require('../models');
 const { Op } = require('sequelize');
 const gdrive = require('./gdrive');
-const gdriveApply = require('./gdriveApply');
 
 const INTERVAL_MS = 30 * 60 * 1000;          // 30분마다 점검
 const RENEW_BEFORE_MS = 24 * 60 * 60 * 1000; // 만료 24시간 전에 미리 갱신
 
 async function catchUp(token, drive) {
   // 채널 공백 동안 밀린 변경을 커서로 훑는다. push 가 못 준 것을 여기서 줍는다.
-  let pageToken = token.watch_page_token;
-  if (!pageToken) return { scanned: 0, applied: null, note: 'no_cursor' };
-  const changes = [];
-  let guard = 0;
-  while (pageToken && guard < 50) {
-    guard += 1;
-    const data = await gdrive.listChanges(drive, pageToken);
-    (data.changes || []).forEach((c) => changes.push(c));
-    if (data.nextPageToken) { pageToken = data.nextPageToken; continue; }
-    if (data.newStartPageToken) await token.update({ watch_page_token: data.newStartPageToken });
-    break;
-  }
-  const applied = changes.length
-    ? await gdriveApply.applyChanges(token.business_id, changes, gdriveApply.buildApplyCtx(drive, token))
-    : null;
-  return { scanned: changes.length, applied };
+  // ★ 2026-11-18 (§4.3 D-1) — 웹훅과 **같은 줄**(gdriveSyncRun)에서 돌고, 커서는 적용이 끝난 뒤 저장한다.
+  const r = await require('./gdriveSyncRun').runChanges(token.business_id, { drive });
+  await token.reload().catch(() => null);
+  return r;
 }
 
 async function runGdriveWatchCron() {
@@ -78,7 +65,9 @@ async function runGdriveWatchCron() {
         watch_channel_id: channel.id,
         watch_resource_id: channel.resourceId,
         watch_expires_at: channel.expiration ? new Date(Number(channel.expiration)) : null,
-        watch_page_token: startPageToken || token.watch_page_token,
+        // ★ 이미 커서가 있으면 그대로 둔다(2026-11-18) — 새 시작 토큰으로 덮으면 catchUp 과 채널 개설 사이의
+        //   변경(지움·고침)을 건너뛴다. 커서가 없을 때(첫 연결)만 시작 토큰을 쓴다.
+        watch_page_token: token.watch_page_token || startPageToken,
       });
       if (wasOpen) out.renewed += 1; else out.opened += 1;
     } catch (e) {
@@ -88,6 +77,21 @@ async function runGdriveWatchCron() {
     }
   }
   if (out.checked > 0) console.log('[gdrive-watch]', JSON.stringify(out));
+  // §4.3 D-2 — 내려받기에 실패한 Drive 고침을 다시 시도한다(워크스페이스당 틱마다 20건).
+  try {
+    const { File } = require('../models');
+    const bizIds = (await File.findAll({
+      where: { drive_sync_issue: 'edit_download_failed', deleted_at: null },
+      attributes: ['business_id'], group: ['business_id'], raw: true,
+    })).map((r) => r.business_id);
+    const alive = await require('./workspaceAlive').filterAliveRows(
+      await BusinessCloudToken.findAll({ where: { provider: 'gdrive', business_id: { [Op.in]: bizIds.length ? bizIds : [0] } } }),
+    );
+    for (const t of alive) {
+      const r = await require('./gdriveSyncRun').retryFailedEdits(t.business_id).catch((e) => ({ error: e.message }));
+      console.log(`[gdrive-retry] biz${t.business_id}`, JSON.stringify(r));
+    }
+  } catch (e) { console.warn('[gdrive-retry]', e.message); }
   return out;
 }
 

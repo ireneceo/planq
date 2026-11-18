@@ -324,30 +324,19 @@ router.post('/webhook/gdrive', async (req, res) => {
     res.status(200).end();
 
     try {
-      const drive = await gdrive.getDriveClient(token);
-      let pageToken = token.watch_page_token;
-      const changes = [];
-      while (pageToken) {
-        const data = await gdrive.listChanges(drive, pageToken);
-        (data.changes || []).forEach((c) => changes.push(c));
-        if (data.nextPageToken) { pageToken = data.nextPageToken; continue; }
-        if (data.newStartPageToken) {
-          await token.update({ watch_page_token: data.newStartPageToken });
-        }
-        break;
-      }
-      // ★ #379 — 여태 여기서 **알리기만** 했다. 변경을 PlanQ 파일함에 실제로 반영한다.
-      //   정책 정본은 services/gdriveApply.js (정본 축 비대칭 · soft delete · 멱등 에코 흡수 · LWW).
-      //   적용 실패가 웹훅 200 을 막으면 구글이 재시도 폭주하므로 여기서 삼키고 로그로 남긴다.
+      // ★ 2026-11-18 (§4.3 D-1) — 워크스페이스당 한 줄로 «커서 → 변경 → 적용 → 커서 저장».
+      //   여태는 커서를 먼저 저장하고 적용했다(적용 중 죽으면 유실) · 동시 웹훅이 같은 변경을 두 번 적용했다.
+      //   정책 정본은 services/gdriveApply.js · 미러 지움·고침은 services/gdriveMirrorSync.js.
+      //   적용 실패가 웹훅 200 을 막으면 구글이 재시도 폭주하므로 여기서 삼키고 로그로 남긴다(200 은 위에서 이미 보냄).
       let applied = null;
-      if (changes.length > 0) {
-        try {
-          const ga = require('../services/gdriveApply');
-          applied = await ga.applyChanges(token.business_id, changes, ga.buildApplyCtx(drive, token));
-        } catch (e) {
-          console.warn('[gdrive webhook] 변경 적용 실패', e.message);
-        }
+      let scanned = 0;
+      try {
+        const r = await require('../services/gdriveSyncRun').runChanges(token.business_id);
+        applied = r.applied; scanned = r.scanned;
+      } catch (e) {
+        console.warn('[gdrive webhook] 변경 적용 실패', e.message);
       }
+      const changes = { length: scanned };
       // Socket.IO 로 해당 워크스페이스에 변경 알림 (UI가 파일 리스트 재조회 트리거)
       const io = req.app.get('io');
       if (io && changes.length > 0) {

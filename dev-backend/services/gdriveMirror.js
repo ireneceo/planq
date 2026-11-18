@@ -174,6 +174,9 @@ async function mirrorFile(file, token, drive) {
     gdrive_mirror_id: driveFile.id,
     gdrive_mirror_url: driveFile.webViewLink || null,
     gdrive_mirrored_at: new Date(),
+    // ★ 사본 내용의 기준값 (2026-11-18 §4 B-1) — Drive 에서 고쳤는지는 이 값과 비교해 가른다.
+    drive_md5: driveFile.md5Checksum || null,
+    drive_sync_issue: null,
   });
   return driveFile.id;
 }

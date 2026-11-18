@@ -83,14 +83,14 @@ async function main() {
       const hash = file.content_hash;
       if (hash && byHash.has(hash)) {
         const m = byHash.get(hash);
-        await file.update({ gdrive_mirror_id: m.id, gdrive_mirror_url: m.url, gdrive_mirrored_at: new Date() });
+        await file.update({ gdrive_mirror_id: m.id, gdrive_mirror_url: m.url, gdrive_mirrored_at: new Date(), drive_md5: m.md5 || null });
         manifest.entries.push({ file_id: file.id, before, uploaded: false, reused: true, mirror_id: m.id });
         reused++; consecFail = 0;
         continue;
       }
       const driveId = await mirror.mirrorFile(file, token, drive); // 컬럼 세팅 포함
       const fresh = await File.findByPk(file.id);
-      if (hash) byHash.set(hash, { id: fresh.gdrive_mirror_id, url: fresh.gdrive_mirror_url });
+      if (hash) byHash.set(hash, { id: fresh.gdrive_mirror_id, url: fresh.gdrive_mirror_url, md5: fresh.drive_md5 });
       manifest.entries.push({ file_id: file.id, before, uploaded: true, reused: false, mirror_id: fresh.gdrive_mirror_id, mirror_url: fresh.gdrive_mirror_url });
       uploaded++; consecFail = 0;
       console.log(`  ✔ #${file.id} ${String(file.file_name).slice(0, 30)} → ${driveId}`);

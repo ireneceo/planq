@@ -97,6 +97,13 @@ File.init({
     type: DataTypes.STRING(32),
     allowNull: true
   },
+  // Drive 사본이 PlanQ 와 다른데 반영하지 못한 이유 (2026-11-18 docs/GDRIVE_FINDER_EDIT_SYNC_DESIGN.md §4 B-5).
+  //   값: edit_too_large · edit_quota · edit_ext · edit_download_failed(다시 시도) · edit_not_applied · trash_held.
+  //   NULL = 문제 없음. 쓰는 곳은 services/gdriveApply 하나. 화면은 모르는 값도 값 그대로 보인다.
+  drive_sync_issue: {
+    type: DataTypes.STRING(40),
+    allowNull: true
+  },
   // 정본 축 — 변경의 진실이 어디에 있는가. NULL = PlanQ 가 정본.
   //   서빙 축(storage_provider)과 분리돼 있다. 판정은 services/fileOrigin.js 하나만 쓴다.
   origin_provider: {
@@ -174,6 +181,12 @@ File.init({
   //   옛 행은 NULL 이다(그때는 기록하지 않았다) — 표시할 때 '알 수 없음' 으로 낮춘다.
   deleted_by: {
     type: DataTypes.INTEGER,
+    allowNull: true
+  },
+  // 어디서 지워졌나 (2026-11-18 §4 A-7) — NULL = PlanQ 에서 · 'gdrive' = Drive(파인더)에서 지움 ·
+  //   'gdrive_edit' = Drive 에서 고쳐 생긴 «이전 판» 행. 복구가 NULL 로 지운다(routes/file_trash.js).
+  deleted_via: {
+    type: DataTypes.STRING(20),
     allowNull: true
   },
   // 바이트를 실제로 제거한 시각. NULL = 아직 되돌릴 수 있다.

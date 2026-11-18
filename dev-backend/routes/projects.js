@@ -4086,6 +4086,8 @@ router.get('/workspace/:bizId/all-files', authenticateToken, async (req, res, ne
         //     한쪽만 고치면 같은 파일이 화면마다 다르게 보인다.
         gdrive_mirror_id: f.gdrive_mirror_id || null,
         gdrive_unmirrored: f.storage_provider === 'planq' && !f.gdrive_mirror_id && !!f.gdrive_mirrored_at,
+        // 2026-11-18 — Drive 사본이 PlanQ 와 다른데 반영 못 한 이유(gdriveMirrorSync §4.2 B-5). 세 직렬화가 같이 싣는다.
+        drive_sync_issue: f.drive_sync_issue || null,
         // N+67 — visibility 노출 (frontend file detail drawer 에 표시 + 변경 UI)
         visibility: f.visibility,
         project_id: f.project_id,
@@ -4312,6 +4314,8 @@ router.get('/:id/files', authenticateToken, async (req, res, next) => {
         //     한쪽만 고치면 같은 파일이 화면마다 다르게 보인다.
         gdrive_mirror_id: f.gdrive_mirror_id || null,
         gdrive_unmirrored: f.storage_provider === 'planq' && !f.gdrive_mirror_id && !!f.gdrive_mirrored_at,
+        // 2026-11-18 — Drive 사본이 PlanQ 와 다른데 반영 못 한 이유(gdriveMirrorSync §4.2 B-5). 세 직렬화가 같이 싣는다.
+        drive_sync_issue: f.drive_sync_issue || null,
         visibility: f.visibility,
         project_id: f.project_id,
         description: f.description,
@@ -4478,6 +4482,8 @@ router.get('/:id/files', authenticateToken, async (req, res, next) => {
               // 이 직렬화는 all-files 쪽과 짝이다 — 한쪽만 고치면 화면마다 다르게 보인다.
               gdrive_mirror_id: f.gdrive_mirror_id || null,
               gdrive_unmirrored: f.storage_provider === 'planq' && !f.gdrive_mirror_id && !!f.gdrive_mirrored_at,
+        // 2026-11-18 — Drive 사본이 PlanQ 와 다른데 반영 못 한 이유(gdriveMirrorSync §4.2 B-5). 세 직렬화가 같이 싣는다.
+        drive_sync_issue: f.drive_sync_issue || null,
               visibility: f.visibility,
               project_id: f.project_id,
               tags: f.tags || [],

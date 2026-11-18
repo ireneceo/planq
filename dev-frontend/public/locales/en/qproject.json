@@ -695,7 +695,9 @@
       "restoreFailed": "Could not restore the file.",
       "purgeFailed": "Could not delete the file.",
       "quotaFull": "Storage is full, so this file cannot be restored. Please free up space first.",
-      "bytesGone": "This file's contents are already gone and cannot be restored."
+      "bytesGone": "This file's contents are already gone and cannot be restored.",
+      "viaGdrive": "Deleted in Google Drive",
+      "viaGdriveEdit": "Version before the Google Drive edit"
     },
     "loadError": {
       "title": "Couldn't load your files",
@@ -751,6 +753,15 @@
       "destProject": "Goes to: {{project}} · Project members (same as upload)",
       "destProjectFolder": "Goes to: {{project}} › {{folder}} · Project members (same as upload)",
       "close": "Close"
+    },
+    "driveSyncIssue": {
+      "label": "Differs from Drive",
+      "edit_too_large": "The file edited in Google Drive is over the per-file size limit, so it wasn't applied in PlanQ.",
+      "edit_quota": "Not enough storage to apply the edit made in Google Drive.",
+      "edit_ext": "This file type can't be stored in PlanQ, so the edit made in Google Drive wasn't applied.",
+      "edit_download_failed": "Couldn't fetch the edit made in Google Drive. PlanQ will retry shortly.",
+      "edit_not_applied": "This file is tied to a document image or billing record, so the edit made in Google Drive wasn't applied.",
+      "trash_held": "It was deleted in Google Drive along with its folder (or with many other files), so PlanQ kept it."
     }
   },
   "canvas": {

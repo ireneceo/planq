@@ -127,8 +127,15 @@ const FileTrashPanel: React.FC<Props> = ({ active, businessId, projectId, showEm
                     <Meta>
                       {formatSize(f.file_size)}
                       {' · '}
-                      {(t('docs.trash.deletedBy', '{{who}} 삭제') as string)
-                        .replace('{{who}}', f.deleter?.name || (t('docs.trash.unknownWho', '알 수 없음') as string))}
+                      {f.deleted_via === 'gdrive_edit'
+                        ? (t('docs.trash.viaGdriveEdit', 'Google Drive 에서 고치기 전 판') as string)
+                        : f.deleted_via === 'gdrive'
+                          ? (t('docs.trash.viaGdrive', '{{who}} Google Drive 에서 지움') as string)
+                            .replace('{{who}}', f.deleter?.name || '').trim()
+                          : f.deleted_via
+                            ? f.deleted_via
+                            : (t('docs.trash.deletedBy', '{{who}} 삭제') as string)
+                              .replace('{{who}}', f.deleter?.name || (t('docs.trash.unknownWho', '알 수 없음') as string))}
                       {' · '}
                       {formatDate(f.deleted_at)}
                     </Meta>

@@ -151,3 +151,19 @@ Q file(`ProjectGroups`)과 프로젝트>파일(`FolderTree`)은 **같은 행**�
 
 ---
 
+
+## Drive(파인더)에서 지우기·고치기 → PlanQ 반영 (2026-11-18 박제)
+
+> Irene: *"지금 구글드라이브에 파일이 올라가기만 하고 삭제도 수정도 해당 파인더에서 할 수가 없으니 사실 무용지물인 상태야."*
+> → «지움은 PlanQ 휴지통까지만, 고침은 새 내용·옛 판 보관» (권고대로) · Fable 설계 DESIGN-READY · 정본 `docs/GDRIVE_FINDER_EDIT_SYNC_DESIGN.md` §4
+
+- **drive.file 로도 «PlanQ 가 올린 사본» 의 지움·고침은 보인다** — 반영하지 않던 것은 정책이었다. 새로 넣은 파일 들이기만 유료 심사(범위 밖).
+- 판정·안전판은 `services/gdriveMirrorSync.js` **한 곳**. 지움 분기표(처음 맞는 것): removed → 미러 해제(접근 상실과 못 가름) ·
+  산 행 ≥2(쌍둥이)·문서 본문 그림 → 미러 해제 · 폴더째 지움(`explicitlyTrashed≠true`) → 보류 `trash_held` · 10분 100건 → 보류 + 대표 알림 ·
+  **고친 뒤 지움 → 고침 먼저, 못 받으면 보류(Drive 사본 = 안 받은 바이트의 유일본이라 안 지운다)** · 그 밖 → `trashFile` + Drive 사본 영구 삭제(커밋 뒤).
+- 고침: 비교 기준은 `files.drive_md5`(미러 때 기록, 옛 행은 로컬 바이트 md5 — **NULL 을 «바뀜» 으로 읽지 않는다**). 새 바이트는 **항상 새 경로**(dedup 제자리 덮어쓰기 금지),
+  옛 판 = 휴지통 행(`deleted_via='gdrive_edit'`, **하루 1판**). 쌍둥이·문서 그림·증빙(청구·급여·서명 스냅샷·메일 첨부)은 반영 안 함(`edit_not_applied`).
+- 못 반영한 이유는 `files.drive_sync_issue` → 파일 목록 «Drive 와 다름» 태그. 지운 곳은 `files.deleted_via` → 휴지통 «Google Drive 에서 지움». 복구가 둘 다 지운다.
+- **커서 → 변경 → 적용 → 커서 저장은 워크스페이스당 한 줄**(`services/gdriveSyncRun`) — 웹훅·크론이 같은 함수. 커서는 적용 **뒤** 저장. 프로세스 안 잠금이라 PM2 를 여러 개로 늘리면 DB 잠금으로 옮긴다.
+- 끄는 스위치 `GDRIVE_FINDER_TRASH=0`(지움만 종전 미러 해제로). 회귀 `node scripts/health-check.js --category=drivesync`.
+- ★ PlanQ 에 파일 바이트를 고치는 길을 새로 만들면 충돌 판정(§4.2 B-7)을 다시 연다.

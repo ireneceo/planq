@@ -54,6 +54,8 @@ const CATEGORIES = [
   'attnmidnight',
   // 2026-10-23 사람 이름 = 워크스페이스 표시명(계정 이름이 응답에 실리면 실패) — 픽스처 health-access.js displayname
   'displayname',
+  // 2026-11-18 Drive(파인더) 지우기·고치기 반영 (docs/GDRIVE_FINDER_EDIT_SYNC_DESIGN.md §4.6) — 픽스처 health-drive-sync.js
+  'drivesync',
 ];
 
 const args = process.argv.slice(2);
@@ -1815,6 +1817,22 @@ function runMoneyCase(name) {
   if (!r.ok) throw new Error(r.error);
   return r.detail;
 }
+
+// ============================================
+// 카테고리: drivesync — Drive(파인더) 지우기·고치기 반영 (docs/GDRIVE_FINDER_EDIT_SYNC_DESIGN.md §4.6)
+// ============================================
+//   픽스처 scripts/health-drive-sync.js 가 ws 6 에 시험 행을 만들어 **가짜 Changes** 를 넣고 끝에 지운다(실 Drive 불필요).
+//   지우면 안 되는 것(접근 상실·폴더째·쌍둥이·고친 뒤 못 받은 지움·에코)이 안 지워지는가 + 가드를 끄면 뒤집히는가.
+test('drivesync', 'Drive 지움·고침 반영 — 분기표·에코·동시 처리', () => {
+  const out = execSync('node /opt/planq/scripts/health-drive-sync.js',
+    { cwd: '/opt/planq/dev-backend', encoding: 'utf8', timeout: 180000, stdio: ['ignore', 'pipe', 'pipe'] });
+  const line = out.split('\n').reverse().find((l) => l.startsWith('@@'));
+  if (!line) throw new Error('픽스처 결과 없음 — 거짓 통과 방지 위해 실패 처리');
+  const r = JSON.parse(line.slice(2));
+  if (r.cleanup_error) throw new Error(`픽스처 정리 실패: ${r.cleanup_error}`);
+  if (!r.ok) throw new Error(r.error);
+  return Object.keys(r.detail).join('·');
+});
 
 // ============================================
 // 접근·격리 — 0-C·0-D·0-E·0-F (docs/FIX_0CDEF_ACCESS_DESIGN.md)

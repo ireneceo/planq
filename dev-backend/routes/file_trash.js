@@ -125,6 +125,9 @@ router.post('/:businessId/:id/restore', authenticateToken, checkBusinessAccess, 
       //   날짜를 달고 다닌다 — 화면이 그 값을 그대로 보여주면 거짓이다.
       //   (다시 지울 때 `trashFile` 이 `stampFor` 로 새로 찍으므로 잃는 정보는 없다.)
       file.purge_after = null;
+      // Drive 에서 지움·이전 판 표시도 지운다(2026-11-18 §4 A-7) — 산 파일에 «Drive 에서 지움» 이 남으면 거짓이다.
+      file.deleted_via = null;
+      file.drive_sync_issue = null;
       await file.save({ transaction: t });
       await t.commit();
       // ★ Drive 사본을 **다시 만든다** (2026-09-17, Fable 3차).

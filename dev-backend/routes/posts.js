@@ -1320,6 +1320,7 @@ router.post('/editor-image', authenticateToken, (req, res, next) => {
         gdrive_mirror_id: twin ? twin.gdrive_mirror_id : null,
         gdrive_mirror_url: twin ? twin.gdrive_mirror_url : null,
         gdrive_mirrored_at: twin ? twin.gdrive_mirrored_at : null,
+        drive_md5: twin ? twin.drive_md5 : null,   // 사본 내용 기준값도 같이 물려준다(gdriveApply B-1)
       });
       // ★ 운영 #378 — 여기서 만든 파일도 **다른 업로드와 똑같이** 다뤄야 한다.
       //   여태 이 경로만 아래 둘이 빠져 있어, 같은 앱인데 어느 에디터에서 넣었느냐에 따라

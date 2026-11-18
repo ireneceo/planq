@@ -62,6 +62,9 @@ export interface ProjectFile {
   // #379 — Drive 사본이 지워져 미러가 끊긴 상태(원본은 PlanQ 에 그대로 있다)
   gdrive_mirror_id?: string | null;
   gdrive_unmirrored?: boolean;
+  /** Drive 사본이 PlanQ 와 다른데 반영하지 못한 이유(서버 gdriveMirrorSync). null = 문제 없음.
+   *  값: edit_too_large · edit_quota · edit_ext · edit_download_failed · edit_not_applied · trash_held — 모르는 값도 그대로 보인다. */
+  drive_sync_issue?: string | null;
   // N+67 — visibility 필드 (source='direct' 일 때만 변경 가능)
   visibility?: 'L1' | 'L2' | 'L3' | 'L4' | null;
   security_level?: 'general' | 'internal' | 'confidential';  // D4 #62
@@ -712,6 +715,8 @@ export interface TrashedFile {
   deleter?: { id: number; name: string } | null;
   uploader?: { id: number; name: string } | null;
   project_id?: number | null;
+  /** 어디서 지워졌나 — null = PlanQ · 'gdrive' = Google Drive(파인더)에서 지움 · 'gdrive_edit' = Drive 에서 고쳐 생긴 이전 판 */
+  deleted_via?: string | null;
 }
 
 export interface TrashPage {

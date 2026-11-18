@@ -409,7 +409,8 @@ async function uploadFile(drive, { name, mimeType, body, parentId }) {
       parents: parentId ? [parentId] : undefined
     },
     media: { mimeType, body },
-    fields: 'id, name, size, mimeType, webViewLink, webContentLink, createdTime', supportsAllDrives: true, });
+    fields: 'id, name, size, mimeType, md5Checksum, webViewLink, webContentLink, createdTime', supportsAllDrives: true, });
+  // md5Checksum — 미러 사본의 «우리가 아는 내용» 기준(gdriveApply B-1). 빠지면 Drive 고침을 에코와 못 가른다.
   return res.data;
 }
 
@@ -623,6 +624,16 @@ async function stopChannel(drive, { channelId, resourceId }) {
   await drive.channels.stop({ requestBody: { id: channelId, resourceId } });
 }
 
+/** Changes 의 `file` 과 같은 모양으로 파일 하나를 다시 읽는다 — 내려받기 실패한 고침을 다시 시도할 때(gdriveSyncRun D-2). */
+async function getChangeShapedFile(drive, fileId) {
+  const r = await drive.files.get({
+    fileId, supportsAllDrives: true,
+    fields: 'id, name, mimeType, modifiedTime, trashed, explicitlyTrashed, parents, md5Checksum, size, webViewLink, '
+      + 'trashingUser(emailAddress), lastModifyingUser(emailAddress)',
+  });
+  return r.data;
+}
+
 /**
  * 변경 목록 조회 (webhook 수신 후 호출)
  */
@@ -632,7 +643,9 @@ async function listChanges(drive, pageToken) {
   const res = await drive.changes.list({
     pageToken,
     fields: 'nextPageToken, newStartPageToken, changes(fileId, removed, time, '
-      + 'file(id, name, mimeType, modifiedTime, trashed, parents, md5Checksum, size, webViewLink))', supportsAllDrives: true, includeItemsFromAllDrives: true, });
+      + 'file(id, name, mimeType, modifiedTime, trashed, explicitlyTrashed, parents, md5Checksum, size, webViewLink, '
+      // 2026-11-18 — 지움·고침 반영(gdriveMirrorSync): 폴더째 지움인가 · 누가 지웠나 · 누가 고쳤나
+      + 'trashingUser(emailAddress), lastModifyingUser(emailAddress)))', supportsAllDrives: true, includeItemsFromAllDrives: true, });
   return res.data;
 }
 
@@ -654,6 +667,7 @@ async function clearTokenError(token) {
 }
 
 module.exports = {
+  getChangeShapedFile,
   isNotFoundError,
   isConfigured,
   SCOPES,
