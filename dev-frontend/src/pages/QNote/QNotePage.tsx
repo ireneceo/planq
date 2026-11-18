@@ -74,6 +74,7 @@ import { canSaveToSale } from '../../utils/qnotePurpose';
 import { QuestionInterpLine, displayQuestion, interpFromDetail, type QuestionInterp } from './questionInterpret';
 import HighlightText from '../../components/Common/HighlightText';
 import SearchBoxCommon from '../../components/Common/SearchBox';
+import { PhoneListSectionsMenu, usePhoneListSections } from '../../components/Common/ListSectionsMenu';
 import { useListKeyboardNav } from '../../hooks/useListKeyboardNav';
 import { deriveMemoPreview } from '../../utils/qnoteBody';
 import SessionTaxonomyBar from '../../components/QNote/SessionTaxonomyBar';
@@ -388,6 +389,10 @@ const QNotePage = ({ scope, onRecordingChange }: QNotePageProps = {}) => {
   };
   const [sessionQuery, setSessionQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');  // 운영 #54
+  // 폰 목록 위 «보일 칸 고르기» — 검색·분류 칩을 각각 가린다(Irene 2026-11-18 «다른 곳에도 모바일에 있으면 좋은 거», 공용 ListSectionsMenu).
+  const listSec = usePhoneListSections<'search' | 'category'>('planq:qnote:listSections', { search: true, category: true });
+  const showSearch = listSec.shown('search');
+  const showCategory = listSec.shown('category');
   const [activeSession, setActiveSession] = useState<QNoteSession | null>(null);
   // 다른 워크스페이스 노트를 /notes/:id 로 열었을 때 그 워크스페이스 — 내용 대신 전환 안내(WORKSPACE_SCOPE_DESIGN Q6)
   const [otherWsBizId, setOtherWsBizId] = useState<number | null>(null);
@@ -2737,6 +2742,9 @@ const QNotePage = ({ scope, onRecordingChange }: QNotePageProps = {}) => {
           </TitleGroup>
           {/* 사이클 N+22 — Irene 요청: NewNoteModal 모달 대신 즉시 드롭다운.
               메모 = 즉시 새 세션 + URL, 음성 = StartMeetingModal (회의 prep). */}
+          <SidebarActions>
+          <PhoneListSectionsMenu state={listSec} order={['search', 'category']} testId="qnote-list-sections"
+            hiddenActive={(!showSearch && !!sessionQuery.trim()) || (!showCategory && categoryFilter !== 'all')} />
           <NewSessionWrap ref={noteAnchor.wrapRef}>
             <NewSessionBtn
               type="button"
@@ -2753,8 +2761,10 @@ const QNotePage = ({ scope, onRecordingChange }: QNotePageProps = {}) => {
             </NewSessionBtn>
             {newNoteMenu}
           </NewSessionWrap>
+          </SidebarActions>
         </SidebarHeader>
 
+        {showSearch && (
         <SearchWrap>
           <SearchBoxCommon
             value={sessionQuery}
@@ -2763,9 +2773,10 @@ const QNotePage = ({ scope, onRecordingChange }: QNotePageProps = {}) => {
             width="100%"
           />
         </SearchWrap>
+        )}
 
         {/* 운영 #54 — 분류 필터 칩 (메모·음성 공통). 분류가 하나라도 있을 때만 노출. */}
-        {sessionCategories.length > 0 && (
+        {showCategory && sessionCategories.length > 0 && (
           <CatFilterRow>
             <CatChip type="button" $active={categoryFilter === 'all'} onClick={() => setCategoryFilter('all')}>
               {t('page.catAll', { defaultValue: '전체' }) as string}
@@ -4088,6 +4099,10 @@ const SidebarTitle = styled.h1`
 // ★ 밴드2 규격 — 12(위) + 36(검색 박스) + 8(아래) + 1(밑줄) = 57.
 //   아래 padding 이 12 였어서 **61px**, 우측 상세의 밴드2(57)와 4px 어긋나 있었다
 //   (2026-09-06 Fable 실측: 좌 251 / 우 247). 숫자를 바꾸려면 DetailMetaBar 와 함께 바꿀 것.
+// 밴드1 자식은 둘(제목 칸 / 액션 칸)만 — 보일 칸 버튼과 새 노트(+)를 한 칸에 묶는다.
+const SidebarActions = styled.div`
+  display: flex; align-items: center; gap: 6px; flex-shrink: 0;
+`;
 const SearchWrap = styled.div`
   box-sizing: border-box;
   min-height: 57px;

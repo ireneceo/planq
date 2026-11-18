@@ -9,9 +9,8 @@
 //   ★ 사람마다(계정 축 scopedStorage) 기억한다 — 창마다가 아니다. 옛 접기 키가 «열림» 이면 보기 설정도 보이게 이어받는다.
 //   ★ 보기 설정 줄을 가렸는데 «완료 가리기» 가 켜져 있으면 버튼에 점 — 안 보이는 필터가 행을 거르면 «업무가 없어졌다» 로 읽힌다
 //     (옛 접기 요약 줄이 하던 일).
-import { useCallback, useEffect, useState } from 'react';
-import styled from 'styled-components';
-import OverflowMenu from '../Common/OverflowMenu';
+//   ★ 몸통은 공용 `Common/ListSectionsMenu`(2026-11-18 — 폰 메일 목록이 두 번째로 쓰면서 뺐다). 여기는 칸 이름·저장 키·옛 접기 키 이어받기만.
+import ListSectionsMenu, { useListSections } from '../Common/ListSectionsMenu';
 import { scopedStorage } from '../../services/accounts';
 
 export type PopoutSectionKey = 'cue' | 'add' | 'view';
@@ -21,28 +20,10 @@ const KEY = 'planq:taskPopout:sections';
 const OLD_FOLD_KEY = 'planq:taskPopout:toolsOpen';
 // 기본: Cue·입력은 보이고, 보기 설정 줄은 가림(10-12 «보기 설정은 늘 쓰던 대로» 그대로).
 const DEFAULTS: PopoutSections = { cue: true, add: true, view: false };
-
-function readSections(): PopoutSections {
-  try {
-    const raw = scopedStorage.get(KEY);
-    if (raw) {
-      const p = JSON.parse(raw) as Partial<PopoutSections>;
-      return {
-        cue: typeof p.cue === 'boolean' ? p.cue : DEFAULTS.cue,
-        add: typeof p.add === 'boolean' ? p.add : DEFAULTS.add,
-        view: typeof p.view === 'boolean' ? p.view : DEFAULTS.view,
-      };
-    }
-    if (scopedStorage.get(OLD_FOLD_KEY) === '1') return { ...DEFAULTS, view: true };
-  } catch { /* 저장소 막힘 — 기본값 */ }
-  return { ...DEFAULTS };
-}
+const migrateOldFold = (): Partial<PopoutSections> | null => (scopedStorage.get(OLD_FOLD_KEY) === '1' ? { view: true } : null);
 
 export function usePopoutSections(): [PopoutSections, (k: PopoutSectionKey) => void] {
-  const [sections, setSections] = useState<PopoutSections>(readSections);
-  useEffect(() => { scopedStorage.set(KEY, JSON.stringify(sections)); }, [sections]);
-  const toggle = useCallback((k: PopoutSectionKey) => setSections((s) => ({ ...s, [k]: !s[k] })), []);
-  return [sections, toggle];
+  return useListSections<PopoutSectionKey>(KEY, DEFAULTS, migrateOldFold);
 }
 
 interface Props {
@@ -58,32 +39,11 @@ interface Props {
 const ORDER: PopoutSectionKey[] = ['cue', 'add', 'view'];
 
 const PopoutSectionsMenu: React.FC<Props> = ({ sections, onToggle, label, groupLabel, labels, hiddenFilterActive }) => (
-  <Slot
-    label={label}
-    data-testid="task-popout-sections"
-    triggerActive={hiddenFilterActive}
-    triggerIcon={(
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
-        strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-        <line x1="4" y1="7" x2="20" y2="7" /><circle cx="9" cy="7" r="2.2" fill="#fff" />
-        <line x1="4" y1="17" x2="20" y2="17" /><circle cx="15" cy="17" r="2.2" fill="#fff" />
-      </svg>
-    )}
-    items={ORDER.map((k, i) => ({
-      key: k,
-      label: labels[k],
-      checked: sections[k],
-      testId: `task-popout-section-${k}`,
-      groupLabel: i === 0 ? groupLabel : undefined,
-      onClick: () => onToggle(k),
-    }))}
+  <ListSectionsMenu<PopoutSectionKey>
+    sections={sections} onToggle={onToggle} order={ORDER} labels={labels}
+    label={label} groupLabel={groupLabel} hiddenActive={hiddenFilterActive}
+    testId="task-popout-sections" itemTestIdPrefix="task-popout-section-"
   />
 );
-
-// 헤더 아이콘(보기 밀도·핀)과 같은 32px — 공용 트리거는 36 / 폰 44 라 이 줄에서만 맞춘다.
-const Slot = styled(OverflowMenu)`
-  & > button { min-width: 32px; width: 32px; height: 32px; }
-  @media (max-width: 640px) { & > button { min-width: 32px; width: 32px; height: 32px; } }
-`;
 
 export default PopoutSectionsMenu;

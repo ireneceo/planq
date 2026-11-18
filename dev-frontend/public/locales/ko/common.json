@@ -2221,5 +2221,12 @@
   "sharePreview": {
     "label": "미리보기",
     "openTab": "새 탭으로"
+  },
+  "listSections": {
+    "label": "보일 칸 고르기",
+    "group": "목록 위에 보일 칸",
+    "search": "검색",
+    "filter": "필터",
+    "category": "분류"
   }
 }

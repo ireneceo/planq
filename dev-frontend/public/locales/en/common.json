@@ -2221,5 +2221,12 @@
   "sharePreview": {
     "label": "Preview",
     "openTab": "Open in new tab"
+  },
+  "listSections": {
+    "label": "Choose rows to show",
+    "group": "Rows above the list",
+    "search": "Search",
+    "filter": "Filters",
+    "category": "Categories"
   }
 }

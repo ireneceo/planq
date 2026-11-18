@@ -1,6 +1,7 @@
 import React, { useMemo, useState, useCallback, useEffect, useRef } from 'react';
 import styled from 'styled-components';
-import LeftFilter, { type LeftFilterMode } from './LeftFilter';
+import { type LeftFilterMode } from './LeftFilter';
+import LeftSearchSection from './LeftSearchSection';
 import { isMyOpenInquiry } from './careList';
 import { CareRowTag } from './CareChips';
 import { listRowTitleCss } from '../../theme/tokens';
@@ -13,7 +14,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import HelpDot from '../../components/Common/HelpDot';
 import LetterAvatar from '../../components/Common/LetterAvatar';
 import StarToggle from '../../components/Common/StarToggle';
-import SearchBoxCommon from '../../components/Common/SearchBox';
+import { PhoneListSectionsMenu, usePhoneListSections } from '../../components/Common/ListSectionsMenu';
 import { useListKeyboardNav } from '../../hooks/useListKeyboardNav';
 import { mediaTablet } from '../../theme/breakpoints';
 import PanelResizeHandle from '../../components/Layout/PanelResizeHandle';
@@ -73,6 +74,10 @@ const LeftPanel: React.FC<Props> = ({
   // 거르기 — 안 읽음(채널톡 «안 읽음» 과 같은 쓰임) · 답할 문의(응대 중 ∧ 담당 나·미배정, 직원만 — careList.isMyOpenInquiry 한 술어)
   const [filterMode, setFilterMode] = useState<LeftFilterMode>('all');
   const unreadOnly = filterMode === 'unread';
+  // 폰 목록 위 «보일 칸 고르기» — 검색·거르기 줄을 각각 가린다(Irene 2026-11-18 «다른 곳에도 모바일에 있으면 좋은 거», 공용 ListSectionsMenu).
+  const listSec = usePhoneListSections<'search' | 'filter'>('planq:qtalk:listSections', { search: true, filter: true });
+  const showSearch = listSec.shown('search');
+  const showFilter = listSec.shown('filter');
   const myId = user?.id ? Number(user.id) : null;
 
   // PlanQ 안내방(2026-11-04, docs/PLANQ_GUIDE_ROOM_DESIGN.md) — 대표·관리자는 열면 저절로 참여, 멤버는 «들어가기».
@@ -208,6 +213,8 @@ const LeftPanel: React.FC<Props> = ({
           </TitleGroup>
           <HeaderActions>
             {pinSlot}
+            <PhoneListSectionsMenu state={listSec} order={['search', 'filter']} testId="qtalk-list-sections"
+              hiddenActive={(!showSearch && !!query.trim()) || (!showFilter && filterMode !== 'all')} />
             {!isClient && (
               <NewChatBtn onClick={onOpenNewChat} title={t('left.newChat', '새 대화')} aria-label="New chat">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
@@ -220,16 +227,8 @@ const LeftPanel: React.FC<Props> = ({
         </HeaderTop>
       </Header>
 
-      <SearchSection>
-        <SearchBoxCommon
-          value={query}
-          onChange={setQuery}
-          placeholder={t('left.searchPlaceholder', '대화·프로젝트 검색') as string}
-          shortcutHint="Ctrl+K"
-          width="100%"
-        />
-        <LeftFilter mode={filterMode} onChange={setFilterMode} unreadCount={unreadChatCount} mineCount={isClient ? null : mineCount} />
-      </SearchSection>
+      <LeftSearchSection showSearch={showSearch} showFilter={showFilter} query={query} onQuery={setQuery}
+        filterMode={filterMode} onFilterMode={setFilterMode} unreadCount={unreadChatCount} mineCount={isClient ? null : mineCount} />
 
       <ChatList>
         {/* skeleton: 캐시 없음 + 초기 fetch 진행 중일 때만 노출. 캐시 있으면 항상 실 데이터 우선 표시. */}
@@ -483,12 +482,6 @@ const NewChatBtn = styled.button`
   flex-shrink: 0;
   &:hover { background: #0D9488; }
   &:focus-visible { outline: 2px solid rgba(20, 184, 166, 0.3); outline-offset: 2px; }
-`;
-
-const SearchSection = styled.div`
-  padding: 12px 20px 8px;
-  flex-shrink: 0;
-  border-bottom: 1px solid #F1F5F9;
 `;
 
 const HeaderTitle = styled.h1`

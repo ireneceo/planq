@@ -78,6 +78,7 @@ import { canOpenSeparateWindow } from '../../utils/popout';
 import { useMailClientAdd, openClientTab } from './useMailClientAdd';
 import { guessLangFromText, pickTranslateTarget } from './mailLang';
 import MailThreadRow from './MailThreadRow';
+import { PhoneListSectionsMenu, usePhoneListSections } from '../../components/Common/ListSectionsMenu';
 import { toAddrList, type Folder, type MailAccount, type Thread, type Message, type ThreadDetail, type MailLabel, type MailMember } from './mailTypes';
 
 import {
@@ -186,6 +187,10 @@ import { pickableMembers } from '../../utils/pickableMembers';
 
 // 탭 순서 (Irene 확정 2026-07-12): 할 일 → 애매한 것 → 나머지.
 //   '내 담당' 제거 — 이름이 들어갔다는 이유로 따로 뺄 근거가 약하고, 그런 메일은 어차피 답변 필요다.
+type MailListSectionKey = 'search' | 'filter';
+const MAIL_LIST_SECTION_DEFAULTS: Record<MailListSectionKey, boolean> = { search: true, filter: true };
+const MAIL_LIST_SECTION_ORDER: MailListSectionKey[] = ['search', 'filter'];
+
 const FOLDERS: Array<{ key: Folder; defaultLabel: string }> = [
   { key: 'reply_needed', defaultLabel: '답변 필요' },
   // 확인 권장 = 애매한 메일 + 자동이지만 내용이 업무인 것(결제·보고서·업무 안내).
@@ -427,6 +432,12 @@ const MailPage: React.FC = () => {
   const [searchQ, setSearchQ] = useState('');
   // #213 — 접힌 상태에서도 "지금 뭐가 걸려 있는지" 는 알려야 한다. 검색어는 접힘 밖(검색줄)이라 세지 않는다.
   const activeFilterCount = (accountFilter ? 1 : 0) + (labelFilter ? 1 : 0) + (projectFilter ? 1 : 0);
+  // 폰 목록 위 «보일 칸 고르기» — 검색 줄·필터 줄을 각각 가린다(Irene 2026-11-18, 공용 ListSectionsMenu 머리말).
+  //   폰(≤640)에서만 적용 — 태블릿·데스크탑은 지금 그대로. 가린 칸의 값은 그대로 두고, 가린 칸이 목록을 거르고 있으면 버튼에 점.
+  //   ★ 일괄 버튼(«모두 읽음 (n)»)은 필터가 아니다 — 필터를 가려도 남긴다(FilterToggleRow 머리말).
+  const listSec = usePhoneListSections<MailListSectionKey>('planq:mail:listSections', MAIL_LIST_SECTION_DEFAULTS);
+  const showSearch = listSec.shown('search');
+  const showFilter = listSec.shown('filter');
   const [qDebounced, setQDebounced] = useState('');
   // 지울 때는 기다리지 않는다 — 비운 뒤 300ms 안에 탭을 옮기면 옛 검색어로 한 번 더 읽어 혼란스러웠다.
   useEffect(() => {
@@ -2503,6 +2514,8 @@ const MailPage: React.FC = () => {
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" /><polyline points="15 3 21 3 21 9" /><line x1="10" y1="14" x2="21" y2="3" /></svg>
               </AcctManageIcon>
             )}
+            <PhoneListSectionsMenu state={listSec} order={MAIL_LIST_SECTION_ORDER} testId="mail-list-sections"
+              hiddenActive={(!showSearch && !!searchQ.trim()) || (!showFilter && (activeFilterCount > 0 || sentVia !== ''))} />
             <ComposeBtn type="button" data-testid="mail-compose-open" onClick={() => { openNewCompose(); if (viewportNarrow) setSidebarCollapsed(true); }} title={t('compose.new', { defaultValue: '새 메일' }) as string} aria-label={t('compose.new', { defaultValue: '새 메일' }) as string}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                 <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
@@ -2543,7 +2556,9 @@ const MailPage: React.FC = () => {
           ))}
         </FolderTabs>
         {/* 탭 다음 검색 — Q docs 식 전폭 단독 줄. */}
+        {(showSearch || showFilter || (bulkAction && folderCounts[folder] > 0) || bulkCapped) && (
         <ListControls>
+          {showSearch && (
           <SearchRow>
             <SearchIcon viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <circle cx="11" cy="11" r="7" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
@@ -2558,16 +2573,20 @@ const MailPage: React.FC = () => {
               <SearchClear type="button" onClick={() => setSearchQ('')} aria-label={t('search.clear', { defaultValue: '검색 지우기' }) as string}>×</SearchClear>
             )}
           </SearchRow>
+          )}
           {/* 운영 #213 — 필터가 상시 펼쳐져 세로 공간을 크게 먹고 있었다. 기본 접힘 + 토글.
               ★ 접었을 때 적용 중인 필터가 몇 개인지 반드시 보여준다 — 안 보이면 "왜 목록이 이상하지" 가 된다.
               ★ 일괄 액션(모두 확인완료 등)은 필터가 아니므로 접힘 밖에 둔다. 같이 숨기면 기능이 사라진다. */}
+          {(showFilter || (bulkAction && folderCounts[folder] > 0) || bulkCapped) && (
           <FilterToggleRow>
+            {showFilter && (
             <FilterToggleBtn type="button" aria-expanded={filtersOpen}
               onClick={() => { const v = !filtersOpen; setFiltersOpen(v); try { localStorage.setItem('planq.mail.filtersOpen', v ? '1' : '0'); } catch { /* private mode */ } }}>
               <FilterChevron $open={filtersOpen} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6" /></FilterChevron>
               {t('filters.toggle', { defaultValue: '필터' }) as string}
               {activeFilterCount > 0 && <FilterCount>{activeFilterCount}</FilterCount>}
             </FilterToggleBtn>
+            )}
             {bulkAction && folderCounts[folder] > 0 && (
               <BulkAction type="button" $confirm={bulkConfirm} disabled={bulkBusy} title={bulkAction.label}
                 onClick={bulkConfirm ? doBulk : armBulk}>
@@ -2596,7 +2615,9 @@ const MailPage: React.FC = () => {
               </BulkCappedNote>
             )}
           </FilterToggleRow>
+          )}
         </ListControls>
+        )}
         {/* 스팸 탭 — 업체 스팸함에서 가져온 메일의 규칙을 짧게 알린다(기준·조건은 화면이 말한다). */}
         {folder === 'spam' && (
           <SpamProviderNote role="note" $inList data-testid="mail-spam-folder-note">
@@ -2627,7 +2648,7 @@ const MailPage: React.FC = () => {
           </LearnBar>
         )}
         {/* 계정(이메일주소) 선택 — 같은 줄. */}
-        {filtersOpen && accounts.length >= 1 && (
+        {showFilter && filtersOpen && accounts.length >= 1 && (
           <AcctFilterRow>
             <AcctSelectWrap>
               <PlanQSelect
@@ -2659,7 +2680,7 @@ const MailPage: React.FC = () => {
           </AcctFilterRow>
         )}
         {/* 마지막 줄 — 태그 + 프로젝트 필터. */}
-        {filtersOpen && (labelMaster.length > 0 || projectOpts.length > 0) && (
+        {showFilter && filtersOpen && (labelMaster.length > 0 || projectOpts.length > 0) && (
           <AcctFilterRow>
             {labelMaster.length > 0 && (
               <AcctSelectWrap>
@@ -2724,7 +2745,7 @@ const MailPage: React.FC = () => {
             </FaqSuggestBox>
           )}
           {errorMsg && <ErrorBar>{errorMsg}</ErrorBar>}
-          {folder === 'sent' && !addressMode && (
+          {showFilter && folder === 'sent' && !addressMode && (
             <SentViaBar data-testid="mail-sent-via">
               <SegmentedToggle role="tablist" aria-label={t('sentVia.label', { defaultValue: '보낸 곳' }) as string}>
                 {(['', 'planq', 'other'] as const).map((v) => (

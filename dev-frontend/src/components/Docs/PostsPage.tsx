@@ -20,6 +20,7 @@ import DocCommentsSection from './DocCommentsSection';
 import { useTabTitle } from '../../hooks/useTabTitle';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
 import SearchBox from '../Common/SearchBox';
+import { PhoneListSectionsMenu, usePhoneListSections } from '../Common/ListSectionsMenu';
 import HighlightText from '../Common/HighlightText';
 import MatchReason from '../Common/MatchReason';
 import PanelHeader, { PanelTitle, PanelSubTitle, BackChevron } from '../Layout/PanelHeader';
@@ -166,6 +167,11 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId, onEditingChange }) =>
   const [meta, setMeta] = useState<PostsMeta>({ total: 0, myCount: 0, categories: [], projects: [] });
   const [loading, setLoading] = useState(() => !hasCache(postsKey));
   const [query, setQuery] = useState('');
+  // 폰 목록 위 «보일 칸 고르기» — 검색칸·분류 칩을 각각 가린다(Irene 2026-11-18 «다른 곳에도 모바일에 있으면 좋은 거», 공용 ListSectionsMenu).
+  //   정렬·휴지통은 행위 버튼이라 검색칸을 가려도 남긴다.
+  const listSec = usePhoneListSections<'search' | 'category'>('planq:qdocs:listSections', { search: true, category: true });
+  const showSearch = listSec.shown('search');
+  const showCategory = listSec.shown('category');
   const [searchParams, setSearchParams] = useSearchParams();
   const [filter, setFilter] = useState<FilterSel>(() => {
     // 워크스페이스 scope 진입 시 ?project=:id 쿼리 → 그 프로젝트 필터 자동 선택
@@ -1989,6 +1995,8 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId, onEditingChange }) =>
             </HelpDot>
           </TitleGroup>
           <HeaderBtnRow>
+            <PhoneListSectionsMenu state={listSec} order={['search', 'category']} testId="docs-list-sections"
+              hiddenActive={(!showSearch && !!query.trim()) || (!showCategory && filter.kind !== 'all')} />
             {/* 고객은 문서를 만들지 않는다(서버 403) — 2026-11-03 첫 길 점검 · Fable */}
             {!isClientViewer && <>
             <AiActionButton
@@ -2030,11 +2038,13 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId, onEditingChange }) =>
         {/* 휴지통 — 검색줄 오른쪽 끝(Q file·Q info 와 같은 자리). ★ 2026-09-22 휴지통은 하나다(components/Trash).
             예전엔 필터 아래 얇은 줄의 «아이콘+글자» 링크였고 파일 휴지통은 글자 버튼이라 모양이 갈라져 있었다. */}
         <SearchWrap>
-          <SearchBox width="100%" value={query} onChange={setQuery} placeholder={t('search.placeholder', '제목·내용·프로젝트 검색') as string} />
+          {/* 검색칸을 가려도 첫 칸(flex:1)은 남겨 정렬·휴지통이 오른쪽 끝 자리를 지킨다 */}
+          {showSearch ? <SearchBox width="100%" value={query} onChange={setQuery} placeholder={t('search.placeholder', '제목·내용·프로젝트 검색') as string} /> : <span aria-hidden="true" />}
           <ListSortSelect variant="icon" data-testid="docs-sort" value={listSort} onChange={setListSort} />
           {!isClientViewer && <TrashButton active={trashOpen} data-testid="docs-trash-open" onClick={() => setTrashOpen(true)} />}
         </SearchWrap>
 
+        {showCategory && (
         <FilterSection>
           {/* 카테고리 — 전체 포함 */}
           <FilterGroupLabel>{t('filter.byCategory', '카테고리') as string}</FilterGroupLabel>
@@ -2150,6 +2160,7 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId, onEditingChange }) =>
             </>
           )}
         </FilterSection>
+        )}
 
         <RowList>
           {/* data-testid — 하니스가 "재진입에 또 로딩되는가" 를 판정하는 신호(CLAUDE.md §17) */}
