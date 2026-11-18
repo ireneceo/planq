@@ -20,7 +20,7 @@ const { matchMemberByName } = require('../services/aiTaskPlanner');
 const { todayInTz, addDaysStr } = require('../utils/datetime');
 const { correctWhenStart, calendarHint } = require('../services/relativeDate');
 const plan = require('../services/plan');
-const { CueUsage, Business, BusinessMember, User, Project, Client } = require('../models');
+const { CueUsage, Business, BusinessMember, User, Project, Client, TaskTag } = require('../models');
 // #458 — 결과를 Cue 와 같게: 같은 툴 카탈로그·멤버 로스터·제안 해석·확인 카드(CueActionCard)·실행 문(/api/cue/execute-action).
 //   음성 전용 분류기를 따로 키우면 Cue 와 결과가 갈라진다(Irene: "Cue랑 결과를 같게 가져올 수 없어?").
 const cueTools = require('../services/cue_tools');
@@ -109,8 +109,40 @@ async function voiceKeyterms(businessId) {
     projects.forEach((p) => add(p.name));
     const clients = await Client.findAll({ where: { business_id: businessId }, attributes: ['display_name', 'company_name'], order: [['updated_at', 'DESC']], limit: 15 });
     clients.forEach((c) => { add(c.display_name); add(c.company_name); });
+    // 업무 태그 — 업무 말에 자주 나오는 이 워크스페이스 고유 낱말(2026-11-18 «발음 인식이 안돼»). 사람·프로젝트·고객 다음 자리.
+    const tags = await TaskTag.findAll({ where: { business_id: businessId }, attributes: ['name'], order: [['updated_at', 'DESC']], limit: 15 });
+    tags.forEach((g) => add(g.name));
   } catch (e) { console.warn('[voice] keyterms', e.message); }
-  return [...out].slice(0, 50);
+  // 시험용 이름(«[확인용] …»)·기호뿐인 이름은 힌트가 아니라 잡음이다
+  return [...out].filter((s) => !/^\[/.test(s) && /[가-힣A-Za-z]/.test(s)).slice(0, 50);
+}
+
+// 이 워크스페이스 멤버 이름(표시명·계정 이름) — «요청 대상» 을 남길지 가를 때만 쓴다.
+//   [{ id, names }] — 모델이 고른 담당자가 말한 이름과 닮았는지 가를 때도 쓴다.
+async function memberNameList(businessId) {
+  try {
+    const bms = await BusinessMember.findAll({
+      where: { business_id: businessId, removed_at: null },
+      attributes: ['user_id', 'name', 'role'],
+      include: [{ model: User, as: 'user', attributes: ['name'] }],
+    });
+    return bms.filter((m) => m.role !== 'ai' && m.user_id)
+      .map((m) => ({ id: m.user_id, names: [m.name, m.user?.name].filter(Boolean).map(String) }));
+  } catch { return []; }
+}
+
+// 말한 이름 ↔ 멤버 이름이 «받아쓰기 오차» 안에서 닮았나 — 포함 관계이거나, 글자(음절) 하나 차이이거나, 절반 이상 같은 글자.
+//   실측: «루아님께 … 요청해줘» 에 모델이 전혀 다른 «이디자» 를 담당자로 골랐다(프롬프트의 «발음이 가장 가까운 이름» 이 너무 넓다).
+//   잘못 배정하면 남에게 알림이 간다 — 닮지 않았으면 담당자를 비우고 사람이 카드에서 고르게 한다.
+function namesLookAlike(spoken, name) {
+  const a = String(spoken || '').replace(/\s+/g, '').replace(/(님|씨)$/, '');
+  const b = String(name || '').replace(/\s+/g, '');
+  if (!a || !b) return false;
+  if (a === b || b.includes(a) || a.includes(b)) return true;
+  const A = [...a]; const B = [...b];
+  if (A.length === B.length && A.length >= 2 && A.filter((ch, i) => ch !== B[i]).length <= 1) return true;
+  const shared = A.filter((ch) => B.includes(ch)).length;
+  return A.length >= 2 && shared >= Math.ceil(A.length / 2);
 }
 
 // ── 제목에 남은 «업무 추가해» 류 명령 말 걷어내기 — 프롬프트만 믿지 않는다(모델이 가끔 그대로 둔다).
@@ -125,27 +157,69 @@ function cleanVoiceTitle(title) {
   t = t.replace(TAIL_CMD_RE, '').replace(/\s*(?:하는|할)\s*$/, '').trim();
   return t.length >= 2 ? t : orig;
 }
-function cleanCallTitle(tc) {
+// ── «누구에게 ~ 요청해줘» 꼴 — Irene 2026-11-18 «누구에게 요청 넣으라는데 이 문장을 그대로 넣어».
+//   실측(고치기 전): 제목 «경쟁사 비교표 요청» · 설명 «루아님께 경쟁사 비교표를 이번 주까지 요청» — 받는 사람이 볼 업무에
+//   시키는 사람의 명령 문장이 그대로 들어갔고, 멤버 목록에 없는 이름(루아)은 담당자도 못 되고 어디에도 안 남았다.
+//   → 제목 끝 «요청/부탁(하기)» 는 뗀다(받는 사람에게는 할 일이 제목이다) · 명령 문장을 되풀이한 설명은 버린다 ·
+//     못 찾은 이름은 설명 맨 앞 «요청 대상: OO» 로 남긴다(담당자는 사람이 카드에서 고른다).
+const REQ_TARGET_RE = /^\s*(?:(?:어+|음+|그+|저기?|뭐|아+|자)[\s,.…]+)*([가-힣A-Za-z][가-힣A-Za-z0-9]{0,11}?)\s*(?:님|씨)?\s*(?:께서?|에게|한테|더러)\s/;
+const REQ_VERB_RE = /(?:요청|부탁)\s*(?:좀\s*)?(?:해|하|드려|넣어|드리)|달라고|시켜|맡겨/;
+const TITLE_REQ_TAIL_RE = /\s*(?:(?:을|를)\s*)?(?:요청|부탁)\s*(?:하기|드리기|넣기)?\s*$/;
+function requestTargetName(text) {
+  const m = REQ_TARGET_RE.exec(String(text || ''));
+  if (!m || !REQ_VERB_RE.test(text)) return null;
+  return m[1];
+}
+function cleanCallTitle(tc, text = '', members = []) {
   if (tc?.function?.name !== 'create_task') return tc;
   let args;
   try { args = JSON.parse(tc.function.arguments || '{}'); } catch { return tc; }
   if (!args.title) return tc;
-  const title = cleanVoiceTitle(args.title);
-  if (title === args.title) return tc;
-  return { ...tc, function: { ...tc.function, arguments: JSON.stringify({ ...args, title }) } };
+  const next = { ...args, title: cleanVoiceTitle(args.title) };
+  const target = requestTargetName(text);
+  if (target) {
+    // 제목 앞 «OO님께/에게» · 끝 «요청» — 남는 말이 2자 이상일 때만(«요청» 자체가 업무 내용인 짧은 제목은 둔다)
+    const lead = new RegExp(`^${target.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*(?:님|씨)?\\s*(?:께서?|에게|한테|더러)\\s*`);
+    const stripped = next.title.replace(lead, '').replace(TITLE_REQ_TAIL_RE, '').trim();
+    if (stripped.length >= 2) next.title = stripped;
+    // 설명이 «OO님께 … 요청/부탁/달라고» 를 되풀이한 것뿐이면 버린다 — 말한 세부(색·수량 등)는 그 꼴이 아니라 남는다
+    const desc = String(next.description || '').trim();
+    if (desc && REQ_TARGET_RE.test(`${desc} `) && /요청|부탁|달라고|시켜|맡겨/.test(desc)) delete next.description;
+    // 담당자를 못 찾았으면 이름을 잃지 않게 설명 맨 앞에 남긴다
+    // 모델이 고른 담당자가 말한 이름과 닮지 않았으면 비운다(엉뚱한 사람에게 알림이 가지 않게)
+    if (next.assignee_user_id) {
+      const m = members.find((x) => Number(x.id) === Number(next.assignee_user_id));
+      if (!m || !m.names.some((n) => namesLookAlike(target, n))) delete next.assignee_user_id;
+    }
+    if (next.assignee_name && !namesLookAlike(target, next.assignee_name)) delete next.assignee_name;
+    const known = members.some((x) => x.names.some((n) => namesLookAlike(target, n)));
+    if (!next.assignee_user_id && !known) {
+      const lead = `요청 대상: ${target}`;
+      next.description = next.description ? `${lead}\n${next.description}` : lead;
+    }
+  }
+  if (JSON.stringify(next) === JSON.stringify(args)) return tc;
+  return { ...tc, function: { ...tc.function, arguments: JSON.stringify(next) } };
 }
 
 // ── Cue 와 같은 제안 — 만들 것이면 Cue 툴 하나를 고르게 하고, 아니면(메모·메일 답장) JSON 으로 종류만.
 //   한 번의 LLM 호출로 끝낸다(memory feedback_ai_minimal_usage). 모델도 Cue 와 같은 kb_answer.
 async function proposeLikeCue(text, businessId, userId = null, platformRole = null) {
+  const members = await memberNameList(businessId);
   const ctx = await cueTools.buildToolSystemContext(businessId, undefined, userId);
   const system = `너는 PlanQ 의 Cue 다. 사용자가 말로 한 요청을 받아쓴 문장을 읽고 무엇을 만들지 제안한다. 실행은 사람이 확인한 뒤에 한다.
 - 할 일·요청이면 create_task, 시각이 있는 약속·회의면 create_event, 회의록·제안서 같은 문서면 create_document 툴을(content 는 빈 문자열) **하나만** 호출한다.
   단 할 일을 **여러 개** 말했으면 말한 항목마다 create_task 를 하나씩 전부 부른다(합치거나 빼지 않는다 — 화면이 한 목록으로 묶는다).
   같은 일을 말을 바꿔 **다시 말한 것**(«앞치마 … 그리고 업무의 상품 추가, 앞치마»)은 여러 개가 아니다 — 하나로 만든다.
-- 받아쓴 문장이라 이름이 조금 틀렸을 수 있다 — [멤버] 목록에서 발음이 가장 가까운 이름으로 맞춘다. 확신이 없으면 assignee_name 을 비운다.
+- 받아쓴 문장이라 이름이 조금 틀렸을 수 있다 — [멤버] 목록에 **한두 글자만 다른** 이름이 있으면 그 이름으로 맞춘다(«이디지» → «이디자»).
+  글자가 거의 다른 이름(«루아» ↔ «이디자»)으로 바꾸지 않는다 — 그때는 assignee_name 에 **말한 이름 그대로** 넣는다(못 찾으면 사람이 고른다).
 - "누구에게 ~해 달라고 요청해줘 / 시켜줘 / 부탁해줘" 는 **업무**다(create_task, 그 사람이 담당). 메일이 아니다.
   그 이름이 [멤버] 목록에 없어도 **업무다** — assignee_name 만 비우고 create_task 를 호출한다(메모로 바꾸지 않는다).
+  ★ 이 업무는 **받는 사람이 읽는다** — title 은 그 사람이 할 일(«경쟁사 비교표 작성»)이다. «요청·부탁·요청하기» 를 제목에 붙이지 않는다.
+    «OO님께 … 요청해줘» 문장을 description 에 다시 쓰지 않는다(이름·요청 동사는 담당자·요청 표시가 맡는다). 말한 세부만 description 에.
+  ★ as_request: «요청해줘·부탁해줘·~해 달라고 해줘» 처럼 **요청·부탁을 직접 말했고** 담당자가 말한 사람 자신이 아니면 true. «시켜줘·맡겨줘·배정해줘» 는 넣지 않는다(배정 업무).
+  예) «루아님께 경쟁사 비교표 이번 주까지 요청해줘» → title «경쟁사 비교표 작성», assignee_name «루아», due_date 이번 주 금요일, as_request true, description 없음
+  예) «박개발한테 로그인 버그 확인 시켜줘» → title «로그인 버그 확인», assignee_name «박개발», description 없음
 - 메일(mail)은 "메일·답장·회신" 을 **직접 말했을 때만**이다.
 - 만들 것이 아니면(기록해 둘 사실·메모, 메일 답장·발송) 툴을 부르지 말고 아래 JSON 한 줄만 출력한다:
   {"kind":"memo"|"mail","title":"한 줄 제목","detail":"부가 설명"}
@@ -171,8 +245,15 @@ ${ctx}`;
   });
   const tokens = { input_tokens: r.input_tokens || 0, output_tokens: r.output_tokens || 0 };
   if (r.fallback) return { failed: true, ...tokens };
-  const calls = (Array.isArray(r.tool_calls) ? r.tool_calls : []).filter((tc) => VOICE_TOOLS.has(tc?.function?.name))
-    .map(cleanCallTitle);
+  let rawCalls = (Array.isArray(r.tool_calls) ? r.tool_calls : []).filter((tc) => VOICE_TOOLS.has(tc?.function?.name));
+  // «OO님께 ~ 요청해줘» 는 업무다(프롬프트에 적었지만 모델이 가끔 메모로 답한다 — 실측 10문장 중 2). 코드가 업무로 되돌린다.
+  //   메일을 직접 말했으면(메일·답장·회신) 그대로 둔다.
+  if (!rawCalls.length && requestTargetName(text) && !/메일|답장|회신/.test(text)) {
+    let title = text;
+    try { const m = String(r.content || '').match(/\{[\s\S]*\}/); const j = m ? JSON.parse(m[0]) : null; if (j?.title) title = String(j.title); } catch { /* 받아쓴 말 */ }
+    rawCalls = [{ type: 'function', function: { name: 'create_task', arguments: JSON.stringify({ title: title.slice(0, 200), as_request: true }) } }];
+  }
+  const calls = rawCalls.map((tc) => cleanCallTitle(tc, text, members));
   if (calls.length) {
     const proposed = await cueTools.buildProposedAction(businessId, calls, userId, platformRole);
     if (proposed) return { proposed_action: proposed, ...tokens };
@@ -309,6 +390,29 @@ async function resolveAssignee(assigneeName, businessId) {
   return { assignee_user_id: id, assignee_display_name: hit?.name || hit?.account_name || null };
 }
 
+// ── 받아쓴 말 → 제안(Cue 카드) 또는 옛 의도. 녹음(/capture)과 고친 문장 다시 해석(/interpret)이 같은 한 벌을 쓴다.
+async function interpretText(text, businessId, user) {
+  // #458 — Cue 와 같은 제안. 제안이 실패하면(LLM 오류) 아래 옛 분류로 떨어진다 — 받아쓴 말을 버리지 않는다.
+  if (CUE_TOOLS_ENABLED) {
+    const p = await proposeLikeCue(text, businessId, user.id, user.platform_role);
+    if (!p.failed) {
+      try { await recordVoiceUsage(businessId, p.input_tokens, p.output_tokens); } catch (e) { console.warn('[voice] usage', e.message); }
+      return { text, ...(p.proposed_action ? { proposed_action: p.proposed_action } : { intent: p.intent }) };
+    }
+  }
+  // 상대 날짜의 기준은 워크스페이스 타임존이다 (/api/tasks/ai-create 와 동일 규칙)
+  const biz = await Business.findByPk(businessId, { attributes: ['timezone'] });
+  const tz = biz?.timezone || 'Asia/Seoul';
+  const intent = await classifyIntent(text, { todayLocal: todayInTz(tz), tz });
+  // 지목된 이름 → 멤버 확정. 멤버 풀은 이 business_id 스코프라 타 워크스페이스 이름은 매칭되지 않는다.
+  const resolved = await resolveAssignee(intent.assignee_name, businessId);
+  intent.assignee_user_id = resolved.assignee_user_id;
+  // 미리보기 카드가 "누구로 해석됐는지" 를 보여줄 수 있게 확정된 표시명을 같이 준다 — 사용자가 확인 전에 오배정을 잡을 유일한 지점이다.
+  intent.assignee_display_name = resolved.assignee_display_name;
+  try { await recordVoiceUsage(businessId, intent.input_tokens || 0, intent.output_tokens || 0); } catch (e) { console.warn('[voice] usage', e.message); }
+  return { text, intent };
+}
+
 // ─────────────────────────────────────────────
 // POST /api/voice/capture — 오디오 → 전사 → 의도 (저장하지 않는다)
 //   multipart: audio (file), business_id, context(json, 선택)
@@ -340,38 +444,35 @@ router.post('/capture',
         return successResponse(res, { text: '', intent: null, empty: true });
       }
 
-      // #458 — Cue 와 같은 제안. 제안이 실패하면(LLM 오류) 아래 옛 분류로 떨어진다 — 받아쓴 말을 버리지 않는다.
-      if (CUE_TOOLS_ENABLED) {
-        const p = await proposeLikeCue(stt.text, businessId, req.user.id, req.user.platform_role);
-        if (!p.failed) {
-          try { await recordVoiceUsage(businessId, p.input_tokens, p.output_tokens); } catch (e) { console.warn('[voice] usage', e.message); }
-          return successResponse(res, {
-            text: stt.text,
-            ...(p.proposed_action ? { proposed_action: p.proposed_action } : { intent: p.intent }),
-          });
-        }
-      }
-
-      // 상대 날짜의 기준은 워크스페이스 타임존이다 (/api/tasks/ai-create 와 동일 규칙)
-      const biz = await Business.findByPk(businessId, { attributes: ['timezone'] });
-      const tz = biz?.timezone || 'Asia/Seoul';
-      const intent = await classifyIntent(stt.text, { todayLocal: todayInTz(tz), tz });
-
-      // 지목된 이름 → 멤버 확정. 멤버 풀은 이 business_id 스코프라 타 워크스페이스 이름은 매칭되지 않는다.
-      const resolved = await resolveAssignee(intent.assignee_name, businessId);
-      intent.assignee_user_id = resolved.assignee_user_id;
-      // 미리보기 카드가 "누구로 해석됐는지" 를 보여줄 수 있게 확정된 표시명을 같이 준다 —
-      //   사용자가 확인 전에 오배정을 잡을 유일한 지점이다.
-      intent.assignee_display_name = resolved.assignee_display_name;
-
-      // 사용량 기록 (cue_usage) — 실패해도 응답은 준다
-      try { await recordVoiceUsage(businessId, intent.input_tokens || 0, intent.output_tokens || 0); } catch (e) { console.warn('[voice] usage', e.message); }
-
-      return successResponse(res, { text: stt.text, intent });
+      return successResponse(res, await interpretText(stt.text, businessId, req.user));
     } catch (err) {
       if (err.code === 'LIMIT_FILE_SIZE') return errorResponse(res, 'audio_too_large', 413);
       next(err);
     }
+  }
+);
+
+// ─────────────────────────────────────────────
+// POST /api/voice/interpret — 받아쓴 문장을 사람이 고친 뒤 다시 해석 (오디오 없음 · 저장하지 않는다)
+//   Irene 2026-11-18 «발음 인식이 안돼» — 받아쓰기가 틀리면 여태 «다시 말하기» 뿐이었다. 고쳐서 다시 보낸다.
+//   body: { business_id, text } · 같은 가드(분·일 상한 + 멤버십 + plan.can) · 입력 1000자 캡.
+// ─────────────────────────────────────────────
+// audit-exempt: 아무것도 저장하지 않는 해석(제안만) — 실제 생성은 /api/cue/execute-action 이 감사한다
+router.post('/interpret',
+  authenticateToken,
+  ...voiceGuards,
+  checkBusinessAccess,
+  async (req, res, next) => {
+    try {
+      const businessId = Number(req.body.business_id);
+      if (!Number.isFinite(businessId)) return errorResponse(res, 'business_id required', 400);
+      const text = String(req.body.text || '').trim();
+      if (!text) return errorResponse(res, 'text required', 400);
+      if (text.length > 1000) return errorResponse(res, 'text_too_long', 413);
+      const can = await plan.can(businessId, 'use_cue');
+      if (!can.ok) return res.status(422).json(plan.buildQuotaError(can, businessId));
+      return successResponse(res, await interpretText(text, businessId, req.user));
+    } catch (err) { next(err); }
   }
 );
 
@@ -384,3 +485,6 @@ module.exports.resolveAssignee = resolveAssignee;
 module.exports.proposeLikeCue = proposeLikeCue;
 module.exports.voiceKeyterms = voiceKeyterms;
 module.exports.cleanVoiceTitle = cleanVoiceTitle;
+module.exports.cleanCallTitle = cleanCallTitle;
+module.exports.requestTargetName = requestTargetName;
+module.exports.namesLookAlike = namesLookAlike;

@@ -65,6 +65,9 @@ export default function VoiceCaptureSheet({ onClose }: Props) {
   const [result, setResult] = useState<CueActionResult | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // 받아쓴 문장 고치기 — 틀리게 들었으면 «다시 말하기» 말고 글로 고쳐 다시 해석(2026-11-18 Irene «발음 인식이 안돼»)
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState('');
 
   const recRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<BlobPart[]>([]);
@@ -81,6 +84,28 @@ export default function VoiceCaptureSheet({ onClose }: Props) {
     timerRef.current = null;
   };
 
+  // 서버 응답 → 미리보기. 녹음(/capture)과 고친 문장(/interpret)이 같은 한 벌.
+  const applyResult = useCallback((j: { success?: boolean; message?: string; data?: { empty?: boolean; text?: string; proposed_action?: CueProposal; intent?: Intent } }) => {
+    if (!j.success || !j.data) {
+      setErr(j.message === 'stt_unavailable'
+        ? t('voice.unavailable', { defaultValue: '음성 인식을 사용할 수 없어요. 잠시 후 다시 시도해 주세요.' }) as string
+        : t('voice.failed', { defaultValue: '인식하지 못했어요. 다시 말해 주세요.' }) as string);
+      setStage('error');
+      return;
+    }
+    if (j.data.empty || !j.data.text) {
+      setErr(t('voice.silent', { defaultValue: '들리지 않았어요. 다시 말해 주세요.' }) as string);
+      setStage('error');
+      return;
+    }
+    setText(j.data.text);
+    setProposal(j.data.proposed_action || null);
+    setIntent(j.data.proposed_action ? null : (j.data.intent || null));
+    setResult(null);
+    setEditing(false);
+    setStage('preview');
+  }, [t]);
+
   const send = useCallback(async (blob: Blob) => {
     if (!businessId) return;
     setStage('thinking');
@@ -89,29 +114,29 @@ export default function VoiceCaptureSheet({ onClose }: Props) {
       fd.append('audio', blob, `voice.${extForMime(blob.type || 'audio/webm')}`);
       fd.append('business_id', String(businessId));
       const r = await apiFetch('/api/voice/capture', { method: 'POST', body: fd });
-      const j = await r.json();
-      if (!j.success) {
-        setErr(j.message === 'stt_unavailable'
-          ? t('voice.unavailable', { defaultValue: '음성 인식을 사용할 수 없어요. 잠시 후 다시 시도해 주세요.' }) as string
-          : t('voice.failed', { defaultValue: '인식하지 못했어요. 다시 말해 주세요.' }) as string);
-        setStage('error');
-        return;
-      }
-      if (j.data.empty || !j.data.text) {
-        setErr(t('voice.silent', { defaultValue: '들리지 않았어요. 다시 말해 주세요.' }) as string);
-        setStage('error');
-        return;
-      }
-      setText(j.data.text);
-      setProposal(j.data.proposed_action || null);
-      setIntent(j.data.proposed_action ? null : j.data.intent);
-      setResult(null);
-      setStage('preview');
+      applyResult(await r.json());
     } catch {
       setErr(t('voice.failed', { defaultValue: '인식하지 못했어요. 다시 말해 주세요.' }) as string);
       setStage('error');
     }
-  }, [businessId, t]);
+  }, [businessId, t, applyResult]);
+
+  const reinterpret = useCallback(async () => {
+    const q = draft.trim();
+    if (!businessId || !q || busy) return;
+    setStage('thinking');
+    try {
+      const r = await apiFetch('/api/voice/interpret', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ business_id: businessId, text: q.slice(0, 1000) }),
+      });
+      applyResult(await r.json());
+    } catch {
+      setErr(t('voice.failed', { defaultValue: '인식하지 못했어요. 다시 말해 주세요.' }) as string);
+      setStage('error');
+    }
+  }, [businessId, draft, busy, applyResult, t]);
 
   const start = useCallback(async () => {
     setErr(null);
@@ -122,7 +147,14 @@ export default function VoiceCaptureSheet({ onClose }: Props) {
       return;
     }
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      // 잡음 제거·소리 크기 맞춤·단일 채널을 명시한다 — 브라우저 기본값에 맡기면 데스크탑 크롬은 일부가 꺼져
+      //   주변 소리·작은 목소리에서 받아쓰기가 흐트러진다(2026-11-18 «발음 인식이 안돼»). 못 맞추면 기본값으로 다시.
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 },
+      }).catch((e) => {
+        if ((e as { name?: string } | null)?.name === 'OverconstrainedError') return navigator.mediaDevices.getUserMedia({ audio: true });
+        throw e;
+      });
       const mime = pickAudioMime();
       const rec = mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream);
       chunksRef.current = [];
@@ -214,6 +246,30 @@ export default function VoiceCaptureSheet({ onClose }: Props) {
     } catch { return it.when_start || null; }
   };
 
+  const saidBlock = editing ? (
+    <SaidEdit>
+      {/* draft-exempt: 방금 받아쓴 문장을 그 자리에서 고치는 칸 — 시트를 닫으면 녹음도 끝난 것이라 남길 대상이 없다 */}
+      <SaidInput value={draft} onChange={(e) => setDraft(e.target.value)} rows={3} maxLength={1000} autoFocus
+        aria-label={t('voice.fixLabel', { defaultValue: '받아쓴 문장 고치기' }) as string} data-testid="voice-said-input" />
+      <Row>
+        <ActionButton tone="primary" size="sm" onClick={reinterpret} disabled={!draft.trim()} data-testid="voice-reinterpret">
+          {t('voice.reinterpret', { defaultValue: '이 문장으로 다시 보기' }) as string}
+        </ActionButton>
+        <ActionButton tone="secondary" size="sm" onClick={() => setEditing(false)}>
+          {t('voice.fixCancel', { defaultValue: '그대로 두기' }) as string}
+        </ActionButton>
+      </Row>
+    </SaidEdit>
+  ) : (
+    <SaidRow>
+      <Said>“{text}”</Said>
+      <FixBtn type="button" data-testid="voice-said-fix" onClick={() => { setDraft(text); setEditing(true); }}
+        title={t('voice.fixHint', { defaultValue: '잘못 들었으면 고쳐서 다시 볼 수 있어요' }) as string}>
+        {t('voice.fix', { defaultValue: '고치기' }) as string}
+      </FixBtn>
+    </SaidRow>
+  );
+
   const kindLabel = (k: Kind) => t(`voice.kind.${k}`, {
     defaultValue: { task: '업무', event: '일정', memo: '메모', mail: '메일 답장' }[k],
   }) as string;
@@ -273,10 +329,11 @@ export default function VoiceCaptureSheet({ onClose }: Props) {
 
         {stage === 'preview' && proposal && (
           <Body $left>
-            <Said>“{text}”</Said>
+            {saidBlock}
             {isTaskBatch(proposal) ? (
               /* 업무를 여럿 말했으면 그 한 장이 업무 목록이다(D4 «카드 한 장» 유지 — Fable 2026-10-12 (다)) */
               <CueTaskBatch
+                key={text}
                 proposal={proposal}
                 businessId={businessId}
                 onDone={(r) => { setResult(r); setStage('done'); }}
@@ -284,6 +341,7 @@ export default function VoiceCaptureSheet({ onClose }: Props) {
               />
             ) : (
               <CueActionCard
+                key={text}
                 proposal={proposal}
                 businessId={businessId}
                 onExecuted={(r) => { setResult(r); setStage('done'); }}
@@ -316,7 +374,7 @@ export default function VoiceCaptureSheet({ onClose }: Props) {
         )}
         {stage === 'preview' && !proposal && intent && (
           <Body $left>
-            <Said>“{text}”</Said>
+            {saidBlock}
             <Card>
               <KindChip $kind={intent.kind}>{kindLabel(intent.kind)}</KindChip>
               <CardTitle>{intent.title}</CardTitle>
@@ -417,6 +475,26 @@ const ErrText = styled.div`font-size: 0.8125rem; color: #B45309; text-align: cen
 const Said = styled.div`
   font-size: 0.8125rem; color: #475569; line-height: 1.6;
   padding: 10px 12px; background: #F8FAFC; border-radius: 10px;
+`;
+const SaidRow = styled.div`
+  display: flex; align-items: flex-start; gap: 6px;
+  & > :first-child { flex: 1; min-width: 0; }
+`;
+const FixBtn = styled.button`
+  flex-shrink: 0; height: 32px; padding: 0 10px; border-radius: 8px;
+  border: 1px solid #E2E8F0; background: #fff; color: #475569;
+  font-size: 0.75rem; font-weight: 600; cursor: pointer; font-family: inherit;
+  &:hover { border-color: #14B8A6; color: #0F766E; }
+  &:focus-visible { outline: 2px solid #5EEAD4; outline-offset: 2px; }
+  @media (max-width: 640px) { min-height: 40px; }
+`;
+const SaidEdit = styled.div`display: flex; flex-direction: column; gap: 8px;`;
+const SaidInput = styled.textarea`
+  width: 100%; box-sizing: border-box; resize: vertical;
+  padding: 10px 12px; border: 1px solid #CBD5E1; border-radius: 10px;
+  font-size: 0.875rem; line-height: 1.6; color: #0F172A; font-family: inherit;
+  &:focus { outline: none; border-color: #14B8A6; box-shadow: 0 0 0 3px rgba(20,184,166,0.12); }
+  @media (max-width: 640px) { font-size: 1rem; }
 `;
 const Card = styled.div`
   display: flex; flex-direction: column; gap: 6px;

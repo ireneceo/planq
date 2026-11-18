@@ -553,7 +553,8 @@
       "status": "Status",
       "assignee": "Assignee",
       "priority_level": "Priority",
-      "project": "Project"
+      "project": "Project",
+      "as_request": "Send as a request — they need my sign-off to finish"
     },
     "opt": {
       "low": "Low",
@@ -1577,7 +1578,12 @@
     },
     "noMic": "No microphone was found on this device. Connect one, or type your request to Cue instead.",
     "micBusy": "Another app is using the microphone. Close it and try again.",
-    "again": "Say another"
+    "again": "Say another",
+    "fix": "Edit",
+    "fixHint": "Misheard? Fix the text and check again",
+    "fixLabel": "Edit the transcript",
+    "reinterpret": "Check again with this text",
+    "fixCancel": "Keep as is"
   },
   "apitoken": {
     "title": "API tokens (integrations)",

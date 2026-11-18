@@ -226,7 +226,8 @@ async function clientLabels(businessId, ids) {
 }
 const LONG_TEXT = new Set(['description', 'content', 'note', 'body']);
 const EXTRA_EDITABLE = {
-  create_task: ['due_date', 'assignee_user_id', 'reviewer_user_ids', 'description'],
+  // as_request — «요청하기» 를 카드에 늘 보인다(2026-11-18 음성 «누구에게 요청해줘»: 모델이 넣었을 때만 칸이 생겨 요청/배정을 사람이 못 바꿨다)
+  create_task: ['due_date', 'assignee_user_id', 'as_request', 'reviewer_user_ids', 'description'],
   create_event: ['location', 'description'],
 };
 
