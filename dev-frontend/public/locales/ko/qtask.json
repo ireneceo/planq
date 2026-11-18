@@ -264,6 +264,7 @@
     "reqBtn": "요청 추가",
     "modeGroup": "업무 종류",
     "modeTask": "내 업무",
+    "modeTaskPlain": "업무",
     "modeRequest": "요청하기",
     "assignee": "담당자",
     "assigneeDefault": "담당자: 나",

@@ -95,6 +95,18 @@ const EXTERNAL_FROM = ['in_progress', 'reviewing', 'revision_requested', 'extern
 const BODY_EDIT_STATUSES = ['not_started', 'waiting', 'in_progress', 'revision_requested', 'on_hold'];
 function canEditBodyInStatus(status) { return BODY_EDIT_STATUSES.includes(status); }
 
+// 컨펌자 대기 중 «완료» 금지 — 술어 한 벌 (2026-11-18, Irene «권고대로» · Fable 설계 docs/TASK_REQUEST_INTENT_DESIGN.md §4-8).
+//   컨펌자가 ≥1 이면 완료는 컨펌 정책 충족(승인완료 done_feedback)을 지나야 한다. 이미 completed 인 업무의 재저장은 통과.
+//   여태 task_actions.complete(체크박스)만 막고 PUT 상태 드롭다운은 열려 있어, 담당자가 «완료» 를 고르면
+//   컨펌자가 pending 인 채로 닫혔다(dev 실측 200). 막히는 사람은 전원 — 닫는 길은 승인 또는 컨펌자 빼기(이력 남음).
+//   컨펌 자동 전이(recalcStatusFromReviewers)는 이 문을 지나지 않는다.
+const COMPLETE_OK_FROM = ['done_feedback', 'completed'];
+async function completionBlockedByReview(taskId, fromStatus, transaction) {
+  if (COMPLETE_OK_FROM.includes(fromStatus)) return false;
+  const count = await TaskReviewer.count({ where: { task_id: taskId }, transaction });
+  return count > 0;
+}
+
 // opts: { fromStatus, transaction }
 //   fromStatus 를 넘기면 on_hold/external_review 진입 가능 여부까지 검사한다.
 //   넘기지 않으면 from 검사는 건너뛴다 (호출부가 이미 상태를 확정한 경우).
@@ -110,6 +122,14 @@ async function canEnterStatus(taskId, toStatus, opts = {}) {
   if (toStatus === 'external_review') {
     if (fromStatus && !EXTERNAL_FROM.includes(fromStatus)) {
       return { ok: false, reason: 'external_review_from_active_only' };
+    }
+    return { ok: true };
+  }
+
+  if (toStatus === 'completed') {
+    // fromStatus 를 모르면 막지 않는다(호출부가 상태를 확정한 경우) — 사람·AI 경로는 전부 fromStatus 를 넘긴다.
+    if (fromStatus && await completionBlockedByReview(taskId, fromStatus, transaction)) {
+      return { ok: false, reason: 'not_ready_for_complete' };
     }
     return { ok: true };
   }
@@ -337,6 +357,7 @@ module.exports = {
   getIO,
   broadcastTask,
   canEnterStatus,
+  completionBlockedByReview,
   canEditBodyInStatus,
   BODY_EDIT_STATUSES,
   submitForReview,

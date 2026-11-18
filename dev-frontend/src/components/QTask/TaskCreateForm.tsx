@@ -69,7 +69,8 @@ export interface TaskCreateFormProps {
   mode?: 'task' | 'request';
   /** 폼 안에서 [내 업무 | 요청하기] 를 바꿀 수 있게 한다 — `mode` 는 첫 값이 된다.
    *  Irene 2026-10-20: *"업무추가할 때 요청하기로 바꾸는 거 쉽게 할 수 없을까? … 요청하기라고 해도 업무추가랑 같은 형국이잖아."*
-   *  요청인지는 서버가 «담당자 ≠ 나» 로만 가른다(isInternalRequest) — 바뀌는 것은 화면(담당자 필수·나 제외·예측시간 숨김)뿐이다. */
+   *  ★ 2026-11-18 (Irene «권고대로» · Fable docs/TASK_REQUEST_INTENT_DESIGN.md §4) — 요청은 **이 토글의 뜻**으로 정한다(`as_request`).
+   *    «업무» 모드에서 남을 담당으로 넣으면 요청이 아닌 배정 업무(자동 컨펌·확인 단계 없음). 그래서 토글은 모든 폼에 보인다(기본 true). */
   allowModeSwitch?: boolean;
   /** 내 업무(오늘·이번 주·전체) — 담당자는 무조건 나 */
   assigneeFixedToMe?: boolean;
@@ -99,7 +100,7 @@ export interface TaskCreateFormProps {
 }
 
 const TaskCreateForm: React.FC<TaskCreateFormProps> = ({
-  businessId, layout = 'drawer', mode = 'task', allowModeSwitch = false, assigneeFixedToMe = false,
+  businessId, layout = 'drawer', mode = 'task', allowModeSwitch = true, assigneeFixedToMe = false,
   fixedProjectId = null, fixedClientId = null, workstreams,
   createDefaults = null, initial = null, initialNonce = 0,
   draftKind, draftId = null,
@@ -358,6 +359,8 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({
           workstream_id: workstreamId,
           // 고객 맥락에서 연 폼이면 그 고객의 업무가 된다 — 서버가 워크스페이스 소속을 확인한다
           client_id: fixedClientId,
+          // «요청하기» 뜻 — 서버는 이 값 ∧ 담당자 ≠ 나 일 때만 요청으로 저장한다(자동 컨펌자·확인 단계). 아니면 배정 업무.
+          as_request: isRequest && assignedToOther,
           // 남에게 요청할 때만 긴급을 싣는다 — 내 업무로 바꾼 뒤 남은 토글 값이 «중요도 긴급» 으로 새지 않게
           ...(assignedToOther && urgent ? { priority_level: 'urgent' } : {}),
           ...(canPickSecurity ? { vlevel: vis.vlevel, target_member_ids: vis.target_member_ids, security_level: securityLevel } : {}),
@@ -455,7 +458,7 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({
         <ModeRow>
           <SegmentedToggle role="group" aria-label={t('add.modeGroup', '업무 종류') as string}>
             <SegmentedBtn type="button" data-testid="task-add-mode-task" $active={!isRequest} aria-pressed={!isRequest}
-              onClick={() => switchMode('task')}>{t('add.modeTask', '내 업무')}</SegmentedBtn>
+              onClick={() => switchMode('task')}>{assigneeFixedToMe ? t('add.modeTask', '내 업무') : t('add.modeTaskPlain', '업무')}</SegmentedBtn>
             <SegmentedBtn type="button" data-testid="task-add-mode-request" $active={isRequest} aria-pressed={isRequest}
               onClick={() => switchMode('request')}>{t('add.modeRequest', '요청하기')}</SegmentedBtn>
           </SegmentedToggle>

@@ -342,7 +342,8 @@ router.post('/', authenticateToken, async (req, res, next) => { // audit-exempt:
   try {
     const { business_id, project_id, title, description, assignee_id, due_date,
       estimated_hours, category, source_message_id, conversation_id, planned_week_start, start_date,
-      cue_kind, cue_context_ref, recurrence_rule, workstream_id, client_id, security_level, vlevel, target_member_ids, priority_level } = req.body;
+      cue_kind, cue_context_ref, recurrence_rule, workstream_id, client_id, security_level, vlevel, target_member_ids, priority_level,
+      as_request } = req.body;
 
     // 생성은 행동 계층 단일 착지점을 지난다 (services/actions/task_actions.js).
     //   권한·요청자 자동 컨펌자·Cue 실행·socket·알림·감사가 전부 그 안에서 일어난다 — Cue 도 같은 문.
@@ -358,6 +359,8 @@ router.post('/', authenticateToken, async (req, res, next) => { // audit-exempt:
       securityLevel: security_level, vlevel, targetMemberIds: target_member_ids,
       // 중요도 — 추가 폼의 «긴급 요청»(2026-10-15). 값 검사는 행동 계층(PRIORITY_LEVELS)이 한다.
       priorityLevel: priority_level,
+      // «요청하기» 뜻 — 폼 «요청하기» 모드만 true 를 싣는다(2026-11-18 Fable §4-6). 없으면 배정 업무(옛 번들 포함, §4-11).
+      asRequest: as_request === true,
     }, { autoAiEstimate: true });
     if (!result.ok) return errorResponse(res, result.code, result.http || 400);
 
@@ -2365,7 +2368,8 @@ router.get('/context', authenticateToken, async (req, res, next) => {
       ...baseWhere,
       [Op.and]: [
         ...baseWhere[Op.and],
-        { [Op.or]: [{ request_by_user_id: req.user.id }, { created_by: req.user.id }] },
+        // 요청 = request_by 하나(2026-11-18 Fable §4-7 — 만들어 남에게 배정한 일반 업무는 요청이 아니다)
+        { request_by_user_id: req.user.id },
         { assignee_id: { [Op.and]: [{ [Op.ne]: null }, { [Op.ne]: req.user.id }] } },
       ],
     };

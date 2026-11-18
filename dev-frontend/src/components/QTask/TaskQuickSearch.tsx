@@ -84,7 +84,8 @@ const TaskQuickSearch: React.FC<Props> = ({ bizId, myId, todayStr, members, onOp
 
   const relation = (h: Hit): string => {
     if (h.assignee_id === myId) return t('quickSearch.rel.mine', '내 담당') as string;
-    if (h.request_by_user_id === myId || h.created_by === myId) return t('quickSearch.rel.requested', '내가 요청') as string;
+    // «내가 요청» 은 요청(request_by)만 — 내가 만들어 남에게 배정한 업무는 다른 사람 담당(2026-11-18 Fable §4-7)
+    if (h.request_by_user_id === myId) return t('quickSearch.rel.requested', '내가 요청') as string;
     return t('quickSearch.rel.others', '다른 사람') as string;
   };
 

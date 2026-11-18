@@ -216,6 +216,7 @@
     "reqBtn": "Add request",
     "modeGroup": "Task type",
     "modeTask": "My task",
+    "modeTaskPlain": "Task",
     "modeRequest": "Request",
     "assignee": "Assignee",
     "assigneeDefault": "Assignee: me",

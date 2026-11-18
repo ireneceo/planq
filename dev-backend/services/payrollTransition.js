@@ -536,7 +536,8 @@ async function ensureTransferTasks(businessId, runId, actorId, req) {
   const created = [];
   const toCreate = entries.filter((e) => !e.transfer_task_id && Number(e.net_total) !== 0);
   if (!toCreate.length) return { ok: true, data: { created } };
-  const base = { businessId, assigneeId: assignee, dueDate: payDate, vlevel: 'L1', securityLevel: 'confidential' };
+  // asRequest — 송금 업무는 지금처럼 요청(만든 사람이 컨펌)으로 남긴다(2026-11-18 Fable §4-6 명시 true).
+  const base = { businessId, assigneeId: assignee, dueDate: payDate, vlevel: 'L1', securityLevel: 'confidential', asRequest: true };
   if (run.transfer_task_mode === 'single') {
     const lines = toCreate.map((e) => `- ${e.display_name}: ${fmtAmount(e.net_total, e.currency)}${e.bank_name_snapshot ? ` · ${e.bank_name_snapshot}` : ''}`);
     const r = await createTask(actor, {

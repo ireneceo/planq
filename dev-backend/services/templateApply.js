@@ -151,7 +151,8 @@ async function applyTemplate({ templateId, businessId, projectId = null, startDa
     const item = items[i];
     const { start_date: start, due_date: due } = sched.rows[i];
     const assigneeId = resolveAssignee(item.role_hint, assigneeMap, members) || actorUserId;
-    const isInternalRequest = assigneeId !== actorUserId;
+    // 템플릿으로 일정을 짜는 것은 «요청하기» 가 아니다 — 남에게 넣어도 배정 업무(2026-11-18 Fable §4-6).
+    //   옛: 담당자 ≠ 만든 사람이면 요청으로 저장하면서 자동 컨펌자는 안 붙여 createTask 와 갈라져 있었다.
     // 프로젝트 없이 넣으면 «프로젝트 범위»(L2)가 성립하지 않는다 — 워크스페이스(L3)로(넓히는 게 아니라 그 범위의 최소).
     const vlevel = ['L2', 'L3', 'L4'].includes(item.vlevel) ? (item.vlevel === 'L2' && !projectId ? 'L3' : item.vlevel) : 'L3';
     // 반복은 마감일이 첫 회차다 — 날짜 없는 항목에는 걸지 않는다.
@@ -184,8 +185,8 @@ async function applyTemplate({ templateId, businessId, projectId = null, startDa
       due_date: due,
       estimated_hours: item.estimated_hours ? Number(item.estimated_hours) : null,
       created_by: actorUserId,
-      source: isInternalRequest ? 'internal_request' : 'manual',
-      request_by_user_id: isInternalRequest ? actorUserId : null,
+      source: 'manual',
+      request_by_user_id: null,
     });
 
     if (item.estimated_hours) {

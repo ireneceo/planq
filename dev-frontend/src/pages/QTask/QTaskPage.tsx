@@ -1007,7 +1007,7 @@ const QTaskPage:React.FC=()=>{
     businessId: Number(bizId),
     mode: (tab==='requested' ? 'request' : 'task') as 'request'|'task',
     // 내 업무 화면에서는 폼 안에서 [내 업무 | 요청하기] 를 바꾼다 — 요청하려고 탭을 옮겨 다시 열 필요가 없다
-    allowModeSwitch: scope==='mine',
+    allowModeSwitch: true,   // 2026-11-18 — 요청은 토글의 뜻으로 정한다(모든 폼에 토글, Fable §4-6)
     // 내 업무(오늘·이번 주·전체)에서 만든 업무는 담당자가 나다
     assigneeFixedToMe: scope==='mine'&&(tab==='week'||tab==='today'||tab==='all'),
     createDefaults: tabCreateDefaults,
@@ -1281,7 +1281,8 @@ const QTaskPage:React.FC=()=>{
         list=list.filter(t=>inWeekCanonical(t,!hideCompletedInWeek));
       }
       if(tab==='all')list=list.filter(t=>t.assignee_id===myId||(t.reviewers||[]).some(rv=>rv.user_id===myId));
-      if(tab==='requested')list=list.filter(t=>(t.request_by_user_id===myId)||(t.created_by===myId&&t.assignee_id!=null&&t.assignee_id!==myId));
+      // «요청하기» 탭 = 내가 요청한 것만(request_by). 내가 만들어 남에게 배정한 일반 업무는 요청이 아니다(2026-11-18 Fable §4-7).
+      if(tab==='requested')list=list.filter(t=>t.request_by_user_id===myId);
       // 참조(2026-10-27) — 내 할 일이 아니라 알아야 하는 업무. 오늘·이번 주·배지에는 넣지 않는다(Fable 설계 판정)
       if(tab==='watching')list=list.filter(t=>(t.watchers||[]).some(w=>w.user_id===myId));
     }
@@ -1550,7 +1551,7 @@ const QTaskPage:React.FC=()=>{
       // 내 전체업무 탭 목록과 같은 술어 (담당자=나 또는 내가 컨펌자)
       all: allTasks.filter(t=>isOpen(t)&&(t.assignee_id===myId||(t.reviewers||[]).some(rv=>rv.user_id===myId))).length,
       // 요청하기 탭 목록과 같은 술어 (내가 의뢰했거나, 내가 만들어 남에게 맡긴 것)
-      requested: allTasks.filter(t=>isOpen(t)&&((t.request_by_user_id===myId)||(t.created_by===myId&&t.assignee_id!=null&&t.assignee_id!==myId))).length,
+      requested: allTasks.filter(t=>isOpen(t)&&t.request_by_user_id===myId).length,   // 위 탭 목록과 같은 술어(2026-11-18)
     };
   },[allTasks,scope,inWeekCanonical,todayStr,myId,wsTz,isOpen]);
 

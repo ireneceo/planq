@@ -64,7 +64,7 @@ const TOOLS = [
   },
   {
     name: 'create_task', risk: 'LOW', write: true, scopes: ['tasks:write'],
-    description: 'Create one new task in PlanQ. Only adds — never edits or deletes existing data. If assignee_user_id is omitted, the task is assigned to the user themselves (a project\'s default assignee is not applied). To give it to a colleague, pass their user_id from search_members. If the task comes from a mail thread or chat you read, pass source — the task is then linked to it (and inherits the thread\'s client/project when you give none).',
+    description: 'Create one new task in PlanQ. Only adds — never edits or deletes existing data. If assignee_user_id is omitted, the task is assigned to the user themselves (a project\'s default assignee is not applied). To give it to a colleague, pass their user_id from search_members — by default it becomes their plain assigned task (they are notified and can finish it themselves). Pass as_request: true only when the user explicitly asks to REQUEST it from that colleague: then the user automatically becomes a reviewer and the colleague must get the user\'s sign-off before it is complete. The result says is_request. If the task comes from a mail thread or chat you read, pass source — the task is then linked to it (and inherits the thread\'s client/project when you give none).',
     input: {
       title: z.string().trim().min(1).max(300),
       description: z.string().max(5000).optional(),
@@ -80,10 +80,13 @@ const TOOLS = [
       estimated_hours: z.number().min(0).max(1000).optional()
         .describe('Estimated hours. Only when the task is assigned to the user themselves — omitted assignee counts (the assignee sets the estimate).'),
       source: z.union([mailSource, chatSource]).optional().describe(SOURCE_DESC),
+      // 2026-11-18 (Fable 설계 docs/TASK_REQUEST_INTENT_DESIGN.md §4-6) — 미리보기 없는 길이 조용히 컨펌 의무를 만들지 않게 기본 false.
+      as_request: z.boolean().optional()
+        .describe('true only when the user explicitly asks to request this from the assignee (요청하기). Then the user becomes a reviewer automatically and the task needs their sign-off. Default false = a plain assigned task. Ignored when the user is the assignee.'),
       completed: z.boolean().optional().describe('true only when recording work that is ALREADY finished ("add it as done"). Completion only applies when the user is the assignee and no reviewer sign-off is needed; otherwise the task is just created. Cannot be combined with reviewer_user_ids.'),
       // 2026-10-12 (Fable 설계 D1) — 만들면서 컨펌자까지. 있으면 알림이 나가므로 MEDIUM(확인 2단계)
       reviewer_user_ids: z.array(z.number().int().positive()).max(10).optional()
-        .describe('Reviewers who must sign off (user_id from search_members). Each is notified. Not the assignee. When the task is assigned to someone else, the user is already a reviewer automatically. Adding reviewers requires confirmation: the first call only returns a preview naming them.'),
+        .describe('Reviewers who must sign off (user_id from search_members). Each is notified. Not the assignee. With as_request: true the user is already a reviewer automatically. Adding reviewers requires confirmation: the first call only returns a preview naming them.'),
       confirmation_token: confirm, idempotency_key: idem,
     },
     riskOf: (a) => ((a.reviewer_user_ids || []).length ? 'MEDIUM' : 'LOW'),

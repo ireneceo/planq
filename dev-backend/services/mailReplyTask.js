@@ -98,6 +98,8 @@ async function assignReply({ actor, businessId, thread, account, userId }) {
     emailThreadId: thread.id,
     sourceEmailMessageId: thread.last_inbound_message_id || null,
     createdVia: 'mail_reply',
+    // 남에게 맡긴 메일 답변은 지금처럼 요청이다(2026-11-18 Fable §4-6 — 명시 true. 기본은 배정 업무).
+    asRequest: true,
     // 개인 메일 계정 = «나만 보기»(개인 메일 제목이 팀 업무 목록에 나가지 않게). 담당도 주인뿐이다(위 canSeeAccount).
     ...(account.owner_user_id ? { vlevel: 'L1' } : {}),
   };

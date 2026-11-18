@@ -74,3 +74,11 @@ paths:
 > `myWeekWhere`(목록·우선순위 정본)에만 넣고 `myAssignedWeekWhere`(보고서·today_review)·summary·그래프에는 넣지 않는다. 기본 정렬 맨 위. 정본 `docs/WORK_FLOW_DESIGN.md §5`.
 > ★ **단 «미래 전용»(날짜가 전부 다음 주 이후) 요청은 빼고, 확인 뒤 진행대기(waiting)도 미래 전용이면 뺀다** (2026-11-17, Irene «1월 달건데 리스트에 다 나와» · Fable decision B) —
 > 서버 `weekTaskSet.notFutureOnly` · 프론트 `todayTaskSet.isFutureOnly` 한 벌. 확인필요 ① 술어는 그대로.
+
+> **«요청» 은 만든 사람의 뜻으로 정한다 (2026-11-18, Irene «프로젝트 일정 짜느라 업무를 다 추가하면 … 다 요청으로 들어가» → «권고대로» B · Fable 설계 `docs/TASK_REQUEST_INTENT_DESIGN.md` §4)**
+> - 요청 = `(as_request === true ∨ 만든 사람이 고객) ∧ 담당자 ≠ 만든 사람` — `task_actions.createTask` 의 `isRequest`. 남을 담당으로 넣었지만 요청이 아니면 **배정 업무**
+>   (source manual · request_by NULL · 자동 컨펌자·확인 단계 없음 · 담당자 배정 알림은 감 · 예측시간은 담당자 몫이라 버림 = `assignedToOther`).
+> - 길별: 폼 «요청하기» 모드만 `as_request:true`(토글은 모든 업무 추가 폼에, 기본 «업무») · AI 업무추가 확정·후보 등록·템플릿·옛 번들 = 배정 · 외부 AI 앱·Cue `create_task` 는 `as_request`(기본 false, 결과 `is_request`) · 메일 답변·급여 송금 = 명시 true.
+> - «요청하기» 탭·숫자·통합 검색 «내가 요청»·작업대 요청 목록 = `request_by_user_id === 나` 하나. 권한용 isRequester(작성자 = 의뢰자)·완료/보류 알림(`request_by || created_by`)은 그대로.
+> - **컨펌자 대기 중 «완료» 금지** — `taskTransition.completionBlockedByReview`(컨펌자 ≥1 ∧ 상태 ∉ {done_feedback, completed}) 한 벌을 `complete()`·`canEnterStatus(…,'completed')`(PUT 드롭다운)·revert 가 같이 쓴다. 막히는 사람 전원. 프론트 `statusOptionsFor` 같은 술어. 옛날엔 드롭다운으로 컨펌을 건너뛰고 닫혔다(dev 실측 200).
+> - 이미 들어간 요청 → 배정: `node scripts/convert-requests-to-assigned.js --business <id> --creator <user_id>`(읽기만 기본 · `--apply` 장부 · `--revert <장부>`), 판정 `services/taskRequestConvert` 한 곳. 운영은 Irene 승인 뒤.

@@ -88,6 +88,7 @@ export const STATUS_COLOR: Record<StatusCode, { bg: string; fg: string }> = {
 //
 //   · waiting(진행대기) 은 DB ENUM 정식 값 — 리스트/뱃지에 노출되므로 드롭다운도 일관 포함
 //   · reviewing/revision_requested 는 컨펌자 0명이면 제외 (사이클 N+6, 백엔드 no_reviewers_assigned 400 과 미러)
+//   · completed 는 컨펌자가 있고 승인완료 전이면 제외 (2026-11-18, 백엔드 not_ready_for_complete 400 과 미러)
 //   · #206 on_hold 는 항상 포함 (어느 단계에서든 보류 가능)
 //   · #206 external_review 는 in_progress 계열에서만 (백엔드 canEnterStatus 진입 매트릭스와 미러)
 //   최종 방어는 언제나 백엔드 — 여기는 UI 노출 정책일 뿐이다.
@@ -100,6 +101,11 @@ export function statusOptionsFor(
     'reviewing', 'revision_requested', 'on_hold', 'completed', 'canceled',
   ];
   if (!hasReviewers) opts = opts.filter(s => s !== 'reviewing' && s !== 'revision_requested');
+  // 컨펌자 대기 중 «완료» 금지 — 서버 taskTransition.completionBlockedByReview 와 같은 술어(2026-11-18 Fable §4-8).
+  //   컨펌자가 있으면 완료는 승인완료(done_feedback)를 지나야 한다. 이미 완료된 업무는 그대로 보인다.
+  if (hasReviewers && !['done_feedback', 'completed'].includes(task.status || '')) {
+    opts = opts.filter(s => s !== 'completed');
+  }
   if (!['in_progress', 'external_review'].includes(task.status || '')) {
     opts = opts.filter(s => s !== 'external_review');
   }

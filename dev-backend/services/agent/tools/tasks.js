@@ -292,7 +292,8 @@ async function checkNewTaskReviewers(p, a) {
   const assignee = a.assignee_user_id ? Number(a.assignee_user_id) : p.userId;
   const reviewers = []; const skipped = [];
   for (const uid of want) {
-    if (uid === p.userId && assignee !== p.userId) { skipped.push({ user_id: uid, reason: 'requester_auto_reviewer' }); continue; }
+    // 요청(as_request)이면 행동 계층이 사용자를 자동 컨펌자로 넣는다 — 그때만 뺀다(2026-11-18 — 배정 업무에선 직접 넣은 그대로).
+    if (uid === p.userId && assignee !== p.userId && a.as_request === true) { skipped.push({ user_id: uid, reason: 'requester_auto_reviewer' }); continue; }
     if (uid === assignee) throw err('VALIDATION_ERROR', 'assignee_cannot_be_reviewer', { user_id: uid });
     const chk = await assertAssignable(uid, p.businessId, a.project_id || null);
     if (!chk.ok) throw err('PERMISSION_DENIED', `cannot_assign:${chk.reason}`, { user_id: uid });
@@ -359,6 +360,8 @@ async function createTask(p, a, actor) {
     priorityLevel: a.priority || null,
     workstreamId: a.workstream_id != null ? a.workstream_id : null,   // 추진과제 — 행동 계층이 «그 프로젝트 것» 인지 본다
     createdVia: viaOf(p),
+    // «요청하기» 뜻 — 사용자가 요청을 말했을 때만(기본 배정 업무, Fable §4-6). 본인 담당이면 행동 계층이 무시한다.
+    asRequest: a.as_request === true,
     ...(src && src.kind === 'mail' ? { emailThreadId: src.thread.id, sourceEmailMessageId: src.messageId } : {}),
     ...(src && src.kind === 'chat' ? { conversationId: src.conversation.id } : {}),
   }, { autoAiEstimate: false });
@@ -369,6 +372,7 @@ async function createTask(p, a, actor) {
   const extras = await taskExtras(p, t, scope);
   const out = { task: { ...item, source: extras.source, tags: a.tag_names && a.tag_names.length ? await tagNamesOf(p, t.id) : undefined }, created: true };
   if (!a.assignee_user_id) out.assigned_to = 'user (default)';
+  out.is_request = !!t.request_by_user_id;
   // 컨펌자 — 업무가 생긴 뒤 화면·add_task_reviewers 와 같은 addReviewer 로 한 명씩(자기 트랜잭션·알림·broadcast 를 가진다 —
   //   묶어 롤백해도 알림은 이미 나가므로 묶지 않는다). 실패는 업무를 되돌리지 않고 reviewers_failed 로 말한다.
   if (rv.reviewers.length || rv.skipped.length) {

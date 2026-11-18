@@ -26,7 +26,7 @@ const {
 const { assertAssignable, getUserScope, canAccessTask, isMemberOrAbove } = require('../../middleware/access_scope');
 const { syncFocusOnTaskStatus } = require('../focusSync');
 const {
-  broadcastTask, canEnterStatus, submitForReview, cancelReview: cancelReviewTransition, getIO, canEditBodyInStatus,
+  broadcastTask, canEnterStatus, completionBlockedByReview, submitForReview, cancelReview: cancelReviewTransition, getIO, canEditBodyInStatus,
 } = require('../taskTransition');
 
 // 저장 한도 — description 은 TEXT(64KB **바이트**)라 글자 수가 아니라 바이트로 본다(한글 2만 자 = 6만 바이트).
@@ -714,6 +714,11 @@ async function pickProjectAssignee(projectId, businessId, subjectId) {
  *   autoReviewerIsClient — 요청자 자동 컨펌자의 is_client 값 (POST 는 실값, 나머지는 false)
  *   autoReviewer — false 면 요청 업무여도 요청자 자동 컨펌자를 붙이지 않는다(메일 답변 업무만 — services/mailReplyTask)
  *   skipCueExecute     — Cue 자동 실행 트리거 억제
+ *
+ * params.asRequest — «요청하기» 뜻(2026-11-18, Irene «권고대로» · Fable 설계 docs/TASK_REQUEST_INTENT_DESIGN.md §4).
+ *   요청 = (asRequest === true ∨ 만든 사람이 고객) ∧ 담당자 ≠ 만든 사람. 그 밖에 남을 담당으로 넣은 것은 **배정 업무**
+ *   (source manual · request_by NULL · 자동 컨펌자 없음 · 확인 단계 없음 — 담당자에게 배정 알림은 간다).
+ *   기본은 false — 지금 동작을 지킬 길(메일 답변·급여 송금)만 명시 true.
  */
 async function createTask(actor, params = {}, opts = {}) {
   const subj = await resolveSubject(actor);
@@ -798,13 +803,19 @@ async function createTask(actor, params = {}, opts = {}) {
     finalAssignee = subjectId;   // 책임 주체는 사람
   }
 
-  // 미배정 업무는 '요청' 이 아니다 — source·request_by 도, 자동 컨펌자도 붙지 않는다 (옛 `finalAssignee && ...` 가드)
-  const isInternalRequest = !!finalAssignee && Number(finalAssignee) !== Number(subjectId);
+  // 술어 둘 (Fable §4-2) — 옛 isInternalRequest 하나가 다섯 가지 일을 했다.
+  //   assignedToOther : 남이 담당 → 담당자 알림 · 예측시간(담당자의 캐파)
+  //   isRequest       : «요청하기» 뜻 ∧ 남이 담당 → source·request_by·자동 컨펌자·긴급 알림·확인 단계
+  //   고객은 토글이 없고 자기에게 배정할 수 없으므로(위 780) 언제나 요청이다.
+  //   미배정 업무는 둘 다 아니다(옛 `finalAssignee && ...` 가드).
+  const assignedToOther = !!finalAssignee && Number(finalAssignee) !== Number(subjectId);
+  const isRequest = assignedToOther && (params.asRequest === true || isClient);
   const assigneeIsCue = cueUserId && Number(finalAssignee) === Number(cueUserId);
 
   // PERMISSION_MATRIX §5.7 — 남에게 요청하는 업무의 예측시간은 요청자가 정하지 않는다
   //   (담당자가 ack 후 본인 캐파에 맞춰 정한다). 단 담당=Cue 면 예외 — AI 에겐 캐파 협상이 없다.
-  const keepEstimate = !isInternalRequest || (opts.keepEstimateForCue && assigneeIsCue);
+  //   ★ 2026-11-18 — 요청이 아닌 배정 업무도 같다(«담당자만 입력» 은 뜻이 아니라 담당자가 누구냐의 문제, Fable §4-5).
+  const keepEstimate = !assignedToOther || (opts.keepEstimateForCue && assigneeIsCue);
   const effectiveEstimatedHours = keepEstimate ? (params.estimatedHours || null) : null;
 
   // ★ 반복설정은 담당자와 무관하게 살린다 (2026-10-12 Irene: *"왜 내가 담당자가 아니면 반복하기 기능을
@@ -814,7 +825,7 @@ async function createTask(actor, params = {}, opts = {}) {
   //   주기를 고칠 수도 없어 «아무도 못 정하는» 상태였다.
   // sanitizeRRule 이 정규화한 값으로 아래에서 덮어쓴다(대문자·RRULE: 접두 제거) → let.
   let effectiveRecurrenceRule = params.recurrenceRule || null;
-  if (isInternalRequest && params.estimatedHours && !keepEstimate) {
+  if (assignedToOther && params.estimatedHours && !keepEstimate) {
     console.warn(`[createTask] requester=${subjectId} assignee=${finalAssignee} — 예측시간 sanitize (책임선 분리)`);
   }
 
@@ -915,11 +926,11 @@ async function createTask(actor, params = {}, opts = {}) {
       body: params.body || undefined,
       progress_percent: params.progressPercent || undefined,
       created_by: subjectId,
-      source: isInternalRequest ? 'internal_request' : (params.source || 'manual'),
+      source: isRequest ? 'internal_request' : (params.source || 'manual'),
       created_via: params.createdVia || null,   // provenance 표시 전용(예: 'cue'). source·권한 무관.
       //   ★ 외부 AI 앱(MCP 에이전트)이 만든 것은 'agent' — 옛: null 이라 화면이 사람이 만든 것과 구분 못 했다(0-J).
       ...(params.createdVia ? {} : (actor?.channel?.kind === 'agent' ? { created_via: 'agent' } : {})),
-      request_by_user_id: isInternalRequest ? subjectId : null,
+      request_by_user_id: isRequest ? subjectId : null,
       cue_kind: params.cueKind || null,
       cue_context_ref: params.cueContextRef || null,
       recurrence_rule: effectiveRecurrenceRule,
@@ -934,7 +945,7 @@ async function createTask(actor, params = {}, opts = {}) {
     //   (책임선 = 권한선 — 발주자가 결과물 컨펌 권한을 가진다)
     //   ★ opts.autoReviewer === false 는 그 결과물이 곧 «보낸 것» 인 업무만 — 메일 답변 업무(services/mailReplyTask):
     //     보낸 답장 뒤의 컨펌은 뜻 없는 단계라 담당자가 답장하면 닫힌다(Fable 2026-10-22 결정). 요청자에게는 완료 알림이 간다.
-    if (isInternalRequest && opts.autoReviewer !== false) {
+    if (isRequest && opts.autoReviewer !== false) {
       await TaskReviewer.findOrCreate({
         where: { task_id: task.id, user_id: subjectId },
         defaults: {
@@ -980,17 +991,17 @@ async function createTask(actor, params = {}, opts = {}) {
   //    외부 트랜잭션이면 그쪽이 커밋할 때 실행되도록 afterCommit 에 건다. 안 그러면 아직 없는 업무로
   //    알림이 나가거나(롤백 시 유령 알림), 롤백된 업무를 화면에 그린다.
   const fire = () => afterCreate({
-    task, businessId, projectId, subjectId, actor, isInternalRequest,
+    task, businessId, projectId, subjectId, actor, isRequest, assignedToOther,
     cueUserId, biz, opts, params,
   }).catch((e) => console.warn('[createTask afterCreate]', e.message));
   if (external) t.afterCommit(fire); else fire();
 
   // 응답 형태는 라우트가 고른다 — 경로마다 다르다 (bare task / includes 붙은 fullJson).
-  return done({ task, businessId, projectId, isInternalRequest });
+  return done({ task, businessId, projectId, isRequest, assignedToOther });
 }
 
 // 생성 직후 부수효과 — socket · 알림 · 감사 · Cue 실행 · AI 예측
-async function afterCreate({ task, businessId, projectId, subjectId, actor, isInternalRequest, cueUserId, biz, opts, params }) {
+async function afterCreate({ task, businessId, projectId, subjectId, actor, isRequest, assignedToOther, cueUserId, biz, opts, params }) {
   const io = getIO();
   const full = await Task.findByPk(task.id, {
     include: [
@@ -1013,12 +1024,13 @@ async function afterCreate({ task, businessId, projectId, subjectId, actor, isIn
 
   // 알림 — 담당자 ≠ 생성자 일 때만 (본인이 본인에게 만든 업무는 noise)
   //   긴급으로 만든 요청이면 «[긴급]» 강조 알림 하나로 대신한다(services/urgentTaskNotify).
-  const urgentSent = isInternalRequest && task.assignee_id
+  //   ★ 2026-11-18 — 배정 업무(요청 아님)도 담당자는 알아야 한다 → 알림 조건은 assignedToOther. 긴급 강조는 요청만(Fable §4-4).
+  const urgentSent = isRequest && task.assignee_id
     ? await require('../urgentTaskNotify').notifyUrgentRequest(task, {
       actorUserId: actor.userId, wsName: biz?.brand_name || biz?.name || null,
     }).catch(() => false)
     : false;
-  if (isInternalRequest && task.assignee_id && !urgentSent) {
+  if (assignedToOther && task.assignee_id && !urgentSent) {
     const { notify } = require('../../routes/notifications');
     const { buildTitle, recipientLang } = require('../notifyTitle');
     notify({
@@ -1413,13 +1425,13 @@ async function complete(task, actor) {
   // #206 — 보류 중 완료 우회 금지 (submitReview 와 같은 이유)
   if (task.status === 'on_hold') return fail('task_on_hold');
 
-  const reviewerCount = await TaskReviewer.count({ where: { task_id: task.id } });
   // 컨펌자가 있으면 완료는 컨펌 정책 충족으로만 일어난다 (recalcStatusFromReviewers 가 자동 전이).
   //   담당자가 이 라우트로 컨펌을 건너뛸 수 없다.
   // ★ 2026-09-12 — 단, **승인완료(done_feedback)** 는 이미 컨펌을 통과한 단계다.
   //   그 마무리는 담당자가 누른다(Irene: "그냥 완료처리 하더라도 멘트 보고 하던지").
   //   이 예외가 없으면 새 단계가 **아무도 닫을 수 없는 막다른 길**이 된다.
-  if (reviewerCount > 0 && task.status !== 'done_feedback') return fail('not_ready_for_complete');
+  // ★ 2026-11-18 — 술어는 taskTransition.completionBlockedByReview 한 벌(PUT 상태 드롭다운·revert 와 같다).
+  if (await completionBlockedByReview(task.id, task.status)) return fail('not_ready_for_complete');
 
   const fromStatus = task.status;
   const t = await sequelize.transaction();
@@ -1760,7 +1772,8 @@ async function revertStatus(task, actor) {
   const fromStatus = task.status;
   const target = last.from_status;
   // 검토 단계 진입 가드 — 규칙은 taskTransition.canEnterStatus 단일 원천 (사람·AI 공통)
-  const gate = await canEnterStatus(task.id, target);
+  // fromStatus 를 넘긴다 — 컨펌자 있는 업무를 «완료» 로 되돌리는 것도 막힌다(2026-11-18 Fable §4-8, 의도).
+  const gate = await canEnterStatus(task.id, target, { fromStatus });
   if (!gate.ok) return fail(gate.reason);
 
   // #206 R5 — revert 로 on_hold 에 재진입하면 hold_prev_status 가 비어 resume 이 fallback 으로만 간다.
