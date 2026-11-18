@@ -30,6 +30,8 @@ echo "$(date '+%Y-%m-%d %H:%M:%S') - Starting PlanQ dev DB backup..." >> $LOG_FI
 # 데이터베이스 백업 (압축)
 BACKUP_FILE="$BACKUP_DIR/daily/dev_db_${DATE}.sql.gz"
 
+# 오늘 사본은 바로 덮어쓰지 않는다 (2026-11-18 — 상황판 «지금 백업» 으로 하루 두 번 돌 수 있음).
+# '.part' 에 쓰고 덤프 성공 + 크기 0 아님 + gzip -t 통과일 때만 mv 로 바꿔 넣는다 — 도중 실패해도 오늘의 좋은 사본은 그대로.
 mysqldump -u $DB_USER -p$DB_PASS \
   --single-transaction \
   --quick \
@@ -37,14 +39,19 @@ mysqldump -u $DB_USER -p$DB_PASS \
   --routines \
   --triggers \
   --no-tablespaces \
-  $DB_NAME | gzip > $BACKUP_FILE
+  $DB_NAME | gzip > "$BACKUP_FILE.part"
+RCS=("${PIPESTATUS[@]}")
+DUMP_RC=${RCS[0]}
+GZIP_RC=${RCS[1]}
 
 # 백업 성공 여부 확인
-if [ $? -eq 0 ] && [ -s $BACKUP_FILE ]; then
+if [ "$DUMP_RC" -eq 0 ] && [ "$GZIP_RC" -eq 0 ] && [ -s "$BACKUP_FILE.part" ] && gzip -t "$BACKUP_FILE.part" 2>/dev/null; then
+    mv -f "$BACKUP_FILE.part" "$BACKUP_FILE"
     BACKUP_SIZE=$(du -h $BACKUP_FILE | cut -f1)
     echo "$(date '+%Y-%m-%d %H:%M:%S') - OK Backup successful: $BACKUP_FILE ($BACKUP_SIZE)" >> $LOG_FILE
 else
-    echo "$(date '+%Y-%m-%d %H:%M:%S') - FAIL Backup failed!" >> $LOG_FILE
+    rm -f "$BACKUP_FILE.part"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') - FAIL Backup failed! (mysqldump=$DUMP_RC gzip=$GZIP_RC) — 기존 사본은 그대로" >> $LOG_FILE
     exit 1
 fi
 

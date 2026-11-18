@@ -1,4 +1,10 @@
 ## 현재 작업 상태
+### ✅ 개발서버 DB 백업 — 오늘 사본을 '.part' 로 쓰고 검사 통과 때만 바꿔 넣기 (방 b05db5a4 · 2026-11-18 · [Opus] · Fable 안 씀 — 개발서버 cron 스크립트 작은 수정)
+- 왜: 상황판 «지금 백업» 으로 하루 두 번 돌 수 있어 `gzip > 오늘파일` 이 도중 실패하면 오늘의 좋은 사본이 깨짐(서버 방 Fable 설계 검토 ⑤)
+- `scripts/backup-planq-dev-db.sh`: `.part` 에 쓰고 mysqldump·gzip 종료값 0 + 크기 0 아님 + `gzip -t` 통과 → `mv`. 실패면 `.part` 지우고 FAIL 줄(종료값 같이). 운영 보냄·14일 보관·«Cross-backup sent» 줄 그대로. 덤: 옛 `$?` 는 gzip 종료값만 봐서 덤프 실패를 놓쳤음
+- 실측: 없는 DB 로 실패시킴 → rc 1 · FAIL(mysqldump=2 gzip=0) · .part 없음 · 오늘 사본 md5 그대로 / 진짜 실행 → rc 0 · 212M · gzip -t 통과 · 끝 줄 «Dump completed» · «OK Cross-backup sent» 로그
+- 운영 반영: 없음(개발서버 cron 용)
+
 ### ✅ 데스크탑 앱 1.1.0 — 회의 소리 녹음·Store 제출본 + 윈도우 시험판 운영 /desktop/ 게시 (방 1150159e · 2026-11-18 · [Opus] · Fable 완료 검증 1차 FAIL 1건 → 2차 PASS)
 - 게시됨(Irene 이 이 방에서 publish.sh): https://planq.kr/desktop/latest.yml version 1.1.0 · exe 200 · sha512 로컬과 일치 · 공개 버튼 숨김 그대로(has_windows false) — 직접 링크 https://planq.kr/desktop/PlanQ-Setup-1.1.0.exe
 - 무엇: `desktop/dist/prod/PlanQ-Setup-1.1.0.exe`(운영 출처·무서명 NSIS·check PASS)를 Irene 이 이 방에서 `! bash desktop/scripts/publish.sh desktop/dist/prod` 로 올림. 왜: 이 방은 운영 접속이 막혀 있다(권한 거부). 공개 버튼은 그대로 숨김(app_windows_url 비어 있음) — 직접 링크로 윈도우 PC 시험(회의 소리 녹음·트레이·알림·planq:// 로그인).
