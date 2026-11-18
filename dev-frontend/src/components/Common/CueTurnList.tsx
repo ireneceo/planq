@@ -92,6 +92,11 @@ export default function CueTurnList({
                       {t('qhelper.action.reviewersFailed', { count: act.result.reviewers_failed, defaultValue: `컨펌자 ${act.result.reviewers_failed}명은 넣지 못했어요 — 업무 상세에서 추가해 주세요.` })}
                     </ActionNote>
                   )}
+                  {!!act.result.watchers_failed && (
+                    <ActionNote>
+                      {t('qhelper.action.watchersFailed', { count: act.result.watchers_failed, defaultValue: `참조 ${act.result.watchers_failed}명은 넣지 못했어요 — 업무 상세에서 추가해 주세요.` })}
+                    </ActionNote>
+                  )}
                   {/* #237 — 업무는 만들었지만 '완료' 까지는 못 간 경우. 조용히 넘기면 완료된 줄 안다. */}
                   {act.result.completed_skipped && (
                     <ActionNote>

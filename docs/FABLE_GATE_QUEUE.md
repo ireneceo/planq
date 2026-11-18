@@ -1,6 +1,13 @@
 # Fable 게이트 대기열 → **판정 기록 보관소** (2026-10-08 부터)
 
 
+### 2026-11-18 방 2ebcdfac — AI 연결 «참조(watcher)» 표면 — 설계 **DESIGN-READY** · 완료 검증 **PASS**
+- Irene: «클로드가 업무를 추가해줬는데 참조에 이름을 넣을 수가 없어. 왜 이래? 원래 되는데 클로드가 난한거야?»
+- 원인: 화면 참조 칸은 정상. AI 도구 create_task 에 컨펌자만 있고 참조 입력·도구·get_task 명단이 없었다.
+- 설계: create_task.watcher_user_ids · add_task_watchers(MEDIUM) · get_task.watchers · 판정 한 벌 `task_actions.checkWatcherCandidate`(assertAssignable 금지 — 고객 통과) · 이미 이름 박힌 사람 skip · 자격 미달 만들기 전 거절 · series_scope 없음 · scope tasks:write · Cue 에 add 만.
+- 판정 A(설계 변경): **빼기 도구 없음** — 남의 볼 권한 회수 = HIGH «권한», 가드 `remove_` 우선. 이름 바꾸기·가드 예외는 Irene 정책 결정 뒤에만.
+- Fable 독립 실호출 20/21(1건 = 검증관 기대값 오류) · 차단 0. 비차단 반영: Cue 결과 줄 watchers_added/failed · 설계서 «앱 알림 + 메일». 남김: 전원 skip 인 create_task 도 확인 1번 더 묻는 것(해 없음).
+
 ### 2026-11-18 방 2f57448e — 음성·Cue 확인 카드 → 표준 폼 [자세히 편집] — 설계 **DESIGN-READY**
 - Irene: «생성되는 항목들이 지금 업그레이드 된 폼들이 아닌 것 같아. 모든 업무 일정 등등 등록 폼들 다 체크 좀 해줘.»
 - 판정: ② 카드는 두고 `CueActionCard` 한 곳에 [자세히 편집](create_task·create_event만) — 음성 시트·도움말·전역 검색·CuePanelSection 이 같이 바뀜. ①은 #458·한 번 누르기를 버림, ③은 두 벌.

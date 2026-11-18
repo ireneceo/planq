@@ -328,6 +328,7 @@
       "notifiedN": "참석자 {{count}}명에게 알렸어요",
       "now": "지금",
       "reviewersFailed": "컨펌자 {{count}}명은 넣지 못했어요 — 업무 상세에서 추가해 주세요.",
+      "watchersFailed": "참조 {{count}}명은 넣지 못했어요 — 업무 상세에서 추가해 주세요.",
       "editInForm": "자세히 편집",
       "handed": "폼에서 이어서 작성 중이에요",
       "reopenForm": "폼 다시 열기",
@@ -438,6 +439,7 @@
       "submit_review": "검토 요청",
       "add_task_note": "업무 댓글",
       "add_task_reviewers": "컨펌자 지정",
+      "add_task_watchers": "참조 추가",
       "move_task_to_project": "업무 프로젝트 이동",
       "create_event": "일정 추가",
       "update_event": "일정 수정",
@@ -464,6 +466,7 @@
       "submit_review": "검토 요청 보내기",
       "add_task_note": "댓글 남기기",
       "add_task_reviewers": "컨펌자 지정",
+      "add_task_watchers": "참조 추가",
       "move_task_to_project": "옮기기",
       "create_event": "＋ 일정 추가",
       "update_event": "바꾸기",
@@ -491,6 +494,7 @@
       "submit_review": "검토 요청을 보냈어요",
       "add_task_note": "댓글을 남겼어요",
       "add_task_reviewers": "컨펌자를 지정했어요",
+      "add_task_watchers": "참조를 추가했어요",
       "move_task_to_project": "업무를 옮겼어요",
       "create_event": "일정을 추가했어요",
       "update_event": "일정을 바꿨어요",
@@ -524,6 +528,7 @@
       "content": "내용",
       "visibility": "공개 범위",
       "reviewer_user_ids": "컨펌자",
+      "watcher_user_ids": "참조",
       "kind": "종류",
       "direction": "방향",
       "occurred_at": "일시",
@@ -612,7 +617,8 @@
       "clients_see": "이 고객은 바로 프로젝트를 보게 돼요: {{names}}",
       "meet_replaces": "지금 있는 화상회의 링크를 새것으로 바꿔요",
       "reviewer_requester_auto": "요청한 분(나)은 자동으로 컨펌자가 돼요",
-      "reviewers_notified": "컨펌자 {{count}}명에게 알림이 가요"
+      "reviewers_notified": "컨펌자 {{count}}명에게 알림이 가요",
+      "watchers_notified": "참조 알림이 가고 이 업무를 볼 수 있게 돼요: {{names}}"
     }
   },
   "cue": {

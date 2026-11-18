@@ -46,6 +46,9 @@ paths:
   이미 쓰던 새 메일 초안이 있으면 CONFLICT(덮지 않음) · 링크 `/mail?compose=1` · 서명은 보낼 때 `emailSend` 가 그 주소대로. **실제 발송(B)은 Irene 정책 승인 + Fable 설계 1회 뒤에만** —
   열 때 최소선: 새 scope `mail:send`(재동의) · 별도 킬스위치 · 미리보기에 From·받는 사람·서명 적용 본문 · 사람이 화면에서 보낼 수 있는 계정만 · 받는 사람 수·시간당 한도 · `sent_via='agent'` · 설계서 §7·가드 `send_*` 규칙을 같은 커밋에서 · 첫 범위는 답장만.
   앱 안 Cue 허용목록(`cue_tools.js`)에는 넣지 않았다(요청 범위 = 외부 AI 앱). Fable 비차단: `account_id` 명시 시 비활성 공용 계정도 받음(사람 경로와 같은 집합) · 서명 없는 공용 계정이면 맺음 이름이 메일함 이름 — B 설계 때 같이 정한다.
+- **업무 참조(watcher)(2026-11-18, Irene «클로드가 업무를 추가해줬는데 참조에 이름을 넣을 수가 없어» · Fable 설계)** — `create_task.watcher_user_ids` · `add_task_watchers`(MEDIUM) · `get_task.watchers`. 참조 = 알림 + 그 업무 볼 권한(숨은·나만 보기 업무도) → 확인 2단계.
+  자격 판정은 **`task_actions.checkWatcherCandidate` 한 벌**(화면 addWatcher·미리보기·만들기 전) — 내부 멤버만. `assertAssignable` 로 바꾸지 않는다(고객이 통과 — 양성 대조군 실측). 이미 이름 박힌 사람은 skip 보고. 반복 시리즈 인자 없음(이 업무 한 건).
+  추가는 앱 알림 + 메일(화면과 같은 `notifyTask`). **빼기는 화면에서만** — 남의 볼 권한 회수 = HIGH «권한»(2026-11-18 Fable 판정 A). 이름을 바꾸거나 가드 예외로 열지 않는다 — 필요하면 Irene 정책 결정 먼저.
 - **HIGH(삭제·청구·발송·권한·대량)는 도구로 두지 않는다** — 가드 `--category=agentsurface` 가 막는다(도메인 모델 직접 쓰기 0 · 재무 참조 0 · 고위험 이름 0 · 쓰기 도구 scope·멱등 선언 · 워크스페이스 묶음).
 - **켜는 스위치**: `.env` `AGENT_ENABLED=1` + `AGENT_TOKEN_SECRET`(JWT_SECRET 과 **다른 값**, 32자 이상). 없으면 `/agent/*` 404. **쓰기 도구는 `AGENT_WRITE_ENABLED=1` 이 있어야 켜진다**(기본 꺼짐 — `config.writeEnabled`). 2026-10-04 운영에 셋 다 넣었다.
 - **nginx**: `location /agent/` · `location /.well-known/oauth-` → `127.0.0.1:3005`. 운영 스키마 `scripts/migrate-agent-oauth.js`(멱등, 배포 슬롯).

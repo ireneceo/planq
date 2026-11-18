@@ -32,7 +32,7 @@ const { MAX_CONFIRM_CANDIDATES } = require('./aiTaskPlanner');
 //   읽기: 찾기·상세 — 루프가 부른다. get_context 는 프롬프트에 이미 같은 값이 들어간다.
 const CUE_WRITE = [
   'create_task', 'update_task', 'reschedule_task', 'complete_task', 'assign_task', 'submit_review', 'add_task_note',
-  'add_task_reviewers', 'move_task_to_project',
+  'add_task_reviewers', 'add_task_watchers', 'move_task_to_project',
   'create_event', 'update_event', 'add_meeting_to_event', 'reschedule_events',
   'create_document', 'append_to_document', 'update_document', 'link_documents', 'move_document_to_project',
   'create_project', 'create_memo', 'add_project_note', 'add_client_interaction', 'create_knowledge_item',
@@ -170,7 +170,7 @@ async function buildToolSystemContext(businessId, todayIso, askerId = null) {
     // 2026-10-12 실측: «회의록 문서 초안 만들어줘» 에 도구 대신 채팅에 마크다운을 써 주고 «복붙해서 새 문서로» 라고 했다.
     //   할 수 있는 일을 «못 한다/직접 하라» 로 답하지 않게 — 요청 동사 → 도구 지도를 준다.
     + `[할 수 있는 일] «만들어/남겨/등록해/추가해/바꿔/옮겨/연결해» 요청은 글로 대신 써 주거나 «직접 하세요» 라고 하지 말고 맞는 쓰기 도구로 카드를 낸다(내용이 필요하면 도구 인자에 넣는다):\n`
-    + `업무 만들기 create_task · 업무 수정(제목·설명·태그·분류·예상시간) update_task(설명·결과물은 통째로 바뀐다 — «설명에 추가해줘» 면 get_task 의 기존 설명 끝에 새 내용을 이어 붙인 전체를 보낸다) · 마감 reschedule_task · 담당 assign_task · 완료 complete_task · 검토 요청 submit_review · 컨펌자 add_task_reviewers · 업무 메모 add_task_note · 업무 프로젝트 옮기기 move_task_to_project · `
+    + `업무 만들기 create_task · 업무 수정(제목·설명·태그·분류·예상시간) update_task(설명·결과물은 통째로 바뀐다 — «설명에 추가해줘» 면 get_task 의 기존 설명 끝에 새 내용을 이어 붙인 전체를 보낸다) · 마감 reschedule_task · 담당 assign_task · 완료 complete_task · 검토 요청 submit_review · 컨펌자 add_task_reviewers · 참조(알아야 할 사람 — 승인 의무 없음) add_task_watchers 또는 create_task 의 watcher_user_ids · 업무 메모 add_task_note · 업무 프로젝트 옮기기 move_task_to_project · `
     + `일정 만들기 create_event · 일정 수정 update_event · 여러 일정 옮기기 reschedule_events · 화상회의 추가 add_meeting_to_event · `
     + `문서(회의록·초안·보고서) create_document · 문서에 덧붙이기 append_to_document · 문서 고치기 update_document · 문서 연결 link_documents · 문서 프로젝트 옮기기 move_document_to_project · `
     + `프로젝트 만들기 create_project · 프로젝트 메모 add_project_note · Q note 메모(회의·개인 메모) create_memo · Q info 항목(계정·연락처·가격·규정·체크리스트처럼 다시 꺼내 쓰는 정보) create_knowledge_item · 고객 상담 기록 add_client_interaction · 메일 답장 초안 create_mail_reply_draft(보내지는 않는다).\n`
@@ -205,7 +205,7 @@ async function buildEventEditContext(businessId, userId, platformRole, text) {
 //   필드 종류는 레지스트리 zod 에서 읽는다(도구별 손그림 없음). id 대상(task_id·event_id…)은 편집 불가.
 // ─────────────────────────────────────────────
 const TARGET_KEYS = { task_id: 'task', event_id: 'event', project_id: 'project', client_id: 'client', document_id: 'document', thread_id: 'mail' };
-const MEMBER_KEYS = new Set(['assignee_user_id', 'attendee_user_ids', 'reviewer_user_ids', 'member_user_ids', 'default_assignee_user_id']);
+const MEMBER_KEYS = new Set(['assignee_user_id', 'attendee_user_ids', 'reviewer_user_ids', 'watcher_user_ids', 'member_user_ids', 'default_assignee_user_id']);
 const CLIENT_KEYS = new Set(['client_ids', 'attendee_client_ids']);
 
 /** 카드의 멤버 고르기 목록 — 이 워크스페이스의 사람 멤버(고객·AI 제외). */
@@ -227,7 +227,7 @@ async function clientLabels(businessId, ids) {
 const LONG_TEXT = new Set(['description', 'content', 'note', 'body']);
 const EXTRA_EDITABLE = {
   // as_request — «요청하기» 를 카드에 늘 보인다(2026-11-18 음성 «누구에게 요청해줘»: 모델이 넣었을 때만 칸이 생겨 요청/배정을 사람이 못 바꿨다)
-  create_task: ['due_date', 'assignee_user_id', 'as_request', 'reviewer_user_ids', 'description'],
+  create_task: ['due_date', 'assignee_user_id', 'as_request', 'reviewer_user_ids', 'watcher_user_ids', 'description'],
   create_event: ['location', 'description'],
 };
 
@@ -283,6 +283,7 @@ function notesOf(preview) {
   if (preview.meeting?.replaces_existing) out.push({ key: 'meet_replaces' });
   if ((preview.reviewers_skipped || []).some((x) => x.reason === 'requester_auto_reviewer')) out.push({ key: 'reviewer_requester_auto' });
   if (Array.isArray(preview.add_reviewers) && preview.add_reviewers.length) out.push({ key: 'reviewers_notified', count: preview.add_reviewers.length });
+  if (Array.isArray(preview.add_watchers) && preview.add_watchers.length) out.push({ key: 'watchers_notified', names: preview.add_watchers.map((w) => w.name).slice(0, 10).join(', ') });
   if (Array.isArray(preview.clients)) {
     const see = preview.clients.filter((c) => c.has_planq_account).map((c) => c.name);
     if (see.length) out.push({ key: 'clients_see', names: see.slice(0, 10).join(', ') });
@@ -585,6 +586,9 @@ async function executeTool(actor, businessId, name, rawParams, opts = {}) {
       // 만들면서 넣은 컨펌자 — 못 넣은 사람이 있으면 결과 줄이 말한다(업무는 이미 만들어졌다 — Fable D1)
       ...(r.reviewers_added ? { reviewers_added: r.reviewers_added.length } : {}),
       ...(r.reviewers_failed ? { reviewers_failed: r.reviewers_failed.length } : {}),
+      // 참조 — 같은 모양(2026-11-18 Fable 비차단 1). 만들기 전 판정이 있어 드물지만, 못 넣었으면 결과 줄이 말한다.
+      ...(r.watchers_added ? { watchers_added: r.watchers_added.length } : {}),
+      ...(r.watchers_failed ? { watchers_failed: r.watchers_failed.length } : {}),
     },
   };
 }

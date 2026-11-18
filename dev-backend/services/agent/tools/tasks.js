@@ -274,6 +274,7 @@ async function getTask(p, a) {
       ...f.out,
       truncated_fields: f.truncated,
       ...extras,
+      watchers: await require('./task_watchers').watchersOf(p, t.id),   // 참조자(알아야 하는 사람 · 승인 의무 없음)
     },
     recent_notes: notes.items,
     notes_has_more: notes.truncated,
@@ -306,14 +307,22 @@ async function checkNewTaskReviewers(p, a) {
 async function previewCreateTask(p, a) {
   assertMarkdownInput(a, ['description']);
   if ((a.tag_names || []).length) await resolveTagNames(p, a.tag_names);
-  if (!(a.reviewer_user_ids || []).length) return null;
+  const hasRv = (a.reviewer_user_ids || []).length; const hasW = (a.watcher_user_ids || []).length;
+  if (!hasRv && !hasW) return null;
   await assertMenu(p, 'qtask', 'write');
   const { reviewers, skipped } = await checkNewTaskReviewers(p, a);
+  // 참조(2026-11-18 Fable) — 같은 판정 한 벌(task_actions.checkWatcherCandidate). 같은 호출의 컨펌자는 skip.
+  const w = await require('./task_watchers').checkNewTaskWatchers(p, a, a.assignee_user_id ? Number(a.assignee_user_id) : p.userId, (a.reviewer_user_ids || []).map(Number));
+  const notes = [];
+  if (hasRv) notes.push('Each reviewer is notified and the task waits for their sign-off before it can be completed.');
+  if (hasW) notes.push(require('./task_watchers').ADD_NOTE);
   return {
     task: { title: a.title },
-    add_reviewers: reviewers,
+    ...(hasRv ? { add_reviewers: reviewers } : {}),
     ...(skipped.length ? { reviewers_skipped: skipped } : {}),
-    note: 'Each reviewer is notified and the task waits for their sign-off before it can be completed.',
+    ...(hasW ? { add_watchers: w.add } : {}),
+    ...(w.skipped.length ? { watchers_skipped: w.skipped } : {}),
+    note: notes.join(' '),
   };
 }
 
@@ -345,6 +354,8 @@ async function createTask(p, a, actor) {
   // 태그 — 워크스페이스에 **이미 있는** 태그 이름만. 없는 이름은 만들지 않고 있는 목록을 알려 준다(Fable B 판정 3 ③).
   const tagIds = await resolveTagNames(p, a.tag_names);
   const rv = await checkNewTaskReviewers(p, a);   // 만들기 전에 — 실행이 거절할 컨펌자면 업무도 만들지 않는다
+  const tw = require('./task_watchers');
+  const wv = await tw.checkNewTaskWatchers(p, a, assigneeId, (a.reviewer_user_ids || []).map(Number));   // 참조도 만들기 전에(자격 미달 = 업무 안 만듦)
   const taskActions = require('../../actions/task_actions');
   const r = await taskActions.createTask(actor, {
     businessId: p.businessId,
@@ -389,6 +400,8 @@ async function createTask(p, a, actor) {
     if (skipped.length) out.reviewers_skipped = skipped;
     if (failed.length) out.reviewers_failed = failed;
   }
+  // 참조 — 컨펌자 뒤에 한 명씩(addWatcher). 실패는 업무를 되돌리지 않고 watchers_failed.
+  if ((a.watcher_user_ids || []).length) Object.assign(out, await tw.addAfterCreate(p, t.id, actor, wv));
   // «완료로 추가»(#237) — 이미 끝난 일의 기록. 행동 계층 complete() 로 닫는다(status 직접 쓰기 금지).
   //   실패는 생성을 되돌리지 않는다 — 업무는 남기고 사유를 돌려준다(담당자가 남 · 컨펌자가 있음).
   if (a.completed) {

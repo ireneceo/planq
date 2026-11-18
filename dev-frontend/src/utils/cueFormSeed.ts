@@ -35,6 +35,7 @@ export function taskParamsToInitial(params: P): TaskCreateInitial {
     dueDate: due && DATE_RE.test(due) ? due : '',
     asRequest: params.as_request === true,
     reviewerIds: nums(params.reviewer_user_ids),
+    watcherIds: nums(params.watcher_user_ids),
     tagNames: tags,
     estimatedHours: num(params.estimated_hours),
     urgent: params.priority === 'urgent',

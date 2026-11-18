@@ -14,6 +14,7 @@ const search = require('./tools/search');
 const docsw = require('./tools/docs_write');
 const proj = require('./tools/projects');
 const kbw = require('./tools/knowledge_write');
+const tw = require('./tools/task_watchers');
 const { pageInput, LIST_SUFFIX } = require('./page');
 
 const dateOnly = t.dateOnly;
@@ -58,7 +59,7 @@ const TOOLS = [
   },
   {
     name: 'get_task', risk: 'LOW', write: false, scopes: ['tasks:read'],
-    description: 'Get one task by task_id: full description (the request) and body (the result) as Markdown (description_format), attachments (names only), where it came from (mail or chat), related tasks and the latest notes. To edit, change this Markdown and send it back with update_task. description_lossy/body_lossy = the field has formatting Markdown cannot carry (e.g. tables), so it cannot be replaced. Read-only.',
+    description: 'Get one task by task_id: full description (the request) and body (the result) as Markdown (description_format), attachments (names only), where it came from (mail or chat), related tasks, watchers (참조) and the latest notes. To edit, change this Markdown and send it back with update_task. description_lossy/body_lossy = the field has formatting Markdown cannot carry (e.g. tables), so it cannot be replaced. Read-only.',
     input: { task_id: z.number().int().positive() },
     handler: (p, a) => t.getTask(p, a),
   },
@@ -87,9 +88,12 @@ const TOOLS = [
       // 2026-10-12 (Fable 설계 D1) — 만들면서 컨펌자까지. 있으면 알림이 나가므로 MEDIUM(확인 2단계)
       reviewer_user_ids: z.array(z.number().int().positive()).max(10).optional()
         .describe('Reviewers who must sign off (user_id from search_members). Each is notified. Not the assignee. With as_request: true the user is already a reviewer automatically. Adding reviewers requires confirmation: the first call only returns a preview naming them.'),
+      // 2026-11-18 (Fable 설계) — 참조(watcher). 알림 + 그 업무 볼 권한이 생기므로 MEDIUM(확인 2단계)
+      watcher_user_ids: z.array(z.number().int().positive()).max(10).optional()
+        .describe('Watchers (참조) — internal members who should be kept informed (user_id from search_members). They are notified and can see the task, but do NOT need to sign off. When the user says "참조"/"cc"/"keep X in the loop", use this — not reviewer_user_ids. People already on the task (the user, the assignee, reviewers) are skipped. Clients cannot be watchers. Requires confirmation: the first call only returns a preview naming them.'),
       confirmation_token: confirm, idempotency_key: idem,
     },
-    riskOf: (a) => ((a.reviewer_user_ids || []).length ? 'MEDIUM' : 'LOW'),
+    riskOf: (a) => ((a.reviewer_user_ids || []).length || (a.watcher_user_ids || []).length ? 'MEDIUM' : 'LOW'),
     preview: (p, a) => t.previewCreateTask(p, a),
     handler: (p, a, actor) => t.createTask(p, a, actor),
   },
@@ -126,6 +130,19 @@ const TOOLS = [
     preview: (p, a) => t.previewAddReviewers(p, a),
     handler: (p, a, actor) => t.addReviewers(p, a, actor),
   },
+  // ── 2026-11-18 Fable 설계 — 참조(watcher) 추가·빼기(MEDIUM: 추가는 알림 + 볼 권한, 빼기는 볼 권한 회수) ──
+  {
+    name: 'add_task_watchers', risk: 'MEDIUM', write: true, scopes: ['tasks:write'],
+    description: 'Add watchers (참조 — people who should be kept informed) to an existing task. Find user_id with search_members. Watchers are notified and can see the task (even in a hidden project or a private task) but do NOT need to sign off — for sign-off use add_task_reviewers. Removing a watcher is done in PlanQ. Internal members only (not clients). People already on the task are skipped. Only the assignee, the requester or a workspace owner/admin can do this. For a recurring task it applies to this task only (see series_note in the result). Requires confirmation: the first call only returns a preview with their names.',
+    input: {
+      task_id: z.number().int().positive(),
+      watcher_user_ids: z.array(z.number().int().positive()).min(1).max(10),
+      confirmation_token: confirm, idempotency_key: idem,
+    },
+    preview: (p, a) => tw.previewAddWatchers(p, a),
+    handler: (p, a, actor) => tw.addWatchers(p, a, actor),
+  },
+  // 참조 빼기는 도구로 두지 않는다 — 남의 볼 권한 회수 = HIGH «권한»(2026-11-18 Fable 판정 A). 화면에서만.
   // ── #453 «2번» — 대화 결과를 PlanQ 에 기록(상담·프로젝트 메모). 추가만 한다 ─────────
   {
     name: 'add_client_interaction', risk: 'LOW', write: true, scopes: ['notes:write'],

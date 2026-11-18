@@ -60,6 +60,8 @@ export interface TaskCreateInitial {
   /** Cue·음성 카드 [자세히 편집] (2026-11-18 Fable 설계) — 카드에서 고른 값을 폼 칸에 그대로 싣는다 */
   asRequest?: boolean;
   reviewerIds?: number[];
+  /** 참조자 — 담당·나·컨펌자와 겹치면 저장 때 빠진다(watcherIds 계산) */
+  watcherIds?: number[];
   /** 태그 이름 — 사전(tagDict)에 있는 것만 칸에 들어간다 */
   tagNames?: string[];
   estimatedHours?: number | null;
@@ -222,6 +224,7 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({
       setModeState(initial.asRequest || lockedOther ? 'request' : 'task');
     }
     if (initial.reviewerIds !== undefined) setReviewerIds(initial.reviewerIds);
+    if (initial.watcherIds !== undefined) setWatcherIds(initial.watcherIds);
     if (initial.estimatedHours !== undefined) setEstHours(initial.estimatedHours == null ? '' : String(initial.estimatedHours));
     if (initial.urgent !== undefined) setUrgent(initial.urgent);
     pendingTagNamesRef.current = initial.tagNames ?? null;

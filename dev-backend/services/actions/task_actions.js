@@ -2169,18 +2169,33 @@ async function absorbWatchers(taskId, userIds, transaction) {
   return TaskWatcher.destroy({ where: { task_id: taskId, user_id: ids }, transaction });
 }
 
-/** 참조자 추가 — 관리 권한은 컨펌자와 같은 사람(canManageReviewers) */
-async function addWatcher(task, actor, { userId } = {}) {
-  if (!(await canManageReviewers(task, actor.userId))) return fail('forbidden', 403);
+/**
+ * 참조자 후보 판정 — addWatcher 본체·AI 미리보기·AI create_task 사전 판정이 **같이 쓰는 한 벌**(2026-11-18 Fable 설계).
+ *   task 는 행 또는 만들기 전 모양 {business_id, assignee_id, created_by, request_by_user_id}(id 없음 → 행 조회 건너뜀).
+ *   extraNamed = 같은 호출에서 컨펌자가 될 사람(만들기 전 판정용).
+ *   ★ 자격은 «내부 멤버»(isMemberOrAbove ∧ !AI) — assertAssignable(고객도 통과)을 쓰지 않는다.
+ */
+async function checkWatcherCandidate(task, userId, { extraNamed = [] } = {}) {
   const uid = Number(userId);
   if (!Number.isInteger(uid) || uid <= 0) return fail('user_id_required');
-  if (uid === task.assignee_id || uid === task.created_by || uid === task.request_by_user_id) return fail('already_named', 409);
-  if (await TaskReviewer.findOne({ where: { task_id: task.id, user_id: uid }, attributes: ['id'] })) return fail('already_named', 409);
-  if (await TaskWatcher.findOne({ where: { task_id: task.id, user_id: uid }, attributes: ['id'] })) return fail('already_watcher', 409);
-
+  const named = [task.assignee_id, task.created_by, task.request_by_user_id, ...extraNamed].filter((x) => x != null).map(Number);
+  if (named.includes(uid)) return fail('already_named', 409);
+  if (task.id) {
+    if (await TaskReviewer.findOne({ where: { task_id: task.id, user_id: uid }, attributes: ['id'] })) return fail('already_named', 409);
+    if (await TaskWatcher.findOne({ where: { task_id: task.id, user_id: uid }, attributes: ['id'] })) return fail('already_watcher', 409);
+  }
   // 내부 멤버만(AI·고객·외부 파트너·다른 워크스페이스 제외)
   const target = await getUserScope(uid, task.business_id);
   if (!isMemberOrAbove(target) || target.isAi) return fail('watcher_must_be_member', 400);
+  return done({ user_id: uid });
+}
+
+/** 참조자 추가 — 관리 권한은 컨펌자와 같은 사람(canManageReviewers) */
+async function addWatcher(task, actor, { userId } = {}) {
+  if (!(await canManageReviewers(task, actor.userId))) return fail('forbidden', 403);
+  const chk = await checkWatcherCandidate(task, userId);
+  if (!chk.ok) return chk;
+  const uid = Number(userId);
 
   let row;
   const t = await sequelize.transaction();
@@ -2424,7 +2439,7 @@ module.exports = {
   approve, requestRevision, revertReviewerState,
   revertStatus, addReviewer, removeReviewer, setPolicy,
   // 행동 — 참조자(2026-10-27)
-  addWatcher, removeWatcher, absorbWatchers, activeWatcherIds, notifyWatchersCompleted,
+  addWatcher, removeWatcher, checkWatcherCandidate, absorbWatchers, activeWatcherIds, notifyWatchersCompleted,
   // 행동 — 인수인계(사람 교체, docs/ORG_STAGE0_DESIGN.md 9절)
   handoverNamedRoles,
   // 행동 — 결과물 회차 되돌리기 (#271·#307)

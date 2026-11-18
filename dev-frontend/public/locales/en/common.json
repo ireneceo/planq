@@ -328,6 +328,7 @@
       "notifiedN": "Notified {{count}} attendees",
       "now": "Now",
       "reviewersFailed": "Couldn't add {{count}} reviewer(s) — add them in the task details.",
+      "watchersFailed": "Couldn't add {{count}} watcher(s) — add them in the task details.",
       "editInForm": "Edit in full form",
       "handed": "Continuing in the full form",
       "reopenForm": "Reopen form",
@@ -438,6 +439,7 @@
       "submit_review": "Request review",
       "add_task_note": "Task comment",
       "add_task_reviewers": "Add reviewers",
+      "add_task_watchers": "Add watchers",
       "move_task_to_project": "Move task to project",
       "create_event": "Add event",
       "update_event": "Edit event",
@@ -464,6 +466,7 @@
       "submit_review": "Send for review",
       "add_task_note": "Post comment",
       "add_task_reviewers": "Add reviewers",
+      "add_task_watchers": "Add watchers",
       "move_task_to_project": "Move",
       "create_event": "Add event",
       "update_event": "Update",
@@ -491,6 +494,7 @@
       "submit_review": "Sent for review",
       "add_task_note": "Comment posted",
       "add_task_reviewers": "Reviewers added",
+      "add_task_watchers": "Watchers added",
       "move_task_to_project": "Task moved",
       "create_event": "Event added",
       "update_event": "Event updated",
@@ -524,6 +528,7 @@
       "content": "Content",
       "visibility": "Visibility",
       "reviewer_user_ids": "Reviewers",
+      "watcher_user_ids": "Watchers",
       "kind": "Type",
       "direction": "Direction",
       "occurred_at": "When",
@@ -612,7 +617,8 @@
       "clients_see": "These clients will see the project right away: {{names}}",
       "meet_replaces": "Replaces the current meeting link",
       "reviewer_requester_auto": "You (the requester) become a reviewer automatically",
-      "reviewers_notified": "{{count}} reviewer(s) will be notified"
+      "reviewers_notified": "{{count}} reviewer(s) will be notified",
+      "watchers_notified": "Watchers are notified and can see this task: {{names}}"
     }
   },
   "cue": {
