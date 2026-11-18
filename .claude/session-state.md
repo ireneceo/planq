@@ -1,4 +1,13 @@
 ## 현재 작업 상태
+### ✅ «API 토큰 (외부 연동)» → «외부 AI 도구 연결» 안내 · AI 연결 «다시 연결 필요?» 안내 (방 e030c7da · 2026-11-18 · [Opus] · Fable 미검증(자체 검증) — 화면·문구·문서)
+- Irene ① «apitoken.nameRequired 이건 무슨 기능이야? 제대로 기능 안내 되어야지» ② «개발 수정하면 다시 끊었다가 연결해야 하는 거 안해도 업데이트 안돼?»
+- ① 정찰 권고 A: 옛 토큰은 받을 주소 `/mcp` 가 nginx 에 없어 쓸 곳이 없었음 → 발급 줄 제거, «외부 AI 도구 연결» 설명 3줄 + [AI 앱 연결하러 가기](/profile/integrations?focus=ai). 옛 토큰 있을 때만 목록+회수. 서버 발급 API·`mcp/server.js /mcp` 는 손대지 않음(별건)
+- ② 답: 서버는 요청마다 도구 목록을 새로 만든다(재연결 불필요) · 새 권한(scope) 붙을 때만 재연결(AI 가 먼저 알림). 안내 추가: 위키 connect-chatgpt-claude(dev DB 시드 반영) · 프로필 «연결된 AI 앱» `aiApps.updateHint` · 설계서 부록
+- 실측: 설정 화면 3폭 × 토큰 없음/있음 12/12(키 글자 0·가로 넘침 0·버튼 → ?focus=ai) · 프로필 안내 3폭 6/6 · build EXIT 0 · i18n·parity 가드 통과
+- 확인용(ws6): API 토큰 «[확인용] 옛 토큰»(id 17)
+- 확인 못 함: 영어 화면(시험 계정 언어 설정이 한국어라 브라우저 «en» 도 한국어로 그려짐 — 키 짝은 가드로 확인) · ChatGPT·Claude 앱이 도구 목록을 캐시하는지(운영 로그 열람 권한 거부, dev 로그엔 시험 스크립트뿐)
+- 커밋 53e82048 · c282c0d2 · 운영 반영: 다음 배포 때 (위키는 배포 때 시드)
+
 ### ✅ AI 연결(클로드·ChatGPT) Q file 폴더 만들기·폴더에 넣기·텍스트 파일 (방 9a9620c8 · 2026-11-18 · [Opus] · Fable 설계 DESIGN-READY + 완료 검증 PASS)
 - Irene «클로드나 챗지피티가 프로젝트>파일>폴더를 만들거나 폴더에 파일 넣는게 왜 안돼?» — 폴더 도구가 없었고 upload_file 은 ChatGPT 첨부만·폴더 칸 없음
 - 새로: `list_folders` · `create_folder` · `move_files_to_folder` · `create_text_file`(txt, 클로드도 됨) · `upload_file.folder_id` · `list_files.folder` · 행동 계층 `services/actions/folder_actions`(화면 폴더 만들기·파일 이동 라우트도) · 도구 `services/agent/tools/files_write.js`
