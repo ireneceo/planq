@@ -327,7 +327,11 @@
       "meetWarn": "The event was saved, but the meeting link could not be created — check your Google Calendar connection.",
       "notifiedN": "Notified {{count}} attendees",
       "now": "Now",
-      "reviewersFailed": "Couldn't add {{count}} reviewer(s) — add them in the task details."
+      "reviewersFailed": "Couldn't add {{count}} reviewer(s) — add them in the task details.",
+      "editInForm": "Edit in full form",
+      "handed": "Continuing in the full form",
+      "reopenForm": "Reopen form",
+      "close": "Close"
     },
     "backToGuide": "Back to guide",
     "cueEmptyHint": "Answers based on the current workspace's clients, tasks, schedule, and meetings. Other workspaces' data is not used.",

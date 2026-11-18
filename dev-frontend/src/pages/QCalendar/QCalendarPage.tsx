@@ -14,7 +14,8 @@ import EventDrawer from './EventDrawer';
 import PersonalEventDrawerHost from './PersonalEventDrawerHost';
 import { responsiveDrawerWidth } from '../../utils/responsiveDrawer';
 import NewEventModal from './NewEventModal';
-import { parseVoiceWhen, takeVoiceHandoff, type VoiceHandoff } from '../../utils/voiceHandoff';
+import { calendarCreateLanding, type CalendarVoiceSeed } from './createLanding';
+import { takeVoiceHandoff, type VoiceHandoff } from '../../utils/voiceHandoff';
 import type { CalendarEvent, CalendarViewMode, CalendarItem, PersonalCalendarEvent } from './types';
 import {
   addDays, addMonths, getWeekDays, startOfDay, startOfMonth, startOfWeek, toDateKey, nextSlot, defaultStartOn,
@@ -78,7 +79,8 @@ const QCalendarPage: React.FC<{ scope?: { type: 'project'; businessId: number; p
   const [newModalInitial, setNewModalInitial] = useState<Date>(new Date());
   const [calSp, setCalSp] = useSearchParams();
   // 음성 캡처가 넘긴 제목·설명 (navigate state). 모달 mount 시 초기값으로만 소비된다.
-  const [voiceSeed, setVoiceSeed] = useState<{ title: string; description: string; allDay: boolean } | null>(null);
+  const [newModalNonce, setNewModalNonce] = useState(0);   // 열린 창에 또 넘겨 오면 다시 마운트(첫 값 = useState 초기값)
+  const [voiceSeed, setVoiceSeed] = useState<CalendarVoiceSeed | null>(null);
   // 업무 «결과물 액션» 에서 넘어온 새 일정(?new=1&from_action=) — docs/TASK_ACTIONS_DESIGN.md §4.2.
   //   제목 = 액션 이름 · 업무 미리 연결 · 시작 = 업무 마감일 10:00(없으면 다음 정시). 주소는 훅이 즉시 지운다.
   const [fromAction, setFromAction] = useState<FromActionHandoff | null>(null);
@@ -104,19 +106,9 @@ const QCalendarPage: React.FC<{ scope?: { type: 'project'; businessId: number; p
   useEffect(() => {
     if (embedded || calSp.get('create') !== '1') return;   // 얹혔을 때 주소는 주인(프로젝트) 것이다
     const voice = (location.state as { voice?: VoiceHandoff } | null)?.voice ?? takeVoiceHandoff('event');
-    if (voice) {
-      const when = parseVoiceWhen(voice.when_start);
-      // 음성 시각은 시간대 없는 «말한 그대로»라 이미 벽시계 · 없으면 지금을 벽시계로(calTz)
-      setNewModalInitial(when || nextSlot(toWall(new Date(), wsTz)));
-      setVoiceSeed({
-        title: voice.title || voice.text || '',
-        description: voice.detail || '',
-        allDay: voice.when_all_day === true,
-      });
-    } else {
-      setNewModalInitial(nextSlot(toWall(new Date(), wsTz)));
-      setVoiceSeed(null);
-    }
+    const land = calendarCreateLanding(voice, wsTz);
+    setNewModalInitial(land.start); setVoiceSeed(land.seed);
+    if (land.remount) setNewModalNonce((n) => n + 1);
     setShowNewModal(true);
     const next = new URLSearchParams(calSp); next.delete('create'); setCalSp(next, { replace: true });
   }, [calSp, setCalSp, location.state]); // eslint-disable-line react-hooks/exhaustive-deps -- wsTz 는 계정 값(세션 중 고정)
@@ -675,12 +667,14 @@ const QCalendarPage: React.FC<{ scope?: { type: 'project'; businessId: number; p
 
       {showNewModal && (
         <NewEventModal
+          key={newModalNonce}
           initialStart={newModalInitial}
           initialTitle={voiceSeed?.title}
           initialDescription={voiceSeed?.description}
           initialAllDay={voiceSeed?.allDay}
           projects={projects}
-          initialProjectId={fromAction?.task.project_id ?? projectId}
+          initialProjectId={fromAction?.task.project_id ?? (voiceSeed?.form ? (voiceSeed.projectId ?? null) : projectId)}
+          seed={voiceSeed?.form || null}
           businessId={bizId}
           fromTask={fromAction ? {
             linkedTask: { id: fromAction.task.id, title: fromAction.task.title },

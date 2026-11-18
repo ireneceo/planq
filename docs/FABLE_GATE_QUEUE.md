@@ -1,6 +1,13 @@
 # Fable 게이트 대기열 → **판정 기록 보관소** (2026-10-08 부터)
 
 
+### 2026-11-18 방 2f57448e — 음성·Cue 확인 카드 → 표준 폼 [자세히 편집] — 설계 **DESIGN-READY**
+- Irene: «생성되는 항목들이 지금 업그레이드 된 폼들이 아닌 것 같아. 모든 업무 일정 등등 등록 폼들 다 체크 좀 해줘.»
+- 판정: ② 카드는 두고 `CueActionCard` 한 곳에 [자세히 편집](create_task·create_event만) — 음성 시트·도움말·전역 검색·CuePanelSection 이 같이 바뀜. ①은 #458·한 번 누르기를 버림, ③은 두 벌.
+- 계약: `utils/voiceHandoff` 보관함에 카드가 고친 `params` 그대로 → `utils/cueFormSeed`(taskParamsToInitial·eventParamsToSeed · 시각 변환 한 곳) → `/tasks?create=1`·`/calendar?create=1`. 넘긴 뒤 카드 잠금(«폼에서 이어서 작성 중» · [폼 다시 열기]) — 폼 저장은 execute-action 의 10분 재실행 방지를 안 탄다.
+- 범위 밖: CueTaskBatch(여러 업무) · 수정·옮기기·문서 등 다른 도구 · 카드 편집 칸 늘리기(값 있는 인자는 이미 카드에 다 보임 — buildCard 가 값 있는 인자를 전부 싣는다, source 만 숨김).
+- 폼에 칸 없는 인자(넘기지 않음): 업무 client_id·workstream_id(/tasks 폼엔 그룹 칸 없음)·source·completed · priority 는 urgent 만. 일정 source.
+
 ### 2026-11-16 방 80f405cb — 관리자(admin)도 구독 결제 (19f123b2·b92308de·3291d12c) — 완료 검증 1차 **FAIL** → 고침 → 2차 **PASS**
 - Irene: «관리자도 결제할 수 있어야 하는데 왜 오너만 돼? 카드결제 누르면 결제가 안돼.» — checkout 이 403 owner_only.
 - 개방: checkout·stripe-checkout·notify-paid·addons/request = `isWorkspaceAdminReq`. 대표만 그대로: 환불 요청·/change·cancel-schedule·trial-plan·추가 슬롯 해지. 입금 확정은 플랫폼 관리자만.

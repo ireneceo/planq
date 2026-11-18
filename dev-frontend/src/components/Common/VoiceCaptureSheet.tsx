@@ -346,6 +346,7 @@ export default function VoiceCaptureSheet({ onClose }: Props) {
                 businessId={businessId}
                 onExecuted={(r) => { setResult(r); setStage('done'); }}
                 onDismiss={onClose}
+                onHandedOff={onClose}
               />
             )}
             <Row>

@@ -12,6 +12,8 @@ import PlanQSelect, { type PlanQSelectOption } from './PlanQSelect';
 import { formatDayTime, formatDay } from '../../utils/dateFormat';
 import { useTimezones } from '../../hooks/useTimezones';
 import { wallStringsToIso, toWall } from '../../pages/QCalendar/calTz';
+import { stashVoiceHandoff } from '../../utils/voiceHandoff';
+import { tabStore } from '../../stores/tabStore';
 
 export type CueToolName = string;
 
@@ -63,9 +65,18 @@ interface Props {
   businessId: number | null;
   onExecuted: (r: CueActionResult) => void;   // 성공 → 부모가 카드를 ✓ 요약으로 교체
   onDismiss: () => void;                       // 취소 → 카드 제거(요약 없음)
+  /** [자세히 편집] 으로 표준 폼에 넘긴 뒤(음성 시트는 닫는다). 없으면 카드는 «폼에서 이어서 작성 중» 으로 남는다. */
+  onHandedOff?: () => void;
 }
 
-const CueActionCard: React.FC<Props> = ({ proposal, onExecuted, onDismiss }) => {
+// [자세히 편집] — 카드 값을 그대로 실어 표준 폼(업무 추가 · 새 일정)을 연다 (2026-11-18 Fable 설계 ②).
+//   이 두 도구만. 업무 묶음(CueTaskBatch)·수정·옮기기·문서 등은 범위 밖.
+const FORM_OF: Record<string, { kind: 'task' | 'event'; path: string }> = {
+  create_task: { kind: 'task', path: '/tasks?create=1' },
+  create_event: { kind: 'event', path: '/calendar?create=1' },
+};
+
+const CueActionCard: React.FC<Props> = ({ proposal, onExecuted, onDismiss, onHandedOff }) => {
   const { t } = useTranslation('common');
   const { t: tErr } = useTranslation('errors');
   const { workspaceTz } = useTimezones();
@@ -74,6 +85,8 @@ const CueActionCard: React.FC<Props> = ({ proposal, onExecuted, onDismiss }) => 
   const [items, setItems] = useState<MoveItem[]>(card.items || []);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // 폼으로 넘긴 뒤에는 카드 [추가] 를 잠근다 — 폼 저장은 execute-action 을 거치지 않아 서버의 «같은 인자 10분 재실행 방지» 가 못 막는다
+  const [handed, setHanded] = useState(false);
   useEffect(() => { setParams({ ...proposal.params }); setItems(card.items || []); }, [proposal]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const set = (k: string, v: unknown) => setParams((p) => {
@@ -108,8 +121,23 @@ const CueActionCard: React.FC<Props> = ({ proposal, onExecuted, onDismiss }) => 
   const movable = items.filter((x) => !x.blocked);
   const isMove = proposal.tool === 'reschedule_events';
 
+  const form = FORM_OF[proposal.tool];
+  const handOff = () => {
+    if (!form || submitting) return;
+    const taskTarget = card.targets.find((tg) => tg.type === 'task');
+    stashVoiceHandoff({
+      kind: form.kind, text: '', title: String(params.title ?? ''), detail: '', assignee_name: null, when: null, confidence: 1,
+      params: { ...params },
+      params_task_title: taskTarget?.title ?? null,
+    });
+    // 하던 화면을 덮지 않는다 — 탭 모드는 그 화면 탭(없으면 새 탭), 폰(미러)은 이동(ui-overlays «얹히는 진입점은 새 탭»)
+    tabStore.openInNewTab(form.path);
+    setHanded(true);
+    onHandedOff?.();
+  };
+
   const execute = async () => {
-    if (submitting) return;               // 중복 제출 가드(서버도 같은 인자 10분 안 재실행을 막는다)
+    if (submitting || handed) return;               // 중복 제출 가드(서버도 같은 인자 10분 안 재실행을 막는다)
     setSubmitting(true); setError(null);
     try {
       const body = isMove
@@ -362,13 +390,33 @@ const CueActionCard: React.FC<Props> = ({ proposal, onExecuted, onDismiss }) => 
       {notes.map((n) => <Hint key={n}>{n}</Hint>)}
       {error && <ErrLine>! {error}</ErrLine>}
 
+      {handed && <HandedLine data-testid="cue-action-handed">{t('qhelper.action.handed', '폼에서 이어서 작성 중이에요')}</HandedLine>}
+
       <Actions>
-        <ActionButton tone="secondary" size="sm" onClick={onDismiss} disabled={submitting}>
-          {t('qhelper.action.cancel', '취소')}
-        </ActionButton>
-        <ActionButton tone="primary" size="sm" onClick={execute} loading={submitting} disabled={!canSubmit} data-testid="cue-action-execute">
-          {doLabel}
-        </ActionButton>
+        {handed ? (
+          <>
+            <ActionButton tone="secondary" size="sm" onClick={onDismiss}>
+              {t('qhelper.action.close', '닫기')}
+            </ActionButton>
+            <ActionButton tone="secondary" size="sm" onClick={handOff} data-testid="cue-action-reopen-form">
+              {t('qhelper.action.reopenForm', '폼 다시 열기')}
+            </ActionButton>
+          </>
+        ) : (
+          <>
+            <ActionButton tone="secondary" size="sm" onClick={onDismiss} disabled={submitting}>
+              {t('qhelper.action.cancel', '취소')}
+            </ActionButton>
+            {form && (
+              <ActionButton tone="secondary" size="sm" onClick={handOff} disabled={submitting} data-testid="cue-action-edit-form">
+                {t('qhelper.action.editInForm', '자세히 편집')}
+              </ActionButton>
+            )}
+            <ActionButton tone="primary" size="sm" onClick={execute} loading={submitting} disabled={!canSubmit} data-testid="cue-action-execute">
+              {doLabel}
+            </ActionButton>
+          </>
+        )}
       </Actions>
     </Card>
   );
@@ -448,6 +496,7 @@ const RemoveBtn = styled.button`
   &:hover { color: #475569; background: #f1f5f9; }
 `;
 const ErrLine = styled.div`font-size: 0.75rem; color: #dc2626; font-weight: 600;`;
-const Actions = styled.div`display: flex; justify-content: flex-end; gap: 8px; margin-top: 2px;`;
+const Actions = styled.div`display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 8px; margin-top: 2px;`;
+const HandedLine = styled.div`font-size: 0.75rem; color: #0f766e; background: #f0fdfa; border-radius: 6px; padding: 6px 8px; font-weight: 600;`;
 
 export default CueActionCard;

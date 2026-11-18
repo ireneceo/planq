@@ -34,6 +34,7 @@ import FloatingMenu from '../../components/Common/FloatingMenu';
 import { responsiveDrawerWidth } from '../../utils/responsiveDrawer';
 import { plainToHtml } from '../../utils/plainToHtml';
 import { takeVoiceHandoff, type VoiceHandoff } from '../../utils/voiceHandoff';
+import { taskParamsToInitial } from '../../utils/cueFormSeed';
 import { identityText } from '../../components/Common/IdentityContext';
 import AiTaskCreateModal, { type AiSeed } from '../../components/QTask/AiTaskCreateModal';
 import TemplateSelectModal from '../../components/QTask/TemplateSelectModal';
@@ -520,6 +521,12 @@ const QTaskPage:React.FC=()=>{
     // 음성으로 받은 내용은 폼의 **첫 값**으로 넘긴다(값의 주인은 폼 컴포넌트다).
     //   detail 은 평문 — RichEditor 는 HTML 을 받으므로 여기서 바꿔 넘긴다(그대로 주면 개행이 사라진다).
     //   비어 있으면 **명시적으로 빈 문자열** — 안 그러면 직전 진입의 설명이 그대로 남는다.
+    // 카드 [자세히 편집] — 카드에서 고친 도구 인자 그대로(utils/cueFormSeed 한 곳에서 칸으로 옮긴다)
+    if (voice?.params) {
+      openAddForm(false, taskParamsToInitial(voice.params));
+      const nx = new URLSearchParams(searchParams); nx.delete('create'); setSearchParams(nx, { replace: true });
+      return;
+    }
     openAddForm(false, voice
       ? {
         title: voice.title || voice.text || '',

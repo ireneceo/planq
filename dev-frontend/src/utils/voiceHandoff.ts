@@ -31,6 +31,11 @@ export interface VoiceHandoff {
   when_start?: string | null;
   when_all_day?: boolean;
   confidence: number;
+  /** Cue·음성 확인 카드 [자세히 편집] (2026-11-18 Fable 설계) — 카드가 그 순간 고쳐 둔 도구 인자(create_task·create_event) 그대로.
+   *  있으면 착지 화면은 위 칸 대신 이것을 utils/cueFormSeed 로 폼 칸에 옮긴다. */
+  params?: Record<string, unknown>;
+  /** params.task_id 가 있을 때 카드가 보여 준 업무 제목(일정의 «업무 연결» 칩) */
+  params_task_title?: string | null;
 }
 
 /**

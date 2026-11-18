@@ -45,7 +45,23 @@ interface Props {
   onClose: () => void;
   /** 만든 일정을 돌려주면 미팅자료 알림(고른 경우)을 이어서 보낸다(#411). */
   onCreate: (payload: Partial<CalendarEvent>) => Promise<CalendarEvent | void> | void;
+  /** Cue·음성 카드 [자세히 편집] (2026-11-18 Fable 설계) — 카드 값 그대로. 시각은 이미 워크스페이스 벽시계(utils/cueFormSeed) */
+  seed?: EventFormSeed | null;
   fromTask?: { linkedTask: { id: number; title: string }; actionId: number | null; notice: React.ReactNode } | null; // 업무 «결과물 액션» 에서 열림(TASK_ACTIONS_DESIGN §4.2) — 업무 미리 연결 · 액션 id(담당자만) · 안내 띠
+}
+
+export interface EventFormSeed {
+  end?: Date | null;
+  location?: string;
+  attendeeUserIds?: number[];
+  attendeeClientIds?: number[];
+  category?: EventCategory;
+  /** Cue create_event 의 visibility — private = 나만(L1) · team = 워크스페이스(L3) */
+  team?: boolean;
+  reminderMinutes?: number;
+  createMeeting?: boolean;
+  meetingUrl?: string;
+  linkedTask?: { id: number; title: string } | null;
 }
 
 // 30분 스텝 시간 옵션 (00:00 ~ 23:30)
@@ -61,7 +77,7 @@ const TIME_OPTIONS = (() => {
   return arr;
 })();
 
-const NewEventModal: React.FC<Props> = ({ initialStart, initialTitle, initialDescription, initialAllDay, projects, initialProjectId, businessId, onClose, onCreate, fromTask }) => {
+const NewEventModal: React.FC<Props> = ({ initialStart, initialTitle, initialDescription, initialAllDay, projects, initialProjectId, businessId, onClose, onCreate, fromTask, seed }) => {
   const { t, i18n } = useTranslation('qcalendar');
   const { t: tSale } = useTranslation('qsale');   // 고객 관계 글자(utils/clientLabel)
   const { t: tc } = useTranslation('common');   // 연결 문구 정본
@@ -72,30 +88,31 @@ const NewEventModal: React.FC<Props> = ({ initialStart, initialTitle, initialDes
   const myTz = user?.timezone || null;   // 내 업무 시간대 — 다를 때만 TzLines 가 «내 시간» 줄을 그린다
   const [title, setTitle] = useState(initialTitle || '');
   const [description, setDescription] = useState(initialDescription || '');
-  const [location, setLocation] = useState('');
+  const [location, setLocation] = useState(seed?.location || '');
 
   const [startDate, setStartDate] = useState<string>(toDateKey(initialStart));
-  const [endDate, setEndDate] = useState<string>(toDateKey(initialStart));
+  const [endDate, setEndDate] = useState<string>(toDateKey(seed?.end && seed.end >= initialStart ? seed.end : initialStart));
   const [startTime, setStartTime] = useState<string>(() => {
     const h = String(initialStart.getHours()).padStart(2, '0');
     const m = initialStart.getMinutes() >= 30 ? '30' : '00';
     return `${h}:${m}`;
   });
   const [endTime, setEndTime] = useState<string>(() => {
-    const d = new Date(initialStart); d.setHours(d.getHours() + 1);
+    const d = seed?.end && seed.end > initialStart ? new Date(seed.end) : new Date(initialStart.getTime() + 3600000);
     const h = String(d.getHours()).padStart(2, '0');
     const m = d.getMinutes() >= 30 ? '30' : '00';
     return `${h}:${m}`;
   });
 
   const [allDay, setAllDay] = useState(initialAllDay === true);
-  const [category, setCategory] = useState<EventCategory>('meeting');
+  const [category, setCategory] = useState<EventCategory>(seed?.category || 'meeting');
   // ★ 알림 기본값 **1일 전**. 여태 만들면서 정할 수가 없어(이 모달에 항목 자체가 없었다)
   //   운영 일정 20건 중 3건만 켜져 있었고 **알림이 한 번도 안 나갔다**(Fable 실측 2026-09-05).
   //   종일 일정은 분 단위가 의미 없어 옵션 세트를 바꾼다(크론이 종일은 09:00 을 기준으로 잡는다).
   //   ★ PlanQSelect 의 value 는 string|number 라 null 을 못 쓴다 — "알림 없음" 은 센티넬(-1)로 두고
   //     서버로 보낼 때 null 로 바꾼다. 서버에서 null = 사용자가 고른 "없음", undefined = 안 보냄(기본 1일 전).
-  const [reminderMinutes, setReminderMinutes] = useState<number>(1440);
+  const [reminderMinutes, setReminderMinutes] = useState<number>(
+    seed?.reminderMinutes === undefined ? 1440 : (seed.reminderMinutes === 0 ? REMINDER_NONE : seed.reminderMinutes));
   // 참석자 — **알림을 받을 당사자**. Irene: "당사자들은 일정을 알게 알림 보내야지."
   //   여태 등록 화면에 참석자 칸이 없어, 공개 범위를 '특정 멤버'(L2)로 좁히지 않는 한
   //   알림이 만든 사람에게만 갔다(Fable 게이트 2026-09-05 · 1차 필수).
@@ -107,7 +124,10 @@ const NewEventModal: React.FC<Props> = ({ initialStart, initialTitle, initialDes
   //     **화면이 멤버만 줬다** — 서버가 이미 허용하는 것을 사용자가 영영 못 하는 상태였다
   //     (memory `feedback_client_stricter_than_server_kills_feature`).
   //     한 목록에 섞이므로 값은 `u:<id>` / `c:<id>` 로 구분한다.
-  const [attendeeKeys, setAttendeeKeys] = useState<string[]>([]);
+  const [attendeeKeys, setAttendeeKeys] = useState<string[]>(() => [
+    ...(seed?.attendeeUserIds || []).map((id) => `u:${id}`),
+    ...(seed?.attendeeClientIds || []).map((id) => `c:${id}`),
+  ]);
   // 미팅자료(#411) — 업로드는 저장할 때 올린다(취소하면 남지 않게). 알리기는 고른 경우에만.
   const [matFileIds, setMatFileIds] = useState<number[]>([]);
   const [matPostIds, setMatPostIds] = useState<number[]>([]);
@@ -115,7 +135,7 @@ const NewEventModal: React.FC<Props> = ({ initialStart, initialTitle, initialDes
   const [notifyMaterials, setNotifyMaterials] = useState(false);
   const [notify, setNotify] = useState({ send: true, message: '' });   // #462 — 기본 보냄(AttendeeNotifyField)
   const hasMaterials = matFileIds.length + matPostIds.length + matUploads.length > 0;
-  const [linkedTask, setLinkedTask] = useState<{ id: number; title: string } | null>(fromTask?.linkedTask || null);   // 업무 연결
+  const [linkedTask, setLinkedTask] = useState<{ id: number; title: string } | null>(fromTask?.linkedTask || seed?.linkedTask || null);   // 업무 연결
   const [matOpen, setMatOpen] = useState(false);
 
   // 종일이면 분 단위가 의미 없다 — 옵션 세트를 바꾼다(크론이 종일은 시작일 09:00 을 기준으로 잡는다).
@@ -140,10 +160,12 @@ const NewEventModal: React.FC<Props> = ({ initialStart, initialTitle, initialDes
       return base.getTime() - reminderMinutes * 60000 < Date.now();
     } catch { return false; }
   }, [reminderMinutes, startDate, startTime, allDay, wsTz]);
-  const [visibility, setVisibility] = useState<EventVisibility>('business');
+  // 카드에서 넘어왔으면 카드의 공개 범위 그대로 — Cue 는 기본이 «나만»(L1)이다(services/agent/tools/calendar.js)
+  const seedPrivate = !!seed && !seed.team;
+  const [visibility, setVisibility] = useState<EventVisibility>(seedPrivate ? 'personal' : 'business');
   // N+66 — 통합 visibility 5단계
   const [vis, setVis] = useState<VisibilityValue>({
-    vlevel: 'L3', variant: 'L3', project_id: null, client_ids: [], target_member_ids: [],
+    vlevel: seedPrivate ? 'L1' : 'L3', variant: seedPrivate ? 'L1' : 'L3', project_id: null, client_ids: [], target_member_ids: [],
   });
   const [clientsList, setClientsList] = useState<WorkspaceClientRow[]>([]);
   const [members, setMembers] = useState<Array<{ user_id: number; name: string; role: string }>>([]);
@@ -203,12 +225,13 @@ const NewEventModal: React.FC<Props> = ({ initialStart, initialTitle, initialDes
     return [...mem, ...cli];
   }, [members, clientsList, projScope, t, user?.id]);
   const notifyCount = useMemo(() => notifyCountOf(attendeeKeys, clientsList, Number(user?.id)), [attendeeKeys, clientsList, user?.id]);
-  const [meetingUrl, setMeetingUrl] = useState('');
-  const [autoCreateMeeting, setAutoCreateMeeting] = useState(false);
+  const [meetingUrl, setMeetingUrl] = useState(seed?.meetingUrl || '');
+  const [autoCreateMeeting, setAutoCreateMeeting] = useState(seed?.createMeeting === true);
   // 만나는 곳 — [오프라인 | 온라인] 중 고른 쪽 칸만 보인다(2026-10-21 Irene «권고대로»: 장소·링크·Meet 줄이 늘 같이 떠 폼이 길었다).
   //   둘 다 쓰는 회의는 «+ … 도» 로 나머지 칸을 연다. 토글을 바꿔도 적은 값은 state 에 남고, 저장은 **보이는 칸만** 보낸다.
-  const [placeMode, setPlaceMode] = useState<'offline' | 'online'>('offline');
-  const [placeBoth, setPlaceBoth] = useState(false);
+  const [placeMode, setPlaceMode] = useState<'offline' | 'online'>(
+    (seed?.meetingUrl || seed?.createMeeting) && !seed?.location ? 'online' : 'offline');
+  const [placeBoth, setPlaceBoth] = useState(!!((seed?.meetingUrl || seed?.createMeeting) && seed?.location));
   const showLocation = placeMode === 'offline' || placeBoth;
   const showOnline = placeMode === 'online' || placeBoth;
   // 구글 캘린더에 올릴지 — **팀/개인 각각** (계정이 다르므로 하나로 합치면 안 된다). 기본 둘 다 ON.

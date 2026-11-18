@@ -57,6 +57,13 @@ export interface TaskCreateInitial {
   startDate?: string;
   dueDate?: string;
   fileIds?: number[];
+  /** Cue·음성 카드 [자세히 편집] (2026-11-18 Fable 설계) — 카드에서 고른 값을 폼 칸에 그대로 싣는다 */
+  asRequest?: boolean;
+  reviewerIds?: number[];
+  /** 태그 이름 — 사전(tagDict)에 있는 것만 칸에 들어간다 */
+  tagNames?: string[];
+  estimatedHours?: number | null;
+  urgent?: boolean;
 }
 
 export interface TaskCreatedTask { id: number; [k: string]: unknown }
@@ -194,6 +201,8 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({
   // ── 바깥에서 들어온 첫 값 — nonce 가 오를 때마다 적용한다.
   //   폼이 이미 열린 채로 같은 진입이 또 오는 경우(퀵메뉴 '+업무' 두 번)에도 내용이 바뀌어야 한다.
   const appliedNonceRef = useRef(-1);
+  // 태그는 이름으로 온다 — 사전이 늦게 와도 그때 이름 → id 로 바꿔 넣는다(사전에 없는 이름은 넣지 않는다: 서버도 새 태그를 만들지 않는다)
+  const pendingTagNamesRef = useRef<string[] | null>(null);
   useEffect(() => {
     if (!initial || appliedNonceRef.current === initialNonce) return;
     appliedNonceRef.current = initialNonce;
@@ -206,6 +215,17 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({
     if (initial.startDate !== undefined) setStartDate(initial.startDate);
     if (initial.dueDate !== undefined) setDueDate(initial.dueDate);
     if (initial.fileIds !== undefined) setExistingFileIds(initial.fileIds);
+    // 카드 [자세히 편집] — 요청 여부는 카드에서 사람이 고른 값이 정본이다(위 «나로 고정» 전환보다 뒤에 둔다).
+    //   단 «내 업무» 화면(담당 = 나 고정)에서 남을 담당으로 넣은 배정은 표현할 칸이 없어 위 규칙대로 요청으로 둔다.
+    if (initial.asRequest !== undefined && allowModeSwitch) {
+      const lockedOther = assigneeFixedToMe && initial.assigneeId != null && initial.assigneeId !== myId;
+      setModeState(initial.asRequest || lockedOther ? 'request' : 'task');
+    }
+    if (initial.reviewerIds !== undefined) setReviewerIds(initial.reviewerIds);
+    if (initial.estimatedHours !== undefined) setEstHours(initial.estimatedHours == null ? '' : String(initial.estimatedHours));
+    if (initial.urgent !== undefined) setUrgent(initial.urgent);
+    pendingTagNamesRef.current = initial.tagNames ?? null;
+    if (initial.tagNames !== undefined) setTagIds([]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initial, initialNonce]);
 
@@ -247,6 +267,14 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({
 
   const selfTags = useTaskTagDict(tagDictProp ? null : (bizId || null));
   const tagDict = tagDictProp ?? selfTags.dict;
+  useEffect(() => {
+    const names = pendingTagNamesRef.current;
+    if (!names || !names.length || !tagDict.length) return;
+    const norm = (x: string) => x.trim().toLowerCase();
+    const ids = names.map((n) => tagDict.find((g) => norm(g.name) === norm(n))?.id).filter((id): id is number => id != null);
+    pendingTagNamesRef.current = null;
+    if (ids.length) setTagIds(ids);
+  }, [tagDict, initialNonce]);
   const addTagToDict = onTagDictAdd ?? selfTags.add;
 
   // 프로젝트를 고르면 그 프로젝트의 외부 참여자(고객·협력사·프리랜서)도 담당자 후보가 된다.
