@@ -4620,3 +4620,9 @@
   - 안드로이드 카드 todomwi41puf 에서 키 내려받기·올리기 단계 뺌(빌드 → Play 만). iOS Share Extension 구현 PlanQ 대기열에 넣음.
   - Irene 지적: 개인 공간은 Global variables 잠금 → desktop-mac groups planq_desktop_mac. 맥 서명 ③ 카드(todomwhjwsa4)는 앱 단위 «PlanQ 앱 › Environment variables» 그룹이라 개인 공간에서도 됨 — 단 앱 planq 빌드 설정(todomvswjmxv 1단계)이 끝난 뒤에 보인다.
 - 11-16 Irene: Codemagic 개인 공간 iOS #22 성공 → TestFlight 빌드 21 · Android #18 성공 versionCode 140. ASC 1.0.1 = «심사를 통과하지 못함»(10/5, 빌드 17) 반려 ① 2.1(a) iPad 로그인 빈 화면 ② 3.1.1/3.1.3(c). 방 9572baa2: ① 고침 f5ad8c36 은 빌드 커밋 34582d80 에 들어 있음(조상 확인) · ② 는 방 67d2bcb0 B안(37dab638, 웹·가입·약관)이 맡음 — 앱은 planq.kr 을 여는 껍데기라 빌드가 아니라 운영 반영으로 들어감. 운영 /locales/ko/landing.json 아직 «1인 프리랜서» = 미반영. 그 방 질문 askmwibw86i(약관 고지 메일) 답 → 운영 반영 → 재제출. 카드 todomvswjmxv 를 «재제출 — 빌드 21·답장·심사 제출(운영 반영 뒤)» 로 고침.
+
+### 완료: fb#464 조사 — 이미 해결 (방 204a228c · 2026-11-18 · [Opus])
+- 신고(10-08): 결제 이력 [영수증] → 빈 화면 `no_token`. 원인: 새 창 링크가 로그인 정보를 못 실음.
+- 같은 날 f8585dce 로 고침(인증 다운로드 `downloadFromApi`) — 운영 배포 커밋 2171cba 에 포함(merge-base 확인). 지금 코드 `components/Settings/PaymentHistory.tsx` 도 같은 방식.
+- 답글만 빠짐(초안 docs/feedback-replies-2026-10-08.json 이후 안 보냄). 상황판 문의 줄 «이미 해결»+답장 초안으로 고쳐 올림 → 상황판이 «답장 자동 보내기» 대기열에 넣음(autoQueued fb#464). 운영 쓰기·답장은 이 방이 하지 않음.
+- 신고자 워크스페이스 «루아 테스트»(내부 시험 계정으로 보임).
