@@ -1,0 +1,112 @@
+{
+  "version": "1.70.16",
+  "date": "2026-11-18",
+  "_auto": true,
+  "_range": "f255e762..2171cba8",
+  "summary": {
+    "ko": "폰에서 업무·메일·파일까지 더 자연스럽게 연결되고, 보기·요약·요청 흐름을 다듬었어요.",
+    "en": "Mobile tasks, mail, and files now connect more naturally, with cleaner views, summaries, and request flows."
+  },
+  "items": [
+    {
+      "ko": {
+        "title": "폰에서 목록 위 검색·필터 칸을 골라 숨기기",
+        "body": "폰에서 메일·Q Talk·Q Note·Q docs 목록을 볼 때, 위쪽 검색·필터 칸을 팝아웃 «보일 칸 고르기»로 선택해 숨기거나 보이게 할 수 있어요. 자주 쓰는 칸만 남겨 더 넓게 볼 수 있습니다."
+      },
+      "en": {
+        "title": "Choose which search/filter fields to show on mobile lists",
+        "body": "On mobile, you can now use the “Choose fields to show” pop‑out above Mail, Q Talk, Q Note, and Q docs lists to hide or show search and filter fields. Keep only what you use often and see more of your list at a glance."
+      }
+    },
+    {
+      "ko": {
+        "title": "Q task 폰 오늘·이번 주 탭, 더 쓰기 편한 목록",
+        "body": "Q task 폰 화면의 오늘·이번 주 탭이 팝아웃과 같은 모양으로 바뀌었어요. «보일 칸 고르기», 바로 입력, 보기 기준·정렬을 한 곳에서 조정해 오늘 할 일을 더 빠르게 정리할 수 있습니다."
+      },
+      "en": {
+        "title": "Cleaner Today/This week tabs in Q task mobile",
+        "body": "The Today and This week tabs in Q task on mobile now match the pop‑out style. You can adjust “Choose fields to show”, quick‑add tasks, and change view/sort options in one place to organize today’s work faster."
+      }
+    },
+    {
+      "ko": {
+        "title": "Drive에서 지운 파일은 PlanQ 휴지통으로 이동",
+        "body": "Drive를 파인더에서 쓸 때 파일을 지우면 PlanQ 휴지통으로 들어가요. 파일을 고치면 새 내용으로 저장하면서도 예전 버전은 따로 보관해, 실수로 지우거나 덮어써도 되돌리기 쉽습니다."
+      },
+      "en": {
+        "title": "Deleted Finder files go to PlanQ trash, edits keep versions",
+        "body": "When using Drive from Finder, deleting a file now sends it to the PlanQ trash. Editing a file saves the new content while keeping older versions, so it’s easier to recover from accidental deletes or overwrites."
+      }
+    },
+    {
+      "ko": {
+        "title": "업무 «요청» 흐름 정리 및 완료 버튼 보호",
+        "body": "Q task에서 «요청»은 이제 «요청하기» 의미로만 쓰이도록 정리했어요. 컨펌 대기 중인 업무는 «완료»를 누를 수 없게 막아, 아직 확인되지 않은 일을 실수로 끝내지 않도록 했습니다."
+      },
+      "en": {
+        "title": "Clearer “Request” meaning and safer completion in tasks",
+        "body": "In Q task, “Request” is now used only in the sense of “make a request,” for a clearer workflow. Tasks waiting for confirmation can no longer be marked as Done, preventing unfinished items from being closed by mistake."
+      }
+    },
+    {
+      "ko": {
+        "title": "업무 «참조»에 AI 연결 정보 활용",
+        "body": "업무 화면의 «참조»에서 AI 연결로 가져온 정보를 더 잘 볼 수 있게 준비했어요. 관련 업무를 묶어 보고, 필요한 사람을 참조에 두어 함께 따라갈 수 있습니다."
+      },
+      "en": {
+        "title": "Better use of AI-linked info in task “Reference”",
+        "body": "In the task “Reference” area, information brought in via AI links is now prepared to be shown more clearly. You can group related tasks and keep the right people in reference so everyone can follow along."
+      }
+    },
+    {
+      "ko": {
+        "title": "말로 추가한 확인 카드, 바로 자세히 편집",
+        "body": "Cue «말로 추가»에서 만든 확인 카드에 [자세히 편집]을 누르면, 업무·일정 표준 폼이 카드 값이 채워진 상태로 열립니다. 음성으로 대략 적고, 필요한 칸만 바로 고쳐 저장할 수 있어요."
+      },
+      "en": {
+        "title": "Edit voice-added confirmation cards in full forms",
+        "body": "When you create a confirmation card with Cue “Add by voice” and tap [Edit details], the standard task or schedule form now opens with the card values filled in. Roughly dictate by voice, then quickly adjust only the fields you need."
+      }
+    },
+    {
+      "ko": {
+        "title": "메일 요약 문장과 본문 표시 개선",
+        "body": "메일 요약에서 «보냈다» 같은 말 대신 실제 메일 내용을 더 잘 보여주도록 바꿨어요. 최신 메일 본문이 잘리던 문제도 고쳐, «다음 할 일»에 잘못된 안내가 뜨지 않도록 정리했습니다."
+      },
+      "en": {
+        "title": "Clearer mail summaries and full latest content",
+        "body": "Mail summaries now show the actual message content instead of generic phrases like “sent.” We also fixed an issue where the latest mail body was cut off, so “Next action” no longer shows confusing guidance."
+      }
+    },
+    {
+      "ko": {
+        "title": "말로 추가한 업무의 문장·담당자 인식 개선",
+        "body": "Cue «말로 추가»에서 «누구에게 요청해줘» 같은 말이 업무 제목·내용에 그대로 들어가던 문제를 줄였어요. 엉뚱한 담당자가 지정되던 경우를 손보고, 받아쓴 문장을 고쳐 다시 볼 수 있게 다듬었습니다."
+      },
+      "en": {
+        "title": "Better sentence and assignee handling in “Add by voice”",
+        "body": "In Cue “Add by voice,” phrases like “request this to…” are now less likely to appear literally in task titles or descriptions. We improved incorrect assignee selection and refined how corrected transcriptions are shown again."
+      }
+    },
+    {
+      "ko": {
+        "title": "Q Talk 읽음·안읽음 숫자 더 정확하게",
+        "body": "Q Talk에서 답장 하나에 안읽음이 2개로 보이거나, 다른 기기에서 읽어도 숫자가 그대로이던 문제를 고쳤어요. 이제 두 방에 온 메시지도 제대로 걸러, 기기마다 읽음 상태가 더 정확히 맞습니다."
+      },
+      "en": {
+        "title": "More accurate unread counts across Q Talk devices",
+        "body": "We fixed cases where a single reply showed as two unread messages and where counts didn’t change after reading on another device. Messages arriving in two rooms are now filtered correctly, keeping read/unread status in sync."
+      }
+    },
+    {
+      "ko": {
+        "title": "그 밖의 개선",
+        "body": "Q task 변환 되돌림 시 장부 검사와 컨펌자 행 표시를 바로잡았어요. Q info 카테고리 칸에서 한 칸 안에서 검색·만들기가 자연스럽게 되고, 마지막 항목도 제대로 지워집니다. 연결 화면의 문서 카드·업무 표·피드백 목록 등도 깨짐 없이 보이도록 정리했습니다."
+      },
+      "en": {
+        "title": "Other improvements",
+        "body": "We fixed ledger checks and confirmer row display when reverting conversions in Q task. In Q info, the category field now lets you search/create smoothly in one place and delete the last item correctly. We also cleaned up various connection screens so document cards, task tables, and feedback chips render without layout issues."
+      }
+    }
+  ]
+}
