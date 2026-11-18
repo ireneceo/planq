@@ -32,7 +32,7 @@ const ALL_SCOPES = [...BUNDLE_SCOPES, ...OPT_IN_SCOPES];
 //   en 은 AI 앱이 받는 문장(모델이 사용자 언어로 옮겨 말한다) · 화면 문구는 i18n profile aiApps.ability.<scope>.
 const SCOPE_ABILITIES = {
   'docs:write': { since: '2026-10-05', en: 'create and edit documents in Q docs' },
-  'files:write': { since: '2026-10-05', en: 'upload files from the chat to PlanQ' },
+  'files:write': { since: '2026-10-05', en: 'save files and text to PlanQ, create folders and sort files into them' },
   'projects:write': { since: '2026-10-07', en: 'create projects and their groups (workstreams)' },
 };
 

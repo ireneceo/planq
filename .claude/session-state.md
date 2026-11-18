@@ -1,4 +1,14 @@
 ## 현재 작업 상태
+### ✅ AI 연결(클로드·ChatGPT) Q file 폴더 만들기·폴더에 넣기·텍스트 파일 (방 9a9620c8 · 2026-11-18 · [Opus] · Fable 설계 DESIGN-READY + 완료 검증 PASS)
+- Irene «클로드나 챗지피티가 프로젝트>파일>폴더를 만들거나 폴더에 파일 넣는게 왜 안돼?» — 폴더 도구가 없었고 upload_file 은 ChatGPT 첨부만·폴더 칸 없음
+- 새로: `list_folders` · `create_folder` · `move_files_to_folder` · `create_text_file`(txt, 클로드도 됨) · `upload_file.folder_id` · `list_files.folder` · 행동 계층 `services/actions/folder_actions`(화면 폴더 만들기·파일 이동 라우트도) · 도구 `services/agent/tools/files_write.js`
+- 공개 링크 걸린 폴더에는 AI 가 넣지 않음 · 화면도 같이: 프로젝트 폴더 같은 이름이면 있는 폴더 · 숨은 프로젝트에 폴더 만들기 404
+- 클로드가 대화에서 만든 워드·엑셀·PDF 같은 파일은 클로드 쪽이 넘길 방법이 없어 여전히 직접 올려야 함(텍스트는 create_text_file, 서식 문서는 create_document)
+- 실측: 실제 MCP 44/44 + ws7 격리 4/4 + 수정 확인 4/4 · Fable 독립 82건 결함 0 · health-check 101/101 · e2e filetree·tenant 실패 0 · guard 85/86 · build EXIT 0
+- 확인용(ws6): 폴더 «[확인용] AI 폴더 …»·«[확인용] 최종본 …/하위»(프로젝트 1701) · 파일 «[확인용] 최종일정-….txt»
+- 확인 못 함: 실제 Claude/ChatGPT 앱 대화 · upload_file 성공 경로+폴더 · Drive 미러
+- 운영 반영: 다음 배포 때 (MCP 프로세스도 재시작 필요 — 배포 스크립트가 함)
+
 ### ✅ AI 연결(클로드·ChatGPT) 업무 «참조» 넣기 (방 2ebcdfac · 2026-11-18 · [Opus] · Fable 설계 DESIGN-READY + 완료 검증 PASS)
 - Irene «클로드가 업무를 추가해줬는데 참조에 이름을 넣을 수가 없어» — 화면은 정상, AI 도구에 참조 칸·도구가 없었다
 - 새로: `create_task.watcher_user_ids` · `add_task_watchers`(확인 2단계) · `get_task.watchers` · 앱 안 Cue 도 같이(카드 «참조» 칸 · [자세히 편집] 폼에 참조 값) · 도구 `services/agent/tools/task_watchers.js` · 판정 한 벌 `task_actions.checkWatcherCandidate`

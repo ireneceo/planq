@@ -12,6 +12,7 @@ const mail = require('./tools/mail');
 const content = require('./tools/content');
 const search = require('./tools/search');
 const docsw = require('./tools/docs_write');
+const filesw = require('./tools/files_write');
 const proj = require('./tools/projects');
 const kbw = require('./tools/knowledge_write');
 const tw = require('./tools/task_watchers');
@@ -535,7 +536,7 @@ const TOOLS = [
   },
   {
     name: 'upload_file', risk: 'LOW', write: true, scopes: ['files:write'],
-    description: 'Save a file the user attached in this conversation into PlanQ, optionally attaching it to a document, a task or a project. Allowed types: jpg, jpeg, png, gif, pdf, doc, docx, xls, xlsx, ppt, pptx, zip, txt. Plan size and storage limits apply. Nothing is sent to anyone.',
+    description: 'ChatGPT only: save a file the user attached in this ChatGPT conversation into PlanQ, optionally into a folder (folder_id from list_folders/create_folder) and/or attached to a document, a task or a project. Files you generated in the chat (docx/xlsx/pdf/images) cannot be passed through this connection — use create_document for formatted text, create_text_file for plain text, otherwise create the folder and ask the user to upload the file in PlanQ. Allowed types: jpg, jpeg, png, gif, pdf, doc, docx, xls, xlsx, ppt, pptx, hwp, hwpx, zip, txt. Plan size and storage limits apply. Nothing is sent to anyone.',
     input: {
       file: z.object({
         download_url: z.string().url(),
@@ -544,11 +545,55 @@ const TOOLS = [
         mime_type: z.string().max(200).optional(),
       }).describe('The attached file (ChatGPT passes this)'),
       file_name: z.string().trim().max(255).optional().describe('Name to save as (keep the extension)'),
+      folder_id: z.number().int().positive().optional().describe('Q file folder to put it in (list_folders). A project folder makes it a file of that project.'),
       attach_to: z.object({ kind: z.enum(['document', 'task', 'project']), id: z.number().int().positive() }).strict().optional(),
       idempotency_key: idem,
     },
     _meta: { 'openai/fileParams': ['file'] },
-    handler: (p, a, actor) => docsw.uploadFile(p, a, actor),
+    handler: (p, a, actor) => filesw.uploadFile(p, a, actor),
+  },
+  // ── 2026-11-18 Q file 폴더 (Fable 설계 DESIGN-READY) — 만들기·옮기기·텍스트 파일. 삭제·이름 바꾸기·공유는 화면에서 ──
+  {
+    name: 'list_folders', risk: 'LOW', write: false, scopes: ['projects:read'], list: true,
+    description: 'List Q file folders the user can see — workspace folders and folders of visible projects, with their path (e.g. "Design/Final") and project. Use folder_id with create_folder, upload_file, create_text_file or move_files_to_folder. Read-only.',
+    input: {
+      project_id: z.number().int().positive().optional().describe('Only folders of this project'),
+      ...pageInput,
+    },
+    handler: (p, a) => filesw.listFolders(p, a),
+  },
+  {
+    name: 'create_folder', risk: 'LOW', write: true, scopes: ['files:write'],
+    description: 'Create a folder in Q file — in a project (project_id) or, without project_id, a workspace folder — optionally inside another folder (parent_folder_id, same project). If a folder with the same name already exists in that place, it is returned instead of a duplicate. Folders cannot be deleted or renamed through this connection (do that in PlanQ). Nothing is sent to anyone.',
+    input: {
+      name: z.string().trim().min(1).max(100),
+      project_id: z.number().int().positive().optional().describe('Project the folder belongs to (search_projects). Omit for a workspace folder.'),
+      parent_folder_id: z.number().int().positive().optional().describe('Create inside this folder (list_folders) — must be in the same project/workspace'),
+      idempotency_key: idem,
+    },
+    handler: (p, a, actor) => filesw.createFolder(p, a, actor),
+  },
+  {
+    name: 'move_files_to_folder', risk: 'LOW', write: true, scopes: ['files:write'],
+    description: 'Put existing PlanQ files (file_id from list_files) into a folder, or take them out of folders (omit folder_id). The folder must belong to the same project as the files (or be a workspace folder for files without a project) — this never changes who can see a file. Folders shared by public link cannot receive files here. Only the uploader, the workspace owner or the project PM can move a file. All files move or none.',
+    input: {
+      file_ids: z.array(z.number().int().positive()).min(1).max(20),
+      folder_id: z.number().int().positive().optional().describe('Target folder (list_folders). Omit to take the files out of folders.'),
+      idempotency_key: idem,
+    },
+    handler: (p, a, actor) => filesw.moveFilesToFolder(p, a, actor),
+  },
+  {
+    name: 'create_text_file', risk: 'LOW', write: true, scopes: ['files:write'],
+    description: 'Save text you wrote in this conversation as a file in PlanQ (works in Claude and ChatGPT) — e.g. a final schedule, notes or a list — optionally into a folder and/or attached to a document, task or project. Plain text only (.txt); the file name must end in .txt. For formatted documents use create_document. Plan size and storage limits apply. Nothing is sent to anyone.',
+    input: {
+      file_name: z.string().trim().min(1).max(255).describe('Name with extension, e.g. "final-schedule.txt"'),
+      content: z.string().max(100000).describe('The full text of the file (up to 100,000 characters)'),
+      folder_id: z.number().int().positive().optional().describe('Q file folder to put it in (list_folders). A project folder makes it a file of that project.'),
+      attach_to: z.object({ kind: z.enum(['document', 'task', 'project']), id: z.number().int().positive() }).strict().optional(),
+      idempotency_key: idem,
+    },
+    handler: (p, a, actor) => filesw.createTextFile(p, a, actor),
   },
   // ── 2026-10-07 Fable B 판정 2·3 — 프로젝트 만들기(MEDIUM) · Q note 메모 · Q info 항목 ──
   {

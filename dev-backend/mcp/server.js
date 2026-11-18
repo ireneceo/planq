@@ -44,7 +44,7 @@ const sha256 = (s) => crypto.createHash('sha256').update(s).digest('hex');
 const app = express();
 // nginx 뒤 — SDK 핸들러의 속도 제한이 클라이언트 IP 로 세게(안 그러면 모든 요청이 127.0.0.1 하나로 묶인다)
 app.set('trust proxy', 1);
-app.use(express.json({ limit: '256kb' }));
+app.use(express.json({ limit: '512kb' }));   // create_text_file 10만 자 × 한글 3바이트 + 여유(2026-11-18 Fable 비차단 1)
 
 // ★ 2026-10-04 — AI 에이전트 요청 한 줄 기록(운영 진단용). 운영에서 «ChatGPT 에서 제대로 안 돈다» 신고에
 //   어디서 멈췄는지 볼 방법이 없었다(nginx 로그는 root 전용, 도구 실행 전에 막히면 감사도 안 남는다).

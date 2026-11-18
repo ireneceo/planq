@@ -402,7 +402,7 @@
     "reconnectGeneric": "In that app's connection settings, disconnect PlanQ and connect again, then choose \"Read + add and edit\" on the PlanQ screen and Allow. Everything you use now keeps working.",
     "ability": {
       "docs_write": "create and edit documents",
-      "files_write": "upload files from the chat to PlanQ",
+      "files_write": "save files and text to PlanQ, create folders and sort files into them",
       "projects_write": "create projects and workstreams"
     }
   },

@@ -49,6 +49,10 @@ paths:
 - **업무 참조(watcher)(2026-11-18, Irene «클로드가 업무를 추가해줬는데 참조에 이름을 넣을 수가 없어» · Fable 설계)** — `create_task.watcher_user_ids` · `add_task_watchers`(MEDIUM) · `get_task.watchers`. 참조 = 알림 + 그 업무 볼 권한(숨은·나만 보기 업무도) → 확인 2단계.
   자격 판정은 **`task_actions.checkWatcherCandidate` 한 벌**(화면 addWatcher·미리보기·만들기 전) — 내부 멤버만. `assertAssignable` 로 바꾸지 않는다(고객이 통과 — 양성 대조군 실측). 이미 이름 박힌 사람은 skip 보고. 반복 시리즈 인자 없음(이 업무 한 건).
   추가는 앱 알림 + 메일(화면과 같은 `notifyTask`). **빼기는 화면에서만** — 남의 볼 권한 회수 = HIGH «권한»(2026-11-18 Fable 판정 A). 이름을 바꾸거나 가드 예외로 열지 않는다 — 필요하면 Irene 정책 결정 먼저.
+- **Q file 폴더·텍스트 파일(2026-11-18, Irene «클로드나 챗지피티가 프로젝트>파일>폴더를 만들거나 폴더에 파일 넣는게 왜 안돼?» · Fable 설계)** — `list_folders` · `create_folder` · `move_files_to_folder` · `create_text_file` · `upload_file.folder_id`(전부 LOW · `files:write`).
+  만들기·옮기기는 **`services/actions/folder_actions` 한 곳**(화면 폴더 만들기 2곳·파일 이동 라우트도). AI 이동은 `strict` — 폴더 project_id === 파일 project_id · 메일 첨부 거절 · 전부 또는 0건.
+  **공개 링크가 걸린 폴더(조상 포함)에는 AI 가 넣지 않는다**(`folder_shared_publicly` — 폴더 링크는 열 때마다 안을 다시 거른다. `riskOf` 는 DB 를 못 보므로 확인 2단계로 열지 않는다).
+  클로드는 대화 첨부·생성 파일 바이트를 도구로 넘길 수 없다 — `upload_file` 은 ChatGPT 전용, 클로드는 `create_text_file`(txt)·`create_document`. base64 입력은 두지 않는다. 폴더 삭제·이름 바꾸기·공유·파일 프로젝트 바꾸기는 화면에서만.
 - **HIGH(삭제·청구·발송·권한·대량)는 도구로 두지 않는다** — 가드 `--category=agentsurface` 가 막는다(도메인 모델 직접 쓰기 0 · 재무 참조 0 · 고위험 이름 0 · 쓰기 도구 scope·멱등 선언 · 워크스페이스 묶음).
 - **켜는 스위치**: `.env` `AGENT_ENABLED=1` + `AGENT_TOKEN_SECRET`(JWT_SECRET 과 **다른 값**, 32자 이상). 없으면 `/agent/*` 404. **쓰기 도구는 `AGENT_WRITE_ENABLED=1` 이 있어야 켜진다**(기본 꺼짐 — `config.writeEnabled`). 2026-10-04 운영에 셋 다 넣었다.
 - **nginx**: `location /agent/` · `location /.well-known/oauth-` → `127.0.0.1:3005`. 운영 스키마 `scripts/migrate-agent-oauth.js`(멱등, 배포 슬롯).

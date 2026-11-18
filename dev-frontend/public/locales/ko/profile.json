@@ -402,7 +402,7 @@
     "reconnectGeneric": "그 앱의 연결 설정에서 PlanQ 를 끊고 다시 연결한 뒤, PlanQ 화면에서 «읽기 + 추가·수정» 을 골라 [허용] 하세요. 지금 쓰던 기능은 그대로 됩니다.",
     "ability": {
       "docs_write": "문서 만들기·고치기",
-      "files_write": "대화 속 파일을 PlanQ 에 올리기",
+      "files_write": "대화 속 파일·글을 PlanQ 에 저장하고 폴더를 만들어 정리하기",
       "projects_write": "프로젝트·추진과제 만들기"
     }
   },

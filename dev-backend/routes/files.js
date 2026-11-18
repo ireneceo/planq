@@ -1065,48 +1065,22 @@ router.post('/:businessId/:id/drive-edit', authenticateToken, checkBusinessAcces
 
 // ─── Move (폴더 이동) ───
 
-router.post('/:businessId/:id/move', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+router.post('/:businessId/:id/move', authenticateToken, checkBusinessAccess, async (req, res, next) => { // audit-exempt: 감사는 folder_actions.moveFiles 가 쓴다(file.move)
   if (req.businessRole === 'client') return errorResponse(res, 'forbidden', 403);
   try {
-    const file = await File.findOne({
-      where: { id: req.params.id, business_id: req.params.businessId, deleted_at: null }
-    });
-    if (!file) return errorResponse(res, 'File not found', 404);
-    if (!(await canMutateFile(file, req))) {
-      return errorResponse(res, '본인 업로드 · 오너 · 프로젝트 PM 만 이동할 수 있습니다', 403);
+    // 규칙은 행동 계층 `services/actions/folder_actions.moveFiles` 한 곳(AI move_files_to_folder 도 같은 함수, 2026-11-18) —
+    //   권한(올린 사람·대표·PM)·폴더 소속 판정·감사 file.move·Drive 사본 이동·file:updated 신호가 거기 있다.
+    //   화면은 strict:false — 종전 규칙 그대로(파일에 프로젝트가 있으면 같은 프로젝트 폴더만).
+    const r = await require('../services/actions/folder_actions').moveFiles(
+      { kind: 'user', userId: req.user.id, platformRole: req.user.platform_role, req },
+      { businessId: Number(req.params.businessId), fileIds: [Number(req.params.id)], folderId: req.body.folder_id || null, strict: false },
+    );
+    if (!r.ok) {
+      if (r.code === 'file_not_found') return errorResponse(res, 'File not found', 404);
+      if (r.code === 'file_move_forbidden') return errorResponse(res, '본인 업로드 · 오너 · 프로젝트 PM 만 이동할 수 있습니다', 403);
+      return errorResponse(res, r.code, r.http || 400);
     }
-
-    const folderId = req.body.folder_id ? Number(req.body.folder_id) : null;
-    if (folderId && !(await verifyFolderOwnership(folderId, file.business_id, file.project_id))) {
-      return errorResponse(res, 'Invalid folder_id', 400);
-    }
-    const prevFolderId = file.folder_id;
-    file.folder_id = folderId;
-    await file.save();
-    if (prevFolderId !== folderId) require('../services/auditService').logAudit(req, { action: 'file.move', targetType: 'file', targetId: file.id, businessId: file.business_id, oldValue: { folder_id: prevFolderId }, newValue: { folder_id: folderId } });
-    // Drive 사본도 같은 자리로 (Irene 2026-08-31). PlanQ 에서 정리했는데 Drive 가 그대로면
-    //   두 곳이 갈라진다. 미러된 파일에만 해당하고, 실패해도 이동 자체는 되돌리지 않는다
-    //   (PlanQ 가 정본, Drive 는 사본).
-    if (file.gdrive_mirror_id) {
-      setImmediate(async () => {
-        try {
-          const gdrive = require('../services/gdrive');
-          const mirror = require('../services/gdriveMirror');
-          const token = await gdrive.getTokenForBusiness(file.business_id);
-          if (!token || !token.root_folder_id) return;
-          const drive = await gdrive.getDriveClient(token);
-          // ★ 업로드·미러와 **같은 함수**로 자리를 정한다. 여기만 'Workspace Files' 를 기준으로
-          //   삼고 있어서, PlanQ 에서 폴더로 옮기면 Drive 에선 **프로젝트 폴더 밖으로 빠져나갔다**
-          //   (Irene 2026-09-07 지적의 실체). 이제 `프로젝트/폴더/` 로 같은 자리에 간다.
-          const parentId = await mirror.resolveDriveParent(drive, token, {
-            projectId: file.project_id, folderId,
-          });
-          await gdrive.moveFile(drive, file.gdrive_mirror_id, parentId);
-        } catch (e) { console.warn('[file move] Drive 반영 실패:', e.message); }
-      });
-    }
-    broadcastFile(req, file, 'file:updated');
-    successResponse(res, file, 'File moved');
+    successResponse(res, r.data.files[0], 'File moved');
   } catch (error) {
     next(error);
   }

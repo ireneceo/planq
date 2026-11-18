@@ -1,6 +1,14 @@
 # Fable 게이트 대기열 → **판정 기록 보관소** (2026-10-08 부터)
 
 
+### 2026-11-18 방 9a9620c8 — AI 연결 Q file 폴더·텍스트 파일 — 설계 **DESIGN-READY** · 완료 검증 **PASS**
+- Irene: «클로드나 챗지피티가 프로젝트>파일>폴더를 만들거나 폴더에 파일 넣는게 왜 안돼?»
+- 원인: 폴더 만들기·목록·옮기기 도구 없음 · upload_file 에 폴더 칸 없음 · upload_file 은 ChatGPT 첨부 주소만(클로드는 바이트를 넘길 길이 없음).
+- 설계: list_folders · create_folder · move_files_to_folder · create_text_file(txt) · upload_file.folder_id · list_files.folder — 전부 LOW·files:write. 행동 계층 `folder_actions`(화면 라우트 3곳도). 공개 링크 폴더(조상 포함)에 넣기 거절. base64 없음. Drive 는 저장 뒤 mirrorOnUpload. Cue 미노출. 화면도 같이 바뀜(승인): 프로젝트 폴더 같은 이름 dedup · 숨은 프로젝트 폴더 만들기 404.
+- 완료 검증 PASS — 독립 실호출 82건 결함 0 · 차단 0. 비차단 반영: ① MCP 본문 한도 256kb→512kb(한글 10만 자 413) ③ create_folder 부모만 주면 부모 프로젝트 상속.
+  남김(비차단): ② 같은 이름 동시 생성 경합(잠금·유니크 없음 — 화면 더블클릭도 같음) ④ 이름에 «/»·«../» 허용(저장 경로는 uuid라 안전, 표시만 모호) ⑤ 빈 본문 0바이트 파일 ⑥ 화면 이동: 프로젝트 없는 자기 파일을 숨은 프로젝트 폴더에 넣을 수 있음(옛 규칙) · 이동 응답에 File 행 통째(share_token 키, 옛 코드). 확인 못 함: upload_file 성공 경로+folder_id(OpenAI 주소 없음) · Drive 미러 · 실제 앱 대화.
+- 미룸: md·csv(정본 ALLOWED_EXT 에 넣고 화면 실측 뒤) · 화면 GET /api/folders/workspace/:biz 가 숨은 프로젝트 폴더·이름을 멤버에게 주는 기존 구멍(범위 밖).
+
 ### 2026-11-18 방 2ebcdfac — AI 연결 «참조(watcher)» 표면 — 설계 **DESIGN-READY** · 완료 검증 **PASS**
 - Irene: «클로드가 업무를 추가해줬는데 참조에 이름을 넣을 수가 없어. 왜 이래? 원래 되는데 클로드가 난한거야?»
 - 원인: 화면 참조 칸은 정상. AI 도구 create_task 에 컨펌자만 있고 참조 입력·도구·get_task 명단이 없었다.

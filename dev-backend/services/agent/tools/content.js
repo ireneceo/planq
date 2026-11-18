@@ -182,12 +182,16 @@ async function listFiles(p, a) {
   const pg = parsePage(a);
   const { rows, count } = await File.findAndCountAll({
     where: { [Op.and]: conds },
-    attributes: ['id', 'file_name', 'file_size', 'mime_type', 'project_id', 'client_id', 'uploader_id', 'created_at', 'security_level'],
+    attributes: ['id', 'file_name', 'file_size', 'mime_type', 'project_id', 'client_id', 'uploader_id', 'created_at', 'security_level', 'folder_id'],
     include: [{ model: User, as: 'uploader', attributes: ['id', 'name'], required: false }],
     order: [...(M ? [M.relevance('file_name')] : []), ['created_at', 'DESC'], ['id', 'DESC']],
     limit: pg.pageSize, offset: pg.offset, distinct: true,
   });
   const names = await nameMaps(p, rows.map((r) => r.project_id), rows.map((r) => r.client_id));
+  // 어느 폴더에 있는지(2026-11-18) — 폴더 이름만. 파일을 볼 수 있으면 그 파일이 든 폴더 이름도 본다(화면 트리와 같다)
+  const { FileFolder } = require('../../../models');
+  const fids = [...new Set(rows.map((r) => r.folder_id).filter(Boolean))];
+  const fmap = new Map((fids.length ? await FileFolder.findAll({ where: { id: fids, business_id: p.businessId }, attributes: ['id', 'name'] }) : []).map((f) => [f.id, f.name]));
   const { applyMemberDisplayName } = require('../../displayName');
   const js = rows.map((r) => r.toJSON());
   await applyMemberDisplayName(js, p.businessId, ['uploader']);
@@ -195,6 +199,7 @@ async function listFiles(p, a) {
     file_id: f.id, name: f.file_name, size_bytes: f.file_size ?? null, mime_type: f.mime_type || null,
     project: names.project.get(f.project_id) || null,
     client: names.client.get(f.client_id) || null,
+    folder: f.folder_id && fmap.has(f.folder_id) ? { folder_id: f.folder_id, name: fmap.get(f.folder_id) } : null,
     uploader: ser.person(f.uploader),
     created_at: ser.iso(f.created_at),
     restricted: isRestricted(f),

@@ -172,74 +172,10 @@ async function downloadCapped(url, dest, maxBytes) {
   return total;
 }
 
-async function uploadFile(p, a, actor) {
-  await assertMenu(p, 'qfile', 'write');
-  const f = a.file;
-  if (!allowedFileUrl(f.download_url)) throw err('VALIDATION_ERROR', 'file_url_not_allowed', { hint: 'Only files attached in this ChatGPT conversation can be uploaded.' });
-  const di = require('../../driveImport');
-  const name = String(a.file_name || f.file_name || 'file').trim().slice(0, 255) || 'file';
-  if (!di.ALLOWED_EXT.has(di.extOf(name))) throw err('VALIDATION_ERROR', 'extension_not_allowed', { allowed: [...di.ALLOWED_EXT] });
-
-  // 붙일 곳 — 먼저 확인한다(파일을 받은 뒤 «못 붙인다» 로 버리지 않게). 공개 범위는 붙일 곳을 따른다.
-  const target = a.attach_to || { kind: 'workspace' };
-  let projectId = null; let visibility = 'L3'; let post = null; let task = null;
-  if (target.kind === 'document') {
-    await loadReadable(p, target.id);   // 다른 문서 도구와 같은 순서 — 읽을 수 없는 문서는 받기 전에 NOT_FOUND
-    const chk = await actions().checkEditable(actor, { businessId: p.businessId, postId: target.id });
-    if (!chk.ok) throw failOf(chk);
-    post = chk.data.post;
-    projectId = post.project_id || null;
-    // 문서보다 넓게 올리지 않는다 — 문서는 나만 보기인데 첨부만 전체면 그게 유출이다(화면 persistAttachments 와 같은 원칙)
-    visibility = post.vlevel === 'L4' ? 'L3' : (post.vlevel || (projectId ? 'L2' : 'L3'));
-  } else if (target.kind === 'task') {
-    const { Task } = require('../../../models');
-    const { getUserScope, canAccessTask } = require('../../../middleware/access_scope');
-    task = await Task.findOne({ where: { id: target.id, business_id: p.businessId } });
-    const scope = task ? await getUserScope(p.userId, p.businessId, p.platformRole) : null;
-    if (!task || !(await canAccessTask(p.userId, task, scope))) throw err('NOT_FOUND', 'task_not_found');
-    projectId = task.project_id || null;
-    visibility = projectId ? 'L2' : 'L3';
-  } else if (target.kind === 'project') {
-    const { Project } = require('../../../models');
-    const { getUserScope, canAccessProject } = require('../../../middleware/access_scope');
-    const prj = await Project.findOne({ where: { id: target.id, business_id: p.businessId } });
-    if (!prj || !(await canAccessProject(p.userId, prj, await getUserScope(p.userId, p.businessId, p.platformRole)))) throw err('NOT_FOUND', 'project_not_found');
-    projectId = target.id;
-    visibility = 'L2';
-  }
-
-  // 요금제 파일당 한도(plan.can upload_file) — 받기 전에 바닥을, 받은 뒤 실제 크기로 다시
-  const plan = require('../../plan');
-  const temp = di.uploadPathFor(p.businessId);
-  const size = await downloadCapped(f.download_url, temp, HARD_MAX_BYTES);
-  const gate = await plan.can(p.businessId, 'upload_file', { size, external: false });
-  if (!gate.ok) { try { fs.unlinkSync(temp); } catch { /* noop */ } throw err('QUOTA_EXCEEDED', gate.reason || 'upload_limit', { limit: gate.limit ?? null, size_bytes: size }); }
-
-  const ing = await di.ingestDownloadedFile({ businessId: p.businessId, uploaderId: p.userId }, temp, {
-    projectId, visibility, fileName: name, mimeType: f.mime_type || 'application/octet-stream',
-    auditValue: { source: 'agent', provider: p.provider, grant_id: p.grantId, file_id: f.file_id },
-  });
-  if (!ing.ok) throw ing.reason === 'storage_quota_exceeded' ? err('QUOTA_EXCEEDED', 'storage_quota_exceeded') : err('INTERNAL', ing.reason || 'ingest_failed');
-  const file = ing.file;
-
-  let attached = null;
-  if (post) {
-    const ar = await actions().attachFiles(actor, { businessId: p.businessId, postId: post.id, fileIds: [file.id] });
-    if (!ar.ok) throw failOf(ar);
-    attached = { kind: 'document', post_id: post.id, url: docUrl(post.id) };
-  } else if (task) {
-    await require('../../taskAttachmentLink').linkFilesToTask(task, [file], p.userId, { context: 'task' });
-    attached = { kind: 'task', task_id: task.id, url: `${cfg.APP_URL}/tasks?task=${task.id}` };
-  } else if (projectId) {
-    attached = { kind: 'project', project_id: projectId };
-  }
-  return {
-    file: { file_id: file.id, name: file.file_name, size_bytes: file.file_size, mime_type: file.mime_type, visibility, url: `${cfg.APP_URL}/files?file=${file.id}` },
-    attached_to: attached, created: true,
-  };
-}
+// upload_file 본체는 tools/files_write.js 로 옮겼다(2026-11-18 — 폴더 지정·텍스트 파일 만들기와 «붙일 곳·폴더 판정» 한 벌을 쓰려고).
+//   받는 주소 검사(allowedFileUrl)·크기 자르며 받기(downloadCapped)는 여기 그대로 둔다.
 
 module.exports = {
-  createDocument, appendToDocument, previewUpdate, updateDocument, linkDocuments, previewMove, moveDocument, uploadFile,
-  allowedFileUrl, _downloadCapped: downloadCapped,
+  createDocument, appendToDocument, previewUpdate, updateDocument, linkDocuments, previewMove, moveDocument, failOf,
+  allowedFileUrl, _downloadCapped: downloadCapped, HARD_MAX_BYTES,
 };

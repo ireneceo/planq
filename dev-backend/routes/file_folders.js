@@ -92,66 +92,41 @@ router.get('/workspace/:businessId', authenticateToken, async (req, res, next) =
   } catch (error) { next(error); }
 });
 
-router.post('/workspace/:businessId', authenticateToken, async (req, res, next) => { // audit-exempt: 감사는 logFolderAudit 이 쓴다(file_folder.create)
+// 폴더 만들기 — 규칙은 행동 계층 `services/actions/folder_actions.createFolder` 한 곳(AI create_folder 도 같은 함수, 2026-11-18).
+//   감사(file_folder.create)·같은 자리 같은 이름 dedup·프로젝트 보임 판정·folder:updated 신호가 거기 있다.
+function folderActor(req) {
+  return { kind: 'user', userId: req.user.id, platformRole: req.user.platform_role, req };
+}
+function sendFolderResult(res, r) {
+  if (!r.ok) {
+    const msg = r.code === 'project_not_found' ? 'Project not found' : r.code;
+    return errorResponse(res, msg, r.http || 400);
+  }
+  if (!r.data.created) return successResponse(res, serializeFolder(r.data.folder));
+  return successResponse(res, serializeFolder(r.data.folder), 'Folder created', 201);
+}
+
+router.post('/workspace/:businessId', authenticateToken, async (req, res, next) => { // audit-exempt: 감사는 folder_actions.createFolder 가 쓴다(file_folder.create)
   try {
     const businessId = Number(req.params.businessId);
     if (!businessId) return errorResponse(res, 'business_id required', 400);
-    if (!(await assertMemberWrite(req.user.id, businessId, req.user.platform_role))) {
-      return errorResponse(res, 'forbidden', 403);
-    }
-    const name = (req.body.name || '').trim();
-    if (!name) return errorResponse(res, 'name required', 400);
-    const parentId = req.body.parent_id ? Number(req.body.parent_id) : null;
-    if (parentId) {
-      const parent = await FileFolder.findOne({
-        where: { id: parentId, business_id: businessId, project_id: null },
-      });
-      if (!parent) return errorResponse(res, 'Invalid parent_id', 400);
-    }
-    // 같은 자리에 같은 이름 두 개는 만들지 않는다 — 목록에서 구별이 안 된다.
-    const dup = await FileFolder.findOne({
-      where: { business_id: businessId, project_id: null, parent_id: parentId, name },
+    const r = await require('../services/actions/folder_actions').createFolder(folderActor(req), {
+      businessId, projectId: null, parentId: req.body.parent_id, name: req.body.name,
     });
-    if (dup) return successResponse(res, serializeFolder(dup));
-
-    const row = await FileFolder.create({
-      business_id: businessId, project_id: null, parent_id: parentId,
-      name, sort_order: 0, created_by: req.user.id,
-    });
-    logFolderAudit(req, 'file_folder.create', row);
-    successResponse(res, serializeFolder(row), 'Folder created', 201);
+    sendFolderResult(res, r);
   } catch (error) { next(error); }
 });
 
 // Create folder
-router.post('/projects/:projectId', authenticateToken, async (req, res, next) => { // audit-exempt: 감사는 logFolderAudit 이 쓴다(file_folder.create)
+router.post('/projects/:projectId', authenticateToken, async (req, res, next) => { // audit-exempt: 감사는 folder_actions.createFolder 가 쓴다(file_folder.create)
   try {
-    const project = await Project.findByPk(req.params.projectId);
+    const project = await Project.findByPk(req.params.projectId, { attributes: ['id', 'business_id'] });
     if (!project) return errorResponse(res, 'Project not found', 404);
-    if (!(await assertMemberWrite(req.user.id, project.business_id, req.user.platform_role))) {
-      return errorResponse(res, 'forbidden', 403);
-    }
-    const name = (req.body.name || '').trim();
-    if (!name) return errorResponse(res, 'name required', 400);
-    const parentId = req.body.parent_id ? Number(req.body.parent_id) : null;
-
-    if (parentId) {
-      const parent = await FileFolder.findOne({
-        where: { id: parentId, business_id: project.business_id, project_id: project.id }
-      });
-      if (!parent) return errorResponse(res, 'Invalid parent_id', 400);
-    }
-
-    const folder = await FileFolder.create({
-      business_id: project.business_id,
-      project_id: project.id,
-      parent_id: parentId,
-      name,
-      sort_order: Number(req.body.sort_order) || 0,
-      created_by: req.user.id
+    const r = await require('../services/actions/folder_actions').createFolder(folderActor(req), {
+      businessId: project.business_id, projectId: project.id, parentId: req.body.parent_id,
+      name: req.body.name, sortOrder: req.body.sort_order,
     });
-    logFolderAudit(req, 'file_folder.create', folder);
-    successResponse(res, serializeFolder(folder), 'Folder created', 201);
+    sendFolderResult(res, r);
   } catch (error) {
     next(error);
   }
