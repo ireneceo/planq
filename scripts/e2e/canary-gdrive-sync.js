@@ -18,7 +18,9 @@ async function run() {
   const gdriveApply = require(path.join(BE, 'services/gdriveApply'));
   let drive = null, driveFileId = null, localId = null;
   try {
-    const token = await BusinessCloudToken.findOne({ where: { provider: 'gdrive' } });
+    // ★ 2026-11-19 — 아무 연결이나 집으면 만료된 dev ws 3(invalid_grant)을 집어 빨강(11-17 밤). 살아 있는 최근 연결을 먼저.
+    const token = (await BusinessCloudToken.findOne({ where: { provider: 'gdrive', last_error: null }, order: [['updated_at', 'DESC']] }))
+      || await BusinessCloudToken.findOne({ where: { provider: 'gdrive' } });
     if (!token) { push('connection', false, '🔴 dev 에 gdrive 연동 없음 — 판정 불가(통과로 치지 않는다)'); return rows; }
     drive = await gdrive.getDriveClient(token);
     const BIZ = token.business_id;

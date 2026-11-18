@@ -18,7 +18,10 @@ const { launch, login, goto, sleep, dismissBlockers, BASE } = require('./lib/bro
 const { sequelize } = require('/opt/planq/dev-backend/config/database');
 
 const MARK = 'zqedctx';
-const LONG = 'https://docs.google.com/spreadsheets/d/1AbCdEfGhIjKlMnOpQrStUvWxYz0123456789abcdefGHIJ/edit?usp=sharing&ouid=1234567890123456789&rtpof=true';
+// ★ 2026-11-19 — 끊을 데 없는 토막을 본문 폭(데스크탑 872)보다 길게. 11-17 «기본 표 = 내용 기준 열 폭»(2e55d15e) 뒤
+//   1440 에서 긴 열이 678 까지 넓어져 옛 주소(가장 긴 토막 ~50자)는 상한 없이도 칸 안에 들어갔다 → 양성 대조군 678→678 로 빨강.
+//   토막이 칸보다 길어야 «상한이 실제로 가두는가» 를 잴 수 있다.
+const LONG = `https://docs.google.com/spreadsheets/d/${'A1b2C3d4E5f6G7h8'.repeat(9)}/edit?usp=sharing`;
 const results = [];
 const push = (name, pass, detail) => results.push({ name, fail: !pass, details: detail ? [detail] : [] });
 

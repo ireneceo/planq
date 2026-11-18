@@ -24,7 +24,16 @@ const mirror = require('/opt/planq/dev-backend/services/gdriveMirror');
 const { recallDriveMirror } = require('/opt/planq/dev-backend/services/driveMirrorRecall');
 const gdriveApply = require('/opt/planq/dev-backend/services/gdriveApply');
 
-const BIZ = Number(process.env.CANARY_BIZ || 3);
+// ★ 2026-11-19 — 기본 ws 3 고정이던 것: dev ws 3 Drive 토큰이 만료(invalid_grant)된 뒤 11-17 밤 검사가 5건 빨강.
+//   지정이 없으면 **오류 없는(살아 있는) 연결** 중 가장 최근 것의 워크스페이스를 쓴다(run() 첫 줄에서 정함).
+let BIZ = Number(process.env.CANARY_BIZ || 0);
+async function pickBiz() {
+  if (BIZ) return;
+  const tk = await db.BusinessCloudToken.findOne({
+    where: { provider: 'gdrive', last_error: null }, order: [['updated_at', 'DESC']],
+  }).catch(() => null);
+  BIZ = tk ? tk.business_id : 3;
+}
 const TOKEN = { connected_by: 3, root_folder_id: 'root', workspace_folder_id: 'wsf' };
 const base = (over) => ({
   storage_provider: 'planq', gdrive_mirror_id: null, deleted_at: null,
@@ -33,6 +42,7 @@ const base = (over) => ({
 });
 
 async function run() {
+  await pickBiz();
   // ★ **지난 실행이 죽었으면 흔적이 남는다** (2026-09-17 실측: dev 에 65행).
   //   `finally` 의 정리는 프로세스가 거기까지 갔을 때만 돈다 — MySQL 커넥션 고갈처럼
   //   중간에 죽으면 그 목록째로 사라진다. 그래서 **시작할 때 이름으로 쓸어낸다.**
