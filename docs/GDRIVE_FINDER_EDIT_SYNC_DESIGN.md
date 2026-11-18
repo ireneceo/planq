@@ -194,3 +194,42 @@ dev 실측(ws 3 워프로랩만 연결): 지금 산 미러 행 0(시험 데이�
 - 화면 3폭(1440·820·390): 목록 «Drive 와 다름» 82×19 elementFromPoint 일치 · 휴지통 «Google Drive 에서 지움»/«고치기 전 판»
 - build EXIT 0 · error TS 0 · guard 85/86 · health-check 101/101(drivesync 포함)
 - **확인 못 함**: 두 번째 구글 계정(편집자)이 지웠을 때 휴지통인지 부모 변경인지 · 맥 파인더·오피스/한글/미리보기 저장이 같은 Drive id 를 유지하는지(운영 반영 조건) · 운영 숫자 3개(이 방 운영 읽기 권한 거부)
+
+## 6. Fable 완료 검증
+
+2026-11-18 · [Fable] 완료 검증 · 대상 cf3f5801 + f62fff22 (HEAD 0c73c3ed) · **VERDICT: PASS** — 차단 0 · 비차단 6.
+자체 검증 숫자를 믿지 않고 따로 짠 스크립트로 다시 쟀다(스크립트·시험 행·바이트·Drive 사본·원장·감사·알림·사용량 모두 되돌림 — ws 6 사용량 173,996,601B·127개 전후 같음, Drive 에 남은 시험 파일 0).
+
+**통과의 뜻**: ① 운영에 **꺼진 채**(GDRIVE_FINDER_SYNC 없음) 나가도 된다 ② 코드는 §4 설계대로 동작한다.
+**운영에서 켜는 것(운영 .env `GDRIVE_FINDER_SYNC=1`)은 이 판정에 들어 있지 않다** — §4.6 «운영 반영 조건»(맥 파인더·오피스/한글/미리보기 저장이 같은 Drive id 를 유지하는가 · 두 번째 구글 계정 편집자가 지웠을 때 무엇이 오는가 · 운영 숫자 3개)이 그대로 남아 있고, 아래 비차단 ①을 먼저 고치기를 권한다.
+
+### 6.1 실 Drive + 실 웹훅 (dev ws 6 · 서버 프로세스가 적용, 검증 스크립트는 Drive 조작·DB 읽기만) — 22/22
+- 미러 업로드가 `drive_md5` 기록 · 실 Drive 가 새 Changes 필드(explicitlyTrashed·trashingUser·lastModifyingUser)를 받아 줌(운영에서 스위치와 무관하게 쓰이는 호출이라 따로 확인) · ⓐ 에코 = `skip/no_change` 뿐
+- 양성2 고침(Drive `files.update` media → 웹훅 6~27초): 새 경로·크기·sha256·md5 · 옛 판 휴지통 행 1(옛 바이트 그대로·미러/공유 칸 NULL·purge_after 있음) · 쿼터 = −옛 + 새(+30B)·개수 그대로 · `GET /api/files/6/:id/download` 바이트 sha256 = 새 내용
+- ⓘ 같은 날 2번째 고침 → 옛 판 1·중간 판 바이트 디스크에 없음
+- 양성1 지움: `deleted_via='gdrive'`·`purge_after` · 쿼터 −25B·−1개(1회) · Drive 사본 `files.get` 404 · 포인터 NULL · `GET /trash` 에 gdrive / gdrive_edit · 복구 200 → 새 Drive id·`deleted_via` NULL·쿼터 원복 · 옛 판 복구 → 별도 산 파일(+옛 바이트·+1개)
+- 양성3 고친 뒤 바로 지움 → 휴지통 행 바이트 = 새 내용 · Drive 사본 404
+- 양성3b 고친 뒤 지움 + 고침 실패(사용량을 한도 위로) → 안 지움·로컬 바이트 그대로·`edit_quota`·원장 `trash_after_edit_held` · **Drive 사본 남음**(trashed:true · md5 = 안 받은 새 내용)
+- ⓒ 폴더째 휴지통: 자식 실측 `trashed:true, explicitlyTrashed:false` → `trash_held`·산 채·포인터 유지 · 폴더 되살림 → 표시 NULL
+- `all-files` 응답에 `drive_sync_issue` · `/api/cloud/status/6` `finder_sync:true` · 원장 detail 에 이메일 원문 0 · 알림 5장 전부 앱 안(email_logs·push_logs 증가 0)
+
+### 6.2 가짜 Changes (독립 재현) — 31/31
+- 고침: 새 경로·옛 판·쿼터·산 행 공유 링크 유지·바깥 이메일 미기록 · 받는 중 md5 불일치 → 무변화·임시 파일 0 · 크기 한도 `edit_too_large` · 확장자 `edit_ext` · 받기 실패 `edit_download_failed` · md5 다시 같으면 표시 NULL
+- ⓔ 쌍둥이 고침(반영 안 함)·지움(둘 다 산다) · 문서 그림 지움(산다) · ⓑ removed(산다) · ⓙ 다른 워크스페이스 같은 Drive id·이미 지운 행 → 무변화 · ⓚ Drive 정본 = 종전
+- 스위치: GDRIVE_FINDER_SYNC 끔 → 고침 무시·지움은 미러 해제(산다) · GDRIVE_FINDER_TRASH=0 → 산다
+- D-1(`runChanges`, 임시 토큰 행): ⓖ 적용 도중 예외 → 커서 그대로 · 목록 2쪽 실패 → 커서 그대로·미적용 · ⓕ 동시 3회 → 쿼터 차감 1회(scanned 1·0·0)·커서 전진 · 커서를 되돌려 다시 적용 → 차감 그대로
+- ⓓ 10분 100건 → 보류 + 대표 알림 1(메일·푸시 끔) · 증빙 술어 5개 쿼리가 dev 스키마에서 오류 없이 돈다(오류면 전부 «묶임» 으로 읽혀 고침이 통째로 꺼진다)
+
+### 6.3 가드
+`npm run build` EXIT 0 · error TS 0 · guard-invariants 85/86(전체 통과 표시) · health-check 101/101 · drivesync 1/1 · migrate-file-drive-sync 재실행 = «이미 있음» ×2 · 배포 슬롯은 PM2 reload 앞.
+
+### 6.4 비차단 지적
+1. **내려받기에 시간 제한이 없다**(`applyMirrorEdit` 의 `getFileStream`). 워크스페이스당 한 줄이라 Drive 스트림이 멈추면 그 워크스페이스의 동기화 전체가 서버 재시작까지 선다(전에는 웹훅마다 따로 돌았다). 꺼진 채로는 해당 없음 — **운영에서 켜기 전에** 멈춤 감시(예: N초 무수신이면 끊고 `edit_download_failed`)를 넣는다.
+2. md5 없는 직접 지움(구글 문서로 변환된 사본 등) → 안 지우고 `drive_sync_issue` 도 NULL(실측). 설계 A-3x 는 «보류 표시» 다 — 화면이 말하지 않는 어긋남. `trash_held` 를 남긴다.
+3. 휴지통 트랜잭션이 실패하면(교착 등) 원장 `skip/error` 만 남고 표시·다시 시도가 없다. 커서는 넘어간다. 끝 상태는 «PlanQ 에 남음» 이라 잃는 것은 없다.
+4. `edit_quota`·`edit_too_large`·`edit_ext` 는 다시 시도하지 않는다(설계대로 `edit_download_failed` 만). 공간이 비어도 그 파일이 Drive 에서 다시 바뀔 때까지 «Drive 와 다름» 이 남는다 — 전체 대조(D-2 권고)와 같이 «다음 할 일».
+5. 증빙 목록에 없는 `files.id` 참조: `post_revisions.attachment_file_ids`(옛 문서 판이 새 내용을 가리키게 됨) · `kb_documents.source_file_id` · `calendar_event_attachments` · `client_interactions` · `message_attachments` · `post_attachments` · `email_drafts`. 뒤 여섯은 «최신 내용» 이 뜻에 맞다. `post_revisions` 는 Irene 이 문서 옛 판의 첨부까지 동결하길 바라면 한 줄 더한다. 서명 스냅샷 술어는 숫자 `file_id` 만 맞는다(지금 쓰는 쪽이 숫자 — 문자열로 바뀌면 조용히 빠진다).
+6. 확장자 검사는 PlanQ 이름 기준인데 같은 변경의 Drive 이름변경은 검사 없이 뒤에 반영된다(§4.4 의 기존 건 — `mime_type` 은 안 바뀐다).
+
+### 6.5 확인 못 한 것
+두 번째 구글 계정(편집자) 지움 · 맥 파인더 앱 저장의 Drive id 유지 · 운영 숫자 3개 · 화면 3폭(자체 검증 값을 다시 재지 않음 — 프론트 변경은 태그·문구뿐이고 빌드·API 칸만 확인) · 파일당 한도를 **스트림 도중** 넘기는 경로(메타 크기 경로만 확인) · D-2 크론 다시 시도의 실 Drive 왕복.
