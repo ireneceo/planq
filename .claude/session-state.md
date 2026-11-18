@@ -1,9 +1,12 @@
 ## 현재 작업 상태
-### 🔧 진행 중: 구글드라이브 — 파인더에서 지우기·고치기 PlanQ 반영 (방 d907f0d8 · 2026-11-18 · [Opus] · Irene «권고대로»)
-- 결정: 지움 → PlanQ 휴지통까지만 · 고침 → 새 내용 + 옛 판 보관. 새로 넣은 파일 들이기는 범위 밖(10-02 결정)
-- 설계 `docs/GDRIVE_FINDER_EDIT_SYNC_DESIGN.md` → Fable 설계 판정 중 → 구현 → dev ws3 실 Drive 실측 → Fable 완료 검증
-- 운영 DB 읽기(미러 행 수·쌍둥이) 권한 거부됨 — dev 숫자만
-- 이어받으면: 설계 문서 «4. Fable 판정» 절부터
+### 답 기다림: 개발 서버 «워프로랩» Google Drive 다시 연결 — 파인더 지우기·고치기 반영 실 Drive 측정 (방 d907f0d8 · 2026-11-18 · [Opus] · Irene «권고대로» · Fable 설계 DESIGN-READY)
+- 무엇: dev ws 3 Drive 토큰이 만료(invalid_grant, 11-18 04:48 표시 기록) → 실 Drive 측정(§4.6 양성 1~4) 못 함. 대표 계정 본인만 재연결 가능 — 상황판 act askmwln63vb
+- 한 일: 커밋 cf3f5801 — services/gdriveMirrorSync(지움 분기표·고침·옛 판·알림) · gdriveSyncRun(워크스페이스당 한 줄, 커서 적용 뒤 저장 · 실패 고침 다시 시도) · files.deleted_via·drive_sync_issue(migrate-file-drive-sync.js 배포 슬롯) · 휴지통·목록 표시 · 안내 문구 · 회귀 health-check drivesync
+- 자체 검증: 가짜 Changes 15/15(removed·쌍둥이·문서 그림·폴더째·100건·NULL md5 에코·한도·받기 실패·Drive 정본 불변·스위치·동시 2회 차감 1회·가드 양성 대조군·증빙) · HTTP 3/3(휴지통 deleted_via·복구가 지움·목록 drive_sync_issue) · 화면 3폭(태그 82×19 눌림·휴지통 문구) · build EXIT 0·error TS 0 · guard 85/86 · health 101/101
+- 확인용 데이터(ws 6): 파일 13157 «[확인용] Drive 와 다름 표시.txt» · 휴지통 13158 «Drive 에서 지운 파일» · 13159 «이전 판»
+- 답이 오면: `cp $CLAUDE_JOB_DIR/tmp/test-drive-real.js dev-backend/` → 실행 → rm → Fable 완료 검증(/fable-검증) → 작업기록 ✅
+- 운영 반영 조건(Fable §4.6): Irene 맥 실기기 1회(파인더에서 오피스·한글·미리보기로 저장 → 휴지통으로 가지 않고 새 내용으로 오는지) · 운영 숫자 3개(산 미러 행·쌍둥이·문서 그림 미러) — 이 방 운영 읽기는 권한 거부됨 · 배포 뒤 1주 원장 건수
+- 범위 밖으로 남긴 것(비차단): Drive 이름변경 확장자 검사 없음 · Drive 정본 분기 지움이 trashFile 안 거침 · 전체 대조(files.list)
 
 ### ✅ 손님 문의 landing#2 (9,900원 환불) — 답장 안 보냄(내부 시험 문의) · Irene 가 관리자 화면에서 «완료»로 닫음 (방 f433cd1f · 2026-11-18 · [Opus] · 상황판 자동 답장)
 - 무엇: 상황판 초안(«요청하신 9,900원 결제는 10월 22일에 환불 처리되었습니다…»)을 손님 문의 landing#2 에 보내기.
