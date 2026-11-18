@@ -508,7 +508,8 @@ const TaskPopoutView: React.FC<TaskPopoutViewProps> = ({ pinSlot, embedded }) =>
       {sections.cue && !loading && !error && bizId && (
         <PopoutCueSlot data-testid="task-popout-cue">
           <CueTaskBar businessId={bizId} projectId={null} compact members={members}
-            defaults={{ due_date: todayStr, planned_week_start: weekStart }} />
+            defaults={{ due_date: todayStr, planned_week_start: weekStart }}
+            onEditInForm={embedded?.onEditInForm} />
         </PopoutCueSlot>
       )}
       {/* #258 — 퀵애드. 로딩·에러 중에는 내지 않는다(기본값의 원천인 weekStart 가 아직 없다). */}

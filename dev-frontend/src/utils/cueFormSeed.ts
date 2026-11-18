@@ -99,3 +99,36 @@ export function eventParamsToSeed(params: P, tz: string, linkedTaskTitle?: strin
     },
   };
 }
+
+/**
+ * Q task «Cue에게 말하기» 후보 카드(AiCandidate) → create_task 모양 인자 (2026-11-18).
+ *   후보 1개일 때 [자세히 편집] 이 이 값을 taskParamsToInitial 로 넘긴다 — 폼 칸 변환은 위 한 곳.
+ *   설명 = description + instruction(확정 저장 routes/tasks.js ai-create/confirm 과 같은 이어 붙이기).
+ *   날짜 = baseDate(서버가 준 워크스페이스 오늘) + offset. 폼에 칸 없는 것: 반복·업무그룹·선행 업무·«완료로 추가».
+ */
+export function candidateToTaskParams(
+  c: { title: string; description?: string; instruction?: string | null; assignee_user_id?: number | null;
+    start_offset_days: number | null; due_offset_days: number | null; estimated_hours: number | null;
+    priority?: string; tag_names?: string[] | null },
+  baseDate: string, projectId: number | null,
+): P {
+  const addDays = (n: number | null): string | undefined => {
+    if (n == null || !DATE_RE.test(baseDate)) return undefined;
+    const [y, m, d] = baseDate.split('-').map(Number);
+    const dt = new Date(Date.UTC(y, m - 1, d + n));
+    return dt.toISOString().slice(0, 10);
+  };
+  const desc = c.description || '';
+  const instr = c.instruction || '';
+  return {
+    title: c.title,
+    description: instr ? (desc ? `${desc}\n\n${instr}` : instr) : desc,
+    assignee_user_id: c.assignee_user_id ?? null,
+    project_id: projectId,
+    start_date: addDays(c.start_offset_days),
+    due_date: addDays(c.due_offset_days),
+    estimated_hours: c.estimated_hours,
+    priority: c.priority,
+    tag_names: c.tag_names || [],
+  };
+}

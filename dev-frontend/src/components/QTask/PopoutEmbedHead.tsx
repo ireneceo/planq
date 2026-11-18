@@ -23,6 +23,8 @@ export interface PopoutEmbedded {
   headLeft?: React.ReactNode;
   /** 머리줄 오른쪽, 보일 칸 고르기 뒤에 붙일 버튼 */
   headRight?: React.ReactNode;
+  /** Cue 바 [자세히 편집] — 주인의 업무 추가 폼을 이 값으로 연다(CueTaskBar onEditInForm 과 같은 일) */
+  onEditInForm?: (init: import('./TaskCreateForm').TaskCreateInitial) => void;
 }
 
 const PopoutEmbedHead: React.FC<{ embedded: PopoutEmbedded; count: string; menu: React.ReactNode }> = ({ embedded, count, menu }) => (

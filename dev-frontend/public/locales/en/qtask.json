@@ -1277,7 +1277,8 @@
         "Finish the main draft by tomorrow",
         "Write a competitor comparison table this week",
         "Presentation deck draft by next Monday"
-      ]
+      ],
+      "editInForm": "Edit in form"
     },
     "recommend": {
       "title": "Almost the same as your saved '{{name}}' template",

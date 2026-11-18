@@ -12,6 +12,8 @@ import { apiFetch } from '../../contexts/AuthContext';
 import { mapApiError } from '../../utils/apiError';
 import AiCandidateCard, { type AiCandidate, type AiCardMember } from './AiCandidateCard';
 import { isEnterAction } from '../../utils/imeKey';
+import type { TaskCreateInitial } from './TaskCreateForm';
+import { candidateToTaskParams, taskParamsToInitial } from '../../utils/cueFormSeed';
 import {
   Wrap, BarRow, Sparkle, Field, SendBtn, AddedBadge, Check,
   SubHint, ErrorMsg, NoticeMsg, Drop, CueLine, CardList, Actions, Thinking, Dots,
@@ -29,15 +31,21 @@ interface Props {
    *  안 넘기면 종전 동작 그대로(채팅·메일 작업대는 탭 개념이 없어 안 넘긴다). */
   defaults?: { due_date?: string | null; planned_week_start?: string | null } | null;
   onCreated?: (created: Array<{ id: number; title: string }>) => void;
+  /** [자세히 편집] — 후보가 하나일 때 표준 업무 추가 폼을 이 값으로 연다(2026-11-18, Cue 카드 [자세히 편집] 과 같은 일).
+   *  안 넘기면 버튼이 없다 — 대화·메일 작업대는 context(연결)를 폼에 실을 계약이 없어(Fable 설계 범위 밖) 넘기지 않는다. */
+  onEditInForm?: (init: TaskCreateInitial) => void;
 }
 
 type Stage = 'idle' | 'loading' | 'preview';
 
-function todayISO(): string {
-  return new Date().toISOString().slice(0, 10);
+// 서버 응답 전 임시값 — 기기 **로컬** 날짜(toISOString 은 UTC 라 한국 00~09시에 어제가 됐다).
+//   실제 기준은 ai-create 응답의 today(워크스페이스 오늘) — 서버 offset 이 그 날 기준이다.
+function localTodayISO(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
-export default function CueTaskBar({ businessId, members, projectId = null, context = null, compact = false, defaults = null, onCreated }: Props) {
+export default function CueTaskBar({ businessId, members, projectId = null, context = null, compact = false, defaults = null, onCreated, onEditInForm }: Props) {
   const { t } = useTranslation('qtask');
   const { t: tErr } = useTranslation('errors');
   const [stage, setStage] = useState<Stage>('idle');
@@ -53,7 +61,7 @@ export default function CueTaskBar({ businessId, members, projectId = null, cont
   const [notice, setNotice] = useState<string | null>(null);
   const [phIdx, setPhIdx] = useState(0);
   const taRef = useRef<HTMLTextAreaElement | null>(null);
-  const baseDate = todayISO();
+  const [baseDate, setBaseDate] = useState<string>(localTodayISO);
 
   // 예시 placeholder 회전 (idle + 비어있을 때만). 언어별 예시 문장.
   const examples = i18nArray<string>(t('ai.bar.examples', {
@@ -100,6 +108,7 @@ export default function CueTaskBar({ businessId, members, projectId = null, cont
         setStage('idle');
         return;
       }
+      if (typeof j.data?.today === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(j.data.today)) setBaseDate(j.data.today);
       setCandidates(list);
       setReasoning(j.data?.reasoning || '');
       setShortfall(j.data?.enumerated_shortfall || null);
@@ -172,6 +181,13 @@ export default function CueTaskBar({ businessId, members, projectId = null, cont
   };
 
   const selectedCount = candidates.filter(c => c.selected).length;
+  // [자세히 편집] — 고른 후보가 정확히 하나일 때만(여러 건 묶음은 Fable 설계 범위 밖). 넘긴 뒤 카드를 닫는다 — 폼 저장은 confirm 을 안 거쳐 두 번 만들 길을 없앤다.
+  const editTarget = onEditInForm && selectedCount === 1 ? candidates.find(c => c.selected) || null : null;
+  const editInForm = () => {
+    if (!editTarget || !onEditInForm || submitting) return;
+    onEditInForm(taskParamsToInitial(candidateToTaskParams(editTarget, baseDate, projectId)));
+    reset();
+  };
   const placeholder = `${t('ai.bar.lead', 'Cue에게 말하기')} — "${examples[phIdx] || ''}"`;
 
   return (
@@ -247,6 +263,11 @@ export default function CueTaskBar({ businessId, members, projectId = null, cont
                   : t('ai.confirm', '{{n}}개 추가', { n: selectedCount, defaultValue: `${selectedCount}개 추가` })}
             </ModalActionButton>
             {/* 운영 — AI 재생성 UX 통일: 지시 기반 재생성 (인라인) */}
+            {editTarget && (
+              <ModalActionButton variant="secondary" onClick={editInForm} disabled={submitting} data-testid="cue-bar-edit-form">
+                {t('ai.bar.editInForm', '자세히 편집')}
+              </ModalActionButton>
+            )}
             <AiRegenerateBar busy={submitting} size="sm" onRegenerate={(ins) => send(ins)} />
             <ModalActionButton variant="secondary" onClick={reset} disabled={submitting}>{t('ai.bar.close', '닫기')}</ModalActionButton>
           </Actions>

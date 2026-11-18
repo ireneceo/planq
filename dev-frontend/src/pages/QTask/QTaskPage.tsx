@@ -2069,6 +2069,7 @@ const QTaskPage:React.FC=()=>{
                방금 만든 그 목록에서 바로 사라졌다(Irene). 기본값의 정의는 한 곳에서만 바뀌게 둔다. */
             defaults={tabCreateDefaults}
             onCreated={(created)=>revealRow(created.map(c=>c.id)) /* 목록 반영은 socket task:new — 반영되면 그 행을 보여 준다 */}
+            onEditInForm={(init)=>openAddForm(false, init)}
           />
         )}
 
@@ -2078,7 +2079,7 @@ const QTaskPage:React.FC=()=>{
             <TaskPopoutView embedded={{
               tab: tab==='today'?'today':'week', compact: phoneDensity.compact, onOpenTask: openDetail, activeId: detailTaskId,
               headLeft: tab==='week' ? <>{weekLoadChips}{holdChip}</> : null,
-              headRight: addActions,
+              headRight: addActions, onEditInForm: (init)=>openAddForm(false, init),
             }} />
           </PopoutEmbedSlot>
         )}
