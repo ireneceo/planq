@@ -1,10 +1,16 @@
 ## 현재 작업 상태
+### ✅ 배포 스크립트 «커밋 안 된 변경» 정리 · 배포 준비 (방 ebab08aa · 2026-11-18 · [Opus] · Fable 안 씀 — 기능을 끄는 쪽 스위치, 옛 동작으로 돌아감)
+- 원인: 11-18 04:43~04:44 배포 버튼이 «배포 스크립트 커밋 안 됨» 으로 3번 막힘 — Drive 방이 `scripts/deploy-planq.sh` 에 이관 줄을 넣던 중이었고 04:47 cf3f5801 로 커밋됨. 지금 작업 폴더 깨끗 · 배포 스크립트 검사 통과
+- 배포 준비: Drive 파인더 지우기·고치기는 Fable 완료 검증 전이라 운영 꺼진 채(f62fff22) — 나머지는 다음 배포에 그대로 나감
+- 자체 검증: drivesync 켬 PASS · 끔 대조군 뒤집힘 · /api/cloud/status finder_sync true · build EXIT 0 · guard 85/86
+
 ### 답 기다림: 개발 서버 «워프로랩» Google Drive 다시 연결 — 파인더 지우기·고치기 반영 실 Drive 측정 (방 d907f0d8 · 2026-11-18 · [Opus] · Irene «권고대로» · Fable 설계 DESIGN-READY)
 - 무엇: dev ws 3 Drive 토큰이 만료(invalid_grant, 11-18 04:48 표시 기록) → 실 Drive 측정(§4.6 양성 1~4) 못 함. 대표 계정 본인만 재연결 가능 — 상황판 act askmwln63vb
 - 한 일: 커밋 cf3f5801 — services/gdriveMirrorSync(지움 분기표·고침·옛 판·알림) · gdriveSyncRun(워크스페이스당 한 줄, 커서 적용 뒤 저장 · 실패 고침 다시 시도) · files.deleted_via·drive_sync_issue(migrate-file-drive-sync.js 배포 슬롯) · 휴지통·목록 표시 · 안내 문구 · 회귀 health-check drivesync
 - 자체 검증: 가짜 Changes 15/15(removed·쌍둥이·문서 그림·폴더째·100건·NULL md5 에코·한도·받기 실패·Drive 정본 불변·스위치·동시 2회 차감 1회·가드 양성 대조군·증빙) · HTTP 3/3(휴지통 deleted_via·복구가 지움·목록 drive_sync_issue) · 화면 3폭(태그 82×19 눌림·휴지통 문구) · build EXIT 0·error TS 0 · guard 85/86 · health 101/101
 - 확인용 데이터(ws 6): 파일 13157 «[확인용] Drive 와 다름 표시.txt» · 휴지통 13158 «Drive 에서 지운 파일» · 13159 «이전 판»
 - 답이 오면: `cp $CLAUDE_JOB_DIR/tmp/test-drive-real.js dev-backend/` → 실행 → rm → Fable 완료 검증(/fable-검증) → 작업기록 ✅
+- ★ 2026-11-18 배포 준비 방(ebab08aa) f62fff22: 운영에는 **꺼진 채** 나간다 — 전체 스위치 `GDRIVE_FINDER_SYNC=1` 일 때만 반영(개발 .env 에 넣음). Fable 완료 검증 PASS 뒤 운영 .env 에 같은 줄 + pm2 reload 해야 켜진다.
 - 운영 반영 조건(Fable §4.6): Irene 맥 실기기 1회(파인더에서 오피스·한글·미리보기로 저장 → 휴지통으로 가지 않고 새 내용으로 오는지) · 운영 숫자 3개(산 미러 행·쌍둥이·문서 그림 미러) — 이 방 운영 읽기는 권한 거부됨 · 배포 뒤 1주 원장 건수
 - 범위 밖으로 남긴 것(비차단): Drive 이름변경 확장자 검사 없음 · Drive 정본 분기 지움이 trashFile 안 거침 · 전체 대조(files.list)
 
