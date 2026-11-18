@@ -260,8 +260,11 @@ function collectSituation(thread, messages, message) {
 // 저장된 스레드 요약(email_threads.ai_summary)이 지금도 맞는가 — 요약한 뒤로 새 메시지가 안 들어왔으면 맞다.
 //   2026-10-30 (Irene: *"매번 ai 토큰 쓰는 거 아니야? … 매번 다시 생성하는 것 중 저장하면 되는 것"*) — 브리프·[요약] 이 같이 쓴다.
 //   messages 는 created_at 을 가진 행이어야 한다(가져온 시각 — 옛 날짜 메일이 늦게 들어와도 잡힌다).
+// 요약 지시문 판 — 판이 바뀌면 저장본을 다시 만든다(2026-11-18 «내용 요약» 판: 옛 판은 «보냈다» 만 적은 두루뭉술한 요약).
+const SUMMARY_MODEL_TAG = 'gpt-4o-mini@2';
 function savedSummaryFresh(thread, messages) {
   if (!thread.ai_summary || !thread.ai_summary_at) return false;
+  if (thread.ai_summary_model !== SUMMARY_MODEL_TAG) return false;
   const at = new Date(thread.ai_summary_at).getTime();
   // ★ attributes 로 고른 created_at 은 인스턴스 속성으로 안 붙는다(m.created_at === undefined) — get() 으로 읽는다.
   //   모르면 «새 메일 있음» 으로 본다(저장본을 잘못 다시 쓰는 것보다 한 번 더 요약하는 쪽이 안전).
@@ -271,10 +274,57 @@ function savedSummaryFresh(thread, messages) {
   });
 }
 
+// 요약 원문 → 화면 칸. 줄 머리(SUMMARY_LABELS)로 가른다 — 옛 코드는 «다음|필요» 글자가 든 줄을 «다음 할 일» 로 옮겨
+//   요약 줄이 거기 섞이거나 «다음 차례는 상대입니다» 같은 문장이 할 일로 보였다(2026-11-18 Irene).
+//   «할 일 없음» 은 «없음 — 이유» 를 그대로 보여 준다(할 일 칸이 비면 «할 게 있나?» 를 다시 읽게 된다).
+const OLD_BALL = /^(다음 차례는 상대입니다\.?|The other side is next to act\.?)$/;
 function summaryLines(content) {
-  const lines = String(content || '').split('\n').map((l) => l.replace(/^[-•]\s*/, '').trim()).filter(Boolean);
-  // 마지막 줄이 "다음 할 일" 성격이면 제안으로 옮긴다 — 요약과 행동을 화면에서 나눠 보여준다.
-  return { summary: lines.slice(0, 5), suggestions: lines.filter((l) => /다음|해야|필요|action|next|권장/i.test(l)).slice(0, 2) };
+  const { SUMMARY_LABELS } = require('./cue_orchestrator');
+  const heads = (k) => Object.values(SUMMARY_LABELS).map((l) => l[k]);
+  const lines = String(content || '').split('\n').map((l) => l.replace(/^\s*[-•*]\s*/, '').replace(/\*\*/g, '').trim()).filter(Boolean);
+  const summary = [];
+  const suggestions = [];
+  for (const l of lines) {
+    const todoHead = heads('todo').find((h) => l.startsWith(`${h}:`));
+    if (todoHead) {
+      const v = l.slice(todoHead.length + 1).trim();
+      if (v && !OLD_BALL.test(v)) suggestions.push(v);
+      continue;
+    }
+    const factHead = heads('facts').find((h) => l.startsWith(`${h}:`));
+    if (factHead && /^(없음|none|n\/a)(\b|\s|\.|—|$)/i.test(l.slice(factHead.length + 1).trim())) continue;
+    summary.push(l);
+  }
+  return { summary: summary.slice(0, 8), suggestions: suggestions.slice(0, 2) };
+}
+
+// 요약에 넣을 대화 본문 — **최신 메일 우선**. 옛 방식(메일마다 앞 1500자 · 전체 앞 6000자)은 긴 답장 본문이 잘리고
+//   총량을 앞에서 잘라 정작 최신 메일이 빠졌다(실측: 11,780자 학교 답장 중 1,500자만 들어가 «설명을 제공함» 만 남았다).
+//   인용된 이전 메일(«On … wrote:» 아래 · «>» 줄)은 앞 메일과 겹치므로 뺀다 — 다 지워지면 원문을 쓴다.
+function stripQuoted(text) {
+  const t = String(text || '');
+  const cut = t.search(/^(On .{0,200}wrote:|-{2,}\s*Original Message|20\d\d(년|[.\-/])[\s\S]{0,160}?(님이\s*작성|wrote):|보낸 사람:|From: .+\n(Sent|Date):)/mi);
+  const head = (cut > 0 ? t.slice(0, cut) : t).split('\n').filter((l) => !/^\s*>/.test(l)).join('\n');
+  return head.trim() || t;
+}
+function lastFromOf(messages) {
+  const m = messages[messages.length - 1];
+  if (!m) return null;
+  return m.direction === 'outbound' ? '우리 팀' : (m.from_name || m.from_email || '상대');
+}
+function threadTextFor(messages, { latestChars = 8000, otherChars = 1500, total = 14000 } = {}) {
+  const parts = [];
+  let used = 0;
+  for (let i = messages.length - 1; i >= 0 && used < total; i -= 1) {
+    const m = messages[i];
+    const who = m.direction === 'outbound' ? '우리 팀' : (m.from_name || m.from_email || '상대');
+    const body = stripQuoted(m.body_text || m.subject || '').replace(/\s+/g, ' ').trim();
+    const room = Math.min(i === messages.length - 1 ? latestChars : otherChars, total - used);
+    const piece = `${who}: ${body.length > room ? `${body.slice(0, room)} …` : body}`;
+    parts.unshift(piece);
+    used += piece.length;
+  }
+  return parts.join('\n\n');
 }
 
 // reuse=false 면 저장된 요약을 무시한다(호출자가 다른 언어를 요청했을 때 — 저장본은 워크스페이스 기본 언어다).
@@ -309,13 +359,10 @@ async function buildBrief({ businessId, thread, language = 'ko', reuse = true })
   const reused = reuse && savedSummaryFresh(thread, messages);
   if (reused) ({ summary, suggestions } = summaryLines(thread.ai_summary));
   else try {
-    const threadText = messages.map((m) => {
-      const who = m.direction === 'outbound' ? '우리 팀' : (m.from_name || m.from_email || '상대');
-      return `${who}: ${(m.body_text || m.subject || '').replace(/\s+/g, ' ').trim().slice(0, 1500)}`;
-    }).join('\n\n');
+    const threadText = threadTextFor(messages);
     const cueOrch = require('./cue_orchestrator');
     const out = await cueOrch.summarizeThread(businessId, {
-      subject: thread.subject, threadText, language,
+      subject: thread.subject, threadText, language, lastFrom: lastFromOf(messages),
     });
     if (out.error) ai_error = out.error;
     else { ({ summary, suggestions } = summaryLines(out.content)); summary_content = out.content; }
@@ -333,6 +380,6 @@ async function buildBrief({ businessId, thread, language = 'ko', reuse = true })
 }
 
 module.exports = {
-  buildBrief, savedSummaryFresh, collectTrustSignals, collectLinks, collectSituation,
+  buildBrief, savedSummaryFresh, threadTextFor, lastFromOf, summaryLines, SUMMARY_MODEL_TAG, collectTrustSignals, collectLinks, collectSituation,
   findLinkMismatches, readAuthResult, domainOf, RISKY_EXT,
 };

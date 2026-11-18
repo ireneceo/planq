@@ -2290,14 +2290,11 @@ router.post('/:businessId/email-threads/:id/summarize', // audit-exempt: AI 요�
       if (!(req.body || {}).language && require('../services/mailBrief').savedSummaryFresh(thread, msgs)) {
         return successResponse(res, { ai_summary: thread.ai_summary, ai_summary_at: thread.ai_summary_at, reused: true });
       }
-      const threadText = msgs.map((m) => {
-        const who = m.direction === 'outbound' ? '우리 팀' : (m.from_name || m.from_email || '상대');
-        return `${who}: ${(m.body_text || m.subject || '').replace(/\s+/g, ' ').trim().slice(0, 2000)}`;
-      }).join('\n\n');
+      const threadText = require('../services/mailBrief').threadTextFor(msgs);   // 최신 메일 우선(브리프와 한 벌)
       const biz = await Business.findByPk(businessId, { attributes: ['default_language'] });
       const language = (req.body || {}).language || biz?.default_language || 'ko';
       const cueOrch = require('../services/cue_orchestrator');
-      const out = await cueOrch.summarizeThread(businessId, { subject: thread.subject, threadText, language });
+      const out = await cueOrch.summarizeThread(businessId, { subject: thread.subject, threadText, language, lastFrom: require('../services/mailBrief').lastFromOf(msgs) });
       if (out.error === 'usage_limit_exceeded') return errorResponse(res, 'cue_usage_limit_exceeded', 429);
       if (out.error === 'llm_unavailable') return errorResponse(res, 'ai_unavailable', 503);
       const now = await saveThreadSummary(req, businessId, thread, out.content);
@@ -2307,7 +2304,7 @@ router.post('/:businessId/email-threads/:id/summarize', // audit-exempt: AI 요�
 );
 async function saveThreadSummary(req, businessId, thread, content) {
   const now = new Date();
-  await thread.update({ ai_summary: content, ai_summary_at: now, ai_summary_model: 'gpt-4o-mini' });
+  await thread.update({ ai_summary: content, ai_summary_at: now, ai_summary_model: require('../services/mailBrief').SUMMARY_MODEL_TAG });
   broadcastMail(req, businessId, 'mail:updated', { thread_id: thread.id, ai_summary: content, ai_summary_at: now });
   return now;
 }

@@ -564,9 +564,15 @@ async function generateEmailComposeDraft(businessId, { businessName, instruction
   return { content: result.content, usage: await checkUsageLimit(businessId) };
 }
 
+// 요약 줄 머리 — 프롬프트와 화면 줄 나누기(mailBrief.summaryLines)가 같은 글자를 본다.
+const SUMMARY_LABELS = {
+  ko: { facts: '핵심 값', todo: '우리가 할 일', none: '없음' },
+  en: { facts: 'Key figures', todo: 'What we need to do', none: 'Nothing' },
+};
+
 // N+87 Phase C — 메일 스레드 AI 요약. on-demand. 긴 스레드를 3~5줄 핵심으로.
 //   사실만 요약(날조 금지), 결정·요청·다음 액션 위주. 워크스페이스 언어.
-async function summarizeThread(businessId, { subject, threadText, language = 'ko' }) {
+async function summarizeThread(businessId, { subject, threadText, language = 'ko', lastFrom = null }) {
   const usage = await checkUsageLimit(businessId);
   if (usage.over) return { error: 'usage_limit_exceeded', usage };
   const lang = language === 'en' ? 'English' : 'Korean';
@@ -578,28 +584,44 @@ async function summarizeThread(businessId, { subject, threadText, language = 'ko
   //   전사에 적힌 이름(`우리 팀` / 보낸 사람 이름)만 쓰게 한다.
   //   그리고 Irene 이 지적한 두 가지를 더 뽑는다: ①날짜·금액·기한을 **원문 그대로** ②우리가 할 일.
   //   ("관리팀 검토 후 일회성 예외로 승인됨" 처럼 본문에 없는 문장이 실제로 붙어 나왔다.)
-  const labels = language === 'en'
-    ? { facts: 'Key figures', todo: 'What we need to do', ball: 'The other side is next to act.' }
-    : { facts: '핵심 값', todo: '우리가 할 일', ball: '다음 차례는 상대입니다.' };
-  const systemPrompt = `You summarize an email thread for the team. Write in ${lang}.\n`
-    + `Output, in this order, skipping any section that has nothing:\n`
-    + `1) 3-5 short bullet lines of what actually happened, in order. Each line starts with "- ".\n`
-    + `2) A line "${labels.facts}: " listing every date, deadline, amount, and reference number stated `
-    + `in the thread, copied verbatim. Skip this line entirely if the thread states none.\n`
-    + `3) A line "${labels.todo}: " with what OUR SIDE must do next and by when. `
-    + `If nothing is required from us, write exactly "${labels.ball}"\n\n`
+  // ★ 2026-11-18 (Irene: *"메일내용 요약 너무 의미없어. 내용에 대한 요약도 아니고 그냥 이런 거 써있다 두리뭉실 …
+  //   마지막 문장은 뭐야. 할일이 상대라니."*) — 옛 지시는 «what actually happened» 라 모델이 «X 가 경고장을 발송함 ·
+  //   X 가 설명을 제공함» 처럼 **보낸 사실만** 적었다(설명한 내용은 없음). 이제 «무엇을 말했나» 를 적게 하고,
+  //   메타 문장을 금지한다. «할 일 없음» 은 «다음 차례는 상대» 대신 «없음 — 이유» (화면 `mailBrief.summaryLines` 가 읽는다).
+  const labels = SUMMARY_LABELS[language === 'en' ? 'en' : 'ko'];
+  const systemPrompt = `You summarize an email thread so a busy reader knows WHAT IT SAYS without opening it. Write in ${lang}.\n`
+    + `Output, in this order:\n`
+    + `1) 3-6 bullet lines, each starting with "- ". Put the CONTENT of the messages in them: the concrete facts, `
+    + `reasons, answers, decisions, refusals, requests and consequences that are written — who did what, what was `
+    + `decided and why, what is asked of whom. Spend most lines on the LATEST message; earlier messages get one line each at most. `
+    + `Translate content into ${lang} when the thread is in another language.\n`
+    + `   NEVER write an empty meta line that only says a message exists or what it is about, such as `
+    + `"X sent a letter", "X replied to our email", "X provided an explanation", "X explained the rules", `
+    + `"X apologised and gave details". Write the explanation itself instead.\n`
+    + `   Bad: "X explained why the behaviour was classified as bullying."\n`
+    + `   Good: "X: calling a classmate a mocking name is verbal bullying under rule C.1, so the 2nd warning stays."\n`
+    + `2) A line "${labels.facts}: " listing every date, deadline, amount and reference number stated in the thread, `
+    + `copied verbatim, each followed by what it is in parentheses — e.g. "21 September 2026 (2nd warning letter)". `
+    + `Skip this line entirely if the thread states none.\n`
+    + `3) A line "${labels.todo}: " with the concrete thing OUR SIDE should do next (reply about what, send what, decide what, `
+    + `and by when if a date is stated). Check every message written by "우리 팀": a commitment we made there `
+    + `("we will send …", "1-2일 내로 … 공유하겠습니다", "보내 드리겠습니다") that the thread does not show as done IS our to-do — `
+    + `write it (with its time frame) instead of "${labels.none}". If nothing is required from us, write "${labels.none} — " followed by a few words `
+    + `saying why, consistent with who wrote the LAST message (given below): if WE wrote last, we are waiting for their reply; `
+    + `if they wrote last, say what they settled and that they asked nothing of us. Never write that it is the other side's turn.\n\n`
     + `Hard rules:\n`
     + `- Refer to each side ONLY by the label used in the transcript ("우리 팀" / the sender's name). `
     + `NEVER assign a role such as "고객", "customer", "vendor", or "the client". The transcript does not `
     + `say who sells to whom, and guessing reverses the meaning of the whole summary.\n`
     + `- Write only what is stated. Do not add causes, approvals, reviews, or decisions that are not `
     + `written in the thread, even if they would make the story coherent.\n`
-    + `- No greeting, no preamble, no closing remark.`;
-  const userPrompt = `Email thread${subject ? ` (subject: ${subject})` : ''}:\n\n${(threadText || '').slice(0, 6000)}\n\nSummarize.`;
+    + `- No greeting, no preamble, no closing remark, no markdown headings or bold.`;
+  // 본문 길이는 부르는 쪽(mailBrief.threadTextFor)이 최신 메일 우선으로 맞춰 온다 — 여기서 앞부터 자르면 최신 메일이 잘린다.
+  const userPrompt = `Email thread${subject ? ` (subject: ${subject})` : ''}:\n\n${String(threadText || '').slice(-14000)}\n\n${lastFrom ? `The LAST message was written by: ${String(lastFrom).slice(0, 120)}\n\n` : ''}Summarize.`;
   const result = await callLLM(MODEL_MINI, [
     { role: 'system', content: systemPrompt },
     { role: 'user', content: userPrompt },
-  ], { temperature: 0.3, maxTokens: 400 });
+  ], { temperature: 0.2, maxTokens: 800 });
   if (result.fallback) return { error: 'llm_unavailable', fallback: true };
   await recordUsage(businessId, 'thread_summary', MODEL_MINI, result.input_tokens, result.output_tokens);
   return { content: (result.content || '').trim(), usage: await checkUsageLimit(businessId) };
@@ -613,6 +635,7 @@ module.exports = {
   looksLikeEcho,
   generateEmailComposeDraft,
   summarizeThread,
+  SUMMARY_LABELS,
   checkUsageLimit,
   recordUsage,
   isSensitive,
