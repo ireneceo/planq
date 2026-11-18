@@ -428,8 +428,11 @@ const ARTICLES = [
       note('다른 사람을 담당자로 직접 지정하면 예상 시간은 그 사람이 정하도록 비워집니다 — 요청받은 사람이 자기 일정에 맞춰 채웁니다. 반복 주기는 요청하는 사람이 정할 수 있습니다.',
         'If you explicitly assign someone else, estimated time is left for them to set — the assignee fills it in to fit their own schedule. The requester can still set recurrence.'),
       // 2026-10-20 f4979e74 — 폼 안에서 요청으로 전환
-      p('업무 추가 창 맨 위의 [내 업무 | 요청하기] 로 바로 바꿀 수 있습니다. 요청하기를 고르면 담당자를 동료 중에서 꼭 골라야 하고, 만든 뒤에는 «요청하기» 탭에서 보입니다.',
-        'Switch between [My task | Request] at the top of the Add task form. With Request you must pick a teammate as the owner, and the task then appears under the Request tab.'),
+      p('업무 추가 창 맨 위의 [업무 | 요청하기] 로 바로 바꿀 수 있습니다(기본은 업무). 요청하기를 고르면 담당자를 동료 중에서 꼭 골라야 하고, 만든 뒤에는 «요청하기» 탭에서 보입니다.',
+        'Switch between [Task | Request] at the top of the Add task form (Task is the default). With Request you must pick a teammate as the owner, and the task then appears under the Request tab.'),
+      // 2026-11-18 0391c0d3 — «요청» 은 만든 사람이 요청하기를 골랐을 때만
+      note('업무로 만들면서 담당자만 동료로 넣으면 «배정» 입니다 — 담당자에게 알림은 가지만 요청처럼 내가 확인하는 단계는 붙지 않습니다. 결과를 내가 확인해야 하는 일이면 «요청하기» 를 고르세요.',
+        'Creating a Task with a teammate as owner is an assignment — they are notified, but no review step by you is added. If you need to check the result, choose Request.'),
       // 2026-09-07 — 책임선에서 직급 예외를 걷었다. 사용자가 알아야 하는 동작 변경이라 여기 적는다.
       s('업무 설명은 만든 사람만, 결과물은 담당자만 씁니다.', 'Only the creator edits the request; only the assignee writes the deliverable.'),
       p('업무 설명(무엇을 해 달라는 요청)은 그 업무를 만든 사람만 고칠 수 있고, 결과물은 담당자만 쓸 수 있습니다. 소유자·관리자도 예외가 없습니다 — 남의 글을 대신 고치면 나중에 누가 왜 바꿨는지 알 수 없기 때문입니다.',
@@ -476,6 +479,9 @@ const ARTICLES = [
         'To keep working on a completed task, use “Write revision” in the deliverable box. Existing versions stay untouched.'),
       note('확인자가 없으면 검토 상태로 보낼 수 없습니다 — 먼저 확인자를 지정하세요.',
         'You can’t move to review without reviewers — assign one first.'),
+      // 2026-11-18 0391c0d3 — 컨펌 대기 중 완료 막기
+      note('확인자의 승인을 기다리는 동안에는 상태를 «완료» 로 바로 바꿀 수 없습니다. 확인자가 모두 승인하면 자동으로 완료됩니다.',
+        'While waiting for reviewer approval, the status can’t be switched straight to Done. It completes automatically once all reviewers approve.'),
     ] },
   { cat: 'qtask', slug: 'focus-weekly', visibility: 'public', linked_route: '/tasks', est: 2,
     title: t('포커스와 주간 업무 진척', 'Focus and weekly progress'),
