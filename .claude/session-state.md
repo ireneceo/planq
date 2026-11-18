@@ -1,4 +1,6 @@
 ## 현재 작업 상태
+### ✅ fb#464 답장 보냄·완료로 닫음 (방 b5aed582 · 2026-11-18 22:18 KST · [Opus] · 상황판 «답장 자동 보내기») — 운영 대조: f8585dce 가 운영 커밋 2171cba8 에 포함 · 운영 PaymentHistory 가 downloadFromApi + 행 옆 실패 문구 · 고객 새 글 0 · feedback-reply.js dry-run → --apply · pending → done
+
 ### ✅ fb#463 답장 보냄·완료로 닫음 (방 31a2d42b · 2026-11-18 22:17 KST · [Opus] · 상황판 «답장 자동 보내기») — 운영 대조: cancel_task·move_task_to_project 운영 코드(2171cba8)에 있음 · 고객 새 글 0 · feedback-reply.js dry-run → --apply · pending → done
 
 ### ✅ 묶음 3건 — fb#463·landing#1 조사 + Cue 마감일·[자세히 편집]·Drive 문구 (방 fb920836 · 2026-11-18 · [Opus] · Fable 미검증(자체 검증) — 날짜 해석 버그·화면 버튼, 돈·권한·DB·발송 무관)
