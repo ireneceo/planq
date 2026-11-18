@@ -85,7 +85,7 @@
 - 배포 준비: Drive 파인더 지우기·고치기는 Fable 완료 검증 전이라 운영 꺼진 채(f62fff22) — 나머지는 다음 배포에 그대로 나감
 - 자체 검증: drivesync 켬 PASS · 끔 대조군 뒤집힘 · /api/cloud/status finder_sync true · build EXIT 0 · guard 85/86
 
-### 답 기다림: 개발 서버 «워프로랩» Google Drive 다시 연결 — 파인더 지우기·고치기 반영 실 Drive 측정 (방 d907f0d8 · 2026-11-18 · [Opus] · Irene «권고대로» · Fable 설계 DESIGN-READY)
+### 답 기다림: 개발 서버 «워프로랩» Google Drive 다시 연결 (2차 — 11-18 10:45 확인: 연결 기록 0 · 토큰 여전히 invalid_grant · 상황판 askmwlzwy10) — 파인더 지우기·고치기 반영 실 Drive 측정 (방 d907f0d8 · 2026-11-18 · [Opus] · Irene «권고대로» · Fable 설계 DESIGN-READY)
 - 무엇: dev ws 3 Drive 토큰이 만료(invalid_grant, 11-18 04:48 표시 기록) → 실 Drive 측정(§4.6 양성 1~4) 못 함. 대표 계정 본인만 재연결 가능 — 상황판 act askmwln63vb
 - 한 일: 커밋 cf3f5801 — services/gdriveMirrorSync(지움 분기표·고침·옛 판·알림) · gdriveSyncRun(워크스페이스당 한 줄, 커서 적용 뒤 저장 · 실패 고침 다시 시도) · files.deleted_via·drive_sync_issue(migrate-file-drive-sync.js 배포 슬롯) · 휴지통·목록 표시 · 안내 문구 · 회귀 health-check drivesync
 - 자체 검증: 가짜 Changes 15/15(removed·쌍둥이·문서 그림·폴더째·100건·NULL md5 에코·한도·받기 실패·Drive 정본 불변·스위치·동시 2회 차감 1회·가드 양성 대조군·증빙) · HTTP 3/3(휴지통 deleted_via·복구가 지움·목록 drive_sync_issue) · 화면 3폭(태그 82×19 눌림·휴지통 문구) · build EXIT 0·error TS 0 · guard 85/86 · health 101/101
