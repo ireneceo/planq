@@ -30,7 +30,7 @@ console.log(keys.join(' '));")
 LAST="toggles"           # 플랫폼 설정을 잠깐 뒤집는다 — 맨 뒤
 EXCLUDE=" patrol "       # 순찰은 매일 밤 따로 돈다
 SKIP=" ${SWEEP_SKIP//,/ } "
-if [ -n "$SWEEP_ONLY" ]; then LIST=${SWEEP_ONLY//,/ }; else
+if [ -n "$SWEEP_ONLY" ]; then LIST=$(echo " ${SWEEP_ONLY//,/ } " | sed 's/ deploygate / /g'); else
   LIST=""
   for k in $ALL; do
     case "$EXCLUDE$SKIP" in *" $k "*) continue;; esac
@@ -50,6 +50,19 @@ wait_mem() {   # 쓸 수 있는 메모리가 1.6GB 넘을 때까지 (최대 20�
 }
 
 : > "$OUT/progress.txt"
+# 배포 게이트 미리보기(2026-11-18) — 운영 배포의 «코드 게이트»(health-check 전체·불변식 가드)를 그대로 미리 돌린다.
+#   배포 실패 5번 중 4번이 이 게이트의 데이터·상태 검사였고 배포 버튼을 눌러야 처음 드러났다 → 매일 밤 꺼내 아침 방이 고친다.
+#   맨 앞에 둔다: 다른 스위트가 남긴 카나리 행·한도 소모와 겹치지 않게. 결과는 «deploygate» 한 줄로 summary 에 실린다.
+RUN_GATE=1
+[ -n "$SWEEP_ONLY" ] && { case " ${SWEEP_ONLY//,/ } " in *" deploygate "*) ;; *) RUN_GATE=0;; esac; }
+case "$SKIP" in *" deploygate "*) RUN_GATE=0;; esac
+if [ "$RUN_GATE" = 1 ]; then
+  t0=$(date +%s)
+  timeout 1800 node scripts/deploy-gate-preview.js > "$OUT/deploygate.log" 2>&1
+  rc=$?; t1=$(date +%s)
+  tf=$(grep -a '총 실패' "$OUT/deploygate.log" | tail -1 | grep -oE '[0-9]+' | head -1)
+  echo "deploygate rc=$rc fail=${tf:-?} sec=$((t1-t0))" >> "$OUT/progress.txt"
+fi
 for k in $LIST; do
   # 운영 배포가 도는 동안은 다음 스위트를 띄우지 않는다(배포 빌드와 겹치면 earlyoom 이 빌드를 죽인다 — 2026-10-22).
   #   시작 때만 보면 검사 도중 시작한 배포를 못 본다 → 스위트마다 본다. 90분 넘게 배포 중이면 나머지는 건너뛴다.

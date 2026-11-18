@@ -48,3 +48,4 @@ logs/sweep/
 .claude/plans/
 dev-backend/scripts/out/
 logs/frontend-build.*
+logs/deploy-gate-preview/

@@ -1,4 +1,12 @@
 ## 현재 작업 상태
+### ✅ 배포 게이트 미리보기 — 배포 버튼 전에 같은 health-check 를 돌린다 (방 348d0cc0 · 2026-11-18 · [Opus] · Fable 안 씀 — 검사 실행 위치만 늘림, 검사·판정 조건·배포 스크립트 불변)
+- 서버 방 e58163dd 넘김: 배포 실패 5번 중 4번이 deploy-planq.sh «코드 게이트 — health-check» 의 데이터·상태 검사(10-30 clientlink · 11-05 429 · 11-16 retention · 11-18 ×2 메일 별칭) — 버튼을 눌러야 드러남
+- 429 쪽은 이미 9d07b1b7(health-fetch 한도 창 기다림)로 됨 — 이번엔 손대지 않음
+- 새 `scripts/deploy-gate-preview.js`: 배포와 같은 명령(health-check 전체·guard-invariants) · 배포 스크립트의 그 두 줄이 바뀌면 스스로 실패 · 배포 중이면 기다림 · `logs/deploy-gate-preview/latest.json` · 출력 꼴이 run.js 와 같아 sweep-summary 가 그대로 읽음
+- 연결: 밤 전체 검사 맨 앞 `deploygate`(full-sweep.sh) · /개발완료 0단계(health-check+가드 → 미리보기)·새 7-C단계(마지막 재실행 · 실패면 ⏸/❌ 보고) · /개발시작 1-C(deploygate 빨강 = 먼저 고침)
+- 실측: 지금 상태 통과 101/101 · 200초 · 양성 대조군(retain_until 없는 감사 행 1건 심음) → 정확히 [retention] 1건·rc=1 → 지움(0건) · SWEEP_ONLY=deploygate 로 full-sweep 경로 → progress·summary 에 «deploygate» 실림 · guard 85/86
+- 운영 반영: 없음(개발 도구)
+
 ### ✅ 음성·Cue 확인 카드 → 표준 폼 [자세히 편집] (방 2f57448e · 2026-11-18 · [Opus] · Fable 설계 DESIGN-READY · 완료는 Fable 미검증(자체 검증) — 화면 연결, 돈·권한·DB·발송 무관)
 - Irene «생성되는 항목들이 지금 업그레이드 된 폼들이 아닌 것 같아. 모든 업무 일정 등등 등록 폼들 다 체크 좀 해줘.»
 - Fable ②: 카드는 그대로(한 번 누르기 유지) + `CueActionCard` 에 [자세히 편집](create_task·create_event) → 카드가 고친 값 그대로 업무 추가 폼·새 일정 창. 넘긴 뒤 카드 잠금(«폼에서 이어서 작성 중» · [폼 다시 열기]). 기록 `docs/FABLE_GATE_QUEUE.md` 맨 위
