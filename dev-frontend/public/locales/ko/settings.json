@@ -272,6 +272,7 @@
     "scopeBackedUp": "공용 파일(프로젝트·업무·채팅 첨부) → Google Drive",
     "scopeLocal": "개인 보관함(내 파일·개인 메모) → PlanQ (개인 Drive 를 연결해도 저장은 PlanQ 입니다)",
     "scopeOneWay": "PlanQ 가 Drive 에 올린 파일은 Drive(파인더)에서 지우면 PlanQ 휴지통으로, 고치면 새 내용으로 반영됩니다(이전 판은 휴지통에 보관 · 되살리기는 PlanQ 휴지통에서). 폴더째 지운 것과 Drive 에 직접 새로 넣은 파일은 반영되지 않습니다.",
+    "scopeOneWayOff": "Drive 에서 직접 만들거나 지운 파일은 PlanQ 에 반영되지 않습니다.",
     "connect": "연결하기",
     "connecting": "연결 중…",
     "disconnect": "연결 해제",

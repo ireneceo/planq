@@ -34,6 +34,7 @@ interface ProviderState {
   // #379 v2 — Drive → PlanQ 역방향 인제스트 상태. 서버가 저장된 권한에서 **파생**해 내려준다.
   //   active=false 라도 고장이 아니라 '권한 대기' 일 수 있어 reason 을 같이 본다.
   ingest?: { active: boolean; reason: 'ok' | 'scope_missing' | 'no_root_folder'; recent_30d: number } | null;
+  finder_sync?: boolean;  // Drive(파인더) 지우기·고치기 반영이 켜졌는가(서버 GDRIVE_FINDER_SYNC) — 꺼지면 옛 안내
 }
 
 interface Props {
@@ -266,7 +267,9 @@ const StorageSettings: React.FC<Props> = ({ businessId }) => {
             <li>
               {providers.gdrive.ingest?.active
                 ? tr('storage.scopeTwoWay', 'Drive 에서 직접 올린 파일도 워크스페이스 폴더 안에 있으면 PlanQ 파일함으로 들어옵니다. 삭제·이름 변경도 반영됩니다.')
-                : tr('storage.scopeOneWay')}
+                : providers.gdrive.finder_sync
+                  ? tr('storage.scopeOneWay')
+                  : tr('storage.scopeOneWayOff')}
             </li>
           </ul>
         </NoticeText>

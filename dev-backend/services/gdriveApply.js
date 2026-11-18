@@ -34,6 +34,8 @@ const mirrorSync = require('./gdriveMirrorSync');
 
 /** PlanQ 정본 미러 행인가 — 이 Drive id 가 그 행의 «사본» 이다. 지움·고침 반영은 이 행에만. */
 function isMirrorRowOf(local, driveId) {
+  // 전체 스위치(GDRIVE_FINDER_SYNC=1)가 꺼져 있으면 종전 동작 — 지움은 미러 해제, 고침은 무시.
+  if (!mirrorSync.finderSyncEnabled()) return false;
   return !!local && !isDriveMaster(local) && local.storage_provider === 'planq' && local.gdrive_mirror_id === driveId;
 }
 

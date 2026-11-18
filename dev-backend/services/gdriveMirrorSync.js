@@ -30,7 +30,17 @@ const OLD_VERSION_WINDOW_MS = 24 * 60 * 60 * 1000;
 const RUN_MAX_DOWNLOADS = 20;
 const RUN_MAX_BYTES = 500 * 1024 * 1024;
 
-/** 끄는 스위치(§4.6) — GDRIVE_FINDER_TRASH=0 이면 지움은 종전대로 미러 해제만. 기본 켬. */
+/**
+ * 기능 전체 스위치 — GDRIVE_FINDER_SYNC=1 일 때만 미러 사본의 지움·고침을 반영한다. **기본 꺼짐.**
+ * 2026-11-18 배포 준비 방: Fable 완료 검증(§4.6 실 Drive 양성 4 · 맥 실기기)이 dev Drive 재연결을 기다리는 동안
+ *   운영에는 꺼진 채 나간다(메일 한국 중계와 같은 «꺼진 채 배포»). 꺼지면 종전 동작 그대로 —
+ *   지움 = 미러 해제, 고침 = 무시(gdriveApply.isMirrorRowOf 가 false). 검증 PASS 뒤 운영 .env 에 GDRIVE_FINDER_SYNC=1.
+ */
+function finderSyncEnabled() {
+  return String(process.env.GDRIVE_FINDER_SYNC || '') === '1';
+}
+
+/** 끄는 스위치(§4.6) — GDRIVE_FINDER_TRASH=0 이면 지움은 종전대로 미러 해제만. 기본 켬(위 전체 스위치가 켜졌을 때). */
 function trashEnabled() {
   return String(process.env.GDRIVE_FINDER_TRASH || '1') !== '0';
 }
@@ -512,6 +522,6 @@ function newRunCtx(businessId, drive) {
 
 module.exports = {
   applyMirrorDelete, applyMirrorEdit, clearHeldIfRestored, knownMd5, flushNotices, newRunCtx,
-  isEvidenceBound, isEmbedded, versionName, trashEnabled,
+  isEvidenceBound, isEmbedded, versionName, trashEnabled, finderSyncEnabled,
   _limits: { TRASH_BREAKER_LIMIT, TRASH_BREAKER_WINDOW_MS, RUN_MAX_DOWNLOADS },
 };

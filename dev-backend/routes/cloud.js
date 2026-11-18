@@ -88,6 +88,8 @@ router.get('/status/:businessId', authenticateToken, checkBusinessAccess, async 
 
       statusMap[t.provider] = {
         ingest,
+        // Drive(파인더)에서 지우기·고치기 반영이 켜졌는가 — 안내 문구가 동작과 같게(gdriveMirrorSync.finderSyncEnabled 한 곳)
+        ...(t.provider === 'gdrive' ? { finder_sync: require('../services/gdriveMirrorSync').finderSyncEnabled() } : {}),
         folder,
         connected: true,
         account_email: t.account_email,
