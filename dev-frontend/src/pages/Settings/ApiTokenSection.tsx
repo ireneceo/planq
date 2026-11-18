@@ -1,13 +1,15 @@
-// API 토큰 (외부 연동, #D-4) — Claude Code 등 외부 에이전트가 이 워크스페이스를 **읽기**할 수 있는 토큰.
-//   발급 시 평문은 1회만 노출(다시 못 봄). 읽기 전용 — 외부에서 데이터를 바꾸지 못한다.
+// 외부 AI 도구 연결 안내 (옛 «API 토큰 (외부 연동)», #D-4 → 2026-11-18 정리)
+//   옛 API 토큰은 받아 줄 주소(`/mcp`)가 nginx 에 없어 발급해도 어디에도 쓸 수 없었다(한 번도 쓰인 적 없음).
+//   같은 목적은 프로필 › 외부 연동 › «연결된 AI 앱»(OAuth · /agent/mcp)이 한다 → 여기는 그리로 안내만 한다.
+//   이미 발급된 옛 토큰이 남아 있을 때만 목록 + [회수] 를 보여 정리하게 한다(새 발급 없음).
 import React, { useCallback, useEffect, useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
+import { useNavigate } from 'react-router-dom';
 import { apiFetch } from '../../contexts/AuthContext';
 import ActionButton from '../../components/Common/ActionButton';
 import ConfirmDialog from '../../components/Common/ConfirmDialog';
 import { formatDay } from '../../utils/dateFormat';
-import { isEnterAction } from '../../utils/imeKey';
 
 interface TokenRow {
   id: number;
@@ -19,42 +21,20 @@ interface TokenRow {
 
 const ApiTokenSection: React.FC<{ businessId: number }> = ({ businessId }) => {
   const { t } = useTranslation('common');
+  const navigate = useNavigate();
   const [rows, setRows] = useState<TokenRow[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [name, setName] = useState('');
-  const [creating, setCreating] = useState(false);
-  const [issued, setIssued] = useState<string | null>(null);   // 방금 발급된 평문 (1회 노출)
-  const [copied, setCopied] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
       const res = await apiFetch(`/api/api-tokens?business_id=${businessId}`);
       const j = await res.json();
       if (res.ok && j.success) setRows(Array.isArray(j.data) ? j.data : []);
-    } catch { /* 무해 */ } finally { setLoading(false); }
+    } catch { /* 무해 — 옛 토큰 목록은 정리용 부가 정보 */ }
   }, [businessId]);
 
   useEffect(() => { load(); }, [load]);
 
-  const create = async () => {
-    if (creating) return;
-    setCreating(true); setError(null); setIssued(null); setCopied(false);
-    try {
-      const res = await apiFetch('/api/api-tokens', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ business_id: businessId, name: name.trim() || undefined }),
-      });
-      const j = await res.json();
-      if (!res.ok || !j.success) { setError(j.message || t('apitoken.errCreate', '발급하지 못했어요.')); return; }
-      setIssued(j.data.token);
-      setName('');
-      await load();
-    } catch { setError(t('apitoken.errCreate', '발급하지 못했어요.')); }
-    finally { setCreating(false); }
-  };
-
-  // 회수는 되돌릴 수 없다 — 그 토큰을 쓰는 외부 도구가 즉시 끊긴다. 묻고 한다(0-J).
+  // 회수는 되돌릴 수 없다 — 묻고 한다(0-J).
   const [revokeAsk, setRevokeAsk] = useState<{ id: number; name: string } | null>(null);
   const revoke = async (id: number) => {
     try {
@@ -63,72 +43,46 @@ const ApiTokenSection: React.FC<{ businessId: number }> = ({ businessId }) => {
     } catch { /* 무해 */ }
   };
 
-  const copy = () => {
-    if (!issued) return;
-    navigator.clipboard?.writeText(issued).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000); }).catch(() => {});
-  };
-
   const active = rows.filter((r) => !r.revoked_at);
 
   return (
     <Wrap>
-      <Title>{t('apitoken.title', 'API 토큰 (외부 연동)')}</Title>
-      <Desc>{t('apitoken.desc', 'Claude Code 같은 외부 도구가 이 워크스페이스를 읽을 수 있는 토큰입니다. 읽기 전용 — 외부에서 데이터를 바꾸지 못합니다.')}</Desc>
-
-      <CreateRow>
-        <Input
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          onKeyDown={(e) => { if (isEnterAction(e) && !creating && name.trim()) { e.preventDefault(); void create(); } }}
-          placeholder={t('apitoken.namePh', '토큰 이름 (예: Claude Code)') as string}
-          maxLength={120}
-        />
-        {/* ★ 이름 없이 발급하면 목록이 "(이름 없음)" 뿐이라 나중에 어느 것을 회수할지 못 고른다
-            (Irene 2026-09-07). 서버도 400 name_required 로 막는다 — 같은 규칙을 화면이 먼저 말한다. */}
-        <ActionButton tone="primary" size="sm" onClick={create} loading={creating}
-          disabled={!name.trim()}
-          title={!name.trim() ? (t('apitoken.nameRequired') as string) : undefined}>
-          {t('apitoken.create', '토큰 발급')}
+      <Title>{t('apitoken.aiTitle', '외부 AI 도구 연결')}</Title>
+      <Desc>{t('apitoken.aiDesc', 'ChatGPT·Claude·Claude Code 같은 AI 도구가 내 권한 안에서 이 워크스페이스의 업무·고객·문서를 읽고, 허락하면 추가·수정까지 할 수 있게 연결합니다.')}</Desc>
+      <Steps>
+        <li>{t('apitoken.aiStep1', '연결은 각자 자기 계정에서 합니다 — 프로필 › 외부 연동 › «연결된 AI 앱».')}</li>
+        <li>{t('apitoken.aiStep2', '그 화면의 연결 주소를 AI 도구에 넣고, PlanQ 로그인 창에서 «읽기만» 또는 «읽기 + 추가·수정» 을 고릅니다.')}</li>
+        <li>{t('apitoken.aiStep3', '연결을 끊으면 그 AI 도구는 바로 PlanQ 에 접근하지 못합니다.')}</li>
+      </Steps>
+      <div>
+        <ActionButton tone="primary" size="sm" onClick={() => navigate('/profile/integrations?focus=ai')}>
+          {t('apitoken.aiGo', 'AI 앱 연결하러 가기')}
         </ActionButton>
-      </CreateRow>
-      {!name.trim() && <Hint>{t('apitoken.nameRequired') as string}</Hint>}
-      {error && <ErrLine>! {error}</ErrLine>}
+      </div>
 
-      {issued && (
-        <IssuedBox role="status">
-          <IssuedLabel>{t('apitoken.issuedLabel', '토큰이 발급됐어요 — 지금만 볼 수 있어요. 안전한 곳에 복사하세요.')}</IssuedLabel>
-          <IssuedRow>
-            <Code>{issued}</Code>
-            <ActionButton tone="secondary" size="sm" onClick={copy}>
-              {copied ? t('apitoken.copied', '복사됨') : t('apitoken.copy', '복사')}
-            </ActionButton>
-          </IssuedRow>
-        </IssuedBox>
-      )}
-
-      {loading ? (
-        <Muted>{t('apitoken.loading', '불러오는 중…')}</Muted>
-      ) : active.length === 0 ? (
-        <Empty>{t('apitoken.empty', '아직 발급한 토큰이 없어요.')}</Empty>
-      ) : (
-        <List>
-          {active.map((r) => (
-            <Item key={r.id}>
-              <div>
-                <ItemName>{r.name || t('apitoken.unnamed', '(이름 없음)')}</ItemName>
-                <ItemMeta>
-                  {t('apitoken.created', '발급')} {formatDay(r.created_at, { year: 'always' })}
-                  {r.last_used_at ? ` · ${t('apitoken.lastUsed', '최근 사용')} ${formatDay(r.last_used_at, { year: 'always' })}` : ` · ${t('apitoken.neverUsed', '미사용')}`}
-                </ItemMeta>
-              </div>
-              <ActionButton tone="danger" size="sm" onClick={() => setRevokeAsk({ id: r.id, name: r.name || '' })}
-                title={t('apitoken.revokeHint') as string}
-                aria-label={`${r.name || ''} ${t('apitoken.revoke', '회수')}`}>
-                {t('apitoken.revoke', '회수')}
-              </ActionButton>
-            </Item>
-          ))}
-        </List>
+      {active.length > 0 && (
+        <Legacy>
+          <LegacyTitle>{t('apitoken.legacyTitle', '예전에 발급한 API 토큰')}</LegacyTitle>
+          <Desc>{t('apitoken.legacyDesc', '예전 방식의 토큰으로, 지금은 어디에도 쓰이지 않습니다. 회수해 정리해 주세요.')}</Desc>
+          <List>
+            {active.map((r) => (
+              <Item key={r.id}>
+                <div>
+                  <ItemName>{r.name || t('apitoken.unnamed', '(이름 없음)')}</ItemName>
+                  <ItemMeta>
+                    {t('apitoken.created', '발급')} {formatDay(r.created_at, { year: 'always' })}
+                    {r.last_used_at ? ` · ${t('apitoken.lastUsed', '최근 사용')} ${formatDay(r.last_used_at, { year: 'always' })}` : ` · ${t('apitoken.neverUsed', '미사용')}`}
+                  </ItemMeta>
+                </div>
+                <ActionButton tone="danger" size="sm" onClick={() => setRevokeAsk({ id: r.id, name: r.name || '' })}
+                  title={t('apitoken.revokeHint', '이 토큰을 폐기합니다.') as string}
+                  aria-label={`${r.name || ''} ${t('apitoken.revoke', '회수')}`}>
+                  {t('apitoken.revoke', '회수')}
+                </ActionButton>
+              </Item>
+            ))}
+          </List>
+        </Legacy>
       )}
       <ConfirmDialog
         isOpen={!!revokeAsk}
@@ -145,21 +99,11 @@ const ApiTokenSection: React.FC<{ businessId: number }> = ({ businessId }) => {
 };
 
 const Wrap = styled.div`display: flex; flex-direction: column; gap: 12px; max-width: 720px; margin-top: 28px; padding-top: 24px; border-top: 1px solid #e2e8f0;`;
-const Hint = styled.p`margin: -4px 0 0; font-size: 0.75rem; color: #64748B;`;
 const Title = styled.h3`font-size: 1rem; font-weight: 700; color: #0f172a; margin: 0;`;
 const Desc = styled.p`font-size: 0.8125rem; color: #64748b; margin: 0; line-height: 1.5;`;
-const CreateRow = styled.div`display: flex; gap: 8px; align-items: center; flex-wrap: wrap;`;
-const Input = styled.input`
-  flex: 1; min-width: 200px; border: 1px solid #cbd5e1; border-radius: 8px; padding: 8px 10px; font-size: 0.8125rem;
-  &:focus { outline: none; border-color: #0f766e; }
-`;
-const ErrLine = styled.div`font-size: 0.75rem; color: #dc2626; font-weight: 600;`;
-const IssuedBox = styled.div`border: 1px solid #99f6e4; background: #f0fdfa; border-radius: 10px; padding: 12px; display: flex; flex-direction: column; gap: 8px;`;
-const IssuedLabel = styled.div`font-size: 0.75rem; color: #0f766e; font-weight: 600;`;
-const IssuedRow = styled.div`display: flex; gap: 8px; align-items: center;`;
-const Code = styled.code`flex: 1; font-size: 0.75rem; background: #fff; border: 1px solid #cbd5e1; border-radius: 6px; padding: 7px 9px; word-break: break-all; color: #0f172a;`;
-const Muted = styled.div`font-size: 0.8125rem; color: #94a3b8;`;
-const Empty = styled.div`font-size: 0.8125rem; color: #94a3b8; padding: 12px 0;`;
+const Steps = styled.ol`margin: 0; padding-left: 20px; font-size: 0.8125rem; color: #334155; line-height: 1.6; display: flex; flex-direction: column; gap: 2px;`;
+const Legacy = styled.div`display: flex; flex-direction: column; gap: 8px; margin-top: 8px;`;
+const LegacyTitle = styled.h4`font-size: 0.875rem; font-weight: 700; color: #0f172a; margin: 0;`;
 const List = styled.div`display: flex; flex-direction: column; gap: 8px;`;
 const Item = styled.div`display: flex; justify-content: space-between; align-items: center; gap: 12px; border: 1px solid #e2e8f0; border-radius: 10px; padding: 10px 14px;`;
 const ItemName = styled.div`font-size: 0.8125rem; font-weight: 600; color: #0f172a;`;

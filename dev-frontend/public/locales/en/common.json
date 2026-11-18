@@ -1596,23 +1596,22 @@
     "fixCancel": "Keep as is"
   },
   "apitoken": {
-    "title": "API tokens (integrations)",
-    "desc": "Tokens that let external tools like Claude Code read this workspace. Read-only — external tools cannot change your data.",
-    "namePh": "Token name (e.g. Claude Code)",
-    "create": "Create token",
-    "errCreate": "Could not create the token.",
-    "issuedLabel": "Token created — you can only see it now. Copy it somewhere safe.",
-    "copy": "Copy",
-    "copied": "Copied",
-    "loading": "Loading…",
-    "empty": "No tokens yet.",
     "unnamed": "(unnamed)",
     "created": "Created",
     "lastUsed": "Last used",
     "neverUsed": "Never used",
     "revoke": "Revoke",
     "revokeConfirmTitle": "Revoke this token?",
-    "revokeConfirmBody": "External tools using the \"{{name}}\" token are disconnected immediately. This can't be undone."
+    "revokeConfirmBody": "External tools using the \"{{name}}\" token are disconnected immediately. This can't be undone.",
+    "aiTitle": "Connect external AI tools",
+    "aiDesc": "Connect AI tools like ChatGPT, Claude and Claude Code so they can read this workspace’s tasks, clients and documents within your permissions — and, if you allow it, add and edit them too.",
+    "aiStep1": "Each person connects from their own account — Profile › Integrations › “Connected AI apps”.",
+    "aiStep2": "Paste the connection URL from that screen into your AI tool, then choose “Read only” or “Read + add/edit” in the PlanQ sign-in window.",
+    "aiStep3": "Disconnecting cuts that AI tool’s access to PlanQ immediately.",
+    "aiGo": "Go to AI app connections",
+    "legacyTitle": "API tokens issued earlier",
+    "legacyDesc": "These are old-style tokens and are no longer used anywhere. Please revoke them to clean up.",
+    "revokeHint": "Revokes this token."
   },
   "provenance": {
     "cue": "Added via Cue",
