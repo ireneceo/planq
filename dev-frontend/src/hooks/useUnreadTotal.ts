@@ -13,6 +13,7 @@
 //   - 마운트 1회 + window 'focus' + 'visibilitychange' (모바일 PWA 보강)
 //   - Socket.IO 'message:new' (옵티미스틱 +1 + 50ms debounce refetch)
 //   - Socket.IO 'inbox:refresh'
+//   - Socket.IO 'conversation:self-read' (같은 사람의 다른 기기에서 읽음 — 서버가 user:<id> 방으로)
 //   - custom event 'planq:unread-changed' (legacy)
 //
 // businessId 인자는 호환성 유지용 (옛 호출처) — 실제 fetch 는 전 워크스페이스.
@@ -20,6 +21,7 @@ import { useCallback, useEffect, useState, useRef } from 'react';
 import { useAuth, apiFetch } from '../contexts/AuthContext';
 import { joinRoom, leaveRoom, onSocket } from '../services/socket';
 import { ensureMutedLoaded, isConversationMuted } from './useMutedConversations';
+import { createOnceById } from '../utils/onceById';
 
 export type UnreadByBusiness = Record<number, number>;
 type AllResponse = { total: number; by_business: UnreadByBusiness };
@@ -32,6 +34,9 @@ const listeners = new Set<Listener>();
 let currentState: AllResponse = { total: 0, by_business: {} };
 let offMessage: (() => void) | null = null;   // 공유 소켓 message:new 구독 해제
 let offInbox: (() => void) | null = null;      // 공유 소켓 inbox:refresh 구독 해제
+let offSelfRead: (() => void) | null = null;   // 내 다른 기기에서 읽음(conversation:self-read)
+// 같은 메시지가 conv:<id> + user:<id> 두 방으로 와서 미리 +1 을 두 번 하던 것(2026-11-18) — 처음 한 번만
+const firstArrival = createOnceById();
 const joinedRooms = new Set<string>();         // joinRoom 중복 호출 방지 (refCount 누수 차단)
 let refCount = 0;
 let pendingTimer: ReturnType<typeof setTimeout> | null = null;
@@ -75,7 +80,8 @@ function scheduleRefresh() {
 function ensureSocket(userId: string | number) {
   if (offMessage) return; // 이미 구독됨
   ensureMutedLoaded();
-  offMessage = onSocket('message:new', (msg: { sender_id?: number; conversation_id?: number }) => {
+  offMessage = onSocket('message:new', (msg: { id?: number; sender_id?: number; conversation_id?: number }) => {
+    if (!firstArrival(msg?.id)) return;
     // 옵티미스틱 +1 — 본인 발신 제외 (backend SQL 도 본인 제외).
     //   알림 끈 방은 서버 합계에서 빠지므로 미리 올리지 않는다(올렸다 내려가는 깜빡임 · docs/QTALK_MUTE_DESIGN.md §4).
     if (msg?.sender_id && Number(msg.sender_id) !== Number(userId) && !isConversationMuted(msg.conversation_id)) {
@@ -85,11 +91,14 @@ function ensureSocket(userId: string | number) {
     scheduleRefresh();
   });
   offInbox = onSocket('inbox:refresh', scheduleRefresh);
+  // 폰에서 읽으면 데스크탑 숫자도 바로(2026-11-18 Irene «모바일에서 확인했는데 데스크탑앱은 확인 안 된 걸로»).
+  offSelfRead = onSocket('conversation:self-read', scheduleRefresh);
 }
 
 function teardownSocket() {
   if (offMessage) { offMessage(); offMessage = null; }
   if (offInbox) { offInbox(); offInbox = null; }
+  if (offSelfRead) { offSelfRead(); offSelfRead = null; }
   joinedRooms.forEach((r) => leaveRoom(r));
   joinedRooms.clear();
   if (pendingTimer) {

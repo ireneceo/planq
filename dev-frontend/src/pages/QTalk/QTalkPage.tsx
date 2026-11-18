@@ -34,6 +34,7 @@ import { ReportProblemLink } from '../../components/Common/ReportProblem';
 import { usePanelWidth } from '../../components/Layout/PanelResizeHandle';
 import type { ConvCare } from './careList';
 import { displayName } from '../../utils/displayName';
+import { createOnceById } from '../../utils/onceById';
 
 /**
  * QTalkPage — 실데이터 기반 (시드 데이터 로드)
@@ -588,6 +589,14 @@ const QTalkPage: React.FC<QTalkPageProps> = ({ embedded = false, initialConvId =
       });
     });
 
+    // 같은 메시지가 두 방(conv:<id> + user:<id>)으로 두 번 온다 — 본문은 아래 setMessages 가 id 로 거르지만
+    //   목록 안읽음·사이드바·읽음 처리는 사건마다 돌아 답장 하나에 «2» 가 떴다(2026-11-18). 그 몫만 처음 한 번.
+    //   ★ 본문 쪽은 거르지 않는다 — 워크스페이스 사본(meta_partial)이 먼저 오면 온전한 두 번째가 본문을 채워야 한다.
+    const firstListArrival = createOnceById();
+    // 내 다른 기기에서 읽은 시각(대화별) — 읽음 신호가 그 전에 저장된 메시지보다 먼저 도착하면(보냄·읽음이 겹칠 때)
+    //   뒤늦게 온 그 메시지를 안 읽음으로 세지 않는다(Fable 비차단 지적 — 서버 0 인데 화면 1).
+    const selfReadAt = new Map<number, number>();
+
     // 메시지 수신
     on('message:new', (msg: qtalkApi.ApiMessage) => {
       const mapped = apiMessageToMock(msg);
@@ -617,6 +626,7 @@ const QTalkPage: React.FC<QTalkPageProps> = ({ embedded = false, initialConvId =
         }
         return { ...prev, [mapped.conversation_id]: [...arr, mapped] };
       });
+      if (!firstListArrival(mapped.id)) return;
       // 대화 리스트 갱신 — last_message_at 끌어올리고 unread_count 증가 (조건부)
       // - 자기가 보낸 메시지는 unread 증가 X
       // - 현재 보고 있는 활성 대화방이면 unread 증가 X (이미 보고 있는 것)
@@ -625,9 +635,11 @@ const QTalkPage: React.FC<QTalkPageProps> = ({ embedded = false, initialConvId =
       // ★ '읽음'은 실제로 창을 보고 있을 때만 — 활성 대화여도 앱이 백그라운드(또는 화면 꺼짐)면
       //   읽지 않은 것으로 취급 (사용자 호소: 앱만 열어두고 채팅창 안 봤는데 읽음 처리됨).
       const viewing = isActive && reallyVisibleRef.current;
+      const readAt = selfReadAt.get(mapped.conversation_id);
+      const alreadyRead = readAt !== undefined && new Date(mapped.created_at).getTime() <= readAt;
       setConversations((prev) => prev.map((c) => {
         if (c.id !== mapped.conversation_id) return c;
-        const incrementUnread = !isMine && !viewing;
+        const incrementUnread = !isMine && !viewing && !alreadyRead;
         // 사이클 N+15-D — 실시간 last_message_preview 갱신. 채팅 리스트의 한 줄도 즉시 따라옴.
         const previewContent = (mapped.body || '').trim()
           || (mapped.card ? t('preview.card', '[카드]') : (mapped.attachments && mapped.attachments.length > 0 ? t('preview.attachments', { defaultValue: '[첨부 {{count}}개]', count: mapped.attachments.length }) : ''));
@@ -644,7 +656,7 @@ const QTalkPage: React.FC<QTalkPageProps> = ({ embedded = false, initialConvId =
         };
       }));
       // 사이드바 토탈 unread 갱신 트리거 — 보고 있지 않으면(비활성 or 백그라운드) 미읽음 반영
-      if (!isMine && !viewing) {
+      if (!isMine && !viewing && !alreadyRead) {
         window.dispatchEvent(new Event('planq:unread-changed'));
       }
       // 활성 conv 도착분 → 백엔드 last_read_at 즉시 갱신 (단, '실제로 보고 있을 때만')
@@ -819,6 +831,19 @@ const QTalkPage: React.FC<QTalkPageProps> = ({ embedded = false, initialConvId =
             : m
         ) };
       });
+    });
+
+    // 다중 디바이스 동기화 — 같은 사람이 다른 기기(폰 등)에서 이 대화를 읽으면 이 창의 안 읽음 숫자도 0.
+    //   서버가 읽음 처리 때 user:<id> 방으로 쏜다(conversation:read 는 그 대화방을 연 소켓에만 가고, 그것도 «남이 읽음» 용이다).
+    //   읽은 뒤 저장된 메시지는 이 신호보다 뒤에 온다. 읽기 전에 저장됐는데 늦게 온 메시지는 위 selfReadAt 이 거른다.
+    //   이 창이 스스로 읽어도 같은 신호가 오지만 이미 0 이라 아무 일도 없다(목록을 다시 받지 않는다).
+    on('conversation:self-read', (data: { conversation_id: number; last_read_at?: string }) => {
+      if (!data?.conversation_id) return;
+      const at = data.last_read_at ? new Date(data.last_read_at).getTime() : NaN;
+      if (Number.isFinite(at)) selfReadAt.set(data.conversation_id, Math.max(at, selfReadAt.get(data.conversation_id) ?? 0));
+      setConversations((prev) => (prev.some((c) => c.id === data.conversation_id && c.unread_count)
+        ? prev.map((c) => (c.id === data.conversation_id ? { ...c, unread_count: 0 } : c))
+        : prev));
     });
 
     // 다중 디바이스 동기화 — 같은 user 의 다른 디바이스에서 핀 토글 시 즉시 반영

@@ -64,6 +64,9 @@ export function useInboxCount(businessId: number | null | undefined): InboxCount
     const offMessage = onSocket('message:new', debounced);
     // 응대 상태·담당이 바뀌면 «내가 담당인 응대 중 문의» 가 들거나 빠진다(docs/QTALK_CARE_DESIGN.md)
     const offCare = onSocket('conversation:care', debounced);
+    // 내 다른 기기(폰 등)에서 대화방을 읽으면 이 창의 Q talk·확인 필요·앱 아이콘 숫자도 바로(2026-11-18 Irene
+    //   «모바일에서 확인했는데 데스크탑앱은 확인 안 된 걸로» · Fable 1차 FAIL — 이 숫자는 useUnreadTotal 이 아니라 여기서 온다).
+    const offSelfRead = onSocket('conversation:self-read', debounced);
 
     return () => {
       cancelled = true;
@@ -72,6 +75,7 @@ export function useInboxCount(businessId: number | null | undefined): InboxCount
       offInbox();
       offMessage();
       offCare();
+      offSelfRead();
     };
   }, [businessId, user?.id]);
 

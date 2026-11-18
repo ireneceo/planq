@@ -376,9 +376,10 @@ router.put('/:businessId/:id/read', authenticateToken, attachWorkspaceScope(), a
     // 대화 진입 = 그 대화 관련 미읽음 알림도 읽은 것 → Notification.read_at 마킹.
     //   목적: 미읽음 이메일 에스컬레이션(unreadEscalationCron)이 자리에 있는 사용자에게 안 가게.
     //   (push 못 받아도 사용자가 대화를 직접 열어 봤으면 에스컬레이션 불필요)
+    let notifRead = 0;
     try {
       const { Notification } = require('../models');
-      await Notification.update(
+      [notifRead] = await Notification.update(
         { read_at: new Date() },
         { where: {
             user_id: req.user.id, read_at: null,
@@ -387,6 +388,17 @@ router.put('/:businessId/:id/read', authenticateToken, attachWorkspaceScope(), a
         } },
       );
     } catch (e) { /* best-effort — 읽음 처리 실패가 대화 진입을 막지 않음 */ }
+    // 같은 사람의 다른 기기(데스크탑 앱·다른 탭)에도 «내가 읽었다» — 안 읽음 숫자·종 숫자를 바로 맞춘다.
+    //   2026-11-18 Irene «모바일에서 확인했는데 데스크탑앱은 확인 안 된 걸로». 아래 conversation:read 는
+    //   그 대화방을 연 소켓(conv:<id>)에만 가고 «남이 읽음» 숫자용이라, 다른 기기의 내 숫자는 창을 다시 볼 때까지 그대로였다.
+    //   신호만 싣는다(대화 id·워크스페이스·시각) — 받는 쪽이 자기 숫자를 0 으로 두거나 다시 센다.
+    const ioSelf = req.app.get('io');
+    if (ioSelf) {
+      ioSelf.to(`user:${req.user.id}`).emit('conversation:self-read', {
+        conversation_id: convId, business_id: businessId, last_read_at: part.last_read_at,
+      });
+      if (notifRead > 0) ioSelf.to(`user:${req.user.id}`).emit('notification:read', { conversation_id: convId });
+    }
     // 사이클 N+15-C — 같은 conv room 의 다른 참여자에게 "이 user 가 읽었음" broadcast.
     // 발송자는 자기 메시지의 read_by_count 를 실시간 +1.
     const io = req.app.get('io');
