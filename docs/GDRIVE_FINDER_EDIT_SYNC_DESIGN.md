@@ -63,4 +63,114 @@ dev 실측(ws 3 워프로랩만 연결): 지금 산 미러 행 0(시험 데이�
 - **확인 못 하는 것**: 맥 파인더(Drive for desktop)·오피스 저장이 같은 Drive id 를 유지하는지 — 서버에서 재현 불가. 새 id 로 저장되면 drive.file 로 안 보이고 원래 사본은 trashed 로 와 «지움»으로 처리될 위험 ◆(이 경우 PlanQ 에서는 파일이 휴지통으로 가고 새 판은 안 들어온다).
 
 ## 4. Fable 판정
-(대기)
+
+2026-11-18 · [Fable] 설계 판정 · **DESIGN-READY** — 아래 결정이 정본이다. 2절과 다르면 **4절이 이긴다.**
+읽은 것: gdriveApply · fileOrigin · driveMirrorRecall · gdriveMirror · gdriveWatchCron · gdrive(listChanges·uploadFile) · fileRefs · filePurge · fileRetention · driveImport · routes/files(trashFile·flushMirrorRecalls·canMutateFile) · file_trash(복구) · cloud(webhook) · posts(쌍둥이·editor-image) · editorImage · File/GdriveSyncLog 모델 · ecosystem(PM2 fork 1개). 실 Drive 호출·운영 DB 는 안 봤다(판정은 코드 사실 기준).
+
+### 4.0 초안에서 사실이 틀린 것 (먼저 바로잡는다)
+
+| 초안 | 코드 사실 | 결과 |
+|---|---|---|
+| «크론 catchUp 30분» | `runGdriveWatchCron` 은 30분마다 돌지만 **채널이 없거나 24시간 안에 만료될 연동만** 고른다 → catchUp 은 사실상 **주 1회(갱신 때)** | 놓친 변경을 30분 뒤에 줍는 그물은 없다 → D-2 |
+| «files.get 404 면 영구 삭제 확인» | Drive 는 **접근을 잃은 파일도 404** 다. 404 로는 둘을 못 가른다 | A-4 |
+| `deleted_by` = `lastModifyingUser` | 휴지통 보내기는 내용 수정이 아니라 그 칸이 안 바뀐다. 지운 사람은 **`trashingUser`** | A-7 |
+| 커서 | 웹훅·크론 둘 다 **커서를 먼저 저장하고** 그 뒤에 적용한다. 적용 중 죽으면 그 변경은 영영 안 온다(이름변경 때는 참을 만했지만 지움·고침은 조용한 어긋남) | D-1 |
+| «팀원 파인더 지움도 Changes 로 온다» | 내 드라이브에서는 **소유자가 아닌 편집자가 지우면 «휴지통» 이 아니라 «폴더에서 빼기»(부모 변경)** 로 올 수 있다(공유 드라이브는 휴지통). 지금 코드는 모르는 부모면 무시 | E-3 실측 · 이번 범위에서는 «빼기» 는 지움으로 보지 않는다 |
+
+### 4.1 A. 지움 — 결정
+
+적용 대상은 **PlanQ 정본 미러 행**(`!isDriveMaster` · `storage_provider='planq'` · `gdrive_mirror_id=driveId`)뿐. Drive 정본 분기는 건드리지 않는다.
+`L` = 그 사본을 가리키는 **산 행**. 아래 순서로 **처음 맞는 것**을 한다.
+
+| # | 조건 | 처리 | 원장 |
+|---|---|---|---|
+| A-4 | `removed=true` | **지금처럼 unmirror**(휴지통 안 보냄). `files.get` 확인은 하지 않는다 — 구별 못 하고, 접근 상실이 대량으로 오면 워크스페이스 파일이 통째로 휴지통에 간다. 틀려도 «안 지워짐» 쪽이 안전 | `unmirror` |
+| — | `trashed=true` · `L`=0 | 지금처럼 unmirror(휴지통 형제 포인터까지 비움 — 현행 코드 그대로) | `unmirror` |
+| A-6 | `L`≥2(쌍둥이·백필 byHash) **또는** 문서 본문 이미지(`file_path` 에 `editor-images` — posts.js 쌍둥이 술어와 같은 것) | **휴지통 안 보냄 · unmirror.** 이유: ① byHash 쌍둥이는 **다른 프로젝트 행**일 수 있다 — A 폴더 사본을 지웠는데 B 프로젝트 파일이 휴지통에 가면 청중 경계를 넘는 삭제다 ② editor-image 행이 지워지면 `resolveEditorImage` 가 404 → **살아 있는 문서의 그림이 사라진다** | `unmirror` · detail.reason `shared_mirror`/`embedded` |
+| A-5a | `explicitlyTrashed=false`(폴더째 지워 따라온 것) | **보류** — 행·포인터 그대로, `drive_sync_issue='trash_held'`. Drive 에서 폴더를 되살리면 `trashed=false` 가 와 표시만 지운다. Drive 가 30일 뒤 비우면 `removed` → unmirror. **폴더 지움의 반영은 이번 범위 밖**(폴더 역방향 동기화는 별도 설계) | `skip`/`trash_held` |
+| A-5b | 그 워크스페이스에서 **최근 10분 Drive 발 휴지통 ≥ 100건**(원장 `action='trash'` 로 센다) | 넘는 것부터 **보류**(A-5a 와 같은 상태) + 대표에게 앱 안 알림 1회 | `skip`/`trash_breaker` |
+| A-3x | `md5Checksum` 이 없거나, 알고 있는 md5(4.2 B-1)와 **다르다** = 고친 뒤 지움(Changes 는 파일당 마지막 상태만 준다) | **먼저 B(고침)를 적용**하고 성공하면 아래 A-3 으로. B 가 실패하면 **보류**(`edit_*` 표시). ★ 이 경우 **Drive 사본을 영구 삭제하지 않는다** — 우리가 안 받은 바이트의 유일본이다 | — |
+| A-3 | 위 어느 것도 아님(`L`=1 · 직접 지움 · md5 같음) | **PlanQ 휴지통 + Drive 사본 영구 삭제 = 초안 (a).** 트랜잭션: 행을 PK 로 `FOR UPDATE` → `deleted_at IS NULL` · `gdrive_mirror_id=driveId` 재확인 → `trashFile(file, {user:{id: 지운 사람|null}}, t, mq)` + `deleted_via='gdrive'` → 커밋 → `flushMirrorRecalls(mq)` → 감사·`file:deleted`(신호만)·알림 | `trash` |
+
+- **(a) 를 고른 이유**: 지금 불변식 «PlanQ 휴지통 행에는 Drive 사본이 없다(shared 예외)» 를 그대로 둔다. (b) 는 `untrash` 반영 + «복구 = 재미러 대신 Drive 복원» 두 방향이 새로 생기는데, 이 영역이 9월에 10차까지 깨진 자리(포인터·형제)다. (a) 에서 되돌릴 수 없는 것은 Drive 사본 삭제 하나이고, **md5 가 같다고 확인된 사본만** 지우므로 잃는 바이트가 없다.
+  - 대가(보고·안내 문구에 쓴다): 파인더 «되돌리기(⌘Z)»·Drive 휴지통 «복원» 은 안 된다 — 복구는 PlanQ 휴지통 한 곳.
+- A-7 **지운 사람·표시**: Changes 필드에 `file.trashingUser(emailAddress)`·`file.explicitlyTrashed`·`file.lastModifyingUser(emailAddress)` 추가. 이메일이 **그 워크스페이스 활성 멤버 계정**과 맞을 때만 `deleted_by`, 아니면 NULL. **바깥 사람 이메일 원문은 원장·감사에 적지 않는다**(`actor:'external'` 만).
+  표시는 **새 칸 `files.deleted_via VARCHAR(20) NULL`**(`'gdrive'` · 옛 판 행 `'gdrive_edit'`) — 감사에서 읽지 않는다(목록마다 조인·감사 보관기간에 묶임). 휴지통 응답에 싣고 화면이 «Google Drive 에서 지움»/«이전 판» 을 그린다. **복구가 `deleted_by`·`purge_after` 와 함께 NULL 로 지운다**(file_trash.js). 모르는 값은 값 그대로 보이게(status-values 규약).
+- **알림**(앱 안만 — 메일·푸시 발송 없음): 올린 사람 ≠ 지운 사람이면 올린 사람에게 «Drive 에서 지워져 휴지통으로 갔어요». 한 번 적용에서 같은 사람에게 여러 건이면 **한 장으로 묶는다**. 보류(A-5a·b)는 대표에게 묶어서 1회.
+- **권한**: Drive 편집자는 PlanQ `canMutateFile` 이 없어도 지울 수 있게 된다(공유 드라이브·소유 계정). 받아들인다 — 휴지통(30일 이상)·`deleted_via`·알림·감사가 있고 복구 권한은 그대로다. 대신 위 A-5·A-6 이 폭을 줄인다.
+
+### 4.2 B. 고침 — 결정
+
+- **B-1 판정**: 비교 기준은 **«우리가 아는 그 사본의 md5»** = `files.drive_md5`(미러 행에도 쓴다 — 뜻은 그대로 «Drive 가 준 체크섬»).
+  - 앞으로: `gdrive.uploadFile` 응답 필드에 `md5Checksum` 추가 → `mirrorFile` 이 `drive_md5` 기록. posts.js 쌍둥이·백필 byHash 가 미러 id 를 물려줄 때 `drive_md5` 도 같이.
+  - 옛 행(`drive_md5` NULL): **로컬 바이트 md5 를 그때 계산**해 비교, 같으면 `drive_md5` 만 채우고 끝. ★ **NULL 을 «바뀜» 으로 읽지 않는다** — 읽으면 옛 미러 전부가 첫 이름변경 때 다시 받아지고 옛 판이 생긴다. 로컬 바이트가 없으면 skip `local_missing`.
+  - `md5Checksum` 없음(구글 문서로 변환됨 등) → skip `no_md5`.
+- **B-제외**: `L`≥2 · editor-image 행(경로가 본문 주소라 새 경로로 옮기면 문서 그림이 404) · **증빙으로 묶인 파일**은 반영하지 않고 `drive_sync_issue='edit_not_applied'`. ★ 구현 전에 작업 모델이 **`files.id` 를 증빙·스냅샷으로 참조하는 표를 전수**로 찾아(서명 요청·청구 첨부·완료 스냅샷 등) 이 절에 목록을 덧붙인다 — 공개 공유 링크(`share_token`)가 걸린 일반 파일은 반영하되(그게 «최신 내용»의 뜻) 감사에 `shared:true`.
+- **B-2 받기**(트랜잭션 **밖**): 크기 사전 검사(`f.size` vs 플랜 파일당 한도) → 임시 경로로 스트림(바이트 세다가 한도 넘으면 끊음) → **받은 바이트의 md5 == Changes 의 md5** 확인(다르면 받는 중에 또 바뀐 것 — 버리고 skip `changed_during_download`) → sha256.
+  확장자는 **현재 `file_name` 기준** `driveImport.ALLOWED_EXT`·`plan.can('upload_file',{size})`. `mime_type` 은 **업로드 라우트와 같은 방식(확장자 기준)** 으로 정하고 Drive 가 말한 mimeType 을 그대로 믿지 않는다(.pdf 이름에 text/html). 내려받기는 `driveImport.downloadTo` 재사용.
+- **B-3 반영**(한 트랜잭션): 행 PK `FOR UPDATE` → `deleted_at IS NULL` · `gdrive_mirror_id=driveId` · `drive_md5` 가 받기 전 값 그대로인지 재확인(아니면 임시 파일 버림) → 쿼터: `옛 바이트는 isLastLiveRef 일 때만 빼고 + 새 바이트` 가 한도 안인지(`file_count` 는 그대로) → **옛 판 행 만들기(B-4)** → 산 행 `file_path·file_size·content_hash·drive_md5·mime_type` 갱신. 새 바이트에는 **dedup 을 걸지 않는다**(항상 새 경로 — 과계수 쪽이라 안전). 커밋 실패면 새 파일 unlink.
+  커밋 뒤: 색인 다시(`removeFileIndex`→`indexOnUpload`) · `file:updated`(신호만) · 감사 `file.content_update`(`via:'gdrive'`·옛/새 sha256·크기·고친 사람) · 올린 사람 ≠ 고친 사람이면 앱 안 알림. **Drive 호출은 없다**(Drive 는 이미 새 내용).
+- **B-4 옛 판 = (i) 휴지통 행.** 새 표·새 화면 없음. Drive 자체도 일반 파일의 옛 판을 30일 보관하므로 이중이다.
+  - 행 내용: 옛 `file_path·file_size·content_hash·mime_type` · 이름 «원래이름 (이전 판 MM-DD HH:mm).확장자» · `uploader_id`·`business_id`·`project_id`·`folder_id`·공개 범위·`target_member_ids`·보안등급 승계 · `deleted_at=지금`·`purge_after=stampFor`·`deleted_by=고친 사람|NULL`·`deleted_via='gdrive_edit'`·`ref_count=1`.
+    **승계하지 않는 것**: `gdrive_mirror_*`(있으면 복구 때 `isEligible` 이 막는다)·`drive_md5`·`share_token`·공유 비밀번호·`external_*`·`origin_provider`·프로젝트 연결.
+  - **하루 1판으로 묶는다** — 같은 파일에 **24시간 안에 만든 옛 판 행이 있으면 새로 만들지 않는다**(원장 `action='content'`·`file_id` 의 `detail.old_version_file_id` 로 판정). 그때 중간 판 바이트는 `bytesStillNeeded` 가 거짓이면 unlink. 이유: 휴지통 행은 쿼터 밖이라 저장할 때마다 판을 만들면 50MB 파일 100번 저장 = 5GB 가 쿼터 없이 30일 쌓인다.
+  - 한계(보고에 쓴다): 옛 판은 **휴지통 보관기간(30일~)까지만**, 복구하면 «되돌리기» 가 아니라 **별도 파일**로 살아난다.
+- **B-5 실패 표시 = 새 칸 `files.drive_sync_issue VARCHAR(40) NULL`.** 값: `edit_too_large`·`edit_quota`·`edit_ext`·`edit_download_failed`(다시 시도 대상)·`edit_not_applied`·`trash_held`. 파일 목록 응답에 실어 기존 «Drive 사본 없음» 태그 자리(routes/projects.js 3곳과 같은 표면)에 «Drive 사본이 PlanQ 와 달라요 — 이유» 로 그린다(ko/en · 모르는 값은 값 그대로). 반영에 성공하거나 md5 가 다시 같아지거나 포인터가 비면 NULL. 원장에도 `skip/reason`.
+- **B-7 충돌**: PlanQ 에 파일 바이트를 고치는 길이 없음을 확인했다(`file_path` 를 바꾸는 update 0곳). 충돌 없음 — 대신 **바이트를 고치는 길을 새로 만들면 이 절을 다시 연다**(gdriveApply 머리 주석에 한 줄).
+
+### 4.3 D. 동시 처리·유실 — 필수
+
+1. **D-1 워크스페이스당 한 줄로**: «커서 읽기 → listChanges → 적용 → 커서 저장» 을 **business 단위 단일 실행**(프로세스 안 Map — PM2 fork 1개 확인)으로 감싸고 웹훅·크론이 같은 함수를 부른다. **커서는 적용이 끝난 뒤 저장**한다(적용은 멱등, 건별 실패는 `applyChanges` 가 삼키고 표시를 남기므로 독이 든 변경이 줄을 막지 않는다). 이것이 없으면 두 웹훅이 같은 지움을 동시에 적용해 **쿼터를 두 번 뺀다**(과소 계수 = 한도 우회 방향).
+2. **D-2 다시 시도**: 30분 크론 틱에 한 구간 추가 — `drive_sync_issue='edit_download_failed'` 인 산 미러 행을 `files.get`(메타)으로 다시 읽어 `applyChange` 에 넣는다(워크스페이스당 틱마다 최대 20건, `workspaceAlive` 술어). 전체 대조(`files.list` 로 앱 파일 전부 vs 행)는 **권고·비차단** — 이번에 안 하면 작업기록 «다음 할 일».
+3. **잠금**: 잠그는 것은 **자기 행 하나(PK)** 뿐. 형제 집합을 `FOR UPDATE` 하지 않는다(9월 교착). 형제를 여럿 건드리는 경우는 A-6 으로 애초에 빠진다.
+4. **Drive 호출은 전부 트랜잭션 밖** — 내려받기는 앞, 사본 삭제는 커밋 뒤 큐(요청 스코프 배열 — 전역 금지, 롤백이면 큐를 버린다).
+5. 한 번 적용에서 **내려받기 최대 20건·합계 500MB**, 넘으면 나머지는 `edit_download_failed` 로 남겨 D-2 가 잇는다.
+
+### 4.4 빠진 위험 — 판정
+
+| 위험 | 판정 |
+|---|---|
+| 고친 뒤 지움 → (a) 가 안 받은 바이트의 유일본을 영구 삭제 | **차단** — A-3x |
+| 접근 상실·폴더 지움이 대량 휴지통으로 번짐 | 차단 — A-4·A-5a·A-5b |
+| 문서 그림·다른 프로젝트 행이 같이 사라짐 | 차단 — A-6 · B-제외 |
+| 휴지통 행이 쿼터 밖이라 옛 판으로 디스크 무한 증가 | 차단 — B-4 하루 1판 |
+| 같은 변경 두 번 적용(쿼터 이중 차감) · 적용 중 죽어 변경 유실 | 차단 — D-1 |
+| 옛 미러(`drive_md5` NULL) 전부가 «바뀜» 으로 읽힘 | 차단 — B-1 |
+| 증빙 파일·공개 링크의 내용이 조용히 바뀜 | 증빙은 제외(B-제외), 공개 링크는 반영 + 감사·알림 |
+| 바깥 사람 이메일이 원장에 남음 · 실시간에 행 전체가 실림 | A-7 · 신호만 |
+| **맥 파인더·오피스 저장이 새 Drive id 로 저장**(원래 사본은 `trashed`, 새 파일은 drive.file 로 안 보임) → 고칠 때마다 PlanQ 파일이 휴지통으로 | **서버에서 증명 불가 — 운영 반영 조건**(4.6). 실제로 그렇다면 그 저장 방식에 한해 A-3 을 끄고 다시 판정받는다 |
+| Drive 이름변경이 확장자 검사 없이 `file_name` 에 들어감(기존 동작) | 비차단·기존 — 이번에 `mime_type` 은 안 바꾸므로 넓어지지 않는다. 별도 건으로 남긴다 |
+| Drive 정본 분기 지움이 `trashFile` 을 안 지나감(purge_after NULL·쿼터 미반환) | 비차단·기존 — 범위 밖 |
+
+### 4.5 구현 순서 (각 단계가 따로 초록이어야 다음으로)
+
+1. **DB**: `files.deleted_via`·`files.drive_sync_issue`(둘 다 NULL 허용 · 멱등 마이그레이션 · 배포 슬롯 등록) + db-schema 규칙 갱신.
+2. **md5 기록**: `uploadFile` 필드 · `mirrorFile` · 쌍둥이/백필 승계 · B-1 지연 계산. (동작 변화 없음 — 여기서 음성 대조군 ⓐ 를 먼저 통과시킨다)
+3. **D-1** 단일 실행 + 커서 순서. Changes 필드 추가.
+4. **A** 지움(분기표 순서 그대로 한 함수) + 복구가 `deleted_via` 지움 + 휴지통 응답·화면 표시.
+5. **B** 고침 + 옛 판 + 실패 표시 + D-2.
+6. 알림·감사·안내 문구(ko/en — «Drive 에서 지우면 PlanQ 휴지통으로, 고치면 새 내용으로 반영됩니다. 폴더째 지운 것과 새로 넣은 파일은 반영되지 않습니다. 복구는 PlanQ 휴지통에서»).
+7. `gdriveApply` 머리 정책 ①·②·④ 갱신 · `.claude/rules/qfile.md` 한 절 · 회귀(health-check 또는 e2e 스위트, 가짜 Changes).
+
+### 4.6 완료 검증 때 반드시 증명할 것 (/fable-검증 에 숫자로)
+
+**양성**
+1. 직접 지움(md5 같음·`L`=1) → 행 `deleted_at`·`purge_after`·`deleted_via='gdrive'` · 쿼터 정확히 1회 차감 · 색인 회수 · Drive 사본 404 · 포인터 NULL · 복구 → 새 Drive id·`deleted_via` NULL·쿼터 원복.
+2. 고침 → 산 행 새 경로·크기·sha256·`drive_md5` · 내려받기 응답 바이트 sha256 일치 · 옛 판 휴지통 행 1개(옛 바이트 그대로 내려받아짐·미러/공유 칸 NULL) · `bytes_used` = 전 − 옛(마지막 참조일 때) + 새.
+3. 고친 뒤 지움(한 변경으로 옴) → 새 내용이 PlanQ 휴지통 행에 있고 옛 판 행도 있다. B 를 일부러 실패시키면 **Drive 사본이 남아 있다**.
+4. 실 Drive(dev ws 3, `[확인용]`): 업로드 → `files.update` media → 반영 → 휴지통 → PlanQ 휴지통 → 복구 → 재미러. 그리고 **폴더째 휴지통이 자식 변경으로 오는지·`explicitlyTrashed` 값**, **두 번째 계정(편집자)이 지웠을 때 무엇이 오는지**(휴지통인가 부모 변경인가)를 원문으로 기록.
+
+**음성 대조군**(하나라도 빠지면 미완)
+- ⓐ 에코: 우리 업로드·이름변경·이동이 되돌아옴 → 무변화. **`drive_md5` NULL 인 옛 미러 + md5 같은 변경 → 내려받기 0회·옛 판 0개**.
+- ⓑ `removed=true` → 휴지통 0건(unmirror). ⓒ `explicitlyTrashed=false` → 휴지통 0건·`trash_held`. ⓓ 100건 넘김 → 101번째부터 보류.
+- ⓔ 쌍둥이(`L`=2)·editor-image 지움/고침 → 두 행 다 살아 있고 문서 그림 200.
+- ⓕ 같은 변경 묶음을 **동시에 두 번** 적용 → 쿼터 차감 1회·옛 판 1개. ⓖ 적용 도중 예외 → 커서 그대로·다시 돌리면 같은 끝 상태.
+- ⓗ 한도 초과·허용 안 되는 확장자·받는 중 md5 불일치 → 산 행 바이트 그대로 + `drive_sync_issue` 가 목록 응답에 실림 + 임시 파일 0개.
+- ⓘ 하루 2번 고침 → 옛 판 행 1개, 중간 판 바이트는 디스크에 없다.
+- ⓙ 다른 워크스페이스의 같은 Drive id·PlanQ 에서 이미 지운 행 → 무변화. ⓚ Drive 정본 행 → 종전과 한 글자도 같다.
+- ⓛ 검사기 자체: A-3x·A-6 가드를 잠깐 끄면 해당 검사가 빨강이 되는지(양성 대조군).
+
+**운영 반영 조건**(검증 통과와 별개)
+- Irene 맥 실기기 1회: 파인더(Drive for desktop)에서 미러 파일을 **오피스·한글·미리보기로 열어 저장** → PlanQ 에 «새 내용» 으로 오는지, 휴지통으로 가는지. 휴지통으로 가는 앱이 있으면 배포 전에 이 절로 돌아온다.
+- 운영 숫자 3개(읽기만): 산 미러 행 수 · 같은 미러 id 를 나눠 쓰는 산 행 수 · editor-image 미러 행 수 — A-6 이 실제로 몇 행을 빼는지 보고에 적는다.
+- 배포 직후 1주: 원장 `trash`·`content`·`trash_held`·`edit_*` 건수를 본다(`trash` 가 사람 손보다 많으면 A-3 을 끈다 — 끄는 스위치는 env 하나로 둔다, 기본 켬).
