@@ -706,15 +706,21 @@ function defineExternalTests() {
           };
           const msgs = await EmailMessage.findAll({
             where: { business_id: bizId, direction: 'inbound', sent_at: { [Op.gte]: since } },
-            attributes: ['to_emails'],
+            attributes: ['to_emails', 'cc_emails'],
           });
           const counts = new Map();
+          const norm = (x) => String((x && x.email) || x || '').toLowerCase().trim();
           for (const m of msgs) {
             const list = Array.isArray(m.to_emails) ? m.to_emails : [];
+            const cc = Array.isArray(m.cc_emails) ? m.cc_emails : [];
+            // 받는 사람(To·Cc)에 우리 주소가 이미 있으면 이 메일은 «우리에게 온 것» 으로 인식된다
+            //   (#221 강등 안 일어남) — 함께 받은 남의 주소(가족·학교 계정 등)는 결손이 아니다.
+            //   2026-11-18 실측: 개인 학교 메일 + 우리 주소 공동 수신 10건이 «별칭 등록 필요» 로 잡혀 배포 중단.
+            if ([...list, ...cc].some((x) => own.has(norm(x)))) continue;
             // 한 메일의 같은 주소는 1회만 센다
             const seen = new Set();
             for (const x of list) {
-              const e = String((x && x.email) || x || '').toLowerCase().trim();
+              const e = norm(x);
               if (!e || seen.has(e)) continue;
               seen.add(e);
               counts.set(e, (counts.get(e) || 0) + 1);
