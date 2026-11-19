@@ -375,6 +375,9 @@ const ARTICLES = [
         'In the **All** chat, which every member is in, use **Post announcement** (or **Send announcement** in Settings › Members) to send a titled announcement. It is pinned at the top, notifies members even if they muted that chat, and shows how many have read it.'),
       s('사람 이름을 눌러 나오는 카드나 멤버 상세에서 **1:1 메시지** 를 누르면 그 멤버와 둘만의 대화방이 열립니다(이미 있으면 그 방으로).',
         'Tap **Direct message** on a person card (tap a name) or on a member’s details to open a private chat with that member — or the existing one.'),
+      // 2026-11-19 744c4400 — 고객 링크 [보내기] = 메일
+      s('고객 대화방의 **고객 링크** 에서 [보내기] → **메일로 보내기** 를 누르면 그 대화방 고객의 메일 주소가 적힌 확인 창이 뜨고, 확인하면 고객에게 링크가 메일로 갑니다. 고객 메일 주소가 없으면 버튼이 꺼져 있고 이유가 보입니다. [복사] 로 카톡 등에 직접 붙일 수도 있습니다.',
+        'In a customer chat, open **Customer link**, tap [Send] → **Send by email**: a confirmation shows the customer’s email address, and once confirmed the link is emailed to them. If the customer has no email address, the button is off and the reason is shown. You can also [Copy] it to paste into a messenger.'),
       // 2026-10-09 — 사적 팀 대화(보안 점검 2차 D3)
       note('프로젝트·고객과 연결하지 않은 팀 대화는 **참여자만** 볼 수 있습니다. 대표·관리자도 참여자가 아니면 보지 못합니다. 프로젝트 대화방과 고객 대화방은 팀 모두가 봅니다.',
         'Team chats not linked to a project or client are visible to **participants only** — owners and admins included. Project and client chats are visible to the whole team.'),
@@ -433,6 +436,9 @@ const ARTICLES = [
       // 2026-11-18 0391c0d3 — «요청» 은 만든 사람이 요청하기를 골랐을 때만
       note('업무로 만들면서 담당자만 동료로 넣으면 «배정» 입니다 — 담당자에게 알림은 가지만 요청처럼 내가 확인하는 단계는 붙지 않습니다. 결과를 내가 확인해야 하는 일이면 «요청하기» 를 고르세요.',
         'Creating a Task with a teammate as owner is an assignment — they are notified, but no review step by you is added. If you need to check the result, choose Request.'),
+      // 2026-11-19 e95e781c — 업무 «산출물» 고르기
+      p('업무 설명 아래 **산출물** 칸에서 이 업무로 만들 것(제안서·디자인 시안 등)을 여러 개 고를 수 있습니다. 기본 목록에서 검색하고, 없는 이름은 입력하면 워크스페이스 목록에 저장되어 다음부터 같이 고를 수 있습니다. 직접 추가한 이름은 «목록 관리» 에서 바꾸거나 지웁니다.',
+        'Under the description, use **Deliverables** to pick what this task should produce (proposal, design draft, etc.) — several are allowed. Search the default list; type a new name to save it to your workspace list for next time. Names you added can be renamed or removed in «Manage list».'),
       // 2026-09-07 — 책임선에서 직급 예외를 걷었다. 사용자가 알아야 하는 동작 변경이라 여기 적는다.
       s('업무 설명은 만든 사람만, 결과물은 담당자만 씁니다.', 'Only the creator edits the request; only the assignee writes the deliverable.'),
       p('업무 설명(무엇을 해 달라는 요청)은 그 업무를 만든 사람만 고칠 수 있고, 결과물은 담당자만 쓸 수 있습니다. 소유자·관리자도 예외가 없습니다 — 남의 글을 대신 고치면 나중에 누가 왜 바꿨는지 알 수 없기 때문입니다.',
@@ -599,6 +605,9 @@ const ARTICLES = [
         'When a question is heard, AI cleans up mispronunciations and filler to tidy the question, then looks for an answer using the tidied version. The card shows both «Question tidied by AI» and «As heard». If a question is incomplete or tidied wrongly, tap it to edit and search again — you can also revert.'),
       s('녹음 중에 다른 세션을 열거나 새 메모를 만들려고 하면 확인 창이 뜹니다. 녹음은 확인을 누른 뒤에만 중단되고, 그때까지 기록된 내용은 이미 저장되어 있습니다.',
         'If you open another session or start a new note while recording, a confirmation appears. Recording stops only after you confirm, and everything captured so far is already saved.'),
+      // 2026-11-19 61e79c81 — 녹음 중 이탈 보호
+      s('녹음 중에 다른 메뉴로 가도 녹음이 끊기지 않습니다 — 컴퓨터·태블릿에서는 녹음 탭을 그대로 두고 새 탭으로 열리며 녹음 탭에 빨간 점이 보입니다. 녹음 탭 닫기·로그아웃·워크스페이스 전환·새로고침·폰에서 다른 화면으로 가기는 먼저 [녹음 계속하기] 를 묻습니다.',
+        'Going to another menu while recording does not stop it — on a computer or tablet the recording tab stays and the new page opens in a new tab, with a red dot on the recording tab. Closing the recording tab, signing out, switching workspace, reloading, or leaving the screen on a phone asks first, with [Keep recording].'),
       note('Q Note 는 기본적으로 개인 공간입니다 — 명시적으로 공유하기 전까지 다른 사람이 볼 수 없습니다.',
         'Q Note is private by default — no one else sees it until you explicitly share.'),
     ] },
