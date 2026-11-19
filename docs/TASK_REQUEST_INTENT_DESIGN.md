@@ -87,6 +87,8 @@
 9. 알려진 길(범위 밖): 담당자가 컨펌자를 빼고 완료 — 이력이 남아 둔다.
 10. 이미 들어간 요청: 스크립트만(업무별 손잡이 없음). 변환 한 건 = 행동 계층 함수 한 곳(request_by NULL · source manual · 작성자 컨펌자 행 삭제 · AuditLog 옛 값 · task:updated · 알림 없음).
     대상 = business_id(필수)·created_by(필수) ∧ request_by=created_by ∧ source internal_request ∧ project_id NOT NULL ∧ status ∈ {not_started,waiting,in_progress} ∧ review_round=0 ∧ 컨펌자 정확히 작성자 1명(pending, is_client=0) ∧ 급여 송금 아님. dry-run 기본 · `--apply` 되돌림 JSON · `--revert <파일>`.
+    ↳ 2026-11-19 넓힘(Irene «권고대로» A · Fable 완료 검증 PASS): 컨펌자가 작성자 포함 여럿이고 전원 pending·내부인 업무도 대상.
+      그때는 컨펌자 행을 그대로 두고 request_by·source 만 바꾼다(장부 `kept_reviewer_ids` · 되돌림은 컨펌자가 같을 때만). 운영 ws 21 45건 실행(유지 11).
 11. 옛 번들(as_request 없음) = 배정 업무 — 받아들인다.
 Irene 에게 물을 것: 없음(운영 45건 변환은 배포 뒤 dry-run 숫자로 실행 승인만).
 

@@ -1,10 +1,12 @@
 ## 현재 작업 상태
-### ✅ 지메이트 옛 «요청» 업무 45건 → 일반 업무 (방 d8027bcb · 2026-11-19 · [Opus] · Irene «권고대로» A · Fable 미검증(자체 검증) — 되돌림 장부 있음·바꾼 칸 2개)
+### ✅ 지메이트 옛 «요청» 업무 45건 → 일반 업무 (방 d8027bcb · 2026-11-19 · [Opus] · Irene «권고대로» A · Fable 완료 검증 PASS)
 - Irene «남에게 넣은 업무가 여전히 요청 — 아직 배포 안 된 거야?» → 고친 코드(0391c0d3)는 운영 2171cba8(11-18 10:25 UTC)에 나가 있었음. 원인 = 배포 전에 넣은 옛 요청 45건(김미정 user 1, ws 21). 그날 «요청 확인함» 알림 7개는 전부 컨펌자 2명(김미정 + 안혜숙 79/유상은 80) 업무
 - 고침: `services/taskRequestConvert.js` — 대상에 «컨펌자 여럿(작성자 + 팀원, 전원 pending·내부)» 포함. 그때는 컨펌자 전부 그대로 두고 요청 표시(request_by·source)만 뗌 · 장부 `kept_reviewer_ids` · 되돌림 `revertKept`(컨펌자가 변환 때와 같을 때만). 작성자 1명뿐이면 옛 동작(그 행 삭제) 그대로
 - 개발 시험 12/12: A 작성자만 → 행 삭제 · B 작성자+멤버2 → 둘 다 유지 · C 승인함·D 고객 컨펌자·E 작성자 없음 → 빠짐 · B 담당자 «완료» 400(확인 남음) · 되돌림 = 변환 전과 같음 · 컨펌자 바뀐 뒤 되돌림 거절(대조군) · 손댄 장부 bad_entry
 - 운영 실행(운영 파일은 안 바꾸고 개발 코드를 stdin 으로): 대상 45 → 바꿈 45 · 컨펌자 유지 11 · 감사 45행. 재조회: 열린 요청 0 · 11건 컨펌자 1+79/80 그대로 · 단일 컨펌자 행 0
-- 되돌림 장부: 운영 `/opt/planq/backend/scripts/out/convert-requests-21-1-1795057449180.json` · 개발 사본 `dev-backend/scripts/out/prod-convert-requests-21-1-20261119.json`(.gitignore) — 되돌리려면 다음 배포 뒤 운영에서 `node scripts/convert-requests-to-assigned.js --revert <장부>`
+- 되돌림 장부: 운영 `/opt/planq/backend/scripts/out/convert-requests-21-1-1795057449180.json` · 개발 사본 `dev-backend/scripts/out/prod-convert-requests-21-1-20261119.json`(.gitignore) — 되돌리려면 **다음 배포 뒤** 운영에서 `node scripts/convert-requests-to-assigned.js --revert <장부>`. ⚠ 배포 전 운영의 옛 스크립트로 돌리면 1354(첫 유지 건)에서 TypeError 로 죽어 일부만 되돌려짐(Fable 실측) — 배포 전이면 변환 때처럼 새 코드를 stdin 으로
+- Fable 완료 검증 PASS(운영 재조회 45/45·감사 45·다른 업무 0 · 개발 실HTTP 26 · 차단 0). 비차단: 유지 11건은 Irene(user 1)도 계속 컨펌자 · «보낸 업무» 집계는 created_by 로 계속 셈(설계 의도) · 설계 §4-10 문서 갱신함
+- 게이트 마커는 안 씀 — 같은 구간에 다른 방 커밋 fefa3d0f(refresh_tokens 색인 마이그레이션·배포 스크립트)가 있어 이 방 PASS 로 덮지 않음
 - 운영 반영: 데이터는 지금 반영됨 · 스크립트 코드는 다음 배포 때
 
 ### ✅ 정기 점검 11/19 00:15 — 개발완료 · 개발시작 (방 1e2cd2ed · 2026-11-18 UTC · [Opus] · Fable 미검증(자체 검증) — 기록·도움말 문구·검사기 3개, 제품 코드 0줄)
