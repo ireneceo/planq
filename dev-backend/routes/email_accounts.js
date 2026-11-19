@@ -389,6 +389,7 @@ router.post('/:businessId/email-accounts/:id/test', authenticateToken, checkBusi
     // imap-simple 으로 1회 connect → disconnect (10초 timeout)
     let connOk = false;
     let errMsg = null;
+    let errCode = null;
     try {
       // 길(직접 / 한국 중계)은 수신과 같은 규칙 — services/mailRoute 한 곳
       const guard = await assertOutboundHostAllowed(acc.imap_host, Number(acc.imap_port) || 993);
@@ -400,6 +401,8 @@ router.post('/:businessId/email-accounts/:id/test', authenticateToken, checkBusi
       connOk = true;
     } catch (e) {
       errMsg = e.message;
+      // 응답 없음 = 해외 접속 차단 의심 → 화면이 «허용 요청서» 를 낸다. 중계를 거친 실패(pqCode)는 한국 IP 로도 안 된 것이라 다른 코드.
+      if (require('../services/mailRoute').isUnreachable(e)) errCode = e.pqCode ? 'imap_unreachable_relay' : 'imap_unreachable';
     }
     // 보내기도 같이 본다 — 받기만 되는 계정을 «정상» 이라 알려 주면 거짓이다(2026-09-21 운영 네이버 실측)
     let smtpOk = null; let smtpCode = null;
@@ -414,7 +417,7 @@ router.post('/:businessId/email-accounts/:id/test', authenticateToken, checkBusi
       });
       smtpOk = sv.ok; smtpCode = sv.ok ? null : sv.code;
     }
-    successResponse(res, { ok: connOk && smtpOk !== false, imap_ok: connOk, smtp_ok: smtpOk, error: errMsg, smtp_error: smtpCode });
+    successResponse(res, { ok: connOk && smtpOk !== false, imap_ok: connOk, smtp_ok: smtpOk, error: errMsg, error_code: errCode, smtp_error: smtpCode });
   } catch (err) { next(err); }
 });
 

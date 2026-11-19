@@ -31,3 +31,15 @@
 
 ## 완료 검증이 볼 것
 요청서 IP = 운영에서 실제로 나가는 IP(외부 실측) · 개발·중계 IP 0 · 타임아웃일 때만 요청서(비번 오류·거절엔 안 뜸, 양성·음성 대조) · PlanQ 발송 메일 0(mailto 만) · 비밀번호·중계 주소·MAIL_RELAY_URL 미노출 · ko/en 패리티 · 3폭 복사 동작 · 열린 뒤 경로 direct 전환·알림 1회.
+
+## 구현 (2026-11-19 · Irene «권고대로» · [Opus] · Fable 미검증(자체 검증))
+- 1 출구 IP 실측: 운영에서 바깥으로 `curl -4` = **87.106.78.146**, `curl -6` 없음(IPv6 출구 없음) · 개발 87.106.11.184.
+  값은 `services/mailEgress.js` 한 곳(`.env MAIL_EGRESS_IPS` 우선, 없으면 운영만 기본값) → `GET /api/businesses/:id/email-accounts/egress`(로그인+멤버, 파일은 `routes/email_account_notify.js` — email_accounts.js god-file 500줄).
+  ★ 서버를 새로 바꾸면 IP 가 바뀐다 — 그때 mailEgress 기본값을 고치고, 이미 허용받은 고객에게 알릴 길(공개 IP 페이지 e)을 같이 만든다.
+- 2 요청서: `pages/Settings/MailAllowlistRequest.tsx` — `imap_unreachable`·`smtp_unreachable` 일 때만(중계 실패 *_relay·비번 오류·거절 제외). 등록·편집 폼 오류 아래 + 계정 카드 [연결 테스트] 결과 아래. 한국어/English 고르기 · [요청서 복사] · [메일 앱으로 열기](mailto) · [다시 확인](= 저장 검사 / 연결 테스트 다시). PlanQ 발송 0.
+  [연결 테스트] 응답에 `error_code` 추가(받기 응답 없음 → `imap_unreachable`) — 카드 실패 문구도 그 코드의 안내문으로.
+- 3 열리면 알림: **안 만듦** — 등록이 막힌 계정은 행이 없어 재확인할 대상이 없고, 등록된 계정은 동기화가 성공하면 오류 표시가 저절로 사라진다. 중계→직접 전환 알림은 중계가 켜질 때(서울 VM) 같이 본다.
+- 4 업체별 관리 화면 안내: **안 만듦** — 실제로 확인한 업체가 아직 없다(Fable: 추측 경로 금지). 확인되면 MailAllowlistRequest 에 업체별 한 줄.
+- 실측: 실HTTP — egress 200 `["87.106.11.184"]` · 무토큰 401 · 남의 워크스페이스 403 · 막힌 서버(1.234.54.22) 등록 400 `imap_unreachable`(10.0초) · 틀린 비번(naver) 400 `naver_app_password_required`(요청서 안 뜸) · 연결 테스트 `error_code:imap_unreachable, smtp_error:smtp_unreachable`(20.0초).
+  화면 3폭(1440·820·390): 요청서 보임 · IP·받기 993·보내기 587 포함 · 운영 IP 0(개발) · 비밀번호·중계 문자열 0 · mailto 형식 · 버튼 5개 모두 elementFromPoint 맞음 · 가로 넘침 0 · English 전환.
+  build EXIT 0 · guard 85/86(전과 같음) · i18n·parity 통과. 확인용 계정 id 1223 `[확인용] 해외 접속 막는 메일 서버`(ws 6, 꺼진 계정 — 동기화 안 돎).

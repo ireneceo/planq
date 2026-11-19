@@ -10,7 +10,7 @@
 - 운영 반영: Q note 녹음 이탈 보호(61e79c81)는 다음 배포 때
 
 ### 다음 할 일
-- Irene 할 일 todomwn6jg0o «ChatGPT 에서 PlanQ 연결 끊고 다시 연결하기 (다음 배포 뒤)»
+- Irene 할 일 todomwn6jg0o «ChatGPT 에서 PlanQ 앱 [새로고침] (그룹 만들기 거절되면 다시 연결)» — 고침 5441e14b 는 11-19 10:21 UTC 운영 배포됨 → 지금 할 수 있음 (11-19 점검)
 - Q note 녹음 이탈 보호 확인 못 한 것: 데스크탑 대화창 실기기 · 워크스페이스/계정 전환 · 프로젝트 탭 노트 녹음
 - secrets 워크스페이스 백업 검사 120초 시간초과가 또 나면 그 검사의 느린 지점 보기
 
@@ -268,10 +268,11 @@
 - 이 방에서 Play 콘솔 상태를 읽을 길이 없다(서버에 Play API 열쇠 없음) — 결과 확인 못 함
 - 거부되면: 거부 문구로 `dev-frontend/android` 설정·`scripts/android-beta-check.js` 맞춤 · 통과·게시 뒤: 폰 «공유 → PlanQ» 실기기 결과만 여기 적음
 
-### 답 기다림 — 메일 서버 «허용 요청서» 만들기 (방 83e3744f · 2026-11-19 · [Opus] · Fable decision BUILD-NOW a·d·f)
-- 무엇: 해외 접속 막힌 메일 서버에 고객이 관리자에게 보낼 «우리 서버 IP 허용 요청서» 를 화면이 다 써 주기 + [다시 확인] + 열리면 알림. 판정·순서 `docs/MAIL_ALLOWLIST_REQUEST_DESIGN.md`.
-- 왜 묻나: 중 규모 기능(서버·화면 여러 파일) — CLAUDE.md 규모별 «설계 요약 → 승인». 첫 단계로 운영 서버에서 실제로 나가는 IP(v4/v6)를 읽기로 재야 함.
-- 답이 오면: 예 → 1 운영 출구 IP 실측 → 2 요청서 → 3 다시 확인·알림 → 4 업체 2~3곳 → Fable 완료 검증. 아니오 → 문서만 남김.
+### ✅ 메일 서버 «접속 허용 요청서» (방 83e3744f · 2026-11-19 · [Opus] · Fable decision BUILD-NOW → Irene «권고대로» · Fable 미검증(자체 검증))
+- Irene «메일서버 관리자에게 우리 서버 IP 열어 달라고 … 자동화 가능해?» → Fable: 상대 서버를 사람 손 없이 열 방법은 없다 · 요청서 다 써 주기 + 다시 확인까지 자동화.
+- 막히면(응답 없음) 등록 폼·[연결 테스트] 결과 아래 요청서(IP·포트·서버 · 한/영 · 복사 · 메일 앱으로 열기 · 다시 확인). PlanQ 는 대신 보내지 않음.
+- 출구 IP 한 곳 `services/mailEgress.js`(운영 87.106.78.146 실측 · IPv6 없음). 업체별 안내·열리면 알림은 안 만듦(이유 `docs/MAIL_ALLOWLIST_REQUEST_DESIGN.md` 구현 절).
+- 확인용 계정 1223(ws 6) · 운영 반영: 다음 배포 때(.env 추가 불필요).
 
 ### 🕓 나중에 — 메일 한국 중계(B안): 코드 완료 · 서울 서버 기다림 (방 a0a49cdb · 2026-11-17 · [Opus] · Fable 설계 DESIGN-FIX 반영 · 완료 검증 PASS(꺼진 채 배포) · 켜기 전 차단 A 는 2b918ee2 로 고침 — VM 뒤 Fable 재검증)
 - Irene «권고대로» B안. 설계 `docs/MAIL_KR_RELAY_DESIGN.md` · 코드 f255e762(`services/mailRoute` 한 곳 · `email_accounts.connect_route` · 운영 이관 `migrate-mail-connect-route.js` 배포 슬롯 등록).

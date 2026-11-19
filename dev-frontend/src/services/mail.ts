@@ -130,9 +130,16 @@ export async function deleteEmailAccount(businessId: number, id: number): Promis
   await handle(r);
 }
 
-export async function testEmailAccount(businessId: number, id: number): Promise<{ ok: boolean; error: string | null; imap_ok?: boolean; smtp_ok?: boolean | null; smtp_error?: string | null }> {
+export async function testEmailAccount(businessId: number, id: number): Promise<{ ok: boolean; error: string | null; error_code?: string | null; imap_ok?: boolean; smtp_ok?: boolean | null; smtp_error?: string | null }> {
   const r = await apiFetch(`/api/businesses/${businessId}/email-accounts/${id}/test`, { method: 'POST' });
   return handle(r);
+}
+
+// 메일 서버가 PlanQ 서버 접속을 막을 때 관리자에게 알려 줄 출구 IP — 값은 서버 services/mailEgress 한 곳
+export async function getMailEgressIps(businessId: number): Promise<string[]> {
+  const r = await apiFetch(`/api/businesses/${businessId}/email-accounts/egress`);
+  const d = await handle<{ ips: string[] }>(r);
+  return Array.isArray(d?.ips) ? d.ips : [];
 }
 
 export async function setDefaultEmailAccount(businessId: number, id: number): Promise<EmailAccountRow> {

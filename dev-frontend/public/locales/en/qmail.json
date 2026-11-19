@@ -202,7 +202,26 @@
     "advancedHint": "Most people can leave these as they are. Change them only if your mail host gave you different values.",
     "smtpPwHint": "Leave empty to use the password above.",
     "relayBadge": "via Korea",
-    "relayTip": "This mail server blocks overseas connections, so PlanQ connects through its relay server in Korea. Encryption is kept end to end."
+    "relayTip": "This mail server blocks overseas connections, so PlanQ connects through its relay server in Korea. Encryption is kept end to end.",
+    "allow": {
+      "title": "Access request for your mail server administrator",
+      "why": "Your mail server seems to block connections from PlanQ's servers (outside Korea). Send the request below to your mail administrator or hosting provider. Once they allow it, press [Check again] to connect.",
+      "lang": "Request language",
+      "copy": "Copy request",
+      "copied": "Copied",
+      "mailto": "Open in mail app",
+      "recheck": "Check again",
+      "rechecking": "Checking…",
+      "note": "PlanQ doesn't send this for you — it should come from your own address so the administrator can trust it.",
+      "recv": "Incoming {{host}}:{{port}} (IMAP)",
+      "send": "Outgoing {{host}}:{{port}} (SMTP)",
+      "letter": {
+        "subject": "[Request] Allow mail server access for PlanQ ({{email}})",
+        "body": "Hello. I'm the user of the mail account {{email}}.\n\nI'm trying to connect this account to PlanQ (planq.kr), a work management service, but our mail server does not respond to connections from PlanQ's servers. This is most likely caused by a block on overseas IP addresses.\nCould you allow mail connections from the IP address(es) below?\n\n- IP to allow: {{ips}}\n- Mail server: {{servers}}\n- Used only to receive and send mail for this account.\n- PlanQ will never ask you for a password or any other information.\n\nOnce allowed, I'll reconnect from PlanQ. Thank you."
+      },
+      "langKo": "한국어",
+      "langEn": "English"
+    }
   },
   "folders": {
     "title": "Mailboxes",

@@ -10,6 +10,7 @@ import { useLocalDraft, useDraftKey } from '../../hooks/useLocalDraft';
 import FormDraftNote from '../../components/Common/FormDraftNote';
 import DetailDrawer from '../../components/Common/DetailDrawer';
 import TrustNote from '../../components/Common/TrustNote';
+import MailAllowlistRequest, { ALLOWLIST_CODES } from './MailAllowlistRequest';
 import PlanQSelect, { type PlanQSelectOption } from '../../components/Common/PlanQSelect';
 import {
   createEmailAccount, updateEmailAccount, MAIL_PRESETS,
@@ -138,7 +139,7 @@ const MailAccountEditForm: React.FC<FormProps> = ({ initial, businessId, scope, 
   // ★ 실패는 «어느 칸» 과 함께 둔다 — 옛날엔 폼 맨 아래 상자 하나라 데스크탑·태블릿에서는 스크롤 밖에 떠
   //   «눌렀는데 아무 일도 안 일어남» 으로 읽혔다(2026-11-06 Irene «경고문구가 맨 아래에 떠서 모르는데»).
   //   빈칸·형식(화면 검사) = 그 칸으로 보내고 칸 밑에 이유 / 서버 거절 = 드로어 맨 위 경고 줄 + 문제 칸 표시 + [해당 칸으로 이동].
-  const [error, setError] = useState<{ msg: string; field: MailFormField | null; server: boolean } | null>(null);
+  const [error, setError] = useState<{ msg: string; field: MailFormField | null; server: boolean; code?: string } | null>(null);
   const [twoStep, setTwoStep] = useState<TwoStepAnswer>(null);
   const [guideEmph, setGuideEmph] = useState(false);
   const alertRef = useRef<HTMLDivElement>(null);
@@ -268,7 +269,7 @@ const MailAccountEditForm: React.FC<FormProps> = ({ initial, businessId, scope, 
       if (guide?.twoStepOff) setTwoStep('off');   // 구글이 거절 = 2단계 인증부터 의심 → 그 안내를 펼친다
       setGuideEmph(!!guide?.preset && guide.field === 'imap_password');
       if (!knownPreset && CUSTOM_OPEN_CODES.includes(code)) setAdvanced(true);
-      setError({ msg: guide ? (t(guide.key, guide.def) as string) : code, field: guide?.field || null, server: true });
+      setError({ msg: guide ? (t(guide.key, guide.def) as string) : code, field: guide?.field || null, server: true, code });
     } finally {
       setSubmitting(false);
     }
@@ -298,6 +299,15 @@ const MailAccountEditForm: React.FC<FormProps> = ({ initial, businessId, scope, 
                 </JumpBtn>
               )}
             </ErrorBox>
+          )}
+          {/* 응답 없음 = 해외 접속 차단 의심 → 관리자에게 보낼 허용 요청서 + [다시 확인](= 같은 저장 검사 다시) */}
+          {error?.server && error.code && ALLOWLIST_CODES.includes(error.code) && (
+            <MailAllowlistRequest
+              businessId={businessId} email={form.email}
+              imap={form.imap_host ? { host: form.imap_host, port: Number(form.imap_port) || 993 } : null}
+              smtp={{ host: form.smtp_host || form.imap_host.replace(/^imap\./, 'smtp.'), port: Number(form.smtp_port) || 587 }}
+              onRecheck={onSubmit} rechecking={submitting}
+            />
           )}
           {!isEdit && (
             <ScopeNote $personal={scope === 'personal'}>

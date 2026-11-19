@@ -26,6 +26,7 @@ import { displayName, type NameLocalizable } from '../../utils/displayName';
 import { useSettingsHeaderAction } from './settingsHeaderAction';
 import { formatDay } from '../../utils/dateFormat';
 import { IMAP_ERROR_GUIDE } from './MailConnectGuide';
+import MailAllowlistRequest, { ALLOWLIST_CODES } from './MailAllowlistRequest';
 
 // Gmail 원클릭(OAuth) 연결 버튼 — Google 앱 심사(mail.google.com 제한 scope) 통과 전까지 숨긴다.
 // 심사 완료 시 true 로만 바꾸면 됨. 그 전에도 Gmail 을 포함한 모든 메일이 "앱 비밀번호" 방식으로 정상 연결된다.
@@ -63,7 +64,7 @@ const EmailAccountSettings: React.FC = () => {
   const [editing, setEditing] = useState<EmailAccountRow | 'new' | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [testingId, setTestingId] = useState<number | null>(null);
-  const [testResult, setTestResult] = useState<Record<number, { ok: boolean; error: string | null; imap_ok?: boolean; smtp_ok?: boolean | null; smtp_error?: string | null }>>({});
+  const [testResult, setTestResult] = useState<Record<number, { ok: boolean; error: string | null; error_code?: string | null; imap_ok?: boolean; smtp_ok?: boolean | null; smtp_error?: string | null }>>({});
 
   const load = useCallback(async () => {
     if (!businessId) return;
@@ -244,8 +245,18 @@ const EmailAccountSettings: React.FC = () => {
               /* 받기·보내기를 **따로** 말한다 — 받기는 되는데 보내기만 막힌 계정이 실제로 있었다(2026-09-21) */
               <TestError>✗ {testResult[acc.id].imap_ok && testResult[acc.id].smtp_ok === false
                 ? `${t('settings.testSmtpFail', '받기는 정상이지만 보내기 로그인이 거절됐습니다.') as string} ${smtpErrorText(testResult[acc.id].smtp_error)}`
-                : (testResult[acc.id].error || t('settings.testFail', '연결 실패') as string)}</TestError>
+                : (smtpErrorText(testResult[acc.id].error_code) || testResult[acc.id].error || t('settings.testFail', '연결 실패') as string)}</TestError>
             )
+          )}
+          {/* 받기·보내기 중 하나라도 «응답 없음» — 관리자에게 보낼 허용 요청서 + [다시 확인](= 연결 테스트) */}
+          {testResult[acc.id] && !testResult[acc.id].ok
+            && (ALLOWLIST_CODES.includes(testResult[acc.id].error_code || '') || ALLOWLIST_CODES.includes(testResult[acc.id].smtp_error || '')) && (
+            <MailAllowlistRequest
+              businessId={businessId} email={acc.email} testId={`mail-allowlist-request-${acc.id}`}
+              imap={{ host: acc.imap_host, port: Number(acc.imap_port) || 993 }}
+              smtp={{ host: acc.smtp_host || acc.imap_host.replace(/^imap\./, 'smtp.'), port: Number(acc.smtp_port) || 587 }}
+              onRecheck={() => handleTest(acc.id)} rechecking={testingId === acc.id}
+            />
           )}
         </EmailInfo>
         <CardActions>

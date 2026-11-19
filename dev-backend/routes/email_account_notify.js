@@ -74,4 +74,13 @@ router.put('/:businessId/email-accounts/:id/my-notify', authenticateToken, check
   } catch (err) { next(err); }
 });
 
+// (같은 접두어·email_accounts 보다 앞에 마운트된 이 파일에 둔다 — email_accounts.js 는 god-file 래칫 500줄)
+// 메일 서버가 우리 서버 접속을 막을 때 — 관리자에게 알려 줄 출구 IP(services/mailEgress 한 곳).
+//   비밀 아님(planq.kr DNS 로도 보인다) · 로그인 + 워크스페이스 멤버에게만.
+router.get('/:businessId/email-accounts/egress', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+  try {
+    successResponse(res, { ips: require('../services/mailEgress').egressIps() });
+  } catch (err) { next(err); }
+});
+
 module.exports = router;
